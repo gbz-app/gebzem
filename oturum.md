@@ -82,11 +82,28 @@
 - CLAUDE.md'yi kullanıcı elle düzenlemiş olabilir — Write öncesi Read şart
 - Kullanıcı geri bildirimi: CLAUDE.md + oturum.md HER ÖNEMLİ ADIMDA güncellenecek (sadece tur sonunda değil) — kural CLAUDE.md'ye eklendi
 
+### ✅ CI/CD KURULDU — İLK APK BULUTTAN ÇIKTI (12 Tem, 01:00-02:00)
+**Yapılanlar (detaylı):**
+1. Bilgisayarda Android SDK YOK çıktı (flutter doctor [X]) → yerel APK derlenemedi → çözüm: Codemagic bulut derlemesi
+2. Kullanıcı Codemagic API token verdi (hesap: gebzemapp@outlook.com — ESKİ hesabı varmış, eski "gebzem" app kaydı duruyordu)
+3. **Codemagic temizliği:** eski uygulama API'den silindi (DELETE /apps/:id çalışıyor)
+4. İlk deneme: token'lı HTTPS URL ile app ekleme → **klonlama BAŞARISIZ** ("Failed to clone repository" — Codemagic private repoda URL-gömülü token kabul etmiyor)
+5. **Çözüm: SSH deploy key** — `~/.ssh/gebzem_deploy` üretildi, public key GitHub'a deploy key (read-only) eklendi, app SSH ile yeniden bağlandı → klon OK
+6. `codemagic.yaml` yazıldı (android-build workflow: mac_mini_m2, flutter stable, APK artifact, API_URL=canlı sunucu gömülü)
+7. AndroidManifest: INTERNET izni + usesCleartextTraffic=true (prototip HTTP için) + label "Gebzem"
+8. **DERLEME BAŞARILI** → app-release.apk (50,6 MB) → 7 gün geçerli public link üretildi (POST artifact/public-url) → kullanıcıya verildi
+9. Apple: kullanıcının **Developer Program üyeliği AKTİF** (Mikail Saban). App Store Connect API anahtarı üretildi: Key ID BYRG6K58NK, .p8 dosyası `gbz-a3/AuthKey_BYRG6K58NK.p8` (⚠️ .gitignore'a *.p8 + AuthKey_* eklendi). Issuer ID'nin TAMAMI bekleniyor (dd626245-204... diye başlıyor)
+10. ASC'de eski 2 uygulama kaydı var (Gebzem App, GEBZEM) — API'den silinemiyor, kullanıcıya UI talimatı verildi (App Information → Remove App)
+
+**KRİTİK DERS (kullanıcı haklı çıktı, güven sarsıldı):** iOS'ta "linkten kurulum YOK" dedim — YANLIŞTI. **Ad hoc imzalama + Codemagic OTA linki ile VAR** (eski projede de böyle yapılıyormuş). Özür dilendi, düzeltildi. Bir daha: emin olmadan "yok/olmaz" deme!
+
+**iOS planı (ad hoc, TestFlight'sız):** kullanıcıdan Issuer ID (tam) + iPhone UDID (iTunes/Apple Devices'ta Seri No'ya tıklayınca görünür) → UDID'yi ASC API ile cihaz kaydet → ad hoc provisioning → codemagic.yaml'a ios-adhoc workflow → derleme → OTA kurulum linki
+
 ### ⏭️ Sonraki oturuma devir
-- SIRADA: **Cihazda/emülatörde uçtan uca test** — komut: `cd mobile && flutter run --dart-define=API_URL=http://167.233.229.88:8080` (debug derleme HTTP'ye izin verir). Kullanıcı kendi telefonuyla kayıt olup test kullanıcısıyla mesajlaşabilir
-- Bilinen eksik #1: direct sohbet başlığı listede boş (ListChats'e karşı üyenin adı JOIN'lenecek) ← İLK İŞ
-- Bilinen eksik #2: sohbet içi "typing" olayı karşı üyelere gidiyor ama gönderen adı payload'da yok (grup için gerekir)
-- Sunucu güvenliği (yayın öncesi): ufw firewall + HTTPS (api.gebzem.app + Caddy) + DEV_MODE=false + gerçek SMS
+- Kullanıcı test edecek: Android APK linki verildi (7 gün geçerli; +905305266998'li telefonda)
+- iOS için BEKLENEN: Issuer ID tamamı + iPhone UDID → sonra ad hoc kurulum
+- Bilinen eksik #1: direct sohbet başlığı boş (ListChats'e karşı üye adı) ← kod tarafında İLK İŞ
+- Yayın öncesi: ufw + HTTPS + DEV_MODE=false + gerçek SMS + BTK bildirimi
 - Sonra: sunucuya (gebzem-1) deploy + Google `gebzem` projesi yeniden kurulumu (silindi — kullanıcı onayıyla) + FCM push
 - PowerShell notu: `git push` çıktısı stderr'e gider — başarıyı `git rev-parse origin/main` ile doğrula
 - Kullanıcı KURALLARI: (1) her adımda git push, (2) her oturumda bu dosya güncellenecek, (3) kullanıcı onayı olmadan kurulum/işlem yapma, (4) kısa yaz
