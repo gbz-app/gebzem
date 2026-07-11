@@ -1,0 +1,36 @@
+# GIZLI ANAHTARLAR - ASLA COMMIT EDILMEZ
+.env.infra
+.env
+*.env
+!.env.example
+google-services.json
+GoogleService-Info.plist
+*.keystore
+*.jks
+key.properties
+
+# Go
+backend/bin/
+backend/tmp/
+*.exe
+
+# Flutter/Dart
+mobile/.dart_tool/
+mobile/.flutter-plugins*
+mobile/.packages
+mobile/build/
+mobile/ios/Pods/
+mobile/android/.gradle/
+mobile/android/local.properties
+
+# Node/React
+admin/node_modules/
+admin/.next/
+admin/out/
+
+# IDE / OS
+.idea/
+.vscode/
+*.iml
+Thumbs.db
+.DS_Store
