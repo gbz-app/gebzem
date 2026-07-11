@@ -41,5 +41,9 @@ workflows:
           flutter build ipa --release \
             --dart-define=API_URL=http://167.233.229.88:8080 \
             --export-options-plist=/Users/builder/export_options.plist
+          echo "--- IPA konumu ---"
+          find . -name "*.ipa" -o -name "*.xcarchive" -maxdepth 5 | head -5
     artifacts:
       - mobile/build/ios/ipa/*.ipa
+      - mobile/build/**/*.ipa
+      - flutter_build/**/*.ipa
