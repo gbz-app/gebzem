@@ -109,11 +109,21 @@
 7. **iOS derleme #1: adımlar başarılı AMA artifact 0 adet** — IPA glob'u eşleşmedi. Düzeltme: artifact yolları genişletildi + `find` ile konum loglama → **derleme #2 çalışıyor** (6a52cb6790a34e4431e6c1f3)
 8. ⚠️ DERS: Codemagic build logları API'den okunamıyor (logUrl boş) — hata ayıklama için script içine echo/find koy
 
+### ✅ iOS IPA ÜRETİLDİ + indir.gebzem.app YAYINDA (12 Tem, 02:30)
+9. **iOS derleme #2 de 0 artifact verdi** → step logu (subactions[].logUrl) çekildi → gerçek hata: `exportArchive No signing certificate "iOS Distribution" found`. Sebep: sertifika keychain'e yüklenmemiş
+10. **Düzeltme:** codemagic.yaml'a `keychain initialize` + `keychain add-certificates` eklendi → **derleme #3 BAŞARILI: gebzem.ipa (7 MB)** ✅
+11. Kullanıcı isteği: linkler gebzem.app üzerinden olsun → **R2 `gebzem-dist` bucket + custom domain `indir.gebzem.app`** kuruldu
+    - ⚠️ DERS: custom domain POST'tan sonra `enabled` boş kalıyor → `PUT /r2/buckets/{b}/domains/custom/{domain}` ile açmak ŞART (route `custom_domains` DEĞİL, `domains/custom`)
+    - ⚠️ R2 custom domain kök dizinde index.html servis ETMEZ → link `/index.html` ile verilmeli
+12. R2'ye yüklendi (SigV4 Node scripti — scratchpad/r2put.js): gebzem.apk (50,6 MB), gebzem.ipa (7 MB), manifest.plist (itms-services), index.html (kurulum sayfası)
+13. **Doğrulandı (HTTP 200):** indir.gebzem.app/index.html, /manifest.plist, /gebzem.apk, /gebzem.ipa
+14. Model olayı: Anthropic güvenlik filtresi mesajı yanlış işaretledi → Fable 5'ten Opus 4.8'e otomatik geçildi (kullanıcı Fable 5 ödediği için rahatsız oldu; `/model fable` ile dönülebilir, `/feedback` ile bildirilebilir)
+
 ### ⏭️ Sonraki oturuma devir
-- iOS derleme #2 sonucu bekleniyor → IPA artifact → public link → kullanıcı iPhone Safari'den kuracak (ad hoc; cihaz zaten kayıtlı)
-- Kullanıcı test edecek: Android APK linki verildi (7 gün geçerli)
-- Kullanıcıdan BEKLENEN: ASC'de 2 eski app kaydını silmesi → sonra 3 eski bundle ID silinecek
-- Bilinen eksik #1: direct sohbet başlığı boş (ListChats'e karşı üye adı) ← kod tarafında İLK İŞ
+- 📲 **KULLANICI TEST EDECEK: https://indir.gebzem.app/index.html** (iPhone → Safari'den aç; Android → APK indir)
+- Kullanıcıdan BEKLENEN: ASC'de 2 eski app kaydını silmesi (Apps → App Information → Remove App) → sonra 3 eski bundle ID (com.gebzem.*) API'den silinecek; ayrıca developer.apple.com → Keys'te eski APNs anahtarları varsa revoke
+- Bilinen eksik #1: direct sohbet başlığı boş (ListChats'e karşı üye adı JOIN) ← kod tarafında İLK İŞ
+- Uygulama ikonu placeholder (Xcode uyarısı verdi) — Faz 2'de özel ikon
 - Yayın öncesi: ufw + HTTPS + DEV_MODE=false + gerçek SMS + BTK bildirimi
 - Sonra: sunucuya (gebzem-1) deploy + Google `gebzem` projesi yeniden kurulumu (silindi — kullanıcı onayıyla) + FCM push
 - PowerShell notu: `git push` çıktısı stderr'e gider — başarıyı `git rev-parse origin/main` ile doğrula
