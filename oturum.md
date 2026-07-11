@@ -44,8 +44,25 @@
 - admin/ yer tutucu (Faz 5)
 - Git: 3 commit push'landı, origin/main doğrulandı
 
+## Oturum 2 — 12 Temmuz 2026
+
+### ✅ Yapılanlar
+- **Backend:** /users uçları eklendi (me, by-phone, profil güncelleme) — derleme OK
+- **Flutter Faz 1 ekranları tamamı yazıldı, analiz TEMİZ:**
+  - Çekirdek: tema (WhatsApp-vari yeşil, dark/light), Dio API istemcisi (10.0.2.2 emülatör varsayılanı, --dart-define=API_URL ile değişir), WebSocket servisi (üstel geri çekilmeli otomatik yeniden bağlanma), güvenli token deposu
+  - Giriş: login, kayıt, OTP (dev modda kod otomatik dolar), şifremi unuttum/yenileme
+  - Ana ekran: 5 sekmeli NavigationBar (Sohbetler aktif; Aramalar/Odalar/Canlı Faz 3-4 yer tutucuları; Profil'de çıkış + jeton bilgisi)
+  - Sohbet listesi: WhatsApp tarzı (okunmamış rozeti, sabitleme ikonu, son mesaj önizleme, Türkçe zaman etiketleri), + butonuyla numaradan yeni sohbet
+  - Sohbet ekranı: balonlar (yeşil/beyaz), tarih çipleri (Bugün/Dün), tikler (gri ✓✓ → okununca mavi), "yazıyor..." göstergesi (2 sn'de bir throttle), otomatik kaydırma
+- Şablon widget_test.dart silindi (MyApp kalktığı için kırıktı)
+
+### ❌ Denenip olmayanlar / öğrenilenler
+- Dart 3.12'de `(_, __)` lint uyarısı veriyor → `(_, _)` wildcard kullan
+- main.dart flutter create'ten kalma — Write'tan önce Read gerekti
+
 ### ⏭️ Sonraki oturuma devir
-- SIRADA: Flutter Faz 1 ekranları (giriş/OTP/kayıt + sohbet listesi + sohbet ekranı) ve backend'i yerelde docker-compose ile ayağa kaldırıp uçtan uca test
+- SIRADA: backend'i yerelde docker-compose ile ayağa kaldır (postgres+redis) → `go run ./cmd/api` → emülatörde uçtan uca test (kayıt→OTP→mesajlaşma). İki emülatör/cihazla karşılıklı mesaj testi
+- Sohbet listesinde direct sohbetin başlığı boş geliyor (karşı tarafın adı gösterilmeli — backend ListChats'e karşı üye adını ekle) ← BİLİNEN EKSİK, ilk iş bu
 - Sonra: sunucuya (gebzem-1) deploy + Google `gebzem` projesi yeniden kurulumu (silindi — kullanıcı onayıyla) + FCM push
 - PowerShell notu: `git push` çıktısı stderr'e gider — başarıyı `git rev-parse origin/main` ile doğrula
 - Kullanıcı KURALLARI: (1) her adımda git push, (2) her oturumda bu dosya güncellenecek, (3) kullanıcı onayı olmadan kurulum/işlem yapma, (4) kısa yaz

@@ -15,6 +15,7 @@ import (
 	"github.com/gbz-app/gebzem/backend/internal/chat"
 	"github.com/gbz-app/gebzem/backend/internal/config"
 	"github.com/gbz-app/gebzem/backend/internal/database"
+	"github.com/gbz-app/gebzem/backend/internal/users"
 )
 
 func main() {
@@ -46,6 +47,7 @@ func main() {
 
 	authH := auth.NewHandler(db, cfg)
 	chatH := chat.NewHandler(db, hub)
+	usersH := users.NewHandler(db)
 
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID, middleware.RealIP, middleware.Logger, middleware.Recoverer)
@@ -66,6 +68,9 @@ func main() {
 	// korumali uclar
 	r.Group(func(r chi.Router) {
 		r.Use(auth.Middleware(cfg.JWTSecret))
+		r.Get("/users/me", usersH.Me)
+		r.Patch("/users/me", usersH.UpdateMe)
+		r.Get("/users/by-phone", usersH.ByPhone)
 		r.Get("/ws", chatH.WebSocket)
 		r.Get("/chats", chatH.ListChats)
 		r.Post("/chats/direct", chatH.CreateDirect)
