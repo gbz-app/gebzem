@@ -119,11 +119,23 @@
 13. **Doğrulandı (HTTP 200):** indir.gebzem.app/index.html, /manifest.plist, /gebzem.apk, /gebzem.ipa
 14. Model olayı: Anthropic güvenlik filtresi mesajı yanlış işaretledi → Fable 5'ten Opus 4.8'e otomatik geçildi (kullanıcı Fable 5 ödediği için rahatsız oldu; `/model fable` ile dönülebilir, `/feedback` ile bildirilebilir)
 
+### ✅ PUSH BİLDİRİM ALTYAPISI KURULDU (12 Tem, 02:40)
+1. ASC'deki 2 eski app kaydı Apple tarafından SİLİNEMİYOR ("This app is unable to be removed" — build/IAP geçmişi olan kayıtlar; zararsız hayalet, bırakıldı). Eski APNs anahtarı GebzemPush görüldü → kullanıcı revoke edip YENİ anahtar (GebzemPush2) oluşturacak — .p8 BEKLENİYOR
+2. **Google projesi sıfırdan: `gebzem-app`** ("gebzem" ID'si 30 gün silinme beklemede olduğundan kullanılamadı). Firebase + fatura + FCM API tamam
+3. Firebase'e Android (app.gebzem) + iOS (app.gebzem) kayıtlı; google-services.json → mobile/android/app/, GoogleService-Info.plist → mobile/ios/Runner/ (⚠️ artık repoda — bunlar gizli değil, APK içine gömülen kimlikler)
+4. lib/firebase_options.dart ELLE yazıldı (flutterfire CLI'sız — config değerlerinden; iOS pbxproj değişikliği gerekmedi çünkü options programatik veriliyor)
+5. Servis hesabı: gebzem-fcm@gebzem-app + roles/firebasecloudmessaging.admin (⚠️ roles/cloudmessaging.admin DEĞİL — desteklenmiyor) + fcm-sa.json (gitignore'da; sunucuya scp'lendi, compose volume: /secrets/fcm-sa.json)
+6. **Backend:** internal/push/fcm.go (FCM v1, SA JWT — ek bağımlılıksız golang-jwt RS256 + oauth2 token cache; UNREGISTERED token otomatik silme), migration 002 device_tokens, POST /users/me/fcm-token, SendMessage'da async NotifyUsers (gönderen adı + önizleme)
+7. **Flutter:** firebase_core + firebase_messaging; main'de Firebase.initializeApp; girişte bildirim izni + token kaydı + onTokenRefresh; gradle: settings.gradle.kts + app/build.gradle.kts'e com.google.gms.google-services
+8. Sunucu yeniden deploy edildi: migration geçti, "push: aktif (proje: gebzem-app)" logda ✅
+9. Yeni Android+iOS derlemeleri tetiklendi (6a52d666..., 6a52d667...) — bitince indir.gebzem.app güncellenecek
+
 ### ⏭️ Sonraki oturuma devir
-- 📲 **KULLANICI TEST EDECEK: https://indir.gebzem.app/index.html** (iPhone → Safari'den aç; Android → APK indir)
-- Kullanıcıdan BEKLENEN: ASC'de 2 eski app kaydını silmesi (Apps → App Information → Remove App) → sonra 3 eski bundle ID (com.gebzem.*) API'den silinecek; ayrıca developer.apple.com → Keys'te eski APNs anahtarları varsa revoke
-- Bilinen eksik #1: direct sohbet başlığı boş (ListChats'e karşı üye adı JOIN) ← kod tarafında İLK İŞ
-- Uygulama ikonu placeholder (Xcode uyarısı verdi) — Faz 2'de özel ikon
+- Derlemeler bitince: artifact indir → R2'ye yükle (scratchpad/r2put.js + files.json) → indir.gebzem.app güncel
+- **Android push bu yeni APK ile ÇALIŞIR** (uçtan uca test: iki cihaz, biri uygulama kapalı)
+- **iOS push için BEKLENEN:** kullanıcının yeni APNs anahtarı (.p8 + Key ID) → Firebase Console'a yükleme (Project settings → Cloud Messaging → Apple apps) + bundle'a PUSH_NOTIFICATIONS capability (ASC API) + Runner.entitlements (aps-environment) → yeni iOS derlemesi
+- Kullanıcı testi: https://indir.gebzem.app/index.html (yeni sürümler yüklenince)
+- Bilinen eksik #1: direct sohbet başlığı boş (ListChats karşı üye adı) ← kod tarafında İLK İŞ
 - Yayın öncesi: ufw + HTTPS + DEV_MODE=false + gerçek SMS + BTK bildirimi
 - Sonra: sunucuya (gebzem-1) deploy + Google `gebzem` projesi yeniden kurulumu (silindi — kullanıcı onayıyla) + FCM push
 - PowerShell notu: `git push` çıktısı stderr'e gider — başarıyı `git rev-parse origin/main` ile doğrula
