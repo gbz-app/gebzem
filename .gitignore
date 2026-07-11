@@ -10,6 +10,7 @@ GoogleService-Info.plist
 key.properties
 *.p8
 AuthKey_*
+*.pem
 
 # Go
 backend/bin/
