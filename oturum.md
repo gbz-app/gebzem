@@ -99,9 +99,20 @@
 
 **iOS planı (ad hoc, TestFlight'sız):** kullanıcıdan Issuer ID (tam) + iPhone UDID (iTunes/Apple Devices'ta Seri No'ya tıklayınca görünür) → UDID'yi ASC API ile cihaz kaydet → ad hoc provisioning → codemagic.yaml'a ios-adhoc workflow → derleme → OTA kurulum linki
 
+### ✅ APPLE TEMİZLİĞİ + iOS KURULUMU (12 Tem, 02:00+)
+1. Kullanıcı Issuer ID verdi: dd626245-204e-4b73-a98a-3fa9241b4a47 (.env.infra'da). ASC API erişimi Node scriptiyle kuruldu (JWT ES256 imzalama — scratchpad/asc.js; PS 5.1'de ES256 zor, Node crypto.sign + ieee-p1363 çözümü)
+2. **Apple temizliği:** 4 eski profil silindi, eski DISTRIBUTION sertifikası iptal edildi. 3 eski bundle ID (com.gebzem.social/app/app2) App Store kayıtlarına bağlı — kullanıcı 2 eski app kaydını (Gebzem App + GEBZEM) UI'dan silince (App Information → Remove App) bunlar da silinecek ← BEKLİYOR
+3. **iPhone (XS Max) zaten cihaz kayıtlıymış** — UDID: 00008020-0018258A0262002E, ENABLED. UDID istemeye gerek kalmadı
+4. Yeni bundle ID: **app.gebzem** (T3ARK697ZH)
+5. Codemagic'e güvenli değişkenler yüklendi (appstore_credentials grubu): ISSUER_ID, KEY_IDENTIFIER, P8, CERTIFICATE_PRIVATE_KEY (yeni RSA — cert_key.pem, gitignore'da). ⚠️ DERS: Codemagic API çok satırlı değerlerde \r kabul etmiyor — `-replace "`r",""` şart (ilk deneme 400 verdi)
+6. codemagic.yaml'a **ios-adhoc** workflow eklendi (fetch-signing-files --create + xcode-project use-profiles + flutter build ipa)
+7. **iOS derleme #1: adımlar başarılı AMA artifact 0 adet** — IPA glob'u eşleşmedi. Düzeltme: artifact yolları genişletildi + `find` ile konum loglama → **derleme #2 çalışıyor** (6a52cb6790a34e4431e6c1f3)
+8. ⚠️ DERS: Codemagic build logları API'den okunamıyor (logUrl boş) — hata ayıklama için script içine echo/find koy
+
 ### ⏭️ Sonraki oturuma devir
-- Kullanıcı test edecek: Android APK linki verildi (7 gün geçerli; +905305266998'li telefonda)
-- iOS için BEKLENEN: Issuer ID tamamı + iPhone UDID → sonra ad hoc kurulum
+- iOS derleme #2 sonucu bekleniyor → IPA artifact → public link → kullanıcı iPhone Safari'den kuracak (ad hoc; cihaz zaten kayıtlı)
+- Kullanıcı test edecek: Android APK linki verildi (7 gün geçerli)
+- Kullanıcıdan BEKLENEN: ASC'de 2 eski app kaydını silmesi → sonra 3 eski bundle ID silinecek
 - Bilinen eksik #1: direct sohbet başlığı boş (ListChats'e karşı üye adı) ← kod tarafında İLK İŞ
 - Yayın öncesi: ufw + HTTPS + DEV_MODE=false + gerçek SMS + BTK bildirimi
 - Sonra: sunucuya (gebzem-1) deploy + Google `gebzem` projesi yeniden kurulumu (silindi — kullanıcı onayıyla) + FCM push
