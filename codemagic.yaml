@@ -1,0 +1,21 @@
+# Gebzem CI/CD — Codemagic bulut derlemeleri
+# android-build: test APK'si uretir (canli sunucuya bagli)
+# ios-build: Apple .p8 anahtari eklenince aktiflesecek (TestFlight)
+
+workflows:
+  android-build:
+    name: Android APK (test)
+    instance_type: mac_mini_m2
+    max_build_duration: 30
+    environment:
+      flutter: stable
+      java: 17
+    scripts:
+      - name: Bagimliliklar
+        script: cd mobile && flutter pub get
+      - name: APK derle (canli sunucu adresiyle)
+        script: |
+          cd mobile
+          flutter build apk --release --dart-define=API_URL=http://167.233.229.88:8080
+    artifacts:
+      - mobile/build/app/outputs/flutter-apk/app-release.apk
