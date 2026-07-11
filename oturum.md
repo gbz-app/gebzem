@@ -60,9 +60,33 @@
 - Dart 3.12'de `(_, __)` lint uyarısı veriyor → `(_, _)` wildcard kullan
 - main.dart flutter create'ten kalma — Write'tan önce Read gerekti
 
+### ✅ SUNUCUYA DEPLOY EDİLDİ VE CANLIDA TEST EDİLDİ (12 Tem, 22:15)
+**Yapılan adımlar (sırayla, detaylı):**
+1. `backend/Dockerfile` yazıldı (çok aşamalı: golang:1.26-alpine build → alpine çalışma imajı)
+2. `docker-compose.yml`'e `api` servisi eklendi (port 8080 dışa açık; JWT_SECRET .env'den; DEV_MODE=true — OTP yanıtla dönüyor); `.env.example` eklendi
+3. Commit + push (8ecd992)
+4. Sunucuda: `/opt/gebzem/repo`'ya token'lı HTTPS ile klon; `backend/.env` içine `openssl rand -hex 32` ile JWT_SECRET üretildi
+5. `docker compose up -d --build` → 3 konteyner ayakta: api + postgres:17 + redis:7 (pg/redis sadece 127.0.0.1'e bağlı)
+6. Migration otomatik koştu (schema_migrations tablosu + 001_init.sql)
+
+**CANLI TEST SONUÇLARI (dışarıdan, http://167.233.229.88:8080):**
+- /health → ok ✅
+- Kayıt +905000000001 → dev_otp döndü → verify → token ✅
+- /users/me → isim + **100 jeton kayıt bonusu ledger'dan işlendi** ✅
+- 2. kullanıcı (+905000000002) → numaradan bulma → direct sohbet → **iki yönlü mesajlaşma** ✅
+- Sohbet listesi: okunmamış=1, son mesaj doğru ✅
+- Test kullanıcıları canlıda duruyor: +905000000001 / +905000000002 (şifre: test123)
+
+**Öğrenilenler:**
+- PowerShell konsolu emojileri ?? gösteriyor (görüntü sorunu; veritabanında UTF-8 doğru)
+- CLAUDE.md'yi kullanıcı elle düzenlemiş olabilir — Write öncesi Read şart
+- Kullanıcı geri bildirimi: CLAUDE.md + oturum.md HER ÖNEMLİ ADIMDA güncellenecek (sadece tur sonunda değil) — kural CLAUDE.md'ye eklendi
+
 ### ⏭️ Sonraki oturuma devir
-- SIRADA: backend'i yerelde docker-compose ile ayağa kaldır (postgres+redis) → `go run ./cmd/api` → emülatörde uçtan uca test (kayıt→OTP→mesajlaşma). İki emülatör/cihazla karşılıklı mesaj testi
-- Sohbet listesinde direct sohbetin başlığı boş geliyor (karşı tarafın adı gösterilmeli — backend ListChats'e karşı üye adını ekle) ← BİLİNEN EKSİK, ilk iş bu
+- SIRADA: **Cihazda/emülatörde uçtan uca test** — komut: `cd mobile && flutter run --dart-define=API_URL=http://167.233.229.88:8080` (debug derleme HTTP'ye izin verir). Kullanıcı kendi telefonuyla kayıt olup test kullanıcısıyla mesajlaşabilir
+- Bilinen eksik #1: direct sohbet başlığı listede boş (ListChats'e karşı üyenin adı JOIN'lenecek) ← İLK İŞ
+- Bilinen eksik #2: sohbet içi "typing" olayı karşı üyelere gidiyor ama gönderen adı payload'da yok (grup için gerekir)
+- Sunucu güvenliği (yayın öncesi): ufw firewall + HTTPS (api.gebzem.app + Caddy) + DEV_MODE=false + gerçek SMS
 - Sonra: sunucuya (gebzem-1) deploy + Google `gebzem` projesi yeniden kurulumu (silindi — kullanıcı onayıyla) + FCM push
 - PowerShell notu: `git push` çıktısı stderr'e gider — başarıyı `git rev-parse origin/main` ile doğrula
 - Kullanıcı KURALLARI: (1) her adımda git push, (2) her oturumda bu dosya güncellenecek, (3) kullanıcı onayı olmadan kurulum/işlem yapma, (4) kısa yaz
