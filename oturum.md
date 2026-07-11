@@ -35,7 +35,17 @@
 - CLAUDE.md oluşturuldu (zorunlu kurallar + stack + araç yolları)
 - Karar: prototipte ödeme yok → bedava jeton + ledger
 
+### ✅ Ek: Kodlama başladı (23:00+)
+- `ozellik-listesi.md` oluşturuldu ve kullanıcı onayladı (görüntülü arama MVP'de — kullanıcı özellikle teyit istedi)
+- CLAUDE.md oluşturuldu, kullanıcı onayladı
+- **Monorepo kuruldu ve GitHub'da: https://github.com/gbz-app/gebzem (private)** — gbz-a3 klasörü repo kökü; .gitignore `.env.infra`yı koruyor (doğrulandı)
+- **Backend Faz 1 iskeleti yazıldı ve DERLENDİ:** Go + chi + pgx + go-redis + gorilla/websocket. Uçlar: /auth (register, verify, login, forgot, reset — OTP dev modda yanıtta dönüyor), /chats (listele, direct aç, mesaj gönder/çek, okundu işaretle), /ws (WebSocket + typing + Redis pub/sub hub). Şema: users, otp_codes, chats (Telegram tek-model), chat_members, messages, message_receipts (tikler), blocks, coin_ledger (kayıt bonusu 100 jeton)
+- **Flutter projesi oluşturuldu:** mobile/ (org: app.gebzem, android+ios) + temel paketler (riverpod, go_router, dio, web_socket_channel, secure_storage, intl)
+- admin/ yer tutucu (Faz 5)
+- Git: 3 commit push'landı, origin/main doğrulandı
+
 ### ⏭️ Sonraki oturuma devir
-- Google `gebzem` projesi yeniden kurulacak (silindi) — kullanıcı onayıyla
-- Sırada: özellik listesi/MVP tablosunun kesinleştirilmesi → GitHub repoları + proje iskeletleri → kodlama Faz 1
+- SIRADA: Flutter Faz 1 ekranları (giriş/OTP/kayıt + sohbet listesi + sohbet ekranı) ve backend'i yerelde docker-compose ile ayağa kaldırıp uçtan uca test
+- Sonra: sunucuya (gebzem-1) deploy + Google `gebzem` projesi yeniden kurulumu (silindi — kullanıcı onayıyla) + FCM push
+- PowerShell notu: `git push` çıktısı stderr'e gider — başarıyı `git rev-parse origin/main` ile doğrula
 - Kullanıcı KURALLARI: (1) her adımda git push, (2) her oturumda bu dosya güncellenecek, (3) kullanıcı onayı olmadan kurulum/işlem yapma, (4) kısa yaz
