@@ -1,5 +1,21 @@
 # Gebzem backend altyapisi — Hetzner sunucuda ve yerel gelistirmede ayni dosya
+# Sunucuda: bu klasorde `JWT_SECRET=...` iceren bir .env dosyasi olmali (git'e girmez)
 services:
+  api:
+    build: .
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://gebzem:gebzem@postgres:5432/gebzem?sslmode=disable
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: ${JWT_SECRET}
+      DEV_MODE: "true"   # prototip: OTP SMS yerine API yanitinda doner
+      PORT: "8080"
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+      - redis
+
   postgres:
     image: postgres:17-alpine
     restart: unless-stopped
