@@ -47,6 +47,9 @@ dependencies:
   flutter_secure_storage: ^9.2.4
   # Tarih/saat bicimlendirme
   intl: ^0.20.2
+  # Push bildirimleri
+  firebase_core: ^3.13.0
+  firebase_messaging: ^15.2.5
 
 dev_dependencies:
   flutter_test:

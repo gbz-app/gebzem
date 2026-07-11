@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'core/push.dart';
 import 'core/ws.dart';
 import 'features/auth/auth_provider.dart';
 import 'features/auth/forgot_screen.dart';
@@ -13,9 +14,10 @@ import 'features/home/home_screen.dart';
 final routerProvider = Provider<GoRouter>((ref) {
   final auth = ref.watch(authProvider);
 
-  // girisliyken WebSocket'i ac
+  // girisliyken WebSocket'i ac + push kaydini yap
   if (auth != null && auth.isNotEmpty) {
     ref.read(wsProvider).connect();
+    ref.read(pushProvider).register();
   }
 
   return GoRouter(

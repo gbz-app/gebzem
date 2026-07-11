@@ -93,6 +93,32 @@ func (h *Handler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 	h.Me(w, r)
 }
 
+// POST /users/me/fcm-token — cihaz push token kaydi
+func (h *Handler) SaveFCMToken(w http.ResponseWriter, r *http.Request) {
+	userID := auth.UserID(r.Context())
+	var req struct {
+		Token    string `json:"token"`
+		Platform string `json:"platform"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Token == "" {
+		writeErr(w, http.StatusBadRequest, "token gerekli")
+		return
+	}
+	if req.Platform != "ios" {
+		req.Platform = "android"
+	}
+	_, err := h.db.Exec(r.Context(), `
+		INSERT INTO device_tokens (user_id, token, platform)
+		VALUES ($1,$2,$3)
+		ON CONFLICT (user_id, token) DO UPDATE SET platform=$3, updated_at=now()`,
+		userID, req.Token, req.Platform)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "kaydedilemedi")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"message": "ok"})
+}
+
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)

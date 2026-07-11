@@ -15,6 +15,7 @@ import (
 	"github.com/gbz-app/gebzem/backend/internal/chat"
 	"github.com/gbz-app/gebzem/backend/internal/config"
 	"github.com/gbz-app/gebzem/backend/internal/database"
+	"github.com/gbz-app/gebzem/backend/internal/push"
 	"github.com/gbz-app/gebzem/backend/internal/users"
 )
 
@@ -45,8 +46,9 @@ func main() {
 	hub := chat.NewHub(rdb)
 	go hub.Run(ctx)
 
+	pushSender := push.New(db)
 	authH := auth.NewHandler(db, cfg)
-	chatH := chat.NewHandler(db, hub)
+	chatH := chat.NewHandler(db, hub, pushSender)
 	usersH := users.NewHandler(db)
 
 	r := chi.NewRouter()
@@ -70,6 +72,7 @@ func main() {
 		r.Use(auth.Middleware(cfg.JWTSecret))
 		r.Get("/users/me", usersH.Me)
 		r.Patch("/users/me", usersH.UpdateMe)
+		r.Post("/users/me/fcm-token", usersH.SaveFCMToken)
 		r.Get("/users/by-phone", usersH.ByPhone)
 		r.Get("/ws", chatH.WebSocket)
 		r.Get("/chats", chatH.ListChats)

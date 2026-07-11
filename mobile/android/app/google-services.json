@@ -1,0 +1,29 @@
+﻿{
+  "project_info": {
+    "project_number": "119018348571",
+    "project_id": "gebzem-app",
+    "storage_bucket": "gebzem-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:119018348571:android:93289efd96fe0060c998be",
+        "android_client_info": {
+          "package_name": "app.gebzem"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBjaReF8WSRgVCsoAVChk3EEU5qZlm1Zs0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

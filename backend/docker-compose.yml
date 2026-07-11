@@ -10,6 +10,9 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       DEV_MODE: "true"   # prototip: OTP SMS yerine API yanitinda doner
       PORT: "8080"
+      FCM_SA_PATH: /secrets/fcm-sa.json
+    volumes:
+      - ./fcm-sa.json:/secrets/fcm-sa.json:ro
     ports:
       - "8080:8080"
     depends_on:

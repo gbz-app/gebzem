@@ -12,15 +12,17 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/gbz-app/gebzem/backend/internal/auth"
+	"github.com/gbz-app/gebzem/backend/internal/push"
 )
 
 type Handler struct {
-	db  *pgxpool.Pool
-	hub *Hub
+	db   *pgxpool.Pool
+	hub  *Hub
+	push *push.Sender // nil olabilir (push devre disi)
 }
 
-func NewHandler(db *pgxpool.Pool, hub *Hub) *Handler {
-	return &Handler{db: db, hub: hub}
+func NewHandler(db *pgxpool.Pool, hub *Hub, pushSender *push.Sender) *Handler {
+	return &Handler{db: db, hub: hub, push: pushSender}
 }
 
 var upgrader = websocket.Upgrader{
@@ -144,7 +146,27 @@ func (h *Handler) SendMessage(w http.ResponseWriter, r *http.Request) {
 		"reply_to_id": req.ReplyToID, "created_at": createdAt,
 	})
 	h.hub.Publish(r.Context(), &Event{Type: "message.new", ChatID: chatID, Payload: payload, To: members})
-	// TODO Faz 1 sonu: cevrimdisi uyelere FCM push
+
+	// Push bildirimi (async): gonderen adiyla alicilara
+	if h.push != nil {
+		var senderName string
+		h.db.QueryRow(r.Context(), `SELECT name FROM users WHERE id=$1`, userID).Scan(&senderName)
+		preview := req.Content
+		switch req.Type {
+		case "image":
+			preview = "📷 Fotograf"
+		case "video":
+			preview = "🎥 Video"
+		case "audio":
+			preview = "🎤 Sesli mesaj"
+		case "location":
+			preview = "📍 Konum"
+		}
+		if len(preview) > 80 {
+			preview = preview[:80]
+		}
+		go h.push.NotifyUsers(members, senderName, preview, chatID)
+	}
 
 	writeJSON(w, http.StatusCreated, map[string]any{"id": msgID, "created_at": createdAt})
 }
