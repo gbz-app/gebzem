@@ -410,8 +410,45 @@ Karar (araştırma + SDK kaynağı): **1080p yakala, VP8 + simulcast (270/540/10
 8. **Postgres yedeği yok.**
 (Tam liste + dosya:satir: workflow çıktısı `tasks/wpssyf65x.output`)
 
+---
+
+## Oturum 7 — CallKit çift ekran + ses + iptal (kök çözüm, loglarla)
+
+**Kullanıcı şikayetleri:** (1) telefon kapalıyken arama gelince açınca **iptal ediyor**;
+(2) uygulama açıkken **hem uygulama içi ekran hem yukarıda CallKit popup** (çift) + bazen ses gitmiyor.
+
+**Loglarla kanıtlanan kök nedenler (Sentry + API + LiveKit):**
+- API logu: aynı aramaya **2 kabul** (200 sonra **409**), her arama bitince **5-6 end**.
+- LiveKit: medya **AKIYOR** (6 participant active, 18 mediaTrack published) → "ses gitmiyor" WebRTC değil,
+  **iOS'ta CallKit'in AVAudioSession'ı ele geçirip LiveKit sesini kesmesi** (uygulama açıkken çift ekran yüzünden).
+- Sentry: `FormatException [ACTION_CALL_TOGGLE_AUDIO_SESSION] id null` (CallKit ses oturumu olayı).
+- **ASIL KÖK:** backend `Start`, callee **online mı offline mı** bakmadan hem WS hem push gönderiyordu
+  → uygulama açıkken WS (uygulama içi ekran) + push (CallKit popup) = **çift**.
+
+**Uygulanan kök çözümler (Madde 1-3, canlıda doğrulandı):**
+1. **Backend presence:** `Start` artık `hub.Online(calleeID)` bakıyor → **online: sadece WS overlay,
+   push YOK** (CallKit gösterilmez → çift ekran + iOS ses çakışması biter); **offline: sadece push/CallKit**.
+   `hub.Online()` zaten vardı, çağrılmıyordu. **Canlı test:** B online→`online=true` push gitmedi;
+   B offline→`online=false` push gitti. ✅
+2. **Dart idempotentlik:** `answer()` callId kilidi (null dönerse çağıran ekran açmaz → çift 409 yok);
+   `end()` callId kilidi (5-6 yerine tek REST); CallKit `bitir→endCall→ended→end` döngüsü kırıldı
+   (`_bizBitirdik`); `FormatException` yutuldu (`onError`).
+3. **api.dart 401:** `/calls/` uçları artık 401'de tüm oturumu SİLMİYOR → "kapalıyken kabul iptal" bitti
+   (DB truncate sonrası geç answer 401 → tüm oturumu siliyordu → iptal gibi görünüyordu).
+
+**Madde 4 (izole, sonraki tur):** kilit ekranından kabul edilen aramada iOS ses koordinasyonu
+(`AppDelegate` + `RTCAudioSession.useManualAudio` + `didActivateAudioSession` + MethodChannel).
+RİSKLİ (`import WebRTC` + Flutter 3.44 implicit engine MethodChannel) → çalışan Madde 1-3'ü bozmamak
+için AYRI build'de. Detay plan: workflow `wbe4q71q3` çıktısı (Madde 2, tam kod).
+
+⚠️ **Android build 143 (iptal/süre):** ilk kez webrtc+callkit native C++ (CMake) derlemesi ~15dk sürüp
+runner sınırına takıldı; yeniden tetiklenince geçer (flaky). iOS ilk seferde geçti.
+
 ### ⏭️ Sonraki oturuma devir
-- **TEST (4. tur):** peş peşe 3-4 arama yap → ses hep gelmeli · zil çalmalı/titremeli · geçmişte süre+cevapsız görünmeli · **kilit ekranında arama** (Android + iPhone) · **1080p görüntü** (iyi ağda net)
+- **TEST:** uygulama açık iki cihaz → tek ekran (çift popup YOK) · kapalıyken açınca iptal YOK ·
+  uygulama açıkken ses geliyor. **Kilit ekranından kabulde ses hâlâ eksik olabilir (Madde 4 bekliyor).**
+- **Madde 4:** iOS native ses (kilit ekranı kabul sesi) — izole build.
+- Eski: 1080p görüntü, grup araması (`grup-aramasi-plani.md` hazır).
 - **SIRADAKİ BÜYÜK İŞ: CallKit** (kilit ekranı/uygulama kapalı) — araştırması hazır:
   `flutter_callkit_incoming` + iOS **PushKit VoIP push** (FCM VoIP gönderemez → Go'dan doğrudan APNs,
   topic `app.gebzem.voip`, `apns-push-type: voip`; VoIP push alınca CallKit `reportNewIncomingCall`
