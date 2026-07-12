@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:livekit_client/livekit_client.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 
 import 'call_provider.dart';
 
@@ -115,7 +116,17 @@ class _CallScreenState extends ConsumerState<CallScreen> {
           if (mounted) _leave(notifyServer: false);
         });
 
-      await room.connect(widget.url, widget.token);
+      await room.connect(
+        widget.url,
+        widget.token,
+        connectOptions: const ConnectOptions(
+          autoSubscribe: true,
+          // Kisitli aglarda (mobil operator) medya TURN uzerinden gecer
+          rtcConfiguration: RTCConfiguration(
+            iceTransportPolicy: RTCIceTransportPolicy.all,
+          ),
+        ),
+      );
       await room.localParticipant?.setMicrophoneEnabled(true);
       if (widget.video) {
         await room.localParticipant?.setCameraEnabled(true);
@@ -131,9 +142,14 @@ class _CallScreenState extends ConsumerState<CallScreen> {
       });
       if (_peerJoined) _startTimer();
     } catch (e) {
+      // Hata Sentry'e duser; kullaniciya net mesaj gosterilir
+      await Sentry.captureException(e, stackTrace: StackTrace.current);
       if (mounted) {
+        final msg = e.toString().toLowerCase();
         setState(() {
-          _error = 'Baglanti kurulamadi';
+          _error = msg.contains('timeout') || msg.contains('ice') || msg.contains('dtls')
+              ? 'Baglanti kurulamadi.\nInternet baglantinizi kontrol edin.'
+              : 'Arama baslatilamadi.\nTekrar deneyin.';
           _connecting = false;
         });
       }

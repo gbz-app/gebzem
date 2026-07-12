@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/api.dart';
 import '../auth/auth_provider.dart';
+import '../auth/permissions_screen.dart';
 import '../calls/calls_tab.dart';
 import '../chats/chats_screen.dart';
 
@@ -18,11 +20,35 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   int _index = 0;
+  bool? _permissionsAsked; // null = kontrol ediliyor
 
   static const _titles = ['Gebzem', 'Aramalar', 'Odalar', 'Canli', 'Profil'];
 
   @override
+  void initState() {
+    super.initState();
+    _checkPermissions();
+  }
+
+  Future<void> _checkPermissions() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() => _permissionsAsked = prefs.getBool('permissions_asked') ?? false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    // Ilk giriste izin ekrani (mikrofon, kamera, bildirim)
+    if (_permissionsAsked == null) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    if (_permissionsAsked == false) {
+      return PermissionsScreen(
+        onDone: () => setState(() => _permissionsAsked = true),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: Text(_titles[_index]),
