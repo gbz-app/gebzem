@@ -89,15 +89,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     });
   }
 
+  bool _aramaBasliyor = false;
+
   /// Sesli/goruntulu arama baslat
   Future<void> _startCall({required bool video}) async {
     final peerId = widget.peerId;
-    if (peerId == null) return;
+    if (peerId == null || _aramaBasliyor) return;
+    _aramaBasliyor = true; // cift dokunma -> cift arama / sahte "mesgul" kaydini onle
     try {
       final info =
           await ref.read(callServiceProvider.notifier).start(peerId, video: video);
       if (!mounted) return;
-      Navigator.of(context).push(MaterialPageRoute(
+      await Navigator.of(context).push(MaterialPageRoute(
         builder: (_) => CallScreen(
           callId: info['call_id'] as String,
           url: info['url'] as String,
@@ -111,6 +114,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
       }
+    } finally {
+      _aramaBasliyor = false;
     }
   }
 

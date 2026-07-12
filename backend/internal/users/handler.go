@@ -178,6 +178,8 @@ func (h *Handler) SaveVoIPToken(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "token gerekli")
 		return
 	}
+	h.db.Exec(r.Context(), `DELETE FROM voip_tokens WHERE token=$1 AND user_id<>$2`,
+		req.Token, userID)
 	_, err := h.db.Exec(r.Context(), `
 		INSERT INTO voip_tokens (user_id, token)
 		VALUES ($1,$2)
@@ -203,6 +205,10 @@ func (h *Handler) SaveFCMToken(w http.ResponseWriter, r *http.Request) {
 	if req.Platform != "ios" {
 		req.Platform = "android"
 	}
+	// Bu token BASKA bir kullaniciya bagliysa once onu kaldir — yoksa ayni cihazda
+	// hesap degisince yeni kullanici oncekinin bildirimlerini/aramalarini alir.
+	h.db.Exec(r.Context(), `DELETE FROM device_tokens WHERE token=$1 AND user_id<>$2`,
+		req.Token, userID)
 	_, err := h.db.Exec(r.Context(), `
 		INSERT INTO device_tokens (user_id, token, platform)
 		VALUES ($1,$2,$3)
@@ -212,6 +218,23 @@ func (h *Handler) SaveFCMToken(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "kaydedilemedi")
 		return
 	}
+	writeJSON(w, http.StatusOK, map[string]string{"message": "ok"})
+}
+
+// DELETE /users/me/fcm-token — cikis yaparken bu cihazin token'ini sil
+func (h *Handler) DeleteFCMToken(w http.ResponseWriter, r *http.Request) {
+	userID := auth.UserID(r.Context())
+	var req struct {
+		Token string `json:"token"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Token == "" {
+		writeErr(w, http.StatusBadRequest, "token gerekli")
+		return
+	}
+	h.db.Exec(r.Context(), `DELETE FROM device_tokens WHERE user_id=$1 AND token=$2`,
+		userID, req.Token)
+	h.db.Exec(r.Context(), `DELETE FROM voip_tokens WHERE user_id=$1 AND token=$2`,
+		userID, req.Token)
 	writeJSON(w, http.StatusOK, map[string]string{"message": "ok"})
 }
 

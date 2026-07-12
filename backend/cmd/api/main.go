@@ -108,7 +108,8 @@ func main() {
 		r.Patch("/users/me", usersH.UpdateMe)
 		r.Post("/users/me/username", usersH.SetUsername)
 		r.Post("/users/me/fcm-token", usersH.SaveFCMToken)
-		r.Post("/users/me/voip-token", usersH.SaveVoIPToken) // iOS kilit ekrani aramasi
+		r.Delete("/users/me/fcm-token", usersH.DeleteFCMToken) // cikista bu cihazin token'ini sil
+		r.Post("/users/me/voip-token", usersH.SaveVoIPToken)   // iOS kilit ekrani aramasi
 		r.Get("/users/search", usersH.Search)
 		r.Get("/users/by-phone", usersH.ByPhone)
 		r.Get("/ws", chatH.WebSocket)

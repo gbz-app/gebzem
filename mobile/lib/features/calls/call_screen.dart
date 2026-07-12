@@ -7,6 +7,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
+import 'call_media_options.dart';
 import 'call_provider.dart';
 import 'call_room_lock.dart';
 import 'call_sounds.dart';
@@ -141,21 +142,15 @@ class _CallScreenState extends ConsumerState<CallScreen> {
   /// kapanisi BITMIS olur (ses oturumu yarisini onler).
   Future<void> _odayaBaglan() async {
     final room = Room(
-        roomOptions: RoomOptions(
-          adaptiveStream: true, // zayif baglantida kaliteyi otomatik dusur
-          dynacast: true, // kullanilmayan akislari durdur (pil/veri tasarrufu)
-          defaultAudioPublishOptions: const AudioPublishOptions(
-            dtx: true, // sessizken veri gonderme
-          ),
-          // 1:1 aramada 540p yeter; 720p'de eski telefonlarda (iPhone XS gibi)
-          // kodlayici zorlanip goruntu blok blok bozuluyordu.
-          defaultCameraCaptureOptions: const CameraCaptureOptions(
-            params: VideoParametersPresets.h540_169,
-          ),
-          defaultVideoPublishOptions: const VideoPublishOptions(
-            simulcast: true, // farkli kalitelerde gonder (zayif agda dusuk katman)
-            videoEncoding: VideoEncoding(maxFramerate: 30, maxBitrate: 1200 * 1000),
-          ),
+        roomOptions: const RoomOptions(
+          adaptiveStream: true, // zayif baglantida/kucuk pencerede kaliteyi otomatik dusur
+          dynacast: true, // kullanilmayan ust katmanlari durdur (pil/veri/CPU tasarrufu)
+          // UYARLANABILIR 1080p: ag iyiyse 1080p'ye kadar; kotulesince otomatik duser
+          // (bkz. call_media_options.dart — degradationPreference: balanced)
+          defaultCameraCaptureOptions: kCameraCaptureOptions,
+          defaultVideoPublishOptions: kVideoPublishOptions,
+          defaultAudioCaptureOptions: kAudioCaptureOptions,
+          defaultAudioPublishOptions: kAudioPublishOptions,
         ),
       );
     // Odayi HEMEN alana ata: baglanma sirasinda ekran kapanirsa (erken cikis / hata)

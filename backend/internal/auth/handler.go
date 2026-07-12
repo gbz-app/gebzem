@@ -58,6 +58,12 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "sifre en az 6 karakter olmali")
 		return
 	}
+	// bcrypt 72 bayttan uzun parolayi reddeder (Turkce harflerle ~40 karakter yeter);
+	// kontrol edilmezse hash hatasi yutulup password_hash bos kalabilir.
+	if len(req.Password) > 72 {
+		writeErr(w, http.StatusBadRequest, "sifre cok uzun (en fazla 72 karakter)")
+		return
+	}
 	uname := strings.ToLower(strings.TrimSpace(strings.TrimPrefix(req.Username, "@")))
 	if !usernameRe.MatchString(uname) {
 		writeErr(w, http.StatusBadRequest, "kullanici adi 3-20 karakter olmali (harf, rakam, alt cizgi)")
@@ -91,11 +97,14 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// verified=false kullaniciyi olustur/guncelle (tekrar kayit denemesine izin ver)
+	// verified=false kullaniciyi olustur/guncelle (tekrar kayit denemesine izin ver).
+	// DO UPDATE yalnizca DOGRULANMAMIS satiri gunceller — dogrulanmis bir hesabin
+	// sifresi kayit isteğiyle ASLA ezilemez (hesap devri onlenir).
 	_, err = h.db.Exec(r.Context(), `
 		INSERT INTO users (phone, password_hash, name, username)
 		VALUES ($1, $2, $3, $4)
-		ON CONFLICT (phone) DO UPDATE SET password_hash=$2, name=$3, username=$4`,
+		ON CONFLICT (phone) DO UPDATE SET password_hash=$2, name=$3, username=$4
+		WHERE users.verified=false`,
 		req.Phone, string(hash), strings.TrimSpace(req.Name), uname)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "kullanici adi alinmis olabilir")
@@ -244,12 +253,28 @@ func (h *Handler) Reset(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "sifre en az 6 karakter olmali")
 		return
 	}
+	if len(req.NewPassword) > 72 {
+		writeErr(w, http.StatusBadRequest, "sifre cok uzun (en fazla 72 karakter)")
+		return
+	}
 	if !h.consumeOTP(r.Context(), req.Phone, req.Code, "reset_password") {
 		writeErr(w, http.StatusUnauthorized, "kod hatali veya suresi dolmus")
 		return
 	}
-	hash, _ := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
-	h.db.Exec(r.Context(), `UPDATE users SET password_hash=$1 WHERE phone=$2`, string(hash), req.Phone)
+	// bcrypt hatasini YUTMA: yutulursa password_hash bos string olur ve kullanici
+	// bir daha hic giremez (hesap kalici kilit).
+	hash, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "sifre guncellenemedi")
+		return
+	}
+	tag, err := h.db.Exec(r.Context(),
+		`UPDATE users SET password_hash=$1 WHERE phone=$2 AND verified=true`,
+		string(hash), req.Phone)
+	if err != nil || tag.RowsAffected() != 1 {
+		writeErr(w, http.StatusBadRequest, "hesap bulunamadi")
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]any{"message": "sifre guncellendi"})
 }
 

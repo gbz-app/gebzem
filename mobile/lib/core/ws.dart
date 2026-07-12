@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import 'api.dart';
@@ -40,7 +41,12 @@ class WsService {
     final token = await _storage.token;
     if (token == null) return;
     try {
-      _channel = WebSocketChannel.connect(Uri.parse('$wsUrl?token=$token'));
+      // pingInterval: yarim acik TCP'de (mobil ag degisince) baglantinin oldugunu
+      // ~20 sn'de anlar ve yeniden baglanir. Yoksa _connected true kalir, mesaj gelmez.
+      _channel = IOWebSocketChannel.connect(
+        Uri.parse('$wsUrl?token=$token'),
+        pingInterval: const Duration(seconds: 20),
+      );
       await _channel!.ready;
       _retry = 0;
       _connected = true;

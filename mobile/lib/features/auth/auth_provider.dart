@@ -1,7 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api.dart';
+import '../../core/push.dart';
 import '../../core/storage.dart';
+import '../../core/ws.dart';
 
 /// Oturum durumu: null = kontrol ediliyor, '' = cikis yapilmis, dolu = girisli
 class AuthNotifier extends StateNotifier<String?> {
@@ -63,8 +65,18 @@ class AuthNotifier extends StateNotifier<String?> {
   }
 
   Future<void> logout() async {
+    // ONEMLI: cikmadan ONCE bu cihazin oturumunu TAM kapat. Yoksa ayni cihazda
+    // yeni giren kullanici, oncekinin WebSocket'inde ve push kaydinda kalir
+    // (A'nin mesajlari/aramalari B'de gorunur, profilde A'nin numarasi).
+    try {
+      await _ref.read(pushProvider).unregister(); // bu cihazin token'ini sunucudan sil
+    } catch (_) {}
+    await _ref.read(wsProvider).close(); // canli soketi kapat
     await _ref.read(storageProvider).clear();
     state = '';
+    // Kullaniciya bagli saglayicilari sifirla (eski verinin ekranda kalmamasi icin)
+    _ref.invalidate(wsProvider);
+    _ref.invalidate(pushProvider);
   }
 
   Future<void> _saveSession(dynamic data) async {
