@@ -21,6 +21,7 @@ import (
 	"github.com/gbz-app/gebzem/backend/internal/database"
 	"github.com/gbz-app/gebzem/backend/internal/push"
 	"github.com/gbz-app/gebzem/backend/internal/sms"
+	"github.com/gbz-app/gebzem/backend/internal/udid"
 	"github.com/gbz-app/gebzem/backend/internal/users"
 )
 
@@ -91,6 +92,9 @@ func main() {
 	r.Get("/health", func(w http.ResponseWriter, _ *http.Request) {
 		w.Write([]byte(`{"status":"ok"}`))
 	})
+
+	// iOS test cihazi kaydi (Over-The-Air) — profil yukleyen iPhone UDID'sini buraya yollar
+	r.Post("/udid", udid.Handle)
 
 	// acik uclar
 	r.Route("/auth", func(r chi.Router) {
