@@ -25,19 +25,23 @@ const _layer540 = VideoParameters(
   encoding: VideoEncoding(maxBitrate: 800 * 1000, maxFramerate: 25),
 );
 
-/// 1:1 goruntulu arama icin yayin secenekleri
+/// 1:1 goruntulu arama icin yayin secenekleri.
+/// NOT: 1080p'den 720p'ye dusuruldu. Orta segment Android'de 1080p VP8 YAZILIM
+/// encode/decode ana gecikme + isinma kaynagiydi ("goruntu geriden geliyor").
+/// 720p + 1.2 Mbps tavan cihaz-tarafli gecikmeyi belirgin azaltir; ag iyiyse
+/// yeterince net, kotulesince adaptiveStream/balanced zaten dusuruyor.
 const kVideoPublishOptions = VideoPublishOptions(
   videoCodec: 'vp8',
   simulcast: true,
   videoSimulcastLayers: [_layer270, _layer540],
-  // En ust (1080p) katman tavani — ag iyiyse buraya kadar cikar
-  videoEncoding: VideoEncoding(maxFramerate: 30, maxBitrate: 2500 * 1000),
+  videoEncoding: VideoEncoding(maxFramerate: 30, maxBitrate: 1200 * 1000),
   degradationPreference: DegradationPreference.balanced,
 );
 
-/// Kamera yakalama: 1080p iste; ag/CPU yetmezse yukaridaki mekanizma dusurur
+/// Kamera yakalama: 720p (1280x720). 1080p eski/orta cihazlarda kodlayiciyi
+/// zorlayip gecikme+isi yaratiyordu.
 const kCameraCaptureOptions = CameraCaptureOptions(
-  params: VideoParametersPresets.h1080_169,
+  params: VideoParametersPresets.h720_169,
   cameraPosition: CameraPosition.front,
 );
 

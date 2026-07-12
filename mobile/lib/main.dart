@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
@@ -45,6 +46,8 @@ Future<void> _fcmArkaPlan(RemoteMessage m) async {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Uygulama her zaman DIK (portrait) — arama ekrani dahil (kullanici istegi, WhatsApp gibi)
+  await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   await initializeDateFormatting('tr'); // Turkce tarih bicimleri
   try {
     await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
@@ -106,42 +109,49 @@ class _GebzemAppState extends ConsumerState<GebzemApp> with WidgetsBindingObserv
     await svc.baslat();
   }
 
-  /// CallKit'ten kabul edilen aramayi ac. Uygulama SIFIRDAN acilmis olabilir —
-  /// Navigator hazir olana kadar (en fazla ~6 sn) bekle.
+  /// CallKit'ten kabul edilen aramayi ac. Uygulama SIFIRDAN acilmis olabilir.
+  /// ONEMLI SIRA: ONCE answer (sunucuya "kabul edildi" der, arayan calmayi keser),
+  /// SONRA Navigator'i bekle. Eski kod once Navigator'i 6 sn bekliyordu; gelmezse
+  /// sessizce cikip answer'i HIC cagirmiyordu -> arama "missed", arayan calmaya devam.
   Future<void> _callKitKabul(Map<String, dynamic> c) async {
     final callId = c['call_id'] as String? ?? '';
     if (callId.isEmpty) return;
 
-    for (var i = 0; i < 60 && rootNavigatorKey.currentState == null; i++) {
-      await Future.delayed(const Duration(milliseconds: 100));
-    }
-    final nav = rootNavigatorKey.currentState;
-    if (nav == null) return;
-
     final notifier = ref.read(callServiceProvider.notifier);
+
+    Map<String, dynamic>? info;
     try {
-      final info = await notifier.answer(callId);
-      if (info == null) {
-        // Arama zaten uygulama ici overlay'den kabul edildi -> ikinci ekran acma
-        notifier.dismiss();
-        return;
-      }
-      notifier.dismiss(); // uygulama ici gelen arama ekrani varsa kaldir
-      unawaited(nav.push(MaterialPageRoute(
-        builder: (_) => CallScreen(
-          callId: callId,
-          url: info['url'] as String,
-          token: info['token'] as String,
-          video: c['video'] as bool? ?? false,
-          peerName: c['caller_name'] as String? ?? '',
-          outgoing: false,
-        ),
-      )));
+      info = await notifier.answer(callId); // ONCE sunucuya kabul bildir
     } catch (e) {
       await CallKitService.bitir(callId);
       rootMessengerKey.currentState
           ?.showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
+      return;
     }
+    if (info == null) {
+      // Arama zaten uygulama ici overlay'den kabul edildi -> ikinci ekran acma
+      notifier.dismiss();
+      return;
+    }
+
+    // SONRA Navigator hazir olsun (soguk baslangicta daha uzun: 100x100ms = 10 sn)
+    for (var i = 0; i < 100 && rootNavigatorKey.currentState == null; i++) {
+      await Future.delayed(const Duration(milliseconds: 100));
+    }
+    notifier.dismiss(); // uygulama ici gelen arama ekrani varsa kaldir
+    final nav = rootNavigatorKey.currentState;
+    if (nav == null) return; // ekran acilamadi ama arama sunucuda "kabul" durumunda
+
+    unawaited(nav.push(MaterialPageRoute(
+      builder: (_) => CallScreen(
+        callId: callId,
+        url: info!['url'] as String,
+        token: info['token'] as String,
+        video: c['video'] as bool? ?? false,
+        peerName: c['caller_name'] as String? ?? '',
+        outgoing: false,
+      ),
+    )));
   }
 
   @override

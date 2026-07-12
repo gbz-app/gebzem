@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api.dart';
@@ -15,7 +16,26 @@ class AuthNotifier extends StateNotifier<String?> {
 
   Future<void> _init() async {
     final token = await _ref.read(storageProvider).token;
-    state = token ?? '';
+    if (token == null || token.isEmpty) {
+      state = '';
+      return;
+    }
+    // Token'i backend'e DOGRULAT. Her surumde `TRUNCATE users` yapildigi icin
+    // cihazda kalan token BAYAT olabilir; dogrulamadan "girisli" gostermek,
+    // kilit ekranindan kabul edilen aramada answer'i 401'e dusuruyordu (ekran
+    // acilmiyor, sonra ilk normal istekte login'e atiyordu -> "sifre soruyor").
+    // /users/me kullaniyoruz (/calls/ 401 muafiyeti burada gecerli DEGIL).
+    try {
+      await _ref.read(apiProvider).get('/users/me');
+      state = token;
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        await _ref.read(storageProvider).clear(); // bayat token temizle
+        state = '';
+      } else {
+        state = token; // ag hatasi: cevrimdisi kullaniciyi disari atma
+      }
+    }
   }
 
   /// Kayit baslat — dev modda OTP kodu doner (SMS yerine)

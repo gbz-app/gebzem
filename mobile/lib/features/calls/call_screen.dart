@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart' as rtc;
 import 'package:livekit_client/livekit_client.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -304,9 +305,15 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     final track =
         _room?.localParticipant?.videoTrackPublications.firstOrNull?.track;
     if (track == null) return;
-    final pos = _frontCamera ? CameraPosition.back : CameraPosition.front;
-    await track.setCameraPosition(pos);
-    setState(() => _frontCamera = !_frontCamera);
+    // Helper.switchCamera native on/arka gecisi yapar (restartTrack'siz).
+    // livekit'in setCameraPosition'i restartTrack yapiyordu -> Android'de
+    // kamera degismiyordu ("sadece on calisiyor").
+    try {
+      await rtc.Helper.switchCamera(track.mediaStreamTrack);
+      if (mounted) setState(() => _frontCamera = !_frontCamera);
+    } catch (e) {
+      await Sentry.captureException(e, stackTrace: StackTrace.current);
+    }
   }
 
   @override
@@ -354,13 +361,19 @@ class _CallScreenState extends ConsumerState<CallScreen> {
         backgroundColor: const Color(0xFF0B141A),
         body: Stack(
           children: [
-            // Karsi tarafin goruntusu (tam ekran)
+            // Karsi tarafin goruntusu (tam ekran, ekrani doldur)
             if (remote != null)
-              Positioned.fill(child: VideoTrackRenderer(remote))
+              Positioned.fill(
+                child: VideoTrackRenderer(remote, fit: VideoViewFit.cover),
+              )
             else
               _buildAudioBackground(),
 
-            // Kendi goruntun (kucuk pencere)
+            // Kendi goruntun (kucuk pencere).
+            // IgnorePointer SART: VideoTrackRenderer yerel kamerayi GestureDetector'a
+            // sariyor; kucuk pencereye kazara dokunmak setFocusPoint/setExposurePoint ->
+            // flutter_webrtc CameraUtils'te NullPointerException -> uygulama COKUYOR.
+            // Kendi onizlemende odak/zoom zaten gereksiz, dokunmayi tamamen kesiyoruz.
             if (showVideo && local != null && _camOn)
               Positioned(
                 top: 60,
@@ -369,7 +382,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
                 height: 160,
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
-                  child: VideoTrackRenderer(local),
+                  child: IgnorePointer(child: VideoTrackRenderer(local)),
                 ),
               ),
 
