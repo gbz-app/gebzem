@@ -186,8 +186,25 @@
 
 **Kullanıcı geri bildirimi (haklı):** "çok fazla hata yapıyorsun" — dağıtmadan önce sürüm uyumu/servis ayarları/önbellek kontrol edilmeli. KURAL: "hazır" demeden önce APK/IPA içeriğini ve sunucudaki kopyayı doğrula.
 
+### 🔴🔴 TEST 3 — FIREBASE PHONE AUTH TAMAMEN TERK EDİLDİ (12 Tem, 16:00-17:00)
+**Kullanıcı:** iPhone kayıt olurken YİNE çöküyor, Android kayıtta **Firebase web sitesine (reCAPTCHA) atıyor**. Kullanıcı çok haklı olarak sinirlendi ("5 saattir oyalıyorsun, test bile etmemişsin").
+
+**KÖK NEDEN (kabul):** Firebase Phone Auth, **mağaza dışı (sideload) dağıtılan uygulamalar için uygun DEĞİL**:
+- Android: Play Integrity doğrulaması yapılamıyor (uygulama Play'de değil) → reCAPTCHA web akışına düşüyor → tarayıcı açılıyor
+- iOS: firebase_auth SDK'sı EXC_BREAKPOINT ile çöküyor (6.5.4'e yükseltmek de ÇÖZMEDİ — Sentry: `User._photoURL.setter`, aynı Swift concurrency hatası)
+- Bu yolu seçmek baştan hataydı; kullanıcıya vermeden önce ben test etmeliydim
+
+**KARAR: firebase_auth TAMAMEN SÖKÜLDÜ.** (firebase_messaging/push KALDI — o sorunsuz çalışıyor)
+- Flutter: firebase_auth paketi + sendSms/confirmSms + `useRealSms` bayrağı kaldırıldı; register → backend OTP → OTP ekranı (kod ekranda dolu gelir)
+- Backend: `/auth/verify-firebase` ucu ve `internal/auth/firebase.go` SİLİNDİ; `internal/sms/sms.go` eklendi (Netgsm; kimlik yoksa test modu)
+- ⚠️ Kullanıcı SMS sağlayıcı hesabı AÇAMIYOR (Türk sağlayıcılar şirket/vergi levhası istiyor) → **karar: şimdilik 6 haneli kodu sunucu üretsin, ekranda görünsün** (SMS yok). Kullanıcı onayladı.
+- Tüm hesaplar silindi (TRUNCATE users CASCADE) — tertemiz başlangıç
+- **Backend uçtan uca BEN test ettim (7/7):** kayıt → OTP → profil → 2. kullanıcı → @username arama → sohbet aç → mesajlaşma → şifreyle giriş ✅
+- **APK/IPA içerik doğrulaması:** FirebaseAuth YOK ✅, FirebaseMessaging VAR ✅, release keystore imzası ✅, aps-environment ✅, sunucudaki dosya = derlenen dosya ✅
+
 ### ⏭️ Sonraki oturuma devir
-- **TEST BEKLENİYOR (doğrulanmış sürüm yayında):** Yeni sürümü kur → kayıt olurken **GERÇEK SMS gelmeli** (Google kredisinden) → @kullanıcı adıyla arama → iOS push testi (artık çalışmalı)
+- **TEST BEKLENİYOR (her şey doğrulandı):** Yeni sürüm indir.gebzem.app'te — kayıt (kod ekranda dolu) → arama → mesajlaşma → push
+- SMS: kullanıcının şirketi olunca Netgsm kimlik bilgileri env'e eklenince otomatik gerçek SMS'e geçer (kod hazır)
 - Eski sürümlerin `/auth/register` + `/auth/verify` (test modu) uçları hâlâ açık — geriye dönük uyumluluk için
 - Bilinen eksik: direct sohbet başlığı boş (ListChats karşı üye adı) ← İLK İŞ
 - Faz 2: gruplar + story + profil düzenleme + medya gönderme + uygulama ikonu
