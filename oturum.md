@@ -356,8 +356,62 @@ takılı kalıyordu (zil zaman aşımı sadece istemcideydi).
 | Yayın boyutu | APK 100.834.036 · IPA 16.570.873 = yerel ✅ |
 | DB | kullanıcı 0, arama 0 ✅ |
 
+---
+
+## Oturum 6 — CallKit + 1080p video + kod denetimi (12 Tem 2026, gece)
+
+**Kullanıcı testi:** Android'de arama bitince **siyah ekran** + 2-3. aramada ses/görüntü sorunu.
+**Kullanıcı istekleri:** (1) tüm kodu derinlemesine incele, (2) **1080p** (ağa göre otomatik düşsün), (3) kilit ekranı/uygulama kapalıyken arama.
+
+### ✅ SİYAH EKRAN (Sentry nokta atışı)
+`StateError: Cannot use ref after the widget was disposed — call_screen.dart:182 (_leave), Android 13, 3×`
+`_leave()` await'ten SONRA `ref` kullanıyordu → widget dispose olunca `ref` fırlatıyor →
+`Navigator.pop()` satırına HİÇ gelinmiyor → ekran siyah kalıyor.
+**Düzeltme:** tek seferlik kilit (`_ayrildi`) + ekranı ÖNCE kapat + `ref` yerine initState'te
+yakalanan `_svc` (widget ölse de yaşar).
+
+### ✅ 1080p UYARLANABILIR VIDEO (call_media_options.dart)
+Karar (araştırma + SDK kaynağı): **1080p yakala, VP8 + simulcast (270/540/1080),
+`degradationPreference: balanced`, `adaptiveStream + dynacast`.**
+- SDK varsayılanı `maintainResolution` → ağ kötüleşince fps çakılıyordu (slayt). `balanced` düzeltti.
+- H264 KULLANMADIK: SDK H264'te level 3.1 = **720p tavanı**. VP9/AV1: orta Android'de donanım encode yok.
+- dynacast: karşı taraf küçük pencerede görüyorsa 1080p katmanı hiç encode edilmez.
+- cx33 kapasite: ~40-60 eşzamanlı 1080p arama; Hetzner 20TB kotası 1080p'de ~7000 arama-saati/ay.
+
+### ✅ KİLİT EKRANI / UYGULAMA KAPALIYKEN ARAMA (CallKit + VoIP push)
+- **iOS:** `backend/internal/push/apns.go` — APNs VoIP push (ES256 .p8, HTTP/2, konu `app.gebzem.voip`).
+  **FCM VoIP push GÖNDEREMEZ** → doğrudan APNs. `AppDelegate.swift`: PushKit + VoIP gelince
+  KOŞULSUZ CallKit'e bildir (iOS 13+ kuralı: bildirmezsen Apple uygulamayı öldürür).
+  `voip_tokens` tablosu + `POST /users/me/voip-token`. Sunucuda `voip push: aktif` ✅
+- **Android:** FCM **data-only** push (`notification` DEĞİL — yoksa kapalıyken kod çalışmaz).
+  `@pragma('vm:entry-point')` arka plan işleyici. `singleInstance` + `showWhenLocked` + `turnScreenOn`.
+  Android 14+ "tam ekran bildirim" izni sideload'da otomatik verilmiyor → izin ekranında isteniyor.
+- `callkit_service.dart`: kabul/reddet/zaman aşımı, çift ekran engelleme, iptal push'u.
+
+### ✅ KOD DENETİMİ (10 ajanlı, kaynak kodda doğrulanmış) — uygulanan kritikler
+- **OTURUM SIZINTISI** (testte yaşanır): aynı cihazda çıkış→giriş → eski WebSocket + FCM kaydı
+  yaşıyor, A'nın mesaj/aramaları B'de. `logout()`: ws.close + push.unregister + invalidate;
+  backend: token cihaz-bazlı + `DELETE /users/me/fcm-token`.
+- **REGISTER HIJACK:** `ON CONFLICT` doğrulanmış hesabın şifresini eziyordu → `WHERE verified=false`.
+- **RESET KİLİDİ:** bcrypt hatası yutuluyordu (>72 bayt şifre → password_hash boş → hesap kalıcı kilit).
+- **WS zombi:** `pingInterval 20sn` (yarım açık TCP'de mesaj gelmiyordu).
+- **Çift dokunma kilidi:** sohbetten arama başlatma.
+
+### ⏳ DENETİMDE ÇIKAN, HENÜZ YAPILMAYAN (öncelikli — sonraki tur)
+**Bunlar prototipte bilinçli/ertelenmiş ama YAYIN ÖNCESİ ZORUNLU:**
+1. **DEV_MODE=true canlıda** → `/auth/forgot` OTP'yi yanıtta dönüyor. NOT: SMS şirketi yok,
+   OTP ekranda gösterilmek zorunda (kullanıcı kararı). Netgsm gelince DEV_MODE=false + gerçek SMS.
+2. **OTP brute-force:** hız sınırı + deneme sayacı yok. Redis sayaç ekle.
+3. **HTTPS/origin:** 8080 dışa açık (CF atlanabiliyor). Caddy'yi api ağına al, 8080'i localhost'a.
+4. **Panel şifreleri git'te** (CLAUDE.md/oturum.md) → değiştir, .env.infra'ya taşı.
+5. **İstek gövde sınırı** (MaxBytesReader 1MB) + mesaj içerik CHECK (4096).
+6. **Log rotasyonu yok** (disk dolabilir) → compose'lara max-size.
+7. **JWT_SECRET fail-open** fallback'i sil.
+8. **Postgres yedeği yok.**
+(Tam liste + dosya:satir: workflow çıktısı `tasks/wpssyf65x.output`)
+
 ### ⏭️ Sonraki oturuma devir
-- **TEST (4. tur):** peş peşe 3-4 arama yap → ses hep gelmeli · zil çalmalı/titremeli · geçmişte süre+cevapsız görünmeli
+- **TEST (4. tur):** peş peşe 3-4 arama yap → ses hep gelmeli · zil çalmalı/titremeli · geçmişte süre+cevapsız görünmeli · **kilit ekranında arama** (Android + iPhone) · **1080p görüntü** (iyi ağda net)
 - **SIRADAKİ BÜYÜK İŞ: CallKit** (kilit ekranı/uygulama kapalı) — araştırması hazır:
   `flutter_callkit_incoming` + iOS **PushKit VoIP push** (FCM VoIP gönderemez → Go'dan doğrudan APNs,
   topic `app.gebzem.voip`, `apns-push-type: voip`; VoIP push alınca CallKit `reportNewIncomingCall`
