@@ -238,7 +238,9 @@ func (h *Handler) Start(w http.ResponseWriter, r *http.Request) {
 	//          ekranla CIFT gosterim + ses oturumu cakismasi olur.
 	//  YOK  -> uygulama kapali/arka planda; kilit ekraninda calmasi icin push SART
 	//          (iOS'ta VoIP push -> CallKit zorunlu).
-	if !h.hub.Online(req.CalleeID) {
+	online := h.hub.Online(req.CalleeID)
+	log.Printf("arama daveti: call=%s callee online=%v (online->WS, offline->push)", callID[:8], online)
+	if !online {
 		if h.push != nil {
 			go h.push.CallInvite([]string{req.CalleeID}, davet)
 		}
