@@ -91,13 +91,18 @@ class AuthNotifier extends StateNotifier<String?> {
   String _smsError(FirebaseAuthException e) {
     switch (e.code) {
       case 'invalid-phone-number':
-        return 'Telefon numarasi gecersiz';
+        return 'Telefon numarasi gecersiz (+90 ile basla)';
       case 'too-many-requests':
         return 'Cok fazla deneme. Biraz sonra tekrar deneyin';
       case 'quota-exceeded':
         return 'SMS kotasi doldu, lutfen sonra deneyin';
+      case 'operation-not-allowed':
+        return 'SMS dogrulama su an kapali (sunucu ayari)';
+      case 'app-not-authorized':
+      case 'missing-client-identifier':
+        return 'Uygulama dogrulanamadi, guncel surumu kurun';
       default:
-        return e.message ?? 'SMS gonderilemedi';
+        return 'SMS gonderilemedi (${e.code})';
     }
   }
 
