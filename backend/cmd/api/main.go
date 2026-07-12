@@ -67,11 +67,12 @@ func main() {
 	go hub.Run(ctx)
 
 	pushSender := push.New(db)
+	apnsSender := push.NewAPNs(db) // iOS kilit ekrani aramasi (VoIP)
 	smsSender := sms.New()
 	authH := auth.NewHandler(db, cfg, smsSender)
 	chatH := chat.NewHandler(db, hub, pushSender)
 	usersH := users.NewHandler(db)
-	callsH := calls.NewHandler(db, hub, pushSender)
+	callsH := calls.NewHandler(db, hub, pushSender, apnsSender)
 	if callsH.Enabled() {
 		log.Println("arama (LiveKit): aktif")
 		callsH.StartSweeper(ctx) // takili kalan aramalari kapat (cevapsiz/mesgul hatasi)
@@ -107,6 +108,7 @@ func main() {
 		r.Patch("/users/me", usersH.UpdateMe)
 		r.Post("/users/me/username", usersH.SetUsername)
 		r.Post("/users/me/fcm-token", usersH.SaveFCMToken)
+		r.Post("/users/me/voip-token", usersH.SaveVoIPToken) // iOS kilit ekrani aramasi
 		r.Get("/users/search", usersH.Search)
 		r.Get("/users/by-phone", usersH.ByPhone)
 		r.Get("/ws", chatH.WebSocket)

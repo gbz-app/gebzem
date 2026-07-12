@@ -4,6 +4,8 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../calls/callkit_service.dart';
+
 /// Giriste izin ekrani — mikrofon, kamera ve bildirim izinleri tek seferde alinir.
 /// Bir kez gosterilir (tercih kaydedilir), sonra ana ekrana gecilir.
 class PermissionsScreen extends ConsumerStatefulWidget {
@@ -24,6 +26,11 @@ class _PermissionsScreenState extends ConsumerState<PermissionsScreen> {
     await Permission.notification.request();
     await Permission.microphone.request();
     await Permission.camera.request();
+
+    // Android 14+: "tam ekran bildirim" AYRI bir ozel izin. Play Store disi
+    // (sideload) kurulumda otomatik VERILMEZ -> verilmezse telefon kilitliyken
+    // gelen arama ekrani HIC acilmaz. Ayarlar sayfasina yonlendirir.
+    await CallKitService.izinleriIste();
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('permissions_asked', true);

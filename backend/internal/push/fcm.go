@@ -155,6 +155,72 @@ func (s *Sender) NotifyUsers(userIDs []string, title, body, chatID string) {
 	}
 }
 
+// CallInvite: Android'e VERI (data-only) push — uygulama KAPALIYKEN bile arka plan
+// isleyicisi calisir ve CallKit tam ekran gelen arama ekranini acar.
+//
+// NEDEN "notification" DEGIL: notification tipli push'ta uygulama kapaliysa sistem
+// bildirimi gosterir, KODUMUZ CALISMAZ (arama ekrani acilamaz). data-only + HIGH
+// priority ile arka plan isleyicimiz uyanir.
+// iOS'ta bu is APNs VoIP push ile yapilir (bkz. apns.go) — FCM VoIP gonderemez.
+func (s *Sender) CallInvite(userIDs []string, data map[string]string) {
+	if s == nil || len(userIDs) == 0 {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	rows, err := s.db.Query(ctx, `
+		SELECT token FROM device_tokens WHERE user_id = ANY($1) AND platform='android'`, userIDs)
+	if err != nil {
+		log.Printf("arama push: token sorgusu: %v", err)
+		return
+	}
+	defer rows.Close()
+	var tokens []string
+	for rows.Next() {
+		var t string
+		if rows.Scan(&t) == nil {
+			tokens = append(tokens, t)
+		}
+	}
+
+	at, err := s.accessToken()
+	if err != nil {
+		log.Printf("arama push: token: %v", err)
+		return
+	}
+	for _, tok := range tokens {
+		msg := map[string]any{
+			"message": map[string]any{
+				"token": tok,
+				"data":  data, // SADECE data — notification YOK
+				"android": map[string]any{
+					"priority": "HIGH",
+					"ttl":      "45s", // arama zaten 45 sn sonra cevapsiz olur
+				},
+			},
+		}
+		b, _ := json.Marshal(msg)
+		req, _ := http.NewRequest("POST",
+			"https://fcm.googleapis.com/v1/projects/"+s.projectID+"/messages:send", bytes.NewReader(b))
+		req.Header.Set("Authorization", "Bearer "+at)
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := s.httpClient.Do(req)
+		if err != nil {
+			log.Printf("arama push: %v", err)
+			continue
+		}
+		respBody, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			log.Printf("arama push: %s %s", resp.Status, string(respBody[:min(160, len(respBody))]))
+			if bytes.Contains(respBody, []byte("UNREGISTERED")) {
+				s.db.Exec(ctx, `DELETE FROM device_tokens WHERE token=$1`, tok)
+			}
+		}
+	}
+}
+
 var errUnregistered = errors.New("unregistered")
 
 func (s *Sender) send(token, title, body, chatID string) error {

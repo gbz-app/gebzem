@@ -11,6 +11,11 @@ services:
       DEV_MODE: "true"   # prototip: OTP SMS yerine API yanitinda doner
       PORT: "8080"
       FCM_SA_PATH: /secrets/fcm-sa.json
+      # iOS kilit ekrani aramasi (VoIP push) — FCM VoIP GONDEREMEZ, dogrudan APNs
+      APNS_KEY_PATH: /secrets/apns.p8
+      APNS_KEY_ID: ${APNS_KEY_ID}
+      APNS_TEAM_ID: ${APNS_TEAM_ID}
+      APNS_BUNDLE_ID: app.gebzem
       SENTRY_DSN: ${SENTRY_DSN}
       # Arama (LiveKit)
       LIVEKIT_URL: wss://rtc.gebzem.app
@@ -18,6 +23,7 @@ services:
       LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET}
     volumes:
       - ./fcm-sa.json:/secrets/fcm-sa.json:ro
+      - ./apns.p8:/secrets/apns.p8:ro
     ports:
       - "8080:8080"
     depends_on:

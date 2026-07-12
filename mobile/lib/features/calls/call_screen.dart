@@ -44,9 +44,14 @@ class _CallScreenState extends ConsumerState<CallScreen> {
   Timer? _durationTimer;
   Timer? _ringTimeout;
 
+  /// Arama servisi initState'te yakalanir. `ref`, widget yok edildikten sonra
+  /// KULLANILAMAZ (StateError firlatir) — servis ise uygulama boyunca yasar.
+  late final CallService _svc;
+
   bool _connecting = true;
   bool _kapandi = false; // oda bir kez kapatildi mi (cift kapatmayi onler)
   bool _baglandi = false; // odaya baglanma baslatildi mi (cift baglanmayi onler)
+  bool _ayrildi = false; // _leave bir kez calisti mi (cift pop = siyah ekran)
   bool _peerJoined = false;
   bool _micOn = true;
   bool _camOn = false;
@@ -61,7 +66,8 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     super.initState();
     _camOn = widget.video;
 
-    final svc = ref.read(callServiceProvider.notifier);
+    _svc = ref.read(callServiceProvider.notifier);
+    final svc = _svc;
 
     // Karsi taraf kapatirsa ekrani kapat
     _endedSub = svc.onCallEnded.listen((id) {
@@ -252,15 +258,33 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     } catch (_) {}
   }
 
+  /// Aramadan cik. TEK SEFER calisir.
+  ///
+  /// SIYAH EKRAN HATASI (Android, Sentry: "Cannot use ref after the widget was disposed"):
+  /// Eskiden once odayi kapatiyor (await), SONRA `ref` kullaniyor ve EN SON pop ediyorduk.
+  /// Kapanis sirasinda widget yok edilirse `ref` firlatiyordu ve `Navigator.pop()` satirina
+  /// HIC GELINMIYORDU -> arama ekrani kapanmiyor, siyah kaliyordu.
+  /// Simdi: (1) tek seferlik kilit, (2) ekrani HEMEN kapat, (3) `ref` yerine initState'te
+  /// yakalanan servis kullan (widget olse de yasar), (4) oda temizligi dispose()'ta
+  /// kilit sirasinda yapilir.
   Future<void> _leave({required bool notifyServer}) async {
+    if (_ayrildi) return;
+    _ayrildi = true;
+
     await CallSounds.durdur();
-    // Kapanisi kilit sirasina koy: sonraki aramanin connect'i BUNU BEKLER
-    await CallRoomLock.calistir(_kapatOda);
-    if (notifyServer) {
-      await ref.read(callServiceProvider.notifier).end(widget.callId);
+
+    // Ekrani hemen kapat — arkasindaki oda temizligi dispose()'ta suruyor
+    if (mounted) {
+      final nav = Navigator.of(context);
+      if (nav.canPop()) nav.pop();
     }
-    ref.invalidate(callHistoryProvider); // arama gecmisi hemen guncellensin
-    if (mounted) Navigator.of(context).pop();
+
+    try {
+      if (notifyServer) await _svc.end(widget.callId);
+    } catch (_) {
+      // arama zaten bitmis olabilir
+    }
+    _svc.gecmisiYenile(); // arama gecmisi hemen guncellensin
   }
 
   Future<void> _toggleMic() async {

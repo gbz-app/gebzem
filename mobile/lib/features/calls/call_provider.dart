@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api.dart';
 import '../../core/ws.dart';
+import 'callkit_service.dart';
 
 /// Gelen arama bilgisi (WebSocket "call.incoming" olayindan)
 class IncomingCall {
@@ -56,6 +57,10 @@ class CallService extends StateNotifier<IncomingCall?> {
 
     switch (ev['type']) {
       case 'call.incoming':
+        final id = p['call_id'] as String? ?? '';
+        // Ayni arama CallKit (kilit ekrani) uzerinden zaten gosterildiyse
+        // uygulama ici ekrani ACMA — yoksa cift arama ekrani cikar.
+        if (CallKitService.islenenler.contains(id)) return;
         state = IncomingCall.fromJson(p);
       case 'call.answered':
         final id = p['call_id'] as String? ?? '';
@@ -64,6 +69,7 @@ class CallService extends StateNotifier<IncomingCall?> {
       case 'call.ended':
         final id = p['call_id'] as String? ?? '';
         if (state?.callId == id) state = null; // gelen arama ekranini kapat
+        CallKitService.bitir(id); // kilit ekranindaki arama ekrani asili kalmasin
         _endedController.add(id);
     }
   }
@@ -112,6 +118,10 @@ class CallService extends StateNotifier<IncomingCall?> {
   }
 
   void dismiss() => state = null;
+
+  /// Arama gecmisini tazele. Arama ekrani kapanirken cagrilir — ekranin kendi
+  /// `ref`'i o an yok edilmis olabilir, bu yuzden servisin kendi Ref'ini kullaniyoruz.
+  void gecmisiYenile() => _ref.invalidate(callHistoryProvider);
 
   @override
   void dispose() {

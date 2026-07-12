@@ -26,17 +26,19 @@ type Handler struct {
 	db   *pgxpool.Pool
 	hub  *chat.Hub
 	push *push.Sender
+	apns *push.APNs // iOS kilit ekrani aramasi (VoIP push)
 
 	lkURL    string // istemcinin baglanacagi adres (wss://rtc.gebzem.app)
 	apiKey   string
 	apiSecret string
 }
 
-func NewHandler(db *pgxpool.Pool, hub *chat.Hub, pushSender *push.Sender) *Handler {
+func NewHandler(db *pgxpool.Pool, hub *chat.Hub, pushSender *push.Sender, apns *push.APNs) *Handler {
 	return &Handler{
 		db:        db,
 		hub:       hub,
 		push:      pushSender,
+		apns:      apns,
 		lkURL:     getEnv("LIVEKIT_URL", "wss://rtc.gebzem.app"),
 		apiKey:    os.Getenv("LIVEKIT_API_KEY"),
 		apiSecret: os.Getenv("LIVEKIT_API_SECRET"),
@@ -218,13 +220,34 @@ func (h *Handler) Start(w http.ResponseWriter, r *http.Request) {
 		Payload: payload,
 		To:      []string{req.CalleeID},
 	})
+	// Uygulama kapali/kilitliyken de calmasi icin:
+	//  - Android: FCM data-only push -> arka plan isleyicisi CallKit ekranini acar
+	//  - iOS: APNs VoIP push -> CallKit (FCM VoIP GONDEREMEZ)
+	davet := map[string]string{
+		"type":          "call.incoming",
+		"call_id":       callID,
+		"room":          roomName,
+		"call_type":     callType,
+		"caller_id":     callerID,
+		"caller_name":   callerName,
+		"caller_avatar": callerAvatar,
+	}
 	if h.push != nil {
-		title := callerName
-		body := "📞 Sesli arama"
-		if req.Video {
-			body = "📹 Goruntulu arama"
-		}
-		go h.push.NotifyUsers([]string{req.CalleeID}, title, body, "")
+		go h.push.CallInvite([]string{req.CalleeID}, davet)
+	}
+	if h.apns != nil {
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			h.apns.CallInvite(ctx, req.CalleeID, map[string]any{
+				"call_id":       callID,
+				"room":          roomName,
+				"call_type":     callType,
+				"caller_id":     callerID,
+				"caller_name":   callerName,
+				"caller_avatar": callerAvatar,
+			})
+		}()
 	}
 
 	writeJSON(w, http.StatusCreated, map[string]any{
@@ -318,6 +341,15 @@ func (h *Handler) End(w http.ResponseWriter, r *http.Request) {
 	h.hub.Publish(r.Context(), &chat.Event{
 		Type: "call.ended", Payload: payload, To: []string{other},
 	})
+
+	// Kilit ekranindaki arama ekrani asili kalmasin: arayan vazgectiyse aliciya
+	// "iptal" push'u gonder (WebSocket kopuk olabilir — telefon kilitliyken).
+	if newStatus == "missed" && h.push != nil {
+		go h.push.CallInvite([]string{calleeID}, map[string]string{
+			"type":    "call.cancel",
+			"call_id": callID,
+		})
+	}
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": newStatus})
 }

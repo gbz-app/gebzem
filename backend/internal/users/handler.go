@@ -167,6 +167,29 @@ func (h *Handler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 }
 
 // POST /users/me/fcm-token — cihaz push token kaydi
+// POST /users/me/voip-token — iOS PushKit (VoIP) token'i.
+// FCM token'indan AYRIDIR; kilit ekraninda arama caldirmak icin APNs'e dogrudan gonderilir.
+func (h *Handler) SaveVoIPToken(w http.ResponseWriter, r *http.Request) {
+	userID := auth.UserID(r.Context())
+	var req struct {
+		Token string `json:"token"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Token == "" {
+		writeErr(w, http.StatusBadRequest, "token gerekli")
+		return
+	}
+	_, err := h.db.Exec(r.Context(), `
+		INSERT INTO voip_tokens (user_id, token)
+		VALUES ($1,$2)
+		ON CONFLICT (user_id, token) DO UPDATE SET updated_at=now()`,
+		userID, req.Token)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "kaydedilemedi")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"message": "ok"})
+}
+
 func (h *Handler) SaveFCMToken(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserID(r.Context())
 	var req struct {
