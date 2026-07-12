@@ -223,8 +223,29 @@ Kullanıcı kararı: "önce aramayı yapalım, çalışmazsa gerisinin anlamı y
 - Sonuç: iOS 5 dk, Android ~10 dk — Codemagic'ten hızlı ve BEDAVA (özel repoda 2000 dk/ay; iOS 10x sayılır → ~12 iOS build/ay. Repo public yapılırsa sınırsız)
 - **Doğrulandı:** APK'da libjingle_peerconnection_so.so (WebRTC motoru) + livekit sınıfları + izinler ✅; IPA'da FirebaseAuth YOK, LiveKit VAR, push yetkisi VAR ✅
 
+### 🔴 ARAMA TEST 1 — MEDYA GEÇMEDİ, KÖK NEDEN BULUNDU VE ÇÖZÜLDÜ (12 Tem, 18:00)
+**Kullanıcı:** "bir şeyler ters gitti, sonra tekrar arayın" hatası
+
+**TEŞHİS (loglardan, kullanıcı detay vermeden):**
+- API logları: /calls, /answer, /end hepsi 200/201 → **sinyal katmanı SAĞLAM**
+- LiveKit logları: `dtls timeout: read/write timeout` + istemci bilgisi `"network": "cellular"`, iPhone11,6 → **medya (UDP) akmıyor, mobil operatör NAT'ı**
+- Kendi testim: sunucuya UDP 3478 ✅, TCP 7881 ✅ erişilebiliyor → sorun sunucuda değil, **TURN'de**
+- KÖK NEDEN: `turn.external_tls: true` + tls_port 5349 ama **TLS'i sonlandıran hiçbir şey yoktu** (sertifika yok) → turns: URI'si ölüydü; mobil operatör NAT'ı arkasından relay kurulamıyordu
+
+**ÇÖZÜM:**
+1. **Let's Encrypt sertifikası** alındı (certbot + dns-cloudflare, Global API Key ile DNS-01) → /opt/gebzem/letsencrypt
+2. **TURN artık TLS ile 443 portunda** (livekit.yaml: cert_file/key_file, external_tls: false) — kısıtlı ağlarda HTTPS gibi görünür, engellenmez. ufw 443 açıldı
+3. Docker iç ağları (docker0, br-*, veth*) ICE adaylarından çıkarıldı
+4. **Doğrulandı:** TURN TLS 443 el sıkışması OK (CN=turn.gebzem.app) · UDP 3478 STUN yanıtı OK · TCP 7881 OK
+5. Flutter: ConnectOptions + iceTransportPolicy.all; bağlantı hatalarında NET mesaj + Sentry raporu
+
+**Kullanıcı istekleri (yapıldı):**
+- ✅ **Açılışta izin ekranı:** permissions_screen.dart (bildirim + mikrofon + kamera tek seferde; shared_preferences ile bir kez gösterilir)
+- ✅ **Her dağıtımda hesaplar siliniyor** (TRUNCATE users CASCADE) — temiz başlangıç. **BU ARTIK RUTİN: her yeni sürümde DB'yi temizle**
+- ✅ /users/me/fcm-token 500 hatası artık yok (200 dönüyor)
+
 ### ⏭️ Sonraki oturuma devir
-- **ARAMA TESTİ BEKLENİYOR:** iki cihaza kur → sohbette 📞/📹 butonları → kabul et → ses/görüntü/kalite/kopma testi
+- **ARAMA TESTİ (2. deneme) BEKLENİYOR:** iki cihaza kur → izin ekranında izin ver → sohbette 📞/📹 → kabul → ses/görüntü. Mobil veride de çalışmalı (TURN TLS 443)
 - Sonraki adımlar: CallKit (kilit ekranında çalma, uygulama kapalıyken arama), grup araması, sonra Faz 2 (gruplar/story/profil)
 - Eski notlar (hâlâ geçerli):
 - SMS: kullanıcının şirketi olunca Netgsm kimlik bilgileri env'e eklenince otomatik gerçek SMS'e geçer (kod hazır)
