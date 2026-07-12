@@ -5,6 +5,8 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
 import 'core/theme.dart';
+import 'core/ws.dart';
+import 'features/calls/call_provider.dart';
 import 'features/calls/incoming_call_overlay.dart';
 import 'firebase_options.dart';
 import 'router.dart';
@@ -33,11 +35,38 @@ Future<void> main() async {
   );
 }
 
-class GebzemApp extends ConsumerWidget {
+class GebzemApp extends ConsumerStatefulWidget {
   const GebzemApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<GebzemApp> createState() => _GebzemAppState();
+}
+
+class _GebzemAppState extends ConsumerState<GebzemApp> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// Uygulama on plana donunce: WebSocket'i HEMEN yeniden bagla ve calan arama
+  /// varsa goster (bildirime dokunup acan kullanici aramayi kacirmasin).
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      ref.read(wsProvider).resume();
+      ref.read(callServiceProvider.notifier).checkActive();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final router = ref.watch(routerProvider);
     return MaterialApp.router(
       title: 'Gebzem',

@@ -116,6 +116,7 @@ func main() {
 		r.Post("/chats/{chatID}/read", chatH.MarkRead)
 		// Aramalar (LiveKit)
 		r.Get("/calls", callsH.History)
+		r.Get("/calls/active", callsH.Active) // calan arama var mi (uygulama on plana donunce)
 		r.Post("/calls", callsH.Start)
 		r.Post("/calls/{id}/answer", callsH.Answer)
 		r.Post("/calls/{id}/end", callsH.End)

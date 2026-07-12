@@ -62,6 +62,20 @@ class CallService extends StateNotifier<IncomingCall?> {
     }
   }
 
+  /// Uygulama acilinca / on plana donunce: beni su an arayan var mi?
+  /// (Arka plandayken WebSocket kopuk oldugu icin "call.incoming" olayi kacmis olabilir —
+  /// kullanici bildirime dokunup acinca aramayi yine de gormeli.)
+  Future<void> checkActive() async {
+    if (state != null) return; // zaten gelen arama ekrani acik
+    try {
+      final res = await _ref.read(apiProvider).get('/calls/active');
+      final data = (res.data as Map).cast<String, dynamic>();
+      if (data['call_id'] is String) state = IncomingCall.fromJson(data);
+    } catch (_) {
+      // sessiz gec — arama yoksa sorun degil
+    }
+  }
+
   /// Arama baslat — LiveKit baglanti bilgilerini doner
   Future<Map<String, dynamic>> start(String calleeId, {required bool video}) async {
     final res = await _ref.read(apiProvider).post('/calls', data: {

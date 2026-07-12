@@ -16,23 +16,34 @@ class WsService {
   WebSocketChannel? _channel;
   final _controller = StreamController<Map<String, dynamic>>.broadcast();
   bool _closed = false;
+  bool _connected = false;
   int _retry = 0;
 
   Stream<Map<String, dynamic>> get events => _controller.stream;
 
   Future<void> connect() async {
     _closed = false;
+    if (_connected) return;
     await _open();
   }
 
+  /// Uygulama on plana donunce HEMEN yeniden bagla — yoksa yeniden baglanma
+  /// 60 saniyeye kadar gecikebilir ve o sirada gelen arama kacirilir.
+  void resume() {
+    if (_closed || _connected) return;
+    _retry = 0;
+    _open();
+  }
+
   Future<void> _open() async {
-    if (_closed) return;
+    if (_closed || _connected) return;
     final token = await _storage.token;
     if (token == null) return;
     try {
       _channel = WebSocketChannel.connect(Uri.parse('$wsUrl?token=$token'));
       await _channel!.ready;
       _retry = 0;
+      _connected = true;
       _channel!.stream.listen(
         (raw) {
           try {
@@ -49,6 +60,7 @@ class WsService {
   }
 
   void _scheduleReconnect() {
+    _connected = false;
     if (_closed) return;
     _retry = (_retry + 1).clamp(1, 6);
     // 2, 4, 8, 16, 32, 60 sn — baglanti gucleninde kaldigi yerden devam
@@ -65,6 +77,7 @@ class WsService {
 
   Future<void> close() async {
     _closed = true;
+    _connected = false;
     await _channel?.sink.close();
   }
 }

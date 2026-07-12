@@ -244,6 +244,34 @@ func (h *Handler) End(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": newStatus})
 }
 
+// GET /calls/active — beni su an arayan var mi?
+// Uygulama arka plandayken WebSocket kopuk olabilir; kullanici bildirime dokunup
+// uygulamayi acinca "call.incoming" olayi coktan gecmis olur. Uygulama acilista ve
+// on plana her donusunde burayi sorar, calan arama varsa gelen arama ekranini gosterir.
+func (h *Handler) Active(w http.ResponseWriter, r *http.Request) {
+	userID := auth.UserID(r.Context())
+
+	var callID, callType, callerName, callerAvatar string
+	err := h.db.QueryRow(r.Context(), `
+		SELECT c.id, c.type, u.name, COALESCE(u.avatar_url,'')
+		FROM calls c JOIN users u ON u.id = c.caller_id
+		WHERE c.callee_id=$1 AND c.status='ringing'
+		  AND c.created_at > now() - interval '45 seconds'
+		ORDER BY c.created_at DESC LIMIT 1`, userID).
+		Scan(&callID, &callType, &callerName, &callerAvatar)
+	if err != nil {
+		writeJSON(w, http.StatusOK, map[string]any{}) // calan arama yok
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"call_id":      callID,
+		"type":         callType,
+		"caller_name":  callerName,
+		"caller_avatar": callerAvatar,
+	})
+}
+
 // GET /calls — arama gecmisi
 func (h *Handler) History(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserID(r.Context())
