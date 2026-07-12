@@ -151,8 +151,33 @@
 11. Model geçiş sorunu: kullanıcı Fable 5'ten düşmek istemiyor → `switchModelsOnFlag: false` yapıldı; anahtarlar artık sohbete DEĞİL token.txt dosyasına yazılacak (filtre tetiklenmesin)
 12. Kullanıcı geri bildirimi (KURAL): **derlemeleri ANLIK izle** — build tetikleyince arka planda takip et, patlarsa logu çek, düzelt, kullanıcıya haber ver
 
+## Oturum 3 — 12 Temmuz 2026 (öğleden sonra)
+
+### ✅ İLK GERÇEK KULLANICI TESTİ + 3 BÜYÜK ÖZELLİK
+**Test sonucu (kullanıcı):** Kayıt/giriş çalıştı, **Android push GELDİ ✅**, iOS push GELMEDİ ❌
+
+1. **iOS push teşhisi:** DB'de sadece android token vardı (iOS'tan hiç token gelmemiş) → sebep: Firebase'de APNs anahtarı yüklü değildi. Kullanıcı **hem development hem production** APNs auth key yükledi (86AWH8M49N / CC96SSXUS3) ✅ — Firebase Console'dan başka yolu YOK (API'si yok)
+2. **Lucide ikonlar:** tüm ekranlarda Material → Lucide (lucide_icons_flutter). ⚠️ DERS: PS 5.1 `Get-Content -Raw` + `WriteAllText` ile toplu replace **Türkçe karakterleri/emojileri BOZDU** → `git checkout` ile geri alıp Edit tool'uyla tek tek yapıldı. **Dart/emoji dosyalarında PowerShell regex replace KULLANMA!**
+3. **GERÇEK PROFİLLER (kullanıcı isteği):** telefon numarası yerine **@kullanıcı adı**
+   - migration 003: username kolonu + unique index; mevcut kullanıcılara otomatik geçici ad
+   - Backend: `/users/search?q=` (isim VEYA @username, kendini ve engellileri hariç tutar, **telefon numarası DÖNMEZ**), `/users/me/username`, register'a username zorunluluğu
+   - Flutter: kayıtta @kullanıcı adı alanı, yeni `user_search_screen.dart` (350ms debounce'lu canlı arama), profil sekmesinde ad/@username/jeton
+   - Canlıda test edildi: @ahmet_y kaydı + isimle arama ✅
+4. **GERÇEK SMS OTP (kullanıcı isteği — Google kredisinden düşsün):**
+   - **Android release keystore** üretildi (gebzem-release.jks, gitignore'lu) → Codemagic'e base64 secure var (android_signing grubu) → build.gradle.kts imza yapılandırması
+   - ⚠️ DERS: AGP 9 Kotlin DSL'de `java.util.Properties()` inline çalışmıyor → dosya başına `import java.util.Properties` + `import java.io.FileInputStream` ŞART
+   - SHA-1 + SHA-256 parmak izleri Firebase'e API'den eklendi (androidApps/{id}/sha)
+   - Identity Platform **initializeAuth** + telefon girişi API'den açıldı (`admin/v2/projects/gebzem-app/config`) — ilk denemede CONFIGURATION_NOT_FOUND, initializeAuth çözdü
+   - Backend: `internal/auth/firebase.go` — Google x509 açık anahtarlarıyla ID token doğrulama (RS256, iss/aud kontrolü, 1 saat cache), `/auth/verify-firebase` ucu (yeni kayıt + mevcut kullanıcı ikisini de karşılar, kayıt bonusu verir)
+   - Flutter: firebase_auth; `useRealSms` bayrağı (`--dart-define=REAL_SMS=false` ile test moduna dönülür); register → sendSms → OTP ekranı (gerçek SMS/test modu ikisini de destekler) → confirmSms → backend JWT
+5. **Yayında:** https://indir.gebzem.app — APK 58,7 MB (imzalı) + IPA 10,4 MB
+
 ### ⏭️ Sonraki oturuma devir
-- **TEST BEKLENİYOR:** https://indir.gebzem.app/index.html — iki cihaza kur, kayıt, mesajlaşma, PUSH testi (uygulama kapalıyken bildirim). iOS push için kullanıcının Firebase APNs upload'ı doğrulanmadı — SOR
+- **TEST BEKLENİYOR:** Yeni sürümü kur → kayıt olurken **GERÇEK SMS gelmeli** (Google kredisinden) → @kullanıcı adıyla arama → iOS push testi (artık çalışmalı)
+- Eski sürümlerin `/auth/register` + `/auth/verify` (test modu) uçları hâlâ açık — geriye dönük uyumluluk için
+- Bilinen eksik: direct sohbet başlığı boş (ListChats karşı üye adı) ← İLK İŞ
+- Faz 2: gruplar + story + profil düzenleme + medya gönderme + uygulama ikonu
+- Eski oturum devirleri (hâlâ geçerli):
 - Hata takibi: https://gebzem.sentry.io (hatalar otomatik düşecek — oturum başında kontrol et!)
 - Bilinen eksik #1: direct sohbet başlığı boş (ListChats karşı üye adı) ← kod tarafında İLK İŞ
 - Faz 2 sırada: gruplar + story + profil; uygulama ikonu placeholder

@@ -21,6 +21,15 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
 - **KURAL: Codemagic build tetikledikten sonra ANLIK izle** (arka plan poll scripti), patlarsa subactions[].logUrl'den logu çek, düzelt
 - Kullanıcı anahtarları sohbete YAZMAZ → gbz-a3/token.txt'ye koyar, oradan oku (güvenlik filtresi tetiklenmesin)
 
+## KRİTİK TUZAKLAR (tekrar yaşamayalım)
+- **PowerShell ile Dart/emoji içeren dosyalarda toplu regex replace YAPMA** — `Get-Content -Raw` UTF-8'i bozar, Türkçe karakterler/emoji mahvolur. Edit tool kullan.
+- pbxproj'a yazarken `[System.IO.File]::WriteAllText` (BOM'suz) — `Set-Content -Encoding utf8` BOM ekler, Xcode imzalama patlar
+- AGP 9 Kotlin DSL: `java.util.Properties()` inline ÇALIŞMAZ → dosya başına `import java.util.Properties`
+- sentry_flutter 8.x → Android Kotlin + iOS Swift derleme hatası; **9.x kullan**
+- Codemagic: private repo klonu **SSH deploy key** ile (token'lı HTTPS URL kabul edilmiyor); çok satırlı secure var'larda `\r` temizle
+- Firebase APNs anahtarı yükleme ve bazı Console işlemleri API'de YOK → kullanıcıya adım adım tarif et
+- Cloudflare Global API Key: `X-Auth-Email` + `X-Auth-Key` başlıkları (Bearer değil)
+
 ## PROJE DURUMU (son güncelleme: 12 Temmuz 2026)
 - ✅ **Faz 1 ÇALIŞIYOR VE CANLIDA:** kayıt/OTP/giriş/şifre yenileme + 1:1 mesajlaşma (tikler, yazıyor, okunmamış) sunucuda uçtan uca test edildi
 - ✅ Backend sunucuda Docker'la çalışıyor: `http://167.233.229.88:8080` (health: /health)
@@ -39,10 +48,11 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
 - Kök: CLAUDE.md, oturum.md, arastirma-raporu.md, ozellik-listesi.md, .env.infra (gitignore'lu)
 
 ## API UÇLARI (backend)
-Açık: POST /auth/register, /auth/verify, /auth/login, /auth/forgot, /auth/reset · GET /health
-Korumalı (Bearer): GET/PATCH /users/me · GET /users/by-phone?phone= · GET /chats · POST /chats/direct · GET+POST /chats/{id}/messages · POST /chats/{id}/read · GET /ws (WebSocket; ?token= de kabul eder)
-WS olayları: message.new, receipt.read, typing (istemciden de typing gönderilir)
-DEV_MODE=true iken OTP, SMS yerine API yanıtında `dev_otp` olarak döner.
+Açık: POST /auth/register, /auth/verify (test OTP), **/auth/verify-firebase (GERÇEK SMS)**, /auth/login, /auth/forgot, /auth/reset · GET /health
+Korumalı (Bearer): GET/PATCH /users/me · POST /users/me/username · POST /users/me/fcm-token · **GET /users/search?q=** (isim/@username; telefon dönmez) · GET /users/by-phone · GET /chats · POST /chats/direct · GET+POST /chats/{id}/messages · POST /chats/{id}/read · GET /ws (WebSocket; ?token= de kabul eder)
+WS olayları: message.new, receipt.read, typing
+**Kimlik doğrulama:** GERÇEK SMS aktif (Firebase Phone Auth → Google imzalı ID token → backend doğrular). Test moduna dönmek için Flutter: `--dart-define=REAL_SMS=false` (o zaman /auth/register+verify akışı, dev_otp yanıtta döner).
+**Kullanıcı adı:** kayıtta zorunlu (@handle, 3-20 karakter a-z0-9_). Arama isim veya @username ile.
 
 ## KOMUTLAR
 - **Backend yerel derleme:** `cd backend && go build ./...`
