@@ -8,6 +8,7 @@ import '../../core/api.dart';
 import '../../router.dart';
 import 'call_provider.dart';
 import 'call_screen.dart';
+import 'call_sounds.dart';
 
 /// Gelen arama ekrani — uygulama acikken her ekranin uzerinde belirir.
 /// (Kilit ekraninda calma/CallKit sonraki asamada eklenecek.)
@@ -44,9 +45,24 @@ class _IncomingCallSheet extends ConsumerStatefulWidget {
 class _IncomingCallSheetState extends ConsumerState<_IncomingCallSheet> {
   bool _busy = false;
 
+  @override
+  void initState() {
+    super.initState();
+    // Zil + titresim. Bu sirada LiveKit odasina HENUZ baglanmadigimiz icin
+    // ses oturumu bos — zil serbestce calar (iOS'ta LiveKit onu susturmaz).
+    CallSounds.gelenArama();
+  }
+
+  @override
+  void dispose() {
+    CallSounds.durdur(); // ekran her kapandiginda zil MUTLAKA sussun
+    super.dispose();
+  }
+
   Future<void> _accept() async {
     if (_busy) return;
     setState(() => _busy = true);
+    await CallSounds.durdur(); // once zili kes, sonra odaya gir
 
     // Bu widget Navigator'in DISINDA yasar (MaterialApp.builder), bu yuzden
     // Navigator.of(context) kullanilamaz — kok Navigator anahtarini kullaniyoruz.
@@ -80,6 +96,7 @@ class _IncomingCallSheetState extends ConsumerState<_IncomingCallSheet> {
   Future<void> _reject() async {
     if (_busy) return;
     setState(() => _busy = true);
+    await CallSounds.durdur();
     await ref.read(callServiceProvider.notifier).end(widget.call.callId);
   }
 

@@ -45,6 +45,10 @@ class CallService extends StateNotifier<IncomingCall?> {
   final _answeredController = StreamController<String>.broadcast();
   Stream<String> get onCallAnswered => _answeredController.stream;
 
+  /// Kabul edilmis aramalar. Arama ekrani olayi dinlemeye baslamadan ONCE
+  /// "kabul edildi" gelirse kaybolmasin diye tutuluyor.
+  final Set<String> kabulEdilenler = {};
+
   void _onEvent(Map<String, dynamic> ev) {
     final payload = ev['payload'];
     if (payload is! Map) return;
@@ -54,7 +58,9 @@ class CallService extends StateNotifier<IncomingCall?> {
       case 'call.incoming':
         state = IncomingCall.fromJson(p);
       case 'call.answered':
-        _answeredController.add(p['call_id'] as String? ?? '');
+        final id = p['call_id'] as String? ?? '';
+        kabulEdilenler.add(id);
+        _answeredController.add(id);
       case 'call.ended':
         final id = p['call_id'] as String? ?? '';
         if (state?.callId == id) state = null; // gelen arama ekranini kapat

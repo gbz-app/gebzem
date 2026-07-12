@@ -74,6 +74,7 @@ func main() {
 	callsH := calls.NewHandler(db, hub, pushSender)
 	if callsH.Enabled() {
 		log.Println("arama (LiveKit): aktif")
+		callsH.StartSweeper(ctx) // takili kalan aramalari kapat (cevapsiz/mesgul hatasi)
 	} else {
 		log.Println("arama: LIVEKIT_API_KEY yok — kapali")
 	}

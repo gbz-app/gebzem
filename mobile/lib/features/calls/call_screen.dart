@@ -8,6 +8,8 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
 import 'call_provider.dart';
+import 'call_room_lock.dart';
+import 'call_sounds.dart';
 
 /// Aktif arama ekrani — LiveKit odasina baglanir, sesi/goruntuyu tasir.
 /// Zayif baglantida kalite otomatik duser; kopunca otomatik yeniden baglanir
@@ -43,6 +45,8 @@ class _CallScreenState extends ConsumerState<CallScreen> {
   Timer? _ringTimeout;
 
   bool _connecting = true;
+  bool _kapandi = false; // oda bir kez kapatildi mi (cift kapatmayi onler)
+  bool _baglandi = false; // odaya baglanma baslatildi mi (cift baglanmayi onler)
   bool _peerJoined = false;
   bool _micOn = true;
   bool _camOn = false;
@@ -56,41 +60,104 @@ class _CallScreenState extends ConsumerState<CallScreen> {
   void initState() {
     super.initState();
     _camOn = widget.video;
-    _connect();
+
+    final svc = ref.read(callServiceProvider.notifier);
 
     // Karsi taraf kapatirsa ekrani kapat
-    _endedSub = ref.read(callServiceProvider.notifier).onCallEnded.listen((id) {
+    _endedSub = svc.onCallEnded.listen((id) {
       if (id == widget.callId && mounted) _leave(notifyServer: false);
     });
+
+    if (widget.outgoing) {
+      // GIDEN ARAMA: karsi taraf ACANA KADAR LiveKit odasina BAGLANMA.
+      // Sebep: iOS'ta mikrofon yayinlanir yayinlanmaz LiveKit ses oturumunu ele gecirip
+      // calma tonumuzu susturuyor. Odaya cevaptan sonra girince ton rahatca calar
+      // ve bosuna medya baglantisi kurulmaz.
+      _answeredSub = svc.onCallAnswered.listen((id) {
+        if (id == widget.callId && mounted && !_baglandi) {
+          CallSounds.durdur();
+          _connect();
+        }
+      });
+      // Cok hizli kabul edildiyse olay biz dinlemeye baslamadan gelmis olabilir
+      if (svc.kabulEdilenler.contains(widget.callId)) {
+        _connect();
+        return;
+      }
+      CallSounds.calmaTonu();
+      // 45 sn cevap yoksa: cevapsiz
+      _ringTimeout = Timer(const Duration(seconds: 45), () {
+        if (mounted && !_baglandi) _leave(notifyServer: true);
+      });
+      setState(() => _connecting = false); // "Caliyor..." goster
+    } else {
+      // GELEN ARAMAYI KABUL ETTIK: hemen odaya gir
+      _connect();
+    }
   }
 
   Future<void> _connect() async {
+    if (_baglandi) return;
+    _baglandi = true;
     try {
       // Izinler: mikrofon her zaman, kamera goruntulu aramada
       final perms = <Permission>[Permission.microphone];
       if (widget.video) perms.add(Permission.camera);
       final statuses = await perms.request();
       if (statuses[Permission.microphone] != PermissionStatus.granted) {
+        if (!mounted) return;
         setState(() {
           _error = 'Arama icin mikrofon izni gerekli';
           _connecting = false;
         });
         return;
       }
+      if (mounted) setState(() => _connecting = true);
 
-      final room = Room(
+      await CallRoomLock.calistir(() => _odayaBaglan());
+    } catch (e) {
+      // Hata Sentry'e duser; kullaniciya net mesaj gosterilir
+      await CallSounds.durdur();
+      await Sentry.captureException(e, stackTrace: StackTrace.current);
+      if (mounted) {
+        final msg = e.toString().toLowerCase();
+        setState(() {
+          _error = msg.contains('timeout') || msg.contains('ice') || msg.contains('dtls')
+              ? 'Baglanti kurulamadi.\nInternet baglantinizi kontrol edin.'
+              : 'Arama baslatilamadi.\nTekrar deneyin.';
+          _connecting = false;
+        });
+      }
+    }
+  }
+
+  /// Odaya baglanma — CallRoomLock sirasinda calisir, yani onceki aramanin
+  /// kapanisi BITMIS olur (ses oturumu yarisini onler).
+  Future<void> _odayaBaglan() async {
+    final room = Room(
         roomOptions: RoomOptions(
           adaptiveStream: true, // zayif baglantida kaliteyi otomatik dusur
           dynacast: true, // kullanilmayan akislari durdur (pil/veri tasarrufu)
           defaultAudioPublishOptions: const AudioPublishOptions(
             dtx: true, // sessizken veri gonderme
           ),
+          // 1:1 aramada 540p yeter; 720p'de eski telefonlarda (iPhone XS gibi)
+          // kodlayici zorlanip goruntu blok blok bozuluyordu.
+          defaultCameraCaptureOptions: const CameraCaptureOptions(
+            params: VideoParametersPresets.h540_169,
+          ),
           defaultVideoPublishOptions: const VideoPublishOptions(
-            simulcast: true, // farkli kalitelerde gonder
+            simulcast: true, // farkli kalitelerde gonder (zayif agda dusuk katman)
+            videoEncoding: VideoEncoding(maxFramerate: 30, maxBitrate: 1200 * 1000),
           ),
         ),
       );
+    // Odayi HEMEN alana ata: baglanma sirasinda ekran kapanirsa (erken cikis / hata)
+    // _kapatOda() bu odayi bulup kapatabilsin. Yoksa oda sizar, mikrofon yayinda kalir
+    // ve global ses sayaci takili kalir -> sonraki aramanin sesi olur.
+    _room = room;
 
+    try {
       _listener = room.createListener();
       _listener!
         ..on<ParticipantConnectedEvent>((_) {
@@ -135,33 +202,21 @@ class _CallScreenState extends ConsumerState<CallScreen> {
       }
       await room.setSpeakerOn(widget.video); // goruntuluda hoparlor acik baslar
 
-      if (!mounted) return;
+      // Ekran bu arada kapandiysa odayi burada birak (sizinti olmasin)
+      if (!mounted) {
+        await _kapatOda();
+        return;
+      }
+      _ringTimeout?.cancel();
       setState(() {
-        _room = room;
         _connecting = false;
         _speakerOn = widget.video;
         _peerJoined = room.remoteParticipants.isNotEmpty;
       });
-      if (_peerJoined) {
-        _startTimer();
-      } else if (widget.outgoing) {
-        // Karsi taraf 45 saniyede acmazsa aramayi kapat (cevapsiz)
-        _ringTimeout = Timer(const Duration(seconds: 45), () {
-          if (mounted && !_peerJoined) _leave(notifyServer: true);
-        });
-      }
+      if (_peerJoined) _startTimer();
     } catch (e) {
-      // Hata Sentry'e duser; kullaniciya net mesaj gosterilir
-      await Sentry.captureException(e, stackTrace: StackTrace.current);
-      if (mounted) {
-        final msg = e.toString().toLowerCase();
-        setState(() {
-          _error = msg.contains('timeout') || msg.contains('ice') || msg.contains('dtls')
-              ? 'Baglanti kurulamadi.\nInternet baglantinizi kontrol edin.'
-              : 'Arama baslatilamadi.\nTekrar deneyin.';
-          _connecting = false;
-        });
-      }
+      await _kapatOda(); // yarim kalan odayi TEMIZLE
+      rethrow; // ust katman Sentry'e bildirir ve mesaj gosterir
     }
   }
 
@@ -172,15 +227,39 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     });
   }
 
-  Future<void> _leave({required bool notifyServer}) async {
+  /// Odayi TAM olarak kapat.
+  /// KRITIK: disconnect() yetmez — Room.dispose() cagrilmazsa WebRTC motoru,
+  /// dinleyiciler ve ses oturumu (AVAudioSession / Android AudioManager) sizar;
+  /// 2-3. aramada ses gitmez ve goruntu bozulur. Sira: disconnect -> listener -> room.
+  Future<void> _kapatOda() async {
+    if (_kapandi) return;
+    _kapandi = true;
     _durationTimer?.cancel();
     _ringTimeout?.cancel();
-    await _room?.disconnect();
-    await _listener?.dispose();
+    final room = _room;
+    final listener = _listener;
     _room = null;
+    _listener = null;
+    if (room == null && listener == null) return;
+    try {
+      await room?.disconnect();
+    } catch (_) {}
+    try {
+      await listener?.dispose();
+    } catch (_) {}
+    try {
+      await room?.dispose(); // motoru ve ses oturumunu birak
+    } catch (_) {}
+  }
+
+  Future<void> _leave({required bool notifyServer}) async {
+    await CallSounds.durdur();
+    // Kapanisi kilit sirasina koy: sonraki aramanin connect'i BUNU BEKLER
+    await CallRoomLock.calistir(_kapatOda);
     if (notifyServer) {
       await ref.read(callServiceProvider.notifier).end(widget.callId);
     }
+    ref.invalidate(callHistoryProvider); // arama gecmisi hemen guncellensin
     if (mounted) Navigator.of(context).pop();
   }
 
@@ -213,12 +292,12 @@ class _CallScreenState extends ConsumerState<CallScreen> {
 
   @override
   void dispose() {
-    _durationTimer?.cancel();
-    _ringTimeout?.cancel();
     _endedSub?.cancel();
     _answeredSub?.cancel();
-    _listener?.dispose();
-    _room?.disconnect();
+    CallSounds.durdur();
+    // await edilemez (dispose senkron) — ama kilit sirasina konur, boylece
+    // BIR SONRAKI aramanin connect'i bu kapanis bitmeden baslamaz.
+    unawaited(CallRoomLock.calistir(_kapatOda));
     super.dispose();
   }
 

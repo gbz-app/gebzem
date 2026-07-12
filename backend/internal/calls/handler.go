@@ -1,6 +1,7 @@
 package calls
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -43,6 +44,62 @@ func NewHandler(db *pgxpool.Pool, hub *chat.Hub, pushSender *push.Sender) *Handl
 }
 
 func (h *Handler) Enabled() bool { return h.apiKey != "" && h.apiSecret != "" }
+
+// Temizleyici: takili kalmis aramalari kapatir.
+// Neden gerekli: zil zaman asimi ISTEMCIDE (45 sn). Arayanin uygulamasi cokerse /
+// sebeke giderse End() hic cagrilmaz -> kayit sonsuza dek 'ringing' kalir, aranana
+// cevapsiz arama yazilmaz; 'active' kalan kayit ise kullaniciyi kalici "mesgul" yapar.
+func (h *Handler) StartSweeper(ctx context.Context) {
+	go func() {
+		t := time.NewTicker(30 * time.Second)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+				h.sweep(ctx)
+			}
+		}
+	}()
+}
+
+func (h *Handler) sweep(ctx context.Context) {
+	// 1) 60 sn'dir calan ama cevaplanmayanlar -> cevapsiz (istemcinin 45 sn'lik
+	//    timer'i normalde once davranir; bu sadece emniyet subabi)
+	rows, err := h.db.Query(ctx, `
+		UPDATE calls SET status='missed', ended_at=now()
+		WHERE status='ringing' AND created_at < now() - interval '60 seconds'
+		RETURNING id, caller_id, callee_id`)
+	if err != nil {
+		return
+	}
+	type kayit struct{ id, caller, callee string }
+	var bitenler []kayit
+	for rows.Next() {
+		var k kayit
+		if rows.Scan(&k.id, &k.caller, &k.callee) == nil {
+			bitenler = append(bitenler, k)
+		}
+	}
+	rows.Close()
+
+	for _, k := range bitenler {
+		payload, _ := json.Marshal(map[string]string{"call_id": k.id, "status": "missed"})
+		h.hub.Publish(ctx, &chat.Event{
+			Type: "call.ended", Payload: payload, To: []string{k.caller, k.callee},
+		})
+	}
+
+	// 2) 2 saatten uzun "suren" aramalar -> bitmis say (uygulama cokmus demektir)
+	h.db.Exec(ctx, `
+		UPDATE calls SET status='ended', ended_at=now()
+		WHERE status='active' AND created_at < now() - interval '2 hours'`)
+
+	if len(bitenler) > 0 {
+		log.Printf("arama temizleyici: %d cevapsiz arama kapatildi", len(bitenler))
+	}
+}
 
 // LiveKit erisim token'i uret (JWT — LiveKit'in kendi formati)
 func (h *Handler) token(roomName, identity, name string) (string, error) {
@@ -103,12 +160,33 @@ func (h *Handler) Start(w http.ResponseWriter, r *http.Request) {
 	h.db.QueryRow(r.Context(),
 		`SELECT name, avatar_url FROM users WHERE id=$1`, callerID).Scan(&callerName, &callerAvatar)
 
-	// Arama kaydi
-	var callID string
 	callType := "audio"
 	if req.Video {
 		callType = "video"
 	}
+
+	// MESGUL MU? Alici zaten baska bir aramadaysa (calan ya da suren) yeni arama
+	// gonderme; "mesgul" olarak kaydet ki iki tarafin gecmisinde de gorunsun.
+	// DIKKAT: 'active' icin ZAMAN SINIRI SART. Uygulama arama sirasinda cokerse
+	// End() hic cagrilmaz, satir sonsuza dek 'active' kalir ve o kullaniciya gelen
+	// HER arama "mesgul" doner (kullanici kalici olarak aranamaz olur).
+	var busy bool
+	h.db.QueryRow(r.Context(), `
+		SELECT EXISTS(SELECT 1 FROM calls
+		WHERE (caller_id=$1 OR callee_id=$1)
+		  AND ((status='active'  AND created_at > now() - interval '2 hours')
+		       OR (status='ringing' AND created_at > now() - interval '45 seconds')))`,
+		req.CalleeID).Scan(&busy)
+	if busy {
+		h.db.Exec(r.Context(), `
+			INSERT INTO calls (caller_id, callee_id, type, status, ended_at)
+			VALUES ($1,$2,$3,'busy',now())`, callerID, req.CalleeID, callType)
+		writeErr(w, http.StatusConflict, "Kullanici su anda baska bir gorusmede")
+		return
+	}
+
+	// Arama kaydi
+	var callID string
 	err := h.db.QueryRow(r.Context(), `
 		INSERT INTO calls (caller_id, callee_id, type, status)
 		VALUES ($1,$2,$3,'ringing') RETURNING id`,
@@ -272,17 +350,18 @@ func (h *Handler) Active(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// GET /calls — arama gecmisi
+// GET /calls — arama gecmisi (kim, ne zaman, cevapsiz/reddedildi/mesgul, ne kadar surdu)
 func (h *Handler) History(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserID(r.Context())
 	rows, err := h.db.Query(r.Context(), `
 		SELECT c.id, c.type, c.status, c.created_at,
 		       c.caller_id = $1 AS outgoing,
-		       u.id, u.name, COALESCE(u.username,''), u.avatar_url
+		       COALESCE(EXTRACT(EPOCH FROM (c.ended_at - c.answered_at))::int, 0) AS duration,
+		       u.id, u.name, COALESCE(u.username,''), COALESCE(u.avatar_url,'')
 		FROM calls c
 		JOIN users u ON u.id = CASE WHEN c.caller_id=$1 THEN c.callee_id ELSE c.caller_id END
 		WHERE c.caller_id=$1 OR c.callee_id=$1
-		ORDER BY c.created_at DESC LIMIT 50`, userID)
+		ORDER BY c.created_at DESC LIMIT 100`, userID)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "sunucu hatasi")
 		return
@@ -291,10 +370,11 @@ func (h *Handler) History(w http.ResponseWriter, r *http.Request) {
 
 	type item struct {
 		ID        string    `json:"id"`
-		Type      string    `json:"type"`
-		Status    string    `json:"status"`
+		Type      string    `json:"type"`     // audio | video
+		Status    string    `json:"status"`   // ended|missed|rejected|busy|active|ringing
 		CreatedAt time.Time `json:"created_at"`
-		Outgoing  bool      `json:"outgoing"`
+		Outgoing  bool      `json:"outgoing"` // ben mi aradim
+		Duration  int       `json:"duration"` // saniye (cevaplanmadiysa 0)
 		PeerID    string    `json:"peer_id"`
 		PeerName  string    `json:"peer_name"`
 		PeerUser  string    `json:"peer_username"`
@@ -303,7 +383,7 @@ func (h *Handler) History(w http.ResponseWriter, r *http.Request) {
 	out := []item{}
 	for rows.Next() {
 		var it item
-		if rows.Scan(&it.ID, &it.Type, &it.Status, &it.CreatedAt, &it.Outgoing,
+		if rows.Scan(&it.ID, &it.Type, &it.Status, &it.CreatedAt, &it.Outgoing, &it.Duration,
 			&it.PeerID, &it.PeerName, &it.PeerUser, &it.PeerPhoto) == nil {
 			out = append(out, it)
 		}
