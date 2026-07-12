@@ -1,0 +1,14 @@
+# LiveKit — kendi sunucumuzda calisan RTC motoru (arama, oda, canli yayin)
+# Not: host network kullaniyoruz cunku medya icin genis UDP port araligi gerekiyor
+services:
+  livekit:
+    image: livekit/livekit-server:latest
+    container_name: livekit
+    restart: unless-stopped
+    command: --config /etc/livekit.yaml --node-ip=167.233.229.88
+    network_mode: host
+    environment:
+      LIVEKIT_KEYS: ${LIVEKIT_KEYS}
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml:ro
+      - ./letsencrypt:/etc/letsencrypt:ro

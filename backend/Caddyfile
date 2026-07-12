@@ -8,6 +8,11 @@ http://api.gebzem.app {
 	reverse_proxy 172.17.0.1:8080
 }
 
+# LiveKit sinyal kanali (WebSocket) — medya UDP ile dogrudan sunucuya gider
+http://rtc.gebzem.app {
+	reverse_proxy 172.17.0.1:7880
+}
+
 # Nabiz monitoru: CPU/RAM/disk/ag + konteyner tuketimi
 http://nabiz.gebzem.app {
 	basic_auth {
