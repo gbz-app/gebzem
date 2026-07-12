@@ -16,7 +16,7 @@ workflows:
       - name: APK derle (canli sunucu adresiyle)
         script: |
           cd mobile
-          flutter build apk --release --dart-define=API_URL=http://167.233.229.88:8080
+          flutter build apk --release --dart-define=API_URL=https://api.gebzem.app
     artifacts:
       - mobile/build/app/outputs/flutter-apk/app-release.apk
 
@@ -41,7 +41,7 @@ workflows:
         script: |
           cd mobile
           flutter build ipa --release \
-            --dart-define=API_URL=http://167.233.229.88:8080 \
+            --dart-define=API_URL=https://api.gebzem.app \
             --export-options-plist=/Users/builder/export_options.plist
           echo "--- IPA konumu ---"
           ls -la build/ios/ipa/ && test -n "$(ls build/ios/ipa/*.ipa 2>/dev/null)"
