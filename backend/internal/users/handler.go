@@ -3,6 +3,7 @@ package users
 import (
 	"encoding/json"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -22,7 +23,8 @@ func NewHandler(db *pgxpool.Pool) *Handler {
 
 type userResp struct {
 	ID          string     `json:"id"`
-	Phone       string     `json:"phone"`
+	Phone       string     `json:"phone,omitempty"` // gizlilik: aramada donmez
+	Username    string     `json:"username"`
 	Name        string     `json:"name"`
 	About       string     `json:"about"`
 	AvatarURL   string     `json:"avatar_url"`
@@ -35,14 +37,85 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserID(r.Context())
 	var u userResp
 	err := h.db.QueryRow(r.Context(), `
-		SELECT id, phone, name, about, avatar_url, coin_balance, last_seen
+		SELECT id, phone, COALESCE(username,''), name, about, avatar_url, coin_balance, last_seen
 		FROM users WHERE id=$1`, userID).
-		Scan(&u.ID, &u.Phone, &u.Name, &u.About, &u.AvatarURL, &u.CoinBalance, &u.LastSeen)
+		Scan(&u.ID, &u.Phone, &u.Username, &u.Name, &u.About, &u.AvatarURL, &u.CoinBalance, &u.LastSeen)
 	if err != nil {
 		writeErr(w, http.StatusNotFound, "kullanici bulunamadi")
 		return
 	}
 	writeJSON(w, http.StatusOK, u)
+}
+
+var usernameRe = regexp.MustCompile(`^[a-z0-9_]{3,20}$`)
+
+// GET /users/search?q= — isim veya kullanici adiyla ara (telefon numarasi gerekmez)
+func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
+	me := auth.UserID(r.Context())
+	q := strings.TrimSpace(strings.TrimPrefix(r.URL.Query().Get("q"), "@"))
+	if len(q) < 2 {
+		writeErr(w, http.StatusBadRequest, "en az 2 karakter yazin")
+		return
+	}
+
+	rows, err := h.db.Query(r.Context(), `
+		SELECT id, COALESCE(username,''), name, about, avatar_url
+		FROM users
+		WHERE verified = true
+		  AND id <> $1
+		  AND id NOT IN (SELECT blocker_id FROM blocks WHERE blocked_id = $1)
+		  AND id NOT IN (SELECT blocked_id FROM blocks WHERE blocker_id = $1)
+		  AND (lower(username) LIKE lower($2) || '%' OR lower(name) LIKE '%' || lower($2) || '%')
+		ORDER BY
+		  CASE WHEN lower(username) = lower($2) THEN 0
+		       WHEN lower(username) LIKE lower($2) || '%' THEN 1
+		       ELSE 2 END,
+		  name
+		LIMIT 20`, me, q)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "arama basarisiz")
+		return
+	}
+	defer rows.Close()
+
+	out := []userResp{}
+	for rows.Next() {
+		var u userResp
+		if rows.Scan(&u.ID, &u.Username, &u.Name, &u.About, &u.AvatarURL) == nil {
+			out = append(out, u) // telefon numarasi DONMEZ (gizlilik)
+		}
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+// POST /users/me/username — kullanici adi belirle/degistir
+func (h *Handler) SetUsername(w http.ResponseWriter, r *http.Request) {
+	userID := auth.UserID(r.Context())
+	var req struct {
+		Username string `json:"username"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, "gecersiz istek")
+		return
+	}
+	uname := strings.ToLower(strings.TrimSpace(strings.TrimPrefix(req.Username, "@")))
+	if !usernameRe.MatchString(uname) {
+		writeErr(w, http.StatusBadRequest, "kullanici adi 3-20 karakter olmali (harf, rakam, alt cizgi)")
+		return
+	}
+	var taken bool
+	h.db.QueryRow(r.Context(),
+		`SELECT EXISTS(SELECT 1 FROM users WHERE lower(username)=$1 AND id<>$2)`, uname, userID).Scan(&taken)
+	if taken {
+		writeErr(w, http.StatusConflict, "bu kullanici adi alinmis")
+		return
+	}
+	if _, err := h.db.Exec(r.Context(),
+		`UPDATE users SET username=$1 WHERE id=$2`, uname, userID); err != nil {
+		writeErr(w, http.StatusInternalServerError, "kaydedilemedi")
+		return
+	}
+	h.Me(w, r)
 }
 
 // GET /users/by-phone?phone=+90... — numaradan kullanici bul (sohbet baslatmak icin)

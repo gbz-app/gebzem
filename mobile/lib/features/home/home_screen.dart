@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../core/api.dart';
 import '../auth/auth_provider.dart';
 import '../chats/chats_screen.dart';
 
@@ -82,19 +83,46 @@ class _PhasePlaceholder extends StatelessWidget {
   }
 }
 
-/// Faz 1 profil sekmesi: bilgiler + cikis (tam ekran Faz 2'de)
+/// Kendi profilim (API'den)
+final myProfileProvider = FutureProvider<Map<String, dynamic>>((ref) async {
+  final res = await ref.read(apiProvider).get('/users/me');
+  return (res.data as Map).cast<String, dynamic>();
+});
+
+/// Faz 1 profil sekmesi: bilgiler + cikis (tam duzenleme Faz 2'de)
 class _ProfileTab extends ConsumerWidget {
   const _ProfileTab();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final profile = ref.watch(myProfileProvider);
+    final scheme = Theme.of(context).colorScheme;
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
         const SizedBox(height: 16),
         CircleAvatar(
           radius: 48,
-          child: Icon(LucideIcons.user, size: 48, color: Theme.of(context).colorScheme.onPrimaryContainer),
+          child: Icon(LucideIcons.user, size: 48, color: scheme.onPrimaryContainer),
+        ),
+        const SizedBox(height: 12),
+        profile.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (_, _) => const SizedBox.shrink(),
+          data: (p) => Column(
+            children: [
+              Text(p['name'] as String? ?? '',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.titleLarge),
+              Text('@${p['username'] ?? ''}',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: scheme.primary, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 4),
+              Text(p['phone'] as String? ?? '',
+                  style: TextStyle(color: scheme.outline, fontSize: 13)),
+            ],
+          ),
         ),
         const SizedBox(height: 24),
         const ListTile(
@@ -102,15 +130,17 @@ class _ProfileTab extends ConsumerWidget {
           title: Text('Profil duzenleme'),
           subtitle: Text('Faz 2\'de geliyor'),
         ),
-        const ListTile(
-          leading: Icon(LucideIcons.coins),
-          title: Text('Jeton bakiyem'),
-          subtitle: Text('Kayit bonusu: 100 jeton'),
+        ListTile(
+          leading: const Icon(LucideIcons.coins),
+          title: const Text('Jeton bakiyem'),
+          subtitle: Text(profile.valueOrNull != null
+              ? '${profile.valueOrNull!['coin_balance'] ?? 0} jeton'
+              : '...'),
         ),
         const Divider(),
         ListTile(
-          leading: Icon(LucideIcons.logOut, color: Theme.of(context).colorScheme.error),
-          title: Text('Cikis yap', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+          leading: Icon(LucideIcons.logOut, color: scheme.error),
+          title: Text('Cikis yap', style: TextStyle(color: scheme.error)),
           onTap: () => ref.read(authProvider.notifier).logout(),
         ),
       ],

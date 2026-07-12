@@ -17,11 +17,13 @@ class AuthNotifier extends StateNotifier<String?> {
   }
 
   /// Kayit baslat — dev modda OTP kodu doner (SMS yerine)
-  Future<String?> register(String phone, String password, String name) async {
+  Future<String?> register(
+      String phone, String password, String name, String username) async {
     final res = await _ref.read(apiProvider).post('/auth/register', data: {
       'phone': phone,
       'password': password,
       'name': name,
+      'username': username,
     });
     return res.data['dev_otp'] as String?;
   }

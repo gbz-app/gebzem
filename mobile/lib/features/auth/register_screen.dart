@@ -16,6 +16,7 @@ class RegisterScreen extends ConsumerStatefulWidget {
 class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
   final _name = TextEditingController();
+  final _username = TextEditingController();
   final _phone = TextEditingController(text: '+90');
   final _password = TextEditingController();
   bool _loading = false;
@@ -24,6 +25,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   @override
   void dispose() {
     _name.dispose();
+    _username.dispose();
     _phone.dispose();
     _password.dispose();
     super.dispose();
@@ -33,9 +35,12 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _loading = true);
     try {
-      final devOtp = await ref
-          .read(authProvider.notifier)
-          .register(_phone.text.trim(), _password.text, _name.text.trim());
+      final devOtp = await ref.read(authProvider.notifier).register(
+            _phone.text.trim(),
+            _password.text,
+            _name.text.trim(),
+            _username.text.trim().toLowerCase(),
+          );
       if (mounted) {
         // OTP ekranina git; dev modda kod da tasinir (SMS yerine)
         context.push('/otp', extra: {'phone': _phone.text.trim(), 'dev_otp': devOtp});
@@ -72,6 +77,25 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   ),
                   validator: (v) =>
                       (v == null || v.trim().length < 2) ? 'Adinizi girin' : null,
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _username,
+                  decoration: const InputDecoration(
+                    labelText: 'Kullanici adi',
+                    hintText: 'ornek: mikail_s',
+                    helperText: 'Arkadaslarin seni bu adla bulacak',
+                    prefixText: '@',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(LucideIcons.atSign),
+                  ),
+                  validator: (v) {
+                    final u = (v ?? '').trim().toLowerCase();
+                    if (!RegExp(r'^[a-z0-9_]{3,20}$').hasMatch(u)) {
+                      return '3-20 karakter: harf, rakam, alt cizgi';
+                    }
+                    return null;
+                  },
                 ),
                 const SizedBox(height: 16),
                 TextFormField(

@@ -9,6 +9,7 @@ import 'features/auth/login_screen.dart';
 import 'features/auth/otp_screen.dart';
 import 'features/auth/register_screen.dart';
 import 'features/chats/chat_screen.dart';
+import 'features/chats/user_search_screen.dart';
 import 'features/home/home_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -46,6 +47,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         },
       ),
       GoRoute(path: '/forgot', builder: (_, _) => const ForgotScreen()),
+      GoRoute(path: '/search', builder: (_, _) => const UserSearchScreen()),
       GoRoute(
         path: '/chat/:id',
         builder: (_, state) {

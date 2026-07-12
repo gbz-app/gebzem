@@ -33,7 +33,10 @@ type registerReq struct {
 	Phone    string `json:"phone"`
 	Password string `json:"password"`
 	Name     string `json:"name"`
+	Username string `json:"username"`
 }
+
+var usernameRe = regexp.MustCompile(`^[a-z0-9_]{3,20}$`)
 
 // POST /auth/register — kayit baslat: kullanici olustur (verified=false) + OTP uret
 func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
@@ -51,6 +54,11 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "sifre en az 6 karakter olmali")
 		return
 	}
+	uname := strings.ToLower(strings.TrimSpace(strings.TrimPrefix(req.Username, "@")))
+	if !usernameRe.MatchString(uname) {
+		writeErr(w, http.StatusBadRequest, "kullanici adi 3-20 karakter olmali (harf, rakam, alt cizgi)")
+		return
+	}
 
 	var exists bool
 	err := h.db.QueryRow(r.Context(),
@@ -64,6 +72,15 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// kullanici adi baskasinda mi?
+	var taken bool
+	h.db.QueryRow(r.Context(),
+		`SELECT EXISTS(SELECT 1 FROM users WHERE lower(username)=$1 AND phone<>$2)`, uname, req.Phone).Scan(&taken)
+	if taken {
+		writeErr(w, http.StatusConflict, "bu kullanici adi alinmis")
+		return
+	}
+
 	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "sunucu hatasi")
@@ -72,12 +89,12 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 
 	// verified=false kullaniciyi olustur/guncelle (tekrar kayit denemesine izin ver)
 	_, err = h.db.Exec(r.Context(), `
-		INSERT INTO users (phone, password_hash, name)
-		VALUES ($1, $2, $3)
-		ON CONFLICT (phone) DO UPDATE SET password_hash=$2, name=$3`,
-		req.Phone, string(hash), strings.TrimSpace(req.Name))
+		INSERT INTO users (phone, password_hash, name, username)
+		VALUES ($1, $2, $3, $4)
+		ON CONFLICT (phone) DO UPDATE SET password_hash=$2, name=$3, username=$4`,
+		req.Phone, string(hash), strings.TrimSpace(req.Name), uname)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "sunucu hatasi")
+		writeErr(w, http.StatusInternalServerError, "kullanici adi alinmis olabilir")
 		return
 	}
 

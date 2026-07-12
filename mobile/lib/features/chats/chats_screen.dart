@@ -41,54 +41,11 @@ class ChatsScreen extends ConsumerWidget {
         },
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => _newChatDialog(context, ref),
+        // Yeni sohbet: isim/@kullaniciadi ile kisi ara (telefon numarasi gerekmez)
+        onPressed: () => context.push('/search'),
         child: const Icon(LucideIcons.squarePen),
       ),
     );
-  }
-
-  /// Yeni sohbet: numaradan kullanici bul -> direct sohbet ac -> ekrana git
-  Future<void> _newChatDialog(BuildContext context, WidgetRef ref) async {
-    final phoneCtrl = TextEditingController(text: '+90');
-    final result = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Yeni Sohbet'),
-        content: TextField(
-          controller: phoneCtrl,
-          keyboardType: TextInputType.phone,
-          autofocus: true,
-          decoration: const InputDecoration(
-            labelText: 'Telefon numarasi',
-            hintText: '+905xxxxxxxxx',
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Vazgec')),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, phoneCtrl.text.trim()),
-            child: const Text('Baslat'),
-          ),
-        ],
-      ),
-    );
-    if (result == null || result.isEmpty) return;
-
-    try {
-      final api = ref.read(apiProvider);
-      final user = await api.get('/users/by-phone', queryParameters: {'phone': result});
-      final chat = await api.post('/chats/direct', data: {'user_id': user.data['id']});
-      ref.read(chatsProvider.notifier).load();
-      if (context.mounted) {
-        context.push('/chat/${chat.data['chat_id']}',
-            extra: {'title': user.data['name'] ?? result});
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
-      }
-    }
   }
 }
 
