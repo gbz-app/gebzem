@@ -172,8 +172,22 @@
    - Flutter: firebase_auth; `useRealSms` bayrağı (`--dart-define=REAL_SMS=false` ile test moduna dönülür); register → sendSms → OTP ekranı (gerçek SMS/test modu ikisini de destekler) → confirmSms → backend JWT
 5. **Yayında:** https://indir.gebzem.app — APK 58,7 MB (imzalı) + IPA 10,4 MB
 
+### 🔴 TEST 2 — İKİ HATA ÇIKTI, İKİSİ DE ÇÖZÜLDÜ (12 Tem, 15:00-16:00)
+**Kullanıcı bildirimi:** Android'de "Firebase operasyon hatası", iOS'ta uygulama açılışta çöküyor
+
+**TEŞHİS (Sentry + API sorguları ile — kullanıcı detay vermeden bulundu):**
+1. **Android SMS hatası:** Identity Platform'da `smsRegionConfig = {"allowlistOnly":{}}` → **boş allowlist = TÜM ülkelere SMS engelli** (yeni projelerde SMS-pumping dolandırıcılığına karşı varsayılan). ÇÖZÜM: `{"allowlistOnly":{"allowedRegions":["TR"]}}` API'den set edildi ✅ (sunucu tarafı — yeni build gerekmez)
+2. **iOS çökmesi:** Sentry'de `EXC_BREAKPOINT` → `User.tenantID.setter` (FirebaseAuth Swift, iPhone11,6 / iOS 18.7.9). Sebep: firebase_auth 5.7.0 eski, yeni firebase-ios-sdk ile uyumsuz. ÇÖZÜM: **major upgrade** firebase_core 3→4.11, firebase_auth 5→6.5.4, firebase_messaging 15→16.4.1 ✅
+3. **iOS derleme hatası (bunun yan etkisi):** yeni Firebase iOS 15.0+ istiyor, pbxproj'da 13.0 yazıyordu → 15.0'a çıkarıldı (WriteAllText ile, BOM'suz)
+4. Info.plist'e `UIBackgroundModes: remote-notification` + `FirebaseAppDelegateProxyEnabled` eklendi (Firebase telefon doğrulaması sessiz push kullanıyor)
+5. Hata mesajları netleştirildi (`operation-not-allowed`, `app-not-authorized` vs. Türkçe açık mesajlar)
+
+**⚠️ CDN TUZAĞI (kullanıcı boşuna eski sürümü kurdu):** R2'ye yükledim ama **Cloudflare eski dosyayı önbellekten servis etti** → kullanıcı 56.8 MB'lık eski APK'yı indirdi, kullanıcı adı alanı yoktu. ÇÖZÜM: r2put.js'e `Cache-Control: no-cache` + her yayından sonra **zone purge** (Global API Key ile) + **yayın sonrası boyut doğrulaması** (sunucudaki dosya = yerel dosya mı?) ← ARTIK HER DAĞITIMDA ZORUNLU ADIM
+
+**Kullanıcı geri bildirimi (haklı):** "çok fazla hata yapıyorsun" — dağıtmadan önce sürüm uyumu/servis ayarları/önbellek kontrol edilmeli. KURAL: "hazır" demeden önce APK/IPA içeriğini ve sunucudaki kopyayı doğrula.
+
 ### ⏭️ Sonraki oturuma devir
-- **TEST BEKLENİYOR:** Yeni sürümü kur → kayıt olurken **GERÇEK SMS gelmeli** (Google kredisinden) → @kullanıcı adıyla arama → iOS push testi (artık çalışmalı)
+- **TEST BEKLENİYOR (doğrulanmış sürüm yayında):** Yeni sürümü kur → kayıt olurken **GERÇEK SMS gelmeli** (Google kredisinden) → @kullanıcı adıyla arama → iOS push testi (artık çalışmalı)
 - Eski sürümlerin `/auth/register` + `/auth/verify` (test modu) uçları hâlâ açık — geriye dönük uyumluluk için
 - Bilinen eksik: direct sohbet başlığı boş (ListChats karşı üye adı) ← İLK İŞ
 - Faz 2: gruplar + story + profil düzenleme + medya gönderme + uygulama ikonu
