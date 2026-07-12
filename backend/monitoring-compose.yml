@@ -49,8 +49,22 @@ services:
     ports:
       - "127.0.0.1:9999:8080"
 
+  # Sifreli kapi: panelleri gebzem.app alt alan adlarindan servis eder
+  caddy:
+    image: caddy:2-alpine
+    container_name: caddy
+    restart: unless-stopped
+    environment:
+      PANEL_HASH: ${PANEL_HASH}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddydata:/data
+    ports:
+      - "80:80"
+
 volumes:
   netdataconfig:
   netdatalib:
   netdatacache:
   kuma:
+  caddydata:

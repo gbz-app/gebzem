@@ -1,0 +1,25 @@
+# Izleme panelleri icin sifreli kapi (Cloudflare HTTPS'i saglar, Caddy 80'de dinler)
+{
+	auto_https off
+}
+
+# Nabiz monitoru: CPU/RAM/disk/ag + konteyner tuketimi
+http://nabiz.gebzem.app {
+	basic_auth {
+		gebzem {$PANEL_HASH}
+	}
+	reverse_proxy 172.17.0.1:19999
+}
+
+# Loglar: tum konteynerlerin canli log ekrani
+http://log.gebzem.app {
+	basic_auth {
+		gebzem {$PANEL_HASH}
+	}
+	reverse_proxy dozzle:8080
+}
+
+# Bekci: API coktugunde alarm (kendi giris ekrani var)
+http://bekci.gebzem.app {
+	reverse_proxy uptime-kuma:3001
+}
