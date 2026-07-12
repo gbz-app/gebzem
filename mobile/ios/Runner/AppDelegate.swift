@@ -70,13 +70,13 @@ import flutter_callkit_incoming
     data.appName = "Gebzem"
     data.supportsVideo = true
     data.duration = 45000
-    data.textAccept = "Kabul et"
-    data.textDecline = "Reddet"
+    // Not: textAccept/textDecline iOS'ta YOK (CallKit buton metinlerini sistem verir);
+    // onlar Android'e ozel (AndroidParams).
     data.extra = [
       "call_id": callId,
       "call_type": isVideo ? "video" : "audio",
       "caller_name": callerName,
-    ]
+    ] as NSDictionary
 
     // fromPushKit: true -> CallKit'e reportNewIncomingCall yapar (ZORUNLU)
     SwiftFlutterCallkitIncomingPlugin.sharedInstance?.showCallkitIncoming(data, fromPushKit: true)
