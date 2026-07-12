@@ -137,11 +137,25 @@
 13. BOM temizliği → iOS derlemesi BAŞARILI → **push-yetkili gebzem.ipa (7,4 MB) + push'lu APK (51 MB) R2'de, üç URL de 200 OK**
 14. Firebase APNs upload'ı kullanıcıya tarif edildi (API'si YOK, console-only): Project settings → Cloud Messaging → Apple app configuration → Upload — KULLANICI YAPIYOR
 
+### ✅ TELEMETRİ + İZLEME + HTTPS + OTOMATİK MÜDAHALE (12 Tem, 03:30-04:30)
+1. **Sentry kuruldu** (kullanıcı hesabı: GitHub ile, org: gebzem, EU depolama; user token .env.infra'ya EKLENMEDİ — sohbette). Projeler API'den: gebzem-mobile + gebzem-backend. DSN'ler main.dart ve sunucu .env'inde
+2. **Flutter:** sentry_flutter + sentry_dio (hatalar + başarısız API istekleri otomatik raporlanır). ⚠️ DERS: sentry_flutter 8.14.2 HEM Android'de (Kotlin 1.6 dili yeni derleyicide reddediliyor) HEM iOS'ta (SentryBinaryImageCache Swift hatası) patlıyor → **9.6.0'a yükseltme ikisini de çözdü**
+3. **Go backend:** sentry-go + sentryhttp middleware (panik yakalama, Repanic:true + Recoverer sırası önemli). Sunucuda "sentry: aktif"
+4. **İzleme paneli** (monitoring-compose.yml): Netdata (nabiz.gebzem.app), Dozzle (log.gebzem.app), Uptime Kuma (bekci.gebzem.app) + Caddy şifreli kapı (basic auth; PANEL_HASH sunucu .env'de; şifre: cKIZMzFJCyNERn / Kuma: gebzem-Gebzem2026!)
+5. **Kuma otomatik kuruldu** — socket.io script ile (scratchpad/kuma-setup.js, node:20-alpine konteynerde): hesap + 4 monitor (API/indirme/log/nabız, 60 sn aralık)
+6. **Nöbetçi (watchdog.sh + cron dakikalık):** API 2 kez sağlıksızsa otomatik restart; disk ≥%90'sa docker prune. Log: /var/log/gebzem-watchdog.log
+7. **Cloudflare Global API Key alındı** (kullanıcı verdi; legacy X-Auth-Email+X-Auth-Key ile çalışıyor, Bearer DEĞİL!) → DNS artık tam kontrolde: nabiz/log/bekci/api A kayıtları (proxied) açıldı; eski sfu+api ölü kayıtları silindi; SSL=flexible
+8. **API artık HTTPS: https://api.gebzem.app** (Cloudflare → Caddy:80 → api:8080; Caddyfile'a route eklenince `docker compose restart caddy` ŞART — volume ro güncelleniyor ama Caddy yeniden okumuyor)
+9. **ufw kuruldu:** sadece 22+80+8080 açık (19999/3001/9999 dışarı kapalı, Caddy üzerinden şifreli erişim)
+10. Uygulamalar https://api.gebzem.app'e geçti; **son sürümler (HTTPS+Sentry) derlendi ve indir.gebzem.app'te (4 dosya 200 OK)**
+11. Model geçiş sorunu: kullanıcı Fable 5'ten düşmek istemiyor → `switchModelsOnFlag: false` yapıldı; anahtarlar artık sohbete DEĞİL token.txt dosyasına yazılacak (filtre tetiklenmesin)
+12. Kullanıcı geri bildirimi (KURAL): **derlemeleri ANLIK izle** — build tetikleyince arka planda takip et, patlarsa logu çek, düzelt, kullanıcıya haber ver
+
 ### ⏭️ Sonraki oturuma devir
-- **TEST:** https://indir.gebzem.app/index.html — iki cihaza kur, kayıt ol, mesajlaş. PUSH TESTİ: bir cihazda uygulamayı KAPAT, diğerinden mesaj at → bildirim düşmeli. iOS push için kullanıcının Firebase APNs upload'ının bittiğinden emin ol
+- **TEST BEKLENİYOR:** https://indir.gebzem.app/index.html — iki cihaza kur, kayıt, mesajlaşma, PUSH testi (uygulama kapalıyken bildirim). iOS push için kullanıcının Firebase APNs upload'ı doğrulanmadı — SOR
+- Hata takibi: https://gebzem.sentry.io (hatalar otomatik düşecek — oturum başında kontrol et!)
 - Bilinen eksik #1: direct sohbet başlığı boş (ListChats karşı üye adı) ← kod tarafında İLK İŞ
-- Faz 2 sırada: gruplar + story + profil; uygulama ikonu hâlâ placeholder
-- Yayın öncesi: ufw + HTTPS + DEV_MODE=false + gerçek SMS + BTK bildirimi
-- PowerShell notu: `git push` çıktısı stderr'e gider — başarıyı `git rev-parse origin/main` ile doğrula
-- Kullanıcı KURALLARI: (1) her adımda git push, (2) her oturumda bu dosya güncellenecek, (3) kullanıcı onayı olmadan kurulum/işlem yapma, (4) kısa yaz
+- Faz 2 sırada: gruplar + story + profil; uygulama ikonu placeholder
+- Yayın öncesi kalanlar: DEV_MODE=false + gerçek SMS + BTK bildirimi + 8080 portunu kapat (artık HTTPS var, eski APK'lar için açık tutuluyor)
+- Kullanıcı KURALLARI: (1) her adımda git push, (2) her oturumda bu dosya güncellenecek, (3) onaysız işlem yok, (4) kısa yaz, (5) buildleri anlık izle
 
