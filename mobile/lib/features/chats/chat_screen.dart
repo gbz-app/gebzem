@@ -9,14 +9,22 @@ import '../../core/api.dart';
 import '../../core/theme.dart';
 import '../../core/ws.dart';
 import '../auth/auth_provider.dart';
+import '../calls/call_provider.dart';
+import '../calls/call_screen.dart';
 import 'chats_provider.dart';
 import 'models.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
-  const ChatScreen({super.key, required this.chatId, required this.title});
+  const ChatScreen({
+    super.key,
+    required this.chatId,
+    required this.title,
+    this.peerId,
+  });
 
   final String chatId;
   final String title;
+  final String? peerId; // 1:1 sohbette karsi tarafin id'si (arama icin)
 
   @override
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
@@ -81,6 +89,31 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     });
   }
 
+  /// Sesli/goruntulu arama baslat
+  Future<void> _startCall({required bool video}) async {
+    final peerId = widget.peerId;
+    if (peerId == null) return;
+    try {
+      final info =
+          await ref.read(callServiceProvider.notifier).start(peerId, video: video);
+      if (!mounted) return;
+      Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => CallScreen(
+          callId: info['call_id'] as String,
+          url: info['url'] as String,
+          token: info['token'] as String,
+          video: video,
+          peerName: widget.title,
+        ),
+      ));
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final messages = ref.watch(messagesProvider(widget.chatId));
@@ -110,9 +143,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           ],
         ),
         actions: [
-          // Faz 3: buradan sesli/goruntulu arama baslayacak
-          IconButton(icon: const Icon(LucideIcons.video), onPressed: null),
-          IconButton(icon: const Icon(LucideIcons.phone), onPressed: null),
+          IconButton(
+            icon: const Icon(LucideIcons.video),
+            onPressed: widget.peerId == null ? null : () => _startCall(video: true),
+          ),
+          IconButton(
+            icon: const Icon(LucideIcons.phone),
+            onPressed: widget.peerId == null ? null : () => _startCall(video: false),
+          ),
         ],
       ),
       body: Column(

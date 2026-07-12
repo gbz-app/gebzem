@@ -72,8 +72,10 @@ class _UserSearchScreenState extends ConsumerState<UserSearchScreen> {
       ref.read(chatsProvider.notifier).load();
       if (mounted) {
         context.pop(); // arama ekranini kapat
-        context.push('/chat/${chat.data['chat_id']}',
-            extra: {'title': user['name'] ?? user['username']});
+        context.push('/chat/${chat.data['chat_id']}', extra: {
+          'title': user['name'] ?? user['username'],
+          'peer_id': user['id'],
+        });
       }
     } catch (e) {
       if (mounted) {

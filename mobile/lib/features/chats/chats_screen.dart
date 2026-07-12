@@ -138,8 +138,10 @@ class _ChatTile extends ConsumerWidget {
             const SizedBox(height: 18),
         ],
       ),
-      onTap: () => context.push('/chat/${chat.id}',
-          extra: {'title': chat.title.isNotEmpty ? chat.title : 'Sohbet'}),
+      onTap: () => context.push('/chat/${chat.id}', extra: {
+        'title': chat.title.isNotEmpty ? chat.title : 'Sohbet',
+        'peer_id': chat.peerId,
+      }),
     );
   }
 }

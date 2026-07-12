@@ -49,11 +49,18 @@
 	</dict>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
-	<!-- Firebase: sessiz bildirimle telefon dogrulama + push arka planda -->
+	<!-- Push bildirimleri + arka planda ses (arama devam etsin) -->
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>
+		<string>audio</string>
+		<string>voip</string>
 	</array>
+	<!-- Arama izin aciklamalari (App Store zorunlulugu) -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Sesli ve goruntulu aramalarda konusabilmeniz icin mikrofon erisimi gerekir.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Goruntulu aramalarda kameranizi kullanabilmeniz icin erisim gerekir.</string>
 	<key>FirebaseAppDelegateProxyEnabled</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>

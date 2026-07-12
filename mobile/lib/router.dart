@@ -55,6 +55,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           return ChatScreen(
             chatId: state.pathParameters['id']!,
             title: extra['title'] as String? ?? 'Sohbet',
+            peerId: extra['peer_id'] as String?,
           );
         },
       ),

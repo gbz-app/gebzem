@@ -280,14 +280,25 @@ func (h *Handler) CreateDirect(w http.ResponseWriter, r *http.Request) {
 // GET /chats — sohbet listesi (son mesaj + okunmamis sayisi)
 func (h *Handler) ListChats(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserID(r.Context())
+	// Direct sohbetlerde baslik/avatar karsi tarafin adindan gelir; peer_id arama icin
 	rows, err := h.db.Query(r.Context(), `
-		SELECT c.id, c.type, c.title, c.avatar_url, cm.pinned, cm.archived,
+		SELECT c.id, c.type,
+		       CASE WHEN c.type='direct' THEN COALESCE(peer.name, '') ELSE c.title END AS title,
+		       CASE WHEN c.type='direct' THEN COALESCE(peer.avatar_url, '') ELSE c.avatar_url END AS avatar_url,
+		       cm.pinned, cm.archived,
 		       COALESCE(lm.content,''), COALESCE(lm.type,''), lm.created_at,
 		       (SELECT COUNT(*) FROM message_receipts mr
 		        JOIN messages m ON m.id=mr.message_id
-		        WHERE m.chat_id=c.id AND mr.user_id=$1 AND mr.read_at IS NULL AND m.sender_id<>$1) AS unread
+		        WHERE m.chat_id=c.id AND mr.user_id=$1 AND mr.read_at IS NULL AND m.sender_id<>$1) AS unread,
+		       peer.id AS peer_id
 		FROM chats c
 		JOIN chat_members cm ON cm.chat_id=c.id AND cm.user_id=$1
+		LEFT JOIN LATERAL (
+			SELECT u.id, u.name, u.avatar_url FROM chat_members cm2
+			JOIN users u ON u.id = cm2.user_id
+			WHERE cm2.chat_id = c.id AND cm2.user_id <> $1
+			LIMIT 1
+		) peer ON c.type='direct'
 		LEFT JOIN LATERAL (
 			SELECT content, type, created_at FROM messages
 			WHERE chat_id=c.id AND NOT deleted_for_all ORDER BY id DESC LIMIT 1
@@ -310,12 +321,13 @@ func (h *Handler) ListChats(w http.ResponseWriter, r *http.Request) {
 		LastType    string     `json:"last_type"`
 		LastAt      *time.Time `json:"last_at"`
 		Unread      int        `json:"unread"`
+		PeerID      *string    `json:"peer_id"` // direct sohbette karsi taraf (arama icin)
 	}
 	out := []chatRow{}
 	for rows.Next() {
 		var c chatRow
 		if err := rows.Scan(&c.ID, &c.Type, &c.Title, &c.AvatarURL, &c.Pinned, &c.Archived,
-			&c.LastMessage, &c.LastType, &c.LastAt, &c.Unread); err == nil {
+			&c.LastMessage, &c.LastType, &c.LastAt, &c.Unread, &c.PeerID); err == nil {
 			out = append(out, c)
 		}
 	}

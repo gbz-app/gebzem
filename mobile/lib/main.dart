@@ -5,6 +5,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
 import 'core/theme.dart';
+import 'features/calls/incoming_call_overlay.dart';
 import 'firebase_options.dart';
 import 'router.dart';
 
@@ -45,6 +46,9 @@ class GebzemApp extends ConsumerWidget {
       darkTheme: darkTheme,
       themeMode: ThemeMode.system, // karanlik mod: sistem ayarini izler (ayarlar Faz 2)
       routerConfig: router,
+      // Gelen arama ekrani her sayfanin uzerinde belirir
+      builder: (context, child) =>
+          IncomingCallOverlay(child: child ?? const SizedBox.shrink()),
     );
   }
 }

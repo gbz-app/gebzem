@@ -4,6 +4,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/api.dart';
 import '../auth/auth_provider.dart';
+import '../calls/calls_tab.dart';
 import '../chats/chats_screen.dart';
 
 /// Ana kabuk: 5 sekmeli alt menu (ozellik-listesi.md'deki yapi)
@@ -36,7 +37,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         index: _index,
         children: const [
           ChatsScreen(),
-          _PhasePlaceholder(icon: LucideIcons.phone, text: 'Sesli ve goruntulu aramalar\nFaz 3\'te geliyor'),
+          CallsTab(),
           _PhasePlaceholder(icon: LucideIcons.audioLines, text: 'Sesli odalar\nFaz 4\'te geliyor'),
           _PhasePlaceholder(icon: LucideIcons.radioTower, text: 'Canli yayinlar\nFaz 4\'te geliyor'),
           _ProfileTab(),

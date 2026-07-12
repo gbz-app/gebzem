@@ -11,6 +11,7 @@ class Chat {
     required this.lastType,
     required this.lastAt,
     required this.unread,
+    this.peerId,
   });
 
   final String id;
@@ -23,6 +24,7 @@ class Chat {
   final String lastType;
   final DateTime? lastAt;
   final int unread;
+  final String? peerId; // 1:1 sohbette karsi tarafin id'si (arama icin)
 
   factory Chat.fromJson(Map<String, dynamic> j) => Chat(
         id: j['id'] as String,
@@ -35,19 +37,7 @@ class Chat {
         lastType: j['last_type'] as String? ?? '',
         lastAt: j['last_at'] != null ? DateTime.tryParse(j['last_at'] as String) : null,
         unread: (j['unread'] as num?)?.toInt() ?? 0,
-      );
-
-  Chat copyWith({String? lastMessage, String? lastType, DateTime? lastAt, int? unread}) => Chat(
-        id: id,
-        type: type,
-        title: title,
-        avatarUrl: avatarUrl,
-        pinned: pinned,
-        archived: archived,
-        lastMessage: lastMessage ?? this.lastMessage,
-        lastType: lastType ?? this.lastType,
-        lastAt: lastAt ?? this.lastAt,
-        unread: unread ?? this.unread,
+        peerId: j['peer_id'] as String?,
       );
 }
 
