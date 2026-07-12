@@ -244,8 +244,53 @@ Kullanıcı kararı: "önce aramayı yapalım, çalışmazsa gerisinin anlamı y
 - ✅ **Her dağıtımda hesaplar siliniyor** (TRUNCATE users CASCADE) — temiz başlangıç. **BU ARTIK RUTİN: her yeni sürümde DB'yi temizle**
 - ✅ /users/me/fcm-token 500 hatası artık yok (200 dönüyor)
 
+---
+
+## Oturum 4 — ARAMANIN KÖK NEDENİ BULUNDU (12 Tem 2026)
+
+### 🎯 Gerçek hata: WebRTC değil, 3 satırlık Flutter mantık hatası
+
+Kullanıcı 2. testte de "arama çalışmıyor" dedi. Ben yanlış izi kovaladım (TURN/DTLS).
+**Loglar gerçeği söyledi:**
+
+```
+call_e5abba60 odası:
+15:36:33  participant active     ← ARAYAN bağlandı (ICE + DTLS BAŞARILI)
+15:36:34  mediaTrack published   ← ARAYAN sesi yayınladı
+15:36:38  participant closing
+15:36:58  closing idle room      ← oda boş kaldı: CEVAPLAYAN HİÇ GİRMEDİ
+DB: answered_at DOLU (yani "Kabul et"e basılmış, API 200 dönmüş)
+```
+
+**KÖK NEDEN (call_provider.dart):** `answer()` içinde `state = null` vardı →
+gelen arama widget'ı ağaçtan silinip **dispose** oluyor → hemen sonraki
+`if (!mounted) return;` (incoming_call_overlay.dart) devreye giriyor →
+**CallScreen HİÇ AÇILMIYOR** → cevaplayan LiveKit odasına girmiyor →
+arayan sonsuza kadar "Çalıyor..." görüyor, ses gelmiyor.
+
+**2. gizli hata:** Gelen arama ekranı `MaterialApp.builder` içinde, yani
+Navigator'ın DIŞINDA yaşıyor → oradaki `Navigator.of(context)` zaten çalışmazdı.
+
+### ✅ Yapılanlar
+1. `answer()` artık state'i sıfırlamıyor; ekran açıldıktan SONRA `dismiss()` çağrılıyor
+2. `rootNavigatorKey` + `rootMessengerKey` (router.dart) → overlay'den sayfa açılabiliyor
+3. Arayan için **45 sn cevapsız zaman aşımı**
+4. **401 + otomatik çıkış:** JWT geçerli ama kullanıcı DB'de yoksa (hesaplar silinince)
+   artık 404/500 değil **401** dönüyor (auth/middleware.go, 5 dk önbellekli) ve Dio
+   interceptor oturumu temizleyip /login'e atıyor → "bir şeyler ters gitti" bitti.
+   **Canlıda doğrulandı:** silinen hesap → `{"error":"oturum sona erdi"}` HTTP 401 ✅
+
+### ⚠️ Kendime ders (tekrarlanmasın)
+- Gördüğüm `dtls timeout` uyarılarının çoğu **kendi test scriptlerimin** odalarındandı
+  (`medyatest`, `icecheck`, `turntest`) — sinyale bağlanıp WebRTC yapmayan istemciler
+  bu uyarıyı üretir. **Log okurken oda/katılımcı adını mutlaka filtrele.**
+- "Sunucu bozuk" demeden önce **gerçek oda logunu** oku: `participant active` +
+  `mediaTrack published` varsa medya yolu ÇALIŞIYOR demektir.
+- Sentry'de aramaya ait hiçbir hata yoktu → istemci çakılmıyordu → ekran hiç açılmıyordu.
+
 ### ⏭️ Sonraki oturuma devir
-- **ARAMA TESTİ (2. deneme) BEKLENİYOR:** iki cihaza kur → izin ekranında izin ver → sohbette 📞/📹 → kabul → ses/görüntü. Mobil veride de çalışmalı (TURN TLS 443)
+- **ARAMA TESTİ (3. deneme):** iki cihaza kur → izin ver → sohbette 📞/📹 → kabul → ses gelmeli
+- **ESKİ (yanlış iz, ama iyileştirme olarak kaldı):** TURN TLS 443 + Let's Encrypt sertifikası
 - Sonraki adımlar: CallKit (kilit ekranında çalma, uygulama kapalıyken arama), grup araması, sonra Faz 2 (gruplar/story/profil)
 - Eski notlar (hâlâ geçerli):
 - SMS: kullanıcının şirketi olunca Netgsm kimlik bilgileri env'e eklenince otomatik gerçek SMS'e geçer (kod hazır)

@@ -54,6 +54,17 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
 - Flutter: livekit_client + permission_handler; adaptiveStream/dynacast/simulcast açık (zayıf bağlantı + otomatik yeniden bağlanma)
 
 ## KRİTİK TUZAKLAR (tekrar yaşamayalım)
+- **ARAMA HATASI ARARKEN ÖNCE ODA LOGUNU OKU** (12 Tem'de 3 saat kaybettim):
+  `docker logs livekit | grep call_<id>` → `participant active` + `mediaTrack published`
+  varsa **WebRTC/TURN ÇALIŞIYOR**, hatayı istemci mantığında ara.
+  `dtls timeout` uyarılarının çoğu **kendi test scriptlerimin** odalarından gelir
+  (`medyatest`, `icecheck`, `turntest`) — sinyale bağlanıp WebRTC yapmayan istemciler
+  bunu üretir. **Oda/katılımcı adını filtrelemeden log okuma.**
+- **Riverpod + overlay:** Bir widget'ı gösteren state'i, o widget'ın `async` işleminin
+  ORTASINDA sıfırlama → widget dispose olur, sonraki `if (!mounted) return;` sessizce
+  devreye girer ve **sonraki satır (Navigator.push) hiç çalışmaz**. Önce ekranı aç, sonra state'i temizle.
+- **`MaterialApp.builder` içindeki widget Navigator'ın DIŞINDADIR** → `Navigator.of(context)`
+  çalışmaz. `rootNavigatorKey` (GoRouter navigatorKey) + `scaffoldMessengerKey` kullan.
 - **Firebase SMS bölge politikası:** yeni projelerde `smsRegionConfig = allowlistOnly{}` (BOŞ = tüm ülkeler engelli!) → `{"allowlistOnly":{"allowedRegions":["TR"]}}` PATCH et
 - Firebase Flutter paketleri: **core ≥4, auth ≥6, messaging ≥16** (eski sürümler iOS'ta EXC_BREAKPOINT ile çöküyor); iOS deployment target ≥ **15.0**
 - **PowerShell ile Dart/emoji içeren dosyalarda toplu regex replace YAPMA** — `Get-Content -Raw` UTF-8'i bozar, Türkçe karakterler/emoji mahvolur. Edit tool kullan.
@@ -65,15 +76,15 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
 - Cloudflare Global API Key: `X-Auth-Email` + `X-Auth-Key` başlıkları (Bearer değil)
 
 ## PROJE DURUMU (son güncelleme: 12 Temmuz 2026)
-- ✅ **Faz 1 ÇALIŞIYOR VE CANLIDA:** kayıt/OTP/giriş/şifre yenileme + 1:1 mesajlaşma (tikler, yazıyor, okunmamış) sunucuda uçtan uca test edildi
-- ✅ Backend sunucuda Docker'la çalışıyor: `http://167.233.229.88:8080` (health: /health)
-- ✅ Flutter Faz 1 ekranları yazıldı (analiz temiz)
-- ✅ **CI/CD + DAĞITIM HAZIR:** Codemagic bulut derlemesi (Android APK + iOS ad hoc IPA) → **https://indir.gebzem.app/index.html** (R2 gebzem-dist bucket, custom domain)
-- ⏳ Sonraki: kullanıcı cihaz testi → Faz 2 (gruplar, story, profil) → Faz 3 (aramalar) → Faz 4 (odalar+yayın) → Faz 5 (admin)
-- ⚠️ Bilinen eksik: direct sohbette karşı tarafın adı listede boş görünüyor (ListChats'e katılımcı adı eklenecek)
-- ⚠️ Google/Firebase projesi YOK (silindi) — FCM push gerektiğinde kullanıcı onayıyla yeniden kurulacak
-- ⚠️ Apple'da kullanıcının silmesi gereken: 2 eski app kaydı (Gebzem App, GEBZEM) → sonra 3 eski bundle ID (com.gebzem.*) API'den silinecek
-- Test kullanıcıları (canlı sunucuda): +905000000001 / +905000000002 (şifre: test123)
+- ✅ **Faz 1 CANLIDA:** kayıt/OTP(kendi 6 hane)/giriş/şifre yenileme + 1:1 mesajlaşma (tikler, yazıyor, okunmamış)
+- ✅ Kullanıcı arama (@kullanıcıadı / isim) — rehber yerine gerçek profiller
+- ✅ Backend + LiveKit + Caddy + Postgres + Redis sunucuda Docker'da; https://api.gebzem.app, wss://rtc.gebzem.app
+- ✅ Push: FCM v1 (Android ✓, iOS APNs anahtarı yüklü); Sentry (mobil + backend) açık
+- ✅ **CI/CD: GitHub Actions** (Codemagic'in bedava dakikaları bitti) → APK + ad hoc IPA → **https://indir.gebzem.app**
+- ✅ **ARAMA (1:1 sesli/görüntülü):** sunucu tarafı doğrulandı; 12 Tem'de "kabul et" hatası düzeltildi → **3. cihaz testi bekleniyor**
+- ⏳ Sonraki: CallKit (kilit ekranı/uygulama kapalıyken) → grup araması → Faz 2 (gruplar, story, profil, medya) → odalar+yayın → admin
+- ⚠️ Uygulama ikonu hâlâ placeholder
+- Test kullanıcıları: her sürümde DB temizleniyor (aşağıdaki rutin) → kullanıcı sıfırdan kayıt olur
 
 ## REPO YAPISI (monorepo: github.com/gbz-app/gebzem — private)
 - `backend/` — Go API (chi + pgx + go-redis + gorilla/websocket)
