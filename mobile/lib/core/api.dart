@@ -36,8 +36,14 @@ final apiProvider = Provider<Dio>((ref) {
     onError: (e, handler) async {
       // Oturum gecersizse (token eskimis ya da hesap silinmis) sessizce cikis yap;
       // yoksa uygulama her ekranda "bir seyler ters gitti" gosterir.
+      // ARAMA uclarini HARIC TUT: DB temizligi sonrasi gec kalan bir "answer" 401
+      // donunce tum oturumu silmek, kilit ekranindan kabul edilen aramayi "iptal"
+      // gibi gosteriyordu. Arama ucu 401 alirsa sadece o arama nazikce kapansin;
+      // bir sonraki NORMAL istek gercekten gecersizse yine logout tetiklenir.
       final path = e.requestOptions.path;
-      if (e.response?.statusCode == 401 && !path.startsWith('/auth/')) {
+      if (e.response?.statusCode == 401 &&
+          !path.startsWith('/auth/') &&
+          !path.startsWith('/calls/')) {
         await ref.read(storageProvider).clear();
         ref.invalidate(authProvider); // router otomatik olarak /login'e gonderir
       }

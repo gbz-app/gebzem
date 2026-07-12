@@ -121,6 +121,11 @@ class _GebzemAppState extends ConsumerState<GebzemApp> with WidgetsBindingObserv
     final notifier = ref.read(callServiceProvider.notifier);
     try {
       final info = await notifier.answer(callId);
+      if (info == null) {
+        // Arama zaten uygulama ici overlay'den kabul edildi -> ikinci ekran acma
+        notifier.dismiss();
+        return;
+      }
       notifier.dismiss(); // uygulama ici gelen arama ekrani varsa kaldir
       unawaited(nav.push(MaterialPageRoute(
         builder: (_) => CallScreen(

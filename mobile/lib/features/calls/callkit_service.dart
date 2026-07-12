@@ -40,8 +40,17 @@ class CallKitService {
   final _voipTokenController = StreamController<String>.broadcast();
   Stream<String> get onVoipToken => _voipTokenController.stream;
 
+  /// Bizim programatik kapattigimiz aramalar. endCall() yeni bir "ended" olayi
+  /// uretir; onu tekrar sunucuya "end" olarak GONDERMEMEK icin isaretliyoruz
+  /// (yoksa bitir -> endCall -> ended -> end -> ... geri besleme dongusu).
+  static final Set<String> _bizBitirdik = {};
+
   Future<void> baslat() async {
-    _sub ??= FlutterCallkitIncoming.onEvent.listen(_olay);
+    // onError: ACTION_CALL_TOGGLE_AUDIO_SESSION gibi id'siz olaylar FormatException
+    // firlatiyor; yutulmazsa Sentry'e gurultu olarak duser (ses zaten native yonetiliyor).
+    _sub ??= FlutterCallkitIncoming.onEvent.listen(_olay, onError: (e, _) {
+      debugPrint('callkit olay yutuldu: $e');
+    });
 
     // Uygulama CallKit'ten kabul edilerek SIFIRDAN acilmis olabilir — olay,
     // Flutter motoru hazir olmadan gecmis olabilir. Bekleyeni sor.
@@ -78,8 +87,11 @@ class CallKitService {
 
       case CallEventActionCallDecline(:final callKitParams):
       case CallEventActionCallEnded(:final callKitParams):
-        islenenler.add(callKitParams.id);
-        _redController.add(callKitParams.id);
+        final id = callKitParams.id;
+        islenenler.add(id);
+        // BIZ kapattiysak (bitir/call.ended), tekrar sunucuya end gonderme -> dongu kir
+        if (_bizBitirdik.remove(id)) break;
+        _redController.add(id);
 
       case CallEventActionCallTimeout(:final id):
         islenenler.add(id);
@@ -156,9 +168,10 @@ class CallKitService {
     ));
   }
 
-  /// Arama iptal edildi/bitti — CallKit ekranini kapat
+  /// Arama iptal edildi/bitti — CallKit ekranini kapat (programatik)
   static Future<void> bitir(String callId) async {
     if (callId.isEmpty) return;
+    _bizBitirdik.add(callId); // bunun uretecegi "ended" olayini sunucuya end olarak gonderme
     try {
       await FlutterCallkitIncoming.endCall(callId);
     } catch (_) {}

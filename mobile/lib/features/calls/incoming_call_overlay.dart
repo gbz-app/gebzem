@@ -69,6 +69,11 @@ class _IncomingCallSheetState extends ConsumerState<_IncomingCallSheet> {
     final notifier = ref.read(callServiceProvider.notifier);
     try {
       final info = await notifier.answer(widget.call.callId);
+      if (info == null) {
+        // Arama zaten baska yoldan (CallKit) kabul edildi -> ekrani acma
+        notifier.dismiss();
+        return;
+      }
 
       final nav = rootNavigatorKey.currentState;
       if (nav == null) throw Exception('navigator hazir degil');

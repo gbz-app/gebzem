@@ -97,19 +97,29 @@ class CallService extends StateNotifier<IncomingCall?> {
     return (res.data as Map).cast<String, dynamic>();
   }
 
+  // Ayni arama iki yoldan (uygulama ici overlay + CallKit) kabul/bitir edilebilir.
+  // callId bazli kilit -> cift answer (409) ve 5-6 kez end REST'ini onler.
+  final Set<String> _cevaplanan = {};
+  final Set<String> _bitenler = {};
+
   /// Gelen aramayi kabul et.
-  /// DIKKAT: burada state'i SIFIRLAMIYORUZ. Sifirlarsak gelen arama ekrani
-  /// agactan silinir, onu cagiran widget dispose olur ve arama ekrani hic
-  /// acilmaz (kabul eden taraf odaya girmez). Once ekran acilir, sonra
-  /// dismiss() cagrilir.
-  Future<Map<String, dynamic>> answer(String callId) async {
-    final res = await _ref.read(apiProvider).post('/calls/$callId/answer');
-    return (res.data as Map).cast<String, dynamic>();
+  /// DIKKAT: state'i SIFIRLAMIYORUZ (once ekran acilir, sonra dismiss).
+  /// null DONERSE: bu arama zaten baska yoldan cevaplandi -> cagiran ekran ACMASIN.
+  Future<Map<String, dynamic>?> answer(String callId) async {
+    if (!_cevaplanan.add(callId)) return null; // ikinci kabul -> 409 olmadan engelle
+    try {
+      final res = await _ref.read(apiProvider).post('/calls/$callId/answer');
+      return (res.data as Map).cast<String, dynamic>();
+    } catch (e) {
+      _cevaplanan.remove(callId); // basarisizsa (401 vs) tekrar denenebilsin
+      rethrow;
+    }
   }
 
-  /// Aramayi bitir / reddet
+  /// Aramayi bitir / reddet — tek REST istegi (coklu end'i onler)
   Future<void> end(String callId) async {
     state = null;
+    if (!_bitenler.add(callId)) return; // ikinci+ end atlanir
     try {
       await _ref.read(apiProvider).post('/calls/$callId/end');
     } catch (_) {

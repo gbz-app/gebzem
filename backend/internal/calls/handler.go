@@ -232,22 +232,30 @@ func (h *Handler) Start(w http.ResponseWriter, r *http.Request) {
 		"caller_name":   callerName,
 		"caller_avatar": callerAvatar,
 	}
-	if h.push != nil {
-		go h.push.CallInvite([]string{req.CalleeID}, davet)
-	}
-	if h.apns != nil {
-		go func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-			defer cancel()
-			h.apns.CallInvite(ctx, req.CalleeID, map[string]any{
-				"call_id":       callID,
-				"room":          roomName,
-				"call_type":     callType,
-				"caller_id":     callerID,
-				"caller_name":   callerName,
-				"caller_avatar": callerAvatar,
-			})
-		}()
+	// Callee'nin bu sunucuda CANLI WebSocket'i var mi?
+	//  VAR  -> uygulama on planda; WS "call.incoming" (yukarida) zaten gelen arama ekranini
+	//          gosteriyor. Push GONDERME — yoksa iOS'ta CallKit de acilir ve uygulama ici
+	//          ekranla CIFT gosterim + ses oturumu cakismasi olur.
+	//  YOK  -> uygulama kapali/arka planda; kilit ekraninda calmasi icin push SART
+	//          (iOS'ta VoIP push -> CallKit zorunlu).
+	if !h.hub.Online(req.CalleeID) {
+		if h.push != nil {
+			go h.push.CallInvite([]string{req.CalleeID}, davet)
+		}
+		if h.apns != nil {
+			go func() {
+				ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+				defer cancel()
+				h.apns.CallInvite(ctx, req.CalleeID, map[string]any{
+					"call_id":       callID,
+					"room":          roomName,
+					"call_type":     callType,
+					"caller_id":     callerID,
+					"caller_name":   callerName,
+					"caller_avatar": callerAvatar,
+				})
+			}()
+		}
 	}
 
 	writeJSON(w, http.StatusCreated, map[string]any{
