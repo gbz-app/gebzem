@@ -7,8 +7,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'core/api.dart';
+import 'core/storage.dart';
 import 'core/theme.dart';
 import 'core/ws.dart';
 import 'features/calls/call_provider.dart';
@@ -49,6 +51,18 @@ Future<void> main() async {
   // Uygulama her zaman DIK (portrait) — arama ekrani dahil (kullanici istegi, WhatsApp gibi)
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   await initializeDateFormatting('tr'); // Turkce tarih bicimleri
+
+  // TAZE KURULUM TEMIZLIGI (kritik): iOS'ta uygulama SILINIP yeniden kurulunca
+  // Keychain'deki eski token KALIR (iOS onu silmez) -> yeni surum o bayat token'la
+  // "belirsiz/bos hesaba" giriyordu. SharedPreferences ise silinir; oradaki bayrak
+  // yoksa = taze kurulum -> guvenli depoyu temizle, sifirdan basla.
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool('kurulum_tamam') != true) {
+      await AppStorage().clear();
+      await prefs.setBool('kurulum_tamam', true);
+    }
+  } catch (_) {}
   try {
     await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
     FirebaseMessaging.onBackgroundMessage(_fcmArkaPlan);

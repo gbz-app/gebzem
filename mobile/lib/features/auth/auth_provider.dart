@@ -85,16 +85,22 @@ class AuthNotifier extends StateNotifier<String?> {
   }
 
   Future<void> logout() async {
-    // ONEMLI: cikmadan ONCE bu cihazin oturumunu TAM kapat. Yoksa ayni cihazda
-    // yeni giren kullanici, oncekinin WebSocket'inde ve push kaydinda kalir
-    // (A'nin mesajlari/aramalari B'de gorunur, profilde A'nin numarasi).
-    try {
-      await _ref.read(pushProvider).unregister(); // bu cihazin token'ini sunucudan sil
-    } catch (_) {}
-    await _ref.read(wsProvider).close(); // canli soketi kapat
-    await _ref.read(storageProvider).clear();
+    // ONCE oturumu kapat: state='' -> router ANINDA /login'e gider. Boylece
+    // butona basinca cikis HEMEN gerceklesir; temizlik adimlarindan biri hata
+    // verse bile kullanici disari cikmis olur (eskiden ws.close throw ederse
+    // yarida kalip cikamiyordu).
     state = '';
-    // Kullaniciya bagli saglayicilari sifirla (eski verinin ekranda kalmamasi icin)
+    // Bu cihazin push token'ini sunucudan sil (yeni giren kullanici oncekinin
+    // bildirimlerini almasin) — hata olsa da cikis tamamlanir.
+    try {
+      await _ref.read(pushProvider).unregister();
+    } catch (_) {}
+    try {
+      await _ref.read(wsProvider).close();
+    } catch (_) {}
+    try {
+      await _ref.read(storageProvider).clear();
+    } catch (_) {}
     _ref.invalidate(wsProvider);
     _ref.invalidate(pushProvider);
   }
