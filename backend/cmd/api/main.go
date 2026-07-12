@@ -19,6 +19,7 @@ import (
 	"github.com/gbz-app/gebzem/backend/internal/config"
 	"github.com/gbz-app/gebzem/backend/internal/database"
 	"github.com/gbz-app/gebzem/backend/internal/push"
+	"github.com/gbz-app/gebzem/backend/internal/sms"
 	"github.com/gbz-app/gebzem/backend/internal/users"
 )
 
@@ -65,7 +66,8 @@ func main() {
 	go hub.Run(ctx)
 
 	pushSender := push.New(db)
-	authH := auth.NewHandler(db, cfg)
+	smsSender := sms.New()
+	authH := auth.NewHandler(db, cfg, smsSender)
 	chatH := chat.NewHandler(db, hub, pushSender)
 	usersH := users.NewHandler(db)
 
@@ -85,7 +87,6 @@ func main() {
 	r.Route("/auth", func(r chi.Router) {
 		r.Post("/register", authH.Register)
 		r.Post("/verify", authH.Verify)
-		r.Post("/verify-firebase", authH.VerifyFirebase)
 		r.Post("/login", authH.Login)
 		r.Post("/forgot", authH.Forgot)
 		r.Post("/reset", authH.Reset)

@@ -43,10 +43,6 @@ final routerProvider = Provider<GoRouter>((ref) {
           return OtpScreen(
             phone: extra['phone'] as String? ?? '',
             devOtp: extra['dev_otp'] as String?,
-            verificationId: extra['verification_id'] as String?,
-            password: extra['password'] as String? ?? '',
-            name: extra['name'] as String? ?? '',
-            username: extra['username'] as String? ?? '',
           );
         },
       ),

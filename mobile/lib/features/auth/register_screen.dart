@@ -40,36 +40,12 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     final name = _name.text.trim();
 
     try {
-      // 1) Kullanici adi/numara musait mi + (test modunda) kod uret
+      // Sunucu kaydi olusturur ve SMS gonderir (SMS saglayicisi tanimliysa).
+      // Test modunda kod yanitta doner ve ekranda otomatik dolar.
       final devOtp = await ref
           .read(authProvider.notifier)
           .register(phone, _password.text, name, username);
 
-      if (useRealSms) {
-        // 2) GERCEK SMS: Firebase telefona kod gonderir
-        await ref.read(authProvider.notifier).sendSms(
-          phone,
-          onCodeSent: (verificationId) {
-            if (!mounted) return;
-            setState(() => _loading = false);
-            context.push('/otp', extra: {
-              'phone': phone,
-              'verification_id': verificationId,
-              'password': _password.text,
-              'name': name,
-              'username': username,
-            });
-          },
-          onError: (msg) {
-            if (!mounted) return;
-            setState(() => _loading = false);
-            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
-          },
-        );
-        return; // yonlendirmeyi onCodeSent yapar
-      }
-
-      // Test modu: kod ekranda otomatik dolar
       if (mounted) {
         context.push('/otp', extra: {'phone': phone, 'dev_otp': devOtp});
       }
@@ -79,7 +55,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             .showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
       }
     } finally {
-      if (mounted && !useRealSms) setState(() => _loading = false);
+      if (mounted) setState(() => _loading = false);
     }
   }
 

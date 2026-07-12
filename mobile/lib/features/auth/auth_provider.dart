@@ -1,4 +1,3 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api.dart';
@@ -38,73 +37,8 @@ class AuthNotifier extends StateNotifier<String?> {
     await _saveSession(res.data);
   }
 
-  /// GERCEK SMS: Firebase telefon dogrulamasi baslat.
-  /// SMS gonderilir; [onCodeSent] cagrilinca kullanicidan kod istenir.
-  Future<void> sendSms(
-    String phone, {
-    required void Function(String verificationId) onCodeSent,
-    required void Function(String message) onError,
-    void Function()? onAutoVerified,
-  }) async {
-    await FirebaseAuth.instance.verifyPhoneNumber(
-      phoneNumber: phone,
-      timeout: const Duration(seconds: 60),
-      // Android'de kod otomatik okunabilir
-      verificationCompleted: (credential) async {
-        try {
-          await FirebaseAuth.instance.signInWithCredential(credential);
-          onAutoVerified?.call();
-        } catch (_) {}
-      },
-      verificationFailed: (e) => onError(_smsError(e)),
-      codeSent: (verificationId, _) => onCodeSent(verificationId),
-      codeAutoRetrievalTimeout: (_) {},
-    );
-  }
-
-  /// GERCEK SMS: kodu dogrula, Firebase kimligiyle backend'e kayit ol / giris yap
-  Future<void> confirmSms({
-    required String verificationId,
-    required String code,
-    required String password,
-    required String name,
-    required String username,
-  }) async {
-    final credential = PhoneAuthProvider.credential(
-      verificationId: verificationId,
-      smsCode: code,
-    );
-    final cred = await FirebaseAuth.instance.signInWithCredential(credential);
-    final idToken = await cred.user?.getIdToken();
-    if (idToken == null) throw Exception('Dogrulama basarisiz');
-
-    final res = await _ref.read(apiProvider).post('/auth/verify-firebase', data: {
-      'id_token': idToken,
-      'password': password,
-      'name': name,
-      'username': username,
-    });
-    await FirebaseAuth.instance.signOut(); // kendi oturumumuzu kullaniyoruz
-    await _saveSession(res.data);
-  }
-
-  String _smsError(FirebaseAuthException e) {
-    switch (e.code) {
-      case 'invalid-phone-number':
-        return 'Telefon numarasi gecersiz (+90 ile basla)';
-      case 'too-many-requests':
-        return 'Cok fazla deneme. Biraz sonra tekrar deneyin';
-      case 'quota-exceeded':
-        return 'SMS kotasi doldu, lutfen sonra deneyin';
-      case 'operation-not-allowed':
-        return 'SMS dogrulama su an kapali (sunucu ayari)';
-      case 'app-not-authorized':
-      case 'missing-client-identifier':
-        return 'Uygulama dogrulanamadi, guncel surumu kurun';
-      default:
-        return 'SMS gonderilemedi (${e.code})';
-    }
-  }
+  // NOT: Firebase Phone Auth KALDIRILDI — magaza disi kurulumlarda iOS'ta cokuyor,
+  // Android'de tarayiciya (reCAPTCHA) atiyordu. SMS'i artik kendi sunucumuz gonderiyor.
 
   Future<void> login(String phone, String password) async {
     final res = await _ref.read(apiProvider).post('/auth/login', data: {

@@ -4,26 +4,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api.dart';
 import 'auth_provider.dart';
 
-/// Dogrulama ekrani — iki mod:
-/// - Gercek SMS (Firebase): [verificationId] dolu gelir, kod telefona gelir
-/// - Test modu: [devOtp] dolu gelir, kod otomatik doldurulur
+/// Dogrulama ekrani — kodu sunucu uretir:
+/// - SMS saglayicisi acikken: kod telefona SMS ile gelir
+/// - Test modunda: [devOtp] gelir ve kod otomatik doldurulur
 class OtpScreen extends ConsumerStatefulWidget {
   const OtpScreen({
     super.key,
     required this.phone,
     this.devOtp,
-    this.verificationId,
-    this.password = '',
-    this.name = '',
-    this.username = '',
   });
 
   final String phone;
   final String? devOtp;
-  final String? verificationId;
-  final String password;
-  final String name;
-  final String username;
 
   @override
   ConsumerState<OtpScreen> createState() => _OtpScreenState();
@@ -33,7 +25,8 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
   final _code = TextEditingController();
   bool _loading = false;
 
-  bool get _realSms => widget.verificationId != null;
+  /// Kod yanitta gelmediyse gercek SMS gonderilmis demektir
+  bool get _realSms => widget.devOtp == null;
 
   @override
   void initState() {
@@ -57,24 +50,12 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
     }
     setState(() => _loading = true);
     try {
-      if (_realSms) {
-        await ref.read(authProvider.notifier).confirmSms(
-              verificationId: widget.verificationId!,
-              code: code,
-              password: widget.password,
-              name: widget.name,
-              username: widget.username,
-            );
-      } else {
-        await ref.read(authProvider.notifier).verify(widget.phone, code);
-      }
+      await ref.read(authProvider.notifier).verify(widget.phone, code);
       // basarili — router redirect ana ekrana atar
     } catch (e) {
       if (mounted) {
-        final msg = e.toString().contains('invalid-verification-code')
-            ? 'Kod hatali'
-            : apiErrorMessage(e);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
       }
     } finally {
       if (mounted) setState(() => _loading = false);
