@@ -71,10 +71,13 @@ class CallService extends StateNotifier<IncomingCall?> {
     return (res.data as Map).cast<String, dynamic>();
   }
 
-  /// Gelen aramayi kabul et
+  /// Gelen aramayi kabul et.
+  /// DIKKAT: burada state'i SIFIRLAMIYORUZ. Sifirlarsak gelen arama ekrani
+  /// agactan silinir, onu cagiran widget dispose olur ve arama ekrani hic
+  /// acilmaz (kabul eden taraf odaya girmez). Once ekran acilir, sonra
+  /// dismiss() cagrilir.
   Future<Map<String, dynamic>> answer(String callId) async {
     final res = await _ref.read(apiProvider).post('/calls/$callId/answer');
-    state = null;
     return (res.data as Map).cast<String, dynamic>();
   }
 

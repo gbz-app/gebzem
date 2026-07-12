@@ -101,7 +101,7 @@ func main() {
 
 	// korumali uclar
 	r.Group(func(r chi.Router) {
-		r.Use(auth.Middleware(cfg.JWTSecret))
+		r.Use(auth.Middleware(cfg.JWTSecret, db))
 		r.Get("/users/me", usersH.Me)
 		r.Patch("/users/me", usersH.UpdateMe)
 		r.Post("/users/me/username", usersH.SetUsername)

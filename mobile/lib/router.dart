@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -12,6 +13,11 @@ import 'features/chats/chat_screen.dart';
 import 'features/chats/user_search_screen.dart';
 import 'features/home/home_screen.dart';
 
+/// Gelen arama ekrani Navigator'in DISINDA (MaterialApp.builder) yasar; oradan
+/// sayfa acabilmek icin kok Navigator'a bu anahtarla ulasiyoruz.
+final rootNavigatorKey = GlobalKey<NavigatorState>();
+final rootMessengerKey = GlobalKey<ScaffoldMessengerState>();
+
 final routerProvider = Provider<GoRouter>((ref) {
   final auth = ref.watch(authProvider);
 
@@ -22,6 +28,7 @@ final routerProvider = Provider<GoRouter>((ref) {
   }
 
   return GoRouter(
+    navigatorKey: rootNavigatorKey,
     initialLocation: '/',
     redirect: (context, state) {
       if (auth == null) return null; // oturum kontrol ediliyor (splash aninda)

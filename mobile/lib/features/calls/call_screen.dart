@@ -40,6 +40,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
   StreamSubscription? _endedSub;
   StreamSubscription? _answeredSub;
   Timer? _durationTimer;
+  Timer? _ringTimeout;
 
   bool _connecting = true;
   bool _peerJoined = false;
@@ -94,6 +95,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
       _listener!
         ..on<ParticipantConnectedEvent>((_) {
           if (mounted) {
+            _ringTimeout?.cancel();
             setState(() => _peerJoined = true);
             _startTimer();
           }
@@ -140,7 +142,14 @@ class _CallScreenState extends ConsumerState<CallScreen> {
         _speakerOn = widget.video;
         _peerJoined = room.remoteParticipants.isNotEmpty;
       });
-      if (_peerJoined) _startTimer();
+      if (_peerJoined) {
+        _startTimer();
+      } else if (widget.outgoing) {
+        // Karsi taraf 45 saniyede acmazsa aramayi kapat (cevapsiz)
+        _ringTimeout = Timer(const Duration(seconds: 45), () {
+          if (mounted && !_peerJoined) _leave(notifyServer: true);
+        });
+      }
     } catch (e) {
       // Hata Sentry'e duser; kullaniciya net mesaj gosterilir
       await Sentry.captureException(e, stackTrace: StackTrace.current);
@@ -165,6 +174,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
 
   Future<void> _leave({required bool notifyServer}) async {
     _durationTimer?.cancel();
+    _ringTimeout?.cancel();
     await _room?.disconnect();
     await _listener?.dispose();
     _room = null;
@@ -204,6 +214,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
   @override
   void dispose() {
     _durationTimer?.cancel();
+    _ringTimeout?.cancel();
     _endedSub?.cancel();
     _answeredSub?.cancel();
     _listener?.dispose();

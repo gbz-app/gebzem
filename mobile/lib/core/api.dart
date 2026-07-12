@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sentry_dio/sentry_dio.dart';
 
+import '../features/auth/auth_provider.dart';
 import 'storage.dart';
 
 /// API adresi:
@@ -31,6 +32,16 @@ final apiProvider = Provider<Dio>((ref) {
         options.headers['Authorization'] = 'Bearer $token';
       }
       handler.next(options);
+    },
+    onError: (e, handler) async {
+      // Oturum gecersizse (token eskimis ya da hesap silinmis) sessizce cikis yap;
+      // yoksa uygulama her ekranda "bir seyler ters gitti" gosterir.
+      final path = e.requestOptions.path;
+      if (e.response?.statusCode == 401 && !path.startsWith('/auth/')) {
+        await ref.read(storageProvider).clear();
+        ref.invalidate(authProvider); // router otomatik olarak /login'e gonderir
+      }
+      handler.next(e);
     },
   ));
 

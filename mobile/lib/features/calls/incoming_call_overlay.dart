@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/api.dart';
+import '../../router.dart';
 import 'call_provider.dart';
 import 'call_screen.dart';
 
@@ -44,10 +47,18 @@ class _IncomingCallSheetState extends ConsumerState<_IncomingCallSheet> {
   Future<void> _accept() async {
     if (_busy) return;
     setState(() => _busy = true);
+
+    // Bu widget Navigator'in DISINDA yasar (MaterialApp.builder), bu yuzden
+    // Navigator.of(context) kullanilamaz — kok Navigator anahtarini kullaniyoruz.
+    final notifier = ref.read(callServiceProvider.notifier);
     try {
-      final info = await ref.read(callServiceProvider.notifier).answer(widget.call.callId);
-      if (!mounted) return;
-      Navigator.of(context).push(MaterialPageRoute(
+      final info = await notifier.answer(widget.call.callId);
+
+      final nav = rootNavigatorKey.currentState;
+      if (nav == null) throw Exception('navigator hazir degil');
+
+      // await ETME: push, sayfa kapanana kadar bekler; ekrani hemen acmaliyiz.
+      unawaited(nav.push(MaterialPageRoute(
         builder: (_) => CallScreen(
           callId: widget.call.callId,
           url: info['url'] as String,
@@ -56,14 +67,13 @@ class _IncomingCallSheetState extends ConsumerState<_IncomingCallSheet> {
           peerName: widget.call.callerName,
           outgoing: false,
         ),
-      ));
+      )));
+      notifier.dismiss(); // arama ekrani acildiktan SONRA gelen arama ekranini kaldir
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
-      }
-    } finally {
-      if (mounted) setState(() => _busy = false);
+      rootMessengerKey.currentState
+          ?.showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
+      notifier.dismiss();
+      await notifier.end(widget.call.callId); // arayan sonsuza kadar beklemesin
     }
   }
 

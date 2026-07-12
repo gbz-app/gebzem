@@ -42,6 +42,7 @@ class GebzemApp extends ConsumerWidget {
     return MaterialApp.router(
       title: 'Gebzem',
       debugShowCheckedModeBanner: false,
+      scaffoldMessengerKey: rootMessengerKey, // gelen arama ekrani icin (Navigator disinda)
       theme: lightTheme,
       darkTheme: darkTheme,
       themeMode: ThemeMode.system, // karanlik mod: sistem ayarini izler (ayarlar Faz 2)
