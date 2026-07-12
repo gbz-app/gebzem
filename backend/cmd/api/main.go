@@ -15,6 +15,7 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"github.com/gbz-app/gebzem/backend/internal/auth"
+	"github.com/gbz-app/gebzem/backend/internal/calls"
 	"github.com/gbz-app/gebzem/backend/internal/chat"
 	"github.com/gbz-app/gebzem/backend/internal/config"
 	"github.com/gbz-app/gebzem/backend/internal/database"
@@ -70,6 +71,12 @@ func main() {
 	authH := auth.NewHandler(db, cfg, smsSender)
 	chatH := chat.NewHandler(db, hub, pushSender)
 	usersH := users.NewHandler(db)
+	callsH := calls.NewHandler(db, hub, pushSender)
+	if callsH.Enabled() {
+		log.Println("arama (LiveKit): aktif")
+	} else {
+		log.Println("arama: LIVEKIT_API_KEY yok — kapali")
+	}
 
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID, middleware.RealIP, middleware.Logger)
@@ -107,6 +114,11 @@ func main() {
 		r.Get("/chats/{chatID}/messages", chatH.GetMessages)
 		r.Post("/chats/{chatID}/messages", chatH.SendMessage)
 		r.Post("/chats/{chatID}/read", chatH.MarkRead)
+		// Aramalar (LiveKit)
+		r.Get("/calls", callsH.History)
+		r.Post("/calls", callsH.Start)
+		r.Post("/calls/{id}/answer", callsH.Answer)
+		r.Post("/calls/{id}/end", callsH.End)
 	})
 
 	srv := &http.Server{Addr: ":" + cfg.Port, Handler: r}

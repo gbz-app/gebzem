@@ -12,7 +12,10 @@ services:
       PORT: "8080"
       FCM_SA_PATH: /secrets/fcm-sa.json
       SENTRY_DSN: ${SENTRY_DSN}
-      FIREBASE_PROJECT_ID: gebzem-app
+      # Arama (LiveKit)
+      LIVEKIT_URL: wss://rtc.gebzem.app
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET}
     volumes:
       - ./fcm-sa.json:/secrets/fcm-sa.json:ro
     ports:
