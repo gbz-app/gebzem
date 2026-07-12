@@ -1,8 +1,19 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("com.google.gms.google-services")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+}
+
+// Yayin imza bilgileri (key.properties varsa okunur; yoksa debug imzasi kullanilir)
+val keystoreProperties = Properties()
+val keystorePropertiesFile = rootProject.file("key.properties")
+val hasReleaseKey = keystorePropertiesFile.exists()
+if (hasReleaseKey) {
+    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
 android {
@@ -26,25 +37,21 @@ android {
         versionName = flutter.versionName
     }
 
-    // Yayin imzasi: key.properties varsa gercek anahtarla imzala (Firebase Phone Auth
-    // ve magaza icin sart), yoksa debug anahtariyla devam et (yerel gelistirme)
+    // Yayin imzasi: gercek anahtar (Firebase Phone Auth ve magaza icin sart)
     signingConfigs {
-        create("release") {
-            val props = java.util.Properties()
-            val propsFile = rootProject.file("key.properties")
-            if (propsFile.exists()) {
-                propsFile.inputStream().use { props.load(it) }
-                storeFile = file(props.getProperty("storeFile"))
-                storePassword = props.getProperty("storePassword")
-                keyAlias = props.getProperty("keyAlias")
-                keyPassword = props.getProperty("keyPassword")
+        if (hasReleaseKey) {
+            create("release") {
+                storeFile = rootProject.file(keystoreProperties["storeFile"] as String)
+                storePassword = keystoreProperties["storePassword"] as String
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
             }
         }
     }
 
     buildTypes {
         release {
-            signingConfig = if (rootProject.file("key.properties").exists()) {
+            signingConfig = if (hasReleaseKey) {
                 signingConfigs.getByName("release")
             } else {
                 signingConfigs.getByName("debug")
