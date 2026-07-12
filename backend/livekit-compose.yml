@@ -11,4 +11,4 @@ services:
       LIVEKIT_KEYS: ${LIVEKIT_KEYS}
     volumes:
       - ./livekit.yaml:/etc/livekit.yaml:ro
-      - ./letsencrypt:/etc/letsencrypt:ro
+      - /opt/gebzem/letsencrypt:/etc/letsencrypt:ro
