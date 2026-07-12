@@ -3,6 +3,11 @@
 	auto_https off
 }
 
+# API: uygulama buradan konusur (Cloudflare HTTPS sonlandirir)
+http://api.gebzem.app {
+	reverse_proxy 172.17.0.1:8080
+}
+
 # Nabiz monitoru: CPU/RAM/disk/ag + konteyner tuketimi
 http://nabiz.gebzem.app {
 	basic_auth {
