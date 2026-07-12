@@ -202,8 +202,31 @@
 - **Backend uçtan uca BEN test ettim (7/7):** kayıt → OTP → profil → 2. kullanıcı → @username arama → sohbet aç → mesajlaşma → şifreyle giriş ✅
 - **APK/IPA içerik doğrulaması:** FirebaseAuth YOK ✅, FirebaseMessaging VAR ✅, release keystore imzası ✅, aps-environment ✅, sunucudaki dosya = derlenen dosya ✅
 
+### ✅ FAZ 3: SESLİ/GÖRÜNTÜLÜ ARAMA (12 Tem, 17:00-18:00)
+Kullanıcı kararı: "önce aramayı yapalım, çalışmazsa gerisinin anlamı yok" + CallKit'siz basit hal (A seçeneği)
+
+1. **LiveKit sunucusu kuruldu** (kendi Hetzner makinemizde, v1.13.3): livekit.yaml + livekit-compose.yml (host network), TURN aktif (turn.gebzem.app, 3478/UDP + 5349/TLS — Türk operatör NAT'ları için ŞART), UDP 50000-50200 medya portları, ufw'de açıldı; Caddy → rtc.gebzem.app (WebSocket sinyal), DNS: rtc (proxied), turn (proxy KAPALI — medya CF'den geçemez)
+2. **Backend arama sistemi:** internal/calls/handler.go — LiveKit JWT token üretimi (HS256, video grants), migration 004 calls tablosu, uçlar: POST /calls (davet+token), POST /calls/{id}/answer, POST /calls/{id}/end, GET /calls (geçmiş). WS olayları: call.incoming / call.answered / call.ended + FCM push
+3. **BEN TEST ETTİM (5/5):** arama başlat → token → kabul → token → bitir → geçmiş ✅
+4. **Flutter:** livekit_client 2.8.1 + permission_handler
+   - call_screen.dart: sesli+görüntülü, mikrofon/kamera/hoparlör/kamera çevirme, bağlantı kalitesi göstergesi, süre sayacı, **adaptiveStream** (zayıf bağlantıda otomatik kalite düşürme) + **dynacast** + **simulcast** + otomatik yeniden bağlanma
+   - incoming_call_overlay.dart: gelen arama her ekranın üstünde (MaterialApp.builder)
+   - calls_tab.dart: arama geçmişi (cevapsız/giden/gelen) + tekrar arama
+   - İzinler: Android manifest (RECORD_AUDIO, CAMERA, MODIFY_AUDIO_SETTINGS...), iOS Info.plist (NSMicrophone/NSCamera + UIBackgroundModes: audio, voip)
+   - ⚠️ LiveKit SDK API notu: olay adı `ParticipantConnectionQualityUpdatedEvent` (`.connectionQuality`), `setCameraPosition` LocalVideoTrack'te
+5. **Bonus düzeltme:** ListChats artık direct sohbette karşı üyenin adını/avatarını ve **peer_id**'sini döndürüyor (bilinen eksik #1 çözüldü; arama butonları bunu kullanıyor)
+
+### 🔴 CODEMAGIC ÜCRETSİZ DAKİKALARI BİTTİ → GITHUB ACTIONS'A GEÇİŞ
+- Codemagic: BILLING_NOT_ENABLED (500 dk bitti; ~$0.095/dk isterdi)
+- **.github/workflows/android.yml + ios.yml** yazıldı (aynı imzalama akışı: keystore + app-store-connect fetch-signing-files)
+- ⚠️⚠️ **BÜYÜK TUZAK:** `$deger | gh secret set NAME` (PowerShell borusu) **secret'ları BOZUYOR** → base64 invalid, "Keystore was tampered with", Apple 401. **ÇÖZÜM: `gh secret set NAME --body "deger"`** ve çok satırlı anahtarları (p8/pem) **base64'leyip is akışında çöz**
+- Sonuç: iOS 5 dk, Android ~10 dk — Codemagic'ten hızlı ve BEDAVA (özel repoda 2000 dk/ay; iOS 10x sayılır → ~12 iOS build/ay. Repo public yapılırsa sınırsız)
+- **Doğrulandı:** APK'da libjingle_peerconnection_so.so (WebRTC motoru) + livekit sınıfları + izinler ✅; IPA'da FirebaseAuth YOK, LiveKit VAR, push yetkisi VAR ✅
+
 ### ⏭️ Sonraki oturuma devir
-- **TEST BEKLENİYOR (her şey doğrulandı):** Yeni sürüm indir.gebzem.app'te — kayıt (kod ekranda dolu) → arama → mesajlaşma → push
+- **ARAMA TESTİ BEKLENİYOR:** iki cihaza kur → sohbette 📞/📹 butonları → kabul et → ses/görüntü/kalite/kopma testi
+- Sonraki adımlar: CallKit (kilit ekranında çalma, uygulama kapalıyken arama), grup araması, sonra Faz 2 (gruplar/story/profil)
+- Eski notlar (hâlâ geçerli):
 - SMS: kullanıcının şirketi olunca Netgsm kimlik bilgileri env'e eklenince otomatik gerçek SMS'e geçer (kod hazır)
 - Eski sürümlerin `/auth/register` + `/auth/verify` (test modu) uçları hâlâ açık — geriye dönük uyumluluk için
 - Bilinen eksik: direct sohbet başlığı boş (ListChats karşı üye adı) ← İLK İŞ
