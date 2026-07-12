@@ -6,7 +6,10 @@ import (
 	"net/http"
 	"os/signal"
 	"syscall"
+	"time"
 
+	"github.com/getsentry/sentry-go"
+	sentryhttp "github.com/getsentry/sentry-go/http"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/redis/go-redis/v9"
@@ -24,6 +27,21 @@ func main() {
 	defer stop()
 
 	cfg := config.Load()
+
+	// Hata telemetrisi: panik/hatalar dosya+satir+istek bilgisiyle Sentry'e duser
+	if cfg.SentryDSN != "" {
+		if err := sentry.Init(sentry.ClientOptions{
+			Dsn:              cfg.SentryDSN,
+			Environment:      "prototype",
+			EnableTracing:    true,
+			TracesSampleRate: 0.2,
+		}); err != nil {
+			log.Printf("sentry baslatilamadi: %v", err)
+		} else {
+			log.Println("sentry: aktif")
+			defer sentry.Flush(2 * time.Second)
+		}
+	}
 
 	db, err := database.Connect(ctx, cfg.DatabaseURL)
 	if err != nil {
@@ -52,7 +70,12 @@ func main() {
 	usersH := users.NewHandler(db)
 
 	r := chi.NewRouter()
-	r.Use(middleware.RequestID, middleware.RealIP, middleware.Logger, middleware.Recoverer)
+	r.Use(middleware.RequestID, middleware.RealIP, middleware.Logger)
+	if cfg.SentryDSN != "" {
+		// Panikleri Sentry'e bildirir, sonra Recoverer sunucuyu ayakta tutar
+		r.Use(sentryhttp.New(sentryhttp.Options{Repanic: true}).Handle)
+	}
+	r.Use(middleware.Recoverer)
 
 	r.Get("/health", func(w http.ResponseWriter, _ *http.Request) {
 		w.Write([]byte(`{"status":"ok"}`))

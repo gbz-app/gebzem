@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:sentry_dio/sentry_dio.dart';
 
 import 'storage.dart';
 
@@ -27,6 +28,9 @@ final apiProvider = Provider<Dio>((ref) {
       handler.next(options);
     },
   ));
+
+  // Basarisiz API istekleri Sentry'e duser (hangi uc, hangi hata kodu)
+  dio.addSentry();
 
   return dio;
 });

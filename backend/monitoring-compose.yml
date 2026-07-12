@@ -1,0 +1,56 @@
+# Sunucu izleme paneli — API/veritabani stack'inden ayri calisir
+# Erisim: 127.0.0.1'e bagli, disariya SSH tuneli ile acilir (guvenlik)
+services:
+  # Nabiz monitoru: CPU/RAM/disk/ag + konteyner bazli tuketim (saniye saniye)
+  netdata:
+    image: netdata/netdata:stable
+    container_name: netdata
+    restart: unless-stopped
+    pid: host
+    network_mode: host
+    cap_add:
+      - SYS_PTRACE
+      - SYS_ADMIN
+    security_opt:
+      - apparmor:unconfined
+    volumes:
+      - netdataconfig:/etc/netdata
+      - netdatalib:/var/lib/netdata
+      - netdatacache:/var/cache/netdata
+      - /:/host/root:ro,rslave
+      - /etc/passwd:/host/etc/passwd:ro
+      - /etc/group:/host/etc/group:ro
+      - /etc/localtime:/etc/localtime:ro
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /etc/os-release:/host/etc/os-release:ro
+      - /var/log:/host/var/log:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      NETDATA_LISTENER_PORT: "19999"
+
+  # Bekci: API'yi surekli yoklar, coktugunde bildirim gonderir
+  uptime-kuma:
+    image: louislam/uptime-kuma:1
+    container_name: uptime-kuma
+    restart: unless-stopped
+    volumes:
+      - kuma:/app/data
+    ports:
+      - "127.0.0.1:3001:3001"
+
+  # Log ekrani: tum konteyner loglari tarayicidan canli izlenir
+  dozzle:
+    image: amir20/dozzle:latest
+    container_name: dozzle
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    ports:
+      - "127.0.0.1:9999:8080"
+
+volumes:
+  netdataconfig:
+  netdatalib:
+  netdatacache:
+  kuma:

@@ -10,6 +10,7 @@ type Config struct {
 	DatabaseURL string
 	RedisURL    string
 	JWTSecret   string
+	SentryDSN   string // bos ise hata telemetrisi kapali
 	// Dev modunda OTP SMS gonderilmez, API yanitinda doner (prototip)
 	DevMode bool
 }
@@ -20,6 +21,7 @@ func Load() *Config {
 		DatabaseURL: getEnv("DATABASE_URL", "postgres://gebzem:gebzem@localhost:5432/gebzem?sslmode=disable"),
 		RedisURL:    getEnv("REDIS_URL", "redis://localhost:6379/0"),
 		JWTSecret:   getEnv("JWT_SECRET", ""),
+		SentryDSN:   getEnv("SENTRY_DSN", ""),
 		DevMode:     getEnv("DEV_MODE", "true") == "true",
 	}
 	if cfg.JWTSecret == "" {

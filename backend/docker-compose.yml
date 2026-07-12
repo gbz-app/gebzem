@@ -11,6 +11,7 @@ services:
       DEV_MODE: "true"   # prototip: OTP SMS yerine API yanitinda doner
       PORT: "8080"
       FCM_SA_PATH: /secrets/fcm-sa.json
+      SENTRY_DSN: ${SENTRY_DSN}
     volumes:
       - ./fcm-sa.json:/secrets/fcm-sa.json:ro
     ports:
