@@ -130,13 +130,18 @@
 8. Sunucu yeniden deploy edildi: migration geçti, "push: aktif (proje: gebzem-app)" logda ✅
 9. Yeni Android+iOS derlemeleri tetiklendi (6a52d666..., 6a52d667...) — bitince indir.gebzem.app güncellenecek
 
+### ✅ iOS PUSH TAMAMLANDI — HER İKİ SÜRÜM YAYINDA (12 Tem, 03:15)
+10. Kullanıcı yeni APNs anahtarı oluşturdu: **GebzemPush2, Key ID 86AWH8M49N** (.p8 kökte, gitignore'lu). Team ID: CC96SSXUS3
+11. Bundle'a PUSH_NOTIFICATIONS capability ASC API'den eklendi (asc.js push-cap); Runner.entitlements (aps-environment=production) + pbxproj'un 3 konfigürasyonuna CODE_SIGN_ENTITLEMENTS eklendi
+12. ⚠️ BÜYÜK DERS: PS 5.1 `Set-Content -Encoding utf8` pbxproj'a **BOM** ekledi → Codemagic'te "Failed to set code signing settings" hatası. Çözüm: `[System.IO.File]::WriteAllText` (BOM'suz). **pbxproj'a PowerShell'le dokunurken daima WriteAllText!**
+13. BOM temizliği → iOS derlemesi BAŞARILI → **push-yetkili gebzem.ipa (7,4 MB) + push'lu APK (51 MB) R2'de, üç URL de 200 OK**
+14. Firebase APNs upload'ı kullanıcıya tarif edildi (API'si YOK, console-only): Project settings → Cloud Messaging → Apple app configuration → Upload — KULLANICI YAPIYOR
+
 ### ⏭️ Sonraki oturuma devir
-- Derlemeler bitince: artifact indir → R2'ye yükle (scratchpad/r2put.js + files.json) → indir.gebzem.app güncel
-- **Android push bu yeni APK ile ÇALIŞIR** (uçtan uca test: iki cihaz, biri uygulama kapalı)
-- **iOS push için BEKLENEN:** kullanıcının yeni APNs anahtarı (.p8 + Key ID) → Firebase Console'a yükleme (Project settings → Cloud Messaging → Apple apps) + bundle'a PUSH_NOTIFICATIONS capability (ASC API) + Runner.entitlements (aps-environment) → yeni iOS derlemesi
-- Kullanıcı testi: https://indir.gebzem.app/index.html (yeni sürümler yüklenince)
+- **TEST:** https://indir.gebzem.app/index.html — iki cihaza kur, kayıt ol, mesajlaş. PUSH TESTİ: bir cihazda uygulamayı KAPAT, diğerinden mesaj at → bildirim düşmeli. iOS push için kullanıcının Firebase APNs upload'ının bittiğinden emin ol
 - Bilinen eksik #1: direct sohbet başlığı boş (ListChats karşı üye adı) ← kod tarafında İLK İŞ
+- Faz 2 sırada: gruplar + story + profil; uygulama ikonu hâlâ placeholder
 - Yayın öncesi: ufw + HTTPS + DEV_MODE=false + gerçek SMS + BTK bildirimi
-- Sonra: sunucuya (gebzem-1) deploy + Google `gebzem` projesi yeniden kurulumu (silindi — kullanıcı onayıyla) + FCM push
 - PowerShell notu: `git push` çıktısı stderr'e gider — başarıyı `git rev-parse origin/main` ile doğrula
 - Kullanıcı KURALLARI: (1) her adımda git push, (2) her oturumda bu dosya güncellenecek, (3) kullanıcı onayı olmadan kurulum/işlem yapma, (4) kısa yaz
+
