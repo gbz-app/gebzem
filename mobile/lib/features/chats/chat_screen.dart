@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/api.dart';
 import '../../core/theme.dart';
@@ -110,8 +111,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         ),
         actions: [
           // Faz 3: buradan sesli/goruntulu arama baslayacak
-          IconButton(icon: const Icon(Icons.videocam_outlined), onPressed: null),
-          IconButton(icon: const Icon(Icons.call_outlined), onPressed: null),
+          IconButton(icon: const Icon(LucideIcons.video), onPressed: null),
+          IconButton(icon: const Icon(LucideIcons.phone), onPressed: null),
         ],
       ),
       body: Column(
@@ -173,7 +174,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   const SizedBox(width: 8),
                   FloatingActionButton.small(
                     onPressed: _sending ? null : _send,
-                    child: const Icon(Icons.send),
+                    child: const Icon(LucideIcons.send),
                   ),
                 ],
               ),
@@ -270,7 +271,7 @@ class _Bubble extends StatelessWidget {
                 if (mine) ...[
                   const SizedBox(width: 4),
                   Icon(
-                    Icons.done_all,
+                    LucideIcons.checkCheck,
                     size: 15,
                     color: message.read ? scheme.tickRead : scheme.outline,
                   ),

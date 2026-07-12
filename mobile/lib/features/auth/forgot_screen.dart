@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/api.dart';
 import 'auth_provider.dart';
@@ -94,7 +95,7 @@ class _ForgotScreenState extends ConsumerState<ForgotScreen> {
                   labelText: 'Telefon numarasi',
                   hintText: '+905xxxxxxxxx',
                   border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.phone),
+                  prefixIcon: Icon(LucideIcons.phone),
                 ),
               ),
               const SizedBox(height: 16),
@@ -116,7 +117,7 @@ class _ForgotScreenState extends ConsumerState<ForgotScreen> {
                     labelText: 'SMS kodu',
                     border: OutlineInputBorder(),
                     counterText: '',
-                    prefixIcon: Icon(Icons.sms),
+                    prefixIcon: Icon(LucideIcons.messageSquare),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -127,7 +128,7 @@ class _ForgotScreenState extends ConsumerState<ForgotScreen> {
                     labelText: 'Yeni sifre',
                     helperText: 'En az 6 karakter',
                     border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.lock_reset),
+                    prefixIcon: Icon(LucideIcons.keyRound),
                   ),
                 ),
                 const SizedBox(height: 16),

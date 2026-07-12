@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/api.dart';
 import 'chats_provider.dart';
@@ -41,7 +42,7 @@ class ChatsScreen extends ConsumerWidget {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _newChatDialog(context, ref),
-        child: const Icon(Icons.add_comment),
+        child: const Icon(LucideIcons.squarePen),
       ),
     );
   }
@@ -132,7 +133,7 @@ class _ChatTile extends ConsumerWidget {
         radius: 26,
         backgroundImage: chat.avatarUrl.isNotEmpty ? NetworkImage(chat.avatarUrl) : null,
         child: chat.avatarUrl.isEmpty
-            ? Icon(chat.type == 'group' ? Icons.group : Icons.person)
+            ? Icon(chat.type == 'group' ? LucideIcons.users : LucideIcons.user)
             : null,
       ),
       title: Row(
@@ -140,7 +141,7 @@ class _ChatTile extends ConsumerWidget {
           if (chat.pinned)
             Padding(
               padding: const EdgeInsets.only(right: 4),
-              child: Icon(Icons.push_pin, size: 14, color: scheme.outline),
+              child: Icon(LucideIcons.pin, size: 14, color: scheme.outline),
             ),
           Expanded(
             child: Text(

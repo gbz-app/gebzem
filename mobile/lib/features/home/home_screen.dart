@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../auth/auth_provider.dart';
 import '../chats/chats_screen.dart';
@@ -25,7 +26,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         title: Text(_titles[_index]),
         actions: [
           if (_index == 0)
-            IconButton(icon: const Icon(Icons.search), onPressed: () {
+            IconButton(icon: const Icon(LucideIcons.search), onPressed: () {
               // TODO Faz 1 sonu: sohbet arama
             }),
         ],
@@ -34,9 +35,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         index: _index,
         children: const [
           ChatsScreen(),
-          _PhasePlaceholder(icon: Icons.call, text: 'Sesli ve goruntulu aramalar\nFaz 3\'te geliyor'),
-          _PhasePlaceholder(icon: Icons.spatial_audio_off, text: 'Sesli odalar\nFaz 4\'te geliyor'),
-          _PhasePlaceholder(icon: Icons.live_tv, text: 'Canli yayinlar\nFaz 4\'te geliyor'),
+          _PhasePlaceholder(icon: LucideIcons.phone, text: 'Sesli ve goruntulu aramalar\nFaz 3\'te geliyor'),
+          _PhasePlaceholder(icon: LucideIcons.audioLines, text: 'Sesli odalar\nFaz 4\'te geliyor'),
+          _PhasePlaceholder(icon: LucideIcons.radioTower, text: 'Canli yayinlar\nFaz 4\'te geliyor'),
           _ProfileTab(),
         ],
       ),
@@ -44,11 +45,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         selectedIndex: _index,
         onDestinationSelected: (i) => setState(() => _index = i),
         destinations: const [
-          NavigationDestination(icon: Icon(Icons.chat_bubble_outline), selectedIcon: Icon(Icons.chat_bubble), label: 'Sohbetler'),
-          NavigationDestination(icon: Icon(Icons.call_outlined), selectedIcon: Icon(Icons.call), label: 'Aramalar'),
-          NavigationDestination(icon: Icon(Icons.spatial_audio_off_outlined), selectedIcon: Icon(Icons.spatial_audio_off), label: 'Odalar'),
-          NavigationDestination(icon: Icon(Icons.live_tv_outlined), selectedIcon: Icon(Icons.live_tv), label: 'Canli'),
-          NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Profil'),
+          NavigationDestination(icon: Icon(LucideIcons.messageCircle), label: 'Sohbetler'),
+          NavigationDestination(icon: Icon(LucideIcons.phone), label: 'Aramalar'),
+          NavigationDestination(icon: Icon(LucideIcons.audioLines), label: 'Odalar'),
+          NavigationDestination(icon: Icon(LucideIcons.radioTower), label: 'Canli'),
+          NavigationDestination(icon: Icon(LucideIcons.user), label: 'Profil'),
         ],
       ),
     );
@@ -93,22 +94,22 @@ class _ProfileTab extends ConsumerWidget {
         const SizedBox(height: 16),
         CircleAvatar(
           radius: 48,
-          child: Icon(Icons.person, size: 48, color: Theme.of(context).colorScheme.onPrimaryContainer),
+          child: Icon(LucideIcons.user, size: 48, color: Theme.of(context).colorScheme.onPrimaryContainer),
         ),
         const SizedBox(height: 24),
         const ListTile(
-          leading: Icon(Icons.badge_outlined),
+          leading: Icon(LucideIcons.circleUser),
           title: Text('Profil duzenleme'),
           subtitle: Text('Faz 2\'de geliyor'),
         ),
         const ListTile(
-          leading: Icon(Icons.toll_outlined),
+          leading: Icon(LucideIcons.coins),
           title: Text('Jeton bakiyem'),
           subtitle: Text('Kayit bonusu: 100 jeton'),
         ),
         const Divider(),
         ListTile(
-          leading: Icon(Icons.logout, color: Theme.of(context).colorScheme.error),
+          leading: Icon(LucideIcons.logOut, color: Theme.of(context).colorScheme.error),
           title: Text('Cikis yap', style: TextStyle(color: Theme.of(context).colorScheme.error)),
           onTap: () => ref.read(authProvider.notifier).logout(),
         ),

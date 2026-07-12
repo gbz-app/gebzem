@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/api.dart';
 import 'auth_provider.dart';
@@ -55,7 +56,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Icon(Icons.chat_bubble_rounded,
+                  Icon(LucideIcons.messageCircle,
                       size: 72, color: Theme.of(context).colorScheme.primary),
                   const SizedBox(height: 12),
                   Text('Gebzem',
@@ -69,7 +70,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       labelText: 'Telefon numarasi',
                       hintText: '+905xxxxxxxxx',
                       border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.phone),
+                      prefixIcon: Icon(LucideIcons.phone),
                     ),
                     validator: (v) =>
                         (v == null || v.trim().length < 12) ? 'Gecerli numara girin' : null,
@@ -81,9 +82,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     decoration: InputDecoration(
                       labelText: 'Sifre',
                       border: const OutlineInputBorder(),
-                      prefixIcon: const Icon(Icons.lock),
+                      prefixIcon: const Icon(LucideIcons.lock),
                       suffixIcon: IconButton(
-                        icon: Icon(_hidePassword ? Icons.visibility : Icons.visibility_off),
+                        icon: Icon(_hidePassword ? LucideIcons.eye : LucideIcons.eyeOff),
                         onPressed: () => setState(() => _hidePassword = !_hidePassword),
                       ),
                     ),

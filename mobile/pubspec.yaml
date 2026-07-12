@@ -53,6 +53,7 @@ dependencies:
   # Hata telemetrisi (Sentry)
   sentry_flutter: ^9.6.0
   sentry_dio: ^9.6.0
+  lucide_icons_flutter: ^3.1.15
 
 dev_dependencies:
   flutter_test:

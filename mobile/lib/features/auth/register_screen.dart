@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/api.dart';
 import 'auth_provider.dart';
@@ -67,7 +68,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   decoration: const InputDecoration(
                     labelText: 'Adiniz',
                     border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.person),
+                    prefixIcon: Icon(LucideIcons.user),
                   ),
                   validator: (v) =>
                       (v == null || v.trim().length < 2) ? 'Adinizi girin' : null,
@@ -80,7 +81,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     labelText: 'Telefon numarasi',
                     hintText: '+905xxxxxxxxx',
                     border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.phone),
+                    prefixIcon: Icon(LucideIcons.phone),
                   ),
                   validator: (v) =>
                       (v == null || v.trim().length < 12) ? 'Gecerli numara girin' : null,
@@ -93,9 +94,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     labelText: 'Sifre',
                     helperText: 'En az 6 karakter',
                     border: const OutlineInputBorder(),
-                    prefixIcon: const Icon(Icons.lock),
+                    prefixIcon: const Icon(LucideIcons.lock),
                     suffixIcon: IconButton(
-                      icon: Icon(_hidePassword ? Icons.visibility : Icons.visibility_off),
+                      icon: Icon(_hidePassword ? LucideIcons.eye : LucideIcons.eyeOff),
                       onPressed: () => setState(() => _hidePassword = !_hidePassword),
                     ),
                   ),
