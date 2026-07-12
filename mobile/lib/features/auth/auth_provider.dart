@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api.dart';
@@ -28,13 +29,76 @@ class AuthNotifier extends StateNotifier<String?> {
     return res.data['dev_otp'] as String?;
   }
 
-  /// OTP dogrula — basarili olursa oturum acilir
+  /// OTP dogrula — basarili olursa oturum acilir (test modu)
   Future<void> verify(String phone, String code) async {
     final res = await _ref.read(apiProvider).post('/auth/verify', data: {
       'phone': phone,
       'code': code,
     });
     await _saveSession(res.data);
+  }
+
+  /// GERCEK SMS: Firebase telefon dogrulamasi baslat.
+  /// SMS gonderilir; [onCodeSent] cagrilinca kullanicidan kod istenir.
+  Future<void> sendSms(
+    String phone, {
+    required void Function(String verificationId) onCodeSent,
+    required void Function(String message) onError,
+    void Function()? onAutoVerified,
+  }) async {
+    await FirebaseAuth.instance.verifyPhoneNumber(
+      phoneNumber: phone,
+      timeout: const Duration(seconds: 60),
+      // Android'de kod otomatik okunabilir
+      verificationCompleted: (credential) async {
+        try {
+          await FirebaseAuth.instance.signInWithCredential(credential);
+          onAutoVerified?.call();
+        } catch (_) {}
+      },
+      verificationFailed: (e) => onError(_smsError(e)),
+      codeSent: (verificationId, _) => onCodeSent(verificationId),
+      codeAutoRetrievalTimeout: (_) {},
+    );
+  }
+
+  /// GERCEK SMS: kodu dogrula, Firebase kimligiyle backend'e kayit ol / giris yap
+  Future<void> confirmSms({
+    required String verificationId,
+    required String code,
+    required String password,
+    required String name,
+    required String username,
+  }) async {
+    final credential = PhoneAuthProvider.credential(
+      verificationId: verificationId,
+      smsCode: code,
+    );
+    final cred = await FirebaseAuth.instance.signInWithCredential(credential);
+    final idToken = await cred.user?.getIdToken();
+    if (idToken == null) throw Exception('Dogrulama basarisiz');
+
+    final res = await _ref.read(apiProvider).post('/auth/verify-firebase', data: {
+      'id_token': idToken,
+      'password': password,
+      'name': name,
+      'username': username,
+    });
+    await FirebaseAuth.instance.signOut(); // kendi oturumumuzu kullaniyoruz
+    await _saveSession(res.data);
+  }
+
+  String _smsError(FirebaseAuthException e) {
+    switch (e.code) {
+      case 'invalid-phone-number':
+        return 'Telefon numarasi gecersiz';
+      case 'too-many-requests':
+        return 'Cok fazla deneme. Biraz sonra tekrar deneyin';
+      case 'quota-exceeded':
+        return 'SMS kotasi doldu, lutfen sonra deneyin';
+      default:
+        return e.message ?? 'SMS gonderilemedi';
+    }
   }
 
   Future<void> login(String phone, String password) async {

@@ -36,3 +36,6 @@ admin/out/
 *.iml
 Thumbs.db
 .DS_Store
+
+gebzem-release.jks
+mobile/android/key.properties

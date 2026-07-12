@@ -21,10 +21,93 @@ import (
 type Handler struct {
 	db  *pgxpool.Pool
 	cfg *config.Config
+	fb  *FirebaseVerifier // nil ise gercek SMS kapali (dev modu)
 }
 
 func NewHandler(db *pgxpool.Pool, cfg *config.Config) *Handler {
-	return &Handler{db: db, cfg: cfg}
+	h := &Handler{db: db, cfg: cfg}
+	if cfg.FirebaseProjectID != "" {
+		h.fb = NewFirebaseVerifier(cfg.FirebaseProjectID)
+	}
+	return h
+}
+
+// POST /auth/verify-firebase — Firebase SMS ile dogrulama (gercek OTP akisi)
+// Istemci Firebase'den SMS alir, ID token'i buraya yollar; biz dogrulayip hesabi acariz.
+func (h *Handler) VerifyFirebase(w http.ResponseWriter, r *http.Request) {
+	if h.fb == nil {
+		writeErr(w, http.StatusServiceUnavailable, "gercek SMS dogrulama kapali")
+		return
+	}
+	var req struct {
+		IDToken  string `json:"id_token"`
+		Password string `json:"password"`
+		Name     string `json:"name"`
+		Username string `json:"username"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, "gecersiz istek")
+		return
+	}
+
+	phone, err := h.fb.VerifyPhone(req.IDToken)
+	if err != nil {
+		writeErr(w, http.StatusUnauthorized, "dogrulama basarisiz")
+		return
+	}
+
+	// Mevcut kullanici mi? (sifre sifirlama / yeniden giris)
+	var userID string
+	err = h.db.QueryRow(r.Context(), `SELECT id FROM users WHERE phone=$1`, phone).Scan(&userID)
+
+	if err != nil {
+		// Yeni kayit — sifre + kullanici adi zorunlu
+		if len(req.Password) < 6 {
+			writeErr(w, http.StatusBadRequest, "sifre en az 6 karakter olmali")
+			return
+		}
+		uname := strings.ToLower(strings.TrimSpace(strings.TrimPrefix(req.Username, "@")))
+		if !usernameRe.MatchString(uname) {
+			writeErr(w, http.StatusBadRequest, "kullanici adi 3-20 karakter olmali")
+			return
+		}
+		var taken bool
+		h.db.QueryRow(r.Context(),
+			`SELECT EXISTS(SELECT 1 FROM users WHERE lower(username)=$1)`, uname).Scan(&taken)
+		if taken {
+			writeErr(w, http.StatusConflict, "bu kullanici adi alinmis")
+			return
+		}
+		hash, _ := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+		err = h.db.QueryRow(r.Context(), `
+			INSERT INTO users (phone, password_hash, name, username, verified)
+			VALUES ($1,$2,$3,$4,true) RETURNING id`,
+			phone, string(hash), strings.TrimSpace(req.Name), uname).Scan(&userID)
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, "kayit olusturulamadi")
+			return
+		}
+	} else {
+		// Mevcut kullanici: dogrulanmis isaretle, sifre gonderildiyse guncelle
+		h.db.Exec(r.Context(), `UPDATE users SET verified=true WHERE id=$1`, userID)
+		if len(req.Password) >= 6 {
+			hash, _ := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+			h.db.Exec(r.Context(), `UPDATE users SET password_hash=$1 WHERE id=$2`, string(hash), userID)
+		}
+	}
+
+	// Kayit bonusu (bir kez)
+	h.db.Exec(r.Context(), `
+		INSERT INTO coin_ledger (user_id, amount, reason)
+		SELECT $1, 100, 'signup_bonus'
+		WHERE NOT EXISTS (SELECT 1 FROM coin_ledger WHERE user_id=$1 AND reason='signup_bonus')`, userID)
+
+	token, err := GenerateToken(h.cfg.JWTSecret, userID)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "token uretilemedi")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"token": token, "user_id": userID})
 }
 
 var phoneRe = regexp.MustCompile(`^\+[1-9]\d{9,14}$`)

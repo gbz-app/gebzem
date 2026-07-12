@@ -11,6 +11,8 @@ type Config struct {
 	RedisURL    string
 	JWTSecret   string
 	SentryDSN   string // bos ise hata telemetrisi kapali
+	// Firebase proje kimligi — gercek SMS dogrulamasi icin (bos ise kapali)
+	FirebaseProjectID string
 	// Dev modunda OTP SMS gonderilmez, API yanitinda doner (prototip)
 	DevMode bool
 }
@@ -22,7 +24,9 @@ func Load() *Config {
 		RedisURL:    getEnv("REDIS_URL", "redis://localhost:6379/0"),
 		JWTSecret:   getEnv("JWT_SECRET", ""),
 		SentryDSN:   getEnv("SENTRY_DSN", ""),
-		DevMode:     getEnv("DEV_MODE", "true") == "true",
+
+		FirebaseProjectID: getEnv("FIREBASE_PROJECT_ID", ""),
+		DevMode:           getEnv("DEV_MODE", "true") == "true",
 	}
 	if cfg.JWTSecret == "" {
 		if !cfg.DevMode {

@@ -12,6 +12,11 @@ const apiUrl = String.fromEnvironment('API_URL', defaultValue: 'http://10.0.2.2:
 /// WebSocket adresi (http -> ws donusumu)
 String get wsUrl => '${apiUrl.replaceFirst('http', 'ws')}/ws';
 
+/// Gercek SMS dogrulamasi (Firebase Phone Auth).
+/// false ise test modu: kod ekranda otomatik dolar, SMS gitmez.
+/// Derlemede kapatmak icin: --dart-define=REAL_SMS=false
+const useRealSms = bool.fromEnvironment('REAL_SMS', defaultValue: true);
+
 final apiProvider = Provider<Dio>((ref) {
   final dio = Dio(BaseOptions(
     baseUrl: apiUrl,

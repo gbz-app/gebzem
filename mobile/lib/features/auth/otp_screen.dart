@@ -4,11 +4,26 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api.dart';
 import 'auth_provider.dart';
 
+/// Dogrulama ekrani — iki mod:
+/// - Gercek SMS (Firebase): [verificationId] dolu gelir, kod telefona gelir
+/// - Test modu: [devOtp] dolu gelir, kod otomatik doldurulur
 class OtpScreen extends ConsumerStatefulWidget {
-  const OtpScreen({super.key, required this.phone, this.devOtp});
+  const OtpScreen({
+    super.key,
+    required this.phone,
+    this.devOtp,
+    this.verificationId,
+    this.password = '',
+    this.name = '',
+    this.username = '',
+  });
 
   final String phone;
-  final String? devOtp; // dev modda SMS yerine gelen kod
+  final String? devOtp;
+  final String? verificationId;
+  final String password;
+  final String name;
+  final String username;
 
   @override
   ConsumerState<OtpScreen> createState() => _OtpScreenState();
@@ -18,10 +33,12 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
   final _code = TextEditingController();
   bool _loading = false;
 
+  bool get _realSms => widget.verificationId != null;
+
   @override
   void initState() {
     super.initState();
-    // Dev modda kodu otomatik doldur (prototip kolayligi)
+    // Test modunda kodu otomatik doldur (prototip kolayligi)
     if (widget.devOtp != null) _code.text = widget.devOtp!;
   }
 
@@ -32,19 +49,32 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
   }
 
   Future<void> _submit() async {
-    if (_code.text.trim().length != 6) {
+    final code = _code.text.trim();
+    if (code.length != 6) {
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('6 haneli kodu girin')));
       return;
     }
     setState(() => _loading = true);
     try {
-      await ref.read(authProvider.notifier).verify(widget.phone, _code.text.trim());
+      if (_realSms) {
+        await ref.read(authProvider.notifier).confirmSms(
+              verificationId: widget.verificationId!,
+              code: code,
+              password: widget.password,
+              name: widget.name,
+              username: widget.username,
+            );
+      } else {
+        await ref.read(authProvider.notifier).verify(widget.phone, code);
+      }
       // basarili — router redirect ana ekrana atar
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
+        final msg = e.toString().contains('invalid-verification-code')
+            ? 'Kod hatali'
+            : apiErrorMessage(e);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -61,8 +91,12 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('${widget.phone} numarasina gonderilen 6 haneli kodu girin',
-                  style: Theme.of(context).textTheme.bodyLarge),
+              Text(
+                _realSms
+                    ? '${widget.phone} numarasina SMS ile 6 haneli kod gonderdik'
+                    : '${widget.phone} numarasi icin 6 haneli kodu girin',
+                style: Theme.of(context).textTheme.bodyLarge,
+              ),
               if (widget.devOtp != null) ...[
                 const SizedBox(height: 8),
                 Text('(Test modu — kod otomatik dolduruldu: ${widget.devOtp})',
@@ -77,6 +111,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                 keyboardType: TextInputType.number,
                 textAlign: TextAlign.center,
                 maxLength: 6,
+                autofocus: _realSms,
                 style: const TextStyle(fontSize: 28, letterSpacing: 12),
                 decoration: const InputDecoration(
                   border: OutlineInputBorder(),

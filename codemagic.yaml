@@ -10,7 +10,18 @@ workflows:
     environment:
       flutter: stable
       java: 17
+      groups:
+        - android_signing # keystore (Firebase Phone Auth icin gercek imza sart)
     scripts:
+      - name: Imzalama anahtari
+        script: |
+          echo $GEBZEM_KEYSTORE_B64 | base64 --decode > $CM_BUILD_DIR/mobile/android/gebzem-release.jks
+          cat > $CM_BUILD_DIR/mobile/android/key.properties <<EOF
+          storeFile=gebzem-release.jks
+          storePassword=$GEBZEM_KEYSTORE_PASS
+          keyAlias=$GEBZEM_KEY_ALIAS
+          keyPassword=$GEBZEM_KEYSTORE_PASS
+          EOF
       - name: Bagimliliklar
         script: cd mobile && flutter pub get
       - name: APK derle (canli sunucu adresiyle)

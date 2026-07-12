@@ -34,16 +34,44 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _loading = true);
+
+    final phone = _phone.text.trim();
+    final username = _username.text.trim().toLowerCase();
+    final name = _name.text.trim();
+
     try {
-      final devOtp = await ref.read(authProvider.notifier).register(
-            _phone.text.trim(),
-            _password.text,
-            _name.text.trim(),
-            _username.text.trim().toLowerCase(),
-          );
+      // 1) Kullanici adi/numara musait mi + (test modunda) kod uret
+      final devOtp = await ref
+          .read(authProvider.notifier)
+          .register(phone, _password.text, name, username);
+
+      if (useRealSms) {
+        // 2) GERCEK SMS: Firebase telefona kod gonderir
+        await ref.read(authProvider.notifier).sendSms(
+          phone,
+          onCodeSent: (verificationId) {
+            if (!mounted) return;
+            setState(() => _loading = false);
+            context.push('/otp', extra: {
+              'phone': phone,
+              'verification_id': verificationId,
+              'password': _password.text,
+              'name': name,
+              'username': username,
+            });
+          },
+          onError: (msg) {
+            if (!mounted) return;
+            setState(() => _loading = false);
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+          },
+        );
+        return; // yonlendirmeyi onCodeSent yapar
+      }
+
+      // Test modu: kod ekranda otomatik dolar
       if (mounted) {
-        // OTP ekranina git; dev modda kod da tasinir (SMS yerine)
-        context.push('/otp', extra: {'phone': _phone.text.trim(), 'dev_otp': devOtp});
+        context.push('/otp', extra: {'phone': phone, 'dev_otp': devOtp});
       }
     } catch (e) {
       if (mounted) {
@@ -51,7 +79,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             .showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
       }
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted && !useRealSms) setState(() => _loading = false);
     }
   }
 
