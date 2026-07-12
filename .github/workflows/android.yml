@@ -25,9 +25,10 @@ jobs:
           KEYSTORE_PASS: ${{ secrets.GEBZEM_KEYSTORE_PASS }}
           KEY_ALIAS: ${{ secrets.GEBZEM_KEY_ALIAS }}
         run: |
-          # -w0: satir kirilmasi olmadan cozer (base64: invalid input hatasinin sebebi)
-          printf '%s' "$KEYSTORE_B64" | tr -d '\n\r ' | base64 -d > gebzem-release.jks
+          echo "$KEYSTORE_B64" | base64 -d > gebzem-release.jks
           ls -l gebzem-release.jks
+          # dogrula: keystore gecerli mi
+          keytool -list -keystore gebzem-release.jks -storepass "$KEYSTORE_PASS" | head -3
           cat > key.properties <<EOF
           storeFile=gebzem-release.jks
           storePassword=$KEYSTORE_PASS

@@ -22,11 +22,16 @@ jobs:
 
       - name: Sertifika + profil (otomatik olusur)
         env:
-          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
-          APP_STORE_CONNECT_KEY_IDENTIFIER: ${{ secrets.APP_STORE_CONNECT_KEY_IDENTIFIER }}
-          APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
-          CERTIFICATE_PRIVATE_KEY: ${{ secrets.CERTIFICATE_PRIVATE_KEY }}
+          ASC_P8_B64: ${{ secrets.ASC_P8_B64 }}
+          CERT_KEY_B64: ${{ secrets.CERT_KEY_B64 }}
         run: |
+          # Anahtarlar base64 olarak saklanir (cok satirli degerler bozulmasin diye)
+          echo "$ASC_P8_B64" | base64 -d > /tmp/asc.p8
+          echo "$CERT_KEY_B64" | base64 -d > /tmp/cert_key.pem
+          export APP_STORE_CONNECT_ISSUER_ID="${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}"
+          export APP_STORE_CONNECT_KEY_IDENTIFIER="${{ secrets.APP_STORE_CONNECT_KEY_IDENTIFIER }}"
+          export APP_STORE_CONNECT_PRIVATE_KEY="$(cat /tmp/asc.p8)"
+          export CERTIFICATE_PRIVATE_KEY="$(cat /tmp/cert_key.pem)"
           keychain initialize
           app-store-connect fetch-signing-files app.gebzem --type IOS_APP_ADHOC --create
           keychain add-certificates
