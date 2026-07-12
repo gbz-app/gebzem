@@ -14,7 +14,11 @@ jobs:
           channel: stable
 
       - name: Imzalama araclari
-        run: pip3 install codemagic-cli-tools
+        # PEP 668: macOS runner'da sistem python korumali -> sanal ortam kullan
+        run: |
+          python3 -m venv $HOME/venv
+          $HOME/venv/bin/pip install --quiet codemagic-cli-tools
+          echo "$HOME/venv/bin" >> $GITHUB_PATH
 
       - name: Sertifika + profil (otomatik olusur)
         env:

@@ -20,13 +20,19 @@ jobs:
 
       - name: Imzalama anahtari
         working-directory: mobile/android
+        env:
+          KEYSTORE_B64: ${{ secrets.GEBZEM_KEYSTORE_B64 }}
+          KEYSTORE_PASS: ${{ secrets.GEBZEM_KEYSTORE_PASS }}
+          KEY_ALIAS: ${{ secrets.GEBZEM_KEY_ALIAS }}
         run: |
-          echo "${{ secrets.GEBZEM_KEYSTORE_B64 }}" | base64 --decode > gebzem-release.jks
+          # -w0: satir kirilmasi olmadan cozer (base64: invalid input hatasinin sebebi)
+          printf '%s' "$KEYSTORE_B64" | tr -d '\n\r ' | base64 -d > gebzem-release.jks
+          ls -l gebzem-release.jks
           cat > key.properties <<EOF
           storeFile=gebzem-release.jks
-          storePassword=${{ secrets.GEBZEM_KEYSTORE_PASS }}
-          keyAlias=${{ secrets.GEBZEM_KEY_ALIAS }}
-          keyPassword=${{ secrets.GEBZEM_KEYSTORE_PASS }}
+          storePassword=$KEYSTORE_PASS
+          keyAlias=$KEY_ALIAS
+          keyPassword=$KEYSTORE_PASS
           EOF
 
       - name: Bagimliliklar
