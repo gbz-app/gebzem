@@ -168,11 +168,17 @@ class CallKitService {
     ));
   }
 
-  /// Arama iptal edildi/bitti — CallKit ekranini kapat (programatik)
+  /// Arama iptal edildi/bitti — CallKit ekranini kapat (programatik).
+  /// SADECE gercekten gosterilmis bir CallKit aramasi varsa endCall cagir. Yoksa
+  /// (uygulama acik/WS ile yuruyorsa CallKit hic gosterilmedi) endCall bos isimli bir
+  /// CEVAPSIZ ARAMA bildirimi uretiyor -> ekranda UUID ("karmasik harfler") gorunuyor.
   static Future<void> bitir(String callId) async {
     if (callId.isEmpty) return;
-    _bizBitirdik.add(callId); // bunun uretecegi "ended" olayini sunucuya end olarak gonderme
     try {
+      final aktif = await FlutterCallkitIncoming.activeCalls();
+      final varMi = aktif.any((c) => c.id == callId);
+      if (!varMi) return; // hic gosterilmedi -> hayalet bildirim URETME
+      _bizBitirdik.add(callId);
       await FlutterCallkitIncoming.endCall(callId);
     } catch (_) {}
   }

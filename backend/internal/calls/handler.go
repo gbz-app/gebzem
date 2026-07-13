@@ -283,21 +283,28 @@ func (h *Handler) Answer(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserID(r.Context())
 	callID := chi.URLParam(r, "id")
 
-	var callerID, callType, status string
+	var callerID, callType string
 	err := h.db.QueryRow(r.Context(), `
-		SELECT caller_id, type, status FROM calls WHERE id=$1 AND callee_id=$2`,
-		callID, userID).Scan(&callerID, &callType, &status)
+		SELECT caller_id, type FROM calls WHERE id=$1 AND callee_id=$2`,
+		callID, userID).Scan(&callerID, &callType)
 	if err != nil {
 		writeErr(w, http.StatusNotFound, "arama bulunamadi")
 		return
 	}
-	if status != "ringing" {
+
+	// ATOMIK kabul: tek kosullu UPDATE. Iki es zamanli Answer (cift ekran) ikisi de
+	// 'ringing' okuyup gecemez -> sadece BIRI 'active' yapar (rows-affected=1), digeri 0 -> 409.
+	ct, err := h.db.Exec(r.Context(),
+		`UPDATE calls SET status='active', answered_at=now()
+		 WHERE id=$1 AND callee_id=$2 AND status='ringing'`, callID, userID)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "sunucu hatasi")
+		return
+	}
+	if ct.RowsAffected() == 0 {
 		writeErr(w, http.StatusConflict, "arama artik gecerli degil")
 		return
 	}
-
-	h.db.Exec(r.Context(),
-		`UPDATE calls SET status='active', answered_at=now() WHERE id=$1`, callID)
 
 	var name string
 	h.db.QueryRow(r.Context(), `SELECT name FROM users WHERE id=$1`, userID).Scan(&name)
@@ -309,11 +316,19 @@ func (h *Handler) Answer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Arayana "kabul edildi" bildir
+	// Arayana "kabul edildi" bildir — WS + PUSH (yedek).
+	// KRITIK: arayan calarken ekrana bakmayi birakinca (paused) WS kapaniyor; tam o an
+	// kabul edilirse call.answered WS'te KAYBOLUYOR -> arayan sonsuza kadar "Caliyor".
+	// End'deki gibi push fallback ekliyoruz (istemci ayrica poll ile de kurtarir).
 	payload, _ := json.Marshal(map[string]string{"call_id": callID})
 	h.hub.Publish(r.Context(), &chat.Event{
 		Type: "call.answered", Payload: payload, To: []string{callerID},
 	})
+	if h.push != nil {
+		go h.push.CallInvite([]string{callerID}, map[string]string{
+			"type": "call.answered", "call_id": callID,
+		})
+	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"call_id": callID,
@@ -348,8 +363,21 @@ func (h *Handler) End(w http.ResponseWriter, r *http.Request) {
 			newStatus = "missed"
 		}
 	}
-	h.db.Exec(r.Context(),
-		`UPDATE calls SET status=$1, ended_at=now() WHERE id=$2`, newStatus, callID)
+	// ATOMIK bitirme: sadece hala 'ringing'/'active' ise. Zaten bitmisse (cift end,
+	// answer+end yarisi) tekrar yazma ve TEKRAR OLAY YAYINLAMA -> karsi tarafa cift
+	// call.ended / stale durum gitmesin.
+	ct, err := h.db.Exec(r.Context(),
+		`UPDATE calls SET status=$1, ended_at=now()
+		 WHERE id=$2 AND status IN ('ringing','active')`, newStatus, callID)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "sunucu hatasi")
+		return
+	}
+	if ct.RowsAffected() == 0 {
+		// Zaten bitmis — sessizce basarili don, olay yayinlama
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ended"})
+		return
+	}
 
 	// Diger tarafa bildir
 	other := callerID
@@ -380,6 +408,24 @@ func (h *Handler) End(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": newStatus})
+}
+
+// GET /calls/{id}/status — arayan "aramam cevaplandi mi / bitti mi" diye sorar.
+// call.answered/call.ended WS olaylari (arka planda WS kopukken) KAYBOLABILIR;
+// arayan calarken bunu 2 sn'de bir sorup 'active' gorunce baglanir, biterse kapatir.
+// WS'in guvenilmezligini telafi eden KURTARMA agi.
+func (h *Handler) Status(w http.ResponseWriter, r *http.Request) {
+	userID := auth.UserID(r.Context())
+	callID := chi.URLParam(r, "id")
+	var status string
+	err := h.db.QueryRow(r.Context(),
+		`SELECT status FROM calls WHERE id=$1 AND (caller_id=$2 OR callee_id=$2)`,
+		callID, userID).Scan(&status)
+	if err != nil {
+		writeErr(w, http.StatusNotFound, "arama bulunamadi")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": status})
 }
 
 // GET /calls/active — beni su an arayan var mi?

@@ -74,6 +74,12 @@ class CallService extends StateNotifier<IncomingCall?> {
     }
   }
 
+  /// Arayan: "aramam cevaplandi mi / bitti mi" (WS call.answered kaybolursa kurtarma)
+  Future<Map<String, dynamic>> callStatus(String callId) async {
+    final res = await _ref.read(apiProvider).get('/calls/$callId/status');
+    return (res.data as Map).cast<String, dynamic>();
+  }
+
   /// Uygulama acilinca / on plana donunce: beni su an arayan var mi?
   /// (Arka plandayken WebSocket kopuk oldugu icin "call.incoming" olayi kacmis olabilir —
   /// kullanici bildirime dokunup acinca aramayi yine de gormeli.)

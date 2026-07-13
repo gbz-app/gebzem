@@ -47,6 +47,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
   StreamSubscription? _answeredSub;
   Timer? _durationTimer;
   Timer? _ringTimeout;
+  Timer? _statusPoll; // arayan: WS kaybolursa durum kurtarma pollu
 
   /// Arama servisi initState'te yakalanir. `ref`, widget yok edildikten sonra
   /// KULLANILAMAZ (StateError firlatir) — servis ise uygulama boyunca yasar.
@@ -99,6 +100,22 @@ class _CallScreenState extends ConsumerState<CallScreen> {
       _ringTimeout = Timer(const Duration(seconds: 45), () {
         if (mounted && !_baglandi) _leave(notifyServer: true);
       });
+      // KURTARMA AGI: call.answered/ended WS olayi kaybolabilir (arayan arka planda
+      // WS'i kapatiyor). Her 2 sn'de sunucuya "aramam ne durumda" diye sor.
+      _statusPoll = Timer.periodic(const Duration(seconds: 2), (_) async {
+        if (!mounted || _baglandi) return;
+        try {
+          final s = (await _svc.callStatus(widget.callId))['status'] as String? ?? '';
+          if (s == 'active') {
+            _statusPoll?.cancel();
+            CallSounds.durdur();
+            _connect();
+          } else if (s == 'ended' || s == 'rejected' || s == 'missed' || s == 'busy') {
+            _statusPoll?.cancel();
+            if (mounted) _leave(notifyServer: false);
+          }
+        } catch (_) {}
+      });
       setState(() => _connecting = false); // "Caliyor..." goster
     } else {
       // GELEN ARAMAYI KABUL ETTIK: hemen odaya gir
@@ -109,6 +126,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
   Future<void> _connect() async {
     if (_baglandi) return;
     _baglandi = true;
+    _statusPoll?.cancel(); // baglaniyoruz, kurtarma pollu gereksiz
     try {
       // Izinler: mikrofon her zaman, kamera goruntulu aramada
       final perms = <Permission>[Permission.microphone];
@@ -256,19 +274,22 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     await _sesiAc(false); // iOS foreground ses kanalini kapat
     _durationTimer?.cancel();
     _ringTimeout?.cancel();
+    _statusPoll?.cancel();
     final room = _room;
     final listener = _listener;
     _room = null;
     _listener = null;
     if (room == null && listener == null) return;
+    // timeout SART: disconnect/dispose HANG ederse CallRoomLock zinciri sonsuza
+    // kilitlenir -> sonraki arama "Baglaniyor"da asili kalir (art arda arama bug'i).
     try {
-      await room?.disconnect();
+      await room?.disconnect().timeout(const Duration(seconds: 3));
     } catch (_) {}
     try {
       await listener?.dispose();
     } catch (_) {}
     try {
-      await room?.dispose(); // motoru ve ses oturumunu birak
+      await room?.dispose().timeout(const Duration(seconds: 3)); // motoru+ses oturumunu birak
     } catch (_) {}
   }
 
@@ -336,6 +357,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
 
   @override
   void dispose() {
+    _statusPoll?.cancel();
     _endedSub?.cancel();
     _answeredSub?.cancel();
     CallSounds.durdur();
