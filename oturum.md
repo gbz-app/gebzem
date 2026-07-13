@@ -444,11 +444,51 @@ için AYRI build'de. Detay plan: workflow `wbe4q71q3` çıktısı (Madde 2, tam 
 ⚠️ **Android build 143 (iptal/süre):** ilk kez webrtc+callkit native C++ (CMake) derlemesi ~15dk sürüp
 runner sınırına takıldı; yeniden tetiklenince geçer (flaky). iOS ilk seferde geçti.
 
+---
+
+## Oturum 8 — Kilit ekranı sesi ÇALIŞTI + güvenilirlik + Android kilit ekranı (13-14 Tem)
+
+### ✅ BÜYÜK ZAFER: iOS kilit ekranından kabul edilen aramada SES GELDİ (kullanıcı doğruladı)
+`AppDelegate.swift`'e CallKit↔WebRTC ses köprüsü kuruldu: `RTCAudioSession.useManualAudio=true` +
+`CallkitIncomingAppDelegate.didActivateAudioSession`'da `audioSessionDidActivate`+`isAudioEnabled=true`.
+`import WebRTC` SPM'de sorunsuz derlendi. Uygulama-açık arama için MethodChannel `gebzem/audio`
+(connect sonrası `setAudioEnabled true`, kapanışta false).
+
+### ✅ Arama güvenilirlik turu (arayan "Çalıyor" kalması — kök çözüm)
+Kök: kabul bilgisi (`call.answered`) SADECE WS'le gidiyordu, yedeksiz; `paused→ws.close()`
+(kilit ekranı için şart) arayanın soketini kapatınca olay KAYBOLUYORDU.
+- Answer/End **ATOMİK** (koşullu UPDATE + rows-affected; çift answer→409, çift end sessiz) — canlıda doğrulandı
+- `GET /calls/{id}/status` kurtarma ucu + arayan çalarken **2 sn'de bir durum poll'u**
+  → WS kaybolsa bile arayan ≤2 sn'de bağlanır / biterse kapanır
+- `call.answered`'a FCM push fallback (Android)
+- `_kapatOda` disconnect/dispose 3sn timeout → CallRoomLock zinciri kilitlenmez (art arda arama)
+
+### ✅ "Karmaşık harfler" popup (iOS, base64) — kök çözüm
+Kök: End HER sonlanmada (karşı taraf ONLINE olsa bile) call.cancel VoIP push atıyordu;
+iOS kuralı gereği bu push CallKit banner'ı açıyor; **boş isimde CallKit CXHandle'daki ŞİFRELİ
+blob'u (base64) gösteriyor** → "MWRlMjE4..." popup'ı.
+- End+sweep: cancel push SADECE karşı taraf OFFLINE ise (online'da WS zaten kapatıyor)
+- CallCancel payload'una `caller_name=Gebzem` + AppDelegate boş isim → dolu isim (base64 imkansız)
+
+### ✅ Android kilit ekranı arama görünmeme (yeşil mikrofon ama ekran yok) — kök bulundu
+Kök: `USE_FULL_SCREEN_INTENT` runtime izni SADECE izin ekranından isteniyordu; **"Şimdilik atla"
+denince hiç istenmiyordu** → plugin foreground servisi başlıyor (yeşil mikrofon göstergesi) ama
+tam-ekran arama UI'ı bastırılıyor. Manifest/handler/push zinciri SAĞLAMDI (analiz doğruladı).
+- main.dart: her açılışta idempotent `izinleriIste()` (bildirim + tam ekran)
+- TANI logları: `CALLKIT-TANI` (izin durumu → Sentry) + `CALLKIT-GOSTER` (işleyici tetiklendi mi)
+
+### 📊 Test durumu (kullanıcı, 13 Tem gece)
+- Uygulama açıkken: arama+görüntülü+kamera+çevirme+ekran hepsi ÇALIŞIYOR ✅
+- iOS kilit ekranı: sesli kabul + SES ✅; görüntülü bazen düşmüyor (izin/teslimat — tanı logu görecek)
+- Android kilit ekranı: görünmüyordu → izin düzeltmesi bu build'de (test bekliyor)
+- VoIP token zamanlaması: taze kayıttan hemen sonra ilk arama kaçabilir (token ~27sn geç kaydoldu)
+
 ### ⏭️ Sonraki oturuma devir
-- **TEST:** uygulama açık iki cihaz → tek ekran (çift popup YOK) · kapalıyken açınca iptal YOK ·
-  uygulama açıkken ses geliyor. **Kilit ekranından kabulde ses hâlâ eksik olabilir (Madde 4 bekliyor).**
-- **Madde 4:** iOS native ses (kilit ekranı kabul sesi) — izole build.
-- Eski: 1080p görüntü, grup araması (`grup-aramasi-plani.md` hazır).
+- **TEST (tek temiz build, 14 Tem):** Android'de ilk açılışta "tam ekran bildirim" iznini VER (kritik!)
+  → kilitli Android'e ara. iOS'ta kapatınca base64 popup ÇIKMAMALI. Arayan "Çalıyor"da kalmamalı (≤2sn).
+- Android kilit ekranı hâlâ görünmezse: `adb logcat | grep CALLKIT` + Sentry'de "callkit izin durumu" bak
+- **Sonra:** chat'e arama kaydı + cevapsız bildirim (plan hazır, workflow w66fnjien çıktısında Madde 4/5)
+- Eski: 1080p görüntü ayarı korunuyor, grup araması (`grup-aramasi-plani.md` hazır)
 - **SIRADAKİ BÜYÜK İŞ: CallKit** (kilit ekranı/uygulama kapalı) — araştırması hazır:
   `flutter_callkit_incoming` + iOS **PushKit VoIP push** (FCM VoIP gönderemez → Go'dan doğrudan APNs,
   topic `app.gebzem.voip`, `apns-push-type: voip`; VoIP push alınca CallKit `reportNewIncomingCall`
