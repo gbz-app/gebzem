@@ -178,13 +178,19 @@ class _GebzemAppState extends ConsumerState<GebzemApp> with WidgetsBindingObserv
     super.dispose();
   }
 
-  /// Uygulama on plana donunce: WebSocket'i HEMEN yeniden bagla ve calan arama
-  /// varsa goster (bildirime dokunup acan kullanici aramayi kacirmasin).
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    final ws = ref.read(wsProvider);
     if (state == AppLifecycleState.resumed) {
-      ref.read(wsProvider).resume();
+      // On plana donunce: WS'i yeniden bagla + calan arama varsa goster
+      ws.connect();
       ref.read(callServiceProvider.notifier).checkActive();
+    } else if (state == AppLifecycleState.paused) {
+      // Arka plana/kilit ekranina gecince WS'i KAPAT. Sebep: iOS askiya alininca
+      // TCP soketi sunucuda "yari-acik" kalip Online()=true yaniltiyor -> gelen arama
+      // sadece WS'e gonderiliyor (uygulama isleyemez) -> kilit ekraninda CALMIYOR.
+      // WS'i kapatinca sunucu offline gorur -> arama VoIP push/CallKit ile gelir.
+      ws.close();
     }
   }
 

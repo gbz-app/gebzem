@@ -91,6 +91,15 @@ func (h *Handler) sweep(ctx context.Context) {
 		h.hub.Publish(ctx, &chat.Event{
 			Type: "call.ended", Payload: payload, To: []string{k.caller, k.callee},
 		})
+		// Aliciya (callee) push ile de kapat: kilit ekranindaki CallKit ekrani asili kalmasin
+		if h.push != nil {
+			go h.push.CallInvite([]string{k.callee}, map[string]string{
+				"type": "call.cancel", "call_id": k.id,
+			})
+		}
+		if h.apns != nil {
+			go h.apns.CallCancel(context.Background(), k.callee, k.id)
+		}
 	}
 
 	// 2) 2 saatten uzun "suren" aramalar -> bitmis say (uygulama cokmus demektir)
@@ -352,13 +361,22 @@ func (h *Handler) End(w http.ResponseWriter, r *http.Request) {
 		Type: "call.ended", Payload: payload, To: []string{other},
 	})
 
-	// Kilit ekranindaki arama ekrani asili kalmasin: arayan vazgectiyse aliciya
-	// "iptal" push'u gonder (WebSocket kopuk olabilir — telefon kilitliyken).
-	if newStatus == "missed" && h.push != nil {
-		go h.push.CallInvite([]string{calleeID}, map[string]string{
+	// Diger taraf offline/kilitliyse WS'i almaz -> push ile arama ekranini kapat.
+	// TUM sonlanmalarda (missed/rejected/ended) + DOGRU tarafa (other).
+	// Eskiden sadece 'missed' + sadece calleeID + sadece FCM idi -> iOS'ta ve
+	// aktif arama bitince karsi tarafin ekrani asili kaliyordu.
+	if h.push != nil {
+		go h.push.CallInvite([]string{other}, map[string]string{
 			"type":    "call.cancel",
 			"call_id": callID,
 		})
+	}
+	if h.apns != nil {
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			h.apns.CallCancel(ctx, other, callID)
+		}()
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": newStatus})

@@ -2,28 +2,34 @@ import Flutter
 import UIKit
 import PushKit
 import CallKit
+import AVFAudio
+import WebRTC                     // WebRTC-SDK pod -> modul adi "WebRTC". Derleme riski burada;
+                                  // patlarsa Podfile'a :modular_headers => true (bkz. Podfile notu).
 import flutter_callkit_incoming
 
-// KILIT EKRANINDA GELEN ARAMA (iOS)
+// KILIT EKRANINDA GELEN ARAMA (iOS) — CallKit + PushKit + WebRTC ses koprusu.
 //
-// iOS 13+ MUTLAK KURALI: VoIP push (PushKit) alindiginda, pushRegistry(...) icinde
-// AYNI calisma dongusunde CallKit'e "yeni gelen arama" bildirilmek ZORUNDADIR.
-// Bildirilmezse iOS uygulamayi oldurur ("never posted an incoming call to the system
-// after receiving a PushKit VoIP push") ve tekrarlarsa VoIP push teslimatini KESER.
-// Bu yuzden asagida KOSULLU CIKIS (guard/return) YOKTUR — payload bozuk olsa bile
-// bos degerlerle arama ekrani gosterilir.
+// ASIL DUZELTME (ses yok sorunu): iOS'ta CallKit AVAudioSession'i aktive eder ama
+// WebRTC/LiveKit'in ses birimine "artik baslat" diyen kimse yoktu -> mic gidiyor
+// (loglarda mediaTrack published) ama uzak ses DUYULMUYORDU.
+// Cozum: RTCAudioSession.useManualAudio=true + CallKit didActivateAudioSession'da
+// isAudioEnabled=true. Boylece CallKit'in oturumunu LiveKit devralir.
 //
-// Ses oturumu: CallKit AVAudioSession'i kendi yonetir. WebRTC/LiveKit'in odaya
-// baglanmasi, kullanici KABUL ETTIKTEN sonra (Dart tarafinda actionCallAccept
-// olayinda) yapilir — boylece iki taraf ses oturumu icin kavga etmez.
+// iOS 13+ KURALI: VoIP push alinca AYNI dongude CallKit'e reportNewIncomingCall
+// (showCallkitIncoming) ZORUNLU; yoksa iOS uygulamayi oldurur.
 @main
-@objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate, PKPushRegistryDelegate {
+@objc class AppDelegate: FlutterAppDelegate,
+    FlutterImplicitEngineDelegate, PKPushRegistryDelegate, CallkitIncomingAppDelegate {
 
   override func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
-    // PushKit (VoIP) kaydi
+    // Ses birimi baslamadan ONCE manuel moda al (yoksa WebRTC oturumu kendi acmaya calisip
+    // CallKit ile cakisir).
+    RTCAudioSession.sharedInstance().useManualAudio = true
+    RTCAudioSession.sharedInstance().isAudioEnabled = false
+
     let voipRegistry = PKPushRegistry(queue: DispatchQueue.main)
     voipRegistry.delegate = self
     voipRegistry.desiredPushTypes = [PKPushType.voIP]
@@ -33,52 +39,81 @@ import flutter_callkit_incoming
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+
+    // UYGULAMA ACIK aramada (CallKit YOK, WS overlay yolu) sesi Dart'tan elle ac/kapat.
+    // useManualAudio=true global oldugu icin CallKit didActivate gelmeyen (foreground)
+    // aramalarda ses acilmaz -> bu kanal onu cozer.
+    let ch = FlutterMethodChannel(
+      name: "gebzem/audio",
+      binaryMessenger: engineBridge.pluginRegistry.registrar(forPlugin: "gebzem.audio")!.messenger())
+    ch.setMethodCallHandler { call, result in
+      if call.method == "setAudioEnabled" {
+        RTCAudioSession.sharedInstance().isAudioEnabled = (call.arguments as? Bool) ?? false
+        result(nil)
+      } else {
+        result(FlutterMethodNotImplemented)
+      }
+    }
   }
 
-  // MARK: - PKPushRegistryDelegate
+  // MARK: - CallkitIncomingAppDelegate (plugin UIApplication.shared.delegate uzerinden cagirir)
+  // CallKit sesi aktive edince WebRTC'ye devret + ses birimini AC (asil duzeltme).
+  func didActivateAudioSession(_ audioSession: AVAudioSession) {
+    RTCAudioSession.sharedInstance().audioSessionDidActivate(audioSession)
+    RTCAudioSession.sharedInstance().isAudioEnabled = true
+  }
+  func didDeactivateAudioSession(_ audioSession: AVAudioSession) {
+    RTCAudioSession.sharedInstance().audioSessionDidDeactivate(audioSession)
+    RTCAudioSession.sharedInstance().isAudioEnabled = false
+  }
+  func providerDidReset() {
+    RTCAudioSession.sharedInstance().isAudioEnabled = false
+  }
+  // action.fulfill() -> CallKit didActivateAudioSession'i tetikler
+  func onAccept(_ call: Call, _ action: CXAnswerCallAction) { action.fulfill() }
+  func onDecline(_ call: Call, _ action: CXEndCallAction) { action.fulfill() }
+  func onEnd(_ call: Call, _ action: CXEndCallAction) { action.fulfill() }
+  func onTimeOut(_ call: Call) {}
 
-  /// VoIP token'i olustu/yenilendi -> Dart tarafina bildirilir, oradan sunucuya kaydedilir
+  // MARK: - PKPushRegistryDelegate
   func pushRegistry(_ registry: PKPushRegistry,
-                    didUpdate pushCredentials: PKPushCredentials,
-                    for type: PKPushType) {
+                    didUpdate pushCredentials: PKPushCredentials, for type: PKPushType) {
     let token = pushCredentials.token.map { String(format: "%02x", $0) }.joined()
     SwiftFlutterCallkitIncomingPlugin.sharedInstance?.setDevicePushTokenVoIP(token)
   }
-
-  func pushRegistry(_ registry: PKPushRegistry,
-                    didInvalidatePushTokenFor type: PKPushType) {
+  func pushRegistry(_ registry: PKPushRegistry, didInvalidatePushTokenFor type: PKPushType) {
     SwiftFlutterCallkitIncomingPlugin.sharedInstance?.setDevicePushTokenVoIP("")
   }
 
-  /// VoIP push geldi -> CallKit'e HEMEN bildir (kosulsuz!)
   func pushRegistry(_ registry: PKPushRegistry,
                     didReceiveIncomingPushWith payload: PKPushPayload,
-                    for type: PKPushType,
-                    completion: @escaping () -> Void) {
-
+                    for type: PKPushType, completion: @escaping () -> Void) {
     let d = payload.dictionaryPayload
     let callId = (d["call_id"] as? String) ?? UUID().uuidString
+
+    // IPTAL push'u: arama karsi tarafca kapatildi/cevapsiz -> asili CallKit ekranini kapat.
+    // iOS zorunlulugu geregi yine de reportNewIncomingCall (showCallkitIncoming) yapip
+    // HEMEN endCall ediyoruz (yoksa iOS uygulamayi oldurur).
+    if (d["type"] as? String) == "call.cancel" {
+      let data = flutter_callkit_incoming.Data(id: callId, nameCaller: "", handle: "", type: 0)
+      data.appName = "Gebzem"
+      SwiftFlutterCallkitIncomingPlugin.sharedInstance?.showCallkitIncoming(data, fromPushKit: true)
+      SwiftFlutterCallkitIncomingPlugin.sharedInstance?.endCall(data)
+      completion()
+      return
+    }
+
+    // Normal gelen arama
     let callerName = (d["caller_name"] as? String) ?? "Bilinmeyen"
     let isVideo = ((d["call_type"] as? String) ?? "audio") == "video"
-
     let data = flutter_callkit_incoming.Data(
-      id: callId,
-      nameCaller: callerName,
-      handle: callerName,
-      type: isVideo ? 1 : 0
-    )
+      id: callId, nameCaller: callerName, handle: callerName, type: isVideo ? 1 : 0)
     data.appName = "Gebzem"
     data.supportsVideo = true
     data.duration = 45000
-    // Not: textAccept/textDecline iOS'ta YOK (CallKit buton metinlerini sistem verir);
-    // onlar Android'e ozel (AndroidParams).
     data.extra = [
-      "call_id": callId,
-      "call_type": isVideo ? "video" : "audio",
-      "caller_name": callerName,
+      "call_id": callId, "call_type": isVideo ? "video" : "audio", "caller_name": callerName,
     ] as NSDictionary
-
-    // fromPushKit: true -> CallKit'e reportNewIncomingCall yapar (ZORUNLU)
     SwiftFlutterCallkitIncomingPlugin.sharedInstance?.showCallkitIncoming(data, fromPushKit: true)
     completion()
   }

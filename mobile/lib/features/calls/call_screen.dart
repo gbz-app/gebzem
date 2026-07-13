@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart' as rtc;
 import 'package:livekit_client/livekit_client.dart';
@@ -204,6 +206,11 @@ class _CallScreenState extends ConsumerState<CallScreen> {
       }
       await room.setSpeakerOn(widget.video); // goruntuluda hoparlor acik baslar
 
+      // iOS'ta WebRTC sesi MANUEL modda (useManualAudio=true, AppDelegate). CallKit'ten
+      // gelen aramada ses didActivateAudioSession ile aciliyor; UYGULAMA ACIK aramada
+      // (CallKit yok) ise ses acilmaz -> burada elle aciyoruz.
+      await _sesiAc(true);
+
       // Ekran bu arada kapandiysa odayi burada birak (sizinti olmasin)
       if (!mounted) {
         await _kapatOda();
@@ -233,9 +240,20 @@ class _CallScreenState extends ConsumerState<CallScreen> {
   /// KRITIK: disconnect() yetmez — Room.dispose() cagrilmazsa WebRTC motoru,
   /// dinleyiciler ve ses oturumu (AVAudioSession / Android AudioManager) sizar;
   /// 2-3. aramada ses gitmez ve goruntu bozulur. Sira: disconnect -> listener -> room.
+  /// iOS foreground ses kanalini ac/kapat (AppDelegate 'gebzem/audio').
+  /// Android'de ve hata durumunda sessizce gecer.
+  static const _audioCh = MethodChannel('gebzem/audio');
+  Future<void> _sesiAc(bool ac) async {
+    if (!Platform.isIOS) return;
+    try {
+      await _audioCh.invokeMethod('setAudioEnabled', ac);
+    } catch (_) {}
+  }
+
   Future<void> _kapatOda() async {
     if (_kapandi) return;
     _kapandi = true;
+    await _sesiAc(false); // iOS foreground ses kanalini kapat
     _durationTimer?.cancel();
     _ringTimeout?.cancel();
     final room = _room;

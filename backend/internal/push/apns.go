@@ -149,6 +149,36 @@ func (a *APNs) CallInvite(ctx context.Context, userID string, payload map[string
 	}
 }
 
+// CallCancel: iOS'ta calan/asili CallKit ekranini kapatmak icin VoIP push.
+// type=call.cancel -> istemci (AppDelegate) reportNewIncomingCall + hemen endCall yapar,
+// boylece asili kalan arama ekrani kapanir (kullanici kapatinca karsi taraf da kapansin).
+func (a *APNs) CallCancel(ctx context.Context, userID, callID string) {
+	if a == nil {
+		return
+	}
+	rows, err := a.db.Query(ctx, `SELECT token FROM voip_tokens WHERE user_id=$1`, userID)
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+	var tokens []string
+	for rows.Next() {
+		var t string
+		if rows.Scan(&t) == nil {
+			tokens = append(tokens, t)
+		}
+	}
+	if len(tokens) == 0 {
+		return
+	}
+	body, _ := json.Marshal(map[string]any{"type": "call.cancel", "call_id": callID})
+	for _, tok := range tokens {
+		if err := a.gonder(ctx, tok, body); err != nil {
+			log.Printf("voip cancel: %v", err)
+		}
+	}
+}
+
 func (a *APNs) gonder(ctx context.Context, deviceToken string, body []byte) error {
 	jwtTok, err := a.jwt()
 	if err != nil {
