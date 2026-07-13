@@ -171,7 +171,11 @@ func (a *APNs) CallCancel(ctx context.Context, userID, callID string) {
 	if len(tokens) == 0 {
 		return
 	}
-	body, _ := json.Marshal(map[string]any{"type": "call.cancel", "call_id": callID})
+	// caller_name SART: iOS CallKit bos isimde CXHandle'daki sifreli blob'u (base64)
+	// gosteriyor -> ekranda "karmasik harfler". Isim doluysa temiz gorunur.
+	body, _ := json.Marshal(map[string]any{
+		"type": "call.cancel", "call_id": callID, "caller_name": "Gebzem",
+	})
 	for _, tok := range tokens {
 		if err := a.gonder(ctx, tok, body); err != nil {
 			log.Printf("voip cancel: %v", err)

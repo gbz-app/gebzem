@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -121,6 +122,14 @@ class _GebzemAppState extends ConsumerState<GebzemApp> with WidgetsBindingObserv
     });
 
     await svc.baslat();
+
+    // ANDROID KILIT EKRANI SART KOSULU: bildirim + "tam ekran bildirim" izni.
+    // Izin ekraninda "Simdilik atla" denirse bu izinler hic istenmiyordu ->
+    // gelen arama servisi basliyor (yesil mikrofon) ama EKRAN GORUNMUYORDU.
+    // Her acilista idempotent iste (verilmisse tekrar sormaz).
+    if (Platform.isAndroid) {
+      await CallKitService.izinleriIste();
+    }
   }
 
   /// CallKit'ten kabul edilen aramayi ac. Uygulama SIFIRDAN acilmis olabilir.

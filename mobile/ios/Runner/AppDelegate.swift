@@ -95,7 +95,11 @@ import flutter_callkit_incoming
     // iOS zorunlulugu geregi yine de reportNewIncomingCall (showCallkitIncoming) yapip
     // HEMEN endCall ediyoruz (yoksa iOS uygulamayi oldurur).
     if (d["type"] as? String) == "call.cancel" {
-      let data = flutter_callkit_incoming.Data(id: callId, nameCaller: "", handle: "", type: 0)
+      // Isim DOLU olmali: bos isimde CallKit, CXHandle'daki sifreli blob'u (base64)
+      // gosteriyordu -> ekranda "karmasik harfler". Ayni callId zaten gosteriliyorsa
+      // reportNewIncomingCall ikinci UI acmaz, mevcut aramayi gunceller; endCall kapatir.
+      let nm = (d["caller_name"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? "Gebzem"
+      let data = flutter_callkit_incoming.Data(id: callId, nameCaller: nm, handle: nm, type: 0)
       data.appName = "Gebzem"
       SwiftFlutterCallkitIncomingPlugin.sharedInstance?.showCallkitIncoming(data, fromPushKit: true)
       SwiftFlutterCallkitIncomingPlugin.sharedInstance?.endCall(data)

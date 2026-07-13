@@ -91,14 +91,17 @@ func (h *Handler) sweep(ctx context.Context) {
 		h.hub.Publish(ctx, &chat.Event{
 			Type: "call.ended", Payload: payload, To: []string{k.caller, k.callee},
 		})
-		// Aliciya (callee) push ile de kapat: kilit ekranindaki CallKit ekrani asili kalmasin
-		if h.push != nil {
-			go h.push.CallInvite([]string{k.callee}, map[string]string{
-				"type": "call.cancel", "call_id": k.id,
-			})
-		}
-		if h.apns != nil {
-			go h.apns.CallCancel(context.Background(), k.callee, k.id)
+		// Aliciya (callee) push ile de kapat: kilit ekranindaki CallKit ekrani asili
+		// kalmasin. Online ise WS zaten kapatti — ek push cirkin banner uretir (End gibi).
+		if !h.hub.Online(k.callee) {
+			if h.push != nil {
+				go h.push.CallInvite([]string{k.callee}, map[string]string{
+					"type": "call.cancel", "call_id": k.id,
+				})
+			}
+			if h.apns != nil {
+				go h.apns.CallCancel(context.Background(), k.callee, k.id)
+			}
 		}
 	}
 
@@ -389,22 +392,24 @@ func (h *Handler) End(w http.ResponseWriter, r *http.Request) {
 		Type: "call.ended", Payload: payload, To: []string{other},
 	})
 
-	// Diger taraf offline/kilitliyse WS'i almaz -> push ile arama ekranini kapat.
-	// TUM sonlanmalarda (missed/rejected/ended) + DOGRU tarafa (other).
-	// Eskiden sadece 'missed' + sadece calleeID + sadece FCM idi -> iOS'ta ve
-	// aktif arama bitince karsi tarafin ekrani asili kaliyordu.
-	if h.push != nil {
-		go h.push.CallInvite([]string{other}, map[string]string{
-			"type":    "call.cancel",
-			"call_id": callID,
-		})
-	}
-	if h.apns != nil {
-		go func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-			defer cancel()
-			h.apns.CallCancel(ctx, other, callID)
-		}()
+	// call.cancel push'u SADECE diger taraf OFFLINE ise. Online (uygulama acik,
+	// WS bagli) ise call.ended WS olayi ekrani zaten kapatiyor; ek VoIP push iOS'ta
+	// reportNewIncomingCall+endCall zorunlulugu yuzunden ekranda kisa ve CIRKIN
+	// (base64 isimli) bir arama banner'i uretiyordu. Start() ile ayni gating.
+	if !h.hub.Online(other) {
+		if h.push != nil {
+			go h.push.CallInvite([]string{other}, map[string]string{
+				"type":    "call.cancel",
+				"call_id": callID,
+			})
+		}
+		if h.apns != nil {
+			go func() {
+				ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+				defer cancel()
+				h.apns.CallCancel(ctx, other, callID)
+			}()
+		}
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": newStatus})

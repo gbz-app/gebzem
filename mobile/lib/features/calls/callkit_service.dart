@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_callkit_incoming/entities/entities.dart';
 import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 
 /// Kilit ekraninda / uygulama kapaliyken gelen arama.
 ///
@@ -122,6 +123,8 @@ class CallKitService {
     String avatar = '',
   }) async {
     if (callId.isEmpty) return;
+    // TANI: push isleyicisi tetiklendi mi? (kilit ekrani gorunmuyorsa logcat'te ara)
+    debugPrint('CALLKIT-GOSTER: callId=$callId video=$video');
     islenenler.add(callId);
     await FlutterCallkitIncoming.showCallkitIncoming(CallKitParams(
       id: callId, // arama id'si zaten UUID — CallKit de UUID ister
@@ -195,17 +198,22 @@ class CallKitService {
   static Future<void> izinleriIste() async {
     if (!Platform.isAndroid) return;
     try {
-      await FlutterCallkitIncoming.requestNotificationPermission({
+      final bildirim = await FlutterCallkitIncoming.requestNotificationPermission({
         'title': 'Bildirim izni',
         'rationaleMessagePermission':
             'Gelen aramalari gorebilmek icin bildirim izni gerekiyor.',
         'postNotificationMessageRequired':
             'Bildirim izni olmadan gelen aramalar gosterilemez.',
       });
-      final tamEkran = await FlutterCallkitIncoming.canUseFullScreenIntent();
+      var tamEkran = await FlutterCallkitIncoming.canUseFullScreenIntent();
       if (!tamEkran) {
         await FlutterCallkitIncoming.requestFullIntentPermission();
+        tamEkran = await FlutterCallkitIncoming.canUseFullScreenIntent();
       }
+      // TANI: kilit ekrani aramasi gorunmuyorsa ilk bakilacak yer — izin durumu.
+      debugPrint('CALLKIT-TANI: bildirim=$bildirim tamEkran=$tamEkran');
+      unawaited(Sentry.captureMessage(
+          'callkit izin durumu: bildirim=$bildirim tamEkran=$tamEkran'));
     } catch (e) {
       debugPrint('callkit izin: $e');
     }
