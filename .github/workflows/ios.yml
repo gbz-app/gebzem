@@ -45,6 +45,8 @@ jobs:
         working-directory: mobile
         run: |
           flutter build ipa --release \
+            --build-number=${GITHUB_RUN_NUMBER} \
+            --build-name=1.0.${GITHUB_RUN_NUMBER} \
             --dart-define=API_URL=https://api.gebzem.app \
             --export-options-plist=$HOME/export_options.plist
           ls -la build/ios/ipa/

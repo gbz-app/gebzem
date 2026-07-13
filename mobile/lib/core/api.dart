@@ -25,6 +25,11 @@ final apiProvider = Provider<Dio>((ref) {
     receiveTimeout: const Duration(seconds: 20),
   ));
 
+  // 401 oturum-sonlandirmayi TEK SEFER tetikle. Yoksa: token dogrulama (_init) +
+  // interceptor birbirini tetikliyordu -> saniyede onlarca /users/me 401 ->
+  // SONSUZ DONGU -> uygulama "belirsiz hesap"ta takiliyor, login'e ulasamiyor.
+  var oturumBitiyor = false;
+
   dio.interceptors.add(InterceptorsWrapper(
     onRequest: (options, handler) async {
       final token = await ref.read(storageProvider).token;
@@ -34,18 +39,17 @@ final apiProvider = Provider<Dio>((ref) {
       handler.next(options);
     },
     onError: (e, handler) async {
-      // Oturum gecersizse (token eskimis ya da hesap silinmis) sessizce cikis yap;
-      // yoksa uygulama her ekranda "bir seyler ters gitti" gosterir.
-      // ARAMA uclarini HARIC TUT: DB temizligi sonrasi gec kalan bir "answer" 401
-      // donunce tum oturumu silmek, kilit ekranindan kabul edilen aramayi "iptal"
-      // gibi gosteriyordu. Arama ucu 401 alirsa sadece o arama nazikce kapansin;
-      // bir sonraki NORMAL istek gercekten gecersizse yine logout tetiklenir.
       final path = e.requestOptions.path;
+      // Arama uclari haric (kilit ekrani answer 401'i tum oturumu silmesin).
       if (e.response?.statusCode == 401 &&
           !path.startsWith('/auth/') &&
-          !path.startsWith('/calls/')) {
+          !path.startsWith('/calls/') &&
+          !oturumBitiyor) {
+        oturumBitiyor = true;
         await ref.read(storageProvider).clear();
         ref.invalidate(authProvider); // router otomatik olarak /login'e gonderir
+        // Yeni giris/kayittan sonra tekrar tetiklenebilsin
+        Future.delayed(const Duration(seconds: 3), () => oturumBitiyor = false);
       }
       handler.next(e);
     },
