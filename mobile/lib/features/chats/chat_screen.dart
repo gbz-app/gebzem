@@ -180,7 +180,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     return Column(
                       children: [
                         if (showDate) _DateChip(date: msg.createdAt),
-                        _Bubble(message: msg, mine: mine),
+                        if (msg.type == 'system')
+                          _CallLogChip(message: msg, mine: mine)
+                        else
+                          _Bubble(message: msg, mine: mine),
                       ],
                     );
                   },
@@ -256,6 +259,43 @@ class _DateChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Chip(
         label: Text(label, style: const TextStyle(fontSize: 12)),
+        visualDensity: VisualDensity.compact,
+      ),
+    );
+  }
+}
+
+/// Sohbet thread'inde arama kaydi (WhatsApp gibi ortalanmis notr satir).
+/// content formati: 'call:missed:audio' | 'call:missed:video'. sender_id her zaman
+/// arayan -> mine=true (giden) "cevap yok", mine=false (gelen) "Cevapsiz arama".
+class _CallLogChip extends StatelessWidget {
+  const _CallLogChip({required this.message, required this.mine});
+
+  final Message message;
+  final bool mine;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final parts = message.content.split(':'); // call : missed : audio|video
+    final video = parts.length > 2 && parts[2] == 'video';
+    final missed = parts.length > 1 && parts[1] == 'missed';
+    final time = DateFormat.Hm().format(message.createdAt.toLocal());
+    String label;
+    if (missed) {
+      label = mine
+          ? (video ? 'Goruntulu arama · cevap yok' : 'Sesli arama · cevap yok')
+          : (video ? 'Cevapsiz goruntulu arama' : 'Cevapsiz sesli arama');
+    } else {
+      label = video ? 'Goruntulu arama' : 'Sesli arama';
+    }
+    final vurgu = missed && !mine; // gelen cevapsiz -> kirmizi
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Chip(
+        avatar: Icon(video ? LucideIcons.video : LucideIcons.phone,
+            size: 15, color: vurgu ? Colors.red : scheme.outline),
+        label: Text('$label · $time', style: const TextStyle(fontSize: 12)),
         visualDensity: VisualDensity.compact,
       ),
     );

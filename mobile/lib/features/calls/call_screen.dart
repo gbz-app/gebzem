@@ -143,6 +143,10 @@ class _CallScreenState extends ConsumerState<CallScreen> {
       if (mounted) setState(() => _connecting = true);
 
       await CallRoomLock.calistir(() => _odayaBaglan());
+      // Baglandik: aktif aramada da durum yokla. Karsi taraf kapatinca "call.ended" WS
+      // olayi (o taraf arka plandayken / yari-acik sokette) kaybolabilir; bu poll en fazla
+      // 3sn'de ekrani kapatir -> "kapatinca karsi tarafta arama devam ediyor" bug'i biter.
+      _aktifPollBaslat();
     } catch (e) {
       // Hata Sentry'e duser; kullaniciya net mesaj gosterilir
       await CallSounds.durdur();
@@ -245,6 +249,23 @@ class _CallScreenState extends ConsumerState<CallScreen> {
       await _kapatOda(); // yarim kalan odayi TEMIZLE
       rethrow; // ust katman Sentry'e bildirir ve mesaj gosterir
     }
+  }
+
+  /// Aktif aramada (HER IKI tarafta) durum yoklama. Caliyor fazindaki _statusPoll'un
+  /// devami: baglandiktan sonra sunucuya 3sn'de bir "bu arama hala gecerli mi" diye sorar;
+  /// karsi taraf kapattiginda (WS olayi kacsa bile) ekrani kapatir.
+  void _aktifPollBaslat() {
+    _statusPoll?.cancel();
+    _statusPoll = Timer.periodic(const Duration(seconds: 3), (_) async {
+      if (!mounted || _ayrildi) return;
+      try {
+        final s = (await _svc.callStatus(widget.callId))['status'] as String? ?? '';
+        if (s == 'ended' || s == 'rejected' || s == 'missed' || s == 'busy') {
+          _statusPoll?.cancel();
+          if (mounted) _leave(notifyServer: false);
+        }
+      } catch (_) {}
+    });
   }
 
   void _startTimer() {

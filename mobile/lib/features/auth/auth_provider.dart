@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -5,6 +7,7 @@ import '../../core/api.dart';
 import '../../core/push.dart';
 import '../../core/storage.dart';
 import '../../core/ws.dart';
+import '../calls/callkit_service.dart';
 
 /// Oturum durumu: null = kontrol ediliyor, '' = cikis yapilmis, dolu = girisli
 class AuthNotifier extends StateNotifier<String?> {
@@ -110,6 +113,11 @@ class AuthNotifier extends StateNotifier<String?> {
     final userId = data['user_id'] as String;
     await _ref.read(storageProvider).saveSession(token, userId);
     state = token;
+    // Push/VoIP token'ini HEMEN kaydet (router rebuild'ini bekleme). Yeni hesapta ilk
+    // aramanin karsi tarafa gitmesi token'in DB'de olmasina bagli. fire-and-forget:
+    // register() retry'li ve sn surebilir; kullaniciyi girise sokarken bekletme.
+    unawaited(_ref.read(pushProvider).register());
+    unawaited(CallKitService.instance.voipTokeniYenidenGonder());
   }
 }
 

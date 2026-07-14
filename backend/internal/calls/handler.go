@@ -72,15 +72,15 @@ func (h *Handler) sweep(ctx context.Context) {
 	rows, err := h.db.Query(ctx, `
 		UPDATE calls SET status='missed', ended_at=now()
 		WHERE status='ringing' AND created_at < now() - interval '60 seconds'
-		RETURNING id, caller_id, callee_id`)
+		RETURNING id, caller_id, callee_id, type`)
 	if err != nil {
 		return
 	}
-	type kayit struct{ id, caller, callee string }
+	type kayit struct{ id, caller, callee, callType string }
 	var bitenler []kayit
 	for rows.Next() {
 		var k kayit
-		if rows.Scan(&k.id, &k.caller, &k.callee) == nil {
+		if rows.Scan(&k.id, &k.caller, &k.callee, &k.callType) == nil {
 			bitenler = append(bitenler, k)
 		}
 	}
@@ -103,6 +103,8 @@ func (h *Handler) sweep(ctx context.Context) {
 				go h.apns.CallCancel(context.Background(), k.callee, k.id)
 			}
 		}
+		// Cevapsiz arama -> sohbete kayit + (offline ise) bildirim (WhatsApp gibi)
+		go h.logMissedToChat(context.Background(), k.caller, k.callee, k.callType)
 	}
 
 	// 2) 2 saatten uzun "suren" aramalar -> bitmis say (uygulama cokmus demektir)
@@ -347,11 +349,11 @@ func (h *Handler) End(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserID(r.Context())
 	callID := chi.URLParam(r, "id")
 
-	var callerID, calleeID, status string
+	var callerID, calleeID, status, callType string
 	err := h.db.QueryRow(r.Context(), `
-		SELECT caller_id, callee_id, status FROM calls
+		SELECT caller_id, callee_id, status, type FROM calls
 		WHERE id=$1 AND (caller_id=$2 OR callee_id=$2)`, callID, userID).
-		Scan(&callerID, &calleeID, &status)
+		Scan(&callerID, &calleeID, &status, &callType)
 	if err != nil {
 		writeErr(w, http.StatusNotFound, "arama bulunamadi")
 		return
@@ -410,6 +412,12 @@ func (h *Handler) End(w http.ResponseWriter, r *http.Request) {
 				h.apns.CallCancel(ctx, other, callID)
 			}()
 		}
+	}
+
+	// Cevapsiz arama (arayan iptal etti / callee cevaplamadi) -> sohbete "cevapsiz arama"
+	// kaydi + (callee offline ise) bildirim. Reddedilen aramada BILDIRIM/kayit yok.
+	if newStatus == "missed" {
+		go h.logMissedToChat(context.Background(), callerID, calleeID, callType)
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": newStatus})
@@ -500,6 +508,79 @@ func (h *Handler) History(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+// logMissedToChat: cevapsiz aramayi WhatsApp gibi sohbet thread'ine "cevapsiz arama"
+// kaydi (type='system', content 'call:missed:audio|video') olarak dusurur ve callee
+// OFFLINE ise bildirim gonderir. Direct sohbet yoksa olusturur. SADECE 'missed' icin
+// cagrilir. Cift kayit, End()/sweep()'in atomik tek-sefer 'missed' gecisiyle onlenir.
+func (h *Handler) logMissedToChat(ctx context.Context, callerID, calleeID, callType string) {
+	// direct sohbeti bul, yoksa olustur (chat.CreateDirect ile ayni desen)
+	var chatID string
+	err := h.db.QueryRow(ctx, `
+		SELECT c.id FROM chats c
+		JOIN chat_members m1 ON m1.chat_id=c.id AND m1.user_id=$1
+		JOIN chat_members m2 ON m2.chat_id=c.id AND m2.user_id=$2
+		WHERE c.type='direct' LIMIT 1`, callerID, calleeID).Scan(&chatID)
+	if err != nil {
+		tx, txErr := h.db.Begin(ctx)
+		if txErr != nil {
+			return
+		}
+		defer tx.Rollback(ctx)
+		if tx.QueryRow(ctx,
+			`INSERT INTO chats (type, created_by) VALUES ('direct',$1) RETURNING id`, callerID).Scan(&chatID) != nil {
+			return
+		}
+		for _, uid := range []string{callerID, calleeID} {
+			if _, e := tx.Exec(ctx,
+				`INSERT INTO chat_members (chat_id, user_id) VALUES ($1,$2)`, chatID, uid); e != nil {
+				return
+			}
+		}
+		if tx.Commit(ctx) != nil {
+			return
+		}
+	}
+
+	if callType != "video" {
+		callType = "audio"
+	}
+	content := "call:missed:" + callType
+
+	var msgID int64
+	var createdAt time.Time
+	if h.db.QueryRow(ctx,
+		`INSERT INTO messages (chat_id, sender_id, type, content) VALUES ($1,$2,'system',$3)
+		 RETURNING id, created_at`, chatID, callerID, content).Scan(&msgID, &createdAt) != nil {
+		return
+	}
+	// Okunmamis rozeti icin teslim kaydi (callee icin unread sayilir; sender_id=caller)
+	for _, uid := range []string{callerID, calleeID} {
+		h.db.Exec(ctx,
+			`INSERT INTO message_receipts (message_id, user_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`,
+			msgID, uid)
+	}
+
+	payload, _ := json.Marshal(map[string]any{
+		"id": msgID, "chat_id": chatID, "sender_id": callerID,
+		"type": "system", "content": content, "media_url": "",
+		"reply_to_id": nil, "created_at": createdAt,
+	})
+	h.hub.Publish(ctx, &chat.Event{
+		Type: "message.new", ChatID: chatID, Payload: payload, To: []string{callerID, calleeID},
+	})
+
+	// Callee offline ise gercek bir "cevapsiz arama" bildirimi (mesaj push deseniyle ayni yol)
+	if h.push != nil && !h.hub.Online(calleeID) {
+		var callerName string
+		h.db.QueryRow(ctx, `SELECT name FROM users WHERE id=$1`, callerID).Scan(&callerName)
+		onizleme := "Cevapsiz sesli arama"
+		if callType == "video" {
+			onizleme = "Cevapsiz goruntulu arama"
+		}
+		go h.push.NotifyUsers([]string{calleeID}, callerName, onizleme, chatID)
+	}
 }
 
 func getEnv(k, def string) string {

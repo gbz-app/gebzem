@@ -70,6 +70,11 @@ class CallKitService {
     await _voipTokeniGonder();
   }
 
+  /// Oturum acildiktan SONRA VoIP token'i yeniden al ve sunucuya gonder. Acilista token
+  /// alinip POST edilirken oturum yoktu (401 yutuluyor) -> giris/kayit sonrasi cagrilmali;
+  /// yoksa iOS'ta voip_tokens satiri hic olusmaz ve kilit ekraninda arama calmaz.
+  Future<void> voipTokeniYenidenGonder() => _voipTokeniGonder();
+
   Future<void> _voipTokeniGonder() async {
     if (!Platform.isIOS) return;
     try {

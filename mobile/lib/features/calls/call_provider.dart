@@ -68,10 +68,19 @@ class CallService extends StateNotifier<IncomingCall?> {
         _answeredController.add(id);
       case 'call.ended':
         final id = p['call_id'] as String? ?? '';
-        if (state?.callId == id) state = null; // gelen arama ekranini kapat
-        CallKitService.bitir(id); // kilit ekranindaki arama ekrani asili kalmasin
-        _endedController.add(id);
+        aramaBitti(id);
     }
+  }
+
+  /// Arama bitti/iptal edildi. WS "call.ended" VEYA push ("call.cancel"/"call.ended")
+  /// ile cagrilir. Hem gelen arama ekranini/CallKit'i hem de AKTIF CallScreen'i kapatir.
+  /// Idempotent: state=null noop, CallKit.bitir aktif yoksa noop, _endedController'i
+  /// dinleyen _leave tek-seferlik kilitli. Push yedegi de bu tek kapiyi kullanir.
+  void aramaBitti(String id) {
+    if (id.isEmpty) return;
+    if (state?.callId == id) state = null;
+    CallKitService.bitir(id);
+    _endedController.add(id);
   }
 
   /// Arayan: "aramam cevaplandi mi / bitti mi" (WS call.answered kaybolursa kurtarma)
@@ -131,6 +140,13 @@ class CallService extends StateNotifier<IncomingCall?> {
     } catch (_) {
       // zaten bitmis olabilir
     }
+  }
+
+  /// Push (on plan onMessage) ile "kabul edildi" geldiginde — WS call.answered yedegi.
+  void aramaKabulPush(String id) {
+    if (id.isEmpty) return;
+    kabulEdilenler.add(id);
+    _answeredController.add(id);
   }
 
   void dismiss() => state = null;

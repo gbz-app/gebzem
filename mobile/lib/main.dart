@@ -41,8 +41,8 @@ Future<void> _fcmArkaPlan(RemoteMessage m) async {
       video: (m.data['call_type'] ?? 'audio') == 'video',
       avatar: m.data['caller_avatar'] ?? '',
     );
-  } else if (tip == 'call.cancel') {
-    // Arayan vazgecti / baska yerde cevaplandi -> ekran asili kalmasin
+  } else if (tip == 'call.cancel' || tip == 'call.ended') {
+    // Arayan vazgecti / baska yerde cevaplandi / arama bitti -> ekran asili kalmasin
     await CallKitService.bitir(m.data['call_id'] ?? '');
   }
 }
@@ -103,6 +103,21 @@ class _GebzemAppState extends ConsumerState<GebzemApp> with WidgetsBindingObserv
 
   Future<void> _callKitBaslat() async {
     final svc = CallKitService.instance;
+
+    // ON PLAN push yedegi: uygulama acikken WS bir an kopuksa (ya da online/offline
+    // sinirinda) gelen arama olaylarini yine de isle. call.incoming'i BURADA ISLEME —
+    // WS + CallKit onu zaten gosterir, yoksa cift ekran cikar. Sadece bitir/kabul yedegi.
+    FirebaseMessaging.onMessage.listen((m) {
+      final tip = m.data['type'];
+      final callId = m.data['call_id'] as String? ?? '';
+      if (callId.isEmpty) return;
+      final notifier = ref.read(callServiceProvider.notifier);
+      if (tip == 'call.cancel' || tip == 'call.ended') {
+        notifier.aramaBitti(callId); // aktif/gelen arama ekranini kapat
+      } else if (tip == 'call.answered') {
+        notifier.aramaKabulPush(callId); // arayan: karsi taraf kabul etti (WS yedegi)
+      }
+    });
 
     // Kilit ekranindan "Kabul et"e basildi (uygulama kapali bile olabilir)
     _kabulSub = svc.onKabul.listen(_callKitKabul);

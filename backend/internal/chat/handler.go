@@ -70,11 +70,23 @@ func (h *Handler) WebSocket(w http.ResponseWriter, r *http.Request) {
 		h.db.Exec(r.Context(), `UPDATE users SET last_seen=now() WHERE id=$1`, userID)
 	}()
 	conn.SetReadLimit(64 << 10)
+	// Yari-acik soket tespiti: yazici 30sn'de bir ping atiyor, istemci pong doner.
+	// Pong (ya da herhangi bir mesaj) gelince okuma zaman asimini tazele. 70sn boyunca
+	// hicbir sey gelmezse ReadMessage hata verir -> Unregister -> Online() GERCEGI yansitir.
+	// Onemli: arka planda askiya alinmis/kopmus (temiz FIN atmadan giden) istemci
+	// "cevrimici" gorunup call.ended WS olayini yutmasin; boylece End()'in push yedegi devreye girer.
+	const wsOkumaZamanAsimi = 70 * time.Second
+	conn.SetReadDeadline(time.Now().Add(wsOkumaZamanAsimi))
+	conn.SetPongHandler(func(string) error {
+		conn.SetReadDeadline(time.Now().Add(wsOkumaZamanAsimi))
+		return nil
+	})
 	for {
 		_, raw, err := conn.ReadMessage()
 		if err != nil {
 			return
 		}
+		conn.SetReadDeadline(time.Now().Add(wsOkumaZamanAsimi))
 		var ev Event
 		if json.Unmarshal(raw, &ev) != nil {
 			continue

@@ -19,17 +19,29 @@ class PushService {
     if (_registered) return;
     try {
       final fm = FirebaseMessaging.instance;
+      // onTokenRefresh'i ONCE kur: taze kurulumda ilk getToken() null donse bile,
+      // Firebase token'i sonradan uretince _save yakalar (yoksa kalici gecikme).
+      _refreshSub ??= fm.onTokenRefresh.listen(_save);
+
       // Izin akisi karari (ozellik listesi): bildirim izni GIRISTE istenir
       final settings = await fm.requestPermission();
       if (settings.authorizationStatus == AuthorizationStatus.denied) return;
 
-      final token = await fm.getToken();
-      if (token == null) return;
-      await _save(token);
-      _registered = true;
-
-      // Cift abonelik olmasin (cikis/giris sonrasi register tekrar cagrilabilir)
-      _refreshSub ??= fm.onTokenRefresh.listen(_save);
+      // TAZE KURULUM: getToken() ilk kez Google'a kaydolurken ~10-30sn surebilir ve
+      // null donebilir. Callee token'i DB'ye dusene kadar arama ona ULASMAZ (30sn semptomu).
+      // Kisa artan backoff'la yeniden dene; getToken VEYA POST hatasinda tekrar dener.
+      for (var i = 0; i < 4; i++) {
+        try {
+          final token = await fm.getToken();
+          if (token != null) {
+            await _save(token);
+            _registered = true;
+            return;
+          }
+        } catch (_) {}
+        await Future.delayed(Duration(seconds: 2 * (i + 1)));
+      }
+      // 4 deneme de yetmezse: onTokenRefresh (yukarida) hazir -> token gelince kaydeder.
     } catch (_) {
       // Firebase kurulamadiysa (ör. Google Play Servisleri yok) sessizce gec —
       // mesajlasma WebSocket'le calismaya devam eder
