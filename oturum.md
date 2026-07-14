@@ -554,3 +554,23 @@ push yedeği de gönderilmiyor → ekran karşıda asılı kalıyor.
 - "artık devam etmiyor" popup: muhtemelen Android kamera/mik gizlilik göstergesi (sistem, kaldırılamaz) — teyit için tam metin/logcat bekliyor
 - Sonraki: grup araması (grup-aramasi-plani.md) → Faz 2 → uygulama ikonu (hâlâ placeholder)
 
+## Oturum 11 (14 Tem 2026) — Arama senkron v2 + 3 WhatsApp özelliği + TestFlight/Play kararı
+4-ajanlı workflow (wf_7a3cbb5e) derin analiz → tüm iddialar kaynak kodda doğrulandı → uygulandı + CANLI.
+### Senkron kök çözümler (commit 25d6d2c)
+- **backend/chat/handler.go:** WS yazıcıya `SetWriteDeadline(10s)` + okuyucu defer'e `conn.Close()`. Half-open sokette WriteMessage sonsuza kilitlenip Send(64) kuyruğunu doldurup call.answered/ended'i DÜŞÜRMESİNİ önler; stale Online ~70sn değil ~10sn'de düşer.
+- **call_screen.dart WidgetsBindingObserver + `_durumKontrol()`:** resume'da 2/3sn timer'ı BEKLEMEDEN durumu hemen uzlaştırır → "arayan Çalıyor'da takılı, karşı kabul etti" KÖK çözümü (Doze'da ertelenen poll'a bağımlı değil). Ring poll(2s)+aktif poll(3s)+resume hepsi _durumKontrol çağırır.
+- **45sn ring-timeout:** artık doğrudan _leave YAPMAZ; önce /status sorar, 'active' ise bağlanır (karşı tarafın canlı aramasını düşürmez), 'ringing' ise "Cevap yok".
+- **incoming_call_overlay.dart:** 48sn timeout + 3sn poll → arayan iptal edince (WS düşse bile) callee sonsuza çalmaz.
+- **main.dart _redSub:** CallKit/kilit ekranı hangup → `aramaBitti` ile AKTIF CallScreen de kapanır (eskiden sunucu biterdi ama kendi ekran asılı kalırdı).
+### Yeni özellikler
+- Sürüklenebilir self-view (köşeye snap) — IgnorePointer korunarak (CameraUtils NPE riski); dokununca _flipCamera (ön/arka).
+- Cevapsız/reddedilen → otomatik kapanmayan "Cevap yok/reddedildi/meşgul" ekranı + Geri Ara/Kapat (CallScreen'e `peerId` eklendi; calls_tab + chat_screen iletir).
+### Yayın
+- Android run 29356471471 + iOS 29356472948 başarılı (APK release imzalı). R2: gebzem.apk=102324949, gebzem.ipa=16948573 → purge → sunucu boyut==yerel → health ok → DB temiz (2→0). Backend deploy edildi.
+### TestFlight/Play kararı (kullanıcı sideload'ı bırakıp test kanallarına geçmek istiyor)
+- **ASC durumu (API ile bakıldı):** app.gebzem bundle'ı için app record YOK. 2 eski app var: "Gebzem App"/com.gebzem.app2 (id 6782696641, 1 eski build: v19 VALID Haz'26) ve "GEBZEM"/com.gebzem.social (id 6782588788). **TestFlight geçmişte bu bundle uyuşmazlığı yüzünden olmadı.**
+- **Yapılacak:** app.gebzem için TEMİZ ASC app record (Firebase/APNs app.gebzem'e bağlı, korunur) + CI'yı ad-hoc→App Store dağıtım + ASC upload'a çevir. Android: Play Console ($25, kullanıcı alacak) + CI'yı AAB'ye çevir + Internal Testing.
+### Devir
+- Kullanıcı 2 telefonu (Android + kayıtlı iPhone XS Max) yeni sürümle güncelleyip TEST edecek: arayan takılması, kapanma senkronu, cevapsız ekranı, self-view sürükle/dokun. Android'de kilit-ekranı izinlerini aç (kilit ekranında göster + arka planda pencere).
+- Sonra: TestFlight + Play Internal Testing kurulumu (bundle sorunu + CI dönüşümü + Console adımları kullanıcıya tarif edilecek).
+
