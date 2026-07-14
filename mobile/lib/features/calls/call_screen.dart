@@ -15,6 +15,7 @@ import 'call_media_options.dart';
 import 'call_provider.dart';
 import 'call_room_lock.dart';
 import 'call_sounds.dart';
+import 'callkit_service.dart';
 
 /// Aktif arama ekrani — LiveKit odasina baglanir, sesi/goruntuyu tasir.
 /// Zayif baglantida kalite otomatik duser; kopunca otomatik yeniden baglanir
@@ -437,6 +438,24 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
   Future<void> _leave({required bool notifyServer}) async {
     if (_ayrildi) return;
     _ayrildi = true;
+
+    // CallKit (iOS) KAPAT — KOK NEDEN: Arama arka planda/kilit ekraninda CallKit ile
+    // kabul edildiyse iOS tarafinda AKTIF bir sistem aramasi vardir. Yerel kapatmada
+    // (kirmizi tus / RoomDisconnected) SADECE sunucuya "end" gidiyor, CallKit'e HIC
+    // haber verilmiyordu -> iOS'un native arama arayuzu ekranda kaliyor, sureyi saymaya
+    // devam ediyor ("1:23") ve sistem arama seridi dokunuslari yutuyor ("tiklayinca
+    // gitmiyor"). Peer kapatinca aramaBitti() zaten bitir()'i cagiriyor; yerel kapatma
+    // bu yolu ATLIYORDU. bitir() idempotent: CallKit ile gosterilmemis aramada
+    // activeCalls bos -> no-op, hayalet cevapsiz bildirim URETMEZ.
+    unawaited(CallKitService.bitir(widget.callId));
+
+    // SERI (art arda) ARAMA YARISI: oda/ses/kamera teardown'ini AYRILMA ANINDA kilit
+    // sirasina koy. dispose() pop animasyonuyla ~300ms gecikir; o boslukta bir sonraki
+    // aramanin _odayaBaglan'i kilide ONCE girip, eski odanin Room.dispose'u (global
+    // AVAudioSession + _sesiAc(false) + fiziksel kamera) YENI aramanin sesini/goruntusunu
+    // altindan cekiyordu -> "art arda ikisinden birinde patliyor". _kapatOda idempotent
+    // (_kapandi guard) + timeout'lu; dispose'daki enqueue safety-net olarak KALIR.
+    unawaited(CallRoomLock.calistir(_kapatOda));
 
     await CallSounds.durdur();
 
