@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -31,6 +33,16 @@ class _PermissionsScreenState extends ConsumerState<PermissionsScreen> {
     // (sideload) kurulumda otomatik VERILMEZ -> verilmezse telefon kilitliyken
     // gelen arama ekrani HIC acilmaz. Ayarlar sayfasina yonlendirir.
     await CallKitService.izinleriIste();
+
+    // Pil optimizasyonu muafiyeti: TEK sistem dialogu (menuye gitmeden). Kapaliyken
+    // arama gelmesi icin uygulamanin arka planda oldurulmemesi gerekir. Sadece Android.
+    if (Platform.isAndroid) {
+      try {
+        if (!await Permission.ignoreBatteryOptimizations.isGranted) {
+          await Permission.ignoreBatteryOptimizations.request();
+        }
+      } catch (_) {}
+    }
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('permissions_asked', true);

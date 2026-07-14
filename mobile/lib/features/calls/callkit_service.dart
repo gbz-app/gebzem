@@ -143,7 +143,13 @@ class CallKitService {
         isShowLogo: false,
         isShowFullLockedScreen: true, // KILIT EKRANINDA TAM EKRAN
         isImportant: true,
-        isFullScreen: true,
+        // KRITIK: false OLMALI. true iken paket startActivity() cagiriyor -> bu bir
+        // "arka plandan Activity baslatma"; Android 10+ ve Xiaomi uygulama kapaliyken
+        // bunu SESSIZCE engelliyor ("Background activity launch blocked") -> ekran
+        // gorunmuyor, kullanici elle acinca geliyor (yasadigimiz semptom).
+        // false iken setFullScreenIntent'li bildirim yayinlaniyor -> USE_FULL_SCREEN_INTENT
+        // sayesinde bu engelden MUAF (Google'in kill/kilit ekrani icin onayladigi tek yol).
+        isFullScreen: false,
         ringtonePath: 'system_ringtone_default',
         backgroundColor: '#0B141A',
         actionColor: '#25D366',
