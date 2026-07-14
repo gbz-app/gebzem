@@ -124,7 +124,12 @@ class _GebzemAppState extends ConsumerState<GebzemApp> with WidgetsBindingObserv
 
     // Kilit ekranindan reddedildi / zaman asimi
     _redSub = svc.onRed.listen((callId) {
-      ref.read(callServiceProvider.notifier).end(callId);
+      final notifier = ref.read(callServiceProvider.notifier);
+      // CallKit bildiriminden/kilit ekranindan kapatildi: AKTIF CallScreen'i de kapat
+      // (aramaBitti -> _endedController), sonra sunucuya bildir. Yoksa sunucu biter ama
+      // kendi ekranin "arama devam ediyor" diye asili kalirdi.
+      notifier.aramaBitti(callId);
+      notifier.end(callId);
     });
 
     // iOS VoIP token'i -> sunucuya (kilit ekraninda arama caldirmak icin sart)

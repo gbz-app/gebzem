@@ -44,17 +44,34 @@ class _IncomingCallSheet extends ConsumerStatefulWidget {
 
 class _IncomingCallSheetState extends ConsumerState<_IncomingCallSheet> {
   bool _busy = false;
+  Timer? _timeout; // gelen arama sonsuza calmasin (arayan iptali WS'te kaybolabilir)
+  Timer? _poll;
 
   @override
   void initState() {
     super.initState();
-    // Zil + titresim. Bu sirada LiveKit odasina HENUZ baglanmadigimiz icin
-    // ses oturumu bos — zil serbestce calar (iOS'ta LiveKit onu susturmaz).
+    // Zil + titresim. LiveKit odasina henuz baglanmadigimiz icin zil serbestce calar.
     CallSounds.gelenArama();
+    final notifier = ref.read(callServiceProvider.notifier);
+    // Arayan iptal edince call.ended WS'i duserse (buffer/half-open) telefon SONSUZA
+    // calmasin: (1) ~48sn'de kendiliginden kapan, (2) 3sn'de bir sunucu durumunu sor.
+    _timeout = Timer(const Duration(seconds: 48), () {
+      if (mounted) notifier.dismiss();
+    });
+    _poll = Timer.periodic(const Duration(seconds: 3), (_) async {
+      if (!mounted) return;
+      try {
+        final s =
+            (await notifier.callStatus(widget.call.callId))['status'] as String? ?? '';
+        if (s != 'ringing' && mounted) notifier.dismiss();
+      } catch (_) {}
+    });
   }
 
   @override
   void dispose() {
+    _timeout?.cancel();
+    _poll?.cancel();
     CallSounds.durdur(); // ekran her kapandiginda zil MUTLAKA sussun
     super.dispose();
   }

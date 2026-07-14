@@ -175,6 +175,7 @@ class _CallTile extends ConsumerWidget {
           token: info['token'] as String,
           video: video,
           peerName: call['peer_name'] as String? ?? '',
+          peerId: call['peer_id'] as String,
         ),
       ));
     } catch (e) {

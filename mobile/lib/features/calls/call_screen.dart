@@ -10,6 +10,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
+import '../../core/api.dart';
 import 'call_media_options.dart';
 import 'call_provider.dart';
 import 'call_room_lock.dart';
@@ -26,6 +27,7 @@ class CallScreen extends ConsumerStatefulWidget {
     required this.token,
     required this.video,
     required this.peerName,
+    this.peerId,
     this.outgoing = true,
   });
 
@@ -34,13 +36,14 @@ class CallScreen extends ConsumerStatefulWidget {
   final String token;
   final bool video;
   final String peerName;
+  final String? peerId; // "Geri Ara" icin (giden aramada dolu; gelen aramada gereksiz)
   final bool outgoing; // giden arama mi (karsi taraf henuz kabul etmedi)
 
   @override
   ConsumerState<CallScreen> createState() => _CallScreenState();
 }
 
-class _CallScreenState extends ConsumerState<CallScreen> {
+class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObserver {
   Room? _room;
   EventsListener<RoomEvent>? _listener;
   StreamSubscription? _endedSub;
@@ -66,24 +69,51 @@ class _CallScreenState extends ConsumerState<CallScreen> {
   Duration _duration = Duration.zero;
   ConnectionQuality _quality = ConnectionQuality.unknown;
 
+  // Cevapsiz/reddedilen arama: arayan tarafta ekran otomatik kapanmaz, "Cevap yok" +
+  // Geri Ara/Kapat gosterilir.
+  bool _cevapsiz = false;
+  String _cevapsizNeden = 'Cevap yok';
+
+  // Suruklenebilir self-view (kendi kamera onizlemesi)
+  Offset? _selfPos;
+  static const double _selfW = 110, _selfH = 160, _selfMargin = 16;
+
   @override
   void initState() {
     super.initState();
     _camOn = widget.video;
+    WidgetsBinding.instance.addObserver(this); // resume'da durum uzlastirma icin
 
     _svc = ref.read(callServiceProvider.notifier);
     final svc = _svc;
 
-    // Karsi taraf kapatirsa ekrani kapat
-    _endedSub = svc.onCallEnded.listen((id) {
-      if (id == widget.callId && mounted) _leave(notifyServer: false);
+    // Karsi taraf kapatirsa / arama biterse: bagliysak dogrudan cik; ring fazindaysak
+    // nedeni (red/mesgul/cevapsiz) sunucudan ogrenip cevapsiz UI goster (WS nedeni tasimaz).
+    _endedSub = svc.onCallEnded.listen((id) async {
+      if (id != widget.callId || !mounted || _ayrildi) return;
+      if (_baglandi) {
+        _leave(notifyServer: false);
+        return;
+      }
+      String s = '';
+      try {
+        s = (await _svc.callStatus(id))['status'] as String? ?? '';
+      } catch (_) {}
+      if (!mounted || _ayrildi || _baglandi) return;
+      if (s == 'ended') {
+        _leave(notifyServer: false); // arayan baska cihazdan iptal etmis olabilir
+      } else {
+        _cevapsizGoster(s == 'rejected'
+            ? 'Arama reddedildi'
+            : s == 'busy'
+                ? 'Mesgul'
+                : 'Cevap yok');
+      }
     });
 
     if (widget.outgoing) {
-      // GIDEN ARAMA: karsi taraf ACANA KADAR LiveKit odasina BAGLANMA.
-      // Sebep: iOS'ta mikrofon yayinlanir yayinlanmaz LiveKit ses oturumunu ele gecirip
-      // calma tonumuzu susturuyor. Odaya cevaptan sonra girince ton rahatca calar
-      // ve bosuna medya baglantisi kurulmaz.
+      // GIDEN ARAMA: karsi taraf ACANA KADAR LiveKit odasina BAGLANMA (iOS'ta mikrofon
+      // acilinca LiveKit calma tonunu susturur). Cevaptan sonra odaya girilir.
       _answeredSub = svc.onCallAnswered.listen((id) {
         if (id == widget.callId && mounted && !_baglandi) {
           CallSounds.durdur();
@@ -96,30 +126,120 @@ class _CallScreenState extends ConsumerState<CallScreen> {
         return;
       }
       CallSounds.calmaTonu();
-      // 45 sn cevap yoksa: cevapsiz
-      _ringTimeout = Timer(const Duration(seconds: 45), () {
-        if (mounted && !_baglandi) _leave(notifyServer: true);
-      });
-      // KURTARMA AGI: call.answered/ended WS olayi kaybolabilir (arayan arka planda
-      // WS'i kapatiyor). Her 2 sn'de sunucuya "aramam ne durumda" diye sor.
-      _statusPoll = Timer.periodic(const Duration(seconds: 2), (_) async {
-        if (!mounted || _baglandi) return;
+      // 45 sn cevap yoksa: ONCE sunucuyu sor. 'active' ise (arayan arka plandaydi, poll
+      // ertelendi) BAGLAN — yoksa sunucuda CANLI olan aramayi End'e cekip karsi tarafin
+      // aramasini dusururduk. Hala 'ringing' ise "Cevap yok" (ekrani KAPATMA).
+      _ringTimeout = Timer(const Duration(seconds: 45), () async {
+        if (!mounted || _baglandi || _ayrildi) return;
+        String s = '';
         try {
-          final s = (await _svc.callStatus(widget.callId))['status'] as String? ?? '';
-          if (s == 'active') {
-            _statusPoll?.cancel();
-            CallSounds.durdur();
-            _connect();
-          } else if (s == 'ended' || s == 'rejected' || s == 'missed' || s == 'busy') {
-            _statusPoll?.cancel();
-            if (mounted) _leave(notifyServer: false);
-          }
+          s = (await _svc.callStatus(widget.callId))['status'] as String? ?? '';
         } catch (_) {}
+        if (!mounted || _baglandi || _ayrildi) return;
+        if (s == 'active') {
+          CallSounds.durdur();
+          _connect();
+        } else {
+          _cevapsizGoster('Cevap yok', sunucuyaBildir: true);
+        }
       });
+      // KURTARMA AGI: WS call.answered/ended kaybolabilir; 2sn'de bir sunucu durumunu sor.
+      _statusPoll = Timer.periodic(const Duration(seconds: 2), (_) => _durumKontrol());
       setState(() => _connecting = false); // "Caliyor..." goster
     } else {
       // GELEN ARAMAYI KABUL ETTIK: hemen odaya gir
       _connect();
+    }
+  }
+
+  /// Sunucudaki arama durumunu bir kez sorup uzlastir. Ring poll (2sn), aktif poll (3sn)
+  /// ve on plana donuste (resume) cagrilir — Doze'da ertelenen timer'a bagimli kalmadan
+  /// durumu hemen senkronlar (arayanin "Caliyor"da takili kalmasinin KOK cozumu).
+  Future<void> _durumKontrol() async {
+    if (!mounted || _ayrildi || _cevapsiz) return;
+    String s;
+    try {
+      s = (await _svc.callStatus(widget.callId))['status'] as String? ?? '';
+    } catch (_) {
+      return;
+    }
+    if (!mounted || _ayrildi || _cevapsiz) return;
+    if (s == 'active') {
+      if (!_baglandi) {
+        CallSounds.durdur();
+        _connect(); // ring fazi: karsi taraf kabul etti -> bagla
+      }
+      return;
+    }
+    if (s == 'ended') {
+      _leave(notifyServer: false);
+      return;
+    }
+    if (s == 'rejected' || s == 'missed' || s == 'busy') {
+      if (_baglandi) {
+        _leave(notifyServer: false);
+      } else {
+        _cevapsizGoster(s == 'rejected'
+            ? 'Arama reddedildi'
+            : s == 'busy'
+                ? 'Mesgul'
+                : 'Cevap yok');
+      }
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted && !_ayrildi && !_cevapsiz) {
+      // On plana donunce Doze'da ertelenen poll'u BEKLEME; durumu HEMEN uzlastir.
+      _durumKontrol();
+    }
+  }
+
+  /// Cevapsiz/reddedilen arama: ekrani KAPATMADAN "Cevap yok/reddedildi/mesgul" durumuna
+  /// gec (Geri Ara / Kapat gosterilir). Otomatik pop YOK.
+  Future<void> _cevapsizGoster(String neden, {bool sunucuyaBildir = false}) async {
+    if (_baglandi || _ayrildi || _cevapsiz) return;
+    await CallSounds.durdur();
+    _ringTimeout?.cancel();
+    _statusPoll?.cancel();
+    if (sunucuyaBildir) {
+      try {
+        await _svc.end(widget.callId);
+      } catch (_) {}
+    }
+    _svc.gecmisiYenile();
+    if (mounted) {
+      setState(() {
+        _cevapsiz = true;
+        _cevapsizNeden = neden;
+      });
+    }
+  }
+
+  /// "Geri Ara" — cevapsiz ekrandan ayni kisiyi tekrar ara (peerId sart).
+  Future<void> _geriAra() async {
+    final pid = widget.peerId;
+    if (pid == null) return;
+    try {
+      final info = await _svc.start(pid, video: widget.video);
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(MaterialPageRoute(
+        builder: (_) => CallScreen(
+          callId: info['call_id'] as String,
+          url: info['url'] as String,
+          token: info['token'] as String,
+          video: widget.video,
+          peerName: widget.peerName,
+          peerId: pid,
+          outgoing: true,
+        ),
+      ));
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
+      }
     }
   }
 
@@ -256,16 +376,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
   /// karsi taraf kapattiginda (WS olayi kacsa bile) ekrani kapatir.
   void _aktifPollBaslat() {
     _statusPoll?.cancel();
-    _statusPoll = Timer.periodic(const Duration(seconds: 3), (_) async {
-      if (!mounted || _ayrildi) return;
-      try {
-        final s = (await _svc.callStatus(widget.callId))['status'] as String? ?? '';
-        if (s == 'ended' || s == 'rejected' || s == 'missed' || s == 'busy') {
-          _statusPoll?.cancel();
-          if (mounted) _leave(notifyServer: false);
-        }
-      } catch (_) {}
-    });
+    _statusPoll = Timer.periodic(const Duration(seconds: 3), (_) => _durumKontrol());
   }
 
   void _startTimer() {
@@ -378,6 +489,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _statusPoll?.cancel();
     _endedSub?.cancel();
     _answeredSub?.cancel();
@@ -389,6 +501,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
   }
 
   String get _statusText {
+    if (_cevapsiz) return _cevapsizNeden;
     if (_error != null) return _error!;
     if (_connecting) return 'Baglaniliyor...';
     if (!_peerJoined) return widget.outgoing ? 'Caliyor...' : 'Bekleniyor...';
@@ -435,17 +548,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
             // sariyor; kucuk pencereye kazara dokunmak setFocusPoint/setExposurePoint ->
             // flutter_webrtc CameraUtils'te NullPointerException -> uygulama COKUYOR.
             // Kendi onizlemende odak/zoom zaten gereksiz, dokunmayi tamamen kesiyoruz.
-            if (showVideo && local != null && _camOn)
-              Positioned(
-                top: 60,
-                right: 16,
-                width: 110,
-                height: 160,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: IgnorePointer(child: VideoTrackRenderer(local)),
-                ),
-              ),
+            if (showVideo && local != null && _camOn) _buildSelfView(context, local),
 
             // Ust bilgi: isim + sure/durum + baglanti kalitesi
             Positioned(
@@ -471,57 +574,145 @@ class _CallScreenState extends ConsumerState<CallScreen> {
               ),
             ),
 
-            // Alt kontroller
+            // Alt kontroller (cevapsiz durumda: Geri Ara / Kapat)
             Positioned(
               left: 0,
               right: 0,
               bottom: 48,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  _ctrlButton(
-                    icon: _micOn ? LucideIcons.mic : LucideIcons.micOff,
-                    active: !_micOn,
-                    onTap: _toggleMic,
-                  ),
-                  const SizedBox(width: 16),
-                  if (widget.video) ...[
-                    _ctrlButton(
-                      icon: _camOn ? LucideIcons.video : LucideIcons.videoOff,
-                      active: !_camOn,
-                      onTap: _toggleCam,
-                    ),
-                    const SizedBox(width: 16),
-                    _ctrlButton(
-                      icon: LucideIcons.switchCamera,
-                      onTap: _flipCamera,
-                    ),
-                    const SizedBox(width: 16),
-                  ],
-                  _ctrlButton(
-                    icon: _speakerOn ? LucideIcons.volume2 : LucideIcons.volumeX,
-                    active: _speakerOn,
-                    onTap: _toggleSpeaker,
-                  ),
-                  const SizedBox(width: 16),
-                  // Kapat
-                  GestureDetector(
-                    onTap: () => _leave(notifyServer: true),
-                    child: Container(
-                      width: 64,
-                      height: 64,
-                      decoration: const BoxDecoration(
-                          color: Color(0xFFE53935), shape: BoxShape.circle),
-                      child: const Icon(LucideIcons.phoneOff,
-                          color: Colors.white, size: 28),
-                    ),
-                  ),
-                ],
-              ),
+              child: _cevapsiz ? _buildCevapsizKontroller() : _buildAramaKontroller(),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  /// Suruklenebilir self-view. IgnorePointer YALNIZ renderer'i sarar (dokunus renderer'a
+  /// ulasirsa flutter_webrtc CameraUtils NPE ile coker); GestureDetector onun DISINDA.
+  /// Tek dokunus -> on/arka kamera; surukle -> en yakin koseye yapisir.
+  Widget _buildSelfView(BuildContext c, VideoTrack local) {
+    final sz = MediaQuery.of(c).size;
+    final varsayilan = Offset(sz.width - _selfW - _selfMargin, 60);
+    final pos = _selfPos ?? varsayilan;
+    return Positioned(
+      left: pos.dx,
+      top: pos.dy,
+      width: _selfW,
+      height: _selfH,
+      child: GestureDetector(
+        onTap: _flipCamera,
+        onPanUpdate: (d) {
+          final cur = _selfPos ?? varsayilan;
+          final nx =
+              (cur.dx + d.delta.dx).clamp(_selfMargin, sz.width - _selfW - _selfMargin);
+          final ny = (cur.dy + d.delta.dy).clamp(60.0, sz.height - _selfH - 140.0);
+          setState(() => _selfPos = Offset(nx, ny));
+        },
+        onPanEnd: (_) {
+          final cur = _selfPos ?? varsayilan;
+          final sol = (cur.dx + _selfW / 2) < sz.width / 2;
+          final ust = (cur.dy + _selfH / 2) < sz.height / 2;
+          setState(() => _selfPos = Offset(
+                sol ? _selfMargin : sz.width - _selfW - _selfMargin,
+                ust ? 60.0 : sz.height - _selfH - 140.0,
+              ));
+        },
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: IgnorePointer(child: VideoTrackRenderer(local)),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAramaKontroller() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _ctrlButton(
+          icon: _micOn ? LucideIcons.mic : LucideIcons.micOff,
+          active: !_micOn,
+          onTap: _toggleMic,
+        ),
+        const SizedBox(width: 16),
+        if (widget.video) ...[
+          _ctrlButton(
+            icon: _camOn ? LucideIcons.video : LucideIcons.videoOff,
+            active: !_camOn,
+            onTap: _toggleCam,
+          ),
+          const SizedBox(width: 16),
+          _ctrlButton(
+            icon: LucideIcons.switchCamera,
+            onTap: _flipCamera,
+          ),
+          const SizedBox(width: 16),
+        ],
+        _ctrlButton(
+          icon: _speakerOn ? LucideIcons.volume2 : LucideIcons.volumeX,
+          active: _speakerOn,
+          onTap: _toggleSpeaker,
+        ),
+        const SizedBox(width: 16),
+        // Kapat
+        GestureDetector(
+          onTap: () => _leave(notifyServer: true),
+          child: Container(
+            width: 64,
+            height: 64,
+            decoration: const BoxDecoration(
+                color: Color(0xFFE53935), shape: BoxShape.circle),
+            child: const Icon(LucideIcons.phoneOff, color: Colors.white, size: 28),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Cevapsiz/reddedilen: Geri Ara (peerId varsa) + Kapat. Otomatik kapanma yok.
+  Widget _buildCevapsizKontroller() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        if (widget.peerId != null) ...[
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              GestureDetector(
+                onTap: _geriAra,
+                child: Container(
+                  width: 64,
+                  height: 64,
+                  decoration: const BoxDecoration(
+                      color: Color(0xFF25D366), shape: BoxShape.circle),
+                  child: Icon(widget.video ? LucideIcons.video : LucideIcons.phone,
+                      color: Colors.white, size: 28),
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text('Geri Ara', style: TextStyle(color: Colors.white70)),
+            ],
+          ),
+          const SizedBox(width: 40),
+        ],
+        Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            GestureDetector(
+              onTap: () => _leave(notifyServer: false),
+              child: Container(
+                width: 64,
+                height: 64,
+                decoration: const BoxDecoration(
+                    color: Color(0xFFE53935), shape: BoxShape.circle),
+                child: const Icon(LucideIcons.phoneOff, color: Colors.white, size: 28),
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text('Kapat', style: TextStyle(color: Colors.white70)),
+          ],
+        ),
+      ],
     );
   }
 

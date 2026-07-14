@@ -53,10 +53,15 @@ func (h *Handler) WebSocket(w http.ResponseWriter, r *http.Request) {
 				if !ok {
 					return
 				}
+				// Yari-acik sokette WriteMessage SONSUZA kilitlenir -> Send(64) kuyrugu dolar
+				// -> call.answered/call.ended SESSIZCE dusurulur (hub.deliver default: atla) ve
+				// stale kayit ~70sn "online" kalir. Write-deadline bunu ~10sn'de patlatir.
+				conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
 				if err := conn.WriteMessage(websocket.TextMessage, msg); err != nil {
 					return
 				}
 			case <-ticker.C:
+				conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
 				if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 					return
 				}
@@ -67,6 +72,7 @@ func (h *Handler) WebSocket(w http.ResponseWriter, r *http.Request) {
 	// okuyucu: istemciden gelen olaylar (typing vb.)
 	defer func() {
 		h.hub.Unregister(client)
+		conn.Close() // read-deadline dolunca yaziciyi da aninda coz (WriteMessage'da kilitliyse)
 		h.db.Exec(r.Context(), `UPDATE users SET last_seen=now() WHERE id=$1`, userID)
 	}()
 	conn.SetReadLimit(64 << 10)

@@ -107,6 +107,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           token: info['token'] as String,
           video: video,
           peerName: widget.title,
+          peerId: peerId,
         ),
       ));
     } catch (e) {
