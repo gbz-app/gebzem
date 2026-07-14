@@ -574,3 +574,18 @@ push yedeği de gönderilmiyor → ekran karşıda asılı kalıyor.
 - Kullanıcı 2 telefonu (Android + kayıtlı iPhone XS Max) yeni sürümle güncelleyip TEST edecek: arayan takılması, kapanma senkronu, cevapsız ekranı, self-view sürükle/dokun. Android'de kilit-ekranı izinlerini aç (kilit ekranında göster + arka planda pencere).
 - Sonra: TestFlight + Play Internal Testing kurulumu (bundle sorunu + CI dönüşümü + Console adımları kullanıcıya tarif edilecek).
 
+## Oturum 12 (14 Tem 2026) — Stabilite v3: CallKit ekran kalıntısı + seri arama patlaması + izin
+Kullanıcı gerçek cihaz testinde: "1:23 sayıyor tuş takımı kalıyor tıklayınca gitmiyor", "art arda ikisinden birinde patlıyor", "izin gelmiyor". **GERÇEK SUNUCU VERİSİYLE teşhis:** son 15 arama DB'de doğru sonlanmış (takılı 'active' YOK) → **backend sağlıklı, sorun İSTEMCİ UI + iOS sürüm.** workflow wf_0bb6353d (3 ajan) kök nedenleri buldu.
+### Düzeltmeler (commit 545b2c8 + 35921ac)
+- **iOS CallKit ekran kalıntısı (KÖK):** Yerel kırmızı-tuş kapatma CallKit'e haber vermiyordu → arka plan/kilit ekranından CallKit ile kabul edilen aramada iOS native arayüzü ekranda kalıp süre sayıyor, dokunuşları yutuyordu. **call_screen.dart `_leave()` → `unawaited(CallKitService.bitir(widget.callId))`** eklendi (idempotent, activeCalls boşsa no-op). "1:23 sayma, tuş takımı kalma, tıklayınca gitmiyor" = BU.
+- **Seri (art arda) arama patlaması (KÖK):** oda/ses/kamera teardown'ı SADECE dispose()'ta (~300ms gecikme) kilit sırasına giriyordu; o boşlukta yeni aramanın _odayaBaglan'ı kilide ÖNCE girip eski Room.dispose'u (global AVAudioSession + _sesiAc(false) + kamera) yeni aramanın ses/görüntüsünü altından çekiyordu. **`_leave()` başına `unawaited(CallRoomLock.calistir(_kapatOda))`** eklendi → teardown ayrılma anında sıraya girer, yeni arama HER ZAMAN sonra bağlanır. dispose'daki enqueue safety-net kaldı.
+- **İzin ekranı:** home_screen.dart artık "sordum" flag'i yerine GERÇEK izin durumuna bakar (mic+cam+bildirim verilene / kalıcı reddedilene kadar gösterir) → APK güncelleme sonrası da doğru.
+### Yayın
+- Android build ilk denemede FLAKY patladı (exit 1, "log not found" = runner webrtc+callkit native derlemede kaynak yetersizliği). Retrigger geçti (iOS zaten başarılıydı, kod temiz). Android 29364260466 + iOS 29360496757 → R2 gebzem.apk=102324953, gebzem.ipa=16946333 → purge → boyut==yerel → health ok → DB temiz (3→0).
+### ERTELENEN (bilerek, ayrı dikkatli adım)
+- **WhatsApp "aramaya dön" yeşil barı + minimize:** aktif arama şu an GLOBAL DEĞİL (sadece CallScreen widget'ında; route pop = arama biter). Gerekli: yeni `ActiveCallController`/`activeCallProvider` (Room+meta+süre+bitiş-poll widget'tan buraya taşınır) + CallScreen'i saf görünüme çevir + MaterialApp.builder'a yeşil bar + minimize/restore. YÜKSEK regresyon riski (CallRoomLock/_leave/tek-seferlik kilitler aynen taşınmalı) → mevcut çalışan aramayı bozmamak için ayrı faz. Plan: ajan 3 çıktısında (wf_0bb6353d journal).
+### Devir
+- Kullanıcı 2 telefonu (özellikle **iPhone'u MUTLAKA** — CallKit/kapanma düzeltmeleri iOS'ta) yeni sürümle SIFIRDAN kurup test edecek: CallKit ekran kalıntısı bitti mi, art arda arama patlıyor mu, izin ekranı geliyor mu, cevapsız ekranı, self-view.
+- Kullanıcı Google Play hesabı ($25) alacak → TestFlight (app.gebzem yeni ASC record + CI App Store upload) + Play Internal Testing kurulumu.
+- İkincil (ele alınmadı): _connect başında poll boşluğu (room.connect uzun sürerse kısa kurtarma-pollsuz pencere; kalıcı takılma değil, room.connect timeout'u var).
+
