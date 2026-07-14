@@ -508,3 +508,22 @@ tam-ekran arama UI'ı bastırılıyor. Manifest/handler/push zinciri SAĞLAMDI (
 - Yayın öncesi kalanlar: DEV_MODE=false + gerçek SMS + BTK bildirimi + 8080 portunu kapat (artık HTTPS var, eski APK'lar için açık tutuluyor)
 - Kullanıcı KURALLARI: (1) her adımda git push, (2) her oturumda bu dosya güncellenecek, (3) onaysız işlem yok, (4) kısa yaz, (5) buildleri anlık izle
 
+## Oturum 9 (14 Tem 2026) — Android kilit ekranı düzeltmesi yayınlandı + inceleme arşivi
+### ✅ Android yeni sürüm CANLI (indir.gebzem.app/gebzem.apk)
+- Build: GitHub Actions run **29344355292** (exit 0), artifact `app-release.apk` 102243033 byte
+- **Release imzalı doğrulandı:** build logunda "Signing with debug keys" YOK; `build.gradle.kts` key.properties→release, yoksa debug (CI keystore adımı geçti). keytool "Not a signed jar file" = v2/v3-only imza (normal, debug değil)
+- R2 `gebzem-dist/gebzem.apk` üzerine yazıldı → Cloudflare purge (success) → sunucu Content-Length 102243033 == yerel, Cf-Cache MISS, /health ok
+- DB temizlendi: users 2→0, otp_codes + CASCADE (chats/messages/calls/voip_tokens...) sıfır
+- İçerik: `isFullScreen:false` (arka plandan Activity başlatma engeli → setFullScreenIntent), FOREGROUND_SERVICE_PHONE_CALL + REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, izin ekranında pil optimizasyonu muafiyeti dialogu
+- iOS DEĞİŞMEDİ (aynı sürüm) — sadece Android güncellendi
+### 🔧 Araçlar
+- `scratchpad/r2.js` yeniden yazıldı (r2put.js gitmişti): SigV4 S3 list/put, .env.infra inline yorumlarını (` # ...`) temizler, Cache-Control: no-cache
+### 📦 Başka AI'ya inceleme arşivi
+- `Masaüstü/gebzem-kaynak.zip` (310KB, 203 dosya) — git archive ile, **sırlar HARİÇ** (.env*, .p8, .jks, fcm-sa, cert_key). Kullanıcı arama sorunlarını 2. bir AI'ya inceletecek
+### 📱 iPhone test cihazı "yüklenemedi" nedeni
+- Ad hoc IPA SADECE Apple'a UDID'si kayıtlı cihaza kurulur. Kayıtlı tek cihaz: **Mikail iPhone XS Max** (ASC API ile doğrulandı). Dünkü test iPhone kayıtlı DEĞİL
+- Çözüm: **indir.gebzem.app/udid-al.html** (mobileconfig zaten R2'de) → UDID al → ASC'ye ekle → yeni ad hoc IPA. Alternatif: TestFlight (UDID gerekmez, ilk build ~1 gün Apple onayı)
+### ⏭️ Devir
+- Android kilit ekranı testi bekliyor (isFullScreen:false). Görünmezse: adb logcat CALLKIT + Sentry izin durumu; MIUI force-stop kod ile %100 çözülemez → Play Store yayını netleştirir
+- iPhone test için UDID (udid-al.html) VEYA TestFlight kararı bekliyor
+
