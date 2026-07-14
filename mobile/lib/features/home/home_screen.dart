@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../../core/api.dart';
 import '../auth/auth_provider.dart';
@@ -31,9 +31,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Future<void> _checkPermissions() async {
-    final prefs = await SharedPreferences.getInstance();
+    // "Sordum mu" isaretine DEGIL gercek izin durumuna bak: APK ustune guncellenince
+    // SharedPreferences silinmedigi icin eski flag kaliyor ve izin ekrani bir daha
+    // gelmiyordu. Izinlerden biri eksikse (ve kullanici "bir daha sorma" DEMEDIYSE)
+    // izin ekranini goster; hepsi verilince gec.
+    final mic = await Permission.microphone.status;
+    final cam = await Permission.camera.status;
+    final notif = await Permission.notification.status;
+    final tamam = mic.isGranted && cam.isGranted && notif.isGranted;
+    final kaliciRed = mic.isPermanentlyDenied ||
+        cam.isPermanentlyDenied ||
+        notif.isPermanentlyDenied;
     if (mounted) {
-      setState(() => _permissionsAsked = prefs.getBool('permissions_asked') ?? false);
+      setState(() => _permissionsAsked = tamam || kaliciRed);
     }
   }
 
