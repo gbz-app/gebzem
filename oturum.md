@@ -527,3 +527,30 @@ tam-ekran arama UI'ı bastırılıyor. Manifest/handler/push zinciri SAĞLAMDI (
 - Android kilit ekranı testi bekliyor (isFullScreen:false). Görünmezse: adb logcat CALLKIT + Sentry izin durumu; MIUI force-stop kod ile %100 çözülemez → Play Store yayını netleştirir
 - iPhone test için UDID (udid-al.html) VEYA TestFlight kararı bekliyor
 
+## Oturum 10 (14 Tem 2026) — Arama sonlandırma senkron + cevapsız bildirim + token gecikmesi
+Kullanıcı geri bildirimi: kilit ekranı araması ÇALIŞTI ✅. Kalan: (1) kapatınca karşıda arama
+devam ediyor, (2) cevapsız → "cevaplanamadı" (WhatsApp gibi), (3) yeni hesapta ilk arama ~30sn gecikme.
+4-ajanlı workflow (wf_530d5f5e) kök nedenleri buldu → düzeltmeler uygulandı + CANLI.
+### Kök neden
+call.ended SADECE WS ile gidiyordu; karşı taraf arka planda WS'i kapatınca (ya da yarı-açık TCP)
+olay kayboluyor, backend WS okuyucusunda **read-deadline/pong YOKTU** → Online()=true (bayat) →
+push yedeği de gönderilmiyor → ekran karşıda asılı kalıyor.
+### Düzeltmeler (commit 047a812, hepsi canlı)
+- **backend/chat/handler.go:** WS okuyucuya `SetReadDeadline(70s)`+`SetPongHandler` (yazıcı 30sn ping) → yarı-açık soket ~70sn'de Unregister → Online() gerçek → End push yedeği devreye girer
+- **backend/calls/handler.go:** `logMissedToChat` — cevapsız arama direct sohbete `type='system'` `call:missed:audio|video` mesajı + receipts + message.new WS + (offline callee) NotifyUsers push. End()'te newStatus=='missed' ve sweep()'te çağrılır (atomik tek-sefer garanti). End SELECT'e + sweep RETURNING'e `type` eklendi
+- **call_screen.dart:** `_aktifPollBaslat` — bağlandıktan sonra 3sn'de bir /calls/{id}/status; ended/rejected/missed/busy → _leave (WS kaçsa bile ≤3sn kapanır)
+- **call_provider.dart:** `aramaBitti` (public, WS+push tek kapı) + `aramaKabulPush` (call.answered push yedeği)
+- **main.dart:** `FirebaseMessaging.onMessage.listen` (ön plan) call.cancel/ended→aramaBitti, answered→aramaKabulPush; _fcmArkaPlan'a call.ended eklendi
+- **push.dart:** onTokenRefresh getToken'dan ÖNCE + 4x backoff retry (taze kurulum getToken null/gecikme)
+- **auth_provider.dart:** _saveSession'da `unawaited(register())` + `voipTokeniYenidenGonder()` (router rebuild beklemeden erken token kaydı)
+- **callkit_service.dart:** public `voipTokeniYenidenGonder()`
+- **chat_screen.dart:** system mesajı `_CallLogChip` (ortalanmış arama kaydı; giden "cevap yok", gelen kırmızı "Cevapsız")
+### Yayın
+- Backend deploy (docker compose up --build) health ok. Android run 29350744456 + iOS run 29350746555 başarılı (APK release imzalı, debug uyarısı yok)
+- R2: gebzem.apk=102308565, gebzem.ipa=16937036 → purge → sunucu boyut==yerel → DB temiz (users 2→0)
+### Devir
+- **Kullanıcı HEM Android HEM iPhone'u (kayıtlı XS Max) yeni sürümle güncelleyip test edecek:** kapatınca ≤3sn'de karşıda kapanma, cevapsız→sohbet kaydı+bildirim, yeni hesap ilk arama gecikmesi
+- go build + flutter analyze temiz. iOS build alındı ama test iPhone UDID kayıtlı değil (sadece XS Max)
+- "artık devam etmiyor" popup: muhtemelen Android kamera/mik gizlilik göstergesi (sistem, kaldırılamaz) — teyit için tam metin/logcat bekliyor
+- Sonraki: grup araması (grup-aramasi-plani.md) → Faz 2 → uygulama ikonu (hâlâ placeholder)
+
