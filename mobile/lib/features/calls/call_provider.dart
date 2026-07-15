@@ -51,6 +51,18 @@ class CallService extends StateNotifier<IncomingCall?> {
   /// "kabul edildi" gelirse kaybolmasin diye tutuluyor.
   final Set<String> kabulEdilenler = {};
 
+  /// Odaya baglanmis (CANLI konusma) aramalar = TEK BITIR-KAPISI muhafizi.
+  /// CallScreen odaya baglaninca eklenir, ayrilinca cikarilir. CallKit'in yanlis zamanli
+  /// decline/ended/timeout olayi (ikinci UI yuzeyi ya da 45sn CallKit auto-expire) CANLI
+  /// aramayi OLDURMESIN diye main.dart onRed bunu kontrol eder. Canli aramayi yalniz kirmizi
+  /// tus (CallScreen) veya gercek peer-hangup (RoomDisconnected/ParticipantDisconnected) bitirir.
+  final Set<String> aktifKonusmalar = {};
+  void aktifKonusmaBasladi(String id) {
+    if (id.isNotEmpty) aktifKonusmalar.add(id);
+  }
+
+  void aktifKonusmaBitti(String id) => aktifKonusmalar.remove(id);
+
   void _onEvent(Map<String, dynamic> ev) {
     final payload = ev['payload'];
     if (payload is! Map) return;
@@ -109,6 +121,12 @@ class CallService extends StateNotifier<IncomingCall?> {
         // CallKitService.goster cagrilmaz) icin guvenilmezdi -> "CallKit calarken overlay de
         // acilir" cift-UI'sine yol aciyordu. iOS = %100 CallKit, uygulama-ici gelen arama yok.
         if (Platform.isIOS) return;
+        // ANDROID cift-UI muhafizi: bu arama CallKit (FCM->arka plan) ile zaten tam ekran
+        // gosterildiyse uygulama-ici overlay ACMA -> yoksa CallKit'in UZERINE popup biner.
+        // call.incoming yolunda bu muhafiz vardi (satir 69) ama checkActive'de EKSIKTI ->
+        // arka plandan one gelince overlay + CallKit CIFT geliyordu (kullanicinin bildirdigi puruz).
+        final id = data['call_id'] as String;
+        if (CallKitService.islenenler.contains(id)) return;
         state = IncomingCall.fromJson(data);
       }
     } catch (_) {

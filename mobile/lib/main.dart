@@ -167,9 +167,13 @@ class _GebzemAppState extends ConsumerState<GebzemApp> with WidgetsBindingObserv
     // Kilit ekranindan reddedildi / zaman asimi
     _redSub = svc.onRed.listen((callId) {
       final notifier = ref.read(callServiceProvider.notifier);
-      // CallKit bildiriminden/kilit ekranindan kapatildi: AKTIF CallScreen'i de kapat
-      // (aramaBitti -> _endedController), sonra sunucuya bildir. Yoksa sunucu biter ama
-      // kendi ekranin "arama devam ediyor" diye asili kalirdi.
+      // TEK BITIR-KAPISI: arama zaten KABUL EDILIP odaya baglanmissa (canli konusma),
+      // CallKit'in decline/ended/timeout olayi YANLIS sinyaldir — ikinci UI yuzeyi ya da
+      // 45sn CallKit auto-expire. Bu, konusma ortasinda aramayi 1sn'de OLDURUYORDU (loglarda
+      // CLIENT_REQUEST_LEAVE). Canli aramayi burada bitirme; gercek bitirme kirmizi tus veya
+      // peer-hangup (RoomDisconnected) ile CallScreen'de zaten yapiliyor.
+      if (notifier.aktifKonusmalar.contains(callId)) return;
+      // Ringing fazi (kabul EDILMEDEN): CallKit'ten reddet/zaman asimi -> aramayi bitir (mesru).
       notifier.aramaBitti(callId);
       notifier.end(callId);
     });

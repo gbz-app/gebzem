@@ -430,11 +430,15 @@ func (h *Handler) End(w http.ResponseWriter, r *http.Request) {
 		Type: "call.ended", Payload: payload, To: []string{other},
 	})
 
-	// iOS VoIP CallCancel: HER ZAMAN (Start ile SIMETRIK). Sebep: stale-online iOS callee'de
-	// arayan kapatinca cancel gitmezse, Start'in her-zaman-VoIP'u ile acilan kilit-ekrani CallKit
-	// 45sn HAYALET calmaya devam ederdi. CallCancel caller_name='Gebzem' gonderdigi icin cirkin
-	// banner sorunu yok. Callee Android ise voip token yok -> no-op.
-	if h.apns != nil {
+	// iOS VoIP CallCancel: SADECE cevaplanmadan iptal edilen aramada (newStatus=="missed",
+	// yani ARAYAN vazgecti/45sn doldu -> other=callee). Sebep: callee'nin CALAN kilit-ekrani
+	// CallKit'i kapanmali. KRITIK: 'rejected' (callee kapatti -> other=CALLER) ve 'ended'
+	// (cevaplanmis, iki taraf da CallScreen'de) durumlarinda ARAYANDA o arama icin CallKit
+	// HIC gosterilmedi (davet yalniz callee'ye gider). Yine de cancel atarsak AppDelegate
+	// iOS 13+ kurali geregi reportNewIncomingCall cagirip closure'da endCall yapiyor -> arayanda
+	// "hayalet gelen-arama" bir an belirip kapaniyordu (kullanicinin bildirdigi 'bitince popup').
+	// Cevaplanmis arama zaten WS call.ended ile kapaniyor; VoIP cancel gereksiz.
+	if newStatus == "missed" && h.apns != nil {
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 			defer cancel()

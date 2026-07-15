@@ -264,6 +264,11 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
       if (mounted) setState(() => _connecting = true);
 
       await CallRoomLock.calistir(() => _odayaBaglan());
+      // TEK BITIR-KAPISI: canli konusma basladi. Artik CallKit'in yanlis zamanli
+      // decline/ended/timeout olayi (ikinci UI yuzeyi / 45sn CallKit auto-expire) bu aramayi
+      // OLDURMEMELI (main.dart onRed aktifKonusmalar'i kontrol eder). Gercek bitirme yalniz
+      // kirmizi tus veya peer-hangup (RoomDisconnected/ParticipantDisconnected) ile olur.
+      _svc.aktifKonusmaBasladi(widget.callId);
       // Baglandik: aktif aramada da durum yokla. Karsi taraf kapatinca "call.ended" WS
       // olayi (o taraf arka plandayken / yari-acik sokette) kaybolabilir; bu poll en fazla
       // 3sn'de ekrani kapatir -> "kapatinca karsi tarafta arama devam ediyor" bug'i biter.
@@ -516,6 +521,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
 
   @override
   void dispose() {
+    _svc.aktifKonusmaBitti(widget.callId); // tek bitir-kapisi muhafizini birak
     WidgetsBinding.instance.removeObserver(this);
     _statusPoll?.cancel();
     _endedSub?.cancel();
