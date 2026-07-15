@@ -57,14 +57,10 @@ class CallSounds {
     if (_calan) return;
     _calan = true;
     try {
-      // SES OTURUMU KATEGORISINI YENIDEN DAYAT (kritik): onceki WebRTC/CallKit aramasi
-      // paylasilan iOS AVAudioSession'i playAndRecord/voiceChat/earpiece'te birakiyor ->
-      // sonraki zil/ton earpiece'ten ciliz cikar / DUYULMAZ. .playback (+mixWithOthers)
-      // ile hoparlorden ve sessiz modda da calmasini garanti eder. Bu ayar init'te BIR KEZ
-      // uygulaniyordu; WebRTC/CallKit ezdigi icin HER calistan once yeniden set ediyoruz.
-      await AudioPlayer.global.setAudioContext(
-        AudioContextConfig(focus: AudioContextConfigFocus.mixWithOthers).build(),
-      );
+      // NOT: Burada global AudioContext'i .playback'e ALMAYIZ — .playback sadece-cikis
+      // kategorisidir ve AKTIF WebRTC aramasinin MIKROFONUNU keser (ses gitmez). Zil/ton
+      // duyulma sorunu ses ayrimini (zil=hoparlor, arama=kulaklik) DOGRU yoneterek cozulur;
+      // global kategori ezmesi arama sesini bozdugu icin GERI ALINDI.
       await _player.setReleaseMode(ReleaseMode.loop); // dongu
       // Gelen aramada zil sesi telefonun zil kanalindan, giden tonda daha kisik
       await _player.setVolume(sesli ? 1.0 : 0.5);

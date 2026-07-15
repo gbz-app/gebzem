@@ -260,8 +260,9 @@ class _GebzemAppState extends ConsumerState<GebzemApp> with WidgetsBindingObserv
       // Arka plana/kilit ekranina gecince WS'i KAPAT. Sebep: iOS askiya alininca
       // TCP soketi sunucuda "yari-acik" kalip Online()=true yaniltiyor -> gelen arama
       // sadece WS'e gonderiliyor (uygulama isleyemez) -> kilit ekraninda CALMIYOR.
-      // WS'i kapatinca sunucu offline gorur -> arama VoIP push/CallKit ile gelir.
-      ws.close();
+      // goOffline(): once 'bg' cercevesi gonderir (sunucu ANINDA offline dusurur, FIN
+      // flush'ini beklemez), sonra kapatir -> arama VoIP push/CallKit ile ANINDA gelir.
+      ws.goOffline();
     }
   }
 

@@ -337,9 +337,16 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
         widget.token,
         connectOptions: const ConnectOptions(
           autoSubscribe: true,
-          // Kisitli aglarda (mobil operator) medya TURN uzerinden gecer
+          // MEDYAYI HER ZAMAN TURN RELAY UZERINDEN gecir (iceTransportPolicy.relay).
+          // NEDEN: mobil operator aglarinda (Turkiye CGNAT/simetrik NAT) dogrudan UDP
+          // adaylari (srflx) bir an "basarili" gorunup sonra susuyor -> WebRTC relay'e
+          // GEC dusuyor/hic dusmuyor -> "dtls timeout", ses gitmiyor / "Baglaniyor"da
+          // takiliyor. .all modu bu tuzaga dusuyordu. TURN kendi sunucumuzda (turn.gebzem.app
+          // TLS 443, LiveKit ile ayni makine) -> relay overhead'i minimal, WiFi'de de sorunsuz.
+          // LiveKit zaten SFU (medya her durumda client<->server); relay yalniz ICE transport'unu
+          // garantili yola (TLS 443) sabitler. Kisitli WiFi (otel/kurumsal) de bununla calisir.
           rtcConfiguration: RTCConfiguration(
-            iceTransportPolicy: RTCIceTransportPolicy.all,
+            iceTransportPolicy: RTCIceTransportPolicy.relay,
           ),
         ),
       );
@@ -419,7 +426,8 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
       await room?.disconnect().timeout(const Duration(seconds: 3));
     } catch (_) {}
     try {
-      await listener?.dispose();
+      // dispose() Future dondurur; hang ederse (nadir) global sira kilitlenmesin diye timeout
+      await listener?.dispose().timeout(const Duration(seconds: 3));
     } catch (_) {}
     try {
       await room?.dispose().timeout(const Duration(seconds: 3)); // motoru+ses oturumunu birak

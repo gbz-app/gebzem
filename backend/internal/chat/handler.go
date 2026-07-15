@@ -44,7 +44,7 @@ func (h *Handler) WebSocket(w http.ResponseWriter, r *http.Request) {
 
 	// yazici
 	go func() {
-		ticker := time.NewTicker(30 * time.Second)
+		ticker := time.NewTicker(15 * time.Second)
 		defer ticker.Stop()
 		defer conn.Close()
 		for {
@@ -53,9 +53,11 @@ func (h *Handler) WebSocket(w http.ResponseWriter, r *http.Request) {
 				if !ok {
 					return
 				}
-				// Yari-acik sokette WriteMessage SONSUZA kilitlenir -> Send(64) kuyrugu dolar
-				// -> call.answered/call.ended SESSIZCE dusurulur (hub.deliver default: atla) ve
-				// stale kayit ~70sn "online" kalir. Write-deadline bunu ~10sn'de patlatir.
+				// Yari-acik sokette WriteMessage kuyrugu dolar -> call.answered/call.ended
+				// SESSIZCE dusurulur. NOT: askiya alinmis istemcide kucuk yazi kernel gonderim
+				// buffer'ina dusup ANINDA nil doner (deadline TETIKLENMEZ) -> bayat soketin tek
+				// gercek dedektoru read-deadline'dir (pong gelmezse). Write-deadline yalniz
+				// buffer GERCEKTEN dolunca (buyuk/cok mesaj) devreye girer.
 				conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
 				if err := conn.WriteMessage(websocket.TextMessage, msg); err != nil {
 					return
@@ -76,12 +78,15 @@ func (h *Handler) WebSocket(w http.ResponseWriter, r *http.Request) {
 		h.db.Exec(r.Context(), `UPDATE users SET last_seen=now() WHERE id=$1`, userID)
 	}()
 	conn.SetReadLimit(64 << 10)
-	// Yari-acik soket tespiti: yazici 30sn'de bir ping atiyor, istemci pong doner.
-	// Pong (ya da herhangi bir mesaj) gelince okuma zaman asimini tazele. 70sn boyunca
+	// Yari-acik soket tespiti: yazici 15sn'de bir ping atiyor, istemci pong doner.
+	// Pong (ya da herhangi bir mesaj) gelince okuma zaman asimini tazele. 35sn boyunca
 	// hicbir sey gelmezse ReadMessage hata verir -> Unregister -> Online() GERCEGI yansitir.
 	// Onemli: arka planda askiya alinmis/kopmus (temiz FIN atmadan giden) istemci
-	// "cevrimici" gorunup call.ended WS olayini yutmasin; boylece End()'in push yedegi devreye girer.
-	const wsOkumaZamanAsimi = 70 * time.Second
+	// "cevrimici" gorunup gelen aramaya push atilmasini engellemesin. Client paused'da
+	// 'bg' cercevesi gonderiyor (aninda offline) AMA ani askida o da flush olmayabilir;
+	// bu 35sn (2x15sn pong toleransi) worst-case emniyet agidir. 70sn cok uzundu (kilit
+	// ekrani araması ~70sn "online" sanilip push'suz gecikiyordu = regresyon).
+	const wsOkumaZamanAsimi = 35 * time.Second
 	conn.SetReadDeadline(time.Now().Add(wsOkumaZamanAsimi))
 	conn.SetPongHandler(func(string) error {
 		conn.SetReadDeadline(time.Now().Add(wsOkumaZamanAsimi))
@@ -98,6 +103,12 @@ func (h *Handler) WebSocket(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		switch ev.Type {
+		case "bg":
+			// Istemci arka plana/kilit ekranina gecti: presence'tan ANINDA dus.
+			// return -> defer Unregister + conn.Close() + last_seen calisir (double-close YOK).
+			// Boylece Online()=false olur; bu kullaniciya gelen sonraki arama push/VoIP-push
+			// alir (kilit ekraninda ANINDA calar). FIN flush'ini beklemeye gerek kalmaz.
+			return
 		case "typing":
 			// yaziyor... olayini sohbetin diger uyelerine ilet (DB'ye yazilmaz)
 			members, err := h.chatMemberIDs(r, ev.ChatID, userID)

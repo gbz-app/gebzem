@@ -81,6 +81,23 @@ class WsService {
     } catch (_) {}
   }
 
+  /// Arka plana/kilit ekranina gecerken: SUNUCUYA "offline oluyorum" de, sonra kapat.
+  /// NEDEN: iOS/Android surec donunca TCP FIN cogu zaman FLUSH OLMUYOR -> sunucu soketi
+  /// ~yari-acik tutup kullaniciyi 70sn "online" saniyor -> gelen aramaya push ATILMIYOR
+  /// (kilit ekraninda calmiyor / art arda 2. arama gitmiyor). Zaten kurulu, yazilabilir
+  /// sokete tek kucuk 'bg' cercevesi TCP-close el sikismasindan daha guvenilir flush olur;
+  /// sunucu bunu alinca ANINDA offline dusurur -> sonraki arama push/VoIP-push alir.
+  Future<void> goOffline() async {
+    _closed = true;
+    _connected = false;
+    try {
+      _channel?.sink.add(jsonEncode({'type': 'bg'})); // once offline sinyali
+    } catch (_) {}
+    try {
+      await _channel?.sink.close();
+    } catch (_) {}
+  }
+
   Future<void> close() async {
     _closed = true;
     _connected = false;

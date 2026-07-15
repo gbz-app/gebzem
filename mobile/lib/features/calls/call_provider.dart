@@ -131,14 +131,24 @@ class CallService extends StateNotifier<IncomingCall?> {
     }
   }
 
-  /// Aramayi bitir / reddet — tek REST istegi (coklu end'i onler)
+  /// Aramayi bitir / reddet.
+  /// KRITIK: guard'i (_bitenler) await ONCESI degil, POST BASARILI olunca isaretle.
+  /// Eski kod await'ten once isaretliyor + hatayi yutuyordu -> ilk POST ag hatasiyla
+  /// patlarsa callId kalici "bitti" damgalaniyor, bir daha GONDERILMIYOR -> arama sunucuda
+  /// 'active' takili kaliyor, o kisi cok uzun sure "mesgul" gorunuyor (2. arama gitmiyor).
+  /// Simdi: basarili olana kadar 3 kez dene, YALNIZ basarida isaretle. Sunucu End idempotent
+  /// (zaten bitmisse rowsAffected=0 sessiz basari) oldugu icin cift-end zararsiz.
   Future<void> end(String callId) async {
     state = null;
-    if (!_bitenler.add(callId)) return; // ikinci+ end atlanir
-    try {
-      await _ref.read(apiProvider).post('/calls/$callId/end');
-    } catch (_) {
-      // zaten bitmis olabilir
+    if (_bitenler.contains(callId)) return; // zaten basariyla bitirildi
+    for (var deneme = 0; deneme < 3; deneme++) {
+      try {
+        await _ref.read(apiProvider).post('/calls/$callId/end');
+        _bitenler.add(callId); // yalniz BASARIDA damgala
+        return;
+      } catch (_) {
+        if (deneme < 2) await Future.delayed(const Duration(seconds: 1));
+      }
     }
   }
 

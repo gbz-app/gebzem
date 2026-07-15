@@ -109,10 +109,13 @@ func (h *Handler) sweep(ctx context.Context) {
 		go h.logMissedToChat(context.Background(), k.caller, k.callee, k.callType)
 	}
 
-	// 2) 2 saatten uzun "suren" aramalar -> bitmis say (uygulama cokmus demektir)
+	// 2) 30 dk'dan uzun "suren" aramalar -> bitmis say. End istemciden ulasmadiginda
+	//    (ag hatasi/crash) satir 'active' takili kalip kullaniciyi "mesgul" yapar; busy
+	//    penceresiyle (30dk) ayni tutuldu. Gercek gorusmeler nadiren 30dk'yi asar; assa bile
+	//    kullanici tekrar arayinca pairwise temizlik zaten aninda kapatir. 2 saat cok uzundu.
 	h.db.Exec(ctx, `
 		UPDATE calls SET status='ended', ended_at=now()
-		WHERE status='active' AND created_at < now() - interval '2 hours'`)
+		WHERE status='active' AND created_at < now() - interval '30 minutes'`)
 
 	if len(bitenler) > 0 {
 		log.Printf("arama temizleyici: %d cevapsiz arama kapatildi", len(bitenler))
@@ -188,20 +191,30 @@ func (h *Handler) Start(w http.ResponseWriter, r *http.Request) {
 	// DIKKAT: 'active' icin ZAMAN SINIRI SART. Uygulama arama sirasinda cokerse
 	// End() hic cagrilmaz, satir sonsuza dek 'active' kalir ve o kullaniciya gelen
 	// HER arama "mesgul" doner (kullanici kalici olarak aranamaz olur).
-	// BUG2 (art arda arama gitmiyor): Ayni arayanin bu callee'ye ONCEKI takili 'ringing'
-	// aramasini temizle. Terminated'da reddetme sunucuya ulasmayabildigi icin (bilinen CallKit
-	// siniri) 1. arama 'ringing' takili kalip callee'yi ~45sn KALICI 'mesgul' gosteriyor ve
-	// AYNI kisinin tekrar aramasini blokluyordu -> 2. aramaya hic VoIP push atilmiyordu.
-	// Ayni cift icin eski ringing'i missed'e cekince tekrar arama HER ZAMAN gecer + taze push atilir.
+	// BUG2 (art arda arama gitmiyor / "kapattim karsida devam"): A tekrar B'yi ararken,
+	// A<->B cifti arasindaki takili ringing VE active kayitlarini (HER IKI YON) busy
+	// kontrolunden ONCE kapat. Sebep:
+	//  - 'ringing' takili: Terminated reddetme sunucuya ulasmayabiliyor (CallKit siniri) ->
+	//    1. arama ~45sn KALICI 'mesgul', 2. arama gitmiyor.
+	//  - 'active' takili: End istemciden ulasmayinca (ag hatasi/crash) satir 'active' kalip
+	//    callee'yi ~2 saat "mesgul" yapiyor -> 2. aramaya HIC push atilmiyor.
+	// GUVENLI: A yeni arama baslatiyorsa A o an B ile CANLI gorusmede OLAMAZ -> A<->B arasindaki
+	// 'active' kesin zombidir. Pairwise oldugu icin B'nin ucuncu kisi C ile GERCEK aramasina
+	// dokunmaz (busy dogru kalir). 'active' icin 15sn yas siniri: nadir cok-cihaz senaryosunda
+	// yeni kurulan gercek aramayi yanlislikla kapatmasin.
 	h.db.Exec(r.Context(),
-		`UPDATE calls SET status='missed', ended_at=now()
-		 WHERE caller_id=$1 AND callee_id=$2 AND status='ringing'`, callerID, req.CalleeID)
+		`UPDATE calls
+		 SET status = CASE WHEN status='active' THEN 'ended' ELSE 'missed' END, ended_at=now()
+		 WHERE ((caller_id=$1 AND callee_id=$2) OR (caller_id=$2 AND callee_id=$1))
+		   AND (status='ringing'
+		        OR (status='active' AND created_at < now() - interval '15 seconds'))`,
+		callerID, req.CalleeID)
 
 	var busy bool
 	h.db.QueryRow(r.Context(), `
 		SELECT EXISTS(SELECT 1 FROM calls
 		WHERE (caller_id=$1 OR callee_id=$1)
-		  AND ((status='active'  AND created_at > now() - interval '2 hours')
+		  AND ((status='active'  AND created_at > now() - interval '30 minutes')
 		       OR (status='ringing' AND created_at > now() - interval '45 seconds')))`,
 		req.CalleeID).Scan(&busy)
 	if busy {
