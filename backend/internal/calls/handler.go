@@ -109,13 +109,16 @@ func (h *Handler) sweep(ctx context.Context) {
 		go h.logMissedToChat(context.Background(), k.caller, k.callee, k.callType)
 	}
 
-	// 2) 30 dk'dan uzun "suren" aramalar -> bitmis say. End istemciden ulasmadiginda
-	//    (ag hatasi/crash) satir 'active' takili kalip kullaniciyi "mesgul" yapar; busy
-	//    penceresiyle (30dk) ayni tutuldu. Gercek gorusmeler nadiren 30dk'yi asar; assa bile
-	//    kullanici tekrar arayinca pairwise temizlik zaten aninda kapatir. 2 saat cok uzundu.
+	// 2) 2 saatten uzun "suren" aramalar -> bitmis say (uygulama cokmus / End ulasmamis).
+	//    KRITIK: bu esik created_at'e gore ve answered_at / LiveKit oda durumuna BAKMAZ,
+	//    yani o an GERCEKTEN konusulan bir aramayi da yakalar. Bu yuzden UZUN tutulur:
+	//    kisa deger (or. 30dk) 30dk+ suren MESRU gorusmeyi ortadan koparirdi (regresyon).
+	//    Takili 'active' zaten (a) ayni cift tekrar arayinca pairwise temizlikle, (b) istemci
+	//    End retry'siyle aninda kapaniyor; sweep sadece hicbiri olmazsa son emniyet.
+	//    KALICI cozum (ayri adim): LiveKit room_finished webhook -> oda bosalinca DB'yi kapatir.
 	h.db.Exec(ctx, `
 		UPDATE calls SET status='ended', ended_at=now()
-		WHERE status='active' AND created_at < now() - interval '30 minutes'`)
+		WHERE status='active' AND created_at < now() - interval '2 hours'`)
 
 	if len(bitenler) > 0 {
 		log.Printf("arama temizleyici: %d cevapsiz arama kapatildi", len(bitenler))
@@ -210,11 +213,14 @@ func (h *Handler) Start(w http.ResponseWriter, r *http.Request) {
 		        OR (status='active' AND created_at < now() - interval '15 seconds'))`,
 		callerID, req.CalleeID)
 
+	// 'active' penceresi UZUN (2 saat): kisa deger, MESRU uzun gorusme suren callee'yi
+	// "musait" gosterip araya 2. arama sokardi. Ayni cift takili 'active'i zaten yukaridaki
+	// pairwise temizlik kapatti; burada kalan 'active' cross-pair GERCEK gorusme demektir.
 	var busy bool
 	h.db.QueryRow(r.Context(), `
 		SELECT EXISTS(SELECT 1 FROM calls
 		WHERE (caller_id=$1 OR callee_id=$1)
-		  AND ((status='active'  AND created_at > now() - interval '30 minutes')
+		  AND ((status='active'  AND created_at > now() - interval '2 hours')
 		       OR (status='ringing' AND created_at > now() - interval '45 seconds')))`,
 		req.CalleeID).Scan(&busy)
 	if busy {

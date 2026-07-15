@@ -15,6 +15,7 @@ class WsService {
 
   final AppStorage _storage;
   WebSocketChannel? _channel;
+  StreamSubscription? _sub; // aktif soketin dinleyicisi (yetim baglantiyi onlemek icin)
   final _controller = StreamController<Map<String, dynamic>>.broadcast();
   bool _closed = false;
   bool _connected = false;
@@ -30,8 +31,11 @@ class WsService {
 
   /// Uygulama on plana donunce HEMEN yeniden bagla — yoksa yeniden baglanma
   /// 60 saniyeye kadar gecikebilir ve o sirada gelen arama kacirilir.
+  /// NOT: goOffline() _closed=true birakir; burada _closed'i sifirlamazsak
+  /// (connect() gibi) resume() bir daha hic baglanmaz — tutarli olsun diye sifirlaniyor.
   void resume() {
-    if (_closed || _connected) return;
+    if (_connected) return;
+    _closed = false;
     _retry = 0;
     _open();
   }
@@ -40,17 +44,30 @@ class WsService {
     if (_closed || _connected) return;
     final token = await _storage.token;
     if (token == null) return;
+    // Yeni soket kurmadan ONCE eski dinleyici + soketi kapat. Yoksa iOS askidan
+    // cikan eski soketin GECIKMIS onDone'u, yeni soket aciktayken _scheduleReconnect
+    // tetikleyip ikinci (yetim) bir baglanti biraktiriyordu -> sunucu kullaniciyi
+    // "online" sanip kilit-ekrani push'unu ~35sn engelliyordu.
+    try {
+      await _sub?.cancel();
+    } catch (_) {}
+    _sub = null;
+    try {
+      await _channel?.sink.close();
+    } catch (_) {}
+    _channel = null;
     try {
       // pingInterval: yarim acik TCP'de (mobil ag degisince) baglantinin oldugunu
       // ~20 sn'de anlar ve yeniden baglanir. Yoksa _connected true kalir, mesaj gelmez.
-      _channel = IOWebSocketChannel.connect(
+      final ch = IOWebSocketChannel.connect(
         Uri.parse('$wsUrl?token=$token'),
         pingInterval: const Duration(seconds: 20),
       );
-      await _channel!.ready;
+      _channel = ch;
+      await ch.ready;
       _retry = 0;
       _connected = true;
-      _channel!.stream.listen(
+      _sub = ch.stream.listen(
         (raw) {
           try {
             final map = jsonDecode(raw as String) as Map<String, dynamic>;
@@ -83,16 +100,21 @@ class WsService {
 
   /// Arka plana/kilit ekranina gecerken: SUNUCUYA "offline oluyorum" de, sonra kapat.
   /// NEDEN: iOS/Android surec donunca TCP FIN cogu zaman FLUSH OLMUYOR -> sunucu soketi
-  /// ~yari-acik tutup kullaniciyi 70sn "online" saniyor -> gelen aramaya push ATILMIYOR
+  /// ~yari-acik tutup kullaniciyi 35sn "online" saniyor -> gelen aramaya push ATILMIYOR
   /// (kilit ekraninda calmiyor / art arda 2. arama gitmiyor). Zaten kurulu, yazilabilir
   /// sokete tek kucuk 'bg' cercevesi TCP-close el sikismasindan daha guvenilir flush olur;
   /// sunucu bunu alinca ANINDA offline dusurur -> sonraki arama push/VoIP-push alir.
+  /// Dinleyici de iptal edilir ki gecikmis onDone yetim baglanti biraktirmasin.
   Future<void> goOffline() async {
     _closed = true;
     _connected = false;
     try {
       _channel?.sink.add(jsonEncode({'type': 'bg'})); // once offline sinyali
     } catch (_) {}
+    try {
+      await _sub?.cancel();
+    } catch (_) {}
+    _sub = null;
     try {
       await _channel?.sink.close();
     } catch (_) {}
@@ -101,6 +123,10 @@ class WsService {
   Future<void> close() async {
     _closed = true;
     _connected = false;
+    try {
+      await _sub?.cancel();
+    } catch (_) {}
+    _sub = null;
     await _channel?.sink.close();
   }
 }
