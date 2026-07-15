@@ -55,7 +55,7 @@ func (h *Handler) Enabled() bool { return h.apiKey != "" && h.apiSecret != "" }
 // cevapsiz arama yazilmaz; 'active' kalan kayit ise kullaniciyi kalici "mesgul" yapar.
 func (h *Handler) StartSweeper(ctx context.Context) {
 	go func() {
-		t := time.NewTicker(30 * time.Second)
+		t := time.NewTicker(15 * time.Second)
 		defer t.Stop()
 		for {
 			select {
@@ -73,7 +73,7 @@ func (h *Handler) sweep(ctx context.Context) {
 	//    timer'i normalde once davranir; bu sadece emniyet subabi)
 	rows, err := h.db.Query(ctx, `
 		UPDATE calls SET status='missed', ended_at=now()
-		WHERE status='ringing' AND created_at < now() - interval '60 seconds'
+		WHERE status='ringing' AND created_at < now() - interval '50 seconds'
 		RETURNING id, caller_id, callee_id, type`)
 	if err != nil {
 		return

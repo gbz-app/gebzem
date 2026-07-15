@@ -1,10 +1,13 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:dio/dio.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_callkit_incoming/entities/entities.dart';
+import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
@@ -31,10 +34,42 @@ const _sentryDsn =
 ///
 /// @pragma('vm:entry-point') SART: yoksa release derlemede bu fonksiyon
 /// tree-shake ile SILINIR ve arka planda hicbir sey olmaz.
+/// TERMINATED (uygulama tamamen kapali) Android'de CallKit "Reddet"/bitir/cevapsiz
+/// olaylari UI isolate olmadigi icin DUSER (flutter_callkit_incoming bilinen sinirlama:
+/// "Reddet" hicbir Activity baslatmaz -> Flutter motoru boot olmaz; "Ac" baslatir, o yuzden
+/// calisir). Plugin'in KALICI ARKA PLAN isolate'ine (onBackgroundMessage) kayitli bu handler
+/// o olaylari yakalayip DOGRUDAN sunucuya /calls/{id}/end POST eder -> arayan sonsuza calmaz.
+/// @pragma vm:entry-point SART (release tree-shake). Riverpod YOK; taze Dio + AppStorage.
+@pragma('vm:entry-point')
+Future<void> _callkitArkaPlan(CallEvent e) async {
+  WidgetsFlutterBinding.ensureInitialized();
+  final id = switch (e) {
+    CallEventActionCallDecline(:final callKitParams) => callKitParams.id,
+    CallEventActionCallEnded(:final callKitParams) => callKitParams.id,
+    CallEventActionCallTimeout(:final id) => id,
+    _ => '',
+  };
+  if (id.isEmpty) return;
+  final token = await AppStorage().token;
+  if (token == null || token.isEmpty) return;
+  try {
+    final dio = Dio(BaseOptions(
+      baseUrl: apiUrl,
+      headers: {'Authorization': 'Bearer $token'},
+      connectTimeout: const Duration(seconds: 8),
+      receiveTimeout: const Duration(seconds: 8),
+    ));
+    await dio.post('/calls/$id/end');
+  } catch (_) {}
+}
+
 @pragma('vm:entry-point')
 Future<void> _fcmArkaPlan(RemoteMessage m) async {
   final tip = m.data['type'];
   if (tip == 'call.incoming') {
+    // Terminated'da CallKit reddet/bitir/cevapsiz olaylarini yakalayacak arka plan
+    // handler'ini goster'DEN ONCE kaydet (zil calarken executor motoru isinsin).
+    await FlutterCallkitIncoming.onBackgroundMessage(_callkitArkaPlan);
     await CallKitService.goster(
       callId: m.data['call_id'] ?? '',
       callerName: m.data['caller_name'] ?? 'Bilinmeyen',
