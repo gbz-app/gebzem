@@ -101,9 +101,13 @@ import flutter_callkit_incoming
       let nm = (d["caller_name"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? "Gebzem"
       let data = flutter_callkit_incoming.Data(id: callId, nameCaller: nm, handle: nm, type: 0)
       data.appName = "Gebzem"
-      SwiftFlutterCallkitIncomingPlugin.sharedInstance?.showCallkitIncoming(data, fromPushKit: true)
-      SwiftFlutterCallkitIncomingPlugin.sharedInstance?.endCall(data)
-      completion()
+      // iOS 13+ KURALI: completion, reportNewIncomingCall (showCallkitIncoming) BITTIKTEN
+      // SONRA cagrilmali. Erken cagirmak ihlal -> iOS art arda aramalarda VoIP push'u KESER.
+      // Bu yuzden endCall + completion, showCallkitIncoming'in closure'i ICINDE.
+      SwiftFlutterCallkitIncomingPlugin.sharedInstance?.showCallkitIncoming(data, fromPushKit: true) {
+        SwiftFlutterCallkitIncomingPlugin.sharedInstance?.endCall(data)
+        completion()
+      }
       return
     }
 
@@ -118,7 +122,11 @@ import flutter_callkit_incoming
     data.extra = [
       "call_id": callId, "call_type": isVideo ? "video" : "audio", "caller_name": callerName,
     ] as NSDictionary
-    SwiftFlutterCallkitIncomingPlugin.sharedInstance?.showCallkitIncoming(data, fromPushKit: true)
-    completion()
+    // iOS 13+ KURALI: completion, reportNewIncomingCall (showCallkitIncoming) tamamlandiktan
+    // SONRA cagrilmali. Erken cagirmak ihlal -> iOS art arda aramalarda 2. VoIP push'u KESER
+    // (kilit ekranina dusmuyor). Bu yuzden completion showCallkitIncoming closure'i ICINDE.
+    SwiftFlutterCallkitIncomingPlugin.sharedInstance?.showCallkitIncoming(data, fromPushKit: true) {
+      completion()
+    }
   }
 }

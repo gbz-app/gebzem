@@ -105,6 +105,13 @@ Future<void> main() async {
   } catch (_) {
     // Firebase baslatilamazsa uygulama pushsuz calisir
   }
+  // iOS DAHIL: terminated CallKit reddet/bitir/cevapsiz olaylarini yakalayacak arka plan
+  // handler'ini KOSULSUZ kaydet. iOS'ta aramalar FCM ile GELMEZ (VoIP push) -> _fcmArkaPlan'daki
+  // kayit iOS'ta calismaz; burada kaydedince iOS reddi de arka plandan sunucuya ulasabilir
+  // (arayanin sonsuza "Caliyor"da takilmasini onler).
+  try {
+    await FlutterCallkitIncoming.onBackgroundMessage(_callkitArkaPlan);
+  } catch (_) {}
 
   await SentryFlutter.init(
     (options) {

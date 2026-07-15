@@ -20,9 +20,9 @@ class CallSounds {
   static bool _calan = false;
   static Timer? _titresim;
 
-  /// Gelen arama: zil dongude calar + telefon titrer
+  /// Gelen arama: zil (kullanicinin melodisi arama.mp3) dongude calar + telefon titrer
   static Future<void> gelenArama() async {
-    await _cal('sounds/zil.wav', sesli: true);
+    await _cal('sounds/arama.mp3', sesli: true);
     _titresimBaslat();
   }
 
@@ -57,6 +57,14 @@ class CallSounds {
     if (_calan) return;
     _calan = true;
     try {
+      // SES OTURUMU KATEGORISINI YENIDEN DAYAT (kritik): onceki WebRTC/CallKit aramasi
+      // paylasilan iOS AVAudioSession'i playAndRecord/voiceChat/earpiece'te birakiyor ->
+      // sonraki zil/ton earpiece'ten ciliz cikar / DUYULMAZ. .playback (+mixWithOthers)
+      // ile hoparlorden ve sessiz modda da calmasini garanti eder. Bu ayar init'te BIR KEZ
+      // uygulaniyordu; WebRTC/CallKit ezdigi icin HER calistan once yeniden set ediyoruz.
+      await AudioPlayer.global.setAudioContext(
+        AudioContextConfig(focus: AudioContextConfigFocus.mixWithOthers).build(),
+      );
       await _player.setReleaseMode(ReleaseMode.loop); // dongu
       // Gelen aramada zil sesi telefonun zil kanalindan, giden tonda daha kisik
       await _player.setVolume(sesli ? 1.0 : 0.5);
