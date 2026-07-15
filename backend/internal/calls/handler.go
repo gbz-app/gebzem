@@ -688,72 +688,91 @@ func (h *Handler) AdminPanel(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(adminHTML))
 }
 
-const adminHTML = `<!doctype html><html><head><meta charset=utf-8>
+const adminHTML = `<!doctype html><html lang=tr><head><meta charset=utf-8>
 <meta name=viewport content="width=device-width,initial-scale=1">
-<title>Gebzem — Arama Izle</title>
+<title>Gebzem · Arama İzleme</title>
 <style>
-body{background:#0b141a;color:#e9edef;font-family:system-ui,-apple-system,sans-serif;margin:0;padding:12px}
-h1{font-size:18px;margin:0 0 4px}
-#durum{color:#25d366;font-size:13px;margin-bottom:8px}
-table{width:100%;border-collapse:collapse;font-size:13px}
-th,td{padding:7px 8px;text-align:left;border-bottom:1px solid #222d34;white-space:nowrap}
-th{color:#8696a0;font-weight:600;font-size:11px;text-transform:uppercase}
-tr.okk{background:rgba(37,211,102,.10)}
-tr.sus{background:rgba(255,193,7,.14)}
-tr.mis{opacity:.55}
-tr.rej{background:rgba(255,152,0,.12)}
-tr.bsy{background:rgba(156,39,176,.14)}
-tr.act{background:rgba(244,67,54,.20);animation:bl 1s infinite}
-@keyframes bl{50%{opacity:.55}}
-.dur{font-weight:700;font-size:15px}
-#aciklama{color:#8696a0;font-size:12px;margin-top:10px;line-height:1.5}
-</style></head><body>
-<h1>📞 Gebzem — Canli Arama Izleme</h1>
-<div id=durum>baglaniyor…</div>
-<table><thead><tr>
-<th>Arayan → Aranan</th><th>Tip</th><th>Durum</th><th>Basladi</th><th>Cevap(sn)</th><th>Bitti</th><th>Sure(sn)</th>
-</tr></thead><tbody id=govde></tbody></table>
-<div id=aciklama></div>
-<script>
+:root{--card:#141b22;--card2:#1b242d;--line:#232f39;--txt:#e9edef;--dim:#8696a0;--green:#25d366;--yellow:#ffb020;--red:#f04747;--orange:#ff8c42;--purple:#b57edc}
+*{box-sizing:border-box}
+body{background:radial-gradient(1200px 600px at 50% -10%,#12202b,#0a0e12);color:var(--txt);font-family:-apple-system,system-ui,'Segoe UI',sans-serif;margin:0;padding:16px;min-height:100vh}
+.wrap{max-width:900px;margin:0 auto}
+.head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px}
+.title{font-size:21px;font-weight:800;display:flex;align-items:center;gap:8px}
+.title .sub{color:var(--dim);font-weight:400;font-size:15px}
+.live{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--green);background:rgba(37,211,102,.12);padding:6px 13px;border-radius:20px;font-variant-numeric:tabular-nums}
+.d{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:p 1.4s infinite}
+@keyframes p{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(1.35)}}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(115px,1fr));gap:10px;margin-bottom:18px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px 15px}
+.stat .n{font-size:25px;font-weight:800;line-height:1}
+.stat .l{font-size:11.5px;color:var(--dim);margin-top:5px}
+.list{display:flex;flex-direction:column;gap:8px}
+.c{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--dim);border-radius:13px;padding:12px 15px;display:flex;align-items:center;justify-content:space-between;gap:12px;transition:.15s}
+.c:hover{background:var(--card2);transform:translateX(2px)}
+.c.g{border-left-color:var(--green)}.c.y{border-left-color:var(--yellow)}.c.r{border-left-color:var(--red);animation:gl 1.6s infinite}.c.o{border-left-color:var(--orange)}.c.p{border-left-color:var(--purple)}.c.m{border-left-color:#3a4750;opacity:.72}
+@keyframes gl{50%{background:rgba(240,71,71,.10);border-left-color:#ff8a8a}}
+.who{font-size:15px;font-weight:600}.who .ar{color:var(--dim);margin:0 5px}
+.meta{font-size:12px;color:var(--dim);margin-top:4px;display:flex;gap:12px;flex-wrap:wrap}
+.right{text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:5px}
+.badge{font-size:12px;font-weight:700;padding:4px 11px;border-radius:8px;white-space:nowrap}
+.badge.g{background:rgba(37,211,102,.16);color:#4be089}
+.badge.y{background:rgba(255,176,32,.16);color:var(--yellow)}
+.badge.r{background:rgba(240,71,71,.20);color:#ff8a8a}
+.badge.o{background:rgba(255,140,66,.16);color:var(--orange)}
+.badge.p{background:rgba(181,126,220,.16);color:var(--purple)}
+.badge.m{background:rgba(134,150,160,.14);color:var(--dim)}
+.dur{font-size:19px;font-weight:800}.dur small{font-size:11px;color:var(--dim);font-weight:600}
+.empty{text-align:center;padding:64px 20px;color:var(--dim)}.empty .i{font-size:52px;margin-bottom:14px}
+.foot{margin-top:20px;font-size:11.5px;color:var(--dim);text-align:center;line-height:1.9;border-top:1px solid var(--line);padding-top:14px}
+</style></head><body><div class=wrap>
+<div class=head>
+ <div class=title>📞 Gebzem <span class=sub>Arama İzleme</span></div>
+ <div class=live><span class=d></span><span id=st>bağlanıyor…</span></div>
+</div>
+<div class=stats id=stats></div>
+<div class=list id=list></div>
+<div class=foot id=foot></div>
+</div><script>
 var key=new URLSearchParams(location.search).get('key')||'';
-function ikon(t){return t=='video'?'📹':'🎤';}
-function sinif(s,talk){
- if(s=='active')return 'act';
- if(s=='missed')return 'mis';
- if(s=='rejected')return 'rej';
- if(s=='busy')return 'bsy';
- if(s=='ended')return (talk!=null&&talk>=2)?'okk':'sus';
- return '';}
-function durum(s,talk){
- if(s=='active')return '🔴 CANLI/acik';
- if(s=='missed')return '⚪ cevapsiz';
- if(s=='rejected')return '🟠 reddedildi';
- if(s=='busy')return '🟣 mesgul';
- if(s=='ended')return (talk>=2)?'🟢 konusuldu':'🟡 hemen koptu?';
- return s;}
+function esc(s){var e=document.createElement('span');e.textContent=s==null?'':s;return e.innerHTML;}
+function sb(s,t){
+ if(s=='active')return['r','🔴 Canlı'];
+ if(s=='missed')return['m','⚪ Cevapsız'];
+ if(s=='rejected')return['o','🟠 Reddedildi'];
+ if(s=='busy')return['p','🟣 Meşgul'];
+ if(s=='ended')return t>=2?['g','🟢 Konuşuldu']:['y','🟡 Hemen koptu'];
+ return['m',s];}
+function stat(n,l,c){return '<div class=stat><div class=n'+(c?' style="color:'+c+'"':'')+'>'+n+'</div><div class=l>'+l+'</div></div>';}
+function render(d){
+ var L=document.getElementById('list'),S=document.getElementById('stats'),F=document.getElementById('foot');
+ F.innerHTML='🟢 konuşuldu (2sn+) &nbsp;·&nbsp; 🟡 hemen koptu (patlama şüphesi) &nbsp;·&nbsp; ⚪ cevapsız &nbsp;·&nbsp; 🟠 reddedildi &nbsp;·&nbsp; 🟣 meşgul &nbsp;·&nbsp; 🔴 canlı<br>⚡ = kaç saniyede açıldı (art arda arama hızı) &nbsp;·&nbsp; sağdaki büyük sayı = konuşma süresi';
+ if(!d.length){L.innerHTML='<div class=empty><div class=i>📭</div>Henüz arama yok.<br>İki telefonla arama yap — burada <b>anlık</b> göreceksin.</div>';S.innerHTML='';return;}
+ var kon=0,cev=0,pat=0,rt=0,rn=0;
+ for(var i=0;i<d.length;i++){var c=d[i];
+  if(c.status=='ended'&&c.talk_sec>=2)kon++;
+  if(c.status=='missed'||c.status=='rejected')cev++;
+  if(c.status=='ended'&&c.talk_sec>=0&&c.talk_sec<2)pat++;
+  if(c.ring_sec>=0){rt+=c.ring_sec;rn++;}}
+ var ort=rn?(Math.round(rt/rn*10)/10):'—';
+ S.innerHTML=stat(d.length,'Toplam')+stat(kon,'Konuşuldu','#4be089')+stat(cev,'Cevapsız/Red')+stat(pat,'Patlama şüphesi',pat?'var(--yellow)':null)+stat(ort+'sn','Ort. bağlanma');
+ var h='';
+ for(var i=0;i<d.length;i++){var c=d[i];var b=sb(c.status,c.talk_sec);
+  var tip=c.type=='video'?'📹 Görüntülü':'🎤 Sesli';
+  var ring=c.ring_sec>=0?('⚡ '+c.ring_sec+'sn\'de açıldı'):'';
+  var zaman='🕐 '+c.basla+(c.bitis!='-'?' → '+c.bitis:'');
+  var sure=(c.status=='ended'&&c.talk_sec>=0)?('<div class=dur>'+c.talk_sec+'<small>sn</small></div>'):'';
+  h+='<div class="c '+b[0]+'"><div><div class=who>'+esc(c.caller)+'<span class=ar>→</span>'+esc(c.callee)+'</div>'+
+   '<div class=meta><span>'+tip+'</span><span>'+zaman+'</span>'+(ring?'<span>'+ring+'</span>':'')+'</div></div>'+
+   '<div class=right><span class="badge '+b[0]+'">'+b[1]+'</span>'+sure+'</div></div>';}
+ L.innerHTML=h;}
 async function yenile(){
- try{
-  var r=await fetch('/admin/calls?key='+encodeURIComponent(key));
-  if(!r.ok){document.getElementById('durum').textContent='❌ yetkisiz — key yanlis';return;}
-  var d=await r.json();var g=document.getElementById('govde');g.innerHTML='';
-  for(var i=0;i<d.length;i++){var c=d[i];
-   var tr=document.createElement('tr');tr.className=sinif(c.status,c.talk_sec);
-   var ring=c.ring_sec>=0?c.ring_sec:'-';var talk=c.talk_sec>=0?c.talk_sec:'-';
-   tr.innerHTML='<td>'+c.caller+' → '+c.callee+'</td>'+
-    '<td>'+ikon(c.type)+' '+(c.type=='video'?'Goruntulu':'Sesli')+'</td>'+
-    '<td>'+durum(c.status,c.talk_sec)+'</td>'+
-    '<td>'+c.basla+'</td><td>'+ring+'</td><td>'+c.bitis+'</td>'+
-    '<td class=dur>'+talk+'</td>';
-   g.appendChild(tr);}
-  document.getElementById('durum').textContent='🟢 canli • '+d.length+' arama • '+new Date().toLocaleTimeString('tr');
- }catch(e){document.getElementById('durum').textContent='baglanti hatasi';}}
-document.getElementById('aciklama').innerHTML='🟢 konusuldu (2sn+) &nbsp; 🟡 baglandi hemen koptu (patlama suphesi) &nbsp; ⚪ cevapsiz &nbsp; 🟠 reddedildi &nbsp; 🟣 mesgul &nbsp; 🔴 acik/canli<br>Cevap(sn) = kac saniyede acildi (art arda arama hizi) &nbsp;|&nbsp; Sure(sn) = konusma suresi';
-function baglanWs(){try{
- var ws=new WebSocket((location.protocol=='https:'?'wss':'ws')+'://'+location.host+'/admin/ws?key='+encodeURIComponent(key));
- ws.onmessage=function(){yenile();};
- ws.onclose=function(){setTimeout(baglanWs,2000);};
-}catch(e){setTimeout(baglanWs,2000);}}
-yenile();baglanWs();setInterval(yenile,10000);
+ try{var r=await fetch('/admin/calls?key='+encodeURIComponent(key));
+  if(!r.ok){document.getElementById('st').textContent='yetkisiz — key yanlış';return;}
+  render(await r.json());
+  document.getElementById('st').textContent='canlı · '+new Date().toLocaleTimeString('tr');
+ }catch(e){document.getElementById('st').textContent='bağlantı yok';}}
+function ws(){try{var s=new WebSocket((location.protocol=='https:'?'wss':'ws')+'://'+location.host+'/admin/ws?key='+encodeURIComponent(key));s.onmessage=function(){yenile();};s.onclose=function(){setTimeout(ws,2000);};}catch(e){setTimeout(ws,2000);}}
+yenile();ws();setInterval(yenile,10000);
 </script></body></html>`
 
 func getEnv(k, def string) string {
