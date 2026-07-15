@@ -819,11 +819,7 @@ func (h *Handler) AdminCalls(w http.ResponseWriter, r *http.Request) {
 
 // GET /admin/izle?key=X — canli arama izleme paneli (HTML)
 func (h *Handler) AdminPanel(w http.ResponseWriter, r *http.Request) {
-	if !adminYetkili(r) {
-		w.WriteHeader(http.StatusUnauthorized)
-		w.Write([]byte("yetkisiz — dogru ?key= gerekli"))
-		return
-	}
+	// Panel HTML herkese acik (login ekrani icinde); asil koruma /admin/stats|users|calls (key ile)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Write([]byte(adminHTML))
 }
