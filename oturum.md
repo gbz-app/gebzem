@@ -589,3 +589,13 @@ Kullanıcı gerçek cihaz testinde: "1:23 sayıyor tuş takımı kalıyor tıkla
 - Kullanıcı Google Play hesabı ($25) alacak → TestFlight (app.gebzem yeni ASC record + CI App Store upload) + Play Internal Testing kurulumu.
 - İkincil (ele alınmadı): _connect başında poll boşluğu (room.connect uzun sürerse kısa kurtarma-pollsuz pencere; kalıcı takılma değil, room.connect timeout'u var).
 
+## Oturum 13 (15 Tem 2026) — Admin CANLI arama izleme paneli (test aracı)
+Kullanıcı test için anlık arama görünümü istedi (SSH log çekmeden, önündeki 2 telefonla). Backend'e eklendi (commit 60fbba5, CANLI):
+- **GET /admin/izle?key=gbz-izle-2026** — canlı HTML panel, **WebSocket ile ANLIK** (2sn polling değil)
+- GET /admin/calls?key= — son 50 arama JSON (arayan/aranan isim + süreler); GET /admin/ws?key= — Redis "events" dinler, call.* olayında panele anında "guncelle" push
+- chat/hub.go'ya `Subscribe(ctx) *redis.PubSub` eklendi (admin WS için ham abonelik)
+- Renk kodlu: 🟢 konuşuldu(talk≥2sn), 🟡 hemen koptu (patlama şüphesi), ⚪ cevapsız, 🟠 reddedildi, 🟣 meşgul, 🔴 canlı/açık
+- Sütunlar: Arayan→Aranan, Tip(sesli/görüntülü), Durum, Başladı, **Cevap(sn)**=ring hızı (art arda arama), Bitti, **Süre(sn)**=konuşma
+- Auth: ADMIN_KEY env (yoksa varsayılan gbz-izle-2026). DB temizlenince panel otomatik boşalır (calls tablosunu yansıtır)
+- Kullanım: tarayıcıda aç + açık bırak; iki telefonla arama yaparken kim-kimi/süre/senkron ANLIK görünür → test çok kolaylaştı
+
