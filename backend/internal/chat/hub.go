@@ -102,6 +102,11 @@ func (h *Hub) Unregister(c *Client) {
 	close(c.Send)
 }
 
+// Subscribe: "events" kanalina ham abonelik (admin izleme paneli anlik guncelleme icin)
+func (h *Hub) Subscribe(ctx context.Context) *redis.PubSub {
+	return h.rdb.Subscribe(ctx, "events")
+}
+
 // Online: kullanicinin bu instance'da acik soketi var mi
 func (h *Hub) Online(userID string) bool {
 	h.mu.RLock()

@@ -93,6 +93,11 @@ func main() {
 		w.Write([]byte(`{"status":"ok"}`))
 	})
 
+	// Admin canli arama izleme paneli (JWT DEGIL, ?key= ile korumali; WS ile anlik)
+	r.Get("/admin/izle", callsH.AdminPanel)
+	r.Get("/admin/calls", callsH.AdminCalls)
+	r.Get("/admin/ws", callsH.AdminWS)
+
 	// iOS test cihazi kaydi (Over-The-Air) — profil yukleyen iPhone UDID'sini buraya yollar
 	r.Post("/udid", udid.Handle)
 

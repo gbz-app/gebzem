@@ -7,10 +7,12 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/gorilla/websocket"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/gbz-app/gebzem/backend/internal/auth"
@@ -582,6 +584,177 @@ func (h *Handler) logMissedToChat(ctx context.Context, callerID, calleeID, callT
 		go h.push.NotifyUsers([]string{calleeID}, callerName, onizleme, chatID)
 	}
 }
+
+// ---- ADMIN IZLEME PANELI (test icin canli arama gorunumu) ----
+
+func adminYetkili(r *http.Request) bool {
+	key := os.Getenv("ADMIN_KEY")
+	if key == "" {
+		key = "gbz-izle-2026" // prototip varsayilan
+	}
+	return r.URL.Query().Get("key") == key
+}
+
+var adminUpgrader = websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
+
+// GET /admin/ws?key=X — arama olayi (call.incoming/answered/ended) olunca panele ANINDA
+// "guncelle" push eder (Redis "events" dinlenir). Panel bunu alinca /admin/calls'i taze ceker.
+func (h *Handler) AdminWS(w http.ResponseWriter, r *http.Request) {
+	if !adminYetkili(r) {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	conn, err := adminUpgrader.Upgrade(w, r, nil)
+	if err != nil {
+		return
+	}
+	defer conn.Close()
+	sub := h.hub.Subscribe(r.Context())
+	defer sub.Close()
+	ch := sub.Channel()
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case msg, ok := <-ch:
+			if !ok {
+				return
+			}
+			if strings.Contains(msg.Payload, "call.") {
+				conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
+				if conn.WriteMessage(websocket.TextMessage, []byte("guncelle")) != nil {
+					return
+				}
+			}
+		}
+	}
+}
+
+// GET /admin/calls?key=X — son 50 arama (isim + sureler), panel JS'i buradan ceker
+func (h *Handler) AdminCalls(w http.ResponseWriter, r *http.Request) {
+	if !adminYetkili(r) {
+		writeErr(w, http.StatusUnauthorized, "yetkisiz")
+		return
+	}
+	rows, err := h.db.Query(r.Context(), `
+		SELECT substr(c.id::text,1,8), c.type, c.status,
+		       COALESCE(uc.name,'?'), COALESCE(ue.name,'?'),
+		       to_char(c.created_at,'HH24:MI:SS'),
+		       COALESCE(to_char(c.answered_at,'HH24:MI:SS'),'-'),
+		       COALESCE(to_char(c.ended_at,'HH24:MI:SS'),'-'),
+		       COALESCE(EXTRACT(EPOCH FROM (c.answered_at-c.created_at))::int, -1),
+		       COALESCE(EXTRACT(EPOCH FROM (c.ended_at-c.answered_at))::int, -1)
+		FROM calls c
+		JOIN users uc ON uc.id=c.caller_id
+		JOIN users ue ON ue.id=c.callee_id
+		ORDER BY c.created_at DESC LIMIT 50`)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "sorgu hatasi")
+		return
+	}
+	defer rows.Close()
+	type row struct {
+		ID      string `json:"id"`
+		Type    string `json:"type"`
+		Status  string `json:"status"`
+		Caller  string `json:"caller"`
+		Callee  string `json:"callee"`
+		Basla   string `json:"basla"`
+		Cevap   string `json:"cevap"`
+		Bitis   string `json:"bitis"`
+		RingSec int    `json:"ring_sec"`
+		TalkSec int    `json:"talk_sec"`
+	}
+	out := []row{}
+	for rows.Next() {
+		var x row
+		if rows.Scan(&x.ID, &x.Type, &x.Status, &x.Caller, &x.Callee,
+			&x.Basla, &x.Cevap, &x.Bitis, &x.RingSec, &x.TalkSec) == nil {
+			out = append(out, x)
+		}
+	}
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	writeJSON(w, http.StatusOK, out)
+}
+
+// GET /admin/izle?key=X — canli arama izleme paneli (HTML)
+func (h *Handler) AdminPanel(w http.ResponseWriter, r *http.Request) {
+	if !adminYetkili(r) {
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte("yetkisiz — dogru ?key= gerekli"))
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Write([]byte(adminHTML))
+}
+
+const adminHTML = `<!doctype html><html><head><meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1">
+<title>Gebzem — Arama Izle</title>
+<style>
+body{background:#0b141a;color:#e9edef;font-family:system-ui,-apple-system,sans-serif;margin:0;padding:12px}
+h1{font-size:18px;margin:0 0 4px}
+#durum{color:#25d366;font-size:13px;margin-bottom:8px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:7px 8px;text-align:left;border-bottom:1px solid #222d34;white-space:nowrap}
+th{color:#8696a0;font-weight:600;font-size:11px;text-transform:uppercase}
+tr.okk{background:rgba(37,211,102,.10)}
+tr.sus{background:rgba(255,193,7,.14)}
+tr.mis{opacity:.55}
+tr.rej{background:rgba(255,152,0,.12)}
+tr.bsy{background:rgba(156,39,176,.14)}
+tr.act{background:rgba(244,67,54,.20);animation:bl 1s infinite}
+@keyframes bl{50%{opacity:.55}}
+.dur{font-weight:700;font-size:15px}
+#aciklama{color:#8696a0;font-size:12px;margin-top:10px;line-height:1.5}
+</style></head><body>
+<h1>📞 Gebzem — Canli Arama Izleme</h1>
+<div id=durum>baglaniyor…</div>
+<table><thead><tr>
+<th>Arayan → Aranan</th><th>Tip</th><th>Durum</th><th>Basladi</th><th>Cevap(sn)</th><th>Bitti</th><th>Sure(sn)</th>
+</tr></thead><tbody id=govde></tbody></table>
+<div id=aciklama></div>
+<script>
+var key=new URLSearchParams(location.search).get('key')||'';
+function ikon(t){return t=='video'?'📹':'🎤';}
+function sinif(s,talk){
+ if(s=='active')return 'act';
+ if(s=='missed')return 'mis';
+ if(s=='rejected')return 'rej';
+ if(s=='busy')return 'bsy';
+ if(s=='ended')return (talk!=null&&talk>=2)?'okk':'sus';
+ return '';}
+function durum(s,talk){
+ if(s=='active')return '🔴 CANLI/acik';
+ if(s=='missed')return '⚪ cevapsiz';
+ if(s=='rejected')return '🟠 reddedildi';
+ if(s=='busy')return '🟣 mesgul';
+ if(s=='ended')return (talk>=2)?'🟢 konusuldu':'🟡 hemen koptu?';
+ return s;}
+async function yenile(){
+ try{
+  var r=await fetch('/admin/calls?key='+encodeURIComponent(key));
+  if(!r.ok){document.getElementById('durum').textContent='❌ yetkisiz — key yanlis';return;}
+  var d=await r.json();var g=document.getElementById('govde');g.innerHTML='';
+  for(var i=0;i<d.length;i++){var c=d[i];
+   var tr=document.createElement('tr');tr.className=sinif(c.status,c.talk_sec);
+   var ring=c.ring_sec>=0?c.ring_sec:'-';var talk=c.talk_sec>=0?c.talk_sec:'-';
+   tr.innerHTML='<td>'+c.caller+' → '+c.callee+'</td>'+
+    '<td>'+ikon(c.type)+' '+(c.type=='video'?'Goruntulu':'Sesli')+'</td>'+
+    '<td>'+durum(c.status,c.talk_sec)+'</td>'+
+    '<td>'+c.basla+'</td><td>'+ring+'</td><td>'+c.bitis+'</td>'+
+    '<td class=dur>'+talk+'</td>';
+   g.appendChild(tr);}
+  document.getElementById('durum').textContent='🟢 canli • '+d.length+' arama • '+new Date().toLocaleTimeString('tr');
+ }catch(e){document.getElementById('durum').textContent='baglanti hatasi';}}
+document.getElementById('aciklama').innerHTML='🟢 konusuldu (2sn+) &nbsp; 🟡 baglandi hemen koptu (patlama suphesi) &nbsp; ⚪ cevapsiz &nbsp; 🟠 reddedildi &nbsp; 🟣 mesgul &nbsp; 🔴 acik/canli<br>Cevap(sn) = kac saniyede acildi (art arda arama hizi) &nbsp;|&nbsp; Sure(sn) = konusma suresi';
+function baglanWs(){try{
+ var ws=new WebSocket((location.protocol=='https:'?'wss':'ws')+'://'+location.host+'/admin/ws?key='+encodeURIComponent(key));
+ ws.onmessage=function(){yenile();};
+ ws.onclose=function(){setTimeout(baglanWs,2000);};
+}catch(e){setTimeout(baglanWs,2000);}}
+yenile();baglanWs();setInterval(yenile,10000);
+</script></body></html>`
 
 func getEnv(k, def string) string {
 	if v := os.Getenv(k); v != "" {
