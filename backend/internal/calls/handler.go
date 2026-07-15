@@ -188,6 +188,15 @@ func (h *Handler) Start(w http.ResponseWriter, r *http.Request) {
 	// DIKKAT: 'active' icin ZAMAN SINIRI SART. Uygulama arama sirasinda cokerse
 	// End() hic cagrilmaz, satir sonsuza dek 'active' kalir ve o kullaniciya gelen
 	// HER arama "mesgul" doner (kullanici kalici olarak aranamaz olur).
+	// BUG2 (art arda arama gitmiyor): Ayni arayanin bu callee'ye ONCEKI takili 'ringing'
+	// aramasini temizle. Terminated'da reddetme sunucuya ulasmayabildigi icin (bilinen CallKit
+	// siniri) 1. arama 'ringing' takili kalip callee'yi ~45sn KALICI 'mesgul' gosteriyor ve
+	// AYNI kisinin tekrar aramasini blokluyordu -> 2. aramaya hic VoIP push atilmiyordu.
+	// Ayni cift icin eski ringing'i missed'e cekince tekrar arama HER ZAMAN gecer + taze push atilir.
+	h.db.Exec(r.Context(),
+		`UPDATE calls SET status='missed', ended_at=now()
+		 WHERE caller_id=$1 AND callee_id=$2 AND status='ringing'`, callerID, req.CalleeID)
+
 	var busy bool
 	h.db.QueryRow(r.Context(), `
 		SELECT EXISTS(SELECT 1 FROM calls
