@@ -276,32 +276,32 @@ func (h *Handler) Start(w http.ResponseWriter, r *http.Request) {
 		"caller_name":   callerName,
 		"caller_avatar": callerAvatar,
 	}
-	// Callee'nin bu sunucuda CANLI WebSocket'i var mi?
-	//  VAR  -> uygulama on planda; WS "call.incoming" (yukarida) zaten gelen arama ekranini
-	//          gosteriyor. Push GONDERME — yoksa iOS'ta CallKit de acilir ve uygulama ici
-	//          ekranla CIFT gosterim + ses oturumu cakismasi olur.
-	//  YOK  -> uygulama kapali/arka planda; kilit ekraninda calmasi icin push SART
-	//          (iOS'ta VoIP push -> CallKit zorunlu).
+	// HER ZAMAN push at (online-gating KALDIRILDI). KANIT (canli loglar): callee arka
+	// planda/kilitliyken WS ~35sn "online" (stale) gorunup push'u engelliyordu; o pencerede
+	// gelen aramalar (ozellikle art arda) sadece WS'e gidiyor, kilitli cihaz isleyemiyor ->
+	// CALMIYOR. Loglarda online=true kayitlar 'missed', online=false kayitlar 'rejected'
+	// (gorulup reddedildi) cikiyordu = birebir korelasyon.
+	// CIFT-UI (Oturum 7) onlemi ISTEMCIDE: iOS'ta call.incoming WS overlay'i BASTIRILIR
+	// (arama yalniz CallKit/VoIP push ile gelir); Android'de on planda onMessage call.incoming'i
+	// zaten islemez (WS overlay gosterir), arka planda FCM data -> CallKit. Boylece cift gosterim yok.
 	online := h.hub.Online(req.CalleeID)
-	log.Printf("arama daveti: call=%s callee online=%v (online->WS, offline->push)", callID[:8], online)
-	if !online {
-		if h.push != nil {
-			go h.push.CallInvite([]string{req.CalleeID}, davet)
-		}
-		if h.apns != nil {
-			go func() {
-				ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-				defer cancel()
-				h.apns.CallInvite(ctx, req.CalleeID, map[string]any{
-					"call_id":       callID,
-					"room":          roomName,
-					"call_type":     callType,
-					"caller_id":     callerID,
-					"caller_name":   callerName,
-					"caller_avatar": callerAvatar,
-				})
-			}()
-		}
+	log.Printf("arama daveti: call=%s callee online=%v (WS + HER ZAMAN push)", callID[:8], online)
+	if h.push != nil {
+		go h.push.CallInvite([]string{req.CalleeID}, davet)
+	}
+	if h.apns != nil {
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			h.apns.CallInvite(ctx, req.CalleeID, map[string]any{
+				"call_id":       callID,
+				"room":          roomName,
+				"call_type":     callType,
+				"caller_id":     callerID,
+				"caller_name":   callerName,
+				"caller_avatar": callerAvatar,
+			})
+		}()
 	}
 
 	writeJSON(w, http.StatusCreated, map[string]any{

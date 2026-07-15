@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -57,6 +58,11 @@ class CallService extends StateNotifier<IncomingCall?> {
 
     switch (ev['type']) {
       case 'call.incoming':
+        // iOS: gelen arama HER ZAMAN VoIP push -> CallKit ile gelir (backend her zaman push atar).
+        // WS overlay'i de acarsak on planda CIFT gosterim + ses cakismasi olur (Oturum 7).
+        // iOS'ta WS call.incoming yok sayilir; arama yalniz CallKit'ten. Android'de on planda
+        // WS overlay kullanilir (arka planda FCM data -> CallKit).
+        if (Platform.isIOS) return;
         final id = p['call_id'] as String? ?? '';
         // Ayni arama CallKit (kilit ekrani) uzerinden zaten gosterildiyse
         // uygulama ici ekrani ACMA — yoksa cift arama ekrani cikar.
@@ -97,7 +103,13 @@ class CallService extends StateNotifier<IncomingCall?> {
     try {
       final res = await _ref.read(apiProvider).get('/calls/active');
       final data = (res.data as Map).cast<String, dynamic>();
-      if (data['call_id'] is String) state = IncomingCall.fromJson(data);
+      if (data['call_id'] is String) {
+        final id = data['call_id'] as String;
+        // iOS'ta arama CallKit ile gosterilir; CallKit zaten gosterdiyse uygulama-ici overlay
+        // ACMA (cift gosterim olmasin). VoIP push kacirilmis nadir durumda overlay yedek kalir.
+        if (Platform.isIOS && CallKitService.islenenler.contains(id)) return;
+        state = IncomingCall.fromJson(data);
+      }
     } catch (_) {
       // sessiz gec — arama yoksa sorun degil
     }

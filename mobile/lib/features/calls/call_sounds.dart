@@ -20,9 +20,13 @@ class CallSounds {
   static bool _calan = false;
   static Timer? _titresim;
 
-  /// Gelen arama: zil (kullanicinin melodisi arama.mp3) dongude calar + telefon titrer
+  /// Gelen arama: klasik telefon zili (zil.wav) dongude calar + telefon titrer.
+  /// NOT: Bu SADECE Android ON PLAN uygulama-ici gelen arama ekrani icin. iOS'ta ve
+  /// Android arka planda arama CallKit ile gelir; CallKit telefonun KENDI sistem zilini
+  /// calar (callkit_service: Android system_ringtone_default, iOS varsayilan). Kullanici
+  /// istegi: melodi (arama.mp3) kaldirildi, kendi/klasik zil sesi kullaniliyor.
   static Future<void> gelenArama() async {
-    await _cal('sounds/arama.mp3', sesli: true);
+    await _cal('sounds/zil.wav', sesli: true);
     _titresimBaslat();
   }
 
