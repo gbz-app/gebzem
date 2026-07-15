@@ -93,8 +93,12 @@ func main() {
 		w.Write([]byte(`{"status":"ok"}`))
 	})
 
-	// Admin canli arama izleme paneli (JWT DEGIL, ?key= ile korumali; WS ile anlik)
+	// Admin dashboard (login + kullanicilar + aramalar; ?key= korumali, WS ile anlik)
 	r.Get("/admin/izle", callsH.AdminPanel)
+	r.Post("/admin/login", callsH.AdminLogin)
+	r.Get("/admin/stats", callsH.AdminStats)
+	r.Get("/admin/users", callsH.AdminUsers)
+	r.Get("/admin/user/{id}", callsH.AdminUserDetail)
 	r.Get("/admin/calls", callsH.AdminCalls)
 	r.Get("/admin/ws", callsH.AdminWS)
 

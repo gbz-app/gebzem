@@ -587,12 +587,152 @@ func (h *Handler) logMissedToChat(ctx context.Context, callerID, calleeID, callT
 
 // ---- ADMIN IZLEME PANELI (test icin canli arama gorunumu) ----
 
-func adminYetkili(r *http.Request) bool {
-	key := os.Getenv("ADMIN_KEY")
-	if key == "" {
-		key = "gbz-izle-2026" // prototip varsayilan
+func adminKey() string {
+	if k := os.Getenv("ADMIN_KEY"); k != "" {
+		return k
 	}
-	return r.URL.Query().Get("key") == key
+	return "gbz-izle-2026" // prototip varsayilan
+}
+
+func adminYetkili(r *http.Request) bool {
+	return r.URL.Query().Get("key") == adminKey()
+}
+
+// POST /admin/login {user,pass} -> {key}. Panel key'i localStorage'da saklar.
+func (h *Handler) AdminLogin(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		User string `json:"user"`
+		Pass string `json:"pass"`
+	}
+	json.NewDecoder(r.Body).Decode(&req)
+	u := os.Getenv("ADMIN_USER")
+	if u == "" {
+		u = "admin"
+	}
+	p := os.Getenv("ADMIN_PASS")
+	if p == "" {
+		p = "Gebzem2026!"
+	}
+	if req.User == u && req.Pass == p {
+		writeJSON(w, http.StatusOK, map[string]string{"key": adminKey()})
+		return
+	}
+	writeErr(w, http.StatusUnauthorized, "hatali kullanici adi veya sifre")
+}
+
+// GET /admin/stats?key= -> ozet sayilar
+func (h *Handler) AdminStats(w http.ResponseWriter, r *http.Request) {
+	if !adminYetkili(r) {
+		writeErr(w, http.StatusUnauthorized, "yetkisiz")
+		return
+	}
+	var uc, cc, cok, ccev, cakt, cvid int
+	h.db.QueryRow(r.Context(), `SELECT count(*) FROM users`).Scan(&uc)
+	h.db.QueryRow(r.Context(), `SELECT count(*) FROM calls`).Scan(&cc)
+	h.db.QueryRow(r.Context(), `SELECT count(*) FROM calls WHERE status='ended' AND ended_at-answered_at >= interval '2 seconds'`).Scan(&cok)
+	h.db.QueryRow(r.Context(), `SELECT count(*) FROM calls WHERE status IN ('missed','rejected')`).Scan(&ccev)
+	h.db.QueryRow(r.Context(), `SELECT count(*) FROM calls WHERE status='active'`).Scan(&cakt)
+	h.db.QueryRow(r.Context(), `SELECT count(*) FROM calls WHERE type='video'`).Scan(&cvid)
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	writeJSON(w, http.StatusOK, map[string]int{
+		"users": uc, "calls": cc, "konusuldu": cok, "cevapsiz": ccev, "aktif": cakt, "video": cvid,
+	})
+}
+
+// GET /admin/users?key= -> kullanici listesi (arama/mesaj sayilariyla)
+func (h *Handler) AdminUsers(w http.ResponseWriter, r *http.Request) {
+	if !adminYetkili(r) {
+		writeErr(w, http.StatusUnauthorized, "yetkisiz")
+		return
+	}
+	rows, err := h.db.Query(r.Context(), `
+		SELECT u.id, u.name, COALESCE(u.username,''), u.phone, COALESCE(u.avatar_url,''),
+		       u.coin_balance, u.verified, to_char(u.created_at,'DD.MM.YY HH24:MI'),
+		       COALESCE(to_char(u.last_seen,'DD.MM HH24:MI'),'-'),
+		       (SELECT count(*) FROM calls c WHERE c.caller_id=u.id OR c.callee_id=u.id),
+		       (SELECT count(*) FROM messages m WHERE m.sender_id=u.id)
+		FROM users u ORDER BY u.created_at DESC LIMIT 300`)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "sorgu hatasi")
+		return
+	}
+	defer rows.Close()
+	type u struct {
+		ID       string `json:"id"`
+		Name     string `json:"name"`
+		Username string `json:"username"`
+		Phone    string `json:"phone"`
+		Avatar   string `json:"avatar"`
+		Coin     int64  `json:"coin"`
+		Verified bool   `json:"verified"`
+		Created  string `json:"created"`
+		LastSeen string `json:"last_seen"`
+		Calls    int    `json:"calls"`
+		Msgs     int    `json:"msgs"`
+	}
+	out := []u{}
+	for rows.Next() {
+		var x u
+		if rows.Scan(&x.ID, &x.Name, &x.Username, &x.Phone, &x.Avatar, &x.Coin, &x.Verified,
+			&x.Created, &x.LastSeen, &x.Calls, &x.Msgs) == nil {
+			out = append(out, x)
+		}
+	}
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	writeJSON(w, http.StatusOK, out)
+}
+
+// GET /admin/user/{id}?key= -> profil + tum aramalari
+func (h *Handler) AdminUserDetail(w http.ResponseWriter, r *http.Request) {
+	if !adminYetkili(r) {
+		writeErr(w, http.StatusUnauthorized, "yetkisiz")
+		return
+	}
+	id := chi.URLParam(r, "id")
+	var name, username, phone, avatar, about, created, lastSeen string
+	var coin int64
+	var verified bool
+	err := h.db.QueryRow(r.Context(), `
+		SELECT name, COALESCE(username,''), phone, COALESCE(avatar_url,''), about,
+		       coin_balance, verified, to_char(created_at,'DD.MM.YYYY HH24:MI'),
+		       COALESCE(to_char(last_seen,'DD.MM.YY HH24:MI'),'-')
+		FROM users WHERE id=$1`, id).
+		Scan(&name, &username, &phone, &avatar, &about, &coin, &verified, &created, &lastSeen)
+	if err != nil {
+		writeErr(w, http.StatusNotFound, "kullanici bulunamadi")
+		return
+	}
+	rows, _ := h.db.Query(r.Context(), `
+		SELECT c.type, c.status, (c.caller_id=$1) AS giden,
+		       COALESCE(p.name,'?'), to_char(c.created_at,'DD.MM HH24:MI'),
+		       COALESCE(EXTRACT(EPOCH FROM (c.ended_at-c.answered_at))::int, -1)
+		FROM calls c
+		JOIN users p ON p.id = CASE WHEN c.caller_id=$1 THEN c.callee_id ELSE c.caller_id END
+		WHERE c.caller_id=$1 OR c.callee_id=$1
+		ORDER BY c.created_at DESC LIMIT 100`, id)
+	type call struct {
+		Type   string `json:"type"`
+		Status string `json:"status"`
+		Giden  bool   `json:"giden"`
+		Peer   string `json:"peer"`
+		Zaman  string `json:"zaman"`
+		Talk   int    `json:"talk"`
+	}
+	calls := []call{}
+	if rows != nil {
+		for rows.Next() {
+			var c call
+			if rows.Scan(&c.Type, &c.Status, &c.Giden, &c.Peer, &c.Zaman, &c.Talk) == nil {
+				calls = append(calls, c)
+			}
+		}
+		rows.Close()
+	}
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	writeJSON(w, http.StatusOK, map[string]any{
+		"name": name, "username": username, "phone": phone, "avatar": avatar, "about": about,
+		"coin": coin, "verified": verified, "created": created, "last_seen": lastSeen, "calls": calls,
+	})
 }
 
 var adminUpgrader = websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
@@ -690,89 +830,131 @@ func (h *Handler) AdminPanel(w http.ResponseWriter, r *http.Request) {
 
 const adminHTML = `<!doctype html><html lang=tr><head><meta charset=utf-8>
 <meta name=viewport content="width=device-width,initial-scale=1">
-<title>Gebzem · Arama İzleme</title>
+<title>Gebzem · Admin</title>
 <style>
-:root{--card:#141b22;--card2:#1b242d;--line:#232f39;--txt:#e9edef;--dim:#8696a0;--green:#25d366;--yellow:#ffb020;--red:#f04747;--orange:#ff8c42;--purple:#b57edc}
-*{box-sizing:border-box}
-body{background:radial-gradient(1200px 600px at 50% -10%,#12202b,#0a0e12);color:var(--txt);font-family:-apple-system,system-ui,'Segoe UI',sans-serif;margin:0;padding:16px;min-height:100vh}
-.wrap{max-width:900px;margin:0 auto}
-.head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px}
-.title{font-size:21px;font-weight:800;display:flex;align-items:center;gap:8px}
-.title .sub{color:var(--dim);font-weight:400;font-size:15px}
-.live{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--green);background:rgba(37,211,102,.12);padding:6px 13px;border-radius:20px;font-variant-numeric:tabular-nums}
-.d{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:p 1.4s infinite}
-@keyframes p{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(1.35)}}
-.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(115px,1fr));gap:10px;margin-bottom:18px}
-.stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px 15px}
-.stat .n{font-size:25px;font-weight:800;line-height:1}
-.stat .l{font-size:11.5px;color:var(--dim);margin-top:5px}
-.list{display:flex;flex-direction:column;gap:8px}
+:root{--bg:#0b0f17;--side:#111725;--card:#161d2e;--card2:#1c2436;--line:#242d42;--txt:#e8ecf4;--dim:#8b95ad;--acc:#6366f1;--acc2:#8b5cf6;--green:#22c55e;--yellow:#eab308;--red:#ef4444;--orange:#f97316;--purple:#a855f7}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--txt);font-family:-apple-system,system-ui,'Segoe UI',sans-serif;min-height:100vh}
+.login{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;background:radial-gradient(900px 500px at 50% -10%,#1a2340,#0b0f17)}
+.lcard{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:36px 30px;width:100%;max-width:360px;box-shadow:0 30px 80px rgba(0,0,0,.5)}
+.llogo{font-size:30px;font-weight:800;text-align:center;background:linear-gradient(90deg,var(--acc),var(--acc2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.lsub{text-align:center;color:var(--dim);margin:4px 0 26px;font-size:14px}
+.login input{width:100%;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:13px 15px;color:var(--txt);font-size:15px;margin-bottom:12px;outline:none;transition:.15s}
+.login input:focus{border-color:var(--acc)}
+.login button{width:100%;background:linear-gradient(90deg,var(--acc),var(--acc2));color:#fff;border:0;border-radius:12px;padding:14px;font-size:15px;font-weight:700;cursor:pointer;margin-top:6px}
+.login button:active{transform:scale(.98)}
+.lerr{color:var(--red);font-size:13px;text-align:center;margin-top:12px;min-height:18px}
+.app{display:flex;min-height:100vh}
+.side{width:225px;background:var(--side);border-right:1px solid var(--line);padding:22px 16px;display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
+.brand{font-size:21px;font-weight:800;margin-bottom:28px;padding:0 8px;background:linear-gradient(90deg,var(--acc),var(--acc2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.side nav{display:flex;flex-direction:column;gap:4px}
+.side nav a{display:flex;align-items:center;gap:11px;padding:12px 14px;border-radius:11px;color:var(--dim);font-size:14.5px;font-weight:600;cursor:pointer;transition:.15s}
+.side nav a:hover{background:var(--card);color:var(--txt)}
+.side nav a.active{background:linear-gradient(90deg,rgba(99,102,241,.20),rgba(139,92,246,.08));color:#fff}
+.logout{margin-top:auto;padding:12px 14px;border-radius:11px;color:var(--dim);font-size:14px;cursor:pointer;font-weight:600}
+.logout:hover{background:rgba(239,68,68,.12);color:var(--red)}
+.main{flex:1;padding:22px 26px;overflow-x:hidden}
+.topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px}
+.ptitle{font-size:22px;font-weight:800}
+.live{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--green);background:rgba(34,197,94,.12);padding:6px 13px;border-radius:20px}
+.dd{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:pp 1.4s infinite}
+@keyframes pp{0%,100%{opacity:1}50%{opacity:.35}}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:24px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px 20px;position:relative;overflow:hidden}
+.kpi:before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--acc),var(--acc2))}
+.kpi .n{font-size:32px;font-weight:800;line-height:1}
+.kpi .l{font-size:12.5px;color:var(--dim);margin-top:7px}
+.kpi .ic{position:absolute;top:16px;right:18px;font-size:22px;opacity:.5}
+.ulist{display:flex;flex-direction:column;gap:9px}
+.u{background:var(--card);border:1px solid var(--line);border-radius:15px;padding:13px 16px;display:flex;align-items:center;gap:14px;cursor:pointer;transition:.15s}
+.u:hover{background:var(--card2);transform:translateX(3px);border-color:var(--acc)}
+.av{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,var(--acc),var(--acc2));display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px;flex-shrink:0;color:#fff}
+.uinfo{flex:1;min-width:0}
+.uname{font-size:15px;font-weight:700;display:flex;align-items:center;gap:7px}
+.tik{color:var(--acc);font-size:13px}
+.umeta{font-size:12.5px;color:var(--dim);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ustat{text-align:right;font-size:12px;color:var(--dim);white-space:nowrap}
+.ustat b{color:var(--txt);font-size:15px}
+.clist{display:flex;flex-direction:column;gap:8px}
 .c{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--dim);border-radius:13px;padding:12px 15px;display:flex;align-items:center;justify-content:space-between;gap:12px;transition:.15s}
-.c:hover{background:var(--card2);transform:translateX(2px)}
-.c.g{border-left-color:var(--green)}.c.y{border-left-color:var(--yellow)}.c.r{border-left-color:var(--red);animation:gl 1.6s infinite}.c.o{border-left-color:var(--orange)}.c.p{border-left-color:var(--purple)}.c.m{border-left-color:#3a4750;opacity:.72}
-@keyframes gl{50%{background:rgba(240,71,71,.10);border-left-color:#ff8a8a}}
-.who{font-size:15px;font-weight:600}.who .ar{color:var(--dim);margin:0 5px}
-.meta{font-size:12px;color:var(--dim);margin-top:4px;display:flex;gap:12px;flex-wrap:wrap}
-.right{text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:5px}
-.badge{font-size:12px;font-weight:700;padding:4px 11px;border-radius:8px;white-space:nowrap}
-.badge.g{background:rgba(37,211,102,.16);color:#4be089}
-.badge.y{background:rgba(255,176,32,.16);color:var(--yellow)}
-.badge.r{background:rgba(240,71,71,.20);color:#ff8a8a}
-.badge.o{background:rgba(255,140,66,.16);color:var(--orange)}
-.badge.p{background:rgba(181,126,220,.16);color:var(--purple)}
-.badge.m{background:rgba(134,150,160,.14);color:var(--dim)}
-.dur{font-size:19px;font-weight:800}.dur small{font-size:11px;color:var(--dim);font-weight:600}
-.empty{text-align:center;padding:64px 20px;color:var(--dim)}.empty .i{font-size:52px;margin-bottom:14px}
-.foot{margin-top:20px;font-size:11.5px;color:var(--dim);text-align:center;line-height:1.9;border-top:1px solid var(--line);padding-top:14px}
-</style></head><body><div class=wrap>
-<div class=head>
- <div class=title>📞 Gebzem <span class=sub>Arama İzleme</span></div>
- <div class=live><span class=d></span><span id=st>bağlanıyor…</span></div>
+.c:hover{background:var(--card2)}
+.c.g{border-left-color:var(--green)}.c.y{border-left-color:var(--yellow)}.c.r{border-left-color:var(--red)}.c.o{border-left-color:var(--orange)}.c.p{border-left-color:var(--purple)}.c.m{border-left-color:#3a4258;opacity:.7}
+.who{font-size:14.5px;font-weight:600}.who .ar{color:var(--dim);margin:0 5px}
+.cmeta{font-size:12px;color:var(--dim);margin-top:4px;display:flex;gap:11px;flex-wrap:wrap}
+.badge{font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:8px;white-space:nowrap}
+.badge.g{background:rgba(34,197,94,.16);color:#4ade80}.badge.y{background:rgba(234,179,8,.16);color:var(--yellow)}.badge.r{background:rgba(239,68,68,.18);color:#f87171}.badge.o{background:rgba(249,115,22,.16);color:var(--orange)}.badge.p{background:rgba(168,85,247,.16);color:var(--purple)}.badge.m{background:rgba(139,149,173,.14);color:var(--dim)}
+.dur{font-size:18px;font-weight:800}.dur small{font-size:11px;color:var(--dim)}
+.empty{text-align:center;padding:60px 20px;color:var(--dim)}.empty .i{font-size:50px;margin-bottom:12px}
+.back{color:var(--acc);cursor:pointer;font-size:14px;margin-bottom:16px;display:inline-block;font-weight:600}
+.prof{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:22px;display:flex;gap:18px;align-items:center;margin-bottom:20px;flex-wrap:wrap}
+.prof .pn{font-size:20px;font-weight:800}
+.prof .pm{color:var(--dim);font-size:13.5px;margin-top:5px;line-height:1.7}
+.pill{display:inline-block;background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:3px 10px;font-size:12px;margin:3px 4px 0 0}
+@media(max-width:720px){.side{width:60px;padding:18px 6px}.side nav a span,.brand span,.logout span{display:none}.brand{text-align:center}.side nav a{justify-content:center}.main{padding:16px 13px}}
+</style></head><body>
+<div id=login class=login>
+ <div class=lcard>
+  <div class=llogo>Gebzem</div>
+  <div class=lsub>Yönetim Paneli</div>
+  <input id=lu placeholder="Kullanıcı adı" autocomplete=username>
+  <input id=lp type=password placeholder="Şifre" autocomplete=current-password>
+  <button id=lbtn>Giriş Yap</button>
+  <div id=lerr class=lerr></div>
+ </div>
 </div>
-<div class=stats id=stats></div>
-<div class=list id=list></div>
-<div class=foot id=foot></div>
-</div><script>
-var key=new URLSearchParams(location.search).get('key')||'';
+<div id=app class=app style=display:none>
+ <aside class=side>
+  <div class=brand>📞 <span>Gebzem</span></div>
+  <nav id=nav>
+   <a data-t=genel class=active>📊 <span>Genel Bakış</span></a>
+   <a data-t=users>👥 <span>Kullanıcılar</span></a>
+   <a data-t=calls>📞 <span>Aramalar</span></a>
+  </nav>
+  <div class=logout id=logout>🚪 <span>Çıkış</span></div>
+ </aside>
+ <main class=main>
+  <div class=topbar><div class=ptitle id=ptitle>Genel Bakış</div><div class=live><span class=dd></span><span id=st>canlı</span></div></div>
+  <div id=content></div>
+ </main>
+</div>
+<script>
+var key=localStorage.getItem('gbzkey')||'',sekme='genel';
 function esc(s){var e=document.createElement('span');e.textContent=s==null?'':s;return e.innerHTML;}
-function sb(s,t){
- if(s=='active')return['r','🔴 Canlı'];
- if(s=='missed')return['m','⚪ Cevapsız'];
- if(s=='rejected')return['o','🟠 Reddedildi'];
- if(s=='busy')return['p','🟣 Meşgul'];
- if(s=='ended')return t>=2?['g','🟢 Konuşuldu']:['y','🟡 Hemen koptu'];
- return['m',s];}
-function stat(n,l,c){return '<div class=stat><div class=n'+(c?' style="color:'+c+'"':'')+'>'+n+'</div><div class=l>'+l+'</div></div>';}
-function render(d){
- var L=document.getElementById('list'),S=document.getElementById('stats'),F=document.getElementById('foot');
- F.innerHTML='🟢 konuşuldu (2sn+) &nbsp;·&nbsp; 🟡 hemen koptu (patlama şüphesi) &nbsp;·&nbsp; ⚪ cevapsız &nbsp;·&nbsp; 🟠 reddedildi &nbsp;·&nbsp; 🟣 meşgul &nbsp;·&nbsp; 🔴 canlı<br>⚡ = kaç saniyede açıldı (art arda arama hızı) &nbsp;·&nbsp; sağdaki büyük sayı = konuşma süresi';
- if(!d.length){L.innerHTML='<div class=empty><div class=i>📭</div>Henüz arama yok.<br>İki telefonla arama yap — burada <b>anlık</b> göreceksin.</div>';S.innerHTML='';return;}
- var kon=0,cev=0,pat=0,rt=0,rn=0;
- for(var i=0;i<d.length;i++){var c=d[i];
-  if(c.status=='ended'&&c.talk_sec>=2)kon++;
-  if(c.status=='missed'||c.status=='rejected')cev++;
-  if(c.status=='ended'&&c.talk_sec>=0&&c.talk_sec<2)pat++;
-  if(c.ring_sec>=0){rt+=c.ring_sec;rn++;}}
- var ort=rn?(Math.round(rt/rn*10)/10):'—';
- S.innerHTML=stat(d.length,'Toplam')+stat(kon,'Konuşuldu','#4be089')+stat(cev,'Cevapsız/Red')+stat(pat,'Patlama şüphesi',pat?'var(--yellow)':null)+stat(ort+'sn','Ort. bağlanma');
- var h='';
- for(var i=0;i<d.length;i++){var c=d[i];var b=sb(c.status,c.talk_sec);
-  var tip=c.type=='video'?'📹 Görüntülü':'🎤 Sesli';
-  var ring=c.ring_sec>=0?('⚡ '+c.ring_sec+'sn\'de açıldı'):'';
-  var zaman='🕐 '+c.basla+(c.bitis!='-'?' → '+c.bitis:'');
-  var sure=(c.status=='ended'&&c.talk_sec>=0)?('<div class=dur>'+c.talk_sec+'<small>sn</small></div>'):'';
-  h+='<div class="c '+b[0]+'"><div><div class=who>'+esc(c.caller)+'<span class=ar>→</span>'+esc(c.callee)+'</div>'+
-   '<div class=meta><span>'+tip+'</span><span>'+zaman+'</span>'+(ring?'<span>'+ring+'</span>':'')+'</div></div>'+
-   '<div class=right><span class="badge '+b[0]+'">'+b[1]+'</span>'+sure+'</div></div>';}
- L.innerHTML=h;}
-async function yenile(){
- try{var r=await fetch('/admin/calls?key='+encodeURIComponent(key));
-  if(!r.ok){document.getElementById('st').textContent='yetkisiz — key yanlış';return;}
-  render(await r.json());
-  document.getElementById('st').textContent='canlı · '+new Date().toLocaleTimeString('tr');
- }catch(e){document.getElementById('st').textContent='bağlantı yok';}}
-function ws(){try{var s=new WebSocket((location.protocol=='https:'?'wss':'ws')+'://'+location.host+'/admin/ws?key='+encodeURIComponent(key));s.onmessage=function(){yenile();};s.onclose=function(){setTimeout(ws,2000);};}catch(e){setTimeout(ws,2000);}}
-yenile();ws();setInterval(yenile,10000);
+function ic(s){return s&&s.length?s[0].toUpperCase():'?';}
+function api(p){return fetch(p+(p.indexOf('?')<0?'?':'&')+'key='+encodeURIComponent(key)).then(function(r){if(r.status==401){cikis();throw 0;}return r.json();});}
+document.getElementById('lbtn').onclick=giris;
+document.getElementById('lp').addEventListener('keydown',function(e){if(e.key=='Enter')giris();});
+function giris(){var u=document.getElementById('lu').value,p=document.getElementById('lp').value;
+ fetch('/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user:u,pass:p})})
+  .then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j};});})
+  .then(function(x){if(x.ok&&x.j.key){key=x.j.key;localStorage.setItem('gbzkey',key);basla();}else{document.getElementById('lerr').textContent=x.j.error||'giriş başarısız';}})
+  .catch(function(){document.getElementById('lerr').textContent='bağlantı hatası';});}
+function cikis(){localStorage.removeItem('gbzkey');key='';document.getElementById('app').style.display='none';document.getElementById('login').style.display='flex';}
+document.getElementById('logout').onclick=cikis;
+document.querySelectorAll('#nav a').forEach(function(a){a.onclick=function(){document.querySelectorAll('#nav a').forEach(function(x){x.classList.remove('active');});a.classList.add('active');sekme=a.getAttribute('data-t');document.getElementById('ptitle').textContent=a.textContent.trim();ac();};});
+function sb(s,t){if(s=='active')return['r','🔴 Canlı'];if(s=='missed')return['m','⚪ Cevapsız'];if(s=='rejected')return['o','🟠 Reddedildi'];if(s=='busy')return['p','🟣 Meşgul'];if(s=='ended')return t>=2?['g','🟢 Konuşuldu']:['y','🟡 Hemen koptu'];return['m',s];}
+function callRow(c,pm){var talk=pm?c.talk:c.talk_sec;var b=sb(c.status,talk);var tip=c.type=='video'?'📹 Görüntülü':'🎤 Sesli';
+ var who=pm?((c.giden?'→ ':'← ')+esc(c.peer)):(esc(c.caller)+'<span class=ar>→</span>'+esc(c.callee));
+ var zaman=pm?('🕐 '+c.zaman):('🕐 '+c.basla+(c.bitis&&c.bitis!='-'?' → '+c.bitis:''));
+ var ring=(!pm&&c.ring_sec>=0)?'<span>⚡ '+c.ring_sec+'sn</span>':'';
+ var sure=(c.status=='ended'&&talk>=0)?'<div class=dur>'+talk+'<small>sn</small></div>':'';
+ return '<div class="c '+b[0]+'"><div><div class=who>'+who+'</div><div class=cmeta><span>'+tip+'</span><span>'+zaman+'</span>'+ring+'</div></div><div style=text-align:right><span class="badge '+b[0]+'">'+b[1]+'</span>'+sure+'</div></div>';}
+function kpi(n,l,i){return '<div class=kpi><div class=ic>'+i+'</div><div class=n>'+n+'</div><div class=l>'+l+'</div></div>';}
+function box(i,t){return '<div class=empty><div class=i>'+i+'</div>'+t+'</div>';}
+function ac(){var C=document.getElementById('content');
+ if(sekme=='genel'){api('/admin/stats').then(function(s){C.innerHTML='<div class=grid>'+kpi(s.users,'Kullanıcı','👥')+kpi(s.calls,'Toplam Arama','📞')+kpi(s.konusuldu,'Konuşuldu','🟢')+kpi(s.cevapsiz,'Cevapsız/Red','⚪')+kpi(s.video,'Görüntülü','📹')+kpi(s.aktif,'Şu An Aktif','🔴')+'</div><div style="color:var(--dim);font-size:13px">Kullanıcılar için sol menüyü kullan · Aramalar sekmesi anlık güncellenir.</div>';});}
+ else if(sekme=='users'){api('/admin/users').then(function(d){window._u=d;if(!d.length){C.innerHTML=box('👥','Henüz kullanıcı yok');return;}var h='<div class=ulist>';for(var i=0;i<d.length;i++){var u=d[i];h+='<div class=u onclick=detay('+i+')><div class=av>'+esc(ic(u.name))+'</div><div class=uinfo><div class=uname>'+esc(u.name||'(isimsiz)')+(u.verified?'<span class=tik>✔</span>':'')+'</div><div class=umeta>'+(u.username?'@'+esc(u.username)+' · ':'')+esc(u.phone)+' · '+esc(u.created)+'</div></div><div class=ustat><b>'+u.calls+'</b> arama<br><b>'+u.msgs+'</b> mesaj</div></div>';}C.innerHTML=h+'</div>';});}
+ else if(sekme=='calls'){yenile();}}
+window.detay=function(i){var u=window._u[i];api('/admin/user/'+u.id).then(function(d){document.getElementById('ptitle').textContent='Kullanıcı Profili';
+ var h='<span class=back onclick=geriUsers()>← Kullanıcılar</span><div class=prof><div class=av style=width:70px;height:70px;font-size:28px>'+esc(ic(d.name))+'</div><div><div class=pn>'+esc(d.name||'(isimsiz)')+(d.verified?' <span class=tik>✔</span>':'')+'</div><div class=pm>'+(d.username?'@'+esc(d.username)+'<br>':'')+'📱 '+esc(d.phone)+'<br>'+esc(d.about||'')+'</div><div style=margin-top:8px><span class=pill>🪙 '+d.coin+' jeton</span><span class=pill>📅 '+esc(d.created)+'</span><span class=pill>👁 '+esc(d.last_seen)+'</span></div></div></div>';
+ h+='<div style="font-weight:700;margin:6px 0 12px">📞 Görüşmeleri ('+d.calls.length+')</div>';
+ if(!d.calls.length)h+=box('📭','Bu kullanıcının araması yok');else{h+='<div class=clist>';for(var i=0;i<d.calls.length;i++)h+=callRow(d.calls[i],true);h+='</div>';}
+ document.getElementById('content').innerHTML=h;});};
+window.geriUsers=function(){document.getElementById('ptitle').textContent='Kullanıcılar';sekme='users';ac();};
+function yenile(){if(sekme!='calls')return;api('/admin/calls').then(function(d){var C=document.getElementById('content');if(!d.length){C.innerHTML=box('📭','Henüz arama yok. İki telefonla arama yap — anlık göreceksin.');return;}var h='<div class=clist>';for(var i=0;i<d.length;i++)h+=callRow(d[i],false);C.innerHTML=h+'</div>';});}
+function ws(){try{var s=new WebSocket((location.protocol=='https:'?'wss':'ws')+'://'+location.host+'/admin/ws?key='+encodeURIComponent(key));s.onmessage=function(){if(sekme=='calls')yenile();document.getElementById('st').textContent='canlı · '+new Date().toLocaleTimeString('tr');};s.onclose=function(){setTimeout(ws,2000);};}catch(e){setTimeout(ws,2000);}}
+function basla(){document.getElementById('login').style.display='none';document.getElementById('app').style.display='flex';ac();ws();setInterval(function(){if(sekme=='calls')yenile();},10000);}
+if(key)basla();
 </script></body></html>`
 
 func getEnv(k, def string) string {
