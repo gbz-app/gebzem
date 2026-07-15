@@ -104,10 +104,11 @@ class CallService extends StateNotifier<IncomingCall?> {
       final res = await _ref.read(apiProvider).get('/calls/active');
       final data = (res.data as Map).cast<String, dynamic>();
       if (data['call_id'] is String) {
-        final id = data['call_id'] as String;
-        // iOS'ta arama CallKit ile gosterilir; CallKit zaten gosterdiyse uygulama-ici overlay
-        // ACMA (cift gosterim olmasin). VoIP push kacirilmis nadir durumda overlay yedek kalir.
-        if (Platform.isIOS && CallKitService.islenenler.contains(id)) return;
+        // iOS'ta gelen arama HER ZAMAN CallKit (VoIP push) ile gelir; uygulama-ici overlay
+        // HIC acilmaz. islenenler sinyali iOS'ta native PushKit yolunda dolmadigi (Dart
+        // CallKitService.goster cagrilmaz) icin guvenilmezdi -> "CallKit calarken overlay de
+        // acilir" cift-UI'sine yol aciyordu. iOS = %100 CallKit, uygulama-ici gelen arama yok.
+        if (Platform.isIOS) return;
         state = IncomingCall.fromJson(data);
       }
     } catch (_) {

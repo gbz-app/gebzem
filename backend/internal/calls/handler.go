@@ -93,17 +93,16 @@ func (h *Handler) sweep(ctx context.Context) {
 		h.hub.Publish(ctx, &chat.Event{
 			Type: "call.ended", Payload: payload, To: []string{k.caller, k.callee},
 		})
-		// Aliciya (callee) push ile de kapat: kilit ekranindaki CallKit ekrani asili
-		// kalmasin. Online ise WS zaten kapatti — ek push cirkin banner uretir (End gibi).
-		if !h.hub.Online(k.callee) {
-			if h.push != nil {
-				go h.push.CallInvite([]string{k.callee}, map[string]string{
-					"type": "call.cancel", "call_id": k.id,
-				})
-			}
-			if h.apns != nil {
-				go h.apns.CallCancel(context.Background(), k.callee, k.id)
-			}
+		// Aliciya (callee) push ile de kapat: kilit ekranindaki CallKit ekrani asili kalmasin.
+		// iOS VoIP cancel: HER ZAMAN (Start ile simetrik; stale-online callee'de hayalet CallKit'i
+		// susturur). Android FCM cancel: SADECE offline (online ise WS zaten kapatti).
+		if h.apns != nil {
+			go h.apns.CallCancel(context.Background(), k.callee, k.id)
+		}
+		if !h.hub.Online(k.callee) && h.push != nil {
+			go h.push.CallInvite([]string{k.callee}, map[string]string{
+				"type": "call.cancel", "call_id": k.id,
+			})
 		}
 		// Cevapsiz arama -> sohbete kayit + (offline ise) bildirim (WhatsApp gibi)
 		go h.logMissedToChat(context.Background(), k.caller, k.callee, k.callType)
@@ -285,10 +284,11 @@ func (h *Handler) Start(w http.ResponseWriter, r *http.Request) {
 	// (arama yalniz CallKit/VoIP push ile gelir); Android'de on planda onMessage call.incoming'i
 	// zaten islemez (WS overlay gosterir), arka planda FCM data -> CallKit. Boylece cift gosterim yok.
 	online := h.hub.Online(req.CalleeID)
-	log.Printf("arama daveti: call=%s callee online=%v (WS + HER ZAMAN push)", callID[:8], online)
-	if h.push != nil {
-		go h.push.CallInvite([]string{req.CalleeID}, davet)
-	}
+	log.Printf("arama daveti: call=%s callee online=%v (iOS VoIP her zaman, Android FCM offline)", callID[:8], online)
+	// iOS VoIP push: HER ZAMAN (online'a bakma). Sebep: iOS uygulama askiya alininca WS ~35sn
+	// "online" (stale) gorunuyor; online-gating push'u engelleyince kilitli iPhone CALMIYORDU.
+	// VoIP push (PushKit) ayni arama icin CallKit'i acar; iOS'ta uygulama-ici overlay bastirildigi
+	// icin (call_provider) cift-UI olmaz. Callee Android ise voip token yok -> apns no-op.
 	if h.apns != nil {
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -302,6 +302,12 @@ func (h *Handler) Start(w http.ResponseWriter, r *http.Request) {
 				"caller_avatar": callerAvatar,
 			})
 		}()
+	}
+	// Android FCM data-push: SADECE offline. Android WS'i arka planda DUZGUN kapatiyor (online
+	// guvenilir). Online iken FCM gondermek, on planda baslayan aramada kullanici arka plana
+	// gecince ana-isolate WS overlay + arka-plan-isolate CallKit CIFT-UI'sine yol aciyordu (Oturum 7).
+	if !online && h.push != nil {
+		go h.push.CallInvite([]string{req.CalleeID}, davet)
 	}
 
 	writeJSON(w, http.StatusCreated, map[string]any{
@@ -424,24 +430,24 @@ func (h *Handler) End(w http.ResponseWriter, r *http.Request) {
 		Type: "call.ended", Payload: payload, To: []string{other},
 	})
 
-	// call.cancel push'u SADECE diger taraf OFFLINE ise. Online (uygulama acik,
-	// WS bagli) ise call.ended WS olayi ekrani zaten kapatiyor; ek VoIP push iOS'ta
-	// reportNewIncomingCall+endCall zorunlulugu yuzunden ekranda kisa ve CIRKIN
-	// (base64 isimli) bir arama banner'i uretiyordu. Start() ile ayni gating.
-	if !h.hub.Online(other) {
-		if h.push != nil {
-			go h.push.CallInvite([]string{other}, map[string]string{
-				"type":    "call.cancel",
-				"call_id": callID,
-			})
-		}
-		if h.apns != nil {
-			go func() {
-				ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-				defer cancel()
-				h.apns.CallCancel(ctx, other, callID)
-			}()
-		}
+	// iOS VoIP CallCancel: HER ZAMAN (Start ile SIMETRIK). Sebep: stale-online iOS callee'de
+	// arayan kapatinca cancel gitmezse, Start'in her-zaman-VoIP'u ile acilan kilit-ekrani CallKit
+	// 45sn HAYALET calmaya devam ederdi. CallCancel caller_name='Gebzem' gonderdigi icin cirkin
+	// banner sorunu yok. Callee Android ise voip token yok -> no-op.
+	if h.apns != nil {
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			h.apns.CallCancel(ctx, other, callID)
+		}()
+	}
+	// Android FCM cancel: SADECE offline. Online (WS bagli) ise call.ended WS olayi ekrani
+	// zaten kapatiyor; online iken data-push cift-UI/gurultu uretir.
+	if !h.hub.Online(other) && h.push != nil {
+		go h.push.CallInvite([]string{other}, map[string]string{
+			"type":    "call.cancel",
+			"call_id": callID,
+		})
 	}
 
 	// Cevapsiz arama (arayan iptal etti / callee cevaplamadi) -> sohbete "cevapsiz arama"
