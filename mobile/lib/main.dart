@@ -134,6 +134,7 @@ class GebzemApp extends ConsumerStatefulWidget {
 class _GebzemAppState extends ConsumerState<GebzemApp> with WidgetsBindingObserver {
   StreamSubscription? _kabulSub;
   StreamSubscription? _redSub;
+  StreamSubscription? _timeoutSub;
   StreamSubscription? _voipSub;
 
   @override
@@ -164,16 +165,23 @@ class _GebzemAppState extends ConsumerState<GebzemApp> with WidgetsBindingObserv
     // Kilit ekranindan "Kabul et"e basildi (uygulama kapali bile olabilir)
     _kabulSub = svc.onKabul.listen(_callKitKabul);
 
-    // Kilit ekranindan reddedildi / zaman asimi
+    // KULLANICI KASTEN reddetti/bitirdi (CallKit Decline/Ended — kilit ekrani/sistem arama
+    // seridi dahil). Aktif konusmada bile aramayi bitir: kullanici gercekten kapatmak istiyor,
+    // sistem CallKit "bitir" tusu CALISMALI. (Spurious 45sn auto-expire AYRI kanaldan gelir.)
     _redSub = svc.onRed.listen((callId) {
       final notifier = ref.read(callServiceProvider.notifier);
-      // TEK BITIR-KAPISI: arama zaten KABUL EDILIP odaya baglanmissa (canli konusma),
-      // CallKit'in decline/ended/timeout olayi YANLIS sinyaldir — ikinci UI yuzeyi ya da
-      // 45sn CallKit auto-expire. Bu, konusma ortasinda aramayi 1sn'de OLDURUYORDU (loglarda
-      // CLIENT_REQUEST_LEAVE). Canli aramayi burada bitirme; gercek bitirme kirmizi tus veya
-      // peer-hangup (RoomDisconnected) ile CallScreen'de zaten yapiliyor.
+      notifier.aramaBitti(callId);
+      notifier.end(callId);
+    });
+
+    // 45sn CallKit AUTO-EXPIRE: KABUL EDILIP odaya baglanmis (canli) aramada SPURIOUS'tur —
+    // arama suruyor, CallKit'in zaman asimi yaniltir -> aramayi OLDURME (tek-bitir-kapisi).
+    // Ringing fazinda (kabul edilmemis) ise gercek cevapsizdir -> bitir. Boylece canli aramayi
+    // yalniz kirmizi tus / peer-hangup / kullanici-kasten-CallKit-bitir kapatir; 45sn otomatik
+    // zaman asimi konusma ortasinda aramayi 1sn'de OLDURMEZ (regresyonun kaynagi buydu).
+    _timeoutSub = svc.onTimeout.listen((callId) {
+      final notifier = ref.read(callServiceProvider.notifier);
       if (notifier.aktifKonusmalar.contains(callId)) return;
-      // Ringing fazi (kabul EDILMEDEN): CallKit'ten reddet/zaman asimi -> aramayi bitir (mesru).
       notifier.aramaBitti(callId);
       notifier.end(callId);
     });
@@ -247,6 +255,7 @@ class _GebzemAppState extends ConsumerState<GebzemApp> with WidgetsBindingObserv
   void dispose() {
     _kabulSub?.cancel();
     _redSub?.cancel();
+    _timeoutSub?.cancel();
     _voipSub?.cancel();
     CallKitService.instance.kapat();
     WidgetsBinding.instance.removeObserver(this);

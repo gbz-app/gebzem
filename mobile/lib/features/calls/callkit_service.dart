@@ -33,9 +33,15 @@ class CallKitService {
   final _kabulController = StreamController<Map<String, dynamic>>.broadcast();
   Stream<Map<String, dynamic>> get onKabul => _kabulController.stream;
 
-  /// Reddedilen / zaman asimina ugrayan arama -> sunucuya bildirilecek
+  /// Kullanicinin KASTEN reddettigi/bitirdigi arama (CallKit Decline/Ended) -> sunucuya bildir.
   final _redController = StreamController<String>.broadcast();
   Stream<String> get onRed => _redController.stream;
+
+  /// 45sn CallKit AUTO-EXPIRE (zaman asimi) — reddet/bitir'den AYRI kanal. KABUL sonrasi
+  /// (canli arama) gelirse SPURIOUS'tur (arama suruyor), aramayi bitirmemeli; ringing'de
+  /// (kabul edilmemis) gercek cevapsizdir. Tek-bitir-kapisi bu ayrimla korunur.
+  final _timeoutController = StreamController<String>.broadcast();
+  Stream<String> get onTimeout => _timeoutController.stream;
 
   /// iOS VoIP token'i (sunucuya kaydedilecek)
   final _voipTokenController = StreamController<String>.broadcast();
@@ -101,7 +107,7 @@ class CallKitService {
 
       case CallEventActionCallTimeout(:final id):
         islenenler.add(id);
-        _redController.add(id); // cevapsiz
+        _timeoutController.add(id); // 45sn auto-expire — kabul sonrasi SPURIOUS olabilir (onRed DEGIL)
 
       case CallEventActionDidUpdateDevicePushTokenVoip():
         _voipTokeniGonder(); // token olayla gelmiyor, ayrica sorulmali
