@@ -632,8 +632,14 @@ Kullanıcı: WiFi'de sorunsuz ama mobil veride bazen ses gitmiyor / telefon geç
 3. **TAKILI 'active'/BUSY (art arda + "kapattım karşıda devam"):** End istemciden ulaşmayınca satır 'active' kalıp callee'yi 2 saat "meşgul" yapıyordu; `end()` guard'ı await ÖNCESİ damgalayıp hatayı yutuyordu (ağ hatasında kalıcı zehir). → **calls/handler:** busy'den ÖNCE pairwise ringing+active temizliği (iki yön, CASE, 15sn yaş sınırı); busy 'active' penceresi + sweep eşiği 2sa→**30dk**. **call_provider.end():** guard'ı POST BAŞARISINDA damgala + 3 deneme retry. **call_screen:** `listener.dispose()` timeout'u (global sıra kilitlenmesin).
 - Ses: call_sounds mikrofonu kesen global `.playback` AudioContext geri alınmış haliyle korundu (zil=arama.mp3, assets'te 281KB tracked).
 - go build + flutter analyze TEMİZ. Android run 29429347226 + iOS run 29429349439 tetiklendi (izleniyor).
-### Devir (bu oturum devam ediyor)
-- BEKLİYOR: build bitince artifact doğrula (debug imza YOK) → R2 → Cloudflare purge → boyut/health → DB temizle (TRUNCATE) → index.html son-güncelleme saati → kullanıcıya "hazır".
-- Test (3 cihaz, gerçek): T1 kilit araması <5sn çalar; T2 art arda 2. arama geçer (409 yok); T3 kapat→karşı taraf ≤3sn kapanır; T4 mobil VERİDE ses gider (relay); 2-3. arama ses gelir.
-- Sonraki fazlar: LiveKit room_finished webhook (kalıcı active-garanti, ayrı adım); iOS her-zaman-VoIP (izole, riskli); WhatsApp self-view swap.
+### İLK build (d1323e4) yayınlandı AMA adversarial doğrulama 2 regresyon yakaladı → v2 gerekti
+İlk sürüm (Android 29429347226 + iOS 29429349439) R2'ye yüklendi, purge, DB temiz (3→0), index 19:00. Sonra 4-eksen adversarial regresyon workflow (wug5l7qsh) **yeniBuildSart=true** dedi:
+- **YÜKSEK (bloklayıcı):** sweep + busy 'active' penceresi 30dk `created_at` bazlıydı → **30dk+ süren MEŞRU görüşmeyi ortadan kesiyordu** (answered_at/LiveKit oda durumuna bakmadan). ❌ 2 saate geri alındı.
+- **ORTA:** ws.dart yetim (orphan) soket — `_open` eski stream aboneliğini iptal etmiyordu → iOS askıdan çıkan eski soketin gecikmiş onDone'u ikinci yetim bağlantı bırakıp kilit-ekran push'unu ~35sn engelliyordu (düzeltmeye çalıştığımız senaryonun dar-pencere geri dönüşü). ❌ `_sub` sakla+iptal (open/goOffline/close) + resume `_closed` sıfırla.
+- **ORTA (kod doğru, önkoşul):** relay tüm aramaları TURN'e bağımlı kıldı → test öncesi turn.gebzem.app doğrulandı: DNS 167.233.229.88 (proxy KAPALI ✅), TLS 443 geçerli (86 gün kalan ✅).
+- Kabul edilen küçük riskler: pairwise ringing glare (nadir), logMissedToChat omisyonu, ping starvation, resume ölü-kod (artık tutarlı), end() 2sn UX gecikmesi.
+### v2 (commit 518f7d5) — Android 29431935029 + iOS 29431937071 (izleniyor)
+- go build + flutter analyze TEMİZ. Build bitince: artifact doğrula (debug imza YOK) → R2 → purge → boyut/health → index saat → kullanıcıya "hazır" + test rehberi.
+- Test (3 cihaz, gerçek): T1 kilit araması push ile çalar; T2 art arda 2. arama geçer (409 yok); T3 kapat→karşı taraf ≤3sn kapanır; **T3-uzun: 31+ dk görüşme KOPMAMALI** (sweep regresyon doğrulaması); T4 mobil VERİDE + WiFi'de ses gider (relay/TURN).
+- Sonraki fazlar: LiveKit room_finished webhook (kalıcı active-garanti + gerçek uzun arama koruması); pairwise çok-cihaz notu; iOS her-zaman-VoIP (izole); WhatsApp self-view swap.
 
