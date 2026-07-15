@@ -93,7 +93,7 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
 - ⚠️ Uygulama ikonu hâlâ placeholder
 - Test kullanıcıları: her sürümde DB temizleniyor (aşağıdaki rutin) → kullanıcı sıfırdan kayıt olur
 
-## REPO YAPISI (monorepo: github.com/gbz-app/gebzem — private)
+## REPO YAPISI (monorepo: github.com/gbz-app/gebzem — **PUBLIC** 15 Tem 2026: Actions kotası doldu → sınırsız bedava için public yapıldı; secrets Actions'ta gizli, kodda/geçmişte hassas dosya YOK)
 - `backend/` — Go API (chi + pgx + go-redis + gorilla/websocket)
 - `mobile/` — Flutter (org: app.gebzem). lib/: core/ (api, ws, storage, theme), features/ (auth, chats, home), router.dart
 - `admin/` — yer tutucu (Faz 5: Next.js)
