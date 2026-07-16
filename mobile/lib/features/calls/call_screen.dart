@@ -93,6 +93,9 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
 
     _svc = ref.read(callServiceProvider.notifier);
     final svc = _svc;
+    // MESGUL MUHAFIZI: bu ekran (calar/aktif) acildi -> 2. arama baslatma/kabul engellensin.
+    // connect'i BEKLEMEDEN, calar fazi dahil isaretlenir; dispose'ta birakilir.
+    _svc.ekranAcildi(widget.callId);
 
     // Karsi taraf kapatirsa / arama biterse: bagliysak dogrudan cik; ring fazindaysak
     // nedeni (red/mesgul/cevapsiz) sunucudan ogrenip cevapsiz UI goster (WS nedeni tasimaz).
@@ -228,6 +231,9 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
   Future<void> _geriAra() async {
     final pid = widget.peerId;
     if (pid == null) return;
+    // Bu ekran CEVAPSIZ durumda (arama bitti); "aramada" sayilmasin, yoksa kendi ekranimiz
+    // yuzunden start() "Zaten bir aramadasınız" der. pushReplacement zaten bu ekrani kapatacak.
+    _svc.ekranKapandi(widget.callId);
     try {
       final info = await _svc.start(pid, video: widget.video);
       if (!mounted) return;
@@ -505,8 +511,21 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
     }
   }
 
+  // Ses birimi NESIL JETONU (CallSounds'un kanitlanmis deseni): sirali gecis (bir aramayi
+  // bitirip HEMEN yeni arama baslatma) sirasinda eski ekranin gec _sesiAc(false)'i, yeni
+  // aramanin _sesiAc(true)'undan SONRA dusup yeni sesi KOSULSUZ kapatiyordu (CLAUDE.md tuzagi).
+  // Cozum: ses birimini en son "true" ile sahiplenen ekran disinda kimse kapatamaz.
+  static int _sesNesilSayaci = 0;
+  int _benimSesNeslim = 0;
   Future<void> _sesiAc(bool ac) async {
     if (!Platform.isIOS) return;
+    if (ac) {
+      _benimSesNeslim = ++_sesNesilSayaci; // ses birimini SAHIPLEN
+    } else if (_benimSesNeslim != _sesNesilSayaci) {
+      // daha yeni bir arama ses birimini sahiplendi -> onun sesini KAPATMA
+      _sesLog('_sesiAc(false) ATLANDI — ses birimi daha yeni aramaya ait');
+      return;
+    }
     _sesLog('_sesiAc($ac)');
     try {
       await _audioCh.invokeMethod('setAudioEnabled', ac);
@@ -635,6 +654,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
   @override
   void dispose() {
     _svc.aktifKonusmaBitti(widget.callId); // tek bitir-kapisi muhafizini birak
+    _svc.ekranKapandi(widget.callId); // mesgul muhafizini birak -> yeni arama serbest
     WidgetsBinding.instance.removeObserver(this);
     _statusPoll?.cancel();
     _statsTimer?.cancel();

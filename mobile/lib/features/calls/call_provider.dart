@@ -63,6 +63,21 @@ class CallService extends StateNotifier<IncomingCall?> {
 
   void aktifKonusmaBitti(String id) => aktifKonusmalar.remove(id);
 
+  /// EKRANDAKI aramalar = "zaten bir aramadasin" (mesgul) muhafizi.
+  /// CallScreen initState'te — CALAR fazi dahil, connect'i BEKLEMEDEN — eklenir, dispose'ta
+  /// cikarilir; boylece hem "caliyor" hem "aktif konusma" fazlarini kapsar. (aktifKonusmalar
+  /// yalniz odaya BAGLANINCA dolan bitir-kapisi muhafizi; calar fazini kacirir -> AYRI set sart.)
+  /// Amac: bir arama ekrani acikken 2. arama baslatmayi/kabul etmeyi ENGELLE. Yoksa iki
+  /// CallScreen + iki LiveKit Room tek native ses birimini cekistirir ve ikinci aramada
+  /// goruntu/ses kurulamaz (kullanicinin "ustte arama altta goruntu, goruntu gelmedi" sorunu).
+  final Set<String> ekrandakiAramalar = {};
+  bool get aramadaMi => ekrandakiAramalar.isNotEmpty;
+  void ekranAcildi(String id) {
+    if (id.isNotEmpty) ekrandakiAramalar.add(id);
+  }
+
+  void ekranKapandi(String id) => ekrandakiAramalar.remove(id);
+
   void _onEvent(Map<String, dynamic> ev) {
     final payload = ev['payload'];
     if (payload is! Map) return;
@@ -79,6 +94,9 @@ class CallService extends StateNotifier<IncomingCall?> {
         // Ayni arama CallKit (kilit ekrani) uzerinden zaten gosterildiyse
         // uygulama ici ekrani ACMA — yoksa cift arama ekrani cikar.
         if (CallKitService.islenenler.contains(id)) return;
+        // MESGUL: zaten bir aramadayken uzerine gelen-arama overlay'i BINMESIN
+        // ("ustte arama altta goruntu"nun ikinci uretim yolu). Arayana backend 'mesgul' doner.
+        if (aramadaMi) return;
         state = IncomingCall.fromJson(p);
       case 'call.answered':
         final id = p['call_id'] as String? ?? '';
@@ -127,6 +145,7 @@ class CallService extends StateNotifier<IncomingCall?> {
         // arka plandan one gelince overlay + CallKit CIFT geliyordu (kullanicinin bildirdigi puruz).
         final id = data['call_id'] as String;
         if (CallKitService.islenenler.contains(id)) return;
+        if (aramadaMi) return; // MESGUL: aktif aramada gelen-arama overlay'i acma
         state = IncomingCall.fromJson(data);
       }
     } catch (_) {
@@ -136,6 +155,11 @@ class CallService extends StateNotifier<IncomingCall?> {
 
   /// Arama baslat — LiveKit baglanti bilgilerini doner
   Future<Map<String, dynamic>> start(String calleeId, {required bool video}) async {
+    // MESGUL MUHAFIZI: zaten bir arama ekranindayken (calar/aktif) 2. aramayi BASLATMA.
+    // Sunucuya POST atmadan ONCE durdur ki ikinci arama hic acilmasin (iki Room cakismasi).
+    if (aramadaMi) {
+      throw StateError('Zaten bir aramadasınız');
+    }
     final res = await _ref.read(apiProvider).post('/calls', data: {
       'callee_id': calleeId,
       'video': video,
@@ -152,6 +176,10 @@ class CallService extends StateNotifier<IncomingCall?> {
   /// DIKKAT: state'i SIFIRLAMIYORUZ (once ekran acilir, sonra dismiss).
   /// null DONERSE: bu arama zaten baska yoldan cevaplandi -> cagiran ekran ACMASIN.
   Future<Map<String, dynamic>?> answer(String callId) async {
+    // MESGUL: BASKA bir arama ekrani (calar/aktif) acikken gelen aramayi KABUL ETME.
+    // Bu aramanin kendi ekrani answer'dan SONRA acilir, o yuzden ekrandakiAramalar'da
+    // BU callId disinda bir id varsa mesgulüz -> ekran acma (cagiran null'da acmaz).
+    if (ekrandakiAramalar.any((x) => x != callId)) return null;
     if (!_cevaplanan.add(callId)) return null; // ikinci kabul -> 409 olmadan engelle
     try {
       final res = await _ref.read(apiProvider).post('/calls/$callId/answer');

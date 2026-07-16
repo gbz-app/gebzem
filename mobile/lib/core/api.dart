@@ -63,6 +63,8 @@ final apiProvider = Provider<Dio>((ref) {
 
 /// API hatasindan kullaniciya gosterilecek Turkce mesaji cikarir
 String apiErrorMessage(Object error) {
+  // Uygulama-ici kural hatalari (or. "Zaten bir aramadasınız") kullaniciya AYNEN gosterilir.
+  if (error is StateError) return error.message;
   if (error is DioException) {
     final data = error.response?.data;
     if (data is Map && data['error'] is String) return data['error'] as String;
