@@ -226,6 +226,11 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
   /// gec (Geri Ara / Kapat gosterilir). Otomatik pop YOK.
   Future<void> _cevapsizGoster(String neden, {bool sunucuyaBildir = false}) async {
     if (_baglandi || _ayrildi || _cevapsiz) return;
+    // MESGUL MUHAFIZINI BIRAK: cevapsiz/reddedilen ekran ARTIK aktif arama degil (sadece
+    // Geri Ara/Kapat sonucu). Ekran POP olmadigindan dispose de calismaz -> ekranKapandi'yi
+    // BURADA cagirmazsak "aramadaMi" sonsuza true kalir; o ekrana bakan kullanici gelen
+    // aramalari KACIRIR ("kabul ettim acilmadi") + yeni arama baslatamaz (v13 dogrulama bulgusu).
+    _svc.ekranKapandi(widget.callId);
     await CallSounds.durdur(_sesNesli);
     _ringTimeout?.cancel();
     _statusPoll?.cancel();
