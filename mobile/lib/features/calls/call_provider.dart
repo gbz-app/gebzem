@@ -196,6 +196,14 @@ class CallService extends StateNotifier<IncomingCall?> {
   /// `ref`'i o an yok edilmis olabilir, bu yuzden servisin kendi Ref'ini kullaniyoruz.
   void gecmisiYenile() => _ref.invalidate(callHistoryProvider);
 
+  /// CANLI ESZAMANLI ses takibi: arama sirasinda 2sn'de bir ses metrigini sunucuya yollar ki
+  /// api log'unda ANLIK izlenebilsin (docker logs -f api | grep AUDIO). Fire-and-forget.
+  Future<void> audioStat(String callId, Map<String, dynamic> data) async {
+    try {
+      await _ref.read(apiProvider).post('/calls/$callId/audio-stat', data: data);
+    } catch (_) {}
+  }
+
   @override
   void dispose() {
     _sub?.cancel();

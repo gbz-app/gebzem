@@ -416,26 +416,29 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
   /// birimi/route). Boylece bir daha karanlikta tahmin yurutmeyiz.
   void _statsBaslat() {
     _statsTimer?.cancel();
-    _statsTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
+    _statsTimer = Timer.periodic(const Duration(seconds: 2), (_) async {
       if (!mounted || !_baglandi) return;
       try {
+        int recv = -1; // -1 = remote audio track YOK
         final rp = _room?.remoteParticipants.values.firstOrNull;
         final track = rp?.audioTrackPublications.firstOrNull?.track;
-        if (track is! RemoteAudioTrack) {
-          _sesLog('stats: remote audio track yok');
-          return;
+        if (track is RemoteAudioTrack) {
+          final s = await track.getReceiverStats();
+          recv = (s?.packetsReceived ?? 0).toInt();
         }
-        final s = await track.getReceiverStats();
-        final recv = (s?.packetsReceived ?? 0).toInt();
-        final delta = recv - _sonRecvPaket;
-        _sonRecvPaket = recv;
-        Sentry.captureMessage(
-          'call.audio.stats video=${widget.video} speaker=$_speakerOn recvPaket=$recv delta=$delta',
-          level: SentryLevel.info,
-        );
-      } catch (e) {
-        _sesLog('stats HATA: $e');
-      }
+        final delta = recv < 0 ? 0 : recv - _sonRecvPaket;
+        if (recv >= 0) _sonRecvPaket = recv;
+        // CANLI ESZAMANLI: her 2sn ses metrigini SUNUCUYA yolla -> api log'da ANLIK izlenir.
+        // recv=-1 remote audio track yok; delta=0 karsinin sesi GELMIYOR; delta>0 ses geliyor.
+        _svc.audioStat(widget.callId, {
+          'recv': recv,
+          'delta': delta,
+          'outgoing': widget.outgoing,
+          'video': widget.video,
+          'speaker': _speakerOn,
+          'peer': _peerJoined,
+        });
+      } catch (_) {}
     });
   }
 

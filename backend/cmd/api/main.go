@@ -138,6 +138,7 @@ func main() {
 		r.Post("/calls", callsH.Start)
 		r.Post("/calls/{id}/answer", callsH.Answer)
 		r.Post("/calls/{id}/end", callsH.End)
+		r.Post("/calls/{id}/audio-stat", callsH.AudioStat) // CANLI eszamanli ses takibi (api log)
 	})
 
 	srv := &http.Server{Addr: ":" + cfg.Port, Handler: r}

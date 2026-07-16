@@ -463,6 +463,49 @@ func (h *Handler) End(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": newStatus})
 }
 
+// POST /calls/{id}/audio-stat — CANLI ESZAMANLI ses takibi. Istemci 2sn'de bir karsidan aldigi
+// ses paketlerini (getStats packetsReceived DELTA) yollar; api log'da ANLIK izlenir:
+//   docker logs -f api | grep AUDIO
+// delta>0 -> karsinin sesi GELIYOR; delta=0 -> ses GELMIYOR; recv=-1 -> remote audio track YOK.
+// Boylece "acildi ama konusamiyoruz" aninda hangi telefon ses aliyor/almiyor kesin gorunur.
+func (h *Handler) AudioStat(w http.ResponseWriter, r *http.Request) {
+	userID := auth.UserID(r.Context())
+	callID := chi.URLParam(r, "id")
+	var req struct {
+		Recv     int  `json:"recv"`
+		Delta    int  `json:"delta"`
+		Outgoing bool `json:"outgoing"`
+		Video    bool `json:"video"`
+		Speaker  bool `json:"speaker"`
+		Peer     bool `json:"peer"`
+	}
+	json.NewDecoder(r.Body).Decode(&req)
+	yon := "GELEN"
+	if req.Outgoing {
+		yon = "GIDEN"
+	}
+	tip := "SESLI"
+	if req.Video {
+		tip = "VIDEO"
+	}
+	durum := "SES-VAR"
+	if req.Recv < 0 {
+		durum = "TRACK-YOK"
+	} else if req.Delta <= 0 {
+		durum = "SES-GELMIYOR"
+	}
+	log.Printf("AUDIO call=%s user=%s %s %s recv=%d delta=%d %s peer=%v hoparlor=%v",
+		kisaID(callID), kisaID(userID), yon, tip, req.Recv, req.Delta, durum, req.Peer, req.Speaker)
+	w.WriteHeader(http.StatusOK)
+}
+
+func kisaID(s string) string {
+	if len(s) >= 8 {
+		return s[:8]
+	}
+	return s
+}
+
 // GET /calls/{id}/status — arayan "aramam cevaplandi mi / bitti mi" diye sorar.
 // call.answered/call.ended WS olaylari (arka planda WS kopukken) KAYBOLABILIR;
 // arayan calarken bunu 2 sn'de bir sorup 'active' gorunce baglanir, biterse kapatir.
