@@ -203,7 +203,23 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
     if (state == AppLifecycleState.resumed && mounted && !_ayrildi && !_cevapsiz) {
       // On plana donunce Doze'da ertelenen poll'u BEKLEME; durumu HEMEN uzlastir.
       _durumKontrol();
+      // KESINTI TOPARLAMA (GSM/WhatsApp aramasi Gebzem'i boldukten sonra one donunce):
+      // iOS CallKit didActivate KESINTI SONRASI GUVENILIR GELMEZ (Apple forum 749202) ->
+      // uygulamaya geri donmeyi (resume) YEDEK tetikleyici yap. Bagli aramada ses birimini
+      // yeniden aktive et + mikrofonu kullanicinin SON durumuna getir (mute'unu zorla acma).
+      // GetStream/Twilio'nun kanitlanmis deseni; en kotu senaryo birkac saniyelik gecikme.
+      if (_baglandi) _kesintidenTopla();
     }
+  }
+
+  /// Baska bir arama (GSM/WhatsApp) Gebzem'i boldukten sonra one donunce sesi toparla.
+  /// DUSUK RISK: mevcut arama akisina dokunmaz, sadece ses birimini + mic durumunu tazeler.
+  Future<void> _kesintidenTopla() async {
+    _sesLog('kesintiden topla (resume)');
+    await _sesiAc(true); // iOS ses birimini yeniden aktive et (Android'de no-op)
+    try {
+      await _room?.localParticipant?.setMicrophoneEnabled(_micOn); // kullanicinin son mic durumu
+    } catch (_) {}
   }
 
   /// Cevapsiz/reddedilen arama: ekrani KAPATMADAN "Cevap yok/reddedildi/mesgul" durumuna
