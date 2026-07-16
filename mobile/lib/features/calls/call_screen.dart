@@ -334,15 +334,13 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
         })
         ..on<TrackSubscribedEvent>((e) {
           if (mounted) setState(() {});
-          // ILK-ARAMA SES DUZELTMESI (Apple forum 64544 + kanonik CallKit+WebRTC): iOS soguk
-          // baslangicta ILK CallKit aramasinda didActivateAudioSession GELMEYIP _sesiAc erken/bos
-          // oturuma kuruldugunda karsinin sesi (downlink) render EDILMIYORDU -> "ilk arama sessiz,
-          // ikinci ses var". Cozum: remote AUDIO track SUBSCRIBE olunca (ses artik gercekten var)
-          // iOS cikis ses birimini YENIDEN aktive et -> birim remote track ile dogru kurulur,
-          // ilk aramada da ses gelir. useManualAudio'da bu, playout'u remote-track'e baglar.
+          // Teshis logu: remote audio track ne zaman subscribe oldu (ses akisi zaman cizelgesi).
+          // NOT: burada _sesiAc(true) COZUM DEGIL — isAudioEnabled setter idempotent (ayni true=no-op),
+          // ses birimini yeniden baslatmaz + mic-oncesi yarisi bozabilir (dogrulama wf_889c1267).
+          // ILK-ARAMA sessizligi icin dogru cozum native AVAudioSession re-aktivasyonu; once getStats
+          // ile gercek cihazda OLC (ses aliniyor mu/caliniyor mu), sonra native fix.
           if (e.track is AudioTrack) {
-            _sesLog('remote AUDIO subscribe -> _sesiAc(true) yeniden (ilk-arama ses fix)');
-            _sesiAc(true);
+            _sesLog('remote AUDIO track subscribe oldu (ses akisi basladi)');
           }
         })
         ..on<TrackUnsubscribedEvent>((_) {
