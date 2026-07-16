@@ -689,3 +689,10 @@ Kullanıcı v8 testi: sesli/görüntülü büyük oranda düzeldi ama **iPhone'd
 
 ### Admin panele CANLI Ses Teshis sekmesi (16 Tem, kullanici istegi)
 Kullanici: "ben de adminde izleyebilir miyim?" — audio-stat verileri sadece docker log'daydi. Cozum: bellek ring buffer (son 120) + `/admin/audio` endpoint + panele "🔊 Ses Teshis" sekmesi (renk kodlu, 2sn poll). Durumlar: 🟢SES-VAR 🔴iOS-CIKIS-YOK 🟠SES-GELMIYOR 🟣TRACK-YOK 🟡SES-DUSUK + ham iOS[acik/aktif/rota]/paket/enerji/hoparlor. Giris: https://api.gebzem.app/admin/izle · admin/Gebzem2026!. Backend deploy d73cbe6, /admin/audio 200 [] dogrulandi. Kullanici artik kendi testini canli gorur (bana bagimli degil). GEÇİCİ — uretim oncesi kaldirilacak.
+
+### v12 CANLI TEST — BAŞARILI (16 Tem, kullanıcı gerçek cihaz testi)
+Kullanıcı iPhone 13 + Android ile canlı test etti; ben sunucu AUDIO loglarını eş zamanlı izledim (Monitor sorun-sinyali + tam kayıt).
+- **SONUÇ: ana ses sorunları ÇÖZÜLDÜ.** 8 arama (sesli+görüntülü), SORUN-BILDIRIMI=0, kötü durum (SES-GELMIYOR/CIKIS-YOK/TRACK-YOK)=1 (o da başlangıç anı). iOS çıkışı hep acik=true rota=Receiver/Speaker.
+- **İlk-saniye gecikmesi:** ilk 2 aramada ~2sn ses gecikmesi görüldü (recv=0 → 2sn sonra SES-VAR); SON aramalarda BU DA KAYBOLDU (recv ilk satırda >0). Kullanıcı "sıkıntı yok" dedi. Kilitli ekran (CallKit/VoIP) yolu sağlam; art arda 5 red + 6. aç + bekleme + görüntülü → hepsi temiz.
+- **YENİ (nadir) bulgu — eşzamanlı arama çakışması:** kullanıcı ZATEN görüntülü aramadayken üstüne 2. arama girince ("üstte arama altta görüntü") 2. aramada görüntü gelmedi; kapatıp tek arama → düzeldi. Kök: aynı anda 2 WebRTC oturumu/oda; görüntü kanalı çakışıyor. TODO: arama sürerken 2. arama gelince WhatsApp-gibi "meşgul" (mevcut aramayı bozma). Backend'de busy durumu kısmen var; istemci+backend "meşgul" akışı netleştirilecek.
+- **Boşluk:** Android ses ÇIKIŞ durumu ölçülmüyor (getAudioState sadece iOS). Android'de "ses geliyor ama duyulmuyor" ayrımı için Android AudioManager durumu eklenebilir (gerekirse).
