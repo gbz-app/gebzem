@@ -94,6 +94,12 @@ func main() {
 	})
 
 	// Admin dashboard (login + kullanicilar + aramalar; ?key= korumali, WS ile anlik)
+	// Kolaylik: /admin ve /admin/ -> /admin/izle (kullanici kisa yaziyor)
+	adminYonlendir := func(w http.ResponseWriter, req *http.Request) {
+		http.Redirect(w, req, "/admin/izle", http.StatusFound)
+	}
+	r.Get("/admin", adminYonlendir)
+	r.Get("/admin/", adminYonlendir)
 	r.Get("/admin/izle", callsH.AdminPanel)
 	r.Post("/admin/login", callsH.AdminLogin)
 	r.Get("/admin/stats", callsH.AdminStats)
