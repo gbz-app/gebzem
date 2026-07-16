@@ -707,3 +707,12 @@ Kullanıcı görüntülü aramadayken KENDİ 2. arama başlatınca görüntü ge
 - **Yol haritası:** sesli grup → görüntülü grup (cap 6) → Spaces → canlı yayın (en son, egress ayrı makine + IAP %30).
 - **v13 adversarial doğrulama:** 1. tur ENGELLEYICI buldu (cevapsız ekran açıkken "meşgul" kalıp gelen arama yutuluyor) → _cevapsizGoster'a ekranKapandi eklendi (732f65f). 2. tur (v13b) TEMİZ (0 sorun). → **build alındı.**
 - Backend değişmedi (v13 mobil-only). Build: android 29528898658 + ios 29528900713.
+
+### v13 CANLI TEST — BAŞARILI (17 Tem gece, kullanıcı gerçek cihaz)
+Kullanıcı v13'ü iki telefona kurup test etti. SONUÇ: **v13 başarılı.**
+- ✅ **Meşgul muhafızı ÇALIŞTI:** iki kişi konuşurken 3. cihaz (Android) ikisine de çağrı attı → gitmedi, "meşgul" aldı (v13'ün asıl amacı, doğrulandı). Normalden arayınca meşgul geldi.
+- ✅ Art arda 5 red + 6.da aç → ses + görüntü geldi (sesli+görüntülü).
+- ✅ Genel: son 45dk **84 SES-VAR, 0 SORUN-BILDIRIMI, 0 SES-GELMIYOR/TRACK-YOK** (o pencerede). Ses kusursuz.
+- ⚠️ **Tek pürüz:** Android görüntülü aramada 1 kez görüntü gelmedi (ses vardı), tekrarda düzeldi. LiveKit oda logu: video mediaTrack published + "track not bound" YOK → **sunucu/WebRTC/TURN video'yu taşımış**; sorun İSTEMCİ render katmanında geçici (tekrarda düzelmesi kanıt). Kalıcı değil, çok nadir → şimdilik izle (düzeltme çalışan sistemi riske atar). Sık tekrarlarsa video render teşhisi eklenecek.
+- ⚠️ İLK test aramasi (020afbd5, 20:54, v13 kurulumdan hemen sonra): GELEN taraf (iPhone 13, cellular) medya bağlanamadı (track not bound + short ice + PEER_DISCONNECTED) → ses araması tek seferlik ağ/TURN; sonraki 84 ölçüm sağlıklı → geçici ağ. Latent TURN 443/sertifika konusu (D4) tekrarlarsa ele alınacak.
+- Backend değişmedi (v13 mobil-only). Karar: v13 KALICI, sonraki faz sesli grup.
