@@ -493,11 +493,17 @@ func (h *Handler) AudioStat(w http.ResponseWriter, r *http.Request) {
 	if req.Video {
 		tip = "VIDEO"
 	}
-	// iOS cikis durumunu tek dizeye topla (audioEnabled/active/route)
+	// iOS cikis durumunu tek dizeye topla (audioEnabled/active/route).
+	// temizle(): istemci-kontrollu route dizesindeki newline'lari at -> sahte log satiri enjeksiyonu onle.
+	// iosCikisKapali: audioEnabled=false -> iPhone ses birimi kapali -> playout FIZIKSEL imkansiz (kok neden).
 	iosStr := "-"
+	iosCikisKapali := false
 	if req.IOS != nil {
-		iosStr = fmt.Sprintf("acik=%v aktif=%v rota=%v",
-			req.IOS["audioEnabled"], req.IOS["active"], req.IOS["route"])
+		iosStr = temizle(fmt.Sprintf("acik=%v aktif=%v rota=%v",
+			req.IOS["audioEnabled"], req.IOS["active"], req.IOS["route"]))
+		if v, ok := req.IOS["audioEnabled"].(bool); ok && !v {
+			iosCikisKapali = true
+		}
 	}
 	// enerji delta'sini sayiya cevir (sessizlik ayrimi icin)
 	enerji, _ := strconv.ParseFloat(req.Enerji, 64)
@@ -510,25 +516,35 @@ func (h *Handler) AudioStat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TESHIS mantigi — YANILTMAZ ayrim:
-	//   TRACK-YOK     : remote audio track hic yok (abonelik/baglanti sorunu)
-	//   SES-GELMIYOR  : paket akmiyor (delta<=0) -> ag/TURN sorunu
-	//   KARSI-SESSIZ  : paket geliyor ama enerji ~0 -> karsinin mikrofonu kapali/bozuk
-	//   iOS-CIKIS-YOK : paket+enerji var ama iPhone ses birimi kapali -> ses geliyor CALMIYOR
-	//   SES-VAR       : paket+enerji var, cikis acik -> ses gidiyor (duyulmali)
+	// TESHIS onceligi — KOK NEDENE gore sirali (adversarial dogrulama duzeltmesi):
+	//   TRACK-YOK     : remote audio track yok (abonelik/baglanti)
+	//   SES-GELMIYOR  : paket akmiyor (delta<=0) -> ag/TURN
+	//   iOS-CIKIS-YOK : paket AKIYOR ama iPhone ses birimi KAPALI -> ses geliyor CALMIYOR.
+	//                   ENERJIDEN ONCE bakilir: cikis oluyken WebRTC playout ilerlemez, enerji de
+	//                   duser; enerjiye once baksaydik yanlislikla "karsi sessiz" derdik (YANLIS telefon).
+	//                   Bu, ilk-arama-ses-yok (didActivate gelmeyen soguk baslangic) durumunu tam yakalar.
+	//   SES-DUSUK     : paket+cikis var ama bu 2sn penceresinde enerji ~0. Tek pencere KESIN degil
+	//                   (dogal konusma duraksamasi olabilir) -> "mic bozuk" IDDIA ETME; ardisik enerji=X
+	//                   satirlarina bak (SUREKLI 0 = gercek sorun, ARALIKLI 0 = normal).
+	//   SES-VAR       : paket akiyor, cikis acik, enerji var -> ses gidiyor (duyulmali)
 	durum := "SES-VAR"
 	if req.Recv < 0 {
 		durum = "TRACK-YOK"
 	} else if req.Delta <= 0 {
 		durum = "SES-GELMIYOR"
-	} else if enerji < 0.5 {
-		durum = "KARSI-SESSIZ"
-	} else if req.IOS != nil && req.IOS["audioEnabled"] == false {
+	} else if iosCikisKapali {
 		durum = "iOS-CIKIS-YOK"
+	} else if enerji < 0.5 {
+		durum = "SES-DUSUK"
 	}
-	log.Printf("AUDIO call=%s user=%s %s %s recv=%d delta=%d enerji=%s %s peer=%v hoparlor=%v iOS[%s]",
-		kisaID(callID), kisaID(userID), yon, tip, req.Recv, req.Delta, req.Enerji, durum, req.Peer, req.Speaker, iosStr)
+	log.Printf("AUDIO call=%s user=%s %s %s recv=%d delta=%d enerji=%.1f %s peer=%v hoparlor=%v iOS[%s]",
+		kisaID(callID), kisaID(userID), yon, tip, req.Recv, req.Delta, enerji, durum, req.Peer, req.Speaker, iosStr)
 	w.WriteHeader(http.StatusOK)
+}
+
+// temizle: log enjeksiyonuna karsi istemci dizesindeki satir sonlarini bosluga cevirir.
+func temizle(s string) string {
+	return strings.NewReplacer("\n", " ", "\r", " ").Replace(s)
 }
 
 func kisaID(s string) string {
