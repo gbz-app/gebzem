@@ -52,8 +52,10 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
   Timer? _durationTimer;
   Timer? _ringTimeout;
   Timer? _statusPoll; // arayan: WS kaybolursa durum kurtarma pollu
-  Timer? _statsTimer; // ses NOKTA-ATISI olcumu (getStats -> Sentry)
+  Timer? _statsTimer; // ses NOKTA-ATISI olcumu (getStats -> sunucu canli log)
   int _sonRecvPaket = 0;
+  double _sonEnergy = 0; // ses ENERJISI: paket geliyor ama enerji 0 ise karsi taraf SESSIZ
+  bool _sorunBildirildi = false; // kullanici "ses gelmiyor" isaretledi mi
 
   /// Arama servisi initState'te yakalanir. `ref`, widget yok edildikten sonra
   /// KULLANILAMAZ (StateError firlatir) — servis ise uygulama boyunca yasar.
@@ -420,23 +422,35 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
       if (!mounted || !_baglandi) return;
       try {
         int recv = -1; // -1 = remote audio track YOK
+        double energy = 0;
         final rp = _room?.remoteParticipants.values.firstOrNull;
         final track = rp?.audioTrackPublications.firstOrNull?.track;
         if (track is RemoteAudioTrack) {
           final s = await track.getReceiverStats();
           recv = (s?.packetsReceived ?? 0).toInt();
+          // totalAudioEnergy: gelen sesin TOPLAM enerjisi (birikimli). Delta'si 0 ise
+          // paket geliyor ama ici SESSIZLIK -> karsi tarafin mikrofonu kapali/bozuk.
+          energy = (s?.totalAudioEnergy ?? 0).toDouble();
         }
         final delta = recv < 0 ? 0 : recv - _sonRecvPaket;
         if (recv >= 0) _sonRecvPaket = recv;
-        // CANLI ESZAMANLI: her 2sn ses metrigini SUNUCUYA yolla -> api log'da ANLIK izlenir.
-        // recv=-1 remote audio track yok; delta=0 karsinin sesi GELMIYOR; delta>0 ses geliyor.
+        final enerjiDelta = energy - _sonEnergy;
+        _sonEnergy = energy;
+        // iOS cikis durumu: paket+enerji VAR ama audioEnabled=false/route yanlissa
+        // ses geliyor ama iPhone CALMIYOR (kesin iOS cikis sorunu).
+        final ios = await _sesDurumOku();
+        // CANLI + KALICI: her 2sn ses metrigini SUNUCUYA yolla -> api log (zaman damgali).
+        // YANILTMAZ: recv=-1 track yok | delta=0 paket gelmiyor | enerji~0 karsi SESSIZ |
+        // paket+enerji var ama iOS cikis kapali -> ses geliyor iPhone calmiyor.
         _svc.audioStat(widget.callId, {
           'recv': recv,
           'delta': delta,
+          'enerji': (enerjiDelta * 1000).toStringAsFixed(1), // ses seviyesi (0 = sessizlik)
           'outgoing': widget.outgoing,
           'video': widget.video,
           'speaker': _speakerOn,
           'peer': _peerJoined,
+          if (ios != null) 'ios': ios,
         });
       } catch (_) {}
     });
@@ -456,6 +470,41 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
   /// iOS foreground ses kanalini ac/kapat (AppDelegate 'gebzem/audio').
   /// Android'de ve hata durumunda sessizce gecer.
   static const _audioCh = MethodChannel('gebzem/audio');
+  /// TESHIS: iPhone'un ses cikis durumunu native'den oku (getAudioState).
+  /// {audioEnabled, active, category, route}. Android'de/hata durumunda null.
+  Future<Map<String, dynamic>?> _sesDurumOku() async {
+    if (!Platform.isIOS) return null;
+    try {
+      final r = await _audioCh.invokeMethod('getAudioState');
+      return (r as Map?)?.map((k, v) => MapEntry(k.toString(), v));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Kullanici "ses gelmiyor" dedigi ANI sunucuya isaretler + o anki tum durumu
+  /// (paket/enerji/iOS cikis) ekler. Ben sonradan bu aramanin logunda tam veriyi bulurum.
+  Future<void> _sorunBildir() async {
+    setState(() => _sorunBildirildi = true);
+    final ios = await _sesDurumOku();
+    _svc.audioStat(widget.callId, {
+      'sorun': true,
+      'sure': _duration.inSeconds,
+      'recv': _sonRecvPaket,
+      'outgoing': widget.outgoing,
+      'video': widget.video,
+      'speaker': _speakerOn,
+      'peer': _peerJoined,
+      if (ios != null) 'ios': ios,
+    });
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Sorun kaydedildi — teşekkürler'),
+        duration: Duration(seconds: 2),
+      ));
+    }
+  }
+
   Future<void> _sesiAc(bool ac) async {
     if (!Platform.isIOS) return;
     _sesLog('_sesiAc($ac)');
@@ -668,6 +717,20 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
                           style: TextStyle(color: Colors.white70, fontSize: 15)),
                     ],
                   ),
+                  // TESHIS: sorun anini kullanici ISARETLER -> sunucuya "SORUN-BILDIRIMI"
+                  // duser. Ben yaninda olmasam da o aramayi tam bulurum.
+                  if (_peerJoined && !_cevapsiz)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: TextButton.icon(
+                        onPressed: _sorunBildir,
+                        icon: const Icon(Icons.volume_off,
+                            color: Colors.orangeAccent, size: 18),
+                        label: Text(_sorunBildirildi ? 'Bildirildi ✓' : 'Ses gelmiyor',
+                            style: const TextStyle(
+                                color: Colors.orangeAccent, fontSize: 13)),
+                      ),
+                    ),
                 ],
               ),
             ),

@@ -50,6 +50,18 @@ import flutter_callkit_incoming
       if call.method == "setAudioEnabled" {
         RTCAudioSession.sharedInstance().isAudioEnabled = (call.arguments as? Bool) ?? false
         result(nil)
+      } else if call.method == "getAudioState" {
+        // TESHIS: iOS ses cikis durumu. "paket geliyor ama ses duyulmuyor" -> burada
+        // audioEnabled=false / active=false / route yanlis gorunur (KESIN iOS cikis sorunu).
+        let s = RTCAudioSession.sharedInstance()
+        let av = AVAudioSession.sharedInstance()
+        let route = av.currentRoute.outputs.map { $0.portType.rawValue }.joined(separator: ",")
+        result([
+          "audioEnabled": s.isAudioEnabled,
+          "active": s.isActive,
+          "category": av.category.rawValue,
+          "route": route.isEmpty ? "yok" : route,
+        ])
       } else {
         result(FlutterMethodNotImplemented)
       }

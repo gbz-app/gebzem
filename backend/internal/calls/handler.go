@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -472,12 +473,16 @@ func (h *Handler) AudioStat(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserID(r.Context())
 	callID := chi.URLParam(r, "id")
 	var req struct {
-		Recv     int  `json:"recv"`
-		Delta    int  `json:"delta"`
-		Outgoing bool `json:"outgoing"`
-		Video    bool `json:"video"`
-		Speaker  bool `json:"speaker"`
-		Peer     bool `json:"peer"`
+		Recv     int            `json:"recv"`
+		Delta    int            `json:"delta"`
+		Enerji   string         `json:"enerji"` // gelen sesin seviye deltasi ("0.0" = sessizlik)
+		Outgoing bool           `json:"outgoing"`
+		Video    bool           `json:"video"`
+		Speaker  bool           `json:"speaker"`
+		Peer     bool           `json:"peer"`
+		Sorun    bool           `json:"sorun"` // kullanici "ses gelmiyor" isaretledi
+		Sure     int            `json:"sure"`
+		IOS      map[string]any `json:"ios"` // audioEnabled, active, category, route
 	}
 	json.NewDecoder(r.Body).Decode(&req)
 	yon := "GELEN"
@@ -488,14 +493,41 @@ func (h *Handler) AudioStat(w http.ResponseWriter, r *http.Request) {
 	if req.Video {
 		tip = "VIDEO"
 	}
+	// iOS cikis durumunu tek dizeye topla (audioEnabled/active/route)
+	iosStr := "-"
+	if req.IOS != nil {
+		iosStr = fmt.Sprintf("acik=%v aktif=%v rota=%v",
+			req.IOS["audioEnabled"], req.IOS["active"], req.IOS["route"])
+	}
+	// enerji delta'sini sayiya cevir (sessizlik ayrimi icin)
+	enerji, _ := strconv.ParseFloat(req.Enerji, 64)
+
+	// Kullanici sorun isaretlediyse AYRI, dikkat cekici satir
+	if req.Sorun {
+		log.Printf("!!! SORUN-BILDIRIMI call=%s user=%s %s %s sure=%ds recv=%d peer=%v hoparlor=%v iOS[%s]",
+			kisaID(callID), kisaID(userID), yon, tip, req.Sure, req.Recv, req.Peer, req.Speaker, iosStr)
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	// TESHIS mantigi — YANILTMAZ ayrim:
+	//   TRACK-YOK     : remote audio track hic yok (abonelik/baglanti sorunu)
+	//   SES-GELMIYOR  : paket akmiyor (delta<=0) -> ag/TURN sorunu
+	//   KARSI-SESSIZ  : paket geliyor ama enerji ~0 -> karsinin mikrofonu kapali/bozuk
+	//   iOS-CIKIS-YOK : paket+enerji var ama iPhone ses birimi kapali -> ses geliyor CALMIYOR
+	//   SES-VAR       : paket+enerji var, cikis acik -> ses gidiyor (duyulmali)
 	durum := "SES-VAR"
 	if req.Recv < 0 {
 		durum = "TRACK-YOK"
 	} else if req.Delta <= 0 {
 		durum = "SES-GELMIYOR"
+	} else if enerji < 0.5 {
+		durum = "KARSI-SESSIZ"
+	} else if req.IOS != nil && req.IOS["audioEnabled"] == false {
+		durum = "iOS-CIKIS-YOK"
 	}
-	log.Printf("AUDIO call=%s user=%s %s %s recv=%d delta=%d %s peer=%v hoparlor=%v",
-		kisaID(callID), kisaID(userID), yon, tip, req.Recv, req.Delta, durum, req.Peer, req.Speaker)
+	log.Printf("AUDIO call=%s user=%s %s %s recv=%d delta=%d enerji=%s %s peer=%v hoparlor=%v iOS[%s]",
+		kisaID(callID), kisaID(userID), yon, tip, req.Recv, req.Delta, req.Enerji, durum, req.Peer, req.Speaker, iosStr)
 	w.WriteHeader(http.StatusOK)
 }
 
