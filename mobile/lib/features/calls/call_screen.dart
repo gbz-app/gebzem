@@ -357,17 +357,20 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
           ),
         ),
       );
-      // iOS SES SIRASI (KRITIK): WebRTC sesi MANUEL modda (useManualAudio=true, AppDelegate).
-      // Ses birimini mikrofon YAYINLANMADAN ONCE ac. Eski sirada (mic -> speaker -> _sesiAc)
-      // track "published" oluyor ama ses birimi hala kapali -> RTP gidiyor fakat SESSIZ ->
-      // karsi taraf DUYMUYOR ("goruntulude ses gitmedi"). Dogru sira: ses birimi -> mic/kamera
-      // -> route(setSpeakerOn). Android'de _sesiAc no-op (Platform.isIOS), sira zararsiz.
-      await _sesiAc(true);
+      // iOS SES SIRASI (KRITIK - v7 regresyon duzeltmesi): ses birimini (_sesiAc) EN SON ac.
+      // useManualAudio=true'da isAudioEnabled=true, WebRTC ses birimini o ANKI AVAudioSession
+      // kategorisi/rotasi/mic-track durumunu KILITLEYEREK baslatir. Once session playAndRecord'a
+      // alinip mic track + rota HAZIR olmali, ses birimi EN SON acilmali (kanonik CallKit+WebRTC
+      // deseni; flutter-webrtc #1996/#1691). v7'de _sesiAc ILK cagrilinca SESLI aramada capture
+      // BOS kalip mic SESSIZ gidiyordu (goruntuluyu setSpeakerOn(true) hoparlor restart'i
+      // kurtariyordu, sesli earpiece restart vermedigi icin bozuk kaliyordu). Android'de no-op.
       await room.localParticipant?.setMicrophoneEnabled(true);
       if (widget.video) {
         await room.localParticipant?.setCameraEnabled(true);
       }
-      await room.setSpeakerOn(widget.video); // route en son (goruntuluda hoparlor acik)
+      await room.setSpeakerOn(widget.video); // rota (goruntuluda hoparlor, seslide kulaklik)
+      await _sesiAc(true); // SES BIRIMI EN SON — mic+rota hazir, capture temiz kurulur
+      _sesLog('ses kuruldu: video=${widget.video}');
 
       // Ekran bu arada kapandiysa odayi burada birak (sizinti olmasin)
       if (!mounted) {
@@ -411,8 +414,21 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
   static const _audioCh = MethodChannel('gebzem/audio');
   Future<void> _sesiAc(bool ac) async {
     if (!Platform.isIOS) return;
+    _sesLog('_sesiAc($ac)');
     try {
       await _audioCh.invokeMethod('setAudioEnabled', ac);
+    } catch (e) {
+      _sesLog('_sesiAc HATA: $e');
+    }
+  }
+
+  /// Ses akisi teshis logu -> Sentry breadcrumb (gebzem-mobile). Gercek cihazda "sesli aramada
+  /// ses neden gitmiyor" kesin gorulur: hangi adim ne zaman, hangi sirada. Davranis degistirmez.
+  void _sesLog(String m) {
+    try {
+      Sentry.addBreadcrumb(
+        Breadcrumb(category: 'call.audio', message: m, level: SentryLevel.info),
+      );
     } catch (_) {}
   }
 

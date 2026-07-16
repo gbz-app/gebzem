@@ -61,10 +61,11 @@ class CallSounds {
 
   static Future<int> _cal(String varlik,
       {required bool sesli, required bool zil}) async {
-    final n = ++_nesil; // bu calmanin nesli; onceki nesli gecersiz kilar
+    final n = ++_nesil; // bu calmanin nesli; art-arda korumasi durdur(nesil) ile
     try {
-      await _player.stop(); // idempotent restart: onceki sesi temizle (guard yok, HER ZAMAN cal)
-      if (n != _nesil) return n; // bu arada yeni bir _cal geldi -> bu cagri vazgecsin
+      // NOT: _player.stop() KOYMA -> iOS'ta stop-then-play yarisi ILK dit/zili sustururdu
+      // (audioplayers iOS tuzagi = v7 regresyonu). play() ayni player'da onceki calmayi ZATEN
+      // degistirir; art-arda kesilme korumasi nesil jetonu (++_nesil + durdur(nesil)) ile saglanir.
       // ANDROID: zili/tonu MEDYA (STREAM_MUSIC) yerine ZIL/ARAMA kanalindan cal ki kullanici
       // medya sesini kismisken/sessizde bile duysun. Bu zil/ton fazinda WebRTC YOK (arayan
       // kabule kadar, alici kabule kadar odaya baglanmaz) -> catisma yok. iOS'a DOKUNMA
