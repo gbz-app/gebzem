@@ -1110,7 +1110,7 @@ function giris(){var u=document.getElementById('lu').value,p=document.getElement
   .catch(function(){document.getElementById('lerr').textContent='bağlantı hatası';});}
 function cikis(){localStorage.removeItem('gbzkey');key='';document.getElementById('app').style.display='none';document.getElementById('login').style.display='flex';}
 document.getElementById('logout').onclick=cikis;
-document.querySelectorAll('#nav a').forEach(function(a){a.onclick=function(){document.querySelectorAll('#nav a').forEach(function(x){x.classList.remove('active');});a.classList.add('active');sekme=a.getAttribute('data-t');document.getElementById('ptitle').textContent=a.textContent.trim();ac();};});
+document.querySelectorAll('#nav a').forEach(function(a){a.onclick=function(){window._detayAcik=false;document.querySelectorAll('#nav a').forEach(function(x){x.classList.remove('active');});a.classList.add('active');sekme=a.getAttribute('data-t');document.getElementById('ptitle').textContent=a.textContent.trim();ac();};});
 function sb(s,t){if(s=='active')return['r','🔴 Canlı'];if(s=='missed')return['m','⚪ Cevapsız'];if(s=='rejected')return['o','🟠 Reddedildi'];if(s=='busy')return['p','🟣 Meşgul'];if(s=='ended')return t>=2?['g','🟢 Konuşuldu']:['y','🟡 Hemen koptu'];return['m',s];}
 function callRow(c,pm){var talk=pm?c.talk:c.talk_sec;var b=sb(c.status,talk);var tip=c.type=='video'?'📹 Görüntülü':'🎤 Sesli';
  var who=pm?((c.giden?'→ ':'← ')+esc(c.peer)):(esc(c.caller)+'<span class=ar>→</span>'+esc(c.callee));
@@ -1132,15 +1132,15 @@ function sesYenile(){if(sekme!='ses')return;api('/admin/audio').then(function(d)
  for(var i=0;i<d.length;i++){var x=d[i];var r=sesRenk(x.durum);var tip=x.tip=='VIDEO'?'📹':'🎤';
   h+='<div class="c '+r+'"><div style=min-width:0><div class=who>'+tip+' '+esc(x.yon)+' <span class=ar>·</span> '+esc(x.user)+' <span style=color:var(--dim);font-weight:400>('+esc(x.call)+')</span></div><div class=cmeta><span>🕐 '+esc(x.saat)+'</span><span>📦 '+x.recv+' (Δ'+x.delta+')</span><span>🔊 '+(x.enerji!=null?x.enerji.toFixed(1):'0')+'</span>'+(x.ios&&x.ios!='-'?'<span>📱 '+esc(x.ios)+'</span>':'')+'<span>'+(x.hoparlor?'📢 hop':'📞 kulak')+'</span></div></div><span class="badge '+r+'">'+esc(x.durum)+'</span></div>';}
  C.innerHTML=h+'</div>';});}
-window.detay=function(i){var u=window._u[i];api('/admin/user/'+u.id).then(function(d){document.getElementById('ptitle').textContent='Kullanıcı Profili';
+window.detay=function(i){window._detayAcik=true;var u=window._u[i];api('/admin/user/'+u.id).then(function(d){document.getElementById('ptitle').textContent='Kullanıcı Profili';
  var h='<span class=back onclick=geriUsers()>← Kullanıcılar</span><div class=prof><div class=av style=width:70px;height:70px;font-size:28px>'+esc(ic(d.name))+'</div><div><div class=pn>'+esc(d.name||'(isimsiz)')+(d.verified?' <span class=tik>✔</span>':'')+'</div><div class=pm>'+(d.username?'@'+esc(d.username)+'<br>':'')+'📱 '+esc(d.phone)+'<br>'+esc(d.about||'')+'</div><div style=margin-top:8px><span class=pill>🪙 '+d.coin+' jeton</span><span class=pill>📅 '+esc(d.created)+'</span><span class=pill>👁 '+esc(d.last_seen)+'</span></div></div></div>';
  h+='<div style="font-weight:700;margin:6px 0 12px">📞 Görüşmeleri ('+d.calls.length+')</div>';
  if(!d.calls.length)h+=box('📭','Bu kullanıcının araması yok');else{h+='<div class=clist>';for(var i=0;i<d.calls.length;i++)h+=callRow(d.calls[i],true);h+='</div>';}
  document.getElementById('content').innerHTML=h;});};
-window.geriUsers=function(){document.getElementById('ptitle').textContent='Kullanıcılar';sekme='users';ac();};
+window.geriUsers=function(){window._detayAcik=false;document.getElementById('ptitle').textContent='Kullanıcılar';sekme='users';ac();};
 function yenile(){if(sekme!='calls')return;api('/admin/calls').then(function(d){var C=document.getElementById('content');if(!d.length){C.innerHTML=box('📭','Henüz arama yok. İki telefonla arama yap — anlık göreceksin.');return;}var h='<div class=clist>';for(var i=0;i<d.length;i++)h+=callRow(d[i],false);C.innerHTML=h+'</div>';});}
 function ws(){try{var s=new WebSocket((location.protocol=='https:'?'wss':'ws')+'://'+location.host+'/admin/ws?key='+encodeURIComponent(key));s.onmessage=function(){if(sekme=='calls')yenile();document.getElementById('st').textContent='canlı · '+new Date().toLocaleTimeString('tr');};s.onclose=function(){setTimeout(ws,2000);};}catch(e){setTimeout(ws,2000);}}
-function basla(){document.getElementById('login').style.display='none';document.getElementById('app').style.display='flex';ac();ws();setInterval(function(){if(sekme=='calls')yenile();},10000);setInterval(function(){if(sekme=='ses')sesYenile();},2000);}
+function basla(){document.getElementById('login').style.display='none';document.getElementById('app').style.display='flex';ac();ws();setInterval(function(){if(sekme=='calls')yenile();},10000);setInterval(function(){if(sekme=='ses')sesYenile();},2000);setInterval(function(){if(sekme=='genel'||(sekme=='users'&&!window._detayAcik))ac();},2000);}
 if(key)basla();
 </script></body></html>`
 
