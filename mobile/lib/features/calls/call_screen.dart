@@ -52,6 +52,8 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
   Timer? _durationTimer;
   Timer? _ringTimeout;
   Timer? _statusPoll; // arayan: WS kaybolursa durum kurtarma pollu
+  Timer? _statsTimer; // ses NOKTA-ATISI olcumu (getStats -> Sentry)
+  int _sonRecvPaket = 0;
 
   /// Arama servisi initState'te yakalanir. `ref`, widget yok edildikten sonra
   /// KULLANILAMAZ (StateError firlatir) — servis ise uygulama boyunca yasar.
@@ -275,6 +277,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
       // olayi (o taraf arka plandayken / yari-acik sokette) kaybolabilir; bu poll en fazla
       // 3sn'de ekrani kapatir -> "kapatinca karsi tarafta arama devam ediyor" bug'i biter.
       _aktifPollBaslat();
+      _statsBaslat(); // ses nokta-atisi olcumu (Sentry)
     } catch (e) {
       // Hata Sentry'e duser; kullaniciya net mesaj gosterilir
       await CallSounds.durdur(_sesNesli);
@@ -329,8 +332,18 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
             setState(() => _quality = e.connectionQuality);
           }
         })
-        ..on<TrackSubscribedEvent>((_) {
+        ..on<TrackSubscribedEvent>((e) {
           if (mounted) setState(() {});
+          // ILK-ARAMA SES DUZELTMESI (Apple forum 64544 + kanonik CallKit+WebRTC): iOS soguk
+          // baslangicta ILK CallKit aramasinda didActivateAudioSession GELMEYIP _sesiAc erken/bos
+          // oturuma kuruldugunda karsinin sesi (downlink) render EDILMIYORDU -> "ilk arama sessiz,
+          // ikinci ses var". Cozum: remote AUDIO track SUBSCRIBE olunca (ses artik gercekten var)
+          // iOS cikis ses birimini YENIDEN aktive et -> birim remote track ile dogru kurulur,
+          // ilk aramada da ses gelir. useManualAudio'da bu, playout'u remote-track'e baglar.
+          if (e.track is AudioTrack) {
+            _sesLog('remote AUDIO subscribe -> _sesiAc(true) yeniden (ilk-arama ses fix)');
+            _sesiAc(true);
+          }
         })
         ..on<TrackUnsubscribedEvent>((_) {
           if (mounted) setState(() {});
@@ -398,6 +411,36 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
     _statusPoll = Timer.periodic(const Duration(seconds: 3), (_) => _durumKontrol());
   }
 
+  /// SES NOKTA-ATISI olcumu -> Sentry event (kullanici istegi: "daha derin izleme araci").
+  /// 5sn'de bir karsinin ses paketleri (downlink) artiyor mu olcup gebzem-mobile Sentry'e yazar.
+  /// Gercek cihazda "ilk aramada ses yok" KESIN teshis: recvDelta=0 -> karsinin sesi HIC gelmiyor
+  /// (ag/subscribe); recvDelta>0 ama kullanici DUYMUYOR -> ses ALINIYOR ama CALINMIYOR (iOS cikis
+  /// birimi/route). Boylece bir daha karanlikta tahmin yurutmeyiz.
+  void _statsBaslat() {
+    _statsTimer?.cancel();
+    _statsTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
+      if (!mounted || !_baglandi) return;
+      try {
+        final rp = _room?.remoteParticipants.values.firstOrNull;
+        final track = rp?.audioTrackPublications.firstOrNull?.track;
+        if (track is! RemoteAudioTrack) {
+          _sesLog('stats: remote audio track yok');
+          return;
+        }
+        final s = await track.getReceiverStats();
+        final recv = (s?.packetsReceived ?? 0).toInt();
+        final delta = recv - _sonRecvPaket;
+        _sonRecvPaket = recv;
+        Sentry.captureMessage(
+          'call.audio.stats video=${widget.video} speaker=$_speakerOn recvPaket=$recv delta=$delta',
+          level: SentryLevel.info,
+        );
+      } catch (e) {
+        _sesLog('stats HATA: $e');
+      }
+    });
+  }
+
   void _startTimer() {
     _durationTimer?.cancel();
     _durationTimer = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -439,6 +482,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
     _durationTimer?.cancel();
     _ringTimeout?.cancel();
     _statusPoll?.cancel();
+    _statsTimer?.cancel();
     final room = _room;
     final listener = _listener;
     _room = null;
@@ -543,6 +587,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
     _svc.aktifKonusmaBitti(widget.callId); // tek bitir-kapisi muhafizini birak
     WidgetsBinding.instance.removeObserver(this);
     _statusPoll?.cancel();
+    _statsTimer?.cancel();
     _endedSub?.cancel();
     _answeredSub?.cancel();
     CallSounds.durdur(_sesNesli);
