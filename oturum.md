@@ -696,3 +696,14 @@ Kullanıcı iPhone 13 + Android ile canlı test etti; ben sunucu AUDIO logların
 - **İlk-saniye gecikmesi:** ilk 2 aramada ~2sn ses gecikmesi görüldü (recv=0 → 2sn sonra SES-VAR); SON aramalarda BU DA KAYBOLDU (recv ilk satırda >0). Kullanıcı "sıkıntı yok" dedi. Kilitli ekran (CallKit/VoIP) yolu sağlam; art arda 5 red + 6. aç + bekleme + görüntülü → hepsi temiz.
 - **YENİ (nadir) bulgu — eşzamanlı arama çakışması:** kullanıcı ZATEN görüntülü aramadayken üstüne 2. arama girince ("üstte arama altta görüntü") 2. aramada görüntü gelmedi; kapatıp tek arama → düzeldi. Kök: aynı anda 2 WebRTC oturumu/oda; görüntü kanalı çakışıyor. TODO: arama sürerken 2. arama gelince WhatsApp-gibi "meşgul" (mevcut aramayı bozma). Backend'de busy durumu kısmen var; istemci+backend "meşgul" akışı netleştirilecek.
 - **Boşluk:** Android ses ÇIKIŞ durumu ölçülmüyor (getAudioState sadece iOS). Android'de "ses geliyor ama duyulmuyor" ayrımı için Android AudioManager durumu eklenebilir (gerekirse).
+
+### v13 + 6 DERİN ARAŞTIRMA (16 Tem akşam) — ikinci arama/kesinti + gelecek yol haritası
+Kullanıcı görüntülü aramadayken KENDİ 2. arama başlatınca görüntü gelmedi ("üstte arama altta görüntü"). + WhatsApp'taki beklet-kabul soruldu + Instagram vs sosyal medya mimarisi + grup/AR + 4 tür (grup/Spaces/canlı yayın).
+- **6 workflow:** (1) uygulama-içi çakışma kök neden, (2) çapraz senaryo GSM/WhatsApp, (3) mimari Instagram vs WhatsApp, (4) beklet denenmiş mi, (5) grup+DeepAR, (6) 4 tür. Tüm sentez → **arama-yol-haritasi.md**.
+- **KÖK NEDEN (2. arama):** aktif arama varken 2. arama guardsız → iki CallScreen+Room tek native ses birimini çekiştiriyor → 2. aramada görüntü/ses kurulamıyor. **v13 meşgul muhafızı:** ekrandakiAramalar Set + start() StateError + answer() null + call.incoming/checkActive guard + _sesiAc nesil jetonu + apiErrorMessage StateError.
+- **Beklet-kabul (hold-swap): YAPMA.** Çok yüksek risk (flutter-webrtc #1996 + Apple 749202 AÇIK bug; WhatsApp bile yapmıyor). supportsHolding=false zaten. → **Kesinti toparlama** (GSM/WhatsApp bitince ses gelsin): app-resume nudge (_kesintidenTopla, GetStream/Twilio deseni, düşük risk).
+- **Mimari:** CallKit/WhatsApp modeli DOĞRU, koru. 1:1=CallKit, grup/yayın=in-app. Instagram CallKit'e az girer.
+- **AR filtre: ERTELENDİ** (DeepAR pahalı $1000/ay + 3 yıl terk; bedava ML Kit ileride, izole).
+- **Yol haritası:** sesli grup → görüntülü grup (cap 6) → Spaces → canlı yayın (en son, egress ayrı makine + IAP %30).
+- **v13 adversarial doğrulama:** 1. tur ENGELLEYICI buldu (cevapsız ekran açıkken "meşgul" kalıp gelen arama yutuluyor) → _cevapsizGoster'a ekranKapandi eklendi (732f65f). 2. tur (v13b) TEMİZ (0 sorun). → **build alındı.**
+- Backend değişmedi (v13 mobil-only). Build: android 29528898658 + ios 29528900713.
