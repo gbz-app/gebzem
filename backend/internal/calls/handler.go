@@ -9,6 +9,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -507,11 +508,14 @@ func (h *Handler) AudioStat(w http.ResponseWriter, r *http.Request) {
 	}
 	// enerji delta'sini sayiya cevir (sessizlik ayrimi icin)
 	enerji, _ := strconv.ParseFloat(req.Enerji, 64)
+	saat := time.Now().Add(3 * time.Hour).Format("15:04:05") // TR saati (UTC+3)
 
 	// Kullanici sorun isaretlediyse AYRI, dikkat cekici satir
 	if req.Sorun {
 		log.Printf("!!! SORUN-BILDIRIMI call=%s user=%s %s %s sure=%ds recv=%d peer=%v hoparlor=%v iOS[%s]",
 			kisaID(callID), kisaID(userID), yon, tip, req.Sure, req.Recv, req.Peer, req.Speaker, iosStr)
+		audioEkle(audioKayit{Saat: saat, Call: kisaID(callID), User: kisaID(userID), Yon: yon, Tip: tip,
+			Recv: req.Recv, Durum: "!! SORUN-BILDIRIMI", Peer: req.Peer, Hoparlor: req.Speaker, IOS: iosStr})
 		w.WriteHeader(http.StatusOK)
 		return
 	}
@@ -539,12 +543,45 @@ func (h *Handler) AudioStat(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Printf("AUDIO call=%s user=%s %s %s recv=%d delta=%d enerji=%.1f %s peer=%v hoparlor=%v iOS[%s]",
 		kisaID(callID), kisaID(userID), yon, tip, req.Recv, req.Delta, enerji, durum, req.Peer, req.Speaker, iosStr)
+	audioEkle(audioKayit{Saat: saat, Call: kisaID(callID), User: kisaID(userID), Yon: yon, Tip: tip,
+		Recv: req.Recv, Delta: req.Delta, Enerji: enerji, Durum: durum, Peer: req.Peer, Hoparlor: req.Speaker, IOS: iosStr})
 	w.WriteHeader(http.StatusOK)
 }
 
 // temizle: log enjeksiyonuna karsi istemci dizesindeki satir sonlarini bosluga cevirir.
 func temizle(s string) string {
 	return strings.NewReplacer("\n", " ", "\r", " ").Replace(s)
+}
+
+// Canli ses teshis kayitlari (bellek ring buffer) — admin panel /admin/audio ile gosterir.
+// GECICI teshis araci; uretim oncesi kaldirilacak (bkz. oturum.md).
+type audioKayit struct {
+	Saat     string  `json:"saat"`
+	Call     string  `json:"call"`
+	User     string  `json:"user"`
+	Yon      string  `json:"yon"`
+	Tip      string  `json:"tip"`
+	Recv     int     `json:"recv"`
+	Delta    int     `json:"delta"`
+	Enerji   float64 `json:"enerji"`
+	Durum    string  `json:"durum"`
+	Peer     bool    `json:"peer"`
+	Hoparlor bool    `json:"hoparlor"`
+	IOS      string  `json:"ios"`
+}
+
+var (
+	audioMu  sync.Mutex
+	audioBuf []audioKayit // son 120 kayit
+)
+
+func audioEkle(k audioKayit) {
+	audioMu.Lock()
+	audioBuf = append(audioBuf, k)
+	if len(audioBuf) > 120 {
+		audioBuf = audioBuf[len(audioBuf)-120:]
+	}
+	audioMu.Unlock()
 }
 
 func kisaID(s string) string {
@@ -946,6 +983,22 @@ func (h *Handler) AdminCalls(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
+// GET /admin/audio?key=X — canli ses teshis kayitlari (bellek; yeni ustte)
+func (h *Handler) AdminAudio(w http.ResponseWriter, r *http.Request) {
+	if !adminYetkili(r) {
+		writeErr(w, http.StatusUnauthorized, "yetkisiz")
+		return
+	}
+	audioMu.Lock()
+	out := make([]audioKayit, len(audioBuf))
+	for i := range audioBuf {
+		out[i] = audioBuf[len(audioBuf)-1-i] // ters: en yeni ustte
+	}
+	audioMu.Unlock()
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	writeJSON(w, http.StatusOK, out)
+}
+
 // GET /admin/izle?key=X — canli arama izleme paneli (HTML)
 func (h *Handler) AdminPanel(w http.ResponseWriter, r *http.Request) {
 	// Panel HTML herkese acik (login ekrani icinde); asil koruma /admin/stats|users|calls (key ile)
@@ -1034,6 +1087,7 @@ body{background:var(--bg);color:var(--txt);font-family:-apple-system,system-ui,'
    <a data-t=genel class=active>📊 <span>Genel Bakış</span></a>
    <a data-t=users>👥 <span>Kullanıcılar</span></a>
    <a data-t=calls>📞 <span>Aramalar</span></a>
+   <a data-t=ses>🔊 <span>Ses Teşhis</span></a>
   </nav>
   <div class=logout id=logout>🚪 <span>Çıkış</span></div>
  </aside>
@@ -1069,7 +1123,15 @@ function box(i,t){return '<div class=empty><div class=i>'+i+'</div>'+t+'</div>';
 function ac(){var C=document.getElementById('content');
  if(sekme=='genel'){api('/admin/stats').then(function(s){C.innerHTML='<div class=grid>'+kpi(s.users,'Kullanıcı','👥')+kpi(s.calls,'Toplam Arama','📞')+kpi(s.konusuldu,'Konuşuldu','🟢')+kpi(s.cevapsiz,'Cevapsız/Red','⚪')+kpi(s.video,'Görüntülü','📹')+kpi(s.aktif,'Şu An Aktif','🔴')+'</div><div style="color:var(--dim);font-size:13px">Kullanıcılar için sol menüyü kullan · Aramalar sekmesi anlık güncellenir.</div>';});}
  else if(sekme=='users'){api('/admin/users').then(function(d){window._u=d;if(!d.length){C.innerHTML=box('👥','Henüz kullanıcı yok');return;}var h='<div class=ulist>';for(var i=0;i<d.length;i++){var u=d[i];h+='<div class=u onclick=detay('+i+')><div class=av>'+esc(ic(u.name))+'</div><div class=uinfo><div class=uname>'+esc(u.name||'(isimsiz)')+(u.verified?'<span class=tik>✔</span>':'')+'</div><div class=umeta>'+(u.username?'@'+esc(u.username)+' · ':'')+esc(u.phone)+' · '+esc(u.created)+'</div></div><div class=ustat><b>'+u.calls+'</b> arama<br><b>'+u.msgs+'</b> mesaj</div></div>';}C.innerHTML=h+'</div>';});}
- else if(sekme=='calls'){yenile();}}
+ else if(sekme=='calls'){yenile();}
+ else if(sekme=='ses'){sesYenile();}}
+function sesRenk(d){if(d.indexOf('SORUN')>=0)return'r';if(d=='SES-VAR')return'g';if(d=='iOS-CIKIS-YOK')return'r';if(d=='SES-GELMIYOR')return'o';if(d=='TRACK-YOK')return'p';if(d=='SES-DUSUK')return'y';return'm';}
+function sesYenile(){if(sekme!='ses')return;api('/admin/audio').then(function(d){var C=document.getElementById('content');
+ if(!d.length){C.innerHTML=box('🔊','Henüz ses verisi yok. İki telefonla arama başlat — konuşurken her 2 saniyede bir durum buraya düşer.');return;}
+ var h='<div style="color:var(--dim);font-size:12px;line-height:1.9;margin-bottom:14px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 15px">🟢 <b>SES-VAR</b> ses gidiyor · 🔴 <b>iOS-CIKIS-YOK</b> ses geliyor ama iPhone çalmıyor · 🟠 <b>SES-GELMIYOR</b> paket akmıyor (ağ) · 🟣 <b>TRACK-YOK</b> ses kanalı yok · 🟡 <b>SES-DUSUK</b> o an sessiz (doğal olabilir)</div><div class=clist>';
+ for(var i=0;i<d.length;i++){var x=d[i];var r=sesRenk(x.durum);var tip=x.tip=='VIDEO'?'📹':'🎤';
+  h+='<div class="c '+r+'"><div style=min-width:0><div class=who>'+tip+' '+esc(x.yon)+' <span class=ar>·</span> '+esc(x.user)+' <span style=color:var(--dim);font-weight:400>('+esc(x.call)+')</span></div><div class=cmeta><span>🕐 '+esc(x.saat)+'</span><span>📦 '+x.recv+' (Δ'+x.delta+')</span><span>🔊 '+(x.enerji!=null?x.enerji.toFixed(1):'0')+'</span>'+(x.ios&&x.ios!='-'?'<span>📱 '+esc(x.ios)+'</span>':'')+'<span>'+(x.hoparlor?'📢 hop':'📞 kulak')+'</span></div></div><span class="badge '+r+'">'+esc(x.durum)+'</span></div>';}
+ C.innerHTML=h+'</div>';});}
 window.detay=function(i){var u=window._u[i];api('/admin/user/'+u.id).then(function(d){document.getElementById('ptitle').textContent='Kullanıcı Profili';
  var h='<span class=back onclick=geriUsers()>← Kullanıcılar</span><div class=prof><div class=av style=width:70px;height:70px;font-size:28px>'+esc(ic(d.name))+'</div><div><div class=pn>'+esc(d.name||'(isimsiz)')+(d.verified?' <span class=tik>✔</span>':'')+'</div><div class=pm>'+(d.username?'@'+esc(d.username)+'<br>':'')+'📱 '+esc(d.phone)+'<br>'+esc(d.about||'')+'</div><div style=margin-top:8px><span class=pill>🪙 '+d.coin+' jeton</span><span class=pill>📅 '+esc(d.created)+'</span><span class=pill>👁 '+esc(d.last_seen)+'</span></div></div></div>';
  h+='<div style="font-weight:700;margin:6px 0 12px">📞 Görüşmeleri ('+d.calls.length+')</div>';
@@ -1078,7 +1140,7 @@ window.detay=function(i){var u=window._u[i];api('/admin/user/'+u.id).then(functi
 window.geriUsers=function(){document.getElementById('ptitle').textContent='Kullanıcılar';sekme='users';ac();};
 function yenile(){if(sekme!='calls')return;api('/admin/calls').then(function(d){var C=document.getElementById('content');if(!d.length){C.innerHTML=box('📭','Henüz arama yok. İki telefonla arama yap — anlık göreceksin.');return;}var h='<div class=clist>';for(var i=0;i<d.length;i++)h+=callRow(d[i],false);C.innerHTML=h+'</div>';});}
 function ws(){try{var s=new WebSocket((location.protocol=='https:'?'wss':'ws')+'://'+location.host+'/admin/ws?key='+encodeURIComponent(key));s.onmessage=function(){if(sekme=='calls')yenile();document.getElementById('st').textContent='canlı · '+new Date().toLocaleTimeString('tr');};s.onclose=function(){setTimeout(ws,2000);};}catch(e){setTimeout(ws,2000);}}
-function basla(){document.getElementById('login').style.display='none';document.getElementById('app').style.display='flex';ac();ws();setInterval(function(){if(sekme=='calls')yenile();},10000);}
+function basla(){document.getElementById('login').style.display='none';document.getElementById('app').style.display='flex';ac();ws();setInterval(function(){if(sekme=='calls')yenile();},10000);setInterval(function(){if(sekme=='ses')sesYenile();},2000);}
 if(key)basla();
 </script></body></html>`
 

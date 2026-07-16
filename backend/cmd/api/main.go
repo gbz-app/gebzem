@@ -100,6 +100,7 @@ func main() {
 	r.Get("/admin/users", callsH.AdminUsers)
 	r.Get("/admin/user/{id}", callsH.AdminUserDetail)
 	r.Get("/admin/calls", callsH.AdminCalls)
+	r.Get("/admin/audio", callsH.AdminAudio) // canli ses teshis
 	r.Get("/admin/ws", callsH.AdminWS)
 
 	// iOS test cihazi kaydi (Over-The-Air) — profil yukleyen iPhone UDID'sini buraya yollar
