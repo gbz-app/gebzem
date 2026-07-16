@@ -183,7 +183,11 @@ class CallKitService {
         // Ses oturumunu CallKit yonetsin; LiveKit odaya KABULDEN SONRA baglanir.
         configureAudioSession: true,
         audioSessionMode: 'voiceChat',
-        audioSessionActive: true,
+        // audioSessionActive:false -> arama CALARKEN AVAudioSession'i AKTIVE ETME. true iken
+        // arama daha calarken oturum aktive edilip iOS sistem ZILI BASTIRILIYORDU (kullanicinin
+        // "iPhone'da gelen zil calmiyor" semptomu). Ses KABULDEN sonra didActivateAudioSession
+        // (AppDelegate) ile aciliyor; configureAudioSession:true bunu garanti eder.
+        audioSessionActive: false,
       ),
     ));
   }

@@ -7,33 +7,32 @@ import 'package:vibration/vibration.dart';
 /// Arama sesleri: gelen aramada ZIL + TITRESIM, giden aramada CALMA TONU.
 ///
 /// NEDEN LiveKit ile cakismiyor:
-/// iOS'ta surec basina TEK bir AVAudioSession var ve livekit_client, mikrofon
-/// yayinlanir yayinlanmaz oturumu playAndRecord'a (mixWithOthers OLMADAN) cekiyor;
-/// bu da bizim zil sesimizi susturur (LiveKit issue #791 — "cozulmeyecek" diye kapatildi).
-/// Cozum hack degil, akis: ARAYAN, karsi taraf ACANA KADAR LiveKit odasina hic
-/// baglanmaz. Boylece calma tonu calarken ortada WebRTC ses oturumu OLMAZ.
-/// ALICI zaten kabul edene kadar odaya girmez → gelen arama zili de serbest calar.
+/// ARAYAN, karsi taraf ACANA KADAR LiveKit odasina hic baglanmaz; ALICI kabul edene kadar
+/// odaya girmez. Boylece zil/ton calarken ortada WebRTC ses oturumu OLMAZ. iOS'ta ses
+/// kanalina (AVAudioSession) DOKUNMAYIZ (global; WebRTC ile catisir, "ses gitmiyor" krizi).
+///
+/// NESIL JETONU (art arda arama kok cozumu): tek paylasilan _player + eski ekranin gec
+/// dispose'undan tetiklenen durdur(), YENI aramanin baslattigi sesi kesiyordu (kullanicinin
+/// "art arda aramada dit/zil yok" semptomu). Her yeni ses _nesil'i artirir; durdur(nesil)
+/// yalniz o nesil HALA guncelse durdurur -> eski cagri yeni sesi KESEMEZ.
 class CallSounds {
   CallSounds._();
 
   static final _player = AudioPlayer(playerId: 'gebzem_arama');
-  static bool _calan = false;
+  static int _nesil = 0;
   static Timer? _titresim;
 
   /// Gelen arama: klasik telefon zili (zil.wav) dongude calar + telefon titrer.
-  /// NOT: Bu SADECE Android ON PLAN uygulama-ici gelen arama ekrani icin. iOS'ta ve
-  /// Android arka planda arama CallKit ile gelir; CallKit telefonun KENDI sistem zilini
-  /// calar (callkit_service: Android system_ringtone_default, iOS varsayilan). Kullanici
-  /// istegi: melodi (arama.mp3) kaldirildi, kendi/klasik zil sesi kullaniliyor.
-  static Future<void> gelenArama() async {
-    await _cal('sounds/zil.wav', sesli: true);
+  /// NESIL doner — cagiran, durdururken bu nesli vermeli (durdur(nesil)).
+  static Future<int> gelenArama() async {
+    final n = await _cal('sounds/zil.wav', sesli: true, zil: true);
     _titresimBaslat();
+    return n;
   }
 
-  /// Giden arama: "caliyor" tonu (Turkiye: 425 Hz, 2 sn calar 4 sn susar)
-  static Future<void> calmaTonu() async {
-    await _cal('sounds/calma.wav', sesli: false);
-  }
+  /// Giden arama: "caliyor" tonu (Turkiye: 425 Hz, 2 sn calar 4 sn susar). NESIL doner.
+  static Future<int> calmaTonu() async =>
+      _cal('sounds/calma.wav', sesli: false, zil: false);
 
   /// Arama bitti: kisa cift bip (tek sefer)
   static Future<void> bittiSesi() async {
@@ -44,9 +43,12 @@ class CallSounds {
     } catch (_) {}
   }
 
-  /// Her sey susar (kabul/reddet/kapat aninda MUTLAKA cagrilmali)
-  static Future<void> durdur() async {
-    _calan = false;
+  /// Sesi durdur.
+  /// [nesil] VERILIRSE: yalniz o nesil HALA guncelse durdurur — eski ekranin gec dispose
+  /// durdur'u YENI baslamis sesi kesemez (art arda arama kok cozumu). Titresim de yalniz o
+  /// zaman durur. PARAMETRESIZ (kabul/reddet/kapat): KOSULSUZ her seyi durdur.
+  static Future<void> durdur([int? nesil]) async {
+    if (nesil != null && nesil != _nesil) return; // yeni ses baslamis; bu eski cagri dokunmasin
     _titresim?.cancel();
     _titresim = null;
     try {
@@ -57,21 +59,34 @@ class CallSounds {
     } catch (_) {}
   }
 
-  static Future<void> _cal(String varlik, {required bool sesli}) async {
-    if (_calan) return;
-    _calan = true;
+  static Future<int> _cal(String varlik,
+      {required bool sesli, required bool zil}) async {
+    final n = ++_nesil; // bu calmanin nesli; onceki nesli gecersiz kilar
     try {
-      // NOT: Burada global AudioContext'i .playback'e ALMAYIZ — .playback sadece-cikis
-      // kategorisidir ve AKTIF WebRTC aramasinin MIKROFONUNU keser (ses gitmez). Zil/ton
-      // duyulma sorunu ses ayrimini (zil=hoparlor, arama=kulaklik) DOGRU yoneterek cozulur;
-      // global kategori ezmesi arama sesini bozdugu icin GERI ALINDI.
+      await _player.stop(); // idempotent restart: onceki sesi temizle (guard yok, HER ZAMAN cal)
+      if (n != _nesil) return n; // bu arada yeni bir _cal geldi -> bu cagri vazgecsin
+      // ANDROID: zili/tonu MEDYA (STREAM_MUSIC) yerine ZIL/ARAMA kanalindan cal ki kullanici
+      // medya sesini kismisken/sessizde bile duysun. Bu zil/ton fazinda WebRTC YOK (arayan
+      // kabule kadar, alici kabule kadar odaya baglanmaz) -> catisma yok. iOS'a DOKUNMA
+      // (AVAudioSession global; WebRTC ile catisir). iOS gelen zili CallKit'e birakildi.
+      if (Platform.isAndroid) {
+        await _player.setAudioContext(AudioContext(
+          android: AudioContextAndroid(
+            isSpeakerphoneOn: false,
+            stayAwake: false,
+            contentType: AndroidContentType.sonification,
+            usageType: zil
+                ? AndroidUsageType.notificationRingtone
+                : AndroidUsageType.voiceCommunication,
+            audioFocus: AndroidAudioFocus.gainTransientMayDuck,
+          ),
+        ));
+      }
       await _player.setReleaseMode(ReleaseMode.loop); // dongu
-      // Gelen aramada zil sesi telefonun zil kanalindan, giden tonda daha kisik
       await _player.setVolume(sesli ? 1.0 : 0.5);
       await _player.play(AssetSource(varlik));
-    } catch (_) {
-      _calan = false;
-    }
+    } catch (_) {}
+    return n;
   }
 
   static void _titresimBaslat() {

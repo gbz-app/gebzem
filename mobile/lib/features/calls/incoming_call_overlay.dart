@@ -44,6 +44,7 @@ class _IncomingCallSheet extends ConsumerStatefulWidget {
 
 class _IncomingCallSheetState extends ConsumerState<_IncomingCallSheet> {
   bool _busy = false;
+  int? _zilNesli; // CallSounds zil nesli — durdururken verilir (art arda ezme koruması)
   Timer? _timeout; // gelen arama sonsuza calmasin (arayan iptali WS'te kaybolabilir)
   Timer? _poll;
 
@@ -51,7 +52,7 @@ class _IncomingCallSheetState extends ConsumerState<_IncomingCallSheet> {
   void initState() {
     super.initState();
     // Zil + titresim. LiveKit odasina henuz baglanmadigimiz icin zil serbestce calar.
-    CallSounds.gelenArama();
+    CallSounds.gelenArama().then((n) => _zilNesli = n); // nesli sakla (durdururken verilecek)
     final notifier = ref.read(callServiceProvider.notifier);
     // Arayan iptal edince call.ended WS'i duserse (buffer/half-open) telefon SONSUZA
     // calmasin: (1) ~48sn'de kendiliginden kapan, (2) 3sn'de bir sunucu durumunu sor.
@@ -72,14 +73,14 @@ class _IncomingCallSheetState extends ConsumerState<_IncomingCallSheet> {
   void dispose() {
     _timeout?.cancel();
     _poll?.cancel();
-    CallSounds.durdur(); // ekran her kapandiginda zil MUTLAKA sussun
+    CallSounds.durdur(_zilNesli); // ekran her kapandiginda zil MUTLAKA sussun
     super.dispose();
   }
 
   Future<void> _accept() async {
     if (_busy) return;
     setState(() => _busy = true);
-    await CallSounds.durdur(); // once zili kes, sonra odaya gir
+    await CallSounds.durdur(_zilNesli); // once zili kes, sonra odaya gir
 
     // Bu widget Navigator'in DISINDA yasar (MaterialApp.builder), bu yuzden
     // Navigator.of(context) kullanilamaz — kok Navigator anahtarini kullaniyoruz.
@@ -118,7 +119,7 @@ class _IncomingCallSheetState extends ConsumerState<_IncomingCallSheet> {
   Future<void> _reject() async {
     if (_busy) return;
     setState(() => _busy = true);
-    await CallSounds.durdur();
+    await CallSounds.durdur(_zilNesli);
     await ref.read(callServiceProvider.notifier).end(widget.call.callId);
   }
 

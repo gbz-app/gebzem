@@ -57,6 +57,8 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
   /// KULLANILAMAZ (StateError firlatir) — servis ise uygulama boyunca yasar.
   late final CallService _svc;
 
+  int? _sesNesli; // CallSounds nesli — durdururken verilir ki art arda aramada ESKI ekranin
+  // gec dispose durdur'u YENI aramanin sesini (dit/zil) kesmesin.
   bool _connecting = true;
   bool _kapandi = false; // oda bir kez kapatildi mi (cift kapatmayi onler)
   bool _baglandi = false; // odaya baglanma baslatildi mi (cift baglanmayi onler)
@@ -117,7 +119,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
       // acilinca LiveKit calma tonunu susturur). Cevaptan sonra odaya girilir.
       _answeredSub = svc.onCallAnswered.listen((id) {
         if (id == widget.callId && mounted && !_baglandi) {
-          CallSounds.durdur();
+          CallSounds.durdur(_sesNesli);
           _connect();
         }
       });
@@ -126,7 +128,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
         _connect();
         return;
       }
-      CallSounds.calmaTonu();
+      CallSounds.calmaTonu().then((n) => _sesNesli = n); // nesli sakla (durdururken verilecek)
       // 45 sn cevap yoksa: ONCE sunucuyu sor. 'active' ise (arayan arka plandaydi, poll
       // ertelendi) BAGLAN — yoksa sunucuda CANLI olan aramayi End'e cekip karsi tarafin
       // aramasini dusururduk. Hala 'ringing' ise "Cevap yok" (ekrani KAPATMA).
@@ -138,7 +140,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
         } catch (_) {}
         if (!mounted || _baglandi || _ayrildi) return;
         if (s == 'active') {
-          CallSounds.durdur();
+          CallSounds.durdur(_sesNesli);
           _connect();
         } else {
           _cevapsizGoster('Cevap yok', sunucuyaBildir: true);
@@ -167,7 +169,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
     if (!mounted || _ayrildi || _cevapsiz) return;
     if (s == 'active') {
       if (!_baglandi) {
-        CallSounds.durdur();
+        CallSounds.durdur(_sesNesli);
         _connect(); // ring fazi: karsi taraf kabul etti -> bagla
       }
       return;
@@ -201,7 +203,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
   /// gec (Geri Ara / Kapat gosterilir). Otomatik pop YOK.
   Future<void> _cevapsizGoster(String neden, {bool sunucuyaBildir = false}) async {
     if (_baglandi || _ayrildi || _cevapsiz) return;
-    await CallSounds.durdur();
+    await CallSounds.durdur(_sesNesli);
     _ringTimeout?.cancel();
     _statusPoll?.cancel();
     if (sunucuyaBildir) {
@@ -275,7 +277,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
       _aktifPollBaslat();
     } catch (e) {
       // Hata Sentry'e duser; kullaniciya net mesaj gosterilir
-      await CallSounds.durdur();
+      await CallSounds.durdur(_sesNesli);
       await Sentry.captureException(e, stackTrace: StackTrace.current);
       if (mounted) {
         final msg = e.toString().toLowerCase();
@@ -355,16 +357,17 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
           ),
         ),
       );
+      // iOS SES SIRASI (KRITIK): WebRTC sesi MANUEL modda (useManualAudio=true, AppDelegate).
+      // Ses birimini mikrofon YAYINLANMADAN ONCE ac. Eski sirada (mic -> speaker -> _sesiAc)
+      // track "published" oluyor ama ses birimi hala kapali -> RTP gidiyor fakat SESSIZ ->
+      // karsi taraf DUYMUYOR ("goruntulude ses gitmedi"). Dogru sira: ses birimi -> mic/kamera
+      // -> route(setSpeakerOn). Android'de _sesiAc no-op (Platform.isIOS), sira zararsiz.
+      await _sesiAc(true);
       await room.localParticipant?.setMicrophoneEnabled(true);
       if (widget.video) {
         await room.localParticipant?.setCameraEnabled(true);
       }
-      await room.setSpeakerOn(widget.video); // goruntuluda hoparlor acik baslar
-
-      // iOS'ta WebRTC sesi MANUEL modda (useManualAudio=true, AppDelegate). CallKit'ten
-      // gelen aramada ses didActivateAudioSession ile aciliyor; UYGULAMA ACIK aramada
-      // (CallKit yok) ise ses acilmaz -> burada elle aciyoruz.
-      await _sesiAc(true);
+      await room.setSpeakerOn(widget.video); // route en son (goruntuluda hoparlor acik)
 
       // Ekran bu arada kapandiysa odayi burada birak (sizinti olmasin)
       if (!mounted) {
@@ -470,7 +473,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
     // (_kapandi guard) + timeout'lu; dispose'daki enqueue safety-net olarak KALIR.
     unawaited(CallRoomLock.calistir(_kapatOda));
 
-    await CallSounds.durdur();
+    await CallSounds.durdur(_sesNesli);
 
     // Ekrani hemen kapat — arkasindaki oda temizligi dispose()'ta suruyor
     if (mounted) {
@@ -526,7 +529,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
     _statusPoll?.cancel();
     _endedSub?.cancel();
     _answeredSub?.cancel();
-    CallSounds.durdur();
+    CallSounds.durdur(_sesNesli);
     // await edilemez (dispose senkron) — ama kilit sirasina konur, boylece
     // BIR SONRAKI aramanin connect'i bu kapanis bitmeden baslamaz.
     unawaited(CallRoomLock.calistir(_kapatOda));
