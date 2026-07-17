@@ -441,6 +441,14 @@ func (h *Handler) Answer(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserID(r.Context())
 	callID := chi.URLParam(r, "id")
 
+	// GRUP mu? is_group ise KATILMA yolu (1:1 Answer'a dokunmaz).
+	var isGroup bool
+	h.db.QueryRow(r.Context(), `SELECT COALESCE(is_group,false) FROM calls WHERE id=$1`, callID).Scan(&isGroup)
+	if isGroup {
+		h.answerGroup(w, r, callID, userID)
+		return
+	}
+
 	var callerID, callType string
 	err := h.db.QueryRow(r.Context(), `
 		SELECT caller_id, type FROM calls WHERE id=$1 AND callee_id=$2`,
@@ -501,6 +509,15 @@ func (h *Handler) Answer(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) End(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserID(r.Context())
 	callID := chi.URLParam(r, "id")
+
+	// GRUP mu? is_group ise AYRIL yolu (1:1 End'e dokunmaz). Grupta End = "ben ayrildim";
+	// arama DIGERLERI icin surer, yalniz oda bosalinca biter.
+	var isGroup bool
+	h.db.QueryRow(r.Context(), `SELECT COALESCE(is_group,false) FROM calls WHERE id=$1`, callID).Scan(&isGroup)
+	if isGroup {
+		h.endGroup(w, r, callID, userID)
+		return
+	}
 
 	var callerID, calleeID, status, callType string
 	err := h.db.QueryRow(r.Context(), `
@@ -578,6 +595,122 @@ func (h *Handler) End(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": newStatus})
+}
+
+// --- GRUP ARAMA yardimcilari (1:1'den tamamen ayri) ---
+
+// Bir grup aramasinda JOINED (aktif konusan) katilimcilar (exceptID haric).
+func (h *Handler) groupJoinedOthers(ctx context.Context, callID, exceptID string) []string {
+	rows, err := h.db.Query(ctx,
+		`SELECT user_id FROM call_participants WHERE call_id=$1 AND status='joined' AND user_id<>$2`,
+		callID, exceptID)
+	var ids []string
+	if err == nil {
+		for rows.Next() {
+			var u string
+			if rows.Scan(&u) == nil {
+				ids = append(ids, u)
+			}
+		}
+		rows.Close()
+	}
+	return ids
+}
+
+// Bir grup aramasinda CALAN veya AKTIF tum katilimcilar (oda kapanirken haber vermek icin).
+func (h *Handler) groupRingingOrJoined(ctx context.Context, callID string) []string {
+	rows, err := h.db.Query(ctx,
+		`SELECT user_id FROM call_participants WHERE call_id=$1 AND status IN ('ringing','joined')`, callID)
+	var ids []string
+	if err == nil {
+		for rows.Next() {
+			var u string
+			if rows.Scan(&u) == nil {
+				ids = append(ids, u)
+			}
+		}
+		rows.Close()
+	}
+	return ids
+}
+
+// Grup davetini KABUL = odaya katil. Token doner + diger aktiflere call.participant.joined.
+func (h *Handler) answerGroup(w http.ResponseWriter, r *http.Request, callID, userID string) {
+	// Davetli mi (call_participants satiri var mi) + arama hala aktif mi
+	var callType string
+	err := h.db.QueryRow(r.Context(), `
+		SELECT c.type FROM calls c
+		JOIN call_participants p ON p.call_id=c.id AND p.user_id=$2
+		WHERE c.id=$1 AND c.status='active'`, callID, userID).Scan(&callType)
+	if err != nil {
+		writeErr(w, http.StatusNotFound, "arama bulunamadi veya bitti")
+		return
+	}
+	// Katil: ringing/left -> joined (idempotent)
+	h.db.Exec(r.Context(),
+		`UPDATE call_participants SET status='joined', joined_at=COALESCE(joined_at,now())
+		 WHERE call_id=$1 AND user_id=$2`, callID, userID)
+
+	var name string
+	h.db.QueryRow(r.Context(), `SELECT name FROM users WHERE id=$1`, userID).Scan(&name)
+	roomName := "call_" + callID
+	tok, err := h.token(roomName, userID, name)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "token uretilemedi")
+		return
+	}
+	// Diger AKTIF katilimcilara "X katildi" -> grid guncelle (call.ended DEGIL)
+	payload, _ := json.Marshal(map[string]any{"call_id": callID, "user_id": userID, "name": name})
+	h.hub.Publish(r.Context(), &chat.Event{
+		Type: "call.participant.joined", Payload: payload,
+		To:   h.groupJoinedOthers(r.Context(), callID, userID),
+	})
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"call_id": callID, "room": roomName, "url": h.lkURL, "token": tok,
+		"type": callType, "is_group": true,
+	})
+}
+
+// Grup aramasindan AYRIL. Ben cikarim; arama DIGERLERI icin SURER. Oda bosalinca (joined=0) biter.
+// KRITIK: 1:1'deki gibi call.ended yaymayiz -> tek kisinin cikisi tum grubu kapatmaz.
+func (h *Handler) endGroup(w http.ResponseWriter, r *http.Request, callID, userID string) {
+	h.db.Exec(r.Context(),
+		`UPDATE call_participants SET status='left', left_at=now()
+		 WHERE call_id=$1 AND user_id=$2 AND status IN ('ringing','joined')`, callID, userID)
+
+	// Kalan AKTIF katilimcilara "X ayrildi" (call.ended DEGIL -> ekranlari kapanmaz)
+	leftPayload, _ := json.Marshal(map[string]any{"call_id": callID, "user_id": userID})
+	h.hub.Publish(r.Context(), &chat.Event{
+		Type: "call.participant.left", Payload: leftPayload,
+		To:   h.groupJoinedOthers(r.Context(), callID, userID),
+	})
+
+	// Oda bosaldi mi? (aktif katilimci kalmadi) -> arama biter, kalan CALAN davetlilere cancel.
+	var joinedCount int
+	h.db.QueryRow(r.Context(),
+		`SELECT count(*) FROM call_participants WHERE call_id=$1 AND status='joined'`, callID).Scan(&joinedCount)
+	if joinedCount == 0 {
+		h.db.Exec(r.Context(),
+			`UPDATE calls SET status='ended', ended_at=now() WHERE id=$1 AND status='active'`, callID)
+		calanlar := h.groupRingingOrJoined(r.Context(), callID)
+		endPayload, _ := json.Marshal(map[string]string{"call_id": callID, "status": "ended"})
+		h.hub.Publish(r.Context(), &chat.Event{Type: "call.ended", Payload: endPayload, To: calanlar})
+		for _, uid := range calanlar {
+			uid := uid
+			if h.apns != nil {
+				go func() {
+					ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+					defer cancel()
+					h.apns.CallCancel(ctx, uid, callID)
+				}()
+			}
+			if !h.hub.Online(uid) && h.push != nil {
+				go h.push.CallInvite([]string{uid}, map[string]string{"type": "call.cancel", "call_id": callID})
+			}
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "left"})
 }
 
 // POST /calls/{id}/audio-stat — CANLI ESZAMANLI ses takibi. Istemci 2sn'de bir karsidan aldigi
