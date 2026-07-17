@@ -15,18 +15,28 @@ class IncomingCall {
     required this.callerName,
     required this.callerAvatar,
     required this.video,
+    this.isGroup = false,
+    this.chatTitle = '',
+    this.participantCount = 0,
   });
 
   final String callId;
   final String callerName;
   final String callerAvatar;
   final bool video;
+  final bool isGroup; // GRUP aramasi mi (coklu katilimci)
+  final String chatTitle; // grup basligi
+  final int participantCount; // grup katilimci sayisi (host dahil)
 
   factory IncomingCall.fromJson(Map<String, dynamic> j) => IncomingCall(
         callId: j['call_id'] as String,
         callerName: j['caller_name'] as String? ?? 'Bilinmeyen',
         callerAvatar: j['caller_avatar'] as String? ?? '',
-        video: (j['type'] as String? ?? 'audio') == 'video',
+        // WS payload 'type', push davet 'call_type' -> ikisini de kabul et
+        video: ((j['type'] ?? j['call_type']) as String? ?? 'audio') == 'video',
+        isGroup: j['is_group'] == true || j['is_group'] == 'true',
+        chatTitle: j['chat_title'] as String? ?? '',
+        participantCount: (j['participant_count'] as num?)?.toInt() ?? 0,
       );
 }
 
@@ -46,6 +56,11 @@ class CallService extends StateNotifier<IncomingCall?> {
   /// Karsi taraf kabul edince tetiklenir
   final _answeredController = StreamController<String>.broadcast();
   Stream<String> get onCallAnswered => _answeredController.stream;
+
+  /// GRUP: bir katilimci katildi/ayrildi -> CallScreen izgarayi gunceller.
+  /// {event: 'call.participant.joined'|'call.participant.left', call_id, user_id, name?}
+  final _participantController = StreamController<Map<String, dynamic>>.broadcast();
+  Stream<Map<String, dynamic>> get onParticipant => _participantController.stream;
 
   /// Kabul edilmis aramalar. Arama ekrani olayi dinlemeye baslamadan ONCE
   /// "kabul edildi" gelirse kaybolmasin diye tutuluyor.
@@ -105,6 +120,10 @@ class CallService extends StateNotifier<IncomingCall?> {
       case 'call.ended':
         final id = p['call_id'] as String? ?? '';
         aramaBitti(id);
+      case 'call.participant.joined':
+      case 'call.participant.left':
+        // GRUP: izgarayi guncelle (CallScreen dinler). 1:1 aramada bu olaylar HIC gelmez.
+        _participantController.add({'event': ev['type'] as String? ?? '', ...p});
     }
   }
 
@@ -162,6 +181,19 @@ class CallService extends StateNotifier<IncomingCall?> {
     }
     final res = await _ref.read(apiProvider).post('/calls', data: {
       'callee_id': calleeId,
+      'video': video,
+    });
+    return (res.data as Map).cast<String, dynamic>();
+  }
+
+  /// GRUP aramasi baslat — secilen kisilerle (anlik grup). LiveKit baglanti bilgilerini doner.
+  /// start() ile AYNI mesgul muhafizi (zaten aramada -> engelle) + aramadaMi guard.
+  Future<Map<String, dynamic>> startGroup(List<String> memberIds, {required bool video}) async {
+    if (aramadaMi) {
+      throw StateError('Zaten bir aramadasınız');
+    }
+    final res = await _ref.read(apiProvider).post('/calls', data: {
+      'member_ids': memberIds,
       'video': video,
     });
     return (res.data as Map).cast<String, dynamic>();
@@ -237,6 +269,7 @@ class CallService extends StateNotifier<IncomingCall?> {
     _sub?.cancel();
     _endedController.close();
     _answeredController.close();
+    _participantController.close();
     super.dispose();
   }
 }
