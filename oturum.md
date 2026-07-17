@@ -726,3 +726,11 @@ guncellendi (workflow wazlaaaeh): 8 adim, izole, isGroup bayragi, v13 mesgul-muh
 - **Adim 4:** Status grup-uyumlu (call_participants yetki) + History is_group=false filtre.
 - **curl test (3 kullanici + grup, scratchpad/grup-test.sh):** TUMU GECTI -> baslat(host joined/uyeler ringing), katil(joined), **1 uye ayril->arama SURER(active)**, oda bosal->ended, **1:1 REGRESYON: is_group=false callee dolu (bozulmadi)**. (Test bug'lari: SSH tirnak-soyma->SQL stdin; INSERT RETURNING'e 'INSERT 0 1' tag'i->head -1. Backend saglamdi.)
 - Backend deploy edildi (d10bf28, health ok). SIRADAKI: Adim 5-7 Flutter (isGroup + coklu-katilimci sesli ekran + CallKit grup basligi) -> YENI BUILD.
+
+### SESLI GRUP MVP — TAMAMEN BITTI + YAYINDA (17 Tem 18:50)
+Kullanici "tamamen bitir" -> 8 adim tamamlandi, izole (isGroup bayragi), 1:1 REGRESYON YOK.
+- **Backend (adim 1-4):** migration 007 (calls +chat_id/+is_group, call_participants) + startGroup (chat_id VEYA member_ids anlik grup) + answerGroup/endGroup (End=ayril, call.participant.joined/left, oda bosalinca call.ended) + Status grup-uyumlu. **curl test (3 kullanici, member_ids yolu): baslat/katil/ayril-arama-surer/oda-bit/1:1-regresyon HEPSI GECTI.**
+- **Flutter (adim 5-7):** call_provider (IncomingCall grup alanlari + startGroup + onParticipant stream); call_screen (isGroup + _buildGroupGrid avatar izgara konusan-halka + KRITIK ParticipantDisconnected grup dallanma); group_call_start_screen (users/search coklu-secim -> startGroup); calls_tab iki-FAB (grup 👥 + birebir); incoming_call_overlay + main.dart _callKitKabul grup gecir.
+- **Adversarial dogrulama (wux7s3p1j): 1:1 REGRESYON YOK (dogrulandi) + 3 orta bulgu DUZELTILDI:** (1) CallKit/arka-plan grup kabul 1:1 acilirdi -> answerGroup chat_title doner + _callKitKabul is_group/chat_title gecer; (2) grupta ilk ayrilan aramayi kapatirdi (remoteParticipants.isEmpty yarisi) -> grup ParticipantDisconnected otomatik _leave YAPMAZ, oda bitisi backend call.ended; (3) kalabalik overflow -> SingleChildScrollView.
+- **Yayin:** backend deploy (25894af) + build (android 29593003062/ios 29593005502) + R2 (apk 103000192, ipa 17278399) + purge + DB temiz + index 18:50. **Kullanici 3-cihaz test edecek.**
+- NOT: member_ids anlik grup (kalici grup sohbeti UI'si Faz 2). Video grup + kisi-ekleme + geç-katilma sonraki faz.
