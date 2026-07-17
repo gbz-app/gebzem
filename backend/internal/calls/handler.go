@@ -643,6 +643,25 @@ func (h *Handler) groupJoinedOthers(ctx context.Context, callID, exceptID string
 	return ids
 }
 
+// Bir grup aramasinda SADECE CALAN (ringing) davetliler — oda kapanirken VoIP/FCM CANCEL yalniz
+// bunlara gider (kilit-ekrani CallKit kapansin). JOINED katilimci (CallScreen'de) cancel ALMAMALI:
+// call.ended WS zaten kapatir; cancel iOS'ta hayalet "gelen arama" flash'i yaratir.
+func (h *Handler) groupRinging(ctx context.Context, callID string) []string {
+	rows, err := h.db.Query(ctx,
+		`SELECT user_id FROM call_participants WHERE call_id=$1 AND status='ringing'`, callID)
+	var ids []string
+	if err == nil {
+		for rows.Next() {
+			var u string
+			if rows.Scan(&u) == nil {
+				ids = append(ids, u)
+			}
+		}
+		rows.Close()
+	}
+	return ids
+}
+
 // Bir grup aramasinda CALAN veya AKTIF tum katilimcilar (oda kapanirken haber vermek icin).
 func (h *Handler) groupRingingOrJoined(ctx context.Context, callID string) []string {
 	rows, err := h.db.Query(ctx,
@@ -726,10 +745,13 @@ func (h *Handler) endGroup(w http.ResponseWriter, r *http.Request, callID, userI
 	if joinedCount == 0 || (joinedCount == 1 && ringingFresh == 0) {
 		h.db.Exec(r.Context(),
 			`UPDATE calls SET status='ended', ended_at=now() WHERE id=$1 AND status='active'`, callID)
-		calanlar := h.groupRingingOrJoined(r.Context(), callID)
+		// WS call.ended: TUM kalanlara (ringing + joined) -> ekranlari kapansin.
+		herkes := h.groupRingingOrJoined(r.Context(), callID)
 		endPayload, _ := json.Marshal(map[string]string{"call_id": callID, "status": "ended"})
-		h.hub.Publish(r.Context(), &chat.Event{Type: "call.ended", Payload: endPayload, To: calanlar})
-		for _, uid := range calanlar {
+		h.hub.Publish(r.Context(), &chat.Event{Type: "call.ended", Payload: endPayload, To: herkes})
+		// VoIP/FCM CANCEL yalniz CALAN (ringing) davetlilere -> JOINED katilimci (CallScreen'de)
+		// hayalet "gelen arama" flash'i almasin (call.ended WS onu zaten kapatir; dogrulama bulgusu).
+		for _, uid := range h.groupRinging(r.Context(), callID) {
 			uid := uid
 			if h.apns != nil {
 				go func() {
