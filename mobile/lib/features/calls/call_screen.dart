@@ -886,7 +886,8 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
   /// Tek dokunus -> on/arka kamera; surukle -> en yakin koseye yapisir.
   Widget _buildSelfView(BuildContext c, VideoTrack local) {
     final sz = MediaQuery.of(c).size;
-    final varsayilan = Offset(sz.width - _selfW - _selfMargin, 60);
+    // Varsayilan konum: sag-ust ama ust bilgi/butonun ALTINDA (buyutulen self-view cakismasin).
+    final varsayilan = Offset(sz.width - _selfW - _selfMargin, 130);
     final pos = _selfPos ?? varsayilan;
     return Positioned(
       left: pos.dx,
