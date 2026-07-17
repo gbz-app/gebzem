@@ -7,6 +7,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../core/api.dart';
 import 'call_provider.dart';
 import 'call_screen.dart';
+import 'group_call_start_screen.dart';
 
 /// Aramalar sekmesi: gecmis + tekrar arama
 class CallsTab extends ConsumerWidget {
@@ -45,9 +46,23 @@ class CallsTab extends ConsumerWidget {
           );
         },
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => context.push('/search'),
-        child: const Icon(LucideIcons.phone),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FloatingActionButton.small(
+            heroTag: 'grupAra',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const GroupCallStartScreen()),
+            ),
+            child: const Icon(LucideIcons.users),
+          ),
+          const SizedBox(height: 12),
+          FloatingActionButton(
+            heroTag: 'birebirAra',
+            onPressed: () => context.push('/search'),
+            child: const Icon(LucideIcons.phone),
+          ),
+        ],
       ),
     );
   }
