@@ -745,3 +745,11 @@ Kullanici gercek cihaz testi -> 6 puruz. Hepsi teshis workflow'lariyla kok-neden
 - **#6 HAYALET FLASH** (dogrulama yakaladi): endGroup bitince joined-host'a da cancel gidip iOS hayalet gelen-arama flash. Fix: CANCEL yalniz groupRinging (ringing davetliler); WS call.ended herkese. **curl GECTI.**
 - Adversarial dogrulama (wgno1eil0): 0 engelleyici; 1 orta (#6, duzeltildi); 1 kucuk (ringingFresh created_at bazli, kabul).
 - Yayin: backend deploy (cfa065c) + build (android 29602333581/ios 29602335545) + R2 (apk 103000192, ipa 17279549) + purge + DB temiz + index 21:26. **Kullanici 3-cihaz test edecek.**
+
+### 3 IYILESTIRME + YAYIN (17 Tem 22:30) — 6 puruz + 3 iyilestirme tek build
+Kullanici: self-view + hoparlor + sesli->goruntulu kamera. Teshis workflow (wb8u1xxg3) -> 1:1-bozmayan, iOS ses sirasi KORUNDU.
+- **Self-view:** _selfW/H 110/160->127/184 (%15), radius 12->18, varsayilan konum 60->130 (ust bilgi cakismasin). Surukle/dokun-flip zaten vardi.
+- **Mid-call kamera:** showVideo widget.video kilidi kalkti (track-bazli); 1:1 kamera butonu HER ZAMAN (grup disi); flip yalniz _camOn iken; _toggleCam kamera izni. Karsi autoSubscribe ile gorur.
+- **Hoparlor VARSAYILAN KAPALI:** _speakerOn=false + setSpeakerOn(false) her durumda (sesli+goruntulu). KRITIK: setSpeakerOn CAGRISI silinmedi, _sesiAc(true) EN SON kaldi -> **v7 mic-sessiz TETIKLENMEZ** (earpiece mic'i susturmaz, mic'i SIRA garanti eder; dogrulama wagk1yu8t CURUTTU).
+- **Adversarial dogrulama (wagk1yu8t): 0 engelleyici, iOS ses tuzagi CURUTULDU.** 2 kucuk: (a) goruntulude earpiece (kullanici istegi; not: WhatsApp goruntuluyu hoparlorde baslatir -> kullaniciya sorulacak), (b) self-view ust cakisma (konum 130 ile duzeltildi).
+- **Yayin:** build (android 29607122557/ios 29607124414) + R2 (apk 103000192, ipa 17278803) + purge + DB temiz + index 22:30. **Kullanici 3-cihaz test edecek; sikintisizsa GRUP GORUNTULU faz.**
