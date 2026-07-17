@@ -714,11 +714,16 @@ func (h *Handler) endGroup(w http.ResponseWriter, r *http.Request, callID, userI
 		To:   h.groupJoinedOthers(r.Context(), callID, userID),
 	})
 
-	// Oda bosaldi mi? (aktif katilimci kalmadi) -> arama biter, kalan CALAN davetlilere cancel.
-	var joinedCount int
-	h.db.QueryRow(r.Context(),
-		`SELECT count(*) FROM call_participants WHERE call_id=$1 AND status='joined'`, callID).Scan(&joinedCount)
-	if joinedCount == 0 {
+	// Konusabilecek kimse kaldi mi? Arama biter EGER: hic aktif yok VEYA tek aktif kaldi + TAZE davet yok
+	// (2-kisilik grupta biri cikinca digeri tek/yalniz kalmasin). Taze ringing (45sn) varsa -> onlar
+	// katilabilir, arama surer (3+ kisi / host+bekleyenler senaryosu bozulmaz).
+	var joinedCount, ringingFresh int
+	h.db.QueryRow(r.Context(), `
+		SELECT count(*) FILTER (WHERE p.status='joined'),
+		       count(*) FILTER (WHERE p.status='ringing' AND c.created_at > now() - interval '45 seconds')
+		FROM call_participants p JOIN calls c ON c.id=p.call_id
+		WHERE p.call_id=$1`, callID).Scan(&joinedCount, &ringingFresh)
+	if joinedCount == 0 || (joinedCount == 1 && ringingFresh == 0) {
 		h.db.Exec(r.Context(),
 			`UPDATE calls SET status='ended', ended_at=now() WHERE id=$1 AND status='active'`, callID)
 		calanlar := h.groupRingingOrJoined(r.Context(), callID)
@@ -875,15 +880,32 @@ func (h *Handler) Status(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserID(r.Context())
 	callID := chi.URLParam(r, "id")
 	var status string
+	var isGroup bool
 	// GRUP UYUMU: grup katilimcisi caller/callee degildir -> call_participants'tan da yetkilendir.
-	// Boylece grup katilimcisinin _durumKontrol'u oda 'active' oldukca dogru durumu gorur.
 	err := h.db.QueryRow(r.Context(),
-		`SELECT status FROM calls WHERE id=$1 AND (caller_id=$2 OR callee_id=$2
+		`SELECT status, COALESCE(is_group,false) FROM calls WHERE id=$1 AND (caller_id=$2 OR callee_id=$2
 		   OR id IN (SELECT call_id FROM call_participants WHERE user_id=$2))`,
-		callID, userID).Scan(&status)
+		callID, userID).Scan(&status, &isGroup)
 	if err != nil {
 		writeErr(w, http.StatusNotFound, "arama bulunamadi")
 		return
+	}
+	// GRUP: calls.status host yuzunden hemen 'active'; davetlinin GERCEK durumu kendi call_participants
+	// satirinda. Boylece CALAN davetlinin gelen-arama ekrani 'ringing' gorup KALIR (yoksa 'active' gorup
+	// ~2sn'de kapaniyordu). Oda tamamen bitmisse (calls != active) ham deger doner -> herkes cikar.
+	if isGroup && status == "active" {
+		var p string
+		if h.db.QueryRow(r.Context(),
+			`SELECT status FROM call_participants WHERE call_id=$1 AND user_id=$2`,
+			callID, userID).Scan(&p) == nil {
+			switch p {
+			case "ringing":
+				status = "ringing" // hala davetli -> ekran kalir
+			case "left", "rejected":
+				status = "ended" // ayrildi -> ekran kapansin
+				// "joined" -> "active" kalir (CallScreen bagli)
+			}
+		}
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": status})
 }

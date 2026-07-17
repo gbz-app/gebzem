@@ -64,7 +64,10 @@ class _IncomingCallSheetState extends ConsumerState<_IncomingCallSheet> {
       try {
         final s =
             (await notifier.callStatus(widget.call.callId))['status'] as String? ?? '';
-        if (s != 'ringing' && mounted) notifier.dismiss();
+        // GRUP: host konustugu icin status 'active' doner; bu davetliyi KAPATMASIN -> yalniz arama
+        // BITINCE kapat (48sn timeout + WS call.ended emniyeti duruyor). 1:1: eskisi gibi ringing disi kapat.
+        final kapat = widget.call.isGroup ? (s == 'ended' || s == 'missed') : (s != 'ringing');
+        if (kapat && mounted) notifier.dismiss();
       } catch (_) {}
     });
   }
