@@ -847,8 +847,11 @@ func (h *Handler) Status(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserID(r.Context())
 	callID := chi.URLParam(r, "id")
 	var status string
+	// GRUP UYUMU: grup katilimcisi caller/callee degildir -> call_participants'tan da yetkilendir.
+	// Boylece grup katilimcisinin _durumKontrol'u oda 'active' oldukca dogru durumu gorur.
 	err := h.db.QueryRow(r.Context(),
-		`SELECT status FROM calls WHERE id=$1 AND (caller_id=$2 OR callee_id=$2)`,
+		`SELECT status FROM calls WHERE id=$1 AND (caller_id=$2 OR callee_id=$2
+		   OR id IN (SELECT call_id FROM call_participants WHERE user_id=$2))`,
 		callID, userID).Scan(&status)
 	if err != nil {
 		writeErr(w, http.StatusNotFound, "arama bulunamadi")
@@ -895,7 +898,7 @@ func (h *Handler) History(w http.ResponseWriter, r *http.Request) {
 		       u.id, u.name, COALESCE(u.username,''), COALESCE(u.avatar_url,'')
 		FROM calls c
 		JOIN users u ON u.id = CASE WHEN c.caller_id=$1 THEN c.callee_id ELSE c.caller_id END
-		WHERE c.caller_id=$1 OR c.callee_id=$1
+		WHERE (c.caller_id=$1 OR c.callee_id=$1) AND c.is_group=false
 		ORDER BY c.created_at DESC LIMIT 100`, userID)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "sunucu hatasi")
