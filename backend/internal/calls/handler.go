@@ -662,12 +662,14 @@ func (h *Handler) groupRingingOrJoined(ctx context.Context, callID string) []str
 
 // Grup davetini KABUL = odaya katil. Token doner + diger aktiflere call.participant.joined.
 func (h *Handler) answerGroup(w http.ResponseWriter, r *http.Request, callID, userID string) {
-	// Davetli mi (call_participants satiri var mi) + arama hala aktif mi
-	var callType string
+	// Davetli mi (call_participants satiri var mi) + arama hala aktif mi + grup basligi
+	var callType, chatTitle string
 	err := h.db.QueryRow(r.Context(), `
-		SELECT c.type FROM calls c
+		SELECT c.type, COALESCE(NULLIF(ch.title,''),'Grup araması')
+		FROM calls c
+		LEFT JOIN chats ch ON ch.id=c.chat_id
 		JOIN call_participants p ON p.call_id=c.id AND p.user_id=$2
-		WHERE c.id=$1 AND c.status='active'`, callID, userID).Scan(&callType)
+		WHERE c.id=$1 AND c.status='active'`, callID, userID).Scan(&callType, &chatTitle)
 	if err != nil {
 		writeErr(w, http.StatusNotFound, "arama bulunamadi veya bitti")
 		return
@@ -694,7 +696,7 @@ func (h *Handler) answerGroup(w http.ResponseWriter, r *http.Request, callID, us
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"call_id": callID, "room": roomName, "url": h.lkURL, "token": tok,
-		"type": callType, "is_group": true,
+		"type": callType, "is_group": true, "chat_title": chatTitle,
 	})
 }
 

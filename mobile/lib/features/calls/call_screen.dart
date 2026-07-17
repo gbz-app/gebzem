@@ -360,10 +360,11 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
         ..on<ParticipantDisconnectedEvent>((_) {
           if (!mounted) return;
           if (widget.isGroup) {
-            // GRUP: biri ayrilinca arama SURER; yalniz herkes ayrilinca (oda bosalinca) cik.
-            // v13 KRITIK DALLANMA: bunu gate etmezsek ilk ayrilan HERKESIN aramasini kapatir.
-            setState(() {}); // izgarayi guncelle
-            if (_room?.remoteParticipants.isEmpty ?? true) _leave(notifyServer: true);
+            // GRUP: biri ayrilinca arama SURER. Otomatik _leave YAPMA — 'remoteParticipants.isEmpty'
+            // "herkes ayrildi" ile "henuz kimse katilmadi"yi karistirir (host tek A bagli, A cikar,
+            // B hala caliyor -> yanlislikla oda kapanirdi). Oda bitisini BACKEND yonetir: son katilimci
+            // ayrilinca (joined=0) call.ended WS -> aramaBitti -> _leave. Kullanici kirmizi tusla cikar.
+            setState(() {}); // yalniz izgarayi guncelle
             return;
           }
           _leave(notifyServer: true); // 1:1: karsi taraf ayrildi -> arama biter (AYNEN)
@@ -975,13 +976,16 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
             colors: [Color(0xFF075E54), Color(0xFF0B141A)],
           ),
         ),
-        padding: const EdgeInsets.fromLTRB(20, 150, 20, 150),
-        child: Center(
-          child: Wrap(
-            spacing: 22,
-            runSpacing: 22,
-            alignment: WrapAlignment.center,
-            children: [for (final p in katilimcilar) _grupAvatar(p)],
+        padding: const EdgeInsets.fromLTRB(20, 140, 20, 150),
+        // Kaydirilabilir -> kalabalik grupta tasma (RenderFlex overflow) olmaz.
+        child: SingleChildScrollView(
+          child: Center(
+            child: Wrap(
+              spacing: 22,
+              runSpacing: 22,
+              alignment: WrapAlignment.center,
+              children: [for (final p in katilimcilar) _grupAvatar(p)],
+            ),
           ),
         ),
       ),

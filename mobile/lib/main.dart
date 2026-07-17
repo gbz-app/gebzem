@@ -247,6 +247,10 @@ class _GebzemAppState extends ConsumerState<GebzemApp> with WidgetsBindingObserv
         video: c['video'] as bool? ?? false,
         peerName: c['caller_name'] as String? ?? '',
         outgoing: false,
+        // GRUP: answer() cevabindan is_group/chat_title -> CallKit'ten kabul edilen grup
+        // aramasi da grup moduyla acilir (yoksa 1:1 arayuz + ilk ayrilan kapatirdi).
+        isGroup: info['is_group'] == true,
+        chatTitle: info['chat_title'] as String? ?? '',
       ),
     )));
   }
