@@ -734,3 +734,14 @@ Kullanici "tamamen bitir" -> 8 adim tamamlandi, izole (isGroup bayragi), 1:1 REG
 - **Adversarial dogrulama (wux7s3p1j): 1:1 REGRESYON YOK (dogrulandi) + 3 orta bulgu DUZELTILDI:** (1) CallKit/arka-plan grup kabul 1:1 acilirdi -> answerGroup chat_title doner + _callKitKabul is_group/chat_title gecer; (2) grupta ilk ayrilan aramayi kapatirdi (remoteParticipants.isEmpty yarisi) -> grup ParticipantDisconnected otomatik _leave YAPMAZ, oda bitisi backend call.ended; (3) kalabalik overflow -> SingleChildScrollView.
 - **Yayin:** backend deploy (25894af) + build (android 29593003062/ios 29593005502) + R2 (apk 103000192, ipa 17278399) + purge + DB temiz + index 18:50. **Kullanici 3-cihaz test edecek.**
 - NOT: member_ids anlik grup (kalici grup sohbeti UI'si Faz 2). Video grup + kisi-ekleme + geç-katilma sonraki faz.
+
+### 6 PURUZ DUZELTME + YAYIN (17 Tem 21:26)
+Kullanici gercek cihaz testi -> 6 puruz. Hepsi teshis workflow'lariyla kok-neden bulundu, izole cozuldu, 1:1 REGRESYON YOK (adversarial dogrulama).
+- **#1 VIDEO** goruntu gelmemesi (ilk-kare texture yarisi): VideoTrackRenderer ValueKey(sid) + TrackSubscribed video post-frame/400ms setState tekme. (aralikli -> 3 cihaz tekrar test; fallback platformView.)
+- **#2 BEKLET** GSM gelince "Beklet ve Kabul" cikip Gebzem koparirdi. Kok: native Data varsayilani supportsHolding=TRUE (Dart IOSParams o yola ulasmiyordu). Fix: AppDelegate.swift data.supportsHolding=false + supportsGrouping=false -> yalniz "Bitir ve Kabul". (beklet-swap INSA EDILMEDI, arastirma karari.)
+- **#3 SURE** karsi acinca sayac hemen basliyordu (ses ~3sn sonra). Fix: _mediaBasladi -> sure ilk remote AUDIO track'te basla; peer odada ama ses yokken "Baglaniyor..."; 8sn yedek. (call_screen, 1:1+grup ortak.)
+- **#4 GRUP DAVET** cagrilan ~2sn'de ekran kayboluyordu (Status 'active' -> overlay dismiss). Fix: Status grup davetlisine call_participants durumundan 'ringing' doner + overlay grupta 'active' yoksayar. **curl GECTI.**
+- **#5 GRUP TEK-KISI** 2-kisilik grupta biri cikinca digeri asili kaliyordu. Fix: endGroup joined==0 || (joined==1 && ringingFresh45==0) -> ended. **curl GECTI.**
+- **#6 HAYALET FLASH** (dogrulama yakaladi): endGroup bitince joined-host'a da cancel gidip iOS hayalet gelen-arama flash. Fix: CANCEL yalniz groupRinging (ringing davetliler); WS call.ended herkese. **curl GECTI.**
+- Adversarial dogrulama (wgno1eil0): 0 engelleyici; 1 orta (#6, duzeltildi); 1 kucuk (ringingFresh created_at bazli, kabul).
+- Yayin: backend deploy (cfa065c) + build (android 29602333581/ios 29602335545) + R2 (apk 103000192, ipa 17279549) + purge + DB temiz + index 21:26. **Kullanici 3-cihaz test edecek.**
