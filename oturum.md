@@ -716,3 +716,13 @@ Kullanıcı v13'ü iki telefona kurup test etti. SONUÇ: **v13 başarılı.**
 - ⚠️ **Tek pürüz:** Android görüntülü aramada 1 kez görüntü gelmedi (ses vardı), tekrarda düzeldi. LiveKit oda logu: video mediaTrack published + "track not bound" YOK → **sunucu/WebRTC/TURN video'yu taşımış**; sorun İSTEMCİ render katmanında geçici (tekrarda düzelmesi kanıt). Kalıcı değil, çok nadir → şimdilik izle (düzeltme çalışan sistemi riske atar). Sık tekrarlarsa video render teşhisi eklenecek.
 - ⚠️ İLK test aramasi (020afbd5, 20:54, v13 kurulumdan hemen sonra): GELEN taraf (iPhone 13, cellular) medya bağlanamadı (track not bound + short ice + PEER_DISCONNECTED) → ses araması tek seferlik ağ/TURN; sonraki 84 ölçüm sağlıklı → geçici ağ. Latent TURN 443/sertifika konusu (D4) tekrarlarsa ele alınacak.
 - Backend değişmedi (v13 mobil-only). Karar: v13 KALICI, sonraki faz sesli grup.
+
+### SESLI GRUP — Backend (Adim 1-4) TAMAM + curl ile DOGRULANDI (17 Tem)
+Kullanici v13 test basarili -> sesli grup fazina gecildi. Mevcut grup-aramasi-plani.md (12 Tem) v13 koduna gore
+guncellendi (workflow wazlaaaeh): 8 adim, izole, isGroup bayragi, v13 mesgul-muhafizi uyumlu.
+- **Adim 1:** migration 007 (calls +chat_id +is_group, callee_id NULL olabilir; call_participants tablosu). Additive, deploy OK.
+- **Adim 2:** startGroup (chat_id ile). 1:1 Start'a DOKUNULMADI (basina 'if ChatID!="" -> startGroup; return'). Host aninda active+joined, uyeler ringing, davet fan-out (WS+VoIP+FCM).
+- **Adim 3:** answerGroup (katil) + endGroup (ayril). Answer/End basina 'if is_group -> return'. Grup End=ayril; call.participant.joined/left (call.ended DEGIL); oda bosalinca (joined=0) calls ended + calan davetlilere cancel.
+- **Adim 4:** Status grup-uyumlu (call_participants yetki) + History is_group=false filtre.
+- **curl test (3 kullanici + grup, scratchpad/grup-test.sh):** TUMU GECTI -> baslat(host joined/uyeler ringing), katil(joined), **1 uye ayril->arama SURER(active)**, oda bosal->ended, **1:1 REGRESYON: is_group=false callee dolu (bozulmadi)**. (Test bug'lari: SSH tirnak-soyma->SQL stdin; INSERT RETURNING'e 'INSERT 0 1' tag'i->head -1. Backend saglamdi.)
+- Backend deploy edildi (d10bf28, health ok). SIRADAKI: Adim 5-7 Flutter (isGroup + coklu-katilimci sesli ekran + CallKit grup basligi) -> YENI BUILD.
