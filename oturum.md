@@ -761,4 +761,19 @@ Kullanici gercek cihaz (Android arayan -> iPhone aranan, 5 red + 6. kabul): grup
 - **KOK BULGU (git status):** self-view duzeltmeleri (radius 24, HitTestBehavior.opaque=surukle-fix, dokun=SWAP, 140x200) KODDA VARDI ama COMMIT/BUILD EDILMEMISTI -> kullanici 22:30 build'ini (radius 18, dokun=flip, surukle bozuk) test ediyordu. Uc sikayet de eski build davranisi.
 - **SURE SENKRON KOK NEDEN (teshis wa98uoi5d):** her taraf sureyi KENDI "ilk remote AUDIO track subscribe" aninda +1sn artimla basliyor -> asimetrik, senkron degil. answered_at (DB'de VAR, migration 004) istemciye HIC donmuyordu.
 - **COZUM (WhatsApp deseni — ORTAK referans):** backend answered_at -> ms. Answer RETURNING answered_at + answer() cevabina answered_ms (aranan); call.answered WS payload map[string]any + push string answered_ms (arayan); Status answered_ms (COALESCE created_at; WS kaybolursa kurtarma). Istemci: _answeredAt DateTime? + _tick() referans varsa now-answered_at (iki cihaz DAIMA ayni), yoksa +1sn fallback. **Grup HARIC (!widget.isGroup her set-yolunda) -> yerel fallback, davranis degismedi.** _mediaBasladi "Baglaniyor" kapisi + iOS ses sirasi (_sesiAc EN SON) DEGISMEDI.
-- Backend `go build` temiz; Flutter `analyze` temiz (2 mevcut info). Adversarial dogrulama (wqwpxr0ri) calisiyor -> sonra commit+deploy+build.
+- Backend `go build` temiz; Flutter `analyze` temiz (2 mevcut info).
+- **ADVERSARIAL DOGRULAMA (wqwpxr0ri) 1 BLOCKER + 1 ONEMLI YAKALADI -> TASARIM REVIZE EDILDI:**
+  (1) BLOCKER: ilk deneme answered_at referansiyla gidiyordu; ARAYAN zil fazinda Status ucundan
+  COALESCE(answered_at, created_at)=created_at aliyor, onu referans sanip kilitliyor -> sayac calma
+  suresi kadar SISIYOR (20sn calan aramada arayan 00:22, aranan 00:02). (2) ONEMLI: DateTime.now()
+  ile sunucu answered_at karsilastirmasi -> saat kaymasinda yanlis baslangic.
+- **COZUM (elapsed_ms + monotonik Stopwatch):** backend answer/WS -> elapsed_ms (~0); Status ->
+  answered_at NULL iken -1 (created_at KALKTI); PUSH sure tasimaz. Istemci: Stopwatch (monotonik,
+  saat-kaymasi bagimsiz) + _sureBaz; referans YALNIZ s=='active' iken alinir (zil-fazi blocker kok fix).
+  Grup HARIC. Ek: kamera kapaninca _selfBuyuk sifirla (istem-disi swap-ziplama).
+- **Yeniden dogrulama (tek ajan): BUILD-OK, iki bulgu da cozuldu, yeni regresyon yok.**
+- **YAYIN (18 Tem):** commit e5d4aab (origin/main dogrulandi) + backend deploy (health ok) +
+  build (android 29614370790 / ios 29614372661, ikisi success) + artifact **debug-imza YOK** (release
+  keystore) + R2 (apk 103000192, ipa 17277118) + Cloudflare purge + **CDN Content-Length == yerel
+  (apk/ipa birebir)** + index.html taze (18 Tem) + DB temiz (users=0). **Kullanici 2-cihaz test edecek.**
+- SIRADAKI: kullanici testi OK -> GRUP GORUNTULU faz (roadmap son adimi).
