@@ -3,6 +3,7 @@ package calls
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -15,6 +16,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/websocket"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/gbz-app/gebzem/backend/internal/auth"
@@ -484,18 +486,28 @@ func (h *Handler) Answer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// ATOMIK kabul: tek kosullu UPDATE. Iki es zamanli Answer (cift ekran) ikisi de
-	// 'ringing' okuyup gecemez -> sadece BIRI 'active' yapar (rows-affected=1), digeri 0 -> 409.
-	ct, err := h.db.Exec(r.Context(),
+	// ATOMIK kabul + answered_at'i GERI AL. Iki es zamanli Answer (cift ekran) ikisi de
+	// 'ringing' okuyup gecemez -> sadece BIRI 'active' yapar; digeri 0 satir -> ErrNoRows -> 409.
+	// answered_at = SURE SENKRONU cikis noktasi: iki tarafa GECEN-SURE (elapsed_ms) uretiriz;
+	// istemci bunu monotonik Stopwatch ile sayar (duvar-saati kaymasindan ETKILENMEZ).
+	var answeredAt time.Time
+	err = h.db.QueryRow(r.Context(),
 		`UPDATE calls SET status='active', answered_at=now()
-		 WHERE id=$1 AND callee_id=$2 AND status='ringing'`, callID, userID)
+		 WHERE id=$1 AND callee_id=$2 AND status='ringing'
+		 RETURNING answered_at`, callID, userID).Scan(&answeredAt)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "sunucu hatasi")
+		if errors.Is(err, pgx.ErrNoRows) {
+			writeErr(w, http.StatusConflict, "arama artik gecerli degil")
+		} else {
+			writeErr(w, http.StatusInternalServerError, "sunucu hatasi")
+		}
 		return
 	}
-	if ct.RowsAffected() == 0 {
-		writeErr(w, http.StatusConflict, "arama artik gecerli degil")
-		return
+	// Kabul YENI olustu -> gecen sure ~0. Aninda gonderilen kanallar (WS + answer cevabi)
+	// icin bu deger dogru; gecikmeli/kayip WS'te ARAYAN gercek gecen-sureyi Status'tan alir.
+	elapsedNow := time.Now().UnixMilli() - answeredAt.UnixMilli()
+	if elapsedNow < 0 {
+		elapsedNow = 0
 	}
 
 	var name string
@@ -512,22 +524,25 @@ func (h *Handler) Answer(w http.ResponseWriter, r *http.Request) {
 	// KRITIK: arayan calarken ekrana bakmayi birakinca (paused) WS kapaniyor; tam o an
 	// kabul edilirse call.answered WS'te KAYBOLUYOR -> arayan sonsuza kadar "Caliyor".
 	// End'deki gibi push fallback ekliyoruz (istemci ayrica poll ile de kurtarir).
-	payload, _ := json.Marshal(map[string]string{"call_id": callID})
+	payload, _ := json.Marshal(map[string]any{"call_id": callID, "elapsed_ms": elapsedNow})
 	h.hub.Publish(r.Context(), &chat.Event{
 		Type: "call.answered", Payload: payload, To: []string{callerID},
 	})
 	if h.push != nil {
+		// PUSH ZAMANLAMASI GUVENILMEZ (gecikmeli teslim) -> sure referansi TASIMAZ; yalniz
+		// "kabul edildi" tetikleyicisi. Arayan gercek gecen-sureyi WS veya Status'tan alir.
 		go h.push.CallInvite([]string{callerID}, map[string]string{
 			"type": "call.answered", "call_id": callID,
 		})
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"call_id": callID,
-		"room":    roomName,
-		"url":     h.lkURL,
-		"token":   tok,
-		"type":    callType,
+		"call_id":    callID,
+		"room":       roomName,
+		"url":        h.lkURL,
+		"token":      tok,
+		"type":       callType,
+		"elapsed_ms": elapsedNow, // SURE SENKRONU: aranan tarafin gecen-sure baslangici (~0)
 	})
 }
 
@@ -903,11 +918,17 @@ func (h *Handler) Status(w http.ResponseWriter, r *http.Request) {
 	callID := chi.URLParam(r, "id")
 	var status string
 	var isGroup bool
+	var elapsedMs int64 // SURE SENKRONU KURTARMA: WS/push call.answered kaybolursa arayan gercek
+	// gecen-sureyi buradan alir. answered_at NULL (henuz cevaplanmadi / grup) -> -1 (istemci YOK SAYAR;
+	// KRITIK: created_at'e DUSURME -> yoksa arayan zil fazinda sahte referans kilitler, sayac siser).
 	// GRUP UYUMU: grup katilimcisi caller/callee degildir -> call_participants'tan da yetkilendir.
 	err := h.db.QueryRow(r.Context(),
-		`SELECT status, COALESCE(is_group,false) FROM calls WHERE id=$1 AND (caller_id=$2 OR callee_id=$2
+		`SELECT status, COALESCE(is_group,false),
+		        CASE WHEN answered_at IS NULL THEN -1
+		             ELSE (EXTRACT(EPOCH FROM (now() - answered_at))*1000)::bigint END
+		   FROM calls WHERE id=$1 AND (caller_id=$2 OR callee_id=$2
 		   OR id IN (SELECT call_id FROM call_participants WHERE user_id=$2))`,
-		callID, userID).Scan(&status, &isGroup)
+		callID, userID).Scan(&status, &isGroup, &elapsedMs)
 	if err != nil {
 		writeErr(w, http.StatusNotFound, "arama bulunamadi")
 		return
@@ -929,7 +950,7 @@ func (h *Handler) Status(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": status})
+	writeJSON(w, http.StatusOK, map[string]any{"status": status, "elapsed_ms": elapsedMs})
 }
 
 // GET /calls/active — beni su an arayan var mi?

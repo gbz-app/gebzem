@@ -251,6 +251,7 @@ class _GebzemAppState extends ConsumerState<GebzemApp> with WidgetsBindingObserv
         // aramasi da grup moduyla acilir (yoksa 1:1 arayuz + ilk ayrilan kapatirdi).
         isGroup: info['is_group'] == true,
         chatTitle: info['chat_title'] as String? ?? '',
+        elapsedMs: (info['elapsed_ms'] as num?)?.toInt(), // sure senkronu: gecen-sure baslangici
       ),
     )));
   }

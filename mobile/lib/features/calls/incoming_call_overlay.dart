@@ -110,6 +110,7 @@ class _IncomingCallSheetState extends ConsumerState<_IncomingCallSheet> {
           outgoing: false,
           isGroup: widget.call.isGroup,
           chatTitle: widget.call.chatTitle,
+          elapsedMs: (info['elapsed_ms'] as num?)?.toInt(), // sure senkronu: gecen-sure baslangici
         ),
       )));
       notifier.dismiss(); // arama ekrani acildiktan SONRA gelen arama ekranini kaldir

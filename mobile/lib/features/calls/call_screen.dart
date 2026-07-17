@@ -32,6 +32,7 @@ class CallScreen extends ConsumerStatefulWidget {
     this.outgoing = true,
     this.isGroup = false,
     this.chatTitle = '',
+    this.elapsedMs,
   });
 
   final String callId;
@@ -43,6 +44,8 @@ class CallScreen extends ConsumerStatefulWidget {
   final bool outgoing; // giden arama mi (karsi taraf henuz kabul etmedi)
   final bool isGroup; // GRUP aramasi mi (coklu katilimci -> avatar izgara + biri ayrilinca arama surer)
   final String chatTitle; // grup basligi (ust bilgide "peerName" yerine)
+  final int? elapsedMs; // SURE SENKRONU: kabulden bu yana GECEN SURE (ms, backend). 1:1 ARANAN
+  // tarafta answer() cevabindan ~0 gelir; ARAYAN sonradan WS/Status'tan alir. Grupta kullanilmaz.
 
   @override
   ConsumerState<CallScreen> createState() => _CallScreenState();
@@ -80,6 +83,13 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
   bool _frontCamera = true;
   String? _error;
   Duration _duration = Duration.zero;
+  // SURE SENKRONU: MONOTONIK sayac (duvar-saati kaymasindan ETKILENMEZ). Referans (backend'in
+  // "gecen sure"si) alininca _sureBaz'a yazilir + sayac SIFIRLANIP baslar -> sure = _sureBaz +
+  // sayac. Iki cihaz ayni server referansindan saydigi icin SENKRON. Referans yoksa (grup /
+  // hic gelmedi) baz=0, sayac medya aninda baslar (00:00'dan; eski yerel davranis).
+  final Stopwatch _sureSayaci = Stopwatch();
+  Duration _sureBaz = Duration.zero;
+  bool _sureReferansVar = false; // server referansi bir kez kilitlenir (calma-fazi sahte deger girmesin)
   ConnectionQuality _quality = ConnectionQuality.unknown;
 
   // Cevapsiz/reddedilen arama: arayan tarafta ekran otomatik kapanmaz, "Cevap yok" +
@@ -89,12 +99,16 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
 
   // Suruklenebilir self-view (kendi kamera onizlemesi)
   Offset? _selfPos;
-  static const double _selfW = 127, _selfH = 184, _selfMargin = 16; // %15 buyutuldu (WhatsApp gibi)
+  static const double _selfW = 140, _selfH = 200, _selfMargin = 16; // WhatsApp gibi (biraz buyutuldu)
+  bool _selfBuyuk = false; // self-view'e dokununca SWAP: true iken KENDI goruntum tam ekran, karsininki kucuk
 
   @override
   void initState() {
     super.initState();
     _camOn = widget.video;
+    // SURE SENKRONU: ARANAN tarafta answer() cevabindaki gecen-sure (~0). ARAYAN'da null baslar;
+    // WS/Status'tan gelince alinir (asagida). Grupta kullanilmaz (yerel sayac).
+    _sureReferansiAl(widget.elapsedMs);
     WidgetsBinding.instance.addObserver(this); // resume'da durum uzlastirma icin
 
     _svc = ref.read(callServiceProvider.notifier);
@@ -130,8 +144,11 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
     if (widget.outgoing) {
       // GIDEN ARAMA: karsi taraf ACANA KADAR LiveKit odasina BAGLANMA (iOS'ta mikrofon
       // acilinca LiveKit calma tonunu susturur). Cevaptan sonra odaya girilir.
-      _answeredSub = svc.onCallAnswered.listen((id) {
-        if (id == widget.callId && mounted && !_baglandi) {
+      _answeredSub = svc.onCallAnswered.listen((ev) {
+        if (ev['call_id'] != widget.callId || !mounted) return;
+        // SURE SENKRONU: ARAYAN gecen-sure referansini WS call.answered'dan alir (push'ta null gelir).
+        _sureReferansiAl((ev['elapsed_ms'] as num?)?.toInt());
+        if (!_baglandi) {
           CallSounds.durdur(_sesNesli);
           _connect();
         }
@@ -175,7 +192,12 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
     if (!mounted || _ayrildi || _cevapsiz) return;
     String s;
     try {
-      s = (await _svc.callStatus(widget.callId))['status'] as String? ?? '';
+      final st = await _svc.callStatus(widget.callId);
+      s = st['status'] as String? ?? '';
+      // SURE SENKRONU KURTARMA: WS call.answered kaybolsa da ARAYAN gercek gecen-sureyi buradan
+      // alir (1:1). YALNIZ 'active' iken (backend cevaplanmayinca elapsed_ms=-1 doner zaten,
+      // ama cift guvence: zil fazinda referans KILITLEME -> sayac sisme blocker'inin kok fix'i).
+      if (s == 'active') _sureReferansiAl((st['elapsed_ms'] as num?)?.toInt());
     } catch (_) {
       return;
     }
@@ -520,11 +542,34 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
     });
   }
 
+  /// SURE SENKRONU referansini AL: backend'in "gecen sure"si (ms). Bir kez kilitlenir (1:1);
+  /// grupta / null / negatif (cevaplanmadi) yok sayilir. Referans alininca MONOTONIK sayac
+  /// sifirlanip baslar -> sure = _sureBaz(server) + sayac. Iki cihaz ayni server referansindan
+  /// saydigi icin SENKRON; duvar-saati kaymasi ETKILEMEZ (Stopwatch monotonik). Gec gelirse
+  /// (WS kaybi -> Status) sayac SNAP eder.
+  void _sureReferansiAl(int? elapsedMs) {
+    if (widget.isGroup || _sureReferansVar) return;
+    if (elapsedMs == null || elapsedMs < 0) return;
+    _sureReferansVar = true;
+    _sureBaz = Duration(milliseconds: elapsedMs);
+    _sureSayaci
+      ..reset()
+      ..start();
+    if (mounted && _mediaBasladi) setState(() => _duration = _sureBaz + _sureSayaci.elapsed);
+  }
+
   void _startTimer() {
+    // Referans yoksa (grup/fallback) sayaci SIMDI (medya aninda) baslat -> 00:00'dan; referans
+    // varsa zaten kabul aninda basladi (dogru gecen-sure). Cift start no-op (Stopwatch guvenli).
+    if (!_sureSayaci.isRunning) _sureSayaci.start();
     _durationTimer?.cancel();
-    _durationTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() => _duration += const Duration(seconds: 1));
-    });
+    _tick();
+    _durationTimer = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
+  }
+
+  void _tick() {
+    if (!mounted) return;
+    setState(() => _duration = _sureBaz + _sureSayaci.elapsed);
   }
 
   /// GERCEK ses akisi basladi -> sureyi SIMDI baslat (WhatsApp gibi). Peer odaya katilmis
@@ -727,7 +772,14 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
       }
     }
     await _room?.localParticipant?.setCameraEnabled(on);
-    if (mounted) setState(() => _camOn = on);
+    // Kamera KAPANINCA swap'i sifirla: yoksa tekrar acilinca (bothVideo yeniden true) gorunum
+    // kendiliginden self-buyuk'e ziplar (kullanici istemeden). Kapali -> varsayilan (remote buyuk).
+    if (mounted) {
+      setState(() {
+        _camOn = on;
+        if (!on) _selfBuyuk = false;
+      });
+    }
   }
 
   Future<void> _toggleSpeaker() async {
@@ -801,6 +853,16 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
     // kamera acinca (remote track) ekran video moduna gecer (WhatsApp gibi). Goruntulu aramada davranis AYNI.
     final showVideo = remote != null || local != null;
 
+    // SWAP (WhatsApp): self-view'e dokununca kendi goruntum tam ekrana, karsininki kucuk pencereye gecer.
+    // Sadece HER IKI goruntu de varken mumkun; degilse eski davranisa (remote buyuk / local kucuk) duser.
+    final bothVideo = remote != null && local != null && _camOn;
+    final swap = _selfBuyuk && bothVideo;
+    // Tam ekran (buyuk) track ve kucuk (self-view) track — swap durumuna gore rol degisir.
+    final VideoTrack? bigTrack = swap ? local : remote;
+    final VideoTrack? smallTrack =
+        swap ? remote : (local != null && _camOn ? local : null);
+    final bool smallIsLocal = !swap; // kucuk pencere KENDI kameram mi (mirror/crash notu icin)
+
     return PopScope(
       canPop: false, // geri tusuyla kacamaz — aramayi bitirmeli
       child: Scaffold(
@@ -810,22 +872,24 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
             // GRUP: coklu-katilimci avatar izgarasi (sesli). 1:1: mevcut video/ses arka plani AYNEN.
             if (widget.isGroup)
               _buildGroupGrid()
-            else if (remote != null)
+            else if (bigTrack != null)
               Positioned.fill(
-                // KEY track kimligine bagli: track her (yeniden) subscribe olunca TAZE renderer
-                // baglanir -> bayat/siyah texture kalmaz ("goruntu gelmedi" ilk-kare yarisi fix).
-                child: VideoTrackRenderer(remote,
-                    key: ValueKey('remote-${remote.sid}'), fit: VideoViewFit.cover),
+                // KEY track kimligine bagli: track her (yeniden) subscribe olunca (veya swap ile rol
+                // degisince) TAZE renderer baglanir -> bayat/siyah texture kalmaz (ilk-kare yarisi fix).
+                child: VideoTrackRenderer(bigTrack,
+                    key: ValueKey('big-${bigTrack.sid}'), fit: VideoViewFit.cover),
               )
             else
               _buildAudioBackground(),
 
-            // Kendi goruntun (kucuk pencere).
-            // IgnorePointer SART: VideoTrackRenderer yerel kamerayi GestureDetector'a
-            // sariyor; kucuk pencereye kazara dokunmak setFocusPoint/setExposurePoint ->
-            // flutter_webrtc CameraUtils'te NullPointerException -> uygulama COKUYOR.
-            // Kendi onizlemende odak/zoom zaten gereksiz, dokunmayi tamamen kesiyoruz.
-            if (showVideo && local != null && _camOn) _buildSelfView(context, local),
+            // Kucuk pencere (self-view). Dokun -> SWAP (buyuk/kucuk yer degistir), surukle -> koseye yapisir.
+            // IgnorePointer SART: VideoTrackRenderer kamerayi GestureDetector'a sariyor; kucuk pencereye
+            // kazara dokunmak setFocusPoint/setExposurePoint -> flutter_webrtc CameraUtils'te
+            // NullPointerException -> uygulama COKUYOR. Renderer'i tamamen dokunmaya kapatiyoruz; dokunusu
+            // DIStaki GestureDetector (opaque) yakalar.
+            if (showVideo && smallTrack != null)
+              _buildSelfView(context, smallTrack,
+                  canSwap: bothVideo, isLocal: smallIsLocal),
 
             // Ust bilgi: isim + sure/durum + baglanti kalitesi
             Positioned(
@@ -881,10 +945,21 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
     );
   }
 
-  /// Suruklenebilir self-view. IgnorePointer YALNIZ renderer'i sarar (dokunus renderer'a
-  /// ulasirsa flutter_webrtc CameraUtils NPE ile coker); GestureDetector onun DISINDA.
-  /// Tek dokunus -> on/arka kamera; surukle -> en yakin koseye yapisir.
-  Widget _buildSelfView(BuildContext c, VideoTrack local) {
+  /// Suruklenebilir + dokun-ile-swap self-view (kucuk pencere).
+  ///
+  /// SURUKLEME KOK-COZUMU: GestureDetector'in child'i IgnorePointer'la sarili renderer.
+  /// GestureDetector'in VARSAYILAN davranisi HitTestBehavior.deferToChild — yani kendisi
+  /// ancak child'i hit-test'i GECERSE pointer olayi alir. IgnorePointer TUM alt-agaci
+  /// hit-test DISI biraktigi icin child asla "hit" olmuyor -> GestureDetector hic pointer
+  /// olayi ALMIYORDU (ne onTap ne onPan tetikleniyordu). COZUM: behavior: HitTestBehavior.opaque
+  /// -> GestureDetector kendi alanini KOSULSUZ hit-test'e sokar, dokunusu kendi yakalar;
+  /// IgnorePointer yine renderer'i (CameraUtils NPE) korur.  (flutter/flutter deferToChild;
+  /// flutter-webrtc #1007 PlatformView dokunus yutmasi.)
+  ///
+  /// Dokun -> SWAP (buyuk/kucuk yer degistir, WhatsApp). Kamera cevirme kontrol cubugundaki
+  /// ayri butonda. Surukle -> en yakin koseye yapisir.
+  Widget _buildSelfView(BuildContext c, VideoTrack track,
+      {required bool canSwap, required bool isLocal}) {
     final sz = MediaQuery.of(c).size;
     // Varsayilan konum: sag-ust ama ust bilgi/butonun ALTINDA (buyutulen self-view cakismasin).
     final varsayilan = Offset(sz.width - _selfW - _selfMargin, 130);
@@ -895,7 +970,9 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
       width: _selfW,
       height: _selfH,
       child: GestureDetector(
-        onTap: _flipCamera,
+        // KRITIK: opaque olmadan (deferToChild) IgnorePointer child'i yuzunden hic dokunus gelmez.
+        behavior: HitTestBehavior.opaque,
+        onTap: canSwap ? () => setState(() => _selfBuyuk = !_selfBuyuk) : null,
         onPanUpdate: (d) {
           final cur = _selfPos ?? varsayilan;
           final nx =
@@ -913,8 +990,12 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
               ));
         },
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(18), // WhatsApp gibi belirgin yuvarlak kose
-          child: IgnorePointer(child: VideoTrackRenderer(local)),
+          borderRadius: BorderRadius.circular(24), // WhatsApp gibi belirgin yuvarlak kose
+          child: IgnorePointer(
+            // KEY rol+kimlige bagli -> swap'ta (local<->remote) taze renderer, bayat texture kalmaz.
+            child: VideoTrackRenderer(track,
+                key: ValueKey('small-${isLocal ? 'local' : 'remote'}-${track.sid}')),
+          ),
         ),
       ),
     );

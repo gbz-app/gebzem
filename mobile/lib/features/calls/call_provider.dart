@@ -53,9 +53,11 @@ class CallService extends StateNotifier<IncomingCall?> {
   final _endedController = StreamController<String>.broadcast();
   Stream<String> get onCallEnded => _endedController.stream;
 
-  /// Karsi taraf kabul edince tetiklenir
-  final _answeredController = StreamController<String>.broadcast();
-  Stream<String> get onCallAnswered => _answeredController.stream;
+  /// Karsi taraf kabul edince tetiklenir. Yayin: {call_id, elapsed_ms}.
+  /// elapsed_ms = kabulden bu yana GECEN SURE (backend); istemci monotonik Stopwatch ile sayar.
+  /// Push yedeginde null (zamanlama guvenilmez) -> istemci referansi WS/Status'tan alir.
+  final _answeredController = StreamController<Map<String, dynamic>>.broadcast();
+  Stream<Map<String, dynamic>> get onCallAnswered => _answeredController.stream;
 
   /// GRUP: bir katilimci katildi/ayrildi -> CallScreen izgarayi gunceller.
   /// {event: 'call.participant.joined'|'call.participant.left', call_id, user_id, name?}
@@ -116,7 +118,7 @@ class CallService extends StateNotifier<IncomingCall?> {
       case 'call.answered':
         final id = p['call_id'] as String? ?? '';
         kabulEdilenler.add(id);
-        _answeredController.add(id);
+        _answeredController.add({'call_id': id, 'elapsed_ms': p['elapsed_ms']});
       case 'call.ended':
         final id = p['call_id'] as String? ?? '';
         aramaBitti(id);
@@ -247,7 +249,8 @@ class CallService extends StateNotifier<IncomingCall?> {
   void aramaKabulPush(String id) {
     if (id.isEmpty) return;
     kabulEdilenler.add(id);
-    _answeredController.add(id);
+    // PUSH zamanlamasi guvenilmez -> sure referansi TASIMA (null); WS/Status referansi verir.
+    _answeredController.add({'call_id': id, 'elapsed_ms': null});
   }
 
   void dismiss() => state = null;

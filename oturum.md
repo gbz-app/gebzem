@@ -753,3 +753,12 @@ Kullanici: self-view + hoparlor + sesli->goruntulu kamera. Teshis workflow (wb8u
 - **Hoparlor VARSAYILAN KAPALI:** _speakerOn=false + setSpeakerOn(false) her durumda (sesli+goruntulu). KRITIK: setSpeakerOn CAGRISI silinmedi, _sesiAc(true) EN SON kaldi -> **v7 mic-sessiz TETIKLENMEZ** (earpiece mic'i susturmaz, mic'i SIRA garanti eder; dogrulama wagk1yu8t CURUTTU).
 - **Adversarial dogrulama (wagk1yu8t): 0 engelleyici, iOS ses tuzagi CURUTULDU.** 2 kucuk: (a) goruntulude earpiece (kullanici istegi; not: WhatsApp goruntuluyu hoparlorde baslatir -> kullaniciya sorulacak), (b) self-view ust cakisma (konum 130 ile duzeltildi).
 - **Yayin:** build (android 29607122557/ios 29607124414) + R2 (apk 103000192, ipa 17278803) + purge + DB temiz + index 22:30. **Kullanici 3-cihaz test edecek; sikintisizsa GRUP GORUNTULU faz.**
+
+### SURE SENKRON + SELF-VIEW KESIN FIX (18 Tem) — devam ediyor
+Kullanici gercek cihaz (Android arayan -> iPhone aranan, 5 red + 6. kabul): grup OK, ses OK; iki SORUN:
+1. **SURE SENKRON DEGIL:** iPhone saymaya basladi ama Android hala "Baglaniyor" -> iki taraf senkron baslamadi (iPhone'dan arayinca es zamanli calisiyordu). Her seferinde tutarli olmali.
+2. **SELF-VIEW:** radius HIC gorunmuyor + surukle calismiyor + dokun degismiyor ("hepsi bozuk").
+- **KOK BULGU (git status):** self-view duzeltmeleri (radius 24, HitTestBehavior.opaque=surukle-fix, dokun=SWAP, 140x200) KODDA VARDI ama COMMIT/BUILD EDILMEMISTI -> kullanici 22:30 build'ini (radius 18, dokun=flip, surukle bozuk) test ediyordu. Uc sikayet de eski build davranisi.
+- **SURE SENKRON KOK NEDEN (teshis wa98uoi5d):** her taraf sureyi KENDI "ilk remote AUDIO track subscribe" aninda +1sn artimla basliyor -> asimetrik, senkron degil. answered_at (DB'de VAR, migration 004) istemciye HIC donmuyordu.
+- **COZUM (WhatsApp deseni — ORTAK referans):** backend answered_at -> ms. Answer RETURNING answered_at + answer() cevabina answered_ms (aranan); call.answered WS payload map[string]any + push string answered_ms (arayan); Status answered_ms (COALESCE created_at; WS kaybolursa kurtarma). Istemci: _answeredAt DateTime? + _tick() referans varsa now-answered_at (iki cihaz DAIMA ayni), yoksa +1sn fallback. **Grup HARIC (!widget.isGroup her set-yolunda) -> yerel fallback, davranis degismedi.** _mediaBasladi "Baglaniyor" kapisi + iOS ses sirasi (_sesiAc EN SON) DEGISMEDI.
+- Backend `go build` temiz; Flutter `analyze` temiz (2 mevcut info). Adversarial dogrulama (wqwpxr0ri) calisiyor -> sonra commit+deploy+build.
