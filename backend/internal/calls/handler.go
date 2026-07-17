@@ -147,9 +147,10 @@ func (h *Handler) token(roomName, identity, name string) (string, error) {
 }
 
 type startReq struct {
-	CalleeID string `json:"callee_id"`
-	Video    bool   `json:"video"`
-	ChatID   string `json:"chat_id"` // GRUP aramasi: dolu ise grup yolu (callee_id gerekmez)
+	CalleeID  string   `json:"callee_id"`
+	Video     bool     `json:"video"`
+	ChatID    string   `json:"chat_id"`    // GRUP: kalici grup sohbeti ile (uyeler chat_members'tan)
+	MemberIDs []string `json:"member_ids"` // GRUP: kalici sohbet olmadan anlik grup (secilen kisiler)
 }
 
 // POST /calls — arama baslat (davet gonderir, arayana token doner)
@@ -165,8 +166,8 @@ func (h *Handler) Start(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "gecersiz istek")
 		return
 	}
-	// GRUP ARAMASI: chat_id doluysa AYRI yol (1:1 koduna DOKUNMAZ, callee_id gerekmez).
-	if req.ChatID != "" {
+	// GRUP ARAMASI: chat_id VEYA member_ids doluysa AYRI yol (1:1 koduna DOKUNMAZ, callee_id gerekmez).
+	if req.ChatID != "" || len(req.MemberIDs) > 0 {
 		h.startGroup(w, r, req, callerID)
 		return
 	}
@@ -336,31 +337,68 @@ func (h *Handler) Start(w http.ResponseWriter, r *http.Request) {
 // katilir (status='active', call_participants='joined'); diger tum grup uyeleri 'ringing' +
 // davet fan-out. callee_id NULL (grupta tekil karsi taraf yok). Herkes AYNI call_id/room'a girer.
 func (h *Handler) startGroup(w http.ResponseWriter, r *http.Request, req startReq, callerID string) {
-	// Uyelik + grup dogrula
-	var isGroup bool
-	var chatTitle string
-	err := h.db.QueryRow(r.Context(), `
-		SELECT c.type='group', COALESCE(NULLIF(c.title,''),'Grup')
-		FROM chats c JOIN chat_members m ON m.chat_id=c.id
-		WHERE c.id=$1 AND m.user_id=$2`, req.ChatID, callerID).Scan(&isGroup, &chatTitle)
-	if err != nil || !isGroup {
-		writeErr(w, http.StatusForbidden, "grup bulunamadi veya uye degilsiniz")
-		return
-	}
 	callType := "audio"
 	if req.Video {
 		callType = "video"
 	}
+	// Katilimci listesi + baslik: KALICI grup (chat_id) VEYA ANLIK grup (member_ids).
+	var chatTitle string
+	var memberIDs []string
+	var chatIDForCall any // kalici grupta chat_id, anlik grupta nil (calls.chat_id NULL)
+	if req.ChatID != "" {
+		var isGroup bool
+		err := h.db.QueryRow(r.Context(), `
+			SELECT c.type='group', COALESCE(NULLIF(c.title,''),'Grup')
+			FROM chats c JOIN chat_members m ON m.chat_id=c.id
+			WHERE c.id=$1 AND m.user_id=$2`, req.ChatID, callerID).Scan(&isGroup, &chatTitle)
+		if err != nil || !isGroup {
+			writeErr(w, http.StatusForbidden, "grup bulunamadi veya uye degilsiniz")
+			return
+		}
+		rows, qerr := h.db.Query(r.Context(),
+			`SELECT user_id FROM chat_members WHERE chat_id=$1 AND user_id<>$2`, req.ChatID, callerID)
+		if qerr == nil {
+			for rows.Next() {
+				var uid string
+				if rows.Scan(&uid) == nil {
+					memberIDs = append(memberIDs, uid)
+				}
+			}
+			rows.Close()
+		}
+		chatIDForCall = req.ChatID
+	} else {
+		// Anlik grup: secilen kisiler (kendini/tekrari cikar, gercek+verified dogrula)
+		seen := map[string]bool{callerID: true}
+		for _, uid := range req.MemberIDs {
+			if uid == "" || seen[uid] {
+				continue
+			}
+			var ok bool
+			h.db.QueryRow(r.Context(),
+				`SELECT EXISTS(SELECT 1 FROM users WHERE id=$1 AND verified=true)`, uid).Scan(&ok)
+			if ok {
+				seen[uid] = true
+				memberIDs = append(memberIDs, uid)
+			}
+		}
+		chatTitle = "Grup araması"
+	}
+	if len(memberIDs) == 0 {
+		writeErr(w, http.StatusBadRequest, "gecerli katilimci yok")
+		return
+	}
+
 	var callerName, callerAvatar string
 	h.db.QueryRow(r.Context(),
 		`SELECT name, avatar_url FROM users WHERE id=$1`, callerID).Scan(&callerName, &callerAvatar)
 
-	// calls satiri: host ANINDA active, callee_id NULL
+	// calls satiri: host ANINDA active, callee_id NULL (chat_id kalicida dolu, anlikta NULL)
 	var callID string
-	err = h.db.QueryRow(r.Context(), `
+	err := h.db.QueryRow(r.Context(), `
 		INSERT INTO calls (caller_id, chat_id, is_group, type, status)
 		VALUES ($1,$2,true,$3,'active') RETURNING id`,
-		callerID, req.ChatID, callType).Scan(&callID)
+		callerID, chatIDForCall, callType).Scan(&callID)
 	if err != nil {
 		log.Printf("grup arama kaydi: %v", err)
 		writeErr(w, http.StatusInternalServerError, "arama baslatilamadi")
@@ -371,18 +409,6 @@ func (h *Handler) startGroup(w http.ResponseWriter, r *http.Request, req startRe
 	h.db.Exec(r.Context(),
 		`INSERT INTO call_participants (call_id,user_id,status,joined_at) VALUES ($1,$2,'joined',now())`,
 		callID, callerID)
-	rows, err := h.db.Query(r.Context(),
-		`SELECT user_id FROM chat_members WHERE chat_id=$1 AND user_id<>$2`, req.ChatID, callerID)
-	var memberIDs []string
-	if err == nil {
-		for rows.Next() {
-			var uid string
-			if rows.Scan(&uid) == nil {
-				memberIDs = append(memberIDs, uid)
-			}
-		}
-		rows.Close()
-	}
 	for _, uid := range memberIDs {
 		h.db.Exec(r.Context(),
 			`INSERT INTO call_participants (call_id,user_id,status) VALUES ($1,$2,'ringing')`,
@@ -428,7 +454,7 @@ func (h *Handler) startGroup(w http.ResponseWriter, r *http.Request, req startRe
 			go h.push.CallInvite([]string{uid}, davet)
 		}
 	}
-	log.Printf("grup arama: call=%s chat=%s uye=%d", kisaID(callID), kisaID(req.ChatID), len(memberIDs))
+	log.Printf("grup arama: call=%s uye=%d tip=%s", kisaID(callID), len(memberIDs), callType)
 
 	writeJSON(w, http.StatusCreated, map[string]any{
 		"call_id": callID, "room": roomName, "url": h.lkURL, "token": tok,
