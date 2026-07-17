@@ -76,7 +76,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
   Timer? _mediaYedek; // ses ~8sn'de gelmezse sureyi yine de basla (takili "Baglaniyor" kalma)
   bool _micOn = true;
   bool _camOn = false;
-  bool _speakerOn = true;
+  bool _speakerOn = false; // VARSAYILAN KAPALI (earpiece) — kullanici isterse hoparloru acar (WhatsApp gibi)
   bool _frontCamera = true;
   String? _error;
   Duration _duration = Duration.zero;
@@ -89,7 +89,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
 
   // Suruklenebilir self-view (kendi kamera onizlemesi)
   Offset? _selfPos;
-  static const double _selfW = 110, _selfH = 160, _selfMargin = 16;
+  static const double _selfW = 127, _selfH = 184, _selfMargin = 16; // %15 buyutuldu (WhatsApp gibi)
 
   @override
   void initState() {
@@ -439,7 +439,8 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
       if (widget.video) {
         await room.localParticipant?.setCameraEnabled(true);
       }
-      await room.setSpeakerOn(widget.video); // rota (goruntuluda hoparlor, seslide kulaklik)
+      await room.setSpeakerOn(false); // VARSAYILAN KULAKLIK (earpiece) — sesli+goruntulude kapali basla,
+      // kullanici hoparloru elle acar. Cagri SILINMEDI (sira korunur); _sesiAc EN SON kaldi -> mic bozulmaz.
       await _sesiAc(true); // SES BIRIMI EN SON — mic+rota hazir, capture temiz kurulur
       _sesLog('ses kuruldu: video=${widget.video}');
 
@@ -451,7 +452,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
       _ringTimeout?.cancel();
       setState(() {
         _connecting = false;
-        _speakerOn = widget.video;
+        _speakerOn = false; // varsayilan kapali (earpiece)
         _peerJoined = room.remoteParticipants.isNotEmpty;
       });
       // Resume/reconnect: ses zaten akiyorsa sureyi hemen basla; peer var ama ses yoksa yedek.
@@ -714,8 +715,19 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
 
   Future<void> _toggleCam() async {
     final on = !_camOn;
+    if (on) {
+      // Sesli aramada baslarken kamera izni ISTENMEDI -> mid-call kamera acarken iste.
+      final st = await Permission.camera.request();
+      if (st != PermissionStatus.granted) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Kamera izni gerekli')));
+        }
+        return;
+      }
+    }
     await _room?.localParticipant?.setCameraEnabled(on);
-    setState(() => _camOn = on);
+    if (mounted) setState(() => _camOn = on);
   }
 
   Future<void> _toggleSpeaker() async {
@@ -785,7 +797,9 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
   Widget build(BuildContext context) {
     final remote = _remoteVideo;
     final local = _localVideo;
-    final showVideo = widget.video && (remote != null || local != null);
+    // MID-CALL: widget.video kilidini kaldir -> sesli aramada kamera acilinca (local track) VEYA karsi
+    // kamera acinca (remote track) ekran video moduna gecer (WhatsApp gibi). Goruntulu aramada davranis AYNI.
+    final showVideo = remote != null || local != null;
 
     return PopScope(
       canPop: false, // geri tusuyla kacamaz — aramayi bitirmeli
@@ -898,7 +912,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
               ));
         },
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(18), // WhatsApp gibi belirgin yuvarlak kose
           child: IgnorePointer(child: VideoTrackRenderer(local)),
         ),
       ),
@@ -915,18 +929,23 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
           onTap: _toggleMic,
         ),
         const SizedBox(width: 16),
-        if (widget.video) ...[
+        // MID-CALL: 1:1'de kamera butonu HER ZAMAN gorunur (sesli aramada "kameraya gec" -> video moduna).
+        // Grup sesli aramada gizli (grup video sonraki faz).
+        if (!widget.isGroup) ...[
           _ctrlButton(
             icon: _camOn ? LucideIcons.video : LucideIcons.videoOff,
             active: !_camOn,
             onTap: _toggleCam,
           ),
           const SizedBox(width: 16),
-          _ctrlButton(
-            icon: LucideIcons.switchCamera,
-            onTap: _flipCamera,
-          ),
-          const SizedBox(width: 16),
+          // On/arka kamera degistir — yalniz kamera acikken anlamli
+          if (_camOn) ...[
+            _ctrlButton(
+              icon: LucideIcons.switchCamera,
+              onTap: _flipCamera,
+            ),
+            const SizedBox(width: 16),
+          ],
         ],
         _ctrlButton(
           icon: _speakerOn ? LucideIcons.volume2 : LucideIcons.volumeX,
