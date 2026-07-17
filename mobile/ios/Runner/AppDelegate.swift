@@ -129,6 +129,13 @@ import flutter_callkit_incoming
     let data = flutter_callkit_incoming.Data(
       id: callId, nameCaller: callerName, handle: callerName, type: isVideo ? 1 : 0)
     data.appName = "Gebzem"
+    // BEKLET'i KAPAT: Gebzem CallKit aramasi "beklenebilir" (holdable) bildirilmesin. Yoksa arama
+    // sirasinda GSM gelince iOS "Beklet ve Kabul" gosterir; kullanici secince beklet-swap
+    // (flutter-webrtc #1996 bug) Gebzem'i KOPARIYOR. false olunca yalniz "Bitir ve Kabul" cikar.
+    // KRITIK: bu native Data varsayilani supportsHolding=TRUE idi; Dart IOSParams bu kilit-ekrani
+    // yoluna HIC ulasmiyordu (kullanicinin "false yaptim ama cikti" sorununun kok nedeni).
+    data.supportsHolding = false
+    data.supportsGrouping = false
     data.supportsVideo = true
     data.duration = 45000
     data.extra = [

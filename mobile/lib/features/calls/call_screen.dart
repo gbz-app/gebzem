@@ -72,6 +72,8 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
   bool _baglandi = false; // odaya baglanma baslatildi mi (cift baglanmayi onler)
   bool _ayrildi = false; // _leave bir kez calisti mi (cift pop = siyah ekran)
   bool _peerJoined = false;
+  bool _mediaBasladi = false; // GERCEK ses akmaya basladi mi -> sure buna gore baslar (WhatsApp gibi)
+  Timer? _mediaYedek; // ses ~8sn'de gelmezse sureyi yine de basla (takili "Baglaniyor" kalma)
   bool _micOn = true;
   bool _camOn = false;
   bool _speakerOn = true;
@@ -354,7 +356,9 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
           if (mounted) {
             _ringTimeout?.cancel();
             setState(() => _peerJoined = true); // grupta setState izgarayi da tazeler
-            _startTimer();
+            // Sure BURADA baslamaz -> gercek ses gelince (_mediaBaslat). Peer odada ama medya
+            // henuz yokken ekranda "Baglaniyor" yazar (WhatsApp gibi). Yedek: 8sn'de ses gelmezse basla.
+            _mediaGuvenlikAgi();
           }
         })
         ..on<ParticipantDisconnectedEvent>((_) {
@@ -376,6 +380,16 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
         })
         ..on<TrackSubscribedEvent>((e) {
           if (mounted) setState(() {});
+          if (e.track is VideoTrack) {
+            // Ilk-kare texture yarisi: tek setState texture'i tazelemeyebilir ("ses var goruntu yok").
+            // Post-frame + kisa gecikmeli tekme ile renderer ilk kareler gelince yeniden sorgulanir.
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) setState(() {});
+            });
+            Future.delayed(const Duration(milliseconds: 400), () {
+              if (mounted) setState(() {});
+            });
+          }
           // Teshis logu: remote audio track ne zaman subscribe oldu (ses akisi zaman cizelgesi).
           // NOT: burada _sesiAc(true) COZUM DEGIL — isAudioEnabled setter idempotent (ayni true=no-op),
           // ses birimini yeniden baslatmaz + mic-oncesi yarisi bozabilir (dogrulama wf_889c1267).
@@ -383,6 +397,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
           // ile gercek cihazda OLC (ses aliniyor mu/caliniyor mu), sonra native fix.
           if (e.track is AudioTrack) {
             _sesLog('remote AUDIO track subscribe oldu (ses akisi basladi)');
+            _mediaBaslat(); // GERCEK ses geldi -> sure 00:00'dan simdi baslar
           }
         })
         ..on<TrackUnsubscribedEvent>((_) {
@@ -439,7 +454,12 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
         _speakerOn = widget.video;
         _peerJoined = room.remoteParticipants.isNotEmpty;
       });
-      if (_peerJoined) _startTimer();
+      // Resume/reconnect: ses zaten akiyorsa sureyi hemen basla; peer var ama ses yoksa yedek.
+      if (_remoteAudioHazir()) {
+        _mediaBaslat();
+      } else if (_peerJoined) {
+        _mediaGuvenlikAgi();
+      }
     } catch (e) {
       await _kapatOda(); // yarim kalan odayi TEMIZLE
       rethrow; // ust katman Sentry'e bildirir ve mesaj gosterir
@@ -504,6 +524,37 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
     _durationTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() => _duration += const Duration(seconds: 1));
     });
+  }
+
+  /// GERCEK ses akisi basladi -> sureyi SIMDI baslat (WhatsApp gibi). Peer odaya katilmis
+  /// olsa da ses gelene kadar "Baglaniyor" gosterilir; ilk remote audio track gelince buraya.
+  /// Idempotent: bir kez calisir.
+  void _mediaBaslat() {
+    if (_mediaBasladi || _ayrildi) return;
+    _mediaBasladi = true;
+    _mediaYedek?.cancel();
+    _ringTimeout?.cancel();
+    if (mounted) setState(() => _peerJoined = true);
+    _startTimer();
+  }
+
+  /// Peer odada ama ses ~8sn'de gelmezse takili "Baglaniyor" kalmasin -> sureyi yine de basla.
+  void _mediaGuvenlikAgi() {
+    if (_mediaBasladi) return;
+    _mediaYedek?.cancel();
+    _mediaYedek = Timer(const Duration(seconds: 8), () {
+      if (mounted && !_mediaBasladi) _mediaBaslat();
+    });
+  }
+
+  /// Odada karsi tarafin abone olunmus (canli) bir AUDIO track'i var mi (resume/reconnect icin).
+  bool _remoteAudioHazir() {
+    for (final p in _room?.remoteParticipants.values ?? const <RemoteParticipant>[]) {
+      for (final pub in p.audioTrackPublications) {
+        if (pub.subscribed && pub.track != null) return true;
+      }
+    }
+    return false;
   }
 
   /// Odayi TAM olarak kapat.
@@ -695,6 +746,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
     WidgetsBinding.instance.removeObserver(this);
     _statusPoll?.cancel();
     _statsTimer?.cancel();
+    _mediaYedek?.cancel();
     _endedSub?.cancel();
     _answeredSub?.cancel();
     CallSounds.durdur(_sesNesli);
@@ -709,6 +761,8 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
     if (_error != null) return _error!;
     if (_connecting) return 'Baglaniliyor...';
     if (!_peerJoined) return widget.outgoing ? 'Caliyor...' : 'Bekleniyor...';
+    // Peer odada ama GERCEK ses henuz akmadi -> "Baglaniyor" (WhatsApp gibi; sure fiili sesle baslar).
+    if (!_mediaBasladi) return 'Bağlanıyor...';
     final m = _duration.inMinutes.toString().padLeft(2, '0');
     final s = (_duration.inSeconds % 60).toString().padLeft(2, '0');
     return '$m:$s';
@@ -744,7 +798,10 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
               _buildGroupGrid()
             else if (remote != null)
               Positioned.fill(
-                child: VideoTrackRenderer(remote, fit: VideoViewFit.cover),
+                // KEY track kimligine bagli: track her (yeniden) subscribe olunca TAZE renderer
+                // baglanir -> bayat/siyah texture kalmaz ("goruntu gelmedi" ilk-kare yarisi fix).
+                child: VideoTrackRenderer(remote,
+                    key: ValueKey('remote-${remote.sid}'), fit: VideoViewFit.cover),
               )
             else
               _buildAudioBackground(),
