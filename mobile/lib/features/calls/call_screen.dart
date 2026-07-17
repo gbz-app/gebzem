@@ -30,6 +30,8 @@ class CallScreen extends ConsumerStatefulWidget {
     required this.peerName,
     this.peerId,
     this.outgoing = true,
+    this.isGroup = false,
+    this.chatTitle = '',
   });
 
   final String callId;
@@ -39,6 +41,8 @@ class CallScreen extends ConsumerStatefulWidget {
   final String peerName;
   final String? peerId; // "Geri Ara" icin (giden aramada dolu; gelen aramada gereksiz)
   final bool outgoing; // giden arama mi (karsi taraf henuz kabul etmedi)
+  final bool isGroup; // GRUP aramasi mi (coklu katilimci -> avatar izgara + biri ayrilinca arama surer)
+  final String chatTitle; // grup basligi (ust bilgide "peerName" yerine)
 
   @override
   ConsumerState<CallScreen> createState() => _CallScreenState();
@@ -349,12 +353,20 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
         ..on<ParticipantConnectedEvent>((_) {
           if (mounted) {
             _ringTimeout?.cancel();
-            setState(() => _peerJoined = true);
+            setState(() => _peerJoined = true); // grupta setState izgarayi da tazeler
             _startTimer();
           }
         })
         ..on<ParticipantDisconnectedEvent>((_) {
-          if (mounted) _leave(notifyServer: true); // karsi taraf ayrildi
+          if (!mounted) return;
+          if (widget.isGroup) {
+            // GRUP: biri ayrilinca arama SURER; yalniz herkes ayrilinca (oda bosalinca) cik.
+            // v13 KRITIK DALLANMA: bunu gate etmezsek ilk ayrilan HERKESIN aramasini kapatir.
+            setState(() {}); // izgarayi guncelle
+            if (_room?.remoteParticipants.isEmpty ?? true) _leave(notifyServer: true);
+            return;
+          }
+          _leave(notifyServer: true); // 1:1: karsi taraf ayrildi -> arama biter (AYNEN)
         })
         ..on<ParticipantConnectionQualityUpdatedEvent>((e) {
           if (mounted && e.participant is LocalParticipant) {
@@ -374,6 +386,9 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
         })
         ..on<TrackUnsubscribedEvent>((_) {
           if (mounted) setState(() {});
+        })
+        ..on<ActiveSpeakersChangedEvent>((_) {
+          if (mounted && widget.isGroup) setState(() {}); // grup: konusan yesil halkasini tazele
         })
         ..on<RoomDisconnectedEvent>((_) {
           if (mounted) _leave(notifyServer: false);
@@ -723,8 +738,10 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
         backgroundColor: const Color(0xFF0B141A),
         body: Stack(
           children: [
-            // Karsi tarafin goruntusu (tam ekran, ekrani doldur)
-            if (remote != null)
+            // GRUP: coklu-katilimci avatar izgarasi (sesli). 1:1: mevcut video/ses arka plani AYNEN.
+            if (widget.isGroup)
+              _buildGroupGrid()
+            else if (remote != null)
               Positioned.fill(
                 child: VideoTrackRenderer(remote, fit: VideoViewFit.cover),
               )
@@ -745,7 +762,10 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
               right: 0,
               child: Column(
                 children: [
-                  Text(widget.peerName,
+                  Text(
+                      widget.isGroup
+                          ? (widget.chatTitle.isEmpty ? 'Grup araması' : widget.chatTitle)
+                          : widget.peerName,
                       style: const TextStyle(
                           color: Colors.white, fontSize: 24, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 6),
@@ -936,6 +956,71 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
             style: const TextStyle(fontSize: 48, color: Colors.white),
           ),
         ),
+      ),
+    );
+  }
+
+  /// GRUP sesli: tum katilimcilar (ben + uzaktakiler) daire avatar izgarasi. Konusan = yesil halka.
+  Widget _buildGroupGrid() {
+    final katilimcilar = <Participant>[];
+    final lp = _room?.localParticipant;
+    if (lp != null) katilimcilar.add(lp);
+    katilimcilar.addAll(_room?.remoteParticipants.values ?? const []);
+    return Positioned.fill(
+      child: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFF075E54), Color(0xFF0B141A)],
+          ),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 150, 20, 150),
+        child: Center(
+          child: Wrap(
+            spacing: 22,
+            runSpacing: 22,
+            alignment: WrapAlignment.center,
+            children: [for (final p in katilimcilar) _grupAvatar(p)],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _grupAvatar(Participant p) {
+    final yerel = p is LocalParticipant;
+    final ad = p.name.isNotEmpty ? p.name : (yerel ? 'Sen' : 'Katılımcı');
+    final harf = ad.isNotEmpty ? ad[0].toUpperCase() : '?';
+    final konusuyor = p.isSpeaking;
+    return SizedBox(
+      width: 96,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            width: 88,
+            height: 88,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: const LinearGradient(colors: [Color(0xFF128C7E), Color(0xFF25D366)]),
+              border: konusuyor
+                  ? Border.all(color: const Color(0xFF25D366), width: 4)
+                  : Border.all(color: Colors.white24, width: 1),
+            ),
+            alignment: Alignment.center,
+            child: Text(harf,
+                style: const TextStyle(
+                    color: Colors.white, fontSize: 36, fontWeight: FontWeight.bold)),
+          ),
+          const SizedBox(height: 8),
+          Text(yerel ? 'Sen' : ad,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white, fontSize: 13)),
+        ],
       ),
     );
   }
