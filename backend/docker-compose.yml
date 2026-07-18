@@ -21,6 +21,11 @@ services:
       LIVEKIT_URL: wss://rtc.gebzem.app
       LIVEKIT_API_KEY: ${LIVEKIT_API_KEY}
       LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET}
+      # Admin uclari anahtari (dogrulama bulgusu: repo PUBLIC — kod icindeki varsayilan
+      # anahtar kullanilamaz; sunucu .env'inde GUCLU deger ZORUNLU)
+      ADMIN_KEY: ${ADMIN_KEY:-}
+      ADMIN_USER: ${ADMIN_USER:-}
+      ADMIN_PASS: ${ADMIN_PASS:-}
     volumes:
       - ./fcm-sa.json:/secrets/fcm-sa.json:ro
       - ./apns.p8:/secrets/apns.p8:ro
