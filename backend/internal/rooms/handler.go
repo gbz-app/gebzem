@@ -560,11 +560,15 @@ func (h *Handler) Remove(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-// POST /rooms/{id}/end — odayi bitir (yalniz host). Idempotent (calls End deseni).
+// POST /rooms/{id}/end — odayi bitir (yalniz host). Idempotent (calls End deseni):
+// yetki kontrolu status'e BAKMAZ (bitmis odada 2. end sessiz 200 doner, 403 degil).
 func (h *Handler) End(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserID(r.Context())
 	roomID := chi.URLParam(r, "id")
-	if !h.hostMu(r.Context(), roomID, userID) {
+	var sahibi bool
+	h.db.QueryRow(r.Context(),
+		`SELECT EXISTS(SELECT 1 FROM rooms WHERE id=$1 AND host_id=$2)`, roomID, userID).Scan(&sahibi)
+	if !sahibi {
 		writeErr(w, http.StatusForbidden, "yalniz oda sahibi")
 		return
 	}
