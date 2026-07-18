@@ -989,6 +989,25 @@ flutter analyze TEMIZ. NOT: LiveKit port araligi genisletme (plan Adim 8, 200->1
 BILEREK YAPILMADI — livekit restart canli aramalari dusurur; test doneminde 200 port yeter,
 gercek kapasite oncesi bakim penceresinde yapilacak.
 
+### YAYIN DERIN DOGRULAMA SONUCU (wf_46fd6251, 34 ajan): 26 teyitli bulgu — HEPSI ISLENDI
+**Backend (CANLIDA, regresyon curl'leri yesil):** hediye ucuna ban+engel+uyelik kontrolu
+(izlemeden hediye 403); alici ledger ref'ine gonderen eklendi (farkli gonderen ayni idem
+23505 catismasi); AB-BA kilitlenme onlemi (users kilitleri sirali FOR UPDATE); alici tarafi
+hatalar yutulmuyor; heartbeat ZAddXX->ban-kontrollu ZADD (45sn askidan donen izleyici
+hayaletligi); Heart gecerlilik + TTL. **ADMIN_KEY guclendirildi** (openssl rand; sunucu .env +
+compose gecisi; eski varsayilan 401 — public repo bulgusu). NOT: onceki "panel 401" kaydim
+TEST HATAMMIS (uc user/pass bekliyor, ben username/password yollamisim) — panel SAGLAM.
+**Flutter:** live_start_screen'e onizleme muhafizi (ekranAcildi 'yayin-onizleme' — kamera
+cakismasi + pushReplacement'in kabul edilen CallScreen'i sokmesi bulgusu) + REST-sonrasi
+muhafiz tekrari + basarisiz/terk yollarinda yayini geri kapatma + X butonu kilidi; yayinci
+nabiz timer'i baglanti BASARILI olunca basliyor (+ baglanti hatasinda yayini bitir);
+RoomDisconnected -> sunucuya bitir; hediye idem denemede sabit (cift tahsilat); hediye
+animasyon key'leri sayacli; cift "yayin bitti" dialogu muhafizi; ilk izleyici sayisi watch
+cevabindan; chat hatalari snackbar; klavyede chat seridi kuculur (RenderFlex).
+**Bilinen sinirlar (kabul):** kick'lenenin 8sa token'i (rooms remove ile ayni sinif);
+pause-grace ~105sn'de yayinci yeni yayin acamaz (tasarim geregi); SendData gecmisi
+sonradan girene gitmez.
+
 ### KULLANICI TEST BULGUSU (19 Tem gece): GRUP aramada ses gitmiyor — TESHIS SUREN IS
 Kullanici: "grup arama goruntulude ses karsiya gitmiyor" (baska sorun YOK — 1:1 calisiyor).
 **SUNUCU KANITI TOPLANDI (once oda logu kurali):**
