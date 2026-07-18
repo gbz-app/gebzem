@@ -887,6 +887,12 @@ repo: mobile/assets/icon/kaynak.jpg). Kurulum:
   Purge -> CDN boyutlari birebir -> sayfa canli -> health ok -> DB temiz + api restart.
   **KULLANICI TAM TEST YAPIYOR (2 telefonda ikon + grup goruntulu + 1:1 + indir sayfasi).**
 
+### KULLANICI ONAYLI YOL HARITASI (18 Tem gece — "step step bitir")
+Kullanici karari (aynen): plan gelince ODA (Spaces) dikkatlice bitirilecek + build alinacak
+(kullanici DISARIDA test edecek) -> kapsamli test -> CANLI YAYIN -> arayuz degisimi ->
+guvenlik aciklari dahil TAM KAPSAMLI test -> bitis. Plan workflow'u: wf_853d55bc (3 uzman plan +
+eleştirmen catlak analizi; cikti oda-yayin-plani.md olacak).
+
 ### INDIR SAYFASI YENILENDI (18 Tem aksam — kullanici istegi "daha modern, 2D ikonlar")
 - index.html sifirdan: koyu mor tema (uygulama ikonuyla uyumlu radial glow), GERCEK uygulama
   ikonu goruntusu (app-icon.png = web-512.png R2'de), duz SVG ikonlar (Apple/Android logo,

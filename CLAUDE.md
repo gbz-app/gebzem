@@ -15,9 +15,13 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- YOK — İkonlu sürüm + yeni indir sayfası 18 Tem akşam YAYINLANDI (apk=103305849,
-  ipa=18873605, DB temiz). **Kullanıcı tam test yapıyor** — bulgular gelince düzeltme turu.
-  Sonraki adaylar: test bulguları → geç-katılma/kişi-ekleme → kalıcı grup sohbeti → Spaces.
+- **İş: SPACES (SESLİ ODA) — kullanıcı onaylı sıra (18 Tem gece):**
+  1) Plan workflow'u (wf_853d55bc: 3 uzman + eleştirmen) bitince → **oda-yayin-plani.md** yaz
+  2) Spaces'i DİKKATLİCE uçtan uca bitir (backend → curl test → Flutter → adversarial doğrulama)
+  3) Build + yayın rutini → kullanıcı DIŞARIDA odayı + ikonlu sürümü test edecek
+  4) Sonra sırayla: kapsamlı test → CANLI YAYIN → arayüz yenileme → güvenlik denetimi
+     (tam kapsamlı: açık taraması vb.) → bitiş. Kullanıcının kendi sözü: "step step bitir".
+- Durum: plan workflow'u koşuyor; ikonlu sürüm + yeni indir sayfası YAYINDA (kullanıcı test ediyor).
 - Grup görüntülü fazı 18 Tem akşam YAYINLANDI (oturum.md "Oturum 16": adımlar, test rehberi,
   bilinen sınırlar). Sonraki adaylar: test bulguları → geç-katılma/kişi-ekleme → kalıcı grup
   sohbeti → Spaces (yol haritası).
