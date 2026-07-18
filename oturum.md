@@ -865,6 +865,23 @@ adimdan SONRA guncellenip push'lanacak — pencere kapansa bile tam kalinan yer 
 - Admin panel not: admin/Gebzem2026! girisi 401 verdi (sunucu ADMIN_PASS env farkli olabilir);
   eski anahtar `gbz-izle-2026` calisiyor — bakilacak.
 
+### UYGULAMA IKONU KODA ISLENDI (18 Tem aksam — kullanici tasarimi, BUILD BEKLIYOR)
+Kullanici ikonu verdi (mor yuvarlak-koseli kare + beyaz kivrimli logo; kaynak: Desktop/2.jpg ->
+repo: mobile/assets/icon/kaynak.jpg). Kurulum:
+- **mobile/tool/ikon_uret.dart** (dart run tool/ikon_uret.dart): siyah kenari OTOMATIK kirpar
+  (bbox luminance>10) -> icon.png (1024 tam-kare, iOS+Android legacy) + icon-adaptive-fg.png
+  (seffaf kanvas, tile %66 ortada — Android 8+ adaptive guvenli bolge).
+- pubspec: dev_deps flutter_launcher_icons ^0.14.4 + image ^4.3.0; flutter_launcher_icons
+  blogu (adaptive_icon_background #000000, remove_alpha_ios true).
+- `dart run flutter_launcher_icons` -> mipmap'ler (5 yogunluk + anydpi-v26 adaptive + colors.xml)
+  + iOS AppIcon.appiconset (tum boyutlar). 1024 iOS ikonu + adaptive fg GORSEL DOGRULANDI.
+- ⚠️ TUZAK (yeni): flutter_launcher_icons pbxproj'da YANLIS ayari degistiriyor
+  (ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS YES -> "AppIcon" yaziyor; bilinen
+  bug). APPICON_NAME=AppIcon Flutter sablonunda ZATEN var -> **pbxproj degisikligi git checkout
+  ile GERI ALINDI** (BOM'suz kaldi, dogrulandi). Ikon guncellerken hep kontrol et!
+- **BUILD ALINMADI (bilerek):** kullanici mevcut surumu test ediyor; bulgulariyla birlikte
+  TOPLU build alinacak (ikon + olasi duzeltmeler tek surumde).
+
 ### RISKLER / DIKKAT (kodlarken tekrar oku)
 - 1:1 koduna DOKUNMA — tum degisiklikler `isGroup` dallarinda. Sesli grup gorunumu video track
   yokken PIKSELI PIKSELINE ayni kalmali (kullanici test etti, begendi).

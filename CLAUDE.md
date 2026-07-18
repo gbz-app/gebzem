@@ -15,9 +15,12 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- YOK — Grup görüntülü fazı 18 Tem akşam YAYINLANDI (oturum.md "Oturum 16" bölümü: tüm adımlar,
-  test rehberi, bilinen sınırlar). Kullanıcı 3-cihaz testi bekleniyor. Sonraki adaylar: kullanıcı
-  test bulguları → geç-katılma/kişi-ekleme → kalıcı grup sohbeti → Spaces (yol haritası).
+- **BEKLEYEN TOPLU BUILD:** yeni uygulama ikonu KODA İŞLENDİ (18 Tem akşam, henüz build alınmadı)
+  — kullanıcı grup-görüntülü sürümünü test ediyor; bulgular gelince ikon + düzeltmeler TEK
+  sürümde build/yayınlanacak (rutin: build → R2 → purge → boyut → DB temiz).
+- Grup görüntülü fazı 18 Tem akşam YAYINLANDI (oturum.md "Oturum 16": adımlar, test rehberi,
+  bilinen sınırlar). Sonraki adaylar: test bulguları → geç-katılma/kişi-ekleme → kalıcı grup
+  sohbeti → Spaces (yol haritası).
 - Kritik bağlam: backend startGroup videoyu zaten destekliyordu; eklenenler = kapasite sınırı
   (video≤8/sesli≤32), grup düşük video profili (540p), grid video tile, başlatma ekranı seçimi,
   grup kamera butonu, overlay metni. 1:1 ve SESLİ grup davranışı DEĞİŞMEDİ (isGroup dalları +
@@ -110,7 +113,10 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
 - ✅ **ARAMA (1:1 sesli/görüntülü):** CANLI, kullanıcı testlerinden geçti (süre senkron, CallKit, ses teşhis dahil)
 - ✅ **GRUP ARAMASI (sesli + görüntülü, 18 Tem):** sesli ≤32, görüntülü ≤8 kişi; video ızgara + mid-call kamera; anlık grup (member_ids) — kalıcı grup sohbeti UI'si sonraki faz
 - ⏳ Sonraki: geç-katılma/kişi-ekleme → Faz 2 (gruplar, story, profil, medya) → odalar+yayın (Spaces) → admin
-- ⚠️ Uygulama ikonu hâlâ placeholder
+- ✅ Uygulama ikonu: kullanıcı tasarımı (mor/kıvrımlı logo) koda işlendi 18 Tem — kaynak
+  mobile/assets/icon/kaynak.jpg; güncelleme: `dart run tool/ikon_uret.dart` + `dart run
+  flutter_launcher_icons` (⚠️ sonrasında pbxproj'daki GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS
+  bozulmasını git checkout ile geri al — araç bug'ı, APPICON_NAME zaten şablonda var)
 - Test kullanıcıları: her sürümde DB temizleniyor (aşağıdaki rutin) → kullanıcı sıfırdan kayıt olur
 
 ## REPO YAPISI (monorepo: github.com/gbz-app/gebzem — **PUBLIC** 15 Tem 2026: Actions kotası doldu → sınırsız bedava için public yapıldı; secrets Actions'ta gizli, kodda/geçmişte hassas dosya YOK)
