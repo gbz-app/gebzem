@@ -879,8 +879,17 @@ repo: mobile/assets/icon/kaynak.jpg). Kurulum:
   (ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS YES -> "AppIcon" yaziyor; bilinen
   bug). APPICON_NAME=AppIcon Flutter sablonunda ZATEN var -> **pbxproj degisikligi git checkout
   ile GERI ALINDI** (BOM'suz kaldi, dogrulandi). Ikon guncellerken hep kontrol et!
-- **BUILD ALINMADI (bilerek):** kullanici mevcut surumu test ediyor; bulgulariyla birlikte
-  TOPLU build alinacak (ikon + olasi duzeltmeler tek surumde).
+- ~~BUILD ALINMADI~~ -> kullanici "build alalim, tam test yapacagim" dedi (18 Tem aksam):
+  **ikonlu toplu build BASLADI** (android 29655019115 / ios 29655020136, izleniyor).
+
+### INDIR SAYFASI YENILENDI (18 Tem aksam — kullanici istegi "daha modern, 2D ikonlar")
+- index.html sifirdan: koyu mor tema (uygulama ikonuyla uyumlu radial glow), GERCEK uygulama
+  ikonu goruntusu (app-icon.png = web-512.png R2'de), duz SVG ikonlar (Apple/Android logo,
+  yildiz rozeti, bilgi/indir/sifirla adim ikonlari), surum rozeti, "Bu surumde" karti,
+  kurulum adimlari. iOS itms-services + gebzem.apk linkleri AYNEN korundu (manifest.plist
+  degismedi). Tamamen self-contained (tek dis kaynak: ayni domain app-icon.png).
+- Kaynak: oturum scratchpad/index.html (yayinlanan kopya R2'de; sonraki oturumlar icin
+  guncel hali her zaman indir.gebzem.app/index.html'den curl ile alinabilir).
 
 ### RISKLER / DIKKAT (kodlarken tekrar oku)
 - 1:1 koduna DOKUNMA — tum degisiklikler `isGroup` dallarinda. Sesli grup gorunumu video track
