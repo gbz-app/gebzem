@@ -390,6 +390,17 @@ func (h *Handler) startGroup(w http.ResponseWriter, r *http.Request, req startRe
 		writeErr(w, http.StatusBadRequest, "gecerli katilimci yok")
 		return
 	}
+	// KAPASITE (cx33, grup-arama plani madde 4): goruntulu toplam (host dahil) 8, sesli 32.
+	// N kisi = N yayin + N*(N-1) abonelik; video 8 ustu CPU/bant duvarina carpar.
+	toplam := len(memberIDs) + 1
+	if callType == "video" && toplam > 8 {
+		writeErr(w, http.StatusBadRequest, "goruntulu grup aramasi en fazla 8 kisi olabilir")
+		return
+	}
+	if toplam > 32 {
+		writeErr(w, http.StatusBadRequest, "sesli grup aramasi en fazla 32 kisi olabilir")
+		return
+	}
 
 	var callerName, callerAvatar string
 	h.db.QueryRow(r.Context(),

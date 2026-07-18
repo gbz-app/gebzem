@@ -17,10 +17,12 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
 - **İş: GRUP GÖRÜNTÜLÜ ARAMA** (başladı: 18 Tem 2026 akşam). Detaylı adım listesi + durum işaretleri:
   `oturum.md` → "Oturum 16 — GRUP GORUNTULU ARAMA" bölümü (G1-G7 adımları, riskler dahil).
-- Durum: kod okuma + plan bitti; G1 (backend kapasite sınırı) başlıyor. Henüz kod değişikliği YOK.
-- Kritik bağlam: backend startGroup videoyu ZATEN destekliyor (tek eksik kapasite sınırı);
-  Flutter'da grid video tile + başlatma ekranı seçimi + grup kamera butonu eksik.
-  1:1 ve SESLİ grup davranışı DEĞİŞMEYECEK (isGroup dalları + "video track yoksa eski görünüm").
+- Durum: G1-G5 KOD TAMAM (go build + flutter analyze temiz). Sırada G6: adversarial doğrulama
+  workflow → bulgu düzeltme → G7: deploy + curl regresyon + build + yayın rutini.
+- Kritik bağlam: backend startGroup videoyu zaten destekliyordu; eklenenler = kapasite sınırı
+  (video≤8/sesli≤32), grup düşük video profili (540p), grid video tile, başlatma ekranı seçimi,
+  grup kamera butonu, overlay metni. 1:1 ve SESLİ grup davranışı DEĞİŞMEDİ (isGroup dalları +
+  "video track yoksa eski avatar ızgara birebir").
 
 ## TELEMETRİ & İZLEME (12 Tem 2026 — hepsi canlı)
 - **Sentry:** https://gebzem.sentry.io — gebzem-mobile + gebzem-backend projeleri; hatalar dosya+satır ile otomatik düşer. OTURUM BAŞINDA KONTROL ET. sentry_flutter ^9.6 (8.x KULLANMA — Kotlin/Swift derleme hatası)

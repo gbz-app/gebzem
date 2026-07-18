@@ -355,13 +355,15 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
   /// kapanisi BITMIS olur (ses oturumu yarisini onler).
   Future<void> _odayaBaglan() async {
     final room = Room(
-        roomOptions: const RoomOptions(
+        roomOptions: RoomOptions(
           adaptiveStream: true, // zayif baglantida/kucuk pencerede kaliteyi otomatik dusur
           dynacast: true, // kullanilmayan ust katmanlari durdur (pil/veri/CPU tasarrufu)
-          // UYARLANABILIR 1080p: ag iyiyse 1080p'ye kadar; kotulesince otomatik duser
-          // (bkz. call_media_options.dart — degradationPreference: balanced)
-          defaultCameraCaptureOptions: kCameraCaptureOptions,
-          defaultVideoPublishOptions: kVideoPublishOptions,
+          // GRUP: dusuk video profili (540p/700kbps — N yayin + N*(N-1) abonelik cx33'u
+          // yormasin). 1:1: uyarlanabilir 720p profili AYNEN (call_media_options.dart).
+          defaultCameraCaptureOptions:
+              widget.isGroup ? kGroupCameraCaptureOptions : kCameraCaptureOptions,
+          defaultVideoPublishOptions:
+              widget.isGroup ? kGroupVideoPublishOptions : kVideoPublishOptions,
           defaultAudioCaptureOptions: kAudioCaptureOptions,
           defaultAudioPublishOptions: kAudioPublishOptions,
         ),
@@ -423,6 +425,14 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
           }
         })
         ..on<TrackUnsubscribedEvent>((_) {
+          if (mounted) setState(() {});
+        })
+        // Karsi taraf kamerayi kapatinca/acinca (mute/unmute) UI tazelensin — grupta tile
+        // video<->avatar gecisi, 1:1'de zararsiz rebuild.
+        ..on<TrackMutedEvent>((_) {
+          if (mounted) setState(() {});
+        })
+        ..on<TrackUnmutedEvent>((_) {
           if (mounted) setState(() {});
         })
         ..on<ActiveSpeakersChangedEvent>((_) {
@@ -887,7 +897,9 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
             // kazara dokunmak setFocusPoint/setExposurePoint -> flutter_webrtc CameraUtils'te
             // NullPointerException -> uygulama COKUYOR. Renderer'i tamamen dokunmaya kapatiyoruz; dokunusu
             // DIStaki GestureDetector (opaque) yakalar.
-            if (showVideo && smallTrack != null)
+            // GRUPTA self-view overlay ACILMAZ: yerel goruntu kendi izgara tile'inda.
+            // (Overlay acilirsa grup gridinin ustune biner — grup-video fazi karari.)
+            if (!widget.isGroup && showVideo && smallTrack != null)
               _buildSelfView(context, smallTrack,
                   canSwap: bothVideo, isLocal: smallIsLocal),
 
@@ -1011,23 +1023,22 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
           onTap: _toggleMic,
         ),
         const SizedBox(width: 16),
-        // MID-CALL: 1:1'de kamera butonu HER ZAMAN gorunur (sesli aramada "kameraya gec" -> video moduna).
-        // Grup sesli aramada gizli (grup video sonraki faz).
-        if (!widget.isGroup) ...[
+        // MID-CALL: kamera butonu HER ZAMAN gorunur (sesli aramada "kameraya gec" -> video moduna).
+        // GRUP DAHIL (grup goruntulu fazi): yerel kamera kendi tile'inda, digerleri autoSubscribe
+        // ile gorur; sesli grupta acilinca izgara video moduna gecer.
+        _ctrlButton(
+          icon: _camOn ? LucideIcons.video : LucideIcons.videoOff,
+          active: !_camOn,
+          onTap: _toggleCam,
+        ),
+        const SizedBox(width: 16),
+        // On/arka kamera degistir — yalniz kamera acikken anlamli
+        if (_camOn) ...[
           _ctrlButton(
-            icon: _camOn ? LucideIcons.video : LucideIcons.videoOff,
-            active: !_camOn,
-            onTap: _toggleCam,
+            icon: LucideIcons.switchCamera,
+            onTap: _flipCamera,
           ),
           const SizedBox(width: 16),
-          // On/arka kamera degistir — yalniz kamera acikken anlamli
-          if (_camOn) ...[
-            _ctrlButton(
-              icon: LucideIcons.switchCamera,
-              onTap: _flipCamera,
-            ),
-            const SizedBox(width: 16),
-          ],
         ],
         _ctrlButton(
           icon: _speakerOn ? LucideIcons.volume2 : LucideIcons.volumeX,
@@ -1119,12 +1130,31 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
     );
   }
 
-  /// GRUP sesli: tum katilimcilar (ben + uzaktakiler) daire avatar izgarasi. Konusan = yesil halka.
+  /// Katilimcinin CANLI video track'i. Yerel: kamera acikken; uzak: abone olunmus + mute degil.
+  /// null = video yok (avatar gosterilir).
+  VideoTrack? _katilimciVideosu(Participant p) {
+    if (p is LocalParticipant) {
+      if (!_camOn) return null;
+      return p.videoTrackPublications.firstOrNull?.track;
+    }
+    for (final pub in p.videoTrackPublications) {
+      if (pub.subscribed && !pub.muted && pub.track != null) {
+        return pub.track as VideoTrack;
+      }
+    }
+    return null;
+  }
+
+  /// GRUP: herhangi bir katilimcida canli video varsa VIDEO IZGARASI; hic yoksa ESKI sesli
+  /// avatar izgarasi BIREBIR korunur (sesli grup regresyonsuz — kullanici test etti).
   Widget _buildGroupGrid() {
     final katilimcilar = <Participant>[];
     final lp = _room?.localParticipant;
     if (lp != null) katilimcilar.add(lp);
     katilimcilar.addAll(_room?.remoteParticipants.values ?? const []);
+    if (katilimcilar.any((p) => _katilimciVideosu(p) != null)) {
+      return _grupVideoIzgara(katilimcilar);
+    }
     return Positioned.fill(
       child: Container(
         decoration: const BoxDecoration(
@@ -1183,6 +1213,99 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
               textAlign: TextAlign.center,
               style: const TextStyle(color: Colors.white, fontSize: 13)),
         ],
+      ),
+    );
+  }
+
+  /// GORUNTULU GRUP IZGARASI: 2 kisi tek sutun, 3+ iki sutun. Kapasite siniri 8 (backend)
+  /// -> 2x4 kaydirmasiz sigar. Video olan katilimci video tile, olmayan avatar tile (karisik).
+  Widget _grupVideoIzgara(List<Participant> katilimcilar) {
+    return Positioned.fill(
+      child: Container(
+        color: const Color(0xFF0B141A),
+        // Ust bilgi (isim/sure/teshis butonu) + alt kontrol bari ile cakismayan alan
+        padding: const EdgeInsets.fromLTRB(8, 108, 8, 132),
+        child: LayoutBuilder(builder: (context, box) {
+          final n = katilimcilar.length;
+          final cols = n <= 2 ? 1 : 2;
+          final rows = (n + cols - 1) ~/ cols;
+          const bosluk = 6.0;
+          final w = (box.maxWidth - (cols - 1) * bosluk) / cols;
+          final h = (box.maxHeight - (rows - 1) * bosluk) / rows;
+          return GridView.count(
+            crossAxisCount: cols,
+            mainAxisSpacing: bosluk,
+            crossAxisSpacing: bosluk,
+            childAspectRatio: w / h,
+            physics: const NeverScrollableScrollPhysics(), // 8 kisi sigar; kaydirma gereksiz
+            children: [for (final p in katilimcilar) _grupVideoTile(p)],
+          );
+        }),
+      ),
+    );
+  }
+
+  Widget _grupVideoTile(Participant p) {
+    final yerel = p is LocalParticipant;
+    final ad = yerel ? 'Sen' : (p.name.isNotEmpty ? p.name : 'Katılımcı');
+    final video = _katilimciVideosu(p);
+    final konusuyor = p.isSpeaking;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: konusuyor ? const Color(0xFF25D366) : Colors.white12,
+          width: konusuyor ? 3 : 1,
+        ),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (video != null)
+              // KEY track kimligine bagli (ilk-kare/bayat-texture fix — 1:1 ile ayni desen).
+              // IgnorePointer SART: renderer'a dokunus giderse flutter_webrtc CameraUtils
+              // NullPointerException ile COKUYOR (self-view'daki ayni koruma).
+              IgnorePointer(
+                child: VideoTrackRenderer(video,
+                    key: ValueKey('tile-${video.sid}'), fit: VideoViewFit.cover),
+              )
+            else
+              Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Color(0xFF075E54), Color(0xFF0B141A)],
+                  ),
+                ),
+                alignment: Alignment.center,
+                child: CircleAvatar(
+                  radius: 32,
+                  backgroundColor: Colors.white24,
+                  child: Text(ad[0].toUpperCase(),
+                      style: const TextStyle(fontSize: 26, color: Colors.white)),
+                ),
+              ),
+            Positioned(
+              left: 8,
+              bottom: 6,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: Colors.black45,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(ad,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.white, fontSize: 12)),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

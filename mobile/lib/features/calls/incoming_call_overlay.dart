@@ -151,11 +151,17 @@ class _IncomingCallSheetState extends ConsumerState<_IncomingCallSheet> {
                   : null,
             ),
             const SizedBox(height: 20),
-            Text(call.callerName,
+            // GRUP: baslik grup adi, alt satir "Grup sesli/goruntulu aramasi · baslatan"
+            Text(call.isGroup && call.chatTitle.isNotEmpty ? call.chatTitle : call.callerName,
                 style: const TextStyle(
                     color: Colors.white, fontSize: 26, fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
-            Text(call.video ? 'Goruntulu arama' : 'Sesli arama',
+            Text(
+                call.isGroup
+                    ? (call.video
+                        ? 'Grup görüntülü araması · ${call.callerName}'
+                        : 'Grup sesli araması · ${call.callerName}')
+                    : (call.video ? 'Goruntulu arama' : 'Sesli arama'),
                 style: const TextStyle(color: Colors.white70, fontSize: 16)),
             const Spacer(flex: 3),
             Row(

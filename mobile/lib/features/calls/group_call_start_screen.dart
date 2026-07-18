@@ -8,7 +8,7 @@ import '../../core/api.dart';
 import 'call_provider.dart';
 import 'call_screen.dart';
 
-/// Sesli grup aramasi baslat: kisileri ara, coklu sec, "Ara" -> startGroup.
+/// Grup aramasi baslat (sesli VEYA goruntulu): kisileri ara, coklu sec -> startGroup.
 /// Kalici grup sohbeti gerekmez (anlik grup, backend member_ids yolu).
 class GroupCallStartScreen extends ConsumerStatefulWidget {
   const GroupCallStartScreen({super.key});
@@ -66,12 +66,12 @@ class _GroupCallStartScreenState extends ConsumerState<GroupCallStartScreen> {
     });
   }
 
-  Future<void> _basla() async {
+  Future<void> _basla({required bool video}) async {
     if (_selected.isEmpty || _starting) return;
     setState(() => _starting = true);
     final svc = ref.read(callServiceProvider.notifier);
     try {
-      final info = await svc.startGroup(_selected.keys.toList(), video: false);
+      final info = await svc.startGroup(_selected.keys.toList(), video: video);
       if (!mounted) return;
       // Baslatma ekranini kapat, grup arama ekranini ac.
       Navigator.of(context).pushReplacement(MaterialPageRoute(
@@ -79,7 +79,7 @@ class _GroupCallStartScreenState extends ConsumerState<GroupCallStartScreen> {
           callId: info['call_id'] as String,
           url: info['url'] as String,
           token: info['token'] as String,
-          video: false,
+          video: video,
           peerName: 'Grup araması',
           outgoing: true,
           isGroup: true,
@@ -98,7 +98,7 @@ class _GroupCallStartScreenState extends ConsumerState<GroupCallStartScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Sesli grup araması')),
+      appBar: AppBar(title: const Text('Grup araması')),
       body: Column(
         children: [
           Padding(
@@ -161,18 +161,40 @@ class _GroupCallStartScreenState extends ConsumerState<GroupCallStartScreen> {
           ),
         ],
       ),
+      // SESLI / GORUNTULU secimi (grup goruntulu fazi). Goruntulu backend'de 8 kisiyle
+      // sinirli (asilirsa net Turkce hata mesaji doner, snackbar'da gorunur).
       floatingActionButton: _selected.isEmpty
           ? null
-          : FloatingActionButton.extended(
-              onPressed: _starting ? null : _basla,
-              icon: _starting
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white))
-                  : const Icon(LucideIcons.phone),
-              label: Text('Ara (${_selected.length})'),
+          : Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                FloatingActionButton.extended(
+                  heroTag: 'grupGoruntulu',
+                  onPressed: _starting ? null : () => _basla(video: true),
+                  icon: _starting
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white))
+                      : const Icon(LucideIcons.video),
+                  label: Text('Görüntülü (${_selected.length})'),
+                ),
+                const SizedBox(height: 12),
+                FloatingActionButton.extended(
+                  heroTag: 'grupSesli',
+                  onPressed: _starting ? null : () => _basla(video: false),
+                  icon: _starting
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white))
+                      : const Icon(LucideIcons.phone),
+                  label: Text('Sesli (${_selected.length})'),
+                ),
+              ],
             ),
     );
   }

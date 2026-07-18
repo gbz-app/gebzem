@@ -805,23 +805,23 @@ adimdan SONRA guncellenip push'lanacak — pencere kapansa bile tam kalinan yer 
   payload'inda `call_type` zaten var (handler.go:437,449).
 
 ### UYGULAMA ADIMLARI + DURUM (her adim bitince buraya isaretlenir + push)
-- [ ] **G1 Backend kapasite siniri:** `startGroup`'ta toplam katilimci (host+davetli) video>8 ->
-      400 "goruntulu grup en fazla 8 kisi", sesli>32 -> 400 "sesli grup en fazla 32 kisi".
-      Baska backend degisikligi YOK.
-- [ ] **G2 call_media_options:** `kGroupVideoPublishOptions` (VP8+simulcast, ust katman 540p
-      ~700kbps + alt 270p) + `kGroupCameraCaptureOptions` (540p yakalama) — cx33 CPU/bant korumasi.
-      1:1 secenekleri AYNEN KALIR.
-- [ ] **G3 call_screen grup-video:** RoomOptions grupta dusuk video profili (const -> kosullu);
-      `_buildGroupGrid` katilimcida abone olunmus video track varsa avatar yerine VIDEO TILE
-      (VideoTrackRenderer, ValueKey(sid) ilk-kare fix'i, konusana yesil cerceve, alt-sol isim);
-      hicbir video track yoksa ESKI avatar izgarasi birebir (sesli grup regresyonsuz).
-      Kamera + flip butonu grupta da gorunur; self-view overlay grupta KAPALI (`!widget.isGroup`).
-      Yerel kamera kendi tile'inda gorunur.
-- [ ] **G4 group_call_start_screen:** iki baslat butonu — Sesli (n) / Goruntulu (n); video yolunda
-      startGroup(video:true) + CallScreen(video:true). Baslik "Grup araması".
-- [ ] **G5 metinler:** incoming_call_overlay grup GORUNTULU metni ("Grup görüntülü araması").
-- [ ] **G6 dogrulama:** `go build` + `flutter analyze` + curl grup regresyon (sesli grup baslat/katil/
-      ayril + video baslat 9 kisi RED + 1:1 regresyon) + adversarial workflow -> bulgular duzeltilir.
+- [x] **G1 Backend kapasite siniri:** startGroup'ta toplam (host+davetli) video>8 -> 400
+      "goruntulu grup aramasi en fazla 8 kisi olabilir", >32 -> sesli mesaji. `go build` OK.
+- [x] **G2 call_media_options:** kGroupVideoPublishOptions (VP8+simulcast, ust 540p/700kbps/24fps
+      + alt 270p) + kGroupCameraCaptureOptions (540p yakalama). 1:1 secenekleri AYNEN.
+- [x] **G3 call_screen grup-video:** RoomOptions kosullu grup profili; `_katilimciVideosu` helper
+      (yerel: _camOn, uzak: subscribed+!muted); `_buildGroupGrid` video varsa `_grupVideoIzgara`
+      (2 kisi 1 sutun, 3+ 2 sutun, kaydirmasiz, video/avatar karisik tile, konusana yesil cerceve,
+      alt-sol isim etiketi, ValueKey(track.sid) ilk-kare fix, IgnorePointer NPE korumasi), video
+      yoksa ESKI avatar izgarasi BIREBIR. Kamera+flip butonu artik grupta da var (kosul kalkti);
+      self-view overlay grupta KAPALI; TrackMuted/Unmuted dinleyicileri eklendi (karsi kamera
+      ac/kapat -> tile video<->avatar). `flutter analyze` temiz (2 eski info).
+- [x] **G4 group_call_start_screen:** iki FAB — Görüntülü (n) / Sesli (n); _basla(video:) parametreli;
+      baslik "Grup araması".
+- [x] **G5 metinler:** overlay grupta baslik=chatTitle, alt satir "Grup sesli/görüntülü araması ·
+      baslatan". CallKit zaten call_type'tan video turetiyor (degisiklik gerekmedi, dogrulandi).
+- [ ] **G6 dogrulama:** adversarial workflow -> bulgular duzeltilir; deploy sonrasi curl grup
+      regresyon (sesli grup baslat/katil/ayril + video 9 kisi RED + 1:1 regresyon).
 - [ ] **G7 yayin:** backend deploy + android/ios build izle + debug-imza kontrol + R2 + purge +
       boyut==yerel + DB temiz + oturum.md/CLAUDE.md guncelle. Ancak sonra "hazir".
 

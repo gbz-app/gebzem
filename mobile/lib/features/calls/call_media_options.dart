@@ -45,6 +45,24 @@ const kCameraCaptureOptions = CameraCaptureOptions(
   cameraPosition: CameraPosition.front,
 );
 
+/// GRUP goruntulu arama profili (cx33 korumasi, grup-arama plani madde 4):
+/// N kisi = N yayin + N*(N-1) abonelik; grid'de kutular kucuk oldugundan 540p ustu
+/// ISRAF (CPU/bant/isi). Ust katman 540p/700kbps + alt katman 270p; adaptiveStream
+/// zaten kucuk kutuda alt katmana iner. 1:1 secenekleri AYNEN durur (yukarida).
+const kGroupVideoPublishOptions = VideoPublishOptions(
+  videoCodec: 'vp8',
+  simulcast: true,
+  videoSimulcastLayers: [_layer270],
+  videoEncoding: VideoEncoding(maxFramerate: 24, maxBitrate: 700 * 1000),
+  degradationPreference: DegradationPreference.balanced,
+);
+
+/// Grup kamera yakalama: 540p — 720p yakalayip 540p encode etmek islemciyi bosa isitir.
+const kGroupCameraCaptureOptions = CameraCaptureOptions(
+  params: VideoParametersPresets.h540_169,
+  cameraPosition: CameraPosition.front,
+);
+
 /// Ses: 1:1 konusma icin — yankı/gurultu engelleme + DTX (sessizken gonderme)
 const kAudioCaptureOptions = AudioCaptureOptions(
   echoCancellation: true,
