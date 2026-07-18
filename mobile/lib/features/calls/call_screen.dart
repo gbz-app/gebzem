@@ -153,8 +153,13 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
           _connect();
         }
       });
-      // Cok hizli kabul edildiyse olay biz dinlemeye baslamadan gelmis olabilir
-      if (svc.kabulEdilenler.contains(widget.callId)) {
+      // Cok hizli kabul edildiyse olay biz dinlemeye baslamadan gelmis olabilir.
+      // GRUP HOST'U DA BURADAN (kok-neden fix'i, wf_32afbd46): backend grup aramasini
+      // ANINDA 'active' yapar — calmaTonu+2sn-poll yolu grup hostunda HIC test edilmemis
+      // iOS ses yoluydu (calma tonu churn'u + gec baglanma) ve mic'i SESSIZ kilitliyordu
+      // (davetli tarafta ~100pkt/s + enerji=0.0 imzasi). WhatsApp semantigi de bu:
+      // grup baslatan ringback DUYMAZ, dogrudan odaya girer.
+      if (svc.kabulEdilenler.contains(widget.callId) || widget.isGroup) {
         _connect();
         return;
       }

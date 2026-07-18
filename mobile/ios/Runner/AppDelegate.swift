@@ -48,7 +48,22 @@ import flutter_callkit_incoming
       binaryMessenger: engineBridge.pluginRegistry.registrar(forPlugin: "gebzem.audio")!.messenger())
     ch.setMethodCallHandler { call, result in
       if call.method == "setAudioEnabled" {
-        RTCAudioSession.sharedInstance().isAudioEnabled = (call.arguments as? Bool) ?? false
+        let ac = (call.arguments as? Bool) ?? false
+        let s = RTCAudioSession.sharedInstance()
+        if ac {
+          // KOK GARANTI (grup-host mic-sessiz fix'i, wf_32afbd46): birim baslamadan ONCE
+          // oturumu DETERMINISTIK hazirla + aktive et. CallKit'siz yolda (grup hostu /
+          // giden arama) oturumu playAndRecord'la aktive eden tek yer burasi olur;
+          // CallKit'li yolda config zaten uygulanmis + oturum aktif -> fark-kontrolu
+          // sayesinde NO-OP. webRTC() KASITLI: livekit ayni paylasilan config nesnesini
+          // mutasyonlar -> sonraki configureAudio gecisleri fark yaratmaz (elle opsiyon
+          // YAZMA — canli VPIO'da gercek kategori degisikligi tetiklerdi).
+          s.lockForConfiguration()
+          do { try s.setConfiguration(RTCAudioSessionConfiguration.webRTC(), active: true) }
+          catch { NSLog("gebzem/audio hazirlik hatasi: \(error)") }
+          s.unlockForConfiguration()
+        }
+        s.isAudioEnabled = ac
         result(nil)
       } else if call.method == "getAudioState" {
         // TESHIS: iOS ses cikis durumu. "paket geliyor ama ses duyulmuyor" -> burada

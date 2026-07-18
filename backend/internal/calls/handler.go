@@ -829,8 +829,10 @@ func (h *Handler) AudioStat(w http.ResponseWriter, r *http.Request) {
 	iosStr := "-"
 	iosCikisKapali := false
 	if req.IOS != nil {
-		iosStr = temizle(fmt.Sprintf("acik=%v aktif=%v rota=%v",
-			req.IOS["audioEnabled"], req.IOS["active"], req.IOS["route"]))
+		// kategori teshis icin SART (grup-host mic bulgusu: birim-start anindaki kategori
+		// logdan dusuruluyordu; istemci zaten yolluyor)
+		iosStr = temizle(fmt.Sprintf("acik=%v aktif=%v kat=%v rota=%v",
+			req.IOS["audioEnabled"], req.IOS["active"], req.IOS["category"], req.IOS["route"]))
 		if v, ok := req.IOS["audioEnabled"].(bool); ok && !v {
 			iosCikisKapali = true
 		}

@@ -1008,6 +1008,33 @@ cevabindan; chat hatalari snackbar; klavyede chat seridi kuculur (RenderFlex).
 pause-grace ~105sn'de yayinci yeni yayin acamaz (tasarim geregi); SendData gecmisi
 sonradan girene gitmez.
 
+### GRUP-SES KOK NEDEN HUKMU (wf_32afbd46, 4 uzman + yargic) — FIX'LER UYGULANDI
+**KOK NEDEN (yapisal kesin):** iOS cihaz GRUP HOSTU olunca uygulamanin HIC test edilmemis tek
+ses yolu calisiyor: backend grup aramasini ANINDA 'active' yapar; grupta call.answered hic
+yayinlanmaz -> host DAIMA calmaTonu+2sn-poll yolundan CallKit'siz baglanir ve _sesiAc(true)
+ses birimini o anki oturumda KILITLEYEREK baslatir (v7/v8 modeli: capture canliligi BIRIM
+START aninda belirlenir). Kurtarici yok (giden aramada CallKit kaydi yok; hoparlor-restart
+kazasi da yok — varsayilan kulaklik). Davetli imzasi (~100pkt/s + enerji 0.0) = v7-sinifi
+"olu capture" birebir. Onceki gece calismasinin sebebi: HOST ANDROID'di.
+**Yargic ayrica CURUTTU:** durdur/_sesNesli yarisi (durdur(null) kosulsuz durdurur);
+audioplayers setActive (yalniz loop sinirinda, 2.2sn'de kesiliyor); "configureAudio setActive
+yapmaz" (YANLIS — LiveKitPlugin.swift setConfiguration(active:true) yapiyor); davetli-katilim
+config gecisi (ayni paylasilan config nesnesi -> no-op; saglikli 1:1 breadcrumb karsi-kaniti).
+**FIX 1 (call_screen:157):** grup hostu kabulEdilenler kisayolundan DOGRUDAN _connect —
+calmaTonu/poll grup akisina hic girmez (WhatsApp semantigi: baslatan ringback duymaz).
+**FIX 2 (AppDelegate setAudioEnabled):** ac=true'da birim start'tan ONCE
+setConfiguration(webRTC(), active:true) — CallKit'siz yolda oturumu deterministik aktive eder;
+CallKit'li yolda fark-kontrolu sayesinde NO-OP. webRTC() KASITLI (livekit ayni paylasilan
+nesneyi mutasyonlar; elle opsiyon yazmak canli VPIO'yu bozardi). _kesintidenTopla da saglamlasti.
+**FIX 3 (backend AudioStat):** iOS log'una kat= (kategori) eklendi — birim-start kategori
+teshis boslugu kapandi (deploy edildi).
+**ACIK IKINCIL SORU (koru korune fix YOK):** video gruplarda host recv=0 (dtx'te bile ~250 SID
+paketi beklenirdi) — davetli->host yonunde AYRI sorun OLABILIR; FIX'ler sonrasi testte host
+recv hala 0 ise audio-stat'a sender-side outbound-rtp eklenecek (sonraki adim).
+**Dogrulama plani (kullanici testi):** iOS host sesli grup -> davetli tarafta enerji>0 (BASARI
+KRITERI); goruntulu grup ayni; 1:1 iki yon + kilit ekrani + art arda + Android-host grup
+regresyonlari; kat=PlayAndRecord her satirda.
+
 ### KULLANICI TEST BULGUSU (19 Tem gece): GRUP aramada ses gitmiyor — TESHIS SUREN IS
 Kullanici: "grup arama goruntulude ses karsiya gitmiyor" (baska sorun YOK — 1:1 calisiyor).
 **SUNUCU KANITI TOPLANDI (once oda logu kurali):**
