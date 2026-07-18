@@ -18,14 +18,23 @@ class LiveGiftSheet extends ConsumerStatefulWidget {
 
 class _LiveGiftSheetState extends ConsumerState<LiveGiftSheet> {
   bool _gonderiliyor = false;
+  // IDEMPOTENCY (dogrulama bulgusu): idem HEDIYE-DENEMESI basina BIR KEZ uretilir ve
+  // basariya kadar AYNI kalir — zaman asimi sonrasi tekrar dokunusta sunucu 'duplicate'
+  // der, cift tahsilat OLMAZ. (Her cagrida yeni idem uretmek korumayi bosa cikariyordu.)
+  String? _idem;
+  String? _idemHediye;
 
   Future<void> _gonder(Map<String, dynamic> g) async {
     if (_gonderiliyor) return;
     setState(() => _gonderiliyor = true);
+    final gid = g['id'] as String;
+    if (_idem == null || _idemHediye != gid) {
+      _idem = '${DateTime.now().microsecondsSinceEpoch}-${identityHashCode(this)}';
+      _idemHediye = gid;
+    }
     try {
-      final idem =
-          '${DateTime.now().microsecondsSinceEpoch}-${identityHashCode(this)}';
-      await ref.read(liveApiProvider).hediye(widget.streamId, g['id'] as String, idem);
+      await ref.read(liveApiProvider).hediye(widget.streamId, gid, _idem!);
+      _idem = null; // basarili — sonraki hediye yeni idem alir
       ref.invalidate(myProfileProvider); // bakiye tazelensin
       if (mounted) Navigator.of(context).pop();
     } catch (e) {

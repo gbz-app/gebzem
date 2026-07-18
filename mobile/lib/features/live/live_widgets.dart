@@ -20,15 +20,17 @@ class ChatMesaj {
   final bool vurgulu; // hediye/sistem mesaji (renkli)
 }
 
-/// TikTok tarzi yari saydam chat seridi (altta, son ~40 mesaj)
+/// TikTok tarzi yari saydam chat seridi (altta, son ~40 mesaj).
+/// [yukseklik]: klavye acikken kucultulur (RenderFlex tasmasi bulgusu).
 class ChatSeridi extends StatelessWidget {
-  const ChatSeridi({super.key, required this.mesajlar});
+  const ChatSeridi({super.key, required this.mesajlar, this.yukseklik = 180});
   final List<ChatMesaj> mesajlar;
+  final double yukseklik;
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 180,
+      height: yukseklik,
       child: ShaderMask(
         shaderCallback: (r) => const LinearGradient(
           begin: Alignment.topCenter,

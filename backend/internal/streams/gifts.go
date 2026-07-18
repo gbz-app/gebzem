@@ -55,7 +55,11 @@ func (h *Handler) Gift(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "gecersiz hediye")
 		return
 	}
-	refID := streamID + ":" + req.Idem
+	// Gonderen ref'i kullanici-kapsamli unique (uq_ledger_idem user_id'li); alici ref'ine
+	// GONDEREN de eklenir — iki FARKLI gonderen ayni idem stringini kullanirsa yayincinin
+	// gift_received satiri 23505'e takilip tx'i oldurmesin (dogrulama bulgusu).
+	refGonderen := streamID + ":" + req.Idem
+	refAlici := streamID + ":" + userID + ":" + req.Idem
 
 	tx, err := h.db.Begin(r.Context())
 	if err != nil {
@@ -78,6 +82,40 @@ func (h *Handler) Gift(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "kendinize hediye gonderemezsiniz")
 		return
 	}
+	// GUVENLIK (dogrulama bulgusu): kick bani + engel + izleyici uyeligi — Watch/Chat ile
+	// ayni kurallar; atilan/engellenen kullanici hediye yoluyla yayina geri sizamaz.
+	if banli, _ := h.rdb.SIsMember(r.Context(), "stream:"+streamID+":banned", userID).Result(); banli {
+		writeErr(w, http.StatusForbidden, "yayindan cikarildiniz")
+		return
+	}
+	var blocked bool
+	tx.QueryRow(r.Context(), `SELECT EXISTS(SELECT 1 FROM blocks
+		WHERE (blocker_id=$1 AND blocked_id=$2) OR (blocker_id=$2 AND blocked_id=$1))`,
+		bID, userID).Scan(&blocked)
+	if blocked {
+		writeErr(w, http.StatusForbidden, "hediye gonderilemez")
+		return
+	}
+	if _, err := h.rdb.ZScore(r.Context(), "stream:"+streamID+":viewers", userID).Result(); err != nil {
+		writeErr(w, http.StatusForbidden, "yayinda degilsiniz")
+		return
+	}
+	// KILITLENME ONLEMI (dogrulama bulgusu): iki kullanici birbirinin yayinlarina ayni anda
+	// hediye atarsa AB-BA deadlock olabilir — users satir kilitlerini HEP ayni sirada
+	// (kucuk id once) al.
+	ilk, son := userID, bID
+	if son < ilk {
+		ilk, son = son, ilk
+	}
+	var bir int
+	if err := tx.QueryRow(r.Context(), `SELECT 1 FROM users WHERE id=$1 FOR UPDATE`, ilk).Scan(&bir); err != nil {
+		writeErr(w, http.StatusInternalServerError, "hediye gonderilemedi")
+		return
+	}
+	if err := tx.QueryRow(r.Context(), `SELECT 1 FROM users WHERE id=$1 FOR UPDATE`, son).Scan(&bir); err != nil {
+		writeErr(w, http.StatusInternalServerError, "hediye gonderilemedi")
+		return
+	}
 	// Bakiye kontrolu + dusme ATOMIK (ayri SELECT yarisi yok)
 	tag, err := tx.Exec(r.Context(),
 		`UPDATE users SET coin_balance = coin_balance - $1 WHERE id=$2 AND coin_balance >= $1`,
@@ -88,7 +126,7 @@ func (h *Handler) Gift(w http.ResponseWriter, r *http.Request) {
 	}
 	if _, err := tx.Exec(r.Context(),
 		`INSERT INTO coin_ledger (user_id, amount, reason, ref_id) VALUES ($1, $2, 'gift_sent', $3)`,
-		userID, -g.Jeton, refID); err != nil {
+		userID, -g.Jeton, refGonderen); err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 			// Idempotent tekrar (retry): harcama ZATEN yapildi — rollback, cift dusme yok
@@ -98,13 +136,23 @@ func (h *Handler) Gift(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "hediye gonderilemedi")
 		return
 	}
-	tx.Exec(r.Context(),
-		`UPDATE users SET coin_balance = coin_balance + $1 WHERE id=$2`, g.Jeton, bID)
-	tx.Exec(r.Context(),
+	// Alici tarafi: hatalar YUTULMAZ (para tutarliligi — dogrulama bulgusu)
+	if _, err := tx.Exec(r.Context(),
+		`UPDATE users SET coin_balance = coin_balance + $1 WHERE id=$2`, g.Jeton, bID); err != nil {
+		writeErr(w, http.StatusInternalServerError, "hediye gonderilemedi")
+		return
+	}
+	if _, err := tx.Exec(r.Context(),
 		`INSERT INTO coin_ledger (user_id, amount, reason, ref_id) VALUES ($1, $2, 'gift_received', $3)`,
-		bID, g.Jeton, refID)
-	tx.Exec(r.Context(),
-		`UPDATE streams SET gift_coins = gift_coins + $1 WHERE id=$2`, g.Jeton, streamID)
+		bID, g.Jeton, refAlici); err != nil {
+		writeErr(w, http.StatusInternalServerError, "hediye gonderilemedi")
+		return
+	}
+	if _, err := tx.Exec(r.Context(),
+		`UPDATE streams SET gift_coins = gift_coins + $1 WHERE id=$2`, g.Jeton, streamID); err != nil {
+		writeErr(w, http.StatusInternalServerError, "hediye gonderilemedi")
+		return
+	}
 
 	var bakiye int64
 	tx.QueryRow(r.Context(), `SELECT coin_balance FROM users WHERE id=$1`, userID).Scan(&bakiye)

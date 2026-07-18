@@ -9,6 +9,7 @@ import 'package:livekit_client/livekit_client.dart' as lk;
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
+import '../../core/api.dart';
 import '../calls/call_media_options.dart';
 import '../calls/call_provider.dart';
 import '../calls/call_room_lock.dart';
@@ -46,7 +47,10 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
   Timer? _nabiz;
   final _kalpKey = GlobalKey<KalpKatmaniState>();
   final List<ChatMesaj> _mesajlar = [];
-  final List<String> _hediyeler = []; // ekranda oynayan buyuk hediye emojileri
+  // Sayac-anahtarli hediye animasyonlari (dogrulama bulgusu: indexOf/ozdes-string key'leri
+  // ayni emoji iki kez gelince cakisiyordu / silinince animasyonlar bastan basliyordu)
+  final List<MapEntry<int, String>> _hediyeler = [];
+  int _hediyeSayac = 0;
   int _izleyici = 0;
   bool _micOn = true;
   bool _connecting = true;
@@ -64,9 +68,8 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
     _svc = ref.read(callServiceProvider.notifier);
     _svc.ekranAcildi('yayin_${widget.streamId}'); // arama muhafizi
     WidgetsBinding.instance.addObserver(this);
-    _nabiz = Timer.periodic(const Duration(seconds: 15),
-        (_) => ref.read(liveApiProvider).nabiz(widget.streamId).catchError((_) {}));
-    _baglan();
+    _baglan(); // nabiz timer'i BAGLANTI BASARILI olunca baslar (dogrulama bulgusu:
+    // connect patlarsa nabiz sunucuda hayalet 'live' yayini ayakta tutuyordu)
   }
 
   @override
@@ -80,9 +83,17 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
   Future<void> _baglan() async {
     try {
       await CallRoomLock.calistir(_odayaBaglan);
-      if (mounted) setState(() => _connecting = false);
+      if (mounted) {
+        setState(() => _connecting = false);
+        _nabiz = Timer.periodic(const Duration(seconds: 15),
+            (_) => ref.read(liveApiProvider).nabiz(widget.streamId).catchError((_) {}));
+      }
     } catch (e) {
       await Sentry.captureException(e, stackTrace: StackTrace.current);
+      // Baglanti kurulamadi: yayini sunucuda da kapat (hayalet 'live' kalmasin)
+      try {
+        await ref.read(liveApiProvider).bitir(widget.streamId);
+      } catch (_) {}
       if (mounted) {
         setState(() {
           _hata = 'Yayına bağlanılamadı.\nTekrar deneyin.';
@@ -112,8 +123,10 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
           if (mounted) setState(() {});
         })
         ..on<lk.RoomDisconnectedEvent>((_) {
-          // admin end / DeleteRoom -> cik
-          if (mounted) _cik(sunucuyaBildir: false);
+          // admin end / DeleteRoom / KALICI ag kopmasi -> cik. Sunucuya bitir GONDER
+          // (idempotent; kalici istemci kopmasi sunucuda zombi live/paused birakmasin —
+          // dogrulama bulgusu; gecici kopmalar zaten SDK resume'uyla buraya dusmez).
+          if (mounted) _cik(sunucuyaBildir: true);
         });
       await room.connect(
         widget.url,
@@ -158,7 +171,7 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
               metin: '${v['emoji']} hediye gönderdi (+${v['coins']} jeton)',
               vurgulu: true));
           if (_mesajlar.length > 40) _mesajlar.removeAt(0);
-          _hediyeler.add(v['emoji'] as String? ?? '🎁');
+          _hediyeler.add(MapEntry(_hediyeSayac++, v['emoji'] as String? ?? '🎁'));
         });
       case 'hearts':
         _kalpKey.currentState?.patlat((v['n'] as num?)?.toInt() ?? 1);
@@ -232,7 +245,13 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
     _chatCtrl.clear();
     try {
       await ref.read(liveApiProvider).chat(widget.streamId, t);
-    } catch (_) {}
+    } catch (e) {
+      // Sessiz yutma (dogrulama bulgusu): kullanici mesajin gittigini sanmasin
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
+      }
+    }
   }
 
   @override
@@ -274,9 +293,10 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
           KalpKatmani(key: _kalpKey),
           for (final h in _hediyeler)
             HediyePatlamasi(
-                key: ValueKey('h-${identityHashCode(h)}-${_hediyeler.indexOf(h)}'),
-                emoji: h,
-                bitti: () => setState(() => _hediyeler.remove(h))),
+                key: ValueKey('h-${h.key}'),
+                emoji: h.value,
+                bitti: () =>
+                    setState(() => _hediyeler.removeWhere((x) => x.key == h.key))),
           SafeArea(
             child: Column(children: [
               Padding(
@@ -334,7 +354,11 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                  ChatSeridi(mesajlar: _mesajlar),
+                  // Klavye acikken serit kucultulur (RenderFlex tasmasi bulgusu)
+                  ChatSeridi(
+                      mesajlar: _mesajlar,
+                      yukseklik:
+                          MediaQuery.of(context).viewInsets.bottom > 0 ? 90 : 180),
                   const SizedBox(height: 8),
                   Row(children: [
                     Expanded(

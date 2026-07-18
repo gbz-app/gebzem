@@ -27,10 +27,15 @@ class _LiveStartScreenState extends ConsumerState<LiveStartScreen> {
   lk.LocalVideoTrack? _onizleme;
   bool _basliyor = false;
   String? _hata;
+  // Muhafiz kimligi: onizleme fiziksel kamerayi tutar — bu ekrandayken gelen arama kabul
+  // edilirse iki capture oturumu cakisir (dogrulama bulgusu). ekranAcildi ile aramalar
+  // otomatik "mesgul" olur (CallKit kabulu answer-null -> bitir+reddet yoluna duser).
+  static const _muhafizId = 'yayin-onizleme';
 
   @override
   void initState() {
     super.initState();
+    ref.read(callServiceProvider.notifier).ekranAcildi(_muhafizId);
     _onizlemeBaslat();
   }
 
@@ -65,21 +70,39 @@ class _LiveStartScreenState extends ConsumerState<LiveStartScreen> {
 
   Future<void> _basla() async {
     if (_basliyor) return;
-    if (ref.read(callServiceProvider.notifier).aramadaMi) {
+    final svc = ref.read(callServiceProvider.notifier);
+    // Kendi muhafiz kaydimiz haric baska arama/oda var mi
+    if (svc.baskaIsleMesgul(_muhafizId)) {
       ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Önce aramayı/odayı bitirin')));
       return;
     }
     setState(() => _basliyor = true);
+    String? acilanYayin;
     try {
       final info = await ref
           .read(liveApiProvider)
           .baslat(_baslik.text.trim().isEmpty ? 'Canlı yayın' : _baslik.text.trim());
-      if (!mounted) return;
+      final id = info['stream_id'] as String;
+      acilanYayin = id;
+      // MUHAFIZ TEKRARI + mounted (dogrulama bulgusu): REST surerken ekran kapandiysa veya
+      // arama kabul edildiyse sunucudaki yayini GERI KAPAT — hayalet 'live' yayin +
+      // pushReplacement'in kabul edilen CallScreen'i sokmesi onlenir.
+      if (!mounted || svc.baskaIsleMesgul(_muhafizId)) {
+        unawaited(ref.read(liveApiProvider).bitir(id));
+        if (mounted) {
+          setState(() => _basliyor = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Aramadasınız — yayın başlatılmadı')));
+        }
+        return;
+      }
       // Onizlemeyi TAMAMEN birak — yayin odasi kendi kamera track'ini acar (cakisma olmasin)
       await _onizlemeBirak();
-      if (!mounted) return;
-      final id = info['stream_id'] as String;
+      if (!mounted) {
+        unawaited(ref.read(liveApiProvider).bitir(id));
+        return;
+      }
       await Navigator.of(context).pushReplacement(MaterialPageRoute(
         settings: RouteSettings(name: 'yayin-$id'),
         builder: (_) => LiveBroadcastScreen(
@@ -91,6 +114,9 @@ class _LiveStartScreenState extends ConsumerState<LiveStartScreen> {
         ),
       ));
     } catch (e) {
+      if (acilanYayin != null) {
+        unawaited(ref.read(liveApiProvider).bitir(acilanYayin));
+      }
       if (mounted) {
         setState(() => _basliyor = false);
         ScaffoldMessenger.of(context)
@@ -101,6 +127,7 @@ class _LiveStartScreenState extends ConsumerState<LiveStartScreen> {
 
   @override
   void dispose() {
+    ref.read(callServiceProvider.notifier).ekranKapandi(_muhafizId);
     _baslik.dispose();
     _onizlemeBirak();
     super.dispose();
@@ -131,7 +158,8 @@ class _LiveStartScreenState extends ConsumerState<LiveStartScreen> {
             Row(children: [
               IconButton(
                 icon: const Icon(LucideIcons.x, color: Colors.white),
-                onPressed: () => Navigator.of(context).pop(),
+                // REST surerken cikis kapali (yarim kalan yayin olusmasin — dogrulama bulgusu)
+                onPressed: _basliyor ? null : () => Navigator.of(context).pop(),
               ),
               const Text('Canlı yayın',
                   style: TextStyle(

@@ -8,6 +8,7 @@ import 'package:livekit_client/livekit_client.dart' as lk;
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
+import '../../core/api.dart';
 import '../calls/call_provider.dart';
 import '../calls/call_room_lock.dart';
 import 'live_gift_sheet.dart';
@@ -27,6 +28,7 @@ class LiveViewerScreen extends ConsumerStatefulWidget {
     required this.yayinciId,
     required this.yayinciAd,
     required this.durum,
+    this.ilkIzleyici = 0,
   });
 
   final String streamId;
@@ -37,6 +39,7 @@ class LiveViewerScreen extends ConsumerStatefulWidget {
   final String yayinciId;
   final String yayinciAd;
   final String durum;
+  final int ilkIzleyici; // watch cevabindaki sayi (SendData 15sn'ye kadar gecikebilir)
 
   @override
   ConsumerState<LiveViewerScreen> createState() => _LiveViewerScreenState();
@@ -49,12 +52,14 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
   Timer? _nabiz;
   final _kalpKey = GlobalKey<KalpKatmaniState>();
   final List<ChatMesaj> _mesajlar = [];
-  final List<String> _hediyeler = [];
-  int _izleyici = 0;
+  final List<MapEntry<int, String>> _hediyeler = []; // sayac-anahtarli (key cakismasi bulgusu)
+  int _hediyeSayac = 0;
+  late int _izleyici = widget.ilkIzleyici; // watch cevabindan (15sn '0' gorunme bulgusu)
   bool _durakladi = false;
   bool _connecting = true;
   bool _ayrildi = false;
   bool _kapandi = false;
+  bool _bittiGosterildi = false; // stream.ended + RoomDisconnected cift dialog muhafizi
   DateTime _sonKalp = DateTime.fromMillisecondsSinceEpoch(0);
   String? _hata;
 
@@ -167,7 +172,7 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
               metin: '${v['emoji']} hediye gönderdi',
               vurgulu: true));
           if (_mesajlar.length > 40) _mesajlar.removeAt(0);
-          _hediyeler.add(v['emoji'] as String? ?? '🎁');
+          _hediyeler.add(MapEntry(_hediyeSayac++, v['emoji'] as String? ?? '🎁'));
         });
       case 'hearts':
         _kalpKey.currentState?.patlat((v['n'] as num?)?.toInt() ?? 1);
@@ -181,7 +186,8 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
   }
 
   void _yayinBitti() {
-    if (!mounted || _ayrildi) return;
+    if (!mounted || _ayrildi || _bittiGosterildi) return;
+    _bittiGosterildi = true; // stream.ended + DeleteRoom-RoomDisconnected cifti tek dialog
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -253,7 +259,12 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
     _chatCtrl.clear();
     try {
       await ref.read(liveApiProvider).chat(widget.streamId, t);
-    } catch (_) {}
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
+      }
+    }
   }
 
   void _hediyeSheet() {
@@ -335,9 +346,10 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
           KalpKatmani(key: _kalpKey),
           for (final h in _hediyeler)
             HediyePatlamasi(
-                key: ValueKey('h-${identityHashCode(h)}-${_hediyeler.indexOf(h)}'),
-                emoji: h,
-                bitti: () => setState(() => _hediyeler.remove(h))),
+                key: ValueKey('h-${h.key}'),
+                emoji: h.value,
+                bitti: () =>
+                    setState(() => _hediyeler.removeWhere((x) => x.key == h.key))),
           SafeArea(
             child: Column(children: [
               Padding(
@@ -385,7 +397,10 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                  ChatSeridi(mesajlar: _mesajlar),
+                  ChatSeridi(
+                      mesajlar: _mesajlar,
+                      yukseklik:
+                          MediaQuery.of(context).viewInsets.bottom > 0 ? 90 : 180),
                   const SizedBox(height: 8),
                   Row(children: [
                     Expanded(

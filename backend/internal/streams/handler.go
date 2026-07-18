@@ -276,8 +276,15 @@ func (h *Handler) Heartbeat(w http.ResponseWriter, r *http.Request) {
 	if userID == bID {
 		h.rdb.Set(r.Context(), "stream:"+streamID+":pub", "1", 45*time.Second)
 	} else {
-		// yalniz mevcut uyenin skoru tazelenir (XX): leave/kick sonrasi hayalet uye olusmasin
-		h.rdb.ZAddXX(r.Context(), "stream:"+streamID+":viewers",
+		// DUZ ZADD (dogrulama bulgusu): 45sn+ askidan (kilit/ag) donen mesru izleyici
+		// sweeper tarafindan silinmis olabilir — ZAddXX onu SONSUZA disarida birakiyordu
+		// (sayacta gorunmez + chat 403). Kick hayaleti banned kontrolatiyle onlenir;
+		// leave sonrasi tek gecikmis nabiz zararsiz (ekran kapali, yenisi gelmez, 45sn'de duser).
+		if banli, _ := h.rdb.SIsMember(r.Context(), "stream:"+streamID+":banned", userID).Result(); banli {
+			writeErr(w, http.StatusForbidden, "yayindan cikarildiniz")
+			return
+		}
+		h.rdb.ZAdd(r.Context(), "stream:"+streamID+":viewers",
 			redis.Z{Score: float64(time.Now().Unix()), Member: userID})
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
@@ -374,13 +381,23 @@ func (h *Handler) Chat(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Heart(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserID(r.Context())
 	streamID := chi.URLParam(r, "id")
+	// Yayin gecerli mi (dogrulama bulgusu: bitmis/gecersiz yayina kalp TTL'siz artik anahtar birakiyordu)
+	var bir int
+	if h.db.QueryRow(r.Context(),
+		`SELECT 1 FROM streams WHERE id=$1 AND status IN ('live','paused')`, streamID).Scan(&bir) != nil {
+		writeErr(w, http.StatusGone, "yayin bitti")
+		return
+	}
 	// kisi basi saniyede 1
 	ok, _ := h.rdb.SetNX(r.Context(), "stream:"+streamID+":heart:"+userID, "1", time.Second).Result()
 	if !ok {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"}) // sessiz yut
 		return
 	}
-	h.rdb.Incr(r.Context(), "stream:"+streamID+":hearts")
+	pipe := h.rdb.Pipeline()
+	pipe.Incr(r.Context(), "stream:"+streamID+":hearts")
+	pipe.Expire(r.Context(), "stream:"+streamID+":hearts", time.Hour) // artik anahtar kalmasin
+	pipe.Exec(r.Context())
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
