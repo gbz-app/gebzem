@@ -74,8 +74,13 @@ func (h *Handler) izleyiciToken(room, identity, name string) (string, error) {
 }
 
 func (h *Handler) audit(ctx context.Context, streamID, userID, action, ip string) {
-	h.db.Exec(ctx, `INSERT INTO stream_audit (stream_id, user_id, action, ip) VALUES ($1, NULLIF($2,''), $3, NULLIF($4,''))`,
-		streamID, userID, action, ip)
+	// NULLIF($2,'')::uuid SART (rooms audit ile ayni sessiz-hata fix'i; 5651 iz kaybi)
+	if _, err := h.db.Exec(ctx,
+		`INSERT INTO stream_audit (stream_id, user_id, action, ip)
+		 VALUES ($1::uuid, NULLIF($2,'')::uuid, $3, NULLIF($4,''))`,
+		streamID, userID, action, ip); err != nil {
+		log.Printf("stream_audit yazilamadi (%s): %v", action, err)
+	}
 }
 
 // data — odaya sunucudan sinyal (RELIABLE). Hata olumcul degil, loglanir.

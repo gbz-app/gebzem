@@ -70,8 +70,15 @@ func (h *Handler) clientToken(room, identity, name, role string) (string, error)
 }
 
 func (h *Handler) audit(ctx context.Context, roomID, userID, action, ip string) {
-	h.db.Exec(ctx, `INSERT INTO room_audit (room_id, user_id, action, ip) VALUES ($1, NULLIF($2,''), $3, NULLIF($4,''))`,
-		roomID, userID, action, ip)
+	// NULLIF($2,'')::uuid SART: parametre text gelir; cast'siz NULLIF uuid kolona
+	// "invalid input syntax" ile SESSIZCE patliyordu -> audit tablosu 0 kayit (5651 iz
+	// kaybi, 19 Tem tespiti). Hata artik loglanir (sessiz kayip olmasin).
+	if _, err := h.db.Exec(ctx,
+		`INSERT INTO room_audit (room_id, user_id, action, ip)
+		 VALUES ($1::uuid, NULLIF($2,'')::uuid, $3, NULLIF($4,''))`,
+		roomID, userID, action, ip); err != nil {
+		log.Printf("room_audit yazilamadi (%s): %v", action, err)
+	}
 }
 
 // katilimcilar — hedef listesi. kim: "herkes" | "yonetim" (host+speaker) | "host"

@@ -62,6 +62,10 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
   Timer? _statsTimer; // ses NOKTA-ATISI olcumu (getStats -> sunucu canli log)
   int _sonRecvPaket = 0;
   double _sonEnergy = 0; // ses ENERJISI: paket geliyor ama enerji 0 ise karsi taraf SESSIZ
+  int _sonSentPaket = 0; // GONDEREN tarafi: kendi mikrofonum paket uretiyor mu
+  double _sonMikEnerji = 0; // kendi mikrofon CAPTURE enerjim (0 = olu mikrofon adayi)
+  int _oluMikSayaci = 0; // ust uste kac olcum "paket akiyor + capture 0" gordu
+  bool _sesKurtarmaDenendi = false; // otomatik ses kurtarma arama basina 1 kez
   bool _sorunBildirildi = false; // kullanici "ses gelmiyor" isaretledi mi
 
   /// Arama servisi initState'te yakalanir. `ref`, widget yok edildikten sonra
@@ -537,16 +541,58 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
         if (recv >= 0) _sonRecvPaket = recv;
         final enerjiDelta = energy - _sonEnergy;
         _sonEnergy = energy;
+
+        // GONDEREN TARAFI (grup "kimin sesi gitmiyor" teshisi — yargic recetesi):
+        // KENDI mikrofonum gercekten ses YAKALIYOR mu. media-source.totalAudioEnergy =
+        // capture enerjisi; paket AKARKEN capture-enerji 0 = OLU MIKROFON imzasi (v7 sinifi).
+        int sent = -1;
+        double mikEnerji = 0;
+        final lt = _room?.localParticipant?.audioTrackPublications.firstOrNull?.track;
+        if (lt is LocalAudioTrack) {
+          final ss = await lt.getSenderStats();
+          sent = (ss?.packetsSent ?? -1).toInt();
+          mikEnerji = (ss?.audioSourceStats?.totalAudioEnergy ?? 0).toDouble();
+        }
+        final sentDelta = sent < 0 ? 0 : sent - _sonSentPaket;
+        if (sent >= 0) _sonSentPaket = sent;
+        final mikDelta = mikEnerji - _sonMikEnerji;
+        _sonMikEnerji = mikEnerji;
+
+        // OTOMATIK SES KURTARMA: mic ACIK + paketler AKIYOR + capture enerjisi 3 olcumdur
+        // (6sn) SIFIR -> olu capture. Ses birimini bir kez (arama basina) yeniden kur:
+        // v7 sirasi korunur (once mic, EN SON _sesiAc(true)). Sessiz-ama-canli mikrofon
+        // DTX yuzunden paket AKITMAZ -> yanlis tetikleme olmaz (imza ayrimi).
+        if (_micOn && sentDelta > 60 && mikDelta <= 0.0000001) {
+          _oluMikSayaci++;
+          if (_oluMikSayaci >= 3 && !_sesKurtarmaDenendi) {
+            _sesKurtarmaDenendi = true;
+            _sesLog('OLU MIKROFON tespit (sent akiyor, capture=0) -> ses birimi yeniden kuruluyor');
+            try {
+              await _sesiAc(false);
+              await _room?.localParticipant?.setMicrophoneEnabled(false);
+              await _room?.localParticipant?.setMicrophoneEnabled(true);
+              await _sesiAc(true);
+              _sesLog('ses birimi yeniden kuruldu (kurtarma)');
+            } catch (e) {
+              _sesLog('ses kurtarma HATA: $e');
+            }
+          }
+        } else {
+          _oluMikSayaci = 0;
+        }
+
         // iOS cikis durumu: paket+enerji VAR ama audioEnabled=false/route yanlissa
         // ses geliyor ama iPhone CALMIYOR (kesin iOS cikis sorunu).
         final ios = await _sesDurumOku();
         // CANLI + KALICI: her 2sn ses metrigini SUNUCUYA yolla -> api log (zaman damgali).
-        // YANILTMAZ: recv=-1 track yok | delta=0 paket gelmiyor | enerji~0 karsi SESSIZ |
-        // paket+enerji var ama iOS cikis kapali -> ses geliyor iPhone calmiyor.
         _svc.audioStat(widget.callId, {
           'recv': recv,
           'delta': delta,
-          'enerji': (enerjiDelta * 1000).toStringAsFixed(1), // ses seviyesi (0 = sessizlik)
+          'enerji': (enerjiDelta * 1000).toStringAsFixed(1), // gelen ses seviyesi (0 = sessizlik)
+          'sent': sent,
+          'sdelta': sentDelta,
+          'mik': (mikDelta * 1000).toStringAsFixed(1), // KENDI mikrofon capture seviyem
+          'mic': _micOn,
           'outgoing': widget.outgoing,
           'video': widget.video,
           'speaker': _speakerOn,

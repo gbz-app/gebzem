@@ -806,6 +806,10 @@ func (h *Handler) AudioStat(w http.ResponseWriter, r *http.Request) {
 		Recv     int            `json:"recv"`
 		Delta    int            `json:"delta"`
 		Enerji   string         `json:"enerji"` // gelen sesin seviye deltasi ("0.0" = sessizlik)
+		Sent     int            `json:"sent"`   // GONDEREN tarafi: kendi mic paketlerim (grup teshisi)
+		SDelta   int            `json:"sdelta"`
+		Mik      string         `json:"mik"` // kendi mikrofon CAPTURE seviyem ("0.0" = olu mikrofon adayi)
+		Mic      bool           `json:"mic"` // mikrofon dugmesi acik mi
 		Outgoing bool           `json:"outgoing"`
 		Video    bool           `json:"video"`
 		Speaker  bool           `json:"speaker"`
@@ -872,8 +876,15 @@ func (h *Handler) AudioStat(w http.ResponseWriter, r *http.Request) {
 	} else if enerji < 0.5 {
 		durum = "SES-DUSUK"
 	}
-	log.Printf("AUDIO call=%s user=%s %s %s recv=%d delta=%d enerji=%.1f %s peer=%v hoparlor=%v iOS[%s]",
-		kisaID(callID), kisaID(userID), yon, tip, req.Recv, req.Delta, enerji, durum, req.Peer, req.Speaker, iosStr)
+	// GONDEREN-TARAFI teshis (grup "kimin sesi gitmiyor"): mic ACIK + kendi paketlerim
+	// AKIYOR + capture enerjim 0 = OLU MIKROFON (bu telefonun sesi kimseye gitmiyor).
+	// Istemci ayni imzayla otomatik kurtarma da dener; burasi kalici KANIT satiri.
+	mikE, _ := strconv.ParseFloat(req.Mik, 64)
+	if req.Mic && req.SDelta > 60 && mikE < 0.5 {
+		durum = "MIK-OLU(" + durum + ")"
+	}
+	log.Printf("AUDIO call=%s user=%s %s %s recv=%d delta=%d enerji=%.1f sent=%d sdelta=%d mikE=%.1f mic=%v %s peer=%v hoparlor=%v iOS[%s]",
+		kisaID(callID), kisaID(userID), yon, tip, req.Recv, req.Delta, enerji, req.Sent, req.SDelta, mikE, req.Mic, durum, req.Peer, req.Speaker, iosStr)
 	audioEkle(audioKayit{Saat: saat, Call: kisaID(callID), User: kisaID(userID), Yon: yon, Tip: tip,
 		Recv: req.Recv, Delta: req.Delta, Enerji: enerji, Durum: durum, Peer: req.Peer, Hoparlor: req.Speaker, IOS: iosStr})
 	w.WriteHeader(http.StatusOK)
