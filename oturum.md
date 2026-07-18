@@ -820,8 +820,23 @@ adimdan SONRA guncellenip push'lanacak — pencere kapansa bile tam kalinan yer 
       baslik "Grup araması".
 - [x] **G5 metinler:** overlay grupta baslik=chatTitle, alt satir "Grup sesli/görüntülü araması ·
       baslatan". CallKit zaten call_type'tan video turetiyor (degisiklik gerekmedi, dogrulandi).
-- [ ] **G6 dogrulama:** adversarial workflow -> bulgular duzeltilir; deploy sonrasi curl grup
-      regresyon (sesli grup baslat/katil/ayril + video 9 kisi RED + 1:1 regresyon).
+- [x] **G6a adversarial dogrulama (wf_16ad7a5d):** 12 ajan, 1:1 mercegi 0 bulgu (regresyon yok).
+      8 teyitli bulgu -> tekillestirince 2 KUSUR + 2 NOT, hepsi islendi:
+      (1) ORTA/kesin: GridView padding'siz -> Flutter MediaQuery safe-area'yi ORTULU SliverPadding
+      ekliyor -> alt sira kirpiliyor. FIX: padding: EdgeInsets.zero.
+      (2) ORTA: video<=8 siniri mid-call deliniyordu (9-32 kisilik sesli grupta herkes kamera
+      acabilir). FIX: _toggleCam grup muhafizi (oda>8 -> kamera acilamaz + mesaj) + izgara 9+
+      kiside 4-satir-gorunur KAYDIRILABILIR (savunma: kamera aciKKEN oda buyuyebilir).
+      (3) NOT: yuksek DPR kucuk tile'da 540p katman sectirir (7x540p decode isinmasi). FIX:
+      grup tile renderer'ina AdaptiveStreamPixelDensity.fixed(1.0) (mantiksal piksel -> kucuk
+      tile 270p, buyuk tile 540p; API livekit 2.8.1 kaynagindan dogrulandi).
+      (4) NOT: grup goruntulude varsayilan kulaklik (earpiece) — 1:1'deki BILINCLI tercihle
+      tutarli, DOKUNULMADI (WhatsApp grupta hoparlorle baslar; kullaniciya sorulacak).
+      Bilinen sinir (kabul, prototip): kotu niyetli istemci kamera muhafizini asabilir
+      (LiveKit token canPublish kisitsiz); gercek cozum canPublishSources/webhook — ileriki is.
+      flutter analyze + go build TEMIZ.
+- [ ] **G6b curl regresyon (deploy sonrasi):** sesli grup baslat/katil/ayril + video 9 kisi RED +
+      1:1 regresyon.
 - [ ] **G7 yayin:** backend deploy + android/ios build izle + debug-imza kontrol + R2 + purge +
       boyut==yerel + DB temiz + oturum.md/CLAUDE.md guncelle. Ancak sonra "hazir".
 

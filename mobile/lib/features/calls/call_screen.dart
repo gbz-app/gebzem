@@ -770,6 +770,19 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
 
   Future<void> _toggleCam() async {
     final on = !_camOn;
+    // KAPASITE MUHAFIZI (dogrulama bulgusu): video<=8 siniri yalniz BASLATMADA uygulaniyordu;
+    // 9-32 kisilik SESLI grupta mid-call kamera acmak siniri deliyordu (cx33 CPU/bant duvari).
+    // Grupta oda 8'den kalabaliksa kamera ACMAYI engelle (kapatma her zaman serbest).
+    if (on && widget.isGroup) {
+      final katilimci = 1 + (_room?.remoteParticipants.length ?? 0);
+      if (katilimci > 8) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text('Görüntülü grup en fazla 8 kişi — kamera açılamıyor')));
+        }
+        return;
+      }
+    }
     if (on) {
       // Sesli aramada baslarken kamera izni ISTENMEDI -> mid-call kamera acarken iste.
       final st = await Permission.camera.request();
@@ -1229,15 +1242,25 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
           final n = katilimcilar.length;
           final cols = n <= 2 ? 1 : 2;
           final rows = (n + cols - 1) ~/ cols;
+          // SAVUNMA (dogrulama bulgusu): kamera acildiktan SONRA odaya 9+ kisi gelebilir
+          // (sesli grup 32'ye kadar) -> tile'lar mikro boyuta dusmesin; 4 satirdan
+          // fazlasi KAYDIRILARAK gorunur. n<=8'de eski davranis (tam sigar, kaydirmasiz).
+          final gorunurSatir = rows > 4 ? 4 : rows;
           const bosluk = 6.0;
           final w = (box.maxWidth - (cols - 1) * bosluk) / cols;
-          final h = (box.maxHeight - (rows - 1) * bosluk) / rows;
+          final h = (box.maxHeight - (gorunurSatir - 1) * bosluk) / gorunurSatir;
           return GridView.count(
             crossAxisCount: cols,
             mainAxisSpacing: bosluk,
             crossAxisSpacing: bosluk,
             childAspectRatio: w / h,
-            physics: const NeverScrollableScrollPhysics(), // 8 kisi sigar; kaydirma gereksiz
+            // padding SART (dogrulama bulgusu): verilmezse Flutter, MediaQuery safe-area
+            // padding'ini (centik/status bar + jest cubugu) ORTULU ekler -> icerik viewport'u
+            // asar, kaydirma kapaliyken ALT SIRA KIRPILIR. Ust/alt bosluk zaten Container'da.
+            padding: EdgeInsets.zero,
+            physics: rows > 4
+                ? const ClampingScrollPhysics() // 9+ kisi: kaydirilabilir
+                : const NeverScrollableScrollPhysics(), // <=8: tam sigar
             children: [for (final p in katilimcilar) _grupVideoTile(p)],
           );
         }),
@@ -1270,7 +1293,14 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
               // NullPointerException ile COKUYOR (self-view'daki ayni koruma).
               IgnorePointer(
                 child: VideoTrackRenderer(video,
-                    key: ValueKey('tile-${video.sid}'), fit: VideoViewFit.cover),
+                    key: ValueKey('tile-${video.sid}'),
+                    fit: VideoViewFit.cover,
+                    // MANTIKSAL piksel bildir (DPR carpani yok): kucuk tile'da adaptiveStream
+                    // 270p alt katmani secer -> 8 kisilik gridde telefon 7x540p decode etmez
+                    // (isinma/kare dususu onlemi; dogrulama bulgusu). 2 kisilik buyuk tile'da
+                    // yine 540p secilir (mantiksal boyut da buyuk).
+                    adaptiveStreamPixelDensity:
+                        const AdaptiveStreamPixelDensity.fixed(1.0)),
               )
             else
               Container(
