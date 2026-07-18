@@ -1008,6 +1008,23 @@ cevabindan; chat hatalari snackbar; klavyede chat seridi kuculur (RenderFlex).
 pause-grace ~105sn'de yayinci yeni yayin acamaz (tasarim geregi); SendData gecmisi
 sonradan girene gitmez.
 
+### EK ISLER (19 Tem gece, kullanici talimatlari)
+- **WHATSAPP STANDARDI 32 KISI (karar):** grup arama sesli VE goruntulu 32 kisi tavani
+  (goruntulu 8'den cikarildi; backend 941a010 CANLIDA + istemci muhafizi 32). Kullanici:
+  "sunucu ekleriz" — cx33 asimi bilinçli kabul, buyume plani yol haritasinda (egress/dedicated).
+  Istemci korumalari duruyor: 540p grup profili + adaptiveStream (gorunmeyen tile durur) +
+  kaydirmali izgara + fixed(1.0) DPR.
+- **6. SORUN (kullanici):** az onceki 4 kisilik grup video aramasinda (6fd2d94a: Mirac, Mikail,
+  Hasan[Android,host], Cevat[Android]) birinin sesi gitmiyordu (iPhone saniyor). Veri: Mirac'in
+  olctugu katilimci surekli-paket+sifir-enerji (OLU MIKROFON imzasi); ama olcum sistemi yalniz
+  ILK uzak katilimciyi olcuyordu -> KIMIN oldugu belirsizdi. COZUM (yazildi, 8642a6c):
+  (a) GONDEREN-TARAFI teshis: her istemci kendi mic'inin sent/mikE (capture enerjisi) degerini
+  raporlar -> "kimin sesi gitmiyor" artik isimle gorunur (backend MIK-OLU durumu CANLIDA);
+  (b) OTOMATIK KURTARMA: istemci "paket akiyor + capture 0" imzasini 6sn gorurse ses birimini
+  BIR KEZ yeniden kurar (v7 sirasi korunarak) — sonraki build'de.
+- **AUDIT SESSIZ-HATA FIX CANLIDA (8642a6c):** NULLIF($2,'')::uuid cast + hata loglama;
+  canli dogrulandi (room_audit'e create+end+IP yazildi). 5651 izi kurtarildi.
+
 ### KULLANICI TEST TURU 2 (19 Tem ~01:30): 5 SORUN — DERIN ARASTIRMA KOSUYOR (wf_c0a4ca2f)
 Kullanici bulgulari: (1) son GELEN sesli aramada ses gelmedi; (2) yayin bitirince baskasinin
 yayinina girilemiyor ("oturum kapatilmadi" benzeri mesaj; app restart duzeltiyor); (3) odada
