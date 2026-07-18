@@ -20,6 +20,7 @@ import (
 	"github.com/gbz-app/gebzem/backend/internal/config"
 	"github.com/gbz-app/gebzem/backend/internal/database"
 	"github.com/gbz-app/gebzem/backend/internal/push"
+	"github.com/gbz-app/gebzem/backend/internal/rooms"
 	"github.com/gbz-app/gebzem/backend/internal/sms"
 	"github.com/gbz-app/gebzem/backend/internal/udid"
 	"github.com/gbz-app/gebzem/backend/internal/users"
@@ -79,6 +80,11 @@ func main() {
 		callsH.StartSweeper(ctx) // takili kalan aramalari kapat (cevapsiz/mesgul hatasi)
 	} else {
 		log.Println("arama: LIVEKIT_API_KEY yok — kapali")
+	}
+	roomsH := rooms.NewHandler(db, hub) // Spaces (sesli oda) — in-app, CallKit/zil yok
+	if roomsH.Enabled() {
+		log.Println("odalar (Spaces): aktif")
+		roomsH.StartSweeper(ctx) // host kopmasi / bos oda / 8 saat emniyet
 	}
 
 	r := chi.NewRouter()
@@ -146,6 +152,18 @@ func main() {
 		r.Post("/calls/{id}/answer", callsH.Answer)
 		r.Post("/calls/{id}/end", callsH.End)
 		r.Post("/calls/{id}/audio-stat", callsH.AudioStat) // CANLI eszamanli ses takibi (api log)
+		// Odalar (Spaces — sesli oda; in-app, arama sisteminden BAGIMSIZ)
+		r.Get("/rooms", roomsH.List)
+		r.Post("/rooms", roomsH.Create)
+		r.Get("/rooms/{id}", roomsH.Get)
+		r.Post("/rooms/{id}/join", roomsH.Join)
+		r.Post("/rooms/{id}/leave", roomsH.Leave)
+		r.Post("/rooms/{id}/raise-hand", roomsH.RaiseHand)
+		r.Post("/rooms/{id}/promote", roomsH.Promote)
+		r.Post("/rooms/{id}/demote", roomsH.Demote)
+		r.Post("/rooms/{id}/mute", roomsH.Mute)
+		r.Post("/rooms/{id}/remove", roomsH.Remove)
+		r.Post("/rooms/{id}/end", roomsH.End)
 	})
 
 	srv := &http.Server{Addr: ":" + cfg.Port, Handler: r}

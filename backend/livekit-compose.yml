@@ -2,7 +2,9 @@
 # Not: host network kullaniyoruz cunku medya icin genis UDP port araligi gerekiyor
 services:
   livekit:
-    image: livekit/livekit-server:latest
+    # PIN (18 Tem): latest KULLANMA — habersiz surum atlamasi tum istemci varsayimlarini
+    # (token grant/twirp alanlari/TURN davranisi) bozabilir. Yukseltme BILINCLI yapilir.
+    image: livekit/livekit-server:v1.13.3
     container_name: livekit
     restart: unless-stopped
     command: --config /etc/livekit.yaml --node-ip=167.233.229.88
