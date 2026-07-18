@@ -946,6 +946,19 @@ eleştirmen catlak analizi; cikti oda-yayin-plani.md olacak).
   1:1 arayana 45sn "caliyor" gorunebilir (mesgul aninda reddedilir artik).
 go build + flutter analyze TEMIZ.
 
+### SPACES SURUMU YAYINLANDI (18 Tem gece ~23:25) — KULLANICI DISARIDA TEST EDECEK
+- Build android 29659081920 + ios 29659082756 IKISI DE BASARILI; debug imza YOK.
+- R2: apk=103912841, ipa=18944954, index.html "Sesli Odalar (Spaces) acildi" + purge +
+  CDN boyutlari birebir + health ok + DB temiz (api restart, onbellek sifir).
+- **Oda test rehberi (2-3 cihaz):** (1) Odalar sekmesi -> "Oda ac" -> baslik -> odadasin
+  (hoparlorden), digeri listeden katilir (dinleyici, mic izni ISTENMEZ); (2) dinleyici
+  "El kaldir" -> host'ta rozet -> Katilimcilar -> "Konusmaci yap" -> mic izni istenir,
+  konusur, yesil halka; (3) host: sustur / dinleyiciye indir / at (atilan geri giremez);
+  (4) host "Bitir" -> herkes cikar; (5) odadayken 3. cihazdan 1:1 ara -> mesgul/reddedilir;
+  odadan cikip HEMEN 1:1 arama -> ses temiz olmali; (6) kesfet listesi 15sn'de tazelenir.
+- SIRADAKI (kullanici onayli sira): kullanici oda testi -> kapsamli test -> CANLI YAYIN ->
+  arayuz yenileme -> guvenlik denetimi.
+
 ### INDIR SAYFASI YENILENDI (18 Tem aksam — kullanici istegi "daha modern, 2D ikonlar")
 - index.html sifirdan: koyu mor tema (uygulama ikonuyla uyumlu radial glow), GERCEK uygulama
   ikonu goruntusu (app-icon.png = web-512.png R2'de), duz SVG ikonlar (Apple/Android logo,
