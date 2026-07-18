@@ -15,11 +15,9 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **İş: GRUP GÖRÜNTÜLÜ ARAMA** (başladı: 18 Tem 2026 akşam). Detaylı adım listesi + durum işaretleri:
-  `oturum.md` → "Oturum 16 — GRUP GORUNTULU ARAMA" bölümü (G1-G7 adımları, riskler dahil).
-- Durum: G1-G6 TAMAM (doğrulama kusurları düzeltildi; backend 8225a60 CANLIDA, curl regresyon
-  4/4 geçti). G7b: build'ler koşuyor (android 29652346826 / ios 29652347664, 18 Tem 19:37).
-  Kalan: artifact doğrula → R2 + purge + boyut → DB temiz → "hazır" de.
+- YOK — Grup görüntülü fazı 18 Tem akşam YAYINLANDI (oturum.md "Oturum 16" bölümü: tüm adımlar,
+  test rehberi, bilinen sınırlar). Kullanıcı 3-cihaz testi bekleniyor. Sonraki adaylar: kullanıcı
+  test bulguları → geç-katılma/kişi-ekleme → kalıcı grup sohbeti → Spaces (yol haritası).
 - Kritik bağlam: backend startGroup videoyu zaten destekliyordu; eklenenler = kapasite sınırı
   (video≤8/sesli≤32), grup düşük video profili (540p), grid video tile, başlatma ekranı seçimi,
   grup kamera butonu, overlay metni. 1:1 ve SESLİ grup davranışı DEĞİŞMEDİ (isGroup dalları +
@@ -109,8 +107,9 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
 - ✅ Backend + LiveKit + Caddy + Postgres + Redis sunucuda Docker'da; https://api.gebzem.app, wss://rtc.gebzem.app
 - ✅ Push: FCM v1 (Android ✓, iOS APNs anahtarı yüklü); Sentry (mobil + backend) açık
 - ✅ **CI/CD: GitHub Actions** (Codemagic'in bedava dakikaları bitti) → APK + ad hoc IPA → **https://indir.gebzem.app**
-- ✅ **ARAMA (1:1 sesli/görüntülü):** sunucu tarafı doğrulandı; 12 Tem'de "kabul et" hatası düzeltildi → **3. cihaz testi bekleniyor**
-- ⏳ Sonraki: CallKit (kilit ekranı/uygulama kapalıyken) → grup araması → Faz 2 (gruplar, story, profil, medya) → odalar+yayın → admin
+- ✅ **ARAMA (1:1 sesli/görüntülü):** CANLI, kullanıcı testlerinden geçti (süre senkron, CallKit, ses teşhis dahil)
+- ✅ **GRUP ARAMASI (sesli + görüntülü, 18 Tem):** sesli ≤32, görüntülü ≤8 kişi; video ızgara + mid-call kamera; anlık grup (member_ids) — kalıcı grup sohbeti UI'si sonraki faz
+- ⏳ Sonraki: geç-katılma/kişi-ekleme → Faz 2 (gruplar, story, profil, medya) → odalar+yayın (Spaces) → admin
 - ⚠️ Uygulama ikonu hâlâ placeholder
 - Test kullanıcıları: her sürümde DB temizleniyor (aşağıdaki rutin) → kullanıcı sıfırdan kayıt olur
 

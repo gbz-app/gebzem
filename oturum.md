@@ -840,9 +840,30 @@ adimdan SONRA guncellenip push'lanacak — pencere kapansa bile tam kalinan yer 
       T1 sesli grup baslat/katil/1-ayril-arama-SURER/son-ayril-ended ✅ · T2 goruntulu 9 kisi ->
       HTTP 400 "en fazla 8 kisi" ✅ · T3 goruntulu 8 kisi -> 201+token ✅ · T4 1:1 start/answer
       (elapsed_ms=3, sure senkron calisiyor)/end + gecmis is_group=false ✅.
-- [~] **G7b build:** android 29652346826 + ios 29652347664 tetiklendi (18 Tem 19:37), izleniyor.
-- [ ] **G7c yayin:** artifact indir + debug-imza kontrol + R2 + purge + boyut==yerel + DB temiz
-      (test kullanicilari dahil silinir) + md guncelle. Ancak sonra "hazir".
+- [x] **G7b build:** android 29652346826 + ios 29652347664 IKISI DE BASARILI (~10dk).
+- [x] **G7c yayin (18 Tem aksam):** artifact indirildi; APK release-keystore imzali (debug imza
+      YOK, logda "Imzalama anahtari" adimi + keytool dogrulama), libjingle .so 3 ABI mevcut.
+      R2: gebzem.apk=103000192 + gebzem.ipa=17286993 + index.html ("Goruntulu grup aramasi ·
+      18 Tem"). Cloudflare purge OK -> CDN Content-Length == yerel (birebir) -> health ok.
+- [x] **G7d DB temiz:** TRUNCATE users CASCADE + otp_codes (users=0, calls=0) + api restart
+      (middleware onbellegi sifir) + health ok. **YAYIN TAMAM — kullanici 3-cihaz test edecek.**
+
+### SONUC + DEVIR (grup goruntulu fazi)
+- **Yayinda:** https://indir.gebzem.app — goruntulu grup aramasi (video<=8 kisi, sesli<=32),
+  grupta mid-call kamera ac/kapat + flip, video/avatar karisik izgara (konusana yesil cerceve),
+  grup baslatma ekraninda Sesli/Goruntulu secimi, gelen arama ekraninda grup basligi.
+- **Test rehberi (kullanici, 3 cihaz):** (1) Grup sekmesi 👥 -> 2 kisi sec -> "Görüntülü" ->
+  ikisinde kabul -> 3'lu video izgara; (2) sesli grup ac -> konusma ortasinda kamera butonu ->
+  izgara video moduna gecmeli, karsi taraf gormeli; kamera kapat -> avatar izgara donmeli;
+  (3) grupta biri ayrilinca arama SURMELI; (4) 1:1 sesli/goruntulu regresyon (sure senkron,
+  self-view swap/surukle); (5) kilit ekrani CallKit'te grup basligi gorunmeli.
+- **Bilinen sinirlar/acik konular:** grup goruntulude varsayilan cikis KULAKLIK (1:1 tercihiyle
+  tutarli; WhatsApp grupta hoparlorle baslar — kullaniciya sorulacak) · kotu niyetli istemci
+  kamera muhafizini asabilir (token canPublish kisitsiz; gercek cozum canPublishSources/webhook,
+  ileriki is) · gec-katilma (join) + aramaya kisi ekleme (invite) + kalici grup sohbeti UI'si
+  sonraki faz.
+- Admin panel not: admin/Gebzem2026! girisi 401 verdi (sunucu ADMIN_PASS env farkli olabilir);
+  eski anahtar `gbz-izle-2026` calisiyor — bakilacak.
 
 ### RISKLER / DIKKAT (kodlarken tekrar oku)
 - 1:1 koduna DOKUNMA — tum degisiklikler `isGroup` dallarinda. Sesli grup gorunumu video track
