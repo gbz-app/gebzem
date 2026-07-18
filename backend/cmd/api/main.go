@@ -22,6 +22,7 @@ import (
 	"github.com/gbz-app/gebzem/backend/internal/push"
 	"github.com/gbz-app/gebzem/backend/internal/rooms"
 	"github.com/gbz-app/gebzem/backend/internal/sms"
+	"github.com/gbz-app/gebzem/backend/internal/streams"
 	"github.com/gbz-app/gebzem/backend/internal/udid"
 	"github.com/gbz-app/gebzem/backend/internal/users"
 )
@@ -86,6 +87,11 @@ func main() {
 		log.Println("odalar (Spaces): aktif")
 		roomsH.StartSweeper(ctx) // host kopmasi / bos oda / 8 saat emniyet
 	}
+	streamsH := streams.NewHandler(db, rdb) // canli yayin (saf WebRTC, izleyici Redis'te)
+	if streamsH.Enabled() {
+		log.Println("canli yayin: aktif")
+		streamsH.StartSweeper(ctx) // olu izleyici / yayinci nabzi / kalp toplama / 12h emniyet
+	}
 
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID, middleware.RealIP, middleware.Logger)
@@ -114,6 +120,9 @@ func main() {
 	r.Get("/admin/calls", callsH.AdminCalls)
 	r.Get("/admin/audio", callsH.AdminAudio) // canli ses teshis
 	r.Get("/admin/ws", callsH.AdminWS)
+	// Canli yayin moderasyonu (5651: uzaktan bitirme) — ?key= korumali
+	r.Get("/admin/streams", streamsH.AdminList)
+	r.Post("/admin/streams/{id}/end", streamsH.AdminEnd)
 
 	// iOS test cihazi kaydi (Over-The-Air) — profil yukleyen iPhone UDID'sini buraya yollar
 	r.Post("/udid", udid.Handle)
@@ -164,6 +173,19 @@ func main() {
 		r.Post("/rooms/{id}/mute", roomsH.Mute)
 		r.Post("/rooms/{id}/remove", roomsH.Remove)
 		r.Post("/rooms/{id}/end", roomsH.End)
+		// Canli yayin (saf WebRTC; sinyaller LiveKit SendData'dan — WS hub kullanilmaz)
+		r.Get("/streams", streamsH.List)
+		r.Get("/streams/gifts", streamsH.Gifts)
+		r.Post("/streams", streamsH.Start)
+		r.Post("/streams/{id}/watch", streamsH.Watch)
+		r.Post("/streams/{id}/heartbeat", streamsH.Heartbeat)
+		r.Post("/streams/{id}/leave", streamsH.Leave)
+		r.Post("/streams/{id}/end", streamsH.End)
+		r.Post("/streams/{id}/chat", streamsH.Chat)
+		r.Post("/streams/{id}/heart", streamsH.Heart)
+		r.Post("/streams/{id}/gift", streamsH.Gift)
+		r.Post("/streams/{id}/report", streamsH.Report)
+		r.Post("/streams/{id}/kick", streamsH.Kick)
 	})
 
 	srv := &http.Server{Addr: ":" + cfg.Port, Handler: r}
