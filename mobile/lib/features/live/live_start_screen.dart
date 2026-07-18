@@ -1,0 +1,187 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:livekit_client/livekit_client.dart' as lk;
+import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:permission_handler/permission_handler.dart';
+
+import '../../core/api.dart';
+import '../calls/call_media_options.dart';
+import '../calls/call_provider.dart';
+import 'live_broadcast_screen.dart';
+import 'live_provider.dart';
+
+/// Yayin baslatma: kamera ONIZLEME (Room'suz, CallRoomLock DISI — ses birimine dokunmaz)
+/// + baslik + "Yayina basla". Baslarken onizleme track'i tamamen birakilir; yayin odasi
+/// SIFIR track'le kilit icinde kurulur (plan karari).
+class LiveStartScreen extends ConsumerStatefulWidget {
+  const LiveStartScreen({super.key});
+
+  @override
+  ConsumerState<LiveStartScreen> createState() => _LiveStartScreenState();
+}
+
+class _LiveStartScreenState extends ConsumerState<LiveStartScreen> {
+  final _baslik = TextEditingController();
+  lk.LocalVideoTrack? _onizleme;
+  bool _basliyor = false;
+  String? _hata;
+
+  @override
+  void initState() {
+    super.initState();
+    _onizlemeBaslat();
+  }
+
+  Future<void> _onizlemeBaslat() async {
+    final izinler = await [Permission.camera, Permission.microphone].request();
+    if (izinler[Permission.camera] != PermissionStatus.granted ||
+        izinler[Permission.microphone] != PermissionStatus.granted) {
+      setState(() => _hata = 'Yayın için kamera ve mikrofon izni gerekli');
+      return;
+    }
+    try {
+      final t = await lk.LocalVideoTrack.createCameraTrack(kCameraCaptureOptions);
+      if (!mounted) {
+        await t.stop();
+        await t.dispose();
+        return;
+      }
+      setState(() => _onizleme = t);
+    } catch (e) {
+      if (mounted) setState(() => _hata = 'Kamera açılamadı');
+    }
+  }
+
+  Future<void> _onizlemeBirak() async {
+    final t = _onizleme;
+    _onizleme = null;
+    try {
+      await t?.stop();
+      await t?.dispose();
+    } catch (_) {}
+  }
+
+  Future<void> _basla() async {
+    if (_basliyor) return;
+    if (ref.read(callServiceProvider.notifier).aramadaMi) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Önce aramayı/odayı bitirin')));
+      return;
+    }
+    setState(() => _basliyor = true);
+    try {
+      final info = await ref
+          .read(liveApiProvider)
+          .baslat(_baslik.text.trim().isEmpty ? 'Canlı yayın' : _baslik.text.trim());
+      if (!mounted) return;
+      // Onizlemeyi TAMAMEN birak — yayin odasi kendi kamera track'ini acar (cakisma olmasin)
+      await _onizlemeBirak();
+      if (!mounted) return;
+      final id = info['stream_id'] as String;
+      await Navigator.of(context).pushReplacement(MaterialPageRoute(
+        settings: RouteSettings(name: 'yayin-$id'),
+        builder: (_) => LiveBroadcastScreen(
+          streamId: id,
+          lkRoom: info['room'] as String,
+          url: info['url'] as String,
+          token: info['token'] as String,
+          baslik: info['title'] as String? ?? '',
+        ),
+      ));
+    } catch (e) {
+      if (mounted) {
+        setState(() => _basliyor = false);
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _baslik.dispose();
+    _onizlemeBirak();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0B141A),
+      body: Stack(children: [
+        Positioned.fill(
+          child: _onizleme != null
+              ? IgnorePointer(
+                  child: lk.VideoTrackRenderer(_onizleme!,
+                      key: ValueKey('onizleme-${_onizleme!.sid}'),
+                      fit: lk.VideoViewFit.cover))
+              : Center(
+                  child: _hata != null
+                      ? Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Text(_hata!,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(color: Colors.white70, fontSize: 16)))
+                      : const CircularProgressIndicator()),
+        ),
+        SafeArea(
+          child: Column(children: [
+            Row(children: [
+              IconButton(
+                icon: const Icon(LucideIcons.x, color: Colors.white),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+              const Text('Canlı yayın',
+                  style: TextStyle(
+                      color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600)),
+            ]),
+            const Spacer(),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+              child: Column(children: [
+                TextField(
+                  controller: _baslik,
+                  maxLength: 80,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    counterText: '',
+                    hintText: 'Yayın başlığı (isteğe bağlı)',
+                    hintStyle: const TextStyle(color: Colors.white54),
+                    filled: true,
+                    fillColor: Colors.black45,
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide.none),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFFE53935),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14)),
+                    ),
+                    onPressed: (_onizleme == null || _basliyor) ? null : _basla,
+                    icon: _basliyor
+                        ? const SizedBox(
+                            width: 18, height: 18,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white))
+                        : const Icon(LucideIcons.radioTower),
+                    label: const Text('Yayına başla',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                  ),
+                ),
+              ]),
+            ),
+          ]),
+        ),
+      ]),
+    );
+  }
+}

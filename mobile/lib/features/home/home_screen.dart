@@ -8,6 +8,7 @@ import '../auth/auth_provider.dart';
 import '../auth/permissions_screen.dart';
 import '../calls/calls_tab.dart';
 import '../chats/chats_screen.dart';
+import '../live/live_tab.dart';
 import '../rooms/rooms_tab.dart';
 
 /// Ana kabuk: 5 sekmeli alt menu (ozellik-listesi.md'deki yapi)
@@ -76,7 +77,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ChatsScreen(),
           CallsTab(),
           RoomsTab(), // SPACES (sesli oda) — kesfet + oda ac
-          _PhasePlaceholder(icon: LucideIcons.radioTower, text: 'Canli yayinlar\nFaz 4\'te geliyor'),
+          LiveTab(), // CANLI YAYIN — kesfet + yayin baslat
           _ProfileTab(),
         ],
       ),
@@ -89,32 +90,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           NavigationDestination(icon: Icon(LucideIcons.audioLines), label: 'Odalar'),
           NavigationDestination(icon: Icon(LucideIcons.radioTower), label: 'Canli'),
           NavigationDestination(icon: Icon(LucideIcons.user), label: 'Profil'),
-        ],
-      ),
-    );
-  }
-}
-
-class _PhasePlaceholder extends StatelessWidget {
-  const _PhasePlaceholder({required this.icon, required this.text});
-
-  final IconData icon;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, size: 64, color: Theme.of(context).colorScheme.outline),
-          const SizedBox(height: 16),
-          Text(text,
-              textAlign: TextAlign.center,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyLarge
-                  ?.copyWith(color: Theme.of(context).colorScheme.outline)),
         ],
       ),
     );
