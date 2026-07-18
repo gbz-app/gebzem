@@ -390,15 +390,14 @@ func (h *Handler) startGroup(w http.ResponseWriter, r *http.Request, req startRe
 		writeErr(w, http.StatusBadRequest, "gecerli katilimci yok")
 		return
 	}
-	// KAPASITE (cx33, grup-arama plani madde 4): goruntulu toplam (host dahil) 8, sesli 32.
-	// N kisi = N yayin + N*(N-1) abonelik; video 8 ustu CPU/bant duvarina carpar.
+	// KAPASITE — WHATSAPP STANDARDI (kullanici karari 19 Tem): sesli VE goruntulu grup 32 kisi.
+	// Not: 32 video cx33'u asar — kullanici "sunucu ekleriz" dedi (buyumede dedicated/egress
+	// makinesi, yol haritasi karari). Istemci tarafi korumalar: dusuk grup video profili
+	// (540p) + adaptiveStream (gorunmeyen tile'lar duraklar) + kaydirmali izgara.
+	// LiveKit global max_participants:32 ile tavan uyumlu (calls odalari auto-create).
 	toplam := len(memberIDs) + 1
-	if callType == "video" && toplam > 8 {
-		writeErr(w, http.StatusBadRequest, "goruntulu grup aramasi en fazla 8 kisi olabilir")
-		return
-	}
 	if toplam > 32 {
-		writeErr(w, http.StatusBadRequest, "sesli grup aramasi en fazla 32 kisi olabilir")
+		writeErr(w, http.StatusBadRequest, "grup aramasi en fazla 32 kisi olabilir")
 		return
 	}
 

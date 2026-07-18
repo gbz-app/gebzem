@@ -821,15 +821,14 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
 
   Future<void> _toggleCam() async {
     final on = !_camOn;
-    // KAPASITE MUHAFIZI (dogrulama bulgusu): video<=8 siniri yalniz BASLATMADA uygulaniyordu;
-    // 9-32 kisilik SESLI grupta mid-call kamera acmak siniri deliyordu (cx33 CPU/bant duvari).
-    // Grupta oda 8'den kalabaliksa kamera ACMAYI engelle (kapatma her zaman serbest).
+    // KAPASITE — WHATSAPP STANDARDI (19 Tem): grup 32 kisi (sesli+goruntulu ayni tavan).
+    // 32 uzeri zaten baslatilamaz; muhafiz LiveKit global tavaniyla uyum icin duruyor.
     if (on && widget.isGroup) {
       final katilimci = 1 + (_room?.remoteParticipants.length ?? 0);
-      if (katilimci > 8) {
+      if (katilimci > 32) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-              content: Text('Görüntülü grup en fazla 8 kişi — kamera açılamıyor')));
+              content: Text('Grup araması en fazla 32 kişi — kamera açılamıyor')));
         }
         return;
       }
