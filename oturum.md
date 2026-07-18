@@ -1008,6 +1008,19 @@ cevabindan; chat hatalari snackbar; klavyede chat seridi kuculur (RenderFlex).
 pause-grace ~105sn'de yayinci yeni yayin acamaz (tasarim geregi); SendData gecmisi
 sonradan girene gitmez.
 
+### KULLANICI TEST TURU 2 (19 Tem ~01:30): 5 SORUN — DERIN ARASTIRMA KOSUYOR (wf_c0a4ca2f)
+Kullanici bulgulari: (1) son GELEN sesli aramada ses gelmedi; (2) yayin bitirince baskasinin
+yayinina girilemiyor ("oturum kapatilmadi" benzeri mesaj; app restart duzeltiyor); (3) odada
+el kaldir aninda iniyor, toggle olmali; (4) sesli aramada bazen ayni anda baglanmiyor, sure
+direkt sayiyor; (5) kamera TERS duruyor.
+SUNUCU KANITI: 0ba750d7 — callee answer 200 dedi ama LiveKit odasina HIC girmedi; arayan odada
+TEK BASINA (TRACK-YOK peer=false; kat=PlayAndRecord — kategori/FIX-2 SAGLAM calisiyor; retry
+aramasi 02d60e00 iki yonde SES-VAR). 4fdea86f ANINDA rejected (muhafiz sizintisi + yeni
+auto-reject etkilesimi suphesi). (2) = ekrandakiAramalar bellek-ici SIZINTI (restart temizliyor).
+AYRICA KRITIK TESPIT: room_audit + stream_audit 0 KAYIT — NULLIF($x,'') UUID kolona text
+karsilastirmasi sessiz INSERT hatasi suphesi (5651 iz kaybi!). 5 mercek + yargic kosuyor;
+hukum gelince fix'ler -> dogrulama -> TEK build.
+
 ### CANLI YAYIN + GRUP-SES FIX SURUMU YAYINLANDI (19 Tem 00:47)
 - Build android 29661922953 + ios 29661923837 BASARILI (AppDelegate Swift degisikligi dahil);
   debug imza YOK. R2: apk=104274557, ipa=18981699, index "Canli Yayin acildi · 19 Temmuz 00:47"
