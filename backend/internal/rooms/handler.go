@@ -309,6 +309,12 @@ func (h *Handler) Join(w http.ResponseWriter, r *http.Request) {
 	var name string
 	h.db.QueryRow(r.Context(), `SELECT name FROM users WHERE id=$1`, userID).Scan(&name)
 	roomName := "oda_" + roomID
+	// LiveKit odasi empty_timeout ile silinmis olabilir (herkes cikti, DB'de hala live) —
+	// token vermeden once YENIDEN yarat (idempotent): istemci auto-create'e dusup GLOBAL
+	// max_participants:32 tavanina takilmasin (dogrulama bulgusu; Baglayici Karar 2).
+	if err := h.lk.CreateRoom(r.Context(), roomName, odaKapasitesi, 300); err != nil {
+		log.Printf("oda join create: %v", err) // olumcul degil: oda buyuk ihtimalle zaten var
+	}
 	tok, err := h.clientToken(roomName, userID, name, role)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "token uretilemedi")
@@ -435,25 +441,20 @@ func (h *Handler) rolDegistir(w http.ResponseWriter, r *http.Request, yukselt bo
 		return
 	}
 
-	if yukselt {
-		var konusmaci int
-		h.db.QueryRow(r.Context(), `SELECT count(*) FROM room_participants
-			WHERE room_id=$1 AND status='joined' AND role IN ('host','speaker')`, roomID).Scan(&konusmaci)
-		if konusmaci >= maxKonusmaci {
-			writeErr(w, http.StatusConflict, "konusmaci siniri doldu (en fazla 10)")
-			return
-		}
-	}
 	eskiRol, yeniRol := "listener", "speaker"
 	if !yukselt {
 		eskiRol, yeniRol = "speaker", "listener"
 	}
+	// Konusmaci siniri UPDATE'in ICINDE (atomik) — es zamanli iki promote 9 okuyup 11
+	// yapamaz (dogrulama bulgusu: count-sonra-update yarisi).
 	tag, err := h.db.Exec(r.Context(), `
 		UPDATE room_participants SET role=$3, hand_raised_at=NULL
-		WHERE room_id=$1 AND user_id=$2 AND status='joined' AND role=$4`,
-		roomID, req.UserID, yeniRol, eskiRol)
+		WHERE room_id=$1 AND user_id=$2 AND status='joined' AND role=$4
+		  AND ($3 <> 'speaker' OR (SELECT count(*) FROM room_participants
+		       WHERE room_id=$1 AND status='joined' AND role IN ('host','speaker')) < $5)`,
+		roomID, req.UserID, yeniRol, eskiRol, maxKonusmaci)
 	if err != nil || tag.RowsAffected() == 0 {
-		writeErr(w, http.StatusConflict, "kullanici uygun durumda degil")
+		writeErr(w, http.StatusConflict, "kullanici uygun durumda degil veya konusmaci siniri dolu")
 		return
 	}
 	// LiveKit iznini CANLI baglantiya it (yeniden baglanma gerekmez).

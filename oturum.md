@@ -918,6 +918,34 @@ eleştirmen catlak analizi; cikti oda-yayin-plani.md olacak).
   muhafizi 'oda_<id>'). home_screen: Odalar sekmesi dolduruldu (yalniz 2 satir degisti).
   flutter analyze TEMIZ. Canli yayin sekmesi SONRAKI faz.
 
+### SPACES ADVERSARIAL DOGRULAMA (wf_648716dd, 27 ajan) — 20 teyitli bulgu, HEPSI ISLENDI
+**Duzeltilen (2 BLOCKER + kritikler):**
+- B1 _cik() duz pop: sheet/dialog acikken modali kapatip kullaniciyi OLU oda ekranina
+  HAPSEDIYORDU (PopScope+_ayrildi kilidi) -> rota adi 'oda-<id>' + popUntil ile oda rotasi
+  hedeflenip kapatiliyor.
+- B2 odadayken CallKit kabulu: answer()==null dalinda CallKit bitirilmiyordu -> iOS'ta hayalet
+  arama + kapanisinda didDeactivate ODA SESINI olduruyordu -> call_provider.baskaIsleMesgul()
+  ayrimi + main.dart null dalinda CallKitService.bitir + sunucuya reddet.
+- Muhafiz yarisi: rooms_tab join/olustur REST'i surerken arama kabul edilirse IKI canli Room
+  acilabiliyordu -> await sonrasi muhafiz TEKRARI + sunucudaki join/oda geri alinir.
+- Sweep korlugu: force-quit'te REST leave gelmiyor, oda 8sa zombi + host 409 kilidi ->
+  (a) RoomDisconnected artik sunucuya AYRIL gonderir; (b) sweep'e LiveKit ListRooms kontrolu
+  (LiveKit odasi empty_timeout'la silindiyse DB'de de bitir, 6dk esik); (c) solo-host bos-oda
+  2dk grace duzeltildi (left_at bazli).
+- Join'de CreateRoom tekrar (silinmis LiveKit odasinda auto-create 32 tavani bulgusu);
+  promote siniri atomik UPDATE (count-update yarisi); connect sonrasi mounted muhafizi
+  (mic sizintisi); TrackMuted self-mute yanlis snackbar (bildirim WS muted'a tasindi);
+  terfi izin-reddi durustlugu (rol speaker kalir, buton izinle acilir); kesinti toparlama
+  (WidgetsBindingObserver resume -> _sesiAc + mic + detay); WS kimligi profile'dan (LiveKit
+  identity baglanmadan null — erken rol olayi kacmasin).
+**Bilinen sinirlar (kabul, prototip — md'ye kayit):** atilan kullanicinin 8sa'lik LiveKit
+  token'i iptal edilemez (LiveKit'te revoke yok; istemci UI zaten cikiyor, kotu niyet icin
+  webhook+kisa token ileriki is) · FULL reconnect token grant'ini geri yukler (terfi eden
+  mic kaybedebilir/dusurulen geri kazanabilir — nadir; kalici cozum reconnect'te taze join)
+  · 500 dinleyici check-then-act yarisi (LiveKit 520 mutlak tavani var) · odadayken gelen
+  1:1 arayana 45sn "caliyor" gorunebilir (mesgul aninda reddedilir artik).
+go build + flutter analyze TEMIZ.
+
 ### INDIR SAYFASI YENILENDI (18 Tem aksam — kullanici istegi "daha modern, 2D ikonlar")
 - index.html sifirdan: koyu mor tema (uygulama ikonuyla uyumlu radial glow), GERCEK uygulama
   ikonu goruntusu (app-icon.png = web-512.png R2'de), duz SVG ikonlar (Apple/Android logo,

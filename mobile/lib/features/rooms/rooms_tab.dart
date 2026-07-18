@@ -87,10 +87,20 @@ class _RoomsTabState extends ConsumerState<RoomsTab> {
     try {
       final info = await ref.read(roomsApiProvider).olustur(baslik);
       if (!mounted) return;
+      final roomId = info['room_id'] as String;
+      // MUHAFIZ TEKRARI (dogrulama bulgusu): REST surerken gelen arama KABUL edilmis
+      // olabilir — iki canli LiveKit Room acilmasin. Odayi geri kapat, ekrani ACMA.
+      if (ref.read(callServiceProvider.notifier).aramadaMi) {
+        unawaited(ref.read(roomsApiProvider).bitir(roomId));
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Aramadasınız — oda açılmadı')));
+        return;
+      }
       // ONCE ekrani ac, SONRA state isleri (Riverpod+overlay tuzagi — CLAUDE.md)
       await Navigator.of(context).push(MaterialPageRoute(
+        settings: RouteSettings(name: 'oda-$roomId'), // _cik popUntil hedefi (kilit bulgusu)
         builder: (_) => RoomScreen(
-          roomId: info['room_id'] as String,
+          roomId: roomId,
           lkRoom: info['room'] as String,
           url: info['url'] as String,
           token: info['token'] as String,
@@ -117,7 +127,16 @@ class _RoomsTabState extends ConsumerState<RoomsTab> {
       final id = oda['id'] as String;
       final info = await ref.read(roomsApiProvider).katil(id);
       if (!mounted) return;
+      // MUHAFIZ TEKRARI (dogrulama bulgusu): join REST'i surerken arama kabul edilmis
+      // olabilir. Sunucudaki 'joined' kaydini geri al, ekrani ACMA.
+      if (ref.read(callServiceProvider.notifier).aramadaMi) {
+        unawaited(ref.read(roomsApiProvider).ayril(id));
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Aramadasınız — odaya katılınmadı')));
+        return;
+      }
       await Navigator.of(context).push(MaterialPageRoute(
+        settings: RouteSettings(name: 'oda-$id'), // _cik popUntil hedefi (kilit bulgusu)
         builder: (_) => RoomScreen(
           roomId: id,
           lkRoom: info['room'] as String,

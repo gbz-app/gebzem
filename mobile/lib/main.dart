@@ -226,7 +226,15 @@ class _GebzemAppState extends ConsumerState<GebzemApp> with WidgetsBindingObserv
       return;
     }
     if (info == null) {
-      // Arama zaten uygulama ici overlay'den kabul edildi -> ikinci ekran acma
+      // IKI DURUM (dogrulama bulgusu): (a) ayni arama baska yoldan zaten kabul edildi ->
+      // ikinci ekran acma, dokunma; (b) ODADAYKEN/aramadayken CallKit'ten kabul -> mesgul:
+      // CallKit UI'sini KAPAT (yoksa iOS'ta hayalet arama kalir; kapanisinda
+      // didDeactivateAudioSession odanin sesini oldurur) + sunucuya reddet (arayan
+      // 45 sn bosuna calmasin, "reddedildi" gorsun).
+      if (notifier.baskaIsleMesgul(callId)) {
+        unawaited(CallKitService.bitir(callId));
+        unawaited(notifier.end(callId));
+      }
       notifier.dismiss();
       return;
     }

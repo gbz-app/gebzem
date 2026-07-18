@@ -14,6 +14,7 @@ import '../../core/ws.dart';
 import '../calls/call_media_options.dart';
 import '../calls/call_provider.dart';
 import '../calls/call_room_lock.dart';
+import '../home/home_screen.dart' show myProfileProvider;
 import 'room_provider.dart';
 
 /// SPACES ODA EKRANI — host + konusmacilar + dinleyiciler + el kaldirma.
@@ -45,11 +46,13 @@ class RoomScreen extends ConsumerStatefulWidget {
   ConsumerState<RoomScreen> createState() => _RoomScreenState();
 }
 
-class _RoomScreenState extends ConsumerState<RoomScreen> {
+class _RoomScreenState extends ConsumerState<RoomScreen> with WidgetsBindingObserver {
   lk.Room? _room;
   lk.EventsListener<lk.RoomEvent>? _listener;
   StreamSubscription? _wsSub;
   Timer? _rosterTimer;
+  String _benimId = ''; // kendi user_id (WS rol olayi icin; LiveKit identity'e GUVENME —
+  // baglanti tamamlanmadan null kalir ve erken gelen room.role.changed kacar)
 
   late String _rol = widget.rol;
   bool _connecting = true;
@@ -75,10 +78,28 @@ class _RoomScreenState extends ConsumerState<RoomScreen> {
     // MESGUL MUHAFIZI: odadayken 1:1 arama baslatilamaz/kabul edilemez (mevcut public
     // kume — arama koduna dokunmadan entegre). Cikista birakilir.
     _svc.ekranAcildi('oda_${widget.roomId}');
+    WidgetsBinding.instance.addObserver(this); // kesinti toparlama (resume)
+    // Kendi kimligim: WS rol olaylari LiveKit baglantisindan ONCE gelebilir.
+    ref.read(myProfileProvider.future).then((p) {
+      _benimId = p['id'] as String? ?? '';
+    }).catchError((_) {});
     _wsSub = ref.read(wsProvider).events.listen(_wsOlay);
     _rosterTimer = Timer.periodic(const Duration(seconds: 10), (_) => _detayYenile());
     _baglan();
     _detayYenile();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // KESINTI TOPARLAMA (call_screen _kesintidenTopla dengi — dogrulama bulgusu):
+    // GSM/Siri/alarm kesintisi sonrasi iOS ses birimi kendiliginden geri gelmez.
+    if (state == AppLifecycleState.resumed && mounted && !_ayrildi) {
+      _sesiAc(true);
+      if (_rol != 'listener') {
+        _room?.localParticipant?.setMicrophoneEnabled(_micOn);
+      }
+      _detayYenile();
+    }
   }
 
   Future<void> _baglan() async {
@@ -132,16 +153,18 @@ class _RoomScreenState extends ConsumerState<RoomScreen> {
           if (mounted) setState(() {});
         })
         ..on<lk.TrackMutedEvent>((e) {
-          // Host beni susturdu (sunucu MutePublishedTrack) -> buton durumu + bilgi
+          // Buton durumunu senkronla. SNACKBAR YOK: bu olay KENDI mute'umda da tetiklenir
+          // (dogrulama bulgusu) — "host susturdu" bildirimi WS room.participant.muted'dan gelir.
           if (mounted && e.participant is lk.LocalParticipant) {
             setState(() => _micOn = false);
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                content: Text('Host seni susturdu — konuşmak için mikrofonu tekrar aç')));
           }
         })
         ..on<lk.RoomDisconnectedEvent>((_) {
-          // DeleteRoom / at / ag kopmasi -> ekrandan cik (idempotent)
-          if (mounted) _cik(sunucuyaBildir: false);
+          // DeleteRoom / at / kalici ag kopmasi -> ekrandan cik. Sunucuya AYRIL gonder
+          // (dogrulama bulgusu: bildirmezsek DB'de 'joined' kalir, sweep host kopmasini
+          // goremez, host 'zaten acik odaniz var' kilidine girer). Ayril idempotent —
+          // oda coktan bittiyse zararsiz 200.
+          if (mounted) _cik(sunucuyaBildir: true);
         });
 
       await room.connect(
@@ -155,6 +178,11 @@ class _RoomScreenState extends ConsumerState<RoomScreen> {
           ),
         ),
       );
+      // Ekran baglanirken kapandiysa odayi birak (mic acilip yayina sizmasin — dogrulama bulgusu)
+      if (!mounted || _ayrildi) {
+        await _kapatOda();
+        return;
+      }
       // iOS SES SIRASI (v7/v8 dersi — AYNEN): mic/rota HAZIR olmadan ses birimi acilmaz.
       // Sira: (konusmaciysa) mic -> hoparlor -> _sesiAc(true) EN SON.
       if (_rol != 'listener') {
@@ -204,13 +232,15 @@ class _RoomScreenState extends ConsumerState<RoomScreen> {
         ? (ev['payload'] as Map).cast<String, dynamic>()
         : <String, dynamic>{};
     if (p['room_id'] != widget.roomId) return;
-    final benimId = _room?.localParticipant?.identity;
+    // Kimlik: profile'dan (erken/kesin); LiveKit identity yalniz yedek (baglanmadan null).
+    final benimId =
+        _benimId.isNotEmpty ? _benimId : (_room?.localParticipant?.identity ?? '');
 
     switch (ev['type']) {
       case 'room.role.changed':
         final uid = p['user_id'] as String?;
         final yeniRol = p['role'] as String? ?? 'listener';
-        if (uid == benimId) {
+        if (uid != null && uid == benimId) {
           _rolDegisti(yeniRol);
         }
         _detayYenile();
@@ -233,6 +263,13 @@ class _RoomScreenState extends ConsumerState<RoomScreen> {
         if (n != null) setState(() => _dinleyici = n);
         _detayYenile();
       case 'room.participant.muted':
+        // Host susturmasi bildirimi YALNIZ buradan (host aksiyonunda gelir; TrackMuted
+        // kendi mute'unda da tetiklendigi icin oradan gosterilmez — dogrulama bulgusu).
+        if (p['user_id'] == benimId && mounted) {
+          setState(() => _micOn = false);
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text('Host seni susturdu — konuşmak için mikrofonu tekrar aç')));
+        }
         _detayYenile();
       case 'room.removed':
         _atildim();
@@ -253,9 +290,17 @@ class _RoomScreenState extends ConsumerState<RoomScreen> {
     if (eski == 'listener' && yeniRol == 'speaker') {
       final st = await Permission.microphone.request();
       if (st != PermissionStatus.granted) {
+        // DURUST DAVRAN (dogrulama bulgusu): sunucu beni konusmaci SAYIYOR; "dinleyici
+        // olarak devam" deme. Rol konusmaci kalir, mic kapali — butona basinca izin
+        // yeniden istenir. UI konusmaci moduna gecer (mic kapali gorunur).
         if (mounted) {
+          setState(() {
+            _micOn = false;
+            _elKalkik = false;
+          });
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-              content: Text('Mikrofon izni verilmedi — dinleyici olarak devam')));
+              content: Text(
+                  'Konuşmacı yapıldın ama mikrofon izni yok — mikrofon butonuna basıp izin ver')));
         }
         return;
       }
@@ -271,6 +316,12 @@ class _RoomScreenState extends ConsumerState<RoomScreen> {
         }
       } catch (e) {
         Sentry.captureException(e, stackTrace: StackTrace.current);
+        // LiveKit izni henuz ulasmamis olabilir (nadir yaris) — kullaniciya soyle
+        if (mounted) {
+          setState(() => _micOn = false);
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text('Mikrofon açılamadı — mikrofon butonuyla tekrar dene')));
+        }
       }
     } else if (yeniRol == 'listener') {
       try {
@@ -336,7 +387,11 @@ class _RoomScreenState extends ConsumerState<RoomScreen> {
       } catch (_) {}
     }
     if (mounted) {
+      // BLOCKER DUZELTMESI (dogrulama): duz pop() EN USTTEKI rotayi kapatir — sheet/dialog
+      // acikken RoomScreen ekranda kalir ve _ayrildi kilidi kullaniciyi OLU ekrana hapseder.
+      // Once oda rotasina KADAR pop (ustteki tum modaller kapanir), sonra odayi kapat.
       final nav = Navigator.of(context);
+      nav.popUntil((r) => r.settings.name == 'oda-${widget.roomId}' || r.isFirst);
       if (nav.canPop()) nav.pop();
     }
   }
@@ -362,6 +417,17 @@ class _RoomScreenState extends ConsumerState<RoomScreen> {
 
   Future<void> _micDegistir() async {
     final on = !_micOn;
+    if (on) {
+      // Izin reddedilmis konusmaci butondan tekrar deneyebilsin (terfi-izin bulgusu)
+      final st = await Permission.microphone.request();
+      if (st != PermissionStatus.granted) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Mikrofon izni gerekli')));
+        }
+        return;
+      }
+    }
     try {
       await _room?.localParticipant?.setMicrophoneEnabled(on);
       setState(() => _micOn = on);
@@ -482,6 +548,7 @@ class _RoomScreenState extends ConsumerState<RoomScreen> {
   @override
   void dispose() {
     _svc.ekranKapandi('oda_${widget.roomId}');
+    WidgetsBinding.instance.removeObserver(this);
     _wsSub?.cancel();
     _rosterTimer?.cancel();
     unawaited(CallRoomLock.calistir(_kapatOda)); // safety-net (idempotent)

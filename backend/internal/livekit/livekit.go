@@ -152,6 +152,24 @@ func (c *Client) DeleteRoom(ctx context.Context, room string) error {
 	return c.call(ctx, "DeleteRoom", room, map[string]any{"room": room}, nil)
 }
 
+// ListRoomNames — verilen adlardan LiveKit'te HALEN VAR olanlari doner (sweep: LiveKit'in
+// empty_timeout ile sildigi odalari DB'de de kapatmak icin).
+func (c *Client) ListRoomNames(ctx context.Context, names []string) (map[string]bool, error) {
+	var out struct {
+		Rooms []struct {
+			Name string `json:"name"`
+		} `json:"rooms"`
+	}
+	if err := c.call(ctx, "ListRooms", "", map[string]any{"names": names}, &out); err != nil {
+		return nil, err
+	}
+	m := make(map[string]bool, len(out.Rooms))
+	for _, r := range out.Rooms {
+		m[r.Name] = true
+	}
+	return m, nil
+}
+
 // SendData — odadaki istemcilere sunucudan veri (canli yayin hediye/sayac icin; Spaces'te kullanilmiyor).
 func (c *Client) SendData(ctx context.Context, room string, data []byte, topic string) error {
 	return c.call(ctx, "SendData", room, map[string]any{

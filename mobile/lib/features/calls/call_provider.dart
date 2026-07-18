@@ -95,6 +95,12 @@ class CallService extends StateNotifier<IncomingCall?> {
 
   void ekranKapandi(String id) => ekrandakiAramalar.remove(id);
 
+  /// Bu callId DISINDA acik bir arama/oda ekrani var mi. CallKit kabul yolunda
+  /// answer()==null'un IKI anlamini ayirir: "zaten kabul edildi" (ayni id acik) ile
+  /// "mesgul — odada/baska aramada" (baska id acik). Ikincisinde CallKit UI'si
+  /// kapatilip arama reddedilmeli (hayalet CallKit + oda sesi olumu bulgusu).
+  bool baskaIsleMesgul(String callId) => ekrandakiAramalar.any((x) => x != callId);
+
   void _onEvent(Map<String, dynamic> ev) {
     final payload = ev['payload'];
     if (payload is! Map) return;
