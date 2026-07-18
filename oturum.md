@@ -989,6 +989,23 @@ flutter analyze TEMIZ. NOT: LiveKit port araligi genisletme (plan Adim 8, 200->1
 BILEREK YAPILMADI — livekit restart canli aramalari dusurur; test doneminde 200 port yeter,
 gercek kapasite oncesi bakim penceresinde yapilacak.
 
+### KULLANICI TEST BULGUSU (19 Tem gece): GRUP aramada ses gitmiyor — TESHIS SUREN IS
+Kullanici: "grup arama goruntulude ses karsiya gitmiyor" (baska sorun YOK — 1:1 calisiyor).
+**SUNUCU KANITI TOPLANDI (once oda logu kurali):**
+- Test: iki iPHONE (XS Max + 13), cellular, TURN; son build (edb4768). 02:40-02:55 yerel.
+- LiveKit: TUM grup aramalarinda iki taraf da audio/opus publish etti => WebRTC/TURN SAGLAM.
+- audio-stat KESIN DESEN: **GRUBU BASLATAN (HOST) iOS cihazin MIC'I SESSIZ yayinliyor**:
+  * 283f70b2 (sesli grup 46sn): host tarafi enerji 154-808 SES-VAR (davetlinin mic'i CALISIYOR);
+    davetli tarafi recv ~100/s ama enerji=0.0 (host mic SESSIZ).
+  * a906dda3 (goruntulu 104sn) + 518e63f2: davetli enerji=0.0 (host mic sessiz); host recv=0
+    (DTX sessizlik bastirmasi — davetli konusmadi/veya onun da mic'i kapali).
+- ONCEKI GECE grup calisiyordu ama HOST ANDROID'di; iOS HOST grup yolu ILK KEZ test edildi.
+- Guclu hipotez: grup ANINDA 'active' => host'ta calmaTonu(audioplayers) ile _odayaBaglan
+  0-2sn yarisi (1:1'de 5-30sn — yaris yok); audioplayers iOS session'i / _sesNesli-null durdur
+  yarisi => v7 sinifi 'mic sessiz kilitlenme'. DOGRULAMA: wf_32afbd46 (4 uzman + yargic) KOSUYOR.
+- Paralel: canli yayin derin dogrulamasi wf_46fd6251 de KOSUYOR. Ikisi bitince: fix'ler ->
+  TEK TEMIZ BUILD -> yayin rutini.
+
 ### INDIR SAYFASI YENILENDI (18 Tem aksam — kullanici istegi "daha modern, 2D ikonlar")
 - index.html sifirdan: koyu mor tema (uygulama ikonuyla uyumlu radial glow), GERCEK uygulama
   ikonu goruntusu (app-icon.png = web-512.png R2'de), duz SVG ikonlar (Apple/Android logo,
