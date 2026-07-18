@@ -1008,6 +1008,18 @@ cevabindan; chat hatalari snackbar; klavyede chat seridi kuculur (RenderFlex).
 pause-grace ~105sn'de yayinci yeni yayin acamaz (tasarim geregi); SendData gecmisi
 sonradan girene gitmez.
 
+### CANLI YAYIN + GRUP-SES FIX SURUMU YAYINLANDI (19 Tem 00:47)
+- Build android 29661922953 + ios 29661923837 BASARILI (AppDelegate Swift degisikligi dahil);
+  debug imza YOK. R2: apk=104274557, ipa=18981699, index "Canli Yayin acildi · 19 Temmuz 00:47"
+  (SAAT artik her yayinda guncelleniyor — kullanici istegi). Purge -> CDN boyutlari birebir ->
+  health ok -> DB temiz + api restart. **KULLANICI TEST EDECEK.**
+- Test rehberi: (1) GRUP SES DOGRULAMA (ana bulgu): iPhone'dan SESLI grup baslat -> konus ->
+  davetli DUYMALI (admin panel Ses Teshis: davetli tarafta enerji>0); goruntulu grup ayni;
+  Android'den baslatilan grup da (regresyon). (2) CANLI YAYIN: Canli sekmesi -> Yayin baslat
+  (onizleme+baslik) -> digeri izler -> chat + kalp + hediye (jeton 100'den duser, yayinciya
+  gecer) -> yayinci kapat -> izleyicide "yayin sona erdi". Yayinci uygulamayi oldururse
+  izleyici "baglanti koptu" gorur, 60sn'de yayin biter. (3) 1:1 + oda regresyonlari.
+
 ### GRUP-SES KOK NEDEN HUKMU (wf_32afbd46, 4 uzman + yargic) — FIX'LER UYGULANDI
 **KOK NEDEN (yapisal kesin):** iOS cihaz GRUP HOSTU olunca uygulamanin HIC test edilmemis tek
 ses yolu calisiyor: backend grup aramasini ANINDA 'active' yapar; grupta call.answered hic
