@@ -777,3 +777,61 @@ Kullanici gercek cihaz (Android arayan -> iPhone aranan, 5 red + 6. kabul): grup
   keystore) + R2 (apk 103000192, ipa 17277118) + Cloudflare purge + **CDN Content-Length == yerel
   (apk/ipa birebir)** + index.html taze (18 Tem) + DB temiz (users=0). **Kullanici 2-cihaz test edecek.**
 - SIRADAKI: kullanici testi OK -> GRUP GORUNTULU faz (roadmap son adimi).
+
+## Oturum 16 (18 Tem 2026, aksam) — GRUP GORUNTULU ARAMA (DEVAM EDIYOR)
+
+**Kullanici testi (18 Tem gunduz): TUM ONCEKI ISLER GECTI.** Sunucu verisiyle teyit: 13 arama
+(sesli+goruntulu), hepsi temiz sonlanmis, sure senkron/self-view sikayeti YOK, ses teshis agirlikli
+SES-VAR. Kullanici onayi ile GRUP GORUNTULU fazina gecildi.
+
+**Kullanici kurali (BU OTURUMDA GELDI, KALICI):** oturum.md + CLAUDE.md "devam eden is" bolumu her
+adimdan SONRA guncellenip push'lanacak — pencere kapansa bile tam kalinan yer gorunmeli.
+
+### MEVCUT DURUM TESPITI (kod okundu, 18 Tem aksam)
+- Backend `startGroup` VIDEO'YU ZATEN DESTEKLIYOR (`req.Video -> type='video'`, handler.go:342-345).
+  `answerGroup` cevabinda `type` donuyor (733). Yani backend grup-video icin NEREDEYSE hazir;
+  eksik SADECE kapasite siniri (plan madde 4: video toplam<=8, sesli<=32).
+- Flutter eksikleri:
+  (a) `group_call_start_screen.dart:74,82` video:false SABIT — sesli/goruntulu secimi yok.
+  (b) `call_screen.dart _buildGroupGrid()` (1123) SADECE avatar izgarasi — video tile yok.
+  (c) `call_screen.dart:1016` kamera butonu grupta GIZLI (`if (!widget.isGroup)`).
+  (d) `call_media_options.dart` tek profil (720p/1.2Mbps) — grupta N yayin cx33'u zorlar, dusuk
+      profil gerek (plan: ~540p).
+  (e) Self-view overlay grupta ACILMAMALI (yerel goruntu kendi tile'inda olacak; simdiki kod
+      `showVideo && smallTrack != null` ile grup gridinin USTUNE binerdi — sesli grupta video track
+      olmadigi icin bugune kadar gorunmedi).
+- Kabul yollari HAZIR (dokunma gerekmez): overlay `widget.call.video` (WS type'tan),
+  CallKit `_ayikla` extra `call_type`'tan video turetir (callkit_service.dart:125); grup VoIP/FCM
+  payload'inda `call_type` zaten var (handler.go:437,449).
+
+### UYGULAMA ADIMLARI + DURUM (her adim bitince buraya isaretlenir + push)
+- [ ] **G1 Backend kapasite siniri:** `startGroup`'ta toplam katilimci (host+davetli) video>8 ->
+      400 "goruntulu grup en fazla 8 kisi", sesli>32 -> 400 "sesli grup en fazla 32 kisi".
+      Baska backend degisikligi YOK.
+- [ ] **G2 call_media_options:** `kGroupVideoPublishOptions` (VP8+simulcast, ust katman 540p
+      ~700kbps + alt 270p) + `kGroupCameraCaptureOptions` (540p yakalama) — cx33 CPU/bant korumasi.
+      1:1 secenekleri AYNEN KALIR.
+- [ ] **G3 call_screen grup-video:** RoomOptions grupta dusuk video profili (const -> kosullu);
+      `_buildGroupGrid` katilimcida abone olunmus video track varsa avatar yerine VIDEO TILE
+      (VideoTrackRenderer, ValueKey(sid) ilk-kare fix'i, konusana yesil cerceve, alt-sol isim);
+      hicbir video track yoksa ESKI avatar izgarasi birebir (sesli grup regresyonsuz).
+      Kamera + flip butonu grupta da gorunur; self-view overlay grupta KAPALI (`!widget.isGroup`).
+      Yerel kamera kendi tile'inda gorunur.
+- [ ] **G4 group_call_start_screen:** iki baslat butonu — Sesli (n) / Goruntulu (n); video yolunda
+      startGroup(video:true) + CallScreen(video:true). Baslik "Grup araması".
+- [ ] **G5 metinler:** incoming_call_overlay grup GORUNTULU metni ("Grup görüntülü araması").
+- [ ] **G6 dogrulama:** `go build` + `flutter analyze` + curl grup regresyon (sesli grup baslat/katil/
+      ayril + video baslat 9 kisi RED + 1:1 regresyon) + adversarial workflow -> bulgular duzeltilir.
+- [ ] **G7 yayin:** backend deploy + android/ios build izle + debug-imza kontrol + R2 + purge +
+      boyut==yerel + DB temiz + oturum.md/CLAUDE.md guncelle. Ancak sonra "hazir".
+
+### RISKLER / DIKKAT (kodlarken tekrar oku)
+- 1:1 koduna DOKUNMA — tum degisiklikler `isGroup` dallarinda. Sesli grup gorunumu video track
+  yokken PIKSELI PIKSELINE ayni kalmali (kullanici test etti, begendi).
+- iOS SES SIRASI BOZULMASIN: `_sesiAc(true)` EN SON kuralina dokunma (v7/v8 dersi). Kamera enable
+  zaten _sesiAc'tan once calisiyor — sira degismiyor.
+- ParticipantDisconnected grupta otomatik _leave YAPMAZ (oda bitisi backend'den call.ended) —
+  bu davranis KORUNACAK, video tile eklerken o bloga dokunulmayacak.
+- VideoTrackRenderer'a dokunus GITMEMELI (CameraUtils NPE cokmesi) — tile'larda IgnorePointer sart
+  degil cunku tile'a dokunma jesti baglamiyoruz; jest eklenirse IgnorePointer + opaque deseni kullan.
+- arama.mp3 (repo koku) coplugu: assets'teki degil, kok dizindeki KALINTI — bu oturumda silinecek.

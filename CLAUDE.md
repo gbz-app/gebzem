@@ -10,6 +10,17 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
 5. **Kısa yaz** — uzun tablolar yok; net cevap + gereken aksiyon.
 6. **`.env.infra` ve `backend/.env` ASLA git'e girmez** (.gitignore'da — değiştirme!)
 7. Türkçe konuş.
+8. **"Devam eden iş" izlenebilirliği (18 Tem):** aktif iş sürerken oturum.md'deki adım listesi
+   ([ ]→[x]) HER ADIMDAN SONRA güncellenip push'lanır; aşağıdaki ŞU AN DEVAM EDEN İŞ bloğu da
+   senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
+
+## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **İş: GRUP GÖRÜNTÜLÜ ARAMA** (başladı: 18 Tem 2026 akşam). Detaylı adım listesi + durum işaretleri:
+  `oturum.md` → "Oturum 16 — GRUP GORUNTULU ARAMA" bölümü (G1-G7 adımları, riskler dahil).
+- Durum: kod okuma + plan bitti; G1 (backend kapasite sınırı) başlıyor. Henüz kod değişikliği YOK.
+- Kritik bağlam: backend startGroup videoyu ZATEN destekliyor (tek eksik kapasite sınırı);
+  Flutter'da grid video tile + başlatma ekranı seçimi + grup kamera butonu eksik.
+  1:1 ve SESLİ grup davranışı DEĞİŞMEYECEK (isGroup dalları + "video track yoksa eski görünüm").
 
 ## TELEMETRİ & İZLEME (12 Tem 2026 — hepsi canlı)
 - **Sentry:** https://gebzem.sentry.io — gebzem-mobile + gebzem-backend projeleri; hatalar dosya+satır ile otomatik düşer. OTURUM BAŞINDA KONTROL ET. sentry_flutter ^9.6 (8.x KULLANMA — Kotlin/Swift derleme hatası)
