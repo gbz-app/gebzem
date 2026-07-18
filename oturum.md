@@ -880,7 +880,12 @@ repo: mobile/assets/icon/kaynak.jpg). Kurulum:
   bug). APPICON_NAME=AppIcon Flutter sablonunda ZATEN var -> **pbxproj degisikligi git checkout
   ile GERI ALINDI** (BOM'suz kaldi, dogrulandi). Ikon guncellerken hep kontrol et!
 - ~~BUILD ALINMADI~~ -> kullanici "build alalim, tam test yapacagim" dedi (18 Tem aksam):
-  **ikonlu toplu build BASLADI** (android 29655019115 / ios 29655020136, izleniyor).
+  **ikonlu toplu build ALINDI VE YAYINLANDI** (android 29655019115 / ios 29655020136, ikisi
+  basarili). Dogrulama: IPA'da yeni AppIcon (60x60@2x=32KB, Assets.car 1.58MB), APK'da yogunluk
+  basina 20-95KB ikon PNG'leri (AGP kaynak adlarini kisaltiyor — res/XX.png normal), debug imza
+  YOK (release keystore). R2: apk=103305849, ipa=18873605, app-icon.png=217332, YENI index.html.
+  Purge -> CDN boyutlari birebir -> sayfa canli -> health ok -> DB temiz + api restart.
+  **KULLANICI TAM TEST YAPIYOR (2 telefonda ikon + grup goruntulu + 1:1 + indir sayfasi).**
 
 ### INDIR SAYFASI YENILENDI (18 Tem aksam — kullanici istegi "daha modern, 2D ikonlar")
 - index.html sifirdan: koyu mor tema (uygulama ikonuyla uyumlu radial glow), GERCEK uygulama

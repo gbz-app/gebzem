@@ -15,10 +15,9 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **İKONLU TOPLU BUILD KOŞUYOR** (18 Tem akşam, kullanıcı onayıyla): android 29655019115 /
-  ios 29655020136. Bitince: artifact doğrula → R2 (apk+ipa+app-icon.png+YENİ index.html) →
-  purge → boyut → DB temiz → kullanıcıya "hazır". İndir sayfası yenilendi (mor tema + SVG
-  ikonlar + gerçek uygulama ikonu; kaynak scratchpad, canlısı indir.gebzem.app/index.html).
+- YOK — İkonlu sürüm + yeni indir sayfası 18 Tem akşam YAYINLANDI (apk=103305849,
+  ipa=18873605, DB temiz). **Kullanıcı tam test yapıyor** — bulgular gelince düzeltme turu.
+  Sonraki adaylar: test bulguları → geç-katılma/kişi-ekleme → kalıcı grup sohbeti → Spaces.
 - Grup görüntülü fazı 18 Tem akşam YAYINLANDI (oturum.md "Oturum 16": adımlar, test rehberi,
   bilinen sınırlar). Sonraki adaylar: test bulguları → geç-katılma/kişi-ekleme → kalıcı grup
   sohbeti → Spaces (yol haritası).
