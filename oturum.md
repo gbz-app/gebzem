@@ -959,6 +959,36 @@ go build + flutter analyze TEMIZ.
 - SIRADAKI (kullanici onayli sira): kullanici oda testi -> kapsamli test -> CANLI YAYIN ->
   arayuz yenileme -> guvenlik denetimi.
 
+### CANLI YAYIN UYGULANDI (18-19 Tem gece — plan Bolum 2 + Baglayici Kararlar)
+**Kullanici talimati:** "sen canli yayini yap, build oncesi COK KAPSAMLI bug-fix arastirmasi,
+derinlemesine, step step, temiz build" + indir sayfasina SAAT eklendi (23:35'te canliya alindi,
+artik her yayinda guncellenecek).
+**Backend (CANLIDA, 21d951c):** migration 009 (streams + stream_reports + stream_audit FK'siz +
+uq_ledger_idem user_id'li) + internal/streams: start (CreateRoom 310 override + nabiz) / watch
+(engel+ban+kapasite 300+ZADD) / heartbeat (yayinci pub 45sn, izleyici ZAddXX) / leave / end
+(idempotent) / chat (uyelik+2sn throttle -> SendData relay) / heart (kisi-basi 1sn + INCR,
+sweeper 5sn'de toplu yayin) / gift (TEK TX: FOR UPDATE + atomik bakiye + 23505 duplicate +
+commit-sonrasi fan-out) / report (unique) / kick (ban SADD) / admin list+end (5651).
+Sweeper 15sn: olu izleyici 45sn + viewer_peak + sayac-degistiyse-yayin + yayinci nabzi
+(live->paused + grace 60sn -> ended; nabiz donerse resumed) + 12h emniyet.
+TUM istemci token'larinda canPublishData:false (yayinci dahil) -> sahte hediye/chat data'si
+IMKANSIZ; izleyici hidden:true (gir/cikis sinyal firtinasi yok).
+**curl testleri 8/8 GECTI** (scratchpad/yayin-test.sh): baslat+katalog, 2. yayin 409, izleyici
+token hidden+publish-yok (jwt), chat throttle 429, hediye 100->90 + duplicate + roket 402 +
+yayinci 110, kick->403, end idempotent, end-sonrasi watch 410.
+**Flutter (live/ yeni klasor, 0dde5ad):** live_provider (REST) + live_widgets (chat seridi,
+kalp katmani TweenAnimationBuilder, hediye patlamasi) + live_tab (kesfet + Yayin baslat) +
+live_start_screen (Room'suz kamera ONIZLEME + baslik; baslarken track tam birakilir) +
+live_broadcast_screen (tam ekran kendi kamera, 720p VP8 profili AYNEN, izleyici sayaci,
+chat/hediye/kalp SendData'dan salt-alici, kamera cevir/mic/bitir; nabiz 15sn) +
+live_viewer_screen (mic izinsiz subscribe-only, durakladi-overlay, chat input REST, kalp
+istemci-throttle+kendi-kalbi-aninda, hediye sheet, rapor butonu). Spaces'ten alinan dersler
+BASTAN uygulandi: popUntil rota-adi cikisi, muhafiz-tekrari, mounted-connect-muhafizi,
+kesinti toparlama observer, iOS ses sirasi. Canli sekmesi dolduruldu (placeholder kalkti).
+flutter analyze TEMIZ. NOT: LiveKit port araligi genisletme (plan Adim 8, 200->1000 port)
+BILEREK YAPILMADI — livekit restart canli aramalari dusurur; test doneminde 200 port yeter,
+gercek kapasite oncesi bakim penceresinde yapilacak.
+
 ### INDIR SAYFASI YENILENDI (18 Tem aksam — kullanici istegi "daha modern, 2D ikonlar")
 - index.html sifirdan: koyu mor tema (uygulama ikonuyla uyumlu radial glow), GERCEK uygulama
   ikonu goruntusu (app-icon.png = web-512.png R2'de), duz SVG ikonlar (Apple/Android logo,
