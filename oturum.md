@@ -835,10 +835,14 @@ adimdan SONRA guncellenip push'lanacak — pencere kapansa bile tam kalinan yer 
       Bilinen sinir (kabul, prototip): kotu niyetli istemci kamera muhafizini asabilir
       (LiveKit token canPublish kisitsiz); gercek cozum canPublishSources/webhook — ileriki is.
       flutter analyze + go build TEMIZ.
-- [ ] **G6b curl regresyon (deploy sonrasi):** sesli grup baslat/katil/ayril + video 9 kisi RED +
-      1:1 regresyon.
-- [ ] **G7 yayin:** backend deploy + android/ios build izle + debug-imza kontrol + R2 + purge +
-      boyut==yerel + DB temiz + oturum.md/CLAUDE.md guncelle. Ancak sonra "hazir".
+- [x] **G7a backend deploy:** 8225a60 sunucuda, compose rebuild, health ok (18 Tem ~19:35).
+- [x] **G6b curl regresyon (CANLIDA GECTI, scratchpad/grup-video-test.sh, 9 test kullanicisi):**
+      T1 sesli grup baslat/katil/1-ayril-arama-SURER/son-ayril-ended ✅ · T2 goruntulu 9 kisi ->
+      HTTP 400 "en fazla 8 kisi" ✅ · T3 goruntulu 8 kisi -> 201+token ✅ · T4 1:1 start/answer
+      (elapsed_ms=3, sure senkron calisiyor)/end + gecmis is_group=false ✅.
+- [~] **G7b build:** android 29652346826 + ios 29652347664 tetiklendi (18 Tem 19:37), izleniyor.
+- [ ] **G7c yayin:** artifact indir + debug-imza kontrol + R2 + purge + boyut==yerel + DB temiz
+      (test kullanicilari dahil silinir) + md guncelle. Ancak sonra "hazir".
 
 ### RISKLER / DIKKAT (kodlarken tekrar oku)
 - 1:1 koduna DOKUNMA — tum degisiklikler `isGroup` dallarinda. Sesli grup gorunumu video track

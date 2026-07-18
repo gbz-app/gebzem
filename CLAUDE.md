@@ -17,9 +17,9 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
 - **İş: GRUP GÖRÜNTÜLÜ ARAMA** (başladı: 18 Tem 2026 akşam). Detaylı adım listesi + durum işaretleri:
   `oturum.md` → "Oturum 16 — GRUP GORUNTULU ARAMA" bölümü (G1-G7 adımları, riskler dahil).
-- Durum: G1-G6a TAMAM (adversarial doğrulama 2 kusur buldu, ikisi de düzeltildi: grid safe-area
-  kırpılması + mid-call kamera kapasite muhafızı; analiz/derleme temiz). Sırada: G7 backend
-  deploy → G6b curl regresyon → build/yayın rutini (dağıtım kontrol listesi).
+- Durum: G1-G6 TAMAM (doğrulama kusurları düzeltildi; backend 8225a60 CANLIDA, curl regresyon
+  4/4 geçti). G7b: build'ler koşuyor (android 29652346826 / ios 29652347664, 18 Tem 19:37).
+  Kalan: artifact doğrula → R2 + purge + boyut → DB temiz → "hazır" de.
 - Kritik bağlam: backend startGroup videoyu zaten destekliyordu; eklenenler = kapasite sınırı
   (video≤8/sesli≤32), grup düşük video profili (540p), grid video tile, başlatma ekranı seçimi,
   grup kamera butonu, overlay metni. 1:1 ve SESLİ grup davranışı DEĞİŞMEDİ (isGroup dalları +
