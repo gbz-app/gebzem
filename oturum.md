@@ -893,6 +893,31 @@ Kullanici karari (aynen): plan gelince ODA (Spaces) dikkatlice bitirilecek + bui
 guvenlik aciklari dahil TAM KAPSAMLI test -> bitis. Plan workflow'u: wf_853d55bc (3 uzman plan +
 eleştirmen catlak analizi; cikti oda-yayin-plani.md olacak).
 
+### SPACES (SESLI ODA) UYGULANDI (18 Tem gece — plan: oda-yayin-plani.md Bolum 1)
+**Backend (CANLIDA, fae3122):**
+- migration 008 (rooms + room_participants + room_audit FK'siz append-only 5651 izi)
+- internal/livekit (YENI ortak paket): HS256 AccessToken + SDK'siz twirp RoomService istemcisi
+  (CreateRoom/UpdateParticipant/GetParticipant/MuteTrack/RemoveParticipant/DeleteRoom/SendData);
+  adres env LIVEKIT_API_URL (vars. http://167.233.229.88:7880)
+- internal/rooms: 11 uc (create/list/get/join/leave/raise-hand/promote/demote/mute/remove/end)
+  + sweep (host kopmasi 2dk / bos oda 2dk / 8sa emniyet). Kurallar: rol kaynagi DB; dinleyici
+  token canPublish:false+data:false; el kaldirma REST (10sn throttle); Create'te CreateRoom
+  kapasite override (520 — global max_participants:32 tuzagi); promote sirasi DB->LiveKit->WS
+  (gercek hatada rollback; "not found"=bagli-degil rol DB'de kalir); remove=kalici ban (join 403);
+  fan-out kurali (dinleyici olaylari yalniz yonetime). livekit-compose image v1.13.3'e PINLENDI
+  (calisan surumle ayni; once dogrulandi) + aktif arama 0'ken uygulandi.
+- **curl testleri 9/9 GECTI** (scratchpad/oda-test.sh): ac+kesfet, 2. oda 409, dinleyici token
+  canPublish:false (jwt decode), el+throttle 429, promote+rejoin rol korunur, demote+mute,
+  remove->join 403, end idempotent (ILK KOSUDA BULGU: 2. end 403 donuyordu -> duzeltildi,
+  yeniden deploy), 1:1 arama regresyon OK.
+**Flutter (rooms/ yeni klasor):** room_provider (REST kopruleri + kesfet provider), rooms_tab
+  (kesfet listesi + 15sn tazeleme + Oda ac sheet + aramadayken muhafiz), room_screen (Spaces
+  ekrani: CallRoomLock + iOS ses sirasi mic->hoparlor->_sesiAc-EN-SON + relay ICE + timeout'lu
+  teardown — call_screen desenleri KOPYA, dosyaya dokunulmadi; rol WS'ten canli degisir,
+  terfi aninda mic izni istenir; host katilimci sheet'i: eller/sustur/indir/at; ekranAcildi
+  muhafizi 'oda_<id>'). home_screen: Odalar sekmesi dolduruldu (yalniz 2 satir degisti).
+  flutter analyze TEMIZ. Canli yayin sekmesi SONRAKI faz.
+
 ### INDIR SAYFASI YENILENDI (18 Tem aksam — kullanici istegi "daha modern, 2D ikonlar")
 - index.html sifirdan: koyu mor tema (uygulama ikonuyla uyumlu radial glow), GERCEK uygulama
   ikonu goruntusu (app-icon.png = web-512.png R2'de), duz SVG ikonlar (Apple/Android logo,

@@ -16,12 +16,14 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
 - **İş: SPACES (SESLİ ODA) — kullanıcı onaylı sıra (18 Tem gece):**
-  1) Plan workflow'u (wf_853d55bc: 3 uzman + eleştirmen) bitince → **oda-yayin-plani.md** yaz
-  2) Spaces'i DİKKATLİCE uçtan uca bitir (backend → curl test → Flutter → adversarial doğrulama)
-  3) Build + yayın rutini → kullanıcı DIŞARIDA odayı + ikonlu sürümü test edecek
-  4) Sonra sırayla: kapsamlı test → CANLI YAYIN → arayüz yenileme → güvenlik denetimi
-     (tam kapsamlı: açık taraması vb.) → bitiş. Kullanıcının kendi sözü: "step step bitir".
-- Durum: plan workflow'u koşuyor; ikonlu sürüm + yeni indir sayfası YAYINDA (kullanıcı test ediyor).
+  1) ✅ oda-yayin-plani.md yazıldı (0bfa111)
+  2) ✅ Spaces backend CANLIDA (fae3122, curl 9/9) + Flutter rooms/ yazıldı (analiz temiz)
+  3) ŞİMDİ: adversarial doğrulama → düzeltmeler → build + yayın rutini → kullanıcı DIŞARIDA
+     odayı + ikonlu sürümü test edecek
+  4) Sonra sırayla: kapsamlı test → CANLI YAYIN → arayüz yenileme → güvenlik denetimi → bitiş.
+- Spaces özet: /rooms uçları (11), rol=DB, dinleyici publish yok, el kaldırma REST, sweep,
+  LiveKit pin v1.13.3, internal/livekit ortak twirp paketi. Odalar sekmesi dolu; Canlı sekmesi
+  placeholder (sonraki faz).
 - Grup görüntülü fazı 18 Tem akşam YAYINLANDI (oturum.md "Oturum 16": adımlar, test rehberi,
   bilinen sınırlar). Sonraki adaylar: test bulguları → geç-katılma/kişi-ekleme → kalıcı grup
   sohbeti → Spaces (yol haritası).

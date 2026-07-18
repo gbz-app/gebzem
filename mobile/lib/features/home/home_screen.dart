@@ -8,6 +8,7 @@ import '../auth/auth_provider.dart';
 import '../auth/permissions_screen.dart';
 import '../calls/calls_tab.dart';
 import '../chats/chats_screen.dart';
+import '../rooms/rooms_tab.dart';
 
 /// Ana kabuk: 5 sekmeli alt menu (ozellik-listesi.md'deki yapi)
 /// Sohbetler aktif; Aramalar/Odalar/Canli sonraki fazlarda doluyor
@@ -74,7 +75,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         children: const [
           ChatsScreen(),
           CallsTab(),
-          _PhasePlaceholder(icon: LucideIcons.audioLines, text: 'Sesli odalar\nFaz 4\'te geliyor'),
+          RoomsTab(), // SPACES (sesli oda) — kesfet + oda ac
           _PhasePlaceholder(icon: LucideIcons.radioTower, text: 'Canli yayinlar\nFaz 4\'te geliyor'),
           _ProfileTab(),
         ],
