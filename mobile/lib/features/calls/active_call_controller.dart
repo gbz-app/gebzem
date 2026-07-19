@@ -114,6 +114,12 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
   // eklemez, ~1-2sn kaybettirir). Bayrak YALNIZ baslat()'ta true olur — re-arm/resume
   // yollari eski delta-sartli davranista kalir (SORUN-6 korunur).
   bool _kanitIlkDeneme = false;
+  // TEST TURU 4: iOS'ta packetsReceived (RTP jitter buffer'a VARIS) sayaci ACAR ama
+  // AVAudioSession PLAYOUT henuz baslamamis olabilir -> "sayiyor ama ses yok". iOS'ta
+  // fast-path totalAudioEnergy (decode/playout kaniti) delta'sina baglanir; Android'de
+  // paket-varisi yeterli (mevcut hizli davranis). Bu alanlar iOS enerji-kapisinin state'i.
+  double _kanitEnerjiBaz = -1;
+  int _kanitSessizTick = 0; // paket akiyor ama enerji 0 (sessiz) — 4 tick sonra dururst fallback
   // FAZ-0 GECICI OLCUM (uretim oncesi ses-teshisle birlikte kaldirilacak): kabul aninden
   // sese kadar asama sureleri (ms) — fix oncesi/sonrasi karsilastirma icin sunucuya raporlanir.
   Stopwatch? _kurulumSaat;
@@ -262,6 +268,8 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     _kanitRecvToplam = -1;
     _kanitOkunabildi = false;
     _kanitIlkDeneme = true; // FAZ-1A: fast-path yalniz taze aramanin ilk bekcisinde
+    _kanitEnerjiBaz = -1;
+    _kanitSessizTick = 0;
     _kurulumSaat = Stopwatch()..start(); // FAZ-0 GECICI olcum
     _kurulumAsama = {};
     _sesNesli = null;
@@ -876,6 +884,8 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     if (_kanitIlkDeneme && (_kanitTimer?.isActive ?? false)) return;
     _kanitTimer?.cancel();
     _kanitRecvToplam = -1;
+    _kanitEnerjiBaz = -1;
+    _kanitSessizTick = 0;
     final id = arama?.callId;
     _kanitTimer = Timer.periodic(const Duration(milliseconds: 400), (_) async {
       if (arama?.callId != id || _ayrildi || _mediaBasladi) {
@@ -884,6 +894,7 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       }
       var muteVar = false;
       var toplam = 0;
+      var enerjiToplam = 0.0;
       var trackVar = false;
       for (final p in _room?.remoteParticipants.values ?? const <RemoteParticipant>[]) {
         for (final pub in p.audioTrackPublications) {
@@ -896,6 +907,8 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
               if (s != null) {
                 _kanitOkunabildi = true;
                 toplam += (s.packetsReceived ?? 0).toInt();
+                // totalAudioEnergy = decode/playout yolu (RRT varisindan DAHA GUCLU kanit)
+                enerjiToplam += (s.totalAudioEnergy ?? 0).toDouble();
               }
             } catch (_) {}
           }
@@ -909,7 +922,37 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
         return;
       }
       if (!trackVar) return;
-      // FAZ-1A FAST-PATH: taze aramada ilk okumada kumulatif > 0 = akis kanitli, delta bekleme
+
+      // iOS: sayac GERCEK PLAYOUT ile acilir (packetsReceived degil totalAudioEnergy) —
+      // "sayiyor ama ses yok" bulgusunun kok fix'i. Android: paket-varisi yeterli (hizli).
+      if (Platform.isIOS) {
+        final playoutBasladi = _kanitEnerjiBaz < 0
+            ? enerjiToplam > 0 // taze: enerji zaten>0 ise decode akiyor
+            : enerjiToplam > _kanitEnerjiBaz; // sonra: enerji ARTIYOR = canli playout
+        if (playoutBasladi) {
+          _kanitTimer?.cancel();
+          _sesLog('ses kaniti (iOS): playout enerjisi dogrulandi — sayac aciliyor');
+          _mediaBaslat();
+          return;
+        }
+        // SESSIZ-AKIS DURUSTLUGU: paket akiyor ama enerji 0 (karsi taraf gercekten sessiz
+        // ya da iOS unit gec) -> 4 tick (~1.6s) sonra 'Baglaniyor'da asili birakma, ac.
+        if (toplam > (_kanitRecvToplam < 0 ? -1 : _kanitRecvToplam)) {
+          _kanitSessizTick++;
+          if (_kanitSessizTick >= 4) {
+            _kanitTimer?.cancel();
+            _sesLog('ses kaniti (iOS): sessiz-akis fallback (~1.6s) — sayac aciliyor');
+            _mediaBaslat();
+            return;
+          }
+        }
+        _kanitRecvToplam = toplam;
+        _kanitEnerjiBaz = enerjiToplam;
+        _kanitIlkDeneme = false;
+        return;
+      }
+
+      // ANDROID (mevcut hizli davranis AYNEN): paket-varisi = kanit
       if (_kanitIlkDeneme && _kanitRecvToplam < 0 && toplam > 0) {
         _kanitIlkDeneme = false;
         _kanitTimer?.cancel();

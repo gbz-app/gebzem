@@ -1418,3 +1418,11 @@ Kullanici bulgulari:
    AVSampleBufferDisplayLayer; flutter_webrtc 1.4.0 pod'unda sharedSingleton/remoteTrackForId DOGRULANDI.
    Kullanici artik acikca istiyor -> bu turda yapilacak (guvenli dilim + fallback).
 Hukum gelince: konuk-split crash (sifir risk) -> iphone fast-path -> iOS PiP (native) -> temiz build.
+
+### HIZ/BUG HUKMU (wf_f7479b62) — BUILD A UYGULANDI + BUILD B (iOS PiP) AYRI
+Kok: (1) canli ekran uzak-video getter'lari muted/teardown gormuyordu + mute/unpublish event'leri dinlenmiyordu -> konuk atilinca split donuk SIYAH + gecis crash penceresi. (2) iOS fast-path playout kaniti olmadan RTP-varisinda sayaci aciyordu -> "sayiyor ama ses yok".
+- [x] BUILD A Plan1: 3 getter (broadcast _konukVideo/_konukIdBul, viewer _video/_konukVideo remote dali) !pub.muted; broadcast+viewer listener zincirine TrackMuted/Unmuted/Unpublished (setState). Self/lokal/_kameram DOKUNULMADI.
+- [x] BUILD A Plan2: iOS fast-path totalAudioEnergy (playout) kapisi — taze enerji>0, sonra enerji-delta>0; sessiz-akis 4-tick(~1.6s) durust fallback; Android paket-varisi AYNEN.
+- [ ] BUILD A: build + dagitim + DB temizle
+- [ ] BUILD B (AYRI, sonraki): iOS sistem PiP (AVPictureInPictureController + AVSampleBufferDisplayLayer; sharedSingleton/remoteTrackForId 1.4.0 DOGRULANDI; guvenli dilim 1:1 uzak-video; FALLBACK kurulamazsa bugunku kamera-mute avatar). Yargic: A'yi rehin almasin diye AYRI build.
+AYRICA (mercek disi, kullanici tekrar dedi): indir sayfasi saat — statik sayfa isi, ayri.

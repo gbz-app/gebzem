@@ -155,6 +155,18 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
         ..on<lk.TrackUnsubscribedEvent>((_) {
           if (mounted) setState(() {});
         })
+        // KONUK ATILMA BUG'I (test turu 4): konuk cikarilinca izin geri alinir ->
+        // track MUTE/UNPUBLISH olur (unsubscribe DEGIL — hemen gelmez). Bu event'ler
+        // dinlenmezse split KALKMAZ, alt panel SIYAH kalir + gecis frame'inde crash.
+        ..on<lk.TrackMutedEvent>((_) {
+          if (mounted) setState(() {});
+        })
+        ..on<lk.TrackUnmutedEvent>((_) {
+          if (mounted) setState(() {});
+        })
+        ..on<lk.TrackUnpublishedEvent>((_) {
+          if (mounted) setState(() {});
+        })
         ..on<lk.RoomDisconnectedEvent>((_) {
           // admin end / DeleteRoom / KALICI ag kopmasi -> cik. Sunucuya bitir GONDER
           // (idempotent; kalici istemci kopmasi sunucuda zombi live/paused birakmasin —
@@ -246,11 +258,15 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
     }
   }
 
-  /// Konugun uzak videosu — TRACK-BAZLI (dusurulen konugun track'siz participant'i gorunmez)
+  /// Konugun uzak videosu — TRACK-BAZLI. !muted SART (test turu 4): konuk atilinca track
+  /// mute/unpublish olur ama pub.track bir sure null olmaz -> muted bakilmazsa split donuk
+  /// SIYAH kalir. muted konuk = split kalkar, tam ekrana doner (call_screen _remoteVideo deseni).
   lk.VideoTrack? get _konukVideo {
     for (final p in _room?.remoteParticipants.values ?? const <lk.RemoteParticipant>[]) {
       for (final pub in p.videoTrackPublications) {
-        if (pub.subscribed && pub.track != null) return pub.track as lk.VideoTrack;
+        if (pub.subscribed && !pub.muted && pub.track != null) {
+          return pub.track as lk.VideoTrack;
+        }
       }
     }
     return null;
@@ -284,7 +300,7 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
     if (_konukId.isNotEmpty) return _konukId;
     for (final p in _room?.remoteParticipants.values ?? const <lk.RemoteParticipant>[]) {
       for (final pub in p.videoTrackPublications) {
-        if (pub.subscribed && pub.track != null) return p.identity;
+        if (pub.subscribed && !pub.muted && pub.track != null) return p.identity;
       }
     }
     return '';

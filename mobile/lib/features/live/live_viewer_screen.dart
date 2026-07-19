@@ -162,6 +162,17 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
         ..on<lk.TrackUnsubscribedEvent>((_) {
           if (mounted) setState(() {});
         })
+        // KONUK ATILMA BUG'I (test turu 4): konuk cikarilinca track MUTE/UNPUBLISH olur
+        // (unsubscribe hemen gelmez) — bu event'ler dinlenmezse split KALKMAZ, siyah kalir.
+        ..on<lk.TrackMutedEvent>((_) {
+          if (mounted) setState(() {});
+        })
+        ..on<lk.TrackUnmutedEvent>((_) {
+          if (mounted) setState(() {});
+        })
+        ..on<lk.TrackUnpublishedEvent>((_) {
+          if (mounted) setState(() {});
+        })
         ..on<lk.RoomReconnectedEvent>((_) {
           // FULL reconnect grant'i TOKEN'dan yukler (izleyici=publish kapali) — konuksam
           // sunucudan izni idempotent geri iste (D4).
@@ -515,9 +526,12 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
   /// konuk yayina baslayinca tam ekrani KAPMASIN, PiP'te kalsin).
   lk.VideoTrack? get _video {
     for (final p in _room?.remoteParticipants.values ?? const <lk.RemoteParticipant>[]) {
-      if (p.identity != widget.yayinciId) continue;
+      if (p.identity != widget.yayinciId) continue; // yayinci-identity filtresi KORUNUR
       for (final pub in p.videoTrackPublications) {
-        if (pub.subscribed && pub.track != null) return pub.track as lk.VideoTrack;
+        // !muted (test turu 4): yayinci kamerayi kapatirsa "Goruntu bekleniyor"e dusmeli
+        if (pub.subscribed && !pub.muted && pub.track != null) {
+          return pub.track as lk.VideoTrack;
+        }
       }
     }
     return null;
@@ -530,10 +544,14 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
       final t = _room?.localParticipant?.videoTrackPublications.firstOrNull?.track;
       return t is lk.VideoTrack ? t : null;
     }
+    // UZAK konuk (ben degilim): !muted SART (test turu 4 — atilinca split kalksin).
+    // LOKAL dal (_konukum, yukarida) muted-check ALMAZ (kendi kameram — hukum).
     for (final p in _room?.remoteParticipants.values ?? const <lk.RemoteParticipant>[]) {
       if (p.identity == widget.yayinciId) continue;
       for (final pub in p.videoTrackPublications) {
-        if (pub.subscribed && pub.track != null) return pub.track as lk.VideoTrack;
+        if (pub.subscribed && !pub.muted && pub.track != null) {
+          return pub.track as lk.VideoTrack;
+        }
       }
     }
     return null;
