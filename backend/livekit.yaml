@@ -7,6 +7,9 @@ rtc:
   port_range_start: 50000
   port_range_end: 50200
   use_external_ip: true
+  # FAZ-2 HIZ: ICE-Lite — sunucu tarafi aday toplama/kontrol basitlesir, baglanti kurulumunda
+  # ~50-150ms kazanc. Geri alma: bu satiri sil + livekit force-recreate.
+  use_ice_lite: true
   # Docker ic aglarini ICE adayi olarak yayinlama (aksi halde istemci bosuna dener)
   interfaces:
     excludes:

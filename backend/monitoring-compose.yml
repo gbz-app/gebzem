@@ -61,6 +61,7 @@ services:
       - caddydata:/data
     ports:
       - "80:80"
+      - "7443:7443" # FAZ-3B: dogrudan LiveKit sinyali (rtcd.gebzem.app)
 
 volumes:
   netdataconfig:

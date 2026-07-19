@@ -1,6 +1,14 @@
 # Izleme panelleri icin sifreli kapi (Cloudflare HTTPS'i saglar, Caddy 80'de dinler)
+# FAZ-3B: auto_https disable_redirects — http:// semali siteler cert DENEMEZ (eski davranis),
+# ama asagidaki https://rtcd:7443 sitesi icin Let's Encrypt (HTTP-01, port 80) alinabilir.
 {
-	auto_https off
+	auto_https disable_redirects
+}
+
+# FAZ-3B HIZ: dogrudan sinyal (Cloudflare'siz WSS) — LIVEKIT_URL flip'i fallback'li build
+# sahadayken yapilir; geri alma = .env'de eski adres + api restart (aninda).
+https://rtcd.gebzem.app:7443 {
+	reverse_proxy 172.17.0.1:7880
 }
 
 # API: uygulama buradan konusur (Cloudflare HTTPS sonlandirir)
