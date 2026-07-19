@@ -1341,8 +1341,31 @@ force-quit dinleyici DB'de kaliyor. (5) Yayin: tek yayin noktasi 15sn sweep.
       packetsReceived toplami artarsa VEYA muted ise _mediaBaslat) + TrackSubscribed/odaya-
       baglan-sonu bekciye baglama + 8sn yedek: stats okunamiyorsa eski davranis, okunuyor+0
       ise ACMA + grupta 'Katilim bekleniyor...'
-- [ ] FAZ 8 build (Android+iOS tek tur) + dagitim rutini + DB temizle + test recetesi
+- [x] FAZ 8 YAYINLANDI (19 Tem 23:05): android 29701273263 + ios 29701274186 BASARILI,
+      debug imza YOK; R2 apk=104864969 ipa=19066106; purge OK; CDN boyutlar birebir;
+      index 23:05; DB temiz + api restart; health ok.
 YAPMA listesi ve cihaz test recetesi: workflow ciktisinda (tasks/wpxjs72jw.output) — okundu,
 ozet: didActivate govdesine dokunma, sure senkron/leave-tek-kapi/CallRoomLock/IgnorePointer/
 yayinci-filtre korunur, PiP minimize DEGILDIR, room fan-out Karar 8 kalir.
 - arama.mp3 (repo koku) coplugu: assets'teki degil, kok dizindeki KALINTI — bu oturumda silinecek.
+
+### 6-SORUN FIX SURUMU YAYINLANDI (19 Tem 23:05) — KULLANICI TEST EDECEK
+**TEST RECETESI (oncelik sirasi — yargic recetesinin ozeti):**
+1) ILK ARAMA SESI (EN KRITIK): iPhone'u TAM kapat/ac -> Android'den GRUP goruntulu ara ->
+   kilit ekranindan kabul -> SES IKI YONDE ILK DENEMEDE gelmeli. Gelmezse 6-10sn icinde
+   kendini onarmali (admin panel Ses Teshis: turuncu KURTARMA satiri + SES-VAR'a donus).
+   EN AZ 5 kez "ilk arama" kosulunda dene (aralarda uygulamayi oldur).
+2) SURE SAYACI: ses gelmeden sayac ASLA baslamamali ("Baglaniyor..." / grupta "Katilim
+   bekleniyor..."); ses gelince baslar; 1:1'de iki cihaz senkron (gercek gecen sureden).
+3) ANDROID PiP: goruntulu aramada HOME -> yuzen kucuk pencere, gorusme AKMAYA devam eder;
+   pencereye dokun -> tam ekran. Sesli aramada PiP CIKMAZ (tasarim geregi). PiP acilamayan
+   durumda karsi taraf DONUK KARE degil "kamera kapali" avatar gormeli; donunce video geri.
+4) KONUK SPLIT: konuk canliya alininca UC ekranda da dikey bolunmus gorunum (ust yayinci /
+   alt konuk); konuk ayrilinca/atilinca HERKES ~1sn icinde tam ekrana doner; kalp/hediye/
+   chat panellerin USTUNDE akar.
+5) SAYACLAR: yayina giren/cikan ANINDA 👁 degisir (15sn bekleme YOK); odada dinleyici
+   katilinca/cikinca aninda degisir; uygulamasi oldurulen yayin izleyicisi ~60sn, oda
+   dinleyicisi ~1-2dk icinde duser (sunucu: docker logs api | grep sweep-stale).
+6) REGRESYON: 1:1 sesli+goruntulu, minimize+bant+mesaj ikonu, CallKit kilit ekrani,
+   art arda aramalar, grup HOST mic (onceki fix), davet/konuk akislari, cikis-giris
+   sonrasi gelen arama.

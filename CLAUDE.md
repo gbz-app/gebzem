@@ -15,11 +15,15 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **İş: SPACES (SESLİ ODA) — kullanıcı onaylı sıra (18 Tem gece):**
-- YOK — **SPACES (sesli oda) YAYINLANDI** (18 Tem gece, a06a2d5): backend canlı, doğrulama
-  20 bulgu düzeltildi (2 blocker dahil), build+R2+purge+DB temiz. **Kullanıcı dışarıda oda
-  testi yapacak** (rehber: oturum.md "SPACES SURUMU YAYINLANDI"). Sonra sırayla: kapsamlı
-  test → CANLI YAYIN (plan hazır: oda-yayin-plani.md Bölüm 2) → arayüz → güvenlik denetimi.
+- YOK — **6-SORUN FIX SÜRÜMÜ YAYINLANDI (19 Tem 23:05):** ilk-arama-ses kökten çözüm
+  (AppDelegate zorla-toggle + 3 kurtarma ağı), süre kanıt bekçisi (sayaç yalnız gerçek
+  sesle başlar), Android sistem PiP + arka plan kamera-mute (donma fix), konuk SPLIT ekran,
+  anlık izleyici/dinleyici sayaçları (backend deploy edildi). **Kullanıcı test edecek**
+  (reçete: oturum.md "6-SORUN FIX SURUMU YAYINLANDI"). Sonra: test bulguları → arayüz →
+  güvenlik denetimi.
+- Bu oturumda ayrıca YAYINLANDI (19 Tem 20:20 sürümü): Faz-A/B/C (minimize+yeşil bant,
+  mesaj ikonu, kişi ekleme, davet, konuk+listeler, 30 hediye, 10k jeton) + 16 tarama fix'i.
+  Mimari: aktif arama ActiveCallController'da (tuzaklar bölümüne bakın).
 - Spaces özet: /rooms uçları (11), rol=DB, dinleyici publish yok, el kaldırma REST, sweep
   (LiveKit ListRooms kontrolü dahil), LiveKit pin v1.13.3, internal/livekit ortak twirp paketi.
 - Grup görüntülü fazı 18 Tem akşam YAYINLANDI (oturum.md "Oturum 16": adımlar, test rehberi,
