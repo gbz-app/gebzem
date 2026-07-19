@@ -62,8 +62,20 @@ import flutter_callkit_incoming
           do { try s.setConfiguration(RTCAudioSessionConfiguration.webRTC(), active: true) }
           catch { NSLog("gebzem/audio hazirlik hatasi: \(error)") }
           s.unlockForConfiguration()
+          // FAZ-7 ILK-ARAMA-SES FIX'I (19 Tem kaniti: sent=0 + enerji=0 + kategori DOGRU):
+          // CallKit didActivate, isAudioEnabled=true'yu WebRTC audio unit HENUZ YOKKEN
+          // yapmis olabilir -> unit OLU dogar; buradaki duz atama setter fark-kontroluyle
+          // NO-OP kalir ve olu unit asla yeniden kurulmaz. ZORLA TOGGLE: bayrak zaten
+          // true ise once false'a cek (unit'i sok), sonra true (temiz kur). Saglikli
+          // aramada bedeli ~50-150ms yeniden kurulum — sesin hic olmamasina tercih edilir.
+          if s.isAudioEnabled {
+            NSLog("gebzem/audio unit rebuild (zorla toggle)")
+            s.isAudioEnabled = false
+          }
+          s.isAudioEnabled = true
+        } else {
+          s.isAudioEnabled = false
         }
-        s.isAudioEnabled = ac
         result(nil)
       } else if call.method == "getAudioState" {
         // TESHIS: iOS ses cikis durumu. "paket geliyor ama ses duyulmuyor" -> burada
@@ -86,6 +98,7 @@ import flutter_callkit_incoming
   // MARK: - CallkitIncomingAppDelegate (plugin UIApplication.shared.delegate uzerinden cagirir)
   // CallKit sesi aktive edince WebRTC'ye devret + ses birimini AC (asil duzeltme).
   func didActivateAudioSession(_ audioSession: AVAudioSession) {
+    NSLog("gebzem/audio didActivate") // FAZ-7 teshis: _sesiAc(true) ile sira izlenir
     RTCAudioSession.sharedInstance().audioSessionDidActivate(audioSession)
     RTCAudioSession.sharedInstance().isAudioEnabled = true
   }

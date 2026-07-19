@@ -1334,7 +1334,7 @@ force-quit dinleyici DB'de kaliyor. (5) Yayin: tek yayin noktasi 15sn sweep.
       (onUserLeaveHint/autoEnter/pipDegisti) + pip_service.dart + controller (pipModunda/
       _kameraOtoKapandi/lifecycle paused kamera-mute/resume restore SIRASI) + call_screen
       (_remoteVideo muted serti + _pipGorunum + pipDurumTazele)
-- [ ] FAZ 7 iOS SES (EN SON, EN DIKKATLI): AppDelegate setAudioEnabled ac=true'da zorla
+- [x] FAZ 7 iOS SES (EN SON, EN DIKKATLI): AppDelegate setAudioEnabled ac=true'da zorla
       toggle (false->true) + NSLog'lar; controller _statsBaslat guvenlik agi 1 (sent0 imzasi,
       paylasimli sayac) + agi 2 (_oluCikisSayaci enerji-0, 5 tick) + kurtarma payload;
       recv/energy TUM remote'lardan; SORUN-6: _sesKanitBekle (1sn, TUM publication'lar

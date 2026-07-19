@@ -101,6 +101,14 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
   double _sonMikEnerji = 0;
   int _oluMikSayaci = 0;
   bool _sesKurtarmaDenendi = false;
+  // FAZ-7 guvenlik agi 2: paket AKIYOR ama decode enerjisi hep 0 = OLU PLAYOUT adayi (iOS)
+  int _oluCikisSayaci = 0;
+  String? _sonKurtarma; // tetiklenen kurtarma imzasi — bir sonraki audioStat'a eklenir
+  // SORUN-6 SES KANIT BEKCISI: sayac yalniz GERCEK paket akisi kanitiyla baslar
+  // (TrackSubscribed sinyal-duzeyi olay — olu birimde paket olmadan da tetikleniyordu)
+  Timer? _kanitTimer;
+  int _kanitRecvToplam = -1;
+  bool _kanitOkunabildi = false; // getReceiverStats en az bir kez basarili okundu mu
 
   bool _isGroup = false; // canli deger (call.upgraded / Status is_group ile guncellenir)
   int? _sesNesli; // CallSounds nesli
@@ -185,7 +193,11 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     if (_cevapsiz) return _cevapsizNeden;
     if (_error != null) return _error!;
     if (_connecting) return 'Baglaniliyor...';
-    if (!_peerJoined) return (arama?.outgoing ?? true) ? 'Caliyor...' : 'Bekleniyor...';
+    if (!_peerJoined) {
+      // SORUN-6 adim 4: grupta 'Caliyor' yaniltici (kimse aranmiyor, katilim bekleniyor)
+      if (_isGroup) return 'Katılım bekleniyor...';
+      return (arama?.outgoing ?? true) ? 'Caliyor...' : 'Bekleniyor...';
+    }
     if (!_mediaBasladi) return 'Bağlanıyor...';
     final m = _duration.inMinutes.toString().padLeft(2, '0');
     final s = (_duration.inSeconds % 60).toString().padLeft(2, '0');
@@ -235,6 +247,11 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     _sonMikEnerji = 0;
     _oluMikSayaci = 0;
     _sesKurtarmaDenendi = false;
+    _oluCikisSayaci = 0;
+    _sonKurtarma = null;
+    _kanitTimer?.cancel();
+    _kanitRecvToplam = -1;
+    _kanitOkunabildi = false;
     _sesNesli = null;
 
     final id = b.callId;
@@ -553,8 +570,10 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
             });
           }
           if (e.track is AudioTrack) {
-            _sesLog('remote AUDIO track subscribe oldu (ses akisi basladi)');
-            _mediaBaslat();
+            // SORUN-6: subscribe SINYAL-duzeyi olay — olu birimde paket olmadan da gelir.
+            // Sayaci dogrudan baslatma; PAKET KANITI bekle (00:00 sayip ses yok bulgusu).
+            _sesLog('remote AUDIO track subscribe oldu — paket kaniti bekleniyor');
+            _sesKanitBekle();
           }
         })
         ..on<TrackUnsubscribedEvent>((_) {
@@ -607,7 +626,7 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       _peerJoined = room.remoteParticipants.isNotEmpty;
       notifyListeners();
       if (_remoteAudioHazir()) {
-        _mediaBaslat();
+        _sesKanitBekle(); // SORUN-6: resume/reconnect'te de kanitla basla
       } else if (_peerJoined) {
         _mediaGuvenlikAgi();
       }
@@ -645,14 +664,24 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       final b = arama;
       if (b == null || !_baglandi) return;
       try {
+        // FAZ-7: recv/enerji TUM remote audio track'lerden TOPLANIR (grup uyumu —
+        // firstOrNull yalniz ilk katilimciyi olcuyordu). Hic track yoksa recv=-1 kalir.
         int recv = -1;
         double energy = 0;
-        final rp = _room?.remoteParticipants.values.firstOrNull;
-        final track = rp?.audioTrackPublications.firstOrNull?.track;
-        if (track is RemoteAudioTrack) {
-          final s = await track.getReceiverStats();
-          recv = (s?.packetsReceived ?? 0).toInt();
-          energy = (s?.totalAudioEnergy ?? 0).toDouble();
+        for (final rp in _room?.remoteParticipants.values ?? const <RemoteParticipant>[]) {
+          for (final pub in rp.audioTrackPublications) {
+            final track = pub.track;
+            if (track is RemoteAudioTrack) {
+              try {
+                final s = await track.getReceiverStats();
+                if (s != null) {
+                  if (recv < 0) recv = 0;
+                  recv += (s.packetsReceived ?? 0).toInt();
+                  energy += (s.totalAudioEnergy ?? 0).toDouble();
+                }
+              } catch (_) {}
+            }
+          }
         }
         final delta = recv < 0 ? 0 : recv - _sonRecvPaket;
         if (recv >= 0) _sonRecvPaket = recv;
@@ -672,27 +701,37 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
         final mikDelta = mikEnerji - _sonMikEnerji;
         _sonMikEnerji = mikEnerji;
 
-        // OTOMATIK SES KURTARMA: mic ACIK + paket AKIYOR + capture 3 olcumdur SIFIR
-        if (_micOn && sentDelta > 60 && mikDelta <= 0.0000001) {
+        // OTOMATIK SES KURTARMA (FAZ-7 genisletildi — 19 Tem kaniti eski imzayi kacirdi):
+        // Imza A 'sentAkiyor': paket AKIYOR + capture 0 (eski imza).
+        // Imza B 'sent0': track VAR ama HIC paket cikmiyor + karsi yon AKIYOR = birim
+        // tamamen olu (sent=0 modu — mevcut kurtarma bunu KACIRIYORDU). Paylasimli
+        // 3-tick esigi ilk saniyelerin mesru 0'ini eler; kurtarma arama basina TEK sefer.
+        final sentAkiyorImza = sentDelta > 60 && mikDelta <= 0.0000001;
+        final sent0Imza =
+            sent >= 0 && sentDelta <= 0 && mikDelta <= 0.0000001 && delta > 60;
+        if (_micOn && _peerJoined && (sentAkiyorImza || sent0Imza)) {
           _oluMikSayaci++;
           if (_oluMikSayaci >= 3 && !_sesKurtarmaDenendi) {
-            _sesKurtarmaDenendi = true;
-            _sesLog('OLU MIKROFON tespit (sent akiyor, capture=0) -> ses birimi yeniden kuruluyor');
-            try {
-              await _sesiAc(false);
-              await _room?.localParticipant?.setMicrophoneEnabled(false);
-              await _room?.localParticipant?.setMicrophoneEnabled(true);
-              await _sesiAc(true);
-              _sesLog('ses birimi yeniden kuruldu (kurtarma)');
-            } catch (e) {
-              _sesLog('ses kurtarma HATA: $e');
-            }
+            await _birimYenidenKur(sentAkiyorImza ? 'sentAkiyor' : 'sent0');
           }
         } else {
           _oluMikSayaci = 0;
         }
+        // FAZ-7 guvenlik agi 2 (OLU PLAYOUT — iOS): paket AKIYOR ama decode enerjisi
+        // 5 olcumdur (10sn) tam 0 = birim ses CALMIYOR (19 Tem: recv akti, enerji 0.0).
+        // Donanim-mute kulaklik yanlis-pozitifi: 10sn + tek-seferlik = kabul edilebilir.
+        if (Platform.isIOS && delta > 60 && enerjiDelta <= 0.0000001) {
+          _oluCikisSayaci++;
+          if (_oluCikisSayaci >= 5 && !_sesKurtarmaDenendi) {
+            await _birimYenidenKur('cikisOlu');
+          }
+        } else {
+          _oluCikisSayaci = 0;
+        }
 
         final ios = await _sesDurumOku();
+        final kurtarma = _sonKurtarma;
+        _sonKurtarma = null; // tek satirda raporla
         _svc.audioStat(b.callId, {
           'recv': recv,
           'delta': delta,
@@ -705,10 +744,30 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
           'video': b.video,
           'speaker': _speakerOn,
           'peer': _peerJoined,
+          if (kurtarma != null) 'kurtarma': kurtarma,
           if (ios != null) 'ios': ios,
         });
       } catch (_) {}
     });
+  }
+
+  /// FAZ-7 ortak kurtarma govdesi: ses birimini v7 sirasi korunarak BIR KEZ yeniden kur
+  /// (_sesiAc(false) -> mic off -> mic on -> _sesiAc(true) EN SON). Imza adi sunucuya
+  /// 'kurtarma' alaniyla raporlanir (admin panelde turuncu KURTARMA satiri).
+  Future<void> _birimYenidenKur(String imza) async {
+    if (_sesKurtarmaDenendi) return;
+    _sesKurtarmaDenendi = true;
+    _sonKurtarma = imza;
+    _sesLog('OLU BIRIM tespit ($imza) -> ses birimi yeniden kuruluyor');
+    try {
+      await _sesiAc(false);
+      await _room?.localParticipant?.setMicrophoneEnabled(false);
+      await _room?.localParticipant?.setMicrophoneEnabled(true);
+      await _sesiAc(true);
+      _sesLog('ses birimi yeniden kuruldu ($imza)');
+    } catch (e) {
+      _sesLog('ses kurtarma HATA: $e');
+    }
   }
 
   /// SURE SENKRONU referansi: bir kez kilitlenir (1:1); grupta/null/negatifte yok sayilir.
@@ -753,10 +812,70 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     if (_mediaBasladi) return;
     _mediaYedek?.cancel();
     _mediaYedek = Timer(const Duration(seconds: 8), () {
-      // Peer HALA odadaysa basla (F5: hayalet sayac onlemi)
-      if (arama != null && !_mediaBasladi && (_room?.remoteParticipants.isNotEmpty ?? false)) {
-        _mediaBaslat();
+      // Peer HALA odadaysa (F5: hayalet sayac onlemi):
+      // SORUN-6 yeni anlam — stats OKUNAMIYORSA (bozuk/eski cihaz) eski davranis: sayaci
+      // ac. Stats OKUNUYOR ama paket 0 ise sayac ACILMAZ ('Baglaniyor' kalir — durust);
+      // kurtarma aglari birimi 6-10sn'de kurar, ses gelince kanit bekcisi acar.
+      if (arama == null || _mediaBasladi) return;
+      if (_room?.remoteParticipants.isNotEmpty ?? false) {
+        if (!_kanitOkunabildi) {
+          _mediaBaslat();
+        } else {
+          _sesKanitBekle(); // bekci suruyor; yedegi de yeniden kur
+          _mediaGuvenlikAgi();
+        }
       }
+    });
+  }
+
+  /// SORUN-6 SES KANIT BEKCISI: 1sn'de bir TUM remote audio publication'larin
+  /// packetsReceived TOPLAMINI okur; toplam ARTARSA (gercek ses akisi) veya publication
+  /// MUTED ise (karsi taraf bilincli sessiz — 'Baglaniyor'da asili kalma olmasin)
+  /// _mediaBaslat. Sinyal-duzeyi TrackSubscribed tek basina sayac ACAMAZ.
+  void _sesKanitBekle() {
+    if (_mediaBasladi) return;
+    _kanitTimer?.cancel();
+    _kanitRecvToplam = -1;
+    final id = arama?.callId;
+    _kanitTimer = Timer.periodic(const Duration(seconds: 1), (_) async {
+      if (arama?.callId != id || _ayrildi || _mediaBasladi) {
+        _kanitTimer?.cancel();
+        return;
+      }
+      var muteVar = false;
+      var toplam = 0;
+      var trackVar = false;
+      for (final p in _room?.remoteParticipants.values ?? const <RemoteParticipant>[]) {
+        for (final pub in p.audioTrackPublications) {
+          if (pub.muted) muteVar = true;
+          final t = pub.track;
+          if (t is RemoteAudioTrack) {
+            trackVar = true;
+            try {
+              final s = await t.getReceiverStats();
+              if (s != null) {
+                _kanitOkunabildi = true;
+                toplam += (s.packetsReceived ?? 0).toInt();
+              }
+            } catch (_) {}
+          }
+        }
+      }
+      if (arama?.callId != id || _ayrildi || _mediaBasladi) return;
+      if (muteVar) {
+        _kanitTimer?.cancel();
+        _sesLog('ses kaniti: karsi taraf muted — sayac aciliyor');
+        _mediaBaslat();
+        return;
+      }
+      if (!trackVar) return;
+      if (_kanitRecvToplam >= 0 && toplam > _kanitRecvToplam) {
+        _kanitTimer?.cancel();
+        _sesLog('ses kaniti: paket akisi dogrulandi (+${toplam - _kanitRecvToplam})');
+        _mediaBaslat();
+        return;
+      }
+      _kanitRecvToplam = toplam;
     });
   }
 
@@ -837,6 +956,7 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     _statusPoll?.cancel();
     _statsTimer?.cancel();
     _mediaYedek?.cancel();
+    _kanitTimer?.cancel(); // SORUN-6 bekcisi de dursun
     final room = _room;
     final listener = _listener;
     final nesil = _benimSesNeslim;
