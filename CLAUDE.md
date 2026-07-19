@@ -15,12 +15,15 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- YOK — **6-SORUN FIX SÜRÜMÜ YAYINLANDI (19 Tem 23:05):** ilk-arama-ses kökten çözüm
-  (AppDelegate zorla-toggle + 3 kurtarma ağı), süre kanıt bekçisi (sayaç yalnız gerçek
-  sesle başlar), Android sistem PiP + arka plan kamera-mute (donma fix), konuk SPLIT ekran,
-  anlık izleyici/dinleyici sayaçları (backend deploy edildi). **Kullanıcı test edecek**
-  (reçete: oturum.md "6-SORUN FIX SURUMU YAYINLANDI"). Sonra: test bulguları → arayüz →
-  güvenlik denetimi.
+- YOK — **HIZ SÜRÜMÜ YAYINLANDI (20 Tem 00:15):** bağlanma hızı paketi canlı — bekçi
+  fast-path + 400ms tick, kabul zinciri paralel, sinyal DOĞRUDAN (wss://rtcd.gebzem.app:7443,
+  istemcide rtc fallback'i; geri alma: compose LIVEKIT_URL + api restart), use_ice_lite,
+  KURULUM-MS ölçümü (GEÇİCİ — api loglarında). **Kullanıcı test edecek** (hedef: kabul→ses
+  ~3-4s; ölçüm karşılaştırması api log KURULUM-MS). SIRADA (planları oturum.md "HIZ HUKMU"):
+  Faz-4 ÖN-BAĞLANMA (arayan ring'de mic'siz bağlanır — arayan <1s; 6 adım + 4 muhafız hazır)
+  → Faz-5 callee ön-bağlanma → **iOS PiP** (plan hazır+doğrulandı, bilinçli ertelendi).
+  ⚠️ Ring fazında setSpeakerOn/mic/_sesiAc YASAK (track'siz setSpeakerOn bile configureAudio
+  çağırır — hardware.dart:143 kanıtı).
 - Bu oturumda ayrıca YAYINLANDI (19 Tem 20:20 sürümü): Faz-A/B/C (minimize+yeşil bant,
   mesaj ikonu, kişi ekleme, davet, konuk+listeler, 30 hediye, 10k jeton) + 16 tarama fix'i.
   Mimari: aktif arama ActiveCallController'da (tuzaklar bölümüne bakın).
