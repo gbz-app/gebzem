@@ -1255,4 +1255,26 @@ her biri 2 bagimsiz curutucu -> **16 DOGRULANDI, 3 curutuldu**. HEPSI DUZELTILDI
   (fail-closed; canlida test: dogru key 200 / eski 'gbz-izle-2026' 401).
 - Curutulenler (kayit): broadcast PiP crash (x butonu deseni), endGroup yetki, audio-tip konuk.
 **SIRADA: TEK TEMIZ BUILD + yayin rutini.**
+
+### DEV PAKET SURUMU YAYINLANDI (19 Tem 20:20) — KULLANICI TEST EDECEK
+Build android 29695914129 + ios 29695915084 BASARILI; debug imza YOK (log grep=0).
+R2: apk=104864945, ipa=19063510; purge BASARILI; CDN boyutlari birebir; health ok;
+index "19 Temmuz 2026 · 20:20". DB temiz (TRUNCATE users CASCADE + otp_codes) + api restart.
+NOT: yayin sirasinda Claude oturum limiti araya girdi (20:20 reset) — rutin kaldigi yerden
+tamamlandi, adim atlanmadi.
+**SURUM ICERIGI:** Faz-A (self-view kavis/kose, dokun-gizle, ust bar) + Faz-B (kisi ekleme,
+davet, konuk+listeler, 30 hediye, 10k jeton, 32 kisi) + Faz-C (minimize/yesil bant, mesaj
+ikonu, logout-leave) + 16 tarama fix'i (istemci 12 + backend 4; backend zaten canlida).
+**TEST REHBERI (oncelik sirasi):**
+1) ARAMA REGRESYONU: 1:1 sesli/goruntulu iki yon ses + sure senkron; art arda 3-4 arama;
+   "Baglaniliyor"da kapat + HEMEN yeni arama (stale fix #1 kaniti: yeni arama saglam olmali);
+   CallKit kilit ekrani; cevapsiz+Geri Ara; iOS-host grup mic.
+2) MINIMIZE: bagli aramada geri tusu/ok -> yesil bant; gez + mesaj at; banttan don (goruntu/
+   sure ayni); minimize'dayken karsi kapatir -> bant <=3sn gider; 5x minimize-restore;
+   minimize'dayken 3.kisiden arama -> mesgul; mesaj ikonu dogru sohbeti acar.
+3) KONUK: izleyici el butonu -> istek; yayincida rozet -> Canliya al -> konuk PiP iki tarafta;
+   konuk PiP'e DOKUN (crash olmamali — fix #4); x ile yayindan al; 👁 liste; 🪙 leaderboard
+   kirilim; davet banner + tepsi bildirimi (cift dokunus tek katilim — fix #8).
+4) CIKIS-GIRIS: logout -> relogin -> GELEN ARAMA CALMALI (fix #11 kaniti — eski surumde
+   restart gerekirdi).
 - arama.mp3 (repo koku) coplugu: assets'teki degil, kok dizindeki KALINTI — bu oturumda silinecek.
