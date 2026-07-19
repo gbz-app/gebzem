@@ -1394,10 +1394,10 @@ iOS PiP: teknik dogrulandi (sharedSingleton+remoteTrackForId var) — SONRAKI BU
 - [x] FAZ 1B: _accept paralel (unawaited zil durdur + izin answer'la paralel, baslat oncesi await)
 - [x] FAZ 1C: _callKitKabul ayni paralellestirme
 - [x] FAZ 3A: istemci sinyal fallback (rtcd basarisiz -> rtc tek retry)
-- [ ] BUILD + dagitim rutini + DB temizle
-- [ ] FAZ 2: sunucu use_ice_lite (livekit force-recreate — DB temizligiyle ayni pencere)
-- [ ] FAZ 3B: rtcd gri DNS + Caddy 7443 + ufw (api kisa kesinti — ayni pencere)
-- [ ] FAZ 3C: LIVEKIT_URL flip (YALNIZ fallback'li build dagitilip DB temizlendikten sonra)
+- [x] BUILD + dagitim: android 29703349033 + ios 29703349907 (0ae892f) BASARILI, imza temiz; R2 apk=104864969 ipa=19070008; purge OK; boyutlar birebir; index 00:15; DB temiz
+- [x] FAZ 2: use_ice_lite AKTIF (livekit force-recreate, log temiz) (livekit force-recreate — DB temizligiyle ayni pencere)
+- [x] FAZ 3B: rtcd gri DNS + Caddy 7443 (LE cert OK, curl 200/ssl_verify:0) + ufw 7443 + Caddy 7443 + ufw (api kisa kesinti — ayni pencere)
+- [x] FAZ 3C: LIVEKIT_URL=wss://rtcd.gebzem.app:7443 CANLI (compose env; geri alma tek satir) (YALNIZ fallback'li build dagitilip DB temizlendikten sonra)
 - SONRAKI SURUM: Faz 4 on-baglanma (plan hazir, 6 adim + 4 muhafiz) -> Faz 5 callee -> iOS PiP
 YAPMA (ozet): relay kalkmaz; ring fazinda setSpeakerOn/mic/_sesiAc YASAK (track'siz bile
 configureAudio cagiriyor — hardware.dart:143 kaniti); rtc.gebzem.app turuncu kaydi GRIYE
