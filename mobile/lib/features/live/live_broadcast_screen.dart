@@ -28,6 +28,7 @@ class LiveBroadcastScreen extends ConsumerStatefulWidget {
     required this.url,
     required this.token,
     required this.baslik,
+    this.onizlemeTrack,
   });
 
   final String streamId;
@@ -35,6 +36,9 @@ class LiveBroadcastScreen extends ConsumerStatefulWidget {
   final String url;
   final String token;
   final String baslik;
+  // P1 fix (hukum A1/A2): baslatma ekranindan DEVRALINAN canli kamera track'i —
+  // kamera kapat/ac yarisina girmeden publishVideoTrack ile aynen yayinlanir.
+  final lk.LocalVideoTrack? onizlemeTrack;
 
   @override
   ConsumerState<LiveBroadcastScreen> createState() => _LiveBroadcastScreenState();
@@ -55,6 +59,8 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
   bool _micOn = true;
   bool _onKamera = true; // ayna kurali: on=aynali, arka=aynasiz ("kamera ters" fix'i)
   bool _connecting = true;
+  lk.LocalVideoTrack? _devralinan; // onizlemeden devralinan track (P1)
+  bool _videoYayinda = false; // devralinan publish edildi mi (salivermede kullanilir)
   bool _ayrildi = false;
   bool _kapandi = false;
   String? _hata;
@@ -68,6 +74,7 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
     super.initState();
     _svc = ref.read(callServiceProvider.notifier);
     _svc.ekranAcildi('yayin_${widget.streamId}'); // arama muhafizi
+    _devralinan = widget.onizlemeTrack; // P1: onizlemeden devralinan kamera
     WidgetsBinding.instance.addObserver(this);
     _baglan(); // nabiz timer'i BAGLANTI BASARILI olunca baslar (dogrulama bulgusu:
     // connect patlarsa nabiz sunucuda hayalet 'live' yayini ayakta tutuyordu)
@@ -144,7 +151,21 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
       }
       // iOS ses sirasi: mic -> kamera -> hoparlor -> ses birimi EN SON (v7/v8 dersi)
       await room.localParticipant?.setMicrophoneEnabled(true);
-      await room.localParticipant?.setCameraEnabled(true);
+      if (_devralinan != null) {
+        // P1: devralinan CANLI track'i AYNEN yayinla — kamera kapat/ac yarisi HIC olusmaz.
+        try {
+          await room.localParticipant
+              ?.publishVideoTrack(_devralinan!, publishOptions: kVideoPublishOptions);
+          _videoYayinda = true;
+        } catch (e) {
+          Sentry.addBreadcrumb(Breadcrumb(
+              category: 'yayin.video',
+              message: 'devralinan track publish HATASI: $e — setCameraEnabled geri dususu'));
+          await room.localParticipant?.setCameraEnabled(true); // geri dusus (eski yol)
+        }
+      } else {
+        await room.localParticipant?.setCameraEnabled(true);
+      }
       await room.setSpeakerOn(true);
       await _sesiAc(true);
     } catch (e) {
@@ -206,6 +227,16 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
     try {
       await room?.dispose().timeout(const Duration(seconds: 3));
     } catch (_) {}
+    // P1 TEK-NOKTA SALIVERME: devralinan track publish EDILEMEDIYSE kamerayi burada birak
+    // (publish edildiyse stopLocalTrackOnUnpublish=true — room.dispose zaten kapatir).
+    final dev = _devralinan;
+    _devralinan = null;
+    if (dev != null && !_videoYayinda) {
+      try {
+        await dev.stop();
+        await dev.dispose();
+      } catch (_) {}
+    }
   }
 
   Future<void> _cik({required bool sunucuyaBildir}) async {
@@ -266,7 +297,8 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
   }
 
   lk.VideoTrack? get _kameram =>
-      _room?.localParticipant?.videoTrackPublications.firstOrNull?.track;
+      _room?.localParticipant?.videoTrackPublications.firstOrNull?.track ??
+      _devralinan; // publish tamamlanana kadar onizleme akisi gorunmeye devam eder (P1)
 
   @override
   Widget build(BuildContext context) {
@@ -283,7 +315,9 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
             child: video != null
                 ? IgnorePointer(
                     child: lk.VideoTrackRenderer(video,
-                        key: ValueKey('yayin-${video.sid}'),
+                        // KEY mediaStreamTrack.id: publish oncesi sid NULL (devralinan track
+                        // gorunurken key cakismasin — hukum A2 duzeltmesi)
+                        key: ValueKey('yayin-${video.mediaStreamTrack.id}'),
                         fit: lk.VideoViewFit.cover,
                         // auto modu bayat facingMode'la ARKA kamerada da AYNALIYORDU
                         // ("kamera ters"). On=aynali, arka=aynasiz; izleyici etkilenmez.

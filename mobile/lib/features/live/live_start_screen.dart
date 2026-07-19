@@ -105,12 +105,14 @@ class _LiveStartScreenState extends ConsumerState<LiveStartScreen> {
         }
         return;
       }
-      // Onizlemeyi TAMAMEN birak — yayin odasi kendi kamera track'ini acar (cakisma olmasin)
-      await _onizlemeBirak();
-      if (!mounted) {
-        unawaited(ref.read(liveApiProvider).bitir(id));
-        return;
-      }
+      // SAHIPLIK DEVRI (P1 kok fix, hukum A1): onizleme track'i BIRAKILMAZ — yayin ekranina
+      // devredilip publishVideoTrack ile AYNEN yayinlanir. Eski yol (birak -> yeniden ac)
+      // Android'de kamera kapanis/acilis YARISI yuzunden ILK yayinda videoyu olduruyordu
+      // (flutter_webrtc waitForCameraOpen ERROR'da da donuyor -> sessiz OLU track; kanit:
+      // stream_0fd65863'te video hic publish edilmedi). Muhafiz/mounted dallarinda devir
+      // YAPILMAZ (oralarda dispose -> _onizlemeBirak normal salar).
+      final devir = _onizleme;
+      _onizleme = null; // dispose artik dokunmaz (setState YOK — ekran zaten degisiyor)
       await Navigator.of(context).pushReplacement(MaterialPageRoute(
         settings: RouteSettings(name: 'yayin-$id'),
         builder: (_) => LiveBroadcastScreen(
@@ -119,6 +121,7 @@ class _LiveStartScreenState extends ConsumerState<LiveStartScreen> {
           url: info['url'] as String,
           token: info['token'] as String,
           baslik: info['title'] as String? ?? '',
+          onizlemeTrack: devir,
         ),
       ));
     } catch (e) {
