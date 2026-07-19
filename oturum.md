@@ -1369,3 +1369,17 @@ yayinci-filtre korunur, PiP minimize DEGILDIR, room fan-out Karar 8 kalir.
 6) REGRESYON: 1:1 sesli+goruntulu, minimize+bant+mesaj ikonu, CallKit kilit ekrani,
    art arda aramalar, grup HOST mic (onceki fix), davet/konuk akislari, cikis-giris
    sonrasi gelen arama.
+
+### KULLANICI TEST TURU 3 (19 Tem gece ~23:40): 2 KONU — ARASTIRMA KOSUYOR (wf_e1b12812)
+Kullanici: "her sey cok guzel" + 2 konu:
+1) BAGLANMA HIZI: kabul -> ses 5-7sn (WhatsApp ~3sn). Kilit ekrani CallKit kabulunde hizli
+   algilaniyor (arayan coktan bagli), UYGULAMA ICI kabulde "Baglaniyor" bekletiyor.
+   KANIT: LiveKit connectTime TUM baglantilarda ~2.5-2.7s (40 ornek) + rtc.gebzem.app
+   Cloudflare PROXIED (sinyal CF uzerinden dolasiyor; turn zaten direkt -> IP ifsasi ayni)
+   + yeni ses-kanit bekcisi ~1-2sn algi ekliyor + answer REST + medya kurulumu.
+2) iOS SISTEM PiP YOK: Android'de yuzen pencere calisiyor, iPhone'da alta alinca yok.
+   (iOS'ta sistem PiP = AVPictureInPictureController + frame koprusu — derin native is.)
+4 mercek arastiriyor: istemci-zinciri hizli kazanclar / ag-sunucu (CF gri bulut + TURN UDP) /
+WhatsApp tarzi ON-BAGLANMA (arayan ring'de mic'siz baglanir) / iOS PiP fizibilite+plan.
+Hukum gelince: sifir-risk kazanclar -> ag degisikligi (geri-alma planli) -> on-baglanma ->
+iOS PiP (faz-1 dilim) -> TEMIZ BUILD.
