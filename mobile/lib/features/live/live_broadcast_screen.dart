@@ -95,6 +95,7 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
         setState(() => _connecting = false);
         _nabiz = Timer.periodic(const Duration(seconds: 15),
             (_) => ref.read(liveApiProvider).nabiz(widget.streamId).catchError((_) {}));
+        _videoSagligiKur(); // A3 guvenlik agi: kare akmiyorsa TEK restartTrack
       }
     } catch (e) {
       await Sentry.captureException(e, stackTrace: StackTrace.current);
@@ -199,6 +200,35 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
         _kalpKey.currentState?.patlat((v['n'] as num?)?.toInt() ?? 1);
       case 'stream.ended':
         _cik(sunucuyaBildir: false); // admin bitirdi
+    }
+  }
+
+  // A3 GUVENLIK AGI: baglantidan 4sn ve 8sn sonra kendi video sender'imdan kare cikiyor mu
+  // kontrol et (framesSent). Cikmiyorsa Sentry'e isaretle + TEK KEZ restartTrack (ayni
+  // cozunurluk — CLAUDE.md restartTrack tuzagi kapsam disi; dongusel retry YOK).
+  bool _videoKurtarmaDenendi = false;
+  void _videoSagligiKur() {
+    for (final sn in const [4, 8]) {
+      Timer(Duration(seconds: sn), () async {
+        if (!mounted || _ayrildi) return;
+        final t = _kameram;
+        if (t is! lk.LocalVideoTrack) return;
+        try {
+          final stats = await t.getSenderStats();
+          num kare = 0;
+          for (final s in stats) {
+            kare += s.framesSent ?? 0;
+          }
+          if (kare > 0) return; // saglikli
+          Sentry.captureMessage('yayin-video-olu: ${sn}sn, framesSent=0');
+          if (!_videoKurtarmaDenendi) {
+            _videoKurtarmaDenendi = true;
+            await t.restartTrack();
+            Sentry.addBreadcrumb(
+                Breadcrumb(category: 'yayin.video', message: 'restartTrack kurtarmasi denendi'));
+          }
+        } catch (_) {}
+      });
     }
   }
 
