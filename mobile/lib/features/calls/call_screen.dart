@@ -283,6 +283,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
       setState(() {
         _cevapsiz = true;
         _cevapsizNeden = neden;
+        _uiGizli = false; // A7: cevapsiz ekranda kontroller HEP gorunur
       });
     }
   }
@@ -862,7 +863,10 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
     if (mounted) {
       setState(() {
         _camOn = on;
-        if (!on) _selfBuyuk = false;
+        if (!on) {
+          _selfBuyuk = false;
+          _uiGizli = false; // A7: video kapaninca (sesli gorunum) kontroller geri gelsin
+        }
       });
     }
   }
@@ -967,13 +971,23 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
               _buildGroupGrid()
             else if (bigTrack != null)
               Positioned.fill(
-                // KEY track kimligine bagli: track her (yeniden) subscribe olunca (veya swap ile rol
-                // degisince) TAZE renderer baglanir -> bayat/siyah texture kalmaz (ilk-kare yarisi fix).
-                child: VideoTrackRenderer(bigTrack,
-                    key: ValueKey('big-${bigTrack.sid}'),
-                    fit: VideoViewFit.cover,
-                    // buyuk pencere swap'ta KENDI kamerami gosterir -> ayna kurali
-                    mirrorMode: swap ? _yerelAyna : VideoViewMirrorMode.auto),
+                // A7: buyuk videoya dokun -> kontroller gizle/goster (WhatsApp). opaque +
+                // IgnorePointer AYRICA su NPE'yi de kapatir: yerel track renderer'i (swap)
+                // flutter_webrtc'de onViewFinderTap'li GestureDetector'la sarili — ciplak
+                // dokunus CameraUtils NPE cokmesi riskiydi.
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: _uiToggle,
+                  child: IgnorePointer(
+                    // KEY track kimligine bagli: track her (yeniden) subscribe olunca (veya swap ile rol
+                    // degisince) TAZE renderer baglanir -> bayat/siyah texture kalmaz (ilk-kare yarisi fix).
+                    child: VideoTrackRenderer(bigTrack,
+                        key: ValueKey('big-${bigTrack.sid}'),
+                        fit: VideoViewFit.cover,
+                        // buyuk pencere swap'ta KENDI kamerami gosterir -> ayna kurali
+                        mirrorMode: swap ? _yerelAyna : VideoViewMirrorMode.auto),
+                  ),
+                ),
               )
             else
               _buildAudioBackground(),
@@ -989,19 +1003,26 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
               _buildSelfView(context, smallTrack,
                   canSwap: bothVideo, isLocal: smallIsLocal),
 
-            // Ust bilgi: isim + sure/durum + baglanti kalitesi
+            // Ust bilgi: isim + sure/durum + baglanti kalitesi (A7: gizlenebilir katman)
             Positioned(
               top: 48,
               left: 0,
               right: 0,
-              child: Column(
+              child: _gizlenebilir(Column(
                 children: [
-                  Text(
-                      widget.isGroup
-                          ? (widget.chatTitle.isEmpty ? 'Grup araması' : widget.chatTitle)
-                          : widget.peerName,
-                      style: const TextStyle(
-                          color: Colors.white, fontSize: 24, fontWeight: FontWeight.w600)),
+                  Padding(
+                    // A6: ust bar ikonlariyla cakismasin diye yatay bosluk
+                    padding: const EdgeInsets.symmetric(horizontal: 60),
+                    child: Text(
+                        widget.isGroup
+                            ? (widget.chatTitle.isEmpty ? 'Grup araması' : widget.chatTitle)
+                            : widget.peerName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                            color: Colors.white, fontSize: 24, fontWeight: FontWeight.w600)),
+                  ),
                   const SizedBox(height: 6),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -1027,21 +1048,89 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
                       ),
                     ),
                 ],
-              ),
+              )),
             ),
 
-            // Alt kontroller (cevapsiz durumda: Geri Ara / Kapat)
+            // A6 UST BAR ISKELETI (WhatsApp yerlesimi): sol kucultme oku, sag kisi-ekle +
+            // mesaj. Kapi (hukum K2): _baglandi && !_cevapsiz && _error==null — ring/cevapsiz
+            // fazinda ikon YOK. Govdeler Faz-B/C'de dolacak (simdilik no-op iskelet).
+            if (_baglandi && !_cevapsiz && _error == null)
+              Positioned(
+                top: 44,
+                left: 8,
+                right: 8,
+                child: _gizlenebilir(Row(children: [
+                  _barBtn(LucideIcons.chevronDown, _minimize),
+                  const Spacer(),
+                  _barBtn(LucideIcons.userPlus, _kisiEkle),
+                  const SizedBox(width: 8),
+                  _barBtn(LucideIcons.messageSquare, _mesajaDon),
+                ])),
+              ),
+
+            // Alt kontroller (cevapsiz durumda: Geri Ara / Kapat) — A7: gizlenebilir
             Positioned(
               left: 0,
               right: 0,
               bottom: 48,
-              child: _cevapsiz ? _buildCevapsizKontroller() : _buildAramaKontroller(),
+              child: _gizlenebilir(
+                  _cevapsiz ? _buildCevapsizKontroller() : _buildAramaKontroller()),
             ),
           ],
         ),
       ),
     );
   }
+
+  // ---- A6/A7 yardimcilari ----
+
+  /// A7 efektif gizleme maskesi: yalniz VIDEO gorunumunde ve saglikli durumda gizlenir.
+  bool get _gizliEfektif {
+    final videoModu = widget.isGroup
+        ? _grupVideoVarMi()
+        : (_remoteVideo != null || _localVideo != null);
+    return _uiGizli && videoModu && !_cevapsiz && _error == null && !_connecting;
+  }
+
+  /// Katmani gizlenebilir yap: 200ms solma + gizliyken dokunusa kapali.
+  Widget _gizlenebilir(Widget child) {
+    final gizli = _gizliEfektif;
+    return IgnorePointer(
+      ignoring: gizli,
+      child: AnimatedOpacity(
+        opacity: gizli ? 0 : 1,
+        duration: const Duration(milliseconds: 200),
+        child: child,
+      ),
+    );
+  }
+
+  void _uiToggle() {
+    if (_cevapsiz || _error != null) return;
+    setState(() => _uiGizli = !_uiGizli);
+  }
+
+  Widget _barBtn(IconData icon, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 40,
+        height: 40,
+        decoration:
+            const BoxDecoration(color: Colors.black26, shape: BoxShape.circle),
+        child: Icon(icon, color: Colors.white, size: 22),
+      ),
+    );
+  }
+
+  // Faz-C'de dolacak: minimize (ActiveCallController) — simdilik no-op iskelet.
+  void _minimize() {}
+
+  // Faz-B'de dolacak: aramaya kisi ekleme sheet'i — simdilik no-op iskelet.
+  void _kisiEkle() {}
+
+  // Faz-C'de dolacak: minimize + sohbete gecis — simdilik no-op iskelet.
+  void _mesajaDon() {}
 
   /// Suruklenebilir + dokun-ile-swap self-view (kucuk pencere).
   ///
@@ -1257,6 +1346,16 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
     return null;
   }
 
+  /// Grupta canli video var mi (A7 gizleme maskesi + izgara secimi ortak kullanir)
+  bool _grupVideoVarMi() {
+    final lp = _room?.localParticipant;
+    if (lp != null && _katilimciVideosu(lp) != null) return true;
+    for (final p in _room?.remoteParticipants.values ?? const <RemoteParticipant>[]) {
+      if (_katilimciVideosu(p) != null) return true;
+    }
+    return false;
+  }
+
   /// GRUP: herhangi bir katilimcida canli video varsa VIDEO IZGARASI; hic yoksa ESKI sesli
   /// avatar izgarasi BIREBIR korunur (sesli grup regresyonsuz — kullanici test etti).
   Widget _buildGroupGrid() {
@@ -1333,7 +1432,11 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
   /// -> 2x4 kaydirmasiz sigar. Video olan katilimci video tile, olmayan avatar tile (karisik).
   Widget _grupVideoIzgara(List<Participant> katilimcilar) {
     return Positioned.fill(
-      child: Container(
+      // A7: grup video izgarasinin bosluguna dokun -> kontroller gizle/goster
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: _uiToggle,
+        child: Container(
         color: const Color(0xFF0B141A),
         // Ust bilgi (isim/sure/teshis butonu) + alt kontrol bari ile cakismayan alan
         padding: const EdgeInsets.fromLTRB(8, 108, 8, 132),
@@ -1363,6 +1466,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
             children: [for (final p in katilimcilar) _grupVideoTile(p)],
           );
         }),
+        ),
       ),
     );
   }
