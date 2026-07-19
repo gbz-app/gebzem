@@ -1312,4 +1312,37 @@ esik (ilk saniyelerin mesru 0'i elenir); (4) grupta peer yokken 'Katilim bekleni
 YAPMA: _sureReferansiAl/Stopwatch/elapsed_ms/grup-host kisayolu/iOS ses sirasi/8sn-yedegi-silme.
 UYGULAMA: ana workflow hukmu ile birlestirilip (sorun-1 CallKit onleme fix'i ayni bolgeye
 dokunabilir) tek pakette yapilacak.
+
+### YARGIC HUKMU GELDI (wf_8a593046) — UYGULAMA ADIM LISTESI (her adimda [x] + push)
+KOK NEDENLER (kanitli): (1) iOS ilk-ses: CallKit didActivate isAudioEnabled=true'yu unit
+YOKKEN set ediyor -> unit olu doguyor; _sesiAc(true) setter no-op (deger zaten true) ->
+rebuild yok. (2) Android: manifest'te PiP yok + lifecycle paused'ta kamera mute edilmiyor ->
+karsi taraf donuk kare; _remoteVideo muted kontrolu yok. (3) Konuk: layout hic split olmuyor
+(tasarim kisiti). (4) Oda: dinleyiciler join/left almiyor (Karar 8) -> 10sn poll tek kaynak;
+force-quit dinleyici DB'de kaliyor. (5) Yayin: tek yayin noktasi 15sn sweep.
+- [ ] FAZ 1 backend yayin sayaci: streams/handler.go sayacYayinla (lastn burada) +
+      Watch(audit sonrasi)/Leave/Kick/Heartbeat-yeniden-katilim cagrilari
+- [ ] FAZ 2 backend oda: livekit.go ListParticipantIdentities + rooms/sweep.go stale-'joined'
+      mutabakati (eksikSayaci map, mutex yok, 2 tur esigi, yalniz listener)
+- [ ] FAZ 3 backend iOS teshis: calls/handler.go kurtarma alani + MIK-OLU-SENT0 +
+      SES-DUSUK icinde CIKIS-OLU? + admin sesRenk/lejant
+- [ ] Backend deploy (Faz1-3 tek sefer) + curl/iki-cihaz dogrulama
+- [ ] FAZ 4 room_screen _canliDinleyici getter (562+636 kullanim)
+- [ ] FAZ 5 konuk SPLIT: live_widgets SplitVideoPaneli+yayinSplitAlani; viewer+broadcast
+      dallanma (konukVideo!=null -> dikey split; PiP bloklari SIL; pill sag-ust; fallback pill)
+- [ ] FAZ 6 Android PiP: manifest supportsPictureInPicture + MainActivity gebzem/pip kanali
+      (onUserLeaveHint/autoEnter/pipDegisti) + pip_service.dart + controller (pipModunda/
+      _kameraOtoKapandi/lifecycle paused kamera-mute/resume restore SIRASI) + call_screen
+      (_remoteVideo muted serti + _pipGorunum + pipDurumTazele)
+- [ ] FAZ 7 iOS SES (EN SON, EN DIKKATLI): AppDelegate setAudioEnabled ac=true'da zorla
+      toggle (false->true) + NSLog'lar; controller _statsBaslat guvenlik agi 1 (sent0 imzasi,
+      paylasimli sayac) + agi 2 (_oluCikisSayaci enerji-0, 5 tick) + kurtarma payload;
+      recv/energy TUM remote'lardan; SORUN-6: _sesKanitBekle (1sn, TUM publication'lar
+      packetsReceived toplami artarsa VEYA muted ise _mediaBaslat) + TrackSubscribed/odaya-
+      baglan-sonu bekciye baglama + 8sn yedek: stats okunamiyorsa eski davranis, okunuyor+0
+      ise ACMA + grupta 'Katilim bekleniyor...'
+- [ ] FAZ 8 build (Android+iOS tek tur) + dagitim rutini + DB temizle + test recetesi
+YAPMA listesi ve cihaz test recetesi: workflow ciktisinda (tasks/wpxjs72jw.output) — okundu,
+ozet: didActivate govdesine dokunma, sure senkron/leave-tek-kapi/CallRoomLock/IgnorePointer/
+yayinci-filtre korunur, PiP minimize DEGILDIR, room fan-out Karar 8 kalir.
 - arama.mp3 (repo koku) coplugu: assets'teki degil, kok dizindeki KALINTI — bu oturumda silinecek.
