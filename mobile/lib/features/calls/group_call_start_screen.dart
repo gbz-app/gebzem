@@ -5,8 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/api.dart';
+import 'active_call_controller.dart';
 import 'call_provider.dart';
-import 'call_screen.dart';
 
 /// Grup aramasi baslat (sesli VEYA goruntulu): kisileri ara, coklu sec -> startGroup.
 /// Kalici grup sohbeti gerekmez (anlik grup, backend member_ids yolu).
@@ -73,19 +73,22 @@ class _GroupCallStartScreenState extends ConsumerState<GroupCallStartScreen> {
     try {
       final info = await svc.startGroup(_selected.keys.toList(), video: video);
       if (!mounted) return;
-      // Baslatma ekranini kapat, grup arama ekranini ac.
-      Navigator.of(context).pushReplacement(MaterialPageRoute(
-        builder: (_) => CallScreen(
-          callId: info['call_id'] as String,
-          url: info['url'] as String,
-          token: info['token'] as String,
-          video: video,
-          peerName: 'Grup araması',
-          outgoing: true,
-          isGroup: true,
-          chatTitle: 'Grup araması',
-        ),
+      // FAZ-C: mantik controller'da. ONCE baslatma ekranini kapat, SONRA arama ekranini ac
+      // (ters sira ekraniAc'in push'unu pop ile geri alirdi — pushReplacement dengi).
+      final ctrl = ref.read(activeCallProvider);
+      await ctrl.baslat(AramaBilgisi(
+        callId: info['call_id'] as String,
+        url: info['url'] as String,
+        token: info['token'] as String,
+        video: video,
+        peerName: 'Grup araması',
+        outgoing: true,
+        isGroup: true,
+        chatTitle: 'Grup araması',
       ));
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      ctrl.ekraniAc();
     } catch (e) {
       if (mounted) {
         setState(() => _starting = false);

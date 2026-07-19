@@ -9,8 +9,8 @@ import '../../core/api.dart';
 import '../../core/theme.dart';
 import '../../core/ws.dart';
 import '../auth/auth_provider.dart';
+import '../calls/active_call_controller.dart';
 import '../calls/call_provider.dart';
-import '../calls/call_screen.dart';
 import 'chats_provider.dart';
 import 'models.dart';
 
@@ -100,16 +100,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       final info =
           await ref.read(callServiceProvider.notifier).start(peerId, video: video);
       if (!mounted) return;
-      await Navigator.of(context).push(MaterialPageRoute(
-        builder: (_) => CallScreen(
-          callId: info['call_id'] as String,
-          url: info['url'] as String,
-          token: info['token'] as String,
-          video: video,
-          peerName: widget.title,
-          peerId: peerId,
-        ),
+      // FAZ-C: mantik controller'da baslar, ekran saf gorunum olarak acilir
+      final ctrl = ref.read(activeCallProvider);
+      await ctrl.baslat(AramaBilgisi(
+        callId: info['call_id'] as String,
+        url: info['url'] as String,
+        token: info['token'] as String,
+        video: video,
+        peerName: widget.title,
+        peerId: peerId,
       ));
+      ctrl.ekraniAc();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)

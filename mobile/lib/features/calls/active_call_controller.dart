@@ -898,21 +898,9 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     if (ekranGorunur) return;
     final b = arama;
     if (b == null) return;
-    // C2 gecisine kadar eski constructor (C2'de tek `bilgi` parametresine doner)
     rootNavigatorKey.currentState?.push(MaterialPageRoute(
       settings: const RouteSettings(name: 'arama'),
-      builder: (_) => CallScreen(
-        callId: b.callId,
-        url: b.url,
-        token: b.token,
-        video: b.video,
-        peerName: b.peerName,
-        peerId: b.peerId,
-        outgoing: b.outgoing,
-        isGroup: b.isGroup,
-        chatTitle: b.chatTitle,
-        elapsedMs: b.elapsedMs,
-      ),
+      builder: (_) => CallScreen(bilgi: b),
     ));
   }
 

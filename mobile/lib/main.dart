@@ -17,8 +17,8 @@ import 'core/api.dart';
 import 'core/storage.dart';
 import 'core/theme.dart';
 import 'core/ws.dart';
+import 'features/calls/active_call_controller.dart';
 import 'features/calls/call_provider.dart';
-import 'features/calls/call_screen.dart';
 import 'features/calls/callkit_service.dart';
 import 'features/calls/incoming_call_overlay.dart';
 import 'features/invites/davet_provider.dart';
@@ -282,29 +282,28 @@ class _GebzemAppState extends ConsumerState<GebzemApp> with WidgetsBindingObserv
       return;
     }
 
+    // FAZ-C: mantik controller'da baslar (Navigator'i beklemez — ses/sure hemen kurulur)
+    final ctrl = ref.read(activeCallProvider);
+    unawaited(ctrl.baslat(AramaBilgisi(
+      callId: callId,
+      url: info['url'] as String,
+      token: info['token'] as String,
+      video: c['video'] as bool? ?? false,
+      peerName: c['caller_name'] as String? ?? '',
+      outgoing: false,
+      // GRUP: answer() cevabindan is_group/chat_title -> CallKit'ten kabul edilen grup
+      // aramasi da grup moduyla acilir (yoksa 1:1 arayuz + ilk ayrilan kapatirdi).
+      isGroup: info['is_group'] == true,
+      chatTitle: info['chat_title'] as String? ?? '',
+      elapsedMs: (info['elapsed_ms'] as num?)?.toInt(), // sure senkronu: gecen-sure baslangici
+    )));
+
     // SONRA Navigator hazir olsun (soguk baslangicta daha uzun: 100x100ms = 10 sn)
     for (var i = 0; i < 100 && rootNavigatorKey.currentState == null; i++) {
       await Future.delayed(const Duration(milliseconds: 100));
     }
-    notifier.dismiss(); // uygulama ici gelen arama ekrani varsa kaldir
-    final nav = rootNavigatorKey.currentState;
-    if (nav == null) return; // ekran acilamadi ama arama sunucuda "kabul" durumunda
-
-    unawaited(nav.push(MaterialPageRoute(
-      builder: (_) => CallScreen(
-        callId: callId,
-        url: info!['url'] as String,
-        token: info['token'] as String,
-        video: c['video'] as bool? ?? false,
-        peerName: c['caller_name'] as String? ?? '',
-        outgoing: false,
-        // GRUP: answer() cevabindan is_group/chat_title -> CallKit'ten kabul edilen grup
-        // aramasi da grup moduyla acilir (yoksa 1:1 arayuz + ilk ayrilan kapatirdi).
-        isGroup: info['is_group'] == true,
-        chatTitle: info['chat_title'] as String? ?? '',
-        elapsedMs: (info['elapsed_ms'] as num?)?.toInt(), // sure senkronu: gecen-sure baslangici
-      ),
-    )));
+    ctrl.ekraniAc(); // ekran saf gorunum — navigator gec kalsa da arama zaten yasiyor
+    notifier.dismiss(); // uygulama ici gelen arama ekrani varsa kaldir (EN SON — overlay tuzagi)
   }
 
   @override

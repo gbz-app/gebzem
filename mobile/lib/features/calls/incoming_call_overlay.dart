@@ -6,8 +6,8 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/api.dart';
 import '../../router.dart';
+import 'active_call_controller.dart';
 import 'call_provider.dart';
-import 'call_screen.dart';
 import 'call_sounds.dart';
 
 /// Gelen arama ekrani — uygulama acikken her ekranin uzerinde belirir.
@@ -96,23 +96,20 @@ class _IncomingCallSheetState extends ConsumerState<_IncomingCallSheet> {
         return;
       }
 
-      final nav = rootNavigatorKey.currentState;
-      if (nav == null) throw Exception('navigator hazir degil');
-
-      // await ETME: push, sayfa kapanana kadar bekler; ekrani hemen acmaliyiz.
-      unawaited(nav.push(MaterialPageRoute(
-        builder: (_) => CallScreen(
-          callId: widget.call.callId,
-          url: info['url'] as String,
-          token: info['token'] as String,
-          video: widget.call.video,
-          peerName: widget.call.callerName,
-          outgoing: false,
-          isGroup: widget.call.isGroup,
-          chatTitle: widget.call.chatTitle,
-          elapsedMs: (info['elapsed_ms'] as num?)?.toInt(), // sure senkronu: gecen-sure baslangici
-        ),
+      // FAZ-C: mantik controller'da; ekran saf gorunum (rootNavigatorKey ile acilir)
+      final ctrl = ref.read(activeCallProvider);
+      unawaited(ctrl.baslat(AramaBilgisi(
+        callId: widget.call.callId,
+        url: info['url'] as String,
+        token: info['token'] as String,
+        video: widget.call.video,
+        peerName: widget.call.callerName,
+        outgoing: false,
+        isGroup: widget.call.isGroup,
+        chatTitle: widget.call.chatTitle,
+        elapsedMs: (info['elapsed_ms'] as num?)?.toInt(), // sure senkronu: gecen-sure baslangici
       )));
+      ctrl.ekraniAc();
       notifier.dismiss(); // arama ekrani acildiktan SONRA gelen arama ekranini kaldir
     } catch (e) {
       rootMessengerKey.currentState

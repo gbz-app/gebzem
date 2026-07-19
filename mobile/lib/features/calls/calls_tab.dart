@@ -5,8 +5,8 @@ import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/api.dart';
+import 'active_call_controller.dart';
 import 'call_provider.dart';
-import 'call_screen.dart';
 import 'group_call_start_screen.dart';
 
 /// Aramalar sekmesi: gecmis + tekrar arama
@@ -183,16 +183,17 @@ class _CallTile extends ConsumerWidget {
           .read(callServiceProvider.notifier)
           .start(call['peer_id'] as String, video: video);
       if (!context.mounted) return;
-      Navigator.of(context).push(MaterialPageRoute(
-        builder: (_) => CallScreen(
-          callId: info['call_id'] as String,
-          url: info['url'] as String,
-          token: info['token'] as String,
-          video: video,
-          peerName: call['peer_name'] as String? ?? '',
-          peerId: call['peer_id'] as String,
-        ),
+      // FAZ-C: mantik controller'da baslar, ekran saf gorunum olarak acilir
+      final ctrl = ref.read(activeCallProvider);
+      await ctrl.baslat(AramaBilgisi(
+        callId: info['call_id'] as String,
+        url: info['url'] as String,
+        token: info['token'] as String,
+        video: video,
+        peerName: call['peer_name'] as String? ?? '',
+        peerId: call['peer_id'] as String,
       ));
+      ctrl.ekraniAc();
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context)
