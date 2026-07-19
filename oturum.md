@@ -1239,4 +1239,20 @@ swap/surukle/flip; art arda 4-5 arama; CallKit kilit ekrani kabul/bitir; cevapsi
 grup iOS-host mic; karsi kapatinca <=3sn; minimize: gez+mesaj at, bantta sure akar, banttan don
 (ikinci connect YOK — livekit logu), minimize'dayken karsi kapatir -> bant <=3sn kaybolur,
 5x minimize-restore, minimize'dayken gelen arama 'mesgul', mesaj ikonu dogru sohbet.
+
+### GENEL ADVERSARIAL TARAMA + FIX'LER (19 Tem — kullanici talimati "genel fix bug arastirmasi")
+wf_73d23baf: 5 mercek (refactor-parite/konuk/davet/minimize-etkilesim/backend) -> 19 bulgu ->
+her biri 2 bagimsiz curutucu -> **16 DOGRULANDI, 3 curutuldu**. HEPSI DUZELTILDI:
+- Istemci (8c55170): #1 KRITIK stale _odayaBaglan zehirlenmesi (_staleTemizle — controller
+  bayrak/timer'larina dokunmaz), #2 listener callId yakalama, #3 stale calma-tonu susturma,
+  #4 KRITIK konuk PiP IgnorePointer (CameraUtils NPE), #5 konukYenile 403 -> izleyicilige don,
+  #6 guest.left identity karsilastirma, #7 broadcast konukId fallback, #8 davetiAc re-entrancy,
+  #9 rollback kendi-ekranId haric, #10 login'siz davet push, #11 KRITIK logout wsProvider
+  invalidate kaldirildi (relogin sonrasi gelen arama calmiyordu), #12 logout leave 3sn timeout.
+- Backend (b47ac7c, DEPLOY EDILDI + dogrulandi): #13 heartbeat yeniden-katilim = Watch kurallari
+  (blok sizintisi), #14 guest anahtari compare-and-delete Lua (hayalet konuk), #15 guest_reqs
+  temizligi (Leave/Kick ZRem + sweeper 10dk), #16 admin sabit yedek anahtar KALDIRILDI
+  (fail-closed; canlida test: dogru key 200 / eski 'gbz-izle-2026' 401).
+- Curutulenler (kayit): broadcast PiP crash (x butonu deseni), endGroup yetki, audio-tip konuk.
+**SIRADA: TEK TEMIZ BUILD + yayin rutini.**
 - arama.mp3 (repo koku) coplugu: assets'teki degil, kok dizindeki KALINTI — bu oturumda silinecek.
