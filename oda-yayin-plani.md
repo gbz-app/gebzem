@@ -635,3 +635,46 @@ Cihaz testleri: açık(banner)/arka plan(bildirim)/terminated(soğuk açılış)
 
 ## Kabul Edilen Sınırlar
 davet kalıcı değil (push kaçarsa kaybolur) · skip nedenleri sessiz ({"sent":n}) · 60sn throttle davetçi-bağımsız · aramadayken banner görünür ama katılamaz · iOS ön planda sistem bildirimi yok (WS banner'ı görevde) · banner tek davet gösterir · paused yayına davet serbest · dolan yayında dokununca 429 · oda "herkes davet" gerekirse daraltılır.
+
+
+---
+
+# BÖLÜM 6: KONUK ALMA + İZLEYİCİ LİSTESİ + HEDİYE LEADERBOARD (plan ajanı, 19 Tem)
+
+## Kaynak-doğrulanmış kararlar
+- D1: hidden UpdateParticipant ile KALDIRILABİLİR (reconnect gerekmez) — LiveKit v1.13.3 kaynağından
+  doğrulandı (SetPermission → broadcastParticipantState; düşürmede track'ler sunucuda sökülür).
+  PiP render TRACK-BAZLI olacak (hayalet participant notu). Fallback hazır: taze token + kilit-içi reconnect.
+- D2: SendData destination_identities DESTEKLİ → guest.request yalnız yayıncıya, guest.accepted yalnız hedefe.
+  livekit.go'ya SendDataTo eklenir (SendData imzası DEĞİŞMEZ).
+- D3: rol kaynağı REDIS: stream:{id}:guest STRING (SET NX = tek konuk atomik) + guest_reqs ZSET.
+  Konuk viewers ZSET'inde KALIR (nabız/chat/hediye değişmez).
+- D4: FULL reconnect grant'i token'dan yükler → guest/refresh ucu (RoomReconnectedEvent'te idempotent tekrar).
+- D5: konuk token'ında canPublishData:false KORUNUR → SetStreamGuest yeni metot
+  (can_publish_sources ["CAMERA","MICROPHONE"], hidden:!guest; rooms UpdateParticipant'a DOKUNULMAZ).
+
+## Backend: B1 migration 011 stream_gifts (stream_id CASCADE, sender REFERENCES; TRUNCATE ile boşalır — bilinçli)
+B2 livekit.go SendDataTo+SetStreamGuest · B3 guests.go: join-request{cancel} (throttle 10sn, ZCARD>=100 429) /
+join-requests (yayıncı, ilk 50) / guest/accept (SET NX 409 "zaten konuk var"; lkYok→anahtar GERİ AL 409;
+istek şartı ARANMAZ — izleyici listesinden direkt alma da bu uç) / decline / leave+remove→konukDusur /
+refresh · B4 GET viewers (ZRevRange 100 + users ANY($1), is_guest; yetki: yayıncı|üye) · B5 Gift TX'ine
+stream_gifts INSERT (ledger 23505 return'ünden SONRA imkansız-duplicate) + GET gifts leaderboard
+(gönderene topla, kırılım emoji/ad SUNUCU katalogundan) · B6 sweeper: guest viewers'tan düşmüşse
+konukDusur("sweep-konuk") · B7 endStream DEL guest+reqs; Kick/Leave guest entegre · B8 route'lar
+(GET /streams/gifts katalog çakışmaz — statik öncelikli, yine de test) · B9 konuk-test.sh + regresyon.
+
+## İstemci: İ1 LiveApi 9 metot · İ2 live_info_sheets.dart (İzleyiciler[Canlıya al/At], Leaderboard
+ExpansionTile kırılım, İstekler) · İ3 viewer: tip param (istek yalnız video yayında), _benimId,
+RoomOptions'a kGroup* konuk profili BAŞTAN (SDK publish varsayılanları RoomOptions'tan — doğrulandı),
+_video YAYINCI-FİLTRELİ (kritik: konuk tam ekranı kapmasın) + _konukVideo PiP, guest.* sinyalleri,
+_konukOl: mic→kamera→_sesiAc(true) EN SON (izin reddi → konukAyril dürüstlüğü; 1sn tek retry),
+konuk UI (kendi PiP + Ayrıl), resume'da mic restore, RoomReconnected→konukYenile,
+_konuktanCik'ta _sesiAc(false) ÇAĞRILMAZ (dinlemeye devam) · İ4 broadcast: TrackSub/Unsub listener
+EKLENİR (yoksa konuk render tetiklenmez) + istek rozeti/sheet + konuk PiP + × çıkar + 👁 sheet +
+jeton sayacı→leaderboard · İ5 analyze + adversarial + build.
+
+## Riskler: hidden→görünür İLK KEZ (cihaz testi şart; fallback token+reconnect) · iOS playback→play+record
+geçişi v7 sınıfı (sıra + resume + mikE panel kontrolü) · full-reconnect refresh kurtarır · yarışlar
+SET NX/geri-alma ile · duplicate satır imkansız · broadcaster'a remote video ilk kez (540p tek konuk, ihmal).
+## Sınırlar: TEK konuk; yalnız video yayında; Redis-kalıcı-değil; liste 100; leaderboard live/paused'ta;
+düşürülen konuğun track'siz participant'ı kalabilir (render track-bazlı → görünmez).

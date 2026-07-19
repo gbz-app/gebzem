@@ -1008,6 +1008,19 @@ cevabindan; chat hatalari snackbar; klavyede chat seridi kuculur (RenderFlex).
 pause-grace ~105sn'de yayinci yeni yayin acamaz (tasarim geregi); SendData gecmisi
 sonradan girene gitmez.
 
+### FAZ-A KOD-TAMAM (19 Tem aksam; parite-hukum.md fazli plani)
+A1+A2 P1 kok fix: onizleme track SAHIPLIK DEVRI + publishVideoTrack (kamera kapat/ac yarisi
+bitti; geri dusus setCameraEnabled + tek-nokta saliverme; renderer key mediaStreamTrack.id).
+A3 video sagligi agi: 4/8sn framesSent=0 -> Sentry + TEK restartTrack. A4 self-view WhatsApp
+kavisi (KOK: fit yoktu -> contain letterbox + radius24 tuhaf gorunuyordu; cover+radius14+
+cerceve/golge). A5 kose bayragi hafizasi (_selfSagda/_selfAltta). A6 ust bar iskeleti
+(chevronDown/userPlus/messageSquare; kapi _baglandi&&!_cevapsiz&&_error==null; govdeler
+Faz-B/C). A7 dokun-gizle (_uiGizli; yalniz video modunda; buyuk renderer opaque+IgnorePointer
+— NPE de kapandi; grup izgara kok onTap; self-view gizlide 100x143; cevapsiz/kamera-kapatta
+sifirlanir). Ayrica: 10k jeton+30 hediye CANLIDA; hediye sheet 4-sutun grid. KONUK+LISTELER
+plani alindi -> oda-yayin-plani.md Bolum 6. SIRA: Faz-B (kisi ekleme B0-B7 + DAVET Bolum-5 +
+KONUK/LISTELER Bolum-6) -> Faz-C (minimize) -> GENEL TARAMA -> TEK TEMIZ BUILD (kullanici talimati).
+
 ### KULLANICI TAM TEST SONUCU (19 Tem ~18:10): PAKET GECTI — 2 sorun + WhatsApp-parite istekleri
 **GECENLER:** mesgul kilidi, sesli arama baglanti/sure, kamera ayna, el kaldir, genel akis —
 kullanici "onun haricinde problem goremedim" dedi. MIK-OLU izlemede yanlis-alarm cikti ->
