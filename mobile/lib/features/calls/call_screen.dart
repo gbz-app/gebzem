@@ -46,6 +46,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
       _c.ekranGorunur = true;
       _c.minimized = false;
       _c.addListener(_ctrlDegisti);
+      _c.pipDurumTazele(); // FAZ-6: ekran acildi — PiP izni guncel duruma gore kurulsun
     } else {
       // Uyusmazlik (restore yarisi vb.): bu ekran bayat — kendini kapat, controller'a dokunma
       _kapaniyor = true;
@@ -177,7 +178,9 @@ class _CallScreenState extends ConsumerState<CallScreen> {
   VideoTrack? get _remoteVideo {
     final p = _c.room?.remoteParticipants.values.firstOrNull;
     final pub = p?.videoTrackPublications.firstOrNull;
-    if (pub?.subscribed == true && pub?.track != null) {
+    // FAZ-6 donma fix'inin ekran yarisi: karsi taraf kamerayi MUTE ettiyse (arka plana
+    // indi) donuk son kare degil avatar goster (grup tile'lari zaten boyle yapiyordu).
+    if (pub?.subscribed == true && pub?.muted == false && pub?.track != null) {
       return pub!.track as VideoTrack;
     }
     return null;
@@ -191,6 +194,8 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     final c = ref.watch(activeCallProvider);
     // Bitis aninda (arama==null, pop bekleniyor) son kare widget.bilgi ile cizilir
     final b = c.arama ?? widget.bilgi;
+    // FAZ-6: sistem PiP penceresi — SADE gorunum (tek video, kontrol/self-view yok)
+    if (c.pipModunda) return _pipGorunum(c, b);
     final remote = _remoteVideo;
     final local = _localVideo;
     // MID-CALL: sesli aramada kamera acilinca (yerel VEYA karsi) video moduna gecer.
@@ -319,6 +324,44 @@ class _CallScreenState extends ConsumerState<CallScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  /// FAZ-6: PiP penceresi icerigi — yalniz en anlamli TEK video (grup dahil), yoksa
+  /// avatar. Kontroller/self-view/ust bar CIZILMEZ; _uiGizli kullanilmaz.
+  Widget _pipGorunum(ActiveCallController c, AramaBilgisi b) {
+    VideoTrack? video;
+    bool yerelMi = false;
+    if (c.isGroup) {
+      final katilimcilar = <Participant>[
+        ...c.room?.remoteParticipants.values ?? const <RemoteParticipant>[],
+        if (c.room?.localParticipant != null) c.room!.localParticipant!,
+      ];
+      for (final p in katilimcilar) {
+        final v = _katilimciVideosu(p);
+        if (v != null) {
+          video = v;
+          yerelMi = p is LocalParticipant;
+          break;
+        }
+      }
+    } else {
+      video = _remoteVideo;
+      if (video == null && c.camOn) {
+        video = _localVideo;
+        yerelMi = true;
+      }
+    }
+    return Scaffold(
+      backgroundColor: const Color(0xFF0B141A),
+      body: video != null
+          ? IgnorePointer(
+              child: VideoTrackRenderer(video,
+                  key: ValueKey('pip-${video.sid}'),
+                  fit: VideoViewFit.cover,
+                  mirrorMode: yerelMi ? c.yerelAyna : VideoViewMirrorMode.auto),
+            )
+          : _buildAudioBackground(b),
     );
   }
 

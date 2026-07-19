@@ -1330,7 +1330,7 @@ force-quit dinleyici DB'de kaliyor. (5) Yayin: tek yayin noktasi 15sn sweep.
 - [x] FAZ 4 room_screen _canliDinleyici getter (562+636 kullanim)
 - [x] FAZ 5 konuk SPLIT: live_widgets SplitVideoPaneli+yayinSplitAlani; viewer+broadcast
       dallanma (konukVideo!=null -> dikey split; PiP bloklari SIL; pill sag-ust; fallback pill)
-- [ ] FAZ 6 Android PiP: manifest supportsPictureInPicture + MainActivity gebzem/pip kanali
+- [x] FAZ 6 Android PiP: manifest supportsPictureInPicture + MainActivity gebzem/pip kanali
       (onUserLeaveHint/autoEnter/pipDegisti) + pip_service.dart + controller (pipModunda/
       _kameraOtoKapandi/lifecycle paused kamera-mute/resume restore SIRASI) + call_screen
       (_remoteVideo muted serti + _pipGorunum + pipDurumTazele)

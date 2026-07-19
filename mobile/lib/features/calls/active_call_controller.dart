@@ -17,6 +17,7 @@ import 'call_room_lock.dart';
 import 'call_screen.dart';
 import 'call_sounds.dart';
 import 'callkit_service.dart';
+import 'pip_service.dart';
 
 /// ARAMA META BILGISI — CallScreen'in eski constructor parametrelerinin birebir kopyasi.
 class AramaBilgisi {
@@ -62,6 +63,11 @@ class AramaBilgisi {
 class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
   ActiveCallController(this._ref) {
     WidgetsBinding.instance.addObserver(this);
+    // FAZ-6: Android sistem PiP durum dinleyicisi (PiP'e girince ekran sade gorunum cizer)
+    PipService.dinle((v) {
+      pipModunda = v;
+      notifyListeners();
+    });
   }
 
   final Ref _ref;
@@ -71,6 +77,12 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
   AramaBilgisi? arama;
   bool minimized = false;
   bool ekranGorunur = false; // CallScreen kendini kaydeder (cift-push korumasi)
+
+  // FAZ-6 ANDROID PiP: sistem yuzen penceresi (uygulama-DISI kuculme; WhatsApp paritesi).
+  // PiP MINIMIZE DEGILDIR — CallScreen route'ta kalir, leave tek-kapi bozulmaz.
+  bool pipModunda = false;
+  bool _pipIzinliSon = false;
+  bool _kameraOtoKapandi = false; // arka planda kamerayi BIZ kapattik (donus'te geri ac)
 
   Room? _room;
   EventsListener<RoomEvent>? _listener;
@@ -132,6 +144,42 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
   bool get minimizeEdilebilir =>
       arama != null && _baglandi && !_cevapsiz && _error == null;
 
+  // ---- FAZ-6 PiP yardimcilari ----
+
+  bool _uzakVideoVar() {
+    for (final p in _room?.remoteParticipants.values ?? const <RemoteParticipant>[]) {
+      for (final pub in p.videoTrackPublications) {
+        if (pub.subscribed && !pub.muted && pub.track != null) return true;
+      }
+    }
+    return false;
+  }
+
+  /// PiP'e girilmesi istenen durum: Android + bagli/saglikli arama + EKRAN ACIK
+  /// (minimize'da bant var, PiP ana sayfayi minik gosterirdi) + gorunecek video var.
+  bool get _pipIstenir =>
+      Platform.isAndroid &&
+      minimizeEdilebilir &&
+      ekranGorunur &&
+      !minimized &&
+      (_camOn || _uzakVideoVar());
+
+  void _pipGuncelle() {
+    final istenen = _pipIstenir;
+    if (istenen == _pipIzinliSon) return; // kanala yalniz DEGISIMDE git
+    _pipIzinliSon = istenen;
+    PipService.pipIzinli(istenen);
+  }
+
+  /// Ekran acilis/kapanisinda PiP iznini tazele (CallScreen initState cagirir).
+  void pipDurumTazele() => _pipGuncelle();
+
+  @override
+  void notifyListeners() {
+    super.notifyListeners();
+    _pipGuncelle(); // her durum degisiminde PiP izni senkron kalir (yalniz delta'da kanal)
+  }
+
   String get durumMetni {
     // KAPI SIRASI AYNEN (_statusText — yargic YAPMA listesi: degistirme)
     if (_cevapsiz) return _cevapsizNeden;
@@ -158,6 +206,8 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     _iptalAbonelikler();
     arama = b;
     minimized = false;
+    pipModunda = false; // FAZ-6 (yargic): eski aramadan bayrak sarkmasin
+    _kameraOtoKapandi = false;
     _isGroup = b.isGroup;
     _connecting = true;
     _kapandi = false;
@@ -314,7 +364,26 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    // FAZ-6 KAMERA-MUTE YEDEGI (PiP'siz/PiP reddeden cihazlar): GERCEK arka plana
+    // inince (PiP'te DEGILKEN) kamerayi biz kapatiriz -> karsi taraf DONUK KARE degil
+    // "kamera kapali" avatar gorur. Android arka planda kamerayi zaten fiziksel keser;
+    // mute sinyali karsi tarafa durumu DURUSTCE anlatir. Donuste geri acilir.
+    if ((state == AppLifecycleState.paused || state == AppLifecycleState.hidden) &&
+        arama != null && _baglandi && !_ayrildi && !pipModunda && _camOn) {
+      _kameraOtoKapandi = true;
+      _camOn = false;
+      _room?.localParticipant?.setCameraEnabled(false);
+      notifyListeners();
+      return;
+    }
     if (state == AppLifecycleState.resumed && arama != null && !_ayrildi && !_cevapsiz) {
+      // Kamera restore _kesintidenTopla'dan ONCE (iOS ses sirasi: _sesiAc EN SON kalmali)
+      if (_kameraOtoKapandi && _baglandi) {
+        _kameraOtoKapandi = false;
+        _camOn = true;
+        _room?.localParticipant?.setCameraEnabled(true);
+        notifyListeners();
+      }
       _durumKontrol();
       // KESINTI TOPARLAMA: iOS CallKit didActivate kesinti sonrasi guvenilir gelmez ->
       // resume yedek tetikleyici (ses birimi + mic son durumu).
@@ -828,6 +897,7 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     // Ekrana "bitti" bildir: arama=null -> CallScreen listener'i (sheet-pop -> ekran-pop; K7)
     arama = null;
     minimized = false;
+    pipModunda = false; // FAZ-6: arama bitti — PiP izni notifyListeners'la geri cekilir
     notifyListeners();
 
     try {
@@ -849,6 +919,7 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
 
   /// Kamera ac/kapat. Donus: acildiktan sonra gorunum swap'i sifirlanmali mi (ekran karar verir).
   Future<void> toggleCam() async {
+    _kameraOtoKapandi = false; // FAZ-6: kullanici elle dokundu — oto-restore devre disi
     final on = !_camOn;
     // KAPASITE — WhatsApp standardi: grup 32 kisi
     if (on && _isGroup) {
