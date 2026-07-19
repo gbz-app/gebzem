@@ -132,6 +132,10 @@ class CallService extends StateNotifier<IncomingCall?> {
       case 'call.participant.left':
         // GRUP: izgarayi guncelle (CallScreen dinler). 1:1 aramada bu olaylar HIC gelmez.
         _participantController.add({'event': ev['type'] as String? ?? '', ...p});
+      case 'call.upgraded':
+        // KISI EKLEME (Faz-B): 1:1 arama gruba yukseltildi — CallScreen ayni kanaldan
+        // dinleyip _isGroup moduna gecer (yeni controller ACMA — hukum B4).
+        _participantController.add({'event': 'call.upgraded', ...p});
     }
   }
 
@@ -192,6 +196,12 @@ class CallService extends StateNotifier<IncomingCall?> {
       'video': video,
     });
     return (res.data as Map).cast<String, dynamic>();
+  }
+
+  /// AKTIF aramaya kisi ekle (1:1 -> grup yukseltme; Faz-B). Cagiran zaten aramada
+  /// oldugundan mesgul muhafizi UYGULANMAZ.
+  Future<void> addToCall(String callId, String userId) async {
+    await _ref.read(apiProvider).post('/calls/$callId/add', data: {'user_id': userId});
   }
 
   /// GRUP aramasi baslat — secilen kisilerle (anlik grup). LiveKit baglanti bilgilerini doner.

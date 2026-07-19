@@ -11,6 +11,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
 import '../../core/api.dart';
+import 'add_participant_sheet.dart';
 import 'call_media_options.dart';
 import 'call_provider.dart';
 import 'call_room_lock.dart';
@@ -72,6 +73,14 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
   /// KULLANILAMAZ (StateError firlatir) — servis ise uygulama boyunca yasar.
   late final CallService _svc;
 
+  // KISI EKLEME (Faz-B B5): 1:1 arama CANLI gruba yukselebilir — isGroup artik STATE.
+  // Widget parametresi yalniz BASLANGIC degeri; call.upgraded WS'i / Status is_group
+  // kurtarmasi / kendi ekleme islemim bunu true yapar. EKRAN GECISI YOK (rota/Stopwatch/
+  // _sureBaz DEGISMEZ — sure senkron tuzagi).
+  late bool _isGroup = widget.isGroup;
+  StreamSubscription? _partSub; // call.upgraded / participant olaylari
+  bool _sheetAcik = false; // kisi-ekleme sheet'i acik mi (_leave once onu kapatir)
+
   int? _sesNesli; // CallSounds nesli — durdururken verilir ki art arda aramada ESKI ekranin
   // gec dispose durdur'u YENI aramanin sesini (dit/zil) kesmesin.
   bool _connecting = true;
@@ -122,6 +131,17 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
     // MESGUL MUHAFIZI: bu ekran (calar/aktif) acildi -> 2. arama baslatma/kabul engellensin.
     // connect'i BEKLEMEDEN, calar fazi dahil isaretlenir; dispose'ta birakilir.
     _svc.ekranAcildi(widget.callId);
+    // KISI EKLEME: yukseltme sinyali (WS call.upgraded) — ekran yerinde grup moduna gecer.
+    _partSub = svc.onParticipant.listen((ev) {
+      if (!mounted || ev['call_id'] != widget.callId) return;
+      if (ev['event'] == 'call.upgraded' && !_isGroup) {
+        setState(() => _isGroup = true);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('${ev['added_name'] ?? 'Bir kisi'} aramaya kisi ekledi')));
+      } else if (_isGroup) {
+        setState(() {}); // grup izgarasi tazelensin (joined/left)
+      }
+    });
 
     // Karsi taraf kapatirsa / arama biterse: bagliysak dogrudan cik; ring fazindaysak
     // nedeni (red/mesgul/cevapsiz) sunucudan ogrenip cevapsiz UI goster (WS nedeni tasimaz).
@@ -165,7 +185,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
       // iOS ses yoluydu (calma tonu churn'u + gec baglanma) ve mic'i SESSIZ kilitliyordu
       // (davetli tarafta ~100pkt/s + enerji=0.0 imzasi). WhatsApp semantigi de bu:
       // grup baslatan ringback DUYMAZ, dogrudan odaya girer.
-      if (svc.kabulEdilenler.contains(widget.callId) || widget.isGroup) {
+      if (svc.kabulEdilenler.contains(widget.callId) || _isGroup) {
         _connect();
         return;
       }
@@ -209,6 +229,10 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
       // alir (1:1). YALNIZ 'active' iken (backend cevaplanmayinca elapsed_ms=-1 doner zaten,
       // ama cift guvence: zil fazinda referans KILITLEME -> sayac sisme blocker'inin kok fix'i).
       if (s == 'active') _sureReferansiAl((st['elapsed_ms'] as num?)?.toInt());
+      // KISI EKLEME KURTARMASI (hukum B2b): WS call.upgraded kaybolduysa poll'dan yakala
+      if (st['is_group'] == true && !_isGroup && mounted) {
+        setState(() => _isGroup = true);
+      }
     } catch (_) {
       return;
     }
@@ -379,9 +403,9 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
           // GRUP: dusuk video profili (540p/700kbps — N yayin + N*(N-1) abonelik cx33'u
           // yormasin). 1:1: uyarlanabilir 720p profili AYNEN (call_media_options.dart).
           defaultCameraCaptureOptions:
-              widget.isGroup ? kGroupCameraCaptureOptions : kCameraCaptureOptions,
+              _isGroup ? kGroupCameraCaptureOptions : kCameraCaptureOptions,
           defaultVideoPublishOptions:
-              widget.isGroup ? kGroupVideoPublishOptions : kVideoPublishOptions,
+              _isGroup ? kGroupVideoPublishOptions : kVideoPublishOptions,
           defaultAudioCaptureOptions: kAudioCaptureOptions,
           defaultAudioPublishOptions: kAudioPublishOptions,
         ),
@@ -405,7 +429,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
         })
         ..on<ParticipantDisconnectedEvent>((_) {
           if (!mounted) return;
-          if (widget.isGroup) {
+          if (_isGroup) {
             // GRUP: biri ayrilinca arama SURER. Otomatik _leave YAPMA — 'remoteParticipants.isEmpty'
             // "herkes ayrildi" ile "henuz kimse katilmadi"yi karistirir (host tek A bagli, A cikar,
             // B hala caliyor -> yanlislikla oda kapanirdi). Oda bitisini BACKEND yonetir: son katilimci
@@ -454,7 +478,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
           if (mounted) setState(() {});
         })
         ..on<ActiveSpeakersChangedEvent>((_) {
-          if (mounted && widget.isGroup) setState(() {}); // grup: konusan yesil halkasini tazele
+          if (mounted && _isGroup) setState(() {}); // grup: konusan yesil halkasini tazele
         })
         ..on<RoomDisconnectedEvent>((_) {
           if (mounted) _leave(notifyServer: false);
@@ -618,7 +642,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
   /// saydigi icin SENKRON; duvar-saati kaymasi ETKILEMEZ (Stopwatch monotonik). Gec gelirse
   /// (WS kaybi -> Status) sayac SNAP eder.
   void _sureReferansiAl(int? elapsedMs) {
-    if (widget.isGroup || _sureReferansVar) return;
+    if (_isGroup || _sureReferansVar) return;
     if (elapsedMs == null || elapsedMs < 0) return;
     _sureReferansVar = true;
     _sureBaz = Duration(milliseconds: elapsedMs);
@@ -812,9 +836,11 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
 
     await CallSounds.durdur(_sesNesli);
 
-    // Ekrani hemen kapat — arkasindaki oda temizligi dispose()'ta suruyor
+    // Ekrani hemen kapat — arkasindaki oda temizligi dispose()'ta suruyor.
+    // SHEET ACIKSA once onu kapat (hukum K7: duz pop sheet'i kapatip ekrani birakirdi)
     if (mounted) {
       final nav = Navigator.of(context);
+      if (_sheetAcik && nav.canPop()) nav.pop();
       if (nav.canPop()) nav.pop();
     }
 
@@ -836,7 +862,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
     final on = !_camOn;
     // KAPASITE — WHATSAPP STANDARDI (19 Tem): grup 32 kisi (sesli+goruntulu ayni tavan).
     // 32 uzeri zaten baslatilamaz; muhafiz LiveKit global tavaniyla uyum icin duruyor.
-    if (on && widget.isGroup) {
+    if (on && _isGroup) {
       final katilimci = 1 + (_room?.remoteParticipants.length ?? 0);
       if (katilimci > 32) {
         if (mounted) {
@@ -910,6 +936,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
     _mediaYedek?.cancel();
     _endedSub?.cancel();
     _answeredSub?.cancel();
+    _partSub?.cancel();
     CallSounds.durdur(_sesNesli);
     // await edilemez (dispose senkron) — ama kilit sirasina konur, boylece
     // BIR SONRAKI aramanin connect'i bu kapanis bitmeden baslamaz.
@@ -967,7 +994,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
         body: Stack(
           children: [
             // GRUP: coklu-katilimci avatar izgarasi (sesli). 1:1: mevcut video/ses arka plani AYNEN.
-            if (widget.isGroup)
+            if (_isGroup)
               _buildGroupGrid()
             else if (bigTrack != null)
               Positioned.fill(
@@ -999,7 +1026,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
             // DIStaki GestureDetector (opaque) yakalar.
             // GRUPTA self-view overlay ACILMAZ: yerel goruntu kendi izgara tile'inda.
             // (Overlay acilirsa grup gridinin ustune biner — grup-video fazi karari.)
-            if (!widget.isGroup && showVideo && smallTrack != null)
+            if (!_isGroup && showVideo && smallTrack != null)
               _buildSelfView(context, smallTrack,
                   canSwap: bothVideo, isLocal: smallIsLocal),
 
@@ -1014,7 +1041,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
                     // A6: ust bar ikonlariyla cakismasin diye yatay bosluk
                     padding: const EdgeInsets.symmetric(horizontal: 60),
                     child: Text(
-                        widget.isGroup
+                        _isGroup
                             ? (widget.chatTitle.isEmpty ? 'Grup araması' : widget.chatTitle)
                             : widget.peerName,
                         maxLines: 1,
@@ -1086,7 +1113,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
 
   /// A7 efektif gizleme maskesi: yalniz VIDEO gorunumunde ve saglikli durumda gizlenir.
   bool get _gizliEfektif {
-    final videoModu = widget.isGroup
+    final videoModu = _isGroup
         ? _grupVideoVarMi()
         : (_remoteVideo != null || _localVideo != null);
     return _uiGizli && videoModu && !_cevapsiz && _error == null && !_connecting;
@@ -1126,8 +1153,26 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
   // Faz-C'de dolacak: minimize (ActiveCallController) — simdilik no-op iskelet.
   void _minimize() {}
 
-  // Faz-B'de dolacak: aramaya kisi ekleme sheet'i — simdilik no-op iskelet.
-  void _kisiEkle() {}
+  // KISI EKLEME (Faz-B B6): sheet ac; secim -> POST /calls/{id}/add. Ekran YERINDE
+  // grup moduna gecer (kendi eklemem WS'ten once gorunsun diye iyimser _isGroup=true).
+  void _kisiEkle() {
+    if (!_baglandi || _cevapsiz) return;
+    _sheetAcik = true;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => AddParticipantSheet(
+        onEkle: (userId, name) async {
+          await _svc.addToCall(widget.callId, userId);
+          if (mounted) {
+            if (!_isGroup) setState(() => _isGroup = true);
+            ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('$name aramaya davet edildi')));
+          }
+        },
+      ),
+    ).whenComplete(() => _sheetAcik = false);
+  }
 
   // Faz-C'de dolacak: minimize + sohbete gecis — simdilik no-op iskelet.
   void _mesajaDon() {}
