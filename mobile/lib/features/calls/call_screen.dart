@@ -102,9 +102,11 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
   String _cevapsizNeden = 'Cevap yok';
 
   // Suruklenebilir self-view (kendi kamera onizlemesi)
-  Offset? _selfPos;
+  Offset? _selfPos; // YALNIZ pan surerken ham konum; birakinca kose bayraklarina cevrilir (A5)
+  bool _selfSagda = true, _selfAltta = false; // kalici kose hafizasi
   static const double _selfW = 140, _selfH = 200, _selfMargin = 16; // WhatsApp gibi (biraz buyutuldu)
   bool _selfBuyuk = false; // self-view'e dokununca SWAP: true iken KENDI goruntum tam ekran, karsininki kucuk
+  bool _uiGizli = false; // A7: ekrana dokununca kontroller gizlenir (video modunda)
 
   @override
   void initState() {
@@ -1054,44 +1056,69 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
   ///
   /// Dokun -> SWAP (buyuk/kucuk yer degistir, WhatsApp). Kamera cevirme kontrol cubugundaki
   /// ayri butonda. Surukle -> en yakin koseye yapisir.
+  /// Kose bayraklarindan gercek konumu hesapla (A5: dondurulmus telefonda/kucultmede
+  /// pencere hep MANTIKSAL kosede kalir; ham Offset saklamak ekran degisince tasiyordu).
+  Offset _selfKonum(Size sz, double w, double h) {
+    if (_selfPos != null) return _selfPos!; // pan SURERKEN ham konum
+    final x = _selfSagda ? sz.width - w - _selfMargin : _selfMargin;
+    final y = _selfAltta ? sz.height - h - 140.0 : 130.0;
+    return Offset(x, y);
+  }
+
   Widget _buildSelfView(BuildContext c, VideoTrack track,
       {required bool canSwap, required bool isLocal}) {
     final sz = MediaQuery.of(c).size;
-    // Varsayilan konum: sag-ust ama ust bilgi/butonun ALTINDA (buyutulen self-view cakismasin).
-    final varsayilan = Offset(sz.width - _selfW - _selfMargin, 130);
-    final pos = _selfPos ?? varsayilan;
-    return Positioned(
+    // A7: kontroller gizliyken self-view de kuculur (WhatsApp)
+    final w = _uiGizli ? 100.0 : _selfW;
+    final h = _uiGizli ? 143.0 : _selfH;
+    final pos = _selfKonum(sz, w, h);
+    return AnimatedPositioned(
+      duration:
+          _selfPos != null ? Duration.zero : const Duration(milliseconds: 180),
       left: pos.dx,
       top: pos.dy,
-      width: _selfW,
-      height: _selfH,
+      width: w,
+      height: h,
       child: GestureDetector(
         // KRITIK: opaque olmadan (deferToChild) IgnorePointer child'i yuzunden hic dokunus gelmez.
         behavior: HitTestBehavior.opaque,
         onTap: canSwap ? () => setState(() => _selfBuyuk = !_selfBuyuk) : null,
         onPanUpdate: (d) {
-          final cur = _selfPos ?? varsayilan;
-          final nx =
-              (cur.dx + d.delta.dx).clamp(_selfMargin, sz.width - _selfW - _selfMargin);
-          final ny = (cur.dy + d.delta.dy).clamp(60.0, sz.height - _selfH - 140.0);
+          final cur = _selfPos ?? pos;
+          final nx = (cur.dx + d.delta.dx).clamp(_selfMargin, sz.width - w - _selfMargin);
+          final ny = (cur.dy + d.delta.dy).clamp(60.0, sz.height - h - 140.0);
           setState(() => _selfPos = Offset(nx, ny));
         },
         onPanEnd: (_) {
-          final cur = _selfPos ?? varsayilan;
-          final sol = (cur.dx + _selfW / 2) < sz.width / 2;
-          final ust = (cur.dy + _selfH / 2) < sz.height / 2;
-          setState(() => _selfPos = Offset(
-                sol ? _selfMargin : sz.width - _selfW - _selfMargin,
-                ust ? 60.0 : sz.height - _selfH - 140.0,
-              ));
+          final cur = _selfPos ?? pos;
+          setState(() {
+            // A5: KOSE bayragi sakla, ham konumu birak — sonraki build bayraktan hesaplar
+            _selfSagda = (cur.dx + w / 2) >= sz.width / 2;
+            _selfAltta = (cur.dy + h / 2) >= sz.height / 2;
+            _selfPos = null;
+          });
         },
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(24), // WhatsApp gibi belirgin yuvarlak kose
-          child: IgnorePointer(
-            // KEY rol+kimlige bagli -> swap'ta (local<->remote) taze renderer, bayat texture kalmaz.
-            child: VideoTrackRenderer(track,
-                key: ValueKey('small-${isLocal ? 'local' : 'remote'}-${track.sid}'),
-                mirrorMode: isLocal ? _yerelAyna : VideoViewMirrorMode.auto),
+        // A4 (kullanici bulgusu "sacma egrilik"): kusurun koku fit verilmemesiydi —
+        // varsayilan contain letterbox bosluklari + buyuk radius tuhaf gorunuyordu.
+        // cover + radius 14 + ince cerceve/golge = WhatsApp gorunumu. Golge ClipRRect'te
+        // cizilemez -> dekor DIS Container'da.
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.white24, width: 1),
+            boxShadow: const [
+              BoxShadow(color: Colors.black45, blurRadius: 12, offset: Offset(0, 4)),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(13),
+            child: IgnorePointer(
+              // KEY rol+kimlige bagli -> swap'ta (local<->remote) taze renderer, bayat texture kalmaz.
+              child: VideoTrackRenderer(track,
+                  key: ValueKey('small-${isLocal ? 'local' : 'remote'}-${track.sid}'),
+                  fit: VideoViewFit.cover,
+                  mirrorMode: isLocal ? _yerelAyna : VideoViewMirrorMode.auto),
+            ),
           ),
         ),
       ),
