@@ -5,45 +5,113 @@ import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/api.dart';
+import '../../core/theme.dart';
 import 'chats_provider.dart';
 import 'models.dart';
 
-/// WhatsApp tarzi sohbet listesi
-class ChatsScreen extends ConsumerWidget {
+/// WhatsApp tarzi sohbet listesi. "Gebzem" basliginin altinda ARAMA INPUT'u (yerel filtre);
+/// FAB = mor-gradient + (yeni sohbet).
+class ChatsScreen extends ConsumerStatefulWidget {
   const ChatsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ChatsScreen> createState() => _ChatsScreenState();
+}
+
+class _ChatsScreenState extends ConsumerState<ChatsScreen> {
+  final _aramaCtrl = TextEditingController();
+  String _arama = '';
+
+  @override
+  void dispose() {
+    _aramaCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final chats = ref.watch(chatsProvider);
 
     return Scaffold(
-      body: chats.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => _ErrorRetry(
-          message: apiErrorMessage(e),
-          onRetry: () => ref.read(chatsProvider.notifier).load(),
-        ),
-        data: (list) {
-          final visible = list.where((c) => !c.archived).toList();
-          if (visible.isEmpty) {
-            return const Center(
-              child: Text('Henuz sohbet yok.\nSag alttan yeni sohbet baslat!',
-                  textAlign: TextAlign.center),
-            );
-          }
-          return RefreshIndicator(
-            onRefresh: () => ref.read(chatsProvider.notifier).load(),
-            child: ListView.builder(
-              itemCount: visible.length,
-              itemBuilder: (context, i) => _ChatTile(chat: visible[i]),
+      body: Column(children: [
+        // ARAMA INPUT'u (Gebzem altinda — kullanici istegi): sohbet basligina gore filtreler
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
+          child: TextField(
+            controller: _aramaCtrl,
+            onChanged: (v) => setState(() => _arama = v.trim().toLowerCase()),
+            decoration: InputDecoration(
+              isDense: true,
+              hintText: 'Sohbet ara',
+              prefixIcon: const Icon(LucideIcons.search, size: 20),
+              suffixIcon: _arama.isEmpty
+                  ? null
+                  : IconButton(
+                      icon: const Icon(LucideIcons.x, size: 18),
+                      onPressed: () {
+                        _aramaCtrl.clear();
+                        setState(() => _arama = '');
+                      },
+                    ),
+              filled: true,
+              fillColor: const Color(0xFF232326),
+              contentPadding: const EdgeInsets.symmetric(vertical: 10),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(24),
+                borderSide: BorderSide.none,
+              ),
             ),
-          );
-        },
-      ),
-      floatingActionButton: FloatingActionButton(
-        // Yeni sohbet: isim/@kullaniciadi ile kisi ara (telefon numarasi gerekmez)
-        onPressed: () => context.push('/search'),
-        child: const Icon(LucideIcons.squarePen),
+          ),
+        ),
+        Expanded(
+          child: chats.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (e, _) => _ErrorRetry(
+              message: apiErrorMessage(e),
+              onRetry: () => ref.read(chatsProvider.notifier).load(),
+            ),
+            data: (list) {
+              var visible = list.where((c) => !c.archived).toList();
+              if (_arama.isNotEmpty) {
+                visible = visible
+                    .where((c) => c.title.toLowerCase().contains(_arama))
+                    .toList();
+              }
+              if (visible.isEmpty) {
+                return Center(
+                  child: Text(
+                      _arama.isNotEmpty
+                          ? 'Eşleşen sohbet yok'
+                          : 'Henüz sohbet yok.\nSağ alttan yeni sohbet başlat!',
+                      textAlign: TextAlign.center),
+                );
+              }
+              return RefreshIndicator(
+                onRefresh: () => ref.read(chatsProvider.notifier).load(),
+                child: ListView.builder(
+                  itemCount: visible.length,
+                  itemBuilder: (context, i) => _ChatTile(chat: visible[i]),
+                ),
+              );
+            },
+          ),
+        ),
+      ]),
+      // FAB: mor-gradient DAIRE + (kalem yerine — kullanici istegi). FloatingActionButton
+      // gradient desteklemez -> Container decoration + saydam FAB.
+      floatingActionButton: Container(
+        decoration: const BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: morGradient,
+          boxShadow: [BoxShadow(color: Color(0x556C2BD9), blurRadius: 12, offset: Offset(0, 4))],
+        ),
+        child: FloatingActionButton(
+          onPressed: () => context.push('/search'),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          highlightElevation: 0,
+          child: const Icon(LucideIcons.plus, color: Colors.white, size: 28),
+        ),
       ),
     );
   }

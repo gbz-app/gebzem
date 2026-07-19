@@ -1449,4 +1449,8 @@ BUGLAR/ISTEKLER:
 SIRA: B1 (sinyal gate) -> B3 (layout) -> UI tema/nav -> R1-R3+B2 (workflow hukmu) -> TEK BUILD.
 - [x] B1: broadcaster _konukVideo _konukId-gate + build konukVar + iyimser X-kapama; viewer
       _aktifKonuk (guest.joined/left) + _konukVideo _aktifKonuk-gate + build konukVar + cift-pill kaldirildi.
+- [x] UI redesign: theme.dart TEK KOYU tema (alt menu SIYAH #000, icerik #161618; NavigationBar
+      indicator transparent + label alwaysHide + ikon 28px aktif-beyaz/pasif-gri). home AppBar sag-ust
+      arama->+ (yeni sohbet). ChatsScreen stateful: Gebzem alti ARAMA INPUT (yerel filtre) + FAB
+      kalem->mor-gradient DAIRE + (morGradient theme.dart).
 - [x] B3: broadcaster ust bar _ustBtn kompakt (36px) — 5 buton + 2 cip tasmasi (RenderFlex) co.zuldu.

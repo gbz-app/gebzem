@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -65,10 +66,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       appBar: AppBar(
         title: Text(_titles[_index]),
         actions: [
+          // Sohbetler sekmesi: sag-ust + (arama ikonu yerine) -> yeni sohbet (kisi ara).
+          // Sohbet FILTRESI "Gebzem" basliginin altindaki arama input'unda (ChatsScreen).
           if (_index == 0)
-            IconButton(icon: const Icon(LucideIcons.search), onPressed: () {
-              // TODO Faz 1 sonu: sohbet arama
-            }),
+            IconButton(
+              icon: const Icon(LucideIcons.plus),
+              tooltip: 'Yeni sohbet',
+              onPressed: () => context.push('/search'),
+            ),
         ],
       ),
       body: IndexedStack(
