@@ -158,6 +158,7 @@ func main() {
 		r.Get("/calls/active", callsH.Active)      // calan arama var mi (uygulama on plana donunce)
 		r.Get("/calls/{id}/status", callsH.Status) // arayan: aramam cevaplandi mi/bitti mi (kurtarma)
 		r.Post("/calls", callsH.Start)
+		r.Post("/calls/{id}/add", callsH.Add) // aktif aramaya kisi ekle (1:1 -> grup yukseltme)
 		r.Post("/calls/{id}/answer", callsH.Answer)
 		r.Post("/calls/{id}/end", callsH.End)
 		r.Post("/calls/{id}/audio-stat", callsH.AudioStat) // CANLI eszamanli ses takibi (api log)

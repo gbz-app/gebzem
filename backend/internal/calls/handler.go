@@ -223,9 +223,12 @@ func (h *Handler) Start(w http.ResponseWriter, r *http.Request) {
 		`UPDATE calls
 		 SET status = CASE WHEN status='active' THEN 'ended' ELSE 'missed' END, ended_at=now()
 		 WHERE ((caller_id=$1 AND callee_id=$2) OR (caller_id=$2 AND callee_id=$1))
+		   AND COALESCE(is_group,false)=false
 		   AND (status='ringing'
 		        OR (status='active' AND created_at < now() - interval '15 seconds'))`,
 		callerID, req.CalleeID)
+	// ^ is_group=false KEMERI (parite-hukum B2c): yukseltilmis grup aramasi callee_id=NULL
+	// ile zaten eslesmiyor; bu kosul gelecekte callee_id doldurulursa da canli grubu korur.
 
 	// 'active' penceresi UZUN (2 saat): kisa deger, MESRU uzun gorusme suren callee'yi
 	// "musait" gosterip araya 2. arama sokardi. Ayni cift takili 'active'i zaten yukaridaki
@@ -471,6 +474,182 @@ func (h *Handler) startGroup(w http.ResponseWriter, r *http.Request, req startRe
 	writeJSON(w, http.StatusCreated, map[string]any{
 		"call_id": callID, "room": roomName, "url": h.lkURL, "token": tok,
 		"type": callType, "is_group": true,
+	})
+}
+
+// POST /calls/{id}/add {user_id} — AKTIF aramaya kisi ekle (parite-hukum B1).
+// 1:1 arama GRUBA YUKSELTILIR (is_group=true, callee_id=NULL — K1: pairwise zombi
+// temizligi canli grubu oldurmesin); zaten-grupta yalniz davet eklenir. Ayni LiveKit
+// odasi (call_<id>) kullanildigi icin mevcut katilimcilarin baglantisina DOKUNULMAZ.
+func (h *Handler) Add(w http.ResponseWriter, r *http.Request) {
+	userID := auth.UserID(r.Context())
+	callID := chi.URLParam(r, "id")
+	var req struct {
+		UserID string `json:"user_id"`
+	}
+	json.NewDecoder(r.Body).Decode(&req)
+	if req.UserID == "" || req.UserID == userID {
+		writeErr(w, http.StatusBadRequest, "gecersiz istek")
+		return
+	}
+
+	tx, err := h.db.Begin(r.Context())
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "eklenemedi")
+		return
+	}
+	defer tx.Rollback(r.Context())
+
+	// Kilit + yetki: cagiran aramanin AKTIF bir katilimcisi olmali (FOR UPDATE:
+	// es zamanli iki add serilesir — cifte yukseltme yarisi biter)
+	var callerID string
+	var calleeID *string
+	var callType string
+	var isGroup bool
+	var chatID *string
+	err = tx.QueryRow(r.Context(), `
+		SELECT caller_id, callee_id, type, COALESCE(is_group,false), chat_id FROM calls
+		WHERE id=$1 AND status='active'
+		  AND (caller_id=$2 OR callee_id=$2 OR EXISTS(
+		       SELECT 1 FROM call_participants WHERE call_id=$1 AND user_id=$2 AND status='joined'))
+		FOR UPDATE`, callID, userID).Scan(&callerID, &calleeID, &callType, &isGroup, &chatID)
+	if err != nil {
+		writeErr(w, http.StatusNotFound, "arama bulunamadi veya bitti")
+		return
+	}
+
+	// Hedef gecerli + engel yok
+	var verified bool
+	tx.QueryRow(r.Context(), `SELECT COALESCE(verified,false) FROM users WHERE id=$1`, req.UserID).Scan(&verified)
+	if !verified {
+		writeErr(w, http.StatusBadRequest, "kullanici bulunamadi")
+		return
+	}
+	var blocked bool
+	tx.QueryRow(r.Context(), `SELECT EXISTS(SELECT 1 FROM blocks
+		WHERE (blocker_id=$1 AND blocked_id=$2) OR (blocker_id=$2 AND blocked_id=$1))`,
+		userID, req.UserID).Scan(&blocked)
+	if blocked {
+		writeErr(w, http.StatusForbidden, "bu kullanici eklenemiyor")
+		return
+	}
+	// Zaten bu aramada mi
+	var hedefDurum string
+	tx.QueryRow(r.Context(), `SELECT status FROM call_participants WHERE call_id=$1 AND user_id=$2`,
+		callID, req.UserID).Scan(&hedefDurum)
+	if hedefDurum == "joined" {
+		writeErr(w, http.StatusConflict, "kullanici zaten aramada")
+		return
+	}
+	// Hedef baska gorusmede mi (K3): calls VEYA participants (bu arama haric)
+	var mesgul bool
+	tx.QueryRow(r.Context(), `
+		SELECT EXISTS(
+		  SELECT 1 FROM calls WHERE id<>$2 AND (caller_id=$1 OR callee_id=$1)
+		    AND (status='active' AND created_at > now() - interval '2 hours'
+		         OR status='ringing' AND created_at > now() - interval '45 seconds')
+		) OR EXISTS(
+		  SELECT 1 FROM call_participants p JOIN calls c ON c.id=p.call_id
+		  WHERE p.user_id=$1 AND p.call_id<>$2 AND c.status='active'
+		    AND (p.status='joined' OR (p.status='ringing' AND p.invited_at > now() - interval '45 seconds'))
+		)`, req.UserID, callID).Scan(&mesgul)
+	if mesgul {
+		writeErr(w, http.StatusConflict, "kullanici su anda baska bir gorusmede")
+		return
+	}
+	// Kapasite (32): 1:1'de taban 2 say
+	var aktifSayi int
+	tx.QueryRow(r.Context(), `SELECT count(*) FROM call_participants
+		WHERE call_id=$1 AND status IN ('ringing','joined')`, callID).Scan(&aktifSayi)
+	if !isGroup && aktifSayi < 2 {
+		aktifSayi = 2
+	}
+	if aktifSayi+1 > 32 {
+		writeErr(w, http.StatusBadRequest, "grup aramasi en fazla 32 kisi olabilir")
+		return
+	}
+
+	// 1:1 ise YUKSELT
+	if !isGroup {
+		if _, err := tx.Exec(r.Context(),
+			`UPDATE calls SET is_group=true, callee_id=NULL WHERE id=$1 AND is_group=false AND status='active'`,
+			callID); err != nil {
+			writeErr(w, http.StatusInternalServerError, "eklenemedi")
+			return
+		}
+		if calleeID != nil {
+			tx.Exec(r.Context(), `
+				INSERT INTO call_participants (call_id, user_id, status, joined_at)
+				VALUES ($1,$2,'joined',now()),($1,$3,'joined',now())
+				ON CONFLICT (call_id, user_id) DO NOTHING`, callID, callerID, *calleeID)
+		}
+	}
+	// Davetli upsert (left/rejected/missed -> yeniden ringing; joined'a DOKUNMA)
+	if _, err := tx.Exec(r.Context(), `
+		INSERT INTO call_participants (call_id, user_id, status, invited_at)
+		VALUES ($1,$2,'ringing',now())
+		ON CONFLICT (call_id, user_id) DO UPDATE SET status='ringing', invited_at=now()
+		WHERE call_participants.status <> 'joined'`, callID, req.UserID); err != nil {
+		writeErr(w, http.StatusInternalServerError, "eklenemedi")
+		return
+	}
+	if err := tx.Commit(r.Context()); err != nil {
+		writeErr(w, http.StatusInternalServerError, "eklenemedi")
+		return
+	}
+
+	// ---- fan-out (TX DISI, startGroup deseni) ----
+	chatTitle := "Grup araması"
+	if chatID != nil {
+		h.db.QueryRow(r.Context(),
+			`SELECT COALESCE(NULLIF(title,''),'Grup araması') FROM chats WHERE id=$1`, *chatID).Scan(&chatTitle)
+	}
+	var ekleyenAd, ekleyenAvatar string
+	h.db.QueryRow(r.Context(), `SELECT name, COALESCE(avatar_url,'') FROM users WHERE id=$1`, userID).
+		Scan(&ekleyenAd, &ekleyenAvatar)
+	roomName := "call_" + callID
+	katilimciSayi := aktifSayi + 1
+
+	// Eski katilimcilara: ekran grup moduna gecsin (idempotent)
+	upgPayload, _ := json.Marshal(map[string]any{
+		"call_id": callID, "is_group": true, "chat_title": chatTitle,
+		"added_by": userID, "added_name": ekleyenAd, "participant_count": katilimciSayi,
+	})
+	h.hub.Publish(r.Context(), &chat.Event{
+		Type: "call.upgraded", Payload: upgPayload,
+		To: h.groupJoinedOthers(r.Context(), callID, ""),
+	})
+
+	// Davetliye: call.incoming (WS) + iOS VoIP + Android FCM (offline) — startGroup birebir
+	incPayload, _ := json.Marshal(map[string]any{
+		"call_id": callID, "room": roomName, "type": callType,
+		"caller_id": userID, "caller_name": ekleyenAd, "caller_avatar": ekleyenAvatar,
+		"is_group": true, "chat_title": chatTitle, "participant_count": katilimciSayi,
+	})
+	h.hub.Publish(r.Context(), &chat.Event{Type: "call.incoming", Payload: incPayload, To: []string{req.UserID}})
+	if h.apns != nil {
+		go func(uid string) {
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			h.apns.CallInvite(ctx, uid, map[string]any{
+				"call_id": callID, "room": roomName, "call_type": callType,
+				"caller_id": userID, "caller_name": chatTitle, "caller_avatar": ekleyenAvatar,
+				"is_group": true, "chat_title": chatTitle,
+			})
+		}(req.UserID)
+	}
+	if !h.hub.Online(req.UserID) && h.push != nil {
+		go h.push.CallInvite([]string{req.UserID}, map[string]string{
+			"type": "call.incoming", "call_id": callID, "room": roomName, "call_type": callType,
+			"caller_id": userID, "caller_name": ekleyenAd, "caller_avatar": ekleyenAvatar,
+			"is_group": "true", "chat_title": chatTitle,
+		})
+	}
+	log.Printf("aramaya ekleme: call=%s ekleyen=%s hedef=%s (toplam=%d)",
+		kisaID(callID), kisaID(userID), kisaID(req.UserID), katilimciSayi)
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status": "invited", "call_id": callID, "is_group": true, "participant_count": katilimciSayi,
 	})
 }
 
@@ -762,10 +941,12 @@ func (h *Handler) endGroup(w http.ResponseWriter, r *http.Request, callID, userI
 	// (2-kisilik grupta biri cikinca digeri tek/yalniz kalmasin). Taze ringing (45sn) varsa -> onlar
 	// katilabilir, arama surer (3+ kisi / host+bekleyenler senaryosu bozulmaz).
 	var joinedCount, ringingFresh int
+	// invited_at bazli tazelik (parite-hukum B2a): aramaya SONRADAN eklenen davetli
+	// (created_at eski!) daha calarken son joined cikarsa arama olmesin.
 	h.db.QueryRow(r.Context(), `
 		SELECT count(*) FILTER (WHERE p.status='joined'),
-		       count(*) FILTER (WHERE p.status='ringing' AND c.created_at > now() - interval '45 seconds')
-		FROM call_participants p JOIN calls c ON c.id=p.call_id
+		       count(*) FILTER (WHERE p.status='ringing' AND p.invited_at > now() - interval '45 seconds')
+		FROM call_participants p
 		WHERE p.call_id=$1`, callID).Scan(&joinedCount, &ringingFresh)
 	if joinedCount == 0 || (joinedCount == 1 && ringingFresh == 0) {
 		h.db.Exec(r.Context(),
@@ -975,7 +1156,11 @@ func (h *Handler) Status(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"status": status, "elapsed_ms": elapsedMs})
+	// is_group additive (parite-hukum B2b): WS call.upgraded kaybolursa istemci 3sn'lik
+	// aktif poll'dan grup moduna gecisi kurtarir. Eski istemci alani yok sayar.
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status": status, "elapsed_ms": elapsedMs, "is_group": isGroup,
+	})
 }
 
 // GET /calls/active — beni su an arayan var mi?
