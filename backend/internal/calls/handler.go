@@ -876,10 +876,12 @@ func (h *Handler) AudioStat(w http.ResponseWriter, r *http.Request) {
 		durum = "SES-DUSUK"
 	}
 	// GONDEREN-TARAFI teshis (grup "kimin sesi gitmiyor"): mic ACIK + kendi paketlerim
-	// AKIYOR + capture enerjim 0 = OLU MIKROFON (bu telefonun sesi kimseye gitmiyor).
-	// Istemci ayni imzayla otomatik kurtarma da dener; burasi kalici KANIT satiri.
+	// AKIYOR + capture enerjim SIFIR = OLU MIKROFON (bu telefonun sesi kimseye gitmiyor).
+	// OLCEK NOTU (19 Tem canli veri): outbound media-source enerjisi inbound'dan ~1000x
+	// kucuk — SAGLIKLI mikrofon 0.1-0.3 gosteriyor. Esik 0.5 herkesi MIK-OLU isaretledi
+	// (yanlis alarm); gercek olu mikrofon DUZ 0.0 basar -> esik 0.01.
 	mikE, _ := strconv.ParseFloat(req.Mik, 64)
-	if req.Mic && req.SDelta > 60 && mikE < 0.5 {
+	if req.Mic && req.SDelta > 60 && mikE <= 0.01 {
 		durum = "MIK-OLU(" + durum + ")"
 	}
 	log.Printf("AUDIO call=%s user=%s %s %s recv=%d delta=%d enerji=%.1f sent=%d sdelta=%d mikE=%.1f mic=%v %s peer=%v hoparlor=%v iOS[%s]",
