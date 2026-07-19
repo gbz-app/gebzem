@@ -404,7 +404,9 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       _aktifPollBaslat();
       _statsBaslat();
     } catch (e) {
-      await CallSounds.durdur(_sesNesli);
+      // TARAMA #3: STALE cagri (baska arama devralmis) paylasilan _sesNesli'yi okuyup
+      // YENI aramanin calma tonunu susturmasin — ses yalniz hala benim aramamsa durur.
+      if (arama?.callId == id) await CallSounds.durdur(_sesNesli);
       // BAGLANAMADIK: muhafizi birak + aramayi sunucuda dusur (0ba750d7 hukmu).
       _svc.ekranKapandi(id);
       unawaited(_svc.end(id));
@@ -424,6 +426,9 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> _odayaBaglan() async {
     final b = arama;
     if (b == null) return;
+    // TARAMA #2: TUM listener callback'leri ve stale kontrolleri BU cagrinin callId'sini
+    // yakalar — eski odanin gecikmis eventi (RoomDisconnected vb.) YENI aramayi olduremez.
+    final id = b.callId;
     final room = Room(
       roomOptions: RoomOptions(
         adaptiveStream: true,
@@ -440,18 +445,19 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     // Odayi HEMEN alana ata (baglanirken cikis -> teardown bulabilsin; sizinti olmasin)
     _room = room;
 
+    final listener = room.createListener();
+    _listener = listener;
     try {
-      _listener = room.createListener();
-      _listener!
+      listener
         ..on<ParticipantConnectedEvent>((_) {
-          if (arama == null) return;
+          if (arama?.callId != id) return;
           _ringTimeout?.cancel();
           _peerJoined = true;
           notifyListeners();
           _mediaGuvenlikAgi(); // sure GERCEK ses gelince baslar; 8sn yedek
         })
         ..on<ParticipantDisconnectedEvent>((_) {
-          if (arama == null) return;
+          if (arama?.callId != id) return;
           if (_isGroup) {
             // GRUP: biri ayrilinca arama SURER — otomatik leave YOK (backend yonetir).
             notifyListeners();
@@ -460,20 +466,21 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
           leave(notifyServer: true); // 1:1: karsi taraf ayrildi
         })
         ..on<ParticipantConnectionQualityUpdatedEvent>((e) {
-          if (arama != null && e.participant is LocalParticipant) {
+          if (arama?.callId == id && e.participant is LocalParticipant) {
             _quality = e.connectionQuality;
             notifyListeners();
           }
         })
         ..on<TrackSubscribedEvent>((e) {
-          if (arama != null) notifyListeners();
+          if (arama?.callId != id) return;
+          notifyListeners();
           if (e.track is VideoTrack) {
             // Ilk-kare texture tekmesi
             WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (arama != null) notifyListeners();
+              if (arama?.callId == id) notifyListeners();
             });
             Future.delayed(const Duration(milliseconds: 400), () {
-              if (arama != null) notifyListeners();
+              if (arama?.callId == id) notifyListeners();
             });
           }
           if (e.track is AudioTrack) {
@@ -482,19 +489,19 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
           }
         })
         ..on<TrackUnsubscribedEvent>((_) {
-          if (arama != null) notifyListeners();
+          if (arama?.callId == id) notifyListeners();
         })
         ..on<TrackMutedEvent>((_) {
-          if (arama != null) notifyListeners();
+          if (arama?.callId == id) notifyListeners();
         })
         ..on<TrackUnmutedEvent>((_) {
-          if (arama != null) notifyListeners();
+          if (arama?.callId == id) notifyListeners();
         })
         ..on<ActiveSpeakersChangedEvent>((_) {
-          if (arama != null && _isGroup) notifyListeners();
+          if (arama?.callId == id && _isGroup) notifyListeners();
         })
         ..on<RoomDisconnectedEvent>((_) {
-          if (arama != null) leave(notifyServer: false);
+          if (arama?.callId == id) leave(notifyServer: false);
         });
 
       await room.connect(
@@ -517,9 +524,12 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       await _sesiAc(true); // SES BIRIMI EN SON
       _sesLog('ses kuruldu: video=${b.video}');
 
-      // Bu arada ayrildiysak odayi birak (sizinti olmasin)
-      if (_ayrildi || arama?.callId != b.callId) {
-        _kapatOdayiKuyrugaKoy();
+      // Bu arada ayrildiysak odayi birak (sizinti olmasin).
+      // TARAMA #1 (kritik): _kapatOdayiKuyrugaKoy CAGRILMAZ — o metot controller'in
+      // GUNCEL (belki yeni aramanin) bayrak/timer'larini degistirir; stale cagri yalniz
+      // KENDI yerel nesnelerini temizler.
+      if (_ayrildi || arama?.callId != id) {
+        _staleTemizle(room, listener);
         return;
       }
       _ringTimeout?.cancel();
@@ -533,9 +543,25 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
         _mediaGuvenlikAgi();
       }
     } catch (e) {
-      _kapatOdayiKuyrugaKoy(); // yarim kalan odayi temizle
+      // TARAMA #1: yalniz HALA benim aramamsa tam teardown (bayraklar/timer'lar dahil);
+      // stale isem (yeni arama devralmis) yalniz yerel nesneleri temizle.
+      if (!_ayrildi && arama?.callId == id) {
+        _kapatOdayiKuyrugaKoy();
+      } else {
+        _staleTemizle(room, listener);
+      }
       rethrow;
     }
+  }
+
+  /// STALE _odayaBaglan temizligi (TARAMA #1): controller alan/bayrak/timer'larina
+  /// DOKUNMADAN yalniz bu cagrinin yakaladigi room/listener'i kilit sirasinda kapatir.
+  /// Alanlar ancak HALA bu cagriya aitse null'lanir (yeni arama devraldiysa ellenmez).
+  void _staleTemizle(Room room, EventsListener<RoomEvent> listener) {
+    final nesil = _benimSesNeslim;
+    if (identical(_room, room)) _room = null;
+    if (identical(_listener, listener)) _listener = null;
+    unawaited(CallRoomLock.calistir(() => _odaTemizle(room, listener, nesil)));
   }
 
   void _aktifPollBaslat() {

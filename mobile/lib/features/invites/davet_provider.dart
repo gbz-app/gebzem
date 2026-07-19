@@ -81,9 +81,22 @@ class DavetServisi {
     });
   }
 
+  bool _aciliyor = false; // TARAMA #8: re-entrancy kilidi (cift dokunus / banner+tepsi)
+
   /// Davete dokununca katilma akisi (banner + push yonlendirme ORTAK yolu).
-  /// Muhafizlar: aramadaMi + REST-sonrasi tekrar (Spaces dersi) + zaten-iceride.
+  /// Muhafizlar: re-entrancy + aramadaMi + REST-sonrasi tekrar (Spaces dersi) + zaten-iceride.
   Future<void> davetiAc({required String tip, required String id, String baslik = ''}) async {
+    if (_aciliyor) return; // TARAMA #8: ikinci dokunus REST penceresinde cift katilim yapardi
+    _aciliyor = true;
+    try {
+      await _davetiAcGovde(tip: tip, id: id, baslik: baslik);
+    } finally {
+      _aciliyor = false;
+    }
+  }
+
+  Future<void> _davetiAcGovde(
+      {required String tip, required String id, String baslik = ''}) async {
     final svc = _ref.read(callServiceProvider.notifier);
     void mesaj(String t) =>
         rootMessengerKey.currentState?.showSnackBar(SnackBar(content: Text(t)));
@@ -101,10 +114,14 @@ class DavetServisi {
       ));
       return;
     }
+    // TARAMA #9: REST-sonrasi kontrol KENDI ekranId'mi HARIC tutar — manuel yoldan ayni
+    // odaya/yayina coktan girdiysem 'ayril' GONDERMEK sunucu kaydimi bozar (sessiz cik);
+    // rollback yalniz BASKA bir arama/oda araya girdiyse.
     try {
       if (tip == 'yayin') {
         final info = await _ref.read(liveApiProvider).izle(id);
-        if (svc.aramadaMi) {
+        if (svc.ekrandakiAramalar.contains(ekranId)) return; // manuel yol kazandi
+        if (svc.ekrandakiAramalar.any((x) => x != ekranId)) {
           unawaited(_ref.read(liveApiProvider).ayril(id));
           mesaj('Aramadasınız — yayına girilmedi');
           return;
@@ -126,7 +143,8 @@ class DavetServisi {
         ));
       } else {
         final info = await _ref.read(roomsApiProvider).katil(id);
-        if (svc.aramadaMi) {
+        if (svc.ekrandakiAramalar.contains(ekranId)) return; // manuel yol kazandi
+        if (svc.ekrandakiAramalar.any((x) => x != ekranId)) {
           unawaited(_ref.read(roomsApiProvider).ayril(id));
           mesaj('Aramadasınız — odaya katılınmadı');
           return;

@@ -91,9 +91,13 @@ class AuthNotifier extends StateNotifier<String?> {
   Future<void> logout() async {
     // C5: MINIMIZE'DAKI ARAMAYI BITIR — minimize cikisi mumkun kildi; aramayi sunucuda
     // dusurmeden cikilirsa karsi taraf sonsuz bekler (yeni acilan kenar durumu).
+    // TARAMA #12: timeout SART — ag yokken end() 3 deneme ~30sn surer, cikis butonu
+    // donardi. Timeout asilirsa leave arka planda surer (end retry'li), cikis HEMEN.
     try {
       final ctrl = _ref.read(activeCallProvider);
-      if (ctrl.arama != null) await ctrl.leave(notifyServer: true);
+      if (ctrl.arama != null) {
+        await ctrl.leave(notifyServer: true).timeout(const Duration(seconds: 3));
+      }
     } catch (_) {}
     // ONCE oturumu kapat: state='' -> router ANINDA /login'e gider. Boylece
     // butona basinca cikis HEMEN gerceklesir; temizlik adimlarindan biri hata
@@ -111,7 +115,11 @@ class AuthNotifier extends StateNotifier<String?> {
     try {
       await _ref.read(storageProvider).clear();
     } catch (_) {}
-    _ref.invalidate(wsProvider);
+    // TARAMA #11 (kritik): wsProvider'i INVALIDATE ETME. CallService/DavetServisi
+    // singleton'lari constructor'da BU WsService'in broadcast stream'ine abone —
+    // invalidate yeni instance yaratir, aboneler OLU stream'de kalir ve relogin
+    // sonrasi gelen arama/davet HIC islenmezdi. close() soketi kapatir ama stream'i
+    // KAPATMAZ; login'deki connect() _closed=false ile ayni instance'i canlandirir.
     _ref.invalidate(pushProvider);
   }
 

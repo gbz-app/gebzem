@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -163,12 +164,19 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
         })
         ..on<lk.RoomReconnectedEvent>((_) {
           // FULL reconnect grant'i TOKEN'dan yukler (izleyici=publish kapali) — konuksam
-          // sunucudan izni idempotent geri iste (D4). Degilsem no-op (403 tolere).
+          // sunucudan izni idempotent geri iste (D4).
+          // TARAMA #5: 403 = konuklugum sunucuda dusmus (sweep beni offline'ken almis) ->
+          // bayat 'konugum' durumunda TAKILI KALMA: durustce izleyicilige don.
           if (mounted && _konukum) {
-            ref
-                .read(liveApiProvider)
-                .konukYenile(widget.streamId)
-                .catchError((_) {});
+            ref.read(liveApiProvider).konukYenile(widget.streamId).catchError((e) {
+              if (!mounted || !_konukum) return;
+              final st = e is DioException ? e.response?.statusCode : null;
+              if (st == 403) {
+                _konuktanCik(sunucuyaBildir: false);
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                    content: Text('Konukluktan çıkarıldın — izlemeye devam ediyorsun')));
+              }
+            });
           }
         })
         ..on<lk.RoomDisconnectedEvent>((_) {
@@ -234,7 +242,12 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
       case 'guest.joined':
         setState(() {}); // PiP render'i track-bazli; sadece yeniden ciz
       case 'guest.left':
-        if ((v['user_id'] as String?) == _benimId && _konukum) {
+        // TARAMA #6: ben-mi ayrimi LiveKit identity ile (token identity = user_id;
+        // SENKRON ve her zaman dolu) — _benimId asenkron/profil-hatasi durumunda bos
+        // kalabiliyordu ve demote KACIYORDU. _benimId yalniz yedek.
+        final gidenId = v['user_id'] as String?;
+        final benim = _room?.localParticipant?.identity ?? _benimId;
+        if (gidenId != null && gidenId == benim && _konukum) {
           _konuktanCik(sunucuyaBildir: false); // yayinci cikardi / sweep
           ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('Yayıncı seni izleyiciliğe aldı')));
@@ -554,16 +567,20 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(13),
-                  child: lk.VideoTrackRenderer(
-                    konukVideo,
-                    key: ValueKey('konuk-${konukVideo.mediaStreamTrack.id}'),
-                    fit: lk.VideoViewFit.cover,
-                    // Kendi kameram: ayna kurali (on=aynali); uzak konukta auto kalir
-                    mirrorMode: _konukum
-                        ? (_onKamera
-                            ? lk.VideoViewMirrorMode.mirror
-                            : lk.VideoViewMirrorMode.off)
-                        : lk.VideoViewMirrorMode.auto,
+                  // TARAMA #4 (kritik): IgnorePointer SART — renderer'a dokunus giderse
+                  // flutter_webrtc CameraUtils NPE ile COKER (call_screen deseni).
+                  child: IgnorePointer(
+                    child: lk.VideoTrackRenderer(
+                      konukVideo,
+                      key: ValueKey('konuk-${konukVideo.mediaStreamTrack.id}'),
+                      fit: lk.VideoViewFit.cover,
+                      // Kendi kameram: ayna kurali (on=aynali); uzak konukta auto kalir
+                      mirrorMode: _konukum
+                          ? (_onKamera
+                              ? lk.VideoViewMirrorMode.mirror
+                              : lk.VideoViewMirrorMode.off)
+                          : lk.VideoViewMirrorMode.auto,
+                    ),
                   ),
                 ),
               ),

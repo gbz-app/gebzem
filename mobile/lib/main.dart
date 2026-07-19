@@ -155,13 +155,17 @@ class _GebzemAppState extends ConsumerState<GebzemApp> with WidgetsBindingObserv
   /// - ARKA PLANDAYKEN dokunuldu -> onMessageOpenedApp
   /// Iki yol da ayni katilma akisina (davetiAc) gider; muhafizlar orada.
   Future<void> _davetPushBaslat() async {
-    void ac(RemoteMessage m) {
+    Future<void> ac(RemoteMessage m) async {
       final tip = m.data['type'];
       if (tip != 'stream.invite' && tip != 'room.invite') return;
       final id = (tip == 'stream.invite' ? m.data['stream_id'] : m.data['room_id'])
               as String? ??
           '';
       if (id.isEmpty) return;
+      // TARAMA #10: oturum yoksa (cikis yapilmis/taze kurulum) davet acilmaz —
+      // yoksa login ekrani ustunde anlamsiz 401 snackbar'i cikiyordu.
+      final token = await AppStorage().token;
+      if (token == null || token.isEmpty) return;
       unawaited(ref.read(davetServisiProvider).davetiAc(
             tip: tip == 'stream.invite' ? 'yayin' : 'oda',
             id: id,

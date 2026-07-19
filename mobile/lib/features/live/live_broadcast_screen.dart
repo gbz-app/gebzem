@@ -276,6 +276,20 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
     } catch (_) {}
   }
 
+  /// Aktif konugun user_id'si. TARAMA #7: guest.joined sinyali kacmis olabilir
+  /// (arka plan/reconnect) — PiP track-bazli gorunmeye devam eder ama _konukId bos
+  /// kalirdi ve x butonu SESSIZCE hicbir sey yapmazdi. Yedek: publish eden tek uzak
+  /// katilimcinin LiveKit identity'si (token identity = user_id).
+  String _konukIdBul() {
+    if (_konukId.isNotEmpty) return _konukId;
+    for (final p in _room?.remoteParticipants.values ?? const <lk.RemoteParticipant>[]) {
+      for (final pub in p.videoTrackPublications) {
+        if (pub.subscribed && pub.track != null) return p.identity;
+      }
+    }
+    return '';
+  }
+
   /// Konugu yayindan cikar (PiP'teki x) — onayli
   Future<void> _konukCikarOnayli() async {
     final ad = _konukAdi.isNotEmpty ? _konukAdi : 'Konuk';
@@ -290,9 +304,15 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
         ],
       ),
     );
-    if (onay != true || !mounted || _konukId.isEmpty) return;
+    if (onay != true || !mounted) return;
+    final hedef = _konukIdBul();
+    if (hedef.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Konuk bilgisi alınamadı — İzleyiciler listesinden deneyin')));
+      return;
+    }
     try {
-      await ref.read(liveApiProvider).konukCikar(widget.streamId, _konukId);
+      await ref.read(liveApiProvider).konukCikar(widget.streamId, hedef);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
@@ -501,10 +521,14 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(13),
-                    child: lk.VideoTrackRenderer(
-                      konukVideo,
-                      key: ValueKey('konuk-${konukVideo.mediaStreamTrack.id}'),
-                      fit: lk.VideoViewFit.cover,
+                    // IgnorePointer: renderer'a dokunus = CameraUtils NPE riski (proje
+                    // kurali); x butonu Stack'te ustte, calismaya devam eder.
+                    child: IgnorePointer(
+                      child: lk.VideoTrackRenderer(
+                        konukVideo,
+                        key: ValueKey('konuk-${konukVideo.mediaStreamTrack.id}'),
+                        fit: lk.VideoViewFit.cover,
+                      ),
                     ),
                   ),
                 ),
