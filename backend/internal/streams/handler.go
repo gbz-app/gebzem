@@ -21,7 +21,9 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"github.com/gbz-app/gebzem/backend/internal/auth"
+	"github.com/gbz-app/gebzem/backend/internal/chat"
 	"github.com/gbz-app/gebzem/backend/internal/livekit"
+	"github.com/gbz-app/gebzem/backend/internal/push"
 )
 
 const tokenOmru = 8 * time.Hour
@@ -29,6 +31,8 @@ const tokenOmru = 8 * time.Hour
 type Handler struct {
 	db     *pgxpool.Pool
 	rdb    *redis.Client
+	hub    *chat.Hub    // davet WS fan-out (Bolum 5; yayin ici sinyaller SendData'da kalir)
+	push   *push.Sender // davet offline bildirimi (DataNotify — CallKit degil)
 	lk     *livekit.Client
 	lkURL  string
 	key    string
@@ -36,7 +40,7 @@ type Handler struct {
 	maxIzleyici int
 }
 
-func NewHandler(db *pgxpool.Pool, rdb *redis.Client) *Handler {
+func NewHandler(db *pgxpool.Pool, rdb *redis.Client, hub *chat.Hub, pushSender *push.Sender) *Handler {
 	key := os.Getenv("LIVEKIT_API_KEY")
 	secret := os.Getenv("LIVEKIT_API_SECRET")
 	maxV := 300
@@ -46,6 +50,8 @@ func NewHandler(db *pgxpool.Pool, rdb *redis.Client) *Handler {
 	return &Handler{
 		db:     db,
 		rdb:    rdb,
+		hub:    hub,
+		push:   pushSender,
 		lk:     livekit.NewClient(getEnv("LIVEKIT_API_URL", "http://167.233.229.88:7880"), key, secret),
 		lkURL:  getEnv("LIVEKIT_URL", "wss://rtc.gebzem.app"),
 		key:    key,

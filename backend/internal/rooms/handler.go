@@ -16,9 +16,12 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/redis/go-redis/v9"
+
 	"github.com/gbz-app/gebzem/backend/internal/auth"
 	"github.com/gbz-app/gebzem/backend/internal/chat"
 	"github.com/gbz-app/gebzem/backend/internal/livekit"
+	"github.com/gbz-app/gebzem/backend/internal/push"
 )
 
 const (
@@ -31,19 +34,23 @@ const (
 type Handler struct {
 	db     *pgxpool.Pool
 	hub    *chat.Hub
+	rdb    *redis.Client // davet throttle (Bolum 5 B3)
+	push   *push.Sender  // davet offline bildirimi
 	lk     *livekit.Client
 	lkURL  string
 	key    string
 	secret string
 }
 
-func NewHandler(db *pgxpool.Pool, hub *chat.Hub) *Handler {
+func NewHandler(db *pgxpool.Pool, hub *chat.Hub, rdb *redis.Client, pushSender *push.Sender) *Handler {
 	key := os.Getenv("LIVEKIT_API_KEY")
 	secret := os.Getenv("LIVEKIT_API_SECRET")
 	apiURL := getEnv("LIVEKIT_API_URL", "http://167.233.229.88:7880") // twirp (dogrudan, CF'siz)
 	return &Handler{
 		db:     db,
 		hub:    hub,
+		rdb:    rdb,
+		push:   pushSender,
 		lk:     livekit.NewClient(apiURL, key, secret),
 		lkURL:  getEnv("LIVEKIT_URL", "wss://rtc.gebzem.app"),
 		key:    key,

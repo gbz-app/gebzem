@@ -82,12 +82,12 @@ func main() {
 	} else {
 		log.Println("arama: LIVEKIT_API_KEY yok — kapali")
 	}
-	roomsH := rooms.NewHandler(db, hub) // Spaces (sesli oda) — in-app, CallKit/zil yok
+	roomsH := rooms.NewHandler(db, hub, rdb, pushSender) // Spaces (sesli oda) — in-app, CallKit/zil yok
 	if roomsH.Enabled() {
 		log.Println("odalar (Spaces): aktif")
 		roomsH.StartSweeper(ctx) // host kopmasi / bos oda / 8 saat emniyet
 	}
-	streamsH := streams.NewHandler(db, rdb) // canli yayin (saf WebRTC, izleyici Redis'te)
+	streamsH := streams.NewHandler(db, rdb, hub, pushSender) // canli yayin (saf WebRTC, izleyici Redis'te)
 	if streamsH.Enabled() {
 		log.Println("canli yayin: aktif")
 		streamsH.StartSweeper(ctx) // olu izleyici / yayinci nabzi / kalp toplama / 12h emniyet
@@ -174,6 +174,7 @@ func main() {
 		r.Post("/rooms/{id}/mute", roomsH.Mute)
 		r.Post("/rooms/{id}/remove", roomsH.Remove)
 		r.Post("/rooms/{id}/end", roomsH.End)
+		r.Post("/rooms/{id}/invite", roomsH.Invite) // odaya davet (in-app bildirim)
 		// Canli yayin (saf WebRTC; sinyaller LiveKit SendData'dan — WS hub kullanilmaz)
 		r.Get("/streams", streamsH.List)
 		r.Get("/streams/gifts", streamsH.Gifts)
@@ -187,6 +188,7 @@ func main() {
 		r.Post("/streams/{id}/gift", streamsH.Gift)
 		r.Post("/streams/{id}/report", streamsH.Report)
 		r.Post("/streams/{id}/kick", streamsH.Kick)
+		r.Post("/streams/{id}/invite", streamsH.Invite) // yayina davet (in-app bildirim)
 	})
 
 	srv := &http.Server{Addr: ":" + cfg.Port, Handler: r}
