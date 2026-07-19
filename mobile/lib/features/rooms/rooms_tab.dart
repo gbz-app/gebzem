@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/api.dart';
+import '../calls/active_call_controller.dart';
 import '../calls/call_provider.dart';
 import 'room_provider.dart';
 import 'room_screen.dart';
@@ -40,8 +41,14 @@ class _RoomsTabState extends ConsumerState<RoomsTab> {
   /// cekistirir — call_provider mesgul muhafiziyla ayni kural).
   bool _aramaVarMi() {
     if (ref.read(callServiceProvider.notifier).aramadaMi) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Önce aramayı bitirin')));
+      // C5: minimize edilmis arama varsa "Aramaya don" kisayolu
+      final ctrl = ref.read(activeCallProvider);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text('Önce aramayı bitirin'),
+        action: ctrl.arama != null
+            ? SnackBarAction(label: 'Aramaya dön', onPressed: ctrl.restore)
+            : null,
+      ));
       return true;
     }
     return false;

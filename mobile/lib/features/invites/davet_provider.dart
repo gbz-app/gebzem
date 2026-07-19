@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api.dart';
 import '../../core/ws.dart';
 import '../../router.dart';
+import '../calls/active_call_controller.dart';
 import '../calls/call_provider.dart';
 import '../live/live_provider.dart';
 import '../live/live_viewer_screen.dart';
@@ -90,7 +91,14 @@ class DavetServisi {
     final ekranId = tip == 'yayin' ? 'yayin_$id' : 'oda_$id';
     if (svc.ekrandakiAramalar.contains(ekranId)) return; // zaten icerideyim
     if (svc.aramadaMi) {
-      mesaj('Önce aramayı/odayı bitirin');
+      // C5: minimize edilmis arama varsa "Aramaya don" kisayolu
+      final ctrl = _ref.read(activeCallProvider);
+      rootMessengerKey.currentState?.showSnackBar(SnackBar(
+        content: const Text('Önce aramayı/odayı bitirin'),
+        action: ctrl.arama != null
+            ? SnackBarAction(label: 'Aramaya dön', onPressed: ctrl.restore)
+            : null,
+      ));
       return;
     }
     try {

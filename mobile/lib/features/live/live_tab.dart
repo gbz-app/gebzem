@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/api.dart';
+import '../calls/active_call_controller.dart';
 import '../calls/call_provider.dart';
 import 'live_provider.dart';
 import 'live_start_screen.dart';
@@ -38,8 +39,14 @@ class _LiveTabState extends ConsumerState<LiveTab> {
 
   bool _aramaVarMi() {
     if (ref.read(callServiceProvider.notifier).aramadaMi) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Önce aramayı/odayı bitirin')));
+      // C5: minimize edilmis ARAMA varsa "Aramaya don" kisayolu (oda/yayinda arama null -> aksiyon yok)
+      final ctrl = ref.read(activeCallProvider);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text('Önce aramayı/odayı bitirin'),
+        action: ctrl.arama != null
+            ? SnackBarAction(label: 'Aramaya dön', onPressed: ctrl.restore)
+            : null,
+      ));
       return true;
     }
     return false;

@@ -7,6 +7,7 @@ import '../../core/api.dart';
 import '../../core/push.dart';
 import '../../core/storage.dart';
 import '../../core/ws.dart';
+import '../calls/active_call_controller.dart';
 import '../calls/callkit_service.dart';
 
 /// Oturum durumu: null = kontrol ediliyor, '' = cikis yapilmis, dolu = girisli
@@ -88,6 +89,12 @@ class AuthNotifier extends StateNotifier<String?> {
   }
 
   Future<void> logout() async {
+    // C5: MINIMIZE'DAKI ARAMAYI BITIR — minimize cikisi mumkun kildi; aramayi sunucuda
+    // dusurmeden cikilirsa karsi taraf sonsuz bekler (yeni acilan kenar durumu).
+    try {
+      final ctrl = _ref.read(activeCallProvider);
+      if (ctrl.arama != null) await ctrl.leave(notifyServer: true);
+    } catch (_) {}
     // ONCE oturumu kapat: state='' -> router ANINDA /login'e gider. Boylece
     // butona basinca cikis HEMEN gerceklesir; temizlik adimlarindan biri hata
     // verse bile kullanici disari cikmis olur (eskiden ws.close throw ederse

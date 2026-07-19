@@ -17,6 +17,7 @@ import 'core/api.dart';
 import 'core/storage.dart';
 import 'core/theme.dart';
 import 'core/ws.dart';
+import 'features/calls/active_call_banner.dart';
 import 'features/calls/active_call_controller.dart';
 import 'features/calls/call_provider.dart';
 import 'features/calls/callkit_service.dart';
@@ -345,9 +346,10 @@ class _GebzemAppState extends ConsumerState<GebzemApp> with WidgetsBindingObserv
       darkTheme: darkTheme,
       themeMode: ThemeMode.system, // karanlik mod: sistem ayarini izler (ayarlar Faz 2)
       routerConfig: router,
-      // Gelen arama ekrani her sayfanin uzerinde belirir
-      builder: (context, child) =>
-          IncomingCallOverlay(child: child ?? const SizedBox.shrink()),
+      // Gelen arama ekrani her sayfanin uzerinde; minimize arama banti onun ALTINDA
+      // (sarmalama sirasi degismesin — gelen-arama tam ekrani bantin ustunde kalir)
+      builder: (context, child) => IncomingCallOverlay(
+          child: AktifAramaBanner(child: child ?? const SizedBox.shrink())),
     );
   }
 }

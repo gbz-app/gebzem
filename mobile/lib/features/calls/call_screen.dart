@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:livekit_client/livekit_client.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../core/api.dart';
+import '../../router.dart';
 import 'active_call_controller.dart';
 import 'add_participant_sheet.dart';
 
@@ -116,8 +119,13 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     }
   }
 
-  // Faz-C C4'te dolacak: minimize — simdilik no-op iskelet (A6 butonu gorunur kalir).
-  void _minimize() {}
+  /// MINIMIZE (C4): yalniz BAGLI aramada. Bitis DEGIL — muhafizlar dolu, timer'lar akar,
+  /// CallKit aktif kalir; ekran pop olur, yesil bant gorunur.
+  void _minimize() {
+    if (!_c.minimizeEdilebilir) return;
+    _c.minimize();
+    Navigator.of(context).pop();
+  }
 
   // KISI EKLEME (Faz-B B6): sheet ac; secim -> controller.kisiEkle (REST + iyimser grup).
   void _kisiEkle() {
@@ -138,8 +146,31 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     ).whenComplete(() => _sheetAcik = false);
   }
 
-  // Faz-C C5'te dolacak: minimize + sohbete gecis — simdilik no-op iskelet.
-  void _mesajaDon() {}
+  /// MESAJ IKONU (C5): minimize + (1:1 giden aramada) dogru sohbeti ac.
+  /// peerId yoksa (gelen 1:1/grup) yalniz minimize — backend'e alan EKLENMEZ (1:1 dokunmama).
+  Future<void> _mesajaDon() async {
+    if (!_c.minimizeEdilebilir) return;
+    final b = _c.arama;
+    final peerId = b?.peerId;
+    final ad = b?.peerName ?? '';
+    final api = ref.read(apiProvider); // pop'tan ONCE yakala (sonrasi ref KULLANILAMAZ)
+    _c.minimize();
+    Navigator.of(context).pop();
+    if (peerId == null) return;
+    try {
+      final res = await api.post('/chats/direct', data: {'user_id': peerId});
+      final chatId = ((res.data as Map)['chat_id'])?.toString() ?? '';
+      if (chatId.isEmpty) return;
+      final ctx = rootNavigatorKey.currentContext;
+      if (ctx != null && ctx.mounted) {
+        GoRouter.of(ctx)
+            .push('/chat/$chatId', extra: {'title': ad, 'peer_id': peerId});
+      }
+    } catch (e) {
+      rootMessengerKey.currentState
+          ?.showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
+    }
+  }
 
   // ---- video getter'lari (controller.room uzerinden; render kurallari AYNEN) ----
 
@@ -174,7 +205,15 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     final bool smallIsLocal = !swap;
 
     return PopScope(
-      canPop: false, // geri tusuyla kacamaz (minimize C4'te acilir)
+      canPop: false,
+      // C4: geri tusu BAGLI aramada minimize eder (WhatsApp); ring/cevapsiz fazinda
+      // ESKISI gibi bloklu (bilincli daraltma — Plan 2 karar 2).
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _c.minimizeEdilebilir) {
+          _c.minimize();
+          Navigator.of(context).pop();
+        }
+      },
       child: Scaffold(
         backgroundColor: const Color(0xFF0B141A),
         body: Stack(
