@@ -1320,13 +1320,13 @@ rebuild yok. (2) Android: manifest'te PiP yok + lifecycle paused'ta kamera mute 
 karsi taraf donuk kare; _remoteVideo muted kontrolu yok. (3) Konuk: layout hic split olmuyor
 (tasarim kisiti). (4) Oda: dinleyiciler join/left almiyor (Karar 8) -> 10sn poll tek kaynak;
 force-quit dinleyici DB'de kaliyor. (5) Yayin: tek yayin noktasi 15sn sweep.
-- [ ] FAZ 1 backend yayin sayaci: streams/handler.go sayacYayinla (lastn burada) +
+- [x] FAZ 1 backend yayin sayaci: streams/handler.go sayacYayinla (lastn burada) +
       Watch(audit sonrasi)/Leave/Kick/Heartbeat-yeniden-katilim cagrilari
-- [ ] FAZ 2 backend oda: livekit.go ListParticipantIdentities + rooms/sweep.go stale-'joined'
+- [x] FAZ 2 backend oda: livekit.go ListParticipantIdentities + rooms/sweep.go stale-'joined'
       mutabakati (eksikSayaci map, mutex yok, 2 tur esigi, yalniz listener)
-- [ ] FAZ 3 backend iOS teshis: calls/handler.go kurtarma alani + MIK-OLU-SENT0 +
+- [x] FAZ 3 backend iOS teshis: calls/handler.go kurtarma alani + MIK-OLU-SENT0 +
       SES-DUSUK icinde CIKIS-OLU? + admin sesRenk/lejant
-- [ ] Backend deploy (Faz1-3 tek sefer) + curl/iki-cihaz dogrulama
+- [x] Backend deploy EDILDI (d7eb4e0) + health ok — iki-cihaz dogrulamasi kullanici testinde
 - [ ] FAZ 4 room_screen _canliDinleyici getter (562+636 kullanim)
 - [ ] FAZ 5 konuk SPLIT: live_widgets SplitVideoPaneli+yayinSplitAlani; viewer+broadcast
       dallanma (konukVideo!=null -> dikey split; PiP bloklari SIL; pill sag-ust; fallback pill)
