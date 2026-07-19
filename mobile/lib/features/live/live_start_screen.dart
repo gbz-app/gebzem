@@ -31,11 +31,19 @@ class _LiveStartScreenState extends ConsumerState<LiveStartScreen> {
   // edilirse iki capture oturumu cakisir (dogrulama bulgusu). ekranAcildi ile aramalar
   // otomatik "mesgul" olur (CallKit kabulu answer-null -> bitir+reddet yoluna duser).
   static const _muhafizId = 'yayin-onizleme';
+  // KOK FIX (dogrulama hukmu, KESIN): dispose() icinde ref.read KULLANILAMAZ —
+  // flutter_riverpod 2.6.1 _assertNotDisposed KOSULSUZ StateError firlatiyor; ekranKapandi
+  // HIC calismiyor, 'yayin-onizleme' muhafizi KALICI sizip tum arama/oda/yayin girislerini
+  // "Once aramayi/odayi bitirin"e kilitliyor + gelen aramalari otomatik reddettiriyordu
+  // (kullanicinin "oturum kapatilmadi, restart duzeltiyor" sorunu). Servis initState'te
+  // YAKALANIR (call_screen deseni), dispose ondan kullanir.
+  late final CallService _svc;
 
   @override
   void initState() {
     super.initState();
-    ref.read(callServiceProvider.notifier).ekranAcildi(_muhafizId);
+    _svc = ref.read(callServiceProvider.notifier);
+    _svc.ekranAcildi(_muhafizId);
     _onizlemeBaslat();
   }
 
@@ -70,7 +78,7 @@ class _LiveStartScreenState extends ConsumerState<LiveStartScreen> {
 
   Future<void> _basla() async {
     if (_basliyor) return;
-    final svc = ref.read(callServiceProvider.notifier);
+    final svc = _svc;
     // Kendi muhafiz kaydimiz haric baska arama/oda var mi
     if (svc.baskaIsleMesgul(_muhafizId)) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -127,7 +135,7 @@ class _LiveStartScreenState extends ConsumerState<LiveStartScreen> {
 
   @override
   void dispose() {
-    ref.read(callServiceProvider.notifier).ekranKapandi(_muhafizId);
+    _svc.ekranKapandi(_muhafizId); // ref DEGIL cache — ref burada StateError firlatiyordu
     _baslik.dispose();
     _onizlemeBirak();
     super.dispose();

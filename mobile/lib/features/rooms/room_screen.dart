@@ -651,7 +651,9 @@ class _RoomScreenState extends ConsumerState<RoomScreen> with WidgetsBindingObse
                       _ctrl(
                         icon: LucideIcons.hand,
                         active: _elKalkik,
-                        label: _elKalkik ? 'El indirildi' : 'El kaldır',
+                        // ETIKET FIX (kullanici bulgusu): eski metin "El indirildi" idi —
+                        // kullanici eli ANINDA indi sandi. Kalkikken eylem: "Eli indir".
+                        label: _elKalkik ? 'Eli indir' : 'El kaldır',
                         onTap: _elDegistir,
                       ),
                       const SizedBox(width: 20),

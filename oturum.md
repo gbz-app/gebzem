@@ -1008,6 +1008,29 @@ cevabindan; chat hatalari snackbar; klavyede chat seridi kuculur (RenderFlex).
 pause-grace ~105sn'de yayinci yeni yayin acamaz (tasarim geregi); SendData gecmisi
 sonradan girene gitmez.
 
+### 5-SORUN HUKMU GELDI + FIX'LER UYGULANDI (19 Tem 16:55; wf_c0a4ca2f — gece uykuda DONMUS,
+### 16:40'ta kaldigi yerden RESUME edildi: 3 ajan onbellekten, 3 ajan canli kostu)
+**Kok nedenler (yargic, kodla capraz dogrulanmis):**
+- A "oturum kapatilmadi" (KESIN): live_start_screen.dispose'ta ref.read — flutter_riverpod
+  2.6.1 _assertNotDisposed KOSULSUZ StateError atiyor -> ekranKapandi HIC calismiyor,
+  'yayin-onizleme' muhafizi KALICI siziyor (tum arama/oda/yayin girisleri kilit + gelen
+  aramalar oto-red). FIX F1: _svc initState cache deseni (ekran ailesindeki tek istisnaydi).
+- B arayan yalniz/sonsuz (GUCLU): call_screen._connect catch'i aramayi sunucuda dusurmuyordu.
+  FIX F2: catch'te ekranKapandi + end (idempotent) -> arayan <=3sn'de kapanir.
+- C kamera ters (KESIN): ROTASYON degil AYNA — renderer auto modu bayat facingMode'la ARKA
+  kamerada da aynaliyordu. FIX F3: switchCamera'nin dondurdugu GERCEK yon state'e; yerel
+  renderer'larda mirrorMode acik kural (on=mirror, arka=off): broadcast + 1:1 buyuk/self-view
+  + grup tile. Uzak goruntuler auto (dokunulmadi). Yakalama yoluna DOKUNULMADI.
+- D el kaldir (KESIN): yalniz ETIKET — "El indirildi" kullaniciya 'elin indi' dedirtiyordu.
+  FIX F4: kalkikken "Eli indir". Toggle+backend saglamdi.
+- E audit: fix zaten canliydi (8642a6c) — degisiklik yok.
+- F5 (onerilen): medya guvenlik agi yalniz peer HALA odadaysa sayaci baslatir (hayalet sure).
+**YAPMA listesi (yargic):** _statusText kapisi degistirme (sure-gosterim 3 kez elden gecti);
+sure tasarimina dokunma; throttle 3sn erteleme; CF-Connecting-IP ayri oneri (kullanici onayi
+gerekli — 5651 icin gercek istemci IP'si; Cloudflare arkasinda RemoteAddr CF IP'si yaziyor).
+**DERS (workflow olumu):** uzun workflow'lar bilgisayar uykusunda olur; resume checkpoint'i
+calisti. Bundan sonra ilerleme dosya-zamanlariyla dogrulanacak, "calisiyor" varsayimi yok.
+
 ### EK ISLER (19 Tem gece, kullanici talimatlari)
 - **WHATSAPP STANDARDI 32 KISI (karar):** grup arama sesli VE goruntulu 32 kisi tavani
   (goruntulu 8'den cikarildi; backend 941a010 CANLIDA + istemci muhafizi 32). Kullanici:

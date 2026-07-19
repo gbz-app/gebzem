@@ -53,6 +53,7 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
   int _hediyeSayac = 0;
   int _izleyici = 0;
   bool _micOn = true;
+  bool _onKamera = true; // ayna kurali: on=aynali, arka=aynasiz ("kamera ters" fix'i)
   bool _connecting = true;
   bool _ayrildi = false;
   bool _kapandi = false;
@@ -282,7 +283,13 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
             child: video != null
                 ? IgnorePointer(
                     child: lk.VideoTrackRenderer(video,
-                        key: ValueKey('yayin-${video.sid}'), fit: lk.VideoViewFit.cover))
+                        key: ValueKey('yayin-${video.sid}'),
+                        fit: lk.VideoViewFit.cover,
+                        // auto modu bayat facingMode'la ARKA kamerada da AYNALIYORDU
+                        // ("kamera ters"). On=aynali, arka=aynasiz; izleyici etkilenmez.
+                        mirrorMode: _onKamera
+                            ? lk.VideoViewMirrorMode.mirror
+                            : lk.VideoViewMirrorMode.off))
                 : Center(
                     child: _hata != null
                         ? Text(_hata!,
@@ -325,7 +332,9 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
                       final t = _kameram;
                       if (t == null) return;
                       try {
-                        await rtc.Helper.switchCamera(t.mediaStreamTrack);
+                        // switchCamera GERCEK yonu doner (true=on) -> ayna moduna islenir
+                        final onMu = await rtc.Helper.switchCamera(t.mediaStreamTrack);
+                        if (mounted) setState(() => _onKamera = onMu);
                       } catch (_) {}
                     },
                   ),

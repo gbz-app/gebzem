@@ -347,6 +347,12 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
     } catch (e) {
       // Hata Sentry'e duser; kullaniciya net mesaj gosterilir
       await CallSounds.durdur(_sesNesli);
+      // BAGLANAMADIK (dogrulama hukmu, GUCLU): answer-200 sonrasi callee odaya giremezse
+      // arama sunucuda 'active' kalip ARAYANI SONSUZ YALNIZ birakiyordu (0ba750d7 kaniti:
+      // recv=-1 peer=false). Muhafizi birak + aramayi sunucuda dusur (end idempotent,
+      // 3-deneme; arayanin aktif-poll'u <=3sn'de 'ended' gorup kapanir).
+      _svc.ekranKapandi(widget.callId);
+      unawaited(_svc.end(widget.callId));
       await Sentry.captureException(e, stackTrace: StackTrace.current);
       if (mounted) {
         final msg = e.toString().toLowerCase();
@@ -650,7 +656,11 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
     if (_mediaBasladi) return;
     _mediaYedek?.cancel();
     _mediaYedek = Timer(const Duration(seconds: 8), () {
-      if (mounted && !_mediaBasladi) _mediaBaslat();
+      // Peer HALA odadaysa basla (dogrulama F5: peer 8sn icinde ayrildiysa hayalet sayac
+      // baslamasin — arayan yalniz basina "sure sayiyor" gormesin).
+      if (mounted && !_mediaBasladi && (_room?.remoteParticipants.isNotEmpty ?? false)) {
+        _mediaBaslat();
+      }
     });
   }
 
@@ -869,12 +879,20 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
     // livekit'in setCameraPosition'i restartTrack yapiyordu -> Android'de
     // kamera degismiyordu ("sadece on calisiyor").
     try {
-      await rtc.Helper.switchCamera(track.mediaStreamTrack);
-      if (mounted) setState(() => _frontCamera = !_frontCamera);
+      // switchCamera GERCEK yonu doner (true=on) — tahmini toggle yerine bunu kullan
+      // (dogrulama hukmu: _frontCamera yazilip hic okunmuyordu; mirror icin artik gerekli).
+      final onMu = await rtc.Helper.switchCamera(track.mediaStreamTrack);
+      if (mounted) setState(() => _frontCamera = onMu);
     } catch (e) {
       await Sentry.captureException(e, stackTrace: StackTrace.current);
     }
   }
+
+  /// Yerel goruntu icin ayna modu: ON kamera aynali (dogal ozcekim), ARKA kamera aynasiz
+  /// (yazi okunur). KOK: renderer'in auto modu bayat facingMode okuyup arka kamerada da
+  /// AYNALIYORDU ("kamera ters" bulgusu). Uzak goruntulerde HEP auto (degistirme!).
+  VideoViewMirrorMode get _yerelAyna =>
+      _frontCamera ? VideoViewMirrorMode.mirror : VideoViewMirrorMode.off;
 
   @override
   void dispose() {
@@ -950,7 +968,10 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
                 // KEY track kimligine bagli: track her (yeniden) subscribe olunca (veya swap ile rol
                 // degisince) TAZE renderer baglanir -> bayat/siyah texture kalmaz (ilk-kare yarisi fix).
                 child: VideoTrackRenderer(bigTrack,
-                    key: ValueKey('big-${bigTrack.sid}'), fit: VideoViewFit.cover),
+                    key: ValueKey('big-${bigTrack.sid}'),
+                    fit: VideoViewFit.cover,
+                    // buyuk pencere swap'ta KENDI kamerami gosterir -> ayna kurali
+                    mirrorMode: swap ? _yerelAyna : VideoViewMirrorMode.auto),
               )
             else
               _buildAudioBackground(),
@@ -1069,7 +1090,8 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
           child: IgnorePointer(
             // KEY rol+kimlige bagli -> swap'ta (local<->remote) taze renderer, bayat texture kalmaz.
             child: VideoTrackRenderer(track,
-                key: ValueKey('small-${isLocal ? 'local' : 'remote'}-${track.sid}')),
+                key: ValueKey('small-${isLocal ? 'local' : 'remote'}-${track.sid}'),
+                mirrorMode: isLocal ? _yerelAyna : VideoViewMirrorMode.auto),
           ),
         ),
       ),
@@ -1345,6 +1367,7 @@ class _CallScreenState extends ConsumerState<CallScreen> with WidgetsBindingObse
                 child: VideoTrackRenderer(video,
                     key: ValueKey('tile-${video.sid}'),
                     fit: VideoViewFit.cover,
+                    mirrorMode: yerel ? _yerelAyna : VideoViewMirrorMode.auto,
                     // MANTIKSAL piksel bildir (DPR carpani yok): kucuk tile'da adaptiveStream
                     // 270p alt katmani secer -> 8 kisilik gridde telefon 7x540p decode etmez
                     // (isinma/kare dususu onlemi; dogrulama bulgusu). 2 kisilik buyuk tile'da
