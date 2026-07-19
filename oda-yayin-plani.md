@@ -587,3 +587,51 @@ Gerekli dosyaları doğruladım (livekit.yaml, database.go migration runner, cal
 6. `livekit-compose.yml` image'ını v1.13.3'e pinle; port aralığı değişikliği + restart tek bakım penceresinde, 1:1 regresyon testiyle.
 7. Oda/yayın token exp'ini oda azami ömrüne (8h) çıkar; reconnect senaryosu test listesine eklensin.
 8. P1-Adım 5 fan-out kuralı: speaker join/left/role HERKESE, listener join/left yalnız host+speaker'a → P3 roster tasarımı çalışır hale gelir.
+
+---
+
+# BÖLÜM 5: CANLI YAYINA / ODAYA DAVET (plan ajanı, 19 Tem — kullanıcı isteği)
+
+## Ön Tespitler (koddan doğrulanmış)
+- push.Sender'da genel data'lı bildirim fonksiyonu YOK (NotifyUsers chat_id sabit; CallInvite android-only data) → yeni DataNotify şart (calls'a DOKUNMADAN).
+- streams.Handler'da hub+push yok; rooms.Handler'da rdb+push yok → constructor imzaları genişler (main.go 2 satır).
+- Mobilde onMessageOpenedApp / getInitialMessage HİÇ YOK → bildirime dokununca yönlendirme sıfırdan, izole.
+- ws.dart olay-agnostik → stream.invite/room.invite kendiliğinden events akışına düşer.
+- rootMessengerKey var → MaterialApp.builder/IncomingCallOverlay'e DOKUNMADAN showMaterialBanner ile üst banner.
+- ws.goOffline 'bg' çerçevesi arka planda ANINDA offline düşürür → !hub.Online(hedef) kapısı davet push'u için güvenilir.
+- Dersler: ref-in-dispose yasak (_svc cache), muhafız tekrarı (REST sonrası aramadaMi), popUntil rota adları mevcut.
+
+## Kararlar
+1. YAYIN daveti: yayıncı VEYA aktif izleyici (ZScore) davet edebilir (Chat üyelik kontrolü deseni).
+2. ODA daveti: HERKES (joined; removed otomatik dışarıda); kötüye kullanımda tek satırla host+speaker'a daraltılır.
+3. Offline teslimat: NOTIFICATION-tipli FCM + data payload (CallKit/VoIP DEĞİL; sistem tepsisi). Dokununca onMessageOpenedApp/getInitialMessage. GET /me/davetler AÇILMAZ (davet kalıcı değil).
+
+## BACKEND (4 adım — önce backend deploy; uçlar additive, eski istemci etkilenmez)
+### B1 — push/notify.go (YENİ): DataNotify(userIDs, title, body, data)
+NotifyUsers kopyası ama: data parametreden; TÜM platform token'ları (platform filtresi yok — iOS'a normal FCM→APNs bildirimi, VoIP DEĞİL); android priority HIGH + channel_id "messages"; apns aps.sound default; UNREGISTERED silme deseni; nil-Sender kontrolü. CallInvite/NotifyUsers/send'e DOKUNULMAZ.
+
+### B2 — streams/invite.go (YENİ) + handler struct(hub,push) + main.go
+POST /streams/{id}/invite {user_ids:[...]}: max 10 (fazlası 400); yayın live|paused değilse 410; davet eden = broadcaster VEYA ZScore-izleyici yoksa 403; kapasite doluysa 429. Hedef başına SESSİZ atlama: geçersiz/unverified · blocks (yayıncı↔hedef VE davetçi↔hedef) · banned · zaten-içeride (ZScore) · Redis SetNX "stream:{id}:inv:{hedef}" 60s (davetçi-bağımsız throttle). Geçenlere: WS hub.Publish Type stream.invite To[hedef] Payload{stream_id,title,type,from_id,from_name,broadcaster_id,broadcaster_name} + yalnız !hub.Online(hedef) ise DataNotify("Canlı yayın daveti", "X seni canlı yayına davet etti", {type:stream.invite, stream_id, title, from_name, broadcaster_name}). audit 'invite'. Yanıt {"sent":n}. endStream Redis Del listesine inv anahtarları EKLENMEZ (TTL temizler).
+
+### B3 — rooms/invite.go (YENİ) + handler struct(rdb,push) + main.go
+Aynı iskelet; yetki: joined katılımcı (rol farketmez); kapasite dinleyici>=500→429; atlama: removed(banlı) · joined(içeride) · blocks(host↔hedef, davetçi↔hedef) · SetNX "oda:{id}:inv:{hedef}" 60s. WS room.invite {room_id,title,from_id,from_name,host_name} + offline DataNotify. room_audit 'invite'. Join'in removed muhafızı / atomik promote / odayiBitir / sweep DOKUNULMAZ.
+
+### B4 — Deploy + canlı doğrulama
+curl: davet 200 {"sent":1} · 60sn tekrar {"sent":0} · dışarıdan 403 · end sonrası 410 · 11 hedef 400 · audit'te invite kayıtları · REGRESYON: yayin-test.sh 8/8 + oda-test.sh 9/9 + 1:1/grup smoke.
+
+## İSTEMCİ (4 adım)
+### İ1 — features/invites/davet_provider.dart (YENİ)
+DavetServisi: wsProvider.events dinler (yalnız stream.invite/room.invite; call_provider'a DOKUNMAZ). Banner: rootMessengerKey.showMaterialBanner "X seni canlı yayınına davet etti" [İzle/Katıl][Kapat], 15sn otomatik gizle, yeni davet eskisini ezer. davetiAc({tip,id,baslik}): (1) aramadaMi→snackbar "Önce aramayı/odayı bitirin"; (2) zaten içerideyse sessiz çık; (3) izle(id)/katil(id) REST; (4) MUHAFIZ TEKRARI — doluysa ayril(id) geri al; (5) rootNavigator push (RouteSettings 'yayin-id'/'oda-id'; LiveViewerScreen/RoomScreen parametreleri tab'lardaki eşlemenin birebir kopyası); (6) 429/410/403 → apiErrorMessage snackbar. call_provider/ws.dart/IncomingCallOverlay/tab'lar DEĞİŞMEZ.
+
+### İ2 — invites/davet_sec_sheet.dart (YENİ) + LiveApi.davet + RoomsApi.davet
+group_call_start_screen arama+çoklu-seçim gövdesinin bottom-sheet kopyası (max 10); pop(idList) döner, GÖNDERİMİ arayan ekran yapar. LiveApi/RoomsApi'ye davet(id, userIds) → {"sent":n} okuyan metot.
+
+### İ3 — Davet GÖNDERME butonları
+live_broadcast_screen üst bara userPlus (Spacer↔switchCamera arası); live_viewer_screen üst bara (flag'den önce); room_screen alt bara _ctrl('Davet et') rol koşulsuz. _davetEt: sheet → davet REST → "Davet gönderildi (n)". _cik/dispose/ses sıralarına DOKUNULMAZ.
+
+### İ4 — main.dart (3 izole ekleme) + cihaz testi
+(1) initState: ref.read(davetServisiProvider) aktivasyonu; (2) onMessage'a YENİ dal (call dallarından ÖNCE, call_id kontrolüne takılmadan): tip davet ise davetServisi.pushtanGoster(data); (3) _davetPushBaslat: getInitialMessage + onMessageOpenedApp → Navigator bekleme (100×100ms, _callKitKabul deseni) → davetiAc. _fcmArkaPlan/_callkitArkaPlan DOKUNULMAZ (davet notification-tipli, tepside kendiliğinden görünür).
+Cihaz testleri: açık(banner)/arka plan(bildirim)/terminated(soğuk açılış) → yayın-oda açılır; aramadayken banner var ama katılamaz (arama bozulmaz); 60sn throttle tek bildirim; bitmiş yayında snackbar; TAM REGRESYON turu.
+
+## Kabul Edilen Sınırlar
+davet kalıcı değil (push kaçarsa kaybolur) · skip nedenleri sessiz ({"sent":n}) · 60sn throttle davetçi-bağımsız · aramadayken banner görünür ama katılamaz · iOS ön planda sistem bildirimi yok (WS banner'ı görevde) · banner tek davet gösterir · paused yayına davet serbest · dolan yayında dokununca 429 · oda "herkes davet" gerekirse daraltılır.
