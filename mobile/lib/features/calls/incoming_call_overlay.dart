@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../../core/api.dart';
 import '../../router.dart';
@@ -83,7 +84,14 @@ class _IncomingCallSheetState extends ConsumerState<_IncomingCallSheet> {
   Future<void> _accept() async {
     if (_busy) return;
     setState(() => _busy = true);
-    await CallSounds.durdur(_zilNesli); // once zili kes, sonra odaya gir
+    // FAZ-1B HIZ: zil durdurmayi BEKLEME (nesil jetonu + dispose'taki durdur yarisi zaten
+    // koruyor) + izinleri answer REST'iyle PARALEL iste (verilmisse anlik doner; _connect'in
+    // kendi request'i artik cache'ten cikar).
+    unawaited(CallSounds.durdur(_zilNesli));
+    final izinF = [
+      Permission.microphone,
+      if (widget.call.video) Permission.camera,
+    ].request();
 
     // Bu widget Navigator'in DISINDA yasar (MaterialApp.builder), bu yuzden
     // Navigator.of(context) kullanilamaz — kok Navigator anahtarini kullaniyoruz.
@@ -92,9 +100,12 @@ class _IncomingCallSheetState extends ConsumerState<_IncomingCallSheet> {
       final info = await notifier.answer(widget.call.callId);
       if (info == null) {
         // Arama zaten baska yoldan (CallKit) kabul edildi -> ekrani acma
+        unawaited(izinF.catchError((_) => <Permission, PermissionStatus>{}));
         notifier.dismiss();
         return;
       }
+      // Android es-zamanli ikinci request firlatir -> baslat'in _connect izni oncesi bitmis olsun
+      await izinF;
 
       // FAZ-C: mantik controller'da; ekran saf gorunum (rootNavigatorKey ile acilir)
       final ctrl = ref.read(activeCallProvider);

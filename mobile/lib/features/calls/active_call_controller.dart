@@ -109,6 +109,15 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
   Timer? _kanitTimer;
   int _kanitRecvToplam = -1;
   bool _kanitOkunabildi = false; // getReceiverStats en az bir kez basarili okundu mu
+  // FAZ-1A HIZ: taze aramada Room sifirdan kurulur -> packetsReceived kumulatifi 0'dan
+  // baslar; ILK okumada >0 = paketler BU baglantida gercekten akti (delta beklemek bilgi
+  // eklemez, ~1-2sn kaybettirir). Bayrak YALNIZ baslat()'ta true olur — re-arm/resume
+  // yollari eski delta-sartli davranista kalir (SORUN-6 korunur).
+  bool _kanitIlkDeneme = false;
+  // FAZ-0 GECICI OLCUM (uretim oncesi ses-teshisle birlikte kaldirilacak): kabul aninden
+  // sese kadar asama sureleri (ms) — fix oncesi/sonrasi karsilastirma icin sunucuya raporlanir.
+  Stopwatch? _kurulumSaat;
+  Map<String, int>? _kurulumAsama;
 
   bool _isGroup = false; // canli deger (call.upgraded / Status is_group ile guncellenir)
   int? _sesNesli; // CallSounds nesli
@@ -252,6 +261,9 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     _kanitTimer?.cancel();
     _kanitRecvToplam = -1;
     _kanitOkunabildi = false;
+    _kanitIlkDeneme = true; // FAZ-1A: fast-path yalniz taze aramanin ilk bekcisinde
+    _kurulumSaat = Stopwatch()..start(); // FAZ-0 GECICI olcum
+    _kurulumAsama = {};
     _sesNesli = null;
 
     final id = b.callId;
@@ -484,7 +496,9 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       _connecting = true;
       notifyListeners();
 
+      _kurulumAsama?['izin'] = _kurulumSaat?.elapsedMilliseconds ?? 0; // FAZ-0
       await CallRoomLock.calistir(_odayaBaglan);
+      _kurulumAsama?['oda'] = _kurulumSaat?.elapsedMilliseconds ?? 0; // FAZ-0
       // TEK BITIR-KAPISI: canli konusma basladi (CallKit yanlis-zamanli olaylari oldurmesin).
       _svc.aktifKonusmaBasladi(id);
       _aktifPollBaslat();
@@ -592,24 +606,38 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
           if (arama?.callId == id) leave(notifyServer: false);
         });
 
-      await room.connect(
-        b.url,
-        b.token,
-        connectOptions: const ConnectOptions(
-          autoSubscribe: true,
-          // MEDYA HER ZAMAN TURN RELAY (TR operator CGNAT karari — degistirme)
-          rtcConfiguration: RTCConfiguration(
-            iceTransportPolicy: RTCIceTransportPolicy.relay,
-          ),
+      const secenekler = ConnectOptions(
+        autoSubscribe: true,
+        // MEDYA HER ZAMAN TURN RELAY (TR operator CGNAT karari — degistirme)
+        rtcConfiguration: RTCConfiguration(
+          iceTransportPolicy: RTCIceTransportPolicy.relay,
         ),
       );
+      try {
+        await room.connect(b.url, b.token, connectOptions: secenekler);
+      } catch (e) {
+        // FAZ-3A SINYAL FALLBACK: dogrudan adres (rtcd.*:7443) kisitli aglarda (otel/
+        // kurumsal) bloklanabilir -> CF'li eski adrese TEK retry. url rtcd degilse
+        // kod PASIF (rethrow). Sunucu LIVEKIT_URL flip'i ancak bu build sahadayken yapilir.
+        if (b.url.contains('rtcd.')) {
+          _sesLog('sinyal fallback: dogrudan adres basarisiz, rtc deneniyor ($e)');
+          await room.connect('wss://rtc.gebzem.app', b.token,
+              connectOptions: secenekler);
+        } else {
+          rethrow;
+        }
+      }
+      _kurulumAsama?['connect'] = _kurulumSaat?.elapsedMilliseconds ?? 0; // FAZ-0
       // iOS SES SIRASI (KRITIK v7/v8 — AYNEN): mic -> kamera -> speaker(false) -> _sesiAc EN SON
       await room.localParticipant?.setMicrophoneEnabled(true);
+      _kurulumAsama?['mic'] = _kurulumSaat?.elapsedMilliseconds ?? 0; // FAZ-0
       if (b.video) {
         await room.localParticipant?.setCameraEnabled(true);
+        _kurulumAsama?['cam'] = _kurulumSaat?.elapsedMilliseconds ?? 0; // FAZ-0
       }
       await room.setSpeakerOn(false); // varsayilan kulaklik (earpiece)
       await _sesiAc(true); // SES BIRIMI EN SON
+      _kurulumAsama?['sesiAc'] = _kurulumSaat?.elapsedMilliseconds ?? 0; // FAZ-0
       _sesLog('ses kuruldu: video=${b.video}');
 
       // Bu arada ayrildiysak odayi birak (sizinti olmasin).
@@ -806,6 +834,15 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     _peerJoined = true;
     notifyListeners();
     _startTimer();
+    // FAZ-0 GECICI: kabul->ses asama raporu (tek seferlik; admin log: KURULUM-MS)
+    final asamalar = _kurulumAsama;
+    final id = arama?.callId;
+    if (asamalar != null && id != null) {
+      asamalar['ses'] = _kurulumSaat?.elapsedMilliseconds ?? 0;
+      _sesLog('kurulum_ms: $asamalar');
+      _svc.audioStat(id, {'kurulum_ms': asamalar});
+      _kurulumAsama = null;
+    }
   }
 
   void _mediaGuvenlikAgi() {
@@ -834,10 +871,13 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
   /// _mediaBaslat. Sinyal-duzeyi TrackSubscribed tek basina sayac ACAMAZ.
   void _sesKanitBekle() {
     if (_mediaBasladi) return;
+    // FAZ-1A dedupe: ilk denemede TrackSubscribed + connect-sonrasi cifte cagri baseline'i
+    // sifirlayip fast-path'i yakmasin (sonraki re-arm'lar eski resetleme davranisiyla).
+    if (_kanitIlkDeneme && (_kanitTimer?.isActive ?? false)) return;
     _kanitTimer?.cancel();
     _kanitRecvToplam = -1;
     final id = arama?.callId;
-    _kanitTimer = Timer.periodic(const Duration(seconds: 1), (_) async {
+    _kanitTimer = Timer.periodic(const Duration(milliseconds: 400), (_) async {
       if (arama?.callId != id || _ayrildi || _mediaBasladi) {
         _kanitTimer?.cancel();
         return;
@@ -869,6 +909,14 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
         return;
       }
       if (!trackVar) return;
+      // FAZ-1A FAST-PATH: taze aramada ilk okumada kumulatif > 0 = akis kanitli, delta bekleme
+      if (_kanitIlkDeneme && _kanitRecvToplam < 0 && toplam > 0) {
+        _kanitIlkDeneme = false;
+        _kanitTimer?.cancel();
+        _sesLog('ses kaniti: kumulatif>0 (ilk deneme) — hemen baslatiliyor');
+        _mediaBaslat();
+        return;
+      }
       if (_kanitRecvToplam >= 0 && toplam > _kanitRecvToplam) {
         _kanitTimer?.cancel();
         _sesLog('ses kaniti: paket akisi dogrulandi (+${toplam - _kanitRecvToplam})');
@@ -876,6 +924,7 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
         return;
       }
       _kanitRecvToplam = toplam;
+      _kanitIlkDeneme = false; // baseline yazildi — bundan sonra yalniz delta kaniti
     });
   }
 

@@ -1389,11 +1389,11 @@ KIRILIM: bekci yapisal 2sn + connect 2.5-2.7s (relay + CF sinyal) + seri await'l
 + arayan answered'a kadar baglanmiyor. HEDEF IZDUSUMU: Faz1 sonrasi ~3-4s; Faz2+3 ~2.7-3.6s;
 Faz4 (on-baglanma, AYRI surum) arayan <1s; Faz5 (callee, sonra) ~2-2.5s = WhatsApp paritesi.
 iOS PiP: teknik dogrulandi (sharedSingleton+remoteTrackForId var) — SONRAKI BUILD (gerekceli).
-- [ ] FAZ 0: kurulum_ms olcum damgalari (GECICI) + backend kurulum_ms log alani
-- [ ] FAZ 1A: kanit bekcisi fast-path (_kanitIlkDeneme; ilk okumada kumulatif>0 -> hemen) + 400ms tick
-- [ ] FAZ 1B: _accept paralel (unawaited zil durdur + izin answer'la paralel, baslat oncesi await)
-- [ ] FAZ 1C: _callKitKabul ayni paralellestirme
-- [ ] FAZ 3A: istemci sinyal fallback (rtcd basarisiz -> rtc tek retry)
+- [x] FAZ 0: kurulum_ms olcum damgalari (GECICI) + backend kurulum_ms log alani
+- [x] FAZ 1A: kanit bekcisi fast-path (_kanitIlkDeneme; ilk okumada kumulatif>0 -> hemen) + 400ms tick
+- [x] FAZ 1B: _accept paralel (unawaited zil durdur + izin answer'la paralel, baslat oncesi await)
+- [x] FAZ 1C: _callKitKabul ayni paralellestirme
+- [x] FAZ 3A: istemci sinyal fallback (rtcd basarisiz -> rtc tek retry)
 - [ ] BUILD + dagitim rutini + DB temizle
 - [ ] FAZ 2: sunucu use_ice_lite (livekit force-recreate — DB temizligiyle ayni pencere)
 - [ ] FAZ 3B: rtcd gri DNS + Caddy 7443 + ufw (api kisa kesinti — ayni pencere)

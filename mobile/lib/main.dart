@@ -10,6 +10,7 @@ import 'package:flutter_callkit_incoming/entities/entities.dart';
 import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -263,11 +264,17 @@ class _GebzemAppState extends ConsumerState<GebzemApp> with WidgetsBindingObserv
     if (callId.isEmpty) return;
 
     final notifier = ref.read(callServiceProvider.notifier);
+    // FAZ-1C HIZ: izinleri answer REST'iyle PARALEL iste (1B ile ayni desen)
+    final izinF = [
+      Permission.microphone,
+      if (c['video'] as bool? ?? false) Permission.camera,
+    ].request();
 
     Map<String, dynamic>? info;
     try {
       info = await notifier.answer(callId); // ONCE sunucuya kabul bildir
     } catch (e) {
+      unawaited(izinF.catchError((_) => <Permission, PermissionStatus>{}));
       await CallKitService.bitir(callId);
       rootMessengerKey.currentState
           ?.showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
@@ -283,9 +290,12 @@ class _GebzemAppState extends ConsumerState<GebzemApp> with WidgetsBindingObserv
         unawaited(CallKitService.bitir(callId));
         unawaited(notifier.end(callId));
       }
+      unawaited(izinF.catchError((_) => <Permission, PermissionStatus>{}));
       notifier.dismiss();
       return;
     }
+    // Android es-zamanli ikinci request firlatir -> baslat oncesi bitmis olsun (FAZ-1C)
+    await izinF;
 
     // FAZ-C: mantik controller'da baslar (Navigator'i beklemez — ses/sure hemen kurulur)
     final ctrl = ref.read(activeCallProvider);

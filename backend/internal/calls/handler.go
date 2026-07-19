@@ -996,10 +996,17 @@ func (h *Handler) AudioStat(w http.ResponseWriter, r *http.Request) {
 		Peer     bool           `json:"peer"`
 		Sorun    bool           `json:"sorun"` // kullanici "ses gelmiyor" isaretledi
 		Sure     int            `json:"sure"`
-		Kurtarma string         `json:"kurtarma"` // FAZ-3: istemci oto-kurtarma tetikledi (imza adi)
-		IOS      map[string]any `json:"ios"`      // audioEnabled, active, category, route
+		Kurtarma string         `json:"kurtarma"`   // FAZ-3: istemci oto-kurtarma tetikledi (imza adi)
+		Kurulum  map[string]any `json:"kurulum_ms"` // FAZ-0 GECICI: kabul->ses asama sureleri
+		IOS      map[string]any `json:"ios"`        // audioEnabled, active, category, route
 	}
 	json.NewDecoder(r.Body).Decode(&req)
+	// FAZ-0 GECICI OLCUM: kurulum raporu ayri satir (fix oncesi/sonrasi karsilastirma)
+	if len(req.Kurulum) > 0 {
+		log.Printf("KURULUM-MS call=%s user=%s %v", kisaID(callID), kisaID(userID), req.Kurulum)
+		w.WriteHeader(http.StatusOK)
+		return
+	}
 	yon := "GELEN"
 	if req.Outgoing {
 		yon = "GIDEN"
