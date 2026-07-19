@@ -1426,3 +1426,24 @@ Kok: (1) canli ekran uzak-video getter'lari muted/teardown gormuyordu + mute/unp
 - [x] BUILD A YAYINLANDI (20 Tem 02:10): android 29706931863 + ios 29706932746 imza temiz; R2 apk=104864969 ipa=19070494; purge OK; boyut birebir; index 02:10; DB temiz + health ok.
 - [ ] BUILD B (AYRI, sonraki): iOS sistem PiP (AVPictureInPictureController + AVSampleBufferDisplayLayer; sharedSingleton/remoteTrackForId 1.4.0 DOGRULANDI; guvenli dilim 1:1 uzak-video; FALLBACK kurulamazsa bugunku kamera-mute avatar). Yargic: A'yi rehin almasin diye AYRI build.
 AYRICA (mercek disi, kullanici tekrar dedi): indir sayfasi saat — statik sayfa isi, ayri.
+
+### KULLANICI TEST TURU 5 (20 Tem gece ~03:00): COK ISTEK — sirali bitiriliyor
+IYI HABER (kullanici teyit): uygulama-ici bağlanma+ses ARTIK SORUNSUZ (ikisi anlik baglaniyor,
+ses geliyor). connectTime ~0.55s, KURULUM-MS iOS callee ses=sesiAc+491ms (playout gate calisti).
+BUGLAR/ISTEKLER:
+- B1 (BUG): canli yayinda konuk ATILINCA alt panelde SIYAH alan + X KALIYOR. KANIT (LiveKit
+  logu): guest/remove -> UpdateParticipant izin `hidden:true` yapiyor AMA track MUTE OLMUYOR ->
+  !pub.muted getter'i yetmedi. FIX: paneli SINYALE bagla (_konukId; guest.left -> temizle ->
+  split ANINDA kalksin). Broadcaster _konukVideo identity==_konukId; viewer _aktifKonuk id.
+- B2 (BUG): KILITLIYKEN (CallKit kilit ekrani kabul) aramada 00:01 DIREK sayiyor (uygulama-ici
+  DUZELDI ama kilit yolu kalmis). Suphe: CallKit sesi on-isittigi icin enerji ilk okumada zaten>0
+  -> fast-path aninda; VEYA resume yolu _mediaBaslat tetikliyor. Arastir + enerji-kapisini bu yola.
+- B3 (BUG): canli yayin UST kapatma X butonu cok solda / container tasmasi = tasarim hatasi.
+- R1-R3 (ANLIK): yayin bitince kesfet listesinden ANLIK gitmeli (su an sayfa yenilenene kadar
+  duruyor, "0 kullanici" gorunuyor); izleyici sayisi anlik; ODA anlik; MESAJ anlik. WS push gerek.
+- UI TEMA/NAV redesign: (a) alt menu SIYAH, icerik alanlari 1-2 ton acik siyah; (b) alt menu
+  ikon-arkasi DAIRE (aktifken) KALDIR; (c) alt menu YAZILARI kaldir; (d) ikonlar 1 tik BUYUK;
+  (e) aktif ikon BEYAZ, pasifler HAFIF GRI; (f) en sagdaki arama ikonu -> + ile degistir;
+  (g) "Gebzem" basligi altina ARAMA INPUT'u; (h) sag-alt kalem (FAB) -> + , logodaki MOR GRADIENT,
+  daire.
+SIRA: B1 (sinyal gate) -> B3 (layout) -> UI tema/nav -> R1-R3+B2 (workflow hukmu) -> TEK BUILD.
