@@ -1008,6 +1008,25 @@ cevabindan; chat hatalari snackbar; klavyede chat seridi kuculur (RenderFlex).
 pause-grace ~105sn'de yayinci yeni yayin acamaz (tasarim geregi); SendData gecmisi
 sonradan girene gitmez.
 
+### KULLANICI TAM TEST SONUCU (19 Tem ~18:10): PAKET GECTI — 2 sorun + WhatsApp-parite istekleri
+**GECENLER:** mesgul kilidi, sesli arama baglanti/sure, kamera ayna, el kaldir, genel akis —
+kullanici "onun haricinde problem goremedim" dedi. MIK-OLU izlemede yanlis-alarm cikti ->
+esik 0.5->0.01 canli duzeltildi (outbound enerji olcegi inbound'dan ~1000x kucuk; saglikli
+mik 0.1-0.3 basiyor, olu mik DUZ 0.0).
+**KALAN 2 SORUN:** (P1) Android'den ILK canli yayinda goruntu gitmedi (ses gitti), 2.de geldi —
+SUNUCU KANITI: stream_0fd65863'te yayinci YALNIZ audio publish etti, video track HIC yok
+(oncesi/sonrasi yayinlarda audio+3 video katmani) -> onizleme kamera birakma / yayin kamera acma
+YARISI (Android HAL asenkron kapanis). (P2) self-view kose yaricapi "sacma egrilik" — WhatsApp
+gibi yumusak kavis istiyor.
+**WHATSAPP-PARITE ISTEKLERI (ekran goruntuleriyle):** (1) ekrana dokun -> kontroller gizlensin +
+self-view kuculsun; (2) uygulama icinde gezerken arama KUCUK YUZEN PENCEREYE insin (Oturum-12'de
+bilerek ertelenen ActiveCallController isi) + mesaj ikonu (aramadayken sohbete gidebilme);
+(3) aramaya KISI EKLEME (sesli+goruntulu; 1:1 -> grup yukseltme); (4) ust bar WhatsApp yerlesimi.
+**PLAN WORKFLOW'U KOSUYOR:** wf_9bb15cc8 (4 uzman: P1 kamera yarisi cozumu, arama-ici UI,
+minimize mimarisi [eski wf_0bb6353d plan arsivi aranacak], kisi-ekleme backend+istemci; yargic
+fazli plana indirecek: Faz-A dusuk risk -> Faz-B kisi ekleme -> Faz-C minimize). Hukum gelince
+step-step uygulama + her fazda build/test.
+
 ### BUYUK DUZELTME PAKETI YAYINLANDI (19 Tem 17:08) — KULLANICI TEST EDECEK
 - Build android 29689886855 + ios 29689887720 BASARILI; debug imza YOK. R2: apk=104274557,
   ipa=18983656, index "Buyuk duzeltme paketi · 17:08". Purge -> CDN birebir -> health ok ->
