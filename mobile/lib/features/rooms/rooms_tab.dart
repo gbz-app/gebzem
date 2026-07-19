@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/api.dart';
+import '../../core/ws.dart';
 import '../calls/active_call_controller.dart';
 import '../calls/call_provider.dart';
 import 'room_provider.dart';
@@ -20,20 +21,28 @@ class RoomsTab extends ConsumerStatefulWidget {
 
 class _RoomsTabState extends ConsumerState<RoomsTab> {
   Timer? _yenile;
+  StreamSubscription? _wsSub;
   bool _isleniyor = false; // cift dokunma muhafizi (ac/katil)
 
   @override
   void initState() {
     super.initState();
-    // Liste bayatlamasin: 15 sn'de bir tazele (sekme acik oldugu surece)
-    _yenile = Timer.periodic(const Duration(seconds: 15), (_) {
-      if (mounted) ref.invalidate(roomsProvider);
+    ref.invalidate(roomsProvider); // aciliste taze
+    // ANLIK (test turu 5): oda ac/bitir -> backend broadcast -> listeyi HEMEN tazele.
+    _wsSub = ref.read(wsProvider).events.listen((ev) {
+      if (mounted && ev['type'] == 'room.list.changed') {
+        ref.invalidate(roomsProvider);
+      }
+    });
+    _yenile = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) ref.invalidate(roomsProvider); // yedek (WS kopmasi)
     });
   }
 
   @override
   void dispose() {
     _yenile?.cancel();
+    _wsSub?.cancel();
     super.dispose();
   }
 
@@ -173,6 +182,8 @@ class _RoomsTabState extends ConsumerState<RoomsTab> {
       body: RefreshIndicator(
         onRefresh: () async => ref.invalidate(roomsProvider),
         child: odalar.when(
+          skipLoadingOnReload: true, // WS-invalidate'te spinner-flash olmasin
+          skipLoadingOnRefresh: true,
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (_, _) => ListView(children: const [
             SizedBox(height: 160),

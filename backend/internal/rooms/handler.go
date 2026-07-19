@@ -193,6 +193,8 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.audit(r.Context(), roomID, userID, "create", clientIP(r))
+	// ANLIK KESFET (test turu 5): yeni oda -> TUM online istemcilere -> listede aninda belirir
+	h.hub.BroadcastEvent(r.Context(), "room.list.changed", map[string]any{"action": "started", "id": roomID})
 	log.Printf("oda acildi: %s host=%s baslik=%q", kisaID(roomID), kisaID(userID), req.Title)
 
 	writeJSON(w, http.StatusCreated, map[string]any{
@@ -611,6 +613,9 @@ func (h *Handler) odayiBitir(ctx context.Context, roomID, neden string) {
 		log.Printf("oda delete: %v", err)
 	}
 	h.audit(ctx, roomID, "", neden, "")
+	// ANLIK KESFET (test turu 5): oda bitti -> TUM online istemcilere (End + 2dk host-kopmasi
+	// sweep ORTAK noktasi) -> kesfet listesinden sayfa yenilemeden kalkar
+	h.hub.BroadcastEvent(ctx, "room.list.changed", map[string]any{"action": "ended", "id": roomID})
 	log.Printf("oda bitti: %s (%s)", kisaID(roomID), neden)
 }
 

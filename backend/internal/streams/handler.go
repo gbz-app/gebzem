@@ -164,6 +164,8 @@ func (h *Handler) Start(w http.ResponseWriter, r *http.Request) {
 	// Yayinci nabzi: sweeper 45 sn nabizsiz kalirsa 'paused' yapar
 	h.rdb.Set(r.Context(), "stream:"+streamID+":pub", "1", 45*time.Second)
 	h.audit(r.Context(), streamID, userID, "start", clientIP(r))
+	// ANLIK KESFET (test turu 5): yeni yayin -> TUM online istemcilere -> listede aninda belirir
+	h.hub.BroadcastEvent(r.Context(), "stream.list.changed", map[string]any{"action": "started", "id": streamID})
 	log.Printf("yayin basladi: %s yayinci=%s tip=%s", kisaID(streamID), kisaID(userID), tip)
 
 	writeJSON(w, http.StatusCreated, map[string]any{
@@ -377,6 +379,9 @@ func (h *Handler) endStream(ctx context.Context, streamID, neden string) {
 		"stream:"+streamID+":banned", "stream:"+streamID+":hearts", "stream:"+streamID+":lastn",
 		"stream:"+streamID+":guest", "stream:"+streamID+":guest_reqs") // konuk anahtarlari (B7)
 	h.audit(ctx, streamID, "", neden, "")
+	// ANLIK KESFET (test turu 5): yayin bitti -> TUM online istemcilere -> kesfet listesi
+	// sayfa yenilemeden guncellenir (End + sweep + admin_end ORTAK noktasi).
+	h.hub.BroadcastEvent(ctx, "stream.list.changed", map[string]any{"action": "ended", "id": streamID})
 	log.Printf("yayin bitti: %s (%s)", kisaID(streamID), neden)
 }
 

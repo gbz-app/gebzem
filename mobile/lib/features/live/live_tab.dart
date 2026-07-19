@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/api.dart';
+import '../../core/ws.dart';
 import '../calls/active_call_controller.dart';
 import '../calls/call_provider.dart';
 import 'live_provider.dart';
@@ -21,19 +22,29 @@ class LiveTab extends ConsumerStatefulWidget {
 
 class _LiveTabState extends ConsumerState<LiveTab> {
   Timer? _yenile;
+  StreamSubscription? _wsSub;
   bool _isleniyor = false;
 
   @override
   void initState() {
     super.initState();
-    _yenile = Timer.periodic(const Duration(seconds: 15), (_) {
-      if (mounted) ref.invalidate(liveStreamsProvider);
+    ref.invalidate(liveStreamsProvider); // aciliste taze
+    // ANLIK (test turu 5): yayin baslat/bitir -> backend broadcast -> listeyi HEMEN tazele.
+    // (home IndexedStack ile bu State kalici -> WS dinleyici surekli aktif, olay kacmaz.)
+    _wsSub = ref.read(wsProvider).events.listen((ev) {
+      if (mounted && ev['type'] == 'stream.list.changed') {
+        ref.invalidate(liveStreamsProvider);
+      }
+    });
+    _yenile = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) ref.invalidate(liveStreamsProvider); // yedek (WS kopmasi)
     });
   }
 
   @override
   void dispose() {
     _yenile?.cancel();
+    _wsSub?.cancel();
     super.dispose();
   }
 
@@ -100,6 +111,9 @@ class _LiveTabState extends ConsumerState<LiveTab> {
       body: RefreshIndicator(
         onRefresh: () async => ref.invalidate(liveStreamsProvider),
         child: yayinlar.when(
+          // Sik WS-invalidate'te spinner-flash olmasin (liste sabit kalir, arkada tazelenir)
+          skipLoadingOnReload: true,
+          skipLoadingOnRefresh: true,
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (_, _) => ListView(children: const [
             SizedBox(height: 160),

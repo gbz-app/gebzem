@@ -926,9 +926,14 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       // iOS: sayac GERCEK PLAYOUT ile acilir (packetsReceived degil totalAudioEnergy) —
       // "sayiyor ama ses yok" bulgusunun kok fix'i. Android: paket-varisi yeterli (hizli).
       if (Platform.isIOS) {
-        final playoutBasladi = _kanitEnerjiBaz < 0
-            ? enerjiToplam > 0 // taze: enerji zaten>0 ise decode akiyor
-            : enerjiToplam > _kanitEnerjiBaz; // sonra: enerji ARTIYOR = canli playout
+        // KILITLI SAYAC KOK FIX (test turu 5): "taze enerji>0 -> hemen" fast-path'i
+        // KALDIRILDI. KANIT: CallKit didActivateAudioSession sesi ERKEN isitir ->
+        // totalAudioEnergy (kumulatif) kapinin ILK 400ms tick'inden ONCE tirmanir ->
+        // sayac gercek ISITILEBILIR playout'tan once 00:01 aciliyordu (yalniz KILITLI/CallKit
+        // yolunda; uygulama-ici yolda _sesiAc EN SONDA -> ilk okuma enerji~0 -> zaten delta
+        // bekliyordu). Artik TUM iOS yollarinda enerji-DELTA (canli artis) beklenir; baseline
+        // her tick yazildigi icin delta 2. tick'te dogru olusur (+~400ms, kabul).
+        final playoutBasladi = _kanitEnerjiBaz >= 0 && enerjiToplam > _kanitEnerjiBaz;
         if (playoutBasladi) {
           _kanitTimer?.cancel();
           _sesLog('ses kaniti (iOS): playout enerjisi dogrulandi — sayac aciliyor');

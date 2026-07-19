@@ -28,10 +28,11 @@ type Hub struct {
 }
 
 type Event struct {
-	Type    string          `json:"type"`              // message.new, receipt.read, typing, presence
-	ChatID  string          `json:"chat_id,omitempty"`
-	Payload json.RawMessage `json:"payload,omitempty"`
-	To      []string        `json:"to,omitempty"` // alici user id'leri
+	Type      string          `json:"type"`              // message.new, receipt.read, typing, presence
+	ChatID    string          `json:"chat_id,omitempty"`
+	Payload   json.RawMessage `json:"payload,omitempty"`
+	To        []string        `json:"to,omitempty"`        // alici user id'leri (hedefli)
+	Broadcast bool            `json:"broadcast,omitempty"` // TUM online istemcilere (kesfet listesi degisimi)
 }
 
 func NewHub(rdb *redis.Client) *Hub {
@@ -68,9 +69,30 @@ func (h *Hub) Publish(ctx context.Context, ev *Event) error {
 	return h.rdb.Publish(ctx, "events", b).Err()
 }
 
+// BroadcastEvent: TUM online istemcilere hafif bir liste-degisim sinyali (yayin/oda aç-bitir).
+// Payload istemcide ws events stream'inden okunur; istemci ilgili listeyi invalidate eder.
+func (h *Hub) BroadcastEvent(ctx context.Context, tip string, payload map[string]any) error {
+	b, _ := json.Marshal(payload)
+	return h.Publish(ctx, &Event{Type: tip, Payload: b, Broadcast: true})
+}
+
 func (h *Hub) deliver(ev *Event, raw []byte) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
+	// BROADCAST (kesfet listesi degisimi — yayin/oda aç/bitir): TUM online istemcilere.
+	// To-tabanli hedefli teslimat AYRI dalda kalir (bozulmaz). Yayin/oda aç-bitir SEYREK
+	// olay -> prototipte kabul; 50K olcekte kesfet-acik presence aboneligi gerekir.
+	if ev.Broadcast {
+		for _, conns := range h.clients {
+			for c := range conns {
+				select {
+				case c.Send <- raw:
+				default:
+				}
+			}
+		}
+		return
+	}
 	for _, uid := range ev.To {
 		for c := range h.clients[uid] {
 			select {

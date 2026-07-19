@@ -1454,3 +1454,14 @@ SIRA: B1 (sinyal gate) -> B3 (layout) -> UI tema/nav -> R1-R3+B2 (workflow hukmu
       arama->+ (yeni sohbet). ChatsScreen stateful: Gebzem alti ARAMA INPUT (yerel filtre) + FAB
       kalem->mor-gradient DAIRE + (morGradient theme.dart).
 - [x] B3: broadcaster ust bar _ustBtn kompakt (36px) — 5 buton + 2 cip tasmasi (RenderFlex) co.zuldu.
+
+### ANLIK + KILITLI-SAYAC HUKMU (wf_022a7656) — UYGULANDI (tek build)
+Kok: (realtime) hub yalniz To-hedefli fan-out yapiyordu, yayin/oda YASAM-DONGUSU icin GENEL WS yok -> liste 15sn poll bekliyordu. (sayac) iOS enerji-kapisi "taze enerji>0 -> hemen" fast-path'i; CallKit didActivate sesi erken isitir + totalAudioEnergy kumulatif -> ilk okumada enerji>0 -> sayac playout ONCE 00:01 (yalniz kilitli/CallKit yolu).
+- [x] Adim1: hub.go Broadcast bool + BroadcastEvent (TUM online istemci; To-hedefli AYRI dalda korundu)
+- [x] Adim2: streams Start->stream.list.changed(started); endStream->ended (End+sweep+admin ortak)
+- [x] Adim3: rooms Create->room.list.changed(started); odayiBitir->ended (End+sweep ortak)
+- [x] Adim4: live_tab WS dinleyici (stream.list.changed->invalidate) + 30sn yedek + skipLoadingOnReload
+- [x] Adim5: rooms_tab ayni desen (room.list.changed)
+- [x] Adim6: active_call_controller iOS enerji-kapisi TUM iOS yollarinda delta-sartli (taze>0 fast-path
+      KALDIRILDI) -> kilitli yolda sayac gercek playout ile acilir; uygulama-ici DEGISMEDI; Android AYNEN.
+Mesaj (chatsProvider) ZATEN anlik (message.new->load) — dokunulmadi. SIRADA: tek build + dagitim.
