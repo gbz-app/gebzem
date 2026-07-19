@@ -1026,6 +1026,9 @@ bilerek ertelenen ActiveCallController isi) + mesaj ikonu (aramadayken sohbete g
 minimize mimarisi [eski wf_0bb6353d plan arsivi aranacak], kisi-ekleme backend+istemci; yargic
 fazli plana indirecek: Faz-A dusuk risk -> Faz-B kisi ekleme -> Faz-C minimize). Hukum gelince
 step-step uygulama + her fazda build/test.
+**EK ISTEK (kullanici):** CANLI YAYINA DAVET + SESLI ODAYA DAVET — ayri planlama ajani kosuyor
+(in-app bildirim modeli, CallKit YOK; FCM data push + WS + banner + kisi-secim sheet'i; yayinci
+ve izleyiciler davet edebilir). Yargic hukmiyle birlestirilecek (muhtemel Faz-B'ye eklenir).
 
 ### BUYUK DUZELTME PAKETI YAYINLANDI (19 Tem 17:08) — KULLANICI TEST EDECEK
 - Build android 29689886855 + ios 29689887720 BASARILI; debug imza YOK. R2: apk=104274557,
