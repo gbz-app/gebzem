@@ -1403,3 +1403,18 @@ YAPMA (ozet): relay kalkmaz; ring fazinda setSpeakerOn/mic/_sesiAc YASAK (track'
 configureAudio cagiriyor — hardware.dart:143 kaniti); rtc.gebzem.app turuncu kaydi GRIYE
 CEVRILMEZ (origin 443 yok — mevcut istemciler kopar); prepareConnection kazanc DEGIL (self-hosted
 = yalniz http.head); kamera publish'i unawaited yapilmaz; _baglandi anlami degismez.
+
+### KULLANICI TEST TURU 4 (20 Tem gece): 3 KONU — ARASTIRMA KOSUYOR (wf_f7479b62)
+KANIT (hiz surumu SONRASI, olumlu): connectTime 2.6s -> ~0.55s DUSTU (rtcd + ice_lite calisiyor);
+CALLEE kabul->ses 1.2-3.7s (video 1.2s cok iyi). Ses: 101 SES-VAR / 4 CIKIS-OLU / 2 SES-GELMIYOR.
+Kullanici bulgulari:
+1) KONUK-SPLIT BUG (crash+siyah): canli yayinda birini ATINCA altta SIYAH alan kaliyor + PATLAMA.
+   Kok suphe: _konukVideo getter'lari pub.muted KONTROL ETMIYOR (atinca track mute/unpublish, pub.track
+   bir sure null olmaz -> getter track dondurur -> split kalir, alt panel siyah). call_screen _remoteVideo
+   FAZ-6 muted serti live ekranlarina EKLENMEMIS. Crash: track dispose/unsubscribe render yarisi suphesi.
+2) iPhone "baglaniyor olmuyor direk sayiyor halen degismemis": fast-path iOS'ta ses PLAYOUT baslamadan
+   sayaci acabilir (packetsReceived tek basina iOS playout garantilemez) — energy-delta kaniti gerekebilir.
+3) iOS SISTEM PiP: iPhone'da alta alinca kucuk pencere YOK (Android var). AVPictureInPictureController +
+   AVSampleBufferDisplayLayer; flutter_webrtc 1.4.0 pod'unda sharedSingleton/remoteTrackForId DOGRULANDI.
+   Kullanici artik acikca istiyor -> bu turda yapilacak (guvenli dilim + fallback).
+Hukum gelince: konuk-split crash (sifir risk) -> iphone fast-path -> iOS PiP (native) -> temiz build.
