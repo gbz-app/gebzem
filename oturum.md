@@ -1210,4 +1210,33 @@ TRUNCATE users CASCADE + otp_codes, api restart).
 **CIHAZ TESTI GEREKTIREN RISKLER:** hidden->gorunur konuk gecisi ILK KEZ (fallback: guest/refresh);
 iOS izleyici playback->play+record gecisi (v7 sinifi — sira korundu ama cihazda dogrulanmali);
 Android 12+ izin dialoglari yayin izlerken.
+
+### FAZ-C KOD-TAMAM (19 Tem) — ActiveCallController + minimize + mesaj ikonu (C1-C6)
+parite-hukum.md plani AYNEN uygulandi; 3 commit: 62e9f8e (C1) + d52e239 (C2) + d50d89f (C3-C5).
+- **C1:** active_call_controller.dart — AramaBilgisi + ChangeNotifier controller (Room, listener,
+  TUM timer'lar, sure Stopwatch'i, ses birimi/nesil jetonu, stats+olu-mik kurtarma, muhafizlar).
+  Kopyalama yasaklari korundu: iOS ses sirasi (mic->cam->speaker(false)->_sesiAc EN SON), sure
+  senkronu (referans yalniz s=='active'; created_at'e DUSURME YOK; push tasimaz; grup haric),
+  grup ParticipantDisconnected'da leave YOK, relay ICE, grup 540p, durumMetni kapi sirasi.
+  Teardown KARAR-4: _kapatOdayiKuyrugaKoy room/listener/NESIL'i ENQUEUE ANINDA yakalar.
+- **C2 (en riskli):** CallScreen saf gorunum (tek param AramaBilgisi; gorsel state ekranda:
+  self-view/swap/uiGizli/sheetAcik/sorunBildirildi). Bitis: arama==null -> ekran listener'i K7
+  sirasiyla pop (once sheet). dispose -> ekranBeklenmedikKapandi (arama suruyorsa MINIMIZE, bitirme
+  YOK). 6 push noktasi cevrildi: main.dart CallKit kabul (baslat Navigator'i BEKLEMEZ — soguk
+  baslangicta ses/sure onde kurulur; dismiss EN SON), overlay, chat, calls_tab, group_call
+  (pop->ekraniAc = pushReplacement dengi), _geriAra -> controller (ekran yerinde yeni aramayi
+  render eder, pushReplacement YOK).
+- **C3:** AktifAramaBanner — yesil WhatsApp banti (avatar+ad+CANLI sure+dokun-don);
+  IncomingCallOverlay(child: AktifAramaBanner(child)) sarmalama sirasi.
+- **C4:** minimize ACIK: chevron butonu + geri tusu bagli aramada minimize (ring/cevapsiz bloklu);
+  restore ikinci connect YAPMAZ.
+- **C5:** mesaj ikonu = minimize + POST /chats/direct -> /chat/:id (peerId yoksa yalniz minimize);
+  live/rooms/davet muhafiz snackbar'larinda 'Aramaya don'; logout'ta minimize'daki arama
+  leave(notifyServer:true) ile biter.
+- CLAUDE.md tuzagi eklendi (controller deseni). analyze temiz (2 eski info).
+**CIHAZ REGRESYON LISTESI (build sonrasi):** 1:1 sesli iki yon + sure senkron; goruntulu
+swap/surukle/flip; art arda 4-5 arama; CallKit kilit ekrani kabul/bitir; cevapsiz+Geri Ara;
+grup iOS-host mic; karsi kapatinca <=3sn; minimize: gez+mesaj at, bantta sure akar, banttan don
+(ikinci connect YOK — livekit logu), minimize'dayken karsi kapatir -> bant <=3sn kaybolur,
+5x minimize-restore, minimize'dayken gelen arama 'mesgul', mesaj ikonu dogru sohbet.
 - arama.mp3 (repo koku) coplugu: assets'teki degil, kok dizindeki KALINTI — bu oturumda silinecek.
