@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:livekit_client/livekit_client.dart' as lk;
 
 /// SendData sinyalini coz (topic 'meta'; govde JSON {"t": ...}). Bozuksa null.
 Map<String, dynamic>? yayinVerisiCoz(List<int> data) {
@@ -175,4 +176,70 @@ class HediyePatlamasi extends StatelessWidget {
       ),
     );
   }
+}
+
+/// FAZ-5 KONUK SPLIT (kullanici istegi: "grup gorusmesi gibi"): tek video paneli.
+/// Renderer IgnorePointer ICINDE (CameraUtils NPE kurali); etiket/ustKatman Stack'te
+/// renderer'in USTUNDE, IgnorePointer'in DISINDA (butonlar calisir).
+class SplitVideoPaneli extends StatelessWidget {
+  const SplitVideoPaneli({
+    super.key,
+    this.track,
+    this.mirrorMode = lk.VideoViewMirrorMode.auto,
+    this.etiket = '',
+    this.ustKatman,
+    this.bosMetin = 'Görüntü bekleniyor...',
+  });
+
+  final lk.VideoTrack? track;
+  final lk.VideoViewMirrorMode mirrorMode;
+  final String etiket;
+  final Widget? ustKatman; // Positioned bekler (pill / x butonu)
+  final String bosMetin;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: Stack(fit: StackFit.expand, children: [
+        if (track != null)
+          IgnorePointer(
+            child: lk.VideoTrackRenderer(track!,
+                key: ValueKey('split-${track!.mediaStreamTrack.id}'),
+                fit: lk.VideoViewFit.cover,
+                mirrorMode: mirrorMode),
+          )
+        else
+          Container(
+            color: const Color(0xFF16202A),
+            alignment: Alignment.center,
+            child: Text(bosMetin, style: const TextStyle(color: Colors.white54)),
+          ),
+        if (etiket.isNotEmpty)
+          Positioned(
+            left: 8,
+            bottom: 6,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                  color: Colors.black45, borderRadius: BorderRadius.circular(8)),
+              child: Text(etiket,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Colors.white, fontSize: 12)),
+            ),
+          ),
+        if (ustKatman != null) ustKatman!,
+      ]),
+    );
+  }
+}
+
+/// Dikey split alani: ust + alt iki ESIT panel (TikTok konuk duzeni), 4px bosluk.
+Widget yayinSplitAlani({required Widget ust, required Widget alt}) {
+  return Column(children: [
+    Expanded(child: ust),
+    const SizedBox(height: 4),
+    Expanded(child: alt),
+  ]);
 }

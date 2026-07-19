@@ -68,6 +68,25 @@ class _RoomScreenState extends ConsumerState<RoomScreen> with WidgetsBindingObse
   List<Map<String, dynamic>> _eller = []; // yalniz host gorur
   int _dinleyici = 0;
 
+  /// FAZ-4 (kullanici bulgusu "sayi ya 0 ya bayat"): dinleyici sayisi CANLI kaynaktan —
+  /// LiveKit katilimci listesi (ben + remotes) eksi konusmaci/host kimlikleri. WS
+  /// join/left olaylari dinleyicilere GELMEDIGI icin (Karar 8) 10sn poll tek kaynakti;
+  /// ParticipantConnected/Disconnected zaten setState cagiriyor -> bu getter ANLIK.
+  /// Baglanti yokken/kurulurken poll degeri (_dinleyici) yedek.
+  int get _canliDinleyici {
+    final room = _room;
+    if (room == null || _connecting) return _dinleyici;
+    final konusmaciIdler = <String>{
+      for (final k in _konusmacilar) (k['user_id'] as String? ?? ''),
+    };
+    var n = 1 + room.remoteParticipants.length; // ben + digerleri
+    if (konusmaciIdler.contains(_benimId)) n--;
+    for (final p in room.remoteParticipants.values) {
+      if (konusmaciIdler.contains(p.identity)) n--;
+    }
+    return n < 0 ? 0 : n;
+  }
+
   late final CallService _svc;
 
   static const _audioCh = MethodChannel('gebzem/audio');
@@ -559,7 +578,7 @@ class _RoomScreenState extends ConsumerState<RoomScreen> with WidgetsBindingObse
                         ]),
                 ),
               const SizedBox(height: 8),
-              Text('🎧 $_dinleyici dinleyici',
+              Text('🎧 $_canliDinleyici dinleyici',
                   style: TextStyle(color: Theme.of(c3).colorScheme.outline)),
             ],
           );
@@ -633,7 +652,7 @@ class _RoomScreenState extends ConsumerState<RoomScreen> with WidgetsBindingObse
                         Text(
                           _connecting
                               ? 'Bağlanıyor...'
-                              : (_hata ?? '🎧 $_dinleyici dinleyici'),
+                              : (_hata ?? '🎧 $_canliDinleyici dinleyici'),
                           style: const TextStyle(color: Colors.white60, fontSize: 14),
                         ),
                       ],

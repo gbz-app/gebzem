@@ -1327,8 +1327,8 @@ force-quit dinleyici DB'de kaliyor. (5) Yayin: tek yayin noktasi 15sn sweep.
 - [x] FAZ 3 backend iOS teshis: calls/handler.go kurtarma alani + MIK-OLU-SENT0 +
       SES-DUSUK icinde CIKIS-OLU? + admin sesRenk/lejant
 - [x] Backend deploy EDILDI (d7eb4e0) + health ok — iki-cihaz dogrulamasi kullanici testinde
-- [ ] FAZ 4 room_screen _canliDinleyici getter (562+636 kullanim)
-- [ ] FAZ 5 konuk SPLIT: live_widgets SplitVideoPaneli+yayinSplitAlani; viewer+broadcast
+- [x] FAZ 4 room_screen _canliDinleyici getter (562+636 kullanim)
+- [x] FAZ 5 konuk SPLIT: live_widgets SplitVideoPaneli+yayinSplitAlani; viewer+broadcast
       dallanma (konukVideo!=null -> dikey split; PiP bloklari SIL; pill sag-ust; fallback pill)
 - [ ] FAZ 6 Android PiP: manifest supportsPictureInPicture + MainActivity gebzem/pip kanali
       (onUserLeaveHint/autoEnter/pipDegisti) + pip_service.dart + controller (pipModunda/

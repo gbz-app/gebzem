@@ -330,6 +330,46 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
     }
   }
 
+  /// Konuk kontrol pill'i: mic / kamera cevir / ayril (split panel sag-ust; fallback konum
+  /// kamera acilamadiginda). Icerik eski PiP-alti pill'in BIREBIR tasinmis hali.
+  Widget _konukPill() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      decoration: BoxDecoration(
+          color: Colors.black54, borderRadius: BorderRadius.circular(20)),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        IconButton(
+          visualDensity: VisualDensity.compact,
+          icon: Icon(_konukMicOn ? LucideIcons.mic : LucideIcons.micOff,
+              size: 18, color: _konukMicOn ? Colors.white : Colors.redAccent),
+          onPressed: () async {
+            final on = !_konukMicOn;
+            await _room?.localParticipant?.setMicrophoneEnabled(on);
+            if (mounted) setState(() => _konukMicOn = on);
+          },
+        ),
+        IconButton(
+          visualDensity: VisualDensity.compact,
+          icon: const Icon(LucideIcons.switchCamera, size: 18, color: Colors.white),
+          onPressed: () async {
+            final t = _konukVideo;
+            if (t == null) return;
+            try {
+              final onMu = await rtc.Helper.switchCamera(t.mediaStreamTrack);
+              if (mounted) setState(() => _onKamera = onMu);
+            } catch (_) {}
+          },
+        ),
+        IconButton(
+          visualDensity: VisualDensity.compact,
+          tooltip: 'Canlıdan ayrıl',
+          icon: const Icon(LucideIcons.x, size: 18, color: Colors.redAccent),
+          onPressed: () => _konuktanCik(sunucuyaBildir: true),
+        ),
+      ]),
+    );
+  }
+
   /// Konukluktan izleyicilige don. _sesiAc(false) CAGRILMAZ — dinlemeye devam (plan karari).
   Future<void> _konuktanCik({required bool sunucuyaBildir}) async {
     if (!_konukum) return;
@@ -512,29 +552,50 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
         backgroundColor: const Color(0xFF0B141A),
         body: Stack(children: [
           Positioned.fill(
-            child: video != null
-                ? IgnorePointer(
-                    child: lk.VideoTrackRenderer(video,
-                        key: ValueKey('izle-${video.sid}'), fit: lk.VideoViewFit.cover))
-                : Container(
-                    decoration: const BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [Color(0xFF1A0B2E), Color(0xFF0B141A)],
+            // FAZ-5: konuk yayindaysa GRUP GIBI dikey SPLIT (ust: yayinci, alt: konuk);
+            // konuk cikinca track-bazli getter null doner -> otomatik tam ekran.
+            child: konukVideo != null
+                ? yayinSplitAlani(
+                    ust: SplitVideoPaneli(
+                        track: video,
+                        etiket: widget.yayinciAd,
+                        bosMetin: 'Yayıncı bekleniyor...'),
+                    alt: SplitVideoPaneli(
+                      track: konukVideo,
+                      mirrorMode: _konukum
+                          ? (_onKamera
+                              ? lk.VideoViewMirrorMode.mirror
+                              : lk.VideoViewMirrorMode.off)
+                          : lk.VideoViewMirrorMode.auto,
+                      etiket: _konukum ? 'Sen' : '',
+                      ustKatman: _konukum
+                          ? Positioned(top: 6, right: 6, child: _konukPill())
+                          : null,
+                    ),
+                  )
+                : video != null
+                    ? IgnorePointer(
+                        child: lk.VideoTrackRenderer(video,
+                            key: ValueKey('izle-${video.sid}'), fit: lk.VideoViewFit.cover))
+                    : Container(
+                        decoration: const BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [Color(0xFF1A0B2E), Color(0xFF0B141A)],
+                          ),
+                        ),
+                        child: Center(
+                          child: _hata != null
+                              ? Text(_hata!,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(color: Colors.white70))
+                              : _connecting
+                                  ? const CircularProgressIndicator()
+                                  : const Text('Görüntü bekleniyor...',
+                                      style: TextStyle(color: Colors.white70)),
+                        ),
                       ),
-                    ),
-                    child: Center(
-                      child: _hata != null
-                          ? Text(_hata!,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(color: Colors.white70))
-                          : _connecting
-                              ? const CircularProgressIndicator()
-                              : const Text('Görüntü bekleniyor...',
-                                  style: TextStyle(color: Colors.white70)),
-                    ),
-                  ),
           ),
           if (_durakladi)
             Positioned.fill(
@@ -550,84 +611,11 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
                 ]),
               ),
             ),
-          // KONUK PiP (Bolum 6): konugun (ya da konuk bensem kendi kameramin) kucuk penceresi
-          if (konukVideo != null)
-            Positioned(
-              top: 76,
-              right: 12,
-              width: 108,
-              height: 150,
-              child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: Colors.white24),
-                  boxShadow: const [
-                    BoxShadow(color: Colors.black45, blurRadius: 10, offset: Offset(0, 3)),
-                  ],
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(13),
-                  // TARAMA #4 (kritik): IgnorePointer SART — renderer'a dokunus giderse
-                  // flutter_webrtc CameraUtils NPE ile COKER (call_screen deseni).
-                  child: IgnorePointer(
-                    child: lk.VideoTrackRenderer(
-                      konukVideo,
-                      key: ValueKey('konuk-${konukVideo.mediaStreamTrack.id}'),
-                      fit: lk.VideoViewFit.cover,
-                      // Kendi kameram: ayna kurali (on=aynali); uzak konukta auto kalir
-                      mirrorMode: _konukum
-                          ? (_onKamera
-                              ? lk.VideoViewMirrorMode.mirror
-                              : lk.VideoViewMirrorMode.off)
-                          : lk.VideoViewMirrorMode.auto,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          // KONUK KONTROLLERI (PiP'in hemen alti): mic / kamera cevir / ayril
-          if (_konukum)
-            Positioned(
-              top: 232,
-              right: 12,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                decoration: BoxDecoration(
-                    color: Colors.black54, borderRadius: BorderRadius.circular(20)),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  IconButton(
-                    visualDensity: VisualDensity.compact,
-                    icon: Icon(_konukMicOn ? LucideIcons.mic : LucideIcons.micOff,
-                        size: 18,
-                        color: _konukMicOn ? Colors.white : Colors.redAccent),
-                    onPressed: () async {
-                      final on = !_konukMicOn;
-                      await _room?.localParticipant?.setMicrophoneEnabled(on);
-                      if (mounted) setState(() => _konukMicOn = on);
-                    },
-                  ),
-                  IconButton(
-                    visualDensity: VisualDensity.compact,
-                    icon: const Icon(LucideIcons.switchCamera,
-                        size: 18, color: Colors.white),
-                    onPressed: () async {
-                      final t = _konukVideo;
-                      if (t == null) return;
-                      try {
-                        final onMu = await rtc.Helper.switchCamera(t.mediaStreamTrack);
-                        if (mounted) setState(() => _onKamera = onMu);
-                      } catch (_) {}
-                    },
-                  ),
-                  IconButton(
-                    visualDensity: VisualDensity.compact,
-                    tooltip: 'Canlıdan ayrıl',
-                    icon: const Icon(LucideIcons.x, size: 18, color: Colors.redAccent),
-                    onPressed: () => _konuktanCik(sunucuyaBildir: true),
-                  ),
-                ]),
-              ),
-            ),
+          // FAZ-5: konuk kontrolleri split panelinin sag-ustunde (_konukPill). Kamera
+          // ACILAMADIYSA (konukVideo null) pill yine erisilebilir olmali — ayrilma yolu
+          // kaybolmasin (yargic fallback karari).
+          if (_konukum && konukVideo == null)
+            Positioned(top: 76, right: 12, child: _konukPill()),
           KalpKatmani(key: _kalpKey),
           for (final h in _hediyeler)
             HediyePatlamasi(

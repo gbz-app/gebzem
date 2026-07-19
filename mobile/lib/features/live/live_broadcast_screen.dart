@@ -483,84 +483,56 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
         backgroundColor: const Color(0xFF0B141A),
         body: Stack(children: [
           Positioned.fill(
-            child: video != null
-                ? IgnorePointer(
-                    child: lk.VideoTrackRenderer(video,
-                        // KEY mediaStreamTrack.id: publish oncesi sid NULL (devralinan track
-                        // gorunurken key cakismasin — hukum A2 duzeltmesi)
-                        key: ValueKey('yayin-${video.mediaStreamTrack.id}'),
-                        fit: lk.VideoViewFit.cover,
-                        // auto modu bayat facingMode'la ARKA kamerada da AYNALIYORDU
-                        // ("kamera ters"). On=aynali, arka=aynasiz; izleyici etkilenmez.
-                        mirrorMode: _onKamera
-                            ? lk.VideoViewMirrorMode.mirror
-                            : lk.VideoViewMirrorMode.off))
-                : Center(
-                    child: _hata != null
-                        ? Text(_hata!,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(color: Colors.white70))
-                        : const CircularProgressIndicator()),
-          ),
-          // KONUK PiP (Bolum 6 I4): konugun videosu + sag-ust x (yayindan al)
-          if (konukVideo != null)
-            Positioned(
-              top: 76,
-              right: 12,
-              width: 108,
-              height: 150,
-              child: Stack(children: [
-                Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: Colors.white24),
-                    boxShadow: const [
-                      BoxShadow(
-                          color: Colors.black45, blurRadius: 10, offset: Offset(0, 3)),
-                    ],
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(13),
-                    // IgnorePointer: renderer'a dokunus = CameraUtils NPE riski (proje
-                    // kurali); x butonu Stack'te ustte, calismaya devam eder.
-                    child: IgnorePointer(
-                      child: lk.VideoTrackRenderer(
-                        konukVideo,
-                        key: ValueKey('konuk-${konukVideo.mediaStreamTrack.id}'),
-                        fit: lk.VideoViewFit.cover,
+            // FAZ-5: konuk yayindaysa GRUP GIBI dikey SPLIT (ust: ben, alt: konuk + x);
+            // konuk cikinca track-bazli getter null -> otomatik tam ekran.
+            child: konukVideo != null
+                ? yayinSplitAlani(
+                    ust: SplitVideoPaneli(
+                      track: video,
+                      // ayna kurali AYNEN: on=aynali, arka=aynasiz
+                      mirrorMode: _onKamera
+                          ? lk.VideoViewMirrorMode.mirror
+                          : lk.VideoViewMirrorMode.off,
+                      etiket: 'Sen',
+                    ),
+                    alt: SplitVideoPaneli(
+                      track: konukVideo,
+                      etiket: _konukAdi,
+                      ustKatman: Positioned(
+                        top: 6,
+                        right: 6,
+                        child: GestureDetector(
+                          onTap: _konukCikarOnayli,
+                          child: Container(
+                            padding: const EdgeInsets.all(5),
+                            decoration: const BoxDecoration(
+                                color: Colors.black54, shape: BoxShape.circle),
+                            child: const Icon(LucideIcons.x,
+                                size: 16, color: Colors.white),
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                ),
-                Positioned(
-                  top: 2,
-                  right: 2,
-                  child: GestureDetector(
-                    onTap: _konukCikarOnayli,
-                    child: Container(
-                      padding: const EdgeInsets.all(3),
-                      decoration: const BoxDecoration(
-                          color: Colors.black54, shape: BoxShape.circle),
-                      child:
-                          const Icon(LucideIcons.x, size: 14, color: Colors.white),
-                    ),
-                  ),
-                ),
-                if (_konukAdi.isNotEmpty)
-                  Positioned(
-                    left: 6,
-                    bottom: 4,
-                    right: 6,
-                    child: Text(_konukAdi,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 11,
-                            shadows: [Shadow(blurRadius: 4, color: Colors.black)])),
-                  ),
-              ]),
-            ),
+                  )
+                : video != null
+                    ? IgnorePointer(
+                        child: lk.VideoTrackRenderer(video,
+                            // KEY mediaStreamTrack.id: publish oncesi sid NULL (devralinan track
+                            // gorunurken key cakismasin — hukum A2 duzeltmesi)
+                            key: ValueKey('yayin-${video.mediaStreamTrack.id}'),
+                            fit: lk.VideoViewFit.cover,
+                            // auto modu bayat facingMode'la ARKA kamerada da AYNALIYORDU
+                            // ("kamera ters"). On=aynali, arka=aynasiz; izleyici etkilenmez.
+                            mirrorMode: _onKamera
+                                ? lk.VideoViewMirrorMode.mirror
+                                : lk.VideoViewMirrorMode.off))
+                    : Center(
+                        child: _hata != null
+                            ? Text(_hata!,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(color: Colors.white70))
+                            : const CircularProgressIndicator()),
+          ),
           KalpKatmani(key: _kalpKey),
           for (final h in _hediyeler)
             HediyePatlamasi(
