@@ -18,7 +18,9 @@ services:
       APNS_BUNDLE_ID: app.gebzem
       SENTRY_DSN: ${SENTRY_DSN}
       # Arama (LiveKit)
-      LIVEKIT_URL: wss://rtc.gebzem.app
+      # FAZ-3C HIZ: dogrudan sinyal (CF'siz). GERI ALMA: wss://rtc.gebzem.app + api restart
+      # (fallback'li build sahada — rtcd kurulamazsa istemci kendisi rtc'ye duser).
+      LIVEKIT_URL: wss://rtcd.gebzem.app:7443
       LIVEKIT_API_KEY: ${LIVEKIT_API_KEY}
       LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET}
       # Admin uclari anahtari (dogrulama bulgusu: repo PUBLIC — kod icindeki varsayilan
