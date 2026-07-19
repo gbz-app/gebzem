@@ -1183,4 +1183,31 @@ Kullanici: "grup arama goruntulude ses karsiya gitmiyor" (baska sorun YOK — 1:
   bu davranis KORUNACAK, video tile eklerken o bloga dokunulmayacak.
 - VideoTrackRenderer'a dokunus GITMEMELI (CameraUtils NPE cokmesi) — tile'larda IgnorePointer sart
   degil cunku tile'a dokunma jesti baglamiyoruz; jest eklenirse IgnorePointer + opaque deseni kullan.
+
+### FAZ-B KOD-TAMAM (19 Tem) — kisi ekleme + DAVET + KONUK/LISTELER (istemci dahil)
+Backend TAMAMI onceden deploy + curl-dogrulanmisti (6f62bb9, 9baca6b, 0f1d242). Istemci bugun bitti:
+- **Kisi ekleme (64fa2f6):** CallScreen _isGroup STATE + call.upgraded + AddParticipantSheet.
+- **DAVET istemci (a68030c + dd9df28):** DavetServisi (WS stream.invite/room.invite -> MaterialBanner,
+  davetiAc muhafizlari: zaten-iceride/aramadaMi/REST-sonrasi-tekrar+rollback), DavetSecSheet (coklu secim,
+  max 10), 3 ekranda userPlus butonu. main.dart I4: onMessage'da davet dali **call_id kontrolunden ONCE**
+  (yoksa erken donus daveti yutar), onMessageOpenedApp + getInitialMessage (soguk baslangicta Navigator
+  bekleme dongusu) -> davetiAc; davetServisiProvider initState'te AYAGA KALDIRILIYOR (tembel provider tuzagi).
+- **KONUK istemci (807e8be):** live_info_sheets.dart (IzleyicilerSheet: Canliya al/Yayindan al/At;
+  HediyeLeaderboardSheet: ExpansionTile kirilim — kim hangi hediyeden kac defa; IstekSheet: Canliya al/red).
+  VIEWER: tip param ('audio' yayinlarinda istek butonu gizli), grup medya profilleri RoomOptions'a BASTAN,
+  **_video getter YAYINCI-identity-filtreli (kritik: konuk tam ekrani KAPMAZ)**, konuk PiP track-bazli
+  (dusen konugun track'siz participant'i gorunmez), guest.accepted -> _konukOl (izinler -> mic -> kamera ->
+  _sesiAc(true) EN SON; izin reddi = konukAyril DURUSTLUGU; 1sn tek retry), guest.left(ben) -> _konuktanCik
+  (_sesiAc(false) CAGRILMAZ — dinlemeye devam), RoomReconnected -> konukYenile (D4), resume'da mic restore,
+  cikista bekleyen istek geri cekilir. BROADCAST: TrackSubscribed/Unsubscribed + ilk-kare tekmesi (yoksa
+  konuk PiP hic render olmaz), guest.request rozetli el butonu -> IstekSheet (kapaninca rozet REST'ten
+  tazelenir), konuk PiP + x (onayli konukCikar) + ad etiketi, 👁 chip -> IzleyicilerSheet(yayinciyim),
+  🪙 jeton sayaci (gift sinyallerinden toplanir) -> HediyeLeaderboardSheet.
+- flutter analyze: 2 eski info (call_screen use_null_aware_elements) disinda TEMIZ.
+**SIRADA:** Faz-C (parite-hukum.md C1-C6: ActiveCallController + minimize/banner + mesaj ikonu) ->
+genel adversarial tarama -> TEK TEMIZ BUILD -> yayin rutini (debug-imza, R2, purge, boyut, index saat,
+TRUNCATE users CASCADE + otp_codes, api restart).
+**CIHAZ TESTI GEREKTIREN RISKLER:** hidden->gorunur konuk gecisi ILK KEZ (fallback: guest/refresh);
+iOS izleyici playback->play+record gecisi (v7 sinifi — sira korundu ama cihazda dogrulanmali);
+Android 12+ izin dialoglari yayin izlerken.
 - arama.mp3 (repo koku) coplugu: assets'teki degil, kok dizindeki KALINTI — bu oturumda silinecek.
