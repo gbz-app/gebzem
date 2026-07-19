@@ -15,15 +15,7 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- YOK — **HIZ SÜRÜMÜ YAYINLANDI (20 Tem 00:15):** bağlanma hızı paketi canlı — bekçi
-  fast-path + 400ms tick, kabul zinciri paralel, sinyal DOĞRUDAN (wss://rtcd.gebzem.app:7443,
-  istemcide rtc fallback'i; geri alma: compose LIVEKIT_URL + api restart), use_ice_lite,
-  KURULUM-MS ölçümü (GEÇİCİ — api loglarında). **Kullanıcı test edecek** (hedef: kabul→ses
-  ~3-4s; ölçüm karşılaştırması api log KURULUM-MS). SIRADA (planları oturum.md "HIZ HUKMU"):
-  Faz-4 ÖN-BAĞLANMA (arayan ring'de mic'siz bağlanır — arayan <1s; 6 adım + 4 muhafız hazır)
-  → Faz-5 callee ön-bağlanma → **iOS PiP** (plan hazır+doğrulandı, bilinçli ertelendi).
-  ⚠️ Ring fazında setSpeakerOn/mic/_sesiAc YASAK (track'siz setSpeakerOn bile configureAudio
-  çağırır — hardware.dart:143 kanıtı).
+- YOK — **KONUK-SPLIT + iPhone SAYAÇ FIX SÜRÜMÜ YAYINLANDI (20 Tem 02:10, Build A):** yayında konuk atılınca siyah alan/patlama düzeltildi (live ekran video getter'larına !pub.muted + TrackMuted/Unmuted/Unpublished dinleyici); iPhone sayacı gerçek playout enerjisiyle başlar (packetsReceived değil totalAudioEnergy; Android aynen hızlı). ÖNCEKİ hız paketi (rtcd:7443 doğrudan sinyal + ice_lite + fast-path) canlı. **Kullanıcı test edecek.** SIRADA **Build B: iOS sistem PiP** (native AVPictureInPictureController; plan+fizibilite hazır+doğrulandı; kurulamazsa bugünkü kamera-mute davranışı aynen — zararsız). ⚠️ Ring fazında setSpeakerOn/mic/_sesiAc YASAK.
 - Bu oturumda ayrıca YAYINLANDI (19 Tem 20:20 sürümü): Faz-A/B/C (minimize+yeşil bant,
   mesaj ikonu, kişi ekleme, davet, konuk+listeler, 30 hediye, 10k jeton) + 16 tarama fix'i.
   Mimari: aktif arama ActiveCallController'da (tuzaklar bölümüne bakın).
