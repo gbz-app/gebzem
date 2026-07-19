@@ -21,6 +21,7 @@ import 'features/calls/call_provider.dart';
 import 'features/calls/call_screen.dart';
 import 'features/calls/callkit_service.dart';
 import 'features/calls/incoming_call_overlay.dart';
+import 'features/invites/davet_provider.dart';
 import 'firebase_options.dart';
 import 'router.dart';
 
@@ -142,6 +143,41 @@ class _GebzemAppState extends ConsumerState<GebzemApp> with WidgetsBindingObserv
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _callKitBaslat();
+    // DAVET SERVISI (Bolum 5 I4): WS stream.invite/room.invite dinleyicisini ayaga kaldir
+    // (provider tembel — okunmazsa hic olusmaz, banner gelmez).
+    ref.read(davetServisiProvider);
+    _davetPushBaslat();
+  }
+
+  /// Davet push yonlendirmesi: tepsideki davet bildirimine dokunuldu.
+  /// - Uygulama KAPALIYKEN acildi -> getInitialMessage
+  /// - ARKA PLANDAYKEN dokunuldu -> onMessageOpenedApp
+  /// Iki yol da ayni katilma akisina (davetiAc) gider; muhafizlar orada.
+  Future<void> _davetPushBaslat() async {
+    void ac(RemoteMessage m) {
+      final tip = m.data['type'];
+      if (tip != 'stream.invite' && tip != 'room.invite') return;
+      final id = (tip == 'stream.invite' ? m.data['stream_id'] : m.data['room_id'])
+              as String? ??
+          '';
+      if (id.isEmpty) return;
+      unawaited(ref.read(davetServisiProvider).davetiAc(
+            tip: tip == 'stream.invite' ? 'yayin' : 'oda',
+            id: id,
+            baslik: m.data['title'] as String? ?? '',
+          ));
+    }
+
+    FirebaseMessaging.onMessageOpenedApp.listen(ac);
+    try {
+      final ilk = await FirebaseMessaging.instance.getInitialMessage();
+      if (ilk == null) return;
+      // Soguk baslangic: Navigator hazir olana kadar bekle (CallKit kabul deseni)
+      for (var i = 0; i < 100 && rootNavigatorKey.currentState == null; i++) {
+        await Future.delayed(const Duration(milliseconds: 100));
+      }
+      if (mounted) ac(ilk);
+    } catch (_) {}
   }
 
   Future<void> _callKitBaslat() async {
@@ -152,6 +188,13 @@ class _GebzemAppState extends ConsumerState<GebzemApp> with WidgetsBindingObserv
     // WS + CallKit onu zaten gosterir, yoksa cift ekran cikar. Sadece bitir/kabul yedegi.
     FirebaseMessaging.onMessage.listen((m) {
       final tip = m.data['type'];
+      // DAVET (on planda push geldi; WS kopuk olabilir) -> ayni banner.
+      // call_id kontrolunden ONCE: davet push'unda call_id yok, asagidaki erken
+      // donus daveti yutardi (Bolum 5 I4 karari).
+      if (tip == 'stream.invite' || tip == 'room.invite') {
+        ref.read(davetServisiProvider).pushtanGoster(m.data);
+        return;
+      }
       final callId = m.data['call_id'] as String? ?? '';
       if (callId.isEmpty) return;
       final notifier = ref.read(callServiceProvider.notifier);
