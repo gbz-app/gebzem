@@ -1008,6 +1008,19 @@ cevabindan; chat hatalari snackbar; klavyede chat seridi kuculur (RenderFlex).
 pause-grace ~105sn'de yayinci yeni yayin acamaz (tasarim geregi); SendData gecmisi
 sonradan girene gitmez.
 
+### BUYUK DUZELTME PAKETI YAYINLANDI (19 Tem 17:08) — KULLANICI TEST EDECEK
+- Build android 29689886855 + ios 29689887720 BASARILI; debug imza YOK. R2: apk=104274557,
+  ipa=18983656, index "Buyuk duzeltme paketi · 17:08". Purge -> CDN birebir -> health ok ->
+  DB temiz + api restart. Icerik: F1-F5 fix'leri + 32 kisi + mik-oto-onarim + isimli ses
+  teshisi (sent/mikE) + canli yayin + onceki tum isler.
+- **Test rehberi (oncelik):** (1) yayin onizleme ac-KAPAT -> ardindan arama/oda/yayin
+  SORUNSUZ girilmeli (mesgul kilidi bitti mi); (2) sesli arama: kabul aninda taraflardan biri
+  baglanamazsa arayan <=3sn'de kapanmali (sonsuz "sure sayma" yok); (3) kamera cevir: arka
+  kamerada YAZI OKUNUR olmali (ayna yok), izleyicide/karsida normal; (4) el kaldir -> buton
+  "Eli indir" olmali, el kalkik kalmali; (5) grup 9+ kisi goruntulu acilabilmeli (32 tavan);
+  (6) grup aramada biri konusurken digerlerinin panelinde MIK-OLU cikarsa oto-onarim
+  loglarda gorunur (docker logs api | grep 'MIK-OLU\|kurtarma').
+
 ### 5-SORUN HUKMU GELDI + FIX'LER UYGULANDI (19 Tem 16:55; wf_c0a4ca2f — gece uykuda DONMUS,
 ### 16:40'ta kaldigi yerden RESUME edildi: 3 ajan onbellekten, 3 ajan canli kostu)
 **Kok nedenler (yargic, kodla capraz dogrulanmis):**
