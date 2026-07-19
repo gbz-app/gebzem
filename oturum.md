@@ -1297,4 +1297,19 @@ ikonu, logout-leave) + 16 tarama fix'i (istemci 12 + backend 4; backend zaten ca
    karsi taraf _mediaBaslat ile sayaci baslatir ama ses YOK). Ayri uzman ajani kosuyor.
 Workflow: 5 uzman (kanit+kod+SSH) -> yargic nihai plan + sorun-6 uzmani. Hukum gelince:
 backend sayaclar -> istemci UI -> Android PiP -> iOS ses+sure (en dikkatli) sirasiyla; sonra build.
+
+**SORUN-6 HUKMU GELDI (uzman raporu, kanitli):** Sayac SINYAL-duzeyi olayla basliyor
+(TrackSubscribedEvent audio -> _mediaBaslat, actl:486; 8sn yedek de kanitsiz, actl:683) —
+RTP paketi kaniti YOK. Olu-birim gecesinde host sayaci 00:00'dan akti cunku davetlinin track'i
+SDP'de vardi ama paket 0. Olu-gonderici kurtarmasi sent=0 modunu kapsamiyor (koşul sentDelta>60).
+1:1 referansli yolda "00:00'dan sayma" URETILEMEZ (referans kilidi answer aninda) — kilit ekrani
+kok neden DEGIL. FIX (tek dosya actl.dart, sure senkron tasarimina DOKUNMADAN): (1) _sesKanitBekle
+1sn timer — TUM remote audio publication'larin packetsReceived TOPLAMI artinca (veya publication
+muted ise) _mediaBaslat; TrackSubscribed/_odayaBaglan-sonu bu bekciyi kurar; (2) 8sn yedek:
+stats OKUNAMIYORSA eski davranis (sayac ac), okunuyor+paket 0 ise ACMA (Baglaniyor kalir, timer
+yeniden); (3) kurtarma imzasi genislet: `|| (sent==0 && _peerJoined && _baglandi)` ayni 3-tick
+esik (ilk saniyelerin mesru 0'i elenir); (4) grupta peer yokken 'Katilim bekleniyor...'.
+YAPMA: _sureReferansiAl/Stopwatch/elapsed_ms/grup-host kisayolu/iOS ses sirasi/8sn-yedegi-silme.
+UYGULAMA: ana workflow hukmu ile birlestirilip (sorun-1 CallKit onleme fix'i ayni bolgeye
+dokunabilir) tek pakette yapilacak.
 - arama.mp3 (repo koku) coplugu: assets'teki degil, kok dizindeki KALINTI — bu oturumda silinecek.
