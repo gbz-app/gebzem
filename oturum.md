@@ -1447,3 +1447,6 @@ BUGLAR/ISTEKLER:
   (g) "Gebzem" basligi altina ARAMA INPUT'u; (h) sag-alt kalem (FAB) -> + , logodaki MOR GRADIENT,
   daire.
 SIRA: B1 (sinyal gate) -> B3 (layout) -> UI tema/nav -> R1-R3+B2 (workflow hukmu) -> TEK BUILD.
+- [x] B1: broadcaster _konukVideo _konukId-gate + build konukVar + iyimser X-kapama; viewer
+      _aktifKonuk (guest.joined/left) + _konukVideo _aktifKonuk-gate + build konukVar + cift-pill kaldirildi.
+- [x] B3: broadcaster ust bar _ustBtn kompakt (36px) — 5 buton + 2 cip tasmasi (RenderFlex) co.zuldu.

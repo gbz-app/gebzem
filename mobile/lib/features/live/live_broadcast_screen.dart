@@ -258,11 +258,15 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
     }
   }
 
-  /// Konugun uzak videosu — TRACK-BAZLI. !muted SART (test turu 4): konuk atilinca track
-  /// mute/unpublish olur ama pub.track bir sure null olmaz -> muted bakilmazsa split donuk
-  /// SIYAH kalir. muted konuk = split kalkar, tam ekrana doner (call_screen _remoteVideo deseni).
+  /// Konugun uzak videosu — SINYAL-BAZLI (test turu 5 kok fix): panel _konukId'ye bagli,
+  /// track'e DEGIL. KANIT (LiveKit logu): konuk atilinca izin `hidden:true` olur ama track
+  /// MUTE OLMAZ -> !muted getter'i yetmedi, split donuk SIYAH kaliyordu. Artik _konukId bos
+  /// (guest.left / iyimser cikar) olunca panel ANINDA kalkar; identity eslesen konugun
+  /// track'ini render eder (muted olursa "Görüntü bekleniyor" fallback SplitVideoPaneli'nde).
   lk.VideoTrack? get _konukVideo {
+    if (_konukId.isEmpty) return null; // aktif konuk yok -> panel yok (atilinca aninda)
     for (final p in _room?.remoteParticipants.values ?? const <lk.RemoteParticipant>[]) {
+      if (p.identity != _konukId) continue;
       for (final pub in p.videoTrackPublications) {
         if (pub.subscribed && !pub.muted && pub.track != null) {
           return pub.track as lk.VideoTrack;
@@ -327,6 +331,12 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
           content: Text('Konuk bilgisi alınamadı — İzleyiciler listesinden deneyin')));
       return;
     }
+    // IYIMSER ANLIK KAPAMA (test turu 5): guest.left round-trip'ini bekleme -> panel HEMEN
+    // kalksin. Hata olursa geri al. Sunucudan gelen guest.left zaten idempotent.
+    setState(() {
+      _konukId = '';
+      _konukAdi = '';
+    });
     try {
       await ref.read(liveApiProvider).konukCikar(widget.streamId, hedef);
     } catch (e) {
@@ -486,10 +496,28 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
       _room?.localParticipant?.videoTrackPublications.firstOrNull?.track ??
       _devralinan; // publish tamamlanana kadar onizleme akisi gorunmeye devam eder (P1)
 
+  /// KOMPAKT ust bar butonu (test turu 5 layout fix): 36px, tasma yapmadan 5 buton sigar.
+  Widget _ustBtn(IconData icon, VoidCallback onTap, {Color renk = Colors.white, int rozet = 0}) {
+    final ikon = Icon(icon, color: renk, size: 20);
+    return IconButton(
+      onPressed: onTap,
+      visualDensity: VisualDensity.compact,
+      padding: const EdgeInsets.all(6),
+      constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+      icon: rozet > 0
+          ? Badge(label: Text('$rozet'), child: ikon)
+          : ikon,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final video = _kameram;
     final konukVideo = _konukVideo;
+    // SINYAL-BAZLI split (test turu 5): panel _konukId'ye bagli. Konuk kamerayi kapatirsa
+    // konukVideo null -> alt panel "Görüntü bekleniyor" (siyah degil); ATILINCA _konukId bos
+    // -> panel ANINDA kalkar, tam ekrana doner.
+    final konukVar = _konukId.isNotEmpty;
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
@@ -499,9 +527,7 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
         backgroundColor: const Color(0xFF0B141A),
         body: Stack(children: [
           Positioned.fill(
-            // FAZ-5: konuk yayindaysa GRUP GIBI dikey SPLIT (ust: ben, alt: konuk + x);
-            // konuk cikinca track-bazli getter null -> otomatik tam ekran.
-            child: konukVideo != null
+            child: konukVar
                 ? yayinSplitAlani(
                     ust: SplitVideoPaneli(
                       track: video,
@@ -604,44 +630,29 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
                     ),
                   ),
                   const Spacer(),
-                  // Katil istekleri (rozetli el) — Bolum 6 I4
-                  IconButton(
-                    onPressed: _istekSheet,
-                    icon: Badge(
-                      isLabelVisible: _istekIds.isNotEmpty,
-                      label: Text('${_istekIds.length}'),
-                      child: const Icon(LucideIcons.hand, color: Colors.white),
-                    ),
+                  // KOMPAKT ust bar (test turu 5 layout fix): 5 buton + 2 cip dar telefonda
+                  // Row'u TASIRIYORDU (RenderFlex overflow — "container cikmis"). _ustBtn
+                  // kompakt (36px) -> hepsi tasmadan sigar; kapatma (power) EN SAGDA dogru yerde.
+                  _ustBtn(
+                    LucideIcons.hand,
+                    _istekSheet,
+                    rozet: _istekIds.isNotEmpty ? _istekIds.length : 0,
                   ),
-                  IconButton(
-                    icon: const Icon(LucideIcons.userPlus, color: Colors.white),
-                    onPressed: _davetEt, // yayina davet (Bolum 5 I3)
-                  ),
-                  IconButton(
-                    icon: const Icon(LucideIcons.switchCamera, color: Colors.white),
-                    onPressed: () async {
-                      final t = _kameram;
-                      if (t == null) return;
-                      try {
-                        // switchCamera GERCEK yonu doner (true=on) -> ayna moduna islenir
-                        final onMu = await rtc.Helper.switchCamera(t.mediaStreamTrack);
-                        if (mounted) setState(() => _onKamera = onMu);
-                      } catch (_) {}
-                    },
-                  ),
-                  IconButton(
-                    icon: Icon(_micOn ? LucideIcons.mic : LucideIcons.micOff,
-                        color: _micOn ? Colors.white : Colors.redAccent),
-                    onPressed: () async {
-                      final on = !_micOn;
-                      await _room?.localParticipant?.setMicrophoneEnabled(on);
-                      setState(() => _micOn = on);
-                    },
-                  ),
-                  IconButton(
-                    icon: const Icon(LucideIcons.power, color: Colors.redAccent),
-                    onPressed: _bitirOnayli,
-                  ),
+                  _ustBtn(LucideIcons.userPlus, _davetEt),
+                  _ustBtn(LucideIcons.switchCamera, () async {
+                    final t = _kameram;
+                    if (t == null) return;
+                    try {
+                      final onMu = await rtc.Helper.switchCamera(t.mediaStreamTrack);
+                      if (mounted) setState(() => _onKamera = onMu);
+                    } catch (_) {}
+                  }),
+                  _ustBtn(_micOn ? LucideIcons.mic : LucideIcons.micOff, () async {
+                    final on = !_micOn;
+                    await _room?.localParticipant?.setMicrophoneEnabled(on);
+                    setState(() => _micOn = on);
+                  }, renk: _micOn ? Colors.white : Colors.redAccent),
+                  _ustBtn(LucideIcons.power, _bitirOnayli, renk: Colors.redAccent),
                 ]),
               ),
               if (_connecting)
