@@ -1277,4 +1277,20 @@ ikonu, logout-leave) + 16 tarama fix'i (istemci 12 + backend 4; backend zaten ca
    kirilim; davet banner + tepsi bildirimi (cift dokunus tek katilim — fix #8).
 4) CIKIS-GIRIS: logout -> relogin -> GELEN ARAMA CALMALI (fix #11 kaniti — eski surumde
    restart gerekirdi).
+
+### KULLANICI TEST TURU (19 Tem ~22:10 TR): 5 SORUN — ARASTIRMA KOSUYOR (wf_8a593046)
+1) **ILK grup goruntulu aramada ses YOK (iki yonde), 2.si sorunsuz — ara ara tekrarliyor.**
+   KANIT TOPLANDI: call_54683d64 (bozuk) vs call_62c8b02e (7sn sonra, saglam). iOS davetli
+   (CallKit kabul, kat=PlayAndRecord aktif=true DOGRU): audio track SDP'de PUBLISH edilmis AMA
+   sent=0/mikE=0.0 TUM ARAMA (capture olu) + recv AKIYOR/enerji=0.0 (playout da olu) = v7-sinifi
+   BIRIM OLU. Android host mikE canli, recv=0 (tutarli). Mevcut olu-mik kurtarma imzasi
+   (sentDelta>60) bu modu KAPSAMIYOR (sent=0). Suphe: CallKit didActivateAudioSession yarisi.
+2) Android arka plana inince sistem PiP YOK + karsi tarafta goruntu DONUYOR (OS kamera kesiyor).
+   Kapsam degisti: kullanici uygulama-disi PiP istiyor (onceki YAPMA maddesi iptal).
+3) Konuk canliya alininca kucuk PiP degil GRUP GIBI SPLIT ekran isteniyor; konuk cikinca
+   (ayrilma/atilma) herkes tam ekrana donmeli.
+4) Oda dinleyici sayisi ya 0 ya bayat — anlik degil.
+5) Yayin izleyici sayisi cikista aninda dusmuyor (sweep 15sn bekliyor).
+Workflow: 5 uzman (kanit+kod+SSH) -> yargic nihai plan. Hukum gelince: backend sayaclar ->
+istemci UI -> Android PiP -> iOS ses (en dikkatli) sirasiyla uygulanacak; sonra build.
 - arama.mp3 (repo koku) coplugu: assets'teki degil, kok dizindeki KALINTI — bu oturumda silinecek.
