@@ -67,6 +67,14 @@ func (h *Handler) sweep(ctx context.Context) {
 		h.rdb.ZRemRangeByScore(ctx, vKey, "-inf", strconvF(esik)) // olu izleyiciler
 		n := h.izleyiciSayisi(ctx, s.id)
 
+		// KONUK kopmus mu (Bolum 6 B6): guest anahtari dolu ama viewers'ta yok
+		// (45sn nabizsiz -> az once silindi) -> otomatik dusur
+		if guest, _ := h.rdb.Get(ctx, "stream:"+s.id+":guest").Result(); guest != "" {
+			if _, err := h.rdb.ZScore(ctx, vKey, guest).Result(); err != nil {
+				h.konukDusur(ctx, s.id, guest, "sweep")
+			}
+		}
+
 		// Tepe izleyici + sayac yayini (yalniz DEGISTIYSE)
 		h.db.Exec(ctx, `UPDATE streams SET viewer_peak = GREATEST(viewer_peak, $1) WHERE id=$2`, n, s.id)
 		son, _ := h.rdb.Get(ctx, "stream:"+s.id+":lastn").Result()

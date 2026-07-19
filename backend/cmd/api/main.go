@@ -189,6 +189,16 @@ func main() {
 		r.Post("/streams/{id}/report", streamsH.Report)
 		r.Post("/streams/{id}/kick", streamsH.Kick)
 		r.Post("/streams/{id}/invite", streamsH.Invite) // yayina davet (in-app bildirim)
+		// Konuk sistemi + listeler (Bolum 6)
+		r.Get("/streams/{id}/viewers", streamsH.Viewers)
+		r.Get("/streams/{id}/gifts", streamsH.GiftLeaderboard)
+		r.Post("/streams/{id}/join-request", streamsH.JoinRequest)
+		r.Get("/streams/{id}/join-requests", streamsH.JoinRequests)
+		r.Post("/streams/{id}/guest/accept", streamsH.GuestAccept)
+		r.Post("/streams/{id}/guest/decline", streamsH.GuestDecline)
+		r.Post("/streams/{id}/guest/leave", streamsH.GuestLeave)
+		r.Post("/streams/{id}/guest/remove", streamsH.GuestRemove)
+		r.Post("/streams/{id}/guest/refresh", streamsH.GuestRefresh)
 	})
 
 	srv := &http.Server{Addr: ":" + cfg.Port, Handler: r}

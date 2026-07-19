@@ -67,6 +67,84 @@ func hediyeBul(id string) *hediye {
 	return nil
 }
 
+// GET /streams/{id}/gifts — hediye LEADERBOARD (Bolum 6 B5): gonderene gore toplam +
+// hediye kirilimi (hangi hediyeden kac adet). Yetki: yayinci veya izleyici.
+func (h *Handler) GiftLeaderboard(w http.ResponseWriter, r *http.Request) {
+	userID := auth.UserID(r.Context())
+	streamID := chi.URLParam(r, "id")
+	var bID string
+	if h.db.QueryRow(r.Context(), `SELECT broadcaster_id FROM streams WHERE id=$1 AND status IN ('live','paused')`,
+		streamID).Scan(&bID) != nil {
+		writeErr(w, http.StatusGone, "yayin bitti")
+		return
+	}
+	if userID != bID {
+		if _, err := h.rdb.ZScore(r.Context(), "stream:"+streamID+":viewers", userID).Result(); err != nil {
+			writeErr(w, http.StatusForbidden, "yayinda degilsiniz")
+			return
+		}
+	}
+	rows, err := h.db.Query(r.Context(), `
+		SELECT g.sender_id, u.name, COALESCE(u.avatar_url,''), g.gift_id, count(*), SUM(g.coins)
+		FROM stream_gifts g JOIN users u ON u.id=g.sender_id
+		WHERE g.stream_id=$1
+		GROUP BY g.sender_id, u.name, u.avatar_url, g.gift_id`, streamID)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "liste alinamadi")
+		return
+	}
+	defer rows.Close()
+	type kirilim struct {
+		GiftID string `json:"gift_id"`
+		Emoji  string `json:"emoji"`
+		Ad     string `json:"ad"`
+		Adet   int64  `json:"adet"`
+		Coins  int64  `json:"coins"`
+	}
+	type gonderen struct {
+		UserID string    `json:"user_id"`
+		Name   string    `json:"name"`
+		Avatar string    `json:"avatar"`
+		Total  int64     `json:"total"`
+		Gifts  []kirilim `json:"gifts"`
+	}
+	m := map[string]*gonderen{}
+	for rows.Next() {
+		var uid, ad, av, gid string
+		var adet, coins int64
+		if rows.Scan(&uid, &ad, &av, &gid, &adet, &coins) != nil {
+			continue
+		}
+		g := m[uid]
+		if g == nil {
+			g = &gonderen{UserID: uid, Name: ad, Avatar: av}
+			m[uid] = g
+		}
+		k := kirilim{GiftID: gid, Adet: adet, Coins: coins}
+		if hg := hediyeBul(gid); hg != nil { // emoji/ad SUNUCU katalogundan (istemcide sabit yok)
+			k.Emoji, k.Ad = hg.Emoji, hg.Ad
+		}
+		g.Gifts = append(g.Gifts, k)
+		g.Total += coins
+	}
+	list := make([]*gonderen, 0, len(m))
+	for _, g := range m {
+		list = append(list, g)
+	}
+	// toplam jetona gore azalan sirala; ilk 50
+	for i := 0; i < len(list); i++ {
+		for j := i + 1; j < len(list); j++ {
+			if list[j].Total > list[i].Total {
+				list[i], list[j] = list[j], list[i]
+			}
+		}
+	}
+	if len(list) > 50 {
+		list = list[:50]
+	}
+	writeJSON(w, http.StatusOK, list)
+}
+
 // POST /streams/{id}/gift {gift, idem} — jeton dus + yayinciya ekle + animasyon fan-out.
 // TEK transaction; (user_id, reason, ref_id) unique indeksi retry'da cift harcamayi keser.
 func (h *Handler) Gift(w http.ResponseWriter, r *http.Request) {
@@ -178,6 +256,14 @@ func (h *Handler) Gift(w http.ResponseWriter, r *http.Request) {
 	}
 	if _, err := tx.Exec(r.Context(),
 		`UPDATE streams SET gift_coins = gift_coins + $1 WHERE id=$2`, g.Jeton, streamID); err != nil {
+		writeErr(w, http.StatusInternalServerError, "hediye gonderilemedi")
+		return
+	}
+	// LEADERBOARD satiri (Bolum 6 B5): ledger 23505 duplicate yolu YUKARIDA return ettigi
+	// icin cift satir imkansiz; ayni TX = para tutarliligiyla ayni atomiklik.
+	if _, err := tx.Exec(r.Context(),
+		`INSERT INTO stream_gifts (stream_id, sender_id, gift_id, coins) VALUES ($1,$2,$3,$4)`,
+		streamID, userID, g.ID, g.Jeton); err != nil {
 		writeErr(w, http.StatusInternalServerError, "hediye gonderilemedi")
 		return
 	}

@@ -305,6 +305,7 @@ func (h *Handler) Heartbeat(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Leave(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserID(r.Context())
 	streamID := chi.URLParam(r, "id")
+	h.konukDusur(r.Context(), streamID, userID, "leave") // konuksa once dusur (B7)
 	h.rdb.ZRem(r.Context(), "stream:"+streamID+":viewers", userID)
 	h.audit(r.Context(), streamID, userID, "leave", "")
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
@@ -337,7 +338,8 @@ func (h *Handler) endStream(ctx context.Context, streamID, neden string) {
 		log.Printf("yayin delete: %v", err)
 	}
 	h.rdb.Del(ctx, "stream:"+streamID+":viewers", "stream:"+streamID+":pub",
-		"stream:"+streamID+":banned", "stream:"+streamID+":hearts", "stream:"+streamID+":lastn")
+		"stream:"+streamID+":banned", "stream:"+streamID+":hearts", "stream:"+streamID+":lastn",
+		"stream:"+streamID+":guest", "stream:"+streamID+":guest_reqs") // konuk anahtarlari (B7)
 	h.audit(ctx, streamID, "", neden, "")
 	log.Printf("yayin bitti: %s (%s)", kisaID(streamID), neden)
 }
@@ -452,6 +454,8 @@ func (h *Handler) Kick(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "gecersiz istek")
 		return
 	}
+	// Atilan KONUKSA once dusur (herkese guest.left gitsin, PiP temizlensin — B7)
+	h.konukDusur(r.Context(), streamID, req.UserID, "kick")
 	h.rdb.SAdd(r.Context(), "stream:"+streamID+":banned", req.UserID)
 	h.rdb.ZRem(r.Context(), "stream:"+streamID+":viewers", req.UserID)
 	if err := h.lk.RemoveParticipant(r.Context(), "stream_"+streamID, req.UserID); err != nil {

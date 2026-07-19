@@ -176,3 +176,32 @@ func (c *Client) SendData(ctx context.Context, room string, data []byte, topic s
 		"room": room, "data": data, "kind": "RELIABLE", "topic": topic, // []byte -> base64 (proto3 JSON)
 	}, nil)
 }
+
+// SendDataTo — YALNIZ verilen kimliklere veri (Bolum 6 D2: destination_identities destekli;
+// hidden katilimcilar da ALIR — hidden yalniz gonderen kimligini gizler).
+func (c *Client) SendDataTo(ctx context.Context, room string, data []byte, topic string, identities []string) error {
+	return c.call(ctx, "SendData", room, map[string]any{
+		"room": room, "data": data, "kind": "RELIABLE", "topic": topic,
+		"destination_identities": identities,
+	}, nil)
+}
+
+// SetStreamGuest — yayin izleyicisini KONUGA yukselt/dusur (Bolum 6 D1/D5).
+// guest=true: kamera+mikrofon yayinlayabilir + hidden KALKAR (herkese duyurulur);
+// guest=false: publish kapanir (sunucu track'leri soker) + hidden geri gelir.
+// can_publish_data HER ZAMAN false (sahte hediye/chat data'si garantisi bozulmaz) —
+// rooms.UpdateParticipant bu yuzden KULLANILAMAZ (o data'yi da acar, hidden bilmez).
+func (c *Client) SetStreamGuest(ctx context.Context, room, identity string, guest bool) error {
+	perm := map[string]any{
+		"can_subscribe":    true,
+		"can_publish":      guest,
+		"can_publish_data": false,
+		"hidden":           !guest,
+	}
+	if guest {
+		perm["can_publish_sources"] = []string{"CAMERA", "MICROPHONE"}
+	}
+	return c.call(ctx, "UpdateParticipant", room, map[string]any{
+		"room": room, "identity": identity, "permission": perm,
+	}, nil)
+}
