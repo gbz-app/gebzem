@@ -1383,3 +1383,23 @@ Kullanici: "her sey cok guzel" + 2 konu:
 WhatsApp tarzi ON-BAGLANMA (arayan ring'de mic'siz baglanir) / iOS PiP fizibilite+plan.
 Hukum gelince: sifir-risk kazanclar -> ag degisikligi (geri-alma planli) -> on-baglanma ->
 iOS PiP (faz-1 dilim) -> TEMIZ BUILD.
+
+### HIZ HUKMU GELDI (wf_e1b12812) — ADIM LISTESI (bu build dizisi)
+KIRILIM: bekci yapisal 2sn + connect 2.5-2.7s (relay + CF sinyal) + seri await'ler 0.4-0.7s
++ arayan answered'a kadar baglanmiyor. HEDEF IZDUSUMU: Faz1 sonrasi ~3-4s; Faz2+3 ~2.7-3.6s;
+Faz4 (on-baglanma, AYRI surum) arayan <1s; Faz5 (callee, sonra) ~2-2.5s = WhatsApp paritesi.
+iOS PiP: teknik dogrulandi (sharedSingleton+remoteTrackForId var) — SONRAKI BUILD (gerekceli).
+- [ ] FAZ 0: kurulum_ms olcum damgalari (GECICI) + backend kurulum_ms log alani
+- [ ] FAZ 1A: kanit bekcisi fast-path (_kanitIlkDeneme; ilk okumada kumulatif>0 -> hemen) + 400ms tick
+- [ ] FAZ 1B: _accept paralel (unawaited zil durdur + izin answer'la paralel, baslat oncesi await)
+- [ ] FAZ 1C: _callKitKabul ayni paralellestirme
+- [ ] FAZ 3A: istemci sinyal fallback (rtcd basarisiz -> rtc tek retry)
+- [ ] BUILD + dagitim rutini + DB temizle
+- [ ] FAZ 2: sunucu use_ice_lite (livekit force-recreate — DB temizligiyle ayni pencere)
+- [ ] FAZ 3B: rtcd gri DNS + Caddy 7443 + ufw (api kisa kesinti — ayni pencere)
+- [ ] FAZ 3C: LIVEKIT_URL flip (YALNIZ fallback'li build dagitilip DB temizlendikten sonra)
+- SONRAKI SURUM: Faz 4 on-baglanma (plan hazir, 6 adim + 4 muhafiz) -> Faz 5 callee -> iOS PiP
+YAPMA (ozet): relay kalkmaz; ring fazinda setSpeakerOn/mic/_sesiAc YASAK (track'siz bile
+configureAudio cagiriyor — hardware.dart:143 kaniti); rtc.gebzem.app turuncu kaydi GRIYE
+CEVRILMEZ (origin 443 yok — mevcut istemciler kopar); prepareConnection kazanc DEGIL (self-hosted
+= yalniz http.head); kamera publish'i unawaited yapilmaz; _baglandi anlami degismez.
