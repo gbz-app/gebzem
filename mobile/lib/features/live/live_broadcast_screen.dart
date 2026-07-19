@@ -10,6 +10,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
 import '../../core/api.dart';
+import '../invites/davet_sec_sheet.dart';
 import '../calls/call_media_options.dart';
 import '../calls/call_provider.dart';
 import '../calls/call_room_lock.dart';
@@ -301,6 +302,28 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
     if (onay == true) _cik(sunucuyaBildir: true);
   }
 
+  /// Yayina davet (Bolum 5 I3): sheet -> secilen id'ler -> REST
+  Future<void> _davetEt() async {
+    final secilenler = await showModalBottomSheet<List<String>>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => const DavetSecSheet(),
+    );
+    if (secilenler == null || secilenler.isEmpty || !mounted) return;
+    try {
+      final n = await ref.read(liveApiProvider).davet(widget.streamId, secilenler);
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Davet gönderildi ($n kişi)')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
+      }
+    }
+  }
+
   Future<void> _chatGonder() async {
     final t = _chatCtrl.text.trim();
     if (t.isEmpty) return;
@@ -390,6 +413,10 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
                         style: const TextStyle(color: Colors.white, fontSize: 12)),
                   ),
                   const Spacer(),
+                  IconButton(
+                    icon: const Icon(LucideIcons.userPlus, color: Colors.white),
+                    onPressed: _davetEt, // yayina davet (Bolum 5 I3)
+                  ),
                   IconButton(
                     icon: const Icon(LucideIcons.switchCamera, color: Colors.white),
                     onPressed: () async {

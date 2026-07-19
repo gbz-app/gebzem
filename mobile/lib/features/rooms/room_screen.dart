@@ -10,6 +10,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
 import '../../core/api.dart';
+import '../invites/davet_sec_sheet.dart';
 import '../../core/ws.dart';
 import '../calls/call_media_options.dart';
 import '../calls/call_provider.dart';
@@ -453,6 +454,28 @@ class _RoomScreenState extends ConsumerState<RoomScreen> with WidgetsBindingObse
     }
   }
 
+  /// Odaya davet (Bolum 5 I3)
+  Future<void> _davetEt() async {
+    final secilenler = await showModalBottomSheet<List<String>>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => const DavetSecSheet(),
+    );
+    if (secilenler == null || secilenler.isEmpty || !mounted) return;
+    try {
+      final n = await ref.read(roomsApiProvider).davet(widget.roomId, secilenler);
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Davet gönderildi ($n kişi)')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
+      }
+    }
+  }
+
   // ---- host katilimci sheet'i ----
   void _katilimcilarSheet() {
     showModalBottomSheet(
@@ -674,6 +697,12 @@ class _RoomScreenState extends ConsumerState<RoomScreen> with WidgetsBindingObse
                       ),
                       const SizedBox(width: 20),
                     ],
+                    _ctrl(
+                      icon: LucideIcons.userPlus,
+                      label: 'Davet et',
+                      onTap: _davetEt, // odadaki herkes davet edebilir (Bolum 5)
+                    ),
+                    const SizedBox(width: 20),
                     Column(mainAxisSize: MainAxisSize.min, children: [
                       GestureDetector(
                         onTap: _rol == 'host'

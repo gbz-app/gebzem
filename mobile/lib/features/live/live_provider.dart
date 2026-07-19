@@ -31,6 +31,41 @@ class LiveApi {
     return (res.data as Map).cast<String, dynamic>();
   }
 
+  /// Yayina davet (Bolum 5): {"sent": n} doner
+  Future<int> davet(String id, List<String> userIds) async {
+    final res = await _ref
+        .read(apiProvider)
+        .post('/streams/$id/invite', data: {'user_ids': userIds});
+    return ((res.data as Map)['sent'] as num?)?.toInt() ?? 0;
+  }
+
+  // Konuk sistemi + listeler (Bolum 6 I1)
+  Future<Map<String, dynamic>> izleyiciler(String id) async {
+    final res = await _ref.read(apiProvider).get('/streams/$id/viewers');
+    return (res.data as Map).cast<String, dynamic>();
+  }
+
+  Future<List<Map<String, dynamic>>> hediyeListesi(String id) async {
+    final res = await _ref.read(apiProvider).get('/streams/$id/gifts');
+    return (res.data as List).cast<Map<String, dynamic>>();
+  }
+
+  Future<List<Map<String, dynamic>>> istekler(String id) async {
+    final res = await _ref.read(apiProvider).get('/streams/$id/join-requests');
+    return (res.data as List).cast<Map<String, dynamic>>();
+  }
+
+  Future<void> katilIstek(String id, {bool cancel = false}) =>
+      _post('/streams/$id/join-request', {'cancel': cancel});
+  Future<void> konukAl(String id, String userId) =>
+      _post('/streams/$id/guest/accept', {'user_id': userId});
+  Future<void> konukReddet(String id, String userId) =>
+      _post('/streams/$id/guest/decline', {'user_id': userId});
+  Future<void> konukCikar(String id, String userId) =>
+      _post('/streams/$id/guest/remove', {'user_id': userId});
+  Future<void> konukAyril(String id) => _post('/streams/$id/guest/leave');
+  Future<void> konukYenile(String id) => _post('/streams/$id/guest/refresh');
+
   Future<void> nabiz(String id) => _post('/streams/$id/heartbeat');
   Future<void> ayril(String id) => _post('/streams/$id/leave');
   Future<void> bitir(String id) => _post('/streams/$id/end');

@@ -9,6 +9,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
 import '../../core/api.dart';
+import '../invites/davet_sec_sheet.dart';
 import '../calls/call_provider.dart';
 import '../calls/call_room_lock.dart';
 import 'live_gift_sheet.dart';
@@ -253,6 +254,27 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
     } catch (_) {}
   }
 
+  Future<void> _davetEt() async {
+    final secilenler = await showModalBottomSheet<List<String>>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => const DavetSecSheet(),
+    );
+    if (secilenler == null || secilenler.isEmpty || !mounted) return;
+    try {
+      final n = await ref.read(liveApiProvider).davet(widget.streamId, secilenler);
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Davet gönderildi ($n kişi)')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
+      }
+    }
+  }
+
   Future<void> _chatGonder() async {
     final t = _chatCtrl.text.trim();
     if (t.isEmpty) return;
@@ -375,6 +397,10 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
                       Text('👁 $_izleyici',
                           style: const TextStyle(color: Colors.white70, fontSize: 12)),
                     ]),
+                  ),
+                  IconButton(
+                    icon: const Icon(LucideIcons.userPlus, color: Colors.white70, size: 20),
+                    onPressed: _davetEt, // izleyici de davet edebilir (Bolum 5)
                   ),
                   IconButton(
                     icon: const Icon(LucideIcons.flag, color: Colors.white54, size: 20),

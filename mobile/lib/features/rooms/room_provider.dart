@@ -25,6 +25,14 @@ class RoomsApi {
   }
 
   Future<void> ayril(String id) => _post('/rooms/$id/leave');
+
+  /// Odaya davet (Bolum 5): {"sent": n} doner
+  Future<int> davet(String id, List<String> userIds) async {
+    final res =
+        await _ref.read(apiProvider).post('/rooms/$id/invite', data: {'user_ids': userIds});
+    return ((res.data as Map)['sent'] as num?)?.toInt() ?? 0;
+  }
+
   Future<void> elKaldir(String id, bool kalkik) =>
       _post('/rooms/$id/raise-hand', {'raised': kalkik});
   Future<void> konusmaciYap(String id, String userId) =>
