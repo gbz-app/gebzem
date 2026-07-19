@@ -40,6 +40,9 @@ type Handler struct {
 	lkURL  string
 	key    string
 	secret string
+	// FAZ-2 stale-dinleyici mutabakati: "roomID|userID" -> ardisik kac sweep'te
+	// LiveKit'te gorunmedi. YALNIZ sweep goroutine'inden erisilir (mutex gereksiz).
+	eksikSayaci map[string]int
 }
 
 func NewHandler(db *pgxpool.Pool, hub *chat.Hub, rdb *redis.Client, pushSender *push.Sender) *Handler {

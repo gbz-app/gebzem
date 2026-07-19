@@ -996,7 +996,8 @@ func (h *Handler) AudioStat(w http.ResponseWriter, r *http.Request) {
 		Peer     bool           `json:"peer"`
 		Sorun    bool           `json:"sorun"` // kullanici "ses gelmiyor" isaretledi
 		Sure     int            `json:"sure"`
-		IOS      map[string]any `json:"ios"` // audioEnabled, active, category, route
+		Kurtarma string         `json:"kurtarma"` // FAZ-3: istemci oto-kurtarma tetikledi (imza adi)
+		IOS      map[string]any `json:"ios"`      // audioEnabled, active, category, route
 	}
 	json.NewDecoder(r.Body).Decode(&req)
 	yon := "GELEN"
@@ -1054,7 +1055,14 @@ func (h *Handler) AudioStat(w http.ResponseWriter, r *http.Request) {
 	} else if iosCikisKapali {
 		durum = "iOS-CIKIS-YOK"
 	} else if enerji < 0.5 {
-		durum = "SES-DUSUK"
+		// FAZ-3: paket AKIYOR + cikis bayraklari dogru + enerji tam 0 -> OLU PLAYOUT
+		// adayi (19 Tem ilk-grup-arama kaniti: birim olu, kategori dogru). SES-DUSUK'un
+		// ICINDE dallanir (TRACK-YOK/SES-GELMIYOR/iOS-CIKIS-YOK'u ezmez — yargic duzeltmesi).
+		if req.IOS != nil && !iosCikisKapali && req.Delta > 60 && enerji <= 0.01 {
+			durum = "CIKIS-OLU?"
+		} else {
+			durum = "SES-DUSUK"
+		}
 	}
 	// GONDEREN-TARAFI teshis (grup "kimin sesi gitmiyor"): mic ACIK + kendi paketlerim
 	// AKIYOR + capture enerjim SIFIR = OLU MIKROFON (bu telefonun sesi kimseye gitmiyor).
@@ -1064,6 +1072,13 @@ func (h *Handler) AudioStat(w http.ResponseWriter, r *http.Request) {
 	mikE, _ := strconv.ParseFloat(req.Mik, 64)
 	if req.Mic && req.SDelta > 60 && mikE <= 0.01 {
 		durum = "MIK-OLU(" + durum + ")"
+	} else if req.Mic && req.Sent >= 0 && req.SDelta <= 0 && req.Delta > 60 {
+		// FAZ-3: mic ACIK + track VAR ama HIC paket cikmiyor (karsi yon akarken) =
+		// OLU GONDERICI (19 Tem: iOS davetli sent=0 tum arama — eski imza kacirdi)
+		durum = "MIK-OLU-SENT0(" + durum + ")"
+	}
+	if req.Kurtarma != "" {
+		durum = "KURTARMA=" + temizle(req.Kurtarma) + " " + durum
 	}
 	log.Printf("AUDIO call=%s user=%s %s %s recv=%d delta=%d enerji=%.1f sent=%d sdelta=%d mikE=%.1f mic=%v %s peer=%v hoparlor=%v iOS[%s]",
 		kisaID(callID), kisaID(userID), yon, tip, req.Recv, req.Delta, enerji, req.Sent, req.SDelta, mikE, req.Mic, durum, req.Peer, req.Speaker, iosStr)
@@ -1683,10 +1698,10 @@ function ac(){var C=document.getElementById('content');
  else if(sekme=='users'){api('/admin/users').then(function(d){window._u=d;if(!d.length){C.innerHTML=box('👥','Henüz kullanıcı yok');return;}var h='<div class=ulist>';for(var i=0;i<d.length;i++){var u=d[i];h+='<div class=u onclick=detay('+i+')><div class=av>'+esc(ic(u.name))+'</div><div class=uinfo><div class=uname>'+esc(u.name||'(isimsiz)')+(u.verified?'<span class=tik>✔</span>':'')+'</div><div class=umeta>'+(u.username?'@'+esc(u.username)+' · ':'')+esc(u.phone)+' · '+esc(u.created)+'</div></div><div class=ustat><b>'+u.calls+'</b> arama<br><b>'+u.msgs+'</b> mesaj</div></div>';}C.innerHTML=h+'</div>';});}
  else if(sekme=='calls'){yenile();}
  else if(sekme=='ses'){sesYenile();}}
-function sesRenk(d){if(d.indexOf('SORUN')>=0)return'r';if(d=='SES-VAR')return'g';if(d=='iOS-CIKIS-YOK')return'r';if(d=='SES-GELMIYOR')return'o';if(d=='TRACK-YOK')return'p';if(d=='SES-DUSUK')return'y';return'm';}
+function sesRenk(d){if(d.indexOf('KURTARMA')>=0)return'o';if(d.indexOf('SORUN')>=0)return'r';if(d.indexOf('MIK-OLU')>=0)return'r';if(d.indexOf('CIKIS-OLU')>=0)return'r';if(d=='SES-VAR')return'g';if(d=='iOS-CIKIS-YOK')return'r';if(d=='SES-GELMIYOR')return'o';if(d=='TRACK-YOK')return'p';if(d=='SES-DUSUK')return'y';return'm';}
 function sesYenile(){if(sekme!='ses')return;api('/admin/audio').then(function(d){var C=document.getElementById('content');
  if(!d.length){C.innerHTML=box('🔊','Henüz ses verisi yok. İki telefonla arama başlat — konuşurken her 2 saniyede bir durum buraya düşer.');return;}
- var h='<div style="color:var(--dim);font-size:12px;line-height:1.9;margin-bottom:14px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 15px">🟢 <b>SES-VAR</b> ses gidiyor · 🔴 <b>iOS-CIKIS-YOK</b> ses geliyor ama iPhone çalmıyor · 🟠 <b>SES-GELMIYOR</b> paket akmıyor (ağ) · 🟣 <b>TRACK-YOK</b> ses kanalı yok · 🟡 <b>SES-DUSUK</b> o an sessiz (doğal olabilir)</div><div class=clist>';
+ var h='<div style="color:var(--dim);font-size:12px;line-height:1.9;margin-bottom:14px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 15px">🟢 <b>SES-VAR</b> ses gidiyor · 🔴 <b>iOS-CIKIS-YOK</b> ses geliyor ama iPhone çalmıyor · 🟠 <b>SES-GELMIYOR</b> paket akmıyor (ağ) · 🟣 <b>TRACK-YOK</b> ses kanalı yok · 🟡 <b>SES-DUSUK</b> o an sessiz (doğal olabilir) · 🔴 <b>MIK-OLU / CIKIS-OLU?</b> ölü birim adayı · 🟠 <b>KURTARMA</b> istemci ses birimini yeniden kurdu</div><div class=clist>';
  for(var i=0;i<d.length;i++){var x=d[i];var r=sesRenk(x.durum);var tip=x.tip=='VIDEO'?'📹':'🎤';
   h+='<div class="c '+r+'"><div style=min-width:0><div class=who>'+tip+' '+esc(x.yon)+' <span class=ar>·</span> '+esc(x.user)+' <span style=color:var(--dim);font-weight:400>('+esc(x.call)+')</span></div><div class=cmeta><span>🕐 '+esc(x.saat)+'</span><span>📦 '+x.recv+' (Δ'+x.delta+')</span><span>🔊 '+(x.enerji!=null?x.enerji.toFixed(1):'0')+'</span>'+(x.ios&&x.ios!='-'?'<span>📱 '+esc(x.ios)+'</span>':'')+'<span>'+(x.hoparlor?'📢 hop':'📞 kulak')+'</span></div></div><span class="badge '+r+'">'+esc(x.durum)+'</span></div>';}
  C.innerHTML=h+'</div>';});}

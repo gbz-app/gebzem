@@ -102,6 +102,15 @@ func (h *Handler) izleyiciSayisi(ctx context.Context, streamID string) int {
 	return int(n)
 }
 
+// sayacYayinla — izleyici sayisini ANINDA odaya yayinla (FAZ-1: kullanici bulgusu
+// "cikan kisi ciktigi anda dussun"; sweep'in 15sn'lik yayini yedek olarak kalir).
+// lastn BURADA da set edilir ki sweep ayni n icin CIFT yayin yapmasin.
+func (h *Handler) sayacYayinla(ctx context.Context, streamID string) {
+	n := h.izleyiciSayisi(ctx, streamID)
+	h.rdb.Set(ctx, "stream:"+streamID+":lastn", strconv.Itoa(n), time.Hour)
+	h.data(ctx, streamID, map[string]any{"t": "viewers", "n": n})
+}
+
 // POST /streams {title, video} — yayin baslat (yayinci token'i doner)
 func (h *Handler) Start(w http.ResponseWriter, r *http.Request) {
 	if !h.Enabled() {
@@ -266,6 +275,7 @@ func (h *Handler) Watch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.audit(r.Context(), streamID, userID, "watch", clientIP(r))
+	h.sayacYayinla(r.Context(), streamID) // FAZ-1: giris ANINDA sayaca yansisin
 	writeJSON(w, http.StatusOK, map[string]any{
 		"stream_id": streamID, "room": roomName, "url": h.lkURL, "token": tok,
 		"title": title, "type": tip, "status": status,
@@ -298,7 +308,9 @@ func (h *Handler) Heartbeat(w http.ResponseWriter, r *http.Request) {
 		// TARAMA #13: uye DEGILSE bu bir YENIDEN KATILIM'dir -> Watch kurallari (blok +
 		// kapasite) uygulanir. Yoksa engellenen/hic izlemeyen kullanici Watch'i atlayip
 		// dogrudan heartbeat ile viewers'a sizar (chat + liste + istek kapilari acilirdi).
+		yeniKatilim := false
 		if _, err := h.rdb.ZScore(r.Context(), "stream:"+streamID+":viewers", userID).Result(); err != nil {
+			yeniKatilim = true
 			var blocked bool
 			h.db.QueryRow(r.Context(), `SELECT EXISTS(SELECT 1 FROM blocks
 				WHERE (blocker_id=$1 AND blocked_id=$2) OR (blocker_id=$2 AND blocked_id=$1))`,
@@ -314,6 +326,9 @@ func (h *Handler) Heartbeat(w http.ResponseWriter, r *http.Request) {
 		}
 		h.rdb.ZAdd(r.Context(), "stream:"+streamID+":viewers",
 			redis.Z{Score: float64(time.Now().Unix()), Member: userID})
+		if yeniKatilim {
+			h.sayacYayinla(r.Context(), streamID) // FAZ-1: askidan donen aninda sayilsin
+		}
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
@@ -327,6 +342,7 @@ func (h *Handler) Leave(w http.ResponseWriter, r *http.Request) {
 	// TARAMA #15: bekleyen katilma istegi de dussun (olu kayit birikimi 100 tavanini
 	// doldurup mesru istekleri kilitliyordu; yayinci listede hayalet goruyordu)
 	h.rdb.ZRem(r.Context(), "stream:"+streamID+":guest_reqs", userID)
+	h.sayacYayinla(r.Context(), streamID) // FAZ-1: cikis ANINDA dussun (sweep beklenmez)
 	h.audit(r.Context(), streamID, userID, "leave", "")
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
@@ -484,6 +500,7 @@ func (h *Handler) Kick(w http.ResponseWriter, r *http.Request) {
 		log.Printf("yayin kick: %v", err) // ban Redis'te — watch yine 403
 	}
 	h.audit(r.Context(), streamID, req.UserID, "kick", "")
+	h.sayacYayinla(r.Context(), streamID) // FAZ-1: atilan aninda sayactan dussun
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 

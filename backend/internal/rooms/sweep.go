@@ -94,4 +94,63 @@ func (h *Handler) sweep(ctx context.Context) {
 			h.odayiBitir(ctx, id, "sweep-lk")
 		}
 	}
+
+	// 4) STALE 'joined' DINLEYICI mutabakati (FAZ-2 — kullanici bulgusu: force-quit eden
+	// dinleyici REST leave atamaz, DB'de 'joined' kalir -> sayi sismis/yanlis gorunur).
+	// YALNIZ listener satirlari (host/speaker'a dokunma — hukum). 90sn+ eski katilimlar
+	// LiveKit'te 2 ARDISIK sweep'te gorunmezse 'left' yapilir (tek goruntu = gecici
+	// reconnect olabilir). eksikSayaci tek sweep goroutine'inden kullanilir.
+	if h.eksikSayaci == nil {
+		h.eksikSayaci = map[string]int{}
+	}
+	buTur := map[string]bool{}
+	for _, id := range adaylar {
+		if !varOlan["oda_"+id] {
+			continue // oda az once kapatildi
+		}
+		kimler, err := h.lk.ListParticipantIdentities(ctx, "oda_"+id)
+		if err != nil {
+			continue // ulasamadik — yanlis dusurme riskine girme
+		}
+		lkVar := map[string]bool{}
+		for _, k := range kimler {
+			lkVar[k] = true
+		}
+		prows, err := h.db.Query(ctx, `SELECT user_id FROM room_participants
+			WHERE room_id=$1 AND status='joined' AND role='listener'
+			  AND joined_at < now() - interval '90 seconds'`, id)
+		if err != nil {
+			continue
+		}
+		var eskiler []string
+		for prows.Next() {
+			var uid string
+			if prows.Scan(&uid) == nil {
+				eskiler = append(eskiler, uid)
+			}
+		}
+		prows.Close()
+		for _, uid := range eskiler {
+			key := id + "|" + uid
+			if lkVar[uid] {
+				delete(h.eksikSayaci, key) // geri gelmis — sayaci sifirla
+				continue
+			}
+			h.eksikSayaci[key]++
+			if h.eksikSayaci[key] >= 2 {
+				h.db.Exec(ctx, `UPDATE room_participants SET status='left', left_at=now(),
+					hand_raised_at=NULL WHERE room_id=$1 AND user_id=$2 AND role='listener'`, id, uid)
+				h.audit(ctx, id, uid, "sweep-stale", "")
+				delete(h.eksikSayaci, key)
+			} else {
+				buTur[key] = true
+			}
+		}
+	}
+	// Aday olmayan/biten odalarin bayat girdilerini temizle (sinirsiz birikim olmasin)
+	for k := range h.eksikSayaci {
+		if !buTur[k] {
+			delete(h.eksikSayaci, k)
+		}
+	}
 }

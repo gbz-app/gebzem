@@ -148,6 +148,24 @@ func (c *Client) RemoveParticipant(ctx context.Context, room, identity string) e
 	return c.call(ctx, "RemoveParticipant", room, map[string]any{"room": room, "identity": identity}, nil)
 }
 
+// ListParticipantIdentities — odadaki katilimci identity'leri (FAZ-2: oda sayaci
+// mutabakati; force-quit eden dinleyicinin DB'de 'joined' kalmasini yakalamak icin).
+func (c *Client) ListParticipantIdentities(ctx context.Context, room string) ([]string, error) {
+	var out struct {
+		Participants []struct {
+			Identity string `json:"identity"`
+		} `json:"participants"`
+	}
+	if err := c.call(ctx, "ListParticipants", room, map[string]any{"room": room}, &out); err != nil {
+		return nil, err
+	}
+	ids := make([]string, 0, len(out.Participants))
+	for _, p := range out.Participants {
+		ids = append(ids, p.Identity)
+	}
+	return ids, nil
+}
+
 func (c *Client) DeleteRoom(ctx context.Context, room string) error {
 	return c.call(ctx, "DeleteRoom", room, map[string]any{"room": room}, nil)
 }
