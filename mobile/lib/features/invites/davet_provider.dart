@@ -113,6 +113,7 @@ class DavetServisi {
             yayinciAd: info['broadcaster_name'] as String? ?? '',
             durum: info['status'] as String? ?? 'live',
             ilkIzleyici: (info['viewer_count'] as num?)?.toInt() ?? 0,
+            tip: info['type'] as String? ?? 'video',
           ),
         ));
       } else {

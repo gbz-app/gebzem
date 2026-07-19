@@ -4,20 +4,26 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart' as rtc;
 import 'package:livekit_client/livekit_client.dart' as lk;
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
 import '../../core/api.dart';
-import '../invites/davet_sec_sheet.dart';
+import '../calls/call_media_options.dart';
 import '../calls/call_provider.dart';
 import '../calls/call_room_lock.dart';
+import '../home/home_screen.dart' show myProfileProvider;
+import '../invites/davet_sec_sheet.dart';
 import 'live_gift_sheet.dart';
+import 'live_info_sheets.dart';
 import 'live_provider.dart';
 import 'live_widgets.dart';
 
 /// IZLEYICI ekrani: yayincinin videosu tam ekran + chat + kalp + hediye.
-/// Mikrofon IZNI HIC ISTENMEZ (token'da publish kapali). Sinyaller SendData'dan.
+/// Mikrofon IZNI izleyicilikte HIC ISTENMEZ (token'da publish kapali); yalniz KONUK
+/// olurken istenir (Bolum 6 I3). Sinyaller SendData'dan.
 class LiveViewerScreen extends ConsumerStatefulWidget {
   const LiveViewerScreen({
     super.key,
@@ -30,6 +36,7 @@ class LiveViewerScreen extends ConsumerStatefulWidget {
     required this.yayinciAd,
     required this.durum,
     this.ilkIzleyici = 0,
+    this.tip = 'video',
   });
 
   final String streamId;
@@ -41,6 +48,7 @@ class LiveViewerScreen extends ConsumerStatefulWidget {
   final String yayinciAd;
   final String durum;
   final int ilkIzleyici; // watch cevabindaki sayi (SendData 15sn'ye kadar gecikebilir)
+  final String tip; // 'video' | 'audio' — katil istegi yalniz video yayinda
 
   @override
   ConsumerState<LiveViewerScreen> createState() => _LiveViewerScreenState();
@@ -64,6 +72,13 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
   DateTime _sonKalp = DateTime.fromMillisecondsSinceEpoch(0);
   String? _hata;
 
+  // KONUK DURUMU (Bolum 6 I3). Rol kaynagi SUNUCU (guest.* sinyalleri); istemci yalniz yansitir.
+  String _benimId = '';
+  bool _konukum = false; // guest.accepted geldi + medya acildi
+  bool _istekGitti = false; // bekleyen katil istegim var
+  bool _konukMicOn = true;
+  bool _onKamera = true; // ayna kurali (on=aynali)
+
   late final CallService _svc;
   final _chatCtrl = TextEditingController();
   static const _audioCh = MethodChannel('gebzem/audio');
@@ -75,6 +90,10 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
     _svc.ekranAcildi('yayin_${widget.streamId}');
     WidgetsBinding.instance.addObserver(this);
     _durakladi = widget.durum == 'paused';
+    // Kendi kimligim: guest.left {user_id} sinyalinde "ben miyim" ayrimi icin
+    ref.read(myProfileProvider.future).then((p) {
+      _benimId = p['id'] as String? ?? '';
+    }).catchError((_) {});
     _nabiz = Timer.periodic(const Duration(seconds: 15),
         (_) => ref.read(liveApiProvider).nabiz(widget.streamId).catchError((_) {}));
     _baglan();
@@ -84,6 +103,10 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed && mounted && !_ayrildi) {
       _sesiAc(true); // kesinti toparlama
+      if (_konukum) {
+        // Konuk mikrofonu kesinti sonrasi kendiliginden geri gelmez (oda ekrani dersi)
+        _room?.localParticipant?.setMicrophoneEnabled(_konukMicOn);
+      }
       ref.read(liveApiProvider).nabiz(widget.streamId).catchError((_) {});
     }
   }
@@ -105,7 +128,17 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
 
   Future<void> _odayaBaglan() async {
     final room = lk.Room(
-      roomOptions: const lk.RoomOptions(adaptiveStream: true, dynacast: true),
+      // GRUP medya profilleri BASTAN (Bolum 6 karari): SDK publish varsayilanlari
+      // RoomOptions'tan gelir — konuk olununca 540p/700kbps profiliyle yayinlanir.
+      // Izleyicilikte hicbir etkisi yok (publish kapali).
+      roomOptions: const lk.RoomOptions(
+        adaptiveStream: true,
+        dynacast: true,
+        defaultCameraCaptureOptions: kGroupCameraCaptureOptions,
+        defaultVideoPublishOptions: kGroupVideoPublishOptions,
+        defaultAudioCaptureOptions: kAudioCaptureOptions,
+        defaultAudioPublishOptions: kAudioPublishOptions,
+      ),
     );
     _room = room;
     try {
@@ -127,6 +160,16 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
         })
         ..on<lk.TrackUnsubscribedEvent>((_) {
           if (mounted) setState(() {});
+        })
+        ..on<lk.RoomReconnectedEvent>((_) {
+          // FULL reconnect grant'i TOKEN'dan yukler (izleyici=publish kapali) — konuksam
+          // sunucudan izni idempotent geri iste (D4). Degilsem no-op (403 tolere).
+          if (mounted && _konukum) {
+            ref
+                .read(liveApiProvider)
+                .konukYenile(widget.streamId)
+                .catchError((_) {});
+          }
         })
         ..on<lk.RoomDisconnectedEvent>((_) {
           // yayin bitti / kick / kalici kopma
@@ -181,8 +224,111 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
         setState(() => _durakladi = true);
       case 'stream.resumed':
         setState(() => _durakladi = false);
+      // ---- KONUK sinyalleri (Bolum 6): accepted/declined YALNIZ bana gelir (SendDataTo) ----
+      case 'guest.accepted':
+        _konukOl();
+      case 'guest.declined':
+        setState(() => _istekGitti = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Yayıncı isteğini şimdilik kabul etmedi')));
+      case 'guest.joined':
+        setState(() {}); // PiP render'i track-bazli; sadece yeniden ciz
+      case 'guest.left':
+        if ((v['user_id'] as String?) == _benimId && _konukum) {
+          _konuktanCik(sunucuyaBildir: false); // yayinci cikardi / sweep
+          ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Yayıncı seni izleyiciliğe aldı')));
+        } else {
+          setState(() {});
+        }
       case 'stream.ended':
         _yayinBitti();
+    }
+  }
+
+  // ---- KONUK AKISI (Bolum 6 I3) ----
+
+  /// Katil istegi gonder/geri cek (yalniz video yayinda gorunur).
+  Future<void> _istekToggle() async {
+    final mesajci = ScaffoldMessenger.of(context);
+    final yeni = !_istekGitti;
+    try {
+      await ref.read(liveApiProvider).katilIstek(widget.streamId, cancel: !yeni);
+      if (!mounted) return;
+      setState(() => _istekGitti = yeni);
+      mesajci.showSnackBar(SnackBar(
+          content: Text(yeni
+              ? 'Katılma isteği gönderildi — yayıncı kabul ederse canlıya geçersin'
+              : 'İstek geri çekildi')));
+    } catch (e) {
+      if (mounted) mesajci.showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
+    }
+  }
+
+  /// guest.accepted geldi: izinler -> mic -> kamera -> ses birimi EN SON (iOS sirasi).
+  /// Izin reddi/medya hatasi = sunucuya konukAyril DURUSTLUGU (slot bosalsin, tek konuk kilidi
+  /// takili kalmasin). Medya acilisinda 1 sn arayla TEK retry.
+  Future<void> _konukOl() async {
+    if (_konukum || _ayrildi) return;
+    final mesajci = ScaffoldMessenger.of(context);
+    setState(() => _istekGitti = false);
+    final mikIzin = await Permission.microphone.request();
+    final kamIzin = await Permission.camera.request();
+    if (!mounted || _ayrildi) return;
+    if (mikIzin != PermissionStatus.granted || kamIzin != PermissionStatus.granted) {
+      unawaited(ref.read(liveApiProvider).konukAyril(widget.streamId));
+      mesajci.showSnackBar(const SnackBar(
+          content: Text('Kamera ve mikrofon izni olmadan canlıya katılamazsın')));
+      return;
+    }
+    Future<void> ac() async {
+      await _room?.localParticipant?.setMicrophoneEnabled(true);
+      await _room?.localParticipant?.setCameraEnabled(true);
+    }
+
+    try {
+      try {
+        await ac();
+      } catch (_) {
+        await Future.delayed(const Duration(seconds: 1)); // tek retry (izin sonrasi yaris)
+        await ac();
+      }
+      await _sesiAc(true); // iOS ses birimi EN SON (v7/v8 dersi)
+      if (!mounted || _ayrildi) return;
+      setState(() {
+        _konukum = true;
+        _konukMicOn = true;
+        _onKamera = true;
+      });
+      mesajci.showSnackBar(
+          const SnackBar(content: Text('Canlıdasın! 🎥 Ayrılmak için ✕ Ayrıl')));
+    } catch (e) {
+      await Sentry.captureException(e, stackTrace: StackTrace.current);
+      // Medya acilamadi: kismi acilani kapat + sunucuya birak
+      try {
+        await _room?.localParticipant?.setCameraEnabled(false);
+        await _room?.localParticipant?.setMicrophoneEnabled(false);
+      } catch (_) {}
+      unawaited(ref.read(liveApiProvider).konukAyril(widget.streamId));
+      if (mounted) {
+        mesajci.showSnackBar(
+            const SnackBar(content: Text('Kamera açılamadı — canlıya katılınamadı')));
+      }
+    }
+  }
+
+  /// Konukluktan izleyicilige don. _sesiAc(false) CAGRILMAZ — dinlemeye devam (plan karari).
+  Future<void> _konuktanCik({required bool sunucuyaBildir}) async {
+    if (!_konukum) return;
+    setState(() => _konukum = false);
+    try {
+      await _room?.localParticipant?.setCameraEnabled(false);
+      await _room?.localParticipant?.setMicrophoneEnabled(false);
+    } catch (_) {}
+    if (sunucuyaBildir) {
+      try {
+        await ref.read(liveApiProvider).konukAyril(widget.streamId);
+      } catch (_) {}
     }
   }
 
@@ -232,6 +378,12 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
     if (_ayrildi) return;
     _ayrildi = true;
     _svc.ekranKapandi('yayin_${widget.streamId}');
+    // Bekleyen istegimi geri cek (yayincinin listesinde hayalet kalmasin). Konuklugu ayrica
+    // bildirmeye gerek yok: /leave sunucuda konukDusur'u zaten cagirir (B7).
+    if (_istekGitti) {
+      unawaited(
+          ref.read(liveApiProvider).katilIstek(widget.streamId, cancel: true).catchError((_) {}));
+    }
     unawaited(CallRoomLock.calistir(_kapatOda));
     try {
       await ref.read(liveApiProvider).ayril(widget.streamId);
@@ -306,8 +458,27 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
     super.dispose();
   }
 
+  /// Tam ekran video = YALNIZ YAYINCININ track'i (identity filtresi KRITIK — Bolum 6:
+  /// konuk yayina baslayinca tam ekrani KAPMASIN, PiP'te kalsin).
   lk.VideoTrack? get _video {
     for (final p in _room?.remoteParticipants.values ?? const <lk.RemoteParticipant>[]) {
+      if (p.identity != widget.yayinciId) continue;
+      for (final pub in p.videoTrackPublications) {
+        if (pub.subscribed && pub.track != null) return pub.track as lk.VideoTrack;
+      }
+    }
+    return null;
+  }
+
+  /// PiP'teki konuk videosu — TRACK-BAZLI render (dusurulen konugun track'siz participant'i
+  /// kalsa bile gorunmez). Konuk BENSEM kendi kameram (lokal, aynali).
+  lk.VideoTrack? get _konukVideo {
+    if (_konukum) {
+      final t = _room?.localParticipant?.videoTrackPublications.firstOrNull?.track;
+      return t is lk.VideoTrack ? t : null;
+    }
+    for (final p in _room?.remoteParticipants.values ?? const <lk.RemoteParticipant>[]) {
+      if (p.identity == widget.yayinciId) continue;
       for (final pub in p.videoTrackPublications) {
         if (pub.subscribed && pub.track != null) return pub.track as lk.VideoTrack;
       }
@@ -318,6 +489,7 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
   @override
   Widget build(BuildContext context) {
     final video = _video;
+    final konukVideo = _konukVideo;
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
@@ -365,6 +537,80 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
                 ]),
               ),
             ),
+          // KONUK PiP (Bolum 6): konugun (ya da konuk bensem kendi kameramin) kucuk penceresi
+          if (konukVideo != null)
+            Positioned(
+              top: 76,
+              right: 12,
+              width: 108,
+              height: 150,
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: Colors.white24),
+                  boxShadow: const [
+                    BoxShadow(color: Colors.black45, blurRadius: 10, offset: Offset(0, 3)),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(13),
+                  child: lk.VideoTrackRenderer(
+                    konukVideo,
+                    key: ValueKey('konuk-${konukVideo.mediaStreamTrack.id}'),
+                    fit: lk.VideoViewFit.cover,
+                    // Kendi kameram: ayna kurali (on=aynali); uzak konukta auto kalir
+                    mirrorMode: _konukum
+                        ? (_onKamera
+                            ? lk.VideoViewMirrorMode.mirror
+                            : lk.VideoViewMirrorMode.off)
+                        : lk.VideoViewMirrorMode.auto,
+                  ),
+                ),
+              ),
+            ),
+          // KONUK KONTROLLERI (PiP'in hemen alti): mic / kamera cevir / ayril
+          if (_konukum)
+            Positioned(
+              top: 232,
+              right: 12,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                decoration: BoxDecoration(
+                    color: Colors.black54, borderRadius: BorderRadius.circular(20)),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    icon: Icon(_konukMicOn ? LucideIcons.mic : LucideIcons.micOff,
+                        size: 18,
+                        color: _konukMicOn ? Colors.white : Colors.redAccent),
+                    onPressed: () async {
+                      final on = !_konukMicOn;
+                      await _room?.localParticipant?.setMicrophoneEnabled(on);
+                      if (mounted) setState(() => _konukMicOn = on);
+                    },
+                  ),
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    icon: const Icon(LucideIcons.switchCamera,
+                        size: 18, color: Colors.white),
+                    onPressed: () async {
+                      final t = _konukVideo;
+                      if (t == null) return;
+                      try {
+                        final onMu = await rtc.Helper.switchCamera(t.mediaStreamTrack);
+                        if (mounted) setState(() => _onKamera = onMu);
+                      } catch (_) {}
+                    },
+                  ),
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    tooltip: 'Canlıdan ayrıl',
+                    icon: const Icon(LucideIcons.x, size: 18, color: Colors.redAccent),
+                    onPressed: () => _konuktanCik(sunucuyaBildir: true),
+                  ),
+                ]),
+              ),
+            ),
           KalpKatmani(key: _kalpKey),
           for (final h in _hediyeler)
             HediyePatlamasi(
@@ -394,8 +640,18 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                               color: Colors.white, fontWeight: FontWeight.w600)),
-                      Text('👁 $_izleyici',
-                          style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                      GestureDetector(
+                        // 👁 -> kimler izliyor (Bolum 6; izleyicide salt-okunur liste)
+                        onTap: () => showModalBottomSheet(
+                          context: context,
+                          isScrollControlled: true,
+                          builder: (_) => IzleyicilerSheet(
+                              streamId: widget.streamId, yayinciyim: false),
+                        ),
+                        child: Text('👁 $_izleyici',
+                            style: const TextStyle(
+                                color: Colors.white70, fontSize: 12)),
+                      ),
                     ]),
                   ),
                   IconButton(
@@ -451,6 +707,17 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
                     IconButton(
                         onPressed: _chatGonder,
                         icon: const Icon(LucideIcons.sendHorizontal, color: Colors.white)),
+                    // KATIL ISTEGI (Bolum 6): yalniz video yayininda ve konuk degilken
+                    if (!_konukum && widget.tip == 'video')
+                      IconButton(
+                          tooltip: _istekGitti
+                              ? 'İsteği geri çek'
+                              : 'Canlıya katılma isteği gönder',
+                          onPressed: _istekToggle,
+                          icon: Icon(LucideIcons.hand,
+                              color: _istekGitti
+                                  ? Colors.amberAccent
+                                  : Colors.white70)),
                     IconButton(
                         onPressed: _hediyeSheet,
                         icon: const Icon(LucideIcons.gift, color: Colors.amberAccent)),

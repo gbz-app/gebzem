@@ -14,6 +14,7 @@ import '../invites/davet_sec_sheet.dart';
 import '../calls/call_media_options.dart';
 import '../calls/call_provider.dart';
 import '../calls/call_room_lock.dart';
+import 'live_info_sheets.dart';
 import 'live_provider.dart';
 import 'live_widgets.dart';
 
@@ -57,6 +58,10 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
   final List<MapEntry<int, String>> _hediyeler = [];
   int _hediyeSayac = 0;
   int _izleyici = 0;
+  int _jeton = 0; // bu yayinda toplanan jeton (gift sinyallerinden; yayin 0'la baslar)
+  final Set<String> _istekIds = {}; // bekleyen katil istekleri (rozet; Bolum 6 I4)
+  String _konukId = ''; // aktif konuk (guest.joined/left sinyalinden)
+  String _konukAdi = '';
   bool _micOn = true;
   bool _onKamera = true; // ayna kurali: on=aynali, arka=aynasiz ("kamera ters" fix'i)
   bool _connecting = true;
@@ -132,6 +137,24 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
         ..on<lk.LocalTrackPublishedEvent>((_) {
           if (mounted) setState(() {});
         })
+        // KONUK track'leri (Bolum 6 I4): bu listener'lar olmadan konuk PiP render'i
+        // HIC tetiklenmez (yayincida ilk kez uzak video var).
+        ..on<lk.TrackSubscribedEvent>((e) {
+          if (!mounted) return;
+          setState(() {});
+          if (e.track is lk.VideoTrack) {
+            // Ilk-kare texture tekmesi (viewer/call_screen deseni)
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) setState(() {});
+            });
+            Future.delayed(const Duration(milliseconds: 400), () {
+              if (mounted) setState(() {});
+            });
+          }
+        })
+        ..on<lk.TrackUnsubscribedEvent>((_) {
+          if (mounted) setState(() {});
+        })
         ..on<lk.RoomDisconnectedEvent>((_) {
           // admin end / DeleteRoom / KALICI ag kopmasi -> cik. Sunucuya bitir GONDER
           // (idempotent; kalici istemci kopmasi sunucuda zombi live/paused birakmasin —
@@ -190,6 +213,7 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
         });
       case 'gift':
         setState(() {
+          _jeton += (v['coins'] as num?)?.toInt() ?? 0;
           _mesajlar.add(ChatMesaj(
               kimden: v['from_name'] as String? ?? '',
               metin: '${v['emoji']} hediye gönderdi (+${v['coins']} jeton)',
@@ -199,8 +223,81 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
         });
       case 'hearts':
         _kalpKey.currentState?.patlat((v['n'] as num?)?.toInt() ?? 1);
+      // ---- KONUK sinyalleri (Bolum 6 I4) ----
+      case 'guest.request':
+        setState(() => _istekIds.add(v['user_id'] as String? ?? ''));
+      case 'guest.request.cancel':
+        setState(() => _istekIds.remove(v['user_id'] as String? ?? ''));
+      case 'guest.joined':
+        setState(() {
+          _konukId = v['user_id'] as String? ?? '';
+          _konukAdi = v['name'] as String? ?? '';
+          _istekIds.remove(_konukId);
+        });
+      case 'guest.left':
+        if ((v['user_id'] as String?) == _konukId) {
+          setState(() {
+            _konukId = '';
+            _konukAdi = '';
+          });
+        }
       case 'stream.ended':
         _cik(sunucuyaBildir: false); // admin bitirdi
+    }
+  }
+
+  /// Konugun uzak videosu — TRACK-BAZLI (dusurulen konugun track'siz participant'i gorunmez)
+  lk.VideoTrack? get _konukVideo {
+    for (final p in _room?.remoteParticipants.values ?? const <lk.RemoteParticipant>[]) {
+      for (final pub in p.videoTrackPublications) {
+        if (pub.subscribed && pub.track != null) return pub.track as lk.VideoTrack;
+      }
+    }
+    return null;
+  }
+
+  /// Istek sheet'i; kapaninca rozeti REST'ten tazele (sheet icinde kabul/red olmus olabilir)
+  Future<void> _istekSheet() async {
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => IstekSheet(streamId: widget.streamId),
+    );
+    if (!mounted) return;
+    try {
+      final r = await ref.read(liveApiProvider).istekler(widget.streamId);
+      if (mounted) {
+        setState(() {
+          _istekIds
+            ..clear()
+            ..addAll(r.map((u) => u['user_id'] as String? ?? ''));
+        });
+      }
+    } catch (_) {}
+  }
+
+  /// Konugu yayindan cikar (PiP'teki x) — onayli
+  Future<void> _konukCikarOnayli() async {
+    final ad = _konukAdi.isNotEmpty ? _konukAdi : 'Konuk';
+    final onay = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: Text('$ad yayından alınsın mı?'),
+        content: const Text('İzleyici olarak yayında kalır.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(c).pop(false), child: const Text('Vazgeç')),
+          FilledButton(onPressed: () => Navigator.of(c).pop(true), child: const Text('Al')),
+        ],
+      ),
+    );
+    if (onay != true || !mounted || _konukId.isEmpty) return;
+    try {
+      await ref.read(liveApiProvider).konukCikar(widget.streamId, _konukId);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
+      }
     }
   }
 
@@ -356,6 +453,7 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
   @override
   Widget build(BuildContext context) {
     final video = _kameram;
+    final konukVideo = _konukVideo;
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
@@ -384,6 +482,61 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
                             style: const TextStyle(color: Colors.white70))
                         : const CircularProgressIndicator()),
           ),
+          // KONUK PiP (Bolum 6 I4): konugun videosu + sag-ust x (yayindan al)
+          if (konukVideo != null)
+            Positioned(
+              top: 76,
+              right: 12,
+              width: 108,
+              height: 150,
+              child: Stack(children: [
+                Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: Colors.white24),
+                    boxShadow: const [
+                      BoxShadow(
+                          color: Colors.black45, blurRadius: 10, offset: Offset(0, 3)),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(13),
+                    child: lk.VideoTrackRenderer(
+                      konukVideo,
+                      key: ValueKey('konuk-${konukVideo.mediaStreamTrack.id}'),
+                      fit: lk.VideoViewFit.cover,
+                    ),
+                  ),
+                ),
+                Positioned(
+                  top: 2,
+                  right: 2,
+                  child: GestureDetector(
+                    onTap: _konukCikarOnayli,
+                    child: Container(
+                      padding: const EdgeInsets.all(3),
+                      decoration: const BoxDecoration(
+                          color: Colors.black54, shape: BoxShape.circle),
+                      child:
+                          const Icon(LucideIcons.x, size: 14, color: Colors.white),
+                    ),
+                  ),
+                ),
+                if (_konukAdi.isNotEmpty)
+                  Positioned(
+                    left: 6,
+                    bottom: 4,
+                    right: 6,
+                    child: Text(_konukAdi,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            shadows: [Shadow(blurRadius: 4, color: Colors.black)])),
+                  ),
+              ]),
+            ),
           KalpKatmani(key: _kalpKey),
           for (final h in _hediyeler)
             HediyePatlamasi(
@@ -405,14 +558,49 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
                             color: Colors.white, fontSize: 12, fontWeight: FontWeight.w800)),
                   ),
                   const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                        color: Colors.black45, borderRadius: BorderRadius.circular(8)),
-                    child: Text('👁 $_izleyici',
-                        style: const TextStyle(color: Colors.white, fontSize: 12)),
+                  GestureDetector(
+                    // 👁 -> kimler izliyor + Canliya al/At (Bolum 6 I4)
+                    onTap: () => showModalBottomSheet(
+                      context: context,
+                      isScrollControlled: true,
+                      builder: (_) => IzleyicilerSheet(
+                          streamId: widget.streamId, yayinciyim: true),
+                    ),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                          color: Colors.black45, borderRadius: BorderRadius.circular(8)),
+                      child: Text('👁 $_izleyici',
+                          style: const TextStyle(color: Colors.white, fontSize: 12)),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  GestureDetector(
+                    // 🪙 -> hediye gonderenler (kirilimli leaderboard)
+                    onTap: () => showModalBottomSheet(
+                      context: context,
+                      isScrollControlled: true,
+                      builder: (_) =>
+                          HediyeLeaderboardSheet(streamId: widget.streamId),
+                    ),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                          color: Colors.black45, borderRadius: BorderRadius.circular(8)),
+                      child: Text('🪙 $_jeton',
+                          style: const TextStyle(color: Colors.white, fontSize: 12)),
+                    ),
                   ),
                   const Spacer(),
+                  // Katil istekleri (rozetli el) — Bolum 6 I4
+                  IconButton(
+                    onPressed: _istekSheet,
+                    icon: Badge(
+                      isLabelVisible: _istekIds.isNotEmpty,
+                      label: Text('${_istekIds.length}'),
+                      child: const Icon(LucideIcons.hand, color: Colors.white),
+                    ),
+                  ),
                   IconButton(
                     icon: const Icon(LucideIcons.userPlus, color: Colors.white),
                     onPressed: _davetEt, // yayina davet (Bolum 5 I3)
