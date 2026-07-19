@@ -295,6 +295,23 @@ func (h *Handler) Heartbeat(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusForbidden, "yayindan cikarildiniz")
 			return
 		}
+		// TARAMA #13: uye DEGILSE bu bir YENIDEN KATILIM'dir -> Watch kurallari (blok +
+		// kapasite) uygulanir. Yoksa engellenen/hic izlemeyen kullanici Watch'i atlayip
+		// dogrudan heartbeat ile viewers'a sizar (chat + liste + istek kapilari acilirdi).
+		if _, err := h.rdb.ZScore(r.Context(), "stream:"+streamID+":viewers", userID).Result(); err != nil {
+			var blocked bool
+			h.db.QueryRow(r.Context(), `SELECT EXISTS(SELECT 1 FROM blocks
+				WHERE (blocker_id=$1 AND blocked_id=$2) OR (blocker_id=$2 AND blocked_id=$1))`,
+				bID, userID).Scan(&blocked)
+			if blocked {
+				writeErr(w, http.StatusForbidden, "bu yayini izleyemezsiniz")
+				return
+			}
+			if h.izleyiciSayisi(r.Context(), streamID) >= h.maxIzleyici {
+				writeErr(w, http.StatusTooManyRequests, "yayin dolu")
+				return
+			}
+		}
 		h.rdb.ZAdd(r.Context(), "stream:"+streamID+":viewers",
 			redis.Z{Score: float64(time.Now().Unix()), Member: userID})
 	}
@@ -307,6 +324,9 @@ func (h *Handler) Leave(w http.ResponseWriter, r *http.Request) {
 	streamID := chi.URLParam(r, "id")
 	h.konukDusur(r.Context(), streamID, userID, "leave") // konuksa once dusur (B7)
 	h.rdb.ZRem(r.Context(), "stream:"+streamID+":viewers", userID)
+	// TARAMA #15: bekleyen katilma istegi de dussun (olu kayit birikimi 100 tavanini
+	// doldurup mesru istekleri kilitliyordu; yayinci listede hayalet goruyordu)
+	h.rdb.ZRem(r.Context(), "stream:"+streamID+":guest_reqs", userID)
 	h.audit(r.Context(), streamID, userID, "leave", "")
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
@@ -458,6 +478,8 @@ func (h *Handler) Kick(w http.ResponseWriter, r *http.Request) {
 	h.konukDusur(r.Context(), streamID, req.UserID, "kick")
 	h.rdb.SAdd(r.Context(), "stream:"+streamID+":banned", req.UserID)
 	h.rdb.ZRem(r.Context(), "stream:"+streamID+":viewers", req.UserID)
+	// TARAMA #15: bekleyen istegi de temizle (olu kayit birikimi)
+	h.rdb.ZRem(r.Context(), "stream:"+streamID+":guest_reqs", req.UserID)
 	if err := h.lk.RemoveParticipant(r.Context(), "stream_"+streamID, req.UserID); err != nil {
 		log.Printf("yayin kick: %v", err) // ban Redis'te — watch yine 403
 	}
@@ -468,9 +490,11 @@ func (h *Handler) Kick(w http.ResponseWriter, r *http.Request) {
 // ---- admin (calls admin key deseni — paket private oldugu icin kopya) ----
 
 func adminOK(r *http.Request) bool {
+	// TARAMA #16: sabit yedek anahtar KALDIRILDI — repo PUBLIC; ADMIN_KEY bos kalirsa
+	// admin uclari KAPALI kalir (fail-closed), eski 'gbz-izle-2026' ile acilmaz.
 	k := os.Getenv("ADMIN_KEY")
 	if k == "" {
-		k = "gbz-izle-2026"
+		return false
 	}
 	return r.URL.Query().Get("key") == k
 }

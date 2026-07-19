@@ -65,6 +65,10 @@ func (h *Handler) sweep(ctx context.Context) {
 	for _, s := range h.canliYayinlar(ctx) {
 		vKey := "stream:" + s.id + ":viewers"
 		h.rdb.ZRemRangeByScore(ctx, vKey, "-inf", strconvF(esik)) // olu izleyiciler
+		// TARAMA #15: 10 dk'dan eski katilma istekleri de dussun (Leave/Kick temizligi
+		// kacaklari + hic islenmeyenler 100 tavanini kalici dolduruyordu)
+		istekEsik := float64(time.Now().Add(-10 * time.Minute).Unix())
+		h.rdb.ZRemRangeByScore(ctx, "stream:"+s.id+":guest_reqs", "-inf", strconvF(istekEsik))
 		n := h.izleyiciSayisi(ctx, s.id)
 
 		// KONUK kopmus mu (Bolum 6 B6): guest anahtari dolu ama viewers'ta yok

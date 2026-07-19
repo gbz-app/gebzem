@@ -26,6 +26,12 @@ func (h *Handler) dataTo(ctx context.Context, streamID string, v map[string]any,
 	}
 }
 
+// TARAMA #14: compare-and-delete — anahtar HALA beklenen uid'yse sil (atomik Lua).
+// Kosulsuz DEL, gecikmis rollback'in ARADA kabul edilen YENI konugun anahtarini
+// silmesine yol aciyordu (hayalet konuk: publish var, Redis kaydi yok).
+var cadScript = redis.NewScript(
+	`if redis.call("GET", KEYS[1]) == ARGV[1] then return redis.call("DEL", KEYS[1]) end return 0`)
+
 // lkYokS — twirp "katilimci/oda yok" (bagli-degil; rooms'taki lkYok kopyasi — paket private)
 func lkYokS(err error) bool {
 	s := strings.ToLower(err.Error())
@@ -160,7 +166,9 @@ func (h *Handler) GuestAccept(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.lk.SetStreamGuest(r.Context(), "stream_"+streamID, req.UserID, true); err != nil {
-		h.rdb.Del(r.Context(), "stream:"+streamID+":guest") // GERI AL (rooms rollback deseni)
+		// GERI AL — yalniz anahtar HALA bize aitse (TARAMA #14: kosulsuz Del arada
+		// kabul edilen yeni konugun anahtarini siliyordu)
+		cadScript.Run(r.Context(), h.rdb, []string{"stream:" + streamID + ":guest"}, req.UserID)
 		if lkYokS(err) {
 			writeErr(w, http.StatusConflict, "izleyici su an bagli degil")
 		} else {
@@ -198,13 +206,17 @@ func (h *Handler) GuestDecline(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-// konukDusur — leave/remove/kick/sweep/end ortak yolu (idempotent)
+// konukDusur — leave/remove/kick/sweep/end ortak yolu (idempotent).
+// TARAMA #14: GET+DEL yarigi kapatildi — atomik compare-and-delete; anahtar bu uid'ye
+// ait degilse (baska konuk devralmis) HICBIR sey yapilmaz.
 func (h *Handler) konukDusur(ctx context.Context, streamID, uid, neden string) {
-	cur, _ := h.rdb.Get(ctx, "stream:"+streamID+":guest").Result()
-	if cur != uid || uid == "" {
+	if uid == "" {
 		return
 	}
-	h.rdb.Del(ctx, "stream:"+streamID+":guest")
+	n, err := cadScript.Run(ctx, h.rdb, []string{"stream:" + streamID + ":guest"}, uid).Int()
+	if err != nil || n == 0 {
+		return
+	}
 	if err := h.lk.SetStreamGuest(ctx, "stream_"+streamID, uid, false); err != nil {
 		log.Printf("konuk dusur lk (%s): %v", neden, err) // lkYok tolere: track'ler zaten olur
 	}

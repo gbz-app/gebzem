@@ -1308,14 +1308,14 @@ func (h *Handler) logMissedToChat(ctx context.Context, callerID, calleeID, callT
 // ---- ADMIN IZLEME PANELI (test icin canli arama gorunumu) ----
 
 func adminKey() string {
-	if k := os.Getenv("ADMIN_KEY"); k != "" {
-		return k
-	}
-	return "gbz-izle-2026" // prototip varsayilan
+	// TARAMA #16: sabit yedek anahtar KALDIRILDI — repo PUBLIC; ADMIN_KEY bos kalirsa
+	// admin uclari KAPALI kalir (fail-closed), eski 'gbz-izle-2026' ile ACILMAZ.
+	return os.Getenv("ADMIN_KEY")
 }
 
 func adminYetkili(r *http.Request) bool {
-	return r.URL.Query().Get("key") == adminKey()
+	k := adminKey()
+	return k != "" && r.URL.Query().Get("key") == k
 }
 
 // POST /admin/login {user,pass} -> {key}. Panel key'i localStorage'da saklar.
@@ -1334,6 +1334,10 @@ func (h *Handler) AdminLogin(w http.ResponseWriter, r *http.Request) {
 		p = "Gebzem2026!"
 	}
 	if req.User == u && req.Pass == p {
+		if adminKey() == "" { // TARAMA #16: env yoksa panel kapali (bos key sizdirma)
+			writeErr(w, http.StatusServiceUnavailable, "admin kapali (ADMIN_KEY tanimsiz)")
+			return
+		}
 		writeJSON(w, http.StatusOK, map[string]string{"key": adminKey()})
 		return
 	}
