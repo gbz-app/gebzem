@@ -1291,6 +1291,10 @@ ikonu, logout-leave) + 16 tarama fix'i (istemci 12 + backend 4; backend zaten ca
    (ayrilma/atilma) herkes tam ekrana donmeli.
 4) Oda dinleyici sayisi ya 0 ya bayat — anlik degil.
 5) Yayin izleyici sayisi cikista aninda dusmuyor (sweep 15sn bekliyor).
-Workflow: 5 uzman (kanit+kod+SSH) -> yargic nihai plan. Hukum gelince: backend sayaclar ->
-istemci UI -> Android PiP -> iOS ses (en dikkatli) sirasiyla uygulanacak; sonra build.
+6) **(sonradan eklendi)** Iki taraf AYNI ANDA baglanmiyor; bir taraf 00:00->01->02 sayarken
+   digeri hala baglaniyor — sayan taraf "ses gelmiyor" sanip KAPATIYOR. Kilit ekrani süphesi.
+   Sorun 1 ile baglantili olabilir (olu ses biriminde TrackSubscribed yine tetiklenir ->
+   karsi taraf _mediaBaslat ile sayaci baslatir ama ses YOK). Ayri uzman ajani kosuyor.
+Workflow: 5 uzman (kanit+kod+SSH) -> yargic nihai plan + sorun-6 uzmani. Hukum gelince:
+backend sayaclar -> istemci UI -> Android PiP -> iOS ses+sure (en dikkatli) sirasiyla; sonra build.
 - arama.mp3 (repo koku) coplugu: assets'teki degil, kok dizindeki KALINTI — bu oturumda silinecek.
