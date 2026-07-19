@@ -22,10 +22,38 @@ type hediye struct {
 	Jeton int64  `json:"jeton"`
 }
 
+// 30 hediye (kullanici karari 19 Tem) — fiyat basamaklari TikTok tarzi: 5'ten 25.000'e.
 var katalog = []hediye{
+	{ID: "kalp_mini", Ad: "Minik Kalp", Emoji: "🤍", Jeton: 5},
 	{ID: "gul", Ad: "Gül", Emoji: "🌹", Jeton: 10},
+	{ID: "alkis", Ad: "Alkış", Emoji: "👏", Jeton: 15},
+	{ID: "dondurma", Ad: "Dondurma", Emoji: "🍦", Jeton: 20},
+	{ID: "kahve", Ad: "Kahve", Emoji: "☕", Jeton: 25},
+	{ID: "balon", Ad: "Balon", Emoji: "🎈", Jeton: 30},
 	{ID: "kalp", Ad: "Kalp", Emoji: "💜", Jeton: 50},
+	{ID: "pasta", Ad: "Pasta", Emoji: "🍰", Jeton: 75},
+	{ID: "cicek", Ad: "Buket", Emoji: "💐", Jeton: 100},
+	{ID: "ayi", Ad: "Ayıcık", Emoji: "🧸", Jeton: 150},
+	{ID: "parfum", Ad: "Parfüm", Emoji: "🌸", Jeton: 200},
+	{ID: "mikrofon", Ad: "Mikrofon", Emoji: "🎤", Jeton: 250},
+	{ID: "gitar", Ad: "Gitar", Emoji: "🎸", Jeton: 300},
+	{ID: "kupa", Ad: "Kupa", Emoji: "🏆", Jeton: 400},
 	{ID: "roket", Ad: "Roket", Emoji: "🚀", Jeton: 500},
+	{ID: "yildiz", Ad: "Yıldız", Emoji: "⭐", Jeton: 600},
+	{ID: "atesli", Ad: "Ateş", Emoji: "🔥", Jeton: 750},
+	{ID: "simsek", Ad: "Şimşek", Emoji: "⚡", Jeton: 900},
+	{ID: "gokkusagi", Ad: "Gökkuşağı", Emoji: "🌈", Jeton: 1000},
+	{ID: "taç", Ad: "Taç", Emoji: "👑", Jeton: 1500},
+	{ID: "elmas", Ad: "Elmas", Emoji: "💎", Jeton: 2000},
+	{ID: "araba", Ad: "Spor Araba", Emoji: "🏎️", Jeton: 2500},
+	{ID: "ada", Ad: "Palmiye", Emoji: "🏝️", Jeton: 3000},
+	{ID: "yat", Ad: "Yat", Emoji: "🛥️", Jeton: 4000},
+	{ID: "ucak", Ad: "Jet", Emoji: "✈️", Jeton: 5000},
+	{ID: "havai", Ad: "Havai Fişek", Emoji: "🎆", Jeton: 7500},
+	{ID: "kale", Ad: "Kale", Emoji: "🏰", Jeton: 10000},
+	{ID: "unicorn", Ad: "Unicorn", Emoji: "🦄", Jeton: 15000},
+	{ID: "gezegen", Ad: "Gezegen", Emoji: "🪐", Jeton: 20000},
+	{ID: "aslan", Ad: "Aslan", Emoji: "🦁", Jeton: 25000},
 }
 
 func katalogListesi() []hediye { return katalog }

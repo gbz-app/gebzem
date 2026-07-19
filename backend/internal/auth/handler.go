@@ -158,10 +158,11 @@ func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Kayit bonusu jetonu ledger'a isle (bir kez)
+	// Kayit bonusu jetonu ledger'a isle (bir kez). 10.000 (kullanici karari 19 Tem —
+	// test doneminde bol jeton; migration 010 varsayilani da 10000 yapti)
 	h.db.Exec(r.Context(), `
 		INSERT INTO coin_ledger (user_id, amount, reason)
-		SELECT $1, 100, 'signup_bonus'
+		SELECT $1, 10000, 'signup_bonus'
 		WHERE NOT EXISTS (SELECT 1 FROM coin_ledger WHERE user_id=$1 AND reason='signup_bonus')`, userID)
 
 	token, err := GenerateToken(h.cfg.JWTSecret, userID)

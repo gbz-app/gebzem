@@ -66,35 +66,48 @@ class _LiveGiftSheetState extends ConsumerState<LiveGiftSheet> {
           loading: () => const Padding(
               padding: EdgeInsets.all(24), child: CircularProgressIndicator()),
           error: (_, _) => const Text('Katalog yüklenemedi'),
-          data: (list) => Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              for (final g in list)
-                InkWell(
+          // 30 HEDIYE (kullanici karari): Row tasar -> kaydirmali 4 sutun izgara
+          data: (list) => SizedBox(
+            height: 340,
+            child: GridView.builder(
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 4,
+                mainAxisSpacing: 8,
+                crossAxisSpacing: 8,
+                childAspectRatio: .78,
+              ),
+              itemCount: list.length,
+              itemBuilder: (context, i) {
+                final g = list[i];
+                return InkWell(
                   onTap: _gonderiliyor ? null : () => _gonder(g),
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(14),
                   child: Container(
-                    width: 92,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(14),
                       border: Border.all(
                           color: Theme.of(context).colorScheme.outlineVariant),
                     ),
-                    child: Column(children: [
-                      Text(g['emoji'] as String? ?? '🎁',
-                          style: const TextStyle(fontSize: 34)),
-                      const SizedBox(height: 6),
-                      Text(g['ad'] as String? ?? '',
-                          style: const TextStyle(fontWeight: FontWeight.w600)),
-                      Text('${g['jeton']} jeton',
-                          style: TextStyle(
-                              fontSize: 12,
-                              color: Theme.of(context).colorScheme.outline)),
-                    ]),
+                    child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(g['emoji'] as String? ?? '🎁',
+                              style: const TextStyle(fontSize: 30)),
+                          const SizedBox(height: 4),
+                          Text(g['ad'] as String? ?? '',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w600, fontSize: 12)),
+                          Text('${g['jeton']}',
+                              style: TextStyle(
+                                  fontSize: 11,
+                                  color: Theme.of(context).colorScheme.outline)),
+                        ]),
                   ),
-                ),
-            ],
+                );
+              },
+            ),
           ),
         ),
         const SizedBox(height: 8),
