@@ -77,7 +77,14 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
                     .where((c) => c.title.toLowerCase().contains(_arama))
                     .toList();
               }
-              if (visible.isEmpty) {
+              // SIK GORUSULEN kisiler (test turu 7): arama YOKKEN, arama input'unun altinda
+              // en son gorusulen 1:1 kisiler yatay profil seridi (WhatsApp/Telegram deseni).
+              final sik = _arama.isEmpty
+                  ? (list.where((c) => c.type == 'direct' && !c.archived).toList()
+                    ..sort((a, b) => (b.lastAt ?? DateTime(0))
+                        .compareTo(a.lastAt ?? DateTime(0))))
+                  : const <Chat>[];
+              if (visible.isEmpty && sik.isEmpty) {
                 return Center(
                   child: Text(
                       _arama.isNotEmpty
@@ -88,9 +95,11 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
               }
               return RefreshIndicator(
                 onRefresh: () => ref.read(chatsProvider.notifier).load(),
-                child: ListView.builder(
-                  itemCount: visible.length,
-                  itemBuilder: (context, i) => _ChatTile(chat: visible[i]),
+                child: ListView(
+                  children: [
+                    if (sik.isNotEmpty) _SikGorusulenSerit(kisiler: sik.take(12).toList()),
+                    for (final c in visible) _ChatTile(chat: c),
+                  ],
                 ),
               );
             },
@@ -112,6 +121,69 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
           highlightElevation: 0,
           child: const Icon(LucideIcons.plus, color: Colors.white, size: 28),
         ),
+      ),
+    );
+  }
+}
+
+/// SIK GORUSULEN kisiler yatay seridi (arama input'unun altinda). En son gorusulen 1:1
+/// kisiler; avatar + isim; dokun -> sohbeti ac.
+class _SikGorusulenSerit extends StatelessWidget {
+  const _SikGorusulenSerit({required this.kisiler});
+  final List<Chat> kisiler;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      height: 96,
+      padding: const EdgeInsets.only(top: 4, bottom: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 2, 16, 4),
+            child: Text('Sık görüştüklerin',
+                style: TextStyle(
+                    fontSize: 12, color: Color(0xFF9A9AA0), fontWeight: FontWeight.w600)),
+          ),
+          Expanded(
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              itemCount: kisiler.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 4),
+              itemBuilder: (context, i) {
+                final c = kisiler[i];
+                final ad = c.title.isNotEmpty ? c.title : 'Kişi';
+                return GestureDetector(
+                  onTap: () => context.push('/chat/${c.id}',
+                      extra: {'title': ad, 'peer_id': c.peerId}),
+                  child: SizedBox(
+                    width: 62,
+                    child: Column(children: [
+                      CircleAvatar(
+                        radius: 24,
+                        backgroundColor: const Color(0xFF2A2A2E),
+                        backgroundImage:
+                            c.avatarUrl.isNotEmpty ? NetworkImage(c.avatarUrl) : null,
+                        child: c.avatarUrl.isEmpty
+                            ? Text(ad[0].toUpperCase(),
+                                style: TextStyle(color: scheme.primary, fontSize: 18))
+                            : null,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(ad,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 11, color: Colors.white70)),
+                    ]),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }

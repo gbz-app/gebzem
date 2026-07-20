@@ -1501,3 +1501,6 @@ IYI HABER: Android arka plan PiP CALISIYOR (kullanici teyit).
 4) UI: arama input altina SIK GORUSULEN kisiler (profil satiri).
 5) TEK TEMIZ BUILD.
 SIRA: UI (ben) -> konuk-split fix (hukum) -> iOS PiP (hukum) -> tek build.
+- [x] UI: theme NoSplash+overlayColor transparent (alt menu icon TAP dairesi kaldirildi);
+      home NavigationBar ClipRRect ust-kose radius 20 (sol/sag); chats arama altinda SIK
+      GORUSULENLER yatay profil seridi (_SikGorusulenSerit: 1:1, lastAt sirali, ilk 12, dokun->sohbet).

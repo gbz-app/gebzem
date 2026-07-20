@@ -86,16 +86,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           _ProfileTab(),
         ],
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: (i) => setState(() => _index = i),
-        destinations: const [
-          NavigationDestination(icon: Icon(LucideIcons.messageCircle), label: 'Sohbetler'),
-          NavigationDestination(icon: Icon(LucideIcons.phone), label: 'Aramalar'),
-          NavigationDestination(icon: Icon(LucideIcons.audioLines), label: 'Odalar'),
-          NavigationDestination(icon: Icon(LucideIcons.radioTower), label: 'Canli'),
-          NavigationDestination(icon: Icon(LucideIcons.user), label: 'Profil'),
-        ],
+      // ALT MENU sol/sag (ust kose) RADIUS (test turu 7): icerik zeminine karsi yuvarlak kose.
+      bottomNavigationBar: ClipRRect(
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(20),
+          topRight: Radius.circular(20),
+        ),
+        child: NavigationBar(
+          selectedIndex: _index,
+          onDestinationSelected: (i) => setState(() => _index = i),
+          destinations: const [
+            NavigationDestination(icon: Icon(LucideIcons.messageCircle), label: 'Sohbetler'),
+            NavigationDestination(icon: Icon(LucideIcons.phone), label: 'Aramalar'),
+            NavigationDestination(icon: Icon(LucideIcons.audioLines), label: 'Odalar'),
+            NavigationDestination(icon: Icon(LucideIcons.radioTower), label: 'Canli'),
+            NavigationDestination(icon: Icon(LucideIcons.user), label: 'Profil'),
+          ],
+        ),
       ),
     );
   }

@@ -23,6 +23,10 @@ ThemeData _koyu() {
     useMaterial3: true,
     colorScheme: scheme,
     scaffoldBackgroundColor: _icerikZemin,
+    // ALT MENU icon TAP dairesi (ripple/splash) KALDIR (test turu 7): NoSplash + saydam vurgu.
+    splashFactory: NoSplash.splashFactory,
+    splashColor: Colors.transparent,
+    highlightColor: Colors.transparent,
     appBarTheme: const AppBarTheme(
       centerTitle: false,
       backgroundColor: _icerikZemin,
@@ -32,7 +36,8 @@ ThemeData _koyu() {
     // ALT MENU: siyah zemin, gosterge (daire) YOK, yazi YOK, ikon buyuk, aktif beyaz/pasif gri.
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: _altMenuZemin,
-      indicatorColor: Colors.transparent, // ikon arkasi daire KALDIRILDI
+      indicatorColor: Colors.transparent, // ikon arkasi daire KALDIRILDI (secili)
+      overlayColor: WidgetStateProperty.all(Colors.transparent), // TAP dairesi de KALDIR
       labelBehavior: NavigationDestinationLabelBehavior.alwaysHide, // yazilar KALDIRILDI
       height: 62,
       iconTheme: WidgetStateProperty.resolveWith((states) {
