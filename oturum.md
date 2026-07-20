@@ -1486,3 +1486,5 @@ Ses sagligi AYRI (AppDelegate toggle + kurtarma aglari — "sayiyor ama ses yok"
       odaBagli+peer -> _mediaBaslat. Sure DEGER mantigi (Stopwatch/elapsed_ms) DOKUNULMADI; grup AYNEN;
       ring/cevapsiz/stale/resume regresyonlari uzman tarafindan temiz dogrulandi; kurtarma aglari
       timer'dan bagimsiz (SORUN-6 telafisi durur).
+- [x] SENKRON SAYAC SURUMU YAYINLANDI (20 Tem 14:55): android 29738759405 + ios 29738763193
+      imza temiz; R2 apk=104881133 ipa=19074286; purge OK; boyut birebir; index 14:55; DB temiz + health ok.
