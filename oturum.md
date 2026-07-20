@@ -1468,3 +1468,16 @@ Mesaj (chatsProvider) ZATEN anlik (message.new->load) — dokunulmadi.
 - [x] TEK BUILD YAYINLANDI (20 Tem 03:35): android 29708779486 + ios 29708784352 imza temiz;
       R2 apk=104881133 ipa=19074333; purge OK; boyut birebir; index 03:35; DB temiz + health ok.
       (GitHub artifact API gecici 503 verdi -> IPA retry ile indi, adim atlanmadi.)
+
+### KULLANICI TEST TURU 6 (20 Tem gun): KILITLI SAYAC HALEN SENKRON DEGIL — kok DEGISTI
+Kullanici: kilitli iPhone gelen aramayi acinca HEMEN sayiyor ama karsidaki "Baglaniyor" -> es zamanli
+degil. Uygulama-ici SORUN YOK. (Onceki "sayiyor ama ses yok" GITTI — bu ARTIK SES DEGIL, TIMING.)
+KANIT (call 09d7b60b): IKI TARAFTA DA SES-VAR. Cevaplayan (kilitli) karsinin sesini hemen duyar
+(ses:2354ms) -> sayar; ARAYAN kilitli cihazin gec mic'ini bekler (ses:5780ms, enerji ilk 0 sonra
+gelir) -> o zamana kadar "Baglaniyor". ASIMETRI ~3.5s. KOK: sayac YEREL SES PLAYOUT'una (_sesKanitBekle
+enerji-kapisi) bagli; bir taraf gec duyunca senkron bozulur.
+PLAN (WhatsApp modeli): 1:1 sayac YEREL SES yerine "BAGLANTI KURULDU + SUNUCU-AKTIF (_sureReferansVar)"
+anina baglanir -> _odaBagli flag + _odayaBaglan sonu/_sureReferansiAl'da 1:1+ref ise _mediaBaslat.
+Ikisi de ayni elapsed_ms referansindan sayar -> DEGER senkron, gosterim ~1s. Grup AYNEN (referanssiz).
+Ses sagligi AYRI (AppDelegate toggle + kurtarma aglari — "sayiyor ama ses yok" telafisi). Uzman
+dogrulamasi kosuyor (3 kez elden gecen bolge; yanlis iOS build harcamayalim). Hukum -> uygula -> build.
