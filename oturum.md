@@ -1464,4 +1464,7 @@ Kok: (realtime) hub yalniz To-hedefli fan-out yapiyordu, yayin/oda YASAM-DONGUSU
 - [x] Adim5: rooms_tab ayni desen (room.list.changed)
 - [x] Adim6: active_call_controller iOS enerji-kapisi TUM iOS yollarinda delta-sartli (taze>0 fast-path
       KALDIRILDI) -> kilitli yolda sayac gercek playout ile acilir; uygulama-ici DEGISMEDI; Android AYNEN.
-Mesaj (chatsProvider) ZATEN anlik (message.new->load) — dokunulmadi. SIRADA: tek build + dagitim.
+Mesaj (chatsProvider) ZATEN anlik (message.new->load) — dokunulmadi.
+- [x] TEK BUILD YAYINLANDI (20 Tem 03:35): android 29708779486 + ios 29708784352 imza temiz;
+      R2 apk=104881133 ipa=19074333; purge OK; boyut birebir; index 03:35; DB temiz + health ok.
+      (GitHub artifact API gecici 503 verdi -> IPA retry ile indi, adim atlanmadi.)
