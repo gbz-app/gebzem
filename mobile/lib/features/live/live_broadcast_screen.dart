@@ -167,6 +167,21 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
         ..on<lk.TrackUnpublishedEvent>((_) {
           if (mounted) setState(() {});
         })
+        // KONUK SERT-KAPATMA/AG-OLUMU (test turu 7 kok fix): guest.left HIC gelmez (app kill/
+        // airplane) -> panel ~60sn (sweeper) takili kalirdi. LiveKit katilimci-ayrilmayi cok
+        // daha erken bilir; identity==_konukId ise SINYALI TEMIZLE -> split kalkar (kimlik-kapisi
+        // SART: rastgele izleyici cikinca split olmesin). Nazik/kick zaten guest.left ile aninda.
+        ..on<lk.ParticipantDisconnectedEvent>((e) {
+          if (!mounted) return;
+          if (e.participant.identity == _konukId) {
+            setState(() {
+              _konukId = '';
+              _konukAdi = '';
+            });
+          } else {
+            setState(() {});
+          }
+        })
         ..on<lk.RoomDisconnectedEvent>((_) {
           // admin end / DeleteRoom / KALICI ag kopmasi -> cik. Sunucuya bitir GONDER
           // (idempotent; kalici istemci kopmasi sunucuda zombi live/paused birakmasin —

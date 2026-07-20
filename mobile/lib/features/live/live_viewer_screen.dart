@@ -174,6 +174,17 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
         ..on<lk.TrackUnpublishedEvent>((_) {
           if (mounted) setState(() {});
         })
+        // KONUK SERT-KAPATMA/AG-OLUMU (test turu 7 kok fix): uzak konuk app-kill/airplane ->
+        // guest.left gelmez, split ~60sn takili kalirdi. identity==_aktifKonuk ise temizle.
+        // _konukum (BEN konuk) yolu bundan etkilenmez (kendi participant'im disconnect olmaz).
+        ..on<lk.ParticipantDisconnectedEvent>((e) {
+          if (!mounted) return;
+          if (e.participant.identity == _aktifKonuk) {
+            setState(() => _aktifKonuk = '');
+          } else {
+            setState(() {});
+          }
+        })
         ..on<lk.RoomReconnectedEvent>((_) {
           // FULL reconnect grant'i TOKEN'dan yukler (izleyici=publish kapali) — konuksam
           // sunucudan izni idempotent geri iste (D4).

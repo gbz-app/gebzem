@@ -1491,12 +1491,21 @@ Ses sagligi AYRI (AppDelegate toggle + kurtarma aglari — "sayiyor ama ses yok"
 
 ### KULLANICI TEST TURU 7 (20 Tem gun): 5 ISTEK
 IYI HABER: Android arka plan PiP CALISIYOR (kullanici teyit). 
-1) iOS PiP: iPhone'da alta alinca kucuk pencere YOK -> artik yapiyoruz (native AVPictureInPicture).
+1) iOS PiP: HUKUM -> flutter_webrtc 1.4.0/1.5.2 iOS PiP SAGLAMAZ (dogrulandi: pod'da PiP sembolu SIFIR).
+   iOS PiP = agir native Swift (AVPictureInPictureController + AVSampleBufferDisplayLayer + RTCVideoTrack
+   kare besleme + entitlement); track nesneleri flutter_webrtc ic katmani, public API YOK -> KIRILGAN,
+   simulatorde test EDILEMEZ, gercek cihaz sart, sonuc BELIRSIZ. "Guvenli kucuk dilim DEGIL". Android PiP
+   tam calisiyor. KARAR: bu build'e ALINMADI (SDK sinirlamasi); kullaniciya durust anlatildi, ayri R&D.
 2) KONUK-SPLIT HALEN DUZELMEDI (2. kez): konuk atilinca/ayrilinca alt panel KALKMIYOR, "Görüntü
    bekleniyor" kaliyor. KANIT (14:51): konukDusur CALISTI + guest.left GONDERILDI ama panel kalkmadi.
    Suphe: guest.left DataReceived istemciye ulasmiyor/eslesmiyoR VEYA sinyal tek basina yetersiz ->
    ParticipantDisconnected + TrackUnsubscribed kombine + backend sira (once guest.left sonra hidden?).
-   Workflow wf_4dd3aa65 kok neden + %100 kalkan fix ariyor.
+   HUKUM (wf_4dd3aa65): nazik ayril/kick/al ANINDA temizlenir (backend sira dogru, guest.left). GERCEK
+   BOSLUK: konuk SERT-KAPATIRSA/ag-olumu -> guest.left GELMEZ, sweeper 45+15sn = ~60sn takili. Canli
+   ekranlar ParticipantDisconnected DINLEMIYORDU. FIX (uygulandi): broadcast+viewer listener zincirine
+   ParticipantDisconnected (identity==_konukId/_aktifKonuk -> temizle) -> sert-kapatmada ~10-20sn (LiveKit
+   kopma tespiti), nazik/kick aninda. Backend DEGISMEDI. NOT: %100 ANINDA fiziksel imkansiz (LiveKit
+   kopmayi tespit etmeli); %100 ENINDE SONUNDA garanti. YAPMA: konukVar track-OR (siyah bug diriltir).
 3) UI: alt menu icon TAP dairesi (ripple/overlay) kaldir + sol/sag radius.
 4) UI: arama input altina SIK GORUSULEN kisiler (profil satiri).
 5) TEK TEMIZ BUILD.
