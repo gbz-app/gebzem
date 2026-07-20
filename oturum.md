@@ -1479,5 +1479,10 @@ enerji-kapisi) bagli; bir taraf gec duyunca senkron bozulur.
 PLAN (WhatsApp modeli): 1:1 sayac YEREL SES yerine "BAGLANTI KURULDU + SUNUCU-AKTIF (_sureReferansVar)"
 anina baglanir -> _odaBagli flag + _odayaBaglan sonu/_sureReferansiAl'da 1:1+ref ise _mediaBaslat.
 Ikisi de ayni elapsed_ms referansindan sayar -> DEGER senkron, gosterim ~1s. Grup AYNEN (referanssiz).
-Ses sagligi AYRI (AppDelegate toggle + kurtarma aglari — "sayiyor ama ses yok" telafisi). Uzman
-dogrulamasi kosuyor (3 kez elden gecen bolge; yanlis iOS build harcamayalim). Hukum -> uygula -> build.
+Ses sagligi AYRI (AppDelegate toggle + kurtarma aglari — "sayiyor ama ses yok" telafisi).
+- [x] UZMAN ONAY (kritik iyilestirme: _peerJoined SARTI eklendi — peer odada degilken sayac
+      acilmasin, asimetri <0.5sn). 5 duzenleme: _odaBagli alan+reset; _odayaBaglan sonu 1:1+ref+peer
+      -> _mediaBaslat; ParticipantConnected 1:1+ref+odaBagli -> _mediaBaslat; _sureReferansiAl
+      odaBagli+peer -> _mediaBaslat. Sure DEGER mantigi (Stopwatch/elapsed_ms) DOKUNULMADI; grup AYNEN;
+      ring/cevapsiz/stale/resume regresyonlari uzman tarafindan temiz dogrulandi; kurtarma aglari
+      timer'dan bagimsiz (SORUN-6 telafisi durur).

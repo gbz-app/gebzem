@@ -133,6 +133,10 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
   bool _ayrildi = false;
   bool _peerJoined = false;
   bool _mediaBasladi = false;
+  // SENKRON SAYAC (test turu 6): room.connect TAMAMLANDI mi. 1:1 sayaci YEREL SES yerine
+  // "baglanti kuruldu + peer odada + sunucu-aktif" anina baglanir (WhatsApp modeli) -> iki
+  // taraf ayni elapsed_ms referansindan SENKRON sayar. Grup HARIC (referanssiz -> eski yol).
+  bool _odaBagli = false;
   bool _micOn = true;
   bool _camOn = false;
   bool _speakerOn = false;
@@ -242,6 +246,7 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     _ayrildi = false;
     _peerJoined = false;
     _mediaBasladi = false;
+    _odaBagli = false; // senkron sayac (test turu 6)
     _micOn = true;
     _camOn = b.video;
     _speakerOn = false;
@@ -562,7 +567,13 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
           _ringTimeout?.cancel();
           _peerJoined = true;
           notifyListeners();
-          _mediaGuvenlikAgi(); // sure GERCEK ses gelince baslar; 8sn yedek
+          // SENKRON SAYAC (test turu 6): peer connect-SONRASI katildi + baglanti kuruldu +
+          // sunucu-aktif -> sayaci senkron ac (WhatsApp modeli). Referans yoksa/grupsa 8sn yedek.
+          if (!_isGroup && _sureReferansVar && _odaBagli) {
+            _mediaBaslat();
+          } else {
+            _mediaGuvenlikAgi(); // sure GERCEK ses gelince baslar; 8sn yedek
+          }
         })
         ..on<ParticipantDisconnectedEvent>((_) {
           if (arama?.callId != id) return;
@@ -660,8 +671,15 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       _connecting = false;
       _speakerOn = false;
       _peerJoined = room.remoteParticipants.isNotEmpty;
+      _odaBagli = true; // room.connect TAMAMLANDI
       notifyListeners();
-      if (_remoteAudioHazir()) {
+      // SENKRON SAYAC (test turu 6): 1:1'de baglanti kuruldu + PEER ODADA + sunucu-aktif
+      // (elapsed_ms referansi) -> sayaci HEMEN ac (YEREL ses playout'unu BEKLEME). Iki taraf
+      // ayni referanstan sayar -> asimetri WS gecikmesi kadar (<0.5sn). Peer henuz odada
+      // degilse ParticipantConnected tetikler; referans yoksa/grupsa eski enerji/8sn yolu.
+      if (!_isGroup && _sureReferansVar && _peerJoined) {
+        _mediaBaslat();
+      } else if (_remoteAudioHazir()) {
         _sesKanitBekle(); // SORUN-6: resume/reconnect'te de kanitla basla
       } else if (_peerJoined) {
         _mediaGuvenlikAgi();
@@ -818,6 +836,10 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     if (_mediaBasladi) {
       _duration = _sureBaz + _sureSayaci.elapsed;
       notifyListeners();
+    } else if (_odaBagli && _peerJoined) {
+      // SENKRON SAYAC (test turu 6): referans BAGLANTI + PEER'den SONRA geldi (WS gecikmesi)
+      // -> sayaci simdi senkron ac. (Grupta bu metot zaten erken-return ile buraya gelmez.)
+      _mediaBaslat();
     }
   }
 
