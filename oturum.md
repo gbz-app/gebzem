@@ -1488,3 +1488,16 @@ Ses sagligi AYRI (AppDelegate toggle + kurtarma aglari — "sayiyor ama ses yok"
       timer'dan bagimsiz (SORUN-6 telafisi durur).
 - [x] SENKRON SAYAC SURUMU YAYINLANDI (20 Tem 14:55): android 29738759405 + ios 29738763193
       imza temiz; R2 apk=104881133 ipa=19074286; purge OK; boyut birebir; index 14:55; DB temiz + health ok.
+
+### KULLANICI TEST TURU 7 (20 Tem gun): 5 ISTEK
+IYI HABER: Android arka plan PiP CALISIYOR (kullanici teyit). 
+1) iOS PiP: iPhone'da alta alinca kucuk pencere YOK -> artik yapiyoruz (native AVPictureInPicture).
+2) KONUK-SPLIT HALEN DUZELMEDI (2. kez): konuk atilinca/ayrilinca alt panel KALKMIYOR, "Görüntü
+   bekleniyor" kaliyor. KANIT (14:51): konukDusur CALISTI + guest.left GONDERILDI ama panel kalkmadi.
+   Suphe: guest.left DataReceived istemciye ulasmiyor/eslesmiyoR VEYA sinyal tek basina yetersiz ->
+   ParticipantDisconnected + TrackUnsubscribed kombine + backend sira (once guest.left sonra hidden?).
+   Workflow wf_4dd3aa65 kok neden + %100 kalkan fix ariyor.
+3) UI: alt menu icon TAP dairesi (ripple/overlay) kaldir + sol/sag radius.
+4) UI: arama input altina SIK GORUSULEN kisiler (profil satiri).
+5) TEK TEMIZ BUILD.
+SIRA: UI (ben) -> konuk-split fix (hukum) -> iOS PiP (hukum) -> tek build.
