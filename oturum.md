@@ -1510,6 +1510,9 @@ IYI HABER: Android arka plan PiP CALISIYOR (kullanici teyit).
 4) UI: arama input altina SIK GORUSULEN kisiler (profil satiri).
 5) TEK TEMIZ BUILD.
 SIRA: UI (ben) -> konuk-split fix (hukum) -> iOS PiP (hukum) -> tek build.
+- [x] SURUM YAYINLANDI (20 Tem 19:05): android 29756394305 + ios 29756396972 imza temiz; R2
+      apk=104946669 ipa=19070092; purge OK; boyut birebir; index 19:05; DB temiz + health ok. iOS PiP
+      SDK sinirlamasi -> alinmadi (durust anlatildi).
 - [x] UI: theme NoSplash+overlayColor transparent (alt menu icon TAP dairesi kaldirildi);
       home NavigationBar ClipRRect ust-kose radius 20 (sol/sag); chats arama altinda SIK
       GORUSULENLER yatay profil seridi (_SikGorusulenSerit: 1:1, lastAt sirali, ilk 12, dokun->sohbet).
