@@ -1527,7 +1527,8 @@ UYGULANDI (commit 20 Tem 22:32): AppDelegate.swift'e GebzemPip (pbxproj'a ayri d
 tuzagi) + gebzem/pip kanal + PipRenderer (RTCVideoFrame->CVPixelBuffer->CMSampleBuffer->AVSampleBufferDisplayLayer)
 + AVPictureInPictureVideoCallViewController + auto-enter; bridging header import; Info.plist picture-in-picture;
 pip_service iOS metotlari; controller _iosPipGuncelle (1:1 video+bagli+ekran+uzak-video). SES BIRIMINE
-DOKUNULMADI. Kurulamazsa false -> kamera-mute avatar yedegi (zararsiz). Build KOSUYOR — Swift derleme tek
-risk (Windows'ta derlenemez), iOS log dikkatle izleniyor; hata olursa tam mesajdan duzeltilecek.
+DOKUNULMADI. Kurulamazsa false -> kamera-mute avatar yedegi (zararsiz). Build BASARILI (Swift DERLENDI — iOS derleme gecti!). YAYINLANDI (20 Tem 22:50): android 29772377158 +
+ios 29772381165 imza temiz; R2 apk=104946669 ipa=19081898; purge OK; boyut birebir; index 22:50; DB temiz.
+**Kullanici gercek iPhone'da test edecek** (PiP runtime davranisi simulatorde test edilemez).
 V1 SINIR: yalniz 1:1 goruntulu, UZAK video (kendi kameramiz bg'de OS'ca durur — multitasking-camera
 entitlement YOK); grup PiP sonra.
