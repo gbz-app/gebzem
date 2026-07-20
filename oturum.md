@@ -1509,10 +1509,25 @@ IYI HABER: Android arka plan PiP CALISIYOR (kullanici teyit).
 3) UI: alt menu icon TAP dairesi (ripple/overlay) kaldir + sol/sag radius.
 4) UI: arama input altina SIK GORUSULEN kisiler (profil satiri).
 5) TEK TEMIZ BUILD.
-SIRA: UI (ben) -> konuk-split fix (hukum) -> iOS PiP (hukum) -> tek build.
+SIRA: UI (ben) -> konuk-split fix -> iOS PiP -> tek build.
 - [x] SURUM YAYINLANDI (20 Tem 19:05): android 29756394305 + ios 29756396972 imza temiz; R2
       apk=104946669 ipa=19070092; purge OK; boyut birebir; index 19:05; DB temiz + health ok. iOS PiP
       SDK sinirlamasi -> alinmadi (durust anlatildi).
 - [x] UI: theme NoSplash+overlayColor transparent (alt menu icon TAP dairesi kaldirildi);
       home NavigationBar ClipRRect ust-kose radius 20 (sol/sag); chats arama altinda SIK
       GORUSULENLER yatay profil seridi (_SikGorusulenSerit: 1:1, lastAt sirali, ilk 12, dokun->sohbet).
+
+
+### iOS PiP UYGULANDI (test turu 7 devami — kullanici israri + internet arastirmasi)
+YARGIC iOS PiP'i "flutter_webrtc SAGLAMAZ" demisti; INTERNET ARASTIRMASI DUZELTTI: flutter_webrtc
+sharedSingleton + remoteTrackForId PUBLIC API'dir (videosdk-flutter-pip referans repo calisir ornek).
+DOGRULANDI (pub cache 1.4.0): ios/Classes/FlutterWebRTCPlugin.h:86 remoteTrackForId + :97 sharedSingleton;
+podspec public_header_files='Classes/**/*.h' -> <flutter_webrtc/FlutterWebRTCPlugin.h> erisilebilir.
+UYGULANDI (commit 20 Tem 22:32): AppDelegate.swift'e GebzemPip (pbxproj'a ayri dosya EKLEMEDEN — BOM/imza
+tuzagi) + gebzem/pip kanal + PipRenderer (RTCVideoFrame->CVPixelBuffer->CMSampleBuffer->AVSampleBufferDisplayLayer)
++ AVPictureInPictureVideoCallViewController + auto-enter; bridging header import; Info.plist picture-in-picture;
+pip_service iOS metotlari; controller _iosPipGuncelle (1:1 video+bagli+ekran+uzak-video). SES BIRIMINE
+DOKUNULMADI. Kurulamazsa false -> kamera-mute avatar yedegi (zararsiz). Build KOSUYOR — Swift derleme tek
+risk (Windows'ta derlenemez), iOS log dikkatle izleniyor; hata olursa tam mesajdan duzeltilecek.
+V1 SINIR: yalniz 1:1 goruntulu, UZAK video (kendi kameramiz bg'de OS'ca durur — multitasking-camera
+entitlement YOK); grup PiP sonra.
