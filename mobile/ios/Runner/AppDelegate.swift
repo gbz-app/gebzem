@@ -3,6 +3,8 @@ import UIKit
 import PushKit
 import CallKit
 import AVFAudio
+import AVFoundation              // AVSampleBufferDisplayLayer (PiP kare besleme)
+import AVKit                      // iOS sistem PiP (AVPictureInPictureController)
 import WebRTC                     // WebRTC-SDK pod -> modul adi "WebRTC". Derleme riski burada;
                                   // patlarsa Podfile'a :modular_headers => true (bkz. Podfile notu).
 import flutter_callkit_incoming
@@ -93,6 +95,31 @@ import flutter_callkit_incoming
         result(FlutterMethodNotImplemented)
       }
     }
+
+    // iOS SISTEM PiP kanali (gebzem/pip — Android ile AYNI ad; pip_service.dart iki platform).
+    // Ses birimine DOKUNMAZ. iOS<15 / desteksiz -> hazir=false, istemci kamera-mute avatara duser.
+    let pipCh = FlutterMethodChannel(
+      name: "gebzem/pip",
+      binaryMessenger: engineBridge.pluginRegistry.registrar(forPlugin: "gebzem.pip")!.messenger())
+    pipCh.setMethodCallHandler { call, result in
+      guard #available(iOS 15.0, *) else {
+        // iOS<15: PiP yok
+        if call.method == "iosPipHazirMi" { result(false) } else { result(nil) }
+        return
+      }
+      switch call.method {
+      case "iosPipHazirMi":
+        result(AVPictureInPictureController.isPictureInPictureSupported())
+      case "iosPipKur":
+        let tid = (call.arguments as? [String: Any])?["trackId"] as? String ?? ""
+        result(tid.isEmpty ? false : GebzemPip.shared.kur(trackId: tid))
+      case "iosPipBirak":
+        GebzemPip.shared.birak()
+        result(true)
+      default:
+        result(FlutterMethodNotImplemented)
+      }
+    }
   }
 
   // MARK: - CallkitIncomingAppDelegate (plugin UIApplication.shared.delegate uzerinden cagirir)
@@ -175,5 +202,207 @@ import flutter_callkit_incoming
     SwiftFlutterCallkitIncomingPlugin.sharedInstance?.showCallkitIncoming(data, fromPushKit: true) {
       completion()
     }
+  }
+}
+
+// ============================================================================
+// iOS SISTEM PiP (test turu 7 — internet arastirmasi + videosdk referansi)
+// Goruntulu aramada arka plana alininca UZAK katilimcinin videosu Apple sistem PiP
+// penceresinde gorunur. flutter_webrtc sharedSingleton -> uzak RTCVideoTrack ->
+// RTCVideoRenderer ile kareler AVSampleBufferDisplayLayer'a -> AVPictureInPictureController
+// (auto-enter). SES BIRIMINE (RTCAudioSession/AVAudioSession) ASLA DOKUNMAZ. Kurulamazsa
+// false doner -> istemci bugunku kamera-mute avatar davranisina duser (YAPI GEREGI zararsiz).
+// pbxproj'a AYRI dosya eklememek icin AppDelegate.swift icinde (zaten derlenen dosya).
+// ============================================================================
+
+@available(iOS 15.0, *)
+final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
+  static let shared = GebzemPip()
+
+  private var pipController: AVPictureInPictureController?
+  private var callVC: AVPictureInPictureVideoCallViewController?
+  private var videoView: PipVideoView?
+  private var renderer: PipRenderer?
+  private weak var uzakTrack: RTCVideoTrack?
+  private var kurulanId: String?
+
+  func kur(trackId: String) -> Bool {
+    guard AVPictureInPictureController.isPictureInPictureSupported() else { return false }
+    guard let kaynakView = Self.kokView() else { return false }
+    guard let track = FlutterWebRTCPlugin.sharedSingleton()?
+      .remoteTrack(forId: trackId) as? RTCVideoTrack else { return false }
+
+    if kurulanId == trackId, pipController != nil { return true }
+    birak()
+
+    let vv = PipVideoView(frame: CGRect(x: 0, y: 0, width: 120, height: 200))
+    let r = PipRenderer(view: vv)
+    track.add(r)
+
+    let vc = AVPictureInPictureVideoCallViewController()
+    vc.preferredContentSize = CGSize(width: 120, height: 200)
+    vc.view.pipAddConstrained(vv)
+
+    let source = AVPictureInPictureController.ContentSource(
+      activeVideoCallSourceView: kaynakView, contentViewController: vc)
+    let controller = AVPictureInPictureController(contentSource: source)
+    controller.delegate = self
+    controller.canStartPictureInPictureAutomaticallyFromInline = true
+
+    self.videoView = vv
+    self.renderer = r
+    self.uzakTrack = track
+    self.callVC = vc
+    self.pipController = controller
+    self.kurulanId = trackId
+    NSLog("gebzem/pip iOS kuruldu track=\(trackId)")
+    return true
+  }
+
+  func birak() {
+    pipController?.stopPictureInPicture()
+    if let t = uzakTrack, let r = renderer { t.remove(r) }
+    videoView?.displayLayer.flushAndRemoveImage()
+    callVC?.view.subviews.forEach { $0.removeFromSuperview() }
+    pipController = nil
+    callVC = nil
+    videoView = nil
+    renderer = nil
+    uzakTrack = nil
+    kurulanId = nil
+  }
+
+  private static func kokView() -> UIView? {
+    let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+    for s in scenes {
+      if let w = s.windows.first(where: { $0.isKeyWindow }) ?? s.windows.first,
+         let v = w.rootViewController?.view {
+        return v
+      }
+    }
+    return nil
+  }
+
+  func pictureInPictureController(_ c: AVPictureInPictureController,
+    failedToStartPictureInPictureWithError error: Error) {
+    NSLog("gebzem/pip iOS baslatma hatasi: \(error.localizedDescription)")
+  }
+  func pictureInPictureController(_ c: AVPictureInPictureController,
+    restoreUserInterfaceForPictureInPictureStopWithCompletionHandler h: @escaping (Bool) -> Void) {
+    h(true)
+  }
+}
+
+@available(iOS 15.0, *)
+final class PipVideoView: UIView {
+  override class var layerClass: AnyClass { AVSampleBufferDisplayLayer.self }
+  var displayLayer: AVSampleBufferDisplayLayer { layer as! AVSampleBufferDisplayLayer }
+  override init(frame: CGRect) {
+    super.init(frame: frame)
+    displayLayer.videoGravity = .resizeAspectFill
+    backgroundColor = .black
+  }
+  required init?(coder: NSCoder) { fatalError() }
+}
+
+@available(iOS 15.0, *)
+final class PipRenderer: NSObject, RTCVideoRenderer {
+  private weak var view: PipVideoView?
+  private let kuyruk = DispatchQueue(label: "gebzem.pip.frame", qos: .userInteractive)
+  private var sayac = 0
+
+  init(view: PipVideoView) { self.view = view }
+  func setSize(_ size: CGSize) {}
+
+  func renderFrame(_ frame: RTCVideoFrame?) {
+    guard let frame = frame else { return }
+    sayac += 1
+    if sayac % 2 != 0 { return }
+    kuyruk.async { [weak self] in
+      guard let self = self else { return }
+      autoreleasepool {
+        guard let sb = self.sampleBuffer(frame) else { return }
+        DispatchQueue.main.async { [weak self] in
+          guard let v = self?.view else { return }
+          if v.displayLayer.status == .failed { v.displayLayer.flush() }
+          v.displayLayer.enqueue(sb)
+        }
+      }
+    }
+  }
+
+  private func sampleBuffer(_ frame: RTCVideoFrame) -> CMSampleBuffer? {
+    var pixelBuffer: CVPixelBuffer?
+    if let b = frame.buffer as? RTCCVPixelBuffer {
+      pixelBuffer = b.pixelBuffer
+    } else if let b = frame.buffer as? RTCI420Buffer {
+      pixelBuffer = i420ToPixelBuffer(b)
+    }
+    guard let pb = pixelBuffer else { return nil }
+
+    var fmt: CMVideoFormatDescription?
+    guard CMVideoFormatDescriptionCreateForImageBuffer(
+      allocator: kCFAllocatorDefault, imageBuffer: pb, formatDescriptionOut: &fmt) == noErr,
+      let fmt = fmt else { return nil }
+
+    let ts = CMTime(value: CMTimeValue(frame.timeStampNs), timescale: 1_000_000_000)
+    var timing = CMSampleTimingInfo(
+      duration: .invalid, presentationTimeStamp: ts, decodeTimeStamp: .invalid)
+    var sb: CMSampleBuffer?
+    guard CMSampleBufferCreateReadyWithImageBuffer(
+      allocator: kCFAllocatorDefault, imageBuffer: pb, formatDescription: fmt,
+      sampleTiming: &timing, sampleBufferOut: &sb) == noErr else { return nil }
+    return sb
+  }
+
+  private func i420ToPixelBuffer(_ b: RTCI420Buffer) -> CVPixelBuffer? {
+    let w = Int(b.width), h = Int(b.height)
+    let attrs: [CFString: Any] = [
+      kCVPixelBufferIOSurfacePropertiesKey: [:],
+      kCVPixelBufferCGImageCompatibilityKey: true,
+      kCVPixelBufferCGBitmapContextCompatibilityKey: true,
+    ]
+    var pb: CVPixelBuffer?
+    guard CVPixelBufferCreate(kCFAllocatorDefault, w, h,
+      kCVPixelFormatType_420YpCbCr8BiPlanarFullRange, attrs as CFDictionary, &pb) == kCVReturnSuccess,
+      let pb = pb else { return nil }
+    guard CVPixelBufferLockBaseAddress(pb, []) == kCVReturnSuccess else { return nil }
+    defer { CVPixelBufferUnlockBaseAddress(pb, []) }
+
+    if let yDest = CVPixelBufferGetBaseAddressOfPlane(pb, 0) {
+      let dStride = CVPixelBufferGetBytesPerRowOfPlane(pb, 0)
+      let sStride = Int(b.strideY)
+      for row in 0..<h {
+        memcpy(yDest.advanced(by: row * dStride), b.dataY + row * sStride, min(sStride, w))
+      }
+    }
+    if let uvDest = CVPixelBufferGetBaseAddressOfPlane(pb, 1) {
+      let dStride = CVPixelBufferGetBytesPerRowOfPlane(pb, 1)
+      let uvW = w / 2, uvH = h / 2
+      let uStride = Int(b.strideU), vStride = Int(b.strideV)
+      for row in 0..<uvH {
+        let dst = uvDest.advanced(by: row * dStride).assumingMemoryBound(to: UInt8.self)
+        let uRow = b.dataU + row * uStride
+        let vRow = b.dataV + row * vStride
+        for col in 0..<uvW {
+          dst[col * 2] = uRow[col]
+          dst[col * 2 + 1] = vRow[col]
+        }
+      }
+    }
+    return pb
+  }
+}
+
+private extension UIView {
+  func pipAddConstrained(_ sub: UIView) {
+    addSubview(sub)
+    sub.translatesAutoresizingMaskIntoConstraints = false
+    NSLayoutConstraint.activate([
+      sub.leadingAnchor.constraint(equalTo: leadingAnchor),
+      sub.trailingAnchor.constraint(equalTo: trailingAnchor),
+      sub.topAnchor.constraint(equalTo: topAnchor),
+      sub.bottomAnchor.constraint(equalTo: bottomAnchor),
+    ])
   }
 }

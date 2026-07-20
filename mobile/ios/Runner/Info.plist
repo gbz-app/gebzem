@@ -55,6 +55,7 @@
 		<string>remote-notification</string>
 		<string>audio</string>
 		<string>voip</string>
+		<string>picture-in-picture</string>
 	</array>
 	<!-- Arama izin aciklamalari (App Store zorunlulugu) -->
 	<key>NSMicrophoneUsageDescription</key>

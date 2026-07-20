@@ -18,7 +18,8 @@ class PipService {
     } catch (_) {}
   }
 
-  /// Native 'pipDegisti' olayini dinle (true=PiP'e girildi, false=cikildi).
+  /// Native 'pipDegisti' olayini dinle (true=PiP'e girildi, false=cikildi). Android'e ozel
+  /// (iOS sistem PiP ayri native pencere -> Flutter'a durum bildirimi gerekmez).
   static void dinle(void Function(bool pipModunda) cb) {
     if (!Platform.isAndroid || _dinleyiciKuruldu) return;
     _dinleyiciKuruldu = true;
@@ -27,5 +28,35 @@ class PipService {
         cb(call.arguments == true);
       }
     });
+  }
+
+  // ---- iOS SISTEM PiP (test turu 7) ----
+
+  /// iOS cihaz PiP destekliyor mu (bir kez sorulur; iOS<15/desteksiz -> false).
+  static Future<bool> iosPipHazirMi() async {
+    if (!Platform.isIOS) return false;
+    try {
+      return (await _ch.invokeMethod<bool>('iosPipHazirMi')) ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Uzak video track'i icin PiP controller'i kur (auto-enter). Basari doner. Kurulamazsa
+  /// (track yok/hata) false -> istemci kamera-mute avatar davranisinda kalir (zararsiz).
+  static Future<bool> iosPipKur(String trackId) async {
+    if (!Platform.isIOS) return false;
+    try {
+      return (await _ch.invokeMethod<bool>('iosPipKur', {'trackId': trackId})) ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<void> iosPipBirak() async {
+    if (!Platform.isIOS) return;
+    try {
+      await _ch.invokeMethod('iosPipBirak');
+    } catch (_) {}
   }
 }

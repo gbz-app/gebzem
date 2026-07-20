@@ -68,6 +68,9 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       pipModunda = v;
       notifyListeners();
     });
+    // iOS SISTEM PiP (test turu 7): cihaz destegini bir kez sor (iOS<15/desteksiz -> false ->
+    // hicbir sey yapilmaz, kamera-mute avatar yedegi kalir).
+    PipService.iosPipHazirMi().then((v) => _iosPipHazir = v);
   }
 
   final Ref _ref;
@@ -83,6 +86,12 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
   bool pipModunda = false;
   bool _pipIzinliSon = false;
   bool _kameraOtoKapandi = false; // arka planda kamerayi BIZ kapattik (donus'te geri ac)
+  // iOS SISTEM PiP (test turu 7): native AVPictureInPicture. Android'den FARKLI — Flutter
+  // ekrani PiP icerigi DEGIL; uzak video native AVSampleBufferDisplayLayer'da. Sadece kurulum/
+  // birakma yonetilir; auto-enter iOS'ta OS tarafinda. Kamera-mute yedegi iOS'ta da KALIR
+  // (kendi giden kameramizi bg'de kapatir — PiP bize UZAK videoyu gosterir, ikisi bagimsiz).
+  bool _iosPipHazir = false;
+  String _iosPipKurulanId = ''; // native'e kurulan uzak track id (degisince yeniden kur)
 
   Room? _room;
   EventsListener<RoomEvent>? _listener;
@@ -198,13 +207,54 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     PipService.pipIzinli(istenen);
   }
 
+  /// iOS PiP: uzak video track'inin webrtc id'si (1:1 — ilk uygun uzak video).
+  String? _uzakVideoTrackId() {
+    for (final p in _room?.remoteParticipants.values ?? const <RemoteParticipant>[]) {
+      for (final pub in p.videoTrackPublications) {
+        if (pub.subscribed && !pub.muted && pub.track != null) {
+          return (pub.track as VideoTrack).mediaStreamTrack.id;
+        }
+      }
+    }
+    return null;
+  }
+
+  /// iOS SISTEM PiP guncelle (test turu 7): 1:1 GORUNTULU + bagli + ekran acik + uzak video
+  /// varsa native PiP controller'i kur (auto-enter); degilse birak. Track degisince yeniden kur.
+  /// Fire-and-forget; guard sayesinde cogu cagri no-op (yalniz trackId degisiminde native).
+  Future<void> _iosPipGuncelle() async {
+    if (!Platform.isIOS || !_iosPipHazir) return;
+    final b = arama;
+    final uygun = b != null &&
+        b.video &&
+        !_isGroup &&
+        _baglandi &&
+        !_cevapsiz &&
+        _error == null &&
+        ekranGorunur;
+    final trackId = uygun ? _uzakVideoTrackId() : null;
+    if (trackId != null) {
+      if (trackId != _iosPipKurulanId) {
+        final ok = await PipService.iosPipKur(trackId);
+        _iosPipKurulanId = ok ? trackId : '';
+      }
+    } else if (_iosPipKurulanId.isNotEmpty) {
+      _iosPipKurulanId = '';
+      await PipService.iosPipBirak();
+    }
+  }
+
   /// Ekran acilis/kapanisinda PiP iznini tazele (CallScreen initState cagirir).
-  void pipDurumTazele() => _pipGuncelle();
+  void pipDurumTazele() {
+    _pipGuncelle();
+    unawaited(_iosPipGuncelle());
+  }
 
   @override
   void notifyListeners() {
     super.notifyListeners();
     _pipGuncelle(); // her durum degisiminde PiP izni senkron kalir (yalniz delta'da kanal)
+    unawaited(_iosPipGuncelle()); // iOS PiP kurulum/birakma (yalniz trackId delta'sinda native)
   }
 
   String get durumMetni {
@@ -239,6 +289,7 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     minimized = false;
     pipModunda = false; // FAZ-6 (yargic): eski aramadan bayrak sarkmasin
     _kameraOtoKapandi = false;
+    _iosPipKurulanId = ''; // iOS PiP (test turu 7): eski aramadan kurulum sarkmasin
     _isGroup = b.isGroup;
     _connecting = true;
     _kapandi = false;
@@ -1133,6 +1184,11 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     _svc.aktifKonusmaBitti(id);
     _svc.ekranKapandi(id);
 
+    // iOS PiP (test turu 7): arama bitti -> native controller'i birak (kaynak sizmasin)
+    if (_iosPipKurulanId.isNotEmpty) {
+      _iosPipKurulanId = '';
+      unawaited(PipService.iosPipBirak());
+    }
     // Ekrana "bitti" bildir: arama=null -> CallScreen listener'i (sheet-pop -> ekran-pop; K7)
     arama = null;
     minimized = false;
