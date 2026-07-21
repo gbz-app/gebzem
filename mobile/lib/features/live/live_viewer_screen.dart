@@ -237,6 +237,10 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
       // Izleyicide mic YOK; hoparlor + ses birimi EN SON (iOS sirasi)
       await room.setSpeakerOn(true);
       await _sesiAc(true);
+      // TARAMA #1: bagli olur olmaz konuk durumunu sunucuyla esitle. ilkKonukId (watch'tan)
+      // baglanma penceresinde ayrilmis olabilir -> guest.left SendData'si bize ulasmaz
+      // (henuz odada degildik) -> 15sn beklemeden bayat konugu temizle.
+      if (mounted && !_ayrildi) _nabizAt();
     } catch (e) {
       await _kapatOda();
       rethrow;
@@ -330,25 +334,29 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
   /// guest.accepted geldi: izinler -> mic -> kamera -> ses birimi EN SON (iOS sirasi).
   /// Izin reddi/medya hatasi = sunucuya konukAyril DURUSTLUGU (slot bosalsin, tek konuk kilidi
   /// takili kalmasin). Medya acilisinda 1 sn arayla TEK retry.
+  bool _konukOluyor = false; // TARAMA #7: re-entrancy (cift guest.accepted = cift izin/kamera yarisi)
   Future<void> _konukOl() async {
-    if (_konukum || _ayrildi) return;
+    // _konukum akisin SONUNDA true olur; ikinci guest.accepted araya girip cift izin
+    // istegi + cift setCameraEnabled yarisi baslatmasin diye ayri kilit sart.
+    if (_konukum || _konukOluyor || _ayrildi) return;
+    _konukOluyor = true;
     final mesajci = ScaffoldMessenger.of(context);
     setState(() => _istekGitti = false);
-    final mikIzin = await Permission.microphone.request();
-    final kamIzin = await Permission.camera.request();
-    if (!mounted || _ayrildi) return;
-    if (mikIzin != PermissionStatus.granted || kamIzin != PermissionStatus.granted) {
-      unawaited(ref.read(liveApiProvider).konukAyril(widget.streamId));
-      mesajci.showSnackBar(const SnackBar(
-          content: Text('Kamera ve mikrofon izni olmadan canlıya katılamazsın')));
-      return;
-    }
-    Future<void> ac() async {
-      await _room?.localParticipant?.setMicrophoneEnabled(true);
-      await _room?.localParticipant?.setCameraEnabled(true);
-    }
-
     try {
+      final mikIzin = await Permission.microphone.request();
+      final kamIzin = await Permission.camera.request();
+      if (!mounted || _ayrildi) return;
+      if (mikIzin != PermissionStatus.granted || kamIzin != PermissionStatus.granted) {
+        unawaited(ref.read(liveApiProvider).konukAyril(widget.streamId).catchError((_) {}));
+        mesajci.showSnackBar(const SnackBar(
+            content: Text('Kamera ve mikrofon izni olmadan canlıya katılamazsın')));
+        return;
+      }
+      Future<void> ac() async {
+        await _room?.localParticipant?.setMicrophoneEnabled(true);
+        await _room?.localParticipant?.setCameraEnabled(true);
+      }
+
       try {
         await ac();
       } catch (_) {
@@ -371,11 +379,13 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
         await _room?.localParticipant?.setCameraEnabled(false);
         await _room?.localParticipant?.setMicrophoneEnabled(false);
       } catch (_) {}
-      unawaited(ref.read(liveApiProvider).konukAyril(widget.streamId));
+      unawaited(ref.read(liveApiProvider).konukAyril(widget.streamId).catchError((_) {}));
       if (mounted) {
         mesajci.showSnackBar(
             const SnackBar(content: Text('Kamera açılamadı — canlıya katılınamadı')));
       }
+    } finally {
+      _konukOluyor = false;
     }
   }
 
@@ -486,16 +496,18 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
     if (_ayrildi) return;
     _ayrildi = true;
     _svc.ekranKapandi('yayin_${widget.streamId}');
+    // TARAMA #3: ref'i pop/dispose ONCESI yakala + REST'i BEKLEME. Eski kod ayril()'i
+    // await ediyordu -> olu agda (yayin donmus, kullanici cikmak istiyor) ekran 10-20sn
+    // (Dio timeout) donuyordu. ayril idempotent; sweeper yedek. ref dispose sonrasi
+    // kullanilamaz (Sentry: "Cannot use ref after disposed") -> onceden yakala.
+    final api = ref.read(liveApiProvider);
     // Bekleyen istegimi geri cek (yayincinin listesinde hayalet kalmasin). Konuklugu ayrica
     // bildirmeye gerek yok: /leave sunucuda konukDusur'u zaten cagirir (B7).
     if (_istekGitti) {
-      unawaited(
-          ref.read(liveApiProvider).katilIstek(widget.streamId, cancel: true).catchError((_) {}));
+      unawaited(api.katilIstek(widget.streamId, cancel: true).catchError((_) {}));
     }
     unawaited(CallRoomLock.calistir(_kapatOda));
-    try {
-      await ref.read(liveApiProvider).ayril(widget.streamId);
-    } catch (_) {}
+    unawaited(api.ayril(widget.streamId).catchError((_) {}));
     if (mounted) {
       final nav = Navigator.of(context);
       nav.popUntil((r) => r.settings.name == 'yayin-${widget.streamId}' || r.isFirst);

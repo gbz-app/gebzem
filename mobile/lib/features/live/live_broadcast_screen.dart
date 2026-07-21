@@ -446,10 +446,10 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
     _ayrildi = true;
     _svc.ekranKapandi('yayin_${widget.streamId}');
     unawaited(CallRoomLock.calistir(_kapatOda));
+    // TARAMA #3: REST'i BEKLEME — olu agda bitir() 10-20sn (Dio timeout) donduruyordu.
+    // bitir idempotent; RoomDisconnected/sweeper yedek. ref pop/dispose ONCESI yakalanir.
     if (sunucuyaBildir) {
-      try {
-        await ref.read(liveApiProvider).bitir(widget.streamId);
-      } catch (_) {}
+      unawaited(ref.read(liveApiProvider).bitir(widget.streamId).catchError((_) {}));
     }
     if (mounted) {
       final nav = Navigator.of(context);
@@ -678,7 +678,9 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
                   _ustBtn(_micOn ? LucideIcons.mic : LucideIcons.micOff, () async {
                     final on = !_micOn;
                     await _room?.localParticipant?.setMicrophoneEnabled(on);
-                    setState(() => _micOn = on);
+                    // TARAMA #4: await sirasinda yayin bittiyse (stream.ended->pop->dispose)
+                    // setState defunct element'te crash eder — mounted kapisi (viewer'la tutarli).
+                    if (mounted) setState(() => _micOn = on);
                   }, renk: _micOn ? Colors.white : Colors.redAccent),
                   _ustBtn(LucideIcons.power, _bitirOnayli, renk: Colors.redAccent),
                 ]),
