@@ -1577,6 +1577,14 @@ Kullanici: (1) iOS PiP CALISTI ama "gidiyor donuyor bazen olmuyor"; Android soru
       - Nabiz mutabakat agi (onceki commit) zaten #2'nin cogunu kapatiyor (izleyici _aktifKonuk +
         yayinci _konukId 15sn'de sunucuyla esitlenir). ATLANAN (dusuk/tasarim): #5 hayalet rozet,
         #6 kick "yayin bitti" mesaji, #9 watch-sonrasi hayalet izleyici, #10 ~2dk yayin-restart penceresi.
-- [x] android 29866251897 + ios 29866254208 TETIKLENDI (koşuyor, monitor blnhlj9dc izliyor)
-- [ ] indir index.html: saat BELIRGIN (buyuk mor kutu) — sablon hazir (scratchpad/indeks-sablon.html)
-- [ ] Artifact indir + debug-imza kontrolu -> R2 -> purge -> boyut dogrulama -> DB temizlik -> backend deploy
+- [x] TEMIZ BUILD YAYINLANDI (21 Tem 23:45): android 29866251897 + ios 29866254208 BASARILI
+      (headSha 25419ff — son kod commit'i; 0fd6621 yalniz oturum.md doc). APK release imzali
+      (debug imza YOK). R2: apk=104946669 ipa=19082928 index=5720. Cloudflare purge OK.
+      CDN boyutlar BIREBIR (apk/ipa yerel==CDN). index.html saati BELIRGIN (buyuk mor kutu
+      "21 Temmuz 2026 · 23:45"). Backend deploy edildi (guest_id uclari) + health ok.
+      DB TEMIZ (TRUNCATE users CASCADE + otp_codes; users=0). KULLANICI KURUP TEST EDECEK.
+- **TEST RECETESI (kullaniciya):** 1) iPhone GORUNTULU ARAMA -> alta al -> kucuk pencere (PiP)
+      DONMADAN akmali; karsi kamera kapaninca pencere kaybolmamali. 2) CANLI YAYIN: konuk al ->
+      konuk atilinca/ayrilinca alt panel ANINDA kalkmali ("Görüntü bekleniyor" TAKILMAMALI);
+      konugun KENDI ekraninda da split kalkmali. 3) Gec katilan izleyici konugu GORMELI.
+      4) Olu agda cikis/bitir ANINDA kapanmali (10-20sn donma yok).
