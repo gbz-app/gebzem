@@ -1620,8 +1620,28 @@ YAKLASIM: derin arastirma (entitlement fizibilite + grup PiP track secimi) -> fi
         acikken kamerayi MUTE ETME; PiP baslatilamazsa (failedToStart) -> mute (avatar yedegi).
       Kaynaklar: Apple AVCaptureSession docs, flutter-webrtc #1193, shogo4405 (iOS18 entitlementsiz),
       Apple forum 718131 (iPhone destegi iOS surumune bagli).
-- [ ] Arastirma: grup PiP track secimi + _isGroup kapisi kaldirma etkisi (ajan aa63 kosuyor)
-- [ ] Fix 1: iOS kamera canli (entitlement + PiP durum geri bildirim + camera-mute kosullu)
-- [ ] Fix 2: grup iOS PiP
-- [ ] Fix 3: yayin 1-2-3 geri sayim
-- [ ] Temiz build -> R2 -> purge -> dogrulama -> DB temizlik
+- [x] ARASTIRMA grup PiP: `room.activeSpeakers` API livekit 2.8.1'de VAR (audioLevel azalan sirali,
+      first=baskin konusan); ActiveSpeakersChangedEvent zaten abone (notifyListeners->_iosPipGuncelle).
+      `!_isGroup` kapisi tek engel. `_uzakVideoTrackId` grup-farkindalik yok -> aktif konusan secimi eklendi.
+- [x] Fix 1 iOS kamera canli: AppDelegate cokluGorevKameraAc (FlutterWebRTCPlugin.videoCapturer.
+      captureSession.isMultitaskingCameraAccessEnabled; entitlementsiz; idempotent) + PiP delegate
+      didStart/Stop/failed -> pipCh.invokeMethod -> pip_service.iosDinle -> controller pipModunda/
+      _iosPipBasarisiz. Arka planda _iosArkaPlanKamera acikken kamera MUTE EDILMEZ (capture surer);
+      PiP basarisizsa avatar yedegi. _iosPipGuncelle'de _camOn&&uygun'da BIR KEZ ac; baslat()'ta reset.
+- [x] Fix 2 grup iOS PiP: `!_isGroup` kapisi KALDIRILDI; _uzakVideoTrackId grupta activeSpeakers'tan
+      baskin uzak konusanin videosunu secer (yerel haric); 1:1 davranisi AYNEN (ilk uzak video).
+- [x] Fix 3 yayin geri sayim: live_start_screen _basla REST'ten ONCE 3-2-1 (pop animasyonlu mor daire);
+      geri sayim sirasinda arama gelirse muhafiz tekrari -> yayina girmez. Sunucu-tarafi degismez.
+- [x] flutter analyze temiz (4 eski info lint). android 29871829312 + ios 29871831125 TETIKLENDI (3dcdf3b).
+- [x] TEMIZ BUILD YAYINLANDI (22 Tem 01:13): android 29871829312 + ios 29871831125 (headSha 3dcdf3b)
+      BASARILI — iOS Swift DERLEME GECTI (yeni native kod derlendi; IPA 19082928->19085286 ~2.4KB
+      buyudu = yeni Swift kaniti). Debug imza YOK. R2 apk=104946669 ipa=19085286 index=5744.
+      Cloudflare purge OK, CDN boyut birebir, index saati "22 Temmuz 01:13". Backend degismedi
+      (health ok). DB TEMIZ (users=0). KULLANICI GERCEK iPhone'da test edecek.
+- **TEST RECETESI (kullaniciya, test turu 9):** 1) iPhone GORUNTULU ARAMA -> alta al -> PiP gelir
+      VE karsi taraf SENI GORMEYE devam eder (kameran durmaz — iOS18+ cihazda; eski iOS'ta avatar).
+      2) GRUP goruntulu arama -> alta al -> PiP gelir (o an KONUSANIN videosu). 3) CANLI YAYIN
+      baslat -> ortada 3-2-1 geri sayim -> yayin acilir.
+- **YAPMA (test turu 9 dersleri):** cokluGorevKamera icin ENTITLEMENT ekleme (imza patlar; property yeter).
+      kanal'i weak yapma (dealloc -> geri bildirim gitmez). _uzakVideoTrackId'e muted serti geri koyma.
+      Grup PiP'te yerel kamerayi PiP'e sokma (yalniz uzak). Geri sayimi REST SONRASINA koyma (hayalet live).
