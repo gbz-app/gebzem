@@ -336,7 +336,11 @@ func (h *Handler) Heartbeat(w http.ResponseWriter, r *http.Request) {
 			h.sayacYayinla(r.Context(), streamID) // FAZ-1: askidan donen aninda sayilsin
 		}
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	// TEST TURU 8 MUTABAKAT AGI: guest.left/joined SendData'si kacarsa (reconnect penceresi)
+	// istemci split'i sonsuza takili kalmasin — her 15sn nabizda gercek konuk durumu doner,
+	// istemci kendi _konukId/_aktifKonuk'unu bununla duzeltir (en gec 15sn'de kendini onarir).
+	guest, _ := h.rdb.Get(r.Context(), "stream:"+streamID+":guest").Result()
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "guest_id": guest})
 }
 
 // POST /streams/{id}/leave — izleyici ayrildi (nazik cikis; kaba cikisi sweeper yakalar)

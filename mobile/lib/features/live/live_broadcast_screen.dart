@@ -90,8 +90,22 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed && mounted && !_ayrildi) {
       _sesiAc(true); // kesinti toparlama (GSM/Siri)
-      ref.read(liveApiProvider).nabiz(widget.streamId).catchError((_) {});
+      _nabizAt();
     }
+  }
+
+  /// Nabiz + KONUK MUTABAKATI (test turu 8): sunucudaki gercek konuk id'siyle _konukId'yi
+  /// esitle — guest.left/joined SendData'si kacarsa panel en gec 15sn'de kendini onarir.
+  void _nabizAt() {
+    ref.read(liveApiProvider).nabiz(widget.streamId).then((g) {
+      if (!mounted || _ayrildi) return;
+      if (g != _konukId) {
+        setState(() {
+          _konukId = g;
+          if (g.isEmpty) _konukAdi = '';
+        });
+      }
+    }).catchError((_) {});
   }
 
   Future<void> _baglan() async {
@@ -99,8 +113,7 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
       await CallRoomLock.calistir(_odayaBaglan);
       if (mounted) {
         setState(() => _connecting = false);
-        _nabiz = Timer.periodic(const Duration(seconds: 15),
-            (_) => ref.read(liveApiProvider).nabiz(widget.streamId).catchError((_) {}));
+        _nabiz = Timer.periodic(const Duration(seconds: 15), (_) => _nabizAt());
         _videoSagligiKur(); // A3 guvenlik agi: kare akmiyorsa TEK restartTrack
       }
     } catch (e) {

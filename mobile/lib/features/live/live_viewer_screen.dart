@@ -102,9 +102,18 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
     ref.read(myProfileProvider.future).then((p) {
       _benimId = p['id'] as String? ?? '';
     }).catchError((_) {});
-    _nabiz = Timer.periodic(const Duration(seconds: 15),
-        (_) => ref.read(liveApiProvider).nabiz(widget.streamId).catchError((_) {}));
+    _nabiz = Timer.periodic(const Duration(seconds: 15), (_) => _nabizAt());
     _baglan();
+  }
+
+  /// Nabiz + KONUK MUTABAKATI (test turu 8): sunucudaki gercek konuk id'siyle _aktifKonuk'u
+  /// esitle — kacan guest.* sinyalinde split en gec 15sn'de kendini onarir. Kendi konuklugum
+  /// (_konukum) sinyal/refresh yollarindan yonetilir, burada degistirilmez.
+  void _nabizAt() {
+    ref.read(liveApiProvider).nabiz(widget.streamId).then((g) {
+      if (!mounted || _ayrildi) return;
+      if (g != _aktifKonuk) setState(() => _aktifKonuk = g);
+    }).catchError((_) {});
   }
 
   @override
@@ -115,7 +124,7 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
         // Konuk mikrofonu kesinti sonrasi kendiliginden geri gelmez (oda ekrani dersi)
         _room?.localParticipant?.setMicrophoneEnabled(_konukMicOn);
       }
-      ref.read(liveApiProvider).nabiz(widget.streamId).catchError((_) {});
+      _nabizAt();
     }
   }
 

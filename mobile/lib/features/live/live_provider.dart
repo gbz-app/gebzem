@@ -66,7 +66,12 @@ class LiveApi {
   Future<void> konukAyril(String id) => _post('/streams/$id/guest/leave');
   Future<void> konukYenile(String id) => _post('/streams/$id/guest/refresh');
 
-  Future<void> nabiz(String id) => _post('/streams/$id/heartbeat');
+  /// TEST TURU 8: nabiz artik sunucudaki GERCEK konuk id'sini de dondurur — kacan
+  /// guest.left/joined sinyalinin mutabakat agi (istemci 15sn'de kendini duzeltir).
+  Future<String> nabiz(String id) async {
+    final res = await _ref.read(apiProvider).post('/streams/$id/heartbeat');
+    return ((res.data as Map?)?['guest_id'] as String?) ?? '';
+  }
   Future<void> ayril(String id) => _post('/streams/$id/leave');
   Future<void> bitir(String id) => _post('/streams/$id/end');
   Future<void> chat(String id, String text) => _post('/streams/$id/chat', {'text': text});
