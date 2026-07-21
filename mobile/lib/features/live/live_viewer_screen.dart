@@ -38,6 +38,7 @@ class LiveViewerScreen extends ConsumerStatefulWidget {
     required this.durum,
     this.ilkIzleyici = 0,
     this.tip = 'video',
+    this.ilkKonukId = '',
   });
 
   final String streamId;
@@ -50,6 +51,9 @@ class LiveViewerScreen extends ConsumerStatefulWidget {
   final String durum;
   final int ilkIzleyici; // watch cevabindaki sayi (SendData 15sn'ye kadar gecikebilir)
   final String tip; // 'video' | 'audio' — katil istegi yalniz video yayinda
+  // GEC KATILAN IZLEYICI (test turu 8): konuk zaten canlidayken yayina girenler guest.joined
+  // sinyalini HIC almamisti -> split gorunmuyordu. Watch artik guest_id donduruyor.
+  final String ilkKonukId;
 
   @override
   ConsumerState<LiveViewerScreen> createState() => _LiveViewerScreenState();
@@ -75,7 +79,9 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
 
   // KONUK DURUMU (Bolum 6 I3). Rol kaynagi SUNUCU (guest.* sinyalleri); istemci yalniz yansitir.
   String _benimId = '';
-  String _aktifKonuk = ''; // guest.joined -> konuk id; guest.left -> temizle (split sinyal-gate)
+  // guest.joined -> konuk id; guest.left -> temizle (split sinyal-gate). Baslangic degeri
+  // watch cevabindan (gec katilan izleyici konugu gorsun — test turu 8).
+  late String _aktifKonuk = widget.ilkKonukId;
   bool _konukum = false; // guest.accepted geldi + medya acildi
   bool _istekGitti = false; // bekleyen katil istegim var
   bool _konukMicOn = true;
@@ -273,6 +279,12 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
         final gidenId = v['user_id'] as String?;
         final benim = _room?.localParticipant?.identity ?? _benimId;
         if (gidenId != null && gidenId == benim && _konukum) {
+          // TEST TURU 8 KOK FIX: giden konuk BENIM. guest.joined sirasinda _aktifKonuk
+          // KENDI id'me kurulmustu; burada temizlenmeyince split "Görüntü bekleniyor"da
+          // SONSUZA takiliyordu (kendi id'm remoteParticipants'ta hic eslesmez).
+          setState(() {
+            if (_aktifKonuk == gidenId) _aktifKonuk = '';
+          });
           _konuktanCik(sunucuyaBildir: false); // yayinci cikardi / sweep
           ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('Yayıncı seni izleyiciliğe aldı')));
@@ -401,7 +413,13 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
   /// Konukluktan izleyicilige don. _sesiAc(false) CAGRILMAZ — dinlemeye devam (plan karari).
   Future<void> _konuktanCik({required bool sunucuyaBildir}) async {
     if (!_konukum) return;
-    setState(() => _konukum = false);
+    final benim = _room?.localParticipant?.identity ?? _benimId;
+    setState(() {
+      _konukum = false;
+      // TEST TURU 8: kendi id'me isaret eden bayat _aktifKonuk'u da temizle — yoksa
+      // konukVar true kalir, alt panel "Görüntü bekleniyor"da takilir (kok neden).
+      if (_aktifKonuk.isNotEmpty && _aktifKonuk == benim) _aktifKonuk = '';
+    });
     try {
       await _room?.localParticipant?.setCameraEnabled(false);
       await _room?.localParticipant?.setMicrophoneEnabled(false);
@@ -581,7 +599,12 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
     final konukVideo = _konukVideo;
     // SINYAL-BAZLI split (test turu 5): konuk BEN (_konukum) ya da aktif uzak konuk (_aktifKonuk)
     // varsa split; atilinca sinyal temizlenir -> ANINDA tam ekrana doner (siyah kalmaz).
-    final konukVar = _konukum || _aktifKonuk.isNotEmpty;
+    // TEST TURU 8 KIMLIK KAPISI: _aktifKonuk KENDI id'imse ve konuk DEGILSEM (atilma/ayrilma
+    // sonrasi bayat sinyal) split ASLA cizilmez — "Görüntü bekleniyor" takilmasi yapisal olarak
+    // imkansizlasir (sinyal sirasi ne olursa olsun).
+    final benim = _room?.localParticipant?.identity ?? _benimId;
+    final konukVar =
+        _konukum || (_aktifKonuk.isNotEmpty && _aktifKonuk != benim);
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {

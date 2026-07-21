@@ -278,11 +278,15 @@ func (h *Handler) Watch(w http.ResponseWriter, r *http.Request) {
 	}
 	h.audit(r.Context(), streamID, userID, "watch", clientIP(r))
 	h.sayacYayinla(r.Context(), streamID) // FAZ-1: giris ANINDA sayaca yansisin
+	// TEST TURU 8: aktif konuk varsa id'sini don — gec katilan izleyici guest.joined
+	// sinyalini almadigi icin split'i hic goremiyordu.
+	guest, _ := h.rdb.Get(r.Context(), "stream:"+streamID+":guest").Result()
 	writeJSON(w, http.StatusOK, map[string]any{
 		"stream_id": streamID, "room": roomName, "url": h.lkURL, "token": tok,
 		"title": title, "type": tip, "status": status,
 		"broadcaster_id": bID, "broadcaster_name": bName,
 		"viewer_count": h.izleyiciSayisi(r.Context(), streamID),
+		"guest_id":     guest,
 	})
 }
 

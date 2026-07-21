@@ -325,6 +325,10 @@ final class PipRenderer: NSObject, RTCVideoRenderer {
         DispatchQueue.main.async { [weak self] in
           guard let v = self?.view else { return }
           if v.displayLayer.status == .failed { v.displayLayer.flush() }
+          // PiP-DONMA FIX (test turu 8): layer hazir degilken enqueue etmek layer'i
+          // failed'a surukluyordu -> pencere ILK karede kaliyordu. Hazir degilse kareyi
+          // birak (canli yayin — sonraki kare 66ms sonra zaten gelir).
+          guard v.displayLayer.isReadyForMoreMediaData else { return }
           v.displayLayer.enqueue(sb)
         }
       }
@@ -345,14 +349,26 @@ final class PipRenderer: NSObject, RTCVideoRenderer {
       allocator: kCFAllocatorDefault, imageBuffer: pb, formatDescriptionOut: &fmt) == noErr,
       let fmt = fmt else { return nil }
 
-    let ts = CMTime(value: CMTimeValue(frame.timeStampNs), timescale: 1_000_000_000)
+    // PiP-DONMA FIX (test turu 8, kok neden): PTS frame.timeStampNs idi — WebRTC'nin RTP
+    // tabanli saati, AVSampleBufferDisplayLayer'in host-clock timebase'iyle ALAKASIZ ->
+    // layer ilk kareyi gosterip PTS'i "gelecekte/gecmiste" kalan kareleri BEKLETIYORDU
+    // (klasik "PiP ilk karede donuyor" belirtisi). Referans desen (videosdk/react-native-
+    // webrtc): host clock PTS + kCMSampleAttachmentKey_DisplayImmediately=true.
+    let ts = CMTimeMakeWithSeconds(CACurrentMediaTime(), preferredTimescale: 1_000_000_000)
     var timing = CMSampleTimingInfo(
       duration: .invalid, presentationTimeStamp: ts, decodeTimeStamp: .invalid)
     var sb: CMSampleBuffer?
     guard CMSampleBufferCreateReadyWithImageBuffer(
       allocator: kCFAllocatorDefault, imageBuffer: pb, formatDescription: fmt,
-      sampleTiming: &timing, sampleBufferOut: &sb) == noErr else { return nil }
-    return sb
+      sampleTiming: &timing, sampleBufferOut: &sb) == noErr, let buf = sb else { return nil }
+    if let atts = CMSampleBufferGetSampleAttachmentsArray(buf, createIfNecessary: true),
+       CFArrayGetCount(atts) > 0 {
+      let dict = unsafeBitCast(CFArrayGetValueAtIndex(atts, 0), to: CFMutableDictionary.self)
+      CFDictionarySetValue(dict,
+        Unmanaged.passUnretained(kCMSampleAttachmentKey_DisplayImmediately).toOpaque(),
+        Unmanaged.passUnretained(kCFBooleanTrue).toOpaque())
+    }
+    return buf
   }
 
   private func i420ToPixelBuffer(_ b: RTCI420Buffer) -> CVPixelBuffer? {

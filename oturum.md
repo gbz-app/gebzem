@@ -1532,3 +1532,40 @@ ios 29772381165 imza temiz; R2 apk=104946669 ipa=19081898; purge OK; boyut bireb
 **Kullanici gercek iPhone'da test edecek** (PiP runtime davranisi simulatorde test edilemez).
 V1 SINIR: yalniz 1:1 goruntulu, UZAK video (kendi kameramiz bg'de OS'ca durur — multitasking-camera
 entitlement YOK); grup PiP sonra.
+
+## Oturum (21 Tem 2026) — KULLANICI TEST TURU 8: iOS PiP donuyor + konuk-split 3. NUKS
+Kullanici: (1) iOS PiP CALISTI ama "gidiyor donuyor bazen olmuyor"; Android sorunsuz.
+(2) Konuk atilinca/kendisi cikinca split'in alt paneli "Görüntü bekleniyor"da TAKILI (3. kez).
+(3) indir sayfasinda saat gorunmuyor (aslinda var ama kucuk/soluk — belirginlestirilecek).
+
+### KOK NEDENLER (kod incelemesi ile kanitli)
+- **Konuk-split**: Atilan konugun KENDI ekraninda takiliyor. guest.joined TUM izleyicilere
+  gider -> konugun kendi cihazinda `_aktifKonuk = KENDI id'si` olur. Atilinca guest.left
+  ben-dalina girer (`_konuktanCik` -> `_konukum=false`) ama `_aktifKonuk` ORADA TEMIZLENMIYORDU
+  -> `konukVar=_konukum || _aktifKonuk.isNotEmpty` sonsuza true -> `_konukVideo` kendi id'sini
+  remoteParticipants'ta ARAR (asla bulunmaz) -> alt panel "Görüntü bekleniyor" SONSUZ.
+  Onceki 2 fix (sinyal-gate + ParticipantDisconnected) bu OWN-DEVICE deligini kapsamiyordu
+  (kendi participant'in disconnect olmaz; guest.left ben-dali _aktifKonuk'a dokunmuyordu).
+- **iOS PiP donma**: PipRenderer PTS'i `frame.timeStampNs` (WebRTC RTP saati) —
+  AVSampleBufferDisplayLayer'in host-clock timebase'iyle alakasiz -> layer ilk kareyi basip
+  sonrakileri BEKLETIYOR (klasik donma). Referans desenler (videosdk, react-native-webrtc
+  gist): host-clock PTS (CACurrentMediaTime) + kCMSampleAttachmentKey_DisplayImmediately=true
+  + isReadyForMoreMediaData kontrolu. UCU DE EKSIKTI.
+- **iOS PiP "gidiyor/bazen olmuyor"**: `_uzakVideoTrackId` !muted sartliydi — karsi taraf
+  kamerayi gecici kapatinca (arka plan kamera-mute yedegi) Dart PiP'i SOKUYORDU; arka planda
+  yeniden kur auto-enter'i TETIKLEMEZ -> pencere kayip. Ayrica gec katilan izleyici guest.joined
+  almadigi icin split'i HIC goremiyordu (Watch guest_id donmuyordu).
+
+### UYGULANAN FIX'LER (adim listesi)
+- [x] live_viewer_screen: guest.left ben-dalinda `_aktifKonuk` temizle + `_konuktanCik`te
+      kendi-id `_aktifKonuk` temizle + build'de KIMLIK KAPISI (`_aktifKonuk != benim` degilse
+      split cizilmez — sinyal sirasi ne olursa olsun takilma yapisal imkansiz)
+- [x] backend Watch: cevaba `guest_id` eklendi (Redis stream:{id}:guest) — go build OK
+- [x] live_tab + davet_provider: LiveViewerScreen'e `ilkKonukId` gecirildi (gec katilan split gorur)
+- [x] AppDelegate PipRenderer: host-clock PTS + DisplayImmediately attachment +
+      isReadyForMoreMediaData kontrolu (donma fix'i)
+- [x] active_call_controller `_uzakVideoTrackId`: muted DAHIL (gecici mute PiP'i sokmesin)
+- [x] flutter analyze temiz (4 eski info lint), go build temiz
+- [ ] Arka plan bug taramasi (ajan) sonuclari degerlendirilecek
+- [ ] indir index.html: saat BELIRGIN (buyuk/parlak) — yayin sirasinda guncellenecek
+- [ ] Temiz build (android+ios) -> R2 -> purge -> boyut dogrulama -> DB temizlik -> backend deploy

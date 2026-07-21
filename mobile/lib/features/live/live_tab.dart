@@ -90,6 +90,7 @@ class _LiveTabState extends ConsumerState<LiveTab> {
           durum: info['status'] as String? ?? 'live',
           ilkIzleyici: (info['viewer_count'] as num?)?.toInt() ?? 0,
           tip: info['type'] as String? ?? 'video',
+          ilkKonukId: info['guest_id'] as String? ?? '',
         ),
       ));
       ref.invalidate(liveStreamsProvider);

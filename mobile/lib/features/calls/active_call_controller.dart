@@ -208,10 +208,14 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   /// iOS PiP: uzak video track'inin webrtc id'si (1:1 — ilk uygun uzak video).
+  /// TEST TURU 8: muted DAHIL — karsi taraf kamerayi gecici kapatinca (arka plan kamera-mute
+  /// yedegi) PiP SOKULMESIN. Sokup arka planda yeniden kurmak ise yaramaz (auto-enter yalniz
+  /// on plandan gecliste tetiklenir) -> pencere "gidiyor, geri gelmiyor"du. Mute'ta pencere
+  /// son karede kalir, unmute'ta akis kendiliginden devam eder.
   String? _uzakVideoTrackId() {
     for (final p in _room?.remoteParticipants.values ?? const <RemoteParticipant>[]) {
       for (final pub in p.videoTrackPublications) {
-        if (pub.subscribed && !pub.muted && pub.track != null) {
+        if (pub.subscribed && pub.track != null) {
           return (pub.track as VideoTrack).mediaStreamTrack.id;
         }
       }
