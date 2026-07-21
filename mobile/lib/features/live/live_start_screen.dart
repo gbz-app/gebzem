@@ -26,6 +26,7 @@ class _LiveStartScreenState extends ConsumerState<LiveStartScreen> {
   final _baslik = TextEditingController();
   lk.LocalVideoTrack? _onizleme;
   bool _basliyor = false;
+  int? _geriSayim; // 3-2-1 geri sayim (test turu 9): null iken gizli
   String? _hata;
   // Muhafiz kimligi: onizleme fiziksel kamerayi tutar — bu ekrandayken gelen arama kabul
   // edilirse iki capture oturumu cakisir (dogrulama bulgusu). ekranAcildi ile aramalar
@@ -86,6 +87,23 @@ class _LiveStartScreenState extends ConsumerState<LiveStartScreen> {
       return;
     }
     setState(() => _basliyor = true);
+    // GERI SAYIM (test turu 9): yayin SUNUCUDA acilmadan ONCE ortada 3-2-1 say. Yayin REST'i
+    // (baslat) henuz cagirilmadigi icin izleyici erken katilamaz, hayalet 'live' riski yok;
+    // kamera onizlemesi zaten canli akiyor. Sunucu-tarafi degismez (yalniz gorsel gecikme).
+    for (var i = 3; i >= 1; i--) {
+      if (!mounted) return;
+      setState(() => _geriSayim = i);
+      await Future.delayed(const Duration(seconds: 1));
+    }
+    if (!mounted) return;
+    setState(() => _geriSayim = null);
+    // Geri sayim sirasinda arama gelip kabul edilmis olabilir -> yayina girme (muhafiz tekrari)
+    if (svc.baskaIsleMesgul(_muhafizId)) {
+      setState(() => _basliyor = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Aramadasınız — yayın başlatılmadı')));
+      return;
+    }
     String? acilanYayin;
     try {
       final info = await ref
@@ -164,12 +182,49 @@ class _LiveStartScreenState extends ConsumerState<LiveStartScreen> {
                               style: const TextStyle(color: Colors.white70, fontSize: 16)))
                       : const CircularProgressIndicator()),
         ),
+        // GERI SAYIM overlay (test turu 9): 3-2-1 pop animasyonlu (her sayida buyuyup solar)
+        if (_geriSayim != null)
+          Positioned.fill(
+            child: Container(
+              color: Colors.black.withValues(alpha: 0.55),
+              alignment: Alignment.center,
+              child: TweenAnimationBuilder<double>(
+                key: ValueKey(_geriSayim),
+                tween: Tween(begin: 0.4, end: 1.0),
+                duration: const Duration(milliseconds: 350),
+                curve: Curves.easeOutBack,
+                builder: (_, olcek, child) =>
+                    Transform.scale(scale: olcek, child: child),
+                child: Container(
+                  width: 150,
+                  height: 150,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: const LinearGradient(
+                        colors: [Color(0xFF8B3FFF), Color(0xFF5A1EBE)]),
+                    boxShadow: [
+                      BoxShadow(
+                          color: const Color(0xFF8B3FFF).withValues(alpha: 0.5),
+                          blurRadius: 40,
+                          spreadRadius: 4),
+                    ],
+                  ),
+                  child: Text('$_geriSayim',
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 92,
+                          fontWeight: FontWeight.w800)),
+                ),
+              ),
+            ),
+          ),
         SafeArea(
           child: Column(children: [
             Row(children: [
               IconButton(
                 icon: const Icon(LucideIcons.x, color: Colors.white),
-                // REST surerken cikis kapali (yarim kalan yayin olusmasin — dogrulama bulgusu)
+                // REST surerken/geri sayimda cikis kapali (yarim kalan yayin olusmasin)
                 onPressed: _basliyor ? null : () => Navigator.of(context).pop(),
               ),
               const Text('Canlı yayın',

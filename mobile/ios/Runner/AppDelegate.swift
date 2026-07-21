@@ -101,10 +101,15 @@ import flutter_callkit_incoming
     let pipCh = FlutterMethodChannel(
       name: "gebzem/pip",
       binaryMessenger: engineBridge.pluginRegistry.registrar(forPlugin: "gebzem.pip")!.messenger())
+    // TEST TURU 9: kanali GebzemPip'e ver -> PiP basladi/durdu/basarisiz delegate callback'leri
+    // Flutter'a geri bildirir (kamera-mute yedegi PiP durumuna gore ayarlanir).
+    if #available(iOS 15.0, *) { GebzemPip.shared.kanal = pipCh }
     pipCh.setMethodCallHandler { call, result in
       guard #available(iOS 15.0, *) else {
         // iOS<15: PiP yok
-        if call.method == "iosPipHazirMi" { result(false) } else { result(nil) }
+        if call.method == "iosPipHazirMi" { result(false) }
+        else if call.method == "iosCokluGorevKamera" { result(false) }
+        else { result(nil) }
         return
       }
       switch call.method {
@@ -116,6 +121,9 @@ import flutter_callkit_incoming
       case "iosPipBirak":
         GebzemPip.shared.birak()
         result(true)
+      case "iosCokluGorevKamera":
+        // TEST TURU 9: kamerayi PiP/arka planda CAPTURE'a devam ettir (karsi taraf beni gorur)
+        result(GebzemPip.shared.cokluGorevKameraAc())
       default:
         result(FlutterMethodNotImplemented)
       }
@@ -219,12 +227,34 @@ import flutter_callkit_incoming
 final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
   static let shared = GebzemPip()
 
+  // TEST TURU 9: Flutter'a PiP durum geri bildirimi (pipCh). AppDelegate set eder. STRONG:
+  // singleton kanali app boyu tutar (retain cycle YOK — kanal GebzemPip'i tutmaz).
+  var kanal: FlutterMethodChannel?
+
   private var pipController: AVPictureInPictureController?
   private var callVC: AVPictureInPictureVideoCallViewController?
   private var videoView: PipVideoView?
   private var renderer: PipRenderer?
   private weak var uzakTrack: RTCVideoTrack?
   private var kurulanId: String?
+
+  // TEST TURU 9: COKLU-GOREV KAMERA — kamerayi PiP/arka planda CAPTURE'a devam ettir
+  // (goruntulu aramada alta alinca KARSI TARAF beni gormeye devam eder). flutter_webrtc
+  // videoCapturer PUBLIC property (FlutterWebRTCPlugin.h) + RTCCameraVideoCapturer.captureSession
+  // WebRTC SDK'da public. Entitlement GEREKMEZ (iOS16+ property; iOS16-17 destek cihaza bagli).
+  // Desteksiz -> false -> Dart kamera-mute avatar yedegine duser. SES BIRIMINE DOKUNMAZ.
+  func cokluGorevKameraAc() -> Bool {
+    guard #available(iOS 16.0, *) else { return false }
+    guard let capturer = FlutterWebRTCPlugin.sharedSingleton()?.videoCapturer else { return false }
+    let session = capturer.captureSession
+    guard session.isMultitaskingCameraAccessSupported else { return false }
+    if session.isMultitaskingCameraAccessEnabled { return true } // zaten acik (idempotent)
+    session.beginConfiguration()
+    session.isMultitaskingCameraAccessEnabled = true
+    session.commitConfiguration()
+    NSLog("gebzem/pip coklu-gorev kamera ACIK (arka planda kamera surer)")
+    return true
+  }
 
   func kur(trackId: String) -> Bool {
     guard AVPictureInPictureController.isPictureInPictureSupported() else { return false }
@@ -283,9 +313,21 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
     return nil
   }
 
+  // TEST TURU 9: PiP GERCEKTEN basladi/durdu -> Flutter'a bildir (pipModunda). Boylece
+  // kamera-mute yedegi PiP durumuna gore ayarlanir (PiP'te kamera acik kalir).
+  func pictureInPictureControllerDidStartPictureInPicture(_ c: AVPictureInPictureController) {
+    NSLog("gebzem/pip iOS PiP basladi")
+    kanal?.invokeMethod("iosPipDurum", arguments: true)
+  }
+  func pictureInPictureControllerDidStopPictureInPicture(_ c: AVPictureInPictureController) {
+    NSLog("gebzem/pip iOS PiP durdu")
+    kanal?.invokeMethod("iosPipDurum", arguments: false)
+  }
   func pictureInPictureController(_ c: AVPictureInPictureController,
     failedToStartPictureInPictureWithError error: Error) {
     NSLog("gebzem/pip iOS baslatma hatasi: \(error.localizedDescription)")
+    // PiP baslatilamadi -> Dart kamerayi kapatir (arka planda donuk kare yerine avatar)
+    kanal?.invokeMethod("iosPipBasarisiz", arguments: nil)
   }
   func pictureInPictureController(_ c: AVPictureInPictureController,
     restoreUserInterfaceForPictureInPictureStopWithCompletionHandler h: @escaping (Bool) -> Void) {

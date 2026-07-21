@@ -71,6 +71,14 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     // iOS SISTEM PiP (test turu 7): cihaz destegini bir kez sor (iOS<15/desteksiz -> false ->
     // hicbir sey yapilmaz, kamera-mute avatar yedegi kalir).
     PipService.iosPipHazirMi().then((v) => _iosPipHazir = v);
+    // iOS PiP DURUM geri bildirimi (test turu 9): native GebzemPip delegate PiP basladi/durdu/
+    // basarisiz haber verir. Basladi/durdu -> pipModunda (kamera-mute yedegi PiP'te atlanir).
+    // Basarisiz (kullanici Ayarlar'dan PiP kapatmis olabilir) -> kamerayi kapat (donuk kare
+    // yerine avatar). Android'de zaten PipService.dinle var; iOS bu ayri kanaldan gelir.
+    PipService.iosDinle(onDurum: (aktif) {
+      pipModunda = aktif;
+      notifyListeners();
+    }, onBasarisiz: _iosPipBasarisiz);
   }
 
   final Ref _ref;
@@ -92,6 +100,11 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
   // (kendi giden kameramizi bg'de kapatir — PiP bize UZAK videoyu gosterir, ikisi bagimsiz).
   bool _iosPipHazir = false;
   String _iosPipKurulanId = ''; // native'e kurulan uzak track id (degisince yeniden kur)
+  // iOS COKLU-GOREV KAMERA (test turu 9): isMultitaskingCameraAccessEnabled acildiysa true.
+  // Acikken arka planda kamera CAPTURE'a devam eder -> PiP karsi tarafa CANLI gonderir
+  // (kullanici sikayeti: "alta alinca karsi taraf beni goremiyor"). iOS18+ entitlementsiz;
+  // desteksiz cihazda false kalir -> mevcut kamera-mute avatar yedegine duser.
+  bool _iosArkaPlanKamera = false;
 
   Room? _room;
   EventsListener<RoomEvent>? _listener;
@@ -207,35 +220,58 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     PipService.pipIzinli(istenen);
   }
 
-  /// iOS PiP: uzak video track'inin webrtc id'si (1:1 — ilk uygun uzak video).
+  /// iOS PiP: uzak video track'inin webrtc id'si.
   /// TEST TURU 8: muted DAHIL — karsi taraf kamerayi gecici kapatinca (arka plan kamera-mute
   /// yedegi) PiP SOKULMESIN. Sokup arka planda yeniden kurmak ise yaramaz (auto-enter yalniz
   /// on plandan gecliste tetiklenir) -> pencere "gidiyor, geri gelmiyor"du. Mute'ta pencere
   /// son karede kalir, unmute'ta akis kendiliginden devam eder.
+  /// TEST TURU 9 GRUP: grupta AKTIF KONUSANIN videosunu tercih et (baskin konusan PiP'te
+  /// gorunur; konusan degisince ActiveSpeakersChangedEvent -> notifyListeners -> PiP otomatik
+  /// takip eder). 1:1'de tek uzak katilimci — sira onemsiz.
   String? _uzakVideoTrackId() {
+    if (_isGroup) {
+      // activeSpeakers audioLevel'a gore azalan sirali (livekit 2.8.1) — first = baskin konusan.
+      for (final p in _room?.activeSpeakers ?? const <Participant>[]) {
+        if (p is! RemoteParticipant) continue; // yerel kamera PiP'e girmez
+        final t = _ilkVideoTrackId(p);
+        if (t != null) return t;
+      }
+    }
+    // 1:1 (ve grupta konusan videosuz): ilk uygun uzak video
     for (final p in _room?.remoteParticipants.values ?? const <RemoteParticipant>[]) {
-      for (final pub in p.videoTrackPublications) {
-        if (pub.subscribed && pub.track != null) {
-          return (pub.track as VideoTrack).mediaStreamTrack.id;
-        }
+      final t = _ilkVideoTrackId(p);
+      if (t != null) return t;
+    }
+    return null;
+  }
+
+  String? _ilkVideoTrackId(RemoteParticipant p) {
+    for (final pub in p.videoTrackPublications) {
+      if (pub.subscribed && pub.track != null) {
+        return (pub.track as VideoTrack).mediaStreamTrack.id;
       }
     }
     return null;
   }
 
-  /// iOS SISTEM PiP guncelle (test turu 7): 1:1 GORUNTULU + bagli + ekran acik + uzak video
+  /// iOS SISTEM PiP guncelle (test turu 7): GORUNTULU + bagli + ekran acik + uzak video
   /// varsa native PiP controller'i kur (auto-enter); degilse birak. Track degisince yeniden kur.
   /// Fire-and-forget; guard sayesinde cogu cagri no-op (yalniz trackId degisiminde native).
+  /// TEST TURU 9: `!_isGroup` kapisi KALDIRILDI — grupta da PiP (aktif konusanin videosu).
   Future<void> _iosPipGuncelle() async {
     if (!Platform.isIOS || !_iosPipHazir) return;
     final b = arama;
     final uygun = b != null &&
         b.video &&
-        !_isGroup &&
         _baglandi &&
         !_cevapsiz &&
         _error == null &&
         ekranGorunur;
+    // COKLU-GOREV KAMERA (test turu 9): yerel kamera acikken BIR KEZ ac -> arka planda kamera
+    // CAPTURE'a devam eder, karsi taraf beni gorur. baslat()'ta reset edilir; desteksizse false.
+    if (uygun && _camOn && !_iosArkaPlanKamera) {
+      _iosArkaPlanKamera = await PipService.iosCokluGorevKamera();
+    }
     final trackId = uygun ? _uzakVideoTrackId() : null;
     if (trackId != null) {
       if (trackId != _iosPipKurulanId) {
@@ -245,6 +281,18 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     } else if (_iosPipKurulanId.isNotEmpty) {
       _iosPipKurulanId = '';
       await PipService.iosPipBirak();
+    }
+  }
+
+  /// iOS PiP baslatilamadi (native delegate failedToStart): kullanici Ayarlar'dan PiP'i
+  /// kapatmis olabilir -> arka planda kamera CAPTURE'i OS'ca durur, karsi taraf DONUK KARE
+  /// gorur. Kamerayi kapat -> avatar yedegi (donuk kareden iyi). Donuste resume geri acar.
+  void _iosPipBasarisiz() {
+    if (Platform.isIOS && arama != null && _baglandi && !_ayrildi && _camOn && !pipModunda) {
+      _kameraOtoKapandi = true;
+      _camOn = false;
+      _room?.localParticipant?.setCameraEnabled(false);
+      notifyListeners();
     }
   }
 
@@ -294,6 +342,7 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     pipModunda = false; // FAZ-6 (yargic): eski aramadan bayrak sarkmasin
     _kameraOtoKapandi = false;
     _iosPipKurulanId = ''; // iOS PiP (test turu 7): eski aramadan kurulum sarkmasin
+    _iosArkaPlanKamera = false; // iOS coklu-gorev kamera (test turu 9): eski aramadan sarkmasin
     _isGroup = b.isGroup;
     _connecting = true;
     _kapandi = false;
@@ -465,8 +514,12 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     // inince (PiP'te DEGILKEN) kamerayi biz kapatiriz -> karsi taraf DONUK KARE degil
     // "kamera kapali" avatar gorur. Android arka planda kamerayi zaten fiziksel keser;
     // mute sinyali karsi tarafa durumu DURUSTCE anlatir. Donuste geri acilir.
+    // TEST TURU 9: iOS coklu-gorev kamera ACIKSA arka planda kamerayi KAPATMA — kamera CAPTURE'a
+    // devam eder, PiP karsi tarafa CANLI gonderir ("alta alinca karsi beni goremiyor" fix'i).
+    // PiP baslatilamazsa native pipBasarisiz -> _iosPipBasarisiz zaten kamerayi kapatir.
+    final iosKameraCanli = Platform.isIOS && _iosArkaPlanKamera;
     if ((state == AppLifecycleState.paused || state == AppLifecycleState.hidden) &&
-        arama != null && _baglandi && !_ayrildi && !pipModunda && _camOn) {
+        arama != null && _baglandi && !_ayrildi && !pipModunda && !iosKameraCanli && _camOn) {
       _kameraOtoKapandi = true;
       _camOn = false;
       _room?.localParticipant?.setCameraEnabled(false);

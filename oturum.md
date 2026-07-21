@@ -1588,3 +1588,40 @@ Kullanici: (1) iOS PiP CALISTI ama "gidiyor donuyor bazen olmuyor"; Android soru
       konuk atilinca/ayrilinca alt panel ANINDA kalkmali ("Görüntü bekleniyor" TAKILMAMALI);
       konugun KENDI ekraninda da split kalkmali. 3) Gec katilan izleyici konugu GORMELI.
       4) Olu agda cikis/bitir ANINDA kapanmali (10-20sn donma yok).
+
+## KULLANICI TEST TURU 9 (22 Tem 2026): 3 EKSIK + geri sayim istegi — ARASTIRMA + FIX
+Kullanici: "cogu sey mukemmel" TEYIT (iOS PiP GELIYOR, konuk-split COZULDU, cikis donma yok).
+KALAN EKSIKLER:
+1) **iOS PiP'te KENDI KAMERAM KARSIYA GITMIYOR:** goruntulu aramada alta alinca PiP geliyor
+   AMA karsi taraf beni goremiyor (kameram duruyor). KOK: (a) iOS'ta multitasking-camera-access
+   entitlement YOK -> OS arka planda kamera capture'i durdurur; (b) _kameraOtoKapandi yedegi
+   pipModunda=false (iOS sistem PiP Flutter'a durum bildirmiyor) oldugu icin kamerayi BIZ de
+   mute ediyoruz. COZUM: entitlement (iOS16+) + iOS PiP delegate pipDidStart/Stop -> Flutter
+   pipModunda -> kamera-mute yedegi PiP'te ATLANIR + kamera publish'i surer. (arastiriliyor)
+2) **GRUP ARAMADA iOS PiP YOK:** 1:1'de var, grupta yok. KOK: _iosPipGuncelle'de `!_isGroup`
+   kapisi var (kasitli 1:1 sinir). Grupta hangi uzak videoyu PiP'e koyacagiz (ilk/aktif konusan)?
+   (arastiriliyor)
+3) **CANLI YAYIN GERI SAYIMI:** yayin baslarken ortada 1-2-3 sayilsin (yeni ozellik).
+YAKLASIM: derin arastirma (entitlement fizibilite + grup PiP track secimi) -> fix -> temiz build.
+- [x] ARASTIRMA TAMAM — iOS PiP'te kamerayi canli tutma (FIZIBILITE + RISK):
+      * API: `AVCaptureSession.isMultitaskingCameraAccessEnabled = true` (once
+        `isMultitaskingCameraAccessSupported` kontrol) — kamera PiP/arka planda CAPTURE'a devam eder.
+      * ENTITLEMENT: iOS 18+ ENTITLEMENT GEREKMEZ (yalniz property). iOS16-17'de
+        `com.apple.developer.avfoundation.multitasking-camera-access` (KISITLI entitlement,
+        provizyon profili degisir -> IMZA RISKI) gerekir. KARAR: property-yolu, entitlement YOK
+        -> IMZA RISKI YOK (provizyon degismez). iOS18+ iPhone'da calisir; iOS16-17'de supported=false
+        -> mevcut kamera-kapali avatar yedegine DUSER (zararsiz). Kullanici iPhone XS Max (iOS18 cikar).
+      * flutter_webrtc ERISIMI: `FlutterWebRTCPlugin.h:59` videoCapturer PUBLIC property +
+        RTCCameraVideoCapturer.captureSession WebRTC SDK'da public -> AppDelegate'ten erisilebilir
+        (Jitsi bunu YAPAMADI cunku capture session'a erisemiyordu; bizde sharedSingleton().videoCapturer VAR).
+      * KAMERA-MUTE YARISI: iOS sistem PiP Flutter'a durum bildirmiyordu -> _kameraOtoKapandi yedegi
+        (pipModunda=false) kamerayi mute ediyordu. FIX: (a) multitasking kamera AC (capture surer);
+        (b) PiP delegate pipDidStart/Stop/Fail -> Flutter'a bildir; (c) arka planda coklu-gorev-kamera
+        acikken kamerayi MUTE ETME; PiP baslatilamazsa (failedToStart) -> mute (avatar yedegi).
+      Kaynaklar: Apple AVCaptureSession docs, flutter-webrtc #1193, shogo4405 (iOS18 entitlementsiz),
+      Apple forum 718131 (iPhone destegi iOS surumune bagli).
+- [ ] Arastirma: grup PiP track secimi + _isGroup kapisi kaldirma etkisi (ajan aa63 kosuyor)
+- [ ] Fix 1: iOS kamera canli (entitlement + PiP durum geri bildirim + camera-mute kosullu)
+- [ ] Fix 2: grup iOS PiP
+- [ ] Fix 3: yayin 1-2-3 geri sayim
+- [ ] Temiz build -> R2 -> purge -> dogrulama -> DB temizlik
