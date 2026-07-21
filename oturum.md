@@ -1566,6 +1566,17 @@ Kullanici: (1) iOS PiP CALISTI ama "gidiyor donuyor bazen olmuyor"; Android soru
       isReadyForMoreMediaData kontrolu (donma fix'i)
 - [x] active_call_controller `_uzakVideoTrackId`: muted DAHIL (gecici mute PiP'i sokmesin)
 - [x] flutter analyze temiz (4 eski info lint), go build temiz
-- [ ] Arka plan bug taramasi (ajan) sonuclari degerlendirilecek
-- [ ] indir index.html: saat BELIRGIN (buyuk/parlak) — yayin sirasinda guncellenecek
-- [ ] Temiz build (android+ios) -> R2 -> purge -> boyut dogrulama -> DB temizlik -> backend deploy
+- [x] Arka plan bug taramasi (ajan) DEGERLENDIRILDI — 10 bulgu + 4 supheli. Uygulanan kritik fixler:
+      - #3 IZLEYICI+YAYINCI CIKIS DONMASI: _cik REST'i (ayril/bitir) unawaited (ref pop ONCESI
+        yakalanir; olu agda 10-20sn Dio timeout donmasi -> ekran ANINDA kapanir; idempotent+sweeper yedek)
+      - #1 BAGLANMA-PENCERESI YARIGI: izleyici baglanir baglanmaz _nabizAt() -> ilkKonukId (watch)
+        baglanma penceresinde ayrildiysa 15sn beklemeden temizlenir
+      - #7 _konukOl RE-ENTRANCY: _konukOluyor kilidi (cift guest.accepted = cift izin/kamera yarisi)
+      - #8 konukAyril catchError (unhandled async + slot kilidi)
+      - #4 yayinci mic toggle mounted guard (viewer'la tutarli; await sirasinda dispose crash'i)
+      - Nabiz mutabakat agi (onceki commit) zaten #2'nin cogunu kapatiyor (izleyici _aktifKonuk +
+        yayinci _konukId 15sn'de sunucuyla esitlenir). ATLANAN (dusuk/tasarim): #5 hayalet rozet,
+        #6 kick "yayin bitti" mesaji, #9 watch-sonrasi hayalet izleyici, #10 ~2dk yayin-restart penceresi.
+- [x] android 29866251897 + ios 29866254208 TETIKLENDI (koşuyor, monitor blnhlj9dc izliyor)
+- [ ] indir index.html: saat BELIRGIN (buyuk mor kutu) — sablon hazir (scratchpad/indeks-sablon.html)
+- [ ] Artifact indir + debug-imza kontrolu -> R2 -> purge -> boyut dogrulama -> DB temizlik -> backend deploy
