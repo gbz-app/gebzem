@@ -105,6 +105,7 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
   // (kullanici sikayeti: "alta alinca karsi taraf beni goremiyor"). iOS18+ entitlementsiz;
   // desteksiz cihazda false kalir -> mevcut kamera-mute avatar yedegine duser.
   bool _iosArkaPlanKamera = false;
+  bool _iosCokluGorevDeniyor = false; // cift native cagriyi engelle (test turu 10)
 
   Room? _room;
   EventsListener<RoomEvent>? _listener;
@@ -204,6 +205,33 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     return false;
   }
 
+  /// UYGULAMA-ICI YUZEN VIDEO (test turu 10): minimize edilmis aramada bantta gosterilecek
+  /// UZAK video (grup: aktif konusan; 1:1: karsi taraf). !muted -> karsi kamera kapaliysa
+  /// null (bant avatar gosterir). Yerel kamerayi GOSTERMEZ (karsiyi gormek istersin).
+  VideoTrack? get bantVideo {
+    if (_isGroup) {
+      for (final p in _room?.activeSpeakers ?? const <Participant>[]) {
+        if (p is! RemoteParticipant) continue;
+        final t = _bantIlkVideo(p);
+        if (t != null) return t;
+      }
+    }
+    for (final p in _room?.remoteParticipants.values ?? const <RemoteParticipant>[]) {
+      final t = _bantIlkVideo(p);
+      if (t != null) return t;
+    }
+    return null;
+  }
+
+  VideoTrack? _bantIlkVideo(RemoteParticipant p) {
+    for (final pub in p.videoTrackPublications) {
+      if (pub.subscribed && !pub.muted && pub.track != null) {
+        return pub.track as VideoTrack;
+      }
+    }
+    return null;
+  }
+
   /// PiP'e girilmesi istenen durum: Android + bagli/saglikli arama + EKRAN ACIK
   /// (minimize'da bant var, PiP ana sayfayi minik gosterirdi) + gorunecek video var.
   bool get _pipIstenir =>
@@ -267,11 +295,8 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
         !_cevapsiz &&
         _error == null &&
         ekranGorunur;
-    // COKLU-GOREV KAMERA (test turu 9): yerel kamera acikken BIR KEZ ac -> arka planda kamera
-    // CAPTURE'a devam eder, karsi taraf beni gorur. baslat()'ta reset edilir; desteksizse false.
-    if (uygun && _camOn && !_iosArkaPlanKamera) {
-      _iosArkaPlanKamera = await PipService.iosCokluGorevKamera();
-    }
+    // PiP KURULUMU ONCE (test turu 10 regresyon fix): auto-enter'in "possible" olabilmesi icin
+    // controller ILK gelen kareyle kurulmali; asagidaki agir capture-reconfig'i beklemesin.
     final trackId = uygun ? _uzakVideoTrackId() : null;
     if (trackId != null) {
       if (trackId != _iosPipKurulanId) {
@@ -281,6 +306,17 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     } else if (_iosPipKurulanId.isNotEmpty) {
       _iosPipKurulanId = '';
       await PipService.iosPipBirak();
+    }
+    // COKLU-GOREV KAMERA (test turu 9->10): PiP kurulumundan SONRA + BLOKLAMAYAN (fire-and-forget).
+    // Eskiden iosPipKur'dan ONCE await ediliyordu -> agir beginConfiguration/commitConfiguration
+    // PiP kurulumunu geciktirip auto-enter'i kaciriyordu (test turu 9 regresyonu). Artik kurulumu
+    // bloklamaz; yerel kamera acikken BIR KEZ dener (native idempotent; desteksizse false).
+    if (uygun && _camOn && !_iosArkaPlanKamera && !_iosCokluGorevDeniyor) {
+      _iosCokluGorevDeniyor = true;
+      PipService.iosCokluGorevKamera().then((ok) {
+        _iosArkaPlanKamera = ok;
+        _iosCokluGorevDeniyor = false;
+      });
     }
   }
 
@@ -343,6 +379,7 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     _kameraOtoKapandi = false;
     _iosPipKurulanId = ''; // iOS PiP (test turu 7): eski aramadan kurulum sarkmasin
     _iosArkaPlanKamera = false; // iOS coklu-gorev kamera (test turu 9): eski aramadan sarkmasin
+    _iosCokluGorevDeniyor = false;
     _isGroup = b.isGroup;
     _connecting = true;
     _kapandi = false;

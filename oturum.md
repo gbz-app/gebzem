@@ -1645,3 +1645,48 @@ YAKLASIM: derin arastirma (entitlement fizibilite + grup PiP track secimi) -> fi
 - **YAPMA (test turu 9 dersleri):** cokluGorevKamera icin ENTITLEMENT ekleme (imza patlar; property yeter).
       kanal'i weak yapma (dealloc -> geri bildirim gitmez). _uzakVideoTrackId'e muted serti geri koyma.
       Grup PiP'te yerel kamerayi PiP'e sokma (yalniz uzak). Geri sayimi REST SONRASINA koyma (hayalet live).
+
+## KULLANICI TEST TURU 10 (22 Tem 2026): iOS PiP GUVENILMEZ + istekler — DERIN ARASTIRMA
+Kullanici gercek iPhone test etti. REGRESYON + istekler:
+1) **iOS 1:1 PiP HIC GELMIYOR** (test turu 8'de GELIYORDU -> test turu 9 REGRESYONU). Sarj azken
+   de gelmedi (SUPHE: iOS Dusuk Guc Modu auto-PiP'i kapatir — bilinen kisit). Ama normal aramada
+   da gelmiyor -> test turu 9 degisikligi bozdu (suphe: cokluGorevKamera beginConfiguration capture
+   session'i sarsti VEYA _iosPipBasarisiz erken tetiklenip kamera kapatiyor VEYA delegate degisikligi).
+2) **KARSI TARAF alta alinca GORUNTUSU KAYBOLUYOR** — her iki taraf alta inince de goruntu karsida
+   KALMALI (multitasking kamera guvenilir calismali; PiP gercekten baslamali ki kamera sursun).
+3) **PiP penceresinde KONTROL/AYAR butonlari** (WhatsApp/Android gibi) — Android PiP RemoteActions.
+4) **UYGULAMA-ICI YUZEN VIDEO:** goruntulu aramada uygulama icinde gezinirken (arka plana ALMADAN)
+   altta kucuk VIDEO oluşsun, patlamasin (ne bende ne karsida). Su an minimize BANNER var (video yok).
+5) Hepsi GORUNTULU ARAMA + GRUP ARAMA + CANLI YAYIN'da STABIL.
+6) Temiz stabil build.
+HEDEF: WhatsApp paritesi — alta inince/gezinirken goruntu karsida kalir + PiP guvenilir + kontroller + crash yok.
+- [x] ARASTIRMA iOS PiP guvenilirlik — SONUC: iOS sistem PiP auto-start DOGASI GEREGI KIRILGAN:
+      (1) Ayarlar > Genel > Resim icinde Resim > "PiP'i Otomatik Baslat" ACIK olmali (kullanici
+      kontrolu — BIZDE DEGIL). (2) Dusuk Guc Modu -> background app refresh kapali -> auto-PiP
+      genelde tetiklenmez (kullanici "sarjim azdi yine gelmedi" -> BUYUK IHTIMAL bu). (3)
+      isPictureInPicturePossible=true olmali (AVSampleBufferDisplayLayer AKTIF render etmeli).
+      (4) cihaz destegi. multitasking-camera-access ENTITLEMENT: Fora Soft -> Apple aylarca
+      bekletip REDDEDEBILIR (olu yol; property-yolu iOS18+ best-effort). SONUC: sistem PiP
+      GUVENILIR YAPILAMAZ (kullanici ayari + guc modu bizde degil).
+      -> KARAR: ASIL COZUM UYGULAMA-ICI YUZEN VIDEO (Flutter overlay, %100 kontrol, iOS+Android
+      ayni, buton konabilir, crash yok). Sistem PiP best-effort kalir (gercek arka planda kamera-
+      canli icin gerekli ama garanti degil). Test turu 9 regresyon suphesi: cokluGorevKamera
+      session-reconfig + _iosPipBasarisiz mute + Dusuk Guc Modu birlesimi (kesin degil).
+- [x] KOD HARITASI TAMAM: minimize=SADECE metin banti (video YOK, bilincli karar BAN:10-11);
+      MaterialApp.builder IncomingCallOverlay>AktifAramaBanner>child; iOS PiP isPictureInPicturePossible
+      KVO YOK (tek-atis); cokluGorevKamera iosPipKur'dan ONCE await -> PiP kurulumunu GECIKTIRIYOR
+      (regresyon kok neden adayi); Android PiP RemoteAction YOK.
+- [x] FIX 1 UYGULAMA-ICI YUZEN VIDEO (asil cozum): AktifAramaBanner ConsumerStatefulWidget ->
+      GORUNTULU aramada SURUKLENEBILIR mini video penceresi (116x168, karsi tarafin videosu /
+      grupta aktif konusan / avatar yedegi); dokun->don, mic toggle + kapat butonlari; ust serit
+      isim+CANLI sure. SESLI arama eski yesil bant. controller.bantVideo getter (uzak, !muted,
+      grup=activeSpeakers). %100 Flutter kontrolu -> iOS Dusuk Guc Modu/ayar BAGIMSIZ; crash yok
+      (arama==null->render durur, track guard'li).
+- [x] FIX 2 iOS PiP REGRESYON: _iosPipGuncelle'de cokluGorevKamera artik iosPipKur'dan SONRA +
+      BLOKLAMAYAN (fire-and-forget, _iosCokluGorevDeniyor guard). Agir beginConfiguration/commit
+      PiP kurulumunu geciktirip auto-enter'i kaciriyordu -> duzeldi.
+- [x] flutter analyze temiz (4 eski info lint).
+- [ ] Temiz build -> R2 -> purge -> dogrulama -> DB temizlik.
+- **DURUST SINIR (kullaniciya soylenecek):** iOS'ta GERCEK arka planda (ana ekran) sistem PiP,
+      telefon Ayari ("PiP'i Otomatik Baslat") + Dusuk Guc Modu'na bagli -> GARANTI DEGIL. Uygulama-ici
+      gezinmede yuzen video GARANTI calisir. Canli yayin minimize AYRI faz (bu turda arama 1:1+grup).
