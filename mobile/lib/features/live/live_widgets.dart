@@ -178,9 +178,9 @@ class HediyePatlamasi extends StatelessWidget {
   }
 }
 
-/// FAZ-5 KONUK SPLIT (kullanici istegi: "grup gorusmesi gibi"): tek video paneli.
-/// Renderer IgnorePointer ICINDE (CameraUtils NPE kurali); etiket/ustKatman Stack'te
-/// renderer'in USTUNDE, IgnorePointer'in DISINDA (butonlar calisir).
+/// KONUK/YAYINCI TILE (test turu 11 COKLU-KONUK): tek video VEYA avatar (sesli konuk /
+/// kamera kapali). SEAMLESS — beyaz/cerceve border YOK (kullanici istegi). Renderer
+/// IgnorePointer ICINDE (CameraUtils NPE kurali); etiket/ustKatman renderer USTUNDE.
 class SplitVideoPaneli extends StatelessWidget {
   const SplitVideoPaneli({
     super.key,
@@ -189,6 +189,7 @@ class SplitVideoPaneli extends StatelessWidget {
     this.etiket = '',
     this.ustKatman,
     this.bosMetin = 'Görüntü bekleniyor...',
+    this.avatarHarf = '', // dolu ise track yokken avatar goster (sesli konuk)
   });
 
   final lk.VideoTrack? track;
@@ -196,50 +197,77 @@ class SplitVideoPaneli extends StatelessWidget {
   final String etiket;
   final Widget? ustKatman; // Positioned bekler (pill / x butonu)
   final String bosMetin;
+  final String avatarHarf;
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
-      child: Stack(fit: StackFit.expand, children: [
-        if (track != null)
-          IgnorePointer(
-            child: lk.VideoTrackRenderer(track!,
-                key: ValueKey('split-${track!.mediaStreamTrack.id}'),
-                fit: lk.VideoViewFit.cover,
-                mirrorMode: mirrorMode),
-          )
-        else
-          Container(
-            color: const Color(0xFF16202A),
-            alignment: Alignment.center,
-            child: Text(bosMetin, style: const TextStyle(color: Colors.white54)),
-          ),
-        if (etiket.isNotEmpty)
-          Positioned(
-            left: 8,
-            bottom: 6,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                  color: Colors.black45, borderRadius: BorderRadius.circular(8)),
-              child: Text(etiket,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Colors.white, fontSize: 12)),
+    return Stack(fit: StackFit.expand, children: [
+      if (track != null)
+        IgnorePointer(
+          child: lk.VideoTrackRenderer(track!,
+              key: ValueKey('split-${track!.mediaStreamTrack.id}'),
+              fit: lk.VideoViewFit.cover,
+              mirrorMode: mirrorMode),
+        )
+      else if (avatarHarf.isNotEmpty)
+        Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Color(0xFF1A0B2E), Color(0xFF16202A)],
             ),
           ),
-        if (ustKatman != null) ustKatman!,
-      ]),
-    );
+          alignment: Alignment.center,
+          child: CircleAvatar(
+            radius: 30,
+            backgroundColor: const Color(0xFF6C2BD9),
+            child: Text(avatarHarf.toUpperCase(),
+                style: const TextStyle(color: Colors.white, fontSize: 26)),
+          ),
+        )
+      else
+        Container(
+          color: const Color(0xFF16202A),
+          alignment: Alignment.center,
+          child: Text(bosMetin, style: const TextStyle(color: Colors.white54)),
+        ),
+      if (etiket.isNotEmpty)
+        Positioned(
+          left: 8,
+          bottom: 6,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+                color: Colors.black45, borderRadius: BorderRadius.circular(8)),
+            child: Text(etiket,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: Colors.white, fontSize: 12)),
+          ),
+        ),
+      if (ustKatman != null) ustKatman!,
+    ]);
   }
 }
 
-/// Dikey split alani: ust + alt iki ESIT panel (TikTok konuk duzeni), 4px bosluk.
-Widget yayinSplitAlani({required Widget ust, required Widget alt}) {
+/// COKLU-KONUK IZGARA (test turu 11): N tile ekrani DOLDURUR. 2 kisi -> YAN YANA (sol-sag,
+/// kullanici istegi "ust alt degil sol sag"); 3-4 -> 2 sutun grid; 5-6 -> son satir tam
+/// genislik. Beyaz/cerceve border YOK (seamless). n==1 -> tek tile tam ekran.
+Widget yayinIzgara(List<Widget> tiles) {
+  final n = tiles.length;
+  if (n == 0) return const SizedBox.shrink();
+  if (n == 1) return tiles.first;
+  final cols = n == 2 ? 2 : (n <= 6 ? 2 : 3);
+  final rows = (n + cols - 1) ~/ cols;
   return Column(children: [
-    Expanded(child: ust),
-    const SizedBox(height: 4),
-    Expanded(child: alt),
+    for (var r = 0; r < rows; r++)
+      Expanded(
+        child: Row(children: [
+          // Son satirda daha az tile varsa mevcutlar tam genisligi paylasir (bosluk yok)
+          for (var i = r * cols; i < min(r * cols + cols, n); i++)
+            Expanded(child: tiles[i]),
+        ]),
+      ),
   ]);
 }

@@ -182,39 +182,31 @@ class _LiveStartScreenState extends ConsumerState<LiveStartScreen> {
                               style: const TextStyle(color: Colors.white70, fontSize: 16)))
                       : const CircularProgressIndicator()),
         ),
-        // GERI SAYIM overlay (test turu 9): 3-2-1 pop animasyonlu (her sayida buyuyup solar)
+        // GERI SAYIM overlay (test turu 11: TAM ORTADA, DAIRE/BORDER YOK — temiz buyuk rakam).
+        // Positioned.fill + Center -> ekranin tam ortasi. Daire kaldirildi (kullanici: "beyaz
+        // border vs olamayacak"); yalniz mor parilti golgesi + pop animasyonu.
         if (_geriSayim != null)
           Positioned.fill(
             child: Container(
-              color: Colors.black.withValues(alpha: 0.55),
-              alignment: Alignment.center,
-              child: TweenAnimationBuilder<double>(
-                key: ValueKey(_geriSayim),
-                tween: Tween(begin: 0.4, end: 1.0),
-                duration: const Duration(milliseconds: 350),
-                curve: Curves.easeOutBack,
-                builder: (_, olcek, child) =>
-                    Transform.scale(scale: olcek, child: child),
-                child: Container(
-                  width: 150,
-                  height: 150,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: const LinearGradient(
-                        colors: [Color(0xFF8B3FFF), Color(0xFF5A1EBE)]),
-                    boxShadow: [
-                      BoxShadow(
-                          color: const Color(0xFF8B3FFF).withValues(alpha: 0.5),
-                          blurRadius: 40,
-                          spreadRadius: 4),
-                    ],
-                  ),
+              color: Colors.black.withValues(alpha: 0.5),
+              child: Center(
+                child: TweenAnimationBuilder<double>(
+                  key: ValueKey(_geriSayim),
+                  tween: Tween(begin: 0.5, end: 1.0),
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeOut,
+                  builder: (_, olcek, child) => Transform.scale(
+                      scale: olcek,
+                      child: Opacity(opacity: olcek.clamp(0.0, 1.0), child: child)),
                   child: Text('$_geriSayim',
+                      textAlign: TextAlign.center,
                       style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 92,
-                          fontWeight: FontWeight.w800)),
+                          fontSize: 140,
+                          fontWeight: FontWeight.w900,
+                          shadows: [
+                            Shadow(color: Color(0xFF8B3FFF), blurRadius: 32),
+                          ])),
                 ),
               ),
             ),

@@ -14,10 +14,14 @@ import (
 	"github.com/gbz-app/gebzem/backend/internal/auth"
 )
 
-// KONUK SISTEMI (Bolum 6 B3): izleyici "katil istegi" -> yayinci kabul -> izleyici KONUK olur
-// (kamera+mic canli, hidden kalkar). Rol kaynagi REDIS: stream:{id}:guest STRING (SET NX =
-// ayni anda TEK konuk atomik) + stream:{id}:guest_reqs ZSET (istek listesi). Konuk viewers
-// ZSET'inde KALIR (nabiz/chat/hediye degismez).
+// KONUK SISTEMI (Bolum 6 B3, test turu 11 COKLU-KONUK): izleyici "katil istegi" -> yayinci
+// kabul -> izleyici KONUK olur (kamera+mic canli, hidden kalkar). Rol kaynagi REDIS:
+// stream:{id}:guests SET (uye = konuk uid'leri; en fazla maxKonuk atomik Lua) +
+// stream:{id}:guest_reqs ZSET (istek listesi). Konuk viewers ZSET'inde KALIR (nabiz/chat/hediye
+// degismez). Konuk kamerasiz da katilabilir (sesli konuk — izgarada avatar tile).
+
+// AYNI ANDA en fazla konuk (cx33 SFU yuku: yayinci + konuklar video publish eder). >bu -> "dolu".
+const maxKonuk = 4
 
 func (h *Handler) dataTo(ctx context.Context, streamID string, v map[string]any, hedefler []string) {
 	b, _ := json.Marshal(v)
@@ -26,11 +30,18 @@ func (h *Handler) dataTo(ctx context.Context, streamID string, v map[string]any,
 	}
 }
 
-// TARAMA #14: compare-and-delete — anahtar HALA beklenen uid'yse sil (atomik Lua).
-// Kosulsuz DEL, gecikmis rollback'in ARADA kabul edilen YENI konugun anahtarini
-// silmesine yol aciyordu (hayalet konuk: publish var, Redis kaydi yok).
-var cadScript = redis.NewScript(
-	`if redis.call("GET", KEYS[1]) == ARGV[1] then return redis.call("DEL", KEYS[1]) end return 0`)
+// TEST TURU 11 COKLU-KONUK: atomik kapasite-kontrollu SET ekleme. Zaten uyeyse idempotent 1;
+// SCARD < max ise ekle + TTL(12h), 1; doluysa 0. Lua atomik -> "SCARD sonra SADD" yarisi
+// (iki es zamanli accept kapasiteyi asamaz). Uye-bazli SREM ile silme yaris-guvenli (STRING
+// compare-and-delete'e gerek yok; her uid kendi uyeligini yonetir).
+var guestAddScript = redis.NewScript(`
+if redis.call("SISMEMBER", KEYS[1], ARGV[1]) == 1 then return 1 end
+if redis.call("SCARD", KEYS[1]) < tonumber(ARGV[2]) then
+  redis.call("SADD", KEYS[1], ARGV[1])
+  redis.call("EXPIRE", KEYS[1], 43200)
+  return 1
+end
+return 0`)
 
 // lkYokS — twirp "katilimci/oda yok" (bagli-degil; rooms'taki lkYok kopyasi — paket private)
 func lkYokS(err error) bool {
@@ -100,11 +111,12 @@ func (h *Handler) JoinRequests(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ids, _ := h.rdb.ZRange(r.Context(), "stream:"+streamID+":guest_reqs", 0, 49).Result()
-	writeJSON(w, http.StatusOK, h.kullaniciListesi(r.Context(), ids, ""))
+	writeJSON(w, http.StatusOK, h.kullaniciListesi(r.Context(), ids, nil)) // istek listesinde is_guest yok
 }
 
-// kullaniciListesi — id sirasi korunarak ad/avatar doldur (viewers/istek listeleri ortak)
-func (h *Handler) kullaniciListesi(ctx context.Context, ids []string, guestID string) []map[string]any {
+// kullaniciListesi — id sirasi korunarak ad/avatar doldur (viewers/istek listeleri ortak).
+// TEST TURU 11: is_guest artik SET uyeligi (guestSet[id]) — coklu konuk isaretlenir.
+func (h *Handler) kullaniciListesi(ctx context.Context, ids []string, guestSet map[string]bool) []map[string]any {
 	out := []map[string]any{}
 	if len(ids) == 0 {
 		return out
@@ -125,7 +137,7 @@ func (h *Handler) kullaniciListesi(ctx context.Context, ids []string, guestID st
 	for _, id := range ids {
 		if v, ok := m[id]; ok {
 			out = append(out, map[string]any{
-				"user_id": id, "name": v[0], "avatar": v[1], "is_guest": id == guestID,
+				"user_id": id, "name": v[0], "avatar": v[1], "is_guest": guestSet[id],
 			})
 		}
 	}
@@ -159,16 +171,16 @@ func (h *Handler) GuestAccept(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusConflict, "bu kullanici yayindan cikarilmis")
 		return
 	}
-	// TEK konuk: SET NX atomik kapi
-	ok, _ := h.rdb.SetNX(r.Context(), "stream:"+streamID+":guest", req.UserID, 12*time.Hour).Result()
-	if !ok {
-		writeErr(w, http.StatusConflict, "zaten bir konuk var — once onu cikarin")
+	// COKLU KONUK: atomik kapasite-kontrollu ekleme (en fazla maxKonuk)
+	eklendi, _ := guestAddScript.Run(r.Context(), h.rdb,
+		[]string{"stream:" + streamID + ":guests"}, req.UserID, maxKonuk).Int()
+	if eklendi == 0 {
+		writeErr(w, http.StatusConflict, "konuk kapasitesi dolu — once birini cikarin")
 		return
 	}
 	if err := h.lk.SetStreamGuest(r.Context(), "stream_"+streamID, req.UserID, true); err != nil {
-		// GERI AL — yalniz anahtar HALA bize aitse (TARAMA #14: kosulsuz Del arada
-		// kabul edilen yeni konugun anahtarini siliyordu)
-		cadScript.Run(r.Context(), h.rdb, []string{"stream:" + streamID + ":guest"}, req.UserID)
+		// GERI AL — yalniz bu uyeyi cikar (uye-bazli SREM; yarista dogru sahibi korur)
+		h.rdb.SRem(r.Context(), "stream:"+streamID+":guests", req.UserID)
 		if lkYokS(err) {
 			writeErr(w, http.StatusConflict, "izleyici su an bagli degil")
 		} else {
@@ -213,7 +225,9 @@ func (h *Handler) konukDusur(ctx context.Context, streamID, uid, neden string) {
 	if uid == "" {
 		return
 	}
-	n, err := cadScript.Run(ctx, h.rdb, []string{"stream:" + streamID + ":guest"}, uid).Int()
+	// Uye-bazli SREM (test turu 11): yalniz bu uid'yi cikar; degilse zaten dusmus (idempotent,
+	// yaris-guvenli — baska konugu etkilemez).
+	n, err := h.rdb.SRem(ctx, "stream:"+streamID+":guests", uid).Result()
 	if err != nil || n == 0 {
 		return
 	}
@@ -256,8 +270,8 @@ func (h *Handler) GuestRemove(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) GuestRefresh(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserID(r.Context())
 	streamID := chi.URLParam(r, "id")
-	cur, _ := h.rdb.Get(r.Context(), "stream:"+streamID+":guest").Result()
-	if cur != userID {
+	mem, _ := h.rdb.SIsMember(r.Context(), "stream:"+streamID+":guests", userID).Result()
+	if !mem {
 		writeErr(w, http.StatusForbidden, "konuk degilsiniz")
 		return
 	}
@@ -285,9 +299,13 @@ func (h *Handler) Viewers(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	ids, _ := h.rdb.ZRevRange(r.Context(), "stream:"+streamID+":viewers", 0, 99).Result()
-	guest, _ := h.rdb.Get(r.Context(), "stream:"+streamID+":guest").Result()
+	guests, _ := h.rdb.SMembers(r.Context(), "stream:"+streamID+":guests").Result()
+	guestSet := make(map[string]bool, len(guests))
+	for _, g := range guests {
+		guestSet[g] = true
+	}
 	toplam, _ := h.rdb.ZCard(r.Context(), "stream:"+streamID+":viewers").Result()
 	writeJSON(w, http.StatusOK, map[string]any{
-		"total": toplam, "viewers": h.kullaniciListesi(r.Context(), ids, guest),
+		"total": toplam, "viewers": h.kullaniciListesi(r.Context(), ids, guestSet),
 	})
 }

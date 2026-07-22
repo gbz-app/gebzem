@@ -1697,3 +1697,25 @@ HEDEF: WhatsApp paritesi — alta inince/gezinirken goruntu karsida kalir + PiP 
       Guc Modu KAPALI olmali (yoksa Apple auto-PiP'i vermez — bizim kod disi).
 - **DURUST SINIR:** iOS GERCEK arka plan sistem PiP -> telefon Ayari + Guc Modu'na bagli, GARANTI DEGIL.
       Uygulama-ici gezinmede yuzen video GARANTI. Canli yayin minimize AYRI faz (bu turda arama 1:1+grup).
+
+## KULLANICI TEST TURU 11 (23 Tem 2026): CANLI YAYIN COKLU-KONUK + izgara + geri sayim
+Istekler: (1) canli yayina 2'DEN FAZLA konuk (tek->coklu). (2) split UST-ALT degil SOL-SAG (yan yana);
+cok kisi -> izgara. (3) konuklar SESLI de katilabilsin (kamera opsiyonel). (4) geri sayim TAM ORTADA,
+BEYAZ BORDER YOK. ARASTIRMA: ajan (a38) tum konuk sistemini haritalayip TEK-KONUK varsayimi olan HER
+noktayi listeledi.
+- [x] Geri sayim: daire+parilti KALDIRILDI -> tam ortada temiz 140px rakam (mor golge), border yok.
+- [x] BACKEND coklu-konuk: `stream:{id}:guest` STRING -> `stream:{id}:guests` SET (maxKonuk=4).
+      guestAddScript (atomik kapasite Lua SADD) accept'te SETNX yerine; konukDusur SREM (uye-bazli);
+      GuestRefresh SISMEMBER; kullaniciListesi is_guest=guestSet[id]; Watch/Heartbeat guest_ids DIZI;
+      endStream `:guests` Del; sweeper SMEMBERS dongusu. cadScript SILINDI. go build temiz.
+- [x] live_widgets: yayinSplitAlani SILINDI -> `yayinIzgara(tiles)` (2 kisi YAN YANA, 3-4 grid, seamless,
+      border/ClipRRect YOK); SplitVideoPaneli avatarHarf (sesli konuk avatar tile) + kose yuvarlamasi kalkti.
+- [x] broadcast: `_konukId/_konukAdi` -> `Map _konuklar`; guest.joined/left+nabiz(liste)+PartDisconnect coklu;
+      _konukVideoBul(id); _konukTile(id,ad) sag-ust X; build yayinIzgara([yayinci, ...konuklar]).
+- [x] viewer: `_aktifKonuk` -> `Set _aktifKonuklar`(+kendim); `ilkKonukId`->`ilkKonukIds`; nabiz set-mutabakat
+      + kendi-dusme; _konukOl KAMERA OPSIYONEL (mik zorunlu, kamerasiz SESLI katil, _kameramAcik); _konukPill
+      kamera AC/KAPA; build yayinIzgara([yayinci, konuklar, kendim=lokal+pill]); kimlik-kapisi korundu.
+- [x] live_tab + davet_provider: ilkKonukIds = info['guest_ids']. flutter analyze temiz (4 eski lint).
+- [ ] Temiz build (android+ios) -> R2 -> purge -> dogrulama -> DB temizlik.
+- **YAPMA:** guests SET'i tekrar STRING yapma; yayinIzgara'ya border/ClipRRect ekleme; _konukOl kamerayi
+      tekrar ZORUNLU yapma (sesli konuk bozulur); guest_ids'i guest_id'e dondurme; maxKonuk'u cx33'te cok buyutme.

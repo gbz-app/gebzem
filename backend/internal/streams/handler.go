@@ -278,15 +278,15 @@ func (h *Handler) Watch(w http.ResponseWriter, r *http.Request) {
 	}
 	h.audit(r.Context(), streamID, userID, "watch", clientIP(r))
 	h.sayacYayinla(r.Context(), streamID) // FAZ-1: giris ANINDA sayaca yansisin
-	// TEST TURU 8: aktif konuk varsa id'sini don — gec katilan izleyici guest.joined
-	// sinyalini almadigi icin split'i hic goremiyordu.
-	guest, _ := h.rdb.Get(r.Context(), "stream:"+streamID+":guest").Result()
+	// TEST TURU 8/11: aktif KONUKLAR listesini don — gec katilan izleyici guest.joined
+	// sinyalini almadigi icin split'i hic goremiyordu (coklu konuk: guest_ids dizisi).
+	guests, _ := h.rdb.SMembers(r.Context(), "stream:"+streamID+":guests").Result()
 	writeJSON(w, http.StatusOK, map[string]any{
 		"stream_id": streamID, "room": roomName, "url": h.lkURL, "token": tok,
 		"title": title, "type": tip, "status": status,
 		"broadcaster_id": bID, "broadcaster_name": bName,
 		"viewer_count": h.izleyiciSayisi(r.Context(), streamID),
-		"guest_id":     guest,
+		"guest_ids":    guests,
 	})
 }
 
@@ -339,8 +339,8 @@ func (h *Handler) Heartbeat(w http.ResponseWriter, r *http.Request) {
 	// TEST TURU 8 MUTABAKAT AGI: guest.left/joined SendData'si kacarsa (reconnect penceresi)
 	// istemci split'i sonsuza takili kalmasin — her 15sn nabizda gercek konuk durumu doner,
 	// istemci kendi _konukId/_aktifKonuk'unu bununla duzeltir (en gec 15sn'de kendini onarir).
-	guest, _ := h.rdb.Get(r.Context(), "stream:"+streamID+":guest").Result()
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "guest_id": guest})
+	guests, _ := h.rdb.SMembers(r.Context(), "stream:"+streamID+":guests").Result()
+	writeJSON(w, http.StatusOK, map[string]any{"status": "ok", "guest_ids": guests})
 }
 
 // POST /streams/{id}/leave — izleyici ayrildi (nazik cikis; kaba cikisi sweeper yakalar)
@@ -385,7 +385,7 @@ func (h *Handler) endStream(ctx context.Context, streamID, neden string) {
 	}
 	h.rdb.Del(ctx, "stream:"+streamID+":viewers", "stream:"+streamID+":pub",
 		"stream:"+streamID+":banned", "stream:"+streamID+":hearts", "stream:"+streamID+":lastn",
-		"stream:"+streamID+":guest", "stream:"+streamID+":guest_reqs") // konuk anahtarlari (B7)
+		"stream:"+streamID+":guests", "stream:"+streamID+":guest_reqs") // konuk anahtarlari (B7; coklu SET)
 	h.audit(ctx, streamID, "", neden, "")
 	// ANLIK KESFET (test turu 5): yayin bitti -> TUM online istemcilere -> kesfet listesi
 	// sayfa yenilemeden guncellenir (End + sweep + admin_end ORTAK noktasi).

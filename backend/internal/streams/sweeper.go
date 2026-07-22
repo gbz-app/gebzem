@@ -71,11 +71,13 @@ func (h *Handler) sweep(ctx context.Context) {
 		h.rdb.ZRemRangeByScore(ctx, "stream:"+s.id+":guest_reqs", "-inf", strconvF(istekEsik))
 		n := h.izleyiciSayisi(ctx, s.id)
 
-		// KONUK kopmus mu (Bolum 6 B6): guest anahtari dolu ama viewers'ta yok
-		// (45sn nabizsiz -> az once silindi) -> otomatik dusur
-		if guest, _ := h.rdb.Get(ctx, "stream:"+s.id+":guest").Result(); guest != "" {
-			if _, err := h.rdb.ZScore(ctx, vKey, guest).Result(); err != nil {
-				h.konukDusur(ctx, s.id, guest, "sweep")
+		// KONUK kopmus mu (Bolum 6 B6, test turu 11 coklu): her konuk viewers'ta mi kontrol et
+		// (45sn nabizsiz -> az once silindi) -> otomatik dusur. SET uzerinde dongu.
+		if guests, _ := h.rdb.SMembers(ctx, "stream:"+s.id+":guests").Result(); len(guests) > 0 {
+			for _, g := range guests {
+				if _, err := h.rdb.ZScore(ctx, vKey, g).Result(); err != nil {
+					h.konukDusur(ctx, s.id, g, "sweep")
+				}
 			}
 		}
 
