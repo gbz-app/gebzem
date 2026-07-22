@@ -1716,6 +1716,12 @@ noktayi listeledi.
       + kendi-dusme; _konukOl KAMERA OPSIYONEL (mik zorunlu, kamerasiz SESLI katil, _kameramAcik); _konukPill
       kamera AC/KAPA; build yayinIzgara([yayinci, konuklar, kendim=lokal+pill]); kimlik-kapisi korundu.
 - [x] live_tab + davet_provider: ilkKonukIds = info['guest_ids']. flutter analyze temiz (4 eski lint).
-- [ ] Temiz build (android+ios) -> R2 -> purge -> dogrulama -> DB temizlik.
+- [x] TEMIZ BUILD YAYINLANDI (23 Tem 02:17): android 29965135036 + ios 29965136743 (dc70108) BASARILI;
+      debug imza YOK; APK 104963053->104979437 + IPA 19087218->19093092 (ikisi buyudu=yeni kod); R2
+      apk=104979437 ipa=19093092 index=5715; purge OK; CDN boyut birebir; index saati 02:17; backend
+      deploy (guest_ids uclari) + health ok; DB temiz (users=0). KULLANICI test edecek.
+- **TEST RECETESI (test turu 11):** yayin baslat (3-2-1 tam ortada) -> 2-3 izleyiciyi "Canliya al" ->
+      YAN YANA/izgara gorunmeli (ust-alt degil), border yok; bir izleyici kamerasiz katilsin -> avatar
+      tile (sesli konuk); konuk cikinca tile aninda kalkar; en fazla 4 konuk (5. "kapasite dolu").
 - **YAPMA:** guests SET'i tekrar STRING yapma; yayinIzgara'ya border/ClipRRect ekleme; _konukOl kamerayi
       tekrar ZORUNLU yapma (sesli konuk bozulur); guest_ids'i guest_id'e dondurme; maxKonuk'u cx33'te cok buyutme.
