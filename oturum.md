@@ -1686,7 +1686,14 @@ HEDEF: WhatsApp paritesi — alta inince/gezinirken goruntu karsida kalir + PiP 
       BLOKLAMAYAN (fire-and-forget, _iosCokluGorevDeniyor guard). Agir beginConfiguration/commit
       PiP kurulumunu geciktirip auto-enter'i kaciriyordu -> duzeldi.
 - [x] flutter analyze temiz (4 eski info lint).
-- [ ] Temiz build -> R2 -> purge -> dogrulama -> DB temizlik.
-- **DURUST SINIR (kullaniciya soylenecek):** iOS'ta GERCEK arka planda (ana ekran) sistem PiP,
-      telefon Ayari ("PiP'i Otomatik Baslat") + Dusuk Guc Modu'na bagli -> GARANTI DEGIL. Uygulama-ici
-      gezinmede yuzen video GARANTI calisir. Canli yayin minimize AYRI faz (bu turda arama 1:1+grup).
+- [x] TEMIZ BUILD YAYINLANDI (22 Tem 20:16): android 29939980308 + ios 29939982616 (headSha a710627)
+      BASARILI. Debug imza YOK. APK 104946669->104963053 + IPA 19085286->19087218 (ikisi buyudu=yeni
+      kod kaniti). R2 apk=104963053 ipa=19087218 index=5753. Purge OK, CDN boyut birebir, index
+      saati "22 Temmuz 20:16". Backend degismedi (health ok). DB temiz (users=0). KULLANICI test edecek.
+- **TEST RECETESI (kullaniciya, test turu 10):** 1) GORUNTULU ARAMA -> arama ekranindan CIK (geri/
+      kucult/mesaj ikonu) uygulamada gezin -> SURUKLENEBILIR kucuk video penceresi (karsi taraf gorunur,
+      dokun->don, mic/kapat butonlari). 2) GRUP goruntulu aramada ayni (aktif konusan). 3) iOS gercek
+      arka plan (ana ekran) PiP: Ayarlar>Genel>Resim icinde Resim>"PiP'i Otomatik Baslat" ACIK + Dusuk
+      Guc Modu KAPALI olmali (yoksa Apple auto-PiP'i vermez — bizim kod disi).
+- **DURUST SINIR:** iOS GERCEK arka plan sistem PiP -> telefon Ayari + Guc Modu'na bagli, GARANTI DEGIL.
+      Uygulama-ici gezinmede yuzen video GARANTI. Canli yayin minimize AYRI faz (bu turda arama 1:1+grup).
