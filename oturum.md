@@ -1733,4 +1733,7 @@ Expanded ile tile'lari EKRANI DOLDURACAK sekilde (yarim-genislik TAM-yukseklik ~
 - [x] FIX: yayinIzgara Expanded-doldur YERINE LayoutBuilder ile tile'lar DOGAL 9:16 PORTRE en-boy
       korur + ORTALANIR; satirlar yukseklige sigmazsa KUCULUR (en-boy korunur). 2 kisi -> yarim-genislik
       x 9:16 yukseklik, ekran ortasinda (tam boy UZAMAZ, kirpma minimum). Seamless 2px koyu bosluk.
-- [ ] flutter analyze temiz -> temiz build -> R2 -> purge -> DB temizlik.
+- [x] TEMIZ BUILD YAYINLANDI (23 Tem 21:19): android 30032129115 + ios 30032132733 (71a0e36) BASARILI;
+      debug imza YOK; R2 apk=104979441 ipa=19092619 index=5705; purge OK; CDN boyut birebir; index
+      saati 21:19; backend degismedi (health ok); DB temiz (users=0). KULLANICI test edecek.
+- **TEST:** 2 kisiyi canliya al -> yan yana DOGAL boyutta (portre, ortali), boydan boya UZAMAZ/kirpmaz.
