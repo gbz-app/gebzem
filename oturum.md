@@ -1725,3 +1725,12 @@ noktayi listeledi.
       tile (sesli konuk); konuk cikinca tile aninda kalkar; en fazla 4 konuk (5. "kapasite dolu").
 - **YAPMA:** guests SET'i tekrar STRING yapma; yayinIzgara'ya border/ClipRRect ekleme; _konukOl kamerayi
       tekrar ZORUNLU yapma (sesli konuk bozulur); guest_ids'i guest_id'e dondurme; maxKonuk'u cx33'te cok buyutme.
+
+## KULLANICI TEST TURU 12 (23 Tem 2026): izgara TAM-BOY kotu -> dogal en-boy ortalama
+Kullanici: "sol sag guzel AMA %100 yukseklik yapmissin, boydan boya, cok kotu duruyor". KOK: yayinIzgara
+Expanded ile tile'lari EKRANI DOLDURACAK sekilde (yarim-genislik TAM-yukseklik ~1:4.3) yapiyordu ->
+9:16 kamera goruntusu `cover` ile korkunc kirpiliyordu (ince-uzun serit).
+- [x] FIX: yayinIzgara Expanded-doldur YERINE LayoutBuilder ile tile'lar DOGAL 9:16 PORTRE en-boy
+      korur + ORTALANIR; satirlar yukseklige sigmazsa KUCULUR (en-boy korunur). 2 kisi -> yarim-genislik
+      x 9:16 yukseklik, ekran ortasinda (tam boy UZAMAZ, kirpma minimum). Seamless 2px koyu bosluk.
+- [ ] flutter analyze temiz -> temiz build -> R2 -> purge -> DB temizlik.

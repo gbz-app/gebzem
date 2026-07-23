@@ -251,23 +251,48 @@ class SplitVideoPaneli extends StatelessWidget {
   }
 }
 
-/// COKLU-KONUK IZGARA (test turu 11): N tile ekrani DOLDURUR. 2 kisi -> YAN YANA (sol-sag,
-/// kullanici istegi "ust alt degil sol sag"); 3-4 -> 2 sutun grid; 5-6 -> son satir tam
-/// genislik. Beyaz/cerceve border YOK (seamless). n==1 -> tek tile tam ekran.
+/// COKLU-KONUK IZGARA (test turu 11 -> 12 layout fix): tile'lar DOGAL 9:16 PORTRE en-boy
+/// oranini korur ve ekranda ORTALANIR — TAM BOY UZAMAZ (kullanici: "%100 yukseklik cok kotu,
+/// boydan boya kirpiliyor"). Genislik sutundan, yukseklik en-boydan; satirlar ekrana sigmazsa
+/// tile'lar KUCULUR (en-boy korunur). 2 kisi -> YAN YANA (sol-sag); 3-4 -> 2 sutun; 5-6 -> 3.
+/// SEAMLESS: yalniz 2px koyu bosluk (beyaz/cerceve border YOK). n==1 -> tek tile tam ekran.
 Widget yayinIzgara(List<Widget> tiles) {
   final n = tiles.length;
   if (n == 0) return const SizedBox.shrink();
   if (n == 1) return tiles.first;
   final cols = n == 2 ? 2 : (n <= 6 ? 2 : 3);
   final rows = (n + cols - 1) ~/ cols;
-  return Column(children: [
-    for (var r = 0; r < rows; r++)
-      Expanded(
-        child: Row(children: [
-          // Son satirda daha az tile varsa mevcutlar tam genisligi paylasir (bosluk yok)
-          for (var i = r * cols; i < min(r * cols + cols, n); i++)
-            Expanded(child: tiles[i]),
+  const gap = 2.0;
+  const enBoy = 9 / 16; // tile genislik/yukseklik (portre — telefon kamerasi aspect'i)
+  return LayoutBuilder(builder: (context, kisit) {
+    final w = kisit.maxWidth, h = kisit.maxHeight;
+    var tileW = (w - gap * (cols - 1)) / cols;
+    var tileH = tileW / enBoy;
+    final toplamH = tileH * rows + gap * (rows - 1);
+    if (toplamH > h) {
+      // Yukseklige sigdir: tile yuksekligini kucult, en-boyu koru (genislik de kuculur)
+      tileH = (h - gap * (rows - 1)) / rows;
+      tileW = tileH * enBoy;
+    }
+    return Center(
+      child: SizedBox(
+        width: tileW * cols + gap * (cols - 1),
+        height: tileH * rows + gap * (rows - 1),
+        child: Column(children: [
+          for (var r = 0; r < rows; r++) ...[
+            if (r > 0) const SizedBox(height: gap),
+            SizedBox(
+              height: tileH,
+              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                for (var i = r * cols; i < min(r * cols + cols, n); i++) ...[
+                  if (i > r * cols) const SizedBox(width: gap),
+                  SizedBox(width: tileW, child: tiles[i]),
+                ],
+              ]),
+            ),
+          ],
         ]),
       ),
-  ]);
+    );
+  });
 }
