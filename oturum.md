@@ -2217,3 +2217,9 @@ kamerasi tam ekran gelmiyor.
 ### ARAYUZ (kullanicinin gonderdigi ekran)
 - [x] ALT KONTROL CUBUGU: tek koyu hap icinde [•••] [kamera] [hoparlor] [mikrofon] [KIRMIZI kapat];
       acik durumlar BEYAZ daire + koyu ikon. Kamera cevir / kisi ekle / "ses gelmiyor" -> ••• menusu.
+- [x] TEMIZ BUILD YAYINLANDI (26 Tem 13:53): android 30198703036 + ios 30198704049 (72ccdd7);
+      APK 105211429, IPA 19130970; R2+purge OK, CDN birebir; backend degismedi (health ok); DB temiz.
+- **DURUST SINIR (kullaniciya soylendi):** iPhone'da UYGULAMA ARKA PLANDAYKEN kameranin CALISMAYA
+  DEVAM etmesi Apple'in `isMultitaskingCameraAccessSupported` iznine bagli (iOS16+ ve YALNIZ bazi
+  cihazlar). Desteklenmeyen iPhone'da kamera OS tarafindan durdurulur — bizim kodumuz bunu
+  degistiremez; o durumda karsi tarafa bulanik "Beklemede" gosteriyoruz (donmus kare degil).
