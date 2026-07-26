@@ -2277,3 +2277,60 @@ saniyede ekran geliyordu, bunu duzeltemedik."
       Dart: `PipService.iosPipYerel` + `_iosPipYerelId` delta kontrolu.
 - [x] `notifyListeners` mikro-gorevde birlestirilir (baglanma aninda 5-10 olay = 1 cizim).
 - [ ] BUILD: kullanici onayi bekleniyor (kural: sormadan build alma).
+
+## TEST TURU 29 (26 Tem 2026): 31-AJANLIK DENETIM — "sana testte anlattiklarim gitti mi?"
+Kullanicinin sorusu uzerine, testte bildirilen TUM maddeler koda karsi denetlendi (6 sorun
+grubu paralel) ve her "DUZELDI" iddiasi AYRI ajanlarla CURUTULMEYE calisildi (adversarial).
+28 madde incelendi: 5 kesin duzeldi, 18 iddia curutuldu/eksik cikti, 5 acik.
+### KESIN DUZELMIS (curutulemedi)
+kucuk ekranin 260ms animasyonla koseye gitmesi (1:1 siyah patlama) · Android kucuk pencerede
+2 kisi UST/ALT · yuzen pencerenin arama ekranina binmemesi (`minimized && !ekranGorunur`) ·
+"X sessize alindi" 5sn bildirim seridi · sohbet basligindaki "Sesli aramada" yazisinin
+kaldirilmasi + ikonlarin kilitlenmemesi.
+### DENETIMDE BULUNAN VE BU TURDA DUZELTILEN GERCEK KUSURLAR
+- [x] **GRUPTA SIYAH PATLAMA (1:1 fix'i grupta EKSIKTI):** tile anahtari `video.sid` idi;
+      livekit'te `Track.sid` YAYINLANANA KADAR NULL, yayinda atanir -> 'tile-null' ->
+      'tile-TR_xxx' -> renderer SIFIRDAN kurulur. Artik `mediaStreamTrack.id`.
+- [x] **KARSI TARAF KAMERAYI KAPATINCA KUTUSU AGACTAN SILINIYORDU:** `_remoteVideo` `muted`
+      olunca null donuyordu -> buyuk goruntu BANA zipliyor, karsi taraf donunce renderer
+      yeniden kuruluyordu (patlama). Artik MUTE track de donuyor; kutu KALIYOR, ustune yeni
+      `BeklemedeOrtusu` (renderer'i olmayan blur+etiket) biniyor. Grup tile'inda da ayni.
+      ⚠️ YAPMA: `_remoteVideo`/`_katilimciVideosu`a tekrar `!muted` sarti koyma.
+- [x] **••• MENUSU ACIKKEN EKRAN KILITLENMESI (kritik):** `_ekSecenekler` `_sheetAcik`
+      isaretlemiyordu; menu acikken karsi taraf kapatinca `_ctrlDegisti`in tek pop'u SHEET'i
+      kapatiyor, CallScreen opacity-0 halde EKRANDA kaliyor, geri tusu bloklu -> uygulamayi
+      oldurmek gerekiyordu; ustelik `ekranGorunur` true kaldigi icin SONRAKI arama ekrani da
+      hic acilmiyordu. ⚠️ Yeni sheet/dialog eklerken `_sheetAcik` + `whenComplete` SART.
+- [x] **YUZEN PENCERE SURUKLEME:** delta BUILD'deki bayat `pos`a ekleniyor, `_pos` yalniz
+      YAZILIYORDU -> ayni karedeki coklu pointer olaylari kaybolup pencere parmagin
+      gerisinde kaliyordu. Artik guncel `_pos` taban + `onPanStart/onPanEnd` + kenara
+      180ms yapisma (AnimatedPositioned).
+- [x] **iOS: KUCULTULMUS ARAMADA PiP HIC ACILMIYORDU** (kullanicinin en cok tekrar eden
+      sikayeti): `_iosPipGuncelle`in `uygun` sarti `ekranGorunur` istiyordu; arama uygulama
+      icinde kucultulunce her saniye `iosPipBirak()` cagrilip kurulum yikiliyor, HOME'a
+      basinca native controller NIL oldugu icin pencere acilamiyordu. Android'de bu sart
+      turu 14'te kalkmisti. ⚠️ YAPMA: `uygun`a tekrar `ekranGorunur` koyma.
+- [x] **iOS: PiP ARAYUZUN USTUNDE ASILI KALIYORDU:** (a) resumed'da `iosPipDurdur` artik
+      KOSULSUZ (eski `if (pipModunda)` kapisi, didStart callback'i acilis animasyonundan
+      SONRA geldigi icin yarisi kaybediyordu); (b) native `durdur()` kosulsuz + `iptalIstendi`;
+      (c) `didStartPictureInPicture` icinde uygulama ON PLANDAYSA pencere ANINDA kapatilir.
+- [x] **CANLI YAYIN EKRANLARINDA BAYAT `pipModu`:** yayinci/izleyici build'i platform kapisi
+      OLMADAN sade gorunume geciyordu -> iOS'ta bayat bayrak = KONTROLSUZ/CIKISSIZ ekran
+      ("ekran gidiyor" sikayetinin ikinci kaynagi). Artik `Platform.isAndroid` + resumed'da
+      iOS PiP kosulsuz durdurma.
+- [x] iOS PiP basladiginda bekleyen 900ms kamera-mute zamanlayicisi IPTAL ediliyor (Android'de
+      vardi, iOS'ta yoktu -> PiP acikken kamera yine kapaniyordu).
+- [x] Mikrofon dugmesi acik/kapali gorsel ayrimi (olu parametre; artik acik=BEYAZ daire).
+- [x] **SOHBETTE "ARAMAYA DON" MESAJ BALONU** (kullanici: "ben chatte yaz dedim, sen HEADER
+      eklemissin"): ust serit KALDIRILDI -> mesaj akisinin EN ALTINDA WhatsApp tarzi yesil
+      balon (`_AktifAramaBalonu`).
+### DENETIMDE CIKAN, HENUZ ACIK OLANLAR (siradaki tur)
+- [ ] iOS arka plan kamerasi `isMultitaskingCameraAccessSupported`e bagli (Apple kisiti);
+      desteklenmeyen cihazda PiP alt kutusu ~0.9sn sonra kalkiyor — yerine avatar konmali.
+- [ ] `_iosPipGuncelle` re-entrancy kilidi yok (nadir yaris: yuzen pencere + native PiP birlikte).
+- [ ] Kapanis animasyonunda video `_room=null` ile SENKRON gidiyor -> solan sey son kare degil
+      avatar; gelen arama (calan) ekrani animasyonsuz kayboluyor.
+- [ ] Android sistem PiP'inde HOPARLOR dugmesi yok (yalniz mic+kapat); PiP oran 3:4 pencereyi
+      KUCULTMUS olabilir (9:16 daha buyuk alan verir) — olculmedi.
+- [ ] GSM bekletme iOS'ta yalniz CallKit'e bagli; Android zinciri var ama izin reddinde sessiz.
+- [ ] BUILD: kullanici onayi bekleniyor.
