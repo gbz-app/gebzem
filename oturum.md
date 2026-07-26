@@ -2065,4 +2065,17 @@ Kullanici (3 telefon: 2 Android + 1 iPhone) bulgulari:
       olayi Dart'a; aktif arama BEKLEMEYE alinir, IDLE'da geri doner
 - [x] 3. Arama ekrani: "Arama beklemede" paneli (Aramayi bitir / Devam et) — WhatsApp duzeni
 - [x] 4. iOS: arka plana gecerken PiP'i ELLE baslat (ayardan bagimsiz kucuk pencere)
-- [ ] 5. analyze + go build + temiz build + yayin
+- [x] 5. analyze + go build + temiz build + yayin
+- [x] TEMIZ BUILD YAYINLANDI (26 Tem 10:46): android 30193050269 + ios 30193051177 (86e6717)
+      BASARILI (Kotlin TelefonDurumu + Swift PiP.baslat derlendi); debug imza YOK;
+      APK 105112781->105112813, IPA 19111472->19114885; R2+purge OK, CDN birebir; backend
+      deploy + health ok; DB TRUNCATE (users=0).
+- **TEST RECETESI (test turu 20):** (1) Android'de Gebzem aramasindayken NORMAL telefon aramasi
+      gelsin -> Gebzem "Arama beklemede" paneline dusmeli (ses susar), telefon bitince DEVAM
+      etmeli. Ilk aciliste "telefon durumu" izni sorulur — IZIN VER. (2) iPhone'da goruntulu
+      aramada alta al -> kucuk pencere GELMELI (telefon Ayarindan bagimsiz). (3) iPhone'u
+      kaydirip KAPAT -> karsi taraf donmadan aramadan cikmali; o kisi HEMEN aranabilmeli ve
+      gruba eklenebilmeli.
+- **KAYNAKLAR:** Android TelephonyCallback.CallStateListener (developer.android.com), audio
+      focus AUDIOFOCUS_LOSS_TRANSIENT (source.android.com/docs/automotive/audio/audio-focus),
+      jitsi AppRTCAudioManager ornegi; Apple AVPictureInPictureController.startPictureInPicture.
