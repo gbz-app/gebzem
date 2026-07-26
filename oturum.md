@@ -2138,3 +2138,12 @@ icinde kayit istemistim.
 - [x] **GRUP IZGARA GORUNUMU:** sesli grup aramasi da artik AYNI izgarayi kullaniyor (eski
       serbest Wrap kaldirildi — "hepsi gorunmuyor" sorunu). Kamerasi kapali katilimci:
       ORTADA daire avatar + ALTINDA renkli ad (kullanicinin gonderdigi ekran duzeni).
+- [x] TEMIZ BUILD YAYINLANDI (26 Tem 12:03): android 30195338773 + ios 30195339779 (4f04497)
+      BASARILI; debug imza YOK; APK 105211305->105211301, IPA 19129943->19131169; R2+purge OK,
+      CDN birebir; backend deploy + health ok; DB temiz.
+- **TEST (test turu 22):** (1) Gruptan cik -> AYNI kisiyi tekrar davet et: "zaten aramada"
+      HATASI GELMEMELI (sunucu LiveKit'e sorup olu kaydi temizliyor). (2) Goruntulu arama
+      baslat -> kendi kameran ANINDA gorunmeli (karsi taraf acmadan once). (3) Sesli grup
+      aramasinda herkes esit kutuda daire avatar + ad ile gorunmeli.
+- **KALAN (sonraki tur):** sohbet icindeki "aramaya don" kaydinin HEADER yerine mesaj balonu
+      olarak cizilmesi (kullanici istegi) — su an ust seritte.
