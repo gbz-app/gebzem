@@ -40,9 +40,8 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
 - **KALDIGIMIZ YER (26 Tem 06:11):** TEST TURU 14 YAYINLANDI (arama PiP/yuzen pencere + hat dusme,
   7 fix), KULLANICI TEST EDECEK. Onceki turda test turu 13 (canli yayin 6 fix) yayinlandi — o turun
   geri bildirimi de bekleniyor. Her sey commit+push, backend deploy + health ok, DB temiz.
-  hata fix), KULLANICI TEST EDECEK -> geri bildirim bekleniyor. Her sey commit+push (83ddcb4),
-  backend deploy + health ok, DB temiz (users=0, redis stream anahtari yok).
-  BEKLEYEN/ACIK: (1) kullanici test turu 13 geri bildirimi. (2) CANLI YAYIN MINIMIZE = AYRI FAZ.
+  BEKLEYEN/ACIK: (1) kullanici test turu 13 + 14 geri bildirimi. (2) CANLI YAYIN MINIMIZE = AYRI FAZ
+  (arama minimize/PiP test turu 14'te tamamlandi; YAYIN icin ayni desen uygulanabilir).
   (3) iOS GERCEK arka plan sistem PiP telefon Ayari + Dusuk Guc Modu'na bagli (bizim kod disi).
   Rutin: yeni surumde build->R2->purge->boyut dogrula->DB TRUNCATE->health. gh token .env.infra
   GITHUB_TOKEN, CF zone a8af9ee51c2c3ed70cc30d705038abfd, r2put.js scratchpad'de (her oturumda
