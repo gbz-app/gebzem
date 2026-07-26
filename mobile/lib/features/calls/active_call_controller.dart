@@ -126,7 +126,12 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       // Yoksa PiP acikken kamera yine de kapaniyor ve karsi taraf beni goremiyordu.
       if (aktif) _pipKameraGecikme?.cancel();
       notifyListeners();
-    }, onBasarisiz: _iosPipBasarisiz, onKameraKesinti: _iosKameraKesinti);
+    }, onBasarisiz: _iosPipBasarisiz, onKameraKesinti: _iosKameraKesinti,
+        onPipKare: (kare) {
+          // TEST TURU 38 KESIN OLCUM: PiP basladiktan 3sn sonra kac kare akti?
+          // kare=0 -> capture GERCEKTEN durmus; kare>0 -> goruntu akiyor.
+          unawaited(Sentry.captureMessage('ios pip 3sn kare=$kare'));
+        });
     // TEST TURU 20 — GSM ARAMA BEKLETME (Android; iOS'ta bunu CallKit yapar):
     // normal telefon aramasi baslayinca Gebzem aramasi BEKLEMEYE alinir (medya durur,
     // arama SUNUCUDA OLMEZ), telefon gorusmesi bitince kaldigi yerden DEVAM eder.
@@ -580,6 +585,7 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
         _kameraOtoKapandi = true; // on plana donunce geri acilsin
         _camOn = false;
         _room?.localParticipant?.setCameraEnabled(false);
+        unawaited(PipService.iosPipKareBosalt()); // donmus kare yerine etiket
         notifyListeners();
       }
     }
@@ -916,8 +922,31 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     // edilmez (iOS16+ isMultitaskingCameraAccessEnabled ile capture arka planda surer).
     final pipBekleniyor = (Platform.isAndroid && _pipIzinliSon) ||
         (Platform.isIOS && _iosPipKurulanId.isNotEmpty);
+    // ================= TEST TURU 38 — DONMANIN GERCEK SEBEBI =================
+    // KANIT (Sentry, 26 Tem 22:03): "ios coklu-gorev kamera destek=true" 70 kayit VAR ama
+    // "ios kamera kesinti sebep=..." kaydi HIC YOK. Yani iOS kamerayi KESMIYOR — kamerayi
+    // durduran BIZIM KENDI mute yolumuz. livekit `stopCameraCaptureOnMute=true` oldugu icin
+    // mute CAPTURE'I DURDURUR; bu "nazik" durdurma OS kesinti bildirimi URETMEZ, o yuzden
+    // ne biz haberdar oluyorduk ne de "Kamera duraklatildi" etiketi cikiyordu -> kucuk
+    // pencere SON KAREDE DONUYORDU (kullanici: "halen donuyor").
+    //
+    // Ustelik turu 36'dan beri kucuk pencere KENDI kamerami gosteriyor: kendi kamerami
+    // kapatip kendi goruntumu beklemek MANTIKSAL CELISKI.
+    //
+    // KURAL: iOS'ta PiP KURULUYSA kamerayi ASLA kendiliğinden kapatma. Kamera gercekten
+    // durdurulursa bunu artik OS SOYLUYOR (AVCaptureSessionWasInterrupted ->
+    // `_iosKameraKesinti`) ve orada DURUSTCE mute ediyoruz. Yani yedek kayboldu degil,
+    // TAHMIN yerine GERCEK OLAYA baglandi.
+    // ⚠️ YAPMA: bu kapiyi kaldirip iOS'ta zamanlayiciyla mute etmeye donme.
+    final iosPipKendiKameram = Platform.isIOS && _iosPipKurulanId.isNotEmpty;
     if ((state == AppLifecycleState.paused || state == AppLifecycleState.hidden) &&
-        arama != null && _baglandi && !_ayrildi && !pipModunda && !iosKameraCanli && _camOn) {
+        arama != null &&
+        _baglandi &&
+        !_ayrildi &&
+        !pipModunda &&
+        !iosKameraCanli &&
+        !iosPipKendiKameram &&
+        _camOn) {
       if (pipBekleniyor) {
         _pipKameraGecikme?.cancel();
         _pipKameraGecikme = Timer(const Duration(milliseconds: 900), () {
@@ -929,6 +958,7 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
           _kameraOtoKapandi = true;
           _camOn = false;
           _room?.localParticipant?.setCameraEnabled(false);
+          unawaited(PipService.iosPipKareBosalt()); // turu 38: donmus kare gosterme
           notifyListeners();
         });
         return;

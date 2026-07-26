@@ -134,6 +134,10 @@ import flutter_callkit_incoming
         // TEST TURU 27: kucuk pencerenin ALT gorunumu (kendi kameram) — controller'a dokunmaz
         result(GebzemPip.shared.yerelAyarla(
           trackId: (call.arguments as? [String: Any])?["trackId"] as? String))
+      case "iosPipKareBosalt":
+        // TEST TURU 38: kamera kapatilirken donmus kare yerine "Kamera duraklatildi"
+        GebzemPip.shared.kareyiBosalt()
+        result(true)
       case "iosPipDurdur":
         GebzemPip.shared.durdur()
         result(true)
@@ -297,6 +301,27 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
     let ok = session.isMultitaskingCameraAccessEnabled
     NSLog("gebzem/pip coklu-gorev kamera (GEC yazim, etkisiz olabilir) = \(ok)")
     return ok
+  }
+
+  /// TEST TURU 38 — KAMERA DURDURULDUYSA DONMUS KARE GOSTERME. Dart kamerayi kapatirken
+  /// cagirir: katman bosaltilir ve "Kamera duraklatildi" etiketi cikar.
+  func kareyiBosalt() {
+    videoView?.displayLayer.flushAndRemoveImage()
+    videoView?.kareKesildi()
+    yerelGorunum?.displayLayer.flushAndRemoveImage()
+    yerelGorunum?.kareKesildi()
+  }
+
+  /// TEST TURU 38 — KESIN OLCUM: PiP basladiktan 3sn sonra KAC KARE aktigini Dart'a bildir.
+  /// Kullanici iki turdur "yine donuyor" diyor; bu sayi tahmini bitirir:
+  /// kare=0 -> capture gercekten durmus; kare>0 -> goruntu akiyor, sorun baska yerde.
+  func kareOlcumuBaslat() {
+    renderer?.sayaciSifirla()
+    DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+      let n = self?.renderer?.toplamKare ?? -1
+      NSLog("gebzem/pip 3sn kare=\(n)")
+      self?.kanal?.invokeMethod("iosPipKare", arguments: n)
+    }
   }
 
   /// TEST TURU 37 — KAMERA KESINTISI (Apple bildirimi). Arka planda capture GERCEKTEN
@@ -514,6 +539,7 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
     }
     NSLog("gebzem/pip iOS PiP basladi")
     kanal?.invokeMethod("iosPipDurum", arguments: true)
+    kareOlcumuBaslat() // turu 38: 3sn sonra kac kare aktigini bildir
   }
   func pictureInPictureControllerDidStopPictureInPicture(_ c: AVPictureInPictureController) {
     NSLog("gebzem/pip iOS PiP durdu")
@@ -642,12 +668,16 @@ final class PipRenderer: NSObject, RTCVideoRenderer {
   private weak var view: PipVideoView?
   private let kuyruk = DispatchQueue(label: "gebzem.pip.frame", qos: .userInteractive)
   private var sayac = 0
+  /// TEST TURU 38: OLCUM — kac kare geldi (PiP basladiktan sonraki 3sn icin).
+  private(set) var toplamKare = 0
+  func sayaciSifirla() { toplamKare = 0 }
 
   init(view: PipVideoView) { self.view = view }
   func setSize(_ size: CGSize) {}
 
   func renderFrame(_ frame: RTCVideoFrame?) {
     guard let frame = frame else { return }
+    toplamKare += 1
     sayac += 1
     if sayac % 2 != 0 { return }
     kuyruk.async { [weak self] in

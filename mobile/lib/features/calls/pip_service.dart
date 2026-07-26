@@ -27,6 +27,10 @@ class PipService {
   static final ValueNotifier<int> kameraKesintiSebebi = ValueNotifier<int>(0);
   static void Function(bool kesintiVar)? _iosKesintiCb;
 
+  /// TEST TURU 38: PiP basladiktan 3sn sonraki kare sayisi (0 = capture durmus).
+  static final ValueNotifier<int> pipKareSayisi = ValueNotifier<int>(-1);
+  static void Function(int kare)? _iosKareCb;
+
   static bool _handlerKuruldu = false;
   static void Function(bool)? _androidDurumCb;
   static void Function(String)? _eylemCb;
@@ -60,6 +64,10 @@ class PipService {
         case 'iosKameraKesinti':
           kameraKesintiSebebi.value = (call.arguments as int?) ?? -1;
           _iosKesintiCb?.call(true);
+        case 'iosPipKare':
+          // TEST TURU 38 KESIN OLCUM: PiP basladiktan 3sn sonra kac kare akti?
+          pipKareSayisi.value = (call.arguments as int?) ?? -1;
+          _iosKareCb?.call(pipKareSayisi.value);
         case 'iosKameraKesintiBitti':
           kameraKesintiSebebi.value = 0;
           _iosKesintiCb?.call(false);
@@ -191,6 +199,15 @@ class PipService {
     }
   }
 
+  /// TEST TURU 38: kamera kapatilirken PiP katmanini bosalt -> donmus kare yerine
+  /// "Kamera duraklatildi" etiketi.
+  static Future<void> iosPipKareBosalt() async {
+    if (!Platform.isIOS) return;
+    try {
+      await _ch.invokeMethod('iosPipKareBosalt');
+    } catch (_) {}
+  }
+
   static Future<void> iosPipBirak() async {
     if (!Platform.isIOS) return;
     try {
@@ -220,12 +237,14 @@ class PipService {
   static void iosDinle(
       {required void Function(bool pipAktif) onDurum,
       required void Function() onBasarisiz,
-      void Function(bool kesintiVar)? onKameraKesinti}) {
+      void Function(bool kesintiVar)? onKameraKesinti,
+      void Function(int kare)? onPipKare}) {
     if (!Platform.isIOS) return;
     _handlerKur();
     _iosDurumCb = onDurum;
     _iosBasarisizCb = onBasarisiz;
     _iosKesintiCb = onKameraKesinti;
+    _iosKareCb = onPipKare;
   }
 
   /// iOS16+ COKLU-GOREV KAMERA (test turu 9): AVCaptureSession.isMultitaskingCameraAccessEnabled
