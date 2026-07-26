@@ -214,7 +214,8 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     return _beklemedekiVideo(p);
   }
 
-  VideoTrack? get _localVideo =>
+  // TEST TURU 22: baglanti beklenmeden kendi goruntum (onizleme track'i dahil)
+  VideoTrack? get _localVideo => _c.kendiGoruntum ??
       _c.room?.localParticipant?.videoTrackPublications.firstOrNull?.track;
 
   @override
@@ -693,7 +694,8 @@ class _CallScreenState extends ConsumerState<CallScreen> {
   VideoTrack? _katilimciVideosu(Participant p) {
     if (p is LocalParticipant) {
       if (!_c.camOn) return null;
-      return p.videoTrackPublications.firstOrNull?.track;
+      // TEST TURU 22: yayin baslamadan da kendi goruntum (onizleme track'i) gorunsun
+      return p.videoTrackPublications.firstOrNull?.track ?? _c.kendiGoruntum;
     }
     for (final pub in p.videoTrackPublications) {
       if (pub.subscribed && !pub.muted && pub.track != null) {
@@ -731,70 +733,13 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     final lp = _c.room?.localParticipant;
     if (lp != null) katilimcilar.add(lp);
     katilimcilar.addAll(_c.room?.remoteParticipants.values ?? const []);
-    if (katilimcilar.any((p) => _katilimciVideosu(p) != null)) {
-      return _grupVideoIzgara(katilimcilar);
-    }
-    return Positioned.fill(
-      child: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFF075E54), Color(0xFF0B141A)],
-          ),
-        ),
-        padding: const EdgeInsets.fromLTRB(20, 140, 20, 150),
-        child: SingleChildScrollView(
-          child: Center(
-            child: Wrap(
-              spacing: 22,
-              runSpacing: 22,
-              alignment: WrapAlignment.center,
-              children: [for (final p in katilimcilar) _grupAvatar(p)],
-            ),
-          ),
-        ),
-      ),
-    );
+    // TEST TURU 22 (kullanici: "sesli grupta kisiler daire seklinde HEPSI gorunmuyor"):
+    // eski kod videosuz grupta serbest bir Wrap ciziyordu (tasma/kaybolma). Artik SESLI de
+    // GORUNTULU de AYNI IZGARA kullanilir — herkes esit kutuda, avatar + ad ile.
+    return _grupVideoIzgara(katilimcilar);
   }
 
-  Widget _grupAvatar(Participant p) {
-    final yerel = p is LocalParticipant;
-    final ad = p.name.isNotEmpty ? p.name : (yerel ? 'Sen' : 'Katılımcı');
-    final harf = ad.isNotEmpty ? ad[0].toUpperCase() : '?';
-    final konusuyor = p.isSpeaking;
-    return SizedBox(
-      width: 96,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            width: 88,
-            height: 88,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: const LinearGradient(colors: [Color(0xFF128C7E), Color(0xFF25D366)]),
-              border: konusuyor
-                  ? Border.all(color: const Color(0xFF25D366), width: 4)
-                  : Border.all(color: Colors.white24, width: 1),
-            ),
-            alignment: Alignment.center,
-            child: Text(harf,
-                style: const TextStyle(
-                    color: Colors.white, fontSize: 36, fontWeight: FontWeight.bold)),
-          ),
-          const SizedBox(height: 8),
-          Text(yerel ? 'Sen' : ad,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.white, fontSize: 13)),
-        ],
-      ),
-    );
-  }
-
+  // NOT (test turu 22): _grupAvatar KALDIRILDI — sesli grup da artik ayni izgarayi kullaniyor.
   /// GORUNTULU GRUP IZGARASI (kurallar AYNEN: kaydirma esigi, padding, DPR fixed(1.0))
   Widget _grupVideoIzgara(List<Participant> katilimcilar) {
     return Positioned.fill(
@@ -879,21 +824,31 @@ class _CallScreenState extends ConsumerState<CallScreen> {
             else if (_beklemedekiVideo(p) != null)
               BeklemedeKatmani(track: _beklemedekiVideo(p), harf: ad)
             else
+              // TEST TURU 22 (kullanici ekran goruntusu): kamerasi kapali katilimci —
+              // ORTADA daire avatar + ALTINDA adi (FaceTime/WhatsApp duzeni).
               Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [Color(0xFF075E54), Color(0xFF0B141A)],
-                  ),
-                ),
+                color: const Color(0xFF1C1C1E),
                 alignment: Alignment.center,
-                child: CircleAvatar(
-                  radius: 32,
-                  backgroundColor: Colors.white24,
-                  child: Text(ad[0].toUpperCase(),
-                      style: const TextStyle(fontSize: 26, color: Colors.white)),
-                ),
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  CircleAvatar(
+                    radius: 38,
+                    backgroundColor: yerel
+                        ? const Color(0xFF3A3A3C)
+                        : const Color(0xFF7A4A3A),
+                    child: Text(ad[0].toUpperCase(),
+                        style: const TextStyle(fontSize: 30, color: Colors.white)),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(ad,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w500,
+                          color: yerel
+                              ? const Color(0xFF7EE2C8)
+                              : const Color(0xFFF2B8A6))),
+                ]),
               ),
             Positioned(
               left: 8,

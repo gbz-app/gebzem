@@ -354,6 +354,11 @@ func (h *Handler) Start(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusConflict, "Kullanici su anda baska bir gorusmede")
 		return
 	}
+	// TEST TURU 22: 'active' satir OLU olabilir (app-kill). LiveKit'e sorup dogrula —
+	// gercekte odada degilse satiri temizle ve aramayi NORMAL baslat (bekletme yok).
+	if suren && !h.gercektenMesgul(r.Context(), req.CalleeID, "") {
+		suren = false
+	}
 	bekleyen := suren // ikinci arama: alici baska bir gorusmede -> "arama bekliyor"
 
 	// Arama kaydi
@@ -648,13 +653,35 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusForbidden, "bu kullanici eklenemiyor")
 		return
 	}
-	// Zaten bu aramada mi
+	// Zaten bu aramada mi — TEST TURU 22: DB "joined" diyorsa LIVEKIT'E SOR. Kisi odada
+	// degilse satir OLU demektir (app-kill/ag kopmasi) -> 'left' yapip DAVETE IZIN VER.
+	// (Kullanici bulgusu: "gruptan cikip tekrar davet edince hala 'zaten aramada' diyor".)
 	var hedefDurum string
 	tx.QueryRow(r.Context(), `SELECT status FROM call_participants WHERE call_id=$1 AND user_id=$2`,
 		callID, req.UserID).Scan(&hedefDurum)
 	if hedefDurum == "joined" {
-		writeErr(w, http.StatusConflict, "kullanici zaten aramada")
-		return
+		gercekte := false
+		if h.Enabled() {
+			if ids, lerr := h.lk.ListParticipantIdentities(r.Context(), "call_"+callID); lerr == nil {
+				for _, id := range ids {
+					if id == req.UserID {
+						gercekte = true
+						break
+					}
+				}
+			} else if !lkOdaYok(lerr) {
+				gercekte = true // LiveKit'e ulasilamadi -> guvenli taraf
+			}
+		} else {
+			gercekte = true
+		}
+		if gercekte {
+			writeErr(w, http.StatusConflict, "kullanici zaten aramada")
+			return
+		}
+		tx.Exec(r.Context(), `UPDATE call_participants SET status='left', left_at=now()
+			WHERE call_id=$1 AND user_id=$2`, callID, req.UserID)
+		hedefDurum = "left"
 	}
 	// Hedef baska gorusmede mi (K3): calls VEYA participants (bu arama haric)
 	var mesgul bool
@@ -668,7 +695,9 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request) {
 		  WHERE p.user_id=$1 AND p.call_id<>$2 AND c.status='active'
 		    AND (p.status='joined' OR (p.status='ringing' AND p.invited_at > now() - interval '45 seconds'))
 		)`, req.UserID, callID).Scan(&mesgul)
-	if mesgul {
+	// TEST TURU 22: DB "mesgul" dese bile LIVEKIT'E SOR — kisi o odada degilse satir OLU
+	// (temizlenir) ve davete IZIN verilir.
+	if mesgul && h.gercektenMesgul(r.Context(), req.UserID, callID) {
 		writeErr(w, http.StatusConflict, "kullanici su anda baska bir gorusmede")
 		return
 	}

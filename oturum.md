@@ -2119,3 +2119,22 @@ Kullanici WhatsApp ekranlarini gonderdi, ayni deneyimi istiyor:
       (3) Karsi taraf uygulamayi kapatsin/arka plana alsin -> ekranda SON KARE BULANIK +
       "Beklemede". (4) Pil %15 altindaki telefonla arama -> karsida "X pil seviyesi düşük";
       ag zayifken "İnternet bağlantın zayıf".
+
+## TEST TURU 22 (26 Tem 2026): "ZATEN ARAMADA" KOK FIX + ANINDA KAMERA + GRUP IZGARA GORUNUMU
+Kullanici: (1) gruptan cikip tekrar davet edince HALA "kullanici zaten aramada". (2) Goruntulu
+arama atinca KAMERAM direk gelmiyor. (3) Grup/sesli aramada kisiler daire seklinde hepsi
+gorunmuyor; ekran goruntusundeki gibi olmali. (4) Sohbete "aramaya don" HEADER degil, sohbet
+icinde kayit istemistim.
+- [x] **KOK FIX — mesgulluk artik LIVEKIT'E SORULUYOR** (`internal/calls/mesgul.go`):
+      DB 'active'/'joined' diyorsa LiveKit'e "bu kisi gercekten odada mi" diye sorulur.
+      Odada DEGILSE satir OLU kabul edilir: katilimci 'left', oda bossa arama 'ended' +
+      call.ended yayini; kisi MUSAIT sayilir. Uygulanan yerler: `Add` (davet — hem "zaten
+      aramada" hem "baska gorusmede" dallari) ve `Start` (1:1 'active' kontrolu).
+      LiveKit'e ULASILAMAZSA guvenli tarafta kalinir (mesgul kabul) — canli gorusme bolunmez.
+- [x] **ANINDA KAMERA:** giden goruntulu aramada kamera artik ODAYA BAGLANMADAN aciliyor
+      (`_onizlemeAc`), ekranda hemen gorunuyor; baglanti kurulunca AYNI track publish ediliyor
+      (`publishVideoTrack` — canli yayin P1 deseni; ikinci kamera acilisi/yarisi YOK).
+      Yayinlanmadan arama biterse track saliniyor (`_onizlemeBirak`).
+- [x] **GRUP IZGARA GORUNUMU:** sesli grup aramasi da artik AYNI izgarayi kullaniyor (eski
+      serbest Wrap kaldirildi — "hepsi gorunmuyor" sorunu). Kamerasi kapali katilimci:
+      ORTADA daire avatar + ALTINDA renkli ad (kullanicinin gonderdigi ekran duzeni).

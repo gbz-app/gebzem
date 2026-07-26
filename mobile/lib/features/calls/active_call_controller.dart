@@ -302,6 +302,46 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     return out;
   }
 
+  // ---- ANINDA KAMERA (test turu 22): baglanti beklenmeden kendi goruntum ----
+  LocalVideoTrack? _onizlemeTrack;
+  bool _onizlemeYayinda = false;
+
+  /// Ekranda gosterilecek KENDI goruntum: yayinlanan track varsa o, yoksa onizleme.
+  VideoTrack? get kendiGoruntum {
+    final t = _room?.localParticipant?.videoTrackPublications.firstOrNull?.track;
+    if (t is VideoTrack) return t;
+    return _onizlemeTrack;
+  }
+
+  /// Odaya baglanmadan kamerayi ac (izin varsa). Hata/izin yoksa sessizce vazgecilir —
+  /// baglanti sonrasi normal setCameraEnabled yolu devreye girer.
+  Future<void> _onizlemeAc() async {
+    try {
+      if (!await Permission.camera.isGranted) return;
+      if (_onizlemeTrack != null || _ayrildi) return;
+      final t = await LocalVideoTrack.createCameraTrack(
+          _isGroup ? kGroupCameraCaptureOptions : kCameraCaptureOptions);
+      if (_ayrildi || arama == null) {
+        await t.stop();
+        await t.dispose();
+        return;
+      }
+      _onizlemeTrack = t;
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  /// Onizleme track'ini SALIVER (publish edilmediyse kamerayi kapat).
+  Future<void> _onizlemeBirak() async {
+    final t = _onizlemeTrack;
+    _onizlemeTrack = null;
+    if (t == null || _onizlemeYayinda) return;
+    try {
+      await t.stop();
+      await t.dispose();
+    } catch (_) {}
+  }
+
   /// Kendi kamera track'im (PiP'te uzak video yoksa yedek — kara ekran yerine kendi goruntum).
   VideoTrack? get yerelVideo {
     if (!_camOn) return null;
@@ -475,6 +515,8 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     // ikinci aramayi kabul ederken birincisi park edilmis olabilir).
     beklemede = false;
     karsiBeklemede = false;
+    _onizlemeTrack = null;
+    _onizlemeYayinda = false;
     karsiPil = -1;
     _benimPil = -1;
     karsiKalite = ConnectionQuality.unknown;
@@ -525,6 +567,10 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     _sesNesli = null;
 
     final id = b.callId;
+    // TEST TURU 22 (kullanici: "goruntulu arama atinca kameram DIREK gelmiyor"): kamerayi
+    // odaya BAGLANMADAN ONCE ac ve ekranda goster; baglanti kurulunca AYNI track publish
+    // edilir (canli yayin P1 deseni) — ikinci kez kamera acilmaz, yaris olmaz.
+    if (_camOn) unawaited(_onizlemeAc());
     // TEST TURU 20: GSM arama dinleyicisini AC (arama boyunca). Izin yoksa no-op.
     unawaited(PipService.gsmDinle(true));
     // SURE SENKRONU: ARANAN tarafta answer() cevabindaki gecen-sure (~0); grupta kullanilmaz.
@@ -962,7 +1008,20 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       await room.localParticipant?.setMicrophoneEnabled(_micOn);
       _kurulumAsama?['mic'] = _kurulumSaat?.elapsedMilliseconds ?? 0; // FAZ-0
       if (_camOn) {
-        await room.localParticipant?.setCameraEnabled(true);
+        // TEST TURU 22: onizlemede acilan kamerayi AYNEN yayinla (ikinci kez acma yarisi yok)
+        final onizleme = _onizlemeTrack;
+        if (onizleme != null) {
+          try {
+            await room.localParticipant?.publishVideoTrack(onizleme,
+                publishOptions:
+                    _isGroup ? kGroupVideoPublishOptions : kVideoPublishOptions);
+            _onizlemeYayinda = true;
+          } catch (_) {
+            await room.localParticipant?.setCameraEnabled(true);
+          }
+        } else {
+          await room.localParticipant?.setCameraEnabled(true);
+        }
         _kurulumAsama?['cam'] = _kurulumSaat?.elapsedMilliseconds ?? 0; // FAZ-0
       }
       // TEST TURU 14: GORUNTULU aramada varsayilan HOPARLOR (WhatsApp davranisi — telefonu
@@ -1442,6 +1501,7 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
 
     // CallKit KAPAT (kilit ekrani kabulunde aktif sistem aramasi vardir; idempotent)
     unawaited(CallKitService.bitir(id));
+    unawaited(_onizlemeBirak()); // test turu 22: yayinlanmadiysa kamerayi kapat
     // GSM dinleyicisini kapat (park edilmis arama varsa devamEt tekrar acar)
     if (parkEdilen == null) unawaited(PipService.gsmDinle(false));
     // SERI ARAMA YARISI: teardown'i AYRILMA ANINDA kilit sirasina koy
