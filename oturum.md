@@ -2079,3 +2079,27 @@ Kullanici (3 telefon: 2 Android + 1 iPhone) bulgulari:
 - **KAYNAKLAR:** Android TelephonyCallback.CallStateListener (developer.android.com), audio
       focus AUDIOFOCUS_LOSS_TRANSIENT (source.android.com/docs/automotive/audio/audio-focus),
       jitsi AppRTCAudioManager ornegi; Apple AVPictureInPictureController.startPictureInPicture.
+
+## TEST TURU 21 (26 Tem 2026): WHATSAPP GRUP-ARAMA DENEYIMI (kullanici ekran goruntuleri)
+Kullanici WhatsApp ekranlarini gonderdi, ayni deneyimi istiyor:
+1) **Grup aramasi daveti ekrani:** davet edilen kisi KENDI KAMERA ONIZLEMESINI gorur; kamera ve
+   mikrofon dugmeleri ONCEDEN acilip kapatilabilir; altta kart: "X ve N kisi daha" + **Yok say /
+   Katil**.
+2) **Sohbet listesinde/sohbette davet kaydi:** "📹 Grup aramasi • Davet edildiniz"; arayan
+   tarafta "Grup aramasi • N kisi davet edildi"; arama surerken sohbette
+   "Aramada · Geri donmek icin dokun" (dokun -> aramaya don); arama bitince kayit degisir.
+3) **Katilimci uygulamayi kapatinca/arka plana alinca:** digerlerinde o kisinin SON KARESI
+   BULANIK (blur) gosterilir ve uzerinde "Beklemede" yazar (siyah/avatar degil).
+
+### PLAN (adimlar)
+- [ ] 1. BULANIK "Beklemede" katmani: uzak katilimcinin video track'i MUTED ise (arka plan/beklet)
+      son kare BLUR + "Beklemede" etiketi (grup izgarasi + 1:1 + kucuk pencere izgarasi)
+- [ ] 2. GRUP DAVET EKRANI: gelen arama katmani grup+video ise kamera onizlemesi + kamera/mik
+      on-ayar dugmeleri + "Yok say / Katil"; secilen mik/kamera durumu aramaya TASINIR
+- [ ] 3. SOHBET KAYITLARI (backend): grup aramasi baslayinca/davet edilince sistem mesaji
+      (`call:group:invite:<callId>`) — kalici grupta grup sohbetine, anlik grupta arayanla olan
+      DIREKT sohbete; arama bitince `call:group:end:<callId>`
+- [ ] 4. SOHBET UI: bu sistem mesajlari "Grup aramasi • Davet edildiniz / N kisi davet edildi /
+      sona erdi" olarak cizilir + "Katil" dugmesi; aktif arama varken sohbetin ustunde
+      "Aramada · Geri donmek icin dokun" seridi
+- [ ] 5. analyze + go build + temiz build + yayin
