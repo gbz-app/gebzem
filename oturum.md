@@ -1818,4 +1818,28 @@ pencere KUCUK. (3) "uygulamayi kapatinca ses kapaniyor mu / gruptan cikinca hat 
 - [x] 3. Android PiP RemoteActions: mikrofon + kapat (+ pencere orani 3:4)
 - [x] 4. Uygulama-ici yuzen pencere: buyut + hoparlor/mic/kapat + video-akisi kapisi
 - [x] 5. Backend: sweeper LiveKit oda kontrolu -> olu arama satirlari kapansin (hat dusme)
-- [ ] 6. flutter analyze + go build + temiz build + yayin
+- [x] 6. flutter analyze + go build + temiz build + yayin
+- [x] EK (tarama sirasinda cikan): PiP icerigi CallScreen'den UYGULAMA KATMANINA (AktifAramaBanner /
+      MaterialApp.builder) tasindi -> arama kucultulup baska sayfadayken HOME'a inince PiP'te ana
+      ekran yerine KARSI TARAF gorunur. `_pipIstenir`den `ekranGorunur && !minimized` kaldirildi.
+      CallScreen PiP dalinda renderer YOK (ayni track'e cift texture baglanmasin).
+- [x] EK: arama bitince PiP penceresi KAPANIR (moveTaskToBack; eskiden yuzen pencerede ana ekran
+      asili kaliyordu). PiP dugmeleri icin kendi vektor ikonlarimiz (pip_mic/pip_mic_off/pip_hangup).
+- [x] EK: GORUNTULU aramada hoparlor VARSAYILAN ACIK (WhatsApp); sesli aramada eskisi gibi earpiece.
+- [x] TEMIZ BUILD YAYINLANDI (26 Tem 06:11): android 30185398548 + ios 30185399247 (ae26a76) BASARILI
+      (Kotlin PiP/RemoteAction kodu DERLENDI); debug imza YOK (logda 0 eslesme); APK 104979437->
+      104997973 (+18.5KB) ve IPA 19095161->19096351 (+1.2KB) BUYUDU = yeni kod kaniti; R2 apk=104997973
+      ipa=19096351 index=6570; CF purge OK; CDN boyut BIREBIR; backend deploy (olu arama sweeper) +
+      health ok; DB TRUNCATE (users=0); api loglarinda panic YOK.
+- **TEST RECETESI (test turu 14):** (1) NORMAL (1:1) goruntulu arama -> HOME'a in -> kucuk pencere
+      GELMELI; pencereye dokun -> mikrofon + kapat dugmeleri cikmali. (2) Pencerede kameran kapanmamali
+      (karsi taraf seni gormeye devam etmeli). (3) Aramayi kucult (asagi ok) -> uygulamada gezin ->
+      buyuk yuzen pencere (mic/hoparlor/kapat) -> HOME'a in -> sistem penceresinde yine karsi taraf.
+      (4) Grup goruntulu aramada ayni akis. (5) Arama bitince yuzen/sistem penceresi kapanmali.
+      (6) HAT DUSME: goruntulu aramadayken uygulamayi zorla kapat (kaydirip at) -> ~1.5-2 dk icinde
+      sunucu hatti dusurur; karsi taraf ANINDA duser (ParticipantDisconnected) ve seni tekrar
+      arayabilir (eskiden 2 saat "baska bir gorusmede" hatasi geliyordu).
+- **DURUST SINIR:** iOS'ta GERCEK arka plan (ana ekran) sistem PiP'i hala telefonun "PiP'i Otomatik
+      Baslat" ayarina + Dusuk Guc Modu KAPALI olmasina bagli (Apple kisiti, bizim kod disi).
+      Android'de sistem PiP tam kontrolumuzde. Uygulama-ICI gezinmede yuzen pencere IKI PLATFORMDA da
+      garanti.
