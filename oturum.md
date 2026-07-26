@@ -2092,14 +2092,20 @@ Kullanici WhatsApp ekranlarini gonderdi, ayni deneyimi istiyor:
    BULANIK (blur) gosterilir ve uzerinde "Beklemede" yazar (siyah/avatar degil).
 
 ### PLAN (adimlar)
-- [ ] 1. BULANIK "Beklemede" katmani: uzak katilimcinin video track'i MUTED ise (arka plan/beklet)
+- [x] 1. BULANIK "Beklemede" katmani: uzak katilimcinin video track'i MUTED ise (arka plan/beklet)
       son kare BLUR + "Beklemede" etiketi (grup izgarasi + 1:1 + kucuk pencere izgarasi)
-- [ ] 2. GRUP DAVET EKRANI: gelen arama katmani grup+video ise kamera onizlemesi + kamera/mik
+- [x] 2. GRUP DAVET EKRANI: gelen arama katmani grup+video ise kamera onizlemesi + kamera/mik
       on-ayar dugmeleri + "Yok say / Katil"; secilen mik/kamera durumu aramaya TASINIR
-- [ ] 3. SOHBET KAYITLARI (backend): grup aramasi baslayinca/davet edilince sistem mesaji
+- [x] 3. SOHBET KAYITLARI (backend): grup aramasi baslayinca/davet edilince sistem mesaji
       (`call:group:invite:<callId>`) — kalici grupta grup sohbetine, anlik grupta arayanla olan
       DIREKT sohbete; arama bitince `call:group:end:<callId>`
-- [ ] 4. SOHBET UI: bu sistem mesajlari "Grup aramasi • Davet edildiniz / N kisi davet edildi /
+- [x] 4. SOHBET UI: bu sistem mesajlari "Grup aramasi • Davet edildiniz / N kisi davet edildi /
       sona erdi" olarak cizilir + "Katil" dugmesi; aktif arama varken sohbetin ustunde
       "Aramada · Geri donmek icin dokun" seridi
 - [ ] 5. analyze + go build + temiz build + yayin
+- [x] EK (kullanici istegi, tur ortasinda): ARAMA EKRANI UYARILARI — karsi tarafin PIL seviyesi
+      (LiveKit veri kanali {"t":"batt","v":n}, battery_plus ile 1 dk'da bir yayin) ve BAGLANTI
+      kalitesi (ParticipantConnectionQualityUpdated: yerel+UZAK) + yeniden baglanma.
+      Metinler: "Yeniden bağlanılıyor…", "X bağlantısı koptu/zayıf", "İnternet bağlantın zayıf",
+      "X pil seviyesi düşük" (<=%15), "Pil seviyen düşük". WhatsApp'in birebir metinleri
+      kaynaklarda bulunamadi -> standart Turkce karsiliklar kullanildi (kullaniciya soyle).

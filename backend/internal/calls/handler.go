@@ -582,6 +582,9 @@ func (h *Handler) startGroup(w http.ResponseWriter, r *http.Request, req startRe
 		}
 	}
 	log.Printf("grup arama: call=%s uye=%d tip=%s", kisaID(callID), len(memberIDs), callType)
+	// TEST TURU 21 (WhatsApp): sohbete DAVET KAYDI dus — davetli "Grup aramasi · Davet
+	// edildiniz", arayan "N kisi davet edildi" gorur; dokununca katilir.
+	go h.grupAramaKaydi(context.Background(), callID, callerID, req.ChatID, memberIDs, false)
 
 	writeJSON(w, http.StatusCreated, map[string]any{
 		"call_id": callID, "room": roomName, "url": h.lkURL, "token": tok,
@@ -1061,8 +1064,17 @@ func (h *Handler) endGroup(w http.ResponseWriter, r *http.Request, callID, userI
 		FROM call_participants p
 		WHERE p.call_id=$1`, callID).Scan(&joinedCount, &ringingFresh)
 	if joinedCount == 0 || (joinedCount == 1 && ringingFresh == 0) {
-		h.db.Exec(r.Context(),
+		ct, _ := h.db.Exec(r.Context(),
 			`UPDATE calls SET status='ended', ended_at=now() WHERE id=$1 AND status='active'`, callID)
+		// TEST TURU 21: sohbetteki davet kaydinin altina "sona erdi" satiri
+		if ct.RowsAffected() > 0 {
+			var kurucu, sohbet string
+			h.db.QueryRow(r.Context(),
+				`SELECT caller_id, COALESCE(chat_id::text,'') FROM calls WHERE id=$1`, callID).
+				Scan(&kurucu, &sohbet)
+			uyeler := h.grupTumKatilimcilar(r.Context(), callID)
+			go h.grupAramaKaydi(context.Background(), callID, kurucu, sohbet, uyeler, true)
+		}
 		// WS call.ended: TUM kalanlara (ringing + joined) -> ekranlari kapansin.
 		herkes := h.groupRingingOrJoined(r.Context(), callID)
 		endPayload, _ := json.Marshal(map[string]string{"call_id": callID, "status": "ended"})

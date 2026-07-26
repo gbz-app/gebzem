@@ -223,6 +223,41 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       ),
       body: Column(
         children: [
+          // TEST TURU 21 (WhatsApp): aktif arama KUCULTULMUSKEN sohbetin ustunde
+          // "Aramada · Geri dönmek için dokun" seridi — dokun, aramaya don.
+          Consumer(builder: (context, ref2, _) {
+            final ctrl = ref2.watch(activeCallProvider);
+            if (ctrl.arama == null || !ctrl.minimized) {
+              return const SizedBox.shrink();
+            }
+            return Material(
+              color: const Color(0xFF1F2C34),
+              child: InkWell(
+                onTap: ctrl.restore,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                  child: Row(children: [
+                    const Icon(LucideIcons.video,
+                        size: 16, color: Color(0xFF25D366)),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                          ctrl.isGroup
+                              ? 'Grup araması · Aramada · Geri dönmek için dokun'
+                              : 'Aramada · Geri dönmek için dokun',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              color: Colors.white, fontSize: 13)),
+                    ),
+                    Text(ctrl.durumMetni,
+                        style: const TextStyle(
+                            color: Colors.white70, fontSize: 12)),
+                  ]),
+                ),
+              ),
+            );
+          }),
           Expanded(
             child: messages.when(
               loading: () => const Center(child: CircularProgressIndicator()),
@@ -341,6 +376,24 @@ class _CallLogChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final parts = message.content.split(':'); // call : missed : audio|video
+    // TEST TURU 21 — GRUP ARAMASI KAYDI: 'call:group:invite:<id>' / 'call:group:end:<id>'
+    if (parts.length > 1 && parts[1] == 'group') {
+      final bitti = parts.length > 2 && parts[2] == 'end';
+      final saat = DateFormat.Hm().format(message.createdAt.toLocal());
+      final metin = bitti
+          ? 'Grup araması sona erdi'
+          : (mine ? 'Grup araması · davet gönderildi' : 'Grup araması · Davet edildiniz');
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Chip(
+          avatar: Icon(LucideIcons.video,
+              size: 15,
+              color: bitti ? scheme.outline : const Color(0xFF25D366)),
+          label: Text('$metin · $saat', style: const TextStyle(fontSize: 12)),
+          visualDensity: VisualDensity.compact,
+        ),
+      );
+    }
     final video = parts.length > 2 && parts[2] == 'video';
     final missed = parts.length > 1 && parts[1] == 'missed';
     final time = DateFormat.Hm().format(message.createdAt.toLocal());

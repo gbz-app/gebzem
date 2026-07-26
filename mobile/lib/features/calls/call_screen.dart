@@ -9,6 +9,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../core/api.dart';
 import '../../router.dart';
 import 'active_call_controller.dart';
+import 'beklemede_katmani.dart';
 import 'add_participant_sheet.dart';
 
 /// AKTIF ARAMA EKRANI — SAF GORUNUM (Faz-C C2). TUM mantik (Room, timer'lar, sure
@@ -206,6 +207,13 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     return null;
   }
 
+  /// 1:1'de karsi tarafin MUTE (arka plan/beklemede) video track'i — son kare bulaniklastirilir.
+  VideoTrack? get _uzakBeklemedeVideo {
+    final p = _c.room?.remoteParticipants.values.firstOrNull;
+    if (p == null) return null;
+    return _beklemedekiVideo(p);
+  }
+
   VideoTrack? get _localVideo =>
       _c.room?.localParticipant?.videoTrackPublications.firstOrNull?.track;
 
@@ -269,6 +277,13 @@ class _CallScreenState extends ConsumerState<CallScreen> {
                   ),
                 ),
               )
+            // TEST TURU 21 (1:1): karsi taraf uygulamayi kapatti/arka plana aldi -> videosu
+            // MUTE; son kareyi BULANIK gosterip "Beklemede" yaz (WhatsApp gorunumu).
+            else if (!c.isGroup && _uzakBeklemedeVideo != null)
+              Positioned.fill(
+                child: BeklemedeKatmani(
+                    track: _uzakBeklemedeVideo, harf: b.peerName),
+              )
             else
               _buildAudioBackground(b),
 
@@ -305,6 +320,31 @@ class _CallScreenState extends ConsumerState<CallScreen> {
                       if (c.peerJoined) const SizedBox(width: 6),
                       Text(c.durumMetni,
                           style: const TextStyle(color: Colors.white70, fontSize: 15)),
+                      // TEST TURU 21 (WhatsApp): PIL / BAGLANTI uyarisi — "X pil seviyesi
+                      // düşük", "İnternet bağlantın zayıf", "Yeniden bağlanılıyor…".
+                      if (c.uyariMetni.isNotEmpty && !c.beklemede)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.45),
+                                borderRadius: BorderRadius.circular(12)),
+                            child: Row(mainAxisSize: MainAxisSize.min, children: [
+                              Icon(
+                                  c.uyariMetni.contains('pil')
+                                      ? LucideIcons.batteryLow
+                                      : LucideIcons.wifiOff,
+                                  size: 14,
+                                  color: Colors.amberAccent),
+                              const SizedBox(width: 6),
+                              Text(c.uyariMetni,
+                                  style: const TextStyle(
+                                      color: Colors.amberAccent, fontSize: 12)),
+                            ]),
+                          ),
+                        ),
                       // ARAMA BEKLETME (test turu 18): bu arama beklemede mi
                       if (c.beklemede || c.karsiBeklemede)
                         Padding(
@@ -663,6 +703,19 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     return null;
   }
 
+  /// TEST TURU 21 (WhatsApp deneyimi): karsi taraf uygulamayi arka plana aldi/kapatti ya da
+  /// aramayi beklemeye aldi -> video track'i MUTE, ama SON KARE elimizde. Bu durumda avatar
+  /// yerine son kareyi BULANIK gosterip "Beklemede" yaziyoruz. Track hic yoksa null.
+  VideoTrack? _beklemedekiVideo(Participant p) {
+    if (p is LocalParticipant) return null;
+    for (final pub in p.videoTrackPublications) {
+      if (pub.subscribed && pub.muted && pub.track != null) {
+        return pub.track as VideoTrack;
+      }
+    }
+    return null;
+  }
+
   bool _grupVideoVarMi() {
     final lp = _c.room?.localParticipant;
     if (lp != null && _katilimciVideosu(lp) != null) return true;
@@ -821,6 +874,10 @@ class _CallScreenState extends ConsumerState<CallScreen> {
                     adaptiveStreamPixelDensity:
                         const AdaptiveStreamPixelDensity.fixed(1.0)),
               )
+            // TEST TURU 21: kamerasi MUTE olan (arka planda/beklemede) katilimcinin SON KARESI
+            // BULANIK + "Beklemede" (WhatsApp gorunumu). Track hic yoksa avatar.
+            else if (_beklemedekiVideo(p) != null)
+              BeklemedeKatmani(track: _beklemedekiVideo(p), harf: ad)
             else
               Container(
                 decoration: const BoxDecoration(

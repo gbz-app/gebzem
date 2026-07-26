@@ -2,12 +2,14 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:livekit_client/livekit_client.dart' as lk;
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../../core/api.dart';
 import '../../router.dart';
 import 'active_call_controller.dart';
+import 'call_media_options.dart';
 import 'call_provider.dart';
 import 'call_sounds.dart';
 
@@ -48,10 +50,18 @@ class _IncomingCallSheetState extends ConsumerState<_IncomingCallSheet> {
   int? _zilNesli; // CallSounds zil nesli — durdururken verilir (art arda ezme koruması)
   Timer? _timeout; // gelen arama sonsuza calmasin (arayan iptali WS'te kaybolabilir)
   Timer? _poll;
+  // TEST TURU 21 — GRUP DAVET EKRANI (WhatsApp): kendi kamera onizlemem + kamera/mikrofon
+  // ON-AYARI. Kullanici "Katil" demeden once kamerasini/mikrofonunu kapatabilir; secim
+  // aramaya TASINIR (controller.baslat(micAcik:, kameraAcik:)).
+  lk.LocalVideoTrack? _onizleme;
+  bool _kameraSecimi = true;
+  bool _mikSecimi = true;
+  bool get _grupDavet => widget.call.isGroup;
 
   @override
   void initState() {
     super.initState();
+    if (_grupDavet && widget.call.video) _onizlemeAc();
     // Zil + titresim. LiveKit odasina henuz baglanmadigimiz icin zil serbestce calar.
     CallSounds.gelenArama().then((n) => _zilNesli = n); // nesli sakla (durdururken verilecek)
     final notifier = ref.read(callServiceProvider.notifier);
@@ -78,7 +88,32 @@ class _IncomingCallSheetState extends ConsumerState<_IncomingCallSheet> {
     _timeout?.cancel();
     _poll?.cancel();
     CallSounds.durdur(_zilNesli); // ekran her kapandiginda zil MUTLAKA sussun
+    _onizlemeKapat(); // grup davet onizlemesi (test turu 21)
     super.dispose();
+  }
+
+  /// GRUP DAVET ONIZLEMESI (test turu 21): kamera izni VARSA kendi goruntumu goster.
+  /// Izin yoksa/hata olursa sessizce avatar gorunumune duseriz (davet ekrani bozulmaz).
+  Future<void> _onizlemeAc() async {
+    try {
+      if (!await Permission.camera.isGranted) return;
+      final t = await lk.LocalVideoTrack.createCameraTrack(kCameraCaptureOptions);
+      if (!mounted) {
+        await t.stop();
+        await t.dispose();
+        return;
+      }
+      setState(() => _onizleme = t);
+    } catch (_) {}
+  }
+
+  Future<void> _onizlemeKapat() async {
+    final t = _onizleme;
+    _onizleme = null;
+    try {
+      await t?.stop();
+      await t?.dispose();
+    } catch (_) {}
   }
 
   /// ARAMA BEKLETME (test turu 18): bu arama BEN BASKA GORUSMEDEYKEN geldi.
@@ -123,6 +158,7 @@ class _IncomingCallSheetState extends ConsumerState<_IncomingCallSheet> {
       }
       // Android es-zamanli ikinci request firlatir -> baslat'in _connect izni oncesi bitmis olsun
       await izinF;
+      await _onizlemeKapat(); // kamera cakismasin (yayin ekrani kendi track'ini acar)
 
       // FAZ-C: mantik controller'da; ekran saf gorunum (rootNavigatorKey ile acilir)
       final ctrl = ref.read(activeCallProvider);
@@ -136,7 +172,7 @@ class _IncomingCallSheetState extends ConsumerState<_IncomingCallSheet> {
         isGroup: widget.call.isGroup,
         chatTitle: widget.call.chatTitle,
         elapsedMs: (info['elapsed_ms'] as num?)?.toInt(), // sure senkronu: gecen-sure baslangici
-      )));
+      ), micAcik: _mikSecimi, kameraAcik: widget.call.video && _kameraSecimi));
       ctrl.ekraniAc();
       notifier.dismiss(); // arama ekrani acildiktan SONRA gelen arama ekranini kaldir
     } catch (e) {
@@ -154,9 +190,171 @@ class _IncomingCallSheetState extends ConsumerState<_IncomingCallSheet> {
     await ref.read(callServiceProvider.notifier).end(widget.call.callId);
   }
 
+  /// GRUP DAVET EKRANI (test turu 21 — WhatsApp duzeni): arkada KENDI kamera onizlemem,
+  /// ortada kamera/mikrofon ON-AYAR dugmeleri, altta kart: "X ve N kisi daha" + Yok say/Katil.
+  Widget _grupDavetGorunumu(IncomingCall call) {
+    final onizleme = _onizleme;
+    final baslik = call.chatTitle.isNotEmpty ? call.chatTitle : call.callerName;
+    final altBaslik = call.participantCount > 2
+        ? '${call.callerName} ve ${call.participantCount - 1} kişi daha'
+        : call.callerName;
+    return Material(
+      color: const Color(0xFF0B141A),
+      child: Stack(fit: StackFit.expand, children: [
+        // Arka plan: kendi kameram (kapaliysa koyu zemin)
+        if (onizleme != null && _kameraSecimi)
+          IgnorePointer(
+            child: lk.VideoTrackRenderer(onizleme,
+                key: ValueKey('davet-${onizleme.sid}'),
+                fit: lk.VideoViewFit.cover,
+                mirrorMode: lk.VideoViewMirrorMode.mirror),
+          )
+        else
+          Container(color: const Color(0xFF0B141A)),
+        SafeArea(
+          child: Column(children: [
+            const SizedBox(height: 28),
+            Text(baslik,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.92),
+                    fontSize: 26,
+                    fontWeight: FontWeight.w600,
+                    shadows: const [Shadow(color: Colors.black54, blurRadius: 8)])),
+            const SizedBox(height: 6),
+            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Icon(call.video ? LucideIcons.video : LucideIcons.phone,
+                  size: 15, color: Colors.white70),
+              const SizedBox(width: 6),
+              Text('Grup araması',
+                  style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.8), fontSize: 15)),
+            ]),
+            const Spacer(),
+            // KAMERA / MIKROFON ON-AYARI (WhatsApp: katilmadan once kapatabilirsin)
+            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              if (call.video)
+                _onAyarBtn(
+                  acik: _kameraSecimi,
+                  acikIkon: LucideIcons.video,
+                  kapaliIkon: LucideIcons.videoOff,
+                  onTap: () => setState(() => _kameraSecimi = !_kameraSecimi),
+                ),
+              if (call.video) const SizedBox(width: 18),
+              _onAyarBtn(
+                acik: _mikSecimi,
+                acikIkon: LucideIcons.mic,
+                kapaliIkon: LucideIcons.micOff,
+                onTap: () => setState(() => _mikSecimi = !_mikSecimi),
+              ),
+            ]),
+            const SizedBox(height: 22),
+            // ALT KART: kim davet etti + Yok say / Katil
+            Container(
+              margin: const EdgeInsets.fromLTRB(12, 0, 12, 18),
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+              decoration: BoxDecoration(
+                color: const Color(0xF21F2C34),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Row(children: [
+                  Container(
+                    width: 9,
+                    height: 9,
+                    decoration: const BoxDecoration(
+                        color: Color(0xFF25D366), shape: BoxShape.circle),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(altBaslik,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: Colors.white, fontSize: 16)),
+                  ),
+                  CircleAvatar(
+                    radius: 16,
+                    backgroundColor: const Color(0xFF6C2BD9),
+                    backgroundImage: call.callerAvatar.isNotEmpty
+                        ? NetworkImage(call.callerAvatar)
+                        : null,
+                    child: call.callerAvatar.isEmpty
+                        ? Text(
+                            call.callerName.isNotEmpty
+                                ? call.callerName[0].toUpperCase()
+                                : '?',
+                            style: const TextStyle(
+                                color: Colors.white, fontSize: 14))
+                        : null,
+                  ),
+                ]),
+                const SizedBox(height: 14),
+                Row(children: [
+                  Expanded(
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF2A3942),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(24)),
+                      ),
+                      onPressed: _busy ? null : _reject,
+                      child: const Text('Yok say',
+                          style: TextStyle(color: Colors.white, fontSize: 15)),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF25D366),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(24)),
+                      ),
+                      onPressed: _busy ? null : () => _accept(),
+                      child: const Text('Katıl',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700)),
+                    ),
+                  ),
+                ]),
+              ]),
+            ),
+          ]),
+        ),
+      ]),
+    );
+  }
+
+  Widget _onAyarBtn({
+    required bool acik,
+    required IconData acikIkon,
+    required IconData kapaliIkon,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 58,
+        height: 58,
+        decoration: BoxDecoration(
+          color: acik ? Colors.white : const Color(0xFF2A3942),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(acik ? acikIkon : kapaliIkon,
+            color: acik ? const Color(0xFF0B141A) : Colors.white, size: 24),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final call = widget.call;
+    // GRUP DAVETI (test turu 21): WhatsApp tarzi onizlemeli ekran. 1:1 arama ekrani AYNEN kalir.
+    if (_grupDavet && !call.waiting) return _grupDavetGorunumu(call);
     return Material(
       color: const Color(0xFF0B141A),
       child: SafeArea(

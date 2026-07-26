@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart' as rtc;
+import 'package:battery_plus/battery_plus.dart';
 import 'package:livekit_client/livekit_client.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
@@ -461,7 +463,9 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
 
   /// Yeni aramayi baslat (eski initState govdesi). Cagiran ONCE REST'i (start/answer)
   /// tamamlamis olmali — b.url/token hazir gelir. Ekrani ACMAZ (ekraniAc ayri).
-  Future<void> baslat(AramaBilgisi b) async {
+  /// [micAcik]/[kameraAcik]: GRUP DAVET EKRANINDA (test turu 21) kullanici onceden secmis
+  /// olabilir (WhatsApp gibi kamera/mikrofon kapali katilma). Verilmezse eski davranis.
+  Future<void> baslat(AramaBilgisi b, {bool? micAcik, bool? kameraAcik}) async {
     // Tum tek-seferlik bayraklar RESET (teardown'i etkilemez — KARAR 4: bekleyen
     // teardown'lar enqueue aninda yakalanmis nesnelerle calisir).
     _iptalAbonelikler();
@@ -471,6 +475,10 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     // ikinci aramayi kabul ederken birincisi park edilmis olabilir).
     beklemede = false;
     karsiBeklemede = false;
+    karsiPil = -1;
+    _benimPil = -1;
+    karsiKalite = ConnectionQuality.unknown;
+    yenidenBaglaniyor = false;
     pipModunda = false; // FAZ-6 (yargic): eski aramadan bayrak sarkmasin
     _kameraOtoKapandi = false;
     _iosPipKurulanId = ''; // iOS PiP (test turu 7): eski aramadan kurulum sarkmasin
@@ -484,8 +492,8 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     _peerJoined = false;
     _mediaBasladi = false;
     _odaBagli = false; // senkron sayac (test turu 6)
-    _micOn = true;
-    _camOn = b.video;
+    _micOn = micAcik ?? true;
+    _camOn = kameraAcik ?? b.video;
     _speakerOn = false;
     _frontCamera = true;
     _error = null;
@@ -860,10 +868,38 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
           leave(notifyServer: true); // 1:1: karsi taraf ayrildi
         })
         ..on<ParticipantConnectionQualityUpdatedEvent>((e) {
-          if (arama?.callId == id && e.participant is LocalParticipant) {
+          if (arama?.callId != id) return;
+          if (e.participant is LocalParticipant) {
             _quality = e.connectionQuality;
-            notifyListeners();
+          } else {
+            // TEST TURU 21: KARSI TARAFIN kalitesi -> "X bağlantısı zayıf" uyarisi
+            karsiKalite = e.connectionQuality;
           }
+          notifyListeners();
+        })
+        // TEST TURU 21: karsi tarafin PIL seviyesi (veri kanali {"t":"batt","v":n})
+        ..on<DataReceivedEvent>((e) {
+          if (arama?.callId != id) return;
+          try {
+            final m = jsonDecode(utf8.decode(e.data));
+            if (m is Map && m['t'] == 'batt') {
+              final v = (m['v'] as num?)?.toInt() ?? -1;
+              if (v != karsiPil) {
+                karsiPil = v;
+                notifyListeners();
+              }
+            }
+          } catch (_) {}
+        })
+        ..on<RoomReconnectingEvent>((_) {
+          if (arama?.callId != id) return;
+          yenidenBaglaniyor = true;
+          notifyListeners();
+        })
+        ..on<RoomReconnectedEvent>((_) {
+          if (arama?.callId != id) return;
+          yenidenBaglaniyor = false;
+          notifyListeners();
         })
         ..on<TrackSubscribedEvent>((e) {
           if (arama?.callId != id) return;
@@ -923,9 +959,9 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       }
       _kurulumAsama?['connect'] = _kurulumSaat?.elapsedMilliseconds ?? 0; // FAZ-0
       // iOS SES SIRASI (KRITIK v7/v8 — AYNEN): mic -> kamera -> speaker(false) -> _sesiAc EN SON
-      await room.localParticipant?.setMicrophoneEnabled(true);
+      await room.localParticipant?.setMicrophoneEnabled(_micOn);
       _kurulumAsama?['mic'] = _kurulumSaat?.elapsedMilliseconds ?? 0; // FAZ-0
-      if (b.video) {
+      if (_camOn) {
         await room.localParticipant?.setCameraEnabled(true);
         _kurulumAsama?['cam'] = _kurulumSaat?.elapsedMilliseconds ?? 0; // FAZ-0
       }
@@ -948,6 +984,7 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       }
       _ringTimeout?.cancel();
       _connecting = false;
+      _pilTakibiBaslat(); // TEST TURU 21: pil seviyemi karsi tarafa bildir (uyari icin)
       _speakerOn = hoparlor; // goruntuluyse hoparlor acik (buton durumu gercekle uyumlu)
       _peerJoined = room.remoteParticipants.isNotEmpty;
       _odaBagli = true; // room.connect TAMAMLANDI
@@ -1355,6 +1392,7 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     _statsTimer?.cancel();
     _mediaYedek?.cancel();
     _pipKameraGecikme?.cancel();
+    _pilTimer?.cancel();
     _kanitTimer?.cancel(); // SORUN-6 bekcisi de dursun
     final room = _room;
     final listener = _listener;
@@ -1640,6 +1678,67 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     _startTimer();
     notifyListeners();
     ekraniAc();
+  }
+
+  // ---- UYARILAR: PIL / BAGLANTI (test turu 21 — WhatsApp deneyimi) ----
+
+  /// Karsi tarafin pil yuzdesi (LiveKit veri kanalindan gelir; -1 = bilinmiyor).
+  int karsiPil = -1;
+  int _benimPil = -1;
+  Timer? _pilTimer;
+  final Battery _pilOkuyucu = Battery();
+  /// Karsi tarafin baglanti kalitesi (LiveKit) — zayifsa uyari gosterilir.
+  ConnectionQuality karsiKalite = ConnectionQuality.unknown;
+  bool yenidenBaglaniyor = false;
+
+  /// Ekranda gosterilecek TEK uyari metni (oncelik: yeniden baglanma > baglanti > pil).
+  /// Bos string = uyari yok.
+  String get uyariMetni {
+    if (yenidenBaglaniyor) return 'Yeniden bağlanılıyor…';
+    if (karsiKalite == ConnectionQuality.lost) {
+      return '${_karsiAd()} bağlantısı koptu';
+    }
+    if (_quality == ConnectionQuality.poor) return 'İnternet bağlantın zayıf';
+    if (karsiKalite == ConnectionQuality.poor) {
+      return '${_karsiAd()} bağlantısı zayıf';
+    }
+    if (karsiPil >= 0 && karsiPil <= 15) {
+      return '${_karsiAd()} pil seviyesi düşük';
+    }
+    if (_benimPil > 0 && _benimPil <= 15) return 'Pil seviyen düşük';
+    return '';
+  }
+
+  String _karsiAd() {
+    final b = arama;
+    if (b == null) return 'Karşı taraf';
+    if (_isGroup) {
+      final p = _room?.remoteParticipants.values.firstOrNull;
+      return (p?.name.isNotEmpty ?? false) ? p!.name : 'Katılımcı';
+    }
+    return b.peerName.isEmpty ? 'Karşı taraf' : b.peerName;
+  }
+
+  /// Pil seviyemi periyodik oku ve KARSI TARAFA gonder (LiveKit veri kanali; arama
+  /// token'inda canPublishData=true). WhatsApp'taki "X pil seviyesi dusuk" uyarisi icin.
+  void _pilTakibiBaslat() {
+    _pilTimer?.cancel();
+    Future<void> oku() async {
+      try {
+        final seviye = await _pilOkuyucu.batteryLevel;
+        if (arama == null || _ayrildi) return;
+        final degisti = seviye != _benimPil;
+        _benimPil = seviye;
+        if (degisti) notifyListeners();
+        final r = _room;
+        if (r?.localParticipant == null) return;
+        final veri = utf8.encode(jsonEncode({'t': 'batt', 'v': seviye}));
+        await r!.localParticipant!.publishData(veri, reliable: true);
+      } catch (_) {}
+    }
+
+    unawaited(oku());
+    _pilTimer = Timer.periodic(const Duration(minutes: 1), (_) => oku());
   }
 
   /// Karsi taraf BENI beklemeye aldi (WS call.held) — yalniz bilgi (ekranda "Beklemede").
