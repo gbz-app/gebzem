@@ -2444,3 +2444,28 @@ Upstream de cozmemis: flutter_webrtc'de bayrak HIC set edilmiyor (1.4.0 ve 1.5.2
 Sentry: "ios kamera kesinti sebep=<n>" cikmiyorsa VE goruntu akiyorsa kok kapandi demektir.
 Cikiyorsa sebep kodu OS'un kamerayi neden kestigini SOYLER (karar agaci icin).
 ### KULLANICI: ikinci bir sorun oldugunu soyledi ama tarif etmedi — SORULACAK.
+
+## TEST TURU 38 SURUMU YAYINLANDI (26 Tem 22:22) — KULLANICI TEST EDECEK
+- android **30216228929** + ios **30216229892** (commit **6605a16**), debug imza YOK.
+- R2: apk **105227857** · ipa **19148842** (19148233 -> buyudu) · index.html 6722.
+  CDN birebir, purge 2 kez, sayfadaki saat GERCEK yukleme saati. Backend degismedi, health ok,
+  DB temiz.
+### KANIT (Sentry, turu 37 surumu sonrasi 22:03)
+· "ios coklu-gorev kamera destek=true" -> **70 kayit VAR**
+· "ios kamera kesinti sebep=..." -> **HIC YOK**
+=> iOS kamerayi KESMIYOR. Kamerayi durduran **BIZIM 900ms'lik arka plan kamera-mute yolumuz**.
+livekit `stopCameraCaptureOnMute=true` oldugu icin mute CAPTURE'I DURDURUR; bu "nazik"
+durdurma AVCaptureSessionWasInterrupted URETMEZ -> ne haberimiz oluyor ne etiket cikiyor ->
+kucuk pencere SON KAREDE DONUYOR. Turu 36'dan beri pencere KENDI kamerami gosterdigi icin
+kendi kamerami kapatip kendi goruntumu beklemek MANTIKSAL CELISKI idi.
+### YAPILANLAR
+- [x] iOS'ta PiP KURULUYSA kamera ARTIK kendiliginden KAPATILMAZ (`iosPipKendiKameram` kapisi).
+      Yedek kaybolmadi: kamera gercekten durdurulursa OS soyluyor (turu 37 kesinti dinleyicisi)
+      ve orada DURUSTCE mute ediliyor. TAHMIN yerine GERCEK OLAY.
+- [x] Kamera her kapatildiginda `iosPipKareBosalt()` -> katman bosaltilir, "Kamera
+      duraklatildi" etiketi cikar (donmus kare ASLA gorunmez).
+- [x] KESIN OLCUM: PiP basladiktan 3sn sonra akan kare sayisi Sentry'e ("ios pip 3sn kare=N").
+### SONRAKI TURDA BAKILACAK
+Sentry'de "ios pip 3sn kare=" degeri: >0 ise goruntu akiyor (kok kapandi); =0 ise capture
+gercekten durmus -> "ios kamera kesinti sebep=" ile birlikte okunacak.
+### ACIK: kullanici "iki sorun var" dedi, ikincisini henuz tarif etmedi — SORULACAK.
