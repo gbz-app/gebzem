@@ -1916,3 +1916,23 @@ BEYAZ (golge/parilti YOK) ve sayarken ekranda BASKA HICBIR SEY olmasin.
 - **NOT (dururst sinir):** konuk sinirini KOD kaldirdi; cx33'te ~5-8 es zamanli video yayinci
       pratik tavan (SFU/pil/bant). Sunucu buyuyunce sinir zaten yok; gerekirse env
       STREAM_MAX_GUESTS=<sayi> ile tekrar sinir konabilir (0/tanimsiz = sinirsiz).
+
+## KULLANICI TEST TURU 17 (26 Tem 2026): IZLEYICI SINIRI + KUCUK PENCERE IZGARASI + ARAMA DURUMU
+Istekler: (1) CANLI YAYINDA IZLEYICI SINIRI KALKSIN (gecen turda KONUK sinirini kaldirmistik,
+kastedilen izleyiciymis). (2) 4 kisilik duzen 2x2 CEYREK: yayinci sol-ust, 1. konuk sag-ust,
+2. konuk sol-alt, 3. konuk sag-alt. (3) ALTA ALINCA (PiP/yuzen pencere) IZGARA olsun — 1:1
+aramada 2 kisi sol/sag, 3 kisi ustte 2 + altta 1, 4 kisi 2x2 (hem 1:1 hem grup hem canli yayin).
+(4) Baska kullanicinin profilinde/sohbetinde ARAMA DURUMU: kisi sesli aramadaysa ses ikonu
+ACIK/aktif, goruntu ikonu KAPALI; goruntuluyse tersi — "davet etme gibi" bir isaret.
+### ADIMLAR
+- [ ] 1. Backend: izleyici siniri kalksin (STREAM_MAX_VIEWERS=0/tanimsiz -> SINIRSIZ; LiveKit
+      odasi max_participants=0)
+- [ ] 2. Ortak KUCUK PENCERE IZGARASI (miniIzgara): 1 tam, 2 sol/sag, 3 ustte2+altta1 tam
+      genislik, 4 ceyrek; en fazla 4 kutu (+N rozeti)
+- [ ] 3. Arama: sistem PiP icerigi + uygulama-ici yuzen pencere bu izgarayi kullansin
+      (1:1'de karsi taraf + ben; grupta konusanlar + ben)
+- [ ] 4. Canli yayin: yayinci ve izleyici PiP'i ayni izgarayi kullansin (yayinci + konuklar)
+- [ ] 5. Backend: GET /users/{id}/presence -> {in_call, call_type} (1:1 + grup katilimcisi)
+- [ ] 6. Sohbet ekrani: karsinin arama durumu (baslik altinda "Sesli/Goruntulu aramada") +
+      ikon durumlari (aramadaysa ilgili ikon aktif, digeri pasif) + 15sn tazeleme
+- [ ] 7. analyze + go build + temiz build + yayin
