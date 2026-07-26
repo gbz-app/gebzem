@@ -15,6 +15,37 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (26 Tem 20:23):** TEST TURU 34-36 YAYINLANDI — android 30212040142 +
+  ios 30212041360 (0bb2660), R2 apk=105227857 ipa=19143161, purge OK, CDN birebir, sayfadaki
+  saat GERCEK yukleme saati, backend DEGISMEDI (865c5f0) + health ok, DB temiz. KULLANICI TEST EDECEK.
+- **TEST TURU 34-36 (16 ajanlik denetim sonucu):**
+  (1) **GRUP "KATIL" EKRANI**: ekran hic silinmemisti; yalniz "Android + uygulama ON PLANDA +
+  WS call.incoming" yolunda cizilebiliyordu. iOS'ta WS call.incoming KOSULSUZ atlanir
+  (cift-UI tuzagi — GEVSETME), Android kilitli/arka planda FCM->CallKit gelir. **`is_group`
+  bayragi CallKit yukunde UC yerde dusuruluyordu**: `AppDelegate.swift` data.extra,
+  `CallKitService.goster` extra, `_ayikla`. Artik ucdan uca tasinir; `main._callKitKabul`
+  GRUP dalinda arama HENUZ cevaplanmaz -> `callServiceProvider.grupDavetiGoster` ile davet
+  ekrani acilir; "Katil" normal `_accept` akisini calistirir. `_reject` artik
+  `CallKitService.bitir` + onizleme kapatma da yapar (hayalet CallKit aramasi kalmasin).
+  ⚠️ YAPMA: bu dali 1:1'e acma (CallKit'te zaten kabul edildi, ikinci onay yanlis);
+  `hazirlaVeAc` hizli-acilisini 1:1'de bozma.
+  (2) **ILK KAYITTA PATLAMA/IZIN GELMEMESI**: VoIP token OTURUMSUZ POST -> 401 -> `api.dart`
+  interceptor TUM OTURUMU siler + `authProvider` invalidate -> GoRouter sifirdan kurulur ->
+  kullanici KAYIT ekranindan LOGIN'e firlar, acik izin diyaloglari duser. Turu 33'te 5
+  denemeyle 5 KAT siklasti. FIX: token POST'u oturum varsa yapilir; `/users/me/voip-token`
+  ve `/users/me/fcm-token` 401'i oturumu SILMEZ. ⚠️ YAPMA: bu muafiyetleri kaldirma.
+  (3) **iPHONE KUCUK PENCERE = SADECE KENDI KAMERAM** (kullanici karari): kaynak sirasi
+  yerel -> uzak; ust/alt bolunme `ActiveCallController.pipBolunme=false` ile KAPALI (kod
+  duruyor, tek sabitle acilir); `preferredContentSize` 120x213 (120x400 asiri uzundu, geri
+  alindi). **KIMLIK CALKANTISI KORUMASI**: kurulmus `_iosPipKurulanId` hala gecerli bir
+  track'e isaret ediyorsa DEGISTIRILMEZ — aksi halde kaynak degisince `kur()`->`birak()`->
+  stopPictureInPicture PENCEREYI KAPATIYOR (turu 24 dersi). `_yerelVideoTrackId` MUTE track
+  de dondurur (arka planda oto-mute'ta id sabit kalsin diye KASITLI).
+  (4) `iosKameraCanli` artik `!_iosCokluGorevDeniyor` sartini da tasir (bayrak tazeleme
+  ucarken bayat deger okunup durust kamera-mute atlaniyordu -> karsi tarafta donmus kare).
+- **DURUST SINIR:** iPhone'da CALARKEN kendi kamerani goremezsin (gelen arama ekranini Apple/
+  CallKit cizer). Grup aramasinda kabul sonrasi "Katil" ekraninda gorunur; 1:1'de kabul eder
+  etmez. Uygulama OLDURULURSE arama devam ettirilemez (OS kurali).
 - **KALDIGIMIZ YER (26 Tem 18:44):** TEST TURU 32-33 YAYINLANDI — android 30208385166 +
   ios 30208386190 (7aca13b), R2 apk=105227857 ipa=19139678, purge OK, CDN birebir, sayfadaki
   saat GERCEK yukleme saati, **BACKEND DEPLOY EDILDI** (health ok), DB temiz. KULLANICI TEST EDECEK.
