@@ -2247,3 +2247,33 @@ kuruluyor, pencere HIC acilmiyordu.
 - **SONRAKI ADIM (kullanici testine bagli):** iPhone'da kucuk pencere gelirse -> iOS PiP calisiyor
   demektir; "karsi tarafta goruntum gidiyor" ise SENTRY'deki "ios coklu-gorev kamera destek="
   mesajina bakilacak (false ise APPLE KISITI, cihaz destegi yok — kod cozemez).
+
+## TEST TURU 27-28 (26 Tem 2026): ACILIS PATLAMASI + GECIKME — KOK NEDEN BULUNDU
+Kullanici: "iphone'dan android'i aradim, ikisinde de ekran DIREK geldi ama 2 saniye sonra iki
+ekranda PATLAMA oldu. Instagram/WhatsApp'ta bu ANLIK oluyor. Eskiden 'baglaniyor' deyip 2-3
+saniyede ekran geliyordu, bunu duzeltemedik."
+### KOK NEDEN (3 ayri sebep ust uste biniyordu)
+1. **Widget AGACTA TASINIYORDU (asil patlama):** karsi taraf baglanmadan once KENDI videom
+   tam-ekran dalinda (`if (bigTrack != null) Positioned.fill(...)`), baglanınca KUCUK PENCERE
+   dalina (`_buildSelfView`) geciyordu. Flutter'da widget agacta yer degistirince element
+   YENIDEN kurulur -> video texture SIFIRDAN olusur -> SIYAH PATLAMA + bos kare.
+2. **adaptiveStream + dynacast (2sn gecikme):** adaptiveStream karsi tarafin videosunu
+   "renderer gorunur" sinyali gelene kadar DURAKLATIR; dynacast abone yokken yayin katmanini
+   kapatir. 1:1'de ikisi de fazladan sinyal turu = ilk karede 1-2sn gecikme, kazanc ~0.
+3. **Kamera KAPATILIP YENIDEN ACILIYORDU:** gelen-arama ekranindaki onizleme track'i kabul
+   edilince `_onizlemeKapat()` ile kapatiliyor, arama ekraninda tekrar aciliyordu (~0.5-1sn siyah).
+### YAPILANLAR
+- [x] `_videoKutu`: uzak ve yerel video ARTIK TEK WIDGET TIPINDE, anahtarli `AnimatedPositioned`
+      icinde. Buyuk<->kucuk gecisi 260ms `easeOutCubic` DIKDORTGEN animasyonu (Instagram hissi);
+      renderer element'i HIC yeniden kurulmaz. Kose yuvarlamasi da 0<->14 gecisli, ilk beliriste
+      180ms opaklik. Stack sirasi anahtarli oldugu icin SWAP'ta da element korunur.
+      ⚠️ YAPMA: video renderer'i if/else dallarinda FARKLI konumlarda cizme (patlama geri gelir).
+- [x] `RoomOptions.adaptiveStream/dynacast` = `_isGroup` (1:1'de KAPALI, grupta ACIK).
+      ⚠️ YAPMA: grupta kapatma (8 video x tam katman = cx33 SFU + telefon isinmasi).
+- [x] `baslat(hazirKamera:)` — gelen-arama onizleme kamerasi KAPATILMADAN controller'a DEVREDILIR.
+- [x] iOS PiP UST/ALT BOLUNME **DOGRU YONTEMLE** geri geldi: PiP icerigi `UIStackView`;
+      `yerelAyarla(trackId:)` alt gorunumu controller'a DOKUNMADAN ekler/cikarir. Kurulum kimligi
+      HALA SADECE uzak track -> kamera mute olunca pencere KAPANMAZ (turu 24 hatasi tekrar etmez).
+      Dart: `PipService.iosPipYerel` + `_iosPipYerelId` delta kontrolu.
+- [x] `notifyListeners` mikro-gorevde birlestirilir (baglanma aninda 5-10 olay = 1 cizim).
+- [ ] BUILD: kullanici onayi bekleniyor (kural: sormadan build alma).
