@@ -2147,3 +2147,17 @@ icinde kayit istemistim.
       aramasinda herkes esit kutuda daire avatar + ad ile gorunmeli.
 - **KALAN (sonraki tur):** sohbet icindeki "aramaya don" kaydinin HEADER yerine mesaj balonu
       olarak cizilmesi (kullanici istegi) — su an ust seritte.
+
+## TEST TURU 23 (26 Tem 2026): YUZEN PENCERE UST USTE + CALARKEN KENDI KAMERAM
+Kullanici ekran goruntusu: arama ekrani ACIKKEN uygulama-ici yuzen pencere de ciziliyor
+(ikisi ust uste bindi, uyari yazisi tasiyor). Ayrica: "arama attigimda arkada BENIM ekranim
+gorunmeli; karsi taraf acinca onun goruntusu gelir, kucuk pencerede ben olurum".
+- [x] YAPISAL GARANTI: yuzen pencere yalniz `minimized && !ekranGorunur` iken cizilir —
+      'minimized' bayragi bayat kalsa bile (restore/PiP yarisi) arama ekrani acikken CIKAMAZ.
+- [x] CALARKEN KENDI KAMERAM TAM EKRAN: karsi taraf acmadan once buyuk goruntu KENDI kameram
+      (ayna kurali); acinca buyuk ONA gecer, ben kucuk pencereye duserim (WhatsApp duzeni).
+      Renderer key'i onizleme track'inde sid NULL olabilecegi icin mediaStreamTrack.id'ye duser.
+- [x] Uzun pil/baglanti uyarisi tasiyordu -> yatay pay + tek satir (ellipsis).
+- [x] TEMIZ BUILD YAYINLANDI (26 Tem 12:33): android 30196332557 + ios 30196333342 (fadb09b);
+      APK SHA 3ba418b8->e9f77f58 (yeni kod kaniti), IPA 19131169->19131090; R2+purge OK, CDN
+      birebir; backend degismedi (health ok); DB temiz.
