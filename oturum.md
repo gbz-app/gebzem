@@ -2033,3 +2033,36 @@ Kullanici bulgulari: (1) arama kapatinca karsi taraf "sesli aramada" gorunup TEK
       arama ortasinda ZORLA KAPAT -> ~1-2sn icinde o kullanici yeniden aranabilir olmali (LiveKit
       webhook oda bosalinca satiri kapatiyor). (4) Yayin ac-kapat -> HEMEN yeni yayin acilabilmeli;
       izleyici yayindan cikip HEMEN kendi yayinini acabilmeli.
+
+## TEST TURU 20 (26 Tem 2026): GSM BEKLETME + iOS PiP + OLU KATILIMCI (kullanici testi)
+Kullanici (3 telefon: 2 Android + 1 iPhone) bulgulari:
+1) **GSM aramasi gelince Gebzem beklemeye ALINMIYOR** — WhatsApp'ta "Arama beklemede / Aramayi
+   bitir / Devam et" paneli cikiyor ve WhatsApp susuyor; bizde Gebzem konusmasi ARKADA DEVAM ediyor.
+2) iPhone'da uygulamayi alta alinca KUCUK PENCERE gelmiyor (Android'de geliyor).
+3) iPhone'da uygulama kaydirilip KAPATILINCA karsi tarafta ekran DONUYOR; sonra o kullaniciyi
+   gruba davet edince "zaten aramada" diyor.
+4) SORU: bekletme ilerde binlerce kullanicida sunucuyu zorlar mi?
+
+### ARASTIRMA (kaynaklar oturum sonunda)
+- **Android GSM tespiti:** dogru yol `TelephonyCallback.CallStateListener` (API 31+;
+  `PhoneStateListener` deprecated) — API 31+ icin `READ_PHONE_STATE` izni ZORUNLU. Izinsiz
+  alternatif: AudioManager AUDIOFOCUS_LOSS_TRANSIENT (telefon gorusmesi baslayinca sistem
+  fokusu telefona verir) — ama libwebrtc'nin kendi fokus istegiyle yanlis pozitif riski var.
+  KARAR: izinli telephony yolu ASIL, ses-fokusu YEDEK degil (yanlis pozitif riski yuzunden
+  kullanilmadi); izin verilmezse ozellik sessizce devre disi kalir.
+- **iOS PiP:** auto-enter telefon Ayari + Dusuk Guc Modu'na bagli (bizim disimizda) AMA
+  `startPictureInPicture()` UYGULAMA ON PLANDAYKEN ELLE cagrilabilir -> ayardan BAGIMSIZ.
+  Cozum: uygulama arka plana giderken (willResignActive) PiP'i KENDIMIZ baslatiyoruz.
+- **Bekletme maliyeti (soru 4):** beklemede tutulan arama sunucuda MEDYA TASIMAZ
+  (RemoteTrackPublication.disable -> SFU o track'i gondermez, yerel mic/kamera kapali) —
+  geriye yalnizca acik bir WebSocket/PeerConnection kalir (~birkaç KB bellek, ~0 CPU).
+  Yani 1000 bekleyen arama bile SFU'yu ZORLAMAZ; asil maliyet KONUSAN aramalarda.
+
+### ADIMLAR
+- [ ] 1. Backend webhook: 1:1'de `participant_left` -> aramayi ANINDA bitir; grupta katilimciyi
+      'left' isaretle (bosalinca bitir) + `participant_joined` -> 'joined' geri (reconnect)
+- [ ] 2. Android: READ_PHONE_STATE + TelephonyCallback/PhoneStateListener -> GSM RINGING/OFFHOOK
+      olayi Dart'a; aktif arama BEKLEMEYE alinir, IDLE'da geri doner
+- [ ] 3. Arama ekrani: "Arama beklemede" paneli (Aramayi bitir / Devam et) — WhatsApp duzeni
+- [ ] 4. iOS: arka plana gecerken PiP'i ELLE baslat (ayardan bagimsiz kucuk pencere)
+- [ ] 5. analyze + go build + temiz build + yayin
