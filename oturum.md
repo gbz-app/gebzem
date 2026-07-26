@@ -2102,10 +2102,20 @@ Kullanici WhatsApp ekranlarini gonderdi, ayni deneyimi istiyor:
 - [x] 4. SOHBET UI: bu sistem mesajlari "Grup aramasi • Davet edildiniz / N kisi davet edildi /
       sona erdi" olarak cizilir + "Katil" dugmesi; aktif arama varken sohbetin ustunde
       "Aramada · Geri donmek icin dokun" seridi
-- [ ] 5. analyze + go build + temiz build + yayin
+- [x] 5. analyze + go build + temiz build + yayin
 - [x] EK (kullanici istegi, tur ortasinda): ARAMA EKRANI UYARILARI — karsi tarafin PIL seviyesi
       (LiveKit veri kanali {"t":"batt","v":n}, battery_plus ile 1 dk'da bir yayin) ve BAGLANTI
       kalitesi (ParticipantConnectionQualityUpdated: yerel+UZAK) + yeniden baglanma.
       Metinler: "Yeniden bağlanılıyor…", "X bağlantısı koptu/zayıf", "İnternet bağlantın zayıf",
       "X pil seviyesi düşük" (<=%15), "Pil seviyen düşük". WhatsApp'in birebir metinleri
       kaynaklarda bulunamadi -> standart Turkce karsiliklar kullanildi (kullaniciya soyle).
+- [x] TEMIZ BUILD YAYINLANDI (26 Tem 11:17): android 30193969124 + ios 30193969987 (e101c8f)
+      BASARILI (battery_plus pod dahil); debug imza YOK; APK 105112813->105211305,
+      IPA 19114885->19129943; R2+purge OK, CDN birebir; backend deploy + health ok; DB temiz.
+- **TEST RECETESI (test turu 21):** (1) Grup goruntulu arama baslat -> DAVETLIDE kendi kamera
+      onizlemeli ekran + kamera/mik dugmeleri + "Yok say / Katil" cikmali; kamerayi KAPALI
+      katilirsa aramaya kapali girmeli. (2) Davetlinin SOHBET LISTESINDE "Grup araması · Davet
+      edildiniz" kaydi; arama surerken sohbette ust seritte "Aramada · Geri dönmek için dokun".
+      (3) Karsi taraf uygulamayi kapatsin/arka plana alsin -> ekranda SON KARE BULANIK +
+      "Beklemede". (4) Pil %15 altindaki telefonla arama -> karsida "X pil seviyesi düşük";
+      ag zayifken "İnternet bağlantın zayıf".
