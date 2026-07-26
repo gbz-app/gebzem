@@ -157,6 +157,12 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
   bool _iosPipHazir = false;
   String _iosPipKurulanId = ''; // native'e kurulan uzak track id (degisince yeniden kur)
   String _iosPipYerelId = ''; // turu 28: PiP alt gorunumundeki kendi kamera track id'm
+
+  /// TEST TURU 34 — iOS kucuk penceresinde UST/ALT BOLUNME acik mi (kullanici karari:
+  /// "alta indirdigimde SADECE TEK goruntu olsun, bu sorunlu alani en son duzeltelim").
+  /// Alt gorunum kodu (native `yerelAyarla` + `PipService.iosPipYerel`) SILINMEDI, yalniz
+  /// bu kapiyla kapali. Arka plan kamerasinin gercekten calistigi KANITLANINCA true yapilir.
+  static const bool pipBolunme = false;
   // iOS COKLU-GOREV KAMERA (test turu 9): isMultitaskingCameraAccessEnabled acildiysa true.
   // Acikken arka planda kamera CAPTURE'a devam eder -> PiP karsi tarafa CANLI gonderir
   // (kullanici sikayeti: "alta alinca karsi taraf beni goremiyor"). iOS18+ entitlementsiz;
@@ -483,26 +489,29 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
         _iosPipKurulanId = ok ? trackId : '';
         _iosPipYerelId = ''; // yeni kurulumda alt gorunum sifirlanir
       }
-      // TEST TURU 28 — UST/ALT BOLUNME DOGRU YONTEMLE: alt gorunum (kendi kameram)
-      // controller'dan BAGIMSIZ eklenip cikarilir. Kimlik hala SADECE uzak track
-      // oldugundan kamera mute olunca pencere KAPANMAZ (turu 24 hatasi tekrar etmez).
-      // TEST TURU 30: alt kutu, ana kutu UZAK video oldugunda eklenir (ayni track'i iki kez
-      // koymayalim). `_camOn` SARTI KALDIRILDI: arka plana gecince kamera oto-mute oluyor,
-      // eski kod tam o anda alt kutuyu SOKUYORDU -> pencere ~0.9sn bolunmus gorunup TEK
-      // videoya donuyordu (kullanicinin "ust/alt bolunme" istegi bozuluyordu). Track nesnesi
-      // durdugu surece kutu KALIR (son kare gorunur). ⚠️ YAPMA: buraya `_camOn` geri koyma.
-      if (_iosPipKurulanId.isNotEmpty) {
+      // TEST TURU 34 — KULLANICI KARARI: "alta indirdigimde SADECE TEK goruntu olsun, bu
+      // sorunlu alani EN SON duzeltelim, vakit kaybetmeyelim." iOS kucuk penceresindeki
+      // UST/ALT BOLUNME KAPATILDI: pencere yine TEK VIDEO (calisan, kanitlanmis davranis).
+      // Alt kutu her turlu kurulsa da arka planda kamera durdugu icin BOS/donuk kaliyordu
+      // ve pencereyi asiri uzatiyordu.
+      // GERI ACMA (ileride): `PIP_BOLUNME` sabitini true yap — alt gorunum kodu (native
+      // `yerelAyarla`, PipService.iosPipYerel) YERINDE DURUYOR, silinmedi.
+      // ⚠️ YAPMA: bolunmeyi arka plan kamerasi (isMultitaskingCameraAccessEnabled) GERCEKTEN
+      // calistigi KANITLANMADAN geri acma.
+      if (pipBolunme && _iosPipKurulanId.isNotEmpty) {
         final yid = (uzakId != null ? yerelId : null) ?? '';
         if (yid != _iosPipYerelId) {
           _iosPipYerelId = yid;
           final sonuc = await PipService.iosPipYerel(yid.isEmpty ? null : yid);
-          // TEST TURU 32 (kullanici: "kucuk pencerede ALTTAKI goruntu gelmiyor"): native
-          // taraf sessizce vazgeciyordu; artik hangi adimda durdugunu Sentry'den goruyoruz.
           if (yid.isNotEmpty && sonuc != 'eklendi' && sonuc != 'ayni') {
             _iosPipYerelId = ''; // basarisiz -> sonraki tazelemede TEKRAR denensin
             unawaited(Sentry.captureMessage('ios pip alt gorunum sonuc=$sonuc'));
           }
         }
+      } else if (_iosPipYerelId.isNotEmpty) {
+        // Bolunme kapatildi ama onceden eklenmis alt kutu varsa KALDIR (tek videoya don).
+        _iosPipYerelId = '';
+        await PipService.iosPipYerel(null);
       }
     } else if (_iosPipKurulanId.isNotEmpty) {
       _iosPipKurulanId = '';

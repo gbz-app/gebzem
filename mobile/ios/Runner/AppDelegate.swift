@@ -301,12 +301,11 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
     track.add(r)
 
     let vc = AVPictureInPictureVideoCallViewController()
-    // TEST TURU 32 — PENCERE ORANI: 120x200 iken IKI kutuya bolununce her kutu 120x100 (6:5)
-    // oluyordu; kaynak kare 9:16 PORTRE oldugu icin `resizeAspectFill` yuzun buyuk kismini
-    // KIRPIYORDU (kullanici: "alttaki goruntu gelmiyor" — aslinda taniinmaz halde kirpilmis
-    // olabilir). 120x400'de her yari ~120x200 = 3:5, yani 9:16'ya cok yakin.
-    // GERI ALMA: bu satiri 120x200 yap.
-    vc.preferredContentSize = CGSize(width: 120, height: 400)
+    // TEST TURU 34 — GERI ALMA (kullanici: "alta indirdigimde SACMA sekilde UZUN bir ekran
+    // olmus"): turu 32'de bolunmus kutular icin 120x400 yapilmisti; pencere asiri dar-uzun
+    // gorunuyor. Pencere artik TEK VIDEO gosterdigi icin dogru oran 9:16 portredir.
+    // ⚠️ YAPMA: bolunme olmadan preferredContentSize'i uzatma.
+    vc.preferredContentSize = CGSize(width: 120, height: 213)
     // TEST TURU 27 — DOGRU YONTEMLE BOLUNME: dikey yigin (UIStackView). UZAK video USTTE
     // SABIT durur; KENDI kameram alta `yerelAyarla` ile SONRADAN eklenir/cikarilir.
     // KRITIK FARK (turu 24 hatasi): PiP controller BIR KEZ kurulur ve kimlik SADECE uzak
