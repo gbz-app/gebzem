@@ -1900,8 +1900,8 @@ Istekler: (1) canli yayindaki KONUK SINIRINI KALDIR (prototip; sunucu buyuyunce 
 ARAMASI hem CANLI YAYIN izgarasinda, sesli/goruntulu fark etmeksizin. (3) Yayin geri sayimi SADE
 BEYAZ (golge/parilti YOK) ve sayarken ekranda BASKA HICBIR SEY olmasin.
 ### ADIMLAR
-- [ ] 1. Backend: maxKonuk sabiti -> env STREAM_MAX_GUESTS (0 = SINIRSIZ, varsayilan sinirsiz)
-- [ ] 2. live_widgets.yayinIzgara: son satirda TEK tile -> TAM GENISLIK
-- [ ] 3. call_screen grup izgarasi: ayni kural (son satir tek ise tam genislik) + kaydirma korunur
-- [ ] 4. live_start_screen: geri sayim sade beyaz, golge yok, sayarken UI gizli
+- [x] 1. Backend: maxKonuk sabiti -> env STREAM_MAX_GUESTS (0 = SINIRSIZ, varsayilan sinirsiz)
+- [x] 2. live_widgets.yayinIzgara: son satirda TEK tile -> TAM GENISLIK
+- [x] 3. call_screen grup izgarasi: ayni kural (son satir tek ise tam genislik) + kaydirma korunur
+- [x] 4. live_start_screen: geri sayim sade beyaz, golge yok, sayarken UI gizli
 - [ ] 5. analyze + go build + temiz build + yayin

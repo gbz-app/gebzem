@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -20,8 +22,18 @@ import (
 // stream:{id}:guest_reqs ZSET (istek listesi). Konuk viewers ZSET'inde KALIR (nabiz/chat/hediye
 // degismez). Konuk kamerasiz da katilabilir (sesli konuk — izgarada avatar tile).
 
-// AYNI ANDA en fazla konuk (cx33 SFU yuku: yayinci + konuklar video publish eder). >bu -> "dolu".
-const maxKonuk = 4
+// AYNI ANDA en fazla konuk. TEST TURU 16 (kullanici karari): SINIR KALDIRILDI — prototipte
+// serbest, sunucu buyudukce zaten sorun yok. Gerekirse env `STREAM_MAX_GUESTS` ile sinir
+// konur (0 veya tanimsiz = SINIRSIZ). Not: her konuk video publish eder; cx33'te ~5-8
+// es zamanli yayinci pratik tavandir (kalite/pil), ama kod ARTIK ENGELLEMEZ.
+var maxKonuk = konukSinirOku()
+
+func konukSinirOku() int {
+	if v, err := strconv.Atoi(os.Getenv("STREAM_MAX_GUESTS")); err == nil && v > 0 {
+		return v
+	}
+	return 0 // sinirsiz
+}
 
 func (h *Handler) dataTo(ctx context.Context, streamID string, v map[string]any, hedefler []string) {
 	b, _ := json.Marshal(v)
@@ -34,9 +46,11 @@ func (h *Handler) dataTo(ctx context.Context, streamID string, v map[string]any,
 // SCARD < max ise ekle + TTL(12h), 1; doluysa 0. Lua atomik -> "SCARD sonra SADD" yarisi
 // (iki es zamanli accept kapasiteyi asamaz). Uye-bazli SREM ile silme yaris-guvenli (STRING
 // compare-and-delete'e gerek yok; her uid kendi uyeligini yonetir).
+// TEST TURU 16: ARGV[2] <= 0 ise SINIR YOK (kapasite kontrolu atlanir).
 var guestAddScript = redis.NewScript(`
 if redis.call("SISMEMBER", KEYS[1], ARGV[1]) == 1 then return 1 end
-if redis.call("SCARD", KEYS[1]) < tonumber(ARGV[2]) then
+local max = tonumber(ARGV[2])
+if max <= 0 or redis.call("SCARD", KEYS[1]) < max then
   redis.call("SADD", KEYS[1], ARGV[1])
   redis.call("EXPIRE", KEYS[1], 43200)
   return 1

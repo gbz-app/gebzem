@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -661,19 +663,36 @@ class _CallScreenState extends ConsumerState<CallScreen> {
           final rows = (n + cols - 1) ~/ cols;
           final gorunurSatir = rows > 4 ? 4 : rows;
           const bosluk = 6.0;
-          final w = (box.maxWidth - (cols - 1) * bosluk) / cols;
-          final h = (box.maxHeight - (gorunurSatir - 1) * bosluk) / gorunurSatir;
-          return GridView.count(
-            crossAxisCount: cols,
-            mainAxisSpacing: bosluk,
-            crossAxisSpacing: bosluk,
-            childAspectRatio: w / h,
-            padding: EdgeInsets.zero,
-            physics: rows > 4
-                ? const ClampingScrollPhysics()
-                : const NeverScrollableScrollPhysics(),
-            children: [for (final p in katilimcilar) _grupVideoTile(p)],
-          );
+          final tamW = box.maxWidth;
+          final tileW = (tamW - (cols - 1) * bosluk) / cols;
+          final tileH =
+              (box.maxHeight - (gorunurSatir - 1) * bosluk) / gorunurSatir;
+          // TEST TURU 16 (kullanici): SON SATIRDA TEK kisi kalirsa YARIM genislikte solda
+          // durmasin -> TAM GENISLIK (yatik). 3 kisi: ustte 2 yan yana, altta 1 genis.
+          // GridView.count sabit sutunlu oldugu icin elle satir/sutun kuruluyor; 4 satirdan
+          // fazlasi kaydirilir (eski davranis korundu).
+          final icerik = Column(children: [
+            for (var r = 0; r < rows; r++) ...[
+              if (r > 0) const SizedBox(height: bosluk),
+              () {
+                final ilk = r * cols;
+                final son = math.min(ilk + cols, n);
+                final tekBasina = (son - ilk) == 1 && cols > 1;
+                return SizedBox(
+                  height: tileH,
+                  child: Row(children: [
+                    for (var i = ilk; i < son; i++) ...[
+                      if (i > ilk) const SizedBox(width: bosluk),
+                      SizedBox(
+                          width: tekBasina ? tamW : tileW,
+                          child: _grupVideoTile(katilimcilar[i])),
+                    ],
+                  ]),
+                );
+              }(),
+            ],
+          ]);
+          return rows > 4 ? SingleChildScrollView(child: icerik) : icerik;
         }),
         ),
       ),

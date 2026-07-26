@@ -281,15 +281,25 @@ Widget yayinIzgara(List<Widget> tiles) {
         child: Column(children: [
           for (var r = 0; r < rows; r++) ...[
             if (r > 0) const SizedBox(height: gap),
-            SizedBox(
-              height: tileH,
-              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                for (var i = r * cols; i < min(r * cols + cols, n); i++) ...[
-                  if (i > r * cols) const SizedBox(width: gap),
-                  SizedBox(width: tileW, child: tiles[i]),
-                ],
-              ]),
-            ),
+            () {
+              // TEST TURU 16 (kullanici): SON SATIRDA TEK kisi kalirsa o kutu YARIM
+              // genislikte SOLDA durmasin — TAM GENISLIK (yatik) olsun. 3 kisi: ustte 2
+              // yan yana, altta 1 GENIS (WhatsApp duzeni).
+              final ilk = r * cols;
+              final son = min(ilk + cols, n);
+              final tekBasina = (son - ilk) == 1 && cols > 1;
+              final satirGenislik = tileW * cols + gap * (cols - 1);
+              return SizedBox(
+                height: tileH,
+                child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  for (var i = ilk; i < son; i++) ...[
+                    if (i > ilk) const SizedBox(width: gap),
+                    SizedBox(
+                        width: tekBasina ? satirGenislik : tileW, child: tiles[i]),
+                  ],
+                ]),
+              );
+            }(),
           ],
         ]),
       ),

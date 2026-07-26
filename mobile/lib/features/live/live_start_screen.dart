@@ -213,35 +213,25 @@ class _LiveStartScreenState extends ConsumerState<LiveStartScreen> {
                               style: const TextStyle(color: Colors.white70, fontSize: 16)))
                       : const CircularProgressIndicator()),
         ),
-        // GERI SAYIM overlay (test turu 11: TAM ORTADA, DAIRE/BORDER YOK — temiz buyuk rakam).
-        // Positioned.fill + Center -> ekranin tam ortasi. Daire kaldirildi (kullanici: "beyaz
-        // border vs olamayacak"); yalniz mor parilti golgesi + pop animasyonu.
+        // GERI SAYIM (test turu 16 — kullanici: "sadece BEYAZ saysin, golge/parilti YOK,
+        // sayarken ekranda BASKA HICBIR SEY olmasin"): karartma katmani YOK, golge YOK,
+        // animasyon YOK; yalniz kamera onizlemesinin ustunde tam ortada beyaz rakam.
+        // Diger tum arayuz (baslik alani, buton, kapat) asagida _geriSayim!=null iken GIZLENIR.
         if (_geriSayim != null)
           Positioned.fill(
-            child: Container(
-              color: Colors.black.withValues(alpha: 0.5),
+            child: IgnorePointer(
               child: Center(
-                child: TweenAnimationBuilder<double>(
-                  key: ValueKey(_geriSayim),
-                  tween: Tween(begin: 0.5, end: 1.0),
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeOut,
-                  builder: (_, olcek, child) => Transform.scale(
-                      scale: olcek,
-                      child: Opacity(opacity: olcek.clamp(0.0, 1.0), child: child)),
-                  child: Text('$_geriSayim',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 140,
-                          fontWeight: FontWeight.w900,
-                          shadows: [
-                            Shadow(color: Color(0xFF8B3FFF), blurRadius: 32),
-                          ])),
-                ),
+                child: Text('$_geriSayim',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 140,
+                        fontWeight: FontWeight.w900)),
               ),
             ),
           ),
+        // GERI SAYIM SIRASINDA ARAYUZ TAMAMEN GIZLI (test turu 16): yalniz kamera + beyaz rakam.
+        if (_geriSayim == null)
         SafeArea(
           child: Column(children: [
             Row(children: [
