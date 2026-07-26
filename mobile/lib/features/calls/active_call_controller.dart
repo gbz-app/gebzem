@@ -236,6 +236,13 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     return null;
   }
 
+  /// Kendi kamera track'im (PiP'te uzak video yoksa yedek — kara ekran yerine kendi goruntum).
+  VideoTrack? get yerelVideo {
+    if (!_camOn) return null;
+    final t = _room?.localParticipant?.videoTrackPublications.firstOrNull?.track;
+    return t is VideoTrack ? t : null;
+  }
+
   VideoTrack? _bantIlkVideo(RemoteParticipant p) {
     for (final pub in p.videoTrackPublications) {
       if (pub.subscribed && !pub.muted && pub.track != null) {
@@ -253,14 +260,12 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
   /// sorun gorunmuyordu. Artik aramanin TIPI belirleyici (WhatsApp davranisi).
   bool get goruntuluMu => (arama?.video ?? false) || _camOn || _uzakVideoVar();
 
-  /// PiP'e girilmesi istenen durum: Android + bagli/saglikli arama + EKRAN ACIK
-  /// (minimize'da uygulama-ici yuzen pencere var; PiP ana sayfayi minik gosterirdi).
-  bool get _pipIstenir =>
-      Platform.isAndroid &&
-      minimizeEdilebilir &&
-      ekranGorunur &&
-      !minimized &&
-      goruntuluMu;
+  /// PiP'e girilmesi istenen durum: Android + bagli/saglikli GORUNTULU arama.
+  /// TEST TURU 14: `ekranGorunur && !minimized` sarti KALDIRILDI — aramayi kucultup
+  /// uygulamada gezinen kullanici HOME'a inince hicbir sey gormuyordu (uygulama-ici yuzen
+  /// pencere arka planda gorunmez). PiP icerigi artik AktifAramaBanner'da (MaterialApp.builder)
+  /// tam ekran ciziliyor -> hangi sayfada olursak olalim PiP penceresinde KARSI TARAF gorunur.
+  bool get _pipIstenir => Platform.isAndroid && minimizeEdilebilir && goruntuluMu;
 
   void _pipGuncelle() {
     final istenen = _pipIstenir;

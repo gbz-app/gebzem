@@ -34,6 +34,13 @@ class _AktifAramaBannerState extends ConsumerState<AktifAramaBanner> {
   Widget build(BuildContext context) {
     final c = ref.watch(activeCallProvider);
     final b = c.arama;
+    // ANDROID SISTEM PiP (test turu 14): PiP penceresi HANGI sayfada olursak olalim karsi
+    // tarafin videosunu TAM EKRAN gostersin (eskiden yalniz CallScreen ustundeyken calisiyordu;
+    // arama kucultulup uygulamada gezerken HOME'a inince PiP'te ana ekran gorunuyordu).
+    // widget.child agacta KALIR (Navigator state'i korunur), uzerine opak katman cizilir.
+    if (b != null && c.pipModunda) {
+      return Stack(children: [widget.child, Positioned.fill(child: _pipTamEkran(c, b))]);
+    }
     if (b == null || !c.minimized) return widget.child;
 
     final ad = c.isGroup
@@ -48,6 +55,25 @@ class _AktifAramaBannerState extends ConsumerState<AktifAramaBanner> {
       return Stack(children: [widget.child, _sesliBant(c, ad)]);
     }
     return Stack(children: [widget.child, _yuzenVideo(c, ad)]);
+  }
+
+  /// SISTEM PiP ICERIGI (Android): tam ekran uzak video (grupta aktif konusan), yoksa
+  /// avatar. Kontrol/self-view YOK — PiP penceresinde sistem dugmeleri (mic/kapat) var.
+  Widget _pipTamEkran(ActiveCallController c, AramaBilgisi b) {
+    final ad = c.isGroup
+        ? (b.chatTitle.isEmpty ? 'Grup araması' : b.chatTitle)
+        : b.peerName;
+    final video = c.bantVideo ?? c.yerelVideo; // uzak yoksa kendi kameram; o da yoksa avatar
+    return Container(
+      color: const Color(0xFF0B141A),
+      child: video != null
+          ? IgnorePointer(
+              child: lk.VideoTrackRenderer(video,
+                  key: ValueKey('pip-tam-${video.mediaStreamTrack.id}'),
+                  fit: lk.VideoViewFit.cover),
+            )
+          : _bantAvatar(ad),
+    );
   }
 
   // ---- SESLI ARAMA: ust yesil bant (eski davranis) ----

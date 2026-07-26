@@ -194,8 +194,15 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     final c = ref.watch(activeCallProvider);
     // Bitis aninda (arama==null, pop bekleniyor) son kare widget.bilgi ile cizilir
     final b = c.arama ?? widget.bilgi;
-    // FAZ-6: sistem PiP penceresi — SADE gorunum (tek video, kontrol/self-view yok)
-    if (c.pipModunda) return _pipGorunum(c, b);
+    // FAZ-6 -> TEST TURU 14: sistem PiP penceresinin ICERIGI artik AktifAramaBanner'da
+    // (MaterialApp.builder) TAM EKRAN ciziliyor — boylece arama kucultulup baska sayfaya
+    // gecildiginde de PiP penceresinde KARSI TARAF gorunur (eskiden ana ekran goruntusu
+    // dusuyordu). Burada BOS cizeriz: ayni track'e IKINCI bir renderer baglanmasin
+    // (kucuk PiP penceresinde cift texture = bosuna GPU/pil).
+    if (c.pipModunda) {
+      return const Scaffold(
+          backgroundColor: Color(0xFF0B141A), body: SizedBox.expand());
+    }
     final remote = _remoteVideo;
     final local = _localVideo;
     // MID-CALL: sesli aramada kamera acilinca (yerel VEYA karsi) video moduna gecer.
@@ -327,43 +334,9 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     );
   }
 
-  /// FAZ-6: PiP penceresi icerigi — yalniz en anlamli TEK video (grup dahil), yoksa
-  /// avatar. Kontroller/self-view/ust bar CIZILMEZ; _uiGizli kullanilmaz.
-  Widget _pipGorunum(ActiveCallController c, AramaBilgisi b) {
-    VideoTrack? video;
-    bool yerelMi = false;
-    if (c.isGroup) {
-      final katilimcilar = <Participant>[
-        ...c.room?.remoteParticipants.values ?? const <RemoteParticipant>[],
-        if (c.room?.localParticipant != null) c.room!.localParticipant!,
-      ];
-      for (final p in katilimcilar) {
-        final v = _katilimciVideosu(p);
-        if (v != null) {
-          video = v;
-          yerelMi = p is LocalParticipant;
-          break;
-        }
-      }
-    } else {
-      video = _remoteVideo;
-      if (video == null && c.camOn) {
-        video = _localVideo;
-        yerelMi = true;
-      }
-    }
-    return Scaffold(
-      backgroundColor: const Color(0xFF0B141A),
-      body: video != null
-          ? IgnorePointer(
-              child: VideoTrackRenderer(video,
-                  key: ValueKey('pip-${video.sid}'),
-                  fit: VideoViewFit.cover,
-                  mirrorMode: yerelMi ? c.yerelAyna : VideoViewMirrorMode.auto),
-            )
-          : _buildAudioBackground(b),
-    );
-  }
+  // NOT (test turu 14): eski _pipGorunum KALDIRILDI — PiP icerigi AktifAramaBanner'da
+  // (MaterialApp.builder) tam ekran cizilir; boylece PiP hangi sayfadayken acilirsa acilsin
+  // ayni goruntu gelir ve ayni track'e iki renderer baglanmaz.
 
   // ---- A6/A7 yardimcilari ----
 
