@@ -32,6 +32,13 @@ import flutter_callkit_incoming
     RTCAudioSession.sharedInstance().useManualAudio = true
     RTCAudioSession.sharedInstance().isAudioEnabled = false
 
+    // TEST TURU 37: kamera kancasi UYGULAMA ACILIRKEN kurulur — ilk kamera acilisindan
+    // ONCE hazir olmali (Apple: bayrak capture session BASLATILMADAN once yazilmali).
+    if #available(iOS 16.0, *) {
+      GebzemKameraKanca.kur()
+      GebzemPip.shared.kesintileriDinle()
+    }
+
     let voipRegistry = PKPushRegistry(queue: DispatchQueue.main)
     voipRegistry.delegate = self
     voipRegistry.desiredPushTypes = [PKPushType.voIP]
@@ -270,20 +277,45 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
   // videoCapturer PUBLIC property (FlutterWebRTCPlugin.h) + RTCCameraVideoCapturer.captureSession
   // WebRTC SDK'da public. Entitlement GEREKMEZ (iOS16+ property; iOS16-17 destek cihaza bagli).
   // Desteksiz -> false -> Dart kamera-mute avatar yedegine duser. SES BIRIMINE DOKUNMAZ.
+  /// TEST TURU 37 — ARTIK YALNIZ DOGRULAMA. Bayragi ASIL yazan yer `GebzemKameraKanca`
+  /// (asagida): Apple bayragin capture session BASLATILMADAN ONCE yazilmasini sart kosuyor.
+  /// Burada calisan session'a yazmak KABUL EDILIYOR (geri okuma true) ama FIILEN ETKISIZ —
+  /// iste "destek=true oldugu halde arka planda kamera duruyor" celiskisinin cevabi budur.
+  /// ⚠️ YAPMA: burayi tekrar "asil yazan yer" haline getirme; session'i stopRunning/
+  /// startRunning ile bounce etmeye calisma (WebRTC capturer disaridan durdurulmayi
+  /// beklemez — siyah kare / track olumu riski).
   func cokluGorevKameraAc() -> Bool {
     guard #available(iOS 16.0, *) else { return false }
     guard let capturer = FlutterWebRTCPlugin.sharedSingleton()?.videoCapturer else { return false }
     let session = capturer.captureSession
     guard session.isMultitaskingCameraAccessSupported else { return false }
-    if session.isMultitaskingCameraAccessEnabled { return true } // zaten acik (idempotent)
+    if session.isMultitaskingCameraAccessEnabled { return true }
+    // Kanca herhangi bir sebeple kurulamadiysa (selector degisti vb.) son care olarak dene.
     session.beginConfiguration()
     session.isMultitaskingCameraAccessEnabled = true
     session.commitConfiguration()
-    // TEST TURU 32: sonucu GERI OKU — eskiden kosulsuz true donuyordu; yalan bayrak,
-    // durustce mute etme yolunu kapatip karsi tarafta DONMUS KARE birakiyordu.
     let ok = session.isMultitaskingCameraAccessEnabled
-    NSLog("gebzem/pip coklu-gorev kamera yazildi=\(ok)")
+    NSLog("gebzem/pip coklu-gorev kamera (GEC yazim, etkisiz olabilir) = \(ok)")
     return ok
+  }
+
+  /// TEST TURU 37 — KAMERA KESINTISI (Apple bildirimi). Arka planda capture GERCEKTEN
+  /// durdurulursa `AVCaptureSessionWasInterrupted` gelir. O an Dart'a haber veriyoruz ki
+  /// (a) kamerayi DURUSTCE mute edelim -> karsi taraf bulanik "Kamera duraklatildi" gorsun
+  /// (donmus kare DEGIL), (b) PiP penceresinde donmus kare yerine etiket cikar.
+  func kesintileriDinle() {
+    let nc = NotificationCenter.default
+    nc.addObserver(forName: .AVCaptureSessionWasInterrupted, object: nil, queue: .main) { [weak self] n in
+      let ham = (n.userInfo?[AVCaptureSessionInterruptionReasonKey] as? NSNumber)?.intValue ?? -1
+      NSLog("gebzem/pip kamera KESINTI reason=\(ham)")
+      self?.videoView?.kareKesildi()
+      self?.yerelGorunum?.kareKesildi()
+      self?.kanal?.invokeMethod("iosKameraKesinti", arguments: ham)
+    }
+    nc.addObserver(forName: .AVCaptureSessionInterruptionEnded, object: nil, queue: .main) { [weak self] _ in
+      NSLog("gebzem/pip kamera kesinti BITTI")
+      self?.kanal?.invokeMethod("iosKameraKesintiBitti", arguments: nil)
+    }
   }
 
   func kur(trackId: String, yerelTrackId: String? = nil) -> Bool {
@@ -500,6 +532,68 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
 }
 
 @available(iOS 15.0, *)
+// ============================================================================
+// TEST TURU 37 — ARKA PLANDA KAMERA: BAYRAGI *BASLATMADAN ONCE* YAZAN KANCA
+//
+// KULLANICI: "iPhone'da alta aldigimda ekran YINE DONUYOR."
+//
+// KOK NEDEN (Apple resmi dokumani):
+//   "If the value of isMultitaskingCameraAccessSupported is true, you can enable
+//    multitasking camera access by setting this value to true PRIOR TO STARTING
+//    THE CAPTURE SESSION."
+//   https://developer.apple.com/documentation/avfoundation/avcapturesession/ismultitaskingcameraaccessenabled
+// Bizim eski kodumuz bayragi session ZATEN CALISIRKEN yaziyordu. iOS yazmayi KABUL ediyor
+// (geri okuma true doner) ama FIILEN ETKISIZ kaliyor -> arka planda capture duruyor ->
+// PiP penceresi SON KAREDE donuyor ve karsi taraf da donmus kare goruyor. Ustelik bayrak
+// "true" gorundugu icin uygulamanin "durust mute" yedegi de devre disi kaliyordu.
+//
+// COZUM: flutter_webrtc kamerayi `RTCCameraVideoCapturer.startCaptureWithDevice:...` ile
+// baslatir; capture session bu cagridan ONCE (capturer init'inde) yaratilmis olur. Bu
+// metodu swizzle edip ORIJINAL cagrilmadan HEMEN ONCE bayragi yaziyoruz. Boylece kamera
+// her (yeniden) acilista dogru sirayla yapilandirilir — kamera ac/kapa, arka plandan
+// donus, track restart dahil. Bu ayni zamanda "her mute/unmute YENI session yaratir,
+// bayrak sifirlanir" sorununu da kokten kapatir.
+//
+// ⚠️ YAPMA: bu kancayi kaldirip bayragi yalniz Dart'tan (calisan session'a) yazmaya donme;
+// pbxproj'a AYRI dosya EKLEME (BOM tuzagi — kod AppDelegate.swift icinde kalir);
+// flutter_webrtc'yi fork'lamak yerine bu kanca tercih edildi (bagimlilik yonetimi basit).
+@available(iOS 16.0, *)
+enum GebzemKameraKanca {
+  static func kur() {
+    let cls: AnyClass = RTCCameraVideoCapturer.self
+    let orijinalSel = #selector(RTCCameraVideoCapturer.startCapture(with:format:fps:completionHandler:))
+    let bizimSel = #selector(RTCCameraVideoCapturer.gebzem_startCapture(with:format:fps:completionHandler:))
+    guard let a = class_getInstanceMethod(cls, orijinalSel),
+          let b = class_getInstanceMethod(cls, bizimSel) else {
+      NSLog("gebzem/pip kamera kancasi KURULAMADI (selector bulunamadi)")
+      return
+    }
+    method_exchangeImplementations(a, b)
+    NSLog("gebzem/pip kamera kancasi kuruldu (bayrak start ONCESI yazilacak)")
+  }
+}
+
+extension RTCCameraVideoCapturer {
+  /// Swizzle edilmis giris noktasi. Govdedeki `gebzem_startCapture` cagrisi, takas
+  /// sonrasi ORIJINAL implementasyona gider (sonsuz dongu DEGILDIR).
+  @objc func gebzem_startCapture(with device: AVCaptureDevice,
+                                 format: AVCaptureDevice.Format,
+                                 fps: Int,
+                                 completionHandler: ((Error?) -> Void)?) {
+    if #available(iOS 16.0, *) {
+      let s = self.captureSession
+      if s.isMultitaskingCameraAccessSupported && !s.isMultitaskingCameraAccessEnabled {
+        s.beginConfiguration()
+        s.isMultitaskingCameraAccessEnabled = true
+        s.commitConfiguration()
+        NSLog("gebzem/pip bayrak START ONCESI yazildi=\(s.isMultitaskingCameraAccessEnabled)")
+      }
+    }
+    self.gebzem_startCapture(with: device, format: format, fps: fps,
+                             completionHandler: completionHandler)
+  }
+}
+
 final class PipVideoView: UIView {
   override class var layerClass: AnyClass { AVSampleBufferDisplayLayer.self }
   var displayLayer: AVSampleBufferDisplayLayer { layer as! AVSampleBufferDisplayLayer }

@@ -126,7 +126,7 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       // Yoksa PiP acikken kamera yine de kapaniyor ve karsi taraf beni goremiyordu.
       if (aktif) _pipKameraGecikme?.cancel();
       notifyListeners();
-    }, onBasarisiz: _iosPipBasarisiz);
+    }, onBasarisiz: _iosPipBasarisiz, onKameraKesinti: _iosKameraKesinti);
     // TEST TURU 20 — GSM ARAMA BEKLETME (Android; iOS'ta bunu CallKit yapar):
     // normal telefon aramasi baslayinca Gebzem aramasi BEKLEMEYE alinir (medya durur,
     // arama SUNUCUDA OLMEZ), telefon gorusmesi bitince kaldigi yerden DEVAM eder.
@@ -559,6 +559,29 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       _iosArkaPlanKamera = false;
     } finally {
       _iosCokluGorevDeniyor = false;
+    }
+  }
+
+  /// TEST TURU 37 — iOS KAMERA KESINTISI (OS'un KENDI bildirimi, bayrak tahmini DEGIL).
+  ///
+  /// Arka planda capture GERCEKTEN durdurulduysa iOS `AVCaptureSessionWasInterrupted`
+  /// gonderir. Bugune kadar bunu dinlemiyorduk; `isMultitaskingCameraAccessEnabled` geri
+  /// okumada `true` dondugu icin (Apple yazmayi kabul ediyor ama gec yazildiginda FIILEN
+  /// etkisiz) kamerayi canli saniyor, durustce mute ETMIYORDUK -> karsi taraf DONMUS KARE
+  /// goruyordu. Artik gercek olaya tepki veriyoruz.
+  /// ⚠️ YAPMA: burada kamerayi kapatmayi atlama (donmus kare geri gelir).
+  void _iosKameraKesinti(bool kesintiVar) {
+    if (!Platform.isIOS || arama == null || _ayrildi) return;
+    if (kesintiVar) {
+      _iosArkaPlanKamera = false; // bayrak yalan soyluyordu — gercek OS olayina guven
+      unawaited(Sentry.captureMessage(
+          'ios kamera kesinti sebep=${PipService.kameraKesintiSebebi.value}'));
+      if (_camOn && _baglandi) {
+        _kameraOtoKapandi = true; // on plana donunce geri acilsin
+        _camOn = false;
+        _room?.localParticipant?.setCameraEnabled(false);
+        notifyListeners();
+      }
     }
   }
 

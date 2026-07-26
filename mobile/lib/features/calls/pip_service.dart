@@ -22,6 +22,11 @@ class PipService {
   /// gelir; true olunca Gebzem aramasi BEKLEMEYE alinir (WhatsApp davranisi).
   static final ValueNotifier<bool> gsmAramada = ValueNotifier<bool>(false);
 
+  /// TEST TURU 37: iOS kamera kesinti sebebi (AVCaptureSessionInterruptionReasonKey ham
+  /// degeri). 0 = kesinti yok. Teshis icin Sentry'e yazilir.
+  static final ValueNotifier<int> kameraKesintiSebebi = ValueNotifier<int>(0);
+  static void Function(bool kesintiVar)? _iosKesintiCb;
+
   static bool _handlerKuruldu = false;
   static void Function(bool)? _androidDurumCb;
   static void Function(String)? _eylemCb;
@@ -48,6 +53,16 @@ class PipService {
           _iosDurumCb?.call(v);
         case 'iosPipBasarisiz':
           _iosBasarisizCb?.call();
+        // TEST TURU 37: iOS kamera KESINTISI (AVCaptureSessionWasInterrupted). Arka planda
+        // capture GERCEKTEN durdurulduysa bunu OS soyler — bayraga guvenmek yerine gercek
+        // olaya tepki veriyoruz: kamerayi DURUSTCE kapat, karsi taraf donmus kare degil
+        // bulanik "Kamera duraklatildi" gorsun.
+        case 'iosKameraKesinti':
+          kameraKesintiSebebi.value = (call.arguments as int?) ?? -1;
+          _iosKesintiCb?.call(true);
+        case 'iosKameraKesintiBitti':
+          kameraKesintiSebebi.value = 0;
+          _iosKesintiCb?.call(false);
       }
       return null;
     });
@@ -204,11 +219,13 @@ class PipService {
   /// 'iosPipDurum' (true=basladi/false=durdu) + 'iosPipBasarisiz' (baslatilamadi) gonderir.
   static void iosDinle(
       {required void Function(bool pipAktif) onDurum,
-      required void Function() onBasarisiz}) {
+      required void Function() onBasarisiz,
+      void Function(bool kesintiVar)? onKameraKesinti}) {
     if (!Platform.isIOS) return;
     _handlerKur();
     _iosDurumCb = onDurum;
     _iosBasarisizCb = onBasarisiz;
+    _iosKesintiCb = onKameraKesinti;
   }
 
   /// iOS16+ COKLU-GOREV KAMERA (test turu 9): AVCaptureSession.isMultitaskingCameraAccessEnabled
