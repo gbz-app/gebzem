@@ -254,13 +254,25 @@ class _GebzemAppState extends ConsumerState<GebzemApp> with WidgetsBindingObserv
       }
     });
 
-    // iOS VoIP token'i -> sunucuya (kilit ekraninda arama caldirmak icin sart)
+    // iOS VoIP token'i -> sunucuya (kilit ekraninda arama caldirmak icin SART).
+    // TEST TURU 33 (kullanici: "iPhone KILITLIYKEN ekran gelmiyor"): eskiden TEK deneme
+    // yapilip hata SESSIZCE yutuluyordu. Oturum henuz acilmamissa (401) ya da ag anlik
+    // koptuysa token sunucuya HIC ulasmiyor ve voip_tokens satiri olusmuyordu -> kilitli
+    // telefon calmiyordu (uygulama acikken WS yolu calistigi icin sorun gorunmuyordu).
+    // Artik artan araliklarla 5 kez denenir. ⚠️ YAPMA: tek denemeye geri donme.
     _voipSub = svc.onVoipToken.listen((token) async {
-      try {
-        await ref.read(apiProvider).post('/users/me/voip-token', data: {'token': token});
-      } catch (_) {
-        // giris yapilmamis olabilir; girisden sonra tekrar denenir
+      for (var i = 0; i < 5; i++) {
+        try {
+          await ref
+              .read(apiProvider)
+              .post('/users/me/voip-token', data: {'token': token});
+          debugPrint('voip token sunucuya kaydedildi');
+          return;
+        } catch (_) {
+          await Future.delayed(Duration(seconds: 3 * (i + 1)));
+        }
       }
+      debugPrint('voip token KAYDEDILEMEDI (kilit ekraninda arama calmayabilir)');
     });
 
     await svc.baslat();

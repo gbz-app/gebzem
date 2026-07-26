@@ -137,16 +137,30 @@ func (a *APNs) CallInvite(ctx context.Context, userID string, payload map[string
 			tokens = append(tokens, t)
 		}
 	}
+	// TEST TURU 33 (kullanici: "Android'den goruntulu arayinca iPhone KILITLIYKEN ekran
+	// gelmiyor, uygulamadayken geliyor"): token YOKSA burasi SESSIZCE donuyordu — kilitli
+	// iPhone calmaz ama logda hicbir iz kalmazdi. Artik ACIKCA yazilir; teshis anlik.
+	// (Callee Android ise bu normaldir — Android FCM yolunu kullanir.)
 	if len(tokens) == 0 {
+		log.Printf("voip push: kullanici %s icin VOIP TOKEN YOK -> kilitli iPhone CALMAZ (callee Android ise normal)", kisalt(userID))
 		return
 	}
 
 	body, _ := json.Marshal(payload)
 	for _, tok := range tokens {
 		if err := a.gonder(ctx, tok, body); err != nil {
-			log.Printf("voip push: gonderim: %v", err)
+			log.Printf("voip push: gonderim HATASI (user=%s): %v", kisalt(userID), err)
+		} else {
+			log.Printf("voip push: gonderildi (user=%s)", kisalt(userID))
 		}
 	}
+}
+
+func kisalt(s string) string {
+	if len(s) > 8 {
+		return s[:8]
+	}
+	return s
 }
 
 // CallCancel: iOS'ta calan/asili CallKit ekranini kapatmak icin VoIP push.

@@ -87,13 +87,35 @@ class CallKitService {
   /// yoksa iOS'ta voip_tokens satiri hic olusmaz ve kilit ekraninda arama calmaz.
   Future<void> voipTokeniYenidenGonder() => _voipTokeniGonder();
 
-  Future<void> _voipTokeniGonder() async {
+  /// TEST TURU 33 — KILITLI iPHONE CALMIYOR (kullanici: "Android'den goruntulu arayinca
+  /// iPhone kilitliyken ekran gelmiyor, uygulamadayken geliyor").
+  ///
+  /// KOK NEDEN: kilit ekraninda arama YALNIZ VoIP push ile gelir; uygulama acikken WS yolu
+  /// calisir (o yuzden "uygulamadayken geliyor"). VoIP token'i sunucuya gonderme TEK DENEME
+  /// idi: PushKit kaydi ASENKRON oldugu icin giris aninda token HENUZ BOS olabiliyor ->
+  /// `getDevicePushTokenVoIP()` bos donuyor -> hicbir sey gonderilmiyor ve BIR DAHA
+  /// DENENMIYORDU (token olayi ise girisTEN ONCE tetiklenmis olabilir). Sonuc: voip_tokens
+  /// satiri hic olusmuyor, kilitli telefon sessiz kaliyor. Her surumde DB temizlendigi icin
+  /// bu durum tekrar tekrar olusuyordu.
+  ///
+  /// COZUM: token gelene kadar artan araliklarla TEKRAR DENE (2,4,6,8,10sn — toplam ~30sn).
+  /// ⚠️ YAPMA: tek denemeye geri donme.
+  Future<void> _voipTokeniGonder({int deneme = 0}) async {
     if (!Platform.isIOS) return;
     try {
       final t = await FlutterCallkitIncoming.getDevicePushTokenVoIP();
-      if (t != null && t.isNotEmpty) _voipTokenController.add(t);
+      if (t != null && t.isNotEmpty) {
+        _voipTokenController.add(t);
+        return;
+      }
     } catch (e) {
       debugPrint('callkit voip token: $e');
+    }
+    if (deneme < 5) {
+      Future.delayed(Duration(seconds: 2 * (deneme + 1)),
+          () => _voipTokeniGonder(deneme: deneme + 1));
+    } else {
+      debugPrint('callkit voip token: alinamadi (kilit ekraninda arama calmayabilir)');
     }
   }
 
