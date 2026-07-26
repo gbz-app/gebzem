@@ -116,8 +116,10 @@ import flutter_callkit_incoming
       case "iosPipHazirMi":
         result(AVPictureInPictureController.isPictureInPictureSupported())
       case "iosPipKur":
-        let tid = (call.arguments as? [String: Any])?["trackId"] as? String ?? ""
-        result(tid.isEmpty ? false : GebzemPip.shared.kur(trackId: tid))
+        let arg = call.arguments as? [String: Any]
+        let tid = arg?["trackId"] as? String ?? ""
+        let yid = arg?["yerelTrackId"] as? String
+        result(tid.isEmpty ? false : GebzemPip.shared.kur(trackId: tid, yerelTrackId: yid))
       case "iosPipBirak":
         GebzemPip.shared.birak()
         result(true)
@@ -242,6 +244,9 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
   private var videoView: PipVideoView?
   private var renderer: PipRenderer?
   private weak var uzakTrack: RTCVideoTrack?
+  private weak var yerelTrack: RTCVideoTrack?          // test turu 24: kendi kameram (alt kutu)
+  private var yerelGorunum: PipVideoView?
+  private var yerelRenderer: PipRenderer?
   private var kurulanId: String?
 
   // TEST TURU 9: COKLU-GOREV KAMERA — kamerayi PiP/arka planda CAPTURE'a devam ettir
@@ -262,7 +267,7 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
     return true
   }
 
-  func kur(trackId: String) -> Bool {
+  func kur(trackId: String, yerelTrackId: String? = nil) -> Bool {
     guard AVPictureInPictureController.isPictureInPictureSupported() else { return false }
     guard let kaynakView = Self.kokView() else { return false }
     // TEST TURU 15: UZAK track once (arama/izleyici); bulunamazsa YEREL track (CANLI YAYIN
@@ -275,7 +280,8 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
     }
     guard let track = bulunan else { return false }
 
-    if kurulanId == trackId, pipController != nil { return true }
+    let birlesikId = trackId + "|" + (yerelTrackId ?? "")
+    if kurulanId == birlesikId, pipController != nil { return true }
     birak()
 
     let vv = PipVideoView(frame: CGRect(x: 0, y: 0, width: 120, height: 200))
@@ -284,7 +290,24 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
 
     let vc = AVPictureInPictureVideoCallViewController()
     vc.preferredContentSize = CGSize(width: 120, height: 200)
-    vc.view.pipAddConstrained(vv)
+    // TEST TURU 24 (kullanici: "iPhone kucuk pencerede UST-ALT olmali"): uzak video USTTE,
+    // KENDI kameram ALTTA. Yerel track bulunamazsa tek video tam kaplar (eski davranis).
+    var yerelGorunum: PipVideoView?
+    var yerelRenderer: PipRenderer?
+    if let yid = yerelTrackId,
+       let yerel = eklenti?.track(forId: yid, peerConnectionId: nil) as? RTCVideoTrack {
+      let yv = PipVideoView(frame: CGRect(x: 0, y: 0, width: 120, height: 100))
+      let yr = PipRenderer(view: yv)
+      yerel.add(yr)
+      yerelGorunum = yv
+      yerelRenderer = yr
+      self.yerelTrack = yerel
+      vc.view.pipAddStacked(ust: vv, alt: yv)
+    } else {
+      vc.view.pipAddConstrained(vv)
+    }
+    self.yerelGorunum = yerelGorunum
+    self.yerelRenderer = yerelRenderer
 
     let source = AVPictureInPictureController.ContentSource(
       activeVideoCallSourceView: kaynakView, contentViewController: vc)
@@ -297,7 +320,7 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
     self.uzakTrack = track
     self.callVC = vc
     self.pipController = controller
-    self.kurulanId = trackId
+    self.kurulanId = birlesikId
     NSLog("gebzem/pip iOS kuruldu track=\(trackId)")
     return true
   }
@@ -319,6 +342,11 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
   func birak() {
     pipController?.stopPictureInPicture()
     if let t = uzakTrack, let r = renderer { t.remove(r) }
+    if let yt = yerelTrack, let yr = yerelRenderer { yt.remove(yr) }
+    yerelGorunum?.displayLayer.flushAndRemoveImage()
+    yerelTrack = nil
+    yerelRenderer = nil
+    yerelGorunum = nil
     videoView?.displayLayer.flushAndRemoveImage()
     callVC?.view.subviews.forEach { $0.removeFromSuperview() }
     pipController = nil
@@ -480,6 +508,24 @@ final class PipRenderer: NSObject, RTCVideoRenderer {
 }
 
 private extension UIView {
+  /// TEST TURU 24: iki video USTTE/ALTTA esit yukseklikte (kucuk pencere duzeni)
+  func pipAddStacked(ust: UIView, alt: UIView) {
+    for v in [ust, alt] {
+      v.translatesAutoresizingMaskIntoConstraints = false
+      addSubview(v)
+    }
+    NSLayoutConstraint.activate([
+      ust.topAnchor.constraint(equalTo: topAnchor),
+      ust.leadingAnchor.constraint(equalTo: leadingAnchor),
+      ust.trailingAnchor.constraint(equalTo: trailingAnchor),
+      ust.heightAnchor.constraint(equalTo: heightAnchor, multiplier: 0.5),
+      alt.topAnchor.constraint(equalTo: ust.bottomAnchor),
+      alt.leadingAnchor.constraint(equalTo: leadingAnchor),
+      alt.trailingAnchor.constraint(equalTo: trailingAnchor),
+      alt.bottomAnchor.constraint(equalTo: bottomAnchor),
+    ])
+  }
+
   func pipAddConstrained(_ sub: UIView) {
     addSubview(sub)
     sub.translatesAutoresizingMaskIntoConstraints = false

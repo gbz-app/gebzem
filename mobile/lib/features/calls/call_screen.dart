@@ -228,10 +228,11 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     // gecildiginde de PiP penceresinde KARSI TARAF gorunur (eskiden ana ekran goruntusu
     // dusuyordu). Burada BOS cizeriz: ayni track'e IKINCI bir renderer baglanmasin
     // (kucuk PiP penceresinde cift texture = bosuna GPU/pil).
-    if (c.pipModunda) {
-      return const Scaffold(
-          backgroundColor: Color(0xFF0B141A), body: SizedBox.expand());
-    }
+    // TEST TURU 24 (kullanici: "PiP'ten donunce ekrani cok yavas ciziyor"): ONCEDEN bos
+    // Scaffold donuyorduk -> PiP'ten cikinca TUM agac (video renderer'lar dahil) SIFIRDAN
+    // kuruluyordu = yavas cizim. Artik agac AYNEN korunur, yalniz BOYANMAZ (Offstage) ->
+    // donus ANINDA olur (renderer'lar canli kalir, texture yeniden kurulmaz).
+    final pipte = c.pipModunda;
     final remote = _remoteVideo;
     final local = _localVideo;
     // MID-CALL: sesli aramada kamera acilinca (yerel VEYA karsi) video moduna gecer.
@@ -261,7 +262,9 @@ class _CallScreenState extends ConsumerState<CallScreen> {
           Navigator.of(context).pop();
         }
       },
-      child: _kapanisSarmal(Scaffold(
+      child: Offstage(
+          offstage: pipte, // PiP'te agac canli kalir ama boyanmaz (hizli donus)
+          child: _kapanisSarmal(Scaffold(
         backgroundColor: const Color(0xFF0B141A),
         body: Stack(
           children: [
@@ -414,6 +417,35 @@ class _CallScreenState extends ConsumerState<CallScreen> {
                 ])),
               ),
 
+            // ANLIK BILDIRIM SERIDI (test turu 24 — WhatsApp: "Mikail sessize alındı."):
+            // ustte koyu hap; 5 saniye sonra kaybolur, yeni bildirim gelirse yerine gecer.
+            if (c.bildirim.isNotEmpty)
+              Positioned(
+                top: 118,
+                left: 16,
+                right: 16,
+                child: IgnorePointer(
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: AnimatedOpacity(
+                      opacity: 1,
+                      duration: const Duration(milliseconds: 160),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xE6202C33),
+                          borderRadius: BorderRadius.circular(22),
+                        ),
+                        child: Text(c.bildirim,
+                            style: const TextStyle(
+                                color: Colors.white, fontSize: 15)),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
             // ARAMA BEKLEMEDE PANELI (test turu 20 — WhatsApp duzeni): GSM aramasi geldi
             // ya da arama beklemeye alindi. Alt kontrollerin YERINE gecer: "Aramayi bitir"
             // (kirmizi) / "Devam et" (yesil). Arama SUNUCUDA yasar, yalniz medya durur.
@@ -482,7 +514,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
             ),
           ],
         ),
-      )),
+      ))),
     );
   }
 
@@ -568,23 +600,16 @@ class _CallScreenState extends ConsumerState<CallScreen> {
             _selfPos = null;
           });
         },
-        // A4: cover + radius 14 + cerceve/golge (WhatsApp gorunumu)
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: Colors.white24, width: 1),
-            boxShadow: const [
-              BoxShadow(color: Colors.black45, blurRadius: 12, offset: Offset(0, 4)),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(13),
-            child: IgnorePointer(
-              child: VideoTrackRenderer(track,
-                  key: ValueKey('small-${isLocal ? 'local' : 'remote'}-${track.sid}'),
-                  fit: VideoViewFit.cover,
-                  mirrorMode: isLocal ? _c.yerelAyna : VideoViewMirrorMode.auto),
-            ),
+        // TEST TURU 24 (kullanici: "kucuk ekranin arkasindaki border/siyah kalksin"):
+        // cerceve + golge KALDIRILDI — yalniz kose yuvarlamasi ve videonun kendisi.
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(14),
+          child: IgnorePointer(
+            child: VideoTrackRenderer(track,
+                key: ValueKey(
+                    'small-${isLocal ? 'local' : 'remote'}-${track.sid ?? track.mediaStreamTrack.id}'),
+                fit: VideoViewFit.cover,
+                mirrorMode: isLocal ? _c.yerelAyna : VideoViewMirrorMode.auto),
           ),
         ),
       ),
@@ -811,6 +836,20 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     final ad = yerel ? 'Sen' : (p.name.isNotEmpty ? p.name : 'Katılımcı');
     final video = _katilimciVideosu(p);
     final konusuyor = p.isSpeaking;
+    // TEST TURU 24 (kullanici: "gruba katilinca iki ekranda da takiliyor"): yeni tile
+    // BIRDEN belirmesin — 180ms'lik cok hafif bir belirme (jank hissini gizler).
+    return TweenAnimationBuilder<double>(
+      key: ValueKey('tile-anim-${p.identity}'),
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOut,
+      builder: (_, deger, child) => Opacity(opacity: deger, child: child),
+      child: _grupVideoTileIc(p, yerel, ad, video, konusuyor),
+    );
+  }
+
+  Widget _grupVideoTileIc(Participant p, bool yerel, String ad, VideoTrack? video,
+      bool konusuyor) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 180),
       decoration: BoxDecoration(

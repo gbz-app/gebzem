@@ -27,8 +27,13 @@ Widget miniIzgara(List<Widget> kutular) {
   if (n == 1) {
     icerik = kutular[0];
   } else if (n == 2) {
-    // 2 kisi: SOL - SAG (tam yukseklik)
-    icerik = satir([kutular[0], kutular[1]]);
+    // 2 kisi: UST - ALT (test turu 24 kullanici istegi — kucuk pencere dar oldugu icin
+    // yan yana iki dikey goruntu cok kirpiliyordu; ust/alt daha dogru gorunuyor).
+    icerik = Column(children: [
+      Expanded(child: kutular[0]),
+      const SizedBox(height: bosluk),
+      Expanded(child: kutular[1]),
+    ]);
   } else if (n == 3) {
     // 3 kisi: ustte 2 yan yana, ALTTA 1 TAM GENISLIK
     icerik = Column(children: [

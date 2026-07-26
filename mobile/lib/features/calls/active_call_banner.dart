@@ -223,10 +223,9 @@ class _AktifAramaBannerState extends ConsumerState<AktifAramaBanner> {
         },
         // Videoya dokun -> aramaya don
         onTap: c.restore,
+        // TEST TURU 24: golge/siyah zemin KALDIRILDI — sade, kose yuvarlamali video.
         child: Material(
-          elevation: 12,
-          borderRadius: BorderRadius.circular(16),
-          color: const Color(0xFF0B141A),
+          color: Colors.transparent,
           child: ClipRRect(
             borderRadius: BorderRadius.circular(16),
             child: SizedBox(

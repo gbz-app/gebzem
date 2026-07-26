@@ -130,10 +130,12 @@ class PipService {
 
   /// Video track'i icin PiP controller'i kur (auto-enter). UZAK track bulunamazsa native
   /// YEREL track'e duser (canli yayin yayincisi kendi kamerasi). Basari doner.
-  static Future<bool> iosPipKur(String trackId) async {
+  static Future<bool> iosPipKur(String trackId, {String? yerelTrackId}) async {
     if (!Platform.isIOS) return false;
     try {
-      return (await _ch.invokeMethod<bool>('iosPipKur', {'trackId': trackId})) ?? false;
+      return (await _ch.invokeMethod<bool>('iosPipKur',
+              {'trackId': trackId, 'yerelTrackId': yerelTrackId})) ??
+          false;
     } catch (_) {
       return false;
     }

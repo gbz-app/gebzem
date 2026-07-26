@@ -2161,3 +2161,30 @@ gorunmeli; karsi taraf acinca onun goruntusu gelir, kucuk pencerede ben olurum".
 - [x] TEMIZ BUILD YAYINLANDI (26 Tem 12:33): android 30196332557 + ios 30196333342 (fadb09b);
       APK SHA 3ba418b8->e9f77f58 (yeni kod kaniti), IPA 19131169->19131090; R2+purge OK, CDN
       birebir; backend degismedi (health ok); DB temiz.
+
+## TEST TURU 24 (26 Tem 2026): PiP UST/ALT + iOS ARKA PLAN KAMERA + AKICILIK + BILDIRIM SERIDI
+Kullanici: (1) iPhone'da alta alinca kucuk pencere geliyor AMA karsi taraftan GORUNTUM GIDIYOR.
+(2) Kucuk pencerede 2 kisi SOL/SAG degil UST/ALT olmali (iPhone'da zaten sadece karsi taraf
+gorunuyordu). (3) PiP'ten donunce ekran COK YAVAS ciziliyor; gruba katilinca iki ekranda da
+takiliyor — her sey HIZLI + cok hafif animasyonlu olmali. (4) "X sessize alindi." tarzi bildirim
+5 sn gorunup kaybolsun, yenisi gelirse yerine gecsin. (5) Kucuk ekranlarin arkasindaki
+border/siyah kalksin, surukleme akici olsun.
+### ARASTIRMA
+- Apple: `isMultitaskingCameraAccessEnabled` iOS16+; ARKA PLANA GECMEDEN ONCE acik olmali,
+  yoksa uygulama arka plana gecince kamera akisi DURUR (Zoom Video SDK rehberi + Apple docs).
+  Desteklenmeyen cihazda kamera durur -> dogru davranis: kamerayi MUTE edip karsi tarafa
+  "Beklemede" (bulanik) gostermek.
+### YAPILANLAR
+- [x] iOS kamera-mute artik ERTELENIYOR (Android'deki gibi): PiP kuruluysa 900ms beklenir;
+      PiP basladiysa VE coklu-gorev kamera destegi VARSA kamera hic kapatilmaz (karsi taraf
+      beni gormeye devam eder). Destek yoksa durustce mute -> karsi tarafta bulanik "Beklemede".
+- [x] KUCUK PENCERE 2 KISI UST/ALT (miniIzgara) — hem uygulama-ici pencere hem Android PiP.
+- [x] iOS NATIVE PiP'te ARTIK IKI VIDEO: uzak USTTE, kendi kameram ALTTA
+      (GebzemPip.kur(trackId:, yerelTrackId:) + pipAddStacked; kurulanId birlesik anahtar).
+- [x] PiP'ten DONUS HIZI: CallScreen PiP'te bos Scaffold yerine `Offstage` — agac ve video
+      renderer'lari CANLI kalir, donuste texture yeniden kurulmaz (yavas cizim bitti).
+- [x] GRUP KATILIMI AKICILIK: yeni tile 180ms hafif belirme (TweenAnimationBuilder opacity).
+- [x] BILDIRIM SERIDI: "X sessize alındı / sesini açtı / kamerasını kapattı-açtı", grupta
+      "X katıldı / ayrıldı" — 5 sn sonra kaybolur, yeni bildirim ESKISININ yerine gecer.
+- [x] KUCUK EKRANLARDA BORDER/GOLGE KALDIRILDI (self-view + yuzen pencere): yalniz kose
+      yuvarlamasi; surukleme aynen (kose yapisma animasyonu 180ms).

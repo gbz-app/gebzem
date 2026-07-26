@@ -433,9 +433,14 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     // controller ILK gelen kareyle kurulmali; asagidaki agir capture-reconfig'i beklemesin.
     final trackId = uygun ? _uzakVideoTrackId() : null;
     if (trackId != null) {
-      if (trackId != _iosPipKurulanId) {
-        final ok = await PipService.iosPipKur(trackId);
-        _iosPipKurulanId = ok ? trackId : '';
+      // TEST TURU 24 (kullanici: "iPhone kucuk pencerede UST-ALT olmali"): kendi kameram
+      // da PiP'e verilir -> uzak USTTE, ben ALTTA.
+      final yerelId = (_camOn ? yerelVideo?.mediaStreamTrack.id : null) ?? '';
+      final birlesik = '$trackId|$yerelId';
+      if (birlesik != _iosPipKurulanId) {
+        final ok = await PipService.iosPipKur(trackId,
+            yerelTrackId: yerelId.isEmpty ? null : yerelId);
+        _iosPipKurulanId = ok ? birlesik : '';
       }
     } else if (_iosPipKurulanId.isNotEmpty) {
       _iosPipKurulanId = '';
@@ -517,6 +522,8 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     karsiBeklemede = false;
     _onizlemeTrack = null;
     _onizlemeYayinda = false;
+    bildirim = '';
+    _bildirimTimer?.cancel();
     karsiPil = -1;
     _benimPil = -1;
     karsiKalite = ConnectionQuality.unknown;
@@ -726,13 +733,22 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     // ONCE gelebiliyor -> pipModunda henuz false -> kamerayi kapatiyorduk ve PiP penceresinde
     // karsi taraf beni GOREMIYORDU. PiP izni verilmisse (goruntulu + bagli) kamerayi kapatmayi
     // 900ms ERTELE; PiP gercekten basladiysa (pipModunda) hic kapatma.
-    final pipBekleniyor = Platform.isAndroid && _pipIzinliSon;
+    // TEST TURU 24 (kullanici: "iPhone'da alta alinca karsi taraftan GORUNTUM GIDIYOR"):
+    // iOS'ta da kamera-mute ERTELENIR — PiP baslamadan mute edersek karsi taraf beni
+    // kaybediyordu. PiP basladiysa (pipModunda) veya coklu-gorev kamera aciksa HIC mute
+    // edilmez (iOS16+ isMultitaskingCameraAccessEnabled ile capture arka planda surer).
+    final pipBekleniyor = (Platform.isAndroid && _pipIzinliSon) ||
+        (Platform.isIOS && _iosPipKurulanId.isNotEmpty);
     if ((state == AppLifecycleState.paused || state == AppLifecycleState.hidden) &&
         arama != null && _baglandi && !_ayrildi && !pipModunda && !iosKameraCanli && _camOn) {
       if (pipBekleniyor) {
         _pipKameraGecikme?.cancel();
         _pipKameraGecikme = Timer(const Duration(milliseconds: 900), () {
-          if (arama == null || _ayrildi || pipModunda || !_camOn) return;
+          if (arama == null || _ayrildi || !_camOn) return;
+          // PiP BASLADIYSA: Android'de kamera capture SURER; iOS'ta yalniz coklu-gorev
+          // kamera destegi varsa surer. Destek yoksa OS capture'i zaten durdurur ->
+          // DURUSTCE mute et ki karsi taraf donmus kare degil bulanik "Beklemede" gorsun.
+          if (pipModunda && (Platform.isAndroid || _iosArkaPlanKamera)) return;
           _kameraOtoKapandi = true;
           _camOn = false;
           _room?.localParticipant?.setCameraEnabled(false);
@@ -891,8 +907,11 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     _listener = listener;
     try {
       listener
-        ..on<ParticipantConnectedEvent>((_) {
+        ..on<ParticipantConnectedEvent>((e) {
           if (arama?.callId != id) return;
+          if (_isGroup && e.participant.name.isNotEmpty) {
+            bildirimGoster('${e.participant.name} katıldı.');
+          }
           _ringTimeout?.cancel();
           _peerJoined = true;
           notifyListeners();
@@ -904,8 +923,11 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
             _mediaGuvenlikAgi(); // sure GERCEK ses gelince baslar; 8sn yedek
           }
         })
-        ..on<ParticipantDisconnectedEvent>((_) {
+        ..on<ParticipantDisconnectedEvent>((e) {
           if (arama?.callId != id) return;
+          if (_isGroup && e.participant.name.isNotEmpty) {
+            bildirimGoster('${e.participant.name} ayrıldı.');
+          }
           if (_isGroup) {
             // GRUP: biri ayrilinca arama SURER — otomatik leave YOK (backend yonetir).
             notifyListeners();
@@ -969,11 +991,30 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
         ..on<TrackUnsubscribedEvent>((_) {
           if (arama?.callId == id) notifyListeners();
         })
-        ..on<TrackMutedEvent>((_) {
-          if (arama?.callId == id) notifyListeners();
+        // TEST TURU 24: "X sessize alındı / sesi açtı / kamerasını kapattı" bildirimi
+        ..on<TrackMutedEvent>((e) {
+          if (arama?.callId != id) return;
+          if (e.participant is RemoteParticipant) {
+            final ad = e.participant.name.isNotEmpty
+                ? e.participant.name
+                : (arama?.peerName ?? 'Katılımcı');
+            bildirimGoster(e.publication.kind == TrackType.AUDIO
+                ? '$ad sessize alındı.'
+                : '$ad kamerasını kapattı.');
+          }
+          notifyListeners();
         })
-        ..on<TrackUnmutedEvent>((_) {
-          if (arama?.callId == id) notifyListeners();
+        ..on<TrackUnmutedEvent>((e) {
+          if (arama?.callId != id) return;
+          if (e.participant is RemoteParticipant) {
+            final ad = e.participant.name.isNotEmpty
+                ? e.participant.name
+                : (arama?.peerName ?? 'Katılımcı');
+            bildirimGoster(e.publication.kind == TrackType.AUDIO
+                ? '$ad sesini açtı.'
+                : '$ad kamerasını açtı.');
+          }
+          notifyListeners();
         })
         ..on<ActiveSpeakersChangedEvent>((_) {
           if (arama?.callId == id && _isGroup) notifyListeners();
@@ -1452,6 +1493,7 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     _mediaYedek?.cancel();
     _pipKameraGecikme?.cancel();
     _pilTimer?.cancel();
+    _bildirimTimer?.cancel();
     _kanitTimer?.cancel(); // SORUN-6 bekcisi de dursun
     final room = _room;
     final listener = _listener;
@@ -1738,6 +1780,25 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     _startTimer();
     notifyListeners();
     ekraniAc();
+  }
+
+  // ---- ANLIK BILDIRIM SERIDI (test turu 24 — WhatsApp: "X sessize alındı.") ----
+
+  /// Ekranda 5 saniye gorunen anlik bildirim ('' = yok). Yeni bildirim gelirse ESKISININ
+  /// YERINE gecer (kuyruk yok — WhatsApp davranisi).
+  String bildirim = '';
+  Timer? _bildirimTimer;
+
+  void bildirimGoster(String metin) {
+    if (metin.isEmpty || arama == null) return;
+    bildirim = metin;
+    notifyListeners();
+    _bildirimTimer?.cancel();
+    _bildirimTimer = Timer(const Duration(seconds: 5), () {
+      if (bildirim.isEmpty) return;
+      bildirim = '';
+      notifyListeners();
+    });
   }
 
   // ---- UYARILAR: PIL / BAGLANTI (test turu 21 — WhatsApp deneyimi) ----
