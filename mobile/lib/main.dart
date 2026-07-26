@@ -305,10 +305,31 @@ class _GebzemAppState extends ConsumerState<GebzemApp> with WidgetsBindingObserv
           duration: Duration(seconds: 2)));
     }
 
+    // TEST TURU 30 (kullanici: "karsi taraf goruntuyu actiginda ilk once uygulamaya gidip
+    // tekrar goruntulu konusmaya geliyor"): ekrani ANINDA ac. Eskiden once answer REST +
+    // izin + Navigator beklemesi bitiyordu; o sirada ekranda SON SAYFA (sohbet listesi)
+    // duruyordu. Artik "Baglaniliyor..." arama ekrani hemen gorunur, gercek `baslat`
+    // hemen ardindan gelir. ⚠️ YAPMA: bu cagriyi answer'in ARKASINA tasima.
+    if (!bekletildi) {
+      // Navigator hazir degilse (soguk baslangic) kisa bekle — ama en fazla ~1sn.
+      for (var i = 0; i < 60 && rootNavigatorKey.currentState == null; i++) {
+        await Future.delayed(const Duration(milliseconds: 16));
+      }
+      ref.read(activeCallProvider).hazirlaVeAc(AramaBilgisi(
+            callId: callId,
+            url: '',
+            token: '',
+            video: c['video'] as bool? ?? false,
+            peerName: c['caller_name'] as String? ?? '',
+            outgoing: false,
+          ));
+    }
+
     Map<String, dynamic>? info;
     try {
       info = await notifier.answer(callId, zorla: bekletildi); // ONCE sunucuya kabul bildir
     } catch (e) {
+      ref.read(activeCallProvider).hazirligiBirak();
       unawaited(izinF.catchError((_) => <Permission, PermissionStatus>{}));
       await CallKitService.bitir(callId);
       rootMessengerKey.currentState
@@ -326,6 +347,7 @@ class _GebzemAppState extends ConsumerState<GebzemApp> with WidgetsBindingObserv
         unawaited(notifier.end(callId));
       }
       unawaited(izinF.catchError((_) => <Permission, PermissionStatus>{}));
+      ref.read(activeCallProvider).hazirligiBirak(); // turu 30: acilan gorunumu kapat
       notifier.dismiss();
       return;
     }
@@ -348,9 +370,11 @@ class _GebzemAppState extends ConsumerState<GebzemApp> with WidgetsBindingObserv
       elapsedMs: (info['elapsed_ms'] as num?)?.toInt(), // sure senkronu: gecen-sure baslangici
     )));
 
-    // SONRA Navigator hazir olsun (soguk baslangicta daha uzun: 100x100ms = 10 sn)
-    for (var i = 0; i < 100 && rootNavigatorKey.currentState == null; i++) {
-      await Future.delayed(const Duration(milliseconds: 100));
+    // SONRA Navigator hazir olsun (soguk baslangic). TEST TURU 30: adim 100ms -> 16ms
+    // (kare suresi); ekran cogu zaman YUKARIDA zaten acilmis olur, bu dongu yalniz
+    // soguk baslangic/hazirlik atlanan durumlar icin yedektir. Toplam sinir yine ~10sn.
+    for (var i = 0; i < 600 && rootNavigatorKey.currentState == null; i++) {
+      await Future.delayed(const Duration(milliseconds: 16));
     }
     ctrl.ekraniAc(); // ekran saf gorunum — navigator gec kalsa da arama zaten yasiyor
     notifier.dismiss(); // uygulama ici gelen arama ekrani varsa kaldir (EN SON — overlay tuzagi)

@@ -537,6 +537,7 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
   // 5-10 olay (katilimci, track, kalite, ses kaniti, sure) PES PESE geliyor ve her biri
   // AYRI yeniden cizim tetikliyordu. Artik ayni mikro-gorevde gelen bildirimler TEK
   // karede birlestirilir (6 olay = 1 cizim). Davranis aynidir, yalniz cizim sayisi duser.
+  bool _hazirlik = false; // turu 30: ekran acildi ama baslat henuz gelmedi
   bool _bildirimBekliyor = false;
 
   @override
@@ -582,6 +583,7 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     // Tum tek-seferlik bayraklar RESET (teardown'i etkilemez — KARAR 4: bekleyen
     // teardown'lar enqueue aninda yakalanmis nesnelerle calisir).
     _iptalAbonelikler();
+    _hazirlik = false; // turu 30: gorunum hazirligi bitti, gercek arama basliyor
     arama = b;
     minimized = false;
     // TEST TURU 18: beklet bayraklari YENI aramaya SARKMASIN (parkEdilen KASTEN korunur —
@@ -2015,6 +2017,44 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   /// Arama ekranini ac (tek kapi). Zaten gorunurse no-op (cift-push korumasi).
+  /// TEST TURU 30 — "KABUL EDINCE ONCE UYGULAMA GORUNUYOR, SONRA ARAMA EKRANI GELIYOR"
+  /// (kullanici: "karsi taraf goruntuyu actiginda ilk once uygulamaya gidip tekrar
+  /// goruntulu konusmaya geliyor").
+  ///
+  /// KOK NEDEN: CallKit'ten kabul edilince uygulama ON PLANA gelir ve o anda ekranda
+  /// SON KALDIGI SAYFA (sohbet listesi) durur; arama ekrani ancak `answer` REST'i +
+  /// izin istegi + Navigator beklemesi bittikten SONRA push edilir -> arada 0.5-1.5sn
+  /// "uygulamaya girip geri donme" hissi.
+  ///
+  /// COZUM: CallKit kabulunde bilinen bilgilerle (callId/video/ad) ekran ANINDA acilir,
+  /// "Baglaniliyor..." gosterir; gercek `baslat()` hemen ardindan gelip her seyi kurar.
+  /// Bu YALNIZ GORUNUM hazirligidir: oda, medya, muhafiz, sure YOK.
+  /// ⚠️ YAPMA: burada `_svc.ekranAcildi` / oda kurulumu yapma (baslat'in isi).
+  void hazirlaVeAc(AramaBilgisi gecici) {
+    if (arama != null) return; // aktif/park edilmis arama var — dokunma
+    _hazirlik = true;
+    arama = gecici;
+    _isGroup = gecici.isGroup;
+    _camOn = gecici.video;
+    _micOn = true;
+    _connecting = true;
+    _baglandi = false;
+    _cevapsiz = false;
+    _error = null;
+    minimized = false;
+    notifyListeners();
+    ekraniAc();
+  }
+
+  /// Hazirlik iptali (answer basarisiz/null): ekran kendini pop eder (arama=null).
+  void hazirligiBirak() {
+    if (!_hazirlik) return;
+    _hazirlik = false;
+    arama = null;
+    _connecting = false;
+    notifyListeners();
+  }
+
   void ekraniAc() {
     if (ekranGorunur) return;
     final b = arama;
