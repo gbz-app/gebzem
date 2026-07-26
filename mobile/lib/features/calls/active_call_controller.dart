@@ -839,7 +839,11 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
         await room.localParticipant?.setCameraEnabled(true);
         _kurulumAsama?['cam'] = _kurulumSaat?.elapsedMilliseconds ?? 0; // FAZ-0
       }
-      await room.setSpeakerOn(false); // varsayilan kulaklik (earpiece)
+      // TEST TURU 14: GORUNTULU aramada varsayilan HOPARLOR (WhatsApp davranisi — telefonu
+      // kulaga dayamadan konusulur); SESLI aramada eskisi gibi kulaklik (earpiece).
+      // iOS SES SIRASI KORUNUR: mic -> kamera -> hoparlor -> _sesiAc EN SON.
+      final hoparlor = b.video;
+      await room.setSpeakerOn(hoparlor);
       await _sesiAc(true); // SES BIRIMI EN SON
       _kurulumAsama?['sesiAc'] = _kurulumSaat?.elapsedMilliseconds ?? 0; // FAZ-0
       _sesLog('ses kuruldu: video=${b.video}');
@@ -854,7 +858,7 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       }
       _ringTimeout?.cancel();
       _connecting = false;
-      _speakerOn = false;
+      _speakerOn = hoparlor; // goruntuluyse hoparlor acik (buton durumu gercekle uyumlu)
       _peerJoined = room.remoteParticipants.isNotEmpty;
       _odaBagli = true; // room.connect TAMAMLANDI
       notifyListeners();
@@ -1324,6 +1328,9 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       _iosPipKurulanId = '';
       unawaited(PipService.iosPipBirak());
     }
+    // TEST TURU 14: PiP penceresindeyken arama bittiyse pencereyi KAPAT (yoksa yuzen
+    // pencerede uygulamanin ana ekrani asili kalir; WhatsApp pencereyi kapatir).
+    if (pipModunda) unawaited(PipService.pipKapat());
     // Ekrana "bitti" bildir: arama=null -> CallScreen listener'i (sheet-pop -> ekran-pop; K7)
     arama = null;
     minimized = false;

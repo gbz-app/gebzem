@@ -44,6 +44,14 @@ class PipService {
     } catch (_) {}
   }
 
+  /// Arama bitti ve hala PiP penceresindeysek pencereyi kapat (WhatsApp gibi).
+  static Future<void> pipKapat() async {
+    if (!Platform.isAndroid) return;
+    try {
+      await _ch.invokeMethod('pipKapat');
+    } catch (_) {}
+  }
+
   // ---- iOS SISTEM PiP (test turu 7) ----
 
   /// iOS cihaz PiP destekliyor mu (bir kez sorulur; iOS<15/desteksiz -> false).

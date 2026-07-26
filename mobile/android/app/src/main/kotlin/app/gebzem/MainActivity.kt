@@ -65,6 +65,15 @@ class MainActivity : FlutterActivity() {
                     }
                     result.success(true)
                 }
+                // TEST TURU 14: arama bitti + hala PiP penceresindeyiz -> pencereyi KAPAT
+                // (WhatsApp gibi). PiP'te finish() uygulamayi oldurur; moveTaskToBack PiP'i
+                // kapatip uygulamayi arka plana alir (kullanici ne yapiyorduysa ona doner).
+                "pipKapat" -> {
+                    if (Build.VERSION.SDK_INT >= 26 && isInPictureInPictureMode) {
+                        try { moveTaskToBack(true) } catch (_: Exception) {}
+                    }
+                    result.success(true)
+                }
                 "pipDurumu" -> result.success(
                     Build.VERSION.SDK_INT >= 26 && isInPictureInPictureMode)
                 else -> result.notImplemented()
@@ -120,11 +129,10 @@ class MainActivity : FlutterActivity() {
             val eylemler = listOfNotNull(
                 eylemYap(
                     MIC,
-                    if (micAcik) android.R.drawable.ic_btn_speak_now
-                    else android.R.drawable.ic_lock_silent_mode,
+                    if (micAcik) R.drawable.pip_mic else R.drawable.pip_mic_off,
                     if (micAcik) "Mikrofonu kapat" else "Mikrofonu ac",
                     1),
-                eylemYap(KAPAT, android.R.drawable.ic_menu_close_clear_cancel, "Aramayi bitir", 2),
+                eylemYap(KAPAT, R.drawable.pip_hangup, "Aramayi bitir", 2),
             )
             if (eylemler.isNotEmpty()) b.setActions(eylemler)
         }
