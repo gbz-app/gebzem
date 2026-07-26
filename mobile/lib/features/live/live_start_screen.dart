@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:livekit_client/livekit_client.dart' as lk;
@@ -146,11 +147,41 @@ class _LiveStartScreenState extends ConsumerState<LiveStartScreen> {
       if (acilanYayin != null) {
         unawaited(ref.read(liveApiProvider).bitir(acilanYayin));
       }
-      if (mounted) {
-        setState(() => _basliyor = false);
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
+      if (!mounted) return;
+      setState(() => _basliyor = false);
+      // ESKI YAYIN HAYALETI (test turu 13): uygulama zorla kapatilinca sunucudaki yayin
+      // sweeper (45sn nabizsiz -> paused) + 60sn grace dolana kadar 'live' kalir ->
+      // kullanici ~2 dk boyunca "zaten canli bir yayininiz var" hatasi alip YENI YAYIN
+      // ACAMIYORDU. Sunucu artik cakisan yayin id'sini donuyor: kapat & devam et.
+      final eskiId = (e is DioException && e.response?.statusCode == 409)
+          ? ((e.response?.data as Map?)?['stream_id'] as String? ?? '')
+          : '';
+      if (eskiId.isNotEmpty) {
+        final onay = await showDialog<bool>(
+          context: context,
+          builder: (c) => AlertDialog(
+            title: const Text('Önceki yayınınız hâlâ açık'),
+            content: const Text(
+                'Uygulama kapanmış olabilir. Eski yayını kapatıp yenisini başlatalım mı?'),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.of(c).pop(false),
+                  child: const Text('Vazgeç')),
+              FilledButton(
+                  onPressed: () => Navigator.of(c).pop(true),
+                  child: const Text('Kapat ve başlat')),
+            ],
+          ),
+        );
+        if (onay != true || !mounted) return;
+        try {
+          await ref.read(liveApiProvider).bitir(eskiId);
+        } catch (_) {}
+        if (mounted) unawaited(_basla()); // tekrar dene (geri sayim yeniden akar)
+        return;
       }
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
     }
   }
 

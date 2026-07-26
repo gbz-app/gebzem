@@ -140,8 +140,17 @@ func (h *Handler) Start(w http.ResponseWriter, r *http.Request) {
 		`INSERT INTO streams (broadcaster_id, title, type, status) VALUES ($1, $2, $3, 'live') RETURNING id`,
 		userID, req.Title, tip).Scan(&streamID)
 	if err != nil {
-		// uq_streams_broadcaster_live: ayni yayincinin ikinci canli yayini
-		writeErr(w, http.StatusConflict, "zaten canli bir yayininiz var")
+		// uq_streams_broadcaster_live: ayni yayincinin ikinci canli yayini.
+		// TEST TURU 13: app-kill/crash sonrasi ESKI yayin sweeper (45sn) + grace (60sn)
+		// dolana kadar 'live' kalir -> kullanici ~2 dk yeni yayin ACAMIYORDU. Cakisan
+		// yayinin ID'sini DON ki istemci "eskisini kapat ve devam et" diyebilsin.
+		var mevcut string
+		h.db.QueryRow(r.Context(),
+			`SELECT id FROM streams WHERE broadcaster_id=$1 AND status IN ('live','paused') LIMIT 1`,
+			userID).Scan(&mevcut)
+		writeJSON(w, http.StatusConflict, map[string]string{
+			"error": "zaten canli bir yayininiz var", "stream_id": mevcut,
+		})
 		return
 	}
 
