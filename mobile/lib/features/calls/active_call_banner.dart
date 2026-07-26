@@ -92,7 +92,12 @@ class _AktifAramaBannerState extends ConsumerState<AktifAramaBanner> {
     // BEKLEMEDEKI ARAMA (test turu 18): aktif arama ekrani acikken de, uygulamada
     // gezerken de en ustte gorunur. PiP/yuzen pencere mantigi ETKILENMEZ.
     final park = c.parkEdilen != null ? _parkSeridi(c) : null;
-    if (park != null && (b == null || !c.minimized)) {
+    // YAPISAL GARANTI (test turu 23 — kullanici ekran goruntusu: ARAMA EKRANI ACIKKEN
+    // yuzen pencere de ciziliyordu, ikisi ust uste bindi): arama ekrani GORUNURKEN yuzen
+    // pencere ASLA cizilmez. 'minimized' bayragi bayat kalsa bile (restore/PiP yarisi)
+    // pencere cikamaz.
+    final yuzenGorunur = b != null && c.minimized && !c.ekranGorunur;
+    if (park != null && !yuzenGorunur) {
       // Aktif arama ekrani acik (veya arama yok) -> yalniz park seridini bindir
       return Stack(children: [widget.child, park]);
     }
@@ -103,7 +108,7 @@ class _AktifAramaBannerState extends ConsumerState<AktifAramaBanner> {
     if (b != null && c.pipModunda) {
       return Stack(children: [widget.child, Positioned.fill(child: _pipTamEkran(c, b))]);
     }
-    if (b == null || !c.minimized) return widget.child;
+    if (!yuzenGorunur) return widget.child;
 
     final ad = c.isGroup
         ? (b.chatTitle.isEmpty ? 'Grup araması' : b.chatTitle)

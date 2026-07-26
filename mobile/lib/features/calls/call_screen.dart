@@ -240,9 +240,15 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     // SWAP (WhatsApp): self-view'e dokununca kendi goruntum buyuk, karsininki kucuk.
     final bothVideo = remote != null && local != null && c.camOn;
     final swap = _selfBuyuk && bothVideo;
-    final VideoTrack? bigTrack = swap ? local : remote;
-    final VideoTrack? smallTrack =
-        swap ? remote : (local != null && c.camOn ? local : null);
+    // TEST TURU 23 (kullanici istegi): GORUNTULU aramada karsi taraf HENUZ ACMADIYSA
+    // arka planda KENDI kameram TAM EKRAN gorunur (WhatsApp gibi). Karsi taraf acinca
+    // buyuk goruntu ONA gecer, ben kucuk pencereye duserim.
+    final kendimBuyuk = !swap && remote == null && local != null && c.camOn;
+    final VideoTrack? bigTrack = swap ? local : (remote ?? (kendimBuyuk ? local : null));
+    final bool bigYerel = swap || kendimBuyuk;
+    final VideoTrack? smallTrack = swap
+        ? remote
+        : (remote != null && local != null && c.camOn ? local : null);
     final bool smallIsLocal = !swap;
 
     return PopScope(
@@ -272,9 +278,13 @@ class _CallScreenState extends ConsumerState<CallScreen> {
                   child: IgnorePointer(
                     // KEY track kimligine bagli: taze renderer, bayat/siyah texture kalmaz
                     child: VideoTrackRenderer(bigTrack,
-                        key: ValueKey('big-${bigTrack.sid}'),
+                        // KEY: onizleme track'inde sid NULL olabilir -> mediaStreamTrack.id
+                        key: ValueKey(
+                            'big-${bigTrack.sid ?? bigTrack.mediaStreamTrack.id}'),
                         fit: VideoViewFit.cover,
-                        mirrorMode: swap ? c.yerelAyna : VideoViewMirrorMode.auto),
+                        // Kendi goruntum buyukken AYNA kurali (on kamera aynali)
+                        mirrorMode:
+                            bigYerel ? c.yerelAyna : VideoViewMirrorMode.auto),
                   ),
                 ),
               )
@@ -325,7 +335,8 @@ class _CallScreenState extends ConsumerState<CallScreen> {
                       // düşük", "İnternet bağlantın zayıf", "Yeniden bağlanılıyor…".
                       if (c.uyariMetni.isNotEmpty && !c.beklemede)
                         Padding(
-                          padding: const EdgeInsets.only(top: 6),
+                          // TEST TURU 23: uzun uyari metni tasiyordu -> yatay pay + tek satir
+                          padding: const EdgeInsets.fromLTRB(24, 6, 24, 0),
                           child: Container(
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 10, vertical: 4),
@@ -340,9 +351,13 @@ class _CallScreenState extends ConsumerState<CallScreen> {
                                   size: 14,
                                   color: Colors.amberAccent),
                               const SizedBox(width: 6),
-                              Text(c.uyariMetni,
-                                  style: const TextStyle(
-                                      color: Colors.amberAccent, fontSize: 12)),
+                              Flexible(
+                                child: Text(c.uyariMetni,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                        color: Colors.amberAccent, fontSize: 12)),
+                              ),
                             ]),
                           ),
                         ),
