@@ -441,12 +441,14 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     if (trackId != null) {
       // TEST TURU 24 (kullanici: "iPhone kucuk pencerede UST-ALT olmali"): kendi kameram
       // da PiP'e verilir -> uzak USTTE, ben ALTTA.
-      final yerelId = (_camOn ? yerelVideo?.mediaStreamTrack.id : null) ?? '';
-      final birlesik = '$trackId|$yerelId';
-      if (birlesik != _iosPipKurulanId) {
-        final ok = await PipService.iosPipKur(trackId,
-            yerelTrackId: yerelId.isEmpty ? null : yerelId);
-        _iosPipKurulanId = ok ? birlesik : '';
+      // TEST TURU 26 GERI ALMA (kullanici hakli): iOS PiP'i IKIYE BOLMEK (uzak+yerel)
+      // pencereyi BOZDU. Sebep: kurulum kimligi "uzak|yerel" idi; arka planda kamera
+      // mute olunca yerel id BOSALIYOR -> kimlik degisiyor -> PiP kurulumu YIKILIP
+      // yeniden kuruluyordu (birak() stopPictureInPicture cagirir) -> pencere HIC acilmadi.
+      // Artik iOS PiP YALNIZ UZAK VIDEO (calisan eski davranis); kimlik SADECE uzak track.
+      if (trackId != _iosPipKurulanId) {
+        final ok = await PipService.iosPipKur(trackId);
+        _iosPipKurulanId = ok ? trackId : '';
       }
     } else if (_iosPipKurulanId.isNotEmpty) {
       _iosPipKurulanId = '';
@@ -1099,6 +1101,17 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       }
       _ringTimeout?.cancel();
       _connecting = false;
+      // TEST TURU 26: iOS'ta ARKA PLAN KAMERASINI EN BASTA ac (Apple: arka plana gecmeden
+      // ONCE acik olmali). Sonucu Sentry'e yaz — cihazin destegi boylece KESIN bilinir
+      // ("alta alinca karsi taraf beni goremiyor" sikayetinin cevabi burada).
+      if (Platform.isIOS && _camOn) {
+        PipService.iosCokluGorevKamera().then((ok) {
+          _iosArkaPlanKamera = ok;
+          _sesLog('ios coklu-gorev kamera destegi: $ok');
+          unawaited(Sentry.captureMessage(
+              'ios coklu-gorev kamera (arka planda kamera) destek=$ok'));
+        });
+      }
       _pilTakibiBaslat(); // TEST TURU 21: pil seviyemi karsi tarafa bildir (uyari icin)
       _speakerOn = hoparlor; // goruntuluyse hoparlor acik (buton durumu gercekle uyumlu)
       _peerJoined = room.remoteParticipants.isNotEmpty;

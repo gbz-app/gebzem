@@ -283,8 +283,7 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
     }
     guard let track = bulunan else { return false }
 
-    let birlesikId = trackId + "|" + (yerelTrackId ?? "")
-    if kurulanId == birlesikId, pipController != nil { return true }
+    if kurulanId == trackId, pipController != nil { return true }
     birak()
 
     let vv = PipVideoView(frame: CGRect(x: 0, y: 0, width: 120, height: 200))
@@ -295,22 +294,12 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
     vc.preferredContentSize = CGSize(width: 120, height: 200)
     // TEST TURU 24 (kullanici: "iPhone kucuk pencerede UST-ALT olmali"): uzak video USTTE,
     // KENDI kameram ALTTA. Yerel track bulunamazsa tek video tam kaplar (eski davranis).
-    var yerelGorunum: PipVideoView?
-    var yerelRenderer: PipRenderer?
-    if let yid = yerelTrackId,
-       let yerel = eklenti?.track(forId: yid, peerConnectionId: nil) as? RTCVideoTrack {
-      let yv = PipVideoView(frame: CGRect(x: 0, y: 0, width: 120, height: 100))
-      let yr = PipRenderer(view: yv)
-      yerel.add(yr)
-      yerelGorunum = yv
-      yerelRenderer = yr
-      self.yerelTrack = yerel
-      vc.view.pipAddStacked(ust: vv, alt: yv)
-    } else {
-      vc.view.pipAddConstrained(vv)
-    }
-    self.yerelGorunum = yerelGorunum
-    self.yerelRenderer = yerelRenderer
+    // TEST TURU 26 GERI ALMA: iOS PiP'te IKI VIDEO (uzak+yerel) denemesi pencereyi
+    // BOZDU (kimlik degisince kurulum yikilip yeniden kuruluyordu; pencere hic acilmadi).
+    // Simdilik TEK VIDEO (uzak) — kanitlanmis calisan davranis. yerelTrackId parametresi
+    // API uyumu icin duruyor ama KULLANILMIYOR.
+    _ = yerelTrackId
+    vc.view.pipAddConstrained(vv)
 
     let source = AVPictureInPictureController.ContentSource(
       activeVideoCallSourceView: kaynakView, contentViewController: vc)
@@ -323,7 +312,7 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
     self.uzakTrack = track
     self.callVC = vc
     self.pipController = controller
-    self.kurulanId = birlesikId
+    self.kurulanId = trackId
     NSLog("gebzem/pip iOS kuruldu track=\(trackId)")
     return true
   }

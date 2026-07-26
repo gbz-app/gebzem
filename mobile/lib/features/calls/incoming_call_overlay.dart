@@ -61,7 +61,10 @@ class _IncomingCallSheetState extends ConsumerState<_IncomingCallSheet> {
   @override
   void initState() {
     super.initState();
-    if (_grupDavet && widget.call.video) _onizlemeAc();
+    // TEST TURU 26 (kullanici: "aradigim kiside de kamera DIREK acilmali"): GORUNTULU
+    // gelen aramada (1:1 dahil) kendi kameramiz ekranda ANINDA gorunur — kabul edilince
+    // ayni akis devam eder. Grup daveti zaten boyleydi.
+    if (widget.call.video) _onizlemeAc();
     // Zil + titresim. LiveKit odasina henuz baglanmadigimiz icin zil serbestce calar.
     CallSounds.gelenArama().then((n) => _zilNesli = n); // nesli sakla (durdururken verilecek)
     final notifier = ref.read(callServiceProvider.notifier);
@@ -355,9 +358,21 @@ class _IncomingCallSheetState extends ConsumerState<_IncomingCallSheet> {
     final call = widget.call;
     // GRUP DAVETI (test turu 21): WhatsApp tarzi onizlemeli ekran. 1:1 arama ekrani AYNEN kalir.
     if (_grupDavet && !call.waiting) return _grupDavetGorunumu(call);
+    final onizleme = _onizleme;
     return Material(
       color: const Color(0xFF0B141A),
-      child: SafeArea(
+      child: Stack(fit: StackFit.expand, children: [
+        // TEST TURU 26: GORUNTULU gelen aramada arka planda KENDI kameram (WhatsApp gibi)
+        if (onizleme != null && call.video)
+          IgnorePointer(
+            child: lk.VideoTrackRenderer(onizleme,
+                key: ValueKey('gelen-${onizleme.sid}'),
+                fit: lk.VideoViewFit.cover,
+                mirrorMode: lk.VideoViewMirrorMode.mirror),
+          ),
+        if (onizleme != null && call.video)
+          Container(color: Colors.black.withValues(alpha: 0.35)),
+        SafeArea(
         child: Column(
           children: [
             const Spacer(flex: 2),
@@ -441,6 +456,7 @@ class _IncomingCallSheetState extends ConsumerState<_IncomingCallSheet> {
           ],
         ),
       ),
+      ]),
     );
   }
 

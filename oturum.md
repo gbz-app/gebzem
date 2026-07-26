@@ -2223,3 +2223,22 @@ kamerasi tam ekran gelmiyor.
   DEVAM etmesi Apple'in `isMultitaskingCameraAccessSupported` iznine bagli (iOS16+ ve YALNIZ bazi
   cihazlar). Desteklenmeyen iPhone'da kamera OS tarafindan durdurulur — bizim kodumuz bunu
   degistiremez; o durumda karsi tarafa bulanik "Beklemede" gosteriyoruz (donmus kare degil).
+
+## TEST TURU 26 (26 Tem 2026): iOS PiP BOLUNMESI GERI ALINDI (kullanici tespiti dogru)
+Kullanici: "alta alinca kucuk ekran ZATEN CALISIYORDU; anlik kamera + BOLUNME gelince patladi.
+iPhone'da kucuk ekran hic gelmiyor, karsi tarafta goruntum gidiyor. Aradigim kiside de kamera
+DIREK acilmali."
+### KOK NEDEN (kullanicinin sezgisi doğruydu)
+iOS PiP'i IKIYE BOLMEK icin kurulum kimligini "uzakTrackId|yerelTrackId" yapmistik. Arka plana
+gecince kamera mute ediliyor -> yerel id BOSALIYOR -> kimlik DEGISIYOR -> `kur()` yeniden
+cagriliyor -> `birak()` icinde `stopPictureInPicture()` -> PiP kurulumu SUREKLI yikilip yeniden
+kuruluyor, pencere HIC acilmiyordu.
+### YAPILANLAR
+- [x] iOS PiP BOLUNMESI GERI ALINDI: pencere yine TEK VIDEO (uzak taraf) — kanitlanmis calisan
+      davranis. Kurulum kimligi SADECE uzak track id (kamera durumundan BAGIMSIZ -> yikim yok).
+      (Uygulama-ici yuzen pencere + Android PiP'te ust/alt bolunme AYNEN kaliyor.)
+- [x] iOS ARKA PLAN KAMERASI EN BASTA acilir (Apple: arka plana gecmeden ONCE acik olmali) ve
+      sonucu SENTRY'e yazilir: "ios coklu-gorev kamera (arka planda kamera) destek=true/false"
+      -> cihazin destegi kesin ogrenilecek (destek yoksa Apple kisiti, kod cozemez).
+- [x] GELEN GORUNTULU ARAMADA (1:1 dahil) kendi kamera onizlemesi ARKA PLANDA acilir — aranan
+      kisi kamerayi ANINDA gorur (eskiden yalniz grup davetinde vardi).
