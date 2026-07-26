@@ -1737,3 +1737,30 @@ Expanded ile tile'lari EKRANI DOLDURACAK sekilde (yarim-genislik TAM-yukseklik ~
       debug imza YOK; R2 apk=104979441 ipa=19092619 index=5705; purge OK; CDN boyut birebir; index
       saati 21:19; backend degismedi (health ok); DB temiz (users=0). KULLANICI test edecek.
 - **TEST:** 2 kisiyi canliya al -> yan yana DOGAL boyutta (portre, ortali), boydan boya UZAMAZ/kirpmaz.
+
+## OTURUM 26 Tem 2026 — TEST TURU 13: CANLI YAYIN DERIN TARAMA (kullanici: "kapsamli bug fix arastirmasi + temiz build")
+Kullanici test ederken canli yayin akisinin TAMAMI satir satir tarandi (broadcast 724 + viewer 858 +
+widgets/tab/start/provider + backend streams handler/guests/sweeper/gifts/invite). BULUNAN 5 GERCEK HATA:
+- [x] **1. BAYAT NABIZ MUTABAKATI (kok hata, iki taraf da):** 15sn'lik nabiz istegi UCARKEN konuk
+      durumu degisirse (kabul edildim / konuk cikardim) donen yanit BAYAT'ti ve kosulsuz uygulaniyordu.
+      IZLEYICI: yeni kabul edilmis konugu KONUKLUKTAN DUSURUYOR (kamera+mic kapanir, sunucu hala konuk
+      sayar -> hayalet slot, yayinci "sesli konuk" saniyor). YAYINCI: yeni kabul edilen konugun tile'i
+      15sn EKRANDAN KAYBOLUYOR. FIX: `_konukEpok` nesli — istek ONCESI yakalanir, her yerel konuk
+      degisikliginde artar; nesil degistiyse yanit UYGULANMAZ.
+- [x] **2. HAYALET KONUK SLOTU (slot sizintisi):** app-kill/crash sonrasi ayni yayina geri donen eski
+      konuk sunucuda hala `:guests` uyesi; sweeper konugu YALNIZ izleyici listesinden dustugunde dusurur,
+      ama kullanici geri girip nabiz attigi icin ASLA dusmuyordu -> 4 konuk slotundan biri yayin boyu
+      KILITLI + yayincida sabit avatar tile. FIX: ekran acilisindaki `guest_ids`'te KENDI id'im varsa
+      (>=2. nabiz = >=15sn, gercek kabul olsa guest.accepted coktan gelirdi) slotu BIRAK (konukAyril).
+- [x] **3. KACAN guest.accepted ONARIMI:** sunucu beni konuk sayarken medyam kapaliysa (accept sinyali
+      reconnect penceresinde kayboldu) 15sn icinde kendiliginden konuk ol. Elle ✕ Ayril sonrasi
+      TEKRAR SOKMAZ (`_elleAyrildim`; yeni katil istegi/guest.accepted kapiyi tekrar acar).
+- [x] **4. SESLI KONUK KAMERAYI ACAMIYORDU:** konuk pill'indeki kamera butonu izin ISTEMEDEN
+      setCameraEnabled cagiriyordu -> kamera iznini reddedip sesli katilan konukta sessizce patlıyor,
+      buton OLU gorunuyordu. Artik izin ister + reddedilirse/hata olursa mesaj verir.
+- [x] **5. KONUK ADLARI:** izleyici tarafinda TUM konuklar "Konuk"/"K" etiketiyle ciziliyordu
+      (guest.joined'daki `name` atiliyordu). Artik ad saklanir; backend `/watch` yanitina `guest_list`
+      (id+ad) EKLENDI (ek alan — guest_ids korundu, geriye uyumlu) -> gec katilan izleyici de adlari gorur.
+- [x] Ek: KONUKSAM kendi tile'im yapisal garanti (bayat liste kendi onizlememi kaybettiremez).
+- [x] go build temiz + flutter analyze temiz (4 eski info lint). Commit d688f7d push edildi.
+- [x] BACKEND DEPLOY edildi (guest_list) — sunucu d688f7d, health ok.
