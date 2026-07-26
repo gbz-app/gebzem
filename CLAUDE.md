@@ -15,6 +15,26 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (27 Tem 00:42):** TEST TURU 40 YAYINLANDI — android 30221177316 +
+  ios 30221178264 (adfb558), R2 apk=105227857 ipa=19152061, purge OK, CDN birebir, backend
+  degismedi + health ok, DB temiz. KULLANICI TEST EDECEK.
+- **TEST TURU 40 — "ONCEDEN CALISIYORDU" SORUSUNUN CEVABI (git kaniti):**
+  Kucuk pencerede KENDI kamerayi gosterme (`yerelId ?? uzakId`) YALNIZ 0bb2660 (turu 36) ile
+  girdi; oncesi `uzakId ?? yerelId` (KARSI TARAF) idi ve CALISIYORDU. "Donuyor" sikayetleri
+  turu 36'dan SONRA basladi. GERI ALINDI.
+  **FIZIK:** iPhone uygulama arka plana gecince KENDI kamerayi DURDURUR; karsi tarafin
+  videosu AGDAN geldigi icin AKMAYA DEVAM EDER. Kucuk pencereye kendi kamerani koymak =
+  arka planda gosterilecek goruntu olmamasi = son karede donma.
+  **KULLANICI GOZLEMI (teshisi kesinlestirdi):** "uygulama ICINDE kucultunce ust/alt bolme
+  cok iyi calisiyor, uygulamadan CIKINCA gidiyor; Android'de ikisi de calisiyor."
+   · uygulama ici pencere = BIZIM Flutter widget'imiz, uygulama ON PLANDA -> kamera yasiyor
+   · iOS arka plan = SISTEM PiP'i (native), uygulama ARKA PLANDA -> kamera duruyor
+   · Android PiP = uygulamanin KENDISI kucuk pencerede ("gorunur") -> kamera yasiyor
+  ⚠️ YAPMA: kucuk pencere kaynagini tekrar YEREL yapma (kullanici istese bile once bu fizik
+  anlatilmali); "sadece bizim goruntu" gibi belirsiz istegi UYARMADAN uygulama.
+  **ACIK OLCUM:** Sentry "ios pip olcum on=.. arka=.. oturum=.. coklu=.." — `oturum=true`
+  cikarsa arka planda kamera YASIYOR demektir ve kucuk pencereye WhatsApp gibi UFAK kendi
+  goruntusu EKLENEBILIR; `false` ise Apple/cihaz kisitidir, kullaniciya kesin soylenecek.
 - **KALDIGIMIZ YER (27 Tem 00:11):** TEST TURU 39 YAYINLANDI — android 30220063911 +
   ios 30220064859 (84066ac), R2 apk=105227857 ipa=19151962, purge OK, CDN birebir, backend
   degismedi + health ok, DB temiz. KULLANICI TEST EDECEK.
