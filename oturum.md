@@ -1893,3 +1893,15 @@ sorunlar OLMAMALI.
       sesiyle arama sesi cakismasin diye bilincli karar). Yani yayin izlerken/ yaparken aranirsan
       telefon CALMAZ; yayindan cikinca aranabilirsin. Istenirse "yayin izlerken gelen arama calsin,
       kabul edilirse yayindan otomatik cik" ayri faz olarak eklenir.
+
+## KULLANICI TEST TURU 16 (26 Tem 2026): KONUK SINIRI + IZGARA SON SATIR + GERI SAYIM
+Istekler: (1) canli yayindaki KONUK SINIRINI KALDIR (prototip; sunucu buyuyunce kapasite artar).
+(2) 3 kisilik duzende alttaki tek kisi SOLDA YARIM degil TAM GENISLIK (yatik) olsun — hem GRUP
+ARAMASI hem CANLI YAYIN izgarasinda, sesli/goruntulu fark etmeksizin. (3) Yayin geri sayimi SADE
+BEYAZ (golge/parilti YOK) ve sayarken ekranda BASKA HICBIR SEY olmasin.
+### ADIMLAR
+- [ ] 1. Backend: maxKonuk sabiti -> env STREAM_MAX_GUESTS (0 = SINIRSIZ, varsayilan sinirsiz)
+- [ ] 2. live_widgets.yayinIzgara: son satirda TEK tile -> TAM GENISLIK
+- [ ] 3. call_screen grup izgarasi: ayni kural (son satir tek ise tam genislik) + kaydirma korunur
+- [ ] 4. live_start_screen: geri sayim sade beyaz, golge yok, sayarken UI gizli
+- [ ] 5. analyze + go build + temiz build + yayin
