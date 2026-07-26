@@ -161,7 +161,18 @@ class _IncomingCallSheetState extends ConsumerState<_IncomingCallSheet> {
       }
       // Android es-zamanli ikinci request firlatir -> baslat'in _connect izni oncesi bitmis olsun
       await izinF;
-      await _onizlemeKapat(); // kamera cakismasin (yayin ekrani kendi track'ini acar)
+      // TEST TURU 28 (kullanici: "kabul edince 2sn sonra PATLAMA"): gelen-arama ekranindaki
+      // ONIZLEME KAMERASINI KAPATIP arama ekraninda YENIDEN ACIYORDUK -> kamera kapan/ac
+      // ~0.5-1sn siyah + gorsel sicrama. Artik track OLDUGU GIBI DEVREDILIR (canli yayin
+      // P1 devir deseni) — kamera hic kapanmaz, gorunt kesintisiz. ⚠️ YAPMA: burada
+      // _onizlemeKapat cagirip controller'da yeniden acma.
+      final bool kameraDevam = widget.call.video && _kameraSecimi;
+      final devirKamera = kameraDevam ? _onizleme : null;
+      if (devirKamera != null) {
+        _onizleme = null; // dispose kapatmasin — sahiplik controller'a gecti
+      } else {
+        await _onizlemeKapat();
+      }
 
       // FAZ-C: mantik controller'da; ekran saf gorunum (rootNavigatorKey ile acilir)
       final ctrl = ref.read(activeCallProvider);
@@ -175,7 +186,10 @@ class _IncomingCallSheetState extends ConsumerState<_IncomingCallSheet> {
         isGroup: widget.call.isGroup,
         chatTitle: widget.call.chatTitle,
         elapsedMs: (info['elapsed_ms'] as num?)?.toInt(), // sure senkronu: gecen-sure baslangici
-      ), micAcik: _mikSecimi, kameraAcik: widget.call.video && _kameraSecimi));
+      ),
+          micAcik: _mikSecimi,
+          kameraAcik: kameraDevam,
+          hazirKamera: devirKamera));
       ctrl.ekraniAc();
       notifier.dismiss(); // arama ekrani acildiktan SONRA gelen arama ekranini kaldir
     } catch (e) {

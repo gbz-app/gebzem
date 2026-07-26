@@ -152,6 +152,7 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
   // (kendi giden kameramizi bg'de kapatir — PiP bize UZAK videoyu gosterir, ikisi bagimsiz).
   bool _iosPipHazir = false;
   String _iosPipKurulanId = ''; // native'e kurulan uzak track id (degisince yeniden kur)
+  String _iosPipYerelId = ''; // turu 28: PiP alt gorunumundeki kendi kamera track id'm
   // iOS COKLU-GOREV KAMERA (test turu 9): isMultitaskingCameraAccessEnabled acildiysa true.
   // Acikken arka planda kamera CAPTURE'a devam eder -> PiP karsi tarafa CANLI gonderir
   // (kullanici sikayeti: "alta alinca karsi taraf beni goremiyor"). iOS18+ entitlementsiz;
@@ -411,6 +412,17 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     return null;
   }
 
+  /// TEST TURU 28: KENDI kamera track id'm (iOS PiP alt gorunumu). Yayinlanan track yoksa
+  /// onizleme track'i kullanilir (arama baglanmadan once de bolunmus pencere calissin).
+  String? _yerelVideoTrackId() {
+    for (final p
+        in _room?.localParticipant?.videoTrackPublications ?? const []) {
+      final t = p.track;
+      if (t != null && !p.muted) return t.mediaStreamTrack.id;
+    }
+    return _onizlemeTrack?.mediaStreamTrack.id;
+  }
+
   String? _ilkVideoTrackId(RemoteParticipant p) {
     for (final pub in p.videoTrackPublications) {
       if (pub.subscribed && pub.track != null) {
@@ -449,9 +461,21 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       if (trackId != _iosPipKurulanId) {
         final ok = await PipService.iosPipKur(trackId);
         _iosPipKurulanId = ok ? trackId : '';
+        _iosPipYerelId = ''; // yeni kurulumda alt gorunum sifirlanir
+      }
+      // TEST TURU 28 — UST/ALT BOLUNME DOGRU YONTEMLE: alt gorunum (kendi kameram)
+      // controller'dan BAGIMSIZ eklenip cikarilir. Kimlik hala SADECE uzak track
+      // oldugundan kamera mute olunca pencere KAPANMAZ (turu 24 hatasi tekrar etmez).
+      if (_iosPipKurulanId.isNotEmpty) {
+        final yid = (_camOn ? _yerelVideoTrackId() : null) ?? '';
+        if (yid != _iosPipYerelId) {
+          _iosPipYerelId = yid;
+          await PipService.iosPipYerel(yid.isEmpty ? null : yid);
+        }
       }
     } else if (_iosPipKurulanId.isNotEmpty) {
       _iosPipKurulanId = '';
+      _iosPipYerelId = '';
       await PipService.iosPipBirak();
     }
     // COKLU-GOREV KAMERA (test turu 9->10): PiP kurulumundan SONRA + BLOKLAMAYAN (fire-and-forget).
@@ -485,11 +509,22 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     unawaited(_iosPipGuncelle());
   }
 
+  // TEST TURU 27 — AKICILIK (kullanici: "acilirken patlıyor, yavas"): baglanma aninda
+  // 5-10 olay (katilimci, track, kalite, ses kaniti, sure) PES PESE geliyor ve her biri
+  // AYRI yeniden cizim tetikliyordu. Artik ayni mikro-gorevde gelen bildirimler TEK
+  // karede birlestirilir (6 olay = 1 cizim). Davranis aynidir, yalniz cizim sayisi duser.
+  bool _bildirimBekliyor = false;
+
   @override
   void notifyListeners() {
-    super.notifyListeners();
-    _pipGuncelle(); // her durum degisiminde PiP izni senkron kalir (yalniz delta'da kanal)
-    unawaited(_iosPipGuncelle()); // iOS PiP kurulum/birakma (yalniz trackId delta'sinda native)
+    if (_bildirimBekliyor) return;
+    _bildirimBekliyor = true;
+    scheduleMicrotask(() {
+      _bildirimBekliyor = false;
+      super.notifyListeners();
+      _pipGuncelle(); // PiP izni senkron kalir (yalniz delta'da kanal)
+      unawaited(_iosPipGuncelle()); // iOS PiP kurulum/birakma (yalniz trackId delta'sinda)
+    });
   }
 
   String get durumMetni {
@@ -518,7 +553,8 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
   /// tamamlamis olmali — b.url/token hazir gelir. Ekrani ACMAZ (ekraniAc ayri).
   /// [micAcik]/[kameraAcik]: GRUP DAVET EKRANINDA (test turu 21) kullanici onceden secmis
   /// olabilir (WhatsApp gibi kamera/mikrofon kapali katilma). Verilmezse eski davranis.
-  Future<void> baslat(AramaBilgisi b, {bool? micAcik, bool? kameraAcik}) async {
+  Future<void> baslat(AramaBilgisi b,
+      {bool? micAcik, bool? kameraAcik, LocalVideoTrack? hazirKamera}) async {
     // Tum tek-seferlik bayraklar RESET (teardown'i etkilemez — KARAR 4: bekleyen
     // teardown'lar enqueue aninda yakalanmis nesnelerle calisir).
     _iptalAbonelikler();
@@ -539,6 +575,7 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     pipModunda = false; // FAZ-6 (yargic): eski aramadan bayrak sarkmasin
     _kameraOtoKapandi = false;
     _iosPipKurulanId = ''; // iOS PiP (test turu 7): eski aramadan kurulum sarkmasin
+    _iosPipYerelId = '';
     _iosArkaPlanKamera = false; // iOS coklu-gorev kamera (test turu 9): eski aramadan sarkmasin
     _iosCokluGorevDeniyor = false;
     _isGroup = b.isGroup;
@@ -585,7 +622,16 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     // TEST TURU 22 (kullanici: "goruntulu arama atinca kameram DIREK gelmiyor"): kamerayi
     // odaya BAGLANMADAN ONCE ac ve ekranda goster; baglanti kurulunca AYNI track publish
     // edilir (canli yayin P1 deseni) — ikinci kez kamera acilmaz, yaris olmaz.
-    if (_camOn) unawaited(_onizlemeAc());
+    // TEST TURU 28: gelen-arama ekraninda ZATEN acilmis kamera varsa DEVRAL (kapat-ac
+    // yok -> siyah sicrama yok). Yoksa eskisi gibi kendimiz aciyoruz.
+    if (_camOn && hazirKamera != null) {
+      _onizlemeTrack = hazirKamera;
+      notifyListeners();
+    } else if (_camOn) {
+      unawaited(_onizlemeAc());
+    } else if (hazirKamera != null) {
+      unawaited(hazirKamera.stop().then((_) => hazirKamera.dispose()));
+    }
     // TEST TURU 20: GSM arama dinleyicisini AC (arama boyunca). Izin yoksa no-op.
     unawaited(PipService.gsmDinle(true));
     // SURE SENKRONU: ARANAN tarafta answer() cevabindaki gecen-sure (~0); grupta kullanilmaz.
@@ -906,8 +952,15 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     final id = b.callId;
     final room = Room(
       roomOptions: RoomOptions(
-        adaptiveStream: true,
-        dynacast: true,
+        // TEST TURU 28 — GORUNTU 2-3sn GEC GELIYOR (kullanici: "instagram'da ANINDA").
+        // KOK NEDEN: adaptiveStream, karsi tarafin videosunu renderer GORUNUR oldugunu
+        // BILDIRENE kadar duraklatir; dynacast ise abone yokken yayin katmanini kapatir.
+        // 1:1 aramada ikisi de bir tur ekstra sinyal turu = ilk karede ~1-2sn gecikme,
+        // kazanci ise sifira yakin (zaten tek abone, tek katman). Bu yuzden 1:1'de
+        // KAPALI, GRUPTA acik (8 kisilik izgarada gercekten bant kazandirir).
+        // ⚠️ YAPMA: grupta kapatma (8 video x tam katman = cx33 SFU + telefon isinir).
+        adaptiveStream: _isGroup,
+        dynacast: _isGroup,
         // GRUP: 540p/700kbps profili; 1:1: 720p (call_media_options — degistirme)
         defaultCameraCaptureOptions:
             _isGroup ? kGroupCameraCaptureOptions : kCameraCaptureOptions,

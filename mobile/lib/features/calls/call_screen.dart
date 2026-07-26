@@ -239,21 +239,38 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     final remote = _remoteVideo;
     final local = _localVideo;
     // MID-CALL: sesli aramada kamera acilinca (yerel VEYA karsi) video moduna gecer.
-    final showVideo = remote != null || local != null;
+    final showVideo = remote != null || (local != null && c.camOn);
 
-    // SWAP (WhatsApp): self-view'e dokununca kendi goruntum buyuk, karsininki kucuk.
-    final bothVideo = remote != null && local != null && c.camOn;
-    final swap = _selfBuyuk && bothVideo;
-    // TEST TURU 23 (kullanici istegi): GORUNTULU aramada karsi taraf HENUZ ACMADIYSA
-    // arka planda KENDI kameram TAM EKRAN gorunur (WhatsApp gibi). Karsi taraf acinca
-    // buyuk goruntu ONA gecer, ben kucuk pencereye duserim.
-    final kendimBuyuk = !swap && remote == null && local != null && c.camOn;
-    final VideoTrack? bigTrack = swap ? local : (remote ?? (kendimBuyuk ? local : null));
-    final bool bigYerel = swap || kendimBuyuk;
-    final VideoTrack? smallTrack = swap
-        ? remote
-        : (remote != null && local != null && c.camOn ? local : null);
-    final bool smallIsLocal = !swap;
+    // ===== TEST TURU 28 — INSTAGRAM/WHATSAPP GECISI (kullanici: "2 saniye sonra iki
+    // ekranda PATLAMA oldu"): eskiden karsi taraf baglaninca KENDI video widget'im
+    // agacta YER DEGISTIRIYORDU (tam ekran dali -> kucuk pencere dali). Flutter'da
+    // widget'in agacta yeri degisince element YENIDEN kurulur -> texture sifirdan
+    // olusur -> SIYAH PATLAMA + 1-2sn bos kare.
+    // COZUM: iki video da HEP AYNI YERDE (keyed AnimatedPositioned) durur; yalniz
+    // DIKDORTGENLERI animasyonla degisir (tam ekran <-> kose). Renderer HIC yeniden
+    // kurulmaz -> patlama YOK, gecis 260ms akici. Stack sirasi anahtarli oldugundan
+    // kucuk olan uste alinirken de element korunur.
+    // ⚠️ YAPMA: video renderer'i kosullu dallarda (if/else) farkli konumlarda cizme.
+    final bool bothVideo = remote != null && local != null && c.camOn;
+    final bool swap = _selfBuyuk && bothVideo;
+    // Karsi taraf HENUZ acmadiysa kendi kameram TAM EKRAN (WhatsApp); acinca kuculur.
+    final bool uzakBuyuk = remote != null && !swap;
+    final bool yerelBuyuk = local != null && c.camOn && (remote == null || swap);
+    final Widget? uzakKutu = remote == null
+        ? null
+        : _videoKutu(context, const ValueKey('kutu-uzak'), remote,
+            buyuk: uzakBuyuk, yerel: false, swapEdilebilir: bothVideo);
+    final Widget? yerelKutu = (local == null || !c.camOn)
+        ? null
+        : _videoKutu(context, const ValueKey('kutu-yerel'), local,
+            buyuk: yerelBuyuk, yerel: true, swapEdilebilir: bothVideo);
+    // Buyuk ONCE, kucuk SONRA (kucuk pencere ustte kalsin).
+    final videoKutulari = <Widget>[
+      if (uzakKutu != null && uzakBuyuk) uzakKutu,
+      if (yerelKutu != null && yerelBuyuk) yerelKutu,
+      if (uzakKutu != null && !uzakBuyuk) uzakKutu,
+      if (yerelKutu != null && !yerelBuyuk) yerelKutu,
+    ];
 
     return PopScope(
       canPop: false,
@@ -271,44 +288,23 @@ class _CallScreenState extends ConsumerState<CallScreen> {
         backgroundColor: const Color(0xFF0B141A),
         body: Stack(
           children: [
-            // GRUP: coklu-katilimci izgara. 1:1: video/ses arka plani AYNEN.
+            // TEST TURU 27 (kullanici: "siyah patlama oluyor, sonra devam ediyor"):
+            // Video katmaninin ALTINDA HER ZAMAN zemin (avatar/degrade) durur -> yeni video
+            // yuzeyi ilk karesini uretene kadar SIYAH gorunmez. Uste video 160ms CAPRAZ
+            // GECISLE biner (Instagram/WhatsApp hissi); kimlik mediaStreamTrack.id (sabit).
+            if (!c.isGroup) Positioned.fill(child: _buildAudioBackground(b)),
+            // GRUP: coklu-katilimci izgara. 1:1: video kutulari (yukaridaki animasyon
+            // aciklamasina bak — konumlari animasyonla degisir, YENIDEN KURULMAZ).
             if (c.isGroup)
               _buildGroupGrid(b)
-            else if (bigTrack != null)
-              Positioned.fill(
-                // A7: buyuk videoya dokun -> kontroller gizle/goster. opaque + IgnorePointer
-                // AYRICA CameraUtils NPE'sini kapatir (renderer'a dokunus gitmemeli).
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: _uiToggle,
-                  child: IgnorePointer(
-                    // KEY track kimligine bagli: taze renderer, bayat/siyah texture kalmaz
-                    child: VideoTrackRenderer(bigTrack,
-                        // KEY: onizleme track'inde sid NULL olabilir -> mediaStreamTrack.id
-                        key: ValueKey(
-                            'big-${bigTrack.sid ?? bigTrack.mediaStreamTrack.id}'),
-                        fit: VideoViewFit.cover,
-                        // Kendi goruntum buyukken AYNA kurali (on kamera aynali)
-                        mirrorMode:
-                            bigYerel ? c.yerelAyna : VideoViewMirrorMode.auto),
-                  ),
-                ),
-              )
             // TEST TURU 21 (1:1): karsi taraf uygulamayi kapatti/arka plana aldi -> videosu
             // MUTE; son kareyi BULANIK gosterip "Beklemede" yaz (WhatsApp gorunumu).
-            else if (!c.isGroup && _uzakBeklemedeVideo != null)
+            else if (!showVideo && _uzakBeklemedeVideo != null)
               Positioned.fill(
                 child: BeklemedeKatmani(
                     track: _uzakBeklemedeVideo, harf: b.peerName),
-              )
-            else
-              _buildAudioBackground(b),
-
-            // Kucuk pencere (self-view): dokun->SWAP, surukle->koseye yapisir.
-            // GRUPTA acilmaz (yerel goruntu kendi tile'inda).
-            if (!c.isGroup && showVideo && smallTrack != null)
-              _buildSelfView(context, smallTrack,
-                  canSwap: bothVideo, isLocal: smallIsLocal),
+              ),
+            if (!c.isGroup) ...videoKutulari,
 
             // Ust bilgi: isim + sure/durum + kalite (A7: gizlenebilir)
             Positioned(
@@ -573,46 +569,79 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     return Offset(x, y);
   }
 
-  Widget _buildSelfView(BuildContext c2, VideoTrack track,
-      {required bool canSwap, required bool isLocal}) {
+  /// TEST TURU 28 — TEK VIDEO KUTUSU (hem tam ekran hem kucuk pencere AYNI widget).
+  /// [buyuk] degisince YALNIZ dikdortgen animasyonla degisir; renderer element'i
+  /// korunur (anahtarli AnimatedPositioned) -> siyah patlama / yeniden cizim YOK.
+  /// Kucukken: dokun->SWAP, surukle->koseye yapisir. Buyukken: dokun->kontrolleri gizle.
+  /// ⚠️ Iki durumun widget AGACI AYNI SEKILDE kurulmali (ayni tip sirasi) — farkli
+  /// kurarsan Flutter element'i yeniden yaratir ve patlama geri gelir.
+  Widget _videoKutu(BuildContext c2, Key anahtar, VideoTrack track,
+      {required bool buyuk,
+      required bool yerel,
+      required bool swapEdilebilir}) {
     final sz = MediaQuery.of(c2).size;
-    final w = _uiGizli ? 100.0 : _selfW;
-    final h = _uiGizli ? 143.0 : _selfH;
-    final pos = _selfKonum(sz, w, h);
+    final w = buyuk ? sz.width : (_uiGizli ? 100.0 : _selfW);
+    final h = buyuk ? sz.height : (_uiGizli ? 143.0 : _selfH);
+    final pos = buyuk ? Offset.zero : _selfKonum(sz, w, h);
+    // Surukleme sirasinda animasyon OLMAZ (parmakla birebir hareket).
+    final surukleniyor = !buyuk && _selfPos != null;
     return AnimatedPositioned(
+      key: anahtar,
       duration:
-          _selfPos != null ? Duration.zero : const Duration(milliseconds: 180),
+          surukleniyor ? Duration.zero : const Duration(milliseconds: 260),
+      curve: Curves.easeOutCubic,
       left: pos.dx,
       top: pos.dy,
       width: w,
       height: h,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: canSwap ? () => setState(() => _selfBuyuk = !_selfBuyuk) : null,
-        onPanUpdate: (d) {
-          final cur = _selfPos ?? pos;
-          final nx = (cur.dx + d.delta.dx).clamp(_selfMargin, sz.width - w - _selfMargin);
-          final ny = (cur.dy + d.delta.dy).clamp(60.0, sz.height - h - 140.0);
-          setState(() => _selfPos = Offset(nx, ny));
-        },
-        onPanEnd: (_) {
-          final cur = _selfPos ?? pos;
-          setState(() {
-            _selfSagda = (cur.dx + w / 2) >= sz.width / 2;
-            _selfAltta = (cur.dy + h / 2) >= sz.height / 2;
-            _selfPos = null;
-          });
-        },
-        // TEST TURU 24 (kullanici: "kucuk ekranin arkasindaki border/siyah kalksin"):
-        // cerceve + golge KALDIRILDI — yalniz kose yuvarlamasi ve videonun kendisi.
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(14),
-          child: IgnorePointer(
-            child: VideoTrackRenderer(track,
-                key: ValueKey(
-                    'small-${isLocal ? 'local' : 'remote'}-${track.sid ?? track.mediaStreamTrack.id}'),
-                fit: VideoViewFit.cover,
-                mirrorMode: isLocal ? _c.yerelAyna : VideoViewMirrorMode.auto),
+        onTap: buyuk
+            ? _uiToggle
+            : (swapEdilebilir
+                ? () => setState(() => _selfBuyuk = !_selfBuyuk)
+                : null),
+        onPanUpdate: buyuk
+            ? null
+            : (d) {
+                final cur = _selfPos ?? pos;
+                final nx = (cur.dx + d.delta.dx)
+                    .clamp(_selfMargin, sz.width - w - _selfMargin);
+                final ny =
+                    (cur.dy + d.delta.dy).clamp(60.0, sz.height - h - 140.0);
+                setState(() => _selfPos = Offset(nx, ny));
+              },
+        onPanEnd: buyuk
+            ? null
+            : (_) {
+                final cur = _selfPos ?? pos;
+                setState(() {
+                  _selfSagda = (cur.dx + w / 2) >= sz.width / 2;
+                  _selfAltta = (cur.dy + h / 2) >= sz.height / 2;
+                  _selfPos = null;
+                });
+              },
+        // Ilk beliriste 180ms yumusak acilis (kutu agaca yeni eklendiginde BIR KEZ).
+        child: TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0, end: 1),
+          duration: const Duration(milliseconds: 180),
+          builder: (_, o, child) => Opacity(opacity: o, child: child),
+          // Kose yuvarlamasi da gecisle: tam ekranda 0, kucukte 14.
+          child: TweenAnimationBuilder<double>(
+            tween: Tween(begin: buyuk ? 0.0 : 14.0, end: buyuk ? 0.0 : 14.0),
+            duration: const Duration(milliseconds: 260),
+            curve: Curves.easeOutCubic,
+            builder: (_, r, child) => ClipRRect(
+                borderRadius: BorderRadius.circular(r), child: child),
+            // TEST TURU 24: cerceve/golge YOK — yalniz videonun kendisi.
+            child: IgnorePointer(
+              child: VideoTrackRenderer(track,
+                  // KIMLIK SABIT (sid yayina alinirken degisir; mediaStreamTrack.id degismez)
+                  key: ValueKey('vid-${track.mediaStreamTrack.id}'),
+                  fit: VideoViewFit.cover,
+                  mirrorMode:
+                      yerel ? _c.yerelAyna : VideoViewMirrorMode.auto),
+            ),
           ),
         ),
       ),

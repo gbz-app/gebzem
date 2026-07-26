@@ -123,6 +123,11 @@ import flutter_callkit_incoming
       case "iosPipBirak":
         GebzemPip.shared.birak()
         result(true)
+      case "iosPipYerel":
+        // TEST TURU 27: kucuk pencerenin ALT gorunumu (kendi kameram) — controller'a dokunmaz
+        GebzemPip.shared.yerelAyarla(
+          trackId: (call.arguments as? [String: Any])?["trackId"] as? String)
+        result(true)
       case "iosPipDurdur":
         GebzemPip.shared.durdur()
         result(true)
@@ -248,6 +253,8 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
   private var renderer: PipRenderer?
   private weak var uzakTrack: RTCVideoTrack?
   private weak var yerelTrack: RTCVideoTrack?          // test turu 24: kendi kameram (alt kutu)
+  private var yigin: UIStackView?
+  private var yerelTrackId: String?
   private var yerelGorunum: PipVideoView?
   private var yerelRenderer: PipRenderer?
   private var kurulanId: String?
@@ -292,14 +299,18 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
 
     let vc = AVPictureInPictureVideoCallViewController()
     vc.preferredContentSize = CGSize(width: 120, height: 200)
-    // TEST TURU 24 (kullanici: "iPhone kucuk pencerede UST-ALT olmali"): uzak video USTTE,
-    // KENDI kameram ALTTA. Yerel track bulunamazsa tek video tam kaplar (eski davranis).
-    // TEST TURU 26 GERI ALMA: iOS PiP'te IKI VIDEO (uzak+yerel) denemesi pencereyi
-    // BOZDU (kimlik degisince kurulum yikilip yeniden kuruluyordu; pencere hic acilmadi).
-    // Simdilik TEK VIDEO (uzak) — kanitlanmis calisan davranis. yerelTrackId parametresi
-    // API uyumu icin duruyor ama KULLANILMIYOR.
-    _ = yerelTrackId
-    vc.view.pipAddConstrained(vv)
+    // TEST TURU 27 — DOGRU YONTEMLE BOLUNME: dikey yigin (UIStackView). UZAK video USTTE
+    // SABIT durur; KENDI kameram alta `yerelAyarla` ile SONRADAN eklenir/cikarilir.
+    // KRITIK FARK (turu 24 hatasi): PiP controller BIR KEZ kurulur ve kimlik SADECE uzak
+    // track'tir — alt gorunum degisse bile controller'a DOKUNULMAZ. Eskiden kimlik
+    // "uzak|yerel" oldugu icin kamera arka planda kapaninca kurulum yikilip yeniden
+    // kuruluyor ve pencere HIC acilmiyordu.
+    let yigin = UIStackView(arrangedSubviews: [vv])
+    yigin.axis = .vertical
+    yigin.distribution = .fillEqually
+    yigin.spacing = 1
+    vc.view.pipAddConstrained(yigin)
+    self.yigin = yigin
 
     let source = AVPictureInPictureController.ContentSource(
       activeVideoCallSourceView: kaynakView, contentViewController: vc)
@@ -331,6 +342,37 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
     c.startPictureInPicture()
   }
 
+  /// TEST TURU 27 — ALT GORUNUM (kendi kamera) EKLE/CIKAR. PiP controller'a DOKUNMAZ:
+  /// yalniz dikey yigina gorunum eklenir/cikarilir; pencere kurulumu bozulmaz, kapanmaz.
+  /// [trackId] nil/bos -> alt gorunum kaldirilir (tek video).
+  func yerelAyarla(trackId: String?) {
+    guard let yigin = yigin else { return }
+    // Ayni track zaten ekli ise dokunma
+    if let mevcut = yerelTrackId, mevcut == trackId { return }
+    // Once eskiyi sok
+    if let yt = yerelTrack, let yr = yerelRenderer { yt.remove(yr) }
+    yerelGorunum?.displayLayer.flushAndRemoveImage()
+    if let yg = yerelGorunum {
+      yigin.removeArrangedSubview(yg)
+      yg.removeFromSuperview()
+    }
+    yerelGorunum = nil
+    yerelRenderer = nil
+    yerelTrack = nil
+    yerelTrackId = nil
+    guard let tid = trackId, !tid.isEmpty,
+          let yerel = FlutterWebRTCPlugin.sharedSingleton()?
+            .track(forId: tid, peerConnectionId: nil) as? RTCVideoTrack else { return }
+    let yv = PipVideoView(frame: CGRect(x: 0, y: 0, width: 120, height: 100))
+    let yr = PipRenderer(view: yv)
+    yerel.add(yr)
+    yigin.addArrangedSubview(yv)
+    yerelGorunum = yv
+    yerelRenderer = yr
+    yerelTrack = yerel
+    yerelTrackId = tid
+  }
+
   /// TEST TURU 25: uygulama ON PLANA donunce PiP penceresini KAPAT. iOS gecici "inactive"
   /// anlarinda (bildirim/kontrol merkezi, izin uyarisi) PiP basliyor, uygulama geri gelince
   /// pencere ASILI kaliyordu (kullanici: "iPhone'da yine PiP kucuk ekranin ustunde cikiyor").
@@ -347,6 +389,8 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
     yerelTrack = nil
     yerelRenderer = nil
     yerelGorunum = nil
+    yerelTrackId = nil
+    yigin = nil
     videoView?.displayLayer.flushAndRemoveImage()
     callVC?.view.subviews.forEach { $0.removeFromSuperview() }
     pipController = nil
@@ -508,24 +552,9 @@ final class PipRenderer: NSObject, RTCVideoRenderer {
 }
 
 private extension UIView {
-  /// TEST TURU 24: iki video USTTE/ALTTA esit yukseklikte (kucuk pencere duzeni)
-  func pipAddStacked(ust: UIView, alt: UIView) {
-    for v in [ust, alt] {
-      v.translatesAutoresizingMaskIntoConstraints = false
-      addSubview(v)
-    }
-    NSLayoutConstraint.activate([
-      ust.topAnchor.constraint(equalTo: topAnchor),
-      ust.leadingAnchor.constraint(equalTo: leadingAnchor),
-      ust.trailingAnchor.constraint(equalTo: trailingAnchor),
-      ust.heightAnchor.constraint(equalTo: heightAnchor, multiplier: 0.5),
-      alt.topAnchor.constraint(equalTo: ust.bottomAnchor),
-      alt.leadingAnchor.constraint(equalTo: leadingAnchor),
-      alt.trailingAnchor.constraint(equalTo: trailingAnchor),
-      alt.bottomAnchor.constraint(equalTo: bottomAnchor),
-    ])
-  }
-
+  // NOT (turu 28): UST/ALT bolunme artik UIStackView ile (GebzemPip.kur + yerelAyarla).
+  // Eski `pipAddStacked` kaldirildi — kisitlarla kurulan sabit duzen, alt gorunum
+  // sonradan eklenince yeniden kurulum gerektiriyordu.
   func pipAddConstrained(_ sub: UIView) {
     addSubview(sub)
     sub.translatesAutoresizingMaskIntoConstraints = false

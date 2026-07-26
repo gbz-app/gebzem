@@ -141,6 +141,17 @@ class PipService {
     }
   }
 
+  /// TEST TURU 28 — iOS kucuk penceresinin ALT gorunumu (KENDI kameram). PiP controller'a
+  /// DOKUNMAZ: yalniz native dikey yigina gorunum eklenir/cikarilir. Bu yuzden kamera
+  /// acilip kapansa da pencere kurulumu BOZULMAZ (turu 24'te kimlik degisince yikiliyordu).
+  /// [trackId] null/bos -> alt gorunum kaldirilir (tek video, tam pencere).
+  static Future<void> iosPipYerel(String? trackId) async {
+    if (!Platform.isIOS) return;
+    try {
+      await _ch.invokeMethod('iosPipYerel', {'trackId': trackId});
+    } catch (_) {}
+  }
+
   static Future<void> iosPipBirak() async {
     if (!Platform.isIOS) return;
     try {
