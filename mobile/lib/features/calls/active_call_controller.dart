@@ -419,10 +419,12 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
   /// TEST TURU 28: KENDI kamera track id'm (iOS PiP alt gorunumu). Yayinlanan track yoksa
   /// onizleme track'i kullanilir (arama baglanmadan once de bolunmus pencere calissin).
   String? _yerelVideoTrackId() {
+    // TEST TURU 30: MUTE olsa da dondurulur — arka plana gecerken kamera oto-mute oluyor
+    // ve kutu tam o anda kayboluyordu (bolunme bozuluyordu). Track nesnesi durdukca kutu kalir.
     for (final p
         in _room?.localParticipant?.videoTrackPublications ?? const []) {
       final t = p.track;
-      if (t != null && !p.muted) return t.mediaStreamTrack.id;
+      if (t != null) return t.mediaStreamTrack.id;
     }
     return _onizlemeTrack?.mediaStreamTrack.id;
   }
@@ -459,7 +461,14 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
         _error == null;
     // PiP KURULUMU ONCE (test turu 10 regresyon fix): auto-enter'in "possible" olabilmesi icin
     // controller ILK gelen kareyle kurulmali; asagidaki agir capture-reconfig'i beklemesin.
-    final trackId = uygun ? _uzakVideoTrackId() : null;
+    // TEST TURU 30 — iOS'ta KUCUK PENCERE HIC ACILMAYAN IKINCI YOL: kurulum YALNIZ karsi
+    // tarafin videosu varken yapiliyordu. Karsi taraf kamerasiz katilmissa / sesli baslayip
+    // kamerayi BEN acmissam uzak video YOK -> iOS'ta pencere HIC gelmiyordu (Android'de
+    // geliyordu). Artik uzak video yoksa KENDI kameram ana kutu olur (canli yayin yayinci
+    // deseni). ⚠️ YAPMA: yerel yedegi kaldirma (sesli->goruntulu aramada PiP kaybolur).
+    final uzakId = uygun ? _uzakVideoTrackId() : null;
+    final yerelId = uygun ? _yerelVideoTrackId() : null;
+    final trackId = uzakId ?? yerelId;
     if (trackId != null) {
       // TEST TURU 24 (kullanici: "iPhone kucuk pencerede UST-ALT olmali"): kendi kameram
       // da PiP'e verilir -> uzak USTTE, ben ALTTA.
@@ -476,8 +485,13 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       // TEST TURU 28 — UST/ALT BOLUNME DOGRU YONTEMLE: alt gorunum (kendi kameram)
       // controller'dan BAGIMSIZ eklenip cikarilir. Kimlik hala SADECE uzak track
       // oldugundan kamera mute olunca pencere KAPANMAZ (turu 24 hatasi tekrar etmez).
+      // TEST TURU 30: alt kutu, ana kutu UZAK video oldugunda eklenir (ayni track'i iki kez
+      // koymayalim). `_camOn` SARTI KALDIRILDI: arka plana gecince kamera oto-mute oluyor,
+      // eski kod tam o anda alt kutuyu SOKUYORDU -> pencere ~0.9sn bolunmus gorunup TEK
+      // videoya donuyordu (kullanicinin "ust/alt bolunme" istegi bozuluyordu). Track nesnesi
+      // durdugu surece kutu KALIR (son kare gorunur). ⚠️ YAPMA: buraya `_camOn` geri koyma.
       if (_iosPipKurulanId.isNotEmpty) {
-        final yid = (_camOn ? _yerelVideoTrackId() : null) ?? '';
+        final yid = (uzakId != null ? yerelId : null) ?? '';
         if (yid != _iosPipYerelId) {
           _iosPipYerelId = yid;
           await PipService.iosPipYerel(yid.isEmpty ? null : yid);
