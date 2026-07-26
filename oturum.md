@@ -2242,3 +2242,8 @@ kuruluyor, pencere HIC acilmiyordu.
       -> cihazin destegi kesin ogrenilecek (destek yoksa Apple kisiti, kod cozemez).
 - [x] GELEN GORUNTULU ARAMADA (1:1 dahil) kendi kamera onizlemesi ARKA PLANDA acilir — aranan
       kisi kamerayi ANINDA gorur (eskiden yalniz grup davetinde vardi).
+- [x] TEMIZ BUILD YAYINLANDI (26 Tem 14:21): android 30199556971 + ios 30199558003 (9e958bd);
+      APK 105211429, IPA 19130636; R2+purge OK, CDN birebir; backend degismedi (health ok); DB temiz.
+- **SONRAKI ADIM (kullanici testine bagli):** iPhone'da kucuk pencere gelirse -> iOS PiP calisiyor
+  demektir; "karsi tarafta goruntum gidiyor" ise SENTRY'deki "ios coklu-gorev kamera destek="
+  mesajina bakilacak (false ise APPLE KISITI, cihaz destegi yok — kod cozemez).
