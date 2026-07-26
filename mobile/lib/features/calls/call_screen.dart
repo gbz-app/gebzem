@@ -659,7 +659,14 @@ class _CallScreenState extends ConsumerState<CallScreen> {
               ),
               // TEST TURU 29: karsi taraf arka planda -> renderer DEGISMEZ, uzerine
               // bulanik "Beklemede" ortusu biner (widget degistirmek patlama uretiyordu).
-              if (beklemede) const Positioned.fill(child: BeklemedeOrtusu()),
+              // TEST TURU 31 (kullanici: WhatsApp'ta KILIT/uygulama kapatmada "Kamera
+              // duraklatildi" yaziyor, ses devam ediyor): video mute -> ayni yazi.
+              // Karsi taraf aramayi BEKLETTIYSE (hold) yazi "Beklemede" kalir.
+              if (beklemede)
+                Positioned.fill(
+                  child: BeklemedeOrtusu(
+                      etiket: _c.karsiBeklemede ? 'Beklemede' : 'Kamera duraklatıldı'),
+                ),
             ]),
           ),
         ),
@@ -1024,7 +1031,8 @@ class _CallScreenState extends ConsumerState<CallScreen> {
               // TEST TURU 21+29: kamerasi MUTE olan (arka planda/beklemede) katilimcinin
               // SON KARESI BULANIK + "Beklemede" (WhatsApp). Renderer DEGISMEZ, ortu biner.
               if (_katilimciBeklemede(p))
-                const Positioned.fill(child: BeklemedeOrtusu()),
+                const Positioned.fill(
+                    child: BeklemedeOrtusu(etiket: 'Kamera duraklatıldı')),
             ] else
               // TEST TURU 22 (kullanici ekran goruntusu): kamerasi kapali katilimci —
               // ORTADA daire avatar + ALTINDA adi (FaceTime/WhatsApp duzeni).

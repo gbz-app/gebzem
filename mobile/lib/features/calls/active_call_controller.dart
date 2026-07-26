@@ -507,11 +507,32 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     // PiP kurulumunu geciktirip auto-enter'i kaciriyordu (test turu 9 regresyonu). Artik kurulumu
     // bloklamaz; yerel kamera acikken BIR KEZ dener (native idempotent; desteksizse false).
     if (uygun && _camOn && !_iosArkaPlanKamera && !_iosCokluGorevDeniyor) {
-      _iosCokluGorevDeniyor = true;
-      PipService.iosCokluGorevKamera().then((ok) {
-        _iosArkaPlanKamera = ok;
-        _iosCokluGorevDeniyor = false;
-      });
+      unawaited(iosArkaPlanKamerayiTazele());
+    }
+  }
+
+  /// TEST TURU 31 — ARKA PLANDA KAMERA BAYRAGINI TAZELE (kullanici tespiti: "WhatsApp'ta
+  /// alta alinca kamera DURMUYOR; yalniz KILIT veya uygulamayi OLDURUNCE 'Kamera
+  /// duraklatildi' diyor").
+  ///
+  /// KOK NEDEN: `isMultitaskingCameraAccessEnabled` AVCaptureSession NESNESINE yazilir.
+  /// livekit varsayilani `stopCameraCaptureOnMute = true` oldugundan kamerayi her
+  /// kapat/ac (ve arka plandan donuste oto-unmute) YENI bir capture session yaratir ->
+  /// bayrak SIFIRLANIR. Bizim `_iosArkaPlanKamera` ise true takili kaliyordu: ne bayrak
+  /// yeniden yaziliyor ne de durustce mute ediliyordu -> karsi taraf DONMUS KARE goruyordu.
+  /// Cozum: bayragi kamera her (yeniden) acildiginda ve arka plana GECMEDEN HEMEN ONCE
+  /// yeniden uygula, sonucu her seferinde guncelle.
+  /// ⚠️ YAPMA: bu tazelemeyi tek seferlik (yalniz baglantida) yapma.
+  Future<void> iosArkaPlanKamerayiTazele() async {
+    if (!Platform.isIOS || _iosCokluGorevDeniyor) return;
+    _iosCokluGorevDeniyor = true;
+    try {
+      final ok = await PipService.iosCokluGorevKamera();
+      _iosArkaPlanKamera = ok;
+    } catch (_) {
+      _iosArkaPlanKamera = false;
+    } finally {
+      _iosCokluGorevDeniyor = false;
     }
   }
 
@@ -808,6 +829,18 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
         _iosPipKurulanId.isNotEmpty) {
       unawaited(PipService.iosPipBaslat());
     }
+    // TEST TURU 31: arka plana GECMEDEN HEMEN ONCE (inactive = hala on plan) coklu-gorev
+    // kamera bayragini YENIDEN uygula. Kamera ac/kapa veya arka plandan donusteki
+    // oto-unmute YENI bir AVCaptureSession yaratip bayragi sifirliyor; tek seferlik
+    // kurulum ikinci arka plana gecişte gecersiz kaliyordu (karsi taraf donmus kare).
+    if (Platform.isIOS &&
+        state == AppLifecycleState.inactive &&
+        arama != null &&
+        _baglandi &&
+        !_ayrildi &&
+        _camOn) {
+      unawaited(iosArkaPlanKamerayiTazele());
+    }
     final iosKameraCanli = Platform.isIOS && _iosArkaPlanKamera;
     // TEST TURU 14 KOK-4: Android'de PiP'e girerken lifecycle 'paused' native pipDegisti(true)'dan
     // ONCE gelebiliyor -> pipModunda henuz false -> kamerayi kapatiyorduk ve PiP penceresinde
@@ -862,6 +895,9 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
         _kameraOtoKapandi = false;
         _camOn = true;
         _room?.localParticipant?.setCameraEnabled(true);
+        // TEST TURU 31: yeniden acilan kamera = YENI capture session -> coklu-gorev
+        // bayragini tazele (yoksa ikinci kez alta alinca karsi taraf donmus kare gorur).
+        if (Platform.isIOS) unawaited(iosArkaPlanKamerayiTazele());
         notifyListeners();
       }
       _durumKontrol();
@@ -1732,6 +1768,16 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     }
     await _room?.localParticipant?.setCameraEnabled(on);
     _camOn = on;
+    // TEST TURU 31: kamera YENIDEN acilinca livekit YENI capture session yaratir ve
+    // `isMultitaskingCameraAccessEnabled` sifirlanir -> bayragi hemen tazele, yoksa
+    // sonraki arka plana gecişte karsi taraf DONMUS KARE gorur.
+    if (Platform.isIOS) {
+      if (on) {
+        unawaited(iosArkaPlanKamerayiTazele());
+      } else {
+        _iosArkaPlanKamera = false;
+      }
+    }
     notifyListeners();
   }
 
