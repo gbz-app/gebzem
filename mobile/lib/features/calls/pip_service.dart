@@ -1,39 +1,74 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 /// FAZ-6: Android sistem PiP koprusu ('gebzem/pip' — MainActivity.kt ile birebir).
-/// Yalniz Android; iOS/hata durumlari sessizce yutulur (PiP olmayan cihazda arama
-/// akisi ETKILENMEZ — kamera-mute yedegi lifecycle'da).
+/// TEST TURU 15: artik YALNIZ arama degil CANLI YAYIN da PiP kullanabiliyor. Bu yuzden:
+///  - Kanal handler'i TEK yerde (burada) kurulur; arama ve yayin ekranlari geri cagirmalarini
+///    (callback) kaydeder. (Eskiden ActiveCallController kanali kapiyordu; ikinci dinleyici
+///    sessizce yok sayiliyordu.)
+///  - `pipModu` herkesin dinleyebilecegi ValueNotifier (yayin ekranlari PiP'te SADE video cizer).
+///  - `pipIzinli` SAHIPLIK ister ('arama' | 'yayin'): baska sahibin gec kalan `false` cagrisi
+///    aktif sahibin PiP iznini KAPATAMAZ (yaris korumasi).
 class PipService {
   static const _ch = MethodChannel('gebzem/pip');
-  static bool _dinleyiciKuruldu = false;
-  static bool _iosDinleyiciKuruldu = false;
 
-  /// PiP'e girilebilir mi (yalniz BAGLI GORUNTULU aramada true gonderilir).
-  /// API 31+'da autoEnter parametresini de gunceller.
-  static Future<void> pipIzinli(bool izinli) async {
+  /// PiP penceresinde miyiz (Android 'pipDegisti' + iOS 'iosPipDurum'). Yayin/arama
+  /// ekranlari bunu dinleyip sade gorunume gecer.
+  static final ValueNotifier<bool> pipModu = ValueNotifier<bool>(false);
+
+  static bool _handlerKuruldu = false;
+  static void Function(bool)? _androidDurumCb;
+  static void Function(String)? _eylemCb;
+  static void Function(bool)? _iosDurumCb;
+  static void Function()? _iosBasarisizCb;
+  static String _sahip = ''; // PiP iznini kim aldi ('arama' | 'yayin')
+
+  static void _handlerKur() {
+    if (_handlerKuruldu) return;
+    _handlerKuruldu = true;
+    _ch.setMethodCallHandler((call) async {
+      switch (call.method) {
+        case 'pipDegisti': // Android
+          final v = call.arguments == true;
+          pipModu.value = v;
+          _androidDurumCb?.call(v);
+        case 'pipEylem': // Android PiP penceresindeki dugmeler (mic/kapat)
+          _eylemCb?.call(call.arguments as String? ?? '');
+        case 'iosPipDurum':
+          final v = call.arguments == true;
+          pipModu.value = v;
+          _iosDurumCb?.call(v);
+        case 'iosPipBasarisiz':
+          _iosBasarisizCb?.call();
+      }
+      return null;
+    });
+  }
+
+  /// PiP'e girilebilir mi. [sahip]: 'arama' veya 'yayin'. Kapatma yalniz SAHIBINDEN kabul
+  /// edilir (arama controller'inin gec kalan false'u yayin PiP'ini kapatmasin).
+  static Future<void> pipIzinli(bool izinli, {String sahip = 'arama'}) async {
     if (!Platform.isAndroid) return;
+    if (izinli) {
+      _sahip = sahip;
+    } else {
+      if (_sahip != sahip && _sahip.isNotEmpty) return; // baskasinin izni — dokunma
+      _sahip = '';
+    }
     try {
       await _ch.invokeMethod('setPipIzinli', izinli);
     } catch (_) {}
   }
 
-  /// Native 'pipDegisti' olayini dinle (true=PiP'e girildi, false=cikildi). Android'e ozel
-  /// (iOS sistem PiP ayri native pencere -> Flutter'a durum bildirimi gerekmez).
-  /// TEST TURU 14: PiP penceresindeki WhatsApp tarzi dugmeler (RemoteAction) 'pipEylem'
-  /// gonderir — 'mic' (mikrofon ac/kapa) ve 'kapat' (aramayi bitir).
+  /// Android PiP durum/eylem geri cagirmalarini kaydet (arama controller'i).
   static void dinle(void Function(bool pipModunda) cb,
       {void Function(String eylem)? onEylem}) {
-    if (!Platform.isAndroid || _dinleyiciKuruldu) return;
-    _dinleyiciKuruldu = true;
-    _ch.setMethodCallHandler((call) async {
-      if (call.method == 'pipDegisti') {
-        cb(call.arguments == true);
-      } else if (call.method == 'pipEylem') {
-        onEylem?.call(call.arguments as String? ?? '');
-      }
-    });
+    if (!Platform.isAndroid) return;
+    _handlerKur();
+    _androidDurumCb = cb;
+    _eylemCb = onEylem;
   }
 
   /// PiP dugmesinin ikonunu/etiketini guncelle (mikrofon acik mi). Android'e ozel.
@@ -41,6 +76,15 @@ class PipService {
     if (!Platform.isAndroid) return;
     try {
       await _ch.invokeMethod('setMicDurum', acik);
+    } catch (_) {}
+  }
+
+  /// PiP penceresindeki dugmeleri goster/gizle. CANLI YAYIN PiP'inde arama dugmeleri
+  /// (mikrofon/kapat) ANLAMSIZ — yayin sahipken gizlenir.
+  static Future<void> dugmeleriGoster(bool goster) async {
+    if (!Platform.isAndroid) return;
+    try {
+      await _ch.invokeMethod('setPipDugmeler', goster);
     } catch (_) {}
   }
 
@@ -64,8 +108,8 @@ class PipService {
     }
   }
 
-  /// Uzak video track'i icin PiP controller'i kur (auto-enter). Basari doner. Kurulamazsa
-  /// (track yok/hata) false -> istemci kamera-mute avatar davranisinda kalir (zararsiz).
+  /// Video track'i icin PiP controller'i kur (auto-enter). UZAK track bulunamazsa native
+  /// YEREL track'e duser (canli yayin yayincisi kendi kamerasi). Basari doner.
   static Future<bool> iosPipKur(String trackId) async {
     if (!Platform.isIOS) return false;
     try {
@@ -84,25 +128,18 @@ class PipService {
 
   /// iOS sistem PiP DURUM geri bildirimi (test turu 9): native GebzemPip delegate
   /// 'iosPipDurum' (true=basladi/false=durdu) + 'iosPipBasarisiz' (baslatilamadi) gonderir.
-  /// Android 'pipDegisti' ayri handler'da (dinle) — iki platform runtime'da ayrisir, tek
-  /// kanalda cakisma yok. Android/iOS ayni _ch olsa da yalniz o platformun handler'i kurulur.
   static void iosDinle(
       {required void Function(bool pipAktif) onDurum,
       required void Function() onBasarisiz}) {
-    if (!Platform.isIOS || _iosDinleyiciKuruldu) return;
-    _iosDinleyiciKuruldu = true;
-    _ch.setMethodCallHandler((call) async {
-      if (call.method == 'iosPipDurum') {
-        onDurum(call.arguments == true);
-      } else if (call.method == 'iosPipBasarisiz') {
-        onBasarisiz();
-      }
-    });
+    if (!Platform.isIOS) return;
+    _handlerKur();
+    _iosDurumCb = onDurum;
+    _iosBasarisizCb = onBasarisiz;
   }
 
   /// iOS16+ COKLU-GOREV KAMERA (test turu 9): AVCaptureSession.isMultitaskingCameraAccessEnabled
-  /// -> kamera PiP/arka planda CAPTURE'a devam eder (karsi taraf beni gorur). Entitlement
-  /// GEREKMEZ (iOS18+ property; iOS16-17 cihaza bagli). Desteksiz -> false -> kamera-mute avatar.
+  /// -> kamera PiP/arka planda CAPTURE'a devam eder (karsi taraf / IZLEYICILER beni gorur).
+  /// Entitlement GEREKMEZ (iOS18+ property; iOS16-17 cihaza bagli). Desteksiz -> false.
   static Future<bool> iosCokluGorevKamera() async {
     if (!Platform.isIOS) return false;
     try {

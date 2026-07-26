@@ -26,6 +26,7 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : FlutterActivity() {
     private var pipIzinli = false
     private var micAcik = true
+    private var dugmelerAcik = true // canli yayin PiP'inde arama dugmeleri gizlenir
     private var kanal: MethodChannel? = null
     private var alici: BroadcastReceiver? = null
 
@@ -49,6 +50,17 @@ class MainActivity : FlutterActivity() {
                         try {
                             setPictureInPictureParams(paramsYap())
                         } catch (_: Exception) {}
+                    }
+                    result.success(true)
+                }
+                // TEST TURU 15: CANLI YAYIN PiP'inde arama dugmeleri (mikrofon/kapat) anlamsiz
+                "setPipDugmeler" -> {
+                    val yeni = call.arguments == true
+                    if (yeni != dugmelerAcik) {
+                        dugmelerAcik = yeni
+                        if (Build.VERSION.SDK_INT >= 26) {
+                            try { setPictureInPictureParams(paramsYap()) } catch (_: Exception) {}
+                        }
                     }
                     result.success(true)
                 }
@@ -125,16 +137,21 @@ class MainActivity : FlutterActivity() {
             // 3:4 (0.75) daha genis => AYNI yukseklikte daha BUYUK pencere.
             .setAspectRatio(Rational(3, 4))
         if (Build.VERSION.SDK_INT >= 26) {
-            // WhatsApp gibi: mikrofon ac/kapa + kirmizi kapat. Sistem ikonlari (ek asset yok).
-            val eylemler = listOfNotNull(
-                eylemYap(
-                    MIC,
-                    if (micAcik) R.drawable.pip_mic else R.drawable.pip_mic_off,
-                    if (micAcik) "Mikrofonu kapat" else "Mikrofonu ac",
-                    1),
-                eylemYap(KAPAT, R.drawable.pip_hangup, "Aramayi bitir", 2),
-            )
-            if (eylemler.isNotEmpty()) b.setActions(eylemler)
+            // WhatsApp gibi: mikrofon ac/kapa + kirmizi kapat (yalniz ARAMA PiP'inde).
+            // Canli yayin PiP'inde BOS liste ACIKCA verilir (yoksa eski dugmeler asili kalir).
+            val eylemler = if (dugmelerAcik) {
+                listOfNotNull(
+                    eylemYap(
+                        MIC,
+                        if (micAcik) R.drawable.pip_mic else R.drawable.pip_mic_off,
+                        if (micAcik) "Mikrofonu kapat" else "Mikrofonu ac",
+                        1),
+                    eylemYap(KAPAT, R.drawable.pip_hangup, "Aramayi bitir", 2),
+                )
+            } else {
+                emptyList()
+            }
+            b.setActions(eylemler)
         }
         if (Build.VERSION.SDK_INT >= 31) {
             b.setAutoEnterEnabled(pipIzinli)

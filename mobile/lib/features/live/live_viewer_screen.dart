@@ -15,6 +15,8 @@ import '../../core/api.dart';
 import '../calls/call_media_options.dart';
 import '../calls/call_provider.dart';
 import '../calls/call_room_lock.dart';
+import '../calls/pip_service.dart';
+import '../../router.dart' show rootMessengerKey;
 import '../home/home_screen.dart' show myProfileProvider;
 import '../invites/davet_sec_sheet.dart';
 import 'live_gift_sheet.dart';
@@ -104,6 +106,7 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
   bool _istekGitti = false; // bekleyen katil istegim var
   bool _konukMicOn = true;
   bool _onKamera = true; // ayna kurali (on=aynali)
+  String _iosPipKurulanId = ''; // iOS sistem PiP'e kurulan yayinci track'i (test turu 15)
 
   late final CallService _svc;
   final _chatCtrl = TextEditingController();
@@ -192,10 +195,50 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
     }
   }
 
+  /// SISTEM PiP (test turu 15): izleyici uygulamayi alta alinca yayin KUCUK PENCEREDE
+  /// devam etsin (kullanici istegi). Android'de izin (arama dugmeleri gizli — izleyicide
+  /// mikrofon/kapat anlamsiz); iOS'ta yayincinin video track'iyle native PiP.
+  Future<void> _pipKur() async {
+    if (_ayrildi || !mounted) return;
+    if (Platform.isAndroid) {
+      await PipService.dugmeleriGoster(false);
+      await PipService.pipIzinli(true, sahip: 'yayin');
+      return;
+    }
+    if (!Platform.isIOS) return;
+    if (!await PipService.iosPipHazirMi()) return;
+    final t = _video; // yayincinin videosu
+    if (t == null || _ayrildi || !mounted) return;
+    final id = t.mediaStreamTrack.id ?? '';
+    if (id.isEmpty || id == _iosPipKurulanId) return;
+    final ok = await PipService.iosPipKur(id);
+    _iosPipKurulanId = ok ? id : '';
+    // Konuksam kameram arka planda da surmeli (yayinci beni donmus gormesin)
+    if (ok && _kameramAcik) unawaited(PipService.iosCokluGorevKamera());
+  }
+
+  void _pipBirak() {
+    if (Platform.isAndroid) {
+      unawaited(PipService.pipIzinli(false, sahip: 'yayin'));
+      unawaited(PipService.dugmeleriGoster(true));
+    } else if (Platform.isIOS && _iosPipKurulanId.isNotEmpty) {
+      _iosPipKurulanId = '';
+      unawaited(PipService.iosPipBirak());
+    }
+  }
+
+  void _pipDegisti() {
+    if (mounted) setState(() {});
+  }
+
   Future<void> _baglan() async {
     try {
       await CallRoomLock.calistir(_odayaBaglan);
-      if (mounted) setState(() => _connecting = false);
+      if (mounted) {
+        setState(() => _connecting = false);
+        PipService.pipModu.addListener(_pipDegisti);
+        unawaited(_pipKur()); // alta alinca yayin kucuk pencerede sursun
+      }
     } catch (e) {
       await Sentry.captureException(e, stackTrace: StackTrace.current);
       if (mounted) {
@@ -237,6 +280,7 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
             Future.delayed(const Duration(milliseconds: 400), () {
               if (mounted) setState(() {});
             });
+            unawaited(_pipKur()); // iOS: yayinci videosu geldi/degisti -> PiP'i tazele
           }
         })
         ..on<lk.TrackUnsubscribedEvent>((_) {
@@ -561,19 +605,18 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
     }
   }
 
+  /// Yayin bitti (stream.ended / oda kapandi). TEST TURU 15 KRITIK FIX: eskiden MODAL
+  /// DIALOG aciliyor ve `_cik()` ancak kullanici "Tamam"a basinca calisiyordu. Kullanici
+  /// telefonu cebine koyduysa ekran ACIK kaliyor -> `yayin_<id>` MESGUL MUHAFIZI askida
+  /// kaliyor -> o kisiye gelen ARAMALAR "mesgul" sayilip ANINDA DUSUYORDU (kullanici
+  /// bulgusu: "yayin bitti, aradim, direk hat dustu; karsida 'canli yayin sona erdi' cikti").
+  /// Artik: muhafiz + oda + ekran ANINDA birakilir, bilgi kok SnackBar'la verilir.
   void _yayinBitti() {
     if (!mounted || _ayrildi || _bittiGosterildi) return;
-    _bittiGosterildi = true; // stream.ended + DeleteRoom-RoomDisconnected cifti tek dialog
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (c) => AlertDialog(
-        title: const Text('Yayın sona erdi'),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(c).pop(), child: const Text('Tamam')),
-        ],
-      ),
-    ).then((_) => _cik());
+    _bittiGosterildi = true; // stream.ended + DeleteRoom-RoomDisconnected cifti tek kez
+    _cik();
+    rootMessengerKey.currentState?.showSnackBar(const SnackBar(
+        content: Text('Yayın sona erdi'), duration: Duration(seconds: 3)));
   }
 
   Future<void> _sesiAc(bool ac) async {
@@ -607,6 +650,7 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
     if (_ayrildi) return;
     _ayrildi = true;
     _svc.ekranKapandi('yayin_${widget.streamId}');
+    _pipBirak(); // sistem PiP izni/kurulumu geride kalmasin (arama PiP'i bozulmasin)
     // TARAMA #3: ref'i pop/dispose ONCESI yakala + REST'i BEKLEME. Eski kod ayril()'i
     // await ediyordu -> olu agda (yayin donmus, kullanici cikmak istiyor) ekran 10-20sn
     // (Dio timeout) donuyordu. ayril idempotent; sweeper yedek. ref dispose sonrasi
@@ -683,6 +727,8 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
   void dispose() {
     _svc.ekranKapandi('yayin_${widget.streamId}');
     WidgetsBinding.instance.removeObserver(this);
+    PipService.pipModu.removeListener(_pipDegisti);
+    _pipBirak();
     _nabiz?.cancel();
     _chatCtrl.dispose();
     unawaited(CallRoomLock.calistir(_kapatOda));
@@ -728,6 +774,21 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
   @override
   Widget build(BuildContext context) {
     final video = _video;
+    // SISTEM PiP (test turu 15): izleyici uygulamayi alta aldi -> kucuk pencerede YAYINCININ
+    // videosu (chat/kontrol yok). Ses zaten devam eder.
+    if (PipService.pipModu.value) {
+      return Scaffold(
+        backgroundColor: const Color(0xFF0B141A),
+        body: video != null
+            ? IgnorePointer(
+                child: lk.VideoTrackRenderer(video,
+                    key: ValueKey('izle-pip-${video.mediaStreamTrack.id}'),
+                    fit: lk.VideoViewFit.cover))
+            : Center(
+                child: Text(widget.yayinciAd,
+                    style: const TextStyle(color: Colors.white70, fontSize: 12))),
+      );
+    }
     final benim = _room?.localParticipant?.identity ?? _benimId;
     // COKLU KONUK IZGARA (test turu 11): KIMLIK KAPISI — kendi bayat id'im (_konukum DEGILKEN)
     // tile URETMEZ ("Görüntü bekleniyor" takilmasi yapisal imkansiz). Konuklar + (konuksam) ben.

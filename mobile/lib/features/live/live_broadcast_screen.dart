@@ -10,10 +10,12 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
 import '../../core/api.dart';
+import '../../router.dart' show rootMessengerKey;
 import '../invites/davet_sec_sheet.dart';
 import '../calls/call_media_options.dart';
 import '../calls/call_provider.dart';
 import '../calls/call_room_lock.dart';
+import '../calls/pip_service.dart';
 import 'live_info_sheets.dart';
 import 'live_provider.dart';
 import 'live_widgets.dart';
@@ -69,6 +71,11 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
   int _konukEpok = 0;
   bool _micOn = true;
   bool _onKamera = true; // ayna kurali: on=aynali, arka=aynasiz ("kamera ters" fix'i)
+  // TEST TURU 15 (arka plan/PiP): kamera acik mi + arka planda BIZ mi kapattik + PiP gecikmesi
+  bool _kameraAcik = true;
+  bool _kameraOtoKapandi = false;
+  Timer? _pipKameraGecikme;
+  String _iosPipKurulanId = '';
   bool _connecting = true;
   lk.LocalVideoTrack? _devralinan; // onizlemeden devralinan track (P1)
   bool _videoYayinda = false; // devralinan publish edildi mi (salivermede kullanilir)
@@ -93,9 +100,76 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    // TEST TURU 15 (kullanici bulgusu: "yayinci alta alinca IZLEYENLERIN EKRANI DONUYOR"):
+    // Arka planda (PiP DISINDA) OS kamera capture'ini durdurur -> izleyiciler son kareye
+    // KILITLENIR. Dogrusu: kamerayi DURUSTCE mute et -> izleyiciler "kamera kapali" avatari
+    // gorur (donmus kare yerine). PiP'teysek kamera CALISIR -> hicbir sey yapma.
+    // Donuste kamera geri acilir.
+    if ((state == AppLifecycleState.paused || state == AppLifecycleState.hidden) &&
+        mounted &&
+        !_ayrildi &&
+        !PipService.pipModu.value) {
+      // PiP'e girme ihtimali icin kisa gecikme (pipDegisti sinyali paused'dan SONRA gelebilir)
+      _pipKameraGecikme?.cancel();
+      _pipKameraGecikme = Timer(const Duration(milliseconds: 900), () {
+        if (!mounted || _ayrildi || PipService.pipModu.value || !_kameraAcik) return;
+        _kameraOtoKapandi = true;
+        _kameraAcik = false;
+        _room?.localParticipant?.setCameraEnabled(false);
+        if (mounted) setState(() {});
+      });
+      return;
+    }
     if (state == AppLifecycleState.resumed && mounted && !_ayrildi) {
+      _pipKameraGecikme?.cancel();
+      if (_kameraOtoKapandi) {
+        _kameraOtoKapandi = false;
+        _kameraAcik = true;
+        _room?.localParticipant?.setCameraEnabled(true);
+        if (mounted) setState(() {});
+      }
       _sesiAc(true); // kesinti toparlama (GSM/Siri)
       _nabizAt();
+    }
+  }
+
+  /// PiP durumu degisti (Android sistem penceresi) -> sade gorunume gec/cik.
+  void _pipDegisti() {
+    if (!mounted) return;
+    if (PipService.pipModu.value) _pipKameraGecikme?.cancel(); // PiP'te kamera KAPANMAZ
+    setState(() {});
+  }
+
+  /// YAYINDA SISTEM PiP (test turu 15): Android'de izin ver (arama dugmeleri gizli — yayinda
+  /// mikrofon/kapat anlamsiz); iOS'ta kendi kamera track'imizle PiP kur + coklu-gorev kamerayi
+  /// ac (arka planda capture surer -> izleyiciler donmus kare gormez).
+  Future<void> _pipKur() async {
+    if (_ayrildi) return;
+    if (Platform.isAndroid) {
+      await PipService.dugmeleriGoster(false);
+      await PipService.pipIzinli(true, sahip: 'yayin');
+      return;
+    }
+    if (!Platform.isIOS) return;
+    if (!await PipService.iosPipHazirMi()) return;
+    final t = _kameram;
+    if (t == null || _ayrildi) return;
+    final id = t.mediaStreamTrack.id ?? '';
+    if (id.isEmpty || id == _iosPipKurulanId) return;
+    final ok = await PipService.iosPipKur(id);
+    _iosPipKurulanId = ok ? id : '';
+    if (ok) unawaited(PipService.iosCokluGorevKamera());
+  }
+
+  /// PiP kaynaklarini birak (ekrandan cikarken; arama PiP'i tekrar dugmeli calissin).
+  void _pipBirak() {
+    _pipKameraGecikme?.cancel();
+    if (Platform.isAndroid) {
+      unawaited(PipService.pipIzinli(false, sahip: 'yayin'));
+      unawaited(PipService.dugmeleriGoster(true));
+    } else if (Platform.isIOS && _iosPipKurulanId.isNotEmpty) {
+      _iosPipKurulanId = '';
+      unawaited(PipService.iosPipBirak());
     }
   }
 
@@ -129,6 +203,8 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
         setState(() => _connecting = false);
         _nabiz = Timer.periodic(const Duration(seconds: 15), (_) => _nabizAt());
         _videoSagligiKur(); // A3 guvenlik agi: kare akmiyorsa TEK restartTrack
+        PipService.pipModu.addListener(_pipDegisti); // sistem PiP durumu
+        unawaited(_pipKur()); // arka plana alininca yayin DONMASIN (test turu 15)
       }
     } catch (e) {
       await Sentry.captureException(e, stackTrace: StackTrace.current);
@@ -300,7 +376,11 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
           });
         }
       case 'stream.ended':
-        _cik(sunucuyaBildir: false); // admin bitirdi
+        // Admin/sunucu bitirdi -> ANINDA cik (mesgul muhafizi + oda birakilir; ekran asili
+        // kalirsa gelen aramalar "mesgul" sayilip duser — test turu 15 dersi).
+        _cik(sunucuyaBildir: false);
+        rootMessengerKey.currentState?.showSnackBar(
+            const SnackBar(content: Text('Yayın sonlandırıldı')));
     }
   }
 
@@ -441,6 +521,7 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
     if (_ayrildi) return;
     _ayrildi = true;
     _svc.ekranKapandi('yayin_${widget.streamId}');
+    _pipBirak(); // sistem PiP izni/kurulumu geride kalmasin (arama PiP'i bozulmasin)
     unawaited(CallRoomLock.calistir(_kapatOda));
     // TARAMA #3: REST'i BEKLEME — olu agda bitir() 10-20sn (Dio timeout) donduruyordu.
     // bitir idempotent; RoomDisconnected/sweeper yedek. ref pop/dispose ONCESI yakalanir.
@@ -510,6 +591,8 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
   void dispose() {
     _svc.ekranKapandi('yayin_${widget.streamId}');
     WidgetsBinding.instance.removeObserver(this);
+    PipService.pipModu.removeListener(_pipDegisti);
+    _pipBirak();
     _nabiz?.cancel();
     _chatCtrl.dispose();
     unawaited(CallRoomLock.calistir(_kapatOda));
@@ -570,6 +653,25 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
   @override
   Widget build(BuildContext context) {
     final video = _kameram;
+    // SISTEM PiP (test turu 15): kucuk pencerede SADE gorunum — tek video, chat/kontrol yok.
+    // (Yayin PiP'te SURER: Android'de PiP on plan sayilir, kamera capture DEVAM eder ->
+    // izleyiciler donmus kare gormez.)
+    if (PipService.pipModu.value) {
+      return Scaffold(
+        backgroundColor: const Color(0xFF0B141A),
+        body: video != null
+            ? IgnorePointer(
+                child: lk.VideoTrackRenderer(video,
+                    key: ValueKey('yayin-pip-${video.mediaStreamTrack.id}'),
+                    fit: lk.VideoViewFit.cover,
+                    mirrorMode: _onKamera
+                        ? lk.VideoViewMirrorMode.mirror
+                        : lk.VideoViewMirrorMode.off))
+            : const Center(
+                child: Text('Yayın sürüyor',
+                    style: TextStyle(color: Colors.white70, fontSize: 12))),
+      );
+    }
     // COKLU KONUK IZGARA (test turu 11): konuk varsa yayinci + konuklar YAN YANA/grid;
     // yoksa yayinci tam ekran. Konuk _konuklar'dan cikinca tile aninda kalkar.
     final konukVar = _konuklar.isNotEmpty;

@@ -1843,3 +1843,38 @@ pencere KUCUK. (3) "uygulamayi kapatinca ses kapaniyor mu / gruptan cikinca hat 
       Baslat" ayarina + Dusuk Guc Modu KAPALI olmasina bagli (Apple kisiti, bizim kod disi).
       Android'de sistem PiP tam kontrolumuzde. Uygulama-ICI gezinmede yuzen pencere IKI PLATFORMDA da
       garanti.
+
+## KULLANICI TEST TURU 15 (26 Tem 2026): YAYIN ARKA PLAN DONMASI + YAYIN SONRASI ARAMA DUSMESI
+Kullanici: (1) canli yayinda yayinci uygulamayi alta alinca IZLEYENLERIN EKRANI DONUYOR; aramadaki
+gibi kucuk ekran gelmeli (izleyende de). (2) Yayin bittikten sonra izleyiciyi ARADIM -> DIREK HAT
+DUSTU, karsi tarafta "canli yayin sona erdi" bildirimi cikti. Yayin bitince/izleyici cikinca boyle
+sorunlar OLMAMALI.
+
+### KOK NEDENLER
+- **KOK-A (hat dusmesi — KRITIK):** izleyici ekraninda `_yayinBitti()` MODAL DIALOG aciyordu ve
+  `_cik()` ancak kullanici "Tamam"a basinca calisiyordu. Telefon cepteyse ekran ACIK kaliyor ->
+  `yayin_<id>` MESGUL MUHAFIZI `ekrandakiAramalar`da ASILI kaliyor. Gelen arama yolu:
+  `call.incoming` -> `if (aramadaMi) return` (Android: overlay HIC acilmaz) / CallKit kabulunde
+  `answer()` -> `ekrandakiAramalar.any(...)` -> null -> `CallKitService.bitir` + `end(callId)` ->
+  ARAYANIN HATTI ANINDA DUSER. Karsi taraftaki "canli yayin sona erdi" da bekleyen dialogdu.
+- **KOK-B (izleyicilerde donma):** yayin ekranlarinda PiP/arka plan davranisi HIC YOKTU (arama
+  tarafinda vardi). Android'de uygulama arka plana inince OS kamera capture'ini durdurur ->
+  izleyiciler SON KAREYE kilitlenir (donmus goruntu), yayin "devam ediyor" gorunur.
+- Ek bulgu: PiP kanal handler'ini ActiveCallController tekelinde tutuyordu (`_dinleyiciKuruldu`),
+  ikinci dinleyici (yayin ekrani) sessizce YOK SAYILIYORDU -> yayinda PiP durumu ogrenilemezdi.
+
+### ADIMLAR
+- [x] 1. Izleyici `_yayinBitti`: modal dialog KALKTI -> ANINDA `_cik()` (muhafiz+oda+ekran birakilir)
+      + kok SnackBar "Yayin sona erdi". Yayinci tarafinda stream.ended de aninda cikis + SnackBar.
+- [x] 2. PipService yeniden yapilandirildi: kanal handler TEK yerde, `pipModu` ValueNotifier
+      (herkes dinler), `pipIzinli(sahip:)` SAHIPLIK korumasi ('arama'/'yayin'), `dugmeleriGoster`.
+- [x] 3. MainActivity: `setPipDugmeler` (yayin PiP'inde arama dugmeleri gizlenir; bos liste ACIKCA
+      set edilir ki eski dugmeler asili kalmasin).
+- [x] 4. AppDelegate GebzemPip.kur: uzak track yoksa YEREL track'e duser
+      (trackForId:peerConnectionId:nil) -> iOS yayincisi kendi kamerasiyla PiP kurabilir.
+- [x] 5. Yayinci ekrani: PiP izni + PiP'te SADE gorunum + arka planda (PiP YOKSA) kamerayi
+      DURUSTCE mute (izleyiciler donmus kare yerine avatar gorur) + donuste geri ac + iOS coklu-gorev
+      kamera. `_cik`/dispose'ta PiP birakilir (arama PiP'i bozulmaz).
+- [x] 6. Izleyici ekrani: PiP izni + PiP'te yayincinin videosu tam ekran (ses zaten surer);
+      iOS'ta yayinci track'iyle native PiP; cikista birakilir.
+- [ ] 7. flutter analyze + temiz build + yayin

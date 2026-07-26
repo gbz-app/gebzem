@@ -259,8 +259,15 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
   func kur(trackId: String) -> Bool {
     guard AVPictureInPictureController.isPictureInPictureSupported() else { return false }
     guard let kaynakView = Self.kokView() else { return false }
-    guard let track = FlutterWebRTCPlugin.sharedSingleton()?
-      .remoteTrack(forId: trackId) as? RTCVideoTrack else { return false }
+    // TEST TURU 15: UZAK track once (arama/izleyici); bulunamazsa YEREL track (CANLI YAYIN
+    // YAYINCISI kendi kamerasini PiP'te gorur — PiP aktifken iOS kamera CAPTURE'i surdurur,
+    // yani izleyiciler DONMUS kare gormez). trackForId:peerConnectionId:nil yerel+uzak arar.
+    let eklenti = FlutterWebRTCPlugin.sharedSingleton()
+    var bulunan = eklenti?.remoteTrack(forId: trackId) as? RTCVideoTrack
+    if bulunan == nil {
+      bulunan = eklenti?.track(forId: trackId, peerConnectionId: nil) as? RTCVideoTrack
+    }
+    guard let track = bulunan else { return false }
 
     if kurulanId == trackId, pipController != nil { return true }
     birak()
