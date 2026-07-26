@@ -382,6 +382,21 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
     let eklenti = FlutterWebRTCPlugin.sharedSingleton()
     var bulunan = eklenti?.track(forId: tid, peerConnectionId: nil) as? RTCVideoTrack
     if bulunan == nil { bulunan = eklenti?.remoteTrack(forId: tid) as? RTCVideoTrack }
+    // TEST TURU 32 — ID ESLESMEZSE YEDEK YOL: livekit'in yerel kamera track'i eklentinin
+    // `localTracks` defterinde BASKA bir anahtarla durabiliyor (Dart'taki mediaStreamTrack.id
+    // ile birebir olmayabilir). O yuzden defteri TARAYIP ilk VIDEO track'i aliyoruz —
+    // 1:1 aramada yerel video track'i zaten TEK olur. Boylece "alt kutu hic gelmiyor"
+    // sikayetinin id-cozumleme kaynakli olma ihtimali kapaniyor.
+    // ⚠️ YAPMA: bu yedegi uzak track icin kullanma (yanlis kisiyi cizer).
+    if bulunan == nil, let defter = eklenti?.localTracks {
+      for anahtar in defter.keys {
+        if let v = eklenti?.track(forId: anahtar, peerConnectionId: nil) as? RTCVideoTrack {
+          bulunan = v
+          NSLog("gebzem/pip alt gorunum: id eslesmedi, defterden bulundu anahtar=\(anahtar)")
+          break
+        }
+      }
+    }
     guard let yerel = bulunan else {
       NSLog("gebzem/pip alt gorunum: track BULUNAMADI id=\(tid)")
       return "track-yok"
