@@ -468,14 +468,24 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
         _error == null;
     // PiP KURULUMU ONCE (test turu 10 regresyon fix): auto-enter'in "possible" olabilmesi icin
     // controller ILK gelen kareyle kurulmali; asagidaki agir capture-reconfig'i beklemesin.
-    // TEST TURU 30 — iOS'ta KUCUK PENCERE HIC ACILMAYAN IKINCI YOL: kurulum YALNIZ karsi
-    // tarafin videosu varken yapiliyordu. Karsi taraf kamerasiz katilmissa / sesli baslayip
-    // kamerayi BEN acmissam uzak video YOK -> iOS'ta pencere HIC gelmiyordu (Android'de
-    // geliyordu). Artik uzak video yoksa KENDI kameram ana kutu olur (canli yayin yayinci
-    // deseni). ⚠️ YAPMA: yerel yedegi kaldirma (sesli->goruntulu aramada PiP kaybolur).
+    // TEST TURU 36 — KULLANICI KARARI: "iPhone altta SADECE BENI gostersin, o isle artik
+    // ugrasmayalim olmuyorsa." Kucuk pencerede artik ONCE KENDI kameram gosterilir;
+    // kendi kameram yoksa (sesli arama / kamera kapali) karsi tarafin videosuna duser ki
+    // pencere BOS kalmasin. Kare akmazsa native taraf "Kamera duraklatildi" yazar.
+    // (Turu 30 notu: uzak video yoksa yerele dusme kurali KORUNUYOR — yalniz sira degisti.)
+    // ⚠️ YAPMA: yedek dali kaldirma (sesli aramada PiP tamamen kaybolur).
     final uzakId = uygun ? _uzakVideoTrackId() : null;
+    // `_yerelVideoTrackId` MUTE track'i de dondurur — bu KASITLI: arka plana gecince kamera
+    // oto-mute oluyor; id degismedigi surece pencere kimligi SABIT kalir.
     final yerelId = uygun ? _yerelVideoTrackId() : null;
-    final trackId = uzakId ?? yerelId;
+    // KIMLIK CALKANTISI KORUMASI (turu 24 dersi): kurulmus kimlik HALA gecerli bir track'e
+    // isaret ediyorsa DEGISTIRME. Aksi halde kaynak her degistiginde `kur()` -> `birak()` ->
+    // stopPictureInPicture calisir ve PENCERE KAPANIR.
+    final aday = yerelId ?? uzakId;
+    final trackId = (_iosPipKurulanId.isNotEmpty &&
+            (_iosPipKurulanId == yerelId || _iosPipKurulanId == uzakId))
+        ? _iosPipKurulanId
+        : aday;
     if (trackId != null) {
       // TEST TURU 24 (kullanici: "iPhone kucuk pencerede UST-ALT olmali"): kendi kameram
       // da PiP'e verilir -> uzak USTTE, ben ALTTA.

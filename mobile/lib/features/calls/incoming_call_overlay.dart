@@ -12,6 +12,7 @@ import 'active_call_controller.dart';
 import 'call_media_options.dart';
 import 'call_provider.dart';
 import 'call_sounds.dart';
+import 'callkit_service.dart';
 
 /// Gelen arama ekrani — uygulama acikken her ekranin uzerinde belirir.
 /// (Kilit ekraninda calma/CallKit sonraki asamada eklenecek.)
@@ -212,6 +213,12 @@ class _IncomingCallSheetState extends ConsumerState<_IncomingCallSheet> {
     if (_busy) return;
     setState(() => _busy = true);
     await CallSounds.durdur(_zilNesli);
+    // TEST TURU 36: bu ekran artik CallKit KABULUNDEN SONRA da acilabiliyor (grup daveti,
+    // turu 35). O durumda sistemde AKTIF bir CallKit aramasi vardir; "Yok say" derken onu
+    // da kapatmazsak iPhone'da HAYALET arama asili kalir (ve kapanisinda ses birimi baska
+    // aramayi bozar). Idempotent — WS yolunda no-op.
+    unawaited(CallKitService.bitir(widget.call.callId));
+    await _onizlemeKapat(); // kamera acik kalmasin
     await ref.read(callServiceProvider.notifier).end(widget.call.callId);
   }
 
