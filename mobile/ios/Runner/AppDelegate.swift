@@ -389,8 +389,11 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
     // 1:1 aramada yerel video track'i zaten TEK olur. Boylece "alt kutu hic gelmiyor"
     // sikayetinin id-cozumleme kaynakli olma ihtimali kapaniyor.
     // ⚠️ YAPMA: bu yedegi uzak track icin kullanma (yanlis kisiyi cizer).
+    // NOT: `localTracks` Objective-C NSMutableDictionary'dir — Swift'te `.keys` YOKTUR,
+    // `allKeys` kullanilir ve elemanlar `Any` gelir (String'e cast SART).
     if bulunan == nil, let defter = eklenti?.localTracks {
-      for anahtar in defter.keys {
+      for anahtarAny in defter.allKeys {
+        guard let anahtar = anahtarAny as? String else { continue }
         if let v = eklenti?.track(forId: anahtar, peerConnectionId: nil) as? RTCVideoTrack {
           bulunan = v
           NSLog("gebzem/pip alt gorunum: id eslesmedi, defterden bulundu anahtar=\(anahtar)")
