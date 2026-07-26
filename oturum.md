@@ -1945,3 +1945,35 @@ ACIK/aktif, goruntu ikonu KAPALI; goruntuluyse tersi — "davet etme gibi" bir i
       altta 1 genis; 4 kisi -> 2x2. Yayinda da ayni (yayinci + konuklar). (3) Karsi taraf sesli
       aramadayken sohbetini ac -> baslikta "🎙 Sesli aramada", SES ikonu yesil-aktif, GORUNTU ikonu
       pasif; goruntuluyse tersi; canli yayindaysa "🔴 Canli yayinda" (iki ikon da pasif).
+
+## KULLANICI TEST TURU 18 (26 Tem 2026): KONUK SINIRI 4 + ARAMA BEKLETME (CALL WAITING)
+Istekler: (1) Canli yayinda YAYINCI DAHIL 4 kisi (yayinci + 3 konuk); izleyici SINIRSIZ kalsin.
+(2) Aramadayken BASKA biri aradiginda ekranda "Beklet ve Kabul Et / Bitir ve Kabul Et / Reddet"
+ciksin — hem uygulama ici hem kilit ekrani. BEKLET = arama sunucuda OLMEZ, medya durur; diger
+gorusme bitince kaldigi yerden devam eder.
+
+### INTERNET ARASTIRMASI (kaynaklar oturum sonunda)
+- **iOS'ta bu ekrani SISTEM cizer:** aktif CallKit aramasi varken ikinci arama
+  `reportNewIncomingCall` ile bildirilirse iOS "End & Accept / Decline / Hold & Accept"
+  ekranini KENDISI gosterir. Sartlar: `maximumCallsPerCallGroup >= 2` ve `supportsHolding: true`
+  (bizde 1 ve false idi -> ozellik KAPALIYDI). Kullanici Hold&Accept derse CallKit
+  `CXSetHeldCallAction` gonderir; flutter_callkit_incoming bunu `CallEventActionCallToggleHold
+  (id, isOnHold)` olarak Dart'a iletiyor (plugin 3.1.3'te VAR).
+- **Bilinen tuzak (Apple forum):** ikinci aramayi kabul edip ilkini beklemeye alinca SES
+  KAYBOLABILIYOR (audio session yeniden aktive edilmezse). Cozum: hold->resume gecisinde ses
+  birimini bizim sirayla yeniden ac (mic -> hoparlor -> setAudioEnabled EN SON).
+- **LiveKit'te beklet:** `RemoteTrackPublication.disable()/enable()` — sunucu o track'i
+  GONDERMEYI DURDURUR, oda baglantisi ve katilimcilik AYNEN kalir (kapatma/yeniden baglanma
+  YOK). Yerel tarafta `setMicrophoneEnabled(false)/setCameraEnabled(false)`.
+  Beklemeye alinan arama boylece "sunucuda olmeden" sessize alinir; devam ederken geri acilir.
+
+### ADIMLAR
+- [x] 1. Konuk siniri: sinirsiz -> env STREAM_MAX_GUESTS varsayilan 3 (yayinci dahil 4 kisi)
+- [ ] 2. Backend: MESGUL kullaniciya ikinci arama ARTIK ILETILIR (call waiting) — 409 yerine
+      'ringing' + WS/push `waiting:true`; ayrica POST /calls/{id}/hold {on} -> karsi tarafa
+      `call.held` (o taraf "Beklemede" yazsin)
+- [ ] 3. Controller: PARK ET / DEVAM ET (ikinci Room; ilk aramanin odasi ACIK kalir, medya
+      disable) + bekleyen arama durumu + B bitince A'ya donus
+- [ ] 4. iOS: IOSParams supportsHolding/maximumCallsPerCallGroup + ToggleHold olayi
+- [ ] 5. Android/uygulama-ici: aktif aramada gelen ikinci arama icin 3 dugmeli katman
+- [ ] 6. analyze + go build + temiz build + yayin

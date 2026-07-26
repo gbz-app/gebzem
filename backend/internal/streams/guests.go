@@ -22,17 +22,19 @@ import (
 // stream:{id}:guest_reqs ZSET (istek listesi). Konuk viewers ZSET'inde KALIR (nabiz/chat/hediye
 // degismez). Konuk kamerasiz da katilabilir (sesli konuk — izgarada avatar tile).
 
-// AYNI ANDA en fazla konuk. TEST TURU 16 (kullanici karari): SINIR KALDIRILDI — prototipte
-// serbest, sunucu buyudukce zaten sorun yok. Gerekirse env `STREAM_MAX_GUESTS` ile sinir
-// konur (0 veya tanimsiz = SINIRSIZ). Not: her konuk video publish eder; cx33'te ~5-8
-// es zamanli yayinci pratik tavandir (kalite/pil), ama kod ARTIK ENGELLEMEZ.
+// AYNI ANDA en fazla konuk. TEST TURU 18 (kullanici karari): EKRANDA YAYINCI DAHIL 4 KISI
+// -> yayinci + 3 KONUK. (Turu 16'da sinirsiz yapilmisti, kullanici "yayinci dahil 4 olsun"
+// dedi.) Env `STREAM_MAX_GUESTS` ile degistirilir: 0 = sinirsiz, n = n konuk (ekranda n+1).
+// IZLEYICI sayisi bundan BAGIMSIZ ve SINIRSIZ (STREAM_MAX_VIEWERS=0).
 var maxKonuk = konukSinirOku()
 
 func konukSinirOku() int {
-	if v, err := strconv.Atoi(os.Getenv("STREAM_MAX_GUESTS")); err == nil && v > 0 {
-		return v
+	if v := os.Getenv("STREAM_MAX_GUESTS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			return n
+		}
 	}
-	return 0 // sinirsiz
+	return 3 // yayinci + 3 konuk = ekranda 4 kisi
 }
 
 func (h *Handler) dataTo(ctx context.Context, streamID string, v map[string]any, hedefler []string) {
