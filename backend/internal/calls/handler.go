@@ -21,6 +21,7 @@ import (
 
 	"github.com/gbz-app/gebzem/backend/internal/auth"
 	"github.com/gbz-app/gebzem/backend/internal/chat"
+	"github.com/gbz-app/gebzem/backend/internal/livekit"
 	"github.com/gbz-app/gebzem/backend/internal/push"
 )
 
@@ -34,20 +35,27 @@ type Handler struct {
 	push *push.Sender
 	apns *push.APNs // iOS kilit ekrani aramasi (VoIP push)
 
-	lkURL    string // istemcinin baglanacagi adres (wss://rtc.gebzem.app)
-	apiKey   string
+	lkURL     string // istemcinin baglanacagi adres (wss://rtc.gebzem.app)
+	apiKey    string
 	apiSecret string
+	// TEST TURU 14: sunucu-tarafi LiveKit yonetim istemcisi — sweeper "oda var mi/bos mu"
+	// diye sorup OLU aramalari kapatir (uygulama zorla kapatilinca hat dussun).
+	lk *livekit.Client
 }
 
 func NewHandler(db *pgxpool.Pool, hub *chat.Hub, pushSender *push.Sender, apns *push.APNs) *Handler {
+	key := os.Getenv("LIVEKIT_API_KEY")
+	secret := os.Getenv("LIVEKIT_API_SECRET")
 	return &Handler{
 		db:        db,
 		hub:       hub,
 		push:      pushSender,
 		apns:      apns,
 		lkURL:     getEnv("LIVEKIT_URL", "wss://rtc.gebzem.app"),
-		apiKey:    os.Getenv("LIVEKIT_API_KEY"),
-		apiSecret: os.Getenv("LIVEKIT_API_SECRET"),
+		apiKey:    key,
+		apiSecret: secret,
+		lk: livekit.NewClient(
+			getEnv("LIVEKIT_API_URL", "http://167.233.229.88:7880"), key, secret),
 	}
 }
 
@@ -126,6 +134,96 @@ func (h *Handler) sweep(ctx context.Context) {
 	if len(bitenler) > 0 {
 		log.Printf("arama temizleyici: %d cevapsiz arama kapatildi", len(bitenler))
 	}
+
+	// 3) OLU ARAMA TEMIZLIGI (TEST TURU 14 — kullanici: "uygulamayi kapatinca hat dusmeli"):
+	//    Uygulama zorla kapatilinca End HIC gelmez; satir 2 SAAT 'active' kalirdi. Grup
+	//    aramasinda bu, aramayi BASLATANI 2 saat "baska bir gorusmede" yapiyordu (pairwise
+	//    temizlik is_group=false sartli oldugu icin grubu HIC kapatmiyordu) -> kimse arayamiyordu.
+	//    Cozum: LiveKit'e sor — odasi YOK olan (empty_timeout ile silinmis) ya da odasi BOS
+	//    olan aramalari kapat. 90 sn yas siniri: yeni kurulan/katilim bekleyen aramayi vurmasin.
+	h.oluAramalariKapat(ctx)
+}
+
+// oluAramalariKapat — 'active' ama LiveKit odasi yok/bos olan aramalari kapatir (hat duser).
+func (h *Handler) oluAramalariKapat(ctx context.Context) {
+	if !h.Enabled() {
+		return
+	}
+	rows, err := h.db.Query(ctx, `
+		SELECT id, COALESCE(is_group,false) FROM calls
+		WHERE status='active' AND COALESCE(answered_at, created_at) < now() - interval '90 seconds'
+		LIMIT 50`)
+	if err != nil {
+		return
+	}
+	type kayit struct {
+		id   string
+		grup bool
+	}
+	var liste []kayit
+	for rows.Next() {
+		var k kayit
+		if rows.Scan(&k.id, &k.grup) == nil {
+			liste = append(liste, k)
+		}
+	}
+	rows.Close()
+	if len(liste) == 0 {
+		return
+	}
+	adlar := make([]string, 0, len(liste))
+	for _, k := range liste {
+		adlar = append(adlar, "call_"+k.id)
+	}
+	varOlan, err := h.lk.ListRoomNames(ctx, adlar)
+	if err != nil {
+		return // LiveKit'e ulasilamadi -> HICBIR seyi kapatma (yanlis pozitif olmasin)
+	}
+	for _, k := range liste {
+		oda := "call_" + k.id
+		olu := !varOlan[oda]
+		if !olu {
+			// Oda VAR ama BOS mu (herkes force-quit etti; empty_timeout dolmadi)
+			ids, err := h.lk.ListParticipantIdentities(ctx, oda)
+			if err != nil {
+				continue // okunamadi -> dokunma
+			}
+			olu = len(ids) == 0
+		}
+		if !olu {
+			continue
+		}
+		ct, err := h.db.Exec(ctx,
+			`UPDATE calls SET status='ended', ended_at=now() WHERE id=$1 AND status='active'`, k.id)
+		if err != nil || ct.RowsAffected() == 0 {
+			continue
+		}
+		// Hedefler ONCE alinir (asagidaki 'left' guncellemesi listeyi bosaltir!)
+		hedefler := h.groupRingingOrJoined(ctx, k.id)
+		if k.grup {
+			h.db.Exec(ctx,
+				`UPDATE call_participants SET status='left', left_at=now()
+				 WHERE call_id=$1 AND status IN ('ringing','joined')`, k.id)
+		}
+		// Kalan istemcilere (varsa) kapanisi bildir — ekranda asili kalmasin.
+		if !k.grup {
+			var caller, callee string
+			h.db.QueryRow(ctx, `SELECT caller_id, COALESCE(callee_id::text,'') FROM calls WHERE id=$1`,
+				k.id).Scan(&caller, &callee)
+			hedefler = []string{}
+			if caller != "" {
+				hedefler = append(hedefler, caller)
+			}
+			if callee != "" {
+				hedefler = append(hedefler, callee)
+			}
+		}
+		if len(hedefler) > 0 {
+			payload, _ := json.Marshal(map[string]string{"call_id": k.id, "status": "ended"})
+			h.hub.Publish(ctx, &chat.Event{Type: "call.ended", Payload: payload, To: hedefler})
+		}
+		log.Printf("arama temizleyici: OLU arama kapatildi %s (grup=%v)", k.id, k.grup)
+	}
 }
 
 // LiveKit erisim token'i uret (JWT — LiveKit'in kendi formati)
@@ -138,10 +236,10 @@ func (h *Handler) token(roomName, identity, name string) (string, error) {
 		"nbf":  now.Add(-10 * time.Second).Unix(),
 		"exp":  now.Add(4 * time.Hour).Unix(),
 		"video": map[string]any{
-			"room":         roomName,
-			"roomJoin":     true,
-			"canPublish":   true,
-			"canSubscribe": true,
+			"room":           roomName,
+			"roomJoin":       true,
+			"canPublish":     true,
+			"canSubscribe":   true,
 			"canPublishData": true,
 		},
 	}
@@ -914,7 +1012,7 @@ func (h *Handler) answerGroup(w http.ResponseWriter, r *http.Request, callID, us
 	payload, _ := json.Marshal(map[string]any{"call_id": callID, "user_id": userID, "name": name})
 	h.hub.Publish(r.Context(), &chat.Event{
 		Type: "call.participant.joined", Payload: payload,
-		To:   h.groupJoinedOthers(r.Context(), callID, userID),
+		To: h.groupJoinedOthers(r.Context(), callID, userID),
 	})
 
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -934,7 +1032,7 @@ func (h *Handler) endGroup(w http.ResponseWriter, r *http.Request, callID, userI
 	leftPayload, _ := json.Marshal(map[string]any{"call_id": callID, "user_id": userID})
 	h.hub.Publish(r.Context(), &chat.Event{
 		Type: "call.participant.left", Payload: leftPayload,
-		To:   h.groupJoinedOthers(r.Context(), callID, userID),
+		To: h.groupJoinedOthers(r.Context(), callID, userID),
 	})
 
 	// Konusabilecek kimse kaldi mi? Arama biter EGER: hic aktif yok VEYA tek aktif kaldi + TAZE davet yok
@@ -976,7 +1074,9 @@ func (h *Handler) endGroup(w http.ResponseWriter, r *http.Request, callID, userI
 
 // POST /calls/{id}/audio-stat — CANLI ESZAMANLI ses takibi. Istemci 2sn'de bir karsidan aldigi
 // ses paketlerini (getStats packetsReceived DELTA) yollar; api log'da ANLIK izlenir:
-//   docker logs -f api | grep AUDIO
+//
+//	docker logs -f api | grep AUDIO
+//
 // delta>0 -> karsinin sesi GELIYOR; delta=0 -> ses GELMIYOR; recv=-1 -> remote audio track YOK.
 // Boylece "acildi ama konusamiyoruz" aninda hangi telefon ses aliyor/almiyor kesin gorunur.
 func (h *Handler) AudioStat(w http.ResponseWriter, r *http.Request) {
@@ -1206,9 +1306,9 @@ func (h *Handler) Active(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"call_id":      callID,
-		"type":         callType,
-		"caller_name":  callerName,
+		"call_id":       callID,
+		"type":          callType,
+		"caller_name":   callerName,
 		"caller_avatar": callerAvatar,
 	})
 }
@@ -1233,8 +1333,8 @@ func (h *Handler) History(w http.ResponseWriter, r *http.Request) {
 
 	type item struct {
 		ID        string    `json:"id"`
-		Type      string    `json:"type"`     // audio | video
-		Status    string    `json:"status"`   // ended|missed|rejected|busy|active|ringing
+		Type      string    `json:"type"`   // audio | video
+		Status    string    `json:"status"` // ended|missed|rejected|busy|active|ringing
 		CreatedAt time.Time `json:"created_at"`
 		Outgoing  bool      `json:"outgoing"` // ben mi aradim
 		Duration  int       `json:"duration"` // saniye (cevaplanmadiysa 0)

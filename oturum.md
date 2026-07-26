@@ -1813,9 +1813,9 @@ pencere KUCUK. (3) "uygulamayi kapatinca ses kapaniyor mu / gruptan cikinca hat 
   (nesil jetonlu), gruptan cikinca backend 'left' isaretler ve son kisi kalinca aramayi bitirir.
 
 ### ADIMLAR
-- [ ] 1. PiP izin kapisi: gorunlu arama ise HER ZAMAN izinli (kamera/uzak video sartini kaldir)
-- [ ] 2. PiP'te kamera kapanmasin (pipIzinli iken lifecycle auto-mute atlanir)
-- [ ] 3. Android PiP RemoteActions: mikrofon + kapat (+ pencere orani 3:4)
-- [ ] 4. Uygulama-ici yuzen pencere: buyut + hoparlor/mic/kapat + video-akisi kapisi
-- [ ] 5. Backend: sweeper LiveKit oda kontrolu -> olu arama satirlari kapansin (hat dusme)
+- [x] 1. PiP izin kapisi: gorunlu arama ise HER ZAMAN izinli (kamera/uzak video sartini kaldir)
+- [x] 2. PiPte kamera kapanmasin (pipIzinli iken lifecycle auto-mute atlanir)
+- [x] 3. Android PiP RemoteActions: mikrofon + kapat (+ pencere orani 3:4)
+- [x] 4. Uygulama-ici yuzen pencere: buyut + hoparlor/mic/kapat + video-akisi kapisi
+- [x] 5. Backend: sweeper LiveKit oda kontrolu -> olu arama satirlari kapansin (hat dusme)
 - [ ] 6. flutter analyze + go build + temiz build + yayin

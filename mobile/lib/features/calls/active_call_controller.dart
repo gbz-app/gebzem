@@ -66,7 +66,19 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     // FAZ-6: Android sistem PiP durum dinleyicisi (PiP'e girince ekran sade gorunum cizer)
     PipService.dinle((v) {
       pipModunda = v;
+      // PiP'e girerken bekleyen kamera-mute'u iptal et (KOK-4): PiP'te kamera ACIK kalir,
+      // karsi taraf beni gormeye devam eder.
+      if (v) _pipKameraGecikme?.cancel();
+      if (v) unawaited(PipService.micDurum(_micOn)); // dugme ikonu dogru baslasin
       notifyListeners();
+    }, onEylem: (eylem) {
+      // TEST TURU 14: PiP penceresindeki WhatsApp tarzi dugmeler
+      if (arama == null || _ayrildi) return;
+      if (eylem == 'mic') {
+        unawaited(toggleMic());
+      } else if (eylem == 'kapat') {
+        unawaited(leave(notifyServer: true));
+      }
     });
     // iOS SISTEM PiP (test turu 7): cihaz destegini bir kez sor (iOS<15/desteksiz -> false ->
     // hicbir sey yapilmaz, kamera-mute avatar yedegi kalir).
@@ -117,6 +129,7 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
   Timer? _statusPoll;
   Timer? _statsTimer;
   Timer? _mediaYedek;
+  Timer? _pipKameraGecikme; // PiP'e girerken kamera-mute'u geciktirir (test turu 14 KOK-4)
 
   int _sonRecvPaket = 0;
   double _sonEnergy = 0;
@@ -232,14 +245,22 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     return null;
   }
 
+  /// GORUNTULU ARAMA MI (canli): baslangic tipi video VEYA taraflardan biri kamerayi acmis.
+  /// TEST TURU 14 KOK-1: eski kapi yalniz `_camOn || _uzakVideoVar()` bakiyordu — arka plana
+  /// inince kamera OTOMATIK mute edildigi icin (_camOn=false) ve karsi taraf da alta alininca
+  /// uzak video mute oldugu icin 1:1'de PiP izni KAPANIYORDU ("toplu aramada geliyor, normal
+  /// aramada gelmiyor" semptomunun kok nedeni). Grupta 3+ kisiden biri hep acik oldugu icin
+  /// sorun gorunmuyordu. Artik aramanin TIPI belirleyici (WhatsApp davranisi).
+  bool get goruntuluMu => (arama?.video ?? false) || _camOn || _uzakVideoVar();
+
   /// PiP'e girilmesi istenen durum: Android + bagli/saglikli arama + EKRAN ACIK
-  /// (minimize'da bant var, PiP ana sayfayi minik gosterirdi) + gorunecek video var.
+  /// (minimize'da uygulama-ici yuzen pencere var; PiP ana sayfayi minik gosterirdi).
   bool get _pipIstenir =>
       Platform.isAndroid &&
       minimizeEdilebilir &&
       ekranGorunur &&
       !minimized &&
-      (_camOn || _uzakVideoVar());
+      goruntuluMu;
 
   void _pipGuncelle() {
     final istenen = _pipIstenir;
@@ -289,8 +310,10 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> _iosPipGuncelle() async {
     if (!Platform.isIOS || !_iosPipHazir) return;
     final b = arama;
+    // TEST TURU 14: `b.video` yerine CANLI goruntulu kapisi — sesli baslayip kamera acilan
+    // aramada da iOS PiP kurulur (eskiden hic kurulmuyordu).
     final uygun = b != null &&
-        b.video &&
+        goruntuluMu &&
         _baglandi &&
         !_cevapsiz &&
         _error == null &&
@@ -555,14 +578,31 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     // devam eder, PiP karsi tarafa CANLI gonderir ("alta alinca karsi beni goremiyor" fix'i).
     // PiP baslatilamazsa native pipBasarisiz -> _iosPipBasarisiz zaten kamerayi kapatir.
     final iosKameraCanli = Platform.isIOS && _iosArkaPlanKamera;
+    // TEST TURU 14 KOK-4: Android'de PiP'e girerken lifecycle 'paused' native pipDegisti(true)'dan
+    // ONCE gelebiliyor -> pipModunda henuz false -> kamerayi kapatiyorduk ve PiP penceresinde
+    // karsi taraf beni GOREMIYORDU. PiP izni verilmisse (goruntulu + bagli) kamerayi kapatmayi
+    // 900ms ERTELE; PiP gercekten basladiysa (pipModunda) hic kapatma.
+    final pipBekleniyor = Platform.isAndroid && _pipIzinliSon;
     if ((state == AppLifecycleState.paused || state == AppLifecycleState.hidden) &&
         arama != null && _baglandi && !_ayrildi && !pipModunda && !iosKameraCanli && _camOn) {
+      if (pipBekleniyor) {
+        _pipKameraGecikme?.cancel();
+        _pipKameraGecikme = Timer(const Duration(milliseconds: 900), () {
+          if (arama == null || _ayrildi || pipModunda || !_camOn) return;
+          _kameraOtoKapandi = true;
+          _camOn = false;
+          _room?.localParticipant?.setCameraEnabled(false);
+          notifyListeners();
+        });
+        return;
+      }
       _kameraOtoKapandi = true;
       _camOn = false;
       _room?.localParticipant?.setCameraEnabled(false);
       notifyListeners();
       return;
     }
+    if (state == AppLifecycleState.resumed) _pipKameraGecikme?.cancel();
     if (state == AppLifecycleState.resumed && arama != null && !_ayrildi && !_cevapsiz) {
       // Kamera restore _kesintidenTopla'dan ONCE (iOS ses sirasi: _sesiAc EN SON kalmali)
       if (_kameraOtoKapandi && _baglandi) {
@@ -1220,6 +1260,7 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     _statusPoll?.cancel();
     _statsTimer?.cancel();
     _mediaYedek?.cancel();
+    _pipKameraGecikme?.cancel();
     _kanitTimer?.cancel(); // SORUN-6 bekcisi de dursun
     final room = _room;
     final listener = _listener;
@@ -1303,6 +1344,7 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     final on = !_micOn;
     await _room?.localParticipant?.setMicrophoneEnabled(on);
     _micOn = on;
+    unawaited(PipService.micDurum(on)); // PiP dugmesinin ikonu/etiketi senkron kalsin
     notifyListeners();
   }
 

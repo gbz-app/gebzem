@@ -21,14 +21,27 @@ class PipService {
 
   /// Native 'pipDegisti' olayini dinle (true=PiP'e girildi, false=cikildi). Android'e ozel
   /// (iOS sistem PiP ayri native pencere -> Flutter'a durum bildirimi gerekmez).
-  static void dinle(void Function(bool pipModunda) cb) {
+  /// TEST TURU 14: PiP penceresindeki WhatsApp tarzi dugmeler (RemoteAction) 'pipEylem'
+  /// gonderir — 'mic' (mikrofon ac/kapa) ve 'kapat' (aramayi bitir).
+  static void dinle(void Function(bool pipModunda) cb,
+      {void Function(String eylem)? onEylem}) {
     if (!Platform.isAndroid || _dinleyiciKuruldu) return;
     _dinleyiciKuruldu = true;
     _ch.setMethodCallHandler((call) async {
       if (call.method == 'pipDegisti') {
         cb(call.arguments == true);
+      } else if (call.method == 'pipEylem') {
+        onEylem?.call(call.arguments as String? ?? '');
       }
     });
+  }
+
+  /// PiP dugmesinin ikonunu/etiketini guncelle (mikrofon acik mi). Android'e ozel.
+  static Future<void> micDurum(bool acik) async {
+    if (!Platform.isAndroid) return;
+    try {
+      await _ch.invokeMethod('setMicDurum', acik);
+    } catch (_) {}
   }
 
   // ---- iOS SISTEM PiP (test turu 7) ----

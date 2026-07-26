@@ -1,6 +1,13 @@
 package app.gebzem
 
+import android.app.PendingIntent
 import android.app.PictureInPictureParams
+import android.app.RemoteAction
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.graphics.drawable.Icon
 import android.os.Build
 import android.util.Rational
 import io.flutter.embedding.android.FlutterActivity
@@ -12,9 +19,22 @@ import io.flutter.plugin.common.MethodChannel
 /// pencereye kuculur; kamera acik kalir (PiP = on planda sayilir), karsi taraf DONMAZ.
 /// Flutter tarafi 'gebzem/pip' kanaliyla izin verir (yalniz bagli goruntulu arama) ve
 /// pip durum degisimini dinler (sade gorunum cizer).
+///
+/// TEST TURU 14: PiP penceresine WhatsApp gibi KONTROL DUGMELERI (RemoteAction) eklendi —
+/// mikrofon ac/kapa + kapat. Dugmeye basilinca broadcast -> MethodChannel -> Dart
+/// (controller.toggleMic / leave). Pencere orani 9:16 -> 3:4 (sistem daha BUYUK cizer).
 class MainActivity : FlutterActivity() {
     private var pipIzinli = false
+    private var micAcik = true
     private var kanal: MethodChannel? = null
+    private var alici: BroadcastReceiver? = null
+
+    companion object {
+        private const val EYLEM = "app.gebzem.PIP_EYLEM"
+        private const val ANAHTAR = "eylem"
+        private const val MIC = "mic"
+        private const val KAPAT = "kapat"
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -32,16 +52,82 @@ class MainActivity : FlutterActivity() {
                     }
                     result.success(true)
                 }
+                // TEST TURU 14: mikrofon durumu -> PiP dugmesinin ikonu/etiketi guncellenir
+                "setMicDurum" -> {
+                    val yeni = call.arguments == true
+                    if (yeni != micAcik) {
+                        micAcik = yeni
+                        if (Build.VERSION.SDK_INT >= 26) {
+                            try {
+                                setPictureInPictureParams(paramsYap())
+                            } catch (_: Exception) {}
+                        }
+                    }
+                    result.success(true)
+                }
                 "pipDurumu" -> result.success(
                     Build.VERSION.SDK_INT >= 26 && isInPictureInPictureMode)
                 else -> result.notImplemented()
             }
         }
+        aliciKur()
+    }
+
+    /// PiP dugmeleri broadcast gonderir; burada Flutter'a iletilir (arama mantigi Dart'ta).
+    private fun aliciKur() {
+        if (alici != null) return
+        val r = object : BroadcastReceiver() {
+            override fun onReceive(c: Context?, i: Intent?) {
+                when (i?.getStringExtra(ANAHTAR)) {
+                    MIC -> kanal?.invokeMethod("pipEylem", MIC)
+                    KAPAT -> kanal?.invokeMethod("pipEylem", KAPAT)
+                }
+            }
+        }
+        alici = r
+        val filtre = IntentFilter(EYLEM)
+        // Android 13+ (API 33) dinamik alicilarda export bayragi ZORUNLU; uygulama-ici
+        // broadcast oldugu icin NOT_EXPORTED (guvenli).
+        if (Build.VERSION.SDK_INT >= 33) {
+            registerReceiver(r, filtre, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("UnspecifiedRegisterReceiverFlag")
+            registerReceiver(r, filtre)
+        }
+    }
+
+    override fun onDestroy() {
+        alici?.let { try { unregisterReceiver(it) } catch (_: Exception) {} }
+        alici = null
+        super.onDestroy()
+    }
+
+    private fun eylemYap(kod: String, ikon: Int, baslik: String, istek: Int): RemoteAction? {
+        if (Build.VERSION.SDK_INT < 26) return null
+        val niyet = Intent(EYLEM).setPackage(packageName).putExtra(ANAHTAR, kod)
+        val bayrak = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        val pi = PendingIntent.getBroadcast(this, istek, niyet, bayrak)
+        return RemoteAction(Icon.createWithResource(this, ikon), baslik, baslik, pi)
     }
 
     private fun paramsYap(): PictureInPictureParams {
         val b = PictureInPictureParams.Builder()
-            .setAspectRatio(Rational(9, 16)) // dikey arama gorunumu
+            // TEST TURU 14: 9:16 (0.56) sistemin en dar dikey orani -> pencere kucuk goruluyordu.
+            // 3:4 (0.75) daha genis => AYNI yukseklikte daha BUYUK pencere.
+            .setAspectRatio(Rational(3, 4))
+        if (Build.VERSION.SDK_INT >= 26) {
+            // WhatsApp gibi: mikrofon ac/kapa + kirmizi kapat. Sistem ikonlari (ek asset yok).
+            val eylemler = listOfNotNull(
+                eylemYap(
+                    MIC,
+                    if (micAcik) android.R.drawable.ic_btn_speak_now
+                    else android.R.drawable.ic_lock_silent_mode,
+                    if (micAcik) "Mikrofonu kapat" else "Mikrofonu ac",
+                    1),
+                eylemYap(KAPAT, android.R.drawable.ic_menu_close_clear_cancel, "Aramayi bitir", 2),
+            )
+            if (eylemler.isNotEmpty()) b.setActions(eylemler)
+        }
         if (Build.VERSION.SDK_INT >= 31) {
             b.setAutoEnterEnabled(pipIzinli)
             b.setSeamlessResizeEnabled(false) // video icin onerilen (titreme olmasin)

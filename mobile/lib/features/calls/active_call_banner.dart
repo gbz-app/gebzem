@@ -25,8 +25,10 @@ class AktifAramaBanner extends ConsumerStatefulWidget {
 class _AktifAramaBannerState extends ConsumerState<AktifAramaBanner> {
   // Yuzen pencere konumu (null = ilk cizimde sag-uste yerlesir). Surukleyince guncellenir.
   Offset? _pos;
-  static const double _w = 116;
-  static const double _h = 168;
+  // TEST TURU 14: kullanici "kucuk ekran biraz buyuk olmali" dedi -> 116x168 yerine
+  // 152x232 (9:16'ya yakin, kontrol seridi ile birlikte rahat okunur).
+  static const double _w = 152;
+  static const double _h = 232;
 
   @override
   Widget build(BuildContext context) {
@@ -39,7 +41,10 @@ class _AktifAramaBannerState extends ConsumerState<AktifAramaBanner> {
         : b.peerName;
 
     // SESLI arama -> eski yesil bant (video yok). GORUNTULU -> yuzen video penceresi.
-    if (!b.video) {
+    // TEST TURU 14 KOK-5: `b.video` (baslangic tipi) yerine CANLI goruntulu kapisi —
+    // sesli baslayip kamera acilan aramada da yuzen video gorunur (eskiden yesil bantta
+    // kaliyordu). c.goruntuluMu = arama tipi video VEYA taraflardan biri kamerayi acmis.
+    if (!c.goruntuluMu) {
       return Stack(children: [widget.child, _sesliBant(c, ad)]);
     }
     return Stack(children: [widget.child, _yuzenVideo(c, ad)]);
@@ -103,8 +108,13 @@ class _AktifAramaBannerState extends ConsumerState<AktifAramaBanner> {
     final ekran = MediaQuery.of(context).size;
     final guvenli = MediaQuery.of(context).padding;
     // Ilk konum: sag-ust (durum cubugu + bir miktar bosluk altinda)
-    final pos = _pos ??
-        Offset(ekran.width - _w - 12, guvenli.top + 12);
+    var pos = _pos ?? Offset(ekran.width - _w - 12, guvenli.top + 12);
+    // STABILITE (test turu 14): ekran donunce / klavye acilinca / kucuk ekranda pencere
+    // disari tasabiliyordu — her cizimde ekran icine SIKISTIR.
+    final enFazlaX = (ekran.width - _w - 4).clamp(4.0, double.infinity);
+    final enFazlaY =
+        (ekran.height - _h - guvenli.bottom - 4).clamp(guvenli.top + 4, double.infinity);
+    pos = Offset(pos.dx.clamp(4.0, enFazlaX), pos.dy.clamp(guvenli.top + 4, enFazlaY));
     final video = c.bantVideo; // uzak video (grup: aktif konusan); yoksa avatar
 
     return Positioned(
@@ -161,19 +171,25 @@ class _AktifAramaBannerState extends ConsumerState<AktifAramaBanner> {
                     ]),
                   ),
                 ),
-                // Alt: kontrol butonlari (mic / kapat) — WhatsApp mini kontrol
+                // Alt: kontrol butonlari (mic / hoparlor / kapat) — WhatsApp mini kontrol.
+                // TEST TURU 14: buton alani buyudu (36px) + HOPARLOR eklendi ("sesi azalt/ac").
                 Positioned(
                   bottom: 0,
                   left: 0,
                   right: 0,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    color: Colors.black.withValues(alpha: 0.35),
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    color: Colors.black.withValues(alpha: 0.45),
                     child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
                       _miniBtn(
                         c.micOn ? LucideIcons.mic : LucideIcons.micOff,
                         c.micOn ? Colors.white : Colors.redAccent,
                         c.toggleMic,
+                      ),
+                      _miniBtn(
+                        c.speakerOn ? LucideIcons.volume2 : LucideIcons.volumeX,
+                        c.speakerOn ? Colors.white : Colors.white70,
+                        c.toggleSpeaker,
                       ),
                       _miniBtn(LucideIcons.phoneOff, Colors.white,
                           () => c.leave(notifyServer: true),
@@ -191,14 +207,17 @@ class _AktifAramaBannerState extends ConsumerState<AktifAramaBanner> {
 
   Widget _miniBtn(IconData icon, Color renk, VoidCallback onTap, {Color? arka}) {
     return GestureDetector(
+      // Dokunma alani buton kadar (36px): kucuk hedefte kacirma olmasin. behavior opaque ->
+      // dokunus ALTTAKI "aramaya don" jestine SIZMAZ (yanlislikla ekran acilmasin).
+      behavior: HitTestBehavior.opaque,
       onTap: onTap,
       child: Container(
-        width: 30,
-        height: 30,
+        width: 36,
+        height: 36,
         decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: arka ?? Colors.white24),
-        child: Icon(icon, color: renk, size: 16),
+        child: Icon(icon, color: renk, size: 19),
       ),
     );
   }
