@@ -2350,3 +2350,34 @@ kaldirilmasi + ikonlarin kilitlenmemesi.
   ust/alt bolunme, uzak video yoksa kendi kameram, arka plan kamera bayragi HER SEFERINDE
   tazelenir · canli yayin ekranlarinda bayat pipModu kapisi · mikrofon dugmesi durum rengi ·
   sohbette "Aramaya don" MESAJ BALONU.
+
+## TEST TURU 32-33 SURUMU YAYINLANDI (26 Tem 18:44) — KULLANICI TEST EDECEK
+- android **30208385166** + ios **30208386190** (commit **7aca13b**), debug imza YOK.
+- R2: apk **105227857** · ipa **19139678** (onceki 19138192 -> BUYUDU = yeni native kod kaniti)
+  · index.html 6854. CDN boyutlari BIREBIR. Purge 2 kez. Sayfadaki saat = GERCEK yukleme
+  saati (Last-Modified 15:44 GMT = 18:44 TR).
+- **BACKEND DEPLOY EDILDI** (sunucu commit 865c5f0 -> voip push loglari), /health = ok.
+- DB temiz: users/calls/voip_tokens = 0.
+- ⚠️ ILK iOS BUILD PATLADI (30208004392): `NSMutableDictionary` Swift'te `.keys` desteklemez
+  -> `allKeys` + String cast (7aca13b). Objective-C sozluk kopruleri icin KURAL.
+### BU SURUMDEKI KOK COZUMLER
+1. **ANDROID ONDEPLAN SERVISI** (AramaServisi.kt): Android 14+ arka plandaki sureci 10sn
+   sonra DONDURUYOR -> arama duserdi. Kalici bildirimli `microphone|camera` tipli servis.
+2. **KILITLI iPHONE CALMIYOR**: VoIP token TEK denemede gonderiliyordu; PushKit kaydi
+   asenkron oldugu icin giris aninda bos donuyor ve BIR DAHA denenmiyordu -> voip_tokens
+   satiri hic olusmuyordu. Artik 5 deneme (istemci token alma + POST) + sunucuda
+   "VOIP TOKEN YOK" / "gonderildi" loglari.
+3. **ARANANDA KAMERA ACILMIYOR**: onizleme/publish yarisi (iki kamera track'i) 700ms
+   senkronla kapatildi; kamera hatasi artik aramayi OLDURMUYOR (try/catch); zombi onizleme
+   track'i salinir; gelen arama ekrani izin ISTIYOR.
+4. **iOS PiP ALT KUTU**: pencere orani 120x400 (kirpma), yerelAyarla SONUC dondurur +
+   Sentry'e yazar + tekrar dener, localTracks defterinden yedek cozumleme, bos kutu yerine
+   "Kamera duraklatildi" etiketi.
+5. **OLCUM**: RoomDisconnectedEvent `reason` Sentry'e yaziliyor (sonraki turda kesin ayrim).
+### TEST REHBERI (kullaniciya)
+1. Android sesli arama -> HOME -> 60sn: DUSMEMELI (bildirimde "Sesli arama sürüyor").
+2. iPhone KILITLE: konusma sesli devam etmeli, karsida "Kamera duraklatildi".
+3. iPhone uygulamayi YUKARI ATIP KAPAT: arama biter (OS kurali) -> 5sn bekle -> tekrar ara:
+   telefon CALMALI.
+4. Android'den goruntulu ara, iPhone KILITLI: ekran GELMELI (VoIP push).
+5. Goruntulu arama kabul: siyah patlama olmamali, kendi goruntun kosede kalmali.
