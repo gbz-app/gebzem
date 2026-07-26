@@ -1782,3 +1782,40 @@ widgets/tab/start/provider + backend streams handler/guests/sweeper/gifts/invite
       gelmeli, 4. konuk alinabilmeli). (4) Yayinci uygulamayi zorla kapatip yeniden yayin baslatsin
       -> "Onceki yayininiz hala acik" onayi -> "Kapat ve baslat" -> yayin ACILMALI (eskiden ~2 dk
       "zaten canli yayininiz var" hatasi veriyordu).
+
+## KULLANICI TEST TURU 14 (26 Tem 2026): YUZEN PENCERE (PiP) + HAT DUSME — DERIN TARAMA
+Kullanici: (1) goruntulu aramada uygulamayi alta alinca WhatsApp gibi kucuk ekran GELMIYOR —
+TOPLU aramada geliyor, NORMAL (1:1) aramada gelmiyor. (2) Kucuk ekranda kapat/ses ikonlari YOK +
+pencere KUCUK. (3) "uygulamayi kapatinca ses kapaniyor mu / gruptan cikinca hat dusmeli mi".
+(4) Hem Android hem iOS'ta STABIL calismali.
+
+### TARAMA BULGULARI (kok nedenler)
+- **KOK-1 (1:1'de PiP gelmiyor):** `_pipIstenir` kapisi `(_camOn || _uzakVideoVar())` sarti iceriyor.
+  Uygulama arka plana inince lifecycle-paused yolu KAMERAYI KAPATIYOR (_camOn=false). Iki telefonla
+  test edilen 1:1'de karsi taraf da alta alininca kamerasi mute -> _uzakVideoVar()=false ->
+  PiP izni KAPANIYOR. GRUPTA 3+ kisi oldugu icin daima birinin videosu acik -> PiP calisiyor.
+  (Ayrica ilk arka plandan sonra _camOn false kaldigi icin "bir kere oldu, sonra hic olmadi".)
+- **KOK-2 (PiP penceresinde buton yok):** MainActivity PictureInPictureParams'a RemoteAction
+  EKLENMIYOR (test turu 10'da istenmisti, yapilmadi). Android PiP'te kontrol = RemoteActions.
+- **KOK-3 (pencere kucuk):** setAspectRatio(9,16) — en dar dikey oran; sistem pencereyi buna gore
+  kucuk cizer. 3:4 daha genis/buyuk gorunur.
+- **KOK-4 (PiP'te kendi kameram kapaniyor):** lifecycle paused, native pipDegisti(true)'dan ONCE
+  gelebiliyor -> `!pipModunda` sarti tutuyor ve kamera kapaniyor (PiP'te karsi taraf beni goremez).
+- **KOK-5 (uygulama-ici yuzen pencere):** yalniz `b.video` (aramanin BASLANGIC tipi) ile ciziliyor;
+  sesli baslayip kamera acilan aramada yuzen video yerine yesil bant kaliyor. Boyut 116x168 (kucuk),
+  hoparlor butonu yok.
+- **KOK-6 (HAT DUSMUYOR — backend):** LiveKit room_finished webhook YOK; uygulama zorla kapatilinca
+  arama satiri 2 SAAT 'active' kaliyor. Pairwise temizlik `is_group=false` sartli -> GRUP satirini
+  HIC temizlemiyor -> grup aramasini BASLATAN kisi app'i oldururse 2 SAAT "baska bir gorusmede"
+  gorunuyor (kimse arayamiyor). Sweeper'a LiveKit oda kontrolu eklenmeli.
+- DOGRULANDI (calisiyor): 1:1'de ParticipantDisconnected -> leave (karsi kapatinca hat duser),
+  RoomDisconnected -> leave, leave() odayi disconnect+dispose eder ve iOS ses birimini kapatir
+  (nesil jetonlu), gruptan cikinca backend 'left' isaretler ve son kisi kalinca aramayi bitirir.
+
+### ADIMLAR
+- [ ] 1. PiP izin kapisi: gorunlu arama ise HER ZAMAN izinli (kamera/uzak video sartini kaldir)
+- [ ] 2. PiP'te kamera kapanmasin (pipIzinli iken lifecycle auto-mute atlanir)
+- [ ] 3. Android PiP RemoteActions: mikrofon + kapat (+ pencere orani 3:4)
+- [ ] 4. Uygulama-ici yuzen pencere: buyut + hoparlor/mic/kapat + video-akisi kapisi
+- [ ] 5. Backend: sweeper LiveKit oda kontrolu -> olu arama satirlari kapansin (hat dusme)
+- [ ] 6. flutter analyze + go build + temiz build + yayin
