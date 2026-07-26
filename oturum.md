@@ -2334,3 +2334,19 @@ kaldirilmasi + ikonlarin kilitlenmemesi.
       KUCULTMUS olabilir (9:16 daha buyuk alan verir) — olculmedi.
 - [ ] GSM bekletme iOS'ta yalniz CallKit'e bagli; Android zinciri var ama izin reddinde sessiz.
 - [ ] BUILD: kullanici onayi bekleniyor.
+
+## TEST TURU 27-31 SURUMU YAYINLANDI (26 Tem 16:40) — KULLANICI TEST EDECEK
+- android **30204095501** + ios **30204096587** (commit **eb29925**), debug imza YOK.
+- R2: apk **105227813** · ipa **19138192** · index.html 7049 — CDN'de boyutlar BIREBIR ayni.
+- Cloudflare purge OK (2 kez: dosyalardan sonra + sayfadan sonra). Sayfadaki saat = GERCEK
+  yukleme saati (Last-Modified 13:40 GMT = 16:40 TR). Backend degismedi, /health = ok.
+- DB temiz: users/calls/streams = 0.
+- **SURUMDEKI DEGISIKLIKLER (tur 27-31):** siyah patlama koku (video kutulari yer degistirmiyor,
+  260ms dikdortgen animasyonu; grup tile anahtari mediaStreamTrack.id) · 1:1'de adaptiveStream/
+  dynacast KAPALI (goruntu 1-2sn erken) · gelen-arama onizleme kamerasi DEVREDILIR · CallKit
+  kabulunde ekran ANINDA acilir (hazirlaVeAc) · karsi taraf mute olunca kutu kalir + "Kamera
+  duraklatildi" ortusu · ••• menusu acikken ekran kilitlenmesi · yuzen pencere surukleme +
+  kenara yapisma · iOS: kucultulmus aramada PiP, on planda PiP asili kalmamasi, UIStackView
+  ust/alt bolunme, uzak video yoksa kendi kameram, arka plan kamera bayragi HER SEFERINDE
+  tazelenir · canli yayin ekranlarinda bayat pipModu kapisi · mikrofon dugmesi durum rengi ·
+  sohbette "Aramaya don" MESAJ BALONU.
