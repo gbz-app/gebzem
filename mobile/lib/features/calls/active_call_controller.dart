@@ -1350,13 +1350,13 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     if (room == null && listener == null) return;
     // timeout SART: hang ederse CallRoomLock zinciri kilitlenir (art arda arama bug'i)
     try {
-      await room?.disconnect().timeout(const Duration(seconds: 3));
+      await room?.disconnect().timeout(const Duration(milliseconds: 1200));
     } catch (_) {}
     try {
-      await listener?.dispose().timeout(const Duration(seconds: 3));
+      await listener?.dispose().timeout(const Duration(milliseconds: 1200));
     } catch (_) {}
     try {
-      await room?.dispose().timeout(const Duration(seconds: 3));
+      await room?.dispose().timeout(const Duration(milliseconds: 1200));
     } catch (_) {}
   }
 

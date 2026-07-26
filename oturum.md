@@ -1996,3 +1996,27 @@ gorusme bitince kaldigi yerden devam eder.
       "Disable Hold & Accept CallKit option" (77823); VideoSDK "Mastering CallKit" rehberi;
       flutter_callkit_incoming 3.1.3 kaynak (CallEventActionCallToggleHold, IOSParams);
       livekit_client 2.5.0 kaynak (RemoteTrackPublication.enable()/disable()).
+
+## TEST TURU 19 (26 Tem 2026): ANLIK KAPANIS + YUMUSAK KAPANIS + DURUM DUZELTMESI
+Kullanici bulgulari: (1) arama kapatinca karsi taraf "sesli aramada" gorunup TEKRAR ARANAMIYOR
+(benim ekledigim durum gostergesi 15sn bayat kaliyordu ve dugmeyi KILITLIYORDU). (2) Baslikta
+"Sesli aramada" YAZISI istenmiyordu. (3) Arama/yayin kapanirken ekran DONARAK kapaniyor.
+(4) "Her sey ANLIK olsun": kapatinca arama/yayin ANINDA bitsin; hemen yeni arama/yayin acilabilsin.
+
+### YAPILANLAR
+- [x] Sohbet basligindaki durum YAZISI kaldirildi; ikonlar ARTIK KILITLENMIYOR (yalniz renk ipucu:
+      karsi taraf sesli aramadaysa ses ikonu yesil, digeri soluk) — dokunus HER ZAMAN aramayi
+      dener, son sozu sunucu soyler. Ayrica aktif arama bitince durum ANINDA tazelenir
+      (ref.listenManual(activeCallProvider) -> 1sn sonra presence sorgusu).
+- [x] YUMUSAK KAPANIS: arama, canli yayin (yayinci+izleyici) ekranlari kapanirken 220ms
+      solma + %94 kuculme animasyonu, sonra pop (_kapanisSarmal). Donmus son kare ortulur.
+- [x] **LIVEKIT WEBHOOK (anlik sunucu temizligi):** livekit.yaml `webhook.api_key` +
+      `urls: http://127.0.0.1:8080/livekit/webhook` (LiveKit host aginda). Backend
+      `internal/livekit/webhook.go` (HS256 JWT dogrulama + govde SHA-256 ozeti kontrolu, harici
+      bagimlilik yok) + `internal/calls/webhook.go` (`POST /livekit/webhook`, auth middleware
+      DISI). Kural: oda GERCEKTEN bosalinca (participant_left + numParticipants==0 VEYA
+      room_finished) `calls` satiri ('active' olan) ve `streams` satiri ANINDA 'ended' yapilir +
+      call.ended / stream.list.changed yayinlanir. 'ringing' fazina DOKUNULMAZ (gecmiste
+      "Cevapsiz" bozulmasin). Tek katilimcinin anlik kopusu aramayi OLDURMEZ (karsi taraf odada).
+- [x] Istemci teardown zaman asimlari 3sn -> 1.2sn (CallRoomLock sirasi: eski oda kapanisi
+      yeni aramayi/yayini BEKLETMESIN).

@@ -80,6 +80,7 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
   bool _connecting = true;
   bool _ayrildi = false;
   bool _kapandi = false;
+  bool _kapanisAnim = false; // yumusak kapanis (test turu 18)
   bool _bittiGosterildi = false; // stream.ended + RoomDisconnected cift dialog muhafizi
   DateTime _sonKalp = DateTime.fromMillisecondsSinceEpoch(0);
   String? _hata;
@@ -637,13 +638,13 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
     _listener = null;
     if (room == null && listener == null) return;
     try {
-      await room?.disconnect().timeout(const Duration(seconds: 3));
+      await room?.disconnect().timeout(const Duration(milliseconds: 1200));
     } catch (_) {}
     try {
-      await listener?.dispose().timeout(const Duration(seconds: 3));
+      await listener?.dispose().timeout(const Duration(milliseconds: 1200));
     } catch (_) {}
     try {
-      await room?.dispose().timeout(const Duration(seconds: 3));
+      await room?.dispose().timeout(const Duration(milliseconds: 1200));
     } catch (_) {}
   }
 
@@ -665,6 +666,11 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
     unawaited(CallRoomLock.calistir(_kapatOda));
     unawaited(api.ayril(widget.streamId).catchError((_) {}));
     if (mounted) {
+      // YUMUSAK KAPANIS (test turu 18 — kullanici: "donarak kapaniyor"): 220ms solma +
+      // hafif kuculme, sonra pop. Oda teardown'i zaten arka planda (kuyrukta) suruyor.
+      setState(() => _kapanisAnim = true);
+      await Future.delayed(const Duration(milliseconds: 230));
+      if (!mounted) return;
       final nav = Navigator.of(context);
       nav.popUntil((r) => r.settings.name == 'yayin-${widget.streamId}' || r.isFirst);
       if (nav.canPop()) nav.pop();
@@ -851,7 +857,7 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) _cik();
       },
-      child: Scaffold(
+      child: _kapanisSarmal(Scaffold(
         backgroundColor: const Color(0xFF0B141A),
         body: Stack(children: [
           Positioned.fill(
@@ -1020,6 +1026,20 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
           ),
         ]),
       ),
-    );
+    ));
   }
+
+  /// YUMUSAK KAPANIS SARMALAYICISI (test turu 18): kapanirken 220ms solma + hafif kuculme.
+  Widget _kapanisSarmal(Widget child) => AnimatedScale(
+        scale: _kapanisAnim ? 0.94 : 1,
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOut,
+        child: AnimatedOpacity(
+          opacity: _kapanisAnim ? 0 : 1,
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOut,
+          child: child,
+        ),
+      );
+
 }

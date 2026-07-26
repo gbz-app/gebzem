@@ -127,6 +127,11 @@ func main() {
 	// iOS test cihazi kaydi (Over-The-Air) — profil yukleyen iPhone UDID'sini buraya yollar
 	r.Post("/udid", udid.Handle)
 
+	// TEST TURU 19 — LIVEKIT WEBHOOK: oda bosalinca arama/yayin satiri ANINDA kapanir
+	// (uygulama zorla kapatilsa bile). Kimlik: LiveKit'in imzaladigi JWT (Authorization),
+	// govde ozeti dogrulanir — bu yuzden auth middleware'i DISINDA.
+	r.Post("/livekit/webhook", callsH.LiveKitWebhook)
+
 	// acik uclar
 	r.Route("/auth", func(r chi.Router) {
 		r.Post("/register", authH.Register)

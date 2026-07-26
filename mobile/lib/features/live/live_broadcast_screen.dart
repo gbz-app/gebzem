@@ -80,6 +80,7 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
   bool _connecting = true;
   lk.LocalVideoTrack? _devralinan; // onizlemeden devralinan track (P1)
   bool _videoYayinda = false; // devralinan publish edildi mi (salivermede kullanilir)
+  bool _kapanisAnim = false; // yumusak kapanis (test turu 18)
   bool _ayrildi = false;
   bool _kapandi = false;
   String? _hata;
@@ -498,13 +499,13 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
     _listener = null;
     if (room == null && listener == null) return;
     try {
-      await room?.disconnect().timeout(const Duration(seconds: 3));
+      await room?.disconnect().timeout(const Duration(milliseconds: 1200));
     } catch (_) {}
     try {
-      await listener?.dispose().timeout(const Duration(seconds: 3));
+      await listener?.dispose().timeout(const Duration(milliseconds: 1200));
     } catch (_) {}
     try {
-      await room?.dispose().timeout(const Duration(seconds: 3));
+      await room?.dispose().timeout(const Duration(milliseconds: 1200));
     } catch (_) {}
     // P1 TEK-NOKTA SALIVERME: devralinan track publish EDILEMEDIYSE kamerayi burada birak
     // (publish edildiyse stopLocalTrackOnUnpublish=true — room.dispose zaten kapatir).
@@ -530,6 +531,11 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
       unawaited(ref.read(liveApiProvider).bitir(widget.streamId).catchError((_) {}));
     }
     if (mounted) {
+      // YUMUSAK KAPANIS (test turu 18 — kullanici: "donarak kapaniyor"): 220ms solma +
+      // hafif kuculme, sonra pop. Sunucuya bitir zaten GONDERILDI (unawaited).
+      setState(() => _kapanisAnim = true);
+      await Future.delayed(const Duration(milliseconds: 230));
+      if (!mounted) return;
       final nav = Navigator.of(context);
       nav.popUntil((r) => r.settings.name == 'yayin-${widget.streamId}' || r.isFirst);
       if (nav.canPop()) nav.pop();
@@ -679,7 +685,7 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) _bitirOnayli();
       },
-      child: Scaffold(
+      child: _kapanisSarmal(Scaffold(
         backgroundColor: const Color(0xFF0B141A),
         body: Stack(children: [
           Positioned.fill(
@@ -835,6 +841,20 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
           ),
         ]),
       ),
-    );
+    ));
   }
+
+  /// YUMUSAK KAPANIS SARMALAYICISI (test turu 18): kapanirken 220ms solma + hafif kuculme.
+  Widget _kapanisSarmal(Widget child) => AnimatedScale(
+        scale: _kapanisAnim ? 0.94 : 1,
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOut,
+        child: AnimatedOpacity(
+          opacity: _kapanisAnim ? 0 : 1,
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOut,
+          child: child,
+        ),
+      );
+
 }

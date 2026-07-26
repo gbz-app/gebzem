@@ -29,6 +29,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
   late final ActiveCallController _c; // cache — dispose'ta ref.read YASAK (F1 tuzagi)
   bool _benimEkranim = true; // initState'te callId eslesti mi (bayat ekran guvenligi)
   bool _kapaniyor = false; // bitis pop'u tek sefer
+  bool _kapanisAnim = false; // yumusak kapanis (test turu 18: "donarak kapaniyor" fix'i)
 
   // ---- EKRANDA KALAN SAF GORSEL STATE (hukum C2b / K5) ----
   bool _sorunBildirildi = false;
@@ -59,11 +60,15 @@ class _CallScreenState extends ConsumerState<CallScreen> {
   }
 
   /// Controller "arama bitti" dedi (arama==null) -> K7 sirasi: ONCE sheet, SONRA ekran pop.
+  /// TEST TURU 18 (kullanici: "arama kapanirken DONARAK kapaniyor"): once 220ms'lik hafif
+  /// SOLMA + hafif kuculme animasyonu, sonra pop. Oda teardown'i zaten arka planda kuyrukta;
+  /// bu kisa animasyon donmus son kareyi ortup yumusak bir kapanis hissi verir.
   void _ctrlDegisti() {
     if (!mounted || _kapaniyor) return;
     if (_c.arama == null) {
       _kapaniyor = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
+      setState(() => _kapanisAnim = true);
+      Future.delayed(const Duration(milliseconds: 240), () {
         if (!mounted) return;
         final nav = Navigator.of(context);
         if (_sheetAcik && nav.canPop()) nav.pop();
@@ -71,6 +76,19 @@ class _CallScreenState extends ConsumerState<CallScreen> {
       });
     }
   }
+
+  /// Kapanis animasyonu sarmalayicisi (arama/oda/yayin ekranlari ortak deseni).
+  Widget _kapanisSarmal(Widget child) => AnimatedScale(
+        scale: _kapanisAnim ? 0.94 : 1,
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOut,
+        child: AnimatedOpacity(
+          opacity: _kapanisAnim ? 0 : 1,
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOut,
+          child: child,
+        ),
+      );
 
   @override
   void dispose() {
@@ -228,7 +246,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
           Navigator.of(context).pop();
         }
       },
-      child: Scaffold(
+      child: _kapanisSarmal(Scaffold(
         backgroundColor: const Color(0xFF0B141A),
         body: Stack(
           children: [
@@ -350,7 +368,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
             ),
           ],
         ),
-      ),
+      )),
     );
   }
 

@@ -34,6 +34,16 @@ keys:
 logging:
   level: info
 
+# WEBHOOK (test turu 19 — "kapatinca ANINDA bitsin"): oda bosalinca / katilimci ayrilinca
+# LiveKit backend'e HTTP POST atar; backend arama/yayin satirini ANINDA kapatir (eskiden
+# 90sn'lik sweeper bekleniyordu -> kullanici "kapattim hemen arayamiyorum" diyordu).
+# LiveKit HOST agindadir; api 8080'i host'a aciyor -> 127.0.0.1 dogru adres.
+# Imza: Authorization JWT (api_key ile imzali, sha256 govde ozeti) — backend dogrular.
+webhook:
+  api_key: APIgebzemkti0w6xy # LIVEKIT_KEYS'teki anahtar ADI ile ayni olmali
+  urls:
+    - http://127.0.0.1:8080/livekit/webhook
+
 # Odalar bos kalinca otomatik kapansin (kaynak israfini onler)
 room:
   empty_timeout: 60

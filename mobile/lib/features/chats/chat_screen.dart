@@ -36,10 +36,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Timer? _typingThrottle;
   Timer? _typingUiTimer;
   bool _sending = false;
-  // KARSI TARAFIN ARAMA DURUMU (test turu 17 — kullanici istegi): '' | 'audio' | 'video'
-  // | 'stream'. Sohbet basliginda gosterilir; ilgili ikon aktif, digeri PASIF olur.
+  // KARSI TARAFIN ARAMA DURUMU (test turu 17 -> 18 DUZELTME): '' | 'audio' | 'video' | 'stream'.
+  // YALNIZ IKON RENGI icin kullanilir — kullanici istegi: basliktaki YAZI KALDIRILDI ve
+  // dugmeler ARTIK KILITLENMEZ. Sebep (kullanici bulgusu): durum 15sn'de bir tazelendigi icin
+  // arama biter bitmez karsi taraf hala "sesli aramada" gorunup ARAMA ENGELLENIYORDU.
+  // Artik: (a) her arama bitisinde durum ANINDA tazelenir, (b) tazelenmemis olsa bile
+  // dokunus aramayi DENER (son sozu sunucu soyler: gercekten mesgulse 409 mesaji cikar).
   String _peerDurum = '';
   Timer? _durumTimer;
+  ProviderSubscription? _aramaSub;
+  bool _oncekiAramaVar = false;
 
   @override
   void initState() {
@@ -51,6 +57,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (widget.peerId != null) {
       _durumTazele();
       _durumTimer = Timer.periodic(const Duration(seconds: 15), (_) => _durumTazele());
+      // ARAMA BITER BITMEZ TAZELE (test turu 18 duzeltmesi): aktif arama null'a dusunce
+      // ~1sn sonra sor — sunucunun 'ended' yazmasina zaman taniyip bayat "mesgul"
+      // gostergesini ANINDA temizler (kullanici: "kapattim, hemen tekrar arayamiyorum").
+      _aramaSub = ref.listenManual(activeCallProvider, (prev, next) {
+        final simdi = next.arama != null;
+        if (_oncekiAramaVar && !simdi) {
+          Future.delayed(const Duration(seconds: 1), _durumTazele);
+        }
+        _oncekiAramaVar = simdi;
+      });
     }
   }
 
@@ -68,13 +84,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     } catch (_) {}
   }
 
-  String get _durumMetni => switch (_peerDurum) {
-        'audio' => '🎙 Sesli aramada',
-        'video' => '🎥 Görüntülü aramada',
-        'stream' => '🔴 Canlı yayında',
-        _ => '',
-      };
-
   @override
   void dispose() {
     _input.dispose();
@@ -82,6 +91,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _typingThrottle?.cancel();
     _typingUiTimer?.cancel();
     _durumTimer?.cancel();
+    _aramaSub?.close();
     super.dispose();
   }
 
@@ -173,65 +183,40 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(widget.title, style: const TextStyle(fontSize: 17)),
+            // NOT (test turu 18): "Sesli aramada" YAZISI KALDIRILDI (kullanici istemedi).
+            // Durum yalniz arama ikonlarinin renginde ima edilir.
             if (typing)
               Text('yaziyor...',
                   style: TextStyle(
-                      fontSize: 12, color: Theme.of(context).colorScheme.primary))
-            // KARSI TARAFIN DURUMU (test turu 17): "Sesli aramada / Goruntulu aramada /
-            // Canli yayinda" — WhatsApp'taki gibi kisi mesgulse ONCEDEN belli olsun.
-            else if (_durumMetni.isNotEmpty)
-              Text(_durumMetni,
-                  style: TextStyle(
-                      fontSize: 12,
-                      color: _peerDurum == 'stream'
-                          ? Colors.redAccent
-                          : const Color(0xFF25D366))),
+                      fontSize: 12, color: Theme.of(context).colorScheme.primary)),
           ],
         ),
         actions: () {
-          // IKON DURUMLARI (kullanici istegi): kisi SESLI aramadaysa ses ikonu AKTIF/yesil,
-          // goruntu ikonu PASIF; goruntuluyse tersi. Mesgulken dokunus arama BASLATMAZ,
-          // durumu soyler (sunucu zaten 409 "baska gorusmede" donerdi).
-          final mesgul = _peerDurum.isNotEmpty;
+          // IKON DURUMU (test turu 18 DUZELTMESI): kisi SESLI aramadaysa ses ikonu yesil,
+          // goruntu ikonu SOLUK; goruntuluyse tersi. AMA HICBIRI KILITLENMEZ — dokunus her
+          // zaman aramayi dener. (Kullanici bulgusu: arama biter bitmez bayat "mesgul"
+          // gostergesi yuzunden TEKRAR ARANAMIYORDU. Son sozu SUNUCU soyler.)
           final sesAktif = _peerDurum == 'audio';
           final videoAktif = _peerDurum == 'video';
-          void mesgulUyar() {
-            final ne = switch (_peerDurum) {
-              'audio' => 'sesli aramada',
-              'video' => 'görüntülü aramada',
-              'stream' => 'canlı yayında',
-              _ => 'meşgul',
-            };
-            ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('${widget.title} şu anda $ne')));
-          }
-
+          final mesgul = _peerDurum.isNotEmpty;
+          final soluk = Theme.of(context).disabledColor;
           return [
             IconButton(
               tooltip: 'Görüntülü ara',
-              color: videoAktif ? const Color(0xFF25D366) : null,
-              disabledColor: Theme.of(context).disabledColor,
+              color: videoAktif
+                  ? const Color(0xFF25D366)
+                  : (mesgul ? soluk : null),
               icon: const Icon(LucideIcons.video),
-              onPressed: widget.peerId == null
-                  ? null
-                  : mesgul && !videoAktif
-                      ? null // kisi sesli aramada/yayinda -> goruntulu ikon PASIF
-                      : mesgul
-                          ? mesgulUyar
-                          : () => _startCall(video: true),
+              onPressed:
+                  widget.peerId == null ? null : () => _startCall(video: true),
             ),
             IconButton(
               tooltip: 'Sesli ara',
-              color: sesAktif ? const Color(0xFF25D366) : null,
-              disabledColor: Theme.of(context).disabledColor,
+              color:
+                  sesAktif ? const Color(0xFF25D366) : (mesgul ? soluk : null),
               icon: const Icon(LucideIcons.phone),
-              onPressed: widget.peerId == null
-                  ? null
-                  : mesgul && !sesAktif
-                      ? null // kisi goruntulu aramada/yayinda -> sesli ikon PASIF
-                      : mesgul
-                          ? mesgulUyar
-                          : () => _startCall(video: false),
+              onPressed:
+                  widget.peerId == null ? null : () => _startCall(video: false),
             ),
           ];
         }(),
