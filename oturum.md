@@ -1764,3 +1764,21 @@ widgets/tab/start/provider + backend streams handler/guests/sweeper/gifts/invite
 - [x] Ek: KONUKSAM kendi tile'im yapisal garanti (bayat liste kendi onizlememi kaybettiremez).
 - [x] go build temiz + flutter analyze temiz (4 eski info lint). Commit d688f7d push edildi.
 - [x] BACKEND DEPLOY edildi (guest_list) — sunucu d688f7d, health ok.
+- [x] **6. APP-KILL SONRASI ESKI YAYIN yeni yayini ~2 dk ENGELLIYORDU:** sunucudaki yayin sweeper
+      (45sn) + grace (60sn) dolana kadar 'live'; POST /streams 409 "zaten canli bir yayininiz var".
+      FIX: 409 govdesinde `stream_id` doner -> baslatma ekrani "Onceki yayininiz hala acik — kapat
+      ve baslat" onayi verip eski yayini bitirir ve tekrar dener.
+- [x] TEMIZ BUILD YAYINLANDI (26 Tem 05:25): android 30184022784 + ios 30184023533 (83ddcb4) BASARILI;
+      debug imza YOK (log'da 0 eslesme); IPA 19092619->19095161 BUYUDU (yeni kod kaniti); R2
+      apk=104979437 ipa=19095161 index=6354; CF purge OK; CDN boyut BIREBIR; backend 2 kez deploy
+      (guest_list + 409 stream_id), health ok; DB TRUNCATE (users=0, streams=0), redis stream:* BOS.
+- [x] INDIR SAYFASI: kullanici "saati goremiyorum" dedi -> saat artik EN USTTE mor bantta 26px kalin
+      (+ <title>'da + indirme butonlarinin altinda "Indirdigin dosyanin surumu"). APK linkine ?v=
+      damgasi (tarayici eski dosyayi vermesin).
+- **TEST RECETESI (test turu 13):** (1) yayin ac -> 2-3 kisiyi canliya al -> tile'lar 15sn sonra
+      KAYBOLMAMALI, konuklar ADIYLA gorunmeli. (2) Konuk kamerasiz (izin reddet) katilsin -> sonra
+      pill'deki kamera butonuna bassin -> IZIN sorsun ve kamera acilsin. (3) Konukken uygulamayi
+      zorla kapat, ayni yayina geri gir -> "hayalet konuk" tile'i ~15sn icinde kalkmali (slot geri
+      gelmeli, 4. konuk alinabilmeli). (4) Yayinci uygulamayi zorla kapatip yeniden yayin baslatsin
+      -> "Onceki yayininiz hala acik" onayi -> "Kapat ve baslat" -> yayin ACILMALI (eskiden ~2 dk
+      "zaten canli yayininiz var" hatasi veriyordu).
