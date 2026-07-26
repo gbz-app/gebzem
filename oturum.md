@@ -2188,3 +2188,11 @@ border/siyah kalksin, surukleme akici olsun.
       "X katıldı / ayrıldı" — 5 sn sonra kaybolur, yeni bildirim ESKISININ yerine gecer.
 - [x] KUCUK EKRANLARDA BORDER/GOLGE KALDIRILDI (self-view + yuzen pencere): yalniz kose
       yuvarlamasi; surukleme aynen (kose yapisma animasyonu 180ms).
+- [x] TEMIZ BUILD YAYINLANDI (26 Tem 13:13): android 30197469551 + ios 30197470722 (3c52912)
+      BASARILI (Swift pipAddStacked derlendi); APK SHA e9f77f58->716d9c6d (yeni kod kaniti),
+      IPA 19131090->19134680; R2+purge OK, CDN birebir; backend degismedi (health ok); DB temiz.
+- **TEST (test turu 24):** (1) iPhone goruntulu aramada alta al -> karsi taraf SENI GORMEYE
+      devam etmeli (cihaz destekliyorsa); kucuk pencerede IKINIZ de (ust/alt) gorunmeli.
+      (2) Kucuk pencereden geri don -> ekran ANINDA cizilmeli. (3) Gruba katil -> tile'lar
+      hafif belirme ile gelmeli, takilma olmamali. (4) Karsi taraf mikrofonunu kapatsin ->
+      "X sessize alındı." 5 sn gorunup kaybolmali. (5) Kucuk ekranda cerceve/golge olmamali.
