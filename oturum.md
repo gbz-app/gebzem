@@ -1976,4 +1976,23 @@ gorusme bitince kaldigi yerden devam eder.
       disable) + bekleyen arama durumu + B bitince A'ya donus
 - [x] 4. iOS: IOSParams supportsHolding/maximumCallsPerCallGroup + ToggleHold olayi
 - [x] 5. Android/uygulama-ici: aktif aramada gelen ikinci arama icin 3 dugmeli katman
-- [ ] 6. analyze + go build + temiz build + yayin
+- [x] 6. analyze + go build + temiz build + yayin
+- [x] TEMIZ BUILD YAYINLANDI (26 Tem 08:51): android 30189717769 + ios 30189718708 (508208a)
+      BASARILI (Swift supportsHolding + Dart bekletme kodu derlendi); debug imza YOK;
+      APK 105014357->105096401 (+82KB) ve IPA 19103992->19108493 BUYUDU; R2 yuklendi, purge OK,
+      CDN birebir; backend deploy (call waiting + /hold ucu) + health ok; DB TRUNCATE (users=0).
+- **TEST RECETESI (test turu 18):** (1) YAYIN: 3 konuk canliya alinir, 4.'de "kapasite dolu"
+      (ekranda yayinci dahil 4 kisi); izleyici sinirsiz. (2) ARAMA BEKLETME: A ile konusurken
+      C arasin -> ekranda UC secenek. "Beklet ve kabul et" -> A susar (sunucuda OLMEZ), C ile
+      konusursun, ustte turuncu "Beklemede: A" seridi. C'yi kapat -> A'ya OTOMATIK donulur,
+      sure kaldigi yerden devam eder. Seride dokun -> C biter, A'ya gecer. Seritteki ✕ -> A biter.
+      (3) "Bitir ve kabul et" -> A kapanir, C acilir. (4) iPhone'da bu ekrani SISTEM cizer
+      (End & Accept / Decline / Hold & Accept) — Hold&Accept ayni akisi tetikler.
+      (5) GSM aramasi gelince Gebzem aramasi "beklemede"ye duser, GSM bitince ses geri gelir.
+- **GERI ALMA NOTU:** iOS beklet sorun cikarirsa iki yer `false` yapilir:
+      callkit_service.dart IOSParams.supportsHolding + AppDelegate.swift data.supportsHolding.
+- **KAYNAKLAR (arastirma):** Apple Developer Forums "CallKit no sound when answer second call
+      and put first call on hold" (thread 89805), "CallKit with two incoming calls" (79742),
+      "Disable Hold & Accept CallKit option" (77823); VideoSDK "Mastering CallKit" rehberi;
+      flutter_callkit_incoming 3.1.3 kaynak (CallEventActionCallToggleHold, IOSParams);
+      livekit_client 2.5.0 kaynak (RemoteTrackPublication.enable()/disable()).
