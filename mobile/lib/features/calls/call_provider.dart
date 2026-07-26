@@ -308,6 +308,22 @@ class CallService extends StateNotifier<IncomingCall?> {
 
   void dismiss() => state = null;
 
+  /// TEST TURU 35 — GRUP DAVET ("Katil") EKRANINI CALLKIT KABULUNDEN SONRA GOSTER.
+  ///
+  /// KOK NEDEN: grup davet ekrani (kendi kamera onizlemesi + kamera/mik on-ayari +
+  /// "Yok say / Katil") YALNIZ "Android + uygulama ON PLANDA + WS call.incoming" yolunda
+  /// cizilebiliyordu. iOS'ta WS call.incoming KOSULSUZ atlanir (satir ~126, CIFT-UI tuzagi
+  /// icin dogru bir karar) ve Android kilitli/arka planda FCM -> CallKit yolundan gelir.
+  /// Her iki durumda kabul dogrudan aramayi aciyordu -> kullanici: "KATIL ekranini
+  /// kaldirmissin". Artik CallKit kabulunde GRUP ise arama HENUZ cevaplanmaz; bu metotla
+  /// davet ekrani acilir ve "Katil"a basilinca normal `_accept` akisi calisir.
+  /// ⚠️ YAPMA: bunu 1:1 aramada cagirma (kullanici CallKit'te zaten kabul etti, ikinci
+  /// onay istemek yanlis olur); WS `call.incoming` iOS kapisini gevsetme (cift UI).
+  void grupDavetiGoster(IncomingCall davet) {
+    if (state?.callId == davet.callId) return;
+    state = davet;
+  }
+
   /// Arama gecmisini tazele. Arama ekrani kapanirken cagrilir — ekranin kendi
   /// `ref`'i o an yok edilmis olabilir, bu yuzden servisin kendi Ref'ini kullaniyoruz.
   void gecmisiYenile() => _ref.invalidate(callHistoryProvider);

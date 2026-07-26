@@ -41,9 +41,19 @@ final apiProvider = Provider<Dio>((ref) {
     onError: (e, handler) async {
       final path = e.requestOptions.path;
       // Arama uclari haric (kilit ekrani answer 401'i tum oturumu silmesin).
+      // TEST TURU 35 — KAYIT EKRANINDAN ATILMA (kullanici: "ilk giriste kayit olurken
+      // patliyor, izinler bazen gelmiyor"): VoIP/FCM token uclari OTURUMDAN BAGIMSIZ
+      // tekrar dongulerinden cagriliyor (uygulama acilisinda, giris yapilmadan once de).
+      // 401 gelince burasi TUM OTURUMU siliyor + authProvider'i invalidate ediyordu ->
+      // GoRouter sifirdan kuruluyor -> kullanici KAYIT ekranindan LOGIN'e firlatiliyor ve
+      // acik izin diyaloglari dusuyordu. Turu 33'te tekrar sayisi 5'e cikinca 5 KAT
+      // siklasti. Bayat oturum tespiti `/users/me` ve diger tum uclardan zaten yapiliyor.
+      // ⚠️ YAPMA: bu iki muafiyeti kaldirma.
       if (e.response?.statusCode == 401 &&
           !path.startsWith('/auth/') &&
           !path.startsWith('/calls/') &&
+          !path.startsWith('/users/me/voip-token') &&
+          !path.startsWith('/users/me/fcm-token') &&
           !oturumBitiyor) {
         oturumBitiyor = true;
         await ref.read(storageProvider).clear();

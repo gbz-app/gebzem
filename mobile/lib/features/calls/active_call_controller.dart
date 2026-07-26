@@ -863,7 +863,16 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
         _camOn) {
       unawaited(iosArkaPlanKamerayiTazele());
     }
-    final iosKameraCanli = Platform.isIOS && _iosArkaPlanKamera;
+    // TEST TURU 35 — "KARSI TARAFTA GORUNTUM GIDIYOR" icin TEK SATIRLIK GUVENLI ADIM:
+    // 'inactive' aninda `iosArkaPlanKamerayiTazele()` baslatiliyor ve sonucu ASENKRON
+    // yaziliyor; 'paused' milisaniyeler sonra gelip BAYAT `_iosArkaPlanKamera` degerini
+    // okuyabiliyor. Bayat deger true ise durust kamera-mute HIC calismaz; tazeleme sonucu
+    // false cikarsa karsi taraf DONMUS KARE gorur. Sonuc belli degilken (tazeleme ucarken)
+    // kamerayi CANLI SAYMIYORUZ -> en kotu ihtimalle bulanik "Kamera duraklatildi" gorunur,
+    // donmus kare degil. ⚠️ YAPMA: 900ms'lik erteleme dalini kaldirma (orada bayrak
+    // tazelenmis haliyle yeniden okunur, destekli cihazda kayip yok).
+    final iosKameraCanli =
+        Platform.isIOS && _iosArkaPlanKamera && !_iosCokluGorevDeniyor;
     // TEST TURU 14 KOK-4: Android'de PiP'e girerken lifecycle 'paused' native pipDegisti(true)'dan
     // ONCE gelebiliyor -> pipModunda henuz false -> kamerayi kapatiyorduk ve PiP penceresinde
     // karsi taraf beni GOREMIYORDU. PiP izni verilmisse (goruntulu + bagli) kamerayi kapatmayi

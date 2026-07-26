@@ -151,10 +151,18 @@ class CallKitService {
 
   Map<String, dynamic> _ayikla(CallKitParams p) {
     final extra = Map<String, dynamic>.from(p.extra ?? {});
+    // TEST TURU 35 (kullanici: "grup aramasinda KATIL ekranini kaldirmissin"): grup bayragi
+    // CallKit yukunde TASINMIYORDU — backend gonderiyor (handler.go is_group/chat_title) ama
+    // istemci UC yerde dusuruyordu (native extras, goster extras, burasi). Sonuc: kilitli /
+    // arka plan yolunda "bu bir grup" bilgisi kabul aninda YOK -> davet ekrani cizilemiyordu.
+    // ⚠️ YAPMA: is_group/chat_title'i bu haritadan tekrar dusurme.
+    final grup = extra['is_group'] == true || extra['is_group'] == 'true';
     return {
       'call_id': p.id,
       'caller_name': p.nameCaller ?? '',
       'video': (p.type ?? 0) == 1 || (extra['call_type'] as String? ?? '') == 'video',
+      'is_group': grup,
+      'chat_title': extra['chat_title'] as String? ?? '',
     };
   }
 
@@ -164,6 +172,8 @@ class CallKitService {
     required String callerName,
     required bool video,
     String avatar = '',
+    bool isGroup = false, // turu 35: grup davet ("Katil") ekrani icin SART
+    String chatTitle = '',
   }) async {
     if (callId.isEmpty) return;
     // TANI: push isleyicisi tetiklendi mi? (kilit ekrani gorunmuyorsa logcat'te ara)
@@ -180,6 +190,8 @@ class CallKitService {
       extra: <String, dynamic>{
         'call_id': callId,
         'call_type': video ? 'video' : 'audio',
+        'is_group': isGroup, // turu 35: kabul aninda grup oldugunu bilelim
+        'chat_title': chatTitle,
       },
       android: const AndroidParams(
         isCustomNotification: true,

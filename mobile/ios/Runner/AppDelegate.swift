@@ -216,8 +216,14 @@ import flutter_callkit_incoming
     data.supportsGrouping = false
     data.supportsVideo = true
     data.duration = 45000
+    // TEST TURU 35: GRUP bayragi ve sohbet basligi da tasinir — kilitli iPhone'da kabul
+    // edildiginde "bu bir grup aramasi" bilgisi olmadan davet ("Katil") ekrani cizilemiyordu.
+    // Backend bunlari VoIP govdesinde zaten gonderiyor (handler.go); burada DUSURULUYORDU.
+    // ⚠️ YAPMA: bu iki alani extras'tan cikarma.
+    let grupMu = (d["is_group"] as? Bool) ?? ((d["is_group"] as? String) == "true")
     data.extra = [
       "call_id": callId, "call_type": isVideo ? "video" : "audio", "caller_name": callerName,
+      "is_group": grupMu, "chat_title": (d["chat_title"] as? String) ?? "",
     ] as NSDictionary
     // iOS 13+ KURALI: completion, reportNewIncomingCall (showCallkitIncoming) tamamlandiktan
     // SONRA cagrilmali. Erken cagirmak ihlal -> iOS art arda aramalarda 2. VoIP push'u KESER

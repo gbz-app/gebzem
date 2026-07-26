@@ -78,6 +78,10 @@ Future<void> _fcmArkaPlan(RemoteMessage m) async {
       callerName: m.data['caller_name'] ?? 'Bilinmeyen',
       video: (m.data['call_type'] ?? 'audio') == 'video',
       avatar: m.data['caller_avatar'] ?? '',
+      // TEST TURU 35: grup bayragi FCM yukunde geliyor ama tasinmiyordu -> Android kilitli/
+      // arka planda gelen GRUP aramasinda "Katil" ekrani cizilemiyordu.
+      isGroup: (m.data['is_group'] ?? '') == 'true' || m.data['is_group'] == true,
+      chatTitle: m.data['chat_title'] ?? '',
     );
   } else if (tip == 'call.cancel' || tip == 'call.ended') {
     // Arayan vazgecti / baska yerde cevaplandi / arama bitti -> ekran asili kalmasin
@@ -262,6 +266,15 @@ class _GebzemAppState extends ConsumerState<GebzemApp> with WidgetsBindingObserv
     // Artik artan araliklarla 5 kez denenir. ⚠️ YAPMA: tek denemeye geri donme.
     _voipSub = svc.onVoipToken.listen((token) async {
       for (var i = 0; i < 5; i++) {
+        // TEST TURU 35: OTURUM YOKKEN GONDERME. Eskiden oturumsuz POST 401 doner, Dio
+        // interceptor'i TUM OTURUMU silip router'i sifirlardi -> kullanici KAYIT ekranindan
+        // login'e firlar, izin diyaloglari duserdi. Oturum acilinca auth_provider zaten
+        // `voipTokeniYenidenGonder()` cagirir. ⚠️ YAPMA: bu kapiyi kaldirma.
+        final oturum = await ref.read(storageProvider).token;
+        if (oturum == null || oturum.isEmpty) {
+          await Future.delayed(Duration(seconds: 3 * (i + 1)));
+          continue;
+        }
         try {
           await ref
               .read(apiProvider)
@@ -295,6 +308,35 @@ class _GebzemAppState extends ConsumerState<GebzemApp> with WidgetsBindingObserv
     if (callId.isEmpty) return;
 
     final notifier = ref.read(callServiceProvider.notifier);
+
+    // TEST TURU 35 — GRUP ARAMASINDA "KATIL" EKRANI (kullanici: "grup aramasinda katil
+    // seyi yok, direk aciliyor, onu geri getir").
+    // Grup davet ekrani YALNIZ "Android + uygulama ON PLANDA + WS call.incoming" yolunda
+    // cizilebiliyordu; iOS'ta WS call.incoming kosulsuz atlanir (cift-UI tuzagi) ve Android
+    // kilitli/arka planda FCM -> CallKit yolundan gelir. Ikisinde de kabul DOGRUDAN aramayi
+    // aciyordu. Artik GRUP ise arama HENUZ cevaplanmaz: davet ekrani acilir, kullanici
+    // kamerasini/mikrofonunu ayarlayip "Katil" der; "Yok say" ise arama reddedilir.
+    // ⚠️ YAPMA: bu dali 1:1 aramaya acma (kullanici CallKit'te zaten kabul etti, ikinci
+    // onay istemek yanlis olur) ve `hazirlaVeAc` hizli-acilis yolunu 1:1'de bozma.
+    final grupMu = c['is_group'] == true;
+    if (grupMu && !notifier.aktifAramaVar) {
+      final ctrlG = ref.read(activeCallProvider);
+      if (ctrlG.arama == null) {
+        for (var i = 0; i < 60 && rootNavigatorKey.currentState == null; i++) {
+          await Future.delayed(const Duration(milliseconds: 16));
+        }
+        notifier.grupDavetiGoster(IncomingCall(
+          callId: callId,
+          callerName: c['caller_name'] as String? ?? 'Bilinmeyen',
+          callerAvatar: '',
+          video: c['video'] as bool? ?? false,
+          isGroup: true,
+          chatTitle: c['chat_title'] as String? ?? '',
+        ));
+        return; // answer YOK — kullanici "Katil" deyince _accept calisir
+      }
+    }
+
     // FAZ-1C HIZ: izinleri answer REST'iyle PARALEL iste (1B ile ayni desen)
     final izinF = [
       Permission.microphone,
