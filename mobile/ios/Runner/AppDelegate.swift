@@ -368,6 +368,7 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
     // Once eskiyi sok
     if let yt = yerelTrack, let yr = yerelRenderer { yt.remove(yr) }
     yerelGorunum?.displayLayer.flushAndRemoveImage()
+    yerelGorunum?.kareKesildi()
     if let yg = yerelGorunum {
       yigin.removeArrangedSubview(yg)
       yg.removeFromSuperview()
@@ -431,6 +432,7 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
     if let t = uzakTrack, let r = renderer { t.remove(r) }
     if let yt = yerelTrack, let yr = yerelRenderer { yt.remove(yr) }
     yerelGorunum?.displayLayer.flushAndRemoveImage()
+    yerelGorunum?.kareKesildi()
     yerelTrack = nil
     yerelRenderer = nil
     yerelGorunum = nil
@@ -493,11 +495,43 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
 final class PipVideoView: UIView {
   override class var layerClass: AnyClass { AVSampleBufferDisplayLayer.self }
   var displayLayer: AVSampleBufferDisplayLayer { layer as! AVSampleBufferDisplayLayer }
+
+  /// TEST TURU 32 — SIYAH KUTU YERINE YEDEK GORUNUM (kullanici: "ust/alt bolunme GORUNUYOR,
+  /// karsinin goruntusu var ama BENIMKI yok"). Bolunme goruntugune gore alt kutu OLUSUYOR
+  /// ama icine KARE AKMIYOR (kamera arka planda durmus). Bos siyah kutu yerine "Kamera
+  /// duraklatildi" yazisi cizilir; ilk kare gelince kendiliginden gizlenir.
+  private let etiket = UILabel()
+
   override init(frame: CGRect) {
     super.init(frame: frame)
     displayLayer.videoGravity = .resizeAspectFill
-    backgroundColor = .black
+    backgroundColor = UIColor(red: 0.11, green: 0.11, blue: 0.12, alpha: 1)
+    etiket.text = "Kamera duraklatıldı"
+    etiket.textColor = UIColor(white: 1, alpha: 0.75)
+    etiket.font = .systemFont(ofSize: 9, weight: .semibold)
+    etiket.textAlignment = .center
+    etiket.numberOfLines = 2
+    etiket.translatesAutoresizingMaskIntoConstraints = false
+    addSubview(etiket)
+    NSLayoutConstraint.activate([
+      etiket.centerXAnchor.constraint(equalTo: centerXAnchor),
+      etiket.centerYAnchor.constraint(equalTo: centerYAnchor),
+      etiket.leadingAnchor.constraint(greaterThanOrEqualTo: leadingAnchor, constant: 4),
+      etiket.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -4),
+    ])
   }
+
+  /// Kare akiyor mu bilgisi (PipRenderer cagirir; ana kuyrukta).
+  func kareGeldi() {
+    if etiket.isHidden { return }
+    etiket.isHidden = true
+  }
+
+  func kareKesildi() {
+    if !etiket.isHidden { return }
+    etiket.isHidden = false
+  }
+
   required init?(coder: NSCoder) { fatalError() }
 }
 
@@ -526,6 +560,7 @@ final class PipRenderer: NSObject, RTCVideoRenderer {
           // birak (canli yayin — sonraki kare 66ms sonra zaten gelir).
           guard v.displayLayer.isReadyForMoreMediaData else { return }
           v.displayLayer.enqueue(sb)
+          v.kareGeldi() // turu 32: ilk kare geldi -> "Kamera duraklatildi" yazisi gizlensin
         }
       }
     }
