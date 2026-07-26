@@ -15,6 +15,7 @@ import '../invites/davet_sec_sheet.dart';
 import '../calls/call_media_options.dart';
 import '../calls/call_provider.dart';
 import '../calls/call_room_lock.dart';
+import '../calls/mini_izgara.dart';
 import '../calls/pip_service.dart';
 import 'live_info_sheets.dart';
 import 'live_provider.dart';
@@ -657,19 +658,17 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
     // (Yayin PiP'te SURER: Android'de PiP on plan sayilir, kamera capture DEVAM eder ->
     // izleyiciler donmus kare gormez.)
     if (PipService.pipModu.value) {
+      // TEST TURU 17: kucuk pencerede IZGARA — yayinci + konuklar (2 sol/sag, 3 ustte 2 +
+      // altta 1 tam genislik, 4 ceyrek). Konuk yoksa tek kutu tam ekran.
       return Scaffold(
         backgroundColor: const Color(0xFF0B141A),
-        body: video != null
-            ? IgnorePointer(
-                child: lk.VideoTrackRenderer(video,
-                    key: ValueKey('yayin-pip-${video.mediaStreamTrack.id}'),
-                    fit: lk.VideoViewFit.cover,
-                    mirrorMode: _onKamera
-                        ? lk.VideoViewMirrorMode.mirror
-                        : lk.VideoViewMirrorMode.off))
-            : const Center(
-                child: Text('Yayın sürüyor',
-                    style: TextStyle(color: Colors.white70, fontSize: 12))),
+        body: miniIzgara([
+          MiniKutu(track: video, harf: 'S', mirror: _onKamera),
+          for (final e in _konuklar.entries)
+            MiniKutu(
+                track: _konukVideoBul(e.key),
+                harf: e.value.isEmpty ? 'K' : e.value),
+        ]),
       );
     }
     // COKLU KONUK IZGARA (test turu 11): konuk varsa yayinci + konuklar YAN YANA/grid;

@@ -15,6 +15,7 @@ import '../../core/api.dart';
 import '../calls/call_media_options.dart';
 import '../calls/call_provider.dart';
 import '../calls/call_room_lock.dart';
+import '../calls/mini_izgara.dart';
 import '../calls/pip_service.dart';
 import '../../router.dart' show rootMessengerKey;
 import '../home/home_screen.dart' show myProfileProvider;
@@ -777,16 +778,31 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
     // SISTEM PiP (test turu 15): izleyici uygulamayi alta aldi -> kucuk pencerede YAYINCININ
     // videosu (chat/kontrol yok). Ses zaten devam eder.
     if (PipService.pipModu.value) {
+      // TEST TURU 17: kucuk pencerede IZGARA — yayinci + canlidaki konuklar (kendi tile'im
+      // konuksam dahil). 2 sol/sag, 3 ustte 2 + altta 1, 4 ceyrek.
+      final benimId = _room?.localParticipant?.identity ?? _benimId;
+      // KIMLIK KAPISI korunur: konuk DEGILKEN kendi id'im kutu URETMEZ (bayat liste).
+      final gorunurKonuklar =
+          _aktifKonuklar.where((id) => id != benimId || _konukum).toList();
       return Scaffold(
         backgroundColor: const Color(0xFF0B141A),
-        body: video != null
-            ? IgnorePointer(
-                child: lk.VideoTrackRenderer(video,
-                    key: ValueKey('izle-pip-${video.mediaStreamTrack.id}'),
-                    fit: lk.VideoViewFit.cover))
-            : Center(
-                child: Text(widget.yayinciAd,
-                    style: const TextStyle(color: Colors.white70, fontSize: 12))),
+        body: miniIzgara([
+          MiniKutu(
+              track: video,
+              harf: widget.yayinciAd.isEmpty ? '?' : widget.yayinciAd),
+          for (final id in gorunurKonuklar)
+            if (id == benimId)
+              MiniKutu(
+                  track: _kameramAcik ? _benimVideo() : null,
+                  harf: 'S',
+                  mirror: _onKamera)
+            else
+              MiniKutu(
+                  track: _konukVideoBul(id),
+                  harf: (_konukAdlari[id] ?? '').isEmpty
+                      ? 'K'
+                      : _konukAdlari[id]!),
+        ]),
       );
     }
     final benim = _room?.localParticipant?.identity ?? _benimId;

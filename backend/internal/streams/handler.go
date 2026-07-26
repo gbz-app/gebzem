@@ -29,33 +29,35 @@ import (
 const tokenOmru = 8 * time.Hour
 
 type Handler struct {
-	db     *pgxpool.Pool
-	rdb    *redis.Client
-	hub    *chat.Hub    // davet WS fan-out (Bolum 5; yayin ici sinyaller SendData'da kalir)
-	push   *push.Sender // davet offline bildirimi (DataNotify — CallKit degil)
-	lk     *livekit.Client
-	lkURL  string
-	key    string
-	secret string
+	db          *pgxpool.Pool
+	rdb         *redis.Client
+	hub         *chat.Hub    // davet WS fan-out (Bolum 5; yayin ici sinyaller SendData'da kalir)
+	push        *push.Sender // davet offline bildirimi (DataNotify — CallKit degil)
+	lk          *livekit.Client
+	lkURL       string
+	key         string
+	secret      string
 	maxIzleyici int
 }
 
 func NewHandler(db *pgxpool.Pool, rdb *redis.Client, hub *chat.Hub, pushSender *push.Sender) *Handler {
 	key := os.Getenv("LIVEKIT_API_KEY")
 	secret := os.Getenv("LIVEKIT_API_SECRET")
-	maxV := 300
+	// TEST TURU 17 (kullanici karari): IZLEYICI SINIRI KALDIRILDI — 0 = SINIRSIZ.
+	// Gerekirse env STREAM_MAX_VIEWERS=<sayi> ile tekrar sinir konur (yeniden derleme YOK).
+	maxV := 0
 	if v, err := strconv.Atoi(os.Getenv("STREAM_MAX_VIEWERS")); err == nil && v > 0 {
 		maxV = v
 	}
 	return &Handler{
-		db:     db,
-		rdb:    rdb,
-		hub:    hub,
-		push:   pushSender,
-		lk:     livekit.NewClient(getEnv("LIVEKIT_API_URL", "http://167.233.229.88:7880"), key, secret),
-		lkURL:  getEnv("LIVEKIT_URL", "wss://rtc.gebzem.app"),
-		key:    key,
-		secret: secret,
+		db:          db,
+		rdb:         rdb,
+		hub:         hub,
+		push:        pushSender,
+		lk:          livekit.NewClient(getEnv("LIVEKIT_API_URL", "http://167.233.229.88:7880"), key, secret),
+		lkURL:       getEnv("LIVEKIT_URL", "wss://rtc.gebzem.app"),
+		key:         key,
+		secret:      secret,
 		maxIzleyici: maxV,
 	}
 }
@@ -157,7 +159,11 @@ func (h *Handler) Start(w http.ResponseWriter, r *http.Request) {
 	roomName := "stream_" + streamID
 	// CreateRoom SART (Baglayici Karar 2 / global max_participants:32 tuzagi):
 	// izleyici tavani + yayinci payi. empty_timeout 300: yayinci kisa kopmada oda olmesin.
-	if err := h.lk.CreateRoom(r.Context(), roomName, h.maxIzleyici+10, 300); err != nil {
+	odaTavan := 0 // 0 = LiveKit tarafinda SINIRSIZ (test turu 17)
+	if h.maxIzleyici > 0 {
+		odaTavan = h.maxIzleyici + 10
+	}
+	if err := h.lk.CreateRoom(r.Context(), roomName, odaTavan, 300); err != nil {
 		log.Printf("yayin livekit create: %v", err)
 		h.db.Exec(r.Context(), `UPDATE streams SET status='ended', ended_at=now() WHERE id=$1`, streamID)
 		writeErr(w, http.StatusInternalServerError, "yayin baslatilamadi")
@@ -270,7 +276,7 @@ func (h *Handler) Watch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Kapasite (cx33 NIC muhafizi; LiveKit max_participants ikinci savunma hatti)
-	if h.izleyiciSayisi(r.Context(), streamID) >= h.maxIzleyici {
+	if h.maxIzleyici > 0 && h.izleyiciSayisi(r.Context(), streamID) >= h.maxIzleyici {
 		writeErr(w, http.StatusTooManyRequests, "yayin dolu")
 		return
 	}
@@ -338,7 +344,7 @@ func (h *Handler) Heartbeat(w http.ResponseWriter, r *http.Request) {
 				writeErr(w, http.StatusForbidden, "bu yayini izleyemezsiniz")
 				return
 			}
-			if h.izleyiciSayisi(r.Context(), streamID) >= h.maxIzleyici {
+			if h.maxIzleyici > 0 && h.izleyiciSayisi(r.Context(), streamID) >= h.maxIzleyici {
 				writeErr(w, http.StatusTooManyRequests, "yayin dolu")
 				return
 			}

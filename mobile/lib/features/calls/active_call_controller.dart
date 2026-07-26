@@ -46,6 +46,14 @@ class AramaBilgisi {
   final int? elapsedMs; // SURE SENKRONU baslangic referansi (answer cevabi ~0)
 }
 
+/// Kucuk pencere (PiP / yuzen pencere) izgarasindaki TEK katilimci (test turu 17).
+class MiniKatilimci {
+  const MiniKatilimci(this.track, this.ad, {this.mirror = false});
+  final VideoTrack? track; // null -> harf avatari
+  final String ad;
+  final bool mirror; // yalniz kendi on kameram aynalanir
+}
+
 /// AKTIF ARAMA CONTROLLER'I (parite-hukum C1 / Plan 2): Room + listener + TUM timer'lar +
 /// sure Stopwatch'i + ses birimi/nesli + muhafiz cagrilari BURADA yasar — CallScreen SAF
 /// GORUNUM. Uygulama boyu YASAR (autoDispose YOK); "ekran dispose'u aramayi BITIRMEZ"
@@ -234,6 +242,32 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       if (t != null) return t;
     }
     return null;
+  }
+
+  /// KUCUK PENCERE KATILIMCILARI (test turu 17): sistem PiP'i ve uygulama-ici yuzen pencere
+  /// artik IZGARA cizer. Sira: once UZAKLAR (grupta AKTIF KONUSAN basta), en sonda BEN.
+  /// Video yoksa harf avatari cizilir (sesli katilimci / kamera kapali).
+  List<MiniKatilimci> get miniKatilimcilar {
+    final out = <MiniKatilimci>[];
+    final r = _room;
+    if (r == null) return out;
+    final uzaklar = <RemoteParticipant>[];
+    if (_isGroup) {
+      for (final p in r.activeSpeakers) {
+        if (p is RemoteParticipant && !uzaklar.contains(p)) uzaklar.add(p);
+      }
+    }
+    for (final p in r.remoteParticipants.values) {
+      if (!uzaklar.contains(p)) uzaklar.add(p);
+    }
+    for (final p in uzaklar) {
+      final ad = p.name.isNotEmpty ? p.name : (arama?.peerName ?? '?');
+      out.add(MiniKatilimci(_bantIlkVideo(p), ad));
+    }
+    if (r.localParticipant != null) {
+      out.add(MiniKatilimci(yerelVideo, 'Sen', mirror: _frontCamera));
+    }
+    return out;
   }
 
   /// Kendi kamera track'im (PiP'te uzak video yoksa yedek — kara ekran yerine kendi goruntum).

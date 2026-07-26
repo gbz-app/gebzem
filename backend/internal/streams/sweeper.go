@@ -7,11 +7,11 @@ import (
 )
 
 // StartSweeper — 15 sn'de bir (calls deseni):
-// 1) Olu izleyici temizligi (45 sn nabizsiz ZREMRANGEBYSCORE) + viewer_peak + sayac yayini
-//    (SendData {"t":"viewers"} — YALNIZ degistiyse; 300 kisiye gereksiz sinyal yok).
-// 2) Kalp toplama: birikmis kalpleri 5 sn'de bir toplu yayinla (istek basi SendData seli olmaz).
-// 3) Yayinci nabzi: pub anahtari dustu + live -> 'paused' + grace(60sn); nabiz geri geldi ->
-//    'resumed'; grace da doldu -> endStream. Emniyet: 12 saatten uzun yayin -> bitir.
+//  1. Olu izleyici temizligi (45 sn nabizsiz ZREMRANGEBYSCORE) + viewer_peak + sayac yayini
+//     (SendData {"t":"viewers"} — YALNIZ degistiyse; 300 kisiye gereksiz sinyal yok).
+//  2. Kalp toplama: birikmis kalpleri 5 sn'de bir toplu yayinla (istek basi SendData seli olmaz).
+//  3. Yayinci nabzi: pub anahtari dustu + live -> 'paused' + grace(60sn); nabiz geri geldi ->
+//     'resumed'; grace da doldu -> endStream. Emniyet: 12 saatten uzun yayin -> bitir.
 func (h *Handler) StartSweeper(ctx context.Context) {
 	go func() {
 		t := time.NewTicker(15 * time.Second)

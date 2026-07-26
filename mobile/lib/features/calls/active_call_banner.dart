@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:livekit_client/livekit_client.dart' as lk;
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import 'active_call_controller.dart';
+import 'mini_izgara.dart';
 
 /// AKTIF ARAMA — minimize edilmis aramada TUM sayfalarin ustunde gorunur.
 /// TEST TURU 10: SESLI aramada eski yesil bant; GORUNTULU aramada SURUKLENEBILIR YUZEN
@@ -57,22 +57,22 @@ class _AktifAramaBannerState extends ConsumerState<AktifAramaBanner> {
     return Stack(children: [widget.child, _yuzenVideo(c, ad)]);
   }
 
-  /// SISTEM PiP ICERIGI (Android): tam ekran uzak video (grupta aktif konusan), yoksa
-  /// avatar. Kontrol/self-view YOK — PiP penceresinde sistem dugmeleri (mic/kapat) var.
+  /// SISTEM PiP ICERIGI (Android): TEST TURU 17 -> artik IZGARA (2 kisi sol/sag, 3 kisi
+  /// ustte 2 + altta 1, 4 kisi ceyrek). 1:1'de karsi taraf + ben. Kontrol/self-view YOK —
+  /// PiP penceresinde sistem dugmeleri (mic/kapat) var.
   Widget _pipTamEkran(ActiveCallController c, AramaBilgisi b) {
     final ad = c.isGroup
         ? (b.chatTitle.isEmpty ? 'Grup araması' : b.chatTitle)
         : b.peerName;
-    final video = c.bantVideo ?? c.yerelVideo; // uzak yoksa kendi kameram; o da yoksa avatar
+    final katilimcilar = c.miniKatilimcilar;
     return Container(
       color: const Color(0xFF0B141A),
-      child: video != null
-          ? IgnorePointer(
-              child: lk.VideoTrackRenderer(video,
-                  key: ValueKey('pip-tam-${video.mediaStreamTrack.id}'),
-                  fit: lk.VideoViewFit.cover),
-            )
-          : _bantAvatar(ad),
+      child: katilimcilar.isEmpty
+          ? _bantAvatar(ad)
+          : miniIzgara([
+              for (final k in katilimcilar)
+                MiniKutu(track: k.track, harf: k.ad, mirror: k.mirror),
+            ]),
     );
   }
 
@@ -141,7 +141,7 @@ class _AktifAramaBannerState extends ConsumerState<AktifAramaBanner> {
     final enFazlaY =
         (ekran.height - _h - guvenli.bottom - 4).clamp(guvenli.top + 4, double.infinity);
     pos = Offset(pos.dx.clamp(4.0, enFazlaX), pos.dy.clamp(guvenli.top + 4, enFazlaY));
-    final video = c.bantVideo; // uzak video (grup: aktif konusan); yoksa avatar
+    final katilimcilar = c.miniKatilimcilar; // izgara (test turu 17)
 
     return Positioned(
       left: pos.dx,
@@ -166,11 +166,13 @@ class _AktifAramaBannerState extends ConsumerState<AktifAramaBanner> {
               width: _w,
               height: _h,
               child: Stack(fit: StackFit.expand, children: [
-                // Video VEYA avatar (karsi kamera kapali/ses akisi)
-                if (video != null)
-                  lk.VideoTrackRenderer(video,
-                      key: ValueKey('bant-${video.mediaStreamTrack.id}'),
-                      fit: lk.VideoViewFit.cover)
+                // TEST TURU 17: tek video yerine IZGARA (2 sol/sag, 3 ustte2+altta1, 4 ceyrek).
+                // Katilimci yoksa (henuz baglanmadi) eski avatar gorunumu.
+                if (katilimcilar.isNotEmpty)
+                  miniIzgara([
+                    for (final k in katilimcilar)
+                      MiniKutu(track: k.track, harf: k.ad, mirror: k.mirror),
+                  ])
                 else
                   _bantAvatar(ad),
                 // Ust: isim + CANLI sure (okunur olsun diye koyu serit)

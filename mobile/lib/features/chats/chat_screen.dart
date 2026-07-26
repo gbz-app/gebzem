@@ -36,6 +36,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Timer? _typingThrottle;
   Timer? _typingUiTimer;
   bool _sending = false;
+  // KARSI TARAFIN ARAMA DURUMU (test turu 17 — kullanici istegi): '' | 'audio' | 'video'
+  // | 'stream'. Sohbet basliginda gosterilir; ilgili ikon aktif, digeri PASIF olur.
+  String _peerDurum = '';
+  Timer? _durumTimer;
 
   @override
   void initState() {
@@ -44,7 +48,32 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _typingUiTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() {});
     });
+    if (widget.peerId != null) {
+      _durumTazele();
+      _durumTimer = Timer.periodic(const Duration(seconds: 15), (_) => _durumTazele());
+    }
   }
+
+  /// Karsi taraf su an aramada/yayinda mi (GET /users/{id}/presence). Hata sessiz yutulur —
+  /// durum bilgisi ek bir kolaylik, sohbeti bloklamaz.
+  Future<void> _durumTazele() async {
+    final pid = widget.peerId;
+    if (pid == null) return;
+    try {
+      final res = await ref.read(apiProvider).get('/users/$pid/presence');
+      final m = (res.data as Map?) ?? const {};
+      final tip = m['call_type'] as String? ?? '';
+      final yeni = tip.isNotEmpty ? tip : (m['in_stream'] == true ? 'stream' : '');
+      if (mounted && yeni != _peerDurum) setState(() => _peerDurum = yeni);
+    } catch (_) {}
+  }
+
+  String get _durumMetni => switch (_peerDurum) {
+        'audio' => '🎙 Sesli aramada',
+        'video' => '🎥 Görüntülü aramada',
+        'stream' => '🔴 Canlı yayında',
+        _ => '',
+      };
 
   @override
   void dispose() {
@@ -52,6 +81,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _scroll.dispose();
     _typingThrottle?.cancel();
     _typingUiTimer?.cancel();
+    _durumTimer?.cancel();
     super.dispose();
   }
 
@@ -146,19 +176,65 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             if (typing)
               Text('yaziyor...',
                   style: TextStyle(
-                      fontSize: 12, color: Theme.of(context).colorScheme.primary)),
+                      fontSize: 12, color: Theme.of(context).colorScheme.primary))
+            // KARSI TARAFIN DURUMU (test turu 17): "Sesli aramada / Goruntulu aramada /
+            // Canli yayinda" — WhatsApp'taki gibi kisi mesgulse ONCEDEN belli olsun.
+            else if (_durumMetni.isNotEmpty)
+              Text(_durumMetni,
+                  style: TextStyle(
+                      fontSize: 12,
+                      color: _peerDurum == 'stream'
+                          ? Colors.redAccent
+                          : const Color(0xFF25D366))),
           ],
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(LucideIcons.video),
-            onPressed: widget.peerId == null ? null : () => _startCall(video: true),
-          ),
-          IconButton(
-            icon: const Icon(LucideIcons.phone),
-            onPressed: widget.peerId == null ? null : () => _startCall(video: false),
-          ),
-        ],
+        actions: () {
+          // IKON DURUMLARI (kullanici istegi): kisi SESLI aramadaysa ses ikonu AKTIF/yesil,
+          // goruntu ikonu PASIF; goruntuluyse tersi. Mesgulken dokunus arama BASLATMAZ,
+          // durumu soyler (sunucu zaten 409 "baska gorusmede" donerdi).
+          final mesgul = _peerDurum.isNotEmpty;
+          final sesAktif = _peerDurum == 'audio';
+          final videoAktif = _peerDurum == 'video';
+          void mesgulUyar() {
+            final ne = switch (_peerDurum) {
+              'audio' => 'sesli aramada',
+              'video' => 'görüntülü aramada',
+              'stream' => 'canlı yayında',
+              _ => 'meşgul',
+            };
+            ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('${widget.title} şu anda $ne')));
+          }
+
+          return [
+            IconButton(
+              tooltip: 'Görüntülü ara',
+              color: videoAktif ? const Color(0xFF25D366) : null,
+              disabledColor: Theme.of(context).disabledColor,
+              icon: const Icon(LucideIcons.video),
+              onPressed: widget.peerId == null
+                  ? null
+                  : mesgul && !videoAktif
+                      ? null // kisi sesli aramada/yayinda -> goruntulu ikon PASIF
+                      : mesgul
+                          ? mesgulUyar
+                          : () => _startCall(video: true),
+            ),
+            IconButton(
+              tooltip: 'Sesli ara',
+              color: sesAktif ? const Color(0xFF25D366) : null,
+              disabledColor: Theme.of(context).disabledColor,
+              icon: const Icon(LucideIcons.phone),
+              onPressed: widget.peerId == null
+                  ? null
+                  : mesgul && !sesAktif
+                      ? null // kisi goruntulu aramada/yayinda -> sesli ikon PASIF
+                      : mesgul
+                          ? mesgulUyar
+                          : () => _startCall(video: false),
+            ),
+          ];
+        }(),
       ),
       body: Column(
         children: [

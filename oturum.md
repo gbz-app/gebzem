@@ -1925,14 +1925,14 @@ aramada 2 kisi sol/sag, 3 kisi ustte 2 + altta 1, 4 kisi 2x2 (hem 1:1 hem grup h
 (4) Baska kullanicinin profilinde/sohbetinde ARAMA DURUMU: kisi sesli aramadaysa ses ikonu
 ACIK/aktif, goruntu ikonu KAPALI; goruntuluyse tersi — "davet etme gibi" bir isaret.
 ### ADIMLAR
-- [ ] 1. Backend: izleyici siniri kalksin (STREAM_MAX_VIEWERS=0/tanimsiz -> SINIRSIZ; LiveKit
+- [x] 1. Backend: izleyici siniri kalksin (STREAM_MAX_VIEWERS=0/tanimsiz -> SINIRSIZ; LiveKit
       odasi max_participants=0)
-- [ ] 2. Ortak KUCUK PENCERE IZGARASI (miniIzgara): 1 tam, 2 sol/sag, 3 ustte2+altta1 tam
+- [x] 2. Ortak KUCUK PENCERE IZGARASI (miniIzgara): 1 tam, 2 sol/sag, 3 ustte2+altta1 tam
       genislik, 4 ceyrek; en fazla 4 kutu (+N rozeti)
-- [ ] 3. Arama: sistem PiP icerigi + uygulama-ici yuzen pencere bu izgarayi kullansin
+- [x] 3. Arama: sistem PiP icerigi + uygulama-ici yuzen pencere bu izgarayi kullansin
       (1:1'de karsi taraf + ben; grupta konusanlar + ben)
-- [ ] 4. Canli yayin: yayinci ve izleyici PiP'i ayni izgarayi kullansin (yayinci + konuklar)
-- [ ] 5. Backend: GET /users/{id}/presence -> {in_call, call_type} (1:1 + grup katilimcisi)
-- [ ] 6. Sohbet ekrani: karsinin arama durumu (baslik altinda "Sesli/Goruntulu aramada") +
+- [x] 4. Canli yayin: yayinci ve izleyici PiP'i ayni izgarayi kullansin (yayinci + konuklar)
+- [x] 5. Backend: GET /users/{id}/presence -> {in_call, call_type} (1:1 + grup katilimcisi)
+- [x] 6. Sohbet ekrani: karsinin arama durumu (baslik altinda "Sesli/Goruntulu aramada") +
       ikon durumlari (aramadaysa ilgili ikon aktif, digeri pasif) + 15sn tazeleme
 - [ ] 7. analyze + go build + temiz build + yayin

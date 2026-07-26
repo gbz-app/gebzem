@@ -147,6 +147,8 @@ func main() {
 		r.Post("/users/me/voip-token", usersH.SaveVoIPToken)   // iOS kilit ekrani aramasi
 		r.Get("/users/search", usersH.Search)
 		r.Get("/users/by-phone", usersH.ByPhone)
+		// TEST TURU 17: karsi tarafin ARAMA DURUMU (sohbet basliginda "Sesli/Goruntulu aramada")
+		r.Get("/users/{id}/presence", usersH.Presence)
 		r.Get("/ws", chatH.WebSocket)
 		r.Get("/chats", chatH.ListChats)
 		r.Post("/chats/direct", chatH.CreateDirect)

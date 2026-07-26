@@ -44,7 +44,7 @@ func (h *Handler) Invite(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if h.izleyiciSayisi(r.Context(), streamID) >= h.maxIzleyici {
+	if h.maxIzleyici > 0 && h.izleyiciSayisi(r.Context(), streamID) >= h.maxIzleyici {
 		writeErr(w, http.StatusTooManyRequests, "yayin dolu")
 		return
 	}
