@@ -15,6 +15,24 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (26 Tem 22:22):** TEST TURU 38 YAYINLANDI — android 30216228929 +
+  ios 30216229892 (6605a16), R2 apk=105227857 ipa=19148842, purge OK, CDN birebir, backend
+  degismedi + health ok, DB temiz. KULLANICI TEST EDECEK.
+  ⚠️ Kullanici "iki sorun var" dedi, YALNIZ BIRINI (donma) tarif etti — ikincisi SORULACAK.
+- **TEST TURU 38 — "ALTA ALINCA DONUYOR"UN GERCEK SEBEBI (Sentry kaniti):**
+  · "ios coklu-gorev kamera destek=true" -> 70 kayit VAR · "ios kamera kesinti" -> HIC YOK.
+  Yani **iOS kamerayi KESMIYOR**; kamerayi durduran BIZIM 900ms'lik arka plan kamera-mute
+  yolumuzdu. livekit `stopCameraCaptureOnMute=true` oldugundan mute CAPTURE'I DURDURUR ve bu
+  "nazik" durdurma `AVCaptureSessionWasInterrupted` URETMEZ -> ne haberimiz oluyor ne de
+  "Kamera duraklatildi" etiketi cikiyor -> kucuk pencere SON KAREDE DONUYOR. Turu 36'dan beri
+  pencere KENDI kamerami gosterdigi icin bu MANTIKSAL CELISKIYDI.
+  **FIX:** iOS'ta PiP kuruluysa (`_iosPipKurulanId` dolu) kamera artik KENDILIGINDEN
+  KAPATILMAZ. Yedek kaybolmadi — kamera gercekten durdurulursa OS soyler (turu 37 kesinti
+  dinleyicisi) ve orada DURUSTCE mute edilir. Ayrica kamera her kapatildiginda
+  `iosPipKareBosalt()` ile katman bosaltilir (donmus kare yerine etiket).
+  **OLCUM:** PiP basladiktan 3sn sonraki kare sayisi Sentry'e yazilir ("ios pip 3sn kare=N").
+  ⚠️ YAPMA: iOS'ta zamanlayiciyla kamera-mute'a geri donme (donma geri gelir); kamera
+  kapatirken `iosPipKareBosalt` cagrisini atlama.
 - **KALDIGIMIZ YER (26 Tem 21:55):** TEST TURU 37 YAYINLANDI — android 30215341399 +
   ios 30215342412 (26a2cf3), R2 apk=105227857 ipa=19148233 (BUYUDU=swizzle derlendi), purge OK,
   CDN birebir, backend degismedi + health ok, DB temiz. KULLANICI TEST EDECEK.
