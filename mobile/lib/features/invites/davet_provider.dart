@@ -140,6 +140,7 @@ class DavetServisi {
             ilkIzleyici: (info['viewer_count'] as num?)?.toInt() ?? 0,
             tip: info['type'] as String? ?? 'video',
             ilkKonukIds: (info['guest_ids'] as List?)?.cast<String>() ?? const [],
+            ilkKonukAdlari: konukAdlariCoz(info['guest_list']),
           ),
         ));
       } else {

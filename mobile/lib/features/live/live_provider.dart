@@ -86,6 +86,20 @@ class LiveApi {
 
 final liveApiProvider = Provider<LiveApi>(LiveApi.new);
 
+/// watch cevabindaki `guest_list` -> {user_id: ad} (test turu 13). Gec katilan izleyici
+/// konuklari "Konuk" yerine ADIYLA gorur. Alan yoksa (eski sunucu) bos harita doner.
+Map<String, String> konukAdlariCoz(dynamic guestList) {
+  final out = <String, String>{};
+  for (final g in (guestList as List?) ?? const []) {
+    if (g is Map) {
+      final id = g['user_id'] as String? ?? '';
+      final ad = g['name'] as String? ?? '';
+      if (id.isNotEmpty && ad.isNotEmpty) out[id] = ad;
+    }
+  }
+  return out;
+}
+
 /// Kesfet listesi (canli + durakli yayinlar)
 final liveStreamsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
   final res = await ref.read(apiProvider).get('/streams');

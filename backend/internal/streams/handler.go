@@ -281,12 +281,16 @@ func (h *Handler) Watch(w http.ResponseWriter, r *http.Request) {
 	// TEST TURU 8/11: aktif KONUKLAR listesini don — gec katilan izleyici guest.joined
 	// sinyalini almadigi icin split'i hic goremiyordu (coklu konuk: guest_ids dizisi).
 	guests, _ := h.rdb.SMembers(r.Context(), "stream:"+streamID+":guests").Result()
+	// TEST TURU 13: konuk ADLARI da don (guest_list) — gec katilan izleyici konuklari
+	// "Konuk" etiketiyle goruyordu (guest.joined sinyalini kacirmisti). guest_ids KORUNUR
+	// (eski istemci kirilmasin); liste bos konuk yokken tek DB sorgusu bile yapmaz.
 	writeJSON(w, http.StatusOK, map[string]any{
 		"stream_id": streamID, "room": roomName, "url": h.lkURL, "token": tok,
 		"title": title, "type": tip, "status": status,
 		"broadcaster_id": bID, "broadcaster_name": bName,
 		"viewer_count": h.izleyiciSayisi(r.Context(), streamID),
 		"guest_ids":    guests,
+		"guest_list":   h.kullaniciListesi(r.Context(), guests, nil),
 	})
 }
 

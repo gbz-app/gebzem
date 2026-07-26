@@ -63,6 +63,10 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
   // COKLU KONUK (test turu 11): aktif konuklar id->ad (guest.joined/left + nabiz mutabakati).
   // Map ekleme sirasini korur (izgara sirasi stabil).
   final Map<String, String> _konuklar = {};
+  // YEREL KONUK-DURUMU NESLI (test turu 13): nabiz istegi UCARKEN konuk listesi degisirse
+  // (kabul ettim / cikardim / guest.joined geldi) donen yanit BAYAT'tir — mutabakat
+  // uygulanirsa yeni kabul edilen konugun tile'i 15sn EKRANDAN KAYBOLUYORDU.
+  int _konukEpok = 0;
   bool _micOn = true;
   bool _onKamera = true; // ayna kurali: on=aynali, arka=aynasiz ("kamera ters" fix'i)
   bool _connecting = true;
@@ -99,8 +103,9 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
   /// esitle — kacan guest.left/joined SendData'si en gec 15sn'de kendini onarir. Sunucuda
   /// olmayan konuklari kaldirir; yeni id'leri (ad henuz yoksa) ekler (guest.joined ad'i tazeler).
   void _nabizAt() {
+    final epok = _konukEpok; // BAYAT-YANIT KAPISI (test turu 13)
     ref.read(liveApiProvider).nabiz(widget.streamId).then((liste) {
-      if (!mounted || _ayrildi) return;
+      if (!mounted || _ayrildi || epok != _konukEpok) return;
       final sunucu = liste.toSet();
       var degisti = false;
       _konuklar.keys.where((k) => !sunucu.contains(k)).toList().forEach((k) {
@@ -196,7 +201,10 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
         ..on<lk.ParticipantDisconnectedEvent>((e) {
           if (!mounted) return;
           if (_konuklar.containsKey(e.participant.identity)) {
-            setState(() => _konuklar.remove(e.participant.identity));
+            setState(() {
+              _konuklar.remove(e.participant.identity);
+              _konukEpok++;
+            });
           } else {
             setState(() {});
           }
@@ -280,12 +288,16 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
           if (id.isNotEmpty) {
             _konuklar[id] = v['name'] as String? ?? '';
             _istekIds.remove(id);
+            _konukEpok++; // ucan nabiz yanitlari BAYAT (yeni konugu silmesinler)
           }
         });
       case 'guest.left':
         final id = v['user_id'] as String?;
         if (id != null && _konuklar.containsKey(id)) {
-          setState(() => _konuklar.remove(id));
+          setState(() {
+            _konuklar.remove(id);
+            _konukEpok++;
+          });
         }
       case 'stream.ended':
         _cik(sunucuyaBildir: false); // admin bitirdi
@@ -345,7 +357,10 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
     if (onay != true || !mounted || id.isEmpty) return;
     // IYIMSER ANLIK KAPAMA (test turu 5): guest.left round-trip'ini bekleme -> tile HEMEN
     // kalksin. Sunucudan gelen guest.left zaten idempotent.
-    setState(() => _konuklar.remove(id));
+    setState(() {
+      _konuklar.remove(id);
+      _konukEpok++; // ucan nabiz yanitlari BAYAT (cikardigim konugu geri getirmesinler)
+    });
     try {
       await ref.read(liveApiProvider).konukCikar(widget.streamId, id);
     } catch (e) {
