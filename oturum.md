@@ -2413,3 +2413,34 @@ kaldirilmasi + ikonlarin kilitlenmemesi.
 2. Taze kurulum + kayit: login'e ATMAMALI, izin diyaloglari sirayla gelmeli.
 3. iPhone goruntulu arama -> alta al: kucuk pencerede KENDI goruntun, normal boyutta.
 4. Android sesli arama -> HOME -> 60sn: dusmemeli ("Sesli arama sürüyor" bildirimi).
+
+## TEST TURU 37 SURUMU YAYINLANDI (26 Tem 21:55) — KULLANICI TEST EDECEK
+- android **30215341399** + ios **30215342412** (commit **26a2cf3**), debug imza YOK.
+- R2: apk **105227857** · ipa **19148233** (19143161 -> BUYUDU = yeni native kod kaniti,
+  swizzle derlendi) · index.html 6674. CDN birebir, purge 2 kez, sayfadaki saat GERCEK
+  yukleme saati. Backend DEGISMEDI (865c5f0), /health ok, DB temiz.
+### KOK NEDEN (16 ajan, 12 iddiadan 11'i curutuldu — AYAKTA KALAN TEK)
+**Apple:** *"you can enable multitasking camera access by setting this value to true PRIOR TO
+STARTING THE CAPTURE SESSION."* Biz bayragi ZATEN CALISAN session'a yaziyorduk (Dart'tan:
+baglanti sonrasi, inactive, resume, toggleCam — hepsi startRunning SONRASI). iOS yazmayi
+KABUL ediyor, geri okuma `true` donuyor, ama FIILEN ETKISIZ:
+ · arka planda capture DURUYOR -> PiP SON KAREDE DONUYOR (kullanicinin "yine donuyor"u),
+ · bayrak "true" gorundugu icin DURUST MUTE yedegi de devre disi -> karsi taraf bulanik
+   "Kamera duraklatildi" yerine DONMUS KARE goruyor.
+Upstream de cozmemis: flutter_webrtc'de bayrak HIC set edilmiyor (1.4.0 ve 1.5.2).
+### YAPILANLAR
+- [x] `GebzemKameraKanca` (AppDelegate.swift): `RTCCameraVideoCapturer.startCapture(...)`
+      SWIZZLE — orijinal cagrilmadan HEMEN ONCE bayrak yazilir. Kamera her (yeniden)
+      acilista dogru sirayla yapilandirilir; "her mute/unmute yeni session, bayrak sifirlanir"
+      sorununu da kokten kapatir. Uygulama acilisinda kurulur.
+- [x] `cokluGorevKameraAc()` artik YALNIZ DOGRULAMA/son care.
+- [x] `kesintileriDinle()`: AVCaptureSessionWasInterrupted/Ended -> PiP'te "Kamera
+      duraklatildi" etiketi + Dart'a bildirim + sebep Sentry'e.
+- [x] Dart `_iosKameraKesinti`: OS gercekten kestiyse `_iosArkaPlanKamera=false` + kamerayi
+      DURUSTCE mute et (donmus kare yerine bulanik yazi).
+- **REDDEDILDI:** deployment target 15->16 (Apple "supported" kosulu OR'lu, cihazda zaten
+  TRUE; iOS 15 cihazlari bosuna dusurmeyelim) · entitlement ekleme (imza riski, YAPMA maddesi).
+### SONRAKI TURDA BAKILACAK (kanit)
+Sentry: "ios kamera kesinti sebep=<n>" cikmiyorsa VE goruntu akiyorsa kok kapandi demektir.
+Cikiyorsa sebep kodu OS'un kamerayi neden kestigini SOYLER (karar agaci icin).
+### KULLANICI: ikinci bir sorun oldugunu soyledi ama tarif etmedi — SORULACAK.
