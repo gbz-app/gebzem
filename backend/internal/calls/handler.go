@@ -331,20 +331,30 @@ func (h *Handler) Start(w http.ResponseWriter, r *http.Request) {
 	// 'active' penceresi UZUN (2 saat): kisa deger, MESRU uzun gorusme suren callee'yi
 	// "musait" gosterip araya 2. arama sokardi. Ayni cift takili 'active'i zaten yukaridaki
 	// pairwise temizlik kapatti; burada kalan 'active' cross-pair GERCEK gorusme demektir.
-	var busy bool
+	// TEST TURU 18 — ARAMA BEKLETME (call waiting): mesgul kullaniciya ikinci arama artik
+	// TAMAMEN reddedilmiyor. Iki durum ayrilir:
+	//  - callee SUREN bir aramada (status='active') -> arama ILETILIR, istemciye `waiting:true`
+	//    gider; kullanici "Beklet ve Kabul / Bitir ve Kabul / Reddet" secer (iOS'ta bu ekrani
+	//    CallKit'in kendisi cizer, Android'de kendi katmanimiz).
+	//  - callee'nin telefonu ZATEN CALIYOR (status='ringing') -> gercek mesgul; ust uste
+	//    iki zil kotu deneyim, eski davranis (409 + 'busy' kaydi) KORUNUR.
+	var suren, calan bool
 	h.db.QueryRow(r.Context(), `
 		SELECT EXISTS(SELECT 1 FROM calls
-		WHERE (caller_id=$1 OR callee_id=$1)
-		  AND ((status='active'  AND created_at > now() - interval '2 hours')
-		       OR (status='ringing' AND created_at > now() - interval '45 seconds')))`,
-		req.CalleeID).Scan(&busy)
-	if busy {
+		       WHERE (caller_id=$1 OR callee_id=$1)
+		         AND status='active' AND created_at > now() - interval '2 hours'),
+		       EXISTS(SELECT 1 FROM calls
+		       WHERE (caller_id=$1 OR callee_id=$1)
+		         AND status='ringing' AND created_at > now() - interval '45 seconds')`,
+		req.CalleeID).Scan(&suren, &calan)
+	if calan {
 		h.db.Exec(r.Context(), `
 			INSERT INTO calls (caller_id, callee_id, type, status, ended_at)
 			VALUES ($1,$2,$3,'busy',now())`, callerID, req.CalleeID, callType)
 		writeErr(w, http.StatusConflict, "Kullanici su anda baska bir gorusmede")
 		return
 	}
+	bekleyen := suren // ikinci arama: alici baska bir gorusmede -> "arama bekliyor"
 
 	// Arama kaydi
 	var callID string
@@ -373,6 +383,8 @@ func (h *Handler) Start(w http.ResponseWriter, r *http.Request) {
 		"caller_id":     callerID,
 		"caller_name":   callerName,
 		"caller_avatar": callerAvatar,
+		// TEST TURU 18: alici baska gorusmedeyse istemci "Beklet/Bitir/Reddet" katmanini acar
+		"waiting": bekleyen,
 	})
 	h.hub.Publish(r.Context(), &chat.Event{
 		Type:    "call.incoming",
@@ -390,6 +402,7 @@ func (h *Handler) Start(w http.ResponseWriter, r *http.Request) {
 		"caller_id":     callerID,
 		"caller_name":   callerName,
 		"caller_avatar": callerAvatar,
+		"waiting":       strconv.FormatBool(bekleyen), // test turu 18: arama bekletme
 	}
 	// HER ZAMAN push at (online-gating KALDIRILDI). KANIT (canli loglar): callee arka
 	// planda/kilitliyken WS ~35sn "online" (stale) gorunup push'u engelliyordu; o pencerede
@@ -416,6 +429,7 @@ func (h *Handler) Start(w http.ResponseWriter, r *http.Request) {
 				"caller_id":     callerID,
 				"caller_name":   callerName,
 				"caller_avatar": callerAvatar,
+				"waiting":       bekleyen, // test turu 18: arama bekletme (CallKit hold ekrani)
 			})
 		}()
 	}
@@ -1070,6 +1084,54 @@ func (h *Handler) endGroup(w http.ResponseWriter, r *http.Request, callID, userI
 		}
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "left"})
+}
+
+// POST /calls/{id}/hold {on} — TEST TURU 18 (arama bekletme): bu kullanici aramayi
+// BEKLEMEYE aldi/geri aldi. Sunucu arama satirina DOKUNMAZ (arama 'active' kalir — beklet
+// demek "olmesin, sussun" demek); yalnizca KARSI TARAFA bilgi gider ki ekraninda
+// "Beklemede" yazabilsin. Yetki: aramanin taraflarindan biri olmak.
+func (h *Handler) Hold(w http.ResponseWriter, r *http.Request) {
+	userID := auth.UserID(r.Context())
+	callID := chi.URLParam(r, "id")
+	var req struct {
+		On bool `json:"on"`
+	}
+	json.NewDecoder(r.Body).Decode(&req)
+
+	var callerID, calleeID string
+	var isGroup bool
+	if h.db.QueryRow(r.Context(), `
+		SELECT caller_id, COALESCE(callee_id::text,''), COALESCE(is_group,false)
+		FROM calls WHERE id=$1 AND status='active'`, callID).
+		Scan(&callerID, &calleeID, &isGroup) != nil {
+		writeErr(w, http.StatusNotFound, "arama bulunamadi")
+		return
+	}
+	hedefler := []string{}
+	if isGroup {
+		hedefler = h.groupJoinedOthers(r.Context(), callID, userID)
+	} else {
+		if userID != callerID && userID != calleeID {
+			writeErr(w, http.StatusForbidden, "bu aramada degilsiniz")
+			return
+		}
+		other := callerID
+		if userID == callerID {
+			other = calleeID
+		}
+		if other != "" {
+			hedefler = []string{other}
+		}
+	}
+	if len(hedefler) > 0 {
+		payload, _ := json.Marshal(map[string]any{
+			"call_id": callID, "user_id": userID, "on": req.On,
+		})
+		h.hub.Publish(r.Context(), &chat.Event{
+			Type: "call.held", Payload: payload, To: hedefler,
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 // POST /calls/{id}/audio-stat — CANLI ESZAMANLI ses takibi. Istemci 2sn'de bir karsidan aldigi

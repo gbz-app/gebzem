@@ -46,6 +46,28 @@ class AramaBilgisi {
   final int? elapsedMs; // SURE SENKRONU baslangic referansi (answer cevabi ~0)
 }
 
+/// BEKLEMEYE ALINMIS ARAMA (test turu 18 — call waiting): oda BAGLI kalir, yalniz medya
+/// durur (mic/kamera kapali + uzak track'ler `disable()` ile sunucudan kesilir). Sunucuda
+/// arama 'active' kalir; diger gorusme bitince kaldigi yerden devam eder.
+class ParkEdilenArama {
+  ParkEdilenArama({
+    required this.bilgi,
+    required this.room,
+    required this.listener,
+    required this.gecen,
+    required this.micOn,
+    required this.camOn,
+    required this.isGroup,
+  });
+  final AramaBilgisi bilgi;
+  final Room room;
+  final EventsListener<RoomEvent> listener;
+  final Duration gecen; // park anindaki konusma suresi (devam edince buradan sayar)
+  final bool micOn;
+  final bool camOn;
+  final bool isGroup;
+}
+
 /// Kucuk pencere (PiP / yuzen pencere) izgarasindaki TEK katilimci (test turu 17).
 class MiniKatilimci {
   const MiniKatilimci(this.track, this.ad, {this.mirror = false});
@@ -437,6 +459,10 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     _iptalAbonelikler();
     arama = b;
     minimized = false;
+    // TEST TURU 18: beklet bayraklari YENI aramaya SARKMASIN (parkEdilen KASTEN korunur —
+    // ikinci aramayi kabul ederken birincisi park edilmis olabilir).
+    beklemede = false;
+    karsiBeklemede = false;
     pipModunda = false; // FAZ-6 (yargic): eski aramadan bayrak sarkmasin
     _kameraOtoKapandi = false;
     _iosPipKurulanId = ''; // iOS PiP (test turu 7): eski aramadan kurulum sarkmasin
@@ -1373,8 +1399,18 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     // Ekrana "bitti" bildir: arama=null -> CallScreen listener'i (sheet-pop -> ekran-pop; K7)
     arama = null;
     minimized = false;
+    beklemede = false;
     pipModunda = false; // FAZ-6: arama bitti — PiP izni notifyListeners'la geri cekilir
     notifyListeners();
+
+    // TEST TURU 18 — ARAMA BEKLETME: beklemede bir arama varsa aktif arama bitince
+    // OTOMATIK ona geri don (telefon davranisi). Ekran pop'u once tamamlansin diye
+    // kisa gecikme (devamEt yeni CallScreen push eder; cift-push korumasi ekranGorunur'de).
+    if (parkEdilen != null) {
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (arama == null && parkEdilen != null) unawaited(devamEt());
+      });
+    }
 
     try {
       if (notifyServer) await _svc.end(id);
@@ -1450,6 +1486,161 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       _isGroup = true;
       notifyListeners();
     }
+  }
+
+  // ---- ARAMA BEKLETME / CALL WAITING (test turu 18) ----
+
+  /// Beklemeye alinmis (parked) arama — varsa ekranda "Beklemede: X" seridi gorunur.
+  ParkEdilenArama? parkEdilen;
+  StreamSubscription? _parkEndedSub; // parked aramanin karsisi kapatirsa haber ver
+  /// AKTIF arama CallKit/GSM tarafindan beklemeye alindi mi (iOS CXSetHeldCallAction).
+  bool beklemede = false;
+
+  /// Medyayi durdur/geri ac. Oda ve katilimcilik AYNEN kalir (LiveKit `disable()` sunucuya
+  /// "bu track'i bana gonderme" der; `enable()` geri acar) — arama SUNUCUDA OLMEZ.
+  Future<void> _medyaBeklet(Room room, bool beklet,
+      {bool micHedef = true, bool camHedef = false}) async {
+    try {
+      await room.localParticipant?.setMicrophoneEnabled(beklet ? false : micHedef);
+    } catch (_) {}
+    try {
+      await room.localParticipant?.setCameraEnabled(beklet ? false : camHedef);
+    } catch (_) {}
+    for (final p in room.remoteParticipants.values) {
+      for (final pub in p.trackPublications.values) {
+        try {
+          if (beklet) {
+            await pub.disable();
+          } else {
+            await pub.enable();
+          }
+        } catch (_) {}
+      }
+    }
+  }
+
+  /// AKTIF aramayi PARK ET (ikinci aramayi kabul etmeden once). Oda kapanmaz.
+  Future<void> parkEt() async {
+    final b = arama;
+    final room = _room;
+    final listener = _listener;
+    if (b == null || room == null || listener == null || parkEdilen != null) return;
+    await _medyaBeklet(room, true);
+    parkEdilen = ParkEdilenArama(
+      bilgi: b,
+      room: room,
+      listener: listener,
+      gecen: _duration,
+      micOn: _micOn,
+      camOn: _camOn,
+      isGroup: _isGroup,
+    );
+    // Alanlari BOSALT: baslat(yeni) bu odayi ne kapatir ne de karistirir (teardown
+    // "enqueue aninda yakala" kurali geregi yalniz _room/_listener uzerinden calisiyor).
+    _room = null;
+    _listener = null;
+    _durationTimer?.cancel();
+    _statsTimer?.cancel();
+    _kanitTimer?.cancel();
+    _mediaYedek?.cancel();
+    _statusPoll?.cancel();
+    // Park edilen aramanin karsisi kapatirsa (WS call.ended) parki DUSUR
+    final parkId = b.callId;
+    _parkEndedSub?.cancel();
+    _parkEndedSub = _svc.onCallEnded.listen((eid) {
+      if (eid != parkId || parkEdilen?.bilgi.callId != parkId) return;
+      parkiDusur(bildir: false);
+      rootMessengerKey.currentState?.showSnackBar(
+          SnackBar(content: Text('${b.peerName} beklemedeki aramayı sonlandırdı')));
+    });
+    unawaited(_svc.hold(parkId, true)); // karsi tarafta "Beklemede" yazsin
+    notifyListeners();
+  }
+
+  /// Beklemedeki aramayi KAPAT (kullanici bitirdi / karsi taraf kapatti).
+  Future<void> parkiDusur({bool bildir = true}) async {
+    final p = parkEdilen;
+    if (p == null) return;
+    parkEdilen = null;
+    _parkEndedSub?.cancel();
+    _parkEndedSub = null;
+    _svc.aktifKonusmaBitti(p.bilgi.callId);
+    _svc.ekranKapandi(p.bilgi.callId);
+    unawaited(CallKitService.bitir(p.bilgi.callId));
+    final room = p.room;
+    final listener = p.listener;
+    unawaited(CallRoomLock.calistir(() => _odaTemizle(room, listener, -1)));
+    if (bildir) {
+      try {
+        await _svc.end(p.bilgi.callId);
+      } catch (_) {}
+    }
+    notifyListeners();
+  }
+
+  /// BEKLEMEDEKI aramaya GERI DON (aktif arama bittikten sonra otomatik ya da elle).
+  Future<void> devamEt() async {
+    final p = parkEdilen;
+    if (p == null || arama != null) return; // once aktif arama bitmis olmali
+    parkEdilen = null;
+    _parkEndedSub?.cancel();
+    _parkEndedSub = null;
+    arama = p.bilgi;
+    _room = p.room;
+    _listener = p.listener;
+    _isGroup = p.isGroup;
+    _micOn = p.micOn;
+    _camOn = p.camOn;
+    _baglandi = true;
+    _connecting = false;
+    _peerJoined = true;
+    _mediaBasladi = true;
+    _odaBagli = true;
+    _ayrildi = false;
+    _kapandi = false;
+    _cevapsiz = false;
+    _error = null;
+    minimized = false;
+    beklemede = false;
+    _sureBaz = p.gecen; // kaldigi yerden
+    _sureSayaci
+      ..stop()
+      ..reset();
+    _svc.ekranAcildi(p.bilgi.callId); // mesgul muhafizi geri
+    await _medyaBeklet(p.room, false, micHedef: p.micOn, camHedef: p.camOn);
+    await _sesiAc(true); // iOS: ses birimi EN SON (hold->resume ses kaybi tuzagi)
+    unawaited(_svc.hold(p.bilgi.callId, false));
+    _startTimer();
+    notifyListeners();
+    ekraniAc();
+  }
+
+  /// Karsi taraf BENI beklemeye aldi (WS call.held) — yalniz bilgi (ekranda "Beklemede").
+  bool karsiBeklemede = false;
+  void karsiTarafBekletti(bool on) {
+    if (karsiBeklemede == on) return;
+    karsiBeklemede = on;
+    notifyListeners();
+  }
+
+  /// iOS CallKit BEKLET olayi (CXSetHeldCallAction): GSM aramasi geldi ya da kullanici
+  /// "Beklet ve Kabul" dedi. [callId] hangi arama icin geldigini soyler:
+  ///  - AKTIF arama ise -> medyayi durdur/geri ac (arama BITMEZ, oda acik kalir).
+  ///  - PARK EDILMIS arama ise -> zaten bekliyor; unhold gelirse ve aktif arama yoksa DEVAM ET.
+  Future<void> beklemeyeAl(String callId, bool aktif) async {
+    final p = parkEdilen;
+    if (p != null && p.bilgi.callId == callId) {
+      if (!aktif && arama == null) await devamEt();
+      return;
+    }
+    final room = _room;
+    if (arama == null || arama!.callId != callId || room == null) return;
+    if (beklemede == aktif) return;
+    beklemede = aktif;
+    await _medyaBeklet(room, aktif, micHedef: _micOn, camHedef: _camOn);
+    if (!aktif) await _sesiAc(true); // geri donuste ses birimini tazele (Apple tuzagi)
+    unawaited(_svc.hold(callId, aktif));
+    notifyListeners();
   }
 
   // ---- MINIMIZE / RESTORE (C4) ----

@@ -287,6 +287,24 @@ class _CallScreenState extends ConsumerState<CallScreen> {
                       if (c.peerJoined) const SizedBox(width: 6),
                       Text(c.durumMetni,
                           style: const TextStyle(color: Colors.white70, fontSize: 15)),
+                      // ARAMA BEKLETME (test turu 18): bu arama beklemede mi
+                      if (c.beklemede || c.karsiBeklemede)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                                color: const Color(0xAAEF6C00),
+                                borderRadius: BorderRadius.circular(12)),
+                            child: Text(
+                                c.beklemede
+                                    ? '⏸ Beklemede'
+                                    : '⏸ Karşı taraf sizi beklemeye aldı',
+                                style: const TextStyle(
+                                    color: Colors.white, fontSize: 12)),
+                          ),
+                        ),
                     ],
                   ),
                   // TESHIS: kullanici "ses gelmiyor" isaretler -> sunucuya SORUN-BILDIRIMI

@@ -163,6 +163,7 @@ func main() {
 		r.Post("/calls/{id}/add", callsH.Add) // aktif aramaya kisi ekle (1:1 -> grup yukseltme)
 		r.Post("/calls/{id}/answer", callsH.Answer)
 		r.Post("/calls/{id}/end", callsH.End)
+		r.Post("/calls/{id}/hold", callsH.Hold) // test turu 18: beklet/geri al (karsi tarafa bilgi)
 		r.Post("/calls/{id}/audio-stat", callsH.AudioStat) // CANLI eszamanli ses takibi (api log)
 		// Odalar (Spaces — sesli oda; in-app, arama sisteminden BAGIMSIZ)
 		r.Get("/rooms", roomsH.List)

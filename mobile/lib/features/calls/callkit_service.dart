@@ -47,6 +47,11 @@ class CallKitService {
   final _voipTokenController = StreamController<String>.broadcast();
   Stream<String> get onVoipToken => _voipTokenController.stream;
 
+  /// ARAMA BEKLETME (test turu 18): CallKit "Beklet" (CXSetHeldCallAction) — GSM aramasi
+  /// geldiginde ya da kullanici "Beklet ve Kabul" dediginde iOS gonderir. {id, on}
+  final _holdController = StreamController<Map<String, dynamic>>.broadcast();
+  Stream<Map<String, dynamic>> get onHold => _holdController.stream;
+
   /// Bizim programatik kapattigimiz aramalar. endCall() yeni bir "ended" olayi
   /// uretir; onu tekrar sunucuya "end" olarak GONDERMEMEK icin isaretliyoruz
   /// (yoksa bitir -> endCall -> ended -> end -> ... geri besleme dongusu).
@@ -108,6 +113,10 @@ class CallKitService {
       case CallEventActionCallTimeout(:final id):
         islenenler.add(id);
         _timeoutController.add(id); // 45sn auto-expire — kabul sonrasi SPURIOUS olabilir (onRed DEGIL)
+
+      // TEST TURU 18: iOS CallKit "Beklet" (CXSetHeldCallAction) -> medyayi durdur/geri ac
+      case CallEventActionCallToggleHold(:final id, :final isOnHold):
+        _holdController.add({'call_id': id, 'on': isOnHold == true});
 
       case CallEventActionDidUpdateDevicePushTokenVoip():
         _voipTokeniGonder(); // token olayla gelmiyor, ayrica sorulmali
@@ -174,10 +183,15 @@ class CallKitService {
         iconName: 'AppIcon',
         handleType: 'generic',
         supportsVideo: true,
-        maximumCallGroups: 1,
-        maximumCallsPerCallGroup: 1,
+        // TEST TURU 18 — ARAMA BEKLETME: iOS "Beklet ve Kabul / Bitir ve Kabul / Reddet"
+        // ekranini SISTEM cizer; sarti aktif aramanin BEKLENEBILIR olmasi + grup basina
+        // en az 2 arama. (Eskiden 1/false idi -> ozellik KAPALIYDI.) Beklet olayini artik
+        // KENDIMIZ isliyoruz (medya durur, oda ACIK kalir; donuste ses birimi tazelenir) —
+        // eski "GSM beklet-swap aramayi koparıyor" sorununun kok nedeni islenmemesiydi.
+        maximumCallGroups: 2,
+        maximumCallsPerCallGroup: 2,
         supportsDTMF: false,
-        supportsHolding: false,
+        supportsHolding: true,
         supportsGrouping: false,
         supportsUngrouping: false,
         // Ses oturumunu CallKit yonetsin; LiveKit odaya KABULDEN SONRA baglanir.

@@ -137,6 +137,8 @@ class GebzemApp extends ConsumerStatefulWidget {
 class _GebzemAppState extends ConsumerState<GebzemApp> with WidgetsBindingObserver {
   StreamSubscription? _kabulSub;
   StreamSubscription? _redSub;
+  StreamSubscription? _holdSub; // test turu 18: CallKit beklet
+  StreamSubscription? _heldSub; // test turu 18: karsi taraf beni bekletti
   StreamSubscription? _timeoutSub;
   StreamSubscription? _voipSub;
 
@@ -235,6 +237,23 @@ class _GebzemAppState extends ConsumerState<GebzemApp> with WidgetsBindingObserv
       notifier.end(callId);
     });
 
+    // TEST TURU 18 — ARAMA BEKLETME: iOS CallKit "Beklet" (GSM aramasi / "Beklet ve Kabul").
+    // Medya durur, oda ACIK kalir; geri alinca ses birimi tazelenir (Apple'in bilinen
+    // "hold sonrasi ses gelmiyor" tuzagi). Android'de bu olay gelmez (kendi katmanimiz var).
+    _holdSub = svc.onHold.listen((m) {
+      final id = m['call_id'] as String? ?? '';
+      if (id.isEmpty) return;
+      unawaited(ref.read(activeCallProvider).beklemeyeAl(id, m['on'] == true));
+    });
+
+    // Karsi taraf BENI beklemeye aldi -> ekranda "Beklemede" yazsin (bilgi amacli)
+    _heldSub = ref.read(callServiceProvider.notifier).onHeld.listen((m) {
+      final ctrl = ref.read(activeCallProvider);
+      if (ctrl.arama?.callId == (m['call_id'] as String? ?? '')) {
+        ctrl.karsiTarafBekletti(m['on'] == true);
+      }
+    });
+
     // iOS VoIP token'i -> sunucuya (kilit ekraninda arama caldirmak icin sart)
     _voipSub = svc.onVoipToken.listen((token) async {
       try {
@@ -270,9 +289,25 @@ class _GebzemAppState extends ConsumerState<GebzemApp> with WidgetsBindingObserv
       if (c['video'] as bool? ?? false) Permission.camera,
     ].request();
 
+    // TEST TURU 18 — ARAMA BEKLETME (iOS/CallKit): kullanici zaten bir ARAMADAYKEN
+    // CallKit'ten yeni aramayi kabul ettiyse (iOS'ta "Hold & Accept" / "End & Accept"
+    // ekranini sistem cizer, secim bize AYNI 'accept' olarak gelir) mevcut aramayi
+    // BEKLEMEYE AL ve yeni aramaya gec. Eskiden bu durumda arama "mesgul" sayilip
+    // KAPATILIYORDU. Oda/canli yayin ekranlarinda eski davranis (mesgul) korunur.
+    final ctrlOn = ref.read(activeCallProvider);
+    final bekletildi = ctrlOn.arama != null &&
+        ctrlOn.arama!.callId != callId &&
+        notifier.aktifAramaVar;
+    if (bekletildi) {
+      await ctrlOn.parkEt();
+      rootMessengerKey.currentState?.showSnackBar(const SnackBar(
+          content: Text('Önceki arama beklemeye alındı'),
+          duration: Duration(seconds: 2)));
+    }
+
     Map<String, dynamic>? info;
     try {
-      info = await notifier.answer(callId); // ONCE sunucuya kabul bildir
+      info = await notifier.answer(callId, zorla: bekletildi); // ONCE sunucuya kabul bildir
     } catch (e) {
       unawaited(izinF.catchError((_) => <Permission, PermissionStatus>{}));
       await CallKitService.bitir(callId);
@@ -323,6 +358,8 @@ class _GebzemAppState extends ConsumerState<GebzemApp> with WidgetsBindingObserv
 
   @override
   void dispose() {
+    _holdSub?.cancel();
+    _heldSub?.cancel();
     _kabulSub?.cancel();
     _redSub?.cancel();
     _timeoutSub?.cancel();

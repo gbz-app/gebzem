@@ -18,6 +18,7 @@ class IncomingCall {
     this.isGroup = false,
     this.chatTitle = '',
     this.participantCount = 0,
+    this.waiting = false,
   });
 
   final String callId;
@@ -27,6 +28,9 @@ class IncomingCall {
   final bool isGroup; // GRUP aramasi mi (coklu katilimci)
   final String chatTitle; // grup basligi
   final int participantCount; // grup katilimci sayisi (host dahil)
+  // TEST TURU 18 (arama bekletme): alici ZATEN baska bir gorusmede -> ekranda
+  // "Beklet ve Kabul / Bitir ve Kabul / Reddet" secenekleri gosterilir.
+  final bool waiting;
 
   factory IncomingCall.fromJson(Map<String, dynamic> j) => IncomingCall(
         callId: j['call_id'] as String,
@@ -37,6 +41,7 @@ class IncomingCall {
         isGroup: j['is_group'] == true || j['is_group'] == 'true',
         chatTitle: j['chat_title'] as String? ?? '',
         participantCount: (j['participant_count'] as num?)?.toInt() ?? 0,
+        waiting: j['waiting'] == true || j['waiting'] == 'true',
       );
 }
 
@@ -89,6 +94,12 @@ class CallService extends StateNotifier<IncomingCall?> {
   /// goruntu/ses kurulamaz (kullanicinin "ustte arama altta goruntu, goruntu gelmedi" sorunu).
   final Set<String> ekrandakiAramalar = {};
   bool get aramadaMi => ekrandakiAramalar.isNotEmpty;
+
+  /// Su an ACIK olan muhafiz bir ARAMA mi (oda/canli yayin ekrani DEGIL)? Arama bekletme
+  /// (test turu 18) yalniz arama-arama durumunda calisir: oda/yayin ekranlarinda ikinci
+  /// aramayi gostermek ses cakismasi yaratir (bilincli eski davranis korunur).
+  bool get aktifAramaVar => ekrandakiAramalar
+      .any((x) => !x.startsWith('oda_') && !x.startsWith('yayin'));
   void ekranAcildi(String id) {
     if (id.isNotEmpty) ekrandakiAramalar.add(id);
   }
@@ -117,10 +128,15 @@ class CallService extends StateNotifier<IncomingCall?> {
         // Ayni arama CallKit (kilit ekrani) uzerinden zaten gosterildiyse
         // uygulama ici ekrani ACMA — yoksa cift arama ekrani cikar.
         if (CallKitService.islenenler.contains(id)) return;
+        final gelen = IncomingCall.fromJson(p);
         // MESGUL: zaten bir aramadayken uzerine gelen-arama overlay'i BINMESIN
         // ("ustte arama altta goruntu"nun ikinci uretim yolu). Arayana backend 'mesgul' doner.
-        if (aramadaMi) return;
-        state = IncomingCall.fromJson(p);
+        // TEST TURU 18 ISTISNASI — ARAMA BEKLETME: sunucu `waiting:true` dediyse (alici
+        // SUREN bir aramada) overlay YINE gosterilir; 3 secenekli katman cikar
+        // (Beklet ve Kabul / Bitir ve Kabul / Reddet). Oda/canli yayin ekranlarinda
+        // (guard onekleri 'oda_' / 'yayin') eski davranis: gosterme.
+        if (aramadaMi && !(gelen.waiting && aktifAramaVar)) return;
+        state = gelen;
       case 'call.answered':
         final id = p['call_id'] as String? ?? '';
         kabulEdilenler.add(id);
@@ -128,6 +144,12 @@ class CallService extends StateNotifier<IncomingCall?> {
       case 'call.ended':
         final id = p['call_id'] as String? ?? '';
         aramaBitti(id);
+      case 'call.held':
+        // TEST TURU 18: karsi taraf beni beklemeye aldi/geri aldi
+        _heldController.add({
+          'call_id': p['call_id'] as String? ?? '',
+          'on': p['on'] == true,
+        });
       case 'call.participant.joined':
       case 'call.participant.left':
         // GRUP: izgarayi guncelle (CallScreen dinler). 1:1 aramada bu olaylar HIC gelmez.
@@ -149,6 +171,19 @@ class CallService extends StateNotifier<IncomingCall?> {
     CallKitService.bitir(id);
     _endedController.add(id);
   }
+
+  /// ARAMA BEKLETME (test turu 18): bu arama beklemeye alindi/geri alindi -> karsi tarafa
+  /// bilgi (ekraninda "Beklemede" yazar). Sunucu arama satirina DOKUNMAZ.
+  Future<void> hold(String callId, bool on) async {
+    if (callId.isEmpty) return;
+    try {
+      await _ref.read(apiProvider).post('/calls/$callId/hold', data: {'on': on});
+    } catch (_) {}
+  }
+
+  /// Karsi taraf beni beklemeye aldi mi (WS call.held) — CallScreen "Beklemede" yazar.
+  final _heldController = StreamController<Map<String, dynamic>>.broadcast();
+  Stream<Map<String, dynamic>> get onHeld => _heldController.stream;
 
   /// Arayan: "aramam cevaplandi mi / bitti mi" (WS call.answered kaybolursa kurtarma)
   Future<Map<String, dynamic>> callStatus(String callId) async {
@@ -225,11 +260,13 @@ class CallService extends StateNotifier<IncomingCall?> {
   /// Gelen aramayi kabul et.
   /// DIKKAT: state'i SIFIRLAMIYORUZ (once ekran acilir, sonra dismiss).
   /// null DONERSE: bu arama zaten baska yoldan cevaplandi -> cagiran ekran ACMASIN.
-  Future<Map<String, dynamic>?> answer(String callId) async {
+  /// [zorla]: ARAMA BEKLETME yolu (test turu 18) — kullanici "Beklet ve Kabul" / "Bitir ve
+  /// Kabul" dedi; mevcut arama bilincli olarak park edildi/bitirildi, mesgul kapisi ATLANIR.
+  Future<Map<String, dynamic>?> answer(String callId, {bool zorla = false}) async {
     // MESGUL: BASKA bir arama ekrani (calar/aktif) acikken gelen aramayi KABUL ETME.
     // Bu aramanin kendi ekrani answer'dan SONRA acilir, o yuzden ekrandakiAramalar'da
     // BU callId disinda bir id varsa mesgulüz -> ekran acma (cagiran null'da acmaz).
-    if (ekrandakiAramalar.any((x) => x != callId)) return null;
+    if (!zorla && ekrandakiAramalar.any((x) => x != callId)) return null;
     if (!_cevaplanan.add(callId)) return null; // ikinci kabul -> 409 olmadan engelle
     try {
       final res = await _ref.read(apiProvider).post('/calls/$callId/answer');

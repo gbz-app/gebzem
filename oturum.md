@@ -1969,11 +1969,11 @@ gorusme bitince kaldigi yerden devam eder.
 
 ### ADIMLAR
 - [x] 1. Konuk siniri: sinirsiz -> env STREAM_MAX_GUESTS varsayilan 3 (yayinci dahil 4 kisi)
-- [ ] 2. Backend: MESGUL kullaniciya ikinci arama ARTIK ILETILIR (call waiting) — 409 yerine
+- [x] 2. Backend: MESGUL kullaniciya ikinci arama ARTIK ILETILIR (call waiting) — 409 yerine
       'ringing' + WS/push `waiting:true`; ayrica POST /calls/{id}/hold {on} -> karsi tarafa
       `call.held` (o taraf "Beklemede" yazsin)
-- [ ] 3. Controller: PARK ET / DEVAM ET (ikinci Room; ilk aramanin odasi ACIK kalir, medya
+- [x] 3. Controller: PARK ET / DEVAM ET (ikinci Room; ilk aramanin odasi ACIK kalir, medya
       disable) + bekleyen arama durumu + B bitince A'ya donus
-- [ ] 4. iOS: IOSParams supportsHolding/maximumCallsPerCallGroup + ToggleHold olayi
-- [ ] 5. Android/uygulama-ici: aktif aramada gelen ikinci arama icin 3 dugmeli katman
+- [x] 4. iOS: IOSParams supportsHolding/maximumCallsPerCallGroup + ToggleHold olayi
+- [x] 5. Android/uygulama-ici: aktif aramada gelen ikinci arama icin 3 dugmeli katman
 - [ ] 6. analyze + go build + temiz build + yayin

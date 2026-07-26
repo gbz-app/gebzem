@@ -30,10 +30,72 @@ class _AktifAramaBannerState extends ConsumerState<AktifAramaBanner> {
   static const double _w = 152;
   static const double _h = 232;
 
+  /// BEKLEMEDEKI ARAMA SERIDI (test turu 18): aktif arama surerken park edilmis arama
+  /// varsa en ustte turuncu serit — dokun: aktif aramayi bitirip beklemedekine DON;
+  /// ✕: beklemedeki aramayi bitir.
+  Widget _parkSeridi(ActiveCallController c) {
+    final p = c.parkEdilen!;
+    final ad = p.isGroup
+        ? (p.bilgi.chatTitle.isEmpty ? 'Grup araması' : p.bilgi.chatTitle)
+        : p.bilgi.peerName;
+    return Positioned(
+      top: 0,
+      left: 0,
+      right: 0,
+      child: Material(
+        color: const Color(0xFFEF6C00),
+        child: SafeArea(
+          bottom: false,
+          child: InkWell(
+            onTap: () async {
+              // Aktif arama varsa once onu bitir; leave() beklemedekine OTOMATIK doner.
+              if (c.arama != null) {
+                await c.leave(notifyServer: true);
+              } else {
+                await c.devamEt();
+              }
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+              child: Row(children: [
+                const Icon(LucideIcons.pause, color: Colors.white, size: 16),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text('Beklemede: $ad  ·  dokun ve geç',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600)),
+                ),
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => c.parkiDusur(),
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    child: Icon(LucideIcons.x, color: Colors.white, size: 18),
+                  ),
+                ),
+              ]),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = ref.watch(activeCallProvider);
     final b = c.arama;
+    // BEKLEMEDEKI ARAMA (test turu 18): aktif arama ekrani acikken de, uygulamada
+    // gezerken de en ustte gorunur. PiP/yuzen pencere mantigi ETKILENMEZ.
+    final park = c.parkEdilen != null ? _parkSeridi(c) : null;
+    if (park != null && (b == null || !c.minimized)) {
+      // Aktif arama ekrani acik (veya arama yok) -> yalniz park seridini bindir
+      return Stack(children: [widget.child, park]);
+    }
     // ANDROID SISTEM PiP (test turu 14): PiP penceresi HANGI sayfada olursak olalim karsi
     // tarafin videosunu TAM EKRAN gostersin (eskiden yalniz CallScreen ustundeyken calisiyordu;
     // arama kucultulup uygulamada gezerken HOME'a inince PiP'te ana ekran gorunuyordu).

@@ -81,9 +81,26 @@ class _IncomingCallSheetState extends ConsumerState<_IncomingCallSheet> {
     super.dispose();
   }
 
-  Future<void> _accept() async {
+  /// ARAMA BEKLETME (test turu 18): bu arama BEN BASKA GORUSMEDEYKEN geldi.
+  /// [beklet]=true -> mevcut aramayi beklemeye al (sunucuda olmez, medya durur);
+  /// false -> mevcut aramayi BITIR. Ikisinde de yeni arama kabul edilir (zorla).
+  Future<void> _bekletVeyaBitirKabul({required bool beklet}) async {
     if (_busy) return;
     setState(() => _busy = true);
+    final ctrl = ref.read(activeCallProvider);
+    try {
+      if (beklet) {
+        await ctrl.parkEt();
+      } else {
+        await ctrl.leave(notifyServer: true);
+      }
+    } catch (_) {}
+    await _accept(zorla: true);
+  }
+
+  Future<void> _accept({bool zorla = false}) async {
+    if (_busy && !zorla) return;
+    if (mounted) setState(() => _busy = true);
     // FAZ-1B HIZ: zil durdurmayi BEKLEME (nesil jetonu + dispose'taki durdur yarisi zaten
     // koruyor) + izinleri answer REST'iyle PARALEL iste (verilmisse anlik doner; _connect'in
     // kendi request'i artik cache'ten cikar).
@@ -97,7 +114,7 @@ class _IncomingCallSheetState extends ConsumerState<_IncomingCallSheet> {
     // Navigator.of(context) kullanilamaz — kok Navigator anahtarini kullaniyoruz.
     final notifier = ref.read(callServiceProvider.notifier);
     try {
-      final info = await notifier.answer(widget.call.callId);
+      final info = await notifier.answer(widget.call.callId, zorla: zorla);
       if (info == null) {
         // Arama zaten baska yoldan (CallKit) kabul edildi -> ekrani acma
         unawaited(izinF.catchError((_) => <Permission, PermissionStatus>{}));
@@ -172,23 +189,56 @@ class _IncomingCallSheetState extends ConsumerState<_IncomingCallSheet> {
                     : (call.video ? 'Goruntulu arama' : 'Sesli arama'),
                 style: const TextStyle(color: Colors.white70, fontSize: 16)),
             const Spacer(flex: 3),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _bigButton(
-                  color: const Color(0xFFE53935),
-                  icon: LucideIcons.phoneOff,
-                  label: 'Reddet',
-                  onTap: _reject,
+            // ARAMA BEKLETME (test turu 18): bu arama BEN BASKA GORUSMEDEYKEN geldiyse
+            // (sunucu `waiting:true`) telefonun kendi ekrani gibi UC secenek gosterilir.
+            if (call.waiting)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _bigButton(
+                      color: const Color(0xFFE53935),
+                      icon: LucideIcons.phoneOff,
+                      label: 'Reddet',
+                      onTap: _reject,
+                      kucuk: true,
+                    ),
+                    _bigButton(
+                      color: const Color(0xFFEF6C00),
+                      icon: LucideIcons.phoneOff,
+                      label: 'Bitir ve\nkabul et',
+                      onTap: () => _bekletVeyaBitirKabul(beklet: false),
+                      kucuk: true,
+                    ),
+                    _bigButton(
+                      color: const Color(0xFF25D366),
+                      icon: LucideIcons.pause,
+                      label: 'Beklet ve\nkabul et',
+                      onTap: () => _bekletVeyaBitirKabul(beklet: true),
+                      kucuk: true,
+                    ),
+                  ],
                 ),
-                _bigButton(
-                  color: const Color(0xFF25D366),
-                  icon: call.video ? LucideIcons.video : LucideIcons.phone,
-                  label: 'Kabul et',
-                  onTap: _accept,
-                ),
-              ],
-            ),
+              )
+            else
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _bigButton(
+                    color: const Color(0xFFE53935),
+                    icon: LucideIcons.phoneOff,
+                    label: 'Reddet',
+                    onTap: _reject,
+                  ),
+                  _bigButton(
+                    color: const Color(0xFF25D366),
+                    icon: call.video ? LucideIcons.video : LucideIcons.phone,
+                    label: 'Kabul et',
+                    onTap: _accept,
+                  ),
+                ],
+              ),
             const SizedBox(height: 48),
           ],
         ),
@@ -201,21 +251,25 @@ class _IncomingCallSheetState extends ConsumerState<_IncomingCallSheet> {
     required IconData icon,
     required String label,
     required VoidCallback onTap,
+    bool kucuk = false, // 3 secenek yan yana sigsin (arama bekletme)
   }) {
+    final cap = kucuk ? 60.0 : 72.0;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         GestureDetector(
           onTap: _busy ? null : onTap,
           child: Container(
-            width: 72,
-            height: 72,
+            width: cap,
+            height: cap,
             decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-            child: Icon(icon, color: Colors.white, size: 32),
+            child: Icon(icon, color: Colors.white, size: kucuk ? 26 : 32),
           ),
         ),
         const SizedBox(height: 10),
-        Text(label, style: const TextStyle(color: Colors.white70)),
+        Text(label,
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.white70, fontSize: kucuk ? 12 : 14)),
       ],
     );
   }
