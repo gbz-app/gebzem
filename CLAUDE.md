@@ -15,6 +15,41 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (26 Tem 18:44):** TEST TURU 32-33 YAYINLANDI — android 30208385166 +
+  ios 30208386190 (7aca13b), R2 apk=105227857 ipa=19139678, purge OK, CDN birebir, sayfadaki
+  saat GERCEK yukleme saati, **BACKEND DEPLOY EDILDI** (health ok), DB temiz. KULLANICI TEST EDECEK.
+- **TEST TURU 32-33 (arka plan + kilit ekrani — 19 ajanlik arastirma sonucu):**
+  (1) **ANDROID ONDEPLAN SERVISI** `AramaServisi.kt` + manifest `<service
+  foregroundServiceType="microphone|camera">` + kanal `aramaServisiBasla/Dur` +
+  `PipService.aramaServisi`. KOK: Android 14+ arka plana gecen sureci **10sn sonra DONDURUR**
+  (cached apps freezer) -> WebRTC durur -> arama biter (kullanici: "5-10sn sonra bitiyor").
+  Android 11+ arka plan mikrofonu icin `microphone` tipi ZORUNLU. Izinler alinmisti ama
+  HICBIR servis yoktu. Baslat: `_connect` icinde `aktifKonusmaBasladi` ile ayni yer (izin
+  KESIN + ekran GORUNUR). Durdur: `leave` icindeki `parkEdilen == null` kapisi + `parkiDusur`.
+  (2) **KILITLI iPHONE CALMIYORDU**: VoIP token TEK denemede gonderiliyordu; PushKit kaydi
+  ASENKRON oldugu icin giris aninda `getDevicePushTokenVoIP()` BOS donuyor ve BIR DAHA
+  denenmiyordu -> `voip_tokens` satiri HIC olusmuyor. Her surumde DB TRUNCATE edildigi icin
+  surekli tekrarliyordu. Artik istemcide 5 deneme (token alma + POST) ve sunucuda
+  `voip push: VOIP TOKEN YOK` / `gonderildi` / `gonderim HATASI` loglari.
+  (3) **ARANANDA KAMERA ACILMIYOR**: `_onizlemeAc()` unawaited + `_odayaBaglan` SENKRON
+  okuma = iki kamera track'i (iOS'ta flutter_webrtc TEK `videoCapturer` uzerine yazar ->
+  coklu-gorev bayragi YANLIS oturuma gider). Artik `_onizlemeIsi` en fazla **700ms** beklenir.
+  `setCameraEnabled` try'siz idi -> istisna `_connect` catch'ine dusup `_svc.end` ile aramayi
+  OLDURUYORDU; artik try/catch + "Kamera acilamadi". Zombi onizleme track'i `baslat`ta salinir.
+  Gelen arama ekrani onizlemesi artik izin ISTIYOR (parite).
+  (4) **iOS PiP ALT KUTU**: `preferredContentSize` 120x200 -> **120x400** (iki kutu 6:5 iken
+  9:16 kaynak kirpiliyordu); `yerelAyarla` SONUC METNI dondurur (eklendi/track-yok/...),
+  Dart Sentry'e yazar + bayragi sifirlayip TEKRAR dener; `localTracks` defterinden yedek
+  cozumleme; `PipVideoView` bos siyah yerine "Kamera duraklatildi" etiketi (kare gelince gizlenir).
+  (5) `cokluGorevKameraAc` artik sonucu GERI OKUR (kosulsuz true = yalan bayrak, durust mute
+  yolunu kapatiyordu). `RoomDisconnectedEvent.reason` Sentry'e yazilir (olcum).
+  ⚠️ YAPMA: ondeplan servisini izin alinmadan/arka plandayken baslatma; `_onizlemeIsi`
+  await'ini kaldirma; VoIP token gonderimini tek denemeye dondurme; `yerelAyarla`yi tekrar
+  sessiz-basarisiz yapma; Objective-C `NSMutableDictionary` icin Swift'te `.keys` kullanma
+  (`allKeys` + String cast — iOS build bu yuzden patladi).
+- **DURUST SINIR (kullaniciya soylendi):** iOS/Android'de kullanici uygulamayi OLDURURSE
+  (app switcher'dan yukari atma) arama devam ETTIRILEMEZ — OS kurali, WhatsApp da yapamaz.
+  Kilit ekrani ise devam EDER.
 - **KALDIGIMIZ YER (26 Tem 16:40):** TEST TURU 27-31 YAYINLANDI — android 30204095501 +
   ios 30204096587 (eb29925), R2 apk=105227813 ipa=19138192, purge OK, CDN birebir, sayfadaki
   saat GERCEK yukleme saati, backend degismedi + health ok, DB temiz. KULLANICI TEST EDECEK.
