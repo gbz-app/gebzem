@@ -223,41 +223,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       ),
       body: Column(
         children: [
-          // TEST TURU 21 (WhatsApp): aktif arama KUCULTULMUSKEN sohbetin ustunde
-          // "Aramada · Geri dönmek için dokun" seridi — dokun, aramaya don.
-          Consumer(builder: (context, ref2, _) {
-            final ctrl = ref2.watch(activeCallProvider);
-            if (ctrl.arama == null || !ctrl.minimized) {
-              return const SizedBox.shrink();
-            }
-            return Material(
-              color: const Color(0xFF1F2C34),
-              child: InkWell(
-                onTap: ctrl.restore,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-                  child: Row(children: [
-                    const Icon(LucideIcons.video,
-                        size: 16, color: Color(0xFF25D366)),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                          ctrl.isGroup
-                              ? 'Grup araması · Aramada · Geri dönmek için dokun'
-                              : 'Aramada · Geri dönmek için dokun',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              color: Colors.white, fontSize: 13)),
-                    ),
-                    Text(ctrl.durumMetni,
-                        style: const TextStyle(
-                            color: Colors.white70, fontSize: 12)),
-                  ]),
-                ),
-              ),
-            );
-          }),
           Expanded(
             child: messages.when(
               loading: () => const Center(child: CircularProgressIndicator()),
@@ -269,8 +234,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 return ListView.builder(
                   controller: _scroll,
                   padding: const EdgeInsets.all(12),
-                  itemCount: list.length,
+                  // TEST TURU 29 (kullanici: "sana chatte 'aramaya dön' vb. yap dedim,
+                  // sen HEADER eklemişsin"): aktif arama kucultulmusken bu satir artik
+                  // ust serit DEGIL, mesaj akisinin EN ALTINDA bir BALON (WhatsApp).
+                  itemCount: list.length + 1,
                   itemBuilder: (context, i) {
+                    if (i == list.length) return const _AktifAramaBalonu();
                     final msg = list[i];
                     final mine = msg.senderId == myId;
                     final showDate = i == 0 ||
@@ -358,6 +327,66 @@ class _DateChip extends StatelessWidget {
       child: Chip(
         label: Text(label, style: const TextStyle(fontSize: 12)),
         visualDensity: VisualDensity.compact,
+      ),
+    );
+  }
+}
+
+/// TEST TURU 29 — AKTIF ARAMA BALONU (kullanici istegi: "chatte 'aramaya dön' yaz"
+/// demistim, HEADER yapilmisti). Arama KUCULTULMUSKEN mesaj akisinin EN ALTINDA,
+/// WhatsApp'taki gibi yesil bir BALON olarak durur; dokununca aramaya doner.
+/// Arama yoksa/kucultulmemisse hicbir sey cizmez.
+class _AktifAramaBalonu extends ConsumerWidget {
+  const _AktifAramaBalonu();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final ctrl = ref.watch(activeCallProvider);
+    if (ctrl.arama == null || !ctrl.minimized) return const SizedBox.shrink();
+    return Align(
+      alignment: Alignment.center,
+      child: Padding(
+        padding: const EdgeInsets.only(top: 8, bottom: 4),
+        child: Material(
+          color: const Color(0xFF075E54),
+          borderRadius: BorderRadius.circular(16),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: ctrl.restore,
+            child: Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                const Icon(LucideIcons.phone,
+                    size: 16, color: Color(0xFF25D366)),
+                const SizedBox(width: 10),
+                Flexible(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                          ctrl.isGroup
+                              ? 'Grup aramasındasın'
+                              : 'Aramadasın',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600)),
+                      Text('Geri dönmek için dokun · ${ctrl.durumMetni}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              color: Colors.white70, fontSize: 12)),
+                    ],
+                  ),
+                ),
+              ]),
+            ),
+          ),
+        ),
       ),
     );
   }

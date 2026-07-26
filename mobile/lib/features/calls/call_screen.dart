@@ -197,15 +197,25 @@ class _CallScreenState extends ConsumerState<CallScreen> {
 
   // ---- video getter'lari (controller.room uzerinden; render kurallari AYNEN) ----
 
+  /// TEST TURU 29 — karsi tarafin videosu MUTE OLSA DA dondurulur; kutu agacta KALIR,
+  /// uzerine bulanik "Beklemede" ortusu binir (`_uzakBeklemede`).
+  /// KOK NEDEN: eskiden mute olunca bu getter null donuyordu -> karsi tarafin kutusu
+  /// AGACTAN SILINIYOR, buyuk goruntu BANA zipliyor ve karsi taraf donunce renderer
+  /// SIFIRDAN kuruluyordu (= siyah patlama). ⚠️ YAPMA: buraya tekrar `muted == false` koyma.
   VideoTrack? get _remoteVideo {
     final p = _c.room?.remoteParticipants.values.firstOrNull;
     final pub = p?.videoTrackPublications.firstOrNull;
-    // FAZ-6 donma fix'inin ekran yarisi: karsi taraf kamerayi MUTE ettiyse (arka plana
-    // indi) donuk son kare degil avatar goster (grup tile'lari zaten boyle yapiyordu).
-    if (pub?.subscribed == true && pub?.muted == false && pub?.track != null) {
+    if (pub?.subscribed == true && pub?.track != null) {
       return pub!.track as VideoTrack;
     }
     return null;
+  }
+
+  /// Karsi tarafin videosu su an MUTE mi (arka plan/beklemede) — ortu icin.
+  bool get _uzakBeklemede {
+    final p = _c.room?.remoteParticipants.values.firstOrNull;
+    final pub = p?.videoTrackPublications.firstOrNull;
+    return pub?.subscribed == true && pub?.muted == true && pub?.track != null;
   }
 
   /// 1:1'de karsi tarafin MUTE (arka plan/beklemede) video track'i — son kare bulaniklastirilir.
@@ -259,7 +269,10 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     final Widget? uzakKutu = remote == null
         ? null
         : _videoKutu(context, const ValueKey('kutu-uzak'), remote,
-            buyuk: uzakBuyuk, yerel: false, swapEdilebilir: bothVideo);
+            buyuk: uzakBuyuk,
+            yerel: false,
+            swapEdilebilir: bothVideo,
+            beklemede: _uzakBeklemede);
     final Widget? yerelKutu = (local == null || !c.camOn)
         ? null
         : _videoKutu(context, const ValueKey('kutu-yerel'), local,
@@ -578,7 +591,8 @@ class _CallScreenState extends ConsumerState<CallScreen> {
   Widget _videoKutu(BuildContext c2, Key anahtar, VideoTrack track,
       {required bool buyuk,
       required bool yerel,
-      required bool swapEdilebilir}) {
+      required bool swapEdilebilir,
+      bool beklemede = false}) {
     final sz = MediaQuery.of(c2).size;
     final w = buyuk ? sz.width : (_uiGizli ? 100.0 : _selfW);
     final h = buyuk ? sz.height : (_uiGizli ? 143.0 : _selfH);
@@ -634,14 +648,19 @@ class _CallScreenState extends ConsumerState<CallScreen> {
             builder: (_, r, child) => ClipRRect(
                 borderRadius: BorderRadius.circular(r), child: child),
             // TEST TURU 24: cerceve/golge YOK — yalniz videonun kendisi.
-            child: IgnorePointer(
-              child: VideoTrackRenderer(track,
-                  // KIMLIK SABIT (sid yayina alinirken degisir; mediaStreamTrack.id degismez)
-                  key: ValueKey('vid-${track.mediaStreamTrack.id}'),
-                  fit: VideoViewFit.cover,
-                  mirrorMode:
-                      yerel ? _c.yerelAyna : VideoViewMirrorMode.auto),
-            ),
+            child: Stack(fit: StackFit.expand, children: [
+              IgnorePointer(
+                child: VideoTrackRenderer(track,
+                    // KIMLIK SABIT (sid yayina alinirken degisir; mediaStreamTrack.id degismez)
+                    key: ValueKey('vid-${track.mediaStreamTrack.id}'),
+                    fit: VideoViewFit.cover,
+                    mirrorMode:
+                        yerel ? _c.yerelAyna : VideoViewMirrorMode.auto),
+              ),
+              // TEST TURU 29: karsi taraf arka planda -> renderer DEGISMEZ, uzerine
+              // bulanik "Beklemede" ortusu biner (widget degistirmek patlama uretiyordu).
+              if (beklemede) const Positioned.fill(child: BeklemedeOrtusu()),
+            ]),
           ),
         ),
       ),
@@ -679,10 +698,12 @@ class _CallScreenState extends ConsumerState<CallScreen> {
             onTap: c.toggleSpeaker,
           ),
           const SizedBox(width: 10),
+          // TEST TURU 29: mikrofon ACIK durumu gorsel olarak ayirt EDILMIYORDU
+          // (`beyaz:false` sabitti, `kirmiziIkon` ise iki dalda da beyaz veriyordu =
+          // olu parametre). Artik kamera/hoparlor ile AYNI kural: acik = BEYAZ daire.
           _hapBtn(
             icon: c.micOn ? LucideIcons.mic : LucideIcons.micOff,
-            beyaz: false,
-            kirmiziIkon: !c.micOn,
+            beyaz: c.micOn,
             onTap: c.toggleMic,
           ),
           const SizedBox(width: 10),
@@ -708,7 +729,9 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     final zemin = arka ?? (beyaz ? Colors.white : const Color(0xFF3A464E));
     final renk = arka != null
         ? Colors.white
-        : (beyaz ? const Color(0xFF0B141A) : (kirmiziIkon ? Colors.white : Colors.white));
+        : (beyaz
+            ? const Color(0xFF0B141A)
+            : (kirmiziIkon ? const Color(0xFFE53935) : Colors.white));
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
@@ -723,6 +746,13 @@ class _CallScreenState extends ConsumerState<CallScreen> {
 
   /// ••• menusu: kamera cevir + kisi ekle (alt cubuk sade kalsin diye buraya alindi)
   void _ekSecenekler() {
+    // TEST TURU 29 — EKRAN KILITLENMESI FIX'I: bu sayfa ACIKKEN karsi taraf kapatirsa
+    // `_ctrlDegisti` iki pop yapar; `_sheetAcik` isaretlenmezse TEK pop calisip yalniz
+    // SAYFAYI kapatiyor, arama ekrani opacity 0 halde EKRANDA KALIYORDU (geri tusu de
+    // bloklu -> uygulamayi oldurmek gerekiyordu; dahasi ekranGorunur true kaldigi icin
+    // SONRAKI arama ekrani da hic acilmiyordu). ⚠️ Yeni sheet/dialog eklerken AYNI
+    // bayragi set et.
+    _sheetAcik = true;
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF1E282E),
@@ -760,7 +790,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
           ),
         ]),
       ),
-    );
+    ).whenComplete(() => _sheetAcik = false);
   }
 
   /// Cevapsiz/reddedilen: Geri Ara (peerId varsa) + Kapat.
@@ -839,12 +869,22 @@ class _CallScreenState extends ConsumerState<CallScreen> {
       // TEST TURU 22: yayin baslamadan da kendi goruntum (onizleme track'i) gorunsun
       return p.videoTrackPublications.firstOrNull?.track ?? _c.kendiGoruntum;
     }
+    // TEST TURU 29: MUTE track de dondurulur (tile agacta KALSIN) — bulanik "Beklemede"
+    // ortusu `_katilimciBeklemede` ile ustune binir. ⚠️ YAPMA: `!pub.muted` sartini geri
+    // koyma (tile silinip geri gelince renderer sifirdan kurulur = siyah patlama).
     for (final pub in p.videoTrackPublications) {
-      if (pub.subscribed && !pub.muted && pub.track != null) {
-        return pub.track as VideoTrack;
-      }
+      if (pub.subscribed && pub.track != null) return pub.track as VideoTrack;
     }
     return null;
+  }
+
+  /// Grup tile'i su an "Beklemede" mi (uzak katilimcinin videosu MUTE).
+  bool _katilimciBeklemede(Participant p) {
+    if (p is LocalParticipant) return false;
+    for (final pub in p.videoTrackPublications) {
+      if (pub.subscribed && pub.muted && pub.track != null) return true;
+    }
+    return false;
   }
 
   /// TEST TURU 21 (WhatsApp deneyimi): karsi taraf uygulamayi arka plana aldi/kapatti ya da
@@ -966,20 +1006,26 @@ class _CallScreenState extends ConsumerState<CallScreen> {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            if (video != null)
+            if (video != null) ...[
               IgnorePointer(
                 child: VideoTrackRenderer(video,
-                    key: ValueKey('tile-${video.sid}'),
+                    // TEST TURU 29 — GRUPTA SIYAH PATLAMA KOKU: anahtar `video.sid` idi;
+                    // livekit'te `Track.sid` YAYINLANANA KADAR NULL, yayinda atanir ->
+                    // anahtar 'tile-null' -> 'tile-TR_xxx' degisiyor -> renderer YENIDEN
+                    // kuruluyor -> aramanin 1-2. saniyesinde kendi kutunda SIYAH SICRAMA.
+                    // mediaStreamTrack.id yayin oncesi/sonrasi AYNI kalir.
+                    // ⚠️ YAPMA: tile anahtarina tekrar sid koyma.
+                    key: ValueKey('tile-${video.mediaStreamTrack.id}'),
                     fit: VideoViewFit.cover,
                     mirrorMode: yerel ? _c.yerelAyna : VideoViewMirrorMode.auto,
                     adaptiveStreamPixelDensity:
                         const AdaptiveStreamPixelDensity.fixed(1.0)),
-              )
-            // TEST TURU 21: kamerasi MUTE olan (arka planda/beklemede) katilimcinin SON KARESI
-            // BULANIK + "Beklemede" (WhatsApp gorunumu). Track hic yoksa avatar.
-            else if (_beklemedekiVideo(p) != null)
-              BeklemedeKatmani(track: _beklemedekiVideo(p), harf: ad)
-            else
+              ),
+              // TEST TURU 21+29: kamerasi MUTE olan (arka planda/beklemede) katilimcinin
+              // SON KARESI BULANIK + "Beklemede" (WhatsApp). Renderer DEGISMEZ, ortu biner.
+              if (_katilimciBeklemede(p))
+                const Positioned.fill(child: BeklemedeOrtusu()),
+            ] else
               // TEST TURU 22 (kullanici ekran goruntusu): kamerasi kapali katilimci —
               // ORTADA daire avatar + ALTINDA adi (FaceTime/WhatsApp duzeni).
               Container(

@@ -11,6 +11,44 @@ import 'package:livekit_client/livekit_client.dart' as lk;
 /// Biz de aynisini yapiyoruz: video + BackdropFilter(blur) + etiket.
 ///
 /// [track] null ise (hic video yok / abonelik yok) avatar yedegi cizilir.
+///
+/// TEST TURU 29 — [BeklemedeOrtusu]: KENDI RENDERER'INI KURMAYAN surum. Zaten cizili olan
+/// video renderer'inin USTUNE binen bulaniklik + etiket. Bu SART: eskiden mute olunca
+/// VideoTrackRenderer -> BeklemedeKatmani DEGISIMI yapiliyordu; bu, renderer element'ini
+/// yok edip yeniden kuruyor (texture sifirdan) -> karsi taraf arka plandan donunce SIYAH
+/// PATLAMA. Ortu yaklasiminda renderer HIC degismez.
+class BeklemedeOrtusu extends StatelessWidget {
+  const BeklemedeOrtusu({super.key, this.etiket = 'Beklemede', this.bulaniklik = 12});
+
+  final String etiket;
+  final double bulaniklik;
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Stack(fit: StackFit.expand, children: [
+        ClipRect(
+          child: BackdropFilter(
+            filter: ui.ImageFilter.blur(sigmaX: bulaniklik, sigmaY: bulaniklik),
+            child: Container(color: Colors.black.withValues(alpha: 0.25)),
+          ),
+        ),
+        Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.45),
+                borderRadius: BorderRadius.circular(14)),
+            child: Text(etiket,
+                style: const TextStyle(
+                    color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
 class BeklemedeKatmani extends StatelessWidget {
   const BeklemedeKatmani({
     super.key,

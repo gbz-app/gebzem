@@ -135,6 +135,15 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
     }
     if (state == AppLifecycleState.resumed && mounted && !_ayrildi) {
       _pipKameraGecikme?.cancel();
+      // TEST TURU 29: iOS'ta on plana donunce PiP'i KOSULSUZ durdur. Aksi halde native
+      // pencere asili kalabiliyor ve `PipService.pipModu` bayat TRUE takiliyordu — bu
+      // ekran (satir ~677) o bayrakla KONTROLSUZ/CIKISSIZ sade gorunume dusuyor
+      // (kullanicinin "ekran gidiyor, basamiyorum" sikayeti). Arama ekraninda ayni
+      // duzeltme var; yayin ekranlarinda EKSIKTI.
+      if (Platform.isIOS) {
+        PipService.pipModu.value = false;
+        unawaited(PipService.iosPipDurdur());
+      }
       if (_kameraOtoKapandi) {
         _kameraOtoKapandi = false;
         _kameraAcik = true;
@@ -674,7 +683,10 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
     // SISTEM PiP (test turu 15): kucuk pencerede SADE gorunum — tek video, chat/kontrol yok.
     // (Yayin PiP'te SURER: Android'de PiP on plan sayilir, kamera capture DEVAM eder ->
     // izleyiciler donmus kare gormez.)
-    if (PipService.pipModu.value) {
+    // TEST TURU 29: YALNIZ ANDROID. iOS'ta PiP icerigini NATIVE ciziyor; burada sade
+    // gorunume gecmek gereksiz ve bayrak bayat kalirsa uygulama KONTROLSUZ/CIKISSIZ
+    // ekranda kilitleniyordu (arama ekraninda ayni kapi turu 25'te konmustu).
+    if (Platform.isAndroid && PipService.pipModu.value) {
       // TEST TURU 17: kucuk pencerede IZGARA — yayinci + konuklar (2 sol/sag, 3 ustte 2 +
       // altta 1 tam genislik, 4 ceyrek). Konuk yoksa tek kutu tam ekran.
       return Scaffold(

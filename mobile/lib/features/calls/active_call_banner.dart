@@ -26,6 +26,7 @@ class AktifAramaBanner extends ConsumerStatefulWidget {
 class _AktifAramaBannerState extends ConsumerState<AktifAramaBanner> {
   // Yuzen pencere konumu (null = ilk cizimde sag-uste yerlesir). Surukleyince guncellenir.
   Offset? _pos;
+  bool _yapisiyor = false; // turu 29: birakinca kenara yapisma animasyonu suruyor mu
   // TEST TURU 14: kullanici "kucuk ekran biraz buyuk olmali" dedi -> 116x168 yerine
   // 152x232 (9:16'ya yakin, kontrol seridi ile birlikte rahat okunur).
   static const double _w = 152;
@@ -219,16 +220,45 @@ class _AktifAramaBannerState extends ConsumerState<AktifAramaBanner> {
     pos = Offset(pos.dx.clamp(4.0, enFazlaX), pos.dy.clamp(guvenli.top + 4, enFazlaY));
     final katilimcilar = c.miniKatilimcilar; // izgara (test turu 17)
 
-    return Positioned(
+    return AnimatedPositioned(
+      // Surukleme sirasinda animasyon YOK (parmakla birebir); birakinca kenara 180ms yapisir.
+      duration: _yapisiyor
+          ? const Duration(milliseconds: 180)
+          : Duration.zero,
+      curve: Curves.easeOutCubic,
+      onEnd: () {
+        if (_yapisiyor && mounted) setState(() => _yapisiyor = false);
+      },
       left: pos.dx,
       top: pos.dy,
       child: GestureDetector(
-        // Surukle: pencereyi tasi (ekran icinde tut)
+        // TEST TURU 29 — SURUKLEME AKICILIGI (kullanici: "akici sekilde surukleyebilelim").
+        // KOK NEDEN: delta, BUILD sirasindaki yerel `pos`a ekleniyordu ve `_pos` yalniz
+        // YAZILIYOR, jest icinde OKUNMUYORDU. Flutter ayni karede birden fazla pointer
+        // olayi dagitir (Android MotionEvent history / iOS 120Hz coalesced touch) ->
+        // hepsi AYNI bayat `pos`u taban alir, ara deltalar KAYBOLUR -> pencere parmagin
+        // yarisi hizinda kalir. Artik guncel `_pos` taban alinir (call_screen'deki
+        // self-view deseni). ⚠️ YAPMA: jest icinde build'in `pos` degiskenini kullanma.
+        onPanStart: (_) => _pos ??= pos,
         onPanUpdate: (d) {
-          final ny = (pos.dy + d.delta.dy)
-              .clamp(guvenli.top + 4, ekran.height - _h - guvenli.bottom - 4);
-          final nx = (pos.dx + d.delta.dx).clamp(4.0, ekran.width - _w - 4);
+          final cur = _pos ?? pos;
+          final ustSinir = guvenli.top + 4;
+          final altSinir = (ekran.height - _h - guvenli.bottom - 4)
+              .clamp(ustSinir, double.infinity);
+          final sagSinir = (ekran.width - _w - 4).clamp(4.0, double.infinity);
+          final ny = (cur.dy + d.delta.dy).clamp(ustSinir, altSinir);
+          final nx = (cur.dx + d.delta.dx).clamp(4.0, sagSinir);
           setState(() => _pos = Offset(nx.toDouble(), ny.toDouble()));
+        },
+        // Birakinca en yakin kenara YAPIS (WhatsApp) — 180ms yumusak gecis.
+        onPanEnd: (_) {
+          final cur = _pos ?? pos;
+          final sagSinir = (ekran.width - _w - 4).clamp(4.0, double.infinity);
+          final sagda = (cur.dx + _w / 2) >= ekran.width / 2;
+          setState(() {
+            _yapisiyor = true;
+            _pos = Offset(sagda ? sagSinir.toDouble() : 4.0, cur.dy);
+          });
         },
         // Videoya dokun -> aramaya don
         onTap: c.restore,

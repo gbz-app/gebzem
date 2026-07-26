@@ -121,6 +121,10 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     // yerine avatar). Android'de zaten PipService.dinle var; iOS bu ayri kanaldan gelir.
     PipService.iosDinle(onDurum: (aktif) {
       pipModunda = aktif;
+      // TEST TURU 29: Android dalinda (satir ~103) olan ama iOS'ta EKSIK olan adim —
+      // PiP GERCEKTEN basladiysa bekleyen 900ms'lik kamera-mute zamanlayicisini IPTAL et.
+      // Yoksa PiP acikken kamera yine de kapaniyor ve karsi taraf beni goremiyordu.
+      if (aktif) _pipKameraGecikme?.cancel();
       notifyListeners();
     }, onBasarisiz: _iosPipBasarisiz);
     // TEST TURU 20 — GSM ARAMA BEKLETME (Android; iOS'ta bunu CallKit yapar):
@@ -441,12 +445,18 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     final b = arama;
     // TEST TURU 14: `b.video` yerine CANLI goruntulu kapisi — sesli baslayip kamera acilan
     // aramada da iOS PiP kurulur (eskiden hic kurulmuyordu).
+    // TEST TURU 29 — KULLANICININ EN COK TEKRAR EDEN SIKAYETI ("iPhone'da alta alinca
+    // kucuk ekran GELMIYOR"): sart `ekranGorunur` iceriyordu. Aramayi UYGULAMA ICINDE
+    // kucultunce (geri tusu / mesaj ikonu) CallScreen pop olur -> ekranGorunur=false ->
+    // her saniye tetiklenen bu metot `iosPipBirak()` cagirip kurulumu YIKIYORDU; sonra
+    // HOME'a basinca native controller NIL oldugu icin pencere HIC acilmiyordu.
+    // Android'de bu sart turu 14'te zaten kaldirilmisti — iOS dali geride kalmis.
+    // ⚠️ YAPMA: buraya tekrar `ekranGorunur` koyma (kucultulmus aramada PiP olur).
     final uygun = b != null &&
         goruntuluMu &&
         _baglandi &&
         !_cevapsiz &&
-        _error == null &&
-        ekranGorunur;
+        _error == null;
     // PiP KURULUMU ONCE (test turu 10 regresyon fix): auto-enter'in "possible" olabilmesi icin
     // controller ILK gelen kareyle kurulmali; asagidaki agir capture-reconfig'i beklemesin.
     final trackId = uygun ? _uzakVideoTrackId() : null;
@@ -818,10 +828,14 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     }
     if (state == AppLifecycleState.resumed) {
       _pipKameraGecikme?.cancel();
-      // TEST TURU 25: uygulama ON PLANDA -> iOS PiP penceresi ASILI KALMASIN
-      // (gecici 'inactive' anlarinda baslayip donunce ust uste biniyordu).
-      if (Platform.isIOS && pipModunda) {
-        pipModunda = false;
+      // TEST TURU 25 -> 29: uygulama ON PLANDA -> iOS PiP penceresi ASILI KALMASIN.
+      // KOSULSUZ cagriliyor: `pipModunda` bayragi native didStart callback'iyle gelir ve
+      // bu callback PiP ACILIS ANIMASYONUNDAN SONRA dustugu icin 'inactive -> resumed'
+      // arasinda HENUZ FALSE olabiliyor; eski `if (pipModunda)` kapisi bu yarista
+      // durdurmayi tamamen atliyordu (kullanici: "PiP kucuk ekranin uzerinde cikiyor").
+      // ⚠️ YAPMA: buraya tekrar pipModunda sarti koyma.
+      if (Platform.isIOS) {
+        if (pipModunda) pipModunda = false;
         unawaited(PipService.iosPipDurdur());
         notifyListeners();
       }

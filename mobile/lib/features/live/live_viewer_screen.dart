@@ -200,6 +200,13 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
       unawaited(PipService.iosPipBaslat());
     }
     if (state == AppLifecycleState.resumed && mounted && !_ayrildi) {
+      // TEST TURU 29: iOS'ta on plana donunce PiP KOSULSUZ durdurulur — bayat
+      // `pipModu` bayragi bu ekrani (satir ~798) kontrolsuz/cikissiz sade gorunume
+      // dusuruyordu ("ekran gidiyor" sikayeti). Arama ekranindaki duzeltmenin esi.
+      if (Platform.isIOS) {
+        PipService.pipModu.value = false;
+        unawaited(PipService.iosPipDurdur());
+      }
       _sesiAc(true); // kesinti toparlama
       if (_konukum) {
         // Konuk mikrofonu kesinti sonrasi kendiliginden geri gelmez (oda ekrani dersi)
@@ -795,7 +802,9 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
     final video = _video;
     // SISTEM PiP (test turu 15): izleyici uygulamayi alta aldi -> kucuk pencerede YAYINCININ
     // videosu (chat/kontrol yok). Ses zaten devam eder.
-    if (PipService.pipModu.value) {
+    // TEST TURU 29: YALNIZ ANDROID (iOS'ta PiP icerigi NATIVE cizilir; bayat bayrak
+    // ekrani kontrolsuz/cikissiz birakiyordu — "ekran gidiyor" sikayetinin kaynagi).
+    if (Platform.isAndroid && PipService.pipModu.value) {
       // TEST TURU 17: kucuk pencerede IZGARA — yayinci + canlidaki konuklar (kendi tile'im
       // konuksam dahil). 2 sol/sag, 3 ustte 2 + altta 1, 4 ceyrek.
       final benimId = _room?.localParticipant?.identity ?? _benimId;

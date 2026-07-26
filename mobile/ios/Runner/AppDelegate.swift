@@ -258,6 +258,7 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
   private var yerelGorunum: PipVideoView?
   private var yerelRenderer: PipRenderer?
   private var kurulanId: String?
+  private var iptalIstendi = false // turu 29: on plana donuldu -> bekleyen baslatmayi iptal et
 
   // TEST TURU 9: COKLU-GOREV KAMERA — kamerayi PiP/arka planda CAPTURE'a devam ettir
   // (goruntulu aramada alta alinca KARSI TARAF beni gormeye devam eder). flutter_webrtc
@@ -324,6 +325,9 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
     self.callVC = vc
     self.pipController = controller
     self.kurulanId = trackId
+    // Kurulumla BIRLIKTE alt gorunum istendiyse ekle (parametre artik GERCEKTEN kullanilir;
+    // turu 28'e kadar olu parametreydi). Kimlik yine SADECE uzak track -> yikim yok.
+    if let yid = yerelTrackId, !yid.isEmpty { yerelAyarla(trackId: yid) }
     NSLog("gebzem/pip iOS kuruldu track=\(trackId)")
     return true
   }
@@ -337,6 +341,7 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
   func baslat() {
     guard let c = pipController else { return }
     if c.isPictureInPictureActive { return }
+    iptalIstendi = false // yeni baslatma istegi: bekleyen iptali temizle
     // isPictureInPicturePossible false ise (ilk kare henuz gelmemis) cagri sessizce duser;
     // delegate failedToStart -> Dart kamera-mute yedegine gecer (mevcut davranis).
     c.startPictureInPicture()
@@ -376,9 +381,13 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
   /// TEST TURU 25: uygulama ON PLANA donunce PiP penceresini KAPAT. iOS gecici "inactive"
   /// anlarinda (bildirim/kontrol merkezi, izin uyarisi) PiP basliyor, uygulama geri gelince
   /// pencere ASILI kaliyordu (kullanici: "iPhone'da yine PiP kucuk ekranin ustunde cikiyor").
+  /// TEST TURU 29 (kullanici: "iPhone'da PiP kucuk ekranin UZERINDE cikiyor"): artik
+  /// KOSULSUZ. Eskiden `isPictureInPictureActive` guard'i vardi; PiP acilis ANIMASYONU
+  /// surerken bu bayrak false oldugu icin durdurma NO-OP kaliyor, pencere uygulamanin
+  /// USTUNDE asili kaliyordu. `iptalIstendi` ile GEC gelen didStart da durdurulur.
   func durdur() {
-    guard let c = pipController, c.isPictureInPictureActive else { return }
-    c.stopPictureInPicture()
+    iptalIstendi = true
+    pipController?.stopPictureInPicture()
   }
 
   func birak() {
@@ -415,6 +424,16 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
   // TEST TURU 9: PiP GERCEKTEN basladi/durdu -> Flutter'a bildir (pipModunda). Boylece
   // kamera-mute yedegi PiP durumuna gore ayarlanir (PiP'te kamera acik kalir).
   func pictureInPictureControllerDidStartPictureInPicture(_ c: AVPictureInPictureController) {
+    // TEST TURU 29: PiP acilisi ANIMASYONLUDUR; bu sirada kullanici uygulamaya donmus
+    // olabilir (Kontrol Merkezi, bildirim seridi, izin uyarisi da 'inactive' uretir ->
+    // baslat cagrilir). Uygulama ON PLANDAYSA pencereyi ANINDA kapat; boylece arayuzun
+    // ustunde asili kalmaz. ⚠️ YAPMA: bu kontrolu kaldirma (ust uste binme geri gelir).
+    if iptalIstendi || UIApplication.shared.applicationState == .active {
+      NSLog("gebzem/pip iOS PiP basladi ama uygulama ON PLANDA -> kapatiliyor")
+      iptalIstendi = false
+      c.stopPictureInPicture()
+      return
+    }
     NSLog("gebzem/pip iOS PiP basladi")
     kanal?.invokeMethod("iosPipDurum", arguments: true)
   }
