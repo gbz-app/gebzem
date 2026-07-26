@@ -15,6 +15,30 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (27 Tem 00:11):** TEST TURU 39 YAYINLANDI — android 30220063911 +
+  ios 30220064859 (84066ac), R2 apk=105227857 ipa=19151962, purge OK, CDN birebir, backend
+  degismedi + health ok, DB temiz. KULLANICI TEST EDECEK.
+  ⚠️ Kullanici "iki sorun var" demisti, ikincisini henuz tarif etmedi — SORULACAK.
+- **TEST TURU 39 — DONMUS KARE ARTIK YAPISAL OLARAK IMKANSIZ:**
+  KANIT: Sentry "ios pip 3sn kare=0" (yerel kaynak) + "kesinti kaydi YOK". Ama "kesinti yok"
+  KAMERA CALISIYOR demek DEGIL (Apple yalniz `videoDeviceNotAvailableWithMultipleForeground
+  Apps`i bastirir). Ayrica turu 32'de kullanici "karsinin goruntusu VAR, benimki YOK" demisti
+  -> UZAK sink'e kare akiyor, YEREL sink'e akmiyor.
+  (1) **KARE GOZCUSU** (native `gozcuBaslat`): 500ms tik, 3 tik (~1.5sn) yeni kare yoksa
+  katman BOSALTILIR ("Kamera duraklatildi") + Dart'a `iosPipKareDurdu`.
+  (2) **SICAK KAYNAK DEGISIMI** (`kaynakDegistir` / `PipService.iosPipKaynak`): YALNIZ sink
+  tasinir; `pipController`/`callVC`/`videoView` DOKUNULMAZ -> `stopPictureInPicture`
+  CAGRILMAZ -> PENCERE KAPANMAZ. Yerel kare durunca karsi tarafin videosuna gecilir; kamera
+  DURUSTCE kapatilir (TAHMIN degil OLCUM).
+  (3) **IKI TARAFLI OLCUM**: on/arka kare + `captureSession.isRunning` + `isMultitasking
+  CameraAccessEnabled`; ON PLANA DONUNCE Sentry'e yazilir (arka planda teslim garantisiz).
+  (4) **`_iosPipGuncelle` YENIDEN-GIRME KILIDI** (`_iosPipMesgul`): metot her notifyListeners
+  ve saniyelik sayacla cagriliyor, `_iosPipKurulanId` await'ten SONRA yaziliyordu -> iki es
+  zamanli akis `iosPipKur` cagirip native `birak()` ile PENCEREYI KAPATIYORDU (turu 24-29
+  "pencere gidiyor" sikayetlerinin yapisal koku).
+  ⚠️ YAPMA: gozcu esigini 1 tike dusurme; kaynak degisimini `kur()`/`birak()` ile yapma
+  (pencere kapanir); yeniden-girme kilidini kaldirma; olcumu arka planda Sentry'e yollamaya
+  calisma (teslim garantisiz — on planda gonder).
 - **KALDIGIMIZ YER (26 Tem 22:22):** TEST TURU 38 YAYINLANDI — android 30216228929 +
   ios 30216229892 (6605a16), R2 apk=105227857 ipa=19148842, purge OK, CDN birebir, backend
   degismedi + health ok, DB temiz. KULLANICI TEST EDECEK.
