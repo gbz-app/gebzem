@@ -99,6 +99,21 @@ class MainActivity : FlutterActivity() {
                         result.success(true)
                     }
                 }
+                // TEST TURU 32: SUREN ARAMA ONDEPLAN SERVISI (arka planda donma korumasi).
+                // Basarisiz olursa SESSIZCE vazgecilir — arama akisi ETKILENMEZ.
+                "aramaServisiBasla" -> {
+                    val video = (call.arguments as? Map<*, *>)?.get("video") == true
+                    try {
+                        AramaServisi.basla(this, video)
+                        result.success(true)
+                    } catch (e: Throwable) {
+                        result.success(false)
+                    }
+                }
+                "aramaServisiDur" -> {
+                    try { AramaServisi.dur(this) } catch (_: Throwable) {}
+                    result.success(true)
+                }
                 "pipDurumu" -> result.success(
                     Build.VERSION.SDK_INT >= 26 && isInPictureInPictureMode)
                 else -> result.notImplemented()

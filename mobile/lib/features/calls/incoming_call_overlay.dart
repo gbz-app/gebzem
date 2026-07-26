@@ -99,7 +99,15 @@ class _IncomingCallSheetState extends ConsumerState<_IncomingCallSheet> {
   /// Izin yoksa/hata olursa sessizce avatar gorunumune duseriz (davet ekrani bozulmaz).
   Future<void> _onizlemeAc() async {
     try {
-      if (!await Permission.camera.isGranted) return;
+      // TEST TURU 32 — PARITE: controller'in ayni isi yapan metodu izni ISTIYOR
+      // (active_call_controller `_onizlemeAc`, turu 25 fix'i), burasi yalniz "verilmis mi"
+      // diye bakiyordu. Sonuc: ILK goruntulu aramada aranan kisi calarken kendini gormuyor,
+      // kabulde devredilecek track OLMUYOR ve kamera IKINCI kez aciliyordu (turu 32 yarisi).
+      // Reddedilirse sessizce avatara duseriz. WhatsApp da bu ekranda izin ister.
+      if (!await Permission.camera.isGranted) {
+        final st = await Permission.camera.request();
+        if (st != PermissionStatus.granted || !mounted) return;
+      }
       final t = await lk.LocalVideoTrack.createCameraTrack(kCameraCaptureOptions);
       if (!mounted) {
         await t.stop();

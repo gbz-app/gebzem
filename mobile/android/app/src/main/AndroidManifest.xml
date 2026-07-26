@@ -53,6 +53,14 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <!-- TEST TURU 32: SUREN ARAMA ONDEPLAN SERVISI. Android 14+ arka plana gecen sureci
+             10sn sonra DONDURUR (cached apps freezer) -> arama duserdi. Android 11+ arka
+             planda mikrofon icin `microphone` tipi ZORUNLU. Tip maskesi CALISMA ZAMANINDA
+             verilmis izinlere gore hesaplanir (AramaServisi.kt). -->
+        <service
+            android:name=".AramaServisi"
+            android:exported="false"
+            android:foregroundServiceType="microphone|camera" />
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

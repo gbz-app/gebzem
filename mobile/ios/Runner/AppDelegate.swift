@@ -125,9 +125,8 @@ import flutter_callkit_incoming
         result(true)
       case "iosPipYerel":
         // TEST TURU 27: kucuk pencerenin ALT gorunumu (kendi kameram) — controller'a dokunmaz
-        GebzemPip.shared.yerelAyarla(
-          trackId: (call.arguments as? [String: Any])?["trackId"] as? String)
-        result(true)
+        result(GebzemPip.shared.yerelAyarla(
+          trackId: (call.arguments as? [String: Any])?["trackId"] as? String))
       case "iosPipDurdur":
         GebzemPip.shared.durdur()
         result(true)
@@ -274,8 +273,11 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
     session.beginConfiguration()
     session.isMultitaskingCameraAccessEnabled = true
     session.commitConfiguration()
-    NSLog("gebzem/pip coklu-gorev kamera ACIK (arka planda kamera surer)")
-    return true
+    // TEST TURU 32: sonucu GERI OKU — eskiden kosulsuz true donuyordu; yalan bayrak,
+    // durustce mute etme yolunu kapatip karsi tarafta DONMUS KARE birakiyordu.
+    let ok = session.isMultitaskingCameraAccessEnabled
+    NSLog("gebzem/pip coklu-gorev kamera yazildi=\(ok)")
+    return ok
   }
 
   func kur(trackId: String, yerelTrackId: String? = nil) -> Bool {
@@ -299,7 +301,12 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
     track.add(r)
 
     let vc = AVPictureInPictureVideoCallViewController()
-    vc.preferredContentSize = CGSize(width: 120, height: 200)
+    // TEST TURU 32 — PENCERE ORANI: 120x200 iken IKI kutuya bolununce her kutu 120x100 (6:5)
+    // oluyordu; kaynak kare 9:16 PORTRE oldugu icin `resizeAspectFill` yuzun buyuk kismini
+    // KIRPIYORDU (kullanici: "alttaki goruntu gelmiyor" — aslinda taniinmaz halde kirpilmis
+    // olabilir). 120x400'de her yari ~120x200 = 3:5, yani 9:16'ya cok yakin.
+    // GERI ALMA: bu satiri 120x200 yap.
+    vc.preferredContentSize = CGSize(width: 120, height: 400)
     // TEST TURU 27 — DOGRU YONTEMLE BOLUNME: dikey yigin (UIStackView). UZAK video USTTE
     // SABIT durur; KENDI kameram alta `yerelAyarla` ile SONRADAN eklenir/cikarilir.
     // KRITIK FARK (turu 24 hatasi): PiP controller BIR KEZ kurulur ve kimlik SADECE uzak
@@ -350,10 +357,14 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
   /// TEST TURU 27 — ALT GORUNUM (kendi kamera) EKLE/CIKAR. PiP controller'a DOKUNMAZ:
   /// yalniz dikey yigina gorunum eklenir/cikarilir; pencere kurulumu bozulmaz, kapanmaz.
   /// [trackId] nil/bos -> alt gorunum kaldirilir (tek video).
-  func yerelAyarla(trackId: String?) {
-    guard let yigin = yigin else { return }
+  @discardableResult
+  func yerelAyarla(trackId: String?) -> String {
+    // TEST TURU 32: SESSIZ BASARISIZLIK BITTI — sonuc metni Dart'a doner, Dart Sentry'e yazar.
+    // Kullanici "alttaki goruntu gelmiyor" dedi ve bu fonksiyon her hata yolunda SESSIZCE
+    // donuyordu; artik hangi adimda durdugunu KESIN biliyoruz.
+    guard let yigin = yigin else { return "yigin-yok" }
     // Ayni track zaten ekli ise dokunma
-    if let mevcut = yerelTrackId, mevcut == trackId { return }
+    if let mevcut = yerelTrackId, mevcut == trackId { return "ayni" }
     // Once eskiyi sok
     if let yt = yerelTrack, let yr = yerelRenderer { yt.remove(yr) }
     yerelGorunum?.displayLayer.flushAndRemoveImage()
@@ -365,17 +376,27 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
     yerelRenderer = nil
     yerelTrack = nil
     yerelTrackId = nil
-    guard let tid = trackId, !tid.isEmpty,
-          let yerel = FlutterWebRTCPlugin.sharedSingleton()?
-            .track(forId: tid, peerConnectionId: nil) as? RTCVideoTrack else { return }
-    let yv = PipVideoView(frame: CGRect(x: 0, y: 0, width: 120, height: 100))
+    guard let tid = trackId, !tid.isEmpty else { return "kaldirildi" }
+    // Yerel track'i BULMA: once localTracks defteri (track(forId:peerConnectionId:nil)),
+    // olmazsa uzak defter. Bulunamazsa ACIKCA raporla (eskiden sessizce donuyordu).
+    let eklenti = FlutterWebRTCPlugin.sharedSingleton()
+    var bulunan = eklenti?.track(forId: tid, peerConnectionId: nil) as? RTCVideoTrack
+    if bulunan == nil { bulunan = eklenti?.remoteTrack(forId: tid) as? RTCVideoTrack }
+    guard let yerel = bulunan else {
+      NSLog("gebzem/pip alt gorunum: track BULUNAMADI id=\(tid)")
+      return "track-yok"
+    }
+    let yv = PipVideoView(frame: CGRect(x: 0, y: 0, width: 120, height: 200))
     let yr = PipRenderer(view: yv)
     yerel.add(yr)
     yigin.addArrangedSubview(yv)
+    yigin.layoutIfNeeded()
     yerelGorunum = yv
     yerelRenderer = yr
     yerelTrack = yerel
     yerelTrackId = tid
+    NSLog("gebzem/pip alt gorunum EKLENDI id=\(tid)")
+    return "eklendi"
   }
 
   /// TEST TURU 25: uygulama ON PLANA donunce PiP penceresini KAPAT. iOS gecici "inactive"

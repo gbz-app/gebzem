@@ -108,6 +108,26 @@ class PipService {
     }
   }
 
+  /// TEST TURU 32 — SUREN ARAMA ONDEPLAN SERVISI (Android). Kullanici: "uygulamayi alta
+  /// alinca / kilitleyince 5-10 saniye sonra gorusme bitiyor".
+  /// KOK NEDEN: Android 14+ arka plana gecip "cached" olan sureci **10sn sonra DONDURUR**
+  /// (cached apps freezer) -> WebSocket/WebRTC durur -> LiveKit katilimciyi duser -> arama
+  /// biter. Ayrica Android 11+ arka planda mikrofon icin `microphone` tipli ondeplan servisi
+  /// ZORUNLU. Servis medyaya DOKUNMAZ; yalniz sureci ayakta tutar + kalici bildirim gosterir.
+  /// Baslatilamazsa sessizce vazgecilir. iOS'ta no-op (orada `audio`/`voip` arka plan modlari
+  /// ve CallKit ayni isi yapar).
+  static Future<bool> aramaServisi(bool ac, {bool video = false}) async {
+    if (!Platform.isAndroid) return false;
+    try {
+      final ok = ac
+          ? await _ch.invokeMethod<bool>('aramaServisiBasla', {'video': video})
+          : await _ch.invokeMethod<bool>('aramaServisiDur');
+      return ok ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Arama bitti ve hala PiP penceresindeysek pencereyi kapat (WhatsApp gibi).
   static Future<void> pipKapat() async {
     if (!Platform.isAndroid) return;
@@ -145,11 +165,15 @@ class PipService {
   /// DOKUNMAZ: yalniz native dikey yigina gorunum eklenir/cikarilir. Bu yuzden kamera
   /// acilip kapansa da pencere kurulumu BOZULMAZ (turu 24'te kimlik degisince yikiliyordu).
   /// [trackId] null/bos -> alt gorunum kaldirilir (tek video, tam pencere).
-  static Future<void> iosPipYerel(String? trackId) async {
-    if (!Platform.isIOS) return;
+  /// Donus: native sonuc metni ('eklendi' | 'track-yok' | 'yigin-yok' | 'kaldirildi' | 'ayni').
+  /// TEST TURU 32: sessiz basarisizlik bitti — Dart bu sonucu Sentry'e yazar.
+  static Future<String> iosPipYerel(String? trackId) async {
+    if (!Platform.isIOS) return 'ios-degil';
     try {
-      await _ch.invokeMethod('iosPipYerel', {'trackId': trackId});
-    } catch (_) {}
+      return (await _ch.invokeMethod<String>('iosPipYerel', {'trackId': trackId})) ?? 'bos';
+    } catch (e) {
+      return 'hata';
+    }
   }
 
   static Future<void> iosPipBirak() async {

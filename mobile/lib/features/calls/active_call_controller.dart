@@ -309,6 +309,7 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
 
   // ---- ANINDA KAMERA (test turu 22): baglanti beklenmeden kendi goruntum ----
   LocalVideoTrack? _onizlemeTrack;
+  Future<void>? _onizlemeIsi; // turu 32: onizleme acma isi (yayin oncesi BEKLENIR)
   bool _onizlemeYayinda = false;
 
   /// Ekranda gosterilecek KENDI goruntum: yayinlanan track varsa o, yoksa onizleme.
@@ -494,7 +495,13 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
         final yid = (uzakId != null ? yerelId : null) ?? '';
         if (yid != _iosPipYerelId) {
           _iosPipYerelId = yid;
-          await PipService.iosPipYerel(yid.isEmpty ? null : yid);
+          final sonuc = await PipService.iosPipYerel(yid.isEmpty ? null : yid);
+          // TEST TURU 32 (kullanici: "kucuk pencerede ALTTAKI goruntu gelmiyor"): native
+          // taraf sessizce vazgeciyordu; artik hangi adimda durdugunu Sentry'den goruyoruz.
+          if (yid.isNotEmpty && sonuc != 'eklendi' && sonuc != 'ayni') {
+            _iosPipYerelId = ''; // basarisiz -> sonraki tazelemede TEKRAR denensin
+            unawaited(Sentry.captureMessage('ios pip alt gorunum sonuc=$sonuc'));
+          }
         }
       }
     } else if (_iosPipKurulanId.isNotEmpty) {
@@ -611,8 +618,14 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     // ikinci aramayi kabul ederken birincisi park edilmis olabilir).
     beklemede = false;
     karsiBeklemede = false;
+    // TEST TURU 32 — ZOMBI KAMERA SIZINTISI: burada alan sadece null'laniyordu; yayinlanmamis
+    // onizleme track'i (ornek: "Geri Ara" yolu, cevapsiz sonrasi) NATIVE kamerayi acik
+    // birakiyordu -> sonraki aramada kamera mesgul olabiliyordu. Once SAL, sonra sifirla.
+    // (`_onizlemeBirak` yayinlanmis track'e DOKUNMAZ; hazirKamera devri asagida yapilir.)
+    unawaited(_onizlemeBirak());
     _onizlemeTrack = null;
     _onizlemeYayinda = false;
+    _onizlemeIsi = null;
     bildirim = '';
     _bildirimTimer?.cancel();
     karsiPil = -1;
@@ -675,7 +688,7 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       _onizlemeTrack = hazirKamera;
       notifyListeners();
     } else if (_camOn) {
-      unawaited(_onizlemeAc());
+      _onizlemeIsi = _onizlemeAc();
     } else if (hazirKamera != null) {
       unawaited(hazirKamera.stop().then((_) => hazirKamera.dispose()));
     }
@@ -988,6 +1001,13 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       _kurulumAsama?['oda'] = _kurulumSaat?.elapsedMilliseconds ?? 0; // FAZ-0
       // TEK BITIR-KAPISI: canli konusma basladi (CallKit yanlis-zamanli olaylari oldurmesin).
       _svc.aktifKonusmaBasladi(id);
+      // TEST TURU 32 — ANDROID ONDEPLAN SERVISI (kullanici: "alta alinca/kilitleyince 5-10sn
+      // sonra gorusme bitiyor"). Android 14+ arka plandaki sureci 10sn sonra DONDURUR; servis
+      // olmadan WebRTC durur ve LiveKit katilimciyi duser. BURADA baslatilir cunku (a) mikrofon
+      // izni artik KESIN verilmis, (b) ekran GORUNUR (while-in-use izinli ondeplan servisi
+      // ancak gorunur aktiviteyle baslatilabilir). Basarisiz olursa sessizce vazgecilir.
+      // ⚠️ YAPMA: servisi izin alinmadan / arka plandayken baslatmayi deneme.
+      unawaited(PipService.aramaServisi(true, video: goruntuluMu));
       _aktifPollBaslat();
       _statsBaslat();
     } catch (e) {
@@ -1155,8 +1175,17 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
         ..on<ActiveSpeakersChangedEvent>((_) {
           if (arama?.callId == id && _isGroup) notifyListeners();
         })
-        ..on<RoomDisconnectedEvent>((_) {
-          if (arama?.callId == id) leave(notifyServer: false);
+        ..on<RoomDisconnectedEvent>((e) {
+          // TEST TURU 32 — OLCUM (davranis AYNI): aramanin neden koptugunu KAYDA GECIR.
+          // Sebep ayrimi kritik: SIGNAL_CLOSE/CONNECTION_TIMEOUT = ag/askiya alma (uygulama
+          // donduruldu), ROOM_DELETED/PARTICIPANT_REMOVED = SUNUCU kapatti (webhook),
+          // DUPLICATE_IDENTITY = ikinci baglanti. Kullanicinin "alta alinca 5-10sn sonra
+          // bitiyor" sikayetinin hangi dala dustugunu ancak bu ayrim soyler.
+          if (arama?.callId == id) {
+            _sesLog('oda koptu: ${e.reason}');
+            unawaited(Sentry.captureMessage('oda koptu reason=${e.reason}'));
+            leave(notifyServer: false);
+          }
         });
 
       const secenekler = ConnectOptions(
@@ -1184,22 +1213,49 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       // iOS SES SIRASI (KRITIK v7/v8 — AYNEN): mic -> kamera -> speaker(false) -> _sesiAc EN SON
       await room.localParticipant?.setMicrophoneEnabled(_micOn);
       _kurulumAsama?['mic'] = _kurulumSaat?.elapsedMilliseconds ?? 0; // FAZ-0
+      // TEST TURU 32 (kullanici: "bazen ARANAN kiside kendi kamerasi acilmadi"):
+      // ONIZLEME ile YAYIN arasinda SENKRON yoktu — `_onizlemeAc()` unawaited baslatiliyor,
+      // buradaki okuma SENKRON oldugu icin onizleme henuz hazir degilse `setCameraEnabled(true)`
+      // IKINCI bir kamera track'i aciyordu. iOS'ta flutter_webrtc'nin TEK `videoCapturer`
+      // property'si uzerine yazildigi icin (FlutterRTCMediaStream.m) coklu-gorev kamera
+      // bayragi YANLIS oturuma yaziliyor ve arka planda goruntu donuyordu.
+      // Cozum: onizleme isini KISA SURE bekle (en fazla 700ms), sonra karar ver.
+      // ⚠️ YAPMA: bu await'i kaldirma (yarisi geri getirir) veya suresiz bekletme.
+      if (_camOn) {
+        try {
+          await _onizlemeIsi?.timeout(const Duration(milliseconds: 700));
+        } catch (_) {}
+      }
       if (_camOn) {
         // TEST TURU 22: onizlemede acilan kamerayi AYNEN yayinla (ikinci kez acma yarisi yok)
         final onizleme = _onizlemeTrack;
-        if (onizleme != null) {
-          try {
-            await room.localParticipant?.publishVideoTrack(onizleme,
-                publishOptions:
-                    _isGroup ? kGroupVideoPublishOptions : kVideoPublishOptions);
-            _onizlemeYayinda = true;
-          } catch (_) {
+        // TEST TURU 32: kamera hatasi ARAMAYI OLDURMESIN. Eskiden `setCameraEnabled(true)`
+        // try'siz idi; istisna `_connect` catch'ine dusup `_svc.end(id)` ile aramayi
+        // SUNUCUDA bitiriyordu (kamera baska uygulamada mesgulse arama hic kurulamiyordu).
+        try {
+          if (onizleme != null) {
+            try {
+              await room.localParticipant?.publishVideoTrack(onizleme,
+                  publishOptions:
+                      _isGroup ? kGroupVideoPublishOptions : kVideoPublishOptions);
+              _onizlemeYayinda = true;
+            } catch (_) {
+              // Yedek yola dusmeden ONCE onizlemeyi sal (iki capture oturumu kalmasin)
+              await _onizlemeBirak();
+              await room.localParticipant?.setCameraEnabled(true);
+            }
+          } else {
             await room.localParticipant?.setCameraEnabled(true);
           }
-        } else {
-          await room.localParticipant?.setCameraEnabled(true);
+        } catch (e) {
+          _camOn = false;
+          _sesLog('kamera acilamadi: $e');
+          bildirimGoster('Kamera açılamadı');
         }
         _kurulumAsama?['cam'] = _kurulumSaat?.elapsedMilliseconds ?? 0; // FAZ-0
+      } else if (_onizlemeTrack != null) {
+        // Baglanirken kamera kapandi (yasam dongusu oto-mute) -> onizlemeyi sal, sizinti olmasin
+        await _onizlemeBirak();
       }
       // TEST TURU 14: GORUNTULU aramada varsayilan HOPARLOR (WhatsApp davranisi — telefonu
       // kulaga dayamadan konusulur); SESLI aramada eskisi gibi kulaklik (earpiece).
@@ -1692,7 +1748,12 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     unawaited(CallKitService.bitir(id));
     unawaited(_onizlemeBirak()); // test turu 22: yayinlanmadiysa kamerayi kapat
     // GSM dinleyicisini kapat (park edilmis arama varsa devamEt tekrar acar)
-    if (parkEdilen == null) unawaited(PipService.gsmDinle(false));
+    // TEST TURU 32: ondeplan servisi de AYNI kapida durur — park edilen arama SURDUGU icin
+    // beklemedeyken servis KAPANMAZ (yoksa beklemedeki arama arka planda dondurulurdu).
+    if (parkEdilen == null) {
+      unawaited(PipService.gsmDinle(false));
+      unawaited(PipService.aramaServisi(false));
+    }
     // SERI ARAMA YARISI: teardown'i AYRILMA ANINDA kilit sirasina koy
     _kapatOdayiKuyrugaKoy();
     await CallSounds.durdur(_sesNesli);
@@ -1891,6 +1952,9 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     _svc.aktifKonusmaBitti(p.bilgi.callId);
     _svc.ekranKapandi(p.bilgi.callId);
     unawaited(CallKitService.bitir(p.bilgi.callId));
+    // TEST TURU 32: park dusunce ve baska aktif arama YOKSA ondeplan servisi de kapansin
+    // (bildirim asili kalmasin).
+    if (arama == null) unawaited(PipService.aramaServisi(false));
     final room = p.room;
     final listener = p.listener;
     unawaited(CallRoomLock.calistir(() => _odaTemizle(room, listener, -1)));
