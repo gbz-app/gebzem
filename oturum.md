@@ -1877,4 +1877,19 @@ sorunlar OLMAMALI.
       kamera. `_cik`/dispose'ta PiP birakilir (arama PiP'i bozulmaz).
 - [x] 6. Izleyici ekrani: PiP izni + PiP'te yayincinin videosu tam ekran (ses zaten surer);
       iOS'ta yayinci track'iyle native PiP; cikista birakilir.
-- [ ] 7. flutter analyze + temiz build + yayin
+- [x] 7. flutter analyze + temiz build + yayin
+- [x] TEMIZ BUILD YAYINLANDI (26 Tem 07:11): android 30187028051 + ios 30187028788 (d468ef8) BASARILI
+      (Swift yerel-track PiP + Kotlin setPipDugmeler DERLENDI); debug imza YOK; APK boyutu tesadufen
+      ayni (104997973) ama SHA256 FARKLI (0460be47... -> b42e2be1...) = yeni kod kaniti; IPA
+      19096351->19101212 buyudu; R2 apk=104997973 ipa=19101212 index=6540; CF purge OK; CDN birebir;
+      backend degismedi (health ok); DB TRUNCATE (users=0).
+- **TEST RECETESI (test turu 15):** (1) Yayin ac -> baska telefonla izle -> YAYINCI telefonunda ana
+      ekrana in: kucuk pencerede yayin surer, IZLEYENDE goruntu DONMAZ (PiP gelmezse izleyende
+      "kamera kapali" avatari cikar, donunce geri gelir — donmus kare YOK). (2) IZLEYEN ana ekrana
+      inince yayini kucuk pencerede izler. (3) Yayini bitir -> izleyicinin ekrani KENDILIGINDEN
+      kapanir ("Yayin sona erdi" alt bildirimi). (4) Hemen sonra o kisiyi ARA -> arama NORMAL calar
+      ve baglanir (eskiden direk dusuyordu). (5) Izleyici yayindan cikip seni arasin -> sorun yok.
+- **BILINEN DAVRANIS (degistirilmedi):** yayin ekrani ACIKKEN gelen arama "mesgul" sayilir (yayin/oda
+      sesiyle arama sesi cakismasin diye bilincli karar). Yani yayin izlerken/ yaparken aranirsan
+      telefon CALMAZ; yayindan cikinca aranabilirsin. Istenirse "yayin izlerken gelen arama calsin,
+      kabul edilirse yayindan otomatik cik" ayri faz olarak eklenir.
