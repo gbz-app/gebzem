@@ -492,12 +492,22 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
         _error == null;
     // PiP KURULUMU ONCE (test turu 10 regresyon fix): auto-enter'in "possible" olabilmesi icin
     // controller ILK gelen kareyle kurulmali; asagidaki agir capture-reconfig'i beklemesin.
-    // TEST TURU 36 — KULLANICI KARARI: "iPhone altta SADECE BENI gostersin, o isle artik
-    // ugrasmayalim olmuyorsa." Kucuk pencerede artik ONCE KENDI kameram gosterilir;
-    // kendi kameram yoksa (sesli arama / kamera kapali) karsi tarafin videosuna duser ki
-    // pencere BOS kalmasin. Kare akmazsa native taraf "Kamera duraklatildi" yazar.
-    // (Turu 30 notu: uzak video yoksa yerele dusme kurali KORUNUYOR — yalniz sira degisti.)
-    // ⚠️ YAPMA: yedek dali kaldirma (sesli aramada PiP tamamen kaybolur).
+    // ================= TEST TURU 40 — TURU 36 GERI ALINDI (KOK DUZELTME) =================
+    // Kullanici: "daha once CALISIYORDU, sonra boyle oldu, anlamiyorum."
+    // GIT KANITI: `yerelId ?? uzakId` (kucuk pencerede KENDI kameram) YALNIZ 0bb2660 (turu 36)
+    // ile girdi; oncesinde `uzakId ?? yerelId` (KARSI TARAF) idi ve CALISIYORDU — kullanici
+    // turu 32'de "karsinin goruntusu var, guzelce cizmis" demisti. "Donuyor" sikayetleri
+    // turu 36'dan SONRA basladi.
+    //
+    // FIZIKSEL SEBEP: iPhone uygulama arka plana gecince KENDI kamerani DURDURUR (Apple).
+    // Karsi tarafin videosu ise AGDAN gelir, arka planda AKMAYA DEVAM EDER. Yani kucuk
+    // pencerede kendi kamerani gostermek = arka planda gosterilecek goruntu OLMAMASI =
+    // son karede donma. WhatsApp/Instagram da kucuk pencerede KARSI TARAFI gosterir; sebep
+    // tam olarak budur.
+    //
+    // Bu yuzden kaynak sirasi KARSI TARAF -> (yoksa) kendi kameram olarak GERI ALINDI.
+    // ⚠️ YAPMA: sirayi tekrar yerele cevirme — iPhone'da arka planda kendi kameran DURUR ve
+    // pencere DONAR. (Kullanici isterse bile once bu fiziksel sinir anlatilmali.)
     final uzakId = uygun ? _uzakVideoTrackId() : null;
     // `_yerelVideoTrackId` MUTE track'i de dondurur — bu KASITLI: arka plana gecince kamera
     // oto-mute oluyor; id degismedigi surece pencere kimligi SABIT kalir.
@@ -505,7 +515,7 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     // KIMLIK CALKANTISI KORUMASI (turu 24 dersi): kurulmus kimlik HALA gecerli bir track'e
     // isaret ediyorsa DEGISTIRME. Aksi halde kaynak her degistiginde `kur()` -> `birak()` ->
     // stopPictureInPicture calisir ve PENCERE KAPANIR.
-    final aday = yerelId ?? uzakId;
+    final aday = uzakId ?? yerelId; // turu 40: KARSI TARAF once (calisan davranis)
     final trackId = (_iosPipKurulanId.isNotEmpty &&
             (_iosPipKurulanId == yerelId || _iosPipKurulanId == uzakId))
         ? _iosPipKurulanId
@@ -519,7 +529,9 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       // yeniden kuruluyordu (birak() stopPictureInPicture cagirir) -> pencere HIC acilmadi.
       // Artik iOS PiP YALNIZ UZAK VIDEO (calisan eski davranis); kimlik SADECE uzak track.
       if (trackId != _iosPipKurulanId) {
-        final ok = await PipService.iosPipKur(trackId);
+        // turu 39: native tarafa hangi kaynak oldugunu bildir (kare gozcusu raporlar)
+        final ok = await PipService.iosPipKur(trackId,
+            kaynak: trackId == uzakId ? 'uzak' : 'yerel');
         _iosPipKurulanId = ok ? trackId : '';
         _iosPipYerelId = ''; // yeni kurulumda alt gorunum sifirlanir
       }
