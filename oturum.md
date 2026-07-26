@@ -2502,3 +2502,36 @@ gercekten durmus -> "ios kamera kesinti sebep=" ile birlikte okunacak.
 ### SONRAKI TURDA BAKILACAK
 Sentry: "ios pip olcum on=NN arka=NN kaynak=... oturum=... coklu=..." — tek satirda kesin teshis.
 ### ACIK: kullanici "iki sorun var" demisti, ikincisini henuz tarif etmedi.
+
+## TEST TURU 40 SURUMU YAYINLANDI (27 Tem 00:42) — KULLANICI TEST EDECEK
+- android **30221177316** + ios **30221178264** (commit **adfb558**), debug imza YOK.
+- R2: apk **105227857** · ipa **19152061** · index.html 6625. CDN birebir, purge 2 kez,
+  sayfadaki saat GERCEK yukleme saati. Backend degismedi, health ok, DB temiz.
+### KULLANICI SORUSU VE DURUST CEVAP (bu tur bunun uzerine kuruldu)
+Kullanici: "daha once CALISIYORDU, sonra boyle oldu, anlamiyorum."
+GIT KANITI: `yerelId ?? uzakId` (kucuk pencerede KENDI kamera) YALNIZ **0bb2660 (turu 36)**
+ile girdi; oncesinde `uzakId ?? yerelId` (KARSI TARAF) idi. Kullanici turu 32'de "karsinin
+goruntusu var, guzelce cizmis" demisti; "donuyor" sikayetleri turu 36'dan SONRA basladi.
+=> BENIM HATAM: kullanicinin "alta alinca sadece bizim goruntu gozuksun" ifadesini KENDI
+KAMERASI diye yorumlayip uyguladim; bunun FIZIKSEL OLARAK IMKANSIZ oldugunu o an
+soylemeliydim (iPhone arka planda kendi kamerayi durdurur; karsi tarafin videosu AGDAN
+geldigi icin akmaya devam eder).
+### KULLANICI GOZLEMI (teshisi kesinlestirdi)
+"Uygulama ICINDE kucultunce ust/alt bolme COK IYI calisiyor; uygulamadan CIKINCA gidiyor.
+Android'de ikisi de calisiyor." ACIKLAMA:
+ · uygulama ici pencere = BIZIM Flutter widget'imiz, uygulama ON PLANDA -> kamera yasiyor
+ · iOS arka plan = SISTEM PiP'i (native katman), uygulama ARKA PLANDA -> kamera duruyor
+ · Android PiP = uygulamanin KENDISI kucuk pencerede ("gorunur" sayilir) -> kamera yasiyor
+Yani cizim/izgara tarafimiz SAGLAM; tek degisken arka planda kameranin yasayip yasamamasi.
+### YAPILANLAR
+- [x] Kaynak sirasi `uzakId ?? yerelId` olarak GERI ALINDI (calisan davranis).
+- [x] `iosPipKur(kaynak:)` — native kare gozcusu hangi videonun gosterildigini raporlar.
+- [x] Turu 39 KARE GOZCUSU + SICAK KAYNAK DEGISIMI + YENIDEN-GIRME KILIDI KORUNDU.
+- [x] OLCUM KORUNDU: arka planda `captureSession.isRunning` + `isMultitaskingCameraAccess
+      Enabled` -> ON PLANA DONUNCE Sentry. Bu, "WhatsApp gibi kucuk pencerede kendi ufak
+      goruntumu de gosterebilir miyiz" sorusunun KESIN cevabini verecek.
+### SONRAKI TUR KARARI (olcume gore)
+Sentry "ios pip olcum ... oturum=true" -> arka planda kamera YASIYOR: kucuk pencereye
+kullanicinin ufak kendi goruntusu EKLENEBILIR (WhatsApp deseni).
+"oturum=false" -> Apple/cihaz kisiti; eklenemez, kullaniciya KESIN olarak soylenecek.
+⚠️ YAPMA: kaynak sirasini bu olcum okunmadan tekrar yerele cevirme.
