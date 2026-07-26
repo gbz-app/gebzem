@@ -15,6 +15,28 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (26 Tem 21:55):** TEST TURU 37 YAYINLANDI — android 30215341399 +
+  ios 30215342412 (26a2cf3), R2 apk=105227857 ipa=19148233 (BUYUDU=swizzle derlendi), purge OK,
+  CDN birebir, backend degismedi + health ok, DB temiz. KULLANICI TEST EDECEK.
+  ⚠️ Kullanici "iki sorun var" dedi, YALNIZ BIRINI tarif etti (donma) — ikincisi SORULACAK.
+- **TEST TURU 37 — iOS ARKA PLAN KAMERA KOK NEDENI (Apple dokumaniyla kanitli):**
+  Apple: *"you can enable multitasking camera access by setting this value to true **PRIOR TO
+  STARTING THE CAPTURE SESSION**"*. Biz `isMultitaskingCameraAccessEnabled` bayragini ZATEN
+  CALISAN session'a yaziyorduk (Dart tetikleyicilerin HEPSI startRunning SONRASI). iOS yazmayi
+  KABUL ediyor, geri okuma `true` donuyor, ama **FIILEN ETKISIZ** -> arka planda capture durur,
+  PiP SON KAREDE DONAR ve bayrak "true" gorundugu icin DURUST MUTE yedegi de calismaz (karsi
+  taraf donmus kare gorur). flutter_webrtc bunu upstream'de HIC set etmiyor (1.4.0/1.5.2).
+  **COZUM:** `GebzemKameraKanca` — `RTCCameraVideoCapturer.startCapture(with:format:fps:
+  completionHandler:)` SWIZZLE edilir, ORIJINAL cagrilmadan HEMEN ONCE bayrak yazilir
+  (uygulama acilisinda kurulur). Bu, "her mute/unmute YENI capture session yaratir, bayrak
+  sifirlanir" sorununu da kokten kapatir. `cokluGorevKameraAc()` artik YALNIZ dogrulama.
+  Ayrica `kesintileriDinle()` (AVCaptureSessionWasInterrupted) -> Dart `_iosKameraKesinti`:
+  OS gercekten kestiyse kamerayi DURUSTCE mute et + PiP'te "Kamera duraklatildi" + sebep Sentry'e.
+  ⚠️ YAPMA: kancayi kaldirip bayragi yalniz calisan session'a yazmaya donme; capture session'i
+  stopRunning/startRunning ile "bounce" etme (WebRTC capturer disaridan durdurulmayi beklemez);
+  pbxproj'a AYRI Swift dosyasi ekleme (BOM tuzagi — kod AppDelegate.swift icinde);
+  coklu-gorev kamerasi icin ENTITLEMENT ekleme (imza patlar);
+  deployment target'i 15->16 yapma (Apple'in "supported" kosulu OR'lu, cihazda zaten TRUE).
 - **KALDIGIMIZ YER (26 Tem 20:23):** TEST TURU 34-36 YAYINLANDI — android 30212040142 +
   ios 30212041360 (0bb2660), R2 apk=105227857 ipa=19143161, purge OK, CDN birebir, sayfadaki
   saat GERCEK yukleme saati, backend DEGISMEDI (865c5f0) + health ok, DB temiz. KULLANICI TEST EDECEK.
