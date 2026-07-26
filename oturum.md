@@ -2469,3 +2469,36 @@ kendi kamerami kapatip kendi goruntumu beklemek MANTIKSAL CELISKI idi.
 Sentry'de "ios pip 3sn kare=" degeri: >0 ise goruntu akiyor (kok kapandi); =0 ise capture
 gercekten durmus -> "ios kamera kesinti sebep=" ile birlikte okunacak.
 ### ACIK: kullanici "iki sorun var" dedi, ikincisini henuz tarif etmedi — SORULACAK.
+
+## TEST TURU 39 SURUMU YAYINLANDI (27 Tem 00:11) — KULLANICI TEST EDECEK
+- android **30220063911** + ios **30220064859** (commit **84066ac**), debug imza YOK.
+- R2: apk **105227857** · ipa **19151962** (19148842 -> buyudu) · index.html 6726.
+  CDN birebir, purge 2 kez, sayfadaki saat GERCEK yukleme saati. Backend degismedi, health ok,
+  DB temiz.
+### DAYANAK (16 ajan; 12 iddianin 12'si CURUTULDU -> tahmin yerine YAPISAL cozum)
+(a) "kare=0" olcumu YALNIZ yerel (kendi kamera) yolunu olcuyor — turu 36'dan beri pencere
+    kaynagi yerel. Kullanici turu 32'de "karsinin goruntusu VAR, benimki YOK" demisti: yani
+    UZAK sink'e kare AKIYOR, yerel sink'e AKMIYOR. Tum olcumler bu asimetriyle tutarli.
+(b) "kesinti gelmedi" = "kamera calisiyor" DEGIL. Apple yalniz
+    videoDeviceNotAvailableWithMultipleForegroundApps kesintisini bastirir; arka plan
+    kesintisi icin garanti YOK. Ayrica arka planda Sentry teslimi garantili degil.
+### YAPILANLAR
+- [x] **KARE GOZCUSU** (native): 500ms tik; 3 tik (~1.5sn) yeni kare yoksa katman BOSALTILIR
+      -> "Kamera duraklatildi" etiketi + Dart'a `iosPipKareDurdu`. Kok neden ne olursa olsun
+      DONMUS KARE GORUNMEZ. ⚠️ Esigi 1 tike dusurme (dusuk fps yanlis tetikler).
+- [x] **SICAK KAYNAK DEGISIMI** `kaynakDegistir`: YALNIZ sink tasir; pipController/callVC/
+      videoView DOKUNULMAZ -> `stopPictureInPicture` cagrilmaz -> PENCERE KAPANMAZ (turu
+      24/26 dersi). Yerel kare durunca KARSI TARAFIN videosuna gecilir. Ayrica kamera
+      DURUSTCE kapatilir (artik TAHMIN degil OLCUM) -> karsi taraf bulanik "Kamera
+      duraklatildi" gorur.
+- [x] **IKI TARAFLI OLCUM**: on plan karesi + arka plan karesi + captureSession.isRunning +
+      isMultitaskingCameraAccessEnabled; ON PLANA DONUNCE Sentry'e yazilir.
+      KARAR TABLOSU: on>0/arka=0/oturum=false -> kamera arka planda GERCEKTEN duruyor
+      (sicak gecis kalici cozumdur); on=0 -> renderer canli track'e HIC baglanmamis.
+- [x] **`_iosPipGuncelle` YENIDEN-GIRME KILIDI**: metot her notifyListeners + saniyelik
+      sayacla cagriliyor, `_iosPipKurulanId` await'ten SONRA yaziliyordu -> iki es zamanli
+      akis `iosPipKur` cagirip native `birak()` ile PENCEREYI KAPATIYORDU (turu 24-29'daki
+      "pencere gidiyor" sikayetlerinin yapisal koku).
+### SONRAKI TURDA BAKILACAK
+Sentry: "ios pip olcum on=NN arka=NN kaynak=... oturum=... coklu=..." — tek satirda kesin teshis.
+### ACIK: kullanici "iki sorun var" demisti, ikincisini henuz tarif etmedi.
