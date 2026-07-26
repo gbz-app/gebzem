@@ -123,6 +123,9 @@ import flutter_callkit_incoming
       case "iosPipBirak":
         GebzemPip.shared.birak()
         result(true)
+      case "iosPipDurdur":
+        GebzemPip.shared.durdur()
+        result(true)
       case "iosPipBaslat":
         // TEST TURU 20: Dart, uygulama arka plana giderken (lifecycle inactive/paused)
         // cagirir -> PiP telefon Ayarindan BAGIMSIZ acilir.
@@ -337,6 +340,14 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
     // isPictureInPicturePossible false ise (ilk kare henuz gelmemis) cagri sessizce duser;
     // delegate failedToStart -> Dart kamera-mute yedegine gecer (mevcut davranis).
     c.startPictureInPicture()
+  }
+
+  /// TEST TURU 25: uygulama ON PLANA donunce PiP penceresini KAPAT. iOS gecici "inactive"
+  /// anlarinda (bildirim/kontrol merkezi, izin uyarisi) PiP basliyor, uygulama geri gelince
+  /// pencere ASILI kaliyordu (kullanici: "iPhone'da yine PiP kucuk ekranin ustunde cikiyor").
+  func durdur() {
+    guard let c = pipController, c.isPictureInPictureActive else { return }
+    c.stopPictureInPicture()
   }
 
   func birak() {

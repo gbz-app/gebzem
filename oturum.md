@@ -2196,3 +2196,24 @@ border/siyah kalksin, surukleme akici olsun.
       (2) Kucuk pencereden geri don -> ekran ANINDA cizilmeli. (3) Gruba katil -> tile'lar
       hafif belirme ile gelmeli, takilma olmamali. (4) Karsi taraf mikrofonunu kapatsin ->
       "X sessize alındı." 5 sn gorunup kaybolmali. (5) Kucuk ekranda cerceve/golge olmamali.
+
+## TEST TURU 25 (26 Tem 2026): iPHONE KAPANMAMA/PiP UST USTE + ARAYUZ (kullanici sikayeti)
+Kullanici hakli sekilde kizdi: (1) iPhone'da GORUNTULU ARAMA KAPANMIYOR. (2) Alta alinca ekran
+gidiyor, karsi tarafta kucuk ekranda gorunmuyor. (3) iPhone'da PiP KUCUK EKRANIN USTUNDE cikiyor.
+(4) Gonderdigi WhatsApp arayuzu (tek hap icinde alt kontroller) yapilmamis. (5) Cagirirken kendi
+kamerasi tam ekran gelmiyor.
+### KOK NEDENLER (kesin)
+- **iOS'ta PiP icerigini NATIVE katman cizer** (GebzemPip). Biz Flutter'da AYRICA tam ekran PiP
+  katmani ciziyor ve CallScreen'i `Offstage` yapiyorduk. iPhone'da `pipModunda` takili kalinca
+  ekranin ustunde DOKUNUSLARI YUTAN bir katman kaliyor -> kirmizi tusa BASILAMIYOR (arama
+  kapanmiyor), geri donunce kontroller gorunmuyor. FIX: bu katman + Offstage ARTIK YALNIZ ANDROID.
+  Ayrica katman `IgnorePointer` ile cizilir (dokunus yutmaz).
+- **iOS gecici 'inactive'** (bildirim/kontrol merkezi, IZIN UYARISI) PiP'i baslatiyor; uygulama
+  geri gelince pencere ASILI kaliyordu -> "PiP kucuk ekranin ustunde". FIX: uygulama ON PLANA
+  donunce `GebzemPip.durdur()` (stopPictureInPicture) + pipModunda=false.
+- **Kendi kameram tam ekran gelmiyordu**: giden aramada kamera izni O ANA KADAR hic istenmemis
+  olabiliyor; onizleme yalniz "izin verilmis mi" diye bakip sessizce vazgeciyordu. FIX: onizleme
+  gerekirse IZNI ISTER (WhatsApp da arama baslarken sorar).
+### ARAYUZ (kullanicinin gonderdigi ekran)
+- [x] ALT KONTROL CUBUGU: tek koyu hap icinde [•••] [kamera] [hoparlor] [mikrofon] [KIRMIZI kapat];
+      acik durumlar BEYAZ daire + koyu ikon. Kamera cevir / kisi ekle / "ses gelmiyor" -> ••• menusu.

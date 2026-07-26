@@ -317,7 +317,13 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
   /// baglanti sonrasi normal setCameraEnabled yolu devreye girer.
   Future<void> _onizlemeAc() async {
     try {
-      if (!await Permission.camera.isGranted) return;
+      // KOK NEDEN (test turu 25 — "kameram tam ekran gelmiyor"): GIDEN aramada kamera izni
+      // bu ana kadar HIC istenmemis olabiliyordu; sadece "verilmis mi" diye bakinca
+      // onizleme hic acilmiyordu. Artik IZIN ISTENIR (WhatsApp da arama baslarken sorar).
+      if (!await Permission.camera.isGranted) {
+        final st = await Permission.camera.request();
+        if (st != PermissionStatus.granted) return;
+      }
       if (_onizlemeTrack != null || _ayrildi) return;
       final t = await LocalVideoTrack.createCameraTrack(
           _isGroup ? kGroupCameraCaptureOptions : kCameraCaptureOptions);
@@ -762,7 +768,16 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       notifyListeners();
       return;
     }
-    if (state == AppLifecycleState.resumed) _pipKameraGecikme?.cancel();
+    if (state == AppLifecycleState.resumed) {
+      _pipKameraGecikme?.cancel();
+      // TEST TURU 25: uygulama ON PLANDA -> iOS PiP penceresi ASILI KALMASIN
+      // (gecici 'inactive' anlarinda baslayip donunce ust uste biniyordu).
+      if (Platform.isIOS && pipModunda) {
+        pipModunda = false;
+        unawaited(PipService.iosPipDurdur());
+        notifyListeners();
+      }
+    }
     if (state == AppLifecycleState.resumed && arama != null && !_ayrildi && !_cevapsiz) {
       // Kamera restore _kesintidenTopla'dan ONCE (iOS ses sirasi: _sesiAc EN SON kalmali)
       if (_kameraOtoKapandi && _baglandi) {

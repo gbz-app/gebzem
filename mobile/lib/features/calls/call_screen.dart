@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -232,7 +233,9 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     // Scaffold donuyorduk -> PiP'ten cikinca TUM agac (video renderer'lar dahil) SIFIRDAN
     // kuruluyordu = yavas cizim. Artik agac AYNEN korunur, yalniz BOYANMAZ (Offstage) ->
     // donus ANINDA olur (renderer'lar canli kalir, texture yeniden kurulmaz).
-    final pipte = c.pipModunda;
+    // YALNIZ ANDROID: iOS PiP icerigi native cizilir; iPhone'da Offstage yapmak
+    // uygulamayi GORUNMEZ birakiyordu (kullanici: "ekran gidiyor").
+    final pipte = c.pipModunda && Platform.isAndroid;
     final remote = _remoteVideo;
     final local = _localVideo;
     // MID-CALL: sesli aramada kamera acilinca (yerel VEYA karsi) video moduna gecer.
@@ -616,48 +619,118 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     );
   }
 
+  /// ALT KONTROL CUBUGU — TEST TURU 25 (kullanici ekran goruntusu, WhatsApp duzeni):
+  /// TEK koyu hap icinde 5 dugme: [•••] [kamera] [hoparlor] [mikrofon] [KIRMIZI kapat].
+  /// Acik durumlar BEYAZ daire + koyu ikon; kapali/pasif koyu daire + beyaz ikon.
   Widget _buildAramaKontroller(ActiveCallController c) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        _ctrlButton(
-          icon: c.micOn ? LucideIcons.mic : LucideIcons.micOff,
-          active: !c.micOn,
-          onTap: c.toggleMic,
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+        decoration: BoxDecoration(
+          color: const Color(0xE61E282E),
+          borderRadius: BorderRadius.circular(40),
         ),
-        const SizedBox(width: 16),
-        // MID-CALL: kamera butonu her zaman gorunur (grup dahil)
-        _ctrlButton(
-          icon: c.camOn ? LucideIcons.video : LucideIcons.videoOff,
-          active: !c.camOn,
-          onTap: _toggleCam,
-        ),
-        const SizedBox(width: 16),
-        if (c.camOn) ...[
-          _ctrlButton(
-            icon: LucideIcons.switchCamera,
-            onTap: c.flipCamera,
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          // ••• : ek secenekler (kamera cevir / kisi ekle)
+          _hapBtn(
+            icon: LucideIcons.ellipsis,
+            beyaz: false,
+            onTap: _ekSecenekler,
           ),
-          const SizedBox(width: 16),
-        ],
-        _ctrlButton(
-          icon: c.speakerOn ? LucideIcons.volume2 : LucideIcons.volumeX,
-          active: c.speakerOn,
-          onTap: c.toggleSpeaker,
-        ),
-        const SizedBox(width: 16),
-        // Kapat — aramayi YALNIZ bu bitirir (tek kapi: controller.leave)
-        GestureDetector(
-          onTap: () => c.leave(notifyServer: true),
-          child: Container(
-            width: 64,
-            height: 64,
-            decoration: const BoxDecoration(
-                color: Color(0xFFE53935), shape: BoxShape.circle),
-            child: const Icon(LucideIcons.phoneOff, color: Colors.white, size: 28),
+          const SizedBox(width: 10),
+          _hapBtn(
+            icon: c.camOn ? LucideIcons.video : LucideIcons.videoOff,
+            beyaz: c.camOn,
+            onTap: _toggleCam,
           ),
-        ),
-      ],
+          const SizedBox(width: 10),
+          _hapBtn(
+            icon: c.speakerOn ? LucideIcons.volume2 : LucideIcons.volumeX,
+            beyaz: c.speakerOn,
+            onTap: c.toggleSpeaker,
+          ),
+          const SizedBox(width: 10),
+          _hapBtn(
+            icon: c.micOn ? LucideIcons.mic : LucideIcons.micOff,
+            beyaz: false,
+            kirmiziIkon: !c.micOn,
+            onTap: c.toggleMic,
+          ),
+          const SizedBox(width: 10),
+          // Kapat — aramayi YALNIZ bu bitirir (tek kapi: controller.leave)
+          _hapBtn(
+            icon: LucideIcons.phoneOff,
+            beyaz: false,
+            arka: const Color(0xFFE53935),
+            onTap: () => c.leave(notifyServer: true),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  Widget _hapBtn({
+    required IconData icon,
+    required bool beyaz,
+    required VoidCallback onTap,
+    Color? arka,
+    bool kirmiziIkon = false,
+  }) {
+    final zemin = arka ?? (beyaz ? Colors.white : const Color(0xFF3A464E));
+    final renk = arka != null
+        ? Colors.white
+        : (beyaz ? const Color(0xFF0B141A) : (kirmiziIkon ? Colors.white : Colors.white));
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        width: 58,
+        height: 58,
+        decoration: BoxDecoration(color: zemin, shape: BoxShape.circle),
+        child: Icon(icon, color: renk, size: 25),
+      ),
+    );
+  }
+
+  /// ••• menusu: kamera cevir + kisi ekle (alt cubuk sade kalsin diye buraya alindi)
+  void _ekSecenekler() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1E282E),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(18))),
+      builder: (_) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          if (_c.camOn)
+            ListTile(
+              leading: const Icon(LucideIcons.switchCamera, color: Colors.white),
+              title: const Text('Kamerayı çevir',
+                  style: TextStyle(color: Colors.white)),
+              onTap: () {
+                Navigator.of(context).pop();
+                _c.flipCamera();
+              },
+            ),
+          ListTile(
+            leading: const Icon(LucideIcons.userPlus, color: Colors.white),
+            title:
+                const Text('Kişi ekle', style: TextStyle(color: Colors.white)),
+            onTap: () {
+              Navigator.of(context).pop();
+              _kisiEkle();
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.volume_off, color: Colors.orangeAccent),
+            title: Text(_sorunBildirildi ? 'Bildirildi ✓' : 'Ses gelmiyor',
+                style: const TextStyle(color: Colors.orangeAccent)),
+            onTap: () {
+              Navigator.of(context).pop();
+              _sorunBildir();
+            },
+          ),
+        ]),
+      ),
     );
   }
 
@@ -939,22 +1012,5 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     );
   }
 
-  Widget _ctrlButton({
-    required IconData icon,
-    bool active = false,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 56,
-        height: 56,
-        decoration: BoxDecoration(
-          color: active ? Colors.white : Colors.white24,
-          shape: BoxShape.circle,
-        ),
-        child: Icon(icon, color: active ? Colors.black87 : Colors.white, size: 24),
-      ),
-    );
-  }
+  // NOT (test turu 25): _ctrlButton KALDIRILDI — alt kontroller artik tek hap icinde (_hapBtn).
 }

@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -105,8 +106,16 @@ class _AktifAramaBannerState extends ConsumerState<AktifAramaBanner> {
     // tarafin videosunu TAM EKRAN gostersin (eskiden yalniz CallScreen ustundeyken calisiyordu;
     // arama kucultulup uygulamada gezerken HOME'a inince PiP'te ana ekran gorunuyordu).
     // widget.child agacta KALIR (Navigator state'i korunur), uzerine opak katman cizilir.
-    if (b != null && c.pipModunda) {
-      return Stack(children: [widget.child, Positioned.fill(child: _pipTamEkran(c, b))]);
+    // KRITIK (test turu 25 — kullanici: 'iPhone'da arama KAPANMIYOR, ekran gidiyor'):
+    // iOS'ta sistem PiP penceresinin icerigini NATIVE katman cizer (GebzemPip). Flutter'da
+    // AYRICA tam ekran PiP katmani cizmek iPhone'da uygulamanin USTUNU kapatiyor ve
+    // DOKUNUSLARI YUTUYORDU -> kirmizi tusa basilamiyor, geri donunce kontroller yok.
+    // Bu katman ARTIK YALNIZ ANDROID'de (orada PiP penceresi Flutter agacini gosterir).
+    if (b != null && c.pipModunda && Platform.isAndroid) {
+      return Stack(children: [
+        widget.child,
+        Positioned.fill(child: IgnorePointer(child: _pipTamEkran(c, b))),
+      ]);
     }
     if (!yuzenGorunur) return widget.child;
 

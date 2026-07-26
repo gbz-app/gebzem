@@ -157,6 +157,14 @@ class PipService {
     } catch (_) {}
   }
 
+  /// TEST TURU 25: uygulama ON PLANA donunce PiP penceresini KAPAT (asili kalmasin).
+  static Future<void> iosPipDurdur() async {
+    if (!Platform.isIOS) return;
+    try {
+      await _ch.invokeMethod('iosPipDurdur');
+    } catch (_) {}
+  }
+
   /// iOS sistem PiP DURUM geri bildirimi (test turu 9): native GebzemPip delegate
   /// 'iosPipDurum' (true=basladi/false=durdu) + 'iosPipBasarisiz' (baslatilamadi) gonderir.
   static void iosDinle(
