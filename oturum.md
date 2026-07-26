@@ -2381,3 +2381,35 @@ kaldirilmasi + ikonlarin kilitlenmemesi.
    telefon CALMALI.
 4. Android'den goruntulu ara, iPhone KILITLI: ekran GELMELI (VoIP push).
 5. Goruntulu arama kabul: siyah patlama olmamali, kendi goruntun kosede kalmali.
+
+## TEST TURU 34-36 SURUMU YAYINLANDI (26 Tem 20:23) — KULLANICI TEST EDECEK
+- android **30212040142** + ios **30212041360** (commit **0bb2660**), debug imza YOK.
+- R2: apk **105227857** · ipa **19143161** (19139678 -> BUYUDU = yeni native kod kaniti)
+  · index.html 6754. CDN birebir, purge 2 kez, sayfadaki saat GERCEK yukleme saati.
+- Backend bu turda DEGISMEDI (sunucu 865c5f0), /health = ok. DB temiz (voip_tokens dahil 0).
+### KOK COZUMLER
+1. **GRUP "KATIL" EKRANI GERI GELDI** (16 ajanlik denetim): ekran SILINMEMISTI, ama yalniz
+   "Android + uygulama ON PLANDA + WS" yolunda cizilebiliyordu. iOS'ta WS call.incoming
+   kosulsuz atlanir; Android kilitli/arka planda FCM->CallKit gelir. **`is_group` bayragi
+   CallKit yukunde UC yerde dusuruluyordu** (AppDelegate extras, goster extras, `_ayikla`)
+   -> kabul aninda "bu bir grup" bilgisi TEKNIK OLARAK YOKTU. Artik ucdan uca tasiniyor ve
+   `_callKitKabul` grup dalinda arama HENUZ cevaplanmadan davet ekrani aciliyor
+   (`grupDavetiGoster`). "Yok say" artik CallKit aramasini da kapatiyor + onizlemeyi birakiyor.
+   1:1 yolu AYNEN korundu.
+2. **ILK KAYITTA PATLAMA / IZIN GELMEMESI**: VoIP token OTURUMSUZ POST -> 401 -> Dio
+   interceptor TUM OTURUMU siliyor + authProvider invalidate -> GoRouter sifirdan kuruluyor
+   -> kullanici KAYIT ekranindan LOGIN'e firliyor, acik izin diyaloglari dusuyordu (turu
+   33'te 5 denemeyle 5 KAT siklasti). Fix: token POST'u oturum varsa yapilir + token uclari
+   401'de oturumu SILMEZ.
+3. **iPHONE KUCUK PENCERE = SADECE KENDI KAMERAM** (kullanici karari). Kaynak sirasi
+   yerel -> uzak; ust/alt bolunme kapali (`pipBolunme=false`, kod duruyor); pencere orani
+   120x213 (asiri uzun 120x400 geri alindi). **KIMLIK CALKANTISI KORUMASI**: kurulmus kimlik
+   hala gecerliyse degistirilmez (kaynak degisimi `birak()` ile pencereyi KAPATIYORDU).
+4. iOS kamera: `iosKameraCanli` artik `!_iosCokluGorevDeniyor` sartini da tasir (bayrak
+   tazeleme ucarken bayat deger okunup durust mute atlaniyordu -> donmus kare).
+### TEST REHBERI
+1. GRUP goruntulu davet: iPhone KILITLI + Android KILITLI + uygulama ACIK — uc durumda da
+   "Katıl / Yok say" ekrani + kendi kamera onizlemesi gelmeli.
+2. Taze kurulum + kayit: login'e ATMAMALI, izin diyaloglari sirayla gelmeli.
+3. iPhone goruntulu arama -> alta al: kucuk pencerede KENDI goruntun, normal boyutta.
+4. Android sesli arama -> HOME -> 60sn: dusmemeli ("Sesli arama sürüyor" bildirimi).
