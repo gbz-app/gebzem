@@ -107,6 +107,17 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
     // KILITLENIR. Dogrusu: kamerayi DURUSTCE mute et -> izleyiciler "kamera kapali" avatari
     // gorur (donmus kare yerine). PiP'teysek kamera CALISIR -> hicbir sey yapma.
     // Donuste kamera geri acilir.
+    // TEST TURU 20: iOS'ta PiP'i ELLE baslat (telefon Ayarindan bagimsiz kucuk pencere).
+    if (Platform.isIOS &&
+        (state == AppLifecycleState.inactive ||
+            state == AppLifecycleState.paused ||
+            state == AppLifecycleState.hidden) &&
+        mounted &&
+        !_ayrildi &&
+        !PipService.pipModu.value &&
+        _iosPipKurulanId.isNotEmpty) {
+      unawaited(PipService.iosPipBaslat());
+    }
     if ((state == AppLifecycleState.paused || state == AppLifecycleState.hidden) &&
         mounted &&
         !_ayrildi &&

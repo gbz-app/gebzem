@@ -18,6 +18,10 @@ class PipService {
   /// ekranlari bunu dinleyip sade gorunume gecer.
   static final ValueNotifier<bool> pipModu = ValueNotifier<bool>(false);
 
+  /// GSM (normal telefon) aramasi var mi — TEST TURU 20. Android'de TelephonyCallback'ten
+  /// gelir; true olunca Gebzem aramasi BEKLEMEYE alinir (WhatsApp davranisi).
+  static final ValueNotifier<bool> gsmAramada = ValueNotifier<bool>(false);
+
   static bool _handlerKuruldu = false;
   static void Function(bool)? _androidDurumCb;
   static void Function(String)? _eylemCb;
@@ -36,6 +40,8 @@ class PipService {
           _androidDurumCb?.call(v);
         case 'pipEylem': // Android PiP penceresindeki dugmeler (mic/kapat)
           _eylemCb?.call(call.arguments as String? ?? '');
+        case 'gsmDurum': // TEST TURU 20: GSM aramasi basladi/bitti
+          gsmAramada.value = call.arguments == true;
         case 'iosPipDurum':
           final v = call.arguments == true;
           pipModu.value = v;
@@ -88,6 +94,20 @@ class PipService {
     } catch (_) {}
   }
 
+  /// GSM ARAMA DINLEYICISI (test turu 20): Gebzem aramasi basladiginda ac, bitince kapat.
+  /// Donus: dinlenebiliyor mu (READ_PHONE_STATE izni yoksa false -> ozellik sessizce kapali).
+  static Future<bool> gsmDinle(bool ac) async {
+    if (!Platform.isAndroid) return false;
+    try {
+      _handlerKur();
+      final ok = (await _ch.invokeMethod<bool>('gsmDinle', ac)) ?? false;
+      if (!ac) gsmAramada.value = false;
+      return ok;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Arama bitti ve hala PiP penceresindeysek pencereyi kapat (WhatsApp gibi).
   static Future<void> pipKapat() async {
     if (!Platform.isAndroid) return;
@@ -123,6 +143,15 @@ class PipService {
     if (!Platform.isIOS) return;
     try {
       await _ch.invokeMethod('iosPipBirak');
+    } catch (_) {}
+  }
+
+  /// TEST TURU 20: PiP'i ELLE baslat (uygulama arka plana giderken). Otomatik giris telefon
+  /// Ayarina + Dusuk Guc Modu'na bagli; elle baslatma AYARDAN BAGIMSIZ calisir.
+  static Future<void> iosPipBaslat() async {
+    if (!Platform.isIOS) return;
+    try {
+      await _ch.invokeMethod('iosPipBaslat');
     } catch (_) {}
   }
 

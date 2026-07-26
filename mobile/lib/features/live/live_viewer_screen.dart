@@ -187,6 +187,18 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    // TEST TURU 20: iOS'ta uygulama arka plana giderken PiP'i ELLE baslat (telefon
+    // Ayarindan bagimsiz) -> izleyici yayini kucuk pencerede izlemeye devam eder.
+    if (Platform.isIOS &&
+        (state == AppLifecycleState.inactive ||
+            state == AppLifecycleState.paused ||
+            state == AppLifecycleState.hidden) &&
+        mounted &&
+        !_ayrildi &&
+        !PipService.pipModu.value &&
+        _iosPipKurulanId.isNotEmpty) {
+      unawaited(PipService.iosPipBaslat());
+    }
     if (state == AppLifecycleState.resumed && mounted && !_ayrildi) {
       _sesiAc(true); // kesinti toparlama
       if (_konukum) {

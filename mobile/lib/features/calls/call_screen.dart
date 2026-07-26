@@ -358,7 +358,65 @@ class _CallScreenState extends ConsumerState<CallScreen> {
                 ])),
               ),
 
+            // ARAMA BEKLEMEDE PANELI (test turu 20 — WhatsApp duzeni): GSM aramasi geldi
+            // ya da arama beklemeye alindi. Alt kontrollerin YERINE gecer: "Aramayi bitir"
+            // (kirmizi) / "Devam et" (yesil). Arama SUNUCUDA yasar, yalniz medya durur.
+            if (c.beklemede)
+              Positioned(
+                left: 12,
+                right: 12,
+                bottom: 40,
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF17232B),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    const Text('Arama beklemede.',
+                        style: TextStyle(color: Colors.white, fontSize: 17)),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0x33E53935),
+                          foregroundColor: const Color(0xFFE57373),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(26)),
+                        ),
+                        onPressed: () => _c.leave(notifyServer: true),
+                        icon: const Icon(LucideIcons.phoneOff, size: 18),
+                        label: const Text('Aramayı bitir',
+                            style: TextStyle(fontWeight: FontWeight.w600)),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFF25D366),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(26)),
+                        ),
+                        onPressed: () =>
+                            _c.beklemeyeAl(_c.arama?.callId ?? '', false),
+                        child: const Text('Devam et',
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700)),
+                      ),
+                    ),
+                  ]),
+                ),
+              ),
+
             // Alt kontroller (cevapsizda: Geri Ara / Kapat) — A7: gizlenebilir
+            if (!c.beklemede)
             Positioned(
               left: 0,
               right: 0,

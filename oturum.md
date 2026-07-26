@@ -2059,10 +2059,10 @@ Kullanici (3 telefon: 2 Android + 1 iPhone) bulgulari:
   Yani 1000 bekleyen arama bile SFU'yu ZORLAMAZ; asil maliyet KONUSAN aramalarda.
 
 ### ADIMLAR
-- [ ] 1. Backend webhook: 1:1'de `participant_left` -> aramayi ANINDA bitir; grupta katilimciyi
+- [x] 1. Backend webhook: 1:1'de `participant_left` -> aramayi ANINDA bitir; grupta katilimciyi
       'left' isaretle (bosalinca bitir) + `participant_joined` -> 'joined' geri (reconnect)
-- [ ] 2. Android: READ_PHONE_STATE + TelephonyCallback/PhoneStateListener -> GSM RINGING/OFFHOOK
+- [x] 2. Android: READ_PHONE_STATE + TelephonyCallback/PhoneStateListener -> GSM RINGING/OFFHOOK
       olayi Dart'a; aktif arama BEKLEMEYE alinir, IDLE'da geri doner
-- [ ] 3. Arama ekrani: "Arama beklemede" paneli (Aramayi bitir / Devam et) — WhatsApp duzeni
-- [ ] 4. iOS: arka plana gecerken PiP'i ELLE baslat (ayardan bagimsiz kucuk pencere)
+- [x] 3. Arama ekrani: "Arama beklemede" paneli (Aramayi bitir / Devam et) — WhatsApp duzeni
+- [x] 4. iOS: arka plana gecerken PiP'i ELLE baslat (ayardan bagimsiz kucuk pencere)
 - [ ] 5. analyze + go build + temiz build + yayin

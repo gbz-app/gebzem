@@ -31,25 +31,70 @@ func (h *Handler) LiveKitWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusOK) // LiveKit'i bekletme; isi arka planda bitir
 	oda := olay.Room.Name
-	bos := olay.Room.NumParticipants == 0
-
-	switch olay.Event {
-	case "room_finished":
-		bos = true
-	case "participant_left":
-		// bos = numParticipants==0 (yukarida)
-	default:
-		return
-	}
-	if !bos || oda == "" {
+	if oda == "" {
 		return
 	}
 	ctx := context.Background()
-	switch {
-	case strings.HasPrefix(oda, "call_"):
-		h.webhookAramaKapat(ctx, strings.TrimPrefix(oda, "call_"))
-	case strings.HasPrefix(oda, "stream_"):
-		h.webhookYayinKapat(ctx, strings.TrimPrefix(oda, "stream_"))
+	bos := olay.Room.NumParticipants == 0
+	aramaID := strings.TrimPrefix(oda, "call_")
+	aramaMi := strings.HasPrefix(oda, "call_")
+
+	switch olay.Event {
+	case "room_finished":
+		if aramaMi {
+			h.webhookAramaKapat(ctx, aramaID)
+		} else if strings.HasPrefix(oda, "stream_") {
+			h.webhookYayinKapat(ctx, strings.TrimPrefix(oda, "stream_"))
+		}
+	case "participant_joined":
+		// TEST TURU 20: yeniden baglanan katilimciyi 'joined'e geri al (grup listeleri/WS
+		// hedefleri dogru kalsin; participant_left sonrasi reconnect senaryosu).
+		if aramaMi && olay.Participant.Identity != "" {
+			h.db.Exec(ctx, `UPDATE call_participants SET status='joined', left_at=NULL
+				WHERE call_id=$1 AND user_id=$2::uuid AND status='left'`,
+				aramaID, olay.Participant.Identity)
+		}
+	case "participant_left":
+		if !aramaMi {
+			if bos && strings.HasPrefix(oda, "stream_") {
+				h.webhookYayinKapat(ctx, strings.TrimPrefix(oda, "stream_"))
+			}
+			return
+		}
+		// TEST TURU 20 (kullanici bulgusu: "iPhone kapatilinca karsida ekran DONUYOR ve sonra
+		// 'zaten aramada' diyor"): odadan cikan katilimci ANINDA islenir.
+		//  · 1:1  -> arama BITER (istemci zaten ayni sekilde davraniyor: ParticipantDisconnected
+		//            -> leave). Boylece karsi ekran donmadan kapanir, satir 'ended' olur.
+		//  · GRUP -> yalniz o kisi 'left'; konusabilecek kimse kalmadiysa arama biter.
+		var isGroup bool
+		if h.db.QueryRow(ctx, `SELECT COALESCE(is_group,false) FROM calls
+			WHERE id=$1 AND status='active'`, aramaID).Scan(&isGroup) != nil {
+			return // arama zaten kapali
+		}
+		if !isGroup {
+			h.webhookAramaKapat(ctx, aramaID)
+			return
+		}
+		if olay.Participant.Identity != "" {
+			h.db.Exec(ctx, `UPDATE call_participants SET status='left', left_at=now()
+				WHERE call_id=$1 AND user_id=$2::uuid AND status IN ('ringing','joined')`,
+				aramaID, olay.Participant.Identity)
+			hedefler := h.groupJoinedOthers(ctx, aramaID, olay.Participant.Identity)
+			if len(hedefler) > 0 {
+				p, _ := json.Marshal(map[string]any{
+					"call_id": aramaID, "user_id": olay.Participant.Identity,
+				})
+				h.hub.Publish(ctx, &chat.Event{
+					Type: "call.participant.left", Payload: p, To: hedefler,
+				})
+			}
+		}
+		var kalan int
+		h.db.QueryRow(ctx, `SELECT count(*) FROM call_participants
+			WHERE call_id=$1 AND status='joined'`, aramaID).Scan(&kalan)
+		if kalan == 0 || bos {
+			h.webhookAramaKapat(ctx, aramaID)
+		}
 	}
 }
 

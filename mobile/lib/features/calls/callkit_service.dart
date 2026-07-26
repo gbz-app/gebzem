@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_callkit_incoming/entities/entities.dart';
 import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
 /// Kilit ekraninda / uygulama kapaliyken gelen arama.
@@ -245,6 +246,12 @@ class CallKitService {
         await FlutterCallkitIncoming.requestFullIntentPermission();
         tamEkran = await FlutterCallkitIncoming.canUseFullScreenIntent();
       }
+      // TEST TURU 20 — GSM ARAMA BEKLETME: normal telefon aramasi gelince Gebzem aramasini
+      // beklemeye alabilmek icin telefon DURUMU izni (READ_PHONE_STATE). Verilmezse ozellik
+      // sessizce kapali kalir; arama akisi ETKILENMEZ (bu yuzden hata yutulur).
+      try {
+        if (!await Permission.phone.isGranted) await Permission.phone.request();
+      } catch (_) {}
       // TANI: kilit ekrani aramasi gorunmuyorsa ilk bakilacak yer — izin durumu.
       debugPrint('CALLKIT-TANI: bildirim=$bildirim tamEkran=$tamEkran');
       unawaited(Sentry.captureMessage(

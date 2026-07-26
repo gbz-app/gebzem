@@ -29,6 +29,7 @@ class MainActivity : FlutterActivity() {
     private var dugmelerAcik = true // canli yayin PiP'inde arama dugmeleri gizlenir
     private var kanal: MethodChannel? = null
     private var alici: BroadcastReceiver? = null
+    private var telefon: TelefonDurumu? = null // GSM arama dinleyicisi (test turu 20)
 
     companion object {
         private const val EYLEM = "app.gebzem.PIP_EYLEM"
@@ -86,6 +87,18 @@ class MainActivity : FlutterActivity() {
                     }
                     result.success(true)
                 }
+                // TEST TURU 20: GSM arama dinleyicisini ac/kapa (Gebzem aramasi basladiginda
+                // acilir, bittiginde kapanir). Izin yoksa false doner -> ozellik sessizce kapali.
+                "gsmDinle" -> {
+                    val ac = call.arguments == true
+                    if (ac) {
+                        if (telefon == null) telefon = TelefonDurumu(this, kanal!!)
+                        result.success(telefon?.basla() ?: false)
+                    } else {
+                        telefon?.dur()
+                        result.success(true)
+                    }
+                }
                 "pipDurumu" -> result.success(
                     Build.VERSION.SDK_INT >= 26 && isInPictureInPictureMode)
                 else -> result.notImplemented()
@@ -118,6 +131,7 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onDestroy() {
+        telefon?.dur()
         alici?.let { try { unregisterReceiver(it) } catch (_: Exception) {} }
         alici = null
         super.onDestroy()

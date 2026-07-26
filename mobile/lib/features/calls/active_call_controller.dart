@@ -121,6 +121,14 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       pipModunda = aktif;
       notifyListeners();
     }, onBasarisiz: _iosPipBasarisiz);
+    // TEST TURU 20 — GSM ARAMA BEKLETME (Android; iOS'ta bunu CallKit yapar):
+    // normal telefon aramasi baslayinca Gebzem aramasi BEKLEMEYE alinir (medya durur,
+    // arama SUNUCUDA OLMEZ), telefon gorusmesi bitince kaldigi yerden DEVAM eder.
+    PipService.gsmAramada.addListener(() {
+      final b = arama;
+      if (b == null || _ayrildi || !_baglandi) return;
+      unawaited(beklemeyeAl(b.callId, PipService.gsmAramada.value));
+    });
   }
 
   final Ref _ref;
@@ -509,6 +517,8 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     _sesNesli = null;
 
     final id = b.callId;
+    // TEST TURU 20: GSM arama dinleyicisini AC (arama boyunca). Izin yoksa no-op.
+    unawaited(PipService.gsmDinle(true));
     // SURE SENKRONU: ARANAN tarafta answer() cevabindaki gecen-sure (~0); grupta kullanilmaz.
     _sureReferansiAl(b.elapsedMs);
     // MESGUL MUHAFIZI: calar fazi dahil isaretle; yalniz leave birakir.
@@ -642,6 +652,21 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     // TEST TURU 9: iOS coklu-gorev kamera ACIKSA arka planda kamerayi KAPATMA — kamera CAPTURE'a
     // devam eder, PiP karsi tarafa CANLI gonderir ("alta alinca karsi beni goremiyor" fix'i).
     // PiP baslatilamazsa native pipBasarisiz -> _iosPipBasarisiz zaten kamerayi kapatir.
+    // TEST TURU 20 (kullanici: "iPhone'da alta alinca kucuk pencere gelmiyor"): uygulama
+    // arka plana GECERKEN PiP'i ELLE baslat — otomatik giris telefon Ayarina/Dusuk Guc
+    // Modu'na bagliydi, elle baslatma bagimsiz calisir. 'inactive' iOS'ta gecis anidir
+    // (uygulama HALA on planda sayilir; Apple startPictureInPicture'a burada izin verir).
+    if (Platform.isIOS &&
+        (state == AppLifecycleState.inactive ||
+            state == AppLifecycleState.paused ||
+            state == AppLifecycleState.hidden) &&
+        arama != null &&
+        _baglandi &&
+        !_ayrildi &&
+        !pipModunda &&
+        _iosPipKurulanId.isNotEmpty) {
+      unawaited(PipService.iosPipBaslat());
+    }
     final iosKameraCanli = Platform.isIOS && _iosArkaPlanKamera;
     // TEST TURU 14 KOK-4: Android'de PiP'e girerken lifecycle 'paused' native pipDegisti(true)'dan
     // ONCE gelebiliyor -> pipModunda henuz false -> kamerayi kapatiyorduk ve PiP penceresinde
@@ -1379,6 +1404,8 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
 
     // CallKit KAPAT (kilit ekrani kabulunde aktif sistem aramasi vardir; idempotent)
     unawaited(CallKitService.bitir(id));
+    // GSM dinleyicisini kapat (park edilmis arama varsa devamEt tekrar acar)
+    if (parkEdilen == null) unawaited(PipService.gsmDinle(false));
     // SERI ARAMA YARISI: teardown'i AYRILMA ANINDA kilit sirasina koy
     _kapatOdayiKuyrugaKoy();
     await CallSounds.durdur(_sesNesli);

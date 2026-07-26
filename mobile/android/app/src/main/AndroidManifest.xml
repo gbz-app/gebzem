@@ -17,6 +17,10 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL"/>
     <!-- Pil optimizasyonu muafiyeti (kapaliyken arama gelsin) -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
+    <!-- TEST TURU 20: GSM (normal telefon) aramasi gelince Gebzem aramasini BEKLEMEYE almak icin
+         telefon durumunu dinleriz (WhatsApp davranisi). Izin verilmezse ozellik sessizce kapali
+         kalir — arama akisi ETKILENMEZ. -->
+    <uses-permission android:name="android.permission.READ_PHONE_STATE"/>
     <uses-feature android:name="android.hardware.camera" android:required="false"/>
     <uses-feature android:name="android.hardware.microphone" android:required="false"/>
     <application

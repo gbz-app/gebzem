@@ -121,6 +121,11 @@ import flutter_callkit_incoming
       case "iosPipBirak":
         GebzemPip.shared.birak()
         result(true)
+      case "iosPipBaslat":
+        // TEST TURU 20: Dart, uygulama arka plana giderken (lifecycle inactive/paused)
+        // cagirir -> PiP telefon Ayarindan BAGIMSIZ acilir.
+        GebzemPip.shared.baslat()
+        result(true)
       case "iosCokluGorevKamera":
         // TEST TURU 9: kamerayi PiP/arka planda CAPTURE'a devam ettir (karsi taraf beni gorur)
         result(GebzemPip.shared.cokluGorevKameraAc())
@@ -295,6 +300,20 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
     self.kurulanId = trackId
     NSLog("gebzem/pip iOS kuruldu track=\(trackId)")
     return true
+  }
+
+  /// TEST TURU 20 — PiP'i ELLE BASLAT (kullanici bulgusu: "iPhone'da alta alinca kucuk pencere
+  /// GELMIYOR"). Otomatik giris (canStartPictureInPictureAutomaticallyFromInline) telefonun
+  /// Ayarlar > Genel > Resim icinde Resim > "PiP'i Otomatik Baslat" secenegine ve Dusuk Guc
+  /// Modu'na baglidir — kullanicinin elinde. Apple, uygulama ON PLANDAYKEN startPictureInPicture()
+  /// cagrisina izin verir; bu yuzden uygulama arka plana GECERKEN (willResignActive) PiP'i
+  /// kendimiz baslatiyoruz -> AYARDAN BAGIMSIZ kucuk pencere.
+  func baslat() {
+    guard let c = pipController else { return }
+    if c.isPictureInPictureActive { return }
+    // isPictureInPicturePossible false ise (ilk kare henuz gelmemis) cagri sessizce duser;
+    // delegate failedToStart -> Dart kamera-mute yedegine gecer (mevcut davranis).
+    c.startPictureInPicture()
   }
 
   func birak() {
