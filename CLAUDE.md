@@ -15,6 +15,13 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (oturum sonu 23 Tem 21:19):** Test turu 12 YAYINLANDI, KULLANICI TEST EDECEK ->
+  geri bildirimini bekliyoruz. Her sey commit+push (0b5f3a9), git temiz, backend health ok, DB temiz.
+  BEKLEYEN/ACIK: (1) kullanici test turu 12 (coklu-konuk izgara dogal en-boy) geri bildirimi.
+  (2) CANLI YAYIN MINIMIZE = AYRI FAZ (henuz yok; arama minimize'i test turu 10'da yapildi).
+  (3) iOS GERCEK arka plan sistem PiP telefon Ayari + Dusuk Guc Modu'na bagli (bizim kod disi).
+  Rutin: yeni surumde build->R2->purge->boyut dogrula->DB TRUNCATE->health. gh token .env.infra
+  GITHUB_TOKEN, CF zone a8af9ee51c2c3ed70cc30d705038abfd, r2put.js scratchpad'de (her oturumda yeniden yaz).
 - **TEST TURU 12 SURUMU YAYINLANDI (23 Tem 21:19) — KULLANICI TEST EDECEK:** android 30032129115 +
   ios 30032132733 (71a0e36), debug imza YOK, R2 apk=104979441 ipa=19092619, purge OK, CDN birebir,
   DB temiz, health ok. FIX: yayinIzgara TAM-BOY (Expanded-doldur, yarim-genislik x tam-yukseklik ~1:4.3)
