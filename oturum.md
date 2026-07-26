@@ -1904,4 +1904,15 @@ BEYAZ (golge/parilti YOK) ve sayarken ekranda BASKA HICBIR SEY olmasin.
 - [x] 2. live_widgets.yayinIzgara: son satirda TEK tile -> TAM GENISLIK
 - [x] 3. call_screen grup izgarasi: ayni kural (son satir tek ise tam genislik) + kaydirma korunur
 - [x] 4. live_start_screen: geri sayim sade beyaz, golge yok, sayarken UI gizli
-- [ ] 5. analyze + go build + temiz build + yayin
+- [x] 5. analyze + go build + temiz build + yayin
+- [x] TEMIZ BUILD YAYINLANDI (26 Tem 07:46): android 30187982072 + ios 30187982757 (c2c7b3b)
+      BASARILI; debug imza YOK; APK boyutu yine 104997973 ama SHA FARKLI (b42e2be1->effad2c9);
+      IPA 19101212->19099167; R2 yuklendi, CF purge OK, CDN birebir; backend deploy (konuk
+      sinirsiz) + health ok; DB TRUNCATE (users=0).
+- **TEST (test turu 16):** (1) Yayinda 5+ kisiyi canliya al -> "kapasite dolu" HATASI GELMEMELI.
+      (2) 3 kisilik grup goruntulu arama -> ustte 2 yan yana, ALTTA 1 TAM GENISLIK (yatik).
+      Ayni kural canli yayin izgarasinda (yayinci + 2 konuk). (3) Yayina basla -> ekranda YALNIZ
+      kamera + ortada beyaz 3-2-1 (golge yok, karartma yok, buton/baslik gorunmez).
+- **NOT (dururst sinir):** konuk sinirini KOD kaldirdi; cx33'te ~5-8 es zamanli video yayinci
+      pratik tavan (SFU/pil/bant). Sunucu buyuyunce sinir zaten yok; gerekirse env
+      STREAM_MAX_GUESTS=<sayi> ile tekrar sinir konabilir (0/tanimsiz = sinirsiz).
