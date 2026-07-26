@@ -2020,3 +2020,16 @@ Kullanici bulgulari: (1) arama kapatinca karsi taraf "sesli aramada" gorunup TEK
       "Cevapsiz" bozulmasin). Tek katilimcinin anlik kopusu aramayi OLDURMEZ (karsi taraf odada).
 - [x] Istemci teardown zaman asimlari 3sn -> 1.2sn (CallRoomLock sirasi: eski oda kapanisi
       yeni aramayi/yayini BEKLETMESIN).
+- [x] WEBHOOK CANLI DOGRULANDI: gecerli imzali istek -> HTTP 200, SAHTE imza -> HTTP 401.
+      Gercek olay testi: LiveKit'te oda olusturulup silindi -> livekit logunda
+      "sent webhook {event: room_finished, url: http://127.0.0.1:8080/livekit/webhook,
+      sendDuration: 1.7ms}" = uctan uca ANLIK calisiyor.
+- [x] TEMIZ BUILD YAYINLANDI (26 Tem 09:30): android 30190799515 + ios 30190800266 (e2198ef)
+      BASARILI; debug imza YOK; APK 105096401->105112781, IPA 19108493->19111472 (ikisi de buyudu);
+      R2 yuklendi, purge OK, CDN birebir; backend + LiveKit (webhook ayari) deploy, health ok;
+      DB TRUNCATE (users=0); api loglarinda panic YOK.
+- **TEST RECETESI (test turu 19):** (1) Arama yap-kapat -> KARSI TARAFI HEMEN tekrar ara: calmali
+      (eskiden "sesli aramada" deyip engelliyordu). (2) Kapanislar yumusak (donmuyor). (3) Uygulamayi
+      arama ortasinda ZORLA KAPAT -> ~1-2sn icinde o kullanici yeniden aranabilir olmali (LiveKit
+      webhook oda bosalinca satiri kapatiyor). (4) Yayin ac-kapat -> HEMEN yeni yayin acilabilmeli;
+      izleyici yayindan cikip HEMEN kendi yayinini acabilmeli.
