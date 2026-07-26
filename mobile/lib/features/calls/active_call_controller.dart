@@ -127,11 +127,11 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       if (aktif) _pipKameraGecikme?.cancel();
       notifyListeners();
     }, onBasarisiz: _iosPipBasarisiz, onKameraKesinti: _iosKameraKesinti,
-        onPipKare: (kare) {
-          // TEST TURU 38 KESIN OLCUM: PiP basladiktan 3sn sonra kac kare akti?
-          // kare=0 -> capture GERCEKTEN durmus; kare>0 -> goruntu akiyor.
-          unawaited(Sentry.captureMessage('ios pip 3sn kare=$kare'));
-        });
+        onPipOlcum: (olcum) {
+          // TEST TURU 39: olcum ARKA PLANDA uretilir; Sentry gonderimi orada kaybolabiliyor.
+          // Sakla, ON PLANA DONUNCE gonder.
+          _bekleyenOlcum = olcum;
+        }, onKareDurdu: _iosPipKareDurdu);
     // TEST TURU 20 — GSM ARAMA BEKLETME (Android; iOS'ta bunu CallKit yapar):
     // normal telefon aramasi baslayinca Gebzem aramasi BEKLEMEYE alinir (medya durur,
     // arama SUNUCUDA OLMEZ), telefon gorusmesi bitince kaldigi yerden DEVAM eder.
@@ -161,6 +161,8 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
   // (kendi giden kameramizi bg'de kapatir — PiP bize UZAK videoyu gosterir, ikisi bagimsiz).
   bool _iosPipHazir = false;
   String _iosPipKurulanId = ''; // native'e kurulan uzak track id (degisince yeniden kur)
+  Map<String, dynamic>? _bekleyenOlcum; // turu 39: on plana donunce Sentry'e yazilir
+  bool _iosPipMesgul = false; // turu 39: _iosPipGuncelle yeniden-girme kilidi
   String _iosPipYerelId = ''; // turu 28: PiP alt gorunumundeki kendi kamera track id'm
 
   /// TEST TURU 34 — iOS kucuk penceresinde UST/ALT BOLUNME acik mi (kullanici karari:
@@ -456,6 +458,23 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
   /// TEST TURU 9: `!_isGroup` kapisi KALDIRILDI — grupta da PiP (aktif konusanin videosu).
   Future<void> _iosPipGuncelle() async {
     if (!Platform.isIOS || !_iosPipHazir) return;
+    // TEST TURU 39 — YENIDEN-GIRME KILIDI: bu metot HER notifyListeners mikro-goreviyle ve
+    // sure sayaciyla saniyede bir cagriliyor; icinde `await` var ve `_iosPipKurulanId`
+    // ancak await'ten SONRA yaziliyordu. Iki es zamanli akis ayni anda `iosPipKur`
+    // cagirabiliyor, ikincisi native `birak()` -> `stopPictureInPicture()` tetikleyip
+    // PENCEREYI KAPATIYORDU (turu 24-29'daki "pencere gidiyor" sikayetlerinin yapisal koku).
+    // Kilit yuzunden bir tazeleme atlanirsa 1sn sonraki tetikleme telafi eder.
+    // ⚠️ YAPMA: kilidi kaldirma.
+    if (_iosPipMesgul) return;
+    _iosPipMesgul = true;
+    try {
+      await _iosPipGuncelleGovde();
+    } finally {
+      _iosPipMesgul = false;
+    }
+  }
+
+  Future<void> _iosPipGuncelleGovde() async {
     final b = arama;
     // TEST TURU 14: `b.video` yerine CANLI goruntulu kapisi — sesli baslayip kamera acilan
     // aramada da iOS PiP kurulur (eskiden hic kurulmuyordu).
@@ -575,6 +594,36 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
   /// etkisiz) kamerayi canli saniyor, durustce mute ETMIYORDUK -> karsi taraf DONMUS KARE
   /// goruyordu. Artik gercek olaya tepki veriyoruz.
   /// ⚠️ YAPMA: burada kamerayi kapatmayi atlama (donmus kare geri gelir).
+  /// TEST TURU 39 — PENCEREYE KARE AKMIYOR (native gozcu 1.5sn boyunca yeni kare gormedi).
+  ///
+  /// Kullanici UC turdur "alta alinca donuyor" diyor. Olcum (Sentry): "3sn kare=0" —
+  /// yani kendi kameramin karesi arka planda AKMIYOR. Buna karsilik KARSI TARAFIN videosu
+  /// akmaya devam ediyor (32. turda kullanici "karsinin goruntusu var, benimki yok" demisti).
+  ///
+  /// Cozum: pencereyi KAPATMADAN karsi tarafin videosuna gec (`iosPipKaynak` yalniz sink
+  /// tasir; `stopPictureInPicture` cagrilmaz -> pencere kapanmaz). Karsi taraf yoksa
+  /// (sesli arama) pencere zaten "Kamera duraklatildi" etiketini gosterir.
+  /// Ayrica kamerayi DURUSTCE kapat: bu artik TAHMIN degil OLCUM — karsi taraf donmus kare
+  /// yerine bulanik "Kamera duraklatildi" gorur.
+  /// ⚠️ YAPMA: burada `iosPipKur`/`iosPipBirak` cagirma (pencere kapanir — turu 24 dersi).
+  void _iosPipKareDurdu(String kaynak) {
+    if (!Platform.isIOS || arama == null || _ayrildi) return;
+    if (kaynak != 'yerel') return; // uzak video da durduysa yapacak bir sey yok
+    final uzak = _uzakVideoTrackId();
+    if (uzak != null && uzak.isNotEmpty) {
+      unawaited(PipService.iosPipKaynak(uzak, 'uzak').then((ok) {
+        if (ok) _iosPipKurulanId = uzak; // kimlik kapisi yeni kaynagi korusun
+      }));
+    }
+    // Kamera GERCEKTEN kare uretmiyor -> durustce kapat (olcume dayali, tahmin degil).
+    if (_camOn && _baglandi) {
+      _kameraOtoKapandi = true; // on plana donunce geri acilir
+      _camOn = false;
+      _room?.localParticipant?.setCameraEnabled(false);
+      notifyListeners();
+    }
+  }
+
   void _iosKameraKesinti(bool kesintiVar) {
     if (!Platform.isIOS || arama == null || _ayrildi) return;
     if (kesintiVar) {
@@ -980,6 +1029,15 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       if (Platform.isIOS) {
         if (pipModunda) pipModunda = false;
         unawaited(PipService.iosPipDurdur());
+        // TEST TURU 39: arka planda uretilen olcum burada gonderilir (arka planda Sentry
+        // teslimi garantili degil — bugune kadarki olcumun zayif noktasi buydu).
+        final o = _bekleyenOlcum;
+        if (o != null) {
+          _bekleyenOlcum = null;
+          unawaited(Sentry.captureMessage(
+              'ios pip olcum on=${o['on']} arka=${o['arka']} kaynak=${o['kaynak']} '
+              'oturum=${o['oturum']} coklu=${o['coklu']}'));
+        }
         notifyListeners();
       }
     }

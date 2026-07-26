@@ -28,8 +28,9 @@ class PipService {
   static void Function(bool kesintiVar)? _iosKesintiCb;
 
   /// TEST TURU 38: PiP basladiktan 3sn sonraki kare sayisi (0 = capture durmus).
-  static final ValueNotifier<int> pipKareSayisi = ValueNotifier<int>(-1);
-  static void Function(int kare)? _iosKareCb;
+
+  static void Function(Map<String, dynamic> olcum)? _iosOlcumCb;
+  static void Function(String kaynak)? _iosKareDurduCb;
 
   static bool _handlerKuruldu = false;
   static void Function(bool)? _androidDurumCb;
@@ -64,10 +65,13 @@ class PipService {
         case 'iosKameraKesinti':
           kameraKesintiSebebi.value = (call.arguments as int?) ?? -1;
           _iosKesintiCb?.call(true);
-        case 'iosPipKare':
-          // TEST TURU 38 KESIN OLCUM: PiP basladiktan 3sn sonra kac kare akti?
-          pipKareSayisi.value = (call.arguments as int?) ?? -1;
-          _iosKareCb?.call(pipKareSayisi.value);
+        case 'iosPipOlcum':
+          // TEST TURU 39: iki tarafli olcum {on, arka, kaynak, oturum, coklu}
+          final m = Map<String, dynamic>.from(call.arguments as Map);
+          _iosOlcumCb?.call(m);
+        case 'iosPipKareDurdu':
+          // TEST TURU 39: pencereye 1.5sn kare akmadi -> kaynak ('yerel'|'uzak')
+          _iosKareDurduCb?.call(call.arguments as String? ?? 'yerel');
         case 'iosKameraKesintiBitti':
           kameraKesintiSebebi.value = 0;
           _iosKesintiCb?.call(false);
@@ -201,6 +205,19 @@ class PipService {
 
   /// TEST TURU 38: kamera kapatilirken PiP katmanini bosalt -> donmus kare yerine
   /// "Kamera duraklatildi" etiketi.
+  /// TEST TURU 39: pencereyi KAPATMADAN gosterilen videoyu degistir (sicak kaynak degisimi).
+  /// [kaynak]: 'yerel' | 'uzak' — yalniz teshis/etiket icin.
+  static Future<bool> iosPipKaynak(String trackId, String kaynak) async {
+    if (!Platform.isIOS) return false;
+    try {
+      return (await _ch.invokeMethod<bool>(
+              'iosPipKaynak', {'trackId': trackId, 'kaynak': kaynak})) ??
+          false;
+    } catch (_) {
+      return false;
+    }
+  }
+
   static Future<void> iosPipKareBosalt() async {
     if (!Platform.isIOS) return;
     try {
@@ -238,13 +255,15 @@ class PipService {
       {required void Function(bool pipAktif) onDurum,
       required void Function() onBasarisiz,
       void Function(bool kesintiVar)? onKameraKesinti,
-      void Function(int kare)? onPipKare}) {
+      void Function(Map<String, dynamic> olcum)? onPipOlcum,
+      void Function(String kaynak)? onKareDurdu}) {
     if (!Platform.isIOS) return;
     _handlerKur();
     _iosDurumCb = onDurum;
     _iosBasarisizCb = onBasarisiz;
     _iosKesintiCb = onKameraKesinti;
-    _iosKareCb = onPipKare;
+    _iosOlcumCb = onPipOlcum;
+    _iosKareDurduCb = onKareDurdu;
   }
 
   /// iOS16+ COKLU-GOREV KAMERA (test turu 9): AVCaptureSession.isMultitaskingCameraAccessEnabled

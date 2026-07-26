@@ -126,7 +126,8 @@ import flutter_callkit_incoming
         let arg = call.arguments as? [String: Any]
         let tid = arg?["trackId"] as? String ?? ""
         let yid = arg?["yerelTrackId"] as? String
-        result(tid.isEmpty ? false : GebzemPip.shared.kur(trackId: tid, yerelTrackId: yid))
+        let kaynak = arg?["kaynak"] as? String ?? "yerel"
+        result(tid.isEmpty ? false : GebzemPip.shared.kur(trackId: tid, yerelTrackId: yid, kaynak: kaynak))
       case "iosPipBirak":
         GebzemPip.shared.birak()
         result(true)
@@ -134,6 +135,11 @@ import flutter_callkit_incoming
         // TEST TURU 27: kucuk pencerenin ALT gorunumu (kendi kameram) — controller'a dokunmaz
         result(GebzemPip.shared.yerelAyarla(
           trackId: (call.arguments as? [String: Any])?["trackId"] as? String))
+      case "iosPipKaynak":
+        // TEST TURU 39: pencereyi KAPATMADAN gosterilen videoyu degistir
+        let a = call.arguments as? [String: Any]
+        result(GebzemPip.shared.kaynakDegistir(
+          trackId: a?["trackId"] as? String ?? "", kaynak: a?["kaynak"] as? String ?? "uzak"))
       case "iosPipKareBosalt":
         // TEST TURU 38: kamera kapatilirken donmus kare yerine "Kamera duraklatildi"
         GebzemPip.shared.kareyiBosalt()
@@ -276,6 +282,16 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
   private var kurulanId: String?
   private var iptalIstendi = false // turu 29: on plana donuldu -> bekleyen baslatmayi iptal et
 
+  // ---- TEST TURU 39: KARE GOZCUSU + SICAK KAYNAK DEGISIMI ----
+  /// Pencerede su an KIMIN videosu var ("yerel" = kendi kameram, "uzak" = karsi taraf).
+  private(set) var kurulanKaynak = "yerel"
+  private var gozcu: Timer?
+  private var sonGorulenKare = -1
+  private var sabitTik = 0
+  /// ON PLAN kare sayisi (PiP baslarken okunur) — teshis icin.
+  private var onPlanKare = 0
+  private var gozcuDuyurdu = false
+
   // TEST TURU 9: COKLU-GOREV KAMERA — kamerayi PiP/arka planda CAPTURE'a devam ettir
   // (goruntulu aramada alta alinca KARSI TARAF beni gormeye devam eder). flutter_webrtc
   // videoCapturer PUBLIC property (FlutterWebRTCPlugin.h) + RTCCameraVideoCapturer.captureSession
@@ -316,12 +332,94 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
   /// Kullanici iki turdur "yine donuyor" diyor; bu sayi tahmini bitirir:
   /// kare=0 -> capture gercekten durmus; kare>0 -> goruntu akiyor, sorun baska yerde.
   func kareOlcumuBaslat() {
+    // TEST TURU 39 — IKI TARAFLI OLCUM. Turu 38'in tek yonlu olcumu (yalniz arka plan) su
+    // ayrimi YAPAMIYORDU: (a) renderer hic canli track'e baglanmamis (ON PLAN da 0),
+    // (b) track dogru ama arka planda capture duruyor (on plan >0, arka 0).
+    onPlanKare = renderer?.toplamKare ?? 0
     renderer?.sayaciSifirla()
     DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
-      let n = self?.renderer?.toplamKare ?? -1
-      NSLog("gebzem/pip 3sn kare=\(n)")
-      self?.kanal?.invokeMethod("iosPipKare", arguments: n)
+      guard let self = self else { return }
+      let arka = self.renderer?.toplamKare ?? -1
+      var oturum = false
+      var coklu = false
+      if #available(iOS 16.0, *),
+         let s = FlutterWebRTCPlugin.sharedSingleton()?.videoCapturer?.captureSession {
+        oturum = s.isRunning
+        coklu = s.isMultitaskingCameraAccessEnabled
+      }
+      NSLog("gebzem/pip olcum on=\(self.onPlanKare) arka=\(arka) kaynak=\(self.kurulanKaynak) oturum=\(oturum) coklu=\(coklu)")
+      self.kanal?.invokeMethod("iosPipOlcum", arguments: [
+        "on": self.onPlanKare, "arka": arka, "kaynak": self.kurulanKaynak,
+        "oturum": oturum, "coklu": coklu,
+      ])
     }
+  }
+
+  /// TEST TURU 39 — KARE GOZCUSU: 500ms'de bir sayaci kontrol eder; 3 TIK (~1.5sn) boyunca
+  /// hic yeni kare gelmediyse katmani BOSALTIR ("Kamera duraklatildi" etiketi cikar) ve
+  /// Dart'a haber verir. Boylece DONMUS KARE yapisal olarak IMKANSIZ olur — kok neden ne
+  /// olursa olsun kullanici donmus goruntu GORMEZ.
+  /// ⚠️ YAPMA: esigi 1 tike dusurme (karanlik ortamda dusuk fps yanlis tetikler).
+  func gozcuBaslat() {
+    gozcuDur()
+    sonGorulenKare = -1
+    sabitTik = 0
+    gozcuDuyurdu = false
+    gozcu = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+      guard let self = self, self.pipController != nil else { return }
+      let n = self.renderer?.toplamKare ?? 0
+      if n != self.sonGorulenKare {
+        self.sonGorulenKare = n
+        self.sabitTik = 0
+        self.gozcuDuyurdu = false
+        return
+      }
+      self.sabitTik += 1
+      if self.sabitTik >= 3 && !self.gozcuDuyurdu {
+        self.gozcuDuyurdu = true
+        NSLog("gebzem/pip gozcu: KARE DURDU kaynak=\(self.kurulanKaynak)")
+        self.videoView?.displayLayer.flushAndRemoveImage()
+        self.videoView?.kareKesildi()
+        self.kanal?.invokeMethod("iosPipKareDurdu", arguments: self.kurulanKaynak)
+      }
+    }
+  }
+
+  func gozcuDur() {
+    gozcu?.invalidate()
+    gozcu = nil
+  }
+
+  /// TEST TURU 39 — SICAK KAYNAK DEGISIMI: PENCEREYI KAPATMADAN gosterilen videoyu degistir.
+  /// YALNIZ sink tasinir; `pipController`/`callVC`/`videoView` DOKUNULMAZ — bu yuzden
+  /// `stopPictureInPicture()` cagrilmaz ve pencere KAPANMAZ (turu 24/26 dersi: kimlik
+  /// degisince `kur()` -> `birak()` zinciri pencereyi olduruyordu).
+  /// Kullanim: kendi kameram arka planda olurse KARSI TARAFIN videosuna dus (o akmaya
+  /// devam eder) — pencere bos/donuk kalmasin.
+  @discardableResult
+  func kaynakDegistir(trackId: String, kaynak: String) -> Bool {
+    guard let r = renderer, pipController != nil else { return false }
+    if kurulanId == trackId { return true }
+    let eklenti = FlutterWebRTCPlugin.sharedSingleton()
+    var bulunan = eklenti?.remoteTrack(forId: trackId) as? RTCVideoTrack
+    if bulunan == nil {
+      bulunan = eklenti?.track(forId: trackId, peerConnectionId: nil) as? RTCVideoTrack
+    }
+    guard let yeni = bulunan else {
+      NSLog("gebzem/pip kaynak degisimi: track BULUNAMADI id=\(trackId)")
+      return false
+    }
+    uzakTrack?.remove(r)
+    yeni.add(r)
+    uzakTrack = yeni
+    kurulanId = trackId
+    kurulanKaynak = kaynak
+    videoView?.displayLayer.flushAndRemoveImage()
+    sonGorulenKare = -1
+    sabitTik = 0
+    gozcuDuyurdu = false
+    NSLog("gebzem/pip kaynak DEGISTI -> \(kaynak)")
+    return true
   }
 
   /// TEST TURU 37 — KAMERA KESINTISI (Apple bildirimi). Arka planda capture GERCEKTEN
@@ -343,7 +441,7 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
     }
   }
 
-  func kur(trackId: String, yerelTrackId: String? = nil) -> Bool {
+  func kur(trackId: String, yerelTrackId: String? = nil, kaynak: String = "yerel") -> Bool {
     guard AVPictureInPictureController.isPictureInPictureSupported() else { return false }
     guard let kaynakView = Self.kokView() else { return false }
     // TEST TURU 15: UZAK track once (arama/izleyici); bulunamazsa YEREL track (CANLI YAYIN
@@ -397,7 +495,11 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
     // Kurulumla BIRLIKTE alt gorunum istendiyse ekle (parametre artik GERCEKTEN kullanilir;
     // turu 28'e kadar olu parametreydi). Kimlik yine SADECE uzak track -> yikim yok.
     if let yid = yerelTrackId, !yid.isEmpty { yerelAyarla(trackId: yid) }
-    NSLog("gebzem/pip iOS kuruldu track=\(trackId)")
+    self.kurulanKaynak = kaynak
+    // TEST TURU 39: kare gozcusu — kare akmayi keserse donmus kare yerine etiket + Dart'a
+    // haber (Dart karsi tarafin videosuna SICAK gecis yapar, pencere KAPANMADAN).
+    gozcuBaslat()
+    NSLog("gebzem/pip iOS kuruldu track=\(trackId) kaynak=\(kaynak)")
     return true
   }
 
@@ -493,6 +595,7 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
   }
 
   func birak() {
+    gozcuDur()
     pipController?.stopPictureInPicture()
     if let t = uzakTrack, let r = renderer { t.remove(r) }
     if let yt = yerelTrack, let yr = yerelRenderer { yt.remove(yr) }
