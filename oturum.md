@@ -1935,4 +1935,13 @@ ACIK/aktif, goruntu ikonu KAPALI; goruntuluyse tersi — "davet etme gibi" bir i
 - [x] 5. Backend: GET /users/{id}/presence -> {in_call, call_type} (1:1 + grup katilimcisi)
 - [x] 6. Sohbet ekrani: karsinin arama durumu (baslik altinda "Sesli/Goruntulu aramada") +
       ikon durumlari (aramadaysa ilgili ikon aktif, digeri pasif) + 15sn tazeleme
-- [ ] 7. analyze + go build + temiz build + yayin
+- [x] 7. analyze + go build + temiz build + yayin
+- [x] TEMIZ BUILD YAYINLANDI (26 Tem 08:15): android 30188758448 + ios 30188759300 (9c00366)
+      BASARILI; debug imza YOK; APK 104997973->105014357 (+16KB) ve IPA 19099167->19103992 BUYUDU;
+      R2 yuklendi, CF purge OK, CDN birebir; backend deploy (izleyici sinirsiz + presence ucu) +
+      health ok (presence ucu 401 donuyor = uc canli); DB TRUNCATE (users=0).
+- **TEST (test turu 17):** (1) Yayina cok izleyici girsin -> "yayin dolu" HATASI YOK. (2) 1:1
+      goruntulu aramada alta al -> kucuk pencerede IKI kisi SOL/SAG. Grupta 3 kisi -> ustte 2 +
+      altta 1 genis; 4 kisi -> 2x2. Yayinda da ayni (yayinci + konuklar). (3) Karsi taraf sesli
+      aramadayken sohbetini ac -> baslikta "🎙 Sesli aramada", SES ikonu yesil-aktif, GORUNTU ikonu
+      pasif; goruntuluyse tersi; canli yayindaysa "🔴 Canli yayinda" (iki ikon da pasif).
