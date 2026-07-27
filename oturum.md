@@ -2561,3 +2561,40 @@ kullanicinin ufak kendi goruntusu EKLENEBILIR (WhatsApp deseni).
 ### SIRADAKI ONERI (kullaniciya sunuldu)
 Teshis kodlarinin temizligi -> MEDYA MESAJLASMA (foto/video/sesli mesaj) -> kalici grup
 sohbeti -> profil -> yayin oncesi temizlik (admin ses teshis sekmesi, BTK bildirimi).
+
+## TEST TURU 43 SURUMU YAYINLANDI (27 Tem 19:47) — KULLANICI TEST EDECEK
+- android **30285412862** + ios **30285415219** (commit **0a14f97**), debug imza YOK.
+- R2: apk **105227857** · ipa **19142958** · index 6449. CDN birebir, purge OK, saat GERCEK.
+- **IPA ICINDE `MinimumOSVersion = 16.0` DOGRULANDI** (deployment target degisikligi
+  gercekten derlemeye girdi — plist icinden okundu).
+- Backend degismedi, health ok, DB temiz.
+### KOK NEDEN (Apple'in kendi cumlesi — 16 ajanlik arastirma)
+"Adopting Picture in Picture for video calls": *"In iOS 16 and later, you can use the camera
+in Picture in Picture mode by enabling a capture session's isMultitaskingCameraAccessEnabled
+property. **Apps that have a deployment target earlier than iOS 16 require the
+com.apple.developer.avfoundation.multitasking-camera-access entitlement to use the camera in
+PiP mode.**"  -> BIZIM HEDEF 15.0 IDI.
+NEDEN "coklu=true" YANILTTI: `isMultitaskingCameraAccessSupported` AYRI kapidir ("iOS 18'e
+link + voip background mode" ile true doner, bizde ikisi de var). PiP'te kamera KULLANMA
+izni DEPLOYMENT TARGET'a bakar. Ayrica Apple `enabled` icin yalniz
+`videoDeviceNotAvailableWithMultipleForegroundApps` kesintisini bastirmayi taahhut eder;
+bizim aldigimiz sebep=1 (InBackground) o degil. Yani olcum bastan tutarliydi, YORUM yanlisti.
+### YAPILANLAR
+- [x] IPHONEOS_DEPLOYMENT_TARGET 15.0 -> **16.0** (3 yapilandirma). Entitlement EKLENMEDI
+      (profilde olmayan entitlement imzayi patlatir, IPA hic uretilmez).
+      ⚠️ ETKI: iOS 15'te kalmis cihazlar (iPhone 6s/7/SE1) kuramaz.
+- [x] **SceneDelegate.sceneWillResignActive -> GebzemPip.baslat()**. KESIF: uygulama SCENE
+      tabanli; Apple "If you're using scenes, UIKit will not call this method" -> AppDelegate
+      yasam dongusu kancalari OLU KOD. PiP artik arka plana GECMEDEN ONCE native'den
+      baslatiliyor (Dart kanal gecikmesi ~50-150ms ortadan kalkti). Dart tetigi YEDEK.
+- [x] **KESINTI ANINDA TAM TELEMETRI**: sebep + uygulama durumu + PiP aktif mi + oturum
+      SINIFI (paylasilan AVCaptureMultiCamSession mi?) + isRunning + destek/acik ->
+      ON PLANDA Sentry ("ios kesinti sebep=.. durum=.. pip=.. sinif=.. kurtarma=..").
+- [x] **KURTARMA DENEMESI**: PiP aktif + izin acik + oturum durmussa BIR KEZ `startRunning()`
+      (Apple: "If you don't explicitly call stopRunning(), your startRunning() request is
+      preserved"). Dart'ta durust mute 1.5sn ERTELENDI; kurtarma tutarsa mute ATLANIR.
+      ⚠️ YAPMA: kesintide aninda mute'a donme; stopRunning cagirma.
+- [x] Kose kutusu kare almazsa SIYAH degil: MOR DAIRE + beyaz yazi + ince kenarlik.
+### SONRAKI TURDA BAKILACAK (kanit)
+Sentry: "ios kesinti ..." kaydi GELMIYORSA ve karsi taraf canli goruyorsa KOK KAPANDI.
+Geliyorsa `sinif=` (AVCaptureMultiCamSession mi?) ve `pip=` degerleri sonraki adimi soyler.
