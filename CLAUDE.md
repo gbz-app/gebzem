@@ -15,6 +15,32 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (27 Tem 18:38):** TEST TURU 41-42 YAYINLANDI — android 30279978077 +
+  ios 30279981045 (6fef48a), R2 apk=105227857 ipa=19142325, purge OK, CDN birebir, backend
+  degismedi + health ok, DB temiz. KULLANICI TEST EDECEK.
+- **TEST TURU 41-42:**
+  (1) **UYGULAMA-ICI YUZEN PENCERE KALDIRILDI** (kullanici: "gereksiz"). Yerine SESLI
+  aramadaki ince serit (dokun -> aramaya don). `_yuzenVideo` kodu SILINMEDI — geri istenirse
+  `active_call_banner.build()` icinde tek satir yeter.
+  (2) **KOSE KUTUSU (WhatsApp gorunumu):** karsi taraf tam pencere + BEN sag-altta %34
+  genislikte 4:3 kucuk kutu. iOS'ta native `yerelAyarla` artik UIStackView'a degil
+  `callVC.view` uzerine KOSE KISITLARIYLA ekliyor; Android PiP icerigi icin
+  `miniIzgara(..., ustUste: true)`.
+  (3) **KOSE KUTUSUNA AYRI KARE GOZCUSU:** iOS arka planda kamerayi DURDURUR (olcum kaniti
+  asagida) -> kutu 1.5sn kare gormezse DONMUS KARE yerine "Sen" yazisina duser. Kutu HEP
+  durur, icerigi DURUSTTUR; Android'de kamera yasadigi icin kutu CANLI olur.
+  ⚠️ YAPMA: kose kutusunu gozcusuz birakma (donmus kare geri gelir); yuzen pencereyi
+  serit koymadan tamamen kaldirma (goruntulu aramada geri donus yolu kalmaz).
+- **OLCUM KANITI (turu 40, Sentry — bir daha tartisma):**
+  `ios pip olcum on=177 arka=75 kaynak=uzak oturum=false coklu=true` + `kamera kesinti sebep=1`
+  (= videoDeviceNotAvailableInBackground). Yani coklu-gorev kamera izni DOGRU veriliyor ama
+  **iPhone arka planda kamerayi yine de kapatiyor**; pencere saglikli (arka planda 3sn'de 75
+  kare — karsi tarafin videosu agdan geldigi icin akiyor).
+  SONUC: iPhone'da arka planda KENDI CANLI goruntun kucuk pencerede GOSTERILEMEZ (Apple).
+  Uygulama-ici ve Android'de gosterilir.
+- **SIRADAKI ONERI (kullaniciya sunuldu, karar bekliyor):** teshis kodlarinin temizligi ->
+  **MEDYA MESAJLASMA (foto/video/sesli mesaj)** -> kalici grup sohbeti -> profil ->
+  yayin oncesi temizlik (admin "Ses Teshis" sekmesi, BTK yer saglayici bildirimi).
 - **KALDIGIMIZ YER (27 Tem 00:42):** TEST TURU 40 YAYINLANDI — android 30221177316 +
   ios 30221178264 (adfb558), R2 apk=105227857 ipa=19152061, purge OK, CDN birebir, backend
   degismedi + health ok, DB temiz. KULLANICI TEST EDECEK.
