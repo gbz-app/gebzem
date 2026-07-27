@@ -2707,3 +2707,43 @@ kaciriyoruz demektir (gorulen takilma).
 ### KORUNAN KAZANIMLAR
 tek-istek kapisi (cagri=1), yon kontrolu, msMax=0, deployment target 16.0, kose kutusu
 duzeni (karsi taraf buyuk + ben sag altta), sicak kaynak gecisi.
+
+## TEST TURU 48 SURUMU YAYINLANDI (28 Tem 00:32) — KOSE KUTUSU DONMASI: GERCEK SEBEP
+- android **30306342017** + ios **30306343945** (commit **91a9661**), debug imza YOK.
+- R2: apk **105227857** · ipa **19145142** (19144584'ten BUYUDU = yeni native kod kaniti)
+  · index 6510. CDN birebir, purge OK, saat GERCEK. Backend degismedi, health ok, DB temiz.
+- 16 ajanli karsi-curutmeli arastirma (2.2M token) + Sentry olcumu.
+
+### BULGU 1 — KOSE KUTUSU GOZCUSU ULASILAMAZ KODDU (kullanicinin GORDUGU sey)
+`gozcuBaslat()` sirasi soyleydi:
+  let n = renderer?.toplamKare               // BUYUK kutu (karsi taraf)
+  if n != sonGorulenKare { ...; RETURN }     // <-- ERKEN DONUS
+  if let yr = yerelRenderer { ... }          // <-- KOSE KUTUSU KONTROLU
+KARSI TARAFIN videosu AKTIGI SURECE her tikte erken donuluyor -> kose kutusunun donmasi
+HIC fark edilmiyordu. Kullanicinin durumu TAM BUYDU (olcum `arka=89`: karsi taraf akiyor,
+kendi goruntusu donmus). FIX: kose kutusu kontrolu EN BASA; iki kutu BAGIMSIZ.
+
+### BULGU 2 — 20 TURDUR YANLIS BAYRAGI KOVALAMISIZ (Apple belgesi, birebir dogrulandi)
+`isMultitaskingCameraAccessEnabled` SADECE sunu vaat ediyor: "the system doesn't interrupt
+the capture session with a reason of videoDeviceNotAvailableWithMultipleForegroundApps"
+-> YALNIZ sebep 4. Bizim kesinti `sebep=1` (videoDeviceNotAvailableInBackground).
+Uc olcumde de `coklu=true` — bayrak DEGISKEN DEGIL. Arka planda kamerayi ayakta tutan tek
+sey PiP'in AKTIF olmasi.
+
+### DIGER
+- [x] Turu 47 GERI ALINDI (`arka=0`): `cokluGorevKameraAc()` tekrar SALT OKUMA. Session'i
+      webrtc-sdk kendi kuyrugunda yonetiyor (PAYLASILAN statik AVCaptureMultiCamSession).
+- [x] Arka planda `startRunning()` kurtarmasi SILINDI — Apple: "Camera usage is PROHIBITED
+      while in the background..." Yapisal olarak imkansizdi (`kurtarma=null`).
+- [x] `kareyiBosalt()` iki kutuyu birden siliyordu -> `yereliBosalt()` +
+      `iosPipKareBosalt(yalnizYerel: true)`.
+- [x] PiP baslatma TEKRAR PENCERESI (1200ms, hidden/paused) — turu 46 tek tetige
+      indirmisti, ilk tetik `possible==false` ile kacarsa telafi yoktu. Native tek-istek
+      kilidi durdugu icin `cagri=1` korunur.
+- [x] GUVENLIK: native `baslat()` `applicationState == .background` iken CIKAR (arka planda
+      manuel start `failedToStart` uretir, o da kamerayi kapatirdi).
+- [x] OLCUM: `yerelOn/yerel1/yerel3` (KOSE kutusu AYRI — asil sikayet orasiydi ve hic
+      olculmuyordu), `arka1/arka3`, `durum`, `pipAktif`.
+⚠️ YAPMA: kose kutusu gozcusunu tekrar buyuk kutunun dalinin altina tasima; capture
+session'i disaridan yeniden yapilandirma (45: takilma / 47: medya durur); arka planda
+`startRunning()` kurtarmasi ekleme; `applicationState == .background` kapisini kaldirma.
