@@ -15,6 +15,20 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (27 Tem 20:45):** TEST TURU 45 YAYINLANDI — android 30289622533 +
+  ios 30289624993 (5c07af0), R2 apk=105227857 ipa=19143856, purge OK, CDN birebir, IPA icinde
+  MinimumOSVersion=16.0, backend degismedi + health ok, DB temiz.
+  **ARAMA/PiP FAZI TAMAMLANDI** (kullanici onayi: "on numara").
+- **TEST TURU 45:** "alta alirken zorlaniyorum, ekrani zorla ciziyor gibi" —
+  KOK: turu 31'de `didChangeAppLifecycleState` `inactive` dalina konan
+  `iosArkaPlanKamerayiTazele()`, CALISAN `AVCaptureSession` uzerinde
+  `beginConfiguration`/`commitConfiguration` yapiyordu: AGIR is + TAM GECIS ANI + ana is
+  parcacigi. Kaldirildi; `cokluGorevKameraAc()` SALT OKUMA yapildi.
+  ⚠️ YAPMA: gecis aninda (inactive/paused) capture session yeniden yapilandirma; bu metoda
+  tekrar begin/commitConfiguration koyma. (Bayragi turu 37 swizzle'i zaten DOGRU anda yaziyor.)
+- **SIRADAKI IS:** teshis/olcum kodlarinin temizligi -> **MEDYA MESAJLASMA (foto/video/sesli
+  mesaj)** -> kalici grup sohbeti -> profil -> yayin oncesi temizlik (admin "Ses Teshis"
+  sekmesi, BTK yer saglayici bildirimi).
 - **KALDIGIMIZ YER (27 Tem 20:12):** TEST TURU 44 YAYINLANDI — android 30287113321 +
   ios 30287115762 (26c8854), R2 apk=105227857 ipa=19143659, purge OK, CDN birebir, IPA icinde
   MinimumOSVersion=16.0 dogrulandi, backend degismedi + health ok, DB temiz.
