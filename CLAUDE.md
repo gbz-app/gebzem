@@ -15,6 +15,24 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (27 Tem 21:54):** TEST TURU 46 YAYINLANDI — android 30294743012 +
+  ios 30294745045 (e07c24d), R2 apk=105227857 ipa=19144256, purge OK, CDN birebir, backend
+  degismedi + health ok, DB temiz. KULLANICI TEST EDECEK (alta alma akici mi).
+- **TEST TURU 46 — "ALTA ALIRKEN ZORLANIYORUM, EKRAN KAYIYOR AMA INMIYOR":**
+  Tek bir home hareketinde `startPictureInPicture()` **5 KAYNAKTAN** cagriliyordu:
+  (1) SceneDelegate `sceneWillResignActive` (turu 43) — SENKRON, UIKit gecis callout'unun
+  ICINDE ve parmak HENUZ EKRANDAYKEN (home hareketi INTERAKTIFTIR), (2) Dart `inactive`,
+  (3) Dart `hidden` (Flutter iOS'ta SENTEZLER), (4) Dart `paused`, (5) iOS auto-enter.
+  Tek koruma `isPictureInPictureActive` ACILIS ANIMASYONU boyunca FALSE doner — hicbirini
+  durdurmuyordu. Hareket IPTAL edilirse `.active`e donulur -> didStart kapisi
+  `stopPictureInPicture()` cagirir -> ac-kapa savasi.
+  **FIX:** SceneDelegate kancasi KALDIRILDI · NATIVE tek-istek kapisi (`baslatIstendi` +
+  1.5sn emniyet timer'i, tum delegate dallarinda sifirlanir; `isPictureInPicturePossible`
+  false iken bayrak SET EDILMEZ) · DART yalniz `inactive` + YON KONTROLU (`_sonYasamDurumu`,
+  yalniz `resumed`dan geliyorsak) · OLCUM `cagri`/`msMax` Sentry'e.
+  ⚠️ YAPMA: `paused`/`hidden` dallarini geri ekleme; yon kontrolunu kaldirma; SceneDelegate'e
+  tekrar senkron `startPictureInPicture` koyma; tek-istek bayragini `possible==false` iken
+  set etme (pencere HIC acilmaz — turu 20 regresyonu).
 - **KALDIGIMIZ YER (27 Tem 20:45):** TEST TURU 45 YAYINLANDI — android 30289622533 +
   ios 30289624993 (5c07af0), R2 apk=105227857 ipa=19143856, purge OK, CDN birebir, IPA icinde
   MinimumOSVersion=16.0, backend degismedi + health ok, DB temiz.
