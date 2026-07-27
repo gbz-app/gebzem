@@ -15,6 +15,22 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (27 Tem 23:10):** TEST TURU 47 YAYINLANDI — android 30300476213 +
+  ios 30300478407 (e160976), R2 apk=105227857 ipa=19144584, purge OK, CDN birebir, backend
+  degismedi + health ok, DB temiz. KULLANICI TEST EDECEK.
+- **TEST TURU 47 — "kose kutusu (kendi goruntum) yine donuyor":**
+  OLCUM: turu 44 (tazeleme VAR) `oturum=true` · turu 46 (tazeleme YOK)
+  `oturum=false cagri=1 msMax=0`. Yani turu 46'nin TAKILMA duzeltmesi tuttu ama AYNI turda
+  (45) kaldirdigim **kamera-izni tazelemesi YUK TASIYORMUS** — kaldirinca kamera arka planda
+  yine oluyor. Kesinti kaydi: `sinif=AVCaptureMultiCamSession` (webrtc-sdk PAYLASILAN statik
+  multicam oturumu — bayrak orada sarkabiliyor; Apple'in "baslatmadan once yaz" kurali
+  GEREKLI ama TEK BASINA YETMIYOR) ve `kurtarma=null` (kosulda `!calisiyor` vardi ama kesinti
+  aninda `isRunning` HALA true).
+  **FIX:** tazeleme GERI GELDI ama yazma **ARKA PLAN KUYRUGUNDA** (turu 45'teki takilmanin
+  sebebi yazmanin kendisi degil, ANA IS PARCACIGINDA yapilmasiydi) · Dart `inactive` dalindaki
+  tazeleme cagrisi geri geldi · kurtarma kesintiden **400ms sonra** kontrol edip deniyor.
+  ⚠️ YAPMA: tazelemeyi ana is parcacigina tasima (takilma doner) veya kaldirma (kamera oluyor);
+  `!calisiyor` sartini kesinti anina geri koyma.
 - **KALDIGIMIZ YER (27 Tem 21:54):** TEST TURU 46 YAYINLANDI — android 30294743012 +
   ios 30294745045 (e07c24d), R2 apk=105227857 ipa=19144256, purge OK, CDN birebir, backend
   degismedi + health ok, DB temiz. KULLANICI TEST EDECEK (alta alma akici mi).
