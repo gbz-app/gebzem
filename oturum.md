@@ -2643,3 +2643,37 @@ begin/commitConfiguration koyma.
 ### ARAMA/PiP FAZI TAMAMLANDI (kullanici onayi: "on numara")
 Kalan: teshis/olcum kodlarinin temizligi -> MEDYA MESAJLASMA -> kalici grup sohbeti ->
 profil -> yayin oncesi temizlik.
+
+## TEST TURU 46 SURUMU YAYINLANDI (27 Tem 21:54) — ALTA ALMA TAKILMASI
+- android **30294743012** + ios **30294745045** (commit **e07c24d**), debug imza YOK.
+- R2: apk **105227857** · ipa **19144256** · index 6478. CDN birebir, purge OK, saat GERCEK.
+  Backend degismedi, health ok, DB temiz.
+### KOK NEDEN (16 ajanlik arastirma; kod + Apple dokumani)
+Tek bir home hareketinde `startPictureInPicture()` **5 KAYNAKTAN** cagriliyordu:
+ 1) SceneDelegate `sceneWillResignActive` (turu 43 eklemesi) — SENKRON, UIKit gecis
+    callout'unun ICINDE ve parmak HENUZ EKRANDAYKEN (home hareketi INTERAKTIFTIR)
+ 2) Dart `inactive` · 3) Dart `hidden` (Flutter iOS'ta SENTEZLER) · 4) Dart `paused`
+ 5) iOS'un KENDI auto-enter'i (`canStartPictureInPictureAutomaticallyFromInline`)
+Tek koruma `isPictureInPictureActive` ACILIS ANIMASYONU boyunca FALSE doner — hicbirini
+durdurmuyordu. Sistemin kuculme animasyonuyla yarisan bu istekler surtunme uretiyordu.
+Hareket IPTAL edilirse `applicationState` `.active`e doner -> didStart kapisi
+`stopPictureInPicture()` cagirir -> pencere geri ucar (ac-kapa savasi).
+Apple: "By default, PiP starts when a user moves to the background... If your app is in the
+foreground, you can start PiP by calling startPictureInPicture()."
+### YAPILANLAR
+- [x] `SceneDelegate.sceneWillResignActive` kancasi KALDIRILDI (turu 43). Gereksizdi: arka
+      plan kamerasini deployment target 16.0 cozdu (turu 44 olcumu: oturum=true).
+- [x] NATIVE TEK-ISTEK KAPISI: `baslatIstendi` + 1.5sn emniyet zamanlayicisi;
+      didStart/didStop/failedToStart/durdur/birak dallarinda sifirlanir.
+      `isPictureInPicturePossible == false` iken bayrak SET EDILMEZ (turu 20 regresyonu).
+- [x] DART: `inactive || paused || hidden` -> yalniz `inactive` + YON KONTROLU
+      (`_sonYasamDurumu`; yalniz `resumed`dan geliyorsak). Donus yolu
+      paused->hidden->inactive->resumed oldugu icin eski kosul ON PLANA DONERKEN de
+      baslatip hemen kapatiyordu.
+- [x] OLCUM: `cagri` (tek harekette kac baslatma) + `msMax` (startPictureInPicture ana is
+      parcacigini kac ms blokladi) -> ON PLANDA Sentry.
+⚠️ YAPMA: `paused`/`hidden` dallarini geri ekleme; yon kontrolunu kaldirma; SceneDelegate'e
+tekrar senkron startPictureInPicture koyma; tek-istek bayragini `possible==false` iken set etme.
+### SONRAKI TURDA BAKILACAK
+Sentry "ios pip olcum ... cagri=N msMax=N": cagri 1 olmali; msMax > 16ms ise hala kare
+kaciriyoruz demektir (gorulen takilma).
