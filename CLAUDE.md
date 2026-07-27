@@ -15,6 +15,28 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (28 Tem 00:32):** TEST TURU 48 YAYINLANDI — android 30306342017 +
+  ios 30306343945 (91a9661), R2 apk=105227857 ipa=19145142 (buyudu = yeni native kod),
+  purge OK, CDN birebir, backend degismedi + health ok, DB temiz. KULLANICI TEST EDECEK.
+- **TEST TURU 48 — "kose kutusu (kendi goruntum) donuyor" KOK SEBEP:**
+  (1) **GOZCU ULASILAMAZ KODDU** (gorunen sebep): `gozcuBaslat()` once BUYUK kutuya bakip
+  `if n != sonGorulenKare { ...; RETURN }` yapiyordu; KOSE kutusu kontrolu O RETURN'UN
+  ALTINDAYDI. Karsi tarafin videosu aktigi surece (kullanicinin tam durumu, `arka=89`)
+  kose kutusunun donmasi HIC fark edilmiyordu. FIX: kose kontrolu EN BASA, iki kutu bagimsiz.
+  (2) **YANLIS BAYRAK** (20 turdur): `isMultitaskingCameraAccessEnabled` yalnizca sebep 4
+  (`...WithMultipleForegroundApps`) kesintisini engelliyor; bizimki `sebep=1`
+  (`videoDeviceNotAvailableInBackground`). Uc olcumde de `coklu=true` — bayrak degisken
+  DEGIL. Arka planda kamerayi ayakta tutan tek sey PiP'in AKTIF olmasi.
+  (3) Turu 47 GERI ALINDI (`arka=0` regresyonu): `cokluGorevKameraAc()` tekrar SALT OKUMA.
+  (4) Arka planda `startRunning()` kurtarmasi SILINDI (Apple: arka planda kamera YASAK;
+  yapisal olarak imkansiz — `kurtarma=null`).
+  (5) `yereliBosalt()` / `iosPipKareBosalt(yalnizYerel:true)` — eskiden kendi kamera
+  kapaninca KARSI TARAFIN kutusuna da "duraklatildi" basiyordu.
+  (6) PiP baslatma 1200ms TEKRAR PENCERESI + native `applicationState == .background` kapisi.
+  (7) Olcum: `yerelOn/yerel1/yerel3`, `arka1/arka3`, `durum`, `pipAktif`.
+  ⚠️ YAPMA: kose gozcusunu tekrar buyuk kutunun dalinin altina tasima; capture session'i
+  disaridan yeniden yapilandirma (45: takilma / 47: medya durur); arka planda `startRunning()`
+  kurtarmasi ekleme; `.background` kapisini kaldirma.
 - **KALDIGIMIZ YER (27 Tem 23:10):** TEST TURU 47 YAYINLANDI — android 30300476213 +
   ios 30300478407 (e160976), R2 apk=105227857 ipa=19144584, purge OK, CDN birebir, backend
   degismedi + health ok, DB temiz. KULLANICI TEST EDECEK.
