@@ -2598,3 +2598,29 @@ bizim aldigimiz sebep=1 (InBackground) o degil. Yani olcum bastan tutarliydi, YO
 ### SONRAKI TURDA BAKILACAK (kanit)
 Sentry: "ios kesinti ..." kaydi GELMIYORSA ve karsi taraf canli goruyorsa KOK KAPANDI.
 Geliyorsa `sinif=` (AVCaptureMultiCamSession mi?) ve `pip=` degerleri sonraki adimi soyler.
+
+## TEST TURU 44 SURUMU YAYINLANDI (27 Tem 20:12) — iOS ARKA PLAN KAMERASI KANITLI COZULDU
+- android **30287113321** + ios **30287115762** (commit **26c8854**), debug imza YOK.
+- R2: apk **105227857** · ipa **19143659** · index 6355. CDN birebir, purge OK, saat GERCEK.
+  **IPA icinde MinimumOSVersion = 16.0 tekrar dogrulandi.** Backend degismedi, health ok,
+  DB temiz.
+### KANIT — 20+ TURDUR KOVALANAN SORUN KAPANDI
+Sentry olcumu, turu 43 surumu sonrasi:
+  ONCE : `ios pip olcum ... oturum=FALSE coklu=true` + `ios kamera kesinti sebep=1`
+  SONRA: `ios pip olcum on=998 arka=92 oturum=TRUE coklu=true` + **kesinti kaydi YOK**
+Kullanici da dogruladi: "alta indirdigimde donma vs olmadi."
+=> `IPHONEOS_DEPLOYMENT_TARGET` 15.0 -> 16.0 KOK COZUMDU. Apple: PiP modunda kamera icin
+deployment target >= iOS 16 (veya multitasking-camera-access entitlement) SART.
+`isMultitaskingCameraAccessSupported=true` olcumu bizi 20 tur yanilttI — o AYRI kapidir
+("iOS 18 SDK'ya link + voip background mode"), PiP'te kamera KULLANMA izni deployment
+target'a bakar.
+### BU TURDA DUZELTILEN
+Kullanici: "iki kamerada da beni gosteriyor." KOK: PiP, karsi tarafin videosu HENUZ abone
+olunmadan kurulabiliyor -> `aday` YEREL'e dusuyor -> turu 36 kimlik-calkanti korumasi onu
+SONSUZA KADAR kilitliyordu. FIX: uzak video gelince pencereyi KAPATMADAN sicak gecis
+(`PipService.iosPipKaynak` -> native `kaynakDegistir`, yalniz sink tasir).
+Sonuc: buyuk kutu KARSI TARAF, kose kutusu BEN (kamera artik yasadigi icin CANLI).
+### SIRADAKI (kullaniciya sunuldu)
+Teshis/olcum kodlarinin temizligi -> **MEDYA MESAJLASMA (foto/video/sesli mesaj)** ->
+kalici grup sohbeti -> profil -> yayin oncesi temizlik (admin "Ses Teshis" sekmesi,
+BTK yer saglayici bildirimi).
