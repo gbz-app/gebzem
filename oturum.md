@@ -2747,3 +2747,29 @@ sey PiP'in AKTIF olmasi.
 ⚠️ YAPMA: kose kutusu gozcusunu tekrar buyuk kutunun dalinin altina tasima; capture
 session'i disaridan yeniden yapilandirma (45: takilma / 47: medya durur); arka planda
 `startRunning()` kurtarmasi ekleme; `applicationState == .background` kapisini kaldirma.
+
+## TEST TURU 49 SURUMU YAYINLANDI (28 Tem 01:06) — PiP EN ERKEN ANDA, ASENKRON
+- android **30308483234** + ios **30308485130** (commit **a2ead0e**), debug imza YOK.
+- R2: apk **105227857** · ipa **19145592** (19145142'den BUYUDU = yeni native kod) · index 6402.
+  CDN birebir, purge OK, saat GERCEK. Backend degismedi, health ok, DB temiz.
+### OLCUM (turu 48 build'i, Sentry)
+`ios kesinti sebep=1 durum=arka pip=FALSE sinif=AVCaptureMultiCamSession calisiyor=true`
++ `ios pip olcum` satiri HIC YOK (didStart hic gelmedi). Onceki turlarda `pip=TRUE` idi.
+-> Turu 48'de ekledigim `if applicationState == .background { return }` kapisi TEK GERCEK
+   denemeyi de yutmus: Dart `inactive` tetigi native'e METHOD CHANNEL ile ASENKRON iniyor,
+   vardiginda UIKit coktan `.background`. Pencere acilmayinca Apple kamerayi kesiyor.
+### YAPILANLAR
+- [x] `.background` kapisi KALDIRILDI.
+- [x] `SceneDelegate.sceneWillResignActive` kancasi GERI (turu 46'da kaldirilmisti) ama
+      **DispatchQueue.main.async** ile. Olculu tarihce: turu 43 SENKRON -> kamera YASADI
+      (`oturum=true`) ama alta alma TAKILDI; turu 46 kanca YOK -> takilma gecti
+      (`cagri=1 msMax=0`) ama kamera OLDU. Asenkron = callout aninda serbest + method-channel
+      yolundan cok daha ERKEN. Apple arka planda kamerayi YALNIZ PiP AKTIFKEN surdurur.
+- [x] `failedToStartPictureInPicture` 800ms bekleyip pencere gercekten acilmadiysa
+      `iosPipBasarisiz` gonderiyor (o dal Dart'ta KAMERAYI KAPATIR).
+⚠️ YAPMA: `.background` kapisini geri koyma; SceneDelegate kancasini SENKRON yapma (turu 43
+takilmasi) veya kaldirma (turu 46 donmasi); failedToStart gecikmesini kaldirma.
+### KORUNAN
+turu 48 kose-kutusu gozcusu duzeltmesi (donmus kare yapisal olarak imkansiz), `yereliBosalt`
+ayrimi, genisletilmis olcum (yerelOn/yerel1/yerel3, durum, pipAktif), native tek-istek
+kilidi (`cagri=1`), deployment target 16.0.

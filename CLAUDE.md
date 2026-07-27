@@ -15,6 +15,17 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (28 Tem 01:06):** TEST TURU 49 YAYINLANDI — android 30308483234 +
+  ios 30308485130 (a2ead0e), R2 apk=105227857 ipa=19145592 (buyudu), purge OK, CDN birebir,
+  backend degismedi + health ok, DB temiz. KULLANICI TEST EDECEK.
+- **TEST TURU 49:** OLCUM `kesinti ... pip=FALSE` + olcum satiri YOK -> turu 48te ekledigim
+  `applicationState == .background` kapisi TEK BASLATMA denemesini de yutmus (Dart tetigi
+  method channel ile ASENKRON iniyor). Kapi KALDIRILDI; `SceneDelegate.sceneWillResignActive`
+  kancasi GERI ama **DispatchQueue.main.async** ile (turu 43 SENKRONDU -> kamera yasadi ama
+  alta alma takildi; turu 46 kanca yoktu -> takilma gecti ama kamera oldu). failedToStart
+  artik 800ms teyit gecikmesiyle bildiriliyor.
+  ⚠️ YAPMA: `.background` kapisini geri koyma; kancayi senkron yapma veya kaldirma;
+  failedToStart gecikmesini kaldirma.
 - **KALDIGIMIZ YER (28 Tem 00:32):** TEST TURU 48 YAYINLANDI — android 30306342017 +
   ios 30306343945 (91a9661), R2 apk=105227857 ipa=19145142 (buyudu = yeni native kod),
   purge OK, CDN birebir, backend degismedi + health ok, DB temiz. KULLANICI TEST EDECEK.
