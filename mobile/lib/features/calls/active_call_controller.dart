@@ -536,6 +536,23 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
         _iosPipKurulanId = ok ? trackId : '';
         _iosPipYerelId = ''; // yeni kurulumda alt gorunum sifirlanir
       }
+      // TEST TURU 44 — "IKI KUTUDA DA BENI GOSTERIYOR" (kullanici testi).
+      // KOK NEDEN: PiP, karsi tarafin videosu HENUZ abone olunmadan kurulabiliyor; o an
+      // `uzakId` null oldugu icin `aday` YEREL'e dusuyor ve turu 36'daki kimlik-calkanti
+      // korumasi onu SONSUZA KADAR kilitliyordu -> buyuk kutu da ben, kose kutusu da ben.
+      // COZUM: uzak video sonradan gelirse pencereyi KAPATMADAN sicak gecis
+      // (`kaynakDegistir` yalniz sink tasir; `stopPictureInPicture` CAGRILMAZ).
+      // ⚠️ YAPMA: bunu `iosPipKur` ile yapma — pencere kapanir (turu 24/26 dersi).
+      if (_iosPipKurulanId.isNotEmpty &&
+          uzakId != null &&
+          uzakId.isNotEmpty &&
+          _iosPipKurulanId != uzakId) {
+        final gecti = await PipService.iosPipKaynak(uzakId, 'uzak');
+        if (gecti) {
+          _iosPipKurulanId = uzakId;
+          _sesLog('ios pip kaynak yerel -> uzak (sicak gecis)');
+        }
+      }
       // TEST TURU 34 — KULLANICI KARARI: "alta indirdigimde SADECE TEK goruntu olsun, bu
       // sorunlu alani EN SON duzeltelim, vakit kaybetmeyelim." iOS kucuk penceresindeki
       // UST/ALT BOLUNME KAPATILDI: pencere yine TEK VIDEO (calisan, kanitlanmis davranis).
