@@ -281,6 +281,10 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
   private var yerelGorunum: PipVideoView?
   private var yerelRenderer: PipRenderer?
   private var kurulanId: String?
+  private var baslatIstendi = false // turu 46: tek baslatma kapisi
+  private var baslatKoruma: Timer?
+  var baslatCagri = 0   // olcum: kac kez baslatildi
+  var baslatMsMax = 0   // olcum: startPictureInPicture ana is parcacigini kac ms blokladi
   private var iptalIstendi = false // turu 29: on plana donuldu -> bekleyen baslatmayi iptal et
 
   // ---- TEST TURU 39: KARE GOZCUSU + SICAK KAYNAK DEGISIMI ----
@@ -356,7 +360,12 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
       self.kanal?.invokeMethod("iosPipOlcum", arguments: [
         "on": self.onPlanKare, "arka": arka, "kaynak": self.kurulanKaynak,
         "oturum": oturum, "coklu": coklu,
+        // turu 46: tek home hareketinde kac baslatma istegi indi ve en uzun
+        // startPictureInPicture cagrisi ana is parcacigini kac ms blokladi
+        "cagri": self.baslatCagri, "msMax": self.baslatMsMax,
       ])
+      self.baslatCagri = 0
+      self.baslatMsMax = 0
     }
   }
 
@@ -568,13 +577,47 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
   /// Modu'na baglidir — kullanicinin elinde. Apple, uygulama ON PLANDAYKEN startPictureInPicture()
   /// cagrisina izin verir; bu yuzden uygulama arka plana GECERKEN (willResignActive) PiP'i
   /// kendimiz baslatiyoruz -> AYARDAN BAGIMSIZ kucuk pencere.
+  /// TEST TURU 46 — TEK BASLATMA KAPISI (kullanici: "alta alirken zorlaniyorum, ekran
+  /// kayiyor ama inmiyor, zorla indiriyorum").
+  ///
+  /// KOK NEDEN: TEK bir home hareketinde `baslat()` **5 kaynaktan** cagriliyordu:
+  ///   1) SceneDelegate `sceneWillResignActive` (turu 43 — KALDIRILDI)
+  ///   2) Dart lifecycle `inactive`   -> method channel
+  ///   3) Dart lifecycle `hidden`     -> method channel   (Flutter iOS'ta ucunu de gonderir)
+  ///   4) Dart lifecycle `paused`     -> method channel
+  ///   5) iOS'un KENDI auto-enter'i (`canStartPictureInPictureAutomaticallyFromInline`)
+  /// Tek mevcut koruma `isPictureInPictureActive` idi ve o, ACILIS ANIMASYONU boyunca
+  /// FALSE doner -> hicbirini durdurmuyordu. Sonuc: sistemin uygulama-kuculme animasyonuyla
+  /// AYNI ANDA yarisan birden fazla PiP acilis animasyonu = gorulen surtunme.
+  ///
+  /// COZUM: bayrakli tek-istek kapisi + 1.5sn emniyet zamanlayicisi. Bayrak
+  /// didStart/didStop/failedToStart/durdur/birak dallarinda SIFIRLANIR.
+  /// ⚠️ YAPMA: bayragi `isPictureInPicturePossible == false` iken SET ETME — pencere hic
+  /// acilamaz duruma gelir (turu 20 regresyonu). Emniyet zamanlayicisini de kaldirma.
   func baslat() {
     guard let c = pipController else { return }
     if c.isPictureInPictureActive { return }
+    if baslatIstendi { return } // ayni gecis icin ZATEN istendi
+    // Henuz mumkun degilse (ilk kare gelmemis) bayragi SET ETMEDEN cik — sonraki tetik denesin.
+    if !c.isPictureInPicturePossible { return }
     iptalIstendi = false // yeni baslatma istegi: bekleyen iptali temizle
-    // isPictureInPicturePossible false ise (ilk kare henuz gelmemis) cagri sessizce duser;
-    // delegate failedToStart -> Dart kamera-mute yedegine gecer (mevcut davranis).
+    baslatIstendi = true
+    baslatCagri += 1
+    baslatKoruma?.invalidate()
+    baslatKoruma = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: false) { [weak self] _ in
+      self?.baslatIstendi = false // delegate hic gelmediyse kilit acilsin
+    }
+    let t0 = CACurrentMediaTime()
     c.startPictureInPicture()
+    let ms = Int((CACurrentMediaTime() - t0) * 1000)
+    if ms > baslatMsMax { baslatMsMax = ms }
+  }
+
+  /// Baslatma kilidini sifirla (delegate dallarindan cagrilir).
+  private func baslatKilidiAc() {
+    baslatIstendi = false
+    baslatKoruma?.invalidate()
+    baslatKoruma = nil
   }
 
   /// TEST TURU 27 — ALT GORUNUM (kendi kamera) EKLE/CIKAR. PiP controller'a DOKUNMAZ:
@@ -674,11 +717,13 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
   /// surerken bu bayrak false oldugu icin durdurma NO-OP kaliyor, pencere uygulamanin
   /// USTUNDE asili kaliyordu. `iptalIstendi` ile GEC gelen didStart da durdurulur.
   func durdur() {
+    baslatKilidiAc()
     iptalIstendi = true
     pipController?.stopPictureInPicture()
   }
 
   func birak() {
+    baslatKilidiAc()
     gozcuDur()
     pipController?.stopPictureInPicture()
     if let t = uzakTrack, let r = renderer { t.remove(r) }
@@ -714,6 +759,7 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
   // TEST TURU 9: PiP GERCEKTEN basladi/durdu -> Flutter'a bildir (pipModunda). Boylece
   // kamera-mute yedegi PiP durumuna gore ayarlanir (PiP'te kamera acik kalir).
   func pictureInPictureControllerDidStartPictureInPicture(_ c: AVPictureInPictureController) {
+    baslatKilidiAc()
     // TEST TURU 29: PiP acilisi ANIMASYONLUDUR; bu sirada kullanici uygulamaya donmus
     // olabilir (Kontrol Merkezi, bildirim seridi, izin uyarisi da 'inactive' uretir ->
     // baslat cagrilir). Uygulama ON PLANDAYSA pencereyi ANINDA kapat; boylece arayuzun
@@ -729,11 +775,13 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
     kareOlcumuBaslat() // turu 38: 3sn sonra kac kare aktigini bildir
   }
   func pictureInPictureControllerDidStopPictureInPicture(_ c: AVPictureInPictureController) {
+    baslatKilidiAc()
     NSLog("gebzem/pip iOS PiP durdu")
     kanal?.invokeMethod("iosPipDurum", arguments: false)
   }
   func pictureInPictureController(_ c: AVPictureInPictureController,
     failedToStartPictureInPictureWithError error: Error) {
+    baslatKilidiAc()
     NSLog("gebzem/pip iOS baslatma hatasi: \(error.localizedDescription)")
     // PiP baslatilamadi -> Dart kamerayi kapatir (arka planda donuk kare yerine avatar)
     kanal?.invokeMethod("iosPipBasarisiz", arguments: nil)

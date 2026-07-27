@@ -162,6 +162,7 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
   bool _iosPipHazir = false;
   String _iosPipKurulanId = ''; // native'e kurulan uzak track id (degisince yeniden kur)
   Map<String, dynamic>? _bekleyenOlcum; // turu 39: on plana donunce Sentry'e yazilir
+  AppLifecycleState? _sonYasamDurumu; // turu 46: yon kontrolu (arka plana mi gidiyoruz)
   Timer? _kesintiMuteGecikme; // turu 43: kurtarma sansi icin gecikmeli durust mute
   bool _iosPipMesgul = false; // turu 39: _iosPipGuncelle yeniden-girme kilidi
   String _iosPipYerelId = ''; // turu 28: PiP alt gorunumundeki kendi kamera track id'm
@@ -969,10 +970,24 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     // arka plana GECERKEN PiP'i ELLE baslat — otomatik giris telefon Ayarina/Dusuk Guc
     // Modu'na bagliydi, elle baslatma bagimsiz calisir. 'inactive' iOS'ta gecis anidir
     // (uygulama HALA on planda sayilir; Apple startPictureInPicture'a burada izin verir).
+    // TEST TURU 46 — TEK TETIK + YON KONTROLU (kullanici: "alta alirken zorlaniyorum").
+    // ESKIDEN: `inactive || paused || hidden` UCU DE ayni native `baslat()`e iniyordu.
+    // Flutter iOS'ta tek bir alta almada UCUNU birden gonderir (hidden, paused'dan once
+    // SENTEZLENIR) -> tek harekette 3 method channel + 3 startPictureInPicture istegi;
+    // ustune SceneDelegate (kaldirildi) ve iOS'un kendi auto-enter'i. Sistemin kuculme
+    // animasyonuyla yarisan bu istekler surtunme uretiyordu.
+    // AYRICA DONUS yolu da `paused -> hidden -> inactive -> resumed` seklindedir; eski
+    // kosul ON PLANA DONERKEN de baslatma istiyor, hemen ardindan `resumed` dalindaki
+    // kosulsuz `iosPipDurdur()` onu kapatiyordu = ikinci bir ac-kapa yankisi.
+    // ARTIK: yalniz `inactive` VE yalniz `resumed`dan geliyorsak (gercekten arka plana
+    // gidiyorsak). Native tarafta ayrica tek-istek kilidi var (`baslatIstendi`).
+    // ⚠️ YAPMA: `paused`/`hidden` dallarini geri ekleme; yon kontrolunu kaldirma.
+    final onceki = _sonYasamDurumu ?? AppLifecycleState.resumed;
+    _sonYasamDurumu = state;
+    final arkaPlanaGidiyor =
+        state == AppLifecycleState.inactive && onceki == AppLifecycleState.resumed;
     if (Platform.isIOS &&
-        (state == AppLifecycleState.inactive ||
-            state == AppLifecycleState.paused ||
-            state == AppLifecycleState.hidden) &&
+        arkaPlanaGidiyor &&
         arama != null &&
         _baglandi &&
         !_ayrildi &&
@@ -1083,7 +1098,8 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
           _bekleyenOlcum = null;
           unawaited(Sentry.captureMessage(
               'ios pip olcum on=${o['on']} arka=${o['arka']} kaynak=${o['kaynak']} '
-              'oturum=${o['oturum']} coklu=${o['coklu']}'));
+              'oturum=${o['oturum']} coklu=${o['coklu']} '
+              'cagri=${o['cagri']} msMax=${o['msMax']}'));
         }
         notifyListeners();
       }
