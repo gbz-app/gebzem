@@ -980,18 +980,15 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
         _iosPipKurulanId.isNotEmpty) {
       unawaited(PipService.iosPipBaslat());
     }
-    // TEST TURU 31: arka plana GECMEDEN HEMEN ONCE (inactive = hala on plan) coklu-gorev
-    // kamera bayragini YENIDEN uygula. Kamera ac/kapa veya arka plandan donusteki
-    // oto-unmute YENI bir AVCaptureSession yaratip bayragi sifirliyor; tek seferlik
-    // kurulum ikinci arka plana gecişte gecersiz kaliyordu (karsi taraf donmus kare).
-    if (Platform.isIOS &&
-        state == AppLifecycleState.inactive &&
-        arama != null &&
-        _baglandi &&
-        !_ayrildi &&
-        _camOn) {
-      unawaited(iosArkaPlanKamerayiTazele());
-    }
+    // TEST TURU 45 — KALDIRILDI (kullanici: "alta alirken zorlaniyor, ekrani zorla ciziyor
+    // gibi"). Turu 31'de buraya `iosArkaPlanKamerayiTazele()` konmustu: CALISAN capture
+    // session uzerinde `beginConfiguration`/`commitConfiguration` yapiyor — AGIR bir is ve
+    // tam GECIS ANINDA, ana is parcacigini blokluyor. Takilmanin sebebi buydu.
+    // ARTIK GEREKSIZ: bayragi turu 37'deki `GebzemKameraKanca` swizzle'i kamera
+    // BASLATILMADAN ONCE (Apple'in sart kostugu an) yaziyor; her yeni capture session
+    // otomatik kapsaniyor. Turu 44 olcumu de bunu kanitladi: oturum=true, kesinti YOK.
+    // ⚠️ YAPMA: gecis aninda (inactive/paused) capture session yeniden yapilandirma —
+    // takilma geri gelir; CLAUDE.md turu 10 notu da ayni tuzagi anlatiyor.
     // TEST TURU 35 — "KARSI TARAFTA GORUNTUM GIDIYOR" icin TEK SATIRLIK GUVENLI ADIM:
     // 'inactive' aninda `iosArkaPlanKamerayiTazele()` baslatiliyor ve sonucu ASENKRON
     // yaziliyor; 'paused' milisaniyeler sonra gelip BAYAT `_iosArkaPlanKamera` degerini

@@ -312,13 +312,15 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
     guard let capturer = FlutterWebRTCPlugin.sharedSingleton()?.videoCapturer else { return false }
     let session = capturer.captureSession
     guard session.isMultitaskingCameraAccessSupported else { return false }
-    if session.isMultitaskingCameraAccessEnabled { return true }
-    // Kanca herhangi bir sebeple kurulamadiysa (selector degisti vb.) son care olarak dene.
-    session.beginConfiguration()
-    session.isMultitaskingCameraAccessEnabled = true
-    session.commitConfiguration()
+    // TEST TURU 45 — ARTIK SALT OKUMA. Eskiden burada `beginConfiguration`/
+    // `commitConfiguration` ile bayrak yazilirdi; CALISAN bir capture session'i yeniden
+    // yapilandirmak AGIR bir istir ve bu metot gecis aninda cagrildigi icin kullanici
+    // "alta alirken zorlaniyor, ekrani zorla ciziyor gibi" takilmasini yasiyordu.
+    // Bayragi zaten turu 37'deki `GebzemKameraKanca` swizzle'i kamera BASLATILMADAN ONCE
+    // yaziyor (Apple'in sart kostugu an) — burada yazmak hem gereksiz hem GEC (etkisiz).
+    // ⚠️ YAPMA: buraya tekrar begin/commitConfiguration koyma.
     let ok = session.isMultitaskingCameraAccessEnabled
-    NSLog("gebzem/pip coklu-gorev kamera (GEC yazim, etkisiz olabilir) = \(ok)")
+    NSLog("gebzem/pip coklu-gorev kamera (salt okuma) = \(ok)")
     return ok
   }
 
