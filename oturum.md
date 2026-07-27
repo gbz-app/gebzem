@@ -2624,3 +2624,22 @@ Sonuc: buyuk kutu KARSI TARAF, kose kutusu BEN (kamera artik yasadigi icin CANLI
 Teshis/olcum kodlarinin temizligi -> **MEDYA MESAJLASMA (foto/video/sesli mesaj)** ->
 kalici grup sohbeti -> profil -> yayin oncesi temizlik (admin "Ses Teshis" sekmesi,
 BTK yer saglayici bildirimi).
+
+## TEST TURU 45 SURUMU YAYINLANDI (27 Tem 20:45)
+- android **30289622533** + ios **30289624993** (commit **5c07af0**), debug imza YOK.
+- R2: apk **105227857** · ipa **19143856** · index 6354. CDN birebir, purge OK, saat GERCEK.
+  IPA icinde MinimumOSVersion=16.0 dogrulandi. Backend degismedi, health ok, DB temiz.
+### DUZELTILEN (kullanici: "alta alirken zorlaniyorum, ekrani zorla ciziyor gibi")
+KOK: turu 31'de `didChangeAppLifecycleState` `inactive` dalina konan
+`iosArkaPlanKamerayiTazele()`, CALISAN `AVCaptureSession` uzerinde begin/commitConfiguration
+yapiyordu — AGIR is + TAM GECIS ANI + ana is parcaciginda. (CLAUDE.md turu 10 notu ayni
+tuzagi zaten yaziyordu.)
+ARTIK GEREKSIZ: bayragi turu 37 swizzle'i kamera BASLATILMADAN ONCE yaziyor; turu 44
+olcumu kanitladi (oturum=true, kesinti YOK).
+- [x] `inactive` dalindaki tazeleme KALDIRILDI.
+- [x] `cokluGorevKameraAc()` SALT OKUMA yapildi (begin/commitConfiguration YOK).
+⚠️ YAPMA: gecis aninda capture session yeniden yapilandirma; bu metoda tekrar
+begin/commitConfiguration koyma.
+### ARAMA/PiP FAZI TAMAMLANDI (kullanici onayi: "on numara")
+Kalan: teshis/olcum kodlarinin temizligi -> MEDYA MESAJLASMA -> kalici grup sohbeti ->
+profil -> yayin oncesi temizlik.
