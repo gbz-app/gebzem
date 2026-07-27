@@ -649,13 +649,16 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
     guard let c = pipController else { return }
     if c.isPictureInPictureActive { return }
     if baslatIstendi { return } // ayni gecis icin ZATEN istendi
-    // TEST TURU 48 — ARKA PLANDA BASLATMA DENEME. Apple manuel `startPictureInPicture()`
-    // cagrisini yalniz uygulama ON PLANDAYKEN (active/inactive) yetkilendirir; arka planda
-    // cagrilirsa `failedToStartPictureInPictureWithError` gelir ve bizim `_iosPipBasarisiz`
-    // dalimiz KAMERAYI KAPATIR — yani deneme, duzeltmeye calistigimiz seyi bozar.
-    // Bu kapi, Dart'taki 1200ms'lik tekrar penceresini (hidden/paused dallari) GUVENLI kilar.
-    // ⚠️ YAPMA: bu kontrolu kaldirma (tekrar denemeler kamerayi oldurur).
-    if UIApplication.shared.applicationState == .background { return }
+    // TEST TURU 49 — TURU 48'DEKI `.background` KAPISI KALDIRILDI (KANITLI REGRESYON).
+    // Turu 48'de buraya `if applicationState == .background { return }` konmustu; teorik
+    // olarak dogruydu (Apple manuel start'i on planda bekler) AMA OLCUM tersini soyledi:
+    //   turu 46/47: `ios kesinti ... pip=TRUE`   (pencere aciliyordu)
+    //   turu 48:    `ios kesinti ... pip=FALSE`  (pencere HIC acilmadi + olcum satiri YOK)
+    // Sebep: Dart `inactive` tetigi native'e METHOD CHANNEL uzerinden ASENKRON iner; cagri
+    // yerine vardiginda UIKit COKTAN `.background`a gecmis olabiliyor -> tek gercek denememiz
+    // de bu kapiya takiliyordu. Pencere acilmayinca kamera kesiliyor (kose kutusu donuyor).
+    // ⚠️ YAPMA: bu kapiyi geri koyma. Arka planda basarisiz denemenin kamerayi oldurmesi
+    // riski, `failedToStart` dalindaki 800ms'lik teyit gecikmesiyle kapatildi (asagida).
     // Henuz mumkun degilse (ilk kare gelmemis) bayragi SET ETMEDEN cik — sonraki tetik denesin.
     if !c.isPictureInPicturePossible { return }
     iptalIstendi = false // yeni baslatma istegi: bekleyen iptali temizle
@@ -841,8 +844,17 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
     failedToStartPictureInPictureWithError error: Error) {
     baslatKilidiAc()
     NSLog("gebzem/pip iOS baslatma hatasi: \(error.localizedDescription)")
-    // PiP baslatilamadi -> Dart kamerayi kapatir (arka planda donuk kare yerine avatar)
-    kanal?.invokeMethod("iosPipBasarisiz", arguments: nil)
+    // TEST TURU 49 — TEYIT GECIKMESI. `iosPipBasarisiz` Dart tarafinda KAMERAYI KAPATIR.
+    // Artik tekrar denemeler oldugu icin (1200ms penceresi) BIR denemenin basarisizligi
+    // "PiP hic olmayacak" demek DEGIL — sonraki deneme tutabilir. 800ms bekleyip pencere
+    // GERCEKTEN acilmadiysa haber veriyoruz.
+    // ⚠️ YAPMA: bu gecikmeyi kaldirip aninda `iosPipBasarisiz` gonderme (basarili bir
+    // tekrardan hemen sonra kamera kapanir).
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
+      guard let self = self else { return }
+      if self.pipController?.isPictureInPictureActive == true { return }
+      self.kanal?.invokeMethod("iosPipBasarisiz", arguments: nil)
+    }
   }
   func pictureInPictureController(_ c: AVPictureInPictureController,
     restoreUserInterfaceForPictureInPictureStopWithCompletionHandler h: @escaping (Bool) -> Void) {

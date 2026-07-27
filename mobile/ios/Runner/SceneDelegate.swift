@@ -1,29 +1,39 @@
 import Flutter
 import UIKit
 
-/// TEST TURU 46 — TURU 43'TEKI `sceneWillResignActive` KANCASI GERI ALINDI.
+/// TEST TURU 49 — PiP'I EN ERKEN ANDA BASLAT, AMA **ASENKRON**.
 ///
-/// KULLANICI: "goruntulu aramada uygulamayi normal alta ALAMIYORUM; ekran kayiyor ama
-/// inmiyor, en sonunda ZORLA yukari kaldirip indirmeye calisiyorum."
+/// TARIHCE (bu dosya iki kez degisti, ikisinin de sebebi olculdu):
+/// · TURU 43: buraya SENKRON `GebzemPip.shared.baslat()` konuldu -> kamera arka planda
+///   YASADI (`oturum=true`), ama kullanici "alta alirken zorlaniyorum, ekran kayiyor ama
+///   inmiyor" dedi. Sebep: iOS'ta home hareketi INTERAKTIFTIR; `sceneWillResignActive`
+///   parmak HENUZ EKRANDAYKEN gelir ve o callout'un ICINDE senkron pencere acmak sistemin
+///   gecisini keser.
+/// · TURU 46: kanca tamamen KALDIRILDI -> takilma gecti (`cagri=1 msMax=0`) ama kamera
+///   arka planda OLDU (`oturum=false`), kose kutusu dondu.
+/// · TURU 48: Dart tarafina 1200ms'lik tekrar penceresi + native `.background` kapisi
+///   kondu -> OLCUM `kesinti ... pip=FALSE` dedi: pencere HIC acilmadi (kapi, tek gercek
+///   denemeyi de yuttu; Dart tetigi method channel uzerinden GEC iniyor).
 ///
-/// KOK NEDEN (zaman cizelgesi + iOS davranisi):
-/// · Sikayet TAM turu 43 build'inden sonra basladi; turu 43'te buraya SENKRON
-///   `GebzemPip.shared.baslat()` (yani `startPictureInPicture()`) eklenmisti.
-/// · iOS'ta home hareketi INTERAKTIFTIR: `sceneWillResignActive` parmak daha EKRANDAYKEN,
-///   surukleme BASLADIGI anda gelir (kullanici vazgecerse uygulama on planda kalir).
-///   Tam o anda ana is parcaciginda PiP penceresi acmak, sistemin interaktif gecisini
-///   keserek surtunme/geri tepme uretiyor — kullanicinin tarif ettigi "kayiyor ama inmiyor".
-/// · Ustelik ARTIK GEREKSIZ: bu kanca, "arka planda kamera kesiliyor" sorununu cozmek icin
-///   eklenmisti; gercek sebep DEPLOYMENT TARGET (15.0 -> 16.0) cikti ve turu 44 olcumuyle
-///   kanitlandi (`oturum=true`, kesinti kaydi YOK). Yani kancanin sagladigi bir kazanim yok.
+/// SONUC: erken baslatma GEREKLI (Apple arka planda kamerayi yalniz PiP AKTIFKEN surdurur),
+/// ama SENKRON olmamali. `DispatchQueue.main.async` UIKit gecis callout'unu ANINDA serbest
+/// birakir; cagri ayni run loop turunun sonunda, hareket bloklanmadan calisir.
 ///
-/// PiP baslatma YOLU DEGISMEDI: Dart tarafi lifecycle `inactive` aninda
-/// `PipService.iosPipBaslat()` cagiriyor (turu 20'den beri calisan yol; turu 20-42 boyunca
-/// bu sikayet HIC olmadi).
+/// EK KORUMALAR:
+/// · `GebzemPip.baslat()` icinde tek-istek kilidi var (`baslatIstendi`) -> Dart tetigiyle
+///   CIFT acilma olmaz; olcumde `cagri` 1 kalmali.
+/// · Pencere kurulu degilse (`pipController == nil`) `baslat()` zaten hemen doner.
+/// · Hareket IPTAL edilirse (`.active`e donus) Dart'in `resumed` dalindaki kosulsuz
+///   `iosPipDurdur()` pencereyi kapatir.
 ///
-/// ⚠️ YAPMA: buraya tekrar SENKRON `startPictureInPicture()` koyma (alta alma takilir).
-/// Native tarafta gerekirse `sceneDidEnterBackground` denenebilir — ama o an Apple
-/// startPictureInPicture'a izin vermeyebilir; once OLC, sonra ekle.
+/// ⚠️ YAPMA: bu cagriyi SENKRON hale getirme (turu 43 takilmasi doner).
+/// ⚠️ YAPMA: kancayi tamamen kaldirma (turu 46: arka planda kamera olur, kose kutusu donar).
 class SceneDelegate: FlutterSceneDelegate {
 
+  override func sceneWillResignActive(_ scene: UIScene) {
+    super.sceneWillResignActive(scene)
+    DispatchQueue.main.async {
+      GebzemPip.shared.baslat()
+    }
+  }
 }
