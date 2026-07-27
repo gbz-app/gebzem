@@ -15,6 +15,32 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (27 Tem 19:47):** TEST TURU 43 YAYINLANDI — android 30285412862 +
+  ios 30285415219 (0a14f97), R2 apk=105227857 ipa=19142958, purge OK, CDN birebir, backend
+  degismedi + health ok, DB temiz. **IPA icinde MinimumOSVersion=16.0 DOGRULANDI.**
+  KULLANICI TEST EDECEK — kok neden HIPOTEZ, cihazda kanitlanmadi.
+- **TEST TURU 43 — iOS ARKA PLAN KAMERASININ ASIL KAPISI (Apple dokumani):**
+  *"In iOS 16 and later, you can use the camera in Picture in Picture mode by enabling a
+  capture session's isMultitaskingCameraAccessEnabled property. **Apps that have a deployment
+  target earlier than iOS 16 require the com.apple.developer.avfoundation.multitasking-
+  camera-access entitlement to use the camera in PiP mode.**"
+  BIZIM `IPHONEOS_DEPLOYMENT_TARGET` **15.0** IDI -> kapi kapaliydi. Artik **16.0**.
+  ⚠️ `isMultitaskingCameraAccessSupported=true` olcumu BIZI YANILTTI: o AYRI bir kapidir
+  ("iOS 18 SDK'ya link + UIBackgroundModes'ta voip" ile true doner). PiP'te kamera KULLANMA
+  izni DEPLOYMENT TARGET'a bakar. Ayrica Apple `enabled` icin yalniz
+  `videoDeviceNotAvailableWithMultipleForegroundApps` kesintisini bastirmayi taahhut eder —
+  bizim aldigimiz sebep=1 (InBackground) o degildi. Olcum tutarliydi, YORUM yanlisti.
+  ⚠️ **ENTITLEMENT EKLEME**: profilde olmayan entitlement imzayi patlatir, ad-hoc IPA hic
+  uretilmez (jitsi-meet #12839 ayni hatayi yasamis). Ancak Apple'a basvurup profil
+  yenilendikten sonra eklenebilir.
+  ⚠️ **UYGULAMA SCENE TABANLI**: Apple "If you're using scenes, UIKit will not call this
+  method" — AppDelegate'e yazilacak yasam dongusu kancalari OLU KODDUR. Dogru yer
+  `SceneDelegate.swift` (pbxproj'da KAYITLI, yeni dosya ekleme YOK). PiP artik oradan,
+  arka plana gecmeden ONCE baslatiliyor.
+  ⚠️ Kesintide kamerayi ANINDA mute etme: Apple "If you don't explicitly call stopRunning(),
+  your startRunning() request is preserved" — native 1 kez `startRunning()` deniyor, Dart
+  durust mute'u 1.5sn erteliyor; kurtarma tutarsa mute ATLANIR.
+- **ETKI:** iOS 15'te kalmis cihazlar (iPhone 6s/7/SE1) artik uygulamayi KURAMAZ.
 - **KALDIGIMIZ YER (27 Tem 18:38):** TEST TURU 41-42 YAYINLANDI — android 30279978077 +
   ios 30279981045 (6fef48a), R2 apk=105227857 ipa=19142325, purge OK, CDN birebir, backend
   degismedi + health ok, DB temiz. KULLANICI TEST EDECEK.
