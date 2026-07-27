@@ -448,11 +448,49 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
   func kesintileriDinle() {
     let nc = NotificationCenter.default
     nc.addObserver(forName: .AVCaptureSessionWasInterrupted, object: nil, queue: .main) { [weak self] n in
+      guard let self = self else { return }
       let ham = (n.userInfo?[AVCaptureSessionInterruptionReasonKey] as? NSNumber)?.intValue ?? -1
-      NSLog("gebzem/pip kamera KESINTI reason=\(ham)")
-      self?.videoView?.kareKesildi()
-      self?.yerelGorunum?.kareKesildi()
-      self?.kanal?.invokeMethod("iosKameraKesinti", arguments: ham)
+      // TEST TURU 43 — KESINTI ANINDA TAM RESIM (tek satirda karar verdirir):
+      // uygulama durumu, PiP gercekten aktif mi, bayraklar, oturum sinifi (paylasilan
+      // AVCaptureMultiCamSession mi?), oturum calisiyor mu.
+      let durum = UIApplication.shared.applicationState == .active ? "aktif"
+        : (UIApplication.shared.applicationState == .inactive ? "gecis" : "arka")
+      let pipAktif = self.pipController?.isPictureInPictureActive ?? false
+      var sinif = "yok"
+      var calisiyor = false
+      var destek = false
+      var acik = false
+      if let s = (n.object as? AVCaptureSession)
+        ?? FlutterWebRTCPlugin.sharedSingleton()?.videoCapturer?.captureSession {
+        sinif = String(describing: type(of: s))
+        calisiyor = s.isRunning
+        if #available(iOS 16.0, *) {
+          destek = s.isMultitaskingCameraAccessSupported
+          acik = s.isMultitaskingCameraAccessEnabled
+        }
+      }
+      NSLog("gebzem/pip KESINTI reason=\(ham) durum=\(durum) pip=\(pipAktif) sinif=\(sinif) calisiyor=\(calisiyor) destek=\(destek) acik=\(acik)")
+      self.videoView?.kareKesildi()
+      self.yerelGorunum?.kareKesildi()
+      self.kanal?.invokeMethod("iosKameraKesinti", arguments: [
+        "sebep": ham, "durum": durum, "pip": pipAktif, "sinif": sinif,
+        "calisiyor": calisiyor, "destek": destek, "acik": acik,
+      ])
+      // TEST TURU 43 — KURTARMA DENEMESI (Apple: "If you don't explicitly call stopRunning(),
+      // your startRunning() request is preserved"). PiP aktif + izin acik + oturum durmus
+      // ise BIR KEZ yeniden baslatmayi dene. Izin gercekten yoksa iOS yine ayni kesintiyi
+      // gonderir — zarari yok; izin varsa kamera geri gelir.
+      // ⚠️ YAPMA: burada ASLA stopRunning cagirma (kurtarma sansini yok eder).
+      if #available(iOS 16.0, *), pipAktif, acik, !calisiyor,
+         let s = FlutterWebRTCPlugin.sharedSingleton()?.videoCapturer?.captureSession {
+        DispatchQueue.global(qos: .userInitiated).async {
+          s.startRunning()
+          DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
+            NSLog("gebzem/pip kurtarma denendi -> calisiyor=\(s.isRunning)")
+            self.kanal?.invokeMethod("iosKameraKurtarma", arguments: s.isRunning)
+          }
+        }
+      }
     }
     nc.addObserver(forName: .AVCaptureSessionInterruptionEnded, object: nil, queue: .main) { [weak self] _ in
       NSLog("gebzem/pip kamera kesinti BITTI")
@@ -599,6 +637,8 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
     yv.etiketiAyarla(harf)
     yv.layer.cornerRadius = 5
     yv.layer.masksToBounds = true
+    yv.layer.borderWidth = 0.5
+    yv.layer.borderColor = UIColor(white: 1, alpha: 0.25).cgColor
     let yr = PipRenderer(view: yv)
     yerel.add(yr)
     // Yigina DEGIL, pencerenin USTUNE koseye yerlestir (kisitlarla, %34 genislik / 4:3).
@@ -774,24 +814,43 @@ final class PipVideoView: UIView {
   /// ama icine KARE AKMIYOR (kamera arka planda durmus). Bos siyah kutu yerine "Kamera
   /// duraklatildi" yazisi cizilir; ilk kare gelince kendiliginden gizlenir.
   private let etiket = UILabel()
+  /// TEST TURU 43: kose kutusu kare almadiginda kullanici "siyah kutu" goruyordu (koyu zemin
+  /// + 9pt yazi). Artik MOR DAIRE + BEYAZ BAS HARF (uygulamanin avatar deseni) cizilir —
+  /// bakinca "kapali kamera" oldugu anlasilir, siyah delik gibi durmaz.
+  private let daire = UIView()
 
   override init(frame: CGRect) {
     super.init(frame: frame)
     displayLayer.videoGravity = .resizeAspectFill
-    backgroundColor = UIColor(red: 0.11, green: 0.11, blue: 0.12, alpha: 1)
+    backgroundColor = UIColor(red: 0.09, green: 0.13, blue: 0.16, alpha: 1)
+
+    daire.backgroundColor = UIColor(red: 0.42, green: 0.17, blue: 0.85, alpha: 1) // 0xFF6C2BD9
+    daire.translatesAutoresizingMaskIntoConstraints = false
+    addSubview(daire)
+
     etiket.text = "Kamera duraklatıldı"
-    etiket.textColor = UIColor(white: 1, alpha: 0.75)
+    etiket.textColor = .white
     etiket.font = .systemFont(ofSize: 9, weight: .semibold)
     etiket.textAlignment = .center
     etiket.numberOfLines = 2
     etiket.translatesAutoresizingMaskIntoConstraints = false
     addSubview(etiket)
     NSLayoutConstraint.activate([
-      etiket.centerXAnchor.constraint(equalTo: centerXAnchor),
-      etiket.centerYAnchor.constraint(equalTo: centerYAnchor),
-      etiket.leadingAnchor.constraint(greaterThanOrEqualTo: leadingAnchor, constant: 4),
-      etiket.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -4),
+      daire.centerXAnchor.constraint(equalTo: centerXAnchor),
+      daire.centerYAnchor.constraint(equalTo: centerYAnchor),
+      daire.widthAnchor.constraint(equalTo: widthAnchor, multiplier: 0.42),
+      daire.heightAnchor.constraint(equalTo: daire.widthAnchor),
+      etiket.centerXAnchor.constraint(equalTo: daire.centerXAnchor),
+      etiket.centerYAnchor.constraint(equalTo: daire.centerYAnchor),
+      etiket.leadingAnchor.constraint(greaterThanOrEqualTo: leadingAnchor, constant: 3),
+      etiket.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -3),
     ])
+  }
+
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    daire.layer.cornerRadius = daire.bounds.width / 2
+    daire.layer.masksToBounds = true
   }
 
   /// Kare akiyor mu bilgisi (PipRenderer cagirir; ana kuyrukta).
@@ -804,11 +863,13 @@ final class PipVideoView: UIView {
   func kareGeldi() {
     if etiket.isHidden { return }
     etiket.isHidden = true
+    daire.isHidden = true
   }
 
   func kareKesildi() {
     if !etiket.isHidden { return }
     etiket.isHidden = false
+    daire.isHidden = false
   }
 
   required init?(coder: NSCoder) { fatalError() }

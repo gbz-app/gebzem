@@ -162,6 +162,7 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
   bool _iosPipHazir = false;
   String _iosPipKurulanId = ''; // native'e kurulan uzak track id (degisince yeniden kur)
   Map<String, dynamic>? _bekleyenOlcum; // turu 39: on plana donunce Sentry'e yazilir
+  Timer? _kesintiMuteGecikme; // turu 43: kurtarma sansi icin gecikmeli durust mute
   bool _iosPipMesgul = false; // turu 39: _iosPipGuncelle yeniden-girme kilidi
   String _iosPipYerelId = ''; // turu 28: PiP alt gorunumundeki kendi kamera track id'm
 
@@ -640,18 +641,27 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
 
   void _iosKameraKesinti(bool kesintiVar) {
     if (!Platform.isIOS || arama == null || _ayrildi) return;
-    if (kesintiVar) {
-      _iosArkaPlanKamera = false; // bayrak yalan soyluyordu — gercek OS olayina guven
-      unawaited(Sentry.captureMessage(
-          'ios kamera kesinti sebep=${PipService.kameraKesintiSebebi.value}'));
-      if (_camOn && _baglandi) {
-        _kameraOtoKapandi = true; // on plana donunce geri acilsin
-        _camOn = false;
-        _room?.localParticipant?.setCameraEnabled(false);
-        unawaited(PipService.iosPipKareBosalt()); // donmus kare yerine etiket
-        notifyListeners();
+    if (!kesintiVar) return;
+    _iosArkaPlanKamera = false; // bayrak yalan soyluyordu — gercek OS olayina guven
+    // TEST TURU 43 — KAMERAYI HEMEN OLDURME. Apple: *"If you don't explicitly call the
+    // stopRunning() method, your startRunning() request is preserved."* livekit mute
+    // (`stopCameraCaptureOnMute = true`) capture'i DURDURUR ve kurtarma sansini yok eder.
+    // Native taraf ~0.7sn icinde `startRunning()` ile kurtarmayi deniyor; ona sans veriyoruz.
+    // Kurtarma olmazsa 1.5sn sonra DURUSTCE mute (karsi taraf bulanik yazi gorur).
+    // ⚠️ YAPMA: bu gecikmeyi kaldirip aninda mute'a donme.
+    _kesintiMuteGecikme?.cancel();
+    _kesintiMuteGecikme = Timer(const Duration(milliseconds: 1500), () {
+      if (arama == null || _ayrildi || !_camOn || !_baglandi) return;
+      if (PipService.kurtarmaSonucu == true) {
+        _sesLog('kamera kesintiden KURTARILDI — mute atlandi');
+        return;
       }
-    }
+      _kameraOtoKapandi = true; // on plana donunce geri acilsin
+      _camOn = false;
+      _room?.localParticipant?.setCameraEnabled(false);
+      unawaited(PipService.iosPipKareBosalt()); // donmus kare yerine etiket
+      notifyListeners();
+    });
   }
 
   /// iOS PiP baslatilamadi (native delegate failedToStart): kullanici Ayarlar'dan PiP'i
@@ -1012,6 +1022,7 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
         _camOn) {
       if (pipBekleniyor) {
         _pipKameraGecikme?.cancel();
+    _kesintiMuteGecikme?.cancel();
         _pipKameraGecikme = Timer(const Duration(milliseconds: 900), () {
           if (arama == null || _ayrildi || !_camOn) return;
           // PiP BASLADIYSA: Android'de kamera capture SURER; iOS'ta yalniz coklu-gorev
@@ -1045,6 +1056,14 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
         unawaited(PipService.iosPipDurdur());
         // TEST TURU 39: arka planda uretilen olcum burada gonderilir (arka planda Sentry
         // teslimi garantili degil — bugune kadarki olcumun zayif noktasi buydu).
+        final ki = PipService.kesintiBilgi;
+        if (ki != null) {
+          PipService.kesintiBilgi = null;
+          unawaited(Sentry.captureMessage(
+              'ios kesinti sebep=${ki['sebep']} durum=${ki['durum']} pip=${ki['pip']} '
+              'sinif=${ki['sinif']} calisiyor=${ki['calisiyor']} acik=${ki['acik']} '
+              'kurtarma=${PipService.kurtarmaSonucu}'));
+        }
         final o = _bekleyenOlcum;
         if (o != null) {
           _bekleyenOlcum = null;

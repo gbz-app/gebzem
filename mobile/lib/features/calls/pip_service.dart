@@ -27,6 +27,10 @@ class PipService {
   static final ValueNotifier<int> kameraKesintiSebebi = ValueNotifier<int>(0);
   static void Function(bool kesintiVar)? _iosKesintiCb;
 
+  /// TEST TURU 43: kesinti anindaki tam resim (Sentry'e ON PLANDA yazilir).
+  static Map<String, dynamic>? kesintiBilgi;
+  static bool? kurtarmaSonucu;
+
   /// TEST TURU 38: PiP basladiktan 3sn sonraki kare sayisi (0 = capture durmus).
 
   static void Function(Map<String, dynamic> olcum)? _iosOlcumCb;
@@ -63,8 +67,14 @@ class PipService {
         // olaya tepki veriyoruz: kamerayi DURUSTCE kapat, karsi taraf donmus kare degil
         // bulanik "Kamera duraklatildi" gorsun.
         case 'iosKameraKesinti':
-          kameraKesintiSebebi.value = (call.arguments as int?) ?? -1;
+          // TEST TURU 43: artik TAM RESIM geliyor {sebep, durum, pip, sinif, calisiyor,
+          // destek, acik} — eski surumde yalniz sebep kodu vardi.
+          final k = Map<String, dynamic>.from(call.arguments as Map);
+          kesintiBilgi = k;
+          kameraKesintiSebebi.value = (k['sebep'] as int?) ?? -1;
           _iosKesintiCb?.call(true);
+        case 'iosKameraKurtarma':
+          kurtarmaSonucu = call.arguments == true;
         case 'iosPipOlcum':
           // TEST TURU 39: iki tarafli olcum {on, arka, kaynak, oturum, coklu}
           final m = Map<String, dynamic>.from(call.arguments as Map);
