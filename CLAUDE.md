@@ -15,6 +15,26 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (27 Tem 20:12):** TEST TURU 44 YAYINLANDI — android 30287113321 +
+  ios 30287115762 (26c8854), R2 apk=105227857 ipa=19143659, purge OK, CDN birebir, IPA icinde
+  MinimumOSVersion=16.0 dogrulandi, backend degismedi + health ok, DB temiz.
+- ✅ **iOS ARKA PLAN KAMERASI KANITLI COZULDU (20+ turluk sorun):**
+  Sentry: ONCE `oturum=false` + `kamera kesinti sebep=1` -> SONRA `oturum=TRUE`, kesinti
+  kaydi YOK. Kullanici: "alta indirdigimde donma vs olmadi." KOK COZUM =
+  `IPHONEOS_DEPLOYMENT_TARGET` 15.0 -> **16.0**.
+  ⚠️ **BIR DAHA YANILMA:** `isMultitaskingCameraAccessSupported=true` olcumu BIZI 20 TUR
+  YANILTTI — o AYRI kapidir ("iOS 18 SDK'ya link + UIBackgroundModes'ta voip" ile true doner).
+  PiP'te kamera KULLANMA izni **deployment target**'a bakar (Apple: "Apps that have a
+  deployment target earlier than iOS 16 require the multitasking-camera-access entitlement").
+  ⚠️ Deployment target'i 16'nin ALTINA dusurme — arka plan kamerasi ANINDA bozulur.
+- **TEST TURU 44 FIX:** "iki kutuda da beni gosteriyor" — PiP, karsi tarafin videosu HENUZ
+  abone olunmadan kurulabiliyor; `aday` YEREL'e dusuyor ve turu 36 kimlik-calkanti korumasi
+  onu KILITLIYORDU. Uzak video gelince pencereyi KAPATMADAN sicak gecis
+  (`PipService.iosPipKaynak` -> native `kaynakDegistir`; yalniz sink tasir).
+  ⚠️ YAPMA: bu gecisi `iosPipKur` ile yapma (pencere kapanir — turu 24/26 dersi).
+- **SIRADAKI (kullaniciya sunuldu):** teshis/olcum kodlarinin temizligi ->
+  **MEDYA MESAJLASMA (foto/video/sesli mesaj)** -> kalici grup sohbeti -> profil ->
+  yayin oncesi temizlik (admin "Ses Teshis" sekmesi, BTK yer saglayici bildirimi).
 - **KALDIGIMIZ YER (27 Tem 19:47):** TEST TURU 43 YAYINLANDI — android 30285412862 +
   ios 30285415219 (0a14f97), R2 apk=105227857 ipa=19142958, purge OK, CDN birebir, backend
   degismedi + health ok, DB temiz. **IPA icinde MinimumOSVersion=16.0 DOGRULANDI.**
