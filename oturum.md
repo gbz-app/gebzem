@@ -2535,3 +2535,29 @@ Sentry "ios pip olcum ... oturum=true" -> arka planda kamera YASIYOR: kucuk penc
 kullanicinin ufak kendi goruntusu EKLENEBILIR (WhatsApp deseni).
 "oturum=false" -> Apple/cihaz kisiti; eklenemez, kullaniciya KESIN olarak soylenecek.
 ⚠️ YAPMA: kaynak sirasini bu olcum okunmadan tekrar yerele cevirme.
+
+## TEST TURU 41-42 SURUMU YAYINLANDI (27 Tem 18:38) — KULLANICI TEST EDECEK
+- android **30279978077** + ios **30279981045** (commit **6fef48a**), debug imza YOK.
+- R2: apk **105227857** · ipa **19142325** · index.html 6606. CDN birebir, purge OK,
+  sayfadaki saat GERCEK yukleme saati. Backend degismedi, health ok, DB temiz.
+### YAPILANLAR
+1. **UYGULAMA-ICI YUZEN PENCERE KALDIRILDI** (kullanici: "uygulama icinde gezerken cikan
+   pip gereksiz"). Yerine SESLI aramadaki ince serit (dokun -> aramaya don) — tamamen
+   silseydik goruntulu aramada geri donus yolu kalmazdi. `_yuzenVideo` kodu DURUYOR
+   (build() icinde tek satirla geri gelir).
+2. **KOSE KUTUSU (WhatsApp gorunumu)**: karsi taraf tam pencere + BEN sag-altta %34
+   genislikte 4:3 kucuk kutu. Uygulanan yerler:
+   · iOS sistem PiP (native, `yerelAyarla` artik yigina degil callVC.view uzerine kose
+     kisitlariyla ekliyor)
+   · Android PiP icerigi + (kaldirilan) yuzen pencere: `miniIzgara(..., ustUste: true)`
+3. **KOSE KUTUSU ICIN AYRI KARE GOZCUSU**: iOS arka planda kamerayi durdurdugu icin
+   (OLCUM: oturum=false, kesinti sebep=1) kutu 1.5sn kare gormezse DONMUS KARE yerine
+   "Sen" yazisina duser. Kutu HEP durur, icerigi DURUSTTUR. Android'de kamera yasadigi
+   icin kutu CANLI olur.
+### KANIT (turu 40 surumu, Sentry)
+"ios pip olcum on=177 arka=75 kaynak=uzak oturum=false coklu=true" + "kamera kesinti sebep=1"
+=> izin DOGRU veriliyor ama iOS arka planda kamerayi yine de kapatiyor; pencere ise saglikli
+(arka planda 3sn'de 75 kare — karsi tarafin videosu agdan geldigi icin akiyor).
+### SIRADAKI ONERI (kullaniciya sunuldu)
+Teshis kodlarinin temizligi -> MEDYA MESAJLASMA (foto/video/sesli mesaj) -> kalici grup
+sohbeti -> profil -> yayin oncesi temizlik (admin ses teshis sekmesi, BTK bildirimi).
