@@ -169,7 +169,7 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
   /// "alta indirdigimde SADECE TEK goruntu olsun, bu sorunlu alani en son duzeltelim").
   /// Alt gorunum kodu (native `yerelAyarla` + `PipService.iosPipYerel`) SILINMEDI, yalniz
   /// bu kapiyla kapali. Arka plan kamerasinin gercekten calistigi KANITLANINCA true yapilir.
-  static const bool pipBolunme = false;
+  static const bool pipBolunme = true;
   // iOS COKLU-GOREV KAMERA (test turu 9): isMultitaskingCameraAccessEnabled acildiysa true.
   // Acikken arka planda kamera CAPTURE'a devam eder -> PiP karsi tarafa CANLI gonderir
   // (kullanici sikayeti: "alta alinca karsi taraf beni goremiyor"). iOS18+ entitlementsiz;
@@ -548,7 +548,9 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
         final yid = (uzakId != null ? yerelId : null) ?? '';
         if (yid != _iosPipYerelId) {
           _iosPipYerelId = yid;
-          final sonuc = await PipService.iosPipYerel(yid.isEmpty ? null : yid);
+          // Kamera kare uretmezse kutuda donmus kare yerine bu yazi gorunur.
+          final sonuc =
+              await PipService.iosPipYerel(yid.isEmpty ? null : yid, harf: 'Sen');
           if (yid.isNotEmpty && sonuc != 'eklendi' && sonuc != 'ayni') {
             _iosPipYerelId = ''; // basarisiz -> sonraki tazelemede TEKRAR denensin
             unawaited(Sentry.captureMessage('ios pip alt gorunum sonuc=$sonuc'));

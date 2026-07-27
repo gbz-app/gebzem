@@ -133,8 +133,9 @@ import flutter_callkit_incoming
         result(true)
       case "iosPipYerel":
         // TEST TURU 27: kucuk pencerenin ALT gorunumu (kendi kameram) — controller'a dokunmaz
+        let ya = call.arguments as? [String: Any]
         result(GebzemPip.shared.yerelAyarla(
-          trackId: (call.arguments as? [String: Any])?["trackId"] as? String))
+          trackId: ya?["trackId"] as? String, harf: ya?["harf"] as? String ?? "?"))
       case "iosPipKaynak":
         // TEST TURU 39: pencereyi KAPATMADAN gosterilen videoyu degistir
         let a = call.arguments as? [String: Any]
@@ -291,6 +292,8 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
   /// ON PLAN kare sayisi (PiP baslarken okunur) — teshis icin.
   private var onPlanKare = 0
   private var gozcuDuyurdu = false
+  private var yerelSonKare = -1
+  private var yerelSabitTik = 0
 
   // TEST TURU 9: COKLU-GOREV KAMERA — kamerayi PiP/arka planda CAPTURE'a devam ettir
   // (goruntulu aramada alta alinca KARSI TARAF beni gormeye devam eder). flutter_webrtc
@@ -373,6 +376,22 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
         self.sabitTik = 0
         self.gozcuDuyurdu = false
         return
+      }
+      // TEST TURU 42: KOSE KUTUSU (kendi kameram) icin AYRI kontrol — iOS arka planda
+      // kamerayi durdurur; kutu donmus kare yerine "Sen" yazisina duser.
+      if let yr = self.yerelRenderer {
+        let yn = yr.toplamKare
+        if yn != self.yerelSonKare {
+          self.yerelSonKare = yn
+          self.yerelSabitTik = 0
+        } else {
+          self.yerelSabitTik += 1
+          if self.yerelSabitTik == 3 {
+            self.yerelGorunum?.displayLayer.flushAndRemoveImage()
+            self.yerelGorunum?.kareKesildi()
+            NSLog("gebzem/pip kose kutusu: kare durdu -> etiket")
+          }
+        }
       }
       self.sabitTik += 1
       if self.sabitTik >= 3 && !self.gozcuDuyurdu {
@@ -522,11 +541,11 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
   /// yalniz dikey yigina gorunum eklenir/cikarilir; pencere kurulumu bozulmaz, kapanmaz.
   /// [trackId] nil/bos -> alt gorunum kaldirilir (tek video).
   @discardableResult
-  func yerelAyarla(trackId: String?) -> String {
+  func yerelAyarla(trackId: String?, harf: String = "?") -> String {
     // TEST TURU 32: SESSIZ BASARISIZLIK BITTI — sonuc metni Dart'a doner, Dart Sentry'e yazar.
     // Kullanici "alttaki goruntu gelmiyor" dedi ve bu fonksiyon her hata yolunda SESSIZCE
     // donuyordu; artik hangi adimda durdugunu KESIN biliyoruz.
-    guard let yigin = yigin else { return "yigin-yok" }
+    guard let yigin = yigin, callVC != nil else { return "yigin-yok" }
     // Ayni track zaten ekli ise dokunma
     if let mevcut = yerelTrackId, mevcut == trackId { return "ayni" }
     // Once eskiyi sok
@@ -569,16 +588,39 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
       NSLog("gebzem/pip alt gorunum: track BULUNAMADI id=\(tid)")
       return "track-yok"
     }
-    let yv = PipVideoView(frame: CGRect(x: 0, y: 0, width: 120, height: 200))
+    // TEST TURU 42 — KOSE KUTUSU (WhatsApp gorunumu): eskiden dikey yigina eklenip pencereyi
+    // IKIYE bolerdik; artik KARSI TARAF tam pencereyi kaplar, BEN sag-altta KUCUK bir kutu
+    // olarak ONUN USTUNE binerim. Kullanici: "karsinin goruntusunun uzerine kendi goruntumde
+    // var ufak".
+    // ⚠️ iOS ARKA PLANDA kamerayi DURDURUR (olcum: oturum=false, kesinti sebep=1). O yuzden
+    // kutu DONMUS KARE gostermesin diye kare gozcusu 1.5sn kare gormezse `kareKesildi()`
+    // ile etiket/avatar gorunumune duser. Kutu HEP durur, icerigi durusttur.
+    let yv = PipVideoView(frame: CGRect(x: 0, y: 0, width: 44, height: 58))
+    yv.etiketiAyarla(harf)
+    yv.layer.cornerRadius = 5
+    yv.layer.masksToBounds = true
     let yr = PipRenderer(view: yv)
     yerel.add(yr)
-    yigin.addArrangedSubview(yv)
-    yigin.layoutIfNeeded()
+    // Yigina DEGIL, pencerenin USTUNE koseye yerlestir (kisitlarla, %34 genislik / 4:3).
+    if let kok = callVC?.view {
+      yv.translatesAutoresizingMaskIntoConstraints = false
+      kok.addSubview(yv)
+      NSLayoutConstraint.activate([
+        yv.trailingAnchor.constraint(equalTo: kok.trailingAnchor, constant: -5),
+        yv.bottomAnchor.constraint(equalTo: kok.bottomAnchor, constant: -5),
+        yv.widthAnchor.constraint(equalTo: kok.widthAnchor, multiplier: 0.34),
+        yv.heightAnchor.constraint(equalTo: yv.widthAnchor, multiplier: 4.0 / 3.0),
+      ])
+      kok.layoutIfNeeded()
+    } else {
+      yigin.addArrangedSubview(yv)
+      yigin.layoutIfNeeded()
+    }
     yerelGorunum = yv
     yerelRenderer = yr
     yerelTrack = yerel
     yerelTrackId = tid
-    NSLog("gebzem/pip alt gorunum EKLENDI id=\(tid)")
+    NSLog("gebzem/pip kose kutusu EKLENDI id=\(tid)")
     return "eklendi"
   }
 
@@ -753,6 +795,12 @@ final class PipVideoView: UIView {
   }
 
   /// Kare akiyor mu bilgisi (PipRenderer cagirir; ana kuyrukta).
+  /// TEST TURU 42: kose kutusunda uzun yazi sigmaz — bas harf gosterilir.
+  func etiketiAyarla(_ metin: String) {
+    etiket.text = metin
+    etiket.font = .systemFont(ofSize: metin.count <= 2 ? 18 : 9, weight: .semibold)
+  }
+
   func kareGeldi() {
     if etiket.isHidden { return }
     etiket.isHidden = true

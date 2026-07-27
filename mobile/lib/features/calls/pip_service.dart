@@ -200,10 +200,12 @@ class PipService {
   /// [trackId] null/bos -> alt gorunum kaldirilir (tek video, tam pencere).
   /// Donus: native sonuc metni ('eklendi' | 'track-yok' | 'yigin-yok' | 'kaldirildi' | 'ayni').
   /// TEST TURU 32: sessiz basarisizlik bitti — Dart bu sonucu Sentry'e yazar.
-  static Future<String> iosPipYerel(String? trackId) async {
+  static Future<String> iosPipYerel(String? trackId, {String harf = '?'}) async {
     if (!Platform.isIOS) return 'ios-degil';
     try {
-      return (await _ch.invokeMethod<String>('iosPipYerel', {'trackId': trackId})) ?? 'bos';
+      return (await _ch.invokeMethod<String>(
+              'iosPipYerel', {'trackId': trackId, 'harf': harf})) ??
+          'bos';
     } catch (e) {
       return 'hata';
     }

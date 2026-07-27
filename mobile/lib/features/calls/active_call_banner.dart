@@ -124,14 +124,15 @@ class _AktifAramaBannerState extends ConsumerState<AktifAramaBanner> {
         ? (b.chatTitle.isEmpty ? 'Grup araması' : b.chatTitle)
         : b.peerName;
 
-    // SESLI arama -> eski yesil bant (video yok). GORUNTULU -> yuzen video penceresi.
-    // TEST TURU 14 KOK-5: `b.video` (baslangic tipi) yerine CANLI goruntulu kapisi —
-    // sesli baslayip kamera acilan aramada da yuzen video gorunur (eskiden yesil bantta
-    // kaliyordu). c.goruntuluMu = arama tipi video VEYA taraflardan biri kamerayi acmis.
-    if (!c.goruntuluMu) {
-      return Stack(children: [widget.child, _sesliBant(c, ad)]);
-    }
-    return Stack(children: [widget.child, _yuzenVideo(c, ad)]);
+    // TEST TURU 42 — KULLANICI ISTEGI: "uygulama icinde gezerken cikan PiP'i kaldiralim,
+    // gereksiz." Aramayi kucultup uygulamada gezerken cikan SURUKLENEBILIR YUZEN VIDEO
+    // PENCERESI KALDIRILDI (icerigi ekrani kapatiyordu).
+    // ⚠️ TAMAMEN silmiyoruz: yerine SESLI aramadaki ince serit kalir — yoksa goruntulu
+    // aramada geri donmenin yolu kalmazdi (sohbetteki "Aramaya dön" balonu yalniz o
+    // sohbette gorunur). Serit: dokun -> aramaya don.
+    // GERI ALMA: asagidaki satiri `if (!c.goruntuluMu) {...} return _yuzenVideo(...)`
+    // seklinde eski haline dondur; `_yuzenVideo` kodu SILINMEDI, duruyor.
+    return Stack(children: [widget.child, _sesliBant(c, ad)]);
   }
 
   /// SISTEM PiP ICERIGI (Android): TEST TURU 17 -> artik IZGARA (2 kisi sol/sag, 3 kisi
@@ -210,6 +211,9 @@ class _AktifAramaBannerState extends ConsumerState<AktifAramaBanner> {
   }
 
   // ---- GORUNTULU ARAMA: suruklenebilir yuzen video penceresi ----
+  // TEST TURU 42: ARTIK CAGRILMIYOR (kullanici "gereksiz" dedi, yerine ince serit kondu).
+  // KOD BILEREK SILINMEDI — geri istenirse build() icindeki tek satir yeter.
+  // ignore: unused_element
   Widget _yuzenVideo(ActiveCallController c, String ad) {
     final ekran = MediaQuery.of(context).size;
     final guvenli = MediaQuery.of(context).padding;
