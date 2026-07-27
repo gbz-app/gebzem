@@ -146,10 +146,13 @@ class _AktifAramaBannerState extends ConsumerState<AktifAramaBanner> {
       color: const Color(0xFF0B141A),
       child: katilimcilar.isEmpty
           ? _bantAvatar(ad)
+          // TEST TURU 41: 2 kisi -> KARSI TARAF tam pencere, BEN sag-altta kucuk kutu
+          // (WhatsApp gorunumu). Android sistem PiP icerigi de burasi; orada kamera
+          // yasadigi icin kucuk kutu CANLI olur.
           : miniIzgara([
               for (final k in katilimcilar)
                 MiniKutu(track: k.track, harf: k.ad, mirror: k.mirror),
-            ]),
+            ], ustUste: true),
     );
   }
 
@@ -274,10 +277,11 @@ class _AktifAramaBannerState extends ConsumerState<AktifAramaBanner> {
                 // TEST TURU 17: tek video yerine IZGARA (2 sol/sag, 3 ustte2+altta1, 4 ceyrek).
                 // Katilimci yoksa (henuz baglanmadi) eski avatar gorunumu.
                 if (katilimcilar.isNotEmpty)
+                  // TEST TURU 41: karsi taraf tam pencere + BEN sag-altta kucuk kutu
                   miniIzgara([
                     for (final k in katilimcilar)
                       MiniKutu(track: k.track, harf: k.ad, mirror: k.mirror),
-                  ])
+                  ], ustUste: true)
                 else
                   _bantAvatar(ad),
                 // Ust: isim + CANLI sure (okunur olsun diye koyu serit)

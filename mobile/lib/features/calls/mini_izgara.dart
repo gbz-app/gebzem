@@ -10,11 +10,43 @@ import 'package:livekit_client/livekit_client.dart' as lk;
 /// alani TAMAMEN doldurur (en-boy korunmaz, goruntu `cover` ile kirpilir) — pencere zaten
 /// kucuk, ortada bosluk kalmasi kotu duruyordu.
 /// En fazla 4 kutu cizilir; kalanlar sag-altta "+N" rozetiyle belirtilir.
-Widget miniIzgara(List<Widget> kutular) {
+/// TEST TURU 41 — [ustUste]: 2 kisilik duzende UST/ALT bolme yerine WhatsApp/Instagram
+/// gorunumu — KARSI TARAF tam pencereyi kaplar, KENDI goruntum sag-altta KUCUK bir kutu
+/// olarak ONUN USTUNE biner. Kullanici: "karsinin goruntusunun uzerine kendi goruntumde
+/// var ufak, o nasil oluyor" + "ekranin uzerine yapacaktik ya".
+///
+/// ⚠️ Bu YALNIZ kameranin CANLI oldugu yerlerde anlamlidir:
+///   · uygulama-ici yuzen pencere (her iki platform, uygulama ON PLANDA)
+///   · Android sistem PiP (pencere uygulamanin KENDISI, kamera yasar)
+/// iPhone'un SISTEM PiP'inde kamera OS tarafindan durdurulur (olcum: oturum=false,
+/// kesinti sebep=1 videoDeviceNotAvailableInBackground) -> orada kucuk kutu DONMUS KARE
+/// olurdu; o pencere native cizildigi icin buraya zaten ugramaz.
+Widget miniIzgara(List<Widget> kutular, {bool ustUste = false}) {
   final hepsi = kutular.length;
   if (hepsi == 0) return const SizedBox.shrink();
   final n = hepsi > 4 ? 4 : hepsi;
   const bosluk = 2.0;
+
+  // 2 kisi + ustUste: buyuk = ilk kutu (karsi taraf), kucuk = son kutu (BEN, sag-alt kose).
+  if (n == 2 && ustUste) {
+    return LayoutBuilder(builder: (_, c) {
+      final kw = c.maxWidth * 0.34; // pencere dar oldugu icin oran-bazli
+      final kh = kw * 4 / 3;
+      return Stack(children: [
+        Positioned.fill(child: kutular[0]),
+        Positioned(
+          right: 5,
+          bottom: 5,
+          width: kw,
+          height: kh > c.maxHeight * 0.45 ? c.maxHeight * 0.45 : kh,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(7),
+            child: kutular[1],
+          ),
+        ),
+      ]);
+    });
+  }
 
   Widget satir(List<Widget> ogeler) => Row(children: [
         for (var i = 0; i < ogeler.length; i++) ...[
