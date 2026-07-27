@@ -236,10 +236,13 @@ class PipService {
     }
   }
 
-  static Future<void> iosPipKareBosalt() async {
+  /// PiP penceresinde donmus kare yerine etiket goster.
+  /// turu 48: `yalnizYerel` -> SADECE kose kutusu (kendi kameram). Buyuk kutuda karsi
+  /// taraf akmaya devam ederken ona "duraklatildi" yazmak yanlisti.
+  static Future<void> iosPipKareBosalt({bool yalnizYerel = false}) async {
     if (!Platform.isIOS) return;
     try {
-      await _ch.invokeMethod('iosPipKareBosalt');
+      await _ch.invokeMethod('iosPipKareBosalt', yalnizYerel);
     } catch (_) {}
   }
 

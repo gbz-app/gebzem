@@ -163,6 +163,7 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
   String _iosPipKurulanId = ''; // native'e kurulan uzak track id (degisince yeniden kur)
   Map<String, dynamic>? _bekleyenOlcum; // turu 39: on plana donunce Sentry'e yazilir
   AppLifecycleState? _sonYasamDurumu; // turu 46: yon kontrolu (arka plana mi gidiyoruz)
+  DateTime? _arkaPlanaGidisAni; // turu 48: PiP baslatma tekrar penceresi (1200ms)
   Timer? _kesintiMuteGecikme; // turu 43: kurtarma sansi icin gecikmeli durust mute
   bool _iosPipMesgul = false; // turu 39: _iosPipGuncelle yeniden-girme kilidi
   String _iosPipYerelId = ''; // turu 28: PiP alt gorunumundeki kendi kamera track id'm
@@ -677,7 +678,8 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       _kameraOtoKapandi = true; // on plana donunce geri acilsin
       _camOn = false;
       _room?.localParticipant?.setCameraEnabled(false);
-      unawaited(PipService.iosPipKareBosalt()); // donmus kare yerine etiket
+      // turu 48: YALNIZ kose kutusu bosalir — buyuk kutuda karsi taraf akmaya devam ediyor
+      unawaited(PipService.iosPipKareBosalt(yalnizYerel: true));
       notifyListeners();
     });
   }
@@ -981,13 +983,32 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     // kosulsuz `iosPipDurdur()` onu kapatiyordu = ikinci bir ac-kapa yankisi.
     // ARTIK: yalniz `inactive` VE yalniz `resumed`dan geliyorsak (gercekten arka plana
     // gidiyorsak). Native tarafta ayrica tek-istek kilidi var (`baslatIstendi`).
-    // ⚠️ YAPMA: `paused`/`hidden` dallarini geri ekleme; yon kontrolunu kaldirma.
+    // TEST TURU 48 — TEK TETIK YETMIYOR, "TEKRAR DENEME" PENCERESI EKLENDI.
+    // OLCUM: turu 44'te (uc tetik vardi) `oturum=true`; turu 46'da tek tetige indirince
+    // `oturum=false` — yani kamera arka planda oluyor. Sebep zamanlama: native `baslat()`
+    // `isPictureInPicturePossible == false` iken ERKEN DONER (ilk kare daha enqueue
+    // edilmemis olabilir) ve tur 46'da BASKA TETIK KALMADIGI icin PiP ancak iOS'un kendi
+    // (gec) auto-enter'iyle acilabiliyor; Apple kamerayi YALNIZ PiP AKTIFKEN surdurdugu
+    // icin arada kamera kesiliyor.
+    // Turu 46'daki takilma duzeltmesi ASIL OLARAK native tek-istek kilidiydi (`cagri` 5->1,
+    // `msMax=0`) — o kilit DURUYOR, dolayisiyla tekrar deneme ARTIK BEDAVA: ilk istek
+    // tutmussa sonrakiler gercek bir `startPictureInPicture()` cagirmaz.
+    // Tekrarlar YALNIZ arka plana gidis anindan sonraki 1200ms icinde yapilir -> ON PLANA
+    // DONUS yolundaki (`paused -> hidden -> inactive -> resumed`) olaylar tetiklemez.
+    // ⚠️ YAPMA: tekrar penceresini zaman siniri olmadan acma (donuste PiP yankisi olur);
+    // native tek-istek kilidini kaldirma (takilma geri gelir).
     final onceki = _sonYasamDurumu ?? AppLifecycleState.resumed;
     _sonYasamDurumu = state;
     final arkaPlanaGidiyor =
         state == AppLifecycleState.inactive && onceki == AppLifecycleState.resumed;
+    if (arkaPlanaGidiyor) _arkaPlanaGidisAni = DateTime.now();
+    if (state == AppLifecycleState.resumed) _arkaPlanaGidisAni = null;
+    final gidis = _arkaPlanaGidisAni;
+    final tekrarPenceresi = gidis != null &&
+        DateTime.now().difference(gidis) < const Duration(milliseconds: 1200) &&
+        (state == AppLifecycleState.hidden || state == AppLifecycleState.paused);
     if (Platform.isIOS &&
-        arkaPlanaGidiyor &&
+        (arkaPlanaGidiyor || tekrarPenceresi) &&
         arama != null &&
         _baglandi &&
         !_ayrildi &&
@@ -1102,10 +1123,13 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
         final o = _bekleyenOlcum;
         if (o != null) {
           _bekleyenOlcum = null;
+          // turu 48: KOSE kutusu (yerel) ayri sayilir + 1sn/3sn ayrimi + uygulama durumu
           unawaited(Sentry.captureMessage(
-              'ios pip olcum on=${o['on']} arka=${o['arka']} kaynak=${o['kaynak']} '
-              'oturum=${o['oturum']} coklu=${o['coklu']} '
-              'cagri=${o['cagri']} msMax=${o['msMax']}'));
+              'ios pip olcum on=${o['on']} arka1=${o['arka1']} arka3=${o['arka']} '
+              'yerelOn=${o['yerelOn']} yerel1=${o['yerel1']} yerel3=${o['yerel3']} '
+              'kaynak=${o['kaynak']} oturum=${o['oturum']} coklu=${o['coklu']} '
+              'cagri=${o['cagri']} msMax=${o['msMax']} '
+              'durum=${o['durum']} pipAktif=${o['pipAktif']}'));
         }
         notifyListeners();
       }

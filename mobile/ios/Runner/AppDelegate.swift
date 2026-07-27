@@ -143,7 +143,12 @@ import flutter_callkit_incoming
           trackId: a?["trackId"] as? String ?? "", kaynak: a?["kaynak"] as? String ?? "uzak"))
       case "iosPipKareBosalt":
         // TEST TURU 38: kamera kapatilirken donmus kare yerine "Kamera duraklatildi"
-        GebzemPip.shared.kareyiBosalt()
+        // TEST TURU 48: `yalnizYerel:true` ise SADECE kose kutusu (kendi kameram) bosalir.
+        if (call.arguments as? Bool) == true {
+          GebzemPip.shared.yereliBosalt()
+        } else {
+          GebzemPip.shared.kareyiBosalt()
+        }
         result(true)
       case "iosPipDurdur":
         GebzemPip.shared.durdur()
@@ -295,6 +300,7 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
   private var sabitTik = 0
   /// ON PLAN kare sayisi (PiP baslarken okunur) — teshis icin.
   private var onPlanKare = 0
+  private var yerelOnPlanKare = 0 // turu 48: kose kutusunun on plandaki kare sayisi
   private var gozcuDuyurdu = false
   private var yerelSonKare = -1
   private var yerelSabitTik = 0
@@ -316,29 +322,19 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
     guard let capturer = FlutterWebRTCPlugin.sharedSingleton()?.videoCapturer else { return false }
     let session = capturer.captureSession
     guard session.isMultitaskingCameraAccessSupported else { return false }
-    // TEST TURU 47 — TAZELEME GERI GELDI, AMA ARKA PLAN KUYRUGUNDA.
-    //
-    // OLCUM KANITI (Sentry): turu 44'te (tazeleme VARDI) `oturum=true`; turu 45'te
-    // tazelemeyi KALDIRINCA `oturum=false` geri geldi ve kullanicinin kose kutusu yine
-    // dondu. Yani Apple'in "baslatmadan once yaz" kurali GEREKLI ama TEK BASINA YETMIYOR;
-    // arka plana gecmeden hemen once TEKRAR yazmak fiilen calisiyor.
-    // (Kesinti kaydi `sinif=AVCaptureMultiCamSession` diyor: webrtc-sdk yeni iPhone'larda
-    //  PAYLASILAN statik bir multicam oturumu kullaniyor; bayrak o oturumda sarkabiliyor.)
-    //
-    // Turu 45'teki takilmanin sebebi yazmanin KENDISI degil, ANA IS PARCACIGINDA
-    // yapilmasiydi. Artik yazma ARKA PLAN KUYRUGUNDA (Apple da capture yapilandirmasi icin
-    // ayri kuyruk onerir) -> arayuz blocklanmaz.
-    // ⚠️ YAPMA: bu yazmayi ana is parcacigina geri tasima (alta alma takilir);
-    // tamamen kaldirma da (arka planda kamera oluyor).
-    if !session.isMultitaskingCameraAccessEnabled {
-      DispatchQueue.global(qos: .userInitiated).async {
-        session.beginConfiguration()
-        session.isMultitaskingCameraAccessEnabled = true
-        session.commitConfiguration()
-        NSLog("gebzem/pip coklu-gorev kamera TAZELENDI = \(session.isMultitaskingCameraAccessEnabled)")
-      }
-    }
+    // TEST TURU 48 — TEKRAR SALT OKUMA. Turu 47'de yapilandirma yazmasi ARKA PLAN
+    // KUYRUGUNA tasinmisti; OLCUM bunun REGRESYON oldugunu gosterdi:
+    //   turu 46: `arka=89` (uzak video PiP'te akiyordu)
+    //   turu 47: `arka=0`  (uzak video da AKMIYOR) — kullanici "halen donuyor"
+    // Sebep: bu capture session'i webrtc-sdk KENDI kuyrugunda yonetiyor (ustelik
+    // `sinif=AVCaptureMultiCamSession` — PAYLASILAN statik oturum). Disaridan ikinci bir
+    // kuyruktan `beginConfiguration/commitConfiguration` yapmak medya hattini kilitliyor.
+    // ⚠️ YAPMA: bu metotta capture session'i YENIDEN YAPILANDIRMA — ne ana is parcaciginda
+    // (turu 45: alta alma takilir), ne arka plan kuyrugunda (turu 47: medya durur).
+    // Bayrak zaten `GebzemKameraKanca` swizzle'i ile kamera BASLATILMADAN ONCE yaziliyor
+    // (Apple'in sart kostugu tek dogru an) ve olcumde `coklu=true` okunuyor.
     let ok = session.isMultitaskingCameraAccessEnabled
+    NSLog("gebzem/pip coklu-gorev kamera (salt okuma) = \(ok)")
     return ok
   }
 
@@ -351,6 +347,15 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
     yerelGorunum?.kareKesildi()
   }
 
+  /// TEST TURU 48 — YALNIZ KOSE KUTUSUNU bosalt. `kareyiBosalt()` IKI kutuyu birden
+  /// siliyordu; oysa "kendi kameram kapandi" durumunda BUYUK kutuda KARSI TARAF akmaya
+  /// devam ediyor (olcum: `arka=89`) ve ona "Kamera duraklatildi" yazmak YANLIS.
+  /// ⚠️ YAPMA: kendi kamera kapanisinda `kareyiBosalt()` cagirma (karsi tarafin kutusu bozulur).
+  func yereliBosalt() {
+    yerelGorunum?.displayLayer.flushAndRemoveImage()
+    yerelGorunum?.kareKesildi()
+  }
+
   /// TEST TURU 38 — KESIN OLCUM: PiP basladiktan 3sn sonra KAC KARE aktigini Dart'a bildir.
   /// Kullanici iki turdur "yine donuyor" diyor; bu sayi tahmini bitirir:
   /// kare=0 -> capture gercekten durmus; kare>0 -> goruntu akiyor, sorun baska yerde.
@@ -358,11 +363,28 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
     // TEST TURU 39 — IKI TARAFLI OLCUM. Turu 38'in tek yonlu olcumu (yalniz arka plan) su
     // ayrimi YAPAMIYORDU: (a) renderer hic canli track'e baglanmamis (ON PLAN da 0),
     // (b) track dogru ama arka planda capture duruyor (on plan >0, arka 0).
+    // TEST TURU 48 — OLCUM GENISLETILDI. Iki eksigi vardi:
+    //  · KOSE KUTUSUNUN (kendi kameram) kare sayisi HIC olculmuyordu — oysa kullanicinin
+    //    sikayeti TAM ORASI ("kendi ekranim donuyor"). Artik `yerel` ayri sayiliyor.
+    //  · Tek bir 3sn olcumu, "hic baslamadi" ile "basladi sonra durdu"yu ayirt edemiyordu.
+    //    Artik 1sn ve 3sn ayri: `arka1/arka3` ve `yerel1/yerel3`.
+    // Ayrica `durum` (UIApplication.applicationState: 0=aktif 1=inactive 2=arka plan) ve
+    // `pipAktif` — uygulama ASKIYA mi alindi yoksa PiP mi kapandi sorusunu bitirir.
     onPlanKare = renderer?.toplamKare ?? 0
+    yerelOnPlanKare = yerelRenderer?.toplamKare ?? 0
     renderer?.sayaciSifirla()
+    yerelRenderer?.sayaciSifirla()
+    var arka1 = -1
+    var yerel1 = -1
+    DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+      guard let self = self else { return }
+      arka1 = self.renderer?.toplamKare ?? -1
+      yerel1 = self.yerelRenderer?.toplamKare ?? -1
+    }
     DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
       guard let self = self else { return }
-      let arka = self.renderer?.toplamKare ?? -1
+      let arka3 = self.renderer?.toplamKare ?? -1
+      let yerel3 = self.yerelRenderer?.toplamKare ?? -1
       var oturum = false
       var coklu = false
       if #available(iOS 16.0, *),
@@ -370,13 +392,22 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
         oturum = s.isRunning
         coklu = s.isMultitaskingCameraAccessEnabled
       }
-      NSLog("gebzem/pip olcum on=\(self.onPlanKare) arka=\(arka) kaynak=\(self.kurulanKaynak) oturum=\(oturum) coklu=\(coklu)")
+      let durum = UIApplication.shared.applicationState.rawValue
+      let pipAktif = self.pipController?.isPictureInPictureActive ?? false
+      let ozet = "on=\(self.onPlanKare) arka1=\(arka1) arka3=\(arka3)"
+        + " yerelOn=\(self.yerelOnPlanKare) yerel1=\(yerel1) yerel3=\(yerel3)"
+        + " kaynak=\(self.kurulanKaynak) oturum=\(oturum) coklu=\(coklu)"
+        + " cagri=\(self.baslatCagri) msMax=\(self.baslatMsMax)"
+        + " durum=\(durum) pipAktif=\(pipAktif)"
+      NSLog("gebzem/pip olcum \(ozet)")
       self.kanal?.invokeMethod("iosPipOlcum", arguments: [
-        "on": self.onPlanKare, "arka": arka, "kaynak": self.kurulanKaynak,
-        "oturum": oturum, "coklu": coklu,
+        "on": self.onPlanKare, "arka": arka3, "arka1": arka1,
+        "yerelOn": self.yerelOnPlanKare, "yerel1": yerel1, "yerel3": yerel3,
+        "kaynak": self.kurulanKaynak, "oturum": oturum, "coklu": coklu,
         // turu 46: tek home hareketinde kac baslatma istegi indi ve en uzun
         // startPictureInPicture cagrisi ana is parcacigini kac ms blokladi
         "cagri": self.baslatCagri, "msMax": self.baslatMsMax,
+        "durum": durum, "pipAktif": pipAktif,
       ])
       self.baslatCagri = 0
       self.baslatMsMax = 0
@@ -395,15 +426,16 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
     gozcuDuyurdu = false
     gozcu = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
       guard let self = self, self.pipController != nil else { return }
-      let n = self.renderer?.toplamKare ?? 0
-      if n != self.sonGorulenKare {
-        self.sonGorulenKare = n
-        self.sabitTik = 0
-        self.gozcuDuyurdu = false
-        return
-      }
-      // TEST TURU 42: KOSE KUTUSU (kendi kameram) icin AYRI kontrol — iOS arka planda
-      // kamerayi durdurur; kutu donmus kare yerine "Sen" yazisina duser.
+
+      // TEST TURU 48 — KOSE KUTUSU KONTROLU EN BASA ALINDI (KRITIK HATA DUZELTMESI).
+      // ESKIDEN bu blok, BUYUK kutunun "kare gelmedi" dalinin ALTINDA duruyordu; yani
+      // once `if n != sonGorulenKare { ...; return }` erken donusu vardi. Sonuc: KARSI
+      // TARAFIN videosu AKTIGI SURECE (kullanicinin tam durumu — olcumde `arka=89`)
+      // her tikte erken donuluyor ve KOSE KUTUSUNUN DONMASI HIC FARK EDILMIYORDU.
+      // Kullanicinin "kendi ekranim donuyor" sikayetinin GORUNUR sebebi buydu: donmus
+      // kare temizlenmiyor, "Sen" etiketine dusulmuyordu.
+      // Artik iki kutu BIRBIRINDEN BAGIMSIZ denetlenir.
+      // ⚠️ YAPMA: bu blogu tekrar buyuk kutunun dalinin altina tasima.
       if let yr = self.yerelRenderer {
         let yn = yr.toplamKare
         if yn != self.yerelSonKare {
@@ -417,6 +449,14 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
             NSLog("gebzem/pip kose kutusu: kare durdu -> etiket")
           }
         }
+      }
+
+      let n = self.renderer?.toplamKare ?? 0
+      if n != self.sonGorulenKare {
+        self.sonGorulenKare = n
+        self.sabitTik = 0
+        self.gozcuDuyurdu = false
+        return
       }
       self.sabitTik += 1
       if self.sabitTik >= 3 && !self.gozcuDuyurdu {
@@ -501,30 +541,18 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
         "sebep": ham, "durum": durum, "pip": pipAktif, "sinif": sinif,
         "calisiyor": calisiyor, "destek": destek, "acik": acik,
       ])
-      // TEST TURU 43 — KURTARMA DENEMESI (Apple: "If you don't explicitly call stopRunning(),
-      // your startRunning() request is preserved"). PiP aktif + izin acik + oturum durmus
-      // ise BIR KEZ yeniden baslatmayi dene. Izin gercekten yoksa iOS yine ayni kesintiyi
-      // gonderir — zarari yok; izin varsa kamera geri gelir.
-      // ⚠️ YAPMA: burada ASLA stopRunning cagirma (kurtarma sansini yok eder).
-      // TEST TURU 47 — KOSUL DUZELTILDI. Eskiden `!calisiyor` sarti vardi; OLCUM gosterdi ki
-      // KESINTI ANINDA `isRunning` HALA TRUE oluyor (`kesinti ... calisiyor=true kurtarma=null`)
-      // -> kurtarma HIC denenmiyordu. Artik kesintiden 400ms SONRA bakiyoruz; o an gercekten
-      // durmussa yeniden baslatiyoruz.
-      // ⚠️ YAPMA: `!calisiyor` sartini kesinti anina geri koyma; burada ASLA stopRunning cagirma.
-      if #available(iOS 16.0, *), pipAktif, acik {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
-          guard let self = self,
-                let s = FlutterWebRTCPlugin.sharedSingleton()?.videoCapturer?.captureSession,
-                !s.isRunning else { return }
-          DispatchQueue.global(qos: .userInitiated).async {
-            s.startRunning()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
-              NSLog("gebzem/pip kurtarma denendi -> calisiyor=\(s.isRunning)")
-              self.kanal?.invokeMethod("iosKameraKurtarma", arguments: s.isRunning)
-            }
-          }
-        }
-      }
+      // TEST TURU 48 — KURTARMA DENEMESI SILINDI (turu 43'te eklenmis, 47'de "duzeltilmisti").
+      // BELGE KANITI (Apple, `videoDeviceNotAvailableInBackground`):
+      //   "Camera usage is PROHIBITED while in the background. If you attempt to START
+      //    RUNNING a camera while in the background, the capture session sends a
+      //    wasInterruptedNotification with this interruption reason. ... when your app comes
+      //    back to FOREGROUND, you receive interruptionEndedNotification and your session
+      //    starts running."
+      // Yani arka planda `startRunning()` cagirmak kamerayi GERI GETIREMEZ; sadece YENI BIR
+      // KESINTI daha uretir. Olcum de bunu dogruladi: `kurtarma=null` (hic sonuc donmedi).
+      // Kamera ancak ON PLANA DONUNCE (`AVCaptureSessionInterruptionEnded`) geri gelir —
+      // o dal asagida zaten var.
+      // ⚠️ YAPMA: arka planda `startRunning()` cagiran bir "kurtarma" tekrar ekleme.
     }
     nc.addObserver(forName: .AVCaptureSessionInterruptionEnded, object: nil, queue: .main) { [weak self] _ in
       NSLog("gebzem/pip kamera kesinti BITTI")
@@ -621,6 +649,13 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
     guard let c = pipController else { return }
     if c.isPictureInPictureActive { return }
     if baslatIstendi { return } // ayni gecis icin ZATEN istendi
+    // TEST TURU 48 — ARKA PLANDA BASLATMA DENEME. Apple manuel `startPictureInPicture()`
+    // cagrisini yalniz uygulama ON PLANDAYKEN (active/inactive) yetkilendirir; arka planda
+    // cagrilirsa `failedToStartPictureInPictureWithError` gelir ve bizim `_iosPipBasarisiz`
+    // dalimiz KAMERAYI KAPATIR — yani deneme, duzeltmeye calistigimiz seyi bozar.
+    // Bu kapi, Dart'taki 1200ms'lik tekrar penceresini (hidden/paused dallari) GUVENLI kilar.
+    // ⚠️ YAPMA: bu kontrolu kaldirma (tekrar denemeler kamerayi oldurur).
+    if UIApplication.shared.applicationState == .background { return }
     // Henuz mumkun degilse (ilk kare gelmemis) bayragi SET ETMEDEN cik — sonraki tetik denesin.
     if !c.isPictureInPicturePossible { return }
     iptalIstendi = false // yeni baslatma istegi: bekleyen iptali temizle
