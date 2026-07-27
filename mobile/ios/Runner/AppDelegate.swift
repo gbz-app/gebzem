@@ -316,15 +316,29 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
     guard let capturer = FlutterWebRTCPlugin.sharedSingleton()?.videoCapturer else { return false }
     let session = capturer.captureSession
     guard session.isMultitaskingCameraAccessSupported else { return false }
-    // TEST TURU 45 — ARTIK SALT OKUMA. Eskiden burada `beginConfiguration`/
-    // `commitConfiguration` ile bayrak yazilirdi; CALISAN bir capture session'i yeniden
-    // yapilandirmak AGIR bir istir ve bu metot gecis aninda cagrildigi icin kullanici
-    // "alta alirken zorlaniyor, ekrani zorla ciziyor gibi" takilmasini yasiyordu.
-    // Bayragi zaten turu 37'deki `GebzemKameraKanca` swizzle'i kamera BASLATILMADAN ONCE
-    // yaziyor (Apple'in sart kostugu an) — burada yazmak hem gereksiz hem GEC (etkisiz).
-    // ⚠️ YAPMA: buraya tekrar begin/commitConfiguration koyma.
+    // TEST TURU 47 — TAZELEME GERI GELDI, AMA ARKA PLAN KUYRUGUNDA.
+    //
+    // OLCUM KANITI (Sentry): turu 44'te (tazeleme VARDI) `oturum=true`; turu 45'te
+    // tazelemeyi KALDIRINCA `oturum=false` geri geldi ve kullanicinin kose kutusu yine
+    // dondu. Yani Apple'in "baslatmadan once yaz" kurali GEREKLI ama TEK BASINA YETMIYOR;
+    // arka plana gecmeden hemen once TEKRAR yazmak fiilen calisiyor.
+    // (Kesinti kaydi `sinif=AVCaptureMultiCamSession` diyor: webrtc-sdk yeni iPhone'larda
+    //  PAYLASILAN statik bir multicam oturumu kullaniyor; bayrak o oturumda sarkabiliyor.)
+    //
+    // Turu 45'teki takilmanin sebebi yazmanin KENDISI degil, ANA IS PARCACIGINDA
+    // yapilmasiydi. Artik yazma ARKA PLAN KUYRUGUNDA (Apple da capture yapilandirmasi icin
+    // ayri kuyruk onerir) -> arayuz blocklanmaz.
+    // ⚠️ YAPMA: bu yazmayi ana is parcacigina geri tasima (alta alma takilir);
+    // tamamen kaldirma da (arka planda kamera oluyor).
+    if !session.isMultitaskingCameraAccessEnabled {
+      DispatchQueue.global(qos: .userInitiated).async {
+        session.beginConfiguration()
+        session.isMultitaskingCameraAccessEnabled = true
+        session.commitConfiguration()
+        NSLog("gebzem/pip coklu-gorev kamera TAZELENDI = \(session.isMultitaskingCameraAccessEnabled)")
+      }
+    }
     let ok = session.isMultitaskingCameraAccessEnabled
-    NSLog("gebzem/pip coklu-gorev kamera (salt okuma) = \(ok)")
     return ok
   }
 
@@ -492,13 +506,22 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
       // ise BIR KEZ yeniden baslatmayi dene. Izin gercekten yoksa iOS yine ayni kesintiyi
       // gonderir — zarari yok; izin varsa kamera geri gelir.
       // ⚠️ YAPMA: burada ASLA stopRunning cagirma (kurtarma sansini yok eder).
-      if #available(iOS 16.0, *), pipAktif, acik, !calisiyor,
-         let s = FlutterWebRTCPlugin.sharedSingleton()?.videoCapturer?.captureSession {
-        DispatchQueue.global(qos: .userInitiated).async {
-          s.startRunning()
-          DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
-            NSLog("gebzem/pip kurtarma denendi -> calisiyor=\(s.isRunning)")
-            self.kanal?.invokeMethod("iosKameraKurtarma", arguments: s.isRunning)
+      // TEST TURU 47 — KOSUL DUZELTILDI. Eskiden `!calisiyor` sarti vardi; OLCUM gosterdi ki
+      // KESINTI ANINDA `isRunning` HALA TRUE oluyor (`kesinti ... calisiyor=true kurtarma=null`)
+      // -> kurtarma HIC denenmiyordu. Artik kesintiden 400ms SONRA bakiyoruz; o an gercekten
+      // durmussa yeniden baslatiyoruz.
+      // ⚠️ YAPMA: `!calisiyor` sartini kesinti anina geri koyma; burada ASLA stopRunning cagirma.
+      if #available(iOS 16.0, *), pipAktif, acik {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
+          guard let self = self,
+                let s = FlutterWebRTCPlugin.sharedSingleton()?.videoCapturer?.captureSession,
+                !s.isRunning else { return }
+          DispatchQueue.global(qos: .userInitiated).async {
+            s.startRunning()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
+              NSLog("gebzem/pip kurtarma denendi -> calisiyor=\(s.isRunning)")
+              self.kanal?.invokeMethod("iosKameraKurtarma", arguments: s.isRunning)
+            }
           }
         }
       }

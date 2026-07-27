@@ -995,15 +995,21 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
         _iosPipKurulanId.isNotEmpty) {
       unawaited(PipService.iosPipBaslat());
     }
-    // TEST TURU 45 — KALDIRILDI (kullanici: "alta alirken zorlaniyor, ekrani zorla ciziyor
-    // gibi"). Turu 31'de buraya `iosArkaPlanKamerayiTazele()` konmustu: CALISAN capture
-    // session uzerinde `beginConfiguration`/`commitConfiguration` yapiyor — AGIR bir is ve
-    // tam GECIS ANINDA, ana is parcacigini blokluyor. Takilmanin sebebi buydu.
-    // ARTIK GEREKSIZ: bayragi turu 37'deki `GebzemKameraKanca` swizzle'i kamera
-    // BASLATILMADAN ONCE (Apple'in sart kostugu an) yaziyor; her yeni capture session
-    // otomatik kapsaniyor. Turu 44 olcumu de bunu kanitladi: oturum=true, kesinti YOK.
-    // ⚠️ YAPMA: gecis aninda (inactive/paused) capture session yeniden yapilandirma —
-    // takilma geri gelir; CLAUDE.md turu 10 notu da ayni tuzagi anlatiyor.
+    // TEST TURU 47 — TAZELEME GERI GELDI (turu 45'te kaldirmistim, YANLIS KARARDI).
+    // OLCUM: turu 44 (tazeleme VAR) -> `oturum=true`; turu 45 (tazeleme YOK) ->
+    // `oturum=false` ve kullanicinin kose kutusu yine dondu. Yani bu adim YUK TASIYORDU.
+    // Turu 45'teki takilmanin sebebi tazelemenin KENDISI degil, ANA IS PARCACIGINDA
+    // yapilmasiydi; native taraf artik yazmayi ARKA PLAN KUYRUGUNDA yapiyor -> arayuz
+    // bloklanmaz (bu surumde `cagri=1 msMax=0` olcumu takilmanin cozuldugunu gosteriyor).
+    // ⚠️ YAPMA: bu cagriyi tekrar kaldirma (arka planda kamera oluyor, kose kutusu donuyor).
+    if (Platform.isIOS &&
+        state == AppLifecycleState.inactive &&
+        arama != null &&
+        _baglandi &&
+        !_ayrildi &&
+        _camOn) {
+      unawaited(iosArkaPlanKamerayiTazele());
+    }
     // TEST TURU 35 — "KARSI TARAFTA GORUNTUM GIDIYOR" icin TEK SATIRLIK GUVENLI ADIM:
     // 'inactive' aninda `iosArkaPlanKamerayiTazele()` baslatiliyor ve sonucu ASENKRON
     // yaziliyor; 'paused' milisaniyeler sonra gelip BAYAT `_iosArkaPlanKamera` degerini
