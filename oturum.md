@@ -2677,3 +2677,33 @@ tekrar senkron startPictureInPicture koyma; tek-istek bayragini `possible==false
 ### SONRAKI TURDA BAKILACAK
 Sentry "ios pip olcum ... cagri=N msMax=N": cagri 1 olmali; msMax > 16ms ise hala kare
 kaciriyoruz demektir (gorulen takilma).
+
+## TEST TURU 47 SURUMU YAYINLANDI (27 Tem 23:10) — KOSE KUTUSU DONMASI
+- android **30300476213** + ios **30300478407** (commit **e160976**), debug imza YOK.
+- R2: apk **105227857** · ipa **19144584** · index 6465. CDN birebir, purge OK, saat GERCEK.
+  Backend degismedi, health ok, DB temiz.
+### OLCUM KANITI (Sentry, ayni cihaz — TAHMIN YOK)
+  turu 44 (tazeleme VAR) -> `oturum=TRUE`
+  turu 46 (tazeleme YOK) -> `on=104 arka=89 kaynak=uzak oturum=FALSE coklu=true cagri=1 msMax=0`
+· `cagri=1`, `msMax=0` -> turu 46'daki TAKILMA duzeltmesi TUTTU (5 kaynakli baslatma -> 1).
+· `oturum=false` -> ama AYNI turda kaldirdigim tazeleme KAMERAYI AYAKTA TUTAN sey imis;
+  kullanicinin KOSE KUTUSU (kendi goruntusu) yine donuyor. Buyuk kutu saglikli (arka=89).
+· `ios kesinti sebep=1 durum=arka pip=true sinif=AVCaptureMultiCamSession calisiyor=true
+   acik=true kurtarma=null`:
+  - `sinif=AVCaptureMultiCamSession` -> webrtc-sdk yeni iPhone'larda PAYLASILAN statik
+    multicam oturumu kullaniyor; bayrak orada sarkabiliyor. Apple'in "baslatmadan once yaz"
+    kurali GEREKLI ama TEK BASINA YETMIYOR.
+  - `kurtarma=null` -> kurtarma HIC denenmemis; kosulda `!calisiyor` vardi ama KESINTI
+    ANINDA `isRunning` HALA TRUE geliyor.
+### YAPILANLAR
+- [x] `cokluGorevKameraAc()` tazelemeyi GERI YAPIYOR — yazma ARKA PLAN KUYRUGUNDA
+      (Apple da capture yapilandirmasi icin ayri kuyruk onerir). Turu 45'teki takilmanin
+      sebebi yazmanin KENDISI degil ANA IS PARCACIGINDA yapilmasiydi.
+- [x] Dart `inactive` dalindaki `iosArkaPlanKamerayiTazele()` GERI GELDI (turu 45'te
+      kaldirmistim — YANLIS KARARDI, olcum bunu kanitladi).
+- [x] KURTARMA KOSULU: kesintiden 400ms SONRA bakilir; gercekten durmussa `startRunning()`.
+⚠️ YAPMA: tazelemeyi ana is parcacigina tasima (takilma doner) veya tamamen kaldirma
+(kamera oluyor, kose kutusu donuyor); `!calisiyor` sartini kesinti anina geri koyma.
+### KORUNAN KAZANIMLAR
+tek-istek kapisi (cagri=1), yon kontrolu, msMax=0, deployment target 16.0, kose kutusu
+duzeni (karsi taraf buyuk + ben sag altta), sicak kaynak gecisi.
