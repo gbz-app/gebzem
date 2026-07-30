@@ -946,8 +946,15 @@ class _CallScreenState extends ConsumerState<CallScreen> {
           const bosluk = 6.0;
           final tamW = box.maxWidth;
           final tileW = (tamW - (cols - 1) * bosluk) / cols;
-          final tileH =
-              (box.maxHeight - (gorunurSatir - 1) * bosluk) / gorunurSatir;
+          // TEST TURU 50 ("toplu goruntulu gorusmede ALTTA PATLIYOR"): satir yukseklikleri
+          // `box.maxHeight`e TAM oturuyordu; ondalik yuvarlama toplami bir kil payi
+          // asinca Flutter alt kenarda sari-siyah "RenderFlex overflowed" seridi cizer.
+          // Ayrica kucuk ekranda ust/alt padding (108+132) yuksekligi eritip tileH'i
+          // NEGATIFE dusurebiliyordu. Cozum: yarim piksel pay + taban sinir.
+          // ⚠️ YAPMA: bu payi kaldirma veya tileH'i sinirsiz birakma.
+          final tileH = math.max(
+              1.0,
+              (box.maxHeight - (gorunurSatir - 1) * bosluk) / gorunurSatir - 0.5);
           // TEST TURU 16 (kullanici): SON SATIRDA TEK kisi kalirsa YARIM genislikte solda
           // durmasin -> TAM GENISLIK (yatik). 3 kisi: ustte 2 yan yana, altta 1 genis.
           // GridView.count sabit sutunlu oldugu icin elle satir/sutun kuruluyor; 4 satirdan

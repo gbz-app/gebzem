@@ -2773,3 +2773,69 @@ takilmasi) veya kaldirma (turu 46 donmasi); failedToStart gecikmesini kaldirma.
 turu 48 kose-kutusu gozcusu duzeltmesi (donmus kare yapisal olarak imkansiz), `yereliBosalt`
 ayrimi, genisletilmis olcum (yerelOn/yerel1/yerel3, durum, pipAktif), native tek-istek
 kilidi (`cagri=1`), deployment target 16.0.
+
+## OTURUM 30 Tem 2026 — BIREBIR VIDEO DUSMESININ KOK NEDENI (SUNUCU LOGUYLA KANITLI) + SINIRLAR
+Kullanici: "birebir gorusmelerde goruntum bazen gelmiyor, bazen karsidan goruntu gelmiyor —
+telefon sarji mi, internet hizi mi, kodlar mi?" + sinirlarin netlestirilmesi. BUILD ALINMADI.
+
+### OLCUM — LiveKit sunucu logu (96 saat, tum `call_*` odalari)
+Oda-oda / katilimci-katilimci track sayimi yapildi (`mediaTrack published` olaylari):
+- **64 cok-katilimcili aramanin 9'unda TEK TARAFLI video** (~%14).
+- Patlayan taraf: **9/9 iOS**. Android'de (SM-A705FN, M2101K6G) **0 vaka**.
+- Cihaz dagilimi: **8 x iPhone11,6 (XS Max — en eski/yavas cihaz)**, 1 x iPhone14,5.
+- Ag dagilimi: 6 hucresel / 2 wifi -> **internet hizi DEGIL**. Sarj ile de ilgisi yok.
+- Zaman cizgisi: patlayan taraf ses'i 1.2-4.0sn'de yayinliyor, **video'yu HIC yayinlamiyor**.
+  Karsi taraf video'yu 1.3-3.0sn'de (baglanti aninda) yayinliyor -> bunlar GERCEKTEN
+  goruntulu arama; "sesli aramada karsi taraf sonradan kamera acti" DEGIL.
+- **7/9 vakada patlayan taraf ARANAN** (odaya ikinci katilan).
+- Sunucu SAGLIKLI: %79-82 bosta CPU, wa=0. (`top -bn1`in ILK iterasyonu yaniltici;
+  vmstat 2. ornekle dogrulandi. containerd+dockerd ~0.7 cekirdek yakiyor — israf, ama
+  medya sorunu degil.) LiveKit tarafinda kesinti/hata YOK.
+
+### KOK NEDEN (kod)
+`active_call_controller.dart` `_odayaBaglan`:
+`await _onizlemeIsi?.timeout(700ms)` — **`Future.timeout` alttaki isi IPTAL ETMEZ.**
+Sure asilinca `_onizlemeTrack` hala null oldugu icin yedek yol `setCameraEnabled(true)`
+IKINCI kamerayi aciyor; bu sirada `_onizlemeAc()`in `createCameraTrack`i HALA calisiyor.
+iOS'ta flutter_webrtc TEK paylasilan `videoCapturer` property'si tuttugu icin
+(FlutterRTCMediaStream.m) iki acilis birbirinin capture oturumunu CALIYOR -> video track
+odaya HIC ulasmiyor.
+**Neden ARANAN?** Aranan tarafta `_onizlemeAc()` ancak `baslat()` icinde, yani answer REST'i
+DONDUKTEN sonra basliyor; `room.connect` hemen ardindan geliyor -> onizlemenin 700ms'lik
+penceresi yok denecek kadar az. ARAYAN tarafta onizleme cok daha erken basliyor (turu 22),
+o yuzden arayan neredeyse hic patlamiyor.
+**Neden 20+ turdur gorunmedi?** Hata `_sesLog('kamera acilamadi')` ile yutuluyordu ve
+`_sesLog` Sentry'e YALNIZ BREADCRUMB yaziyor — breadcrumb ancak baska bir olay/crash
+olursa yukleniyor. Sentry'de tek bir "kamera acilamadi" kaydi yok, cunku hic gonderilmedi.
+(Sentry'de `ios pip alt gorunum sonuc=track-yok` **195 kayit** — yerel video track'inin
+gercekten olmadiginin bagimsiz teyidi.)
+
+### YAPILANLAR (build ALINMADI, yalniz kod + push)
+- [x] `_onizlemeIptal` bayragi: sure asilirsa gec biten onizleme track'i ATILIR (iki
+      capture oturumu ayni anda YASAYAMAZ).
+- [x] Onizleme penceresi 700ms -> **2500ms** (XS Max kamera soguk acilisi icin).
+- [x] Kamera hatasi artik `Sentry.captureMessage` ile OLAY olarak yaziliyor (gorunur olcum).
+- [x] **`_videoYayinDogrula`** (yapisal emniyet): baglantidan 1.5sn sonra yayinlanmis video
+      track YOKSA kamera TEK SEFER yeniden acilir + Sentry'e olcum. Bu, kok neden disindaki
+      tum sessiz basarisizliklari (capture calinmasi, gec izin, mesgul kamera) da kapatir.
+- [x] Grup izgarasinda ALT TASMA (`call_screen.dart`): satir yukseklikleri `box.maxHeight`e
+      TAM oturuyordu, ondalik yuvarlama sari-siyah "RenderFlex overflowed" seridi cizdiriyordu
+      -> yarim piksel pay + `math.max(1.0, ...)` taban siniri.
+- [x] SINIRLAR (kullanici karari 30 Tem):
+      · Grup aramasi (sesli VE goruntulu): 32 -> **8** (arayan dahil). Backend tek sabit
+        `maxGrupKatilimci` (Start + Add ayni yerden okur) + istemci `toggleCam` kapisi 8.
+      · Sohbet odasi konusmaci: 10 -> **20** (odayi kuran dahil).
+      · Sohbet odasi dinleyici: 500 -> **SINIRSIZ** (`maxDinleyici=0`, kontroller `> 0` sartli;
+        LiveKit `odaKapasitesi=0` = sinirsiz).
+      · Canli yayin: yayinci + 3 konuk = **4** (ZATEN boyleydi), izleyici SINIRSIZ (ZATEN).
+- [x] `go build ./...` temiz · `flutter analyze` temiz (yalniz onceden var olan 4 info lint).
+
+⚠️ YAPMA: `_onizlemeIptal` kapisini kaldirma (iki capture oturumu yarisir, kok neden geri
+gelir); onizleme beklemesini tekrar 700ms'e dusurme veya suresiz yapma; `_videoYayinDogrula`yi
+kaldirma ya da birden fazla kez tekrarlatma (kamera ac/kapa savasi); kamera hatasini tekrar
+yalniz breadcrumb'a yazma (20 tur gorunmez kaldi); `maxDinleyici` kontrollerini `> 0` sartsiz
+geri koyma; grup kapasitesini iki yere farkli yazma.
+
+### SIRADAKI
+Kullanici onayiyla: backend deploy + temiz build (android+ios) -> R2 -> purge -> DB temiz.
+Ayrica indir sayfasinda YUKLEME SAATI gorunmuyor (kullanici bildirdi) — build turunde bakilacak.

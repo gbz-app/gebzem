@@ -29,6 +29,13 @@ import (
 // Akis: arayan /calls baslatir -> aliciya WS "call.incoming" + push gider
 //       alici kabul edince ikisi de LiveKit odasina token'la baglanir.
 
+// GRUP ARAMA KAPASITESI — KULLANICI KARARI (30 Tem 2026): sesli VE goruntulu grup
+// aramasi ARAYAN DAHIL en fazla 8 kisi. (19 Tem'de "WhatsApp standardi 32" denmisti;
+// kullanici 30 Tem'de 8'e cekilmesini istedi — cx33'te 8 video publish zaten pratik
+// tavan.) Tek yerden okunur: hem Start hem Add ayni sabiti kullanir.
+// ⚠️ YAPMA: iki yere farkli sayi yazma (Add'den 9. kisi sizar).
+const maxGrupKatilimci = 8
+
 type Handler struct {
 	db   *pgxpool.Pool
 	hub  *chat.Hub
@@ -510,14 +517,14 @@ func (h *Handler) startGroup(w http.ResponseWriter, r *http.Request, req startRe
 		writeErr(w, http.StatusBadRequest, "gecerli katilimci yok")
 		return
 	}
-	// KAPASITE — WHATSAPP STANDARDI (kullanici karari 19 Tem): sesli VE goruntulu grup 32 kisi.
-	// Not: 32 video cx33'u asar — kullanici "sunucu ekleriz" dedi (buyumede dedicated/egress
-	// makinesi, yol haritasi karari). Istemci tarafi korumalar: dusuk grup video profili
-	// (540p) + adaptiveStream (gorunmeyen tile'lar duraklar) + kaydirmali izgara.
-	// LiveKit global max_participants:32 ile tavan uyumlu (calls odalari auto-create).
+	// KAPASITE (kullanici karari 30 Tem): sesli VE goruntulu grup arama = 8 kisi (arayan dahil).
+	// Istemci tarafi korumalar duruyor: dusuk grup video profili (540p) + adaptiveStream
+	// (gorunmeyen tile'lar duraklar) + kaydirmali izgara.
+	// LiveKit global max_participants:32 tavaninin ALTINDA (calls odalari auto-create).
 	toplam := len(memberIDs) + 1
-	if toplam > 32 {
-		writeErr(w, http.StatusBadRequest, "grup aramasi en fazla 32 kisi olabilir")
+	if toplam > maxGrupKatilimci {
+		writeErr(w, http.StatusBadRequest,
+			fmt.Sprintf("grup aramasi en fazla %d kisi olabilir", maxGrupKatilimci))
 		return
 	}
 
@@ -701,15 +708,16 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusConflict, "kullanici su anda baska bir gorusmede")
 		return
 	}
-	// Kapasite (32): 1:1'de taban 2 say
+	// Kapasite (maxGrupKatilimci = 8, kullanici karari 30 Tem): 1:1'de taban 2 say
 	var aktifSayi int
 	tx.QueryRow(r.Context(), `SELECT count(*) FROM call_participants
 		WHERE call_id=$1 AND status IN ('ringing','joined')`, callID).Scan(&aktifSayi)
 	if !isGroup && aktifSayi < 2 {
 		aktifSayi = 2
 	}
-	if aktifSayi+1 > 32 {
-		writeErr(w, http.StatusBadRequest, "grup aramasi en fazla 32 kisi olabilir")
+	if aktifSayi+1 > maxGrupKatilimci {
+		writeErr(w, http.StatusBadRequest,
+			fmt.Sprintf("grup aramasi en fazla %d kisi olabilir", maxGrupKatilimci))
 		return
 	}
 

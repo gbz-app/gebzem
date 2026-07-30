@@ -25,9 +25,13 @@ import (
 )
 
 const (
-	maxDinleyici  = 500 // cx33 ust sinir (yol haritasi: tek Space ~200-500)
-	maxKonusmaci  = 10  // host dahil (SFU yuku konusmaci sayisiyla buyur)
-	odaKapasitesi = 520 // LiveKit CreateRoom override (global max_participants:32 tavanini ezer)
+	// KULLANICI KARARI (30 Tem): sohbet odasinda KONUSMACI = 20 (odayi kuran DAHIL),
+	// DINLEYICI SINIRSIZ. maxDinleyici=0 -> kapasite kontrolu ATLANIR (yayin tarafindaki
+	// STREAM_MAX_VIEWERS=0 deseniyle ayni). ⚠️ YAPMA: maxDinleyici kontrollerini `> 0`
+	// sartsiz geri koyma (sinir geri gelir).
+	maxDinleyici  = 0  // 0 = SINIRSIZ dinleyici
+	maxKonusmaci  = 20 // odayi kuran (host) DAHIL
+	odaKapasitesi = 0  // 0 = LiveKit tarafinda SINIRSIZ (yayin tarafiyla ayni desen)
 	tokenOmru     = 8 * time.Hour
 )
 
@@ -306,8 +310,9 @@ func (h *Handler) Join(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusNotFound, "oda bulunamadi veya bitti")
 		return
 	}
-	// Kapasite: yalniz dinleyici sayilir (konusmacilar ayri sinirda)
-	if h.dinleyiciSayisi(r.Context(), roomID) >= maxDinleyici {
+	// Kapasite: yalniz dinleyici sayilir (konusmacilar ayri sinirda).
+	// maxDinleyici == 0 -> SINIRSIZ (kullanici karari 30 Tem), kontrol ATLANIR.
+	if maxDinleyici > 0 && h.dinleyiciSayisi(r.Context(), roomID) >= maxDinleyici {
 		writeErr(w, http.StatusConflict, "oda dolu")
 		return
 	}

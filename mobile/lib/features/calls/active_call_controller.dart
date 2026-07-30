@@ -327,6 +327,13 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
   LocalVideoTrack? _onizlemeTrack;
   Future<void>? _onizlemeIsi; // turu 32: onizleme acma isi (yayin oncesi BEKLENIR)
   bool _onizlemeYayinda = false;
+  // TEST TURU 50 (KOK NEDEN — "birebirde bazen goruntum gelmiyor"): `Future.timeout`
+  // altta calisan isi IPTAL ETMEZ. Onizleme sureyi asarsa yedek yol `setCameraEnabled`
+  // ikinci bir kamera acar; iOS'ta flutter_webrtc'nin TEK paylasilan `videoCapturer`
+  // property'si (FlutterRTCMediaStream.m) uzerine yazildigi icin iki acilis birbirinin
+  // capture oturumunu CALAR -> video track HIC yayinlanmaz, hata SESSIZCE yutulur.
+  // Bu bayrak: sure asildi, gec biten onizleme track'i ATILSIN (controller'a girmesin).
+  bool _onizlemeIptal = false;
 
   /// Ekranda gosterilecek KENDI goruntum: yayinlanan track varsa o, yoksa onizleme.
   VideoTrack? get kendiGoruntum {
@@ -349,7 +356,10 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       if (_onizlemeTrack != null || _ayrildi) return;
       final t = await LocalVideoTrack.createCameraTrack(
           _isGroup ? kGroupCameraCaptureOptions : kCameraCaptureOptions);
-      if (_ayrildi || arama == null) {
+      // TEST TURU 50: gec kaldiysak (yedek yol devreye girdi) bu track'i ATIYORUZ —
+      // aksi halde iOS'ta iki capture oturumu ayni `videoCapturer`i paylasip
+      // birbirini oldururdu (kok neden). ⚠️ YAPMA: bu kapiyi kaldirma.
+      if (_ayrildi || arama == null || _onizlemeIptal) {
         await t.stop();
         await t.dispose();
         return;
@@ -368,6 +378,37 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       await t.stop();
       await t.dispose();
     } catch (_) {}
+  }
+
+  /// TEST TURU 50 — VIDEO YAYIN DOGRULAMASI. Goruntulu aramada baglanti kurulduktan
+  /// 1.5sn sonra yayinlanmis bir video track YOKSA kamerayi TEK SEFER yeniden acar.
+  /// Sunucu logu kanitladi: aramalarin ~%14'unde (hepsi iOS) video track odaya HIC
+  /// ulasmiyordu ve kimse fark etmiyordu. Sonuc Sentry'e olcum olarak yazilir.
+  /// ⚠️ YAPMA: tekrar sayisini artirma (ac/kapa savasi) veya sureyi kisaltma
+  /// (yavas cihazda normal yayin HENUZ bitmemis olabilir -> gereksiz ikinci kamera).
+  Timer? _videoDogrulamaTimer;
+  void _videoYayinDogrula(String id) {
+    _videoDogrulamaTimer?.cancel();
+    _videoDogrulamaTimer = Timer(const Duration(milliseconds: 1500), () async {
+      if (_ayrildi || arama?.callId != id || !_camOn) return;
+      final lp = _room?.localParticipant;
+      if (lp == null) return;
+      final varMi = lp.videoTrackPublications.isNotEmpty;
+      if (varMi) return;
+      unawaited(Sentry.captureMessage('video yayin yok — kamera tekrar deneniyor'));
+      _sesLog('video track yayinlanmamis, tekrar deneniyor');
+      try {
+        await _onizlemeBirak(); // ortada asili capture kalmasin
+        if (_ayrildi || arama?.callId != id || !_camOn) return;
+        await lp.setCameraEnabled(true);
+        _sesLog('video tekrar denemesi: ${lp.videoTrackPublications.isNotEmpty}');
+      } catch (e) {
+        _camOn = false;
+        unawaited(Sentry.captureMessage('video tekrar denemesi BASARISIZ: $e'));
+        bildirimGoster('Kamera açılamadı');
+      }
+      notifyListeners();
+    });
   }
 
   /// Kendi kamera track'im (PiP'te uzak video yoksa yedek — kara ekran yerine kendi goruntum).
@@ -767,6 +808,8 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     _onizlemeTrack = null;
     _onizlemeYayinda = false;
     _onizlemeIsi = null;
+    _onizlemeIptal = false; // turu 50: eski aramanin iptal bayragi SARKMASIN
+    _videoDogrulamaTimer?.cancel();
     bildirim = '';
     _bildirimTimer?.cancel();
     karsiPil = -1;
@@ -1453,10 +1496,24 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       // bayragi YANLIS oturuma yaziliyor ve arka planda goruntu donuyordu.
       // Cozum: onizleme isini KISA SURE bekle (en fazla 700ms), sonra karar ver.
       // ⚠️ YAPMA: bu await'i kaldirma (yarisi geri getirir) veya suresiz bekletme.
+      // TEST TURU 50 — KOK NEDEN KANITI (LiveKit sunucu logu, 96 saat, 64 arama):
+      // 9 aramada TEK TARAFLI video; patlayan taraf 9/9 iOS, 7/9 ARANAN (ikinci katilan),
+      // Android'de 0 vaka. Aranan tarafta `_onizlemeAc()` ancak `baslat()` icinde, yani
+      // answer REST'inden SONRA basliyor -> 700ms'lik pencereyi eski/yavas cihazda
+      // (kayitlarin 8'i iPhone XS Max) kaciriyordu. Sure asilinca `Future.timeout`
+      // alttaki isi IPTAL ETMEDIGI icin `setCameraEnabled` IKINCI kamerayi aciyor ve iki
+      // capture oturumu iOS'un TEK `videoCapturer`ini paylasip birbirini olduruyordu;
+      // sonucta video track HIC yayinlanmiyor, hata `_sesLog` ile (yalniz breadcrumb)
+      // sessizce yutuluyordu — 20+ test turu boyunca gorunmemesinin sebebi bu.
+      // FIX: pencere 2500ms + sure asiminda gec biten onizleme ATILIR (_onizlemeIptal)
+      // + asagida YAYIN DOGRULAMASI (track yoksa tek sefer tekrar dener).
+      // ⚠️ YAPMA: bu await'i kaldirma, suresiz bekletme veya `_onizlemeIptal`i atlama.
       if (_camOn) {
         try {
-          await _onizlemeIsi?.timeout(const Duration(milliseconds: 700));
-        } catch (_) {}
+          await _onizlemeIsi?.timeout(const Duration(milliseconds: 2500));
+        } catch (_) {
+          _onizlemeIptal = true; // gec biten onizleme track'i controller'a GIRMESIN
+        }
       }
       if (_camOn) {
         // TEST TURU 22: onizlemede acilan kamerayi AYNEN yayinla (ikinci kez acma yarisi yok)
@@ -1482,9 +1539,20 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
         } catch (e) {
           _camOn = false;
           _sesLog('kamera acilamadi: $e');
+          // TEST TURU 50: `_sesLog` yalniz BREADCRUMB yazar — breadcrumb ancak baska bir
+          // olay/crash olursa Sentry'e gider. Bu yuzden kamera hatasi bugune kadar
+          // GORUNMEDI. Artik olay olarak yazilir (olcum, tahmin degil).
+          unawaited(Sentry.captureMessage('kamera acilamadi: $e'));
           bildirimGoster('Kamera açılamadı');
         }
         _kurulumAsama?['cam'] = _kurulumSaat?.elapsedMilliseconds ?? 0; // FAZ-0
+        // TEST TURU 50 — YAYIN DOGRULAMASI (yapisal emniyet): yukaridaki yollardan
+        // hangisi calisirsa calissin, 1.5sn sonra HALA yayinlanmis video track YOKSA
+        // kamera bir kez daha acilir. Bu, kok neden disinda kalan tum sessiz
+        // basarisizliklari (capture calinmasi, gec izin, mesgul kamera) da kapatir.
+        // ⚠️ YAPMA: bu dogrulamayi kaldirma veya birden fazla kez tekrarlatma
+        // (dongu = kamera ac/kapa savasi).
+        _videoYayinDogrula(id);
       } else if (_onizlemeTrack != null) {
         // Baglanirken kamera kapandi (yasam dongusu oto-mute) -> onizlemeyi sal, sizinti olmasin
         await _onizlemeBirak();
@@ -1921,6 +1989,7 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
   void _kapatOdayiKuyrugaKoy() {
     if (_kapandi) return;
     _kapandi = true;
+    _videoDogrulamaTimer?.cancel(); // turu 50: arama bitince dogrulama tetiklenmesin
     _durationTimer?.cancel();
     _ringTimeout?.cancel();
     _statusPoll?.cancel();
@@ -2041,12 +2110,13 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> toggleCam() async {
     _kameraOtoKapandi = false; // FAZ-6: kullanici elle dokundu — oto-restore devre disi
     final on = !_camOn;
-    // KAPASITE — WhatsApp standardi: grup 32 kisi
+    // KAPASITE (kullanici karari 30 Tem): grup aramasi 8 kisi — backend
+    // `maxGrupKatilimci` ile AYNI sayi olmali. ⚠️ YAPMA: iki tarafi ayirma.
     if (on && _isGroup) {
       final katilimci = 1 + (_room?.remoteParticipants.length ?? 0);
-      if (katilimci > 32) {
+      if (katilimci > 8) {
         rootMessengerKey.currentState?.showSnackBar(const SnackBar(
-            content: Text('Grup araması en fazla 32 kişi — kamera açılamıyor')));
+            content: Text('Grup araması en fazla 8 kişi — kamera açılamıyor')));
         return;
       }
     }

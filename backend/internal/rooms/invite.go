@@ -41,7 +41,8 @@ func (h *Handler) Invite(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusForbidden, "odada degilsiniz")
 		return
 	}
-	if h.dinleyiciSayisi(r.Context(), roomID) >= maxDinleyici {
+	// maxDinleyici == 0 -> SINIRSIZ dinleyici (kullanici karari 30 Tem), kontrol ATLANIR
+	if maxDinleyici > 0 && h.dinleyiciSayisi(r.Context(), roomID) >= maxDinleyici {
 		writeErr(w, http.StatusTooManyRequests, "oda dolu")
 		return
 	}
