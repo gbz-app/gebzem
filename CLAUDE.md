@@ -15,7 +15,42 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (31 Tem 00:06):** TEST TURU 51 YAYINLANDI — android 30581163737 +
+- **KALDIGIMIZ YER (31 Tem 02:05):** TEST TURU 52 YAYINLANDI — android 30588794092 +
+  ios 30588788364 (33fc2d9), R2 apk=105227853 ipa=19317028 (+169KB = native izgara),
+  purge OK, CDN birebir, backend degismedi (678f5fc) + health ok, DB temiz.
+  **KULLANICI TEST EDECEK.**
+- ✅ **TURU 52 — KUCUK PENCERE IZGARASI (24 ajanlik denetim):**
+  Native `ekKaynaklarAyarla` + Flutter `miniIzgara` AYNI merdiven: 1 tam · 2 UST/ALT ·
+  3-8 iki sutunlu satirlar (son satirda tek kalirsa tam genislik). Kose kutusu (ben)
+  yalniz 1-2 uzak kutu varken cizilir.
+  ⚠️ **ONCEKI ISRARIM YANLISTI:** "iOS sistem PiP'inde izgara yapilamaz, orayi iOS ciziyor"
+  DEMISTIM — YANLIS. `AVPictureInPictureVideoCallViewController` BIZIM VC'miz, icine ne
+  koyacagimiza BIZ karar veriyoruz (AppDelegate.swift:583). Izgara orada da calisir.
+  **DENETIM KENDI YENI KODUMDA 5 HATA BULDU** (hepsi duzeltildi): (1) sira duyarli
+  karsilastirma + `activeSpeakers` sirasi -> biri konusunca izgara komple yikiliyordu;
+  (2) PiP yeniden kurulunca `_iosPipEkIdler` sifirlanmiyordu -> izgara bir daha
+  cizilmiyordu; (3) gozcu ek kutulari izlemiyordu -> donmus kare deligi geri acilmisti;
+  (4) izgarada kose kutusu bir katilimciyi kapatiyordu; (5) 8 renderer = kare basina
+  CVPixelBufferCreate + ornek-basina kuyruk -> **HAVUZ + TEK paylasilan kuyruk**.
+  ⚠️ YAPMA: karsilastirmayi sira duyarli yapma; ek listeyi `activeSpeakers` ile siralama;
+  `_iosPipEkIdler` sifirlamalarini kaldirma; gozcuden ek kutulari cikarma; izgarada kose
+  kutusunu geri acma; havuzu/tek kuyrugu kaldirma.
+- ✅ **"KAMERA DURAKLATILDI" TEK GORUNUM:** ayni durum 3 farkli bicimde ciziliyordu
+  (uygulama ici blur+yazi · iOS PiP MOR DAIRE+yazi · Android PiP mor daire+HARF, yazi YOK).
+  Hepsi TEK dile indi: koyu zemin + siyah seffaf hap + beyaz yazi. `_bantIlkVideo` mute
+  track'i ELIYORDU (kutu mor daireye dusuyordu) -> yeni `_miniVideo` + `MiniKatilimci.beklemede`.
+  ⚠️ YAPMA: mor daireyi geri koyma; native tarafa `UIVisualEffectView` (blur) ekleme
+  (katman flush edildigi icin bulaniklastirilacak goruntu YOK, ustelik riskli).
+- ✅ **KOSE KUTUSU:** cerceve KALDIRILDI · yaricap iOS 5 / Flutter 7 -> **ikisi de 14**
+  (buyuk ekranla ayni) · yukseklik **%10 kisaldi** (4:3 -> 6:5; Flutter tavani 0.45 -> 0.405)
+  · genislik %34 ve kenar boslugu 5 DEGISMEDI -> iOS/Android BIREBIR ayni.
+- ⚠️ **"cagri=10" YORUMUM YANLISTI (duzeltme):** `baslatCagri` YALNIZ didStart'in BASARILI
+  dalinda sifirlaniyordu; iptal/failedToStart olan acilislar sayaci artirip HIC
+  sifirlamiyordu -> deger tek bir alta almayi degil BIRIKMIS gecisleri sayiyordu.
+  "10 kez ust uste istendi" TESHISI GECERSIZ. Artik `iptalCagri` ayri sayilir (`iptal=N`)
+  ve ikisi de `durdur()`ta (= on plana donus) sifirlanir.
+  ⚠️ YAPMA: sayaclari yalniz basarili dalda sifirlamaya donme.
+- **ONCEKI (31 Tem 00:06):** TEST TURU 51 YAYINLANDI — android 30581163737 +
   ios 30581157141 (f7f5040), R2 apk=105227857 (MD5 degisti) ipa=19148243 (BUYUDU = Swift
   derlendi), purge OK, CDN birebir, **backend DEGISMEDI** (678f5fc) + health ok, DB temiz.
   **KULLANICI TEST EDECEK.**
