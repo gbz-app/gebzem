@@ -2973,3 +2973,67 @@ sicak gecis denemesini atlama; kose kutusu sartini yalniz `uzakId != null`a indi
 - Sentry'de `EXC_BAD_ACCESS` YENI kayit CIKMAMALI (alta alma cokmesi).
 - `ios pip kose kutusu sonuc=belirsiz|track-olu|track-yok` -> kose kutusu hala baglanamiyor.
 - `kamera acilamadi` / `video yayin yok — kamera tekrar deneniyor` (turu 50 olcumleri).
+
+## TEST TURU 52 SURUMU YAYINLANDI (31 Tem 02:05) — KUCUK PENCERE IZGARASI + TUTARLI ETIKET
+- android **30588794092** + ios **30588788364** (commit **33fc2d9**), debug imza YOK.
+- R2: apk **105227853** (MD5 `707eb69f…`) · ipa **19317028** (19148243'ten +169KB BUYUDU =
+  native izgara kodu derlendi) · index **7128**. Purge OK, CDN birebir, backend degismedi
+  (678f5fc) + health ok, DB temiz.
+- **24 AJANLIK DENETIM**: 12 bulgu onaylandi, 12 iddia curutuldu.
+
+### IZGARA (yeni ozellik)
+Native `ekKaynaklarAyarla(trackIdler:)` + Flutter `miniIzgara` AYNI merdiven:
+1 kutu tam · 2 kutu UST/ALT · 3-8 kutu 2 sutunlu satirlar (son satirda tek kalirsa tam
+genislik). Kose kutusu (ben) yalniz 1-2 uzak kutu varken cizilir.
+**iOS sistem PiP'inde de calisir** — o pencereyi iOS DEGIL biz ciziyoruz
+(`AVPictureInPictureVideoCallViewController` bizim VC'miz). Onceki turlarda "orada izgara
+yapilamaz" demistim, YANLISTI.
+
+### ⚠️ DENETIM KENDI YENI KODUMDA 5 HATA BULDU (hepsi duzeltildi)
+1. **Sira duyarli karsilastirma + `activeSpeakers` sirasi**: biri her konustugunda liste
+   yeniden diziliyor, izgara KOMPLE yikilip kuruluyor, tum kutular bir an kararıyordu.
+   -> KUME karsilastirmasi (`_kumeAyni`) + SABIT sira (`remoteParticipants`).
+2. **PiP yeniden kurulunca `_iosPipEkIdler` sifirlanmiyordu** -> izgara BIR DAHA HIC
+   cizilmiyordu. -> iki yere sifirlama eklendi.
+3. **Kare gozcusu ek kutulari izlemiyordu** -> turu 39/48'de kapattigimiz "donmus kare"
+   deligi ek kutular icin YENIDEN acilmisti. -> `ekSonKare`/`ekSabitTik` + gozcu dongusu.
+4. **Izgara modunda kose kutusu bir katilimciyi kapatiyordu** -> `_iosPipEkIdler.length <= 1`.
+5. **8 renderer performansi**: kare basina `CVPixelBufferCreate` + ornek-basina
+   `.userInteractive` kuyruk -> **CVPixelBufferPool** + TEK paylasilan `.userInitiated` kuyruk.
+
+### "KAMERA DURAKLATILDI" TUTARLILIGI (kullanici: "bazen mor daire, bazen farkli")
+Ayni durum 3 farkli bicimde ciziliyordu. Hepsi TEK dile indirildi (koyu zemin + siyah
+seffaf hap + beyaz yazi):
+- native `PipVideoView`: MOR DAIRE (turu 43) KALDIRILDI.
+- Flutter `MiniKutu`: mor daire + tek harf KALDIRILDI.
+- `_bantIlkVideo` mute track'i ELIYORDU -> kutu mor daireye dusuyordu. Yeni `_miniVideo`
+  mute track'i de dondurur, `MiniKatilimci.beklemede` ile ustune ortu biner.
+NOT: native tarafa `UIVisualEffectView` (blur) EKLENMEDI — katman `flushAndRemoveImage()`
+ile bosaldigi icin bulaniklastirilacak goruntu YOK; ustelik AVSampleBufferDisplayLayer
+uzerine blur bindirmek riskli (denetim uyarisi).
+
+### KOSE KUTUSU GORUNUMU (kullanici istegi)
+- CERCEVE KALDIRILDI (borderWidth/borderColor silindi)
+- Kose yaricapi: iOS 5 / Flutter 7 -> **ikisi de 14** (buyuk ekrandaki kutuyla ayni)
+- YUKSEKLIK **%10 kisaldi**: en-boy 4:3 -> 6:5 (Flutter'da tavan 0.45 -> 0.405)
+- Genislik (%34) ve kenar boslugu (5) DEGISMEDI -> iOS/Android BIREBIR ayni
+
+### OLCUM DUZELTMESI — "cagri=10" YORUMU YANLISTI
+`baslatCagri`nin TEK sifirlama yeri `kareOlcumuBaslat()`in +3sn blogu, o da YALNIZ
+didStart'in BASARILI dalindan cagriliyordu. Iptal edilen ve `failedToStart` olan acilislar
+sayaci artirip HIC sifirlamiyordu -> `cagri` tek bir alta almayi degil, son BASARILI
+olcumden bu yana BIRIKEN tum gecisleri sayiyordu. Yani **10 gercek bir "firtina" degil,
+birikmis sayiydi** (kullaniciya boyle raporlamistim, duzeltildi).
+Artik: `iptalCagri` AYRI sayilir (`iptal=N` olcumde) ve her ikisi de `durdur()` icinde
+(= ON PLANA DONUS = bir arka plan gecisinin sonu) sifirlanir.
+
+⚠️ YAPMA: izgara karsilastirmasini tekrar sira duyarli yapma; ek listeyi `activeSpeakers`
+ile siralama; `_iosPipEkIdler` sifirlamalarini kaldirma; gozcuden ek kutulari cikarma;
+izgarada kose kutusunu geri acma; havuzu/tek kuyrugu kaldirma; mor daireyi geri koyma;
+kose kutusuna cerceve ekleme; sayaclari yalniz basarili dalda sifirlamaya donme.
+
+### KULLANICI TEST EDECEK — BAKILACAK OLCUMLER
+- `ios pip olcum ... cagri=N iptal=M` -> artik TEK gecise ait; `iptal` yuksekse acilis
+  surekli iptal ediliyor demektir (asil teshis bir sonraki turda buradan cikacak).
+- `EXC_BAD_ACCESS` YENI kayit CIKMAMALI (turu 51 cokme duzeltmesi + izgara yuku altinda).
+- 3-8 kisilik grup aramasinda alta alinca kutu sayisi/duzeni.
