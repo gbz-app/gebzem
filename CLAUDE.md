@@ -15,6 +15,41 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (30 Tem 2026):** BUILD ALINMADI. Kod hazir + push (039d2a4). Kullanici
+  onayi bekleniyor: backend deploy + temiz build (android+ios) -> R2 -> purge -> DB temiz.
+  ⚠️ Kullanici "indir sitesinde SAAT yazmiyor, goremiyorum" dedi — build turunde bakilacak.
+- ✅ **BIREBIR VIDEO DUSMESI — KOK NEDEN KANITLI COZULDU (sunucu logu, tahmin degil):**
+  LiveKit 96 saatlik log oda-oda sayildi: **64 aramanin 9'unda tek tarafli video (%14)**;
+  patlayan taraf **9/9 iOS, 0 Android**, **8/9 iPhone11,6 (XS Max)**, **7/9 ARANAN**.
+  Ag 6 hucresel/2 wifi -> **internet hizi veya sarj DEGIL, KOD.**
+  KOK: `_odayaBaglan`da `await _onizlemeIsi?.timeout(700ms)` — **`Future.timeout` alttaki
+  isi IPTAL ETMEZ**. Sure asilinca yedek yol `setCameraEnabled(true)` IKINCI kamerayi acar;
+  `createCameraTrack` hala calisiyordur ve iOS'ta flutter_webrtc **TEK paylasilan
+  `videoCapturer`** tuttugu icin iki capture oturumu birbirini oldurur -> video track odaya
+  HIC ulasmaz. ARANAN'da onizleme ancak answer REST'inden SONRA basladigi icin pencere yok
+  denecek kadar az; ARAYAN'da erken basladigi icin neredeyse hic patlamaz.
+  **NEDEN 20+ TUR GORUNMEDI:** hata `_sesLog` ile yutuluyordu, `_sesLog` Sentry'e yalniz
+  **BREADCRUMB** yazar (breadcrumb ancak baska bir olay/crash olursa yuklenir).
+  Bagimsiz teyit: Sentry `ios pip alt gorunum sonuc=track-yok` **195 kayit**.
+  FIX: `_onizlemeIptal` (gec biten onizleme ATILIR) · pencere 700ms -> **2500ms** · kamera
+  hatasi artik `Sentry.captureMessage` (gorunur olcum) · **`_videoYayinDogrula`**: baglantidan
+  1.5sn sonra video track yoksa TEK SEFER tekrar dener (yapisal emniyet).
+  ⚠️ YAPMA: `_onizlemeIptal`i kaldirma; beklemeyi 700ms'e dusurme veya suresiz yapma;
+  `_videoYayinDogrula`yi kaldirma/dongu yapma; kamera hatasini tekrar yalniz breadcrumb'a yazma.
+- **SINIRLAR (kullanici karari 30 Tem — koda islendi):**
+  · Grup aramasi (sesli VE goruntulu): **8 kisi** (arayan dahil). Backend tek sabit
+    `internal/calls/handler.go` **`maxGrupKatilimci`** (Start + Add ayni yerden okur);
+    istemci `toggleCam` kapisi da 8. ⚠️ Iki tarafa farkli sayi yazma.
+  · Sohbet odasi: **konusmaci 20** (odayi kuran dahil) + **dinleyici SINIRSIZ**
+    (`internal/rooms/handler.go` `maxKonusmaci=20`, `maxDinleyici=0`, `odaKapasitesi=0`;
+    kapasite kontrolleri `maxDinleyici > 0` sartli). ⚠️ Sartsiz geri koyma.
+  · Canli yayin: **yayinci + 3 konuk = 4** + **izleyici SINIRSIZ** (zaten boyleydi;
+    `STREAM_MAX_GUESTS=3`, `STREAM_MAX_VIEWERS=0`).
+- **GRUP IZGARASI ALT TASMASI:** satir yukseklikleri `box.maxHeight`e TAM oturuyordu;
+  ondalik yuvarlama alt kenarda sari-siyah "RenderFlex overflowed" seridi cizdiriyordu
+  (kullanici: "toplu goruntuluda altta patliyor"). Yarim piksel pay + `math.max(1.0, ...)`.
+- **SUNUCU SAGLIKLI:** %79-82 bosta CPU, wa=0, LiveKit hatasiz. ⚠️ `top -bn1`in ILK
+  iterasyonu YANILTICI (surec omru ortalamasi verir) — CPU'yu vmstat/2. ornekle olc.
 - **KALDIGIMIZ YER (28 Tem 01:06):** TEST TURU 49 YAYINLANDI — android 30308483234 +
   ios 30308485130 (a2ead0e), R2 apk=105227857 ipa=19145592 (buyudu), purge OK, CDN birebir,
   backend degismedi + health ok, DB temiz. KULLANICI TEST EDECEK.
