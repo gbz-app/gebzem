@@ -167,6 +167,7 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
   Timer? _kesintiMuteGecikme; // turu 43: kurtarma sansi icin gecikmeli durust mute
   bool _iosPipMesgul = false; // turu 39: _iosPipGuncelle yeniden-girme kilidi
   String _iosPipYerelId = ''; // turu 28: PiP alt gorunumundeki kendi kamera track id'm
+  bool _koseKutusuBildirildi = false; // turu 51: kose kutusu hatasi ARAMA BASINA 1 kez Sentry'e
 
   /// iOS kucuk penceresinde BOLUNME acik mi. **SU AN ACIK (true) — turu 41-42'den beri.**
   ///
@@ -584,11 +585,28 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       // yeniden kuruluyordu (birak() stopPictureInPicture cagirir) -> pencere HIC acilmadi.
       // Artik iOS PiP YALNIZ UZAK VIDEO (calisan eski davranis); kimlik SADECE uzak track.
       if (trackId != _iosPipKurulanId) {
-        // turu 39: native tarafa hangi kaynak oldugunu bildir (kare gozcusu raporlar)
-        final ok = await PipService.iosPipKur(trackId,
-            kaynak: trackId == uzakId ? 'uzak' : 'yerel');
-        _iosPipKurulanId = ok ? trackId : '';
-        _iosPipYerelId = ''; // yeni kurulumda alt gorunum sifirlanir
+        final kaynak = trackId == uzakId ? 'uzak' : 'yerel';
+        // TURU 51 (30 Tem denetimi, YUKSEK risk): kurulu kimlik iki adaydan hicbirine
+        // esit degilse burasi DOGRUDAN `iosPipKur` cagiriyordu; native `kur` ilk isi
+        // olarak `birak()` -> `stopPictureInPicture()` yapar ve PENCERE KAPANIR
+        // (turu 24/26'nin kalintisi, dar ama gercek bir yol).
+        // Artik: pencere ZATEN acikken once SICAK GECIS denenir (yalniz sink tasir,
+        // pencereye dokunmaz); ancak o basarisiz olursa tam yeniden kuruluma dusulur.
+        // ⚠️ YAPMA: sicak gecis denemesini atlayip dogrudan `iosPipKur`a donme.
+        var kuruldu = false;
+        if (_iosPipKurulanId.isNotEmpty) {
+          kuruldu = await PipService.iosPipKaynak(trackId, kaynak);
+          if (kuruldu) {
+            _iosPipKurulanId = trackId;
+            _sesLog('ios pip kimlik degisti -> sicak gecis (pencere korundu)');
+          }
+        }
+        if (!kuruldu) {
+          // turu 39: native tarafa hangi kaynak oldugunu bildir (kare gozcusu raporlar)
+          final ok = await PipService.iosPipKur(trackId, kaynak: kaynak);
+          _iosPipKurulanId = ok ? trackId : '';
+          _iosPipYerelId = ''; // yeni kurulumda alt gorunum sifirlanir
+        }
       }
       // TEST TURU 44 — "IKI KUTUDA DA BENI GOSTERIYOR" (kullanici testi).
       // KOK NEDEN: PiP, karsi tarafin videosu HENUZ abone olunmadan kurulabiliyor; o an
@@ -614,7 +632,16 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       // DOKUNMAZ -> bu yol pencereyi KAPATMAZ (turu 27-31 tasarimi).
       // ⚠️ YAPMA: kose kutusunu `iosPipKur` ile kurmaya calisma (pencere kapanir — turu 24/26).
       if (pipBolunme && _iosPipKurulanId.isNotEmpty) {
-        final yid = (uzakId != null ? yerelId : null) ?? '';
+        // TURU 51 (30 Tem denetimi, YUKSEK risk) — "IKI KUTUDA DA BENI GOSTERIYOR":
+        // eski sart yalniz `uzakId != null` bakiyordu. Yukaridaki sicak gecis (604)
+        // BASARISIZ olursa `_iosPipKurulanId` YEREL id olarak kalir, ama `uzakId` null
+        // olmadigi icin bu sart geciyor ve kose kutusuna AYNI yerel track veriliyordu ->
+        // buyuk kutu da ben, kose kutusu da ben. Artik kose kutusu YALNIZ buyuk kutu
+        // GERCEKTEN karsi tarafi gosteriyorsa cizilir.
+        // ⚠️ YAPMA: bu sarti tekrar yalniz `uzakId != null`a indirgeme.
+        final buyukKutuUzak =
+            uzakId != null && uzakId.isNotEmpty && _iosPipKurulanId == uzakId;
+        final yid = buyukKutuUzak ? (yerelId ?? '') : '';
         if (yid != _iosPipYerelId) {
           _iosPipYerelId = yid;
           // Kamera kare uretmezse kutuda donmus kare yerine bu yazi gorunur.
@@ -622,7 +649,15 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
               await PipService.iosPipYerel(yid.isEmpty ? null : yid, harf: 'Sen');
           if (yid.isNotEmpty && sonuc != 'eklendi' && sonuc != 'ayni') {
             _iosPipYerelId = ''; // basarisiz -> sonraki tazelemede TEKRAR denensin
-            unawaited(Sentry.captureMessage('ios pip alt gorunum sonuc=$sonuc'));
+            // TURU 51: bu blok saniyede bir calisiyor ve her turunde Sentry'e olay
+            // yaziyordu — "sonuc=track-yok" 195 kayit bundandi (tek arama, tek hata).
+            // Artik ARAMA BASINA EN FAZLA 1 kayit; tekrar denemeler sessiz surer.
+            // ⚠️ YAPMA: bu kapiyi kaldirma (Sentry kotasi bosa yanar, sinyal kaybolur).
+            if (!_koseKutusuBildirildi) {
+              _koseKutusuBildirildi = true;
+              unawaited(
+                  Sentry.captureMessage('ios pip kose kutusu sonuc=$sonuc'));
+            }
           }
         }
       } else if (_iosPipYerelId.isNotEmpty) {
@@ -631,9 +666,20 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
         await PipService.iosPipYerel(null);
       }
     } else if (_iosPipKurulanId.isNotEmpty) {
-      _iosPipKurulanId = '';
-      _iosPipYerelId = '';
-      await PipService.iosPipBirak();
+      // TURU 51 (30 Tem denetimi, YUKSEK risk): SESLI baslayip kamera acilan aramada
+      // `arama.video == false`tur; arka planda iOS kamerayi kesince `_camOn` duser,
+      // `goruntuluMu` false olur, `uygun` duser ve iki id de null gelir -> burasi
+      // `iosPipBirak()` cagirip PENCEREYI KAPATIYORDU (tam da kullanicinin pencereye
+      // ihtiyac duydugu an). Pencere GERCEKTEN aktifken birakmiyoruz; arama bitisi
+      // zaten `leave()` icindeki `iosPipBirak` ile kapatir.
+      // ⚠️ YAPMA: bu `pipModunda` kapisini kaldirma.
+      if (pipModunda) {
+        _sesLog('ios pip: track yok ama pencere AKTIF — birakilmiyor');
+      } else {
+        _iosPipKurulanId = '';
+        _iosPipYerelId = '';
+        await PipService.iosPipBirak();
+      }
     }
     // COKLU-GOREV KAMERA (test turu 9->10): PiP kurulumundan SONRA + BLOKLAMAYAN (fire-and-forget).
     // Eskiden iosPipKur'dan ONCE await ediliyordu -> agir beginConfiguration/commitConfiguration
@@ -828,6 +874,7 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     _kameraOtoKapandi = false;
     _iosPipKurulanId = ''; // iOS PiP (test turu 7): eski aramadan kurulum sarkmasin
     _iosPipYerelId = '';
+    _koseKutusuBildirildi = false; // turu 51: yeni aramada kose kutusu bildirimi tazelensin
     _iosArkaPlanKamera = false; // iOS coklu-gorev kamera (test turu 9): eski aramadan sarkmasin
     _iosCokluGorevDeniyor = false;
     _isGroup = b.isGroup;

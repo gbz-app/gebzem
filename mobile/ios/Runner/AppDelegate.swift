@@ -692,8 +692,11 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
     guard let yigin = yigin, callVC != nil else { return "yigin-yok" }
     // Ayni track zaten ekli ise dokunma
     if let mevcut = yerelTrackId, mevcut == trackId { return "ayni" }
-    // Once eskiyi sok
-    if let yt = yerelTrack, let yr = yerelRenderer { yt.remove(yr) }
+    // Once eskiyi sok — TURU 51: sokulen renderer MEZARLIGA (ucustaki kare cokmesin)
+    if let yt = yerelTrack, let yr = yerelRenderer {
+      yt.remove(yr)
+      PipRenderer.mezaraKoy(yr)
+    }
     yerelGorunum?.displayLayer.flushAndRemoveImage()
     yerelGorunum?.kareKesildi()
     if let yg = yerelGorunum {
@@ -718,15 +721,39 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
     // ⚠️ YAPMA: bu yedegi uzak track icin kullanma (yanlis kisiyi cizer).
     // NOT: `localTracks` Objective-C NSMutableDictionary'dir — Swift'te `.keys` YOKTUR,
     // `allKeys` kullanilir ve elemanlar `Any` gelir (String'e cast SART).
+    // TURU 51 — KOR SECIM DUZELTMESI (30 Tem denetimi, YUKSEK risk): eskiden defterdeki
+    // ILK video track KOSULSUZ aliniyor, `readyState`/`isEnabled` HIC bakilmiyordu ve
+    // sonuc "eklendi" donuyordu. Zombi onizleme track'i defterde duruyorsa kose kutusu
+    // OLU track'e baglaniyor, Dart "basarili" sayip `_iosPipYerelId`i kilitliyor ve BIR
+    // DAHA denemiyordu -> kutu ARAMA BOYUNCA "Sen" etiketinde kaliyordu.
+    // Artik: yalniz CANLI (`.live`) track kabul edilir ve BIRDEN FAZLA aday varsa
+    // TAHMIN EDILMEZ ("belirsiz" donulur; Dart sonraki tazelemede tekrar dener).
+    // NOT: `localTracks` Objective-C NSMutableDictionary — anahtar sirasi deterministik
+    // DEGILDIR, o yuzden "ilkini al" yanlis kamerayi da secebiliyordu.
+    // ⚠️ YAPMA: canlilik kontrolunu kaldirma; birden fazla adayda tahmin yurutme.
+    var belirsiz = false
     if bulunan == nil, let defter = eklenti?.localTracks {
+      var adaylar: [RTCVideoTrack] = []
       for anahtarAny in defter.allKeys {
         guard let anahtar = anahtarAny as? String else { continue }
-        if let v = eklenti?.track(forId: anahtar, peerConnectionId: nil) as? RTCVideoTrack {
-          bulunan = v
-          NSLog("gebzem/pip alt gorunum: id eslesmedi, defterden bulundu anahtar=\(anahtar)")
-          break
+        if let v = eklenti?.track(forId: anahtar, peerConnectionId: nil) as? RTCVideoTrack,
+           v.readyState == .live, v.isEnabled {
+          adaylar.append(v)
         }
       }
+      if adaylar.count == 1 {
+        bulunan = adaylar[0]
+        NSLog("gebzem/pip kose kutusu: id eslesmedi, defterde TEK canli track bulundu")
+      } else if adaylar.count > 1 {
+        belirsiz = true
+        NSLog("gebzem/pip kose kutusu: \(adaylar.count) canli aday — TAHMIN YOK")
+      }
+    }
+    if belirsiz { return "belirsiz" }
+    // Bulunan track OLU ise kabul etme (donmus/bos kutu yerine durust etiket).
+    if let b = bulunan, b.readyState != .live {
+      NSLog("gebzem/pip kose kutusu: track OLU (readyState=\(b.readyState.rawValue))")
+      return "track-olu"
     }
     guard let yerel = bulunan else {
       NSLog("gebzem/pip alt gorunum: track BULUNAMADI id=\(tid)")
@@ -780,6 +807,11 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
   func durdur() {
     baslatKilidiAc()
     iptalIstendi = true
+    // TURU 51: gozcu SADECE `birak()` ve `gozcuBaslat()` basinda duruyordu; `durdur()` ve
+    // didStop yolunda calismaya devam edip PiP kapandiktan SONRA da sink ameliyati
+    // (flushAndRemoveImage / kareKesildi / invokeMethod) tetikliyordu.
+    // ⚠️ YAPMA: bu cagriyi kaldirma.
+    gozcuDur()
     pipController?.stopPictureInPicture()
   }
 
@@ -787,8 +819,16 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
     baslatKilidiAc()
     gozcuDur()
     pipController?.stopPictureInPicture()
-    if let t = uzakTrack, let r = renderer { t.remove(r) }
-    if let yt = yerelTrack, let yr = yerelRenderer { yt.remove(yr) }
+    // TURU 51: sokulen renderer'lar MEZARLIGA — ana is parcaciginda serbest birakip
+    // ucustaki kare teslimini cokertmeyelim (Sentry EXC_BAD_ACCESS, alta alma ani).
+    if let t = uzakTrack, let r = renderer {
+      t.remove(r)
+      PipRenderer.mezaraKoy(r)
+    }
+    if let yt = yerelTrack, let yr = yerelRenderer {
+      yt.remove(yr)
+      PipRenderer.mezaraKoy(yr)
+    }
     yerelGorunum?.displayLayer.flushAndRemoveImage()
     yerelGorunum?.kareKesildi()
     yerelTrack = nil
@@ -837,6 +877,9 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
   }
   func pictureInPictureControllerDidStopPictureInPicture(_ c: AVPictureInPictureController) {
     baslatKilidiAc()
+    // TURU 51: pencere kapandi -> gozcu SUSSUN (yoksa kapanmis pencere icin sink
+    // ameliyati tetikleyip Dart'a yanlis `iosPipKareDurdu` gonderiyordu).
+    gozcuDur()
     NSLog("gebzem/pip iOS PiP durdu")
     kanal?.invokeMethod("iosPipDurum", arguments: false)
   }
@@ -999,19 +1042,70 @@ final class PipVideoView: UIView {
 final class PipRenderer: NSObject, RTCVideoRenderer {
   private weak var view: PipVideoView?
   private let kuyruk = DispatchQueue(label: "gebzem.pip.frame", qos: .userInteractive)
+
+  // ---- TEST TURU 51 — COKME ONLEME (Sentry kaniti: 29 Tem 18:39, son iz
+  // `app.lifecycle: background`, EXC_BAD_ACCESS KERN_INVALID_ADDRESS 0x6c8, yigin
+  // AVCaptureVideoDataOutput._processSampleBuffer -> AdaptedVideoTrackSource::OnFrame
+  // -> Runner). KOK: kare teslimi WebRTC/capture is parcaciginda kosarken, ANA is
+  // parcacigi `track.remove(renderer)` yapip referansi nil'liyordu; UCUSTAKI teslim
+  // sirasinda nesne serbest kalinca kucuk-ofsetli erisim ihlali olusuyordu.
+  // Cozum iki katmanli: (1) `aktif` bayragi kilitle korunur ve sokme aninda kapatilir,
+  // (2) sokulen renderer MEZARLIGA alinir (2sn) — yani ucustaki kare bitmeden nesne
+  // ASLA serbest birakilmaz.
+  // ⚠️ YAPMA: bu kilidi/mezarligi kaldirma; sayaclari kilitsiz okumaya donme.
+  private let durumKilidi = NSLock()
+  private var aktif = true
   private var sayac = 0
+  private var _toplamKare = 0
+
   /// TEST TURU 38: OLCUM — kac kare geldi (PiP basladiktan sonraki 3sn icin).
-  private(set) var toplamKare = 0
-  func sayaciSifirla() { toplamKare = 0 }
+  var toplamKare: Int {
+    durumKilidi.lock()
+    defer { durumKilidi.unlock() }
+    return _toplamKare
+  }
+
+  func sayaciSifirla() {
+    durumKilidi.lock()
+    _toplamKare = 0
+    durumKilidi.unlock()
+  }
+
+  /// Sink defterinden sokulurken cagrilir: bundan sonra gelen kareler YOK SAYILIR.
+  func kapat() {
+    durumKilidi.lock()
+    aktif = false
+    durumKilidi.unlock()
+  }
+
+  /// Sokulen renderer'lari kisa sure canli tutan mezarlik (bkz. yukaridaki not).
+  private static var mezarlik: [PipRenderer] = []
+  private static let mezarlikKilidi = NSLock()
+  static func mezaraKoy(_ r: PipRenderer?) {
+    guard let r = r else { return }
+    r.kapat()
+    mezarlikKilidi.lock()
+    mezarlik.append(r)
+    mezarlikKilidi.unlock()
+    DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+      mezarlikKilidi.lock()
+      if let i = mezarlik.firstIndex(where: { $0 === r }) { mezarlik.remove(at: i) }
+      mezarlikKilidi.unlock()
+    }
+  }
 
   init(view: PipVideoView) { self.view = view }
   func setSize(_ size: CGSize) {}
 
   func renderFrame(_ frame: RTCVideoFrame?) {
     guard let frame = frame else { return }
-    toplamKare += 1
+    durumKilidi.lock()
+    guard aktif else { durumKilidi.unlock(); return }
+    _toplamKare += 1
     sayac += 1
-    if sayac % 2 != 0 { return }
+    let atla = sayac % 2 != 0
+    durumKilidi.unlock()
+    if atla { return }
     kuyruk.async { [weak self] in
       guard let self = self else { return }
       autoreleasepool {
