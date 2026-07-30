@@ -72,10 +72,15 @@ class ParkEdilenArama {
 
 /// Kucuk pencere (PiP / yuzen pencere) izgarasindaki TEK katilimci (test turu 17).
 class MiniKatilimci {
-  const MiniKatilimci(this.track, this.ad, {this.mirror = false});
+  const MiniKatilimci(this.track, this.ad,
+      {this.mirror = false, this.beklemede = false});
   final VideoTrack? track; // null -> harf avatari
   final String ad;
   final bool mirror; // yalniz kendi on kameram aynalanir
+  /// TEST TURU 52: track VAR ama MUTE (kamera kapali) -> kutuda son kare yerine
+  /// "Kamera duraklatildi" ortusu cizilir. Eskiden mute track ELENIYOR ve kutu MOR
+  /// DAIREYE dusuyordu — kullanici "bazen mor daire, bazen blur" derken bunu goruyordu.
+  final bool beklemede;
 }
 
 /// AKTIF ARAMA CONTROLLER'I (parite-hukum C1 / Plan 2): Room + listener + TUM timer'lar +
@@ -168,6 +173,19 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
   bool _iosPipMesgul = false; // turu 39: _iosPipGuncelle yeniden-girme kilidi
   String _iosPipYerelId = ''; // turu 28: PiP alt gorunumundeki kendi kamera track id'm
   bool _koseKutusuBildirildi = false; // turu 51: kose kutusu hatasi ARAMA BASINA 1 kez Sentry'e
+  List<String> _iosPipEkIdler = []; // turu 52: kucuk pencere izgarasindaki EK uzak track'ler
+
+  /// TEST TURU 52 — KUME karsilastirmasi (SIRA DUYARSIZ). ⚠️ KRITIK:
+  /// ilk yazdigimda SIRA DUYARLIYDI ve liste `activeSpeakers` sirasiyla uretiliyordu ->
+  /// biri her konustugunda sira degisiyor, izgara KOMPLE yikilip yeniden kuruluyor ve
+  /// her kutu bir an "Kamera duraklatildi"ya dusuyordu. (20 turdur kovaladigimiz
+  /// "donuyor/kararıyor" sinifinin AYNISI.) Denetimde yakalandi.
+  /// ⚠️ YAPMA: bunu tekrar sira duyarli yapma; ek listeyi `activeSpeakers` ile siralama.
+  static bool _kumeAyni(List<String> a, List<String> b) {
+    if (a.length != b.length) return false;
+    final sa = Set<String>.from(a);
+    return sa.length == Set<String>.from(b).length && sa.containsAll(b);
+  }
 
   /// iOS kucuk penceresinde BOLUNME acik mi. **SU AN ACIK (true) — turu 41-42'den beri.**
   ///
@@ -327,10 +345,13 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     }
     for (final p in uzaklar) {
       final ad = p.name.isNotEmpty ? p.name : (arama?.peerName ?? '?');
-      out.add(MiniKatilimci(_bantIlkVideo(p), ad));
+      final v = _miniVideo(p); // turu 52: mute track de gelir (kutu kalir, ortu biner)
+      out.add(MiniKatilimci(v.track, ad, beklemede: v.beklemede));
     }
     if (r.localParticipant != null) {
-      out.add(MiniKatilimci(yerelVideo, 'Sen', mirror: _frontCamera));
+      // Kendi kameram kapaliysa da ayni ortu (mor daire yerine tutarli gorunum).
+      out.add(MiniKatilimci(yerelVideo, 'Sen',
+          mirror: _frontCamera, beklemede: !_camOn));
     }
     return out;
   }
@@ -439,6 +460,22 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     return null;
   }
 
+  /// TEST TURU 52 — kucuk pencere kutusu icin: MUTE track de DONER (kutu KALIR, ustune
+  /// "Kamera duraklatildi" ortusu biner). `_bantIlkVideo` mute'u ELEDIGI icin kutu mor
+  /// daireye dusuyordu; artik uygulama ici / iOS PiP / Android PiP AYNI gorunuyor.
+  /// ⚠️ YAPMA: bunu `_bantIlkVideo` ile birlestirme — o, "canli video var mi" sorusunun
+  /// cevabi (buyuk kutu secimi) ve mute'u ELEMESI GEREKIYOR.
+  ({VideoTrack? track, bool beklemede}) _miniVideo(RemoteParticipant p) {
+    final canli = _bantIlkVideo(p);
+    if (canli != null) return (track: canli, beklemede: false);
+    for (final pub in p.videoTrackPublications) {
+      if (pub.subscribed && pub.track != null) {
+        return (track: pub.track as VideoTrack, beklemede: true);
+      }
+    }
+    return (track: null, beklemede: false);
+  }
+
   /// GORUNTULU ARAMA MI (canli): baslangic tipi video VEYA taraflardan biri kamerayi acmis.
   /// TEST TURU 14 KOK-1: eski kapi yalniz `_camOn || _uzakVideoVar()` bakiyordu — arka plana
   /// inince kamera OTOMATIK mute edildigi icin (_camOn=false) ve karsi taraf da alta alininca
@@ -484,6 +521,27 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       if (t != null) return t;
     }
     return null;
+  }
+
+  /// TEST TURU 52 — KUCUK PENCERE IZGARASI: ANA video DISINDAKI uzak katilimcilarin
+  /// video track id'leri. En fazla 7 dondurur: ana + 7 = 8 kutu.
+  ///
+  /// ⚠️ SIRALAMA KASITLI OLARAK SABIT (`remoteParticipants` sirasi): `activeSpeakers`
+  /// sirasi KULLANILMAZ. Kullanilsaydi biri her konustugunda liste yeniden dizilir,
+  /// izgara komple yikilip kurulur ve tum kutular bir an kararirdi (denetim bulgusu).
+  /// Kucuk pencerede "baskin konusani one al" ZATEN gereksiz — hepsi ayni anda gorunuyor.
+  /// ⚠️ YAPMA: buraya YEREL (kendi) track'imi ekleme — ben kose kutusundayim.
+  /// ⚠️ YAPMA: bu listeyi `activeSpeakers` ile siralama.
+  List<String> _ekUzakVideoTrackIdleri(String? anaId) {
+    final out = <String>[];
+    if (anaId == null) return out;
+    for (final p in _room?.remoteParticipants.values ?? const <RemoteParticipant>[]) {
+      final t = _ilkVideoTrackId(p);
+      if (t == null || t == anaId || out.contains(t)) continue;
+      if (out.length >= 7) break;
+      out.add(t);
+    }
+    return out;
   }
 
   /// TEST TURU 28: KENDI kamera track id'm (iOS PiP alt gorunumu). Yayinlanan track yoksa
@@ -606,6 +664,10 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
           final ok = await PipService.iosPipKur(trackId, kaynak: kaynak);
           _iosPipKurulanId = ok ? trackId : '';
           _iosPipYerelId = ''; // yeni kurulumda alt gorunum sifirlanir
+          // turu 52: native `birak()` izgara defterini de sildi -> izgara YENIDEN
+          // uygulansin. Bu satir olmadan PiP yeniden kurulunca izgara BIR DAHA HIC
+          // cizilmiyordu (denetim bulgusu).
+          _iosPipEkIdler = [];
         }
       }
       // TEST TURU 44 — "IKI KUTUDA DA BENI GOSTERIYOR" (kullanici testi).
@@ -631,7 +693,25 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       // Native `yerelAyarla` YALNIZ `callVC.view` uzerine alt gorunum ekler; `pipController`a
       // DOKUNMAZ -> bu yol pencereyi KAPATMAZ (turu 27-31 tasarimi).
       // ⚠️ YAPMA: kose kutusunu `iosPipKur` ile kurmaya calisma (pencere kapanir — turu 24/26).
-      if (pipBolunme && _iosPipKurulanId.isNotEmpty) {
+      // TEST TURU 52 — KUCUK PENCERE IZGARASI: ana video disindaki uzak katilimcilar.
+      // Native `ekKaynaklarAyarla` yalniz `yigin`i yeniden dizer; `pipController`a
+      // DOKUNMAZ -> pencere KAPANMAZ (yerelAyarla ile ayni guvenli desen).
+      // Duzen: 1 kutu tam · 2 kutu UST/ALT · 3-8 kutu 2 sutunlu satirlar.
+      // ⚠️ YAPMA: bunu `iosPipKur` ile yapma (pencere kapanir — turu 24/26 dersi).
+      if (_iosPipKurulanId.isNotEmpty) {
+        final ekler = _ekUzakVideoTrackIdleri(_iosPipKurulanId);
+        if (!_kumeAyni(ekler, _iosPipEkIdler)) {
+          _iosPipEkIdler = List<String>.from(ekler);
+          unawaited(PipService.iosPipEkKaynaklar(ekler));
+        }
+      }
+      // KOSE KUTUSU yalniz 1-2 UZAK kutu varken cizilir. IZGARA modunda (3+ kutu) kose
+      // kutusu bir katilimcinin USTUNU KAPATIYORDU (denetim bulgusu) — 4+ kiside herkes
+      // esit kutu, ben de izgaradayim. Bu, mini_izgara.dart'taki kuralla BIREBIR ayni.
+      // ⚠️ YAPMA: bu `_iosPipEkIdler.length <= 1` kapisini kaldirma.
+      if (pipBolunme &&
+          _iosPipKurulanId.isNotEmpty &&
+          _iosPipEkIdler.length <= 1) {
         // TURU 51 (30 Tem denetimi, YUKSEK risk) — "IKI KUTUDA DA BENI GOSTERIYOR":
         // eski sart yalniz `uzakId != null` bakiyordu. Yukaridaki sicak gecis (604)
         // BASARISIZ olursa `_iosPipKurulanId` YEREL id olarak kalir, ama `uzakId` null
@@ -678,6 +758,7 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       } else {
         _iosPipKurulanId = '';
         _iosPipYerelId = '';
+        _iosPipEkIdler = []; // turu 52: native defter bosaldi, izgara da sifirlansin
         await PipService.iosPipBirak();
       }
     }
@@ -875,6 +956,7 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     _iosPipKurulanId = ''; // iOS PiP (test turu 7): eski aramadan kurulum sarkmasin
     _iosPipYerelId = '';
     _koseKutusuBildirildi = false; // turu 51: yeni aramada kose kutusu bildirimi tazelensin
+    _iosPipEkIdler = []; // turu 52: eski aramanin izgara listesi sarkmasin
     _iosArkaPlanKamera = false; // iOS coklu-gorev kamera (test turu 9): eski aramadan sarkmasin
     _iosCokluGorevDeniyor = false;
     _isGroup = b.isGroup;
@@ -1226,7 +1308,9 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
               'ios pip olcum on=${o['on']} arka1=${o['arka1']} arka3=${o['arka']} '
               'yerelOn=${o['yerelOn']} yerel1=${o['yerel1']} yerel3=${o['yerel3']} '
               'kaynak=${o['kaynak']} oturum=${o['oturum']} coklu=${o['coklu']} '
-              'cagri=${o['cagri']} msMax=${o['msMax']} '
+              // turu 52: `iptal` = kac acilis iptal edildi. `cagri` artik YALNIZ tek bir
+              // arka plan gecisini kapsar (durdur()'da sifirlaniyor) — eskiden birikiyordu.
+              'cagri=${o['cagri']} iptal=${o['iptal']} msMax=${o['msMax']} '
               'durum=${o['durum']} pipAktif=${o['pipAktif']}'));
         }
         notifyListeners();

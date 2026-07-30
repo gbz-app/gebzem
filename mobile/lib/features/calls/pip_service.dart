@@ -210,6 +210,22 @@ class PipService {
   /// [trackId] null/bos -> alt gorunum kaldirilir (tek video, tam pencere).
   /// Donus: native sonuc metni ('eklendi' | 'track-yok' | 'yigin-yok' | 'kaldirildi' | 'ayni').
   /// TEST TURU 32: sessiz basarisizlik bitti — Dart bu sonucu Sentry'e yazar.
+  /// TEST TURU 52 — KUCUK PENCERE IZGARASI: ANA video DISINDAKI uzak katilimcilarin
+  /// video track id'leri. Native taraf `yigin`i yeniden dizer; `pipController`a
+  /// DOKUNMAZ, yani pencere KAPANMAZ.
+  /// Duzen: 1 kutu tam · 2 kutu UST/ALT · 3-8 kutu 2 sutunlu satirlar.
+  /// ⚠️ YAPMA: bunu `iosPipKur` ile yapma (pencere kapanir — turu 24/26 dersi).
+  static Future<String> iosPipEkKaynaklar(List<String> trackIdler) async {
+    if (!Platform.isIOS) return 'ios-degil';
+    try {
+      return (await _ch.invokeMethod<String>(
+              'iosPipEkKaynaklar', {'trackIdler': trackIdler})) ??
+          'bos';
+    } catch (e) {
+      return 'hata';
+    }
+  }
+
   static Future<String> iosPipYerel(String? trackId, {String harf = '?'}) async {
     if (!Platform.isIOS) return 'ios-degil';
     try {

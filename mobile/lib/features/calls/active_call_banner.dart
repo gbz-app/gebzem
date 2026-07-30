@@ -152,7 +152,11 @@ class _AktifAramaBannerState extends ConsumerState<AktifAramaBanner> {
           // yasadigi icin kucuk kutu CANLI olur.
           : miniIzgara([
               for (final k in katilimcilar)
-                MiniKutu(track: k.track, harf: k.ad, mirror: k.mirror),
+                MiniKutu(
+                    track: k.track,
+                    harf: k.ad,
+                    mirror: k.mirror,
+                    beklemede: k.beklemede),
             ], ustUste: true),
     );
   }
@@ -284,7 +288,11 @@ class _AktifAramaBannerState extends ConsumerState<AktifAramaBanner> {
                   // TEST TURU 41: karsi taraf tam pencere + BEN sag-altta kucuk kutu
                   miniIzgara([
                     for (final k in katilimcilar)
-                      MiniKutu(track: k.track, harf: k.ad, mirror: k.mirror),
+                      MiniKutu(
+                    track: k.track,
+                    harf: k.ad,
+                    mirror: k.mirror,
+                    beklemede: k.beklemede),
                   ], ustUste: true)
                 else
                   _bantAvatar(ad),

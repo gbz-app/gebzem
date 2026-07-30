@@ -136,6 +136,12 @@ import flutter_callkit_incoming
         let ya = call.arguments as? [String: Any]
         result(GebzemPip.shared.yerelAyarla(
           trackId: ya?["trackId"] as? String, harf: ya?["harf"] as? String ?? "?"))
+      case "iosPipEkKaynaklar":
+        // TEST TURU 52: kucuk pencere IZGARASI — ANA video disindaki uzak katilimcilar.
+        // Controller'a DOKUNMAZ (pencere kapanmaz), yalniz `yigin` yeniden dizilir.
+        let ea = call.arguments as? [String: Any]
+        let idler = (ea?["trackIdler"] as? [Any])?.compactMap { $0 as? String } ?? []
+        result(GebzemPip.shared.ekKaynaklarAyarla(trackIdler: idler))
       case "iosPipKaynak":
         // TEST TURU 39: pencereyi KAPATMADAN gosterilen videoyu degistir
         let a = call.arguments as? [String: Any]
@@ -285,10 +291,35 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
   private var yerelTrackId: String?
   private var yerelGorunum: PipVideoView?
   private var yerelRenderer: PipRenderer?
+
+  // ---- TEST TURU 52: COKLU UZAK KATILIMCI (kucuk pencere izgarasi) ----
+  // Kullanici: "3 kisi oldugunda alta alinca ust/alt olsun, ben sagda kucuk kalayim."
+  // ANA video (`videoView`) yigindaki ILK kutudur; buraya EK uzak katilimcilar girer.
+  // Kimlik (`kurulanId`) YALNIZ ana track'tir — ek kutular degisse bile `pipController`a
+  // DOKUNULMAZ, yani pencere KAPANMAZ (turu 24/26 dersi, `yerelAyarla` ile ayni desen).
+  private var ekGorunumler: [PipVideoView] = []
+  private var ekRendererlar: [PipRenderer] = []
+  private var ekTrackler: [RTCVideoTrack] = []
+  private var ekTrackIdler: [String] = []
+  private var satirYiginlari: [UIStackView] = []
+  // Ek kutular icin kare gozcusu durumu (ana ve kose kutusuyla AYNI mantik).
+  // ⚠️ Bu olmadan izgaradaki kutular donunca KIMSE fark etmiyordu — turu 39/48'de
+  // kapattigimiz "donmus kare" deligi ek kutular icin YENIDEN acilmis oluyordu.
+  private var ekSonKare: [Int] = []
+  private var ekSabitTik: [Int] = []
   private var kurulanId: String?
   private var baslatIstendi = false // turu 46: tek baslatma kapisi
   private var baslatKoruma: Timer?
   var baslatCagri = 0   // olcum: kac kez baslatildi
+  /// TEST TURU 52 — OLCUM DUZELTMESI. `baslatCagri`nin TEK sifirlama yeri
+  /// `kareOlcumuBaslat()`in +3sn blogu; o da YALNIZ didStart'in BASARILI dalindan
+  /// cagriliyor. Iptal edilen (uygulama on planda) ve `failedToStart` olan acilislar
+  /// sayaci artirip HIC sifirlamiyordu -> `cagri` tek bir alta almayi degil, son BASARILI
+  /// olcumden bu yana BIRIKEN tum gecisleri sayiyordu. Kullanicinin gordugu 2 -> 4 -> 10
+  /// tam olarak bu birikimdi; "10 kez ust uste istendi" YORUMU YANLISTI.
+  /// Artik iptaller AYRI sayilir ve sayaclar HER ARKA PLANA GECISTE sifirlanir.
+  /// ⚠️ YAPMA: sayaclari yalniz basarili dalda sifirlamaya donme (olcum yine bulanir).
+  var iptalCagri = 0    // olcum: kac acilis iptal edildi (uygulama on planda / failedToStart)
   var baslatMsMax = 0   // olcum: startPictureInPicture ana is parcacigini kac ms blokladi
   private var iptalIstendi = false // turu 29: on plana donuldu -> bekleyen baslatmayi iptal et
 
@@ -397,7 +428,7 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
       let ozet = "on=\(self.onPlanKare) arka1=\(arka1) arka3=\(arka3)"
         + " yerelOn=\(self.yerelOnPlanKare) yerel1=\(yerel1) yerel3=\(yerel3)"
         + " kaynak=\(self.kurulanKaynak) oturum=\(oturum) coklu=\(coklu)"
-        + " cagri=\(self.baslatCagri) msMax=\(self.baslatMsMax)"
+        + " cagri=\(self.baslatCagri) iptal=\(self.iptalCagri) msMax=\(self.baslatMsMax)"
         + " durum=\(durum) pipAktif=\(pipAktif)"
       NSLog("gebzem/pip olcum \(ozet)")
       self.kanal?.invokeMethod("iosPipOlcum", arguments: [
@@ -406,10 +437,12 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
         "kaynak": self.kurulanKaynak, "oturum": oturum, "coklu": coklu,
         // turu 46: tek home hareketinde kac baslatma istegi indi ve en uzun
         // startPictureInPicture cagrisi ana is parcacigini kac ms blokladi
-        "cagri": self.baslatCagri, "msMax": self.baslatMsMax,
+        "cagri": self.baslatCagri, "iptal": self.iptalCagri,
+        "msMax": self.baslatMsMax,
         "durum": durum, "pipAktif": pipAktif,
       ])
       self.baslatCagri = 0
+      self.iptalCagri = 0
       self.baslatMsMax = 0
     }
   }
@@ -447,6 +480,26 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
             self.yerelGorunum?.displayLayer.flushAndRemoveImage()
             self.yerelGorunum?.kareKesildi()
             NSLog("gebzem/pip kose kutusu: kare durdu -> etiket")
+          }
+        }
+      }
+
+      // TURU 52: IZGARADAKI EK KUTULAR — her biri BAGIMSIZ denetlenir (kose kutusuyla
+      // ayni desen). 3 tik (~1.5sn) kare gelmezse katman bosaltilir -> donmus kare yerine
+      // durust etiket. ⚠️ YAPMA: bu blogu buyuk kutunun erken-donus dalinin ALTINA tasima
+      // (turu 48'de tam bu hata yuzunden kose kutusunun donmasi HIC fark edilmemisti).
+      for i in 0..<self.ekRendererlar.count where i < self.ekGorunumler.count
+        && i < self.ekSonKare.count && i < self.ekSabitTik.count {
+        let en = self.ekRendererlar[i].toplamKare
+        if en != self.ekSonKare[i] {
+          self.ekSonKare[i] = en
+          self.ekSabitTik[i] = 0
+        } else {
+          self.ekSabitTik[i] += 1
+          if self.ekSabitTik[i] == 3 {
+            self.ekGorunumler[i].displayLayer.flushAndRemoveImage()
+            self.ekGorunumler[i].kareKesildi()
+            NSLog("gebzem/pip izgara kutusu \(i): kare durdu -> etiket")
           }
         }
       }
@@ -766,15 +819,19 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
     // ⚠️ iOS ARKA PLANDA kamerayi DURDURUR (olcum: oturum=false, kesinti sebep=1). O yuzden
     // kutu DONMUS KARE gostermesin diye kare gozcusu 1.5sn kare gormezse `kareKesildi()`
     // ile etiket/avatar gorunumune duser. Kutu HEP durur, icerigi durusttur.
-    let yv = PipVideoView(frame: CGRect(x: 0, y: 0, width: 44, height: 58))
-    yv.etiketiAyarla(harf)
-    yv.layer.cornerRadius = 5
+    // TEST TURU 52 — GORUNUM (kullanici karari 31 Tem):
+    //  · CERCEVE (borderWidth/borderColor) KALDIRILDI — buyuk ekrandaki kutuda da yok.
+    //  · Kose yaricapi 5 -> 14 (buyuk ekrandaki kutuyla AYNI: call_screen.dart `_videoKutu`).
+    //  · YUKSEKLIK %10 KUCULDU: en-boy 4:3 (1.333) -> 6:5 (1.2).
+    //  · Genislik carpani 0.34 ve kenar bosluklari (-5) DEGISMEDI.
+    //  · Ayni sayilar Android/Flutter tarafinda da (`mini_izgara.dart` `koseli`) kullanilir.
+    // ⚠️ YAPMA: cerceveyi geri ekleme; `masksToBounds`u kaldirma (o cerceve degil, kose kirpma).
+    let yv = PipVideoView(frame: CGRect(x: 0, y: 0, width: 44, height: 53))
+    yv.layer.cornerRadius = 14
     yv.layer.masksToBounds = true
-    yv.layer.borderWidth = 0.5
-    yv.layer.borderColor = UIColor(white: 1, alpha: 0.25).cgColor
     let yr = PipRenderer(view: yv)
     yerel.add(yr)
-    // Yigina DEGIL, pencerenin USTUNE koseye yerlestir (kisitlarla, %34 genislik / 4:3).
+    // Yigina DEGIL, pencerenin USTUNE koseye yerlestir (kisitlarla, %34 genislik / 6:5).
     if let kok = callVC?.view {
       yv.translatesAutoresizingMaskIntoConstraints = false
       kok.addSubview(yv)
@@ -782,7 +839,7 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
         yv.trailingAnchor.constraint(equalTo: kok.trailingAnchor, constant: -5),
         yv.bottomAnchor.constraint(equalTo: kok.bottomAnchor, constant: -5),
         yv.widthAnchor.constraint(equalTo: kok.widthAnchor, multiplier: 0.34),
-        yv.heightAnchor.constraint(equalTo: yv.widthAnchor, multiplier: 4.0 / 3.0),
+        yv.heightAnchor.constraint(equalTo: yv.widthAnchor, multiplier: 6.0 / 5.0),
       ])
       kok.layoutIfNeeded()
     } else {
@@ -797,6 +854,94 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
     return "eklendi"
   }
 
+  /// TEST TURU 52 — KUCUK PENCERE IZGARASI (coklu uzak katilimci).
+  /// [trackIdler]: ANA video DISINDAKI uzak katilimcilarin video track id'leri.
+  /// Duzen (ana + ekler = toplam kutu):
+  ///   1 kutu  -> tam pencere
+  ///   2 kutu  -> UST / ALT  (kullanici: "3 kisi olunca ust alt, ben sagda kucuk")
+  ///   3-8     -> 2 sutunlu satirlar; son satirda tek kalirsa TAM GENISLIK
+  /// KOSE KUTUSU (ben) bundan BAGIMSIZ — `yerelAyarla` ile `callVC.view` uzerinde durur.
+  ///
+  /// ⚠️ KRITIK: bu metot `pipController`/`callVC`/`kurulanId`a DOKUNMAZ. Yalniz `yigin`
+  /// icindeki gorunumler yeniden dizilir -> `stopPictureInPicture()` CAGRILMAZ, pencere
+  /// KAPANMAZ (turu 24/26 dersi; `yerelAyarla` ile birebir ayni guvenli desen).
+  /// ⚠️ YAPMA: ana video gorunumunu (`videoView`) yok etme — yalniz yerini degistir;
+  /// yok edersen ana renderer'in katmani kopar ve buyuk kutu kararir.
+  @discardableResult
+  func ekKaynaklarAyarla(trackIdler: [String]) -> String {
+    guard let yigin = yigin, let ana = videoView, callVC != nil else { return "yigin-yok" }
+    if ekTrackIdler == trackIdler { return "ayni" }
+
+    // ---- Eskiyi sok (renderer'lar MEZARLIGA — ucustaki kare cokmesin, turu 51) ----
+    for (i, t) in ekTrackler.enumerated() where i < ekRendererlar.count {
+      t.remove(ekRendererlar[i])
+      PipRenderer.mezaraKoy(ekRendererlar[i])
+    }
+    ekTrackler.removeAll()
+    ekRendererlar.removeAll()
+    ekTrackIdler.removeAll()
+    ekSonKare.removeAll()
+    ekSabitTik.removeAll()
+    for v in ekGorunumler {
+      v.displayLayer.flushAndRemoveImage()
+      v.removeFromSuperview()
+    }
+    ekGorunumler.removeAll()
+    for s in satirYiginlari {
+      yigin.removeArrangedSubview(s)
+      s.removeFromSuperview()
+    }
+    satirYiginlari.removeAll()
+    // Ana gorunumu yigindan AYIR (YOK ETME — renderer'i ona kare basmaya devam ediyor)
+    yigin.removeArrangedSubview(ana)
+    ana.removeFromSuperview()
+
+    // ---- Yeni track'leri coz (yalniz CANLI olanlar; turu 51 kor-secim dersi) ----
+    let eklenti = FlutterWebRTCPlugin.sharedSingleton()
+    var kutular: [PipVideoView] = [ana]
+    for tid in trackIdler {
+      var b = eklenti?.remoteTrack(forId: tid) as? RTCVideoTrack
+      if b == nil { b = eklenti?.track(forId: tid, peerConnectionId: nil) as? RTCVideoTrack }
+      guard let t = b, t.readyState == .live, t.isEnabled else {
+        NSLog("gebzem/pip ek kaynak ATLANDI (canli degil) id=\(tid)")
+        continue
+      }
+      let v = PipVideoView(frame: CGRect(x: 0, y: 0, width: 120, height: 100))
+      let r = PipRenderer(view: v)
+      t.add(r)
+      ekGorunumler.append(v)
+      ekRendererlar.append(r)
+      ekTrackler.append(t)
+      ekTrackIdler.append(tid)
+      ekSonKare.append(-1) // gozcu durumu (turu 52)
+      ekSabitTik.append(0)
+      kutular.append(v)
+    }
+
+    // ---- Duzen ----
+    if kutular.count <= 2 {
+      // 1 kutu: tam pencere · 2 kutu: UST / ALT (yigin zaten dikey fillEqually)
+      for v in kutular { yigin.addArrangedSubview(v) }
+    } else {
+      // 3-8 kutu: 2 sutunlu satirlar. Son satirda TEK kutu kalirsa yatay yigin tek
+      // eleman icerir ve fillEqually sayesinde TAM GENISLIK olur.
+      var i = 0
+      while i < kutular.count {
+        let son = min(i + 2, kutular.count)
+        let satir = UIStackView(arrangedSubviews: Array(kutular[i..<son]))
+        satir.axis = .horizontal
+        satir.distribution = .fillEqually
+        satir.spacing = 1
+        yigin.addArrangedSubview(satir)
+        satirYiginlari.append(satir)
+        i = son
+      }
+    }
+    yigin.layoutIfNeeded()
+    NSLog("gebzem/pip izgara: \(kutular.count) kutu (ana + \(ekGorunumler.count) ek)")
+    return "eklendi:\(kutular.count)"
+  }
+
   /// TEST TURU 25: uygulama ON PLANA donunce PiP penceresini KAPAT. iOS gecici "inactive"
   /// anlarinda (bildirim/kontrol merkezi, izin uyarisi) PiP basliyor, uygulama geri gelince
   /// pencere ASILI kaliyordu (kullanici: "iPhone'da yine PiP kucuk ekranin ustunde cikiyor").
@@ -806,6 +951,15 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
   /// USTUNDE asili kaliyordu. `iptalIstendi` ile GEC gelen didStart da durdurulur.
   func durdur() {
     baslatKilidiAc()
+    // TURU 52 — OLCUM PENCERESI: `durdur()` uygulama ON PLANA donunce KOSULSUZ cagriliyor
+    // (Dart `resumed` dali). Yani burasi "bir arka plan gecisi bitti" anidir. Sayaclari
+    // BURADA sifirlamak, `cagri`/`iptal` degerlerinin TEK BIR alta almaya ait olmasini
+    // garanti eder. Eskiden yalniz BASARILI olcumde sifirlaniyordu ve degerler
+    // birikiyordu (kullanicinin gordugu 2 -> 4 -> 10).
+    // ⚠️ YAPMA: bu sifirlamayi kaldirma (olcum yine bulanir ve yanlis teshise goturur).
+    baslatCagri = 0
+    iptalCagri = 0
+    baslatMsMax = 0
     iptalIstendi = true
     // TURU 51: gozcu SADECE `birak()` ve `gozcuBaslat()` basinda duruyordu; `durdur()` ve
     // didStop yolunda calismaya devam edip PiP kapandiktan SONRA da sink ameliyati
@@ -829,6 +983,22 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
       yt.remove(yr)
       PipRenderer.mezaraKoy(yr)
     }
+    // TURU 52: izgaradaki EK uzak kutular da sokulur (sink defterinde sarkmasin)
+    for (i, t) in ekTrackler.enumerated() where i < ekRendererlar.count {
+      t.remove(ekRendererlar[i])
+      PipRenderer.mezaraKoy(ekRendererlar[i])
+    }
+    ekTrackler.removeAll()
+    ekRendererlar.removeAll()
+    ekTrackIdler.removeAll()
+    ekSonKare.removeAll()
+    ekSabitTik.removeAll()
+    for v in ekGorunumler {
+      v.displayLayer.flushAndRemoveImage()
+      v.removeFromSuperview()
+    }
+    ekGorunumler.removeAll()
+    satirYiginlari.removeAll()
     yerelGorunum?.displayLayer.flushAndRemoveImage()
     yerelGorunum?.kareKesildi()
     yerelTrack = nil
@@ -868,6 +1038,7 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
     if iptalIstendi || UIApplication.shared.applicationState == .active {
       NSLog("gebzem/pip iOS PiP basladi ama uygulama ON PLANDA -> kapatiliyor")
       iptalIstendi = false
+      iptalCagri += 1 // turu 52: iptaller AYRI sayilir (olcum bulanmasin)
       c.stopPictureInPicture()
       return
     }
@@ -977,19 +1148,26 @@ final class PipVideoView: UIView {
   /// ama icine KARE AKMIYOR (kamera arka planda durmus). Bos siyah kutu yerine "Kamera
   /// duraklatildi" yazisi cizilir; ilk kare gelince kendiliginden gizlenir.
   private let etiket = UILabel()
-  /// TEST TURU 43: kose kutusu kare almadiginda kullanici "siyah kutu" goruyordu (koyu zemin
-  /// + 9pt yazi). Artik MOR DAIRE + BEYAZ BAS HARF (uygulamanin avatar deseni) cizilir —
-  /// bakinca "kapali kamera" oldugu anlasilir, siyah delik gibi durmaz.
-  private let daire = UIView()
+  /// TEST TURU 52 — TUTARLI GORUNUM (kullanici: "yazinin arkasinda BAZEN mor daire var,
+  /// hep ayni olsun, uygulama icindeki gibi"). Turu 43'te eklenen MOR DAIRE kaldirildi;
+  /// artik Flutter'daki `BeklemedeOrtusu` ile AYNI dil: koyu zemin + SIYAH SEFFAF HAP
+  /// icinde beyaz yazi. Boylece uygulama ici, iOS PiP ve Android PiP AYNI gorunur.
+  /// NOT: `UIVisualEffectView` (blur) EKLENMEDI — katman `flushAndRemoveImage()` ile
+  /// bosaltildigi icin bulaniklastirilacak goruntu KALMIYOR (blur'un gorsel etkisi olmaz)
+  /// ve AVSampleBufferDisplayLayer uzerine blur bindirmek risklidir.
+  /// ⚠️ YAPMA: mor daireyi geri ekleme; buraya UIVisualEffectView koyma.
+  private let hap = UIView()
 
   override init(frame: CGRect) {
     super.init(frame: frame)
     displayLayer.videoGravity = .resizeAspectFill
     backgroundColor = UIColor(red: 0.09, green: 0.13, blue: 0.16, alpha: 1)
 
-    daire.backgroundColor = UIColor(red: 0.42, green: 0.17, blue: 0.85, alpha: 1) // 0xFF6C2BD9
-    daire.translatesAutoresizingMaskIntoConstraints = false
-    addSubview(daire)
+    hap.backgroundColor = UIColor(white: 0, alpha: 0.55)
+    hap.layer.cornerRadius = 9
+    hap.layer.masksToBounds = true
+    hap.translatesAutoresizingMaskIntoConstraints = false
+    addSubview(hap)
 
     etiket.text = "Kamera duraklatıldı"
     etiket.textColor = .white
@@ -997,42 +1175,35 @@ final class PipVideoView: UIView {
     etiket.textAlignment = .center
     etiket.numberOfLines = 2
     etiket.translatesAutoresizingMaskIntoConstraints = false
-    addSubview(etiket)
+    hap.addSubview(etiket)
     NSLayoutConstraint.activate([
-      daire.centerXAnchor.constraint(equalTo: centerXAnchor),
-      daire.centerYAnchor.constraint(equalTo: centerYAnchor),
-      daire.widthAnchor.constraint(equalTo: widthAnchor, multiplier: 0.42),
-      daire.heightAnchor.constraint(equalTo: daire.widthAnchor),
-      etiket.centerXAnchor.constraint(equalTo: daire.centerXAnchor),
-      etiket.centerYAnchor.constraint(equalTo: daire.centerYAnchor),
-      etiket.leadingAnchor.constraint(greaterThanOrEqualTo: leadingAnchor, constant: 3),
-      etiket.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -3),
+      hap.centerXAnchor.constraint(equalTo: centerXAnchor),
+      hap.centerYAnchor.constraint(equalTo: centerYAnchor),
+      hap.leadingAnchor.constraint(greaterThanOrEqualTo: leadingAnchor, constant: 4),
+      hap.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -4),
+      etiket.topAnchor.constraint(equalTo: hap.topAnchor, constant: 4),
+      etiket.bottomAnchor.constraint(equalTo: hap.bottomAnchor, constant: -4),
+      etiket.leadingAnchor.constraint(equalTo: hap.leadingAnchor, constant: 7),
+      etiket.trailingAnchor.constraint(equalTo: hap.trailingAnchor, constant: -7),
     ])
   }
 
-  override func layoutSubviews() {
-    super.layoutSubviews()
-    daire.layer.cornerRadius = daire.bounds.width / 2
-    daire.layer.masksToBounds = true
-  }
-
-  /// Kare akiyor mu bilgisi (PipRenderer cagirir; ana kuyrukta).
-  /// TEST TURU 42: kose kutusunda uzun yazi sigmaz — bas harf gosterilir.
+  /// Etiket metnini degistir. TURU 52: tum kutular AYNI yaziyi gosterdigi icin bu artik
+  /// yalniz ozel durumlar icin duruyor (kose kutusu da varsayilan yaziyi kullanir).
   func etiketiAyarla(_ metin: String) {
     etiket.text = metin
-    etiket.font = .systemFont(ofSize: metin.count <= 2 ? 18 : 9, weight: .semibold)
   }
 
   func kareGeldi() {
     if etiket.isHidden { return }
     etiket.isHidden = true
-    daire.isHidden = true
+    hap.isHidden = true
   }
 
   func kareKesildi() {
     if !etiket.isHidden { return }
     etiket.isHidden = false
-    daire.isHidden = false
+    hap.isHidden = false
   }
 
   required init?(coder: NSCoder) { fatalError() }
@@ -1041,7 +1212,21 @@ final class PipVideoView: UIView {
 @available(iOS 15.0, *)
 final class PipRenderer: NSObject, RTCVideoRenderer {
   private weak var view: PipVideoView?
-  private let kuyruk = DispatchQueue(label: "gebzem.pip.frame", qos: .userInteractive)
+  /// TURU 52 — TEK PAYLASILAN KUYRUK. Eskiden her PipRenderer KENDI `.userInteractive`
+  /// kuyrugunu aciyordu; izgarada 8 kutu = 8 yuksek oncelikli kuyruk, hepsi ayni anda
+  /// kare donusturuyor ve arka planda CPU'yu doyuruyordu. Artik hepsi TEK seri kuyrukta
+  /// sirayla islenir (`.userInitiated` yeterli — 30fps video icin fazlasiyla hizli).
+  /// ⚠️ YAPMA: bunu tekrar ornek-basina kuyruga cevirme.
+  private static let kuyruk =
+    DispatchQueue(label: "gebzem.pip.frame", qos: .userInitiated)
+  private var kuyruk: DispatchQueue { Self.kuyruk }
+
+  /// TURU 52 — PIKSEL ARABELLEK HAVUZU: `i420ToPixelBuffer` her karede YENI CVPixelBuffer
+  /// ayiriyordu (8 kutu x 30fps = saniyede 240 ayirma/serbest birakma). Havuz ile ayni
+  /// arabellek yeniden kullanilir. ⚠️ YAPMA: havuzu kaldirip her karede CVPixelBufferCreate'e donme.
+  private var havuz: CVPixelBufferPool?
+  private var havuzEn = 0
+  private var havuzBoy = 0
 
   // ---- TEST TURU 51 — COKME ONLEME (Sentry kaniti: 29 Tem 18:39, son iz
   // `app.lifecycle: background`, EXC_BAD_ACCESS KERN_INVALID_ADDRESS 0x6c8, yigin
@@ -1162,14 +1347,28 @@ final class PipRenderer: NSObject, RTCVideoRenderer {
 
   private func i420ToPixelBuffer(_ b: RTCI420Buffer) -> CVPixelBuffer? {
     let w = Int(b.width), h = Int(b.height)
-    let attrs: [CFString: Any] = [
-      kCVPixelBufferIOSurfacePropertiesKey: [:],
-      kCVPixelBufferCGImageCompatibilityKey: true,
-      kCVPixelBufferCGBitmapContextCompatibilityKey: true,
-    ]
+    // TURU 52: HAVUZ — cozunurluk degismedikce ayni arabellekler yeniden kullanilir.
+    // Eskiden her karede CVPixelBufferCreate cagriliyordu; izgarada 8 kutu x 30fps =
+    // saniyede ~240 ayirma. Havuz bunu neredeyse sifira indirir.
+    if havuz == nil || havuzEn != w || havuzBoy != h {
+      let attrs: [CFString: Any] = [
+        kCVPixelBufferIOSurfacePropertiesKey: [:],
+        kCVPixelBufferCGImageCompatibilityKey: true,
+        kCVPixelBufferCGBitmapContextCompatibilityKey: true,
+        kCVPixelBufferPixelFormatTypeKey: kCVPixelFormatType_420YpCbCr8BiPlanarFullRange,
+        kCVPixelBufferWidthKey: w,
+        kCVPixelBufferHeightKey: h,
+      ]
+      var yeni: CVPixelBufferPool?
+      guard CVPixelBufferPoolCreate(kCFAllocatorDefault, nil,
+        attrs as CFDictionary, &yeni) == kCVReturnSuccess, let yeni = yeni else { return nil }
+      havuz = yeni
+      havuzEn = w
+      havuzBoy = h
+    }
     var pb: CVPixelBuffer?
-    guard CVPixelBufferCreate(kCFAllocatorDefault, w, h,
-      kCVPixelFormatType_420YpCbCr8BiPlanarFullRange, attrs as CFDictionary, &pb) == kCVReturnSuccess,
+    guard let h0 = havuz,
+      CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, h0, &pb) == kCVReturnSuccess,
       let pb = pb else { return nil }
     guard CVPixelBufferLockBaseAddress(pb, []) == kCVReturnSuccess else { return nil }
     defer { CVPixelBufferUnlockBaseAddress(pb, []) }

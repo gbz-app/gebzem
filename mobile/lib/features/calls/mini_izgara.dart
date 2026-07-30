@@ -21,33 +21,68 @@ import 'package:livekit_client/livekit_client.dart' as lk;
 /// iPhone'un SISTEM PiP'inde kamera OS tarafindan durdurulur (olcum: oturum=false,
 /// kesinti sebep=1 videoDeviceNotAvailableInBackground) -> orada kucuk kutu DONMUS KARE
 /// olurdu; o pencere native cizildigi icin buraya zaten ugramaz.
+/// TEST TURU 52 — 8 KISIYE KADAR IZGARA (kullanici karari 31 Tem).
+/// KURAL (WhatsApp deseni; [kutular] listesinde BEN her zaman SONDAYIM):
+///   · 2 kisi  -> karsi taraf TAM pencere, BEN sag-altta kucuk kutu (ustune biner)
+///   · 3 kisi  -> iki karsi taraf UST/ALT, BEN yine sag-altta kucuk kutu
+///   · 4-8     -> HERKES ESIT KUTU: 2 sutun, son satirda tek kalirsa TAM GENISLIK
+///     (4: 2x2 · 5: 2+2+1 · 6: 2x3 · 7: 2+2+2+1 · 8: 2x4)
+///   · 8'den fazlasi -> ilk 8 kutu + sag-altta "+N" rozeti
+/// ⚠️ YAPMA: 2/3 kisideki kose kutusunu izgaraya cevirme (kullanici WhatsApp gorunumu
+/// istedi); 8'den fazla kutu cizme (74x64pt'ye duser, okunmaz).
+const int kMiniEnFazlaKutu = 8;
+
 Widget miniIzgara(List<Widget> kutular, {bool ustUste = false}) {
   final hepsi = kutular.length;
   if (hepsi == 0) return const SizedBox.shrink();
-  final n = hepsi > 4 ? 4 : hepsi;
   const bosluk = 2.0;
 
-  // 2 kisi + ustUste: buyuk = ilk kutu (karsi taraf), kucuk = son kutu (BEN, sag-alt kose).
-  if (n == 2 && ustUste) {
-    return LayoutBuilder(builder: (_, c) {
-      final kw = c.maxWidth * 0.34; // pencere dar oldugu icin oran-bazli
-      final kh = kw * 4 / 3;
-      return Stack(children: [
-        Positioned.fill(child: kutular[0]),
-        Positioned(
-          right: 5,
-          bottom: 5,
-          width: kw,
-          height: kh > c.maxHeight * 0.45 ? c.maxHeight * 0.45 : kh,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(7),
-            child: kutular[1],
+  /// Sag-alt kose kutusu (BEN) — buyuk gorunumun USTUNE biner.
+  /// TEST TURU 52 — iOS native kutusuyla BIREBIR AYNI olcu (kullanici: "ayni olculer
+  /// Android'de de olsun"): genislik %34, en-boy 6:5 (eskiden 4:3 — %10 kisaldi),
+  /// kose yaricapi 14 (buyuk ekrandaki kutuyla ayni), CERCEVE YOK, kenar boslugu 5.
+  /// ⚠️ YAPMA: bu sayilari iOS tarafindan (AppDelegate `yerelAyarla`) ayirma —
+  /// ikisi ayni gorunmek zorunda.
+  Widget koseli(Widget buyuk, Widget ben) => LayoutBuilder(builder: (_, c) {
+        final kw = c.maxWidth * 0.34; // pencere dar oldugu icin oran-bazli
+        final kh = kw * 6 / 5; // %10 kisaldi (4:3 -> 6:5)
+        final tavan = c.maxHeight * 0.405; // 0.45'ten %10 dusuruldu (ayni oran)
+        return Stack(children: [
+          Positioned.fill(child: buyuk),
+          Positioned(
+            right: 5,
+            bottom: 5,
+            width: kw,
+            height: kh > tavan ? tavan : kh,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: ben,
+            ),
           ),
-        ),
-      ]);
-    });
+        ]);
+      });
+
+  // 2 kisi: karsi taraf TAM + BEN kosede (turu 41 davranisi, AYNEN korundu).
+  if (hepsi == 2 && ustUste) return koseli(kutular[0], kutular[1]);
+
+  // 3 kisi: iki karsi taraf UST/ALT + BEN kosede (turu 52 — kullanici: "1 yukari
+  // 2 asagi, ben sagda kucuk"). Kucuk pencere DAR oldugu icin iki dikey goruntuyu
+  // yan yana koymak asiri kirpiyordu; ust/alt dogru duruyor (turu 24 dersi).
+  if (hepsi == 3 && ustUste) {
+    return koseli(
+      Column(children: [
+        Expanded(child: kutular[0]),
+        const SizedBox(height: bosluk),
+        Expanded(child: kutular[1]),
+      ]),
+      kutular[2],
+    );
   }
 
+  final n = hepsi > kMiniEnFazlaKutu ? kMiniEnFazlaKutu : hepsi;
+
+  // Son satirda TEK kutu kalirsa: tek `Expanded` satirin TAMAMINI kaplar, yani kutu
+  // kendiliginden TAM GENISLIK olur (yarim genislikte solda kalmaz) — ek kod gerekmez.
   Widget satir(List<Widget> ogeler) => Row(children: [
         for (var i = 0; i < ogeler.length; i++) ...[
           if (i > 0) const SizedBox(width: bosluk),
@@ -59,29 +94,30 @@ Widget miniIzgara(List<Widget> kutular, {bool ustUste = false}) {
   if (n == 1) {
     icerik = kutular[0];
   } else if (n == 2) {
-    // 2 kisi: UST - ALT (test turu 24 kullanici istegi — kucuk pencere dar oldugu icin
-    // yan yana iki dikey goruntu cok kirpiliyordu; ust/alt daha dogru gorunuyor).
+    // 2 kisi (kose kutusu KAPALI yol): UST - ALT (turu 24 kullanici istegi).
     icerik = Column(children: [
       Expanded(child: kutular[0]),
       const SizedBox(height: bosluk),
       Expanded(child: kutular[1]),
     ]);
-  } else if (n == 3) {
-    // 3 kisi: ustte 2 yan yana, ALTTA 1 TAM GENISLIK
-    icerik = Column(children: [
-      Expanded(child: satir([kutular[0], kutular[1]])),
-      const SizedBox(height: bosluk),
-      Expanded(child: kutular[2]),
-    ]);
   } else {
-    // 4 kisi: 2x2 CEYREK (sol-ust, sag-ust, sol-alt, sag-alt)
+    // 3-8 kisi: 2 SUTUN, son satirda tek kalirsa TAM GENISLIK.
+    // (Tam ekran grup izgarasiyla AYNI kural — tutarli gorunum.)
+    const sutun = 2;
+    final satirSayisi = (n + sutun - 1) ~/ sutun;
     icerik = Column(children: [
-      Expanded(child: satir([kutular[0], kutular[1]])),
-      const SizedBox(height: bosluk),
-      Expanded(child: satir([kutular[2], kutular[3]])),
+      for (var r = 0; r < satirSayisi; r++) ...[
+        if (r > 0) const SizedBox(height: bosluk),
+        Expanded(
+          child: satir([
+            for (var i = r * sutun; i < ((r + 1) * sutun).clamp(0, n); i++)
+              kutular[i],
+          ]),
+        ),
+      ],
     ]);
   }
-  if (hepsi <= 4) return icerik;
+  if (hepsi <= kMiniEnFazlaKutu) return icerik;
   return Stack(children: [
     Positioned.fill(child: icerik),
     Positioned(
@@ -91,7 +127,7 @@ Widget miniIzgara(List<Widget> kutular, {bool ustUste = false}) {
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
         decoration: BoxDecoration(
             color: Colors.black54, borderRadius: BorderRadius.circular(8)),
-        child: Text('+${hepsi - 4}',
+        child: Text('+${hepsi - kMiniEnFazlaKutu}',
             style: const TextStyle(color: Colors.white, fontSize: 11)),
       ),
     ),
@@ -99,40 +135,70 @@ Widget miniIzgara(List<Widget> kutular, {bool ustUste = false}) {
 }
 
 /// Kucuk pencere kutusu: video VARSA render, yoksa harf avatari (kamera kapali / sesli).
+/// TEST TURU 52 — TUTARLI "KAMERA DURAKLATILDI" GORUNUMU.
+/// Kullanici: "yazinin arkasinda BAZEN mor daire var, hep ayni olsun."
+/// Ayni durum eskiden UC FARKLI bicimde ciziliyordu: uygulama icinde blur+yazi,
+/// iOS PiP'te mor daire+yazi, Android PiP'te mor daire+HARF (yazi YOK).
+/// Artik UC yerde de AYNI: koyu zemin + siyah seffaf hap icinde beyaz yazi.
+/// ⚠️ YAPMA: buraya CircleAvatar / mor daire geri koyma.
+class _DuraklatildiOrtusu extends StatelessWidget {
+  const _DuraklatildiOrtusu();
+  static const metin = 'Kamera duraklatıldı';
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: const Color(0xFF16202A),
+      alignment: Alignment.center,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.55),
+          borderRadius: BorderRadius.circular(9),
+        ),
+        child: Text(
+          metin,
+          textAlign: TextAlign.center,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+              color: Colors.white, fontSize: 9, fontWeight: FontWeight.w600),
+        ),
+      ),
+    );
+  }
+}
+
 class MiniKutu extends StatelessWidget {
   const MiniKutu({
     super.key,
     this.track,
     this.harf = '?',
     this.mirror = false,
+    this.beklemede = false,
   });
 
   final lk.VideoTrack? track;
   final String harf;
   final bool mirror;
 
+  /// Track VAR ama kamera KAPALI: son kare yerine ortu cizilir (donmus kare gostermeyiz).
+  final bool beklemede;
+
   @override
   Widget build(BuildContext context) {
     final t = track;
-    if (t != null) {
-      return IgnorePointer(
-        child: lk.VideoTrackRenderer(t,
-            key: ValueKey('mini-${t.mediaStreamTrack.id}'),
-            fit: lk.VideoViewFit.cover,
-            mirrorMode: mirror
-                ? lk.VideoViewMirrorMode.mirror
-                : lk.VideoViewMirrorMode.off),
-      );
+    if (t == null || beklemede) {
+      // Track hic yok VEYA mute -> AYNI gorunum (mor daire YOK).
+      return const _DuraklatildiOrtusu();
     }
-    return Container(
-      color: const Color(0xFF16202A),
-      alignment: Alignment.center,
-      child: CircleAvatar(
-        radius: 16,
-        backgroundColor: const Color(0xFF6C2BD9),
-        child: Text(harf.isEmpty ? '?' : harf[0].toUpperCase(),
-            style: const TextStyle(color: Colors.white, fontSize: 14)),
-      ),
+    return IgnorePointer(
+      child: lk.VideoTrackRenderer(t,
+          key: ValueKey('mini-${t.mediaStreamTrack.id}'),
+          fit: lk.VideoViewFit.cover,
+          mirrorMode: mirror
+              ? lk.VideoViewMirrorMode.mirror
+              : lk.VideoViewMirrorMode.off),
     );
   }
 }
