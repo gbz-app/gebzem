@@ -2923,3 +2923,53 @@ id'sini karistirma (turu 24/26: pencere hic acilmaz); kose kutusunu `iosPipKur` 
 ### SIRADAKI (kullanici karari bekliyor — HENUZ YAPILMADI)
 Yukaridaki 4 yuksek riskli hata + sink yarisi kilidi + gozcu durdurma. Turu 50 bunlari
 ICERMIYOR.
+
+## TEST TURU 51 SURUMU YAYINLANDI (31 Tem 00:06) — PiP BOLUNME DENETIMININ 6 DUZELTMESI
+- android **30581163737** + ios **30581157141**, ikisi de commit **f7f5040**, debug imza YOK.
+- R2: apk **105227857** (MD5 `5d1381a2…` -> `ed3c8a0d…` = icerik DEGISTI) ·
+  ipa **19148243** (19146222'den BUYUDU = yeni native Swift kodu derlendi, KANIT) ·
+  index **6926**. Purge OK, CDN birebir. **Backend DEGISMEDI** (678f5fc) + health ok. DB temiz.
+- Swift derlemesi GECTI -> native duzeltmeler gecerli (yerelde Windows'ta derlenemiyor,
+  tek dogrulama yolu iOS build'i).
+
+### DUZELTILEN 6 BULGU (30 Tem denetimi)
+**NATIVE (AppDelegate.swift)**
+1. **ALTA ALMA COKMESI** (EXC_BAD_ACCESS, Sentry 29 Tem 18:39, son iz `app.lifecycle:
+   background`): kare teslimi WebRTC/capture thread'inde kosarken ANA thread
+   `track.remove(renderer)` + referans nil yapiyordu -> ucustaki teslimde nesne serbest
+   kalip kucuk-ofsetli erisim ihlali. FIX: `PipRenderer`a `NSLock` + `aktif` bayragi +
+   **MEZARLIK** (sokulen renderer 2sn canli tutulur, sonra birakilir). `birak()` ve
+   `yerelAyarla` sokme yollari `PipRenderer.mezaraKoy` kullanir.
+2. `toplamKare`/`sayac` kilitsiz paylasiliyordu (WebRTC thread yaziyor, ana thread okuyor
+   ve buna dayanip sink ameliyati tetikliyordu) -> ayni kilide alindi.
+3. **GOZCU TIMER'I** yalniz `birak()`/`gozcuBaslat()` basinda duruyordu; `durdur()` ve
+   `didStopPictureInPicture` yolunda calismaya devam edip KAPANMIS pencere icin sink
+   ameliyati + yanlis `iosPipKareDurdu` gonderiyordu -> ikisine de `gozcuDur()` eklendi.
+4. **KOSE KUTUSU KOR TRACK SECIMI**: defterdeki ILK video track kosulsuz aliniyordu
+   (`readyState`/`isEnabled` kontrolu YOK) ve `"eklendi"` donuyordu -> zombi onizleme
+   track'ine baglanip arama boyunca kilitleniyordu. Artik yalniz `.live && isEnabled`
+   kabul; birden fazla aday varsa TAHMIN YOK (`belirsiz`), olu track `track-olu`.
+   (NSMutableDictionary anahtar sirasi deterministik DEGIL — "ilkini al" yanlis kamera da
+   secebiliyordu.)
+**DART (active_call_controller.dart)**
+5. **KIMLIK DEGISIMINDE PENCERE KAPANMASI**: dogrudan `iosPipKur` -> native `birak()` ->
+   `stopPictureInPicture()`. Artik once **SICAK GECIS** (`iosPipKaynak`) denenir, yalniz
+   o basarisizsa tam kurulum.
+6. **"IKI KUTUDA DA BENI GOSTERIYOR"**: kose kutusu sarti yalniz `uzakId != null` bakiyordu;
+   sicak gecis basarisiz olursa buyuk kutu YEREL kalirken kose kutusuna AYNI yerel track
+   veriliyordu. Artik kose kutusu YALNIZ `_iosPipKurulanId == uzakId` iken cizilir.
+7. **SESLI -> GORUNTULU ARAMADA PENCERE KAYBI**: `arama.video == false` oldugu icin arka
+   planda kamera kesilince `uygun` dusuyor, iki id de null geliyor ve `iosPipBirak()`
+   pencereyi kapatiyordu. Artik `pipModunda` iken BIRAKILMAZ (arama bitisi zaten `leave`).
+8. Kose kutusu hatasi Sentry'e saniyede bir yaziliyordu (195 kayit = tek arama) ->
+   ARAMA BASINA 1 kez (`_koseKutusuBildirildi`).
+
+⚠️ YAPMA: mezarligi/kilidi kaldirma; `gozcuDur()` cagrilarini geri alma; kose kutusunda
+canlilik kontrolunu kaldirma veya birden fazla adayda tahmin yurutme; kimlik degisiminde
+sicak gecis denemesini atlama; kose kutusu sartini yalniz `uzakId != null`a indirgeme;
+`pipModunda` birakma kapisini kaldirma.
+
+### KULLANICI TEST EDECEK — BAKILACAK OLCUMLER
+- Sentry'de `EXC_BAD_ACCESS` YENI kayit CIKMAMALI (alta alma cokmesi).
+- `ios pip kose kutusu sonuc=belirsiz|track-olu|track-yok` -> kose kutusu hala baglanamiyor.
+- `kamera acilamadi` / `video yayin yok — kamera tekrar deneniyor` (turu 50 olcumleri).
