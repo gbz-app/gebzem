@@ -15,9 +15,21 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (30 Tem 2026):** BUILD ALINMADI. Kod hazir + push (039d2a4). Kullanici
-  onayi bekleniyor: backend deploy + temiz build (android+ios) -> R2 -> purge -> DB temiz.
-  ⚠️ Kullanici "indir sitesinde SAAT yazmiyor, goremiyorum" dedi — build turunde bakilacak.
+- **KALDIGIMIZ YER (30 Tem 21:39):** TEST TURU 50 YAYINLANDI — android 30570448293 +
+  ios 30570457011 (678f5fc), R2 apk=105227857 ipa=19146222 index=6945, purge OK, CDN birebir,
+  backend deploy (678f5fc) + health ok, DB temiz. **KULLANICI TEST EDECEK.**
+  ⚠️ **APK BOYUTU YANILTIR:** turu 44-50 boyunca apk hep 105227857 cikiyor ama ICERIK farkli
+  (eski ETag `31161020…` / yeni MD5 `5d1381a2…`). "Boyut ayni = build eski" DEME, MD5 karsilastir.
+- **INDIR SAYFASI — "SAATI GOREMIYORUM" KOK NEDENI:** saat sayfada VARDI ama ERISILEMIYORDU.
+  `body { display:flex; align-items:center }` + karttan uzun icerik = **ust tasma kaydirilamaz**
+  (klasik flexbox tuzagi) -> mor saat cubugu telefonda kirpiliyordu. FIX: body'den flex ortalama
+  KALDIRILDI, saat cubugu **kartin DISINA, sayfanin en ustune** tasindi. Uretici:
+  `scratchpad/indir_uret.js` (saat UTC+3, surum etiketi APK linkine `?v=`).
+  ⚠️ YAPMA: body'ye tekrar `display:flex; align-items:center` koyma.
+- **TURU 50 OLCUMLERI (Sentry, gebzem-mobile — test sonrasi BAK):**
+  `kamera acilamadi: …` (kamera yolu hala patliyor) · `video yayin yok — kamera tekrar
+  deneniyor` (emniyet agi kurtardi) · `video tekrar denemesi BASARISIZ: …` (kurtarma da
+  tutmadi). Hicbiri cikmazsa kok cozum TUTTU.
 - ✅ **BIREBIR VIDEO DUSMESI — KOK NEDEN KANITLI COZULDU (sunucu logu, tahmin degil):**
   LiveKit 96 saatlik log oda-oda sayildi: **64 aramanin 9'unda tek tarafli video (%14)**;
   patlayan taraf **9/9 iOS, 0 Android**, **8/9 iPhone11,6 (XS Max)**, **7/9 ARANAN**.
