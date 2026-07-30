@@ -319,9 +319,10 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
   denemeyle 5 KAT siklasti. FIX: token POST'u oturum varsa yapilir; `/users/me/voip-token`
   ve `/users/me/fcm-token` 401'i oturumu SILMEZ. ⚠️ YAPMA: bu muafiyetleri kaldirma.
   (3) **iPHONE KUCUK PENCERE = SADECE KENDI KAMERAM** (kullanici karari): kaynak sirasi
-  yerel -> uzak; ust/alt bolunme `ActiveCallController.pipBolunme=false` ile KAPALI (kod
-  duruyor, tek sabitle acilir); `preferredContentSize` 120x213 (120x400 asiri uzundu, geri
-  alindi). **KIMLIK CALKANTISI KORUMASI**: kurulmus `_iosPipKurulanId` hala gecerli bir
+  yerel -> uzak; ust/alt bolunme o TURDA `pipBolunme=false` ile kapatildi;
+  `preferredContentSize` 120x213 (120x400 asiri uzundu, geri alindi).
+  ⚠️ **BU MADDE ESKIDI (30 Tem denetimi):** `pipBolunme` turu 41-42'den beri **TRUE (ACIK)** —
+  bolunme artik KOSE KUTUSU olarak ciziliyor. false yaparsan kose kutusu TAMAMEN kaybolur. **KIMLIK CALKANTISI KORUMASI**: kurulmus `_iosPipKurulanId` hala gecerli bir
   track'e isaret ediyorsa DEGISTIRILMEZ — aksi halde kaynak degisince `kur()`->`birak()`->
   stopPictureInPicture PENCEREYI KAPATIYOR (turu 24 dersi). `_yerelVideoTrackId` MUTE track
   de dondurur (arka planda oto-mute'ta id sabit kalsin diye KASITLI).

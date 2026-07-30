@@ -2873,3 +2873,53 @@ FIX: body'den flex ortalama KALDIRILDI (ust hizali + `margin:0 auto`), saat cubu
   tetikleniyor ama KURTARILDI).
 - `video tekrar denemesi BASARISIZ: ...` -> kurtarma da tutmadi (yeni bir sebep var).
 - Hicbiri cikmiyor + kullanici "goruntu hep geliyor" diyorsa KOK COZUM TUTTU.
+
+## 30 Tem — PiP BOLUNME RISK DENETIMI (28 ajanlik is akisi, her bulgu curutulmeye calisildi)
+SORU (kullanici): "alta alma olayini cozduk ya, PiP uzerinde ekran bolmede sikinti cikmaz
+degil mi artik?" CEVAP: **Bolme ZATEN ACIK ve icinde 4 dogrulanmis YUKSEK riskli hata var.**
+13 bulgu dogrulandi, 11 iddia curutulup elendi.
+
+### IYI HABER (dogrulandi)
+Bolmenin KENDISI pencereyi KAPATMIYOR — turu 27-31 tasarimi tutmus:
+· `AVPictureInPictureController` `ContentSource(activeVideoCallSourceView:contentViewController:)`
+  ile kuruluyor; `AVSampleBufferDisplayLayer` controller'in KAYNAGI DEGIL, sadece barindirilan
+  VC icindeki bir katman. `yerelAyarla` yalniz `callVC.view`e alt gorunum ekler ->
+  buyuk kutunun katmani gecerliligini KORUR.
+· `preferredContentSize` YALNIZCA controller yaratilmadan once bir kez yaziliyor
+  (AppDelegate.swift:588, repo genelinde tek eslesme) -> "pencere yeniden yaratilir" riski YOK.
+· Bolme kodu capture session'a HIC dokunmuyor.
+
+### DOGRULANAN YUKSEK RISKLI HATALAR (turu 50'de YOK, hala acik)
+1. **Kose kutusu KOR track secimi** (AppDelegate.swift:721-730): id eslesmezse `localTracks`
+   defteri taranip ILK RTCVideoTrack'e baglaniyor (readyState/isEnabled kontrolu YOK) ve
+   `"eklendi"` donuyor -> Dart `_iosPipYerelId`i dolduruyor ve BIR DAHA denemiyor. Zombi
+   onizleme track'i defterdeyse kose kutusu ARAMA BOYUNCA olu track'te kalir.
+2. **Iki kutuda da BEN** (active_call_controller.dart:593+609): `iosPipKaynak` false donerse
+   `_iosPipKurulanId` YEREL kalir, ama 609'daki sart `uzakId != null` oldugu icin geciyor ve
+   kose kutusuna AYNI yerel track veriliyor. Turu 44'te sikayet edilen semptomun koku ACIK.
+3. **Kimlik iki adaydan hicbirine esit degilse** (a_c_c.dart:575): `iosPipKur` -> native
+   `birak()` -> `stopPictureInPicture()` -> PENCERE KAPANIR (turu 24/26 kalintisi, dar yol).
+4. **Sesli baslayip kamera acilan arama** (a_c_c.dart:625): `arama.video==false` oldugu icin
+   arka planda kamera kesilince `uygun` dusuyor -> `iosPipBirak()` -> pencere kapanir.
+
+### COKME YARISI — BOLME BUNU BUYUTUYOR (dogrulandi)
+AppDelegate.swift'te HIC senkronizasyon primitifi yok (NSLock/os_unfair_lock/@synchronized/
+DispatchSemaphore aramasi SIFIR sonuc). WebRTC sink defteri 7 ayri yerden ANA IS
+PARCACIGINDAN mutasyona ugratiliyor (496,497,581,696,749,790,791), kare teslimi capture
+thread'inde. Sentry'deki `EXC_BAD_ACCESS KERN_INVALID_ADDRESS 0x6c8` (29 Tem 18:39, son iz
+`app.lifecycle: background`) bu yigina BIREBIR oturuyor. Ekran bolme = ikinci renderer +
+ikinci sink -> add/remove sayisi, kilit tutma suresi ve buffer havuzu tuketimi IKIYE katlanir.
+Ayrica gozcu timer'i `durdur()` ve `didStop`ta DURMUYOR (yalniz `birak()` ve `gozcuBaslat`
+basinda) -> PiP kapandiktan sonra da sink ameliyati tetikliyor.
+
+### BU OTURUMDA YAPILAN (yalniz BELGE/YORUM — davranis degismedi)
+- [x] `pipBolunme` yorumlari ve CLAUDE.md turu-34 maddesi "KAPALI/false" diyordu ama deger
+      **true**. Bir sonraki oturum yorumlara guvenip false yapsa KOSE KUTUSU TAMAMEN
+      KAYBOLACAKTI. Yorumlar duzeltildi + tam tarihce (turu 24/26/27-31/34/41-42) yazildi.
+- [x] `flutter analyze` temiz (yalniz onceden var olan 4 info lint).
+⚠️ YAPMA: `pipBolunme`yi false yapma (kose kutusu kaybolur); kurulum kimligine yerel track
+id'sini karistirma (turu 24/26: pencere hic acilmaz); kose kutusunu `iosPipKur` ile kurma.
+
+### SIRADAKI (kullanici karari bekliyor — HENUZ YAPILMADI)
+Yukaridaki 4 yuksek riskli hata + sink yarisi kilidi + gozcu durdurma. Turu 50 bunlari
+ICERMIYOR.

@@ -168,10 +168,21 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
   bool _iosPipMesgul = false; // turu 39: _iosPipGuncelle yeniden-girme kilidi
   String _iosPipYerelId = ''; // turu 28: PiP alt gorunumundeki kendi kamera track id'm
 
-  /// TEST TURU 34 — iOS kucuk penceresinde UST/ALT BOLUNME acik mi (kullanici karari:
-  /// "alta indirdigimde SADECE TEK goruntu olsun, bu sorunlu alani en son duzeltelim").
-  /// Alt gorunum kodu (native `yerelAyarla` + `PipService.iosPipYerel`) SILINMEDI, yalniz
-  /// bu kapiyla kapali. Arka plan kamerasinin gercekten calistigi KANITLANINCA true yapilir.
+  /// iOS kucuk penceresinde BOLUNME acik mi. **SU AN ACIK (true) — turu 41-42'den beri.**
+  ///
+  /// TARIHCE (yorumlar 30 Tem'e kadar YANLIS "kapali" diyordu, denetimde yakalandi):
+  /// · turu 24: ilk UST/ALT bolunme (`pipAddStacked`), kurulum kimligi BIRLESIK "uzak|yerel".
+  /// · turu 26: GERI ALINDI — kamera mute olunca yerel id bosalip kimlik degisiyor ->
+  ///   `kur()` -> `birak()` -> `stopPictureInPicture()` -> pencere HIC acilmiyordu.
+  /// · turu 27-31: DOGRU yontemle geri geldi — UIStackView + `yerelAyarla`, kimlik YALNIZ
+  ///   uzak track (bu yuzden kamera mute'u artik pencereyi kapatmaz).
+  /// · turu 34: gecici olarak false yapildi (arka plan kamerasi kanitlanmamisti).
+  /// · turu 43-44: arka plan kamerasi deployment target 16.0 ile KANITLANDI.
+  /// · turu 41-42: bolunme = WhatsApp tarzi SAG-ALT KOSE KUTUSU olarak ACIK (true).
+  ///
+  /// ⚠️ YAPMA: bunu false yapma — kose kutusu (kendi goruntum) TAMAMEN kaybolur.
+  /// ⚠️ YAPMA: kurulum kimligine yerel track id'sini KARISTIRMA (turu 24/26 dersi:
+  ///   pencere hic acilmaz).
   static const bool pipBolunme = true;
   // iOS COKLU-GOREV KAMERA (test turu 9): isMultitaskingCameraAccessEnabled acildiysa true.
   // Acikken arka planda kamera CAPTURE'a devam eder -> PiP karsi tarafa CANLI gonderir
@@ -596,15 +607,12 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
           _sesLog('ios pip kaynak yerel -> uzak (sicak gecis)');
         }
       }
-      // TEST TURU 34 — KULLANICI KARARI: "alta indirdigimde SADECE TEK goruntu olsun, bu
-      // sorunlu alani EN SON duzeltelim, vakit kaybetmeyelim." iOS kucuk penceresindeki
-      // UST/ALT BOLUNME KAPATILDI: pencere yine TEK VIDEO (calisan, kanitlanmis davranis).
-      // Alt kutu her turlu kurulsa da arka planda kamera durdugu icin BOS/donuk kaliyordu
-      // ve pencereyi asiri uzatiyordu.
-      // GERI ACMA (ileride): `PIP_BOLUNME` sabitini true yap — alt gorunum kodu (native
-      // `yerelAyarla`, PipService.iosPipYerel) YERINDE DURUYOR, silinmedi.
-      // ⚠️ YAPMA: bolunmeyi arka plan kamerasi (isMultitaskingCameraAccessEnabled) GERCEKTEN
-      // calistigi KANITLANMADAN geri acma.
+      // KOSE KUTUSU (turu 41-42, WhatsApp gorunumu): karsi taraf TAM pencere, BEN sag-altta
+      // kucuk kutu. `pipBolunme` ACIK (true) — asagidaki eski "KAPATILDI" yorumu 30 Tem
+      // denetiminde YANLIS bulundu ve kaldirildi (kod turu 42'den beri bolunmeyi ciziyor).
+      // Native `yerelAyarla` YALNIZ `callVC.view` uzerine alt gorunum ekler; `pipController`a
+      // DOKUNMAZ -> bu yol pencereyi KAPATMAZ (turu 27-31 tasarimi).
+      // ⚠️ YAPMA: kose kutusunu `iosPipKur` ile kurmaya calisma (pencere kapanir — turu 24/26).
       if (pipBolunme && _iosPipKurulanId.isNotEmpty) {
         final yid = (uzakId != null ? yerelId : null) ?? '';
         if (yid != _iosPipYerelId) {
