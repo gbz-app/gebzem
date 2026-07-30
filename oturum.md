@@ -2839,3 +2839,37 @@ geri koyma; grup kapasitesini iki yere farkli yazma.
 ### SIRADAKI
 Kullanici onayiyla: backend deploy + temiz build (android+ios) -> R2 -> purge -> DB temiz.
 Ayrica indir sayfasinda YUKLEME SAATI gorunmuyor (kullanici bildirdi) — build turunde bakilacak.
+
+## TEST TURU 50 SURUMU YAYINLANDI (30 Tem 21:39) — BIREBIR VIDEO KOK COZUM + YENI SINIRLAR
+- android **30570448293** + ios **30570457011**, ikisi de commit **678f5fca** (yerel HEAD ile
+  BIREBIR), debug imza YOK (log taramasi 0 eslesme).
+- R2: apk **105227857** · ipa **19146222** (19145592'den BUYUDU) · index **6945**.
+  ⚠️ APK boyutu turu 44-49 ile AYNI cikti ama icerik FARKLI — R2'deki eski dosyanin ETag'i
+  `311610206a20f5e8dcc27d4c541e2ef6`, yeni dosyanin MD5'i `5d1381a2d44637feb0fcb23403f9dde1`.
+  (Bundan sonra "boyut ayni = build eski" DEME; MD5/ETag karsilastir.)
+- Cloudflare purge OK · CDN boyutlari yerelle birebir · backend deploy (678f5fc) + health ok
+  · DB TRUNCATE edildi (kullanici 0 / arama 0 / mesaj 0).
+
+### INDIR SAYFASI — "SAATI GOREMIYORUM" KOK NEDENI BULUNDU
+Saat sayfada ZATEN vardi ama **erisilemiyordu**: eski sayfada
+`body { min-height:100dvh; display:flex; align-items:center; justify-content:center }`
+kullaniliyordu. Kart ekrandan UZUN oldugunda flex ortalama TASMAYI IKI YONE dagitir ve
+**ust tasma kaydirilamaz** (klasik flexbox tuzagi) -> mor saat cubugu telefonda kirpiliyor,
+yukari kaydirilamiyordu.
+FIX: body'den flex ortalama KALDIRILDI (ust hizali + `margin:0 auto`), saat cubugu
+**kartin DISINA, sayfanin en ustune** tasindi. Uretici: `scratchpad/indir_uret.js`
+(saat UTC+3 ile hesaplanir, surum etiketi APK linkine `?v=` olarak islenir).
+⚠️ YAPMA: body'ye tekrar `display:flex; align-items:center` koyma.
+
+### BU SURUMDE NE VAR
+- Birebir/grup goruntuluye: kamera yarisi kok cozumu (`_onizlemeIptal`, pencere 2500ms,
+  `_videoYayinDogrula` 1.5sn sonra tek tekrar), kamera hatasi artik Sentry'e OLAY olarak.
+- Grup izgarasinda alt tasma (RenderFlex overflow) duzeltmesi.
+- Sinirlar: grup arama **8**, oda **20 konusmaci + sinirsiz dinleyici**, yayin **4 + sinirsiz izleyici**.
+
+### KULLANICI TEST EDECEK — BAKILACAK OLCUMLER (Sentry, gebzem-mobile)
+- `kamera acilamadi: ...` -> yeni gorunur olcum; CIKARSA kamera yolu hala patliyor demek.
+- `video yayin yok — kamera tekrar deneniyor` -> emniyet agi devreye girdi (kok neden hala
+  tetikleniyor ama KURTARILDI).
+- `video tekrar denemesi BASARISIZ: ...` -> kurtarma da tutmadi (yeni bir sebep var).
+- Hicbiri cikmiyor + kullanici "goruntu hep geliyor" diyorsa KOK COZUM TUTTU.
