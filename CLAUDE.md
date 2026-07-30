@@ -15,7 +15,38 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (30 Tem 21:39):** TEST TURU 50 YAYINLANDI — android 30570448293 +
+- **KALDIGIMIZ YER (31 Tem 00:06):** TEST TURU 51 YAYINLANDI — android 30581163737 +
+  ios 30581157141 (f7f5040), R2 apk=105227857 (MD5 degisti) ipa=19148243 (BUYUDU = Swift
+  derlendi), purge OK, CDN birebir, **backend DEGISMEDI** (678f5fc) + health ok, DB temiz.
+  **KULLANICI TEST EDECEK.**
+- ✅ **TURU 51 — PiP BOLUNME DENETIMININ 6 DUZELTMESI (28 ajanlik denetim sonucu):**
+  (1) **ALTA ALMA COKMESI COZULDU** (EXC_BAD_ACCESS, Sentry 29 Tem, son iz
+  `app.lifecycle:background`): kare teslimi WebRTC thread'inde kosarken ANA thread
+  `track.remove(renderer)` + nil yapip nesneyi serbest birakiyordu. FIX: `PipRenderer`a
+  NSLock + `aktif` bayragi + **MEZARLIK** (sokulen renderer 2sn canli tutulur).
+  (2) `toplamKare`/`sayac` kilide alindi (iki thread'den kilitsizdi).
+  (3) `gozcuDur()` artik `durdur()` ve `didStopPictureInPicture` icinde de cagriliyor
+  (gozcu KAPANMIS pencere icin sink ameliyati tetikliyordu).
+  (4) **KOSE KUTUSU KOR TRACK SECIMI BITTI**: yalniz `.live && isEnabled`; birden fazla
+  aday varsa TAHMIN YOK (`belirsiz`); olu track `track-olu`. (NSMutableDictionary anahtar
+  sirasi deterministik DEGIL — "ilkini al" yanlis kamerayi da seciyordu.)
+  (5) **KIMLIK DEGISIMINDE PENCERE KAPANMASI**: once SICAK GECIS denenir, yalniz
+  basarisizsa `iosPipKur` (o native `birak()` -> `stopPictureInPicture` yapar).
+  (6) **"IKI KUTUDA DA BENI GOSTERIYOR"**: kose kutusu YALNIZ `_iosPipKurulanId == uzakId`
+  iken cizilir (eskiden yalniz `uzakId != null` bakiyordu).
+  (7) **SESLI->GORUNTULU ARAMADA PENCERE KAYBI**: `pipModunda` iken `iosPipBirak`
+  CAGRILMAZ (arka planda kamera kesilince `uygun` dusup pencereyi kapatiyordu).
+  (8) Kose kutusu hatasi Sentry'e ARAMA BASINA 1 kez (eskiden saniyede bir -> 195 kayit).
+  ⚠️ YAPMA: mezarligi/kilidi kaldirma; `gozcuDur()` cagrilarini geri alma; kose kutusunda
+  canlilik kontrolunu kaldirma veya coklu adayda tahmin yurutme; kimlik degisiminde sicak
+  gecis denemesini atlama; kose kutusu sartini yalniz `uzakId != null`a indirgeme;
+  `pipModunda` birakma kapisini kaldirma.
+- **KAMERA "DURAKLATILDI" NEDIR (kullanici sorusu 30 Tem):** referans **iOS**, WhatsApp
+  degil. iOS uygulama gorunmuyorken kameraya izin VERMEZ — capture session
+  `videoDeviceNotAvailableInBackground` (sebep=1) ile kesilir. Bu bir GUVENLIK/GIZLILIK
+  kurali; WhatsApp da ayni seyi yasar, sadece durustce "video duraklatildi" yazar.
+  Tek istisna: iOS 16+ PiP AKTIFKEN kamera yasayabilir (turu 43-49'un konusu).
+- **ONCEKI (30 Tem 21:39):** TEST TURU 50 YAYINLANDI — android 30570448293 +
   ios 30570457011 (678f5fc), R2 apk=105227857 ipa=19146222 index=6945, purge OK, CDN birebir,
   backend deploy (678f5fc) + health ok, DB temiz. **KULLANICI TEST EDECEK.**
   ⚠️ **APK BOYUTU YANILTIR:** turu 44-50 boyunca apk hep 105227857 cikiyor ama ICERIK farkli
