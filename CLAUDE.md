@@ -17,7 +17,62 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (31 Tem 02:05):** TEST TURU 52 YAYINLANDI — android 30588794092 +
+- **KALDIGIMIZ YER (31 Tem 23:30):** TEST TURU 53 YAYINLANDI — android 30662374718 +
+  ios 30662368371 (53512fc), R2 apk=105227853 ipa=19165051, purge OK, CDN birebir,
+  **BACKEND DEPLOY EDILDI** (53512fc, `maxGrupKatilimci=4` sunucuda dogrulandi) + health ok,
+  DB temiz. **KULLANICI TEST EDECEK.**
+- ✅ **TURU 53 — "APP SWITCHER'DA KAMERA KAPANIYOR"UN KOK NEDENI: BIZ (16 ajanlik denetim)**
+  **iOS KURALI (Apple):** kamera YALNIZ uygulama GERCEKTEN `.background`a gecerse kesilir
+  ("Camera usage is prohibited while in the background"); tek istisna PiP'in AKTIF olmasi.
+  **App switcher / Kontrol Merkezi uygulamayi YALNIZ `.inactive` yapar** (Flutter belgesi)
+  ve iOS orada kamerayi HIC KESMEZ. **WhatsApp'in yaptigi sey: HICBIR SEY YAPMAMAK.**
+  **BIZIM ZINCIR:** `inactive`te PiP baslat -> donuste `resumed` dalinda KOSULSUZ
+  `iosPipDurdur()` ile PiP'i BIZ iptal et -> yarida kesilen acilis AVKit'in
+  `failedToStartPictureInPicture`ini atesler -> 800ms teyit blogu yalnizca
+  `isPictureInPictureActive`e bakar (biz kapattik, false) -> `iosPipBasarisiz` Dart'a iner
+  -> uygulama ON PLANDA, AKTIF, ekran acikken `setCameraEnabled(false)`. Ustelik geri acma
+  `resumed` KENARINA bagli oldugu icin kamera BIR DAHA ACILMIYORDU.
+  **FIX:** (a) native `failedToStart` 800ms blogunun basina `if self.iptalIstendi { return }`
+  (turu 49'un "800ms'i kaldirma" kuralini IHLAL ETMEZ; "`.background` kapisi" kurali
+  `baslat()` icindir, BURASI DEGIL), (b) Dart `_iosPipBasarisiz` on-plan kapisi.
+  **ILKE: kamerayi yalnizca iOS'un KENDI kesinti olayi veya GERCEK arka plan gecisi kapatir.**
+  ⚠️ YAPMA: bu iki kapiyi kaldirma.
+- ✅ **`_kameraOtoAc` (seviye-tetiklemeli geri acma):** bekleyen `_kesintiMuteGecikme`yi
+  IPTAL EDER + `resumed` dalindan VE `_iosKameraKesinti(false)`tan cagrilir (o dal eskiden
+  bos `return` = OLU KOD idi). ⚠️ YAPMA: icine `_iosArkaPlanKamera = true` yazma
+  ("yalan bayrak" regresyonu, turu 32-33).
+- ✅ **AKTIF KONUSAN TAKIBI KAPATILDI** (kullanici: "bu tur ozellikleri kapa"):
+  `miniKatilimcilar` ve `_uzakVideoTrackId` icindeki `activeSpeakers` bloklari SILINDI ->
+  sira SABIT (katilma sirasi). Tam ekrandaki yesil "konusuyor" cercevesi KORUNDU.
+  ⚠️ YAPMA: bu iki yere tekrar `activeSpeakers` siralamasi koyma.
+- ✅ **DONUSTE "CIZME":** renderer anahtarlari TRACK KIMLIGINE bagliydi; on plana donuste
+  `setCameraEnabled(true)` -> livekit `restartTrack()` -> YENI `mediaStreamTrack` ->
+  anahtar degisiyor -> renderer YIKILIP yeniden kuruluyordu. Artik ROL bazli
+  (`vid-yerel`/`vid-uzak`) ve grup tile'i `tile-${p.identity}`.
+  ⚠️ YAPMA: anahtarlara tekrar track kimligi (id/sid) koyma.
+- ✅ **IZGARA SIYAHLIKLARI:** Flutter `bosluk` 2.0 -> 0 · iOS native `yigin.spacing` ve
+  `satir.spacing` 1 -> 0 · `callVC.view.backgroundColor` lacivere sabitlendi (bosluklardan
+  ATANMAMIS SIYAH zemin gorunuyordu) · grup izgarasi padding `(8,108,8,132)` -> **zero** +
+  tile boslugu 6 -> 0. ⚠️ Grup kapasitesi 4'un UZERINE cikarilirsa padding'i GERI GETIR
+  (5-6 kisilik SESLI grupta alt satirin adi kontrollerin altinda kaybolur).
+- ✅ **PiP ORANI:** ⚠️ `preferredContentSize` **MUTLAK BOYUT DEGIL** — iOS yalniz ORANI
+  kullanir; Android'de de `setAspectRatio` disinda boyut API'si YOK. Bu yuzden "%10 buyut"
+  = ORTAK VE DAHA GENIS ORAN: iOS 0.563 / Android 3:4 -> **ikisi de 5:6 (0.833)**.
+  ⚠️ YAPMA: orani calisma aninda degistirme; iki platformu farkli oranda birakma.
+- ✅ **GORUNTULU ARAMA "SESLI" BASLIYORDU (aranan tarafta):** `_camOn=false` olunca kamera
+  blogu KOMPLE atlanir ve turu 50'nin `_videoYayinDogrula`si DA O BLOGUN ICINDE oldugu icin
+  hicbir iz kalmiyordu (DB `type=video`, LiveKit'te yalniz audio, Sentry bombos).
+  `_camOn` CallKit yukundeki bayraktan geliyordu. FIX: `answer()` yanitindaki `type`
+  (backend handler.go ZATEN donduruyor) **OTORITER**; CallKit yuku YEDEK. Ayrica
+  `arama.video==true && camOn==false` ise artik Sentry'e olay dusuyor (korluk kapandi).
+  ⚠️ YAPMA: arama tipini tekrar yalniz `c['video']`ya baglama.
+- ✅ **"CIKIP HEMEN TEKRAR ARAYAMIYORUM":** sunucu TEMIZDI (asili arama 0, 409 yok).
+  Engel istemcideki `ekrandakiAramalar` mesgul muhafizi — 5 ekrandan giriliyor, 9 yerden
+  birakiliyor; biri kacinca id asili kalip `start()` kosulsuz hata firlatiyordu.
+  Artik GERCEKLIGE soruluyor: gercek aktif arama VEYA `oda_`/`yayin` muhafizi varsa engelle,
+  yoksa BAYAT kabul edip temizle + Sentry olcumu.
+  ⚠️ YAPMA: bu kapiyi kosulsuz temizlemeye cevirme (ses cakismasi korumasi orada).
+- **ONCEKI (31 Tem 02:05):** TEST TURU 52 YAYINLANDI — android 30588794092 +
   ios 30588788364 (33fc2d9), R2 apk=105227853 ipa=19317028 (+169KB = native izgara),
   purge OK, CDN birebir, backend degismedi (678f5fc) + health ok, DB temiz.
   **KULLANICI TEST EDECEK.**
