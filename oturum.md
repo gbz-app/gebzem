@@ -3065,3 +3065,46 @@ buyuk yapma.
 ### KUCUK PENCERE DUZENI (guncel, 4 tavanli)
 2 kisi -> karsi taraf tam + BEN sag-altta kucuk · 3 kisi -> ikisi UST/ALT + BEN sag-altta
 kucuk · 4 kisi -> 2x2 ceyrek (herkes esit) · 4'ten fazlasi -> "+N" rozeti.
+
+## 31 Tem — ARANAN TARAFTA GORUNTULU ARAMA "SESLI" BASLIYOR (kok neden, sunucu kaniti)
+Kullanici turu 52'yi test etti. LiveKit + DB + Sentry uclusu birlikte okundu.
+
+### OLCUM (31 Tem 16:05-16:06 UTC = 19:05 TR, uc arka arkaya arama)
+| Kaynak | Bulgu |
+|---|---|
+| DB `calls` | uc aramanin da **`type = video`**, `is_group = false` |
+| LiveKit | aranan **iPhone11,6 YALNIZ `audio` yayinladi**, `video` HIC gelmedi |
+| LiveKit zaman | arayan video'yu +1.2/+1.3/+1.8sn'de yayinladi = BAGLANTI ANI (gercek video arama) |
+| Sentry | **TEK BIR IZ YOK** — ne `kamera acilamadi` ne `video yayin yok — kamera tekrar deneniyor` |
+
+### KOK NEDEN
+`_odayaBaglan` icindeki kamera blogu `if (_camOn) { ... }` ile sarili ve turu 50'de
+ekledigim `_videoYayinDogrula(id)` **O BLOGUN ICINDE**. Yani `_camOn == false` olunca:
+kamera acilmiyor + dogrulama calismiyor + hicbir log/Sentry olayi uretilmiyor.
+**Goruntulu arama sessizce sesli aramaya donusuyor.**
+
+`_camOn = kameraAcik ?? b.video` ve CallKit yolunda `b.video = c['video']`, o da
+`_ayikla`daki `(p.type ?? 0) == 1 || extra['call_type'] == 'video'` zincirinden geliyor.
+CallKit KABUL olayinda `type`/`extra` her zaman tam donmuyor — **ayni sinif hata turu
+34-36'da `is_group` icin yasanmisti** ("CallKit yukunde UC yerde dusuruluyordu").
+
+⚠️ **TURU 50 TESHISIM BU VAKAYI KAPSAMIYORDU.** Orada kok neden "iki kamera yarisi"
+demistim ve `_onizlemeIptal` + 2500ms + `_videoYayinDogrula` ile duzeltmistim. O duzeltme
+gecerli ama BU yol (`_camOn` hic true olmuyor) onun ALTINDAN geciyordu.
+
+### FIX (turu 53)
+1. **SUNUCU OTORITER**: `answer()` yaniti ZATEN `"type": callType` donduruyor
+   (`backend/internal/calls/handler.go:896`) ama istemci KULLANMIYORDU. Artik
+   `main.dart` once `info['type']`e bakar; CallKit yuku yalnizca YEDEK.
+2. **CELISKI OLCUMU**: iki kaynak farkliysa Sentry'e `arama tipi CELISKI: sunucu=... callkit=...`
+3. **OLCUM KORLUGU KAPANDI**: `arama.video == true` ama `_camOn == false` ise artik
+   `GORUNTULU arama SESLI basladi: camOn=false gelen=... grup=...` olayi dusuyor.
+⚠️ YAPMA: arama tipini tekrar yalniz `c['video']`ya baglama; `_videoYayinDogrula`yi
+`_camOn` blogunun tek izi olarak birakma (else dali SART).
+
+### AYRICA GORULEN (ayni testte)
+- `ios kesinti sebep=1 durum=arka pip=true calisiyor=true` **48 kayit** + ayni saniyede
+  `ios pip olcum ... oturum=FALSE ... yerel3=44` -> PiP ACIKKEN capture session DURMUS
+  ama kose kutusuna 44 kare gelmis. Kullanicinin "kamera duraklatildi" sikayeti bu.
+  (Turu 53 ajan denetiminde "iOS kamera kurallari" boyutu tam bunu arastiriyor.)
+- `EXC_BAD_ACCESS` YENI kayit YOK -> turu 51 cokme duzeltmesi AYAKTA.
