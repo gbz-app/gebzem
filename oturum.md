@@ -3226,3 +3226,33 @@ en fazla 2 satir, alt satirin merkezi ekranin ortasinda kalir.
 - ayni izgarada tile arasi `bosluk` 6.0 -> 0.0
 ⚠️ YAPMA: grup kapasitesi tekrar 4'un UZERINE cikarilirsa bu padding'i GERI GETIR
 (yoksa alt satirdaki adlar kontrollerin altinda kaybolur).
+
+## TEST TURU 53 SURUMU YAYINLANDI (31 Tem 23:30)
+- android **30662374718** + ios **30662368371** (commit **53512fc**), debug imza YOK.
+- R2: apk **105227853** (MD5 `707eb69f…` -> `a5eac4c7…`) · ipa **19165051**
+  (MD5 `cf45c129…` -> `e6226a5b…`) · index **7189**. Purge OK, CDN birebir.
+- **BACKEND DEPLOY EDILDI** (53512fc) — `maxGrupKatilimci = 4` sunucuda dogrulandi.
+  Health ok. DB TRUNCATE (kullanici 0 / arama 0).
+- Not: `91c195f` yalnizca bayat bir YORUM duzeltmesi (davranis degismedi); build 53512fc'den.
+- ⚠️ IPA bu turda KUCULDU (19317028 -> 19165051): turu 52'de izgara tavani 8'di, 53'te 4'e
+  indi + kod sadelesti. Boyut KUCULMESI de degisiklik kanitidir (MD5 zaten farkli).
+
+### BU SURUMDEKI 9 DUZELTME
+1. **App switcher'da kamera kapanmasi** — kok neden BIZDEYDI (iki katmanli kapi).
+2. **Kameranin bir daha acilmamasi** — `_kameraOtoAc` seviye-tetiklemeli.
+3. **Kesinti-bitti dali olu koddu** — bekleyen mute timer'i iptal ediliyor.
+4. **Aktif konusan takibi KAPATILDI** — `miniKatilimcilar` + `_uzakVideoTrackId`.
+5. **Donuste cizim** — renderer anahtarlari rol/identity bazina cevrildi.
+6. **Izgara siyahliklari** — Flutter bosluk 0, iOS native spacing 0, callVC zemini,
+   grup izgarasi padding 0 + tile bosluk 0.
+7. **PiP orani** — iOS 0.563 / Android 0.75 -> **ikisi de 5:6 (0.833)**, %11 daha genis.
+8. **Grup 4 kisi** — 4 yerde (backend sabiti + toggleCam + PiP ek liste + izgara tavani).
+9. **Goruntulu arama sesli basliyordu** (sunucu otoriter) + **bayat mesgul muhafizi**
+   kendi kendini onariyor.
+
+### KULLANICI TEST EDECEK — BAKILACAK OLCUMLER
+- `GORUNTULU arama SESLI basladi: camOn=false …` -> CIKARSA sunucu-otoriter fix yetmedi.
+- `arama tipi CELISKI: sunucu=… callkit=…` -> CallKit yuku gercekten bayrak dusuruyormus.
+- `bayat mesgul muhafizi temizlendi: […]` -> hangi id sarkiyor (oda_/yayin_ mi, arama mi).
+- `ios pip olcum … cagri=N iptal=M` -> artik TEK gecise ait (turu 52'de sifirlama eklendi).
+- `EXC_BAD_ACCESS` YENI kayit CIKMAMALI.
