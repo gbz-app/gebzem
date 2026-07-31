@@ -719,7 +719,7 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusConflict, "kullanici su anda baska bir gorusmede")
 		return
 	}
-	// Kapasite (maxGrupKatilimci = 8, kullanici karari 30 Tem): 1:1'de taban 2 say
+	// Kapasite (maxGrupKatilimci = 4, kullanici karari 31 Tem): 1:1'de taban 2 say
 	var aktifSayi int
 	tx.QueryRow(r.Context(), `SELECT count(*) FROM call_participants
 		WHERE call_id=$1 AND status IN ('ringing','joined')`, callID).Scan(&aktifSayi)
