@@ -334,12 +334,13 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     final out = <MiniKatilimci>[];
     final r = _room;
     if (r == null) return out;
+    // TEST TURU 53 — "AKTIF KONUSAN ONE CIKAR" KAPATILDI (kullanici: "biri konustugunda
+    // one cikiyor galiba, bu tur ozellikleri kapa"). SIRA ARTIK SABIT: katilma sirasi
+    // (`remoteParticipants` LinkedHashMap ekleme sirasi), BEN en sonda.
+    // Yan fayda: `_ekUzakVideoTrackIdleri` ile BIREBIR ayni sirayi uretir — turu 52'de
+    // izgaranin her konusmaci degisiminde yikilmasinin sebebi bu tutarsizlikti.
+    // ⚠️ YAPMA: buraya tekrar `activeSpeakers` siralamasi koyma.
     final uzaklar = <RemoteParticipant>[];
-    if (_isGroup) {
-      for (final p in r.activeSpeakers) {
-        if (p is RemoteParticipant && !uzaklar.contains(p)) uzaklar.add(p);
-      }
-    }
     for (final p in r.remoteParticipants.values) {
       if (!uzaklar.contains(p)) uzaklar.add(p);
     }
@@ -503,19 +504,14 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
   /// yedegi) PiP SOKULMESIN. Sokup arka planda yeniden kurmak ise yaramaz (auto-enter yalniz
   /// on plandan gecliste tetiklenir) -> pencere "gidiyor, geri gelmiyor"du. Mute'ta pencere
   /// son karede kalir, unmute'ta akis kendiliginden devam eder.
-  /// TEST TURU 9 GRUP: grupta AKTIF KONUSANIN videosunu tercih et (baskin konusan PiP'te
-  /// gorunur; konusan degisince ActiveSpeakersChangedEvent -> notifyListeners -> PiP otomatik
-  /// takip eder). 1:1'de tek uzak katilimci — sira onemsiz.
+  /// KUCUK PENCERENIN ANA VIDEOSU. TEST TURU 53: grupta "baskin konusani takip et"
+  /// davranisi KAPATILDI (turu 9'da eklenmisti). Sebep: konusan her degistiginde ana
+  /// kaynak degisiyor, `kaynakDegistir` tetikleniyor ve pencere ATLIYORDU; kullanici
+  /// "biri konustugunda one cikiyor, bunu kapa" dedi.
+  /// Artik grupta da 1:1 ile AYNI: ILK KATILAN, videosu abone olunmus uzak katilimci.
+  /// ⚠️ YAPMA: buraya tekrar `activeSpeakers` takibi koyma.
   String? _uzakVideoTrackId() {
-    if (_isGroup) {
-      // activeSpeakers audioLevel'a gore azalan sirali (livekit 2.8.1) — first = baskin konusan.
-      for (final p in _room?.activeSpeakers ?? const <Participant>[]) {
-        if (p is! RemoteParticipant) continue; // yerel kamera PiP'e girmez
-        final t = _ilkVideoTrackId(p);
-        if (t != null) return t;
-      }
-    }
-    // 1:1 (ve grupta konusan videosuz): ilk uygun uzak video
+    // 1:1 ve GRUP: ilk uygun uzak video (katilma sirasi — KARARLI)
     for (final p in _room?.remoteParticipants.values ?? const <RemoteParticipant>[]) {
       final t = _ilkVideoTrackId(p);
       if (t != null) return t;
@@ -836,9 +832,33 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  /// TEST TURU 53 — KAMERAYI OTOMATIK GERI AC. Eskiden geri acma YALNIZ `resumed`
+  /// KENARINDA (gecis aninda) calisiyordu; on plandayken kapanan kamera bir daha
+  /// acilmiyor, kullanici tekrar alta alip donene kadar KAPALI kaliyordu.
+  /// Artik SEVIYE tetiklemeli: cagrildigi her yerde kosullar uygunsa acar.
+  /// ⚠️ YAPMA: buraya `_iosArkaPlanKamera = true` yazma — o "yalan bayrak" regresyonudur
+  /// (turu 32-33: bayrak kosulsuz true olunca durust mute yolu kapaniyordu).
+  void _kameraOtoAc() {
+    if (!_kameraOtoKapandi || !_baglandi || _ayrildi || arama == null) return;
+    _kesintiMuteGecikme?.cancel(); // bekleyen gecikmeli mute kamerayi TEKRAR oldurmesin
+    _kameraOtoKapandi = false;
+    _camOn = true;
+    _room?.localParticipant?.setCameraEnabled(true);
+    if (Platform.isIOS) unawaited(iosArkaPlanKamerayiTazele());
+    notifyListeners();
+  }
+
   void _iosKameraKesinti(bool kesintiVar) {
     if (!Platform.isIOS || arama == null || _ayrildi) return;
-    if (!kesintiVar) return;
+    if (!kesintiVar) {
+      // TEST TURU 53 — KESINTI BITTI DALI ARTIK OLU DEGIL. Eskiden burada `return`
+      // ediliyordu; bekleyen 1500ms'lik mute timer'i CANLI kaliyor ve kesinti 400ms'de
+      // bitse bile kamerayi olduruyordu. Artik: bekleyen mute IPTAL + kamera geri.
+      // ⚠️ YAPMA: bu dali tekrar bos `return`e cevirme.
+      _kesintiMuteGecikme?.cancel();
+      _kameraOtoAc();
+      return;
+    }
     _iosArkaPlanKamera = false; // bayrak yalan soyluyordu — gercek OS olayina guven
     // TEST TURU 43 — KAMERAYI HEMEN OLDURME. Apple: *"If you don't explicitly call the
     // stopRunning() method, your startRunning() request is preserved."* livekit mute
@@ -849,6 +869,9 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     _kesintiMuteGecikme?.cancel();
     _kesintiMuteGecikme = Timer(const Duration(milliseconds: 1500), () {
       if (arama == null || _ayrildi || !_camOn || !_baglandi) return;
+      // TURU 53: bu sirada ON PLANA donduysek kamerayi KAPATMA — uygulama gorunurken
+      // kamera kapatmak kullanicinin gordugu "kamera duraklatildi" halidir.
+      if (_sonYasamDurumu == AppLifecycleState.resumed) return;
       if (PipService.kurtarmaSonucu == true) {
         _sesLog('kamera kesintiden KURTARILDI — mute atlandi');
         return;
@@ -866,6 +889,30 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
   /// kapatmis olabilir -> arka planda kamera CAPTURE'i OS'ca durur, karsi taraf DONUK KARE
   /// gorur. Kamerayi kapat -> avatar yedegi (donuk kareden iyi). Donuste resume geri acar.
   void _iosPipBasarisiz() {
+    // ⚠️⚠️ TEST TURU 53 — KOK NEDEN (16 ajanlik denetim, Apple belgesiyle kanitli):
+    // "APP SWITCHER'A ALINCA KAMERA KAPANIYOR" sorununu iOS DEGIL, BU KOD YOLU yapiyordu.
+    // ZINCIR: (1) app switcher/kontrol merkezi uygulamayi YALNIZ `.inactive` yapar —
+    // Flutter belgesi: "Apps transition to this state when ... accessing the app switcher
+    // or control center". iOS bu anda kamerayi KESMEZ; Apple'in kurali arka plana
+    // GECMEYE baglidir ("Camera usage is prohibited while in the background").
+    // (2) Biz `inactive`te PiP baslatiyoruz. (3) Kullanici donunce `resumed` dalinda
+    // KOSULSUZ `iosPipDurdur()` cagirip PiP'i BIZ iptal ediyoruz. (4) Yarida kesilen
+    // acilis AVKit'in `failedToStartPictureInPicture` delegate'ini atesliyor.
+    // (5) Buraya duserek uygulama ON PLANDA, AKTIF, ekran acikken kamerayi kapatiyorduk.
+    // (6) Geri acma yolu `resumed` KENARINA bagli oldugu icin (zaten resumed'iz) kamera
+    // kullanici tekrar alta alip donene kadar KAPALI kaliyordu.
+    // WhatsApp bu senaryoda HICBIR SEY YAPMADIGI icin kamerasi acik kaliyor.
+    //
+    // ILKE: kamerayi YALNIZCA iOS'un KENDI kesinti olayi (AVCaptureSessionWasInterrupted)
+    // veya GERCEK arka plan gecisi kapatabilir. On plandayken ASLA.
+    // ⚠️ YAPMA: bu on-plan kapisini kaldirma.
+    final durum = _sonYasamDurumu;
+    if (durum == null ||
+        durum == AppLifecycleState.resumed ||
+        durum == AppLifecycleState.inactive) {
+      _sesLog('pip basarisiz ama uygulama ON PLANDA ($durum) — kamera KAPATILMADI');
+      return;
+    }
     if (Platform.isIOS && arama != null && _baglandi && !_ayrildi && _camOn && !pipModunda) {
       _kameraOtoKapandi = true;
       _camOn = false;
@@ -1320,15 +1367,11 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     }
     if (state == AppLifecycleState.resumed && arama != null && !_ayrildi && !_cevapsiz) {
       // Kamera restore _kesintidenTopla'dan ONCE (iOS ses sirasi: _sesiAc EN SON kalmali)
-      if (_kameraOtoKapandi && _baglandi) {
-        _kameraOtoKapandi = false;
-        _camOn = true;
-        _room?.localParticipant?.setCameraEnabled(true);
-        // TEST TURU 31: yeniden acilan kamera = YENI capture session -> coklu-gorev
-        // bayragini tazele (yoksa ikinci kez alta alinca karsi taraf donmus kare gorur).
-        if (Platform.isIOS) unawaited(iosArkaPlanKamerayiTazele());
-        notifyListeners();
-      }
+      // TURU 53: tek yardimciya toplandi (`_kameraOtoAc`) — ayni geri acma artik
+      // kesinti-bitti dalindan da cagriliyor ve bekleyen mute timer'ini IPTAL ediyor.
+      // (TEST TURU 31 kurali korunuyor: yeniden acilan kamera = YENI capture session,
+      // coklu-gorev bayragi tazelenir — `_kameraOtoAc` icinde.)
+      _kameraOtoAc();
       _durumKontrol();
       // KESINTI TOPARLAMA: iOS CallKit didActivate kesinti sonrasi guvenilir gelmez ->
       // resume yedek tetikleyici (ses birimi + mic son durumu).

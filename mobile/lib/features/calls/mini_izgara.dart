@@ -41,7 +41,7 @@ const int kMiniEnFazlaKutu = 4;
 Widget miniIzgara(List<Widget> kutular, {bool ustUste = false}) {
   final hepsi = kutular.length;
   if (hepsi == 0) return const SizedBox.shrink();
-  const bosluk = 2.0;
+  const bosluk = 0.0; // turu 53: kutular arasi SIYAH CIZGI olmasin (kullanici istegi)
 
   /// Sag-alt kose kutusu (BEN) — buyuk gorunumun USTUNE biner.
   /// TEST TURU 52 — iOS native kutusuyla BIREBIR AYNI olcu (kullanici: "ayni olculer

@@ -164,7 +164,7 @@ class MainActivity : FlutterActivity() {
         val b = PictureInPictureParams.Builder()
             // TEST TURU 14: 9:16 (0.56) sistemin en dar dikey orani -> pencere kucuk goruluyordu.
             // 3:4 (0.75) daha genis => AYNI yukseklikte daha BUYUK pencere.
-            .setAspectRatio(Rational(3, 4))
+            .setAspectRatio(Rational(5, 6)) // turu 53: iOS ile AYNI oran (%11 daha genis)
         if (Build.VERSION.SDK_INT >= 26) {
             // WhatsApp gibi: mikrofon ac/kapa + kirmizi kapat (yalniz ARAMA PiP'inde).
             // Canli yayin PiP'inde BOS liste ACIKCA verilir (yoksa eski dugmeler asili kalir).

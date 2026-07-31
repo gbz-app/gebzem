@@ -651,8 +651,17 @@ class _CallScreenState extends ConsumerState<CallScreen> {
             child: Stack(fit: StackFit.expand, children: [
               IgnorePointer(
                 child: VideoTrackRenderer(track,
-                    // KIMLIK SABIT (sid yayina alinirken degisir; mediaStreamTrack.id degismez)
-                    key: ValueKey('vid-${track.mediaStreamTrack.id}'),
+                    // TEST TURU 53 — ANAHTAR ARTIK TRACK KIMLIGINE DEGIL, KUTUNUN ROLUNE
+                    // BAGLI. Eskiden `mediaStreamTrack.id` kullaniliyordu; on plana
+                    // donuste `setCameraEnabled(true)` livekit'te `restartTrack()`
+                    // calistirip YENI bir mediaStreamTrack uretiyor -> anahtar degisiyor
+                    // -> renderer YIKILIP yeniden kuruluyor (texture sifirdan). Kullanici
+                    // "donunce cizmeye calisiyor, guzel gorunmuyor" derken bunu goruyordu.
+                    // Rol sabit oldugu icin renderer AYAKTA kalir, yalniz track degisir.
+                    // ⚠️ YAPMA: anahtara tekrar track kimligi (id/sid) koyma.
+                    key: yerel
+                        ? const ValueKey('vid-yerel')
+                        : const ValueKey('vid-uzak'),
                     fit: VideoViewFit.cover,
                     mirrorMode:
                         yerel ? _c.yerelAyna : VideoViewMirrorMode.auto),
@@ -1029,7 +1038,12 @@ class _CallScreenState extends ConsumerState<CallScreen> {
                     // kuruluyor -> aramanin 1-2. saniyesinde kendi kutunda SIYAH SICRAMA.
                     // mediaStreamTrack.id yayin oncesi/sonrasi AYNI kalir.
                     // ⚠️ YAPMA: tile anahtarina tekrar sid koyma.
-                    key: ValueKey('tile-${video.mediaStreamTrack.id}'),
+                    // TEST TURU 53: `mediaStreamTrack.id` de yeterli DEGILMIS — kamera
+                    // yeniden acilinca (restartTrack) o da degisiyor ve renderer yikiliyor.
+                    // `p.identity` katilimcinin KIMLIGI; yayin oncesi/sonrasi VE kamera
+                    // yeniden baslatmasindan SONRA da DEGISMEZ.
+                    // ⚠️ YAPMA: buraya tekrar track kimligi koyma.
+                    key: ValueKey('tile-${p.identity}'),
                     fit: VideoViewFit.cover,
                     mirrorMode: yerel ? _c.yerelAyna : VideoViewMirrorMode.auto,
                     adaptiveStreamPixelDensity:

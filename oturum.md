@@ -3145,3 +3145,74 @@ Internet kopuklugu / karsi tarafin hatti DEGIL. Sunucu tarafinda o senaryolar ic
 uc katman koruma var: (1) LiveKit webhook oda bosalinca ANINDA 'ended' yazar (turu 19),
 (2) `gercektenMesgul()` DB 'active' dese bile LiveKit'e sorar (turu 22), (3) olu-arama
 supurucusu 90sn+ asili satirlari kapatir (turu 14). Sorun istemcideki bayat muhafizdi.
+
+## 31 Tem — TURU 53 DUZELTMELERI (16 ajanlik denetim, 9 bulgu onaylandi)
+
+### ⚠️⚠️ EN BUYUK BULGU: "APP SWITCHER'DA KAMERA KAPANIYOR" — SEBEBI iOS DEGIL, BIZ
+Apple kurali: kamera YALNIZ uygulama GERCEKTEN `.background`a gecerse kesilir
+("Camera usage is prohibited while in the background"), tek istisnasi PiP'in AKTIF olmasi.
+App switcher / Kontrol Merkezi uygulamayi YALNIZ `.inactive` yapar (Flutter belgesi:
+"Apps transition to this state when ... accessing the app switcher or control center")
+ve iOS orada kamerayi HIC KESMEZ. **WhatsApp'in yaptigi sey HICBIR SEY YAPMAMAK.**
+BIZIM ZINCIR: `inactive`te PiP baslatiyoruz -> kullanici donunce `resumed` dalinda
+KOSULSUZ `iosPipDurdur()` ile PiP'i BIZ iptal ediyoruz -> yarida kesilen acilis
+`failedToStartPictureInPicture` delegate'ini atesliyor -> 800ms teyit blogu yalnizca
+`isPictureInPictureActive`e bakiyor (biz kapattik, false) -> `iosPipBasarisiz` Dart'a
+iniyor -> `_iosPipBasarisiz` uygulama ON PLANDA, AKTIF, ekran acikken
+`setCameraEnabled(false)` calistiriyor. Ustelik geri acma `resumed` KENARINA bagli
+oldugu icin (zaten resumed'iz) kamera bir daha ACILMIYOR.
+**FIX (iki katman):**
+- NATIVE (`AppDelegate.swift` failedToStart 800ms blogu): basina `if self.iptalIstendi
+  { return }` — PiP'i BIZ kapattiysak bu asla "basarisizlik" sayilmaz.
+  (Turu 49'un "800ms gecikmeyi kaldirma" kuralini IHLAL ETMEZ; gecikme DURUYOR.
+  Turu 49'un "`.background` kapisini geri koyma" kurali `baslat()` icindir, BURASI DEGIL.)
+- DART (`_iosPipBasarisiz`): on-plan kapisi — `_sonYasamDurumu` null/`resumed`/`inactive`
+  ise kamerayi ASLA kapatma.
+**ILKE:** kamerayi yalnizca iOS'un KENDI kesinti olayi veya GERCEK arka plan gecisi kapatir.
+⚠️ YAPMA: bu iki kapiyi kaldirma.
+
+### KAMERA GERI ACMA SEVIYE-TETIKLEMELI OLDU (`_kameraOtoAc`)
+Geri acma yalnizca `resumed` KENARINDA calisiyordu. Yeni yardimci `_kameraOtoAc()`:
+(a) bekleyen `_kesintiMuteGecikme`yi IPTAL EDER (yoksa kesinti 400ms'de bitse bile
+1500ms'lik timer kamerayi TEKRAR olduruyordu — dogrulayici bulgusu), (b) `resumed`
+dalindan VE (c) `_iosKameraKesinti(false)` (kesinti bitti) dalindan cagriliyor.
+`_iosKameraKesinti(false)` eskiden bos `return` idi = OLU DAL.
+Ayrica gecikmeli mute timer'ina `if (_sonYasamDurumu == resumed) return;` eklendi.
+⚠️ YAPMA: `_kameraOtoAc` icine `_iosArkaPlanKamera = true` yazma — "yalan bayrak"
+regresyonudur (turu 32-33 dersi).
+
+### AKTIF KONUSAN TAKIBI KAPATILDI (kullanici: "bu tur ozellikleri kapa")
+- `miniKatilimcilar` (:339): `activeSpeakers` blogu SILINDI -> sira artik KATILMA SIRASI.
+- `_uzakVideoTrackId` (:512): grup dali SILINDI -> ana kaynak = ilk uzak katilimci
+  (1:1 ile ayni). Eskiden konusan degisince `kaynakDegistir` tetiklenip pencere ATLIYORDU.
+- Yan fayda: `miniKatilimcilar` ile `_ekUzakVideoTrackIdleri` BIREBIR ayni sirayi uretir.
+- Tam ekran grup izgarasindaki yesil "konusuyor" cercevesi KORUNDU (yeniden dizilme yok).
+⚠️ YAPMA: bu iki yere tekrar `activeSpeakers` siralamasi koyma.
+
+### DONUSTE CIZIM ("cizmeye calisiyor, guzel gorunmuyor")
+Renderer anahtarlari TRACK KIMLIGINE bagliydi. On plana donuste `setCameraEnabled(true)`
+livekit'te `restartTrack()` calistirip YENI `mediaStreamTrack` uretiyor -> anahtar
+degisiyor -> renderer YIKILIP yeniden kuruluyor (texture sifirdan).
+- `call_screen.dart` ana video: `ValueKey('vid-${track.mediaStreamTrack.id}')` ->
+  **rol bazli** `ValueKey('vid-yerel')` / `ValueKey('vid-uzak')`
+- grup tile: `ValueKey('tile-${video.mediaStreamTrack.id}')` -> `ValueKey('tile-${p.identity}')`
+  (`p` zaten `_grupVideoTileIc`in ilk parametresi — imza degisikligi GEREKMEDI)
+⚠️ YAPMA: anahtarlara tekrar track kimligi (id/sid) koyma.
+
+### IZGARA SIYAHLIGI + PiP ORANI
+- Flutter `mini_izgara.dart` `bosluk` 2.0 -> **0.0**
+- iOS native `yigin.spacing` ve `satir.spacing` 1 -> **0** (iki yer)
+- iOS `callVC.view.backgroundColor` lacivere sabitlendi (bosluklardan ATANMAMIS SIYAH
+  zemin gorunuyordu — dogrulayici bulgusu)
+- **PiP ORANI**: `preferredContentSize` MUTLAK BOYUT DEGIL, yalnizca ORAN belirler;
+  Android'de de `setAspectRatio` disinda boyut API'si YOK. Bu yuzden "%10 buyut" =
+  ORTAK VE DAHA GENIS ORAN: iOS 120x213 (0.563) ve Android 3:4 (0.75) -> **ikisi de 5:6
+  (0.833)**. Android'in eskisinden %11 daha genis, iki platform BIREBIR ayni.
+⚠️ YAPMA: orani calisma aninda degistirme (yeniden boyutlanma animasyonu = titreme);
+iki platformu farkli oranda birakma.
+
+### NOT: grup izgarasinin 108/132px padding'i DEGISTIRILMEDI
+Ajan "sifirla" onerdi ama dogrulayici uyardi: SESLI grup aramasi da AYNI izgarayi
+kullaniyor (turu 22 karari) ve padding sifirlanirsa 5-6 kisilik sesli grupta alt satirin
+ortalanmis avatar+adi kontrol cubugunun ALTINA giriyor. RISKLI — bu tur bilincli olarak
+ATLANDI.

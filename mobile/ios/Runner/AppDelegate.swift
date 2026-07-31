@@ -638,7 +638,21 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
     // olmus"): turu 32'de bolunmus kutular icin 120x400 yapilmisti; pencere asiri dar-uzun
     // gorunuyor. Pencere artik TEK VIDEO gosterdigi icin dogru oran 9:16 portredir.
     // ⚠️ YAPMA: bolunme olmadan preferredContentSize'i uzatma.
-    vc.preferredContentSize = CGSize(width: 120, height: 213)
+    // TEST TURU 53 — PENCERE ORANI (kullanici: "PiP ekranini %10 buyut, orantı olarak bir
+    // tik daha genis olsun, iPhone ve Android AYNI olsun").
+    // ⚠️ ONEMLI: `preferredContentSize` MUTLAK BOYUT DEGILDIR — iOS yalnizca EN-BOY
+    // ORANINI kullanir (120x213 yerine 132x234 yazmak pencereyi BUYUTMEZ). Android'de de
+    // `setAspectRatio` disinda boyut API'si YOKTUR. Dolayisiyla "%10 buyut + ikisi ayni"
+    // isteginin tek dogru karsiligi ORTAK ve BIR TIK DAHA GENIS bir ORAN secmektir.
+    // SECILEN: 5:6 (0.833) — Android'in eski 3:4'unden (0.75) %11 daha genis, iOS'un eski
+    // 0.563'unu de ayni degere cikarir. MainActivity.kt `Rational(5, 6)` ile AYNI.
+    // ⚠️ YAPMA: bunu calisma aninda degistirme (pencere yeniden boyutlanma animasyonu
+    // tetikler = turu 46/49 gecis titremesi riski); iki platformu farkli oranda birakma.
+    vc.preferredContentSize = CGSize(width: 5, height: 6)
+    // Yigin bosluklari 0 olsa da kutu ARALARINDAN callVC.view'in ATANMAMIS (siyah) zemini
+    // gorunebiliyor -> videoyla ayni koyu tona sabitle (kullanici: "gridler arasinda
+    // siyahlik olmasin"). ⚠️ YAPMA: bunu seffaf/siyah birakma.
+    vc.view.backgroundColor = UIColor(red: 0.09, green: 0.13, blue: 0.16, alpha: 1)
     // TEST TURU 27 — DOGRU YONTEMLE BOLUNME: dikey yigin (UIStackView). UZAK video USTTE
     // SABIT durur; KENDI kameram alta `yerelAyarla` ile SONRADAN eklenir/cikarilir.
     // KRITIK FARK (turu 24 hatasi): PiP controller BIR KEZ kurulur ve kimlik SADECE uzak
@@ -648,7 +662,7 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
     let yigin = UIStackView(arrangedSubviews: [vv])
     yigin.axis = .vertical
     yigin.distribution = .fillEqually
-    yigin.spacing = 1
+    yigin.spacing = 0 // turu 53: kutular arasi SIYAH CIZGI olmasin
     vc.view.pipAddConstrained(yigin)
     self.yigin = yigin
 
@@ -931,7 +945,7 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
         let satir = UIStackView(arrangedSubviews: Array(kutular[i..<son]))
         satir.axis = .horizontal
         satir.distribution = .fillEqually
-        satir.spacing = 1
+        satir.spacing = 0 // turu 53: kutular arasi SIYAH CIZGI olmasin
         yigin.addArrangedSubview(satir)
         satirYiginlari.append(satir)
         i = son
@@ -1067,6 +1081,20 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
       guard let self = self else { return }
       if self.pipController?.isPictureInPictureActive == true { return }
+      // ⚠️ TEST TURU 53 — KENDI IPTALIMIZI "BASARISIZLIK" SAYMA (kok neden).
+      // `durdur()` (on plana donuste KOSULSUZ cagriliyor) `iptalIstendi = true` yazar ve
+      // `stopPictureInPicture()` ile acilis animasyonunu yarida keser; AVKit bunu
+      // `failedToStart` olarak bildirir. Eskiden bu Dart'a inip uygulama ON PLANDAYKEN
+      // kamerayi kapatiyordu (kullanici: "app switcher'a alinca kamera kapaniyor,
+      // WhatsApp'ta kapanmiyor").
+      // NOT: bu, turu 49'daki "800ms gecikmeyi kaldirma" kuralini IHLAL ETMEZ — gecikme
+      // DURUYOR, yalnizca basina kendi-iptal kontrolu eklendi. Ayrica turu 49'un
+      // "`.background` kapisini geri koyma" kurali `baslat()` icindir, BURASI DEGIL.
+      // ⚠️ YAPMA: bu kontrolu kaldirma; `baslat()`e `.background` kapisi ekleme.
+      if self.iptalIstendi {
+        NSLog("gebzem/pip failedToStart ama IPTAL BIZDEN — Dart'a bildirilmiyor")
+        return
+      }
       self.kanal?.invokeMethod("iosPipBasarisiz", arguments: nil)
     }
   }
