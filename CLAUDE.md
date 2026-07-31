@@ -3,6 +3,8 @@
 WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50K kullanıcı, Türkiye pazarı. Domain: gebzem.app
 
 ## ZORUNLU KURALLAR (kullanıcı emri)
+0. **BUILD ALMADAN ÖNCE SOR** (31 Tem emri) — kod hazır olsa bile derlemeyi/yayını
+   kullanıcı "al" demeden başlatma. Kod yaz, analiz et, commit+push et, sonra SOR.
 1. **Her oturumda `oturum.md` güncellenir** — yapılanlar, denenenler (oldu/olmadı), kararlar, devir notları. Oturum başında OKU, her önemli adımdan sonra GÜNCELLE (sadece oturum sonunda değil!).
 2. **Bu dosya (CLAUDE.md) da güncel tutulur** — proje durumu/komutlar/uçlar değiştikçe.
 3. **Her adımda git push** — her anlamlı değişiklik commit + push edilir; başarı `git rev-parse origin/main` karşılaştırmasıyla doğrulanır.
@@ -115,9 +117,15 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
   ⚠️ YAPMA: `_onizlemeIptal`i kaldirma; beklemeyi 700ms'e dusurme veya suresiz yapma;
   `_videoYayinDogrula`yi kaldirma/dongu yapma; kamera hatasini tekrar yalniz breadcrumb'a yazma.
 - **SINIRLAR (kullanici karari 30 Tem — koda islendi):**
-  · Grup aramasi (sesli VE goruntulu): **8 kisi** (arayan dahil). Backend tek sabit
-    `internal/calls/handler.go` **`maxGrupKatilimci`** (Start + Add ayni yerden okur);
-    istemci `toggleCam` kapisi da 8. ⚠️ Iki tarafa farkli sayi yazma.
+  · Grup aramasi (sesli VE goruntulu): **4 kisi** (arayan dahil) — 31 Tem'de 8'den
+    INDIRILDI (kullanici: "aciklari ve buglari minimumda tutmak istiyorum").
+    GEREKCE (olculere dayali): SFU iletimi N*(N-1) — 4 kisi 12 akis, 8 kisi 56 akis
+    (4.7 kati) ve tum trafik TURN relay'den geciyor; istemci N-1 video COZER, VP8
+    iPhone'da yazilimla cozuluyor (XS Max'te 7 cozme + simulcast = isinma/pil);
+    kucuk pencerede 8 kutu ~74x64pt + 8 yazilim i420 donusumu.
+    **DORT YER AYNI SAYI OLMALI:** backend `maxGrupKatilimci` · `toggleCam` kapisi ·
+    `_ekUzakVideoTrackIdleri` (`>= 3`) · `kMiniEnFazlaKutu`.
+    ⚠️ YAPMA: bu dordunu farkli birakma; PiP tavanini backend kapasitesinden buyuk yapma.
   · Sohbet odasi: **konusmaci 20** (odayi kuran dahil) + **dinleyici SINIRSIZ**
     (`internal/rooms/handler.go` `maxKonusmaci=20`, `maxDinleyici=0`, `odaKapasitesi=0`;
     kapasite kontrolleri `maxDinleyici > 0` sartli). ⚠️ Sartsiz geri koyma.
