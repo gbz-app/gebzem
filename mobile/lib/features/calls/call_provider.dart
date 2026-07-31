@@ -6,6 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api.dart';
 import '../../core/ws.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
+
+import 'active_call_controller.dart';
 import 'callkit_service.dart';
 
 /// Gelen arama bilgisi (WebSocket "call.incoming" olayindan)
@@ -223,8 +226,31 @@ class CallService extends StateNotifier<IncomingCall?> {
   Future<Map<String, dynamic>> start(String calleeId, {required bool video}) async {
     // MESGUL MUHAFIZI: zaten bir arama ekranindayken (calar/aktif) 2. aramayi BASLATMA.
     // Sunucuya POST atmadan ONCE durdur ki ikinci arama hic acilmasin (iki Room cakismasi).
+    //
+    // TEST TURU 53 — BAYAT MUHAFIZ KENDI KENDINI ONARIR (kullanici: "gorusmeden cikip
+    // hemen tekrar aramak istedigimde BAZEN alamiyorum").
+    // Muhafiz `ekrandakiAramalar` kumesine 5 ekrandan giriliyor ve 9 ayri yerden
+    // birakiliyor (arama, oda, yayin baslatma, yayinci, izleyici). Bir birakma yolu
+    // kacarsa (istisna, erken donus, ekran oldurulmesi) id kumede ASILI kalir ve bu
+    // satir "Zaten bir aramadasınız" firlatir — sunucu tertemiz olsa bile.
+    // (Ayni sinif: turu 15'te yayin bitisi modal dialoga bagliydi, `yayin_<id>` asili
+    // kaliyordu.) SUNUCU tarafi zaten dogrulandi: DB'de asili 'active'/'ringing' YOK.
+    //
+    // Artik: muhafizda kayit VAR ama GERCEK aktif arama YOK ve oda/yayin ekrani da
+    // yoksa -> kayit BAYATTIR, temizlenir ve arama devam eder. Olcum Sentry'e yazilir.
+    // ⚠️ YAPMA: bu kapiyi kosulsuz temizlemeye cevirme (oda/yayin muhafizi GERCEK olabilir
+    // — ses cakismasi korumasi orada duruyor).
     if (aramadaMi) {
-      throw StateError('Zaten bir aramadasınız');
+      final gercekArama = _ref.read(activeCallProvider).arama != null;
+      final odaVeyaYayin = ekrandakiAramalar
+          .any((x) => x.startsWith('oda_') || x.startsWith('yayin'));
+      if (gercekArama || odaVeyaYayin) {
+        throw StateError('Zaten bir aramadasınız');
+      }
+      final bayat = ekrandakiAramalar.toList();
+      ekrandakiAramalar.clear();
+      unawaited(Sentry.captureMessage(
+          'bayat mesgul muhafizi temizlendi: $bayat'));
     }
     final res = await _ref.read(apiProvider).post('/calls', data: {
       'callee_id': calleeId,

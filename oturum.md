@@ -3108,3 +3108,40 @@ gecerli ama BU yol (`_camOn` hic true olmuyor) onun ALTINDAN geciyordu.
   ama kose kutusuna 44 kare gelmis. Kullanicinin "kamera duraklatildi" sikayeti bu.
   (Turu 53 ajan denetiminde "iOS kamera kurallari" boyutu tam bunu arastiriyor.)
 - `EXC_BAD_ACCESS` YENI kayit YOK -> turu 51 cokme duzeltmesi AYAKTA.
+
+## 31 Tem — "GORUSMEDEN CIKIP HEMEN TEKRAR ARAYAMIYORUM" (kok neden)
+Kullanici: "birini deneyelim ki goruntulu gorusmeden cikarim, tekrar almak istedigimde
+BAZEN alamiyorum. Sebebi nedir? Internet kopuklugu mu, karsi tarafin hatti mi?"
+
+### ELENEN IHTIMALLER (olculdu, tahmin degil)
+- **Sunucu tarafi TEMIZ**: DB'de asili `active`/`ringing` arama **0 satir**.
+- **Turu 22 temizligi CALISIYOR**: api logunda `16:06:12 mesgul temizlik: fdc30033
+  aramadan dusuruldu (2e179177 surer)` — LiveKit'e sorup olu satiri dusurmus.
+- **Backend 409 YOK** (son 5 saat loglarinda "zaten aramada"/"baska gorusmede" yanıtı yok).
+- **Sohbet ekranindaki "mesgul" gostergesi ENGEL DEGIL**: turu 19'da butonlar zaten
+  kilitlenmez yapilmis ("son sozu SUNUCU soyler"), yalnizca renk ipucu veriyor.
+- **`_aramaBasliyor` yeniden-girme kilidi** `finally` ile temizleniyor — saglam.
+
+### KOK NEDEN (istemci)
+`CallService.ekrandakiAramalar` (mesgul muhafizi) kumesi. `start()` bu kume BOS DEGILSE
+kosulsuz `StateError('Zaten bir aramadasınız')` firlatiyordu.
+Bu kumeye **5 ekrandan** giriliyor (arama, oda, yayin baslatma, yayinci, izleyici) ve
+**9 ayri yerden** birakiliyor. Bir birakma yolu kacarsa (istisna, erken donus, ekranin
+oldurulmesi) id kumede ASILI kalir ve kullanici SUNUCU TERTEMIZ OLSA BILE arama
+baslatamaz — "bazen" olmasinin sebebi bu (her seferinde degil, kacan yola bagli).
+AYNI SINIF: turu 15'te yayin bitisi MODAL DIALOG'a bagliydi ve `yayin_<id>` muhafizi
+askida kaliyordu.
+
+### FIX (turu 53)
+`start()` artik muhafizi KORU KORUNE dinlemiyor — GERCEKLIGE soruyor:
+- `activeCallProvider.arama != null` (gercek aktif arama) VEYA kumede `oda_`/`yayin`
+  onekli kayit varsa -> eskisi gibi ENGELLE (ses cakismasi korumasi DURUYOR).
+- Aksi halde kayit **BAYATTIR**: kume temizlenir, arama devam eder ve Sentry'e
+  `bayat mesgul muhafizi temizlendi: [...]` yazilir (olcum — hangi id sarkiyor gorulecek).
+⚠️ YAPMA: bu kapiyi kosulsuz temizlemeye cevirme (oda/yayin muhafizi GERCEK olabilir).
+
+### KULLANICIYA CEVAP
+Internet kopuklugu / karsi tarafin hatti DEGIL. Sunucu tarafinda o senaryolar icin zaten
+uc katman koruma var: (1) LiveKit webhook oda bosalinca ANINDA 'ended' yazar (turu 19),
+(2) `gercektenMesgul()` DB 'active' dese bile LiveKit'e sorar (turu 22), (3) olu-arama
+supurucusu 90sn+ asili satirlari kapatir (turu 14). Sorun istemcideki bayat muhafizdi.
