@@ -408,13 +408,34 @@ class _GebzemAppState extends ConsumerState<GebzemApp> with WidgetsBindingObserv
     // Android es-zamanli ikinci request firlatir -> baslat oncesi bitmis olsun (FAZ-1C)
     await izinF;
 
+    // TEST TURU 53 — KOK NEDEN (sunucu kaniti 31 Tem): aranan tarafta GORUNTULU arama
+    // SESLI gibi baslıyordu. LiveKit logu: 3 aramada (hepsi `type=video`, DB teyitli)
+    // aranan iPhone YALNIZ ses yayinladi, video HIC gelmedi ve Sentry'de tek bir iz bile
+    // yoktu — cunku `_camOn=false` olunca kamera blogu KOMPLE atlanir (dogrulama dahil).
+    // SEBEP: buradaki `video` bayragi CALLKIT YUKUNDEN (`c['video']`) okunuyordu; o yuk
+    // `_ayikla` -> `(p.type ?? 0) == 1 || extra['call_type'] == 'video'` zincirine bagli
+    // ve CallKit kabul olayinda `type`/`extra` her zaman tam donmuyor (ayni sinif hata
+    // turu 34-36'da `is_group` icin yasandi: "CallKit yukunde UC yerde dusuruluyordu").
+    // COZUM: SUNUCU OTORITER. `answer()` yaniti ZATEN `"type": callType` donduruyor
+    // (backend handler.go:896) — artik ONCE o okunur, CallKit yuku yalnizca YEDEK.
+    // ⚠️ YAPMA: bunu tekrar yalniz `c['video']`ya baglama.
+    final sunucuTipi = info['type'] as String?;
+    final gorusmeVideo = sunucuTipi != null
+        ? sunucuTipi == 'video'
+        : (c['video'] as bool? ?? false);
+    // OLCUM: iki kaynak CELISIYORSA bunu GOR (sessiz kalmasin). Tek satir, dusuk gurultu.
+    if (sunucuTipi != null && (sunucuTipi == 'video') != (c['video'] as bool? ?? false)) {
+      unawaited(Sentry.captureMessage(
+          'arama tipi CELISKI: sunucu=$sunucuTipi callkit=${c['video']}'));
+    }
+
     // FAZ-C: mantik controller'da baslar (Navigator'i beklemez — ses/sure hemen kurulur)
     final ctrl = ref.read(activeCallProvider);
     unawaited(ctrl.baslat(AramaBilgisi(
       callId: callId,
       url: info['url'] as String,
       token: info['token'] as String,
-      video: c['video'] as bool? ?? false,
+      video: gorusmeVideo,
       peerName: c['caller_name'] as String? ?? '',
       outgoing: false,
       // GRUP: answer() cevabindan is_group/chat_title -> CallKit'ten kabul edilen grup

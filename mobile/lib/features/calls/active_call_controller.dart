@@ -1694,6 +1694,15 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
         // ⚠️ YAPMA: bu dogrulamayi kaldirma veya birden fazla kez tekrarlatma
         // (dongu = kamera ac/kapa savasi).
         _videoYayinDogrula(id);
+      } else if (b.video) {
+        // TEST TURU 53 — OLCUM KORLUGU KAPATILDI. `_camOn` false oldugunda yukaridaki
+        // kamera blogu KOMPLE atlaniyor; dogrulama da onun icinde oldugu icin GORUNTULU
+        // bir arama sessizce SESLI'ye donusuyor ve Sentry'de TEK BIR IZ bile kalmiyordu.
+        // (31 Tem: 3 arama, DB'de `type=video`, aranan iPhone yalniz ses yayinladi.)
+        // ⚠️ YAPMA: bu dali kaldirma — sessiz basarisizlik 20 tur boyunca bizi yanıltti.
+        unawaited(Sentry.captureMessage(
+            'GORUNTULU arama SESLI basladi: camOn=false gelen=${!b.outgoing} grup=$_isGroup'));
+        _sesLog('goruntulu arama camOn=false ile basladi (arama.video=true)');
       } else if (_onizlemeTrack != null) {
         // Baglanirken kamera kapandi (yasam dongusu oto-mute) -> onizlemeyi sal, sizinti olmasin
         await _onizlemeBirak();
