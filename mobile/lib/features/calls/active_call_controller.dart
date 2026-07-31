@@ -524,7 +524,9 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   /// TEST TURU 52 — KUCUK PENCERE IZGARASI: ANA video DISINDAKI uzak katilimcilarin
-  /// video track id'leri. En fazla 7 dondurur: ana + 7 = 8 kutu.
+  /// video track id'leri. En fazla 3 dondurur: ana + 3 = **4 kutu** (kullanici karari
+  /// 31 Tem — grup aramasi 4 kisiye indirildi; ayrica CLAUDE.md turu 17 kurali
+  /// "PiP izgarasinda 4'ten fazla kutu cizme, okunmuyor").
   ///
   /// ⚠️ SIRALAMA KASITLI OLARAK SABIT (`remoteParticipants` sirasi): `activeSpeakers`
   /// sirasi KULLANILMAZ. Kullanilsaydi biri her konustugunda liste yeniden dizilir,
@@ -538,7 +540,7 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     for (final p in _room?.remoteParticipants.values ?? const <RemoteParticipant>[]) {
       final t = _ilkVideoTrackId(p);
       if (t == null || t == anaId || out.contains(t)) continue;
-      if (out.length >= 7) break;
+      if (out.length >= 3) break; // ana + 3 = 4 kutu
       out.add(t);
     }
     return out;
@@ -2249,13 +2251,13 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> toggleCam() async {
     _kameraOtoKapandi = false; // FAZ-6: kullanici elle dokundu — oto-restore devre disi
     final on = !_camOn;
-    // KAPASITE (kullanici karari 30 Tem): grup aramasi 8 kisi — backend
+    // KAPASITE (kullanici karari 31 Tem): grup aramasi 4 kisi — backend
     // `maxGrupKatilimci` ile AYNI sayi olmali. ⚠️ YAPMA: iki tarafi ayirma.
     if (on && _isGroup) {
       final katilimci = 1 + (_room?.remoteParticipants.length ?? 0);
-      if (katilimci > 8) {
+      if (katilimci > 4) {
         rootMessengerKey.currentState?.showSnackBar(const SnackBar(
-            content: Text('Grup araması en fazla 8 kişi — kamera açılamıyor')));
+            content: Text('Grup araması en fazla 4 kişi — kamera açılamıyor')));
         return;
       }
     }

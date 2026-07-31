@@ -29,12 +29,23 @@ import (
 // Akis: arayan /calls baslatir -> aliciya WS "call.incoming" + push gider
 //       alici kabul edince ikisi de LiveKit odasina token'la baglanir.
 
-// GRUP ARAMA KAPASITESI — KULLANICI KARARI (30 Tem 2026): sesli VE goruntulu grup
-// aramasi ARAYAN DAHIL en fazla 8 kisi. (19 Tem'de "WhatsApp standardi 32" denmisti;
-// kullanici 30 Tem'de 8'e cekilmesini istedi — cx33'te 8 video publish zaten pratik
-// tavan.) Tek yerden okunur: hem Start hem Add ayni sabiti kullanir.
-// ⚠️ YAPMA: iki yere farkli sayi yazma (Add'den 9. kisi sizar).
-const maxGrupKatilimci = 8
+// GRUP ARAMA KAPASITESI — KULLANICI KARARI (31 Tem 2026): sesli VE goruntulu grup
+// aramasi ARAYAN DAHIL en fazla 4 kisi.
+// TARIHCE: 19 Tem "WhatsApp standardi 32" -> 30 Tem 8 -> 31 Tem 4.
+// 4'E INME GEREKCESI (kullanici: "acik ve buglari minimumda tutmak istiyorum"):
+//   · SFU iletim yuku N*(N-1): 4 kisi 12 akis, 8 kisi 56 akis (4.7 kati). Ustelik
+//     tum trafik TURN relay'den geciyor (olcum: connectionType=turn) -> paket basina
+//     cift isleme. Sunucu cx33 (4 vCPU).
+//   · Istemci N-1 video COZER. VP8 kullaniyoruz (H264 720p tavani yuzunden) ve VP8
+//     iPhone'da cogunlukla YAZILIMLA cozuluyor -> iPhone XS Max'te 7 es zamanli cozme
+//     + simulcast yayin = isinma/pil/kare dusmesi.
+//   · Kucuk pencere: 8 kutu = 8 renderer + 8 yazilim i420->NV12 donusumu; kutular
+//     ~74x64pt'ye duser (okunmuyor). CLAUDE.md turu 17 kurali zaten "4'ten fazla kutu cizme".
+//   · Kod yuzeyi: 5/6/7/8 icin ayri satir duzenleri + daha cok abone/birakma olayi =
+//     daha cok kimlik yarisi firsati.
+// Tek yerden okunur: hem Start hem Add ayni sabiti kullanir.
+// ⚠️ YAPMA: iki yere farkli sayi yazma (Add'den 5. kisi sizar).
+const maxGrupKatilimci = 4
 
 type Handler struct {
 	db   *pgxpool.Pool

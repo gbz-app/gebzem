@@ -21,16 +21,22 @@ import 'package:livekit_client/livekit_client.dart' as lk;
 /// iPhone'un SISTEM PiP'inde kamera OS tarafindan durdurulur (olcum: oturum=false,
 /// kesinti sebep=1 videoDeviceNotAvailableInBackground) -> orada kucuk kutu DONMUS KARE
 /// olurdu; o pencere native cizildigi icin buraya zaten ugramaz.
-/// TEST TURU 52 — 8 KISIYE KADAR IZGARA (kullanici karari 31 Tem).
+/// TEST TURU 52 — KUCUK PENCERE IZGARASI (kullanici karari 31 Tem).
 /// KURAL (WhatsApp deseni; [kutular] listesinde BEN her zaman SONDAYIM):
 ///   · 2 kisi  -> karsi taraf TAM pencere, BEN sag-altta kucuk kutu (ustune biner)
 ///   · 3 kisi  -> iki karsi taraf UST/ALT, BEN yine sag-altta kucuk kutu
-///   · 4-8     -> HERKES ESIT KUTU: 2 sutun, son satirda tek kalirsa TAM GENISLIK
-///     (4: 2x2 · 5: 2+2+1 · 6: 2x3 · 7: 2+2+2+1 · 8: 2x4)
-///   · 8'den fazlasi -> ilk 8 kutu + sag-altta "+N" rozeti
-/// ⚠️ YAPMA: 2/3 kisideki kose kutusunu izgaraya cevirme (kullanici WhatsApp gorunumu
-/// istedi); 8'den fazla kutu cizme (74x64pt'ye duser, okunmaz).
-const int kMiniEnFazlaKutu = 8;
+///   · 4 kisi  -> HERKES ESIT KUTU: 2x2 ceyrek
+///   · 4'ten fazlasi -> ilk 4 kutu + sag-altta "+N" rozeti
+///
+/// ⚠️ TAVAN 4 (31 Tem, kullanici: "8'li arama ile riske atiyoruz gibi geliyor, aciklari
+/// ve buglari minimumda tutmak istiyorum"). Grup aramasi da 4'e indirildi
+/// (`maxGrupKatilimci`). Gerekce: SFU iletimi N*(N-1) ile kare artiyor; istemci N-1
+/// video COZUYOR ve VP8 iPhone'da yazilimla cozuluyor; 8 kutu ~74x64pt'ye dusuyor;
+/// 5-8 icin ayri satir duzenleri kod yuzeyini buyutuyor. CLAUDE.md turu 17 kurali da
+/// zaten "4'ten fazla kutu cizme" diyordu.
+/// ⚠️ YAPMA: 2/3 kisideki kose kutusunu izgaraya cevirme (WhatsApp gorunumu);
+/// tavani backend `maxGrupKatilimci` ile FARKLI yapma.
+const int kMiniEnFazlaKutu = 4;
 
 Widget miniIzgara(List<Widget> kutular, {bool ustUste = false}) {
   final hepsi = kutular.length;

@@ -3037,3 +3037,31 @@ kose kutusuna cerceve ekleme; sayaclari yalniz basarili dalda sifirlamaya donme.
   surekli iptal ediliyor demektir (asil teshis bir sonraki turda buradan cikacak).
 - `EXC_BAD_ACCESS` YENI kayit CIKMAMALI (turu 51 cokme duzeltmesi + izgara yuku altinda).
 - 3-8 kisilik grup aramasinda alta alinca kutu sayisi/duzeni.
+
+## 31 Tem — GRUP ARAMASI 8 -> 4 (kullanici karari: risk azaltma)
+Kullanici: "8'li arama ile riske atiyoruz gibi geliyor, projenin icinde baska seyler de
+olacak, aciklari ve buglari minimum seviyede tutmak istiyorum. 4'lu ile 8'li arasinda
+fark var mi?" -> VAR, ve 4 lehine:
+- **SFU iletimi N*(N-1)**: 4 kisi 12 akis, 8 kisi **56 akis** (4.7 kati). Ustelik tum
+  trafik TURN relay'den geciyor (olcum: `connectionType=turn`) -> paket basina cift isleme.
+- **Istemci N-1 video COZER**: VP8 kullaniyoruz (H264 720p tavani yuzunden) ve VP8 iPhone'da
+  cogunlukla YAZILIMLA cozuluyor. iPhone XS Max'te 7 es zamanli cozme + simulcast yayin =
+  isinma / pil / kare dusmesi.
+- **Kucuk pencere**: 8 kutu = 8 renderer + 8 yazilim i420->NV12 donusumu; kutular ~74x64pt
+  (okunmuyor). CLAUDE.md turu 17 kurali zaten "PiP izgarasinda 4'ten fazla kutu cizme" idi —
+  8'e cikarirken o kurali ESNETMISTIM.
+- **Kod yuzeyi**: 5/6/7/8 icin ayri satir duzenleri + daha cok abone/birakma olayi =
+  daha cok kimlik yarisi firsati.
+
+### DEGISEN 4 YER (hepsi AYNI sayi olmali)
+- `backend/internal/calls/handler.go` `maxGrupKatilimci` 8 -> **4** (Start + Add ayni sabit)
+- `active_call_controller.dart` `toggleCam` kapisi 8 -> **4**
+- `active_call_controller.dart` `_ekUzakVideoTrackIdleri` `>= 7` -> **`>= 3`** (ana + 3 = 4 kutu)
+- `mini_izgara.dart` `kMiniEnFazlaKutu` 8 -> **4**
+`go build ./...` OK · `flutter analyze` temiz (onceden var olan 4 info lint).
+⚠️ YAPMA: bu dort yeri farkli sayilarla birakma; PiP tavanini backend kapasitesinden
+buyuk yapma.
+
+### KUCUK PENCERE DUZENI (guncel, 4 tavanli)
+2 kisi -> karsi taraf tam + BEN sag-altta kucuk · 3 kisi -> ikisi UST/ALT + BEN sag-altta
+kucuk · 4 kisi -> 2x2 ceyrek (herkes esit) · 4'ten fazlasi -> "+N" rozeti.
