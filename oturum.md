@@ -3216,3 +3216,13 @@ Ajan "sifirla" onerdi ama dogrulayici uyardi: SESLI grup aramasi da AYNI izgaray
 kullaniyor (turu 22 karari) ve padding sifirlanirsa 5-6 kisilik sesli grupta alt satirin
 ortalanmis avatar+adi kontrol cubugunun ALTINA giriyor. RISKLI — bu tur bilincli olarak
 ATLANDI.
+
+### EK (ayni oturum): GRUP IZGARASI SIYAH SERITLERI DE KALDIRILDI
+Yukarida "riskli buldum, atladim" dedigim madde TEKRAR degerlendirildi ve UYGULANDI.
+Dogrulayicinin itirazi (5-6 kisilik SESLI grupta alt satirin avatar+adi kontrol
+cubugunun altina girer) **grup kapasitesi 4'e indirildigi icin GECERSIZ**: 4 kisi =
+en fazla 2 satir, alt satirin merkezi ekranin ortasinda kalir.
+- `call_screen.dart` `_grupVideoIzgara` padding `fromLTRB(8,108,8,132)` -> `EdgeInsets.zero`
+- ayni izgarada tile arasi `bosluk` 6.0 -> 0.0
+⚠️ YAPMA: grup kapasitesi tekrar 4'un UZERINE cikarilirsa bu padding'i GERI GETIR
+(yoksa alt satirdaki adlar kontrollerin altinda kaybolur).

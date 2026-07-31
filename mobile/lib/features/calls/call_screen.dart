@@ -946,13 +946,24 @@ class _CallScreenState extends ConsumerState<CallScreen> {
         onTap: _uiToggle,
         child: Container(
         color: const Color(0xFF0B141A),
-        padding: const EdgeInsets.fromLTRB(8, 108, 8, 132),
+        // TEST TURU 53 (kullanici: "gridler arasinda siyahlik olmasin"): ust/alt 108/132px
+        // BOS koyu serit KALDIRILDI — izgara tum ekrani doldurur, kontroller USTUNE biner
+        // (WhatsApp gorunumu).
+        // ⚠️ DENETIM UYARISI VE NEDEN GECERSIZ: dogrulayici "sesli grup da AYNI izgarayi
+        // kullaniyor (turu 22); padding sifirlanirsa 5-6 kisilik sesli grupta alt satirin
+        // ortalanmis avatar+adi kontrol cubugunun ALTINA girer" dedi. O hesap 5-6 kisiye
+        // gore; grup kapasitesi 31 Tem'de **4 kisiye** indirildi (`maxGrupKatilimci`),
+        // yani en fazla 2 SATIR olusur ve alt satirin merkezi ekranin ortasinda kalir —
+        // kontrol cubugunun cok uzerinde. Risk kalkti.
+        // ⚠️ YAPMA: grup kapasitesi tekrar 4'un UZERINE cikarilirsa bu padding'i geri
+        // getir (yoksa alt satirdaki adlar kontrollerin altinda kaybolur).
+        padding: EdgeInsets.zero,
         child: LayoutBuilder(builder: (context, box) {
           final n = katilimcilar.length;
           final cols = n <= 2 ? 1 : 2;
           final rows = (n + cols - 1) ~/ cols;
           final gorunurSatir = rows > 4 ? 4 : rows;
-          const bosluk = 6.0;
+          const bosluk = 0.0; // turu 53: kutular arasi SIYAH CIZGI olmasin
           final tamW = box.maxWidth;
           final tileW = (tamW - (cols - 1) * bosluk) / cols;
           // TEST TURU 50 ("toplu goruntulu gorusmede ALTTA PATLIYOR"): satir yukseklikleri
