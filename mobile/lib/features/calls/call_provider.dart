@@ -292,7 +292,31 @@ class CallService extends StateNotifier<IncomingCall?> {
     // MESGUL: BASKA bir arama ekrani (calar/aktif) acikken gelen aramayi KABUL ETME.
     // Bu aramanin kendi ekrani answer'dan SONRA acilir, o yuzden ekrandakiAramalar'da
     // BU callId disinda bir id varsa mesgulüz -> ekran acma (cagiran null'da acmaz).
-    if (!zorla && ekrandakiAramalar.any((x) => x != callId)) return null;
+    //
+    // ⚠️ TEST TURU 54 — SUNUCU KANITI (1 Agu): kullanici "goruntulu aramadan CIKAN kisiyi
+    // TEKRAR EKLEDIGIMDE karsi taraf SUREKLI ARIYOR, TAKILI KALIYOR" dedi.
+    // Sunucu logu: `7bc32718` grup aramasina 4 kez `/add` gitti (hepsi 200) ama o arama
+    // icin TEK BIR `/answer` istegi YOK. Yani davet ulasiyor, telefon caliyor, ama kabul
+    // SUNUCUYA HIC VARMIYOR.
+    // KOK: gruptan AYRILAN kisinin `ekrandakiAramalar` kumesinde ESKI arama id'si ASILI
+    // kaliyor; asagidaki kapi `x != callId` gorup SESSIZCE `null` donuyor -> cagiran
+    // "zaten cevaplanmis" sanip ekran acmiyor, CallKit caliyor kaliyor.
+    // Bu, 31 Tem'de `start()` icin duzelttigim BAYAT MUHAFIZIN IKINCI YUZU — orayi
+    // onarmis ama BURAYI atlamistim.
+    // FIX: kapi artik GERCEKLIGE soruyor (start() ile AYNI mantik): gercek aktif arama
+    // VEYA `oda_`/`yayin` muhafizi varsa engelle; yoksa kayit BAYATTIR -> temizle + olcum.
+    // ⚠️ YAPMA: bu kapiyi kosulsuz kaldirma (oda/yayin muhafizi GERCEK olabilir — ses
+    // cakismasi korumasi orada duruyor) ya da `start()` ile farkli mantiga ayirma.
+    if (!zorla && ekrandakiAramalar.any((x) => x != callId)) {
+      final gercekArama = _ref.read(activeCallProvider).arama != null;
+      final odaVeyaYayin = ekrandakiAramalar
+          .any((x) => x.startsWith('oda_') || x.startsWith('yayin'));
+      if (gercekArama || odaVeyaYayin) return null;
+      final bayat = ekrandakiAramalar.where((x) => x != callId).toList();
+      ekrandakiAramalar.removeWhere((x) => x != callId);
+      unawaited(Sentry.captureMessage(
+          'bayat mesgul muhafizi temizlendi (answer): $bayat'));
+    }
     if (!_cevaplanan.add(callId)) return null; // ikinci kabul -> 409 olmadan engelle
     try {
       final res = await _ref.read(apiProvider).post('/calls/$callId/answer');
