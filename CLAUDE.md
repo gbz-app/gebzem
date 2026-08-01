@@ -17,7 +17,43 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (31 Tem 23:30):** TEST TURU 53 YAYINLANDI — android 30662374718 +
+- **KALDIGIMIZ YER (1 Agu 19:23):** TEST TURU 54 YAYINLANDI — android 30707620654 +
+  ios 30707617339 (384920c), R2 apk=105227853 ipa=19322064, purge OK, CDN birebir,
+  backend 384920c'ye senkron + health ok, DB temiz. **KULLANICI TEST EDECEK.**
+- ✅ **TURU 54 — TEKRAR DAVET TAKILMASININ ASIL KOKU (sunucu kaniti):** grup aramasi
+  `7bc32718`e **4 x `/add` (hepsi 200), 0 x `/answer`** — davet ulasiyor, telefon caliyor,
+  KABUL SUNUCUYA HIC VARMIYOR. Arama-id bazli **UC KUME** surec omru boyunca HIC
+  temizlenmiyordu: `_cevaplanan` (ikinci kabul REST'e GITMEDEN null doner — ASIL KOK),
+  `_bitenler`, `CallKitService.islenenler` (Android'de gelen-arama katmani bir daha acilmaz).
+  FIX: `CallService.davetSifirla(id)` — `aramaBitti()`, `grupDavetiGoster()`, `leave()`ten.
+  ⚠️ YAPMA: kapilarin KENDISINI kaldirma (ayni ZIL episodunda cift kabul korumasi);
+  `davetSifirla`yi arama SURERKEN cagirma.
+- ✅ **GRUP ARAMASINA DONUS (`devamEt`)**: WS aboneliklerini GERI KURMUYORDU (ikinci
+  aramanin `baslat()`i `_iptalAbonelikler()` ile oldurmustu) -> devam edilen arama sunucuda
+  'ended' olsa bile istemcide SONSUZA KADAR acik kaliyor, mesgul muhafizi dusmuyor,
+  kullanici bir daha arama YAPAMIYOR/ALAMIYOR. Abonelikler `_aboneliklerKur(id)` ile TEK
+  yere alindi (`baslat()` + `devamEt()`); `devamEt()` ayrica `_aktifPollBaslat()` +
+  `_pilTakibiBaslat()` cagiriyor. ⚠️ YAPMA: `_aboneliklerKur`u yalniz `baslat()`a baglama.
+- ✅ **PARK SURESI**: parkta gecen sure KAYBOLUYORDU. `ParkEdilenArama.parkSayaci`
+  (MONOTONIK Stopwatch) + `_sureBaz = p.gecen + p.parkSayaci.elapsed`.
+  ⚠️ YAPMA: DateTime/sunucu saati karsilastirmasiyla hesaplama (CLAUDE.md sure hukmu).
+- ⚠️ **TURU 53 DARALTMASI:** `_iosPipBasarisiz` kapisi `inactive`i de kapsiyordu ama
+  **EKRAN KILIDI de `inactive`ten GECER** -> durust mute atlanip karsi taraf DONMUS KARE
+  goruyordu ("kamera duraklatildi kaldirmissin"). Kapi yalniz `resumed`e daraltildi.
+  Kendi iptalimizi ayirt etme isi NATIVE `iptalIstendi` kapisinda (kesin bilgi).
+  ⚠️ YAPMA: buraya `inactive`i geri ekleme; native kapiyi kaldirma.
+- ⚠️ **"BEKLET/DURDUR KALDIRMISSIN" — KALDIRILMADI, HIC VAR OLMADI.**
+  `git log -S "Beklet" -- call_screen.dart` BOS doner. "Arama beklemede" paneli yalnizca
+  (a) CallKit hold, (b) Android GSM aramasi, (c) ikinci gelen arama ile ACILIR; elle
+  basilacak dugme YOK. Kullanicinin gordugu sesli/goruntulu farki `_gizliEfektif`ten:
+  GORUNTULUDE ekrana dokununca alt kontrol cubugu GIZLENIYOR ve geri gelmiyor.
+- **HENUZ YAPILMADI (kok neden bulundu, kullanici karari bekliyor):**
+  (1) **Goruntuluede "Beklet ve Kabul" gelmiyor** — ANA KOK: GIDEN aramalar CallKit'e HIC
+  bildirilmiyor (`FlutterCallkitIncoming.startCall` kod tabaninda YOK); iOS o ekrani ancak
+  CallKit'te aktif arama varsa cizer. Fark sesli/goruntulu DEGIL, **ARAYAN/ARANAN** farki.
+  (2) **Gecis animasyonu** — minimize/restore Navigator PUSH/POP; ekran her buyutmede
+  SIFIRDAN kuruluyor, `VideoTrackRenderer` dispose oluyor.
+- **ONCEKI (31 Tem 23:30):** TEST TURU 53 YAYINLANDI — android 30662374718 +
   ios 30662368371 (53512fc), R2 apk=105227853 ipa=19165051, purge OK, CDN birebir,
   **BACKEND DEPLOY EDILDI** (53512fc, `maxGrupKatilimci=4` sunucuda dogrulandi) + health ok,
   DB temiz. **KULLANICI TEST EDECEK.**
