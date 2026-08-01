@@ -172,7 +172,34 @@ class CallService extends StateNotifier<IncomingCall?> {
     if (id.isEmpty) return;
     if (state?.callId == id) state = null;
     CallKitService.bitir(id);
+    davetSifirla(id); // turu 54: ayni aramaya TEKRAR davet edilebilsin
     _endedController.add(id);
+  }
+
+  /// ⚠️ TEST TURU 54 — TEKRAR DAVET EDILEBILME (kullanici: "goruntulu aramadan CIKAN
+  /// kisiyi TEKRAR EKLEDIGIMDE karsi taraf SUREKLI ARIYOR, TAKILI KALIYOR").
+  ///
+  /// SUNUCU KANITI: grup aramasi `7bc32718`e 4 kez `/add` gitti (hepsi 200) ama o arama
+  /// icin TEK BIR `/answer` istegi YOK. Backend `Add` 'left' -> 'ringing' upsert'unu
+  /// DOGRU yapiyor; sorun ISTEMCIDE.
+  ///
+  /// KOK: arama-id bazli UC KUME surec omru boyunca HIC temizlenmiyordu:
+  ///  · `_cevaplanan` -> ayni callId ile IKINCI kabul REST'e HIC GITMEDEN null doner
+  ///    (ASIL KOK: kisi bir kez katilip ciktiysa, ayni aramaya tekrar davet edilince
+  ///     "Katil" dese bile sunucuya ulasmaz; CallKit ekrani kapanmaz, zil susmaz)
+  ///  · `_bitenler` -> ikinci ayrilis/red sunucuya HIC bildirilmez
+  ///  · `CallKitService.islenenler` -> Android'de uygulama-ici gelen-arama katmani
+  ///    bir daha HIC acilmaz (cift-UI kapisi yanlis tetiklenir)
+  ///
+  /// Bu metot bir arama EPISODU bitince o damgalari duser; kapilarin KENDISI durur
+  /// (ayni ZIL episodunda cift kabul/cift bitirme korumasi gereklidir).
+  /// ⚠️ YAPMA: kapilari tamamen kaldirma; bu sifirlamayi arama SURERKEN cagirma.
+  void davetSifirla(String id) {
+    if (id.isEmpty) return;
+    _cevaplanan.remove(id);
+    _bitenler.remove(id);
+    kabulEdilenler.remove(id);
+    CallKitService.islenenler.remove(id);
   }
 
   /// ARAMA BEKLETME (test turu 18): bu arama beklemeye alindi/geri alindi -> karsi tarafa
@@ -371,6 +398,9 @@ class CallService extends StateNotifier<IncomingCall?> {
   /// onay istemek yanlis olur); WS `call.incoming` iOS kapisini gevsetme (cift UI).
   void grupDavetiGoster(IncomingCall davet) {
     if (state?.callId == davet.callId) return;
+    // TURU 54: YENI bir davet episodu basliyor — eski damgalar (bir onceki katilimdan
+    // kalan `_cevaplanan`/`islenenler`) "Katil" dokunusunu sessizce yutmasin.
+    davetSifirla(davet.callId);
     state = davet;
   }
 

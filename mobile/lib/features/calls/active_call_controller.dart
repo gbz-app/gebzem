@@ -68,6 +68,12 @@ class ParkEdilenArama {
   final bool micOn;
   final bool camOn;
   final bool isGroup;
+
+  /// TEST TURU 54 — PARK SURESI. Eskiden devam edince sayac `gecen`den basliyordu, yani
+  /// PARKTA GECEN SURE KAYBOLUYORDU ve sayac karsi taraftan dakikalarca geri kaliyordu.
+  /// MONOTONIK Stopwatch — CLAUDE.md hukmu: sure senkronunda `DateTime.now()`/sunucu saati
+  /// KARSILASTIRMASI YASAK. ⚠️ YAPMA: bunu DateTime farkiyla hesaplama.
+  final Stopwatch parkSayaci = Stopwatch()..start();
 }
 
 /// Kucuk pencere (PiP / yuzen pencere) izgarasindaki TEK katilimci (test turu 17).
@@ -906,11 +912,17 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     // ILKE: kamerayi YALNIZCA iOS'un KENDI kesinti olayi (AVCaptureSessionWasInterrupted)
     // veya GERCEK arka plan gecisi kapatabilir. On plandayken ASLA.
     // ⚠️ YAPMA: bu on-plan kapisini kaldirma.
-    final durum = _sonYasamDurumu;
-    if (durum == null ||
-        durum == AppLifecycleState.resumed ||
-        durum == AppLifecycleState.inactive) {
-      _sesLog('pip basarisiz ama uygulama ON PLANDA ($durum) — kamera KAPATILMADI');
+    // ⚠️ TURU 54 DARALTMASI (kullanici: "ekran kilidi yapinca 'kamera duraklatildi'
+    // kaldirmissin"): turu 53'te bu kapi `inactive` ve `null`i da kapsiyordu. Ama EKRAN
+    // KILIDI de `inactive`ten GECER — bildirim o anda gelirse DURUST MUTE atlaniyor ve
+    // karsi taraf DONMUS KARE goruyor (ortu `pub.muted` sartina bagli, call_screen.dart).
+    // Kendi iptalimizi ayirt etme isi zaten NATIVE tarafta `iptalIstendi` kapisiyla
+    // yapiliyor (kesin bilgi; yasam dongusu tahmini degil). Burasi yalnizca "uygulama
+    // GERCEKTEN on planda ve aktif" halini korur.
+    // ⚠️ YAPMA: buraya `inactive`i geri ekleme (durust mute kaybolur);
+    // native `iptalIstendi` kapisini kaldirma (app switcher regresyonu doner).
+    if (_sonYasamDurumu == AppLifecycleState.resumed) {
+      _sesLog('pip basarisiz ama uygulama AKTIF — kamera KAPATILMADI');
       return;
     }
     if (Platform.isIOS && arama != null && _baglandi && !_ayrildi && _camOn && !pipModunda) {
@@ -1069,41 +1081,7 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     // MESGUL MUHAFIZI: calar fazi dahil isaretle; yalniz leave birakir.
     _svc.ekranAcildi(id);
 
-    // KISI EKLEME: yukseltme sinyali (WS call.upgraded) — grup moduna gecis.
-    _partSub = _svc.onParticipant.listen((ev) {
-      if (arama?.callId != id || _ayrildi) return;
-      if (ev['event'] == 'call.upgraded' && !_isGroup) {
-        _isGroup = true;
-        notifyListeners();
-        rootMessengerKey.currentState?.showSnackBar(SnackBar(
-            content: Text('${ev['added_name'] ?? 'Bir kisi'} aramaya kisi ekledi')));
-      } else if (_isGroup) {
-        notifyListeners(); // izgara tazelensin (joined/left)
-      }
-    });
-
-    // Karsi taraf kapatti / arama bitti.
-    _endedSub = _svc.onCallEnded.listen((eid) async {
-      if (eid != id || arama?.callId != id || _ayrildi) return;
-      if (_baglandi) {
-        leave(notifyServer: false);
-        return;
-      }
-      String s = '';
-      try {
-        s = (await _svc.callStatus(id))['status'] as String? ?? '';
-      } catch (_) {}
-      if (arama?.callId != id || _ayrildi || _baglandi) return;
-      if (s == 'ended') {
-        leave(notifyServer: false);
-      } else {
-        _cevapsizGoster(s == 'rejected'
-            ? 'Arama reddedildi'
-            : s == 'busy'
-                ? 'Mesgul'
-                : 'Cevap yok');
-      }
-    });
+    _aboneliklerKur(id);
 
     if (b.outgoing) {
       // GIDEN ARAMA: karsi taraf acana kadar odaya BAGLANMA.
@@ -2221,6 +2199,52 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     } catch (_) {}
   }
 
+  /// TEST TURU 54 — WS ABONELIKLERI (tek yerden). Hem `baslat()` hem `devamEt()` cagirir.
+  /// `devamEt()` icin KRITIK: ikinci aramanin `baslat()`i `_iptalAbonelikler()` ile
+  /// park edilmis grup aramasinin aboneliklerini OLDURUYOR; geri kurulmazsa devam edilen
+  /// arama sunucuda 'ended' olsa bile istemcide SONSUZA KADAR acik kaliyor (mesgul
+  /// muhafizi dusmuyor -> kullanici bir daha arama yapamiyor/alamiyor).
+  /// ⚠️ YAPMA: bu metodu yalniz `baslat()`a bagli birakma.
+  void _aboneliklerKur(String id) {
+    _partSub?.cancel();
+    _endedSub?.cancel();
+    // KISI EKLEME: yukseltme sinyali (WS call.upgraded) — grup moduna gecis.
+    _partSub = _svc.onParticipant.listen((ev) {
+      if (arama?.callId != id || _ayrildi) return;
+      if (ev['event'] == 'call.upgraded' && !_isGroup) {
+        _isGroup = true;
+        notifyListeners();
+        rootMessengerKey.currentState?.showSnackBar(SnackBar(
+            content: Text('${ev['added_name'] ?? 'Bir kisi'} aramaya kisi ekledi')));
+      } else if (_isGroup) {
+        notifyListeners(); // izgara tazelensin (joined/left)
+      }
+    });
+
+    // Karsi taraf kapatti / arama bitti.
+    _endedSub = _svc.onCallEnded.listen((eid) async {
+      if (eid != id || arama?.callId != id || _ayrildi) return;
+      if (_baglandi) {
+        leave(notifyServer: false);
+        return;
+      }
+      String s = '';
+      try {
+        s = (await _svc.callStatus(id))['status'] as String? ?? '';
+      } catch (_) {}
+      if (arama?.callId != id || _ayrildi || _baglandi) return;
+      if (s == 'ended') {
+        leave(notifyServer: false);
+      } else {
+        _cevapsizGoster(s == 'rejected'
+            ? 'Arama reddedildi'
+            : s == 'busy'
+                ? 'Mesgul'
+                : 'Cevap yok');
+      }
+    });
+  }
+
   void _iptalAbonelikler() {
     _endedSub?.cancel();
     _answeredSub?.cancel();
@@ -2256,6 +2280,10 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     // Muhafizlari birak (eski dispose'un iki birakmasi TEK KAPIDA)
     _svc.aktifKonusmaBitti(id);
     _svc.ekranKapandi(id);
+    // TURU 54: bu arama episodu bitti -> davet damgalarini dus. Yoksa AYNI aramaya
+    // tekrar davet edildiginde kabul REST'e HIC GITMEZ ve karsi tarafta zil susmaz
+    // (sunucu kaniti: 4 x /add, 0 x /answer). ⚠️ YAPMA: bunu arama SURERKEN cagirma.
+    _svc.davetSifirla(id);
 
     // iOS PiP (test turu 7): arama bitti -> native controller'i birak (kaynak sizmasin)
     if (_iosPipKurulanId.isNotEmpty) {
@@ -2485,15 +2513,29 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     _error = null;
     minimized = false;
     beklemede = false;
-    _sureBaz = p.gecen; // kaldigi yerden
+    // TURU 54: PARKTA GECEN SURE de eklenir (monotonik) — eskiden kayboluyor ve sayac
+    // karsi taraftan dakikalarca geri kaliyordu. ⚠️ YAPMA: DateTime farkiyla hesaplama.
+    _sureBaz = p.gecen + p.parkSayaci.elapsed;
+    p.parkSayaci.stop();
     _sureSayaci
       ..stop()
       ..reset();
     _svc.ekranAcildi(p.bilgi.callId); // mesgul muhafizi geri
+    // ⚠️⚠️ TURU 54 — KRITIK: ABONELIKLERI GERI KUR. Ikinci aramanin `baslat()`i
+    // `_iptalAbonelikler()` ile grup aramasinin WS aboneliklerini OLDURMUSTU
+    // (`_endedSub`/`_partSub`/`_answeredSub`) ve `parkEt()` de durum poll'unu iptal
+    // etmisti. Geri kurulmayinca devam edilen arama SUNUCUDA 'ended' olsa bile
+    // istemcide SONSUZA KADAR acik kaliyor: mesgul muhafizi dusmuyor, kullanici bir daha
+    // arama yapamiyor/alamiyor. (Backend `endGroup` LiveKit odasini SILMEDIGI icin
+    // `RoomDisconnectedEvent` yedegi de yok.)
+    // ⚠️ YAPMA: bu cagriyi kaldirma.
+    _aboneliklerKur(p.bilgi.callId);
     await _medyaBeklet(p.room, false, micHedef: p.micOn, camHedef: p.camOn);
     await _sesiAc(true); // iOS: ses birimi EN SON (hold->resume ses kaybi tuzagi)
     unawaited(_svc.hold(p.bilgi.callId, false));
     _startTimer();
+    _aktifPollBaslat();
+    _pilTakibiBaslat();
     notifyListeners();
     ekraniAc();
   }
