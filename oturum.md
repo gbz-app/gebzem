@@ -3256,3 +3256,58 @@ en fazla 2 satir, alt satirin merkezi ekranin ortasinda kalir.
 - `bayat mesgul muhafizi temizlendi: […]` -> hangi id sarkiyor (oda_/yayin_ mi, arama mi).
 - `ios pip olcum … cagri=N iptal=M` -> artik TEK gecise ait (turu 52'de sifirlama eklendi).
 - `EXC_BAD_ACCESS` YENI kayit CIKMAMALI.
+
+## TEST TURU 54 SURUMU YAYINLANDI (1 Agu 19:23)
+- android **30707620654** + ios **30707617339** (commit **384920c**), debug imza YOK.
+- R2: apk **105227853** (MD5 `a5eac4c7…` -> `57803022…`) · ipa **19322064**
+  (19165051'den BUYUDU, MD5 `e6226a5b…` -> `ab504ffe…`) · index **7142**.
+  Purge OK, CDN birebir, backend `384920c`e senkron + health ok, DB temiz.
+- 20 ajanlik denetim; 6 bulgu onaylandi, 9 iddia curutuldu.
+
+### DUZELTILEN 4 MADDE
+1. **TEKRAR DAVET TAKILMASI — ASIL KOK** (sunucu kaniti: `7bc32718` grup aramasina
+   4 x `/add` (hepsi 200), **0 x `/answer`**). Arama-id bazli UC KUME surec omru boyunca
+   HIC temizlenmiyordu: `_cevaplanan` (ikinci kabul REST'e HIC gitmeden null doner),
+   `_bitenler` (ikinci ayrilis sunucuya bildirilmez), `CallKitService.islenenler`
+   (Android'de gelen-arama katmani bir daha acilmaz). Yeni `davetSifirla(id)`;
+   `aramaBitti()`, `grupDavetiGoster()` ve `leave()`ten cagriliyor.
+   ⚠️ Kapilarin KENDISI duruyor — ayni ZIL episodunda cift kabul korumasi gerekli.
+2. **GRUP ARAMASINA DONUS**: `devamEt()` WS aboneliklerini geri KURMUYORDU. Ikinci
+   aramanin `baslat()`i `_iptalAbonelikler()` ile onlari oldurmustu; sonuc: devam edilen
+   arama sunucuda 'ended' olsa bile istemcide SONSUZA KADAR acik kaliyor, mesgul muhafizi
+   dusmuyor, kullanici bir daha arama yapamiyor/alamiyor. Abonelikler `_aboneliklerKur(id)`
+   ile TEK yere alindi (hem `baslat()` hem `devamEt()` cagirir); `devamEt()` ayrica
+   `_aktifPollBaslat()` + `_pilTakibiBaslat()` cagiriyor.
+3. **PARK SURESI**: parkta gecen sure kayboluyordu (sayac karsi taraftan dakikalarca
+   geri). `ParkEdilenArama.parkSayaci` MONOTONIK Stopwatch; `devamEt()`te
+   `_sureBaz = p.gecen + p.parkSayaci.elapsed`. ⚠️ DateTime/sunucu saati KARSILASTIRMASI YOK.
+4. **DURUST MUTE DARALTMASI**: turu 53'te `_iosPipBasarisiz` kapisi `inactive`i de
+   kapsiyordu; EKRAN KILIDI de `inactive`ten GECER -> durust mute atlanip karsi taraf
+   DONMUS KARE goruyordu. Kapi yalniz `resumed`e daraltildi. Kendi iptalimizi ayirt etme
+   isi zaten NATIVE `iptalIstendi` kapisinda (kesin bilgi, yasam dongusu tahmini degil).
+
+### ⚠️ KULLANICIYA DURUST CEVAP: "BEKLET/DURDUR KALDIRMISSIN"
+KALDIRILMADI — **hicbir surumde var olmadi**. `git log -S "Beklet" -- call_screen.dart`
+BOS doner. "Arama beklemede" paneli yalnizca (a) CallKit hold, (b) Android GSM aramasi,
+(c) ikinci gelen arama ile ACILIR; elle basilacak bir "beklet" dugmesi YOK.
+Kullanicinin gordugu sesli/goruntulu farki `_gizliEfektif`ten: GORUNTULU aramada ekrana
+dokununca alt kontrol cubugu GIZLENIYOR ve geri gelmiyor; SESLIDE hic gizlenmiyor.
+Elle beklet dugmesi eklenebilir ama bu YENI OZELLIK, "geri getirme" degil — kullaniciya
+soruldu, karar bekliyor.
+
+### HENUZ YAPILMADI (kok nedenleri bulundu, kullanici karari bekliyor)
+- **Goruntuluede "Beklet ve Kabul" gelmiyor**: ANA KOK — GIDEN aramalar CallKit'e HIC
+  bildirilmiyor (`FlutterCallkitIncoming.startCall` kod tabaninda YOK). iOS o ekrani
+  ancak CallKit'te `supportsHolding=true` AKTIF bir arama varsa cizer. Yani fark
+  sesli/goruntulu degil, ARAYAN/ARANAN farki (kullanici goruntuluyu genelde kendi baslatiyor).
+  Ayrica 5 goruntuluye ozel kusur listelendi (ikinci kamera acilmasi, `parkEt` PiP'i
+  birakmamasi, hoparlor durumunun saklanmamasi vb.).
+- **Gecis animasyonu**: minimize/restore bir Navigator PUSH/POP — ekran her buyutmede
+  SIFIRDAN kuruluyor, `VideoTrackRenderer` dispose oluyor. "Hafif siyah + akici gecis"
+  icin siyah perde + (kalici cozum) renderer sahipliginin controller'a alinmasi gerek.
+
+### KULLANICI TEST EDECEK — YENI OLCUMLER
+- `bayat mesgul muhafizi temizlendi (answer): […]` -> kabul yolunda bayat kayit vardi.
+- `bayat mesgul muhafizi temizlendi: […]` -> baslatma yolunda.
+- `GORUNTULU arama SESLI basladi: camOn=false …` / `arama tipi CELISKI: …`
+- `EXC_BAD_ACCESS` YENI kayit CIKMAMALI.
