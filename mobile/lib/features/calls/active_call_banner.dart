@@ -196,8 +196,28 @@ class _AktifAramaBannerState extends ConsumerState<AktifAramaBanner> {
                               color: Colors.white,
                               fontWeight: FontWeight.w700,
                               fontSize: 14)),
-                      const Text('Aramaya dönmek için dokun',
-                          style: TextStyle(color: Colors.white70, fontSize: 11)),
+                      // ⚠️ TURU 60 — BEKLETME BILGISI BANTTA DA GORUNUR.
+                      // Denetim bulgusu: bekletme rozeti YALNIZ `CallScreen` agacinda
+                      // ciziliyordu. Arama kucultulmusse (kullanicinin normal davranisi:
+                      // GSM konusurken Gebzem arka planda) karsi tarafin bekletmesini
+                      // gosteren HICBIR YER YOKTU.
+                      // ⚠️ YAPMA: bu satiri tekrar sabit metne dondurme.
+                      Text(
+                          c.beklemede
+                              ? '⏸ Arama beklemede'
+                              : (c.karsiBeklemede
+                                  ? '⏸ Karşı taraf beklemeye aldı'
+                                  : 'Aramaya dönmek için dokun'),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                              color: (c.beklemede || c.karsiBeklemede)
+                                  ? const Color(0xFFFFD9A0)
+                                  : Colors.white70,
+                              fontSize: 11,
+                              fontWeight: (c.beklemede || c.karsiBeklemede)
+                                  ? FontWeight.w700
+                                  : FontWeight.normal)),
                     ],
                   ),
                 ),

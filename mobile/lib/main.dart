@@ -257,7 +257,19 @@ class _GebzemAppState extends ConsumerState<GebzemApp> with WidgetsBindingObserv
     // Karsi taraf BENI beklemeye aldi -> ekranda "Beklemede" yazsin (bilgi amacli)
     _heldSub = ref.read(callServiceProvider.notifier).onHeld.listen((m) {
       final ctrl = ref.read(activeCallProvider);
-      if (ctrl.arama?.callId == (m['call_id'] as String? ?? '')) {
+      final gelenId = m['call_id'] as String? ?? '';
+      final eslesti = ctrl.arama?.callId == gelenId;
+      // ⚠️ TURU 60 — OLCUM. Denetim: "olayin istemcinin soketine yazildigini
+      // gosterebiliyorum, Flutter katmaninda ISLENDIGINI gosteremiyorum — bunun icin
+      // istemci telemetrisi SART." Bu satir o korlugu kapatir: bir dahaki turda
+      // "call.held istemciye ulasti mi, eslesti mi, ekran acik miydi" SORULMAZ, BAKILIR.
+      // ⚠️ YAPMA: bu olcumu breadcrumb'a (`_sesLog`) cevirme — breadcrumb yalnizca
+      // baska bir olayla birlikte yuklenir (turu 50 ve turu 56 dersi).
+      unawaited(Sentry.captureMessage(
+          'call.held alindi: on=${m['on'] == true} eslesti=$eslesti '
+          'aramaVar=${ctrl.arama != null} ekran=${ctrl.ekranGorunur} '
+          'minimize=${ctrl.minimized}'));
+      if (eslesti) {
         ctrl.karsiTarafBekletti(m['on'] == true);
       }
     });

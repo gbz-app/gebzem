@@ -393,8 +393,21 @@ class _CallScreenState extends ConsumerState<CallScreen> {
                           style: const TextStyle(color: Colors.white70, fontSize: 15)),
                       // TEST TURU 21 (WhatsApp): PIL / BAGLANTI uyarisi — "X pil seviyesi
                       // düşük", "İnternet bağlantın zayıf", "Yeniden bağlanılıyor…".
-                      if (c.uyariMetni.isNotEmpty && !c.beklemede)
-                        Padding(
+                      // ⚠️ TURU 60: `!c.karsiBeklemede` DE eklendi. Karsi taraf beklemeye
+                      // alinca uygulamasi arka plana gecer ve baglanti kalitesi duser ->
+                      // "X baglantisi zayif" uyarisi TAM O ANDA dolar. Bu hem YANILTICI
+                      // (sebep ag degil, bekletme) hem de ayni Row'u sisirip tasmaya
+                      // katkida bulunuyordu. Bekletme bilgisi zaten ALTTA gosteriliyor.
+                      if (c.uyariMetni.isNotEmpty && !c.beklemede && !c.karsiBeklemede)
+                        // ⚠️ TURU 60: `Flexible` SARMALI. Icerideki `Flexible` (metin)
+                        // OLU KODDU: bu `Padding` dis Row'un flex OLMAYAN cocugu oldugu
+                        // icin SINIRSIZ ana-eksen kisitiyla olculuyor, dolayisiyla ic
+                        // Row'da esneme olmuyor ve `ellipsis` HIC devreye girmiyordu
+                        // (turu 23'un "uzun uyari metni tasiyor" duzeltmesi fiilen
+                        // tutmamis). Artik uyari kalan alana sigar, tasma uretmez.
+                        // ⚠️ YAPMA: bu Flexible'i kaldirma.
+                        Flexible(
+                          child: Padding(
                           // TEST TURU 23: uzun uyari metni tasiyordu -> yatay pay + tek satir
                           padding: const EdgeInsets.fromLTRB(24, 6, 24, 0),
                           child: Container(
@@ -421,26 +434,46 @@ class _CallScreenState extends ConsumerState<CallScreen> {
                             ]),
                           ),
                         ),
-                      // ARAMA BEKLETME (test turu 18): bu arama beklemede mi
-                      if (c.beklemede || c.karsiBeklemede)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 6),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                                color: const Color(0xAAEF6C00),
-                                borderRadius: BorderRadius.circular(12)),
-                            child: Text(
-                                c.beklemede
-                                    ? '⏸ Beklemede'
-                                    : '⏸ Karşı taraf sizi beklemeye aldı',
-                                style: const TextStyle(
-                                    color: Colors.white, fontSize: 12)),
-                          ),
                         ),
                     ],
                   ),
+                  // ⚠️⚠️ ARAMA BEKLETME ROZETI — TURU 60'ta BU ROW'DAN CIKARILDI.
+                  //
+                  // KOK NEDEN (kullanici: "Android'de karsi tarafta 'beklemede'
+                  // GORUNMUYOR"): rozet DIKEY yigin icin yazilmisti (`top: 6` payi bunu
+                  // ele veriyor) ama bir `Row`un cocuguydu. Row'un HICBIR cocugu
+                  // `Flexible` degil -> RenderFlex hepsini SINIRSIZ genislikle olcer,
+                  // Row ise `Positioned(left:0,right:0)` ile EKRAN GENISLIGINE tutturulu.
+                  // Karsi taraf GSM'i kabul edince uygulamasi arka plana gecer, bizde
+                  // `karsiKalite` duser ve `uyariMetni` ("X baglantisi zayif") DOLAR;
+                  // o kapi `!c.beklemede`ye bagli oldugu icin KARSI tarafta ACIKTIR.
+                  // Sonuc: sure + uyari bloku + rozet ~490px, ekran 360-414px -> rozet
+                  // sagdan TASAR ve ust sarmal `Stack` (varsayilan `Clip.hardEdge`)
+                  // onu KIRPAR. Rozet CIZILIR ama EKRANDA GORUNMEZ.
+                  // ⚠️ YAPMA: bu rozeti tekrar yukaridaki Row'un icine koyma.
+                  if (c.beklemede || c.karsiBeklemede)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                            color: const Color(0xE6EF6C00),
+                            borderRadius: BorderRadius.circular(12)),
+                        child: Text(
+                            c.beklemede
+                                ? '⏸ Arama beklemede'
+                                : '⏸ Karşı taraf aramayı beklemeye aldı',
+                            textAlign: TextAlign.center,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600)),
+                      ),
+                    ),
                   // TESHIS: kullanici "ses gelmiyor" isaretler -> sunucuya SORUN-BILDIRIMI
                   if (c.peerJoined && !c.cevapsiz)
                     Padding(

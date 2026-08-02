@@ -236,11 +236,29 @@ class CallService extends StateNotifier<IncomingCall?> {
 
   /// ARAMA BEKLETME (test turu 18): bu arama beklemeye alindi/geri alindi -> karsi tarafa
   /// bilgi (ekraninda "Beklemede" yazar). Sunucu arama satirina DOKUNMAZ.
+  /// Karsi tarafa "aramayi beklemeye aldim/geri aldim" bilgisini gonderir.
+  ///
+  /// ⚠️ TURU 60: hata eskiden TAMAMEN YUTULUYORDU (`catch (_) {}`) ve TEK deneme
+  /// yapiliyordu. GSM aramasi kabul edilirken telefon hucresel/wifi gecisi yasar,
+  /// istek TAM O ANDA duserse karsi taraf bekletmeyi HIC ogrenmezdi ve bunu
+  /// gorecek TEK BIR olcum de yoktu. Artik 3 deneme (artan aralik) + gorunur olcum.
+  /// ⚠️ YAPMA: tek denemeye/sessiz yutmaya geri donme.
+  /// ⚠️ NOT: `unhold` (on=false) kaybolursa karsi taraf SONSUZA KADAR "beklemede"
+  /// kalir — bu yuzden tekrar denemesi ozellikle kritiktir.
   Future<void> hold(String callId, bool on) async {
     if (callId.isEmpty) return;
-    try {
-      await _ref.read(apiProvider).post('/calls/$callId/hold', data: {'on': on});
-    } catch (_) {}
+    Object? sonHata;
+    for (var i = 0; i < 3; i++) {
+      try {
+        await _ref.read(apiProvider).post('/calls/$callId/hold', data: {'on': on});
+        return;
+      } catch (e) {
+        sonHata = e;
+        if (i < 2) await Future.delayed(Duration(milliseconds: 400 * (i + 1)));
+      }
+    }
+    unawaited(Sentry.captureMessage(
+        'hold POST BASARISIZ (3 deneme) on=$on: $sonHata'));
   }
 
   /// Karsi taraf beni beklemeye aldi mi (WS call.held) — CallScreen "Beklemede" yazar.

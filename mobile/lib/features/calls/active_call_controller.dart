@@ -149,9 +149,16 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     PipService.gsmAramada.addListener(() {
       final b = arama;
       if (b == null || _ayrildi || !_baglandi) return;
-      // turu 56: olcum — GSM olayi GERCEKTEN geliyor mu (36 tur hic gelmemisti)
       final gsm = PipService.gsmAramada.value;
-      _sesLog('gsm durum=$gsm beklemede=$beklemede baglandi=$_baglandi');
+      // ⚠️⚠️ TURU 60 — OLCUM KORLUGU KAPATILDI. Bu satir turu 56'da "olcum" diye
+      // eklenmisti ama `_sesLog` Sentry'e YALNIZ BREADCRUMB yazar; breadcrumb ancak
+      // BASKA bir olay/cokme olursa yuklenir. Yani "Android'de GSM olayi geliyor mu"
+      // sorusunu 4 turdur TELEMETRIYLE KANITLAYAMIYORDUK (turu 50'deki ayni tuzak:
+      // "hata `_sesLog` ile yutuluyordu"). Artik GERCEK olay dusuyor.
+      // ⚠️ YAPMA: bunu tekrar yalniz breadcrumb'a (`_sesLog`) cevirme.
+      unawaited(Sentry.captureMessage(
+          'gsm olayi: gsm=$gsm beklemede=$beklemede baglandi=$_baglandi '
+          'platform=${Platform.isAndroid ? "android" : "ios"}'));
       unawaited(beklemeyeAl(b.callId, gsm));
     });
   }
@@ -2807,6 +2814,19 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     // ⚠️ YAPMA: await'lerden sonra `arama!` kullanma; kimlik kapisini kaldirma.
     final orijinalId = arama!.callId;
     beklemede = aktif;
+    // ⚠️⚠️ TURU 60 — SINYAL MEDYANIN ONUNE ALINDI (kullanici: "Android'de sesi kapatiyor
+    // ama karsi tarafa 'beklemede' GITMIYOR").
+    // Eskiden `_svc.hold(...)` metodun EN SONUNDAYDI: asagidaki UC await'in VE iki kimlik
+    // kapisinin ARKASINDA. Sonuclari:
+    //   · Bir kapi erken donerse karsi taraf bekletmeyi HIC ogrenmiyordu.
+    //   · UNHOLD yolunda daha da kotu: `_sesiAc`+`_androidSesTazele` await'lerinden sonraki
+    //     kapi tetiklenirse karsi taraf SONSUZA KADAR "Beklemede" rozetiyle kaliyordu
+    //     (rozeti temizleyecek BASKA yol YOK).
+    // Karsi tarafi bilgilendirmek MEDYA ISINDEN BAGIMSIZDIR ve GECIKMEMELIDIR — bu yuzden
+    // karar verilir verilmez, `beklemede` yazildigi anda gonderilir.
+    // ⚠️ YAPMA: bu cagriyi tekrar await'lerin/kapilarin ALTINA tasima.
+    unawaited(_svc.hold(orijinalId, aktif));
+    notifyListeners(); // kendi ekranimizdaki "⏸ Beklemede" rozeti de ANINDA cizilsin
     await _medyaBeklet(room, aktif, micHedef: _micOn, camHedef: _camOn);
     // Await sirasinda arama bittiyse/degistiyse DOKUNMA (bayat akis).
     if (_ayrildi || arama?.callId != orijinalId) return;
@@ -2833,8 +2853,8 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       // ⚠️ YAPMA: bu cagriyi kaldirma; `devamEt()` ile bu yolu asimetrik birakma.
       ekraniAc();
     }
+    // NOT: sunucuya haber verme YUKARIDA, medyadan ONCE yapiliyor (turu 60).
     // ⚠️ Sunucuya ORIJINAL id gonderilir (buyuk harfli CallKit id'si DEGIL).
-    unawaited(_svc.hold(orijinalId, aktif));
     notifyListeners();
   }
 
