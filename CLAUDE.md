@@ -17,6 +17,41 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (2 Agu):** TURU 58 + 59 KODU HAZIR, PUSH EDILDI (f65d798).
+  `flutter analyze` temiz (4 eski info lint), `go build ./...` + `go vet` temiz.
+  **BUILD ICIN KULLANICI ONAYI BEKLENIYOR** (kural 0). Backend DEGISTI -> bu turda
+  build'in yaninda **DEPLOY DE GEREKLI** (calls handler + webhook).
+- ⚠️⚠️ **TURU 59 — TURU 58'DE EKLEDIGIM OZELLIK OLU DOGMUSTU (build oncesi denetim):**
+  "Cevaplanan arama" sohbet balonu kaydi YALNIZ `End()` handler'ina konmustu. Kullanici
+  kapatinca istemci AYNI ANDA hem odadan cikar hem `/end` atar; LiveKit webhook'u
+  **localhost'tan ms'ler icinde** gelir, istemcinin REST'i mobil agdan. Yani
+  `UPDATE ... WHERE status IN ('ringing','active')` yarisini **neredeyse HER ZAMAN
+  webhook kazanir** ve `/end` bir ustteki `RowsAffected()==0` kapisinda sessizce doner
+  -> balon SAHADA HIC YAZILMAZDI.
+  **FIX:** ortak `bitenAramayiSohbeteYaz()`; yarisi KAZANAN **her iki yoldan** cagriliyor.
+  ⚠️ YAPMA: cagriyi `RowsAffected>0` kapisinin DISINA tasima (CIFT BALON); cop
+  toplayicilara (sweep 2sa / olu-arama 90sn / `oluAramaTemizle`) ekleme (orada
+  `ended_at` gercek kapanistan cok sonra -> SISMIS sure gosterir).
+  **GENEL DERS:** "iki yazicidan biri kazanir" mimarisinde yeni yan etkiyi TEK yaziciya
+  koymak = o yan etkinin hic calismamasi.
+- **TURU 59 DIGER FIXLER:** (1) sohbet listesinde HAM `call:ended:audio:75` ->
+  yeni `chats/arama_kaydi.dart` ayristirmanin TEK kaynagi (balon + onizleme).
+  (2) `call:ended:*` artik `read_at=now()` ile OKUNMUS dogar (rozet gurultusu bitti);
+  `call:missed:*` rozet URETMEYE DEVAM eder. (3) **BAYAT EKRAN CANLI EKRANI EZIYORDU**
+  (dispose pop kararindan ~400ms sonra calisir; arada yeni arama devralirsa yesil bant
+  canli ekranin ustune biner, banta dokunmak IKINCI push yapar) -> `ekranSahibi`
+  NESNE KIMLIGI jetonu; ⚠️ callId karsilastirmasi YETMEZ (`geriAra()` callId'yi degistirir).
+  (4) 240ms dirilme dali bayat ekrani pop etmiyordu -> ayni track'e iki renderer.
+  (5) ELLE minimize'da yesil bant 1sn'ye kadar cizilmiyordu (`notifyListeners` `if`
+  icindeydi, `minimized` zaten true) -> disari alindi. (6) GECIS: siyah katman
+  `FadeTransition`in DISINDAYDI -> pop yonunde 160ms duz siyah + sert kesme + arama
+  boyunca 2 fazla opak katman; Container kaldirildi (siyahi `barrierColor` veriyor),
+  `CurvedAnimation` -> `CurveTween` (her karede kurulup dispose edilmiyordu).
+  (7) Android `PipService.pipModu` PAYLASILAN bayragi hicbir yerde oz-iyilestirilmiyordu
+  -> kacan bir `pipDegisti(false)` sonraki YAYIN ekranini kalici "PiP sade gorunumu"nde
+  birakabilirdi; `resumed` dalinda temizleniyor.
+  ⚠️ YAPMA: (3)(4) jeton kapilarini kaldirma; (5) notify'i geri `if` icine alma;
+  (6) siyah Container'i geri koyma.
 - **KALDIGIMIZ YER (2 Agu 16:58):** TEST TURU 57 YAYINLANDI — android 30750686204 +
   ios 30750682791 (33089f9), R2 apk=105211469 ipa=19313086, purge OK, CDN birebir,
   backend degismedi + health ok, DB temiz. **KULLANICI TEST EDECEK.**

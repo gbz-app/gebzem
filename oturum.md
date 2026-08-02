@@ -3526,3 +3526,83 @@ yalnizca GERCEKTEN GELEN aramalar icin anlamlidir.
 · `bayat mesgul muhafizi`, `kamera acilamadi`, `video yayin yok`, `arama tipi CELISKI`,
   `GORUNTULU arama SESLI basladi`, `gsm dinleyici KAPALI` -> HICBIRI CIKMADI
 · PiP: `oturum=true yerel3=90 cagri=2 iptal=0 msMax=0`
+
+---
+
+## Oturum (2 Agu 2026) — TEST TURU 59: BUILD ONCESI DENETIM 12 BULGU
+
+Kullanici emri: "eksik ne varsa yap problemli olanlarida duzelt daha sonra bir temiz
+build alip test edelim". Turu 58 kodu HAZIR gorunuyordu; build ALMADAN once 16 ajanlik
+denetim calistirildi (4 boyut: gecis animasyonu · font+balonlar · ekran yasam dongusu ·
+GSM/oda/yayin). 12 bulgu ONAYLANDI, hepsi duzeltildi (f65d798).
+
+### 🔴 EN AGIR: TURU 58'DE EKLEDIGIM OZELLIK OLU DOGMUSTU
+"Cevaplanan arama" sohbet balonu (WhatsApp paritesi) **sahada HIC yazilmayacakti.**
+
+**MEKANIZMA:** kayit yalniz `End()` handler'ina konmustu. Kullanici kapatinca istemci
+AYNI ANDA hem LiveKit odasindan cikar hem `/end` atar. LiveKit webhook'u **localhost'tan
+(127.0.0.1:8080) ms'ler icinde** gelir; istemcinin REST'i mobil agdan gelir. Yani
+`UPDATE calls SET status='ended' WHERE status IN ('ringing','active')` yarisini
+**neredeyse HER ZAMAN webhook kazanir**; istemcinin `/end`'i bir ustteki
+`RowsAffected()==0` kapisinda **sessizce geri doner** ve balon hic yazilmaz.
+
+**FIX:** ortak `bitenAramayiSohbeteYaz(ctx, callID)` yardimcisi; yarisi KAZANAN
+**her iki yoldan da** cagriliyor (`End` + `webhookAramaKapat`). Ayni atomik UPDATE
+mutex'i oldugu icin oraya yalniz BIRI ulasir -> kayit **tam bir kez** yazilir.
+
+⚠️ **YAPMA:** bu cagriyi mutex'in (`RowsAffected>0`) DISINA tasima -> CIFT BALON.
+⚠️ **YAPMA:** cop toplayici yollarina ("sweep 2 saat", "olu-arama 90sn",
+`oluAramaTemizle`) "eksik kalmasin" diye ekleme — orada `ended_at=now()` gercek
+kapanistan cok sonradir, balon **SISMIS sure** gosterir. Yanlis sure, balonun hic
+olmamasindan KOTUDUR.
+
+**DERS (genellenebilir):** "iki yazicidan biri kazanir" mimarilerinde yeni bir yan
+etkiyi YALNIZ bir yaziciya koymak = o yan etkinin **sahada hic calismamasi**. Yan
+etki, yarisi kazanan HER yola konmali; idempotentligi zaten var olan atomik UPDATE
+saglar.
+
+### DIGER ONAYLANAN BULGULAR
+1. **Sohbet listesinde HAM isaretci:** onizleme `chat.lastMessage`i duz basiyordu ->
+   kullanici listede `call:ended:audio:75` gorurdu. Yeni `chats/arama_kaydi.dart`
+   ayristirmanin **TEK kaynagi**; hem balon hem onizleme oradan okur.
+   ⚠️ YAPMA: `content.split(':')`i ikinci bir yerde tekrar yazma (iki ayristirici
+   kacinilmaz sekilde birbirinden ayrisir). Taninmayan `call:*` bicimi ham metin sizdirmaz.
+2. **Okunmamis rozeti gurultusu:** cevaplanan her aramadan sonra aranan tarafta yesil
+   rozet cikiyordu. `call:ended:*` artik `read_at=now()` ile **OKUNMUS dogar**;
+   `call:missed:*` rozet uretmeye DEVAM eder (WhatsApp davranisi).
+3. **BAYAT EKRAN CANLI EKRANI EZIYORDU:** `dispose` pop kararindan ~400ms SONRA
+   (ters gecis 160ms + kuyruk) calisir. O aralikta YENI arama devralip kendi ekranini
+   acmissa, bayat ekranin gecikmis dispose'u `ekranGorunur=false` + `minimized=true`
+   yazip **CANLI ekranin ustune yesil bant** bindiriyordu; banta dokunmak CallScreen'i
+   IKINCI kez push ediyordu. FIX: `ekranSahibi` **NESNE KIMLIGI** jetonu
+   (`identical`). ⚠️ callId karsilastirmasi YETMEZ — `geriAra()` yolunda ayni ekran
+   yasarken callId DEGISIR. ⚠️ YAPMA: jetonu callId'ye cevirme.
+4. **240ms dirilme dali bayat ekrani HIC pop etmiyordu** -> ayni track'e IKI
+   `VideoTrackRenderer` bagli kalirdi. Artik jeton uyusmuyorsa normal pop akisi calisir.
+5. **ELLE MINIMIZE'da yesil bant 1 saniyeye kadar CIZILMIYORDU:** `notifyListeners()`
+   `if (arama != null && !minimized)` blogunun ICINDEYDI; elle minimize yolunda
+   `minimized` ZATEN true oldugu icin hic calismiyordu -> `ekranGorunur` false'a duser
+   ama kimse haber almaz -> bant (`minimized && !ekranGorunur`) saniyelik sayac
+   tetikleyene kadar yok. Notify `if` DISINA alindi. ⚠️ YAPMA: geri iceri alma.
+6. **GECIS ANIMASYONU:** `Container(color: Colors.black)` `FadeTransition`in DISINDAYDI.
+   Sonuc: POP yonunde icerik solarken siyah TAM OPAK kalir -> **160ms duz siyah + sert
+   kesme** (kullanicinin istedigi "cizilmis gibi devam etsin" hissinin TERSI); ayrica
+   `barrierColor` zaten ayni siyahi verdigi icin arama BOYUNCA 2 fazla tam ekran opak
+   katman cizilyordu. Container KALDIRILDI, gecis iki yonde SIMETRIK soluyor.
+   ⚠️ YAPMA: Container'i geri koyma.
+7. **`CurvedAnimation` her KAREDE yeniden kuruluyordu** (transitionsBuilder her karede
+   calisir) ve hicbiri dispose edilmiyordu -> dinleyici birikimi.
+   `anim.drive(CurveTween(...))` ile degistirildi (durumsuz, dinleyici kaydetmez).
+8. **Android `PipService.pipModu` PAYLASILAN bayragi hicbir yerde oz-iyilestirilmiyordu.**
+   Turu 58'de yalniz controller'in kendi `pipModunda` alani duzeltilmisti; ama YAYIN ve
+   IZLEYICI ekranlari sade gorunum icin PAYLASILAN bayraga bakar. Kacan tek bir
+   `pipDegisti(false)` geri bildirimi, sonraki canli yayin ekranini **kalici olarak**
+   "PiP sade gorunumu"nde birakabilirdi. `resumed` dalinda temizleniyor.
+
+### DENETIMIN TEMIZ BULDUKLARI (kayit — tekrar arastirma)
+- **Google Sans dosyalari SAGLAM:** TTF basliklari `00010000`, dort agirlik GERCEKTEN
+  farkli (`usWeightClass` 400/500/600/700), aile adi "Google Sans" tema ile birebir,
+  Turkce kapsama TAM (ı İ ğ Ğ ş Ş ç ö ü) + ₺.
+- **Sesli oda ve canli yayin AKISLARINA DOKUNULMADI** — `ekraniAc()` oda/yayin
+  ekranlarinin ustune binemiyor; `_kameraOtoAc()` sesli aramada zararsiz.
+- APK ~6.7MB buyuyecek (4 statik TTF) — beklenen, kabul edildi.
