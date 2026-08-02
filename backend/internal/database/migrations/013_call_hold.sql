@@ -1,0 +1,22 @@
+-- TEST TURU 61 — BEKLETME DURUMUNU KALICI YAP.
+--
+-- NEDEN (sahadan KANITLI, turu 60 olcumleriyle):
+-- `call.held` bir "kaybolabilir olay"di: yalniz Redis pub/sub -> WS ile gidiyordu; ne
+-- kuyrugu, ne tekrar denemesi, ne sunucu durumu vardi. Istemci HER arka plana geciste
+-- WS'i kapatir (`bg` cercevesi — kilit ekraninda arama caldirmak icin ZORUNLU, turu 33).
+-- Sonuc: Android GSM aramasini kabul edince gonderdigi hold olayi, karsi telefonun
+-- ekrani kilitliyse HEDEFE HIC ULASMIYOR ve bir daha ogrenilemiyordu.
+--
+-- TURU 60 SENTRY KANITI: Android 2 olay uretti (`gsm olayi` hold + unhold), iPhone
+-- YALNIZ 1 tanesini aldi (`call.held alindi: on=false`) — yani **hold=true olayi
+-- KAYBOLDU**, unhold geldi. Kullanicinin gordugu tam olarak buydu.
+--
+-- COZUM: durum sunucuda TUTULUR; istemci zaten 3 saniyede bir cagirdigi
+-- `GET /calls/{id}/status` ucundan `peer_held` okuyup kendini ONARIR. WS hizli yol
+-- olarak KALIR (aninda tepki), bu ise emniyet agidir.
+--
+-- ⚠️ `held_by` = aramayi EN SON beklemeye alan kullanici; bekletmeden cikinca NULL.
+-- 1:1 icin TAM dogru model (urun kapsami: grup aramasi KAPALI — `grupAramaAcik=false`).
+-- ⚠️ YAPMA: bu sutunu grup aramasi tekrar acilirsa "tek kisi" varsayimiyla kullanma;
+-- o durumda katilimci-basina bekletme (call_participants) gerekir.
+ALTER TABLE calls ADD COLUMN IF NOT EXISTS held_by UUID;

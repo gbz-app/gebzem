@@ -1201,6 +1201,19 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
         _isGroup = true;
         notifyListeners();
       }
+      // ⚠️⚠️ TURU 61 — BEKLETME ROZETI KENDINI ONARIR (sahadan KANITLI kok neden).
+      // `call.held` WS olayi KAYBOLABILIR: istemci her arka plana geciste WS'i kapatir
+      // (`bg` cercevesi; kilit ekraninda arama caldirmak icin ZORUNLU — turu 33) ve
+      // olayin kuyrugu/tekrari YOK. Turu 60 Sentry olcumu bunu KANITLADI: Android
+      // hold+unhold URETTI (`gsm olayi` 2 olay), iPhone YALNIZ `on=false` olanini aldi
+      // -> `hold=true` KAYBOLDU, rozet hic cizilmedi.
+      // Sunucu artik durumu satirda tutuyor; her 3sn'lik yoklamada uzlastiriyoruz.
+      // WS hizli yol olarak KALIR (aninda tepki), burasi EMNIYET AGI.
+      // ⚠️ YAPMA: bu uzlastirmayi kaldirma; `karsiTarafBekletti` zaten idempotent
+      // (`if (karsiBeklemede == on) return;`) — gereksiz notify uretmez.
+      if (st.containsKey('peer_held')) {
+        karsiTarafBekletti(st['peer_held'] == true);
+      }
     } catch (_) {
       return;
     }

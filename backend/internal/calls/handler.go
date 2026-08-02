@@ -1237,10 +1237,26 @@ func (h *Handler) Hold(w http.ResponseWriter, r *http.Request) {
 			hedefler = []string{other}
 		}
 	}
+	// ⚠️⚠️ TURU 61 — BEKLETME DURUMU ARTIK KALICI (sahadan kanitli kok neden).
+	// WS olayi tek basina YETMIYOR: istemci her arka plana geciste WS'i kapatir
+	// (`bg` cercevesi; kilit ekraninda arama caldirmak icin ZORUNLU — turu 33).
+	// Turu 60 Sentry olcumu: Android hold+unhold URETTI, iPhone YALNIZ unhold'u aldi;
+	// `hold=true` olayi telefonun ekrani kilitliyken KAYBOLDU ve telafisi YOKTU.
+	// Artik durum satirda tutulur, istemci 3sn'lik `Status` yoklamasindan kendini onarir.
+	// ⚠️ YAPMA: bu UPDATE'i kaldirip yalniz WS'e geri donme.
+	if req.On {
+		h.db.Exec(r.Context(), `UPDATE calls SET held_by=$2 WHERE id=$1`, callID, userID)
+	} else {
+		// Yalniz KENDI bekletmemizi kaldiririz — karsi taraf da beklemeye almissa
+		// onun durumu silinmesin.
+		h.db.Exec(r.Context(),
+			`UPDATE calls SET held_by=NULL WHERE id=$1 AND held_by=$2`, callID, userID)
+	}
 	if len(hedefler) > 0 {
 		payload, _ := json.Marshal(map[string]any{
 			"call_id": callID, "user_id": userID, "on": req.On,
 		})
+		// WS = HIZLI YOL (aninda tepki). Kaybolursa `Status` yoklamasi onarir.
 		h.hub.Publish(r.Context(), &chat.Event{
 			Type: "call.held", Payload: payload, To: hedefler,
 		})
@@ -1454,10 +1470,20 @@ func (h *Handler) Status(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	// ⚠️ TURU 61 — `peer_held`: "BASKA BIRI bu aramayi beklemeye aldi mi".
+	// Istemci bunu 3sn'lik yoklamasinda okuyup rozeti KENDI ONARIR; boylece kaybolan
+	// `call.held` WS olayi (ekran kilitliyken soket kapali) artik telafi edilir.
+	// Additive alan — eski istemciler yok sayar. ⚠️ YAPMA: `elapsed_ms` semantigine
+	// DOKUNMA (answered_at NULL iken -1; created_at'e dusurme YASAK).
+	var peerHeld bool
+	h.db.QueryRow(r.Context(),
+		`SELECT held_by IS NOT NULL AND held_by <> $2 FROM calls WHERE id=$1`,
+		callID, userID).Scan(&peerHeld)
 	// is_group additive (parite-hukum B2b): WS call.upgraded kaybolursa istemci 3sn'lik
 	// aktif poll'dan grup moduna gecisi kurtarir. Eski istemci alani yok sayar.
 	writeJSON(w, http.StatusOK, map[string]any{
 		"status": status, "elapsed_ms": elapsedMs, "is_group": isGroup,
+		"peer_held": peerHeld,
 	})
 }
 
