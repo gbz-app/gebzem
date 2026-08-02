@@ -3606,3 +3606,82 @@ saglar.
 - **Sesli oda ve canli yayin AKISLARINA DOKUNULMADI** — `ekraniAc()` oda/yayin
   ekranlarinin ustune binemiyor; `_kameraOtoAc()` sesli aramada zararsiz.
 - APK ~6.7MB buyuyecek (4 statik TTF) — beklenen, kabul edildi.
+
+---
+
+## Oturum (2 Agu 2026, aksam) — TURU 58+59 YAYINLANDI + "BUILD SONRASI DOGRULAMA" DERSI
+
+**YAYIN:** android 30755334616 + ios 30755335791 (db7e8a8), R2 apk=108254021
+(md5 7d33c2d6) ipa=22342407, purge OK, **CDN'den indirilen APK yerel dosyayla MD5
+BIREBIR** (boyut degil MD5 ile kanitlandi), indir sayfasi saati 19:05, backend
+deploy + health ok, DB temiz (0/0/0/0). Fontlar apk/ipa icinde (4'er dosya),
+APK v2/v3 imzali + debug izi YOK, IPA MinimumOSVersion=16.0.
+
+### 🔴 SURECIN ASIL DERSI: "BUILD ALMAK" ≠ "YAYINLAMAK"
+Ilk build (57c756e) BASARIYLA alindi ve artifact'lari dogrulandi. **Yayinlamadan
+once** 19 ajanlik adversaryal dogrulama kosuldu (gorev: "bu duzeltmelerin YANLIS
+oldugunu KANITLA"). 8 bulgu onaylandi ve bunlardan biri **kendi turu 59 fix'imin
+sahaya cikacak YUKSEK bir regresyonuydu.** Ilk build COPE ATILDI, kod duzeltildi,
+yeniden build alindi (db7e8a8).
+⚠️ Bu adimi atlama: artifact hazirken dogrulama kosmak bedava (build zaten sure
+aliyor) ve bu turda tam olarak isini yapti.
+
+### 🔴 YUKSEK — IKI BAGIMSIZ AJAN AYNI HATAYI BULDU (turu 59'un kendi fix'i)
+`Navigator.pop()` **EN USTTEKI** route'u kapatir, "beni" DEGIL.
+Turu 59'un (5) numarali fix'i bayat ekrani pop akisina DUSURDUGU icin, o sirada
+ustunde duran YENI aramanin **CANLI ekranini OLDURUYORDU** — yani duzeltme sorunu
+TERSINE cevirmisti (bayat ekran yasiyor, canli ekran oluyor).
+**FIX:** arama hala yasiyorsa `ModalRoute.of(context)` ile KENDI route'umuz
+adreslenip `removeRoute` ediliyor (animasyonsuz, ustteki ekrana dokunmadan).
+**GENELLENEBILIR DERS:** "kendi ekranimi kapat" niyetiyle yazilan `Navigator.pop()`,
+ekran yiginda en ustte DEGILSEN BASKASINI kapatir. Route'u ADRESLE.
+
+### 🔴 ORTA — KENDI PREMISIM YANLISTI: `barrierColor` SABIT DEGIL
+Flutter'da `barrierColor`, route animasyonuyla birlikte saydamdan renge gider
+(`AnimatedModalBarrier`). "Siyah Container'i kaldir, `barrierColor` zaten sagliyor"
+kararim bu yuzden HATALIYDI: gecisin ortasinda arama ekrani YARI SAYDAM oluyor ve
+ALTTAKI SAYFA ICINDEN gorunuyordu.
+**FIX:** siyah zemin `ColoredBox` olarak FADE'IN ICINE alindi (denetimin ilk
+onerisi buydu; ben alternatifini secmistim ve yanlis cikti).
+⚠️ YAPMA: `ColoredBox`u kaldirip yalniz `barrierColor`a guvenme.
+
+### 🔴 ORTA — BEKLENMEDIK GUVENLIK BULGUSU: SISTEM MESAJI TAKLIDI
+Backend `SendMessage` mesaj TIPINI HIC dogrulamiyordu ve DB CHECK 'system'e izin
+veriyordu. Yani **herhangi bir kullanici**
+`POST /chats/{id}/messages {"type":"system","content":"Gebzem Destek: hesabiniz
+askiya alindi, dogrulama icin ..."}` gonderip karsi tarafta **gonderen adi,
+avatari ve tiki OLMAYAN**, sunucunun kendi yazdigi sistem satirindan ayirt
+edilemeyen bir mesaj cizdirebiliyordu.
+**FIX:** tip BEYAZ LISTESI — text/image/video/audio/location. `system` YALNIZ
+sunucunun kendi arama kayitlari icindir (calls paketi dogrudan INSERT eder, bu
+uctan gecmez). Ayrica iki istemci cagirani da ham icerik yerine notr metin basiyor.
+⚠️ YAPMA: beyaz listeye 'system' ekleme.
+
+### DIGER ONAYLANAN BULGULAR (hepsi duzeltildi)
+- `End()` mutex UPDATE'i istek-omurlu `r.Context()` kullaniyordu: istemci tam o anda
+  kapanirsa Postgres COMMIT etse bile pgx iptal hatasi doner, handler 500 yazip
+  cikar ve balon HIC yazilmaz (webhook da satiri 'ended' buldugu icin telafi edemez).
+  Ayri, 5sn zaman asimli context'e alindi.
+- Sohbet listesi onizlemesi ARAYANA da "Cevapsız" diyordu. Sunucu listede gondereni
+  dondurmuyordu -> `last_sender_id` eklendi. ⚠️ SELECT ve `rows.Scan` sirasi pgx'te
+  KONUMA gore eslesir; sira birebir dogrulandi ve sorgu CANLI DB'de kosturuldu
+  (12 sutun, 0 satir, hatasiz) — derleyici bu hatayi YAKALAMAZ.
+- `devamEt()` ekrani UC await SONRASI aciyordu; `minimized` zaten false yazildigi
+  icin yesil bant da cizilmiyordu -> arama yasarken NE EKRAN NE BANT. Ekran artik
+  await'lerden ONCE aciliyor.
+- `sureMetni` tam saatte "1 sa. 0 dk." uretiyordu -> "1 sa.".
+
+### ✅ DOGRULAMANIN TEMIZ BULDUKLARI
+- **"oda-yayin-dokunulmamis-mi" boyutu: 0 BULGU.** Sesli oda ve canli yayin akislari
+  turu 58/59 degisikliklerinden ETKILENMIYOR (kullanicinin acik emri).
+- CLAUDE.md "⚠️ YAPMA" listesinden IHLAL EDILEN madde YOK.
+- Google Sans dosyalari saglam; fontlar apk ve ipa icinde dogrulandi.
+
+### TEST EDILECEKLER (kullanici)
+1. Sohbette **cevaplanan arama balonu** artik GORUNUYOR mu (turu 58'de olu dogmustu).
+2. Sohbet listesinde ham `call:ended:audio:75` YERINE duzgun metin.
+3. Cevaplanan aramadan sonra okunmamis rozeti CIKMAMALI; cevapsizda CIKMALI.
+4. Arama ekranini kucultup buyutunce gecis: hafif siyah, iki yonde de yumusak.
+5. Elle kucultunce yesil bant ANINDA cizilmeli.
+6. GSM aramasi (Android + iOS "Beklet ve Kabul") sonrasi kaldigi yerden devam + EKRAN.
+7. Sesli oda ve canli yayin: hicbir degisiklik olmamali.

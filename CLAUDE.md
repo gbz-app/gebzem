@@ -17,10 +17,58 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (2 Agu):** TURU 58 + 59 KODU HAZIR, PUSH EDILDI (f65d798).
-  `flutter analyze` temiz (4 eski info lint), `go build ./...` + `go vet` temiz.
-  **BUILD ICIN KULLANICI ONAYI BEKLENIYOR** (kural 0). Backend DEGISTI -> bu turda
-  build'in yaninda **DEPLOY DE GEREKLI** (calls handler + webhook).
+- **KALDIGIMIZ YER (2 Agu 19:05):** TEST TURU 58+59 YAYINLANDI — android 30755334616 +
+  ios 30755335791 (db7e8a8), R2 apk=108254021 (md5 7d33c2d6) ipa=22342407, purge OK,
+  CDN'den indirilen APK yerelle MD5 BIREBIR, indir sayfasi saati 19:05 gorunuyor,
+  **BACKEND DEPLOY EDILDI** (db7e8a8, health ok, yeni SQL canli DB'de test edildi),
+  DB temiz (0/0/0/0). **KULLANICI TEST EDECEK.**
+  ⚠️ APK boyutu bir onceki (yayinlanmayan) build ile BIREBIR AYNI cikti — MD5 farkli.
+  "Boyut ayni = build eski" DEME kurali yine dogrulandi.
+- ⚠️⚠️ **TURU 59b — BUILD ALINDIKTAN SONRA, YAYINDAN ONCE 19 AJANLIK ADVERSARYAL
+  DOGRULAMA KOSULDU ("bu fixler YANLIS, kanitla") ve KENDI TURU 59 FIX'IMDE YUKSEK
+  REGRESYON BULDU. Ilk build YAYINLANMADI, kod duzeltilip YENIDEN build alindi.**
+  · **(1)(2) YUKSEK — IKI BAGIMSIZ AJAN AYNI HATAYI BULDU:** `nav.pop()` EN USTTEKI
+    route'u kapatir, "beni" DEGIL. Turu 59'un (5) numarali fix'i bayat ekrani pop
+    akisina DUSURDUGU icin, ustunde duran YENI aramanin **CANLI ekranini OLDURUYORDU**
+    (bayat yasar, canli olur — sorunu TERSINE cevirmisti).
+    **FIX:** arama hala yasiyorsa `ModalRoute.of(context)` + `removeRoute` ile YALNIZ
+    KENDI route'umuz kaldirilir (animasyonsuz); ustteki ekrana DOKUNULMAZ.
+    ⚠️ YAPMA: buraya kosulsuz `nav.pop()` geri koyma.
+    **DERS:** "kendi ekranimi kapat" niyetiyle `Navigator.pop()` yazmak, ekran YIGINDA
+    en ustte DEGILSE baskasini kapatir. Route'u ADRESLE.
+  · **(8) ORTA — "siyahi `barrierColor` sagliyor" PREMISIM YANLISMIS:** Flutter'da
+    `barrierColor` SABIT DEGIL, route animasyonuyla saydamdan renge gider
+    (`AnimatedModalBarrier`). Container'i kaldirinca gecisin ortasinda arama ekrani
+    YARI SAYDAM oluyor, ALTTAKI SAYFA ICINDEN gorunuyordu.
+    **FIX:** siyah zemin `ColoredBox` olarak FADE'IN ICINE alindi.
+    ⚠️ YAPMA: `ColoredBox`u kaldirip yalniz `barrierColor`a guvenme.
+  · **(3) ORTA — KIMLIK TAKLIDI ACIGI (beklenmedik bulgu):** backend `SendMessage`
+    mesaj TIPINI HIC dogrulamiyordu; DB CHECK 'system'e izin verdigi icin HERHANGI
+    BIR KULLANICI `{"type":"system","content":"Gebzem Destek: hesabiniz askiya
+    alindi..."}` gonderip karsi tarafta **gonderen adi/avatari/tiki OLMAYAN**, sunucu
+    uretimi gibi gorunen satir cizdirebiliyordu.
+    **FIX:** TIP BEYAZ LISTESI (text/image/video/audio/location). 'system' YALNIZ
+    sunucunun kendi yazdigi arama kayitlari icin (calls paketi dogrudan INSERT eder).
+    ⚠️ YAPMA: beyaz listeye 'system' ekleme. Ayrica iki istemci cagirani da ham
+    icerik yerine notr "Sistem mesajı" basiyor.
+  · **(4) DUSUK:** `End()` mutex UPDATE'i istek-omurlu `r.Context()` kullaniyordu —
+    istemci tam o anda kapanirsa Postgres COMMIT etse bile pgx iptal hatasi doner,
+    handler 500 yazip cikar, balon HIC yazilmaz (webhook da satiri 'ended' buldugu
+    icin telafi edemez). Artik ayri, 5sn zaman asimli context.
+    ⚠️ YAPMA: burayi `r.Context()`e dondurme.
+  · **(5) DUSUK:** sohbet listesi onizlemesi ARAYANA da "Cevapsız" diyordu. Sunucu
+    listede gondereni DONDURMUYORDU -> `last_sender_id` eklendi (SELECT + Scan sirasi
+    birebir dogrulandi, canli DB'de test edildi); `onizleme({benimMi})` yon biliyorsa
+    ayirir, BILMIYORSA yon iddiasinda BULUNMAZ.
+  · **(7) DUSUK:** `devamEt()` ekrani UC await SONRASI aciyordu; o pencerede
+    `minimized` zaten false yazildigi icin yesil bant da cizilmiyordu -> arama
+    yasarken NE EKRAN NE BANT. Ekran artik await'lerden ONCE aciliyor.
+    ⚠️ YAPMA: `ekraniAc()`i tekrar await'lerin altina tasima.
+  · ✅ **"oda-yayin-dokunulmamis-mi" boyutu 0 BULGU** — sesli oda ve canli yayin
+    akislari turu 58/59'dan ETKILENMIYOR (kullanici emri dogrulandi).
+  **SUREC DERSI:** build ALMAK yayinlamak DEGILDIR. Artifact hazirken kosulan
+  adversaryal dogrulama, sahaya cikacak YUKSEK bir regresyonu yakaladi. Bu adimi
+  atlama.
 - ⚠️⚠️ **TURU 59 — TURU 58'DE EKLEDIGIM OZELLIK OLU DOGMUSTU (build oncesi denetim):**
   "Cevaplanan arama" sohbet balonu kaydi YALNIZ `End()` handler'ina konmustu. Kullanici
   kapatinca istemci AYNI ANDA hem odadan cikar hem `/end` atar; LiveKit webhook'u
