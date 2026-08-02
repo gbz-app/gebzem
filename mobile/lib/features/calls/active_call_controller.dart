@@ -2863,9 +2863,29 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     if (ekranGorunur) return;
     final b = arama;
     if (b == null) return;
-    rootNavigatorKey.currentState?.push(MaterialPageRoute(
+    // ⚠️ TEST TURU 58 — GECIS (kullanici: "kucultup buyuttugumde hafif siyah olsun,
+    // ekran gecerken cizilmis gibi devam etsin; aynisi kucultururken de").
+    // MaterialPageRoute'un varsayilan gecisi platforma gore SAGDAN KAYDIRMA/YUKARI
+    // ITME — arama ekraninda bu "cizme" hissi veriyordu (altta uygulama, ustte yarim
+    // cizilmis video). Yerine WhatsApp'taki gibi KISA SIYAH SOLMA: siyah zemin uzerinde
+    // 180ms opaklik gecisi. Renderer'a DOKUNMAZ (turu 53 kazanimi korunur: video
+    // katmani yikilmiyor), yalniz sayfanin BELIRME bicimi degisiyor.
+    // ⚠️ YAPMA: buraya slide/scale gecisi koyma (cizme hissi geri gelir);
+    // `opaque: false` yapma (altindaki sayfa gorunur, siyah perde kalkar).
+    rootNavigatorKey.currentState?.push(PageRouteBuilder(
       settings: const RouteSettings(name: 'arama'),
-      builder: (_) => CallScreen(bilgi: b),
+      opaque: true,
+      barrierColor: Colors.black,
+      transitionDuration: const Duration(milliseconds: 180),
+      reverseTransitionDuration: const Duration(milliseconds: 160),
+      pageBuilder: (_, _, _) => CallScreen(bilgi: b),
+      transitionsBuilder: (_, anim, _, child) => Container(
+        color: Colors.black,
+        child: FadeTransition(
+          opacity: CurvedAnimation(parent: anim, curve: Curves.easeOut),
+          child: child,
+        ),
+      ),
     ));
   }
 
