@@ -65,7 +65,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Dogrulama')),
+      appBar: AppBar(title: const Text('Doğrulama')),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -74,8 +74,8 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
             children: [
               Text(
                 _realSms
-                    ? '${widget.phone} numarasina SMS ile 6 haneli kod gonderdik'
-                    : '${widget.phone} numarasi icin 6 haneli kodu girin',
+                    ? '${widget.phone} numarasına SMS ile 6 haneli kod gönderdik'
+                    : '${widget.phone} numarası için 6 haneli kodu girin',
                 style: Theme.of(context).textTheme.bodyLarge,
               ),
               if (widget.devOtp != null) ...[
@@ -108,7 +108,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                 child: _loading
                     ? const SizedBox(
                         width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Text('Dogrula'),
+                    : const Text('Doğrula'),
               ),
             ],
           ),

@@ -71,12 +71,12 @@ class _PermissionsScreenState extends ConsumerState<PermissionsScreen> {
               const Spacer(),
               Icon(LucideIcons.shieldCheck, size: 64, color: scheme.primary),
               const SizedBox(height: 20),
-              Text('Gebzem\'e hos geldin',
+              Text('Gebzem\'e hoş geldin',
                   style: Theme.of(context).textTheme.headlineSmall,
                   textAlign: TextAlign.center),
               const SizedBox(height: 10),
               Text(
-                'Uygulamanin duzgun calismasi icin birkac izin gerekiyor',
+                'Uygulamanın düzgün çalışması için birkaç izin gerekiyor',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: scheme.outline),
               ),
@@ -90,13 +90,13 @@ class _PermissionsScreenState extends ConsumerState<PermissionsScreen> {
               _permRow(
                 icon: LucideIcons.mic,
                 title: 'Mikrofon',
-                subtitle: 'Sesli aramalar ve sesli mesajlar icin',
+                subtitle: 'Sesli aramalar ve sesli mesajlar için',
                 scheme: scheme,
               ),
               _permRow(
                 icon: LucideIcons.video,
                 title: 'Kamera',
-                subtitle: 'Goruntulu aramalar ve fotograf icin',
+                subtitle: 'Görüntülü aramalar ve fotoğraf için',
                 scheme: scheme,
               ),
               const Spacer(),
@@ -109,11 +109,11 @@ class _PermissionsScreenState extends ConsumerState<PermissionsScreen> {
                 child: _busy
                     ? const SizedBox(
                         width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Text('Izin Ver ve Devam Et'),
+                    : const Text('İzin Ver ve Devam Et'),
               ),
               TextButton(
                 onPressed: _busy ? null : _skip,
-                child: Text('Simdilik atla', style: TextStyle(color: scheme.outline)),
+                child: Text('Şimdilik atla', style: TextStyle(color: scheme.outline)),
               ),
             ],
           ),

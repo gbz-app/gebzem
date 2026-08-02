@@ -62,7 +62,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Kayit Ol')),
+      appBar: AppBar(title: const Text('Kayıt Ol')),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -75,20 +75,20 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   controller: _name,
                   textCapitalization: TextCapitalization.words,
                   decoration: const InputDecoration(
-                    labelText: 'Adiniz',
+                    labelText: 'Adınız',
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(LucideIcons.user),
                   ),
                   validator: (v) =>
-                      (v == null || v.trim().length < 2) ? 'Adinizi girin' : null,
+                      (v == null || v.trim().length < 2) ? 'Adınızı girin' : null,
                 ),
                 const SizedBox(height: 16),
                 TextFormField(
                   controller: _username,
                   decoration: const InputDecoration(
-                    labelText: 'Kullanici adi',
-                    hintText: 'ornek: mikail_s',
-                    helperText: 'Arkadaslarin seni bu adla bulacak',
+                    labelText: 'Kullanıcı adı',
+                    hintText: 'örnek: mikail_s',
+                    helperText: 'Arkadaşların seni bu adla bulacak',
                     prefixText: '@',
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(LucideIcons.atSign),
@@ -96,7 +96,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   validator: (v) {
                     final u = (v ?? '').trim().toLowerCase();
                     if (!RegExp(r'^[a-z0-9_]{3,20}$').hasMatch(u)) {
-                      return '3-20 karakter: harf, rakam, alt cizgi';
+                      return '3-20 karakter: harf, rakam, alt çizgi';
                     }
                     return null;
                   },
@@ -106,20 +106,20 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   controller: _phone,
                   keyboardType: TextInputType.phone,
                   decoration: const InputDecoration(
-                    labelText: 'Telefon numarasi',
+                    labelText: 'Telefon numarası',
                     hintText: '+905xxxxxxxxx',
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(LucideIcons.phone),
                   ),
                   validator: (v) =>
-                      (v == null || v.trim().length < 12) ? 'Gecerli numara girin' : null,
+                      (v == null || v.trim().length < 12) ? 'Geçerli numara girin' : null,
                 ),
                 const SizedBox(height: 16),
                 TextFormField(
                   controller: _password,
                   obscureText: _hidePassword,
                   decoration: InputDecoration(
-                    labelText: 'Sifre',
+                    labelText: 'Şifre',
                     helperText: 'En az 6 karakter',
                     border: const OutlineInputBorder(),
                     prefixIcon: const Icon(LucideIcons.lock),
@@ -129,7 +129,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     ),
                   ),
                   validator: (v) =>
-                      (v == null || v.length < 6) ? 'Sifre en az 6 karakter' : null,
+                      (v == null || v.length < 6) ? 'Şifre en az 6 karakter' : null,
                   onFieldSubmitted: (_) => _submit(),
                 ),
                 const SizedBox(height: 24),
@@ -139,7 +139,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   child: _loading
                       ? const SizedBox(
                           width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Text('Devam Et — SMS Kodu Gonder'),
+                      : const Text('Devam Et — SMS Kodu Gönder'),
                 ),
               ],
             ),

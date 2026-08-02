@@ -41,7 +41,7 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 		FROM users WHERE id=$1`, userID).
 		Scan(&u.ID, &u.Phone, &u.Username, &u.Name, &u.About, &u.AvatarURL, &u.CoinBalance, &u.LastSeen)
 	if err != nil {
-		writeErr(w, http.StatusNotFound, "kullanici bulunamadi")
+		writeErr(w, http.StatusNotFound, "kullanıcı bulunamadı")
 		return
 	}
 	writeJSON(w, http.StatusOK, u)
@@ -54,7 +54,7 @@ func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
 	me := auth.UserID(r.Context())
 	q := strings.TrimSpace(strings.TrimPrefix(r.URL.Query().Get("q"), "@"))
 	if len(q) < 2 {
-		writeErr(w, http.StatusBadRequest, "en az 2 karakter yazin")
+		writeErr(w, http.StatusBadRequest, "en az 2 karakter yazın")
 		return
 	}
 
@@ -73,7 +73,7 @@ func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
 		  name
 		LIMIT 20`, me, q)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "arama basarisiz")
+		writeErr(w, http.StatusInternalServerError, "arama başarısız")
 		return
 	}
 	defer rows.Close()
@@ -95,19 +95,19 @@ func (h *Handler) SetUsername(w http.ResponseWriter, r *http.Request) {
 		Username string `json:"username"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeErr(w, http.StatusBadRequest, "gecersiz istek")
+		writeErr(w, http.StatusBadRequest, "geçersiz istek")
 		return
 	}
 	uname := strings.ToLower(strings.TrimSpace(strings.TrimPrefix(req.Username, "@")))
 	if !usernameRe.MatchString(uname) {
-		writeErr(w, http.StatusBadRequest, "kullanici adi 3-20 karakter olmali (harf, rakam, alt cizgi)")
+		writeErr(w, http.StatusBadRequest, "kullanıcı adı 3-20 karakter olmalı (harf, rakam, alt çizgi)")
 		return
 	}
 	var taken bool
 	h.db.QueryRow(r.Context(),
 		`SELECT EXISTS(SELECT 1 FROM users WHERE lower(username)=$1 AND id<>$2)`, uname, userID).Scan(&taken)
 	if taken {
-		writeErr(w, http.StatusConflict, "bu kullanici adi alinmis")
+		writeErr(w, http.StatusConflict, "bu kullanıcı adı alınmış")
 		return
 	}
 	if _, err := h.db.Exec(r.Context(),
@@ -131,11 +131,11 @@ func (h *Handler) ByPhone(w http.ResponseWriter, r *http.Request) {
 		FROM users WHERE phone=$1 AND verified=true`, phone).
 		Scan(&u.ID, &u.Phone, &u.Name, &u.About, &u.AvatarURL)
 	if err == pgx.ErrNoRows {
-		writeErr(w, http.StatusNotFound, "bu numarada kayitli kullanici yok")
+		writeErr(w, http.StatusNotFound, "bu numarada kayıtlı kullanıcı yok")
 		return
 	}
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "sunucu hatasi")
+		writeErr(w, http.StatusInternalServerError, "sunucu hatası")
 		return
 	}
 	writeJSON(w, http.StatusOK, u)
@@ -150,7 +150,7 @@ func (h *Handler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 		AvatarURL *string `json:"avatar_url"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeErr(w, http.StatusBadRequest, "gecersiz istek")
+		writeErr(w, http.StatusBadRequest, "geçersiz istek")
 		return
 	}
 	_, err := h.db.Exec(r.Context(), `
@@ -160,7 +160,7 @@ func (h *Handler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 			avatar_url = COALESCE($3, avatar_url)
 		WHERE id=$4`, req.Name, req.About, req.AvatarURL, userID)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "guncellenemedi")
+		writeErr(w, http.StatusInternalServerError, "güncellenemedi")
 		return
 	}
 	h.Me(w, r)

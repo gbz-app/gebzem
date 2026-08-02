@@ -80,8 +80,8 @@ String apiErrorMessage(Object error) {
     if (data is Map && data['error'] is String) return data['error'] as String;
     if (error.type == DioExceptionType.connectionTimeout ||
         error.type == DioExceptionType.connectionError) {
-      return 'Sunucuya ulasilamiyor. Internet baglantinizi kontrol edin.';
+      return 'Sunucuya ulaşılamıyor. İnternet bağlantınızı kontrol edin.';
     }
   }
-  return 'Bir seyler ters gitti, tekrar deneyin.';
+  return 'Bir şeyler ters gitti, tekrar deneyin.';
 }

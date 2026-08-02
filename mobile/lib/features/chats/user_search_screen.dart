@@ -95,7 +95,7 @@ class _UserSearchScreenState extends ConsumerState<UserSearchScreen> {
           autofocus: true,
           onChanged: _onChanged,
           decoration: const InputDecoration(
-            hintText: 'Isim veya @kullaniciadi ara',
+            hintText: 'İsim veya @kullanıcıadı ara',
             border: InputBorder.none,
           ),
         ),
@@ -125,7 +125,7 @@ class _UserSearchScreenState extends ConsumerState<UserSearchScreen> {
           children: [
             Icon(LucideIcons.search, size: 56, color: scheme.outline),
             const SizedBox(height: 12),
-            Text('Arkadaslarini isim ya da\n@kullaniciadi ile bul',
+            Text('Arkadaşlarını isim ya da\n@kullanıcıadı ile bul',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: scheme.outline)),
           ],
@@ -139,7 +139,7 @@ class _UserSearchScreenState extends ConsumerState<UserSearchScreen> {
           children: [
             Icon(LucideIcons.userX, size: 56, color: scheme.outline),
             const SizedBox(height: 12),
-            Text('Kullanici bulunamadi', style: TextStyle(color: scheme.outline)),
+            Text('Kullanıcı bulunamadı', style: TextStyle(color: scheme.outline)),
           ],
         ),
       );

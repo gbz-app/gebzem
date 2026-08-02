@@ -143,7 +143,7 @@ func (h *Handler) dinleyiciSayisi(ctx context.Context, roomID string) int {
 // ODA-BASI kapasite override'iyla ONCEDEN yaratilir (TUZAK: global max_participants:32).
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	if !h.Enabled() {
-		writeErr(w, http.StatusServiceUnavailable, "oda servisi kapali")
+		writeErr(w, http.StatusServiceUnavailable, "oda servisi kapalı")
 		return
 	}
 	userID := auth.UserID(r.Context())
@@ -153,7 +153,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	json.NewDecoder(r.Body).Decode(&req)
 	req.Title = strings.TrimSpace(req.Title)
 	if req.Title == "" {
-		writeErr(w, http.StatusBadRequest, "oda basligi gerekli")
+		writeErr(w, http.StatusBadRequest, "oda başlığı gerekli")
 		return
 	}
 	if len([]rune(req.Title)) > 80 {
@@ -164,7 +164,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	var acikOdaVar bool
 	h.db.QueryRow(r.Context(), `SELECT EXISTS(SELECT 1 FROM rooms WHERE host_id=$1 AND status='live')`, userID).Scan(&acikOdaVar)
 	if acikOdaVar {
-		writeErr(w, http.StatusConflict, "zaten acik bir odaniz var")
+		writeErr(w, http.StatusConflict, "zaten açık bir odanız var")
 		return
 	}
 
@@ -173,7 +173,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		`INSERT INTO rooms (host_id, title, status) VALUES ($1, $2, 'live') RETURNING id`,
 		userID, req.Title).Scan(&roomID); err != nil {
 		log.Printf("oda kaydi: %v", err)
-		writeErr(w, http.StatusInternalServerError, "oda acilamadi")
+		writeErr(w, http.StatusInternalServerError, "oda açılamadı")
 		return
 	}
 	h.db.Exec(r.Context(),
@@ -185,7 +185,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	if err := h.lk.CreateRoom(r.Context(), roomName, odaKapasitesi, 300); err != nil {
 		log.Printf("oda livekit create: %v", err)
 		h.db.Exec(r.Context(), `UPDATE rooms SET status='ended', ended_at=now() WHERE id=$1`, roomID)
-		writeErr(w, http.StatusInternalServerError, "oda acilamadi")
+		writeErr(w, http.StatusInternalServerError, "oda açılamadı")
 		return
 	}
 
@@ -193,7 +193,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	h.db.QueryRow(r.Context(), `SELECT name FROM users WHERE id=$1`, userID).Scan(&name)
 	tok, err := h.clientToken(roomName, userID, name, "host")
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "token uretilemedi")
+		writeErr(w, http.StatusInternalServerError, "token üretilemedi")
 		return
 	}
 	h.audit(r.Context(), roomID, userID, "create", clientIP(r))
@@ -221,7 +221,7 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 		ORDER BY r.created_at DESC
 		LIMIT 50`)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "liste alinamadi")
+		writeErr(w, http.StatusInternalServerError, "liste alınamadı")
 		return
 	}
 	defer rows.Close()
@@ -254,7 +254,7 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 	var title, status, hostID string
 	if err := h.db.QueryRow(r.Context(),
 		`SELECT title, status, host_id FROM rooms WHERE id=$1`, roomID).Scan(&title, &status, &hostID); err != nil {
-		writeErr(w, http.StatusNotFound, "oda bulunamadi")
+		writeErr(w, http.StatusNotFound, "oda bulunamadı")
 		return
 	}
 
@@ -272,7 +272,7 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 		ORDER BY CASE p.role WHEN 'host' THEN 0 WHEN 'speaker' THEN 1 ELSE 2 END, p.joined_at`,
 		roomID)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "detay alinamadi")
+		writeErr(w, http.StatusInternalServerError, "detay alınamadı")
 		return
 	}
 	defer rows.Close()
@@ -307,7 +307,7 @@ func (h *Handler) Join(w http.ResponseWriter, r *http.Request) {
 	var title, hostID string
 	if err := h.db.QueryRow(r.Context(),
 		`SELECT title, host_id FROM rooms WHERE id=$1 AND status='live'`, roomID).Scan(&title, &hostID); err != nil {
-		writeErr(w, http.StatusNotFound, "oda bulunamadi veya bitti")
+		writeErr(w, http.StatusNotFound, "oda bulunamadı veya bitti")
 		return
 	}
 	// Kapasite: yalniz dinleyici sayilir (konusmacilar ayri sinirda).
@@ -326,7 +326,7 @@ func (h *Handler) Join(w http.ResponseWriter, r *http.Request) {
 		WHERE room_participants.status <> 'removed'
 		RETURNING role`, roomID, userID).Scan(&role)
 	if err != nil {
-		writeErr(w, http.StatusForbidden, "bu odaya katilamazsiniz")
+		writeErr(w, http.StatusForbidden, "bu odaya katılamazsınız")
 		return
 	}
 
@@ -341,7 +341,7 @@ func (h *Handler) Join(w http.ResponseWriter, r *http.Request) {
 	}
 	tok, err := h.clientToken(roomName, userID, name, role)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "token uretilemedi")
+		writeErr(w, http.StatusInternalServerError, "token üretilemedi")
 		return
 	}
 	h.audit(r.Context(), roomID, userID, "join", clientIP(r))
@@ -407,7 +407,7 @@ func (h *Handler) RaiseHand(w http.ResponseWriter, r *http.Request) {
 			FROM room_participants WHERE room_id=$1 AND user_id=$2 AND hand_raised_at IS NOT NULL`,
 			roomID, userID).Scan(&yakin)
 		if yakin {
-			writeErr(w, http.StatusTooManyRequests, "cok sik deneme")
+			writeErr(w, http.StatusTooManyRequests, "çok sık deneme")
 			return
 		}
 	}
@@ -417,7 +417,7 @@ func (h *Handler) RaiseHand(w http.ResponseWriter, r *http.Request) {
 		WHERE room_id=$1 AND user_id=$2 AND status='joined' AND role='listener'`,
 		roomID, userID, req.Raised)
 	if err != nil || tag.RowsAffected() == 0 {
-		writeErr(w, http.StatusConflict, "el kaldirilamadi")
+		writeErr(w, http.StatusConflict, "el kaldırılamadı")
 		return
 	}
 	var name, avatar string
@@ -453,7 +453,7 @@ func (h *Handler) rolDegistir(w http.ResponseWriter, r *http.Request, yukselt bo
 	userID := auth.UserID(r.Context())
 	roomID := chi.URLParam(r, "id")
 	if !h.hostMu(r.Context(), roomID, userID) {
-		writeErr(w, http.StatusForbidden, "yalniz oda sahibi")
+		writeErr(w, http.StatusForbidden, "yalnız oda sahibi")
 		return
 	}
 	var req struct {
@@ -461,7 +461,7 @@ func (h *Handler) rolDegistir(w http.ResponseWriter, r *http.Request, yukselt bo
 	}
 	json.NewDecoder(r.Body).Decode(&req)
 	if req.UserID == "" || req.UserID == userID { // host kendini yukseltemez/dusuremez
-		writeErr(w, http.StatusBadRequest, "gecersiz istek")
+		writeErr(w, http.StatusBadRequest, "geçersiz istek")
 		return
 	}
 
@@ -478,7 +478,7 @@ func (h *Handler) rolDegistir(w http.ResponseWriter, r *http.Request, yukselt bo
 		       WHERE room_id=$1 AND status='joined' AND role IN ('host','speaker')) < $5)`,
 		roomID, req.UserID, yeniRol, eskiRol, maxKonusmaci)
 	if err != nil || tag.RowsAffected() == 0 {
-		writeErr(w, http.StatusConflict, "kullanici uygun durumda degil veya konusmaci siniri dolu")
+		writeErr(w, http.StatusConflict, "kullanıcı uygun durumda değil veya konuşmacı sınırı dolu")
 		return
 	}
 	// LiveKit iznini CANLI baglantiya it (yeniden baglanma gerekmez).
@@ -490,7 +490,7 @@ func (h *Handler) rolDegistir(w http.ResponseWriter, r *http.Request, yukselt bo
 			// GERCEK hata (LiveKit erisilemedi vb): tutarlilik sart, rolu geri al
 			h.db.Exec(r.Context(), `UPDATE room_participants SET role='listener'
 				WHERE room_id=$1 AND user_id=$2`, roomID, req.UserID)
-			writeErr(w, http.StatusBadGateway, "konusmaci yapilamadi, tekrar deneyin")
+			writeErr(w, http.StatusBadGateway, "konuşmacı yapılamadı, tekrar deneyin")
 			return
 		}
 		// Demote'ta DB dogru kaynak: izin dusurulemese de rejoin'de listener token alir (loglandi)
@@ -513,7 +513,7 @@ func (h *Handler) Mute(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserID(r.Context())
 	roomID := chi.URLParam(r, "id")
 	if !h.hostMu(r.Context(), roomID, userID) {
-		writeErr(w, http.StatusForbidden, "yalniz oda sahibi")
+		writeErr(w, http.StatusForbidden, "yalnız oda sahibi")
 		return
 	}
 	var req struct {
@@ -527,7 +527,7 @@ func (h *Handler) Mute(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 			return
 		}
-		writeErr(w, http.StatusBadGateway, "susturulamadi")
+		writeErr(w, http.StatusBadGateway, "susturulamadı")
 		return
 	}
 	for _, t := range tracks {
@@ -548,7 +548,7 @@ func (h *Handler) Remove(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserID(r.Context())
 	roomID := chi.URLParam(r, "id")
 	if !h.hostMu(r.Context(), roomID, userID) {
-		writeErr(w, http.StatusForbidden, "yalniz oda sahibi")
+		writeErr(w, http.StatusForbidden, "yalnız oda sahibi")
 		return
 	}
 	var req struct {
@@ -556,7 +556,7 @@ func (h *Handler) Remove(w http.ResponseWriter, r *http.Request) {
 	}
 	json.NewDecoder(r.Body).Decode(&req)
 	if req.UserID == "" || req.UserID == userID {
-		writeErr(w, http.StatusBadRequest, "gecersiz istek")
+		writeErr(w, http.StatusBadRequest, "geçersiz istek")
 		return
 	}
 	var rol string
@@ -565,7 +565,7 @@ func (h *Handler) Remove(w http.ResponseWriter, r *http.Request) {
 		WHERE room_id=$1 AND user_id=$2 AND status='joined'
 		RETURNING role`, roomID, req.UserID).Scan(&rol)
 	if err != nil {
-		writeErr(w, http.StatusConflict, "kullanici odada degil")
+		writeErr(w, http.StatusConflict, "kullanıcı odada değil")
 		return
 	}
 	if err := h.lk.RemoveParticipant(r.Context(), "oda_"+roomID, req.UserID); err != nil {
@@ -594,7 +594,7 @@ func (h *Handler) End(w http.ResponseWriter, r *http.Request) {
 	h.db.QueryRow(r.Context(),
 		`SELECT EXISTS(SELECT 1 FROM rooms WHERE id=$1 AND host_id=$2)`, roomID, userID).Scan(&sahibi)
 	if !sahibi {
-		writeErr(w, http.StatusForbidden, "yalniz oda sahibi")
+		writeErr(w, http.StatusForbidden, "yalnız oda sahibi")
 		return
 	}
 	h.odayiBitir(r.Context(), roomID, "end")

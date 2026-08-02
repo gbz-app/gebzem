@@ -23,7 +23,7 @@ var (
 func Handle(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
 	if err != nil {
-		http.Error(w, "okunamadi", http.StatusBadRequest)
+		http.Error(w, "okunamadı", http.StatusBadRequest)
 		return
 	}
 	s := string(body)
@@ -44,12 +44,12 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if udid == "" {
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(sayfa("Cihaz kimligi alinamadi",
-			"Bir sorun olustu. Lutfen tekrar deneyin veya baglantiyi gonderen kisiye bildirin.")))
+		w.Write([]byte(sayfa("Cihaz kimliği alınamadı",
+			"Bir sorun oluştu. Lütfen tekrar deneyin veya bağlantıyı gönderen kişiye bildirin.")))
 		return
 	}
-	w.Write([]byte(sayfa("Cihaz kimligin alindi ✓",
-		"Tesekkurler! Kaydin bize ulasti. Uygulama hazir olunca sana indirme baglantisi gonderilecek. Bu sayfayi kapatabilirsin.")))
+	w.Write([]byte(sayfa("Cihaz kimliğin alındı ✓",
+		"Teşekkürler! Kaydın bize ulaştı. Uygulama hazır olunca sana indirme bağlantısı gönderilecek. Bu sayfayı kapatabilirsin.")))
 }
 
 func sayfa(baslik, mesaj string) string {

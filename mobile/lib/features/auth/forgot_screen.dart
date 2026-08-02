@@ -39,7 +39,7 @@ class _ForgotScreenState extends ConsumerState<ForgotScreen> {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text(devOtp != null
                 ? 'Test modu — kod otomatik dolduruldu'
-                : 'Kod gonderildi')));
+                : 'Kod gönderildi')));
       }
     } catch (e) {
       if (mounted) {
@@ -54,7 +54,7 @@ class _ForgotScreenState extends ConsumerState<ForgotScreen> {
   Future<void> _reset() async {
     if (_newPassword.text.length < 6) {
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Yeni sifre en az 6 karakter olmali')));
+          .showSnackBar(const SnackBar(content: Text('Yeni şifre en az 6 karakter olmalı')));
       return;
     }
     setState(() => _loading = true);
@@ -64,7 +64,7 @@ class _ForgotScreenState extends ConsumerState<ForgotScreen> {
           .reset(_phone.text.trim(), _code.text.trim(), _newPassword.text);
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('Sifre guncellendi, giris yapin')));
+            .showSnackBar(const SnackBar(content: Text('Şifre güncellendi, giriş yapın')));
         context.pop();
       }
     } catch (e) {
@@ -80,7 +80,7 @@ class _ForgotScreenState extends ConsumerState<ForgotScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Sifremi Unuttum')),
+      appBar: AppBar(title: const Text('Şifremi Unuttum')),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -92,7 +92,7 @@ class _ForgotScreenState extends ConsumerState<ForgotScreen> {
                 keyboardType: TextInputType.phone,
                 enabled: !_codeSent,
                 decoration: const InputDecoration(
-                  labelText: 'Telefon numarasi',
+                  labelText: 'Telefon numarası',
                   hintText: '+905xxxxxxxxx',
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(LucideIcons.phone),
@@ -106,7 +106,7 @@ class _ForgotScreenState extends ConsumerState<ForgotScreen> {
                   child: _loading
                       ? const SizedBox(
                           width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Text('Kod Gonder'),
+                      : const Text('Kod Gönder'),
                 )
               else ...[
                 TextField(
@@ -125,7 +125,7 @@ class _ForgotScreenState extends ConsumerState<ForgotScreen> {
                   controller: _newPassword,
                   obscureText: true,
                   decoration: const InputDecoration(
-                    labelText: 'Yeni sifre',
+                    labelText: 'Yeni şifre',
                     helperText: 'En az 6 karakter',
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(LucideIcons.keyRound),
@@ -138,11 +138,11 @@ class _ForgotScreenState extends ConsumerState<ForgotScreen> {
                   child: _loading
                       ? const SizedBox(
                           width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Text('Sifreyi Yenile'),
+                      : const Text('Şifreyi Yenile'),
                 ),
                 TextButton(
                   onPressed: _loading ? null : _requestCode,
-                  child: const Text('Kodu tekrar gonder'),
+                  child: const Text('Kodu tekrar gönder'),
                 ),
               ],
             ],

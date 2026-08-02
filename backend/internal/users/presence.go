@@ -24,7 +24,7 @@ func (h *Handler) Presence(w http.ResponseWriter, r *http.Request) {
 	}
 	hedef := chi.URLParam(r, "id")
 	if hedef == "" {
-		writeErr(w, http.StatusBadRequest, "kullanici yok")
+		writeErr(w, http.StatusBadRequest, "kullanıcı yok")
 		return
 	}
 	var tip string

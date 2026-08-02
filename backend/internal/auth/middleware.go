@@ -57,7 +57,7 @@ func Middleware(secret string, db *pgxpool.Pool) func(http.Handler) http.Handler
 			}
 			claims, err := ParseToken(secret, token)
 			if err != nil {
-				writeErr(w, http.StatusUnauthorized, "token gecersiz")
+				writeErr(w, http.StatusUnauthorized, "token geçersiz")
 				return
 			}
 
@@ -66,7 +66,7 @@ func Middleware(secret string, db *pgxpool.Pool) func(http.Handler) http.Handler
 				err := db.QueryRow(r.Context(),
 					`SELECT EXISTS(SELECT 1 FROM users WHERE id = $1)`, claims.UserID).Scan(&exists)
 				if err != nil {
-					writeErr(w, http.StatusServiceUnavailable, "sunucu mesgul")
+					writeErr(w, http.StatusServiceUnavailable, "sunucu meşgul")
 					return
 				}
 				if !exists {

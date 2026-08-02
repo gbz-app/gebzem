@@ -261,7 +261,7 @@ class CallKitService {
         actionColor: '#25D366',
         textColor: '#ffffff',
         incomingCallNotificationChannelName: 'Gelen aramalar',
-        missedCallNotificationChannelName: 'Cevapsiz aramalar',
+        missedCallNotificationChannelName: 'Cevapsız aramalar',
         textAccept: 'Kabul et',
         textDecline: 'Reddet',
       ),
@@ -398,9 +398,9 @@ class CallKitService {
       final bildirim = await FlutterCallkitIncoming.requestNotificationPermission({
         'title': 'Bildirim izni',
         'rationaleMessagePermission':
-            'Gelen aramalari gorebilmek icin bildirim izni gerekiyor.',
+            'Gelen aramaları görebilmek için bildirim izni gerekiyor.',
         'postNotificationMessageRequired':
-            'Bildirim izni olmadan gelen aramalar gosterilemez.',
+            'Bildirim izni olmadan gelen aramalar gösterilemez.',
       });
       // ⚠️⚠️ TEST TURU 56 — SIRA KRITIK (36 turdur GSM BEKLETME HIC CALISMIYORDU).
       // KOK NEDEN: `requestFullIntentPermission()` fire-and-forget SISTEM AYARLAR

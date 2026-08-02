@@ -187,7 +187,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             // NOT (test turu 18): "Sesli aramada" YAZISI KALDIRILDI (kullanici istemedi).
             // Durum yalniz arama ikonlarinin renginde ima edilir.
             if (typing)
-              Text('yaziyor...',
+              Text('yazıyor...',
                   style: TextStyle(
                       fontSize: 12, color: Theme.of(context).colorScheme.primary)),
           ],
@@ -280,7 +280,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       minLines: 1,
                       maxLines: 5,
                       decoration: InputDecoration(
-                        hintText: 'Mesaj yazin',
+                        hintText: 'Mesaj yazın',
                         filled: true,
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(24),
@@ -324,9 +324,9 @@ class _DateChip extends StatelessWidget {
     final now = DateTime.now();
     String label;
     if (local.year == now.year && local.month == now.month && local.day == now.day) {
-      label = 'Bugun';
+      label = 'Bugün';
     } else if (now.difference(local).inDays == 1) {
-      label = 'Dun';
+      label = 'Dün';
     } else {
       label = DateFormat('d MMMM yyyy', 'tr').format(local);
     }
@@ -498,6 +498,9 @@ class _CallLogChip extends StatelessWidget {
     final time = DateFormat.Hm().format(message.createdAt.toLocal());
 
     final baslik = video ? 'Görüntülü arama' : 'Sesli arama';
+    // "Cevapsız görüntülü arama" / "Cevapsız sesli arama" — Turkce'de sifattan sonra
+    // kucuk harf dogru (ekran goruntusundeki Messenger metniyle ayni).
+    final baslikKucuk = video ? 'görüntülü arama' : 'sesli arama';
     final String altSatir;
     if (missed) {
       altSatir = mine ? 'Cevap yok' : 'Cevapsız';
@@ -510,55 +513,92 @@ class _CallLogChip extends StatelessWidget {
     // Giden/gelen ok ikonu (WhatsApp deseni): balonun sol yuvarlagi
     final okIkon = mine ? LucideIcons.arrowUpRight : LucideIcons.arrowDownLeft;
 
+    // ⚠️ TURU 63 — MESSENGER TARZI KART (kullanici ekran goruntusu paylasti):
+    // yuvarlak ikon + baslik + saat, ALTINDA tam genislikte "Geri ara" dugmesi.
+    // Cevapsizda ikon dairesi KIRMIZI dolu; cevaplanan/gidende notr.
+    // ⚠️ YAPMA: buraya emoji koyma (turu 62: arayuzde emoji YOK).
+    final daireRengi = vurgu ? const Color(0xFFE53935) : scheme.surfaceContainerHigh;
+    final ikonRengi = vurgu ? Colors.white : scheme.onSurface;
     return Align(
       alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 3, horizontal: 8),
-        child: Material(
-          color: scheme.surfaceContainerHighest.withValues(alpha: 0.55),
-          borderRadius: BorderRadius.circular(14),
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: onAra == null ? null : () => _panelAc(context, video),
+        padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 300),
+          child: Material(
+            color: scheme.surfaceContainerHighest.withValues(alpha: 0.55),
+            borderRadius: BorderRadius.circular(16),
+            clipBehavior: Clip.antiAlias,
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(10, 9, 14, 9),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.28),
-                    shape: BoxShape.circle,
-                  ),
-                  alignment: Alignment.center,
-                  child: Icon(video ? LucideIcons.video : LucideIcons.phone,
-                      size: 18, color: vurgu ? Colors.red : Colors.white),
-                ),
-                const SizedBox(width: 11),
-                Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(baslik,
-                        style: const TextStyle(
-                            fontSize: 15, fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 2),
-                    Row(mainAxisSize: MainAxisSize.min, children: [
-                      Icon(okIkon,
-                          size: 12,
-                          color: vurgu ? Colors.red : scheme.outline),
-                      const SizedBox(width: 3),
-                      Text(altSatir,
-                          style: TextStyle(
-                              fontSize: 12.5,
-                              color: vurgu ? Colors.red : scheme.outline)),
-                    ]),
+              padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(mainAxisSize: MainAxisSize.min, children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration:
+                          BoxDecoration(color: daireRengi, shape: BoxShape.circle),
+                      alignment: Alignment.center,
+                      child: Icon(
+                          video ? LucideIcons.video : LucideIcons.phone,
+                          size: 19,
+                          color: ikonRengi),
+                    ),
+                    const SizedBox(width: 11),
+                    Flexible(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(missed && !mine ? 'Cevapsız $baslikKucuk' : baslik,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                  fontSize: 15.5, fontWeight: FontWeight.w700)),
+                          const SizedBox(height: 2),
+                          Row(mainAxisSize: MainAxisSize.min, children: [
+                            Icon(okIkon, size: 12, color: scheme.outline),
+                            const SizedBox(width: 4),
+                            Flexible(
+                              child: Text('$altSatir · $time',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                      fontSize: 12.5, color: scheme.outline)),
+                            ),
+                          ]),
+                        ],
+                      ),
+                    ),
+                  ]),
+                  // "Geri ara" — kartin ICINDE, tam genislikte (ekran goruntusundeki gibi).
+                  // Dokununca alttan "Sesli ara / Görüntülü ara" paneli acilir.
+                  if (onAra != null) ...[
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: Material(
+                        color: scheme.surfaceContainerHigh.withValues(alpha: 0.9),
+                        borderRadius: BorderRadius.circular(11),
+                        clipBehavior: Clip.antiAlias,
+                        child: InkWell(
+                          onTap: () => _panelAc(context, video),
+                          child: const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 10),
+                            child: Text('Geri ara',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                    fontSize: 14.5, fontWeight: FontWeight.w700)),
+                          ),
+                        ),
+                      ),
+                    ),
                   ],
-                ),
-                const SizedBox(width: 14),
-                Text(time,
-                    style: TextStyle(fontSize: 11, color: scheme.outline)),
-              ]),
+                ],
+              ),
             ),
           ),
         ),

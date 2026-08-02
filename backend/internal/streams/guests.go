@@ -78,15 +78,15 @@ func (h *Handler) JoinRequest(w http.ResponseWriter, r *http.Request) {
 	var status, bID string
 	if h.db.QueryRow(r.Context(), `SELECT status, broadcaster_id FROM streams WHERE id=$1`,
 		streamID).Scan(&status, &bID) != nil || (status != "live" && status != "paused") {
-		writeErr(w, http.StatusGone, "yayin bitti")
+		writeErr(w, http.StatusGone, "yayın bitti")
 		return
 	}
 	if _, err := h.rdb.ZScore(r.Context(), "stream:"+streamID+":viewers", userID).Result(); err != nil {
-		writeErr(w, http.StatusForbidden, "yayinda degilsiniz")
+		writeErr(w, http.StatusForbidden, "yayında değilsiniz")
 		return
 	}
 	if banli, _ := h.rdb.SIsMember(r.Context(), "stream:"+streamID+":banned", userID).Result(); banli {
-		writeErr(w, http.StatusForbidden, "yayindan cikarildiniz")
+		writeErr(w, http.StatusForbidden, "yayından çıkarıldınız")
 		return
 	}
 	if req.Cancel {
@@ -97,7 +97,7 @@ func (h *Handler) JoinRequest(w http.ResponseWriter, r *http.Request) {
 	}
 	// throttle 10sn + istek listesi tavani
 	if ok, _ := h.rdb.SetNX(r.Context(), "stream:"+streamID+":jreq:"+userID, "1", 10*time.Second).Result(); !ok {
-		writeErr(w, http.StatusTooManyRequests, "cok sik deneme")
+		writeErr(w, http.StatusTooManyRequests, "çok sık deneme")
 		return
 	}
 	if n, _ := h.rdb.ZCard(r.Context(), "stream:"+streamID+":guest_reqs").Result(); n >= 100 {
@@ -123,7 +123,7 @@ func (h *Handler) JoinRequests(w http.ResponseWriter, r *http.Request) {
 	var bID string
 	if h.db.QueryRow(r.Context(), `SELECT broadcaster_id FROM streams WHERE id=$1 AND status IN ('live','paused')`,
 		streamID).Scan(&bID) != nil || bID != userID {
-		writeErr(w, http.StatusForbidden, "yalniz yayinci")
+		writeErr(w, http.StatusForbidden, "yalnız yayıncı")
 		return
 	}
 	ids, _ := h.rdb.ZRange(r.Context(), "stream:"+streamID+":guest_reqs", 0, 49).Result()
@@ -168,7 +168,7 @@ func (h *Handler) GuestAccept(w http.ResponseWriter, r *http.Request) {
 	var bID, tip string
 	if h.db.QueryRow(r.Context(), `SELECT broadcaster_id, type FROM streams WHERE id=$1 AND status IN ('live','paused')`,
 		streamID).Scan(&bID, &tip) != nil || bID != userID {
-		writeErr(w, http.StatusForbidden, "yalniz yayinci")
+		writeErr(w, http.StatusForbidden, "yalnız yayıncı")
 		return
 	}
 	var req struct {
@@ -176,32 +176,32 @@ func (h *Handler) GuestAccept(w http.ResponseWriter, r *http.Request) {
 	}
 	json.NewDecoder(r.Body).Decode(&req)
 	if req.UserID == "" || req.UserID == userID {
-		writeErr(w, http.StatusBadRequest, "gecersiz istek")
+		writeErr(w, http.StatusBadRequest, "geçersiz istek")
 		return
 	}
 	if _, err := h.rdb.ZScore(r.Context(), "stream:"+streamID+":viewers", req.UserID).Result(); err != nil {
-		writeErr(w, http.StatusConflict, "izleyici yayinda degil")
+		writeErr(w, http.StatusConflict, "izleyici yayında değil")
 		return
 	}
 	if banli, _ := h.rdb.SIsMember(r.Context(), "stream:"+streamID+":banned", req.UserID).Result(); banli {
-		writeErr(w, http.StatusConflict, "bu kullanici yayindan cikarilmis")
+		writeErr(w, http.StatusConflict, "bu kullanıcı yayından çıkarılmış")
 		return
 	}
 	// COKLU KONUK: atomik kapasite-kontrollu ekleme (en fazla maxKonuk)
 	eklendi, _ := guestAddScript.Run(r.Context(), h.rdb,
 		[]string{"stream:" + streamID + ":guests"}, req.UserID, maxKonuk).Int()
 	if eklendi == 0 {
-		writeErr(w, http.StatusConflict, "konuk kapasitesi dolu — once birini cikarin")
+		writeErr(w, http.StatusConflict, "konuk kapasitesi dolu — önce birini çıkarın")
 		return
 	}
 	if err := h.lk.SetStreamGuest(r.Context(), "stream_"+streamID, req.UserID, true); err != nil {
 		// GERI AL — yalniz bu uyeyi cikar (uye-bazli SREM; yarista dogru sahibi korur)
 		h.rdb.SRem(r.Context(), "stream:"+streamID+":guests", req.UserID)
 		if lkYokS(err) {
-			writeErr(w, http.StatusConflict, "izleyici su an bagli degil")
+			writeErr(w, http.StatusConflict, "izleyici şu an bağlı değil")
 		} else {
 			log.Printf("konuk accept lk: %v", err)
-			writeErr(w, http.StatusBadGateway, "konuk alinamadi, tekrar deneyin")
+			writeErr(w, http.StatusBadGateway, "konuk alınamadı, tekrar deneyin")
 		}
 		return
 	}
@@ -222,7 +222,7 @@ func (h *Handler) GuestDecline(w http.ResponseWriter, r *http.Request) {
 	var bID string
 	if h.db.QueryRow(r.Context(), `SELECT broadcaster_id FROM streams WHERE id=$1 AND status IN ('live','paused')`,
 		streamID).Scan(&bID) != nil || bID != userID {
-		writeErr(w, http.StatusForbidden, "yalniz yayinci")
+		writeErr(w, http.StatusForbidden, "yalnız yayıncı")
 		return
 	}
 	var req struct {
@@ -270,7 +270,7 @@ func (h *Handler) GuestRemove(w http.ResponseWriter, r *http.Request) {
 	var bID string
 	if h.db.QueryRow(r.Context(), `SELECT broadcaster_id FROM streams WHERE id=$1 AND status IN ('live','paused')`,
 		streamID).Scan(&bID) != nil || bID != userID {
-		writeErr(w, http.StatusForbidden, "yalniz yayinci")
+		writeErr(w, http.StatusForbidden, "yalnız yayıncı")
 		return
 	}
 	var req struct {
@@ -288,7 +288,7 @@ func (h *Handler) GuestRefresh(w http.ResponseWriter, r *http.Request) {
 	streamID := chi.URLParam(r, "id")
 	mem, _ := h.rdb.SIsMember(r.Context(), "stream:"+streamID+":guests", userID).Result()
 	if !mem {
-		writeErr(w, http.StatusForbidden, "konuk degilsiniz")
+		writeErr(w, http.StatusForbidden, "konuk değilsiniz")
 		return
 	}
 	if err := h.lk.SetStreamGuest(r.Context(), "stream_"+streamID, userID, true); err != nil {
@@ -305,12 +305,12 @@ func (h *Handler) Viewers(w http.ResponseWriter, r *http.Request) {
 	var bID string
 	if h.db.QueryRow(r.Context(), `SELECT broadcaster_id FROM streams WHERE id=$1 AND status IN ('live','paused')`,
 		streamID).Scan(&bID) != nil {
-		writeErr(w, http.StatusGone, "yayin bitti")
+		writeErr(w, http.StatusGone, "yayın bitti")
 		return
 	}
 	if userID != bID {
 		if _, err := h.rdb.ZScore(r.Context(), "stream:"+streamID+":viewers", userID).Result(); err != nil {
-			writeErr(w, http.StatusForbidden, "yayinda degilsiniz")
+			writeErr(w, http.StatusForbidden, "yayında değilsiniz")
 			return
 		}
 	}

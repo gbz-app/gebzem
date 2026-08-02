@@ -22,7 +22,7 @@ func (h *Handler) Invite(w http.ResponseWriter, r *http.Request) {
 	}
 	json.NewDecoder(r.Body).Decode(&req)
 	if len(req.UserIDs) == 0 || len(req.UserIDs) > 10 {
-		writeErr(w, http.StatusBadRequest, "1-10 kisi secin")
+		writeErr(w, http.StatusBadRequest, "1-10 kişi seçin")
 		return
 	}
 
@@ -31,14 +31,14 @@ func (h *Handler) Invite(w http.ResponseWriter, r *http.Request) {
 		SELECT r.title, r.host_id, u.name FROM rooms r JOIN users u ON u.id=r.host_id
 		WHERE r.id=$1 AND r.status='live'`, roomID).Scan(&title, &hostID, &hostAd)
 	if err != nil {
-		writeErr(w, http.StatusNotFound, "oda bulunamadi veya bitti")
+		writeErr(w, http.StatusNotFound, "oda bulunamadı veya bitti")
 		return
 	}
 	var uyeMi bool
 	h.db.QueryRow(r.Context(), `SELECT EXISTS(SELECT 1 FROM room_participants
 		WHERE room_id=$1 AND user_id=$2 AND status='joined')`, roomID, userID).Scan(&uyeMi)
 	if !uyeMi {
-		writeErr(w, http.StatusForbidden, "odada degilsiniz")
+		writeErr(w, http.StatusForbidden, "odada değilsiniz")
 		return
 	}
 	// maxDinleyici == 0 -> SINIRSIZ dinleyici (kullanici karari 30 Tem), kontrol ATLANIR

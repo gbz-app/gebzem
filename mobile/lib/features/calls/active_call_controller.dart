@@ -262,6 +262,14 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
 
   int _sonRecvPaket = 0;
   double _sonEnergy = 0;
+
+  /// ⚠️ TURU 63 — BEKLETMEDEN CIKIS SONRASI SES GECIKMESI OLCUMU.
+  /// Kullanici: "ses anlik mi geliyor, gecmis geliyor bana". Jitter tamponu kesinti
+  /// boyunca sisip birikmis sesi calabilir. `beklemeyeAl(false)` bu damgayi atar,
+  /// istatistik tik'i 5sn sonra TEK SEFER Sentry'e olcum yazar.
+  DateTime? _gecikmeOlcumZamani;
+  double _sonTamponGecikme = 0;
+  double _sonGizlenen = 0;
   int _sonSentPaket = 0;
   double _sonMikEnerji = 0;
   int _oluMikSayaci = 0;
@@ -1007,11 +1015,11 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     // KAPI SIRASI AYNEN (_statusText — yargic YAPMA listesi: degistirme)
     if (_cevapsiz) return _cevapsizNeden;
     if (_error != null) return _error!;
-    if (_connecting) return 'Baglaniliyor...';
+    if (_connecting) return 'Bağlanılıyor...';
     if (!_peerJoined) {
       // SORUN-6 adim 4: grupta 'Caliyor' yaniltici (kimse aranmiyor, katilim bekleniyor)
       if (_isGroup) return 'Katılım bekleniyor...';
-      return (arama?.outgoing ?? true) ? 'Caliyor...' : 'Bekleniyor...';
+      return (arama?.outgoing ?? true) ? 'Çalıyor...' : 'Bekleniyor...';
     }
     if (!_mediaBasladi) return 'Bağlanıyor...';
     final m = _duration.inMinutes.toString().padLeft(2, '0');
@@ -1244,7 +1252,7 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
         _cevapsizGoster(s == 'rejected'
             ? 'Arama reddedildi'
             : s == 'busy'
-                ? 'Mesgul'
+                ? 'Meşgul'
                 : 'Cevap yok');
       }
     }
@@ -1553,7 +1561,7 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       final statuses = await perms.request();
       if (statuses[Permission.microphone] != PermissionStatus.granted) {
         if (arama?.callId != id) return;
-        _error = 'Arama icin mikrofon izni gerekli';
+        _error = 'Arama için mikrofon izni gerekli';
         _connecting = false;
         notifyListeners();
         return;
@@ -1586,8 +1594,8 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       if (arama?.callId == id) {
         final msg = e.toString().toLowerCase();
         _error = msg.contains('timeout') || msg.contains('ice') || msg.contains('dtls')
-            ? 'Baglanti kurulamadi.\nInternet baglantinizi kontrol edin.'
-            : 'Arama baslatilamadi.\nTekrar deneyin.';
+            ? 'Bağlantı kurulamadı.\nİnternet bağlantınızı kontrol edin.'
+            : 'Arama başlatılamadı.\nTekrar deneyin.';
         _connecting = false;
         notifyListeners();
       }
@@ -1953,6 +1961,13 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
         // firstOrNull yalniz ilk katilimciyi olcuyordu). Hic track yoksa recv=-1 kalir.
         int recv = -1;
         double energy = 0;
+        // ⚠️ TURU 63 — GECIKME OLCUMU (kullanici: "ses anlik mi geliyor, gecmis
+        // geliyor bana"). Bekletmeden cikista jitter tamponu SISMIS kalabilir:
+        // kesinti boyunca paketler birikir, kesinti bitince birikmis ses calinir ve
+        // kulaga "gecmis geliyor" diye gelir. Tahmin etmek yerine OLCUYORUZ.
+        double jitterSn = 0;
+        double tamponGecikme = 0;
+        double gizlenenOrnek = 0;
         for (final rp in _room?.remoteParticipants.values ?? const <RemoteParticipant>[]) {
           for (final pub in rp.audioTrackPublications) {
             final track = pub.track;
@@ -1963,11 +1978,30 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
                   if (recv < 0) recv = 0;
                   recv += (s.packetsReceived ?? 0).toInt();
                   energy += (s.totalAudioEnergy ?? 0).toDouble();
+                  jitterSn += (s.jitter ?? 0).toDouble();
+                  tamponGecikme += (s.jitterBufferDelay ?? 0).toDouble();
+                  gizlenenOrnek += (s.concealedSamples ?? 0).toDouble();
                 }
               } catch (_) {}
             }
           }
         }
+        // Bekletmeden cikistan 5sn sonra TEK SEFER olcum gonder.
+        // ⚠️ YAPMA: bunu her tikta gondermeye cevirme (Sentry gurultusu).
+        final olcumAn = _gecikmeOlcumZamani;
+        if (olcumAn != null &&
+            DateTime.now().difference(olcumAn) >= const Duration(seconds: 5)) {
+          _gecikmeOlcumZamani = null;
+          final tamponDelta = tamponGecikme - _sonTamponGecikme;
+          final gizliDelta = gizlenenOrnek - _sonGizlenen;
+          unawaited(Sentry.captureMessage(
+              'devam sonrasi ses: jitterMs=${(jitterSn * 1000).toStringAsFixed(1)} '
+              'tamponDeltaMs=${(tamponDelta * 1000).toStringAsFixed(0)} '
+              'gizlenenOrnek=${gizliDelta.toStringAsFixed(0)} '
+              'recvDelta=${recv < 0 ? -1 : recv - _sonRecvPaket}'));
+        }
+        _sonTamponGecikme = tamponGecikme;
+        _sonGizlenen = gizlenenOrnek;
         final delta = recv < 0 ? 0 : recv - _sonRecvPaket;
         if (recv >= 0) _sonRecvPaket = recv;
         final enerjiDelta = energy - _sonEnergy;
@@ -2431,7 +2465,7 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
         _isGroup = true;
         notifyListeners();
         rootMessengerKey.currentState?.showSnackBar(SnackBar(
-            content: Text('${ev['added_name'] ?? 'Bir kisi'} aramaya kisi ekledi')));
+            content: Text('${ev['added_name'] ?? 'Bir kişi'} aramaya kişi ekledi')));
       } else if (_isGroup) {
         notifyListeners(); // izgara tazelensin (joined/left)
       }
@@ -2455,7 +2489,7 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
         _cevapsizGoster(s == 'rejected'
             ? 'Arama reddedildi'
             : s == 'busy'
-                ? 'Mesgul'
+                ? 'Meşgul'
                 : 'Cevap yok');
       }
     });
@@ -2928,6 +2962,8 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       // acmaz), bekleyen mute timer'ini iptal eder ve iOS bayragini tazeler.
       // ⚠️ YAPMA: bu cagriyi kaldirma.
       if (_ayrildi || arama?.callId != orijinalId) return;
+      // TURU 63: 5sn sonra ses gecikmesi olcumu gonderilsin (bkz. `_gecikmeOlcumZamani`).
+      _gecikmeOlcumZamani = DateTime.now();
       _kameraOtoAc();
       // ⚠️⚠️ TEST TURU 58 — ASIMETRI KAPATILDI (kullanicinin bildirdigi ASIL SORUN).
       // Park yolunun kardesi `devamEt()` sonunda `ekraniAc()` cagiriyordu, ama GSM/CallKit

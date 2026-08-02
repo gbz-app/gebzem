@@ -116,7 +116,7 @@ func (h *Handler) sayacYayinla(ctx context.Context, streamID string) {
 // POST /streams {title, video} — yayin baslat (yayinci token'i doner)
 func (h *Handler) Start(w http.ResponseWriter, r *http.Request) {
 	if !h.Enabled() {
-		writeErr(w, http.StatusServiceUnavailable, "yayin servisi kapali")
+		writeErr(w, http.StatusServiceUnavailable, "yayın servisi kapalı")
 		return
 	}
 	userID := auth.UserID(r.Context())
@@ -151,7 +151,7 @@ func (h *Handler) Start(w http.ResponseWriter, r *http.Request) {
 			`SELECT id FROM streams WHERE broadcaster_id=$1 AND status IN ('live','paused') LIMIT 1`,
 			userID).Scan(&mevcut)
 		writeJSON(w, http.StatusConflict, map[string]string{
-			"error": "zaten canli bir yayininiz var", "stream_id": mevcut,
+			"error": "zaten canlı bir yayınınız var", "stream_id": mevcut,
 		})
 		return
 	}
@@ -166,14 +166,14 @@ func (h *Handler) Start(w http.ResponseWriter, r *http.Request) {
 	if err := h.lk.CreateRoom(r.Context(), roomName, odaTavan, 300); err != nil {
 		log.Printf("yayin livekit create: %v", err)
 		h.db.Exec(r.Context(), `UPDATE streams SET status='ended', ended_at=now() WHERE id=$1`, streamID)
-		writeErr(w, http.StatusInternalServerError, "yayin baslatilamadi")
+		writeErr(w, http.StatusInternalServerError, "yayın başlatılamadı")
 		return
 	}
 	var name string
 	h.db.QueryRow(r.Context(), `SELECT name FROM users WHERE id=$1`, userID).Scan(&name)
 	tok, err := h.yayinciToken(roomName, userID, name)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "token uretilemedi")
+		writeErr(w, http.StatusInternalServerError, "token üretilemedi")
 		return
 	}
 	// Yayinci nabzi: sweeper 45 sn nabizsiz kalirsa 'paused' yapar
@@ -199,7 +199,7 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 		ORDER BY s.started_at DESC
 		LIMIT 50`)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "liste alinamadi")
+		writeErr(w, http.StatusInternalServerError, "liste alınamadı")
 		return
 	}
 	defer rows.Close()
@@ -254,11 +254,11 @@ func (h *Handler) Watch(w http.ResponseWriter, r *http.Request) {
 		FROM streams s JOIN users u ON u.id=s.broadcaster_id
 		WHERE s.id=$1`, streamID).Scan(&status, &title, &tip, &bID, &bName)
 	if err != nil || (status != "live" && status != "paused") {
-		writeErr(w, http.StatusGone, "yayin bulunamadi veya bitti")
+		writeErr(w, http.StatusGone, "yayın bulunamadı veya bitti")
 		return
 	}
 	if bID == userID {
-		writeErr(w, http.StatusBadRequest, "kendi yayininizi izleyemezsiniz")
+		writeErr(w, http.StatusBadRequest, "kendi yayınınızı izleyemezsiniz")
 		return
 	}
 	// Engel (cift yonlu, calls deseni) + yayinci kick bani
@@ -267,17 +267,17 @@ func (h *Handler) Watch(w http.ResponseWriter, r *http.Request) {
 		WHERE (blocker_id=$1 AND blocked_id=$2) OR (blocker_id=$2 AND blocked_id=$1))`,
 		bID, userID).Scan(&blocked)
 	if blocked {
-		writeErr(w, http.StatusForbidden, "bu yayini izleyemezsiniz")
+		writeErr(w, http.StatusForbidden, "bu yayını izleyemezsiniz")
 		return
 	}
 	banli, _ := h.rdb.SIsMember(r.Context(), "stream:"+streamID+":banned", userID).Result()
 	if banli {
-		writeErr(w, http.StatusForbidden, "yayindan cikarildiniz")
+		writeErr(w, http.StatusForbidden, "yayından çıkarıldınız")
 		return
 	}
 	// Kapasite (cx33 NIC muhafizi; LiveKit max_participants ikinci savunma hatti)
 	if h.maxIzleyici > 0 && h.izleyiciSayisi(r.Context(), streamID) >= h.maxIzleyici {
-		writeErr(w, http.StatusTooManyRequests, "yayin dolu")
+		writeErr(w, http.StatusTooManyRequests, "yayın dolu")
 		return
 	}
 	h.rdb.ZAdd(r.Context(), "stream:"+streamID+":viewers",
@@ -288,7 +288,7 @@ func (h *Handler) Watch(w http.ResponseWriter, r *http.Request) {
 	roomName := "stream_" + streamID
 	tok, err := h.izleyiciToken(roomName, userID, name)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "token uretilemedi")
+		writeErr(w, http.StatusInternalServerError, "token üretilemedi")
 		return
 	}
 	h.audit(r.Context(), streamID, userID, "watch", clientIP(r))
@@ -316,7 +316,7 @@ func (h *Handler) Heartbeat(w http.ResponseWriter, r *http.Request) {
 	var bID string
 	if h.db.QueryRow(r.Context(), `SELECT broadcaster_id FROM streams WHERE id=$1 AND status IN ('live','paused')`,
 		streamID).Scan(&bID) != nil {
-		writeErr(w, http.StatusGone, "yayin bitti")
+		writeErr(w, http.StatusGone, "yayın bitti")
 		return
 	}
 	if userID == bID {
@@ -327,7 +327,7 @@ func (h *Handler) Heartbeat(w http.ResponseWriter, r *http.Request) {
 		// (sayacta gorunmez + chat 403). Kick hayaleti banned kontrolatiyle onlenir;
 		// leave sonrasi tek gecikmis nabiz zararsiz (ekran kapali, yenisi gelmez, 45sn'de duser).
 		if banli, _ := h.rdb.SIsMember(r.Context(), "stream:"+streamID+":banned", userID).Result(); banli {
-			writeErr(w, http.StatusForbidden, "yayindan cikarildiniz")
+			writeErr(w, http.StatusForbidden, "yayından çıkarıldınız")
 			return
 		}
 		// TARAMA #13: uye DEGILSE bu bir YENIDEN KATILIM'dir -> Watch kurallari (blok +
@@ -341,11 +341,11 @@ func (h *Handler) Heartbeat(w http.ResponseWriter, r *http.Request) {
 				WHERE (blocker_id=$1 AND blocked_id=$2) OR (blocker_id=$2 AND blocked_id=$1))`,
 				bID, userID).Scan(&blocked)
 			if blocked {
-				writeErr(w, http.StatusForbidden, "bu yayini izleyemezsiniz")
+				writeErr(w, http.StatusForbidden, "bu yayını izleyemezsiniz")
 				return
 			}
 			if h.maxIzleyici > 0 && h.izleyiciSayisi(r.Context(), streamID) >= h.maxIzleyici {
-				writeErr(w, http.StatusTooManyRequests, "yayin dolu")
+				writeErr(w, http.StatusTooManyRequests, "yayın dolu")
 				return
 			}
 		}
@@ -384,7 +384,7 @@ func (h *Handler) End(w http.ResponseWriter, r *http.Request) {
 	h.db.QueryRow(r.Context(),
 		`SELECT EXISTS(SELECT 1 FROM streams WHERE id=$1 AND broadcaster_id=$2)`, streamID, userID).Scan(&sahibi)
 	if !sahibi {
-		writeErr(w, http.StatusForbidden, "yalniz yayinci")
+		writeErr(w, http.StatusForbidden, "yalnız yayıncı")
 		return
 	}
 	h.endStream(r.Context(), streamID, "end")
@@ -423,7 +423,7 @@ func (h *Handler) Chat(w http.ResponseWriter, r *http.Request) {
 	json.NewDecoder(r.Body).Decode(&req)
 	req.Text = strings.TrimSpace(req.Text)
 	if req.Text == "" {
-		writeErr(w, http.StatusBadRequest, "bos mesaj")
+		writeErr(w, http.StatusBadRequest, "boş mesaj")
 		return
 	}
 	if len([]rune(req.Text)) > 200 {
@@ -433,19 +433,19 @@ func (h *Handler) Chat(w http.ResponseWriter, r *http.Request) {
 	var bID string
 	if h.db.QueryRow(r.Context(), `SELECT broadcaster_id FROM streams WHERE id=$1 AND status IN ('live','paused')`,
 		streamID).Scan(&bID) != nil {
-		writeErr(w, http.StatusGone, "yayin bitti")
+		writeErr(w, http.StatusGone, "yayın bitti")
 		return
 	}
 	if userID != bID {
 		if _, err := h.rdb.ZScore(r.Context(), "stream:"+streamID+":viewers", userID).Result(); err != nil {
-			writeErr(w, http.StatusForbidden, "yayinda degilsiniz")
+			writeErr(w, http.StatusForbidden, "yayında değilsiniz")
 			return
 		}
 	}
 	// Throttle: kisi basi 2 sn'de 1 mesaj
 	ok, _ := h.rdb.SetNX(r.Context(), "stream:"+streamID+":chat:"+userID, "1", 2*time.Second).Result()
 	if !ok {
-		writeErr(w, http.StatusTooManyRequests, "cok hizli yaziyorsunuz")
+		writeErr(w, http.StatusTooManyRequests, "çok hızlı yazıyorsunuz")
 		return
 	}
 	var name string
@@ -466,7 +466,7 @@ func (h *Handler) Heart(w http.ResponseWriter, r *http.Request) {
 	var bir int
 	if h.db.QueryRow(r.Context(),
 		`SELECT 1 FROM streams WHERE id=$1 AND status IN ('live','paused')`, streamID).Scan(&bir) != nil {
-		writeErr(w, http.StatusGone, "yayin bitti")
+		writeErr(w, http.StatusGone, "yayın bitti")
 		return
 	}
 	// kisi basi saniyede 1
@@ -497,7 +497,7 @@ func (h *Handler) Report(w http.ResponseWriter, r *http.Request) {
 		INSERT INTO stream_reports (stream_id, reporter_id, reason) VALUES ($1,$2,$3)
 		ON CONFLICT (stream_id, reporter_id) DO NOTHING`, streamID, userID, req.Reason)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "rapor alinamadi")
+		writeErr(w, http.StatusBadRequest, "rapor alınamadı")
 		return
 	}
 	log.Printf("YAYIN-RAPOR stream=%s raporlayan=%s sebep=%q", kisaID(streamID), kisaID(userID), req.Reason)
@@ -511,7 +511,7 @@ func (h *Handler) Kick(w http.ResponseWriter, r *http.Request) {
 	var bID string
 	if h.db.QueryRow(r.Context(), `SELECT broadcaster_id FROM streams WHERE id=$1 AND status IN ('live','paused')`,
 		streamID).Scan(&bID) != nil || bID != userID {
-		writeErr(w, http.StatusForbidden, "yalniz yayinci")
+		writeErr(w, http.StatusForbidden, "yalnız yayıncı")
 		return
 	}
 	var req struct {
@@ -519,7 +519,7 @@ func (h *Handler) Kick(w http.ResponseWriter, r *http.Request) {
 	}
 	json.NewDecoder(r.Body).Decode(&req)
 	if req.UserID == "" || req.UserID == userID {
-		writeErr(w, http.StatusBadRequest, "gecersiz istek")
+		writeErr(w, http.StatusBadRequest, "geçersiz istek")
 		return
 	}
 	// Atilan KONUKSA once dusur (herkese guest.left gitsin, PiP temizlensin — B7)

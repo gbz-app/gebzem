@@ -136,7 +136,7 @@ func (h *Handler) SendMessage(w http.ResponseWriter, r *http.Request) {
 
 	var req sendMessageReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httpErr(w, http.StatusBadRequest, "gecersiz istek")
+		httpErr(w, http.StatusBadRequest, "geçersiz istek")
 		return
 	}
 	if req.Type == "" {
@@ -152,14 +152,14 @@ func (h *Handler) SendMessage(w http.ResponseWriter, r *http.Request) {
 	switch req.Type {
 	case "text", "image", "video", "audio", "location":
 	default:
-		httpErr(w, http.StatusBadRequest, "gecersiz mesaj tipi")
+		httpErr(w, http.StatusBadRequest, "geçersiz mesaj tipi")
 		return
 	}
 
 	// uyelik + engel kontrolu
 	members, err := h.chatMemberIDs(r, chatID, userID)
 	if err != nil {
-		httpErr(w, http.StatusForbidden, "bu sohbetin uyesi degilsiniz")
+		httpErr(w, http.StatusForbidden, "bu sohbetin üyesi değilsiniz")
 		return
 	}
 
@@ -196,13 +196,13 @@ func (h *Handler) SendMessage(w http.ResponseWriter, r *http.Request) {
 		preview := req.Content
 		switch req.Type {
 		case "image":
-			preview = "📷 Fotograf"
+			preview = "Fotoğraf"
 		case "video":
-			preview = "🎥 Video"
+			preview = "Video"
 		case "audio":
-			preview = "🎤 Sesli mesaj"
+			preview = "Sesli mesaj"
 		case "location":
-			preview = "📍 Konum"
+			preview = "Konum"
 		}
 		if len(preview) > 80 {
 			preview = preview[:80]
@@ -218,7 +218,7 @@ func (h *Handler) GetMessages(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserID(r.Context())
 	chatID := chi.URLParam(r, "chatID")
 	if _, err := h.chatMemberIDs(r, chatID, userID); err != nil {
-		httpErr(w, http.StatusForbidden, "bu sohbetin uyesi degilsiniz")
+		httpErr(w, http.StatusForbidden, "bu sohbetin üyesi değilsiniz")
 		return
 	}
 
@@ -239,7 +239,7 @@ func (h *Handler) GetMessages(w http.ResponseWriter, r *http.Request) {
 		FROM messages WHERE chat_id=$1 AND id<$2
 		ORDER BY id DESC LIMIT $3`, chatID, beforeID, limit)
 	if err != nil {
-		httpErr(w, http.StatusInternalServerError, "sunucu hatasi")
+		httpErr(w, http.StatusInternalServerError, "sunucu hatası")
 		return
 	}
 	defer rows.Close()
@@ -272,7 +272,7 @@ func (h *Handler) CreateDirect(w http.ResponseWriter, r *http.Request) {
 		UserID string `json:"user_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.UserID == "" || req.UserID == userID {
-		httpErr(w, http.StatusBadRequest, "gecersiz istek")
+		httpErr(w, http.StatusBadRequest, "geçersiz istek")
 		return
 	}
 
@@ -283,7 +283,7 @@ func (h *Handler) CreateDirect(w http.ResponseWriter, r *http.Request) {
 		WHERE (blocker_id=$1 AND blocked_id=$2) OR (blocker_id=$2 AND blocked_id=$1))`,
 		userID, req.UserID).Scan(&blocked)
 	if blocked {
-		httpErr(w, http.StatusForbidden, "bu kullaniciyla sohbet baslatilamiyor")
+		httpErr(w, http.StatusForbidden, "bu kullanıcıyla sohbet başlatılamıyor")
 		return
 	}
 
@@ -298,19 +298,19 @@ func (h *Handler) CreateDirect(w http.ResponseWriter, r *http.Request) {
 		// yoksa olustur
 		tx, err := h.db.Begin(r.Context())
 		if err != nil {
-			httpErr(w, http.StatusInternalServerError, "sunucu hatasi")
+			httpErr(w, http.StatusInternalServerError, "sunucu hatası")
 			return
 		}
 		defer tx.Rollback(r.Context())
 		if err := tx.QueryRow(r.Context(),
 			`INSERT INTO chats (type, created_by) VALUES ('direct',$1) RETURNING id`, userID).Scan(&chatID); err != nil {
-			httpErr(w, http.StatusInternalServerError, "sohbet olusturulamadi")
+			httpErr(w, http.StatusInternalServerError, "sohbet oluşturulamadı")
 			return
 		}
 		for _, uid := range []string{userID, req.UserID} {
 			if _, err := tx.Exec(r.Context(),
 				`INSERT INTO chat_members (chat_id, user_id) VALUES ($1,$2)`, chatID, uid); err != nil {
-				httpErr(w, http.StatusInternalServerError, "sohbet olusturulamadi")
+				httpErr(w, http.StatusInternalServerError, "sohbet oluşturulamadı")
 				return
 			}
 		}
@@ -348,7 +348,7 @@ func (h *Handler) ListChats(w http.ResponseWriter, r *http.Request) {
 		) lm ON true
 		ORDER BY cm.pinned DESC, lm.created_at DESC NULLS LAST`, userID)
 	if err != nil {
-		httpErr(w, http.StatusInternalServerError, "sunucu hatasi")
+		httpErr(w, http.StatusInternalServerError, "sunucu hatası")
 		return
 	}
 	defer rows.Close()
@@ -389,7 +389,7 @@ func (h *Handler) MarkRead(w http.ResponseWriter, r *http.Request) {
 	chatID := chi.URLParam(r, "chatID")
 	members, err := h.chatMemberIDs(r, chatID, userID)
 	if err != nil {
-		httpErr(w, http.StatusForbidden, "bu sohbetin uyesi degilsiniz")
+		httpErr(w, http.StatusForbidden, "bu sohbetin üyesi değilsiniz")
 		return
 	}
 	_, err = h.db.Exec(r.Context(), `
@@ -397,7 +397,7 @@ func (h *Handler) MarkRead(w http.ResponseWriter, r *http.Request) {
 		FROM messages m
 		WHERE m.id=mr.message_id AND m.chat_id=$1 AND mr.user_id=$2 AND mr.read_at IS NULL`, chatID, userID)
 	if err != nil {
-		httpErr(w, http.StatusInternalServerError, "sunucu hatasi")
+		httpErr(w, http.StatusInternalServerError, "sunucu hatası")
 		return
 	}
 	payload, _ := json.Marshal(map[string]string{"chat_id": chatID, "reader_id": userID})

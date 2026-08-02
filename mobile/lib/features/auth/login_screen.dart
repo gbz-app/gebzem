@@ -67,20 +67,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     controller: _phone,
                     keyboardType: TextInputType.phone,
                     decoration: const InputDecoration(
-                      labelText: 'Telefon numarasi',
+                      labelText: 'Telefon numarası',
                       hintText: '+905xxxxxxxxx',
                       border: OutlineInputBorder(),
                       prefixIcon: Icon(LucideIcons.phone),
                     ),
                     validator: (v) =>
-                        (v == null || v.trim().length < 12) ? 'Gecerli numara girin' : null,
+                        (v == null || v.trim().length < 12) ? 'Geçerli numara girin' : null,
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: _password,
                     obscureText: _hidePassword,
                     decoration: InputDecoration(
-                      labelText: 'Sifre',
+                      labelText: 'Şifre',
                       border: const OutlineInputBorder(),
                       prefixIcon: const Icon(LucideIcons.lock),
                       suffixIcon: IconButton(
@@ -89,7 +89,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ),
                     ),
                     validator: (v) =>
-                        (v == null || v.length < 6) ? 'Sifre en az 6 karakter' : null,
+                        (v == null || v.length < 6) ? 'Şifre en az 6 karakter' : null,
                     onFieldSubmitted: (_) => _submit(),
                   ),
                   const SizedBox(height: 8),
@@ -97,7 +97,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     alignment: Alignment.centerRight,
                     child: TextButton(
                       onPressed: () => context.push('/forgot'),
-                      child: const Text('Sifremi unuttum'),
+                      child: const Text('Şifremi unuttum'),
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -107,12 +107,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     child: _loading
                         ? const SizedBox(
                             width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                        : const Text('Giris Yap'),
+                        : const Text('Giriş Yap'),
                   ),
                   const SizedBox(height: 16),
                   TextButton(
                     onPressed: () => context.push('/register'),
-                    child: const Text('Hesabin yok mu? Kayit ol'),
+                    child: const Text('Hesabın yok mu? Kayıt ol'),
                   ),
                 ],
               ),

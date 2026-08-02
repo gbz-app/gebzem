@@ -29,7 +29,7 @@ class CallsTab extends ConsumerWidget {
                 children: [
                   Icon(LucideIcons.phone, size: 56, color: scheme.outline),
                   const SizedBox(height: 12),
-                  Text('Henuz arama yok.\nSohbetten arama baslatabilirsin.',
+                  Text('Henüz arama yok.\nSohbetten arama başlatabilirsin.',
                       textAlign: TextAlign.center,
                       style: TextStyle(color: scheme.outline)),
                 ],
@@ -144,13 +144,13 @@ class _CallTile extends ConsumerWidget {
   }
 
   String _durum(String status, bool outgoing, int duration) => switch (status) {
-        'missed' => outgoing ? 'Cevap vermedi' : 'Cevapsiz arama',
+        'missed' => outgoing ? 'Cevap vermedi' : 'Cevapsız arama',
         'rejected' => outgoing ? 'Reddedildi' : 'Reddettin',
-        'busy' => outgoing ? 'Mesguldu' : 'Mesguldun',
+        'busy' => outgoing ? 'Meşguldü' : 'Meşguldün',
         'ended' when duration > 0 => outgoing ? 'Giden arama' : 'Gelen arama',
-        'ended' => outgoing ? 'Cevap vermedi' : 'Cevapsiz arama',
-        'active' => 'Suruyor',
-        'ringing' => 'Caliyor',
+        'ended' => outgoing ? 'Cevap vermedi' : 'Cevapsız arama',
+        'active' => 'Sürüyor',
+        'ringing' => 'Çalıyor',
         _ => status,
       };
 
@@ -169,8 +169,8 @@ class _CallTile extends ConsumerWidget {
     final gun = DateTime(at.year, at.month, at.day);
     final fark = bugun.difference(gun).inDays;
     final saat = DateFormat('HH:mm').format(at);
-    if (fark == 0) return 'bugun $saat';
-    if (fark == 1) return 'dun $saat';
+    if (fark == 0) return 'bugün $saat';
+    if (fark == 1) return 'dün $saat';
     if (fark < 7) return '${DateFormat('EEEE', 'tr').format(at)} $saat';
     return DateFormat('d MMM HH:mm', 'tr').format(at);
   }

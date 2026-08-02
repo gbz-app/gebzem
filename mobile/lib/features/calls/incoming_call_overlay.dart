@@ -428,7 +428,7 @@ class _IncomingCallSheetState extends ConsumerState<_IncomingCallSheet> {
                     ? (call.video
                         ? 'Grup görüntülü araması · ${call.callerName}'
                         : 'Grup sesli araması · ${call.callerName}')
-                    : (call.video ? 'Goruntulu arama' : 'Sesli arama'),
+                    : (call.video ? 'Görüntülü arama' : 'Sesli arama'),
                 style: const TextStyle(color: Colors.white70, fontSize: 16)),
             const Spacer(flex: 3),
             // ARAMA BEKLETME (test turu 18): bu arama BEN BASKA GORUSMEDEYKEN geldiyse

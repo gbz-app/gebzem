@@ -292,14 +292,14 @@ type startReq struct {
 // POST /calls — arama baslat (davet gonderir, arayana token doner)
 func (h *Handler) Start(w http.ResponseWriter, r *http.Request) {
 	if !h.Enabled() {
-		writeErr(w, http.StatusServiceUnavailable, "arama servisi kapali")
+		writeErr(w, http.StatusServiceUnavailable, "arama servisi kapalı")
 		return
 	}
 	callerID := auth.UserID(r.Context())
 
 	var req startReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeErr(w, http.StatusBadRequest, "gecersiz istek")
+		writeErr(w, http.StatusBadRequest, "geçersiz istek")
 		return
 	}
 	// GRUP ARAMASI: chat_id VEYA member_ids doluysa AYRI yol (1:1 koduna DOKUNMAZ, callee_id gerekmez).
@@ -308,11 +308,11 @@ func (h *Handler) Start(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.CalleeID == "" {
-		writeErr(w, http.StatusBadRequest, "gecersiz istek")
+		writeErr(w, http.StatusBadRequest, "geçersiz istek")
 		return
 	}
 	if req.CalleeID == callerID {
-		writeErr(w, http.StatusBadRequest, "kendinizi arayamazsiniz")
+		writeErr(w, http.StatusBadRequest, "kendinizi arayamazsınız")
 		return
 	}
 
@@ -323,7 +323,7 @@ func (h *Handler) Start(w http.ResponseWriter, r *http.Request) {
 		WHERE (blocker_id=$1 AND blocked_id=$2) OR (blocker_id=$2 AND blocked_id=$1))`,
 		callerID, req.CalleeID).Scan(&blocked)
 	if blocked {
-		writeErr(w, http.StatusForbidden, "bu kullanici aranamiyor")
+		writeErr(w, http.StatusForbidden, "bu kullanıcı aranamıyor")
 		return
 	}
 
@@ -387,7 +387,7 @@ func (h *Handler) Start(w http.ResponseWriter, r *http.Request) {
 		h.db.Exec(r.Context(), `
 			INSERT INTO calls (caller_id, callee_id, type, status, ended_at)
 			VALUES ($1,$2,$3,'busy',now())`, callerID, req.CalleeID, callType)
-		writeErr(w, http.StatusConflict, "Kullanici su anda baska bir gorusmede")
+		writeErr(w, http.StatusConflict, "Kullanıcı şu anda başka bir görüşmede")
 		return
 	}
 	// TEST TURU 22: 'active' satir OLU olabilir (app-kill). LiveKit'e sorup dogrula —
@@ -405,14 +405,14 @@ func (h *Handler) Start(w http.ResponseWriter, r *http.Request) {
 		callerID, req.CalleeID, callType).Scan(&callID)
 	if err != nil {
 		log.Printf("arama kaydi: %v", err)
-		writeErr(w, http.StatusInternalServerError, "arama baslatilamadi")
+		writeErr(w, http.StatusInternalServerError, "arama başlatılamadı")
 		return
 	}
 
 	roomName := "call_" + callID
 	tok, err := h.token(roomName, callerID, callerName)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "token uretilemedi")
+		writeErr(w, http.StatusInternalServerError, "token üretilemedi")
 		return
 	}
 
@@ -510,7 +510,7 @@ func (h *Handler) startGroup(w http.ResponseWriter, r *http.Request, req startRe
 			FROM chats c JOIN chat_members m ON m.chat_id=c.id
 			WHERE c.id=$1 AND m.user_id=$2`, req.ChatID, callerID).Scan(&isGroup, &chatTitle)
 		if err != nil || !isGroup {
-			writeErr(w, http.StatusForbidden, "grup bulunamadi veya uye degilsiniz")
+			writeErr(w, http.StatusForbidden, "grup bulunamadı veya üye değilsiniz")
 			return
 		}
 		rows, qerr := h.db.Query(r.Context(),
@@ -543,7 +543,7 @@ func (h *Handler) startGroup(w http.ResponseWriter, r *http.Request, req startRe
 		chatTitle = "Grup araması"
 	}
 	if len(memberIDs) == 0 {
-		writeErr(w, http.StatusBadRequest, "gecerli katilimci yok")
+		writeErr(w, http.StatusBadRequest, "geçerli katılımcı yok")
 		return
 	}
 	// ⚠️⚠️ GRUP ARAMASI KULLANIM DISI (kullanici karari 2 Agu 2026).
@@ -556,13 +556,13 @@ func (h *Handler) startGroup(w http.ResponseWriter, r *http.Request, req startRe
 	// GERI ACMA: asagidaki blogu kaldir + `maxGrupKatilimci`yi buyut + istemcideki
 	// giris noktalarini (calls_tab FAB, call_screen "Kisi ekle") geri ekle.
 	if !grupAramaAcik && len(memberIDs) > 0 {
-		writeErr(w, http.StatusBadRequest, "grup aramasi kullanim disi")
+		writeErr(w, http.StatusBadRequest, "grup araması kullanım dışı")
 		return
 	}
 	toplam := len(memberIDs) + 1
 	if toplam > maxGrupKatilimci {
 		writeErr(w, http.StatusBadRequest,
-			fmt.Sprintf("arama en fazla %d kisi olabilir", maxGrupKatilimci))
+			fmt.Sprintf("arama en fazla %d kişi olabilir", maxGrupKatilimci))
 		return
 	}
 
@@ -578,7 +578,7 @@ func (h *Handler) startGroup(w http.ResponseWriter, r *http.Request, req startRe
 		callerID, chatIDForCall, callType).Scan(&callID)
 	if err != nil {
 		log.Printf("grup arama kaydi: %v", err)
-		writeErr(w, http.StatusInternalServerError, "arama baslatilamadi")
+		writeErr(w, http.StatusInternalServerError, "arama başlatılamadı")
 		return
 	}
 
@@ -595,7 +595,7 @@ func (h *Handler) startGroup(w http.ResponseWriter, r *http.Request, req startRe
 	roomName := "call_" + callID
 	tok, err := h.token(roomName, callerID, callerName)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "token uretilemedi")
+		writeErr(w, http.StatusInternalServerError, "token üretilemedi")
 		return
 	}
 
@@ -654,7 +654,7 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request) {
 	}
 	json.NewDecoder(r.Body).Decode(&req)
 	if req.UserID == "" || req.UserID == userID {
-		writeErr(w, http.StatusBadRequest, "gecersiz istek")
+		writeErr(w, http.StatusBadRequest, "geçersiz istek")
 		return
 	}
 
@@ -679,7 +679,7 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request) {
 		       SELECT 1 FROM call_participants WHERE call_id=$1 AND user_id=$2 AND status='joined'))
 		FOR UPDATE`, callID, userID).Scan(&callerID, &calleeID, &callType, &isGroup, &chatID)
 	if err != nil {
-		writeErr(w, http.StatusNotFound, "arama bulunamadi veya bitti")
+		writeErr(w, http.StatusNotFound, "arama bulunamadı veya bitti")
 		return
 	}
 
@@ -687,7 +687,7 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request) {
 	var verified bool
 	tx.QueryRow(r.Context(), `SELECT COALESCE(verified,false) FROM users WHERE id=$1`, req.UserID).Scan(&verified)
 	if !verified {
-		writeErr(w, http.StatusBadRequest, "kullanici bulunamadi")
+		writeErr(w, http.StatusBadRequest, "kullanıcı bulunamadı")
 		return
 	}
 	var blocked bool
@@ -695,7 +695,7 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request) {
 		WHERE (blocker_id=$1 AND blocked_id=$2) OR (blocker_id=$2 AND blocked_id=$1))`,
 		userID, req.UserID).Scan(&blocked)
 	if blocked {
-		writeErr(w, http.StatusForbidden, "bu kullanici eklenemiyor")
+		writeErr(w, http.StatusForbidden, "bu kullanıcı eklenemiyor")
 		return
 	}
 	// Zaten bu aramada mi — TEST TURU 22: DB "joined" diyorsa LIVEKIT'E SOR. Kisi odada
@@ -721,7 +721,7 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request) {
 			gercekte = true
 		}
 		if gercekte {
-			writeErr(w, http.StatusConflict, "kullanici zaten aramada")
+			writeErr(w, http.StatusConflict, "kullanıcı zaten aramada")
 			return
 		}
 		tx.Exec(r.Context(), `UPDATE call_participants SET status='left', left_at=now()
@@ -743,7 +743,7 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request) {
 	// TEST TURU 22: DB "mesgul" dese bile LIVEKIT'E SOR — kisi o odada degilse satir OLU
 	// (temizlenir) ve davete IZIN verilir.
 	if mesgul && h.gercektenMesgul(r.Context(), req.UserID, callID) {
-		writeErr(w, http.StatusConflict, "kullanici su anda baska bir gorusmede")
+		writeErr(w, http.StatusConflict, "kullanıcı şu anda başka bir görüşmede")
 		return
 	}
 	// ⚠️ ARAMAYA KISI EKLEME KULLANIM DISI (grup aramasi kapatildi, 2 Agu 2026).
@@ -753,7 +753,7 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request) {
 	// ⚠️ `return`den sonra OLU KOD BIRAKMA (turu 48 dersi: "gozcu ULASILAMAZ KODDU") —
 	// bu yuzden bayrakla kapatiliyor, asagisi ULASILABILIR kaliyor.
 	if !grupAramaAcik {
-		writeErr(w, http.StatusBadRequest, "aramaya kisi ekleme kullanim disi")
+		writeErr(w, http.StatusBadRequest, "aramaya kişi ekleme kullanım dışı")
 		return
 	}
 	// Kapasite (maxGrupKatilimci = 2 — grup KAPALI, kullanici karari 2 Agu): 1:1 taban 2
@@ -765,7 +765,7 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request) {
 	}
 	if aktifSayi+1 > maxGrupKatilimci {
 		writeErr(w, http.StatusBadRequest,
-			fmt.Sprintf("grup aramasi en fazla %d kisi olabilir", maxGrupKatilimci))
+			fmt.Sprintf("grup araması en fazla %d kişi olabilir", maxGrupKatilimci))
 		return
 	}
 
@@ -871,7 +871,7 @@ func (h *Handler) Answer(w http.ResponseWriter, r *http.Request) {
 		SELECT caller_id, type FROM calls WHERE id=$1 AND callee_id=$2`,
 		callID, userID).Scan(&callerID, &callType)
 	if err != nil {
-		writeErr(w, http.StatusNotFound, "arama bulunamadi")
+		writeErr(w, http.StatusNotFound, "arama bulunamadı")
 		return
 	}
 
@@ -886,9 +886,9 @@ func (h *Handler) Answer(w http.ResponseWriter, r *http.Request) {
 		 RETURNING answered_at`, callID, userID).Scan(&answeredAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			writeErr(w, http.StatusConflict, "arama artik gecerli degil")
+			writeErr(w, http.StatusConflict, "arama artık geçerli değil")
 		} else {
-			writeErr(w, http.StatusInternalServerError, "sunucu hatasi")
+			writeErr(w, http.StatusInternalServerError, "sunucu hatası")
 		}
 		return
 	}
@@ -905,7 +905,7 @@ func (h *Handler) Answer(w http.ResponseWriter, r *http.Request) {
 	roomName := "call_" + callID
 	tok, err := h.token(roomName, userID, name)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "token uretilemedi")
+		writeErr(w, http.StatusInternalServerError, "token üretilemedi")
 		return
 	}
 
@@ -955,7 +955,7 @@ func (h *Handler) End(w http.ResponseWriter, r *http.Request) {
 		WHERE id=$1 AND (caller_id=$2 OR callee_id=$2)`, callID, userID).
 		Scan(&callerID, &calleeID, &status, &callType)
 	if err != nil {
-		writeErr(w, http.StatusNotFound, "arama bulunamadi")
+		writeErr(w, http.StatusNotFound, "arama bulunamadı")
 		return
 	}
 
@@ -983,7 +983,7 @@ func (h *Handler) End(w http.ResponseWriter, r *http.Request) {
 		`UPDATE calls SET status=$1, ended_at=now()
 		 WHERE id=$2 AND status IN ('ringing','active')`, newStatus, callID)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "sunucu hatasi")
+		writeErr(w, http.StatusInternalServerError, "sunucu hatası")
 		return
 	}
 	if ct.RowsAffected() == 0 {
@@ -1111,7 +1111,7 @@ func (h *Handler) answerGroup(w http.ResponseWriter, r *http.Request, callID, us
 		JOIN call_participants p ON p.call_id=c.id AND p.user_id=$2
 		WHERE c.id=$1 AND c.status='active'`, callID, userID).Scan(&callType, &chatTitle)
 	if err != nil {
-		writeErr(w, http.StatusNotFound, "arama bulunamadi veya bitti")
+		writeErr(w, http.StatusNotFound, "arama bulunamadı veya bitti")
 		return
 	}
 	// Katil: ringing/left -> joined (idempotent)
@@ -1124,7 +1124,7 @@ func (h *Handler) answerGroup(w http.ResponseWriter, r *http.Request, callID, us
 	roomName := "call_" + callID
 	tok, err := h.token(roomName, userID, name)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "token uretilemedi")
+		writeErr(w, http.StatusInternalServerError, "token üretilemedi")
 		return
 	}
 	// Diger AKTIF katilimcilara "X katildi" -> grid guncelle (call.ended DEGIL)
@@ -1218,7 +1218,7 @@ func (h *Handler) Hold(w http.ResponseWriter, r *http.Request) {
 		SELECT caller_id, COALESCE(callee_id::text,''), COALESCE(is_group,false)
 		FROM calls WHERE id=$1 AND status='active'`, callID).
 		Scan(&callerID, &calleeID, &isGroup) != nil {
-		writeErr(w, http.StatusNotFound, "arama bulunamadi")
+		writeErr(w, http.StatusNotFound, "arama bulunamadı")
 		return
 	}
 	hedefler := []string{}
@@ -1226,7 +1226,7 @@ func (h *Handler) Hold(w http.ResponseWriter, r *http.Request) {
 		hedefler = h.groupJoinedOthers(r.Context(), callID, userID)
 	} else {
 		if userID != callerID && userID != calleeID {
-			writeErr(w, http.StatusForbidden, "bu aramada degilsiniz")
+			writeErr(w, http.StatusForbidden, "bu aramada değilsiniz")
 			return
 		}
 		other := callerID
@@ -1450,7 +1450,7 @@ func (h *Handler) Status(w http.ResponseWriter, r *http.Request) {
 		   OR id IN (SELECT call_id FROM call_participants WHERE user_id=$2))`,
 		callID, userID).Scan(&status, &isGroup, &elapsedMs)
 	if err != nil {
-		writeErr(w, http.StatusNotFound, "arama bulunamadi")
+		writeErr(w, http.StatusNotFound, "arama bulunamadı")
 		return
 	}
 	// GRUP: calls.status host yuzunden hemen 'active'; davetlinin GERCEK durumu kendi call_participants
@@ -1528,7 +1528,7 @@ func (h *Handler) History(w http.ResponseWriter, r *http.Request) {
 		WHERE (c.caller_id=$1 OR c.callee_id=$1) AND c.is_group=false
 		ORDER BY c.created_at DESC LIMIT 100`, userID)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "sunucu hatasi")
+		writeErr(w, http.StatusInternalServerError, "sunucu hatası")
 		return
 	}
 	defer rows.Close()
@@ -1675,9 +1675,9 @@ func (h *Handler) logCallToChat(ctx context.Context, callerID, calleeID, icerik 
 		h.push != nil && !h.hub.Online(calleeID) {
 		var callerName string
 		h.db.QueryRow(ctx, `SELECT name FROM users WHERE id=$1`, callerID).Scan(&callerName)
-		onizleme := "Cevapsiz sesli arama"
+		onizleme := "Cevapsız sesli arama"
 		if strings.HasSuffix(icerik, ":video") {
-			onizleme = "Cevapsiz goruntulu arama"
+			onizleme = "Cevapsız görüntülü arama"
 		}
 		go h.push.NotifyUsers([]string{calleeID}, callerName, onizleme, chatID)
 	}
@@ -1713,13 +1713,13 @@ func (h *Handler) AdminLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.User == u && req.Pass == p {
 		if adminKey() == "" { // TARAMA #16: env yoksa panel kapali (bos key sizdirma)
-			writeErr(w, http.StatusServiceUnavailable, "admin kapali (ADMIN_KEY tanimsiz)")
+			writeErr(w, http.StatusServiceUnavailable, "admin kapalı (ADMIN_KEY tanımsız)")
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]string{"key": adminKey()})
 		return
 	}
-	writeErr(w, http.StatusUnauthorized, "hatali kullanici adi veya sifre")
+	writeErr(w, http.StatusUnauthorized, "hatalı kullanıcı adı veya şifre")
 }
 
 // GET /admin/stats?key= -> ozet sayilar
@@ -1755,7 +1755,7 @@ func (h *Handler) AdminUsers(w http.ResponseWriter, r *http.Request) {
 		       (SELECT count(*) FROM messages m WHERE m.sender_id=u.id)
 		FROM users u ORDER BY u.created_at DESC LIMIT 300`)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "sorgu hatasi")
+		writeErr(w, http.StatusInternalServerError, "sorgu hatası")
 		return
 	}
 	defer rows.Close()
@@ -1801,7 +1801,7 @@ func (h *Handler) AdminUserDetail(w http.ResponseWriter, r *http.Request) {
 		FROM users WHERE id=$1`, id).
 		Scan(&name, &username, &phone, &avatar, &about, &coin, &verified, &created, &lastSeen)
 	if err != nil {
-		writeErr(w, http.StatusNotFound, "kullanici bulunamadi")
+		writeErr(w, http.StatusNotFound, "kullanıcı bulunamadı")
 		return
 	}
 	rows, _ := h.db.Query(r.Context(), `
@@ -1891,7 +1891,7 @@ func (h *Handler) AdminCalls(w http.ResponseWriter, r *http.Request) {
 		JOIN users ue ON ue.id=c.callee_id
 		ORDER BY c.created_at DESC LIMIT 50`)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "sorgu hatasi")
+		writeErr(w, http.StatusInternalServerError, "sorgu hatası")
 		return
 	}
 	defer rows.Close()

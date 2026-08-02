@@ -25,7 +25,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   int _index = 0;
   bool? _permissionsAsked; // null = kontrol ediliyor
 
-  static const _titles = ['Gebzem', 'Aramalar', 'Odalar', 'Canli', 'Profil'];
+  static const _titles = ['Gebzem', 'Aramalar', 'Odalar', 'Canlı', 'Profil'];
 
   @override
   void initState() {
@@ -99,7 +99,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             NavigationDestination(icon: Icon(LucideIcons.messageCircle), label: 'Sohbetler'),
             NavigationDestination(icon: Icon(LucideIcons.phone), label: 'Aramalar'),
             NavigationDestination(icon: Icon(LucideIcons.audioLines), label: 'Odalar'),
-            NavigationDestination(icon: Icon(LucideIcons.radioTower), label: 'Canli'),
+            NavigationDestination(icon: Icon(LucideIcons.radioTower), label: 'Canlı'),
             NavigationDestination(icon: Icon(LucideIcons.user), label: 'Profil'),
           ],
         ),
@@ -152,7 +152,7 @@ class _ProfileTab extends ConsumerWidget {
         const SizedBox(height: 24),
         const ListTile(
           leading: Icon(LucideIcons.circleUser),
-          title: Text('Profil duzenleme'),
+          title: Text('Profil düzenleme'),
           subtitle: Text('Faz 2\'de geliyor'),
         ),
         ListTile(
@@ -165,7 +165,7 @@ class _ProfileTab extends ConsumerWidget {
         const Divider(),
         ListTile(
           leading: Icon(LucideIcons.logOut, color: scheme.error),
-          title: Text('Cikis yap', style: TextStyle(color: scheme.error)),
+          title: Text('Çıkış yap', style: TextStyle(color: scheme.error)),
           onTap: () => ref.read(authProvider.notifier).logout(),
         ),
       ],

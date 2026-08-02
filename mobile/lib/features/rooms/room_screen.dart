@@ -129,7 +129,7 @@ class _RoomScreenState extends ConsumerState<RoomScreen> with WidgetsBindingObse
         final st = await Permission.microphone.request();
         if (st != PermissionStatus.granted) {
           setState(() {
-            _hata = 'Konusmak icin mikrofon izni gerekli';
+            _hata = 'Konuşmak için mikrofon izni gerekli';
             _connecting = false;
           });
           return;
@@ -142,7 +142,7 @@ class _RoomScreenState extends ConsumerState<RoomScreen> with WidgetsBindingObse
       await Sentry.captureException(e, stackTrace: StackTrace.current);
       if (mounted) {
         setState(() {
-          _hata = 'Odaya baglanilamadi.\nTekrar deneyin.';
+          _hata = 'Odaya bağlanılamadı.\nTekrar deneyin.';
           _connecting = false;
         });
       }

@@ -11,6 +11,7 @@ import '../../core/api.dart';
 import '../../router.dart';
 import 'active_call_controller.dart';
 import 'beklemede_katmani.dart';
+import 'pip_service.dart';
 
 /// AKTIF ARAMA EKRANI — SAF GORUNUM (Faz-C C2). TUM mantik (Room, timer'lar, sure
 /// senkronu, ses birimi, muhafizlar) ActiveCallController'da yasar; bu ekran yalniz
@@ -112,6 +113,40 @@ class _CallScreenState extends ConsumerState<CallScreen> {
         if (nav.canPop()) nav.pop();
       });
     }
+  }
+
+  /// ⚠️⚠️ TURU 63 — "DEVAM ET"E BASILDI (bekletme paneli).
+  ///
+  /// KULLANICI SORUSU/EMRI: "devam et dedigimde normal GSM aramasini kapatmasi
+  /// gerekmiyor mu?" -> KAPATAMAYIZ: Android ucuncu parti uygulamanin hucresel
+  /// aramayi sonlandirmasina IZIN VERMEZ (`TelephonyManager.endCall()` API 29'da
+  /// KALDIRILDI; `MODIFY_PHONE_STATE` sistem izni). iOS'ta da imkansiz.
+  /// Kullanici karari: "once profesyonel kisa bir aciklama ile GSM'i kapat desin,
+  /// sonra ona zaman taniyalim; devam et dediginde devam etsin."
+  ///
+  /// ⚠️⚠️ AYRICA BU KAPI BIR GIZLILIK ACIGINI KAPATIR (kullanicinin sorusu sayesinde
+  /// bulundu): GSM gorusmesi SURERKEN "Devam et"e basilinca Gebzem mikrofonu geri
+  /// aciliyordu -> KARSI TARAF GSM KONUSMASINI DUYABILIYORDU. Ustelik bir daha
+  /// otomatik bekletilmiyordu: `gsmAramada` bir ValueNotifier ve yalniz DEGISIMDE
+  /// tetikleniyor; GSM zaten "surüyor" durumunda oldugu icin yeni olay gelmiyor ve
+  /// mikrofon GSM boyunca ACIK kaliyordu. Turu 56'da kapatilan acigin BASKA bir kapisi.
+  /// ⚠️ YAPMA: bu kapiyi kaldirma; GSM surerken elle devam ettirmeye izin verme.
+  ///
+  /// NOT: GSM bitince arama ZATEN kendiliginden devam eder (TelefonDurumu -> IDLE ->
+  /// `beklemeyeAl(false)`), yani kullanicinin tekrar basmasi SART DEGIL.
+  void _devamEteBasildi() {
+    if (PipService.gsmAramada.value) {
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(const SnackBar(
+          duration: Duration(seconds: 4),
+          content: Text(
+              'Telefon görüşmeniz sürüyor. Önce onu sonlandırın; '
+              'Gebzem araması kaldığı yerden devam edecek.'),
+        ));
+      return;
+    }
+    _c.beklemeyeAl(_c.arama?.callId ?? '', false);
   }
 
   /// Kapanis animasyonu sarmalayicisi (arama/oda/yayin ekranlari ortak deseni).
@@ -595,8 +630,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(26)),
                         ),
-                        onPressed: () =>
-                            _c.beklemeyeAl(_c.arama?.callId ?? '', false),
+                        onPressed: _devamEteBasildi,
                         child: const Text('Devam et',
                             style: TextStyle(
                                 color: Colors.white,

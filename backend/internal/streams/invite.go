@@ -24,7 +24,7 @@ func (h *Handler) Invite(w http.ResponseWriter, r *http.Request) {
 	}
 	json.NewDecoder(r.Body).Decode(&req)
 	if len(req.UserIDs) == 0 || len(req.UserIDs) > 10 {
-		writeErr(w, http.StatusBadRequest, "1-10 kisi secin")
+		writeErr(w, http.StatusBadRequest, "1-10 kişi seçin")
 		return
 	}
 
@@ -34,18 +34,18 @@ func (h *Handler) Invite(w http.ResponseWriter, r *http.Request) {
 		FROM streams s JOIN users u ON u.id=s.broadcaster_id WHERE s.id=$1`,
 		streamID).Scan(&status, &title, &tip, &bID, &bName)
 	if err != nil || (status != "live" && status != "paused") {
-		writeErr(w, http.StatusGone, "yayin bulunamadi veya bitti")
+		writeErr(w, http.StatusGone, "yayın bulunamadı veya bitti")
 		return
 	}
 	// Davet eden yetkisi: yayinci veya aktif izleyici (Chat ucuyla ayni kural)
 	if userID != bID {
 		if _, err := h.rdb.ZScore(r.Context(), "stream:"+streamID+":viewers", userID).Result(); err != nil {
-			writeErr(w, http.StatusForbidden, "yayinda degilsiniz")
+			writeErr(w, http.StatusForbidden, "yayında değilsiniz")
 			return
 		}
 	}
 	if h.maxIzleyici > 0 && h.izleyiciSayisi(r.Context(), streamID) >= h.maxIzleyici {
-		writeErr(w, http.StatusTooManyRequests, "yayin dolu")
+		writeErr(w, http.StatusTooManyRequests, "yayın dolu")
 		return
 	}
 	var davetciAd string

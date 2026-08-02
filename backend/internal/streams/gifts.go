@@ -75,12 +75,12 @@ func (h *Handler) GiftLeaderboard(w http.ResponseWriter, r *http.Request) {
 	var bID string
 	if h.db.QueryRow(r.Context(), `SELECT broadcaster_id FROM streams WHERE id=$1 AND status IN ('live','paused')`,
 		streamID).Scan(&bID) != nil {
-		writeErr(w, http.StatusGone, "yayin bitti")
+		writeErr(w, http.StatusGone, "yayın bitti")
 		return
 	}
 	if userID != bID {
 		if _, err := h.rdb.ZScore(r.Context(), "stream:"+streamID+":viewers", userID).Result(); err != nil {
-			writeErr(w, http.StatusForbidden, "yayinda degilsiniz")
+			writeErr(w, http.StatusForbidden, "yayında değilsiniz")
 			return
 		}
 	}
@@ -90,7 +90,7 @@ func (h *Handler) GiftLeaderboard(w http.ResponseWriter, r *http.Request) {
 		WHERE g.stream_id=$1
 		GROUP BY g.sender_id, u.name, u.avatar_url, g.gift_id`, streamID)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "liste alinamadi")
+		writeErr(w, http.StatusInternalServerError, "liste alınamadı")
 		return
 	}
 	defer rows.Close()
@@ -158,7 +158,7 @@ func (h *Handler) Gift(w http.ResponseWriter, r *http.Request) {
 	g := hediyeBul(req.Gift)
 	req.Idem = strings.TrimSpace(req.Idem)
 	if g == nil || req.Idem == "" || len(req.Idem) > 64 {
-		writeErr(w, http.StatusBadRequest, "gecersiz hediye")
+		writeErr(w, http.StatusBadRequest, "geçersiz hediye")
 		return
 	}
 	// Gonderen ref'i kullanici-kapsamli unique (uq_ledger_idem user_id'li); alici ref'ine
@@ -169,7 +169,7 @@ func (h *Handler) Gift(w http.ResponseWriter, r *http.Request) {
 
 	tx, err := h.db.Begin(r.Context())
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "hediye gonderilemedi")
+		writeErr(w, http.StatusInternalServerError, "hediye gönderilemedi")
 		return
 	}
 	defer tx.Rollback(r.Context())
@@ -177,21 +177,21 @@ func (h *Handler) Gift(w http.ResponseWriter, r *http.Request) {
 	var bID, status string
 	if err := tx.QueryRow(r.Context(),
 		`SELECT broadcaster_id, status FROM streams WHERE id=$1 FOR UPDATE`, streamID).Scan(&bID, &status); err != nil {
-		writeErr(w, http.StatusGone, "yayin bulunamadi")
+		writeErr(w, http.StatusGone, "yayın bulunamadı")
 		return
 	}
 	if status != "live" && status != "paused" {
-		writeErr(w, http.StatusGone, "yayin bitti")
+		writeErr(w, http.StatusGone, "yayın bitti")
 		return
 	}
 	if bID == userID {
-		writeErr(w, http.StatusBadRequest, "kendinize hediye gonderemezsiniz")
+		writeErr(w, http.StatusBadRequest, "kendinize hediye gönderemezsiniz")
 		return
 	}
 	// GUVENLIK (dogrulama bulgusu): kick bani + engel + izleyici uyeligi — Watch/Chat ile
 	// ayni kurallar; atilan/engellenen kullanici hediye yoluyla yayina geri sizamaz.
 	if banli, _ := h.rdb.SIsMember(r.Context(), "stream:"+streamID+":banned", userID).Result(); banli {
-		writeErr(w, http.StatusForbidden, "yayindan cikarildiniz")
+		writeErr(w, http.StatusForbidden, "yayından çıkarıldınız")
 		return
 	}
 	var blocked bool
@@ -199,11 +199,11 @@ func (h *Handler) Gift(w http.ResponseWriter, r *http.Request) {
 		WHERE (blocker_id=$1 AND blocked_id=$2) OR (blocker_id=$2 AND blocked_id=$1))`,
 		bID, userID).Scan(&blocked)
 	if blocked {
-		writeErr(w, http.StatusForbidden, "hediye gonderilemez")
+		writeErr(w, http.StatusForbidden, "hediye gönderilemez")
 		return
 	}
 	if _, err := h.rdb.ZScore(r.Context(), "stream:"+streamID+":viewers", userID).Result(); err != nil {
-		writeErr(w, http.StatusForbidden, "yayinda degilsiniz")
+		writeErr(w, http.StatusForbidden, "yayında değilsiniz")
 		return
 	}
 	// KILITLENME ONLEMI (dogrulama bulgusu): iki kullanici birbirinin yayinlarina ayni anda
@@ -215,11 +215,11 @@ func (h *Handler) Gift(w http.ResponseWriter, r *http.Request) {
 	}
 	var bir int
 	if err := tx.QueryRow(r.Context(), `SELECT 1 FROM users WHERE id=$1 FOR UPDATE`, ilk).Scan(&bir); err != nil {
-		writeErr(w, http.StatusInternalServerError, "hediye gonderilemedi")
+		writeErr(w, http.StatusInternalServerError, "hediye gönderilemedi")
 		return
 	}
 	if err := tx.QueryRow(r.Context(), `SELECT 1 FROM users WHERE id=$1 FOR UPDATE`, son).Scan(&bir); err != nil {
-		writeErr(w, http.StatusInternalServerError, "hediye gonderilemedi")
+		writeErr(w, http.StatusInternalServerError, "hediye gönderilemedi")
 		return
 	}
 	// Bakiye kontrolu + dusme ATOMIK (ayri SELECT yarisi yok)
@@ -239,24 +239,24 @@ func (h *Handler) Gift(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusOK, map[string]string{"status": "duplicate"})
 			return
 		}
-		writeErr(w, http.StatusInternalServerError, "hediye gonderilemedi")
+		writeErr(w, http.StatusInternalServerError, "hediye gönderilemedi")
 		return
 	}
 	// Alici tarafi: hatalar YUTULMAZ (para tutarliligi — dogrulama bulgusu)
 	if _, err := tx.Exec(r.Context(),
 		`UPDATE users SET coin_balance = coin_balance + $1 WHERE id=$2`, g.Jeton, bID); err != nil {
-		writeErr(w, http.StatusInternalServerError, "hediye gonderilemedi")
+		writeErr(w, http.StatusInternalServerError, "hediye gönderilemedi")
 		return
 	}
 	if _, err := tx.Exec(r.Context(),
 		`INSERT INTO coin_ledger (user_id, amount, reason, ref_id) VALUES ($1, $2, 'gift_received', $3)`,
 		bID, g.Jeton, refAlici); err != nil {
-		writeErr(w, http.StatusInternalServerError, "hediye gonderilemedi")
+		writeErr(w, http.StatusInternalServerError, "hediye gönderilemedi")
 		return
 	}
 	if _, err := tx.Exec(r.Context(),
 		`UPDATE streams SET gift_coins = gift_coins + $1 WHERE id=$2`, g.Jeton, streamID); err != nil {
-		writeErr(w, http.StatusInternalServerError, "hediye gonderilemedi")
+		writeErr(w, http.StatusInternalServerError, "hediye gönderilemedi")
 		return
 	}
 	// LEADERBOARD satiri (Bolum 6 B5): ledger 23505 duplicate yolu YUKARIDA return ettigi
@@ -264,14 +264,14 @@ func (h *Handler) Gift(w http.ResponseWriter, r *http.Request) {
 	if _, err := tx.Exec(r.Context(),
 		`INSERT INTO stream_gifts (stream_id, sender_id, gift_id, coins) VALUES ($1,$2,$3,$4)`,
 		streamID, userID, g.ID, g.Jeton); err != nil {
-		writeErr(w, http.StatusInternalServerError, "hediye gonderilemedi")
+		writeErr(w, http.StatusInternalServerError, "hediye gönderilemedi")
 		return
 	}
 
 	var bakiye int64
 	tx.QueryRow(r.Context(), `SELECT coin_balance FROM users WHERE id=$1`, userID).Scan(&bakiye)
 	if err := tx.Commit(r.Context()); err != nil {
-		writeErr(w, http.StatusInternalServerError, "hediye gonderilemedi")
+		writeErr(w, http.StatusInternalServerError, "hediye gönderilemedi")
 		return
 	}
 

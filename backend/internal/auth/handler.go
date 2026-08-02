@@ -46,27 +46,27 @@ var usernameRe = regexp.MustCompile(`^[a-z0-9_]{3,20}$`)
 func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	var req registerReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeErr(w, http.StatusBadRequest, "gecersiz istek")
+		writeErr(w, http.StatusBadRequest, "geçersiz istek")
 		return
 	}
 	req.Phone = strings.TrimSpace(req.Phone)
 	if !phoneRe.MatchString(req.Phone) {
-		writeErr(w, http.StatusBadRequest, "telefon +90... formatinda olmali")
+		writeErr(w, http.StatusBadRequest, "telefon +90... formatında olmalı")
 		return
 	}
 	if len(req.Password) < 6 {
-		writeErr(w, http.StatusBadRequest, "sifre en az 6 karakter olmali")
+		writeErr(w, http.StatusBadRequest, "şifre en az 6 karakter olmalı")
 		return
 	}
 	// bcrypt 72 bayttan uzun parolayi reddeder (Turkce harflerle ~40 karakter yeter);
 	// kontrol edilmezse hash hatasi yutulup password_hash bos kalabilir.
 	if len(req.Password) > 72 {
-		writeErr(w, http.StatusBadRequest, "sifre cok uzun (en fazla 72 karakter)")
+		writeErr(w, http.StatusBadRequest, "şifre çok uzun (en fazla 72 karakter)")
 		return
 	}
 	uname := strings.ToLower(strings.TrimSpace(strings.TrimPrefix(req.Username, "@")))
 	if !usernameRe.MatchString(uname) {
-		writeErr(w, http.StatusBadRequest, "kullanici adi 3-20 karakter olmali (harf, rakam, alt cizgi)")
+		writeErr(w, http.StatusBadRequest, "kullanıcı adı 3-20 karakter olmalı (harf, rakam, alt çizgi)")
 		return
 	}
 
@@ -74,11 +74,11 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	err := h.db.QueryRow(r.Context(),
 		`SELECT EXISTS(SELECT 1 FROM users WHERE phone=$1 AND verified=true)`, req.Phone).Scan(&exists)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "sunucu hatasi")
+		writeErr(w, http.StatusInternalServerError, "sunucu hatası")
 		return
 	}
 	if exists {
-		writeErr(w, http.StatusConflict, "bu numara zaten kayitli")
+		writeErr(w, http.StatusConflict, "bu numara zaten kayıtlı")
 		return
 	}
 
@@ -87,13 +87,13 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	h.db.QueryRow(r.Context(),
 		`SELECT EXISTS(SELECT 1 FROM users WHERE lower(username)=$1 AND phone<>$2)`, uname, req.Phone).Scan(&taken)
 	if taken {
-		writeErr(w, http.StatusConflict, "bu kullanici adi alinmis")
+		writeErr(w, http.StatusConflict, "bu kullanıcı adı alınmış")
 		return
 	}
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "sunucu hatasi")
+		writeErr(w, http.StatusInternalServerError, "sunucu hatası")
 		return
 	}
 
@@ -107,13 +107,13 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		WHERE users.verified=false`,
 		req.Phone, string(hash), strings.TrimSpace(req.Name), uname)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "kullanici adi alinmis olabilir")
+		writeErr(w, http.StatusInternalServerError, "kullanıcı adı alınmış olabilir")
 		return
 	}
 
 	otp, err := h.createOTP(r.Context(), req.Phone, "register")
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "otp uretilemedi")
+		writeErr(w, http.StatusInternalServerError, "otp üretilemedi")
 		return
 	}
 
@@ -121,7 +121,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	if h.sms.Enabled() {
 		if err := h.sms.SendOTP(req.Phone, otp); err != nil {
 			log.Printf("sms gonderilemedi (%s): %v", req.Phone, err)
-			writeErr(w, http.StatusBadGateway, "SMS gonderilemedi, tekrar deneyin")
+			writeErr(w, http.StatusBadGateway, "SMS gönderilemedi, tekrar deneyin")
 			return
 		}
 	}
@@ -142,11 +142,11 @@ type verifyReq struct {
 func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 	var req verifyReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeErr(w, http.StatusBadRequest, "gecersiz istek")
+		writeErr(w, http.StatusBadRequest, "geçersiz istek")
 		return
 	}
 	if !h.consumeOTP(r.Context(), req.Phone, req.Code, "register") {
-		writeErr(w, http.StatusUnauthorized, "kod hatali veya suresi dolmus")
+		writeErr(w, http.StatusUnauthorized, "kod hatalı veya süresi dolmuş")
 		return
 	}
 
@@ -154,7 +154,7 @@ func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 	err := h.db.QueryRow(r.Context(), `
 		UPDATE users SET verified=true WHERE phone=$1 RETURNING id`, req.Phone).Scan(&userID)
 	if err != nil {
-		writeErr(w, http.StatusNotFound, "kullanici bulunamadi")
+		writeErr(w, http.StatusNotFound, "kullanıcı bulunamadı")
 		return
 	}
 
@@ -167,7 +167,7 @@ func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 
 	token, err := GenerateToken(h.cfg.JWTSecret, userID)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "token uretilemedi")
+		writeErr(w, http.StatusInternalServerError, "token üretilemedi")
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"token": token, "user_id": userID})
@@ -182,7 +182,7 @@ type loginReq struct {
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	var req loginReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeErr(w, http.StatusBadRequest, "gecersiz istek")
+		writeErr(w, http.StatusBadRequest, "geçersiz istek")
 		return
 	}
 	var userID, hash string
@@ -191,20 +191,20 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		`SELECT id, password_hash, verified FROM users WHERE phone=$1`, strings.TrimSpace(req.Phone)).
 		Scan(&userID, &hash, &verified)
 	if err == pgx.ErrNoRows || (err == nil && bcrypt.CompareHashAndPassword([]byte(hash), []byte(req.Password)) != nil) {
-		writeErr(w, http.StatusUnauthorized, "telefon veya sifre hatali")
+		writeErr(w, http.StatusUnauthorized, "telefon veya şifre hatalı")
 		return
 	}
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "sunucu hatasi")
+		writeErr(w, http.StatusInternalServerError, "sunucu hatası")
 		return
 	}
 	if !verified {
-		writeErr(w, http.StatusForbidden, "hesap dogrulanmamis, kayit akisini tamamlayin")
+		writeErr(w, http.StatusForbidden, "hesap doğrulanmamış, kayıt akışını tamamlayın")
 		return
 	}
 	token, err := GenerateToken(h.cfg.JWTSecret, userID)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "token uretilemedi")
+		writeErr(w, http.StatusInternalServerError, "token üretilemedi")
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"token": token, "user_id": userID})
@@ -216,7 +216,7 @@ func (h *Handler) Forgot(w http.ResponseWriter, r *http.Request) {
 		Phone string `json:"phone"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeErr(w, http.StatusBadRequest, "gecersiz istek")
+		writeErr(w, http.StatusBadRequest, "geçersiz istek")
 		return
 	}
 	var exists bool
@@ -247,33 +247,33 @@ func (h *Handler) Reset(w http.ResponseWriter, r *http.Request) {
 		NewPassword string `json:"new_password"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeErr(w, http.StatusBadRequest, "gecersiz istek")
+		writeErr(w, http.StatusBadRequest, "geçersiz istek")
 		return
 	}
 	if len(req.NewPassword) < 6 {
-		writeErr(w, http.StatusBadRequest, "sifre en az 6 karakter olmali")
+		writeErr(w, http.StatusBadRequest, "şifre en az 6 karakter olmalı")
 		return
 	}
 	if len(req.NewPassword) > 72 {
-		writeErr(w, http.StatusBadRequest, "sifre cok uzun (en fazla 72 karakter)")
+		writeErr(w, http.StatusBadRequest, "şifre çok uzun (en fazla 72 karakter)")
 		return
 	}
 	if !h.consumeOTP(r.Context(), req.Phone, req.Code, "reset_password") {
-		writeErr(w, http.StatusUnauthorized, "kod hatali veya suresi dolmus")
+		writeErr(w, http.StatusUnauthorized, "kod hatalı veya süresi dolmuş")
 		return
 	}
 	// bcrypt hatasini YUTMA: yutulursa password_hash bos string olur ve kullanici
 	// bir daha hic giremez (hesap kalici kilit).
 	hash, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "sifre guncellenemedi")
+		writeErr(w, http.StatusInternalServerError, "şifre güncellenemedi")
 		return
 	}
 	tag, err := h.db.Exec(r.Context(),
 		`UPDATE users SET password_hash=$1 WHERE phone=$2 AND verified=true`,
 		string(hash), req.Phone)
 	if err != nil || tag.RowsAffected() != 1 {
-		writeErr(w, http.StatusBadRequest, "hesap bulunamadi")
+		writeErr(w, http.StatusBadRequest, "hesap bulunamadı")
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"message": "sifre guncellendi"})
