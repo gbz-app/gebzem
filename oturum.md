@@ -3311,3 +3311,39 @@ soruldu, karar bekliyor.
 - `bayat mesgul muhafizi temizlendi: […]` -> baslatma yolunda.
 - `GORUNTULU arama SESLI basladi: camOn=false …` / `arama tipi CELISKI: …`
 - `EXC_BAD_ACCESS` YENI kayit CIKMAMALI.
+
+## 2 Agu — "BEKLET VE KABUL" EKRANI GELMIYOR (kok neden + fix)
+Kullanici ekran goruntusu paylasti (iOS "End & Accept / Decline / Hold & Accept") ve
+"birebirde konusurken baskasi arayinca bu gelmiyor, biz bunu yapmistik, Android'de de
+vardi" dedi.
+
+### KOK NEDEN 1 — GIDEN ARAMA CALLKIT'E HIC BILDIRILMIYOR (iOS)
+O ekrani **iOS'un KENDISI** cizer; sarti CallKit'te `supportsHolding` olan **AKTIF bir
+arama** bulunmasidir. Kod tabaninda `FlutterCallkitIncoming.startCall` **HIC YOKTU** —
+CallKit'e yalnizca GELEN aramalar bildiriliyordu (`showCallkitIncoming`).
+  · Seni ARADILARSA -> CallKit'te aktif arama VAR -> ikinci aramada ekran CIKAR ✓
+  · SEN ARADIYSAN   -> CallKit BOS               -> duz Kabul/Reddet cikar ✗
+Yani fark sesli/goruntulu DEGIL, **ARAYAN/ARANAN** farkiydi. Kullanici goruntuluyu
+genelde kendi baslattigi icin semptom "goruntuluede gelmiyor" gibi gorunuyordu.
+
+**SES RISKI KONTROL EDILDI — YOK.** `AppDelegate` `setAudioEnabled(true)` hem CallKit'li
+hem CallKit'siz yolda dogru calisiyor (kod yorumu: "CallKit'li yolda config zaten
+uygulanmis + oturum aktif -> fark-kontrolu sayesinde NO-OP"). Yani 19 Tem'deki
+"grup-host sessiz mic" hatasi GERI GELMEZ.
+
+FIX: `CallKitService.gidenArama(callId, peerAd, video)` — **yalniz iOS**, `baslat()`in
+`b.outgoing` dalinda fire-and-forget. Gelen arama tarafiyla AYNI IOSParams
+(`supportsHolding: true`, `maximumCallsPerCallGroup: 2`).
+⚠️ YAPMA: Android'de cagirma (ondeplan servisiyle cakisan ikinci bildirim);
+`await` etme (kurulumu geciktirir). Arama bitince `bitir()` zaten `endCall` yapiyor.
+
+### KOK NEDEN 2 — `waiting` BAYRAGI UC YERDE DUSURULUYORDU
+Backend `waiting`i UC kanalda da gonderiyor (WS handler.go:410, FCM :428, VoIP :455) ama
+istemci hepsini dusuruyordu — **turu 34-36'da `is_group` icin yasanan hatanin AYNISI**:
+  · `CallKitService.goster()` -> extra'ya yazilmiyordu
+  · `_ayikla()` -> extra'dan okunmuyordu
+  · `AppDelegate.swift` `data.extra` -> tasinmiyordu
+  · `main._fcmArkaPlan` -> `goster`e gecirilmiyordu
+Sonuc: Android'de arka planda gelen IKINCI arama, uc dugmeli "Beklet" katmani yerine
+duz Kabul/Reddet olarak ciziliyordu. Dordu de duzeltildi.
+⚠️ YAPMA: `is_group` / `chat_title` / `waiting` ucunu bu yollardan tekrar dusurme.

@@ -163,6 +163,8 @@ class CallKitService {
       'video': (p.type ?? 0) == 1 || (extra['call_type'] as String? ?? '') == 'video',
       'is_group': grup,
       'chat_title': extra['chat_title'] as String? ?? '',
+      // turu 55: ikinci arama mi (beklet / bitir-kabul yolu)
+      'waiting': extra['waiting'] == true || extra['waiting'] == 'true',
     };
   }
 
@@ -174,6 +176,11 @@ class CallKitService {
     String avatar = '',
     bool isGroup = false, // turu 35: grup davet ("Katil") ekrani icin SART
     String chatTitle = '',
+    // TEST TURU 55: ARAMA BEKLETME. Backend UC kanalda da `waiting` gonderiyor
+    // (WS/FCM/VoIP) ama istemci UC yerde birden DUSURUYORDU — turu 34-36'da `is_group`
+    // icin yasanan hatanin AYNISI. `waiting` dusunce ikinci arama "beklet" ekrani yerine
+    // duz Kabul/Reddet olarak cizilir. ⚠️ YAPMA: bu alani tekrar dusurme.
+    bool waiting = false,
   }) async {
     if (callId.isEmpty) return;
     // TANI: push isleyicisi tetiklendi mi? (kilit ekrani gorunmuyorsa logcat'te ara)
@@ -192,6 +199,7 @@ class CallKitService {
         'call_type': video ? 'video' : 'audio',
         'is_group': isGroup, // turu 35: kabul aninda grup oldugunu bilelim
         'chat_title': chatTitle,
+        'waiting': waiting, // turu 55: ikinci arama -> "Beklet ve Kabul" yolu
       },
       android: const AndroidParams(
         isCustomNotification: true,
@@ -245,6 +253,64 @@ class CallKitService {
   /// SADECE gercekten gosterilmis bir CallKit aramasi varsa endCall cagir. Yoksa
   /// (uygulama acik/WS ile yuruyorsa CallKit hic gosterilmedi) endCall bos isimli bir
   /// CEVAPSIZ ARAMA bildirimi uretiyor -> ekranda UUID ("karmasik harfler") gorunuyor.
+  /// ⚠️⚠️ TEST TURU 55 — GIDEN ARAMAYI CALLKIT'E KAYDET (iOS).
+  ///
+  /// KULLANICI SIKAYETI (ekran goruntusuyle): "birebirde konusurken baskasi aradiginda
+  /// 'Bitir ve Kabul / Reddet / Beklet ve Kabul' ekrani GELMIYOR; biz bunu yapmistik."
+  ///
+  /// KOK NEDEN: o ekrani **iOS'un kendisi** cizer ve sarti, CallKit'te `supportsHolding`
+  /// olan **AKTIF bir arama** bulunmasidir. Kod tabaninda `startCall` HIC YOKTU: CallKit'e
+  /// yalnizca GELEN aramalar bildiriliyordu. Yani:
+  ///   · Seni ARADILARSA  -> CallKit'te aktif arama VAR  -> ikinci aramada ekran CIKAR ✓
+  ///   · SEN ARADIYSAN    -> CallKit bos                 -> duz Kabul/Reddet cikar ✗
+  /// Fark sesli/goruntulu DEGIL, **ARAYAN/ARANAN** farkiydi (kullanici goruntuluyu
+  /// genelde kendi baslattigi icin "goruntuluede gelmiyor" gibi gorunuyordu).
+  ///
+  /// SES RISKI YOK (kontrol edildi): `AppDelegate` `setAudioEnabled(true)` hem CallKit'li
+  /// hem CallKit'siz yolda dogru calisir — CallKit'li yolda `setConfiguration` fark
+  /// kontroluyle NO-OP kalir. Yani 19 Tem'deki "grup-host sessiz mic" hatasi GERI GELMEZ.
+  ///
+  /// YALNIZ iOS: Android'de ikinci arama UI'sini BIZ ciziyoruz (`incoming_call_overlay`
+  /// `waiting` daliyla) ve `startCall` orada ondeplan servisiyle cakisan ikinci bir
+  /// bildirim uretebilir.
+  /// ⚠️ YAPMA: bunu Android'de de cagirma; `endCall`i atlamak (arama bitince `bitir()`
+  /// zaten kapatir — hayalet CallKit araması kalmasin).
+  static Future<void> gidenArama({
+    required String callId,
+    required String peerAd,
+    required bool video,
+  }) async {
+    if (!Platform.isIOS || callId.isEmpty) return;
+    try {
+      await FlutterCallkitIncoming.startCall(CallKitParams(
+        id: callId,
+        nameCaller: peerAd.isEmpty ? 'Arama' : peerAd,
+        appName: 'Gebzem',
+        handle: peerAd,
+        type: video ? 1 : 0,
+        extra: <String, dynamic>{'call_id': callId},
+        ios: const IOSParams(
+          iconName: 'AppIcon',
+          handleType: 'generic',
+          supportsVideo: true,
+          // "Beklet ve Kabul" ekraninin SARTI — gelen arama tarafiyla AYNI degerler.
+          maximumCallGroups: 2,
+          maximumCallsPerCallGroup: 2,
+          supportsDTMF: false,
+          supportsHolding: true,
+          supportsGrouping: false,
+          supportsUngrouping: false,
+          configureAudioSession: true,
+          audioSessionMode: 'voiceChat',
+          audioSessionActive: false,
+        ),
+      ));
+      islenenler.add(callId); // cift-UI kapisi: bu arama CallKit'te KAYITLI
+    } catch (e) {
+      debugPrint('CALLKIT-GIDEN hata: $e');
+    }
+  }
+
   static Future<void> bitir(String callId) async {
     if (callId.isEmpty) return;
     try {

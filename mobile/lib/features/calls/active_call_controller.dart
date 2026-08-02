@@ -1084,6 +1084,13 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     _aboneliklerKur(id);
 
     if (b.outgoing) {
+      // ⚠️ TEST TURU 55: GIDEN ARAMAYI CALLKIT'E KAYDET (yalniz iOS, fire-and-forget).
+      // Bu olmadan iOS'ta "Bitir ve Kabul / Beklet ve Kabul" ekrani CIZILEMEZ — o ekrani
+      // sistem cizer ve sarti CallKit'te AKTIF arama bulunmasidir. Kullanici sikayeti:
+      // "birebirde konusurken baskasi arayinca o ekran gelmiyor, biz bunu yapmistik."
+      // ⚠️ YAPMA: bunu await etme (arama kurulumunu geciktirir) veya Android'de cagirma.
+      unawaited(CallKitService.gidenArama(
+          callId: id, peerAd: b.peerName, video: b.video));
       // GIDEN ARAMA: karsi taraf acana kadar odaya BAGLANMA.
       _answeredSub = _svc.onCallAnswered.listen((ev) {
         if (ev['call_id'] != id || arama?.callId != id || _ayrildi) return;

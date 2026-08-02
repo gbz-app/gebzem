@@ -82,6 +82,10 @@ Future<void> _fcmArkaPlan(RemoteMessage m) async {
       // arka planda gelen GRUP aramasinda "Katil" ekrani cizilemiyordu.
       isGroup: (m.data['is_group'] ?? '') == 'true' || m.data['is_group'] == true,
       chatTitle: m.data['chat_title'] ?? '',
+      // TEST TURU 55: `waiting` FCM yukunde ZATEN geliyor (handler.go:428) ama
+      // tasinmiyordu -> Android arka planda gelen IKINCI arama "Beklet ve Kabul"
+      // yerine duz Kabul/Reddet olarak ciziliyordu. ⚠️ YAPMA: bu alani dusurme.
+      waiting: (m.data['waiting'] ?? '') == 'true' || m.data['waiting'] == true,
     );
   } else if (tip == 'call.cancel' || tip == 'call.ended') {
     // Arayan vazgecti / baska yerde cevaplandi / arama bitti -> ekran asili kalmasin

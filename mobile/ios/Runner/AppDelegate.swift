@@ -250,9 +250,15 @@ import flutter_callkit_incoming
     // Backend bunlari VoIP govdesinde zaten gonderiyor (handler.go); burada DUSURULUYORDU.
     // ⚠️ YAPMA: bu iki alani extras'tan cikarma.
     let grupMu = (d["is_group"] as? Bool) ?? ((d["is_group"] as? String) == "true")
+    // TEST TURU 55: `waiting` de tasinir. Backend VoIP govdesinde ZATEN gonderiyor
+    // (handler.go:455) ama burada DUSURULUYORDU — `is_group` ile birebir ayni hata
+    // (turu 35). Dusunce ikinci arama "Beklet ve Kabul" yerine duz Kabul/Reddet cizilir.
+    // ⚠️ YAPMA: bu ucunu (is_group / chat_title / waiting) extras'tan cikarma.
+    let bekleyen = (d["waiting"] as? Bool) ?? ((d["waiting"] as? String) == "true")
     data.extra = [
       "call_id": callId, "call_type": isVideo ? "video" : "audio", "caller_name": callerName,
       "is_group": grupMu, "chat_title": (d["chat_title"] as? String) ?? "",
+      "waiting": bekleyen,
     ] as NSDictionary
     // iOS 13+ KURALI: completion, reportNewIncomingCall (showCallkitIncoming) tamamlandiktan
     // SONRA cagrilmali. Erken cagirmak ihlal -> iOS art arda aramalarda 2. VoIP push'u KESER
