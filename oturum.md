@@ -3777,3 +3777,76 @@ GERCEK VERIYLE bakmayi mumkun kilacak.
 4. iOS "Beklet ve Kabul" yolu ESKISI GIBI calismali (regresyon kontrolu).
 5. Bekletme sirasinda "baglantisi zayif" uyarisi CIKMAMALI (artik bastiriliyor).
 6. Sesli oda + canli yayin: hicbir degisiklik olmamali.
+
+---
+
+## Oturum (3 Agu 2026) — TURU 61: KAYBOLAN `call.held` OLAYI (OLCUMLE KANITLANDI)
+
+**YAYIN:** android 30766687222 + ios 30766688233 (8276219), R2 apk=108254021
+(md5 1e589c3e) ipa=22344434 (md5 776ce510), purge OK, CDN'den indirilen APK yerelle
+MD5 BIREBIR, indir sayfasi 00:07, BACKEND DEPLOY (migration 013 uygulandi,
+`calls.held_by` canli DB'de dogrulandi) + health ok, DB temiz.
+
+### KULLANICI BILDIRIMI
+"iPhone ile Android arasinda Gebzem gorusmesi. Android'de GSM aramasi gelince
+BEKLEME yazisi ve 'aramayi bitir' paneli CIKIYOR (guzel). Ama karsi telefonda,
+iPhone'da HICBIR SEY YAZMIYOR."
+
+### 🔴 KOK NEDEN — TAHMIN DEGIL, SENTRY KANITI
+Turu 60'ta eklenen olcum (breadcrumb -> GERCEK Sentry olayi) sayesinde:
+
+    20:48:04  gsm olayi: gsm=true  beklemede=false platform=android   <- Android BEKLETTI
+    20:48:32  gsm olayi: gsm=false beklemede=true  platform=android   <- 28sn sonra kaldirdi
+    20:48:35  call.held alindi: on=false eslesti=true ekran=true      <- iPhone SADECE bunu aldi
+
+**`call.held alindi: on=true` olayi HIC YOK.** Yani:
+· Android bekletmeyi GONDERDI (sunucu 200 dondu),
+· iPhone o 28 saniye boyunca HICBIR SEY ALMADI,
+· yalnizca bekletmeden CIKISI yakaladi (3 saniye sonra).
+Ustelik `ekran=true` — iPhone'un arama ekrani ACIKTI, alabilecek durumdaydi.
+Sorun cizimde/ekranda DEGIL, MESAJIN KAYBOLMASINDA.
+
+**MEKANIZMA:** `call.held` tek seferlik bir WS mesajiydi — ne kuyrugu, ne tekrari,
+ne sunucuda kaydi vardi (`Hold` handler'i satira DOKUNMUYORDU). Istemci HER arka
+plana geciste WS'i kapatir (`bg` cercevesi — kilit ekraninda arama caldirabilmek
+icin ZORUNLU, turu 33 dersi). Sunucu olcumu: iPhone 47 dakikada **27 WS oturumu**,
+en kisa 1.7sn. Mesaj o bosluklardan birine denk gelirse BIR DAHA ogrenilemiyordu.
+
+⚠️ **SUREC DERSI:** turu 60 denetiminde 15 ajan bu bulguyu gormustu ama **DUSUK**
+derecelendirmisti (gerekce: "Android kaynakli 6 hold'da hedefin soketi aciktı").
+SAHA VERISI onu ASIL SEBEP olarak gosterdi. **"Nadir gorunuyor" != "onemsiz".**
+Dogru hamle tahmin etmek degil, OLCUM KOYUP BIR TUR SONRA BAKMAKTI — oyle yapildi
+ve kok neden tek turda kesinlesti.
+
+### FIX — DURUM SUNUCUDA, ISTEMCI KENDINI ONARIR
+1. **migration 013** (`013_call_hold.sql`): `calls.held_by UUID` — aramayi EN SON
+   beklemeye alan kullanici; bekletmeden cikinca NULL.
+2. **`Hold` handler:** `on=true` -> `held_by=$user`; `on=false` -> yalniz KENDI
+   kaydini siler (`AND held_by=$user`) ki karsi tarafin bekletmesi silinmesin.
+3. **`Status` ucu** additive `peer_held` doner ("BASKA BIRI beklemeye aldi mi").
+   ⚠️ `elapsed_ms` semantigine DOKUNULMADI (answered_at NULL iken -1; created_at'e
+   dusurme YASAK — CLAUDE.md sure senkronu hukmu).
+4. **Istemci:** `_durumKontrol` — ZATEN var olan **3 saniyelik** yoklama — `peer_held`
+   ile uzlastirir. `karsiTarafBekletti` idempotent oldugu icin gereksiz notify yok.
+   **Yeni trafik YOK, yeni uc YOK, yeni bagimlilik YOK.**
+5. WS olayi **HIZLI YOL** olarak KALIR (aninda tepki); yoklama **EMNIYET AGI**.
+
+⚠️ YAPMA: `Hold`daki UPDATE'i kaldirip yalniz WS'e donme; `peer_held` uzlastirmasini
+istemciden cikarma; `held_by`yi grup aramasi tekrar acilirsa tek-kisi varsayimiyla
+kullanma (o durumda katilimci-basina bekletme gerekir; bugun grup KAPALI).
+
+### NEDEN AJANLARIN ELEDIGI COZUMLER YINE KULLANILMADI
+Bu fix, turu 60'ta elenen uc yaklasimin hicbirinin riskini TASIMIYOR:
+push yedegi YOK (iOS hayalet gelen arama riski), wakelock YOK (yakinlik sensoru
+sorunu), WS'i acik tutma YOK (turu 33 push kurali). Yalnizca zaten var olan bir
+yoklamaya bir alan eklendi.
+
+### TEST EDILECEKLER (kullanici)
+1. **Android'de** GSM aramasini kabul et -> **iPhone'da** "⏸ Karşı taraf aramayı
+   beklemeye aldı" seridi GORUNMELI (en gec 3 saniye icinde).
+2. GSM bitince serit KAYBOLMALI, konusma kaldigi yerden devam etmeli.
+3. iPhone'u KILITLE, Android'den beklet, iPhone'u AC -> serit yine GORUNMELI
+   (asil kazanim bu: kaybolan olay artik telafi ediliyor).
+4. Arama KUCULTULMUSKEN yesil bantta da "⏸ Karşı taraf beklemeye aldı" yazmali.
+5. iOS "Beklet ve Kabul" yolu ESKISI GIBI calismali (regresyon).
+6. Sesli oda + canli yayin: hicbir degisiklik olmamali.

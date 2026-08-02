@@ -17,7 +17,36 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (2 Agu 20:52):** TEST TURU 60 YAYINLANDI — android 30759365570 +
+- **KALDIGIMIZ YER (3 Agu 00:07):** TEST TURU 61 YAYINLANDI — android 30766687222 +
+  ios 30766688233 (8276219), R2 apk=108254021 (md5 1e589c3e) ipa=22344434 (md5 776ce510),
+  purge OK, CDN'den indirilen APK yerelle MD5 BIREBIR, indir sayfasi saati 00:07,
+  **BACKEND DEPLOY EDILDI** (8276219; migration 013 uygulandi, `calls.held_by` sutunu
+  canli DB'de DOGRULANDI) + health ok, DB temiz. **KULLANICI TEST EDECEK.**
+- ⚠️⚠️ **TURU 61 — KAYBOLAN `call.held` OLAYI SENTRY ILE KANITLANDI (tahmin DEGIL).**
+  Turu 60'ta ekledigim olcum kok nedeni KANITA cevirdi. Kullanici testi (Android GSM
+  bekletme, karsi taraf iPhone) — Sentry olaylari:
+  · `20:48:04  gsm olayi: gsm=true  beklemede=false platform=android`  <- Android BEKLETTI
+  · `20:48:32  gsm olayi: gsm=false beklemede=true  platform=android`  <- 28sn sonra kaldirdi
+  · `20:48:35  call.held alindi: on=false eslesti=true ekran=true`     <- iPhone SADECE bunu aldi
+  **`call.held alindi: on=true` olayi HIC YOK.** Android gonderdi, sunucu 200 dondu, ama
+  iPhone o 28 saniye boyunca HICBIR SEY ALMADI. Ustelik `ekran=true` — arama ekrani ACIKTI.
+  **KOK NEDEN:** `call.held` KAYBOLABILIR bir olaydi (ne kuyruk, ne tekrar, ne sunucu
+  durumu). Istemci HER arka plana geciste WS'i kapatir (`bg` cercevesi; kilit ekraninda
+  arama caldirmak icin ZORUNLU — turu 33) ve iPhone 47 dakikada 27 kez kopup baglaniyor.
+  Olay o bosluga denk gelirse BIR DAHA ogrenilemiyordu.
+  ⚠️ Turu 60 denetiminde ajanlar bunu **DUSUK** derecelendirmisti; SAHA VERISI ASIL SEBEP
+  oldugunu gosterdi. **DERS:** "nadir gorunuyor" != "onemsiz"; olcum koyup BAKMAK sart.
+  **FIX (durum sunucuda, istemci KENDINI ONARIR):**
+  · migration **013**: `calls.held_by UUID` (en son beklemeye alan; cikinca NULL).
+  · `Hold` handler: on=true -> `held_by=$user`; on=false -> yalniz KENDI kaydini siler
+    (`AND held_by=$user`) ki karsi tarafin bekletmesi silinmesin.
+  · `Status` ucu additive **`peer_held`** doner. ⚠️ `elapsed_ms` semantigine DOKUNULMADI.
+  · Istemci `_durumKontrol` (ZATEN var olan **3sn'lik** yoklama) `peer_held` ile uzlastirir
+    -> yeni trafik YOK, yeni uc YOK, yeni bagimlilik YOK.
+  · WS olayi HIZLI YOL olarak KALIR (aninda tepki); yoklama EMNIYET AGI.
+  ⚠️ YAPMA: `Hold`daki UPDATE'i kaldirip yalniz WS'e donme; `peer_held` uzlastirmasini
+  istemciden cikarma; `held_by`yi grup aramasi acilirsa tek-kisi varsayimiyla kullanma.
+- **ONCEKI (2 Agu 20:52):** TEST TURU 60 YAYINLANDI — android 30759365570 +
   ios 30759366701 (1159115), R2 apk=108254021 (md5 6562395b) ipa=22344917 (md5 6aa52c46),
   purge OK, CDN'den indirilen APK yerelle MD5 BIREBIR, indir sayfasi saati 20:52,
   **backend DEGISMEDI** (db7e8a8'de kaldi) + health ok, DB temiz. **KULLANICI TEST EDECEK.**
