@@ -182,6 +182,7 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
   bool _iosPipMesgul = false; // turu 39: _iosPipGuncelle yeniden-girme kilidi
   String _iosPipYerelId = ''; // turu 28: PiP alt gorunumundeki kendi kamera track id'm
   bool _koseKutusuBildirildi = false; // turu 51: kose kutusu hatasi ARAMA BASINA 1 kez Sentry'e
+  bool _ekranKapandiBildirildi = false; // turu 58: ekran beklenmedik kapanma olcumu (arama basina 1)
   List<String> _iosPipEkIdler = []; // turu 52: kucuk pencere izgarasindaki EK uzak track'ler
 
   /// TEST TURU 52 — KUME karsilastirmasi (SIRA DUYARSIZ). ⚠️ KRITIK:
@@ -1039,6 +1040,7 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     _iosPipKurulanId = ''; // iOS PiP (test turu 7): eski aramadan kurulum sarkmasin
     _iosPipYerelId = '';
     _koseKutusuBildirildi = false; // turu 51: yeni aramada kose kutusu bildirimi tazelensin
+    _ekranKapandiBildirildi = false; // turu 58: yeni aramada ekran olcumu tazelensin
     _iosPipEkIdler = []; // turu 52: eski aramanin izgara listesi sarkmasin
     _iosArkaPlanKamera = false; // iOS coklu-gorev kamera (test turu 9): eski aramadan sarkmasin
     _iosCokluGorevDeniyor = false;
@@ -1355,6 +1357,17 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       // arasinda HENUZ FALSE olabiliyor; eski `if (pipModunda)` kapisi bu yarista
       // durdurmayi tamamen atliyordu (kullanici: "PiP kucuk ekranin uzerinde cikiyor").
       // ⚠️ YAPMA: buraya tekrar pipModunda sarti koyma.
+      // ⚠️ TURU 58 — ANDROID IKIZI: `pipModunda` YALNIZ iOS dalinda sifirlaniyordu.
+      // Android'de native `pipDegisti` geri bildirimi kacarsa bayrak TAKILI kalir ve
+      // `call_screen` PiP dalinda `Offstage` cizer -> ekran GORUNMEZ olur (banner ise
+      // tam ekran IgnorePointer PiP cizer). Kullanicinin "ekran gidiyor" semptomunun
+      // Android karsiligi budur.
+      // GUVENLI: Android'de PiP sirasinda Activity PAUSED durumdadir; `resumed` demek
+      // PiP'te DEGILIZ demektir. ⚠️ YAPMA: bu sifirlamayi kaldirma.
+      if (Platform.isAndroid && pipModunda) {
+        pipModunda = false;
+        notifyListeners();
+      }
       if (Platform.isIOS) {
         if (pipModunda) pipModunda = false;
         unawaited(PipService.iosPipDurdur());
@@ -2776,6 +2789,16 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       // ⚠️ YAPMA: bu cagriyi kaldirma.
       if (_ayrildi || arama?.callId != orijinalId) return;
       _kameraOtoAc();
+      // ⚠️⚠️ TEST TURU 58 — ASIMETRI KAPATILDI (kullanicinin bildirdigi ASIL SORUN).
+      // Park yolunun kardesi `devamEt()` sonunda `ekraniAc()` cagiriyordu, ama GSM/CallKit
+      // UNHOLD yolu (burasi) medyayi/kamerayi/sesi geri acip EKRANI ACMIYORDU. Ekran bir
+      // sebeple pop olduysa (bkz. call_screen dispose kok nedeni) BIR DAHA GELMIYORDU:
+      // arama sunucuda ve medyada yasiyor, kullanici ekrani goremiyordu.
+      // Not: CallKit'te "arayuzu geri yukle" diye bir delegate YOK — ekrani geri acacak
+      // TEK yer BIZIM kodumuz. `ekraniAc()` zaten `ekranGorunur`/`arama` kapilarina bagli,
+      // ekran duruyorsa no-op olur.
+      // ⚠️ YAPMA: bu cagriyi kaldirma; `devamEt()` ile bu yolu asimetrik birakma.
+      ekraniAc();
     }
     // ⚠️ Sunucuya ORIJINAL id gonderilir (buyuk harfli CallKit id'si DEGIL).
     unawaited(_svc.hold(orijinalId, aktif));
@@ -2852,6 +2875,16 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     ekranGorunur = false;
     if (arama != null && !minimized) {
       minimized = true;
+      // ⚠️ TURU 58 — OLCUM: ekranin NE ZAMAN ve HANGI DURUMDA kapandigi hic
+      // kaydedilmiyordu; kullanici "ekran gidiyor" dedi ve Sentry'de TEK BIR IZ YOKTU.
+      // Artik durum bilgisiyle olay dusuyor (arama basina EN FAZLA 1 — gurultu olmasin).
+      // ⚠️ YAPMA: bu olcumu kaldirma.
+      if (!_ekranKapandiBildirildi) {
+        _ekranKapandiBildirildi = true;
+        unawaited(Sentry.captureMessage(
+            'ekran beklenmedik kapandi: beklemede=$beklemede pip=$pipModunda '
+            'durum=$_sonYasamDurumu baglandi=$_baglandi grup=$_isGroup'));
+      }
       WidgetsBinding.instance.addPostFrameCallback((_) => notifyListeners());
     }
   }

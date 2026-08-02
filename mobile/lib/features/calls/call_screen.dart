@@ -68,9 +68,24 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     if (!mounted || _kapaniyor) return;
     if (_c.arama == null) {
       _kapaniyor = true;
+      // TURU 58: `ekranGorunur` mandalini POP KARARI aninda dusur. Eskiden yalniz
+      // `dispose`ta dusuyordu; arada `ekraniAc()` cagrilirsa bayat `true` degeri
+      // yuzunden SESSIZCE erken donuyor ve ekran BIR DAHA acilmiyordu.
+      // ⚠️ YAPMA: bu satiri kaldirma (dispose'taki yazim zaten idempotent).
+      _c.ekranGorunur = false;
       setState(() => _kapanisAnim = true);
       Future.delayed(const Duration(milliseconds: 240), () {
         if (!mounted) return;
+        // ⚠️ TURU 58: 240ms icinde arama DIRILMIS olabilir (park -> `devamEt` 500ms
+        // zamanlayicisi, ya da yeni bir arama devralmis olabilir). Eskiden bu kontrol
+        // YOKTU ve YASAYAN aramanin ekrani pop ediliyordu.
+        // ⚠️ YAPMA: bu kontrolu kaldirma.
+        if (_c.arama != null) {
+          _kapaniyor = false;
+          _c.ekranGorunur = true; // ekran duruyor — mandali geri al
+          if (mounted) setState(() => _kapanisAnim = false);
+          return;
+        }
         final nav = Navigator.of(context);
         if (_sheetAcik && nav.canPop()) nav.pop();
         if (nav.canPop()) nav.pop();
@@ -95,10 +110,21 @@ class _CallScreenState extends ConsumerState<CallScreen> {
   void dispose() {
     if (_benimEkranim) {
       _c.removeListener(_ctrlDegisti);
-      if (_kapaniyor) {
-        _c.ekranGorunur = false; // normal bitis: arama zaten null
+      // ⚠️⚠️ TEST TURU 58 — KOK NEDEN ("GSM sonrasi arama devam ediyor ama EKRAN GIDIYOR").
+      // Karar eskiden `_kapaniyor` BAYRAGINA bakiyordu. O bayrak "arama bitti, kapaniyoruz"
+      // demek; ama bayrak true olup arama HALA YASIYORSA (240ms'lik gecikmeli pop ile
+      // `devamEt`/yeniden dirilme YARISI) su hale duserdik:
+      //   `ekranGorunur = false` yazilir, `minimized` TRUE YAPILMAZ
+      //   -> `AktifAramaBanner` (`c.minimized` sartina bagli) yesil seridi de CIZMEZ
+      //   -> NE EKRAN NE BANT kalir; arama sunucuda ve medyada YASAR ama DONUS YOLU YOK.
+      // Kullanicinin tarif ettigi tam olarak budur.
+      // FIX: karari BAYRAGA degil GERCEGE (`arama`) bagla — hangi yoldan pop olursa olsun
+      // arama yasiyorsa MUTLAKA minimize + bant.
+      // ⚠️ YAPMA: bu karari tekrar `_kapaniyor`a baglama.
+      if (_c.arama == null) {
+        _c.ekranGorunur = false; // gercekten bitti
       } else {
-        // Beklenmedik pop: arama SURUYOR -> guvenli minimize (bitirme YOK)
+        // Arama SURUYOR -> guvenli minimize (bitirme YOK, bant cizilir)
         _c.ekranBeklenmedikKapandi();
       }
     }
