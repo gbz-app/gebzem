@@ -17,7 +17,53 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (1 Agu 19:23):** TEST TURU 54 YAYINLANDI — android 30707620654 +
+- **KALDIGIMIZ YER (2 Agu 15:50):** TEST TURU 56 YAYINLANDI — android 30748279270 +
+  ios 30748275465 (91f2b00), R2 apk=105211469 (KUCULDU) ipa=19312972, purge OK, CDN birebir,
+  **BACKEND DEPLOY** (`grupAramaAcik=false` dogrulandi) + health ok, DB temiz.
+  **KULLANICI TEST EDECEK.**
+- ✅ **URUN KAPSAMI (kullanici karari 2 Agu): 1:1 SESLI + 1:1 GORUNTULU + SESLI ODA +
+  CANLI YAYIN. GRUP ARAMASI YOK.**
+  · Istemci: `calls_tab` grup FAB'i ve `call_screen` "Kisi ekle" iki kapisi KALDIRILDI.
+  · Backend: **`grupAramaAcik = false`** — `Start` (grup dali) ve `Add` KOSULSUZ reddeder.
+  ⚠️ **DENETIM DERSI:** yalniz `maxGrupKatilimci`yi 2'ye indirmek YETMIYORDU — tek kisilik
+  grupta `2 > 2` FALSE olup 2 kisilik grup ACILIYORDU. Bayrak SART.
+  ⚠️ `return` sonrasi OLU KOD BIRAKMA (turu 48: "gozcu ULASILAMAZ KODDU") — bayrakla kapat.
+  ⚠️ **GRUP KODU SILINMEDI** (37 dal 1:1 yollarina orulmus). `mini_izgara.dart` DURUYOR —
+  oda/yayin kullaniyor. ⚠️ YAPMA: silmeye calisma.
+- ✅ **GSM BEKLET — IKI KOK NEDEN (36 turdur sessizce bozuktu):**
+  (1) **iOS HARF UYUSMAZLIGI:** CallKit hold olayi `action.callUUID.uuidString` ile gelir
+  ve Foundation bunu **BUYUK HARF** dondurur; callId'lerimiz Postgres `gen_random_uuid()`
+  = **kucuk harf**. Tam esitlik ESLESMIYOR -> `beklemeyeAl` SESSIZCE return ediyordu
+  (medya durmuyor, sunucuya hold gitmiyor). Kabul/Reddet/Bitir ETKILENMIYOR — yalniz
+  **hold ve mute** olaylari uuidString kullanir. FIX: `CallKitService._asilId` cevrimi +
+  `beklemeyeAl`da harf-duyarsiz karsilastirma (ikinci katman).
+  (2) **ANDROID IZNI HIC VERILMIYORDU:** `Permission.phone.request()`,
+  `requestFullIntentPermission()`ten SONRA cagriliyordu; o cagri SISTEM AYARLAR ekranini
+  acar, Activity duraklayinca izin diyalogu GOSTERILMEZ, Future ASILI KALIR.
+  FIX: telefon izni ONCE, ayar ekranina sicrama EN SON. + sonuc okunuyor (Sentry olcumu).
+  ⚠️ YAPMA: bu iki blogun sirasini degistirme; `gsmDinle` sonucunu `unawaited` ile atma.
+- ⚠️ **GIZLILIK:** GSM gorusmesi surerken Gebzem'e gecince `resumed` dali MIKROFONU geri
+  aciyordu -> **karsi taraf GSM konusmasini duyuyordu.** `resumed` sartina `&& !beklemede`
+  + `_kesintidenTopla` basina savunma kapisi. ⚠️ YAPMA: bu kapilari kaldirma.
+- ⚠️ **TURU 55/56 KENDI REGRESYONLARIM (build oncesi denetimde yakalandi):**
+  · `beklemeyeAl`: uc await'ten sonra `arama!` -> NULL-CHECK PATLAMASI + `beklemede` TAKILI
+    kalmasi. Kimlik await'lerden ONCE yakalanir + her await sonrasi kimlik kapisi.
+  · `!beklemede` kapisi `resumed`daki `_kameraOtoAc()`i de blokluyordu -> GSM sonrasi
+    GORUNTULU aramada kamera BIR DAHA ACILMIYORDU. unhold dalina `_kameraOtoAc()` eklendi.
+  · `gidenArama` (turu 55) **HAYALET CALLKIT ARAMASI** birakiyordu: `_cevapsizGoster` ve
+    `geriAra` yollarinda `CallKitService.bitir` CAGRILMIYORDU.
+  · Giden arama CallKit'te "araniyor" kaliyordu; iOS bagli olmayan aramayi HOLD EDILEBILIR
+    saymaz -> `CallKitService.baglandi()` (`setCallConnected`) eklendi (YALNIZ giden).
+  ⚠️ YAPMA: bu dort duzeltmeyi geri alma.
+- ✅ **MESGULLUK KONTROLU TEK KAYNAK:** `CallService.mesgulMu({haric, etiket})` —
+  start/answer/oda/yayin AYNI yolu kullanir. Bayat kayit bulursa temizler + Sentry olcumu;
+  GERCEK arama veya `oda_`/`yayin` kaydi varsa ENGELLER.
+  ⚠️ YAPMA: bu mantigi cagiran yerlere kopyalama (drift eder — `rooms_tab`/`live_tab` ham
+  `aramadaMi`ye bakiyordu ve self-heal'den yararlanmiyordu).
+- ✅ **ANDROID SES TAZELEME:** `_sesiAc` Android'de kosulsuz erken donuyordu; GSM sonrasi
+  ses SAGIR kalabiliyordu. `_androidSesTazele()` eklendi — YALNIZ kurtarma yollarindan
+  (`beklemeyeAl(false)`, `devamEt`) cagrilir. ⚠️ YAPMA: `_connect` akisina sokma.
+- **ONCEKI (1 Agu 19:23):** TEST TURU 54 YAYINLANDI — android 30707620654 +
   ios 30707617339 (384920c), R2 apk=105227853 ipa=19322064, purge OK, CDN birebir,
   backend 384920c'ye senkron + health ok, DB temiz. **KULLANICI TEST EDECEK.**
 - ✅ **TURU 54 — TEKRAR DAVET TAKILMASININ ASIL KOKU (sunucu kaniti):** grup aramasi
