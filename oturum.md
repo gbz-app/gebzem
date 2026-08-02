@@ -3412,3 +3412,65 @@ internal/streams) DOKUNULMADI** — coklu katilimci ve AYNI makineyi paylasiyorl
 ⚠️ YAPMA: `mini_izgara.dart`i silme (oda/yayin kullaniyor); grup kodunu sokmeye calisma.
 
 `go build ./...` OK · `flutter analyze` temiz (onceden var olan 4 info lint).
+
+## TEST TURU 56 SURUMU YAYINLANDI (2 Agu 15:50)
+- android **30748279270** + ios **30748275465** (commit **91f2b00**), debug imza YOK.
+- R2: apk **105211469** (KUCULDU — grup ekranlari artik ulasilamaz, derlemeden cikti) ·
+  ipa **19312972** · index **7287**. Purge OK, CDN birebir.
+- **BACKEND DEPLOY** (91f2b00) — `grupAramaAcik = false` sunucuda dogrulandi. Health ok.
+  DB temiz.
+
+### BUILD ONCESI SON DENETIM (18 ajan) — 13 BULGU, COGU BU OTURUMDA ACILMISTI
+Bu denetimi calistirmak IYI OLDU: bulgularin cogu benim ayni oturumda actigim
+regresyonlardi. Duzeltilenler:
+1. **`beklemeyeAl` null-check patlamasi** (4 ajan birden yakaladi — BENIM hatam): uc
+   await'ten sonra `arama!` kullaniyordum; o pencerede karsi taraf kapatirsa ISTISNA atar
+   ve `beklemede` true TAKILI kalir (sonraki aramaya sarkar). Kimlik await'lerden ONCE
+   yakalaniyor + her await sonrasi kimlik kapisi.
+2. **GSM bitince GORUNTULU aramada kamera BIR DAHA ACILMIYOR**: bugun ekledigim
+   `!beklemede` kapisi `resumed` dalindaki `_kameraOtoAc()`i de blokluyordu. unhold
+   dalina `_kameraOtoAc()` eklendi (metot zaten `_kameraOtoKapandi` sartina bagli).
+3. **HAYALET CALLKIT ARAMASI** (turu 55 yan etkisi): giden arama CallKit'e kaydediliyor
+   ama `_cevapsizGoster` ve `geriAra` yollarinda KAPATILMIYORDU -> iOS'ta aktif sistem
+   aramasi asili kaliyor, sonraki aramalarda ses/beklet bozuluyor. Iki yere de
+   `CallKitService.bitir` eklendi.
+4. **Giden arama CallKit'te "araniyor" durumunda kaliyordu**: iOS BAGLI OLMAYAN aramayi
+   HOLD EDILEBILIR saymaz -> "Beklet ve Kabul" cikmayabilir (turu 55'in EKSIK HALKASI).
+   `CallKitService.baglandi()` (`setCallConnected`) eklendi; `_odayaBaglan` sonunda
+   YALNIZ giden aramada cagriliyor.
+5. **GSM durumu arama BAGLANMADAN once degisirse beklet kayboluyordu**: `gsmAramada` bir
+   ValueNotifier ve YALNIZ DEGISIMDE tetikleniyor. `_odayaBaglan` sonuna SEVIYE kontrolu.
+6. **SUNUCU GRUBU KAPATMIYORDU**: `toplam > maxGrupKatilimci` tek kisilik grupta
+   (`2 > 2`) FALSE -> `is_group=true` 2 kisilik grup ACILIYORDU. Yeni `grupAramaAcik=false`
+   bayragi: `Start` (grup dali) ve `Add` KOSULSUZ reddediyor.
+   ⚠️ `return` sonrasi OLU KOD BIRAKILMADI (turu 48 dersi: "gozcu ULASILAMAZ KODDU") —
+   bayrakla kapatildi, asagisi ulasilabilir kaldi.
+7. **`rooms_tab`/`live_tab` ham `aramadaMi`ye bakiyordu**, self-heal'den yararlanmiyordu.
+   Mantik `CallService.mesgulMu({haric, etiket})` **TEK KAYNAGINA** alindi; start/answer/
+   oda/yayin ayni yolu kullaniyor (drift onlendi + olcum etiketi eklendi).
+
+### DENETIMIN "TEMIZ" DEDIKLERI (kanitla)
+· `flutter analyze` 4 info lint (hepsi onceden var), `go build`+`go vet` temiz
+· `router.dart`ta grup ekranina rota YOK; `group_call_start_screen.dart` /
+  `add_participant_sheet.dart` ulasilamaz -> APK/IPA'ya GIRMIYOR (APK 16 KB kucculdu)
+· `_hazirlik` UC cikis yolunun ucunde de false'a doner -> `hazirlikModunda` guvenli
+· `_asilId` / `islenenler` bagimliligi guvenli (davetSifirla yalniz arama BITINCE calisir;
+  ustelik `beklemeyeAl`in harf-duyarsiz karsilastirmasi ikinci katman)
+· **ODA ve YAYIN BOZULMADI**: `maxGrupKatilimci` paket-ozel; self-heal `oda_`/`yayin`
+  kayitlarini KORUYOR; `_androidSesTazele` yalniz ActiveCallController'in kendi odasina
+  dokunuyor; `mini_izgara.dart` bu turda HIC degismedi ve yayin tarafinda calisiyor;
+  kapasiteler sunucuda dogru (oda 20+sinirsiz, yayin 3 konuk+sinirsiz izleyici)
+
+### KULLANICI TEST EDECEK — SENARYO LISTESI
+1. 1:1 sesli arama (iki yon) · 2. 1:1 goruntulu arama (iki yon)
+3. Sesli aramada mid-call kamera acma (iki taraf)
+4. **GSM aramasi gelince "Beklet ve Kabul" -> telefon kapaninca DEVAM** (ASIL TEST)
+5. GSM sirasinda Gebzem'e gecince mikrofon KAPALI kalmali (karsi taraf duymamali)
+6. "Cevap yok" ve "Geri Ara" sonrasi iPhone'da hayalet arama KALMAMALI
+7. Oda: 20 konusmaci + sinirsiz dinleyici; host cikip tekrar girebilmeli
+8. Yayin: yayinci + 3 konuk + sinirsiz izleyici
+9. Grup aramasi ARTIK YOK (dugme yok, sunucu da reddediyor)
+
+### YENI OLCUMLER (Sentry)
+`gsm dinleyici KAPALI — READ_PHONE_STATE izni yok` · `callkit izin durumu: ... telefon=`
+· `bayat mesgul muhafizi temizlendi (start|answer|oda|yayin): [...]`
