@@ -28,6 +28,12 @@ class CallKitService {
   /// icin ikinci bir "gelen arama" ekrani acilmasin diye.
   static final Set<String> islenenler = {};
 
+  /// TEST TURU 57: BIZIM BASLATTIGIMIZ (giden) CallKit aramalari.
+  /// Bu id'ler icin gelen "kabul" olaylari YOK SAYILIR — aksi halde arayan taraf
+  /// KENDI aramasini cevaplamaya calisir ve sunucu 404 doner (bkz. `_olay`).
+  /// `gidenArama()` doldurur, `bitir()` ve `davetSifirla()` bosaltir.
+  static final Set<String> gidenler = {};
+
   StreamSubscription? _sub;
 
   /// Kabul edilen arama (uygulama kapaliyken kabul edildiyse acilista da gelir)
@@ -121,7 +127,23 @@ class CallKitService {
 
   void _olay(CallEvent? e) {
     switch (e) {
+      // ⚠️⚠️ TEST TURU 57 — KOK NEDEN (turu 55 REGRESYONU, sunucu loguyla kanitli):
+      // Turu 55'te GIDEN aramayi da CallKit'e kaydetmeye basladik (`gidenArama`).
+      // Bunun beklenmeyen sonucu: ARAYAN tarafta da CallKit'te aktif bir arama olusuyor
+      // ve CallKit "kabul" olayi uretince biz KENDI GIDEN ARAMAMIZI cevaplamaya
+      // calisiyorduk -> `POST /calls/{id}/answer` sunucuda 404 "arama bulunamadi"
+      // (cunku `callee_id` BIZ DEGILIZ). Kanit: 2 Agu testinde 6 kez 404, hepsi arayanin
+      // cihazindan ve aramanin ZATEN cevaplanmasindan saniyeler sonra.
+      // ZINCIRLEME HASAR: 404 -> `main.dart` catch dali -> `CallKitService.bitir(callId)`
+      // -> CallKit kaydimiz YOK EDILIYOR -> iOS ses oturumunu birakiyor ve GERI VERMIYOR
+      // -> GSM bekletmesinden sonra Gebzem SESSIZ kaliyor ("kaldigi yerden devam etmiyor").
+      // FIX: kendi BASLATTIGIMIZ aramalarin kabul olaylari YOK SAYILIR.
+      // ⚠️ YAPMA: bu kapiyi kaldirma; `gidenler` kumesini `gidenArama` disinda doldurma.
       case CallEventActionCallAccept(:final callKitParams):
+        if (gidenler.contains(callKitParams.id)) {
+          debugPrint('CALLKIT: kendi GIDEN aramamizin kabul olayi — yok sayildi');
+          return;
+        }
         islenenler.add(callKitParams.id);
         _kabulController.add(_ayikla(callKitParams));
 
@@ -327,6 +349,7 @@ class CallKitService {
         ),
       ));
       islenenler.add(callId); // cift-UI kapisi: bu arama CallKit'te KAYITLI
+      gidenler.add(callId); // turu 57: kendi giden aramamiz — kabul olaylari YOK SAYILIR
     } catch (e) {
       debugPrint('CALLKIT-GIDEN hata: $e');
     }
@@ -355,6 +378,7 @@ class CallKitService {
       final varMi = aktif.any((c) => c.id == callId);
       if (!varMi) return; // hic gosterilmedi -> hayalet bildirim URETME
       _bizBitirdik.add(callId);
+      gidenler.remove(callId); // turu 57: kayit kapandi
       await FlutterCallkitIncoming.endCall(callId);
     } catch (_) {}
   }

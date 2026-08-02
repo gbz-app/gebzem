@@ -231,6 +231,7 @@ class CallService extends StateNotifier<IncomingCall?> {
     _bitenler.remove(id);
     kabulEdilenler.remove(id);
     CallKitService.islenenler.remove(id);
+    CallKitService.gidenler.remove(id); // turu 57
   }
 
   /// ARAMA BEKLETME (test turu 18): bu arama beklemeye alindi/geri alindi -> karsi tarafa
