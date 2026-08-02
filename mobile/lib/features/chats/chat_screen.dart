@@ -248,7 +248,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       children: [
                         if (showDate) _DateChip(date: msg.createdAt),
                         if (msg.type == 'system')
-                          _CallLogChip(message: msg, mine: mine)
+                          _CallLogChip(
+                            message: msg,
+                            mine: mine,
+                            // TURU 58: balona dokununca alttan "Sesli / Goruntulu ara"
+                            onAra: widget.peerId == null
+                                ? null
+                                : (video) => _startCall(video: video),
+                          )
                         else
                           _Bubble(message: msg, mine: mine),
                       ],
@@ -396,15 +403,62 @@ class _AktifAramaBalonu extends ConsumerWidget {
 /// content formati: 'call:missed:audio' | 'call:missed:video'. sender_id her zaman
 /// arayan -> mine=true (giden) "cevap yok", mine=false (gelen) "Cevapsiz arama".
 class _CallLogChip extends StatelessWidget {
-  const _CallLogChip({required this.message, required this.mine});
+  const _CallLogChip({required this.message, required this.mine, this.onAra});
 
   final Message message;
   final bool mine;
 
+  /// TURU 58: balona dokununca alttan panel -> secilen tiple arama baslatir.
+  /// null ise (peerId yok) balon dokunulamaz kalir.
+  final void Function(bool video)? onAra;
+
+  /// WhatsApp deseni: balona dokun -> alttan "Sesli ara / Goruntulu ara".
+  void _panelAc(BuildContext context, bool videoVarsayilan) {
+    if (onAra == null) return;
+    showModalBottomSheet(
+      context: context,
+      builder: (c) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            ListTile(
+              leading: const Icon(LucideIcons.phone, color: Color(0xFF25D366)),
+              title: const Text('Sesli ara'),
+              onTap: () {
+                Navigator.of(c).pop();
+                onAra!(false);
+              },
+            ),
+            ListTile(
+              leading: const Icon(LucideIcons.video, color: Color(0xFF25D366)),
+              title: const Text('Görüntülü ara'),
+              onTap: () {
+                Navigator.of(c).pop();
+                onAra!(true);
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// "1 dk. 5 sn." / "37 sn." / "1 sa. 4 dk." — WhatsApp bicimi.
+  static String _sure(int sn) {
+    if (sn < 60) return '$sn sn.';
+    final dk = sn ~/ 60;
+    final kalan = sn % 60;
+    if (dk < 60) return kalan == 0 ? '$dk dk.' : '$dk dk. $kalan sn.';
+    final sa = dk ~/ 60;
+    return '$sa sa. ${dk % 60} dk.';
+  }
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final parts = message.content.split(':'); // call : missed : audio|video
+    final parts = message.content.split(':'); // call : missed|ended : audio|video [: sn]
     // TEST TURU 21 — GRUP ARAMASI KAYDI: 'call:group:invite:<id>' / 'call:group:end:<id>'
     if (parts.length > 1 && parts[1] == 'group') {
       final bitti = parts.length > 2 && parts[2] == 'end';
@@ -423,25 +477,82 @@ class _CallLogChip extends StatelessWidget {
         ),
       );
     }
+    // TEST TURU 58 — WHATSAPP BALONU (kullanici ekran goruntusu paylasti).
+    // Eskiden ORTADA kucuk bir `Chip` idi; artik mesaj balonlariyla AYNI hizada,
+    // ikon + baslik + (sure/durum) + saat tasiyan bir BALON. Dokununca alttan
+    // "Sesli ara / Goruntulu ara" paneli acilir.
+    // Icerik bicimleri: "call:missed:audio|video" · "call:ended:audio|video:<sn>"
+    // ⚠️ YAPMA: `call:missed:*` bicimini varsayma — `ended` dali da ele alinmali.
     final video = parts.length > 2 && parts[2] == 'video';
     final missed = parts.length > 1 && parts[1] == 'missed';
+    final sn = parts.length > 3 ? (int.tryParse(parts[3]) ?? 0) : 0;
     final time = DateFormat.Hm().format(message.createdAt.toLocal());
-    String label;
+
+    final baslik = video ? 'Görüntülü arama' : 'Sesli arama';
+    final String altSatir;
     if (missed) {
-      label = mine
-          ? (video ? 'Goruntulu arama · cevap yok' : 'Sesli arama · cevap yok')
-          : (video ? 'Cevapsiz goruntulu arama' : 'Cevapsiz sesli arama');
+      altSatir = mine ? 'Cevap yok' : 'Cevapsız';
+    } else if (sn > 0) {
+      altSatir = _sure(sn);
     } else {
-      label = video ? 'Goruntulu arama' : 'Sesli arama';
+      altSatir = mine ? 'Giden arama' : 'Gelen arama';
     }
     final vurgu = missed && !mine; // gelen cevapsiz -> kirmizi
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Chip(
-        avatar: Icon(video ? LucideIcons.video : LucideIcons.phone,
-            size: 15, color: vurgu ? Colors.red : scheme.outline),
-        label: Text('$label · $time', style: const TextStyle(fontSize: 12)),
-        visualDensity: VisualDensity.compact,
+    // Giden/gelen ok ikonu (WhatsApp deseni): balonun sol yuvarlagi
+    final okIkon = mine ? LucideIcons.arrowUpRight : LucideIcons.arrowDownLeft;
+
+    return Align(
+      alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 3, horizontal: 8),
+        child: Material(
+          color: scheme.surfaceContainerHighest.withValues(alpha: 0.55),
+          borderRadius: BorderRadius.circular(14),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onAra == null ? null : () => _panelAc(context, video),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(10, 9, 14, 9),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.28),
+                    shape: BoxShape.circle,
+                  ),
+                  alignment: Alignment.center,
+                  child: Icon(video ? LucideIcons.video : LucideIcons.phone,
+                      size: 18, color: vurgu ? Colors.red : Colors.white),
+                ),
+                const SizedBox(width: 11),
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(baslik,
+                        style: const TextStyle(
+                            fontSize: 15, fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 2),
+                    Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(okIkon,
+                          size: 12,
+                          color: vurgu ? Colors.red : scheme.outline),
+                      const SizedBox(width: 3),
+                      Text(altSatir,
+                          style: TextStyle(
+                              fontSize: 12.5,
+                              color: vurgu ? Colors.red : scheme.outline)),
+                    ]),
+                  ],
+                ),
+                const SizedBox(width: 14),
+                Text(time,
+                    style: TextStyle(fontSize: 11, color: scheme.outline)),
+              ]),
+            ),
+          ),
+        ),
       ),
     );
   }

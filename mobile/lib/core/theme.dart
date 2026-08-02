@@ -23,6 +23,15 @@ ThemeData _koyu() {
     useMaterial3: true,
     colorScheme: scheme,
     scaffoldBackgroundColor: _icerikZemin,
+    // TEST TURU 58 — UYGULAMA YAZI TIPI (kullanici: "Google Sans olsun").
+    // ⚠️ Google Sans / Product Sans HALKA ACIK LISANSLI DEGIL — Google kendi urunlerine
+    // ayirmistir, ucuncu taraf uygulamaya GOMULEMEZ (lisans ihlali). En yakin YASAL
+    // alternatif Inter secildi (SIL OFL; lisans metni assets/fonts/Inter-OFL.txt).
+    // Tek DEGISKEN font dosyasi tum kalinliklari (w100-w900) tasir.
+    // ⚠️ YAPMA: Google Sans/Product Sans dosyasi ekleme.
+    // DEGISTIRME: baska bir aileye gecmek icin BURAYI ve pubspec `fonts:` blogunu
+    // guncelle — kod genelinde baska yerde fontFamily YAZILI DEGIL.
+    fontFamily: 'Inter',
     // ALT MENU icon TAP dairesi (ripple/splash) KALDIR (test turu 7): NoSplash + saydam vurgu.
     splashFactory: NoSplash.splashFactory,
     splashColor: Colors.transparent,

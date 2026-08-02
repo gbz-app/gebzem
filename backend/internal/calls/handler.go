@@ -153,7 +153,7 @@ func (h *Handler) sweep(ctx context.Context) {
 			})
 		}
 		// Cevapsiz arama -> sohbete kayit + (offline ise) bildirim (WhatsApp gibi)
-		go h.logMissedToChat(context.Background(), k.caller, k.callee, k.callType)
+		go h.logCallToChat(context.Background(), k.caller, k.callee, "call:missed:"+aramaTipi(k.callType))
 	}
 
 	// 2) 2 saatten uzun "suren" aramalar -> bitmis say (uygulama cokmus / End ulasmamis).
@@ -1021,7 +1021,21 @@ func (h *Handler) End(w http.ResponseWriter, r *http.Request) {
 	// Cevapsiz arama (arayan iptal etti / callee cevaplamadi) -> sohbete "cevapsiz arama"
 	// kaydi + (callee offline ise) bildirim. Reddedilen aramada BILDIRIM/kayit yok.
 	if newStatus == "missed" {
-		go h.logMissedToChat(context.Background(), callerID, calleeID, callType)
+		go h.logCallToChat(context.Background(), callerID, calleeID, "call:missed:"+aramaTipi(callType))
+	}
+	// TEST TURU 58 — CEVAPLANAN arama da sohbete yazilir (WhatsApp paritesi):
+	// "call:ended:audio|video:<saniye>". Sure `answered_at` -> `ended_at` farkidir;
+	// 0 sn'lik kayit YAZILMAZ (kullanici acar acmaz kapatmis, gurultu olur).
+	// ⚠️ YAPMA: cevapsiz ('missed') aramada bunu da yazma — cift kayit olur.
+	if newStatus == "ended" {
+		var sn int
+		h.db.QueryRow(r.Context(),
+			`SELECT COALESCE(EXTRACT(EPOCH FROM (ended_at - answered_at))::int, 0)
+			 FROM calls WHERE id=$1 AND answered_at IS NOT NULL`, callID).Scan(&sn)
+		if sn > 0 {
+			icerik := fmt.Sprintf("call:ended:%s:%d", aramaTipi(callType), sn)
+			go h.logCallToChat(context.Background(), callerID, calleeID, icerik)
+		}
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": newStatus})
@@ -1513,11 +1527,27 @@ func (h *Handler) History(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
-// logMissedToChat: cevapsiz aramayi WhatsApp gibi sohbet thread'ine "cevapsiz arama"
+// aramaTipi — icerik bicimine giren tipi normalize eder ('video' disi her sey 'audio').
+func aramaTipi(t string) string {
+	if t == "video" {
+		return "video"
+	}
+	return "audio"
+}
+
+// logCallToChat: aramayi WhatsApp gibi sohbet thread'ine sistem mesaji
 // kaydi (type='system', content 'call:missed:audio|video') olarak dusurur ve callee
 // OFFLINE ise bildirim gonderir. Direct sohbet yoksa olusturur. SADECE 'missed' icin
 // cagrilir. Cift kayit, End()/sweep()'in atomik tek-sefer 'missed' gecisiyle onlenir.
-func (h *Handler) logMissedToChat(ctx context.Context, callerID, calleeID, callType string) {
+// TEST TURU 58 — CEVAPLANAN ARAMALAR DA SOHBETE YAZILIR (WhatsApp paritesi).
+// Kullanici ekran goruntusu paylasti: WhatsApp sohbette "Sesli arama · 1 dk." /
+// "Goruntulu arama · 37 sn." balonlari gosteriyor. Bizde YALNIZ cevapsizlar yaziliyordu.
+// Icerik bicimi (geriye donuk UYUMLU):
+//   · cevapsiz  : "call:missed:audio|video"           (DEGISMEDI — eski istemciler okur)
+//   · cevaplanan: "call:ended:audio|video:<saniye>"   (YENI)
+// ⚠️ YAPMA: `call:missed:*` bicimini degistirme (sahadaki eski surumler onu bekliyor).
+// [icerik] hazir gelir; cagiran bicimlendirir.
+func (h *Handler) logCallToChat(ctx context.Context, callerID, calleeID, icerik string) {
 	// direct sohbeti bul, yoksa olustur (chat.CreateDirect ile ayni desen)
 	var chatID string
 	err := h.db.QueryRow(ctx, `
@@ -1546,10 +1576,7 @@ func (h *Handler) logMissedToChat(ctx context.Context, callerID, calleeID, callT
 		}
 	}
 
-	if callType != "video" {
-		callType = "audio"
-	}
-	content := "call:missed:" + callType
+	content := icerik
 
 	var msgID int64
 	var createdAt time.Time
@@ -1574,12 +1601,15 @@ func (h *Handler) logMissedToChat(ctx context.Context, callerID, calleeID, callT
 		Type: "message.new", ChatID: chatID, Payload: payload, To: []string{callerID, calleeID},
 	})
 
-	// Callee offline ise gercek bir "cevapsiz arama" bildirimi (mesaj push deseniyle ayni yol)
-	if h.push != nil && !h.hub.Online(calleeID) {
+	// Callee offline ise gercek bir "cevapsiz arama" bildirimi (mesaj push deseniyle ayni yol).
+	// ⚠️ TURU 58: bildirim YALNIZ CEVAPSIZ aramada gonderilir — cevaplanan arama kaydi
+	// ("call:ended:...") icin bildirim ANLAMSIZ (kisi zaten konustu) ve gurultu olur.
+	if strings.HasPrefix(icerik, "call:missed:") &&
+		h.push != nil && !h.hub.Online(calleeID) {
 		var callerName string
 		h.db.QueryRow(ctx, `SELECT name FROM users WHERE id=$1`, callerID).Scan(&callerName)
 		onizleme := "Cevapsiz sesli arama"
-		if callType == "video" {
+		if strings.HasSuffix(icerik, ":video") {
 			onizleme = "Cevapsiz goruntulu arama"
 		}
 		go h.push.NotifyUsers([]string{calleeID}, callerName, onizleme, chatID)
