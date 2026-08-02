@@ -173,10 +173,16 @@ class _LiveTabState extends ConsumerState<LiveTab> {
                             ),
                             const SizedBox(width: 8),
                             Expanded(
-                              child: Text(
-                                '${y['broadcaster_name']} · 👁 ${y['viewer_count'] ?? 0}',
-                                maxLines: 1, overflow: TextOverflow.ellipsis,
-                              ),
+                              child: Row(children: [
+                                Flexible(
+                                  child: Text('${y['broadcaster_name']}',
+                                      maxLines: 1, overflow: TextOverflow.ellipsis),
+                                ),
+                                const SizedBox(width: 6),
+                                const Icon(LucideIcons.eye, size: 13),
+                                const SizedBox(width: 3),
+                                Text('${y['viewer_count'] ?? 0}'),
+                              ]),
                             ),
                           ]),
                         ),

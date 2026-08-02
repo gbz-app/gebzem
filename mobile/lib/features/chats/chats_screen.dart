@@ -211,16 +211,40 @@ class _ChatTile extends ConsumerWidget {
 
   /// [benimMi]: son mesaji BEN mi gonderdim (arama kaydinda gonderen = ARAYAN).
   /// Bilinmiyorsa null -> onizleme yon iddiasinda BULUNMAZ.
+  /// ⚠️ TURU 62 — ONIZLEME IKONU (kullanici emri: "uygulamada hicbir 3B ikon
+  /// istemiyorum, hepsi 2B olsun"). Onizlemeler eskiden metnin ICINE emoji
+  /// koyuyordu (📷 🎥 🎤 📍 📞 📹); emoji sistem emoji fontuyla PARLAK/3B cizilir.
+  /// Artik ikon ayri bir Lucide (2B cizgi) widget'i olarak ciziliyor.
+  /// ⚠️ YAPMA: onizleme metnine emoji geri koyma.
+  IconData? _previewIkon() {
+    switch (chat.lastType) {
+      case 'image':
+        return LucideIcons.image;
+      case 'video':
+        return LucideIcons.video;
+      case 'audio':
+        return LucideIcons.mic;
+      case 'location':
+        return LucideIcons.mapPin;
+      case 'system':
+        final k = AramaKaydi.coz(chat.lastMessage);
+        if (k == null) return null;
+        return k.video ? LucideIcons.video : LucideIcons.phone;
+      default:
+        return null;
+    }
+  }
+
   String _preview(bool? benimMi) {
     switch (chat.lastType) {
       case 'image':
-        return '📷 Fotograf';
+        return 'Fotoğraf';
       case 'video':
-        return '🎥 Video';
+        return 'Video';
       case 'audio':
-        return '🎤 Sesli mesaj';
+        return 'Sesli mesaj';
       case 'location':
-        return '📍 Konum';
+        return 'Konum';
       case 'system':
         // TURU 59 — ARAMA KAYDI: eskiden HAM icerik basiliyordu, kullanici sohbet
         // listesinde "call:ended:audio:75" goruyordu. Ayristirma `AramaKaydi`de TEK
@@ -269,13 +293,22 @@ class _ChatTile extends ConsumerWidget {
           ),
         ],
       ),
-      subtitle: Text(
-        _preview(benimMi),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-            fontWeight: chat.unread > 0 ? FontWeight.w600 : FontWeight.normal),
-      ),
+      subtitle: Builder(builder: (context) {
+        final ikon = _previewIkon();
+        final metin = Text(
+          _preview(benimMi),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+              fontWeight: chat.unread > 0 ? FontWeight.w600 : FontWeight.normal),
+        );
+        if (ikon == null) return metin;
+        return Row(children: [
+          Icon(ikon, size: 14, color: scheme.outline),
+          const SizedBox(width: 5),
+          Expanded(child: metin),
+        ]);
+      }),
       trailing: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.end,

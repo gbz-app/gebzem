@@ -226,7 +226,7 @@ class _HediyeLeaderboardSheetState
                     leading: _avatarBas(g['name'] as String?),
                     title: Text(g['name'] as String? ?? '',
                         maxLines: 1, overflow: TextOverflow.ellipsis),
-                    trailing: Text('🪙 ${g['total'] ?? 0}',
+                    trailing: Text('${g['total'] ?? 0}',
                         style: const TextStyle(
                             fontWeight: FontWeight.w700, fontSize: 14)),
                     children: [

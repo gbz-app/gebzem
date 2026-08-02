@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/api.dart';
 import '../../core/ws.dart';
@@ -59,7 +60,7 @@ class DavetServisi {
       content: Text(tip == 'yayin'
           ? '$kimden seni canlı yayına davet etti${baslik.isNotEmpty ? ': $baslik' : ''}'
           : '$kimden seni sesli odaya davet etti${baslik.isNotEmpty ? ': $baslik' : ''}'),
-      leading: Icon(tip == 'yayin' ? Icons.live_tv : Icons.headphones,
+      leading: Icon(tip == 'yayin' ? LucideIcons.radio : LucideIcons.headphones,
           color: const Color(0xFF6C2BD9)),
       actions: [
         TextButton(

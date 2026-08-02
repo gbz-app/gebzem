@@ -510,8 +510,8 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
       });
       mesajci.showSnackBar(SnackBar(
           content: Text(kameraVar
-              ? 'Canlıdasın! 🎥 Ayrılmak için ✕ Ayrıl'
-              : 'Canlıdasın! 🎤 Sesli katıldın — ✕ Ayrıl')));
+              ? 'Canlıdasın! Ayrılmak için "Ayrıl"a dokun'
+              : 'Canlıdasın! Sesli katıldın — "Ayrıl"a dokun')));
     } catch (e) {
       await Sentry.captureException(e, stackTrace: StackTrace.current);
       // Medya acilamadi: kismi acilani kapat + sunucuya birak
@@ -964,7 +964,7 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
                           builder: (_) => IzleyicilerSheet(
                               streamId: widget.streamId, yayinciyim: false),
                         ),
-                        child: Text('👁 $_izleyici',
+                        child: Text('$_izleyici',
                             style: const TextStyle(
                                 color: Colors.white70, fontSize: 12)),
                       ),

@@ -230,7 +230,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               error: (e, _) => Center(child: Text(apiErrorMessage(e))),
               data: (list) {
                 if (list.isEmpty) {
-                  return const Center(child: Text('Ilk mesaji sen gonder 👋'));
+                  return const Center(child: Text('İlk mesajı sen gönder'));
                 }
                 return ListView.builder(
                   controller: _scroll,
@@ -605,7 +605,7 @@ class _Bubble extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (message.deletedForAll)
-              Text('🚫 Bu mesaj silindi',
+              Text('Bu mesaj silindi',
                   style: TextStyle(
                       fontStyle: FontStyle.italic, color: scheme.outline))
             else

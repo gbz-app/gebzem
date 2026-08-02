@@ -2839,7 +2839,7 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     // karar verilir verilmez, `beklemede` yazildigi anda gonderilir.
     // ⚠️ YAPMA: bu cagriyi tekrar await'lerin/kapilarin ALTINA tasima.
     unawaited(_svc.hold(orijinalId, aktif));
-    notifyListeners(); // kendi ekranimizdaki "⏸ Beklemede" rozeti de ANINDA cizilsin
+    notifyListeners(); // kendi ekranimizdaki "Beklemede" rozeti de ANINDA cizilsin
     await _medyaBeklet(room, aktif, micHedef: _micOn, camHedef: _camOn);
     // Await sirasinda arama bittiyse/degistiyse DOKUNMA (bayat akis).
     if (_ayrildi || arama?.callId != orijinalId) return;

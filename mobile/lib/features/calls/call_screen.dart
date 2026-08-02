@@ -461,17 +461,30 @@ class _CallScreenState extends ConsumerState<CallScreen> {
                         decoration: BoxDecoration(
                             color: const Color(0xE6EF6C00),
                             borderRadius: BorderRadius.circular(12)),
-                        child: Text(
-                            c.beklemede
-                                ? '⏸ Arama beklemede'
-                                : '⏸ Karşı taraf aramayı beklemeye aldı',
-                            textAlign: TextAlign.center,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600)),
+                        // ⚠️ TURU 62 — EMOJI YOK (kullanici emri: "hicbir 3B ikon
+                        // istemiyorum"). Emoji sistem emoji fontuyla PARLAK/3B cizilir;
+                        // yerine Lucide 2B cizgi ikon. ⚠️ YAPMA: emoji geri koyma.
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(LucideIcons.pause,
+                                size: 15, color: Colors.white),
+                            const SizedBox(width: 7),
+                            Flexible(
+                              child: Text(
+                                  c.beklemede
+                                      ? 'Arama beklemede'
+                                      : 'Karşı taraf aramayı beklemeye aldı',
+                                  textAlign: TextAlign.center,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600)),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   // TESHIS: kullanici "ses gelmiyor" isaretler -> sunucuya SORUN-BILDIRIMI
@@ -480,9 +493,9 @@ class _CallScreenState extends ConsumerState<CallScreen> {
                       padding: const EdgeInsets.only(top: 8),
                       child: TextButton.icon(
                         onPressed: _sorunBildir,
-                        icon: const Icon(Icons.volume_off,
+                        icon: const Icon(LucideIcons.volumeX,
                             color: Colors.orangeAccent, size: 18),
-                        label: Text(_sorunBildirildi ? 'Bildirildi ✓' : 'Ses gelmiyor',
+                        label: Text(_sorunBildirildi ? 'Bildirildi' : 'Ses gelmiyor',
                             style: const TextStyle(
                                 color: Colors.orangeAccent, fontSize: 13)),
                       ),
@@ -867,8 +880,8 @@ class _CallScreenState extends ConsumerState<CallScreen> {
             ),
           // TURU 56: "Kisi ekle" maddesi KALDIRILDI — grup aramasi kapatildi.
           ListTile(
-            leading: const Icon(Icons.volume_off, color: Colors.orangeAccent),
-            title: Text(_sorunBildirildi ? 'Bildirildi ✓' : 'Ses gelmiyor',
+            leading: const Icon(LucideIcons.volumeX, color: Colors.orangeAccent),
+            title: Text(_sorunBildirildi ? 'Bildirildi' : 'Ses gelmiyor',
                 style: const TextStyle(color: Colors.orangeAccent)),
             onTap: () {
               Navigator.of(context).pop();

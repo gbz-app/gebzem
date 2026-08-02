@@ -769,8 +769,11 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
                           color: Colors.black45, borderRadius: BorderRadius.circular(8)),
-                      child: Text('👁 $_izleyici',
-                          style: const TextStyle(color: Colors.white, fontSize: 12)),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        Icon(LucideIcons.eye, size: 12, color: Colors.white),
+                        const SizedBox(width: 4),
+                        Text('$_izleyici', style: const TextStyle(color: Colors.white, fontSize: 12)),
+                      ]),
                     ),
                   ),
                   const SizedBox(width: 6),
@@ -786,8 +789,11 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
                           color: Colors.black45, borderRadius: BorderRadius.circular(8)),
-                      child: Text('🪙 $_jeton',
-                          style: const TextStyle(color: Colors.white, fontSize: 12)),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        Icon(LucideIcons.coins, size: 12, color: Colors.white),
+                        const SizedBox(width: 4),
+                        Text('$_jeton', style: const TextStyle(color: Colors.white, fontSize: 12)),
+                      ]),
                     ),
                   ),
                   const Spacer(),

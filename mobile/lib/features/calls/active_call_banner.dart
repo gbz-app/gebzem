@@ -202,11 +202,23 @@ class _AktifAramaBannerState extends ConsumerState<AktifAramaBanner> {
                       // GSM konusurken Gebzem arka planda) karsi tarafin bekletmesini
                       // gosteren HICBIR YER YOKTU.
                       // ⚠️ YAPMA: bu satiri tekrar sabit metne dondurme.
-                      Text(
+                      // ⚠️ TURU 62 — EMOJI YOK. Kullanici emri: "uygulamada hicbir 3B
+                      // ikon istemiyorum, hepsi 2B olsun". Emoji'ler sistem emoji
+                      // fontuyla (Apple Color Emoji / Noto Color Emoji) PARLAK ve
+                      // 3 BOYUTLU cizilir. Yerine Lucide (2B cizgi) ikon.
+                      // ⚠️ YAPMA: arayuze emoji geri koyma.
+                      Row(mainAxisSize: MainAxisSize.min, children: [
+                        if (c.beklemede || c.karsiBeklemede) ...[
+                          const Icon(LucideIcons.pause,
+                              size: 11, color: Color(0xFFFFD9A0)),
+                          const SizedBox(width: 4),
+                        ],
+                        Flexible(
+                          child: Text(
                           c.beklemede
-                              ? '⏸ Arama beklemede'
+                              ? 'Arama beklemede'
                               : (c.karsiBeklemede
-                                  ? '⏸ Karşı taraf beklemeye aldı'
+                                  ? 'Karşı taraf beklemeye aldı'
                                   : 'Aramaya dönmek için dokun'),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -218,6 +230,8 @@ class _AktifAramaBannerState extends ConsumerState<AktifAramaBanner> {
                               fontWeight: (c.beklemede || c.karsiBeklemede)
                                   ? FontWeight.w700
                                   : FontWeight.normal)),
+                        ),
+                      ]),
                     ],
                   ),
                 ),

@@ -332,7 +332,7 @@ class _RoomScreenState extends ConsumerState<RoomScreen> with WidgetsBindingObse
             _elKalkik = false;
           });
           ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('🎙️ Artık konuşmacısın!')));
+              const SnackBar(content: Text('Artık konuşmacısın!')));
         }
       } catch (e) {
         Sentry.captureException(e, stackTrace: StackTrace.current);
@@ -525,7 +525,7 @@ class _RoomScreenState extends ConsumerState<RoomScreen> with WidgetsBindingObse
               Text('Katılımcılar', style: Theme.of(c3).textTheme.titleLarge),
               if (_eller.isNotEmpty) ...[
                 const SizedBox(height: 12),
-                const Text('✋ El kaldıranlar',
+                const Text('El kaldıranlar',
                     style: TextStyle(fontWeight: FontWeight.w600)),
                 for (final e in _eller)
                   ListTile(
@@ -543,7 +543,7 @@ class _RoomScreenState extends ConsumerState<RoomScreen> with WidgetsBindingObse
                   ),
               ],
               const SizedBox(height: 12),
-              const Text('🎙️ Konuşmacılar',
+              const Text('Konuşmacılar',
                   style: TextStyle(fontWeight: FontWeight.w600)),
               for (final k in _konusmacilar)
                 ListTile(
@@ -578,7 +578,7 @@ class _RoomScreenState extends ConsumerState<RoomScreen> with WidgetsBindingObse
                         ]),
                 ),
               const SizedBox(height: 8),
-              Text('🎧 $_canliDinleyici dinleyici',
+              Text('$_canliDinleyici dinleyici',
                   style: TextStyle(color: Theme.of(c3).colorScheme.outline)),
             ],
           );
@@ -652,7 +652,7 @@ class _RoomScreenState extends ConsumerState<RoomScreen> with WidgetsBindingObse
                         Text(
                           _connecting
                               ? 'Bağlanıyor...'
-                              : (_hata ?? '🎧 $_canliDinleyici dinleyici'),
+                              : (_hata ?? '$_canliDinleyici dinleyici'),
                           style: const TextStyle(color: Colors.white60, fontSize: 14),
                         ),
                       ],
@@ -777,10 +777,11 @@ class _RoomScreenState extends ConsumerState<RoomScreen> with WidgetsBindingObse
                     color: Colors.white, fontSize: 34, fontWeight: FontWeight.bold)),
           ),
           if (host)
+            // ⚠️ TURU 62: emoji tac -> Lucide 2B ikon (kullanici emri: hicbir 3B ikon).
             const Positioned(
               top: -6,
               right: -2,
-              child: Text('👑', style: TextStyle(fontSize: 20)),
+              child: Icon(LucideIcons.crown, size: 18, color: Color(0xFFFFC107)),
             ),
         ]),
         const SizedBox(height: 8),

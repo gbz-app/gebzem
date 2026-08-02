@@ -75,16 +75,19 @@ class AramaKaydi {
   /// arayan icin WhatsApp sadece "Sesli arama" yazar. Yon bilinmiyorsa (`null` —
   /// or. sunucu `last_sender_id` dondurmuyorsa) YONSUZ, iki taraf icin de dogru
   /// olan metne duseriz. ⚠️ YAPMA: yon bilinmezken "Cevapsız" yazma.
+  /// ⚠️ TURU 62 — METINDE EMOJI YOK (kullanici emri: "hicbir 3B ikon istemiyorum").
+  /// Emoji sistem emoji fontuyla PARLAK/3B cizilir. Ikon artik AYRI bir widget olarak
+  /// (`onizlemeIkonu`) veriliyor ve cagiran onu 2B Lucide ikonu olarak cizer.
+  /// ⚠️ YAPMA: bu metne emoji geri koyma.
   String onizleme({bool? benimMi}) {
-    if (grup) return grupBitti ? '📹 Grup araması sona erdi' : '📹 Grup araması';
-    final ikon = video ? '📹' : '📞';
+    if (grup) return grupBitti ? 'Grup araması sona erdi' : 'Grup araması';
     final ad = video ? 'Görüntülü arama' : 'Sesli arama';
     if (cevapsiz) {
       if (benimMi == false) {
-        return video ? '$ikon Cevapsız görüntülü arama' : '$ikon Cevapsız sesli arama';
+        return video ? 'Cevapsız görüntülü arama' : 'Cevapsız sesli arama';
       }
-      return '$ikon $ad'; // arayan (veya yon bilinmiyor)
+      return ad; // arayan (veya yon bilinmiyor)
     }
-    return saniye > 0 ? '$ikon $ad · ${sureMetni(saniye)}' : '$ikon $ad';
+    return saniye > 0 ? '$ad · ${sureMetni(saniye)}' : ad;
   }
 }

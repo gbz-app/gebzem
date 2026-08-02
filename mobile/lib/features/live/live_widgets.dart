@@ -3,6 +3,9 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:livekit_client/livekit_client.dart' as lk;
+import 'package:lucide_icons_flutter/lucide_icons.dart';
+
+import '../../core/theme.dart';
 
 /// SendData sinyalini coz (topic 'meta'; govde JSON {"t": ...}). Bozuksa null.
 Map<String, dynamic>? yayinVerisiCoz(List<int> data) {
@@ -142,7 +145,9 @@ class _UcanKalp extends StatelessWidget {
             opacity: (1 - t).clamp(0, 1),
             child: Transform.scale(
               scale: .7 + t * .5,
-              child: const Text('💜', style: TextStyle(fontSize: 26)),
+              // ⚠️ TURU 62: emoji kalp -> Lucide 2B ikon (kullanici emri: hicbir 3B ikon).
+              child: const Icon(LucideIcons.heart,
+                  size: 26, color: morLogoAcik),
             ),
           ),
         );

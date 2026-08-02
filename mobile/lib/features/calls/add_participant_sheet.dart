@@ -23,7 +23,7 @@ class _AddParticipantSheetState extends ConsumerState<AddParticipantSheet> {
   final _query = TextEditingController();
   Timer? _debounce;
   List<Map<String, dynamic>> _results = [];
-  final Set<String> _eklenenler = {}; // bu oturumda eklenenler (buton "Eklendi ✓")
+  final Set<String> _eklenenler = {}; // bu oturumda eklenenler (buton "Eklendi")
   bool _loading = false;
   bool _isleniyor = false;
 
@@ -110,7 +110,7 @@ class _AddParticipantSheetState extends ConsumerState<AddParticipantSheet> {
                         title: Text(u['name'] as String? ?? ''),
                         subtitle: Text('@${u['username'] ?? ''}'),
                         trailing: eklendi
-                            ? const Text('Eklendi ✓',
+                            ? const Text('Eklendi',
                                 style: TextStyle(color: Colors.green))
                             : FilledButton(
                                 onPressed: _isleniyor ? null : () => _ekle(u),
