@@ -3474,3 +3474,55 @@ regresyonlardi. Duzeltilenler:
 ### YENI OLCUMLER (Sentry)
 `gsm dinleyici KAPALI — READ_PHONE_STATE izni yok` · `callkit izin durumu: ... telefon=`
 · `bayat mesgul muhafizi temizlendi (start|answer|oda|yayin): [...]`
+
+## TEST TURU 57 SURUMU YAYINLANDI (2 Agu 16:58) — "GSM SONRASI DEVAM ETMIYOR" KOK COZUM
+- android **30750686204** + ios **30750682791** (commit **33089f9**), debug imza YOK.
+- R2: apk **105211469** (MD5 `a0e58721…` -> `c5b33691…`) · ipa **19313086** · index **7670**.
+  Purge OK, CDN birebir, backend degismedi + health ok, DB temiz.
+
+### KULLANICI BILDIRIMI (turu 56 testi)
+"Beklet ekrani GELIYOR, kabul edince Gebzem sesi SUSUYOR (buraya kadar dogru), ama
+GSM'i kapatinca KALDIGI YERDEN DEVAM ETMIYOR. Sonra tekrar aradigimda 'arama bulunamadi'
+diyor, patliyor."
+
+### KOK NEDEN — TURU 55 REGRESYONU (SUNUCU LOGUYLA KANITLI)
+Sunucu logunda `POST /calls/{id}/answer` **6 KEZ 404 "arama bulunamadi"**; hepsi
+ARAYANIN cihazindan ve aramanin ZATEN cevaplanmasindan SANIYELER SONRA:
+| arama | cevaplandi | 404 answer |
+|---|---|---|
+| 19be2fd1 | 13:29:34 | **13:29:38** |
+| c14c07d0 | 13:30:36 | 13:30:40 |
+| f9da4635 | 13:30:55 | 13:30:57 |
+| 24f165f4 | 13:35:16 | 13:35:18 |
+| 8fcd847f | 13:35:27 | 13:35:30 |
+
+**MEKANIZMA:** turu 55'te GIDEN aramayi da CallKit'e kaydetmeye basladik
+(`CallKitService.gidenArama` -> `FlutterCallkitIncoming.startCall`). Amac dogruydu
+(iOS "Beklet ve Kabul" ekranini ancak CallKit'te AKTIF arama varsa cizer) ama YAN ETKISI:
+ARAYAN tarafta da CallKit'te aktif bir arama olusuyor ve CallKit **"kabul" olayi**
+uretince `main._callKitKabul` calisip **KENDI GIDEN ARAMAMIZI** cevaplamaya calisiyordu.
+Sunucu HAKLI OLARAK 404 donuyor (`SELECT ... WHERE id=$1 AND callee_id=$2` — arayan
+callee DEGIL).
+
+**ZINCIRLEME HASAR (iki semptomun TEK kaynagi):**
+1. 404 -> `main.dart` catch dali -> `CallKitService.bitir(callId)` -> **CallKit kaydimiz
+   YOK EDILIYOR** -> iOS ses oturumunu birakip GERI VERMIYOR -> GSM bekletmesinden sonra
+   Gebzem **SESSIZ** ("kaldigi yerden devam etmiyor").
+2. Ayni catch dali hatayi SnackBar ile gosteriyor -> kullanici **"arama bulunamadi"** goruyor.
+
+### FIX
+`CallKitService.gidenler` kumesi: BIZIM baslattigimiz (giden) CallKit aramalari.
+`_olay`daki `CallEventActionCallAccept` dali bu id'ler icin **YOK SAYIYOR** — o olay
+yalnizca GERCEKTEN GELEN aramalar icin anlamlidir.
+`gidenArama()` doldurur; `bitir()` ve `davetSifirla()` bosaltir.
+⚠️ YAPMA: bu kapiyi kaldirma; `gidenler` kumesini `gidenArama` disinda doldurma.
+
+### TURU 56 TESTINDEN CIKAN OLUMLU SONUCLAR (kayit)
+· **Cokme YOK** (0 yeni kayit)
+· **`callkit izin durumu: ... telefon=TRUE`** -> 36 turdur alinamayan Android GSM izni
+  ARTIK ALINIYOR (turu 56 izin-sirasi fix'i TUTTU)
+· 17 aramada **tek tarafli video YOK**
+· 3 oda (1/2/3 kisilik) ve 3 yayin sorunsuz
+· `bayat mesgul muhafizi`, `kamera acilamadi`, `video yayin yok`, `arama tipi CELISKI`,
+  `GORUNTULU arama SESLI basladi`, `gsm dinleyici KAPALI` -> HICBIRI CIKMADI
+· PiP: `oturum=true yerel3=90 cagri=2 iptal=0 msMax=0`
