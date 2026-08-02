@@ -2185,6 +2185,30 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
   // (sirali-gecis tuzagi). Teardown closure'i nesli enqueue ANINDA yakalar.
   static int _sesNesilSayaci = 0;
   int _benimSesNeslim = 0;
+  /// ⚠️ TEST TURU 56 — ANDROID SES TAZELEME (eksikti).
+  /// `_sesiAc` Android'de KOSULSUZ erken donuyor (`if (!Platform.isIOS) return;`), yani
+  /// GSM bekletmesinden sonra ses birimini toparlayan HICBIR SEY yoktu: GSM gorusmesi
+  /// ses odagini birakinca Gebzem'in sesi SAGIR donebiliyordu.
+  /// Burada iOS'un `_sesiAc`ine karsilik gelen HAFIF bir tazeleme yapiyoruz: ses ROTASI
+  /// ve MIKROFON son duruma gore yeniden uygulanir — bu, LiveKit'in Android ses yolunu
+  /// yeniden kurmasi icin yeterli.
+  /// ⚠️ YALNIZ KURTARMA yollarindan cagrilir (`beklemeyeAl(false)` ve `devamEt`);
+  /// `_connect` icinden CAGIRILMAZ — orada ses zaten dogru sirayla kuruluyor ve fazladan
+  /// bir uygulama kisa bir ses catlamasi yaratir.
+  /// ⚠️ YAPMA: bunu `_connect` akisina sokma; iOS'ta cagirma (orada `_sesiAc` var).
+  Future<void> _androidSesTazele() async {
+    if (!Platform.isAndroid) return;
+    final room = _room;
+    if (room == null || _ayrildi || beklemede) return;
+    try {
+      await room.setSpeakerOn(_speakerOn);
+      await room.localParticipant?.setMicrophoneEnabled(_micOn);
+      _sesLog('android ses tazelendi (hoparlor=$_speakerOn mic=$_micOn)');
+    } catch (e) {
+      _sesLog('android ses tazeleme hatasi: $e');
+    }
+  }
+
   Future<void> _sesiAc(bool ac) async {
     if (!Platform.isIOS) return;
     if (ac) {
@@ -2588,6 +2612,7 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     _aboneliklerKur(p.bilgi.callId);
     await _medyaBeklet(p.room, false, micHedef: p.micOn, camHedef: p.camOn);
     await _sesiAc(true); // iOS: ses birimi EN SON (hold->resume ses kaybi tuzagi)
+    await _androidSesTazele(); // turu 56: Android'de ses rotasi/mic geri uygulanir
     unawaited(_svc.hold(p.bilgi.callId, false));
     _startTimer();
     _aktifPollBaslat();
@@ -2706,7 +2731,10 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     if (beklemede == aktif) return;
     beklemede = aktif;
     await _medyaBeklet(room, aktif, micHedef: _micOn, camHedef: _camOn);
-    if (!aktif) await _sesiAc(true); // geri donuste ses birimini tazele (Apple tuzagi)
+    if (!aktif) {
+      await _sesiAc(true); // iOS: ses birimini tazele (Apple tuzagi)
+      await _androidSesTazele(); // turu 56: Android'de karsiligi YOKTU — GSM sonrasi sagirlik
+    }
     // ⚠️ Sunucuya ORIJINAL id gonderilir (buyuk harfli CallKit id'si DEGIL).
     unawaited(_svc.hold(arama!.callId, aktif));
     notifyListeners();
