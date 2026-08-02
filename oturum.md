@@ -3685,3 +3685,95 @@ uctan gecmez). Ayrica iki istemci cagirani da ham icerik yerine notr metin basiy
 5. Elle kucultunce yesil bant ANINDA cizilmeli.
 6. GSM aramasi (Android + iOS "Beklet ve Kabul") sonrasi kaldigi yerden devam + EKRAN.
 7. Sesli oda ve canli yayin: hicbir degisiklik olmamali.
+
+---
+
+## Oturum (2 Agu 2026, gece) — TURU 60: "ANDROID BEKLETMESI KARSI TARAFA GITMIYOR"
+
+**YAYIN:** android 30759365570 + ios 30759366701 (1159115), R2 apk=108254021
+(md5 6562395b) ipa=22344917 (md5 6aa52c46), purge OK, CDN'den indirilen APK yerelle
+MD5 BIREBIR, indir sayfasi 20:52, backend DEGISMEDI (db7e8a8) + health ok, DB temiz.
+
+### 🔴 ILK HIPOTEZIM CURUTULDU (kayit — bir daha ayni yola sapma)
+Sunucu logunda "17:11-17:15 arasi uc aramada hic hold yok" gorup **"Android hold
+gondermiyor, kullanicinin duydugu ses kesilmesi Android'in KENDI ses odagi"** dedim.
+15 ajanlik arastirma bunu CURUTTU: ajan `AUDIO` teshis satirlarindaki **mikrofon
+enerjisi** ile hold isteklerini korele etti —
+`ad4160e8`: hold 17:01:10 -> Android (erdem) mikE=0.0 (17:01:08-14), hold-off 17:01:15
+-> mikE=27.4 (17:01:16). `9f32f295`: hold 17:01:49 -> mikE=0.0 KESINTISIZ 17:01:51-
+17:02:11, ayni anda iOS tarafi mikE=420-792.
+**19 hold'un 6'si ANDROID, 6'si iOS, 7'si park yolundan.** Android GSM zinciri
+(TelefonDurumu.kt -> gsmAramada -> beklemeyeAl -> _svc.hold) SAHADA CALISIYOR.
+**DERS:** "log'da yok" != "gonderilmiyor". Aramanin HANGI tarafinin ne yaptigini
+ancak taraf-bazli olcumle (mik enerjisi, WS oturum pencereleri) ayirt edebilirsin.
+
+### 🔴 GERCEK KOK NEDEN: ROZET CIZILIYOR AMA KIRPILIYOR
+Bekletme rozeti DIKEY yigin icin yazilmis (`top: 6` payi bunu ele veriyor) ama bir
+`Row`un cocuguydu. Row'un hicbir cocugu `Flexible` degil -> `RenderFlex` hepsini
+SINIRSIZ ana-eksen genisligiyle olcer; Row ise `Positioned(left:0,right:0)` ile EKRAN
+GENISLIGINE tutturuludur.
+Karsi taraf GSM'i kabul edince uygulamasi arka plana gecer -> bizde `karsiKalite`
+duser -> `uyariMetni` ("X baglantisi zayif") DOLAR. O kapinin sarti `!c.beklemede`;
+KARSI tarafta `beklemede` FALSE oldugu icin kapi ACIKTIR. Sonuc: sure (~42px) +
+uyari bloku (193-231px) + rozet (~220px) = 470-510px, ekran 360-414px -> **rozet
+sagdan tasar ve ust `Stack` (varsayilan `Clip.hardEdge`) onu KIRPAR.**
+Yani sinyal gidiyordu, olay aliniyordu, rozet cizilyordu — **sadece GORUNMUYORDU.**
+
+### FIXLER
+1. Rozet Row'dan CIKARILDI -> ust Column'un dogrudan cocugu; tam genislikte, 14px
+   kalin, ortali turuncu serit ("⏸ Karşı taraf aramayı beklemeye aldı").
+   ⚠️ YAPMA: rozeti tekrar o Row'un icine koyma.
+2. Bekletme aktifken uyari seridi BASTIRILDI (`!c.karsiBeklemede` eklendi) — hem
+   YANILTICI (sebep ag degil, bekletme) hem tasmaya katkida bulunuyordu.
+3. Uyari seridi `Flexible` ile sarildi. Icindeki `Flexible` **OLU KODDU**: dis Row'un
+   flex OLMAYAN cocugu oldugu icin sinirsiz kisitla olculuyor, ic Row'da canFlex=false
+   oluyor ve `ellipsis` HIC devreye girmiyordu -> turu 23'un "uzun uyari metni tasiyor"
+   duzeltmesi fiilen TUTMAMIS. ⚠️ YAPMA: bu Flexible'i kaldirma.
+4. `_svc.hold` MEDYANIN ONUNE alindi. Eskiden metodun SON satiriydi: UC await ve IKI
+   kimlik kapisinin ARKASINDA. Unhold yolunda bir kapi tetiklenirse karsi taraf
+   SONSUZA KADAR "beklemede" kalirdi (rozeti temizleyecek BASKA yol yok).
+   ⚠️ YAPMA: tekrar await'lerin/kapilarin altina tasima.
+5. `hold()` REST'i: hata TAMAMEN yutuluyordu (`catch (_) {}`) ve TEK deneme vardi.
+   GSM kabulu sirasinda telefon hucresel/wifi gecisi yasar; istek o an duserse karsi
+   taraf HIC ogrenmezdi ve gorecek olcum de yoktu. Artik 3 deneme + Sentry olcumu.
+6. Bekletme bilgisi KUCULTULMUS aramada da (yesil bant). Rozet YALNIZ CallScreen
+   agacindaydi; GSM konusurken Gebzem arka planda oldugu icin kullanicinin BAKTIGI
+   yerde hicbir gosterge YOKTU.
+7. **IKI OLCUM KORLUGU KAPATILDI:** GSM olayi ve `call.held` ALIMI artik GERCEK Sentry
+   olayi. Ikisi de `_sesLog` (= yalniz BREADCRUMB) idi; breadcrumb ancak baska bir
+   olayla birlikte yuklenir. Bu yuzden "Android'de olay geliyor mu", "call.held
+   istemcide islendi mi" sorularini 4 turdur TELEMETRIYLE KANITLAYAMIYORDUK.
+   (Turu 50'de birebir ayni tuzak: "hata `_sesLog` ile yutuluyordu".)
+   ⚠️ YAPMA: bunlari tekrar breadcrumb'a cevirme.
+
+### 🚫 AJANLARIN ELEDIGI COZUMLER (kayit — tekrar onerme)
+- **hold icin PUSH YEDEGI:** iOS'ta arama olaylari APNs VoIP ile gidiyor ve "VoIP push
+  gelince CallKit'e KOSULSUZ reportNewIncomingCall" kurali var -> hold icin push =
+  HAYALET GELEN ARAMA ekrani. Android'de de `_fcmArkaPlan` yalniz uc tipi taniyor ve
+  Android 14 freezer'i yuzunden teslim garantisiz.
+- **`calls` tablosuna `held_by` sutunu:** grup aramasinda ayni anda birden fazla kisi
+  beklemede olabilir -> tek sutun YANLIS model; ayrica handler'in acik tasarim kararini
+  ("Sunucu arama satirina DOKUNMAZ") tersine cevirir.
+- **wakelock / ekrani acik tut:** projede YAKINLIK SENSORU kodu HIC YOK. Wakelock +
+  proximity yoksa sesli aramada yanak dokunuslari "Kapat"/"Mikrofon" dugmelerine basar
+  ve pil belirgin akar. WhatsApp TAM TERSINI yapar (yuz yaklasinca ekrani KARARTIR).
+- **WS'i arama boyunca acik tutmak:** turu 33 dersi — yari-acik soket yuzunden sunucu
+  kullaniciyi online sanip push ATMIYOR, telefon CALMIYOR.
+
+### KALAN BILINEN ZAYIFLIK (bilincli kabul edildi)
+`call.held` kaybolabilir bir olaydir: kuyruk/push yedegi/DB durumu YOK. Istemci her
+arka plana geciste WS'i kapatiyor (`bg` cercevesi; kilit-ekrani push'u icin ZORUNLU).
+Sunucu olcumu: iOS cihaz 47 dakikada 27 WS oturumu, en kisa 1.7sn. 19 hold'un en az
+3'u hedefe HIC ULASMADI (her iki taraf da o an WS'te degildi). Ajanlar bunu DUSUK
+olarak derecelendirdi ve onerilen cozumlerin maliyetini kazanimdan BUYUK buldu.
+Turu 60'in olcumleri (madde 7) bir dahaki turda bu olayin ne siklikta kaybolduguna
+GERCEK VERIYLE bakmayi mumkun kilacak.
+
+### TEST EDILECEKLER (kullanici)
+1. **Android:** Gebzem sesli gorusme sirasinda GSM aramasi gelsin, KABUL et ->
+   KARSI TARAFTA "⏸ Karşı taraf aramayı beklemeye aldı" seridi GORUNMELI.
+2. GSM bitince -> serit KAYBOLMALI, konusma kaldigi yerden devam etmeli.
+3. Arama KUCULTULMUSKEN (yesil bant) da "⏸ Karşı taraf beklemeye aldı" yazmali.
+4. iOS "Beklet ve Kabul" yolu ESKISI GIBI calismali (regresyon kontrolu).
+5. Bekletme sirasinda "baglantisi zayif" uyarisi CIKMAMALI (artik bastiriliyor).
+6. Sesli oda + canli yayin: hicbir degisiklik olmamali.

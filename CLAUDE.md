@@ -17,7 +17,54 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (2 Agu 19:05):** TEST TURU 58+59 YAYINLANDI — android 30755334616 +
+- **KALDIGIMIZ YER (2 Agu 20:52):** TEST TURU 60 YAYINLANDI — android 30759365570 +
+  ios 30759366701 (1159115), R2 apk=108254021 (md5 6562395b) ipa=22344917 (md5 6aa52c46),
+  purge OK, CDN'den indirilen APK yerelle MD5 BIREBIR, indir sayfasi saati 20:52,
+  **backend DEGISMEDI** (db7e8a8'de kaldi) + health ok, DB temiz. **KULLANICI TEST EDECEK.**
+- ⚠️⚠️ **TURU 60 — "ANDROID GSM BEKLETMESI KARSI TARAFA GITMIYOR": ROZET CIZILIYORDU
+  AMA EKRANDAN TASIP KIRPILIYORDU** (15 ajanlik kok-neden arastirmasi).
+  🔴 **ILK HIPOTEZIM CURUTULDU:** "Android hold gondermiyor" YANLISTI. Mikrofon-enerjisi
+  korelasyonuyla KANITLANDI: hold POST'uyla ES ZAMANLI olarak Android cihazin mikrofon
+  enerjisi 0.0'a dusuyor, hold-off'ta geri geliyor; ayni anda iOS tarafi konusuyor.
+  19 hold'un 6'si ANDROID, 6'si iOS, 7'si park (cagri bekletme) yolundan.
+  **Android GSM zinciri CALISIYOR — sorun GONDERMEDE degil GORUNMEDE idi.**
+  **KOK NEDEN:** bekletme rozeti DIKEY yigin icin yazilmisti (`top: 6` payi ele veriyor)
+  ama bir `Row`un cocuguydu. Row'un hicbir cocugu `Flexible` degil -> RenderFlex hepsini
+  SINIRSIZ genislikle olcer, Row ise `Positioned(left:0,right:0)` ile EKRAN GENISLIGINE
+  tutturuludur. Karsi taraf GSM'i kabul edince uygulamasi arka plana gecer -> `karsiKalite`
+  duser -> `uyariMetni` ("X baglantisi zayif") DOLAR (o kapi `!c.beklemede`ye bagli, yani
+  KARSI tarafta ACIKTIR) -> sure + uyari + rozet ~490px, ekran 360-414px -> rozet sagdan
+  TASAR ve ust `Stack` (varsayilan `Clip.hardEdge`) KIRPAR.
+  **Rozet CIZILIR ama EKRANDA GORUNMEZ.**
+  **FIXLER:** (1) rozet Row'dan CIKARILDI -> ust Column'un dogrudan cocugu; tam genislikte,
+  14px kalin, ortali turuncu serit. ⚠️ YAPMA: rozeti tekrar o Row'un icine koyma.
+  (2) bekletme aktifken uyari seridi BASTIRILDI (`!c.karsiBeklemede` eklendi) — hem
+  yaniltici (sebep ag degil, bekletme) hem tasmaya katki.
+  (3) uyari seridi `Flexible` ile sarildi: icindeki `Flexible` OLU KODDU (dis Row'un flex
+  OLMAYAN cocugu -> sinirsiz kisit -> ellipsis HIC calismiyordu; turu 23'un "uzun uyari
+  metni tasiyor" duzeltmesi fiilen TUTMAMIS). ⚠️ YAPMA: bu Flexible'i kaldirma.
+  (4) `_svc.hold` MEDYANIN ONUNE alindi — eskiden UC await ve IKI kimlik kapisinin
+  ARKASINDAYDI; unhold yolunda bir kapi tetiklenirse karsi taraf SONSUZA KADAR
+  "beklemede" kaliyordu (temizleyecek baska yol YOK). ⚠️ YAPMA: await'lerin altina tasima.
+  (5) `hold()` REST: hata TAMAMEN yutuluyordu (`catch (_) {}`) + TEK deneme -> 3 deneme
+  (artan aralik) + basarisizsa Sentry olcumu. ⚠️ YAPMA: sessiz yutmaya donme.
+  (6) bekletme bilgisi KUCULTULMUS aramada da gorunuyor (yesil bant). Rozet yalniz
+  CallScreen agacindaydi; GSM konusurken Gebzem arka planda oldugu icin kullanicinin
+  BAKTIGI yerde hicbir gosterge YOKTU.
+  (7) **IKI OLCUM KORLUGU KAPATILDI:** GSM olayi ve `call.held` alimi artik GERCEK Sentry
+  olayi. Ikisi de `_sesLog` = yalniz BREADCRUMB idi; breadcrumb ancak baska bir olayla
+  yuklenir, bu yuzden 4 turdur telemetriyle KANITLAYAMIYORDUK (turu 50 ile ayni tuzak).
+  ⚠️ YAPMA: bunlari tekrar breadcrumb'a cevirme.
+  🚫 **AJANLARIN ELEDIGI COZUMLER — TEKRAR ONERME:**
+  · hold icin PUSH YEDEGI -> iOS'ta VoIP push = HAYALET GELEN ARAMA ekrani (CLAUDE.md
+    "reportNewIncomingCall KOSULSUZ" kurali).
+  · `calls` tablosuna `held_by` sutunu -> GRUP icin YANLIS model (ayni anda birden fazla
+    kisi beklemede olabilir) + handler'in acik tasarim kararini tersine cevirir.
+  · wakelock / ekrani-acik-tut -> projede YAKINLIK SENSORU YOK; sesli aramada yanak
+    dokunuslari dugmelere basar + pil akar (WhatsApp TAM TERSINI yapar: ekrani karartir).
+  · WS'i arama boyunca acik tutmak -> turu 33: yari-acik soket yuzunden push atilmiyor,
+    telefon CALMIYOR.
+- **ONCEKI (2 Agu 19:05):** TEST TURU 58+59 YAYINLANDI — android 30755334616 +
   ios 30755335791 (db7e8a8), R2 apk=108254021 (md5 7d33c2d6) ipa=22342407, purge OK,
   CDN'den indirilen APK yerelle MD5 BIREBIR, indir sayfasi saati 19:05 gorunuyor,
   **BACKEND DEPLOY EDILDI** (db7e8a8, health ok, yeni SQL canli DB'de test edildi),
