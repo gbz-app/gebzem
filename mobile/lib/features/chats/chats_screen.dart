@@ -6,6 +6,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/api.dart';
 import '../../core/theme.dart';
+import 'arama_kaydi.dart';
 import 'chats_provider.dart';
 import 'models.dart';
 
@@ -217,6 +218,12 @@ class _ChatTile extends ConsumerWidget {
         return '🎤 Sesli mesaj';
       case 'location':
         return '📍 Konum';
+      case 'system':
+        // TURU 59 — ARAMA KAYDI: eskiden HAM icerik basiliyordu, kullanici sohbet
+        // listesinde "call:ended:audio:75" goruyordu. Ayristirma `AramaKaydi`de TEK
+        // yerde (balonla ayni kaynak). Taninmayan sistem mesaji -> ham metin (eski
+        // davranis; arama disi sistem mesajlari bozulmasin).
+        return AramaKaydi.coz(chat.lastMessage)?.onizleme() ?? chat.lastMessage;
       default:
         return chat.lastMessage;
     }

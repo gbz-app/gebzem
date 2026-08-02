@@ -1023,19 +1023,14 @@ func (h *Handler) End(w http.ResponseWriter, r *http.Request) {
 	if newStatus == "missed" {
 		go h.logCallToChat(context.Background(), callerID, calleeID, "call:missed:"+aramaTipi(callType))
 	}
-	// TEST TURU 58 — CEVAPLANAN arama da sohbete yazilir (WhatsApp paritesi):
-	// "call:ended:audio|video:<saniye>". Sure `answered_at` -> `ended_at` farkidir;
-	// 0 sn'lik kayit YAZILMAZ (kullanici acar acmaz kapatmis, gurultu olur).
-	// ⚠️ YAPMA: cevapsiz ('missed') aramada bunu da yazma — cift kayit olur.
+	// TEST TURU 58 — CEVAPLANAN arama da sohbete yazilir (WhatsApp paritesi).
+	// ⚠️ TURU 59 DUZELTMESI: bu kod BURADA TEK BASINA OLUNCA PRATIKTE HIC CALISMIYORDU —
+	// LiveKit webhook'u (localhost, ms'ler icinde) `active`->`ended` yarisini neredeyse HER
+	// ZAMAN kazaniyor, istemcinin /end'i yukaridaki `RowsAffected()==0` kapisinda geri
+	// donuyordu. Kayit artik ORTAK yardimcida ve yarisi KAZANAN her iki yoldan da cagriliyor
+	// (bkz. webhook.go). Kazanan tek oldugu icin balon TAM BIR KEZ yazilir.
 	if newStatus == "ended" {
-		var sn int
-		h.db.QueryRow(r.Context(),
-			`SELECT COALESCE(EXTRACT(EPOCH FROM (ended_at - answered_at))::int, 0)
-			 FROM calls WHERE id=$1 AND answered_at IS NOT NULL`, callID).Scan(&sn)
-		if sn > 0 {
-			icerik := fmt.Sprintf("call:ended:%s:%d", aramaTipi(callType), sn)
-			go h.logCallToChat(context.Background(), callerID, calleeID, icerik)
-		}
+		go h.bitenAramayiSohbeteYaz(context.Background(), callID)
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": newStatus})
@@ -1535,6 +1530,39 @@ func aramaTipi(t string) string {
 	return "audio"
 }
 
+// bitenAramayiSohbeteYaz — CEVAPLANMIS 1:1 arama bitince sohbete
+// "call:ended:audio|video:<saniye>" sistem mesaji dusurur (WhatsApp paritesi).
+//
+// ⚠️ SADECE `status 'active'->'ended'` GECISINI KAZANAN yerden cagrilir:
+// End() handler'i VEYA LiveKit webhook'u (webhookAramaKapat). Ikisi de ayni
+// `UPDATE ... WHERE status IN (...)` mutex'ine takilir, dolayisiyla yalniz BIRI
+// buraya ulasir -> balon TAM BIR KEZ yazilir.
+// ⚠️ YAPMA: bu cagriyi mutex'in (RowsAffected>0) DISINA tasima — CIFT BALON olur.
+//
+// Sure `answered_at` -> `ended_at` farkidir; cevaplanmamis (answered_at NULL),
+// grup ve 0 sn'lik aramalar YAZILMAZ (gurultu).
+//
+// ⚠️ COP TOPLAYICI yollarina BILEREK EKLENMEDI (sweep 2 saat / olu-arama 90sn /
+// oluAramaTemizle): oralarda `ended_at=now()` GERCEK kapanistan cok sonradir ve
+// balonda SISMIS sure gosterirdi. Yanlis sure, balonun hic olmamasindan kotudur.
+// ⚠️ YAPMA: bu cagriyi sweeper'lara "eksik kalmasin" diye ekleme.
+func (h *Handler) bitenAramayiSohbeteYaz(ctx context.Context, callID string) {
+	var caller, callee, tip string
+	var sn int
+	if h.db.QueryRow(ctx, `
+		SELECT caller_id, COALESCE(callee_id::text,''), type,
+		       COALESCE(EXTRACT(EPOCH FROM (ended_at - answered_at))::int, 0)
+		FROM calls
+		WHERE id=$1 AND COALESCE(is_group,false)=false AND answered_at IS NOT NULL`,
+		callID).Scan(&caller, &callee, &tip, &sn) != nil {
+		return // grup / cevaplanmamis / bulunamadi
+	}
+	if sn <= 0 || caller == "" || callee == "" {
+		return
+	}
+	h.logCallToChat(ctx, caller, callee, fmt.Sprintf("call:ended:%s:%d", aramaTipi(tip), sn))
+}
+
 // logCallToChat: aramayi WhatsApp gibi sohbet thread'ine sistem mesaji
 // kaydi (type='system', content 'call:missed:audio|video') olarak dusurur ve callee
 // OFFLINE ise bildirim gonderir. Direct sohbet yoksa olusturur. SADECE 'missed' icin
@@ -1585,11 +1613,16 @@ func (h *Handler) logCallToChat(ctx context.Context, callerID, calleeID, icerik 
 		 RETURNING id, created_at`, chatID, callerID, content).Scan(&msgID, &createdAt) != nil {
 		return
 	}
-	// Okunmamis rozeti icin teslim kaydi (callee icin unread sayilir; sender_id=caller)
+	// Okunmamis rozeti icin teslim kaydi (callee icin unread sayilir; sender_id=caller).
+	// ⚠️ TURU 59: CEVAPLANAN arama kaydi ("call:ended:*") OKUNMUS dogar — kisi zaten o
+	// aramada konustu, sohbet listesinde yesil rozet cikarmasi gurultu olur (WhatsApp da
+	// cikarmaz). CEVAPSIZ ("call:missed:*") rozet URETMEYE devam eder.
+	okunmusDog := strings.HasPrefix(icerik, "call:ended:")
 	for _, uid := range []string{callerID, calleeID} {
 		h.db.Exec(ctx,
-			`INSERT INTO message_receipts (message_id, user_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`,
-			msgID, uid)
+			`INSERT INTO message_receipts (message_id, user_id, read_at)
+			 VALUES ($1,$2, CASE WHEN $3::bool THEN now() ELSE NULL END) ON CONFLICT DO NOTHING`,
+			msgID, uid, okunmusDog)
 	}
 
 	payload, _ := json.Marshal(map[string]any{

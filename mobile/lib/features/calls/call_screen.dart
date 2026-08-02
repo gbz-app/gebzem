@@ -47,6 +47,10 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     _c = ref.read(activeCallProvider);
     _benimEkranim = _c.arama?.callId == widget.bilgi.callId;
     if (_benimEkranim) {
+      // ⚠️ TURU 59: SAHIPLIK JETONU. Bu ekran artik "gecerli ekran"; daha eski bir
+      // CallScreen'in gecikmis `dispose`u (ters gecis 160ms + kuyruk) buradan sonra
+      // calisirsa jeton uyusmayacagi icin controller durumuna DOKUNAMAZ.
+      _c.ekranSahibi = this;
       _c.ekranGorunur = true;
       _c.minimized = false;
       _c.addListener(_ctrlDegisti);
@@ -79,8 +83,12 @@ class _CallScreenState extends ConsumerState<CallScreen> {
         // ⚠️ TURU 58: 240ms icinde arama DIRILMIS olabilir (park -> `devamEt` 500ms
         // zamanlayicisi, ya da yeni bir arama devralmis olabilir). Eskiden bu kontrol
         // YOKTU ve YASAYAN aramanin ekrani pop ediliyordu.
-        // ⚠️ YAPMA: bu kontrolu kaldirma.
-        if (_c.arama != null) {
+        // ⚠️ TURU 59 EKI: dirilme YALNIZ hala SAHIP isek gecerli. Jeton baskasindaysa
+        // ARADA YENI BIR ARAMA DEVRALMIS demektir; bu ekran BAYAT ve normal pop
+        // akisina dusmeli. Eskiden burada kalir, ustelik `ekranGorunur=true` yazip
+        // canli ekranin durumunu bozar, AYNI track'e IKINCI renderer baglanirdi.
+        // ⚠️ YAPMA: bu kontrolu kaldirma veya jeton sartini dusurme.
+        if (_c.arama != null && identical(_c.ekranSahibi, this)) {
           _kapaniyor = false;
           _c.ekranGorunur = true; // ekran duruyor — mandali geri al
           if (mounted) setState(() => _kapanisAnim = false);
@@ -110,6 +118,17 @@ class _CallScreenState extends ConsumerState<CallScreen> {
   void dispose() {
     if (_benimEkranim) {
       _c.removeListener(_ctrlDegisti);
+      // ⚠️ TURU 59 — BAYAT DISPOSE KAPISI. `dispose` pop kararindan ~400ms SONRA
+      // (ters gecis 160ms + kuyruk) calisir; o aralikta YENI bir arama devralip kendi
+      // ekranini acmis olabilir. Jeton bizde degilse controller durumuna DOKUNMA —
+      // aksi halde CANLI ekranin ustune `minimized` + yesil bant biniyordu.
+      // ⚠️ YAPMA: bu kapiyi kaldirma veya callId karsilastirmasina cevirme
+      // (`geriAra()` yolunda callId ayni ekran yasarken degisir).
+      if (!identical(_c.ekranSahibi, this)) {
+        super.dispose();
+        return;
+      }
+      _c.ekranSahibi = null;
       // ⚠️⚠️ TEST TURU 58 — KOK NEDEN ("GSM sonrasi arama devam ediyor ama EKRAN GIDIYOR").
       // Karar eskiden `_kapaniyor` BAYRAGINA bakiyordu. O bayrak "arama bitti, kapaniyoruz"
       // demek; ama bayrak true olup arama HALA YASIYORSA (240ms'lik gecikmeli pop ile

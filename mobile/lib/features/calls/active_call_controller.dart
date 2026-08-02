@@ -164,6 +164,19 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
   bool minimized = false;
   bool ekranGorunur = false; // CallScreen kendini kaydeder (cift-push korumasi)
 
+  /// ⚠️ TURU 59 — EKRAN SAHIPLIK JETONU (aktif `CallScreen` State nesnesi).
+  ///
+  /// Neden: bir CallScreen'in `dispose`u, pop'un TERS GECISI (160ms) bittikten sonra —
+  /// yani karar anindan ~400ms SONRA — calisir. O aralikta YENI bir arama devralip
+  /// KENDI CallScreen'ini push edebilir. Bayat ekranin gecikmis dispose'u o zaman
+  /// `ekranGorunur=false` + `minimized=true` yazip CANLI ekranin ustune yesil bant
+  /// bindiriyordu (banta dokunmak ekrani IKINCI kez push ediyordu).
+  ///
+  /// `callId` karsilastirmasi YETMEZ: `geriAra()` yolunda ayni ekran yasarken callId
+  /// degisir. Bu yuzden NESNE KIMLIGI (`identical`) kullanilir.
+  /// ⚠️ YAPMA: bu jetonu callId karsilastirmasiyla degistirme.
+  Object? ekranSahibi;
+
   // FAZ-6 ANDROID PiP: sistem yuzen penceresi (uygulama-DISI kuculme; WhatsApp paritesi).
   // PiP MINIMIZE DEGILDIR — CallScreen route'ta kalir, leave tek-kapi bozulmaz.
   bool pipModunda = false;
@@ -1364,8 +1377,17 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       // Android karsiligi budur.
       // GUVENLI: Android'de PiP sirasinda Activity PAUSED durumdadir; `resumed` demek
       // PiP'te DEGILIZ demektir. ⚠️ YAPMA: bu sifirlamayi kaldirma.
-      if (Platform.isAndroid && pipModunda) {
+      //
+      // ⚠️ TURU 59 EKI: `PipService.pipModu` (PAYLASILAN bayrak) da temizlenir.
+      // Turu 58'de yalniz controller'in kendi `pipModunda` alani iyilestiriliyordu;
+      // ama YAYIN ve IZLEYICI ekranlari sade gorunum icin PAYLASILAN bayraga bakar.
+      // O bayrak Android'de HICBIR yerde oz-iyilestirilmiyordu: kacan tek bir
+      // `pipDegisti(false)` geri bildirimi, sonraki canli yayinin ekranini kalici
+      // olarak "PiP sade gorunumu"nde birakabilirdi.
+      // ⚠️ YAPMA: paylasilan bayragin temizligini geri alma.
+      if (Platform.isAndroid && (pipModunda || PipService.pipModu.value)) {
         pipModunda = false;
+        PipService.pipModu.value = false;
         notifyListeners();
       }
       if (Platform.isIOS) {
@@ -2872,6 +2894,21 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     // katmani yikilmiyor), yalniz sayfanin BELIRME bicimi degisiyor.
     // ⚠️ YAPMA: buraya slide/scale gecisi koyma (cizme hissi geri gelir);
     // `opaque: false` yapma (altindaki sayfa gorunur, siyah perde kalkar).
+    //
+    // ⚠️ TURU 59 DUZELTMESI (build oncesi denetim): siyah zemin ONCEDEN
+    // `FadeTransition`in DISINDA, sabit bir `Container` idi. Sonucu:
+    //   · POP yonunde icerik solarken siyah katman TAM OPAK duruyordu ->
+    //     160ms boyunca DUZ SIYAH ekran, sonra alttaki sayfaya SERT kesme
+    //     (kullanicinin istedigi "cizilmis gibi devam etsin" hissinin tersi).
+    //   · `barrierColor` zaten ayni siyahi veriyordu -> arama BOYUNCA iki fazla
+    //     tam ekran opak katman bosuna cizilyordu.
+    // FIX: sabit Container KALDIRILDI; siyah zemini `barrierColor` sagliyor ve
+    // icerik iki yonde de SIMETRIK soluyor.
+    // Egri `anim.drive(CurveTween(...))` ile veriliyor: `CurvedAnimation` her
+    // KAREDE yeniden kuruluyordu ve hicbiri dispose edilmiyordu (dinleyici
+    // birikimi). `CurveTween` durumsuzdur, dinleyici kaydetmez.
+    // ⚠️ YAPMA: `Container(color: Colors.black)`i geri koyma; `CurvedAnimation`a
+    // donme (transitionsBuilder her karede calisir).
     rootNavigatorKey.currentState?.push(PageRouteBuilder(
       settings: const RouteSettings(name: 'arama'),
       opaque: true,
@@ -2879,12 +2916,9 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       transitionDuration: const Duration(milliseconds: 180),
       reverseTransitionDuration: const Duration(milliseconds: 160),
       pageBuilder: (_, _, _) => CallScreen(bilgi: b),
-      transitionsBuilder: (_, anim, _, child) => Container(
-        color: Colors.black,
-        child: FadeTransition(
-          opacity: CurvedAnimation(parent: anim, curve: Curves.easeOut),
-          child: child,
-        ),
+      transitionsBuilder: (_, anim, _, child) => FadeTransition(
+        opacity: anim.drive(CurveTween(curve: Curves.easeOut)),
+        child: child,
       ),
     ));
   }
@@ -2905,8 +2939,14 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
             'ekran beklenmedik kapandi: beklemede=$beklemede pip=$pipModunda '
             'durum=$_sonYasamDurumu baglandi=$_baglandi grup=$_isGroup'));
       }
-      WidgetsBinding.instance.addPostFrameCallback((_) => notifyListeners());
     }
+    // ⚠️ TURU 59 — NOTIFY `if` BLOGUNUN DISINA ALINDI. Eskiden icerideydi ve ELLE
+    // MINIMIZE yolunda (`minimized` ZATEN true olarak pop edilir) hic calismiyordu:
+    // `ekranGorunur` false'a duserdi ama kimse haber almadigi icin yesil bant
+    // (`minimized && !ekranGorunur`) SANIYELIK sayac tetikleyene kadar CIZILMEZDI —
+    // kullanici 1 saniyeye kadar ne ekran ne bant goruyordu.
+    // ⚠️ YAPMA: bu notify'i tekrar `if` icine alma.
+    WidgetsBinding.instance.addPostFrameCallback((_) => notifyListeners());
   }
 }
 

@@ -131,6 +131,14 @@ func (h *Handler) webhookAramaKapat(ctx context.Context, callID string) {
 		if callee != "" {
 			hedefler = append(hedefler, callee)
 		}
+		// TEST TURU 59 — "cevaplanan arama" sohbet balonu ASIL BURADAN yazilir.
+		// Kullanici kapatinca istemci hem odadan cikar hem /end atar; LiveKit webhook'u
+		// localhost'tan ms'ler icinde geldigi icin `active`->`ended` yarisini neredeyse
+		// HER ZAMAN O kazanir ve istemcinin /end'i erken doner. Balonu yalniz End()'e
+		// koymak = balonun sahada HIC gorunmemesi (turu 58 kusuru).
+		// ⚠️ Yukaridaki `RowsAffected()==0` kapisi mutex'tir: End() ile bu satirdan
+		// yalniz BIRI buraya ulasir, kayit tam bir kez yazilir. Kapinin USTUNE TASIMA.
+		go h.bitenAramayiSohbeteYaz(context.Background(), callID)
 	}
 	if len(hedefler) > 0 {
 		payload, _ := json.Marshal(map[string]string{"call_id": callID, "status": "ended"})

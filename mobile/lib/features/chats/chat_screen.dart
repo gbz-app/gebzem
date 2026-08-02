@@ -11,6 +11,7 @@ import '../../core/ws.dart';
 import '../auth/auth_provider.dart';
 import '../calls/active_call_controller.dart';
 import '../calls/call_provider.dart';
+import 'arama_kaydi.dart';
 import 'chats_provider.dart';
 import 'models.dart';
 
@@ -445,23 +446,28 @@ class _CallLogChip extends StatelessWidget {
     );
   }
 
-  /// "1 dk. 5 sn." / "37 sn." / "1 sa. 4 dk." — WhatsApp bicimi.
-  static String _sure(int sn) {
-    if (sn < 60) return '$sn sn.';
-    final dk = sn ~/ 60;
-    final kalan = sn % 60;
-    if (dk < 60) return kalan == 0 ? '$dk dk.' : '$dk dk. $kalan sn.';
-    final sa = dk ~/ 60;
-    return '$sa sa. ${dk % 60} dk.';
-  }
-
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final parts = message.content.split(':'); // call : missed|ended : audio|video [: sn]
+    // TURU 59 — ayristirma `AramaKaydi`de TEK yerde (sohbet listesi onizlemesiyle
+    // ayni kaynak). ⚠️ YAPMA: burada tekrar `content.split(':')` yazma — iki
+    // ayristirici kacinilmaz sekilde birbirinden ayrisir.
+    final kayit = AramaKaydi.coz(message.content);
+    if (kayit == null) {
+      // Arama disi / taninmayan sistem mesaji. Bugun sunucu YALNIZ `call:*` yaziyor,
+      // ama ileride baska sistem mesaji eklenirse SESSIZCE YUTULMASIN (turu 48 dersi:
+      // "ulasilamaz kod"). Notr ortalanmis satir olarak gosterilir.
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Chip(
+          label: Text(message.content, style: const TextStyle(fontSize: 12)),
+          visualDensity: VisualDensity.compact,
+        ),
+      );
+    }
     // TEST TURU 21 — GRUP ARAMASI KAYDI: 'call:group:invite:<id>' / 'call:group:end:<id>'
-    if (parts.length > 1 && parts[1] == 'group') {
-      final bitti = parts.length > 2 && parts[2] == 'end';
+    if (kayit.grup) {
+      final bitti = kayit.grupBitti;
       final saat = DateFormat.Hm().format(message.createdAt.toLocal());
       final metin = bitti
           ? 'Grup araması sona erdi'
@@ -482,10 +488,9 @@ class _CallLogChip extends StatelessWidget {
     // ikon + baslik + (sure/durum) + saat tasiyan bir BALON. Dokununca alttan
     // "Sesli ara / Goruntulu ara" paneli acilir.
     // Icerik bicimleri: "call:missed:audio|video" · "call:ended:audio|video:<sn>"
-    // ⚠️ YAPMA: `call:missed:*` bicimini varsayma — `ended` dali da ele alinmali.
-    final video = parts.length > 2 && parts[2] == 'video';
-    final missed = parts.length > 1 && parts[1] == 'missed';
-    final sn = parts.length > 3 ? (int.tryParse(parts[3]) ?? 0) : 0;
+    final video = kayit.video;
+    final missed = kayit.cevapsiz;
+    final sn = kayit.saniye;
     final time = DateFormat.Hm().format(message.createdAt.toLocal());
 
     final baslik = video ? 'Görüntülü arama' : 'Sesli arama';
@@ -493,7 +498,7 @@ class _CallLogChip extends StatelessWidget {
     if (missed) {
       altSatir = mine ? 'Cevap yok' : 'Cevapsız';
     } else if (sn > 0) {
-      altSatir = _sure(sn);
+      altSatir = AramaKaydi.sureMetni(sn);
     } else {
       altSatir = mine ? 'Giden arama' : 'Gelen arama';
     }
