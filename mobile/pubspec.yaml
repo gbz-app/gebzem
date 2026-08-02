@@ -97,16 +97,24 @@ flutter:
   assets:
     - assets/sounds/
 
-  # TEST TURU 58 — UYGULAMA YAZI TIPI (kullanici istegi: "Google Sans").
-  # ⚠️ Google Sans / Product Sans HALKA ACIK LISANSLI DEGIL (Google kendi urunlerine
-  # ayirdi) — ucuncu taraf uygulamaya GOMULEMEZ. En yakin YASAL alternatif: Inter
-  # (SIL Open Font License, lisans metni assets/fonts/Inter-OFL.txt icinde).
-  # DEGISKEN (variable) font: tek dosya tum kalinliklari tasir (w100-w900).
-  # ⚠️ YAPMA: Google Sans/Product Sans dosyasi ekleme (lisans ihlali).
+  # TEST TURU 58 — UYGULAMA YAZI TIPI: GOOGLE SANS (kullanici istegi).
+  # NOT: Google Sans uzun sure yalniz Google urunlerine ozeldi; ARTIK Google Fonts'ta
+  # halka acik (fonts.google.com/specimen/Google+Sans). Dosyalar resmi Google Fonts
+  # API'sinden (fonts.gstatic.com) alindi.
+  # ⚠️ YAPMA: bu dosyalari elle/baska kaynaktan degistirme; guncelleme gerekirse
+  # `https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;600;700`
+  # cikitisindaki gstatic adreslerinden yeniden indir.
   fonts:
-    - family: Inter
+    - family: Google Sans
       fonts:
-        - asset: assets/fonts/Inter.ttf
+        - asset: assets/fonts/GoogleSans-400.ttf
+          weight: 400
+        - asset: assets/fonts/GoogleSans-500.ttf
+          weight: 500
+        - asset: assets/fonts/GoogleSans-600.ttf
+          weight: 600
+        - asset: assets/fonts/GoogleSans-700.ttf
+          weight: 700
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
