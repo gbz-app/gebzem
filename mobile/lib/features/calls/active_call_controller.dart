@@ -876,7 +876,13 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     // Kurtarma olmazsa 1.5sn sonra DURUSTCE mute (karsi taraf bulanik yazi gorur).
     // ⚠️ YAPMA: bu gecikmeyi kaldirip aninda mute'a donme.
     _kesintiMuteGecikme?.cancel();
+    // ⚠️ TURU 56 — KIMLIK YAKALA: govde eskiden yalnizca `arama == null` bakiyordu; bu
+    // sirada YENI bir arama baslamis olsaydi kapi GECER ve timer YENI aramanin kamerasini
+    // kapatirdi (CLAUDE.md "STALE-ASYNC DESENLERI" hukmu: her async akis KENDI kimligini
+    // yakalar, "null mu" kontrolu YETMEZ). ⚠️ YAPMA: bu kimlik kapisini kaldirma.
+    final kesintiId = arama?.callId;
     _kesintiMuteGecikme = Timer(const Duration(milliseconds: 1500), () {
+      if (arama?.callId != kesintiId) return; // baska arama devraldi — DOKUNMA
       if (arama == null || _ayrildi || !_camOn || !_baglandi) return;
       // TURU 53: bu sirada ON PLANA donduysek kamerayi KAPATMA — uygulama gorunurken
       // kamera kapatmak kullanicinin gordugu "kamera duraklatildi" halidir.
@@ -947,6 +953,13 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
   // AYRI yeniden cizim tetikliyordu. Artik ayni mikro-gorevde gelen bildirimler TEK
   // karede birlestirilir (6 olay = 1 cizim). Davranis aynidir, yalniz cizim sayisi duser.
   bool _hazirlik = false; // turu 30: ekran acildi ama baslat henuz gelmedi
+
+  /// TEST TURU 56: `hazirlaVeAc()` ekrani ANINDA acar ve `arama`ya GECICI bir kayit
+  /// yazar — ama odaya HENUZ baglanilmamistir. Mesgul muhafizinin "gercek arama var mi"
+  /// kontrolu bunu GERCEK arama sanip bayat kaydi temizlemiyordu (yalan pozitif).
+  /// ⚠️ YAPMA: bu getter'i kaldirma; muhafiz kontrolunde `arama != null`i tek basina
+  /// "gercek arama" saymaya donme.
+  bool get hazirlikModunda => _hazirlik;
   bool _bildirimBekliyor = false;
 
   @override
@@ -1009,6 +1022,12 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     _onizlemeIsi = null;
     _onizlemeIptal = false; // turu 50: eski aramanin iptal bayragi SARKMASIN
     _videoDogrulamaTimer?.cancel();
+    // ⚠️ TURU 56: ESKI ARAMANIN GECIKMELI MUTE TIMER'I YENI ARAMAYA SARKIYORDU.
+    // `_kesintiMuteGecikme` 1.5sn gecikmeli calisir; onceki arama bu sure dolmadan
+    // biterse timer AYAKTA kalir ve YENI aramanin kamerasini kapatir
+    // (govdesi yalnizca `arama == null` bakiyordu — yeni arama varsa GECER).
+    // ⚠️ YAPMA: bu iptali kaldirma.
+    _kesintiMuteGecikme?.cancel();
     bildirim = '';
     _bildirimTimer?.cancel();
     karsiPil = -1;
@@ -2197,6 +2216,7 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     if (_kapandi) return;
     _kapandi = true;
     _videoDogrulamaTimer?.cancel(); // turu 50: arama bitince dogrulama tetiklenmesin
+    _kesintiMuteGecikme?.cancel(); // turu 56: sonraki aramanin kamerasini oldurmesin
     _durationTimer?.cancel();
     _ringTimeout?.cancel();
     _statusPoll?.cancel();

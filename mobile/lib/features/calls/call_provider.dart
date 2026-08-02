@@ -268,7 +268,11 @@ class CallService extends StateNotifier<IncomingCall?> {
     // ⚠️ YAPMA: bu kapiyi kosulsuz temizlemeye cevirme (oda/yayin muhafizi GERCEK olabilir
     // — ses cakismasi korumasi orada duruyor).
     if (aramadaMi) {
-      final gercekArama = _ref.read(activeCallProvider).arama != null;
+      // TURU 56: `hazirlaVeAc` GECICI kayit yazar (oda HENUZ kurulmadi) — onu GERCEK
+      // arama saymak bayat muhafizin temizlenmesini engelliyordu (yalan pozitif).
+      // ⚠️ YAPMA: `hazirlikModunda` kontrolunu cikarma.
+      final ctrl = _ref.read(activeCallProvider);
+      final gercekArama = ctrl.arama != null && !ctrl.hazirlikModunda;
       final odaVeyaYayin = ekrandakiAramalar
           .any((x) => x.startsWith('oda_') || x.startsWith('yayin'));
       if (gercekArama || odaVeyaYayin) {
@@ -335,7 +339,11 @@ class CallService extends StateNotifier<IncomingCall?> {
     // ⚠️ YAPMA: bu kapiyi kosulsuz kaldirma (oda/yayin muhafizi GERCEK olabilir — ses
     // cakismasi korumasi orada duruyor) ya da `start()` ile farkli mantiga ayirma.
     if (!zorla && ekrandakiAramalar.any((x) => x != callId)) {
-      final gercekArama = _ref.read(activeCallProvider).arama != null;
+      // TURU 56: `hazirlaVeAc` GECICI kayit yazar (oda HENUZ kurulmadi) — onu GERCEK
+      // arama saymak bayat muhafizin temizlenmesini engelliyordu (yalan pozitif).
+      // ⚠️ YAPMA: `hazirlikModunda` kontrolunu cikarma.
+      final ctrl = _ref.read(activeCallProvider);
+      final gercekArama = ctrl.arama != null && !ctrl.hazirlikModunda;
       final odaVeyaYayin = ekrandakiAramalar
           .any((x) => x.startsWith('oda_') || x.startsWith('yayin'));
       if (gercekArama || odaVeyaYayin) return null;
