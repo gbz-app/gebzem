@@ -454,13 +454,17 @@ class _CallLogChip extends StatelessWidget {
     // ayristirici kacinilmaz sekilde birbirinden ayrisir.
     final kayit = AramaKaydi.coz(message.content);
     if (kayit == null) {
-      // Arama disi / taninmayan sistem mesaji. Bugun sunucu YALNIZ `call:*` yaziyor,
-      // ama ileride baska sistem mesaji eklenirse SESSIZCE YUTULMASIN (turu 48 dersi:
-      // "ulasilamaz kod"). Notr ortalanmis satir olarak gosterilir.
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
+      // Arama disi / taninmayan sistem mesaji. Bugun sunucu YALNIZ `call:*` yaziyor;
+      // bu dal ULASILMAZ ama ileride yeni bir sistem mesaji eklenirse SESSIZCE
+      // YUTULMASIN (turu 48 dersi: "ulasilamaz kod").
+      // ⚠️ HAM `message.content` BASILMAZ — `call:group:end:5f2c…` gibi teknik
+      // isaretciler kullaniciya sizardi (arama_kaydi.dart'taki sozlesme).
+      // Yeni bir sistem mesaji turu eklendiginde BURAYA ve `chats_screen._preview`e
+      // insan-okur metin eklenmelidir.
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 6),
         child: Chip(
-          label: Text(message.content, style: const TextStyle(fontSize: 12)),
+          label: Text('Sistem mesajı', style: TextStyle(fontSize: 12)),
           visualDensity: VisualDensity.compact,
         ),
       );

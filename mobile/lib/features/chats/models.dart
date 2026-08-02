@@ -9,6 +9,7 @@ class Chat {
     required this.archived,
     required this.lastMessage,
     required this.lastType,
+    required this.lastSenderId,
     required this.lastAt,
     required this.unread,
     this.peerId,
@@ -22,6 +23,11 @@ class Chat {
   final bool archived;
   final String lastMessage;
   final String lastType;
+  /// TURU 59: son mesajin GONDERENI. Sohbet listesi arama kaydi onizlemesinde YON
+  /// gerekiyor — "Cevapsiz sesli arama" yalniz ARANAN icin dogru; arayana "Sesli
+  /// arama" yazilmali (WhatsApp deseni). Eski sunucu bu alani dondurmezse bos gelir
+  /// ve onizleme YONSUZ metne duser (guvenli varsayilan).
+  final String lastSenderId;
   final DateTime? lastAt;
   final int unread;
   final String? peerId; // 1:1 sohbette karsi tarafin id'si (arama icin)
@@ -35,6 +41,7 @@ class Chat {
         archived: j['archived'] as bool? ?? false,
         lastMessage: j['last_message'] as String? ?? '',
         lastType: j['last_type'] as String? ?? '',
+        lastSenderId: j['last_sender_id'] as String? ?? '',
         lastAt: j['last_at'] != null ? DateTime.tryParse(j['last_at'] as String) : null,
         unread: (j['unread'] as num?)?.toInt() ?? 0,
         peerId: j['peer_id'] as String?,

@@ -56,25 +56,35 @@ class AramaKaydi {
     }
   }
 
-  /// "1 dk. 5 sn." / "37 sn." / "1 sa. 4 dk." — WhatsApp bicimi.
+  /// "1 dk. 5 sn." / "37 sn." / "1 sa. 4 dk." / "2 sa." — WhatsApp bicimi.
+  /// ⚠️ Tam saat siniri: dakika 0 ise " 0 dk." EKLENMEZ (WhatsApp "1 sa." yazar).
   static String sureMetni(int sn) {
     if (sn < 60) return '$sn sn.';
     final dk = sn ~/ 60;
     final kalan = sn % 60;
     if (dk < 60) return kalan == 0 ? '$dk dk.' : '$dk dk. $kalan sn.';
     final sa = dk ~/ 60;
-    return '$sa sa. ${dk % 60} dk.';
+    final kalanDk = dk % 60;
+    return kalanDk == 0 ? '$sa sa.' : '$sa sa. $kalanDk dk.';
   }
 
-  /// SOHBET LISTESI onizleme satiri. Liste `sender_id` tasimadigi icin YON
-  /// (giden/gelen) bilinmez — WhatsApp da listede yon gostermez.
-  String onizleme() {
+  /// SOHBET LISTESI onizleme satiri.
+  ///
+  /// [benimMi]: son mesajin gondereni BEN miyim (arama kayitlarinda gonderen HER
+  /// ZAMAN ARAYANDIR). Cevapsiz aramada "Cevapsız ..." YALNIZ ARANAN icin dogrudur;
+  /// arayan icin WhatsApp sadece "Sesli arama" yazar. Yon bilinmiyorsa (`null` —
+  /// or. sunucu `last_sender_id` dondurmuyorsa) YONSUZ, iki taraf icin de dogru
+  /// olan metne duseriz. ⚠️ YAPMA: yon bilinmezken "Cevapsız" yazma.
+  String onizleme({bool? benimMi}) {
     if (grup) return grupBitti ? '📹 Grup araması sona erdi' : '📹 Grup araması';
     final ikon = video ? '📹' : '📞';
-    if (cevapsiz) {
-      return video ? '$ikon Cevapsız görüntülü arama' : '$ikon Cevapsız sesli arama';
-    }
     final ad = video ? 'Görüntülü arama' : 'Sesli arama';
+    if (cevapsiz) {
+      if (benimMi == false) {
+        return video ? '$ikon Cevapsız görüntülü arama' : '$ikon Cevapsız sesli arama';
+      }
+      return '$ikon $ad'; // arayan (veya yon bilinmiyor)
+    }
     return saniye > 0 ? '$ikon $ad · ${sureMetni(saniye)}' : '$ikon $ad';
   }
 }

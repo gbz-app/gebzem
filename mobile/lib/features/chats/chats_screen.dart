@@ -6,6 +6,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/api.dart';
 import '../../core/theme.dart';
+import '../auth/auth_provider.dart';
 import 'arama_kaydi.dart';
 import 'chats_provider.dart';
 import 'models.dart';
@@ -208,7 +209,9 @@ class _ChatTile extends ConsumerWidget {
     return DateFormat('dd.MM.yy').format(local);
   }
 
-  String _preview() {
+  /// [benimMi]: son mesaji BEN mi gonderdim (arama kaydinda gonderen = ARAYAN).
+  /// Bilinmiyorsa null -> onizleme yon iddiasinda BULUNMAZ.
+  String _preview(bool? benimMi) {
     switch (chat.lastType) {
       case 'image':
         return '📷 Fotograf';
@@ -221,9 +224,12 @@ class _ChatTile extends ConsumerWidget {
       case 'system':
         // TURU 59 — ARAMA KAYDI: eskiden HAM icerik basiliyordu, kullanici sohbet
         // listesinde "call:ended:audio:75" goruyordu. Ayristirma `AramaKaydi`de TEK
-        // yerde (balonla ayni kaynak). Taninmayan sistem mesaji -> ham metin (eski
-        // davranis; arama disi sistem mesajlari bozulmasin).
-        return AramaKaydi.coz(chat.lastMessage)?.onizleme() ?? chat.lastMessage;
+        // yerde (balonla ayni kaynak).
+        // ⚠️ Taninmayan bicimde de HAM metin BASILMAZ (sozlesme: arama_kaydi.dart) —
+        // aksi halde teknik isaretci listeye sizar. Yeni sistem mesaji turu
+        // eklendiginde buraya ve `_CallLogChip`e insan-okur metin eklenmelidir.
+        return AramaKaydi.coz(chat.lastMessage)?.onizleme(benimMi: benimMi) ??
+            'Sistem mesajı';
       default:
         return chat.lastMessage;
     }
@@ -232,6 +238,12 @@ class _ChatTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
+    // TURU 59: arama kaydi onizlemesinde YON icin. Kimlik veya `last_sender_id`
+    // yoksa null kalir -> onizleme yon iddiasinda bulunmaz (guvenli varsayilan).
+    final myId = ref.watch(myUserIdProvider).valueOrNull;
+    final bool? benimMi = (myId == null || chat.lastSenderId.isEmpty)
+        ? null
+        : chat.lastSenderId == myId;
     return ListTile(
       leading: CircleAvatar(
         radius: 26,
@@ -258,7 +270,7 @@ class _ChatTile extends ConsumerWidget {
         ],
       ),
       subtitle: Text(
-        _preview(),
+        _preview(benimMi),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: TextStyle(

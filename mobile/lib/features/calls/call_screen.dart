@@ -95,6 +95,19 @@ class _CallScreenState extends ConsumerState<CallScreen> {
           return;
         }
         final nav = Navigator.of(context);
+        // ⚠️⚠️ TURU 59 — KRITIK: `nav.pop()` EN USTTEKI route'u kapatir, "beni"
+        // DEGIL. Buraya jeton BIZDE OLMADAN geldiysek (yukaridaki kapi) ve arama
+        // HALA YASIYORSA, ustumuzde YENI aramanin CANLI ekrani duruyor demektir —
+        // kosulsuz `pop()` O CANLI EKRANI OLDURURDU (bayat ekran yasar, canli ekran
+        // olur: tam tersi). Bu durumda yalnizca KENDI route'umuzu adresleyip
+        // kaldiriyoruz (animasyonsuz, ustteki ekrana DOKUNMADAN).
+        // ⚠️ YAPMA: buraya kosulsuz `nav.pop()` geri koyma.
+        if (_c.arama != null) {
+          final route = ModalRoute.of(context);
+          if (route != null) nav.removeRoute(route);
+          return;
+        }
+        // Arama gercekten bitti (ustumuzde canli arama ekrani YOK) -> normal akis.
         if (_sheetAcik && nav.canPop()) nav.pop();
         if (nav.canPop()) nav.pop();
       });

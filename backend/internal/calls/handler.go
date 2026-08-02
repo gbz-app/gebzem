@@ -971,7 +971,15 @@ func (h *Handler) End(w http.ResponseWriter, r *http.Request) {
 	// ATOMIK bitirme: sadece hala 'ringing'/'active' ise. Zaten bitmisse (cift end,
 	// answer+end yarisi) tekrar yazma ve TEKRAR OLAY YAYINLAMA -> karsi tarafa cift
 	// call.ended / stale durum gitmesin.
-	ct, err := h.db.Exec(r.Context(),
+	// ⚠️ TURU 59: bu UPDATE mutex'tir — kazanan taraf sohbet balonunu da yazar. Istek
+	// omurlu `r.Context()` ile calistirilirsa, istemci tam bu anda kapanirsa (temiz
+	// app-kill) Postgres COMMIT etmis olsa bile pgx iptal hatasi doner, handler 500
+	// yazip cikar ve balon HIC yazilmaz (webhook da satiri 'ended' buldugu icin
+	// yazamaz — telafi yok). Bu yuzden istek omrunden AYRI, kisa zaman asimli context.
+	// ⚠️ YAPMA: burayi tekrar `r.Context()`e dondurme.
+	bitirCtx, bitirCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer bitirCancel()
+	ct, err := h.db.Exec(bitirCtx,
 		`UPDATE calls SET status=$1, ended_at=now()
 		 WHERE id=$2 AND status IN ('ringing','active')`, newStatus, callID)
 	if err != nil {

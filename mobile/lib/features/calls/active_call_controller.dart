@@ -2668,6 +2668,17 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     // `RoomDisconnectedEvent` yedegi de yok.)
     // ⚠️ YAPMA: bu cagriyi kaldirma.
     _aboneliklerKur(p.bilgi.callId);
+    // ⚠️ TURU 59 — EKRAN ARTIK ONCE ACILIYOR. Eskiden `ekraniAc()` metodun EN SON
+    // satiriydi; asagidaki UC await (`_medyaBeklet` + `_sesiAc` + `_androidSesTazele`)
+    // boyunca `minimized` YUKARIDA zaten false yazildigi icin yesil bant da
+    // (`minimized && !ekranGorunur`) CIZILMIYORDU -> arama yasarken NE EKRAN NE BANT
+    // olan bir pencere kaliyordu (turu 58'in "arama yasiyorsa MUTLAKA donus yolu var"
+    // hukmunun deligi; kullanicinin "ekran gidiyor" semptomunun park/devam varyanti).
+    // Oda park boyunca ACIK kaldigi icin ekran ANINDA cizilebilir; medya ms'ler icinde
+    // geri gelir (CallKit kabulundeki `hazirlaVeAc` deseniyle ayni mantik).
+    // ⚠️ YAPMA: `ekraniAc()`i tekrar await'lerin ALTINA tasima.
+    notifyListeners();
+    ekraniAc();
     await _medyaBeklet(p.room, false, micHedef: p.micOn, camHedef: p.camOn);
     await _sesiAc(true); // iOS: ses birimi EN SON (hold->resume ses kaybi tuzagi)
     await _androidSesTazele(); // turu 56: Android'de ses rotasi/mic geri uygulanir
@@ -2676,7 +2687,7 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     _aktifPollBaslat();
     _pilTakibiBaslat();
     notifyListeners();
-    ekraniAc();
+    ekraniAc(); // emniyet agi: yukarida acildiysa `ekranGorunur` kapisinda no-op'tur
   }
 
   // ---- ANLIK BILDIRIM SERIDI (test turu 24 — WhatsApp: "X sessize alındı.") ----
@@ -2900,15 +2911,20 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     //   · POP yonunde icerik solarken siyah katman TAM OPAK duruyordu ->
     //     160ms boyunca DUZ SIYAH ekran, sonra alttaki sayfaya SERT kesme
     //     (kullanicinin istedigi "cizilmis gibi devam etsin" hissinin tersi).
-    //   · `barrierColor` zaten ayni siyahi veriyordu -> arama BOYUNCA iki fazla
-    //     tam ekran opak katman bosuna cizilyordu.
-    // FIX: sabit Container KALDIRILDI; siyah zemini `barrierColor` sagliyor ve
-    // icerik iki yonde de SIMETRIK soluyor.
+    // FIX: siyah zemin FADE'IN ICINE alindi (`ColoredBox`) — zemin ve icerik
+    // BIRLIKTE soluyor, gecis iki yonde SIMETRIK.
+    //
+    // ⚠️⚠️ "Container'i tamamen kaldirip `barrierColor`a guvenmek" DENENDI ve
+    // KOD DENETIMINDE YANLIS CIKTI: Flutter'da `barrierColor` SABIT DEGIL, route
+    // animasyonuyla birlikte saydamdan renge gider (`AnimatedModalBarrier`).
+    // Yani gecisin ortasinda arama ekrani YARI SAYDAM olur ve ALTTAKI SAYFA
+    // ICINDEN GORUNUR. ⚠️ YAPMA: `ColoredBox`u kaldirip yalniz `barrierColor`a
+    // guvenme.
+    //
     // Egri `anim.drive(CurveTween(...))` ile veriliyor: `CurvedAnimation` her
     // KAREDE yeniden kuruluyordu ve hicbiri dispose edilmiyordu (dinleyici
     // birikimi). `CurveTween` durumsuzdur, dinleyici kaydetmez.
-    // ⚠️ YAPMA: `Container(color: Colors.black)`i geri koyma; `CurvedAnimation`a
-    // donme (transitionsBuilder her karede calisir).
+    // ⚠️ YAPMA: `CurvedAnimation`a donme (transitionsBuilder her karede calisir).
     rootNavigatorKey.currentState?.push(PageRouteBuilder(
       settings: const RouteSettings(name: 'arama'),
       opaque: true,
@@ -2918,7 +2934,7 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       pageBuilder: (_, _, _) => CallScreen(bilgi: b),
       transitionsBuilder: (_, anim, _, child) => FadeTransition(
         opacity: anim.drive(CurveTween(curve: Curves.easeOut)),
-        child: child,
+        child: ColoredBox(color: Colors.black, child: child),
       ),
     ));
   }

@@ -142,6 +142,19 @@ func (h *Handler) SendMessage(w http.ResponseWriter, r *http.Request) {
 	if req.Type == "" {
 		req.Type = "text"
 	}
+	// ⚠️ TURU 59 — TIP BEYAZ LISTESI. Eskiden istemcinin gonderdigi `type` DOGRULANMADAN
+	// INSERT ediliyordu; DB CHECK'i 'system'e izin verdigi icin HERHANGI BIR KULLANICI
+	// `{"type":"system","content":"Gebzem Destek: hesabiniz askiya alindi..."}` gonderip
+	// karsi tarafta GONDEREN ADI/AVATARI/TIKI OLMAYAN, sunucu uretimi gibi gorunen bir
+	// satir cizdirebiliyordu (kimlik taklidi). 'system' YALNIZ sunucunun kendi yazdigi
+	// arama kayitlari icindir (calls paketi dogrudan INSERT eder, buradan gecmez).
+	// ⚠️ YAPMA: bu beyaz listeye 'system' ekleme.
+	switch req.Type {
+	case "text", "image", "video", "audio", "location":
+	default:
+		httpErr(w, http.StatusBadRequest, "gecersiz mesaj tipi")
+		return
+	}
 
 	// uyelik + engel kontrolu
 	members, err := h.chatMemberIDs(r, chatID, userID)
@@ -315,7 +328,8 @@ func (h *Handler) ListChats(w http.ResponseWriter, r *http.Request) {
 		       CASE WHEN c.type='direct' THEN COALESCE(peer.name, '') ELSE c.title END AS title,
 		       CASE WHEN c.type='direct' THEN COALESCE(peer.avatar_url, '') ELSE c.avatar_url END AS avatar_url,
 		       cm.pinned, cm.archived,
-		       COALESCE(lm.content,''), COALESCE(lm.type,''), lm.created_at,
+		       COALESCE(lm.content,''), COALESCE(lm.type,''),
+		       COALESCE(lm.sender_id::text,''), lm.created_at,
 		       (SELECT COUNT(*) FROM message_receipts mr
 		        JOIN messages m ON m.id=mr.message_id
 		        WHERE m.chat_id=c.id AND mr.user_id=$1 AND mr.read_at IS NULL AND m.sender_id<>$1) AS unread,
@@ -329,7 +343,7 @@ func (h *Handler) ListChats(w http.ResponseWriter, r *http.Request) {
 			LIMIT 1
 		) peer ON c.type='direct'
 		LEFT JOIN LATERAL (
-			SELECT content, type, created_at FROM messages
+			SELECT content, type, sender_id, created_at FROM messages
 			WHERE chat_id=c.id AND NOT deleted_for_all ORDER BY id DESC LIMIT 1
 		) lm ON true
 		ORDER BY cm.pinned DESC, lm.created_at DESC NULLS LAST`, userID)
@@ -348,6 +362,11 @@ func (h *Handler) ListChats(w http.ResponseWriter, r *http.Request) {
 		Archived    bool       `json:"archived"`
 		LastMessage string     `json:"last_message"`
 		LastType    string     `json:"last_type"`
+		// TURU 59: son mesajin gondereni. Sohbet LISTESI arama kaydi onizlemesinde
+		// YON gerekiyor ("Cevapsiz sesli arama" yalniz ARANAN icin dogrudur; arayan
+		// icin "Sesli arama" yazilmali — WhatsApp da boyle). Bu alan olmadan
+		// onizleme arayana da "Cevapsiz" diyordu.
+		LastSender  string     `json:"last_sender_id"`
 		LastAt      *time.Time `json:"last_at"`
 		Unread      int        `json:"unread"`
 		PeerID      *string    `json:"peer_id"` // direct sohbette karsi taraf (arama icin)
@@ -355,8 +374,9 @@ func (h *Handler) ListChats(w http.ResponseWriter, r *http.Request) {
 	out := []chatRow{}
 	for rows.Next() {
 		var c chatRow
+		// ⚠️ SIRA SELECT ile BIREBIR ayni olmali (pgx konuma gore tarar).
 		if err := rows.Scan(&c.ID, &c.Type, &c.Title, &c.AvatarURL, &c.Pinned, &c.Archived,
-			&c.LastMessage, &c.LastType, &c.LastAt, &c.Unread, &c.PeerID); err == nil {
+			&c.LastMessage, &c.LastType, &c.LastSender, &c.LastAt, &c.Unread, &c.PeerID); err == nil {
 			out = append(out, c)
 		}
 	}
