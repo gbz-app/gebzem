@@ -11,7 +11,6 @@ import '../../core/api.dart';
 import '../../router.dart';
 import 'active_call_controller.dart';
 import 'beklemede_katmani.dart';
-import 'add_participant_sheet.dart';
 
 /// AKTIF ARAMA EKRANI — SAF GORUNUM (Faz-C C2). TUM mantik (Room, timer'lar, sure
 /// senkronu, ses birimi, muhafizlar) ActiveCallController'da yasar; bu ekran yalniz
@@ -150,24 +149,12 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     Navigator.of(context).pop();
   }
 
-  // KISI EKLEME (Faz-B B6): sheet ac; secim -> controller.kisiEkle (REST + iyimser grup).
-  void _kisiEkle() {
-    if (!_c.baglandi || _c.cevapsiz) return;
-    _sheetAcik = true;
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => AddParticipantSheet(
-        onEkle: (userId, name) async {
-          await _c.kisiEkle(userId);
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('$name aramaya davet edildi')));
-          }
-        },
-      ),
-    ).whenComplete(() => _sheetAcik = false);
-  }
+  // TURU 56: `_kisiEkle()` KALDIRILDI — grup aramasi kapatildi (kullanici karari 2 Agu).
+  // Geri acilacaksa: `AddParticipantSheet` + `controller.kisiEkle` DURUYOR; bu metot
+  // `_sheetAcik = true` + `.whenComplete(() => _sheetAcik = false)` deseniyle yeniden
+  // yazilmali (turu 27-31: `_sheetAcik` isaretlenmezse yanlis pop -> kullanici bos
+  // ekranda kalir ve SONRAKI arama ekrani hic acilmaz).
+  // ⚠️ `_sheetAcik` alani KALIYOR — ••• menusu ve diger sheet'ler kullaniyor.
 
   /// MESAJ IKONU (C5): minimize + (1:1 giden aramada) dogru sohbeti ac.
   /// peerId yoksa (gelen 1:1/grup) yalniz minimize — backend'e alan EKLENMEZ (1:1 dokunmama).
@@ -423,8 +410,9 @@ class _CallScreenState extends ConsumerState<CallScreen> {
                 child: _gizlenebilir(Row(children: [
                   _barBtn(LucideIcons.chevronDown, _minimize),
                   const Spacer(),
-                  _barBtn(LucideIcons.userPlus, _kisiEkle),
-                  const SizedBox(width: 8),
+                  // TURU 56: "Kisi ekle" KALDIRILDI — grup aramasi kapatildi
+                  // (kullanici karari 2 Agu). ⚠️ YAPMA: geri eklerken `_kisiEkle`nin
+                  // `_sheetAcik` + `whenComplete` desenini bozma (turu 27-31 dersi).
                   _barBtn(LucideIcons.messageSquare, _mesajaDon),
                 ])),
               ),
@@ -786,15 +774,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
                 _c.flipCamera();
               },
             ),
-          ListTile(
-            leading: const Icon(LucideIcons.userPlus, color: Colors.white),
-            title:
-                const Text('Kişi ekle', style: TextStyle(color: Colors.white)),
-            onTap: () {
-              Navigator.of(context).pop();
-              _kisiEkle();
-            },
-          ),
+          // TURU 56: "Kisi ekle" maddesi KALDIRILDI — grup aramasi kapatildi.
           ListTile(
             leading: const Icon(Icons.volume_off, color: Colors.orangeAccent),
             title: Text(_sorunBildirildi ? 'Bildirildi ✓' : 'Ses gelmiyor',

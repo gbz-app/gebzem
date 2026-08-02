@@ -29,9 +29,17 @@ import (
 // Akis: arayan /calls baslatir -> aliciya WS "call.incoming" + push gider
 //       alici kabul edince ikisi de LiveKit odasina token'la baglanir.
 
-// GRUP ARAMA KAPASITESI — KULLANICI KARARI (31 Tem 2026): sesli VE goruntulu grup
-// aramasi ARAYAN DAHIL en fazla 4 kisi.
-// TARIHCE: 19 Tem "WhatsApp standardi 32" -> 30 Tem 8 -> 31 Tem 4.
+// ⚠️⚠️ GRUP ARAMASI KALDIRILDI — KULLANICI KARARI (2 Agu 2026):
+// "Tek arama, tek goruntulu arama, sesli oda ve yayin. GRUP ARAMA ve GRUP GORUNTULU
+//  ARAMA OLMAYACAK. Temiz kod istiyorum, karmasa istemiyorum."
+// Istemcide GIRIS NOKTALARI kapatildi (grup baslatma dugmesi + "Kisi ekle" iki kapisi);
+// burasi SUNUCU TARAFI SAVUNMA KATMANI: kapasite 2 -> `Add` ve grup `Start` reddedilir.
+// Boylece sahadaki ESKI istemciler de grup aramasi acamaz.
+// ⚠️ SESLI ODA (internal/rooms) ve CANLI YAYIN (internal/streams) ETKILENMEZ — onlar
+// AYRI uclar ve AYRI kapasitelere sahip (oda 20 konusmaci + sinirsiz dinleyici,
+// yayin yayinci+3 konuk + sinirsiz izleyici).
+// GERI ACMA: bu sabiti buyut + istemcideki giris noktalarini geri ekle (kod SILINMEDI).
+// TARIHCE: 19 Tem 32 -> 30 Tem 8 -> 31 Tem 4 -> 2 Agu 2 (grup KAPALI).
 // 4'E INME GEREKCESI (kullanici: "acik ve buglari minimumda tutmak istiyorum"):
 //   · SFU iletim yuku N*(N-1): 4 kisi 12 akis, 8 kisi 56 akis (4.7 kati). Ustelik
 //     tum trafik TURN relay'den geciyor (olcum: connectionType=turn) -> paket basina
@@ -44,8 +52,9 @@ import (
 //   · Kod yuzeyi: 5/6/7/8 icin ayri satir duzenleri + daha cok abone/birakma olayi =
 //     daha cok kimlik yarisi firsati.
 // Tek yerden okunur: hem Start hem Add ayni sabiti kullanir.
-// ⚠️ YAPMA: iki yere farkli sayi yazma (Add'den 5. kisi sizar).
-const maxGrupKatilimci = 4
+// ⚠️ YAPMA: iki yere farkli sayi yazma (Add'den fazladan kisi sizar).
+// ⚠️ 2 = SADECE 1:1 (arayan + aranan). Grup aramasi SUNUCUDA DA kapali.
+const maxGrupKatilimci = 2
 
 type Handler struct {
 	db   *pgxpool.Pool
@@ -719,7 +728,7 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusConflict, "kullanici su anda baska bir gorusmede")
 		return
 	}
-	// Kapasite (maxGrupKatilimci = 4, kullanici karari 31 Tem): 1:1'de taban 2 say
+	// Kapasite (maxGrupKatilimci = 2 — grup KAPALI, kullanici karari 2 Agu): 1:1 taban 2
 	var aktifSayi int
 	tx.QueryRow(r.Context(), `SELECT count(*) FROM call_participants
 		WHERE call_id=$1 AND status IN ('ringing','joined')`, callID).Scan(&aktifSayi)

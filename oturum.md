@@ -3347,3 +3347,68 @@ istemci hepsini dusuruyordu — **turu 34-36'da `is_group` icin yasanan hatanin 
 Sonuc: Android'de arka planda gelen IKINCI arama, uc dugmeli "Beklet" katmani yerine
 duz Kabul/Reddet olarak ciziliyordu. Dordu de duzeltildi.
 ⚠️ YAPMA: `is_group` / `chat_title` / `waiting` ucunu bu yollardan tekrar dusurme.
+
+## 2 Agu — TURU 56: GSM BEKLET KOK NEDENLERI + GRUP ARAMASI KAPATILDI
+20 ajanlik denetim; 11 adim onaylandi, 5 iddia curutuldu.
+
+### ⚠️⚠️ KOK NEDEN 1 — iOS BEKLET HIC ESLESMIYORDU (36 turdur bozuk)
+CallKit hold olayi eklentiden `action.callUUID.uuidString` ile geliyor; Foundation
+`UUID.uuidString` **BUYUK HARF** dondurur ("E621E1F8-..."). Bizim callId'lerimiz Postgres
+`gen_random_uuid()` = **KUCUK HARF**. `beklemeyeAl` TAM ESITLIK karsilastirdigi icin
+ESLESMIYOR ve metot SESSIZCE return ediyordu -> GSM aramasi kabul edilse bile medya
+DURMUYOR, sunucuya `hold` GITMIYOR.
+Kabul/Reddet/Bitir olaylari ETKILENMIYOR — onlar BIZIM gonderdigimiz orijinal string'i
+tasiyor; **YALNIZ hold ve mute** olaylari uuidString kullaniyor. Bu tek hata
+"beklet calismiyor" semptomunu tek basina acikliyor.
+FIX: `CallKitService._asilId(ham)` — `islenenler` kumesinden harf-duyarsiz eslestirip
+ORIJINAL id'ye cevirir (kume hem `goster()` hem `gidenArama()` tarafindan dolar).
++ `beklemeyeAl` icinde harf-duyarsiz karsilastirma (savunma) + sunucuya ORIJINAL id.
+⚠️ YAPMA: ham id'yi dogrudan yayinlama; karsilastirmalari tam esitlige dondurme.
+
+### ⚠️⚠️ KOK NEDEN 2 — ANDROID GSM IZNI HIC VERILMIYORDU (36 turdur bozuk)
+Zincir kod olarak TAMDI (manifest izni, `TelefonDurumu.kt`, kanal, Dart koprusu,
+controller dinleyicisi). KIRIK HALKA **RUNTIME IZNI**: `Permission.phone.request()`,
+`requestFullIntentPermission()`ten SONRA cagriliyordu. O cagri fire-and-forget SISTEM
+AYARLAR EKRANINI ACAR; Activity duraklamisken Android izin diyalogunu GOSTERMEZ,
+`onRequestPermissionsResult` HIC gelmez, Future ASILI KALIR -> READ_PHONE_STATE **ASLA**
+verilmez -> `TelefonDurumu.izinVar()` false -> ozellik sessizce KAPALI.
+Ustelik `gsmDinle(true)` sonucu `unawaited` ile ATILIYORDU, hicbir log yoktu — bu yuzden
+36 tur fark edilmedi.
+FIX: telefon izni ARTIK ONCE isteniyor (hicbir harici Activity acilmamisken), tam-ekran
+bildirim ayar ekranina sicrama EN SON. + sonuc okunuyor, Android'de kapaliysa Sentry'e
+olay dusuyor + gsm durum degisimi loglaniyor.
+⚠️ YAPMA: bu iki blogun sirasini degistirme; sonucu tekrar `unawaited` ile atma.
+
+### ⚠️ GIZLILIK SORUNU — BEKLEMEDEYKEN MIKROFON GERI ACILIYORDU
+GSM gorusmesi SURERKEN kullanici Gebzem'e geri gecerse `resumed` dali `beklemede`
+bayragina BAKMIYORDU: `_kameraOtoAc()` kamerayi, `_kesintidenTopla()` MIKROFONU geri
+aciyordu. Ekranda "Arama beklemede" yazarken mikrofon CANLI -> **karsi taraf GSM
+konusmasini duyuyordu.**
+FIX: `resumed` sartina `&& !beklemede` + `_kesintidenTopla()` basina savunma kapisi.
+⚠️ YAPMA: bu kapilari kaldirma.
+
+### 1:1 SAGLAMLIK (2 yuksek riskli)
+· **`_kesintiMuteGecikme` aramalar arasi SARKIYORDU**: 1.5sn gecikmeli calisir; onceki
+  arama bu sure dolmadan biterse timer ayakta kalir ve YENI aramanin kamerasini kapatirdi
+  (govde yalnizca `arama == null` bakiyordu). FIX: `baslat()` + `_kapatOdayiKuyrugaKoy()`
+  icinde iptal + timer'a KIMLIK KAPISI (CLAUDE.md STALE-ASYNC hukmu).
+· **Bayat muhafiz YALAN POZITIFI**: `hazirlaVeAc()` ekrani aninda acip `arama`ya GECICI
+  kayit yaziyor (oda HENUZ kurulmadi); mesgul muhafizinin "gercek arama var mi" kontrolu
+  bunu GERCEK sanip bayat kaydi temizlemiyordu. Yeni `hazirlikModunda` getter'i ile
+  ayrildi; `start()` ve `answer()` yollarinin IKISINDE de uygulandi.
+
+### GRUP ARAMASI KAPATILDI (kullanici karari 2 Agu)
+"Tek arama, tek goruntulu arama, sesli oda ve yayin. Grup OLMAYACAK."
+YONTEM: **giris noktalari kapatildi, KOD SILINMEDI.** 37 grup dali `baslat`/`leave`/
+`parkEt`/`devamEt` gibi 1:1'in de kullandigi yollara orulmus; sokmek calisan yollari
+kirma riski tasiyor. Bu yol sahadaki hata yuzeyini AYNI oranda sifirlar, geri acmak ucuz.
+- `calls_tab.dart`: grup FAB'i kaldirildi (tek 1:1 dugmesi kaldi) + import silindi
+- `call_screen.dart`: ust bardaki "Kisi ekle" + ••• menusundeki "Kisi ekle" + `_kisiEkle()`
+  kaldirildi + import silindi. `_sheetAcik` alani KALDI (diger sheet'ler kullaniyor).
+- `backend handler.go`: `maxGrupKatilimci` 4 -> **2** (SUNUCU SAVUNMA KATMANI — sahadaki
+  ESKI istemciler de grup acamaz). `Start` ve `Add` ayni sabiti okur.
+⚠️ **SESLI ODA (features/rooms, internal/rooms) ve CANLI YAYIN (features/live,
+internal/streams) DOKUNULMADI** — coklu katilimci ve AYNI makineyi paylasiyorlar.
+⚠️ YAPMA: `mini_izgara.dart`i silme (oda/yayin kullaniyor); grup kodunu sokmeye calisma.
+
+`go build ./...` OK · `flutter analyze` temiz (onceden var olan 4 info lint).

@@ -7,7 +7,6 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../core/api.dart';
 import 'active_call_controller.dart';
 import 'call_provider.dart';
-import 'group_call_start_screen.dart';
 
 /// Aramalar sekmesi: gecmis + tekrar arama
 class CallsTab extends ConsumerWidget {
@@ -46,23 +45,23 @@ class CallsTab extends ConsumerWidget {
           );
         },
       ),
-      floatingActionButton: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          FloatingActionButton.small(
-            heroTag: 'grupAra',
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const GroupCallStartScreen()),
-            ),
-            child: const Icon(LucideIcons.users),
-          ),
-          const SizedBox(height: 12),
-          FloatingActionButton(
-            heroTag: 'birebirAra',
-            onPressed: () => context.push('/search'),
-            child: const Icon(LucideIcons.phone),
-          ),
-        ],
+      // ⚠️ TEST TURU 56 — GRUP ARAMASI KALDIRILDI (kullanici karari 2 Agu):
+      // "Tek arama, tek goruntulu arama, sesli oda ve yayin. Grup arama ve grup goruntulu
+      //  arama OLMAYACAK. Temiz kod istiyorum, karmasa istemiyorum."
+      // GEREKCE: son turlarda kovaladigimiz hatalarin cogu GRUP kaynakliydi (tekrar davet
+      // takilmasi, grup aramasinin hic kapanmamasi, izgaranin konusmaci degisiminde
+      // yikilmasi, is_group bayraginin CallKit yukunde dusmesi...). 1:1 ise stabil.
+      // YONTEM: giris noktalari KAPATILDI, grup KODU SILINMEDI — 37 grup dali `baslat`,
+      // `leave`, `parkEt`, `devamEt` gibi 1:1'in de kullandigi yollara orulmus durumda;
+      // sokmek calisan yollari kirma riski tasiyor. Bu yol sahadaki hata yuzeyini AYNI
+      // oranda sifirlar ve geri acmak tek dosya degisikligi kadardir.
+      // ⚠️ SESLI ODA (features/rooms) ve CANLI YAYIN (features/live) DOKUNULMADI —
+      // onlar coklu katilimci ve AYNI makineyi (LiveKit, mini_izgara, PiP) paylasiyor.
+      // ⚠️ YAPMA: `mini_izgara.dart`i silme (oda/yayin kullaniyor).
+      floatingActionButton: FloatingActionButton(
+        heroTag: 'birebirAra',
+        onPressed: () => context.push('/search'),
+        child: const Icon(LucideIcons.phone),
       ),
     );
   }
