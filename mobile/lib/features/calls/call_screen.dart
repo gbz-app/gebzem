@@ -391,52 +391,53 @@ class _CallScreenState extends ConsumerState<CallScreen> {
                       if (c.peerJoined) const SizedBox(width: 6),
                       Text(c.durumMetni,
                           style: const TextStyle(color: Colors.white70, fontSize: 15)),
-                      // TEST TURU 21 (WhatsApp): PIL / BAGLANTI uyarisi — "X pil seviyesi
-                      // düşük", "İnternet bağlantın zayıf", "Yeniden bağlanılıyor…".
-                      // ⚠️ TURU 60: `!c.karsiBeklemede` DE eklendi. Karsi taraf beklemeye
-                      // alinca uygulamasi arka plana gecer ve baglanti kalitesi duser ->
-                      // "X baglantisi zayif" uyarisi TAM O ANDA dolar. Bu hem YANILTICI
-                      // (sebep ag degil, bekletme) hem de ayni Row'u sisirip tasmaya
-                      // katkida bulunuyordu. Bekletme bilgisi zaten ALTTA gosteriliyor.
-                      if (c.uyariMetni.isNotEmpty && !c.beklemede && !c.karsiBeklemede)
-                        // ⚠️ TURU 60: `Flexible` SARMALI. Icerideki `Flexible` (metin)
-                        // OLU KODDU: bu `Padding` dis Row'un flex OLMAYAN cocugu oldugu
-                        // icin SINIRSIZ ana-eksen kisitiyla olculuyor, dolayisiyla ic
-                        // Row'da esneme olmuyor ve `ellipsis` HIC devreye girmiyordu
-                        // (turu 23'un "uzun uyari metni tasiyor" duzeltmesi fiilen
-                        // tutmamis). Artik uyari kalan alana sigar, tasma uretmez.
-                        // ⚠️ YAPMA: bu Flexible'i kaldirma.
-                        Flexible(
-                          child: Padding(
-                          // TEST TURU 23: uzun uyari metni tasiyordu -> yatay pay + tek satir
-                          padding: const EdgeInsets.fromLTRB(24, 6, 24, 0),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                                color: Colors.black.withValues(alpha: 0.45),
-                                borderRadius: BorderRadius.circular(12)),
-                            child: Row(mainAxisSize: MainAxisSize.min, children: [
-                              Icon(
-                                  c.uyariMetni.contains('pil')
-                                      ? LucideIcons.batteryLow
-                                      : LucideIcons.wifiOff,
-                                  size: 14,
-                                  color: Colors.amberAccent),
-                              const SizedBox(width: 6),
-                              Flexible(
-                                child: Text(c.uyariMetni,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                        color: Colors.amberAccent, fontSize: 12)),
-                              ),
-                            ]),
-                          ),
-                        ),
-                        ),
                     ],
                   ),
+                  // ⚠️⚠️ PIL / BAGLANTI UYARISI — TURU 62'de SURENIN ALTINA ALINDI.
+                  //
+                  // KULLANICI EMRI: "mesela `pil seviyen dusuk` — bu butonlar ZAMANIN
+                  // ALTINA olmasi gerekiyor." Eskiden sure metniyle AYNI `Row` icindeydi:
+                  // yan yana sikisiyor, uzun metinde tasiyordu (turu 60'ta bekletme
+                  // rozeti ayni sebeple bu Row'dan cikarilmisti; uyari kalmisti).
+                  //
+                  // ⚠️⚠️ `Flexible` SARMALI KALDIRILDI — ZORUNLU: turu 60'ta bu Padding
+                  // bir ROW cocuguyken `Flexible` DOGRUYDU, ama artik COLUMN cocugu.
+                  // Column'da `Flexible` DIKEY eksende esner ve Column'un yuksekligi
+                  // burada SINIRSIZ oldugu icin RenderFlex ASSERTION ile PATLAR
+                  // (kirmizi ekran). ⚠️ YAPMA: buraya `Flexible`/`Expanded` koyma.
+                  //
+                  // Metin tasmasi artik tam genislikte serit + `ellipsis` ile cozuluyor.
+                  if (c.uyariMetni.isNotEmpty && !c.beklemede && !c.karsiBeklemede)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.45),
+                            borderRadius: BorderRadius.circular(12)),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                                c.uyariMetni.contains('pil')
+                                    ? LucideIcons.batteryLow
+                                    : LucideIcons.wifiOff,
+                                size: 14,
+                                color: Colors.amberAccent),
+                            const SizedBox(width: 6),
+                            Flexible(
+                              child: Text(c.uyariMetni,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                      color: Colors.amberAccent, fontSize: 12)),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   // ⚠️⚠️ ARAMA BEKLETME ROZETI — TURU 60'ta BU ROW'DAN CIKARILDI.
                   //
                   // KOK NEDEN (kullanici: "Android'de karsi tarafta 'beklemede'

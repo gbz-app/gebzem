@@ -14,8 +14,9 @@ import io.flutter.plugin.common.MethodChannel
 /// gorusme beklemeye aliniyor, bizde arkada devam ediyor").
 ///
 /// Telefon (GSM) arama durumunu dinler ve Flutter'a bildirir:
-///   RINGING/OFFHOOK -> Gebzem aramasi BEKLEMEYE alinir (medya durur, arama OLMEZ)
-///   IDLE            -> Gebzem aramasi kaldigi yerden DEVAM eder
+///   OFFHOOK -> GSM gorusmesi SURUYOR -> Gebzem BEKLEMEYE alinir (medya durur, arama OLMEZ)
+///   IDLE    -> Gebzem aramasi kaldigi yerden DEVAM eder
+///   RINGING -> HICBIR SEY (zil calarken kesme YOK; karar latch'lenir — turu 62)
 ///
 /// API 31+ : TelephonyCallback.CallStateListener (PhoneStateListener deprecated)
 /// API <31 : PhoneStateListener
@@ -25,6 +26,10 @@ class TelefonDurumu(private val ctx: Context, private val kanal: MethodChannel) 
     private var eskiDinleyici: PhoneStateListener? = null
     private var yeniDinleyici: Any? = null // TelephonyCallback (API 31+)
     private var sonDurum = TelephonyManager.CALL_STATE_IDLE
+
+    /// TURU 62: Dart'a EN SON bildirilen KARAR (beklet mi?). Ham `sonDurum`dan AYRI
+    /// tutulur, cunku RINGING artik karari DEGISTIRMIYOR — dedup ham durumdan yapilamaz.
+    private var sonBildirilen = false
 
     private fun izinVar(): Boolean =
         ContextCompat.checkSelfPermission(ctx, Manifest.permission.READ_PHONE_STATE) ==
@@ -36,8 +41,33 @@ class TelefonDurumu(private val ctx: Context, private val kanal: MethodChannel) 
     private fun bildir(durum: Int) {
         if (durum == sonDurum) return
         sonDurum = durum
-        // Dart tarafi: true = GSM aramasi var (beklet), false = bitti (devam et)
-        kanal.invokeMethod("gsmDurum", durum != TelephonyManager.CALL_STATE_IDLE)
+        // ⚠️⚠️ TURU 62 — KULLANICI BULGUSU: "biri arama attiginda DIREK beklemeye aliyor;
+        // yani ben telefonu ACTIGIMDA almasi gerekiyor."
+        // ESKIDEN `durum != CALL_STATE_IDLE` gonderiliyordu; sabitler IDLE=0, RINGING=1,
+        // OFFHOOK=2 oldugu icin telefon SADECE CALARKEN de bekletme baslıyordu. Kullanici
+        // GSM'i REDDEDERSE veya arama KACARSA Gebzem gorusmesi bos yere kesilip geri
+        // aciliyor, karsi tarafta "Beklemede" rozeti yanip sonuyordu.
+        //
+        // YENI KARAR TABLOSU:
+        //   OFFHOOK -> GSM gorusmesi FIILEN SURUYOR (kabul edildi VEYA giden GSM) -> BEKLET
+        //   IDLE    -> hicbir GSM aramasi yok -> DEVAM ET
+        //   RINGING -> yalnizca CALIYOR; karar DEGISMEZ (latch)
+        //
+        // ⚠️⚠️ RINGING NEDEN `false` DEGIL DE LATCH: Android `CALL_STATE_RINGING`i
+        // "zaten aktif bir gorusme varken ikinci cagri geldi" (GSM cagri bekletme)
+        // durumunda DA uretir. `false` yazsaydik SUREN GSM gorusmesinin ORTASINDA
+        // mikrofonu geri acardik ve karsi taraf GSM konusmasini DUYARDI — turu 56'da
+        // kapatilan GIZLILIK aciginin aynisi.
+        // ⚠️ YAPMA: RINGING dalini `false` yapma.
+        val beklet = when (durum) {
+            TelephonyManager.CALL_STATE_OFFHOOK -> true
+            TelephonyManager.CALL_STATE_IDLE -> false
+            else -> sonBildirilen // RINGING: karari KORU
+        }
+        if (beklet == sonBildirilen) return
+        sonBildirilen = beklet
+        // Dart tarafi: true = GSM gorusmesi SURUYOR (beklet), false = bitti (devam et)
+        kanal.invokeMethod("gsmDurum", beklet)
     }
 
     fun basla(): Boolean {
@@ -81,5 +111,14 @@ class TelefonDurumu(private val ctx: Context, private val kanal: MethodChannel) 
         yeniDinleyici = null
         eskiDinleyici = null
         sonDurum = TelephonyManager.CALL_STATE_IDLE
+        // ⚠️⚠️ TURU 62 — KARARI DA SIFIRLA (ZORUNLU, sus payi DEGIL).
+        // `TelefonDurumu` nesnesi MainActivity'de aramalar arasi YASAR
+        // (`if (telefon == null) telefon = TelefonDurumu(...)`). Bunu sifirlamazsak:
+        // GSM gorusmesi SURERKEN Gebzem aramasi bitip yenisi baslarsa, `basla()`nin
+        // registerTelephonyCallback ANINDA teslim ettigi OFFHOOK icin
+        // `beklet(true) == sonBildirilen(true)` olur, olay YUTULUR ve yeni arama
+        // GSM konusmasi boyunca MIKROFON ACIK kalir = turu 56 gizlilik acigi geri gelir.
+        // ⚠️ YAPMA: bu satiri kaldirma.
+        sonBildirilen = false
     }
 }

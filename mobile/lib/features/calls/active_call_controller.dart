@@ -60,6 +60,7 @@ class ParkEdilenArama {
     required this.micOn,
     required this.camOn,
     required this.isGroup,
+    required this.speakerOn,
   });
   final AramaBilgisi bilgi;
   final Room room;
@@ -68,6 +69,13 @@ class ParkEdilenArama {
   final bool micOn;
   final bool camOn;
   final bool isGroup;
+
+  /// ⚠️ TURU 62 — HOPARLOR DURUMU. Eskiden SAKLANMIYORDU: SESLI arama park edilip
+  /// uzerine GORUNTULU arama gelirse `_connect` `_speakerOn = true` yazar; ikinci arama
+  /// bitip `devamEt()` calisinca SESLI arama HOPARLORDEN aciliyordu — kullanicinin
+  /// "ses arkadan geliyor" sikayetinin ispatlanabilir bir varyanti.
+  /// ⚠️ YAPMA: bu alani kaldirma.
+  final bool speakerOn;
 
   /// TEST TURU 54 — PARK SURESI. Eskiden devam edince sayac `gecen`den basliyordu, yani
   /// PARKTA GECEN SURE KAYBOLUYORDU ve sayac karsi taraftan dakikalarca geri kaliyordu.
@@ -2279,11 +2287,61 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     final room = _room;
     if (room == null || _ayrildi || beklemede) return;
     try {
+      // ⚠️⚠️ TURU 62 (1/2) — SES OTURUMUNU SAHIBINE YENIDEN KURDUR.
+      // Kullanici: "beklettikten sonra konusmaya devam ettigimde ses ARKADAN
+      // geliyor gibi." Kok neden: Android ses MODU + AUDIO FOCUS + cihaz secimi
+      // yalniz `AudioSwitch.activate()` gecisinde uygulanir ve o gecis arama
+      // boyunca `isActive` kilidiyle KAPALI. GSM bitince Android modu
+      // MODE_NORMAL'a dondurur -> ses kulaklik yerine HOPARLORDEN calar.
+      // Native taraf (`sesOturumunuTazele`) deactivate+activate yaptirir.
+      // ⚠️ YAPMA: bunun yerine Dart'tan `setAndroidAudioConfiguration` cagirma —
+      // o yalniz DEGERI saklar, uygulamayi `activate()` yapar (kaynak okundu).
+      int oncekiMod = -1;
+      try {
+        oncekiMod = await PipService.sesOturumunuTazele();
+      } catch (_) {}
+
+      // ⚠️⚠️ TURU 62 (2/2) — DUZ ATAMA NO-OP'TUR: `room.setSpeakerOn(_speakerOn)`
+      // her zaman ONCEKIYLE AYNI degeri yazar (`_speakerOn` bekletme boyunca hic
+      // degismez) ve alt katman (AudioSwitch.selectDevice) ayni degerde ERKEN
+      // DONER -> "tazeleme" hicbir sey yapmadan basarili gorunur. Bu hata sinifi
+      // projede iOS icin ZATEN teshis edilmisti (AppDelegate "zorla toggle").
+      // Bu yuzden ONCE ters deger yazilip sonra dogrusu uygulanir.
+      // ⚠️⚠️ AMA KOR TOGGLE YAPMA: `setSpeakerOn(true)` BT/kablolu kulakligi YOK
+      // SAYIP dogrudan hoparloru secer; kulaklikta ara deger olarak hoparlor
+      // secmek SCO'yu koparir ve telefon KULAKTAYKEN ses patlatir.
+      // ⚠️ YAPMA: bu kulaklik kapisini kaldirma.
+      var kulaklik = false;
+      try {
+        final ciktilar = await Hardware.instance.audioOutputs();
+        kulaklik = ciktilar.any((d) {
+          final s = d.label.toLowerCase();
+          return s.contains('blue') || s.contains('wired') || s.contains('head');
+        });
+      } catch (_) {}
+      if (!kulaklik) {
+        try {
+          await room.setSpeakerOn(!_speakerOn);
+        } catch (_) {}
+      }
+      // ⚠️ TERS DEGERDE BIRAKMA KAPISI: yukarisi hata alsa bile DOGRU degeri
+      // MUTLAKA yaz. Aksi halde hem cihaz rotasi hem livekit'in yeniden-baglanma
+      // ayari TERS kalir ve `Hardware` SINGLETON oldugu icin sonraki aramaya sarkar.
       await room.setSpeakerOn(_speakerOn);
-      await room.localParticipant?.setMicrophoneEnabled(_micOn);
-      _sesLog('android ses tazelendi (hoparlor=$_speakerOn mic=$_micOn)');
+      // NOT: mikrofon burada TEKRAR set EDILMIYOR — her iki cagiranda da ustte
+      // `_medyaBeklet(..., micHedef: _micOn)` zaten yapiyor (ve gercek Android
+      // capture yeniden kurulumu orada oluyor).
+      // ⚠️ OLCUM (turu 50/56/60 dersi: `_sesLog` YALNIZ breadcrumb yazar, baska
+      // bir olay olmadan Sentry'e YUKLENMEZ). Gercek olay dusuyor ki bir dahaki
+      // turda "mod gercekten bozuluyor muydu" TAHMIN edilmesin, BAKILSIN.
+      // (Android AudioManager: 0=NORMAL 1=RINGTONE 2=IN_CALL 3=IN_COMMUNICATION)
+      // ⚠️ YAPMA: bu olcumu breadcrumb'a cevirme.
+      unawaited(Sentry.captureMessage(
+          'ses tazelendi: oncekiMod=$oncekiMod hoparlor=$_speakerOn '
+          'kulaklik=$kulaklik video=${arama?.video}'));
     } catch (e) {
       _sesLog('android ses tazeleme hatasi: $e');
+      unawaited(Sentry.captureMessage('ses tazeleme HATASI: $e'));
     }
   }
 
@@ -2600,6 +2658,7 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       micOn: _micOn,
       camOn: _camOn,
       isGroup: _isGroup,
+      speakerOn: _speakerOn, // turu 62: devam ederken ROTA geri gelsin
     );
     // Alanlari BOSALT: baslat(yeni) bu odayi ne kapatir ne de karistirir (teardown
     // "enqueue aninda yakala" kurali geregi yalniz _room/_listener uzerinden calisiyor).
@@ -2660,6 +2719,11 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     _isGroup = p.isGroup;
     _micOn = p.micOn;
     _camOn = p.camOn;
+    // ⚠️ TURU 62 — HOPARLOR BAYRAGI SENKRON geri yuklenir (await'lerden ONCE) ki
+    // hoparlor DUGMESI ve `speakerOn` getter'i ANINDA dogru gorunsun. Rotanin
+    // KENDISI asagida, `_medyaBeklet`ten sonra uygulanir.
+    // ⚠️ YAPMA: bu atamayi await'lerin altina tasima (dugme yalan soyler).
+    _speakerOn = p.speakerOn;
     _baglandi = true;
     _connecting = false;
     _peerJoined = true;
@@ -2700,8 +2764,18 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
     ekraniAc();
     await _medyaBeklet(p.room, false, micHedef: p.micOn, camHedef: p.camOn);
+    // ⚠️⚠️ TURU 62 — ROTAYI GERCEKTEN UYGULA (HER IKI PLATFORM).
+    // `_androidSesTazele` iOS'ta erken doner; yalniz bayragi geri yuklemek iOS'ta
+    // "bayrak=kulaklik / donanim=HOPARLOR" celiskisi uretir ve hoparlor dugmesi
+    // YALAN SOYLER (kapatmak icin iki kez basmak gerekir). Bu cagri `_connect`teki
+    // "mic -> kamera -> setSpeakerOn -> `_sesiAc(true)` EN SON" sirasinin AYNISIDIR.
+    // ⚠️ YAPMA: bunu `_sesiAc(true)`ten SONRAYA tasima (CLAUDE.md iOS ses sirasi hukmu);
+    // `_androidSesTazele`nin iOS kapisini kaldirarak cozmeye calisma (turu 56 yasagi).
+    try {
+      await p.room.setSpeakerOn(p.speakerOn);
+    } catch (_) {}
     await _sesiAc(true); // iOS: ses birimi EN SON (hold->resume ses kaybi tuzagi)
-    await _androidSesTazele(); // turu 56: Android'de ses rotasi/mic geri uygulanir
+    await _androidSesTazele(); // turu 56/62: Android'de ses OTURUMU + rota geri uygulanir
     unawaited(_svc.hold(p.bilgi.callId, false));
     _startTimer();
     _aktifPollBaslat();

@@ -8,8 +8,12 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.graphics.drawable.Icon
+import android.media.AudioManager
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.util.Rational
+import com.cloudwebrtc.webrtc.audio.AudioSwitchManager
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -98,6 +102,47 @@ class MainActivity : FlutterActivity() {
                         telefon?.dur()
                         result.success(true)
                     }
+                }
+                // ⚠️⚠️ TEST TURU 62 — GSM SONRASI SES OTURUMUNU SAHIBINE YENIDEN KURDURUR.
+                //
+                // KULLANICI BULGUSU: "beklettikten sonra kapatip konusmaya devam ettigimde
+                // sanki SES ARKADAN GELIYOR gibi oluyor" -> ses KULAKLIK (earpiece) yerine
+                // arkadaki HOPARLORDEN caliyor.
+                //
+                // KOK NEDEN: Android'de ses MODU (MODE_IN_COMMUNICATION), AUDIO FOCUS ve
+                // cihaz secimi YALNIZCA flutter_webrtc'nin `AudioSwitch.activate()`
+                // gecisinde uygulanir. O gecisi tetikleyen `AudioSwitchManager.start()`
+                // `if (!isActive)` kilidiyle korunur ve `isActive` ARAMA BOYUNCA true
+                // takilidir (stop yalniz son PeerConnection dispose olunca cagrilir).
+                // GSM aramasi ses odagini alir, bitince Android modu MODE_NORMAL'a dondurur
+                // ve (API31+) `setCommunicationDevice` secimimizi temizler — bizde bunu geri
+                // alacak HICBIR SEY YOKTU. Dart tarafindaki `setAndroidAudioConfiguration`
+                // YETMEZ: o yalniz DEGERI saklar, uygulamayi `activate()` yapar.
+                //
+                // ⚠️ YAPMA: burada `am.mode = ...` YAZMA. Activity'nin AudioManager'i
+                // AudioService'te AYRI bir istemcidir; birakan kod olmadigi icin arama
+                // bitince MODE_IN_COMMUNICATION SIZAR (ses tusu VOICE_CALL'u kontrol eder,
+                // sonraki oda/yayin bozuk modu devralir). Modu SAHIBINE yazdiriyoruz.
+                //
+                // ⚠️⚠️ `stop()` HEMEN ARDINDAN `start()` CAGIRMA — ISE YARAMAZ:
+                // ikisi de `handler.removeCallbacksAndMessages(null)` yapar, yani `start()`
+                // `stop()`un kuyruga koydugu `deactivate` isini SILER; `isActive` true
+                // kalir ve `activate()` `if (!isActive)` kapisinda NO-OP olur.
+                // Bu yuzden `start()` BIR SONRAKI dongu turunda cagriliyor.
+                // ⚠️ YAPMA: bu gecikmeyi kaldirip iki cagriyi arka arkaya yapma.
+                "sesOturumunuTazele" -> {
+                    val onceki = try {
+                        val am = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                        val m = am.mode // SALT OKUMA — olcum (Dart Sentry'e yazar)
+                        AudioSwitchManager.instance?.stop()
+                        Handler(Looper.getMainLooper()).postDelayed({
+                            try { AudioSwitchManager.instance?.start() } catch (_: Throwable) {}
+                        }, 120)
+                        m
+                    } catch (_: Throwable) {
+                        -99 // OEM/surum farki -> ozellik sessizce kapali, arama ETKILENMEZ
+                    }
+                    result.success(onceki)
                 }
                 // TEST TURU 32: SUREN ARAMA ONDEPLAN SERVISI (arka planda donma korumasi).
                 // Basarisiz olursa SESSIZCE vazgecilir — arama akisi ETKILENMEZ.

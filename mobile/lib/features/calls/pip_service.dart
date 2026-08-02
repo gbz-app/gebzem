@@ -131,6 +131,26 @@ class PipService {
     } catch (_) {}
   }
 
+  /// TURU 62 — SES OTURUMUNU YENIDEN KURDUR (yalniz ANDROID).
+  ///
+  /// GSM aramasi bitince Android ses modunu MODE_NORMAL'a dondurur ve cihaz secimimizi
+  /// temizler; flutter_webrtc'nin `AudioSwitch.activate()` gecisi arama boyunca kilitli
+  /// oldugu icin bunu geri alan HICBIR SEY yoktu -> ses kulaklik yerine HOPARLORDEN
+  /// caliyordu. Native taraf `deactivate()` + (bir dongu turu sonra) `activate()` yapar.
+  ///
+  /// Donus: tazeleme ONCESINDEKI `AudioManager.mode` (olcum icin; -99 = native hata,
+  /// -1 = cagri yapilamadi). ⚠️ YAPMA: bu donusu yok sayma — kok nedenin dogrulanmasi
+  /// buna bagli (0=NORMAL 1=RINGTONE 2=IN_CALL 3=IN_COMMUNICATION).
+  static Future<int> sesOturumunuTazele() async {
+    if (!Platform.isAndroid) return -1;
+    try {
+      _handlerKur();
+      return (await _ch.invokeMethod<int>('sesOturumunuTazele')) ?? -1;
+    } catch (_) {
+      return -1;
+    }
+  }
+
   /// GSM ARAMA DINLEYICISI (test turu 20): Gebzem aramasi basladiginda ac, bitince kapat.
   /// Donus: dinlenebiliyor mu (READ_PHONE_STATE izni yoksa false -> ozellik sessizce kapali).
   static Future<bool> gsmDinle(bool ac) async {
