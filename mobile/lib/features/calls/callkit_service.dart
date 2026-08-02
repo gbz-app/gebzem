@@ -138,8 +138,17 @@ class CallKitService {
         _timeoutController.add(id); // 45sn auto-expire — kabul sonrasi SPURIOUS olabilir (onRed DEGIL)
 
       // TEST TURU 18: iOS CallKit "Beklet" (CXSetHeldCallAction) -> medyayi durdur/geri ac
+      // ⚠️⚠️ TEST TURU 56 — KOK NEDEN (36 turdur sessizce bozuktu):
+      // Bu olay eklentiden `action.callUUID.uuidString` ile geliyor ve Foundation
+      // `UUID.uuidString`i **BUYUK HARF** dondurur ("E621E1F8-..."). Bizim callId'lerimiz
+      // Postgres `gen_random_uuid()` = **KUCUK HARF**. Dart tarafinda `beklemeyeAl`
+      // TAM ESITLIK karsilastirdigi icin ESLESMIYOR ve metot SESSIZCE return ediyordu:
+      // GSM aramasi kabul edilse bile medya DURMUYOR, sunucuya `hold` GITMIYOR.
+      // (Kabul/Reddet/Bitir olaylari etkilenmiyor cunku onlar BIZIM gonderdigimiz orijinal
+      //  string'i tasiyor — YALNIZ hold ve mute olaylari uuidString kullaniyor.)
+      // ⚠️ YAPMA: burada ham `id`yi dogrudan yayinlama.
       case CallEventActionCallToggleHold(:final id, :final isOnHold):
-        _holdController.add({'call_id': id, 'on': isOnHold == true});
+        _holdController.add({'call_id': _asilId(id), 'on': isOnHold == true});
 
       case CallEventActionDidUpdateDevicePushTokenVoip():
         _voipTokeniGonder(); // token olayla gelmiyor, ayrica sorulmali
@@ -147,6 +156,18 @@ class CallKitService {
       default:
         break;
     }
+  }
+
+  /// TEST TURU 56: CallKit'ten BUYUK HARF gelen uuid'i, bizim bildigimiz ORIJINAL
+  /// callId'ye cevirir. `islenenler` kumesi hem `goster()` (gelen) hem `gidenArama()`
+  /// (giden) tarafindan doldurulur, yani her iki yonde de dogru kaynaktir.
+  /// Eslesme yoksa ham degeri dondurur (davranis bozulmaz).
+  /// ⚠️ YAPMA: bu cevrimi kaldirma (hold/mute olaylari bir daha eslesmez).
+  static String _asilId(String ham) {
+    for (final k in islenenler) {
+      if (k.toLowerCase() == ham.toLowerCase()) return k;
+    }
+    return ham;
   }
 
   Map<String, dynamic> _ayikla(CallKitParams p) {
@@ -341,21 +362,34 @@ class CallKitService {
         'postNotificationMessageRequired':
             'Bildirim izni olmadan gelen aramalar gosterilemez.',
       });
+      // ⚠️⚠️ TEST TURU 56 — SIRA KRITIK (36 turdur GSM BEKLETME HIC CALISMIYORDU).
+      // KOK NEDEN: `requestFullIntentPermission()` fire-and-forget SISTEM AYARLAR
+      // EKRANINI ACAR. Eskiden `Permission.phone.request()` ONDAN SONRA cagriliyordu;
+      // Ayarlar ekrani ustteyken (MainActivity duraklamis) Android izin diyalogunu
+      // GOSTERMEZ, `onRequestPermissionsResult` HIC gelmez ve Future ASILI KALIR ->
+      // READ_PHONE_STATE **ASLA** verilmez -> `TelefonDurumu.izinVar()` false ->
+      // GSM dinleyicisi sessizce KAPALI. Android 14+ sideload'da her acilista tekrarlar.
+      // FIX: telefon izni ONCE (henuz hicbir harici Activity acilmamisken), tam-ekran
+      // bildirim ayar ekranina sicrama EN SON.
+      // ⚠️ YAPMA: bu iki blogun sirasini tekrar degistirme.
+      var telefonIzni = false;
+      try {
+        telefonIzni = await Permission.phone.isGranted;
+        if (!telefonIzni) {
+          telefonIzni = (await Permission.phone.request()) == PermissionStatus.granted;
+        }
+      } catch (_) {}
+
       var tamEkran = await FlutterCallkitIncoming.canUseFullScreenIntent();
       if (!tamEkran) {
         await FlutterCallkitIncoming.requestFullIntentPermission();
         tamEkran = await FlutterCallkitIncoming.canUseFullScreenIntent();
       }
-      // TEST TURU 20 — GSM ARAMA BEKLETME: normal telefon aramasi gelince Gebzem aramasini
-      // beklemeye alabilmek icin telefon DURUMU izni (READ_PHONE_STATE). Verilmezse ozellik
-      // sessizce kapali kalir; arama akisi ETKILENMEZ (bu yuzden hata yutulur).
-      try {
-        if (!await Permission.phone.isGranted) await Permission.phone.request();
-      } catch (_) {}
       // TANI: kilit ekrani aramasi gorunmuyorsa ilk bakilacak yer — izin durumu.
-      debugPrint('CALLKIT-TANI: bildirim=$bildirim tamEkran=$tamEkran');
-      unawaited(Sentry.captureMessage(
-          'callkit izin durumu: bildirim=$bildirim tamEkran=$tamEkran'));
+      debugPrint(
+          'CALLKIT-TANI: bildirim=$bildirim tamEkran=$tamEkran telefon=$telefonIzni');
+      unawaited(Sentry.captureMessage('callkit izin durumu: bildirim=$bildirim '
+          'tamEkran=$tamEkran telefon=$telefonIzni'));
     } catch (e) {
       debugPrint('callkit izin: $e');
     }

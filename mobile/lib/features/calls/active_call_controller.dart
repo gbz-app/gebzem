@@ -149,7 +149,10 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     PipService.gsmAramada.addListener(() {
       final b = arama;
       if (b == null || _ayrildi || !_baglandi) return;
-      unawaited(beklemeyeAl(b.callId, PipService.gsmAramada.value));
+      // turu 56: olcum — GSM olayi GERCEKTEN geliyor mu (36 tur hic gelmemisti)
+      final gsm = PipService.gsmAramada.value;
+      _sesLog('gsm durum=$gsm beklemede=$beklemede baglandi=$_baglandi');
+      unawaited(beklemeyeAl(b.callId, gsm));
     });
   }
 
@@ -1075,7 +1078,19 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       unawaited(hazirKamera.stop().then((_) => hazirKamera.dispose()));
     }
     // TEST TURU 20: GSM arama dinleyicisini AC (arama boyunca). Izin yoksa no-op.
-    unawaited(PipService.gsmDinle(true));
+    // ⚠️ TEST TURU 56 — SONUC ARTIK OKUNUYOR. Eskiden `unawaited` ile ATILIYORDU ve
+    // hicbir log/Sentry kaydi yoktu; GSM dinleyicisi 36 TUR boyunca izin verilmedigi icin
+    // sessizce KAPALI kaldi ve kimse fark etmedi. Artik kapaliysa Sentry'e olay duser.
+    // ⚠️ YAPMA: bu sonucu tekrar `unawaited` ile atma.
+    // NOT: `gsmDinle` iOS'ta KOSULSUZ false doner (orada isi CallKit yapar) — o yuzden
+    // olcum yalniz ANDROID'de anlamli, aksi halde yanlis alarm uretirdi.
+    PipService.gsmDinle(true).then((ok) {
+      if (Platform.isAndroid && ok != true) {
+        _sesLog('gsm dinleyici KAPALI (READ_PHONE_STATE izni yok)');
+        unawaited(Sentry.captureMessage(
+            'gsm dinleyici KAPALI — READ_PHONE_STATE izni yok'));
+      }
+    }).catchError((_) {});
     // SURE SENKRONU: ARANAN tarafta answer() cevabindaki gecen-sure (~0); grupta kullanilmaz.
     _sureReferansiAl(b.elapsedMs);
     // MESGUL MUHAFIZI: calar fazi dahil isaretle; yalniz leave birakir.
@@ -1350,7 +1365,18 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
         notifyListeners();
       }
     }
-    if (state == AppLifecycleState.resumed && arama != null && !_ayrildi && !_cevapsiz) {
+    // ⚠️⚠️ TEST TURU 56 — `!beklemede` KAPISI (GIZLILIK SORUNU).
+    // GSM gorusmesi SURERKEN kullanici Gebzem'e geri gecerse burasi calisip
+    // `_kameraOtoAc()` ile kamerayi, `_kesintidenTopla()` ile MIKROFONU GERI ACIYORDU.
+    // Ekranda "Arama beklemede" yazarken mikrofon CANLI kaliyor ve KARSI TARAF
+    // GSM KONUSMASINI DUYUYORDU. Beklemedeyken medya KAPALI kalmali; geri acmayi
+    // yalnizca `beklemeyeAl(false)` (unhold) yapar.
+    // ⚠️ YAPMA: bu `!beklemede` sartini kaldirma.
+    if (state == AppLifecycleState.resumed &&
+        arama != null &&
+        !_ayrildi &&
+        !_cevapsiz &&
+        !beklemede) {
       // Kamera restore _kesintidenTopla'dan ONCE (iOS ses sirasi: _sesiAc EN SON kalmali)
       // TURU 53: tek yardimciya toplandi (`_kameraOtoAc`) — ayni geri acma artik
       // kesinti-bitti dalindan da cagriliyor ve bekleyen mute timer'ini IPTAL ediyor.
@@ -1365,6 +1391,9 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> _kesintidenTopla() async {
+    // TURU 56 SAVUNMA KAPISI: beklemedeyken (GSM gorusmesi surerken) mikrofon ASLA
+    // geri acilmamali — cagiran taraf unutsa bile burasi korur.
+    if (beklemede) return;
     _sesLog('kesintiden topla (resume)');
     await _sesiAc(true);
     try {
@@ -2640,18 +2669,26 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
   ///  - AKTIF arama ise -> medyayi durdur/geri ac (arama BITMEZ, oda acik kalir).
   ///  - PARK EDILMIS arama ise -> zaten bekliyor; unhold gelirse ve aktif arama yoksa DEVAM ET.
   Future<void> beklemeyeAl(String callId, bool aktif) async {
+    // ⚠️ TEST TURU 56 — HARF-DUYARSIZ KARSILASTIRMA (savunma katmani).
+    // CallKit hold olayi BUYUK HARF uuid tasiyor (Foundation `UUID.uuidString`), bizim
+    // callId'lerimiz Postgres `gen_random_uuid()` = kucuk harf. Asil cevrim
+    // `CallKitService._asilId` ile yapiliyor; burasi o cevrim bir sebeple tutmazsa
+    // (ornek: `islenenler`de kayit yok) ozelligin yine de calismasini garanti eder.
+    // ⚠️ YAPMA: bu karsilastirmalari tekrar TAM ESITLIGE cevirme.
+    final hedef = callId.toLowerCase();
     final p = parkEdilen;
-    if (p != null && p.bilgi.callId == callId) {
+    if (p != null && p.bilgi.callId.toLowerCase() == hedef) {
       if (!aktif && arama == null) await devamEt();
       return;
     }
     final room = _room;
-    if (arama == null || arama!.callId != callId || room == null) return;
+    if (arama == null || arama!.callId.toLowerCase() != hedef || room == null) return;
     if (beklemede == aktif) return;
     beklemede = aktif;
     await _medyaBeklet(room, aktif, micHedef: _micOn, camHedef: _camOn);
     if (!aktif) await _sesiAc(true); // geri donuste ses birimini tazele (Apple tuzagi)
-    unawaited(_svc.hold(callId, aktif));
+    // ⚠️ Sunucuya ORIJINAL id gonderilir (buyuk harfli CallKit id'si DEGIL).
+    unawaited(_svc.hold(arama!.callId, aktif));
     notifyListeners();
   }
 
