@@ -49,7 +49,8 @@ class _RoomsTabState extends ConsumerState<RoomsTab> {
   /// MUHAFIZ: aramadayken odaya girilmez (iki LiveKit Room tek native ses birimini
   /// cekistirir — call_provider mesgul muhafiziyla ayni kural).
   bool _aramaVarMi() {
-    if (ref.read(callServiceProvider.notifier).aramadaMi) {
+    // TURU 56: ham `aramadaMi` yerine self-heal'li TEK KAYNAK (bayat kayit temizlenir).
+    if (ref.read(callServiceProvider.notifier).mesgulMu(etiket: 'oda')) {
       // C5: minimize edilmis arama varsa "Aramaya don" kisayolu
       final ctrl = ref.read(activeCallProvider);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -106,7 +107,8 @@ class _RoomsTabState extends ConsumerState<RoomsTab> {
       final roomId = info['room_id'] as String;
       // MUHAFIZ TEKRARI (dogrulama bulgusu): REST surerken gelen arama KABUL edilmis
       // olabilir — iki canli LiveKit Room acilmasin. Odayi geri kapat, ekrani ACMA.
-      if (ref.read(callServiceProvider.notifier).aramadaMi) {
+      // TURU 56: ham `aramadaMi` yerine self-heal'li TEK KAYNAK (bayat kayit temizlenir).
+    if (ref.read(callServiceProvider.notifier).mesgulMu(etiket: 'oda')) {
         unawaited(ref.read(roomsApiProvider).bitir(roomId));
         ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Aramadasınız — oda açılmadı')));
@@ -145,7 +147,8 @@ class _RoomsTabState extends ConsumerState<RoomsTab> {
       if (!mounted) return;
       // MUHAFIZ TEKRARI (dogrulama bulgusu): join REST'i surerken arama kabul edilmis
       // olabilir. Sunucudaki 'joined' kaydini geri al, ekrani ACMA.
-      if (ref.read(callServiceProvider.notifier).aramadaMi) {
+      // TURU 56: ham `aramadaMi` yerine self-heal'li TEK KAYNAK (bayat kayit temizlenir).
+    if (ref.read(callServiceProvider.notifier).mesgulMu(etiket: 'oda')) {
         unawaited(ref.read(roomsApiProvider).ayril(id));
         ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Aramadasınız — odaya katılınmadı')));

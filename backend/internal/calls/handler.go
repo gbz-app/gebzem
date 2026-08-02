@@ -56,6 +56,15 @@ import (
 // ⚠️ 2 = SADECE 1:1 (arayan + aranan). Grup aramasi SUNUCUDA DA kapali.
 const maxGrupKatilimci = 2
 
+// GRUP ARAMASI ACIK MI (kullanici karari 2 Agu 2026: KAPALI).
+// ⚠️ DENETIM BULGUSU: yalnizca `maxGrupKatilimci`yi 2'ye indirmek YETMIYORDU — tek kisi
+// secilmis grupta `toplam = 2` olur ve `2 > 2` FALSE'tur, istek KABUL EDILIYORDU.
+// Bu bayrak `Start` (grup dali) ve `Add` uclarini KOSULSUZ reddeder.
+// GERI ACMA: bunu `true` yap + `maxGrupKatilimci`yi buyut + istemcideki giris
+// noktalarini (calls_tab FAB, call_screen "Kisi ekle") geri ekle.
+// ⚠️ YAPMA: kontrolleri bayrak yerine yalniz kapasiteye baglama.
+const grupAramaAcik = false
+
 type Handler struct {
 	db   *pgxpool.Pool
 	hub  *chat.Hub
@@ -537,14 +546,23 @@ func (h *Handler) startGroup(w http.ResponseWriter, r *http.Request, req startRe
 		writeErr(w, http.StatusBadRequest, "gecerli katilimci yok")
 		return
 	}
-	// KAPASITE (kullanici karari 30 Tem): sesli VE goruntulu grup arama = 8 kisi (arayan dahil).
-	// Istemci tarafi korumalar duruyor: dusuk grup video profili (540p) + adaptiveStream
-	// (gorunmeyen tile'lar duraklar) + kaydirmali izgara.
-	// LiveKit global max_participants:32 tavaninin ALTINDA (calls odalari auto-create).
+	// ⚠️⚠️ GRUP ARAMASI KULLANIM DISI (kullanici karari 2 Agu 2026).
+	// DENETIM BULGUSU: yalnizca `maxGrupKatilimci`yi 2'ye indirmek YETMIYORDU —
+	// tek kisi secilmis bir grupta `toplam = 2` olur ve `2 > 2` FALSE'tur; istek KABUL
+	// edilip `is_group=true, callee_id=NULL` bir "2 kisilik grup" olusuyordu (izgara,
+	// katilimci olaylari, grup Answer yolu... hepsi devreye giriyordu).
+	// Artik grup baslatma KOSULSUZ reddediliyor: bu uc yalniz 1:1 icindir.
+	// ⚠️ YAPMA: bu kontrolu tekrar yalniz kapasiteye baglama.
+	// GERI ACMA: asagidaki blogu kaldir + `maxGrupKatilimci`yi buyut + istemcideki
+	// giris noktalarini (calls_tab FAB, call_screen "Kisi ekle") geri ekle.
+	if !grupAramaAcik && len(memberIDs) > 0 {
+		writeErr(w, http.StatusBadRequest, "grup aramasi kullanim disi")
+		return
+	}
 	toplam := len(memberIDs) + 1
 	if toplam > maxGrupKatilimci {
 		writeErr(w, http.StatusBadRequest,
-			fmt.Sprintf("grup aramasi en fazla %d kisi olabilir", maxGrupKatilimci))
+			fmt.Sprintf("arama en fazla %d kisi olabilir", maxGrupKatilimci))
 		return
 	}
 
@@ -726,6 +744,16 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request) {
 	// (temizlenir) ve davete IZIN verilir.
 	if mesgul && h.gercektenMesgul(r.Context(), req.UserID, callID) {
 		writeErr(w, http.StatusConflict, "kullanici su anda baska bir gorusmede")
+		return
+	}
+	// ⚠️ ARAMAYA KISI EKLEME KULLANIM DISI (grup aramasi kapatildi, 2 Agu 2026).
+	// Aritmetik zaten engelliyor (1:1'de taban 2 -> 2+1 > 2), ama ACIKCA reddetmek
+	// hem daha anlasilir hem de kapasite sabiti ileride degisirse sizinti birakmaz.
+	// ⚠️ YAPMA: bu kontrolu kaldirip yalniz kapasiteye guvenme.
+	// ⚠️ `return`den sonra OLU KOD BIRAKMA (turu 48 dersi: "gozcu ULASILAMAZ KODDU") —
+	// bu yuzden bayrakla kapatiliyor, asagisi ULASILABILIR kaliyor.
+	if !grupAramaAcik {
+		writeErr(w, http.StatusBadRequest, "aramaya kisi ekleme kullanim disi")
 		return
 	}
 	// Kapasite (maxGrupKatilimci = 2 — grup KAPALI, kullanici karari 2 Agu): 1:1 taban 2

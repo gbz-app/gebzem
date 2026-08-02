@@ -332,6 +332,22 @@ class CallKitService {
     }
   }
 
+  /// TEST TURU 56 — GIDEN ARAMAYI "BAGLANDI" OLARAK BILDIR (iOS).
+  /// `startCall` aramayi CallKit'te "araniyor/connecting" durumunda birakir; eklenti
+  /// `connectedAt` bildirimini YALNIZ `setCallConnected` cagrilinca yapar ve biz hic
+  /// cagirmiyorduk. iOS BAGLI OLMAYAN bir aramayi HOLD EDILEBILIR saymaz — yani GSM
+  /// aramasi gelince "Beklet ve Kabul" secenegi cikmayabilir (turu 55'in eksik halkasi).
+  /// Karsi taraf kabul edip odaya baglaninca BIR KEZ cagrilir.
+  /// ⚠️ YAPMA: gelen aramalarda cagirma (CXAnswerCallAction zaten bagli sayar).
+  static Future<void> baglandi(String callId) async {
+    if (!Platform.isIOS || callId.isEmpty) return;
+    try {
+      await FlutterCallkitIncoming.setCallConnected(callId);
+    } catch (e) {
+      debugPrint('CALLKIT-BAGLANDI hata: $e');
+    }
+  }
+
   static Future<void> bitir(String callId) async {
     if (callId.isEmpty) return;
     try {

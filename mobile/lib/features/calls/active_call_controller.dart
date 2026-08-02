@@ -1426,6 +1426,13 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     final id = arama?.callId ?? '';
     // MESGUL MUHAFIZINI BIRAK (v13): cevapsiz ekran artik aktif arama degil.
     _svc.ekranKapandi(id);
+    // ⚠️ TURU 56 — HAYALET CALLKIT ARAMASI (turu 55 yan etkisi): giden arama artik iOS
+    // CallKit'e kaydediliyor (`gidenArama`), ama o kaydi kapatan TEK yer `leave()` idi.
+    // Cevapsiz/reddedildi/mesgul yolunda `leave()` CAGRILMIYOR -> iOS'ta AKTIF bir sistem
+    // aramasi ASILI kaliyor: telefonun arama ekraninda "suren arama" gorunur ve sonraki
+    // aramalarda ses/beklet davranisi bozulur. `bitir()` idempotent (aktif degilse no-op).
+    // ⚠️ YAPMA: bu satiri kaldirma.
+    if (id.isNotEmpty) unawaited(CallKitService.bitir(id));
     await CallSounds.durdur(_sesNesli);
     _ringTimeout?.cancel();
     _statusPoll?.cancel();
@@ -1448,6 +1455,9 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     if (b == null || pid == null) return false;
     // Cevapsiz ekran "aramada" sayilmasin — yoksa start() "Zaten bir aramadasiniz" der.
     _svc.ekranKapandi(b.callId);
+    // TURU 56: ESKI CallKit giden-arama kaydini da kapat — yoksa "Geri Ara" her
+    // denemede iOS'ta bir hayalet sistem aramasi daha BIRIKTIRIR (turu 55 yan etkisi).
+    unawaited(CallKitService.bitir(b.callId));
     try {
       final info = await _svc.start(pid, video: b.video);
       await baslat(AramaBilgisi(
@@ -1817,6 +1827,19 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       _speakerOn = hoparlor; // goruntuluyse hoparlor acik (buton durumu gercekle uyumlu)
       _peerJoined = room.remoteParticipants.isNotEmpty;
       _odaBagli = true; // room.connect TAMAMLANDI
+      // TURU 56: GIDEN aramayi CallKit'te "BAGLANDI" isaretle. `startCall` onu
+      // "araniyor" durumunda birakiyor; iOS BAGLI OLMAYAN aramayi HOLD EDILEBILIR
+      // saymaz -> GSM gelince "Beklet ve Kabul" secenegi cikmayabilir (turu 55 eksik
+      // halkasi). Gelen aramalarda GEREKMEZ (CXAnswerCallAction zaten bagli sayar).
+      // ⚠️ YAPMA: gelen aramada da cagirma; await etme.
+      if (b.outgoing) unawaited(CallKitService.baglandi(id));
+      // TURU 56: GSM zaten SURUYORSA (arama kurulurken telefon caliyordu) beklet
+      // tetiklenmemis olur — `gsmAramada` bir ValueNotifier ve YALNIZ DEGISIMDE
+      // tetikleniyor. Burada SEVIYE kontrolu yapip kacirilan durumu yakaliyoruz.
+      // ⚠️ YAPMA: bu seviye kontrolunu kaldirma (kenar-tetikli notifier tuzagi).
+      if (PipService.gsmAramada.value && !beklemede) {
+        unawaited(beklemeyeAl(id, true));
+      }
       notifyListeners();
       // SENKRON SAYAC (test turu 6): 1:1'de baglanti kuruldu + PEER ODADA + sunucu-aktif
       // (elapsed_ms referansi) -> sayaci HEMEN ac (YEREL ses playout'unu BEKLEME). Iki taraf
@@ -2729,14 +2752,33 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     final room = _room;
     if (arama == null || arama!.callId.toLowerCase() != hedef || room == null) return;
     if (beklemede == aktif) return;
+    // ⚠️⚠️ TURU 56 DUZELTMESI (denetimde 4 ajan birden yakaladi — BENIM bugunku hatam):
+    // Asagida UC await var (`_medyaBeklet` her uzak publication icin disable/enable
+    // yapar — yuzlerce ms surebilir). Ilk yazdigimda sona `arama!.callId` koymustum;
+    // bu pencerede karsi taraf kapatirsa `arama` NULL olur ve `arama!` NULL-CHECK
+    // ISTISNASI atar — ustelik `beklemede` true TAKILI kalir ve sonraki aramaya sarkar.
+    // Cozum: kimligi await'lerden ONCE yakala, sonra kimlik kapisiyla dogrula.
+    // ⚠️ YAPMA: await'lerden sonra `arama!` kullanma; kimlik kapisini kaldirma.
+    final orijinalId = arama!.callId;
     beklemede = aktif;
     await _medyaBeklet(room, aktif, micHedef: _micOn, camHedef: _camOn);
+    // Await sirasinda arama bittiyse/degistiyse DOKUNMA (bayat akis).
+    if (_ayrildi || arama?.callId != orijinalId) return;
     if (!aktif) {
       await _sesiAc(true); // iOS: ses birimini tazele (Apple tuzagi)
       await _androidSesTazele(); // turu 56: Android'de karsiligi YOKTU — GSM sonrasi sagirlik
+      // ⚠️ TURU 56: KAMERAYI DA GERI AC. Beklet sirasinda uygulama arka plana gectigi
+      // icin yasam dongusu `_kameraOtoKapandi=true; _camOn=false;` yazmis olabilir;
+      // bugun ekledigim `!beklemede` kapisi `resumed` dalindaki geri acmayi da
+      // bloklayinca GORUNTULU aramada kamera BIR DAHA ACILMIYORDU.
+      // `_kameraOtoAc` zaten `_kameraOtoKapandi` sartina bagli (elle kapatilan kamerayi
+      // acmaz), bekleyen mute timer'ini iptal eder ve iOS bayragini tazeler.
+      // ⚠️ YAPMA: bu cagriyi kaldirma.
+      if (_ayrildi || arama?.callId != orijinalId) return;
+      _kameraOtoAc();
     }
     // ⚠️ Sunucuya ORIJINAL id gonderilir (buyuk harfli CallKit id'si DEGIL).
-    unawaited(_svc.hold(arama!.callId, aktif));
+    unawaited(_svc.hold(orijinalId, aktif));
     notifyListeners();
   }
 

@@ -49,7 +49,8 @@ class _LiveTabState extends ConsumerState<LiveTab> {
   }
 
   bool _aramaVarMi() {
-    if (ref.read(callServiceProvider.notifier).aramadaMi) {
+    // TURU 56: self-heal'li TEK KAYNAK (bayat muhafiz kaydi temizlenir)
+    if (ref.read(callServiceProvider.notifier).mesgulMu(etiket: 'yayin')) {
       // C5: minimize edilmis ARAMA varsa "Aramaya don" kisayolu (oda/yayinda arama null -> aksiyon yok)
       final ctrl = ref.read(activeCallProvider);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -70,7 +71,7 @@ class _LiveTabState extends ConsumerState<LiveTab> {
       final id = y['id'] as String;
       final info = await ref.read(liveApiProvider).izle(id);
       if (!mounted) return;
-      if (ref.read(callServiceProvider.notifier).aramadaMi) {
+      if (ref.read(callServiceProvider.notifier).mesgulMu(etiket: 'yayin')) {
         // REST surerken arama kabul edildi (Spaces'teki muhafiz-tekrari dersi)
         unawaited(ref.read(liveApiProvider).ayril(id));
         ScaffoldMessenger.of(context).showSnackBar(

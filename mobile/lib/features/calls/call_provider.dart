@@ -115,6 +115,37 @@ class CallService extends StateNotifier<IncomingCall?> {
   /// kapatilip arama reddedilmeli (hayalet CallKit + oda sesi olumu bulgusu).
   bool baskaIsleMesgul(String callId) => ekrandakiAramalar.any((x) => x != callId);
 
+  /// ⚠️ TEST TURU 56 — MESGULLUK KONTROLU **TEK KAYNAK** (bayat muhafiz self-heal).
+  ///
+  /// `ekrandakiAramalar` kumesine 5 ekrandan giriliyor, 9 yerden birakiliyor; bir birakma
+  /// yolu kacarsa id ASILI kalir ve kullanici SUNUCU TERTEMIZ OLSA BILE ne arama yapabilir
+  /// ne kabul edebilir ne odaya/yayina girebilir. Bu metot muhafiza koru korune guvenmez,
+  /// GERCEKLIGE sorar:
+  ///   · GERCEK aktif arama VAR (hazirlik modu HARIC) -> MESGUL
+  ///   · `oda_` / `yayin` onekli kayit VAR -> MESGUL (ses cakismasi korumasi ORADA)
+  ///   · aksi halde kayit BAYATTIR -> temizlenir, Sentry'e olcum yazilir, MESGUL DEGIL
+  ///
+  /// [haric]: bu id'yi yok say (kabul yolunda kendi aramamiz mesgul saymaz).
+  /// [etiket]: olcumde hangi yoldan geldigi gorunsun (start/answer/oda/yayin).
+  ///
+  /// ⚠️ YAPMA: bu mantigi cagiran yerlere KOPYALAMA (drift eder — denetim bulgusu:
+  /// rooms_tab/live_tab ham `aramadaMi`ye bakiyordu ve self-heal'den YARARLANMIYORDU).
+  /// ⚠️ YAPMA: `oda_`/`yayin` kapisini kaldirma.
+  bool mesgulMu({String? haric, String etiket = ''}) {
+    final ilgili =
+        ekrandakiAramalar.where((x) => haric == null || x != haric).toList();
+    if (ilgili.isEmpty) return false;
+    final ctrl = _ref.read(activeCallProvider);
+    final gercekArama = ctrl.arama != null && !ctrl.hazirlikModunda;
+    final odaVeyaYayin =
+        ilgili.any((x) => x.startsWith('oda_') || x.startsWith('yayin'));
+    if (gercekArama || odaVeyaYayin) return true;
+    ekrandakiAramalar.removeWhere((x) => haric == null || x != haric);
+    unawaited(Sentry.captureMessage(
+        'bayat mesgul muhafizi temizlendi ($etiket): $ilgili'));
+    return false;
+  }
+
   void _onEvent(Map<String, dynamic> ev) {
     final payload = ev['payload'];
     if (payload is! Map) return;
@@ -267,21 +298,9 @@ class CallService extends StateNotifier<IncomingCall?> {
     // yoksa -> kayit BAYATTIR, temizlenir ve arama devam eder. Olcum Sentry'e yazilir.
     // ⚠️ YAPMA: bu kapiyi kosulsuz temizlemeye cevirme (oda/yayin muhafizi GERCEK olabilir
     // — ses cakismasi korumasi orada duruyor).
-    if (aramadaMi) {
-      // TURU 56: `hazirlaVeAc` GECICI kayit yazar (oda HENUZ kurulmadi) — onu GERCEK
-      // arama saymak bayat muhafizin temizlenmesini engelliyordu (yalan pozitif).
-      // ⚠️ YAPMA: `hazirlikModunda` kontrolunu cikarma.
-      final ctrl = _ref.read(activeCallProvider);
-      final gercekArama = ctrl.arama != null && !ctrl.hazirlikModunda;
-      final odaVeyaYayin = ekrandakiAramalar
-          .any((x) => x.startsWith('oda_') || x.startsWith('yayin'));
-      if (gercekArama || odaVeyaYayin) {
-        throw StateError('Zaten bir aramadasınız');
-      }
-      final bayat = ekrandakiAramalar.toList();
-      ekrandakiAramalar.clear();
-      unawaited(Sentry.captureMessage(
-          'bayat mesgul muhafizi temizlendi: $bayat'));
+    // TURU 56: mantik `mesgulMu()` TEK KAYNAGINA tasindi (drift olmasin).
+    if (mesgulMu(etiket: 'start')) {
+      throw StateError('Zaten bir aramadasınız');
     }
     final res = await _ref.read(apiProvider).post('/calls', data: {
       'callee_id': calleeId,
@@ -338,20 +357,8 @@ class CallService extends StateNotifier<IncomingCall?> {
     // VEYA `oda_`/`yayin` muhafizi varsa engelle; yoksa kayit BAYATTIR -> temizle + olcum.
     // ⚠️ YAPMA: bu kapiyi kosulsuz kaldirma (oda/yayin muhafizi GERCEK olabilir — ses
     // cakismasi korumasi orada duruyor) ya da `start()` ile farkli mantiga ayirma.
-    if (!zorla && ekrandakiAramalar.any((x) => x != callId)) {
-      // TURU 56: `hazirlaVeAc` GECICI kayit yazar (oda HENUZ kurulmadi) — onu GERCEK
-      // arama saymak bayat muhafizin temizlenmesini engelliyordu (yalan pozitif).
-      // ⚠️ YAPMA: `hazirlikModunda` kontrolunu cikarma.
-      final ctrl = _ref.read(activeCallProvider);
-      final gercekArama = ctrl.arama != null && !ctrl.hazirlikModunda;
-      final odaVeyaYayin = ekrandakiAramalar
-          .any((x) => x.startsWith('oda_') || x.startsWith('yayin'));
-      if (gercekArama || odaVeyaYayin) return null;
-      final bayat = ekrandakiAramalar.where((x) => x != callId).toList();
-      ekrandakiAramalar.removeWhere((x) => x != callId);
-      unawaited(Sentry.captureMessage(
-          'bayat mesgul muhafizi temizlendi (answer): $bayat'));
-    }
+    // TURU 56: mantik `mesgulMu()` TEK KAYNAGINA tasindi (drift olmasin).
+    if (!zorla && mesgulMu(haric: callId, etiket: 'answer')) return null;
     if (!_cevaplanan.add(callId)) return null; // ikinci kabul -> 409 olmadan engelle
     try {
       final res = await _ref.read(apiProvider).post('/calls/$callId/answer');
