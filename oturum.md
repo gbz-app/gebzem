@@ -3961,3 +3961,79 @@ emoji olarak tanimli. Bunlari 2B ikona cevirmek ARAYUZ degil URUN degisikligidir
 4. Uygulamada hicbir yerde parlak/3B emoji ikon GORUNMEMELI (hediyeler haric).
 5. iOS "Beklet ve Kabul" ESKISI GIBI calismali (regresyon).
 6. Sesli oda + canli yayin: hicbir degisiklik olmamali.
+
+---
+
+## Oturum (3 Agu 2026) — TURU 63: "DEVAM ET" GIZLILIK KAPISI + 204 TURKCE + ARAMA BALONU
+
+**YAYIN:** android 30771106968 + ios 30771107969 (5187fc8), R2 apk=108254861
+(md5 2b466ce4) ipa=22349602 (md5 d322b588), purge OK, CDN'den indirilen APK yerelle
+MD5 BIREBIR, indir sayfasi 02:05, BACKEND DEPLOY + health ok, DB temiz.
+**CANLI DOGRULAMA:** `POST /auth/login` -> `{"error":"telefon veya şifre hatalı"}`
+(Turkce duzeltmeler sunucuda UCTAN UCA calisiyor).
+
+### 🔴 "DEVAM ET" — KULLANICININ SORUSU BIR GIZLILIK ACIGI ORTAYA CIKARDI
+Kullanici: "devam et dedigimde normal GSM aramasini kapatmasi gerekmiyor mu?"
+
+**CEVAP: KAPATAMAYIZ.** Android ucuncu parti uygulamanin hucresel aramayi
+sonlandirmasina IZIN VERMEZ — `TelephonyManager.endCall()` API 29'da KALDIRILDI,
+`MODIFY_PHONE_STATE` sistem izni. iOS'ta da imkansiz. ⚠️ Bunu bir daha arastirma.
+
+**ASIL BULGU:** GSM gorusmesi SURERKEN "Devam et"e basilinca Gebzem mikrofonu geri
+aciliyordu -> **KARSI TARAF GSM KONUSMASINI DUYABILIYORDU.** Ustelik bir daha
+otomatik bekletilmiyordu: `gsmAramada` bir ValueNotifier ve YALNIZ DEGISIMDE
+tetiklenir; GSM zaten "suruyor" durumunda oldugu icin yeni olay gelmez ve mikrofon
+GSM BOYUNCA ACIK kalirdi. Turu 56'da kapatilan gizlilik aciginin BASKA bir kapisi.
+
+**FIX (kullanici karari — "zorlama yok, ona zaman taniyalim"):** GSM surerken
+"Devam et" bekletmeyi KALDIRMAZ; kisa profesyonel aciklama gosterir:
+"Telefon görüşmeniz sürüyor. Önce onu sonlandırın; Gebzem araması kaldığı yerden
+devam edecek." GSM bitince ZATEN kendiliginden devam ediyor (TelefonDurumu -> IDLE).
+⚠️ YAPMA: bu kapiyi kaldirma; GSM surerken elle devam ettirmeye izin verme.
+
+**DERS:** kullanicinin "bu nasil calisiyor?" sorusu, kod denetiminin bulamadigi bir
+acigi ortaya cikardi. Soru geldiginde kodu OKUYUP anlat — tahminle cevaplama.
+
+### TURKCE KARAKTER SUPURGESI — 204 DUZELTME
+Kullanici: "halen Turkce karakter hatasi var, `Caliyor` gibi — `Çalıyor` olmali.
+tum sistemdeki Turkce hatalari duzelt."
+13 ajan (7 tarama + 6 denetim) tum kod tabanini tarayip her degisikligi dogrulad.
+**Dagilim:** backend 132 · auth 42 · calls 19 · chats/rooms 9 · core 2 · live 0.
+En cok: `calls/handler.go` 27 · `rooms/handler.go` 18 · `auth/handler.go` 18 ·
+`streams/handler.go` 17 · `register_screen.dart` 12.
+
+⚠️ **UYGULAMA YONTEMI (bir daha ayni sekilde yap):**
+1. Ajanlar `eski`/`yeni` cifti uretir (tirnak ICI, BIREBIR).
+2. Ayri bir DENETIM ajani her maddeyi dosyadan dogrular, protokol/log/yorum olanlari ELER.
+3. **KURU CALISMA:** uygulayici once yalnizca SAYAR — 204/204 eslesti, 0 bulunamadi.
+4. Uygulayici ek koruma: YENI metinde Turkce karakter YOKSA degisikligi ATLAR.
+5. Uygulama sonrasi `go build` + `flutter analyze`.
+
+⚠️ **DOKUNULMAYANLAR:** yorumlar (bu projede BILEREK ASCII — CLAUDE.md'deki
+"PowerShell ile Dart/emoji iceren dosyalarda toplu regex replace YAPMA" tuzagi) ·
+protokol dizeleri (`call:ended:audio`, `oda_`, `yayin`, `system`) · JSON alan adlari ·
+MethodChannel adlari · Sentry/log mesajlari (gelistirici icin ASCII kalmali).
+
+### SOHBETTEKI ARAMA BALONU — MESSENGER TARZI KART
+Kullanici ekran goruntusu paylasti (Messenger): yuvarlak ikon + "Cevapsız sesli arama"
++ saat, ALTINDA tam genislikte "Geri ara" dugmesi. Bizde de oyle yapildi:
+cevapsizda daire KIRMIZI dolu + beyaz ikon; "Geri ara" alttan "Sesli ara / Görüntülü
+ara" panelini acar. ⚠️ Balonda emoji YOK (turu 62 karari).
+
+### ⏳ SES GECIKMESI — OLCUME BAGLANDI (test sonrasi BAK)
+Kullanici: "gecikme NORMALDE OLMUYOR ama biri GSM aradiktan SONRA devam ettikten
+sonra oluyor." Bu tarif jitter tamponu hipoteziyle BIREBIR uyusuyor: kesinti boyunca
+paketler birikir, tampon siser, devam edince birikmis ses calinir ("gecmis geliyor").
+`beklemeyeAl(false)` bir damga atar; istatistik tik'i 5sn sonra TEK SEFER yazar:
+`devam sonrasi ses: jitterMs=.. tamponDeltaMs=.. gizlenenOrnek=.. recvDelta=..`
+Degere gore hedefli duzeltme yapilacak (or. resume'da jitter tamponunu sifirlamak /
+track'i yeniden abone etmek). ⚠️ YAPMA: olcumu her tikta gondermeye cevirme.
+
+### TEST EDILECEKLER (kullanici)
+1. **Android:** GSM konusurken "Devam et" -> aciklama cikmali, arama BEKLEMEDE kalmali.
+   GSM bitince kendiliginden devam etmeli.
+2. Uygulamanin HER YERINDE Turkce karakterler dogru (giris/kayit/arama/oda/yayin +
+   sunucudan gelen hata mesajlari).
+3. Sohbette arama balonu: yuvarlak ikon + "Cevapsız sesli arama" + saat + "Geri ara".
+4. Ses gecikmesi: GSM sonrasi devam edince hala var mi? (Olcum Sentry'e dusecek.)
+5. Sesli oda + canli yayin: hicbir degisiklik olmamali.

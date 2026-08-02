@@ -17,7 +17,48 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (3 Agu 01:18):** TEST TURU 62 YAYINLANDI — android 30769340134 +
+- **KALDIGIMIZ YER (3 Agu 02:05):** TEST TURU 63 YAYINLANDI — android 30771106968 +
+  ios 30771107969 (5187fc8), R2 apk=108254861 (md5 2b466ce4) ipa=22349602 (md5 d322b588),
+  purge OK, CDN'den indirilen APK yerelle MD5 BIREBIR, indir sayfasi saati 02:05,
+  **BACKEND DEPLOY EDILDI** (5187fc8) + health ok + canli dogrulama
+  (`{"error":"telefon veya şifre hatalı"}` — Turkce duzeltmeler SUNUCUDA), DB temiz.
+  **KULLANICI TEST EDECEK.**
+- ⚠️⚠️ **TURU 63 — "DEVAM ET" GSM KAPISI (YENI GIZLILIK ACIGI KAPATILDI):**
+  Kullanici sordu: "devam et dedigimde GSM aramasini kapatmasi gerekmiyor mu?"
+  **CEVAP: KAPATAMAYIZ** — Android ucuncu parti uygulamanin hucresel aramayi
+  sonlandirmasina IZIN VERMEZ (`TelephonyManager.endCall()` API 29'da KALDIRILDI;
+  `MODIFY_PHONE_STATE` sistem izni). iOS'ta da imkansiz. ⚠️ Bunu bir daha arastirma.
+  **ASIL BULGU (kullanicinin sorusu sayesinde):** GSM gorusmesi SURERKEN "Devam et"e
+  basilinca Gebzem mikrofonu geri aciliyordu -> **KARSI TARAF GSM KONUSMASINI
+  DUYABILIYORDU.** Ustelik bir daha otomatik bekletilmiyordu: `gsmAramada` bir
+  ValueNotifier ve yalniz DEGISIMDE tetiklenir; GSM zaten "suruyor" durumunda oldugu
+  icin yeni olay gelmez ve mikrofon GSM BOYUNCA ACIK kalirdi. Turu 56 aciginin BASKA kapisi.
+  **FIX (kullanici karari — zorlama YOK):** kisa profesyonel aciklama gosterilir,
+  bekletme SURER: "Telefon görüşmeniz sürüyor. Önce onu sonlandırın; Gebzem araması
+  kaldığı yerden devam edecek." GSM bitince ZATEN kendiliginden devam eder.
+  ⚠️ YAPMA: bu kapiyi kaldirma; GSM surerken elle devam ettirmeye izin verme.
+- ✅ **TURU 63 — TURKCE KARAKTER SUPURGESI: 204 DUZELTME** (13 ajan tarama+denetim).
+  Dagilim: backend 132 · auth 42 · calls 19 · chats/rooms 9 · core 2.
+  Ornek: Caliyor->Çalıyor · Mesgul->Meşgul · Sifre->Şifre · Giris Yap->Giriş Yap ·
+  "gecersiz istek"->"geçersiz istek" (sunucu hatalari SnackBar'da GORUNUYOR).
+  ⚠️ **UYGULAMA GUVENLIGI (bir daha ayni yontemi kullan):** once KURU CALISMA ile her
+  `eski` metnin dosyada BIREBIR var oldugu dogrulandi (204/204, 0 kayip); uygulayici
+  ayrica YENI metinde Turkce karakter YOKSA degisikligi ATLAR.
+  ⚠️ DOKUNULMAYANLAR: yorumlar (bilerek ASCII — CLAUDE.md regex/encoding tuzagi) ·
+  protokol dizeleri (`call:ended:audio`, `oda_`, `yayin`) · JSON alan adlari ·
+  MethodChannel adlari · Sentry/log mesajlari (gelistirici icin).
+- ✅ **TURU 63 — SOHBETTEKI ARAMA BALONU (kullanici ekran goruntusu: Messenger):**
+  yuvarlak ikon + baslik + saat, ALTINDA tam genislikte **"Geri ara"** dugmesi.
+  Cevapsizda daire KIRMIZI dolu, baslik "Cevapsız sesli/görüntülü arama".
+  "Geri ara" -> alttan "Sesli ara / Görüntülü ara" paneli.
+- ⏳ **SES GECIKMESI — OLCUME BAGLANDI (kullanici: "gecikme NORMALDE OLMUYOR, biri GSM
+  aradiktan SONRA devam ettikten sonra oluyor"):** bu tarif jitter tamponu hipoteziyle
+  BIREBIR uyusuyor (kesintide paketler birikir, devam edince birikmis ses calinir).
+  Bekletmeden CIKISTAN 5sn sonra TEK SEFER Sentry olcumu:
+  `devam sonrasi ses: jitterMs=.. tamponDeltaMs=.. gizlenenOrnek=.. recvDelta=..`
+  **TEST SONRASI BAK** — degere gore hedefli duzeltme yapilacak.
+  ⚠️ YAPMA: bu olcumu her istatistik tikinda gondermeye cevirme (Sentry gurultusu).
+- **ONCEKI (3 Agu 01:18):** TEST TURU 62 YAYINLANDI — android 30769340134 +
   ios 30769341238 (05ec544), R2 apk=108254861 (md5 d29009c4) ipa=22344495 (md5 f240450f),
   purge OK, CDN'den indirilen APK yerelle MD5 BIREBIR, indir sayfasi saati 01:18,
   **backend DEGISMEDI** (8276219'da kaldi) + health ok, DB temiz. **KULLANICI TEST EDECEK.**
