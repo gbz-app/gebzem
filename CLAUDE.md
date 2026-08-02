@@ -17,7 +17,67 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (3 Agu 00:07):** TEST TURU 61 YAYINLANDI — android 30766687222 +
+- **KALDIGIMIZ YER (3 Agu 01:18):** TEST TURU 62 YAYINLANDI — android 30769340134 +
+  ios 30769341238 (05ec544), R2 apk=108254861 (md5 d29009c4) ipa=22344495 (md5 f240450f),
+  purge OK, CDN'den indirilen APK yerelle MD5 BIREBIR, indir sayfasi saati 01:18,
+  **backend DEGISMEDI** (8276219'da kaldi) + health ok, DB temiz. **KULLANICI TEST EDECEK.**
+- ⚠️⚠️ **TURU 62 — UC SORUN + TUM ARAYUZ IKONLARI 2B'YE CEVRILDI**
+  **(A) GSM ZIL ≠ KABUL (kok neden):** `TelefonDurumu.bildir()` karari
+  `durum != CALL_STATE_IDLE` ile uretiyordu; sabitler IDLE=0/RINGING=1/OFFHOOK=2 —
+  telefon SADECE CALARKEN de bekletme basliyordu. Kullanici reddederse/kacirirsa
+  Gebzem bos yere kesilip geri aciliyordu.
+  **YENI TABLO:** `OFFHOOK -> BEKLET` · `IDLE -> DEVAM` · `RINGING -> KARAR DEGISMEZ (latch)`.
+  ⚠️⚠️ **RINGING NEDEN `false` DEGIL:** Android `CALL_STATE_RINGING`i "zaten aktif
+  gorusme varken IKINCI cagri geldi" (GSM cagri bekletme) durumunda DA uretir. `false`
+  yazsaydik SUREN GSM gorusmesinin ORTASINDA mikrofonu geri acardik ve karsi taraf GSM
+  konusmasini DUYARDI — turu 56 GIZLILIK aciginin aynisi.
+  ⚠️ `dur()` icinde `sonBildirilen` DE sifirlanir (ZORUNLU — nesne aramalar arasi yasiyor;
+  yoksa GSM SURERKEN yeni arama baslayinca OFFHOOK olayi YUTULUR, mikrofon ACIK kalir).
+  ⚠️ YAPMA: RINGING dalini `false` yapma; `sonBildirilen` sifirlamasini kaldirma.
+  **(B) UYARI SERIDI SURENIN ALTINA ALINDI** (kullanici emri: "pil seviyen dusuk —
+  bu butonlar zamanin altina olmali").
+  ⚠️⚠️ `Flexible` sarmali KALDIRILDI — ZORUNLU: turu 60'ta bu Padding bir ROW cocuguyken
+  `Flexible` DOGRUYDU; COLUMN cocugu olunca DIKEY eksende esner ve Column'un yuksekligi
+  SINIRSIZ oldugu icin RenderFlex ASSERTION ile PATLAR (kirmizi ekran).
+  ⚠️ YAPMA: buraya Flexible/Expanded koyma.
+  **(C) "BEKLETMEDEN SONRA SES ARKADAN GELIYOR" (kok neden):** Android'de ses MODU
+  (MODE_IN_COMMUNICATION), AUDIO FOCUS ve cihaz secimi YALNIZCA flutter_webrtc'nin
+  `AudioSwitch.activate()` gecisinde uygulanir; o gecis `AudioSwitchManager.start()`in
+  `if (!isActive)` kilidiyle korunur ve `isActive` ARAMA BOYUNCA true takilidir. GSM
+  bitince Android modu MODE_NORMAL'a dondurur + cihaz secimini temizler -> ses kulaklik
+  yerine HOPARLORDEN calar. Geri alan HICBIR SEY yoktu.
+  **FIX:** native `sesOturumunuTazele` -> `AudioSwitchManager.stop()` + `start()`.
+  ⚠️⚠️ **`stop(); start()` ARKA ARKAYA CAGRILIRSA CALISMAZ** (kaynak okunarak bulundu):
+  ikisi de `handler.removeCallbacksAndMessages(null)` yapar, yani `start()` `stop()`un
+  kuyruga koydugu `deactivate` isini SILER; `isActive` true kalir ve `activate()`
+  `if (!isActive)` kapisinda NO-OP olur. `start()` BIR SONRAKI dongu turunda
+  (postDelayed 120ms) cagriliyor. ⚠️ YAPMA: bu gecikmeyi kaldirma.
+  ⚠️ YAPMA: `am.mode`u KENDIMIZ yazma (Activity'nin AudioManager'i AYRI istemcidir;
+  birakan kod olmadigi icin MODE_IN_COMMUNICATION SIZAR).
+  ⚠️ Dart'tan `setAndroidAudioConfiguration` YETMEZ — kaynak okundu: `setAudioMode`
+  yalniz DEGERI saklar, uygulamayi `activate()` yapar.
+  **(C-2)** `_androidSesTazele` AYNI degeri yaziyordu -> alt katman fark-kontrolunde
+  ERKEN DONUP NO-OP kaliyordu. Artik once TERS deger, sonra dogrusu. ⚠️ AMA KULAKLIK
+  KAPISI VAR: `setSpeakerOn(true)` BT/kablolu kulakligi YOK SAYIP hoparloru secer;
+  kulaklikta ara deger olarak hoparlor secmek SCO'yu koparir + ses patlatir.
+  ⚠️ YAPMA: kulaklik kapisini kaldirma; toggle'i kosulsuz yapma.
+  **(C-3)** `devamEt()` `_speakerOn`i geri yuklemiyordu -> park edilmis SESLI arama,
+  uzerine gelen GORUNTULU arama bitince HOPARLORDEN aciliyordu. `ParkEdilenArama
+  .speakerOn` eklendi; bayrak await'lerden ONCE senkron, ROTA `_medyaBeklet` sonrasi +
+  `_sesiAc(true)` ONCESI (CLAUDE.md iOS ses sirasi hukmu).
+  **OLCUM:** `ses tazelendi: oncekiMod=N ...` GERCEK Sentry olayi. `oncekiMod=0`
+  (NORMAL) -> teshis DOGRU; `=3` (IN_COMMUNICATION) -> mod bozulmuyor, baska yerde ara.
+- ✅ **TURU 62 — ARAYUZDE EMOJI KALMADI (kullanici emri: "hicbir 3B ikon istemiyorum").**
+  Emoji sistem emoji fontuyla (Apple Color Emoji / Noto Color Emoji) PARLAK ve 3B cizilir
+  — 3B gorunumun kaynagi buydu. 35 arayuz noktasi Lucide (2B cizgi) ikona cevrildi:
+  bekletme rozeti · sohbet listesi onizlemeleri (ayri `_previewIkon()`) · silinen mesaj ·
+  canli yayin izleyici/jeton sayaclari · kesfet listesi · oda basliklari · host taci ·
+  kalp animasyonu · kalan 3 Material ikon da Lucide'a.
+  ⚠️ YAPMA: arayuze emoji geri koyma (metin ICINE de). Yeni ikon gerekirse Lucide.
+  ⏳ **HEDIYE SIMGELERI BILINCLI BIRAKILDI:** sunucudan geliyor (`v['emoji']`), 30
+  hediyelik katalog backend'de emoji olarak tanimli. Cevirmek ARAYUZ degil URUN
+  degisikligi (katalog + backend + animasyonlar). **KULLANICI KARARI BEKLENIYOR.**
+- **ONCEKI (3 Agu 00:07):** TEST TURU 61 YAYINLANDI — android 30766687222 +
   ios 30766688233 (8276219), R2 apk=108254021 (md5 1e589c3e) ipa=22344434 (md5 776ce510),
   purge OK, CDN'den indirilen APK yerelle MD5 BIREBIR, indir sayfasi saati 00:07,
   **BACKEND DEPLOY EDILDI** (8276219; migration 013 uygulandi, `calls.held_by` sutunu

@@ -3850,3 +3850,114 @@ yoklamaya bir alan eklendi.
 4. Arama KUCULTULMUSKEN yesil bantta da "⏸ Karşı taraf beklemeye aldı" yazmali.
 5. iOS "Beklet ve Kabul" yolu ESKISI GIBI calismali (regresyon).
 6. Sesli oda + canli yayin: hicbir degisiklik olmamali.
+
+---
+
+## Oturum (3 Agu 2026) — TURU 62: UC SORUN + TUM ARAYUZ IKONLARI 2B
+
+**YAYIN:** android 30769340134 + ios 30769341238 (05ec544), R2 apk=108254861
+(md5 d29009c4) ipa=22344495 (md5 f240450f), purge OK, CDN'den indirilen APK yerelle
+MD5 BIREBIR, indir sayfasi 01:18, backend DEGISMEDI (8276219) + health ok, DB temiz.
+
+### KULLANICI BILDIRIMI (uc sorun + bir emir)
+(A) "biri arama attiginda DIREK beklemeye aliyor; ben telefonu ACTIGIMDA almasi gerekiyor"
+(B) "mesela `pil seviyen dusuk` — bu butonlar ZAMANIN ALTINA olmasi gerekiyor"
+(C) "beklettikten sonra kapatip konusmaya devam ettigimde SANKI SES ARKADAN GELIYOR"
+(D) "uygulamada hicbir 3B icon istemiyorum, hepsi 2B icon olsun"
+
+### (A) KOK NEDEN — GSM ZIL ≠ KABUL
+`TelefonDurumu.bildir()` karari `durum != CALL_STATE_IDLE` ile uretiyordu. Android
+sabitleri IDLE=0 / RINGING=1 / OFFHOOK=2 -> telefon SADECE CALARKEN de bekletme
+basliyordu. Kullanici GSM'i reddederse/kacirirsa Gebzem bos yere kesilip geri aciliyor,
+karsi tarafta rozet yanip sonuyordu.
+**YENI KARAR TABLOSU:** OFFHOOK -> BEKLET · IDLE -> DEVAM · RINGING -> KARAR DEGISMEZ.
+
+⚠️⚠️ **AJANLARIN YAKALADIGI TUZAK — RINGING NEDEN `false` DEGIL DE LATCH:**
+Android `CALL_STATE_RINGING`i "zaten AKTIF bir gorusme varken IKINCI cagri geldi"
+(GSM cagri bekletme) durumunda DA uretir. `false` yazsaydik SUREN GSM gorusmesinin
+ORTASINDA mikrofonu geri acardik ve karsi taraf GSM konusmasini DUYARDI — turu 56'da
+kapatilan GIZLILIK aciginin AYNISI. Benim ilk planim tam olarak bu hatayi yapacakti.
+
+⚠️ `dur()` icinde `sonBildirilen` DE sifirlanir (ZORUNLU, sus payi degil): nesne
+MainActivity'de aramalar arasi YASIYOR. Sifirlanmazsa GSM gorusmesi SURERKEN Gebzem
+aramasi bitip yenisi baslarsa, `basla()`nin aninda teslim ettigi OFFHOOK icin
+`beklet(true) == sonBildirilen(true)` olur, olay YUTULUR ve yeni arama GSM boyunca
+MIKROFON ACIK kalir — ayni gizlilik acigi.
+
+KENAR DURUMLAR (dogrulandi): GSM reddi / kacan cagri -> Gebzem HIC kesilmez ·
+giden GSM (RINGING yok, dogrudan OFFHOOK) -> beklet · iOS ETKILENMEZ (CallKit yolu).
+
+### (B) UYARI SERIDI SURENIN ALTINA
+Serit sure metniyle AYNI `Row` icindeydi (turu 60'ta bekletme rozeti bu Row'dan
+cikarilmisti, uyari kalmisti). Column'un dogrudan cocugu yapildi, tam genislikte.
+⚠️⚠️ **`Flexible` SARMALI KALDIRILDI — ZORUNLU (iki ajan bagimsiz yakaladi):**
+turu 60'ta bu Padding bir ROW cocuguyken `Flexible` DOGRUYDU; COLUMN cocugu olunca
+DIKEY eksende esner ve Column'un yuksekligi burada SINIRSIZ oldugu icin RenderFlex
+ASSERTION ile PATLAR (kirmizi ekran). ⚠️ YAPMA: buraya Flexible/Expanded koyma.
+
+### (C) KOK NEDEN — GSM SONRASI SES ROTASI
+Android'de ses MODU (MODE_IN_COMMUNICATION), AUDIO FOCUS ve cihaz secimi YALNIZCA
+flutter_webrtc'nin `AudioSwitch.activate()` gecisinde uygulanir. O gecisi tetikleyen
+`AudioSwitchManager.start()` `if (!isActive)` kilidiyle korunur ve `isActive` ARAMA
+BOYUNCA true takilidir (`stop()` yalniz son PeerConnection dispose olunca cagrilir).
+GSM aramasi ses odagini alir; bitince Android modu MODE_NORMAL'a dondurur ve (API31+)
+`setCommunicationDevice` secimimizi temizler -> ses kulaklik yerine HOPARLORDEN calar.
+Bunu geri alan HICBIR SEY yoktu.
+
+**FIX:** native `sesOturumunuTazele` kanali -> `AudioSwitchManager.stop()` + `start()`
+(mod + odak + cihaz secimi SAHIBI tarafindan yeniden uygulanir).
+
+⚠️⚠️ **AJANIN COZUMUNDE KAYNAK OKUNARAK BULDUGUM KUSUR:** `stop()` HEMEN ARDINDAN
+`start()` cagirmak ISE YARAMAZ — ikisi de `handler.removeCallbacksAndMessages(null)`
+yapar, yani `start()` `stop()`un kuyruga koydugu `deactivate` isini SILER; `isActive`
+true kalir ve `activate()` `if (!isActive)` kapisinda NO-OP olur. `start()` artik BIR
+SONRAKI dongu turunda (postDelayed 120ms) cagriliyor.
+⚠️ YAPMA: bu gecikmeyi kaldirip iki cagriyi arka arkaya yapma.
+⚠️ YAPMA: `am.mode`u KENDIMIZ yazma — Activity'nin AudioManager'i AudioService'te AYRI
+bir istemcidir; birakan kod OLMADIGI icin arama bitince MODE_IN_COMMUNICATION SIZAR
+(ses tusu VOICE_CALL'u kontrol eder, sonraki oda/yayin bozuk modu devralir).
+⚠️ Dart'tan `setAndroidAudioConfiguration` YETMEZ (kaynak okundu): `setAudioMode`
+yalniz DEGERI saklar, uygulamayi `activate()` yapar.
+
+**(C-2)** `_androidSesTazele` AYNI degeri yaziyordu (`_speakerOn` bekletme boyunca hic
+degismez) -> alt katman (`AudioSwitch.selectDevice`) fark-kontrolunde ERKEN DONUP NO-OP
+kaliyordu; "tazeleme" hicbir sey yapmadan basarili gorunuyordu. Bu hata sinifi iOS icin
+projede ZATEN teshis edilmisti (AppDelegate "zorla toggle"). Artik once TERS deger,
+sonra dogrusu yaziliyor.
+⚠️ AMA KOR TOGGLE YAPILMIYOR: `setSpeakerOn(true)` BT/kablolu kulakligi YOK SAYIP
+dogrudan hoparloru secer; kulaklikta ara deger olarak hoparlor secmek SCO'yu koparir
+(saniyelerce sessizlik) ve telefon KULAKTAYKEN ses patlatir.
+⚠️ YAPMA: kulaklik kapisini kaldirma; toggle'i kosulsuz yapma.
+
+**(C-3)** `devamEt()` `_speakerOn`i GERI YUKLEMIYORDU: SESLI arama park edilip uzerine
+GORUNTULU arama gelirse (`_connect` `_speakerOn=true` yazar), ikinci arama bitince SESLI
+arama HOPARLORDEN aciliyordu. `ParkEdilenArama.speakerOn` eklendi; bayrak await'lerden
+ONCE senkron (dugme yalan soylemesin), ROTA `_medyaBeklet` sonrasi + `_sesiAc(true)`
+ONCESI uygulanir (CLAUDE.md "iOS ses sirasi: ... `_sesiAc` EN SON" hukmu).
+
+**OLCUM (kok nedenin bir turda kesinlesmesi icin):** `ses tazelendi: oncekiMod=N ...`
+GERCEK Sentry olayi. `oncekiMod=0` (NORMAL) -> teshis DOGRU, cozuldu.
+`oncekiMod=3` (IN_COMMUNICATION) -> mod bozulmuyormus, baska yerde aranacak.
+
+### (D) ARAYUZDE EMOJI KALMADI
+Emoji'ler sistem emoji fontuyla (Apple Color Emoji / Noto Color Emoji) PARLAK ve
+3 BOYUTLU cizilir — kullanicinin gordugu "3B ikon" buydu. 35 arayuz noktasi tarandi,
+hepsi Lucide (2B cizgi) ikona cevrildi: bekletme rozeti (⏸) · sohbet listesi
+onizlemeleri (📷🎥🎤📍📞📹 -> ayri `_previewIkon()` widget'i) · silinen mesaj (🚫) ·
+canli yayin izleyici/jeton sayaclari (👁🪙) · kesfet listesi · oda basliklari (🎙️✋🎧) ·
+host taci (👑) · kalp animasyonu (💜) · kalan 3 Material ikon da Lucide'a cevrildi.
+⚠️ YAPMA: arayuze emoji geri koyma (metin ICINE de). Yeni ikon gerekirse Lucide kullan.
+
+⏳ **HEDIYE SIMGELERI BILINCLI BIRAKILDI (kullanici karari bekleniyor):** gercek hediye
+simgeleri SUNUCUDAN gelir (`v['emoji']` / `g['emoji']`); 30 hediyelik katalog backend'de
+emoji olarak tanimli. Bunlari 2B ikona cevirmek ARAYUZ degil URUN degisikligidir
+(katalog + backend + hediye animasyonlari).
+
+### TEST EDILECEKLER (kullanici)
+1. **Android:** GSM aramasi CALARKEN Gebzem KESILMEMELI; REDDEDINCE/KACIRINCA hicbir
+   sey olmamali. KABUL edince bekletmeli, karsi tarafta serit CIKMALI.
+2. GSM bitince devam etmeli ve **ses KULAKLIKTAN gelmeli** (arkadan/hoparlorden DEGIL).
+3. "Pil seviyen dusuk" / "baglanti zayif" uyarisi SURENIN ALTINDA, ayri satirda.
+4. Uygulamada hicbir yerde parlak/3B emoji ikon GORUNMEMELI (hediyeler haric).
+5. iOS "Beklet ve Kabul" ESKISI GIBI calismali (regresyon).
+6. Sesli oda + canli yayin: hicbir degisiklik olmamali.
