@@ -17,7 +17,34 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (2 Agu 15:50):** TEST TURU 56 YAYINLANDI — android 30748279270 +
+- **KALDIGIMIZ YER (2 Agu 16:58):** TEST TURU 57 YAYINLANDI — android 30750686204 +
+  ios 30750682791 (33089f9), R2 apk=105211469 ipa=19313086, purge OK, CDN birebir,
+  backend degismedi + health ok, DB temiz. **KULLANICI TEST EDECEK.**
+- ⚠️⚠️ **TURU 57 — "GSM SONRASI DEVAM ETMIYOR" + "ARAMA BULUNAMADI" TEK KOK NEDEN**
+  (turu 55 REGRESYONU, sunucu loguyla KANITLI):
+  Sunucuda `POST /calls/{id}/answer` **6 kez 404**; hepsi ARAYANIN cihazindan ve aramanin
+  ZATEN cevaplanmasindan SANIYELER SONRA (19be2fd1: cevap 13:29:34, 404 **13:29:38**).
+  **MEKANIZMA:** turu 55'te giden aramayi da CallKit'e kaydettik (`gidenArama`). Amac
+  dogruydu (iOS "Beklet ve Kabul"u ancak CallKit'te AKTIF arama varsa cizer) ama yan
+  etkisi: ARAYAN tarafta da CallKit araması olusuyor ve CallKit **"kabul" olayi** uretince
+  `main._callKitKabul` **KENDI GIDEN ARAMAMIZI** cevaplamaya calisiyordu -> sunucu 404
+  (`WHERE id=$1 AND callee_id=$2` — arayan callee DEGIL).
+  **ZINCIRLEME (iki semptom TEK kaynak):** 404 -> `main.dart` catch -> `CallKitService
+  .bitir(callId)` -> **CallKit kaydimiz YOK EDILIYOR** -> iOS ses oturumunu birakip GERI
+  VERMIYOR -> GSM sonrasi Gebzem **SESSIZ**; ayni catch SnackBar ile **"arama bulunamadi"**
+  gosteriyor.
+  **FIX:** `CallKitService.gidenler` kumesi — kendi baslattigimiz aramalarin **kabul
+  olaylari YOK SAYILIR** (o olay yalniz GERCEKTEN GELEN aramalar icin anlamlidir).
+  `gidenArama()` doldurur; `bitir()` ve `davetSifirla()` bosaltir.
+  ⚠️ YAPMA: bu kapiyi kaldirma; `gidenler`i `gidenArama` disinda doldurma.
+  ⚠️ **DERS:** CallKit'e giden arama kaydetmek, GELEN arama icin yazilmis TUM olay
+  yollarini (kabul/red/timeout) arayan tarafta da tetikler — her birini ayrica ele al.
+- ✅ **TURU 56 TESTI SONUCU (kanit):** cokme YOK · **`callkit izin durumu ... telefon=TRUE`**
+  (36 turdur alinamayan Android GSM izni ARTIK ALINIYOR — izin sirasi fix'i TUTTU) ·
+  17 aramada tek tarafli video YOK · 3 oda + 3 yayin sorunsuz · `bayat mesgul muhafizi` /
+  `kamera acilamadi` / `video yayin yok` / `arama tipi CELISKI` HICBIRI CIKMADI ·
+  PiP `oturum=true yerel3=90 cagri=2 iptal=0 msMax=0`.
+- **ONCEKI (2 Agu 15:50):** TEST TURU 56 YAYINLANDI — android 30748279270 +
   ios 30748275465 (91f2b00), R2 apk=105211469 (KUCULDU) ipa=19312972, purge OK, CDN birebir,
   **BACKEND DEPLOY** (`grupAramaAcik=false` dogrulandi) + health ok, DB temiz.
   **KULLANICI TEST EDECEK.**
