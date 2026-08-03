@@ -267,6 +267,10 @@ import flutter_callkit_incoming
       // iOS 13+ KURALI: completion, reportNewIncomingCall (showCallkitIncoming) BITTIKTEN
       // SONRA cagrilmali. Erken cagirmak ihlal -> iOS art arda aramalarda VoIP push'u KESER.
       // Bu yuzden endCall + completion, showCallkitIncoming'in closure'i ICINDE.
+      // ⚠️⚠️ TURU 64 — GOZCU DEFTERINE ONCE YAZ. Iptal dalinda bile gecici bir CXCall
+      // olusur; deftere yazilmazsa hucresel arama sanilir ve SUREN Gebzem aramasi
+      // kendiliginden beklemeye alinir. ⚠️ YAPMA: bu satiri closure'in ICINE tasima.
+      GebzemGsmGozcu.shared.aramaEkle(callId)
       SwiftFlutterCallkitIncomingPlugin.sharedInstance?.showCallkitIncoming(data, fromPushKit: true) {
         SwiftFlutterCallkitIncomingPlugin.sharedInstance?.endCall(data)
         completion()
@@ -308,6 +312,15 @@ import flutter_callkit_incoming
     // iOS 13+ KURALI: completion, reportNewIncomingCall (showCallkitIncoming) tamamlandiktan
     // SONRA cagrilmali. Erken cagirmak ihlal -> iOS art arda aramalarda 2. VoIP push'u KESER
     // (kilit ekranina dusmuyor). Bu yuzden completion showCallkitIncoming closure'i ICINDE.
+    // ⚠️⚠️ TURU 64 — ASIL KAPI: iOS'ta GELEN aramayi gozcu defterine yazan BASKA HICBIR
+    // YOL YOKTUR. `CallKitService.goster` (Dart) iOS'ta CAGRILMAZ — gelen arama VoIP
+    // push ile TAM BURADA olusur (`call_provider.dart` iki yerde `if (Platform.isIOS)
+    // return;` diyor). Yazilmazsa: gorusme surerken gelen IKINCI arama (turu 18 arama
+    // bekletme) gozcuye "hucresel" gorunur, uygulama KENDI canli aramasini beklemeye
+    // alir, karsi tarafa yanlis "Beklemede" gider ve "Devam et" yalan bir GSM mesajiyla
+    // bloklanir. ⚠️ YAPMA: bu satiri closure'in ICINE veya showCallkitIncoming'in
+    // ALTINA tasima (CXCall SENKRON olusur).
+    GebzemGsmGozcu.shared.aramaEkle(callId)
     SwiftFlutterCallkitIncomingPlugin.sharedInstance?.showCallkitIncoming(data, fromPushKit: true) {
       completion()
     }
@@ -371,13 +384,21 @@ final class GebzemGsmGozcu: NSObject, CXCallObserverDelegate {
     degerlendir()
   }
 
+  /// ⚠️⚠️ TURU 64 — SILME ASLA YENI "YABANCI" URETMEZ.
+  /// Burada `degerlendir()` CAGIRILMAZ: `CallKitService.bitir` bu silmeyi `endCall`in
+  /// ONUNDE yapiyor ve `parkiDusur` bunu AKTIF ARAMA SURERKEN cagiriyor. Silme aninda
+  /// degerlendirseydik HALA CANLI olan kendi CallKit aramamiz bir anligina "yabanci"
+  /// olur, canli arama beklemeye alinir ve karsi tarafa gereksiz hold/unhold cifti
+  /// giderdi. Defter temizligi asagida, aramanin GERCEKTEN bittigi olayda yapilir.
+  /// ⚠️ YAPMA: buraya `degerlendir()` geri koyma.
   func aramaSil(_ id: String) {
     guard !id.isEmpty else { return }
     bizimAramalar.remove(id.lowercased())
-    degerlendir()
   }
 
   func callObserver(_ callObserver: CXCallObserver, callChanged call: CXCall) {
+    // Arama gercekten bittiginde defteri burada temizle (sizinti olmasin).
+    if call.hasEnded { bizimAramalar.remove(call.uuid.uuidString.lowercased()) }
     degerlendir()
   }
 
@@ -388,6 +409,16 @@ final class GebzemGsmGozcu: NSObject, CXCallObserverDelegate {
       if c.hasEnded { continue }
       let u = c.uuid.uuidString.lowercased()
       if bizimAramalar.contains(u) { continue }
+      // ⚠️⚠️ TURU 64 — TURU 62'NIN "RINGING" KURALI iOS'A DA TASINDI.
+      // Android tablosu: OFFHOOK -> BEKLET · IDLE -> DEVAM · RINGING -> KARAR DEGISMEZ.
+      // Burada karsiligi: yalniz BAGLANMIS (`hasConnected`) ya da GIDEN (`isOutgoing`,
+      // kullanici aramayi kendi baslatti = OFFHOOK) arama bekletme baslatir. Sadece
+      // CALAN bir arama karari DEGISTIRMEZ — kullanici reddederse Gebzem bos yere
+      // saniyelerce kesilirdi (turu 62'de Android'de kok neden olarak duzeltilmisti).
+      // ⚠️ GIZLILIK KORUNUR: suren bir GSM gorusmesi zaten `hasConnected` oldugu icin
+      //    ikinci cagri calarken de sayilmaya devam eder, mikrofon geri ACILMAZ.
+      // ⚠️ YAPMA: bu kapiyi kaldirma; `isOutgoing` dalini cikarma.
+      if !c.isOutgoing && !c.hasConnected { continue }
       yabanci = u
       break
     }

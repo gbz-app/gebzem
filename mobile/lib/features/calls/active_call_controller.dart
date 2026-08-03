@@ -2487,7 +2487,10 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> _iosSesOturumuGarantile(String orijinalId, String etiket) async {
     if (!Platform.isIOS) return;
     const araliklar = [200, 600, 1200];
-    bool aktifMi(Map<String, dynamic>? m) => m != null && m['active'] == true;
+    // ⚠️ TURU 64 denetimi: native sozlesme "configOk=false VEYA active=false ->
+    // mikrofon ORNEK URETMEZ". Yalniz `active`e bakmak eksikti.
+    bool aktifMi(Map<String, dynamic>? m) =>
+        m != null && m['active'] == true && m['configOk'] == true;
 
     Map<String, dynamic>? son = await _sesiAc(true);
     if (aktifMi(son)) return; // saglikli yol: tek denemede oldu, hicbir sey yapma
@@ -2499,10 +2502,18 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       if (PipService.gsmAramada.value) return; // GSM yeniden basladi -> mikrofonu ACMA
       son = await _sesiAc(true);
       if (aktifMi(son)) {
-        // Oturum GELDI: mikrofonu yeniden uygula (aktif olmayan oturumda acilan
-        // track olu dogmus olabilir — sent=0 imzasinin kaynagi).
+        // ⚠️⚠️ TURU 64 denetimi — KAPILAR AWAIT'TEN SONRA TEKRAR OKUNUR (GIZLILIK).
+        // Kapilar yukarida `_sesiAc` AWAIT'inin ONUNDEYDI; o await sirasinda GSM
+        // yeniden baslarsa ya da arama beklemeye alinirsa asagidaki
+        // `setMicrophoneEnabled` mikrofonu GERI ACIYORDU. Ustelik `beklemeyeAl`
+        // `beklemede == aktif` kapisinda erken donecegi icin ikinci bir kapatma
+        // GELMEZ -> mikrofon bekletme boyunca KALICI acik kalirdi (turu 56 acigi).
+        // ⚠️ YAPMA: kapilari yalniz dongu basinda okumaya geri donme.
+        if (_ayrildi || arama?.callId != orijinalId) return;
         try {
-          await _room?.localParticipant?.setMicrophoneEnabled(_micOn);
+          // Hedef DURUMDAN TURETILIR: beklemede/GSM varsa mikrofon KAPALI kalir.
+          final hedef = !beklemede && !PipService.gsmAramada.value && _micOn;
+          await _room?.localParticipant?.setMicrophoneEnabled(hedef);
         } catch (_) {}
         _sesLog('ses oturumu $etiket: ${ms}ms tekrarinda AKTIF oldu');
         return;
@@ -2924,8 +2935,18 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     // await'in ARKASINDAYDI. Bir await patlarsa/arama devrederse karsi taraf SONSUZA KADAR
     // "Beklemede" rozetiyle kalirdi — rozeti temizleyecek BASKA yol YOK.
     // ⚠️ YAPMA: bu cagriyi tekrar await'lerin ALTINA tasima.
-    unawaited(_svc.hold(p.bilgi.callId, false));
-    await _medyaBeklet(p.room, false, micHedef: p.micOn, camHedef: p.camOn);
+    // ⚠️⚠️ TURU 64 denetimi — GSM KARARI MEDYADAN ONCE ALINIR (GIZLILIK).
+    // Eskiden `_medyaBeklet(..., false)` mikrofonu KOSULSUZ aciyor, GSM kontrolu ise
+    // metodun SONUNDA yapiliyordu. Arada `setSpeakerOn` + `_androidSesTazele`
+    // (native stop/start + 120ms + rota secimi) var — yani GSM konusulurken mikrofon
+    // YUZLERCE MS canli kaliyordu ve karsi taraf GSM konusmasini duyabiliyordu.
+    // Ustelik aradaki kimlik kapisi erken donerse son kapi HIC calismiyordu.
+    // ⚠️ YAPMA: burada `return` etme — park edilen arama sonsuza kadar sikisir
+    //     (turu 54 regresyonu); karar DEGERE donusur, akis DEVAM eder.
+    final gsmVar = PipService.gsmAramada.value;
+    beklemede = gsmVar;
+    unawaited(_svc.hold(p.bilgi.callId, gsmVar));
+    await _medyaBeklet(p.room, gsmVar, micHedef: p.micOn, camHedef: p.camOn);
     // ⚠️⚠️ TURU 62 — ROTAYI GERCEKTEN UYGULA (HER IKI PLATFORM).
     // `_androidSesTazele` iOS'ta erken doner; yalniz bayragi geri yuklemek iOS'ta
     // "bayrak=kulaklik / donanim=HOPARLOR" celiskisi uretir ve hoparlor dugmesi
@@ -2936,13 +2957,16 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     // Await'ler sirasinda arama devrettiyse DOKUNMA (bayat akis) — kardes `beklemeyeAl`
     // bu kapiya sahipti, `devamEt` SAHIP DEGILDI (turu 64 denetimi).
     if (_ayrildi || arama?.callId != p.bilgi.callId) return;
-    try {
-      await p.room.setSpeakerOn(p.speakerOn);
-    } catch (_) {}
-    // TURU 64: tek deneme yerine GARANTILI aktivasyon (bkz. `_iosSesOturumuGarantile`).
-    // ⚠️ AWAIT ETME — sayac/poll baslatmayi geciktirir.
-    unawaited(_iosSesOturumuGarantile(p.bilgi.callId, 'devam'));
-    await _androidSesTazele(); // turu 56/62: Android'de ses OTURUMU + rota geri uygulanir
+    // GSM suruyorsa ses birimini/rotayi HIC tazeleme — arama zaten beklemede kalacak.
+    if (!gsmVar) {
+      try {
+        await p.room.setSpeakerOn(p.speakerOn);
+      } catch (_) {}
+      // TURU 64: tek deneme yerine GARANTILI aktivasyon (bkz. `_iosSesOturumuGarantile`).
+      // ⚠️ AWAIT ETME — sayac/poll baslatmayi geciktirir.
+      unawaited(_iosSesOturumuGarantile(p.bilgi.callId, 'devam'));
+      await _androidSesTazele(); // turu 56/62: Android'de ses OTURUMU + rota geri uygulanir
+    }
     // TURU 64: kurtarma butcesi tazelenir (park yeni bir epizot).
     _sesKurtarmaDenendi = false;
     _oluMikSayaci = 0;
@@ -2962,6 +2986,8 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     // ⚠️ YAPMA: bunu `devamEt()`in BASINA "kapi" olarak koyma — park edilen arama
     //     SONSUZA KADAR sikisir (mesgul muhafizi + ondeplan servisi asili kalir,
     //     turu 54 regresyonu) ve Android'de GSM BITISI de bu yoldan gelir, kapi onu yutar.
+    // EMNIYET AGI: karar yukarida (medyadan once) alindi; burasi yalniz "karar
+    // alindiktan SONRA GSM basladi" durumunu yakalar. `gsmVar` true iken no-op.
     if (PipService.gsmAramada.value && !beklemede) {
       unawaited(beklemeyeAl(p.bilgi.callId, true));
     }

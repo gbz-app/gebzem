@@ -52,6 +52,16 @@ class _AktifAramaBannerState extends ConsumerState<AktifAramaBanner> {
           bottom: false,
           child: InkWell(
             onTap: () async {
+              // ⚠️⚠️ TURU 64 denetimi — GSM KAPISI BURADA DA UYGULANIR (GIZLILIK).
+              // Bu serit `devamEt()`i DOGRUDAN cagiriyordu; turu 63'te call_screen'e,
+              // turu 64'te yesil banda konan kapi buraya KONMAMISTI — yani GSM
+              // konusulurken park edilmis aramaya donulup mikrofon geri acilabiliyordu.
+              // ⚠️ YAPMA: bu kapiyi kaldirma; uc "devam" yolunu (call_screen /
+              //     yesil bant / bu serit) farkli davranista birakma.
+              if (PipService.gsmAramada.value) {
+                _gsmUyarisiGoster();
+                return;
+              }
               // Aktif arama varsa once onu bitir; leave() beklemedekine OTOMATIK doner.
               if (c.arama != null) {
                 await c.leave(notifyServer: true);
@@ -175,17 +185,21 @@ class _AktifAramaBannerState extends ConsumerState<AktifAramaBanner> {
   ///     GSM konusmasini duyar). Kapi call_screen.dart `_devamEteBasildi` ile AYNI.
   /// ⚠️ YAPMA: burada `ScaffoldMessenger.of(context)` kullanma — bant
   ///     `MaterialApp.builder` icinde, Navigator'in DISINDADIR (CLAUDE.md kurali).
+  /// GSM uyarisi — UC "devam" yolunun ORTAK metni (call_screen ile birebir ayni).
+  void _gsmUyarisiGoster() {
+    final m = rootMessengerKey.currentState;
+    if (m == null) return;
+    m.clearSnackBars();
+    m.showSnackBar(const SnackBar(
+      duration: Duration(seconds: 4),
+      content: Text('Telefon görüşmeniz sürüyor. Önce onu sonlandırın; '
+          'Gebzem araması kaldığı yerden devam edecek.'),
+    ));
+  }
+
   void _bandanDevamEt(ActiveCallController c) {
     if (PipService.gsmAramada.value) {
-      final m = rootMessengerKey.currentState;
-      if (m != null) {
-        m.clearSnackBars();
-        m.showSnackBar(const SnackBar(
-          duration: Duration(seconds: 4),
-          content: Text('Telefon görüşmeniz sürüyor. Önce onu sonlandırın; '
-              'Gebzem araması kaldığı yerden devam edecek.'),
-        ));
-      }
+      _gsmUyarisiGoster();
       return;
     }
     c.beklemeyeAl(c.arama?.callId ?? '', false);

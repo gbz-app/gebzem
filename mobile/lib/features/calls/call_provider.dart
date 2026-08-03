@@ -237,6 +237,7 @@ class CallService extends StateNotifier<IncomingCall?> {
     // defterde kalirsa gozcu ilerideki GERCEK bir hucresel aramayi kacirmaz ama
     // defter sisyerek buyur — ayrica ayni id yeniden kullanilirsa yaniltir.
     unawaited(PipService.gebzemAramaSil(id));
+    _sonHoldKarari.remove(id); // turu 64: kardes defterlerle tutarli — episod bitti
   }
 
   /// ARAMA BEKLETME (test turu 18): bu arama beklemeye alindi/geri alindi -> karsi tarafa
@@ -270,6 +271,13 @@ class CallService extends StateNotifier<IncomingCall?> {
       if (_sonHoldKarari[callId] != on) return; // daha yeni bir karar var — birak
       try {
         await _ref.read(apiProvider).post('/calls/$callId/hold', data: {'on': on});
+        // ⚠️ TURU 64 denetimi: POST UCARKEN karar degismis olabilir (hizli
+        // hold->unhold). Sunucuda son yazan biz kalmayalim diye GUNCEL karari
+        // yeniden gonder — yoksa karsi tarafta rozet TERS kalir.
+        // ⚠️ YAPMA: bu telafiyi kaldirma; sonsuz dongu riski yok (yeni cagri
+        //     `_sonHoldKarari`i ayni degere yazar, kosul bir daha tutmaz).
+        final guncel = _sonHoldKarari[callId];
+        if (guncel != null && guncel != on) unawaited(hold(callId, guncel));
         return;
       } catch (e) {
         sonHata = e;
