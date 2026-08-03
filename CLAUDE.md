@@ -17,7 +17,94 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (3 Agu 02:05):** TEST TURU 63 YAYINLANDI — android 30771106968 +
+- **KALDIGIMIZ YER (4 Agu 01:10):** TURU 64 KODU HAZIR (`6bc42f9`), **BUILD ALINMADI —
+  KULLANICI ONAYI BEKLENIYOR** (CLAUDE.md kural 0). go build OK, flutter analyze temiz.
+  Sunucu SAGLIKLI dogrulandi (23 gun uptime, yuk 0.48, health ok) — sorun ISTEMCIDE.
+- ⚠️⚠️ **TURU 64 — "GSM SONRASI SES GITMIYOR" KOK NEDENI OLCUMLE KANITLANDI.**
+  Kullanici (3 Agu gecesi) uc sikayet bildirdi; 25 ajanlik kok-neden + 23 ajanlik
+  adversaryal denetim kosuldu. **Sunucu logu + Sentry, arama `be27eed9`:**
+  · 21:11:24 iOS bekletti -> `POST /hold` 200, Android `call.held on=true` ALDI ✓
+  · 21:11:37 unhold -> 200, Android `on=false` ALDI ✓
+  · 21:11:38+ iOS: **`iOS[acik=true aktif=FALSE]`** · `recv delta=100` (INIS SAGLAM)
+    · `sent sdelta=0` `mikE=0.0` -> **MIK-OLU-SENT0**. Sunucu `KURTARMA=sent0` denedi, olmadi.
+  **Yani sinyal/sunucu/LiveKit CALISTI; bozulan tek sey iOS YEREL SES GIRISI.**
+  **KOK-A:** bekletmede CallKit `didDeactivate` ile oturumu kapatir; unhold'da simetrik
+  `didActivate` **GELMEYEBILIR** — `flutter_callkit_incoming`in `CXSetHeldCallAction`
+  isleyicisi ses oturumuna DOKUNMAZ, yalnizca SAHTE bir "interruption ended" atar
+  (plugin 3.1.3, `SwiftFlutterCallkitIncomingPlugin.swift:719-731`). Geriye kalan TEK
+  aktivasyon denemesi bizim `_sesiAc(true)`imizdi ve GSM hatti kaynagi BIRAKMADAN
+  kostugu icin patliyordu. `AppDelegate.swift` `setConfiguration(active:true)` hatasi
+  **YALNIZ NSLog'a** yaziliyor, `result(nil)` ile Dart'a **KOSULSUZ BASARI** donuyordu.
+  ⚠️ **AYNI YARISIN ANDROID KANITI:** `ses tazelendi: oncekiMod=2` (= MODE_IN_CALL) —
+  biz tazelerken telefon HALA hatti tutuyordu.
+  **FIX:** native artik `{configOk,hata,enabled,active}` DONDURUR; yeni
+  `_iosSesOturumuGarantile` 200/600/1200ms artan araliklarla TEKRAR dener, basarinca
+  mikrofonu YENIDEN uygular, olmazsa **arama basina TEK** Sentry GERCEK olayi yazar.
+  ⚠️ YAPMA: hatayi tekrar yutma; `result`u `nil`e dondurme; FAZ-7'nin "zorla toggle"ini
+  kaldirma (ilk arama sessizligi geri gelir); `_sesiAc`i ISTISNA FIRLATIR yapma
+  (`_connect` await ediyor, catch `_svc.end` ile SAGLIKLI aramayi oldurur).
+- ⚠️⚠️ **TURU 64 — iOS'TA HUCRESEL ARAMA KORLUGU (kullanici: "iPhone'da bekletme
+  gorunmedi, Android'de devam et/iptal yoktu").** `gsmAramada` bayragini yazan TEK
+  kaynak Android `TelefonDurumu.kt` idi; `gsmDinle` iOS'ta **kosulsuz false** donuyordu.
+  CallKit yalniz **GELEN** hucresel aramada bizimkini bekletir — kullanici **KENDISI
+  arama YAPINCA** hicbir olay gelmez. Turu 63'un "Devam et" GSM kapisi iPhone'da
+  **OLU KODDU**. **FIX:** `GebzemGsmGozcu` (CXCallObserver, AppDelegate.swift dosya
+  kapsaminda — ⚠️ pbxproj'a AYRI dosya EKLENMEDI, BOM tuzagi).
+  ⚠️⚠️ **FILTRE HAYATI ONEM TASIR:** kendi CallKit aramalarimiz da bu listede gorunur;
+  filtresiz birakilirsa uygulama KENDI aramasini beklemeye alir.
+  · Defter `bizimAramalar`; `gsmDinle(true, callId:)` gozcu BASLAMADAN ONCE doldurur.
+  · ⚠️⚠️ **iOS'TA GELEN ARAMA DART'TAN KAYDEDILEMEZ** — `CallKitService.goster`
+    iOS'ta CAGRILMAZ (`call_provider.dart` IKI yerde `if (Platform.isIOS) return;`);
+    gelen arama VoIP push ile **native `pushRegistry` icinde** olusur. Bu yuzden
+    `aramaEkle` HER IKI `showCallkitIncoming` cagrisinin **ONUNE** konur.
+    ⚠️ YAPMA: bu satirlari closure'in ICINE veya cagrinin ALTINA tasima (CXCall SENKRON olusur).
+  · ⚠️ **RINGING KURALI (turu 62'nin iOS karsiligi):** `if !c.isOutgoing &&
+    !c.hasConnected { continue }` — yalniz BAGLANMIS ya da GIDEN arama bekletme baslatir.
+    GIZLILIK KORUNUR: suren GSM zaten `hasConnected`, ikinci cagri calarken de sayilir.
+  · ⚠️ **SILME ASLA YENI YABANCI URETMEZ:** `aramaSil` icinde `degerlendir()` YOK
+    (`CallKitService.bitir` silmeyi `endCall`in ONUNDE, `parkiDusur` ise AKTIF ARAMA
+    SURERKEN yapiyor). Defter temizligi `callObserver`daki `hasEnded` dalinda.
+  · ⚠️ Gozcu kanali **WEAK OLAMAZ** (GebzemPip ile ayni tuzak).
+  · Dart'ta IKINCI suzgec: `PipService.gsmYabanciId` == kendi callId ise olay YOK SAYILIR.
+    ⚠️ NOT: bu suzgec "ikinci GEBZEM aramasi" vakasini YAKALAMAZ — onu native defter kapatir.
+- ⚠️⚠️ **TURU 64 GIZLILIK (turu 56/63 acigina UC YENI KAPI — denetimde yakalandi):**
+  (a) `_iosSesOturumuGarantile`: kapilar `_sesiAc` await'inin ONUNDEYDI, mikrofon acilisi
+  ARKASINDA -> await sirasinda GSM baslarsa mikrofon acilir ve `beklemeyeAl`
+  `beklemede==aktif` kapisinda erken donecegi icin **bir daha KAPANMAZ**. Kapilar await
+  SONRASI tekrar okunur, hedef DURUMDAN turetilir.
+  (b) `devamEt`: `_medyaBeklet(..., false)` mikrofonu KOSULSUZ aciyordu, GSM kontrolu
+  metodun SONUNDAYDI; arada `setSpeakerOn` + `_androidSesTazele` (native stop/start +
+  120ms) var -> **yuzlerce ms canli sizinti**. Karar (`gsmVar`) artik MEDYADAN ONCE.
+  ⚠️ YAPMA: oraya `return` koyma (turu 54 park sikismasi) — karar DEGERE donusur.
+  (c) Park seridi (turuncu) `devamEt()`i **GSM KAPISIZ** cagiriyordu. Uc "devam" yolu
+  (call_screen · yesil bant · park seridi) artik AYNI `_gsmUyarisiGoster()` kapisindan gecer.
+  ⚠️ YAPMA: yeni bir "devam" yolu eklerken bu kapiyi unutma.
+- ✅ **TURU 64 DIGER:** `devamEt` unhold sinyali medyanin ONUNE (kardes `beklemeyeAl`
+  turu 60'ta duzeltilmisti, bu ATLANMISTI) + await'ler arasi kimlik kapisi ·
+  `hold()` **per-callId son-karar kapisi** (3 kor tekrar hold/unhold yarisi uretiyordu) ·
+  backend `held_by` artik `AND (held_by IS NULL OR held_by=$2)` ·
+  `_birimYenidenKur` basina `if (_ayrildi || beklemede) return;` (GSM'de mikrofon aciyordu) ·
+  **`devamEt`e `_statsBaslat()` GERI KONDU** — `parkEt` timer'i iptal ediyor, geri kuran
+  YOKTU: park/devam sonrasi ses olcumu VE olu-mik OTO KURTARMASI arama boyunca OLUYDU.
+  ⚠️ ERTELENDI: migration 014 + `hold_seq` (tek turda sema+deploy riski, kazanc orantisiz).
+- ⚠️⚠️ **TELEMETRI DUZELTMESI — TURU 63'UN "JITTER HIPOTEZI CURUDU" HUKMU GECERSIZ.**
+  `tamponDeltaMs` ham `jitterBufferDelay` farkiydi; `totalSamplesDuration`a BOLUNMEDIGI
+  icin **ms DEGILDI** (ayrica `jitter` bambaska bir metriktir). Negatif degerlerin
+  (`-199939200`, `gizlenenOrnek=-2128`) sebebi: olcum tabanlari arama basinda
+  SIFIRLANMIYORDU. `recvDelta` de gecen sureye bolunmuyordu (arka planda Timer BOGULUR).
+  FIX: `tamponMs = delta(jitterBufferDelay)/delta(totalSamplesDuration)*1000`, bolen<=0 ise
+  olcum GONDERILMEZ; `recvPaketSn` gercek tik suresiyle; tabanlar `baslat()`ta sifirlanir.
+  ⚠️ Ses gecikmesi konusu KAPALI DEGIL — dogru metrikle tekrar bakilacak.
+- 📌 **SUREC DERSI (turu 59b'nin TEKRARI — bu adimi ASLA atlama):** kod yazilip
+  `go build`+`flutter analyze` gectikten SONRA kosulan adversaryal denetim, kendi
+  turu 64 kodumda **YUKSEK bir regresyon** (E1) buldu. Build ALINMADAN yakalandi.
+- 📌 **TEKRARLAYAN DESEN (turu 50·56·60·63·64 — CLAUDE.md'ye kalici not):** bu hatalarin
+  ORTAK koku karmasiklik degil, **YUTULAN HATA + BREADCRUMB-ONLY LOG**. Yeni bir hata
+  yolu yazarken sor: "bu patlarsa TELEMETRIDE gorur muyum?" Cevap hayirsa once olcumu koy.
+- 📌 **IKINCI DESEN:** bir yol icin yazilmis primitif BASKA yola baglanirsa dogrulugu
+  ORADA TEKRAR sorgula (FAZ-7'nin arama-BASLANGICI ses fixi, turu 56'da bekletme yoluna
+  baglaninca YIKICI oldu).
+- **ONCEKI (3 Agu 02:05):** TEST TURU 63 YAYINLANDI — android 30771106968 +
   ios 30771107969 (5187fc8), R2 apk=108254861 (md5 2b466ce4) ipa=22349602 (md5 d322b588),
   purge OK, CDN'den indirilen APK yerelle MD5 BIREBIR, indir sayfasi saati 02:05,
   **BACKEND DEPLOY EDILDI** (5187fc8) + health ok + canli dogrulama

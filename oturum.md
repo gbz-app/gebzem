@@ -4037,3 +4037,92 @@ track'i yeniden abone etmek). ⚠️ YAPMA: olcumu her tikta gondermeye cevirme.
 3. Sohbette arama balonu: yuvarlak ikon + "Cevapsız sesli arama" + saat + "Geri ara".
 4. Ses gecikmesi: GSM sonrasi devam edince hala var mi? (Olcum Sentry'e dusecek.)
 5. Sesli oda + canli yayin: hicbir degisiklik olmamali.
+
+---
+
+## Oturum 4 Ağustos 2026 — TURU 64: GSM bekletme sonrası iOS SES ÖLÜMÜ (kök neden)
+
+### Kullanıcının üç şikâyeti (3 Ağu gecesi testi)
+- **(S1)** iPhone'da GSM görüşmesi bitip Gebzem'e dönünce **ses gitmiyor**.
+- **(S2)** "Devam et / Bitir" ilk seferde gelmiyor; 2-3. denemede geliyor. "Devam et"
+  dedikten sonra da görüşme olmuyor.
+- **(S3)** iPhone'dan **GSM araması yapınca** iPhone'da bekletme görünmüyor, Android'de
+  de hiçbir şey yok.
+- Kullanıcı ayrıca sordu: "sunucu mu ölüyor, uyku moduna mı geçiyor?"
+
+### ⚠️ ÖNCE KANIT — SUNUCU SUÇSUZ (ölçüldü, varsayılmadı)
+23 gün uptime, api 23 saat, yük 0.48, 6.5GB boş bellek, 8 konteynerin hepsi ayakta,
+`/health` ok. Ölen/uyuyan/patlayan hiçbir şey yok. Sorun tamamen istemcide.
+
+### KESİN TEŞHİS (sunucu audio-stat + Sentry, arama `be27eed9`, 21:11 UTC)
+```
+21:11:24  POST /hold 200          Android "call.held on=true"  ALDI   -> bekletme CALISTI
+21:11:37  POST /hold 200 (unhold) Android "call.held on=false" ALDI   -> sinyal CALISTI
+21:11:38+ iOS: iOS[acik=true aktif=FALSE]  recv delta=100 (INIS SAGLAM)
+                sent sdelta=0  mikE=0.0    -> MIK-OLU-SENT0
+21:11:44  sunucu KURTARMA=sent0 denedi, DUZELMEDI. 21:11:45 kullanici kapatti.
+```
+**Sinyal + sunucu + LiveKit çalıştı. Bozulan tek şey iOS YEREL SES GİRİŞİ.**
+
+### KÖK-A (S1/S2): iOS'ta unhold sonrası AVAudioSession aktif olmuyor
+Bekletmede CallKit `didDeactivate` ile oturumu kapatır. Bekletme kalkarken simetrik
+`didActivate` **gelmeyebilir** — `flutter_callkit_incoming` 3.1.3'ün
+`CXSetHeldCallAction` işleyicisi ses oturumuna **dokunmaz**, yalnızca SAHTE bir
+"interruption ended" bildirimi atar. Geriye kalan TEK aktivasyon denemesi bizim
+`_sesiAc(true)`imizdi; GSM hattı kaynağı bırakmadan koştuğu için patlıyordu ve hata
+**yalnız NSLog'a** yazılıyor, Dart'a `result(nil)` ile **koşulsuz başarı** dönüyordu.
+⚠️ Aynı yarışın Android kanıtı: `ses tazelendi: oncekiMod=2` (= MODE_IN_CALL).
+**FIX:** native `{configOk,hata,enabled,active}` döndürür; `_iosSesOturumuGarantile`
+200/600/1200ms artan aralıklarla tekrar dener, başarınca mikrofonu yeniden uygular,
+olmazsa arama başına TEK Sentry gerçek olayı yazar.
+
+### KÖK-B (S3): iPhone'da hücresel arama körlüğü
+`gsmAramada`yı yazan tek kaynak Android `TelefonDurumu.kt` idi; `gsmDinle` iOS'ta
+koşulsuz `false` dönüyordu. CallKit yalnız **gelen** GSM aramasında bizimkini bekletir;
+kullanıcı **kendisi arama yapınca** hiçbir olay gelmez. Turu 63'ün "Devam et" kapısı
+iPhone'da **ölü koddu**. **FIX:** `GebzemGsmGozcu` (CXCallObserver).
+
+### KÖK-C (S2): "Devam et/Bitir" yalnız arama ekranındaydı
+GSM konuşulurken Gebzem arka planda ve arama küçültülmüş olabiliyor; kullanıcının
+BAKTIĞI yerde (yeşil bant) sadece metin vardı. Ekranın açık kaldığı turlarda görünmesi
+"bazen geliyor" tarifini birebir açıklıyor. **FIX:** bantta "Devam et" düğmesi.
+
+### ⚠️⚠️ BUILD ÖNCESİ ADVERSARYAL DENETİM KENDİ KODUMDA 4 SEVK ENGELİ BULDU
+23 ajan "bu fixler YANLIŞ, kanıtla" ile koşturuldu → 13 gerçek bulgu. iOS derleme
+hatası yok; ama **YÜKSEK bir regresyon build ALINMADAN yakalandı** (turu 59b dersi).
+- **E1 (YÜKSEK):** iOS'ta **gelen** Gebzem araması gözcü defterine hiç yazılmıyordu.
+  `CallKitService.goster` iOS'ta çağrılmıyor (`call_provider.dart` iki yerde
+  `if (Platform.isIOS) return;`); gelen arama VoIP push ile **native `pushRegistry`**
+  içinde oluşuyor. Sonuç: görüşme sürerken gelen **ikinci arama** (turu 18 arama
+  bekletme) gözcüye "hücresel" görünüyor ve uygulama **kendi canlı aramasını**
+  beklemeye alıyordu. Dart'taki ikinci süzgeç bunu yakalamıyor (o, yabancı id'yi
+  AKTİF arama id'siyle karşılaştırıyor; burada yabancı = ikinci arama).
+- **E2 (ORTA):** gözcü RINGING'i "görüşme sürüyor" sayıyordu (turu 62'nin Android
+  tablosu iOS'a taşınmamıştı) → `if !c.isOutgoing && !c.hasConnected { continue }`.
+- **E3 (ORTA):** `aramaSil` silme anında `degerlendir()` çağırıyordu; `bitir()` bunu
+  `endCall`ın önünde, `parkiDusur` ise **aktif arama sürerken** yapıyor → hâlâ canlı
+  kendi aramamız bir anlığına "yabancı" oluyordu. İlke: *silme asla yeni yabancı üretmez*.
+- **E4 (YÜKSEK, GİZLİLİK):** turu 56/63 açığına **üç yeni kapı** — (a) ses garantisinde
+  kapılar await'in önünde/mikrofon arkasındaydı, (b) `devamEt` mikrofonu koşulsuz açıp
+  GSM'i sonda kontrol ediyordu (yüzlerce ms canlı sızıntı), (c) park şeridi `devamEt`i
+  **GSM kapısız** çağırıyordu. Üç "devam" yolu artık aynı kapıdan geçiyor.
+
+### ⚠️ TELEMETRİ DÜZELTMESİ — turu 63'ün "jitter hipotezi çürüdü" hükmü GEÇERSİZ
+`tamponDeltaMs` ham `jitterBufferDelay` farkıydı; `totalSamplesDuration`a bölünmediği
+için **ms değildi** (ayrıca `jitter` bambaşka bir metrik). Negatif değerlerin sebebi
+ölçüm tabanlarının arama başında sıfırlanmamasıydı. Formül düzeltildi; ses gecikmesi
+konusu **kapalı değil**, doğru metrikle tekrar bakılacak.
+
+### 📌 DERSLER
+1. **Tekrarlayan desen (turu 50·56·60·63·64):** ortak kök karmaşıklık değil,
+   **yutulan hata + yalnız-breadcrumb log**. Yeni hata yolu yazarken sor:
+   "bu patlarsa telemetride görür müyüm?" Hayırsa önce ölçümü koy.
+2. **Bir yol için yazılmış primitif başka yola bağlanırsa doğruluğu ORADA tekrar
+   sorgula** — FAZ-7'nin arama-BAŞLANGICI ses fixi, bekletme yoluna bağlanınca yıkıcı oldu.
+3. **Build almak yayınlamak değildir; adversaryal denetimi atlama** (ikinci kez kanıtlandı).
+
+### DURUM
+Kod hazır ve push edildi (`5830c15` + `6bc42f9`). `go build` OK, `flutter analyze` temiz.
+**BUILD ALINMADI — kullanıcı onayı bekleniyor (CLAUDE.md kural 0).**
+Backend değişikliği var (`held_by` sahiplik kapısı) → yayında **deploy gerekecek**,
+migration YOK.
