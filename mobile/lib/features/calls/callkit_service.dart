@@ -7,6 +7,8 @@ import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
+import 'pip_service.dart'; // turu 64: iOS hucresel arama gozcusu defteri
+
 /// Kilit ekraninda / uygulama kapaliyken gelen arama.
 ///
 /// MIMARI (arastirma sonucu):
@@ -229,6 +231,8 @@ class CallKitService {
     // TANI: push isleyicisi tetiklendi mi? (kilit ekrani gorunmuyorsa logcat'te ara)
     debugPrint('CALLKIT-GOSTER: callId=$callId video=$video');
     islenenler.add(callId);
+    // TURU 64: hucresel arama gozcusu (iOS) bu aramayi "GSM" SAYMAMALI.
+    unawaited(PipService.gebzemAramaKaydet(callId));
     await FlutterCallkitIncoming.showCallkitIncoming(CallKitParams(
       id: callId, // arama id'si zaten UUID — CallKit de UUID ister
       nameCaller: callerName.isEmpty ? 'Bilinmeyen' : callerName,
@@ -350,6 +354,8 @@ class CallKitService {
       ));
       islenenler.add(callId); // cift-UI kapisi: bu arama CallKit'te KAYITLI
       gidenler.add(callId); // turu 57: kendi giden aramamiz — kabul olaylari YOK SAYILIR
+      // TURU 64: hucresel arama gozcusu (iOS) bu aramayi "GSM" SAYMAMALI.
+      unawaited(PipService.gebzemAramaKaydet(callId));
     } catch (e) {
       debugPrint('CALLKIT-GIDEN hata: $e');
     }
@@ -373,6 +379,9 @@ class CallKitService {
 
   static Future<void> bitir(String callId) async {
     if (callId.isEmpty) return;
+    // TURU 64: gozcu defterinden CIKAR. ⚠️ `varMi` kapisinin USTUNDE — kayit CallKit'te
+    // hic gorunmese bile deftere yazilmis olabilir, orada asili birakma.
+    unawaited(PipService.gebzemAramaSil(callId));
     try {
       final aktif = await FlutterCallkitIncoming.activeCalls();
       final varMi = aktif.any((c) => c.id == callId);

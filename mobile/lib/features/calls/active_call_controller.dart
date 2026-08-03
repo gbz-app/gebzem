@@ -158,6 +158,20 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       final b = arama;
       if (b == null || _ayrildi || !_baglandi) return;
       final gsm = PipService.gsmAramada.value;
+      // ⚠️⚠️ TURU 64 — IKINCI EMNIYET SUZGECI (iOS `CXCallObserver`).
+      // Gozcu sistemdeki TUM aramalari gorur; kendi Gebzem aramalarimiz native defterle
+      // suzuluyor. Defter bir sebeple bayat kalirsa (kayit cagrisi kacti) uygulama KENDI
+      // aramasini "hucresel" sanip beklemeye alir — ses kesilir, karsi tarafa yanlis
+      // rozet gider. Burada uuid KENDI aramamizla eslesiyorsa olayi YOK SAYIYORUZ.
+      // ⚠️ YAPMA: bu karsilastirmayi kaldirma.
+      final yabanci = PipService.gsmYabanciId;
+      if (gsm &&
+          yabanci.isNotEmpty &&
+          yabanci == b.callId.toLowerCase()) {
+        unawaited(Sentry.captureMessage(
+            'gsm gozcu YANLIS ALARM: yabanci=kendi aramamiz — yok sayildi'));
+        return;
+      }
       // ⚠️⚠️ TURU 60 — OLCUM KORLUGU KAPATILDI. Bu satir turu 56'da "olcum" diye
       // eklenmisti ama `_sesLog` Sentry'e YALNIZ BREADCRUMB yazar; breadcrumb ancak
       // BASKA bir olay/cokme olursa yuklenir. Yani "Android'de GSM olayi geliyor mu"
@@ -270,12 +284,20 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
   DateTime? _gecikmeOlcumZamani;
   double _sonTamponGecikme = 0;
   double _sonGizlenen = 0;
+  // TURU 64: tampon gecikmesinin GERCEK ms karsiligi icin bolen (bkz. `_statsBaslat`).
+  double _sonOrnekSure = 0;
+  // TURU 64: iki olcum tiki arasinda GERCEKTEN gecen sure (arka planda Timer bogulur).
+  DateTime _sonTikAn = DateTime.now();
+  int _sonTikMs = 0;
   int _sonSentPaket = 0;
   double _sonMikEnerji = 0;
   int _oluMikSayaci = 0;
   bool _sesKurtarmaDenendi = false;
   // FAZ-7 guvenlik agi 2: paket AKIYOR ama decode enerjisi hep 0 = OLU PLAYOUT adayi (iOS)
   int _oluCikisSayaci = 0;
+  // TURU 64: "ses oturumu ACILAMADI" olayi ARAMA BASINA EN FAZLA 1 kez gonderilir.
+  // ⚠️ YAPMA: bu kapiyi kaldirma (her tikta gonderim = Sentry gurultusu, turu 63 yasagi).
+  bool _sesOturumuOlcumYapildi = false;
   String? _sonKurtarma; // tetiklenen kurtarma imzasi — bir sonraki audioStat'a eklenir
   // SORUN-6 SES KANIT BEKCISI: sayac yalniz GERCEK paket akisi kanitiyla baslar
   // (TrackSubscribed sinyal-duzeyi olay — olu birimde paket olmadan da tetikleniyordu)
@@ -1109,6 +1131,13 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     _oluMikSayaci = 0;
     _sesKurtarmaDenendi = false;
     _oluCikisSayaci = 0;
+    _sesOturumuOlcumYapildi = false;
+    // TURU 64: olcum tabanlari da sifirlanir — yoksa yeni aramanin ILK olcumu eski
+    // aramanin sayaclariyla farklanip NEGATIF (anlamsiz) deger yazar (sahada gorulen
+    // `tamponDeltaMs=-199939200` / `gizlenenOrnek=-2128` bundandi).
+    _sonTamponGecikme = 0;
+    _sonGizlenen = 0;
+    _sonOrnekSure = 0;
     _sonKurtarma = null;
     _kanitTimer?.cancel();
     _kanitRecvToplam = -1;
@@ -1139,9 +1168,11 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     // hicbir log/Sentry kaydi yoktu; GSM dinleyicisi 36 TUR boyunca izin verilmedigi icin
     // sessizce KAPALI kaldi ve kimse fark etmedi. Artik kapaliysa Sentry'e olay duser.
     // ⚠️ YAPMA: bu sonucu tekrar `unawaited` ile atma.
-    // NOT: `gsmDinle` iOS'ta KOSULSUZ false doner (orada isi CallKit yapar) — o yuzden
-    // olcum yalniz ANDROID'de anlamli, aksi halde yanlis alarm uretirdi.
-    PipService.gsmDinle(true).then((ok) {
+    // ⚠️ TURU 64: `gsmDinle` ARTIK iOS'TA DA CALISIR (CXCallObserver). Olcum yine yalniz
+    // ANDROID'de anlamli (orada izne bagli); iOS'ta izin kavrami YOK, daima true doner.
+    // ⚠️ `callId` ZORUNLU: gozcu kendi aramamizi "hucresel" saymasin diye deftere
+    //     BASLAMADAN ONCE yazilir. ⚠️ YAPMA: callId'siz cagirma.
+    PipService.gsmDinle(true, callId: b.callId).then((ok) {
       if (Platform.isAndroid && ok != true) {
         _sesLog('gsm dinleyici KAPALI (READ_PHONE_STATE izni yok)');
         unawaited(Sentry.captureMessage(
@@ -1953,9 +1984,16 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
   /// SES NOKTA-ATISI olcumu (2sn) — recv/enerji + GONDEREN sent/mikE + OLU-MIK oto-kurtarma.
   void _statsBaslat() {
     _statsTimer?.cancel();
+    _sonTikAn = DateTime.now();
     _statsTimer = Timer.periodic(const Duration(seconds: 2), (_) async {
       final b = arama;
       if (b == null || !_baglandi) return;
+      // ⚠️ TURU 64: tik araligi SABIT DEGIL — uygulama arka plandayken Timer BOGULUR.
+      // Ham `delta` bu yuzden yorumlanamazdi (sahada 100 -> 61 dususu "ses azaldi" mi
+      // "tik gecikti" mi ayirt EDILEMIYORDU). Artik gercek gecen sure olculuyor.
+      final simdi = DateTime.now();
+      _sonTikMs = simdi.difference(_sonTikAn).inMilliseconds;
+      _sonTikAn = simdi;
       try {
         // FAZ-7: recv/enerji TUM remote audio track'lerden TOPLANIR (grup uyumu —
         // firstOrNull yalniz ilk katilimciyi olcuyordu). Hic track yoksa recv=-1 kalir.
@@ -1968,6 +2006,12 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
         double jitterSn = 0;
         double tamponGecikme = 0;
         double gizlenenOrnek = 0;
+        // ⚠️ TURU 64: jitterBufferDelay KUMULATIF "saniye x ornek" toplamidir; TEK BASINA
+        // ms DEGILDIR. Gercek tampon gecikmesi = delta(jitterBufferDelay) /
+        // delta(totalSamplesDuration). Turu 63'te bu bolme YOKTU, bu yuzden olculen
+        // `tamponDeltaMs` degerleri anlamsizdi (ve `jitter` ayri bir metriktir —
+        // "jitterMs 6-11 normal, hipotez curudu" hukmu YANLIS metrige dayaniyordu).
+        double ornekSure = 0;
         for (final rp in _room?.remoteParticipants.values ?? const <RemoteParticipant>[]) {
           for (final pub in rp.audioTrackPublications) {
             final track = pub.track;
@@ -1981,6 +2025,7 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
                   jitterSn += (s.jitter ?? 0).toDouble();
                   tamponGecikme += (s.jitterBufferDelay ?? 0).toDouble();
                   gizlenenOrnek += (s.concealedSamples ?? 0).toDouble();
+                  ornekSure += (s.totalSamplesDuration ?? 0).toDouble();
                 }
               } catch (_) {}
             }
@@ -1991,17 +2036,24 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
         final olcumAn = _gecikmeOlcumZamani;
         if (olcumAn != null &&
             DateTime.now().difference(olcumAn) >= const Duration(seconds: 5)) {
-          _gecikmeOlcumZamani = null;
           final tamponDelta = tamponGecikme - _sonTamponGecikme;
           final gizliDelta = gizlenenOrnek - _sonGizlenen;
-          unawaited(Sentry.captureMessage(
-              'devam sonrasi ses: jitterMs=${(jitterSn * 1000).toStringAsFixed(1)} '
-              'tamponDeltaMs=${(tamponDelta * 1000).toStringAsFixed(0)} '
-              'gizlenenOrnek=${gizliDelta.toStringAsFixed(0)} '
-              'recvDelta=${recv < 0 ? -1 : recv - _sonRecvPaket}'));
+          final sureDelta = ornekSure - _sonOrnekSure;
+          // ⚠️ TURU 64: bolen <= 0 ise olcum GONDERILMEZ (NaN/sonsuz yazardi); damga
+          // KORUNUR ki bir sonraki tikta gecerli veriyle tekrar denensin.
+          if (sureDelta > 0) {
+            _gecikmeOlcumZamani = null;
+            final gercekTamponMs = (tamponDelta / sureDelta) * 1000;
+            unawaited(Sentry.captureMessage(
+                'devam sonrasi ses: tamponMs=${gercekTamponMs.toStringAsFixed(0)} '
+                'jitterMs=${(jitterSn * 1000).toStringAsFixed(1)} '
+                'gizlenenOrnek=${gizliDelta.toStringAsFixed(0)} '
+                'recvPaketSn=${_sonTikMs > 0 ? ((recv < 0 ? 0 : recv - _sonRecvPaket) * 1000 / _sonTikMs).toStringAsFixed(0) : "?"}'));
+          }
         }
         _sonTamponGecikme = tamponGecikme;
         _sonGizlenen = gizlenenOrnek;
+        _sonOrnekSure = ornekSure;
         final delta = recv < 0 ? 0 : recv - _sonRecvPaket;
         if (recv >= 0) _sonRecvPaket = recv;
         final enerjiDelta = energy - _sonEnergy;
@@ -2074,6 +2126,11 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
   /// (_sesiAc(false) -> mic off -> mic on -> _sesiAc(true) EN SON). Imza adi sunucuya
   /// 'kurtarma' alaniyla raporlanir (admin panelde turuncu KURTARMA satiri).
   Future<void> _birimYenidenKur(String imza) async {
+    // ⚠️⚠️ TURU 64 — BEKLEMEDE KAPISI (GIZLILIK). Govde asagida `setMicrophoneEnabled(true)`
+    // yapiyor; bekletme sirasinda (GSM konusulurken) calisirsa mikrofonu ACAR ve karsi
+    // taraf GSM konusmasini DUYAR — turu 56'da kapatilan acigin BASKA bir kapisi.
+    // ⚠️ YAPMA: bu kapiyi kaldirma.
+    if (_ayrildi || beklemede) return;
     if (_sesKurtarmaDenendi) return;
     _sesKurtarmaDenendi = true;
     _sonKurtarma = imza;
@@ -2379,20 +2436,85 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _sesiAc(bool ac) async {
-    if (!Platform.isIOS) return;
+  /// iOS ses birimini ac/kapat.
+  /// ⚠️ TURU 64: native artik DURUM DONDURUYOR ({configOk, hata, enabled, active}).
+  /// `active == false` ise AVAudioSession AKTIF DEGILDIR ve mikrofon ORNEK URETMEZ
+  /// (sahada olculen ariza: `iOS[acik=true aktif=false]` + mikE=0.0 + sent DONMUS).
+  /// ⚠️ YAPMA: bu metodu ISTISNA FIRLATIR hale getirme — `_connect` akisi await ediyor,
+  /// firlatirsa catch `_svc.end` ile SAGLIKLI aramayi oldurur.
+  Future<Map<String, dynamic>?> _sesiAc(bool ac) async {
+    if (!Platform.isIOS) return null;
     if (ac) {
       _benimSesNeslim = ++_sesNesilSayaci;
     } else if (_benimSesNeslim != _sesNesilSayaci) {
       _sesLog('_sesiAc(false) ATLANDI — ses birimi daha yeni aramaya ait');
-      return;
+      return null;
     }
     _sesLog('_sesiAc($ac)');
     try {
-      await _audioCh.invokeMethod('setAudioEnabled', ac);
+      final r = await _audioCh.invokeMethod('setAudioEnabled', ac);
+      return (r as Map?)?.map((k, v) => MapEntry(k.toString(), v));
     } catch (e) {
       _sesLog('_sesiAc HATA: $e');
+      return null;
     }
+  }
+
+  /// ⚠️⚠️ TURU 64 — GSM/BEKLETME SONRASI SES OTURUMU GARANTISI (asil ses fixi).
+  ///
+  /// SAHA KANITI (3 Agu, sunucu audio-stat + Sentry): unhold'dan sonra iPhone
+  /// `iOS[acik=true aktif=FALSE]` durumunda kaliyor; `recv` akiyor (inis SAGLAM) ama
+  /// `sent` sayaci DONUYOR ve `mikE=0.0` — karsi taraf HICBIR SEY duymuyor.
+  ///
+  /// KOK NEDEN: bekletmede CallKit `didDeactivate` ile oturumu KAPATIR
+  /// (AppDelegate `audioSessionDidDeactivate` -> isActive=NO). Bekletme KALKARKEN
+  /// simetrik `didActivate` GELMEYEBILIR — flutter_callkit_incoming'in
+  /// `CXSetHeldCallAction` isleyicisi ses oturumuna DOKUNMAZ, yalnizca sahte bir
+  /// "interruption ended" bildirimi atar. Geriye kalan TEK aktivasyon denemesi bizim
+  /// `_sesiAc(true)` cagrimizdir ve GSM hatti kaynagi HENUZ BIRAKMAMISKEN patlar.
+  /// (Ayni yarisin Android kaniti: `ses tazelendi: oncekiMod=2` = MODE_IN_CALL —
+  /// yani biz tazelerken telefon hala hatti tutuyordu.)
+  ///
+  /// COZUM: aktivasyonu TEK denemeye birakma; artan araliklarla (200/600/1200ms)
+  /// en fazla 3 kez TEKRARLA. Basarinca mikrofonu YENIDEN uygula — `_medyaBeklet`
+  /// mikrofonu oturum aktif olmadan ONCE aciyor, o yuzden track OLU dogmus olabilir.
+  ///
+  /// ⚠️ YAPMA: bu metodu AWAIT etme (cagiran yol `ekraniAc()`i geciktirir — turu 59).
+  /// ⚠️ YAPMA: elle `setActive(false)` cagirma — RTCAudioSession aktivasyon sayaci
+  ///     CallKit ile ORTAK defterdir, saglikli aramayi bozarsin.
+  /// ⚠️ YAPMA: `_sesiAc` govdesine durum kapisi koyma (kurtarma yollarini sessizce bloklar).
+  /// ⚠️ YAPMA: `beklemede`/GSM kapilarini kaldirma (turu 56 gizlilik acigi geri gelir).
+  Future<void> _iosSesOturumuGarantile(String orijinalId, String etiket) async {
+    if (!Platform.isIOS) return;
+    const araliklar = [200, 600, 1200];
+    bool aktifMi(Map<String, dynamic>? m) => m != null && m['active'] == true;
+
+    Map<String, dynamic>? son = await _sesiAc(true);
+    if (aktifMi(son)) return; // saglikli yol: tek denemede oldu, hicbir sey yapma
+
+    for (final ms in araliklar) {
+      await Future<void>.delayed(Duration(milliseconds: ms));
+      // Her denemeden ONCE kapilar: bayat akis / ayrilma / yeniden bekletme / GSM.
+      if (_ayrildi || beklemede || arama?.callId != orijinalId) return;
+      if (PipService.gsmAramada.value) return; // GSM yeniden basladi -> mikrofonu ACMA
+      son = await _sesiAc(true);
+      if (aktifMi(son)) {
+        // Oturum GELDI: mikrofonu yeniden uygula (aktif olmayan oturumda acilan
+        // track olu dogmus olabilir — sent=0 imzasinin kaynagi).
+        try {
+          await _room?.localParticipant?.setMicrophoneEnabled(_micOn);
+        } catch (_) {}
+        _sesLog('ses oturumu $etiket: ${ms}ms tekrarinda AKTIF oldu');
+        return;
+      }
+    }
+    // Uc denemede de olmadi -> GERCEK Sentry olayi (arama basina EN FAZLA 1).
+    // ⚠️ YAPMA: bunu breadcrumb'a cevirme; her tikta gondermeye cevirme.
+    if (_sesOturumuOlcumYapildi) return;
+    _sesOturumuOlcumYapildi = true;
+    unawaited(Sentry.captureMessage(
+        'ses oturumu ACILAMADI ($etiket): configOk=${son?['configOk']} '
+        'hata=${son?['hata']} acik=${son?['enabled']} aktif=${son?['active']}'));
   }
 
   void _sesLog(String m) {
@@ -2797,6 +2919,12 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     // ⚠️ YAPMA: `ekraniAc()`i tekrar await'lerin ALTINA tasima.
     notifyListeners();
     ekraniAc();
+    // ⚠️⚠️ TURU 64 — UNHOLD SINYALI MEDYANIN ONUNE ALINDI (kardes `beklemeyeAl` ile SIMETRI).
+    // Turu 60'ta `beklemeyeAl` icin yapilan duzeltmenin AYNISI burada EKSIKTI: cagri DORT
+    // await'in ARKASINDAYDI. Bir await patlarsa/arama devrederse karsi taraf SONSUZA KADAR
+    // "Beklemede" rozetiyle kalirdi — rozeti temizleyecek BASKA yol YOK.
+    // ⚠️ YAPMA: bu cagriyi tekrar await'lerin ALTINA tasima.
+    unawaited(_svc.hold(p.bilgi.callId, false));
     await _medyaBeklet(p.room, false, micHedef: p.micOn, camHedef: p.camOn);
     // ⚠️⚠️ TURU 62 — ROTAYI GERCEKTEN UYGULA (HER IKI PLATFORM).
     // `_androidSesTazele` iOS'ta erken doner; yalniz bayragi geri yuklemek iOS'ta
@@ -2805,15 +2933,38 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     // "mic -> kamera -> setSpeakerOn -> `_sesiAc(true)` EN SON" sirasinin AYNISIDIR.
     // ⚠️ YAPMA: bunu `_sesiAc(true)`ten SONRAYA tasima (CLAUDE.md iOS ses sirasi hukmu);
     // `_androidSesTazele`nin iOS kapisini kaldirarak cozmeye calisma (turu 56 yasagi).
+    // Await'ler sirasinda arama devrettiyse DOKUNMA (bayat akis) — kardes `beklemeyeAl`
+    // bu kapiya sahipti, `devamEt` SAHIP DEGILDI (turu 64 denetimi).
+    if (_ayrildi || arama?.callId != p.bilgi.callId) return;
     try {
       await p.room.setSpeakerOn(p.speakerOn);
     } catch (_) {}
-    await _sesiAc(true); // iOS: ses birimi EN SON (hold->resume ses kaybi tuzagi)
+    // TURU 64: tek deneme yerine GARANTILI aktivasyon (bkz. `_iosSesOturumuGarantile`).
+    // ⚠️ AWAIT ETME — sayac/poll baslatmayi geciktirir.
+    unawaited(_iosSesOturumuGarantile(p.bilgi.callId, 'devam'));
     await _androidSesTazele(); // turu 56/62: Android'de ses OTURUMU + rota geri uygulanir
-    unawaited(_svc.hold(p.bilgi.callId, false));
+    // TURU 64: kurtarma butcesi tazelenir (park yeni bir epizot).
+    _sesKurtarmaDenendi = false;
+    _oluMikSayaci = 0;
+    _oluCikisSayaci = 0;
     _startTimer();
+    // ⚠️⚠️ TURU 64 — SES ISTATISTIKLERI GERI BASLATILIR. `parkEt()` `_statsTimer`i IPTAL
+    // ediyor ama `devamEt()` HIC geri kurmuyordu (tek cagri `_connect` icindeydi). Sonuc:
+    // park/devam edilen aramada ses olcumu VE olu-mikrofon OTOMATIK KURTARMASI arama
+    // boyunca TAMAMEN OLUYDU. ⚠️ YAPMA: `_statsBaslat`i cift calistirma — govdesi zaten
+    // basta `_statsTimer?.cancel()` yapiyor.
+    _statsBaslat();
     _aktifPollBaslat();
     _pilTakibiBaslat();
+    // ⚠️⚠️ TURU 64 — GSM HALA SURUYORSA TEKRAR BEKLEMEYE AL (gizlilik, turu 56/63).
+    // `devamEt()` ikinci arama bitince OTOMATIK cagrilir. O anda kullanici hala GSM'de
+    // olabilir; medya geri acilirsa karsi taraf GSM konusmasini DUYAR.
+    // ⚠️ YAPMA: bunu `devamEt()`in BASINA "kapi" olarak koyma — park edilen arama
+    //     SONSUZA KADAR sikisir (mesgul muhafizi + ondeplan servisi asili kalir,
+    //     turu 54 regresyonu) ve Android'de GSM BITISI de bu yoldan gelir, kapi onu yutar.
+    if (PipService.gsmAramada.value && !beklemede) {
+      unawaited(beklemeyeAl(p.bilgi.callId, true));
+    }
     notifyListeners();
     ekraniAc(); // emniyet agi: yukarida acildiysa `ekranGorunur` kapisinda no-op'tur
   }
@@ -2917,6 +3068,13 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     // `CallKitService._asilId` ile yapiliyor; burasi o cevrim bir sebeple tutmazsa
     // (ornek: `islenenler`de kayit yok) ozelligin yine de calismasini garanti eder.
     // ⚠️ YAPMA: bu karsilastirmalari tekrar TAM ESITLIGE cevirme.
+    // ⚠️⚠️ TURU 64 — OLCUM: bu olayin GELIP GELMEDIGINI bilmiyorduk. Kullanici
+    // "iPhone'da bekletme GORUNMEDI" dedi; olay hic gelmedi mi, yoksa gelip kimlik
+    // eslesmesinde mi dustu ayirt EDILEMIYORDU. Simdi her giris Sentry'e yazilir.
+    // ⚠️ YAPMA: bunu breadcrumb'a cevirme (turu 60 dersi: breadcrumb yuklenmeyebilir).
+    unawaited(Sentry.captureMessage(
+        'callkit hold olayi: on=$aktif eslesenArama=${arama != null} '
+        'park=${parkEdilen != null} beklemede=$beklemede platform=${Platform.operatingSystem}'));
     final hedef = callId.toLowerCase();
     final p = parkEdilen;
     if (p != null && p.bilgi.callId.toLowerCase() == hedef) {
@@ -2952,8 +3110,17 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     // Await sirasinda arama bittiyse/degistiyse DOKUNMA (bayat akis).
     if (_ayrildi || arama?.callId != orijinalId) return;
     if (!aktif) {
-      await _sesiAc(true); // iOS: ses birimini tazele (Apple tuzagi)
+      // ⚠️⚠️ TURU 64 — TEK DENEME YETMIYOR (sahada KANITLANDI: `iOS[acik=true aktif=false]`,
+      // mikE=0.0, sent DONDU). Aktivasyon GSM hatti kaynagi birakana kadar patlar; artik
+      // 200/600/1200ms artan araliklarla TEKRARLANIR ve basarinca mikrofon YENIDEN uygulanir.
+      // ⚠️ AWAIT ETME: asagidaki `ekraniAc()` gecikmemeli (turu 59 dersi).
+      unawaited(_iosSesOturumuGarantile(orijinalId, 'unhold'));
       await _androidSesTazele(); // turu 56: Android'de karsiligi YOKTU — GSM sonrasi sagirlik
+      // TURU 64: park/devam sonrasi olu-mik OTO KURTARMASI icin butceyi tazele —
+      // bekletme yeni bir "epizot"tur, onceki kurtarma hakkini devretme.
+      _sesKurtarmaDenendi = false;
+      _oluMikSayaci = 0;
+      _oluCikisSayaci = 0;
       // ⚠️ TURU 56: KAMERAYI DA GERI AC. Beklet sirasinda uygulama arka plana gectigi
       // icin yasam dongusu `_kameraOtoKapandi=true; _camOn=false;` yazmis olabilir;
       // bugun ekledigim `!beklemede` kapisi `resumed` dalindaki geri acmayi da

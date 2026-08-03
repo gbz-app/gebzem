@@ -1245,7 +1245,15 @@ func (h *Handler) Hold(w http.ResponseWriter, r *http.Request) {
 	// Artik durum satirda tutulur, istemci 3sn'lik `Status` yoklamasindan kendini onarir.
 	// ⚠️ YAPMA: bu UPDATE'i kaldirip yalniz WS'e geri donme.
 	if req.On {
-		h.db.Exec(r.Context(), `UPDATE calls SET held_by=$2 WHERE id=$1`, callID, userID)
+		// ⚠️ TURU 64 — SAHIPLIK KAPISI. Eskiden KOSULSUZ yaziyordu: istemcideki 3 tekrarli
+		// `hold` POST'undan GEC varan bir `on=true`, arkasindan gonderilen `on=false`i
+		// EZIP karsi tarafi SONSUZA KADAR "Beklemede" rozetiyle birakabiliyordu.
+		// Artik yalniz BOS ya da ZATEN BIZIM olan kaydin uzerine yazilir.
+		// ⚠️ YAPMA: bu kapiyi kaldirma; `held_by`yi grup aramasi acilirsa tek-kisi
+		//     varsayimiyla kullanma (turu 60/61 serhi).
+		h.db.Exec(r.Context(),
+			`UPDATE calls SET held_by=$2 WHERE id=$1 AND (held_by IS NULL OR held_by=$2)`,
+			callID, userID)
 	} else {
 		// Yalniz KENDI bekletmemizi kaldiririz — karsi taraf da beklemeye almissa
 		// onun durumu silinmesin.

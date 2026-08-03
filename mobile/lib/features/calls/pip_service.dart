@@ -22,6 +22,12 @@ class PipService {
   /// gelir; true olunca Gebzem aramasi BEKLEMEYE alinir (WhatsApp davranisi).
   static final ValueNotifier<bool> gsmAramada = ValueNotifier<bool>(false);
 
+  /// TURU 64 (iOS): gozcunun "hucresel" saydigi aramanin CallKit uuid'si (kucuk harf).
+  /// Controller bunu KENDI arama id'siyle karsilastirip kendi kendini beklemeye alma
+  /// felaketine karsi IKINCI bir suzgec uygular. Android'de daima bos.
+  /// ⚠️ YAPMA: bu alani kaldirma; controller'daki karsilastirmayi silme.
+  static String gsmYabanciId = '';
+
   /// TEST TURU 37: iOS kamera kesinti sebebi (AVCaptureSessionInterruptionReasonKey ham
   /// degeri). 0 = kesinti yok. Teshis icin Sentry'e yazilir.
   static final ValueNotifier<int> kameraKesintiSebebi = ValueNotifier<int>(0);
@@ -55,7 +61,18 @@ class PipService {
         case 'pipEylem': // Android PiP penceresindeki dugmeler (mic/kapat)
           _eylemCb?.call(call.arguments as String? ?? '');
         case 'gsmDurum': // TEST TURU 20: GSM aramasi basladi/bitti
-          gsmAramada.value = call.arguments == true;
+          // Android: duz bool. iOS (turu 64): {'on': bool, 'uuid': String} — uuid,
+          // gozcunun "yabanci" saydigi aramanin kimligidir; controller IKINCI bir
+          // suzgecte bunu kendi aramasiyla karsilastirir (kendi kendini beklemeye
+          // alma felaketine karsi emniyet). ⚠️ YAPMA: uuid'yi tasimayi birakma.
+          final a = call.arguments;
+          if (a is Map) {
+            gsmYabanciId = (a['uuid'] as String? ?? '').toLowerCase();
+            gsmAramada.value = a['on'] == true;
+          } else {
+            gsmYabanciId = '';
+            gsmAramada.value = a == true;
+          }
         case 'iosPipDurum':
           final v = call.arguments == true;
           pipModu.value = v;
@@ -152,17 +169,56 @@ class PipService {
   }
 
   /// GSM ARAMA DINLEYICISI (test turu 20): Gebzem aramasi basladiginda ac, bitince kapat.
-  /// Donus: dinlenebiliyor mu (READ_PHONE_STATE izni yoksa false -> ozellik sessizce kapali).
-  static Future<bool> gsmDinle(bool ac) async {
-    if (!Platform.isAndroid) return false;
+  /// Donus: dinlenebiliyor mu (Android'de READ_PHONE_STATE izni yoksa false -> ozellik
+  /// sessizce kapali).
+  ///
+  /// ⚠️⚠️ TURU 64 — ARTIK iOS'TA DA CALISIR. Once `if (!Platform.isAndroid) return false;`
+  /// vardi; yani iPhone'da hucresel aramayi goren HICBIR SEY yoktu. CallKit yalniz GELEN
+  /// hucresel aramada bizim aramamizi bekletir — kullanici KENDISI arama YAPTIGINDA hicbir
+  /// olay gelmez (kullanici sikayeti S3). iOS tarafinda ayni isi `CXCallObserver`
+  /// (AppDelegate `GebzemGsmGozcu`) yapar.
+  /// ⚠️ YAPMA: iOS kapisini geri koyma; `gsmDinle(false)` cagrisini atlama (gozcu acik
+  ///     kalirsa sonraki aramaya sarkar).
+  /// ⚠️⚠️ [callId] iOS'ta ZORUNLUDUR (Android'de yok sayilir): gozcu BASLAMADAN ONCE
+  /// kendi aramamiz deftere yazilir. Aksi halde `baslat()` icindeki ilk degerlendirme
+  /// KENDI Gebzem CallKit aramamizi "hucresel" sanar, `gsmAramada` true olur ve uygulama
+  /// kendi aramasini beklemeye alir (sesi keser). Sirayi tesadufe birakmiyoruz.
+  /// ⚠️ YAPMA: callId'yi bos gecme; kaydi `gsmDinle`den SONRAYA birakma.
+  static Future<bool> gsmDinle(bool ac, {String callId = ''}) async {
+    if (!Platform.isAndroid && !Platform.isIOS) return false;
     try {
       _handlerKur();
-      final ok = (await _ch.invokeMethod<bool>('gsmDinle', ac)) ?? false;
-      if (!ac) gsmAramada.value = false;
+      // Android tarafi (MainActivity.kt) DUZ BOOL bekler — sozlesmeyi bozma.
+      final Object arg = Platform.isIOS ? {'ac': ac, 'callId': callId} : ac;
+      final ok = (await _ch.invokeMethod<bool>('gsmDinle', arg)) ?? false;
+      if (!ac) {
+        gsmAramada.value = false;
+        gsmYabanciId = '';
+      }
       return ok;
     } catch (_) {
       return false;
     }
+  }
+
+  /// TURU 64 (iOS): kendi Gebzem CallKit aramamizi gozcunun defterine yaz/sil.
+  /// Defterde OLMAYAN her CallKit aramasi "hucresel" sayilir — bu yuzden kendi
+  /// aramalarimizi bildirmek ZORUNLU. Android'de no-op.
+  /// ⚠️ YAPMA: bu cagrilari atlamaya calisma — atlanirsa uygulama KENDI aramasini
+  ///     hucresel sanip beklemeye alir.
+  static Future<void> gebzemAramaKaydet(String callId) async {
+    if (!Platform.isIOS || callId.isEmpty) return;
+    try {
+      _handlerKur();
+      await _ch.invokeMethod('gebzemAramaKaydet', callId);
+    } catch (_) {}
+  }
+
+  static Future<void> gebzemAramaSil(String callId) async {
+    if (!Platform.isIOS || callId.isEmpty) return;
+    try {
+      await _ch.invokeMethod('gebzemAramaSil', callId);
+    } catch (_) {}
   }
 
   /// TEST TURU 32 — SUREN ARAMA ONDEPLAN SERVISI (Android). Kullanici: "uygulamayi alta

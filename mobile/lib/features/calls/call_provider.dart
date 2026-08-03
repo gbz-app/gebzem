@@ -10,6 +10,7 @@ import 'package:sentry_flutter/sentry_flutter.dart';
 
 import 'active_call_controller.dart';
 import 'callkit_service.dart';
+import 'pip_service.dart'; // turu 64: iOS hucresel arama gozcusu defteri
 
 /// Gelen arama bilgisi (WebSocket "call.incoming" olayindan)
 class IncomingCall {
@@ -232,6 +233,10 @@ class CallService extends StateNotifier<IncomingCall?> {
     kabulEdilenler.remove(id);
     CallKitService.islenenler.remove(id);
     CallKitService.gidenler.remove(id); // turu 57
+    // TURU 64: hucresel arama gozcusunun defterinden de dus (iOS). Episod bitti;
+    // defterde kalirsa gozcu ilerideki GERCEK bir hucresel aramayi kacirmaz ama
+    // defter sisyerek buyur — ayrica ayni id yeniden kullanilirsa yaniltir.
+    unawaited(PipService.gebzemAramaSil(id));
   }
 
   /// ARAMA BEKLETME (test turu 18): bu arama beklemeye alindi/geri alindi -> karsi tarafa
@@ -245,10 +250,24 @@ class CallService extends StateNotifier<IncomingCall?> {
   /// ⚠️ YAPMA: tek denemeye/sessiz yutmaya geri donme.
   /// ⚠️ NOT: `unhold` (on=false) kaybolursa karsi taraf SONSUZA KADAR "beklemede"
   /// kalir — bu yuzden tekrar denemesi ozellikle kritiktir.
+  /// ⚠️⚠️ TURU 64 — SON-KARAR KAPISI (yarisi kapatir).
+  /// 3 kor tekrar, hold(true) ve hold(false) arasinda YARIS uretiyordu: yavas kalan
+  /// bir `on=true` denemesi, sonradan gonderilen `on=false`i EZIP karsi tarafi
+  /// SONSUZA KADAR "Beklemede" rozetiyle birakabiliyordu (sahada 20:56:05 ve 20:56:06'da
+  /// AYNI bekletme icin IKI `on=true` olayi gorulmesi bu tekrarlarin izidir).
+  /// Cozum: her callId icin SON karar saklanir; karar degistiyse bekleyen denemeler
+  /// SESSIZCE birakilir.
+  /// ⚠️ YAPMA: 3 denemeyi kaldirma (turu 60 — kaybolan unhold rozeti kalici birakir).
+  /// ⚠️ YAPMA: kapiyi GLOBAL yapma — park edilen arama (`hold(parkId,true)`) ile aktif
+  ///     arama (`hold(aktifId,false)`) birbirini iptal eder. Anahtar callId OLMALI.
+  static final Map<String, bool> _sonHoldKarari = {};
+
   Future<void> hold(String callId, bool on) async {
     if (callId.isEmpty) return;
+    _sonHoldKarari[callId] = on;
     Object? sonHata;
     for (var i = 0; i < 3; i++) {
+      if (_sonHoldKarari[callId] != on) return; // daha yeni bir karar var — birak
       try {
         await _ref.read(apiProvider).post('/calls/$callId/hold', data: {'on': on});
         return;
@@ -257,6 +276,7 @@ class CallService extends StateNotifier<IncomingCall?> {
         if (i < 2) await Future.delayed(Duration(milliseconds: 400 * (i + 1)));
       }
     }
+    if (_sonHoldKarari[callId] != on) return;
     unawaited(Sentry.captureMessage(
         'hold POST BASARISIZ (3 deneme) on=$on: $sonHata'));
   }

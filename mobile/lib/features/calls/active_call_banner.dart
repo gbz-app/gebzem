@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../router.dart'; // rootMessengerKey — bant Navigator'in DISINDA
 import 'active_call_controller.dart';
 import 'mini_izgara.dart';
+import 'pip_service.dart'; // GSM kapisi (turu 56/63 gizlilik)
 
 /// AKTIF ARAMA — minimize edilmis aramada TUM sayfalarin ustunde gorunur.
 /// TEST TURU 10: SESLI aramada eski yesil bant; GORUNTULU aramada SURUKLENEBILIR YUZEN
@@ -161,6 +163,34 @@ class _AktifAramaBannerState extends ConsumerState<AktifAramaBanner> {
     );
   }
 
+  /// ⚠️⚠️ TURU 64 — BANTTAN "DEVAM ET" (kullanici sikayeti S2).
+  /// "Devam et / Bitir ILK SEFERDE gelmedi; iki-uc kere yapinca geldi."
+  /// KOK NEDEN: o iki dugme YALNIZ `CallScreen` agacinda cizilir. GSM konusulurken
+  /// Gebzem arka plandadir ve arama ekrani KUCULTULMUS olabilir; kullanicinin BAKTIGI
+  /// yerde (yesil bant) hicbir dugme YOKTU — bant sadece "Arama beklemede" METNI
+  /// gosteriyordu. Ekran acik kaldigi turlarda gorunmesi de "bazen geliyor"
+  /// tarifini birebir aciklar.
+  /// ⚠️ YAPMA: bu dugmeyi GSM kapisindan GECIRMEDEN ekleme — turu 56/63 gizlilik
+  ///     acigina UCUNCU kapi acarsin (GSM surerken mikrofon geri acilir, karsi taraf
+  ///     GSM konusmasini duyar). Kapi call_screen.dart `_devamEteBasildi` ile AYNI.
+  /// ⚠️ YAPMA: burada `ScaffoldMessenger.of(context)` kullanma — bant
+  ///     `MaterialApp.builder` icinde, Navigator'in DISINDADIR (CLAUDE.md kurali).
+  void _bandanDevamEt(ActiveCallController c) {
+    if (PipService.gsmAramada.value) {
+      final m = rootMessengerKey.currentState;
+      if (m != null) {
+        m.clearSnackBars();
+        m.showSnackBar(const SnackBar(
+          duration: Duration(seconds: 4),
+          content: Text('Telefon görüşmeniz sürüyor. Önce onu sonlandırın; '
+              'Gebzem araması kaldığı yerden devam edecek.'),
+        ));
+      }
+      return;
+    }
+    c.beklemeyeAl(c.arama?.callId ?? '', false);
+  }
+
   // ---- SESLI ARAMA: ust yesil bant (eski davranis) ----
   Widget _sesliBant(ActiveCallController c, String ad) {
     return Positioned(
@@ -235,6 +265,30 @@ class _AktifAramaBannerState extends ConsumerState<AktifAramaBanner> {
                     ],
                   ),
                 ),
+                // TURU 64: bekletmedeyken bantta DA "Devam et" (bkz. `_bandanDevamEt`).
+                // Row cocugu ve `mainAxisSize.min` oldugu icin tasma riski yok
+                // (turu 60'ta rozetin basina gelen RenderFlex tuzagi burada YOK).
+                if (c.beklemede) ...[
+                  const SizedBox(width: 8),
+                  Material(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(14),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(14),
+                      onTap: () => _bandanDevamEt(c),
+                      child: const Padding(
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        child: Text('Devam et',
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 12)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                ],
                 Text(c.durumMetni,
                     style: const TextStyle(
                         color: Colors.white,

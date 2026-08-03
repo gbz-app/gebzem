@@ -59,6 +59,18 @@ import flutter_callkit_incoming
       if call.method == "setAudioEnabled" {
         let ac = (call.arguments as? Bool) ?? false
         let s = RTCAudioSession.sharedInstance()
+        // ⚠️⚠️ TURU 64 — OLCUM KORLUGU KAPATILDI (sahada KANITLANMIS ariza).
+        // 3 Agu testi: GSM sonrasi unhold'da `iOS[acik=true aktif=FALSE]` + mikE=0.0 +
+        // sent sayaci DONDU -> karsi taraf HIC duymadi. Sebep: asagidaki
+        // `setConfiguration(active:true)` PATLIYOR (CallKit'li/arka plandaki aramada iOS
+        // uygulamanin oturumu kendi aktive etmesine izin vermez) ama hata YALNIZ NSLog'a
+        // yaziliyor, `result(nil)` ile Dart'a KOSULSUZ BASARI donuyordu. 4 turdur
+        // teshis edemememizin sebebi buydu (turu 60'in "breadcrumb yeterli degil" dersi).
+        // Artik sonuc Dart'a DONER; `_sesiAc` bunu okuyup Sentry'e GERCEK olay yazar ve
+        // aktivasyonu artan araliklarla TEKRAR dener.
+        // ⚠️ YAPMA: hatayi tekrar yutma; `result`u tekrar `nil`e dondurme.
+        var configOk = true
+        var hataMetni = ""
         if ac {
           // KOK GARANTI (grup-host mic-sessiz fix'i, wf_32afbd46): birim baslamadan ONCE
           // oturumu DETERMINISTIK hazirla + aktive et. CallKit'siz yolda (grup hostu /
@@ -69,7 +81,11 @@ import flutter_callkit_incoming
           // YAZMA — canli VPIO'da gercek kategori degisikligi tetiklerdi).
           s.lockForConfiguration()
           do { try s.setConfiguration(RTCAudioSessionConfiguration.webRTC(), active: true) }
-          catch { NSLog("gebzem/audio hazirlik hatasi: \(error)") }
+          catch {
+            configOk = false
+            hataMetni = "\((error as NSError).domain)#\((error as NSError).code)"
+            NSLog("gebzem/audio hazirlik hatasi: \(error)")
+          }
           s.unlockForConfiguration()
           // FAZ-7 ILK-ARAMA-SES FIX'I (19 Tem kaniti: sent=0 + enerji=0 + kategori DOGRU):
           // CallKit didActivate, isAudioEnabled=true'yu WebRTC audio unit HENUZ YOKKEN
@@ -85,7 +101,14 @@ import flutter_callkit_incoming
         } else {
           s.isAudioEnabled = false
         }
-        result(nil)
+        // TURU 64: artik DURUM DONER. `active` = RTCAudioSession.isActive (oturum gercekten
+        // aktif mi). `configOk=false` VEYA `active=false` -> mikrofon ORNEK URETMEZ.
+        result([
+          "configOk": configOk,
+          "hata": hataMetni,
+          "enabled": s.isAudioEnabled,
+          "active": s.isActive,
+        ])
       } else if call.method == "getAudioState" {
         // TESHIS: iOS ses cikis durumu. "paket geliyor ama ses duyulmuyor" -> burada
         // audioEnabled=false / active=false / route yanlis gorunur (KESIN iOS cikis sorunu).
@@ -111,6 +134,8 @@ import flutter_callkit_incoming
     // TEST TURU 9: kanali GebzemPip'e ver -> PiP basladi/durdu/basarisiz delegate callback'leri
     // Flutter'a geri bildirir (kamera-mute yedegi PiP durumuna gore ayarlanir).
     if #available(iOS 15.0, *) { GebzemPip.shared.kanal = pipCh }
+    // TURU 64: hucresel arama gozcusu ayni kanali kullanir ('gsmDurum' -> pip_service).
+    GebzemGsmGozcu.shared.kanal = pipCh
     pipCh.setMethodCallHandler { call, result in
       guard #available(iOS 15.0, *) else {
         // iOS<15: PiP yok
@@ -167,6 +192,26 @@ import flutter_callkit_incoming
       case "iosCokluGorevKamera":
         // TEST TURU 9: kamerayi PiP/arka planda CAPTURE'a devam ettir (karsi taraf beni gorur)
         result(GebzemPip.shared.cokluGorevKameraAc())
+      // TURU 64: iOS hucresel arama gozcusu (Android `TelefonDurumu.kt` karsiligi).
+      case "gsmDinle":
+        // Arg: {'ac': Bool, 'callId': String}. ⚠️ callId gozcu BASLAMADAN ONCE deftere
+        // yazilir — yoksa ilk degerlendirme KENDI aramamizi "hucresel" sayar.
+        let a = call.arguments as? [String: Any]
+        let ac = (a?["ac"] as? Bool) ?? (call.arguments as? Bool) ?? false
+        if ac {
+          GebzemGsmGozcu.shared.aramaEkle((a?["callId"] as? String) ?? "")
+          GebzemGsmGozcu.shared.baslat()
+        } else {
+          GebzemGsmGozcu.shared.dur()
+        }
+        result(true)
+      case "gebzemAramaKaydet":
+        // Kendi CallKit aramamiz — gozcu bunu "hucresel" SAYMAMALI.
+        GebzemGsmGozcu.shared.aramaEkle((call.arguments as? String) ?? "")
+        result(true)
+      case "gebzemAramaSil":
+        GebzemGsmGozcu.shared.aramaSil((call.arguments as? String) ?? "")
+        result(true)
       default:
         result(FlutterMethodNotImplemented)
       }
@@ -268,6 +313,98 @@ import flutter_callkit_incoming
     }
   }
 }
+
+// MARK: - TURU 64: iOS HUCRESEL (GSM) ARAMA GOZCUSU
+//
+// KULLANICI SIKAYETI (S3): "Android ile konusurken iPhone'dan normal GSM aramasi
+// yaptim; iPhone'da BEKLETME GORUNMEDI, Android'de de hicbir sey yoktu."
+// KOK NEDEN: `PipService.gsmAramada` bayragini yazan TEK kaynak Android'in
+// `TelefonDurumu.kt` dosyasiydi (`pip_service.dart` -> `if (!Platform.isAndroid)
+// return false;`). iOS'ta hucresel aramayi goren HICBIR SEY yoktu. CallKit yalnizca
+// GELEN hucresel aramada bizim aramamizi bekletir; kullanici KENDISI arama YAPTIGINDA
+// `CXSetHeldCallAction` gelmez -> ne panel, ne hold POST'u, ne karsi tarafta rozet.
+// Ayrica turu 63'te eklenen "Devam et" GSM kapisi iPhone'da OLU KODDU.
+//
+// COZUM: `CXCallObserver` — sistemdeki TUM aramalari gorur (hucresel dahil).
+// ⚠️⚠️ FILTRE SART: kendi Gebzem CallKit aramalarimiz da bu listede gorunur.
+// Filtresiz birakilirsa `gsmAramada` kendi aramamiz yuzunden true olur ve
+// controller KENDI aramasini beklemeye alir (mevcut hatadan cok daha agir).
+// Bu yuzden Dart, kaydettigi her Gebzem CallKit id'sini buraya BILDIRIR ve
+// gozcu YALNIZ deftere KAYITLI OLMAYAN aramayi "hucresel" sayar. Ek emniyet:
+// yabanci aramanin uuid'si Dart'a da gonderilir, orada IKINCI kez suzulur.
+//
+// ⚠️ YAPMA: filtreyi kaldirma. ⚠️ YAPMA: bunun yerine
+//     `AVAudioSession.interruptionNotification` kullanma — Siri/alarm/bildirim de
+//     uretir; `.ended` kacarsa mikrofon KALICI kapali kalir (bugunku semptomun
+//     kod eliyle uretilmesi olur).
+final class GebzemGsmGozcu: NSObject, CXCallObserverDelegate {
+  static let shared = GebzemGsmGozcu()
+  private let gozcu = CXCallObserver()
+  private var bizimAramalar = Set<String>() // kendi CallKit id'lerimiz (KUCUK harf)
+  private var aktif = false
+  private var sonDurum = false
+  // ⚠️ CLAUDE.md kurali: kanal WEAK OLAMAZ. `pipCh` yerel bir degisken; zayif tutulursa
+  // dealloc olur ve 'gsmDurum' geri bildirimi Dart'a HIC ULASMAZ (GebzemPip.kanal ile
+  // ayni tuzak). ⚠️ YAPMA: buraya `weak` ekleme.
+  var kanal: FlutterMethodChannel?
+
+  func baslat() {
+    if aktif { return }
+    aktif = true
+    sonDurum = false
+    gozcu.setDelegate(self, queue: DispatchQueue.main)
+    degerlendir()
+  }
+
+  func dur() {
+    guard aktif else { return }
+    aktif = false
+    gozcu.setDelegate(nil, queue: nil)
+    // Bayragi TEMIZLE: aksi halde bir sonraki arama "GSM suruyor" sanip
+    // kendini aninda beklemeye alir.
+    if sonDurum { sonDurum = false; bildir(false, "") }
+  }
+
+  func aramaEkle(_ id: String) {
+    guard !id.isEmpty else { return }
+    bizimAramalar.insert(id.lowercased())
+    degerlendir()
+  }
+
+  func aramaSil(_ id: String) {
+    guard !id.isEmpty else { return }
+    bizimAramalar.remove(id.lowercased())
+    degerlendir()
+  }
+
+  func callObserver(_ callObserver: CXCallObserver, callChanged call: CXCall) {
+    degerlendir()
+  }
+
+  private func degerlendir() {
+    guard aktif else { return }
+    var yabanci = ""
+    for c in gozcu.calls {
+      if c.hasEnded { continue }
+      let u = c.uuid.uuidString.lowercased()
+      if bizimAramalar.contains(u) { continue }
+      yabanci = u
+      break
+    }
+    let yeni = !yabanci.isEmpty
+    if yeni == sonDurum { return } // yalniz DEGISIMDE bildir
+    sonDurum = yeni
+    bildir(yeni, yabanci)
+  }
+
+  private func bildir(_ on: Bool, _ uuid: String) {
+    // Tip ACIK yazilir: heterojen sozluk literali (Bool + String) Swift'te
+    // "could only be inferred to [String: Any]" uyarisi/hatasi uretebilir.
+    let yuk: [String: Any] = ["on": on, "uuid": uuid]
+    kanal?.invokeMethod("gsmDurum", arguments: yuk)
+  }
+}
+
 
 // ============================================================================
 // iOS SISTEM PiP (test turu 7 — internet arastirmasi + videosdk referansi)
