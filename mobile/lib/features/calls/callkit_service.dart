@@ -278,10 +278,18 @@ class CallKitService {
         // en az 2 arama. (Eskiden 1/false idi -> ozellik KAPALIYDI.) Beklet olayini artik
         // KENDIMIZ isliyoruz (medya durur, oda ACIK kalir; donuste ses birimi tazelenir) —
         // eski "GSM beklet-swap aramayi koparıyor" sorununun kok nedeni islenmemesiydi.
+        // ⚠️⚠️ TURU 66 — BEKLETME KAPATILDI (kullanici emri 4 Agu: "beklemeyi
+        // yapmayalim, kabul et ve bitir olsun"). `supportsHolding:false` ile iOS
+        // ikinci aramada "Beklet ve Kabul" YERINE **"Bitir ve Kabul"** cizer — hem
+        // Gebzem hem HUCRESEL aramalar icin. Gerekce: bekletmeden CIKIS bizim
+        // kontrolumuzde degil (turu 65 kaniti: CallKit ses oturumunu geri vermiyor,
+        // bizim aktive denememiz `!pri` ile reddediliyor).
+        // ⚠️ YAPMA: kullanici emri olmadan `true` yapma; `maximumCallsPerCallGroup`i
+        //     1'in ustune cikarma (ikisi birlikte "beklet" ekranini geri getirir).
         maximumCallGroups: 2,
-        maximumCallsPerCallGroup: 2,
+        maximumCallsPerCallGroup: 1,
         supportsDTMF: false,
-        supportsHolding: true,
+        supportsHolding: false,
         supportsGrouping: false,
         supportsUngrouping: false,
         // Ses oturumunu CallKit yonetsin; LiveKit odaya KABULDEN SONRA baglanir.
@@ -341,10 +349,11 @@ class CallKitService {
           handleType: 'generic',
           supportsVideo: true,
           // "Beklet ve Kabul" ekraninin SARTI — gelen arama tarafiyla AYNI degerler.
+          // TURU 66: GIDEN arama tarafi da AYNI degerlerde olmali (bkz. yukaridaki serh).
           maximumCallGroups: 2,
-          maximumCallsPerCallGroup: 2,
+          maximumCallsPerCallGroup: 1,
           supportsDTMF: false,
-          supportsHolding: true,
+          supportsHolding: false,
           supportsGrouping: false,
           supportsUngrouping: false,
           configureAudioSession: true,

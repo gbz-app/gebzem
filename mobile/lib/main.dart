@@ -369,10 +369,20 @@ class _GebzemAppState extends ConsumerState<GebzemApp> with WidgetsBindingObserv
         ctrlOn.arama!.callId != callId &&
         notifier.aktifAramaVar;
     if (bekletildi) {
-      await ctrlOn.parkEt();
-      rootMessengerKey.currentState?.showSnackBar(const SnackBar(
-          content: Text('Önceki arama beklemeye alındı'),
-          duration: Duration(seconds: 2)));
+      // ⚠️⚠️ TURU 66 — BEKLETME KAPALI: onceki arama PARK EDILMEZ, BITIRILIR.
+      // iOS "Bitir ve Kabul" ekranini kendisi cizdigi icin kullanicinin beklentisi
+      // zaten budur. ⚠️ YAPMA: `bekletmeAcik` kontrolunu atlayip `parkEt()` cagirma.
+      if (ActiveCallController.bekletmeAcik) {
+        await ctrlOn.parkEt();
+        rootMessengerKey.currentState?.showSnackBar(const SnackBar(
+            content: Text('Önceki arama beklemeye alındı'),
+            duration: Duration(seconds: 2)));
+      } else {
+        await ctrlOn.leave(notifyServer: true);
+        rootMessengerKey.currentState?.showSnackBar(const SnackBar(
+            content: Text('Önceki arama sonlandırıldı'),
+            duration: Duration(seconds: 2)));
+      }
     }
 
     // TEST TURU 30 (kullanici: "karsi taraf goruntuyu actiginda ilk once uygulamaya gidip

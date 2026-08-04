@@ -136,7 +136,11 @@ class _IncomingCallSheetState extends ConsumerState<_IncomingCallSheet> {
     setState(() => _busy = true);
     final ctrl = ref.read(activeCallProvider);
     try {
-      if (beklet) {
+      // ⚠️⚠️ TURU 66 — BEKLETME KAPALI: `beklet` istegi gelse bile mevcut arama
+      // BITIRILIR (bkz. `ActiveCallController.bekletmeAcik`). Bekletmeden cikista ses
+      // geri gelmiyordu (turu 65 "!pri" kaniti), bu yuzden ozellik kapatildi.
+      // ⚠️ YAPMA: `bekletmeAcik` kontrolunu kaldirip dogrudan `parkEt()` cagirma.
+      if (beklet && ActiveCallController.bekletmeAcik) {
         await ctrl.parkEt();
       } else {
         await ctrl.leave(notifyServer: true);

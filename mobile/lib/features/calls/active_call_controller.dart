@@ -181,9 +181,48 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       unawaited(Sentry.captureMessage(
           'gsm olayi: gsm=$gsm beklemede=$beklemede baglandi=$_baglandi '
           'platform=${Platform.isAndroid ? "android" : "ios"}'));
+      // ⚠️⚠️ TURU 66 — BEKLETME YOK: hucresel arama CEVAPLANINCA Gebzem aramasi BITER.
+      // Eskiden `beklemeyeAl(id, true)` ile bekletiliyor, GSM bitince geri aciliyordu;
+      // ama geri acma iOS'ta calismiyordu (bkz. `bekletmeAcik` serhi, "!pri" kaniti).
+      // ⚠️ `gsm=false` (hucresel BITTI) dalinda YAPILACAK BIR SEY YOK — arama zaten
+      //    kapandi. Eskiden burada "devam ettirme" vardi, artik ANLAMSIZ.
+      // ⚠️ GIZLILIK: aramayi bitirmek mikrofonu da kapatir — turu 56 acigi yapisal
+      //    olarak imkansiz hale gelir. ⚠️ YAPMA: burayi "sadece mikrofonu kapat"a
+      //    cevirme (arama sunucuda yasar, karsi taraf sessizlik dinler).
+      if (!bekletmeAcik) {
+        if (gsm) {
+          _sesLog('hucresel arama basladi -> Gebzem aramasi bitiriliyor (bekletme kapali)');
+          unawaited(leave(notifyServer: true));
+        }
+        return;
+      }
       unawaited(beklemeyeAl(b.callId, gsm));
     });
   }
+
+  /// ⚠️⚠️ TURU 66 — ARAMA BEKLETME KAPATILDI (KULLANICI KARARI, 4 Agu).
+  ///
+  /// Kullanici: "beklemeyi yapmayalim, arama geldiginde KABUL ET ve BITIR olsun."
+  ///
+  /// GEREKCE (uc turluk saha kaniti): bekletmeden CIKIS iOS'ta BIZIM KONTROLUMUZDE
+  /// DEGIL. Olculen kanit (turu 65): hucresel arama bitince CallKit aramayi unhold
+  /// ediyor ama ses oturumunu GERI VERMIYOR; bizim aktive etme denememiz de iOS
+  /// tarafindan `!pri` (AVAudioSessionErrorCodeInsufficientPriority) ile REDDEDILIYOR.
+  /// Yani "ses geri gelsin" ozelligi ucuncu parti bir uygulamanin garanti EDEMEYECEGI
+  /// bir sey. Ozelligi yarim calisir halde tutmak yerine KAPATIYORUZ.
+  ///
+  /// YENI DAVRANIS: ikinci arama (hucresel ya da Gebzem) geldiginde mevcut arama
+  /// BITER. iOS bunu SISTEM ekraninda "Bitir ve Kabul" olarak cizer
+  /// (`supportsHolding=false`); Android'de hucresel aramaya cevap verilince Gebzem
+  /// aramasi kapanir.
+  ///
+  /// ⚠️ YAPMA: bu bayragi kullanici emri OLMADAN true yapma.
+  /// ⚠️ YAPMA: bayragin arkasindaki kodu SILME — `parkEt`/`devamEt`/`beklemeyeAl`
+  ///     govdeleri duruyor; ozellik geri istenirse bayrak + `supportsHolding` yeter.
+  ///     (CLAUDE.md kurali: olu kod birakma, BAYRAKLA kapat — turu 48/56 dersi.)
+  /// ⚠️ GIZLILIK YAN FAYDASI: bekletme yokken "GSM konusurken Gebzem mikrofonu acik
+  ///     kalir" acigi (turu 56/63) YAPISAL OLARAK IMKANSIZ hale gelir — arama yok.
+  static const bekletmeAcik = false;
 
   final Ref _ref;
   CallService get _svc => _ref.read(callServiceProvider.notifier);
@@ -2933,6 +2972,11 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
 
   /// AKTIF aramayi PARK ET (ikinci aramayi kabul etmeden once). Oda kapanmaz.
   Future<void> parkEt() async {
+    // ⚠️⚠️ TURU 66 — BEKLETME KAPALI: hicbir arama PARK EDILMEZ (bkz. `bekletmeAcik`).
+    // Cagiranlar zaten kontrol ediyor; burasi SON SAVUNMA — park edilmis bir arama
+    // olusursa "devam" yolu calismadigi icin arama SONSUZA KADAR asili kalirdi.
+    // ⚠️ YAPMA: bu kapiyi kaldirma.
+    if (!bekletmeAcik) return;
     final b = arama;
     final room = _room;
     final listener = _listener;
@@ -3209,6 +3253,21 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
   ///  - AKTIF arama ise -> medyayi durdur/geri ac (arama BITMEZ, oda acik kalir).
   ///  - PARK EDILMIS arama ise -> zaten bekliyor; unhold gelirse ve aktif arama yoksa DEVAM ET.
   Future<void> beklemeyeAl(String callId, bool aktif) async {
+    // ⚠️⚠️ TURU 66 — BEKLETME KAPALI (bkz. `bekletmeAcik`). Bu yola artik yalnizca
+    // kacak/eski olaylar duser (ornek: `supportsHolding=false` olmasina ragmen gelen
+    // bir CallKit hold olayi). Bekletmek YERINE aramayi BITIRIYORUZ ki medya asili
+    // kalmasin ve karsi taraf sessizlik dinlemesin.
+    // ⚠️ `aktif=false` (devam) dalinda HICBIR SEY YAPILMAZ — bekletme hic olmadi.
+    // ⚠️ YAPMA: bu kapiyi kaldirmadan `bekletmeAcik`i true yapma.
+    if (!bekletmeAcik) {
+      if (!aktif) return;
+      final b = arama;
+      if (b == null || _ayrildi) return;
+      if (b.callId.toLowerCase() != callId.toLowerCase()) return;
+      _sesLog('bekletme kapali -> hold olayi ARAMAYI BITIRIYOR');
+      unawaited(leave(notifyServer: true));
+      return;
+    }
     // ⚠️ TEST TURU 56 — HARF-DUYARSIZ KARSILASTIRMA (savunma katmani).
     // CallKit hold olayi BUYUK HARF uuid tasiyor (Foundation `UUID.uuidString`), bizim
     // callId'lerimiz Postgres `gen_random_uuid()` = kucuk harf. Asil cevrim

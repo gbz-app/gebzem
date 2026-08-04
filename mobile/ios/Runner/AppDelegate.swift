@@ -293,8 +293,16 @@ import flutter_callkit_incoming
     // (kullanici istegi). Eskiden false idi cunku beklet olayi ISLENMIYORDU ve GSM
     // beklet-swap'inde ses geri gelmiyordu; artik CXSetHeldCallAction -> Dart
     // (CallEventActionCallToggleHold) -> medya durur/geri acilir + ses birimi tazelenir.
-    // GERI ALMA (sorun cikarsa): asagidaki satiri `false` yap + Dart IOSParams.supportsHolding.
-    data.supportsHolding = true
+    // ⚠️⚠️ TURU 66 — GERI ALINDI: `false`. Kullanici emri (4 Agu): "beklemeyi
+    // yapmayalim, arama geldiginde KABUL ET ve BITIR olsun." Boylece iOS ikinci
+    // aramada (Gebzem VEYA HUCRESEL) "Bitir ve Kabul / Reddet" ekranini cizer.
+    // GEREKCE: bekletmeden CIKISTA ses geri gelmiyordu — turu 65 olcumu CallKit'in
+    // `didActivate`i HIC cagirmadigini, bizim aktive denememizin de `!pri`
+    // (InsufficientPriority) ile REDDEDILDIGINI KANITLADI. Ucuncu parti uygulamanin
+    // garanti edemeyecegi bir davranis; yarim calisir halde tutmuyoruz.
+    // ⚠️ YAPMA: kullanici emri olmadan `true` yapma (Dart IOSParams.supportsHolding
+    //     ve `ActiveCallController.bekletmeAcik` ile BIRLIKTE degismeli).
+    data.supportsHolding = false
     data.supportsGrouping = false
     data.supportsVideo = true
     data.duration = 45000
