@@ -146,7 +146,6 @@ class _GebzemAppState extends ConsumerState<GebzemApp> with WidgetsBindingObserv
   StreamSubscription? _kabulSub;
   StreamSubscription? _redSub;
   StreamSubscription? _holdSub; // test turu 18: CallKit beklet
-  StreamSubscription? _heldSub; // test turu 18: karsi taraf beni bekletti
   StreamSubscription? _timeoutSub;
   StreamSubscription? _voipSub;
 
@@ -254,25 +253,14 @@ class _GebzemAppState extends ConsumerState<GebzemApp> with WidgetsBindingObserv
       unawaited(ref.read(activeCallProvider).beklemeyeAl(id, m['on'] == true));
     });
 
-    // Karsi taraf BENI beklemeye aldi -> ekranda "Beklemede" yazsin (bilgi amacli)
-    _heldSub = ref.read(callServiceProvider.notifier).onHeld.listen((m) {
-      final ctrl = ref.read(activeCallProvider);
-      final gelenId = m['call_id'] as String? ?? '';
-      final eslesti = ctrl.arama?.callId == gelenId;
-      // ⚠️ TURU 60 — OLCUM. Denetim: "olayin istemcinin soketine yazildigini
-      // gosterebiliyorum, Flutter katmaninda ISLENDIGINI gosteremiyorum — bunun icin
-      // istemci telemetrisi SART." Bu satir o korlugu kapatir: bir dahaki turda
-      // "call.held istemciye ulasti mi, eslesti mi, ekran acik miydi" SORULMAZ, BAKILIR.
-      // ⚠️ YAPMA: bu olcumu breadcrumb'a (`_sesLog`) cevirme — breadcrumb yalnizca
-      // baska bir olayla birlikte yuklenir (turu 50 ve turu 56 dersi).
-      unawaited(Sentry.captureMessage(
-          'call.held alindi: on=${m['on'] == true} eslesti=$eslesti '
-          'aramaVar=${ctrl.arama != null} ekran=${ctrl.ekranGorunur} '
-          'minimize=${ctrl.minimized}'));
-      if (eslesti) {
-        ctrl.karsiTarafBekletti(m['on'] == true);
-      }
-    });
+    // ⚠️⚠️ TURU 67 — `call.held` ABONELIGI KALDIRILDI (kullanici emri: "bekleme olayi
+    // ile ilgili NE VARSA KALDIR").
+    // Turu 66'da GONDERME kapatilmisti ama ALMA acik kalmisti: karsi taraf ESKI
+    // surumdeyse hold POST'u atabiliyor, bizde turuncu "Karsi taraf beklemeye aldi"
+    // seridi cikiyor ve `held_by` NULL'a donmezse arama boyunca YAPISIYORDU —
+    // kullanicinin yapamayacagi bir sey icin kalici uyari.
+    // ⚠️ YAPMA: `_holdSub`u (yukarida) SILME — o KENDI cihazimizdaki kacak CallKit
+    //     hold olayina karsi tek emniyet ve artik aramayi BITIRIYOR.
 
     // iOS VoIP token'i -> sunucuya (kilit ekraninda arama caldirmak icin SART).
     // TEST TURU 33 (kullanici: "iPhone KILITLIYKEN ekran gelmiyor"): eskiden TEK deneme
@@ -488,7 +476,6 @@ class _GebzemAppState extends ConsumerState<GebzemApp> with WidgetsBindingObserv
   @override
   void dispose() {
     _holdSub?.cancel();
-    _heldSub?.cancel();
     _kabulSub?.cancel();
     _redSub?.cancel();
     _timeoutSub?.cancel();

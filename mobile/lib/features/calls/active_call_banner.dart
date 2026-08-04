@@ -3,10 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import '../../router.dart'; // rootMessengerKey — bant Navigator'in DISINDA
 import 'active_call_controller.dart';
 import 'mini_izgara.dart';
-import 'pip_service.dart'; // GSM kapisi (turu 56/63 gizlilik)
 
 /// AKTIF ARAMA — minimize edilmis aramada TUM sayfalarin ustunde gorunur.
 /// TEST TURU 10: SESLI aramada eski yesil bant; GORUNTULU aramada SURUKLENEBILIR YUZEN
@@ -34,87 +32,17 @@ class _AktifAramaBannerState extends ConsumerState<AktifAramaBanner> {
   static const double _w = 152;
   static const double _h = 232;
 
-  /// BEKLEMEDEKI ARAMA SERIDI (test turu 18): aktif arama surerken park edilmis arama
-  /// varsa en ustte turuncu serit — dokun: aktif aramayi bitirip beklemedekine DON;
-  /// ✕: beklemedeki aramayi bitir.
-  Widget _parkSeridi(ActiveCallController c) {
-    final p = c.parkEdilen!;
-    final ad = p.isGroup
-        ? (p.bilgi.chatTitle.isEmpty ? 'Grup araması' : p.bilgi.chatTitle)
-        : p.bilgi.peerName;
-    return Positioned(
-      top: 0,
-      left: 0,
-      right: 0,
-      child: Material(
-        color: const Color(0xFFEF6C00),
-        child: SafeArea(
-          bottom: false,
-          child: InkWell(
-            onTap: () async {
-              // ⚠️⚠️ TURU 64 denetimi — GSM KAPISI BURADA DA UYGULANIR (GIZLILIK).
-              // Bu serit `devamEt()`i DOGRUDAN cagiriyordu; turu 63'te call_screen'e,
-              // turu 64'te yesil banda konan kapi buraya KONMAMISTI — yani GSM
-              // konusulurken park edilmis aramaya donulup mikrofon geri acilabiliyordu.
-              // ⚠️ YAPMA: bu kapiyi kaldirma; uc "devam" yolunu (call_screen /
-              //     yesil bant / bu serit) farkli davranista birakma.
-              if (PipService.gsmAramada.value) {
-                _gsmUyarisiGoster();
-                return;
-              }
-              // Aktif arama varsa once onu bitir; leave() beklemedekine OTOMATIK doner.
-              if (c.arama != null) {
-                await c.leave(notifyServer: true);
-              } else {
-                await c.devamEt();
-              }
-            },
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-              child: Row(children: [
-                const Icon(LucideIcons.pause, color: Colors.white, size: 16),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text('Beklemede: $ad  ·  dokun ve geç',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600)),
-                ),
-                GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () => c.parkiDusur(),
-                  child: const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    child: Icon(LucideIcons.x, color: Colors.white, size: 18),
-                  ),
-                ),
-              ]),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+  // ⚠️ TURU 67: park (bekletme) seridi SILINDI — bekletme ozelligi kaldirildi.
 
   @override
   Widget build(BuildContext context) {
     final c = ref.watch(activeCallProvider);
     final b = c.arama;
-    // BEKLEMEDEKI ARAMA (test turu 18): aktif arama ekrani acikken de, uygulamada
-    // gezerken de en ustte gorunur. PiP/yuzen pencere mantigi ETKILENMEZ.
-    final park = c.parkEdilen != null ? _parkSeridi(c) : null;
     // YAPISAL GARANTI (test turu 23 — kullanici ekran goruntusu: ARAMA EKRANI ACIKKEN
     // yuzen pencere de ciziliyordu, ikisi ust uste bindi): arama ekrani GORUNURKEN yuzen
     // pencere ASLA cizilmez. 'minimized' bayragi bayat kalsa bile (restore/PiP yarisi)
     // pencere cikamaz.
     final yuzenGorunur = b != null && c.minimized && !c.ekranGorunur;
-    if (park != null && !yuzenGorunur) {
-      // Aktif arama ekrani acik (veya arama yok) -> yalniz park seridini bindir
-      return Stack(children: [widget.child, park]);
-    }
     // ANDROID SISTEM PiP (test turu 14): PiP penceresi HANGI sayfada olursak olalim karsi
     // tarafin videosunu TAM EKRAN gostersin (eskiden yalniz CallScreen ustundeyken calisiyordu;
     // arama kucultulup uygulamada gezerken HOME'a inince PiP'te ana ekran gorunuyordu).
@@ -173,37 +101,8 @@ class _AktifAramaBannerState extends ConsumerState<AktifAramaBanner> {
     );
   }
 
-  /// ⚠️⚠️ TURU 64 — BANTTAN "DEVAM ET" (kullanici sikayeti S2).
-  /// "Devam et / Bitir ILK SEFERDE gelmedi; iki-uc kere yapinca geldi."
-  /// KOK NEDEN: o iki dugme YALNIZ `CallScreen` agacinda cizilir. GSM konusulurken
-  /// Gebzem arka plandadir ve arama ekrani KUCULTULMUS olabilir; kullanicinin BAKTIGI
-  /// yerde (yesil bant) hicbir dugme YOKTU — bant sadece "Arama beklemede" METNI
-  /// gosteriyordu. Ekran acik kaldigi turlarda gorunmesi de "bazen geliyor"
-  /// tarifini birebir aciklar.
-  /// ⚠️ YAPMA: bu dugmeyi GSM kapisindan GECIRMEDEN ekleme — turu 56/63 gizlilik
-  ///     acigina UCUNCU kapi acarsin (GSM surerken mikrofon geri acilir, karsi taraf
-  ///     GSM konusmasini duyar). Kapi call_screen.dart `_devamEteBasildi` ile AYNI.
-  /// ⚠️ YAPMA: burada `ScaffoldMessenger.of(context)` kullanma — bant
-  ///     `MaterialApp.builder` icinde, Navigator'in DISINDADIR (CLAUDE.md kurali).
-  /// GSM uyarisi — UC "devam" yolunun ORTAK metni (call_screen ile birebir ayni).
-  void _gsmUyarisiGoster() {
-    final m = rootMessengerKey.currentState;
-    if (m == null) return;
-    m.clearSnackBars();
-    m.showSnackBar(const SnackBar(
-      duration: Duration(seconds: 4),
-      content: Text('Telefon görüşmeniz sürüyor. Önce onu sonlandırın; '
-          'Gebzem araması kaldığı yerden devam edecek.'),
-    ));
-  }
-
-  void _bandanDevamEt(ActiveCallController c) {
-    if (PipService.gsmAramada.value) {
-      _gsmUyarisiGoster();
-      return;
-    }
-    c.beklemeyeAl(c.arama?.callId ?? '', false);
-  }
+  // ⚠️ TURU 67: `_gsmUyarisiGoster` ve `_bandanDevamEt` SILINDI — bekletme ozelligi
+  // kaldirildigi icin "devam ettirme" diye bir eylem kalmadi (kullanici emri).
 
   // ---- SESLI ARAMA: ust yesil bant (eski davranis) ----
   Widget _sesliBant(ActiveCallController c, String ad) {
@@ -251,58 +150,21 @@ class _AktifAramaBannerState extends ConsumerState<AktifAramaBanner> {
                       // fontuyla (Apple Color Emoji / Noto Color Emoji) PARLAK ve
                       // 3 BOYUTLU cizilir. Yerine Lucide (2B cizgi) ikon.
                       // ⚠️ YAPMA: arayuze emoji geri koyma.
-                      Row(mainAxisSize: MainAxisSize.min, children: [
-                        if (c.beklemede || c.karsiBeklemede) ...[
-                          const Icon(LucideIcons.pause,
-                              size: 11, color: Color(0xFFFFD9A0)),
-                          const SizedBox(width: 4),
-                        ],
-                        Flexible(
-                          child: Text(
-                          c.beklemede
-                              ? 'Arama beklemede'
-                              : (c.karsiBeklemede
-                                  ? 'Karşı taraf beklemeye aldı'
-                                  : 'Aramaya dönmek için dokun'),
+                      // ⚠️ TURU 67 — BEKLETME METINLERI KALDIRILDI (kullanici emri).
+                      // Bekletme ozelligi yok; "Arama beklemede" / "Karsi taraf
+                      // beklemeye aldi" satirlari artik ASLA dogru olamaz.
+                      const Text('Aramaya dönmek için dokun',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                              color: (c.beklemede || c.karsiBeklemede)
-                                  ? const Color(0xFFFFD9A0)
-                                  : Colors.white70,
+                              color: Colors.white70,
                               fontSize: 11,
-                              fontWeight: (c.beklemede || c.karsiBeklemede)
-                                  ? FontWeight.w700
-                                  : FontWeight.normal)),
-                        ),
-                      ]),
+                              fontWeight: FontWeight.normal)),
                     ],
                   ),
                 ),
-                // TURU 64: bekletmedeyken bantta DA "Devam et" (bkz. `_bandanDevamEt`).
-                // Row cocugu ve `mainAxisSize.min` oldugu icin tasma riski yok
-                // (turu 60'ta rozetin basina gelen RenderFlex tuzagi burada YOK).
-                if (c.beklemede) ...[
-                  const SizedBox(width: 8),
-                  Material(
-                    color: Colors.white24,
-                    borderRadius: BorderRadius.circular(14),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(14),
-                      onTap: () => _bandanDevamEt(c),
-                      child: const Padding(
-                        padding:
-                            EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        child: Text('Devam et',
-                            style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 12)),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                ],
+                // ⚠️ TURU 67: banttaki "Devam et" dugmesi KALDIRILDI — bekletme ozelligi
+                // yok, dugmenin karsiligi da yok (kullanici emri: "ne varsa kaldir").
                 Text(c.durumMetni,
                     style: const TextStyle(
                         color: Colors.white,

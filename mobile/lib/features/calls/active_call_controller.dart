@@ -515,9 +515,32 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     return _onizlemeTrack;
   }
 
+  /// ⚠️⚠️ TURU 67 — KAMERA SIRASI (kullanici: "aramadan SONRA goruntulu aradigimda
+  /// goruntum hemen seri gitmiyor").
+  ///
+  /// KOK NEDEN: `_onizlemeAc()` hicbir kilit ARKASINDA degildi; onceki aramanin
+  /// `leave()` yolundaki `_onizlemeBirak()` (unawaited) ve oda temizligi HALA KOSARKEN
+  /// yeni onizleme kamerayi aciyordu. iOS'ta flutter_webrtc TEK PAYLASILAN
+  /// `videoCapturer` tuttugu icin (turu 50 kok nedeni) iki capture birbirinin oturumunu
+  /// CALIYOR -> yeni video track gec yayinlaniyor ya da hic yayinlanmiyor.
+  ///
+  /// COZUM: kamera acma/birakma isleri TEK SLOTLUK bir Future zincirine dizilir —
+  /// onceki birakma BITMEDEN yeni acilis baslamaz.
+  /// ⚠️ YAPMA: bunu `CallRoomLock` ile yapma — o kilit GLOBAL (oda/yayin da kullanir)
+  ///     ve `_onizlemeAc` icinde izin DIYALOGU var; oda/yayin girisi kilitlenir.
+  /// ⚠️ YAPMA: zinciri `await` ederek `baslat()`i bloklama (ekran acilisi gecikir).
+  static Future<void> _kameraSirasi = Future<void>.value();
+  static Future<void> _kameraKuyruguna(Future<void> Function() is_) {
+    final sonraki = _kameraSirasi.then((_) => is_()).catchError((_) {});
+    _kameraSirasi = sonraki;
+    return sonraki;
+  }
+
   /// Odaya baglanmadan kamerayi ac (izin varsa). Hata/izin yoksa sessizce vazgecilir —
   /// baglanti sonrasi normal setCameraEnabled yolu devreye girer.
-  Future<void> _onizlemeAc() async {
+  Future<void> _onizlemeAc() => _kameraKuyruguna(_onizlemeAcIc);
+
+  Future<void> _onizlemeAcIc() async {
     try {
       // KOK NEDEN (test turu 25 — "kameram tam ekran gelmiyor"): GIDEN aramada kamera izni
       // bu ana kadar HIC istenmemis olabiliyordu; sadece "verilmis mi" diye bakinca
@@ -543,15 +566,28 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   /// Onizleme track'ini SALIVER (publish edilmediyse kamerayi kapat).
-  Future<void> _onizlemeBirak() async {
+  /// TURU 67: acilisla AYNI kuyrukta — birakma bitmeden yeni acilis baslamaz
+  /// (iOS paylasilan `videoCapturer` yarisi, bkz. `_kameraKuyruguna`).
+  Future<void> _onizlemeBirak() => _kameraKuyruguna(_onizlemeBirakIc);
+
+  Future<void> _onizlemeBirakIc() async {
     final t = _onizlemeTrack;
     _onizlemeTrack = null;
     if (t == null || _onizlemeYayinda) return;
     try {
       await t.stop();
       await t.dispose();
-    } catch (_) {}
+    } catch (e) {
+      // ⚠️ TURU 67: eskiden `catch (_) {}` idi — kamera birakma hatasi SONRAKI aramanin
+      // videosunu oldurebilir ve gorunmezdi. Arama basina TEK olcum.
+      if (!_kameraBirakOlcumu) {
+        _kameraBirakOlcumu = true;
+        unawaited(Sentry.captureMessage('onizleme birakma HATASI: $e'));
+      }
+    }
   }
+
+  bool _kameraBirakOlcumu = false;
 
   /// TEST TURU 50 — VIDEO YAYIN DOGRULAMASI. Goruntulu aramada baglanti kurulduktan
   /// 1.5sn sonra yayinlanmis bir video track YOKSA kamerayi TEK SEFER yeniden acar.
@@ -1330,11 +1366,12 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       // -> `hold=true` KAYBOLDU, rozet hic cizilmedi.
       // Sunucu artik durumu satirda tutuyor; her 3sn'lik yoklamada uzlastiriyoruz.
       // WS hizli yol olarak KALIR (aninda tepki), burasi EMNIYET AGI.
-      // ⚠️ YAPMA: bu uzlastirmayi kaldirma; `karsiTarafBekletti` zaten idempotent
-      // (`if (karsiBeklemede == on) return;`) — gereksiz notify uretmez.
-      if (st.containsKey('peer_held')) {
-        karsiTarafBekletti(st['peer_held'] == true);
-      }
+      // ⚠️⚠️ TURU 67 — `peer_held` UZLASTIRMASI KALDIRILDI (kullanici emri: "bekleme
+      // ile ilgili NE VARSA KALDIR"). Bekletme ozelligi kapandigi icin bu bilgi artik
+      // kullanicinin YAPABILECEGI bir seye karsilik gelmiyordu; ustelik karsi taraf
+      // ESKI surumdeyse `held_by` NULL'a donmeyip turuncu serit arama boyunca
+      // YAPISABILIYORDU. Sunucudaki alan (additive) DURUYOR, sadece OKUMUYORUZ.
+      // ⚠️ YAPMA: backend `held_by`/`peer_held` ve migration 013'e dokunma (turu 61).
     } catch (_) {
       return;
     }
@@ -1674,7 +1711,17 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       _connecting = true;
       notifyListeners();
 
+      // ⚠️⚠️ TURU 67 — OLCUM TUZAGI (bir teshisi YANLIS yapmama sebep oldu):
+      // `_kurulumSaat` YALNIZ `baslat()` icinde kuruluyor; GIDEN aramada `_connect()`
+      // ancak `call.answered` gelince kosuyor. Yani buradaki `izin` degeri IZIN
+      // SURESI DEGIL, "arama baslatma -> karsi taraf ACANA KADAR gecen sure"dir
+      // (yani ZIL SURESI de icinde). Sahada gorulen `izin:3992` bu yuzden "izin
+      // 4 saniye surdu" ANLAMINA GELMEZ.
+      // ⚠️ YAPMA: `_kurulumSaat`i `_connect()` icinde yeniden baslatma (zil suresi
+      //     bilgisi kaybolur, eski turlarla kiyaslanamaz).
+      // Ayrimi yapabilmek icin `cevap` ve `giden` alanlari da yaziliyor.
       _kurulumAsama?['izin'] = _kurulumSaat?.elapsedMilliseconds ?? 0; // FAZ-0
+      _kurulumAsama?['giden'] = b.outgoing ? 1 : 0;
       await CallRoomLock.calistir(_odayaBaglan);
       _kurulumAsama?['oda'] = _kurulumSaat?.elapsedMilliseconds ?? 0; // FAZ-0
       // TEK BITIR-KAPISI: canli konusma basladi (CallKit yanlis-zamanli olaylari oldurmesin).
@@ -2749,9 +2796,28 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     final room = _room;
     final listener = _listener;
     final nesil = _benimSesNeslim;
-    _room = null;
-    _listener = null;
-    unawaited(CallRoomLock.calistir(() => _odaTemizle(room, listener, nesil)));
+    // ⚠️⚠️ TURU 67 — KAPANIS ANIMASYONU ARTIK **BOS EKRANDA** OYNAMIYOR (kullanici:
+    // "iki kiside de hafif animasyonla ekran kapansin, DONMA olmasin").
+    //
+    // KOK NEDEN: `_room = null` SENKRON yapiliyordu; `notifyListeners()` ise cok sonra
+    // (`leave` sonunda). Yani 220ms'lik solma animasyonunun ILK KARESINDE `c.room` NULL
+    // olup `_remoteVideo`/`_localVideo` null donuyor, renderer'lar agactan SILINIYOR ve
+    // canli goruntu ANINDA kayboluyordu. Kullanicinin "donma" dedigi sey buydu: ekran
+    // solarken altinda SIYAH/BOS bir kare kaliyordu.
+    //
+    // FIX: mandal + timer iptalleri + yakalama SENKRON kalir (yaris korumasi bozulmaz);
+    // yalniz alanlarin null'lanmasi ve oda temizligi 260ms GECIKIR — animasyon SON CANLI
+    // KARE uzerinde oynar.
+    // ⚠️ `identical` kapilari ZORUNLU: seri aramada bu gecikme icinde YENI arama
+    //     baslamis olabilir; kapisiz birakirsak YENI aramanin Room'unu null'lariz
+    //     (turu 54/59 sinifi regresyon).
+    // ⚠️ YAPMA: bu gecikmeyi `call_screen` dispose/pop tarafina tasima ("leave TEK KAPI"
+    //     hukmu; turu 59 bayat-ekran regresyonu).
+    Future<void>.delayed(const Duration(milliseconds: 260), () {
+      if (identical(_room, room)) _room = null;
+      if (identical(_listener, listener)) _listener = null;
+      unawaited(CallRoomLock.calistir(() => _odaTemizle(room, listener, nesil)));
+    });
   }
 
   static Future<void> _odaTemizle(
@@ -2850,7 +2916,16 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     }
     // SERI ARAMA YARISI: teardown'i AYRILMA ANINDA kilit sirasina koy
     _kapatOdayiKuyrugaKoy();
-    await CallSounds.durdur(_sesNesli);
+    // ⚠️⚠️ TURU 67 — ZAMAN ASIMI (kullanici: "DONMA olmasin").
+    // `CallSounds.durdur` icinde `Vibration.cancel()` + `_player.stop()` var, IKISI DE
+    // zaman asimsizdi. GSM kabulunde ses odagi telefona gecerken bunlardan biri
+    // takilirsa asagidaki `arama = null` ve `notifyListeners()` HIC calismaz -> ekran
+    // SON KAREDE ASILI kalir. Artik en fazla 250ms bekleniyor.
+    // ⚠️ YAPMA: bunu `unawaited`a cevirme — aranan tarafta `_sesNesli` null olabilir ve
+    //     `durdur(null)` KOSULSUZ durdurur; yeni aramanin zilini keser (nesil jetonu).
+    try {
+      await CallSounds.durdur(_sesNesli).timeout(const Duration(milliseconds: 250));
+    } catch (_) {}
     _iptalAbonelikler();
 
     // Muhafizlari birak (eski dispose'un iki birakmasi TEK KAPIDA)

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:livekit_client/livekit_client.dart' as lk;
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 
 import '../../core/api.dart';
 import '../../router.dart';
@@ -47,6 +48,23 @@ class _IncomingCallSheet extends ConsumerStatefulWidget {
 }
 
 class _IncomingCallSheetState extends ConsumerState<_IncomingCallSheet> {
+  // ⚠️⚠️ TURU 67 — SAGLAYICILAR `initState`TE BIR KEZ YAKALANIR (SAHA HATASININ KOKU).
+  // Sentry: `Bad state: Cannot use "ref" after the widget was disposed.` (aramanin
+  // bittigi anda). ZINCIR: "Bitir ve kabul et" -> `leave()` -> `_svc.end()` ->
+  // `call_provider` `state = null` -> bu widget'i cizen kosul FALSE -> WIDGET DISPOSE ->
+  // hemen ardindan `_accept()` icindeki `ref.read(...)` PATLAR. Ustelik o cagri
+  // try blogunun DISINDA oldugu icin **`answer` REST'i HIC GITMEZ** — kullanicinin
+  // "bitir dedikten sonra gelen aramayi BAZEN karsilamiyor" sikayeti TAM OLARAK BUDUR
+  // ("bazen" = dispose ile `_accept` arasindaki yarisa bagli).
+  // ⚠️ YAPMA: bu alanlari `ref.read` ile gec baglamaya donme.
+  // ⚠️ YAPMA: `call_provider`daki `state = null` yan etkisini kosullu yapma — `_reject`,
+  //     `_accept` catch'i ve main.dart overlay'i KAPATMAK icin ona guveniyor (turu 27-31).
+  // ⚠️ YAPMA: bu provider'lari `autoDispose` yapma — ikisi de uygulama omurlu; yakalanan
+  //     alanlar olu nesneye isaret ederdi.
+  late final CallService _notifier;
+  late final ActiveCallController _ctrl;
+  // Kabul BASARIYLA tamamlandi mi — catch'in YENI aramayi oldurmesini engeller (A2).
+  bool _cevaplandi = false;
   bool _busy = false;
   int? _zilNesli; // CallSounds zil nesli — durdururken verilir (art arda ezme koruması)
   Timer? _timeout; // gelen arama sonsuza calmasin (arayan iptali WS'te kaybolabilir)
@@ -68,7 +86,10 @@ class _IncomingCallSheetState extends ConsumerState<_IncomingCallSheet> {
     if (widget.call.video) _onizlemeAc();
     // Zil + titresim. LiveKit odasina henuz baglanmadigimiz icin zil serbestce calar.
     CallSounds.gelenArama().then((n) => _zilNesli = n); // nesli sakla (durdururken verilecek)
-    final notifier = ref.read(callServiceProvider.notifier);
+    // TURU 67: saglayicilar BIR KEZ yakalanir (bkz. alan serhleri).
+    _notifier = ref.read(callServiceProvider.notifier);
+    _ctrl = ref.read(activeCallProvider);
+    final notifier = _notifier;
     // Arayan iptal edince call.ended WS'i duserse (buffer/half-open) telefon SONSUZA
     // calmasin: (1) ~48sn'de kendiliginden kapan, (2) 3sn'de bir sunucu durumunu sor.
     _timeout = Timer(const Duration(seconds: 48), () {
@@ -76,6 +97,11 @@ class _IncomingCallSheetState extends ConsumerState<_IncomingCallSheet> {
     });
     _poll = Timer.periodic(const Duration(seconds: 3), (_) async {
       if (!mounted) return;
+      // ⚠️⚠️ TURU 67 — KABUL SURERKEN YOKLAMA SUSAR (A2).
+      // Yoklama `s != 'ringing'` gorunce `dismiss()` cagiriyor; kabul akisinda arama
+      // ZATEN 'active' oluyor -> ekran kabul TAMAMLANMADAN kapaniyor, widget dispose
+      // olup `_accept` yarida kaliyordu. ⚠️ YAPMA: bu kapiyi kaldirma.
+      if (_busy) return;
       try {
         final s =
             (await notifier.callStatus(widget.call.callId))['status'] as String? ?? '';
@@ -134,7 +160,7 @@ class _IncomingCallSheetState extends ConsumerState<_IncomingCallSheet> {
   Future<void> _bekletVeyaBitirKabul({required bool beklet}) async {
     if (_busy) return;
     setState(() => _busy = true);
-    final ctrl = ref.read(activeCallProvider);
+    final ctrl = _ctrl; // TURU 67: yakalanmis (dispose sonrasi `ref` PATLIYORDU)
     try {
       // ⚠️⚠️ TURU 66 — BEKLETME KAPALI: `beklet` istegi gelse bile mevcut arama
       // BITIRILIR (bkz. `ActiveCallController.bekletmeAcik`). Bekletmeden cikista ses
@@ -169,7 +195,8 @@ class _IncomingCallSheetState extends ConsumerState<_IncomingCallSheet> {
 
     // Bu widget Navigator'in DISINDA yasar (MaterialApp.builder), bu yuzden
     // Navigator.of(context) kullanilamaz — kok Navigator anahtarini kullaniyoruz.
-    final notifier = ref.read(callServiceProvider.notifier);
+    // TURU 67: `initState`te yakalanan alanlar (dispose sonrasi `ref` PATLIYORDU).
+    final notifier = _notifier;
     try {
       final info = await notifier.answer(widget.call.callId, zorla: zorla);
       if (info == null) {
@@ -194,7 +221,11 @@ class _IncomingCallSheetState extends ConsumerState<_IncomingCallSheet> {
       }
 
       // FAZ-C: mantik controller'da; ekran saf gorunum (rootNavigatorKey ile acilir)
-      final ctrl = ref.read(activeCallProvider);
+      final ctrl = _ctrl; // TURU 67: yakalanmis (dispose sonrasi `ref` PATLIYORDU)
+      // Kabul SUNUCUDA onaylandi -> yoklama artik ekrani kapatmasin (A2).
+      _cevaplandi = true;
+      _poll?.cancel();
+      _poll = null;
       unawaited(ctrl.baslat(AramaBilgisi(
         callId: widget.call.callId,
         url: info['url'] as String,
@@ -212,10 +243,26 @@ class _IncomingCallSheetState extends ConsumerState<_IncomingCallSheet> {
       ctrl.ekraniAc();
       notifier.dismiss(); // arama ekrani acildiktan SONRA gelen arama ekranini kaldir
     } catch (e) {
+      // ⚠️⚠️ TURU 67 — KABUL BASARILIYSA ARAMAYI OLDURME (A2).
+      // Eskiden catch KOSULSUZ `end()` cagiriyordu; oysa hata `answer` OK'ten SONRAKI
+      // adimlarda (izin bekleme / onizleme devri / ekran acma) da olusabiliyor ve o
+      // durumda YENI KABUL EDILEN arama kapatiliyordu. Artik yalniz kabul HIC
+      // tamamlanmadiysa bitiriyoruz; tamamlandiysa ekrani kurtarmayi deniyoruz.
+      // ⚠️ YAPMA: bu ayrimi kaldirip tekrar kosulsuz `end()`e donme.
+      unawaited(Sentry.captureException(e,
+          stackTrace: StackTrace.current,
+          hint: Hint.withMap({'yer': 'gelen arama kabul', 'cevaplandi': _cevaplandi})));
+      if (_cevaplandi) {
+        _ctrl.ekraniAc(); // arama YASIYOR — kullaniciyi ekransiz birakma
+        notifier.dismiss();
+        return;
+      }
       rootMessengerKey.currentState
           ?.showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
       notifier.dismiss();
       await notifier.end(widget.call.callId); // arayan sonsuza kadar beklemesin
+      // turu 54: ayni aramaya TEKRAR davet edilebilsin
+      notifier.davetSifirla(widget.call.callId);
     }
   }
 
@@ -229,7 +276,7 @@ class _IncomingCallSheetState extends ConsumerState<_IncomingCallSheet> {
     // aramayi bozar). Idempotent — WS yolunda no-op.
     unawaited(CallKitService.bitir(widget.call.callId));
     await _onizlemeKapat(); // kamera acik kalmasin
-    await ref.read(callServiceProvider.notifier).end(widget.call.callId);
+    await _notifier.end(widget.call.callId); // TURU 67: yakalanmis saglayici
   }
 
   /// GRUP DAVET EKRANI (test turu 21 — WhatsApp duzeni): arkada KENDI kamera onizlemem,
