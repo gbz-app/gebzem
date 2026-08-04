@@ -17,7 +17,65 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (4 Agu 23:55):** TEST TURU 67 YAYINLANDI — android 30949200253 +
+- **KALDIGIMIZ YER (5 Agu 00:59):** TEST TURU 68 YAYINLANDI — android 30953817519 +
+  ios 30953819602 (e8215da), R2 apk=108238369 (md5 0925d92d) ipa=22353332 (md5 06475a23),
+  purge OK, **CDN birebir**, indir sayfasi 00:59, debug imza YOK, **backend DEGISMEDI**
+  (19d0a96) + health ok, DB temiz. **KULLANICI TEST EDECEK.**
+- ⚠️⚠️⚠️ **TURU 68 — "ARKADA ACIK KALIYOR"UN IKI SEBEBI DE TURU 67'DE BENIM EKLEDIGIM
+  KODDU.** Kanit: sunucu TEMIZ (son 12 arama satirinin hepsi ended/missed/rejected,
+  asili `active` YOK) -> acik kalan sey CIHAZDA.
+  **(1) KILIT SIRASI TERSINE DONMUS (ASIL SEBEP):** turu 67'de kapanis animasyonu icin
+  `CallRoomLock.calistir(_odaTemizle)` cagrisini `Future.delayed(260ms)` closure'inin
+  **ICINE** koymustum. O kilit GLOBAL ve SERIDIR; TEK varolus sebebi *"yeni oda
+  BAGLANMADAN once eskisinin kapanisi TAMAMEN bitmis olsun"*. Kuyruga **GIRIS** gecikince
+  sira TERSINE donebiliyor: "Bitir ve kabul et"te `leave -> /end -> /answer -> yeni
+  _odayaBaglan` tipik **120-200ms**; 260ms'in ALTINA dusunce YENI baglanti kilidi ONCE
+  aliyor ve **ESKI ODA LiveKit'e BAGLI + MIKROFONU YAYINDA** kaliyordu.
+  ("bazen" = wifi HIZLI -> olur; hucresel YAVAS -> olmaz.)
+  **FIX:** kuyruga GIRIS senkron (`leave` govdesinde), **260ms BEKLEME closure'in ICINDE**.
+  Animasyon fix'i AYNEN korunur.
+  ⚠️ **YAPMA: `CallRoomLock.calistir`i BIR GECIKMENIN ARKASINA koyma** — kuyruga giris
+  ANI sirayi belirler, closure'in ICI degil. ⚠️ YAPMA: 260ms'i tamamen kaldirma.
+  **(2) `_onizlemeBirak` NO-OP OLMUS (kamera arkada ACIK = iPhone'da YESIL NOKTA):**
+  turu 67'de govdeyi `_kameraKuyruguna` ile sarmistim. Ama `baslat()` icinde
+  `unawaited(_onizlemeBirak()); _onizlemeTrack = null;` ARASINDA **await YOK** (turu 32'nin
+  "once SAL sonra sifirla" deseni). Kuyruk mikrotask sonrasi kostugunda `_onizlemeTrack`
+  ARTIK NULL okunuyor, metot `if (t == null) return;` ile cikiyor -> `t.stop()`/`t.dispose()`
+  **HIC CAGRILMIYOR** -> yayinlanmamis track + NATIVE capture oturumu ACIK kaliyor,
+  sonraki aramada kamera MESGUL.
+  **FIX:** track VE `_onizlemeYayinda` **kuyruga GIRMEDEN SENKRON** yakalanir.
+  ⚠️ **DERS: bir govdeyi kuyruga/gecikmeye sararken, o govdenin okudugu ALANLAR cagri
+  aninda mi yoksa calisma aninda mi gecerli — MUTLAKA sor.** Ayni hatanin iki turemesi
+  (kilit girisi + alan okuma) ayni turda olustu.
+  **(3) EK EMNIYET:** `_odaTemizle` icinde `disconnect()` ONCESI `setMicrophoneEnabled(false)`
+  (300ms timeout) — `disconnect().timeout(1200ms)` ALTTAKI ISI IPTAL ETMEZ (turu 50).
+  ⚠️ YAPMA: buraya `setCameraEnabled(false)` ekleme (paylasilan `videoCapturer` + gelen
+  arama kamera DEVRI -> yeni aramanin videosu olur).
+- ⚠️⚠️ **TURU 68 — "TUT VE KABUL ET"IN KAYNAGI: `setCallConnected`.**
+  Bizim kodda UC yerde `supportsHolding: false` DOGRUYDU; deger CallKit'e ULASMIYORDU.
+  `CallKitService.baglandi()` (`setCallConnected`) TURU 56'DA **TAM DA BEKLETMEYI ACMAK
+  ICIN** eklenmisti ("iOS bagli olmayan aramayi HOLD EDILEBILIR saymaz"). Bekletme turu
+  66'da kapatilinca satir GERIDE KALDI. Ustelik plugin `setCallConnected`e yalniz
+  `{'id':...}` gonderiyor; harita **"ios" alani ICERMEDIGI** icin plugin `data`yi
+  **VARSAYILANLARLA** yeniden kuruyor -> `supportsHolding = true`. Yani yazdigimiz `false`
+  TAM BURADA EZILIYORDU. **FIX:** `if (bekletmeAcik && b.outgoing)`.
+  ⚠️ YAPMA: `gidenArama` CallKit kaydini kaldirma (ikinci arama arayuzu + turu 57
+  `gidenler` kapisi ona bagli).
+  **IKINCI SIZINTI:** AppDelegate **IPTAL dali** `Data(...)` uretip `supportsHolding`
+  YAZMIYORDU -> plugin varsayilani TRUE (`Call.swift:194`). FIX: `false` + `supportsGrouping=false`.
+  ⚠️ **PLUGIN VARSAYILANI TRUE — yeni bir `Data(...)` uretilen HER yerde ACIKCA yaz.**
+- ✅ **TURU 68 OLCUMU:** `CallKitService.holdDurumunuOlc()` — `activeCalls()` yanitindaki
+  `supportsHolding`/`maximumCallGroups` Sentry'e yazilir (arama basina TEK).
+  **TEST SONRASI BAK:** `callkit aktif arama (giden|gelen): adet=.. hold=.. grup=..`
+  -> `hold=false` cikarsa deger CallKit'e ULASMIS demektir.
+  ⚠️ **ERTELENDI (SON CARE, once olcume bak):** `maximumCallGroups 2 -> 1`.
+  `maximumCallsPerCallGroup:1` ile birlikte toplam kapasite 1 olur ve ikinci
+  `reportNewIncomingCall` **HATA donebilir** -> telefon CALMAZ + iOS 13 kurali ihlali
+  (turu 33/67 "arama karsilanmiyor" semptomu geri gelir). OLCMEDEN UYGULAMA.
+- ✅ **TURU 67 FIX'I TUTTU (kanit):** `Bad state: Cannot use "ref" after the widget was
+  disposed.` hatasi Sentry'den **TAMAMEN KAYBOLDU** — "bitir sonrasi aramayi HIC
+  karsilamama" kok nedeni cozuldu.
+- **ONCEKI (4 Agu 23:55):** TEST TURU 67 YAYINLANDI — android 30949200253 +
   ios 30949203156 (e24e7d1), R2 apk=108238369 (md5 1cdad676) ipa=22352640 (md5 da21c05c),
   purge OK, **CDN birebir**, indir sayfasi 23:55, debug imza YOK, **backend DEGISMEDI**
   (19d0a96) + health ok, DB temiz. **KULLANICI TEST EDECEK.**

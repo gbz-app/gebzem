@@ -4393,3 +4393,80 @@ debug imza YOK, **backend DEĞİŞMEDİ** (19d0a96) + health ok, DB temiz.
 3. Bir arama bitir, **hemen ardından görüntülü ara** → görüntü karşıya **hızlı** gitmeli.
 4. Bekletmeyle ilgili hiçbir yazı/düğme görünmemeli (şerit, "Devam et", "beklemede").
 5. Normal aramalar, sesli oda, canlı yayın bozulmamış olmalı.
+
+---
+
+## TURU 68 — "Arkada açık kalıyor"un iki sebebi de BENDİM (5 Ağustos 00:59)
+
+### Kullanıcı şikâyeti
+"iPhone'da **Tut ve Kabul Et** var, **Bitir ve Kabul Et** olsun sadece · Bitir ve kabul
+et dediğimde **bazen arkada açık kalıyor** (iPhone + Android), arkada kesinlikle
+çalışmamalı."
+
+### Kanıt
+Sunucu **temiz**: son 12 arama satırının hepsi `ended`/`missed`/`rejected`, asılı `active`
+yok → açık kalan şey **cihazda**. Sentry: turu 67'nin `ref`-dispose hatası **artık yok**
+(o fix tuttu, "aramayı hiç karşılamama" çözüldü).
+
+### 🔴 (1) KİLİT SIRASI TERSİNE DÖNMÜŞ — asıl sebep, turu 67'de ben yaptım
+Kapanış animasyonu için `CallRoomLock.calistir(_odaTemizle)` çağrısını
+`Future.delayed(260ms)` closure'ının **içine** koymuşum. O kilit **global ve seri**; tek
+varoluş sebebi *"yeni oda bağlanmadan önce eskisinin kapanışı tamamen bitsin"*.
+Kuyruğa **giriş** gecikince sıra tersine dönebiliyor: "Bitir ve kabul et"te
+`leave → /end → /answer → yeni _odayaBaglan` tipik **120-200 ms**; 260 ms'in altına
+düşünce yeni bağlantı kilidi **önce** alıyor ve **eski oda LiveKit'e bağlı + mikrofonu
+yayında** kalıyordu. "Bazen" = wifi hızlı → olur, hücresel yavaş → olmaz.
+FIX: kuyruğa **giriş senkron**, 260 ms **bekleme closure'ın içinde**. Animasyon korunur.
+⚠️ **`CallRoomLock.calistir`ı bir gecikmenin arkasına koyma — kuyruğa giriş ANI sırayı
+belirler, closure'ın içi değil.**
+
+### 🔴 (2) `_onizlemeBirak` NO-OP olmuş — kamera arkada açık (iPhone yeşil nokta)
+Turu 67'de gövdeyi `_kameraKuyruguna` ile sarmışım. Ama `baslat()` içinde
+`unawaited(_onizlemeBirak()); _onizlemeTrack = null;` arasında **await yok** (turu 32'nin
+"önce sal, sonra sıfırla" deseni). Kuyruk mikrotask sonrası koştuğunda `_onizlemeTrack`
+artık **null** okunuyor, metot erken çıkıyor → `t.stop()`/`t.dispose()` **hiç
+çağrılmıyor** → yayınlanmamış track + native capture oturumu **açık** kalıyor.
+FIX: track ve `_onizlemeYayinda` **kuyruğa girmeden senkron** yakalanır.
+
+📌 **DERS: bir gövdeyi kuyruğa/gecikmeye sararken, o gövdenin okuduğu ALANLAR çağrı anında
+mı yoksa çalışma anında mı geçerli — mutlaka sor.** Aynı hatanın iki türemesi (kilit
+girişi + alan okuma) aynı turda oluştu.
+
+### (3) Ek emniyet
+`_odaTemizle` içinde `disconnect()` öncesi `setMicrophoneEnabled(false)` (300 ms timeout).
+`disconnect().timeout(1200ms)` alttaki işi iptal etmez (turu 50) — zaman aşımında bile
+ses anında kesilsin. ⚠️ Buraya `setCameraEnabled(false)` EKLEME (paylaşılan videoCapturer
++ kamera devri → yeni aramanın videosu ölür).
+
+### 🔴 "TUT VE KABUL ET"in kaynağı: `setCallConnected`
+Bizim kodda üç yerde de `supportsHolding: false` **doğruydu**; değer CallKit'e
+**ulaşmıyordu**. `CallKitService.baglandi()` turu 56'da **tam da bekletmeyi açmak için**
+eklenmişti ("iOS bağlı olmayan aramayı hold edilebilir saymaz"). Bekletme turu 66'da
+kapatılınca satır geride kaldı. Üstelik plugin `setCallConnected`e yalnız `{'id':...}`
+gönderiyor; harita **"ios" alanı içermediği** için plugin `data`yı **varsayılanlarla**
+yeniden kuruyor → `supportsHolding = true`. Yazdığımız `false` tam burada eziliyordu.
+FIX: `if (bekletmeAcik && b.outgoing)`.
+İKİNCİ SIZINTI: AppDelegate **iptal dalı** `Data(...)` üretip `supportsHolding`
+yazmıyordu → plugin varsayılanı `true`. FIX: `false` + `supportsGrouping=false`.
+⚠️ **Plugin varsayılanı TRUE — yeni bir `Data(...)` üretilen her yerde açıkça yaz.**
+
+### Ölçüm (test sonrası bakılacak)
+`callkit aktif arama (giden|gelen): adet=.. hold=.. grup=..` → `hold=false` çıkarsa değer
+CallKit'e gerçekten ulaşmış demektir.
+⚠️ **ERTELENDİ (son çare):** `maximumCallGroups 2 → 1`. `maximumCallsPerCallGroup:1` ile
+birlikte toplam kapasite 1 olur, ikinci `reportNewIncomingCall` **hata dönebilir** →
+telefon çalmaz + iOS 13 kuralı ihlali. Ölçmeden uygulama.
+
+### YAYIN
+android `30953817519` + ios `30953819602` (`e8215da`), apk 108238369 md5 `0925d92d`,
+ipa 22353332 md5 `06475a23`, purge OK, **CDN birebir**, indir sayfası 00:59,
+debug imza YOK, backend DEĞİŞMEDİ + health ok, DB temiz.
+
+### KULLANICI TEST EDECEK
+1. **Bitir ve kabul et → arkada hiçbir şey kalmamalı**: eski arama sesi gitmemeli,
+   iPhone'da yeşil kamera/mikrofon noktası kalmamalı, Android'de kalıcı bildirim olmamalı.
+2. iPhone'da ikinci arama gelince **"Tut ve Kabul Et" ÇIKMAMALI** — sadece
+   "Bitir ve Kabul Et" / "Reddet".
+3. Peş peşe 10 kez "bitir ve kabul et" (wifi'da) — hiçbirinde arkada kalma olmamalı.
+4. Arama bitir → hemen sesli oda / canlı yayına gir (kilit sırası regresyon testi).
+5. Kapanış iki tarafta da yumuşak, donma yok.
