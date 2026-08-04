@@ -144,6 +144,12 @@ class _IncomingCallSheetState extends ConsumerState<_IncomingCallSheet> {
         await ctrl.parkEt();
       } else {
         await ctrl.leave(notifyServer: true);
+        // TURU 66: kullanici ne oldugunu GORSUN (main.dart CallKit yolundaki
+        // bildirimin karsiligi). ⚠️ Bu widget Navigator DISINDA olabilir ->
+        // `ScaffoldMessenger.of(context)` KULLANMA, kok anahtari kullan.
+        rootMessengerKey.currentState?.showSnackBar(const SnackBar(
+            content: Text('Önceki arama sonlandırıldı'),
+            duration: Duration(seconds: 2)));
       }
     } catch (_) {}
     await _accept(zorla: true);
@@ -457,13 +463,19 @@ class _IncomingCallSheetState extends ConsumerState<_IncomingCallSheet> {
                       onTap: () => _bekletVeyaBitirKabul(beklet: false),
                       kucuk: true,
                     ),
-                    _bigButton(
-                      color: const Color(0xFF25D366),
-                      icon: LucideIcons.pause,
-                      label: 'Beklet ve\nkabul et',
-                      onTap: () => _bekletVeyaBitirKabul(beklet: true),
-                      kucuk: true,
-                    ),
+                    // ⚠️⚠️ TURU 66 — "Beklet ve kabul et" YALNIZ bekletme ACIKKEN cizilir.
+                    // Denetim bulgusu: bayrak kapatilinca bu dugme EKRANDA KALIYOR ama
+                    // gorevi degisiyordu — basan kullanici "bekletiyorum" sanarken
+                    // gorusme BITIYORDU. Bu Android'in BIRINCIL ikinci-arama arayuzu.
+                    // ⚠️ YAPMA: bayrak kapaliyken bu dugmeyi gosterme.
+                    if (ActiveCallController.bekletmeAcik)
+                      _bigButton(
+                        color: const Color(0xFF25D366),
+                        icon: LucideIcons.pause,
+                        label: 'Beklet ve\nkabul et',
+                        onTap: () => _bekletVeyaBitirKabul(beklet: true),
+                        kucuk: true,
+                      ),
                   ],
                 ),
               )

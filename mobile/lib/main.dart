@@ -390,7 +390,11 @@ class _GebzemAppState extends ConsumerState<GebzemApp> with WidgetsBindingObserv
     // izin + Navigator beklemesi bitiyordu; o sirada ekranda SON SAYFA (sohbet listesi)
     // duruyordu. Artik "Baglaniliyor..." arama ekrani hemen gorunur, gercek `baslat`
     // hemen ardindan gelir. ⚠️ YAPMA: bu cagriyi answer'in ARKASINA tasima.
-    if (!bekletildi) {
+    // ⚠️ TURU 66: `bekletildi` sarti KALDIRILDI. Onceki arama artik PARK EDILMIYOR,
+    // BITIRILIYOR — yani "geri donulecek bir arama" yok ve hizli ekran acma kisayolu
+    // bu yolda da GEREKLI. Eskiden atlaniyordu ve kullanici answer REST'i boyunca
+    // sohbet listesinde bekliyordu.
+    {
       // Navigator hazir degilse (soguk baslangic) kisa bekle — ama en fazla ~1sn.
       for (var i = 0; i < 60 && rootNavigatorKey.currentState == null; i++) {
         await Future.delayed(const Duration(milliseconds: 16));

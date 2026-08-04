@@ -191,8 +191,25 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       //    cevirme (arama sunucuda yasar, karsi taraf sessizlik dinler).
       if (!bekletmeAcik) {
         if (gsm) {
-          _sesLog('hucresel arama basladi -> Gebzem aramasi bitiriliyor (bekletme kapali)');
-          unawaited(leave(notifyServer: true));
+          // ⚠️⚠️ TURU 66 — 2 SANIYELIK TEYIT (denetimde yakalandi).
+          // Android `TelefonDurumu` OFFHOOK'u CEVIRME (dialing) aninda da uretir;
+          // iOS'ta kapi `hasConnected` ile daraltildi ama Android'de "baglandi"
+          // sinyali YOK. Teyitsiz bitirseydik, yanlis dokunusla baslayip HEMEN iptal
+          // edilen bir cagri Gebzem gorusmesini KALICI olarak oldururdu (bekletmenin
+          // aksine bunun GERI DONUSU YOK).
+          // Kimlik SENKRON yakalanir; 2sn sonra hucresel arama HALA suruyorsa ve
+          // AYNI Gebzem aramasi devam ediyorsa bitirilir.
+          // ⚠️ YAPMA: bu gecikmeyi kaldirma; kimligi await'ten SONRA okuma.
+          final oAramaId = b.callId;
+          unawaited(Future<void>.delayed(const Duration(seconds: 2), () {
+            if (!PipService.gsmAramada.value) return; // cagri iptal edildi/reddedildi
+            if (_ayrildi || arama?.callId != oAramaId) return; // bayat akis
+            _sesLog('hucresel gorusme suruyor -> Gebzem aramasi bitiriliyor');
+            rootMessengerKey.currentState?.showSnackBar(const SnackBar(
+                content: Text('Telefon görüşmeniz başladı, Gebzem araması sonlandırıldı'),
+                duration: Duration(seconds: 3)));
+            unawaited(leave(notifyServer: true));
+          }));
         }
         return;
       }
@@ -220,8 +237,15 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
   /// ⚠️ YAPMA: bayragin arkasindaki kodu SILME — `parkEt`/`devamEt`/`beklemeyeAl`
   ///     govdeleri duruyor; ozellik geri istenirse bayrak + `supportsHolding` yeter.
   ///     (CLAUDE.md kurali: olu kod birakma, BAYRAKLA kapat — turu 48/56 dersi.)
-  /// ⚠️ GIZLILIK YAN FAYDASI: bekletme yokken "GSM konusurken Gebzem mikrofonu acik
-  ///     kalir" acigi (turu 56/63) YAPISAL OLARAK IMKANSIZ hale gelir — arama yok.
+  /// ⚠️ GIZLILIK YAN FAYDASI — **YALNIZ 1:1 ARAMA ICIN**: bekletme yokken "GSM
+  ///     konusurken Gebzem mikrofonu acik kalir" acigi (turu 56/63) 1:1 aramalarda
+  ///     yapisal olarak imkansiz hale gelir (arama biter, mikrofon da gider).
+  ///     ⚠️⚠️ SESLI ODA ve CANLI YAYIN BU KORUMANIN DISINDA: `gsmDinle` YALNIZ arama
+  ///     akisinda aciliyor (`_connect`); `features/rooms` ve `features/live` altinda
+  ///     `gsmAramada` hic okunmuyor ve `room_screen` `resumed`da mikrofonu kosulsuz
+  ///     geri aciyor. Bu acik turu 66'nin GETIRDIGI bir sey DEGIL (turu 56'dan beri
+  ///     var) ama burada "imkansiz" demek gelecekteki denetimi YANILTIR.
+  ///     ⏳ AYRI IS: oda/yayin icin GSM kapisi.
   static const bekletmeAcik = false;
 
   final Ref _ref;
@@ -1989,7 +2013,16 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       // tetiklenmemis olur — `gsmAramada` bir ValueNotifier ve YALNIZ DEGISIMDE
       // tetikleniyor. Burada SEVIYE kontrolu yapip kacirilan durumu yakaliyoruz.
       // ⚠️ YAPMA: bu seviye kontrolunu kaldirma (kenar-tetikli notifier tuzagi).
-      if (PipService.gsmAramada.value && !beklemede) {
+      // ⚠️⚠️ TURU 66 — `bekletmeAcik` SARTI ZORUNLU (denetimde yakalandi).
+      // Bekletme kapaliyken `beklemeyeAl(id,true)` artik ARAMAYI BITIRIYOR. Bu satir
+      // seviye-tetiklemeli oldugu icin, hucresel gorusme SURERKEN kurulan HER Gebzem
+      // aramasi baglanir baglanmaz KENDINI OLDURURDU (yaris degil, DETERMINISTIK).
+      // Ustelik kullanici emri "GELENI KABUL ET, ONCEKINI bitir" — yeni kabul edilen
+      // aramayi oldurmek EMRIN TERSI.
+      // GIZLILIK KORUNUR: mikrofon `_sesYolunuGeriUygula` ve `_kesintidenTopla`
+      // icindeki `!gsmAramada.value` kapilariyla ZATEN kapali kalir.
+      // ⚠️ YAPMA: `bekletmeAcik` sartini kaldirma.
+      if (bekletmeAcik && PipService.gsmAramada.value && !beklemede) {
         unawaited(beklemeyeAl(id, true));
       }
       notifyListeners();

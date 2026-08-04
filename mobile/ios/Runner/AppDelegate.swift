@@ -492,8 +492,15 @@ final class GebzemGsmGozcu: NSObject, CXCallObserverDelegate {
       // saniyelerce kesilirdi (turu 62'de Android'de kok neden olarak duzeltilmisti).
       // ⚠️ GIZLILIK KORUNUR: suren bir GSM gorusmesi zaten `hasConnected` oldugu icin
       //    ikinci cagri calarken de sayilmaya devam eder, mikrofon geri ACILMAZ.
-      // ⚠️ YAPMA: bu kapiyi kaldirma; `isOutgoing` dalini cikarma.
-      if !c.isOutgoing && !c.hasConnected { continue }
+      // ⚠️⚠️ TURU 66 — ARTIK YALNIZ `hasConnected` (denetimde yakalandi).
+      // `isOutgoing` tek basina yeterdi ve GIDEN bir hucresel arama HENUZ CEVAPLANMADAN
+      // (sadece calarken) "hucresel var" sayiliyordu. Bu kapi turu 64'te GERI DONULEBILIR
+      // bir eylem (beklet) icin yazilmisti; turu 66'da eylem ARAMAYI BITIRMEK oldu —
+      // yanlis dokunus/Siri/CarPlay ile baslayip hemen iptal edilen bir cagri
+      // gorusmeyi KALICI OLARAK oldururdu.
+      // Cevaplaninca CallKit `callChanged` ile yeniden `degerlendir()` cagirir; gecikme YOK.
+      // ⚠️ YAPMA: `isOutgoing` dalini geri ekleme (bekletme yeniden acilmadikca).
+      if !c.hasConnected { continue }
       yabanci = u
       break
     }
