@@ -212,6 +212,10 @@ import flutter_callkit_incoming
       case "gebzemAramaSil":
         GebzemGsmGozcu.shared.aramaSil((call.arguments as? String) ?? "")
         result(true)
+      // TURU 65: ses oturumu "!pri" ile acilamiyorsa SON CARE — CallKit'e beklet+devam
+      // yaptirip aktivasyonu SISTEME yaptir (bkz. GebzemSesKurtar).
+      case "callkitSesKurtar":
+        result(GebzemSesKurtar.dene((call.arguments as? String) ?? ""))
       default:
         result(FlutterMethodNotImplemented)
       }
@@ -324,6 +328,69 @@ import flutter_callkit_incoming
     SwiftFlutterCallkitIncomingPlugin.sharedInstance?.showCallkitIncoming(data, fromPushKit: true) {
       completion()
     }
+  }
+}
+
+// MARK: - TURU 65: CALLKIT UZERINDEN SES OTURUMU KURTARMA
+//
+// ⚠️⚠️ SAHA KANITI (4 Agu 18:02, arama d31f6fc5 — TAHMIN DEGIL):
+//   `ses oturumu ACILAMADI (unhold): configOk=false hata=NSOSStatusErrorDomain#561017449`
+//   561017449 = 0x21707269 = "!pri" = AVAudioSessionErrorCodeInsufficientPriority.
+// Yani iOS bize "oturumu SEN aktive edemezsin, oncelik sende degil" diyor. Bu bir
+// ZAMANLAMA sorunu DEGIL, YETKI sorunudur — tekrar denemek tek basina COZMEZ.
+//
+// MEKANIZMA: hucresel arama gelince CallKit bizim aramamizi beklemeye alir ve
+// `didDeactivate` ile ses oturumunu kapatir. Hucresel arama BITINCE CallKit aramayi
+// unhold eder AMA `didActivate`i BIR DAHA CAGIRMAZ. (Plugin 3.1.3'un
+// `provider(_:didActivate:)`i AppDelegate'e KOSULSUZ iletir — satir 775-779 — yani
+// "iletilmedi" degil, "hic gelmedi". `CXSetHeldCallAction` isleyicisi de ses oturumuna
+// DOKUNMAZ, yalnizca sahte bir interruption bildirimi atar — satir 719-732.)
+// Sonuc: ses birimi olu, mikrofon ornek uretmiyor, gelen ses de CALINMIYOR.
+//
+// COZUM: aktivasyonu Apple'in izin verdigi TEK sahibe yaptir — CXProvider'a.
+// `CXCallController` ile aramayi BIZ bir kez beklet + geri al; CallKit bu gecisi
+// isledigi icin `didActivate` ZINCIRI BASTAN calisir ve oturum SISTEM tarafindan
+// aktive edilir (bizim "!pri" yedigimiz yol atlanir).
+//
+// ⚠️ YAPMA: bunu ILK care yapma — once ucuz olan tekrar merdiveni denenir, bu YALNIZ
+//     o merdiven tukendiginde (ses ZATEN olu iken) calisir. Kaybedecek bir sey yoktur.
+// ⚠️ YAPMA: `CXCallController`i yerel degiskende tutma — istek ASENKRONdur, yerel
+//     nesne dealloc olur ve tamamlama blogu HIC cagrilmaz.
+// ⚠️ YAPMA: iki istegi ARKA ARKAYA (gecikmesiz) gonderme — CallKit ilk gecisi
+//     islemeden ikincisi gelirse birlestirip NO-OP yapabilir.
+final class GebzemSesKurtar {
+  // ⚠️ STATIK: asenkron istek boyunca hayatta kalmali (bkz. yukaridaki uyari).
+  private static let denetleyici = CXCallController()
+  private static let gozcu = CXCallObserver()
+
+  /// Verilen Gebzem CallKit aramasini beklet->devam ettirerek sistemin ses oturumunu
+  /// yeniden aktive etmesini saglar. Donus: istek BASLATILABILDI mi.
+  static func dene(_ callId: String) -> Bool {
+    guard let uuid = UUID(uuidString: callId) else { return false }
+    // CallKit bu aramayi TANIMIYORSA anlamsiz (ornek: CallKit'e hic kaydedilmemis yol).
+    guard gozcu.calls.contains(where: { $0.uuid == uuid && !$0.hasEnded }) else {
+      NSLog("gebzem/ses kurtarma: CallKit aramayi tanimiyor \(callId)")
+      return false
+    }
+    let beklet = CXTransaction(action: CXSetHeldCallAction(call: uuid, onHold: true))
+    denetleyici.request(beklet) { hata in
+      if let h = hata {
+        NSLog("gebzem/ses kurtarma beklet HATA: \(h.localizedDescription)")
+        return
+      }
+      // CallKit'in ilk gecisi islemesi icin nefes payi (bkz. yukaridaki uyari).
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+        let devam = CXTransaction(action: CXSetHeldCallAction(call: uuid, onHold: false))
+        denetleyici.request(devam) { h2 in
+          if let e = h2 {
+            NSLog("gebzem/ses kurtarma devam HATA: \(e.localizedDescription)")
+          } else {
+            NSLog("gebzem/ses kurtarma: beklet+devam gonderildi")
+          }
+        }
+      }
+    }
+    return true
   }
 }
 
