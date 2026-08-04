@@ -4241,3 +4241,81 @@ debug imza YOK, **backend DEĞİŞMEDİ** (19d0a96) + health ok, DB temiz (0/0/0
   bir sonraki adımı gösterecek.
 - `ses oturumu ACILAMADI (...)` → **hiç çıkmazsa merdiven tek başına yetmiş** demektir.
 - `callkit hold olayi: ...` / `gsm olayi: ...` / `gsm gozcu YANLIS ALARM` (çıkmamalı).
+
+---
+
+## TURU 66 — ARAMA BEKLETME KALDIRILDI: "Kabul et ve Bitir" (4 Ağustos 22:48)
+
+### Kullanıcı kararı
+Turu 65 testi de başarısız oldu. Kullanıcı: **"beklemeyi yapmayalım, arama geldiğinde
+KABUL ET ve BİTİR olsun."** Ayrıca: "onay beklemeden temiz build al."
+
+### Gerekçe (üç turluk ÖLÇÜLMÜŞ kanıt — bu bir vazgeçiş değil, veriye dayalı karar)
+- Turu 64 ölçümü: `ses oturumu ACILAMADI: hata=...#561017449` = **"!pri"** =
+  `AVAudioSessionErrorCodeInsufficientPriority`.
+- Turu 65: plugin kaynağı okundu — `provider(_:didActivate:)` AppDelegate'e **koşulsuz**
+  iletiliyor, yani **CallKit `didActivate`ı hiç çağırmıyor**; `CXSetHeldCallAction` ses
+  oturumuna dokunmuyor.
+- Sonuç: **bekletmeden çıkışta sesi geri almak üçüncü parti bir uygulamanın garanti
+  edemeyeceği bir şey.** Yarım çalışır halde tutmak yerine kapatıldı.
+
+### Uygulama
+- **Tek bayrak:** `ActiveCallController.bekletmeAcik = false` (kod SİLİNMEDİ — CLAUDE.md
+  "bayrakla kapat" kuralı; geri istenirse bayrak + `supportsHolding` üçü birlikte).
+- CallKit `supportsHolding=false` + `maximumCallsPerCallGroup=1` → iOS **"Bitir ve Kabul"**
+  çizer (hem Gebzem hem hücresel).
+- GSM olayı → `leave(notifyServer:true)`; `parkEt`/`beklemeyeAl` son savunma kapıları.
+
+### ✅ EN BÜYÜK RİSK ELENDİ (denetim, plugin kaynağı okundu)
+`maximumCallsPerCallGroup=1` **VoIP push'u kesmiyor** — plugin 3.1.3 `Call.swift:191-194`
+VoIP push yolunda **zaten 1** kullanıyormuş; Dart'ı 2→1 çekmek push yolunu değiştirmedi,
+hizaladı. `supportsHolding` yalnızca `CXCallUpdate` süsü, rapor kapısı değil.
+⚠️ Bunu bir daha araştırma.
+
+### ⚠️⚠️ DENETİM 3 SEVK ENGELİ BULDU
+1. **EN AĞIR — her arama kendini öldürüyordu.** `_connect` sonundaki SEVİYE kontrolü
+   (turu 56 emniyet ağı) `beklemeyeAl(id,true)` çağırıyor, bu da artık `leave()` demek.
+   Yani **hücresel görüşme sürerken kurulan her Gebzem araması bağlanır bağlanmaz
+   kapanıyordu** — yarış değil, deterministik. Üstelik ölen, kullanıcının **yeni kabul
+   ettiği** aramaydı; emrin tam tersi. FIX: `bekletmeAcik &&` şartı.
+2. **Yeşil "Beklet ve kabul et" düğmesi ekranda kalmıştı** (yalnız gövde değiştirilmişti)
+   → basan kişi "bekletiyorum" sanarken görüşme bitiyordu. Android'in birincil
+   ikinci-arama arayüzü. FIX: düğme bayrakla sarıldı + bilgi bildirimi.
+   📌 **DERS: bir özelliği bayrakla kapatırken gövdeyi değiştirmek YETMEZ — o özelliği
+   çağıran ARAYÜZ de gizlenmeli, yoksa düğme sessizce başka iş yapar.**
+3. **Cevaplanmamış giden hücresel çağrı aramayı öldürüyordu** (numara çevirir çevirmez).
+   Kapı turu 64'te *geri dönülebilir* bir eylem (beklet) için yazılmıştı; artık geri
+   dönüşü yok. FIX iOS: `if !c.hasConnected { continue }`. FIX Android (native "bağlandı"
+   sinyali yok): **2sn teyit** — kimlik senkron yakalanır, 2sn sonra hücresel hâlâ
+   sürüyorsa ve aynı arama devam ediyorsa bitirilir. Kullanıcıya bildirim eklendi.
+
+### ⚠️ YANILTICI ŞERH DÜZELTİLDİ
+"Bekletme yokken turu 56 gizlilik açığı yapısal olarak imkânsız" iddiası **yalnız 1:1
+arama** için doğru. `gsmDinle` yalnız arama akışında açılıyor; **oda/yayın altında
+`gsmAramada` hiç okunmuyor** ve `room_screen` `resumed`da mikrofonu koşulsuz açıyor.
+Turu 66'nın getirdiği bir açık değil (turu 56'dan beri var). ⏳ **AYRI İŞ.**
+
+### 📌 ODA/YAYIN SIRASINDA GELEN ARAMA (kullanıcı sordu — koddan doğrulandı)
+- Android + ön plan: `aramadaMi` true → overlay hiç açılmaz, **telefon çalmaz**.
+- iOS her zaman + Android arka plan: CallKit **çalar** (iOS 13 kuralı, raporlamak zorunlu).
+- Kabul edilirse: `mesgulMu` `oda_`/`yayin` kaydını görür → `answer()` null →
+  CallKit ekranı kapanır, **arayan "reddedildi" görür**, oda/yayın sesi bozulmaz.
+- Turu 66 bu akışın hiçbirini değiştirmedi.
+⏳ **ÖNERİ (karar bekliyor):** mikrofonu kapalı olanda telefon **çalsın** (oda dinleyicisi
++ yayın izleyicisi), oda konuşmacısında uyarıyla, **yayıncıda çalmasın**.
+
+### YAYIN
+android `30943942830` + ios `30943945392` (`c8a6c9d`), apk **108238477** md5 `579cd292`
+(**KÜÇÜLDÜ** = bekletme arayüzü gitti), ipa 22349753 md5 `49cd6b0e`, purge OK,
+**CDN birebir**, indir sayfası 22:48, debug imza YOK, **backend DEĞİŞMEDİ** (19d0a96) +
+health ok, DB temiz.
+
+### KULLANICI TEST EDECEK
+1. Gebzem'de konuşurken **GSM araması gelsin** → "Bitir ve Kabul" çıkmalı; kabul edersen
+   Gebzem araması kapanır, telefon görüşmesi sorunsuz olmalı.
+2. **Numara çevirip hemen vazgeç** → Gebzem araması KAPANMAMALI (2sn teyit).
+3. Görüşme sürerken **ikinci Gebzem araması** → "Bitir ve kabul et" / "Reddet" (yeşil
+   "Beklet" düğmesi ARTIK OLMAMALI); kabul edince önceki biter, **yeni arama YAŞAMALI**.
+4. **Hücresel görüşme sürerken Gebzem araması başlat/kabul et** → arama kendi kendine
+   KAPANMAMALI (denetimin yakaladığı en ağır hata).
+5. Normal aramalar (sesli + görüntülü), sesli oda, canlı yayın bozulmamış olmalı.

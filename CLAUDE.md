@@ -17,7 +17,65 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (4 Agu 21:51):** TEST TURU 65 YAYINLANDI — android 30939684916 +
+- **KALDIGIMIZ YER (4 Agu 22:48):** TEST TURU 66 YAYINLANDI — android 30943942830 +
+  ios 30943945392 (c8a6c9d), R2 apk=**108238477** (md5 579cd292, KUCULDU = bekletme
+  arayuzu gitti) ipa=22349753 (md5 49cd6b0e), purge OK, **CDN birebir**, indir sayfasi
+  22:48, debug imza YOK, **backend DEGISMEDI** (19d0a96) + health ok, DB temiz.
+  **KULLANICI TEST EDECEK.**
+- ⚠️⚠️⚠️ **TURU 66 — ARAMA BEKLETME KALDIRILDI (KULLANICI EMRI 4 Agu).**
+  Kullanici: *"beklemeyi yapmayalim, arama geldiginde KABUL ET ve BITIR olsun."*
+  **GEREKCE (uc turluk OLCULMUS kanit):** bekletmeden CIKIS iOS'ta BIZIM
+  KONTROLUMUZDE DEGIL — turu 65 kaniti: CallKit unhold ediyor ama `didActivate`i HIC
+  cagirmiyor; bizim aktive denememiz `!pri` (InsufficientPriority) ile REDDEDILIYOR.
+  **TEK BAYRAK: `ActiveCallController.bekletmeAcik = false`** (kod SILINMEDI —
+  CLAUDE.md "bayrakla kapat" kurali). Geri istenirse: bayrak + `supportsHolding`
+  (Dart gelen+giden) + Swift `data.supportsHolding` UCU BIRLIKTE true.
+  · CallKit `supportsHolding=false` + `maximumCallsPerCallGroup=1` -> iOS "Beklet ve
+    Kabul" YERINE **"Bitir ve Kabul"** cizer (Gebzem VE hucresel aramalar icin).
+  · GSM olayi -> `leave(notifyServer:true)`; `parkEt`/`beklemeyeAl` son savunma kapilari.
+  ✅ **VoIP PUSH RISKI ELENDI (denetim, plugin kaynagi okundu):**
+    `maximumCallsPerCallGroup=1` `reportNewIncomingCall`i ETKILEMEZ — plugin 3.1.3
+    `Call.swift:191-194` VoIP push yolunda ZATEN 1 kullaniyordu; Dart'i 2->1 cekmek
+    push yolunu DEGISTIRMEDI, HIZALADI. `supportsHolding` yalnizca CXCallUpdate susu.
+    ⚠️ Bunu bir daha arastirma.
+- ⚠️⚠️ **TURU 66b — DENETIM 3 SEVK ENGELI BULDU (biri HER aramayi olduruyordu):**
+  · **EN AGIR:** `_connect` sonundaki SEVIYE kontrolu (turu 56 emniyet agi)
+    `beklemeyeAl(id,true)` cagiriyordu; bekletme kapaliyken bu `leave()` demek ->
+    **hucresel gorusme SURERKEN kurulan HER Gebzem aramasi KENDINI OLDURUYORDU**
+    (yaris DEGIL, deterministik: `gsmDinle` oda baglantisindan once kosuyor).
+    Ustelik OLEN, kullanicinin YENI KABUL ETTIGI aramaydi — emrin TERSI.
+    FIX: `if (bekletmeAcik && PipService.gsmAramada.value && !beklemede)`.
+    ⚠️ YAPMA: `bekletmeAcik` sartini kaldirma.
+  · **YESIL "Beklet ve kabul et" DUGMESI EKRANDA KALMISTI** (yalniz govde
+    degistirilmisti) -> basan kullanici "bekletiyorum" sanarken gorusme BITIYORDU.
+    Bu Android'in BIRINCIL ikinci-arama arayuzu. FIX: dugme `bekletmeAcik` ile sarildi
+    + "Önceki arama sonlandırıldı" bildirimi (rootMessengerKey — widget Navigator DISINDA).
+    ⚠️ **DERS: bir ozelligi bayrakla kapatirken GOVDEYI degistirmek YETMEZ — o ozelligi
+    CAGIRAN ARAYUZ de gizlenmeli, yoksa dugme SESSIZCE BASKA IS YAPAR.**
+  · **CEVAPLANMAMIS GIDEN HUCRESEL CAGRI ARAMAYI OLDURUYORDU:** iOS kapisi
+    `!c.isOutgoing && !c.hasConnected` idi (turu 64'te GERI DONULEBILIR bir eylem icin
+    yazilmisti; artik geri donusu YOK). FIX iOS: `if !c.hasConnected { continue }`.
+    FIX Android (native "baglandi" sinyali YOK): Dart'ta **2sn TEYIT** — kimlik SENKRON
+    yakalanir, 2sn sonra hucresel HALA suruyorsa ve AYNI arama devam ediyorsa bitirilir.
+    ⚠️ YAPMA: bu teyidi kaldirma; `isOutgoing` dalini geri ekleme.
+- ⚠️⚠️ **YANILTICI SERH DUZELTILDI (gelecek denetimler icin):** "bekletme yokken turu 56
+  GSM gizlilik acigi YAPISAL OLARAK IMKANSIZ" iddiasi **YALNIZ 1:1 ARAMA** icin dogru.
+  `gsmDinle` YALNIZ arama akisinda (`_connect`) aciliyor; `features/rooms` ve
+  `features/live` altinda `gsmAramada` **HIC OKUNMUYOR** ve `room_screen` `resumed`da
+  mikrofonu KOSULSUZ geri aciyor. Bu acik turu 66'nin getirdigi DEGIL (turu 56'dan beri
+  var). ⏳ **AYRI IS: oda/yayin icin GSM kapisi.**
+- 📌 **ODA/YAYIN SIRASINDA GELEN ARAMA — MEVCUT DAVRANIS (koddan dogrulandi, kullanici sordu):**
+  · Android + uygulama ON PLANDA: `call_provider.dart:173` `aramadaMi` true (`oda_`/`yayin`
+    muhafizi) -> overlay HIC acilmaz, telefon CALMAZ.
+  · iOS her zaman + Android arka plan: VoIP/FCM push gelir, CallKit **CALAR** (iOS 13
+    kurali geregi raporlamak ZORUNLU; `callkit_service.goster`da mesguliyet kapisi YOK).
+  · KABUL EDILIRSE: `mesgulMu(haric:)` `oda_`/`yayin` kaydini gorur -> `answer()` **null**
+    -> `main.dart` `baskaIsleMesgul` -> `CallKitService.bitir` + `end` -> CallKit ekrani
+    kapanir, **arayan "reddedildi" gorur**, oda/yayin sesi BOZULMAZ.
+  · Turu 66 bu akisin HICBIRINI degistirmedi (oda/yayinin CallKit kaydi yok).
+  ⏳ **ONERI (kullaniciya sunuldu, KARAR BEKLIYOR):** mikrofonu KAPALI olanda telefon
+    CALSIN (oda dinleyicisi + yayin izleyicisi), konusmaci uyariyla, YAYINCI'da CALMASIN.
+- **ONCEKI (4 Agu 21:51):** TEST TURU 65 YAYINLANDI — android 30939684916 +
   ios 30939688331 (7109a2c), R2 apk=108254861 (md5 **d7b16b8c**) ipa=22361701
   (md5 e266567b), purge OK, **CDN'den indirilen apk+ipa yerelle MD5 BIREBIR**,
   indir sayfasi saati 21:51, debug imza YOK, **BACKEND DEGISMEDI** (19d0a96'da kaldi)
