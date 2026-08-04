@@ -268,6 +268,15 @@ import flutter_callkit_incoming
       let nm = (d["caller_name"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? "Gebzem"
       let data = flutter_callkit_incoming.Data(id: callId, nameCaller: nm, handle: nm, type: 0)
       data.appName = "Gebzem"
+      // ⚠️⚠️ TURU 68 — VARSAYILAN SIZINTISI KAPATILDI. Plugin'in
+      // `Data(id:nameCaller:handle:type:)` yapicisi `supportsHolding = true` ATAR
+      // (Call.swift:194). Normal dalda `false` yaziyoruz ama BURADA yazmiyorduk; bu
+      // gecici arama `reportNewIncomingCall` ile HOLD EDILEBILIR olarak bildirilip
+      // hemen `endCall` ediliyor — kapanis yarisirsa supportsHolding=TRUE bir CXCall
+      // asili kalir ve iOS "Tut ve Kabul" secenegini cizer.
+      // ⚠️ YAPMA: `showCallkitIncoming`/`completion` sirasina DOKUNMA (iOS 13+ kurali).
+      data.supportsHolding = false
+      data.supportsGrouping = false
       // iOS 13+ KURALI: completion, reportNewIncomingCall (showCallkitIncoming) BITTIKTEN
       // SONRA cagrilmali. Erken cagirmak ihlal -> iOS art arda aramalarda VoIP push'u KESER.
       // Bu yuzden endCall + completion, showCallkitIncoming'in closure'i ICINDE.

@@ -377,6 +377,34 @@ class CallKitService {
   /// aramasi gelince "Beklet ve Kabul" secenegi cikmayabilir (turu 55'in eksik halkasi).
   /// Karsi taraf kabul edip odaya baglaninca BIR KEZ cagrilir.
   /// ⚠️ YAPMA: gelen aramalarda cagirma (CXAnswerCallAction zaten bagli sayar).
+  /// ⚠️⚠️ TURU 68 — OLCUM: CallKit'e GERCEKTEN hangi degerlerle kayit oldugumuzu yazar.
+  /// Kullanici "iPhone'da Tut ve Kabul Et cikiyor" dedi; biz UC yerde `supportsHolding:
+  /// false` yaziyoruz ama degerin CallKit'e ULASIP ULASMADIGINI goremiyorduk.
+  /// Plugin `activeCalls()` yanitinda `supportsHolding` / `maximumCallGroups` alanlarini
+  /// DA donduruyor (Call.swift toJSON) — yani bu artik TAHMIN degil KANIT olur.
+  /// ⚠️ Arama basina EN FAZLA 1 kez (Sentry gurultusu — turu 63 yasagi).
+  /// ⚠️ YAPMA: bunu her olayda cagirma; breadcrumb'a cevirme.
+  static bool _holdOlcumuYapildi = false;
+  static Future<void> holdDurumunuOlc(String etiket) async {
+    if (!Platform.isIOS || _holdOlcumuYapildi) return;
+    _holdOlcumuYapildi = true;
+    try {
+      final aktif = await FlutterCallkitIncoming.activeCalls();
+      final ozet = (aktif as List)
+          .map((c) => c is Map
+              ? 'hold=${c['supportsHolding']} grup=${c['maximumCallGroups']}'
+              : c.toString())
+          .join(' | ');
+      unawaited(Sentry.captureMessage(
+          'callkit aktif arama ($etiket): adet=${(aktif as List).length} $ozet'));
+    } catch (e) {
+      unawaited(Sentry.captureMessage('callkit activeCalls olcum HATASI: $e'));
+    }
+  }
+
+  /// Yeni arama episodunda olcum tekrar yapilabilsin.
+  static void holdOlcumunuSifirla() => _holdOlcumuYapildi = false;
+
   static Future<void> baglandi(String callId) async {
     if (!Platform.isIOS || callId.isEmpty) return;
     try {

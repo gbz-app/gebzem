@@ -568,12 +568,28 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
   /// Onizleme track'ini SALIVER (publish edilmediyse kamerayi kapat).
   /// TURU 67: acilisla AYNI kuyrukta — birakma bitmeden yeni acilis baslamaz
   /// (iOS paylasilan `videoCapturer` yarisi, bkz. `_kameraKuyruguna`).
-  Future<void> _onizlemeBirak() => _kameraKuyruguna(_onizlemeBirakIc);
-
-  Future<void> _onizlemeBirakIc() async {
+  ///
+  /// ⚠️⚠️⚠️ TURU 68 — TRACK **KUYRUGA GIRMEDEN SENKRON** YAKALANIR.
+  /// TURU 67'DE YAPTIGIM SESSIZ REGRESYON: govdeyi oldugu gibi kuyruga sarmistim.
+  /// Ama `baslat()` icinde `unawaited(_onizlemeBirak());` ile `_onizlemeTrack = null;`
+  /// ARASINDA HIC await YOK (turu 32'nin "once SAL, sonra sifirla" deseni). Kuyruk
+  /// mikrotask sonrasi kostugunda `_onizlemeTrack` ARTIK NULL okunuyor ve metot
+  /// `if (t == null) return;` ile CIKIYORDU -> `t.stop()`/`t.dispose()` **HIC
+  /// CAGRILMIYORDU**. Sonuc: yayinlanmamis kamera track'i ve NATIVE capture oturumu
+  /// ACIK kaliyordu = iPhone'da yesil nokta, "arkada calisiyor" hissi ve sonraki
+  /// aramada kamera MESGUL.
+  /// ⚠️ YAPMA: yakalamayi tekrar kuyrugun ICINE tasima.
+  /// ⚠️ YAPMA: `baslat()`taki `_onizlemeTrack = null;` satirini silme (o senkron blok
+  ///     `hazirKamera` devrini korur; silinirse YENI aramanin kamerasi oldurulur).
+  Future<void> _onizlemeBirak() {
     final t = _onizlemeTrack;
+    final yayinda = _onizlemeYayinda;
     _onizlemeTrack = null;
-    if (t == null || _onizlemeYayinda) return;
+    return _kameraKuyruguna(() => _onizlemeBirakIc(t, yayinda));
+  }
+
+  Future<void> _onizlemeBirakIc(LocalVideoTrack? t, bool yayinda) async {
+    if (t == null || yayinda) return;
     try {
       await t.stop();
       await t.dispose();
@@ -1239,6 +1255,8 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     _sesKurtarmaDenendi = false;
     _oluCikisSayaci = 0;
     _sesOturumuOlcumYapildi = false;
+    _kameraBirakOlcumu = false;
+    CallKitService.holdOlcumunuSifirla(); // turu 68: her arama episodunda TEK olcum
     _callkitSesKurtarmaDenendi = false;
     _sesKurtarmaPenceresi = null;
     _sesKurtarmaPenceresiId = null;
@@ -2054,8 +2072,21 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       // "araniyor" durumunda birakiyor; iOS BAGLI OLMAYAN aramayi HOLD EDILEBILIR
       // saymaz -> GSM gelince "Beklet ve Kabul" secenegi cikmayabilir (turu 55 eksik
       // halkasi). Gelen aramalarda GEREKMEZ (CXAnswerCallAction zaten bagli sayar).
-      // ⚠️ YAPMA: gelen aramada da cagirma; await etme.
-      if (b.outgoing) unawaited(CallKitService.baglandi(id));
+      // ⚠️⚠️⚠️ TURU 68 — BU CAGRI "TUT VE KABUL ET"IN KAYNAGI (kullanici: "iPhone'da
+      // TUT VE KABUL ET var, BITIR VE KABUL ET olsun SADECE").
+      // Bu satir turu 56'da TAM DA bekletmeyi ACMAK icin eklenmisti (yukaridaki serh:
+      // "iOS BAGLI OLMAYAN aramayi HOLD EDILEBILIR saymaz"). Bekletme turu 66'da
+      // kapatilinca satir GERIDE KALDI ve tersini yapmaya basladi.
+      // AYRICA (plugin kaynagi): `setCallConnected` yalnizca `{'id': ...}` haritasi
+      // gonderir; harita "ios" alani ICERMEDIGI icin plugin `Call.swift` else-dalina
+      // duser ve `data`yi **VARSAYILANLARLA** yeniden kurar -> `supportsHolding = true`.
+      // Yani bizim UC yerde yazdigimiz `false` TAM BURADA EZILIYORDU.
+      // ⚠️ YAPMA: `bekletmeAcik` kapisini kaldirma. ⚠️ YAPMA: `gidenArama` kaydini
+      //     (CallKit'e giden aramayi bildirme) kaldirma — ikinci arama arayuzu ve
+      //     turu 57 `gidenler` kapisi ona bagli.
+      if (bekletmeAcik && b.outgoing) unawaited(CallKitService.baglandi(id));
+      // TURU 68 OLCUMU: CallKit'e gercekten `supportsHolding=false` ile mi kayitliyiz?
+      unawaited(CallKitService.holdDurumunuOlc(b.outgoing ? 'giden' : 'gelen'));
       // TURU 56: GSM zaten SURUYORSA (arama kurulurken telefon caliyordu) beklet
       // tetiklenmemis olur — `gsmAramada` bir ValueNotifier ve YALNIZ DEGISIMDE
       // tetikleniyor. Burada SEVIYE kontrolu yapip kacirilan durumu yakaliyoruz.
@@ -2813,11 +2844,27 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     //     (turu 54/59 sinifi regresyon).
     // ⚠️ YAPMA: bu gecikmeyi `call_screen` dispose/pop tarafina tasima ("leave TEK KAPI"
     //     hukmu; turu 59 bayat-ekran regresyonu).
-    Future<void>.delayed(const Duration(milliseconds: 260), () {
+    //
+    // ⚠️⚠️⚠️ TURU 68 — GECIKME **KILIDIN ICINE** ALINDI (kullanici: "bitir ve kabul et
+    // dedigimde BAZEN ARKADA ACIK KALIYOR").
+    // TURU 67'DE YAPTIGIM HATA: `CallRoomLock.calistir(...)` cagrisini `Future.delayed`
+    // closure'inin ICINE koymustum. O kilit GLOBAL ve SERIDIR; TEK VAROLUS SEBEBI
+    // "yeni oda BAGLANMADAN once eskisinin kapanisi TAMAMEN bitmis olsun". Kuyruga
+    // GIRIS gecikince SIRA TERSINE DONEBILIYOR: "Bitir ve kabul et" akisinda
+    // `leave()` -> `/end` -> `/answer` -> yeni `_odayaBaglan` tipik 120-200ms suruyor;
+    // 260ms'in ALTINA dustugunde yeni baglanti kilidi ONCE aliyor ve ESKI ODA
+    // LiveKit'e BAGLI + MIKROFONU YAYINDA kaliyordu. ("bazen" = wifi'da hizli, hucresel
+    // agda yavas.) Sunucunun TEMIZ gorunmesi de bunu dogruluyor: DB satiri 'ended',
+    // acik kalan sey CIHAZDAKI `Room` nesnesi.
+    // COZUM: kuyruga GIRIS senkron (leave govdesinde), BEKLEME closure'in ICINDE.
+    // ⚠️ YAPMA: `CallRoomLock.calistir`i tekrar bir gecikmenin ARKASINA koyma.
+    // ⚠️ YAPMA: 260ms'i tamamen kaldirma (turu 67 "siyah/donma" regresyonu geri gelir).
+    unawaited(CallRoomLock.calistir(() async {
+      await Future<void>.delayed(const Duration(milliseconds: 260));
       if (identical(_room, room)) _room = null;
       if (identical(_listener, listener)) _listener = null;
-      unawaited(CallRoomLock.calistir(() => _odaTemizle(room, listener, nesil)));
-    });
+      await _odaTemizle(room, listener, nesil);
+    }));
   }
 
   static Future<void> _odaTemizle(
@@ -2829,6 +2876,18 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       } catch (_) {}
     }
     if (room == null && listener == null) return;
+    // ⚠️⚠️ TURU 68 — ONCE MIKROFONU SUSTUR (kullanici: "arkada KESINLIKLE calismamali").
+    // `disconnect().timeout(1200ms)` ALTTAKI ISI IPTAL ETMEZ (turu 50 dersi): zaman
+    // asimi dolarsa oda hala bagli olabilir ve MIKROFON YAYINDA kalir. Bu satir
+    // kapanmanin en kotu halinde bile sesin ANINDA kesilmesini garanti eder.
+    // ⚠️ YAPMA: buraya `setCameraEnabled(false)` EKLEME — iOS'ta paylasilan
+    //     `videoCapturer` ve gelen-arama kamera DEVRI var; YENI aramanin videosunu
+    //     oldurursun (turu 28/50).
+    try {
+      await room?.localParticipant
+          ?.setMicrophoneEnabled(false)
+          .timeout(const Duration(milliseconds: 300));
+    } catch (_) {}
     // timeout SART: hang ederse CallRoomLock zinciri kilitlenir (art arda arama bug'i)
     try {
       await room?.disconnect().timeout(const Duration(milliseconds: 1200));
