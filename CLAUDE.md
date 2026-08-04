@@ -17,7 +17,64 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (4 Agu 22:48):** TEST TURU 66 YAYINLANDI — android 30943942830 +
+- **KALDIGIMIZ YER (4 Agu 23:55):** TEST TURU 67 YAYINLANDI — android 30949200253 +
+  ios 30949203156 (e24e7d1), R2 apk=108238369 (md5 1cdad676) ipa=22352640 (md5 da21c05c),
+  purge OK, **CDN birebir**, indir sayfasi 23:55, debug imza YOK, **backend DEGISMEDI**
+  (19d0a96) + health ok, DB temiz. **KULLANICI TEST EDECEK.**
+- ⚠️⚠️⚠️ **TURU 67 — "BITIR DEDIKTEN SONRA GELEN ARAMAYI BAZEN KARSILAMIYOR" KOK NEDENI**
+  (Sentry kaniti: `Bad state: Cannot use "ref" after the widget was disposed.`):
+  ZINCIR: "Bitir ve kabul et" -> `leave()` -> `_svc.end()` -> `call_provider` `state=null`
+  -> gelen-arama katmanini cizen kosul FALSE -> **WIDGET DISPOSE** -> hemen ardindan
+  `_accept()` icindeki `ref.read(...)` PATLAR. O cagri **try blogunun DISINDA** oldugu icin
+  **`answer` REST'i HIC GITMEZ**. "Bazen" = dispose ile `_accept` arasindaki YARIS.
+  **FIX:** `_notifier` + `_ctrl` `initState`te BIR KEZ yakalanir (tum `ref.read`lar cevrildi).
+  ⚠️ YAPMA: bu alanlari tekrar gec `ref.read`e cevirme; provider'lari `autoDispose` yapma;
+  `call_provider`daki `state = null` yan etkisini kosullu yapma (turu 27-31 regresyonu).
+  **IKINCI KAPI:** 3sn'lik durum yoklamasi `s != 'ringing'` gorunce ekrani kapatiyordu —
+  kabul akisinda arama ZATEN 'active' oluyor. FIX: `if (_busy) return;` + answer basarili
+  olunca yoklama IPTAL. **UCUNCU KAPI:** `catch` KOSULSUZ `end()` cagiriyordu -> `answer`
+  OK'ten SONRAKI bir hata YENI KABUL EDILEN aramayi olduruyordu. FIX: `_cevaplandi` bayragi.
+- ⚠️⚠️ **TURU 67 — "DONMA"NIN KOK NEDENI: KAPANIS ANIMASYONU BOS EKRANDA OYNUYORDU.**
+  `_kapatOdayiKuyrugaKoy` `_room = null`i SENKRON yapiyordu; `notifyListeners()` cok sonra.
+  220ms'lik solmanin ILK KARESINDE `c.room` null -> `_remoteVideo`/`_localVideo` null ->
+  renderer'lar agactan SILINIYOR -> canli goruntu ANINDA kayboluyordu.
+  **FIX:** mandal + timer iptalleri + yakalama SENKRON kalir; yalniz alan null'lama ve oda
+  temizligi **260ms GECIKIR**. ⚠️ `identical(_room, room)` kapilari ZORUNLU (seri aramada
+  YENI aramanin Room'unu null'lamasin — turu 54/59 sinifi). ⚠️ YAPMA: gecikmeyi
+  `call_screen` dispose/pop tarafina tasima ("leave TEK KAPI" hukmu).
+  **IKINCI SEBEP:** `await CallSounds.durdur(...)` ZAMAN ASIMSIZDI (`Vibration.cancel` +
+  `player.stop`); takilirsa `arama=null` + `notifyListeners()` HIC calismaz, ekran son
+  karede ASILI kalir -> 250ms timeout. ⚠️ YAPMA: `unawaited`a cevirme (yeni aramanin
+  zilini keser — nesil jetonu).
+- ⚠️⚠️ **TURU 67 — "GORUNTU GEC GIDIYOR": KAMERA TEARDOWN YARISI.** `_onizlemeAc()` hicbir
+  kilit arkasinda DEGILDI; onceki aramanin `leave()` yolundaki `_onizlemeBirak()`
+  (unawaited) HALA kosarken yeni onizleme kamerayi aciyordu. iOS'ta flutter_webrtc
+  **TEK PAYLASILAN `videoCapturer`** tutar (turu 50 kok nedeni) -> iki capture birbirinin
+  oturumunu CALAR. **FIX:** `_kameraKuyruguna` — acma/birakma TEK SLOTLUK zincire dizildi.
+  ⚠️ YAPMA: bunu `CallRoomLock` ile yapma (GLOBAL kilit; `_onizlemeAc` icinde izin
+  DIYALOGU var -> oda/yayin girisi kilitlenir). ⚠️ YAPMA: zinciri `await` edip `baslat()`i
+  bloklama. `_onizlemeBirak` hatasi artik arama basina TEK Sentry olcumu.
+- ⚠️⚠️ **OLCUM TUZAGI — `izin:NNNN` IZIN SURESI DEGILDIR (kendi teshisimi curuttum).**
+  `_kurulumSaat` YALNIZ `baslat()`ta kuruluyor; GIDEN aramada `_connect()` ancak
+  `call.answered` gelince kosar -> `izin` degeri **ZIL SURESINI de icerir**. Sahada
+  gorulen `izin:3992` "izin 4 saniye surdu" ANLAMINA GELMEZ.
+  ⚠️ YAPMA: `_kurulumSaat`i `_connect()` icinde yeniden baslatma (zil suresi bilgisi
+  kaybolur, eski turlarla kiyas biter). Ayrim icin `giden` alani eklendi.
+- ✅ **TURU 67 — BEKLETMENIN GORUNEN TUM KALINTILARI SILINDI:** main.dart `_heldSub`
+  (WS `call.held` ALMA — karsi taraf ESKI surumdeyse turuncu serit YAPISIYORDU) ·
+  controller `peer_held` uzlastirmasi · bant bekletme metinleri + "Devam et" dugmesi +
+  park seridi + `_bandanDevamEt` + `_gsmUyarisiGoster`.
+  ⚠️ `_holdSub` KALDI — kendi cihazimizdaki KACAK CallKit hold olayina karsi tek emniyet
+  (artik aramayi BITIRIYOR). ⚠️ Backend `held_by`/`peer_held` + migration 013'e DOKUNULMADI
+  (additive, turu 61).
+- ⏳ **TURU 67 — YAPILMADI (durust not):** `call_screen.dart` bekletme paneli/rozeti ve
+  controller'daki ~500 satirlik olu park zinciri (`ParkEdilenArama`/`parkEt`/`devamEt`/
+  `beklemeyeAl`/`_medyaBeklet`/`_iosSesOturumuGarantile`/`GebzemSesKurtar`) HALA DURUYOR.
+  Hepsi `bekletmeAcik=false` arkasinda **ULASILAMAZ** = kullaniciya GORUNMEZ.
+  Toplu silme denendi, satir sinirlari yanlis hesaplandi, dosya bozuldu, `git checkout`
+  ile geri alindi. ⚠️ **DERS: coklu-blok silmeyi script'le yapma — Edit ile TEK TEK ve
+  her adimda `flutter analyze`.** Ayri turda yapilacak.
+- **ONCEKI (4 Agu 22:48):** TEST TURU 66 YAYINLANDI — android 30943942830 +
   ios 30943945392 (c8a6c9d), R2 apk=**108238477** (md5 579cd292, KUCULDU = bekletme
   arayuzu gitti) ipa=22349753 (md5 49cd6b0e), purge OK, **CDN birebir**, indir sayfasi
   22:48, debug imza YOK, **backend DEGISMEDI** (19d0a96) + health ok, DB temiz.

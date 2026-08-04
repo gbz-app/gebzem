@@ -4319,3 +4319,77 @@ health ok, DB temiz.
 4. **Hücresel görüşme sürerken Gebzem araması başlat/kabul et** → arama kendi kendine
    KAPANMAMALI (denetimin yakaladığı en ağır hata).
 5. Normal aramalar (sesli + görüntülü), sesli oda, canlı yayın bozulmamış olmalı.
+
+---
+
+## TURU 67 — Kabul güvenilirliği + akıcı kapanış + kamera yarışı (4 Ağustos 23:55)
+
+### Kullanıcı emri (birebir)
+"Bitir dedikten sonra sağlıklı bir şekilde gelen aramayı **bazen karşılamıyor**. Aynı
+zamanda aramadan sonra birini görüntülü aradığımda **hemen seri bir şekilde görüntüm
+karşıya gitmiyor**. Bekleme olayı ile ilgili **ne varsa kaldır**. Sadece iki kişi
+konuşurken biri GSM ile aradığında Gebzem konuşmasını **sağlıklı bitir**, iki kişide de
+**hafif animasyonla ekran kapansın, donma olmasın**."
+
+### A — "bitir sonrası aramayı bazen karşılamıyor" (KÖK NEDEN, Sentry kanıtlı)
+Sentry: `Bad state: Cannot use "ref" after the widget was disposed.` (20:10:09, Android).
+ZİNCİR: "Bitir ve kabul et" → `leave()` → `_svc.end()` → `call_provider` `state = null`
+→ gelen-arama katmanını çizen koşul FALSE → **widget dispose** → hemen ardından
+`_accept()` içindeki `ref.read(...)` patlıyor. O çağrı **`try` bloğunun dışında** olduğu
+için **`answer` REST'i hiç gitmiyor**. "Bazen" = dispose ile `_accept` arasındaki yarış.
+FIX: `_notifier` + `_ctrl` `initState`te bir kez yakalanır.
+İKİNCİ KAPI: 3sn'lik yoklama `s != 'ringing'` görünce ekranı kapatıyordu (kabulde arama
+zaten 'active') → `if (_busy) return;` + answer başarılı olunca yoklama iptal.
+ÜÇÜNCÜ KAPI: `catch` koşulsuz `end()` çağırıyordu → `answer` OK'ten sonraki bir hata
+**yeni kabul edilen aramayı** öldürüyordu → `_cevaplandi` bayrağı.
+
+### C1 — "DONMA"nın kök nedeni: animasyon BOŞ ekranda oynuyormuş
+`_kapatOdayiKuyrugaKoy` `_room = null`ı **senkron** yapıyordu, `notifyListeners()` çok
+sonra. 220ms'lik solmanın ilk karesinde `c.room` null → renderer'lar ağaçtan siliniyor →
+canlı görüntü anında kayboluyor, animasyon siyah ekranda oynuyordu.
+FIX: mandal + timer iptalleri + yakalama senkron kalır; alan null'lama ve oda temizliği
+**260ms gecikir**. ⚠️ `identical()` kapıları zorunlu (seri aramada yeni Room'u null'lamasın).
+İKİNCİ SEBEP: `await CallSounds.durdur(...)` zaman aşımsızdı → takılırsa `arama=null` ve
+`notifyListeners()` hiç çalışmıyor, ekran son karede asılı kalıyordu → 250ms timeout.
+
+### B2 — "görüntü geç gidiyor": kamera teardown yarışı
+`_onizlemeAc()` hiçbir kilit arkasında değildi; önceki aramanın `leave()` yolundaki
+`_onizlemeBirak()` (unawaited) hâlâ koşarken yeni önizleme kamerayı açıyordu. iOS'ta
+flutter_webrtc **tek paylaşılan `videoCapturer`** tutuyor (turu 50 kök nedeni) → iki
+capture birbirinin oturumunu çalıyor. FIX: `_kameraKuyruguna` (tek slotluk zincir).
+⚠️ `CallRoomLock` KULLANILMADI — global kilit; oda/yayın girişini kilitlerdi.
+
+### ⚠️ B1 — KENDİ TEŞHİSİMİ ÇÜRÜTTÜM
+Kullanıcıya "iPhone'da izin kontrolü 4 saniye sürüyor" demiştim (`izin:3992`). **Yanlış.**
+`_kurulumSaat` yalnız `baslat()`ta kuruluyor ve giden aramada `_connect()` ancak
+`call.answered` gelince koşuyor → değer **zil süresini** içeriyor. Ayrım için `giden`
+alanı eklendi; `_kurulumSaat` bilerek sıfırlanmadı (zil süresi bilgisi kaybolmasın).
+
+### C2 — bekletmenin GÖRÜNEN tüm kalıntıları silindi
+main.dart `_heldSub` (WS `call.held` alma — karşı taraf eski sürümdeyse turuncu şerit
+yapışıyordu) · controller `peer_held` uzlaştırması · bant bekletme metinleri + "Devam et"
+düğmesi + park şeridi + `_bandanDevamEt` + `_gsmUyarisiGoster`.
+⚠️ `_holdSub` KALDI (kaçak CallKit hold olayına karşı tek emniyet; artık aramayı bitirir).
+⚠️ Backend `held_by`/`peer_held` + migration 013'e dokunulmadı (additive).
+
+### ⏳ YAPILMADI (dürüst not)
+`call_screen.dart` bekletme paneli/rozeti ve controller'daki ~500 satırlık ölü park
+zinciri hâlâ duruyor — hepsi `bekletmeAcik=false` arkasında **ulaşılamaz**, kullanıcıya
+görünmez. Toplu silme denendi, satır sınırları yanlış hesaplandı, dosya bozuldu,
+`git checkout` ile geri alındı.
+📌 **DERS: çoklu-blok silmeyi script'le yapma — Edit ile tek tek ve her adımda
+`flutter analyze`.**
+
+### YAYIN
+android `30949200253` + ios `30949203156` (`e24e7d1`), apk 108238369 md5 `1cdad676`,
+ipa 22352640 md5 `da21c05c`, purge OK, **CDN birebir**, indir sayfası 23:55,
+debug imza YOK, **backend DEĞİŞMEDİ** (19d0a96) + health ok, DB temiz.
+
+### KULLANICI TEST EDECEK
+1. Görüşme sürerken ikinci arama gelsin → **"Bitir ve kabul et"** → yeni arama
+   **her seferinde** açılmalı (eskiden bazen hiç karşılanmıyordu).
+2. GSM araması gelsin → kabul et → Gebzem araması **iki tarafta da** yumuşak solmayla
+   kapanmalı, **donma/siyah takılma olmamalı**.
+3. Bir arama bitir, **hemen ardından görüntülü ara** → görüntü karşıya **hızlı** gitmeli.
+4. Bekletmeyle ilgili hiçbir yazı/düğme görünmemeli (şerit, "Devam et", "beklemede").
+5. Normal aramalar, sesli oda, canlı yayın bozulmamış olmalı.
