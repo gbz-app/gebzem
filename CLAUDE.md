@@ -17,9 +17,15 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (4 Agu 01:10):** TURU 64 KODU HAZIR (`6bc42f9`), **BUILD ALINMADI —
-  KULLANICI ONAYI BEKLENIYOR** (CLAUDE.md kural 0). go build OK, flutter analyze temiz.
-  Sunucu SAGLIKLI dogrulandi (23 gun uptime, yuk 0.48, health ok) — sorun ISTEMCIDE.
+- **KALDIGIMIZ YER (4 Agu 20:30):** TEST TURU 64 YAYINLANDI — android 30933267247 +
+  ios 30933270300 (19d0a96), R2 apk=108254861 (md5 **22aac748**) ipa=22358493
+  (md5 fd7c8d44), purge OK, **CDN'den indirilen APK yerelle MD5 BIREBIR**, indir sayfasi
+  saati 20:30, **BACKEND DEPLOY EDILDI** (19d0a96 + health ok + yeni `held_by` SQL'i
+  canli DB'de EXPLAIN ile dogrulandi), DB temiz (0/0/0/0), debug imza YOK,
+  iOS deployment target 16.0 korunuyor. **KULLANICI TEST EDECEK.**
+  ⚠️ **APK BOYUTU TURU 63 ILE BIREBIR AYNI CIKTI (108254861) ama MD5 FARKLI**
+  (63: `2b466ce4` -> 64: `22aac748`). "Boyut ayni = build eski" DEME kurali yine dogrulandi.
+  ⚠️ IPA BUYUDU (22349602 -> 22358493) = yeni Swift (`GebzemGsmGozcu`) DERLENDI kaniti.
 - ⚠️⚠️ **TURU 64 — "GSM SONRASI SES GITMIYOR" KOK NEDENI OLCUMLE KANITLANDI.**
   Kullanici (3 Agu gecesi) uc sikayet bildirdi; 25 ajanlik kok-neden + 23 ajanlik
   adversaryal denetim kosuldu. **Sunucu logu + Sentry, arama `be27eed9`:**

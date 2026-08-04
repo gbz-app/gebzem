@@ -4126,3 +4126,38 @@ Kod hazır ve push edildi (`5830c15` + `6bc42f9`). `go build` OK, `flutter analy
 **BUILD ALINMADI — kullanıcı onayı bekleniyor (CLAUDE.md kural 0).**
 Backend değişikliği var (`held_by` sahiplik kapısı) → yayında **deploy gerekecek**,
 migration YOK.
+
+### ✅ TURU 64 YAYINLANDI (4 Ağustos 20:30)
+- **Build:** android `30933267247` + ios `30933270300` (kod `19d0a96`), ikisi de success.
+- **Doğrulamalar:** debug imza **YOK** (0 eşleşme) · iOS deployment target **16.0** korunuyor
+  (pbxproj'da 3 yerde) · APK boyutu turu 63 ile **birebir aynı** (108254861) ama
+  **MD5 FARKLI** (`2b466ce4` → `22aac748`) — "boyut aynı = build eski" kuralı yine
+  doğrulandı · IPA **büyüdü** (22349602 → 22358493) = yeni Swift (`GebzemGsmGozcu`)
+  gerçekten derlendi.
+- **Dağıtım:** R2'ye apk+ipa+index.html yüklendi → Cloudflare purge OK →
+  **CDN'den indirilen APK yerelle MD5 BİREBİR** (`22aac748`), IPA de birebir
+  (`fd7c8d44`) → indir sayfası saati **4 Ağustos 20:30** görünüyor, manifest.plist 200.
+- **Backend:** DEPLOY EDİLDİ (`19d0a96`), `/health` = ok, tüm alt sistemler aktif;
+  yeni `held_by` sahiplik kapısının SQL'i canlı DB'de `EXPLAIN` ile doğrulandı
+  (filtre doğru kuruluyor). **Migration YOK.**
+- **DB:** TRUNCATE sonrası users=0 calls=0 chats=0 messages=0.
+
+### KULLANICI NE TEST EDECEK
+1. **(S1 — asıl fix)** iPhone'da Gebzem görüşmesi sürerken GSM araması gelsin, "Beklet ve
+   Kabul" → konuş → GSM'i kapat → **Gebzem'de ses gidiyor mu?** (Karşı taraf seni duyuyor mu?)
+2. **(S2)** Bekletme sırasında Gebzem'e dön → yeşil bantta **"Devam et" düğmesi** görünmeli.
+3. **(S3 — yeni kod, en riskli)** iPhone'dan **kendin GSM araması yap** → Gebzem beklemeye
+   alınmalı, karşı tarafta "Beklemede" görünmeli; GSM bitince kendiliğinden devam etmeli.
+4. **⚠️ REGRESYON KONTROLÜ (E1'in test ettiği senaryo):** iPhone'da görüşme sürerken
+   **ikinci bir Gebzem araması** gelsin → mevcut görüşme **kendiliğinden kesilmemeli**.
+5. Sesli oda + canlı yayın: hiçbir değişiklik olmamalı.
+6. Ses gecikmesi: GSM sonrası devam edince hâlâ var mı? (Artık DOĞRU metrikle ölçülüyor.)
+
+### TEST SONRASI SENTRY'DE BAKILACAKLAR
+- `ses oturumu ACILAMADI (unhold|devam): configOk=.. hata=.. acik=.. aktif=..`
+  → **çıkmazsa KÖK-A çözüldü.** Çıkarsa `hata` alanındaki NSError kodu hedefli fix verir.
+- `callkit hold olayi: on=.. eslesenArama=.. park=.. beklemede=.. platform=..`
+  → iPhone'da hold olayının gelip gelmediği artık GÖRÜNÜR.
+- `gsm gozcu YANLIS ALARM` → **çıkmamalı**; çıkarsa native defterde delik var demektir.
+- `devam sonrasi ses: tamponMs=.. jitterMs=.. gizlenenOrnek=.. recvPaketSn=..`
+  → ses gecikmesi için artık DOĞRU metrik.
