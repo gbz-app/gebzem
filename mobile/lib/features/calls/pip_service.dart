@@ -221,6 +221,27 @@ class PipService {
     } catch (_) {}
   }
 
+  /// ⚠️⚠️ TURU 65 — SES OTURUMU SON CARE KURTARMASI (iOS).
+  /// Ses oturumu "!pri" (InsufficientPriority) ile acilamiyorsa CallKit'e beklet+devam
+  /// yaptirilir; aktivasyonu Apple'in izin verdigi TEK sahip (CXProvider) yapar.
+  /// Donus: istek BASLATILABILDI mi (CallKit aramayi tanimiyorsa false).
+  ///
+  /// ⚠️⚠️ NEDEN BURADA (PipService) DEGIL de controller'da DEGIL: native `case` bu
+  /// projede `gebzem/pip` kanalinda kayitli. Ilk yazdigimda controller'daki
+  /// `_audioCh` (= `gebzem/audio`) uzerinden cagirmistim ve KANALLAR UYUSMADIGI icin
+  /// cagri `MissingPluginException` atip `catch (_)` ile yutuluyordu — turun ASIL fix'i
+  /// TAMAMEN OLU KODDU (build oncesi denetimde yakalandi).
+  /// ⚠️ YAPMA: bu cagriyi `gebzem/audio` kanalina tasima; native `case`i bolme.
+  static Future<bool> callkitSesKurtar(String callId) async {
+    if (!Platform.isIOS || callId.isEmpty) return false;
+    try {
+      _handlerKur();
+      return (await _ch.invokeMethod<bool>('callkitSesKurtar', callId)) ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// TEST TURU 32 — SUREN ARAMA ONDEPLAN SERVISI (Android). Kullanici: "uygulamayi alta
   /// alinca / kilitleyince 5-10 saniye sonra gorusme bitiyor".
   /// KOK NEDEN: Android 14+ arka plana gecip "cached" olan sureci **10sn sonra DONDURUR**

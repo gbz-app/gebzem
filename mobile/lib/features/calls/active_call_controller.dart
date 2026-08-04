@@ -304,6 +304,8 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
   // hold olayi olarak geri doner. O olay medyayi durdurup karsi tarafa "Beklemede"
   // GONDERMEMELI. ⚠️ YAPMA: pencereyi uzatma (gercek bir GSM bekletmesini yutar).
   DateTime? _sesKurtarmaPenceresi;
+  // Pencere HANGI arama icin acildi — baska bir aramanin hold olayi yutulmasin.
+  String? _sesKurtarmaPenceresiId;
   String? _sonKurtarma; // tetiklenen kurtarma imzasi — bir sonraki audioStat'a eklenir
   // SORUN-6 SES KANIT BEKCISI: sayac yalniz GERCEK paket akisi kanitiyla baslar
   // (TrackSubscribed sinyal-duzeyi olay — olu birimde paket olmadan da tetikleniyordu)
@@ -1140,6 +1142,7 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     _sesOturumuOlcumYapildi = false;
     _callkitSesKurtarmaDenendi = false;
     _sesKurtarmaPenceresi = null;
+    _sesKurtarmaPenceresiId = null;
     // TURU 64: olcum tabanlari da sifirlanir — yoksa yeni aramanin ILK olcumu eski
     // aramanin sayaclariyla farklanip NEGATIF (anlamsiz) deger yazar (sahada gorulen
     // `tamponDeltaMs=-199939200` / `gizlenenOrnek=-2128` bundandi).
@@ -2053,7 +2056,16 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
           // ornek uretilmis olmali. ⚠️ YAPMA: esigi tekrar `> 0`a dusurme.
           if (sureDelta > 0.2) {
             _gecikmeOlcumZamani = null;
-            final gercekTamponMs = (tamponDelta / sureDelta) * 1000;
+            // ⚠️⚠️ OLCEK (denetim bulgusu): `jitterBufferDelay` ORNEK-AGIRLIKLI bir
+            // toplamdir (saniye x ornek); dogru bolen ORNEK SAYISIdir, sure DEGIL.
+            // livekit 2.5 `jitterBufferEmittedCount` alanini ACMIYOR, bu yuzden
+            // ornek sayisi `sure x 48000` (WebRTC ses saati) ile TAHMIN edilir.
+            // Bu duzeltme olmadan deger 48000 KAT buyuk cikiyordu (sahada
+            // `tamponMs=5510400` = 5510 saniye — acikca sacma).
+            // ⚠️ YAPMA: 48000 bolenini kaldirma; bunu kesin deger sanma (TAHMINI).
+            const ornekSaati = 48000.0;
+            final gercekTamponMs =
+                (tamponDelta / (sureDelta * ornekSaati)) * 1000;
             unawaited(Sentry.captureMessage(
                 'devam sonrasi ses: tamponMs=${gercekTamponMs.toStringAsFixed(0)} '
                 'jitterMs=${(jitterSn * 1000).toStringAsFixed(1)} '
@@ -2537,7 +2549,17 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
         m != null && m['active'] == true && m['configOk'] == true;
 
     Map<String, dynamic>? son = await _sesiAc(true);
-    if (aktifMi(son)) return; // saglikli yol: tek denemede oldu, hicbir sey yapma
+    if (aktifMi(son)) {
+      // ⚠️⚠️ SAGLIKLI YOLDA DA ROTA GERI UYGULANIR (denetim bulgusu).
+      // Eskiden burada kosulsuz `return` vardi; oysa bekletmelerin COGU bu daldan
+      // gecer (oturum ilk denemede acilir). Rota geri uygulanmayinca iOS hoparloru
+      // secili birakiyor ve kullanicinin tarif ettigi "ses AVIZEDEN geliyor gibi"
+      // sorunu tam olarak BU dalda kaliyordu — yani fix hic devreye girmiyordu.
+      // ⚠️ YAPMA: buraya ciplak `return` geri koyma.
+      if (_ayrildi || arama?.callId != orijinalId) return;
+      await _sesYolunuGeriUygula();
+      return;
+    }
 
     for (final ms in araliklar) {
       await Future<void>.delayed(Duration(milliseconds: ms));
@@ -2567,28 +2589,55 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     // ⚠️ YAPMA: bunu merdivenden ONCE calistirma (saglikli aramada gereksiz kesinti).
     // ⚠️ YAPMA: arama basina birden fazla kez denetme.
     if (_ayrildi || beklemede || arama?.callId != orijinalId) return;
+    // ⚠️⚠️ PARK KAPISI (denetim bulgusu): `parkEt()` `arama`yi TEMIZLEMEZ, `beklemede`
+    // yazmaz, yalniz `_room`u null'lar. Yani yukaridaki uc kapi PARK EDILMIS aramada da
+    // GECER ve CallKit kurtarmasi park edilmis aramayi SISTEMDE unhold ederdi.
+    // ⚠️ YAPMA: bu kapiyi kaldirma.
+    if (parkEdilen != null || _room == null) return;
     if (!PipService.gsmAramada.value && !_callkitSesKurtarmaDenendi) {
       _callkitSesKurtarmaDenendi = true;
-      // CallKit gecisi bize hold olayi olarak GERI DONER; o olayin medyayi durdurup
-      // karsi tarafa "Beklemede" gondermesini ISTEMIYORUZ -> kisa bastirma penceresi.
-      _sesKurtarmaPenceresi = DateTime.now();
       bool baslatildi = false;
       try {
-        baslatildi = (await _audioCh.invokeMethod<bool>(
-                'callkitSesKurtar', orijinalId)) ??
-            false;
+        // ⚠️⚠️ KANAL: native `case` `gebzem/pip`te kayitli. Ilk yazimda buradan
+        // `_audioCh` (`gebzem/audio`) ile cagirmistim -> MissingPluginException ->
+        // `catch (_)` yutuyordu -> TURUN ASIL FIX'I TAMAMEN OLU KODDU (build oncesi
+        // denetimde yakalandi). ⚠️ YAPMA: buraya `_audioCh` geri koyma.
+        baslatildi = await PipService.callkitSesKurtar(orijinalId);
       } catch (_) {}
-      if (baslatildi) {
-        // Gecisin tamamlanmasi + didActivate zinciri icin bekle, sonra OLC.
-        await Future<void>.delayed(const Duration(milliseconds: 1800));
-        if (_ayrildi || arama?.callId != orijinalId) return;
-        final sonuc = await _sesDurumOku();
-        final duzeldi = sonuc != null && sonuc['active'] == true;
-        if (duzeldi) await _sesYolunuGeriUygula();
-        unawaited(Sentry.captureMessage(
-            'callkit ses kurtarma ($etiket): duzeldi=$duzeldi '
-            'aktif=${sonuc?['active']} acik=${sonuc?['audioEnabled']}'));
-        if (duzeldi) return;
+      if (!baslatildi) {
+        // Istek HIC baslamadi -> hakki IADE ET (yoksa gercek kurtarma sansi yanar).
+        _callkitSesKurtarmaDenendi = false;
+      } else {
+        // CallKit gecisi bize hold olayi olarak GERI DONER; o olayin medyayi durdurup
+        // karsi tarafa "Beklemede" gondermesini ISTEMIYORUZ -> kisa bastirma penceresi.
+        // ⚠️⚠️ Pencere istek BASARIYLA baslatildiktan SONRA acilir. Eskiden KOSULSUZ
+        //    aciliyordu; cagri her zaman basarisiz oldugu icin HER aramada 4sn'lik KOR
+        //    pencere olusuyordu (park kilitlenmesi + GSM gizlilik riski).
+        // ⚠️ YAPMA: pencereyi cagridan ONCE acma.
+        _sesKurtarmaPenceresi = DateTime.now();
+        _sesKurtarmaPenceresiId = orijinalId;
+        try {
+          // Gecisin tamamlanmasi + didActivate zinciri icin bekle, sonra OLC.
+          await Future<void>.delayed(const Duration(milliseconds: 1800));
+          if (_ayrildi || arama?.callId != orijinalId) return;
+          // ⚠️⚠️ OLCUM SOZLESMESI: `getAudioState` `configOk` DONDURMEZ; merdivenin
+          // olcutu ise `aktifMi` = active && configOk. Iki yolun FARKLI olcutle
+          // "basari" ilan etmesi YANLIS POZITIF uretir ve bir sonraki turu KOR birakir
+          // (turu 60/61 olcum korlugu dersi). Ayni yoldan yeniden olcuyoruz.
+          // ⚠️ YAPMA: burada `_sesDurumOku()` kullanma.
+          final sonuc = await _sesiAc(true);
+          final duzeldi = aktifMi(sonuc);
+          if (duzeldi) await _sesYolunuGeriUygula();
+          unawaited(Sentry.captureMessage(
+              'callkit ses kurtarma ($etiket): duzeldi=$duzeldi '
+              'aktif=${sonuc?['active']} configOk=${sonuc?['configOk']} '
+              'hata=${sonuc?['hata']}'));
+          if (duzeldi) return;
+        } finally {
+          // Pencere HER durumda kapanir (erken return dahil).
+          _sesKurtarmaPenceresi = null;
+          _sesKurtarmaPenceresiId = null;
+        }
       }
     }
     // Hepsi tukendi -> GERCEK Sentry olayi (arama basina EN FAZLA 1).
@@ -3173,23 +3222,29 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     unawaited(Sentry.captureMessage(
         'callkit hold olayi: on=$aktif eslesenArama=${arama != null} '
         'park=${parkEdilen != null} beklemede=$beklemede platform=${Platform.operatingSystem}'));
-    // ⚠️⚠️ TURU 65 — KURTARMA PENCERESI BASTIRMASI.
-    // Ses oturumu "!pri" ile acilamadiginda CallKit'e BIZ beklet+devam yaptiriyoruz
-    // (bkz. `GebzemSesKurtar`). O gecis bize hold olayi olarak GERI DONER; islenirse
-    // medyayi durdurur ve karsi tarafa gereksiz "Beklemede" gonderir. Kisa pencere
-    // boyunca ve YALNIZ GSM YOKKEN yok sayilir (gercek GSM bekletmesi yutulmasin).
-    // ⚠️ YAPMA: pencereyi uzatma; GSM kontrolunu kaldirma.
-    final pencere = _sesKurtarmaPenceresi;
-    if (pencere != null &&
-        DateTime.now().difference(pencere) < const Duration(seconds: 4) &&
-        !PipService.gsmAramada.value) {
-      _sesLog('callkit hold olayi YOK SAYILDI (ses kurtarma penceresi) on=$aktif');
-      return;
-    }
     final hedef = callId.toLowerCase();
+    // ⚠️⚠️ PARK DALI EN USTTE KALIR (denetim bulgusu): bastirma penceresi bu dalin
+    // USTUNDEYDI ve park edilmis aramaya gelen "devam" olayini da yutabiliyordu —
+    // park SONSUZA KADAR sikisir (turu 54 regresyonu).
+    // ⚠️ YAPMA: bastirma kapisini bu dalin USTUNE tasima.
     final p = parkEdilen;
     if (p != null && p.bilgi.callId.toLowerCase() == hedef) {
       if (!aktif && arama == null) await devamEt();
+      return;
+    }
+    // ⚠️⚠️ TURU 65 — KURTARMA PENCERESI BASTIRMASI.
+    // Ses oturumu "!pri" ile acilamadiginda CallKit'e BIZ beklet+devam yaptiriyoruz
+    // (bkz. `GebzemSesKurtar`). O gecis bize hold olayi olarak GERI DONER; islenirse
+    // medyayi durdurur ve karsi tarafa gereksiz "Beklemede" gonderir.
+    // Kapi UC sarta bagli: (1) pencere acik, (2) olay AYNI arama icin, (3) GSM YOK
+    // (gercek bir GSM bekletmesi ASLA yutulmasin — turu 56/63 gizlilik).
+    // ⚠️ YAPMA: pencereyi uzatma; callId veya GSM sartini kaldirma.
+    final pencere = _sesKurtarmaPenceresi;
+    if (pencere != null &&
+        _sesKurtarmaPenceresiId?.toLowerCase() == hedef &&
+        DateTime.now().difference(pencere) < const Duration(seconds: 4) &&
+        !PipService.gsmAramada.value) {
+      _sesLog('callkit hold olayi YOK SAYILDI (ses kurtarma penceresi) on=$aktif');
       return;
     }
     final room = _room;
