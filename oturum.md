@@ -4161,3 +4161,83 @@ migration YOK.
 - `gsm gozcu YANLIS ALARM` → **çıkmamalı**; çıkarsa native defterde delik var demektir.
 - `devam sonrasi ses: tamponMs=.. jitterMs=.. gizlenenOrnek=.. recvPaketSn=..`
   → ses gecikmesi için artık DOĞRU metrik.
+
+---
+
+## TURU 65 — "!pri" KANITI: GSM sonrası sesi CallKit geri vermiyormuş (4 Ağustos 21:51)
+
+### Turu 64 testi: sorun sürdü AMA ölçüm kök nedeni KANITLADI
+Kullanıcı: "Gebzem'den birini aradım, sonra beni biri GSM ile aradı, konuşma bitince
+Gebzem'deki konuşma devam etti ama **ses gitmiyor, iki tarafa da**."
+
+Sunucu + Sentry (4 Ağu 18:02, arama `d31f6fc5`):
+```
+18:02:09  hold POST 200   -> bekletme calisti
+18:02:22  unhold POST 200 -> sinyal calisti
+18:02:24+ iOS[acik=true aktif=FALSE]  sent DONDU  mikE=0.0  VE recv enerji=0.0
+18:02:25  ses oturumu ACILAMADI (unhold): configOk=false
+          hata=NSOSStatusErrorDomain#561017449
+```
+**561017449 = 0x21707269 = "!pri" = AVAudioSessionErrorCodeInsufficientPriority.**
+iOS bize açıkça *"ses oturumunu SEN aktive edemezsin, öncelik sende değil"* diyor.
+⚠️ Yani **zamanlama değil, YETKİ sorunu** — turu 64'ün tekrar merdiveni bu yüzden yetmedi.
+
+### Plugin kaynağı okundu (flutter_callkit_incoming 3.1.3) — delik tam olarak nerede
+- `provider(_:didActivate:)` satır 775-779: AppDelegate'e **KOŞULSUZ** iletiyor.
+  → `aktif=false` olması "iletilmedi" değil, **CallKit didActivate'i HİÇ çağırmadı**.
+- `CXSetHeldCallAction` satır 719-732: ses oturumuna **dokunmuyor**, yalnız sahte bir
+  "interruption ended" bildirimi atıyor.
+**Sonuç:** hücresel arama bitince CallKit aramayı unhold ediyor ama **sesi geri vermiyor.**
+
+### FIX (kademeli)
+1. Tekrar merdiveni 3 → 6 basamak (200/600/1200/2000/3000/4000 ≈ 11sn).
+2. Tükenirse **son çare** `GebzemSesKurtar`: `CXCallController` ile aramaya
+   BEKLET + 400ms + DEVAM. Aktivasyonu Apple'ın izin verdiği **tek sahip** (CXProvider)
+   yapar; bizim "!pri" yediğimiz yol atlanır. Arama başına en fazla 1 kez, yalnız ses
+   zaten ölüyken. ⚠️ `CXCallController` STATİK (asenkron istek boyunca yaşamalı).
+
+### "Ses avizeden geliyor" — ikinci şikâyetin kökü de aynı loglarda
+Sunucu logunda SESLİ aramada `rota=Speaker`. Bekletmeden sonra iOS rotayı kendi seçiyor;
+Android'de `_androidSesTazele` geri uyguluyordu ama o metot **iOS'ta erken döner** →
+iPhone'da rotayı geri uygulayan **hiçbir şey yoktu**. `_sesYolunuGeriUygula()` eklendi.
+
+### ⚠️⚠️ DENETİM TURUN ASIL FIX'İNİ **ÖLÜ KOD** OLARAK YAKALADI (6 sevk engeli)
+19 ajanlık "bu fixler yanlış, kanıtla" turu:
+- 🔴 **KANAL UYUŞMAZLIĞI:** native `case "callkitSesKurtar"` **`gebzem/pip`** handler'ına
+  yazılmış, Dart ise **`gebzem/audio`**'dan çağırıyordu → `MissingPluginException` →
+  `catch (_)` yutuyor → **kurtarma bloğu hiç çalışmıyordu.** Test edilseydi hiçbir şey
+  değişmemiş olacaktı. ⚠️ **DERS: yeni native `case` eklerken hangi kanala yazdığını
+  Dart çağrısıyla KARŞILAŞTIR** — projede İKİ kanal var ve uyuşmazlık derleme zamanı
+  yakalanmaz (`invokeMethod` string'i kontrol edilmez).
+- **KÖR PENCERE:** bastırma penceresi çağrıdan önce ve koşulsuz açılıyordu; çağrı hep
+  başarısız olacağı için **her aramada** 4sn kör pencere olacaktı.
+- **PARK SIRASI:** bastırma kapısı park dalının üstündeydi → park sonsuza kadar sıkışırdı.
+- **PARK KAPISI YOK:** `parkEt()` `arama`yı temizlemediği için kurtarma park edilmiş
+  aramayı sistemde unhold edebilirdi.
+- **ÖLÇÜM YANLIŞ POZİTİF:** `getAudioState` `configOk` döndürmüyor; iki yol farklı
+  ölçütle "başarı" ilan ediyordu (turu 60/61 ölçüm körlüğü dersi).
+- **ROTA FIX'İ YANLIŞ DALDA:** `_sesYolunuGeriUygula()` yalnız sorunlu dallarda
+  çağrılıyordu; bekletmelerin **çoğu** ilk denemede açılan sağlıklı daldan geçer ve orada
+  çıplak `return` vardı → "avize" şikâyeti düzelmeyecekti.
+
+### YAYIN
+android `30939684916` + ios `30939688331` (`7109a2c`), apk md5 `d7b16b8c`,
+ipa md5 `e266567b` (22361701, büyüdü = yeni Swift derlendi), purge OK,
+**CDN'den indirilen apk+ipa yerelle MD5 BİREBİR**, indir sayfası 21:51,
+debug imza YOK, **backend DEĞİŞMEDİ** (19d0a96) + health ok, DB temiz (0/0/0/0).
+
+### KULLANICI TEST EDECEK
+1. **Asıl mesele:** iPhone'da Gebzem görüşürken GSM araması gelsin → konuş → GSM'i kapat
+   → **Gebzem'de ses geri geliyor mu? Karşı taraf seni duyuyor mu?**
+2. **Ses kalitesi:** ses "avizeden geliyor" gibi mi, yoksa normal ahizeden mi?
+3. Bekletme sırasında karşı tarafta "Beklemede" görünüyor mu.
+4. iPhone'dan **kendin** GSM araması yap → Gebzem beklemeye alınmalı, bitince devam etmeli.
+5. Görüşme sürerken **ikinci bir Gebzem araması** gelsin → mevcut görüşme kesilmemeli.
+6. Normal aramalar + sesli oda + canlı yayın bozulmamış olmalı.
+
+### TEST SONRASI SENTRY
+- `callkit ses kurtarma (unhold|devam): duzeldi=true/false aktif=.. configOk=.. hata=..`
+  → **`duzeldi=true` çıkarsa CallKit kurtarması TUTTU.** `false` ise yeni hata kodu
+  bir sonraki adımı gösterecek.
+- `ses oturumu ACILAMADI (...)` → **hiç çıkmazsa merdiven tek başına yetmiş** demektir.
+- `callkit hold olayi: ...` / `gsm olayi: ...` / `gsm gozcu YANLIS ALARM` (çıkmamalı).

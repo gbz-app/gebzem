@@ -17,7 +17,62 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (4 Agu 20:30):** TEST TURU 64 YAYINLANDI — android 30933267247 +
+- **KALDIGIMIZ YER (4 Agu 21:51):** TEST TURU 65 YAYINLANDI — android 30939684916 +
+  ios 30939688331 (7109a2c), R2 apk=108254861 (md5 **d7b16b8c**) ipa=22361701
+  (md5 e266567b), purge OK, **CDN'den indirilen apk+ipa yerelle MD5 BIREBIR**,
+  indir sayfasi saati 21:51, debug imza YOK, **BACKEND DEGISMEDI** (19d0a96'da kaldi)
+  + health ok, DB temiz (0/0/0/0). **KULLANICI TEST EDECEK.**
+- ⚠️⚠️ **TURU 65 — "!pri" KANITI: ASIL KOK NEDEN ARTIK OLCULDU (tahmin DEGIL).**
+  Turu 64'te ekledigim olcum sahada su olayi yazdi (4 Agu 18:02, arama d31f6fc5):
+  `ses oturumu ACILAMADI (unhold): configOk=false hata=NSOSStatusErrorDomain#561017449`
+  **561017449 = 0x21707269 = "!pri" = AVAudioSessionErrorCodeInsufficientPriority.**
+  iOS diyor ki: *"ses oturumunu SEN aktive edemezsin, oncelik sende degil."*
+  ⚠️⚠️ **BU BIR ZAMANLAMA SORUNU DEGIL, YETKI SORUNU** — tekrar denemek TEK BASINA
+  COZMEZ. (Turu 64'un 3 basamakli merdiveni bu yuzden yetmedi.)
+  **PLUGIN KAYNAGI OKUNDU** (flutter_callkit_incoming 3.1.3):
+  · `provider(_:didActivate:)` (satir 775-779) AppDelegate'e **KOSULSUZ** iletiyor
+    -> `aktif=false` olmasi "iletilmedi" degil, **"CallKit didActivate'i HIC CAGIRMADI"**.
+  · `CXSetHeldCallAction` (719-732) ses oturumuna **DOKUNMUYOR**, yalnizca sahte bir
+    "interruption ended" bildirimi atiyor.
+  **YANI: hucresel arama bitince CallKit aramayi unhold ediyor ama SESI GERI VERMIYOR.**
+  **FIX (kademeli):** (1) merdiven 3 -> 6 basamak (~11sn), (2) tukenirse SON CARE
+  `GebzemSesKurtar`: `CXCallController` ile arama BEKLET + 400ms + DEVAM -> aktivasyonu
+  Apple'in izin verdigi TEK sahip (CXProvider) yapar, `didActivate` zinciri BASTAN calisir.
+  ⚠️ `CXCallController` STATIK olmali (asenkron istek boyunca yasamali).
+  ⚠️ Iki istek arasi gecikme SART (CallKit birlestirip NO-OP yapabilir).
+  ⚠️ YAPMA: kurtarmayi merdivenden ONCE calistirma; arama basina 1'den fazla denetme.
+- ✅ **TURU 65 — "SES AVIZEDEN GELIYOR" (kullanici):** sunucu logunda SESLI aramada
+  `rota=Speaker`. KOK: bekletmeden sonra iOS rotayi KENDI seciyor; Android'de
+  `_androidSesTazele` geri uyguluyordu ama o metot **iOS'ta ERKEN DONER** — iOS'ta
+  rotayi geri uygulayan **HICBIR SEY YOKTU** (bayrak/donanim celiskisi: hoparlor
+  dugmesi "kapali" gorunurken donanim ACIK). FIX: `_sesYolunuGeriUygula()`
+  (mic -> hoparlor sirasi). ⚠️ **SAGLIKLI DALDA DA CAGRILIR** — bekletmelerin COGU
+  ilk denemede acilan daldan gecer; orada ciplak `return` vardi ve fix HIC devreye
+  girmiyordu (denetimde yakalandi).
+- ⚠️⚠️ **TURU 65b — DENETIM TURUN ASIL FIX'INI OLU KOD OLARAK YAKALADI (6 sevk engeli).**
+  🔴 **KANAL UYUSMAZLIGI:** native `case "callkitSesKurtar"` **`gebzem/pip`** handler'ina
+  yazilmisti, Dart ise `_audioCh` (**`gebzem/audio`**) uzerinden cagiriyordu ->
+  `MissingPluginException` -> `catch (_)` yutuyor -> **kurtarma blogu HIC calismiyordu.**
+  FIX: `PipService.callkitSesKurtar()` (mevcut `gsmDinle`/`gebzemAramaKaydet` deseni).
+  ⚠️ **DERS: yeni bir native `case` eklerken HANGI KANALA yazdigini Dart cagirisiyla
+  KARSILASTIR** — iki kanal var (`gebzem/audio` ve `gebzem/pip`) ve uyusmazlik
+  derleme zamani YAKALANMAZ (`invokeMethod` string'i kontrol edilmez).
+  · **KOR PENCERE:** bastirma penceresi cagridan ONCE ve KOSULSUZ aciliyordu; cagri
+    her zaman basarisiz oldugu icin HER aramada 4sn kor pencere olusacakti.
+    FIX: pencere yalniz istek BASARILI ise acilir, `finally` ile kapanir, callId'ye bagli.
+  · **PARK SIRASI:** bastirma kapisi park dalinin USTUNDEYDI -> park edilmis aramaya
+    gelen "devam" olayini yutup parki SONSUZA KADAR sikistirabilirdi (turu 54).
+    FIX: park dali EN USTE.
+  · **PARK KAPISI YOK:** `parkEt()` `arama`yi temizlemez/`beklemede` yazmaz, yalniz
+    `_room`u null'lar -> kurtarma kapilari park edilmis aramada da GECIYORDU.
+    FIX: `if (parkEdilen != null || _room == null) return;`.
+  · **OLCUM YANLIS POZITIF:** kurtarma sonucu `getAudioState` ile olculuyordu ama o uc
+    `configOk` DONDURMUYOR; merdivenin olcutu `active && configOk`. FIX: ayni yoldan
+    (`_sesiAc`) yeniden olculur. (turu 60/61 olcum korlugu dersi)
+- ⚠️ **TAMPON OLCUMU OLCEK HATASI:** `jitterBufferDelay` ORNEK-AGIRLIKLI; dogru bolen
+  ornek SAYISI. livekit 2.5 `jitterBufferEmittedCount` acmadigi icin `sure x 48000`
+  ile TAHMIN ediliyor (sahadaki `tamponMs=5510400` bu yuzdendi). ⚠️ Deger TAHMINI.
+- **ONCEKI (4 Agu 20:30):** TEST TURU 64 YAYINLANDI — android 30933267247 +
   ios 30933270300 (19d0a96), R2 apk=108254861 (md5 **22aac748**) ipa=22358493
   (md5 fd7c8d44), purge OK, **CDN'den indirilen APK yerelle MD5 BIREBIR**, indir sayfasi
   saati 20:30, **BACKEND DEPLOY EDILDI** (19d0a96 + health ok + yeni `held_by` SQL'i
