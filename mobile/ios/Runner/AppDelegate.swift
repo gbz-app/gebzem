@@ -238,8 +238,30 @@ import flutter_callkit_incoming
   }
   // action.fulfill() -> CallKit didActivateAudioSession'i tetikler
   func onAccept(_ call: Call, _ action: CXAnswerCallAction) { action.fulfill() }
-  func onDecline(_ call: Call, _ action: CXEndCallAction) { action.fulfill() }
-  func onEnd(_ call: Call, _ action: CXEndCallAction) { action.fulfill() }
+  func onDecline(_ call: Call, _ action: CXEndCallAction) {
+    GebzemGsmGozcu.shared.callkitBittiBildir(call.data.uuid)
+    action.fulfill()
+  }
+  /// ⚠️⚠️ TURU 69 — KULLANICI SIKAYETI: "GSM gelince BITIR dedim, KARSI TARAFTA arama
+  /// kapandi ama BENDE Gebzem arama EKRANI arkada DURUYOR; GSM'i kapatinca ekran ANLIK
+  /// gorunup gidiyor."
+  ///
+  /// KOK NEDEN: CallKit "Bitir ve Kabul" -> `CXEndCallAction` -> BURASI calisir ve
+  /// `action.fulfill()` der. Ama Dart'taki `ActiveCallController`a HABER VERILMEZ.
+  /// Eklentinin olay akisi o anda ARKA PLAN isolate'ine (`_callkitArkaPlan`) dusuyor;
+  /// o handler YALNIZ sunucuya `/end` POST ediyor — bu yuzden KARSI TARAF kapaniyor
+  /// ama BIZDE oda, sayaclar ve EKRAN ayakta kaliyor. Uygulama on plana dondugunde
+  /// 3sn'lik durum yoklamasi 'ended' goruyor ve ANCAK O ZAMAN yikim basliyor —
+  /// kullanicinin gordugu "ekran anlik gorunup gidiyor" tam olarak BU.
+  ///
+  /// FIX: native taraf, isolate yonlendirmesinden BAGIMSIZ olarak Dart'a dogrudan
+  /// haber verir; controller aramayi ANINDA `leave()` ile kapatir.
+  /// ⚠️ YAPMA: `action.fulfill()`i geciktirme/kaldirma (CallKit zaman asimi).
+  /// ⚠️ YAPMA: burada agir is yapma — yalniz tek bir kanal mesaji.
+  func onEnd(_ call: Call, _ action: CXEndCallAction) {
+    GebzemGsmGozcu.shared.callkitBittiBildir(call.data.uuid)
+    action.fulfill()
+  }
   func onTimeOut(_ call: Call) {}
 
   // MARK: - PKPushRegistryDelegate
@@ -517,6 +539,15 @@ final class GebzemGsmGozcu: NSObject, CXCallObserverDelegate {
     if yeni == sonDurum { return } // yalniz DEGISIMDE bildir
     sonDurum = yeni
     bildir(yeni, yabanci)
+  }
+
+  /// TURU 69: CallKit aramayi BITIRDI — Dart'a DOGRUDAN haber ver (isolate yonlendirmesi
+  /// eklentiye birakilamaz; bkz. `AppDelegate.onEnd` serhi). Kanal ZATEN burada oldugu
+  /// icin ayri bir kanal acmiyoruz.
+  /// ⚠️ YAPMA: bunu `gsmDurum` yuku icine gomme (ayri anlam, ayri metot).
+  func callkitBittiBildir(_ callId: String) {
+    guard !callId.isEmpty else { return }
+    kanal?.invokeMethod("callkitBitti", arguments: callId)
   }
 
   private func bildir(_ on: Bool, _ uuid: String) {

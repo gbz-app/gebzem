@@ -154,6 +154,27 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     // TEST TURU 20 — GSM ARAMA BEKLETME (Android; iOS'ta bunu CallKit yapar):
     // normal telefon aramasi baslayinca Gebzem aramasi BEKLEMEYE alinir (medya durur,
     // arama SUNUCUDA OLMEZ), telefon gorusmesi bitince kaldigi yerden DEVAM eder.
+    // ⚠️⚠️ TURU 69 — CALLKIT "BITIR" ARTIK ANINDA ISLENIYOR (kullanici sikayeti:
+    // "GSM gelince BITIR dedim, karsi tarafta kapandi ama BENDE Gebzem arama EKRANI
+    // arkada DURUYOR; GSM'i kapatinca ekran ANLIK gorunup gidiyor").
+    // KOK: CallKit `CXEndCallAction` -> AppDelegate `onEnd` -> `action.fulfill()`.
+    // Eklentinin Dart olay akisi o anda ARKA PLAN isolate'ine dusuyor ve orasi YALNIZ
+    // sunucuya `/end` POST ediyor -> KARSI TARAF kapaniyor, BIZDE oda/ekran/sayaclar
+    // AYAKTA kaliyor. On plana donunce 3sn'lik yoklama 'ended' goruyor ve ancak o zaman
+    // yikim basliyor = "ekran anlik gorunup gidiyor".
+    // Artik native taraf DOGRUDAN haber veriyor; burada TEK KAPIDAN (`leave`) kapatiyoruz.
+    // ⚠️ `notifyServer: TRUE` — sunucuya `/end` genelde ZATEN gidiyor (arka plan
+    //     isolate'i veya `_redSub`), ama HER IKISININ de kacirdigi bir durum olursa
+    //     arama sunucuda 'active' ASILI kalir. `/end` IDEMPOTENT (turu 59:
+    //     `RowsAffected()==0` kapisi) — cift gonderim ZARARSIZ, kacan bitis ZARARLI.
+    // ⚠️ YAPMA: bu dinleyiciyi kaldirma; kimlik kapisini kaldirma.
+    PipService.callkitBittiCb = (bitenId) {
+      final b = arama;
+      if (b == null || _ayrildi) return;
+      if (b.callId.toLowerCase() != bitenId.toLowerCase()) return;
+      _sesLog('callkit BITIR olayi -> arama kapatiliyor (native bildirim)');
+      unawaited(leave(notifyServer: true));
+    };
     PipService.gsmAramada.addListener(() {
       final b = arama;
       if (b == null || _ayrildi || !_baglandi) return;

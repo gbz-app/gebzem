@@ -28,6 +28,10 @@ class PipService {
   /// ⚠️ YAPMA: bu alani kaldirma; controller'daki karsilastirmayi silme.
   static String gsmYabanciId = '';
 
+  /// TURU 69: CallKit aramayi bitirdiginde (iOS) cagrilir — `ActiveCallController`
+  /// kendini bu geri cagrimla ANINDA kapatir. ⚠️ YAPMA: bunu kaldirma.
+  static void Function(String callId)? callkitBittiCb;
+
   /// TEST TURU 37: iOS kamera kesinti sebebi (AVCaptureSessionInterruptionReasonKey ham
   /// degeri). 0 = kesinti yok. Teshis icin Sentry'e yazilir.
   static final ValueNotifier<int> kameraKesintiSebebi = ValueNotifier<int>(0);
@@ -60,6 +64,13 @@ class PipService {
           _androidDurumCb?.call(v);
         case 'pipEylem': // Android PiP penceresindeki dugmeler (mic/kapat)
           _eylemCb?.call(call.arguments as String? ?? '');
+        // ⚠️⚠️ TURU 69 — CallKit aramayi BITIRDI (iOS). Eklentinin olay akisi arka
+        // planda AYRI isolate'e dusebiliyor ve orada YALNIZ sunucuya `/end` gidiyor;
+        // uygulama-ici arama (oda/ekran/sayaclar) haberdar OLMUYORDU.
+        // ⚠️ YAPMA: bu dali kaldirma — kaldirirsan "GSM'de bitir dedim ama Gebzem
+        //     ekrani arkada duruyor" hatasi geri gelir.
+        case 'callkitBitti':
+          callkitBittiCb?.call((call.arguments as String?) ?? '');
         case 'gsmDurum': // TEST TURU 20: GSM aramasi basladi/bitti
           // Android: duz bool. iOS (turu 64): {'on': bool, 'uuid': String} — uuid,
           // gozcunun "yabanci" saydigi aramanin kimligidir; controller IKINCI bir
