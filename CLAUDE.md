@@ -17,7 +17,54 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (5 Agu 00:59):** TEST TURU 68 YAYINLANDI — android 30953817519 +
+- **KALDIGIMIZ YER (5 Agu 18:06):** TEST TURU 69 YAYINLANDI — android 31017049686 +
+  ios 31017055749 (522f908), R2 apk=108238365 (md5 da3eb963) ipa=22353814 (md5 b2a11ea7),
+  purge OK, **CDN birebir**, indir sayfasi 18:06, debug imza YOK, **backend DEGISMEDI**
+  (19d0a96) + health ok, DB temiz. **KULLANICI TEST EDECEK.**
+- ⚠️⚠️ **TURU 69 — "GSM'DE BITIR DEDIM, KARSI TARAF KAPANDI AMA BENDE EKRAN ARKADA
+  DURUYOR; GSM'i kapatinca ekran ANLIK gorunup gidiyor."**
+  **YAPILAN:** `AppDelegate.onEnd` ve `onDecline` artik `GebzemGsmGozcu
+  .callkitBittiBildir(call.data.uuid)` ile MEVCUT `gebzem/pip` kanalindan Dart'a
+  `callkitBitti` gonderiyor; `PipService.callkitBittiCb` -> controller kimlik kapisiyla
+  dogrulayip TEK KAPIDAN `leave(notifyServer: true)` cagiriyor.
+  ⚠️ `notifyServer: TRUE` BILEREK — `/end` genelde zaten gitmis olur ama iki yol da
+  kacirirsa arama sunucuda 'active' ASILI kalir; `/end` IDEMPOTENT (turu 59).
+  ⚠️ YAPMA: `action.fulfill()`i geciktirme; `onEnd` icinde agir is yapma.
+  ⚠️ `call.data.uuid` DOGRU alan (plugin `Data.init(id:)` -> `self.uuid = id`).
+  🔴 **KOK NEDEN HALA KANITLANMADI (durustluk):** ilk aciklamam ("olay arka plan
+  isolate'ine dusuyor") **iOS ICIN YANLISTI** — bkz. asagidaki teshis duzeltmesi.
+  Bu kanca semptomu KESIN kapatir ama NEDEN gec kapandigini olcum gosterecek.
+- ⚠️⚠️ **TESHIS DUZELTMESI — `onBackgroundMessage` YALNIZ ANDROID'DE VAR.**
+  `FlutterCallkitIncoming.onBackgroundMessage` eklentinin iOS tarafinda UYGULANMAMIS;
+  `MissingPluginException` firlatiyor ve `catch (_)` YUTUYOR -> **`_callkitArkaPlan`
+  iPHONE'DA HIC CALISMIYOR.** Eski yorum ("iOS DAHIL ... iOS reddi de arka plandan
+  sunucuya ulasabilir") YANLISTI. Kayit artik `if (Platform.isAndroid)` kapisinda.
+  ⚠️ YAPMA: Android'de kaldirma (terminated Android'de CallKit reddi/bitisi YALNIZ
+  bu yoldan sunucuya ulasir). ⚠️ Bunu bir daha "iOS'ta da calisiyor" diye varsayma.
+- ⚠️⚠️ **TURU 69b — DENETIM KENDI KANCAMDA 2 SEVK ENGELI BULDU:**
+  **(E1) KENDI `bitir()` CAGRIMIZ KANCAYI TETIKLIYORDU:** `CallKitService.bitir()` ->
+  `endCall` -> plugin `CXEndCallAction` -> `AppDelegate.onEnd` -> callback -> `leave()`.
+  Yani `_cevapsizGoster`/`geriAra` yollarinda **"Cevap yok — Geri Ara" ekrani ~50-150ms
+  sonra KENDILIGINDEN kapaniyor**, kullanici "Geri ara"ya BASAMIYORDU.
+  ⚠️⚠️ **`_bizBitirdik` BU IS ICIN KULLANILAMAZ:** (a) yalniz Dart olay yolunu korur,
+  (b) okurken TUKETIR (`remove`), (c) plugin Dart olayini native `onEnd`TEN ONCE
+  gonderir -> kume native kanca gelmeden BOSALMIS olur.
+  FIX: AYRI + ZAMAN PENCERELI defter `_programatikBitirilen` (10sn) + `bizMiBitirdik()`;
+  callback'in **ILK** kapisi bu, ayrica `_cevapsiz` kapisi.
+  ⚠️ YAPMA: iki defteri birlestirme; okurken silme; kapiyi kimlik kapilarinin altina koyma.
+  **(E2) BAYAT `leave` YENI ARAMAYI OLDURUYORDU (eski gizli hata, kanca gorunur yapti):**
+  `leave()` icinde SENKRON olan tek sey `_ayrildi = true`; asil yikim
+  `await CallSounds.durdur(...).timeout(250ms)` SONRASI. O pencerede "Bitir ve Kabul"
+  ikinci aramayi baslatirsa (`main.dart`teki `await ctrlOn.leave()` `_ayrildi` yuzunden
+  ANINDA doner) asili eski `leave` YENI aramanin aboneliklerini oldurur, ekranini pop
+  eder, ESKI id ile `ekranKapandi` cagirdigi icin mesgul muhafizini ASILI birakir.
+  FIX: await'ten hemen sonra **`if (arama?.callId != id) return;`** (tek satir).
+  ⚠️ YAPMA: bu kapiyi kaldirma; `_kapatOdayiKuyrugaKoy()`u await'in ALTINA tasima.
+- 📌 **TURU 69 OLCUMU — TEST SONRASI BAK:** iki kapatma yolu damgalandi:
+  `callkit bitir: kaynak=native yasam=..` ve `callkit bitir: kaynak=eklenti`.
+  Ikisinin ZAMAN FARKI, ekranin neden gec kapandigini KESIN gosterecek
+  (native once gelirse kanca kurtardi; eklenti hic gelmiyorsa asil delik orada).
+- **ONCEKI (5 Agu 00:59):** TEST TURU 68 YAYINLANDI — android 30953817519 +
   ios 30953819602 (e8215da), R2 apk=108238369 (md5 0925d92d) ipa=22353332 (md5 06475a23),
   purge OK, **CDN birebir**, indir sayfasi 00:59, debug imza YOK, **backend DEGISMEDI**
   (19d0a96) + health ok, DB temiz. **KULLANICI TEST EDECEK.**

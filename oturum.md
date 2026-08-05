@@ -4470,3 +4470,67 @@ debug imza YOK, backend DEĞİŞMEDİ + health ok, DB temiz.
 3. Peş peşe 10 kez "bitir ve kabul et" (wifi'da) — hiçbirinde arkada kalma olmamalı.
 4. Arama bitir → hemen sesli oda / canlı yayına gir (kilit sırası regresyon testi).
 5. Kapanış iki tarafta da yumuşak, donma yok.
+
+---
+
+## TURU 69 — "GSM'de bitir dedim, ekran arkada duruyor" (5 Ağustos 18:06)
+
+### Kullanıcı şikâyeti
+"Gebzem'le konuşurken GSM aradı, **Bitir** deyip GSM konuştum. **Karşı tarafta** Gebzem
+kapandı ama **bende arama ekranı arkada duruyor**; GSM'i kapatınca ekran **anlık görünüp
+gidiyor**."
+
+### Yapılan
+`AppDelegate.onEnd` / `onDecline` artık `GebzemGsmGozcu.callkitBittiBildir(call.data.uuid)`
+ile **mevcut** `gebzem/pip` kanalından Dart'a `callkitBitti` gönderiyor;
+`PipService.callkitBittiCb` → controller kimlik kapısıyla doğrulayıp **tek kapıdan**
+`leave(notifyServer: true)` çağırıyor. Böylece CallKit aramayı bitirdiği **anda**
+uygulama-içi arama (oda + ekran + sayaçlar) kapanıyor.
+⚠️ `notifyServer: TRUE` bilerek — `/end` genelde zaten gitmiş olur ama iki yol da
+kaçırırsa arama sunucuda 'active' asılı kalır; `/end` idempotent (turu 59).
+
+### 🔴 DÜRÜSTLÜK: kök neden HÂLÂ kanıtlanmadı
+İlk açıklamam **"olay arka plan isolate'ine düşüyor, o da sadece `/end` atıyor"** idi.
+Denetim bunu çürüttü: `FlutterCallkitIncoming.onBackgroundMessage` eklentinin **yalnız
+Android** tarafında var; iOS'ta `MissingPluginException` fırlatıyor ve `catch (_)`
+yutuyor → **`_callkitArkaPlan` iPhone'da hiç çalışmıyor.** Yani gerekçem iOS için
+geçersizdi. Kayıt artık `if (Platform.isAndroid)` kapısında, yanıltıcı yorum düzeltildi.
+Kanca semptomu kesin kapatır ama **neden geç kapandığını ölçüm gösterecek.**
+
+### ⚠️ DENETİM KENDİ KANCAMDA 2 SEVK ENGELİ BULDU
+**E1 — kendi `bitir()` çağrımız kancayı tetikliyordu.** `CallKitService.bitir()` →
+`endCall` → plugin `CXEndCallAction` → `onEnd` → callback → `leave()`. Yani
+`_cevapsizGoster`/`geriAra` yollarında **"Cevap yok — Geri Ara" ekranı ~50-150 ms sonra
+kendiliğinden kapanıyor**, kullanıcı "Geri ara"ya basamıyordu.
+⚠️ **`_bizBitirdik` bu iş için kullanılamaz:** (a) yalnız Dart olay yolunu korur,
+(b) okurken **tüketir**, (c) plugin Dart olayını native `onEnd`**ten önce** gönderir →
+küme native kanca gelmeden boşalmış olur.
+FIX: ayrı + zaman pencereli defter `_programatikBitirilen` (10 sn) + `bizMiBitirdik()`;
+callback'in **ilk** kapısı bu, ayrıca `_cevapsiz` kapısı.
+
+**E2 — bayat `leave` yeni aramayı öldürüyordu** (eski gizli hata; kanca görünür yaptı).
+`leave()` içinde senkron olan tek şey `_ayrildi = true`; asıl yıkım
+`await CallSounds.durdur(...).timeout(250ms)` sonrası. O pencerede "Bitir ve Kabul"
+ikinci aramayı başlatırsa, asılı kalan eski `leave` yeni aramanın aboneliklerini
+öldürüyor, ekranını pop ediyor ve eski id ile `ekranKapandi` çağırdığı için meşgul
+muhafızını asılı bırakıyordu.
+FIX: await'ten hemen sonra tek satır `if (arama?.callId != id) return;`
+
+### 📌 ÖLÇÜM (test sonrası bakılacak)
+İki kapatma yolu damgalandı: `callkit bitir: kaynak=native yasam=..` ve
+`callkit bitir: kaynak=eklenti`. **Zaman farkı** ekranın neden geç kapandığını kesin
+gösterecek (native önce gelirse kanca kurtardı; eklenti hiç gelmiyorsa asıl delik orada).
+
+### YAYIN
+android `31017049686` + ios `31017055749` (`522f908`), apk 108238365 md5 `da3eb963`,
+ipa 22353814 md5 `b2a11ea7`, purge OK, **CDN birebir**, indir sayfası 18:06,
+debug imza YOK, backend DEĞİŞMEDİ + health ok, DB temiz.
+
+### KULLANICI TEST EDECEK
+1. **Asıl senaryo:** Gebzem'de konuşurken GSM gelsin → **Bitir** → GSM konuş →
+   **Gebzem ekranı arkada KALMAMALI**, GSM'i kapatınca ekran **flaş gibi görünmemeli**.
+2. **Regresyon:** birini ara, **açmasın** → "Cevap yok — Geri Ara" ekranı **ekranda
+   kalmalı**, kendiliğinden kapanmamalı, "Geri ara" çalışmalı.
+3. "Bitir ve kabul et" → yeni arama **yaşamalı**, eski kapanış onu öldürmemeli.
+4. iPhone'da ikinci aramada **"Tut ve Kabul Et" olmamalı** (turu 68 fixi).
+5. Sesli oda + canlı yayın bozulmamalı.
