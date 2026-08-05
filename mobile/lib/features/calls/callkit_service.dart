@@ -66,6 +66,29 @@ class CallKitService {
   /// (yoksa bitir -> endCall -> ended -> end -> ... geri besleme dongusu).
   static final Set<String> _bizBitirdik = {};
 
+  /// ⚠️⚠️ TURU 69b — NATIVE `onEnd` KANCASI ICIN AYRI, ZAMAN PENCERELI DEFTER.
+  /// Turu 69'da `AppDelegate.onEnd` -> Dart -> `leave()` kancasi eklendi. Ama BIZIM
+  /// kendi `bitir()` cagrimiz da `endCall` yaptigi icin AYNI kancayi tetikliyor:
+  /// `_cevapsizGoster` / `geriAra` gibi yollarda "Cevap yok — Geri Ara" ekrani
+  /// ~50-150ms sonra KENDILIGINDEN kapaniyordu (kullanici "Geri ara"ya basamazdi).
+  /// ⚠️ `_bizBitirdik` BU IS ICIN KULLANILAMAZ: (a) yalniz Dart olay yolunu korur,
+  ///     (b) okurken TUKETIR (`remove`), (c) plugin Dart olayini native `onEnd`ten
+  ///     ONCE gonderir — yani kume native kanca gelmeden BOSALMIS olur.
+  /// Bu yuzden AYRI defter + 10sn'lik pencere (bayat damga GERCEK "Bitir"i yutmasin).
+  /// ⚠️ YAPMA: bu iki defteri birlestirme; okurken SILME.
+  static final Map<String, DateTime> _programatikBitirilen = {};
+
+  static bool bizMiBitirdik(String id) {
+    final k = id.toLowerCase();
+    final t = _programatikBitirilen[k];
+    if (t == null) return false;
+    if (DateTime.now().difference(t) > const Duration(seconds: 10)) {
+      _programatikBitirilen.remove(k);
+      return false;
+    }
+    return true;
+  }
+
   Future<void> baslat() async {
     // onError: ACTION_CALL_TOGGLE_AUDIO_SESSION gibi id'siz olaylar FormatException
     // firlatiyor; yutulmazsa Sentry'e gurultu olarak duser (ses zaten native yonetiliyor).
@@ -424,6 +447,8 @@ class CallKitService {
       final varMi = aktif.any((c) => c.id == callId);
       if (!varMi) return; // hic gosterilmedi -> hayalet bildirim URETME
       _bizBitirdik.add(callId);
+      // TURU 69b: native `onEnd` kancasi bu kapanisi KULLANICI "Bitir"i sanmasin.
+      _programatikBitirilen[callId.toLowerCase()] = DateTime.now();
       gidenler.remove(callId); // turu 57: kayit kapandi
       await FlutterCallkitIncoming.endCall(callId);
     } catch (_) {}

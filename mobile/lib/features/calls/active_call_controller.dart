@@ -169,10 +169,21 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     //     `RowsAffected()==0` kapisi) — cift gonderim ZARARSIZ, kacan bitis ZARARLI.
     // ⚠️ YAPMA: bu dinleyiciyi kaldirma; kimlik kapisini kaldirma.
     PipService.callkitBittiCb = (bitenId) {
+      // ⚠️⚠️ TURU 69b — ILK KAPI: BIZ mi kapattik? `CallKitService.bitir()` de
+      // `endCall` yaptigi icin bu kanca TETIKLENIYOR. Kapisiz birakilirsa
+      // `_cevapsizGoster`/`geriAra` yollarinda "Cevap yok — Geri Ara" ekrani
+      // ~50-150ms sonra KENDILIGINDEN kapaniyor ve kullanici "Geri ara"ya
+      // BASAMIYORDU. ⚠️ YAPMA: bu kapiyi kimlik kapilarinin ALTINA tasima.
+      if (CallKitService.bizMiBitirdik(bitenId)) return;
       final b = arama;
-      if (b == null || _ayrildi) return;
+      // `_cevapsiz`: zil fazi bitmis, ekran "Geri Ara" modunda — kapatma.
+      if (b == null || _ayrildi || _cevapsiz) return;
       if (b.callId.toLowerCase() != bitenId.toLowerCase()) return;
       _sesLog('callkit BITIR olayi -> arama kapatiliyor (native bildirim)');
+      // TURU 69b OLCUMU: hangi yol once geldi (native mi eklenti mi) — bir sonraki
+      // turda "ekran neden gec kapaniyordu" sorusu TAHMINLE degil KANITLA cevaplanacak.
+      unawaited(Sentry.captureMessage(
+          'callkit bitir: kaynak=native yasam=$_sonYasamDurumu'));
       unawaited(leave(notifyServer: true));
     };
     PipService.gsmAramada.addListener(() {
@@ -3006,6 +3017,17 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     try {
       await CallSounds.durdur(_sesNesli).timeout(const Duration(milliseconds: 250));
     } catch (_) {}
+    // ⚠️⚠️ TURU 69b — BAYAT `leave` KAPISI (denetimde yakalandi).
+    // `leave()` icinde SENKRON olan tek sey `_ayrildi = true`; asil yikim yukaridaki
+    // await'ten SONRA basliyor. O pencerede "Bitir ve Kabul" ikinci aramayi baslatirsa
+    // (`main.dart`teki `await ctrlOn.leave()` `_ayrildi` yuzunden ANINDA doner) asili
+    // kalan bu eski `leave` asagida YENI aramanin abonelikklerini oldurur
+    // (`_iptalAbonelikler`), ekranini pop eder (`arama = null`) ve ESKI id ile
+    // `ekranKapandi` cagirdigi icin yeni aramanin mesgul muhafizini ASILI birakir.
+    // Turu 69'da eklenen native `onEnd` kancasi bu pencereyi DAHA OLASI hale getirdi.
+    // ⚠️ YAPMA: bu kapiyi kaldirma; `_kapatOdayiKuyrugaKoy()`u await'in ALTINA tasima
+    //     (eski oda temizligi KENDI odasini hedefliyor, o dogru yerde).
+    if (arama?.callId != id) return;
     _iptalAbonelikler();
 
     // Muhafizlari birak (eski dispose'un iki birakmasi TEK KAPIDA)

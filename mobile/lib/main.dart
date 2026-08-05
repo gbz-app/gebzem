@@ -116,13 +116,18 @@ Future<void> main() async {
   } catch (_) {
     // Firebase baslatilamazsa uygulama pushsuz calisir
   }
-  // iOS DAHIL: terminated CallKit reddet/bitir/cevapsiz olaylarini yakalayacak arka plan
-  // handler'ini KOSULSUZ kaydet. iOS'ta aramalar FCM ile GELMEZ (VoIP push) -> _fcmArkaPlan'daki
-  // kayit iOS'ta calismaz; burada kaydedince iOS reddi de arka plandan sunucuya ulasabilir
-  // (arayanin sonsuza "Caliyor"da takilmasini onler).
-  try {
-    await FlutterCallkitIncoming.onBackgroundMessage(_callkitArkaPlan);
-  } catch (_) {}
+  // ⚠️⚠️ TURU 69b — TESHIS DUZELTMESI (denetim): `onBackgroundMessage` eklentinin
+  // YALNIZ ANDROID tarafinda uygulanmis; iOS'ta `MissingPluginException` firlatiyor ve
+  // asagidaki `catch (_)` onu YUTUYOR. Yani `_callkitArkaPlan` iPHONE'DA HIC CALISMIYOR.
+  // Eski yorum ("iOS DAHIL ... iOS reddi de arka plandan sunucuya ulasabilir") YANLISTI
+  // ve turu 69'un ilk kok-neden aciklamasi da buna dayaniyordu — DUZELTILDI.
+  // ⚠️ YAPMA: bu kaydi iOS'ta bekleyip `await` ile akisi geciktirme; Android'de kaldirma
+  //     (terminated Android'de CallKit reddi/bitisi YALNIZ bu yoldan sunucuya ulasir).
+  if (Platform.isAndroid) {
+    try {
+      await FlutterCallkitIncoming.onBackgroundMessage(_callkitArkaPlan);
+    } catch (_) {}
+  }
 
   await SentryFlutter.init(
     (options) {
@@ -227,6 +232,11 @@ class _GebzemAppState extends ConsumerState<GebzemApp> with WidgetsBindingObserv
     // seridi dahil). Aktif konusmada bile aramayi bitir: kullanici gercekten kapatmak istiyor,
     // sistem CallKit "bitir" tusu CALISMALI. (Spurious 45sn auto-expire AYRI kanaldan gelir.)
     _redSub = svc.onRed.listen((callId) {
+      // TURU 69b OLCUMU: iki kapatma yolundan (eklenti olayi / native `onEnd` kancasi)
+      // hangisi ONCE geliyor? Zaman farki, "ekran neden gec kapaniyordu" sorusunu
+      // bir sonraki turda TAHMINLE degil KANITLA cevaplayacak.
+      // ⚠️ YAPMA: her olayda gondermeye cevirme (yalniz gercek kapanislarda tetiklenir).
+      unawaited(Sentry.captureMessage('callkit bitir: kaynak=eklenti'));
       final notifier = ref.read(callServiceProvider.notifier);
       notifier.aramaBitti(callId);
       notifier.end(callId);
