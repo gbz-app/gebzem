@@ -119,6 +119,12 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
     super.initState();
     _svc = ref.read(callServiceProvider.notifier);
     _svc.ekranAcildi('yayin_${widget.streamId}');
+    // ⚠️⚠️ TURU 71 — GSM GOZCUSU BU EKRANDA DA ACIK (gizlilik). Eskiden yalniz
+    // arama akisinda aciliyordu; odada/yayinda telefon gorusmesi yapilirsa
+    // `gsmAramada` HIC guncellenmiyor ve mikrofon kapilari tetiklenmiyordu.
+    // ⚠️ `sahip` SART: arama bitince `gsmDinle(false)` cagrilir; sahiplik olmadan
+    //     bu ekranin gozcusunu de oldururdu (bkz. PipService._gsmSahipleri).
+    unawaited(PipService.gsmDinle(true, sahip: 'yayin'));
     WidgetsBinding.instance.addObserver(this);
     _durakladi = widget.durum == 'paused';
     // Kendi kimligim: guest.left {user_id} sinyalinde "ben miyim" ayrimi icin
@@ -208,7 +214,11 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
         unawaited(PipService.iosPipDurdur());
       }
       _sesiAc(true); // kesinti toparlama
-      if (_konukum) {
+      // ⚠️⚠️ TURU 71 — GIZLILIK KAPISI: telefon gorusmesi SURERKEN konuk mikrofonu
+      // KOSULSUZ geri aciliyordu -> YAYINI IZLEYEN HERKES GSM konusmasini duyardi.
+      // ⚠️ YAPMA: bu kapiyi kaldirma. ⚠️ `_nabizAt()` her kosulda calismali (yoksa
+      //     sweeper konuk slotunu duserur — turu 13).
+      if (_konukum && !PipService.gsmAramada.value) {
         // Konuk mikrofonu kesinti sonrasi kendiliginden geri gelmez (oda ekrani dersi)
         _room?.localParticipant?.setMicrophoneEnabled(_konukMicOn);
       }
@@ -752,6 +762,8 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
   @override
   void dispose() {
     _svc.ekranKapandi('yayin_${widget.streamId}');
+    // TURU 71: gozcu sahipligini birak (arama hala dinliyorsa native dinleyici ACIK kalir).
+    unawaited(PipService.gsmDinle(false, sahip: 'yayin'));
     WidgetsBinding.instance.removeObserver(this);
     PipService.pipModu.removeListener(_pipDegisti);
     _pipBirak();

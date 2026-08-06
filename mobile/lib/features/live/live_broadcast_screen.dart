@@ -94,6 +94,12 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
     super.initState();
     _svc = ref.read(callServiceProvider.notifier);
     _svc.ekranAcildi('yayin_${widget.streamId}'); // arama muhafizi
+    // ⚠️⚠️ TURU 71 — GSM GOZCUSU BU EKRANDA DA ACIK (gizlilik). Eskiden yalniz
+    // arama akisinda aciliyordu; odada/yayinda telefon gorusmesi yapilirsa
+    // `gsmAramada` HIC guncellenmiyor ve mikrofon kapilari tetiklenmiyordu.
+    // ⚠️ `sahip` SART: arama bitince `gsmDinle(false)` cagrilir; sahiplik olmadan
+    //     bu ekranin gozcusunu de oldururdu (bkz. PipService._gsmSahipleri).
+    unawaited(PipService.gsmDinle(true, sahip: 'yayin'));
     _devralinan = widget.onizlemeTrack; // P1: onizlemeden devralinan kamera
     WidgetsBinding.instance.addObserver(this);
     _baglan(); // nabiz timer'i BAGLANTI BASARILI olunca baslar (dogrulama bulgusu:
@@ -144,7 +150,12 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
         PipService.pipModu.value = false;
         unawaited(PipService.iosPipDurdur());
       }
-      if (_kameraOtoKapandi) {
+      // ⚠️⚠️ TURU 71 — GIZLILIK KAPISI: telefon gorusmesi SURERKEN yayincinin
+      // kamerasi/mikrofonu KOSULSUZ geri aciliyordu -> TUM IZLEYICILER GSM
+      // konusmasini duyar/gorurdu. ⚠️ YAPMA: bu kapiyi kaldirma.
+      // ⚠️ `_nabizAt()` her kosulda calismali — nabiz kesilirse `stream:{id}:pub`
+      //     TTL 45sn'de duser ve sweeper YAYINI KAPATIR (turu 15).
+      if (_kameraOtoKapandi && !PipService.gsmAramada.value) {
         _kameraOtoKapandi = false;
         _kameraAcik = true;
         _room?.localParticipant?.setCameraEnabled(true);
@@ -617,6 +628,8 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
   @override
   void dispose() {
     _svc.ekranKapandi('yayin_${widget.streamId}');
+    // TURU 71: gozcu sahipligini birak (arama hala dinliyorsa native dinleyici ACIK kalir).
+    unawaited(PipService.gsmDinle(false, sahip: 'yayin'));
     WidgetsBinding.instance.removeObserver(this);
     PipService.pipModu.removeListener(_pipDegisti);
     _pipBirak();

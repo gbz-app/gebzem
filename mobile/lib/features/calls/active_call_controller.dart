@@ -272,12 +272,11 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
   /// ⚠️ GIZLILIK YAN FAYDASI — **YALNIZ 1:1 ARAMA ICIN**: bekletme yokken "GSM
   ///     konusurken Gebzem mikrofonu acik kalir" acigi (turu 56/63) 1:1 aramalarda
   ///     yapisal olarak imkansiz hale gelir (arama biter, mikrofon da gider).
-  ///     ⚠️⚠️ SESLI ODA ve CANLI YAYIN BU KORUMANIN DISINDA: `gsmDinle` YALNIZ arama
-  ///     akisinda aciliyor (`_connect`); `features/rooms` ve `features/live` altinda
-  ///     `gsmAramada` hic okunmuyor ve `room_screen` `resumed`da mikrofonu kosulsuz
-  ///     geri aciyor. Bu acik turu 66'nin GETIRDIGI bir sey DEGIL (turu 56'dan beri
-  ///     var) ama burada "imkansiz" demek gelecekteki denetimi YANILTIR.
-  ///     ⏳ AYRI IS: oda/yayin icin GSM kapisi.
+  ///     ✅ TURU 71: SESLI ODA ve CANLI YAYIN da artik KAPSAM ICINDE. `gsmDinle` o
+  ///     ekranlarda da aciliyor (`sahip: 'oda'` / `'yayin'`) ve `resumed` dallarindaki
+  ///     mikrofon/kamera geri acmalari `!PipService.gsmAramada.value` kapisindan geciyor.
+  ///     ⚠️ `PipService._gsmSahipleri` SART: arama bitince `gsmDinle(false)` cagrilir;
+  ///     sahiplik olmasaydi ODANIN gozcusunu de oldururdu.
   static const bekletmeAcik = false;
 
   final Ref _ref;

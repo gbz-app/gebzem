@@ -15,6 +15,7 @@ import '../../core/ws.dart';
 import '../calls/call_media_options.dart';
 import '../calls/call_provider.dart';
 import '../calls/call_room_lock.dart';
+import '../calls/pip_service.dart'; // turu 71: GSM gizlilik kapisi
 import '../home/home_screen.dart' show myProfileProvider;
 import 'room_provider.dart';
 
@@ -98,6 +99,12 @@ class _RoomScreenState extends ConsumerState<RoomScreen> with WidgetsBindingObse
     // MESGUL MUHAFIZI: odadayken 1:1 arama baslatilamaz/kabul edilemez (mevcut public
     // kume — arama koduna dokunmadan entegre). Cikista birakilir.
     _svc.ekranAcildi('oda_${widget.roomId}');
+    // ⚠️⚠️ TURU 71 — GSM GOZCUSU BU EKRANDA DA ACIK (gizlilik). Eskiden yalniz
+    // arama akisinda aciliyordu; odada/yayinda telefon gorusmesi yapilirsa
+    // `gsmAramada` HIC guncellenmiyor ve mikrofon kapilari tetiklenmiyordu.
+    // ⚠️ `sahip` SART: arama bitince `gsmDinle(false)` cagrilir; sahiplik olmadan
+    //     bu ekranin gozcusunu de oldururdu (bkz. PipService._gsmSahipleri).
+    unawaited(PipService.gsmDinle(true, sahip: 'oda'));
     WidgetsBinding.instance.addObserver(this); // kesinti toparlama (resume)
     // Kendi kimligim: WS rol olaylari LiveKit baglantisindan ONCE gelebilir.
     ref.read(myProfileProvider.future).then((p) {
@@ -115,7 +122,15 @@ class _RoomScreenState extends ConsumerState<RoomScreen> with WidgetsBindingObse
     // GSM/Siri/alarm kesintisi sonrasi iOS ses birimi kendiliginden geri gelmez.
     if (state == AppLifecycleState.resumed && mounted && !_ayrildi) {
       _sesiAc(true);
-      if (_rol != 'listener') {
+      // ⚠️⚠️ TURU 71 — GIZLILIK KAPISI (turu 56'nin ODA/YAYIN karsiligi).
+      // Bu satir mikrofonu KOSULSUZ geri aciyordu. Telefon gorusmesi SURERKEN
+      // kullanici Gebzem'e gecerse odadaki mikrofon ACILIYOR ve ODADAKILER GSM
+      // KONUSMASINI DUYUYORDU. Aramalarda bu delik turu 56'da kapatilmisti ama
+      // oda/yayin tarafinda `gsmAramada` HIC OKUNMUYORDU.
+      // ⚠️ YAPMA: bu kapiyi kaldirma.
+      // ⚠️ YAPMA: `resumed` dalini komple `return` ile kesme — `_detayYenile()`
+      //     calismaya DEVAM etmeli (nabiz/durum tazeleme).
+      if (_rol != 'listener' && !PipService.gsmAramada.value) {
         _room?.localParticipant?.setMicrophoneEnabled(_micOn);
       }
       _detayYenile();
@@ -590,6 +605,8 @@ class _RoomScreenState extends ConsumerState<RoomScreen> with WidgetsBindingObse
   @override
   void dispose() {
     _svc.ekranKapandi('oda_${widget.roomId}');
+    // TURU 71: gozcu sahipligini birak (arama hala dinliyorsa native dinleyici ACIK kalir).
+    unawaited(PipService.gsmDinle(false, sahip: 'oda'));
     WidgetsBinding.instance.removeObserver(this);
     _wsSub?.cancel();
     _rosterTimer?.cancel();

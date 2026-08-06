@@ -207,8 +207,23 @@ class PipService {
   /// KENDI Gebzem CallKit aramamizi "hucresel" sanar, `gsmAramada` true olur ve uygulama
   /// kendi aramasini beklemeye alir (sesi keser). Sirayi tesadufe birakmiyoruz.
   /// ⚠️ YAPMA: callId'yi bos gecme; kaydi `gsmDinle`den SONRAYA birakma.
-  static Future<bool> gsmDinle(bool ac, {String callId = ''}) async {
+  /// ⚠️⚠️ TURU 71 — SAHIPLIK (arama + oda + yayin AYNI gozcuyu paylasir).
+  /// Eskiden tek sahip vardi: arama bitince `gsmDinle(false)` KOSULSUZ calisiyor ve
+  /// GSM SURERKEN acik olan ODANIN/YAYININ gozcusunu de olduruyordu. Artik SON sahip
+  /// birakmadan native dinleyici kapatilmaz.
+  /// ⚠️ YAPMA: sahipsiz cagirma; Android'e giden ARG'i degistirme (MainActivity duz bool).
+  static final Set<String> _gsmSahipleri = {};
+
+  static Future<bool> gsmDinle(bool ac,
+      {String callId = '', String sahip = 'arama'}) async {
     if (!Platform.isAndroid && !Platform.isIOS) return false;
+    if (ac) {
+      _gsmSahipleri.add(sahip);
+    } else {
+      _gsmSahipleri.remove(sahip);
+      // Baska bir ekran (oda/yayin) hala dinliyorsa native dinleyiciyi KAPATMA.
+      if (_gsmSahipleri.isNotEmpty) return true;
+    }
     try {
       _handlerKur();
       // Android tarafi (MainActivity.kt) DUZ BOOL bekler — sozlesmeyi bozma.
