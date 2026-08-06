@@ -1621,6 +1621,13 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       if (Platform.isIOS) {
         if (pipModunda) pipModunda = false;
         unawaited(PipService.iosPipDurdur());
+        // ⚠️⚠️ TURU 70 — PiP'ten donuste native SIYAH KAPAK, Flutter ILK KARESINI
+        // cizdikten SONRA kalkar. POST-FRAME ZORUNLU: burada dogrudan cagirirsak
+        // kapak Flutter daha cizmeden kalkar ve "cirkin cizim" geri gelir.
+        // ⚠️ YAPMA: bunu `addPostFrameCallback` disina cikarma.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          unawaited(PipService.iosGeriYuklemeTamam());
+        });
         // TEST TURU 39: arka planda uretilen olcum burada gonderilir (arka planda Sentry
         // teslimi garantili degil — bugune kadarki olcumun zayif noktasi buydu).
         final ki = PipService.kesintiBilgi;
@@ -3674,12 +3681,27 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       settings: const RouteSettings(name: 'arama'),
       opaque: true,
       barrierColor: Colors.black,
-      transitionDuration: const Duration(milliseconds: 180),
+      // ⚠️⚠️ TURU 70 — BUYUTMEDE "CIRKIN CIZIM" (kullanici: "tiklayip buyuturken ekran
+      // cizerken cok cirkin oluyor; WhatsApp gibi ekran SIYAHLASSIN, o sirada cizsin").
+      // KOK: `ColoredBox` FADE'IN ICINDEYDI -> siyah zemin de soluyordu ve gecisin
+      // ortasinda ALTTAKI SAYFA (sohbet listesi) arama ekraninin ICINDEN goruluyordu;
+      // ustune ekran sifirdan kuruldugu icin yarim cizilmis kareler gorunuyordu.
+      // FIX: `ColoredBox` FADE'IN **DISINA** alindi — perde BASTAN SONA OPAK SIYAH,
+      // icerik onun UZERINDE beliriyor. Sure 180 -> 260ms (cizim yetissin).
+      // ⚠️ YAPMA: `ColoredBox`u kaldirip yalniz `barrierColor`a guvenme (turu 59:
+      //     `AnimatedModalBarrier` rengi ANIMASYONLUDUR, sabit degil).
+      // ⚠️ YAPMA: POP (kucultme) yonunu opaklastirma / 160ms'i uzatma — turu 59'un
+      //     "160ms duz siyah + sert kesme" sikayeti geri gelir.
+      // ⚠️ YAPMA: 260ms'in ustune cikma (kullaniciya yavas gelir).
+      transitionDuration: const Duration(milliseconds: 260),
       reverseTransitionDuration: const Duration(milliseconds: 160),
       pageBuilder: (_, _, _) => CallScreen(bilgi: b),
-      transitionsBuilder: (_, anim, _, child) => FadeTransition(
-        opacity: anim.drive(CurveTween(curve: Curves.easeOut)),
-        child: ColoredBox(color: Colors.black, child: child),
+      transitionsBuilder: (_, anim, _, child) => ColoredBox(
+        color: Colors.black,
+        child: FadeTransition(
+          opacity: anim.drive(CurveTween(curve: Curves.easeOut)),
+          child: child,
+        ),
       ),
     ));
   }

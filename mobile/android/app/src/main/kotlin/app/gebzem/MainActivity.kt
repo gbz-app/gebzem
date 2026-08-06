@@ -209,7 +209,22 @@ class MainActivity : FlutterActivity() {
         val b = PictureInPictureParams.Builder()
             // TEST TURU 14: 9:16 (0.56) sistemin en dar dikey orani -> pencere kucuk goruluyordu.
             // 3:4 (0.75) daha genis => AYNI yukseklikte daha BUYUK pencere.
-            .setAspectRatio(Rational(5, 6)) // turu 53: iOS ile AYNI oran (%11 daha genis)
+            // ⚠️⚠️ TURU 70 — ORAN **DEGISTIRILMEDI** (5:6 KALDI). Iki arastirma celisti,
+            // karar gerekcesi:
+            //  · Sistem pencerenin YUKSEKLIGINI sinirlar; bu yuzden DAHA GENIS oran =
+            //    ayni yukseklikte DAHA BUYUK pencere. "%20 yuksek + %10 genis" istegini
+            //    oran diline cevirince 55:72 = 0.764 cikiyordu ki bu 5:6 = 0.833'ten
+            //    **DAHA DAR** — yani pencere KUCULURDU. Istegin TERSI.
+            //  · `paramsYap()` CANLI YAYIN PiP'iyle ORTAK; orani degistirmek yayin
+            //    penceresini de daraltirdi (kullanici emri: yayin ETKILENMEMELI).
+            // Kullanicinin "%20/%10" istegi bunun yerine KOSE KUTUSUNA uygulandi
+            // (call_screen + mini_izgara + AppDelegate `yerelAyarla`) — orasi TAMAMEN
+            // bizim kontrolumuzde.
+            // ⚠️ Android'de MUTLAK BOYUT API'si YOKTUR (yalniz `setAspectRatio`).
+            //     Pencerenin gercek boyutunu OEM'in
+            //     `config_pictureInPictureDefaultSizePercent` degeri belirler.
+            // ⚠️ YAPMA: bu satiri AppDelegate.swift'teki oranla AYRI degistirme.
+            .setAspectRatio(Rational(5, 6)) // turu 53'ten beri; iOS 180x216 ile AYNI sekil
         if (Build.VERSION.SDK_INT >= 26) {
             // WhatsApp gibi: mikrofon ac/kapa + kirmizi kapat (yalniz ARAMA PiP'inde).
             // Canli yayin PiP'inde BOS liste ACIKCA verilir (yoksa eski dugmeler asili kalir).

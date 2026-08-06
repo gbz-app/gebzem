@@ -394,6 +394,21 @@ class PipService {
     } catch (_) {}
   }
 
+  /// ⚠️⚠️ TURU 70 — PiP'ten geri donerken native tarafta OPAK SIYAH kapak var
+  /// (bkz. AppDelegate `restoreUserInterfaceForPictureInPictureStop...`). Flutter ILK
+  /// KARESINI cizdikten sonra bu cagriyla kapak 180ms'de solarak kalkar; boylece
+  /// kullanici "yarim cizilmis ekrani" GORMEZ (WhatsApp davranisi).
+  /// Native tarafta 700ms EMNIYET timer'i da var — bu cagri kacsa bile kapak kalkar.
+  /// ⚠️ YAPMA: bunu `iosPipDurdur` ile birlestirme (o PiP oturumunu kapatir).
+  /// ⚠️ YAPMA: `resumed` dalinda ilk isin olarak cagirma — POST-FRAME olmali,
+  ///     yoksa kapak Flutter cizmeden kalkar ve cirkin cizim geri gelir.
+  static Future<void> iosGeriYuklemeTamam() async {
+    if (!Platform.isIOS) return;
+    try {
+      await _ch.invokeMethod('iosGeriYuklemeTamam');
+    } catch (_) {}
+  }
+
   /// iOS sistem PiP DURUM geri bildirimi (test turu 9): native GebzemPip delegate
   /// 'iosPipDurum' (true=basladi/false=durdu) + 'iosPipBasarisiz' (baslatilamadi) gonderir.
   static void iosDinle(

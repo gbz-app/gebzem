@@ -38,7 +38,24 @@ class _CallScreenState extends ConsumerState<CallScreen> {
   bool _sheetAcik = false; // kisi-ekleme sheet'i (K7: bitiste once sheet-pop)
   Offset? _selfPos; // yalniz pan surerken ham konum
   bool _selfSagda = true, _selfAltta = false; // kalici kose hafizasi (A5)
-  static const double _selfW = 140, _selfH = 200, _selfMargin = 16;
+  // ⚠️⚠️⚠️ TURU 70 — MODEL FARKININ **TEK KAYNAGI** BURASIYDI (kullanici: "iPhone'da
+  // alttaki kucuk ekran HER MODELDE AYNI DEGIL; XS Max'te farkli, 11'de farkli").
+  // Eskiden `_selfW = 140, _selfH = 200, _selfMargin = 16` SABIT PUAN idi — projedeki
+  // TEK model-bagimli olcu. 414x896'lik ekranda genislik %33.8, 375x812'lik ekranda
+  // %37.3 (+%10.4 daha buyuk gorunuyordu). PiP kutulari ZATEN oran-bazliydi (0.34);
+  // yani "XS Max standardi" fiilen ~0.34'tur.
+  //
+  // ARTIK ORAN-BAZLI + kullanicinin "%10 daha genis, %20 daha yuksek" istegi UYGULANDI:
+  //   referans 140x200 -> 140*1.10 = 154 ; 200*1.20 = 240  (414pt ekranda)
+  //   oran: 154/414 = 0.3720 ; en-boy 240/154 = 1.5584 ; kenar 16/414 = 0.0386
+  // ⚠️ AYNI SAYILAR `mini_izgara.dart` ve iOS `AppDelegate.yerelAyarla` icinde de
+  //     bulunur — UCU BIRDEN degismek ZORUNDA (turu 52/53 hukmu).
+  // ⚠️ YAPMA: buraya tekrar SABIT PUAN yazma (model farki geri gelir).
+  static const double _selfOran = 0.3720; // ekran genisliginin yuzdesi
+  static const double _selfEnBoy = 1.5584; // yukseklik / genislik
+  static const double _selfKenarOran = 0.0386; // kenar boslugu / ekran genisligi
+  /// Kontroller gizliyken kutu kuculur (eski 100x143 -> ayni en-boyla %71.4).
+  static const double _selfGizliCarpan = 0.714;
   bool _selfBuyuk = false; // self-view swap
   bool _uiGizli = false; // A7 dokun-gizle
 
@@ -702,10 +719,15 @@ class _CallScreenState extends ConsumerState<CallScreen> {
 
   /// Suruklenebilir + dokun-ile-swap self-view. (opaque + IgnorePointer deseni:
   /// deferToChild tuzagi + CameraUtils NPE korumasi — degistirme.)
+  /// TURU 70: tum konum sabitleri de EKRAN ORANINA cevrildi (140/130 puan idi).
+  /// 414x896 referansinda: 140/896 = 0.15625 · 130/896 = 0.14509.
   Offset _selfKonum(Size sz, double w, double h) {
     if (_selfPos != null) return _selfPos!;
-    final x = _selfSagda ? sz.width - w - _selfMargin : _selfMargin;
-    final y = _selfAltta ? sz.height - h - 140.0 : 130.0;
+    final kenar = sz.width * _selfKenarOran;
+    final x = _selfSagda ? sz.width - w - kenar : kenar;
+    final y = _selfAltta
+        ? sz.height - h - sz.height * 0.15625
+        : sz.height * 0.14509;
     return Offset(x, y);
   }
 
@@ -721,8 +743,15 @@ class _CallScreenState extends ConsumerState<CallScreen> {
       required bool swapEdilebilir,
       bool beklemede = false}) {
     final sz = MediaQuery.of(c2).size;
-    final w = buyuk ? sz.width : (_uiGizli ? 100.0 : _selfW);
-    final h = buyuk ? sz.height : (_uiGizli ? 143.0 : _selfH);
+    // TURU 70: EKRAN ORANINDAN turetilir (sabit puan model farki uretiyordu).
+    final kucukW = sz.width * _selfOran;
+    final kucukH = kucukW * _selfEnBoy;
+    final w = buyuk
+        ? sz.width
+        : (_uiGizli ? kucukW * _selfGizliCarpan : kucukW);
+    final h = buyuk
+        ? sz.height
+        : (_uiGizli ? kucukH * _selfGizliCarpan : kucukH);
     final pos = buyuk ? Offset.zero : _selfKonum(sz, w, h);
     // Surukleme sirasinda animasyon OLMAZ (parmakla birebir hareket).
     final surukleniyor = !buyuk && _selfPos != null;
@@ -746,10 +775,18 @@ class _CallScreenState extends ConsumerState<CallScreen> {
             ? null
             : (d) {
                 final cur = _selfPos ?? pos;
+                // ⚠️⚠️ TURU 70: `clamp(min, max)` icin min > max ise Dart
+                // ArgumentError ATAR = surukleme sirasinda KIRMIZI EKRAN. Kutu
+                // buyudugu icin sinirlar EKRAN ORANINDAN turetiliyor ve en kisa
+                // cihazda (SE 375x667) bile pay kaliyor: kh=217, ust sinir
+                // 667-217-104 = 346 > alt sinir 45. ⚠️ YAPMA: sabit puan geri koyma.
+                final kenar = sz.width * _selfKenarOran;
+                final altSinir = sz.height * 0.067;
+                final ustSinir = sz.height - h - sz.height * 0.15625;
                 final nx = (cur.dx + d.delta.dx)
-                    .clamp(_selfMargin, sz.width - w - _selfMargin);
-                final ny =
-                    (cur.dy + d.delta.dy).clamp(60.0, sz.height - h - 140.0);
+                    .clamp(kenar, sz.width - w - kenar);
+                final ny = (cur.dy + d.delta.dy)
+                    .clamp(altSinir, ustSinir < altSinir ? altSinir : ustSinir);
                 setState(() => _selfPos = Offset(nx, ny));
               },
         onPanEnd: buyuk
@@ -763,9 +800,17 @@ class _CallScreenState extends ConsumerState<CallScreen> {
                 });
               },
         // Ilk beliriste 180ms yumusak acilis (kutu agaca yeni eklendiginde BIR KEZ).
+        // ⚠️⚠️ TURU 70 — IKILI SOLMA TEKILE INDIRILDI. Bu dis solma, route'un kendi
+        // `FadeTransition`iyla CARPILIYORDU (0.5 x 0.5 = 0.25) ve gecisin ortasinda
+        // belirgin bir opaklik cukuru olusturuyordu — kullanicinin "cirkin cizim"
+        // dedigi seyin bir parcasi. Perde artik route tarafinda OPAK siyah.
+        // ⚠️ YAPMA: hemen ASAGIDAKI ic `TweenAnimationBuilder`i (kose yaricapi, 260ms)
+        //     kaldirma — o kutu sekli icin, solma icin degil.
+        // ⚠️ YAPMA: `_videoKutu` agacina YENI sarmalayici widget ekleme (element
+        //     yeniden kurulur = turu 27-31 "siyah patlama" geri gelir).
         child: TweenAnimationBuilder<double>(
           tween: Tween(begin: 0, end: 1),
-          duration: const Duration(milliseconds: 180),
+          duration: Duration.zero,
           builder: (_, o, child) => Opacity(opacity: o, child: child),
           // Kose yuvarlamasi da gecisle: tam ekranda 0, kucukte 14.
           child: TweenAnimationBuilder<double>(

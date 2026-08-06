@@ -50,9 +50,21 @@ Widget miniIzgara(List<Widget> kutular, {bool ustUste = false}) {
   /// ⚠️ YAPMA: bu sayilari iOS tarafindan (AppDelegate `yerelAyarla`) ayirma —
   /// ikisi ayni gorunmek zorunda.
   Widget koseli(Widget buyuk, Widget ben) => LayoutBuilder(builder: (_, c) {
-        final kw = c.maxWidth * 0.34; // pencere dar oldugu icin oran-bazli
-        final kh = kw * 6 / 5; // %10 kisaldi (4:3 -> 6:5)
-        final tavan = c.maxHeight * 0.405; // 0.45'ten %10 dusuruldu (ayni oran)
+        // ⚠️⚠️ TURU 70 — kullanici istegi "%10 daha genis, %20 daha yuksek".
+        // Referans arama ekranindaki 140x200 -> 154x240; 414pt ekranda
+        // 154/414 = 0.3720 ve en-boy 240/154 = 1.5584.
+        // ⚠️ AYNI SAYILAR `call_screen.dart` (_selfOran/_selfEnBoy) ve iOS
+        //     `AppDelegate.yerelAyarla` icinde de var — UCU BIRDEN degismeli.
+        final kw = c.maxWidth * 0.3720;
+        final kh = kw * 1.5584;
+        // ⚠️⚠️ TAVAN 0.405 -> 0.50 YUKSELTILDI (ZORUNLU): yeni kh = 0.5797*W.
+        // Eski tavan 0.405*H idi; 5:6 penceresinde H = 1.2*W -> tavan = 0.486*W
+        // yani yeni kutuyu KIRPARDI. Flutter kirpar, iOS (tavansiz) kirpmaz ->
+        // Android ile iPhone AYRISIRDI = kullanicinin sikayetinin YENI KOPYASI.
+        // 0.50 ile tavan 0.60*W olur, pay kalir.
+        // ⚠️ YAPMA: tavani tamamen KALDIRMA — 3 kutulu duzende kose kutusu iki
+        //     dikey kutuyu birden orter (tek yatay korumasi odur).
+        final tavan = c.maxHeight * 0.50;
         return Stack(children: [
           Positioned.fill(child: buyuk),
           Positioned(

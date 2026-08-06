@@ -181,6 +181,11 @@ import flutter_callkit_incoming
           GebzemPip.shared.kareyiBosalt()
         }
         result(true)
+      // TURU 70: Flutter ILK KARESINI cizdi -> geri-yukleme kapagini kaldir.
+      // ⚠️ YAPMA: bunu `iosPipDurdur` ile birlestirme (o PiP'i kapatir, bu yalniz perde).
+      case "iosGeriYuklemeTamam":
+        GebzemPip.shared.kapakKaldir()
+        result(true)
       case "iosPipDurdur":
         GebzemPip.shared.durdur()
         result(true)
@@ -618,6 +623,11 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
   var iptalCagri = 0    // olcum: kac acilis iptal edildi (uygulama on planda / failedToStart)
   var baslatMsMax = 0   // olcum: startPictureInPicture ana is parcacigini kac ms blokladi
   private var iptalIstendi = false // turu 29: on plana donuldu -> bekleyen baslatmayi iptal et
+  // TURU 70: PiP'ten geri donerken ekrani orten OPAK SIYAH kapak (bkz.
+  // `restoreUserInterfaceForPictureInPictureStop...`). ⚠️ Temizligi KACIRMA —
+  // kalirsa ekran kalici siyah olur; `kapakTimer` emniyet agidir.
+  private var geriKapak: UIView?
+  private var kapakTimer: Timer?
 
   // ---- TEST TURU 39: KARE GOZCUSU + SICAK KAYNAK DEGISIMI ----
   /// Pencerede su an KIMIN videosu var ("yerel" = kendi kameram, "uzak" = karsi taraf).
@@ -934,17 +944,46 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
     // olmus"): turu 32'de bolunmus kutular icin 120x400 yapilmisti; pencere asiri dar-uzun
     // gorunuyor. Pencere artik TEK VIDEO gosterdigi icin dogru oran 9:16 portredir.
     // ⚠️ YAPMA: bolunme olmadan preferredContentSize'i uzatma.
-    // TEST TURU 53 — PENCERE ORANI (kullanici: "PiP ekranini %10 buyut, orantı olarak bir
-    // tik daha genis olsun, iPhone ve Android AYNI olsun").
-    // ⚠️ ONEMLI: `preferredContentSize` MUTLAK BOYUT DEGILDIR — iOS yalnizca EN-BOY
-    // ORANINI kullanir (120x213 yerine 132x234 yazmak pencereyi BUYUTMEZ). Android'de de
-    // `setAspectRatio` disinda boyut API'si YOKTUR. Dolayisiyla "%10 buyut + ikisi ayni"
-    // isteginin tek dogru karsiligi ORTAK ve BIR TIK DAHA GENIS bir ORAN secmektir.
-    // SECILEN: 5:6 (0.833) — Android'in eski 3:4'unden (0.75) %11 daha genis, iOS'un eski
-    // 0.563'unu de ayni degere cikarir. MainActivity.kt `Rational(5, 6)` ile AYNI.
+    // ⚠️⚠️⚠️ TURU 70 — TURU 53'TEKI HUKMUM **YARIM DOGRUYDU**, DUZELTILDI.
+    // Turu 53'te "preferredContentSize MUTLAK BOYUT DEGILDIR, iOS yalnizca ORANI
+    // kullanir" yazip degeri `CGSize(5, 6)` yapmistim. Kullanici (6 Agu) sunu soyledi:
+    // **"PiP boyutu ESKIDEN HERKESTE ESITTI"** — git bunu dogruluyor: deger once
+    // `120x200`, sonra `120x213` GERCEK PUAN olcusuydu; turu 53'te 5x6'ya dustu.
+    //
+    // DOGRUSU: bu bir **BOYUT TALEBIDIR**; iOS onu kendi sinirlarina sigdirir.
+    //  · AYNI oranda buyuk/kucuk puan yazmak pencereyi buyutmez (120x213 ~ 132x234) ✅
+    //  · AMA **dejenere kucuk deger (5x6) YAZILMAZ** — makul puan araligi disinda
+    //    davranis tanimsizlasir ve sistem kendi varsayilanina duser ❌
+    //    (Apple'in kendi ornegi `1080x1920` — GERCEKCI puan.)
+    //  · ORAN da boyutu ETKILER: sistem yuksekligi sinirladigi icin daha GENIS oran =
+    //    ayni yukseklikte daha BUYUK pencere.
+    //
+    // SECILEN: **180x216** = 5:6 (0.833) — ORAN AYNEN KORUNDU, yalnizca DEJENERE
+    // deger GERCEKCI PUANA cevrildi (180pt ~ 414pt ekranin %43'u; tarihsel 120x213
+    // ile ayni mertebede).
+    // ⚠️⚠️ ORAN NEDEN DEGISTIRILMEDI (iki arastirma celisti, karar gerekcesi):
+    //  · Sistem pencerenin YUKSEKLIGINI sinirlar -> DAHA GENIS oran = ayni yukseklikte
+    //    DAHA BUYUK pencere. "%20 yuksek + %10 genis" istegi oran diline cevrilince
+    //    55:72 = 0.764 cikiyor ki bu 5:6 = 0.833'ten **DAHA DAR** — pencere KUCULURDU.
+    //    Yani oranla "buyutme" istegi TERSINE calisir.
+    //  · `GebzemPip.kur` / Android `paramsYap()` CANLI YAYIN PiP'iyle ORTAK; orani
+    //    degistirmek yayin penceresini de daraltirdi (kullanici emri: yayin
+    //    ETKILENMEMELI).
+    // Kullanicinin "%20 yuksek / %10 genis" istegi bunun yerine KOSE KUTUSUNA
+    // uygulandi (call_screen + mini_izgara + `yerelAyarla`) — orasi TAMAMEN bizim
+    // kontrolumuzde ve gercekten olculebilir.
+    //
+    // ⚠️ MainActivity.kt `Rational(5, 6)` ile AYNI SEKIL — biri degisirse digeri de
+    //     AYNI COMMITTE degismek zorunda.
+    // ⚠️ YAPMA: buraya tekrar dejenere kucuk sayi (5x6 gibi) yazma.
     // ⚠️ YAPMA: bunu calisma aninda degistirme (pencere yeniden boyutlanma animasyonu
-    // tetikler = turu 46/49 gecis titremesi riski); iki platformu farkli oranda birakma.
-    vc.preferredContentSize = CGSize(width: 5, height: 6)
+    //     tetikler = turu 46/49 gecis titremesi riski).
+    // ⚠️ DURUST SINIR: iOS'ta PiP'in UC BOYUT SINIFI vardir; kullanici kistirma/cift
+    //     dokunusla degistirir ve sistem bunu UYGULAMA BASINA HATIRLAR. iki telefonda
+    //     farkli boyut gorulmesinin sebebi BU DA olabilir (XS Max ve iPhone 11 ayni
+    //     mantiksal cozunurlugu (414x896pt) paylasir — "ekrana gore olcekleniyor"
+    //     aciklamasi tek basina YETMEZ). Bu yuzden asagiya OLCUM konuldu.
+    vc.preferredContentSize = CGSize(width: 180, height: 216)
     // Yigin bosluklari 0 olsa da kutu ARALARINDAN callVC.view'in ATANMAMIS (siyah) zemini
     // gorunebiliyor -> videoyla ayni koyu tona sabitle (kullanici: "gridler arasinda
     // siyahlik olmasin"). ⚠️ YAPMA: bunu seffaf/siyah birakma.
@@ -1148,8 +1187,14 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
       NSLayoutConstraint.activate([
         yv.trailingAnchor.constraint(equalTo: kok.trailingAnchor, constant: -5),
         yv.bottomAnchor.constraint(equalTo: kok.bottomAnchor, constant: -5),
-        yv.widthAnchor.constraint(equalTo: kok.widthAnchor, multiplier: 0.34),
-        yv.heightAnchor.constraint(equalTo: yv.widthAnchor, multiplier: 6.0 / 5.0),
+        // ⚠️⚠️ TURU 70 — "%10 daha genis, %20 daha yuksek" (kullanici istegi).
+        // Referans arama ekranindaki 140x200 -> 154x240; 414pt ekranda
+        // 154/414 = 0.3720 ve en-boy 240/154 = 1.5584.
+        // ⚠️ AYNI SAYILAR `call_screen.dart` (_selfOran/_selfEnBoy) ve
+        //     `mini_izgara.dart` icinde de var — UCU BIRDEN degismek ZORUNDA
+        //     (turu 52/53 hukmu: iOS ve Flutter BIREBIR ayni gorunmeli).
+        yv.widthAnchor.constraint(equalTo: kok.widthAnchor, multiplier: 0.3720),
+        yv.heightAnchor.constraint(equalTo: yv.widthAnchor, multiplier: 1.5584),
       ])
       kok.layoutIfNeeded()
     } else {
@@ -1261,6 +1306,7 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
   /// USTUNDE asili kaliyordu. `iptalIstendi` ile GEC gelen didStart da durdurulur.
   func durdur() {
     baslatKilidiAc()
+    kapakKaldir() // TURU 70: savunma — kapak hicbir kosulda asili kalmasin
     // TURU 52 — OLCUM PENCERESI: `durdur()` uygulama ON PLANA donunce KOSULSUZ cagriliyor
     // (Dart `resumed` dali). Yani burasi "bir arka plan gecisi bitti" anidir. Sayaclari
     // BURADA sifirlamak, `cagri`/`iptal` degerlerinin TEK BIR alta almaya ait olmasini
@@ -1396,7 +1442,52 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
   }
   func pictureInPictureController(_ c: AVPictureInPictureController,
     restoreUserInterfaceForPictureInPictureStopWithCompletionHandler h: @escaping (Bool) -> Void) {
+    // ⚠️⚠️⚠️ TURU 70 — "BUYUTURKEN EKRAN CIZERKEN COK CIRKIN OLUYOR" (kullanici:
+    // "WhatsApp gibi ekran SIYAHLASSIN, o sirada cizsin, kullanici gormeden").
+    //
+    // KOK NEDEN: bu metodun govdesi TEK SATIRDI (`h(true)`). Flutter arka planda
+    // (paused) TEK KARE BILE uretmemisken iOS geri-donus animasyonunu BASLATIYOR ve
+    // kullanici yarim cizilmis/atlayan kareleri GORUYOR.
+    //
+    // COZUM: geri donus baslarken kokun UZERINE OPAK SIYAH kapak koy; Flutter ilk
+    // KARESINI cizdikten sonra (Dart `resumed` dalindan `iosGeriYuklemeTamam`)
+    // kapak 180ms'de solarak kalkar. Emniyet: 700ms sonra KENDILIGINDEN kalkar.
+    // ⚠️ YAPMA: `h(true)`i geciktirme/atlama — AVKit PiP oturumunu kapatmaz ve
+    //     sonraki alta almalar bozulur.
+    // ⚠️ YAPMA: kapagi Dart tarafina koyma (Flutter o an kare URETMIYOR, gorunmez).
+    // ⚠️ YAPMA: emniyet suresini kaldirma — kapak temizligi kacarsa ekran KALICI
+    //     SIYAH kalir ve dokunuslari yutar (turu 25/58 semptomu).
+    kapakGoster()
+    kanal?.invokeMethod("iosPipGeriYukleniyor", arguments: nil)
     h(true)
+  }
+
+  /// TURU 70: geri-yukleme kapagini goster (idempotent).
+  func kapakGoster() {
+    guard geriKapak == nil, let kok = callVC?.view.window ?? UIApplication.shared
+      .connectedScenes.compactMap({ ($0 as? UIWindowScene)?.keyWindow }).first
+    else { return }
+    let v = UIView(frame: kok.bounds)
+    v.backgroundColor = .black
+    v.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    v.isUserInteractionEnabled = true // gecis sirasinda kazara dokunus YUTULSUN
+    kok.addSubview(v)
+    geriKapak = v
+    kapakTimer?.invalidate()
+    kapakTimer = Timer.scheduledTimer(withTimeInterval: 0.7, repeats: false) { [weak self] _ in
+      self?.kapakKaldir()
+    }
+  }
+
+  /// TURU 70: kapagi kaldir (idempotent; Dart "ilk kare hazir" deyince ya da 700ms emniyet).
+  func kapakKaldir() {
+    kapakTimer?.invalidate()
+    kapakTimer = nil
+    guard let v = geriKapak else { return }
+    geriKapak = nil
+    UIView.animate(withDuration: 0.18, animations: { v.alpha = 0 }) { _ in
+      v.removeFromSuperview()
+    }
   }
 }
 
