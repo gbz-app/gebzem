@@ -1,7 +1,9 @@
+import 'dart:async'; // turu 70b: unawaited
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+// turu 70b: `widgets.dart` `foundation.dart`i de kapsar (WidgetsBinding + ValueNotifier)
+import 'package:flutter/widgets.dart';
 
 /// FAZ-6: Android sistem PiP koprusu ('gebzem/pip' — MainActivity.kt ile birebir).
 /// TEST TURU 15: artik YALNIZ arama degil CANLI YAYIN da PiP kullanabiliyor. Bu yuzden:
@@ -69,6 +71,16 @@ class PipService {
         // uygulama-ici arama (oda/ekran/sayaclar) haberdar OLMUYORDU.
         // ⚠️ YAPMA: bu dali kaldirma — kaldirirsan "GSM'de bitir dedim ama Gebzem
         //     ekrani arkada duruyor" hatasi geri gelir.
+        // ⚠️⚠️ TURU 70b — NATIVE KAPAK KONDU: ilk kareye baglan.
+        // Native `restoreUserInterfaceForPictureInPictureStop...` bu mesaji atiyordu
+        // ama Dart'ta KARSILIGI YOKTU (OLU CAGRI). Kapagi kaldiran tek sey 700ms
+        // emniyet timer'i kaliyordu -> ekran zaten cizilmisken bile 700ms SIYAH.
+        // Artik ILK KARE cizilir cizilmez kalkiyor. Merkezi oldugu icin canli yayin
+        // ve izleyici ekranlarini da kapsar.
+        // ⚠️ YAPMA: `addPostFrameCallback`i kaldirma (kapak cizimden ONCE kalkar).
+        case 'iosPipGeriYukleniyor':
+          WidgetsBinding.instance
+              .addPostFrameCallback((_) => unawaited(iosGeriYuklemeTamam()));
         case 'callkitBitti':
           callkitBittiCb?.call((call.arguments as String?) ?? '');
         case 'gsmDurum': // TEST TURU 20: GSM aramasi basladi/bitti

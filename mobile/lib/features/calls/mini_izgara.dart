@@ -61,10 +61,13 @@ Widget miniIzgara(List<Widget> kutular, {bool ustUste = false}) {
         // Eski tavan 0.405*H idi; 5:6 penceresinde H = 1.2*W -> tavan = 0.486*W
         // yani yeni kutuyu KIRPARDI. Flutter kirpar, iOS (tavansiz) kirpmaz ->
         // Android ile iPhone AYRISIRDI = kullanicinin sikayetinin YENI KOPYASI.
-        // 0.50 ile tavan 0.60*W olur, pay kalir.
+        // ⚠️ TURU 70b denetimi: 0.50 ile pay YALNIZ %3.4 kaliyordu (kh=0.5797W,
+        //     tavan=0.60W). OEM'in PiP orani azicik saparsa Flutter KIRPAR, iOS
+        //     (tavansiz) kirpmaz -> Android ile iPhone AYRISIR = sikayetin yeni
+        //     kopyasi. 0.55 ile pay rahatlar, 3 kutulu duzen korumasi SURER.
         // ⚠️ YAPMA: tavani tamamen KALDIRMA — 3 kutulu duzende kose kutusu iki
         //     dikey kutuyu birden orter (tek yatay korumasi odur).
-        final tavan = c.maxHeight * 0.50;
+        final tavan = c.maxHeight * 0.55;
         return Stack(children: [
           Positioned.fill(child: buyuk),
           Positioned(

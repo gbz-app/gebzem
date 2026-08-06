@@ -628,6 +628,15 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
   // kalirsa ekran kalici siyah olur; `kapakTimer` emniyet agidir.
   private var geriKapak: UIView?
   private var kapakTimer: Timer?
+  /// TURU 70b: geri-yukleme SURUYOR mu. `durdur()` icindeki savunma temizligi bu bayrak
+  /// aciksa kapagi KALDIRMAZ — aksi halde kapak Flutter cizmeden kalkiyor ve fix NO-OP
+  /// oluyordu (`resumed` dalinda once `iosPipDurdur()` cagriliyor).
+  private var geriYuklemeSuruyor = false
+  /// ⚠️⚠️ TURU 70b — KAPAK **FLUTTER KOKUNE** KONUR. Ilk yazimda `callVC?.view.window`
+  /// kullanmistim; `callVC` AVKit'in **PiP PENCERESINDEDIR**, yani kapak PiP kutusunun
+  /// ICINE konuyordu: Flutter ORTULMUYOR, PiP simsiyah bir dikdortgene donuyor ve
+  /// pencere yikilinca kapak sahipsiz kaliyordu. ⚠️ YAPMA: `callVC?.view.window`e donme.
+  private weak var flutterKok: UIView?
 
   // ---- TEST TURU 39: KARE GOZCUSU + SICAK KAYNAK DEGISIMI ----
   /// Pencerede su an KIMIN videosu var ("yerel" = kendi kameram, "uzak" = karsi taraf).
@@ -746,6 +755,14 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
         "cagri": self.baslatCagri, "iptal": self.iptalCagri,
         "msMax": self.baslatMsMax,
         "durum": durum, "pipAktif": pipAktif,
+        // ⚠️⚠️ TURU 70b — PENCERE BOYUTU OLCUMU (kullanici: "PiP boyutu eskiden
+        // herkeste ESITTI, digeri COK BUYUK"). Oran degismedigi icin sebep
+        // `preferredContentSize` DEGIL; guclu aday iOS'un UYGULAMA BASINA HATIRLADIGI
+        // PiP boyut sinifi. Bu olcum olmadan bir sonraki turda yine TAHMIN yururuz
+        // (turu 60/61 dersi). ⚠️ YAPMA: bunu her karede gonderme — 3sn'de TEK.
+        "pw": Int(self.callVC?.view.bounds.width ?? 0),
+        "ph": Int(self.callVC?.view.bounds.height ?? 0),
+        "ekran": Int(UIScreen.main.bounds.width),
       ])
       self.baslatCagri = 0
       self.iptalCagri = 0
@@ -922,6 +939,7 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
   func kur(trackId: String, yerelTrackId: String? = nil, kaynak: String = "yerel") -> Bool {
     guard AVPictureInPictureController.isPictureInPictureSupported() else { return false }
     guard let kaynakView = Self.kokView() else { return false }
+    flutterKok = kaynakView // turu 70b: geri-yukleme kapagi BURAYA konur (PiP'e DEGIL)
     // TEST TURU 15: UZAK track once (arama/izleyici); bulunamazsa YEREL track (CANLI YAYIN
     // YAYINCISI kendi kamerasini PiP'te gorur — PiP aktifken iOS kamera CAPTURE'i surdurur,
     // yani izleyiciler DONMUS kare gormez). trackForId:peerConnectionId:nil yerel+uzak arar.
@@ -944,23 +962,24 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
     // olmus"): turu 32'de bolunmus kutular icin 120x400 yapilmisti; pencere asiri dar-uzun
     // gorunuyor. Pencere artik TEK VIDEO gosterdigi icin dogru oran 9:16 portredir.
     // ⚠️ YAPMA: bolunme olmadan preferredContentSize'i uzatma.
-    // ⚠️⚠️⚠️ TURU 70 — TURU 53'TEKI HUKMUM **YARIM DOGRUYDU**, DUZELTILDI.
-    // Turu 53'te "preferredContentSize MUTLAK BOYUT DEGILDIR, iOS yalnizca ORANI
-    // kullanir" yazip degeri `CGSize(5, 6)` yapmistim. Kullanici (6 Agu) sunu soyledi:
-    // **"PiP boyutu ESKIDEN HERKESTE ESITTI"** — git bunu dogruluyor: deger once
-    // `120x200`, sonra `120x213` GERCEK PUAN olcusuydu; turu 53'te 5x6'ya dustu.
+    // ⚠️⚠️ TURU 53 HUKMU DOGRUYDU (turu 70b denetimi benim "yarim dogru" iddiami
+    // CURUTTU): `preferredContentSize` YALNIZ EN-BOY ORANI icindir; pencerenin MUTLAK
+    // boyutunu iOS belirler, uygulama AYARLAYAMAZ.
+    // KANIT: `CGSize(5, 6)` turu 53-69 arasi 16 TUR sahada kaldi ve "pencere 5 punto
+    // cikti" ya da "varsayilana dustu" diye TEK BIR sikayet gelmedi.
+    // ⚠️ YAPMA: pencereyi BUYUTMEK icin daha buyuk punto yazma — NO-OP'tur.
     //
-    // DOGRUSU: bu bir **BOYUT TALEBIDIR**; iOS onu kendi sinirlarina sigdirir.
-    //  · AYNI oranda buyuk/kucuk puan yazmak pencereyi buyutmez (120x213 ~ 132x234) ✅
-    //  · AMA **dejenere kucuk deger (5x6) YAZILMAZ** — makul puan araligi disinda
-    //    davranis tanimsizlasir ve sistem kendi varsayilanina duser ❌
-    //    (Apple'in kendi ornegi `1080x1920` — GERCEKCI puan.)
-    //  · ORAN da boyutu ETKILER: sistem yuksekligi sinirladigi icin daha GENIS oran =
-    //    ayni yukseklikte daha BUYUK pencere.
+    // Deger 180x216 = 5:6 (0.8333) — `CGSize(5,6)` ile MATEMATIKSEL OLARAK AYNI.
+    // Yalnizca okunurluk icin gercekci punto yazildi; DAVRANIS DEGISMEDI.
     //
-    // SECILEN: **180x216** = 5:6 (0.833) — ORAN AYNEN KORUNDU, yalnizca DEJENERE
-    // deger GERCEKCI PUANA cevrildi (180pt ~ 414pt ekranin %43'u; tarihsel 120x213
-    // ile ayni mertebede).
+    // ⚠️⚠️ KULLANICININ "PiP boyutu ESKIDEN HERKESTE ESITTI" GOZLEMI ACIKLANMADI:
+    //     oran degismedigi icin sebep BURASI DEGIL. Guclu aday: iOS'ta PiP'in UC BOYUT
+    //     SINIFI vardir, kullanici kistirma/cift dokunusla degistirir ve sistem bunu
+    //     UYGULAMA BASINA HATIRLAR. Ayrica XS Max ve iPhone 11 AYNI mantiksal
+    //     cozunurlugu (414x896pt) paylasir. Asagidaki `kareOlcumuBaslat` olcumune
+    //     pencere boyutu eklendi — bir sonraki turda TAHMIN degil KANIT olacak.
+    //     (Model farkinin KANITLANMIS kaynagi arama ekranindaki SABIT PUAN kose
+    //      kutusuydu; o turu 70'te oran-bazli yapildi.)
     // ⚠️⚠️ ORAN NEDEN DEGISTIRILMEDI (iki arastirma celisti, karar gerekcesi):
     //  · Sistem pencerenin YUKSEKLIGINI sinirlar -> DAHA GENIS oran = ayni yukseklikte
     //    DAHA BUYUK pencere. "%20 yuksek + %10 genis" istegi oran diline cevrilince
@@ -1306,7 +1325,12 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
   /// USTUNDE asili kaliyordu. `iptalIstendi` ile GEC gelen didStart da durdurulur.
   func durdur() {
     baslatKilidiAc()
-    kapakKaldir() // TURU 70: savunma — kapak hicbir kosulda asili kalmasin
+    // ⚠️⚠️ TURU 70b: geri-yukleme SURUYORSA kapagi BURADA KALDIRMA.
+    // `resumed` dalinda ONCE `iosPipDurdur()` (-> `durdur()`) cagriliyor; kosulsuz
+    // kaldirsaydik kapak Flutter ILK KARESINI cizmeden kalkar ve fix NO-OP olurdu.
+    // Kapak, Dart post-frame `iosGeriYuklemeTamam` ile ya da 700ms emniyetle kalkar.
+    // ⚠️ YAPMA: bu kosulu kaldirma.
+    if !geriYuklemeSuruyor { kapakKaldir() }
     // TURU 52 — OLCUM PENCERESI: `durdur()` uygulama ON PLANA donunce KOSULSUZ cagriliyor
     // (Dart `resumed` dali). Yani burasi "bir arka plan gecisi bitti" anidir. Sayaclari
     // BURADA sifirlamak, `cagri`/`iptal` degerlerinin TEK BIR alta almaya ait olmasini
@@ -1464,15 +1488,15 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
 
   /// TURU 70: geri-yukleme kapagini goster (idempotent).
   func kapakGoster() {
-    guard geriKapak == nil, let kok = callVC?.view.window ?? UIApplication.shared
-      .connectedScenes.compactMap({ ($0 as? UIWindowScene)?.keyWindow }).first
-    else { return }
+    // ⚠️ KOK = FLUTTER kokunun view'i (PiP penceresi DEGIL) — bkz. `flutterKok` serhi.
+    guard geriKapak == nil, let kok = flutterKok ?? Self.kokView() else { return }
     let v = UIView(frame: kok.bounds)
     v.backgroundColor = .black
     v.autoresizingMask = [.flexibleWidth, .flexibleHeight]
     v.isUserInteractionEnabled = true // gecis sirasinda kazara dokunus YUTULSUN
     kok.addSubview(v)
     geriKapak = v
+    geriYuklemeSuruyor = true
     kapakTimer?.invalidate()
     kapakTimer = Timer.scheduledTimer(withTimeInterval: 0.7, repeats: false) { [weak self] _ in
       self?.kapakKaldir()
@@ -1481,6 +1505,7 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
 
   /// TURU 70: kapagi kaldir (idempotent; Dart "ilk kare hazir" deyince ya da 700ms emniyet).
   func kapakKaldir() {
+    geriYuklemeSuruyor = false // ⚠️ ILK SATIR: guard'dan ONCE (bayrak asili kalmasin)
     kapakTimer?.invalidate()
     kapakTimer = nil
     guard let v = geriKapak else { return }

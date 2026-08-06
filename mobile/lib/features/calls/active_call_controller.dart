@@ -1649,7 +1649,10 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
               // turu 52: `iptal` = kac acilis iptal edildi. `cagri` artik YALNIZ tek bir
               // arka plan gecisini kapsar (durdur()'da sifirlaniyor) — eskiden birikiyordu.
               'cagri=${o['cagri']} iptal=${o['iptal']} msMax=${o['msMax']} '
-              'durum=${o['durum']} pipAktif=${o['pipAktif']}'));
+              // TURU 70b: pencerenin GERCEK boyutu — "PiP her modelde ayni degil"
+              // sorusu bir sonraki turda TAHMINLE degil KANITLA cevaplanacak.
+              'durum=${o['durum']} pipAktif=${o['pipAktif']} '
+              'pw=${o['pw']} ph=${o['ph']} ekran=${o['ekran']}'));
         }
         notifyListeners();
       }
@@ -3696,13 +3699,26 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
       transitionDuration: const Duration(milliseconds: 260),
       reverseTransitionDuration: const Duration(milliseconds: 160),
       pageBuilder: (_, _, _) => CallScreen(bilgi: b),
-      transitionsBuilder: (_, anim, _, child) => ColoredBox(
-        color: Colors.black,
-        child: FadeTransition(
-          opacity: anim.drive(CurveTween(curve: Curves.easeOut)),
-          child: child,
-        ),
-      ),
+      // ⚠️⚠️ TURU 70b — `transitionsBuilder` PUSH ve POP icin AYNI fonksiyondur.
+      // Ilk yazimda `ColoredBox`u kosulsuz opak yapmistim; POP (kucultme) yonunde ekran
+      // BASTAN SONA duz siyah oluyor ve route kalkinca SERT KESME yasaniyordu — turu 59
+      // (6) maddesinin ve kendi "YAPMA: POP yonunu opaklastirma" uyarimin ihlali.
+      // COZUM: ileri yonde (buyutme) perde TAM OPAK; geri yonde (kucultme) perde
+      // animasyonla SOLAR, altta sohbet listesi yumusakca ortaya cikar.
+      // ⚠️ Agac SEKLI iki yonde de OZDES (ColoredBox > FadeTransition > child) —
+      //     `_videoKutu` element'i yeniden kurulmaz (turu 27-31 siyah patlama).
+      // ⚠️ YAPMA: `CurvedAnimation` kullanma (turu 59: her karede kurulup dispose oluyordu).
+      transitionsBuilder: (_, anim, _, child) {
+        final t = Curves.easeOut.transform(anim.value.clamp(0.0, 1.0));
+        final geri = anim.status == AnimationStatus.reverse;
+        return ColoredBox(
+          color: geri ? Colors.black.withValues(alpha: t) : Colors.black,
+          child: FadeTransition(
+            opacity: anim.drive(CurveTween(curve: Curves.easeOut)),
+            child: child,
+          ),
+        );
+      },
     ));
   }
 
