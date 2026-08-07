@@ -17,8 +17,13 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (7 Agu):** TEST TURU 70+71+72 BUILD ALINIYOR (7084341) —
-  yayin adimlari asagida, tamamlaninca bu satir guncellenecek.
+- **KALDIGIMIZ YER (7 Agu 16:35):** TEST TURU 70+71+72 YAYINLANDI — android 31182191326 +
+  ios 31182204197 (7084341), R2 apk=108254865 (md5 024156c0) ipa=22361813 (md5 341a1981),
+  purge OK, **CDN birebir** (apk+ipa MD5 yerelle AYNI), indir sayfasi 16:35, debug imza YOK,
+  IPA icinde MinimumOSVersion=16.0, **backend DEGISMEDI** (19d0a96 — 19d0a96..HEAD backend/
+  diff BOS) + health ok, DB temiz (0/0/0/0). **KULLANICI TEST EDECEK.**
+  ⚠️ APK BUYUDU (108238365 -> 108254865) ve IPA BUYUDU (22353814 -> 22361813) = yeni Dart+Swift
+  DERLENDI kaniti.
 - ⚠️⚠️⚠️ **TURU 72 — ODA/YAYIN DURAKLATMA (KULLANICI TASARIMI).**
   *"Oda kurdum konusuyorum, telefona cevap verdigimde odadaki mikrofonu kapat ve
   profilde pause isareti Bekliyor olsun; canli yayinda da mikrofonu kapat ve ekrani
