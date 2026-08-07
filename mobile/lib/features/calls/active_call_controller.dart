@@ -1343,6 +1343,9 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     _sureReferansiAl(b.elapsedMs);
     // MESGUL MUHAFIZI: calar fazi dahil isaretle; yalniz leave birakir.
     _svc.ekranAcildi(id);
+    // TURU 73: iOS ses birimi sahiplik defteri — odanin/yayinin kapanisi bu kayit
+    //     dururken ses birimini KAPATMAZ (bkz. SesSahipligi serhi).
+    SesSahipligi.kaydol("arama_$id");
 
     _aboneliklerKur(id);
 
@@ -2912,7 +2915,16 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
   static Future<void> _odaTemizle(
       Room? room, EventsListener<RoomEvent>? listener, int nesil) async {
     // iOS ses birimi: yalniz hala sahibiysek kapat (nesil jetonu — yeni aramanin sesini kesme)
-    if (Platform.isIOS && nesil == _sesNesilSayaci) {
+    // ⚠️⚠️ TURU 73 — ODA/YAYIN KAPISI (iOS duraklatmasi acilinca ZORUNLU oldu):
+    // `isAudioEnabled` PROSES GENELINDE TEK bayraktir. Kullanici odadayken/yayindayken
+    // aramayi kabul edip bitirdiginde bu satir, HALA BAGLI duran odanin sesini de
+    // OLDURUYORDU -> "Sohbete devam" dedigimizde SESSIZLIK. Nesil jetonu yalniz
+    // ARAMA-ARAMA yarisini korur, oda/yayini GORMEZ.
+    // ⚠️ YAPMA: bu kapiyi kaldirma. ⚠️ Oda/yayin kendi kapanisinda `_sesiAc(false)`
+    //     cagirir (ve o da simetrik olarak `SesSahipligi.aramaCanli` kapisina bakar).
+    if (Platform.isIOS &&
+        nesil == _sesNesilSayaci &&
+        !SesSahipligi.odaVeyaYayinCanli) {
       try {
         await _audioCh.invokeMethod('setAudioEnabled', false);
       } catch (_) {}
@@ -3043,6 +3055,7 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     // Muhafizlari birak (eski dispose'un iki birakmasi TEK KAPIDA)
     _svc.aktifKonusmaBitti(id);
     _svc.ekranKapandi(id);
+    SesSahipligi.birak("arama_$id"); // turu 73
     // TURU 54: bu arama episodu bitti -> davet damgalarini dus. Yoksa AYNI aramaya
     // tekrar davet edildiginde kabul REST'e HIC GITMEZ ve karsi tarafta zil susmaz
     // (sunucu kaniti: 4 x /add, 0 x /answer). ⚠️ YAPMA: bunu arama SURERKEN cagirma.

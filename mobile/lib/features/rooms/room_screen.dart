@@ -126,6 +126,8 @@ class _RoomScreenState extends ConsumerState<RoomScreen> with WidgetsBindingObse
     // MESGUL MUHAFIZI: odadayken 1:1 arama baslatilamaz/kabul edilemez (mevcut public
     // kume — arama koduna dokunmadan entegre). Cikista birakilir.
     _svc.ekranAcildi('oda_${widget.roomId}');
+    // TURU 73: iOS ses birimi sahiplik defteri (bkz. SesSahipligi serhi).
+    SesSahipligi.kaydol('oda_${widget.roomId}');
     // ⚠️⚠️ TURU 71 — GSM GOZCUSU BU EKRANDA DA ACIK (gizlilik). Eskiden yalniz
     // arama akisinda aciliyordu; odada/yayinda telefon gorusmesi yapilirsa
     // `gsmAramada` HIC guncellenmiyor ve mikrofon kapilari tetiklenmiyordu.
@@ -314,7 +316,13 @@ class _RoomScreenState extends ConsumerState<RoomScreen> with WidgetsBindingObse
   /// ⚠️ YAPMA: burada `_sesiAc(false)` cagirma — o PROSES GENELINDE ses birimini kapatir
   ///     ve AKTIF ARAMANIN sesini oldurur (`medya_beklet.dart` serhi).
   Future<void> odayiDuraklat() async {
-    if (!Platform.isAndroid) return; // iOS ERTELENDI (bkz. serh)
+    // ⚠️⚠️ TURU 73 — iOS ARTIK ACIK (kullanici emri: "hepsine yapsana").
+    // Turu 72'de burada `if (!Platform.isAndroid) return;` vardi. Kaldirmanin
+    // BEDELI iki yeni kapiyla odendi: (a) `SesSahipligi` defteri — arama ve
+    // oda/yayin ayni PROSES GENELI ses birimini paylastigi icin biri kapanirken
+    // digerinin sesini OLDURMUYOR; (b) `iosSesBirimiAc` merdiveni — turu 65'te
+    // olculen `!pri` (InsufficientPriority) durumunda tek deneme YETMEZ.
+    // ⚠️ YAPMA: bu ikisinden birini kaldirip iOS'u acik birakma.
     final room = _room;
     if (_duraklatildi || room == null || _ayrildi) return;
     // ⚠️⚠️ TURU 72b — UI BAYRAKLARI await'TEN ONCE, SENKRON (denetim bulgusu).
@@ -376,13 +384,33 @@ class _RoomScreenState extends ConsumerState<RoomScreen> with WidgetsBindingObse
       await room.setSpeakerOn(false);
       await room.setSpeakerOn(true);
     } catch (_) {}
+    // ⚠️⚠️ TURU 73 — iOS SES BIRIMINI GERI AC (EN SON, kanitli sira).
+    // Arama kapanisi iOS'ta `setAudioEnabled(false)` yazar (proses geneli).
+    // `SesSahipligi` kapisi cogu durumda bunu ONLER, ama iki durum kalir:
+    //   (a) arama BIZ odaya girmeden once basladi/bitti,
+    //   (b) CallKit oturumu kendi `didDeactivate` yolundan biraktiysa.
+    // Merdiven `configOk && active` DOGRULAR; tukenirse GERCEK Sentry olayi yazar
+    // (turu 65 `!pri` bu yolla GORUNUR olur). ⚠️ YAPMA: tek denemeye dusurme.
+    if (!await iosSesBirimiAc(_audioCh, 'oda')) {
+      rootMessengerKey.currentState?.showSnackBar(const SnackBar(
+        duration: Duration(seconds: 5),
+        content: Text('Ses açılamadı. Telefon görüşmeniz tam kapanmamış olabilir; birkaç saniye sonra tekrar deneyin.'),
+      ));
+    }
     if (mounted) setState(() => _micOn = hedef);
   }
 
   Future<void> _kapatOda() async {
     if (_kapandi) return;
     _kapandi = true;
-    await _sesiAc(false);
+    // ⚠️⚠️ TURU 73 — ARAMA KAPISI (iOS): `_sesiAc(false)` PROSES GENELINDE
+    // ses birimini kapatir. Kullanici odadan CIKARKEN bir arama SURUYORSA bu
+    // satir GORUSMEYI SESSIZE DUSURURDU. Simetrigi arama tarafinda:
+    // `_odaTemizle` -> `SesSahipligi.odaVeyaYayinCanli`.
+    // ⚠️ YAPMA: bu kapiyi kaldirma; `birak`i kapinin ONUNE koy (yoksa kendi
+    //     kaydimiz asili kalir).
+    SesSahipligi.birak('oda_${widget.roomId}');
+    if (!SesSahipligi.aramaCanli) await _sesiAc(false);
     final room = _room;
     final listener = _listener;
     _room = null;

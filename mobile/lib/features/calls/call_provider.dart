@@ -184,13 +184,14 @@ class CallService extends StateNotifier<IncomingCall?> {
 
     final kalan = ilgili.where(_odaVeyaYayinMuhafizi).toList();
     if (kalan.isEmpty) return false;
-    // ⚠️ Muafiyet YALNIZ Android'de: iOS'ta duraklatma ERTELENDI (turu 65 "!pri").
-    //     iOS'ta muafiyet acilirsa arama kabul edilir ama oda susmaz = ses cakisir.
+    // ⚠️⚠️ TURU 73 — MUAFIYET ARTIK iOS'TA DA GECERLI (kullanici emri).
+    //     Turu 72'de `Platform.isAndroid` sarti vardi cunku duraklatma yalniz
+    //     Android'de calisiyordu; iOS'ta muaf birakmak "arama kabul edildi ama
+    //     oda susmadi" = ses cakismasi demekti. Artik uc ekran da iOS'ta
+    //     duraklatiyor (SesSahipligi + iosSesBirimiAc).
     // ⚠️⚠️ `every` — `any` DEGIL (denetim bulgusu): kumede duraklatilamayan TEK bir
     //     ekran (ornegin `yayin-onizleme`) varsa muafiyet VERILMEZ. FAIL-CLOSED.
-    if (odaYayinMuaf &&
-        Platform.isAndroid &&
-        kalan.every(_duraklatilabilirMuhafiz)) {
+    if (odaYayinMuaf && kalan.every(_duraklatilabilirMuhafiz)) {
       return false; // hepsi DURAKLATILABILIR -> mesgul SAYMA
     }
     return true;

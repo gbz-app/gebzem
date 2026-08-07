@@ -128,6 +128,7 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
     super.initState();
     _svc = ref.read(callServiceProvider.notifier);
     _svc.ekranAcildi('yayin_${widget.streamId}');
+    SesSahipligi.kaydol('yayin_${widget.streamId}'); // turu 73
     // ⚠️⚠️ TURU 71 — GSM GOZCUSU BU EKRANDA DA ACIK (gizlilik). Eskiden yalniz
     // arama akisinda aciliyordu; odada/yayinda telefon gorusmesi yapilirsa
     // `gsmAramada` HIC guncellenmiyor ve mikrofon kapilari tetiklenmiyordu.
@@ -696,7 +697,12 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
   Future<void> _kapatOda() async {
     if (_kapandi) return;
     _kapandi = true;
-    await _sesiAc(false);
+    // ⚠️⚠️ TURU 73 — ARAMA KAPISI (iOS): `_sesiAc(false)` PROSES GENELINDE ses
+    // birimini kapatir. Kullanici yayindan CIKARKEN bir arama SURUYORSA bu satir
+    // GORUSMEYI SESSIZE DUSURURDU. Simetrigi arama tarafinda: `_odaTemizle` ->
+    // `SesSahipligi.odaVeyaYayinCanli`. ⚠️ YAPMA: bu kapiyi kaldirma.
+    SesSahipligi.birak('yayin_${widget.streamId}');
+    if (!SesSahipligi.aramaCanli) await _sesiAc(false);
     final room = _room;
     final listener = _listener;
     _room = null;
@@ -777,7 +783,8 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
   }
 
   Future<void> yayiniDuraklat() async {
-    if (!Platform.isAndroid) return;
+    // ⚠️⚠️ TURU 73 — iOS ACIK (bkz. room_screen.odayiDuraklat serhi:
+    //     SesSahipligi defteri + iosSesBirimiAc merdiveni ZORUNLU esliktir).
     final room = _room;
     if (_duraklatildi || room == null || _ayrildi) return;
     _micHedef = _konukMicOn;
@@ -831,6 +838,18 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
     final mic = _konukum && _micHedef;
     final kam = _konukum && _kamHedef;
     await medyaBeklet(room, false, micHedef: mic, camHedef: kam);
+    // ⚠️⚠️ TURU 73 — iOS SES BIRIMINI GERI AC (EN SON, kanitli sira: medya -> ses).
+    // ⚠️ IZLEYICIDE DE ZORUNLU: yayinlayacak medyamiz yok ama DINLEMEK icin de
+    //     ses birimi acik olmali; arama kapanisi onu proses genelinde kapatmis olabilir.
+    // Merdiven `configOk && active` DOGRULAR; tukenirse GERCEK Sentry olayi yazar
+    // (turu 65 `!pri` bu yolla GORUNUR olur). ⚠️ YAPMA: tek denemeye dusurme.
+    if (!await iosSesBirimiAc(_audioCh, 'izleyici')) {
+      rootMessengerKey.currentState?.showSnackBar(const SnackBar(
+        duration: Duration(seconds: 5),
+        content: Text('Ses açılamadı. Telefon görüşmeniz tam kapanmamış olabilir; '
+            'birkaç saniye sonra tekrar deneyin.'),
+      ));
+    }
     if (mounted && _konukum) {
       setState(() {
         _konukMicOn = mic;
