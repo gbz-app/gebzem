@@ -4649,3 +4649,77 @@ ekranı blurla; görüşme bitince 'Sohbete devam' / 'Canlı yayına devam' olsu
 - **"Diğerleri de 'Bekliyor' görsün"** — sunucu tarafı sinyal gerekiyor, AYRI İŞ.
 - Oda için `stopAudioCaptureOnMute: false` önerisi — kanıtlanmış zarar YOK, dokunulmadı.
 - ~500 satırlık ölü park/bekletme zinciri hâlâ duruyor (`bekletmeAcik=false` arkasında).
+
+---
+
+## Oturum 7 Ağustos 2026 (2) — TURU 73: oda/yayın duraklatması iOS'ta da açık
+
+Kullanıcı: *"dostum hepsine yapsana android ne alaka test edelim işte"* — turu 72'de
+iOS'u turu 65'in `!pri` kanıtına dayanarak kapalı bırakmıştım; kullanıcı bunu geçersiz
+kıldı. Açtım — **ama körlemesine değil**: önce kodu okuyup neyin kırılacağını çıkardım.
+
+### 🔴 Açmanın gerçek bedeli: `!pri` DEĞİLMİŞ
+
+iOS'ta `RTCAudioSession.isAudioEnabled` **proses genelinde tek bayrak** ve turu 73'e
+kadar arama ile oda/yayın iOS'ta **hiç aynı anda yaşamamıştı**. Açınca iki yönlü bir
+yıkım ortaya çıktı:
+
+- **Arama kapanışı** (`_odaTemizle`) `setAudioEnabled(false)` yazıyor → hâlâ **bağlı
+  duran** odanın/yayının sesi de ölüyor → "Sohbete devam" dediğinde **sessizlik**.
+  **Turu 72'nin iOS'ta çalışmamasının gerçek sebebi buydu**, tek başına `!pri` değil.
+- **Oda/yayın kapanışı** (`_kapatOda`) `_sesiAc(false)` yazıyor → **süren arama sessize
+  düşüyor** (kullanıcı odadan çıkınca görüşme ölüyor).
+
+Nesil jetonu (`_sesNesilSayaci`) yalnız **arama-arama** yarışını korur; oda/yayını görmez.
+
+### ✅ İki yapısal kapı (ikisi de zorunlu)
+1. **`SesSahipligi` defteri** — her ses tüketicisi kaydolur (`arama_` / `oda_` /
+   `yayin_b_` / `yayin_i_`); kapanan taraf **başka türden sahip** varsa ses birimine
+   dokunmaz, sadece kaydını düşürür.
+2. **`iosSesBirimiAc` merdiveni** — "devam" ile arama kapanışı yarış halinde; oturumu
+   CallKit tutuyor olabilir. 5 basamak (0/200/600/1200/2000ms), ölçüt native
+   `configOk && active`, tükenirse **gerçek Sentry olayı** + kullanıcıya dürüst mesaj.
+
+Ayrıca `mesgulMu` muafiyetindeki `Platform.isAndroid` kaldırıldı → iPhone'da
+odadayken/yayındayken arama artık **gerçekten kabul edilebiliyor**.
+
+### ⚠️⚠️ TURU 73b — DENETİM 4 YÜKSEK BULDU (üçü iOS açılışının yeni sınıf hatası)
+
+1. **Merdivende canlılık kapısı yoktu.** ~4sn await ediyor, hiçbir basamakta
+   `mounted`/`_ayrildi`/`_kapandi` yok. "Devam"a basıp odadan çıkarsan kapanış ses
+   birimini kapatıyor, merdivenin sonraki basamağı **geri açıyordu** → AVAudioSession
+   **sahipsiz açık** kalır (iPhone mikrofon göstergesi sönmez).
+2. **Oda/yayın `resumed` dalındaki `_sesiAc(true)` aktif aramayı yıkıyordu.** Native
+   `setAudioEnabled(true)` **koşulsuz zorla toggle** yapar. Turu 72'ye kadar zararsızdı
+   çünkü iOS'ta ikisi aynı anda yaşayamıyordu. Görüşme sürerken uygulamayı arka plana
+   alıp dönmek (kilit ekranı/bildirim — arama sırasında **çok sık**) aramanın sesini
+   ~50-150ms sağırlaştırıyor, hata da `catch (_)` ile yutuluyordu.
+   ⚠️⚠️ **DERS: bir özelliği yeni bir platforma açarken, o platformda daha önce
+   ULAŞILAMAYAN kod yollarının artık ulaşılabilir olduğunu varsay ve hepsini yeniden
+   değerlendir.** Üç bulgunun ortak kökü tam olarak buydu.
+3. **`geriAra()` defterde kalıcı `arama_` sızıntısı bırakıyordu.** Eski id'yi
+   düşürebilecek tek yer `leave(eskiId)` ve o bir daha çağrılamaz. "Geri ara"ya **bir
+   kez** basmak yeter: `aramaCanli` proses ömrü boyunca true takılır ve odadan/yayından
+   çıkınca ses birimi bir daha kapanmaz.
+4. Aynı sızıntının ikinci yolu: **bayat-`leave` kapısı** (turu 69b'de sahada
+   gerçekleştiği kanıtlı) `birak`ı atlıyordu → kapının **üstüne** taşındı.
+5. **(ORTA)** Merdiven `_micHedef` ezilme penceresini ~100ms'den ~4sn'ye çıkarmıştı.
+   `live_broadcast_screen` bu deseni **zaten doğru** yapıyordu — üç ekran arasındaki
+   **asimetri hatanın kendisiydi**.
+6. **(ORTA)** Defter statikti, sıfırlama yoktu + yayıncı ile izleyici **aynı anahtarı**
+   kullanıyordu → `sifirla()` (logout) + `yayin_b_`/`yayin_i_` ayrımı.
+7. **(DÜŞÜK)** `odayiDuraklat` şerhi hâlâ "SADECE ANDROID" diyordu — gövdeyle çelişiyordu.
+8. **(DÜŞÜK) Kendi turu 72b uyarım kaynaktan çürütüldü:** "`medyaBeklet` iOS'ta dolaylı
+   olarak AVAudioSession'ı yeniden yapılandırabilir" yolu **yok** — `onUnpublish` yalnız
+   `unpublishTrack` yolundan çağrılıyor, `disable()` de `track.stop()` yapmıyor. Yani
+   `_onAudioTrackCountDidChange` hiç tetiklenmiyor. Şerh düzeltildi.
+
+### YAYIN
+android `31210896371` + ios `31210908402` (`c5ccec7`), apk 108271245 md5 `07f4b9dc`,
+ipa 22365997 md5 `43ccd140`, purge OK, **CDN birebir**, indir sayfası 22:31, debug imza
+YOK, backend DEĞİŞMEDİ (19d0a96) + health ok, DB temiz (0/0/0/0).
+
+### 📌 ÖLÇÜM (test sonrası bakılacak)
+`oda/yayin ses birimi ACILAMADI (oda|yayinci|izleyici): hata=..` çıkarsa `!pri` iOS'ta
+hâlâ geçerli demektir; `N. denemede ACILDI` çıkarsa merdiven kurtardı ve basamak sayısı
+ayarlanabilir. **Bu sefer tahmin değil, ölçüm konuşacak.**
