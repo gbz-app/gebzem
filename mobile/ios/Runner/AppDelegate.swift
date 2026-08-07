@@ -1212,8 +1212,8 @@ final class GebzemPip: NSObject, AVPictureInPictureControllerDelegate {
         // ⚠️ AYNI SAYILAR `call_screen.dart` (_selfOran/_selfEnBoy) ve
         //     `mini_izgara.dart` icinde de var — UCU BIRDEN degismek ZORUNDA
         //     (turu 52/53 hukmu: iOS ve Flutter BIREBIR ayni gorunmeli).
-        yv.widthAnchor.constraint(equalTo: kok.widthAnchor, multiplier: 0.3720),
-        yv.heightAnchor.constraint(equalTo: yv.widthAnchor, multiplier: 1.5584),
+        yv.widthAnchor.constraint(equalTo: kok.widthAnchor, multiplier: 0.3740), // turu 70b: 0.34*1.10 (bkz. mini_izgara.dart)
+        yv.heightAnchor.constraint(equalTo: yv.widthAnchor, multiplier: 1.3091), // turu 70b: (0.34*1.2*1.20)/0.3740
       ])
       kok.layoutIfNeeded()
     } else {

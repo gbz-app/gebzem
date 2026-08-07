@@ -99,6 +99,26 @@ class CallService extends StateNotifier<IncomingCall?> {
   final Set<String> ekrandakiAramalar = {};
   bool get aramadaMi => ekrandakiAramalar.isNotEmpty;
 
+  /// Muhafiz bir ODA/CANLI YAYIN ekranina mi ait (arama DEGIL)?
+  /// ⚠️ `startsWith('yayin')` BILEREK GENIS: `yayin_<id>` (yayinci/izleyici) VE
+  ///     `yayin-onizleme` (live_start_screen) — ikisi de ses cakismasi uretir.
+  static bool _odaVeyaYayinMuhafizi(String x) =>
+      x.startsWith('oda_') || x.startsWith('yayin');
+
+  /// ⚠️⚠️ TURU 72b (denetim bulgusu) — bu muhafizin ekrani DURAKLATILABILIR mi?
+  /// Turu 72 duraklatma kodu YALNIZ `room_screen` (`oda_<id>`),
+  /// `live_broadcast_screen` ve `live_viewer_screen` (`yayin_<id>`) icinde var.
+  /// ⚠️⚠️ `live_start_screen`in muhafizi **`yayin-onizleme`**dir ve o ekranda
+  ///     duraklatma KODU YOKTUR; ustelik fiziksel kamerayi TUTAR — arama kabul
+  ///     edilirse IKI capture oturumu cakisir (o ekranin kendi serhi, satir 33).
+  ///     Bu yuzden onek ALT CIZGILI olmak ZORUNDA: `startsWith('yayin')` onu da
+  ///     kapsardi ve muafiyet FAIL-OPEN olurdu.
+  /// ⚠️ YAPMA: bunu `startsWith('yayin')`e genisletme.
+  /// ⚠️ YENI bir duraklatilabilir ekran eklersen muhafiz onekini `oda_`/`yayin_`
+  ///     yap; duraklatilamayan ekranlara BASKA bir onek ver.
+  static bool _duraklatilabilirMuhafiz(String x) =>
+      x.startsWith('oda_') || x.startsWith('yayin_');
+
   /// Su an ACIK olan muhafiz bir ARAMA mi (oda/canli yayin ekrani DEGIL)? Arama bekletme
   /// (test turu 18) yalniz arama-arama durumunda calisir: oda/yayin ekranlarinda ikinci
   /// aramayi gostermek ses cakismasi yaratir (bilincli eski davranis korunur).
@@ -146,18 +166,34 @@ class CallService extends StateNotifier<IncomingCall?> {
     if (ilgili.isEmpty) return false;
     final ctrl = _ref.read(activeCallProvider);
     final gercekArama = ctrl.arama != null && !ctrl.hazirlikModunda;
-    final odaVeyaYayin =
-        ilgili.any((x) => x.startsWith('oda_') || x.startsWith('yayin'));
+    if (gercekArama) return true; // iki arama AYNI ANDA olmaz (degismedi)
+
+    // ⚠️⚠️ TURU 72b (denetim bulgusu) — BAYAT ARAMA MUHAFIZLARI ARTIK ODA/YAYIN
+    // MUHAFIZIYLA BIRLIKTE DE TEMIZLENIR. Eski kodda self-heal `if (gercekArama ||
+    // odaVeyaYayin) return true;` satirinin ALTINDAYDI: kumede bir `oda_` kaydi
+    // varsa BAYAT arama id'sine HIC ULASILMIYOR ve muhafiz KALICI olarak asili
+    // kaliyordu (kullanici odadayken bir daha arama alamaz/yapamaz).
+    // ⚠️ Gercek arama VARSA yukarida donduk — buraya dusuyorsak arama id'li her
+    //     kayit tanim geregi BAYATTIR.
+    final bayat = ilgili.where((x) => !_odaVeyaYayinMuhafizi(x)).toList();
+    if (bayat.isNotEmpty) {
+      ekrandakiAramalar.removeAll(bayat);
+      unawaited(Sentry.captureMessage(
+          'bayat mesgul muhafizi temizlendi ($etiket): $bayat'));
+    }
+
+    final kalan = ilgili.where(_odaVeyaYayinMuhafizi).toList();
+    if (kalan.isEmpty) return false;
     // ⚠️ Muafiyet YALNIZ Android'de: iOS'ta duraklatma ERTELENDI (turu 65 "!pri").
     //     iOS'ta muafiyet acilirsa arama kabul edilir ama oda susmaz = ses cakisir.
-    if (odaYayinMuaf && odaVeyaYayin && !gercekArama && Platform.isAndroid) {
-      return false; // oda/yayin var ama DURAKLATILABILIR -> mesgul SAYMA
+    // ⚠️⚠️ `every` — `any` DEGIL (denetim bulgusu): kumede duraklatilamayan TEK bir
+    //     ekran (ornegin `yayin-onizleme`) varsa muafiyet VERILMEZ. FAIL-CLOSED.
+    if (odaYayinMuaf &&
+        Platform.isAndroid &&
+        kalan.every(_duraklatilabilirMuhafiz)) {
+      return false; // hepsi DURAKLATILABILIR -> mesgul SAYMA
     }
-    if (gercekArama || odaVeyaYayin) return true;
-    ekrandakiAramalar.removeWhere((x) => haric == null || x != haric);
-    unawaited(Sentry.captureMessage(
-        'bayat mesgul muhafizi temizlendi ($etiket): $ilgili'));
-    return false;
+    return true;
   }
 
   void _onEvent(Map<String, dynamic> ev) {
@@ -185,17 +221,16 @@ class CallService extends StateNotifier<IncomingCall?> {
         // (guard onekleri 'oda_' / 'yayin') eski davranis: gosterme.
         // ⚠️⚠️ TURU 72 — ODA/YAYIN ARTIK ISTISNA: o ekranlar DURAKLATILABILDIGI icin
         // gelen arama katmani GOSTERILIR (Android'de telefon artik CALAR).
-        // ⚠️ `gercekArama` hala engeller — iki arama ayni anda olmaz.
-        // ⚠️ Yalniz ANDROID: iOS'ta duraklatma ERTELENDI (turu 65 "!pri"); orada
-        //     zaten CallKit ciziyor ve muafiyet ses cakismasi uretirdi.
-        final odaYayinMuafiyeti = Platform.isAndroid &&
-            _ref.read(activeCallProvider).arama == null &&
-            ekrandakiAramalar.isNotEmpty &&
-            ekrandakiAramalar.every(
-                (x) => x.startsWith('oda_') || x.startsWith('yayin'));
-        if (aramadaMi &&
-            !(gelen.waiting && aktifAramaVar) &&
-            !odaYayinMuafiyeti) {
+        // ⚠️⚠️ TURU 72b (denetim bulgusu) — KARAR `mesgulMu`YA DEVREDILDI.
+        //     Burada AYRI bir kopya vardi ve `every` kullaniyordu; `mesgulMu` ise
+        //     `any`. Kumede bayat bir arama id'si varken IKISI FARKLI cevap
+        //     veriyordu: ON PLANDA telefon CALMIYOR (bu kapi), ama ayni arama
+        //     KILIT EKRANINDAN (CallKit -> answer -> mesgulMu) KABUL EDILIYORDU.
+        //     Tek kaynak = drift YOK; ustelik `mesgulMu`nun bayat-muhafiz
+        //     self-heal'i artik bu yolda da calisiyor.
+        // ⚠️ YAPMA: bu kurali tekrar buraya KOPYALAMA.
+        if (mesgulMu(haric: id, etiket: 'incoming', odaYayinMuaf: true) &&
+            !(gelen.waiting && aktifAramaVar)) {
           return;
         }
         state = gelen;

@@ -51,20 +51,27 @@ Widget miniIzgara(List<Widget> kutular, {bool ustUste = false}) {
   /// ikisi ayni gorunmek zorunda.
   Widget koseli(Widget buyuk, Widget ben) => LayoutBuilder(builder: (_, c) {
         // ⚠️⚠️ TURU 70 — kullanici istegi "%10 daha genis, %20 daha yuksek".
-        // Referans arama ekranindaki 140x200 -> 154x240; 414pt ekranda
-        // 154/414 = 0.3720 ve en-boy 240/154 = 1.5584.
-        // ⚠️ AYNI SAYILAR `call_screen.dart` (_selfOran/_selfEnBoy) ve iOS
-        //     `AppDelegate.yerelAyarla` icinde de var — UCU BIRDEN degismeli.
-        final kw = c.maxWidth * 0.3720;
-        final kh = kw * 1.5584;
-        // ⚠️⚠️ TAVAN 0.405 -> 0.50 YUKSELTILDI (ZORUNLU): yeni kh = 0.5797*W.
-        // Eski tavan 0.405*H idi; 5:6 penceresinde H = 1.2*W -> tavan = 0.486*W
-        // yani yeni kutuyu KIRPARDI. Flutter kirpar, iOS (tavansiz) kirpmaz ->
-        // Android ile iPhone AYRISIRDI = kullanicinin sikayetinin YENI KOPYASI.
-        // ⚠️ TURU 70b denetimi: 0.50 ile pay YALNIZ %3.4 kaliyordu (kh=0.5797W,
-        //     tavan=0.60W). OEM'in PiP orani azicik saparsa Flutter KIRPAR, iOS
-        //     (tavansiz) kirpmaz -> Android ile iPhone AYRISIR = sikayetin yeni
-        //     kopyasi. 0.55 ile pay rahatlar, 3 kutulu duzen korumasi SURER.
+        // ⚠️⚠️ TURU 70b (DENETIM BULGUSU — ARITMETIK HATASI DUZELTILDI):
+        //     Ilk surumde bu iki sayi ARAMA EKRANI kutusundan kopyalanmisti
+        //     (0.3720 / 1.5584). Ama iki yuzeyin TABANI FARKLIYDI: arama ekrani
+        //     140x200 (en-boy 1.4286), PiP kutusu 0.34W / 6:5 (en-boy 1.2).
+        //     Ayni sayiyi kullanmak PiP kutusunu %20 degil **%42** uzatiyordu
+        //     ve 5:6 pencerede karsi tarafin videosunun ~yarisini yiyordu.
+        //     DOGRUSU: her yuzey KENDI tabanindan buyur.
+        //       genislik: 0.34 * 1.10 = 0.3740
+        //       yukseklik: 0.34 * 1.2 * 1.20 = 0.4896W -> en-boy 0.4896/0.3740 = 1.3091
+        // ⚠️ YAPMA: bu sayilari call_screen.dart icindeki _selfOran/_selfEnBoy
+        //     ile ESITLEME — o AYRI bir yuzey ve tabani farkli.
+        // ⚠️ Bu iki sayi iOS AppDelegate.swift yerelAyarla icindeki
+        //     multiplier degerleriyle BIREBIR AYNI olmali (iPhone sistem PiP
+        //     kutusunu orasi cizer) — kullanici emri: iPhone ve Android AYNI.
+        final kw = c.maxWidth * 0.3740;
+        final kh = kw * 1.3091;
+        // ⚠️⚠️ TAVAN 0.405 -> 0.55 (ZORUNLU): yeni kh = 0.4896*W.
+        // Eski tavan 0.405*H idi; 5:6 pencerede H = 1.2*W -> tavan = 0.486*W,
+        // yani yeni kutuyu KIL PAYI KIRPARDI. Flutter kirpar, iOS (tavansiz)
+        // kirpmaz -> Android ile iPhone AYRISIRDI = sikayetin YENI KOPYASI.
+        // 0.55*H = 0.66*W ile pay %26 — OEM PiP orani biraz sapsa bile kirpmaz.
         // ⚠️ YAPMA: tavani tamamen KALDIRMA — 3 kutulu duzende kose kutusu iki
         //     dikey kutuyu birden orter (tek yatay korumasi odur).
         final tavan = c.maxHeight * 0.55;

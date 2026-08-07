@@ -24,7 +24,17 @@ import 'package:livekit_client/livekit_client.dart';
 ///     oda/yayin ekranlarindaki `_sesiAc` native `gebzem/audio` uzerinden
 ///     `RTCAudioSession.sharedInstance().isAudioEnabled = false` yazar — bu PROSES
 ///     GENELINDE TEK nesnedir ve AKTIF ARAMANIN sesini de OLDURUR.
-///     Duraklatma sirasinda ses birimine DOKUNMUYORUZ; yalniz track'leri susturuyoruz.
+///
+/// ⚠️⚠️ TURU 72b (denetim duzeltmesi) — "ses birimine HIC dokunmuyoruz" iddiasi
+///     TAM DOGRU DEGILDI, DOGRUSU SUDUR:
+///     · **Android'de dokunmaz** (bugun duraklatma zaten YALNIZ Android'de acik).
+///     · **iOS'ta DOLAYLI dokunabilir:** `setMicrophoneEnabled(false)` +
+///       livekit varsayilani `stopAudioCaptureOnMute: true` -> `onUnpublish` ->
+///       MODUL-GLOBAL `_localTrackCount--` -> `_onAudioTrackCountDidChange()` ->
+///       iOS dalinda `Native.configureAudio(...)` (proses geneli AVAudioSession).
+///       Aktif arama kendi yerel track'ini TUTTUGU surece sayac 0'a DUSMEZ, yani
+///       bugun tetiklenmez — ama iOS duraklatmasi acilirsa BURASI ilk bakilacak yer.
+/// ⚠️ YAPMA: iOS'u acarken bu notu okumadan `stopAudioCaptureOnMute` varsayilanina guvenme.
 ///
 /// ⚠️ Hicbir hata firlatmaz (her adim kendi `try`inde) — cagiran taraf UI'yi
 ///     guvenle guncelleyebilir. Ama SESSIZ KALMAZ: cagiran, sonucu kendi olcumune yazar.

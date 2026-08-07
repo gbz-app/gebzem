@@ -224,16 +224,21 @@ class PipService {
       // Baska bir ekran (oda/yayin) hala dinliyorsa native dinleyiciyi KAPATMA.
       if (_gsmSahipleri.isNotEmpty) return true;
     }
+    // ⚠️⚠️ TURU 72b (DENETIM BULGUSU) — BAYRAK TEMIZLIGI `try`IN **USTUNDE**.
+    // Eskiden `invokeMethod`un ALTINDAYDI: cagri firlatirsa (motor ayrilirken,
+    // kanal teardown aninda) `catch (_)` yutuyor ve `gsmAramada` SUREC BOYUNCA
+    // TRUE TAKILI kaliyordu. O andan sonra arama controller'i, oda ekrani ve iki
+    // yayin ekrani mikrofonu BIR DAHA ACMIYOR ve HICBIR olcum dusmuyordu
+    // (CLAUDE.md'nin tekrarlayan "yutulan hata + breadcrumb-only" deseni).
+    if (!ac) {
+      gsmAramada.value = false;
+      gsmYabanciId = '';
+    }
     try {
       _handlerKur();
       // Android tarafi (MainActivity.kt) DUZ BOOL bekler — sozlesmeyi bozma.
       final Object arg = Platform.isIOS ? {'ac': ac, 'callId': callId} : ac;
-      final ok = (await _ch.invokeMethod<bool>('gsmDinle', arg)) ?? false;
-      if (!ac) {
-        gsmAramada.value = false;
-        gsmYabanciId = '';
-      }
-      return ok;
+      return (await _ch.invokeMethod<bool>('gsmDinle', arg)) ?? false;
     } catch (_) {
       return false;
     }

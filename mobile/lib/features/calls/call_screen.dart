@@ -725,9 +725,16 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     if (_selfPos != null) return _selfPos!;
     final kenar = sz.width * _selfKenarOran;
     final x = _selfSagda ? sz.width - w - kenar : kenar;
-    final y = _selfAltta
-        ? sz.height - h - sz.height * 0.15625
-        : sz.height * 0.14509;
+    // ⚠️⚠️ TURU 70b (DENETIM BULGUSU) — KONUM PUANDA KALIR, BOYUT ORANLI.
+    //     Ilk surumde konum ofsetleri de orana cevrilmisti (0.15625 / 0.14509,
+    //     414x896 referansindan). Ama KACINILACAK OGELER SABIT PUANDA capali:
+    //     ust bilgi blogu Positioned(top: 48), alt kontroller bottom: 48.
+    //     Kisa ekranda (375x667 SE) oran daha kucuk ofset uretiyor (130 -> 96.8)
+    //     ve kutu BASLIK + UYARI SERIDININ USTUNE BINIYORDU; alt sinirda da
+    //     kontrollere 140 yerine 104pt kaliyordu. Test cihazi 414x896 oldugu
+    //     icin bu regresyon ORADA GORUNMEZDI.
+    // ⚠️ YAPMA: bu ofsetleri tekrar ekran oranina cevirme.
+    final y = _selfAltta ? sz.height - h - 140.0 : 130.0;
     return Offset(x, y);
   }
 
@@ -781,8 +788,8 @@ class _CallScreenState extends ConsumerState<CallScreen> {
                 // cihazda (SE 375x667) bile pay kaliyor: kh=217, ust sinir
                 // 667-217-104 = 346 > alt sinir 45. ⚠️ YAPMA: sabit puan geri koyma.
                 final kenar = sz.width * _selfKenarOran;
-                final altSinir = sz.height * 0.067;
-                final ustSinir = sz.height - h - sz.height * 0.15625;
+                final altSinir = 60.0; // turu 70b: PUAN (bkz. _selfKonum serhi)
+                final ustSinir = sz.height - h - 140.0;
                 final nx = (cur.dx + d.delta.dx)
                     .clamp(kenar, sz.width - w - kenar);
                 final ny = (cur.dy + d.delta.dy)

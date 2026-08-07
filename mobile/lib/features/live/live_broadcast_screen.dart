@@ -111,10 +111,11 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
     // `gsmAramada` HIC guncellenmiyor ve mikrofon kapilari tetiklenmiyordu.
     // ⚠️ `sahip` SART: arama bitince `gsmDinle(false)` cagrilir; sahiplik olmadan
     //     bu ekranin gozcusunu de oldururdu (bkz. PipService._gsmSahipleri).
-    unawaited(PipService.gsmDinle(true, sahip: 'yayin'));
+    unawaited(PipService.gsmDinle(true, sahip: 'yayin_${widget.streamId}'));
     // TURU 72: arama baslayinca yayini duraklat (devam OTOMATIK DEGIL, dugmeyle).
     _aramaCtrl = ref.read(activeCallProvider);
     _aramaCtrl.addListener(_aramaDegisti);
+    PipService.gsmAramada.addListener(_aramaDegisti); // turu 72b: hucresel arama
     _devralinan = widget.onizlemeTrack; // P1: onizlemeden devralinan kamera
     WidgetsBinding.instance.addObserver(this);
     _baglan(); // nabiz timer'i BAGLANTI BASARILI olunca baslar (dogrulama bulgusu:
@@ -146,7 +147,8 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
       // PiP'e girme ihtimali icin kisa gecikme (pipDegisti sinyali paused'dan SONRA gelebilir)
       _pipKameraGecikme?.cancel();
       _pipKameraGecikme = Timer(const Duration(milliseconds: 900), () {
-        if (!mounted || _ayrildi || PipService.pipModu.value || !_kameraAcik) return;
+        if (!mounted || _ayrildi || _duraklatildi) return; // turu 72b
+        if (PipService.pipModu.value || !_kameraAcik) return;
         _kameraOtoKapandi = true;
         _kameraAcik = false;
         _room?.localParticipant?.setCameraEnabled(false);
@@ -170,7 +172,11 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
       // konusmasini duyar/gorurdu. ⚠️ YAPMA: bu kapiyi kaldirma.
       // ⚠️ `_nabizAt()` her kosulda calismali — nabiz kesilirse `stream:{id}:pub`
       //     TTL 45sn'de duser ve sweeper YAYINI KAPATIR (turu 15).
-      if (_kameraOtoKapandi && !PipService.gsmAramada.value) {
+      // ⚠️ TURU 72b: `!_duraklatildi` de SART — duraklatmadayken bu blok
+      //     kamerayi geri aciyordu (GSM kapisi Gebzem aramasini GORMEZ).
+      if (_kameraOtoKapandi &&
+          !_duraklatildi &&
+          !PipService.gsmAramada.value) {
         _kameraOtoKapandi = false;
         _kameraAcik = true;
         _room?.localParticipant?.setCameraEnabled(true);
@@ -528,6 +534,11 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
           Sentry.captureMessage('yayin-video-olu: ${sn}sn, framesSent=0');
           if (!_videoKurtarmaDenendi) {
             _videoKurtarmaDenendi = true;
+            // ⚠️ TURU 72b (denetim bulgusu): `restartTrack()` livekit'te
+            //     stop -> createStream (KAMERAYI FIZIKSEL ACAR) -> replaceTrack
+            //     -> start yapar ve `muted` bayragina HIC BAKMAZ. Duraklatmada
+            //     calisirsa gorusme boyunca video CANLI yayinlanirdi.
+            if (_duraklatildi) return;
             await t.restartTrack();
             Sentry.addBreadcrumb(
                 Breadcrumb(category: 'yayin.video', message: 'restartTrack kurtarmasi denendi'));
@@ -586,15 +597,78 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
   /// TURU 72: arama BASLADIYSA yayini duraklat.
   void _aramaDegisti() {
     if (!mounted || _ayrildi) return;
-    if (_aramaCtrl.arama != null && !_duraklatildi) {
-      unawaited(yayiniDuraklat());
-    }
+    // TURU 72b: GSM de ayni tetigi ceker — kullanicinin tarifi
+    //     ('telefona cevap verdigimde') HUCRESEL aramayi da kapsiyor.
+    final aramaVar = _aramaCtrl.arama != null || PipService.gsmAramada.value;
+    if (aramaVar && !_duraklatildi) unawaited(yayiniDuraklat());
+  }
+
+  /// TURU 72b — duraklatma ortusu. `GestureDetector(behavior: opaque)` ALTTAKI
+  /// TUM DOKUNUSLARI YUTAR; "devam" dugmesi cocugu oldugu icin calismaya devam
+  /// eder (Flutter hit-test'i once cocuklara sorar).
+  /// ⚠️ YAPMA: `IgnorePointer` kullanma (dokunus alttaki dugmelere GECER).
+  /// ⚠️ Video AGACTA KALIR (renderer dispose OLMAZ) — ustune blur biner;
+  ///     kaldirirsak devam ederken sifirdan kurulur = siyah patlama (turu 27-31).
+  /// ⚠️ YAPMA: buraya MODAL DIALOG koyma (turu 15: mesgul muhafizi askida kalir).
+  Widget _duraklatmaKatmani() {
+    if (!_duraklatildi) return const SizedBox.shrink();
+    return Positioned.fill(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {},
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+          child: Container(
+            color: const Color(0x66000000),
+            alignment: Alignment.center,
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              const Icon(LucideIcons.pause, size: 56, color: Colors.white),
+              const SizedBox(height: 10),
+              const Text('Bekliyor',
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700)),
+              const SizedBox(height: 18),
+              Material(
+                color: const Color(0xFFEF6C00),
+                borderRadius: BorderRadius.circular(22),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(22),
+                  onTap: yayinaDevam,
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 22, vertical: 11),
+                    child: Text('Canlı yayına devam',
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700)),
+                  ),
+                ),
+              ),
+            ]),
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> yayiniDuraklat() async {
     if (!Platform.isAndroid) return;
     final room = _room;
     if (_duraklatildi || room == null || _ayrildi) return;
+    // TURU 72b (denetim bulgusu) — ARKA PLAN KAMERA DEFTERINI ONCE UZLASTIR.
+    // `_kameraAcik`in IKI sahibi var: yasam dongusu (900ms arka plan oto-mute +
+    // resumed geri acma) ve turu 72 duraklatmasi. Telefon CALARKEN uygulama
+    // >=900ms arka planda kalirsa oto-mute calisir ve `_kameraAcik=false` olur;
+    // duraklatma o degeri KULLANICI TERCIHI sanip `_kamHedef=false` yakalardi ->
+    // 'Canli yayina devam' sonrasi KAMERA BIR DAHA ACILMAZDI (yayincida kamera
+    // ac/kapa dugmesi YOK = kurtarma yolu yok).
+    _pipKameraGecikme?.cancel();
+    if (_kameraOtoKapandi) {
+      _kameraOtoKapandi = false;
+      _kameraAcik = true; // tercih arka plan artigi DEGIL
+    }
     _micHedef = _micOn;
     _kamHedef = _kameraAcik;
     setState(() {
@@ -609,6 +683,21 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
   Future<void> yayinaDevam() async {
     final room = _room;
     if (!_duraklatildi || room == null || _ayrildi) return;
+    // ⚠️⚠️ TURU 72b (DENETIM BULGUSU — GIZLILIK) — GEBZEM ARAMASI SURERKEN DEVAM YOK.
+    // Eskiden yalniz GSM soruluyordu. Ama kullanici arama ekranini KUCULTUP
+    // (call_screen '_minimize' -> Navigator.pop) bu ekrana donebilir; serit
+    // her zaman etkin oldugu icin "devam"a basmak mikrofonu ve uzak sesleri GERI
+    // ACARDI -> arama sesi + yayin sesi ust uste biner ve TUM IZLEYICILER GORUSMEYI DUYAR
+    // (turu 56/63/71 gizlilik aciginin aynisi).
+    // ⚠️ YAPMA: bu kapiyi kaldirma; "otomatik devam" haline getirme.
+    if (_aramaCtrl.arama != null) {
+      rootMessengerKey.currentState?.showSnackBar(const SnackBar(
+        duration: Duration(seconds: 4),
+        content: Text('Görüşmeniz sürüyor. Önce onu sonlandırın; '
+            'sonra kaldığınız yerden devam edebilirsiniz.'),
+      ));
+      return;
+    }
     if (PipService.gsmAramada.value) {
       rootMessengerKey.currentState?.showSnackBar(const SnackBar(
         duration: Duration(seconds: 4),
@@ -704,8 +793,9 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
   void dispose() {
     _svc.ekranKapandi('yayin_${widget.streamId}');
     // TURU 71: gozcu sahipligini birak (arama hala dinliyorsa native dinleyici ACIK kalir).
-    unawaited(PipService.gsmDinle(false, sahip: 'yayin'));
+    unawaited(PipService.gsmDinle(false, sahip: 'yayin_${widget.streamId}'));
     _aramaCtrl.removeListener(_aramaDegisti); // turu 72
+    PipService.gsmAramada.removeListener(_aramaDegisti); // turu 72b
     WidgetsBinding.instance.removeObserver(this);
     PipService.pipModu.removeListener(_pipDegisti);
     _pipBirak();
@@ -780,12 +870,17 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
       // altta 1 tam genislik, 4 ceyrek). Konuk yoksa tek kutu tam ekran.
       return Scaffold(
         backgroundColor: const Color(0xFF0B141A),
-        body: miniIzgara([
-          MiniKutu(track: video, harf: 'S', mirror: _onKamera),
-          for (final e in _konuklar.entries)
-            MiniKutu(
-                track: _konukVideoBul(e.key),
-                harf: e.value.isEmpty ? 'K' : e.value),
+        // ⚠️ TURU 72b: kucuk pencerede de DURAKLATMA GORUNSUN (denetim bulgusu) —
+        //     PiP'teki kullanici yayinin duraklatildigini bilmiyordu.
+        body: Stack(fit: StackFit.expand, children: [
+          miniIzgara([
+            MiniKutu(track: video, harf: 'S', mirror: _onKamera),
+            for (final e in _konuklar.entries)
+              MiniKutu(
+                  track: _konukVideoBul(e.key),
+                  harf: e.value.isEmpty ? 'K' : e.value),
+          ]),
+          if (_duraklatildi) const PipDuraklatmaRozeti(),
         ]),
       );
     }
@@ -831,43 +926,6 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
           //     Kaldirirsak devam ederken tekrar sifirdan kurulur = siyah patlama
           //     (turu 27-31 dersi).
           // ⚠️ YAPMA: buraya MODAL DIALOG koyma (turu 15: mesgul muhafizi askida kalir).
-          if (_duraklatildi)
-            Positioned.fill(
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-                child: Container(
-                  color: const Color(0x66000000),
-                  alignment: Alignment.center,
-                  child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    const Icon(LucideIcons.pause, size: 56, color: Colors.white),
-                    const SizedBox(height: 10),
-                    const Text('Bekliyor',
-                        style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700)),
-                    const SizedBox(height: 18),
-                    Material(
-                      color: const Color(0xFFEF6C00),
-                      borderRadius: BorderRadius.circular(22),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(22),
-                        onTap: yayinaDevam,
-                        child: const Padding(
-                          padding: EdgeInsets.symmetric(
-                              horizontal: 22, vertical: 11),
-                          child: Text('Canlı yayına devam',
-                              style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w700)),
-                        ),
-                      ),
-                    ),
-                  ]),
-                ),
-              ),
-            ),
           KalpKatmani(key: _kalpKey),
           for (final h in _hediyeler)
             HediyePatlamasi(
@@ -1000,6 +1058,15 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
               ),
             ]),
           ),
+          // ⚠️⚠️ TURU 72b — DURAKLATMA KATMANI **EN SONDA** (denetim bulgusu).
+          // Stack son cocugu EN USTE cizer ve hit-test'i TERS sirada yapar.
+          // Katman ilk surumde ORTADAYDI: ust bar (mikrofon dugmesi dahil) ve
+          // sohbet alani hem BLUR'LANMIYOR hem TIKLANABILIYORDU. Kullanici
+          // kirmizi gorunen mikrofona basip yayini GERI ACIYOR, ekran ise
+          // "Bekliyor" demeye devam ediyordu (`_duraklatildi` true kaldigi icin
+          // `_aramaDegisti` kendini ONARMIYOR) -> gorusme TUM IZLEYICILERE gitti.
+          // ⚠️ YAPMA: bu satiri Stack'in ortasina geri tasima.
+          _duraklatmaKatmani(),
         ]),
       ),
     ));

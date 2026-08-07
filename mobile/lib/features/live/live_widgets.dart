@@ -311,3 +311,27 @@ Widget yayinIzgara(List<Widget> tiles) {
     );
   });
 }
+
+/// TURU 72b — kucuk pencerede (Android PiP) duraklatma rozeti.
+/// PiP sade gorunumu erken `return` ettigi icin buyuk blur katmani orada
+/// CIZILMIYORDU; kullanici yayinin duraklatildigini goremiyordu (denetim bulgusu).
+/// ⚠️ Kucuk oldugu icin yalniz ikon + kisa yazi — dugme YOK (PiP'te dokunus
+///     zaten uygulamayi buyutur, devam dugmesi tam ekranda).
+class PipDuraklatmaRozeti extends StatelessWidget {
+  const PipDuraklatmaRozeti({super.key});
+
+  @override
+  Widget build(BuildContext context) => Container(
+        color: const Color(0x99000000),
+        alignment: Alignment.center,
+        child: Column(mainAxisSize: MainAxisSize.min, children: const [
+          Icon(LucideIcons.pause, size: 22, color: Colors.white),
+          SizedBox(height: 4),
+          Text('Bekliyor',
+              style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700)),
+        ]),
+      );
+}

@@ -72,6 +72,21 @@ class _RoomScreenState extends ConsumerState<RoomScreen> with WidgetsBindingObse
   //     sunucunun/host'un mute'unu ezerdik.
   bool _duraklatildi = false;
   bool _micHedef = false;
+  late final ActiveCallController _aramaCtrl;
+
+  /// TURU 72: aktif arama durumu degisti — arama BASLADIYSA odayi duraklat.
+  /// ⚠️⚠️ TURU 72b — GSM DE AYNI TETIGI CEKER (denetim bulgusu): ilk surumde yalniz
+  ///     `_aramaCtrl` dinleniyordu, oysa kullanicinin tarifi ("telefona cevap
+  ///     verdigimde") HUCRESEL aramayi da kapsiyor. `gsmAramada` bir ValueNotifier
+  ///     ve bu ekranda HIC dinlenmiyordu -> GSM'de mikrofon ACIK kaliyordu ve
+  ///     `odayaDevam`daki GSM kapisi HIC girilemeyen bir durum icin yazilmisti.
+  /// ⚠️ YAPMA: iki dinleyiciden birini kaldirma.
+  void _aramaDegisti() {
+    if (!mounted || _ayrildi) return;
+    final aramaVar =
+        _aramaCtrl.arama != null || PipService.gsmAramada.value;
+    if (aramaVar && !_duraklatildi) unawaited(odayiDuraklat());
+  }
   bool _ayrildi = false; // tek-seferlik cikis kilidi (cift pop = siyah ekran)
   bool _kapandi = false; // oda bir kez kapatildi mi
   String? _hata;
@@ -116,13 +131,14 @@ class _RoomScreenState extends ConsumerState<RoomScreen> with WidgetsBindingObse
     // `gsmAramada` HIC guncellenmiyor ve mikrofon kapilari tetiklenmiyordu.
     // ⚠️ `sahip` SART: arama bitince `gsmDinle(false)` cagrilir; sahiplik olmadan
     //     bu ekranin gozcusunu de oldururdu (bkz. PipService._gsmSahipleri).
-    unawaited(PipService.gsmDinle(true, sahip: 'oda'));
+    unawaited(PipService.gsmDinle(true, sahip: 'oda_${widget.roomId}'));
     // ⚠️⚠️ TURU 72 — ARAMA BASLAYINCA ODAYI DURAKLAT (tetikleyici).
     // Arama kabul edilince `arama != null` olur -> odayi sustururuz. Arama bitince
     // OTOMATIK DEVAM YOK: "Sohbete devam" dugmesi bekler (gizlilik karari).
     // ⚠️ YAPMA: burada otomatik devam ettirme; dinleyiciyi dispose'ta kaldirmayi unutma.
     _aramaCtrl = ref.read(activeCallProvider);
     _aramaCtrl.addListener(_aramaDegisti);
+    PipService.gsmAramada.addListener(_aramaDegisti); // turu 72b: hucresel arama
     WidgetsBinding.instance.addObserver(this); // kesinti toparlama (resume)
     // Kendi kimligim: WS rol olaylari LiveKit baglantisindan ONCE gelebilir.
     ref.read(myProfileProvider.future).then((p) {
@@ -148,7 +164,11 @@ class _RoomScreenState extends ConsumerState<RoomScreen> with WidgetsBindingObse
       // ⚠️ YAPMA: bu kapiyi kaldirma.
       // ⚠️ YAPMA: `resumed` dalini komple `return` ile kesme — `_detayYenile()`
       //     calismaya DEVAM etmeli (nabiz/durum tazeleme).
-      if (_rol != 'listener' && !PipService.gsmAramada.value) {
+      // ⚠️ TURU 72b: `!_duraklatildi` de SART — duraklatmadayken bu satir Gebzem
+      //     aramasi surerken mikrofonu geri acabiliyordu (GSM kapisi onu gormez).
+      if (_rol != 'listener' &&
+          !_duraklatildi &&
+          !PipService.gsmAramada.value) {
         _room?.localParticipant?.setMicrophoneEnabled(_micOn);
       }
       _detayYenile();
@@ -255,12 +275,21 @@ class _RoomScreenState extends ConsumerState<RoomScreen> with WidgetsBindingObse
       }
       // iOS SES SIRASI (v7/v8 dersi — AYNEN): mic/rota HAZIR olmadan ses birimi acilmaz.
       // Sira: (konusmaciysa) mic -> hoparlor -> _sesiAc(true) EN SON.
-      if (_rol != 'listener') {
+      // ⚠️⚠️ TURU 72b — BAGLANIRKEN DURAKLATILDIYSA MIKROFONU ACMA (denetim bulgusu).
+      // `_room` connect'ten ONCE atanir (satir ~194) ama livekit `localParticipant`i
+      // ancak `RoomConnectedEvent` ile yaratir. O pencerede arama kabul edilirse
+      // `odayiDuraklat()` `_duraklatildi = true` yazip KILITLENIR, `medyaBeklet` ise
+      // localParticipant null oldugu icin TAMAMEN NO-OP kalir. Ardindan buradaki
+      // satir mikrofonu ACIYORDU: ekran "Bekliyor" derken ODA GORUSMEYI DUYUYORDU
+      // ve `_aramaDegisti`nin `!_duraklatildi` kapisi yuzunden BIR DAHA denenmiyordu.
+      // ⚠️ YAPMA: bu kapiyi veya asagidaki yeniden-uygulamayi kaldirma.
+      if (_rol != 'listener' && !_duraklatildi) {
         await room.localParticipant?.setMicrophoneEnabled(true);
         _micOn = true;
       }
       await room.setSpeakerOn(true); // ODA VARSAYILANI HOPARLOR (dinleme senaryosu; 1:1'in tersi)
       await _sesiAc(true);
+      if (_duraklatildi) await medyaBeklet(room, true); // no-op kalan duraklatmayi UYGULA
     } catch (e) {
       await _kapatOda(); // yarim kalan odayi temizle
       rethrow;
@@ -284,24 +313,20 @@ class _RoomScreenState extends ConsumerState<RoomScreen> with WidgetsBindingObse
   ///     yasardik. iOS ancak olcum yesil dondukten sonra acilacak.
   /// ⚠️ YAPMA: burada `_sesiAc(false)` cagirma — o PROSES GENELINDE ses birimini kapatir
   ///     ve AKTIF ARAMANIN sesini oldurur (`medya_beklet.dart` serhi).
-  late final ActiveCallController _aramaCtrl;
-
-  /// TURU 72: aktif arama durumu degisti — arama BASLADIYSA odayi duraklat.
-  void _aramaDegisti() {
-    if (!mounted || _ayrildi) return;
-    if (_aramaCtrl.arama != null && !_duraklatildi) {
-      unawaited(odayiDuraklat());
-    }
-  }
-
   Future<void> odayiDuraklat() async {
     if (!Platform.isAndroid) return; // iOS ERTELENDI (bkz. serh)
     final room = _room;
     if (_duraklatildi || room == null || _ayrildi) return;
+    // ⚠️⚠️ TURU 72b — UI BAYRAKLARI await'TEN ONCE, SENKRON (denetim bulgusu).
+    // `_micOn`u await'in ALTINDA yazmak bir pencere aciyordu: o sirada uygulama
+    // on plana donerse `didChangeAppLifecycleState` BAYAT `_micOn == true`
+    // degerini okuyup `setMicrophoneEnabled(true)` cagiriyordu.
     _micHedef = _micOn; // duraklatmadan ONCEKI tercih
-    setState(() => _duraklatildi = true);
+    setState(() {
+      _duraklatildi = true;
+      _micOn = false;
+    });
     await medyaBeklet(room, true);
-    if (mounted) setState(() => _micOn = false);
   }
 
   /// TURU 72 — "Sohbete devam". ⚠️ OTOMATIK DEGIL, DUGMEYLE: telefon kapanir kapanmaz
@@ -311,6 +336,21 @@ class _RoomScreenState extends ConsumerState<RoomScreen> with WidgetsBindingObse
     if (!_duraklatildi || room == null || _ayrildi) return;
     // ⚠️ Hala telefon gorusmesi suruyorsa DEVAM ETME (turu 63 deseni): kisa aciklama
     //     goster, duraklatma SURSUN. GSM bitince kullanici tekrar basar.
+    // ⚠️⚠️ TURU 72b (DENETIM BULGUSU — GIZLILIK) — GEBZEM ARAMASI SURERKEN DEVAM YOK.
+    // Eskiden yalniz GSM soruluyordu. Ama kullanici arama ekranini KUCULTUP
+    // (call_screen '_minimize' -> Navigator.pop) bu ekrana donebilir; serit
+    // her zaman etkin oldugu icin "devam"a basmak mikrofonu ve uzak sesleri GERI
+    // ACARDI -> arama sesi + oda sesi ust uste biner ve ODADAKILER GORUSMEYI DUYAR
+    // (turu 56/63/71 gizlilik aciginin aynisi).
+    // ⚠️ YAPMA: bu kapiyi kaldirma; "otomatik devam" haline getirme.
+    if (_aramaCtrl.arama != null) {
+      rootMessengerKey.currentState?.showSnackBar(const SnackBar(
+        duration: Duration(seconds: 4),
+        content: Text('Görüşmeniz sürüyor. Önce onu sonlandırın; '
+            'sonra kaldığınız yerden devam edebilirsiniz.'),
+      ));
+      return;
+    }
     if (PipService.gsmAramada.value) {
       rootMessengerKey.currentState?.showSnackBar(const SnackBar(
         duration: Duration(seconds: 4),
@@ -323,6 +363,19 @@ class _RoomScreenState extends ConsumerState<RoomScreen> with WidgetsBindingObse
     // Dinleyicinin mikrofonu ZATEN kapali; konusmaci/host icin ONCEKI tercih geri gelir.
     final hedef = _rol != 'listener' && _micHedef;
     await medyaBeklet(room, false, micHedef: hedef);
+    // TURU 72b (denetim bulgusu) — SES ROTASINI GERI UYGULA.
+    // Iki bagimsiz sebep rotayi bozuyor: (1) sesli arama _connect'te
+    // setSpeakerOn(false) yaziyor ve Hardware.instance PROSES GENELI;
+    // (2) arama biterken room.disconnect() -> livekit _cleanUp() ->
+    // clearAndroidCommunicationDevice() cihaz secimini GLOBAL siliyor.
+    // Ikisi de hala bagli duran bu odayi etkiliyor -> ses ahizeden gelir
+    // (turu 65 'ses avizeden geliyor' ile ayni sinif).
+    // TERS-SONRA-DOGRU sart (turu 62 C-2): ayni degeri yazmak alt katmanda
+    // fark kontrolune takilip NO-OP kalir.
+    try {
+      await room.setSpeakerOn(false);
+      await room.setSpeakerOn(true);
+    } catch (_) {}
     if (mounted) setState(() => _micOn = hedef);
   }
 
@@ -387,6 +440,11 @@ class _RoomScreenState extends ConsumerState<RoomScreen> with WidgetsBindingObse
         // Host susturmasi bildirimi YALNIZ buradan (host aksiyonunda gelir; TrackMuted
         // kendi mute'unda da tetiklendigi icin oradan gosterilmez — dogrulama bulgusu).
         if (p['user_id'] == benimId && mounted) {
+          // TURU 72b: duraklatmadayken de tercihi DUSUR — yoksa 'devam' edince
+          //     _micHedef hala true oldugu icin mikrofon ACILIR ve host'un
+          //     susturmasi EZILIR (sunucu track zaten muted oldugu icin MuteTrack
+          //     cagirmaz, yalniz WS olayi gelir).
+          _micHedef = false;
           setState(() => _micOn = false);
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
               content: Text('Host seni susturdu — konuşmak için mikrofonu tekrar aç')));
@@ -422,6 +480,21 @@ class _RoomScreenState extends ConsumerState<RoomScreen> with WidgetsBindingObse
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
               content: Text(
                   'Konuşmacı yapıldın ama mikrofon izni yok — mikrofon butonuna basıp izin ver')));
+        }
+        return;
+      }
+      // TURU 72b (denetim bulgusu): duraklatmadayken terfi mikrofonu ACIYORDU
+      //     -> gorusme odaya sizardi. Tercihi KAYDET, mikrofonu KAPALI birak.
+      if (_duraklatildi) {
+        _micHedef = true; // devam edince konusmaci olarak acilsin
+        if (mounted) {
+          setState(() {
+            _micOn = false;
+            _elKalkik = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text(
+                  'Artık konuşmacısın — sohbete devam ettiğinizde mikrofonunuz açılacak')));
         }
         return;
       }
@@ -537,6 +610,19 @@ class _RoomScreenState extends ConsumerState<RoomScreen> with WidgetsBindingObse
   }
 
   Future<void> _micDegistir() async {
+    // TURU 72b (denetim bulgusu) — DURAKLATMADA MIKROFON DUGMESI CALISMAZ.
+    // Turu 66b dersi: bir ozelligi kapatirken GOVDEYI degistirmek YETMEZ, o
+    // ozelligi CAGIRAN ARAYUZ de kapatilmali; yoksa dugme SESSIZCE BASKA IS YAPAR.
+    // Burada dugme mikrofonu YAYINA sokuyordu; _duraklatildi true kaldigi icin
+    // ekran 'Bekliyor' demeye devam ediyor ve _aramaDegisti kendini ONARMIYOR
+    // -> gorusme sonuna kadar ODA SENI DUYUYOR.
+    if (_duraklatildi) {
+      rootMessengerKey.currentState?.showSnackBar(const SnackBar(
+        duration: Duration(seconds: 3),
+        content: Text('Sohbet duraklatıldı. Önce "Sohbete devam" deyin.'),
+      ));
+      return;
+    }
     final on = !_micOn;
     if (on) {
       // Izin reddedilmis konusmaci butondan tekrar deneyebilsin (terfi-izin bulgusu)
@@ -692,8 +778,9 @@ class _RoomScreenState extends ConsumerState<RoomScreen> with WidgetsBindingObse
   void dispose() {
     _svc.ekranKapandi('oda_${widget.roomId}');
     // TURU 71: gozcu sahipligini birak (arama hala dinliyorsa native dinleyici ACIK kalir).
-    unawaited(PipService.gsmDinle(false, sahip: 'oda'));
+    unawaited(PipService.gsmDinle(false, sahip: 'oda_${widget.roomId}'));
     _aramaCtrl.removeListener(_aramaDegisti); // turu 72
+    PipService.gsmAramada.removeListener(_aramaDegisti); // turu 72b
     WidgetsBinding.instance.removeObserver(this);
     _wsSub?.cancel();
     _rosterTimer?.cancel();
