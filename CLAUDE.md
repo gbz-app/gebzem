@@ -17,13 +17,73 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (7 Agu 16:35):** TEST TURU 70+71+72 YAYINLANDI — android 31182191326 +
+- **KALDIGIMIZ YER (7 Agu 22:31):** TEST TURU 73 YAYINLANDI — android 31210896371 +
+  ios 31210908402 (c5ccec7), R2 apk=108271245 (md5 07f4b9dc) ipa=22365997 (md5 43ccd140),
+  purge OK, **CDN birebir**, indir sayfasi 22:31, debug imza YOK, **backend DEGISMEDI**
+  (19d0a96) + health ok, DB temiz (0/0/0/0). **KULLANICI TEST EDECEK.**
+- ⚠️⚠️⚠️ **TURU 73 — ODA/YAYIN DURAKLATMASI ARTIK iOS'TA DA ACIK (kullanici emri:
+  "hepsine yapsana android ne alaka test edelim iste").**
+  Turu 72'de yalniz Android acikti; gerekce turu 65'te OLCULEN `!pri` idi. Acmanin
+  BEDELI IKI YAPISAL KAPIYLA odendi — ikisi de ZORUNLU, biri kaldirilirsa iOS BOZULUR:
+  · **`SesSahipligi` DEFTERI** (`medya_beklet.dart`) — iOS'ta `isAudioEnabled` PROSES
+    GENELINDE TEK bayraktir ve turu 73'e kadar arama ile oda/yayin AYNI ANDA hic
+    yasamamisti. Iki yonlu yikim vardi: (a) ARAMA kapanisi (`_odaTemizle`) hala bagli
+    odanin sesini OLDURUYORDU ("devam"da SESSIZLIK — turu 72'nin iOS'ta calismamasinin
+    GERCEK sebebi; `!pri` TEK BASINA degil); (b) ODA/YAYIN kapanisi SUREN ARAMAYI
+    sessize dusuruyordu. Artik her tuketici kaydolur (`arama_` / `oda_` / `yayin_b_` /
+    `yayin_i_`) ve kapanirken BASKA TURDEN sahip varsa ses birimine DOKUNMAZ.
+    ⚠️ Nesil jetonu (`_sesNesilSayaci`) yalniz ARAMA-ARAMA yarisini korur, oda/yayini GORMEZ.
+  · **`iosSesBirimiAc` MERDIVENI** — "devam" ile arama kapanisi YARIS halinde; oturumu
+    CallKit tutuyor olabilir. 5 basamak (0/200/600/1200/2000ms), olcut native
+    `configOk && active`, tukenirse GERCEK Sentry olayi + kullaniciya durust mesaj.
+    ⚠️ `required gecerli` canlilik kapisi ZORUNLU (bkz. turu 73b/1).
+  · `mesgulMu` muafiyetindeki `Platform.isAndroid` KALDIRILDI -> iPhone'da odadayken/
+    yayindayken arama artik GERCEKTEN kabul edilebiliyor (eskiden `answer()` null
+    donuyor, CallKit kapaniyor, arayan "reddedildi" goruyordu).
+  📌 **OLCUM — TEST SONRASI BAK:** `oda/yayin ses birimi ACILAMADI (oda|yayinci|
+  izleyici): hata=..` cikarsa `!pri` iOS'ta HALA gecerli demektir; `N. denemede
+  ACILDI` cikarsa merdiven kurtardi ve basamak sayisi ayarlanabilir.
+- ⚠️⚠️ **TURU 73b — DENETIM 4 YUKSEK BULDU (ucu iOS ACILISININ YENI SINIF HATASI):**
+  **(1) MERDIVENDE CANLILIK KAPISI YOKTU** — ~4sn await ediyor, hicbir basamakta
+  `mounted`/`_ayrildi`/`_kapandi` kontrolu yoktu. Kullanici "devam"a basip odadan
+  CIKARSA kapanis ses birimini kapatir, merdivenin sonraki basamagi GERI ACAR ->
+  **AVAudioSession SAHIPSIZ ACIK** kalir (iPhone mikrofon gostergesi SONMEZ, sonraki
+  aramanin kurulumuyla cekisir). ⚠️ YAPMA: `gecerli`yi opsiyonel yapma veya yalniz basa koyma.
+  **(2) ODA/YAYIN `resumed` DALINDAKI `_sesiAc(true)` AKTIF ARAMAYI YIKIYORDU** —
+  native `setAudioEnabled(true)` KOSULSUZ ZORLA TOGGLE yapar (yikip yeniden kurar).
+  Turu 72'ye kadar zararsizdi cunku iOS'ta oda ile arama AYNI ANDA YASAYAMIYORDU.
+  Gorusme surerken uygulamayi arka plana alip donmek (kilit ekrani/bildirim — arama
+  sirasinda COK SIK) ARAMANIN ses birimini ~50-150ms sagirlastiriyor, hata da
+  `catch (_)` ile yutuluyordu. FIX: uc ekranda da `if (!SesSahipligi.aramaCanli)`.
+  ⚠️⚠️ **DERS: bir ozelligi YENI BIR PLATFORMA acarken, o platformda DAHA ONCE
+  ULASILAMAYAN kod yollarinin artik ULASILABILIR oldugunu varsay ve HEPSINI yeniden
+  degerlendir.** Buradaki uc bulgunun ortak koku tam olarak buydu.
+  **(3) `geriAra()` DEFTERDE KALICI `arama_` SIZINTISI BIRAKIYORDU** — eski id'yi
+  dusurebilecek tek yer `leave(eskiId)` ve o bir daha CAGRILAMAZ (`arama` artik yeni
+  aramayi gosterir). "Geri ara"ya BIR KEZ basmak yeter: `aramaCanli` proses omru
+  boyunca true takilir ve odadan/yayindan cikinca ses birimi BIR DAHA kapanmaz.
+  **(4)** Ayni sizintinin ikinci yolu: bayat-`leave` kapisi (turu 69b'de sahada
+  gerceklestigi KANITLI) `birak`i atliyordu -> kapinin USTUNE tasindi.
+  ⚠️ YAPMA: `birak`i tekrar kapinin ALTINA tasima; `_odaTemizle` yalniz `oda_`/`yayin_`
+  onekine baktigi icin erken birakma ZARARSIZ.
+  **(5 ORTA) MERDIVEN `_micHedef` EZILME PENCERESINI ~100ms'DEN ~4sn'YE CIKARMISTI:**
+  `_micOn` UI bayragi merdivenin ALTINDA yaziliyordu, yani 4sn boyunca BAYAT `false`.
+  O pencerede gelen ikinci arama `_micHedef`i **false** yakalar ve arama bitince
+  mikrofon BIR DAHA ACILMAZ. `live_broadcast_screen` bu deseni ZATEN dogru yapiyordu —
+  **uc ekran arasindaki ASIMETRI hatanin kendisiydi.**
+  **(6 ORTA)** Defter statikti, sifirlama yoktu + yayinci ile izleyici AYNI anahtari
+  kullaniyordu (ust uste binmede biri digerinin kaydini siler) -> `SesSahipligi.sifirla()`
+  (logout'ta cagrilir) + `yayin_b_` / `yayin_i_` ayrimi.
+  **(8 DUSUK) KENDI TURU 72b UYARIM KAYNAKTAN CURUTULDU:** "`medyaBeklet` iOS'ta
+  DOLAYLI olarak AVAudioSession'i yeniden yapilandirabilir" yolu YOK —
+  `setMicrophoneEnabled(false)` -> `publication.mute(...)`; `onUnpublish` YALNIZ
+  `unpublishTrack`/`removePublishedTrack` yolundan cagrilir (`_localTrackCount`
+  DEGISMEZ); `RemoteTrackPublication.disable()` de `track.stop()` YAPMAZ
+  (`_remoteTrackCount` DEGISMEZ). Yani `_onAudioTrackCountDidChange` HIC tetiklenmiyor.
+  ⚠️ Bunu "olasi risk" diye geri yazma — kaynak okundu, tetiklenmiyor.
+- **ONCEKI (7 Agu 16:35):** TEST TURU 70+71+72 YAYINLANDI — android 31182191326 +
   ios 31182204197 (7084341), R2 apk=108254865 (md5 024156c0) ipa=22361813 (md5 341a1981),
-  purge OK, **CDN birebir** (apk+ipa MD5 yerelle AYNI), indir sayfasi 16:35, debug imza YOK,
-  IPA icinde MinimumOSVersion=16.0, **backend DEGISMEDI** (19d0a96 — 19d0a96..HEAD backend/
-  diff BOS) + health ok, DB temiz (0/0/0/0). **KULLANICI TEST EDECEK.**
-  ⚠️ APK BUYUDU (108238365 -> 108254865) ve IPA BUYUDU (22353814 -> 22361813) = yeni Dart+Swift
-  DERLENDI kaniti.
+  purge OK, CDN birebir, indir sayfasi 16:35, backend DEGISMEDI + health ok, DB temiz.
 - ⚠️⚠️⚠️ **TURU 72 — ODA/YAYIN DURAKLATMA (KULLANICI TASARIMI).**
   *"Oda kurdum konusuyorum, telefona cevap verdigimde odadaki mikrofonu kapat ve
   profilde pause isareti Bekliyor olsun; canli yayinda da mikrofonu kapat ve ekrani
