@@ -132,7 +132,15 @@ class CallService extends StateNotifier<IncomingCall?> {
   /// ⚠️ YAPMA: bu mantigi cagiran yerlere KOPYALAMA (drift eder — denetim bulgusu:
   /// rooms_tab/live_tab ham `aramadaMi`ye bakiyordu ve self-heal'den YARARLANMIYORDU).
   /// ⚠️ YAPMA: `oda_`/`yayin` kapisini kaldirma.
-  bool mesgulMu({String? haric, String etiket = ''}) {
+  /// ⚠️⚠️ TURU 72 — [odaYayinMuaf]: oda/yayin DURAKLATILABILDIGI icin artik arama
+  /// KABUL EDILEBILIR. Muaf iken YALNIZ `oda_`/`yayin` dali atlanir; `gercekArama`
+  /// dali AYNEN kalir (iki arama ayni anda olmaz).
+  /// ⚠️ VARSAYILAN `false` — FAIL-CLOSED. Yalniz duraklatmayi GERCEKTEN yapabilecek
+  ///     cagirma noktalari `true` gecer.
+  /// ⚠️ YAPMA: muaf yolda bayat-muhafiz self-heal'ini calistirma — oda id'si GERCEK,
+  ///     kumeden silersek muhafiz duser ve ikinci oda acilabilir.
+  bool mesgulMu(
+      {String? haric, String etiket = '', bool odaYayinMuaf = false}) {
     final ilgili =
         ekrandakiAramalar.where((x) => haric == null || x != haric).toList();
     if (ilgili.isEmpty) return false;
@@ -140,6 +148,11 @@ class CallService extends StateNotifier<IncomingCall?> {
     final gercekArama = ctrl.arama != null && !ctrl.hazirlikModunda;
     final odaVeyaYayin =
         ilgili.any((x) => x.startsWith('oda_') || x.startsWith('yayin'));
+    // ⚠️ Muafiyet YALNIZ Android'de: iOS'ta duraklatma ERTELENDI (turu 65 "!pri").
+    //     iOS'ta muafiyet acilirsa arama kabul edilir ama oda susmaz = ses cakisir.
+    if (odaYayinMuaf && odaVeyaYayin && !gercekArama && Platform.isAndroid) {
+      return false; // oda/yayin var ama DURAKLATILABILIR -> mesgul SAYMA
+    }
     if (gercekArama || odaVeyaYayin) return true;
     ekrandakiAramalar.removeWhere((x) => haric == null || x != haric);
     unawaited(Sentry.captureMessage(
@@ -170,7 +183,21 @@ class CallService extends StateNotifier<IncomingCall?> {
         // SUREN bir aramada) overlay YINE gosterilir; 3 secenekli katman cikar
         // (Beklet ve Kabul / Bitir ve Kabul / Reddet). Oda/canli yayin ekranlarinda
         // (guard onekleri 'oda_' / 'yayin') eski davranis: gosterme.
-        if (aramadaMi && !(gelen.waiting && aktifAramaVar)) return;
+        // ⚠️⚠️ TURU 72 — ODA/YAYIN ARTIK ISTISNA: o ekranlar DURAKLATILABILDIGI icin
+        // gelen arama katmani GOSTERILIR (Android'de telefon artik CALAR).
+        // ⚠️ `gercekArama` hala engeller — iki arama ayni anda olmaz.
+        // ⚠️ Yalniz ANDROID: iOS'ta duraklatma ERTELENDI (turu 65 "!pri"); orada
+        //     zaten CallKit ciziyor ve muafiyet ses cakismasi uretirdi.
+        final odaYayinMuafiyeti = Platform.isAndroid &&
+            _ref.read(activeCallProvider).arama == null &&
+            ekrandakiAramalar.isNotEmpty &&
+            ekrandakiAramalar.every(
+                (x) => x.startsWith('oda_') || x.startsWith('yayin'));
+        if (aramadaMi &&
+            !(gelen.waiting && aktifAramaVar) &&
+            !odaYayinMuafiyeti) {
+          return;
+        }
         state = gelen;
       case 'call.answered':
         final id = p['call_id'] as String? ?? '';
@@ -405,7 +432,14 @@ class CallService extends StateNotifier<IncomingCall?> {
     // ⚠️ YAPMA: bu kapiyi kosulsuz kaldirma (oda/yayin muhafizi GERCEK olabilir — ses
     // cakismasi korumasi orada duruyor) ya da `start()` ile farkli mantiga ayirma.
     // TURU 56: mantik `mesgulMu()` TEK KAYNAGINA tasindi (drift olmasin).
-    if (!zorla && mesgulMu(haric: callId, etiket: 'answer')) return null;
+    // ⚠️ TURU 72: `odaYayinMuaf: true` — odada/yayinda iken arama KABUL EDILEBILIR;
+    //     ilgili ekran kendini duraklatir ("Bekliyor" + devam dugmesi).
+    //     `start` (:362) ve `rooms_tab`/`live_tab` cagrilari MUAF DEGIL — oradan
+    //     yeni bir oturum ACMAK hala yasak.
+    if (!zorla &&
+        mesgulMu(haric: callId, etiket: 'answer', odaYayinMuaf: true)) {
+      return null;
+    }
     if (!_cevaplanan.add(callId)) return null; // ikinci kabul -> 409 olmadan engelle
     try {
       final res = await _ref.read(apiProvider).post('/calls/$callId/answer');

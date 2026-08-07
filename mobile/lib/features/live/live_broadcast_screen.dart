@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:ui' show ImageFilter; // turu 72: duraklatma blur'u
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -14,7 +15,9 @@ import '../../router.dart' show rootMessengerKey;
 import '../invites/davet_sec_sheet.dart';
 import '../calls/call_media_options.dart';
 import '../calls/call_provider.dart';
+import '../calls/active_call_controller.dart'; // turu 72
 import '../calls/call_room_lock.dart';
+import '../calls/medya_beklet.dart'; // turu 72: ortak duraklatma primitifi
 import '../calls/mini_izgara.dart';
 import '../calls/pip_service.dart';
 import 'live_info_sheets.dart';
@@ -80,6 +83,15 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
   bool _connecting = true;
   lk.LocalVideoTrack? _devralinan; // onizlemeden devralinan track (P1)
   bool _videoYayinda = false; // devralinan publish edildi mi (salivermede kullanilir)
+  // ⚠️⚠️ TURU 72 — YAYIN DURAKLATMA (kullanici tasarimi: "canli yayinda arama
+  // actigimda mikrofonu kapat ve ekrani blurla, pause + Bekliyor yazsin; gorusme
+  // bitince 'Canli yayina devam'").
+  // Yayin SUNUCUDA BITMEZ, izleyiciler DUSMEZ, nabiz SURER — yalniz medya susar.
+  // ⚠️ `_micHedef`/`_kamHedef` duraklatma ONCESI tercihlerdir; `_micOn`/`_kameraAcik`
+  //     UI bayraklaridir (olaylarla degisir) — tercih deposu olarak kullanilamaz.
+  bool _duraklatildi = false;
+  bool _micHedef = true;
+  bool _kamHedef = true;
   bool _kapanisAnim = false; // yumusak kapanis (test turu 18)
   bool _ayrildi = false;
   bool _kapandi = false;
@@ -100,6 +112,9 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
     // ⚠️ `sahip` SART: arama bitince `gsmDinle(false)` cagrilir; sahiplik olmadan
     //     bu ekranin gozcusunu de oldururdu (bkz. PipService._gsmSahipleri).
     unawaited(PipService.gsmDinle(true, sahip: 'yayin'));
+    // TURU 72: arama baslayinca yayini duraklat (devam OTOMATIK DEGIL, dugmeyle).
+    _aramaCtrl = ref.read(activeCallProvider);
+    _aramaCtrl.addListener(_aramaDegisti);
     _devralinan = widget.onizlemeTrack; // P1: onizlemeden devralinan kamera
     WidgetsBinding.instance.addObserver(this);
     _baglan(); // nabiz timer'i BAGLANTI BASARILI olunca baslar (dogrulama bulgusu:
@@ -317,6 +332,15 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
           } else {
             setState(() {});
           }
+        })
+        // TURU 72: duraklatma surerken KATILAN konugun yayinini da sustur.
+        ..on<lk.TrackSubscribedEvent>((e) {
+          if (_duraklatildi) unawaited(yeniYayiniSustur(e.publication));
+        })
+        // TURU 72: reconnect sonrasi `disable` tercihi bayatlar -> yeniden uygula.
+        ..on<lk.RoomReconnectedEvent>((_) {
+          final r = _room;
+          if (_duraklatildi && r != null) unawaited(medyaBeklet(r, true));
         })
         ..on<lk.RoomDisconnectedEvent>((_) {
           // admin end / DeleteRoom / KALICI ag kopmasi -> cik. Sunucuya bitir GONDER
@@ -550,6 +574,57 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
     }
   }
 
+  /// ⚠️⚠️ TURU 72 — YAYINI DURAKLAT. Yayin sunucuda BITMEZ, izleyiciler DUSMEZ.
+  /// ⚠️ SADECE ANDROID (iOS turu 65 `!pri` kaniti nedeniyle ERTELENDI).
+  /// ⚠️ `_nabizAt()` AKMAYA DEVAM EDER — nabiz kesilirse `stream:{id}:pub` TTL 45sn'de
+  ///     duser ve sweeper YAYINI KAPATIR (turu 15). Duraklatma nabza DOKUNMAZ.
+  /// ⚠️ YAPMA: sunucuya `status='paused'` yazma — sweeper nabiz varken 15sn icinde
+  ///     'live'a geri cevirir ve blur/"Bekliyor" KENDILIGINDEN kalkar.
+  /// ⚠️ YAPMA: `_sesiAc(false)` cagirma (aktif aramanin sesini oldurur).
+  late final ActiveCallController _aramaCtrl;
+
+  /// TURU 72: arama BASLADIYSA yayini duraklat.
+  void _aramaDegisti() {
+    if (!mounted || _ayrildi) return;
+    if (_aramaCtrl.arama != null && !_duraklatildi) {
+      unawaited(yayiniDuraklat());
+    }
+  }
+
+  Future<void> yayiniDuraklat() async {
+    if (!Platform.isAndroid) return;
+    final room = _room;
+    if (_duraklatildi || room == null || _ayrildi) return;
+    _micHedef = _micOn;
+    _kamHedef = _kameraAcik;
+    setState(() {
+      _duraklatildi = true;
+      _micOn = false;
+      _kameraAcik = false;
+    });
+    await medyaBeklet(room, true);
+  }
+
+  /// TURU 72 — "Canli yayina devam". ⚠️ DUGMEYLE (otomatik degil).
+  Future<void> yayinaDevam() async {
+    final room = _room;
+    if (!_duraklatildi || room == null || _ayrildi) return;
+    if (PipService.gsmAramada.value) {
+      rootMessengerKey.currentState?.showSnackBar(const SnackBar(
+        duration: Duration(seconds: 4),
+        content: Text('Telefon görüşmeniz sürüyor. Önce onu sonlandırın; '
+            'sonra canlı yayına devam edebilirsiniz.'),
+      ));
+      return;
+    }
+    setState(() {
+      _duraklatildi = false;
+      _micOn = _micHedef;
+      _kameraAcik = _kamHedef;
+    });
+    await medyaBeklet(room, false, micHedef: _micHedef, camHedef: _kamHedef);
+  }
+
   Future<void> _cik({required bool sunucuyaBildir}) async {
     if (_ayrildi) return;
     _ayrildi = true;
@@ -630,6 +705,7 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
     _svc.ekranKapandi('yayin_${widget.streamId}');
     // TURU 71: gozcu sahipligini birak (arama hala dinliyorsa native dinleyici ACIK kalir).
     unawaited(PipService.gsmDinle(false, sahip: 'yayin'));
+    _aramaCtrl.removeListener(_aramaDegisti); // turu 72
     WidgetsBinding.instance.removeObserver(this);
     PipService.pipModu.removeListener(_pipDegisti);
     _pipBirak();
@@ -749,6 +825,49 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
                                 style: const TextStyle(color: Colors.white70))
                             : const CircularProgressIndicator()),
           ),
+          // ⚠️⚠️ TURU 72 — DURAKLATMA KATMANI (kullanici tasarimi: "ekrani blurla,
+          // pause isareti + Bekliyor yazsin").
+          // ⚠️ Video AGACTA KALIR (renderer dispose OLMAZ) — ustune blur biner.
+          //     Kaldirirsak devam ederken tekrar sifirdan kurulur = siyah patlama
+          //     (turu 27-31 dersi).
+          // ⚠️ YAPMA: buraya MODAL DIALOG koyma (turu 15: mesgul muhafizi askida kalir).
+          if (_duraklatildi)
+            Positioned.fill(
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                child: Container(
+                  color: const Color(0x66000000),
+                  alignment: Alignment.center,
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    const Icon(LucideIcons.pause, size: 56, color: Colors.white),
+                    const SizedBox(height: 10),
+                    const Text('Bekliyor',
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700)),
+                    const SizedBox(height: 18),
+                    Material(
+                      color: const Color(0xFFEF6C00),
+                      borderRadius: BorderRadius.circular(22),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(22),
+                        onTap: yayinaDevam,
+                        child: const Padding(
+                          padding: EdgeInsets.symmetric(
+                              horizontal: 22, vertical: 11),
+                          child: Text('Canlı yayına devam',
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700)),
+                        ),
+                      ),
+                    ),
+                  ]),
+                ),
+              ),
+            ),
           KalpKatmani(key: _kalpKey),
           for (final h in _hediyeler)
             HediyePatlamasi(

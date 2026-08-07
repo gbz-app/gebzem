@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:ui' show ImageFilter; // turu 72: duraklatma blur'u
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -14,7 +15,9 @@ import 'package:sentry_flutter/sentry_flutter.dart';
 import '../../core/api.dart';
 import '../calls/call_media_options.dart';
 import '../calls/call_provider.dart';
+import '../calls/active_call_controller.dart'; // turu 72
 import '../calls/call_room_lock.dart';
+import '../calls/medya_beklet.dart'; // turu 72: ortak duraklatma primitifi
 import '../calls/mini_izgara.dart';
 import '../calls/pip_service.dart';
 import '../../router.dart' show rootMessengerKey;
@@ -80,6 +83,12 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
   bool _connecting = true;
   bool _ayrildi = false;
   bool _kapandi = false;
+  // ⚠️⚠️ TURU 72 — IZLEYICI/KONUK DURAKLATMA. Yayindan DUSMEZSIN, yeniden katilma YOK.
+  // Izleyicide: yayincinin sesi/goruntusu kesilir (arama sesiyle ust uste binmesin).
+  // Konukta: AYRICA kendi mikrofon/kameran susar (yayindakiler seni duymaz).
+  bool _duraklatildi = false;
+  bool _micHedef = true;
+  bool _kamHedef = false;
   bool _kapanisAnim = false; // yumusak kapanis (test turu 18)
   bool _bittiGosterildi = false; // stream.ended + RoomDisconnected cift dialog muhafizi
   DateTime _sonKalp = DateTime.fromMillisecondsSinceEpoch(0);
@@ -125,6 +134,9 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
     // ⚠️ `sahip` SART: arama bitince `gsmDinle(false)` cagrilir; sahiplik olmadan
     //     bu ekranin gozcusunu de oldururdu (bkz. PipService._gsmSahipleri).
     unawaited(PipService.gsmDinle(true, sahip: 'yayin'));
+    // TURU 72: arama baslayinca duraklat (devam OTOMATIK DEGIL, dugmeyle).
+    _aramaCtrl = ref.read(activeCallProvider);
+    _aramaCtrl.addListener(_aramaDegisti);
     WidgetsBinding.instance.addObserver(this);
     _durakladi = widget.durum == 'paused';
     // Kendi kimligim: guest.left {user_id} sinyalinde "ben miyim" ayrimi icin
@@ -355,6 +367,15 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
               }
             });
           }
+        })
+        // TURU 72: duraklatma surerken gelen yeni yayini da sustur.
+        ..on<lk.TrackSubscribedEvent>((e) {
+          if (_duraklatildi) unawaited(yeniYayiniSustur(e.publication));
+        })
+        // TURU 72: reconnect sonrasi `disable` tercihi bayatlar -> yeniden uygula.
+        ..on<lk.RoomReconnectedEvent>((_) {
+          final r = _room;
+          if (_duraklatildi && r != null) unawaited(medyaBeklet(r, true));
         })
         ..on<lk.RoomDisconnectedEvent>((_) {
           // yayin bitti / kick / kalici kopma
@@ -677,6 +698,61 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
     } catch (_) {}
   }
 
+  /// ⚠️⚠️ TURU 72 — IZLEMEYI/KONUKLUGU DURAKLAT. Yayindan DUSMEZSIN.
+  /// ⚠️ SADECE ANDROID (iOS turu 65 `!pri` kaniti nedeniyle ERTELENDI).
+  /// ⚠️ `_nabizAt()` AKMAYA DEVAM EDER — konuksan nabiz kesilirse sweeper konuk
+  ///     slotunu DUSURUR (turu 13). Duraklatma nabza DOKUNMAZ.
+  late final ActiveCallController _aramaCtrl;
+
+  /// TURU 72: arama BASLADIYSA duraklat.
+  void _aramaDegisti() {
+    if (!mounted || _ayrildi) return;
+    if (_aramaCtrl.arama != null && !_duraklatildi) {
+      unawaited(yayiniDuraklat());
+    }
+  }
+
+  Future<void> yayiniDuraklat() async {
+    if (!Platform.isAndroid) return;
+    final room = _room;
+    if (_duraklatildi || room == null || _ayrildi) return;
+    _micHedef = _konukMicOn;
+    _kamHedef = _kameramAcik;
+    setState(() => _duraklatildi = true);
+    await medyaBeklet(room, true);
+    if (mounted && _konukum) {
+      setState(() {
+        _konukMicOn = false;
+        _kameramAcik = false;
+      });
+    }
+  }
+
+  /// TURU 72 — "Canli yayina devam". ⚠️ DUGMEYLE (otomatik degil).
+  Future<void> yayinaDevam() async {
+    final room = _room;
+    if (!_duraklatildi || room == null || _ayrildi) return;
+    if (PipService.gsmAramada.value) {
+      rootMessengerKey.currentState?.showSnackBar(const SnackBar(
+        duration: Duration(seconds: 4),
+        content: Text('Telefon görüşmeniz sürüyor. Önce onu sonlandırın; '
+            'sonra canlı yayına devam edebilirsiniz.'),
+      ));
+      return;
+    }
+    setState(() => _duraklatildi = false);
+    // Izleyiciysem yayinlayacak medyam YOK — yalniz uzaklari geri ac.
+    final mic = _konukum && _micHedef;
+    final kam = _konukum && _kamHedef;
+    await medyaBeklet(room, false, micHedef: mic, camHedef: kam);
+    if (mounted && _konukum) {
+      setState(() {
+        _konukMicOn = mic;
+        _kameramAcik = kam;
+      });
+    }
+  }
+
   Future<void> _cik() async {
     if (_ayrildi) return;
     _ayrildi = true;
@@ -764,6 +840,7 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
     _svc.ekranKapandi('yayin_${widget.streamId}');
     // TURU 71: gozcu sahipligini birak (arama hala dinliyorsa native dinleyici ACIK kalir).
     unawaited(PipService.gsmDinle(false, sahip: 'yayin'));
+    _aramaCtrl.removeListener(_aramaDegisti); // turu 72
     WidgetsBinding.instance.removeObserver(this);
     PipService.pipModu.removeListener(_pipDegisti);
     _pipBirak();
@@ -939,6 +1016,46 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
           // NOT (test turu 5): konuk pill'i artik split alt panelinin ustKatman'inda HER ZAMAN
           // gorunur (_konukum iken; kamera acilmasa da bosMetin+pill). Ayri fallback KALDIRILDI
           // (cift pill olurdu — split artik konukVar ile daima ciziliyor).
+          // ⚠️⚠️ TURU 72 — DURAKLATMA KATMANI (blur + "Bekliyor" + devam dugmesi).
+          // ⚠️ Video AGACTA KALIR; ustune blur biner (renderer dispose = siyah patlama).
+          // ⚠️ MODAL DIALOG YOK (turu 15).
+          if (_duraklatildi)
+            Positioned.fill(
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                child: Container(
+                  color: const Color(0x66000000),
+                  alignment: Alignment.center,
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    const Icon(LucideIcons.pause, size: 56, color: Colors.white),
+                    const SizedBox(height: 10),
+                    const Text('Bekliyor',
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700)),
+                    const SizedBox(height: 18),
+                    Material(
+                      color: const Color(0xFFEF6C00),
+                      borderRadius: BorderRadius.circular(22),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(22),
+                        onTap: yayinaDevam,
+                        child: const Padding(
+                          padding: EdgeInsets.symmetric(
+                              horizontal: 22, vertical: 11),
+                          child: Text('Canlı yayına devam',
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700)),
+                        ),
+                      ),
+                    ),
+                  ]),
+                ),
+              ),
+            ),
           KalpKatmani(key: _kalpKey),
           for (final h in _hediyeler)
             HediyePatlamasi(

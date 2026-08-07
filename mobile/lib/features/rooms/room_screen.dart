@@ -15,6 +15,7 @@ import '../../core/ws.dart';
 import '../calls/call_media_options.dart';
 import '../calls/call_provider.dart';
 import '../../router.dart' show rootMessengerKey;
+import '../calls/active_call_controller.dart'; // turu 72: duraklatma tetikleyicisi
 import '../calls/call_room_lock.dart';
 import '../calls/medya_beklet.dart'; // turu 72: ortak duraklatma primitifi
 import '../calls/pip_service.dart'; // turu 71: GSM gizlilik kapisi
@@ -116,6 +117,12 @@ class _RoomScreenState extends ConsumerState<RoomScreen> with WidgetsBindingObse
     // ⚠️ `sahip` SART: arama bitince `gsmDinle(false)` cagrilir; sahiplik olmadan
     //     bu ekranin gozcusunu de oldururdu (bkz. PipService._gsmSahipleri).
     unawaited(PipService.gsmDinle(true, sahip: 'oda'));
+    // ⚠️⚠️ TURU 72 — ARAMA BASLAYINCA ODAYI DURAKLAT (tetikleyici).
+    // Arama kabul edilince `arama != null` olur -> odayi sustururuz. Arama bitince
+    // OTOMATIK DEVAM YOK: "Sohbete devam" dugmesi bekler (gizlilik karari).
+    // ⚠️ YAPMA: burada otomatik devam ettirme; dinleyiciyi dispose'ta kaldirmayi unutma.
+    _aramaCtrl = ref.read(activeCallProvider);
+    _aramaCtrl.addListener(_aramaDegisti);
     WidgetsBinding.instance.addObserver(this); // kesinti toparlama (resume)
     // Kendi kimligim: WS rol olaylari LiveKit baglantisindan ONCE gelebilir.
     ref.read(myProfileProvider.future).then((p) {
@@ -277,6 +284,16 @@ class _RoomScreenState extends ConsumerState<RoomScreen> with WidgetsBindingObse
   ///     yasardik. iOS ancak olcum yesil dondukten sonra acilacak.
   /// ⚠️ YAPMA: burada `_sesiAc(false)` cagirma — o PROSES GENELINDE ses birimini kapatir
   ///     ve AKTIF ARAMANIN sesini oldurur (`medya_beklet.dart` serhi).
+  late final ActiveCallController _aramaCtrl;
+
+  /// TURU 72: aktif arama durumu degisti — arama BASLADIYSA odayi duraklat.
+  void _aramaDegisti() {
+    if (!mounted || _ayrildi) return;
+    if (_aramaCtrl.arama != null && !_duraklatildi) {
+      unawaited(odayiDuraklat());
+    }
+  }
+
   Future<void> odayiDuraklat() async {
     if (!Platform.isAndroid) return; // iOS ERTELENDI (bkz. serh)
     final room = _room;
@@ -676,6 +693,7 @@ class _RoomScreenState extends ConsumerState<RoomScreen> with WidgetsBindingObse
     _svc.ekranKapandi('oda_${widget.roomId}');
     // TURU 71: gozcu sahipligini birak (arama hala dinliyorsa native dinleyici ACIK kalir).
     unawaited(PipService.gsmDinle(false, sahip: 'oda'));
+    _aramaCtrl.removeListener(_aramaDegisti); // turu 72
     WidgetsBinding.instance.removeObserver(this);
     _wsSub?.cancel();
     _rosterTimer?.cancel();
