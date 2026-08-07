@@ -4534,3 +4534,118 @@ debug imza YOK, backend DEĞİŞMEDİ + health ok, DB temiz.
 3. "Bitir ve kabul et" → yeni arama **yaşamalı**, eski kapanış onu öldürmemeli.
 4. iPhone'da ikinci aramada **"Tut ve Kabul Et" olmamalı** (turu 68 fixi).
 5. Sesli oda + canlı yayın bozulmamalı.
+
+---
+
+## Oturum 7 Ağustos 2026 — TURU 70+71+72: PiP ölçüleri, oda/yayın GSM kapısı, ODA-YAYIN DURAKLATMA
+
+Tek sürümde üç turun işi birleşti. Build öncesi **4 ajanlık adversaryal denetim**
+kendi kodumda **16 sevk engeli** buldu (aşağıda) — hepsi düzeltildi, sonra build.
+
+### ✅ TURU 70 — büyütme geçişi + küçük ekran ölçüleri
+- **"Büyütürken ekran çizerken çok çirkin"** → PiP'ten geri dönüşte iOS artık
+  **Flutter kök view'ının üstüne siyah kapak** koyuyor (`kapakGoster`), Flutter ilk
+  kareyi çizince (post-frame) kaldırıyor; 700ms emniyet timer'ı var.
+  ⚠️ Kapak **AVKit'in PiP penceresine değil FLUTTER KÖKÜNE** konur (`flutterKok`
+  weak referansı) — ilk denemede pencereye konmuştu ve hiçbir işe yaramıyordu.
+  ⚠️ Route geçişinde siyah **PUSH'ta opak, POP'ta alfa animasyonlu**
+  (turu 59'un "POP yönünü opaklaştırma" kuralı).
+- **"Her modelde aynı değil"** → self-view ölçüleri sabit puandan **ekran oranına**
+  çevrildi. ⚠️ Ama KONUM puanda kaldı (aşağıdaki denetim bulgusu 14).
+
+### ✅ TURU 71 — oda/yayın için GSM gizlilik kapısı
+`gsmDinle` **sahiplik sayacı** kazandı (`_gsmSahipleri`): arama + oda + yayın aynı
+gözcüyü paylaşır, **son sahip** bırakmadan native dinleyici kapanmaz. Eskiden arama
+bitince gözcü koşulsuz kapanıyor ve odanın/yayının kapısını da öldürüyordu.
+
+### ✅ TURU 72 — ODA/YAYIN DURAKLATMA (kullanıcı tasarımı)
+Kullanıcı: *"oda kurdum konuşuyorum, telefona cevap verdiğimde odadaki mikrofonu
+kapat ve profilde pause işareti Bekliyor olsun; canlı yayında da mikrofonu kapat,
+ekranı blurla; görüşme bitince 'Sohbete devam' / 'Canlı yayına devam' olsun."*
+
+- Ortak primitif **`medya_beklet.dart`** (arama tarafındaki kanıtlı gövde buraya
+  çıkarıldı — kopyalamak yerine TEK KAYNAK).
+  · `disable()` kullanılır, **`unsubscribe()` DEĞİL** (abonelik korunur, dönüş anında).
+  · **Bağlantı AÇIK kalır**: sunucuda oda/yayın bitmez, nabız sürer, izleyiciler düşmez.
+- **Oda:** kendi avatarında duraklat ikonu + "Bekliyor"; üstte turuncu şerit → "Sohbete devam".
+- **Yayın (yayıncı + izleyici/konuk):** blur + duraklat ikonu + "Bekliyor" + "Canlı yayına devam".
+- **Devam OTOMATIK DEĞİL** — düğmeyle. Telefon kapanır kapanmaz mikrofonun kendiliğinden
+  açılması gizlilik riski (yanındakiler duyulur).
+- **Meşguliyet kapısı gevşetildi:** artık odadayken/yayındayken telefon **ÇALAR** (Android).
+- ⚠️ **iOS'ta duraklatma KAPALI (bilinçli):** turu 65'te CallKit sonrası ses birimini
+  geri açma denememizin `!pri` (InsufficientPriority) ile REDDEDİLDİĞİ **ölçümle
+  kanıtlandı**. Açsaydık "odaya döndüm ama ses yok" yaşanırdı. Ölçüm yeşil dönünce açılacak.
+
+### ⚠️⚠️ BUILD ÖNCESİ DENETİM — 16 SEVK ENGELİ (4 ajan, hepsi kod okunarak doğrulandı)
+
+**YÜKSEK — gizlilik/ses sızıntısı (turu 72'nin kendi kodunda):**
+1. **GSM araması odayı/yayını HİÇ duraklatmıyordu** — tetikleyici yalnız Gebzem
+   aramasını dinliyordu; `gsmAramada` bir ValueNotifier ve üç ekranda da `addListener`
+   YOKTU. Yani özelliğin **manşet senaryosu** ("telefona cevap verdiğimde") çalışmıyordu.
+2. **"Devam" düğmesi aktif Gebzem aramasını sormuyordu** (yalnız GSM). Kullanıcı arama
+   ekranını küçültüp odaya dönebiliyor; basınca mikrofon geri açılıyor → **odadakiler
+   görüşmeyi duyuyor** (turu 56/63/71 açığının aynısı).
+3. **Yayında duraklatma katmanı Stack'in ORTASINDAYDI** — Stack son çocuğu en üste
+   çizer ve hit-test'i ters sırada yapar; üst bar (**mikrofon düğmesi**) ve alt şerit
+   ("Canlıya katıl") hem blur'lanmıyor hem tıklanabiliyordu. Basan kullanıcı yayını
+   geri açıyor, ekran "Bekliyor" demeye devam ediyordu. Katman **EN SONA** alındı +
+   `GestureDetector(opaque)` ile dokunuşları yutuyor.
+4. **`_konukOl()` duraklatma kapısı yoktu** (3 giriş: katıl düğmesi, `guest.accepted`,
+   nabızdaki kaçan-accept onarımı) → görüşme sırasında mikrofon+kamera canlı yayına açılıyordu.
+5. **Bağlanırken duraklatma kilitleniyor, sonra bağlantı mikrofonu açıyordu.** `_room`
+   connect'ten ÖNCE atanır ama livekit `localParticipant`ı ancak `RoomConnectedEvent`
+   ile yaratır → `medyaBeklet` NO-OP kalıp `_duraklatildi=true` kilitleniyor, ardından
+   connect mikrofonu açıyordu. Sonuç KALICI: ekran "Bekliyor", oda seni DUYUYOR.
+6. **Mikrofon düğmesi duraklatmada canlıydı** — turu 66b dersinin birebir tekrarı:
+   *"gövdeyi kapatmak yetmez, o özelliği ÇAĞIRAN ARAYÜZ de kapatılmalı."*
+7. **`_videoSagligiKur()` duraklatmada `restartTrack()` çağırıp kamerayı FİZİKSEL
+   AÇIYORDU** — livekit `restartTrack` `muted` bayrağına HİÇ bakmaz.
+8. **Yayıncıda arka plan kamera defteri uzlaştırılmıyordu:** telefon çalarken uygulama
+   ≥900ms arka planda kalırsa oto-mute `_kameraAcik=false` yazar; duraklatma onu
+   **kullanıcı tercihi** sanıyordu → "devam" sonrası kamera BİR DAHA AÇILMIYORDU
+   (yayıncıda kamera düğmesi YOK = kurtarma yolu yok).
+
+**YÜKSEK — meşguliyet kapısı (fail-open + drift):**
+9. **`yayin-onizleme` muafiyete giriyordu.** İki kapı da `startsWith('yayin')`
+   kullanıyordu; `live_start_screen` DURAKLATILAMAZ ve **fiziksel kamerayı tutar** →
+   arama kabul edilince iki capture oturumu çakışırdı. Muafiyet artık **alt çizgili**
+   önek (`oda_`/`yayin_`) + `every` (**FAIL-CLOSED**).
+10. **`_onEvent` ve `mesgulMu` aynı kuralın iki kopyasıydı** (`every` vs `any`): bayat
+    muhafız varken **ön planda telefon çalmıyor ama aynı arama kilit ekranından kabul
+    ediliyordu.** Karar `mesgulMu`ya devredildi (tek kaynak). Ayrıca bayat-muhafız
+    self-heal'i `oda_` kaydıyla birlikte de çalışıyor (eskiden **ULAŞILAMAZDI** → muhafız
+    kalıcı asılı kalabiliyordu).
+
+**ORTA — oda:**
+11. Duraklatmada **rol terfisi mikrofonu açıyordu**; **host susturması** ise kayboluyordu
+    (`_micHedef` true kalıp devamda eziyordu).
+12. **Devam sonrası ses rotası geri gelmiyordu:** sesli arama `setSpeakerOn(false)` yazıyor
+    (`Hardware.instance` PROSES GENELİ) ve arama biterken `room.disconnect()` → livekit
+    `clearAndroidCommunicationDevice()` cihaz seçimini GLOBAL siliyor. Ters-sonra-doğru
+    toggle eklendi (turu 62 C-2 dersi).
+
+**TURU 70 ARİTMETİK HATASI (kullanıcıya görünen):**
+13. **PiP köşe kutusu %20 değil %42 uzamıştı.** Sayılar arama ekranı kutusundan
+    kopyalanmıştı ama **iki yüzeyin TABANI FARKLIYDI** (arama ekranı 140x200 = en-boy
+    1.4286; PiP kutusu 0.34W / 6:5 = 1.2). 5:6 pencerede karşı tarafın videosunun
+    ~yarısını yiyordu. Doğrusu **her yüzey KENDİ tabanından**: PiP `0.3740 / 1.3091`
+    (`mini_izgara` + `AppDelegate` BİREBİR), arama ekranı `0.3720 / 1.5584`.
+    ⚠️ **DERS:** "üçü birden aynı sayı olmalı" kuralı burada HİÇ geçerli değildi —
+    kural varsayılarak kopyalandı. Kuralı uygulamadan önce **tabanların aynı olup
+    olmadığını sor.**
+14. **Self-view KONUMU orana çevrilmişti** ama kaçınılacak öğeler sabit puanda çapalı
+    (üst blok `top: 48`, kontroller `bottom: 48`). 375x667'de kutu **başlığın üstüne
+    biniyor**, kontrollere 140 yerine 104pt kalıyordu. **Test cihazı 414x896 olduğu için
+    regresyon ORADA GÖRÜNMEZDİ.** Konum PUANA döndü, BOYUT oranlı kaldı.
+15. **`gsmDinle`de bayrak temizliği `try`ın İÇİNDEYDİ:** çağrı fırlatırsa `gsmAramada`
+    **süreç boyunca true takılı** kalır ve dört ekran mikrofonu bir daha AÇMAZDI,
+    hiçbir ölçüm düşmeden (CLAUDE.md'nin tekrarlayan "yutulan hata" deseni).
+16. **GSM sahip adları SABİTTİ** ('oda'/'yayin'); aynı isimli iki ekran bir an üst üste
+    yaşarsa (Flutter'da yeni route'un `initState`i eskinin `dispose`ından ÖNCE koşar)
+    gözcü erken kapanıp gizlilik kapılarını sessizce öldürürdü. Adlar **örneğe** bağlandı.
+
+### ⏳ ERTELENENLER (dürüst not)
+- **iOS'ta oda/yayın duraklatması** — turu 65 `!pri` kanıtı yüzünden kapalı.
+- **"Diğerleri de 'Bekliyor' görsün"** — sunucu tarafı sinyal gerekiyor, AYRI İŞ.
+- Oda için `stopAudioCaptureOnMute: false` önerisi — kanıtlanmış zarar YOK, dokunulmadı.
+- ~500 satırlık ölü park/bekletme zinciri hâlâ duruyor (`bekletmeAcik=false` arkasında).
