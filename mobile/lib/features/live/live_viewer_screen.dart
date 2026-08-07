@@ -128,7 +128,7 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
     super.initState();
     _svc = ref.read(callServiceProvider.notifier);
     _svc.ekranAcildi('yayin_${widget.streamId}');
-    SesSahipligi.kaydol('yayin_${widget.streamId}'); // turu 73
+    SesSahipligi.kaydol('yayin_i_${widget.streamId}'); // turu 73b: i=izleyici
     // ⚠️⚠️ TURU 71 — GSM GOZCUSU BU EKRANDA DA ACIK (gizlilik). Eskiden yalniz
     // arama akisinda aciliyordu; odada/yayinda telefon gorusmesi yapilirsa
     // `gsmAramada` HIC guncellenmiyor ve mikrofon kapilari tetiklenmiyordu.
@@ -227,7 +227,17 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
         PipService.pipModu.value = false;
         unawaited(PipService.iosPipDurdur());
       }
-      _sesiAc(true); // kesinti toparlama
+      // ⚠️⚠️ TURU 73b (DENETIM BULGUSU) — ARAMA SAHIPSE SES BIRIMINE DOKUNMA.
+      // Native `setAudioEnabled(true)` KOSULSUZ ZORLA TOGGLE yapar
+      // (`if isAudioEnabled { isAudioEnabled = false }` sonra `true`), yani ses
+      // birimini YIKIP yeniden kurar. Turu 72'ye kadar zararsizdi cunku iOS'ta
+      // oda ile arama AYNI ANDA YASAYAMIYORDU; turu 73 o kapiyi acti.
+      // Artik gorusme surerken uygulamayi arka plana alip donmek (kilit ekrani,
+      // bildirim, Kontrol Merkezi — arama sirasinda COK SIK) ARAMANIN ses birimini
+      // ortada yikiyordu (~50-150ms sagirlik) ve hata `catch (_)` ile yutuluyordu.
+      // Arama sahibiyse `ActiveCallController._kesintidenTopla` zaten toparliyor.
+      // ⚠️ YAPMA: bu kapiyi kaldirma.
+      if (!SesSahipligi.aramaCanli) _sesiAc(true); // kesinti toparlama
       // ⚠️⚠️ TURU 71 — GIZLILIK KAPISI: telefon gorusmesi SURERKEN konuk mikrofonu
       // KOSULSUZ geri aciliyordu -> YAYINI IZLEYEN HERKES GSM konusmasini duyardi.
       // ⚠️ YAPMA: bu kapiyi kaldirma. ⚠️ `_nabizAt()` her kosulda calismali (yoksa
@@ -701,7 +711,7 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
     // birimini kapatir. Kullanici yayindan CIKARKEN bir arama SURUYORSA bu satir
     // GORUSMEYI SESSIZE DUSURURDU. Simetrigi arama tarafinda: `_odaTemizle` ->
     // `SesSahipligi.odaVeyaYayinCanli`. ⚠️ YAPMA: bu kapiyi kaldirma.
-    SesSahipligi.birak('yayin_${widget.streamId}');
+    SesSahipligi.birak('yayin_i_${widget.streamId}');
     if (!SesSahipligi.aramaCanli) await _sesiAc(false);
     final room = _room;
     final listener = _listener;
@@ -833,28 +843,34 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
       ));
       return;
     }
-    setState(() => _duraklatildi = false);
+    // ⚠️⚠️ TURU 73b (DENETIM BULGUSU) — UI BAYRAKLARI await'LERDEN ONCE, SENKRON.
+    //     Eskiden merdivenin ALTINDA yaziliyordu; merdiven ~4sn surdugu icin
+    //     `_konukMicOn`/`_kameramAcik` o sure boyunca BAYAT kaliyordu ve o pencerede
+    //     gelen yeni bir arama `_micHedef`/`_kamHedef`i **false** yakaliyordu ->
+    //     ikinci arama bitince konugun mikrofonu/kamerasi BIR DAHA ACILMIYORDU.
     // Izleyiciysem yayinlayacak medyam YOK — yalniz uzaklari geri ac.
     final mic = _konukum && _micHedef;
     final kam = _konukum && _kamHedef;
+    setState(() {
+      _duraklatildi = false;
+      if (_konukum) {
+        _konukMicOn = mic;
+        _kameramAcik = kam;
+      }
+    });
     await medyaBeklet(room, false, micHedef: mic, camHedef: kam);
     // ⚠️⚠️ TURU 73 — iOS SES BIRIMINI GERI AC (EN SON, kanitli sira: medya -> ses).
     // ⚠️ IZLEYICIDE DE ZORUNLU: yayinlayacak medyamiz yok ama DINLEMEK icin de
     //     ses birimi acik olmali; arama kapanisi onu proses genelinde kapatmis olabilir.
     // Merdiven `configOk && active` DOGRULAR; tukenirse GERCEK Sentry olayi yazar
     // (turu 65 `!pri` bu yolla GORUNUR olur). ⚠️ YAPMA: tek denemeye dusurme.
-    if (!await iosSesBirimiAc(_audioCh, 'izleyici')) {
+    if (!await iosSesBirimiAc(_audioCh, 'izleyici',
+        gecerli: () => mounted && !_ayrildi && !_kapandi && !_duraklatildi)) {
       rootMessengerKey.currentState?.showSnackBar(const SnackBar(
         duration: Duration(seconds: 5),
         content: Text('Ses açılamadı. Telefon görüşmeniz tam kapanmamış olabilir; '
             'birkaç saniye sonra tekrar deneyin.'),
       ));
-    }
-    if (mounted && _konukum) {
-      setState(() {
-        _konukMicOn = mic;
-        _kameramAcik = kam;
-      });
     }
   }
 

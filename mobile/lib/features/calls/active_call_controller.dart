@@ -1745,6 +1745,13 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
         peerId: pid,
         outgoing: true,
       ));
+      // ⚠️⚠️ TURU 73b (DENETIM BULGUSU): ESKI aramanin ses-sahipligi kaydini DUS.
+      //     `baslat()` yalniz YENI id'yi EKLER; eskiyi dusurebilecek tek yer
+      //     `leave(eskiId)` ve o bir daha CAGRILAMAZ (`arama` artik yeni aramayi
+      //     gosteriyor). Kayit asili kalirsa `aramaCanli` PROSES OMRU BOYUNCA true
+      //     olur ve odadan/yayindan cikinca ses birimi BIR DAHA kapanmaz
+      //     (iPhone'da mikrofon gostergesi sonmez).
+      SesSahipligi.birak("arama_${b.callId}");
       return true;
     } catch (e) {
       rootMessengerKey.currentState
@@ -3049,13 +3056,20 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     // Turu 69'da eklenen native `onEnd` kancasi bu pencereyi DAHA OLASI hale getirdi.
     // ⚠️ YAPMA: bu kapiyi kaldirma; `_kapatOdayiKuyrugaKoy()`u await'in ALTINA tasima
     //     (eski oda temizligi KENDI odasini hedefliyor, o dogru yerde).
+    // ⚠️⚠️ TURU 73b (DENETIM BULGUSU): ses-sahipligi kaydi KAPININ **USTUNDE** dusurulur.
+    //     Asagidaki bayat-leave kapisi turu 69b'de SAHADA GERCEKLESTIGI kanitlanan bir
+    //     yolda erken donuyor; `birak` altta kalirsa o yolda HIC calismaz ve
+    //     `aramaCanli` KALICI olarak true takilir -> oda/yayin cikisinda ses birimi bir
+    //     daha kapanmaz (iPhone'da mikrofon gostergesi sonmez).
+    //     `_odaTemizle` yalniz `oda_`/`yayin_` onekine baktigi icin erken birakma
+    //     ZARARSIZDIR. ⚠️ YAPMA: bunu tekrar kapinin ALTINA tasima.
+    SesSahipligi.birak("arama_$id");
     if (arama?.callId != id) return;
     _iptalAbonelikler();
 
     // Muhafizlari birak (eski dispose'un iki birakmasi TEK KAPIDA)
     _svc.aktifKonusmaBitti(id);
     _svc.ekranKapandi(id);
-    SesSahipligi.birak("arama_$id"); // turu 73
     // TURU 54: bu arama episodu bitti -> davet damgalarini dus. Yoksa AYNI aramaya
     // tekrar davet edildiginde kabul REST'e HIC GITMEZ ve karsi tarafta zil susmaz
     // (sunucu kaniti: 4 x /add, 0 x /answer). ⚠️ YAPMA: bunu arama SURERKEN cagirma.

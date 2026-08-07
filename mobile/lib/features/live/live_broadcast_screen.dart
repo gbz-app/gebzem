@@ -106,7 +106,7 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
     super.initState();
     _svc = ref.read(callServiceProvider.notifier);
     _svc.ekranAcildi('yayin_${widget.streamId}'); // arama muhafizi
-    SesSahipligi.kaydol('yayin_${widget.streamId}'); // turu 73
+    SesSahipligi.kaydol('yayin_b_${widget.streamId}'); // turu 73b: b=yayinci
     // ⚠️⚠️ TURU 71 — GSM GOZCUSU BU EKRANDA DA ACIK (gizlilik). Eskiden yalniz
     // arama akisinda aciliyordu; odada/yayinda telefon gorusmesi yapilirsa
     // `gsmAramada` HIC guncellenmiyor ve mikrofon kapilari tetiklenmiyordu.
@@ -183,7 +183,17 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
         _room?.localParticipant?.setCameraEnabled(true);
         if (mounted) setState(() {});
       }
-      _sesiAc(true); // kesinti toparlama (GSM/Siri)
+      // ⚠️⚠️ TURU 73b (DENETIM BULGUSU) — ARAMA SAHIPSE SES BIRIMINE DOKUNMA.
+      // Native `setAudioEnabled(true)` KOSULSUZ ZORLA TOGGLE yapar
+      // (`if isAudioEnabled { isAudioEnabled = false }` sonra `true`), yani ses
+      // birimini YIKIP yeniden kurar. Turu 72'ye kadar zararsizdi cunku iOS'ta
+      // oda ile arama AYNI ANDA YASAYAMIYORDU; turu 73 o kapiyi acti.
+      // Artik gorusme surerken uygulamayi arka plana alip donmek (kilit ekrani,
+      // bildirim, Kontrol Merkezi — arama sirasinda COK SIK) ARAMANIN ses birimini
+      // ortada yikiyordu (~50-150ms sagirlik) ve hata `catch (_)` ile yutuluyordu.
+      // Arama sahibiyse `ActiveCallController._kesintidenTopla` zaten toparliyor.
+      // ⚠️ YAPMA: bu kapiyi kaldirma.
+      if (!SesSahipligi.aramaCanli) _sesiAc(true); // kesinti toparlama (GSM/Siri)
       _nabizAt();
     }
   }
@@ -563,7 +573,7 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
     // birimini kapatir. Kullanici yayindan CIKARKEN bir arama SURUYORSA bu satir
     // GORUSMEYI SESSIZE DUSURURDU. Simetrigi arama tarafinda: `_odaTemizle` ->
     // `SesSahipligi.odaVeyaYayinCanli`. ⚠️ YAPMA: bu kapiyi kaldirma.
-    SesSahipligi.birak('yayin_${widget.streamId}');
+    SesSahipligi.birak('yayin_b_${widget.streamId}');
     if (!SesSahipligi.aramaCanli) await _sesiAc(false);
     final room = _room;
     final listener = _listener;
@@ -725,7 +735,8 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
     // basladi/bitti, (b) CallKit oturumu kendi didDeactivate yolundan birakti.
     // Merdiven configOk && active DOGRULAR; tukenirse GERCEK Sentry olayi yazar
     // (turu 65 !pri bu yolla GORUNUR olur). ⚠️ YAPMA: tek denemeye dusurme.
-    if (!await iosSesBirimiAc(_audioCh, 'yayinci')) {
+    if (!await iosSesBirimiAc(_audioCh, 'yayinci',
+        gecerli: () => mounted && !_ayrildi && !_kapandi && !_duraklatildi)) {
       rootMessengerKey.currentState?.showSnackBar(const SnackBar(
         duration: Duration(seconds: 5),
         content: Text('Ses açılamadı. Telefon görüşmeniz tam kapanmamış olabilir; birkaç saniye sonra tekrar deneyin.'),

@@ -44,6 +44,10 @@ class SesSahipligi {
   /// ODA/YAYIN kapanirken: hala suren bir arama var mi?
   static bool get aramaCanli => _sahipler.any((x) => x.startsWith('arama_'));
 
+  /// ⚠️ TURU 73b: CIKIS (logout) akisinda cagrilir — statik kume proses omrunu
+  ///     paylasir ve sizan bir kayit ses birimini kalici olarak kilitler.
+  static void sifirla() => _sahipler.clear();
+
   /// Olcum/teshis icin (Sentry mesajlarina eklenir).
   static String get ozet => _sahipler.join(',');
 }
@@ -73,16 +77,18 @@ class SesSahipligi {
 ///     `RTCAudioSession.sharedInstance().isAudioEnabled = false` yazar — bu PROSES
 ///     GENELINDE TEK nesnedir ve AKTIF ARAMANIN sesini de OLDURUR.
 ///
-/// ⚠️⚠️ TURU 72b (denetim duzeltmesi) — "ses birimine HIC dokunmuyoruz" iddiasi
-///     TAM DOGRU DEGILDI, DOGRUSU SUDUR:
-///     · **Android'de dokunmaz** (bugun duraklatma zaten YALNIZ Android'de acik).
-///     · **iOS'ta DOLAYLI dokunabilir:** `setMicrophoneEnabled(false)` +
-///       livekit varsayilani `stopAudioCaptureOnMute: true` -> `onUnpublish` ->
-///       MODUL-GLOBAL `_localTrackCount--` -> `_onAudioTrackCountDidChange()` ->
-///       iOS dalinda `Native.configureAudio(...)` (proses geneli AVAudioSession).
-///       Aktif arama kendi yerel track'ini TUTTUGU surece sayac 0'a DUSMEZ, yani
-///       bugun tetiklenmez — ama iOS duraklatmasi acilirsa BURASI ilk bakilacak yer.
-/// ⚠️ YAPMA: iOS'u acarken bu notu okumadan `stopAudioCaptureOnMute` varsayilanina guvenme.
+/// ⚠️⚠️ TURU 73b — ONCEKI "DOLAYLI DOKUNABILIR" UYARISI **KAYNAKTAN CURUTULDU**;
+///     dogru bilgi budur (turu 72b'de yazdigim mekanizma YANLISTI):
+///     · `setMicrophoneEnabled(false)` -> `publication.mute(...)`
+///       (livekit 2.8.1 `participant/local.dart:770-788`). `onUnpublish` YALNIZ
+///       `unpublishTrack`/`removePublishedTrack` yolundan cagrilir -> modul-global
+///       `_localTrackCount` **DEGISMEZ**.
+///     · `RemoteTrackPublication.disable()` yalniz `_enabledPreference` yazip
+///       `_emitTrackUpdate()` yapar; `track.stop()` YOK -> `_remoteTrackCount`
+///       **DEGISMEZ** (`publication/remote.dart:339-343`).
+///     Yani `medyaBeklet` `_onAudioTrackCountDidChange`'i **HIC TETIKLEMEZ** ve
+///     oda duraklatmasi AKTIF ARAMANIN AVAudioSession'ini yeniden yapilandiramaz.
+/// ⚠️ YAPMA: bu maddeyi "olasi risk" diye geri yazma — kaynak okundu, tetiklenmiyor.
 ///
 /// ⚠️ Hicbir hata firlatmaz (her adim kendi `try`inde) — cagiran taraf UI'yi
 ///     guvenle guncelleyebilir. Ama SESSIZ KALMAZ: cagiran, sonucu kendi olcumune yazar.
@@ -140,7 +146,14 @@ Future<void> yeniYayiniSustur(RemoteTrackPublication pub) async {
 /// ⚠️ YAPMA: istisna firlatir hale getirme — cagiran taraf UI akisinda.
 ///
 /// Doner: ses birimi acilabildi mi (Android'de her zaman `true` — orada no-op).
-Future<bool> iosSesBirimiAc(MethodChannel kanal, String etiket) async {
+/// ⚠️⚠️ TURU 73b (DENETIM BULGUSU) — [gecerli] ZORUNLU CANLILIK KAPISI.
+///     Merdiven ~4sn await eder. O sirada kullanici odadan/yayindan CIKARSA
+///     kapanis ses birimini KAPATIR, ardindan merdivenin sonraki basamagi onu
+///     GERI ACARDI -> AVAudioSession **SAHIPSIZ ACIK** kalir: iPhone'da mikrofon
+///     gostergesi sonmez ve sonraki aramanin kurulumuyla cekisir.
+/// ⚠️ YAPMA: [gecerli]siz cagirma; kapiyi yalniz basa koyup araya koymama.
+Future<bool> iosSesBirimiAc(MethodChannel kanal, String etiket,
+    {required bool Function() gecerli}) async {
   if (!Platform.isIOS) return true;
   const araliklar = <int>[0, 200, 600, 1200, 2000];
   Object? sonHata;
@@ -148,6 +161,7 @@ Future<bool> iosSesBirimiAc(MethodChannel kanal, String etiket) async {
     if (araliklar[i] > 0) {
       await Future<void>.delayed(Duration(milliseconds: araliklar[i]));
     }
+    if (!gecerli()) return false; // turu 73b: ekran/oda hala canli mi
     try {
       final ham = await kanal.invokeMethod('setAudioEnabled', true);
       final r = (ham as Map?)?.map((k, v) => MapEntry(k.toString(), v));

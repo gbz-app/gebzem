@@ -157,7 +157,17 @@ class _RoomScreenState extends ConsumerState<RoomScreen> with WidgetsBindingObse
     // KESINTI TOPARLAMA (call_screen _kesintidenTopla dengi — dogrulama bulgusu):
     // GSM/Siri/alarm kesintisi sonrasi iOS ses birimi kendiliginden geri gelmez.
     if (state == AppLifecycleState.resumed && mounted && !_ayrildi) {
-      _sesiAc(true);
+      // ⚠️⚠️ TURU 73b (DENETIM BULGUSU) — ARAMA SAHIPSE SES BIRIMINE DOKUNMA.
+      // Native `setAudioEnabled(true)` KOSULSUZ ZORLA TOGGLE yapar
+      // (`if isAudioEnabled { isAudioEnabled = false }` sonra `true`), yani ses
+      // birimini YIKIP yeniden kurar. Turu 72'ye kadar zararsizdi cunku iOS'ta
+      // oda ile arama AYNI ANDA YASAYAMIYORDU; turu 73 o kapiyi acti.
+      // Artik gorusme surerken uygulamayi arka plana alip donmek (kilit ekrani,
+      // bildirim, Kontrol Merkezi — arama sirasinda COK SIK) ARAMANIN ses birimini
+      // ortada yikiyordu (~50-150ms sagirlik) ve hata `catch (_)` ile yutuluyordu.
+      // Arama sahibiyse `ActiveCallController._kesintidenTopla` zaten toparliyor.
+      // ⚠️ YAPMA: bu kapiyi kaldirma.
+      if (!SesSahipligi.aramaCanli) _sesiAc(true);
       // ⚠️⚠️ TURU 71 — GIZLILIK KAPISI (turu 56'nin ODA/YAYIN karsiligi).
       // Bu satir mikrofonu KOSULSUZ geri aciyordu. Telefon gorusmesi SURERKEN
       // kullanici Gebzem'e gecerse odadaki mikrofon ACILIYOR ve ODADAKILER GSM
@@ -309,10 +319,14 @@ class _RoomScreenState extends ConsumerState<RoomScreen> with WidgetsBindingObse
   /// ⚠️⚠️ TURU 72 — ODAYI DURAKLAT (arama/telefon icin). Oda KAPANMAZ, baglanti ACIK
   /// kalir, sunucudaki kayit ve nabiz SURER — yalniz MEDYA susar.
   ///
-  /// ⚠️ SADECE ANDROID. iOS'ta KAPALI: CallKit aramasi bitince iOS uygulama genelinde
-  ///     ses birimini kapatiyor ve geri acma cagrimiz turu 65'te `!pri`
-  ///     (InsufficientPriority) ile REDDEDILDIGI KANITLANDI — "odaya dondum ama ses yok"
-  ///     yasardik. iOS ancak olcum yesil dondukten sonra acilacak.
+  /// ⚠️⚠️ TURU 73 — **iOS DE DAHIL** (kullanici emri). Turu 72'de burasi Android'e
+  ///     kapaliydi; gerekce turu 65'te olculen `!pri` (InsufficientPriority) idi.
+  ///     Acilirken IKI yapisal kapi eklendi ve ikisi de ZORUNLU:
+  ///       · `SesSahipligi` defteri — arama ile oda/yayin PROSES GENELI ses birimini
+  ///         paylasir; biri kapanirken digerinin sesini OLDURMEZ.
+  ///       · `iosSesBirimiAc` merdiveni — `devam`da 5 basamak, `configOk && active`
+  ///         dogrulamasi, tukenirse GERCEK Sentry olayi.
+  ///     ⚠️ YAPMA: bu ikisinden birini kaldirip iOS'u acik birakma.
   /// ⚠️ YAPMA: burada `_sesiAc(false)` cagirma — o PROSES GENELINDE ses birimini kapatir
   ///     ve AKTIF ARAMANIN sesini oldurur (`medya_beklet.dart` serhi).
   Future<void> odayiDuraklat() async {
@@ -367,9 +381,17 @@ class _RoomScreenState extends ConsumerState<RoomScreen> with WidgetsBindingObse
       ));
       return;
     }
-    setState(() => _duraklatildi = false);
-    // Dinleyicinin mikrofonu ZATEN kapali; konusmaci/host icin ONCEKI tercih geri gelir.
+    // ⚠️⚠️ TURU 73b (DENETIM BULGUSU) — UI BAYRAKLARI await'LERDEN ONCE, SENKRON.
+    //     `_micOn` eskiden merdivenin ALTINDA yaziliyordu; merdiven ~4sn surdugu
+    //     icin bayrak o sure boyunca BAYAT `false` kaliyordu. O pencerede yeni bir
+    //     arama/GSM gelirse `odayiDuraklat` `_micHedef = _micOn` ile **false** yakalar
+    //     ve ikinci arama bitince mikrofon BIR DAHA ACILMAZ.
+    //     (live_broadcast_screen bu deseni zaten dogru yapiyordu — asimetri hataydi.)
     final hedef = _rol != 'listener' && _micHedef;
+    setState(() {
+      _duraklatildi = false;
+      _micOn = hedef;
+    });
     await medyaBeklet(room, false, micHedef: hedef);
     // TURU 72b (denetim bulgusu) — SES ROTASINI GERI UYGULA.
     // Iki bagimsiz sebep rotayi bozuyor: (1) sesli arama _connect'te
@@ -391,13 +413,13 @@ class _RoomScreenState extends ConsumerState<RoomScreen> with WidgetsBindingObse
     //   (b) CallKit oturumu kendi `didDeactivate` yolundan biraktiysa.
     // Merdiven `configOk && active` DOGRULAR; tukenirse GERCEK Sentry olayi yazar
     // (turu 65 `!pri` bu yolla GORUNUR olur). ⚠️ YAPMA: tek denemeye dusurme.
-    if (!await iosSesBirimiAc(_audioCh, 'oda')) {
+    if (!await iosSesBirimiAc(_audioCh, 'oda',
+        gecerli: () => mounted && !_ayrildi && !_kapandi && !_duraklatildi)) {
       rootMessengerKey.currentState?.showSnackBar(const SnackBar(
         duration: Duration(seconds: 5),
         content: Text('Ses açılamadı. Telefon görüşmeniz tam kapanmamış olabilir; birkaç saniye sonra tekrar deneyin.'),
       ));
     }
-    if (mounted) setState(() => _micOn = hedef);
   }
 
   Future<void> _kapatOda() async {
