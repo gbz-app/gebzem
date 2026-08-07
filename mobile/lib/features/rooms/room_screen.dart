@@ -14,7 +14,9 @@ import '../invites/davet_sec_sheet.dart';
 import '../../core/ws.dart';
 import '../calls/call_media_options.dart';
 import '../calls/call_provider.dart';
+import '../../router.dart' show rootMessengerKey;
 import '../calls/call_room_lock.dart';
+import '../calls/medya_beklet.dart'; // turu 72: ortak duraklatma primitifi
 import '../calls/pip_service.dart'; // turu 71: GSM gizlilik kapisi
 import '../home/home_screen.dart' show myProfileProvider;
 import 'room_provider.dart';
@@ -60,6 +62,15 @@ class _RoomScreenState extends ConsumerState<RoomScreen> with WidgetsBindingObse
   bool _connecting = true;
   bool _micOn = false;
   bool _elKalkik = false;
+  // ⚠️⚠️ TURU 72 — ODA DURAKLATMA (kullanici tasarimi: "telefona cevap verdigimde
+  // odadaki mikrofonu kapat, profilde pause + Bekliyor olsun; gorusme bitince
+  // 'Sohbete devam'").
+  // `_duraklatildi` = medya susturuldu, BAGLANTI ACIK, sunucu kaydi/nabiz SURUYOR.
+  // `_micHedef` = duraklatmadan ONCEKI mikrofon tercihi. ⚠️ `_micOn` BIR UI BAYRAGIDIR
+  //     (`TrackMutedEvent` yazar) — tercih deposu olarak KULLANILAMAZ; devam ederken
+  //     sunucunun/host'un mute'unu ezerdik.
+  bool _duraklatildi = false;
+  bool _micHedef = false;
   bool _ayrildi = false; // tek-seferlik cikis kilidi (cift pop = siyah ekran)
   bool _kapandi = false; // oda bir kez kapatildi mi
   String? _hata;
@@ -194,6 +205,23 @@ class _RoomScreenState extends ConsumerState<RoomScreen> with WidgetsBindingObse
             setState(() => _micOn = false);
           }
         })
+        // ⚠️⚠️ TURU 72 — DURAKLATMA SURERKEN KATILANI DA SUSTUR.
+        // Duraklatma yalniz O ANDAKI yayinlari `disable()` eder. Arama devam ederken
+        // odaya YENI biri girip konusursa sesi KULAGA GELIR (duraklatmanin deligi).
+        // ⚠️ YAPMA: bu dinleyiciyi kaldirma.
+        ..on<lk.TrackSubscribedEvent>((e) {
+          if (_duraklatildi) unawaited(yeniYayiniSustur(e.publication));
+        })
+        // ⚠️⚠️ TURU 72 — YENIDEN BAGLANMADA DURUMU TEKRAR UYGULA.
+        // `disable()` sunucuya `UpdateTrackSettings` gonderir; reconnect sonrasi bu
+        // tercih BAYAT kalabilir ve ses geri gelir. Devam yolu idempotent oldugu icin
+        // tekrar uygulamak zararsiz.
+        ..on<lk.RoomReconnectedEvent>((_) {
+          final r = _room;
+          if (_duraklatildi && r != null) {
+            unawaited(medyaBeklet(r, true));
+          }
+        })
         ..on<lk.RoomDisconnectedEvent>((_) {
           // DeleteRoom / at / kalici ag kopmasi -> ekrandan cik. Sunucuya AYRIL gonder
           // (dogrulama bulgusu: bildirmezsek DB'de 'joined' kalir, sweep host kopmasini
@@ -238,6 +266,47 @@ class _RoomScreenState extends ConsumerState<RoomScreen> with WidgetsBindingObse
     try {
       await _audioCh.invokeMethod('setAudioEnabled', ac);
     } catch (_) {}
+  }
+
+  /// ⚠️⚠️ TURU 72 — ODAYI DURAKLAT (arama/telefon icin). Oda KAPANMAZ, baglanti ACIK
+  /// kalir, sunucudaki kayit ve nabiz SURER — yalniz MEDYA susar.
+  ///
+  /// ⚠️ SADECE ANDROID. iOS'ta KAPALI: CallKit aramasi bitince iOS uygulama genelinde
+  ///     ses birimini kapatiyor ve geri acma cagrimiz turu 65'te `!pri`
+  ///     (InsufficientPriority) ile REDDEDILDIGI KANITLANDI — "odaya dondum ama ses yok"
+  ///     yasardik. iOS ancak olcum yesil dondukten sonra acilacak.
+  /// ⚠️ YAPMA: burada `_sesiAc(false)` cagirma — o PROSES GENELINDE ses birimini kapatir
+  ///     ve AKTIF ARAMANIN sesini oldurur (`medya_beklet.dart` serhi).
+  Future<void> odayiDuraklat() async {
+    if (!Platform.isAndroid) return; // iOS ERTELENDI (bkz. serh)
+    final room = _room;
+    if (_duraklatildi || room == null || _ayrildi) return;
+    _micHedef = _micOn; // duraklatmadan ONCEKI tercih
+    setState(() => _duraklatildi = true);
+    await medyaBeklet(room, true);
+    if (mounted) setState(() => _micOn = false);
+  }
+
+  /// TURU 72 — "Sohbete devam". ⚠️ OTOMATIK DEGIL, DUGMEYLE: telefon kapanir kapanmaz
+  /// mikrofonun kendiliginden acilmasi gizlilik riskidir (yanindakiler duyulur).
+  Future<void> odayaDevam() async {
+    final room = _room;
+    if (!_duraklatildi || room == null || _ayrildi) return;
+    // ⚠️ Hala telefon gorusmesi suruyorsa DEVAM ETME (turu 63 deseni): kisa aciklama
+    //     goster, duraklatma SURSUN. GSM bitince kullanici tekrar basar.
+    if (PipService.gsmAramada.value) {
+      rootMessengerKey.currentState?.showSnackBar(const SnackBar(
+        duration: Duration(seconds: 4),
+        content: Text('Telefon görüşmeniz sürüyor. Önce onu sonlandırın; '
+            'sonra sohbete devam edebilirsiniz.'),
+      ));
+      return;
+    }
+    setState(() => _duraklatildi = false);
+    // Dinleyicinin mikrofonu ZATEN kapali; konusmaci/host icin ONCEKI tercih geri gelir.
+    final hedef = _rol != 'listener' && _micHedef;
+    await medyaBeklet(room, false, micHedef: hedef);
+    if (mounted) setState(() => _micOn = hedef);
   }
 
   Future<void> _kapatOda() async {
@@ -650,6 +719,48 @@ class _RoomScreenState extends ConsumerState<RoomScreen> with WidgetsBindingObse
           ),
           SafeArea(
             child: Column(children: [
+              // ⚠️⚠️ TURU 72 — DURAKLATMA SERIDI (kullanici tasarimi: "görüşme bitince
+              // ekranda 'Sohbete devam' olsun"). Tam genislikte, EN USTTE.
+              // ⚠️ YAPMA: MODAL DIALOG kullanma — turu 15 dersi: dialog acikken
+              //     mesgul muhafizi askida kalir ve gelen aramalar duser.
+              // ⚠️ Dugme HER ZAMAN etkin; telefon hala suruyorsa `odayaDevam()`
+              //     aciklama gosterip duraklatmayi SURDURUR (turu 63 deseni).
+              if (_duraklatildi)
+                Container(
+                  width: double.infinity,
+                  color: const Color(0xFFEF6C00),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  child: Row(children: [
+                    const Icon(LucideIcons.pause, size: 16, color: Colors.white),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text('Sohbet duraklatıldı',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700)),
+                    ),
+                    Material(
+                      color: Colors.white24,
+                      borderRadius: BorderRadius.circular(14),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(14),
+                        onTap: odayaDevam,
+                        child: const Padding(
+                          padding:
+                              EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          child: Text('Sohbete devam',
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700)),
+                        ),
+                      ),
+                    ),
+                  ]),
+                ),
               // Ust bilgi
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
@@ -800,6 +911,23 @@ class _RoomScreenState extends ConsumerState<RoomScreen> with WidgetsBindingObse
               right: -2,
               child: Icon(LucideIcons.crown, size: 18, color: Color(0xFFFFC107)),
             ),
+          // ⚠️⚠️ TURU 72 — "BEKLIYOR" ROZETI (kullanici tasarimi): duraklatmada KENDI
+          // avatarimin uzerine yari saydam koyu ortu + duraklat ikonu biner.
+          // ⚠️ YALNIZ KENDI kutuma — baskasinin duraklamasini BILMIYORUZ (o bilgi
+          //     sunucudan gelmiyor; "digerleri de gorsun" AYRI IS olarak ertelendi).
+          // ⚠️ YAPMA: emoji kullanma (turu 62).
+          if (_duraklatildi && (k['user_id'] as String? ?? '') == _benimId)
+            Positioned.fill(
+              child: DecoratedBox(
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Color(0xCC000000),
+                ),
+                child: const Center(
+                  child: Icon(LucideIcons.pause, size: 30, color: Colors.white),
+                ),
+              ),
+            ),
         ]),
         const SizedBox(height: 8),
         Text(ad,
@@ -807,6 +935,13 @@ class _RoomScreenState extends ConsumerState<RoomScreen> with WidgetsBindingObse
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
             style: const TextStyle(color: Colors.white, fontSize: 13)),
+        // TURU 72: adin ALTINDA "Bekliyor" (yalniz kendi kutumda).
+        if (_duraklatildi && (k['user_id'] as String? ?? '') == _benimId)
+          const Text('Bekliyor',
+              style: TextStyle(
+                  color: Color(0xFFFFD9A0),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700)),
       ]),
     );
   }

@@ -16,6 +16,7 @@ import '../../router.dart';
 import 'call_media_options.dart';
 import 'call_provider.dart';
 import 'call_room_lock.dart';
+import 'medya_beklet.dart'; // turu 72: ortak duraklatma primitifi
 import 'call_screen.dart';
 import 'call_sounds.dart';
 import 'callkit_service.dart';
@@ -3168,26 +3169,12 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
 
   /// Medyayi durdur/geri ac. Oda ve katilimcilik AYNEN kalir (LiveKit `disable()` sunucuya
   /// "bu track'i bana gonderme" der; `enable()` geri acar) — arama SUNUCUDA OLMEZ.
+  /// TURU 72: govde `medya_beklet.dart` icine CIKARILDI (oda/yayin da AYNI primitifi
+  /// kullaniyor; kopyalamak drift uretirdi). Davranis BIREBIR ayni.
+  /// ⚠️ YAPMA: govdeyi buraya geri kopyalama.
   Future<void> _medyaBeklet(Room room, bool beklet,
-      {bool micHedef = true, bool camHedef = false}) async {
-    try {
-      await room.localParticipant?.setMicrophoneEnabled(beklet ? false : micHedef);
-    } catch (_) {}
-    try {
-      await room.localParticipant?.setCameraEnabled(beklet ? false : camHedef);
-    } catch (_) {}
-    for (final p in room.remoteParticipants.values) {
-      for (final pub in p.trackPublications.values) {
-        try {
-          if (beklet) {
-            await pub.disable();
-          } else {
-            await pub.enable();
-          }
-        } catch (_) {}
-      }
-    }
-  }
+          {bool micHedef = true, bool camHedef = false}) =>
+      medyaBeklet(room, beklet, micHedef: micHedef, camHedef: camHedef);
 
   /// AKTIF aramayi PARK ET (ikinci aramayi kabul etmeden once). Oda kapanmaz.
   Future<void> parkEt() async {
