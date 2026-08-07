@@ -17,7 +17,118 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (5 Agu 18:06):** TEST TURU 69 YAYINLANDI — android 31017049686 +
+- **KALDIGIMIZ YER (7 Agu):** TEST TURU 70+71+72 BUILD ALINIYOR (7084341) —
+  yayin adimlari asagida, tamamlaninca bu satir guncellenecek.
+- ⚠️⚠️⚠️ **TURU 72 — ODA/YAYIN DURAKLATMA (KULLANICI TASARIMI).**
+  *"Oda kurdum konusuyorum, telefona cevap verdigimde odadaki mikrofonu kapat ve
+  profilde pause isareti Bekliyor olsun; canli yayinda da mikrofonu kapat ve ekrani
+  blurla; gorusme bitince 'Sohbete devam' / 'Canli yayina devam' olsun."*
+  · Ortak primitif **`mobile/lib/features/calls/medya_beklet.dart`** — arama
+    tarafindaki kanitli govde KOPYALANMADI, ORAYA CIKARILDI (tek kaynak).
+  · **`disable()` kullanilir, `unsubscribe()` DEGIL** (abonelik korunur, donus ANINDA;
+    unsubscribe ile yeniden pazarlik gerekir ve ses saniyelerce gec gelir).
+  · **BAGLANTI ACIK KALIR:** sunucuda oda/yayin BITMEZ, nabiz SURER, izleyiciler DUSMEZ.
+  · **DEVAM OTOMATIK DEGIL, DUGMEYLE** — telefon kapanir kapanmaz mikrofonun
+    kendiliginden acilmasi gizlilik riski. ⚠️ YAPMA: otomatik devama cevirme.
+  · Mesgulluk kapisi gevsetildi: odadayken/yayindayken telefon artik **CALAR**.
+  ⚠️⚠️ **iOS'TA DURAKLATMA KAPALI (BILINCLI):** turu 65'te CallKit sonrasi ses birimini
+    geri acma denememizin **`!pri` (InsufficientPriority)** ile REDDEDILDIGI OLCUMLE
+    KANITLANDI. Acsaydik "odaya dondum ama ses yok" yasanirdi.
+    ⚠️ YAPMA: olcum yesil donmeden iOS'u acma.
+  ⚠️⚠️ **`medyaBeklet` `_sesiAc(false)` CAGIRAMAZ** — o native `gebzem/audio` uzerinden
+    `RTCAudioSession.isAudioEnabled` yazar; PROSES GENELINDE TEK nesnedir ve AKTIF
+    ARAMANIN sesini de OLDURUR. (iOS'ta livekit'in modul-global track sayaci uzerinden
+    DOLAYLI dokunma yolu VAR — dosya serhinde yazili, iOS acilirsa ILK bakilacak yer.)
+- ⚠️⚠️⚠️ **TURU 72b — BUILD ONCESI DENETIM 16 SEVK ENGELI BULDU (4 ajan). KALICI DERSLER:**
+  **(A) GSM ARAMASI TETIGI HIC BAGLI DEGILDI** — tetikleyici yalniz `_aramaCtrl`
+  (Gebzem aramasi) dinliyordu; `PipService.gsmAramada` bir ValueNotifier ve uc ekranda
+  da `addListener` YOKTU. Yani ozelligin **MANSET SENARYOSU** ("telefona cevap
+  verdigimde") calismiyordu, ustelik `odayaDevam`daki GSM kapisi **HIC GIRILEMEYEN**
+  bir durum icin yazilmisti. ⚠️ YAPMA: iki dinleyiciden birini kaldirma.
+  **(B) "DEVAM" DUGMESI AKTIF GEBZEM ARAMASINI SORMUYORDU** (yalniz GSM). Kullanici
+  arama ekranini KUCULTUP (`call_screen._minimize` -> `Navigator.pop`) odaya/yayina
+  donebiliyor; serit HER ZAMAN etkin oldugu icin basinca mikrofon + uzak sesler GERI
+  ACILIYOR -> odadakiler/izleyiciler GORUSMEYI DUYUYOR (turu 56/63/71 aciginin aynisi).
+  ⚠️ YAPMA: `arama != null` kapisini kaldirma.
+  **(C) DURAKLATMA KATMANI STACK'IN ORTASINDAYDI** — Stack SON cocugu EN USTE cizer ve
+  hit-test'i TERS sirada yapar. Ust bar (**MIKROFON DUGMESI**) ve alt serit ("Canliya
+  katil") hem BLUR'LANMIYOR hem TIKLANABILIYORDU; basan kullanici yayini GERI ACIYOR,
+  ekran "Bekliyor" demeye DEVAM ediyordu (`_duraklatildi` true kaldigi icin tetikleyici
+  de KENDINI ONARMIYOR). ⚠️ Katman **EN SONDA** + `GestureDetector(HitTestBehavior.opaque)`.
+  ⚠️ YAPMA: `IgnorePointer` kullanma (dokunus alttakilere GECER); katmani ortaya tasima.
+  **(D) BAGLANIRKEN DURAKLATMA KILITLENIP NO-OP KALIYORDU** — `_room` connect'ten ONCE
+  atanir ama livekit `localParticipant`i ancak `RoomConnectedEvent` ile yaratir.
+  O pencerede `medyaBeklet` TAMAMEN no-op, `_duraklatildi = true` ise KILITLENIYOR;
+  ardindan connect `setMicrophoneEnabled(true)` cagiriyordu. Sonuc KALICI: ekran
+  "Bekliyor", oda SENI DUYUYOR. FIX: connect'te `&& !_duraklatildi` + connect sonunda
+  `if (_duraklatildi) await medyaBeklet(room, true);`.
+  ⚠️ **GENEL DERS: bir bayragi await'ten ONCE yazip is'i await'ten SONRA yapan her
+  yerde, o penceredeki BASKA yazicilari da say.** (turu 68'in "kuyruga sararken hangi
+  alanlar ne zaman okunuyor" dersinin kardesi.)
+  **(E) `_konukOl()` / ROL TERFISI / HOST SUSTURMASI / `restartTrack()` KAPISIZDI** —
+  dordu de duraklatmada medyayi YAYINA sokuyor ya da tercihi bozuyordu. Ozellikle
+  livekit `restartTrack()` **`muted` bayragina HIC BAKMAZ**: stop -> createStream
+  (KAMERAYI FIZIKSEL ACAR) -> replaceTrack -> start.
+  ⚠️ YAPMA: `_videoSagligiKur` timer'indan `_duraklatildi` kapisini cikarma.
+  **(F) ARKA PLAN KAMERA DEFTERI UZLASTIRILMIYORDU** — telefon CALARKEN uygulama
+  >=900ms arka planda kalirsa oto-mute `_kameraAcik=false` yazar; duraklatma onu
+  KULLANICI TERCIHI sanip `_kamHedef=false` yakaliyordu -> "devam" sonrasi kamera
+  **BIR DAHA ACILMIYORDU** (yayincida kamera ac/kapa dugmesi YOK = kurtarma yolu yok).
+  FIX: `yayiniDuraklat` basinda `_pipKameraGecikme?.cancel()` + `_kameraOtoKapandi`
+  uzlastirmasi. ⚠️ **DERS: ayni alanin IKI SAHIBI varsa yeni sahip, eskisinin
+  defterini OKUMADAN tercih yakalayamaz.**
+  **(G) MESGULLUK MUAFIYETI FAIL-OPEN'DI:** `live_start_screen`in muhafizi
+  **`yayin-onizleme`** ve iki kapi da `startsWith('yayin')` kullaniyordu ->
+  DURAKLATILAMAYAN, ustelik FIZIKSEL KAMERAYI TUTAN o ekran muafiyete giriyordu
+  (arama kabul edilince IKI capture oturumu cakisir).
+  ⚠️ **MUAFIYET ONEKI ALT CIZGILI OLMAK ZORUNDA** (`oda_` / `yayin_`) + `every`
+  (FAIL-CLOSED). ⚠️ YAPMA: `startsWith('yayin')`e genisletme. ⚠️ YENI duraklatilabilir
+  ekran eklersen muhafiz onekini `oda_`/`yayin_` yap; duraklatilamayanlara BASKA onek ver.
+  **(H) AYNI KURALIN IKI KOPYASI DRIFT ETMISTI:** `_onEvent` `every`, `mesgulMu` `any`
+  kullaniyordu -> kumede bayat bir arama id'si varken **ON PLANDA telefon CALMIYOR ama
+  ayni arama KILIT EKRANINDAN (CallKit -> answer -> mesgulMu) KABUL EDILIYORDU.**
+  Karar `mesgulMu`ya DEVREDILDI. ⚠️ YAPMA: bu kurali tekrar `_onEvent`e kopyalama.
+  **(I) BAYAT MUHAFIZ SELF-HEAL'I ULASILAMAZDI:** eski kodda `if (gercekArama ||
+  odaVeyaYayin) return true;` satirinin ALTINDAYDI; kumede bir `oda_` kaydi varsa bayat
+  arama id'sine HIC ULASILMIYOR ve muhafiz **KALICI** asili kaliyordu. Artik gercek
+  arama yoksa arama id'li her kayit tanim geregi bayattir ve temizlenir.
+- ⚠️⚠️ **TURU 70b — "%20 UZAT" ARITMETIGI YANLIS UYGULANMISTI (kullaniciya gorunen).**
+  PiP kose kutusu **%20 degil %42** uzamisti. Sebep: sayilar ARAMA EKRANI kutusundan
+  kopyalandi ama **IKI YUZEYIN TABANI FARKLIYDI** — arama ekrani 140x200 (en-boy
+  **1.4286**), PiP kutusu 0.34W / 6:5 (en-boy **1.2**). 5:6 pencerede karsi tarafin
+  videosunun ~yarisini yiyordu.
+  **DOGRUSU — HER YUZEY KENDI TABANINDAN:**
+  · PiP kutusu: `0.3740` genislik / `1.3091` en-boy  (= 0.34*1.10 ve (0.34*1.2*1.20)/0.3740)
+    -> `mini_izgara.dart` **VE** `AppDelegate.swift yerelAyarla` BIREBIR AYNI.
+  · Arama ekrani self-view: `_selfOran = 0.3720` / `_selfEnBoy = 1.5584` (140*1.10=154,
+    200*1.20=240) — AYRI YUZEY, esitleme.
+  ⚠️ **DERS: "ucu birden ayni sayi olmali" kurali burada HIC GECERLI DEGILDI; kural
+  VARSAYILARAK kopyalandi. Bir sabiti baska yuzeye tasirken once TABANLAR AYNI MI diye sor.**
+  ⚠️ `tavan` `0.55*H` — 5:6 pencerede kh=0.4896W, tavan=0.66W (pay %26). YAPMA: 0.405'e dondurme.
+- ⚠️⚠️ **TURU 70b — KONUM PUANDA, BOYUT ORANLI.** Self-view'in KONUM ofsetleri de orana
+  cevrilmisti (0.15625 / 0.14509, 414x896'dan). Ama **KACINILACAK OGELER SABIT PUANDA
+  CAPALI**: ust bilgi blogu `Positioned(top: 48)`, alt kontroller `bottom: 48`.
+  375x667'de (SE) kutu **BASLIK + UYARI SERIDININ USTUNE BINIYOR**, alt sinirda
+  kontrollere 140 yerine 104pt kaliyordu. **TEST CIHAZI 414x896 OLDUGU ICIN REGRESYON
+  ORADA GORUNMEZDI.** ⚠️ YAPMA: bu ofsetleri tekrar orana cevirme.
+- ⚠️ **TURU 70 — PiP'TEN BUYUTURKEN SIYAH KAPAK:** `restoreUserInterfaceForPictureInPictureStop`
+  -> `kapakGoster()` **FLUTTER KOK VIEW'INA** (`flutterKok`, weak) siyah katman koyar;
+  Dart ilk kareyi cizince (`iosPipGeriYukleniyor` -> post-frame -> `iosGeriYuklemeTamam`)
+  kalkar, 700ms emniyet timer'i var.
+  ⚠️ **YAPMA: kapagi `callVC?.view.window`a koyma** (AVKit'in PiP penceresidir, non-nil
+  oldugu icin keyWindow yedegi HIC kosmaz ve kapak HICBIR ISE YARAMAZ — ilk denemede oldu).
+  ⚠️ Route gecisinde siyah **PUSH'ta opak, POP'ta ALFA ANIMASYONLU** (turu 59'un
+  "POP yonunu opaklastirma" kurali). YAPMA: pop'u opak yapma.
+- ⚠️⚠️ **TURU 71/72b — `gsmDinle` SAHIPLIK SAYACI (`_gsmSahipleri`).** Arama + oda +
+  yayin AYNI native gozcuyu paylasir; **SON sahip** birakmadan dinleyici kapanmaz.
+  ⚠️ Sahip adlari **ORNEGE BAGLI** olmali (`oda_<id>` / `yayin_<id>`) — sabit ad
+  kullanirsan ayni isimli iki ekran bir an ust uste yasadiginda (Flutter'da yeni
+  route'un `initState`i eskinin `dispose`indan ONCE kosar) gozcu ERKEN kapanir ve
+  gizlilik kapilari SESSIZCE oler.
+  ⚠️ `gsmAramada.value = false` temizligi **`try`IN USTUNDE** — icindeyken
+  `invokeMethod` firlatirsa bayrak SUREC BOYUNCA true takili kalir ve dort ekran
+  mikrofonu bir daha ACMAZ, hicbir olcum dusmeden.
+- **ONCEKI (5 Agu 18:06):** TEST TURU 69 YAYINLANDI — android 31017049686 +
   ios 31017055749 (522f908), R2 apk=108238365 (md5 da3eb963) ipa=22353814 (md5 b2a11ea7),
   purge OK, **CDN birebir**, indir sayfasi 18:06, debug imza YOK, **backend DEGISMEDI**
   (19d0a96) + health ok, DB temiz. **KULLANICI TEST EDECEK.**
