@@ -287,12 +287,23 @@ func (h *Handler) SendMessage(w http.ResponseWriter, r *http.Request) {
 			msgID, uid)
 	}
 
+	// ⚠️ TURU 76 — WS yukune de GONDEREN ADI + AVATARI. `GetMessages` bunlari
+	//    donduruyor; WS yolu dondurmezse GRUPTA canli gelen mesaj ISIMSIZ cizilir
+	//    ve ancak ekran yenilenince adi belirir (gorunur tutarsizlik).
+	var gonderenAd string
+	var gonderenAvatar *string
+	h.db.QueryRow(r.Context(),
+		`SELECT name, avatar_media_id FROM users WHERE id=$1`, userID).
+		Scan(&gonderenAd, &gonderenAvatar)
+
 	payload, _ := json.Marshal(map[string]any{
 		"id": msgID, "chat_id": chatID, "sender_id": userID,
 		// media_url sabit BOS: istemci URL veremez (turu 74). Medya gelince sunucu turetecek.
 		"type": req.Type, "content": req.Content, "media_url": "",
 		"media_id":    req.MediaID,
 		"reply_to_id": req.ReplyToID, "created_at": createdAt,
+		"sender_name":            gonderenAd,
+		"sender_avatar_media_id": gonderenAvatar,
 	})
 	h.hub.Publish(r.Context(), &Event{Type: "message.new", ChatID: chatID, Payload: payload, To: members})
 
@@ -351,12 +362,24 @@ func (h *Handler) GetMessages(w http.ResponseWriter, r *http.Request) {
 		       --    mesaj satiri DURUR — balon "bu icerik kaldirildi" cizer.
 		       COALESCE(a.duration_ms,0), COALESCE(a.waveform,''),
 		       COALESCE(a.width,0), COALESCE(a.height,0),
-		       COALESCE(a.file_name,''), COALESCE(a.bytes,0)
+		       COALESCE(a.file_name,''), COALESCE(a.bytes,0),
+		       -- ⚠️⚠️ TURU 76 — GONDEREN ADI + AVATARI. GRUP ICIN ZORUNLU:
+		       --    olmadan 20 kisilik grupta tum mesajlar ISIMSIZ gri balon
+		       --    olarak gorunur ve kimin yazdigi AYIRT EDILEMEZ. Yani grup
+		       --    ucunu tek basina eklemek YETMEZDI.
+		       --    1:1'de istemci bunlari CIZMEZ (gereksiz gurultu).
+		       COALESCE(u.name,''), u.avatar_media_id
 		FROM messages m
 		LEFT JOIN media_assets a
 		       ON a.id = m.media_id AND a.status IN ('aktif','bagli')
+		LEFT JOIN users u ON u.id = m.sender_id
 		WHERE m.chat_id=$1 AND m.id<$2
-		ORDER BY m.id DESC LIMIT $3`, chatID, beforeID, limit)
+		  -- ⚠️ TURU 76: "sohbeti temizle" damgasindan onceki mesajlar GORUNMEZ.
+		  --    Satirlar SILINMEZ (karsi tarafin gecmisi + "veri silinmez" karari).
+		  AND m.created_at > COALESCE(
+		        (SELECT cleared_at FROM chat_members
+		          WHERE chat_id=$1 AND user_id=$4), '-infinity'::timestamptz)
+		ORDER BY m.id DESC LIMIT $3`, chatID, beforeID, limit, userID)
 	if err != nil {
 		httpErr(w, http.StatusInternalServerError, "sunucu hatası")
 		return
@@ -380,13 +403,18 @@ func (h *Handler) GetMessages(w http.ResponseWriter, r *http.Request) {
 		Height     int    `json:"height,omitempty"`
 		FileName   string `json:"file_name,omitempty"`
 		Bytes      int64  `json:"bytes,omitempty"`
+		// ⚠️ TURU 76 — GRUP ICIN ZORUNLU (bkz. sorgudaki serh).
+		SenderName          string  `json:"sender_name,omitempty"`
+		SenderAvatarMediaID *string `json:"sender_avatar_media_id,omitempty"`
 	}
 	out := []msg{}
 	for rows.Next() {
 		var m msg
+		// ⚠️ SCAN SIRASI SELECT ile BIREBIR.
 		if err := rows.Scan(&m.ID, &m.SenderID, &m.Type, &m.Content, &m.MediaURL, &m.MediaID,
 			&m.ReplyToID, &m.DeletedForAll, &m.CreatedAt,
-			&m.DurationMs, &m.Waveform, &m.Width, &m.Height, &m.FileName, &m.Bytes); err == nil {
+			&m.DurationMs, &m.Waveform, &m.Width, &m.Height, &m.FileName, &m.Bytes,
+			&m.SenderName, &m.SenderAvatarMediaID); err == nil {
 			out = append(out, m)
 		}
 	}
@@ -455,14 +483,18 @@ func (h *Handler) ListChats(w http.ResponseWriter, r *http.Request) {
 		SELECT c.id, c.type,
 		       CASE WHEN c.type='direct' THEN COALESCE(peer.name, '') ELSE c.title END AS title,
 		       CASE WHEN c.type='direct' THEN COALESCE(peer.avatar_url, '') ELSE c.avatar_url END AS avatar_url,
-		       peer.avatar_media_id,
+		       -- ⚠️ TURU 76: grupta sohbetin KENDI avatari, 1:1'de karsi tarafinki.
+		       CASE WHEN c.type='direct' THEN peer.avatar_media_id ELSE c.avatar_media_id END,
 		       cm.pinned, cm.archived,
 		       COALESCE(lm.content,''), COALESCE(lm.type,''),
 		       COALESCE(lm.sender_id::text,''), lm.created_at,
 		       (SELECT COUNT(*) FROM message_receipts mr
 		        JOIN messages m ON m.id=mr.message_id
-		        WHERE m.chat_id=c.id AND mr.user_id=$1 AND mr.read_at IS NULL AND m.sender_id<>$1) AS unread,
-		       peer.id AS peer_id
+		        WHERE m.chat_id=c.id AND mr.user_id=$1 AND mr.read_at IS NULL AND m.sender_id<>$1
+		          -- ⚠️ TURU 76: temizlenen sohbetin ESKI okunmamislari sayilmasin.
+		          AND m.created_at > COALESCE(cm.cleared_at, '-infinity'::timestamptz)) AS unread,
+		       peer.id AS peer_id,
+		       cm.muted_until IS NOT NULL AND cm.muted_until > now() AS sessiz
 		FROM chats c
 		JOIN chat_members cm ON cm.chat_id=c.id AND cm.user_id=$1
 		LEFT JOIN LATERAL (
@@ -473,7 +505,12 @@ func (h *Handler) ListChats(w http.ResponseWriter, r *http.Request) {
 		) peer ON c.type='direct'
 		LEFT JOIN LATERAL (
 			SELECT content, type, sender_id, created_at FROM messages
-			WHERE chat_id=c.id AND NOT deleted_for_all ORDER BY id DESC LIMIT 1
+			WHERE chat_id=c.id AND NOT deleted_for_all
+			  -- ⚠️ TURU 76: "sohbeti temizle" damgasindan ONCEKI mesajlar
+			  --    ONIZLEMEDE de gorunmemeli, yoksa kullanici sildigi sohbetin
+			  --    son mesajini listede gormeye devam ederdi.
+			  AND created_at > COALESCE(cm.cleared_at, '-infinity'::timestamptz)
+			ORDER BY id DESC LIMIT 1
 		) lm ON true
 		ORDER BY cm.pinned DESC, lm.created_at DESC NULLS LAST`, userID)
 	if err != nil {
@@ -503,13 +540,17 @@ func (h *Handler) ListChats(w http.ResponseWriter, r *http.Request) {
 		LastAt     *time.Time `json:"last_at"`
 		Unread     int        `json:"unread"`
 		PeerID     *string    `json:"peer_id"` // direct sohbette karsi taraf (arama icin)
+		// ⚠️ TURU 76: `muted_until` sutunu 001'den beri vardi ama ONA YAZAN DA
+		//    OKUYAN DA YOKTU (olu sutun). Artik sessize alma calisiyor.
+		Sessiz bool `json:"muted"`
 	}
 	out := []chatRow{}
 	for rows.Next() {
 		var c chatRow
 		// ⚠️ SIRA SELECT ile BIREBIR ayni olmali (pgx konuma gore tarar).
 		if err := rows.Scan(&c.ID, &c.Type, &c.Title, &c.AvatarURL, &c.AvatarMediaID, &c.Pinned, &c.Archived,
-			&c.LastMessage, &c.LastType, &c.LastSender, &c.LastAt, &c.Unread, &c.PeerID); err == nil {
+			&c.LastMessage, &c.LastType, &c.LastSender, &c.LastAt, &c.Unread, &c.PeerID,
+			&c.Sessiz); err == nil {
 			out = append(out, c)
 		}
 	}

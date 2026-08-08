@@ -231,6 +231,13 @@ func main() {
 		r.Get("/ws", chatH.WebSocket)
 		r.Get("/chats", chatH.ListChats)
 		r.Post("/chats/direct", chatH.CreateDirect)
+		// TURU 76 — GRUP SOHBETI + sohbet yonetimi (dort olu sutun canlandi).
+		r.Post("/chats/group", chatH.CreateGroup)
+		r.Get("/chats/{chatID}/members", chatH.GroupMembers)
+		r.Post("/chats/{chatID}/members", chatH.GroupAddMember)
+		r.Delete("/chats/{chatID}/members/{userID}", chatH.GroupRemoveMember)
+		r.Patch("/chats/{chatID}", chatH.UpdateChatSettings)
+		r.Delete("/chats/{chatID}", chatH.ClearChat)
 		r.Get("/chats/{chatID}/messages", chatH.GetMessages)
 		r.Post("/chats/{chatID}/messages", chatH.SendMessage)
 		// ⚠️ TURU 74 — herkesten silme. `deleted_for_all` sutunu 001'den beri VARDI ve
