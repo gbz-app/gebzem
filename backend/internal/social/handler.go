@@ -45,6 +45,23 @@ import (
 // ⚠️ SOGUK BASLANGIC COZUMU: takip edilen yoksa akis BOS DONMEZ — "kesfet"
 //    (herkese acik, yeni gonderiler) doner. Bkz. `Akis`.
 
+// ⚠️⚠️ TURU 75b (DENETIM BULGUSU) — ENGEL YUKLEMI **TEK KAYNAK**.
+//
+// Bu predikat DORT sorguya kopyalanmisti (Akis-takipli, Akis-kesfet, Reels,
+// erisebilirMi) ve BESINCISINDE — UserPosts — DUSMUSTU. Sonuc: engellenen kisi
+// akista goremedigi kullanicinin PROFILINE girip TUM gonderilerini
+// okuyabiliyordu. Engellemenin asil vitrini tam da buydu (App Store 1.2).
+//
+// CLAUDE.md'deki "AYNI KURALIN IKI KOPYASI DRIFT EDER" dersinin (turu 72b/H)
+// birebir tekrari oldugu icin kural artik TEK STRINGDE yasiyor.
+// ⚠️ YAPMA: bu yuklemi tekrar sorgulara elle kopyalama.
+// ⚠️ Kural CIFT YONLU: hangi taraf digerini engellediyse icerik gorunmez.
+// ⚠️ Kullanildigi HER sorguda $1 = OKUYAN kullanici olmali; tablo takma adi p.
+const engelYok = `
+			   AND NOT EXISTS(SELECT 1 FROM blocks b
+			         WHERE (b.blocker_id=$1 AND b.blocked_id=p.author_id)
+			            OR (b.blocker_id=p.author_id AND b.blocked_id=$1))`
+
 type Handler struct {
 	db *pgxpool.Pool
 }
@@ -58,7 +75,11 @@ type postReq struct {
 	Metin       string   `json:"metin"`
 	MediaIDs    []string `json:"media_ids"`
 	YorumKapali bool     `json:"yorum_kapali"`
-	ClientRef   string   `json:"client_ref"`
+	// ⚠️ TURU 75b: `ClientRef` KALDIRILDI — hicbir yerde OKUNMUYORDU ve `posts`
+	//    tablosunda karsiligi da yok. Olu alan, ileride birinin "tekrar korumasi
+	//    var" saniyla yanlis varsayim yapmasina yol acar. Gercekten gerekirse
+	//    mesaj tarafindaki gibi TABLO SUTUNU + kismi UNIQUE index ile eklenir
+	//    (015'in `messages.client_ref` deseni).
 }
 
 // POST /posts — gonderi olustur.
@@ -187,7 +208,10 @@ func (h *Handler) medyayiKopar(r *http.Request, mediaID string) {
 		SELECT (SELECT count(*) FROM messages WHERE media_id=$1)
 		     + (SELECT count(*) FROM users WHERE avatar_media_id=$1)
 		     + (SELECT count(*) FROM posts
-		         WHERE $1 = ANY(media_ids) AND durum='yayinda')`,
+		         WHERE $1 = ANY(media_ids) AND durum='yayinda')
+		     + (SELECT count(*) FROM channel_posts
+		         WHERE $1 = ANY(media_ids) AND durum='yayinda')
+		     + (SELECT count(*) FROM channels WHERE avatar_media_id=$1)`,
 		mediaID).Scan(&kalan); err != nil || kalan > 0 {
 		return
 	}
@@ -253,9 +277,7 @@ func (h *Handler) Akis(w http.ResponseWriter, r *http.Request) {
 			   AND (p.author_id = $1 OR p.author_id IN (
 			         SELECT followee_id FROM follows
 			          WHERE follower_id=$1 AND durum='onayli'))
-			   AND NOT EXISTS(SELECT 1 FROM blocks b
-			         WHERE (b.blocker_id=$1 AND b.blocked_id=p.author_id)
-			            OR (b.blocker_id=p.author_id AND b.blocked_id=$1))
+			`+engelYok+`
 			 ORDER BY p.created_at DESC LIMIT $3`, me, before, limit)
 	} else {
 		// KESFET: herkese acik hesaplarin yeni gonderileri + KENDI gonderilerim.
@@ -277,9 +299,7 @@ func (h *Handler) Akis(w http.ResponseWriter, r *http.Request) {
 			  FROM posts p JOIN users u ON u.id = p.author_id
 			 WHERE p.durum='yayinda' AND p.created_at < $2
 			   AND (p.author_id = $1 OR (NOT u.gizli_hesap AND u.verified))
-			   AND NOT EXISTS(SELECT 1 FROM blocks b
-			         WHERE (b.blocker_id=$1 AND b.blocked_id=p.author_id)
-			            OR (b.blocker_id=p.author_id AND b.blocked_id=$1))
+			`+engelYok+`
 			 ORDER BY p.created_at DESC LIMIT $3`, me, before, limit)
 	}
 	if err != nil {
@@ -321,6 +341,19 @@ func (h *Handler) UserPosts(w http.ResponseWriter, r *http.Request) {
 			before = t
 		}
 	}
+	// ⚠️ TUR SUZGECI (profil sekmeleri: foto/video/reels). Bos ise TUMU.
+	//    Istemci bu parametreyi ZATEN gonderiyordu ama sunucu OKUMUYORDU —
+	//    sessizce yok sayilan parametre, ileride "neden calismiyor" tuzagidir.
+	tur := r.URL.Query().Get("tur")
+	switch tur {
+	case "", "foto", "video", "reels", "yazi":
+	default:
+		hata(w, 400, "geçersiz tür")
+		return
+	}
+	// ⚠️⚠️ ENGEL KAPISI (denetim bulgusu — SEVK ENGELIYDI): bu sorguda YOKTU.
+	//    Engellenen kisi akista goremedigi kullanicinin profiline girip TUM
+	//    gonderilerini okuyabiliyordu. Artik `engelYok` TEK KAYNAGINDAN geliyor.
 	rows, err := h.db.Query(r.Context(), `
 		SELECT p.id, p.author_id, p.tur, p.metin, p.media_ids,
 		       p.begeni_sayisi, p.yorum_sayisi, p.goruntulenme,
@@ -330,7 +363,8 @@ func (h *Handler) UserPosts(w http.ResponseWriter, r *http.Request) {
 		       EXISTS(SELECT 1 FROM post_saves s WHERE s.post_id=p.id AND s.user_id=$1)
 		  FROM posts p JOIN users u ON u.id = p.author_id
 		 WHERE p.author_id=$2 AND p.durum='yayinda' AND p.created_at < $3
-		 ORDER BY p.created_at DESC LIMIT 30`, me, hedef, before)
+		   AND ($4 = '' OR p.tur = $4)`+engelYok+`
+		 ORDER BY p.created_at DESC LIMIT 30`, me, hedef, before, tur)
 	if err != nil {
 		hata(w, 500, "gönderiler alınamadı")
 		return
@@ -426,9 +460,7 @@ func (h *Handler) Reels(w http.ResponseWriter, r *http.Request) {
 		        OR EXISTS(SELECT 1 FROM follows f
 		              WHERE f.follower_id=$1 AND f.followee_id=p.author_id
 		                AND f.durum='onayli'))
-		   AND NOT EXISTS(SELECT 1 FROM blocks b
-		         WHERE (b.blocker_id=$1 AND b.blocked_id=p.author_id)
-		            OR (b.blocker_id=p.author_id AND b.blocked_id=$1))
+		`+engelYok+`
 		 ORDER BY p.created_at DESC LIMIT $3`, me, before, limit)
 	if err != nil {
 		log.Printf("reels: %v", err)

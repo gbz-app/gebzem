@@ -199,6 +199,7 @@ func main() {
 		r.Delete("/comments/{id}", socialH.CommentDelete)
 		r.Post("/posts/{id}/save", socialH.Save)
 		r.Delete("/posts/{id}/save", socialH.Unsave)
+		r.Get("/users/me/saved", socialH.Kaydedilenler)
 
 		// ⚠️ TURU 75 — KANAL. Mesaj hattindan AYRI (bkz. internal/kanal serhi:
 		//    `chat.SendMessage` uye basina receipt INSERT ediyor; 10.000 aboneli

@@ -419,6 +419,52 @@ func (h *Handler) erisebilir(ctx context.Context, userID, mediaID string) bool {
 	// (b) birinin AVATARI — profil fotograflari uygulama icinde herkese gorunur
 	h.db.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM users WHERE avatar_media_id=$1)`,
 		mediaID).Scan(&varMi)
+	if varMi {
+		return true
+	}
+
+	// ⚠️⚠️⚠️ TURU 75b (DENETIM BULGUSU — SEVK ENGELIYDI): (c) GONDERI MEDYASI.
+	//
+	// Bu dal EKSIKTI ve sonucu sinsiydi: akis SADECE `media_ids` donduruyor,
+	// istemci her gorsel/video icin `GET /media/{id}/url` cagiriyor. Dal
+	// olmadigi icin GONDERININ SAHIBI DISINDA HERKESE 403 doner ->
+	// foto/video/reels ve kanal gorselleri IZLEYICI TARAFINDA HIC YUKLENMEZ.
+	//
+	// ⚠️⚠️ NEDEN TEK CIHAZDA TEST EDILIRSE GORULMEZ: cagiran kapi
+	//    `if sahip != userID && !h.erisebilir(...)` — paylasan kisi KENDI
+	//    gorselini kisa devreyle sorunsuz gorur. Hata YALNIZ ikinci hesapta cikar.
+	//
+	// ⚠️ "Herhangi bir gonderiye bagliysa serbest" YAZILMADI — o zaman GIZLI
+	//    hesabin medyasi id bilen herkese sizar ve ENGELLEME delinirdi. Kural
+	//    `social.erisebilirMi` ile AYNI: yayinda + iki yonlu engel yok +
+	//    (acik hesap VEYA sahibi VEYA onayli takipci).
+	// ⚠️ YAPMA: bu dali gevsetme.
+	h.db.QueryRow(ctx, `
+		SELECT EXISTS(
+		  SELECT 1 FROM posts p JOIN users u ON u.id = p.author_id
+		   WHERE $1 = ANY(p.media_ids) AND p.durum='yayinda'
+		     AND NOT EXISTS(SELECT 1 FROM blocks b
+		           WHERE (b.blocker_id=$2 AND b.blocked_id=p.author_id)
+		              OR (b.blocker_id=p.author_id AND b.blocked_id=$2))
+		     AND (NOT u.gizli_hesap
+		          OR p.author_id=$2
+		          OR EXISTS(SELECT 1 FROM follows f
+		                WHERE f.follower_id=$2 AND f.followee_id=p.author_id
+		                  AND f.durum='onayli')))`, mediaID, userID).Scan(&varMi)
+	if varMi {
+		return true
+	}
+
+	// (d) KANAL medyasi — kanal gonderisi ve kanal avatari.
+	// ⚠️ Kanal icerigi herkese aciktir (kesfetten goruluyor); tek kapi kanalin
+	//    AKTIF olmasi. Kapali kanalin medyasi da kapanir.
+	h.db.QueryRow(ctx, `
+		SELECT EXISTS(
+		  SELECT 1 FROM channel_posts cp JOIN channels c ON c.id = cp.channel_id
+		   WHERE $1 = ANY(cp.media_ids) AND cp.durum='yayinda' AND c.durum='aktif')
+		    OR EXISTS(
+		  SELECT 1 FROM channels c2 WHERE c2.avatar_media_id=$1 AND c2.durum='aktif')`,
+		mediaID).Scan(&varMi)
 	return varMi
 }
 

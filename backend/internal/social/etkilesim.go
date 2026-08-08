@@ -324,6 +324,56 @@ func (h *Handler) CommentDelete(w http.ResponseWriter, r *http.Request) {
 	yaz(w, 200, map[string]bool{"ok": true})
 }
 
+// GET /users/me/saved — kaydettiklerim.
+//
+// ⚠️⚠️ TURU 75b (DENETIM): kaydetme "KARA DELIK"ti — `post_saves` satiri
+//
+//	yaziliyordu ama onu LISTELEYEN uc de ekran da YOKTU. Kullanici yer imine
+//	basiyor, sonra o gonderiyi bir daha BULAMIYORDU. Bu projede ayni sinif iki
+//	kez yasandi (`deleted_for_all` ve `blocks`: veri var, okuyan yok).
+//
+// ⚠️ YAPMA: kaydetme dugmesini listeleme yolu olmadan birakma.
+//
+// ⚠️ ERISIM YENIDEN DEGERLENDIRILIR: kaydettikten SONRA yazar gizli hesaba
+//
+//	gecmis ya da seni engellemis olabilir. Liste `engelYok` + gizlilik
+//	kapisindan GECER — kaydetmek KALICI bir erisim hakki DEGILDIR.
+func (h *Handler) Kaydedilenler(w http.ResponseWriter, r *http.Request) {
+	me := auth.UserID(r.Context())
+	before := time.Now().Add(time.Hour)
+	if s := r.URL.Query().Get("before"); s != "" {
+		if t, err := time.Parse(time.RFC3339Nano, s); err == nil {
+			before = t
+		}
+	}
+	rows, err := h.db.Query(r.Context(), `
+		SELECT p.id, p.author_id, p.tur, p.metin, p.media_ids,
+		       p.begeni_sayisi, p.yorum_sayisi, p.goruntulenme,
+		       p.yorum_kapali, p.created_at,
+		       u.name, COALESCE(u.username,''), u.avatar_url, u.avatar_media_id,
+		       EXISTS(SELECT 1 FROM post_likes l WHERE l.post_id=p.id AND l.user_id=$1),
+		       true
+		  FROM post_saves sv
+		  JOIN posts p ON p.id = sv.post_id
+		  JOIN users u ON u.id = p.author_id
+		 WHERE sv.user_id=$1 AND p.durum='yayinda' AND sv.created_at < $2
+		   AND (NOT u.gizli_hesap
+		        OR p.author_id=$1
+		        OR EXISTS(SELECT 1 FROM follows f
+		              WHERE f.follower_id=$1 AND f.followee_id=p.author_id
+		                AND f.durum='onayli'))`+engelYok+`
+		 ORDER BY sv.created_at DESC LIMIT 30`, me, before)
+	if err != nil {
+		hata(w, 500, "kaydedilenler alınamadı")
+		return
+	}
+	defer rows.Close()
+	// ⚠️ Imlec `sv.created_at` (KAYDETME zamani) — istemci son satirin
+	//    `created_at`ini degil, ayri donen `imlec` alanini kullanmali.
+	liste := h.satirlariOku(rows)
+	yaz(w, 200, map[string]any{"posts": liste})
+}
+
 // POST/DELETE /posts/{id}/save — kaydet / kaydı kaldır.
 func (h *Handler) Save(w http.ResponseWriter, r *http.Request) {
 	me := auth.UserID(r.Context())

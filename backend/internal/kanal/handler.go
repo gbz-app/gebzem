@@ -226,11 +226,19 @@ func (h *Handler) Detay(w http.ResponseWriter, r *http.Request) {
 		       EXISTS(SELECT 1 FROM channel_subscribers s
 		               WHERE s.channel_id=c.id AND s.user_id=$2),
 		       EXISTS(SELECT 1 FROM channel_admins a
-		               WHERE a.channel_id=c.id AND a.user_id=$2)
+		               WHERE a.channel_id=c.id AND a.user_id=$2),
+		       -- ⚠️ TURU 75b (DENETIM): sessiz alani DONMUYORDU. Istemci onu
+		       -- okuyor; yok oldugu icin DAIMA false geliyordu -> kanali sessize
+		       -- alan kullanici ekrani tekrar acinca menude yine "Sessize al"
+		       -- goruyor ve basinca sunucuya sessiz=true yaziliyordu:
+		       -- SESI BIR DAHA ACAMIYORDU.
+		       -- ⚠️ LEFT JOIN degil skaler alt sorgu: abone OLMAYAN da detayi gorebilir.
+		       COALESCE((SELECT s2.sessiz FROM channel_subscribers s2
+		                  WHERE s2.channel_id=c.id AND s2.user_id=$2), false)
 		  FROM channels c WHERE c.id=$1`, id, me).
 		Scan(&k.ID, &k.Ad, &k.KullaniciAdi, &k.Aciklama, &k.AvatarMediaID,
 			&k.AboneSayisi, &k.GonderiSayisi, &durum, &k.SahipID,
-			&k.AboneMiyim, &k.YetkiliMiyim)
+			&k.AboneMiyim, &k.YetkiliMiyim, &k.Sessiz)
 	if err != nil {
 		hata(w, 404, "kanal bulunamadı")
 		return
@@ -248,6 +256,7 @@ func (h *Handler) Detay(w http.ResponseWriter, r *http.Request) {
 		"abone_sayisi": k.AboneSayisi, "gonderi_sayisi": k.GonderiSayisi,
 		"durum": durum, "sahip_id": k.SahipID,
 		"abone_miyim": k.AboneMiyim, "yetkili_miyim": k.YetkiliMiyim,
+		"sessiz": k.Sessiz,
 	})
 }
 
@@ -255,7 +264,7 @@ type kanalOzet struct {
 	ID, Ad, KullaniciAdi, Aciklama, SahipID string
 	AvatarMediaID                           *string
 	AboneSayisi, GonderiSayisi              int
-	AboneMiyim, YetkiliMiyim                bool
+	AboneMiyim, YetkiliMiyim, Sessiz        bool
 }
 
 // GET /channels — abone oldugum kanallar + OKUNMAMIS sayisi.
@@ -322,7 +331,10 @@ func (h *Handler) Kesfet(w http.ResponseWriter, r *http.Request) {
 			       c.avatar_media_id, c.abone_sayisi,
 			       EXISTS(SELECT 1 FROM channel_subscribers s
 			               WHERE s.channel_id=c.id AND s.user_id=$1)
-			  FROM channels c WHERE c.durum='aktif'
+			  FROM channels c
+			 WHERE c.durum='aktif' AND c.owner_id <> $1
+			   AND NOT EXISTS(SELECT 1 FROM channel_subscribers s
+			         WHERE s.channel_id=c.id AND s.user_id=$1)
 			 ORDER BY c.abone_sayisi DESC, c.created_at DESC LIMIT 30`, me)
 	} else {
 		// ⚠️ Arama HEM ada HEM adrese bakar. `LIKE 'x%'` (ON EK) secildi:
@@ -333,7 +345,7 @@ func (h *Handler) Kesfet(w http.ResponseWriter, r *http.Request) {
 			       EXISTS(SELECT 1 FROM channel_subscribers s
 			               WHERE s.channel_id=c.id AND s.user_id=$1)
 			  FROM channels c
-			 WHERE c.durum='aktif'
+			 WHERE c.durum='aktif' AND c.owner_id <> $1
 			   AND (LOWER(c.ad) LIKE $2 || '%' OR c.kullanici_adi LIKE $2 || '%')
 			 ORDER BY c.abone_sayisi DESC LIMIT 30`, me, q)
 	}
@@ -658,16 +670,83 @@ func (h *Handler) PostSil(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback(r.Context())
 	// ⚠️ Satir SILINMEZ: begeni FK'si ve istatistikler bozulmasin.
-	tag, _ := tx.Exec(r.Context(),
+	// ⚠️⚠️ TURU 75b (DENETIM): `RETURNING media_ids` ZORUNLU — UPDATE dizi
+	//    uzerine `{}` yaziyor, yani ONCEKI degeri BURADA yakalamazsak id'ler
+	//    SONSUZA KADAR KAYBOLUR ve R2'deki nesneler YETIM kalir (kalici depolama
+	//    sizintisi; "veri silinmez" karari YETIM DOSYA demek degildir).
+	// ⚠️⚠️ Hatalar ARTIK YUTULMUYOR: eskiden `tx.Exec(...)` donusu `_` ile atiliyor
+	//    ve `tx.Commit` hic kontrol edilmiyordu -> transaction ABORT olsa bile
+	//    istemciye KOSULSUZ `{"ok":true}` yaziliyordu (kullanici "sildim" sanip
+	//    gonderiyi ekranda gormeye devam ederdi).
+	var eskiMedya []string
+	err = tx.QueryRow(r.Context(),
 		`UPDATE channel_posts SET durum='silindi', metin='', media_ids='{}'
-		  WHERE id=$1 AND durum='yayinda'`, pid)
-	if tag.RowsAffected() == 1 {
-		tx.Exec(r.Context(),
-			`UPDATE channels SET gonderi_sayisi = GREATEST(gonderi_sayisi - 1, 0) WHERE id=$1`,
-			kanalID)
+		  WHERE id=$1 AND durum='yayinda' RETURNING media_ids`, pid).Scan(&eskiMedya)
+	if err == pgx.ErrNoRows {
+		// Baska bir istek onceden sildi — idempotent kabul et.
+		yaz(w, 200, map[string]bool{"ok": true})
+		return
 	}
-	tx.Commit(r.Context())
+	if err != nil {
+		log.Printf("kanal gonderi sil: %v", err)
+		hata(w, 500, "silinemedi")
+		return
+	}
+	if _, err := tx.Exec(r.Context(),
+		`UPDATE channels SET gonderi_sayisi = GREATEST(gonderi_sayisi - 1, 0) WHERE id=$1`,
+		kanalID); err != nil {
+		hata(w, 500, "silinemedi")
+		return
+	}
+	if err := tx.Commit(r.Context()); err != nil {
+		hata(w, 500, "silinemedi")
+		return
+	}
+	// ⚠️ Medya dusurme COMMIT'TEN SONRA: transaction geri alinirsa gonderi
+	//    yasamaya devam ederken medyasini silmis olurduk.
+	for _, m := range eskiMedya {
+		h.medyayiKopar(r.Context(), m)
+	}
 	yaz(w, 200, map[string]bool{"ok": true})
+}
+
+// medyayiKopar — kanal gonderisi silinince medyayi dusur (BASKA YERE BAGLI DEGILSE).
+//
+// ⚠️⚠️ REFERANS SAYIMI `social.medyayiKopar` ILE AYNI KUMEYI TARAMALI. Iki
+//
+//	sayimin ayrismasi "hala kullanilan medya silindi" demektir — bu yuzden
+//	kume burada da TAM yazildi (messages + users.avatar + posts + channel_posts
+//	+ channels.avatar).
+//
+// ⚠️ YAPMA: kumeyi daraltma; yeni bir medya tuketicisi eklersen IKI yere de ekle.
+func (h *Handler) medyayiKopar(ctx context.Context, mediaID string) {
+	var kalan int
+	if err := h.db.QueryRow(ctx, `
+		SELECT (SELECT count(*) FROM messages WHERE media_id=$1)
+		     + (SELECT count(*) FROM users WHERE avatar_media_id=$1)
+		     + (SELECT count(*) FROM posts
+		         WHERE $1 = ANY(media_ids) AND durum='yayinda')
+		     + (SELECT count(*) FROM channel_posts
+		         WHERE $1 = ANY(media_ids) AND durum='yayinda')
+		     + (SELECT count(*) FROM channels WHERE avatar_media_id=$1)`,
+		mediaID).Scan(&kalan); err != nil || kalan > 0 {
+		return
+	}
+	var anahtar, thumb string
+	if err := h.db.QueryRow(ctx, `
+		UPDATE media_assets SET status='silindi', deleted_at=now()
+		 WHERE id=$1 AND status IN ('aktif','bagli')
+		 RETURNING object_key, thumb_key`, mediaID).Scan(&anahtar, &thumb); err != nil {
+		return
+	}
+	// ⚠️ R2 silme KUYRUGA yazilir (015'in `media_delete_queue` tablosu) —
+	//    istek yolunda ag cagrisi yapmiyoruz.
+	for _, a := range []string{anahtar, thumb} {
+		if a != "" {
+			h.db.Exec(ctx,
+				`INSERT INTO media_delete_queue (object_key) VALUES ($1)`, a)
+		}
+	}
 }
 
 // POST /channel-posts/{id}/like — begen. IDEMPOTENT.
