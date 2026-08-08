@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/gbz-app/gebzem/backend/internal/auth"
+	"github.com/gbz-app/gebzem/backend/internal/engel"
 )
 
 // ⚠️⚠️ TURU 75 — ETKILESIM: begeni, yorum, kaydetme.
@@ -147,7 +148,8 @@ func (h *Handler) Likes(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.db.Query(r.Context(), `
 		SELECT u.id, COALESCE(u.username,''), u.name, u.avatar_url, u.avatar_media_id
 		  FROM post_likes l JOIN users u ON u.id = l.user_id
-		 WHERE l.post_id=$1 ORDER BY l.created_at DESC LIMIT 100`, id)
+		 WHERE l.post_id=$1`+engel.Yuklem("$2", "u.id")+`
+		 ORDER BY l.created_at DESC LIMIT 100`, id, me)
 	if err != nil {
 		hata(w, 500, "liste alınamadı")
 		return
@@ -273,7 +275,7 @@ func (h *Handler) Comments(w http.ResponseWriter, r *http.Request) {
 		       EXISTS(SELECT 1 FROM comment_likes cl
 		               WHERE cl.comment_id=c.id AND cl.user_id=$1)
 		  FROM post_comments c JOIN users u ON u.id = c.author_id
-		 WHERE c.post_id=$2 AND c.durum='yayinda'
+		 WHERE c.post_id=$2 AND c.durum='yayinda'`+engel.Yuklem("$1", "u.id")+`
 		 ORDER BY c.created_at LIMIT $3`, me, id, limit)
 	if err != nil {
 		hata(w, 500, "yorumlar alınamadı")

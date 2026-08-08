@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/gbz-app/gebzem/backend/internal/auth"
+	"github.com/gbz-app/gebzem/backend/internal/engel"
 )
 
 // ⚠️⚠️ TURU 75 — TAKIP SISTEMI.
@@ -217,6 +218,12 @@ func (h *Handler) FollowList(w http.ResponseWriter, r *http.Request) {
 	hedef := chi.URLParam(r, "id")
 	takipciler := chi.URLParam(r, "tur") == "followers"
 
+	// ⚠️⚠️ TURU 76 — ENGEL KAPISI (erisim). Engellenen kisi engelleyenin
+	//    takipci/takip listesini okuyup SOSYAL GRAFIGINI dokebiliyordu.
+	if engel.Var(r.Context(), h.db, me, hedef) {
+		writeErr(w, http.StatusNotFound, "kullanıcı bulunamadı")
+		return
+	}
 	// ⚠️ GIZLILIK: gizli hesabin listelerini yalniz KENDISI ve ONAYLI TAKIPCILERI gorur.
 	if hedef != me {
 		var gizli bool
@@ -242,17 +249,19 @@ func (h *Handler) FollowList(w http.ResponseWriter, r *http.Request) {
 
 	var sorgu string
 	if takipciler {
+		// ⚠️ ICERIK SUZGECI: ucuncu bir kisinin listesinde de engelli taraflar
+		//    birbirini GORMEZ ($4 = okuyan kullanici).
 		sorgu = `SELECT u.id, COALESCE(u.username,''), u.name, u.about, u.avatar_url, u.avatar_media_id
 		           FROM follows f JOIN users u ON u.id = f.follower_id
-		          WHERE f.followee_id=$1 AND f.durum='onayli'
+		          WHERE f.followee_id=$1 AND f.durum='onayli'` + engel.Yuklem("$4", "u.id") + `
 		          ORDER BY f.created_at DESC LIMIT $2 OFFSET $3`
 	} else {
 		sorgu = `SELECT u.id, COALESCE(u.username,''), u.name, u.about, u.avatar_url, u.avatar_media_id
 		           FROM follows f JOIN users u ON u.id = f.followee_id
-		          WHERE f.follower_id=$1 AND f.durum='onayli'
+		          WHERE f.follower_id=$1 AND f.durum='onayli'` + engel.Yuklem("$4", "u.id") + `
 		          ORDER BY f.created_at DESC LIMIT $2 OFFSET $3`
 	}
-	rows, err := h.db.Query(r.Context(), sorgu, hedef, limit, offset)
+	rows, err := h.db.Query(r.Context(), sorgu, hedef, limit, offset, me)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "liste alınamadı")
 		return
@@ -297,6 +306,17 @@ func (h *Handler) FollowRequests(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Profile(w http.ResponseWriter, r *http.Request) {
 	me := auth.UserID(r.Context())
 	hedef := chi.URLParam(r, "id")
+
+	// ⚠️⚠️ TURU 76 — ENGEL KAPISI. Bu kapi YOKTU: engellenen kisi engelleyenin
+	//    TAM profilini goruyordu (ad, @kullaniciadi, hakkimda, AVATAR, takipci/
+	//    takip/gonderi sayilari, dis baglanti). Kullanicinin "HİÇ görememeli"
+	//    talebinin tam merkezi.
+	// ⚠️ 403 DEGIL **404**: 403 "bu kisi seni engelledi" bilgisini IFSA eder.
+	//    "kullanıcı bulunamadı" WhatsApp/Instagram davranisidir.
+	if engel.Var(r.Context(), h.db, me, hedef) {
+		writeErr(w, http.StatusNotFound, "kullanıcı bulunamadı")
+		return
+	}
 
 	var u userResp
 	var gizli bool
@@ -346,7 +366,17 @@ func (h *Handler) Notifications(w http.ResponseWriter, r *http.Request) {
 		       COALESCE(a.id::text,''), COALESCE(a.name,''), COALESCE(a.username,''),
 		       COALESCE(a.avatar_url,''), a.avatar_media_id
 		  FROM bildirimler b LEFT JOIN users a ON a.id = b.aktor_id
-		 WHERE b.user_id=$1 ORDER BY b.created_at DESC LIMIT 100`, me)
+		 WHERE b.user_id=$1
+		   -- ⚠️ TURU 76 — ENGEL SUZGECI: engelledigin kisinin gecmis "seni takip
+		   -- etti / gonderini begendi / yorum yapti" satirlari ADI ve AVATARIYLA
+		   -- listede duruyordu; engelleme sonrasi izi ekrandan SILINMIYORDU.
+		   -- ⚠️ aktor_id IS NULL dali ZORUNLU: sistem bildirimlerinde aktor yoktur
+		   -- ve o satirlar da elenmemelidir.
+		   AND (b.aktor_id IS NULL OR NOT EXISTS(
+		        SELECT 1 FROM blocks bl
+		         WHERE (bl.blocker_id=$1 AND bl.blocked_id=b.aktor_id)
+		            OR (bl.blocker_id=b.aktor_id AND bl.blocked_id=$1)))
+		 ORDER BY b.created_at DESC LIMIT 100`, me)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "bildirimler alınamadı")
 		return

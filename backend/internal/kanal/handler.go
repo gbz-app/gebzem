@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/gbz-app/gebzem/backend/internal/auth"
+	"github.com/gbz-app/gebzem/backend/internal/engel"
 )
 
 // ⚠️⚠️⚠️ TURU 75 — KANAL (WhatsApp "Kanallar" deseni: TEK YONLU yayin).
@@ -217,6 +218,19 @@ func (h *Handler) Detay(w http.ResponseWriter, r *http.Request) {
 		hata(w, 404, "kanal bulunamadı")
 		return
 	}
+	// ⚠️⚠️ TURU 76 — ENGEL KAPISI. Kanal katmaninda engelleme HIC YOKTU
+	//    (grep: 0 eslesme). Engellenen kisi engelleyenin kanalini kesfette
+	//    goruyor, aciyor, ABONE OLUYOR ve TUM gonderilerini okuyup begenebiliyordu
+	//    — engelleme kullanicinin gozunde tamamen anlamsizlasiyordu.
+	// ⚠️ 404 (403 DEGIL): engellemeyi ifsa etme.
+	var sahipK string
+	if h.db.QueryRow(r.Context(),
+		`SELECT owner_id FROM channels WHERE id=$1`, id).Scan(&sahipK) == nil &&
+		engel.Var(r.Context(), h.db, me, sahipK) {
+		hata(w, 404, "kanal bulunamadı")
+		return
+	}
+
 	var k kanalOzet
 	var durum string
 	err := h.db.QueryRow(r.Context(), `
@@ -291,7 +305,8 @@ func (h *Handler) Listem(w http.ResponseWriter, r *http.Request) {
 		               WHERE a.channel_id=c.id AND a.user_id=$1) AS yetkili
 		  FROM channel_subscribers s
 		  JOIN channels c ON c.id = s.channel_id
-		 WHERE s.user_id=$1 AND c.durum='aktif'
+		 WHERE s.user_id=$1 AND c.durum='aktif'`+
+		engel.Yuklem("$1", "c.owner_id")+`
 		 ORDER BY son_zaman DESC NULLS LAST`, me)
 	if err != nil {
 		log.Printf("kanal listem: %v", err)
@@ -334,7 +349,8 @@ func (h *Handler) Kesfet(w http.ResponseWriter, r *http.Request) {
 			  FROM channels c
 			 WHERE c.durum='aktif' AND c.owner_id <> $1
 			   AND NOT EXISTS(SELECT 1 FROM channel_subscribers s
-			         WHERE s.channel_id=c.id AND s.user_id=$1)
+			         WHERE s.channel_id=c.id AND s.user_id=$1)`+
+			engel.Yuklem("$1", "c.owner_id")+`
 			 ORDER BY c.abone_sayisi DESC, c.created_at DESC LIMIT 30`, me)
 	} else {
 		// ⚠️ Arama HEM ada HEM adrese bakar. `LIKE 'x%'` (ON EK) secildi:
@@ -346,7 +362,8 @@ func (h *Handler) Kesfet(w http.ResponseWriter, r *http.Request) {
 			               WHERE s.channel_id=c.id AND s.user_id=$1)
 			  FROM channels c
 			 WHERE c.durum='aktif' AND c.owner_id <> $1
-			   AND (LOWER(c.ad) LIKE $2 || '%' OR c.kullanici_adi LIKE $2 || '%')
+			   AND (LOWER(c.ad) LIKE $2 || '%' OR c.kullanici_adi LIKE $2 || '%')`+
+			engel.Yuklem("$1", "c.owner_id")+`
 			 ORDER BY c.abone_sayisi DESC LIMIT 30`, me, q)
 	}
 	if err != nil {
@@ -389,6 +406,13 @@ func (h *Handler) Subscribe(w http.ResponseWriter, r *http.Request) {
 	}
 	if durum != "aktif" {
 		hata(w, 400, "bu kanal kapalı")
+		return
+	}
+	// ⚠️ TURU 76 — ENGEL: engelli taraf abone OLAMAZ.
+	var kSahip string
+	h.db.QueryRow(r.Context(), `SELECT owner_id FROM channels WHERE id=$1`, id).Scan(&kSahip)
+	if engel.Var(r.Context(), h.db, me, kSahip) {
+		hata(w, 404, "kanal bulunamadı")
 		return
 	}
 	tx, err := h.db.Begin(r.Context())
@@ -578,6 +602,11 @@ func (h *Handler) Postlar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if durum != "aktif" && sahip != me {
+		hata(w, 404, "kanal bulunamadı")
+		return
+	}
+	// ⚠️ TURU 76 — ENGEL: engelli taraf kanal gonderilerini goremez.
+	if engel.Var(r.Context(), h.db, me, sahip) {
 		hata(w, 404, "kanal bulunamadı")
 		return
 	}

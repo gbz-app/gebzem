@@ -22,6 +22,7 @@ import (
 
 	"github.com/gbz-app/gebzem/backend/internal/auth"
 	"github.com/gbz-app/gebzem/backend/internal/chat"
+	"github.com/gbz-app/gebzem/backend/internal/engel"
 	"github.com/gbz-app/gebzem/backend/internal/livekit"
 	"github.com/gbz-app/gebzem/backend/internal/push"
 )
@@ -193,11 +194,15 @@ func (h *Handler) Start(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.db.Query(r.Context(), `
 		SELECT s.id, s.title, s.type, s.status, s.started_at, s.gift_coins,
-		       u.id, u.name, COALESCE(u.avatar_url,'')
+		       u.id, u.name, COALESCE(u.avatar_url,''), u.avatar_media_id
 		FROM streams s JOIN users u ON u.id = s.broadcaster_id
-		WHERE s.status IN ('live','paused')
+		WHERE s.status IN ('live','paused')`+
+		// ⚠️ TURU 76 — ENGEL SUZGECI: engelleyenin yayini kesfette GORUNMEZ.
+		//    Eskiden kart goruluyor ama `Watch` 403 doruyordu -> "HAYALET KART":
+		//    kullanici dokunuyor, acilmiyor, sebebini anlamiyordu.
+		engel.Yuklem("$1", "s.broadcaster_id")+`
 		ORDER BY s.started_at DESC
-		LIMIT 50`)
+		LIMIT 50`, auth.UserID(r.Context()))
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "liste alınamadı")
 		return
@@ -213,13 +218,17 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 		BID       string    `json:"broadcaster_id"`
 		BName     string    `json:"broadcaster_name"`
 		BAvatar   string    `json:"broadcaster_avatar"`
-		Viewers   int       `json:"viewer_count"`
+		// ⚠️ TURU 76: `avatar_url` sunucuda HIC YAZILMIYOR — fotograf ancak
+		//    bu alanla gorunur (bkz. internal/users/handler.go serhi).
+		BAvatarMediaID *string `json:"broadcaster_avatar_media_id,omitempty"`
+		Viewers        int     `json:"viewer_count"`
 	}
 	list := []yayin{}
 	for rows.Next() {
 		var y yayin
+		// ⚠️ SCAN SIRASI SELECT ile BIREBIR.
 		if rows.Scan(&y.ID, &y.Title, &y.Type, &y.Status, &y.StartedAt, &y.GiftCoins,
-			&y.BID, &y.BName, &y.BAvatar) == nil {
+			&y.BID, &y.BName, &y.BAvatar, &y.BAvatarMediaID) == nil {
 			list = append(list, y)
 		}
 	}

@@ -6,6 +6,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/gbz-app/gebzem/backend/internal/auth"
+	"github.com/gbz-app/gebzem/backend/internal/engel"
 )
 
 // KISI ARAMA DURUMU (test turu 17 — kullanici istegi: "baska kullanicinin profilinde
@@ -18,13 +19,27 @@ import (
 //
 // GET /users/{id}/presence -> {"in_call":true,"call_type":"audio|video","in_stream":true}
 func (h *Handler) Presence(w http.ResponseWriter, r *http.Request) {
-	if auth.UserID(r.Context()) == "" {
+	me := auth.UserID(r.Context())
+	if me == "" {
 		writeErr(w, http.StatusUnauthorized, "yetkisiz")
 		return
 	}
 	hedef := chi.URLParam(r, "id")
 	if hedef == "" {
 		writeErr(w, http.StatusBadRequest, "kullanıcı yok")
+		return
+	}
+	// ⚠️⚠️ TURU 76 — ENGEL KAPISI. Bu uc **15 SANIYEDE BIR** yoklaniyor
+	//    (`chat_screen` `_durumTazele`). Kapisiz oldugu icin engellenen kisi,
+	//    engelleyenin `in_call` / `call_type` / `in_stream` bilgisini surekli
+	//    izleyip GUNLUK AKTIVITE RITMINI cikarabiliyordu — engellemenin amaci
+	//    tam olarak bunu bitirmek.
+	// ⚠️ 403 DEGIL: 403 baslibasina bir SINYALDIR ("engellendim"). NOTR veri
+	//    donuyoruz — karsi taraf hicbir zaman mesgul gorunmez.
+	if engel.Var(r.Context(), h.db, me, hedef) {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"in_call": false, "call_type": "", "in_stream": false,
+		})
 		return
 	}
 	var tip string

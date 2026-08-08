@@ -12,6 +12,7 @@ import (
 
 	"github.com/gbz-app/gebzem/backend/internal/auth"
 	"github.com/gbz-app/gebzem/backend/internal/bildirim"
+	"github.com/gbz-app/gebzem/backend/internal/engel"
 )
 
 type Handler struct {
@@ -149,11 +150,22 @@ func (h *Handler) ByPhone(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "phone parametresi gerekli")
 		return
 	}
+	// ⚠️⚠️ TURU 76 — ENGEL KAPISI + TELEFON SIZINTISI.
+	//    Bu uc `/users/search`teki engel kapisini BYPASS ediyordu: engellenen kisi
+	//    numarayi biliyorsa (eskiden mesajlasmislardi) buradan id + ad + avatar
+	//    aliyor, sonra o id ile diger uclara gidiyordu.
+	// ⚠️ Ayrica `userResp.Phone` DOLU donuyordu — `/users/search` gizlilik geregi
+	//    telefonu DONDURMUYOR; burasi ayni bilgiyi aciyordu.
+	// ⚠️ NOTR 404: "bu numarada kayıtlı kullanıcı yok" — engellemeyi ifsa etmez.
+	me := auth.UserID(r.Context())
 	var u userResp
 	err := h.db.QueryRow(r.Context(), `
-		SELECT id, phone, name, about, avatar_url, avatar_media_id
+		SELECT id, name, about, avatar_url, avatar_media_id
 		FROM users WHERE phone=$1 AND verified=true`, phone).
-		Scan(&u.ID, &u.Phone, &u.Name, &u.About, &u.AvatarURL, &u.AvatarMediaID)
+		Scan(&u.ID, &u.Name, &u.About, &u.AvatarURL, &u.AvatarMediaID)
+	if err == nil && engel.Var(r.Context(), h.db, me, u.ID) {
+		err = pgx.ErrNoRows
+	}
 	if err == pgx.ErrNoRows {
 		writeErr(w, http.StatusNotFound, "bu numarada kayıtlı kullanıcı yok")
 		return

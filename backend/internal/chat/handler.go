@@ -114,12 +114,24 @@ func (h *Handler) WebSocket(w http.ResponseWriter, r *http.Request) {
 		case "typing":
 			// yaziyor... olayini sohbetin diger uyelerine ilet (DB'ye yazilmaz)
 			members, err := h.chatMemberIDs(r, ev.ChatID, userID)
-			if err == nil {
-				ev.To = members
-				payload, _ := json.Marshal(map[string]string{"user_id": userID})
-				ev.Payload = payload
-				h.hub.Publish(r.Context(), &ev)
+			if err != nil {
+				continue
 			}
+			// ⚠️⚠️ TURU 76 — ENGEL KAPISI. Bu kapi YOKTU: engelleme sonrasi sohbet
+			//    satiri iki tarafta da duruyor (silinmiyor) ve engellenen kisi
+			//    sohbeti acip klavyeye dokununca ENGELLEYENIN EKRANINDA
+			//    "yazıyor..." cikiyordu — yani engellenen kisi CANLI GORUNMEYE
+			//    DEVAM EDIYOR, ustelik gostergeyi surekli titreterek TACIZ
+			//    ARACINA cevirebiliyordu (mesaj gitmese bile).
+			// ⚠️ MEVCUT TEK KAYNAK kullaniliyor (`engelliMi`) — yeni SQL YAZILMADI.
+			// ⚠️ FAIL-CLOSED: sorgu patlarsa olay GONDERILMEZ.
+			if engelli, herr := h.engelliMi(r, ev.ChatID, userID, members); herr != nil || engelli {
+				continue
+			}
+			ev.To = members
+			payload, _ := json.Marshal(map[string]string{"user_id": userID})
+			ev.Payload = payload
+			h.hub.Publish(r.Context(), &ev)
 		}
 	}
 }

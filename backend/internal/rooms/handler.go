@@ -20,6 +20,7 @@ import (
 
 	"github.com/gbz-app/gebzem/backend/internal/auth"
 	"github.com/gbz-app/gebzem/backend/internal/chat"
+	"github.com/gbz-app/gebzem/backend/internal/engel"
 	"github.com/gbz-app/gebzem/backend/internal/livekit"
 	"github.com/gbz-app/gebzem/backend/internal/push"
 )
@@ -209,17 +210,23 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 
 // GET /rooms — kesfet listesi (canli odalar, en yeni ustte)
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
+	// ⚠️ TURU 76: bu uc `auth.UserID`i OKUMUYORDU bile — engel suzgeci icin sart.
+	me := auth.UserID(r.Context())
 	rows, err := h.db.Query(r.Context(), `
 		SELECT r.id, r.title, r.created_at, u.id, u.name, COALESCE(u.avatar_url,''),
+		       u.avatar_media_id,
 		       count(*) FILTER (WHERE p.status='joined' AND p.role IN ('host','speaker')),
 		       count(*) FILTER (WHERE p.status='joined' AND p.role='listener')
 		FROM rooms r
 		JOIN users u ON u.id = r.host_id
 		LEFT JOIN room_participants p ON p.room_id = r.id
-		WHERE r.status='live'
+		WHERE r.status='live'`+
+		// ⚠️ ENGEL SUZGECI: engelleyenin odasi kesfette GORUNMEZ. Eskiden kart
+		//    goruluyor ama katilim reddediliyordu -> "HAYALET KART".
+		engel.Yuklem("$1", "r.host_id")+`
 		GROUP BY r.id, u.id
 		ORDER BY r.created_at DESC
-		LIMIT 50`)
+		LIMIT 50`, me)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "liste alınamadı")
 		return
@@ -232,14 +239,19 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 		HostID     string    `json:"host_id"`
 		HostName   string    `json:"host_name"`
 		HostAvatar string    `json:"host_avatar"`
-		Speakers   int       `json:"speaker_count"`
-		Listeners  int       `json:"listener_count"`
+		// ⚠️ TURU 76: `avatar_url` sunucuda HIC YAZILMIYOR (kalici bos string) —
+		//    fotograflar ancak bu alanla gorunur. Bkz. internal/users/handler.go serhi.
+		HostAvatarMediaID *string `json:"host_avatar_media_id,omitempty"`
+		Speakers          int     `json:"speaker_count"`
+		Listeners         int     `json:"listener_count"`
 	}
 	list := []oda{}
 	for rows.Next() {
 		var o oda
+		// ⚠️ SCAN SIRASI SELECT ile BIREBIR: uyusmazlik derleme hatasi VERMEZ,
+		//    satiri sessizce atlatir ya da alanlari karistirir.
 		if rows.Scan(&o.ID, &o.Title, &o.CreatedAt, &o.HostID, &o.HostName, &o.HostAvatar,
-			&o.Speakers, &o.Listeners) == nil {
+			&o.HostAvatarMediaID, &o.Speakers, &o.Listeners) == nil {
 			list = append(list, o)
 		}
 	}
@@ -308,6 +320,20 @@ func (h *Handler) Join(w http.ResponseWriter, r *http.Request) {
 	if err := h.db.QueryRow(r.Context(),
 		`SELECT title, host_id FROM rooms WHERE id=$1 AND status='live'`, roomID).Scan(&title, &hostID); err != nil {
 		writeErr(w, http.StatusNotFound, "oda bulunamadı veya bitti")
+		return
+	}
+	// ⚠️⚠️⚠️ TURU 76 — ENGEL KAPISI. BU KAPI YOKTU ve sonucu en agir engelleme
+	//    acigiydi: A, B'yi engelledikten sonra B, A'nin odasini kesfette goruyor,
+	//    giriyor ve A'nin KONUSMASINI CANLI DINLIYORDU. Ustelik
+	//    `room.participant.joined` olayi host'a gidiyor ve katilimci listesi
+	//    donduruldugu icin A da B'yi odasinda GORUYORDU.
+	// ⚠️⚠️ AYNI KAPI CANLI YAYINDA ZATEN VARDI (`streams/handler.go` Watch) —
+	//    yani kural iki yuzeye kopyalanmis, BIRINDE dusmustu. CLAUDE.md'nin
+	//    "ayni kuralin iki kopyasi drift eder" dersinin (turu 72b/H) tekrari.
+	//    Bu yuzden kural artik `internal/engel` TEK KAYNAGINDAN geliyor.
+	// ⚠️ NOTR METIN: "seni engelledi" DEME — engellemeyi ifsa eder.
+	if engel.Var(r.Context(), h.db, hostID, userID) {
+		writeErr(w, http.StatusForbidden, "bu odaya katılamazsınız")
 		return
 	}
 	// Kapasite: yalniz dinleyici sayilir (konusmacilar ayri sinirda).
