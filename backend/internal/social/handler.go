@@ -58,6 +58,29 @@ import (
 // ⚠️ YAPMA: bu yuklemi tekrar sorgulara elle kopyalama.
 // ⚠️ Kural CIFT YONLU: hangi taraf digerini engellediyse icerik gorunmez.
 // ⚠️ Kullanildigi HER sorguda $1 = OKUYAN kullanici olmali; tablo takma adi p.
+// ⚠️⚠️ TURU 76 — HER MEDYANIN TURU (`media_kinds`) + DUZENLENME DAMGASI.
+//
+// KOK NEDEN: `posts.media_ids` yalnizca UUID dizisiydi; her medyanin FOTO mu
+// VIDEO mu oldugu istemciye HIC DONMUYORDU. Bu yuzden kart, gonderi seviyesindeki
+// `tur` bayragina bakarak TUM medyayi ayni sekilde ciziyordu — yani kullanicinin
+// istedigi "birden fazla gorsel VE video, galeri gibi sol/sag" YAPISAL OLARAK
+// IMKANSIZDI: sunucu izin verse bile kart yanlis cizerdi.
+//
+// ⚠️ SIRA KORUNUR: `unnest(...) WITH ORDINALITY` + `ORDER BY idx` sayesinde
+//
+//	`media_kinds[i]` ile `media_ids[i]` AYNI medyayi gosterir. Duz bir JOIN
+//	kullanilsaydi sira GARANTI OLMAZDI ve galeri yanlis tip cizerdi.
+//
+// ⚠️ SILINMIS medya icin 'yok' doner (NULL DEGIL): `array_agg` NULL elemani
+//
+//	uretirse `[]string`e tarama PATLAR ve satir SESSIZCE ATLANIR (akis bosalir).
+//	Istemci 'yok' gorunce "bu icerik kaldirildi" cizer.
+const medyaTurleri = `
+		       COALESCE((SELECT array_agg(COALESCE(ma.kind,'yok') ORDER BY mm.idx)
+		                   FROM unnest(p.media_ids) WITH ORDINALITY AS mm(mid, idx)
+		                   LEFT JOIN media_assets ma ON ma.id = mm.mid), '{}'),
+		       p.duzenlendi_at,`
+
 const engelYok = `
 			   AND NOT EXISTS(SELECT 1 FROM blocks b
 			         WHERE (b.blocker_id=$1 AND b.blocked_id=p.author_id)
@@ -127,6 +150,17 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		hata(w, 400, "en fazla 10 medya")
 		return
 	}
+	// ⚠️⚠️ TURU 76 — KARMA GALERI. `tur='foto'` artik "GALERI (1-10 karma medya)"
+	//    anlamina geliyor: fotograf ve VIDEO AYNI gonderide olabilir. Kullanici
+	//    emri: "paylasimda birden fazla gorsel ve video paylasabilelim, bunlari
+	//    galeri seklinde sol sag olarak gorebilmemiz gerekiyor."
+	// ⚠️ YENI BIR `tur` DEGERI EKLENMEDI: `posts.tur` CHECK'ini DROP/ADD etmek
+	//    021'in serhindeki tuzagi acar (iki migration kisiti bagimsiz yeniden
+	//    kurarsa sonra calisan oncekinin degerlerini SILER — 015'te yasandi).
+	//    Her medyanin turu `media_kinds` dizisiyle AYRICA donuyor; istemci
+	//    galeriyi ONA gore ciziyor.
+	// ⚠️ `video` ve `reels` TEK medya olarak KALIR: reels sekmesi ve dikey
+	//    oynatici tek bir videoyu varsayar.
 	if req.Tur != "foto" && len(req.MediaIDs) > 1 {
 		hata(w, 400, "bu türde tek medya olabilir")
 		return
@@ -174,6 +208,94 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	yaz(w, 201, map[string]any{"id": id, "created_at": createdAt})
+}
+
+// PATCH /posts/{id} — kendi gonderini DUZENLE (aciklama + yorum ayari).
+//
+// ⚠️⚠️ TURU 76 — kullanici emri: "paylastigim gonderilerde duzenleme olmali".
+//
+//	Bu uc HICBIR KATMANDA yoktu (rota yok, handler yok, menu secenegi yok).
+//
+// ⚠️ YALNIZ ACIKLAMA VE YORUM AYARI degisir — MEDYA DEGISMEZ (Instagram deseni).
+//
+//	Sebep: medyayi degistirmek, altinda yorum/begeni birikmis bir icerigi
+//	BASKA BIR SEYE cevirmeye izin verirdi (yem-degistir). Medya degisecekse
+//	gonderi silinip yenisi paylasilir.
+//
+// ⚠️ DUZENLENDI DAMGASI GORUNUR: sessizce degistirmek ayni kotu kullanimin
+//
+//	daha sinsi halidir. Istemci "düzenlendi" etiketi cizer.
+func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
+	me := auth.UserID(r.Context())
+	id := chi.URLParam(r, "id")
+	var req struct {
+		Metin       *string `json:"metin"`
+		YorumKapali *bool   `json:"yorum_kapali"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		hata(w, 400, "geçersiz istek")
+		return
+	}
+	if req.Metin != nil {
+		*req.Metin = strings.TrimSpace(*req.Metin)
+		if len(*req.Metin) > 2200 {
+			*req.Metin = kisalt(*req.Metin, 2200)
+		}
+	}
+	// ⚠️ Alanlar POINTER: gonderilmeyen alan DEGISMEZ (kismi guncelleme).
+	// ⚠️ `duzenlendi_at` YALNIZ metin GERCEKTEN degistiyse yazilir — yorum
+	//    ayarini acip kapamak "düzenlendi" etiketi dogurmamali.
+	tag, err := h.db.Exec(r.Context(), `
+		UPDATE posts SET
+		  metin        = COALESCE($3, metin),
+		  yorum_kapali = COALESCE($4, yorum_kapali),
+		  duzenlendi_at = CASE
+		      WHEN $3 IS NOT NULL AND $3 <> metin THEN now()
+		      ELSE duzenlendi_at END
+		 WHERE id=$1 AND author_id=$2 AND durum='yayinda'`,
+		id, me, req.Metin, req.YorumKapali)
+	if err != nil {
+		hata(w, 500, "güncellenemedi")
+		return
+	}
+	if tag.RowsAffected() == 0 {
+		// ⚠️ 404 (403 DEGIL): baskasinin gonderisinin VAR OLDUGU bilgisi de bilgidir.
+		hata(w, 404, "gönderi bulunamadı")
+		return
+	}
+	yaz(w, 200, map[string]bool{"ok": true})
+}
+
+// GET /posts/{id}/istatistik — YAZARA OZEL sayilar.
+//
+// ⚠️ Kullanici emri: "orada istatistik olmali, goruntulenme sayisi vs".
+// ⚠️ YALNIZ YAZAR gorebilir: baskasinin kaydetme/goruntulenme sayisi ona ait
+//
+//	bir bilgi degildir (Instagram da yalniz yazara gosterir).
+func (h *Handler) Istatistik(w http.ResponseWriter, r *http.Request) {
+	me := auth.UserID(r.Context())
+	id := chi.URLParam(r, "id")
+	var yazar string
+	if h.db.QueryRow(r.Context(),
+		`SELECT author_id FROM posts WHERE id=$1 AND durum='yayinda'`, id).
+		Scan(&yazar) != nil {
+		hata(w, 404, "gönderi bulunamadı")
+		return
+	}
+	if yazar != me {
+		hata(w, 404, "gönderi bulunamadı")
+		return
+	}
+	var begeni, yorum, goruntulenme, kaydetme int
+	h.db.QueryRow(r.Context(), `
+		SELECT p.begeni_sayisi, p.yorum_sayisi, p.goruntulenme,
+		       (SELECT count(*) FROM post_saves s WHERE s.post_id=p.id)
+		  FROM posts p WHERE p.id=$1`, id).
+		Scan(&begeni, &yorum, &goruntulenme, &kaydetme)
+	yaz(w, 200, map[string]int{
+		"begeni": begeni, "yorum": yorum,
+		"goruntulenme": goruntulenme, "kaydetme": kaydetme,
+	})
 }
 
 // DELETE /posts/{id} — kendi gonderini sil.
@@ -272,7 +394,7 @@ func (h *Handler) Akis(w http.ResponseWriter, r *http.Request) {
 		// ⚠️ ENGEL KAPISI: engellenmis kisilerin gonderileri akista GORUNMEZ.
 		rows, err = h.db.Query(r.Context(), `
 			SELECT p.id, p.author_id, p.tur, p.metin, p.media_ids,
-			       p.begeni_sayisi, p.yorum_sayisi, p.goruntulenme,
+			       p.begeni_sayisi, p.yorum_sayisi, p.goruntulenme,`+medyaTurleri+`
 			       p.yorum_kapali, p.created_at,
 			       u.name, COALESCE(u.username,''), u.avatar_url, u.avatar_media_id,
 			       EXISTS(SELECT 1 FROM post_likes l WHERE l.post_id=p.id AND l.user_id=$1),
@@ -296,7 +418,7 @@ func (h *Handler) Akis(w http.ResponseWriter, r *http.Request) {
 		//    ve sunucu idempotent oldugu icin HICBIR SEY OLMAZ (olu dokunus).
 		rows, err = h.db.Query(r.Context(), `
 			SELECT p.id, p.author_id, p.tur, p.metin, p.media_ids,
-			       p.begeni_sayisi, p.yorum_sayisi, p.goruntulenme,
+			       p.begeni_sayisi, p.yorum_sayisi, p.goruntulenme,`+medyaTurleri+`
 			       p.yorum_kapali, p.created_at,
 			       u.name, COALESCE(u.username,''), u.avatar_url, u.avatar_media_id,
 			       EXISTS(SELECT 1 FROM post_likes l WHERE l.post_id=p.id AND l.user_id=$1),
@@ -361,7 +483,7 @@ func (h *Handler) UserPosts(w http.ResponseWriter, r *http.Request) {
 	//    gonderilerini okuyabiliyordu. Artik `engelYok` TEK KAYNAGINDAN geliyor.
 	rows, err := h.db.Query(r.Context(), `
 		SELECT p.id, p.author_id, p.tur, p.metin, p.media_ids,
-		       p.begeni_sayisi, p.yorum_sayisi, p.goruntulenme,
+		       p.begeni_sayisi, p.yorum_sayisi, p.goruntulenme,`+medyaTurleri+`
 		       p.yorum_kapali, p.created_at,
 		       u.name, COALESCE(u.username,''), u.avatar_url, u.avatar_media_id,
 		       EXISTS(SELECT 1 FROM post_likes l WHERE l.post_id=p.id AND l.user_id=$1),
@@ -408,7 +530,7 @@ func (h *Handler) Detay(w http.ResponseWriter, r *http.Request) {
 	}
 	rows, err := h.db.Query(r.Context(), `
 		SELECT p.id, p.author_id, p.tur, p.metin, p.media_ids,
-		       p.begeni_sayisi, p.yorum_sayisi, p.goruntulenme,
+		       p.begeni_sayisi, p.yorum_sayisi, p.goruntulenme,`+medyaTurleri+`
 		       p.yorum_kapali, p.created_at,
 		       u.name, COALESCE(u.username,''), u.avatar_url, u.avatar_media_id,
 		       EXISTS(SELECT 1 FROM post_likes l WHERE l.post_id=p.id AND l.user_id=$2),
@@ -453,7 +575,7 @@ func (h *Handler) Reels(w http.ResponseWriter, r *http.Request) {
 	}
 	rows, err := h.db.Query(r.Context(), `
 		SELECT p.id, p.author_id, p.tur, p.metin, p.media_ids,
-		       p.begeni_sayisi, p.yorum_sayisi, p.goruntulenme,
+		       p.begeni_sayisi, p.yorum_sayisi, p.goruntulenme,`+medyaTurleri+`
 		       p.yorum_kapali, p.created_at,
 		       u.name, COALESCE(u.username,''), u.avatar_url, u.avatar_media_id,
 		       EXISTS(SELECT 1 FROM post_likes l WHERE l.post_id=p.id AND l.user_id=$1),
@@ -503,23 +625,31 @@ func (h *Handler) satirlariOku(rows pgx.Rows) []map[string]any {
 	out := []map[string]any{}
 	for rows.Next() {
 		var id, yazarID, tur, metin, ad, kullanici, avatar string
-		var medya []string
+		var medya, turler []string
 		var begeni, yorum, goruntulenme int
 		var yorumKapali, begendim, kaydettim bool
 		var t time.Time
+		var duzenlendi *time.Time
 		var avatarMedya *string
 		// ⚠️ SCAN SIRASI SORGUDAKI SUTUN SIRASIYLA BIREBIR OLMALI. Uyusmazlik
 		//    derleme hatasi VERMEZ; ya tip hatasiyla satir SESSIZCE ATLANIR
 		//    (asagidaki 'continue') ya da alanlar BIRBIRINE KARISIR.
+		// ⚠️ `turler` ve `duzenlendi` `goruntulenme`den HEMEN SONRA gelir
+		//    (bkz. `medyaTurleri` sabiti — o parca oraya ekleniyor).
 		if rows.Scan(&id, &yazarID, &tur, &metin, &medya, &begeni, &yorum,
-			&goruntulenme, &yorumKapali, &t, &ad, &kullanici, &avatar, &avatarMedya,
+			&goruntulenme, &turler, &duzenlendi,
+			&yorumKapali, &t, &ad, &kullanici, &avatar, &avatarMedya,
 			&begendim, &kaydettim) != nil {
 			continue
 		}
 		out = append(out, map[string]any{
 			"id": id, "author_id": yazarID, "tur": tur, "metin": metin,
-			"media_ids": medya, "begeni_sayisi": begeni, "yorum_sayisi": yorum,
+			"media_ids": medya,
+			// ⚠️ `media_kinds[i]` <-> `media_ids[i]` AYNI medya (sira korunur).
+			"media_kinds":   turler,
+			"begeni_sayisi": begeni, "yorum_sayisi": yorum,
 			"goruntulenme": goruntulenme,
+			"duzenlendi":   duzenlendi != nil,
 			"yorum_kapali": yorumKapali, "created_at": t,
 			"yazar_ad": ad, "yazar_username": kullanici,
 			"yazar_avatar": avatar, "yazar_avatar_media_id": avatarMedya,

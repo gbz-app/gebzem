@@ -39,6 +39,27 @@ class SosyalServisi {
 
   Future<void> gonderiSil(String id) => _api.delete('/posts/$id');
 
+  /// TURU 76 — gonderiyi DUZENLE (yalniz aciklama + yorum ayari).
+  /// ⚠️ MEDYA DEGISMEZ: altinda yorum/begeni birikmis icerigi baska bir seye
+  ///     cevirmeye izin verilmez (Instagram deseni). Medya degisecekse gonderi
+  ///     silinip yenisi paylasilir.
+  /// ⚠️ Alanlar OPSIYONEL: gonderilmeyen alan sunucuda DEGISMEZ.
+  Future<void> gonderiDuzenle(
+    String id, {
+    String? metin,
+    bool? yorumKapali,
+  }) => _api.patch('/posts/$id', data: {
+    if (metin != null) 'metin': metin,
+    if (yorumKapali != null) 'yorum_kapali': yorumKapali,
+  });
+
+  /// TURU 76 — YAZARA OZEL istatistik. Sunucu baskasina 404 doner.
+  Future<Map<String, int>> istatistik(String id) async {
+    final r = await _api.get('/posts/$id/istatistik');
+    final m = (r.data as Map).cast<String, dynamic>();
+    return m.map((k, v) => MapEntry(k, (v as num?)?.toInt() ?? 0));
+  }
+
   /// Ana sayfa akisi. [before] imlec (son gonderinin `created_at` degeri).
   ///
   /// ⚠️ IMLEC (cursor) sayfalama — `offset` DEGIL. Offset olsaydi biz kaydirirken
@@ -205,6 +226,8 @@ class Gonderi {
     required this.tur,
     required this.metin,
     required this.mediaIds,
+    required this.mediaKinds,
+    required this.duzenlendi,
     required this.begeniSayisi,
     required this.yorumSayisi,
     required this.goruntulenme,
@@ -221,15 +244,32 @@ class Gonderi {
   final String id;
   final String yazarId;
   final String tur;
-  final String metin;
+
+  /// ⚠️ TURU 76: DEGISEBILIR — gonderi duzenlendiginde kart, listeyi bastan
+  ///    cekmeden ANINDA guncellenir (begendim/kaydettim ile ayni desen).
+  ///    Model paylasilan nesne oldugu icin akis, profil ve detay AYNI ANDA tazelenir.
+  String metin;
   final List<String> mediaIds;
+
+  /// ⚠️⚠️ TURU 76 — HER MEDYANIN TURU. `mediaKinds[i]` ile `mediaIds[i]` AYNI
+  ///     medyayi gosterir (sunucu `WITH ORDINALITY` ile sirayi GARANTI EDIYOR).
+  ///     Degerler: image | video | audio | document | yok (silinmis).
+  /// ⚠️ Bu alan OLMADAN karma galeri (foto + video ayni gonderide) cizilemez:
+  ///     kart gonderi seviyesindeki `tur`a bakip TUM medyayi ayni sanardi.
+  /// ⚠️ ESKI SUNUCU YEDEGI: alan gelmezse gonderi turunden TUREYILIR (asagida).
+  final List<String> mediaKinds;
+
+  /// Sunucudaki `duzenlendi_at != NULL`. Kart "· düzenlendi" etiketi cizer.
+  bool duzenlendi;
   int begeniSayisi;
   int yorumSayisi;
 
   /// ⚠️ Yalniz REELS ve GONDERI DETAYINDA artar (akista artmaz — orada 20 kart
   ///    tek istekte gelir ama cogu HIC gorulmez, saymak sayiyi YALAN yapardi).
   final int goruntulenme;
-  final bool yorumKapali;
+
+  /// ⚠️ TURU 76: duzenleme ile degisebilir (bkz. `metin` serhi).
+  bool yorumKapali;
   final String createdAt;
   final String yazarAd;
   final String yazarUsername;
@@ -238,7 +278,19 @@ class Gonderi {
   bool begendim;
   bool kaydettim;
 
+  /// GONDERI SEVIYESINDE video mu (reels/tek video). Karma galeride tek tek
+  /// medyanin turu icin `mediaKinds` kullanilir — bu getter ONU EZMEZ.
   bool get videoMu => tur == 'video' || tur == 'reels';
+
+  /// i. medyanin turu. Liste kisa/eksikse gonderi turunden turetir.
+  String kind(int i) {
+    if (i >= 0 && i < mediaKinds.length) return mediaKinds[i];
+    return videoMu ? 'video' : 'image';
+  }
+
+  /// Galeride EN AZ BIR video var mi (kapak/oto-oynatma karari icin).
+  bool get videoIceriyor =>
+      videoMu || mediaKinds.any((k) => k == 'video');
 
   static Gonderi json(Map<String, dynamic> m) => Gonderi(
     id: (m['id'] ?? '').toString(),
@@ -248,6 +300,10 @@ class Gonderi {
     mediaIds: ((m['media_ids'] as List?) ?? [])
         .map((e) => e.toString())
         .toList(),
+    mediaKinds: ((m['media_kinds'] as List?) ?? [])
+        .map((e) => e.toString())
+        .toList(),
+    duzenlendi: m['duzenlendi'] == true,
     begeniSayisi: (m['begeni_sayisi'] as num?)?.toInt() ?? 0,
     yorumSayisi: (m['yorum_sayisi'] as num?)?.toInt() ?? 0,
     goruntulenme: (m['goruntulenme'] as num?)?.toInt() ?? 0,

@@ -82,9 +82,19 @@ class _GonderiOlusturState extends ConsumerState<GonderiOlustur> {
 
   bool get _reelsMi => widget.reels;
 
+  /// ⚠️⚠️ TURU 76 — KARMA GALERI (kullanici emri: "birden fazla gorsel VE video
+  ///    paylasabilelim, galeri seklinde sol sag").
+  ///
+  /// `foto` artik "GALERI (1-10 karma medya)" demek; her medyanin GERCEK turu
+  /// `media_assets.kind`ten okunup istemciye `media_kinds` dizisiyle DONUYOR.
+  /// ⚠️ YENI BIR `tur` DEGERI EKLENMEDI — `posts.tur` CHECK'ini DROP/ADD etmek
+  ///    015'te yasanan migration tuzagini acar (bkz. 025 serhi).
+  /// ⚠️ `video`/`reels` YALNIZ TEK medyada: reels sekmesi ve dikey oynatici
+  ///    tek video varsayiyor; sunucu da `tur != 'foto' && len > 1` reddediyor.
   String get _tur {
     if (_medya.isEmpty) return 'yazi';
-    if (_medya.first.video) return _reelsMi ? 'reels' : 'video';
+    if (_reelsMi) return 'reels';
+    if (_medya.length == 1 && _medya.first.video) return 'video';
     return 'foto';
   }
 
@@ -107,11 +117,8 @@ class _GonderiOlusturState extends ConsumerState<GonderiOlustur> {
       MedyaKapisi.pickerAcik = false;
     }
     if (secim.isEmpty || !mounted) return;
-    // Video secilmisse gorsel eklenemez (karma gonderi YOK — sunucu da reddeder).
-    if (_medya.any((m) => m.video)) {
-      _uyar('Video ile fotoğraf aynı gönderide olamaz');
-      return;
-    }
+    // ⚠️ TURU 76: "video ile fotograf ayni gonderide olamaz" KAPISI KALDIRILDI —
+    //    karma galeri artik hem sunucuda hem kartta destekleniyor.
     setState(() {
       for (final x in secim) {
         if (_medya.length >= _enFazlaGorsel) break;
@@ -150,6 +157,11 @@ class _GonderiOlusturState extends ConsumerState<GonderiOlustur> {
   Future<void> _videoSec() async {
     if (!MedyaKapisi.izinVer(ref)) {
       _uyar(MedyaKapisi.engelSebebi(ref) ?? 'Şu anda medya seçilemez');
+      return;
+    }
+    // ⚠️ TURU 76: karma galeride video da 10'luk tavana dahildir.
+    if (!_reelsMi && _medya.length >= _enFazlaGorsel) {
+      _uyar('En fazla $_enFazlaGorsel medya ekleyebilirsin');
       return;
     }
     XFile? x;
@@ -199,9 +211,15 @@ class _GonderiOlusturState extends ConsumerState<GonderiOlustur> {
     }
 
     setState(() {
-      _medya
-        ..clear() // tek video
-        ..add(_SecilenMedya(dosya, true));
+      // ⚠️ TURU 76 — REELS'te TEK video (dikey oynatici tek kaynak varsayiyor),
+      //    normal gonderide video GALERIYE EKLENIR (karma medya).
+      if (_reelsMi) {
+        _medya
+          ..clear()
+          ..add(_SecilenMedya(dosya, true));
+      } else {
+        _medya.add(_SecilenMedya(dosya, true));
+      }
     });
   }
 

@@ -9,6 +9,7 @@ import '../medya/medya_gorsel.dart';
 import '../chats/moderasyon_sheet.dart';
 import '../medya/tam_ekran_gorsel.dart';
 import 'medya_video.dart';
+import 'paylas_sheet.dart';
 import 'sosyal_servisi.dart';
 import 'yorumlar_sayfasi.dart';
 
@@ -133,6 +134,19 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
               title: const Text('Bağlantıyı kopyala'),
               onTap: () => Navigator.pop(c, 'link'),
             ),
+            // ⚠️ TURU 76 — kullanici emri: "paylastigim gonderilerde duzenleme".
+            if (benim)
+              ListTile(
+                leading: const Icon(LucideIcons.pencil),
+                title: const Text('Düzenle'),
+                onTap: () => Navigator.pop(c, 'duzenle'),
+              ),
+            if (benim)
+              ListTile(
+                leading: const Icon(LucideIcons.chartNoAxesColumn),
+                title: const Text('İstatistikler'),
+                onTap: () => Navigator.pop(c, 'istatistik'),
+              ),
             if (benim)
               ListTile(
                 leading: const Icon(LucideIcons.trash2, color: Colors.red),
@@ -189,10 +203,204 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
           context,
         ).showSnackBar(const SnackBar(content: Text('Gönderi silinemedi')));
       }
+    } else if (secim == 'duzenle') {
+      await _duzenle();
+    } else if (secim == 'istatistik') {
+      await _istatistik();
     } else if (secim == 'sikayet') {
       await sikayetSheetAc(context, ref, hedefTur: 'gonderi', hedefId: g.id);
     }
   }
+
+  /// TURU 76 — aciklama + yorum ayarini duzenle.
+  /// ⚠️ MEDYA DEGISTIRILEMEZ (sunucu da kabul etmiyor) — sheet bunu ACIKCA yazar,
+  ///    yoksa kullanici "fotografi degistiremiyorum" diye hata sanar.
+  Future<void> _duzenle() async {
+    final ctrl = TextEditingController(text: g.metin);
+    var kapali = g.yorumKapali;
+    final sonuc = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (c) => Padding(
+        // ⚠️ viewInsets: klavye acilinca sheet YUKARI kayar; yoksa kaydet
+        //    dugmesi klavyenin ALTINDA kalir ve ulasilamaz.
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(c).viewInsets.bottom,
+        ),
+        child: StatefulBuilder(
+          builder: (c2, yenile) => SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Gönderiyi düzenle',
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: ctrl,
+                    maxLines: 6,
+                    minLines: 3,
+                    maxLength: 2200,
+                    decoration: const InputDecoration(
+                      hintText: 'Açıklama',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: kapali,
+                    onChanged: (v) => yenile(() => kapali = v),
+                    title: const Text('Yorumları kapat'),
+                  ),
+                  if (g.mediaIds.isNotEmpty)
+                    const Padding(
+                      padding: EdgeInsets.only(bottom: 10),
+                      child: Text(
+                        'Fotoğraf ve videolar değiştirilemez.',
+                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                    ),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed: () => Navigator.pop(c2, true),
+                      child: const Text('Kaydet'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    final yeniMetin = ctrl.text.trim();
+    ctrl.dispose();
+    if (sonuc != true || !mounted) return;
+    final degistiMi = yeniMetin != g.metin;
+    if (!degistiMi && kapali == g.yorumKapali) return;
+    // ⚠️ IYIMSER guncelleme + HATA'DA GERI ALMA (kartin geri kalaniyla ayni desen).
+    final eskiMetin = g.metin;
+    final eskiKapali = g.yorumKapali;
+    final eskiDuz = g.duzenlendi;
+    setState(() {
+      g.metin = yeniMetin;
+      g.yorumKapali = kapali;
+      // ⚠️ Etiket YALNIZ metin degistiyse — sunucudaki kural birebir ayni.
+      if (degistiMi) g.duzenlendi = true;
+    });
+    try {
+      await ref.read(sosyalServisiProvider).gonderiDuzenle(
+        g.id,
+        metin: yeniMetin,
+        yorumKapali: kapali,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        g.metin = eskiMetin;
+        g.yorumKapali = eskiKapali;
+        g.duzenlendi = eskiDuz;
+      });
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Gönderi güncellenemedi')));
+    }
+  }
+
+  /// TURU 76 — yazara ozel istatistik sayfasi (kullanici emri: "istatistik olmali,
+  /// goruntulenme sayisi vs").
+  Future<void> _istatistik() async {
+    Map<String, int>? veri;
+    String? hata;
+    try {
+      veri = await ref.read(sosyalServisiProvider).istatistik(g.id);
+    } catch (_) {
+      hata = 'İstatistikler alınamadı';
+    }
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (c) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Gönderi istatistikleri',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 16),
+              if (hata != null)
+                Text(hata, style: const TextStyle(color: Colors.grey))
+              else ...[
+                Row(
+                  children: [
+                    _kutu(
+                      LucideIcons.eye,
+                      'Görüntülenme',
+                      veri?['goruntulenme'] ?? 0,
+                    ),
+                    _kutu(LucideIcons.heart, 'Beğeni', veri?['begeni'] ?? 0),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    _kutu(
+                      LucideIcons.messageCircle,
+                      'Yorum',
+                      veri?['yorum'] ?? 0,
+                    ),
+                    _kutu(
+                      LucideIcons.bookmark,
+                      'Kaydetme',
+                      veri?['kaydetme'] ?? 0,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                // ⚠️ DURUSTLUK: goruntulenme akista ARTMIYOR (bkz. Gonderi.goruntulenme
+                //    serhi). Bunu yazmazsak kullanici sayiyi "bozuk" sanar.
+                const Text(
+                  'Görüntülenme yalnız gönderi tam ekran açıldığında sayılır.',
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _kutu(IconData ikon, String baslik, int deger) => Expanded(
+    child: Container(
+      margin: const EdgeInsets.symmetric(horizontal: 5),
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        children: [
+          Icon(ikon, size: 20),
+          const SizedBox(height: 6),
+          Text(
+            sayiBicimle(deger),
+            style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w700),
+          ),
+          Text(baslik, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+        ],
+      ),
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -220,9 +428,14 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
             ),
           ),
           subtitle: Text(
-            g.yazarUsername.isEmpty
-                ? gonderiZamani(g.createdAt)
-                : '@${g.yazarUsername} · ${gonderiZamani(g.createdAt)}',
+            [
+              if (g.yazarUsername.isNotEmpty) '@${g.yazarUsername}',
+              gonderiZamani(g.createdAt),
+              // ⚠️ TURU 76: duzenlenmis gonderi GORUNUR sekilde isaretlenir.
+              //    Sessizce degistirmek, altinda yorum birikmis bir icerigin
+              //    anlamini bozmaya izin verirdi.
+              if (g.duzenlendi) 'düzenlendi',
+            ].join(' · '),
             style: const TextStyle(fontSize: 12),
           ),
           trailing: IconButton(
@@ -303,6 +516,35 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
             ],
           ),
         ),
+        // ---- "N beğenme" (Instagram deseni) — dokununca BEGENENLER listesi
+        if (g.begeniSayisi > 0)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 2),
+            child: GestureDetector(
+              onTap: _begenenler,
+              child: Text(
+                '${sayiBicimle(g.begeniSayisi)} beğenme',
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        // ---- "N yorumun tümünü gör" (Instagram deseni)
+        if (!g.yorumKapali && g.yorumSayisi > 0)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 2),
+            child: GestureDetector(
+              onTap: _yorumlariAc,
+              child: Text(
+                g.yorumSayisi == 1
+                    ? '1 yorumu gör'
+                    : '${sayiBicimle(g.yorumSayisi)} yorumun tümünü gör',
+                style: const TextStyle(fontSize: 13, color: Colors.grey),
+              ),
+            ),
+          ),
         if (g.yorumKapali)
           const Padding(
             padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
@@ -311,6 +553,7 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
               style: TextStyle(fontSize: 12, color: Colors.grey),
             ),
           ),
+        const SizedBox(height: 8),
         const Divider(height: 1),
       ],
     );
@@ -373,7 +616,32 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
   }
 
   Widget _tekMedya(String id, int sira) {
-    if (g.videoMu) {
+    // ⚠️⚠️ TURU 76 — TUR ARTIK MEDYA BASINA. Eskiden `g.videoMu` (GONDERI
+    //    seviyesi) okunuyordu; karma galeride bu YAPISAL OLARAK YANLIS olurdu:
+    //    'foto' turlu bir gonderideki VIDEO, MedyaGorsel'e verilip BOZUK KARE
+    //    cizerdi (ya da hicbir sey). Sunucu artik `media_kinds` donduruyor.
+    // ⚠️ YAPMA: burayi tekrar `g.videoMu`ya baglama.
+    final t = g.kind(sira);
+    if (t == 'yok') {
+      // Medya sunucudan SILINMIS (sikayet/kaldirma). Bos kare yerine DURUST etiket.
+      return const ColoredBox(
+        color: Color(0xFF15151F),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(LucideIcons.imageOff, color: Colors.white38, size: 34),
+              SizedBox(height: 8),
+              Text(
+                'Bu içerik kaldırıldı',
+                style: TextStyle(color: Colors.white38, fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    if (t == 'video') {
       return MedyaVideo(
         mediaId: id,
         // ⚠️ Akista video SESSIZ ve ELLE baslar: otomatik oynatma mobil veriyi
@@ -432,12 +700,79 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
     ),
   );
 
-  Future<void> _sohbeteGonder(BuildContext context) async {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Bağlantı kopyalandı — sohbete yapıştırın')),
-    );
-    await Clipboard.setData(
-      ClipboardData(text: 'https://gebzem.app/p/${g.id}'),
+  /// ⚠️ TURU 76: eskiden YALNIZCA panoya kopyalayip "sohbete yapistirin" diyordu.
+  ///    Artik gercek paylasim sayfasi (coklu sohbet secimi + kopyala) aciliyor.
+  Future<void> _sohbeteGonder(BuildContext context) => paylasSheetAc(
+    context,
+    ref,
+    baglanti: 'https://gebzem.app/p/${g.id}',
+  );
+
+  /// TURU 76 — begeni sayisina dokununca BEGENENLER listesi (Instagram deseni).
+  /// ⚠️ Servis ucu (`begenenler`) turu 75'ten beri VARDI ama HICBIR EKRAN
+  ///    CAGIRMIYORDU — olu kod. Kullaniciya gorunur hale getirildi.
+  Future<void> _begenenler() async {
+    if (g.begeniSayisi == 0) return;
+    List<Map<String, dynamic>>? liste;
+    try {
+      liste = await ref.read(sosyalServisiProvider).begenenler(g.id);
+    } catch (_) {
+      liste = null;
+    }
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (c) => SafeArea(
+        child: SizedBox(
+          height: MediaQuery.of(c).size.height * 0.55,
+          child: Column(
+            children: [
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 14),
+                child: Text(
+                  'Beğenenler',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                ),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: liste == null
+                    ? const Center(
+                        child: Text(
+                          'Liste alınamadı',
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      )
+                    : ListView.builder(
+                        itemCount: liste.length,
+                        itemBuilder: (_, i) {
+                          final u = liste![i];
+                          final uid = (u['id'] ?? '').toString();
+                          return ListTile(
+                            leading: Avatar(
+                              ad: (u['name'] ?? '').toString(),
+                              mediaId: u['avatar_media_id'] as String?,
+                              avatarUrl: (u['avatar_url'] ?? '').toString(),
+                              cap: 40,
+                            ),
+                            title: Text((u['name'] ?? '').toString()),
+                            subtitle: Text(
+                              '@${(u['username'] ?? '').toString()}',
+                            ),
+                            onTap: widget.profileGit == null
+                                ? null
+                                : () {
+                                    Navigator.pop(c);
+                                    widget.profileGit!(uid);
+                                  },
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

@@ -193,6 +193,8 @@ func main() {
 		// ⚠️ TURU 75 — GONDERI + AKIS + ETKILESIM.
 		r.Post("/posts", socialH.Create)
 		r.Delete("/posts/{id}", socialH.Delete)
+		r.Patch("/posts/{id}", socialH.Update)              // turu 76: gonderi duzenleme
+		r.Get("/posts/{id}/istatistik", socialH.Istatistik) // turu 76: yazara ozel
 		r.Get("/feed", socialH.Akis)
 		r.Get("/reels", socialH.Reels)
 		r.Get("/posts/{id}", socialH.Detay)
