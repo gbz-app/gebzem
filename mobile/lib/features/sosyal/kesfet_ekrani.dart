@@ -278,8 +278,12 @@ class _KesfetEkraniState extends ConsumerState<KesfetEkrani>
                   color: const Color(0xFF15151F),
                   child: g.mediaIds.isEmpty
                       ? const SizedBox.shrink()
+                      // ⚠️ `kucuk: true` ZORUNLU — 3 sutunlu izgarada tam
+                      //    cozunurlukte 30 gorsel indirmek kullanicinin mobil
+                      //    verisini yakar (profil izgarasi da boyle yapiyor).
                       : MedyaGorsel(
                           mediaId: g.mediaIds.first,
+                          kucuk: true,
                           fit: BoxFit.cover,
                         ),
                 ),

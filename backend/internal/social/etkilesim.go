@@ -358,7 +358,7 @@ func (h *Handler) Kaydedilenler(w http.ResponseWriter, r *http.Request) {
 	}
 	rows, err := h.db.Query(r.Context(), `
 		SELECT p.id, p.author_id, p.tur, p.metin, p.media_ids,
-		       p.begeni_sayisi, p.yorum_sayisi, p.goruntulenme,
+		       p.begeni_sayisi, p.yorum_sayisi, p.goruntulenme,`+medyaTurleri+`
 		       p.yorum_kapali, p.created_at,
 		       u.name, COALESCE(u.username,''), u.avatar_url, u.avatar_media_id,
 		       EXISTS(SELECT 1 FROM post_likes l WHERE l.post_id=p.id AND l.user_id=$1),

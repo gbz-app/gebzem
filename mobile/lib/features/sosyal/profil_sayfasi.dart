@@ -563,13 +563,19 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
                   style: const TextStyle(fontSize: 11, color: Colors.white70),
                 ),
               ),
-            if (g.videoMu)
+            // ⚠️⚠️ TURU 76 — ROZET ARTIK **ILK MEDYANIN TURUNDEN** (gonderi
+            //    seviyesindeki `videoMu`dan DEGIL). Karma galeri geldiginde
+            //    `tur='foto'` olan ama ILK OGESI VIDEO olan gonderiler
+            //    oynatma rozeti ALMIYORDU — kapak donuk bir kare gibi duruyordu.
+            // ⚠️ `else if` ZORUNLU: iki rozet de `right:5, top:5` konumunda;
+            //    ikisi birden cizilirse UST USTE BINER (okunmaz simge yigini).
+            if (g.kind(0) == 'video')
               const Positioned(
                 right: 5,
                 top: 5,
                 child: Icon(LucideIcons.play, size: 15, color: Colors.white),
-              ),
-            if (g.mediaIds.length > 1)
+              )
+            else if (g.mediaIds.length > 1)
               const Positioned(
                 right: 5,
                 top: 5,

@@ -484,7 +484,7 @@ func (h *Handler) Kesfet(w http.ResponseWriter, r *http.Request) {
 		       EXISTS(SELECT 1 FROM post_saves s WHERE s.post_id=p.id AND s.user_id=$1)
 		  FROM posts p JOIN users u ON u.id = p.author_id
 		 WHERE p.durum='yayinda' AND p.created_at < $2
-		   AND p.media_ids <> '{}'
+		   AND cardinality(p.media_ids) > 0
 		   AND (p.author_id = $1 OR (NOT u.gizli_hesap AND u.verified))
 		`+engelYok+`
 		 ORDER BY p.created_at DESC LIMIT $3`, me, before, limit)
