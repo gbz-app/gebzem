@@ -1,3 +1,18 @@
+
+> ## ⚠️⚠️ KULLANICI KARARI (8 Ağustos) — BU PLANI EZER: **VERİ SİLİNMEZ**
+>
+> Kullanıcı: *"90 günlük silme vs olmasın, böyle şeyler sakın, insanların verisini silmek yok;
+> evet sürekli veri olacak, büyüyecek, bunu Cloudflare'e ödeyeceğiz."*
+>
+> · Aşağıdaki **90 gün saklama** kararı ve ona bağlı tüm maliyet tabloları **GEÇERSİZDİR**.
+> · Depolama sınırsız büyür; maliyet kabul edilmiştir. Maliyet düşürme artık silmeyle değil,
+>   **sıkıştırma + doğru çözünürlük + depolama sınıfı** ile yapılır.
+> · ⚠️ **TEK İSTİSNA — bunlar "veri silme politikası" değil, YASAL ZORUNLULUK ve KALMALIDIR:**
+>   (a) kullanıcı kendi mesajını/gönderisini siler, (b) kullanıcı **hesabını** siler (KVKK
+>   unutulma hakkı), (c) mahkeme/BTK kaldırma kararı, (d) CSAM/yasa dışı içerik kaldırma.
+> · ⚠️ YAPMA: plana "otomatik silme / arşivleme / yaşam döngüsü temizliği" geri koyma.
+
+---
 ## 1. KARAR ÖZETİ
 
 **Depolama: Cloudflare R2, TEK BAŞINA. Images ve Stream ELENDİ.**
