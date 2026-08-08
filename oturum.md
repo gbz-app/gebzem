@@ -5004,3 +5004,35 @@ Tek seferde test edilen yığın — üçü de ilk kez sahada doğrulandı:
   bildirimler) + **kanal**
 
 ⏳ Kullanıcı eksikleri yazacak — **bekleniyor**.
+
+---
+
+## Oturum 76 — KULLANICI GERİ BİLDİRİMİ (8 Ağustos, test sonrası)
+
+Test geçti, ardından 10 maddelik eksik listesi geldi. Ayrımı:
+
+### Hata (kök neden gerekiyor)
+1. **Mesaj ve bildirimler anlık gelmiyor** — WS + push hattı nerede kopuyor
+2. **Engelleme eksik** — "karşı taraf beni HİÇ görememeli": arama sonuçları, profil,
+   takipçi/takip listeleri, **arayabilme (kritik: ses/görüntü tacizi)**, oda/yayın,
+   yorum ve beğenenler listeleri, presence
+3. **Profil fotoğrafları her yerde görünmüyor** — ekran → uç → `avatar_media_id` tablosu
+
+### Yeni özellik
+4. **Alt menü**: anasayfa · arama · mesaj · reels · canlı · profil
+5. Gönderi etkileşim çubuğu **Instagram düzeni** + istatistik (görüntülenme)
+6. **Gönderi düzenleme**
+7. **Çoklu KARMA medya** (foto + video birlikte) + galeri sol/sağ
+8. Sohbet listesi: **filtre** (tümü/okunmamış) + **kaydırmayla sil/arşivle**
+9. **Grup oluşturma** (sohbet)
+10. **100 MB** medya sınırı (video + fotoğraf)
+
+### ⚠️ Türkçe belirsizlik — kayda geçiyor
+"Arama" hem *search* hem *çağrı* demek. Alt menüde **zaten** "Arama (çağrı)" sekmesi vardı;
+kullanıcı "arama eklenmeli" dediğine göre kastettiği **search**. Listesinde **Aramalar
+(çağrı geçmişi)** ve **Odalar** yok — silinmeyecek, uygulamada zaten kullanılan segment
+desenine taşınacak: **Mesaj** → `Sohbetler | Aramalar`, **Canlı** → `Odalar | Canlı yayın`.
+⚠️ YAPMA: çağrı geçmişini veya odaları kaldırma.
+
+⏳ 7 boyutlu keşif çalışıyor (workflow `w3h7ytx4w`): anlık teslim · engelleme kapsamı ·
+avatar kapsamı · gönderi · sohbet listesi/grup · medya sınırı · gezinme.
