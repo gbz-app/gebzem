@@ -387,7 +387,18 @@ func (h *Handler) URL(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	const ttl = 600 * time.Second
+	// ⚠️⚠️ TURU 76 — VIDEO ICIN DAHA UZUN IMZA OMRU.
+	//    600 sn (10 dk) 16 MB tavanindayken sorun degildi: video birkac saniyelikti.
+	//    100 MB tavaninda video DAKIKALARCA surer ve 10. dakikada atilan her Range
+	//    istegi R2'den 403 alir -> oynatma ORTADA DURUR ("Video açılamadı").
+	//    Ozellikle reels DONGUDE oynadigi icin bu kesin yasanirdi.
+	// ⚠️ SigV4 ust siniri 7 gun; 1 saat guvenli.
+	// ⚠️ Gorsel/ses icin 600 sn KORUNUYOR: imzali adres ne kadar kisa omurluyse
+	//    sizmasi o kadar zararsizdir; uzatmak yalniz GEREKEN yerde yapilir.
+	ttl := 600 * time.Second
+	if strings.HasPrefix(mime, "video/") {
+		ttl = 3600 * time.Second
+	}
 	u, err := h.r2.ImzaliURL("GET", anahtar, ttl, nil)
 	if err != nil {
 		hata(w, 500, "adres üretilemedi")

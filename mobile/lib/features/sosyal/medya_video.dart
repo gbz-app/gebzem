@@ -92,12 +92,30 @@ class _MedyaVideoState extends ConsumerState<MedyaVideo>
   ///    edilir — bu projede "bayat async" hatalarinin TEK caresi (turu 19 dersi).
   int _nesil = 0;
 
+  /// Oynatici HENUZ kurulmadi — kullanicinin dokunmasi bekleniyor.
+  ///
+  /// ⚠️⚠️ TURU 76 — AKISTA VIDEO ARTIK KENDILIGINDEN INDIRILMIYOR.
+  ///    Eskiden `initState` KOSULSUZ `_kur()` cagiriyordu ve `initialize()`
+  ///    videonun basligini + ilk tamponu INDIRIR. Akista 20 kart varsa 20 video
+  ///    bosuna indirilmeye baslardi. Video tavani 16 MB iken bu farkedilmiyordu;
+  ///    **100 MB tavanda kullanicinin mobil verisini yakar** (kullanici emri
+  ///    geregi tavan 100 MB'a cikarildi).
+  /// ⚠️ Kart TAM EKRAN DEGIL — kullanici kaydirip gecebilir. Bu yuzden
+  ///    `otoOynat == false` iken oynatici DOKUNANA KADAR kurulmaz. Reels
+  ///    (`otoOynat: true`) tam ekrandir ve hemen kurulur — orada dogru olan bu.
+  /// ⚠️ YAPMA: `initState`e kosulsuz `_kur()` geri koyma.
+  bool _tembel = false;
+
   @override
   void initState() {
     super.initState();
     _sesli = widget.sesli;
     WidgetsBinding.instance.addObserver(this);
-    _kur();
+    if (widget.otoOynat) {
+      _kur();
+    } else {
+      _tembel = true;
+    }
     _kapiYoklama = Timer.periodic(
       const Duration(seconds: 1),
       (_) => _kapiyiYokla(),
@@ -107,6 +125,8 @@ class _MedyaVideoState extends ConsumerState<MedyaVideo>
   /// Gorusme bitti mi? Bittiyse kilidi kaldir / duraklatilmis oynatmayi surdur.
   void _kapiyiYokla() {
     if (!mounted) return;
+    // ⚠️ Tembel bekleyen oynatici KURULMAZ: kullanici dokunmadi.
+    if (_tembel) return;
     final serbest = MedyaKapisi.donanimSerbest(ref);
     if (!serbest) return;
     if (_kilitli) {
@@ -255,6 +275,16 @@ class _MedyaVideoState extends ConsumerState<MedyaVideo>
   }
 
   void _duraklatCevir() {
+    // ⚠️ TEMBEL YUKLEME: ilk dokunus oynaticiyi KURAR ve oynatir. Akista video
+    //    bu dokunusa kadar TEK BAYT indirmez (bkz. `_tembel` serhi).
+    if (_tembel) {
+      setState(() => _tembel = false);
+      _kullaniciDurdurdu = false;
+      _kur().then((_) {
+        if (mounted && _hazir) _oynat();
+      });
+      return;
+    }
     final c = _c;
     if (c == null) return;
     if (c.value.isPlaying) {
@@ -294,9 +324,16 @@ class _MedyaVideoState extends ConsumerState<MedyaVideo>
         children: [
           // Kapak: video hazir DEGILKEN gorunur. Siyah kare yerine gercek kare —
           // kaydirirken "bos delik" hissi olmasin.
-          if (!_hazir && widget.kapakMediaId != null)
+          //
+          // ⚠️ TURU 76 — KAPAK KAYNAGI: ayri bir `kapakMediaId` verilmediyse
+          //    VIDEONUN KENDI media_id'sinin KUCUK RESMI denenir. Sunucu her
+          //    medya kaydi icin `thumb_key` tutuyor ve `/media/{id}/url`
+          //    yanitinda `thumb_url` donduruyor — yani kucuk resim YUKLENMISSE
+          //    ek bir alan gerekmeden gorunur. Yuklenmemisse `MedyaGorsel`
+          //    sessizce koyu bir kutuya duser (kirik ikon YOK).
+          if (!_hazir)
             MedyaGorsel(
-              mediaId: widget.kapakMediaId!,
+              mediaId: widget.kapakMediaId ?? widget.mediaId,
               kucuk: true,
               fit: widget.dolgu,
             ),
@@ -310,7 +347,9 @@ class _MedyaVideoState extends ConsumerState<MedyaVideo>
                 child: VideoPlayer(c),
               ),
             ),
-          if (!_hazir && !_hata && !_kilitli)
+          // ⚠️ Tembel beklerken SPINNER GOSTERME — hicbir sey yuklenmiyor;
+          //    donen cark kullaniciya "bekliyor" yalanini soylerdi.
+          if (!_hazir && !_hata && !_kilitli && !_tembel)
             const Center(
               child: SizedBox(
                 width: 26,
@@ -350,7 +389,10 @@ class _MedyaVideoState extends ConsumerState<MedyaVideo>
                 ],
               ),
             ),
-          if (_hazir && c != null && !c.value.isPlaying && widget.kontrolGoster)
+          // ⚠️ Oynat dugmesi TEMBEL durumda da gorunur — kullanici videonun
+          //    orada oldugunu ve dokununca oynayacagini gormeli.
+          if (widget.kontrolGoster &&
+              (_tembel || (_hazir && c != null && !c.value.isPlaying)))
             const Center(
               child: DecoratedBox(
                 decoration: BoxDecoration(
