@@ -29,14 +29,17 @@ func NewHandler(db *pgxpool.Pool) *Handler {
 func (h *Handler) MedyaDurumu(acik bool) { h.medyaAcik = acik }
 
 type userResp struct {
-	ID          string     `json:"id"`
-	Phone       string     `json:"phone,omitempty"` // gizlilik: aramada donmez
-	Username    string     `json:"username"`
-	Name        string     `json:"name"`
-	About       string     `json:"about"`
-	AvatarURL   string     `json:"avatar_url"`
-	CoinBalance int64      `json:"coin_balance,omitempty"`
-	LastSeen    *time.Time `json:"last_seen,omitempty"`
+	ID        string `json:"id"`
+	Phone     string `json:"phone,omitempty"` // gizlilik: aramada donmez
+	Username  string `json:"username"`
+	Name      string `json:"name"`
+	About     string `json:"about"`
+	AvatarURL string `json:"avatar_url"`
+	// TURU 74: yeni avatarlar R2'de; istemci /media/{id}/url ile imzali adresi alir
+	// ve ONBELLEGI media_id'ye gore tutar (URL 600sn omurlu, anahtar OLAMAZ).
+	AvatarMediaID *string    `json:"avatar_media_id,omitempty"`
+	CoinBalance   int64      `json:"coin_balance,omitempty"`
+	LastSeen      *time.Time `json:"last_seen,omitempty"`
 }
 
 // GET /users/me — kendi profilim (jeton bakiyesi dahil)
@@ -44,9 +47,9 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserID(r.Context())
 	var u userResp
 	err := h.db.QueryRow(r.Context(), `
-		SELECT id, phone, COALESCE(username,''), name, about, avatar_url, coin_balance, last_seen
+		SELECT id, phone, COALESCE(username,''), name, about, avatar_url, avatar_media_id, coin_balance, last_seen
 		FROM users WHERE id=$1`, userID).
-		Scan(&u.ID, &u.Phone, &u.Username, &u.Name, &u.About, &u.AvatarURL, &u.CoinBalance, &u.LastSeen)
+		Scan(&u.ID, &u.Phone, &u.Username, &u.Name, &u.About, &u.AvatarURL, &u.AvatarMediaID, &u.CoinBalance, &u.LastSeen)
 	if err != nil {
 		writeErr(w, http.StatusNotFound, "kullanıcı bulunamadı")
 		return
@@ -57,8 +60,9 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 
 // meYanit — /users/me yanitina TURU 74'te eklenen tek alan.
 // ⚠️ ANONIM GOMME kullaniliyor: `userResp`un alanlari duz JSON'a ackilir, yani
-//    mevcut istemciler HICBIR degisiklik gormez; yalnizca yeni `media_acik`
-//    alani eklenir (geriye donuk uyumlu).
+//
+//	mevcut istemciler HICBIR degisiklik gormez; yalnizca yeni `media_acik`
+//	alani eklenir (geriye donuk uyumlu).
 type meYanit struct {
 	userResp
 	MedyaAcik bool `json:"media_acik"`
@@ -76,7 +80,7 @@ func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rows, err := h.db.Query(r.Context(), `
-		SELECT id, COALESCE(username,''), name, about, avatar_url
+		SELECT id, COALESCE(username,''), name, about, avatar_url, avatar_media_id
 		FROM users
 		WHERE verified = true
 		  AND id <> $1
@@ -98,7 +102,7 @@ func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
 	out := []userResp{}
 	for rows.Next() {
 		var u userResp
-		if rows.Scan(&u.ID, &u.Username, &u.Name, &u.About, &u.AvatarURL) == nil {
+		if rows.Scan(&u.ID, &u.Username, &u.Name, &u.About, &u.AvatarURL, &u.AvatarMediaID) == nil {
 			out = append(out, u) // telefon numarasi DONMEZ (gizlilik)
 		}
 	}
@@ -144,9 +148,9 @@ func (h *Handler) ByPhone(w http.ResponseWriter, r *http.Request) {
 	}
 	var u userResp
 	err := h.db.QueryRow(r.Context(), `
-		SELECT id, phone, name, about, avatar_url
+		SELECT id, phone, name, about, avatar_url, avatar_media_id
 		FROM users WHERE phone=$1 AND verified=true`, phone).
-		Scan(&u.ID, &u.Phone, &u.Name, &u.About, &u.AvatarURL)
+		Scan(&u.ID, &u.Phone, &u.Name, &u.About, &u.AvatarURL, &u.AvatarMediaID)
 	if err == pgx.ErrNoRows {
 		writeErr(w, http.StatusNotFound, "bu numarada kayıtlı kullanıcı yok")
 		return
@@ -161,21 +165,46 @@ func (h *Handler) ByPhone(w http.ResponseWriter, r *http.Request) {
 // PATCH /users/me — profil guncelle (isim, hakkimda, avatar)
 func (h *Handler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserID(r.Context())
+	// ⚠️⚠️ TURU 74 — `avatar_url` ISTEMCI ALANI KALDIRILDI (guvenlik).
+	//
+	// Eskiden istemci profil fotografi olarak HERHANGI BIR URL yazabiliyordu ve
+	// sunucu DOGRULAMADAN kaydediyordu. `messages.media_url` acigiyla AYNI SINIF:
+	//   · IZLEME PIKSELI — avatar sohbet listesinde HERKESE cizilir; saldirgan
+	//     kendi sunucusunu adres verip mesajlastigi herkesin IP'sini/saatini toplar,
+	//   · OLTALAMA — sahte "dogrulanmis" rozeti gorseli,
+	//   · ic ag taramasi (sunucu tarafi onizleme eklenirse).
+	// Avatar artik YALNIZCA bizim R2'mize yuklenmis, SAHIPLIGI DOGRULANMIS bir
+	// medya kaydiyla degistirilebilir.
+	// ⚠️ YAPMA: `avatar_url`u istege geri ekleme.
+	// ⚠️ `users.avatar_url` SUTUNU DURUYOR (eski kayitlar + geriye donuk uyum) ama
+	//    artik yalnizca SUNUCU yazar.
 	var req struct {
-		Name      *string `json:"name"`
-		About     *string `json:"about"`
-		AvatarURL *string `json:"avatar_url"`
+		Name          *string `json:"name"`
+		About         *string `json:"about"`
+		AvatarMediaID *string `json:"avatar_media_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeErr(w, http.StatusBadRequest, "geçersiz istek")
 		return
 	}
+	if req.AvatarMediaID != nil && *req.AvatarMediaID != "" {
+		// ⚠️ SAHIPLIK + DURUM kontrolu TEK sorguda: baskasinin medyasini avatar
+		//    yapmak ya da dogrulanmamis ('beklemede') bir kaydi baglamak ENGELLENIR.
+		tag, err := h.db.Exec(r.Context(), `
+			UPDATE media_assets SET status='bagli', linked_at=now()
+			 WHERE id=$1 AND owner_id=$2 AND kind='avatar'
+			   AND status IN ('aktif','bagli')`, *req.AvatarMediaID, userID)
+		if err != nil || tag.RowsAffected() == 0 {
+			writeErr(w, http.StatusForbidden, "geçersiz profil fotoğrafı")
+			return
+		}
+	}
 	_, err := h.db.Exec(r.Context(), `
 		UPDATE users SET
 			name = COALESCE($1, name),
 			about = COALESCE($2, about),
-			avatar_url = COALESCE($3, avatar_url)
-		WHERE id=$4`, req.Name, req.About, req.AvatarURL, userID)
+			avatar_media_id = COALESCE($3::uuid, avatar_media_id)
+		WHERE id=$4`, req.Name, req.About, req.AvatarMediaID, userID)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "güncellenemedi")
 		return
