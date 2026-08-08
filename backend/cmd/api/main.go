@@ -15,6 +15,7 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"github.com/gbz-app/gebzem/backend/internal/auth"
+	"github.com/gbz-app/gebzem/backend/internal/bildirim"
 	"github.com/gbz-app/gebzem/backend/internal/calls"
 	"github.com/gbz-app/gebzem/backend/internal/chat"
 	"github.com/gbz-app/gebzem/backend/internal/config"
@@ -77,9 +78,13 @@ func main() {
 	smsSender := sms.New()
 	authH := auth.NewHandler(db, cfg, smsSender)
 	chatH := chat.NewHandler(db, hub, pushSender)
-	usersH := users.NewHandler(db)
-	socialH := social.NewHandler(db) // turu 75: gonderi + akis + etkilesim
-	kanalH := kanal.NewHandler(db)   // turu 75: kanal (tek yonlu yayin)
+	// TURU 76: sosyal bildirimlerin TEK KAYNAGI (DB satiri + WS + push).
+	// ⚠️ Bu servis gelmeden once social/users paketleri hub'i ve push'u IMPORT
+	//    BILE ETMIYORDU -> begeni/yorum/takip bildirimi HIC gitmiyordu.
+	bildirimS := bildirim.Yeni(db, hub, pushSender)
+	usersH := users.NewHandler(db, bildirimS)
+	socialH := social.NewHandler(db, bildirimS) // turu 75: gonderi + akis + etkilesim
+	kanalH := kanal.NewHandler(db)              // turu 75: kanal (tek yonlu yayin)
 	// TURU 74 — MEDYA. R2 env eksikse Enabled()=false doner ve uclar KAYDEDILMEZ
 	// (fail-closed ama GORUNUR: acilista log yazar).
 	mediaH := media.NewHandler(db, rdb, cfg.R2Endpoint, cfg.R2AccessKeyID,
@@ -183,6 +188,7 @@ func main() {
 		r.Get("/users/{id}/profile", usersH.Profile)
 		r.Patch("/users/me/privacy", usersH.SetPrivacy)
 		r.Get("/notifications", usersH.Notifications)
+		r.Get("/notifications/count", usersH.NotificationsCount)
 		r.Post("/notifications/read", usersH.NotificationsRead)
 		// ⚠️ TURU 75 — GONDERI + AKIS + ETKILESIM.
 		r.Post("/posts", socialH.Create)

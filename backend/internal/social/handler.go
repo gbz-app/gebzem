@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/gbz-app/gebzem/backend/internal/auth"
+	"github.com/gbz-app/gebzem/backend/internal/bildirim"
 )
 
 // ⚠️⚠️⚠️ TURU 75 — GONDERI + ANA SAYFA AKISI.
@@ -64,9 +65,13 @@ const engelYok = `
 
 type Handler struct {
 	db *pgxpool.Pool
+	// TURU 76: sosyal bildirimlerin WS + push ayagi. nil olabilir (test).
+	bil *bildirim.Servis
 }
 
-func NewHandler(db *pgxpool.Pool) *Handler { return &Handler{db: db} }
+func NewHandler(db *pgxpool.Pool, bil *bildirim.Servis) *Handler {
+	return &Handler{db: db, bil: bil}
+}
 
 // ---------------------------------------------------------------- GONDERI
 

@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/gbz-app/gebzem/backend/internal/auth"
+	"github.com/gbz-app/gebzem/backend/internal/bildirim"
 )
 
 type Handler struct {
@@ -19,10 +20,12 @@ type Handler struct {
 	// ⚠️ Sunucu env eksikse medya uclari HIC KAYDEDILMEZ; istemci bunu ONCEDEN
 	//    bilmezse kullaniciya "yukleniyor..." gosterip 404 alirdi.
 	medyaAcik bool
+	// TURU 76: takip/istek/onay bildirimlerinin WS + push ayagi.
+	bil *bildirim.Servis
 }
 
-func NewHandler(db *pgxpool.Pool) *Handler {
-	return &Handler{db: db}
+func NewHandler(db *pgxpool.Pool, bil *bildirim.Servis) *Handler {
+	return &Handler{db: db, bil: bil}
 }
 
 // MedyaDurumu — main.go acilista bir kez cagirir.

@@ -97,18 +97,24 @@ func (h *Handler) Follow(w http.ResponseWriter, r *http.Request) {
 		tx.Exec(r.Context(), `UPDATE users SET takipci_sayisi = takipci_sayisi + 1 WHERE id=$1`, hedef)
 		tx.Exec(r.Context(), `UPDATE users SET takip_sayisi   = takip_sayisi   + 1 WHERE id=$1`, me)
 	}
+	// ⚠️ TURU 76: satir tx icinde, DUYURU (WS+push) COMMIT SONRASI.
+	bildirimTuru := ""
+	duyur := false
 	if yeni {
-		tur := "takip"
+		bildirimTuru = "takip"
 		if durum == "bekliyor" {
-			tur = "takip_istegi"
+			bildirimTuru = "takip_istegi"
 		}
-		tx.Exec(r.Context(), `
-			INSERT INTO bildirimler (user_id, aktor_id, tur) VALUES ($1,$2,$3)`,
-			hedef, me, tur)
+		if h.bil != nil {
+			duyur = h.bil.Yaz(r.Context(), tx, hedef, me, bildirimTuru, "", "")
+		}
 	}
 	if err := tx.Commit(r.Context()); err != nil {
 		writeErr(w, http.StatusInternalServerError, "takip edilemedi")
 		return
+	}
+	if duyur {
+		h.bil.Duyur(r.Context(), hedef, me, bildirimTuru, "", "")
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"durum": durum})
 }
@@ -180,12 +186,16 @@ func (h *Handler) FollowApprove(w http.ResponseWriter, r *http.Request) {
 	}
 	tx.Exec(r.Context(), `UPDATE users SET takipci_sayisi = takipci_sayisi + 1 WHERE id=$1`, me)
 	tx.Exec(r.Context(), `UPDATE users SET takip_sayisi   = takip_sayisi   + 1 WHERE id=$1`, istekci)
-	tx.Exec(r.Context(), `
-		INSERT INTO bildirimler (user_id, aktor_id, tur) VALUES ($1,$2,'takip_onaylandi')`,
-		istekci, me)
+	onayDuyur := false
+	if h.bil != nil {
+		onayDuyur = h.bil.Yaz(r.Context(), tx, istekci, me, "takip_onaylandi", "", "")
+	}
 	if err := tx.Commit(r.Context()); err != nil {
 		writeErr(w, http.StatusInternalServerError, "işlem yapılamadı")
 		return
+	}
+	if onayDuyur {
+		h.bil.Duyur(r.Context(), istekci, me, "takip_onaylandi", "", "")
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
@@ -363,6 +373,22 @@ func (h *Handler) Notifications(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
+// GET /notifications/count — okunmamis bildirim sayisi (rozet icin).
+//
+// ⚠️ AYRI UC: tam listeyi (LIMIT 100 + JOIN users) yalnizca rozet icin cekmek
+//
+//	savurganlik olurdu; rozet uygulama acilisinda ve WS olayinda sorulur.
+//
+// ⚠️ `idx_bildirim_okunmamis` (migration 020) tam bu sorgu icin var.
+func (h *Handler) NotificationsCount(w http.ResponseWriter, r *http.Request) {
+	me := auth.UserID(r.Context())
+	var adet int
+	h.db.QueryRow(r.Context(),
+		`SELECT count(*) FROM bildirimler WHERE user_id=$1 AND NOT okundu`,
+		me).Scan(&adet)
+	writeJSON(w, http.StatusOK, map[string]int{"okunmamis": adet})
+}
+
 // POST /notifications/read — hepsini okundu isaretle.
 func (h *Handler) NotificationsRead(w http.ResponseWriter, r *http.Request) {
 	me := auth.UserID(r.Context())
@@ -382,6 +408,9 @@ func (h *Handler) SetPrivacy(w http.ResponseWriter, r *http.Request) {
 	}
 	// ⚠️ Gizliden ACIGA gecerken BEKLEYEN ISTEKLER OTOMATIK ONAYLANIR — aksi
 	//    halde kullanici "hesabımı açtım ama istekler hala bekliyor" yasar.
+	// ⚠️ COMMIT SONRASI duyurulacak alicilar (transaction icinde duyuru YAPILMAZ:
+	//    geri alinan bir islem icin telefon titremesin).
+	var topluOnaylananlar []string
 	if !*req.Gizli {
 		tx, err := h.db.Begin(r.Context())
 		if err == nil {
@@ -412,12 +441,21 @@ func (h *Handler) SetPrivacy(w http.ResponseWriter, r *http.Request) {
 					`UPDATE users SET takip_sayisi = takip_sayisi + 1 WHERE id = ANY($1)`,
 					yeniler)
 				for _, fid := range yeniler {
-					tx.Exec(r.Context(), `
-						INSERT INTO bildirimler (user_id, aktor_id, tur)
-						VALUES ($1,$2,'takip_onaylandi')`, fid, me)
+					if h.bil != nil {
+						h.bil.Yaz(r.Context(), tx, fid, me, "takip_onaylandi", "", "")
+					}
 				}
+				// ⚠️ Duyuru COMMIT SONRASI, asagida (toplu).
+				topluOnaylananlar = yeniler
 			}
-			tx.Commit(r.Context())
+			if tx.Commit(r.Context()) != nil {
+				topluOnaylananlar = nil // commit tutmadi -> duyurma
+			}
+		}
+	}
+	for _, fid := range topluOnaylananlar {
+		if h.bil != nil {
+			h.bil.Duyur(r.Context(), fid, me, "takip_onaylandi", "", "")
 		}
 	}
 	if _, err := h.db.Exec(r.Context(),

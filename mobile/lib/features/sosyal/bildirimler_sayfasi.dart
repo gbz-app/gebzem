@@ -6,6 +6,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
 import '../medya/medya_gorsel.dart';
+import 'bildirim_sayaci.dart';
 import 'gonderi_detay.dart';
 import 'gonderi_karti.dart' show gonderiZamani;
 import 'profil_sayfasi.dart';
@@ -58,6 +59,9 @@ class _BildirimlerSayfasiState extends ConsumerState<BildirimlerSayfasi> {
       // ⚠️ Okundu isaretlemesi BEKLENMEZ (`unawaited`): basarisiz olursa liste
       //    yine de gorunmeli. Hata rozeti bir sonraki acilista duzelir.
       unawaited(s.bildirimleriOkudum().catchError((_) {}));
+      // ⚠️ Rozet YEREL olarak da sifirlanir: ekrana AKIS ustundeki zilden DEGIL,
+      //    profil sekmesindeki "Bildirimler" satirindan da girilebiliyor.
+      ref.read(bildirimSayaciProvider.notifier).sifirla();
     } catch (_) {
       if (!mounted) return;
       setState(() {

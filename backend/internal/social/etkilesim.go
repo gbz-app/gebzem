@@ -88,19 +88,24 @@ func (h *Handler) Like(w http.ResponseWriter, r *http.Request) {
 		hata(w, 500, "beğenilemedi")
 		return
 	}
+	// ⚠️⚠️ TURU 76: bildirim SATIRI transaction icinde yazilir, DUYURU (WS + push)
+	//    COMMIT SONRASI gonderilir — geri alinan bir islem icin telefon titremesin.
+	// ⚠️ Servis ayrica "kendine bildirim yok" ve "ayni bildirim 1 saatte bir"
+	//    kurallarini uygular (begen/geri-al dongusu telefon titretmesin).
+	duyur := false
 	if tag.RowsAffected() == 1 {
 		tx.Exec(r.Context(),
 			`UPDATE posts SET begeni_sayisi = begeni_sayisi + 1 WHERE id=$1`, id)
-		// ⚠️ KENDI gonderine begeni bildirimi GITMEZ.
-		if yazar != me {
-			tx.Exec(r.Context(), `
-				INSERT INTO bildirimler (user_id, aktor_id, tur, hedef_tur, hedef_id)
-				VALUES ($1,$2,'begeni','gonderi',$3)`, yazar, me, id)
+		if h.bil != nil {
+			duyur = h.bil.Yaz(r.Context(), tx, yazar, me, "begeni", "gonderi", id)
 		}
 	}
 	if err := tx.Commit(r.Context()); err != nil {
 		hata(w, 500, "beğenilemedi")
 		return
+	}
+	if duyur {
+		h.bil.Duyur(r.Context(), yazar, me, "begeni", "gonderi", id)
 	}
 	yaz(w, 200, map[string]bool{"ok": true})
 }
@@ -233,14 +238,17 @@ func (h *Handler) Comment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tx.Exec(r.Context(), `UPDATE posts SET yorum_sayisi = yorum_sayisi + 1 WHERE id=$1`, id)
-	if yazar != me {
-		tx.Exec(r.Context(), `
-			INSERT INTO bildirimler (user_id, aktor_id, tur, hedef_tur, hedef_id)
-			VALUES ($1,$2,'yorum','gonderi',$3)`, yazar, me, id)
+	// ⚠️ TURU 76: yazma tx icinde, duyuru commit sonrasi (bkz. `Like` serhi).
+	duyur := false
+	if h.bil != nil {
+		duyur = h.bil.Yaz(r.Context(), tx, yazar, me, "yorum", "gonderi", id)
 	}
 	if err := tx.Commit(r.Context()); err != nil {
 		hata(w, 500, "yorum eklenemedi")
 		return
+	}
+	if duyur {
+		h.bil.Duyur(r.Context(), yazar, me, "yorum", "gonderi", id)
 	}
 	yaz(w, 201, map[string]any{"id": yorumID, "created_at": t})
 }

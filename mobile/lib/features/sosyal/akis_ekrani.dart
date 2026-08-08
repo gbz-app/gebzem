@@ -6,6 +6,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../home/home_screen.dart' show myProfileProvider;
 import '../kanal/kanallar_sekmesi.dart';
+import 'bildirim_sayaci.dart';
 import 'bildirimler_sayfasi.dart';
 import 'gonderi_karti.dart';
 import 'gonderi_olustur.dart';
@@ -170,11 +171,22 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
               context,
             ).push(MaterialPageRoute(builder: (_) => const ReelsSayfasi())),
           ),
-          IconButton(
-            icon: const Icon(LucideIcons.bell),
-            tooltip: 'Bildirimler',
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const BildirimlerSayfasi()),
+          // TURU 76: okunmamis rozeti. Sayac WS 'bildirim.yeni' olayinda yerel
+          // olarak artar, sayfaya girilince sifirlanir.
+          BildirimRozeti(
+            child: IconButton(
+              icon: const Icon(LucideIcons.bell),
+              tooltip: 'Bildirimler',
+              onPressed: () async {
+                ref.read(bildirimSayaciProvider.notifier).sifirla();
+                await Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const BildirimlerSayfasi()),
+                );
+                // Sayfada 'okundu' isaretlendi; sunucuyla hizala.
+                if (context.mounted) {
+                  unawaited(ref.read(bildirimSayaciProvider.notifier).tazele());
+                }
+              },
             ),
           ),
         ],
