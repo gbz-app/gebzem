@@ -4956,3 +4956,42 @@ Ama sondanın **ikinci yarısı gerçekti**: `nil` dilim SQL **NULL** gönderiyo
 
 ### Commit'ler
 `232dc36` backend düzeltmeleri + migration 023 · `38a0e59` Flutter düzeltmeleri
+
+---
+
+## TEST TURU 75 YAYINLANDI (8 Ağustos 22:40)
+
+| | |
+|---|---|
+| Commit | `1aa6274` (uygulama) · backend `e61c262` |
+| Android run | 31274404137 ✅ · debug imza **YOK** |
+| iOS run | 31274409665 ✅ · `MinimumOSVersion=16.0` doğrulandı |
+| APK | 112 201 055 · md5 `024bc3af` (108.2 → **112.2 MB**) |
+| IPA | 23 288 435 · md5 `f9cd1183` (22.4 → **23.3 MB**) |
+| Purge | ✅ · CDN'den indirilen dosyalar yerelle **MD5 birebir** |
+| İndir sayfası | saat **8 Ağustos 22:40**, `?v=20260808-2240` |
+| Backend | turu 64 → 75 deploy edildi, health ok |
+| Migration | 020/021/022/023 uygulandı (önce **atılabilir kopya DB'de** doğrulandı: 9/9 temiz) |
+| DB | temiz (users/chats/calls/posts/follows/channels/media/bildirim = 0) |
+
+### ⚠️⚠️ Yayın sırasında yakalanan SEVK ENGELİ: medya sunucuda KAPALIYDI
+Backend deploy sonrası log: **`medya: R2_* env EKSIK — MEDYA KAPALI`**.
+`/health` "ok" dönüyordu, API sağlıklı açılıyordu — hata satır arasındaydı.
+**Kök neden:** `backend/docker-compose.yml` `env_file:` **değil** açık `environment:`
+eşlemesi kullanıyor. Sunucudaki `.env`'e R2 anahtarlarını eklemek **tek başına yetmedi**;
+değişkenlerin kaba geçmesi için compose'da da eşlenmesi gerekiyordu.
+**Etkisi:** yükleme, profil fotoğrafı, gönderi/kanal görselleri ve reels **tamamen ölü**
+olacaktı — yani turu 74 medya + turu 75 sosyal katmanın görsel ayağının hepsi.
+⚠️ **YAPMA:** yeni bir env değişkeni eklerken yalnız `.env`'e yazıp bırakma; compose'daki
+`environment:` bloğunu da güncelle (ikisi ayrı yerdir).
+
+### Uçtan uca canlı doğrulama — 27/27 GEÇTİ
+Gerçek sunucuda, **iki ayrı hesapla** (tek cihazda görünmeyen hatalar için şart):
+presign → R2 PUT → commit → gönderi → takip → akış → **B'nin A'nın görselini imzalı
+adresten birebir indirmesi** → beğeni/yorum/kaydetme → kaydedilenler listesi →
+**engelleme sonrası profil gönderilerinin boşalması** → kanal aç/gönderi/abone/`sessiz`
+alanı/keşfet filtresi → reels → bildirimler.
+Bu, turu 75b'nin iki en ağır bulgusunun (medya 403 · engel atlaması) sahada kapandığının
+kanıtı. Test verisi TRUNCATE ile temizlendi.
+
+**KULLANICI TEST EDECEK.**
