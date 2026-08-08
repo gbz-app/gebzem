@@ -175,6 +175,7 @@ class Gonderi {
     required this.mediaIds,
     required this.begeniSayisi,
     required this.yorumSayisi,
+    required this.goruntulenme,
     required this.yorumKapali,
     required this.createdAt,
     required this.yazarAd,
@@ -192,6 +193,10 @@ class Gonderi {
   final List<String> mediaIds;
   int begeniSayisi;
   int yorumSayisi;
+
+  /// ⚠️ Yalniz REELS ve GONDERI DETAYINDA artar (akista artmaz — orada 20 kart
+  ///    tek istekte gelir ama cogu HIC gorulmez, saymak sayiyi YALAN yapardi).
+  final int goruntulenme;
   final bool yorumKapali;
   final String createdAt;
   final String yazarAd;
@@ -212,6 +217,7 @@ class Gonderi {
             ((m['media_ids'] as List?) ?? []).map((e) => e.toString()).toList(),
         begeniSayisi: (m['begeni_sayisi'] as num?)?.toInt() ?? 0,
         yorumSayisi: (m['yorum_sayisi'] as num?)?.toInt() ?? 0,
+        goruntulenme: (m['goruntulenme'] as num?)?.toInt() ?? 0,
         yorumKapali: m['yorum_kapali'] == true,
         createdAt: (m['created_at'] ?? '').toString(),
         yazarAd: (m['yazar_ad'] ?? '').toString(),

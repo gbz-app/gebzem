@@ -253,6 +253,23 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
                 onTap: () => _sohbeteGonder(context),
               ),
               const Spacer(),
+              // ⚠️ GORUNTULENME YALNIZ YAZARINA gosterilir (Instagram deseni):
+              //    baskasinin izlenme sayisi kullaniciya bir sey ifade etmez,
+              //    ustelik dusuk sayi yazari utandirir.
+              if (g.yazarId == widget.benimId && g.goruntulenme > 0)
+                Padding(
+                  padding: const EdgeInsets.only(right: 4),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(LucideIcons.eye, size: 15, color: Colors.grey),
+                      const SizedBox(width: 4),
+                      Text(sayiBicimle(g.goruntulenme),
+                          style: const TextStyle(
+                              fontSize: 12, color: Colors.grey)),
+                    ],
+                  ),
+                ),
               IconButton(
                 icon: Icon(
                   LucideIcons.bookmark,

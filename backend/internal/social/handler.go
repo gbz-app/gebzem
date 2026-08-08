@@ -237,7 +237,8 @@ func (h *Handler) Akis(w http.ResponseWriter, r *http.Request) {
 		// ⚠️ ENGEL KAPISI: engellenmis kisilerin gonderileri akista GORUNMEZ.
 		rows, err = h.db.Query(r.Context(), `
 			SELECT p.id, p.author_id, p.tur, p.metin, p.media_ids,
-			       p.begeni_sayisi, p.yorum_sayisi, p.yorum_kapali, p.created_at,
+			       p.begeni_sayisi, p.yorum_sayisi, p.goruntulenme,
+			       p.yorum_kapali, p.created_at,
 			       u.name, COALESCE(u.username,''), u.avatar_url, u.avatar_media_id,
 			       EXISTS(SELECT 1 FROM post_likes l WHERE l.post_id=p.id AND l.user_id=$1),
 			       EXISTS(SELECT 1 FROM post_saves s WHERE s.post_id=p.id AND s.user_id=$1)
@@ -262,7 +263,8 @@ func (h *Handler) Akis(w http.ResponseWriter, r *http.Request) {
 		//    ve sunucu idempotent oldugu icin HICBIR SEY OLMAZ (olu dokunus).
 		rows, err = h.db.Query(r.Context(), `
 			SELECT p.id, p.author_id, p.tur, p.metin, p.media_ids,
-			       p.begeni_sayisi, p.yorum_sayisi, p.yorum_kapali, p.created_at,
+			       p.begeni_sayisi, p.yorum_sayisi, p.goruntulenme,
+			       p.yorum_kapali, p.created_at,
 			       u.name, COALESCE(u.username,''), u.avatar_url, u.avatar_media_id,
 			       EXISTS(SELECT 1 FROM post_likes l WHERE l.post_id=p.id AND l.user_id=$1),
 			       EXISTS(SELECT 1 FROM post_saves s WHERE s.post_id=p.id AND s.user_id=$1)
@@ -315,7 +317,8 @@ func (h *Handler) UserPosts(w http.ResponseWriter, r *http.Request) {
 	}
 	rows, err := h.db.Query(r.Context(), `
 		SELECT p.id, p.author_id, p.tur, p.metin, p.media_ids,
-		       p.begeni_sayisi, p.yorum_sayisi, p.yorum_kapali, p.created_at,
+		       p.begeni_sayisi, p.yorum_sayisi, p.goruntulenme,
+		       p.yorum_kapali, p.created_at,
 		       u.name, COALESCE(u.username,''), u.avatar_url, u.avatar_media_id,
 		       EXISTS(SELECT 1 FROM post_likes l WHERE l.post_id=p.id AND l.user_id=$1),
 		       EXISTS(SELECT 1 FROM post_saves s WHERE s.post_id=p.id AND s.user_id=$1)
@@ -360,7 +363,8 @@ func (h *Handler) Detay(w http.ResponseWriter, r *http.Request) {
 	}
 	rows, err := h.db.Query(r.Context(), `
 		SELECT p.id, p.author_id, p.tur, p.metin, p.media_ids,
-		       p.begeni_sayisi, p.yorum_sayisi, p.yorum_kapali, p.created_at,
+		       p.begeni_sayisi, p.yorum_sayisi, p.goruntulenme,
+		       p.yorum_kapali, p.created_at,
 		       u.name, COALESCE(u.username,''), u.avatar_url, u.avatar_media_id,
 		       EXISTS(SELECT 1 FROM post_likes l WHERE l.post_id=p.id AND l.user_id=$2),
 		       EXISTS(SELECT 1 FROM post_saves s WHERE s.post_id=p.id AND s.user_id=$2)
@@ -376,6 +380,10 @@ func (h *Handler) Detay(w http.ResponseWriter, r *http.Request) {
 		hata(w, 404, "gönderi bulunamadı")
 		return
 	}
+	// ⚠️ Detay = kullanicinin BILEREK actigi sayfa -> goruntulenme burada artar.
+	//    (Akista artmaz — bkz. Reels serhi.)
+	h.db.Exec(r.Context(),
+		`UPDATE posts SET goruntulenme = goruntulenme + 1 WHERE id=$1`, id)
 	yaz(w, 200, liste[0])
 }
 
@@ -400,7 +408,8 @@ func (h *Handler) Reels(w http.ResponseWriter, r *http.Request) {
 	}
 	rows, err := h.db.Query(r.Context(), `
 		SELECT p.id, p.author_id, p.tur, p.metin, p.media_ids,
-		       p.begeni_sayisi, p.yorum_sayisi, p.yorum_kapali, p.created_at,
+		       p.begeni_sayisi, p.yorum_sayisi, p.goruntulenme,
+		       p.yorum_kapali, p.created_at,
 		       u.name, COALESCE(u.username,''), u.avatar_url, u.avatar_media_id,
 		       EXISTS(SELECT 1 FROM post_likes l WHERE l.post_id=p.id AND l.user_id=$1),
 		       EXISTS(SELECT 1 FROM post_saves s WHERE s.post_id=p.id AND s.user_id=$1)
@@ -421,7 +430,30 @@ func (h *Handler) Reels(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer rows.Close()
-	yaz(w, 200, map[string]any{"posts": h.satirlariOku(rows)})
+	liste := h.satirlariOku(rows)
+
+	// ⚠️⚠️ GORUNTULENME YALNIZ REELS VE DETAYDA ARTAR — AKISTA ARTMAZ.
+	//    Akista 20 kart TEK ISTEKTE gelir ama kullanici cogunu HIC GORMEZ;
+	//    orada saymak sayiyi YALAN yapar. Reels tam ekrandir (kart = ekran),
+	//    detay ise kullanicinin BILEREK actigi sayfadir.
+	// ⚠️ Sayim KABA: ayni kullanici tekrar bakinca yine artar. Kesin tekil sayim
+	//    (kullanici,gonderi) satiri gerektirir ve tam da kacindigimiz yazma
+	//    yukunu geri getirir (fan-out karari).
+	// ⚠️ TEK SORGU (`= ANY`): gonderi basina UPDATE, sayfa basina 10 yazma demekti.
+	// ⚠️ YAPMA: bunu `Akis` icine kopyalama.
+	if len(liste) > 0 {
+		idler := make([]string, 0, len(liste))
+		for _, g := range liste {
+			if s, ok := g["id"].(string); ok {
+				idler = append(idler, s)
+			}
+		}
+		if len(idler) > 0 {
+			h.db.Exec(r.Context(),
+				`UPDATE posts SET goruntulenme = goruntulenme + 1 WHERE id = ANY($1)`, idler)
+		}
+	}
+	yaz(w, 200, map[string]any{"posts": liste})
 }
 
 func (h *Handler) satirlariOku(rows pgx.Rows) []map[string]any {
@@ -429,18 +461,22 @@ func (h *Handler) satirlariOku(rows pgx.Rows) []map[string]any {
 	for rows.Next() {
 		var id, yazarID, tur, metin, ad, kullanici, avatar string
 		var medya []string
-		var begeni, yorum int
+		var begeni, yorum, goruntulenme int
 		var yorumKapali, begendim, kaydettim bool
 		var t time.Time
 		var avatarMedya *string
+		// ⚠️ SCAN SIRASI SORGUDAKI SUTUN SIRASIYLA BIREBIR OLMALI. Uyusmazlik
+		//    derleme hatasi VERMEZ; ya tip hatasiyla satir SESSIZCE ATLANIR
+		//    (asagidaki 'continue') ya da alanlar BIRBIRINE KARISIR.
 		if rows.Scan(&id, &yazarID, &tur, &metin, &medya, &begeni, &yorum,
-			&yorumKapali, &t, &ad, &kullanici, &avatar, &avatarMedya,
+			&goruntulenme, &yorumKapali, &t, &ad, &kullanici, &avatar, &avatarMedya,
 			&begendim, &kaydettim) != nil {
 			continue
 		}
 		out = append(out, map[string]any{
 			"id": id, "author_id": yazarID, "tur": tur, "metin": metin,
 			"media_ids": medya, "begeni_sayisi": begeni, "yorum_sayisi": yorum,
+			"goruntulenme": goruntulenme,
 			"yorum_kapali": yorumKapali, "created_at": t,
 			"yazar_ad": ad, "yazar_username": kullanici,
 			"yazar_avatar": avatar, "yazar_avatar_media_id": avatarMedya,

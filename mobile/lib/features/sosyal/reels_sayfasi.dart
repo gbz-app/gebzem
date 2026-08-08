@@ -341,6 +341,13 @@ class _ReelsSayfasiState extends ConsumerState<ReelsSayfasi> {
                     }
                   },
           ),
+          if (g.goruntulenme > 0)
+            _eylem(
+              ikon: LucideIcons.eye,
+              renk: Colors.white,
+              etiket: sayiBicimle(g.goruntulenme),
+              onTap: null,
+            ),
           _eylem(
             ikon: LucideIcons.link,
             renk: Colors.white,
