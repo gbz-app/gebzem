@@ -56,6 +56,7 @@ class Message {
     required this.type,
     required this.content,
     required this.mediaUrl,
+    this.mediaId,
     required this.replyToId,
     required this.deletedForAll,
     required this.createdAt,
@@ -67,6 +68,9 @@ class Message {
   final String type; // text, image, video, audio, location, system
   final String content;
   final String mediaUrl;
+  /// TURU 74: R2 medya kaydinin kimligi. ⚠️ URL DEGIL id — adres her
+  /// goruntulemede /media/{id}/url ile ALINIR (imza 600sn omurlu).
+  final String? mediaId;
   final int? replyToId;
   final bool deletedForAll;
   final DateTime createdAt;
@@ -78,6 +82,7 @@ class Message {
         type: j['type'] as String? ?? 'text',
         content: j['content'] as String? ?? '',
         mediaUrl: j['media_url'] as String? ?? '',
+        mediaId: j['media_id'] as String?,
         replyToId: (j['reply_to_id'] as num?)?.toInt(),
         deletedForAll: j['deleted_for_all'] as bool? ?? false,
         createdAt: DateTime.tryParse(j['created_at'] as String? ?? '') ?? DateTime.now(),
@@ -92,6 +97,7 @@ class Message {
         type: type,
         content: '',
         mediaUrl: '',
+        mediaId: null, // silinen mesajda medya da GIZLENIR
         replyToId: replyToId,
         deletedForAll: true,
         createdAt: createdAt,

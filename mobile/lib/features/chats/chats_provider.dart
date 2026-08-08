@@ -74,10 +74,22 @@ class MessagesNotifier extends StateNotifier<AsyncValue<List<Message>>> {
     }
   }
 
-  Future<void> send(String content, {String type = 'text'}) async {
-    await _ref
-        .read(apiProvider)
-        .post('/chats/$chatId/messages', data: {'type': type, 'content': content});
+  Future<void> send(
+    String content, {
+    String type = 'text',
+    String? mediaId,
+    String? clientRef,
+  }) async {
+    await _ref.read(apiProvider).post('/chats/$chatId/messages', data: {
+      'type': type,
+      'content': content,
+      // ⚠️ TURU 74: URL DEGIL id. Sunucu sahipligi ve dogrulanmisligi kontrol eder.
+      if (mediaId != null) 'media_id': mediaId,
+      // ⚠️ Idempotency: ag zaman asimindan sonra tekrar denenirse sunucu IKINCI
+      //     MESAJ ACMAZ (kismi UNIQUE index). Medya gonderiminde bu SART — yukleme
+      //     dakikalar surebiliyor ve kullanici "gitmedi" sanip tekrar basiyor.
+      if (clientRef != null) 'client_ref': clientRef,
+    });
     // kendi mesajimiz sunucuya yazildi — listeyi tazele (WS yayini alicilara gider)
     await load();
   }

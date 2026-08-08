@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/gorilla/websocket"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/gbz-app/gebzem/backend/internal/auth"
@@ -130,18 +131,27 @@ func (h *Handler) WebSocket(w http.ResponseWriter, r *http.Request) {
 // KULLANILMIYOR ama ACIK duruyordu. Sonuc: herhangi bir kullanici
 // `{"type":"image","media_url":"https://kotu-site/izleme.gif"}` gonderip karsi tarafta
 // KENDI SUNUCUSUNDAN icerik cektirebilirdi:
-//   · IZLEME PIKSELI — mesaj acilir acilmaz alicinin IP'si ve saati saldirgana gider
-//   · OLTALAMA — sohbet icinde sahte gorsel/banner
-//   · SSRF/ic ag taramasi — sunucu tarafi onizleme eklenirse
+//
+//	· IZLEME PIKSELI — mesaj acilir acilmaz alicinin IP'si ve saati saldirgana gider
+//	· OLTALAMA — sohbet icinde sahte gorsel/banner
+//	· SSRF/ic ag taramasi — sunucu tarafi onizleme eklenirse
+//
 // `models.dart:80` bu alani ZATEN okuyor, yani gorsel cizimi eklendigi ANDA sahada
 // somurulebilir hale gelirdi.
 //
 // ⚠️ YAPMA: bu alani geri ekleme. Medya gelince URL **sunucuda turetilecek**
-//     (medya kaydinin id'sinden; bkz. medya-plani.md). Istemci ASLA URL vermez.
+//
+//	(medya kaydinin id'sinden; bkz. medya-plani.md). Istemci ASLA URL vermez.
 type sendMessageReq struct {
-	Type      string `json:"type"` // text, image, video, audio, location
-	Content   string `json:"content"`
+	Type      string `json:"type"`    // text, image, video, audio, location, document
+	Content   string `json:"content"` // metin ya da medya ALTYAZISI
 	ReplyToID *int64 `json:"reply_to_id"`
+	// TURU 74: yuklenmis ve DOGRULANMIS medya kaydinin kimligi.
+	// ⚠️ URL DEGIL id: istemci adres veremez (bkz. media_url serhi).
+	MediaID *string `json:"media_id"`
+	// TURU 74: ag zaman asimindan sonra tekrar denenen POST IKINCI MESAJ URETMESIN.
+	// ⚠️ Kismi UNIQUE index (chat_id, sender_id, client_ref) bunu DB seviyesinde garanti eder.
+	ClientRef string `json:"client_ref"`
 }
 
 // POST /chats/{chatID}/messages — mesaj gonder (once DB, sonra Redis yayini)
@@ -165,7 +175,7 @@ func (h *Handler) SendMessage(w http.ResponseWriter, r *http.Request) {
 	// arama kayitlari icindir (calls paketi dogrudan INSERT eder, buradan gecmez).
 	// ⚠️ YAPMA: bu beyaz listeye 'system' ekleme.
 	switch req.Type {
-	case "text", "image", "video", "audio", "location":
+	case "text", "image", "video", "audio", "location", "document":
 	default:
 		httpErr(w, http.StatusBadRequest, "geçersiz mesaj tipi")
 		return
@@ -193,12 +203,59 @@ func (h *Handler) SendMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// ⚠️⚠️ TURU 74 — MEDYA BAGLAMA. Istemci URL DEGIL `media_id` verir; sahiplik ve
+	// durum BURADA dogrulanir. Aksi halde biri baskasinin (ya da dogrulanmamis)
+	// medyasini kendi mesajina baglayabilirdi.
+	// ⚠️ `status IN ('aktif','bagli')`: 'beklemede' KABUL EDILMEZ — o kayit commit'ten
+	//    gecmemis, yani tipi/boyutu/GPS'i DOGRULANMAMIS demektir.
+	// ⚠️ 'bagli' de kabul: ayni medya birden fazla mesaja baglanabilir (iletme).
+	if req.MediaID != nil && *req.MediaID != "" {
+		tag, err := h.db.Exec(r.Context(), `
+			UPDATE media_assets SET status='bagli', linked_at=now()
+			 WHERE id=$1 AND owner_id=$2 AND status IN ('aktif','bagli')`,
+			*req.MediaID, userID)
+		if err != nil || tag.RowsAffected() == 0 {
+			httpErr(w, http.StatusForbidden, "geçersiz medya")
+			return
+		}
+	}
+	// ⚠️ Medya tipi ISE medya ZORUNLU: `{"type":"image"}` ama media_id yoksa
+	//    alicida BOS balon cizilir (kullanici "gonderdim" sanir, karsi taraf hicbir
+	//    sey gormez). Tip ve icerik TUTARLI olmali.
+	if (req.Type == "image" || req.Type == "video" || req.Type == "audio" ||
+		req.Type == "document") && (req.MediaID == nil || *req.MediaID == "") {
+		httpErr(w, http.StatusBadRequest, "medya bulunamadı")
+		return
+	}
+
 	var msgID int64
 	var createdAt time.Time
+	// ⚠️⚠️ IDEMPOTENCY: `client_ref` doluysa ve AYNI (chat, gonderen, ref) zaten
+	// varsa YENI SATIR ACILMAZ; mevcut satir DONER. Mobil sebekede istemci yaniti
+	// alamadan tekrar denedi diye CIFT MESAJ olusmasin.
+	// ⚠️ `ON CONFLICT ... DO UPDATE SET id=EXCLUDED.id` yerine `DO NOTHING` +
+	//    ikinci SELECT kullaniyoruz: DO UPDATE gereksiz yazma yapar ve sirayi bozar.
 	err = h.db.QueryRow(r.Context(), `
-		INSERT INTO messages (chat_id, sender_id, type, content, reply_to_id)
-		VALUES ($1,$2,$3,$4,$5) RETURNING id, created_at`,
-		chatID, userID, req.Type, req.Content, req.ReplyToID).Scan(&msgID, &createdAt)
+		INSERT INTO messages (chat_id, sender_id, type, content, reply_to_id, media_id, client_ref)
+		VALUES ($1,$2,$3,$4,$5,$6,$7)
+		ON CONFLICT (chat_id, sender_id, client_ref) WHERE client_ref <> '' DO NOTHING
+		RETURNING id, created_at`,
+		chatID, userID, req.Type, req.Content, req.ReplyToID, req.MediaID,
+		kisaltRef(req.ClientRef)).Scan(&msgID, &createdAt)
+	if err == pgx.ErrNoRows && req.ClientRef != "" {
+		// Ayni istek daha once islenmis — mevcut mesaji don (200), yenisini ACMA.
+		if e := h.db.QueryRow(r.Context(), `
+			SELECT id, created_at FROM messages
+			 WHERE chat_id=$1 AND sender_id=$2 AND client_ref=$3`,
+			chatID, userID, kisaltRef(req.ClientRef)).Scan(&msgID, &createdAt); e != nil {
+			httpErr(w, http.StatusInternalServerError, "mesaj kaydedilemedi")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"id": msgID, "created_at": createdAt, "tekrar": true,
+		})
+		return
+	}
 	if err != nil {
 		log.Printf("mesaj insert: %v", err)
 		httpErr(w, http.StatusInternalServerError, "mesaj kaydedilemedi")
@@ -216,6 +273,7 @@ func (h *Handler) SendMessage(w http.ResponseWriter, r *http.Request) {
 		"id": msgID, "chat_id": chatID, "sender_id": userID,
 		// media_url sabit BOS: istemci URL veremez (turu 74). Medya gelince sunucu turetecek.
 		"type": req.Type, "content": req.Content, "media_url": "",
+		"media_id":    req.MediaID,
 		"reply_to_id": req.ReplyToID, "created_at": createdAt,
 	})
 	h.hub.Publish(r.Context(), &Event{Type: "message.new", ChatID: chatID, Payload: payload, To: members})
@@ -266,6 +324,8 @@ func (h *Handler) GetMessages(w http.ResponseWriter, r *http.Request) {
 		SELECT id, sender_id, type,
 		       CASE WHEN deleted_for_all THEN '' ELSE content END,
 		       CASE WHEN deleted_for_all THEN '' ELSE media_url END,
+		       -- ⚠️ TURU 74: silinen mesajda medya da GIZLENIR (id sizmasin).
+		       CASE WHEN deleted_for_all THEN NULL ELSE media_id END,
 		       reply_to_id, deleted_for_all, created_at
 		FROM messages WHERE chat_id=$1 AND id<$2
 		ORDER BY id DESC LIMIT $3`, chatID, beforeID, limit)
@@ -276,19 +336,20 @@ func (h *Handler) GetMessages(w http.ResponseWriter, r *http.Request) {
 	defer rows.Close()
 
 	type msg struct {
-		ID            int64      `json:"id"`
-		SenderID      string     `json:"sender_id"`
-		Type          string     `json:"type"`
-		Content       string     `json:"content"`
-		MediaURL      string     `json:"media_url"`
-		ReplyToID     *int64     `json:"reply_to_id"`
-		DeletedForAll bool       `json:"deleted_for_all"`
-		CreatedAt     time.Time  `json:"created_at"`
+		ID            int64     `json:"id"`
+		SenderID      string    `json:"sender_id"`
+		Type          string    `json:"type"`
+		Content       string    `json:"content"`
+		MediaURL      string    `json:"media_url"`
+		MediaID       *string   `json:"media_id,omitempty"` // turu 74
+		ReplyToID     *int64    `json:"reply_to_id"`
+		DeletedForAll bool      `json:"deleted_for_all"`
+		CreatedAt     time.Time `json:"created_at"`
 	}
 	out := []msg{}
 	for rows.Next() {
 		var m msg
-		if err := rows.Scan(&m.ID, &m.SenderID, &m.Type, &m.Content, &m.MediaURL,
+		if err := rows.Scan(&m.ID, &m.SenderID, &m.Type, &m.Content, &m.MediaURL, &m.MediaID,
 			&m.ReplyToID, &m.DeletedForAll, &m.CreatedAt); err == nil {
 			out = append(out, m)
 		}
@@ -385,22 +446,22 @@ func (h *Handler) ListChats(w http.ResponseWriter, r *http.Request) {
 	defer rows.Close()
 
 	type chatRow struct {
-		ID          string     `json:"id"`
-		Type        string     `json:"type"`
-		Title       string     `json:"title"`
-		AvatarURL   string     `json:"avatar_url"`
-		Pinned      bool       `json:"pinned"`
-		Archived    bool       `json:"archived"`
-		LastMessage string     `json:"last_message"`
-		LastType    string     `json:"last_type"`
+		ID          string `json:"id"`
+		Type        string `json:"type"`
+		Title       string `json:"title"`
+		AvatarURL   string `json:"avatar_url"`
+		Pinned      bool   `json:"pinned"`
+		Archived    bool   `json:"archived"`
+		LastMessage string `json:"last_message"`
+		LastType    string `json:"last_type"`
 		// TURU 59: son mesajin gondereni. Sohbet LISTESI arama kaydi onizlemesinde
 		// YON gerekiyor ("Cevapsiz sesli arama" yalniz ARANAN icin dogrudur; arayan
 		// icin "Sesli arama" yazilmali — WhatsApp da boyle). Bu alan olmadan
 		// onizleme arayana da "Cevapsiz" diyordu.
-		LastSender  string     `json:"last_sender_id"`
-		LastAt      *time.Time `json:"last_at"`
-		Unread      int        `json:"unread"`
-		PeerID      *string    `json:"peer_id"` // direct sohbette karsi taraf (arama icin)
+		LastSender string     `json:"last_sender_id"`
+		LastAt     *time.Time `json:"last_at"`
+		Unread     int        `json:"unread"`
+		PeerID     *string    `json:"peer_id"` // direct sohbette karsi taraf (arama icin)
 	}
 	out := []chatRow{}
 	for rows.Next() {
@@ -447,7 +508,9 @@ func (h *Handler) MarkRead(w http.ResponseWriter, r *http.Request) {
 // kanal olusur ve engelleyen taraf karsisindakini rahatsiz etmeye devam edebilir.)
 //
 // ⚠️ Grup sohbetinde bu kural UYGULANMAZ (gruba yazmak engellenmez) — grup geldiginde
-//    ayrica ele alinacak; bugun tum sohbetler 'direct'.
+//
+//	ayrica ele alinacak; bugun tum sohbetler 'direct'.
+//
 // ⚠️ TEK SORGU: uyelik ve engel ayni gidis-donuste cozulur (mesaj gonderme sicak yol).
 // ⚠️ YAPMA: engel kontrolunu cagiranlara kopyalama — TEK KAYNAK burasi.
 func (h *Handler) engelliMi(r *http.Request, userID string, digerleri []string) (bool, error) {
@@ -500,24 +563,26 @@ func httpErr(w http.ResponseWriter, status int, msg string) {
 // ⚠️⚠️ TURU 74 — MESAJ SILME (herkesten).
 //
 // DURUM TESPITI: `messages.deleted_for_all` sutunu 001_init.sql'den beri VAR ve
-// listeleme sorgulari onu ZATEN okuyor (`CASE WHEN deleted_for_all THEN '' ELSE ...`),
+// listeleme sorgulari onu ZATEN okuyor (`CASE WHEN deleted_for_all THEN ” ELSE ...`),
 // ama SILME UCU HIC YOKTU — yani sutun olu duruyordu.
 //
 // ⚠️ NEDEN ZORUNLU: App Store 1.2 (UGC) icerik kaldirmayi sart kosuyor; ayrica
 // 5651 "4 saat icinde kaldirma" yukumlulugunun istemci tarafi ayagi budur.
 //
 // KURALLAR:
-//  · Yalniz GONDEREN silebilir (moderator/admin yolu AYRI — admin panelinden).
-//  · Icerik BOSALTILIR ama satir SILINMEZ: karsi tarafta "Bu mesaj silindi" cizilir
-//    ve mesaj sirasi/okundu bilgisi bozulmaz.
-//    ⚠️ Bu, kullanicinin "veri silinmesin" karariyla CELISMEZ — burada silmeyi
-//       KULLANICININ KENDISI talep ediyor (yasal olarak da saglanmasi ZORUNLU).
-//  · Idempotent: iki kez silme 200 doner.
-//  · Medya geldiginde: bu ucun icine R2 nesnesinin silinmesi de eklenecek.
+//
+//	· Yalniz GONDEREN silebilir (moderator/admin yolu AYRI — admin panelinden).
+//	· Icerik BOSALTILIR ama satir SILINMEZ: karsi tarafta "Bu mesaj silindi" cizilir
+//	  ve mesaj sirasi/okundu bilgisi bozulmaz.
+//	  ⚠️ Bu, kullanicinin "veri silinmesin" karariyla CELISMEZ — burada silmeyi
+//	     KULLANICININ KENDISI talep ediyor (yasal olarak da saglanmasi ZORUNLU).
+//	· Idempotent: iki kez silme 200 doner.
+//	· Medya geldiginde: bu ucun icine R2 nesnesinin silinmesi de eklenecek.
 //
 // ⚠️ YAPMA: satiri fiziksel DELETE etme (`message_receipts` FK'si ve sohbet sirasi bozulur).
 // ⚠️ YAPMA: sure siniri koyma (WhatsApp'ta var ama bizde icerik kaldirma yukumlulugu
-//     sureli olamaz — kullanici her zaman kendi icerigini kaldirabilmeli).
+//
+//	sureli olamaz — kullanici her zaman kendi icerigini kaldirabilmeli).
 func (h *Handler) DeleteMessage(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserID(r.Context())
 	chatID := chi.URLParam(r, "chatID")
@@ -556,4 +621,13 @@ func (h *Handler) DeleteMessage(w http.ResponseWriter, r *http.Request) {
 		To: append(append([]string{}, members...), userID),
 	})
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// kisaltRef — istemci referansini sinirla.
+// ⚠️ Sinirsiz metin UNIQUE index'i sisirir; 64 karakter bir UUID icin fazlasiyla yeter.
+func kisaltRef(s string) string {
+	if len(s) > 64 {
+		return s[:64]
+	}
+	return s
 }

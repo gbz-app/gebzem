@@ -8,6 +8,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../core/api.dart';
 import '../../core/theme.dart';
 import '../../core/ws.dart';
+import '../../router.dart' show rootMessengerKey;
 import '../auth/auth_provider.dart';
 import '../calls/active_call_controller.dart';
 import '../calls/call_provider.dart';
@@ -15,6 +16,10 @@ import 'arama_kaydi.dart';
 import 'chats_provider.dart';
 import 'models.dart';
 import 'moderasyon_sheet.dart'; // turu 74: uzun basma menusu + engelle/sikayet
+import '../medya/atac_paneli.dart';
+import '../medya/medya_gorsel.dart';
+import '../medya/medya_servisi.dart';
+import '../medya/tam_ekran_gorsel.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
   const ChatScreen({
@@ -51,6 +56,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   ///     yerel olarak cevrilir. Bayat kalirsa zarari YOK: menu yanlis etiket
   ///     gosterir ama sunucu ucu IDEMPOTENT (iki kez engelleme de 200 doner).
   bool _engelli = false;
+
+  /// TURU 74: sunucuda medya acik mi (R2 env). Kapaliysa atac dugmesi CIZILMEZ.
+  bool _medyaAcik = false;
+  bool _yukleniyor = false;
+  double _ilerleme = 0;
   Timer? _durumTimer;
   ProviderSubscription? _aramaSub;
   bool _oncekiAramaVar = false;
@@ -64,6 +74,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     });
     if (widget.peerId != null) {
       _engelDurumunuOku(); // turu 74: menu etiketi ("Engelle" / "Engeli kaldır")
+    }
+    _medyaDurumunuOku();
+    if (widget.peerId != null) {
       _durumTazele();
       _durumTimer = Timer.periodic(const Duration(seconds: 15), (_) => _durumTazele());
       // ARAMA BITER BITMEZ TAZELE (test turu 18 duzeltmesi): aktif arama null'a dusunce
@@ -90,6 +103,84 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       final list = (res.data as List?) ?? [];
       final v = list.any((e) => (e as Map)['id'] == widget.peerId);
       if (mounted && v != _engelli) setState(() => _engelli = v);
+    } catch (_) {}
+  }
+
+  /// ⚠️⚠️ TURU 74 — FOTOĞRAF GÖNDERME AKIŞI.
+  ///
+  /// Sıra ZORUNLU: seç → sıkıştır+EXIF temizle → R2'ye yükle → commit → mesaj.
+  /// Mesaj EN SONDA atılır; medya doğrulanmadan mesaj yazılırsa alıcıda BOŞ balon
+  /// çizilirdi (gönderen "gitti" sanar, karşı taraf hiçbir şey görmez).
+  ///
+  /// ⚠️ `client_ref`: yükleme dakikalar sürebiliyor ve kullanıcı "gitmedi" sanıp
+  ///     tekrar basıyor. Sunucu aynı referansla ikinci mesaj AÇMAZ.
+  /// ⚠️ Hata YUTULMAZ: kullanıcıya söylenir. "Gönderdim sandım ama gitmemiş" bu
+  ///     projede defalarca yaşandı.
+  Future<void> _atacAc() async {
+    final secim = await atacPaneliAc(context, ref);
+    if (secim == null || secim.dosyalar.isEmpty || !mounted) return;
+
+    final altyazi = _input.text.trim();
+    setState(() => _yukleniyor = true);
+    final servis = ref.read(medyaServisiProvider);
+    final notifier = ref.read(messagesProvider(widget.chatId).notifier);
+    var gonderilen = 0;
+
+    try {
+      for (var i = 0; i < secim.dosyalar.length; i++) {
+        final ham = secim.dosyalar[i];
+        // ⚠️ Sıkıştırma + EXIF temizleme ZORUNLU (gizlilik: konum bilgisi).
+        //    Başarısız olursa HAM dosya GÖNDERİLMEZ — sunucu GPS bulursa zaten
+        //    422 döner; boşuna 5 MB yükleyip reddedilmesindense burada duruyoruz.
+        final hazir = await MedyaServisi.gorseliHazirla(ham);
+        if (hazir == null) {
+          throw Exception('Fotoğraf hazırlanamadı');
+        }
+        final mediaId = await servis.yukle(
+          dosya: hazir,
+          kind: 'image',
+          mime: 'image/jpeg',
+          ilerleme: (o) {
+            if (mounted) {
+              setState(() => _ilerleme = (i + o) / secim.dosyalar.length);
+            }
+          },
+        );
+        // ⚠️ Altyazı YALNIZCA İLK fotoğrafa yazılır (WhatsApp davranışı);
+        //    her fotoğrafa kopyalamak gürültü olurdu.
+        await notifier.send(
+          i == 0 ? altyazi : '',
+          type: 'image',
+          mediaId: mediaId,
+          clientRef: mediaId, // media_id benzersiz -> ideal idempotency anahtarı
+        );
+        gonderilen++;
+      }
+      if (mounted && altyazi.isNotEmpty) _input.clear();
+    } catch (e) {
+      if (mounted) {
+        rootMessengerKey.currentState?.showSnackBar(
+          SnackBar(content: Text(apiErrorMessage(e))),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _yukleniyor = false;
+          _ilerleme = 0;
+        });
+      }
+    }
+    if (gonderilen > 0) _scrollToBottom();
+  }
+
+  /// TURU 74 — sunucuda medya açık mı (R2 env). Kapalıysa ataç düğmesi ÇİZİLMEZ.
+  /// ⚠️ Görünen ama çalışmayan düğme, turu 66b dersinin tekrarı olurdu.
+  Future<void> _medyaDurumunuOku() async {
+    try {
+      final res = await ref.read(apiProvider).get('/users/me');
+      final v = (res.data as Map?)?['media_acik'] == true;
+      if (mounted && v != _medyaAcik) setState(() => _medyaAcik = v);
     } catch (_) {}
   }
 
@@ -332,11 +423,28 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               },
             ),
           ),
+          // ⚠️ TURU 74 — YÜKLEME İLERLEMESİ. Fotoğraf yüklemesi yavaş hatta
+          //    dakikalar sürebiliyor; gösterge olmazsa kullanıcı "gitmedi" sanıp
+          //    tekrar basıyor (ve `client_ref` olmasaydı çift mesaj olurdu).
+          if (_yukleniyor)
+            LinearProgressIndicator(
+              value: _ilerleme > 0 ? _ilerleme : null,
+              minHeight: 3,
+            ),
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
               child: Row(
                 children: [
+                  // ⚠️ TURU 74 — ATAÇ. Medya sunucuda kapalıysa (R2 env yok) düğme
+                  //    HİÇ ÇİZİLMEZ: `GET /users/me` yanıtındaki `media_acik`.
+                  //    Görünen ama çalışmayan düğme, turu 66b dersinin tekrarı olurdu.
+                  if (_medyaAcik)
+                    IconButton(
+                      tooltip: 'Ekle',
+                      icon: const Icon(LucideIcons.paperclip),
+                      onPressed: _yukleniyor ? null : _atacAc,
+                    ),
                   Expanded(
                     child: TextField(
                       controller: _input,
@@ -714,8 +822,37 @@ class _Bubble extends StatelessWidget {
               Text('Bu mesaj silindi',
                   style: TextStyle(
                       fontStyle: FontStyle.italic, color: scheme.outline))
-            else
-              Text(message.content, style: const TextStyle(fontSize: 15.5)),
+            else ...[
+              // ⚠️ TURU 74 — GORSEL BALON. `media_id` var ama artik sunucuda
+              //     kaldirilmissa (karantina/silindi) `MedyaGorsel` kirik ikon
+              //     cizer; balon YINE DE cizilir (mesaj gecmisi bozulmasin).
+              if (message.type == 'image' && (message.mediaId ?? '').isNotEmpty)
+                Padding(
+                  padding: EdgeInsets.only(bottom: message.content.isEmpty ? 0 : 6),
+                  child: ConstrainedBox(
+                    // ⚠️ En-boy SABITLENMEZ: dikey/yatay fotograf kirpilmasin.
+                    //     Yukseklik tavani ekranin %45'i — uzun panoramalar balonu
+                    //     ele gecirmesin.
+                    constraints: BoxConstraints(
+                      maxHeight: MediaQuery.of(context).size.height * 0.45,
+                    ),
+                    child: GestureDetector(
+                      onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                        fullscreenDialog: true,
+                        builder: (_) => TamEkranGorsel(mediaId: message.mediaId!),
+                      )),
+                      child: MedyaGorsel(
+                        mediaId: message.mediaId!,
+                        kucuk: true, // liste icinde kucuk resim YETER (veri tasarrufu)
+                        fit: BoxFit.cover,
+                        radius: 8,
+                      ),
+                    ),
+                  ),
+                ),
+              if (message.content.isNotEmpty)
+                Text(message.content, style: const TextStyle(fontSize: 15.5)),
+            ],
             const SizedBox(height: 2),
             Row(
               mainAxisSize: MainAxisSize.min,
