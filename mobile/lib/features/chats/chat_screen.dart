@@ -15,6 +15,7 @@ import '../calls/active_call_controller.dart';
 import '../calls/call_provider.dart';
 import 'arama_kaydi.dart';
 import 'chats_provider.dart';
+import 'grup_bilgi.dart';
 import 'models.dart';
 import 'moderasyon_sheet.dart'; // turu 74: uzun basma menusu + engelle/sikayet
 import '../medya/atac_paneli.dart';
@@ -31,11 +32,18 @@ class ChatScreen extends ConsumerStatefulWidget {
     required this.title,
     this.peerId,
     this.avatarMediaId,
+    this.isGroup = false,
   });
 
   final String chatId;
   final String title;
   final String? peerId; // 1:1 sohbette karsi tarafin id'si (arama icin)
+
+  /// ⚠️ TURU 76b — GRUP MU. Basliga dokununca "Grup bilgisi" ekrani acilir
+  ///    (uyeler + uye ekle/cikar + gruptan ayril).
+  /// ⚠️ `peerId == null` kontrolune GUVENILMEZ: cagiran karsi tarafin kimligini
+  ///    bilmiyorsa 1:1 sohbet de "grup" sanilirdi.
+  final bool isGroup;
 
   /// ⚠️ TURU 76: sohbet basliginda AVATAR HIC YOKTU (WhatsApp'ta daima vardir).
   ///    Opsiyonel — cagiran bilmiyorsa harf yedegine duser, EK ISTEK ATILMAZ.
@@ -68,11 +76,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// TURU 74: sunucuda medya acik mi (R2 env). Kapaliysa atac dugmesi CIZILMEZ.
   bool _medyaAcik = false;
 
-  /// ⚠️ TURU 76: bu bir GRUP sohbeti mi. `peerId` YOKSA gruptur — 1:1 sohbet
-  ///    acilirken `peer_id` HER ZAMAN gecirilir (`chats_screen`, `user_search`,
-  ///    `profil_sayfasi`), grup olusturmada gecirilmez.
+  /// ⚠️ TURU 76b: bu bir GRUP sohbeti mi.
+  ///    ONCELIK `widget.isGroup` (sohbet listesi `chat.type`den ACIKCA tasir);
+  ///    yedek olarak "peerId yoksa gruptur" varsayimi KALIR — grup olusturma
+  ///    akisi gibi bayragi gecirmeyen eski yollar bozulmasin.
   ///    Balonlarda gonderen adi YALNIZ grupta cizilir.
-  bool get _grupMu => widget.peerId == null;
+  bool get _grupMu => widget.isGroup || widget.peerId == null;
   bool _yukleniyor = false;
   double _ilerleme = 0;
 
@@ -95,7 +104,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _medyaDurumunuOku();
     if (widget.peerId != null) {
       _durumTazele();
-      _durumTimer = Timer.periodic(const Duration(seconds: 15), (_) => _durumTazele());
+      _durumTimer = Timer.periodic(
+        const Duration(seconds: 15),
+        (_) => _durumTazele(),
+      );
       // ARAMA BITER BITMEZ TAZELE (test turu 18 duzeltmesi): aktif arama null'a dusunce
       // ~1sn sonra sor — sunucunun 'ended' yazmasina zaman taniyip bayat "mesgul"
       // gostergesini ANINDA temizler (kullanici: "kapattim, hemen tekrar arayamiyorum").
@@ -176,7 +188,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             i == 0 ? altyazi : '',
             type: 'image',
             mediaId: mediaId,
-            clientRef: mediaId, // media_id benzersiz -> ideal idempotency anahtarı
+            clientRef:
+                mediaId, // media_id benzersiz -> ideal idempotency anahtarı
           );
           gonderilen++;
         } catch (e) {
@@ -191,9 +204,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       }
       if (mounted && altyazi.isNotEmpty && gonderilen > 0) _input.clear();
       if (mounted && basarisiz > 0 && secim.dosyalar.length > 1) {
-        rootMessengerKey.currentState?.showSnackBar(SnackBar(
-          content: Text('$gonderilen gönderildi, $basarisiz tanesi başarısız'),
-        ));
+        rootMessengerKey.currentState?.showSnackBar(
+          SnackBar(
+            content: Text(
+              '$gonderilen gönderildi, $basarisiz tanesi başarısız',
+            ),
+          ),
+        );
       }
     } finally {
       if (mounted) {
@@ -231,16 +248,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         },
       );
       await notifier.send(
-            '',
-            type: 'audio',
-            mediaId: mediaId,
-            clientRef: mediaId,
-          );
+        '',
+        type: 'audio',
+        mediaId: mediaId,
+        clientRef: mediaId,
+      );
       _scrollToBottom();
     } catch (e) {
       if (mounted) {
-        rootMessengerKey.currentState
-            ?.showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
+        rootMessengerKey.currentState?.showSnackBar(
+          SnackBar(content: Text(apiErrorMessage(e))),
+        );
       }
     } finally {
       if (mounted) {
@@ -269,7 +287,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       final res = await ref.read(apiProvider).get('/users/$pid/presence');
       final m = (res.data as Map?) ?? const {};
       final tip = m['call_type'] as String? ?? '';
-      final yeni = tip.isNotEmpty ? tip : (m['in_stream'] == true ? 'stream' : '');
+      final yeni = tip.isNotEmpty
+          ? tip
+          : (m['in_stream'] == true ? 'stream' : '');
       if (mounted && yeni != _peerDurum) setState(() => _peerDurum = yeni);
     } catch (_) {}
   }
@@ -302,8 +322,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       _scrollToBottom();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
       }
     } finally {
       if (mounted) setState(() => _sending = false);
@@ -313,8 +334,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scroll.hasClients) {
-        _scroll.animateTo(_scroll.position.maxScrollExtent,
-            duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
+        _scroll.animateTo(
+          _scroll.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+        );
       }
     });
   }
@@ -325,26 +349,31 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Future<void> _startCall({required bool video}) async {
     final peerId = widget.peerId;
     if (peerId == null || _aramaBasliyor) return;
-    _aramaBasliyor = true; // cift dokunma -> cift arama / sahte "mesgul" kaydini onle
+    _aramaBasliyor =
+        true; // cift dokunma -> cift arama / sahte "mesgul" kaydini onle
     try {
-      final info =
-          await ref.read(callServiceProvider.notifier).start(peerId, video: video);
+      final info = await ref
+          .read(callServiceProvider.notifier)
+          .start(peerId, video: video);
       if (!mounted) return;
       // FAZ-C: mantik controller'da baslar, ekran saf gorunum olarak acilir
       final ctrl = ref.read(activeCallProvider);
-      await ctrl.baslat(AramaBilgisi(
-        callId: info['call_id'] as String,
-        url: info['url'] as String,
-        token: info['token'] as String,
-        video: video,
-        peerName: widget.title,
-        peerId: peerId,
-      ));
+      await ctrl.baslat(
+        AramaBilgisi(
+          callId: info['call_id'] as String,
+          url: info['url'] as String,
+          token: info['token'] as String,
+          video: video,
+          peerName: widget.title,
+          peerId: peerId,
+        ),
+      );
       ctrl.ekraniAc();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
       }
     } finally {
       _aramaBasliyor = false;
@@ -364,7 +393,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       if (nextLen > prevLen) _scrollToBottom();
     });
 
-    final typing = notifier.typingAt != null &&
+    final typing =
+        notifier.typingAt != null &&
         DateTime.now().difference(notifier.typingAt!).inSeconds < 3;
 
     return Scaffold(
@@ -372,28 +402,68 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         // ⚠️ TURU 76: baslikta AVATAR. Avatari basligin ICINE koyduk (leading'e
         //    degil) — geri oku ve mevcut "actions" duzeni BOZULMAZ.
         titleSpacing: 0,
-        title: Row(
-          children: [
-            Avatar(ad: widget.title, mediaId: widget.avatarMediaId, cap: 34),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(widget.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 17)),
-            // NOT (test turu 18): "Sesli aramada" YAZISI KALDIRILDI (kullanici istemedi).
-            // Durum yalniz arama ikonlarinin renginde ima edilir.
-            if (typing)
-              Text('yazıyor...',
-                  style: TextStyle(
-                      fontSize: 12, color: Theme.of(context).colorScheme.primary)),
-          ],
+        // ⚠️⚠️ TURU 76b — GRUPTA BASLIGA DOKUNUNCA "Grup bilgisi" ACILIR.
+        //    Sunucudaki UC grup-uye ucu (`GET/POST/DELETE .../members`)
+        //    istemciden HIC CAGRILMIYORDU: grup kurulabiliyor ama uyeleri
+        //    gorulemiyor, uye eklenemiyor/cikarilamiyordu. Giris noktasi
+        //    olmadan yazilan uc = OLU OZELLIK (CLAUDE.md'nin tekrar eden dersi).
+        // ⚠️ WhatsApp/Telegram deseni: baslik dokunmatik. Ayri bir ikon
+        //    eklemedik — sag ustte zaten iki arama ikonu + menu var.
+        title: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: _grupMu
+              ? () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => GrupBilgiEkrani(
+                      chatId: widget.chatId,
+                      baslik: widget.title,
+                      avatarMediaId: widget.avatarMediaId,
+                    ),
+                  ),
+                )
+              : null,
+          child: Row(
+            children: [
+              Avatar(ad: widget.title, mediaId: widget.avatarMediaId, cap: 34),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 17),
+                    ),
+                    // NOT (test turu 18): "Sesli aramada" YAZISI KALDIRILDI (kullanici istemedi).
+                    // Durum yalniz arama ikonlarinin renginde ima edilir.
+                    if (typing)
+                      Text(
+                        'yazıyor...',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      )
+                    else if (widget.isGroup)
+                      // ⚠️ Kesfedilebilirlik: baslik dokunmatik oldugu ANLASILMALI,
+                      //    yoksa ozellik yine "yok" sanilir.
+                      const Text(
+                        'Grup bilgisi için dokun',
+                        style: TextStyle(fontSize: 11, color: Colors.grey),
+                      ),
+                  ],
+                ),
               ),
-            ),
-          ],
+              if (widget.isGroup)
+                const Icon(
+                  LucideIcons.chevronRight,
+                  size: 16,
+                  color: Colors.grey,
+                ),
+            ],
+          ),
         ),
         actions: () {
           // IKON DURUMU (test turu 18 DUZELTMESI): kisi SESLI aramadaysa ses ikonu yesil,
@@ -411,16 +481,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   ? const Color(0xFF25D366)
                   : (mesgul ? soluk : null),
               icon: const Icon(LucideIcons.video),
-              onPressed:
-                  widget.peerId == null ? null : () => _startCall(video: true),
+              onPressed: widget.peerId == null
+                  ? null
+                  : () => _startCall(video: true),
             ),
             IconButton(
               tooltip: 'Sesli ara',
-              color:
-                  sesAktif ? const Color(0xFF25D366) : (mesgul ? soluk : null),
+              color: sesAktif
+                  ? const Color(0xFF25D366)
+                  : (mesgul ? soluk : null),
               icon: const Icon(LucideIcons.phone),
-              onPressed:
-                  widget.peerId == null ? null : () => _startCall(video: false),
+              onPressed: widget.peerId == null
+                  ? null
+                  : () => _startCall(video: false),
             ),
             // ⚠️ TURU 74 — MODERASYON MENUSU. App Store Review Guideline 1.2 (UGC)
             //    engelleme ve sikayeti kullanicinin ULASABILECEGI bir yerde sart kosuyor.
@@ -429,33 +502,48 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 icon: const Icon(LucideIcons.ellipsisVertical),
                 onSelected: (secim) async {
                   if (secim == 'engelle') {
-                    final degisti = await engelleOnayiAc(context, ref,
-                        kullaniciId: widget.peerId!,
-                        ad: widget.title,
-                        suAnEngelli: _engelli);
-                    if (degisti && mounted) setState(() => _engelli = !_engelli);
+                    final degisti = await engelleOnayiAc(
+                      context,
+                      ref,
+                      kullaniciId: widget.peerId!,
+                      ad: widget.title,
+                      suAnEngelli: _engelli,
+                    );
+                    if (degisti && mounted) {
+                      setState(() => _engelli = !_engelli);
+                    }
                   } else if (secim == 'sikayet') {
-                    await sikayetSheetAc(context, ref,
-                        hedefTur: 'kullanici', hedefId: widget.peerId!);
+                    await sikayetSheetAc(
+                      context,
+                      ref,
+                      hedefTur: 'kullanici',
+                      hedefId: widget.peerId!,
+                    );
                   }
                 },
                 itemBuilder: (_) => [
                   PopupMenuItem(
                     value: 'engelle',
-                    child: Row(children: [
-                      Icon(_engelli ? LucideIcons.userCheck : LucideIcons.ban,
-                          size: 18),
-                      const SizedBox(width: 10),
-                      Text(_engelli ? 'Engeli kaldır' : 'Engelle'),
-                    ]),
+                    child: Row(
+                      children: [
+                        Icon(
+                          _engelli ? LucideIcons.userCheck : LucideIcons.ban,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 10),
+                        Text(_engelli ? 'Engeli kaldır' : 'Engelle'),
+                      ],
+                    ),
                   ),
                   const PopupMenuItem(
                     value: 'sikayet',
-                    child: Row(children: [
-                      Icon(LucideIcons.flag, size: 18),
-                      SizedBox(width: 10),
-                      Text('Şikâyet et'),
-                    ]),
+                    child: Row(
+                      children: [
+                        Icon(LucideIcons.flag, size: 18),
+                        SizedBox(width: 10),
+                        Text('Şikâyet et'),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -483,7 +571,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     if (i == list.length) return const _AktifAramaBalonu();
                     final msg = list[i];
                     final mine = msg.senderId == myId;
-                    final showDate = i == 0 ||
+                    final showDate =
+                        i == 0 ||
                         !_sameDay(list[i - 1].createdAt, msg.createdAt);
                     return Column(
                       children: [
@@ -502,11 +591,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           //    sikayet et). App Store 1.2 (UGC) sarti.
                           GestureDetector(
                             behavior: HitTestBehavior.opaque,
-                            onLongPress: () => mesajMenusuAc(context, ref,
-                                mesaj: msg,
-                                benimMi: mine,
-                                chatId: widget.chatId),
-                            child: _Bubble(message: msg, mine: mine, grup: _grupMu),
+                            onLongPress: () => mesajMenusuAc(
+                              context,
+                              ref,
+                              mesaj: msg,
+                              benimMi: mine,
+                              chatId: widget.chatId,
+                            ),
+                            child: _Bubble(
+                              message: msg,
+                              mine: mine,
+                              grup: _grupMu,
+                            ),
                           ),
                       ],
                     );
@@ -552,8 +648,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           borderRadius: BorderRadius.circular(24),
                           borderSide: BorderSide.none,
                         ),
-                        contentPadding:
-                            const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
                         // Faz 2: atas (medya) butonu buraya
                       ),
                     ),
@@ -596,7 +694,9 @@ class _DateChip extends StatelessWidget {
     final local = date.toLocal();
     final now = DateTime.now();
     String label;
-    if (local.year == now.year && local.month == now.month && local.day == now.day) {
+    if (local.year == now.year &&
+        local.month == now.month &&
+        local.day == now.day) {
       label = 'Bugün';
     } else if (now.difference(local).inDays == 1) {
       label = 'Dün';
@@ -635,36 +735,45 @@ class _AktifAramaBalonu extends ConsumerWidget {
             borderRadius: BorderRadius.circular(16),
             onTap: ctrl.restore,
             child: Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                const Icon(LucideIcons.phone,
-                    size: 16, color: Color(0xFF25D366)),
-                const SizedBox(width: 10),
-                Flexible(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                          ctrl.isGroup
-                              ? 'Grup aramasındasın'
-                              : 'Aramadasın',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600)),
-                      Text('Geri dönmek için dokun · ${ctrl.durumMetni}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              color: Colors.white70, fontSize: 12)),
-                    ],
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    LucideIcons.phone,
+                    size: 16,
+                    color: Color(0xFF25D366),
                   ),
-                ),
-              ]),
+                  const SizedBox(width: 10),
+                  Flexible(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          ctrl.isGroup ? 'Grup aramasındasın' : 'Aramadasın',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        Text(
+                          'Geri dönmek için dokun · ${ctrl.durumMetni}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -748,13 +857,17 @@ class _CallLogChip extends StatelessWidget {
       final saat = DateFormat.Hm().format(message.createdAt.toLocal());
       final metin = bitti
           ? 'Grup araması sona erdi'
-          : (mine ? 'Grup araması · davet gönderildi' : 'Grup araması · Davet edildiniz');
+          : (mine
+                ? 'Grup araması · davet gönderildi'
+                : 'Grup araması · Davet edildiniz');
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 6),
         child: Chip(
-          avatar: Icon(LucideIcons.video,
-              size: 15,
-              color: bitti ? scheme.outline : const Color(0xFF25D366)),
+          avatar: Icon(
+            LucideIcons.video,
+            size: 15,
+            color: bitti ? scheme.outline : const Color(0xFF25D366),
+          ),
           label: Text('$metin · $saat', style: const TextStyle(fontSize: 12)),
           visualDensity: VisualDensity.compact,
         ),
@@ -790,7 +903,9 @@ class _CallLogChip extends StatelessWidget {
     // yuvarlak ikon + baslik + saat, ALTINDA tam genislikte "Geri ara" dugmesi.
     // Cevapsizda ikon dairesi KIRMIZI dolu; cevaplanan/gidende notr.
     // ⚠️ YAPMA: buraya emoji koyma (turu 62: arayuzde emoji YOK).
-    final daireRengi = vurgu ? const Color(0xFFE53935) : scheme.surfaceContainerHigh;
+    final daireRengi = vurgu
+        ? const Color(0xFFE53935)
+        : scheme.surfaceContainerHigh;
     final ikonRengi = vurgu ? Colors.white : scheme.onSurface;
     return Align(
       alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
@@ -808,45 +923,64 @@ class _CallLogChip extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(mainAxisSize: MainAxisSize.min, children: [
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration:
-                          BoxDecoration(color: daireRengi, shape: BoxShape.circle),
-                      alignment: Alignment.center,
-                      child: Icon(
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: daireRengi,
+                          shape: BoxShape.circle,
+                        ),
+                        alignment: Alignment.center,
+                        child: Icon(
                           video ? LucideIcons.video : LucideIcons.phone,
                           size: 19,
-                          color: ikonRengi),
-                    ),
-                    const SizedBox(width: 11),
-                    Flexible(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(missed && !mine ? 'Cevapsız $baslikKucuk' : baslik,
+                          color: ikonRengi,
+                        ),
+                      ),
+                      const SizedBox(width: 11),
+                      Flexible(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              missed && !mine
+                                  ? 'Cevapsız $baslikKucuk'
+                                  : baslik,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
-                                  fontSize: 15.5, fontWeight: FontWeight.w700)),
-                          const SizedBox(height: 2),
-                          Row(mainAxisSize: MainAxisSize.min, children: [
-                            Icon(okIkon, size: 12, color: scheme.outline),
-                            const SizedBox(width: 4),
-                            Flexible(
-                              child: Text('$altSatir · $time',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                      fontSize: 12.5, color: scheme.outline)),
+                                fontSize: 15.5,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
-                          ]),
-                        ],
+                            const SizedBox(height: 2),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(okIkon, size: 12, color: scheme.outline),
+                                const SizedBox(width: 4),
+                                Flexible(
+                                  child: Text(
+                                    '$altSatir · $time',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 12.5,
+                                      color: scheme.outline,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ]),
+                    ],
+                  ),
                   // "Geri ara" — kartin ICINDE, tam genislikte (ekran goruntusundeki gibi).
                   // Dokununca alttan "Sesli ara / Görüntülü ara" paneli acilir.
                   if (onAra != null) ...[
@@ -854,17 +988,23 @@ class _CallLogChip extends StatelessWidget {
                     SizedBox(
                       width: double.infinity,
                       child: Material(
-                        color: scheme.surfaceContainerHigh.withValues(alpha: 0.9),
+                        color: scheme.surfaceContainerHigh.withValues(
+                          alpha: 0.9,
+                        ),
                         borderRadius: BorderRadius.circular(11),
                         clipBehavior: Clip.antiAlias,
                         child: InkWell(
                           onTap: () => _panelAc(context, video),
                           child: const Padding(
                             padding: EdgeInsets.symmetric(vertical: 10),
-                            child: Text('Geri ara',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                    fontSize: 14.5, fontWeight: FontWeight.w700)),
+                            child: Text(
+                              'Geri ara',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 14.5,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
                           ),
                         ),
                       ),
@@ -881,11 +1021,7 @@ class _CallLogChip extends StatelessWidget {
 }
 
 class _Bubble extends StatelessWidget {
-  const _Bubble({
-    required this.message,
-    required this.mine,
-    this.grup = false,
-  });
+  const _Bubble({required this.message, required this.mine, this.grup = false});
 
   final Message message;
   final bool mine;
@@ -902,9 +1038,14 @@ class _Bubble extends StatelessWidget {
   /// ⚠️ Rastgele DEGIL: her cizimde degisen renk grup sohbetini okunmaz yapar.
   static Color _adRengi(String id) {
     const palet = [
-      Color(0xFF8B5CF6), Color(0xFF2196F3), Color(0xFF4CAF50),
-      Color(0xFFFF9800), Color(0xFFE91E63), Color(0xFF00BCD4),
-      Color(0xFFFFC107), Color(0xFF9C27B0),
+      Color(0xFF8B5CF6),
+      Color(0xFF2196F3),
+      Color(0xFF4CAF50),
+      Color(0xFFFF9800),
+      Color(0xFFE91E63),
+      Color(0xFF00BCD4),
+      Color(0xFFFFC107),
+      Color(0xFF9C27B0),
     ];
     var h = 0;
     for (final c in id.codeUnits) {
@@ -923,8 +1064,9 @@ class _Bubble extends StatelessWidget {
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: 2),
         padding: const EdgeInsets.fromLTRB(12, 8, 8, 6),
-        constraints:
-            BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.78),
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.78,
+        ),
         decoration: BoxDecoration(
           color: mine ? scheme.bubbleMine : scheme.bubbleOther,
           borderRadius: BorderRadius.only(
@@ -935,9 +1077,10 @@ class _Bubble extends StatelessWidget {
           ),
           boxShadow: [
             BoxShadow(
-                color: Colors.black.withValues(alpha: 0.06),
-                blurRadius: 2,
-                offset: const Offset(0, 1)),
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 2,
+              offset: const Offset(0, 1),
+            ),
           ],
         ),
         child: Column(
@@ -963,16 +1106,22 @@ class _Bubble extends StatelessWidget {
                 ),
               ),
             if (message.deletedForAll)
-              Text('Bu mesaj silindi',
-                  style: TextStyle(
-                      fontStyle: FontStyle.italic, color: scheme.outline))
+              Text(
+                'Bu mesaj silindi',
+                style: TextStyle(
+                  fontStyle: FontStyle.italic,
+                  color: scheme.outline,
+                ),
+              )
             else ...[
               // ⚠️ TURU 74 — GORSEL BALON. `media_id` var ama artik sunucuda
               //     kaldirilmissa (karantina/silindi) `MedyaGorsel` kirik ikon
               //     cizer; balon YINE DE cizilir (mesaj gecmisi bozulmasin).
               if (message.type == 'image' && (message.mediaId ?? '').isNotEmpty)
                 Padding(
-                  padding: EdgeInsets.only(bottom: message.content.isEmpty ? 0 : 6),
+                  padding: EdgeInsets.only(
+                    bottom: message.content.isEmpty ? 0 : 6,
+                  ),
                   child: ConstrainedBox(
                     // ⚠️ En-boy SABITLENMEZ: dikey/yatay fotograf kirpilmasin.
                     //     Yukseklik tavani ekranin %45'i — uzun panoramalar balonu
@@ -981,13 +1130,17 @@ class _Bubble extends StatelessWidget {
                       maxHeight: MediaQuery.of(context).size.height * 0.45,
                     ),
                     child: GestureDetector(
-                      onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                        fullscreenDialog: true,
-                        builder: (_) => TamEkranGorsel(mediaId: message.mediaId!),
-                      )),
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          fullscreenDialog: true,
+                          builder: (_) =>
+                              TamEkranGorsel(mediaId: message.mediaId!),
+                        ),
+                      ),
                       child: MedyaGorsel(
                         mediaId: message.mediaId!,
-                        kucuk: true, // liste icinde kucuk resim YETER (veri tasarrufu)
+                        kucuk:
+                            true, // liste icinde kucuk resim YETER (veri tasarrufu)
                         fit: BoxFit.cover,
                         radius: 8,
                       ),
@@ -1011,8 +1164,10 @@ class _Bubble extends StatelessWidget {
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(time,
-                    style: TextStyle(fontSize: 11, color: scheme.outline)),
+                Text(
+                  time,
+                  style: TextStyle(fontSize: 11, color: scheme.outline),
+                ),
                 if (mine) ...[
                   const SizedBox(width: 4),
                   Icon(

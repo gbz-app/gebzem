@@ -64,6 +64,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             title: extra['title'] as String? ?? 'Sohbet',
             peerId: extra['peer_id'] as String?,
             avatarMediaId: extra['avatar_media_id'] as String?,
+            isGroup: extra['is_group'] == true,
           );
         },
       ),

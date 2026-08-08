@@ -439,6 +439,10 @@ class _ChatTile extends ConsumerWidget {
         'avatar_media_id': chat.avatarMediaId,
         'title': chat.title.isNotEmpty ? chat.title : 'Sohbet',
         'peer_id': chat.peerId,
+        // ⚠️ TURU 76b: grup mu — ACIKCA tasinir. `peerId == null`a bakmak
+        //    YANILTICI olurdu (cagiran kimligi bilmiyorsa 1:1 sohbet de grup
+        //    sanilir ve "Grup bilgisi" menusu yanlis yerde cikar).
+        'is_group': chat.type == 'group',
       }),
     );
 

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -56,7 +55,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   static const _akis = 0;
   static const _ara = 1;
   static const _reels = 2;
-  static const _mesaj = 3;
 
   @override
   void initState() {
@@ -102,19 +100,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       //    (yoksa icerik durum cubugunun ALTINA girer).
       appBar: (_index == _akis || _index == _ara || _index == _reels)
           ? null
-          : AppBar(
-              title: Text(_titles[_index]),
-              actions: [
-                // Mesaj sekmesi: sag-ust + -> yeni sohbet (kisi ara).
-                // Sohbet FILTRESI ChatsScreen icindeki arama kutusunda.
-                if (_index == _mesaj)
-                  IconButton(
-                    icon: const Icon(LucideIcons.plus),
-                    tooltip: 'Yeni sohbet',
-                    onPressed: () => context.push('/search'),
-                  ),
-              ],
-            ),
+          // ⚠️⚠️ TURU 76b — AppBar'DAKI "+" KALDIRILDI (kullanici bulgusu:
+          //    "grup olusturma nerede?").
+          //    Ekranda IKI TANE "+" vardi ve FARKLI IS YAPIYORLARDI:
+          //      · ust (AppBar) "+"  -> DOGRUDAN kisi arama, grup secenegi YOK
+          //      · alt (FAB)    "+"  -> secenek sheet'i: "Yeni sohbet | Yeni grup"
+          //    Ust "+" hem daha once eklenmisti hem daha gorunurdu; kullanici
+          //    ona basip "grup olusturma yok" sonucuna vardi. Yani ozellik
+          //    KODDA VARDI ama ULASILAMIYORDU — bu projenin tekrar eden
+          //    "olu dogmus ozellik" sinifinin arayuz karsiligi.
+          // ⚠️ TEK GIRIS: FAB (`chats_screen._yeniSecenek`). Iki giris noktasi
+          //    KACINILMAZ OLARAK DRIFT EDER (turu 72b/H dersi).
+          // ⚠️ YAPMA: buraya tekrar "+" ekleme; yeni bir sohbet eylemi
+          //    gerekiyorsa `_yeniSecenek` sheet'ine madde ekle.
+          : AppBar(title: Text(_titles[_index])),
       body: IndexedStack(
         index: _index,
         children: [
