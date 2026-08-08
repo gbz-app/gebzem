@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -37,7 +39,46 @@ class _GonderiDetayState extends ConsumerState<GonderiDetay> {
   void initState() {
     super.initState();
     _g = widget.gonderi;
-    if (_g == null) _cek();
+    if (_g == null) {
+      _cek();
+    } else {
+      // ⚠️⚠️ TURU 76 (DENETIM BULGUSU) — GORUNTULENME HIC ARTMIYORDU.
+      //    Sunucu sayaci YALNIZ `GET /posts/{id}` icinde artiriyor. Bu ekran
+      //    hazir bir `Gonderi` NESNESIYLE acildiginda (profil izgarasi, kesfet
+      //    izgarasi, kaydedilenler — yani GERCEK giris yollarinin COGU) o istek
+      //    HIC ATILMIYORDU. Sonuc: kullanicinin ozellikle istedigi
+      //    "goruntulenme sayisi" istatistigi pratikte HEP 0 kalirdi.
+      // ⚠️ SESSIZ tazeleme: spinner YOK, hata ekrani YOK — elimizde zaten
+      //    cizilecek gonderi var; ag hatasi kullaniciya BOS EKRAN gostermemeli.
+      unawaited(_sessizTazele());
+    }
+  }
+
+  /// Sunucudan taze sayilari alir (ve GORUNTULENMEYI artirir).
+  ///
+  /// ⚠️ `_g` NESNESI DEGISTIRILMEZ, ALANLARI GUNCELLENIR: model akis/izgara ile
+  ///    PAYLASILIYOR (bu dosyanin ve kartin dayandigi desen). Yeni nesne
+  ///    atasaydik detayda yapilan begeni, geri donuldugunde izgarada gorunmezdi.
+  Future<void> _sessizTazele() async {
+    try {
+      final taze = await ref
+          .read(sosyalServisiProvider)
+          .gonderiGetir(widget.gonderi!.id);
+      if (!mounted) return;
+      final g = _g;
+      if (g == null) return;
+      setState(() {
+        g.begeniSayisi = taze.begeniSayisi;
+        g.yorumSayisi = taze.yorumSayisi;
+        g.begendim = taze.begendim;
+        g.kaydettim = taze.kaydettim;
+        g.metin = taze.metin;
+        g.yorumKapali = taze.yorumKapali;
+        g.duzenlendi = taze.duzenlendi;
+      });
+    } catch (_) {
+      // sessiz — ekranda zaten gecerli bir gonderi var
+    }
   }
 
   Future<void> _cek() async {
