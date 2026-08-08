@@ -63,7 +63,8 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
 
   void _kaydirmaDinle() {
     if (!_kaydirma.hasClients) return;
-    final kalan = _kaydirma.position.maxScrollExtent - _kaydirma.position.pixels;
+    final kalan =
+        _kaydirma.position.maxScrollExtent - _kaydirma.position.pixels;
     // 800px kala sonrakini getir — kullanici "yukleniyor" gormeden akmali.
     if (kalan < 800) _dahaGetir();
   }
@@ -121,15 +122,15 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
   }
 
   void _profileGit(String userId) {
-    Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => ProfilSayfasi(userId: userId),
-    ));
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => ProfilSayfasi(userId: userId)));
   }
 
   Future<void> _olustur({bool reels = false}) async {
-    final id = await Navigator.of(context).push<String>(MaterialPageRoute(
-      builder: (_) => GonderiOlustur(reels: reels),
-    ));
+    final id = await Navigator.of(context).push<String>(
+      MaterialPageRoute(builder: (_) => GonderiOlustur(reels: reels)),
+    );
     // Paylasildiysa akisi bastan getir — kendi gonderini EN USTTE gormelisin.
     if (id != null && mounted) {
       unawaited(_yenile());
@@ -141,8 +142,8 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    final benimId =
-        (ref.watch(myProfileProvider).valueOrNull?['id'] ?? '').toString();
+    final benimId = (ref.watch(myProfileProvider).valueOrNull?['id'] ?? '')
+        .toString();
 
     return Scaffold(
       appBar: AppBar(
@@ -165,16 +166,16 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
           IconButton(
             icon: const Icon(LucideIcons.clapperboard),
             tooltip: 'Reels',
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-              builder: (_) => const ReelsSayfasi(),
-            )),
+            onPressed: () => Navigator.of(
+              context,
+            ).push(MaterialPageRoute(builder: (_) => const ReelsSayfasi())),
           ),
           IconButton(
             icon: const Icon(LucideIcons.bell),
             tooltip: 'Bildirimler',
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-              builder: (_) => const BildirimlerSayfasi(),
-            )),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const BildirimlerSayfasi()),
+            ),
           ),
         ],
       ),
@@ -192,10 +193,7 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
       body: IndexedStack(
         index: _bolme,
         children: [
-          RefreshIndicator(
-            onRefresh: _yenile,
-            child: _govde(benimId),
-          ),
+          RefreshIndicator(onRefresh: _yenile, child: _govde(benimId)),
           const KanallarSekmesi(),
         ],
       ),
@@ -214,7 +212,9 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
           const SizedBox(height: 12),
           Center(
             child: OutlinedButton(
-                onPressed: _yenile, child: const Text('Tekrar dene')),
+              onPressed: _yenile,
+              child: const Text('Tekrar dene'),
+            ),
           ),
         ],
       );
@@ -255,9 +255,12 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
                   ? const SizedBox(
                       width: 22,
                       height: 22,
-                      child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Text('Hepsi bu kadar',
-                      style: TextStyle(color: Colors.grey, fontSize: 12)),
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text(
+                      'Hepsi bu kadar',
+                      style: TextStyle(color: Colors.grey, fontSize: 12),
+                    ),
             ),
           );
         }
@@ -269,27 +272,28 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
           gonderi: g,
           benimId: benimId,
           profileGit: _profileGit,
-          onSilindi: () => setState(() => _liste.removeWhere((x) => x.id == g.id)),
+          onSilindi: () =>
+              setState(() => _liste.removeWhere((x) => x.id == g.id)),
         );
       },
     );
   }
 
   Widget _kesfetSeridi() => Container(
-        width: double.infinity,
-        color: const Color(0x228B5CF6),
-        padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-        child: const Row(
-          children: [
-            Icon(LucideIcons.compass, size: 18),
-            SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                'Keşfet — kimseyi takip etmiyorsun. Beğendiğin kişileri takip et, akışın kişiselleşsin.',
-                style: TextStyle(fontSize: 12),
-              ),
-            ),
-          ],
+    width: double.infinity,
+    color: const Color(0x228B5CF6),
+    padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+    child: const Row(
+      children: [
+        Icon(LucideIcons.compass, size: 18),
+        SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            'Keşfet — kimseyi takip etmiyorsun. Beğendiğin kişileri takip et, akışın kişiselleşsin.',
+            style: TextStyle(fontSize: 12),
+          ),
         ),
-      );
+      ],
+    ),
+  );
 }

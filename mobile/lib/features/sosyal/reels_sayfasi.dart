@@ -125,20 +125,25 @@ class _ReelsSayfasiState extends ConsumerState<ReelsSayfasi> {
 
   Future<void> _olustur() async {
     if (!MedyaKapisi.izinVer(ref)) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(MedyaKapisi.engelSebebi(ref) ?? 'Şu anda video seçilemez'),
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            MedyaKapisi.engelSebebi(ref) ?? 'Şu anda video seçilemez',
+          ),
+        ),
+      );
       return;
     }
     final id = await Navigator.of(context).push<String>(
-        MaterialPageRoute(builder: (_) => const GonderiOlustur(reels: true)));
+      MaterialPageRoute(builder: (_) => const GonderiOlustur(reels: true)),
+    );
     if (id != null && mounted) unawaited(_yukle());
   }
 
   @override
   Widget build(BuildContext context) {
-    final benimId =
-        (ref.watch(myProfileProvider).valueOrNull?['id'] ?? '').toString();
+    final benimId = (ref.watch(myProfileProvider).valueOrNull?['id'] ?? '')
+        .toString();
     return Scaffold(
       backgroundColor: Colors.black,
       extendBodyBehindAppBar: true,
@@ -182,11 +187,16 @@ class _ReelsSayfasiState extends ConsumerState<ReelsSayfasi> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(LucideIcons.clapperboard,
-                  size: 54, color: Colors.white54),
+              const Icon(
+                LucideIcons.clapperboard,
+                size: 54,
+                color: Colors.white54,
+              ),
               const SizedBox(height: 14),
-              const Text('Henüz reels yok.',
-                  style: TextStyle(color: Colors.white70)),
+              const Text(
+                'Henüz reels yok.',
+                style: TextStyle(color: Colors.white70),
+              ),
               const SizedBox(height: 14),
               FilledButton.icon(
                 onPressed: _olustur,
@@ -276,124 +286,130 @@ class _ReelsSayfasiState extends ConsumerState<ReelsSayfasi> {
   }
 
   Widget _yazarBloku(Gonderi g) => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          GestureDetector(
-            onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => ProfilSayfasi(userId: g.yazarId))),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Avatar(
-                  ad: g.yazarAd,
-                  mediaId: g.yazarAvatarMediaId,
-                  avatarUrl: g.yazarAvatar,
-                  cap: 34,
-                ),
-                const SizedBox(width: 10),
-                Flexible(
-                  child: Text(
-                    g.yazarUsername.isEmpty ? g.yazarAd : '@${g.yazarUsername}',
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        color: Colors.white, fontWeight: FontWeight.w700),
-                  ),
-                ),
-              ],
+    crossAxisAlignment: CrossAxisAlignment.start,
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      GestureDetector(
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => ProfilSayfasi(userId: g.yazarId)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Avatar(
+              ad: g.yazarAd,
+              mediaId: g.yazarAvatarMediaId,
+              avatarUrl: g.yazarAvatar,
+              cap: 34,
             ),
-          ),
-          if (g.metin.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Text(
-              g.metin,
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: Colors.white, fontSize: 13),
+            const SizedBox(width: 10),
+            Flexible(
+              child: Text(
+                g.yazarUsername.isEmpty ? g.yazarAd : '@${g.yazarUsername}',
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
             ),
           ],
-        ],
-      );
+        ),
+      ),
+      if (g.metin.isNotEmpty) ...[
+        const SizedBox(height: 8),
+        Text(
+          g.metin,
+          maxLines: 3,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(color: Colors.white, fontSize: 13),
+        ),
+      ],
+    ],
+  );
 
   Widget _sagKolon(Gonderi g, String benimId) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _eylem(
-            ikon: LucideIcons.heart,
-            renk: g.begendim ? const Color(0xFFFF3B5C) : Colors.white,
-            etiket: sayiBicimle(g.begeniSayisi),
-            onTap: () => _begeniCevir(g),
-          ),
-          _eylem(
-            ikon: LucideIcons.messageCircle,
-            renk: Colors.white,
-            etiket: sayiBicimle(g.yorumSayisi),
-            onTap: g.yorumKapali
-                ? null
-                : () async {
-                    final fark = await Navigator.of(context).push<int>(
-                        MaterialPageRoute(
-                            builder: (_) => YorumlarSayfasi(
-                                gonderi: g, benimId: benimId)));
-                    if (fark != null && mounted) {
-                      setState(() => g.yorumSayisi =
-                          (g.yorumSayisi + fark).clamp(0, 1 << 30));
-                    }
-                  },
-          ),
-          if (g.goruntulenme > 0)
-            _eylem(
-              ikon: LucideIcons.eye,
-              renk: Colors.white,
-              etiket: sayiBicimle(g.goruntulenme),
-              onTap: null,
-            ),
-          _eylem(
-            ikon: LucideIcons.link,
-            renk: Colors.white,
-            etiket: '',
-            onTap: () async {
-              await Clipboard.setData(
-                  ClipboardData(text: 'https://gebzem.app/p/${g.id}'));
-              if (!mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Bağlantı kopyalandı')));
-            },
-          ),
-          if (g.yazarId != benimId)
-            _eylem(
-              ikon: LucideIcons.flag,
-              renk: Colors.white,
-              etiket: '',
-              onTap: () => sikayetSheetAc(context, ref,
-                  hedefTur: 'reels', hedefId: g.id),
-            ),
-        ],
-      );
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      _eylem(
+        ikon: LucideIcons.heart,
+        renk: g.begendim ? const Color(0xFFFF3B5C) : Colors.white,
+        etiket: sayiBicimle(g.begeniSayisi),
+        onTap: () => _begeniCevir(g),
+      ),
+      _eylem(
+        ikon: LucideIcons.messageCircle,
+        renk: Colors.white,
+        etiket: sayiBicimle(g.yorumSayisi),
+        onTap: g.yorumKapali
+            ? null
+            : () async {
+                await Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        YorumlarSayfasi(gonderi: g, benimId: benimId),
+                  ),
+                );
+                // ⚠️ TURU 75b: sayac PAYLASILAN model uzerinden guncellenir
+                //    (bkz. yorumlar_sayfasi serhi) — deger DONMEZ.
+                if (mounted) setState(() {});
+              },
+      ),
+      if (g.goruntulenme > 0)
+        _eylem(
+          ikon: LucideIcons.eye,
+          renk: Colors.white,
+          etiket: sayiBicimle(g.goruntulenme),
+          onTap: null,
+        ),
+      _eylem(
+        ikon: LucideIcons.link,
+        renk: Colors.white,
+        etiket: '',
+        onTap: () async {
+          await Clipboard.setData(
+            ClipboardData(text: 'https://gebzem.app/p/${g.id}'),
+          );
+          if (!mounted) return;
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Bağlantı kopyalandı')));
+        },
+      ),
+      if (g.yazarId != benimId)
+        _eylem(
+          ikon: LucideIcons.flag,
+          renk: Colors.white,
+          etiket: '',
+          onTap: () =>
+              sikayetSheetAc(context, ref, hedefTur: 'reels', hedefId: g.id),
+        ),
+    ],
+  );
 
   Widget _eylem({
     required IconData ikon,
     required Color renk,
     required String etiket,
     VoidCallback? onTap,
-  }) =>
-      Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
-        child: GestureDetector(
-          onTap: onTap,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(ikon, color: onTap == null ? Colors.white38 : renk, size: 28),
-              if (etiket.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(top: 3),
-                  child: Text(etiket,
-                      style: const TextStyle(
-                          color: Colors.white, fontSize: 11)),
-                ),
-            ],
-          ),
-        ),
-      );
+  }) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+    child: GestureDetector(
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(ikon, color: onTap == null ? Colors.white38 : renk, size: 28),
+          if (etiket.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 3),
+              child: Text(
+                etiket,
+                style: const TextStyle(color: Colors.white, fontSize: 11),
+              ),
+            ),
+        ],
+      ),
+    ),
+  );
 }

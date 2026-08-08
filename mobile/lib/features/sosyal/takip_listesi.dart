@@ -72,44 +72,44 @@ class _TakipListesiState extends ConsumerState<TakipListesi> {
       body: _yukleniyor
           ? const Center(child: CircularProgressIndicator())
           : _hata != null
-              ? Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(LucideIcons.lock,
-                          size: 34, color: Colors.grey),
-                      const SizedBox(height: 10),
-                      Text(_hata!, textAlign: TextAlign.center),
-                    ],
+          ? Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(LucideIcons.lock, size: 34, color: Colors.grey),
+                  const SizedBox(height: 10),
+                  Text(_hata!, textAlign: TextAlign.center),
+                ],
+              ),
+            )
+          : _liste.isEmpty
+          ? const Center(
+              child: Text('Liste boş', style: TextStyle(color: Colors.grey)),
+            )
+          : ListView.builder(
+              itemCount: _liste.length,
+              itemBuilder: (_, i) {
+                final u = _liste[i];
+                final ad = (u['name'] ?? '').toString();
+                final kul = (u['username'] ?? '').toString();
+                return ListTile(
+                  leading: Avatar(
+                    ad: ad,
+                    mediaId: u['avatar_media_id'] as String?,
+                    avatarUrl: (u['avatar_url'] ?? '').toString(),
+                    cap: 42,
                   ),
-                )
-              : _liste.isEmpty
-                  ? const Center(
-                      child: Text('Liste boş',
-                          style: TextStyle(color: Colors.grey)))
-                  : ListView.builder(
-                      itemCount: _liste.length,
-                      itemBuilder: (_, i) {
-                        final u = _liste[i];
-                        final ad = (u['name'] ?? '').toString();
-                        final kul = (u['username'] ?? '').toString();
-                        return ListTile(
-                          leading: Avatar(
-                            ad: ad,
-                            mediaId: u['avatar_media_id'] as String?,
-                            avatarUrl: (u['avatar_url'] ?? '').toString(),
-                            cap: 42,
-                          ),
-                          title: Text(ad),
-                          subtitle: kul.isEmpty ? null : Text('@$kul'),
-                          onTap: () =>
-                              Navigator.of(context).push(MaterialPageRoute(
-                            builder: (_) =>
-                                ProfilSayfasi(userId: (u['id'] ?? '').toString()),
-                          )),
-                        );
-                      },
+                  title: Text(ad),
+                  subtitle: kul.isEmpty ? null : Text('@$kul'),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          ProfilSayfasi(userId: (u['id'] ?? '').toString()),
                     ),
+                  ),
+                );
+              },
+            ),
     );
   }
 }
@@ -160,8 +160,9 @@ class _TakipIstekleriState extends ConsumerState<TakipIstekleri> {
       setState(() => _liste.removeWhere((u) => (u['id'] ?? '') == userId));
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('İşlem tamamlanamadı')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('İşlem tamamlanamadı')));
     } finally {
       _mesgul.remove(userId);
       if (mounted) setState(() {});
@@ -175,43 +176,46 @@ class _TakipIstekleriState extends ConsumerState<TakipIstekleri> {
       body: _yukleniyor
           ? const Center(child: CircularProgressIndicator())
           : _liste.isEmpty
-              ? const Center(
-                  child: Text('Bekleyen istek yok',
-                      style: TextStyle(color: Colors.grey)))
-              : ListView.builder(
-                  itemCount: _liste.length,
-                  itemBuilder: (_, i) {
-                    final u = _liste[i];
-                    final id = (u['id'] ?? '').toString();
-                    final calisiyor = _mesgul.contains(id);
-                    return ListTile(
-                      leading: Avatar(
-                        ad: (u['name'] ?? '').toString(),
-                        mediaId: u['avatar_media_id'] as String?,
-                        avatarUrl: (u['avatar_url'] ?? '').toString(),
-                        cap: 42,
+          ? const Center(
+              child: Text(
+                'Bekleyen istek yok',
+                style: TextStyle(color: Colors.grey),
+              ),
+            )
+          : ListView.builder(
+              itemCount: _liste.length,
+              itemBuilder: (_, i) {
+                final u = _liste[i];
+                final id = (u['id'] ?? '').toString();
+                final calisiyor = _mesgul.contains(id);
+                return ListTile(
+                  leading: Avatar(
+                    ad: (u['name'] ?? '').toString(),
+                    mediaId: u['avatar_media_id'] as String?,
+                    avatarUrl: (u['avatar_url'] ?? '').toString(),
+                    cap: 42,
+                  ),
+                  title: Text((u['name'] ?? '').toString()),
+                  subtitle: Text('@${u['username'] ?? ''}'),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(
+                          LucideIcons.check,
+                          color: Color(0xFF4CAF50),
+                        ),
+                        onPressed: calisiyor ? null : () => _karar(id, true),
                       ),
-                      title: Text((u['name'] ?? '').toString()),
-                      subtitle: Text('@${u['username'] ?? ''}'),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: const Icon(LucideIcons.check,
-                                color: Color(0xFF4CAF50)),
-                            onPressed:
-                                calisiyor ? null : () => _karar(id, true),
-                          ),
-                          IconButton(
-                            icon: const Icon(LucideIcons.x, color: Colors.red),
-                            onPressed:
-                                calisiyor ? null : () => _karar(id, false),
-                          ),
-                        ],
+                      IconButton(
+                        icon: const Icon(LucideIcons.x, color: Colors.red),
+                        onPressed: calisiyor ? null : () => _karar(id, false),
                       ),
-                    );
-                  },
-                ),
+                    ],
+                  ),
+                );
+              },
+            ),
     );
   }
 }

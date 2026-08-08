@@ -16,8 +16,10 @@ import 'sosyal_servisi.dart';
 ///    Aksi halde bos ekran acilir ve sebebi belli olmaz.
 class GonderiDetay extends ConsumerStatefulWidget {
   const GonderiDetay({super.key, this.gonderi, this.gonderiId})
-      : assert(gonderi != null || gonderiId != null,
-            'gonderi ya da gonderiId verilmeli');
+    : assert(
+        gonderi != null || gonderiId != null,
+        'gonderi ya da gonderiId verilmeli',
+      );
 
   final Gonderi? gonderi;
   final String? gonderiId;
@@ -60,50 +62,53 @@ class _GonderiDetayState extends ConsumerState<GonderiDetay> {
         _hata = s.contains('403')
             ? 'Bu hesap gizli'
             : s.contains('404')
-                ? 'Gönderi bulunamadı ya da kaldırıldı'
-                : 'Gönderi açılamadı';
+            ? 'Gönderi bulunamadı ya da kaldırıldı'
+            : 'Gönderi açılamadı';
       });
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final benimId =
-        (ref.watch(myProfileProvider).valueOrNull?['id'] ?? '').toString();
+    final benimId = (ref.watch(myProfileProvider).valueOrNull?['id'] ?? '')
+        .toString();
     final g = _g;
     return Scaffold(
       appBar: AppBar(title: const Text('Gönderi')),
       body: _yukleniyor
           ? const Center(child: CircularProgressIndicator())
           : g == null
-              ? Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(_hata ?? 'Gönderi açılamadı'),
-                      if (widget.gonderiId != null) ...[
-                        const SizedBox(height: 10),
-                        OutlinedButton(
-                            onPressed: _cek, child: const Text('Tekrar dene')),
-                      ],
-                    ],
-                  ),
-                )
-              : ListView(
-                  children: [
-                    GonderiKarti(
-                      key: ValueKey(g.id),
-                      gonderi: g,
-                      benimId: benimId,
-                      profileGit: (uid) =>
-                          Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) => ProfilSayfasi(userId: uid),
-                      )),
-                      // Silinince bu sayfada kalacak bir sey yok.
-                      onSilindi: () => Navigator.of(context).pop(),
+          ? Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(_hata ?? 'Gönderi açılamadı'),
+                  if (widget.gonderiId != null) ...[
+                    const SizedBox(height: 10),
+                    OutlinedButton(
+                      onPressed: _cek,
+                      child: const Text('Tekrar dene'),
                     ),
                   ],
+                ],
+              ),
+            )
+          : ListView(
+              children: [
+                GonderiKarti(
+                  key: ValueKey(g.id),
+                  gonderi: g,
+                  benimId: benimId,
+                  profileGit: (uid) => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => ProfilSayfasi(userId: uid),
+                    ),
+                  ),
+                  // Silinince bu sayfada kalacak bir sey yok.
+                  onSilindi: () => Navigator.of(context).pop(),
                 ),
+              ],
+            ),
     );
   }
 }

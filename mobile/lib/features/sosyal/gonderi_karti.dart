@@ -79,9 +79,9 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
         g.begendim = eskiDurum;
         g.begeniSayisi = eskiSayi;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Beğeni gönderilemedi')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Beğeni gönderilemedi')));
     } finally {
       _mesgul = false;
     }
@@ -107,17 +107,17 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
   }
 
   Future<void> _yorumlariAc() async {
-    final yeni = await Navigator.of(context).push<int>(MaterialPageRoute(
-      builder: (_) => YorumlarSayfasi(gonderi: g, benimId: widget.benimId),
-    ));
-    // ⚠️ Yorum sayfasi EKLENEN/SILINEN yorum farkini geri dondurur; kart sayaci
-    //    boylece yenilemeye gerek kalmadan dogru kalir.
-    if (yeni != null && mounted) {
-      setState(() {
-        g.yorumSayisi += yeni;
-        if (g.yorumSayisi < 0) g.yorumSayisi = 0;
-      });
-    }
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => YorumlarSayfasi(gonderi: g, benimId: widget.benimId),
+      ),
+    );
+    // ⚠️ TURU 75b: yorum sayfasi ARTIK deger DONDURMUYOR — sayaci PAYLASILAN
+    //    model uzerinden (`g.yorumSayisi`) guncelliyor. Sebep: geri donus degeri
+    //    icin gereken `PopScope(canPop:false)`, iPhone'da KENAR KAYDIRMA ile
+    //    geri donusu tamamen kapatiyordu.
+    // ⚠️ Bu yuzden burada yalniz YENIDEN CIZ; deger okuma YOK.
+    if (mounted) setState(() {});
   }
 
   Future<void> _menu() async {
@@ -136,8 +136,10 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
             if (benim)
               ListTile(
                 leading: const Icon(LucideIcons.trash2, color: Colors.red),
-                title: const Text('Gönderiyi sil',
-                    style: TextStyle(color: Colors.red)),
+                title: const Text(
+                  'Gönderiyi sil',
+                  style: TextStyle(color: Colors.red),
+                ),
                 onTap: () => Navigator.pop(c, 'sil'),
               ),
             if (!benim)
@@ -152,10 +154,13 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
     );
     if (!mounted || secim == null) return;
     if (secim == 'link') {
-      await Clipboard.setData(ClipboardData(text: 'https://gebzem.app/p/${g.id}'));
+      await Clipboard.setData(
+        ClipboardData(text: 'https://gebzem.app/p/${g.id}'),
+      );
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Bağlantı kopyalandı')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Bağlantı kopyalandı')));
     } else if (secim == 'sil') {
       final onay = await showDialog<bool>(
         context: context,
@@ -164,11 +169,13 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
           content: const Text('Bu işlem geri alınamaz.'),
           actions: [
             TextButton(
-                onPressed: () => Navigator.pop(c, false),
-                child: const Text('Vazgeç')),
+              onPressed: () => Navigator.pop(c, false),
+              child: const Text('Vazgeç'),
+            ),
             TextButton(
-                onPressed: () => Navigator.pop(c, true),
-                child: const Text('Sil', style: TextStyle(color: Colors.red))),
+              onPressed: () => Navigator.pop(c, true),
+              child: const Text('Sil', style: TextStyle(color: Colors.red)),
+            ),
           ],
         ),
       );
@@ -178,8 +185,9 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
         widget.onSilindi?.call();
       } catch (_) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('Gönderi silinemedi')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Gönderi silinemedi')));
       }
     } else if (secim == 'sikayet') {
       await sikayetSheetAc(context, ref, hedefTur: 'gonderi', hedefId: g.id);
@@ -206,8 +214,10 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
           ),
           title: GestureDetector(
             onTap: () => widget.profileGit?.call(g.yazarId),
-            child: Text(g.yazarAd,
-                style: const TextStyle(fontWeight: FontWeight.w600)),
+            child: Text(
+              g.yazarAd,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
           ),
           subtitle: Text(
             g.yazarUsername.isEmpty
@@ -264,9 +274,13 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
                     children: [
                       const Icon(LucideIcons.eye, size: 15, color: Colors.grey),
                       const SizedBox(width: 4),
-                      Text(sayiBicimle(g.goruntulenme),
-                          style: const TextStyle(
-                              fontSize: 12, color: Colors.grey)),
+                      Text(
+                        sayiBicimle(g.goruntulenme),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -283,8 +297,10 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
         if (g.yorumKapali)
           const Padding(
             padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: Text('Yorumlar kapalı',
-                style: TextStyle(fontSize: 12, color: Colors.grey)),
+            child: Text(
+              'Yorumlar kapalı',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
           ),
         const Divider(height: 1),
       ],
@@ -316,8 +332,7 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
         ),
         if (_kalpGoster)
           const IgnorePointer(
-            child: Icon(LucideIcons.heart,
-                size: 92, color: Color(0xEEFF3B5C)),
+            child: Icon(LucideIcons.heart, size: 92, color: Color(0xEEFF3B5C)),
           ),
         if (coklu)
           Positioned(
@@ -360,24 +375,26 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
       );
     }
     return GestureDetector(
-      onTap: () => Navigator.of(context).push(MaterialPageRoute(
-        builder: (_) => TamEkranGorsel(mediaId: id),
-      )),
+      onTap: () => Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => TamEkranGorsel(mediaId: id))),
       child: MedyaGorsel(mediaId: id, fit: BoxFit.contain),
     );
   }
 
   Widget _rozet(String metin) => DecoratedBox(
-        decoration: BoxDecoration(
-          color: const Color(0x99000000),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-          child: Text(metin,
-              style: const TextStyle(color: Colors.white, fontSize: 11)),
-        ),
-      );
+    decoration: BoxDecoration(
+      color: const Color(0x99000000),
+      borderRadius: BorderRadius.circular(10),
+    ),
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      child: Text(
+        metin,
+        style: const TextStyle(color: Colors.white, fontSize: 11),
+      ),
+    ),
+  );
 
   Widget _dugme({
     required IconData ikon,
@@ -385,26 +402,27 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
     int? sayi,
     bool dolu = false,
     Color? renk,
-  }) =>
-      TextButton.icon(
-        onPressed: onTap,
-        icon: Icon(ikon, size: 21, color: renk),
-        label: Text(
-          (sayi == null || sayi == 0) ? '' : sayiBicimle(sayi),
-          style: TextStyle(color: renk, fontWeight: FontWeight.w600),
-        ),
-        style: TextButton.styleFrom(
-          minimumSize: const Size(0, 40),
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          foregroundColor: renk ?? Theme.of(context).iconTheme.color,
-        ),
-      );
+  }) => TextButton.icon(
+    onPressed: onTap,
+    icon: Icon(ikon, size: 21, color: renk),
+    label: Text(
+      (sayi == null || sayi == 0) ? '' : sayiBicimle(sayi),
+      style: TextStyle(color: renk, fontWeight: FontWeight.w600),
+    ),
+    style: TextButton.styleFrom(
+      minimumSize: const Size(0, 40),
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      foregroundColor: renk ?? Theme.of(context).iconTheme.color,
+    ),
+  );
 
   Future<void> _sohbeteGonder(BuildContext context) async {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Bağlantı kopyalandı — sohbete yapıştırın')),
     );
-    await Clipboard.setData(ClipboardData(text: 'https://gebzem.app/p/${g.id}'));
+    await Clipboard.setData(
+      ClipboardData(text: 'https://gebzem.app/p/${g.id}'),
+    );
   }
 }
 
@@ -431,8 +449,18 @@ String gonderiZamani(String iso) {
   if (f.inHours < 24) return '${f.inHours}sa';
   if (f.inDays < 7) return '${f.inDays}g';
   const aylar = [
-    'Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz',
-    'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara',
+    'Oca',
+    'Şub',
+    'Mar',
+    'Nis',
+    'May',
+    'Haz',
+    'Tem',
+    'Ağu',
+    'Eyl',
+    'Eki',
+    'Kas',
+    'Ara',
   ];
   return '${t.day} ${aylar[t.month - 1]}';
 }

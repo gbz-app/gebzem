@@ -40,9 +40,6 @@ class _YorumlarSayfasiState extends ConsumerState<YorumlarSayfasi> {
   /// Yanitlanan yorum (tek seviye — yanitin yaniti ANA yoruma baglanir).
   Yorum? _yanitlanan;
 
-  /// ⚠️ Karta dondurulecek NET fark. Ekleme +1, silme -1.
-  int _fark = 0;
-
   @override
   void initState() {
     super.initState();
@@ -62,7 +59,9 @@ class _YorumlarSayfasiState extends ConsumerState<YorumlarSayfasi> {
       _hata = null;
     });
     try {
-      final l = await ref.read(sosyalServisiProvider).yorumlar(widget.gonderi.id);
+      final l = await ref
+          .read(sosyalServisiProvider)
+          .yorumlar(widget.gonderi.id);
       if (!mounted) return;
       setState(() {
         _liste = l;
@@ -93,15 +92,15 @@ class _YorumlarSayfasiState extends ConsumerState<YorumlarSayfasi> {
       if (!mounted) return;
       _kutu.clear();
       _yanitlanan = null;
-      _fark++;
+      widget.gonderi.yorumSayisi++;
       // ⚠️ Listeyi TAM YENILE: sunucu yorumu normalize edebilir (kirpma, filtre)
       //    ve yerelde uydurdugumuz satir sunucudakinden FARKLI gorunurdu.
       await _yukle();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_hataMetni(e))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(_hataMetni(e))));
     } finally {
       if (mounted) setState(() => _gonderiliyor = false);
     }
@@ -121,11 +120,13 @@ class _YorumlarSayfasiState extends ConsumerState<YorumlarSayfasi> {
         title: const Text('Yorum silinsin mi?'),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(c, false),
-              child: const Text('Vazgeç')),
+            onPressed: () => Navigator.pop(c, false),
+            child: const Text('Vazgeç'),
+          ),
           TextButton(
-              onPressed: () => Navigator.pop(c, true),
-              child: const Text('Sil', style: TextStyle(color: Colors.red))),
+            onPressed: () => Navigator.pop(c, true),
+            child: const Text('Sil', style: TextStyle(color: Colors.red)),
+          ),
         ],
       ),
     );
@@ -134,26 +135,35 @@ class _YorumlarSayfasiState extends ConsumerState<YorumlarSayfasi> {
       await ref.read(sosyalServisiProvider).yorumSil(y.id);
       if (!mounted) return;
       setState(() {
+        // Kok yorum silinince yanitlari da gider (DB'de ON DELETE CASCADE).
+        final gidenSayi = _liste
+            .where((x) => x.id == y.id || x.parentId == y.id)
+            .length;
         _liste.removeWhere((x) => x.id == y.id || x.parentId == y.id);
-        _fark--;
+        widget.gonderi.yorumSayisi = (widget.gonderi.yorumSayisi - gidenSayi)
+            .clamp(0, 1 << 30);
       });
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Yorum silinemedi')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Yorum silinemedi')));
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // ⚠️ `PopScope` ile GERI TUSU de farki dondurmeli — yalniz AppBar geri
-    //    dugmesine baglamak, Android donanim geri tusunda sayaci BOZAR.
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) Navigator.of(context).pop(_fark);
-      },
-      child: Scaffold(
+    // ⚠️⚠️ TURU 75b (DENETIM BULGUSU): `PopScope(canPop: false)` KALDIRILDI.
+    //    Geri donus DEGERI acisindan dogruydu ama BEDELI agirdi: Flutter
+    //    `CupertinoRouteTransitionMixin._isPopGestureEnabled` icinde
+    //    `popDisposition == doNotPop` gorunce KENAR KAYDIRMA jestini KAPATIR
+    //    -> iPhone'da yorumlardan cikmanin TEK yolu AppBar oku kalirdi.
+    // ⚠️ COZUM: sayac PAYLASILAN MUTABLE MODEL uzerinden guncelleniyor
+    //    (`widget.gonderi` cagiranla AYNI nesne). Geri donus degerine gerek YOK,
+    //    dolayisiyla jesti kisitlamaya da gerek yok.
+    // ⚠️ YAPMA: buraya tekrar `canPop: false` koyma.
+    return Builder(
+      builder: (context) => Scaffold(
         appBar: AppBar(title: const Text('Yorumlar')),
         body: Column(
           children: [
@@ -165,8 +175,10 @@ class _YorumlarSayfasiState extends ConsumerState<YorumlarSayfasi> {
                 child: Row(
                   children: [
                     Expanded(
-                      child: Text('@${_yanitlanan!.yazarUsername} yanıtlanıyor',
-                          style: const TextStyle(fontSize: 12)),
+                      child: Text(
+                        '@${_yanitlanan!.yazarUsername} yanıtlanıyor',
+                        style: const TextStyle(fontSize: 12),
+                      ),
                     ),
                     IconButton(
                       icon: const Icon(LucideIcons.x, size: 16),
@@ -202,7 +214,8 @@ class _YorumlarSayfasiState extends ConsumerState<YorumlarSayfasi> {
                           ? const SizedBox(
                               width: 18,
                               height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2))
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
                           : const Icon(LucideIcons.send),
                       onPressed: _gonderiliyor ? null : _gonder,
                     ),
@@ -236,8 +249,11 @@ class _YorumlarSayfasiState extends ConsumerState<YorumlarSayfasi> {
       return const Center(
         child: Padding(
           padding: EdgeInsets.all(32),
-          child: Text('Henüz yorum yok. İlk yorumu sen yaz.',
-              textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
+          child: Text(
+            'Henüz yorum yok. İlk yorumu sen yaz.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey),
+          ),
         ),
       );
     }
@@ -286,13 +302,16 @@ class _YorumlarSayfasiState extends ConsumerState<YorumlarSayfasi> {
                         y.yazarAd,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                            fontWeight: FontWeight.w600, fontSize: 13),
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 6),
-                    Text(gonderiZamani(y.createdAt),
-                        style:
-                            const TextStyle(fontSize: 11, color: Colors.grey)),
+                    Text(
+                      gonderiZamani(y.createdAt),
+                      style: const TextStyle(fontSize: 11, color: Colors.grey),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 2),
@@ -301,17 +320,23 @@ class _YorumlarSayfasiState extends ConsumerState<YorumlarSayfasi> {
                 Row(
                   children: [
                     if (girinti == 0)
-                      _kucukDugme('Yanıtla',
-                          () => setState(() {
-                                _yanitlanan = y;
-                                _odak.requestFocus();
-                              })),
+                      _kucukDugme(
+                        'Yanıtla',
+                        () => setState(() {
+                          _yanitlanan = y;
+                          _odak.requestFocus();
+                        }),
+                      ),
                     if (y.begeniSayisi > 0)
                       Padding(
                         padding: const EdgeInsets.only(left: 4),
-                        child: Text('${sayiBicimle(y.begeniSayisi)} beğeni',
-                            style: const TextStyle(
-                                fontSize: 11, color: Colors.grey)),
+                        child: Text(
+                          '${sayiBicimle(y.begeniSayisi)} beğeni',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey,
+                          ),
+                        ),
                       ),
                     // ⚠️ GONDERI SAHIBI de silebilir — kendi gonderisindeki tacizi
                     //    kaldirabilmeli (App Store 1.2). Backend de ayni kurali uygular.
@@ -320,8 +345,12 @@ class _YorumlarSayfasiState extends ConsumerState<YorumlarSayfasi> {
                     if (!benim)
                       _kucukDugme(
                         'Şikayet',
-                        () => sikayetSheetAc(context, ref,
-                            hedefTur: 'yorum', hedefId: '${y.id}'),
+                        () => sikayetSheetAc(
+                          context,
+                          ref,
+                          hedefTur: 'yorum',
+                          hedefId: '${y.id}',
+                        ),
                       ),
                   ],
                 ),
@@ -334,13 +363,15 @@ class _YorumlarSayfasiState extends ConsumerState<YorumlarSayfasi> {
   }
 
   Widget _kucukDugme(String metin, VoidCallback onTap) => TextButton(
-        onPressed: onTap,
-        style: TextButton.styleFrom(
-          minimumSize: const Size(0, 28),
-          padding: const EdgeInsets.symmetric(horizontal: 6),
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        ),
-        child: Text(metin,
-            style: const TextStyle(fontSize: 11, color: Colors.grey)),
-      );
+    onPressed: onTap,
+    style: TextButton.styleFrom(
+      minimumSize: const Size(0, 28),
+      padding: const EdgeInsets.symmetric(horizontal: 6),
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    ),
+    child: Text(
+      metin,
+      style: const TextStyle(fontSize: 11, color: Colors.grey),
+    ),
+  );
 }

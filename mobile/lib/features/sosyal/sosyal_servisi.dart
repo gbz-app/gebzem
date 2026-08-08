@@ -25,12 +25,15 @@ class SosyalServisi {
     List<String> mediaIds = const [],
     bool yorumKapali = false,
   }) async {
-    final r = await _api.post('/posts', data: {
-      'tur': tur,
-      'metin': metin,
-      'media_ids': mediaIds,
-      'yorum_kapali': yorumKapali,
-    });
+    final r = await _api.post(
+      '/posts',
+      data: {
+        'tur': tur,
+        'metin': metin,
+        'media_ids': mediaIds,
+        'yorum_kapali': yorumKapali,
+      },
+    );
     return r.data['id'] as String;
   }
 
@@ -40,10 +43,13 @@ class SosyalServisi {
   ///
   /// ⚠️ IMLEC (cursor) sayfalama — `offset` DEGIL. Offset olsaydi biz kaydirirken
   ///    yeni gonderi gelince tum satirlar KAYAR ve ayni gonderi iki kez gorunurdu.
-  Future<({List<Gonderi> gonderiler, bool kesfet})> akis({String? before}) async {
-    final r = await _api.get('/feed', queryParameters: {
-      if (before != null) 'before': before,
-    });
+  Future<({List<Gonderi> gonderiler, bool kesfet})> akis({
+    String? before,
+  }) async {
+    final r = await _api.get(
+      '/feed',
+      queryParameters: {if (before != null) 'before': before},
+    );
     final m = (r.data as Map).cast<String, dynamic>();
     return (
       gonderiler: ((m['posts'] as List?) ?? [])
@@ -61,21 +67,28 @@ class SosyalServisi {
 
   /// Reels akisi — takipten BAGIMSIZ (TikTok/Instagram deseni).
   Future<List<Gonderi>> reels({String? before}) async {
-    final r = await _api.get('/reels', queryParameters: {
-      if (before != null) 'before': before,
-    });
+    final r = await _api.get(
+      '/reels',
+      queryParameters: {if (before != null) 'before': before},
+    );
     final m = (r.data as Map).cast<String, dynamic>();
     return ((m['posts'] as List?) ?? [])
         .map((e) => Gonderi.json((e as Map).cast<String, dynamic>()))
         .toList();
   }
 
-  Future<List<Gonderi>> kullaniciGonderileri(String userId,
-      {String? before, String? tur}) async {
-    final r = await _api.get('/users/$userId/posts', queryParameters: {
-      if (before != null) 'before': before,
-      if (tur != null) 'tur': tur,
-    });
+  Future<List<Gonderi>> kullaniciGonderileri(
+    String userId, {
+    String? before,
+    String? tur,
+  }) async {
+    final r = await _api.get(
+      '/users/$userId/posts',
+      queryParameters: {
+        if (before != null) 'before': before,
+        if (tur != null) 'tur': tur,
+      },
+    );
     final m = (r.data as Map).cast<String, dynamic>();
     return ((m['posts'] as List?) ?? [])
         .map((e) => Gonderi.json((e as Map).cast<String, dynamic>()))
@@ -85,9 +98,25 @@ class SosyalServisi {
   // ---------------- ETKILESIM ----------------
 
   Future<void> begen(String postId) => _api.post('/posts/$postId/like');
-  Future<void> begeniGeriAl(String postId) => _api.delete('/posts/$postId/like');
+  Future<void> begeniGeriAl(String postId) =>
+      _api.delete('/posts/$postId/like');
   Future<void> kaydet(String postId) => _api.post('/posts/$postId/save');
-  Future<void> kaydetKaldir(String postId) => _api.delete('/posts/$postId/save');
+  Future<void> kaydetKaldir(String postId) =>
+      _api.delete('/posts/$postId/save');
+
+  /// Kaydettiklerim.
+  /// ⚠️ Sunucu erisimi YENIDEN degerlendirir (yazar sonradan gizli hesaba
+  ///    gecmis ya da engellemis olabilir) — liste kaydettigimden AZ olabilir.
+  Future<List<Gonderi>> kaydedilenler({String? before}) async {
+    final r = await _api.get(
+      '/users/me/saved',
+      queryParameters: {if (before != null) 'before': before},
+    );
+    final m = (r.data as Map).cast<String, dynamic>();
+    return ((m['posts'] as List?) ?? [])
+        .map((e) => Gonderi.json((e as Map).cast<String, dynamic>()))
+        .toList();
+  }
 
   Future<List<Map<String, dynamic>>> begenenler(String postId) async {
     final r = await _api.get('/posts/$postId/likes');
@@ -104,10 +133,10 @@ class SosyalServisi {
   }
 
   Future<int> yorumYaz(String postId, String metin, {int? parentId}) async {
-    final r = await _api.post('/posts/$postId/comments', data: {
-      'metin': metin,
-      if (parentId != null) 'parent_id': parentId,
-    });
+    final r = await _api.post(
+      '/posts/$postId/comments',
+      data: {'metin': metin, if (parentId != null) 'parent_id': parentId},
+    );
     return (r.data['id'] as num).toInt();
   }
 
@@ -121,7 +150,8 @@ class SosyalServisi {
     return (r.data is Map) && r.data['durum'] == 'onayli';
   }
 
-  Future<void> takibiBirak(String userId) => _api.delete('/users/$userId/follow');
+  Future<void> takibiBirak(String userId) =>
+      _api.delete('/users/$userId/follow');
   Future<void> istekOnayla(String userId) =>
       _api.post('/users/$userId/follow/approve');
   Future<void> istekReddet(String userId) =>
@@ -134,7 +164,9 @@ class SosyalServisi {
 
   /// [tur]: followers | following
   Future<List<Map<String, dynamic>>> takipListesi(
-      String userId, String tur) async {
+    String userId,
+    String tur,
+  ) async {
     final r = await _api.get('/users/$userId/$tur');
     return ((r.data as List?) ?? [])
         .map((e) => (e as Map).cast<String, dynamic>())
@@ -209,24 +241,25 @@ class Gonderi {
   bool get videoMu => tur == 'video' || tur == 'reels';
 
   static Gonderi json(Map<String, dynamic> m) => Gonderi(
-        id: (m['id'] ?? '').toString(),
-        yazarId: (m['author_id'] ?? '').toString(),
-        tur: (m['tur'] ?? 'yazi').toString(),
-        metin: (m['metin'] ?? '').toString(),
-        mediaIds:
-            ((m['media_ids'] as List?) ?? []).map((e) => e.toString()).toList(),
-        begeniSayisi: (m['begeni_sayisi'] as num?)?.toInt() ?? 0,
-        yorumSayisi: (m['yorum_sayisi'] as num?)?.toInt() ?? 0,
-        goruntulenme: (m['goruntulenme'] as num?)?.toInt() ?? 0,
-        yorumKapali: m['yorum_kapali'] == true,
-        createdAt: (m['created_at'] ?? '').toString(),
-        yazarAd: (m['yazar_ad'] ?? '').toString(),
-        yazarUsername: (m['yazar_username'] ?? '').toString(),
-        yazarAvatar: (m['yazar_avatar'] ?? '').toString(),
-        yazarAvatarMediaId: m['yazar_avatar_media_id'] as String?,
-        begendim: m['begendim'] == true,
-        kaydettim: m['kaydettim'] == true,
-      );
+    id: (m['id'] ?? '').toString(),
+    yazarId: (m['author_id'] ?? '').toString(),
+    tur: (m['tur'] ?? 'yazi').toString(),
+    metin: (m['metin'] ?? '').toString(),
+    mediaIds: ((m['media_ids'] as List?) ?? [])
+        .map((e) => e.toString())
+        .toList(),
+    begeniSayisi: (m['begeni_sayisi'] as num?)?.toInt() ?? 0,
+    yorumSayisi: (m['yorum_sayisi'] as num?)?.toInt() ?? 0,
+    goruntulenme: (m['goruntulenme'] as num?)?.toInt() ?? 0,
+    yorumKapali: m['yorum_kapali'] == true,
+    createdAt: (m['created_at'] ?? '').toString(),
+    yazarAd: (m['yazar_ad'] ?? '').toString(),
+    yazarUsername: (m['yazar_username'] ?? '').toString(),
+    yazarAvatar: (m['yazar_avatar'] ?? '').toString(),
+    yazarAvatarMediaId: m['yazar_avatar_media_id'] as String?,
+    begendim: m['begendim'] == true,
+    kaydettim: m['kaydettim'] == true,
+  );
 }
 
 class Yorum {
@@ -257,18 +290,18 @@ class Yorum {
   bool begendim;
 
   static Yorum json(Map<String, dynamic> m) => Yorum(
-        id: (m['id'] as num?)?.toInt() ?? 0,
-        parentId: (m['parent_id'] as num?)?.toInt(),
-        metin: (m['metin'] ?? '').toString(),
-        begeniSayisi: (m['begeni_sayisi'] as num?)?.toInt() ?? 0,
-        createdAt: (m['created_at'] ?? '').toString(),
-        yazarId: (m['yazar_id'] ?? '').toString(),
-        yazarAd: (m['yazar_ad'] ?? '').toString(),
-        yazarUsername: (m['yazar_username'] ?? '').toString(),
-        yazarAvatar: (m['yazar_avatar'] ?? '').toString(),
-        yazarAvatarMediaId: m['yazar_avatar_media_id'] as String?,
-        begendim: m['begendim'] == true,
-      );
+    id: (m['id'] as num?)?.toInt() ?? 0,
+    parentId: (m['parent_id'] as num?)?.toInt(),
+    metin: (m['metin'] ?? '').toString(),
+    begeniSayisi: (m['begeni_sayisi'] as num?)?.toInt() ?? 0,
+    createdAt: (m['created_at'] ?? '').toString(),
+    yazarId: (m['yazar_id'] ?? '').toString(),
+    yazarAd: (m['yazar_ad'] ?? '').toString(),
+    yazarUsername: (m['yazar_username'] ?? '').toString(),
+    yazarAvatar: (m['yazar_avatar'] ?? '').toString(),
+    yazarAvatarMediaId: m['yazar_avatar_media_id'] as String?,
+    begendim: m['begendim'] == true,
+  );
 }
 
 class Profil {
@@ -335,5 +368,6 @@ class Profil {
   }
 }
 
-final sosyalServisiProvider =
-    Provider<SosyalServisi>((ref) => SosyalServisi(ref));
+final sosyalServisiProvider = Provider<SosyalServisi>(
+  (ref) => SosyalServisi(ref),
+);

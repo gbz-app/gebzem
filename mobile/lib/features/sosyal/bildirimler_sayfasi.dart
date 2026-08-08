@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 
 import '../medya/medya_gorsel.dart';
 import 'gonderi_detay.dart';
@@ -24,9 +25,11 @@ class BildirimlerSayfasi extends ConsumerStatefulWidget {
   const BildirimlerSayfasi({super.key});
 
   @override
-  ConsumerState<BildirimlerSayfasi> createState() =>
-      _BildirimlerSayfasiState();
+  ConsumerState<BildirimlerSayfasi> createState() => _BildirimlerSayfasiState();
 }
+
+/// ⚠️ Surec omurlu: ayni bilinmeyen tur icin Sentry'i doldurma.
+final _bilinmeyenTurler = <String>{};
 
 class _BildirimlerSayfasiState extends ConsumerState<BildirimlerSayfasi> {
   List<Map<String, dynamic>> _liste = [];
@@ -71,37 +74,54 @@ class _BildirimlerSayfasiState extends ConsumerState<BildirimlerSayfasi> {
         return (
           ikon: LucideIcons.heart,
           renk: const Color(0xFFFF3B5C),
-          metin: '$ad gönderini beğendi'
+          metin: '$ad gönderini beğendi',
         );
       case 'yorum':
         return (
           ikon: LucideIcons.messageCircle,
           renk: const Color(0xFF2196F3),
-          metin: '$ad gönderine yorum yaptı'
+          metin: '$ad gönderine yorum yaptı',
         );
       case 'takip':
         return (
           ikon: LucideIcons.userPlus,
           renk: const Color(0xFF4CAF50),
-          metin: '$ad seni takip etmeye başladı'
+          metin: '$ad seni takip etmeye başladı',
         );
       case 'takip_istegi':
         return (
           ikon: LucideIcons.userPlus,
           renk: const Color(0xFFFF9800),
-          metin: '$ad takip isteği gönderdi'
+          metin: '$ad takip isteği gönderdi',
+        );
+      case 'takip_onaylandi':
+        // ⚠️ TURU 75b (DENETIM): backend bu turu IKI yerde uretiyor
+        //    (FollowApprove + SetPrivacy'de bekleyenlerin toplu onayi) ama
+        //    istemcide karsiligi YOKTU -> "bir işlem yaptı" yazisina dusuyordu.
+        return (
+          ikon: LucideIcons.userRoundCheck,
+          renk: const Color(0xFF4CAF50),
+          metin: '$ad takip isteğini onayladı',
         );
       case 'bahsetme':
         return (
           ikon: LucideIcons.atSign,
           renk: const Color(0xFF8B5CF6),
-          metin: '$ad senden bahsetti'
+          metin: '$ad senden bahsetti',
         );
       default:
+        // ⚠️ SESSIZ DUSMEK YASAK (projenin 3. hata sinifi): sunucuya YENI bir
+        //    bildirim turu eklendiginde istemci onu genel metne dusurur ve kimse
+        //    fark etmez. Olcum birak — arama basina degil, TUR basina bir kez.
+        if (_bilinmeyenTurler.add((b['tur'] ?? '').toString())) {
+          unawaited(
+            Sentry.captureMessage('bilinmeyen bildirim turu: ${b['tur']}'),
+          );
+        }
         return (
           ikon: LucideIcons.bell,
           renk: Colors.grey,
-          metin: '$ad bir işlem yaptı'
+          metin: '$ad bir işlem yaptı',
         );
     }
   }
@@ -113,20 +133,23 @@ class _BildirimlerSayfasiState extends ConsumerState<BildirimlerSayfasi> {
     final aktor = (b['aktor_id'] ?? '').toString();
 
     if (tur == 'takip_istegi') {
-      Navigator.of(context).push(MaterialPageRoute(
-          builder: (_) => const TakipIstekleri()));
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const TakipIstekleri()));
       return;
     }
     // ⚠️ Gonderi hedefine gitmek icin gonderiyi TEK BASINA cekebilmeliyiz;
     //    `GonderiDetay` id ile acilabildigi icin akisi yenilemeye gerek yok.
     if ((hedefTur == 'gonderi' || hedefTur == 'reels') && hedefId.isNotEmpty) {
-      Navigator.of(context).push(MaterialPageRoute(
-          builder: (_) => GonderiDetay(gonderiId: hedefId)));
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => GonderiDetay(gonderiId: hedefId)),
+      );
       return;
     }
     if (aktor.isNotEmpty) {
-      Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => ProfilSayfasi(userId: aktor)));
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => ProfilSayfasi(userId: aktor)));
     }
   }
 
@@ -139,8 +162,9 @@ class _BildirimlerSayfasiState extends ConsumerState<BildirimlerSayfasi> {
           IconButton(
             icon: const Icon(LucideIcons.userRoundCheck),
             tooltip: 'Takip istekleri',
-            onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const TakipIstekleri())),
+            onPressed: () => Navigator.of(
+              context,
+            ).push(MaterialPageRoute(builder: (_) => const TakipIstekleri())),
           ),
         ],
       ),
@@ -149,77 +173,83 @@ class _BildirimlerSayfasiState extends ConsumerState<BildirimlerSayfasi> {
         child: _yukleniyor
             ? const Center(child: CircularProgressIndicator())
             : _hata != null
-                ? ListView(children: [
-                    const SizedBox(height: 120),
-                    Center(child: Text(_hata!)),
-                    const SizedBox(height: 10),
-                    Center(
-                      child: OutlinedButton(
-                          onPressed: _yukle, child: const Text('Tekrar dene')),
+            ? ListView(
+                children: [
+                  const SizedBox(height: 120),
+                  Center(child: Text(_hata!)),
+                  const SizedBox(height: 10),
+                  Center(
+                    child: OutlinedButton(
+                      onPressed: _yukle,
+                      child: const Text('Tekrar dene'),
                     ),
-                  ])
-                : _liste.isEmpty
-                    ? ListView(children: const [
-                        SizedBox(height: 140),
-                        Icon(LucideIcons.bellOff, size: 44, color: Colors.grey),
-                        SizedBox(height: 12),
-                        Center(
-                          child: Text('Henüz bildirim yok',
-                              style: TextStyle(color: Colors.grey)),
+                  ),
+                ],
+              )
+            : _liste.isEmpty
+            ? ListView(
+                children: const [
+                  SizedBox(height: 140),
+                  Icon(LucideIcons.bellOff, size: 44, color: Colors.grey),
+                  SizedBox(height: 12),
+                  Center(
+                    child: Text(
+                      'Henüz bildirim yok',
+                      style: TextStyle(color: Colors.grey),
+                    ),
+                  ),
+                ],
+              )
+            : ListView.separated(
+                itemCount: _liste.length,
+                separatorBuilder: (_, _) => const Divider(height: 1),
+                itemBuilder: (_, i) {
+                  final b = _liste[i];
+                  final t = _tur(b);
+                  final okundu = b['okundu'] == true;
+                  return ListTile(
+                    tileColor: okundu
+                        ? null
+                        : Theme.of(
+                            context,
+                          ).colorScheme.primary.withValues(alpha: 0.06),
+                    leading: Stack(
+                      children: [
+                        Avatar(
+                          ad: (b['aktor_ad'] ?? '').toString(),
+                          mediaId: b['aktor_avatar_media_id'] as String?,
+                          avatarUrl: (b['aktor_avatar'] ?? '').toString(),
+                          cap: 42,
                         ),
-                      ])
-                    : ListView.separated(
-                        itemCount: _liste.length,
-                        separatorBuilder: (_, _) => const Divider(height: 1),
-                        itemBuilder: (_, i) {
-                          final b = _liste[i];
-                          final t = _tur(b);
-                          final okundu = b['okundu'] == true;
-                          return ListTile(
-                            tileColor: okundu
-                                ? null
-                                : Theme.of(context)
-                                    .colorScheme
-                                    .primary
-                                    .withValues(alpha: 0.06),
-                            leading: Stack(
-                              children: [
-                                Avatar(
-                                  ad: (b['aktor_ad'] ?? '').toString(),
-                                  mediaId: b['aktor_avatar_media_id'] as String?,
-                                  avatarUrl:
-                                      (b['aktor_avatar'] ?? '').toString(),
-                                  cap: 42,
-                                ),
-                                Positioned(
-                                  right: 0,
-                                  bottom: 0,
-                                  child: Container(
-                                    padding: const EdgeInsets.all(3),
-                                    decoration: BoxDecoration(
-                                      color: t.renk,
-                                      shape: BoxShape.circle,
-                                      border: Border.all(
-                                          color: Theme.of(context)
-                                              .scaffoldBackgroundColor,
-                                          width: 1.5),
-                                    ),
-                                    child: Icon(t.ikon,
-                                        size: 10, color: Colors.white),
-                                  ),
-                                ),
-                              ],
+                        Positioned(
+                          right: 0,
+                          bottom: 0,
+                          child: Container(
+                            padding: const EdgeInsets.all(3),
+                            decoration: BoxDecoration(
+                              color: t.renk,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: Theme.of(
+                                  context,
+                                ).scaffoldBackgroundColor,
+                                width: 1.5,
+                              ),
                             ),
-                            title: Text(t.metin,
-                                style: const TextStyle(fontSize: 14)),
-                            subtitle: Text(
-                                gonderiZamani(
-                                    (b['created_at'] ?? '').toString()),
-                                style: const TextStyle(fontSize: 11)),
-                            onTap: () => _git(b),
-                          );
-                        },
-                      ),
+                            child: Icon(t.ikon, size: 10, color: Colors.white),
+                          ),
+                        ),
+                      ],
+                    ),
+                    title: Text(t.metin, style: const TextStyle(fontSize: 14)),
+                    subtitle: Text(
+                      gonderiZamani((b['created_at'] ?? '').toString()),
+                      style: const TextStyle(fontSize: 11),
+                    ),
+                    onTap: () => _git(b),
+                  );
+                },
+              ),
       ),
     );
   }

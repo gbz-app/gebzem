@@ -55,9 +55,23 @@ class _GonderiOlusturState extends ConsumerState<GonderiOlustur> {
   bool _yukleniyor = false;
   CancelToken? _iptal;
 
+  /// ⚠️ KENDI ROUTE'UM. `Navigator.pop()` en usteki route'u kapatir, "beni" degil —
+  ///    ustumde bir onay diyalogu aciksa yanlis seyi kapatirdi (turu 59b dersi).
+  ModalRoute<Object?>? _rota;
+
+  /// Paylasim TAMAMLANDI mi. `PopScope`un onay diyalogu bundan sonra anlamsizdir.
+  bool _bitti = false;
+
   /// ⚠️ Sunucudaki sinirlarla AYNI olmali — istemcide kesmezsek kullanici 16 MB
   ///    videoyu yukler ve commit'te 422 yer (bosa giden veri + kotu deneyim).
   static const int _enFazlaGorsel = 10;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // ⚠️ `ModalRoute.of` initState'te CAGRILAMAZ (bagimliliklar henuz kurulmadi).
+    _rota ??= ModalRoute.of(context);
+  }
 
   @override
   void dispose() {
@@ -83,8 +97,9 @@ class _GonderiOlusturState extends ConsumerState<GonderiOlustur> {
       // ⚠️ Sistem secici uygulamayi ARKA PLANA alir; `pickerAcik` bunu "gercek
       //    arka plan gecisi" saymayan kapilar icin ZORUNLU (bkz. MedyaKapisi).
       MedyaKapisi.pickerAcik = true;
-      secim = await ImagePicker()
-          .pickMultiImage(limit: _enFazlaGorsel - _medya.length);
+      secim = await ImagePicker().pickMultiImage(
+        limit: _enFazlaGorsel - _medya.length,
+      );
     } catch (e) {
       unawaited(Sentry.captureMessage('gonderi gorsel secici hatasi: $e'));
     } finally {
@@ -192,14 +207,30 @@ class _GonderiOlusturState extends ConsumerState<GonderiOlustur> {
         idler.add(id);
       }
 
-      final postId = await ref.read(sosyalServisiProvider).gonderiOlustur(
+      final postId = await ref
+          .read(sosyalServisiProvider)
+          .gonderiOlustur(
             tur: _tur,
             metin: metin,
             mediaIds: idler,
             yorumKapali: _yorumKapali,
           );
       if (!mounted) return;
-      Navigator.of(context).pop(postId);
+      // ⚠️⚠️ TURU 75b (DENETIM BULGUSU — SEVK ENGELIYDI):
+      //    `Navigator.pop()` EN USTTEKI route'u kapatir, "beni" DEGIL.
+      //    Bu ekranda `PopScope` yukleme surerken bir ONAY DIYALOGU aciyor;
+      //    kullanici yukleme biterken geri tusuna basmissa o diyalog ACIK olur ve
+      //    `pop(postId)` DIYALOGU kapatir — bu ekran EKRANDA KALIR, cagiran hicbir
+      //    sonuc almaz, kullanici "paylasilmadi" sanip TEKRAR basar -> **CIFT GONDERI**.
+      //    Ayni sinif hata turu 59b'de aramanin CANLI ekranini olduruyordu.
+      // ⚠️ COZUM: kendi route'unu ADRESLE. `_bitti` bayragi PopScope diyalogunu da
+      //    anlamsizlastirir (artik yukleme yok).
+      _bitti = true;
+      final nav = Navigator.of(context);
+      nav.popUntil(
+        (rota) => rota == _rota,
+      ); // ustumdeki her seyi (diyalog) dusur
+      nav.pop(postId); // simdi GERCEKTEN en ustteki benim
     } on DioException catch (e) {
       if (!mounted) return;
       setState(() => _yukleniyor = false);
@@ -225,7 +256,9 @@ class _GonderiOlusturState extends ConsumerState<GonderiOlustur> {
       }
     }
     final s = e.toString();
-    return s.contains('Exception: ') ? s.split('Exception: ').last : 'Paylaşılamadı';
+    return s.contains('Exception: ')
+        ? s.split('Exception: ').last
+        : 'Paylaşılamadı';
   }
 
   double get _toplamIlerleme {
@@ -238,9 +271,11 @@ class _GonderiOlusturState extends ConsumerState<GonderiOlustur> {
   Widget build(BuildContext context) {
     return PopScope(
       // ⚠️ Yukleme surerken kazara geri tusu = yarim kalan gonderi.
-      canPop: !_yukleniyor,
+      // ⚠️ `_bitti` sarti ZORUNLU: paylasim tamamlandiktan sonra kapi ACIK olmali,
+      //    yoksa kendi `nav.pop(postId)` cagrimiz da bu kapiya takilirdi.
+      canPop: !_yukleniyor || _bitti,
       onPopInvokedWithResult: (didPop, _) async {
-        if (didPop || !_yukleniyor) return;
+        if (didPop || !_yukleniyor || _bitti) return;
         // ⚠️ Navigator await'ten ONCE yakalanir: `showDialog` bir async bosluk
         //    acar ve sonrasinda `context` kullanmak (State dispose olduysa)
         //    patlar. Bu projede TAM AYNI sinif hata turu 67'de aramayi
@@ -250,14 +285,18 @@ class _GonderiOlusturState extends ConsumerState<GonderiOlustur> {
           context: context,
           builder: (c) => AlertDialog(
             title: const Text('Yükleme sürüyor'),
-            content: const Text('Çıkarsan gönderi paylaşılmayacak. Çıkılsın mı?'),
+            content: const Text(
+              'Çıkarsan gönderi paylaşılmayacak. Çıkılsın mı?',
+            ),
             actions: [
               TextButton(
-                  onPressed: () => Navigator.pop(c, false),
-                  child: const Text('Devam et')),
+                onPressed: () => Navigator.pop(c, false),
+                child: const Text('Devam et'),
+              ),
               TextButton(
-                  onPressed: () => Navigator.pop(c, true),
-                  child: const Text('Çık', style: TextStyle(color: Colors.red))),
+                onPressed: () => Navigator.pop(c, true),
+                child: const Text('Çık', style: TextStyle(color: Colors.red)),
+              ),
             ],
           ),
         );
@@ -369,11 +408,18 @@ class _GonderiOlusturState extends ConsumerState<GonderiOlustur> {
                         height: 140,
                         color: const Color(0xFF1A1A24),
                         alignment: Alignment.center,
-                        child: const Icon(LucideIcons.video,
-                            color: Colors.white70, size: 30),
+                        child: const Icon(
+                          LucideIcons.video,
+                          color: Colors.white70,
+                          size: 30,
+                        ),
                       )
-                    : Image.file(m.dosya,
-                        width: 100, height: 140, fit: BoxFit.cover),
+                    : Image.file(
+                        m.dosya,
+                        width: 100,
+                        height: 140,
+                        fit: BoxFit.cover,
+                      ),
               ),
               // Yukleme yuzdesi — DOSYA BASINA (kullanici hangi dosyanin
               // takildigini gorebilmeli).
@@ -387,7 +433,9 @@ class _GonderiOlusturState extends ConsumerState<GonderiOlustur> {
                         child: Text(
                           '%${(m.ilerleme! * 100).toStringAsFixed(0)}',
                           style: const TextStyle(
-                              color: Colors.white, fontWeight: FontWeight.bold),
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                     ),
@@ -397,8 +445,11 @@ class _GonderiOlusturState extends ConsumerState<GonderiOlustur> {
                 const Positioned(
                   right: 4,
                   bottom: 4,
-                  child: Icon(LucideIcons.circleCheck,
-                      color: Color(0xFF4CAF50), size: 18),
+                  child: Icon(
+                    LucideIcons.circleCheck,
+                    color: Color(0xFF4CAF50),
+                    size: 18,
+                  ),
                 ),
               if (!_yukleniyor)
                 Positioned(
@@ -408,11 +459,16 @@ class _GonderiOlusturState extends ConsumerState<GonderiOlustur> {
                     onTap: () => setState(() => _medya.removeAt(i)),
                     child: const DecoratedBox(
                       decoration: BoxDecoration(
-                          color: Color(0xAA000000), shape: BoxShape.circle),
+                        color: Color(0xAA000000),
+                        shape: BoxShape.circle,
+                      ),
                       child: Padding(
                         padding: EdgeInsets.all(3),
-                        child: Icon(LucideIcons.x,
-                            color: Colors.white, size: 14),
+                        child: Icon(
+                          LucideIcons.x,
+                          color: Colors.white,
+                          size: 14,
+                        ),
                       ),
                     ),
                   ),

@@ -140,7 +140,9 @@ class _KanalEkraniState extends ConsumerState<KanalEkrani> {
     List<XFile> secim = [];
     try {
       MedyaKapisi.pickerAcik = true;
-      secim = await ImagePicker().pickMultiImage(limit: 10 - _secilenler.length);
+      secim = await ImagePicker().pickMultiImage(
+        limit: 10 - _secilenler.length,
+      );
     } catch (_) {
     } finally {
       MedyaKapisi.pickerAcik = false;
@@ -238,9 +240,11 @@ class _KanalEkraniState extends ConsumerState<KanalEkrani> {
         k.aboneMiyim = eski;
         k.aboneSayisi = (k.aboneSayisi + (eski ? 1 : -1)).clamp(0, 1 << 30);
       });
-      _uyar(e.toString().contains('400')
-          ? 'Kendi kanalınızdan çıkamazsınız'
-          : 'İşlem tamamlanamadı');
+      _uyar(
+        e.toString().contains('400')
+            ? 'Kendi kanalınızdan çıkamazsınız'
+            : 'İşlem tamamlanamadı',
+      );
     }
   }
 
@@ -285,7 +289,8 @@ class _KanalEkraniState extends ConsumerState<KanalEkrani> {
       }
     } else if (secim == 'link') {
       await Clipboard.setData(
-          ClipboardData(text: 'https://gebzem.app/k/${k.kullaniciAdi}'));
+        ClipboardData(text: 'https://gebzem.app/k/${k.kullaniciAdi}'),
+      );
       if (mounted) _uyar('Bağlantı kopyalandı');
     } else if (secim == 'sikayet') {
       await sikayetSheetAc(context, ref, hedefTur: 'kanal', hedefId: k.id);
@@ -300,11 +305,15 @@ class _KanalEkraniState extends ConsumerState<KanalEkrani> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(k?.ad.isNotEmpty == true ? k!.ad : widget.onIsim,
-                style: const TextStyle(fontSize: 16)),
+            Text(
+              k?.ad.isNotEmpty == true ? k!.ad : widget.onIsim,
+              style: const TextStyle(fontSize: 16),
+            ),
             if (k != null)
-              Text('${sayiBicimle(k.aboneSayisi)} abone',
-                  style: const TextStyle(fontSize: 11)),
+              Text(
+                '${sayiBicimle(k.aboneSayisi)} abone',
+                style: const TextStyle(fontSize: 11),
+              ),
           ],
         ),
         actions: [
@@ -314,32 +323,35 @@ class _KanalEkraniState extends ConsumerState<KanalEkrani> {
               child: Text(k.aboneMiyim ? 'Abonesin' : 'Abone ol'),
             ),
           IconButton(
-              icon: const Icon(LucideIcons.ellipsis),
-              onPressed: k == null ? null : _menu),
+            icon: const Icon(LucideIcons.ellipsis),
+            onPressed: k == null ? null : _menu,
+          ),
         ],
       ),
       body: _yukleniyor
           ? const Center(child: CircularProgressIndicator())
           : k == null
-              ? Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(_hata ?? 'Kanal açılamadı'),
-                      const SizedBox(height: 10),
-                      OutlinedButton(
-                          onPressed: _yukle, child: const Text('Tekrar dene')),
-                    ],
+          ? Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(_hata ?? 'Kanal açılamadı'),
+                  const SizedBox(height: 10),
+                  OutlinedButton(
+                    onPressed: _yukle,
+                    child: const Text('Tekrar dene'),
                   ),
-                )
-              : Column(
-                  children: [
-                    Expanded(child: _liste(k)),
-                    // ⚠️ PAYLASIM KUTUSU YALNIZ YETKILILERE. Kanal TEK YONLU —
-                    //    abonenin yazacagi bir yer YOK (WhatsApp da boyle).
-                    if (k.yetkiliMiyim) _paylasimKutusu(),
-                  ],
-                ),
+                ],
+              ),
+            )
+          : Column(
+              children: [
+                Expanded(child: _liste(k)),
+                // ⚠️ PAYLASIM KUTUSU YALNIZ YETKILILERE. Kanal TEK YONLU —
+                //    abonenin yazacagi bir yer YOK (WhatsApp da boyle).
+                if (k.yetkiliMiyim) _paylasimKutusu(),
+              ],
+            ),
     );
   }
 
@@ -353,14 +365,20 @@ class _KanalEkraniState extends ConsumerState<KanalEkrani> {
             children: [
               Avatar(ad: k.ad, mediaId: k.avatarMediaId, cap: 76),
               const SizedBox(height: 14),
-              Text(k.ad,
-                  style: const TextStyle(
-                      fontSize: 18, fontWeight: FontWeight.w700)),
+              Text(
+                k.ad,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
               if (k.aciklama.isNotEmpty) ...[
                 const SizedBox(height: 6),
-                Text(k.aciklama,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(color: Colors.grey)),
+                Text(
+                  k.aciklama,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.grey),
+                ),
               ],
               const SizedBox(height: 18),
               Text(
@@ -405,8 +423,9 @@ class _KanalEkraniState extends ConsumerState<KanalEkrani> {
                   child: g.mediaIds.length == 1
                       ? _tekMedya(g.mediaIds.first)
                       : PageView(
-                          children:
-                              g.mediaIds.map(_tekMedya).toList(growable: false),
+                          children: g.mediaIds
+                              .map(_tekMedya)
+                              .toList(growable: false),
                         ),
                 ),
               ),
@@ -421,13 +440,17 @@ class _KanalEkraniState extends ConsumerState<KanalEkrani> {
                   onTap: () => _begeniCevir(g),
                   child: Row(
                     children: [
-                      Icon(LucideIcons.heart,
-                          size: 17,
-                          color: g.begendim ? const Color(0xFFFF3B5C) : null),
+                      Icon(
+                        LucideIcons.heart,
+                        size: 17,
+                        color: g.begendim ? const Color(0xFFFF3B5C) : null,
+                      ),
                       if (g.begeniSayisi > 0) ...[
                         const SizedBox(width: 4),
-                        Text(sayiBicimle(g.begeniSayisi),
-                            style: const TextStyle(fontSize: 12)),
+                        Text(
+                          sayiBicimle(g.begeniSayisi),
+                          style: const TextStyle(fontSize: 12),
+                        ),
                       ],
                     ],
                   ),
@@ -435,18 +458,25 @@ class _KanalEkraniState extends ConsumerState<KanalEkrani> {
                 const SizedBox(width: 14),
                 const Icon(LucideIcons.eye, size: 16, color: Colors.grey),
                 const SizedBox(width: 4),
-                Text(sayiBicimle(g.goruntulenme),
-                    style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                Text(
+                  sayiBicimle(g.goruntulenme),
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                ),
                 const Spacer(),
-                Text(gonderiZamani(g.createdAt),
-                    style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                Text(
+                  gonderiZamani(g.createdAt),
+                  style: const TextStyle(fontSize: 11, color: Colors.grey),
+                ),
                 if (k.yetkiliMiyim)
                   GestureDetector(
                     onTap: () => _gonderiSil(g),
                     child: const Padding(
                       padding: EdgeInsets.only(left: 10),
-                      child: Icon(LucideIcons.trash2,
-                          size: 15, color: Colors.grey),
+                      child: Icon(
+                        LucideIcons.trash2,
+                        size: 15,
+                        color: Colors.grey,
+                      ),
                     ),
                   ),
               ],
@@ -458,11 +488,11 @@ class _KanalEkraniState extends ConsumerState<KanalEkrani> {
   }
 
   Widget _tekMedya(String id) => GestureDetector(
-        onTap: () => Navigator.of(context).push(MaterialPageRoute(
-          builder: (_) => TamEkranGorsel(mediaId: id),
-        )),
-        child: MedyaGorsel(mediaId: id, fit: BoxFit.cover),
-      );
+    onTap: () => Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => TamEkranGorsel(mediaId: id))),
+    child: MedyaGorsel(mediaId: id, fit: BoxFit.cover),
+  );
 
   Future<void> _gonderiSil(KanalGonderi g) async {
     final onay = await showDialog<bool>(
@@ -471,11 +501,13 @@ class _KanalEkraniState extends ConsumerState<KanalEkrani> {
         title: const Text('Gönderi kaldırılsın mı?'),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(c, false),
-              child: const Text('Vazgeç')),
+            onPressed: () => Navigator.pop(c, false),
+            child: const Text('Vazgeç'),
+          ),
           TextButton(
-              onPressed: () => Navigator.pop(c, true),
-              child: const Text('Kaldır', style: TextStyle(color: Colors.red))),
+            onPressed: () => Navigator.pop(c, true),
+            child: const Text('Kaldır', style: TextStyle(color: Colors.red)),
+          ),
         ],
       ),
     );
@@ -490,94 +522,100 @@ class _KanalEkraniState extends ConsumerState<KanalEkrani> {
   }
 
   Widget _paylasimKutusu() => SafeArea(
-        top: false,
-        child: Container(
-          decoration: BoxDecoration(
-            border: Border(
-                top: BorderSide(color: Theme.of(context).dividerColor)),
-          ),
-          padding: const EdgeInsets.fromLTRB(10, 6, 6, 6),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (_secilenler.isNotEmpty)
-                SizedBox(
-                  height: 64,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: _secilenler.length,
-                    separatorBuilder: (_, _) => const SizedBox(width: 6),
-                    itemBuilder: (_, i) => Stack(
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Image.file(_secilenler[i],
-                              width: 56, height: 64, fit: BoxFit.cover),
-                        ),
-                        if (!_paylasiliyor)
-                          Positioned(
-                            right: 0,
-                            top: 0,
-                            child: GestureDetector(
-                              onTap: () =>
-                                  setState(() => _secilenler.removeAt(i)),
-                              child: const DecoratedBox(
-                                decoration: BoxDecoration(
-                                    color: Color(0xAA000000),
-                                    shape: BoxShape.circle),
-                                child: Padding(
-                                  padding: EdgeInsets.all(2),
-                                  child: Icon(LucideIcons.x,
-                                      size: 12, color: Colors.white),
-                                ),
+    top: false,
+    child: Container(
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: Theme.of(context).dividerColor)),
+      ),
+      padding: const EdgeInsets.fromLTRB(10, 6, 6, 6),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (_secilenler.isNotEmpty)
+            SizedBox(
+              height: 64,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: _secilenler.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 6),
+                itemBuilder: (_, i) => Stack(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.file(
+                        _secilenler[i],
+                        width: 56,
+                        height: 64,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                    if (!_paylasiliyor)
+                      Positioned(
+                        right: 0,
+                        top: 0,
+                        child: GestureDetector(
+                          onTap: () => setState(() => _secilenler.removeAt(i)),
+                          child: const DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: Color(0xAA000000),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Padding(
+                              padding: EdgeInsets.all(2),
+                              child: Icon(
+                                LucideIcons.x,
+                                size: 12,
+                                color: Colors.white,
                               ),
                             ),
                           ),
-                      ],
-                    ),
-                  ),
-                ),
-              if (_paylasiliyor) ...[
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    Expanded(child: LinearProgressIndicator(value: _ilerleme)),
-                    TextButton(
-                      onPressed: () => _iptal?.cancel('kullanici iptal'),
-                      child: const Text('İptal'),
-                    ),
+                        ),
+                      ),
                   ],
                 ),
+              ),
+            ),
+          if (_paylasiliyor) ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Expanded(child: LinearProgressIndicator(value: _ilerleme)),
+                TextButton(
+                  onPressed: () => _iptal?.cancel('kullanici iptal'),
+                  child: const Text('İptal'),
+                ),
               ],
-              Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(LucideIcons.image),
-                    onPressed: _paylasiliyor ? null : _gorselSec,
+            ),
+          ],
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(LucideIcons.image),
+                onPressed: _paylasiliyor ? null : _gorselSec,
+              ),
+              Expanded(
+                child: TextField(
+                  controller: _metin,
+                  enabled: !_paylasiliyor,
+                  minLines: 1,
+                  maxLines: 5,
+                  maxLength: 4000,
+                  decoration: const InputDecoration(
+                    hintText: 'Kanala gönderi yaz...',
+                    counterText: '',
+                    isDense: true,
+                    border: OutlineInputBorder(),
                   ),
-                  Expanded(
-                    child: TextField(
-                      controller: _metin,
-                      enabled: !_paylasiliyor,
-                      minLines: 1,
-                      maxLines: 5,
-                      maxLength: 4000,
-                      decoration: const InputDecoration(
-                        hintText: 'Kanala gönderi yaz...',
-                        counterText: '',
-                        isDense: true,
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(LucideIcons.send),
-                    onPressed: _paylasiliyor ? null : _paylas,
-                  ),
-                ],
+                ),
+              ),
+              IconButton(
+                icon: const Icon(LucideIcons.send),
+                onPressed: _paylasiliyor ? null : _paylas,
               ),
             ],
           ),
-        ),
-      );
+        ],
+      ),
+    ),
+  );
 }

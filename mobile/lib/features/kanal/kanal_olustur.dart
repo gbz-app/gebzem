@@ -84,13 +84,13 @@ class _KanalOlusturState extends ConsumerState<KanalOlustur> {
         // ⚠️ EXIF (KONUM) TEMIZLIGI ZORUNLU: sunucu GPS bulursa 422 doner.
         final hazir = await MedyaServisi.gorseliHazirla(_avatar!);
         if (hazir == null) throw Exception('Fotoğraf hazırlanamadı');
-        _avatarMediaId = await ref.read(medyaServisiProvider).yukle(
-              dosya: hazir,
-              kind: 'avatar',
-              mime: 'image/jpeg',
-            );
+        _avatarMediaId = await ref
+            .read(medyaServisiProvider)
+            .yukle(dosya: hazir, kind: 'avatar', mime: 'image/jpeg');
       }
-      final id = await ref.read(kanalServisiProvider).olustur(
+      final id = await ref
+          .read(kanalServisiProvider)
+          .olustur(
             ad: ad,
             kullaniciAdi: adres,
             aciklama: _aciklama.text.trim(),
@@ -137,18 +137,27 @@ class _KanalOlusturState extends ConsumerState<KanalOlustur> {
                   children: [
                     if (_avatar != null)
                       ClipOval(
-                        child: Image.file(_avatar!,
-                            width: 96, height: 96, fit: BoxFit.cover),
+                        child: Image.file(
+                          _avatar!,
+                          width: 96,
+                          height: 96,
+                          fit: BoxFit.cover,
+                        ),
                       )
                     else
                       Avatar(ad: _ad.text, cap: 96),
                     const DecoratedBox(
                       decoration: BoxDecoration(
-                          color: Color(0xFF8B5CF6), shape: BoxShape.circle),
+                        color: Color(0xFF8B5CF6),
+                        shape: BoxShape.circle,
+                      ),
                       child: Padding(
                         padding: EdgeInsets.all(6),
-                        child: Icon(LucideIcons.camera,
-                            size: 16, color: Colors.white),
+                        child: Icon(
+                          LucideIcons.camera,
+                          size: 16,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
                   ],

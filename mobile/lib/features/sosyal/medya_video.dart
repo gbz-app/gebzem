@@ -70,6 +70,23 @@ class _MedyaVideoState extends ConsumerState<MedyaVideo>
   bool _sesli = false;
   bool _kullaniciDurdurdu = false;
 
+  /// Arama/oda/yayin surdugu icin oynatici HIC kurulmadi.
+  /// ⚠️ `_hata` DEGIL: hata degil, gecici kilit — kapi acilinca kendini onarir.
+  bool _kilitli = false;
+
+  /// Oynatmayi BIZ degil, `SesNotuKontrol.sustur()` (arama basladi) durdurdu.
+  /// ⚠️ Bu ayrim ZORUNLU: reels'te `kontrolGoster: false` oldugu icin kullanicinin
+  ///    elle devam ettirecek DUGMESI YOK — gorusme bitince otomatik devam etmezse
+  ///    ekran DONMUS KAREDE kalir.
+  bool _aramaDurdurdu = false;
+
+  /// Kilit/durdurma durumunu yoklayan zamanlayici.
+  /// ⚠️ `MedyaKapisi.donanimSerbest` bir Notifier DEGIL (birden fazla kaynaktan
+  ///    turetiliyor: GSM bayragi, SesSahipligi defteri, call provider). Dinlenecek
+  ///    tek bir akis olmadigi icin SEYREK yoklama (1sn) en durust cozum.
+  /// ⚠️ YAPMA: yoklamayi hizlandirma; 1sn kullanici icin fark etmez, pil icin eder.
+  Timer? _kapiYoklama;
+
   /// ⚠️ Kurulum ASENKRON (imzali adres + `initialize()`); bu arada widget dispose
   ///    olabilir ya da `mediaId` degisebilir. Her await sonrasi bu jeton kontrol
   ///    edilir — bu projede "bayat async" hatalarinin TEK caresi (turu 19 dersi).
@@ -81,6 +98,28 @@ class _MedyaVideoState extends ConsumerState<MedyaVideo>
     _sesli = widget.sesli;
     WidgetsBinding.instance.addObserver(this);
     _kur();
+    _kapiYoklama = Timer.periodic(
+      const Duration(seconds: 1),
+      (_) => _kapiyiYokla(),
+    );
+  }
+
+  /// Gorusme bitti mi? Bittiyse kilidi kaldir / duraklatilmis oynatmayi surdur.
+  void _kapiyiYokla() {
+    if (!mounted) return;
+    final serbest = MedyaKapisi.donanimSerbest(ref);
+    if (!serbest) return;
+    if (_kilitli) {
+      _kur(); // kapi acildi, oynaticiyi simdi kur
+      return;
+    }
+    // ⚠️ Yalniz ARAMA durdurduysa devam et — kullanici elle duraklattiysa
+    //    ona saygi duyulur (turu 72 "devam otomatik degil, dugmeyle" karari).
+    if (_aramaDurdurdu && widget.otoOynat && !_kullaniciDurdurdu) {
+      _aramaDurdurdu = false;
+      _sesli = widget.sesli;
+      _oynat();
+    }
   }
 
   @override
@@ -118,9 +157,31 @@ class _MedyaVideoState extends ConsumerState<MedyaVideo>
 
   Future<void> _kur() async {
     final nesil = ++_nesil;
+    // ⚠️⚠️⚠️ TURU 75b (DENETIM BULGUSU) — KURULUM KAPISI.
+    //    Eskiden kapi YALNIZ SES SEVIYESINE uygulaniyordu; oynatici KOSULSUZ
+    //    kuruluyordu. Ama `video_player` iOS'ta `initialize()` sirasinda
+    //    `setMixWithOthers(...)` gonderir ve bu, RTCAudioSession kilidinin
+    //    DISINDAN AVAudioSession'i yeniden yapilandirir — yani SUREN LiveKit
+    //    aramasinin ses oturumuna dokunur. `mixWithOthers: true` "oturumu ele
+    //    gecirme" demek, "oturuga hic dokunma" DEMEK DEGIL.
+    //    Bu projede proses-geneli ses oturumu turu 64/65/73'te defalarca yakti.
+    // ⚠️ YAPMA: bu kapiyi kaldirma. Gorusme surerken video KURULMAZ; kapak
+    //    gorseli + acik bir mesaj gosterilir, gorusme bitince `_yenidenDene`
+    //    ile kurulur.
+    if (!MedyaKapisi.donanimSerbest(ref)) {
+      if (mounted) {
+        setState(() {
+          _hazir = false;
+          _hata = false;
+          _kilitli = true;
+        });
+      }
+      return;
+    }
     setState(() {
       _hazir = false;
       _hata = false;
+      _kilitli = false;
     });
     try {
       final bilgi = await ref.read(medyaServisiProvider).adres(widget.mediaId);
@@ -157,39 +218,40 @@ class _MedyaVideoState extends ConsumerState<MedyaVideo>
 
   Future<void> _oynat() async {
     final c = _c;
+    final nesil = _nesil;
     if (c == null || !mounted) return;
-    await c.setVolume(_sesVerilebilir ? 1.0 : 0.0);
-    // ⚠️ Ses CIKARACAKSAK defterine kaydol: arama baslarken `sustur()` bizi durdurur.
-    //    Sessiz oynatma ses oturumuna DOKUNMAZ — defteri gereksiz mesgul etme.
-    if (_sesVerilebilir) {
-      SesNotuKontrol.kaydol(this, () async {
-        await _c?.pause();
-        if (mounted) setState(() => _sesli = false);
-      });
-    } else {
-      SesNotuKontrol.birak(this);
-    }
+
+    // ⚠️⚠️ TURU 75b (DENETIM BULGUSU) — SIRA DEGISTI: ONCE DEFTERE YAZ, SONRA SES.
+    //    Eskiden `await c.setVolume(...)` ONCE kosuyordu ve deftere kaydolma o
+    //    await'in ALTINDAYDI. Dart argumani await'ten ONCE degerlendirdigi icin
+    //    ses seviyesi 1.0 olarak KESINLESIYOR, ama platform kanali gidis-donusu
+    //    suresince oynatici DEFTERDE OLMUYORDU. O pencerede baslayan bir arama
+    //    `SesNotuKontrol.sustur()` cagirdiginda bizi BULAMAZ -> video arama
+    //    boyunca TAM SESLE calar ve bir daha susturulamaz.
+    // ⚠️ YAPMA: `kaydol`u tekrar await'in altina tasima.
+    SesNotuKontrol.kaydol(this, () async {
+      _aramaDurdurdu = true; // gorusme bitince otomatik devam icin isaret
+      await _c?.pause();
+      if (mounted) setState(() => _sesli = false);
+    });
+
     await c.play();
+    // ⚠️ Await SONRASI yeniden degerlendir: bu sirada arama baslamis olabilir.
+    if (!mounted || nesil != _nesil) return;
+    await c.setVolume(_sesVerilebilir ? 1.0 : 0.0);
     if (mounted) setState(() {});
   }
 
   Future<void> _sesiCevir() async {
     if (!_sesli && !MedyaKapisi.donanimSerbest(ref)) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Görüşme sürüyor — video sesi açılamaz'),
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Görüşme sürüyor — video sesi açılamaz')),
+      );
       return;
     }
     setState(() => _sesli = !_sesli);
+    // Defter kaydi _oynat()'ta yapilmisti; burada yalniz seviye degisiyor.
     await _c?.setVolume(_sesVerilebilir ? 1.0 : 0.0);
-    if (_sesVerilebilir) {
-      SesNotuKontrol.kaydol(this, () async {
-        await _c?.pause();
-        if (mounted) setState(() => _sesli = false);
-      });
-    } else {
-      SesNotuKontrol.birak(this);
-    }
   }
 
   void _duraklatCevir() {
@@ -217,6 +279,7 @@ class _MedyaVideoState extends ConsumerState<MedyaVideo>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _kapiYoklama?.cancel();
     _birak();
     super.dispose();
   }
@@ -232,7 +295,11 @@ class _MedyaVideoState extends ConsumerState<MedyaVideo>
           // Kapak: video hazir DEGILKEN gorunur. Siyah kare yerine gercek kare —
           // kaydirirken "bos delik" hissi olmasin.
           if (!_hazir && widget.kapakMediaId != null)
-            MedyaGorsel(mediaId: widget.kapakMediaId!, kucuk: true, fit: widget.dolgu),
+            MedyaGorsel(
+              mediaId: widget.kapakMediaId!,
+              kucuk: true,
+              fit: widget.dolgu,
+            ),
           if (_hazir && c != null)
             FittedBox(
               fit: widget.dolgu,
@@ -243,12 +310,30 @@ class _MedyaVideoState extends ConsumerState<MedyaVideo>
                 child: VideoPlayer(c),
               ),
             ),
-          if (!_hazir && !_hata)
+          if (!_hazir && !_hata && !_kilitli)
             const Center(
               child: SizedBox(
                 width: 26,
                 height: 26,
                 child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+          if (_kilitli)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(LucideIcons.phone, color: Colors.white70, size: 26),
+                    SizedBox(height: 8),
+                    Text(
+                      'Görüşme sürerken video oynatılamaz',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.white70, fontSize: 12),
+                    ),
+                  ],
+                ),
               ),
             ),
           if (_hata)
@@ -258,8 +343,10 @@ class _MedyaVideoState extends ConsumerState<MedyaVideo>
                 children: [
                   Icon(LucideIcons.circleAlert, color: Colors.white70),
                   SizedBox(height: 6),
-                  Text('Video açılamadı',
-                      style: TextStyle(color: Colors.white70, fontSize: 12)),
+                  Text(
+                    'Video açılamadı',
+                    style: TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
                 ],
               ),
             ),
@@ -267,7 +354,9 @@ class _MedyaVideoState extends ConsumerState<MedyaVideo>
             const Center(
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                    color: Color(0x66000000), shape: BoxShape.circle),
+                  color: Color(0x66000000),
+                  shape: BoxShape.circle,
+                ),
                 child: Padding(
                   padding: EdgeInsets.all(12),
                   child: Icon(LucideIcons.play, color: Colors.white, size: 28),
@@ -282,7 +371,9 @@ class _MedyaVideoState extends ConsumerState<MedyaVideo>
                 onTap: _sesiCevir,
                 child: DecoratedBox(
                   decoration: const BoxDecoration(
-                      color: Color(0x66000000), shape: BoxShape.circle),
+                    color: Color(0x66000000),
+                    shape: BoxShape.circle,
+                  ),
                   child: Padding(
                     padding: const EdgeInsets.all(7),
                     child: Icon(
