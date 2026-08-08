@@ -21,7 +21,14 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
   ios 31274409665 (1aa6274), R2 apk=112201055 (md5 024bc3af) ipa=23288435 (md5 f9cd1183),
   purge OK, **CDN birebir**, indir sayfasi 22:40, debug imza YOK, iOS min 16.0 dogrulandi,
   **BACKEND DEPLOY EDILDI** (turu 64 -> 75; migration 020/021/022/023) + health ok,
-  DB temiz (0/0/0/0). **KULLANICI TEST EDECEK.**
+  DB temiz (0/0/0/0).
+- ✅✅ **TEST SONUCU (8 Agu, kullanici): "hepsini test ettim, mukemmel calisiyor".**
+  Tek seferde dogrulanan yigin — ucu de ILK KEZ sahada test edildi:
+  · **turu 73** oda/yayin duraklatma (iOS dahil), SesSahipligi defteri, ses birimi merdiveni
+  · **turu 74** medya (fotograf + sesli mesaj), engelleme, sikayet, mesaj silme
+  · **turu 75** sosyal katman (akis/profil/takip/gonderi/begeni/yorum/kaydetme/reels/
+    bildirimler) + kanal
+  ⏳ **KULLANICI EKSIKLERI YAZACAK — BEKLENIYOR.**
 - ⚠️⚠️⚠️ **TURU 75 YAYINDA YAKALANAN SEVK ENGELI: MEDYA SUNUCUDA KAPALIYDI.**
   Deploy sonrasi log: **"medya: R2_* env EKSIK — MEDYA KAPALI"**. /health "ok"
   donuyordu, API saglikli aciliyordu — hata SATIR ARASINDAYDI.

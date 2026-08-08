@@ -4995,3 +4995,12 @@ Bu, turu 75b'nin iki en ağır bulgusunun (medya 403 · engel atlaması) sahada 
 kanıtı. Test verisi TRUNCATE ile temizlendi.
 
 **KULLANICI TEST EDECEK.**
+
+### ✅ TEST SONUCU (8 Ağustos, kullanıcı): **"hepsini test ettim, mükemmel çalışıyor"**
+Tek seferde test edilen yığın — üçü de ilk kez sahada doğrulandı:
+- **Turu 73** — oda/yayın duraklatma (iOS dahil), `SesSahipligi` defteri, `iosSesBirimiAc` merdiveni
+- **Turu 74** — medya (fotoğraf + sesli mesaj), engelleme, şikâyet, mesaj silme
+- **Turu 75** — sosyal katman (akış, profil, takip, gönderi, beğeni/yorum/kaydetme, reels,
+  bildirimler) + **kanal**
+
+⏳ Kullanıcı eksikleri yazacak — **bekleniyor**.
