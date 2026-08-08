@@ -4887,3 +4887,72 @@ Video için önce sunucu `media_kinds` döndürmeli.
 ### Commit'ler
 `b02647d` gönderi+akış+etkileşim · `9264dd5` sosyal arayüz (9 ekran) + sekme düzeni ·
 `8f870e6` kanal + rota çakışma testi
+
+---
+
+## Oturum 75b — BUILD ÖNCESİ ADVERSARYAL DENETİM (8 boyut, 46 ajan)
+
+**38 bulgu → 18 ONAYLANDI (5 yüksek) · 20 ELENDİ.** Hepsi build alınmadan yakalandı.
+
+### ⚠️⚠️⚠️ Sevk engelleri (5)
+
+**1. Akıştaki TÜM görsel/video izleyiciye 403 dönüyordu.**
+`media.erisebilir()` yalnızca iki dal tanıyordu: (a) mesaja bağlı + sohbet üyesi,
+(b) birinin avatarı. `posts.media_ids` / `channel_posts.media_ids` için **dal yoktu**.
+Akış sadece id döndürüyor, istemci her görsel için `GET /media/{id}/url` çağırıyor →
+gönderiyi **paylaşandan başka herkese 403**. Yani turu 75'in foto/video/reels ve kanal
+medyasının tamamı izleyici tarafında ölü doğmuştu.
+⚠️ **Tek cihazda test edilse görülmezdi**: kapı `if sahip != userID && !erisebilir(...)` —
+paylaşan kişi kendi görselini kısa devreyle görür. Hata yalnız ikinci hesapta çıkar.
+Fix: iki yeni dal, kural `social.erisebilirMi` ile aynı (engel + gizli hesap kapısı).
+
+**2. `/users/{id}/posts` engel kontrolünü atlıyordu.** Engellenen kişi akışta göremediği
+kullanıcının **profiline girip tüm gönderilerini** okuyabiliyordu — engellemenin asıl
+vitrini (App Store 1.2). Predikat dört sorguya kopyalanmış, beşincisinde düşmüştü.
+Fix: `const engelYok` **tek kaynak**.
+
+**3. Yükleme biterken `Navigator.pop()` yanlış route'u kapatıyordu.** `PopScope` açık bir
+onay diyaloğu bırakmışsa `pop(postId)` **diyaloğu** kapatır → gönderi sunucuda oluşur ama
+ekran açık kalır, kullanıcı tekrar basar → **çift gönderi**. Fix: `ModalRoute.of` ile
+kendi route'unu adresle, `popUntil` + `pop`.
+
+**4. Video oynatıcı kurulumu kapısızdı.** `video_player` iOS'ta `initialize()` sırasında
+`setMixWithOthers(...)` gönderir; bu RTCAudioSession kilidinin **dışından** AVAudioSession'ı
+yeniden yapılandırır. `mixWithOthers: true` "oturumu ele geçirme" demek, **"oturuma hiç
+dokunma" demek değil**. Fix: `_kur()` başında `MedyaKapisi.donanimSerbest` kapısı.
+
+**5. Kendi profilimde "Takip et / Mesaj / Engelle / Şikayet" çıkıyordu** — hiçbir "bu benim"
+kapısı yoktu. Fix: `_benimMi` + kendi profiline "Profili düzenle / Kaydedilenler /
+**Gizli hesap** anahtarı".
+
+### Orta/düşük (13)
+Gizli hesap özelliği tamamen ulaşılamazdı (`gizlilikAyarla()` hiç çağrılmıyordu → 5 bağlı
+ekran/dal ölü) · kaydetme "kara delik"ti (yeni `GET /users/me/saved` + ekran) ·
+`PopScope(canPop:false)` iPhone'da kenar kaydırmayla geri dönüşü kapatıyordu · reels'te
+görüşme sonrası donmuş kare · ses kararı await'ten önce kesinleşiyordu · kanal gönderi
+silme iki hatayı birden yutuyordu + medyayı yetim bırakıyordu · `/channels/{id}` `sessiz`
+döndürmüyordu (sesi bir daha açamıyordun) · keşfette kendi kanalın çıkıp hep hata veriyordu ·
+yorum indeksleri kısmi olduğu için hiç kullanılamıyordu (migration **023**) ·
+`takip_onaylandi` bildirim türü istemcide yoktu.
+
+### Denetimin kendi bulduğu ve benim çürüttüğüm alarm
+Bir ajan `[]string → uuid[]` kodlamasının çalışmadığını gösteren bir sonda yazdı; ben de
+"push ve engelleme de bozuk" sonucuna vardım. **Yanlıştı.** pgx v5.7.4
+`extended_query_builder.go:55-76` tercih edilen biçim hata verirse **diğer biçimi dener** ve
+metin biçimi çalışır. Kaynak okunarak çürütüldü → büyük ve gereksiz bir refactor'dan dönüldü.
+📌 **Ders:** "kanıt" diye sunulan bir ölçümün **hangi katmanı** ölçtüğüne bak;
+`Map.Encode`'u doğrudan çağırmak sorgu yolundaki geri dönüş mantığını atlıyor.
+
+Ama sondanın **ikinci yarısı gerçekti**: `nil` dilim SQL **NULL** gönderiyor ve `media_ids`
+**NOT NULL** → `req.MediaIDs = nil` yazdığım için **her yazı gönderisi 500 dönecekti**.
+Üçü de `internal/social/tip_test.go`'da kalıcı regresyon testi oldu.
+
+### Yeni kalıcı testler
+- `cmd/api/rota_test.go` — chi çakışan desenlerde **çalışma anında panikler**, `go build`
+  yakalamaz. Desenleri `main.go` **kaynağından** okur (drift yok). **126 rota çakışmasız**,
+  riskli statik-vs-parametre yolları (`/users/me/follow-requests` vs `/users/{id}/profile`,
+  `/channels/kesfet` vs `/channels/{id}`) kanıtlandı.
+- `internal/social/tip_test.go` — `uuid[]` tarama/yazma + `nil` vs boş dilim + `bigint`.
+
+### Commit'ler
+`232dc36` backend düzeltmeleri + migration 023 · `38a0e59` Flutter düzeltmeleri
