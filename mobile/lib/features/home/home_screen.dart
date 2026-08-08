@@ -11,12 +11,15 @@ import 'engellenenler.dart';
 import 'profil_duzenle.dart';
 import '../auth/permissions_screen.dart';
 import '../calls/calls_tab.dart';
+import '../chats/chats_provider.dart';
 import '../chats/chats_screen.dart';
 import '../live/live_tab.dart';
 import '../rooms/rooms_tab.dart';
 import '../sosyal/akis_ekrani.dart';
 import '../sosyal/bildirimler_sayfasi.dart';
+import '../sosyal/kesfet_ekrani.dart';
 import '../sosyal/profil_sayfasi.dart';
+import '../sosyal/reels_sayfasi.dart';
 import '../sosyal/takip_listesi.dart';
 
 /// Ana kabuk: 5 sekmeli alt menu (ozellik-listesi.md'deki yapi)
@@ -32,14 +35,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   int _index = 0;
   bool? _permissionsAsked; // null = kontrol ediliyor
 
-  // ⚠️ TURU 75 — 6 SEKME. Akis EN BASA konuldu (ana sayfa = akis; Instagram/
-  //    Facebook deseni). Etiketler KISALTILDI: 6 hedefli NavigationBar'da
-  //    360dp genislikte hedef basina ~60dp duser; "Sohbetler" (9 karakter)
-  //    tasip kirpilirdi.
-  // ⚠️ YAPMA: 7. sekme ekleme — etiketler okunmaz hale gelir.
-  // ⚠️ YAPMA: sirayi degistirme; _index sabitleri (0=akis, 1=sohbet) ustune
-  //    yazilmis kosullar var (AppBar gizleme, "yeni sohbet" dugmesi).
-  static const _titles = ['Akış', 'Sohbetler', 'Aramalar', 'Odalar', 'Canlı', 'Profil'];
+  // ⚠️⚠️ TURU 76 — SEKME DUZENI YENIDEN KURULDU (kullanici emri: "alt menude
+  //    arama olmali: anasayfa, arama, mesaj, profil, reels, canli yayin").
+  //
+  //    ESKI: Akis · Sohbet · Arama(CAGRI) · Oda · Canli · Profil
+  //    YENI: Anasayfa · Ara(PROFIL ARAMA) · Reels · Mesaj · Canli · Profil
+  //
+  // ⚠️ "ARAMA" KELIME CAKISMASI: kullanici "aramadan kastim normal profil
+  //    arama instagram gibi" dedi. Alt menudeki `Ara` artik SOSYAL ARAMA.
+  //    CAGRI GECMISI SILINMEDI — `Mesaj` sekmesinin ustundeki segmente tasindi.
+  // ⚠️ SESLI ODALAR da SILINMEDI — `Canli` sekmesinin segmentine tasindi.
+  //    ⚠️ YAPMA: bu iki ekrani kaldirma; ikisi de calisir durumda ve
+  //       `mesgulMu` muhafizlari (`oda_` / `yayin_`) onlara bagli.
+  // ⚠️ YAPMA: 7. sekme ekleme — 360dp ekranda hedef basina ~60dp duser,
+  //    etiketler kirpilir.
+  static const _titles = ['Anasayfa', 'Ara', 'Reels', 'Mesaj', 'Canlı', 'Profil'];
+
+  // ⚠️ Sekme indeksleri SABIT olarak yazilir — build icinde ciplak sayi
+  //    kullanmak, sira degisince sessizce yanlis ekran acar.
+  static const _akis = 0;
+  static const _reels = 2;
+  static const _mesaj = 3;
 
   @override
   void initState() {
@@ -77,16 +93,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
 
     return Scaffold(
-      // ⚠️ AKIS SEKMESI KENDI AppBar'INI CIZER (Reels + bildirim ikonlari orada).
-      //    Burada da AppBar cizersek CIFT BASLIK olur.
-      appBar: _index == 0
+      // ⚠️ AKIS ve REELS KENDI tam ekran duzenlerini cizer — ust AppBar OLMAZ.
+      //    (Akista ikonlar kendi baslik seridinde; reels tam ekran video.)
+      appBar: (_index == _akis || _index == _reels)
           ? null
           : AppBar(
               title: Text(_titles[_index]),
               actions: [
-                // Sohbetler sekmesi: sag-ust + -> yeni sohbet (kisi ara).
+                // Mesaj sekmesi: sag-ust + -> yeni sohbet (kisi ara).
                 // Sohbet FILTRESI ChatsScreen icindeki arama kutusunda.
-                if (_index == 1)
+                if (_index == _mesaj)
                   IconButton(
                     icon: const Icon(LucideIcons.plus),
                     tooltip: 'Yeni sohbet',
@@ -96,13 +112,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
       body: IndexedStack(
         index: _index,
-        children: const [
-          AkisEkrani(), // TURU 75 — ana sayfa akisi (gonderi + reels girisi)
-          ChatsScreen(),
-          CallsTab(),
-          RoomsTab(), // SPACES (sesli oda) — kesfet + oda ac
-          LiveTab(), // CANLI YAYIN — kesfet + yayin baslat
-          _ProfileTab(),
+        children: [
+          const AkisEkrani(), // TURU 75 — ana sayfa akisi
+          const KesfetEkrani(), // TURU 76 — PROFIL ARAMA + kesfet izgarasi
+          // ⚠️⚠️ REELS **YALNIZ SEKME ACIKKEN KURULUR** — bu bir SES GUVENLIGI
+          //    karari, stil tercihi degil. `IndexedStack` TUM cocuklari agacta
+          //    CANLI tutar; reels sekmesinden ciksaydik video oynaticisi
+          //    yasamaya devam eder ve SES ARKA PLANDA CALMAYA DEVAM EDERDI.
+          //    iOS'ta ses oturumu PROSES GENELINDE TEK nesnedir ve bu projede
+          //    tam bu yuzden turu 64/65/73'te aramalar defalarca sagirlasti.
+          //    Sekmeden cikinca widget DISPOSE olur -> oynatici KESIN olur.
+          // ⚠️ YAPMA: burayi kosulsuz `ReelsSayfasi()` yapma.
+          // ⚠️ Bedeli: sekmeye her donuste reels bastan yuklenir (Instagram da
+          //    boyle davranir) — kabul edilen bir bedel.
+          _index == _reels ? const ReelsSayfasi() : const SizedBox.shrink(),
+          const _MesajSekmesi(), // sohbetler + CAGRI GECMISI segmenti
+          const _CanliSekmesi(), // canli yayinlar + SESLI ODALAR segmenti
+          const _ProfileTab(),
         ],
       ),
       // ALT MENU sol/sag (ust kose) RADIUS (test turu 7): icerik zeminine karsi yuvarlak kose.
@@ -115,18 +141,168 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           selectedIndex: _index,
           onDestinationSelected: (i) => setState(() => _index = i),
           // ⚠️ Etiketler KISA (6 hedef) — bkz. _titles serhi.
-          destinations: const [
-            NavigationDestination(icon: Icon(LucideIcons.house), label: 'Akış'),
-            NavigationDestination(icon: Icon(LucideIcons.messageCircle), label: 'Sohbet'),
-            NavigationDestination(icon: Icon(LucideIcons.phone), label: 'Arama'),
-            NavigationDestination(icon: Icon(LucideIcons.audioLines), label: 'Oda'),
-            NavigationDestination(icon: Icon(LucideIcons.radioTower), label: 'Canlı'),
-            NavigationDestination(icon: Icon(LucideIcons.user), label: 'Profil'),
+          destinations: [
+            const NavigationDestination(
+              icon: Icon(LucideIcons.house),
+              label: 'Anasayfa',
+            ),
+            const NavigationDestination(
+              icon: Icon(LucideIcons.search),
+              label: 'Ara',
+            ),
+            const NavigationDestination(
+              icon: Icon(LucideIcons.clapperboard),
+              label: 'Reels',
+            ),
+            // ⚠️ OKUNMAMIS ROZETI: mesaj sekmesi artik alt menude ve kullanici
+            //    surekli akista/reels'te olacagi icin rozet OLMADAN yeni mesaji
+            //    HIC fark etmezdi (kullanicinin 1 numarali sikayeti "mesajlar
+            //    ve bildirimler anlik gelmiyor" — gorunurluk bunun parcasi).
+            NavigationDestination(
+              icon: _RozetliIkon(
+                ikon: LucideIcons.messageCircle,
+                sayi: ref
+                    .watch(chatsProvider)
+                    .valueOrNull
+                    ?.where((c) => !c.archived)
+                    .fold<int>(0, (a, c) => a + c.unread) ??
+                    0,
+              ),
+              label: 'Mesaj',
+            ),
+            const NavigationDestination(
+              icon: Icon(LucideIcons.radioTower),
+              label: 'Canlı',
+            ),
+            const NavigationDestination(
+              icon: Icon(LucideIcons.user),
+              label: 'Profil',
+            ),
           ],
         ),
       ),
     );
   }
+}
+
+/// Alt menu ikonu + sag-ust kirmizi sayac.
+/// ⚠️ 99+ tavani: uc haneli sayi hedefin genisligini tasirir.
+class _RozetliIkon extends StatelessWidget {
+  const _RozetliIkon({required this.ikon, required this.sayi});
+
+  final IconData ikon;
+  final int sayi;
+
+  @override
+  Widget build(BuildContext context) {
+    if (sayi <= 0) return Icon(ikon);
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Icon(ikon),
+        Positioned(
+          right: -6,
+          top: -4,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+            constraints: const BoxConstraints(minWidth: 17),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE53935),
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: Text(
+              sayi > 99 ? '99+' : '$sayi',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// ⚠️ TURU 76 — MESAJ SEKMESI: sohbetler + CAGRI GECMISI.
+///
+/// Cagri gecmisi alt menuden cikarildi ama SILINMEDI; buraya segment olarak
+/// tasindi (WhatsApp'ta da aramalar mesajlarin yanindaki sekmededir).
+/// ⚠️ YAPMA: `CallsTab`i kaldirma — arama gecmisi + "geri ara" akisi orada.
+class _MesajSekmesi extends StatefulWidget {
+  const _MesajSekmesi();
+
+  @override
+  State<_MesajSekmesi> createState() => _MesajSekmesiState();
+}
+
+class _MesajSekmesiState extends State<_MesajSekmesi> {
+  int _alt = 0;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
+        child: SegmentedButton<int>(
+          segments: const [
+            ButtonSegment(value: 0, label: Text('Sohbetler')),
+            ButtonSegment(value: 1, label: Text('Aramalar')),
+          ],
+          selected: {_alt},
+          showSelectedIcon: false,
+          onSelectionChanged: (s) => setState(() => _alt = s.first),
+        ),
+      ),
+      // ⚠️ IndexedStack: sekme degistirince ChatsScreen'in WS dinleyicisi ve
+      //    arama/filtre durumu KAYBOLMASIN.
+      Expanded(
+        child: IndexedStack(
+          index: _alt,
+          children: const [ChatsScreen(), CallsTab()],
+        ),
+      ),
+    ],
+  );
+}
+
+/// ⚠️ TURU 76 — CANLI SEKMESI: canli yayinlar + SESLI ODALAR.
+/// ⚠️ YAPMA: `RoomsTab`i kaldirma — sesli oda (Spaces) akisi orada.
+class _CanliSekmesi extends StatefulWidget {
+  const _CanliSekmesi();
+
+  @override
+  State<_CanliSekmesi> createState() => _CanliSekmesiState();
+}
+
+class _CanliSekmesiState extends State<_CanliSekmesi> {
+  int _alt = 0;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
+        child: SegmentedButton<int>(
+          segments: const [
+            ButtonSegment(value: 0, label: Text('Canlı yayınlar')),
+            ButtonSegment(value: 1, label: Text('Sesli odalar')),
+          ],
+          selected: {_alt},
+          showSelectedIcon: false,
+          onSelectionChanged: (s) => setState(() => _alt = s.first),
+        ),
+      ),
+      Expanded(
+        child: IndexedStack(
+          index: _alt,
+          children: const [LiveTab(), RoomsTab()],
+        ),
+      ),
+    ],
+  );
 }
 
 /// Kendi profilim (API'den)

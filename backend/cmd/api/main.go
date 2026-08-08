@@ -196,6 +196,7 @@ func main() {
 		r.Patch("/posts/{id}", socialH.Update)              // turu 76: gonderi duzenleme
 		r.Get("/posts/{id}/istatistik", socialH.Istatistik) // turu 76: yazara ozel
 		r.Get("/feed", socialH.Akis)
+		r.Get("/kesfet", socialH.Kesfet) // turu 76: arama sekmesi izgarasi
 		r.Get("/reels", socialH.Reels)
 		r.Get("/posts/{id}", socialH.Detay)
 		r.Get("/users/{id}/posts", socialH.UserPosts)

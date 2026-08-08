@@ -11,7 +11,6 @@ import 'bildirimler_sayfasi.dart';
 import 'gonderi_karti.dart';
 import 'gonderi_olustur.dart';
 import 'profil_sayfasi.dart';
-import 'reels_sayfasi.dart';
 import 'sosyal_servisi.dart';
 
 /// ⚠️⚠️ TURU 75 — ANA SAYFA AKISI (Instagram/Facebook duzeni).
@@ -164,13 +163,12 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
           onSelectionChanged: (v) => setState(() => _bolme = v.first),
         ),
         actions: [
-          IconButton(
-            icon: const Icon(LucideIcons.clapperboard),
-            tooltip: 'Reels',
-            onPressed: () => Navigator.of(
-              context,
-            ).push(MaterialPageRoute(builder: (_) => const ReelsSayfasi())),
-          ),
+          // ⚠️⚠️ TURU 76 — BURADAKI "Reels" DUGMESI KALDIRILDI. Reels artik ALT
+          //    MENUDE kendi sekmesi. Ikisini birden birakmak, kullanicinin ayni
+          //    ekrani IKI FARKLI yoldan (biri route PUSH'u, digeri sekme)
+          //    acabilmesi demekti; push edilen kopya sekme degistirilince
+          //    ustte KALIR ve iki oynatici ayni anda yasayabilirdi.
+          //    ⚠️ YAPMA: bu dugmeyi geri ekleme.
           // TURU 76: okunmamis rozeti. Sayac WS 'bildirim.yeni' olayinda yerel
           // olarak artar, sayfaya girilince sifirlanir.
           BildirimRozeti(

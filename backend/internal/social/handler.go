@@ -441,6 +441,62 @@ func (h *Handler) Akis(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// GET /kesfet — KESFET IZGARASI (arama sekmesinin alt yarisi).
+//
+// ⚠️⚠️ TURU 76 — kullanici emri: "alt menude arama olmali ... instagram gibi
+//
+//	normal profil arama". Instagram'da arama sekmesi BOS bir kutu degildir:
+//	ustte arama alani, ALTINDA kesfet izgarasi vardir. O izgara icin ayri bir
+//	uc gerekiyordu.
+//
+// ⚠️ `/feed`ten AYRI OLMAK ZORUNDA: `/feed` kesfeti YALNIZ "hic kimseyi takip
+//
+//	etmiyorsan" doner (soguk baslangic dali). Birini takip eden kullanici
+//	`/feed`ten kesfet ALAMAZ; arama sekmesi ONA DA izgara gostermeli.
+//	⚠️ YAPMA: bunu `/feed`e bir parametre olarak baglama — o ucun donus
+//	   sozlesmesinde `kesfet` bayragi var ve iki anlam birbirine karisir.
+//
+// ⚠️ YALNIZ MEDYALI gonderiler: izgara kucuk kare kapaklardan olusur, yazi
+//
+//	gonderisinin kapagi YOKTUR (bos kare cizerdi).
+//
+// ⚠️ KENDI gonderilerim ELENMEZ: bu olcekte (prototip) izgara aksi halde bos
+//
+//	kalabilir. Kullanici buyudugunde `p.author_id <> $1` eklenebilir.
+func (h *Handler) Kesfet(w http.ResponseWriter, r *http.Request) {
+	me := auth.UserID(r.Context())
+	limit := 30
+	if v, err := strconv.Atoi(r.URL.Query().Get("limit")); err == nil && v > 0 && v <= 60 {
+		limit = v
+	}
+	before := time.Now().Add(time.Hour)
+	if s := r.URL.Query().Get("before"); s != "" {
+		if t, err := time.Parse(time.RFC3339Nano, s); err == nil {
+			before = t
+		}
+	}
+	rows, err := h.db.Query(r.Context(), `
+		SELECT p.id, p.author_id, p.tur, p.metin, p.media_ids,
+		       p.begeni_sayisi, p.yorum_sayisi, p.goruntulenme,`+medyaTurleri+`
+		       p.yorum_kapali, p.created_at,
+		       u.name, COALESCE(u.username,''), u.avatar_url, u.avatar_media_id,
+		       EXISTS(SELECT 1 FROM post_likes l WHERE l.post_id=p.id AND l.user_id=$1),
+		       EXISTS(SELECT 1 FROM post_saves s WHERE s.post_id=p.id AND s.user_id=$1)
+		  FROM posts p JOIN users u ON u.id = p.author_id
+		 WHERE p.durum='yayinda' AND p.created_at < $2
+		   AND p.media_ids <> '{}'
+		   AND (p.author_id = $1 OR (NOT u.gizli_hesap AND u.verified))
+		`+engelYok+`
+		 ORDER BY p.created_at DESC LIMIT $3`, me, before, limit)
+	if err != nil {
+		log.Printf("kesfet: %v", err)
+		hata(w, 500, "keşfet alınamadı")
+		return
+	}
+	defer rows.Close()
+	yaz(w, 200, map[string]any{"posts": h.satirlariOku(rows)})
+}
+
 // GET /users/{id}/posts — bir kullanicinin gonderileri (profil sekmesi).
 func (h *Handler) UserPosts(w http.ResponseWriter, r *http.Request) {
 	me := auth.UserID(r.Context())
