@@ -5093,3 +5093,25 @@ listesinin tamamı karşılandı.**
 
 **SIRADAKİ:** temiz build (android + ios) → R2 → purge → indir sayfası saati →
 DB temizle → kullanıcı tek seferde test edecek.
+
+### YAYIN (9 Ağustos 02:36) — TEST TURU 76
+
+| | |
+|---|---|
+| Commit | `0eabe4a` |
+| Android | run 31283866106 · `112758779` bayt · md5 `85765bc9` |
+| iOS | run 31283871070 · `23363163` bayt · md5 `8ce058e5` |
+| CDN | purge OK · apk + ipa + index.html **MD5 birebir** |
+| İndir sayfası | saat `9 Ağustos 02:36` (3 yerde) · APK linki `?v=20260809-0236` |
+| Debug imza | YOK · iOS deployment target 16.0 |
+| Backend | `deb05b2` deploy · migration **024 + 025** uygulandı · medya aktif · health ok |
+| DB | temiz (0/0/0/0) |
+| Uçtan uca | **46/46 kontrol canlı sunucuda GEÇTİ** |
+
+**Build öncesi/arası denetimde yakalanan 3 tur bulgu** (hiçbiri sahaya çıkmadı):
+1. `Kaydedilenler` bomboş dönecekti (16 vs 18 sütun) → kalıcı test muhafızı eklendi
+2. Sessize alma push'ta hiç uygulanmıyordu (FAZ 6'nın kendi özelliği ölüydü)
+3. Görüntülenme sayacı ana giriş yollarında hiç artmıyordu
+
+İlk build (`deb05b2`) **yayınlanmadı** — 3. bulgu ondan sonra çıktı, build yeniden alındı.
+CLAUDE.md turu 59b dersi: *"build ALMAK yayınlamak DEĞİLDİR"*.

@@ -17,7 +17,38 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (9 Agu):** TURU 76 — KOD BITTI, 8 FAZ + DENETIM TAMAM, BUILD ALINIYOR.
+- **KALDIGIMIZ YER (9 Agu 02:36):** TEST TURU 76 YAYINLANDI — android 31283866106 +
+  ios 31283871070 (0eabe4a), R2 apk=112758779 (md5 85765bc9) ipa=23363163 (md5 8ce058e5),
+  purge OK, **CDN birebir** (apk + ipa + index.html MD5 esit), indir sayfasi 02:36
+  (saat 3 yerde gorunuyor), debug imza YOK, iOS deployment target 16.0 dogrulandi,
+  **BACKEND DEPLOY EDILDI** (deb05b2; migration **024 + 025** uygulandi, "medya: aktif (R2)")
+  + health ok, DB temiz (0/0/0/0).
+  ✅ **CANLI SUNUCUDA 46/46 UCTAN UCA KONTROL GECTI** — `node tools/uctan_uca.js`.
+  **KULLANICI TEST EDECEK.**
+- 📌 **TURU 76 — UCTAN UCA ARAC GENISLETILDI (`tools/uctan_uca.js`, 46 kontrol).**
+  EN KRITIK dogrulama: `media_kinds` alt sorgusu (`unnest ... WITH ORDINALITY` +
+  `array_agg`) GERCEK POSTGRES'TE HIC KOSMAMISTI. Tip/sozdizim hatasi olsaydi
+  **HER gonderi sorgusu 500 dondururdu** = akis + profil + kesfet + reels +
+  kaydedilenler TAMAMEN olu. Statik denetim bunu YAKALAYAMAZ.
+  ⚠️ Yeni bir SQL/uc eklerken bu araca da kontrol ekle; calistirdiktan sonra
+  **DB'yi TRUNCATE et** (arac gercek hesap + gonderi + medya uretir).
+  ⚠️ **DUZELTILEN ESKI VARSAYIM:** "engelden sonra akis TAMAMEN BOS" YANLIS —
+  engelleme takibi de DUSURUYOR (turu 75 `Block` -> `takibiKaldir`, iki yonlu),
+  kullanici SOGUK BASLANGIC dalina duser ve KESFET doner. Bos DB'de tesadufen 0
+  cikiyordu. Dogru olcut: **engellenenin gonderisi YOK**.
+- ⚠️⚠️ **TURU 76 — GORUNTULENME SAYACI ANA GIRIS YOLLARINDA HIC ARTMIYORDU**
+  (ucuncu denetim bulgusu, build yeniden alindi). Sunucu sayaci YALNIZ
+  `GET /posts/{id}` icinde artiriyor; detay ekrani hazir bir `Gonderi` NESNESIYLE
+  acildiginda (profil izgarasi, kesfet izgarasi, kaydedilenler — GERCEK giris
+  yollarinin COGU) o istek HIC ATILMIYORDU. Kullanicinin ozellikle istedigi
+  istatistik pratikte HEP 0 kalirdi. FIX: nesneyle acilista SESSIZ tazeleme.
+  ⚠️ `_g` NESNESI DEGISTIRILMEZ, ALANLARI guncellenir — model akis/izgara ile
+  PAYLASILIYOR; yeni nesne atansaydi detayda yapilan begeni geri donuldugunde
+  izgarada gorunmezdi.
+- 📌 **SUREC (turu 59b dersinin tekrari):** ILK build (`deb05b2`) **YAYINLANMADI** —
+  ucuncu bulgu build ALINDIKTAN sonra cikti, kod duzeltilip build YENIDEN alindi.
+  *"build ALMAK yayinlamak DEGILDIR."*
+- **ONCEKI (9 Agu):** TURU 76 — KOD BITTI, 8 FAZ + DENETIM TAMAM, BUILD ALINIYOR.
   Kullanicinin 10 maddelik eksik listesi (test sonrasi) TAMAMEN karsilandi:
   1 anlik mesaj/bildirim · 2 engelleme her yuzeyde · 3 profil fotograflari ·
   4 Instagram etkilesim + istatistik · 5 ALT MENUDE ARAMA (profil arama) ·
