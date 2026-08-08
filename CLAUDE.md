@@ -23,25 +23,26 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
   **BACKEND DEPLOY EDILDI** (turu 64 -> 75; migration 020/021/022/023) + health ok,
   DB temiz (0/0/0/0). **KULLANICI TEST EDECEK.**
 - ⚠️⚠️⚠️ **TURU 75 YAYINDA YAKALANAN SEVK ENGELI: MEDYA SUNUCUDA KAPALIYDI.**
-  Deploy sonrasi log: .  ok donuyordu,
-  API saglikli aciliyordu — hata SATIR ARASINDAYDI.
-  **KOK NEDEN:**   **DEGIL** acik 
-  eslemesi kullaniyor. Sunucudaki e R2 anahtarlarini eklemek **TEK BASINA YETMEDI**;
-  degiskenlerin KABA gecmesi icin compose'da da eslenmesi gerekiyordu.
+  Deploy sonrasi log: **"medya: R2_* env EKSIK — MEDYA KAPALI"**. /health "ok"
+  donuyordu, API saglikli aciliyordu — hata SATIR ARASINDAYDI.
+  **KOK NEDEN:** `backend/docker-compose.yml` **env_file: DEGIL** acik **environment:**
+  eslemesi kullaniyor. Sunucudaki `.env` dosyasina R2 anahtarlarini eklemek
+  **TEK BASINA YETMEDI**; degiskenlerin KABA gecmesi icin compose'da da eslenmesi
+  gerekiyordu.
   **ETKISI:** yukleme, profil fotografi, gonderi/kanal gorselleri ve REELS tamamen olu
   olacakti (turu 74 medya + turu 75 sosyal katmanin GORSEL ayaginin hepsi).
-  ⚠️ **YAPMA: yeni bir env degiskeni eklerken yalniz e yazip birakma; compose'daki
-   blogunu da guncelle (IKISI AYRI YERDIR).**
+  ⚠️ **YAPMA: yeni bir env degiskeni eklerken yalniz `.env`e yazip birakma; compose'daki
+  `environment:` blogunu da guncelle (IKISI AYRI YERDIR).**
 - ✅ **TURU 75 — UCTAN UCA CANLI DOGRULAMA: 27/27 GECTI** (scratchpad/uctan_uca.js).
   Gercek sunucuda, **IKI AYRI HESAPLA** (tek cihazda gorunmeyen hatalar icin SART):
   presign -> R2 PUT -> commit -> gonderi -> takip -> akis -> **B'nin A'nin gorselini
   imzali adresten BIREBIR indirmesi** -> begeni/yorum/kaydetme -> kaydedilenler ->
   **engelleme sonrasi profil gonderilerinin BOSALMASI** -> kanal ac/gonderi/abone/
-   alani/kesfet filtresi -> reels -> bildirimler.
+  `sessiz` alani/kesfet filtresi -> reels -> bildirimler.
   ⚠️ Bu betik SURUM RUTININE EKLENDI: sosyal/medya degisen her turda kosulmali.
 - 📌 **MIGRATION DOGRULAMA YONTEMI (yeni rutin adimi):** deploy ONCESI sunucuda
-  ATILABILIR kopya DB () acilip TUM migration'lar sirayla
-   ile uygulanir, sonra DROP edilir. Gercek veriye DOKUNULMAZ.
+  ATILABILIR kopya DB (`CREATE DATABASE mig_dogrula`) acilip TUM migration'lar sirayla
+  `psql -v ON_ERROR_STOP=1` ile uygulanir, sonra DROP edilir. Gercek veriye DOKUNULMAZ.
   Hatali bir migration API'yi ACILISTA oldurur; bu adim onu deploy'dan once yakalar.
   (Turu 75'te 9/9 temiz gecti.)
 - **ONCEKI (8 Agu):** TURU 75 kodu — sosyal katman + kanal.
