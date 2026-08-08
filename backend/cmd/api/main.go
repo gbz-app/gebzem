@@ -23,6 +23,7 @@ import (
 	"github.com/gbz-app/gebzem/backend/internal/push"
 	"github.com/gbz-app/gebzem/backend/internal/rooms"
 	"github.com/gbz-app/gebzem/backend/internal/sms"
+	"github.com/gbz-app/gebzem/backend/internal/social"
 	"github.com/gbz-app/gebzem/backend/internal/streams"
 	"github.com/gbz-app/gebzem/backend/internal/udid"
 	"github.com/gbz-app/gebzem/backend/internal/users"
@@ -76,6 +77,7 @@ func main() {
 	authH := auth.NewHandler(db, cfg, smsSender)
 	chatH := chat.NewHandler(db, hub, pushSender)
 	usersH := users.NewHandler(db)
+	socialH := social.NewHandler(db) // turu 75: gonderi + akis + etkilesim
 	// TURU 74 — MEDYA. R2 env eksikse Enabled()=false doner ve uclar KAYDEDILMEZ
 	// (fail-closed ama GORUNUR: acilista log yazar).
 	mediaH := media.NewHandler(db, rdb, cfg.R2Endpoint, cfg.R2AccessKeyID,
@@ -180,6 +182,19 @@ func main() {
 		r.Patch("/users/me/privacy", usersH.SetPrivacy)
 		r.Get("/notifications", usersH.Notifications)
 		r.Post("/notifications/read", usersH.NotificationsRead)
+		// ⚠️ TURU 75 — GONDERI + AKIS + ETKILESIM.
+		r.Post("/posts", socialH.Create)
+		r.Delete("/posts/{id}", socialH.Delete)
+		r.Get("/feed", socialH.Akis)
+		r.Get("/users/{id}/posts", socialH.UserPosts)
+		r.Post("/posts/{id}/like", socialH.Like)
+		r.Delete("/posts/{id}/like", socialH.Unlike)
+		r.Get("/posts/{id}/likes", socialH.Likes)
+		r.Post("/posts/{id}/comments", socialH.Comment)
+		r.Get("/posts/{id}/comments", socialH.Comments)
+		r.Delete("/comments/{id}", socialH.CommentDelete)
+		r.Post("/posts/{id}/save", socialH.Save)
+		r.Delete("/posts/{id}/save", socialH.Unsave)
 		r.Get("/ws", chatH.WebSocket)
 		r.Get("/chats", chatH.ListChats)
 		r.Post("/chats/direct", chatH.CreateDirect)
