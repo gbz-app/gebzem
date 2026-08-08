@@ -50,6 +50,14 @@ func (h *Handler) Block(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "engellenemedi"})
 		return
 	}
+	// ⚠️⚠️ TURU 75 — ENGELLEME TAKIBI DE DUSURUR (IKI YONLU).
+	// Aksi halde engelleme DELINIRDI: engellenen kisi seni takip etmeye ve
+	// gonderilerini gormeye DEVAM ederdi. Sayaclar takibiKaldir icinde
+	// AYNI TRANSACTION'da guncellenir.
+	// ⚠️ DB tetikleyicisi KULLANILMADI: gizli davranis hata ayiklamayi zorlastirir.
+	// ⚠️ Hata YUTULUR — engelleme islemi takip temizligi yuzunden BASARISIZ OLMAZ.
+	h.takibiKaldir(r.Context(), me, hedef)
+	h.takibiKaldir(r.Context(), hedef, me)
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
@@ -104,8 +112,9 @@ type reportReq struct {
 
 // POST /reports — sikayet et.
 // ⚠️ Idempotent: ayni kullanici ayni hedefi tekrar sikayet ederse yeni satir ACILMAZ
-//    (UNIQUE + ON CONFLICT DO NOTHING) ama istemciye yine 200 doner — kullanici
-//    "sikayetim gitti" gorur, biz spam satiri biriktirmeyiz.
+//
+//	(UNIQUE + ON CONFLICT DO NOTHING) ama istemciye yine 200 doner — kullanici
+//	"sikayetim gitti" gorur, biz spam satiri biriktirmeyiz.
 func (h *Handler) Report(w http.ResponseWriter, r *http.Request) {
 	me := auth.UserID(r.Context())
 	var req reportReq
