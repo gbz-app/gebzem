@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -191,7 +192,12 @@ func (h *Handler) SendMessage(w http.ResponseWriter, r *http.Request) {
 	// diyordu ama `chatMemberIDs` yalnizca uyelige bakiyordu -> engelleme SAHADA
 	// HIC CALISMIYORDU). ⚠️ YAPMA: bu blogu kaldirma.
 	// ⚠️ Hata durumunda FAIL-CLOSED: engel sorgusu patlarsa mesaji GECIRME.
-	engelli, err := h.engelliMi(r, userID, members)
+	// ⚠️⚠️ TURU 74b (DENETIM BULGUSU): engel kontrolu YALNIZ 1:1 sohbette.
+	// `engelliMi` uyelerden HERHANGI biriyle engel iliskisi varsa true doner;
+	// 20 kisilik grupta biri seni engellemisse GRUBA HIC MESAJ ATAMAZDIN ve
+	// hata metni bilincli olarak notr oldugu icin sebebini de anlayamazdin.
+	// WhatsApp'ta da engelleme yalniz 1:1'i etkiler.
+	engelli, err := h.engelliMi(r, chatID, userID, members)
 	if err != nil {
 		httpErr(w, http.StatusInternalServerError, "mesaj gönderilemedi")
 		return
@@ -531,8 +537,23 @@ func (h *Handler) MarkRead(w http.ResponseWriter, r *http.Request) {
 //
 // ⚠️ TEK SORGU: uyelik ve engel ayni gidis-donuste cozulur (mesaj gonderme sicak yol).
 // ⚠️ YAPMA: engel kontrolunu cagiranlara kopyalama — TEK KAYNAK burasi.
-func (h *Handler) engelliMi(r *http.Request, userID string, digerleri []string) (bool, error) {
+func (h *Handler) engelliMi(r *http.Request, chatID, userID string,
+	digerleri []string) (bool, error) {
 	if len(digerleri) == 0 {
+		return false, nil
+	}
+	// ⚠️⚠️ TURU 74b (DENETIM BULGUSU): engel kontrolu YALNIZ 1:1 sohbette.
+	// Bu fonksiyon uyelerden HERHANGI biriyle engel iliskisi varsa true doner;
+	// grupta uygulandiginda 20 kisilik bir grupta biri seni engellemisse GRUBA
+	// HIC MESAJ ATAMIYORDUN ve hata metni bilincli olarak notr oldugu icin
+	// sebebini de anlayamiyordun. WhatsApp'ta da engelleme yalniz 1:1'i etkiler.
+	// ⚠️ Bugun tum sohbetler 'direct'; grup gelince bu kapi ZATEN dogru davranir.
+	var tur string
+	if err := h.db.QueryRow(r.Context(),
+		`SELECT type FROM chats WHERE id=$1`, chatID).Scan(&tur); err != nil {
+		return false, err
+	}
+	if tur != "direct" {
 		return false, nil
 	}
 	var n int
@@ -616,18 +637,38 @@ func (h *Handler) DeleteMessage(w http.ResponseWriter, r *http.Request) {
 	}
 	// ⚠️ `sender_id=$3` SART: baskasinin mesajini silmeyi ENGELLER.
 	//    `chat_id=$2` SART: baska sohbetten mesaj id'si vererek silmeyi engeller.
-	tag, err := h.db.Exec(r.Context(), `
-		UPDATE messages SET deleted_for_all=true, content='', media_url=''
-		 WHERE id=$1 AND chat_id=$2 AND sender_id=$3`, msgID, chatID, userID)
-	if err != nil {
-		httpErr(w, http.StatusInternalServerError, "mesaj silinemedi")
-		return
-	}
-	if tag.RowsAffected() == 0 {
+	//
+	// ⚠️⚠️ TURU 74b (DENETIM BULGUSU) — `media_id` de NULL'lanir.
+	// Eskiden yalniz `content` ve `media_url` bosaltiliyor, `media_id` satirda
+	// KALIYORDU. `media.erisebilir()` `deleted_for_all`a BAKMADIGI icin alici
+	// `GET /media/{id}/url` ile SONSUZA KADAR yeni imzali adres alabiliyordu:
+	// "herkesten sil" fotografi KALDIRMIYORDU (5651'in "4 saat icinde kaldirma"
+	// ayagi da saglanmiyordu).
+	// ⚠️ `RETURNING media_id` YENI degeri (NULL) dondururdu; ESKI degeri almak icin
+	//    guncellemeden ONCEKI anlik goruntuye self-join yapiyoruz.
+	var eskiMedya *string
+	err = h.db.QueryRow(r.Context(), `
+		UPDATE messages m SET deleted_for_all=true, content='', media_url='',
+		                      media_id=NULL
+		  FROM messages eski
+		 WHERE m.id = eski.id AND m.id=$1 AND m.chat_id=$2 AND m.sender_id=$3
+		 RETURNING eski.media_id`, msgID, chatID, userID).Scan(&eskiMedya)
+	if err == pgx.ErrNoRows {
 		// Mesaj yok, baskasina ait, ya da baska sohbette. Hangisi oldugunu SOYLEME
 		// (varlik sizintisi) — tek notr yanit.
 		httpErr(w, http.StatusForbidden, "bu mesaj silinemez")
 		return
+	}
+	if err != nil {
+		httpErr(w, http.StatusInternalServerError, "mesaj silinemedi")
+		return
+	}
+	// ⚠️ Medya BASKA bir mesaja da bagliysa (iletme) R2'den SILINMEZ — yalniz bu
+	//    mesajdan kopar. Hicbir yere bagli degilse nesne silme kuyruguna girer.
+	// ⚠️ Bu, "veri silinmez" karariyla CELISMEZ: silmeyi KULLANICININ KENDISI
+	//    talep ediyor ve yasal olarak saglanmasi ZORUNLU.
+	if eskiMedya != nil && *eskiMedya != "" {
+		h.medyayiKopar(r.Context(), *eskiMedya)
 	}
 	payload, _ := json.Marshal(map[string]any{
 		"id": msgID, "chat_id": chatID, "deleted_for_all": true,
@@ -648,4 +689,48 @@ func kisaltRef(s string) string {
 		return s[:64]
 	}
 	return s
+}
+
+// ⚠️⚠️ TURU 74b — MESAJ SILININCE MEDYAYI DA KALDIR.
+//
+// Denetim bulgusu: "herkesten sil" yalniz metni bosaltiyordu; `media_id` satirda
+// kaldigi icin alici `GET /media/{id}/url` ile fotografi SONSUZA KADAR indirebiliyordu.
+//
+// KURALLAR:
+//
+//	· Medya BASKA bir mesaja da bagliysa (iletme) R2 nesnesi SILINMEZ — baskasinin
+//	  sohbetindeki mesaj bozulmaz.
+//	· Hicbir yere bagli degilse: satir 'silindi' isaretlenir ve nesneler silme
+//	  kuyruguna girer (sweeper R2'den kaldirir).
+//	· Avatar olarak kullaniliyorsa DOKUNULMAZ.
+//
+// ⚠️ Bu, kullanicinin "veri silinmesin" karariyla CELISMEZ: burada silmeyi
+//
+//	KULLANICININ KENDISI talep ediyor ve yasal olarak (KVKK + 5651 + magaza
+//	kurali) saglanmasi ZORUNLU.
+//
+// ⚠️ Hata YUTULUR: mesaj silme islemi medya temizligi yuzunden BASARISIZ OLMAZ.
+func (h *Handler) medyayiKopar(ctx context.Context, mediaID string) {
+	var kalan int
+	if err := h.db.QueryRow(ctx, `
+		SELECT (SELECT count(*) FROM messages WHERE media_id=$1)
+		     + (SELECT count(*) FROM users WHERE avatar_media_id=$1)`,
+		mediaID).Scan(&kalan); err != nil {
+		return
+	}
+	if kalan > 0 {
+		return // baska mesaj/avatar hala kullaniyor
+	}
+	var anahtar, thumb string
+	if err := h.db.QueryRow(ctx, `
+		UPDATE media_assets SET status='silindi', deleted_at=now()
+		 WHERE id=$1 AND status IN ('aktif','bagli')
+		 RETURNING object_key, thumb_key`, mediaID).Scan(&anahtar, &thumb); err != nil {
+		return
+	}
+	for _, a := range []string{anahtar, thumb} {
+		if a != "" {
+			h.db.Exec(ctx, `INSERT INTO media_delete_queue (object_key) VALUES ($1)`, a)
+		}
+	}
 }

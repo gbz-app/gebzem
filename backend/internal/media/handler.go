@@ -69,17 +69,17 @@ func (h *Handler) Enabled() bool { return h.acik }
 // ---------------------------------------------------------------- 1) PRESIGN
 
 type presignReq struct {
-	Kind        string `json:"kind"`  // image | video | audio | document | avatar
-	MIME        string `json:"mime"`
-	Bytes       int64  `json:"bytes"`
-	MD5         string `json:"md5"`         // base64, istemci hesaplar (butunluk)
-	FileName    string `json:"file_name"`   // yalniz belge gosterimi icin
-	Width       int    `json:"width"`
-	Height      int    `json:"height"`
-	DurationMs  int    `json:"duration_ms"`
-	Waveform    string `json:"waveform"`
-	ThumbBytes  int64  `json:"thumb_bytes"` // 0 ise kucuk resim yok
-	ThumbMD5    string `json:"thumb_md5"`
+	Kind       string `json:"kind"` // image | video | audio | document | avatar
+	MIME       string `json:"mime"`
+	Bytes      int64  `json:"bytes"`
+	MD5        string `json:"md5"`       // base64, istemci hesaplar (butunluk)
+	FileName   string `json:"file_name"` // yalniz belge gosterimi icin
+	Width      int    `json:"width"`
+	Height     int    `json:"height"`
+	DurationMs int    `json:"duration_ms"`
+	Waveform   string `json:"waveform"`
+	ThumbBytes int64  `json:"thumb_bytes"` // 0 ise kucuk resim yok
+	ThumbMD5   string `json:"thumb_md5"`
 }
 
 type presignResp struct {
@@ -109,13 +109,44 @@ func (h *Handler) Presign(w http.ResponseWriter, r *http.Request) {
 		hata(w, 413, fmt.Sprintf("dosya çok büyük (en fazla %d MB)", tavan>>20))
 		return
 	}
+	// ⚠️⚠️ TURU 74b (DENETIM BULGUSU — EN AGIR ACIK): md5 alani ZORUNLU.
+	// Bos birakilabildigi surece Content-MD5 IMZAYA GIRMIYOR ve presigned URL
+	// omru boyunca (300-1800sn) ayni adrese ISTEDIGIN KADAR farkli govde
+	// yuklenebiliyordu. Saldiri: temiz JPEG yukle -> commit GECER (status=aktif)
+	// -> AYNI URL'e zararli/GPS'li/dev icerik yeniden PUT et -> sihirli bayt,
+	// TehlikeliMi, EXIF ve BOYUT kontrollerinin HEPSI devre disi kalir.
+	// MD5 imzaya girdigi anda govde DEGISTIRILEMEZ hale gelir.
+	// ⚠️ YAPMA: bu kontrolu opsiyonel yapma.
+	if req.MD5 == "" {
+		hata(w, 400, "bütünlük anahtarı eksik")
+		return
+	}
+	// ⚠️⚠️ KUCUK RESIM (thumb) TAVANI — eskiden HIC YOKTU: istemci
+	// istemci thumb_bytes=1 beyan edip o adrese 5 GB yukleyebiliyordu (thumb HEAD
+	// edilmiyor, dogrulanmiyor, kotaya yazilmiyor, sweeper gormuyor, reddet
+	// silmiyor -> "veri silinmez" karari geregi KALICI maliyet).
+	if req.ThumbBytes < 0 || req.ThumbBytes > ThumbTavan {
+		hata(w, 413, "küçük resim çok büyük")
+		return
+	}
+	if req.ThumbBytes > 0 && req.ThumbMD5 == "" {
+		hata(w, 400, "küçük resim bütünlük anahtarı eksik")
+		return
+	}
 	// ⚠️ HIZ SINIRI kotadan ONCE: presign almak ama yuklememek kotayi tuketmez,
 	//    dolayisiyla imza uretimi bedava DDoS olurdu.
 	if !h.kota.PresignIzni(r.Context(), userID) {
 		hata(w, 429, "çok fazla yükleme isteği, biraz bekleyin")
 		return
 	}
-	if kalan := h.kota.Kalan(r.Context(), userID); kalan < req.Bytes {
+	kalan := h.kota.Kalan(r.Context(), userID)
+	if h.kota.Hata != nil {
+		// ⚠️ Kota FAIL-OPEN ama GORUNUR (denetim bulgusu): Redis dustugunde
+		//    sinirlar sessizce kalkiyordu.
+		h.uyari("medya kota Redis hatasi — SINIRLAR GECICI OLARAK KALKTI")
+		h.kota.Hata = nil
+	}
+	if kalan < req.Bytes {
 		hata(w, 507, "aylık yükleme kotanız doldu")
 		return
 	}
@@ -154,10 +185,7 @@ func (h *Handler) Presign(w http.ResponseWriter, r *http.Request) {
 	// ⚠️ Content-Type ve Content-MD5 IMZAYA DAHIL: istemci farkli tip ya da farkli
 	//    icerik yuklerse R2 imzayi REDDEDER (403/BadDigest). Butunluk boyle saglanir.
 	//    `If-None-Match: *` KULLANILMADI (mobil sebekede tekrar denemeyi oldurur).
-	bas := map[string]string{"Content-Type": req.MIME}
-	if req.MD5 != "" {
-		bas["Content-MD5"] = req.MD5
-	}
+	bas := map[string]string{"Content-Type": req.MIME, "Content-MD5": req.MD5}
 	yuklemeURL, err := h.r2.ImzaliURL("PUT", anahtar, sure, bas)
 	if err != nil {
 		hata(w, 500, "yükleme adresi üretilemedi")
@@ -165,10 +193,7 @@ func (h *Handler) Presign(w http.ResponseWriter, r *http.Request) {
 	}
 	yanit := presignResp{MediaID: id, UploadURL: yuklemeURL, ExpiresSec: int(sure.Seconds())}
 	if thumbAnahtar != "" {
-		tb := map[string]string{"Content-Type": "image/jpeg"}
-		if req.ThumbMD5 != "" {
-			tb["Content-MD5"] = req.ThumbMD5
-		}
+		tb := map[string]string{"Content-Type": "image/jpeg", "Content-MD5": req.ThumbMD5}
 		yanit.ThumbURL, _ = h.r2.ImzaliURL("PUT", thumbAnahtar, sure, tb)
 	}
 	yaz(w, 200, yanit)
@@ -180,12 +205,7 @@ func (h *Handler) Commit(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserID(r.Context())
 	id := chi.URLParam(r, "id")
 
-	var kind, anahtar, mime, durum string
-	var beklenen int64
-	err := h.db.QueryRow(r.Context(), `
-		SELECT kind, object_key, mime, status, expected_bytes
-		  FROM media_assets WHERE id=$1 AND owner_id=$2`, id, userID).
-		Scan(&kind, &anahtar, &mime, &durum, &beklenen)
+	kayit, err := h.kaydiOku(r.Context(), id, userID)
 	if err == pgx.ErrNoRows {
 		// ⚠️ 404 DEGIL 403: baskasinin medya id'sini deneyerek varlik sorgulanmasin.
 		hata(w, 403, "bu içeriğe erişiminiz yok")
@@ -196,79 +216,153 @@ func (h *Handler) Commit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// ⚠️ IDEMPOTENT: ag zaman asimindan sonra tekrar gelen commit hata DEGIL.
-	if durum == "aktif" || durum == "bagli" {
-		yaz(w, 200, map[string]string{"media_id": id, "status": durum})
+	if kayit.durum == "aktif" || kayit.durum == "bagli" {
+		yaz(w, 200, map[string]string{"media_id": id, "status": kayit.durum})
 		return
 	}
-	if durum != "beklemede" {
+	if kayit.durum != "beklemede" {
 		hata(w, 409, "bu içerik kullanılamaz")
 		return
 	}
 
-	// (a) GERCEK boyut ve tip
-	bilgi, err := h.r2.Head(r.Context(), anahtar)
-	if err == ErrNesneYok {
-		hata(w, 409, "dosya yüklenmemiş")
+	kabul, mesaj, boyut := h.dogrulaVeAktifEt(r.Context(), userID, kayit)
+	if kabul {
+		yaz(w, 200, map[string]any{"media_id": id, "status": "aktif", "bytes": boyut})
 		return
+	}
+	switch mesaj {
+	case "":
+		hata(w, 502, "dosya doğrulanamadı") // gecici hata — tekrar denenebilir
+	case "dosya yüklenmemiş":
+		hata(w, 409, mesaj)
+	default:
+		hata(w, 422, mesaj)
+	}
+}
+
+type medyaKayit struct {
+	id, kind, anahtar, thumbAnahtar, mime, durum string
+	beklenen, thumbBeklenen                      int64
+}
+
+func (h *Handler) kaydiOku(ctx context.Context, id, sahip string) (medyaKayit, error) {
+	var k medyaKayit
+	k.id = id
+	var err error
+	if sahip == "" {
+		err = h.db.QueryRow(ctx, `
+			SELECT kind, object_key, thumb_key, mime, status, expected_bytes,
+			       thumb_expected_bytes
+			  FROM media_assets WHERE id=$1`, id).
+			Scan(&k.kind, &k.anahtar, &k.thumbAnahtar, &k.mime, &k.durum,
+				&k.beklenen, &k.thumbBeklenen)
+	} else {
+		err = h.db.QueryRow(ctx, `
+			SELECT kind, object_key, thumb_key, mime, status, expected_bytes,
+			       thumb_expected_bytes
+			  FROM media_assets WHERE id=$1 AND owner_id=$2`, id, sahip).
+			Scan(&k.kind, &k.anahtar, &k.thumbAnahtar, &k.mime, &k.durum,
+				&k.beklenen, &k.thumbBeklenen)
+	}
+	return k, err
+}
+
+// ⚠️⚠️ TURU 74b — ORTAK DOGRULAMA. **Commit VE sweeper AYNI yoldan gecer.**
+//
+// DENETIM BULGUSU: sweeper'in "kurtarma" dali yalnizca BOYUTA bakiyordu;
+// `BasParcasi` + `Dogrula` ve kota CAGRILMIYORDU. Saldiri sudur: presign al,
+// beyan edilen boyut kadar KEYFI icerik yukle, commit'i HIC cagirma -> 2 saat
+// sonra sweeper onu 'aktif' yapardi. Boylece sihirli bayt / EXIF-GPS / tip
+// kontrolu VE aylik kota TAMAMEN atlaniyordu (60 presign/dk x 8 MB =
+// 480 MB/dk KALICI depolama, hicbiri kotaya yazilmadan).
+// ⚠️ YAPMA: iki yoldan birini bu fonksiyonun disinda birakma.
+//
+// Doner: (kabulEdildi, kullaniciyaMesaj, gercekBoyut).
+// Mesaj bos ise GECICI hata (reddetme, sonra tekrar denenebilir).
+func (h *Handler) dogrulaVeAktifEt(ctx context.Context, sahip string,
+	k medyaKayit) (bool, string, int64) {
+	bilgi, err := h.r2.Head(ctx, k.anahtar)
+	if err == ErrNesneYok {
+		return false, "dosya yüklenmemiş", 0
 	}
 	if err != nil {
 		if r2h, ok := err.(*R2Hata); ok && r2h.ImzaHatasiMi() {
 			// ⚠️ GERCEK Sentry olayi: SigV4 bozulmus olabilir, sessiz kalmamali.
-			h.uyari("medya commit HEAD 403 — R2 imza/anahtar sorunu")
+			h.uyari("medya HEAD 403 — R2 imza/anahtar sorunu")
 		}
-		hata(w, 502, "dosya doğrulanamadı")
-		return
+		return false, "", 0
 	}
 	// ⚠️ TAM ESITLIK: "yaklasik" kabul edilmez. Farkli boyut = farkli dosya.
-	if bilgi.Bytes != beklenen {
-		h.reddet(r.Context(), id, anahtar, "boyut uyuşmuyor")
-		hata(w, 422, "dosya eksik veya bozuk yüklendi")
-		return
+	if bilgi.Bytes != k.beklenen {
+		h.reddet(ctx, k, "boyut uyuşmuyor")
+		return false, "dosya eksik veya bozuk yüklendi", 0
 	}
-
-	// (b) ICERIK dogrulamasi — sihirli bayt + beyan + GPS
-	bas, err := h.r2.BasParcasi(r.Context(), anahtar, 256<<10)
+	// ⚠️⚠️ PENCERE 256 KB -> 1 MB (denetim bulgusu): saldirgan APP1 (EXIF)
+	//    segmentini dolgu segmentleriyle 256 KB'in OTESINE itip GPS taramasindan
+	//    kacabiliyordu. 1 MB pratikte tum EXIF'leri kapsar.
+	bas, err := h.r2.BasParcasi(ctx, k.anahtar, 1<<20)
 	if err != nil {
-		hata(w, 502, "dosya okunamadı")
-		return
+		return false, "", 0
 	}
-	if temiz, sebep := Dogrula(kind, mime, bas); !temiz {
-		h.reddet(r.Context(), id, anahtar, sebep)
-		hata(w, 422, sebep)
-		return
+	if temiz, sebep := Dogrula(k.kind, k.mime, bas); !temiz {
+		h.reddet(ctx, k, sebep)
+		return false, sebep, 0
 	}
-
-	// (c) kota: GERCEK boyutla uzlastir
-	if _, err := h.kota.Ekle(r.Context(), userID, bilgi.Bytes); err != nil {
-		log.Printf("medya kota: %v", err)
+	// ⚠️ KUCUK RESIM de DOGRULANIR: eskiden HIC HEAD edilmiyordu ve tavani yoktu,
+	//    yani o adrese sinirsiz veri yuklenip kalici olarak birakilabiliyordu.
+	//    Bozuksa ANA dosya reddedilmez — yalniz thumb dusurulur (balon tam
+	//    gorseli kucultup gosterir).
+	if k.thumbAnahtar != "" && k.thumbBeklenen > 0 {
+		if tb, terr := h.r2.Head(ctx, k.thumbAnahtar); terr != nil || tb.Bytes != k.thumbBeklenen {
+			h.r2.Sil(ctx, k.thumbAnahtar)
+			h.db.Exec(ctx, `UPDATE media_assets SET thumb_key='' WHERE id=$1`, k.id)
+			k.thumbBeklenen = 0
+		}
 	}
-
-	if _, err := h.db.Exec(r.Context(), `
+	// ⚠️⚠️ KOTA **UPDATE'TEN SONRA** ve YALNIZ KAZANAN yolda (denetim bulgusu):
+	//    eskiden UPDATE'ten ONCE cagriliyordu; es zamanli iki commit IKISI DE
+	//    kotayi dusuyor ama UPDATE'in yalniz biri tutuyordu -> kullanici N
+	//    paralel commit ile kendi kotasini N katina cikarabiliyordu.
+	tag, err := h.db.Exec(ctx, `
 		UPDATE media_assets SET status='aktif', bytes=$2, committed_at=now()
-		 WHERE id=$1 AND status='beklemede'`, id, bilgi.Bytes); err != nil {
-		hata(w, 500, "kaydedilemedi")
-		return
+		 WHERE id=$1 AND status='beklemede'`, k.id, bilgi.Bytes)
+	if err != nil {
+		return false, "", 0
 	}
-	yaz(w, 200, map[string]any{"media_id": id, "status": "aktif", "bytes": bilgi.Bytes})
+	if tag.RowsAffected() == 1 {
+		if _, kerr := h.kota.Ekle(ctx, sahip, bilgi.Bytes+k.thumbBeklenen); kerr != nil {
+			log.Printf("medya kota: %v", kerr)
+		}
+	}
+	return true, "", bilgi.Bytes
 }
 
-// reddet — dogrulama basarisiz: nesneyi SIL, satiri isaretle.
+// reddet — dogrulama basarisiz: nesneleri SIL, satiri isaretle.
 // ⚠️ Nesne R2'de birakilmaz — hem maliyet hem zararli icerik riski.
-func (h *Handler) reddet(ctx context.Context, id, anahtar, sebep string) {
-	if err := h.r2.Sil(ctx, anahtar); err != nil {
-		// Silinemezse kuyruga at — sweeper tekrar dener (nesne SIZMASIN).
-		h.db.Exec(ctx, `INSERT INTO media_delete_queue (object_key) VALUES ($1)`, anahtar)
+// ⚠️ THUMB DA SILINIR (denetim bulgusu: eskiden yalniz `object_key` siliniyordu,
+//
+//	kucuk resim nesnesi R2'de KALICI olarak kaliyordu).
+func (h *Handler) reddet(ctx context.Context, k medyaKayit, sebep string) {
+	for _, anahtar := range []string{k.anahtar, k.thumbAnahtar} {
+		if anahtar == "" {
+			continue
+		}
+		if err := h.r2.Sil(ctx, anahtar); err != nil {
+			// Silinemezse kuyruga at — sweeper tekrar dener (nesne SIZMASIN).
+			h.db.Exec(ctx, `INSERT INTO media_delete_queue (object_key) VALUES ($1)`, anahtar)
+		}
 	}
 	h.db.Exec(ctx, `UPDATE media_assets SET status='reddedildi', reject_reason=$2,
-	                  deleted_at=now() WHERE id=$1`, id, kisalt(sebep, 200))
+	                  deleted_at=now() WHERE id=$1`, k.id, kisalt(sebep, 200))
 }
 
 // ---------------------------------------------------------------- 3) URL
 
 // URL — kisa omurlu imzali indirme adresi.
 // ⚠️ Bucket PRIVATE. Public + edge cache KABUL EDILMEDI: R2'den silmek Cloudflare
-//    edge onbellegini bosaltmaz -> 5651 "4 saat icinde kaldirma" beyani YANLIS
-//    BEYAN olurdu. Onbellek CIHAZDA (istemci media_id'ye gore saklar).
+//
+//	edge onbellegini bosaltmaz -> 5651 "4 saat icinde kaldirma" beyani YANLIS
+//	BEYAN olurdu. Onbellek CIHAZDA (istemci media_id'ye gore saklar).
 func (h *Handler) URL(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserID(r.Context())
 	id := chi.URLParam(r, "id")
@@ -309,18 +403,23 @@ func (h *Handler) URL(w http.ResponseWriter, r *http.Request) {
 // erisebilir — bu medya, kullanicinin uyesi oldugu bir sohbetteki mesaja mi bagli?
 // (Avatar icin ayrica: profil fotograflari herkese aciktir — asagida.)
 func (h *Handler) erisebilir(ctx context.Context, userID, mediaID string) bool {
-	var n int
 	// (a) mesaja bagli ve kullanici o sohbetin uyesi
+	// ⚠️ TURU 74b: count(*) yerine EXISTS (ilk isabette durur) + kismi index (016).
+	//    Ayrica SILINMIS mesaj erisim VERMEZ (denetim: "herkesten sil" sonrasi
+	//    alici fotografi sonsuza kadar indirebiliyordu).
+	var varMi bool
 	h.db.QueryRow(ctx, `
-		SELECT count(*) FROM messages m
-		  JOIN chat_members cm ON cm.chat_id = m.chat_id AND cm.user_id = $2
-		 WHERE m.media_id = $1`, mediaID, userID).Scan(&n)
-	if n > 0 {
+		SELECT EXISTS(
+		  SELECT 1 FROM messages m
+		    JOIN chat_members cm ON cm.chat_id = m.chat_id AND cm.user_id = $2
+		   WHERE m.media_id = $1 AND NOT m.deleted_for_all)`, mediaID, userID).Scan(&varMi)
+	if varMi {
 		return true
 	}
 	// (b) birinin AVATARI — profil fotograflari uygulama icinde herkese gorunur
-	h.db.QueryRow(ctx, `SELECT count(*) FROM users WHERE avatar_media_id=$1`, mediaID).Scan(&n)
-	return n > 0
+	h.db.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM users WHERE avatar_media_id=$1)`,
+		mediaID).Scan(&varMi)
+	return varMi
 }
 
 // ---------------------------------------------------------------- SWEEPER
@@ -328,14 +427,17 @@ func (h *Handler) erisebilir(ctx context.Context, userID, mediaID string) bool {
 // StartSweeper — YETIM yuklemeleri temizler.
 //
 // ⚠️⚠️ BU BIR "SAKLAMA SURESI" TEMIZLIGI DEGILDIR. Kullanici karari: **VERI SILINMEZ.**
-//    Burada silinen sey, baslamis ama TAMAMLANMAMIS yuklemelerdir (status='beklemede')
-//    ve kullanicinin gordugu hicbir icerige karsilik gelmez.
+//
+//	Burada silinen sey, baslamis ama TAMAMLANMAMIS yuklemelerdir (status='beklemede')
+//	ve kullanicinin gordugu hicbir icerige karsilik gelmez.
+//
 // ⚠️ YAPMA: buraya yas tabanli ('aktif'/'bagli' silme) kural ekleme.
 //
 // ⚠️ PENCERE SABIT DEGIL: PUT arka planda tamamlanabilir ama commit uygulama
-//    acilinca yapilir. Kisa pencere HALA SUREN bir yuklemenin nesnesini silerdi.
-//    Bu yuzden silmeden ONCE HeadObject denenir; nesne TAM ve DOGRUysa silinmez,
-//    'aktif' yapilir (kurtarma).
+//
+//	acilinca yapilir. Kisa pencere HALA SUREN bir yuklemenin nesnesini silerdi.
+//	Bu yuzden silmeden ONCE HeadObject denenir; nesne TAM ve DOGRUysa silinmez,
+//	'aktif' yapilir (kurtarma).
 func (h *Handler) StartSweeper(ctx context.Context) {
 	if !h.acik {
 		return
@@ -384,47 +486,50 @@ func (h *Handler) suprur(ctx context.Context) {
 
 	// (2) yetim 'beklemede' kayitlar — en az 2 saat once acilmis
 	// ⚠️ 2 saat: yavas hatta 16 MB video + arka planda askiya alinmis uygulama.
+	//    Presign omru en fazla 1800sn oldugu icin HALA SUREN bir yuklemeyi
+	//    silme riski YOKTUR.
 	r2, err := h.db.Query(ctx, `
-		SELECT id, object_key, expected_bytes FROM media_assets
+		SELECT id, owner_id::text FROM media_assets
 		 WHERE status='beklemede' AND created_at < now() - interval '2 hours'
 		 ORDER BY created_at LIMIT 200`)
 	if err != nil {
 		return
 	}
-	type yetim struct {
-		id, key string
-		bytes   int64
-	}
+	type yetim struct{ id, sahip string }
 	var liste []yetim
 	for r2.Next() {
 		var y yetim
-		if r2.Scan(&y.id, &y.key, &y.bytes) == nil {
+		if r2.Scan(&y.id, &y.sahip) == nil {
 			liste = append(liste, y)
 		}
 	}
 	r2.Close()
 
 	for _, y := range liste {
-		bilgi, err := h.r2.Head(ctx, y.key)
-		if err == nil && bilgi.Bytes == y.bytes && y.bytes > 0 {
-			// ⚠️ KURTARMA: nesne TAM — silmek yerine aktife cek. Kullanici
-			//    yuklemesini tamamlamis ama commit'i (uygulama kapandi vb.)
-			//    yapamamis olabilir. Silseydik verisi KAYBOLURDU.
-			h.db.Exec(ctx, `UPDATE media_assets SET status='aktif', bytes=$2,
-			                  committed_at=now() WHERE id=$1 AND status='beklemede'`,
-				y.id, bilgi.Bytes)
+		k, err := h.kaydiOku(ctx, y.id, "")
+		if err != nil {
 			continue
 		}
-		if err != nil && err != ErrNesneYok {
+		// ⚠️⚠️ KURTARMA **TAM DOGRULAMADAN GECER** (turu 74b denetim bulgusu).
+		//    Eskiden burada YALNIZ BOYUT karsilastiriliyordu; icerik dogrulamasi
+		//    ve kota YOKTU -> commit'i hic cagirmayan biri, keyfi icerigi 2 saat
+		//    sonra sweeper'a 'aktif' yaptirabiliyordu.
+		//    ⚠️ Kurtarma GEREKLI: kullanici yuklemeyi bitirmis ama commit'i
+		//       (uygulama kapandi) yapamamis olabilir; silseydik VERISI KAYBOLURDU.
+		kabul, mesaj, _ := h.dogrulaVeAktifEt(ctx, y.sahip, k)
+		if kabul {
+			continue
+		}
+		if mesaj == "" {
 			continue // gecici hata — sonraki turda tekrar bak
 		}
-		// Nesne yok ya da eksik: satiri dus.
-		if err != ErrNesneYok {
-			h.r2.Sil(ctx, y.key)
+		// `dogrulaVeAktifEt` icerik/boyut hatasinda ZATEN `reddet` cagirdi.
+		// Kalan tek durum: nesne HIC YUKLENMEMIS.
+		if mesaj == "dosya yüklenmemiş" {
+			h.db.Exec(ctx, `UPDATE media_assets SET status='reddedildi',
+			                  reject_reason='yükleme tamamlanmadı', deleted_at=now()
+			                WHERE id=$1 AND status='beklemede'`, y.id)
 		}
-		h.db.Exec(ctx, `UPDATE media_assets SET status='reddedildi',
-		                  reject_reason='yükleme tamamlanmadı', deleted_at=now()
-		                WHERE id=$1 AND status='beklemede'`, y.id)
 	}
 }
 

@@ -57,6 +57,12 @@ func (h *Handler) Block(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Unblock(w http.ResponseWriter, r *http.Request) {
 	me := auth.UserID(r.Context())
 	hedef := chi.URLParam(r, "id")
+	// ⚠️ TURU 74b: gecersiz UUID pgx tip hatasi -> 500 doneriyordu (Block'ta
+	//    bu kontrol vardi, Unblock'ta yoktu).
+	if hedef == "" || hedef == me {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "geçersiz kullanıcı"})
+		return
+	}
 	if _, err := h.db.Exec(r.Context(),
 		`DELETE FROM blocks WHERE blocker_id=$1 AND blocked_id=$2`, me, hedef); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "kaldırılamadı"})
@@ -113,6 +119,12 @@ func (h *Handler) Report(w http.ResponseWriter, r *http.Request) {
 	case "kullanici", "mesaj":
 	default:
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "geçersiz şikâyet türü"})
+		return
+	}
+	// ⚠️ TURU 74b: hedef_id SERBEST METINDI -> UNIQUE(reporter,tur,hedef) her
+	//    farkli deger icin YENI SATIR demek; tek kullanici sinirsiz satir yazabilirdi.
+	if len(req.HedefID) > 64 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "geçersiz hedef"})
 		return
 	}
 	if req.HedefID == "" {

@@ -24,6 +24,10 @@ var Tavanlar = map[string]int64{
 	"document": 32 << 20, // 32 MB
 }
 
+// ⚠️ TURU 74b: kucuk resim TAVANI. Eskiden hic yoktu ve thumb nesnesi hicbir
+// dogrulamadan gecmiyordu -> tek hesapla sinirsiz R2 faturasi.
+const ThumbTavan = 512 << 10 // 512 KB
+
 const (
 	// Kullanici basina AYLIK yukleme kotasi.
 	// ⚠️ Veri SILINMEDIGI icin bu deger dogrudan aylik maliyet artisidir.
@@ -37,10 +41,13 @@ const (
 
 // KotaAsildi — kullanicinin bu ayki toplamini kontrol eder.
 // ⚠️ REZERVASYON DEGIL: presign'da BEYAN EDILEN boyut "gecici" olarak eklenir,
-//     commit'te GERCEK boyutla uzlastirilir. Boylece hem beyan sisirmesi hem
-//     yuklenmeyen presign'lar kotayi kalici kilitlemez.
+//
+//	commit'te GERCEK boyutla uzlastirilir. Boylece hem beyan sisirmesi hem
+//	yuklenmeyen presign'lar kotayi kalici kilitlemez.
 type Kota struct {
 	rdb *redis.Client
+	// TURU 74b: son Redis hatasi (fail-open GORUNUR olsun diye).
+	Hata error
 }
 
 func YeniKota(rdb *redis.Client) *Kota { return &Kota{rdb: rdb} }
@@ -68,11 +75,22 @@ func (k *Kota) Ekle(ctx context.Context, userID string, bytes int64) (int64, err
 }
 
 // Kalan — bu ay kalan bayt.
+// ⚠️⚠️ TURU 74b (DENETIM BULGUSU): Redis dusunce kota ve hiz siniri SESSIZCE
+//
+//	tamamen kalkiyordu. Redis ayni kutuda; bir OOM/restart penceresinde medya
+//	katmani SINIRSIZ olur ve kimse fark etmez. Artik fail-open KALIR (mesajlasma
+//	durmasin) ama GORUNUR: cagiran taraf Sentry gercek olayi yazar.
+//
+// ⚠️ YAPMA: hatayi tekrar sessizce yutma.
 func (k *Kota) Kalan(ctx context.Context, userID string) int64 {
 	if k.rdb == nil {
 		return AylikKota
 	}
 	n, err := k.rdb.Get(ctx, k.anahtar(userID)).Int64()
+	if err != nil && err != redis.Nil {
+		k.Hata = err // cagiran okur ve olcum yazar
+		return AylikKota
+	}
 	if err != nil {
 		return AylikKota
 	}
@@ -84,7 +102,8 @@ func (k *Kota) Kalan(ctx context.Context, userID string) int64 {
 
 // PresignIzni — dakikalik hiz siniri. false donerse 429.
 // ⚠️ Sabit pencere (kayan degil) — basit ve Redis'te tek anahtar. Pencere sinirinda
-//     iki kat istek gecebilir; kabul edilebilir cunku asil koruma KOTA.
+//
+//	iki kat istek gecebilir; kabul edilebilir cunku asil koruma KOTA.
 func (k *Kota) PresignIzni(ctx context.Context, userID string) bool {
 	if k.rdb == nil {
 		return true
@@ -102,8 +121,9 @@ func (k *Kota) PresignIzni(ctx context.Context, userID string) bool {
 
 // PresignSuresi — dosya buyudukce imza omru uzar.
 // ⚠️ SABIT 300sn YETMEZ: yavas hucresel hatta 16 MB video 5 dakikada bitmez ve
-//     yukleme imza suresi dolunca 403 alip BASTAN baslar (sonsuz dongu).
-//     Formul: 20 KB/sn'lik kotu-durum hizina gore, 5 dk ile 30 dk arasinda.
+//
+//	yukleme imza suresi dolunca 403 alip BASTAN baslar (sonsuz dongu).
+//	Formul: 20 KB/sn'lik kotu-durum hizina gore, 5 dk ile 30 dk arasinda.
 func PresignSuresi(bytes int64) time.Duration {
 	sn := bytes / 20000
 	if sn < 300 {

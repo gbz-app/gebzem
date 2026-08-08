@@ -24,11 +24,23 @@ class AtacSecimi {
   final String tur; // image
 }
 
+/// ⚠️⚠️ TURU 74b (DENETİM BULGUSU — ÖZELLİK HİÇ ÇALIŞMIYORDU):
+/// İlk sürümde `onTap` ÖNCE `Navigator.pop()` çağırıyor, seçim sonucunu ise
+/// `await ImagePicker()...`'dan SONRA bir dış değişkene yazıyordu. Ama
+/// `await showModalBottomSheet` **pop anında** (~250 ms) tamamlanır; kullanıcı
+/// galeride saniyelerce gezer. Fonksiyon dönerken değişken hâlâ `null` oluyordu
+/// → `_atacAc` ilk satırda sessizce çıkıyor → **ataç düğmesi hiçbir şey yapmıyordu,
+/// hata da vermiyordu.**
+///
+/// DOĞRUSU: sonucu **sheet'in dönüş değeriyle** taşı — `pop(deger)` picker'dan
+/// SONRA çağrılır, `showModalBottomSheet<AtacSecimi>` onu döndürür.
+/// ⚠️ YAPMA: sonucu dış değişkene yazıp `pop()`u öne alma.
+/// ⚠️ AYNI TUZAK `moderasyon_sheet.engelleOnayiAc` içinde de vardı — orada da
+///     düzeltildi. Yeni bir sheet yazarken bu deseni kullan.
 Future<AtacSecimi?> atacPaneliAc(BuildContext context, WidgetRef ref) async {
   final donanim = MedyaKapisi.donanimSerbest(ref);
-  AtacSecimi? sonuc;
 
-  await showModalBottomSheet<void>(
+  return showModalBottomSheet<AtacSecimi>(
     context: context,
     showDragHandle: true,
     builder: (c) => SafeArea(
@@ -38,13 +50,21 @@ Future<AtacSecimi?> atacPaneliAc(BuildContext context, WidgetRef ref) async {
           title: const Text('Fotoğraf'),
           subtitle: const Text('Galeriden seç'),
           onTap: () async {
-            Navigator.of(c).pop();
             // ⚠️ Galeri sistem picker'ı AYRI SÜREÇTE çalışır: kameraya/mikrofona
-            //     dokunmaz, bu yüzden görüşme sırasında da SERBEST.
-            final secim = await ImagePicker().pickMultiImage(limit: 10);
-            if (secim.isNotEmpty) {
-              sonuc = AtacSecimi(secim.map((x) => File(x.path)).toList(), 'image');
+            //     dokunmaz. AMA uygulamayı ARKA PLANA atar ve BİZİM yaşam döngüsü
+            //     kodumuz kamerayı kapatabilir — bu yüzden `pickerAcik` bayrağı
+            //     ZORUNLU (bkz. MedyaKapisi.pickerAcik şerhi).
+            List<XFile> secim = const [];
+            try {
+              MedyaKapisi.pickerAcik = true;
+              secim = await ImagePicker().pickMultiImage(limit: 10);
+            } finally {
+              MedyaKapisi.pickerAcik = false;
             }
+            if (!c.mounted) return;
+            Navigator.of(c).pop(secim.isEmpty
+                ? null
+                : AtacSecimi(secim.map((x) => File(x.path)).toList(), 'image'));
           },
         ),
         // ⚠️⚠️ KAMERA — görüşme sürerken SATIR HİÇ ÇİZİLMEZ (yukarıdaki şerh).
@@ -54,18 +74,28 @@ Future<AtacSecimi?> atacPaneliAc(BuildContext context, WidgetRef ref) async {
             title: const Text('Kamera'),
             subtitle: const Text('Fotoğraf çek'),
             onTap: () async {
-              Navigator.of(c).pop();
               // ⚠️ İKİNCİ KAPI: panel açıkken arama gelmiş olabilir.
-              if (!MedyaKapisi.izinVer(ref)) return;
-              final x = await ImagePicker().pickImage(
-                source: ImageSource.camera,
-                // ⚠️ Çekim anında düşür: 4K fotoğrafı belleğe alıp sonra sıkıştırmak
-                //     düşük bellekli cihazlarda uygulamayı öldürüyor.
-                maxWidth: 2400,
-                maxHeight: 2400,
-                imageQuality: 90,
-              );
-              if (x != null) sonuc = AtacSecimi([File(x.path)], 'image');
+              if (!MedyaKapisi.izinVer(ref)) {
+                if (c.mounted) Navigator.of(c).pop();
+                return;
+              }
+              XFile? x;
+              try {
+                MedyaKapisi.pickerAcik = true;
+                x = await ImagePicker().pickImage(
+                  source: ImageSource.camera,
+                  // ⚠️ Çekim anında düşür: 4K fotoğrafı belleğe alıp sonra
+                  //     sıkıştırmak düşük bellekli cihazlarda uygulamayı öldürüyor.
+                  maxWidth: 2400,
+                  maxHeight: 2400,
+                  imageQuality: 90,
+                );
+              } finally {
+                MedyaKapisi.pickerAcik = false;
+              }
+              if (!c.mounted) return;
+              Navigator.of(c)
+                  .pop(x == null ? null : AtacSecimi([File(x.path)], 'image'));
             },
           )
         else
@@ -78,7 +108,6 @@ Future<AtacSecimi?> atacPaneliAc(BuildContext context, WidgetRef ref) async {
       ]),
     ),
   );
-  return sonuc;
 }
 
 class _AtacIkon extends StatelessWidget {

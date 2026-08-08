@@ -40,9 +40,10 @@ var izinliTipler = map[string]map[string]bool{
 		"video/mp4": true,
 	},
 	"audio": {
-		"audio/mp4":  true, // m4a (AAC) — `record` paketinin varsayilani
-		"audio/aac":  true,
+		"audio/mp4":  true, // m4a (AAC) — record paketinin varsayilani
 		"audio/mpeg": true,
+		// ⚠️ TURU 74b: "audio/aac" CIKARILDI — ham ADTS akisi `GercekTip`te
+		//    "audio/mpeg" olarak taninir, yani beyanla ASLA uyusmaz (olu kod).
 	},
 	"document": {
 		"application/pdf": true,
@@ -271,6 +272,20 @@ func Dogrula(kind, beyanEdilenMIME string, bas []byte) (bool, string) {
 	temizBeyan := beyanEdilenMIME
 	if i := strings.IndexByte(temizBeyan, ';'); i >= 0 {
 		temizBeyan = strings.TrimSpace(temizBeyan[:i])
+	}
+	// ⚠️⚠️ TURU 74b (DENETIM BULGUSU — ANDROID'DE SES NOTU HIC CALISMIYORDU):
+	// `audio/mp4` (m4a) ve `video/mp4` **AYNI ISO-BMFF KABINI** kullanir; ayrim
+	// yalnizca `ftyp` major brand'indedir. iOS'ta AVAudioRecorder "M4A " yazar
+	// (gecerdi), Android'de `record` paketi MediaMuxer kullanir ve marka
+	// "isom"/"mp42" olur -> `GercekTip` "video/mp4" doner -> beyanla uyusmuyor
+	// -> **422 + nesne SILINIR.** Yani sesli mesaj iPhone'da calisir, Android'de
+	// HIC calismazdi.
+	// ⚠️ Guvenlik kaybi YOK: `kind` zaten audio/video ayrimini ve TAVANI uyguluyor;
+	//    kap ikisinde de ayni oldugu icin bu esdegerlik dogrudur.
+	// ⚠️ YAPMA: bu esdegerligi kaldirma.
+	if (gercek == "video/mp4" && temizBeyan == "audio/mp4") ||
+		(gercek == "audio/mp4" && temizBeyan == "video/mp4") {
+		gercek = temizBeyan
 	}
 	if !strings.EqualFold(gercek, temizBeyan) {
 		return false, fmt.Sprintf("dosya türü beyanla uyuşmuyor (%s)", gercek)

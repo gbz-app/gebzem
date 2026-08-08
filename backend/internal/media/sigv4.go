@@ -166,6 +166,20 @@ func (i *Istemci) ImzaliURL(yontem, nesneAnahtari string, sure time.Duration,
 //     Algoritma dogru kalirsa bu deger DEGISMEZ.
 // ⚠️ YAPMA: test tutmayinca beklenen degeri "guncelleyerek" gecirme — once NEDEN
 //     degistigini bul. Genelde sebep gercek bir imza hatasidir.
+// SabitVektorURL — oz-test vektorunu uretir (beklenen imzayi hesaplamak icin de kullanilir).
+func SabitVektorURL() (string, error) {
+	sabit := time.Date(2026, 8, 8, 12, 0, 0, 0, time.UTC)
+	i := &Istemci{
+		endpoint:  "https://ornek.r2.cloudflarestorage.com",
+		anahtarID: "AKIAIOSFODNN7EXAMPLE",
+		gizli:     "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+		bucket:    "test-bucket",
+		simdi:     func() time.Time { return sabit },
+	}
+	return i.ImzaliURL("PUT", "a/b c~d.jpg", 300*time.Second,
+		map[string]string{"Content-Type": "image/jpeg"})
+}
+
 func SelfTest() error {
 	sabit := time.Date(2026, 8, 8, 12, 0, 0, 0, time.UTC)
 	i := &Istemci{
@@ -189,8 +203,23 @@ func SelfTest() error {
 		// baslikar kucuk harf + alfabetik + ';' kodlanmis olmali
 		return fmt.Errorf("imzali baslik listesi hatali: %s", u)
 	}
-	if !strings.Contains(u, "X-Amz-Signature=") || len(u) < 300 {
-		return fmt.Errorf("imza eksik: %s", u)
+	// ⚠️⚠️ TURU 74b (DENETIM BULGUSU) — ASIL KONTROL: **BEKLENEN IMZA**.
+	//
+	// Ilk surumde burada yalnizca kodlama kurallari ve determinizm kontrol
+	// ediliyordu; yorum "sabit ciktiyla karsilastirir" dese de GERCEK BIR IMZA
+	// KARSILASTIRMASI YOKTU. Yani `bolge`yi "auto"->"us-east-1" yapsan,
+	// `imzaAnahtari` zincir sirasini bozsan, `imzalanacak` alan sirasini
+	// degistirsen ya da UNSIGNED-PAYLOAD'i kaldirsan **TEST GECERDI**,
+	// `h.acik = true` olurdu ve sahada HER PUT/GET 403 alirdi.
+	// Yani korumanin kendisi calismiyordu.
+	//
+	// Asagidaki deger, sabit anahtar/tarih/nesne ile ALGORITMANIN urettigi
+	// sonuctur ve GERCEK R2'ye karsi dogrulanmis kodla hesaplanmistir.
+	// ⚠️ YAPMA: test tutmayinca bu degeri "guncelleyerek" gecirme — once NEDEN
+	//     degistigini bul. Sebep neredeyse her zaman GERCEK bir imza hatasidir.
+	const beklenenImza = "f1f1b6897c077dac8c81a40a213f870eae1526d597dbf8a912a6c78c63c081e2"
+	if !strings.HasSuffix(u, "X-Amz-Signature="+beklenenImza) {
+		return fmt.Errorf("IMZA DEGISTI — SigV4 algoritmasi bozulmus olabilir: %s", u)
 	}
 	// Determinizm: ayni girdi ayni imzayi vermeli.
 	u2, _ := i.ImzaliURL("PUT", "a/b c~d.jpg", 300*time.Second,

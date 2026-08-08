@@ -40,6 +40,26 @@ import '../../router.dart' show rootMessengerKey;
 class MedyaKapisi {
   MedyaKapisi._();
 
+  /// ⚠️⚠️ TURU 74b (DENETİM BULGUSU) — SİSTEM PICKER'I AÇIK MI?
+  ///
+  /// Galeri/kamera picker'ı AYRI SÜREÇTE çalışır ve donanımı bizden ÇALMAZ —
+  /// ama **uygulamayı arka plana atar** ve BİZİM kendi yaşam döngüsü kodumuz
+  /// bunu "kullanıcı uygulamadan çıktı" sanıp:
+  ///   · `active_call_controller` görüntülü aramanın KAMERASINI KAPATIR
+  ///     (PiP kuruluysa 900 ms sonra, değilse ANINDA),
+  ///   · dönüşte `_kesintidenTopla` → `_sesiAc(true)` ile ses birimini
+  ///     ZORLA TOGGLE eder (~50-150 ms sağırlık),
+  ///   · oda/yayın ekranları da `resumed` dalında `_sesiAc(true)` çağırır.
+  /// Sonuç: görüntülü arama sürerken galeriden fotoğraf seçen kullanıcının
+  /// karşı tarafı **donmuş/kapalı kamera** görürdü.
+  ///
+  /// Bu bayrak "arka plana geçiş GERÇEK Mİ" ayrımını sağlar; picker yüzünden
+  /// olan geçişlerde kamera/ses yıkımı ATLANIR.
+  /// ⚠️ `try/finally` ile SET/RESET edilmeli — picker iptal edilse bile bayrak
+  ///     asılı kalmamalı (asılı kalırsa gerçek arka plan geçişinde kamera
+  ///     kapanmaz ve iOS kesintisi yaşanır).
+  static bool pickerAcik = false;
+
   /// ⚠️⚠️ İKİ AYRI METOT VAR — KARIŞTIRMA:
   ///
   ///   · [donanimSerbest] — **YAN ETKİSİZ**. `build()` içinden, her karede

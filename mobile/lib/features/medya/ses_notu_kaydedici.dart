@@ -207,19 +207,22 @@ class _SesNotuKaydediciState extends ConsumerState<SesNotuKaydedici> {
         '${(sn % 60).toString().padLeft(2, '0')}';
   }
 
+  /// ⚠️⚠️ TURU 74b (DENETİM BULGUSU — ÖZELLİK ÖLÜ DOĞMUŞTU):
+  /// İlk sürümde `build()` **devre dışı bir `IconButton`** döndürüyordu
+  /// (`onPressed: null`) ve basılı tutmayı sağlayan `kayitAlani()` ile kayıt
+  /// şeridini çizen `kayitSeridi()` **hiçbir yerden çağrılmıyordu**. Yani
+  /// mikrofona basılı tutmak HİÇBİR ŞEY yapmıyordu; dolayısıyla ses notu
+  /// balonu da hiç oluşmuyordu.
+  /// `flutter analyze` bunu YAKALAMAZ: ikisi de public sınıfın public metodu.
+  /// ⚠️ YAPMA: `build()`i tekrar gesture'sız bir düğmeye çevirme.
   @override
   Widget build(BuildContext context) {
-    if (!_kayitta) {
-      return IconButton(
-        tooltip: 'Sesli mesaj',
-        icon: const Icon(LucideIcons.mic),
-        onPressed: null, // basılı tutma ile çalışır
-      );
-    }
-    return const SizedBox.shrink();
+    // Kayıt şeridi giriş çubuğunun ÜSTÜNDE çizilir; onu çağıran taraf
+    // `SesNotuKaydedici.seritOf(context)` ile değil, `onSerit` geri çağrısıyla alır.
+    return kayitAlani();
   }
 
-  /// Dışarıdan kullanılan asıl bileşen: basılı tut alanı.
+  /// Basılı tut alanı — `build()` bunu döndürür.
   Widget kayitAlani() => GestureDetector(
         onLongPressStart: (_) => _basla(),
         onLongPressEnd: (_) => _durdur(gonder: !_iptalBolgesi),
