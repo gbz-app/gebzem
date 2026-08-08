@@ -15,11 +15,18 @@ import (
 
 type Handler struct {
 	db *pgxpool.Pool
+	// TURU 74: medya (R2) yapilandirilmis mi. Istemci atac dugmesini buna gore gizler.
+	// ⚠️ Sunucu env eksikse medya uclari HIC KAYDEDILMEZ; istemci bunu ONCEDEN
+	//    bilmezse kullaniciya "yukleniyor..." gosterip 404 alirdi.
+	medyaAcik bool
 }
 
 func NewHandler(db *pgxpool.Pool) *Handler {
 	return &Handler{db: db}
 }
+
+// MedyaDurumu — main.go acilista bir kez cagirir.
+func (h *Handler) MedyaDurumu(acik bool) { h.medyaAcik = acik }
 
 type userResp struct {
 	ID          string     `json:"id"`
@@ -44,7 +51,17 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusNotFound, "kullanıcı bulunamadı")
 		return
 	}
-	writeJSON(w, http.StatusOK, u)
+	// TURU 74: istemci medya kapaliysa atac dugmesini gostermesin.
+	writeJSON(w, http.StatusOK, meYanit{userResp: u, MedyaAcik: h.medyaAcik})
+}
+
+// meYanit — /users/me yanitina TURU 74'te eklenen tek alan.
+// ⚠️ ANONIM GOMME kullaniliyor: `userResp`un alanlari duz JSON'a ackilir, yani
+//    mevcut istemciler HICBIR degisiklik gormez; yalnizca yeni `media_acik`
+//    alani eklenir (geriye donuk uyumlu).
+type meYanit struct {
+	userResp
+	MedyaAcik bool `json:"media_acik"`
 }
 
 var usernameRe = regexp.MustCompile(`^[a-z0-9_]{3,20}$`)

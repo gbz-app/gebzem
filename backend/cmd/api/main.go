@@ -19,6 +19,7 @@ import (
 	"github.com/gbz-app/gebzem/backend/internal/chat"
 	"github.com/gbz-app/gebzem/backend/internal/config"
 	"github.com/gbz-app/gebzem/backend/internal/database"
+	"github.com/gbz-app/gebzem/backend/internal/media"
 	"github.com/gbz-app/gebzem/backend/internal/push"
 	"github.com/gbz-app/gebzem/backend/internal/rooms"
 	"github.com/gbz-app/gebzem/backend/internal/sms"
@@ -75,6 +76,14 @@ func main() {
 	authH := auth.NewHandler(db, cfg, smsSender)
 	chatH := chat.NewHandler(db, hub, pushSender)
 	usersH := users.NewHandler(db)
+	// TURU 74 — MEDYA. R2 env eksikse Enabled()=false doner ve uclar KAYDEDILMEZ
+	// (fail-closed ama GORUNUR: acilista log yazar).
+	mediaH := media.NewHandler(db, rdb, cfg.R2Endpoint, cfg.R2AccessKeyID,
+		cfg.R2SecretKey, cfg.R2Bucket, func(msg string) { sentry.CaptureMessage(msg) })
+	usersH.MedyaDurumu(mediaH.Enabled()) // istemci atac dugmesini buna gore gizler
+	if mediaH.Enabled() {
+		mediaH.StartSweeper(ctx)
+	}
 	callsH := calls.NewHandler(db, hub, pushSender, apnsSender)
 	if callsH.Enabled() {
 		log.Println("arama (LiveKit): aktif")
@@ -168,6 +177,14 @@ func main() {
 		// ⚠️ TURU 74 — herkesten silme. `deleted_for_all` sutunu 001'den beri VARDI ve
 		//    listeleme sorgulari onu OKUYORDU, ama SILME UCU YOKTU (sutun olu duruyordu).
 		r.Delete("/chats/{chatID}/messages/{msgID}", chatH.DeleteMessage)
+		// TURU 74 — MEDYA UCLARI (yalniz R2 yapilandirilmissa).
+		// ⚠️ YAPMA: /media/ yolunu api.dart 401 muafiyet listesine EKLEME —
+		//    bayat token bu uclarda oturumu SILMELI (turu 34-36 muafiyeti AYRI konu).
+		if mediaH.Enabled() {
+			r.Post("/media/upload", mediaH.Presign)
+			r.Post("/media/{id}/commit", mediaH.Commit)
+			r.Get("/media/{id}/url", mediaH.URL)
+		}
 		r.Post("/chats/{chatID}/read", chatH.MarkRead)
 		// Aramalar (LiveKit)
 		r.Get("/calls", callsH.History)
@@ -177,7 +194,7 @@ func main() {
 		r.Post("/calls/{id}/add", callsH.Add) // aktif aramaya kisi ekle (1:1 -> grup yukseltme)
 		r.Post("/calls/{id}/answer", callsH.Answer)
 		r.Post("/calls/{id}/end", callsH.End)
-		r.Post("/calls/{id}/hold", callsH.Hold) // test turu 18: beklet/geri al (karsi tarafa bilgi)
+		r.Post("/calls/{id}/hold", callsH.Hold)            // test turu 18: beklet/geri al (karsi tarafa bilgi)
 		r.Post("/calls/{id}/audio-stat", callsH.AudioStat) // CANLI eszamanli ses takibi (api log)
 		// Odalar (Spaces — sesli oda; in-app, arama sisteminden BAGIMSIZ)
 		r.Get("/rooms", roomsH.List)
