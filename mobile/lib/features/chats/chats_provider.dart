@@ -10,7 +10,17 @@ import 'models.dart';
 class ChatsNotifier extends StateNotifier<AsyncValue<List<Chat>>> {
   ChatsNotifier(this._ref) : super(const AsyncValue.loading()) {
     load();
-    _sub = _ref.read(wsProvider).events.listen(_onEvent);
+    final ws = _ref.read(wsProvider);
+    _sub = ws.events.listen(_onEvent);
+    // ⚠️⚠️ TURU 76 — YAKALAMA (catch-up). WS her (yeniden) baglandiginda liste
+    //    bastan cekilir. Bu, IKI ayri bosluğu birden kapatir:
+    //    (1) uygulama arka planda WS'i KASTEN kapatiyor (turu 33: kilit
+    //        ekraninda arama calsin diye ZORUNLU) -> o sirada gelen mesajlar
+    //        Redis pub/sub'ta SAKLANMIYOR ve ekranda HIC gorunmuyordu,
+    //    (2) mobil agda kopma sonrasi ayni durum.
+    // ⚠️ YAPMA: bu kancayi kaldirip yalniz `main.dart` resumed dalina guvenme —
+    //    o dal ag kopmasini KAPSAMAZ.
+    ws.yenidenBaglandiDinle(load);
   }
 
   final Ref _ref;
@@ -48,12 +58,21 @@ final chatsProvider =
 class MessagesNotifier extends StateNotifier<AsyncValue<List<Message>>> {
   MessagesNotifier(this._ref, this.chatId) : super(const AsyncValue.loading()) {
     load();
-    _sub = _ref.read(wsProvider).events.listen(_onEvent);
+    final ws = _ref.read(wsProvider);
+    _sub = ws.events.listen(_onEvent);
+    // ⚠️ TURU 76 — YAKALAMA: acik sohbette de gerekli. Kullanici sohbet
+    //    ekranindayken uygulamayi arka plana alir, karsi taraf 3 mesaj gonderir,
+    //    geri doner: ChatScreen mount kaldigi icin bu notifier YASAR ve `load()`
+    //    bir daha CALISMAZDI -> o 3 mesaj ekranda HIC gorunmuyordu.
+    // ⚠️ Bu notifier autoDispose family — kanca dispose'ta MUTLAKA birakilir.
+    _yakalama = load;
+    ws.yenidenBaglandiDinle(_yakalama!);
   }
 
   final Ref _ref;
   final String chatId;
   StreamSubscription? _sub;
+  void Function()? _yakalama;
 
   /// "yaziyor..." gostergesi icin son olay zamani
   DateTime? typingAt;
@@ -151,6 +170,9 @@ class MessagesNotifier extends StateNotifier<AsyncValue<List<Message>>> {
   @override
   void dispose() {
     _sub?.cancel();
+    // ⚠️ ZORUNLU: kanca birakilmazsa dispose edilmis notifier'in load()'i
+    //    cagrilir -> "Cannot use ref after ... disposed" (turu 67 sinifi).
+    if (_yakalama != null) _ref.read(wsProvider).yenidenBaglandiBirak(_yakalama!);
     super.dispose();
   }
 }

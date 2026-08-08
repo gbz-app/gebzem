@@ -246,10 +246,19 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
           child: Row(
             children: [
+              // ⚠️⚠️ TURU 76 (DENETIM): ucluk operatorun IKI DALI DA AYNIYDI
+              //    (heart : heart) ve `dolu` parametresi HIC OKUNMUYORDU — yani
+              //    begenilmis/begenilmemis ayrimi yalniz renkten geliyordu.
+              // ⚠️ LUCIDE'DA DOLU KALP YOK: set tasarim geregi YALNIZ CIZGI
+              //    ikonlardan olusur (heart/heartCrack/heartOff... hepsi outline)
+              //    ve font glifi oldugu icin "fill" verilemez. Emoji de YASAK
+              //    (CLAUDE.md turu 62). Bu yuzden fark RENK + BOYUT + POP
+              //    ANIMASYONU ile veriliyor — durust ve gorunur bir ayrim.
+              // ⚠️ YAPMA: buraya Material `Icons.favorite` koyma (ikon seti karisir).
               _dugme(
-                ikon: g.begendim ? LucideIcons.heart : LucideIcons.heart,
+                ikon: LucideIcons.heart,
                 dolu: g.begendim,
-                renk: g.begendim ? Colors.red : null,
+                renk: g.begendim ? const Color(0xFFFF3B5C) : null,
                 sayi: g.begeniSayisi,
                 onTap: _begeniCevir,
               ),
@@ -404,7 +413,14 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
     Color? renk,
   }) => TextButton.icon(
     onPressed: onTap,
-    icon: Icon(ikon, size: 21, color: renk),
+    // ⚠️ `dolu` ARTIK OKUNUYOR: 21 -> 24 px + kisa pop. Lucide'da dolu kalp
+    //    olmadigi icin "secili" hissi boyut ve renkten geliyor (bkz. cagri serhi).
+    icon: AnimatedScale(
+      scale: dolu ? 1.14 : 1.0,
+      duration: const Duration(milliseconds: 160),
+      curve: Curves.easeOutBack,
+      child: Icon(ikon, size: dolu ? 23 : 21, color: renk),
+    ),
     label: Text(
       (sayi == null || sayi == 0) ? '' : sayiBicimle(sayi),
       style: TextStyle(color: renk, fontWeight: FontWeight.w600),

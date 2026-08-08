@@ -183,6 +183,11 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
       //    dugmesi var, ust uste binerlerdi.
       floatingActionButton: _bolme == 0
           ? FloatingActionButton(
+              // TURU 76: HERO ETIKETI ZORUNLU. Ucun de varsayilan etiketi paylasmasi
+              // debug/profile derlemede route gecisinde KIRMIZI EKRAN uretiyordu;
+              // release'te assert silindigi icin sessizce SON hero yaziliyor ve
+              // ucus YANLIS dugmeyi tasiyordu.
+              heroTag: 'fabGonderiOlustur',
               onPressed: _olustur,
               child: const Icon(LucideIcons.plus),
             )

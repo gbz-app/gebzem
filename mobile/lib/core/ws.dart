@@ -40,10 +40,36 @@ class WsService {
     _open();
   }
 
+  /// Baglanti (yeniden) kuruldugunda calisacak "yakalama" geri cagrilari.
+  ///
+  /// ⚠️⚠️ BIRAKMA ZORUNLU: `MessagesNotifier` **autoDispose family**'dir — her
+  ///    acilan sohbet yeni bir ornek yaratir. Kaydolup birakmayan dinleyici
+  ///    (a) listeyi sinirsiz buyutur, (b) DISPOSE EDILMIS notifier'in `load()`ini
+  ///    cagirip "Cannot use ref after the widget was disposed" firlatir —
+  ///    turu 67'de aramayi olduren hatanin BIREBIR ayni sinifi.
+  /// ⚠️ YAPMA: `yenidenBaglandiBirak` cagrisini dispose'tan kaldirma.
+  final List<void Function()> _yenidenBaglandi = [];
+
+  void yenidenBaglandiDinle(void Function() f) {
+    if (!_yenidenBaglandi.contains(f)) _yenidenBaglandi.add(f);
+  }
+
+  void yenidenBaglandiBirak(void Function() f) => _yenidenBaglandi.remove(f);
+
   Future<void> _open() async {
     if (_closed || _connected) return;
     final token = await _storage.token;
-    if (token == null) return;
+    if (token == null) {
+      // ⚠️⚠️ TURU 76 — ZINCIR BURADA KALICI OLARAK OLUYORDU: ciplak `return`
+      //   yeni bir timer KURMUYOR ve `_open`i tekrar cagiracak kimse YOK
+      //   (yalniz uygulama on plana donerse ya da router yeniden kurulursa).
+      //   Token depodan gecici olarak okunamazsa (iOS Keychain cihaz kilitliyken
+      //   ERISILEMEZ olabilir) WS bir daha ACILMIYORDU: mesaj yok, yaziyor yok,
+      //   arama olayi yok — ve hicbir telemetri dusmuyor.
+      // ⚠️ YAPMA: buraya ciplak `return` geri koyma.
+      _scheduleReconnect();
+      return;
+    }
     // Yeni soket kurmadan ONCE eski dinleyici + soketi kapat. Yoksa iOS askidan
     // cikan eski soketin GECIKMIS onDone'u, yeni soket aciktayken _scheduleReconnect
     // tetikleyip ikinci (yetim) bir baglanti biraktiriyordu -> sunucu kullaniciyi
@@ -67,6 +93,23 @@ class WsService {
       await ch.ready;
       _retry = 0;
       _connected = true;
+      // ⚠️⚠️ TURU 76 — "YAKALAMA" (catch-up) KANCASI.
+      //   Redis pub/sub KACIRILAN OLAYI SAKLAMAZ (hub.go serhi: "cevrimdisi
+      //   kullanici REST ile gecmisi ceker"). Ama o REST cagrisi istemcide HIC
+      //   YOKTU: kullanici arka plandayken gelen mesajlar, uygulama acilinca
+      //   EKRANDA GORUNMUYORDU — bir sonraki WS olayina ya da elle asagi cekmeye
+      //   kadar. Kullanicinin "mesajlar anlik gelmiyor" sikayetinin BIRINCIL
+      //   kok nedeni buydu.
+      // ⚠️ Kanca BURADA (baglanti KURULDUKTAN sonra) cunku hem `resumed` hem de
+      //   AG KOPMASI sonrasi yeniden baglanmayi TEK yerden kapsar. `resumed`
+      //   dalina yazsaydik ag kopmasi kapsam disi kalir ve kural iki kopyaya
+      //   bolunurdu (turu 72b/H dersi).
+      // ⚠️ YAPMA: bu cagriyi `main.dart`in resumed dalina tasima.
+      for (final f in _yenidenBaglandi) {
+        try {
+          f();
+        } catch (_) {}
+      }
       _sub = ch.stream.listen(
         (raw) {
           try {

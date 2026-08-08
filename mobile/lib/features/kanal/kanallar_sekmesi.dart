@@ -146,6 +146,7 @@ class _KanallarSekmesiState extends ConsumerState<KanallarSekmesi>
     super.build(context);
     return Scaffold(
       floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'fabKanalAc', // TURU 76: bkz. akis_ekrani hero serhi
         onPressed: _olustur,
         icon: const Icon(LucideIcons.plus),
         label: const Text('Kanal aç'),

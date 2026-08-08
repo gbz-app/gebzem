@@ -117,6 +117,7 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
           boxShadow: [BoxShadow(color: Color(0x556C2BD9), blurRadius: 12, offset: Offset(0, 4))],
         ),
         child: FloatingActionButton(
+          heroTag: 'fabYeniSohbet', // TURU 76: bkz. akis_ekrani hero serhi
           onPressed: () => context.push('/search'),
           backgroundColor: Colors.transparent,
           elevation: 0,

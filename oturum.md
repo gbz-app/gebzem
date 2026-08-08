@@ -5027,11 +5027,17 @@ Test geçti, ardından 10 maddelik eksik listesi geldi. Ayrımı:
 9. **Grup oluşturma** (sohbet)
 10. **100 MB** medya sınırı (video + fotoğraf)
 
-### ⚠️ Türkçe belirsizlik — kayda geçiyor
-"Arama" hem *search* hem *çağrı* demek. Alt menüde **zaten** "Arama (çağrı)" sekmesi vardı;
-kullanıcı "arama eklenmeli" dediğine göre kastettiği **search**. Listesinde **Aramalar
-(çağrı geçmişi)** ve **Odalar** yok — silinmeyecek, uygulamada zaten kullanılan segment
-desenine taşınacak: **Mesaj** → `Sohbetler | Aramalar`, **Canlı** → `Odalar | Canlı yayın`.
+### ✅ "Arama" belirsizliği KULLANICI TARAFINDAN KAPATILDI
+*"aramadan kastım normal profil arama, Instagram gibi"* → **arama = SEARCH** (çağrı DEĞİL).
+Sekme **Instagram modeli**: üstte arama kutusu (kişi / @kullanıcıadı), altında **keşfet
+ızgarası** (herkese açık gönderiler).
+⚠️ YAPMA: bunu çağrı geçmişiyle karıştırma; alt menüde ayrıca "Arama (çağrı)" sekmesi
+oluşturma.
+
+### Çağrı geçmişi ve odalar nereye gidiyor
+Kullanıcının 6 ikonluk listesinde **Aramalar (çağrı geçmişi)** ve **Odalar** yok —
+silinmeyecek, uygulamada zaten kullanılan segment desenine taşınacak:
+**Mesaj** → `Sohbetler | Aramalar`, **Canlı** → `Odalar | Canlı yayın`.
 ⚠️ YAPMA: çağrı geçmişini veya odaları kaldırma.
 
 ⏳ 7 boyutlu keşif çalışıyor (workflow `w3h7ytx4w`): anlık teslim · engelleme kapsamı ·
