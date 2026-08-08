@@ -5042,3 +5042,54 @@ silinmeyecek, uygulamada zaten kullanılan segment desenine taşınacak:
 
 ⏳ 7 boyutlu keşif çalışıyor (workflow `w3h7ytx4w`): anlık teslim · engelleme kapsamı ·
 avatar kapsamı · gönderi · sohbet listesi/grup · medya sınırı · gezinme.
+
+---
+
+## Oturum 77 — TURU 76 TAMAMLANDI (9 Ağustos)
+
+**8 fazın hepsi + build öncesi denetim bitti. Kullanıcının 10 maddelik eksik
+listesinin tamamı karşılandı.**
+
+| # | Kullanıcı isteği | Nerede |
+|---|---|---|
+| 1 | Mesaj/bildirim anlık gelmiyor | FAZ 1 (WS yakalama) + FAZ 2 (sosyal push) + alt menü rozeti |
+| 2 | Engellediğimde beni hiç görmesin | FAZ 3 — `internal/engel` tek kaynak, 10 yüzey + yeni uçlar |
+| 3 | Profil fotoğrafları her yerde | FAZ 4 + **FAZ 4b** (`/users/ozet` — arama/oda/yayın) |
+| 4 | Instagram etkileşim + istatistik | FAZ 7 (N beğenme → beğenenler, gerçek paylaş, `/istatistik`) |
+| 5 | Alt menüde **arama** (profil arama) | FAZ 8 (`kesfet_ekrani.dart` + `GET /kesfet`) |
+| 6 | Grup oluşturma | FAZ 6 (`chat/grup.go` + `grup_olustur.dart`) |
+| 7 | Filtre / sil / arşivle / kaydırma | FAZ 6 |
+| 8 | Gönderi düzenleme | FAZ 7 (`PATCH /posts/{id}` + migration 025) |
+| 9 | Çoklu görsel **VE** video galerisi | FAZ 7 (`media_kinds` — kök neden yapısaldı) |
+| 10 | Video 100 MB | FAZ 5 |
+
+### Bu turda yapılan (commit sırası)
+- `cc1a93f` FAZ 1 · `3d3f421` FAZ 2 · `3e0678c` FAZ 3 · `41e51b2` FAZ 4
+- `86142fa` FAZ 5 · `ed8205e` FAZ 6
+- `5a5f058` **FAZ 7** — karma galeri + düzenleme + Instagram çubuğu + istatistik
+- `f0e88f2` **FAZ 8** — alt menü 6 sekme + ARAMA ekranı + Reels sekmesi
+- `9cea9cf` **FAZ 4b** — `/users/ozet`, `answer` → `peer_id`, `KimlikAvatar`
+- `95b0a85` **denetim 1** — sevk engeli + 2 orta bulgu
+- `13e8011` **denetim 2** — sessize alma push'ta uygulanmıyordu
+
+### Build öncesi denetimde bulunanlar (kod yazıldıktan SONRA)
+1. **SEVK ENGELİ — `Kaydedilenler` bomboş dönecekti.** `media_kinds`+`duzenlendi_at`
+   altı sorguya eklendi, yedincisi atlandı → 16 sütun dönüyor, `Scan` 18 bekliyor →
+   `rows.Scan` hata → `continue` → her satır **sessizce** atlanır. Derleme hatası yok,
+   log yok, ölçüm yok. → **kalıcı muhafız `internal/social/sutun_test.go`**.
+2. **Sessize alma push'ta uygulanmıyordu** (FAZ 6'nın kendi özelliği sessizce ölüydü).
+3. Profil ızgarasında karma galeride video rozeti çıkmıyordu + iki rozet aynı konumda.
+4. Keşfet ızgarası tam çözünürlük indiriyordu (3 sütunda 30 görsel).
+5. `media_ids <> '{}'` → `cardinality(...) > 0`.
+
+### Kalıcı dersler
+- **Tek `Scan`'i paylaşan çoklu sorgu = sessiz körlük riski.** Sütun eklerken
+  TÜM sorguları say; sayıyı teste bağla.
+- **`IndexedStack` tüm çocukları canlı tutar** — içine medya oynatıcı koyarken
+  ses sızıntısını düşün (iOS ses oturumu proses genelinde tek).
+- **Bir özelliği "ekledim" demek, o özelliğin uygulandığı anlamına gelmez**:
+  `muted_until` yazılıyordu, okunuyordu, ikonu çiziliyordu — ama bildirim yolunda
+  hiç sorulmuyordu.
+
+**SIRADAKİ:** temiz build (android + ios) → R2 → purge → indir sayfası saati →
+DB temizle → kullanıcı tek seferde test edecek.

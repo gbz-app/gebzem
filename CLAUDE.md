@@ -17,7 +17,71 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (8 Agu 22:40):** TEST TURU 75 YAYINLANDI — android 31274404137 +
+- **KALDIGIMIZ YER (9 Agu):** TURU 76 — KOD BITTI, 8 FAZ + DENETIM TAMAM, BUILD ALINIYOR.
+  Kullanicinin 10 maddelik eksik listesi (test sonrasi) TAMAMEN karsilandi:
+  1 anlik mesaj/bildirim · 2 engelleme her yuzeyde · 3 profil fotograflari ·
+  4 Instagram etkilesim + istatistik · 5 ALT MENUDE ARAMA (profil arama) ·
+  6 grup olusturma · 7 sohbet filtre/arsiv/sil/kaydirma · 8 gonderi duzenleme ·
+  9 karma medya galerisi (foto+video) · 10 video 100 MB.
+- ⚠️⚠️⚠️ **TURU 76 — DENETIMDE YAKALANAN SEVK ENGELI (build ONCESI):**
+  `media_kinds` + `duzenlendi_at` ALTI gonderi sorgusuna eklendi, **YEDINCISI**
+  (`Kaydedilenler`, etkilesim.go) ATLANDI -> sorgu 16 sutun donuyor, `satirlariOku`
+  18 bekliyordu -> `rows.Scan` hata -> `continue` -> **HER SATIR SESSIZCE ATLANIR**.
+  Derleme hatasi YOK, log YOK, olcum YOK: "Kaydedilenler" sayfasi HERKESTE BOMBOS.
+  **KALICI MUHAFIZ: `internal/social/sutun_test.go`** — kaynagi okuyup 7 sorgunun
+  SELECT sirasini Scan sirasiyla karsilastirir, sorgu SAYISI dususe de uyarir.
+  ⚠️ YAPMA: bu testi silme; yeni sutun eklerken sorgu + Scan + `beklenenSutunlar`
+  UCUNU BIRLIKTE guncelle.
+- ⚠️⚠️ **TURU 76 — SESSIZE ALMA PUSH'TA UYGULANMIYORDU (ikinci denetim bulgusu).**
+  FAZ 6 `muted_until`i ekledi, liste ikonu da ciziliyordu; ama bildirim yolu
+  `chatMemberIDs` sonucunu OLDUGU GIBI kullaniyordu -> sessize alinan sohbet
+  TELEFONU CALDIRMAYA DEVAM EDIYORDU (ozellik "acik" gorunup FIILEN calismiyor —
+  turu 74'un "yorumun anlattigi kontrol govdede var mi" dersinin tekrari).
+  FIX: `sessizOlmayanlar()`. ⚠️ WS yayini (`To: members`) FILTRELENMEZ — sessize
+  alma BILDIRIMI susturur, SOHBETI degil. ⚠️ Rozet sayaci da degismez (WhatsApp
+  da sessiz sohbette sayaci gosterir). ⚠️ FAIL-OPEN bilincli.
+- ⚠️⚠️ **TURU 76 — KARMA MEDYA GALERISININ KOK NEDENI YAPISALDI.**
+  `posts.media_ids` yalnizca UUID diziisiydi; her medyanin FOTO mu VIDEO mu oldugu
+  istemciye **HIC DONMUYORDU**. Kart, gonderi seviyesindeki `tur` bayragina bakip
+  TUM medyayi ayni cizdigi icin "foto + video ayni gonderide" sunucu izin verse
+  bile YANLIS CIZILIRDI. Yeni `media_kinds` dizisi `unnest(...) WITH ORDINALITY`
+  ile **SIRA KORUYARAK** doner (`media_kinds[i]` <-> `media_ids[i]`).
+  ⚠️ Duz JOIN kullanma — sira GARANTI OLMAZ. ⚠️ Silinmis medya icin `'yok'`
+  (NULL DEGIL: `array_agg` NULL uretirse `[]string` taramasi PATLAR ve satir
+  SESSIZCE atlanir = akis bosalir).
+  ⚠️ **YENI `tur` DEGERI EKLENMEDI**: `tur='foto'` artik "GALERI (1-10 karma
+  medya)" demek. `posts.tur` CHECK'ini DROP/ADD etmek 015'te yasanan migration
+  tuzagini acar. `video`/`reels` TEK medya olarak KALIR (reels oynaticisi tek
+  kaynak varsayiyor).
+- ⚠️⚠️ **TURU 76 — REELS SEKMESI `IndexedStack`TE **KOSULLU** KURULUR (SES GUVENLIGI).**
+  `IndexedStack` TUM cocuklari agacta CANLI tutar; reels sekmesinden cikinca video
+  oynaticisi yasar ve **SES ARKA PLANDA CALMAYA DEVAM EDERDI**. iOS'ta ses oturumu
+  PROSES GENELINDE TEK nesnedir (turu 64/65/73'te aramalar tam bu yuzden sagirlasti).
+  `_index == _reels ? const ReelsSayfasi() : const SizedBox.shrink()`.
+  ⚠️ YAPMA: kosulsuz `ReelsSayfasi()` yapma. ⚠️ Akis AppBar'indaki Reels dugmesi
+  KALDIRILDI (ayni ekrana iki giris = push edilen kopya sekme degisince ustte kalir).
+- 📌 **TURU 76 — ALT MENU YENIDEN KURULDU:** Anasayfa · Ara · Reels · Mesaj · Canli ·
+  Profil. **"Ara" = PROFIL ARAMA** (kullanici: "aramadan kastim normal profil arama
+  instagram gibi") — CAGRI GECMISI **SILINMEDI**, `Mesaj` sekmesinin segmentine
+  tasindi; SESLI ODALAR da `Canli` segmentine. ⚠️ YAPMA: `CallsTab`/`RoomsTab`i
+  kaldirma (`mesgulMu` muhafizlari `oda_`/`yayin_` onlara bagli).
+  ⚠️ Akis/Ara/Reels sekmelerinde AppBar YOK -> o ekranlar KENDI `SafeArea`sini
+  koymak ZORUNDA.
+- 📌 **TURU 76 — AVATAR KOK COZUM: `GET /users/ozet?ids=a,b,c`.** Bir yuzey avatari
+  ancak verisi `avatar_media_id` TASIYORSA cizebilir; arama katmani bunu tasimiyordu
+  ve **TASIYAMAZDI** (gelen arama VoIP push/CallKit yolundan gelir, orada yalnizca
+  kimlik vardir). "Her cagirana avatar alani ekle" o yolda YAPISAL OLARAK cozmez.
+  · `POST /calls/{id}/answer` artik `peer_id` doner — gelen aramada TEK guvenilir
+    kimlik kaynagi (WS olayi kaybolabilir, CallKit ek alanlari tutarsiz).
+  · `IncomingCall.callerId`: sunucu `caller_id`yi ZATEN gonderiyordu, istemci OKUMUYORDU.
+  · `medya/kullanici_ozeti.dart`: **40ms toplu istek penceresi** (N+1 YOK — turu 17
+    dersi), negatif onbellek, ag hatasinda onbellege YAZMAZ, logout'ta temizlenir.
+  ⚠️ `/users/{id}/profile` KULLANILMADI: gizlilik kapisi + takipci sayilari tasiyor;
+  arama ekraninin avatari gizli hesapta kaybolamaz. ⚠️ `/users/ozet`te UUID BICIM
+  SUZGECI ZORUNLU — tek bozuk deger `= ANY($2)` sorgusunun TAMAMINI 500 yapar.
+- 📌 **MIGRATION NUMARALARI (guncel):** 024 = grup sohbet (`chats.avatar_media_id`,
+  `chat_members.cleared_at`), 025 = `posts.duzenlendi_at`. Sonraki **026**'dan.
+- **ONCEKI (8 Agu 22:40):** TEST TURU 75 YAYINLANDI — android 31274404137 +
   ios 31274409665 (1aa6274), R2 apk=112201055 (md5 024bc3af) ipa=23288435 (md5 f9cd1183),
   purge OK, **CDN birebir**, indir sayfasi 22:40, debug imza YOK, iOS min 16.0 dogrulandi,
   **BACKEND DEPLOY EDILDI** (turu 64 -> 75; migration 020/021/022/023) + health ok,

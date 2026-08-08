@@ -140,38 +140,45 @@ class _KesfetEkraniState extends ConsumerState<KesfetEkrani>
   Widget build(BuildContext context) {
     super.build(context); // AutomaticKeepAlive
     final aramaModu = _kutu.text.trim().isNotEmpty;
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-          child: TextField(
-            controller: _kutu,
-            focusNode: _odak,
-            textInputAction: TextInputAction.search,
-            onChanged: _degisti,
-            decoration: InputDecoration(
-              hintText: 'Ara (isim veya @kullanıcıadı)',
-              prefixIcon: const Icon(LucideIcons.search, size: 19),
-              suffixIcon: aramaModu
-                  ? IconButton(
-                      icon: const Icon(LucideIcons.x, size: 18),
-                      onPressed: () {
-                        _kutu.clear();
-                        _degisti('');
-                        _odak.unfocus();
-                      },
-                    )
-                  : null,
-              isDense: true,
-              contentPadding: const EdgeInsets.symmetric(vertical: 12),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(24),
+    // ⚠️ Bu sekmenin AppBar'i YOK (HomeScreen'de kapatildi — Instagram deseni:
+    //    ustte baslik degil ARAMA KUTUSU olur). Bu yuzden `SafeArea` BURADA
+    //    ZORUNLU; olmazsa arama kutusu durum cubugunun ALTINA girer.
+    // ⚠️ `bottom: false` — alt guvenli alani NavigationBar zaten hallediyor.
+    return SafeArea(
+      bottom: false,
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+            child: TextField(
+              controller: _kutu,
+              focusNode: _odak,
+              textInputAction: TextInputAction.search,
+              onChanged: _degisti,
+              decoration: InputDecoration(
+                hintText: 'Ara (isim veya @kullanıcıadı)',
+                prefixIcon: const Icon(LucideIcons.search, size: 19),
+                suffixIcon: aramaModu
+                    ? IconButton(
+                        icon: const Icon(LucideIcons.x, size: 18),
+                        onPressed: () {
+                          _kutu.clear();
+                          _degisti('');
+                          _odak.unfocus();
+                        },
+                      )
+                    : null,
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(24),
+                ),
               ),
             ),
           ),
-        ),
-        Expanded(child: aramaModu ? _sonucListesi() : _kesfetIzgarasi()),
-      ],
+          Expanded(child: aramaModu ? _sonucListesi() : _kesfetIzgarasi()),
+        ],
+      ),
     );
   }
 

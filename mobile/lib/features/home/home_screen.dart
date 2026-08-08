@@ -54,6 +54,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   // ⚠️ Sekme indeksleri SABIT olarak yazilir — build icinde ciplak sayi
   //    kullanmak, sira degisince sessizce yanlis ekran acar.
   static const _akis = 0;
+  static const _ara = 1;
   static const _reels = 2;
   static const _mesaj = 3;
 
@@ -93,9 +94,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
 
     return Scaffold(
-      // ⚠️ AKIS ve REELS KENDI tam ekran duzenlerini cizer — ust AppBar OLMAZ.
-      //    (Akista ikonlar kendi baslik seridinde; reels tam ekran video.)
-      appBar: (_index == _akis || _index == _reels)
+      // ⚠️ AKIS, ARA ve REELS KENDI ust duzenlerini cizer — ust AppBar OLMAZ.
+      //    Akista bolme secici + bildirim ikonu kendi seridinde; ARA'da ustte
+      //    zaten arama kutusu var ("Ara" baslikli bir cubuk hem gereksiz yer
+      //    kaplar hem Instagram deseninden sapar); reels tam ekran video.
+      // ⚠️ AppBar'i olmayan sekmeler KENDI `SafeArea`sini koymak ZORUNDA
+      //    (yoksa icerik durum cubugunun ALTINA girer).
+      appBar: (_index == _akis || _index == _ara || _index == _reels)
           ? null
           : AppBar(
               title: Text(_titles[_index]),
