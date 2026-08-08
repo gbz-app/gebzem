@@ -4787,3 +4787,103 @@ bitiriyor) — silinirken o dal korunmalı.
 
 ### 📌 Migration numaraları
 014 = `reports` (turu 74) · medya **015'ten** · sosyal katman **020'den** başlar.
+
+---
+
+## Oturum 75 — SOSYAL KATMAN + KANAL (8 Ağustos)
+
+Kullanıcı emri: *"whatsapp kanal da var kanalıda yapmalıyız... profilide yapalım...
+anasayfayıda yapalım... reels olacak onuda yapalım yani anasayfada instagram facebook gibi
+insanların paylaşımı olacak... takip et etme engelle olacak... beğen yorum yap paylaş
+istatistik bunların hepsinin olması gerekiyor"*
+Test kararı: *"testi en son yapacağız, araştırma bittikten sonra her şeyi bitir"*.
+
+### ⚠️⚠️ VERİ POLİTİKASI (kullanıcı kararı, önceki planı EZER)
+*"90 günlük silme vs olmasın, sakın insanların verisini silmek yok, sürekli veri olacak
+büyüyecek, bunu Cloudflare sayacağız"* → **hiçbir şemada yaş tabanlı silme YOK.**
+İstisnalar yalnızca yasal zorunluluk: sahibi siler · hesap silinir (KVKK) · mahkeme/BTK
+kaldırma kararı · CSAM/yasa dışı içerik.
+⚠️ YAPMA: herhangi bir tabloya `expires_at` / otomatik süpürge ekleme.
+
+### Backend
+| Migration | İçerik |
+|---|---|
+| **020_sosyal** | `follows` (onaylı/bekliyor) · denormalize sayaçlar · `gizli_hesap` · `baglanti` · `bildirimler` |
+| **021_gonderi** | `posts` (foto/video/reels/yazı) · `post_likes` · `post_comments` (tek seviye yanıt) · `comment_likes` · `post_saves` |
+| **022_kanal** | `channels` · `channel_admins` · `channel_subscribers` · `channel_posts` · `channel_post_likes` |
+
+Paketler: `internal/users/takip.go` · `internal/social/{handler,etkilesim}.go` · `internal/kanal/handler.go`
+
+### ⚠️⚠️ FAN-OUT KARARI: OKUMA ZAMANI (akış VE kanal)
+Yazma zamanı fan-out'ta 10.000 takipçili biri gönderi atınca **10.000 satır yazılır**.
+cx33'te Postgres LiveKit ile **aynı 4 vCPU'yu** paylaşıyor — bu yazma fırtınası SFU'yu aç
+bırakır (aramalar/yayınlar bozulur). Okuma tarafı ise sayfa başına tek sorgu.
+Geri dönülebilirlik de bu yönde: read-time → hibrit **kolay**, tersi zor.
+⚠️ YAPMA: ölçüm görmeden yazma zamanına geçme.
+
+### ⚠️⚠️⚠️ KANAL NEDEN `chats` HATTINI KULLANMIYOR (kod okunarak bulundu)
+CLAUDE.md "tek chats tablosu, type: channel" diyor ve `chats.type` CHECK'i 'channel'i
+zaten kabul ediyor. Ama mevcut mesaj hattı kanal ölçeğinde **çalışmaz**:
+- `chat.SendMessage` her mesajda **üye başına ayrı INSERT** yapıyor
+  (`for _, uid := range members { INSERT INTO message_receipts ... }`) →
+  10.000 aboneli kanalda tek gönderi = **10.000 ayrı sorgu**
+- `hub.Publish(To: members)` + `push.NotifyUsers(members, ...)` aynı 10.000'lik diziyi taşıyor
+- `ListChats` okunmamışı `message_receipts` COUNT(*) ile buluyor
+- Üstelik kanalda **okundu bilgisi zaten istenmiyor** (WhatsApp kanallarında tik yok,
+  yalnız toplam görüntülenme) → o satırların ürün karşılığı da yok
+
+**Çözüm:** okunmamış = `(kanal,kullanıcı)` başına **tek damga** (`son_okuma`);
+`(gönderi,kullanıcı)` satırı yok.
+⚠️ YAPMA: kanalı `messages`/`message_receipts` hattına taşıma.
+⚠️ Kanal push'u **bilinçli olarak yok** (ilk sürüm): `NotifyUsers` tüm alıcıyı tek çağrıda
+işliyor, 10.000 aboneli kanalda iş parçacığında saniyelerce takılır ve FCM'in 500 hedef/istek
+sınırı aşılır. Doğrusu parçalı+kuyruklu gönderim — ayrı iş.
+
+### ⚠️ Denetimde yakalanan kendi hatalarım (build'den ÖNCE)
+1. **Keşfet dalı kendi gönderini göstermiyordu** — kimseyi takip etmeyen kullanıcı bu dala
+   düşer; `p.author_id = $1 OR ...` yoktu → *"paylaştım ama akışta yok"*. Gizli hesap kendi
+   gönderisini hiç göremiyordu (`NOT u.gizli_hesap` eliyordu).
+2. **Keşfet dalı `begendim/kaydettim` sabit `false` dönüyordu** → beğenilen gönderinin kalbi
+   boş çizilir, kullanıcı tekrar basar, sunucu idempotent olduğu için **hiçbir şey olmaz**.
+3. **`iliski` alan adları uyuşmuyordu** — istemci `takip_ediyor` okuyordu, sunucu
+   `takip_ediyor_mu` döndürüyordu → düğme daima "Takip Et" görünürdü. Yanlış ad **sessizce**
+   `false` üretir; derleme hatası vermez.
+4. `Navigator` await'ten önce yakalanmıyordu (turu 67'nin "dispose sonrası context" sınıfı).
+
+### ⚠️⚠️ EN RİSKLİ DOSYA: `sosyal/medya_video.dart`
+`video_player` iOS'ta AVAudioSession kategorisini `.playback` yapar ve **diğer sesi keser** →
+süren LiveKit aramasının sesini **öldürür** (turu 64/65/73'te aynı sınıf hata defalarca).
+**Üç katmanlı savunma:** (1) `mixWithOthers: true`, (2) `MedyaKapisi.donanimSerbest` false ise
+ses zorla kapalı, (3) arama/oda/yayın başlarken `SesNotuKontrol.sustur()` oynatmayı durdurur.
+⚠️ YAPMA: üç kapıdan birini kaldırma.
+⚠️ YAPMA: oynatıcıyı `SesSahipligi`ne kaydetme — o defter `setAudioEnabled` kararını sürür;
+video oynatıcı WebRTC ses birimi **değildir** ve oraya yazılırsa `aramaCanli` yalan söyler
+(iPhone mikrofon göstergesi sönmez).
+
+### ⚠️ REELS: tek oynatıcı kuralı
+`PageView` komşu sayfaları da kurar → her sayfada `MedyaVideo` olsaydı aynı anda 2-3
+AVPlayer/ExoPlayer ayakta olurdu. Oynatıcı **yalnız aktif sayfada**; komşuda kapak görseli.
+
+### ⚠️⚠️ YENİ: `backend/cmd/api/rota_test.go`
+chi **çakışan desenlerde çalışma anında panik atar** ve bu `go build`/`go vet` ile
+yakalanmaz. Bu turda 25+ uç eklendi; bir çakışma sunucuyu **açılışta** öldürürdü.
+Test desenleri elle yazmaz, **`main.go` kaynağından regex ile okur** → drift yok.
+Ayrıca riskli statik-vs-parametre yollarını kanıtlıyor (`/users/me/follow-requests` ile
+`/users/{id}/profile`; `/channels/kesfet` ile `/channels/{id}`).
+**Sonuç: 125 rota çakışmasız, 22 temsili URL doğru desene düşüyor.**
+
+### Alt menü — 6 sekme
+`Akış · Sohbet · Arama · Oda · Canlı · Profil`. Akış en başta (ana sayfa = akış).
+Kanallar, Akış'ın üstündeki **"Akış | Kanallar" segment seçicisinde** (7. sekme açılmadı —
+360dp ekranda 6 hedefte etiketler zaten sınırda).
+⚠️ `_index` sabitleri üstüne yazılmış koşullar var (0=akış → üst AppBar gizlenir çünkü akış
+kendi AppBar'ını çizer; 1=sohbet → "yeni sohbet" + düğmesi). Sırayı değiştirme.
+
+### ⚠️ Dürüst sınır — kanal gönderisinde video YOK (ilk sürüm)
+`channel_posts.media_ids` medyanın **türünü taşımıyor**; istemci bir id'nin video mu foto mu
+olduğunu bilemez ve video id'sini `MedyaGorsel`e verirse **kırık görsel** çizilir.
+Video için önce sunucu `media_kinds` döndürmeli.
+
+### Commit'ler
+`b02647d` gönderi+akış+etkileşim · `9264dd5` sosyal arayüz (9 ekran) + sekme düzeni ·
+`8f870e6` kanal + rota çakışma testi
