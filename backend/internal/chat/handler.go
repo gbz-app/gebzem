@@ -325,7 +325,19 @@ func (h *Handler) SendMessage(w http.ResponseWriter, r *http.Request) {
 		if len(preview) > 80 {
 			preview = preview[:80]
 		}
-		go h.push.NotifyUsers(members, senderName, preview, chatID)
+		// ⚠️⚠️ TURU 76 (DENETIM BULGUSU) — SESSIZE ALMA PUSH'TA UYGULANMIYORDU.
+		//    FAZ 6 "sohbeti sessize al"i ekledi (`muted_until`), listede ikon da
+		//    ciziliyor; ama bildirim yolu members'i OLDUGU GIBI kullaniyordu ->
+		//    kullanici sohbeti sessize alsa bile TELEFONU CALMAYA DEVAM EDIYORDU.
+		//    Yani ozellik kullaniciya "acik" gorunuyor, FIILEN CALISMIYORDU.
+		// ⚠️ WS YAYINI (`To: members`) FILTRELENMEZ: sessize alma BILDIRIMI
+		//    susturur, SOHBETI degil. Uygulama acikken mesaj yine ANINDA duser.
+		// ⚠️ Okunmamis rozetine de DOKUNULMAZ (WhatsApp da sessiz sohbette
+		//    sayaci gosterir).
+		alicilar := h.sessizOlmayanlar(r.Context(), chatID, members)
+		if len(alicilar) > 0 {
+			go h.push.NotifyUsers(alicilar, senderName, preview, chatID)
+		}
 	}
 
 	writeJSON(w, http.StatusCreated, map[string]any{"id": msgID, "created_at": createdAt})
@@ -621,6 +633,44 @@ func (h *Handler) engelliMi(r *http.Request, chatID, userID string,
 		    OR (blocked_id = $1 AND blocker_id = ANY($2))`,
 		userID, digerleri).Scan(&n)
 	return n > 0, err
+}
+
+// Sohbeti SESSIZE ALMAMIS uyeleri dondurur (push alicilari).
+//
+// ⚠️ FAIL-OPEN (bilincli): sorgu patlarsa liste OLDUGU GIBI doner. Sessize alma
+//
+//	bir KONFOR ozelligi; hata durumunda fazladan bildirim gitmesi, GERCEK bir
+//	mesajin hic bildirilmemesinden iyidir. (Engelleme FAIL-CLOSED'dir — orada
+//	risk terstir.)
+func (h *Handler) sessizOlmayanlar(ctx context.Context, chatID string, uyeler []string) []string {
+	if len(uyeler) == 0 {
+		return uyeler
+	}
+	rows, err := h.db.Query(ctx, `
+		SELECT user_id FROM chat_members
+		 WHERE chat_id=$1 AND user_id = ANY($2)
+		   AND muted_until IS NOT NULL AND muted_until > now()`, chatID, uyeler)
+	if err != nil {
+		return uyeler
+	}
+	defer rows.Close()
+	sessiz := map[string]bool{}
+	for rows.Next() {
+		var id string
+		if rows.Scan(&id) == nil {
+			sessiz[id] = true
+		}
+	}
+	if len(sessiz) == 0 {
+		return uyeler
+	}
+	out := make([]string, 0, len(uyeler))
+	for _, u := range uyeler {
+		if !sessiz[u] {
+			out = append(out, u)
+		}
+	}
+	return out
 }
 
 func (h *Handler) chatMemberIDs(r *http.Request, chatID, userID string) ([]string, error) {
