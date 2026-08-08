@@ -413,11 +413,30 @@ class CallKitService {
     _holdOlcumuYapildi = true;
     try {
       final aktif = await FlutterCallkitIncoming.activeCalls();
-      final ozet = (aktif as List)
-          .map((c) => c is Map
-              ? 'hold=${c['supportsHolding']} grup=${c['maximumCallGroups']}'
-              : c.toString())
-          .join(' | ');
+      // ⚠️⚠️ TURU 74 — OLCUM DUZELTMESI (sahada kanitli kusur):
+      // iOS'ta `activeCalls()` **Map DEGIL `CallKitParams` NESNESI** donduruyor;
+      // `c is Map` FALSE kaliyor ve `c.toString()` TUM NESNEYI (id, isim, extra,
+      // bildirim ayarlari...) mesaja basiyordu. Iki zarari vardi:
+      //   (1) mesaj ~900 karakter, aranan `hold=` degeri BASLIKTA GORUNMUYOR;
+      //   (2) mesajda callId GECTIGI icin Sentry her aramayi AYRI ISSUE yapiyor
+      //       (tek olcum 6 ayri kayda dagilmisti — gurultu).
+      // Artik hangi tip gelirse gelsin metinden ALAN CIKARILIR; mesaj KISA ve
+      // SABIT kalir -> Sentry TEK issue'da gruplar.
+      // ⚠️ YAPMA: `c.toString()`e geri donme; mesaja callId koyma.
+      final ozet = (aktif as List).map((c) {
+        if (c is Map) {
+          return 'hold=${c['supportsHolding']} grup=${c['maximumCallGroups']}'
+              ' grupla=${c['supportsGrouping']}';
+        }
+        final s = c.toString();
+        String alan(String ad) {
+          final m = RegExp('$ad:\\s*([^,}]+)').firstMatch(s);
+          return m == null ? '?' : m.group(1)!.trim();
+        }
+
+        return 'hold=${alan('supportsHolding')} grup=${alan('maximumCallGroups')}'
+            ' grupla=${alan('supportsGrouping')}';
+      }).join(' | ');
       unawaited(Sentry.captureMessage(
           'callkit aktif arama ($etiket): adet=${(aktif as List).length} $ozet'));
     } catch (e) {

@@ -122,10 +122,25 @@ func (h *Handler) WebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// ⚠️⚠️ TURU 74 — `MediaURL` ALANI KALDIRILDI (guvenlik).
+//
+// Eskiden istemci `media_url`i SERBESTCE gonderebiliyor ve sunucu onu DOGRULAMADAN
+// `messages` tablosuna INSERT ediyordu. Istemci bu alani HIC GONDERMIYOR
+// (`chats_provider.dart:80` govdesi yalnizca `{'type','content'}`) — yani alan
+// KULLANILMIYOR ama ACIK duruyordu. Sonuc: herhangi bir kullanici
+// `{"type":"image","media_url":"https://kotu-site/izleme.gif"}` gonderip karsi tarafta
+// KENDI SUNUCUSUNDAN icerik cektirebilirdi:
+//   · IZLEME PIKSELI — mesaj acilir acilmaz alicinin IP'si ve saati saldirgana gider
+//   · OLTALAMA — sohbet icinde sahte gorsel/banner
+//   · SSRF/ic ag taramasi — sunucu tarafi onizleme eklenirse
+// `models.dart:80` bu alani ZATEN okuyor, yani gorsel cizimi eklendigi ANDA sahada
+// somurulebilir hale gelirdi.
+//
+// ⚠️ YAPMA: bu alani geri ekleme. Medya gelince URL **sunucuda turetilecek**
+//     (medya kaydinin id'sinden; bkz. medya-plani.md). Istemci ASLA URL vermez.
 type sendMessageReq struct {
 	Type      string `json:"type"` // text, image, video, audio, location
 	Content   string `json:"content"`
-	MediaURL  string `json:"media_url"`
 	ReplyToID *int64 `json:"reply_to_id"`
 }
 
@@ -166,9 +181,9 @@ func (h *Handler) SendMessage(w http.ResponseWriter, r *http.Request) {
 	var msgID int64
 	var createdAt time.Time
 	err = h.db.QueryRow(r.Context(), `
-		INSERT INTO messages (chat_id, sender_id, type, content, media_url, reply_to_id)
-		VALUES ($1,$2,$3,$4,$5,$6) RETURNING id, created_at`,
-		chatID, userID, req.Type, req.Content, req.MediaURL, req.ReplyToID).Scan(&msgID, &createdAt)
+		INSERT INTO messages (chat_id, sender_id, type, content, reply_to_id)
+		VALUES ($1,$2,$3,$4,$5) RETURNING id, created_at`,
+		chatID, userID, req.Type, req.Content, req.ReplyToID).Scan(&msgID, &createdAt)
 	if err != nil {
 		log.Printf("mesaj insert: %v", err)
 		httpErr(w, http.StatusInternalServerError, "mesaj kaydedilemedi")
@@ -184,7 +199,8 @@ func (h *Handler) SendMessage(w http.ResponseWriter, r *http.Request) {
 
 	payload, _ := json.Marshal(map[string]any{
 		"id": msgID, "chat_id": chatID, "sender_id": userID,
-		"type": req.Type, "content": req.Content, "media_url": req.MediaURL,
+		// media_url sabit BOS: istemci URL veremez (turu 74). Medya gelince sunucu turetecek.
+		"type": req.Type, "content": req.Content, "media_url": "",
 		"reply_to_id": req.ReplyToID, "created_at": createdAt,
 	})
 	h.hub.Publish(r.Context(), &Event{Type: "message.new", ChatID: chatID, Payload: payload, To: members})
