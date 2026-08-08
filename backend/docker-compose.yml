@@ -28,6 +28,18 @@ services:
       ADMIN_KEY: ${ADMIN_KEY:-}
       ADMIN_USER: ${ADMIN_USER:-}
       ADMIN_PASS: ${ADMIN_PASS:-}
+      # ⚠️⚠️ MEDYA (R2) — TURU 75b'de EKSIK OLDUGU SAHADA GORULDU.
+      # Bu dosya `env_file:` DEGIL acik `environment:` eslemesi kullaniyor; yani
+      # sunucudaki `.env`e degisken eklemek TEK BASINA YETMEZ — kaba gecmesi icin
+      # BURADA da eslenmesi gerekir. Eksikken API sessizce
+      # "medya: R2_* env EKSIK — MEDYA KAPALI" deyip aciliyordu: yukleme,
+      # profil fotografi, gonderi/kanal gorselleri ve reels TAMAMEN olu kaliyordu.
+      # ⚠️ YAPMA: yeni bir env degiskeni eklerken yalniz `.env`e yazip birakma;
+      #    bu blogu da guncelle (ikisi AYRI yerdir).
+      R2_ENDPOINT: ${R2_ENDPOINT:-}
+      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:-}
+      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:-}
+      R2_BUCKET: ${R2_BUCKET:-}
     volumes:
       - ./fcm-sa.json:/secrets/fcm-sa.json:ro
       - ./apns.p8:/secrets/apns.p8:ro
