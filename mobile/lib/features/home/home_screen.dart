@@ -6,6 +6,9 @@ import 'package:permission_handler/permission_handler.dart';
 
 import '../../core/api.dart';
 import '../auth/auth_provider.dart';
+import '../medya/medya_gorsel.dart';
+import 'engellenenler.dart';
+import 'profil_duzenle.dart';
 import '../auth/permissions_screen.dart';
 import '../calls/calls_tab.dart';
 import '../chats/chats_screen.dart';
@@ -127,9 +130,14 @@ class _ProfileTab extends ConsumerWidget {
       padding: const EdgeInsets.all(16),
       children: [
         const SizedBox(height: 16),
-        CircleAvatar(
-          radius: 48,
-          child: Icon(LucideIcons.user, size: 48, color: scheme.onPrimaryContainer),
+        // TURU 74: gerçek profil fotoğrafı (varsa R2'den imzalı adresle).
+        Center(
+          child: Avatar(
+            ad: (profile.valueOrNull?['name'] as String?) ?? '',
+            mediaId: profile.valueOrNull?['avatar_media_id'] as String?,
+            avatarUrl: (profile.valueOrNull?['avatar_url'] as String?) ?? '',
+            cap: 96,
+          ),
         ),
         const SizedBox(height: 12),
         profile.when(
@@ -150,10 +158,23 @@ class _ProfileTab extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 24),
-        const ListTile(
-          leading: Icon(LucideIcons.circleUser),
-          title: Text('Profil düzenleme'),
-          subtitle: Text('Faz 2\'de geliyor'),
+        ListTile(
+          leading: const Icon(LucideIcons.circleUser),
+          title: const Text('Profili düzenle'),
+          subtitle: const Text('Ad, fotoğraf, hakkımda'),
+          trailing: const Icon(LucideIcons.chevronRight, size: 18),
+          onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const ProfilDuzenleEkrani())),
+        ),
+        // ⚠️ TURU 74 — ENGELLENENLER. App Store 1.2 (UGC) engellemeyi şart koşuyor;
+        //    engellemek kadar engeli GÖREBİLMEK ve KALDIRABİLMEK de gerekli
+        //    (sohbet ekranına girmeden).
+        ListTile(
+          leading: const Icon(LucideIcons.ban),
+          title: const Text('Engellenen kişiler'),
+          trailing: const Icon(LucideIcons.chevronRight, size: 18),
+          onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const EngellenenlerEkrani())),
         ),
         ListTile(
           leading: const Icon(LucideIcons.coins),
