@@ -17,7 +17,34 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (8 Agu):** TURU 75 KOD BITTI, DENETIM BITTI, **BUILD ALINMADI**.
+- **KALDIGIMIZ YER (8 Agu 22:40):** TEST TURU 75 YAYINLANDI — android 31274404137 +
+  ios 31274409665 (1aa6274), R2 apk=112201055 (md5 024bc3af) ipa=23288435 (md5 f9cd1183),
+  purge OK, **CDN birebir**, indir sayfasi 22:40, debug imza YOK, iOS min 16.0 dogrulandi,
+  **BACKEND DEPLOY EDILDI** (turu 64 -> 75; migration 020/021/022/023) + health ok,
+  DB temiz (0/0/0/0). **KULLANICI TEST EDECEK.**
+- ⚠️⚠️⚠️ **TURU 75 YAYINDA YAKALANAN SEVK ENGELI: MEDYA SUNUCUDA KAPALIYDI.**
+  Deploy sonrasi log: .  ok donuyordu,
+  API saglikli aciliyordu — hata SATIR ARASINDAYDI.
+  **KOK NEDEN:**   **DEGIL** acik 
+  eslemesi kullaniyor. Sunucudaki e R2 anahtarlarini eklemek **TEK BASINA YETMEDI**;
+  degiskenlerin KABA gecmesi icin compose'da da eslenmesi gerekiyordu.
+  **ETKISI:** yukleme, profil fotografi, gonderi/kanal gorselleri ve REELS tamamen olu
+  olacakti (turu 74 medya + turu 75 sosyal katmanin GORSEL ayaginin hepsi).
+  ⚠️ **YAPMA: yeni bir env degiskeni eklerken yalniz e yazip birakma; compose'daki
+   blogunu da guncelle (IKISI AYRI YERDIR).**
+- ✅ **TURU 75 — UCTAN UCA CANLI DOGRULAMA: 27/27 GECTI** (scratchpad/uctan_uca.js).
+  Gercek sunucuda, **IKI AYRI HESAPLA** (tek cihazda gorunmeyen hatalar icin SART):
+  presign -> R2 PUT -> commit -> gonderi -> takip -> akis -> **B'nin A'nin gorselini
+  imzali adresten BIREBIR indirmesi** -> begeni/yorum/kaydetme -> kaydedilenler ->
+  **engelleme sonrasi profil gonderilerinin BOSALMASI** -> kanal ac/gonderi/abone/
+   alani/kesfet filtresi -> reels -> bildirimler.
+  ⚠️ Bu betik SURUM RUTININE EKLENDI: sosyal/medya degisen her turda kosulmali.
+- 📌 **MIGRATION DOGRULAMA YONTEMI (yeni rutin adimi):** deploy ONCESI sunucuda
+  ATILABILIR kopya DB () acilip TUM migration'lar sirayla
+   ile uygulanir, sonra DROP edilir. Gercek veriye DOKUNULMAZ.
+  Hatali bir migration API'yi ACILISTA oldurur; bu adim onu deploy'dan once yakalar.
+  (Turu 75'te 9/9 temiz gecti.)
+- **ONCEKI (8 Agu):** TURU 75 kodu — sosyal katman + kanal.
   Kullanici karari: **"testi en son yapacagiz, arastirma bittikten sonra hersyi bitir"**.
   Turu 73/74 HENUZ TEST EDILMEDI — hepsi TEK SEFERDE test edilecek.
   ⏳ **KULLANICIYA SORULACAK: build alalim mi?** (CLAUDE.md kural 0)
