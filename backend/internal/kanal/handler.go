@@ -497,6 +497,15 @@ func (h *Handler) PostOlustur(w http.ResponseWriter, r *http.Request) {
 		hata(w, 400, "en fazla 10 medya")
 		return
 	}
+	// ⚠️⚠️ nil KAPISI: istemci `media_ids` alanini HIC gondermezse Go tarafinda
+	//    dilim `nil` olur ve pgx bunu SQL **NULL** olarak yollar;
+	//    `channel_posts.media_ids` ise **NOT NULL** -> INSERT PATLAR.
+	//    (Bizim Flutter istemcisi alani hep gonderiyor ama sunucu istemciye
+	//     GUVENEMEZ.) Kanit: internal/social/tip_test.go
+	// ⚠️ YAPMA: bu kapiyi kaldirma.
+	if req.MediaIDs == nil {
+		req.MediaIDs = []string{}
+	}
 	// ⚠️⚠️ MEDYA SAHIPLIGI (gonderi/mesaj tarafiyla AYNI kural): baskasinin
 	//    medya id'sini baglamak ya da 'beklemede' kaydi yayinlamak ENGELLI.
 	if len(req.MediaIDs) > 0 {

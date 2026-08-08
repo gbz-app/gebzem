@@ -84,7 +84,13 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 			hata(w, 400, "yazı boş olamaz")
 			return
 		}
-		req.MediaIDs = nil
+		// ⚠️⚠️ nil DEGIL BOS DILIM — SEVK ENGELI OLURDU (kanit: tip_test.go).
+		//    pgx nil bir dilimi SQL **NULL** olarak gonderir; `posts.media_ids`
+		//    ise **NOT NULL**. `req.MediaIDs = nil` yazsaydik HER YAZI GONDERISI
+		//    "null value in column media_ids violates not-null constraint" ile
+		//    500 doner ve kullanici hicbir metin paylasamazdi.
+		// ⚠️ YAPMA: burayi `nil`e dondurme.
+		req.MediaIDs = []string{}
 	} else if len(req.MediaIDs) == 0 {
 		hata(w, 400, "medya bulunamadı")
 		return
