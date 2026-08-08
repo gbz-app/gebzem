@@ -18,7 +18,8 @@ import '../calls/call_provider.dart';
 import '../calls/active_call_controller.dart'; // turu 72
 import '../calls/call_room_lock.dart';
 import '../calls/medya_beklet.dart'; // turu 72: ortak duraklatma primitifi
-import '../medya/ses_notu_kontrol.dart'; // turu 74
+import '../medya/ses_notu_kontrol.dart';
+import '../medya/medya_kapisi.dart'; // turu 74b: picker kapisi // turu 74
 import '../calls/mini_izgara.dart';
 import '../calls/pip_service.dart';
 import '../../router.dart' show rootMessengerKey;
@@ -130,14 +131,6 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
     _svc = ref.read(callServiceProvider.notifier);
     _svc.ekranAcildi('yayin_${widget.streamId}');
     SesSahipligi.kaydol('yayin_i_${widget.streamId}'); // turu 73b: i=izleyici
-    // ⚠️⚠️ TURU 74 — ARAMA KAZANIR: suren ses notu kaydi/oynatmasi SUSTURULUR.
-    //     ⚠️ Kayit SILINMEZ — taslak kalir, kullanici gorusme bitince gonderir.
-    //     ⚠️ 400ms tavanli (SesNotuKontrol.sustur): ses notunun yikimi HICBIR
-    //        KOSULDA aramayi bloklamaz (turu 67: zaman asimsiz await ekrani asti).
-    //     ⚠️ Ses notu `SesSahipligi` defterine YAZILMAZ — o defter
-    //        setAudioEnabled(false) kararini verir; yazilsaydi `aramaCanli` YALAN
-    //        soyler ve ses birimi bir daha kapanmazdi.
-    unawaited(SesNotuKontrol.sustur());
     // ⚠️⚠️ TURU 71 — GSM GOZCUSU BU EKRANDA DA ACIK (gizlilik). Eskiden yalniz
     // arama akisinda aciliyordu; odada/yayinda telefon gorusmesi yapilirsa
     // `gsmAramada` HIC guncellenmiyor ve mikrofon kapilari tetiklenmiyordu.
@@ -216,6 +209,15 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    // ⚠️⚠️ TURU 74b (DENETIM BULGUSU) — SISTEM PICKER'I ARKA PLAN SAYMA.
+    //     Galeri/kamera picker'i uygulamayi arka plana atar ama bu GERCEK bir
+    //     "kullanici cikti" olayi DEGILDIR. Kapisiz birakilinca goruntulu arama
+    //     surerken galeriden fotograf secen kullanicinin KAMERASI KAPANIYOR
+    //     (karsi taraf donmus/kapali kamera gorur) ve donuste ses birimi ZORLA
+    //     TOGGLE edilip ~50-150ms sagirlik olusuyordu.
+    //     ⚠️ Bayrak  ile set/reset edilir (atac_paneli) — asili
+    //        kalirsa GERCEK arka plan gecisinde kamera kapanmaz.
+    if (MedyaKapisi.pickerAcik) return;
     // TEST TURU 20: iOS'ta uygulama arka plana giderken PiP'i ELLE baslat (telefon
     // Ayarindan bagimsiz) -> izleyici yayini kucuk pencerede izlemeye devam eder.
     if (Platform.isIOS &&
@@ -299,6 +301,14 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
   }
 
   Future<void> _baglan() async {
+    // ⚠️⚠️ TURU 74 — ARAMA KAZANIR: suren ses notu kaydi/oynatmasi SUSTURULUR.
+    //     ⚠️ Kayit SILINMEZ — taslak kalir, kullanici gorusme bitince gonderir.
+    //     ⚠️ 400ms tavanli: ses notunun yikimi HICBIR KOSULDA baglantiyi bloklamaz.
+    //     ⚠️ TURU 74b:  DEGIL **await** — dosyanin kendi sozlesmesi
+    //        (ses_notu_kontrol.dart) bunu sart kosuyor; unawaited olsaydi record'un
+    //        AVAudioSession'i birakmasi LiveKit'in ses birimi kurulumuyla YARISIRDI.
+    //     ⚠️ initState async DEGIL — bu yuzden kapi baglanti akisinin BASINDA.
+    await SesNotuKontrol.sustur();
     try {
       await CallRoomLock.calistir(_odayaBaglan);
       if (mounted) {

@@ -132,42 +132,57 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final notifier = ref.read(messagesProvider(widget.chatId).notifier);
     var gonderilen = 0;
 
+    // ⚠️⚠️ TURU 74b (DENETİM BULGUSU): `try` DÖNGÜNÜN İÇİNDE.
+    //     Eskiden dıştaydı: 5 fotoğraftan 3.'sü başarısız olursa (bozuk dosya,
+    //     ağ hatası) `throw` döngüyü KOMPLE kesiyordu — kalan 2 fotoğraf HİÇ
+    //     denenmiyor, tek genel hata mesajı çıkıyor ve kullanıcı hangisinin
+    //     gittiğini BİLMİYORDU.
+    var basarisiz = 0;
     try {
       for (var i = 0; i < secim.dosyalar.length; i++) {
-        final ham = secim.dosyalar[i];
-        // ⚠️ Sıkıştırma + EXIF temizleme ZORUNLU (gizlilik: konum bilgisi).
-        //    Başarısız olursa HAM dosya GÖNDERİLMEZ — sunucu GPS bulursa zaten
-        //    422 döner; boşuna 5 MB yükleyip reddedilmesindense burada duruyoruz.
-        final hazir = await MedyaServisi.gorseliHazirla(ham);
-        if (hazir == null) {
-          throw Exception('Fotoğraf hazırlanamadı');
+        try {
+          final ham = secim.dosyalar[i];
+          // ⚠️ Sıkıştırma + EXIF temizleme ZORUNLU (gizlilik: konum bilgisi).
+          //    Başarısız olursa HAM dosya GÖNDERİLMEZ — sunucu GPS bulursa zaten
+          //    422 döner; boşuna 5 MB yükleyip reddedilmesindense burada duruyoruz.
+          final hazir = await MedyaServisi.gorseliHazirla(ham);
+          if (hazir == null) {
+            throw Exception('Fotoğraf hazırlanamadı');
+          }
+          final mediaId = await servis.yukle(
+            dosya: hazir,
+            kind: 'image',
+            mime: 'image/jpeg',
+            ilerleme: (o) {
+              if (mounted) {
+                setState(() => _ilerleme = (i + o) / secim.dosyalar.length);
+              }
+            },
+          );
+          // ⚠️ Altyazı YALNIZCA İLK fotoğrafa yazılır (WhatsApp davranışı);
+          //    her fotoğrafa kopyalamak gürültü olurdu.
+          await notifier.send(
+            i == 0 ? altyazi : '',
+            type: 'image',
+            mediaId: mediaId,
+            clientRef: mediaId, // media_id benzersiz -> ideal idempotency anahtarı
+          );
+          gonderilen++;
+        } catch (e) {
+          basarisiz++;
+          // ⚠️ Tek fotoğraf hatası KALANLARI ENGELLEMEZ; sonuç sonda özetlenir.
+          if (secim.dosyalar.length == 1 && mounted) {
+            rootMessengerKey.currentState?.showSnackBar(
+              SnackBar(content: Text(apiErrorMessage(e))),
+            );
+          }
         }
-        final mediaId = await servis.yukle(
-          dosya: hazir,
-          kind: 'image',
-          mime: 'image/jpeg',
-          ilerleme: (o) {
-            if (mounted) {
-              setState(() => _ilerleme = (i + o) / secim.dosyalar.length);
-            }
-          },
-        );
-        // ⚠️ Altyazı YALNIZCA İLK fotoğrafa yazılır (WhatsApp davranışı);
-        //    her fotoğrafa kopyalamak gürültü olurdu.
-        await notifier.send(
-          i == 0 ? altyazi : '',
-          type: 'image',
-          mediaId: mediaId,
-          clientRef: mediaId, // media_id benzersiz -> ideal idempotency anahtarı
-        );
-        gonderilen++;
       }
-      if (mounted && altyazi.isNotEmpty) _input.clear();
-    } catch (e) {
-      if (mounted) {
-        rootMessengerKey.currentState?.showSnackBar(
-          SnackBar(content: Text(apiErrorMessage(e))),
-        );
+      if (mounted && altyazi.isNotEmpty && gonderilen > 0) _input.clear();
+      if (mounted && basarisiz > 0 && secim.dosyalar.length > 1) {
+        rootMessengerKey.currentState?.showSnackBar(SnackBar(
+          content: Text('$gonderilen gönderildi, $basarisiz tanesi başarısız'),
+        ));
       }
     } finally {
       if (mounted) {
@@ -185,9 +200,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   ///     yazilir; karsi taraf dalga formunu SUNUCUDAN alir (yeniden hesaplamaz).
   Future<void> _sesNotuGonder(File dosya, int sureMs, String dalga) async {
     if (!mounted) return;
+    // ⚠️⚠️ TURU 74b (DENETİM BULGUSU): notifier ÖNDEN yakalanır. Yükleme
+    //     dakikalarca sürebilir; sonrasında `ref.read(...)` widget dispose
+    //     olmuşsa `StateError` atar (turu 67'nin "ref after dispose" sınıfı),
+    //     `catch` yutar, `mounted` false olduğu için kullanıcıya HİÇBİR ŞEY
+    //     söylenmez → **dosya R2'ye yüklendi, mesaj hiç yazılmadı.**
+    final notifier = ref.read(messagesProvider(widget.chatId).notifier);
+    final servis = ref.read(medyaServisiProvider);
     setState(() => _yukleniyor = true);
     try {
-      final mediaId = await ref.read(medyaServisiProvider).yukle(
+      final mediaId = await servis.yukle(
         dosya: dosya,
         kind: 'audio',
         mime: 'audio/mp4', // m4a (AAC-LC) — kaydedici bu kodeki uretir
@@ -197,7 +219,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           if (mounted) setState(() => _ilerleme = o);
         },
       );
-      await ref.read(messagesProvider(widget.chatId).notifier).send(
+      await notifier.send(
             '',
             type: 'audio',
             mediaId: mediaId,

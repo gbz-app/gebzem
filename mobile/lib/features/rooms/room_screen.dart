@@ -18,7 +18,8 @@ import '../../router.dart' show rootMessengerKey;
 import '../calls/active_call_controller.dart'; // turu 72: duraklatma tetikleyicisi
 import '../calls/call_room_lock.dart';
 import '../calls/medya_beklet.dart'; // turu 72: ortak duraklatma primitifi
-import '../medya/ses_notu_kontrol.dart'; // turu 74
+import '../medya/ses_notu_kontrol.dart';
+import '../medya/medya_kapisi.dart'; // turu 74b: picker kapisi // turu 74
 import '../calls/pip_service.dart'; // turu 71: GSM gizlilik kapisi
 import '../home/home_screen.dart' show myProfileProvider;
 import 'room_provider.dart';
@@ -129,14 +130,6 @@ class _RoomScreenState extends ConsumerState<RoomScreen> with WidgetsBindingObse
     _svc.ekranAcildi('oda_${widget.roomId}');
     // TURU 73: iOS ses birimi sahiplik defteri (bkz. SesSahipligi serhi).
     SesSahipligi.kaydol('oda_${widget.roomId}');
-    // ⚠️⚠️ TURU 74 — ARAMA KAZANIR: suren ses notu kaydi/oynatmasi SUSTURULUR.
-    //     ⚠️ Kayit SILINMEZ — taslak kalir, kullanici gorusme bitince gonderir.
-    //     ⚠️ 400ms tavanli (SesNotuKontrol.sustur): ses notunun yikimi HICBIR
-    //        KOSULDA aramayi bloklamaz (turu 67: zaman asimsiz await ekrani asti).
-    //     ⚠️ Ses notu `SesSahipligi` defterine YAZILMAZ — o defter
-    //        setAudioEnabled(false) kararini verir; yazilsaydi `aramaCanli` YALAN
-    //        soyler ve ses birimi bir daha kapanmazdi.
-    unawaited(SesNotuKontrol.sustur());
     // ⚠️⚠️ TURU 71 — GSM GOZCUSU BU EKRANDA DA ACIK (gizlilik). Eskiden yalniz
     // arama akisinda aciliyordu; odada/yayinda telefon gorusmesi yapilirsa
     // `gsmAramada` HIC guncellenmiyor ve mikrofon kapilari tetiklenmiyordu.
@@ -163,6 +156,15 @@ class _RoomScreenState extends ConsumerState<RoomScreen> with WidgetsBindingObse
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    // ⚠️⚠️ TURU 74b (DENETIM BULGUSU) — SISTEM PICKER'I ARKA PLAN SAYMA.
+    //     Galeri/kamera picker'i uygulamayi arka plana atar ama bu GERCEK bir
+    //     "kullanici cikti" olayi DEGILDIR. Kapisiz birakilinca goruntulu arama
+    //     surerken galeriden fotograf secen kullanicinin KAMERASI KAPANIYOR
+    //     (karsi taraf donmus/kapali kamera gorur) ve donuste ses birimi ZORLA
+    //     TOGGLE edilip ~50-150ms sagirlik olusuyordu.
+    //     ⚠️ Bayrak  ile set/reset edilir (atac_paneli) — asili
+    //        kalirsa GERCEK arka plan gecisinde kamera kapanmaz.
+    if (MedyaKapisi.pickerAcik) return;
     // KESINTI TOPARLAMA (call_screen _kesintidenTopla dengi — dogrulama bulgusu):
     // GSM/Siri/alarm kesintisi sonrasi iOS ses birimi kendiliginden geri gelmez.
     if (state == AppLifecycleState.resumed && mounted && !_ayrildi) {
@@ -197,6 +199,14 @@ class _RoomScreenState extends ConsumerState<RoomScreen> with WidgetsBindingObse
   }
 
   Future<void> _baglan() async {
+    // ⚠️⚠️ TURU 74 — ARAMA KAZANIR: suren ses notu kaydi/oynatmasi SUSTURULUR.
+    //     ⚠️ Kayit SILINMEZ — taslak kalir, kullanici gorusme bitince gonderir.
+    //     ⚠️ 400ms tavanli: ses notunun yikimi HICBIR KOSULDA baglantiyi bloklamaz.
+    //     ⚠️ TURU 74b:  DEGIL **await** — dosyanin kendi sozlesmesi
+    //        (ses_notu_kontrol.dart) bunu sart kosuyor; unawaited olsaydi record'un
+    //        AVAudioSession'i birakmasi LiveKit'in ses birimi kurulumuyla YARISIRDI.
+    //     ⚠️ initState async DEGIL — bu yuzden kapi baglanti akisinin BASINDA.
+    await SesNotuKontrol.sustur();
     try {
       // Dinleyicide mikrofon IZNI HIC ISTENMEZ; konusmaci/host icin sart.
       if (_rol != 'listener') {

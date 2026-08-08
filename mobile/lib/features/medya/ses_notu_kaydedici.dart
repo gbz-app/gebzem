@@ -45,6 +45,9 @@ class _SesNotuKaydediciState extends ConsumerState<SesNotuKaydedici> {
   StreamSubscription<Amplitude>? _genlikSub;
   Timer? _sayac;
 
+  /// TURU 74b: `SesNotuKontrol` sahiplik jetonu (başkasının kaydını ezmemek için).
+  final Object _sahip = Object();
+
   bool _kayitta = false;
   bool _iptalBolgesi = false;
   int _ms = 0;
@@ -95,10 +98,21 @@ class _SesNotuKaydediciState extends ConsumerState<SesNotuKaydedici> {
       return;
     }
 
+    // ⚠️⚠️ TURU 74b (DENETIM BULGUSU) — ÜÇÜNCÜ KAPI.
+    //     `start()` iOS'ta AVAudioSession'ı `.playAndRecord` yapıp aktive ettiği
+    //     için YÜZLERCE MS sürebilir. O pencerede arama gelirse `sustur()`
+    //     `_susturucu == null` görüp anında döner → **kayıt ve arama BİRLİKTE
+    //     mikrofonu ister.** Bu yüzden `start()` DÖNDÜKTEN SONRA tekrar sorulur.
+    if (!MedyaKapisi.donanimSerbest(ref)) {
+      try {
+        await _kaydedici.stop();
+      } catch (_) {}
+      return;
+    }
     // ⚠️⚠️ ARAMA KAZANIR: arama/oda/yayın kurulurken bu geri çağrı çalışır ve
     //     kayıt DURUR. ⚠️ Kayıt SİLİNMEZ — taslak kalır, kullanıcı sonra gönderir.
     //     ⚠️ `SesSahipligi`e YAZMIYORUZ (bkz. ses_notu_kontrol.dart şerhi).
-    SesNotuKontrol.kaydol(() async {
+    SesNotuKontrol.kaydol(_sahip, () async {
       if (!_kayitta) return;
       await _durdur(gonder: false, taslak: true);
     });
@@ -109,6 +123,12 @@ class _SesNotuKaydediciState extends ConsumerState<SesNotuKaydedici> {
 
     _dalga.clear();
     _ms = 0;
+    // ⚠️⚠️ TURU 74b (DENETIM BULGUSU): `_iptalBolgesi` SIFIRLANMIYORDU.
+    //     Kullanici bir kez sola kaydirip iptal edince bayrak TRUE kaliyordu;
+    //     sonraki kayitta parmagini hic oynatmazsa `onLongPressMoveUpdate` hic
+    //     tetiklenmiyor ve kayit SESSIZCE COPE GIDIYORDU (serit de ilk kareden
+    //     itibaren kirmizi "iptal edilecek" cizilirdi).
+    _iptalBolgesi = false;
     setState(() => _kayitta = true);
 
     _sayac = Timer.periodic(const Duration(milliseconds: 100), (_) {
@@ -132,7 +152,7 @@ class _SesNotuKaydediciState extends ConsumerState<SesNotuKaydedici> {
     _genlikSub = null;
     final sure = _ms;
     setState(() => _kayitta = false);
-    SesNotuKontrol.birak();
+    SesNotuKontrol.birak(_sahip);
 
     String? yol;
     try {
@@ -189,7 +209,7 @@ class _SesNotuKaydediciState extends ConsumerState<SesNotuKaydedici> {
   void _temizle({bool silinsin = false}) {
     _sayac?.cancel();
     _genlikSub?.cancel();
-    SesNotuKontrol.kapat();
+    SesNotuKontrol.kapat(_sahip);
     if (_kayitta) {
       _kaydedici.stop().then((y) {
         if (silinsin && y != null) {

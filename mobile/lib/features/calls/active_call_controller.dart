@@ -17,7 +17,8 @@ import 'call_media_options.dart';
 import 'call_provider.dart';
 import 'call_room_lock.dart';
 import 'medya_beklet.dart';
-import '../medya/ses_notu_kontrol.dart'; // turu 74: arama kazanir kapisi
+import '../medya/ses_notu_kontrol.dart';
+import '../medya/medya_kapisi.dart'; // turu 74b: picker kapisi // turu 74: arama kazanir kapisi
 import 'call_screen.dart';
 import 'call_sounds.dart';
 import 'callkit_service.dart';
@@ -1354,7 +1355,7 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     //     ⚠️ Ses notu `SesSahipligi` defterine YAZILMAZ — o defter
     //        setAudioEnabled(false) kararini verir; yazilsaydi `aramaCanli` YALAN
     //        soyler ve ses birimi bir daha kapanmazdi.
-    unawaited(SesNotuKontrol.sustur());
+    await SesNotuKontrol.sustur();
 
     _aboneliklerKur(id);
 
@@ -1464,6 +1465,15 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    // ⚠️⚠️ TURU 74b (DENETIM BULGUSU) — SISTEM PICKER'I ARKA PLAN SAYMA.
+    //     Galeri/kamera picker'i uygulamayi arka plana atar ama bu GERCEK bir
+    //     "kullanici cikti" olayi DEGILDIR. Kapisiz birakilinca goruntulu arama
+    //     surerken galeriden fotograf secen kullanicinin KAMERASI KAPANIYOR
+    //     (karsi taraf donmus/kapali kamera gorur) ve donuste ses birimi ZORLA
+    //     TOGGLE edilip ~50-150ms sagirlik olusuyordu.
+    //     ⚠️ Bayrak  ile set/reset edilir (atac_paneli) — asili
+    //        kalirsa GERCEK arka plan gecisinde kamera kapanmaz.
+    if (MedyaKapisi.pickerAcik) return;
     // FAZ-6 KAMERA-MUTE YEDEGI (PiP'siz/PiP reddeden cihazlar): GERCEK arka plana
     // inince (PiP'te DEGILKEN) kamerayi biz kapatiriz -> karsi taraf DONUK KARE degil
     // "kamera kapali" avatar gorur. Android arka planda kamerayi zaten fiziksel keser;

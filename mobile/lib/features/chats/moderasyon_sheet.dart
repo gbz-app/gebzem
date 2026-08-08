@@ -145,6 +145,13 @@ Future<void> sikayetSheetAc(
 /// Kullaniciyi engelle/engeli kaldir onayi.
 /// ⚠️ Engelleme CIFT YONLUDUR (sunucu kurali): engelledikten sonra o kisi sana,
 ///     sen de ona mesaj gonderemezsin. Kullaniciya bunu ACIKCA soyluyoruz.
+/// ⚠️⚠️ TURU 74b (DENETİM BULGUSU — `atac_paneli` ile AYNI TUZAK):
+/// İlk sürümde `Navigator.pop()` ÖNCE, `sonuc = true` ise `await api.post`'tan
+/// SONRA çalışıyordu. `await showModalBottomSheet` pop anında tamamlandığı için
+/// fonksiyon DAİMA `false` dönüyordu → engelleme işlemi çalışıyor ama çağıran
+/// `_engelli` bayrağını çevirmiyordu → menü "Engelle" demeye devam ediyor,
+/// kullanıcı sohbetten çıkıp girmeden **engeli kaldıramıyordu.**
+/// ⚠️ YAPMA: sonucu dış değişkene yazma; `pop(deger)` kullan.
 Future<bool> engelleOnayiAc(
   BuildContext context,
   WidgetRef ref, {
@@ -153,9 +160,8 @@ Future<bool> engelleOnayiAc(
   required bool suAnEngelli,
 }) async {
   final mesajci = ScaffoldMessenger.of(context);
-  var sonuc = false;
 
-  await showModalBottomSheet<void>(
+  final sonuc = await showModalBottomSheet<bool>(
     context: context,
     showDragHandle: true,
     builder: (c) => SafeArea(
@@ -188,7 +194,7 @@ Future<bool> engelleOnayiAc(
                     color: suAnEngelli ? null : const Color(0xFFD32F2F),
                     fontWeight: FontWeight.w600)),
             onTap: () async {
-              Navigator.of(c).pop();
+              var ok = false;
               try {
                 final api = ref.read(apiProvider);
                 if (suAnEngelli) {
@@ -196,7 +202,7 @@ Future<bool> engelleOnayiAc(
                 } else {
                   await api.post('/users/$kullaniciId/block');
                 }
-                sonuc = true;
+                ok = true;
                 mesajci.showSnackBar(SnackBar(
                     content: Text(suAnEngelli
                         ? 'Engel kaldırıldı'
@@ -205,16 +211,18 @@ Future<bool> engelleOnayiAc(
                 mesajci.showSnackBar(
                     SnackBar(content: Text(apiErrorMessage(e))));
               }
+              // ⚠️ pop SUNUCU YANITINDAN SONRA — dönüş değeri böyle taşınır.
+              if (c.mounted) Navigator.of(c).pop(ok);
             },
           ),
           ListTile(
             leading: const Icon(LucideIcons.x),
             title: const Text('Vazgeç'),
-            onTap: () => Navigator.of(c).pop(),
+            onTap: () => Navigator.of(c).pop(false),
           ),
         ],
       ),
     ),
   );
-  return sonuc;
+  return sonuc ?? false;
 }

@@ -46,6 +46,12 @@ class _SesNotuBalonState extends ConsumerState<SesNotuBalon> {
   /// ⚠️ Aynı anda TEK ses notu çalar. Başka balon başlarsa bu durur.
   static String? _calanId;
 
+  /// TURU 74b: SesNotuKontrol sahiplik jetonu + tek-slot devralma icin.
+  final Object _sahip = Object();
+
+  /// TURU 74b: yeniden-girme kilidi (cift dokunus = cift play).
+  bool _mesgul = false;
+
   StreamSubscription<Duration>? _konumSub;
   StreamSubscription<void>? _bittiSub;
   bool _caliyor = false;
@@ -59,33 +65,67 @@ class _SesNotuBalonState extends ConsumerState<SesNotuBalon> {
     if (_calanId == widget.mediaId) {
       _oynatici.stop();
       _calanId = null;
-      SesNotuKontrol.kapat();
+      SesNotuKontrol.kapat(_sahip);
     }
     super.dispose();
   }
 
+  /// ⚠️⚠️ TURU 74b (DENETİM BULGUSU): statik oynatıcı PAYLAŞILIYOR ama her State
+  ///     kendi aboneliğini tutuyordu ve BAŞKASI devraldığında iptal edilmiyordu.
+  ///     A çalarken B'ye basılınca: A'nın `_caliyor` bayrağı TRUE kalıyor, A'nın
+  ///     konum dinleyicisi B'nin konumunu alıyordu → iki balon birden ilerliyor.
+  ///     Dahası B bitince A'nın `onPlayerComplete` dinleyicisi `birak()` çağırıp
+  ///     **B'nin arama-kazanır kaydını siliyordu.**
+  /// ⚠️ YAPMA: bu devralma kancasını kaldırma.
+  static _SesNotuBalonState? _aktifState;
+
+  void _devret() {
+    _konumSub?.cancel();
+    _konumSub = null;
+    _bittiSub?.cancel();
+    _bittiSub = null;
+    if (mounted && _caliyor) setState(() => _caliyor = false);
+  }
+
   Future<void> _oynatDurdur() async {
+    // ⚠️ YENİDEN-GİRME KİLİDİ (proje kuralı: kullanıcı-tetiklemeli async akışa
+    //    kilit koy). Çift dokunuş çift `play()` + çift abonelik üretiyordu.
+    if (_mesgul) return;
+    _mesgul = true;
+    try {
+      await _oynatDurdurGovde();
+    } finally {
+      _mesgul = false;
+    }
+  }
+
+  Future<void> _oynatDurdurGovde() async {
     if (_caliyor) {
       await _oynatici.pause();
-      setState(() => _caliyor = false);
-      SesNotuKontrol.birak();
+      if (mounted) setState(() => _caliyor = false);
+      SesNotuKontrol.birak(_sahip);
       return;
     }
     // ⚠️ SERT KAPI — sınıf şerhi. Aksiyon yolunda (yan etkili kontrol serbest).
     if (!MedyaKapisi.izinVer(ref)) return;
 
     try {
-      // Başka bir ses notu çalıyorsa durdur (tek slot).
+      // Başka bir ses notu çalıyorsa durdur (tek slot) VE onun aboneliklerini
+      // İPTAL ET — yoksa o State bizim konumumuzu dinlemeye devam eder.
+      if (_aktifState != null && _aktifState != this) {
+        _aktifState!._devret();
+      }
       if (_calanId != null && _calanId != widget.mediaId) {
         await _oynatici.stop();
       }
+      _aktifState = this;
       final d = await ref.read(medyaServisiProvider).adres(widget.mediaId);
       final url = d['url'] as String?;
       if (url == null) return;
 
       // ⚠️ "ARAMA KAZANIR": arama kurulurken oynatma DURUR.
       //    ⚠️ `SesSahipligi`e YAZILMAZ (bkz. ses_notu_kontrol.dart şerhi).
-      SesNotuKontrol.kaydol(() async {
+      SesNotuKontrol.kaydol(_sahip, () async {
         await _oynatici.stop();
         if (mounted) setState(() => _caliyor = false);
         _calanId = null;
@@ -107,12 +147,12 @@ class _SesNotuBalonState extends ConsumerState<SesNotuBalon> {
           });
         }
         _calanId = null;
-        SesNotuKontrol.birak();
+        SesNotuKontrol.birak(_sahip);
       });
       if (mounted) setState(() => _caliyor = true);
     } catch (_) {
       if (mounted) setState(() => _caliyor = false);
-      SesNotuKontrol.birak();
+      SesNotuKontrol.birak(_sahip);
     }
   }
 
@@ -127,8 +167,9 @@ class _SesNotuBalonState extends ConsumerState<SesNotuBalon> {
     if (widget.dalga.isEmpty) return List.filled(30, 30);
     final p = widget.dalga
         .split(',')
-        .map((x) => int.tryParse(x) ?? 0)
-        .where((x) => x >= 0)
+        // ⚠️ TURU 74b: UST SINIR da SART — sunucudan bozuk `waveform` gelirse
+        //    28px'lik kutuda yuzlerce piksellik cubuk = RenderFlex tasmasi.
+        .map((x) => (int.tryParse(x) ?? 0).clamp(0, 99))
         .toList();
     return p.isEmpty ? List.filled(30, 30) : p;
   }

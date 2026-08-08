@@ -9,6 +9,7 @@ import '../../core/storage.dart';
 import '../../core/ws.dart';
 import '../calls/active_call_controller.dart';
 import '../calls/medya_beklet.dart'; // turu 73b: SesSahipligi.sifirla
+import '../medya/medya_gorsel.dart'; // turu 74b: adres onbellegi
 import '../calls/callkit_service.dart';
 
 /// Oturum durumu: null = kontrol ediliyor, '' = cikis yapilmis, dolu = girisli
@@ -104,6 +105,7 @@ class AuthNotifier extends StateNotifier<String?> {
     //     paylasir). Sizan tek bir kayit, sonraki oturumda odadan/yayindan cikinca
     //     ses biriminin BIR DAHA kapanmamasina yol acar (mikrofon gostergesi sonmez).
     SesSahipligi.sifirla();
+    medyaAdresOnbelleginiTemizle(); // turu 74b: imzali adresler bellekte kalmasin
     // ONCE oturumu kapat: state='' -> router ANINDA /login'e gider. Boylece
     // butona basinca cikis HEMEN gerceklesir; temizlik adimlarindan biri hata
     // verse bile kullanici disari cikmis olur (eskiden ws.close throw ederse

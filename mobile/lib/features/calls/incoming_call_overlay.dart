@@ -191,7 +191,7 @@ class _IncomingCallSheetState extends ConsumerState<_IncomingCallSheet> {
     //     ⚠️ Ses notu `SesSahipligi` defterine YAZILMAZ — o defter
     //        setAudioEnabled(false) kararini verir; yazilsaydi `aramaCanli` YALAN
     //        soyler ve ses birimi bir daha kapanmazdi.
-    unawaited(SesNotuKontrol.sustur());
+    await SesNotuKontrol.sustur();
     if (mounted) setState(() => _busy = true);
     // FAZ-1B HIZ: zil durdurmayi BEKLEME (nesil jetonu + dispose'taki durdur yarisi zaten
     // koruyor) + izinleri answer REST'iyle PARALEL iste (verilmisse anlik doner; _connect'in

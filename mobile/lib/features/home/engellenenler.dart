@@ -79,6 +79,9 @@ class _EngellenenlerEkraniState extends ConsumerState<EngellenenlerEkrani> {
           return ListTile(
             leading: Avatar(
               ad: k['name'] as String? ?? '',
+              // ⚠️ TURU 74b: `avatar_media_id` verilmiyordu -> liste DAIMA harf
+              //    avatari gosteriyordu (avatar_url artik eski alan).
+              mediaId: k['avatar_media_id'] as String?,
               avatarUrl: k['avatar_url'] as String? ?? '',
               cap: 40,
             ),

@@ -50,6 +50,10 @@ class MedyaGorsel extends ConsumerStatefulWidget {
 /// media_id -> (url, sonKullanma). Süreç ömürlü, küçük.
 final _adresOnbellek = <String, ({String url, DateTime bitis})>{};
 
+/// ⚠️ TURU 74b: çıkışta temizlenir — hesap değişince önceki hesabın imzalı
+///     adresleri 600 sn bellekte kalıyordu.
+void medyaAdresOnbelleginiTemizle() => _adresOnbellek.clear();
+
 class _MedyaGorselState extends ConsumerState<MedyaGorsel> {
   String? _url;
   bool _hata = false;
@@ -74,6 +78,12 @@ class _MedyaGorselState extends ConsumerState<MedyaGorsel> {
 
   Future<void> _adresAl() async {
     final anahtar = '${widget.mediaId}:${widget.kucuk}';
+    // ⚠️ TURU 74b: süresi geçmiş kayıtları ayıkla — global harita hiç
+    //    tahliye edilmiyordu, uzun oturumda monoton büyüyordu.
+    if (_adresOnbellek.length > 200) {
+      final simdi = DateTime.now();
+      _adresOnbellek.removeWhere((_, v) => v.bitis.isBefore(simdi));
+    }
     final onbellek = _adresOnbellek[anahtar];
     // ⚠️ 60 sn pay: indirme başlarken imzanın dolmasına yakın olmasın.
     if (onbellek != null &&
