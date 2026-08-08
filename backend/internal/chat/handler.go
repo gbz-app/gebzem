@@ -171,10 +171,25 @@ func (h *Handler) SendMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// uyelik + engel kontrolu
+	// uyelik kontrolu
 	members, err := h.chatMemberIDs(r, chatID, userID)
 	if err != nil {
 		httpErr(w, http.StatusForbidden, "bu sohbetin üyesi değilsiniz")
+		return
+	}
+	// ⚠️⚠️ TURU 74 — ENGEL KONTROLU (eskiden YOKTU; yukaridaki yorum "engel kontrolu"
+	// diyordu ama `chatMemberIDs` yalnizca uyelige bakiyordu -> engelleme SAHADA
+	// HIC CALISMIYORDU). ⚠️ YAPMA: bu blogu kaldirma.
+	// ⚠️ Hata durumunda FAIL-CLOSED: engel sorgusu patlarsa mesaji GECIRME.
+	engelli, err := h.engelliMi(r, userID, members)
+	if err != nil {
+		httpErr(w, http.StatusInternalServerError, "mesaj gönderilemedi")
+		return
+	}
+	if engelli {
+		// ⚠️ Neden 403 ve NOTR metin: "seni engelledi" demek engellemeyi IFSA eder.
+		//     WhatsApp da bunu gizler. Istemci mesaji gonderilmemis olarak isaretler.
+		httpErr(w, http.StatusForbidden, "bu kişiye mesaj gönderilemiyor")
 		return
 	}
 
@@ -422,6 +437,32 @@ func (h *Handler) MarkRead(w http.ResponseWriter, r *http.Request) {
 }
 
 // chatMemberIDs: sohbet uyeligini dogrular, DIGER uyelerin id'lerini dondurur
+// ⚠️⚠️ TURU 74 — ENGEL KONTROLU. Bu fonksiyonun cagri yerindeki yorum yillardir
+// "uyelik + engel kontrolu" diyordu ama govdede ENGEL KONTROLU YOKTU: `blocks`
+// tablosu 001_init.sql'den beri duruyor, ona YAZAN DA OKUYAN DA yoktu.
+// Yani engelleme SAHADA HIC CALISMIYORDU (engellenen kisi mesaj gondermeye devam eder).
+//
+// Kural: 1:1 sohbette taraflardan HERHANGI BIRI digerini engellediyse mesaj GITMEZ.
+// (Engelleyen de engellenene yazamaz — WhatsApp davranisi; aksi halde tek yonlu bir
+// kanal olusur ve engelleyen taraf karsisindakini rahatsiz etmeye devam edebilir.)
+//
+// ⚠️ Grup sohbetinde bu kural UYGULANMAZ (gruba yazmak engellenmez) — grup geldiginde
+//    ayrica ele alinacak; bugun tum sohbetler 'direct'.
+// ⚠️ TEK SORGU: uyelik ve engel ayni gidis-donuste cozulur (mesaj gonderme sicak yol).
+// ⚠️ YAPMA: engel kontrolunu cagiranlara kopyalama — TEK KAYNAK burasi.
+func (h *Handler) engelliMi(r *http.Request, userID string, digerleri []string) (bool, error) {
+	if len(digerleri) == 0 {
+		return false, nil
+	}
+	var n int
+	err := h.db.QueryRow(r.Context(), `
+		SELECT count(*) FROM blocks
+		 WHERE (blocker_id = $1 AND blocked_id = ANY($2))
+		    OR (blocked_id = $1 AND blocker_id = ANY($2))`,
+		userID, digerleri).Scan(&n)
+	return n > 0, err
+}
+
 func (h *Handler) chatMemberIDs(r *http.Request, chatID, userID string) ([]string, error) {
 	rows, err := h.db.Query(r.Context(),
 		`SELECT user_id FROM chat_members WHERE chat_id=$1`, chatID)
@@ -454,4 +495,65 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 
 func httpErr(w http.ResponseWriter, status int, msg string) {
 	writeJSON(w, status, map[string]string{"error": msg})
+}
+
+// ⚠️⚠️ TURU 74 — MESAJ SILME (herkesten).
+//
+// DURUM TESPITI: `messages.deleted_for_all` sutunu 001_init.sql'den beri VAR ve
+// listeleme sorgulari onu ZATEN okuyor (`CASE WHEN deleted_for_all THEN '' ELSE ...`),
+// ama SILME UCU HIC YOKTU — yani sutun olu duruyordu.
+//
+// ⚠️ NEDEN ZORUNLU: App Store 1.2 (UGC) icerik kaldirmayi sart kosuyor; ayrica
+// 5651 "4 saat icinde kaldirma" yukumlulugunun istemci tarafi ayagi budur.
+//
+// KURALLAR:
+//  · Yalniz GONDEREN silebilir (moderator/admin yolu AYRI — admin panelinden).
+//  · Icerik BOSALTILIR ama satir SILINMEZ: karsi tarafta "Bu mesaj silindi" cizilir
+//    ve mesaj sirasi/okundu bilgisi bozulmaz.
+//    ⚠️ Bu, kullanicinin "veri silinmesin" karariyla CELISMEZ — burada silmeyi
+//       KULLANICININ KENDISI talep ediyor (yasal olarak da saglanmasi ZORUNLU).
+//  · Idempotent: iki kez silme 200 doner.
+//  · Medya geldiginde: bu ucun icine R2 nesnesinin silinmesi de eklenecek.
+//
+// ⚠️ YAPMA: satiri fiziksel DELETE etme (`message_receipts` FK'si ve sohbet sirasi bozulur).
+// ⚠️ YAPMA: sure siniri koyma (WhatsApp'ta var ama bizde icerik kaldirma yukumlulugu
+//     sureli olamaz — kullanici her zaman kendi icerigini kaldirabilmeli).
+func (h *Handler) DeleteMessage(w http.ResponseWriter, r *http.Request) {
+	userID := auth.UserID(r.Context())
+	chatID := chi.URLParam(r, "chatID")
+	msgID, err := strconv.ParseInt(chi.URLParam(r, "msgID"), 10, 64)
+	if err != nil {
+		httpErr(w, http.StatusBadRequest, "geçersiz mesaj")
+		return
+	}
+	members, err := h.chatMemberIDs(r, chatID, userID)
+	if err != nil {
+		httpErr(w, http.StatusForbidden, "bu sohbetin üyesi değilsiniz")
+		return
+	}
+	// ⚠️ `sender_id=$3` SART: baskasinin mesajini silmeyi ENGELLER.
+	//    `chat_id=$2` SART: baska sohbetten mesaj id'si vererek silmeyi engeller.
+	tag, err := h.db.Exec(r.Context(), `
+		UPDATE messages SET deleted_for_all=true, content='', media_url=''
+		 WHERE id=$1 AND chat_id=$2 AND sender_id=$3`, msgID, chatID, userID)
+	if err != nil {
+		httpErr(w, http.StatusInternalServerError, "mesaj silinemedi")
+		return
+	}
+	if tag.RowsAffected() == 0 {
+		// Mesaj yok, baskasina ait, ya da baska sohbette. Hangisi oldugunu SOYLEME
+		// (varlik sizintisi) — tek notr yanit.
+		httpErr(w, http.StatusForbidden, "bu mesaj silinemez")
+		return
+	}
+	payload, _ := json.Marshal(map[string]any{
+		"id": msgID, "chat_id": chatID, "deleted_for_all": true,
+	})
+	// ⚠️ Kendimize de gitmeli (`append(members, userID)`) — kullanici IKINCI CIHAZINDA
+	//    da silinmis gormeli. `members` cagiran kisiyi ICERMEZ (chatMemberIDs disliyor).
+	h.hub.Publish(r.Context(), &Event{
+		Type: "message.deleted", ChatID: chatID, Payload: payload,
+		To: append(append([]string{}, members...), userID),
+	})
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }

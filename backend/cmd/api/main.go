@@ -154,11 +154,20 @@ func main() {
 		r.Get("/users/by-phone", usersH.ByPhone)
 		// TEST TURU 17: karsi tarafin ARAMA DURUMU (sohbet basliginda "Sesli/Goruntulu aramada")
 		r.Get("/users/{id}/presence", usersH.Presence)
+		// ⚠️ TURU 74 — MODERASYON (App Store 1.2 sarti: engelle + sikayet + kaldir).
+		//    `blocks` tablosu 001'den beri VARDI ama ucu YOKTU -> engelleme hic calismiyordu.
+		r.Post("/users/{id}/block", usersH.Block)
+		r.Delete("/users/{id}/block", usersH.Unblock)
+		r.Get("/users/me/blocks", usersH.ListBlocks)
+		r.Post("/reports", usersH.Report)
 		r.Get("/ws", chatH.WebSocket)
 		r.Get("/chats", chatH.ListChats)
 		r.Post("/chats/direct", chatH.CreateDirect)
 		r.Get("/chats/{chatID}/messages", chatH.GetMessages)
 		r.Post("/chats/{chatID}/messages", chatH.SendMessage)
+		// ⚠️ TURU 74 — herkesten silme. `deleted_for_all` sutunu 001'den beri VARDI ve
+		//    listeleme sorgulari onu OKUYORDU, ama SILME UCU YOKTU (sutun olu duruyordu).
+		r.Delete("/chats/{chatID}/messages/{msgID}", chatH.DeleteMessage)
 		r.Post("/chats/{chatID}/read", chatH.MarkRead)
 		// Aramalar (LiveKit)
 		r.Get("/calls", callsH.History)
