@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../medya/kullanici_ozeti.dart';
+import '../medya/medya_gorsel.dart';
 import 'active_call_controller.dart';
 import 'mini_izgara.dart';
 
@@ -72,7 +74,7 @@ class _AktifAramaBannerState extends ConsumerState<AktifAramaBanner> {
     // sohbette gorunur). Serit: dokun -> aramaya don.
     // GERI ALMA: asagidaki satiri `if (!c.goruntuluMu) {...} return _yuzenVideo(...)`
     // seklinde eski haline dondur; `_yuzenVideo` kodu SILINMEDI, duruyor.
-    return Stack(children: [widget.child, _sesliBant(c, ad)]);
+    return Stack(children: [widget.child, _sesliBant(c, b, ad)]);
   }
 
   /// SISTEM PiP ICERIGI (Android): TEST TURU 17 -> artik IZGARA (2 kisi sol/sag, 3 kisi
@@ -105,7 +107,7 @@ class _AktifAramaBannerState extends ConsumerState<AktifAramaBanner> {
   // kaldirildigi icin "devam ettirme" diye bir eylem kalmadi (kullanici emri).
 
   // ---- SESLI ARAMA: ust yesil bant (eski davranis) ----
-  Widget _sesliBant(ActiveCallController c, String ad) {
+  Widget _sesliBant(ActiveCallController c, AramaBilgisi b, String ad) {
     return Positioned(
       top: 0,
       left: 0,
@@ -121,12 +123,12 @@ class _AktifAramaBannerState extends ConsumerState<AktifAramaBanner> {
               child: Row(children: [
                 const Icon(LucideIcons.phone, color: Colors.white, size: 18),
                 const SizedBox(width: 10),
-                CircleAvatar(
-                  radius: 13,
-                  backgroundColor: Colors.white24,
-                  child: Text(ad.isNotEmpty ? ad[0].toUpperCase() : '?',
-                      style: const TextStyle(color: Colors.white, fontSize: 12)),
-                ),
+                // ⚠️ TURU 76 — GERCEK PROFIL FOTOGRAFI. Grupta kimlik YOK
+                //    (birden fazla kisi) -> harf avatari kalir.
+                if (!c.isGroup && (b.peerId ?? '').isNotEmpty)
+                  KimlikAvatar(userId: b.peerId!, yedekAd: ad, cap: 26)
+                else
+                  Avatar(ad: ad, cap: 26),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Column(

@@ -9,6 +9,8 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/api.dart';
 import '../../router.dart';
+import '../medya/kullanici_ozeti.dart';
+import '../medya/medya_gorsel.dart';
 import 'active_call_controller.dart';
 import 'beklemede_katmani.dart';
 import 'pip_service.dart';
@@ -1037,14 +1039,12 @@ class _CallScreenState extends ConsumerState<CallScreen> {
         ),
       ),
       child: Center(
-        child: CircleAvatar(
-          radius: 64,
-          backgroundColor: Colors.white24,
-          child: Text(
-            b.peerName.isNotEmpty ? b.peerName[0].toUpperCase() : '?',
-            style: const TextStyle(fontSize: 48, color: Colors.white),
-          ),
-        ),
+        // ⚠️ TURU 76 — GERCEK PROFIL FOTOGRAFI (kullanici sikayeti: "profil
+        //    fotograflari her yerde gorunmuyor"). Kimlik yoksa HARF avatarina
+        //    duser — ekranda ASLA bosluk olmaz.
+        child: (b.peerId ?? '').isEmpty
+            ? Avatar(ad: b.peerName, cap: 128)
+            : KimlikAvatar(userId: b.peerId!, yedekAd: b.peerName, cap: 128),
       ),
     );
   }

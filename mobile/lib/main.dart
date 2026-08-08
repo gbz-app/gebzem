@@ -465,6 +465,13 @@ class _GebzemAppState extends ConsumerState<GebzemApp> with WidgetsBindingObserv
       token: info['token'] as String,
       video: gorusmeVideo,
       peerName: c['caller_name'] as String? ?? '',
+      // ⚠️ TURU 76 — AVATAR ICIN KIMLIK. Bu yolda (CallKit kabulu) elimizde
+      //    yalnizca CallKit ek alanlari var ve orada kimlik GUVENILIR DEGIL;
+      //    `answer` yanitindaki `peer_id` OTORITER kaynak. Yoksa CallKit
+      //    ek alanina duseriz.
+      peerId: (info['peer_id'] as String?)?.isNotEmpty == true
+          ? info['peer_id'] as String
+          : (c['caller_id'] as String?),
       outgoing: false,
       // GRUP: answer() cevabindan is_group/chat_title -> CallKit'ten kabul edilen grup
       // aramasi da grup moduyla acilir (yoksa 1:1 arayuz + ilk ayrilan kapatirdi).

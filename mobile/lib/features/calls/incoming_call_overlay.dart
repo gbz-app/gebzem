@@ -241,6 +241,10 @@ class _IncomingCallSheetState extends ConsumerState<_IncomingCallSheet> {
         token: info['token'] as String,
         video: widget.call.video,
         peerName: widget.call.callerName,
+        // TURU 76: avatar icin kimlik. `answer` yaniti OTORITER, WS olayi YEDEK.
+        peerId: (info['peer_id'] as String?)?.isNotEmpty == true
+            ? info['peer_id'] as String
+            : (widget.call.callerId.isEmpty ? null : widget.call.callerId),
         outgoing: false,
         isGroup: widget.call.isGroup,
         chatTitle: widget.call.chatTitle,

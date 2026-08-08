@@ -18,6 +18,7 @@ class IncomingCall {
     required this.callId,
     required this.callerName,
     required this.callerAvatar,
+    this.callerId = '',
     required this.video,
     this.isGroup = false,
     this.chatTitle = '',
@@ -28,6 +29,10 @@ class IncomingCall {
   final String callId;
   final String callerName;
   final String callerAvatar;
+
+  /// TURU 76 — avatar kimlikten cozulur (bkz. medya/kullanici_ozeti.dart).
+  /// Sunucu WS/push yukunde ZATEN gonderiyordu; istemci OKUMUYORDU.
+  final String callerId;
   final bool video;
   final bool isGroup; // GRUP aramasi mi (coklu katilimci)
   final String chatTitle; // grup basligi
@@ -40,6 +45,7 @@ class IncomingCall {
         callId: j['call_id'] as String,
         callerName: j['caller_name'] as String? ?? 'Bilinmeyen',
         callerAvatar: j['caller_avatar'] as String? ?? '',
+        callerId: j['caller_id'] as String? ?? '',
         // WS payload 'type', push davet 'call_type' -> ikisini de kabul et
         video: ((j['type'] ?? j['call_type']) as String? ?? 'audio') == 'video',
         isGroup: j['is_group'] == true || j['is_group'] == 'true',

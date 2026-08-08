@@ -20,6 +20,7 @@ import '../calls/call_room_lock.dart';
 import '../calls/medya_beklet.dart'; // turu 72: ortak duraklatma primitifi
 import '../medya/ses_notu_kontrol.dart';
 import '../medya/medya_kapisi.dart'; // turu 74b: picker kapisi // turu 74
+import '../medya/kullanici_ozeti.dart'; // turu 76: kimlikten avatar
 import '../calls/pip_service.dart'; // turu 71: GSM gizlilik kapisi
 import '../home/home_screen.dart' show myProfileProvider;
 import 'room_provider.dart';
@@ -786,10 +787,13 @@ class _RoomScreenState extends ConsumerState<RoomScreen> with WidgetsBindingObse
                 for (final e in _eller)
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    leading: CircleAvatar(
-                        child: Text((e['name'] as String? ?? '?').isNotEmpty
-                            ? (e['name'] as String)[0].toUpperCase()
-                            : '?')),
+                    // ⚠️ TURU 76 — GERCEK PROFIL FOTOGRAFI (kimlikten cozulur).
+                    //    Liste ucu avatar alani DONDURMUYOR; `KimlikAvatar`
+                    //    kimlikleri TOPLU (tek istek) cozer -> N+1 YOK.
+                    leading: KimlikAvatar(
+                        userId: (e['user_id'] ?? '').toString(),
+                        yedekAd: e['name'] as String? ?? '',
+                        cap: 40),
                     title: Text(e['name'] as String? ?? ''),
                     trailing: FilledButton(
                       onPressed: () =>
@@ -804,10 +808,10 @@ class _RoomScreenState extends ConsumerState<RoomScreen> with WidgetsBindingObse
               for (final k in _konusmacilar)
                 ListTile(
                   contentPadding: EdgeInsets.zero,
-                  leading: CircleAvatar(
-                      child: Text((k['name'] as String? ?? '?').isNotEmpty
-                          ? (k['name'] as String)[0].toUpperCase()
-                          : '?')),
+                  leading: KimlikAvatar(
+                      userId: (k['user_id'] ?? '').toString(),
+                      yedekAd: k['name'] as String? ?? '',
+                      cap: 40),
                   title: Text(k['name'] as String? ?? ''),
                   subtitle: Text(k['role'] == 'host' ? 'Oda sahibi' : 'Konuşmacı'),
                   trailing: k['role'] == 'host'
@@ -1074,9 +1078,16 @@ class _RoomScreenState extends ConsumerState<RoomScreen> with WidgetsBindingObse
                   : Border.all(color: Colors.white24, width: 1),
             ),
             alignment: Alignment.center,
-            child: Text(ad.isNotEmpty ? ad[0].toUpperCase() : '?',
-                style: const TextStyle(
-                    color: Colors.white, fontSize: 34, fontWeight: FontWeight.bold)),
+            // ⚠️ TURU 76 — GERCEK PROFIL FOTOGRAFI. `ClipOval` ZORUNLU: disaridaki
+            //    kutu `BoxShape.circle` ama cocuk kare cizilirse KOSELER TASAR
+            //    ve "konusuyor" yesil cercevesinin uzerine biner.
+            child: ClipOval(
+              child: KimlikAvatar(
+                userId: (k['user_id'] ?? '').toString(),
+                yedekAd: ad,
+                cap: 80,
+              ),
+            ),
           ),
           if (host)
             // ⚠️ TURU 62: emoji tac -> Lucide 2B ikon (kullanici emri: hicbir 3B ikon).

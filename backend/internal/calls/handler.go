@@ -930,11 +930,19 @@ func (h *Handler) Answer(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"call_id":    callID,
-		"room":       roomName,
-		"url":        h.lkURL,
-		"token":      tok,
-		"type":       callType,
+		"call_id": callID,
+		"room":    roomName,
+		"url":     h.lkURL,
+		"token":   tok,
+		"type":    callType,
+		// ⚠️ TURU 76 — KARSI TARAFIN KIMLIGI. Arama ekrani avatari kimlikten
+		//    cozuyor (`/users/ozet`); GELEN aramada elimizde kimlik YOKTU:
+		//    CallKit yolunda ekrana YALNIZ `caller_name` ulasiyordu, o yuzden
+		//    aranan tarafta avatar YAPISAL OLARAK cizilemiyordu.
+		// ⚠️ Bu ucun yaniti gelen aramanin **TEK guvenilir** kaynagi: WS olayi
+		//    kaybolabilir, CallKit ek alanlari platformlar arasi tutarsiz.
+		// ⚠️ YAPMA: bu alani kaldirma.
+		"peer_id":    callerID,
 		"elapsed_ms": elapsedNow, // SURE SENKRONU: aranan tarafin gecen-sure baslangici (~0)
 	})
 }

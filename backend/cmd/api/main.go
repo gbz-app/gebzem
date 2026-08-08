@@ -171,6 +171,7 @@ func main() {
 		r.Get("/users/search", usersH.Search)
 		r.Get("/users/by-phone", usersH.ByPhone)
 		// TEST TURU 17: karsi tarafin ARAMA DURUMU (sohbet basliginda "Sesli/Goruntulu aramada")
+		r.Get("/users/ozet", usersH.Ozet) // turu 76: kimlik -> ad+avatar (coklu)
 		r.Get("/users/{id}/presence", usersH.Presence)
 		// ⚠️ TURU 74 — MODERASYON (App Store 1.2 sarti: engelle + sikayet + kaldir).
 		//    `blocks` tablosu 001'den beri VARDI ama ucu YOKTU -> engelleme hic calismiyordu.

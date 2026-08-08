@@ -28,6 +28,7 @@ import '../invites/davet_sec_sheet.dart';
 import 'live_gift_sheet.dart';
 import 'live_info_sheets.dart';
 import 'live_provider.dart';
+import '../medya/kullanici_ozeti.dart'; // turu 76: kimlikten avatar
 import 'live_widgets.dart';
 
 /// IZLEYICI ekrani: yayincinin videosu tam ekran + chat + kalp + hediye.
@@ -1176,14 +1177,11 @@ class _LiveViewerScreenState extends ConsumerState<LiveViewerScreen>
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 8, 0),
                 child: Row(children: [
-                  CircleAvatar(
-                    radius: 16,
-                    backgroundColor: const Color(0xFF6C2BD9),
-                    child: Text(
-                        widget.yayinciAd.isNotEmpty
-                            ? widget.yayinciAd[0].toUpperCase()
-                            : '?',
-                        style: const TextStyle(color: Colors.white, fontSize: 14)),
+                  // ⚠️ TURU 76 — YAYINCININ GERCEK PROFIL FOTOGRAFI.
+                  KimlikAvatar(
+                    userId: widget.yayinciId,
+                    yedekAd: widget.yayinciAd,
+                    cap: 32,
                   ),
                   const SizedBox(width: 8),
                   Expanded(
