@@ -19,6 +19,7 @@ import (
 	"github.com/gbz-app/gebzem/backend/internal/chat"
 	"github.com/gbz-app/gebzem/backend/internal/config"
 	"github.com/gbz-app/gebzem/backend/internal/database"
+	"github.com/gbz-app/gebzem/backend/internal/kanal"
 	"github.com/gbz-app/gebzem/backend/internal/media"
 	"github.com/gbz-app/gebzem/backend/internal/push"
 	"github.com/gbz-app/gebzem/backend/internal/rooms"
@@ -78,6 +79,7 @@ func main() {
 	chatH := chat.NewHandler(db, hub, pushSender)
 	usersH := users.NewHandler(db)
 	socialH := social.NewHandler(db) // turu 75: gonderi + akis + etkilesim
+	kanalH := kanal.NewHandler(db)   // turu 75: kanal (tek yonlu yayin)
 	// TURU 74 — MEDYA. R2 env eksikse Enabled()=false doner ve uclar KAYDEDILMEZ
 	// (fail-closed ama GORUNUR: acilista log yazar).
 	mediaH := media.NewHandler(db, rdb, cfg.R2Endpoint, cfg.R2AccessKeyID,
@@ -197,6 +199,28 @@ func main() {
 		r.Delete("/comments/{id}", socialH.CommentDelete)
 		r.Post("/posts/{id}/save", socialH.Save)
 		r.Delete("/posts/{id}/save", socialH.Unsave)
+
+		// ⚠️ TURU 75 — KANAL. Mesaj hattindan AYRI (bkz. internal/kanal serhi:
+		//    `chat.SendMessage` uye basina receipt INSERT ediyor; 10.000 aboneli
+		//    kanalda tek gonderi 10.000 sorgu demek olurdu).
+		// ⚠️ SIRA ONEMLI: "/channels/kesfet" STATIK yol, "/channels/{id}"
+		//    parametreli. chi statigi once dener ama okuyan icin acik olsun diye
+		//    statik olan USTE yazildi.
+		r.Post("/channels", kanalH.Create)
+		r.Get("/channels", kanalH.Listem)
+		r.Get("/channels/kesfet", kanalH.Kesfet)
+		r.Get("/channels/{id}", kanalH.Detay)
+		r.Patch("/channels/{id}", kanalH.Update)
+		r.Delete("/channels/{id}", kanalH.Delete)
+		r.Post("/channels/{id}/subscribe", kanalH.Subscribe)
+		r.Delete("/channels/{id}/subscribe", kanalH.Unsubscribe)
+		r.Patch("/channels/{id}/mute", kanalH.Mute)
+		r.Post("/channels/{id}/read", kanalH.Read)
+		r.Post("/channels/{id}/posts", kanalH.PostOlustur)
+		r.Get("/channels/{id}/posts", kanalH.Postlar)
+		r.Delete("/channel-posts/{id}", kanalH.PostSil)
+		r.Post("/channel-posts/{id}/like", kanalH.Like)
+		r.Delete("/channel-posts/{id}/like", kanalH.Unlike)
 		r.Get("/ws", chatH.WebSocket)
 		r.Get("/chats", chatH.ListChats)
 		r.Post("/chats/direct", chatH.CreateDirect)

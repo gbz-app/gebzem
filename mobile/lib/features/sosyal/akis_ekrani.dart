@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../home/home_screen.dart' show myProfileProvider;
+import '../kanal/kanallar_sekmesi.dart';
 import 'bildirimler_sayfasi.dart';
 import 'gonderi_karti.dart';
 import 'gonderi_olustur.dart';
@@ -37,6 +38,10 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
   bool _yukleniyor = false;
   bool _kesfet = false;
   String? _hata;
+
+  /// ⚠️ AKIS mi KANALLAR mi. Kanallar AYRI ALT SEKME YAPILMADI: alt menude
+  ///    zaten 6 hedef var ve 7.'si etiketleri okunmaz hale getirir.
+  int _bolme = 0;
 
   /// ⚠️ IndexedStack icinde oldugumuz icin sekme degisince state KORUNUR; ama
   ///    `AutomaticKeepAlive` olmadan ListView kaydirma konumu kaybolabiliyor.
@@ -141,7 +146,21 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Gebzem'),
+        // ⚠️ Baslik yerine BOLME SECICI: "Akış | Kanallar". Kullanicinin kanal
+        //    diye bir sey oldugunu GORMESI icin tek yol bu (gizli menu degil).
+        title: SegmentedButton<int>(
+          segments: const [
+            ButtonSegment(value: 0, label: Text('Akış')),
+            ButtonSegment(value: 1, label: Text('Kanallar')),
+          ],
+          selected: {_bolme},
+          showSelectedIcon: false,
+          style: ButtonStyle(
+            visualDensity: VisualDensity.compact,
+            textStyle: WidgetStatePropertyAll(TextStyle(fontSize: 13)),
+          ),
+          onSelectionChanged: (v) => setState(() => _bolme = v.first),
+        ),
         actions: [
           IconButton(
             icon: const Icon(LucideIcons.clapperboard),
@@ -159,13 +178,26 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _olustur,
-        child: const Icon(LucideIcons.plus),
-      ),
-      body: RefreshIndicator(
-        onRefresh: _yenile,
-        child: _govde(benimId),
+      // ⚠️ FAB yalniz AKIS bolmesinde: kanallar bolmesinin kendi "Kanal aç"
+      //    dugmesi var, ust uste binerlerdi.
+      floatingActionButton: _bolme == 0
+          ? FloatingActionButton(
+              onPressed: _olustur,
+              child: const Icon(LucideIcons.plus),
+            )
+          : null,
+      // ⚠️ IndexedStack: bolme degisince kaydirma konumu ve yuklenmis liste
+      //    KORUNUR. TabBarView olsaydi komsu bolme dispose olur ve her geciste
+      //    yeniden ag istegi atilirdi.
+      body: IndexedStack(
+        index: _bolme,
+        children: [
+          RefreshIndicator(
+            onRefresh: _yenile,
+            child: _govde(benimId),
+          ),
+          const KanallarSekmesi(),
+        ],
       ),
     );
   }
