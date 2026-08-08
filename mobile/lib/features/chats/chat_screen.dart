@@ -14,6 +14,7 @@ import '../calls/call_provider.dart';
 import 'arama_kaydi.dart';
 import 'chats_provider.dart';
 import 'models.dart';
+import 'moderasyon_sheet.dart'; // turu 74: uzun basma menusu + engelle/sikayet
 
 class ChatScreen extends ConsumerStatefulWidget {
   const ChatScreen({
@@ -44,6 +45,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   // Artik: (a) her arama bitisinde durum ANINDA tazelenir, (b) tazelenmemis olsa bile
   // dokunus aramayi DENER (son sozu sunucu soyler: gercekten mesgulse 409 mesaji cikar).
   String _peerDurum = '';
+
+  /// TURU 74 — bu kisiyi engelledim mi (menu etiketi icin).
+  /// ⚠️ Sunucudan `/users/me/blocks` ile BIR KEZ okunur; engelle/kaldir sonrasi
+  ///     yerel olarak cevrilir. Bayat kalirsa zarari YOK: menu yanlis etiket
+  ///     gosterir ama sunucu ucu IDEMPOTENT (iki kez engelleme de 200 doner).
+  bool _engelli = false;
   Timer? _durumTimer;
   ProviderSubscription? _aramaSub;
   bool _oncekiAramaVar = false;
@@ -56,6 +63,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       if (mounted) setState(() {});
     });
     if (widget.peerId != null) {
+      _engelDurumunuOku(); // turu 74: menu etiketi ("Engelle" / "Engeli kaldır")
       _durumTazele();
       _durumTimer = Timer.periodic(const Duration(seconds: 15), (_) => _durumTazele());
       // ARAMA BITER BITMEZ TAZELE (test turu 18 duzeltmesi): aktif arama null'a dusunce
@@ -73,6 +81,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   /// Karsi taraf su an aramada/yayinda mi (GET /users/{id}/presence). Hata sessiz yutulur —
   /// durum bilgisi ek bir kolaylik, sohbeti bloklamaz.
+  /// TURU 74 — bu kisiyi engellemis miyim (menu etiketi icin, TEK SEFER).
+  /// ⚠️ Hata YUTULUR: engel listesi alinamazsa menu "Engelle" der; ucu idempotent
+  ///     oldugu icin yanlis etiket zarar vermez. Sohbet ekranini bloklamaz.
+  Future<void> _engelDurumunuOku() async {
+    try {
+      final res = await ref.read(apiProvider).get('/users/me/blocks');
+      final list = (res.data as List?) ?? [];
+      final v = list.any((e) => (e as Map)['id'] == widget.peerId);
+      if (mounted && v != _engelli) setState(() => _engelli = v);
+    } catch (_) {}
+  }
+
   Future<void> _durumTazele() async {
     final pid = widget.peerId;
     if (pid == null) return;
@@ -219,6 +239,43 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               onPressed:
                   widget.peerId == null ? null : () => _startCall(video: false),
             ),
+            // ⚠️ TURU 74 — MODERASYON MENUSU. App Store Review Guideline 1.2 (UGC)
+            //    engelleme ve sikayeti kullanicinin ULASABILECEGI bir yerde sart kosuyor.
+            if (widget.peerId != null)
+              PopupMenuButton<String>(
+                icon: const Icon(LucideIcons.ellipsisVertical),
+                onSelected: (secim) async {
+                  if (secim == 'engelle') {
+                    final degisti = await engelleOnayiAc(context, ref,
+                        kullaniciId: widget.peerId!,
+                        ad: widget.title,
+                        suAnEngelli: _engelli);
+                    if (degisti && mounted) setState(() => _engelli = !_engelli);
+                  } else if (secim == 'sikayet') {
+                    await sikayetSheetAc(context, ref,
+                        hedefTur: 'kullanici', hedefId: widget.peerId!);
+                  }
+                },
+                itemBuilder: (_) => [
+                  PopupMenuItem(
+                    value: 'engelle',
+                    child: Row(children: [
+                      Icon(_engelli ? LucideIcons.userCheck : LucideIcons.ban,
+                          size: 18),
+                      const SizedBox(width: 10),
+                      Text(_engelli ? 'Engeli kaldır' : 'Engelle'),
+                    ]),
+                  ),
+                  const PopupMenuItem(
+                    value: 'sikayet',
+                    child: Row(children: [
+                      Icon(LucideIcons.flag, size: 18),
+                      SizedBox(width: 10),
+                      Text('Şikâyet et'),
+                    ]),
+                  ),
+                ],
+              ),
           ];
         }(),
       ),
@@ -258,7 +315,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                 : (video) => _startCall(video: video),
                           )
                         else
-                          _Bubble(message: msg, mine: mine),
+                          // ⚠️ TURU 74 — UZUN BASMA MENUSU (kopyala / herkesten sil /
+                          //    sikayet et). App Store 1.2 (UGC) sarti.
+                          GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onLongPress: () => mesajMenusuAc(context, ref,
+                                mesaj: msg,
+                                benimMi: mine,
+                                chatId: widget.chatId),
+                            child: _Bubble(message: msg, mine: mine),
+                          ),
                       ],
                     );
                   },

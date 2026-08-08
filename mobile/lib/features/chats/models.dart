@@ -82,4 +82,19 @@ class Message {
         deletedForAll: j['deleted_for_all'] as bool? ?? false,
         createdAt: DateTime.tryParse(j['created_at'] as String? ?? '') ?? DateTime.now(),
       );
+
+  /// TURU 74 — "herkesten silindi" hali. Sunucu da AYNISINI yapar (satiri silmez,
+  /// icerigi bosaltir) — yerel kopya sunucuyla TUTARLI kalsin diye ayni sekilde.
+  /// ⚠️ `read` KORUNUR: silme okundu bilgisini degistirmez.
+  Message silindiKopyasi() => Message(
+        id: id,
+        senderId: senderId,
+        type: type,
+        content: '',
+        mediaUrl: '',
+        replyToId: replyToId,
+        deletedForAll: true,
+        createdAt: createdAt,
+        read: read,
+      );
 }

@@ -82,9 +82,34 @@ class MessagesNotifier extends StateNotifier<AsyncValue<List<Message>>> {
     await load();
   }
 
+  /// TURU 74 — mesaji HERKESTEN sil (yalniz kendi mesajim).
+  /// ⚠️ Sunucu satiri FIZIKSEL SILMEZ, icerigi bosaltip `deleted_for_all=true` yazar;
+  ///     balon "Bu mesaj silindi" cizer (`_Bubble` bunu ZATEN destekliyor).
+  /// ⚠️ IYIMSER guncelleme YOK: sunucu 403 donebilir (baskasinin mesaji / baska sohbet).
+  ///     Once sunucuya sorulur, sonra yerel liste guncellenir.
+  Future<void> mesajiSil(int messageId) async {
+    await _ref.read(apiProvider).delete('/chats/$chatId/messages/$messageId');
+    _silindiIsaretle(messageId);
+  }
+
+  void _silindiIsaretle(int messageId) {
+    final current = List<Message>.from(state.valueOrNull ?? []);
+    final i = current.indexWhere((m) => m.id == messageId);
+    if (i < 0) return;
+    current[i] = current[i].silindiKopyasi();
+    state = AsyncValue.data(current);
+  }
+
   void _onEvent(Map<String, dynamic> ev) {
     if (ev['chat_id'] != chatId) return;
     switch (ev['type']) {
+      // TURU 74: karsi taraf (veya kendi ikinci cihazimiz) mesaji sildi.
+      case 'message.deleted':
+        final p = ev['payload'];
+        if (p is Map<String, dynamic>) {
+          final id = (p['id'] as num?)?.toInt();
+          if (id != null) _silindiIsaretle(id);
+        }
       case 'message.new':
         final payload = ev['payload'];
         if (payload is Map<String, dynamic>) {
