@@ -31,7 +31,9 @@ import (
 
 // ⚠️⚠️ GRUP ARAMASI KALDIRILDI — KULLANICI KARARI (2 Agu 2026):
 // "Tek arama, tek goruntulu arama, sesli oda ve yayin. GRUP ARAMA ve GRUP GORUNTULU
-//  ARAMA OLMAYACAK. Temiz kod istiyorum, karmasa istemiyorum."
+//
+//	ARAMA OLMAYACAK. Temiz kod istiyorum, karmasa istemiyorum."
+//
 // Istemcide GIRIS NOKTALARI kapatildi (grup baslatma dugmesi + "Kisi ekle" iki kapisi);
 // burasi SUNUCU TARAFI SAVUNMA KATMANI: kapasite 2 -> `Add` ve grup `Start` reddedilir.
 // Boylece sahadaki ESKI istemciler de grup aramasi acamaz.
@@ -41,16 +43,18 @@ import (
 // GERI ACMA: bu sabiti buyut + istemcideki giris noktalarini geri ekle (kod SILINMEDI).
 // TARIHCE: 19 Tem 32 -> 30 Tem 8 -> 31 Tem 4 -> 2 Agu 2 (grup KAPALI).
 // 4'E INME GEREKCESI (kullanici: "acik ve buglari minimumda tutmak istiyorum"):
-//   · SFU iletim yuku N*(N-1): 4 kisi 12 akis, 8 kisi 56 akis (4.7 kati). Ustelik
-//     tum trafik TURN relay'den geciyor (olcum: connectionType=turn) -> paket basina
-//     cift isleme. Sunucu cx33 (4 vCPU).
-//   · Istemci N-1 video COZER. VP8 kullaniyoruz (H264 720p tavani yuzunden) ve VP8
-//     iPhone'da cogunlukla YAZILIMLA cozuluyor -> iPhone XS Max'te 7 es zamanli cozme
-//     + simulcast yayin = isinma/pil/kare dusmesi.
-//   · Kucuk pencere: 8 kutu = 8 renderer + 8 yazilim i420->NV12 donusumu; kutular
-//     ~74x64pt'ye duser (okunmuyor). CLAUDE.md turu 17 kurali zaten "4'ten fazla kutu cizme".
-//   · Kod yuzeyi: 5/6/7/8 icin ayri satir duzenleri + daha cok abone/birakma olayi =
-//     daha cok kimlik yarisi firsati.
+//
+//	· SFU iletim yuku N*(N-1): 4 kisi 12 akis, 8 kisi 56 akis (4.7 kati). Ustelik
+//	  tum trafik TURN relay'den geciyor (olcum: connectionType=turn) -> paket basina
+//	  cift isleme. Sunucu cx33 (4 vCPU).
+//	· Istemci N-1 video COZER. VP8 kullaniyoruz (H264 720p tavani yuzunden) ve VP8
+//	  iPhone'da cogunlukla YAZILIMLA cozuluyor -> iPhone XS Max'te 7 es zamanli cozme
+//	  + simulcast yayin = isinma/pil/kare dusmesi.
+//	· Kucuk pencere: 8 kutu = 8 renderer + 8 yazilim i420->NV12 donusumu; kutular
+//	  ~74x64pt'ye duser (okunmuyor). CLAUDE.md turu 17 kurali zaten "4'ten fazla kutu cizme".
+//	· Kod yuzeyi: 5/6/7/8 icin ayri satir duzenleri + daha cok abone/birakma olayi =
+//	  daha cok kimlik yarisi firsati.
+//
 // Tek yerden okunur: hem Start hem Add ayni sabiti kullanir.
 // ⚠️ YAPMA: iki yere farkli sayi yazma (Add'den fazladan kisi sizar).
 // ⚠️ 2 = SADECE 1:1 (arayan + aranan). Grup aramasi SUNUCUDA DA kapali.
@@ -1613,8 +1617,10 @@ func (h *Handler) bitenAramayiSohbeteYaz(ctx context.Context, callID string) {
 // Kullanici ekran goruntusu paylasti: WhatsApp sohbette "Sesli arama · 1 dk." /
 // "Goruntulu arama · 37 sn." balonlari gosteriyor. Bizde YALNIZ cevapsizlar yaziliyordu.
 // Icerik bicimi (geriye donuk UYUMLU):
-//   · cevapsiz  : "call:missed:audio|video"           (DEGISMEDI — eski istemciler okur)
-//   · cevaplanan: "call:ended:audio|video:<saniye>"   (YENI)
+//
+//	· cevapsiz  : "call:missed:audio|video"           (DEGISMEDI — eski istemciler okur)
+//	· cevaplanan: "call:ended:audio|video:<saniye>"   (YENI)
+//
 // ⚠️ YAPMA: `call:missed:*` bicimini degistirme (sahadaki eski surumler onu bekliyor).
 // [icerik] hazir gelir; cagiran bicimlendirir.
 func (h *Handler) logCallToChat(ctx context.Context, callerID, calleeID, icerik string) {

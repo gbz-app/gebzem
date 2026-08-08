@@ -20,7 +20,8 @@ import (
 
 // IzinliTip — kind bazinda kabul edilen MIME'ler.
 // ⚠️ BEYAZ LISTE (kara liste DEGIL): yeni bir tehlikeli tip cikinca kod degismeden
-//    guvende kaliriz.
+//
+//	guvende kaliriz.
 var izinliTipler = map[string]map[string]bool{
 	"image": {
 		"image/jpeg": true,
@@ -46,7 +47,7 @@ var izinliTipler = map[string]map[string]bool{
 		//    "audio/mpeg" olarak taninir, yani beyanla ASLA uyusmaz (olu kod).
 	},
 	"document": {
-		"application/pdf": true,
+		"application/pdf":    true,
 		"application/msword": true,
 		"application/vnd.openxmlformats-officedocument.wordprocessingml.document": true,
 		"application/vnd.ms-excel": true,
@@ -73,7 +74,8 @@ func TipIzinli(kind, mime string) bool {
 
 // GercekTip — sihirli baytlardan GERCEK MIME'i cikarir. Bilinmiyorsa "".
 // ⚠️ `http.DetectContentType` KULLANILMIYOR: o "text/plain" gibi genis tahminler
-//    yapar ve HTML'i "text/html" diye dogru bulsa da bizim ihtiyacimiz KESIN esitlik.
+//
+//	yapar ve HTML'i "text/html" diye dogru bulsa da bizim ihtiyacimiz KESIN esitlik.
 func GercekTip(bas []byte) string {
 	switch {
 	case len(bas) >= 3 && bytes.Equal(bas[:3], []byte{0xFF, 0xD8, 0xFF}):
@@ -122,12 +124,12 @@ func TehlikeliMi(bas []byte) bool {
 
 	// (a) IKILI imzalar — TAM BAYT esitligi
 	ikili := [][]byte{
-		{'M', 'Z'},                 // Windows PE (exe/dll)
-		{0x7F, 'E', 'L', 'F'},      // Linux ELF
-		{'d', 'e', 'x', '\n'},      // Android DEX
-		{0xCA, 0xFE, 0xBA, 0xBE},   // Java class / Mach-O fat
-		{0xFE, 0xED, 0xFA, 0xCE},   // Mach-O 32
-		{0xFE, 0xED, 0xFA, 0xCF},   // Mach-O 64
+		{'M', 'Z'},               // Windows PE (exe/dll)
+		{0x7F, 'E', 'L', 'F'},    // Linux ELF
+		{'d', 'e', 'x', '\n'},    // Android DEX
+		{0xCA, 0xFE, 0xBA, 0xBE}, // Java class / Mach-O fat
+		{0xFE, 0xED, 0xFA, 0xCE}, // Mach-O 32
+		{0xFE, 0xED, 0xFA, 0xCF}, // Mach-O 64
 	}
 	for _, t := range ikili {
 		if bytes.HasPrefix(bas, t) {
@@ -169,13 +171,16 @@ func asciiKucuk(b []byte) []byte {
 //
 // Telefonla cekilen fotograf EXIF'inde **TAM KOORDINAT** tasir. Kullanici sohbete
 // fotograf atarken evinin konumunu paylastigini BILMEZ. Bu yuzden:
-//   · Istemci sikistirirken EXIF'i zaten atar (flutter_image_compress varsayilani),
-//   · AMA sunucu GUVENMEZ ve GPS etiketi bulursa nesneyi REDDEDER (422).
+//
+//	· Istemci sikistirirken EXIF'i zaten atar (flutter_image_compress varsayilani),
+//	· AMA sunucu GUVENMEZ ve GPS etiketi bulursa nesneyi REDDEDER (422).
+//
 // Boylece "istemci guncellenmemis" ya da "istemci sahte" durumlarinda da korunuruz.
 //
 // ⚠️ Neden reddetmek de temizlemek degil: EXIF'i sunucuda temizlemek dosyayi
-//    YENIDEN YAZMAYI gerektirir (indir-isle-yukle) — cx33'te kabul edilemez.
-//    Istemciyi dogru davranmaya ZORLAMAK daha ucuz ve daha guvenli.
+//
+//	YENIDEN YAZMAYI gerektirir (indir-isle-yukle) — cx33'te kabul edilemez.
+//	Istemciyi dogru davranmaya ZORLAMAK daha ucuz ve daha guvenli.
 func GPSIceriyorMu(bas []byte) bool {
 	if len(bas) < 12 || !bytes.Equal(bas[:3], []byte{0xFF, 0xD8, 0xFF}) {
 		return false // yalniz JPEG'de EXIF ariyoruz

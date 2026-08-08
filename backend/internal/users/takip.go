@@ -28,10 +28,10 @@ import (
 //    ag hatasinda sayac ile gercek AYRISIR ve geri donmek pahali olur.
 
 type takipDurumResp struct {
-	TakipEdiyorMu bool `json:"takip_ediyor_mu"`
-	BekliyorMu    bool `json:"bekliyor_mu"`
+	TakipEdiyorMu  bool `json:"takip_ediyor_mu"`
+	BekliyorMu     bool `json:"bekliyor_mu"`
 	TakipEdiyorMu2 bool `json:"beni_takip_ediyor_mu"`
-	Engelli       bool `json:"engelli"`
+	Engelli        bool `json:"engelli"`
 }
 
 // POST /users/{id}/follow — takip et.

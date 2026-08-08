@@ -31,8 +31,9 @@ type Istemci struct {
 
 // YeniIstemci — env bos ise nil DONER (cagiran `Enabled()` ile kontrol eder).
 // ⚠️ FAIL-CLOSED AMA GORUNUR: yapilandirma eksikse medya uclari HIC KAYDEDILMEZ ve
-//     acilista log'a yazilir. Sessizce yarim calisan bir medya katmani, sahada
-//     "bazen yukleniyor bazen yuklenmiyor" olarak gorunurdu.
+//
+//	acilista log'a yazilir. Sessizce yarim calisan bir medya katmani, sahada
+//	"bazen yukleniyor bazen yuklenmiyor" olarak gorunurdu.
 func YeniIstemci(endpoint, anahtarID, gizli, bucket string) *Istemci {
 	if endpoint == "" || anahtarID == "" || gizli == "" || bucket == "" {
 		return nil
@@ -85,7 +86,8 @@ func (i *Istemci) Head(ctx context.Context, nesneAnahtari string) (*NesneBilgi, 
 
 // BasParcasi — nesnenin ILK [n] baytini ceker (sihirli bayt / EXIF dogrulamasi icin).
 // ⚠️ Neden Range: 16 MB'lik videoyu indirip RAM'e almak cx33'te kabul edilemez.
-//     Ilk 256 KB tip tespiti ve EXIF taramasi icin FAZLASIYLA yeter.
+//
+//	Ilk 256 KB tip tespiti ve EXIF taramasi icin FAZLASIYLA yeter.
 func (i *Istemci) BasParcasi(ctx context.Context, nesneAnahtari string, n int64) ([]byte, error) {
 	u, err := i.ImzaliURL("GET", nesneAnahtari, 60*time.Second, nil)
 	if err != nil {
@@ -127,7 +129,8 @@ func (i *Istemci) Sil(ctx context.Context, nesneAnahtari string) error {
 }
 
 // ⚠️⚠️ 403 = imza hatasi. Bunu AYIRT ETMEK kritik cunku SigV4 hatalari sessizdir;
-//     cagiran taraf 403'u GERCEK Sentry olayi olarak yazar (breadcrumb degil).
+//
+//	cagiran taraf 403'u GERCEK Sentry olayi olarak yazar (breadcrumb degil).
 type R2Hata struct {
 	Islem string
 	Kod   int

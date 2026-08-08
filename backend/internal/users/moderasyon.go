@@ -125,7 +125,9 @@ func (h *Handler) Report(w http.ResponseWriter, r *http.Request) {
 	// ⚠️ TUR BEYAZ LISTESI (turu 59 dersi: istemciden gelen tip DOGRULANMADAN
 	//     yazilmamali). Yeni icerik tipleri geldikce BURAYA eklenecek.
 	switch req.HedefTur {
-	case "kullanici", "mesaj":
+	// TURU 75: sosyal katman turleri eklendi. Migration GEREKMEDI —
+	//  serbest metin (014'un bilincli karari).
+	case "kullanici", "mesaj", "gonderi", "yorum", "reels", "kanal":
 	default:
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "geçersiz şikâyet türü"})
 		return

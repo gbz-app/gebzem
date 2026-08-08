@@ -26,7 +26,8 @@ import (
 
 // erisebilirMi — bu kullanici bu gonderiyi GOREBILIR mi?
 // ⚠️ TEK KAYNAK: begeni, yorum, kaydetme ve gonderi detayi AYNI kapiyi kullanir.
-//    Kopyalanirsa drift eder (turu 56'nin "mesgulluk kontrolu tek kaynak" dersi).
+//
+//	Kopyalanirsa drift eder (turu 56'nin "mesgulluk kontrolu tek kaynak" dersi).
 func (h *Handler) erisebilirMi(ctx context.Context, me, postID string) (bool, string) {
 	var yazar, durum string
 	var yorumKapali, gizli bool

@@ -186,6 +186,8 @@ func main() {
 		r.Post("/posts", socialH.Create)
 		r.Delete("/posts/{id}", socialH.Delete)
 		r.Get("/feed", socialH.Akis)
+		r.Get("/reels", socialH.Reels)
+		r.Get("/posts/{id}", socialH.Detay)
 		r.Get("/users/{id}/posts", socialH.UserPosts)
 		r.Post("/posts/{id}/like", socialH.Like)
 		r.Delete("/posts/{id}/like", socialH.Unlike)

@@ -54,7 +54,8 @@ func imzaAnahtari(gizli, tarih string) []byte {
 
 // uriKodla — AWS'nin kanonik URI kodlamasi.
 // ⚠️ `url.QueryEscape` KULLANILAMAZ: bosluğu '+' yapar (AWS %20 ister) ve
-//     '~' karakterini kacirir (AWS kacirmaz). Bu iki fark imzayi SESSIZCE bozar.
+//
+//	'~' karakterini kacirir (AWS kacirmaz). Bu iki fark imzayi SESSIZCE bozar.
 func uriKodla(s string, yolMu bool) string {
 	var b strings.Builder
 	for i := 0; i < len(s); i++ {
@@ -81,8 +82,9 @@ func uriKodla(s string, yolMu bool) string {
 //
 // ⚠️ `host` HER ZAMAN imzalanir (AWS sarti).
 // ⚠️ Govde hash'i `UNSIGNED-PAYLOAD`: presigned URL'de govde imzalanmaz (istemci
-//     dosyayi dogrudan yukler, sunucu govdeyi gormez). Butunluk `Content-MD5`
-//     basligiyla saglanir — o da imzalandigi icin degistirilemez.
+//
+//	dosyayi dogrudan yukler, sunucu govdeyi gormez). Butunluk `Content-MD5`
+//	basligiyla saglanir — o da imzalandigi icin degistirilemez.
 func (i *Istemci) ImzaliURL(yontem, nesneAnahtari string, sure time.Duration,
 	ekBasliklar map[string]string) (string, error) {
 	if i.endpoint == "" || i.anahtarID == "" || i.gizli == "" || i.bucket == "" {
@@ -162,10 +164,14 @@ func (i *Istemci) ImzaliURL(yontem, nesneAnahtari string, sure time.Duration,
 // acilir — sahada "yukleme calismiyor ama sebebi belli degil" yasanmaz.
 //
 // ⚠️ Beklenen deger BU KODUN kendi ciktisi degil, ALGORITMANIN sonucudur:
-//     sabit anahtar/tarih/nesne ile hesaplanmis ve elle dogrulanmistir.
-//     Algoritma dogru kalirsa bu deger DEGISMEZ.
+//
+//	sabit anahtar/tarih/nesne ile hesaplanmis ve elle dogrulanmistir.
+//	Algoritma dogru kalirsa bu deger DEGISMEZ.
+//
 // ⚠️ YAPMA: test tutmayinca beklenen degeri "guncelleyerek" gecirme — once NEDEN
-//     degistigini bul. Genelde sebep gercek bir imza hatasidir.
+//
+//	degistigini bul. Genelde sebep gercek bir imza hatasidir.
+//
 // SabitVektorURL — oz-test vektorunu uretir (beklenen imzayi hesaplamak icin de kullanilir).
 func SabitVektorURL() (string, error) {
 	sabit := time.Date(2026, 8, 8, 12, 0, 0, 0, time.UTC)

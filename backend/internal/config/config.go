@@ -26,7 +26,8 @@ type Config struct {
 
 // MedyaAcik — R2 yapilandirmasi tam mi.
 // ⚠️ Medya uclari yalniz bu true ise KAYDEDILIR; istemci de "GET /users/me"
-//    yanitindaki "media_acik" alanina bakip atac dugmesini gizler.
+//
+//	yanitindaki "media_acik" alanina bakip atac dugmesini gizler.
 func (c *Config) MedyaAcik() bool {
 	return c.R2Endpoint != "" && c.R2AccessKeyID != "" &&
 		c.R2SecretKey != "" && c.R2Bucket != ""

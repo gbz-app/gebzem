@@ -259,11 +259,11 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type kisi struct {
-		UserID   string `json:"user_id"`
-		Name     string `json:"name"`
-		Avatar   string `json:"avatar"`
-		Role     string `json:"role"`
-		HandUp   bool   `json:"hand_up"`
+		UserID string `json:"user_id"`
+		Name   string `json:"name"`
+		Avatar string `json:"avatar"`
+		Role   string `json:"role"`
+		HandUp bool   `json:"hand_up"`
 	}
 	rows, err := h.db.Query(r.Context(), `
 		SELECT p.user_id, u.name, COALESCE(u.avatar_url,''), p.role, p.hand_raised_at IS NOT NULL

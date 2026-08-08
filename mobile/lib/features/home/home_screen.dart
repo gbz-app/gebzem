@@ -14,6 +14,10 @@ import '../calls/calls_tab.dart';
 import '../chats/chats_screen.dart';
 import '../live/live_tab.dart';
 import '../rooms/rooms_tab.dart';
+import '../sosyal/akis_ekrani.dart';
+import '../sosyal/bildirimler_sayfasi.dart';
+import '../sosyal/profil_sayfasi.dart';
+import '../sosyal/takip_listesi.dart';
 
 /// Ana kabuk: 5 sekmeli alt menu (ozellik-listesi.md'deki yapi)
 /// Sohbetler aktif; Aramalar/Odalar/Canli sonraki fazlarda doluyor
@@ -28,7 +32,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   int _index = 0;
   bool? _permissionsAsked; // null = kontrol ediliyor
 
-  static const _titles = ['Gebzem', 'Aramalar', 'Odalar', 'Canlı', 'Profil'];
+  // ⚠️ TURU 75 — 6 SEKME. Akis EN BASA konuldu (ana sayfa = akis; Instagram/
+  //    Facebook deseni). Etiketler KISALTILDI: 6 hedefli NavigationBar'da
+  //    360dp genislikte hedef basina ~60dp duser; "Sohbetler" (9 karakter)
+  //    tasip kirpilirdi.
+  // ⚠️ YAPMA: 7. sekme ekleme — etiketler okunmaz hale gelir.
+  // ⚠️ YAPMA: sirayi degistirme; _index sabitleri (0=akis, 1=sohbet) ustune
+  //    yazilmis kosullar var (AppBar gizleme, "yeni sohbet" dugmesi).
+  static const _titles = ['Akış', 'Sohbetler', 'Aramalar', 'Odalar', 'Canlı', 'Profil'];
 
   @override
   void initState() {
@@ -66,22 +77,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_titles[_index]),
-        actions: [
-          // Sohbetler sekmesi: sag-ust + (arama ikonu yerine) -> yeni sohbet (kisi ara).
-          // Sohbet FILTRESI "Gebzem" basliginin altindaki arama input'unda (ChatsScreen).
-          if (_index == 0)
-            IconButton(
-              icon: const Icon(LucideIcons.plus),
-              tooltip: 'Yeni sohbet',
-              onPressed: () => context.push('/search'),
+      // ⚠️ AKIS SEKMESI KENDI AppBar'INI CIZER (Reels + bildirim ikonlari orada).
+      //    Burada da AppBar cizersek CIFT BASLIK olur.
+      appBar: _index == 0
+          ? null
+          : AppBar(
+              title: Text(_titles[_index]),
+              actions: [
+                // Sohbetler sekmesi: sag-ust + -> yeni sohbet (kisi ara).
+                // Sohbet FILTRESI ChatsScreen icindeki arama kutusunda.
+                if (_index == 1)
+                  IconButton(
+                    icon: const Icon(LucideIcons.plus),
+                    tooltip: 'Yeni sohbet',
+                    onPressed: () => context.push('/search'),
+                  ),
+              ],
             ),
-        ],
-      ),
       body: IndexedStack(
         index: _index,
         children: const [
+          AkisEkrani(), // TURU 75 — ana sayfa akisi (gonderi + reels girisi)
           ChatsScreen(),
           CallsTab(),
           RoomsTab(), // SPACES (sesli oda) — kesfet + oda ac
@@ -98,10 +114,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         child: NavigationBar(
           selectedIndex: _index,
           onDestinationSelected: (i) => setState(() => _index = i),
+          // ⚠️ Etiketler KISA (6 hedef) — bkz. _titles serhi.
           destinations: const [
-            NavigationDestination(icon: Icon(LucideIcons.messageCircle), label: 'Sohbetler'),
-            NavigationDestination(icon: Icon(LucideIcons.phone), label: 'Aramalar'),
-            NavigationDestination(icon: Icon(LucideIcons.audioLines), label: 'Odalar'),
+            NavigationDestination(icon: Icon(LucideIcons.house), label: 'Akış'),
+            NavigationDestination(icon: Icon(LucideIcons.messageCircle), label: 'Sohbet'),
+            NavigationDestination(icon: Icon(LucideIcons.phone), label: 'Arama'),
+            NavigationDestination(icon: Icon(LucideIcons.audioLines), label: 'Oda'),
             NavigationDestination(icon: Icon(LucideIcons.radioTower), label: 'Canlı'),
             NavigationDestination(icon: Icon(LucideIcons.user), label: 'Profil'),
           ],
@@ -169,6 +187,35 @@ class _ProfileTab extends ConsumerWidget {
         // ⚠️ TURU 74 — ENGELLENENLER. App Store 1.2 (UGC) engellemeyi şart koşuyor;
         //    engellemek kadar engeli GÖREBİLMEK ve KALDIRABİLMEK de gerekli
         //    (sohbet ekranına girmeden).
+        // ⚠️ TURU 75 — KENDI SOSYAL PROFILIM. Kullanici kendi gonderilerini,
+        //    takipci/takip sayilarini ve gizlilik ayarini BURADAN gorur.
+        ListTile(
+          leading: const Icon(LucideIcons.grid3x3),
+          title: const Text('Gönderilerim ve profilim'),
+          subtitle: const Text('Takipçiler, takip edilenler, paylaşımlar'),
+          trailing: const Icon(LucideIcons.chevronRight, size: 18),
+          onTap: () {
+            final id = (profile.valueOrNull?['id'] ?? '').toString();
+            if (id.isEmpty) return;
+            Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => ProfilSayfasi(userId: id)));
+          },
+        ),
+        ListTile(
+          leading: const Icon(LucideIcons.bell),
+          title: const Text('Bildirimler'),
+          trailing: const Icon(LucideIcons.chevronRight, size: 18),
+          onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const BildirimlerSayfasi())),
+        ),
+        ListTile(
+          leading: const Icon(LucideIcons.userRoundCheck),
+          title: const Text('Takip istekleri'),
+          subtitle: const Text('Gizli hesapsan onay bekleyenler'),
+          trailing: const Icon(LucideIcons.chevronRight, size: 18),
+          onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const TakipIstekleri())),
+        ),
         ListTile(
           leading: const Icon(LucideIcons.ban),
           title: const Text('Engellenen kişiler'),

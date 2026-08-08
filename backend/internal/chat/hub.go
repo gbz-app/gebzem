@@ -28,7 +28,7 @@ type Hub struct {
 }
 
 type Event struct {
-	Type      string          `json:"type"`              // message.new, receipt.read, typing, presence
+	Type      string          `json:"type"` // message.new, receipt.read, typing, presence
 	ChatID    string          `json:"chat_id,omitempty"`
 	Payload   json.RawMessage `json:"payload,omitempty"`
 	To        []string        `json:"to,omitempty"`        // alici user id'leri (hedefli)

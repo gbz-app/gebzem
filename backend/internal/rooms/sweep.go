@@ -7,16 +7,16 @@ import (
 
 // StartSweeper — takili odalari kapatir (calls.StartSweeper deseni; sweep zorunlulugu
 // calls'ta kanitli: istemciden End/Leave gelmeyebilir).
-// 1) HOST KOPMASI (REST leave geldi): host 2 dk'dir 'joined' degil -> oda biter
-//    (Twitter Spaces davranisi; co-host devri Faz-2). 2 dk tolerans: GSM/kisa kopma.
-// 2) BOS ODA: hic 'joined' yok VE son ayrilis da 2 dk'dan eski -> biter.
-//    (Yalniz-host odasinda host'un 2 dk geri-donme toleransi korunur — dogrulama bulgusu:
-//    eski kosul "oda 2 dk'dan yasli + su an bos" idi, solo host aninda kapaniyordu.)
-// 3) LIVEKIT'TE ODA YOK: REST leave HIC gelmeden kopanlar (force-quit/crash) DB'de 'joined'
-//    kalir ve 1-2'yi kilitler; ama LiveKit odasi empty_timeout(300s) ile silinmisse HERKES
-//    coktan kopmus demektir -> DB'de de bitir (dogrulama bulgusu: 8 saatlik zombi oda +
-//    host'un 409 "zaten acik odaniz var" kilidi).
-// 4) EMNIYET: 8 saatten eski canli oda -> biter.
+//  1. HOST KOPMASI (REST leave geldi): host 2 dk'dir 'joined' degil -> oda biter
+//     (Twitter Spaces davranisi; co-host devri Faz-2). 2 dk tolerans: GSM/kisa kopma.
+//  2. BOS ODA: hic 'joined' yok VE son ayrilis da 2 dk'dan eski -> biter.
+//     (Yalniz-host odasinda host'un 2 dk geri-donme toleransi korunur — dogrulama bulgusu:
+//     eski kosul "oda 2 dk'dan yasli + su an bos" idi, solo host aninda kapaniyordu.)
+//  3. LIVEKIT'TE ODA YOK: REST leave HIC gelmeden kopanlar (force-quit/crash) DB'de 'joined'
+//     kalir ve 1-2'yi kilitler; ama LiveKit odasi empty_timeout(300s) ile silinmisse HERKES
+//     coktan kopmus demektir -> DB'de de bitir (dogrulama bulgusu: 8 saatlik zombi oda +
+//     host'un 409 "zaten acik odaniz var" kilidi).
+//  4. EMNIYET: 8 saatten eski canli oda -> biter.
 func (h *Handler) StartSweeper(ctx context.Context) {
 	go func() {
 		t := time.NewTicker(30 * time.Second)

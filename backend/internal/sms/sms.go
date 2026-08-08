@@ -58,12 +58,12 @@ func (s *Sender) SendOTP(phone, code string) error {
 	msg := fmt.Sprintf("Gebzem dogrulama kodunuz: %s", code)
 
 	params := url.Values{
-		"usercode": {s.usercode},
-		"password": {s.password},
-		"gsmno":    {no},
-		"message":  {msg},
+		"usercode":  {s.usercode},
+		"password":  {s.password},
+		"gsmno":     {no},
+		"message":   {msg},
 		"msgheader": {s.header},
-		"dil":      {"TR"},
+		"dil":       {"TR"},
 	}
 
 	resp, err := s.client.PostForm("https://api.netgsm.com.tr/sms/send/get", params)

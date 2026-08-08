@@ -30,7 +30,6 @@ func NewHandler(db *pgxpool.Pool, cfg *config.Config, smsSender *sms.Sender) *Ha
 	return &Handler{db: db, cfg: cfg, sms: smsSender}
 }
 
-
 var phoneRe = regexp.MustCompile(`^\+[1-9]\d{9,14}$`)
 
 type registerReq struct {

@@ -146,7 +146,8 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 
 // DELETE /posts/{id} — kendi gonderini sil.
 // ⚠️ Satir SILINMEZ, `durum='silindi'` yazilir: yorum/begeni FK'leri ve
-//    istatistikler bozulmasin. Medya `medyayiKopar` mantigiyla dusurulur.
+//
+//	istatistikler bozulmasin. Medya `medyayiKopar` mantigiyla dusurulur.
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	me := auth.UserID(r.Context())
 	id := chi.URLParam(r, "id")
@@ -250,15 +251,24 @@ func (h *Handler) Akis(w http.ResponseWriter, r *http.Request) {
 			            OR (b.blocker_id=p.author_id AND b.blocked_id=$1))
 			 ORDER BY p.created_at DESC LIMIT $3`, me, before, limit)
 	} else {
-		// KESFET: herkese acik hesaplarin yeni gonderileri.
+		// KESFET: herkese acik hesaplarin yeni gonderileri + KENDI gonderilerim.
+		//
+		// ⚠️⚠️ "p.author_id = $1 OR ..." SARTI ZORUNLU (denetimde yakalandi):
+		//    kimseyi takip etmeyen kullanici bu dala duser; kendi gonderisi
+		//    listeye GIRMEZSE "paylastim ama akista yok" yasar. Ustelik GIZLI
+		//    hesap kendi gonderisini HIC goremezdi (NOT u.gizli_hesap onu eler).
+		// ⚠️⚠️ begendim/kaydettim SABIT 'false' DONUYORDU: bu dalda begenilen
+		//    gonderinin kalbi DOLU cizilmez, kullanici tekrar begenmeye calisir
+		//    ve sunucu idempotent oldugu icin HICBIR SEY OLMAZ (olu dokunus).
 		rows, err = h.db.Query(r.Context(), `
 			SELECT p.id, p.author_id, p.tur, p.metin, p.media_ids,
 			       p.begeni_sayisi, p.yorum_sayisi, p.yorum_kapali, p.created_at,
 			       u.name, COALESCE(u.username,''), u.avatar_url, u.avatar_media_id,
-			       false, false
+			       EXISTS(SELECT 1 FROM post_likes l WHERE l.post_id=p.id AND l.user_id=$1),
+			       EXISTS(SELECT 1 FROM post_saves s WHERE s.post_id=p.id AND s.user_id=$1)
 			  FROM posts p JOIN users u ON u.id = p.author_id
 			 WHERE p.durum='yayinda' AND p.created_at < $2
-			   AND NOT u.gizli_hesap AND u.verified
+			   AND (p.author_id = $1 OR (NOT u.gizli_hesap AND u.verified))
 			   AND NOT EXISTS(SELECT 1 FROM blocks b
 			         WHERE (b.blocker_id=$1 AND b.blocked_id=p.author_id)
 			            OR (b.blocker_id=p.author_id AND b.blocked_id=$1))
@@ -314,6 +324,100 @@ func (h *Handler) UserPosts(w http.ResponseWriter, r *http.Request) {
 		 ORDER BY p.created_at DESC LIMIT 30`, me, hedef, before)
 	if err != nil {
 		hata(w, 500, "gönderiler alınamadı")
+		return
+	}
+	defer rows.Close()
+	yaz(w, 200, map[string]any{"posts": h.satirlariOku(rows)})
+}
+
+// GET /posts/{id} — TEK gonderi.
+//
+// ⚠️ NEDEN GEREKLI: bildirimden ("X gonderini begendi") ve derin baglantidan
+//
+//	gelen kullanici gonderiyi tek basina acabilmeli. Akisi bastan cekip icinden
+//	aramak hem pahali hem GARANTISIZ (gonderi ilk 20'de olmayabilir).
+//
+// ⚠️ ERISIM KAPISI `erisebilirMi` ile — begeni/yorum/kaydetme ile AYNI kaynak.
+func (h *Handler) Detay(w http.ResponseWriter, r *http.Request) {
+	me := auth.UserID(r.Context())
+	id := chi.URLParam(r, "id")
+	// ⚠️ UUID BICIM DOGRULAMASI: gecersiz metin pgx'te sorgu HATASI uretir ve
+	//    500 doner.  hatayi zaten "erisilemez" sayiyor ama once
+	//    ucuz kontrol yapip DB'ye hic gitmemek daha dogru.
+	if len(id) != 36 {
+		hata(w, 404, "gönderi bulunamadı")
+		return
+	}
+	if ok, sebep := h.erisebilirMi(r.Context(), me, id); !ok {
+		kod := 404
+		if sebep == "" {
+			sebep = "gönderi bulunamadı"
+		} else if sebep == "bu hesap gizli" {
+			kod = 403
+		}
+		hata(w, kod, sebep)
+		return
+	}
+	rows, err := h.db.Query(r.Context(), `
+		SELECT p.id, p.author_id, p.tur, p.metin, p.media_ids,
+		       p.begeni_sayisi, p.yorum_sayisi, p.yorum_kapali, p.created_at,
+		       u.name, COALESCE(u.username,''), u.avatar_url, u.avatar_media_id,
+		       EXISTS(SELECT 1 FROM post_likes l WHERE l.post_id=p.id AND l.user_id=$2),
+		       EXISTS(SELECT 1 FROM post_saves s WHERE s.post_id=p.id AND s.user_id=$2)
+		  FROM posts p JOIN users u ON u.id = p.author_id
+		 WHERE p.id=$1 AND p.durum='yayinda'`, id, me)
+	if err != nil {
+		hata(w, 500, "gönderi alınamadı")
+		return
+	}
+	defer rows.Close()
+	liste := h.satirlariOku(rows)
+	if len(liste) == 0 {
+		hata(w, 404, "gönderi bulunamadı")
+		return
+	}
+	yaz(w, 200, liste[0])
+}
+
+// GET /reels — dikey kisa video akisi.
+//
+// ⚠️ AKISTAN AYRI UC: reels sekmesi TAKIPTEN BAGIMSIZ calisir (TikTok/Instagram
+//
+//	deseni) — yeni kullanicinin bos ekran gormemesi icin tek yol bu.
+//
+// ⚠️ GIZLI hesaplarin reels'i yalniz onayli takipcilerine gorunur.
+func (h *Handler) Reels(w http.ResponseWriter, r *http.Request) {
+	me := auth.UserID(r.Context())
+	limit := 10
+	if v, err := strconv.Atoi(r.URL.Query().Get("limit")); err == nil && v > 0 && v <= 30 {
+		limit = v
+	}
+	before := time.Now().Add(time.Hour)
+	if s := r.URL.Query().Get("before"); s != "" {
+		if t, err := time.Parse(time.RFC3339Nano, s); err == nil {
+			before = t
+		}
+	}
+	rows, err := h.db.Query(r.Context(), `
+		SELECT p.id, p.author_id, p.tur, p.metin, p.media_ids,
+		       p.begeni_sayisi, p.yorum_sayisi, p.yorum_kapali, p.created_at,
+		       u.name, COALESCE(u.username,''), u.avatar_url, u.avatar_media_id,
+		       EXISTS(SELECT 1 FROM post_likes l WHERE l.post_id=p.id AND l.user_id=$1),
+		       EXISTS(SELECT 1 FROM post_saves s WHERE s.post_id=p.id AND s.user_id=$1)
+		  FROM posts p JOIN users u ON u.id = p.author_id
+		 WHERE p.durum='yayinda' AND p.tur='reels' AND p.created_at < $2
+		   AND (p.author_id = $1
+		        OR NOT u.gizli_hesap
+		        OR EXISTS(SELECT 1 FROM follows f
+		              WHERE f.follower_id=$1 AND f.followee_id=p.author_id
+		                AND f.durum='onayli'))
+		   AND NOT EXISTS(SELECT 1 FROM blocks b
+		         WHERE (b.blocker_id=$1 AND b.blocked_id=p.author_id)
+		            OR (b.blocker_id=p.author_id AND b.blocked_id=$1))
+		 ORDER BY p.created_at DESC LIMIT $3`, me, before, limit)
+	if err != nil {
+		log.Printf("reels: %v", err)
+		hata(w, 500, "reels alınamadı")
 		return
 	}
 	defer rows.Close()

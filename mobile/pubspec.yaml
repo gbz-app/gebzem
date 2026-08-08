@@ -85,6 +85,13 @@ dependencies:
   # NSMicrophoneUsageDescription (Info.plist) arama icin ZATEN var.
   record: ^7.1.1
 
+  # TURU 75 — GONDERI/REELS VIDEO OYNATICI.
+  # !! iOS TUZAGI: video_player varsayilan olarak AVAudioSession kategorisini
+  #    .playback yapar ve DIGER sesi KESER -> suren LiveKit aramasinin sesi olur.
+  #    Bu yuzden HER oynatici VideoPlayerOptions(mixWithOthers: true) ile kurulur
+  #    ve arama/oda/yayin canliyken ses ZORLA kapatilir (bkz. sosyal/medya_video.dart).
+  video_player: ^2.9.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
