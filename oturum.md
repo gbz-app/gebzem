@@ -4723,3 +4723,67 @@ YOK, backend DEĞİŞMEDİ (19d0a96) + health ok, DB temiz (0/0/0/0).
 `oda/yayin ses birimi ACILAMADI (oda|yayinci|izleyici): hata=..` çıkarsa `!pri` iOS'ta
 hâlâ geçerli demektir; `N. denemede ACILDI` çıkarsa merdiven kurtardı ve basamak sayısı
 ayarlanabilir. **Bu sefer tahmin değil, ölçüm konuşacak.**
+
+---
+
+## Oturum 8 Ağustos 2026 — TURU 74: ölçümler okundu · engelleme aslında hiç çalışmıyormuş
+
+**Kullanıcı kararı:** *"testi en son yapacağız, araştırma bittikten sonra her şeyi bitir"* —
+turu 73 test edilmeden medya + sosyal katman tamamlanacak, tek seferde test edilecek.
+**Kullanıcı kararı 2:** *"90 günlük silme vs olmasın, insanların verisini silmek yok"* —
+[medya-plani.md](medya-plani.md)'ndeki saklama kararı geçersiz, veri sınırsız büyüyecek.
+
+### ✅ Bekleyen ölçümler okundu — üç açık soru kapandı
+
+| Soru | Cevap |
+|---|---|
+| **turu 68:** `supportsHolding` CallKit'e ulaşıyor mu? | **EVET, `false` doğrulandı.** Bekleyen `maximumCallGroups 2→1` değişikliği artık **gereksiz — kalıcı iptal** (kapasiteyi 1'e düşürmek ikinci aramanın çalmamasına yol açabilirdi) |
+| **turu 69:** native kanca gerekli mi? | **EVET.** `kaynak=native yasam=paused` **8 kez** — uygulama arka plandayken devreye giriyor, tam şikâyet senaryosu. (eklenti 25, native 9) |
+| **turu 63:** ses gecikmesi jitter tamponundan mı? | **HAYIR — hipotez çürüdü.** `tamponMs=13 jitterMs=4.0 gizlenenOrnek=0`. 13 ms yok hükmünde, birikmiş ses yok. Bu açıklamayla bir daha yola çıkılmayacak. |
+
+### ⚠️ Ölçümün kendisi bozukmuş
+iOS'ta `activeCalls()` **Map değil `CallKitParams` nesnesi** döndürüyor → `c is Map` false
+kalıp `c.toString()` tüm nesneyi (~900 karakter) basıyordu. Aranan `hold=` değeri başlıktan
+taşıyordu **ve** mesajda callId geçtiği için Sentry tek ölçümü **6 ayrı issue'ya** bölmüştü.
+⚠️ **DERS: ölçüm eklerken dönen tipi doğrula.** Bu ölçüm 6 turdur yazılıyordu ve okunamaz
+olduğu için cevabı 6 tur geciktirdi.
+
+### ⚠️⚠️ ASIL BULGU — ENGELLEME SAHADA HİÇ ÇALIŞMIYORMUŞ
+`blocks` tablosu **001_init.sql'den beri var** ama ona yazan da okuyan da yok. Üstelik
+`SendMessage` içinde `chatMemberIDs` çağrısının üstündeki yorum yıllardır
+**"üyelik + engel kontrolü"** diyor — yanlış; o fonksiyon yalnızca üyeliğe bakıyor.
+Yani engellemenin ne yolu vardı, ne de olsa uygulanırdı.
+
+⚠️ **DERS: bir yorumun anlattığı kontrolün gövdede gerçekten olup olmadığını doğrula.**
+
+**Eklenenler:**
+- migration **014_reports.sql** — `hedef_tur` serbest metin (yeni içerik tipleri migration
+  gerektirmez), `UNIQUE(reporter,hedef)` ile şikâyet spam'i satır biriktirmez
+- `internal/users/moderasyon.go` — engelle / engeli kaldır / engellediklerim / şikâyet et
+- `chat.engelliMi()` **tek kaynak** + `SendMessage`'da uygulama:
+  **çift yönlü** (hangi taraf engellediyse mesaj gitmez — tek yönlü olsa engelleyen taraf
+  rahatsız etmeye devam edebilirdi) · **fail-closed** · **nötr hata metni** (engellemeyi ifşa etme)
+- `DELETE /chats/{chatID}/messages/{msgID}` — herkesten silme. `deleted_for_all` sütunu
+  001'den beri vardı, sorgular okuyordu, ama **silme ucu yoktu** (ölü sütun).
+  Satır fiziksel silinmez, içerik boşaltılır; WS `message.deleted` gönderene de gider.
+
+**Neden şimdi:** App Store 1.2 (UGC) engelleme + şikâyet + içerik kaldırmayı birlikte şart
+koşuyor; medya ve herkese açık gönderi gelmeden önce durmaları gerekiyordu.
+
+### ⚠️ `media_url` açığı kapatıldı
+`sendMessageReq.MediaURL` istemciden serbestçe alınıp doğrulanmadan DB'ye yazılıyordu.
+İstemci hiç göndermiyor ama açık duruyordu → herkes `{"type":"image","media_url":"..."}`
+gönderip alıcının IP'sini toplayabilir (izleme pikseli), sahte banner çizdirebilir (oltalama),
+sunucu önizlemesi eklenirse SSRF açabilirdi. `models.dart:80` bu alanı **zaten okuyor**,
+yani görsel çizimi eklendiği anda sömürülebilir olacaktı.
+
+### ⏳ BİLİNÇLİ ERTELEME — ölü bekletme/park kodu (~500 satır)
+`active_call_controller.dart` bu projenin en kırılgan dosyası (3600+ satır, 74 turluk birikim)
+ve turu 67'de bu silme denenirken dosya bozuldu. **Test en sonda tek seferde** yapılacağı için,
+oradan 500 satır silip üstüne medya + sosyal katman koymak, arama bozulursa sebebi ayırt
+edilemez hale getirir. Büyük testten sonra kendi turunda.
+⚠️ `beklemeyeAl`in `!bekletmeAcik` dalı **CANLI** (kaçak CallKit hold olayında aramayı
+bitiriyor) — silinirken o dal korunmalı.
+
+### 📌 Migration numaraları
+014 = `reports` (turu 74) · medya **015'ten** · sosyal katman **020'den** başlar.

@@ -17,7 +17,85 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (7 Agu 22:31):** TEST TURU 73 YAYINLANDI — android 31210896371 +
+- **KALDIGIMIZ YER (8 Agu):** TURU 74 — KOD YAZILIYOR, BUILD ALINMADI.
+  Kullanici karari: **"testi en son yapacagiz, arastirma bittikten sonra hersyi bitir"** —
+  yani medya + sosyal katman TAMAMLANIP TEK SEFERDE test edilecek. Turu 73 HENUZ TEST EDILMEDI.
+  ⏳ Arka planda **sosyal katman arastirmasi** kosuyor (profil/takip/kanal/akis/gonderi/reels).
+- ⚠️⚠️⚠️ **TURU 74 — BEKLEYEN OLCUMLER OKUNDU, UC ACIK SORU KAPANDI (Sentry, 14 gun):**
+  **(1) TURU 68 KAPANDI — `supportsHolding: false` SAHADA DOGRULANDI.** `activeCalls()`
+  yaniti: `maximumCallGroups: 2, maximumCallsPerCallGroup: 1, supportsHolding: false,
+  supportsGrouping: false`. Deger CallKit'e ULASIYOR.
+  🚫 **BEKLEYEN "maximumCallGroups 2 -> 1" KARARI ARTIK GEREKSIZ — KALICI IPTAL.**
+  ⚠️ YAPMA: bir daha onerme. `maximumCallsPerCallGroup:1` ile birlikte toplam kapasite 1
+  olur ve ikinci `reportNewIncomingCall` HATA donebilir -> telefon CALMAZ + iOS 13 kurali
+  ihlali (turu 33/67 "arama karsilanmiyor" semptomu geri gelir).
+  **(2) TURU 69 — IKI KAPATMA YOLU DA CALISIYOR:** `kaynak=eklenti` **25 olay**,
+  `kaynak=native` **9 olay**. KRITIK ayrinti: `kaynak=native yasam=AppLifecycleState.paused`
+  **8 kez** -> native kanca UYGULAMA ARKA PLANDAYKEN devreye giriyor, yani tam da kullanicinin
+  sikayet ettigi senaryoyu yakaliyor. ⚠️ Kanca GEREKSIZ DEGIL, kaldirma.
+  **(3) ⚠️ TURU 63 HIPOTEZI OLCUMLE CURUTULDU:** duzeltilmis metrikle
+  `tamponMs=13 jitterMs=4.0 gizlenenOrnek=0 recvPaketSn=8`. **13 ms jitter tamponu YOK
+  HUKMUNDEDIR** — bekletmeden cikista BIRIKMIS SES YOK.
+  ⚠️ "Ses gecikmesi jitter tamponundan geliyor" aciklamasi **GECERSIZ**; bir daha bu
+  hipotezle yola cikma. Gecikme yine bildirilirse BASKA yerde ara.
+- ⚠️⚠️ **TURU 74 — OLCUM KUSURU (`holdDurumunuOlc`) DUZELTILDI:** iOS'ta
+  `FlutterCallkitIncoming.activeCalls()` **Map DEGIL `CallKitParams` NESNESI** donduruyor;
+  `c is Map` FALSE kalip `c.toString()` TUM NESNEYI (~900 karakter: id, isim, extra,
+  bildirim ayarlari) mesaja basiyordu. Iki zarari: (a) aranan `hold=` degeri BASLIKTAN
+  TASIP gorunmuyordu, (b) mesajda callId gectigi icin Sentry **her aramayi AYRI ISSUE**
+  yapmis (tek olcum 6 kayda dagilmis). Artik tipten bagimsiz ALAN CIKARILIR; mesaj KISA
+  ve SABIT -> tek issue'da gruplanir.
+  ⚠️ YAPMA: `c.toString()`e geri donme; olcum mesajina callId koyma.
+  ⚠️ **GENEL DERS: bir olcum eklerken DONEN TIPI DOGRULA.** Bu olcum 6 turdur
+  yaziliyordu ve okunamaz oldugu icin sorunun cevabini 6 tur GECIKTIRDI.
+- ⚠️⚠️⚠️ **TURU 74 — ENGELLEME SAHADA HIC CALISMIYORDU (kod okunarak tespit).**
+  `blocks` tablosu **001_init.sql'den beri VAR** ama ONA YAZAN DA OKUYAN DA YOKTU.
+  Ustelik `SendMessage` icinde `chatMemberIDs` cagrisinin ustundeki yorum yillardir
+  **"uyelik + engel kontrolu"** diyordu — YANLIS; o fonksiyon yalnizca uyelige bakiyor.
+  Yani engellemenin ne YOLU vardi ne de olsa UYGULANIRDI.
+  ⚠️ **DERS: bir yorumun anlattigi kontrolun GOVDEDE gercekten olup olmadigini dogrula.**
+  **EKLENENLER (turu 74):**
+  · migration **014_reports.sql** — `reports` tablosu. `hedef_tur` SERBEST METIN (CHECK YOK):
+    yeni icerik tipleri (medya/gonderi/reels/kanal) migration GEREKTIRMEZ.
+    `UNIQUE(reporter_id,hedef_tur,hedef_id)` -> sikayet spam'i satir biriktirmez.
+    ⚠️ YAPMA: `hedef_tur`a CHECK constraint koyma.
+  · `internal/users/moderasyon.go` — POST/DELETE `/users/{id}/block` · GET `/users/me/blocks`
+    · POST `/reports`. Hepsi IDEMPOTENT; hedef yoksa 404 (FK hatasi 500'e dusmesin).
+  · `internal/chat.engelliMi()` **TEK KAYNAK** + `SendMessage`da uygulama.
+    ⚠️ Kural **CIFT YONLU**: taraflardan HANGISI digerini engellediyse mesaj GITMEZ
+    (tek yonlu olsaydi engelleyen taraf karsisindakini rahatsiz etmeye DEVAM edebilirdi).
+    ⚠️ **FAIL-CLOSED**: engel sorgusu patlarsa mesaj GECMEZ.
+    ⚠️ Hata metni **NOTR** ("bu kişiye mesaj gönderilemiyor") — "seni engelledi" demek
+    engellemeyi IFSA eder (WhatsApp da gizler).
+  · `DELETE /chats/{chatID}/messages/{msgID}` — herkesten silme. `deleted_for_all` sutunu
+    001'den beri VARDI ve listeleme sorgulari onu OKUYORDU ama SILME UCU YOKTU (olu sutun).
+    Yalniz GONDEREN siler; satir FIZIKSEL SILINMEZ (icerik bosaltilir) -> sira ve okundu
+    bilgisi bozulmaz. WS `message.deleted` GONDERENE DE gider (ikinci cihaz).
+    ⚠️ YAPMA: sure siniri koyma (icerik kaldirma yukumlulugu sureli olamaz).
+    ⚠️ YAPMA: satiri fiziksel DELETE etme (`message_receipts` FK'si + sohbet sirasi bozulur).
+  **NEDEN SIMDI:** App Store Review Guideline 1.2 (UGC) engelleme + sikayet + icerik
+  kaldirmayi BIRLIKTE sart kosuyor; medya ve herkese acik gonderi gelmeden ONCE durmali.
+- ⚠️ **TURU 74 — `media_url` ISTEMCI ALANI KALDIRILDI (guvenlik).** `sendMessageReq.MediaURL`
+  istemciden SERBESTCE alinip DOGRULANMADAN `messages`a INSERT ediliyordu. Istemci bu alani
+  HIC GONDERMIYOR (`chats_provider.dart:80` yalnizca `{'type','content'}`) — KULLANILMIYOR
+  ama ACIK duruyordu. Herhangi biri `{"type":"image","media_url":"https://kotu/izleme.gif"}`
+  gonderip alicinin IP'sini/saatini toplayabilir (IZLEME PIKSELI), sahte banner cizdirebilir
+  (OLTALAMA), sunucu onizlemesi eklenirse SSRF acabilirdi. `models.dart:80` bu alani ZATEN
+  okuyor -> gorsel cizimi eklendigi ANDA somurulebilir olacakti.
+  ⚠️ YAPMA: alani geri ekleme. Medya gelince URL **SUNUCUDA turetilecek** (medya kaydinin
+  id'sinden), istemci ASLA URL vermez.
+- 📌 **MIGRATION NUMARALARI:** 014 = `reports` (turu 74). Medya migration'lari **015'ten**,
+  sosyal katman **020'den** baslar (medya-plani.md "014'ten devam" diyordu — GUNCELLENDI).
+- ⏳ **ERTELENDI (bilincli karar, turu 74):** ~500 satirlik olu bekletme/park zinciri
+  (`ParkEdilenArama`/`parkEt`/`devamEt`/`beklemeyeAl` govdesi/`_iosSesOturumuGarantile`/
+  `GebzemSesKurtar` + call_screen bekletme paneli) HALA DURUYOR.
+  **GEREKCE:** `active_call_controller.dart` bu projenin en kirilgan dosyasi (3600+ satir,
+  74 turluk birikim) ve turu 67'de bu silme denenirken dosya BOZULDU. Test EN SONDA tek
+  seferde yapilacagi icin, oradan 500 satir silip ustune medya + sosyal katman koymak,
+  arama bozulursa SEBEBI AYIRT EDILEMEZ hale getirir. **Buyuk testten SONRA kendi turunda.**
+  ⚠️ `beklemeyeAl`in `!bekletmeAcik` dali **CANLI** (kacak CallKit hold olayinda aramayi
+  BITIRIYOR) — silinirken o dal KORUNMALI.
+- **ONCEKI (7 Agu 22:31):** TEST TURU 73 YAYINLANDI — android 31210896371 +
   ios 31210908402 (c5ccec7), R2 apk=108271245 (md5 07f4b9dc) ipa=22365997 (md5 43ccd140),
   purge OK, **CDN birebir**, indir sayfasi 22:31, debug imza YOK, **backend DEGISMEDI**
   (19d0a96) + health ok, DB temiz (0/0/0/0). **KULLANICI TEST EDECEK.**

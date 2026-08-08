@@ -11,6 +11,10 @@
 >   (a) kullanıcı kendi mesajını/gönderisini siler, (b) kullanıcı **hesabını** siler (KVKK
 >   unutulma hakkı), (c) mahkeme/BTK kaldırma kararı, (d) CSAM/yasa dışı içerik kaldırma.
 > · ⚠️ YAPMA: plana "otomatik silme / arşivleme / yaşam döngüsü temizliği" geri koyma.
+>
+> **Ayrıca (turu 74):** migration **014** `reports` tablosuna gitti — bu plandaki
+> medya migration'ları **015'ten** başlar. Ayrıca planın Faz 2'sindeki `media_url`
+> kaldırma ve moderasyon (engelle/şikâyet/sil) adımları **turu 74'te YAPILDI** (070f4c7).
 
 ---
 ## 1. KARAR ÖZETİ
