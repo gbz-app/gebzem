@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/api.dart';
+import '../medya/medya_gorsel.dart';
 import '../../core/ws.dart';
 import '../calls/active_call_controller.dart';
 import '../calls/call_provider.dart';
@@ -215,13 +216,12 @@ class _RoomsTabState extends ConsumerState<RoomsTab> {
                         contentPadding:
                             const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                         onTap: () => _katil(o),
-                        leading: CircleAvatar(
-                          radius: 24,
-                          child: Text(
-                              (o['host_name'] as String? ?? '?').isNotEmpty
-                                  ? (o['host_name'] as String)[0].toUpperCase()
-                                  : '?',
-                              style: const TextStyle(fontSize: 20)),
+                        // ⚠️ TURU 76: sunucu artik host_avatar_media_id donuyor.
+                        //    Eskiden yalniz harf ciziliyordu.
+                        leading: Avatar(
+                          ad: (o['host_name'] as String?) ?? '',
+                          mediaId: o['host_avatar_media_id'] as String?,
+                          cap: 48,
                         ),
                         title: Text(o['title'] as String? ?? '',
                             maxLines: 2, overflow: TextOverflow.ellipsis,

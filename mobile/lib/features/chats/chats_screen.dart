@@ -7,6 +7,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../core/api.dart';
 import '../../core/theme.dart';
 import '../auth/auth_provider.dart';
+import '../medya/medya_gorsel.dart';
 import 'arama_kaydi.dart';
 import 'chats_provider.dart';
 import 'models.dart';
@@ -137,7 +138,7 @@ class _SikGorusulenSerit extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    // ⚠️ `scheme` KALDIRILDI: harf rengini artik ortak `Avatar` belirliyor.
     return Container(
       height: 96,
       padding: const EdgeInsets.only(top: 4, bottom: 6),
@@ -160,21 +161,20 @@ class _SikGorusulenSerit extends StatelessWidget {
                 final c = kisiler[i];
                 final ad = c.title.isNotEmpty ? c.title : 'Kişi';
                 return GestureDetector(
-                  onTap: () => context.push('/chat/${c.id}',
-                      extra: {'title': ad, 'peer_id': c.peerId}),
+                  onTap: () => context.push('/chat/${c.id}', extra: {
+                    'title': ad,
+                    'peer_id': c.peerId,
+                    'avatar_media_id': c.avatarMediaId,
+                  }),
                   child: SizedBox(
                     width: 62,
                     child: Column(children: [
-                      CircleAvatar(
-                        radius: 24,
-                        backgroundColor: const Color(0xFF2A2A2E),
-                        backgroundImage:
-                            c.avatarUrl.isNotEmpty ? NetworkImage(c.avatarUrl) : null,
-                        child: c.avatarUrl.isEmpty
-                            ? Text(ad[0].toUpperCase(),
-                                style: TextStyle(color: scheme.primary, fontSize: 18))
-                            : null,
-                      ),
+                      // ⚠️ TURU 76: ham CircleAvatar YERINE ortak `Avatar` —
+                      //    `users.avatar_url` sunucuda HIC yazilmiyor (kalici bos
+                      //    string), fotograf ancak `avatar_media_id` ile (imzali
+                      //    R2 adresi) gorunur. Bu serit uygulamanin en cok
+                      //    bakilan yeriydi ve DAIMA harf ciziyordu.
+                      Avatar(ad: ad, mediaId: c.avatarMediaId, cap: 48),
                       const SizedBox(height: 4),
                       Text(ad,
                           maxLines: 1,
@@ -270,13 +270,9 @@ class _ChatTile extends ConsumerWidget {
         ? null
         : chat.lastSenderId == myId;
     return ListTile(
-      leading: CircleAvatar(
-        radius: 26,
-        backgroundImage: chat.avatarUrl.isNotEmpty ? NetworkImage(chat.avatarUrl) : null,
-        child: chat.avatarUrl.isEmpty
-            ? Icon(chat.type == 'group' ? LucideIcons.users : LucideIcons.user)
-            : null,
-      ),
+      // ⚠️ TURU 76: bkz. yukaridaki serh. Grup sohbetinin kendi `avatar_media_id`i
+      //    henuz yok -> `Avatar` harf yedegine duser (dogru davranis).
+      leading: Avatar(ad: chat.title, mediaId: chat.avatarMediaId, cap: 52),
       title: Row(
         children: [
           if (chat.pinned)
@@ -332,6 +328,7 @@ class _ChatTile extends ConsumerWidget {
         ],
       ),
       onTap: () => context.push('/chat/${chat.id}', extra: {
+        'avatar_media_id': chat.avatarMediaId,
         'title': chat.title.isNotEmpty ? chat.title : 'Sohbet',
         'peer_id': chat.peerId,
       }),

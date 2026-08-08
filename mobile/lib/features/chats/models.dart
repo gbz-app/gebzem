@@ -5,6 +5,7 @@ class Chat {
     required this.type,
     required this.title,
     required this.avatarUrl,
+    this.avatarMediaId,
     required this.pinned,
     required this.archived,
     required this.lastMessage,
@@ -19,6 +20,11 @@ class Chat {
   final String type; // direct, group, channel
   final String title;
   final String avatarUrl;
+
+  /// ⚠️ TURU 76: `avatar_url` sunucuda HIC YAZILMIYOR (kalici bos string) —
+  ///    sohbet listesi bu yuzden DAIMA harf ciziyordu. Fotograf ancak bu
+  ///    alanla gorunur (R2'de, imzali adresle).
+  final String? avatarMediaId;
   final bool pinned;
   final bool archived;
   final String lastMessage;
@@ -37,6 +43,7 @@ class Chat {
         type: j['type'] as String? ?? 'direct',
         title: j['title'] as String? ?? '',
         avatarUrl: j['avatar_url'] as String? ?? '',
+        avatarMediaId: j['avatar_media_id'] as String?,
         pinned: j['pinned'] as bool? ?? false,
         archived: j['archived'] as bool? ?? false,
         lastMessage: j['last_message'] as String? ?? '',

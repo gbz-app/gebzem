@@ -8,6 +8,7 @@ import '../../core/api.dart';
 import '../../core/ws.dart';
 import '../calls/active_call_controller.dart';
 import '../calls/call_provider.dart';
+import '../medya/medya_gorsel.dart';
 import 'live_provider.dart';
 import 'live_start_screen.dart';
 import 'live_viewer_screen.dart';
@@ -144,14 +145,13 @@ class _LiveTabState extends ConsumerState<LiveTab> {
                         contentPadding:
                             const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                         onTap: () => _izle(y),
-                        leading: CircleAvatar(
-                          radius: 24,
-                          backgroundColor: const Color(0xFF6C2BD9),
-                          child: Text(
-                              (y['broadcaster_name'] as String? ?? '?').isNotEmpty
-                                  ? (y['broadcaster_name'] as String)[0].toUpperCase()
-                                  : '?',
-                              style: const TextStyle(fontSize: 20, color: Colors.white)),
+                        // ⚠️ TURU 76: sunucu artik `broadcaster_avatar_media_id`
+                        //    donuyor; eskiden yalniz harf ciziliyordu cunku
+                        //    `avatar_url` sunucuda HIC yazilmiyor.
+                        leading: Avatar(
+                          ad: (y['broadcaster_name'] as String?) ?? '',
+                          mediaId: y['broadcaster_avatar_media_id'] as String?,
+                          cap: 48,
                         ),
                         title: Text(y['title'] as String? ?? '',
                             maxLines: 2, overflow: TextOverflow.ellipsis,

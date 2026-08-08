@@ -455,6 +455,7 @@ func (h *Handler) ListChats(w http.ResponseWriter, r *http.Request) {
 		SELECT c.id, c.type,
 		       CASE WHEN c.type='direct' THEN COALESCE(peer.name, '') ELSE c.title END AS title,
 		       CASE WHEN c.type='direct' THEN COALESCE(peer.avatar_url, '') ELSE c.avatar_url END AS avatar_url,
+		       peer.avatar_media_id,
 		       cm.pinned, cm.archived,
 		       COALESCE(lm.content,''), COALESCE(lm.type,''),
 		       COALESCE(lm.sender_id::text,''), lm.created_at,
@@ -465,7 +466,7 @@ func (h *Handler) ListChats(w http.ResponseWriter, r *http.Request) {
 		FROM chats c
 		JOIN chat_members cm ON cm.chat_id=c.id AND cm.user_id=$1
 		LEFT JOIN LATERAL (
-			SELECT u.id, u.name, u.avatar_url FROM chat_members cm2
+			SELECT u.id, u.name, u.avatar_url, u.avatar_media_id FROM chat_members cm2
 			JOIN users u ON u.id = cm2.user_id
 			WHERE cm2.chat_id = c.id AND cm2.user_id <> $1
 			LIMIT 1
@@ -482,14 +483,18 @@ func (h *Handler) ListChats(w http.ResponseWriter, r *http.Request) {
 	defer rows.Close()
 
 	type chatRow struct {
-		ID          string `json:"id"`
-		Type        string `json:"type"`
-		Title       string `json:"title"`
-		AvatarURL   string `json:"avatar_url"`
-		Pinned      bool   `json:"pinned"`
-		Archived    bool   `json:"archived"`
-		LastMessage string `json:"last_message"`
-		LastType    string `json:"last_type"`
+		ID        string `json:"id"`
+		Type      string `json:"type"`
+		Title     string `json:"title"`
+		AvatarURL string `json:"avatar_url"`
+		// ⚠️⚠️ TURU 76: `avatar_url` sunucuda HIC YAZILMIYOR (kalici bos string) —
+		//    sohbet listesi ve "Sik gorustuklerin" seridi bu yuzden DAIMA harf
+		//    cizyordu. Fotograf ancak bu alanla gorunur.
+		AvatarMediaID *string `json:"avatar_media_id,omitempty"`
+		Pinned        bool    `json:"pinned"`
+		Archived      bool    `json:"archived"`
+		LastMessage   string  `json:"last_message"`
+		LastType      string  `json:"last_type"`
 		// TURU 59: son mesajin gondereni. Sohbet LISTESI arama kaydi onizlemesinde
 		// YON gerekiyor ("Cevapsiz sesli arama" yalniz ARANAN icin dogrudur; arayan
 		// icin "Sesli arama" yazilmali — WhatsApp da boyle). Bu alan olmadan
@@ -503,7 +508,7 @@ func (h *Handler) ListChats(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var c chatRow
 		// ⚠️ SIRA SELECT ile BIREBIR ayni olmali (pgx konuma gore tarar).
-		if err := rows.Scan(&c.ID, &c.Type, &c.Title, &c.AvatarURL, &c.Pinned, &c.Archived,
+		if err := rows.Scan(&c.ID, &c.Type, &c.Title, &c.AvatarURL, &c.AvatarMediaID, &c.Pinned, &c.Archived,
 			&c.LastMessage, &c.LastType, &c.LastSender, &c.LastAt, &c.Unread, &c.PeerID); err == nil {
 			out = append(out, c)
 		}

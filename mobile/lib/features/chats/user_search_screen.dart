@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/api.dart';
+import '../medya/medya_gorsel.dart';
 import 'chats_provider.dart';
 
 /// Kisi arama: isim veya @kullaniciadi ile ara, sohbet baslat
@@ -148,12 +149,15 @@ class _UserSearchScreenState extends ConsumerState<UserSearchScreen> {
       itemCount: _results.length,
       itemBuilder: (context, i) {
         final u = _results[i];
-        final avatar = (u['avatar_url'] as String?) ?? '';
+        // ⚠️ TURU 76: sunucu `avatar_media_id`yi ZATEN donduruyordu ama istemci
+        //    OKUMUYORDU — turu 74'teki `engellenenler.dart` hatasinin AYNASI.
+        //    Kisi arama sonuclarinda kimsenin fotografi gorunmuyordu.
         return ListTile(
-          leading: CircleAvatar(
-            radius: 24,
-            backgroundImage: avatar.isNotEmpty ? NetworkImage(avatar) : null,
-            child: avatar.isEmpty ? const Icon(LucideIcons.user) : null,
+          leading: Avatar(
+            ad: (u['name'] as String?) ?? '',
+            mediaId: u['avatar_media_id'] as String?,
+            avatarUrl: (u['avatar_url'] as String?) ?? '',
+            cap: 48,
           ),
           title: Text(u['name'] as String? ?? ''),
           subtitle: Text('@${u['username'] ?? ''}'),

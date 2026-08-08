@@ -30,11 +30,16 @@ class ChatScreen extends ConsumerStatefulWidget {
     required this.chatId,
     required this.title,
     this.peerId,
+    this.avatarMediaId,
   });
 
   final String chatId;
   final String title;
   final String? peerId; // 1:1 sohbette karsi tarafin id'si (arama icin)
+
+  /// ⚠️ TURU 76: sohbet basliginda AVATAR HIC YOKTU (WhatsApp'ta daima vardir).
+  ///    Opsiyonel — cagiran bilmiyorsa harf yedegine duser, EK ISTEK ATILMAZ.
+  final String? avatarMediaId;
 
   @override
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
@@ -358,16 +363,30 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Column(
+        // ⚠️ TURU 76: baslikta AVATAR. Avatari basligin ICINE koyduk (leading'e
+        //    degil) — geri oku ve mevcut "actions" duzeni BOZULMAZ.
+        titleSpacing: 0,
+        title: Row(
+          children: [
+            Avatar(ad: widget.title, mediaId: widget.avatarMediaId, cap: 34),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(widget.title, style: const TextStyle(fontSize: 17)),
+            Text(widget.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 17)),
             // NOT (test turu 18): "Sesli aramada" YAZISI KALDIRILDI (kullanici istemedi).
             // Durum yalniz arama ikonlarinin renginde ima edilir.
             if (typing)
               Text('yazıyor...',
                   style: TextStyle(
                       fontSize: 12, color: Theme.of(context).colorScheme.primary)),
+          ],
+              ),
+            ),
           ],
         ),
         actions: () {
