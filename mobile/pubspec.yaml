@@ -92,6 +92,13 @@ dependencies:
   #    ve arama/oda/yayin canliyken ses ZORLA kapatilir (bkz. sosyal/medya_video.dart).
   video_player: ^2.9.2
 
+  # TURU 76 — sohbet listesinde KAYDIRMA aksiyonlari (sil/arsivle/sabitle).
+  # Uygulamada daha once HICBIR swipe widget'i yoktu (Dismissible/Slidable 0 kullanim).
+  # !! Dismissible YERINE flutter_slidable: Dismissible ogeyi AGACTAN SILER ve
+  #    "arsivle" gibi GERI ALINABILIR islemlerde satiri geri getirmek icin ek
+  #    durum yonetimi gerektirir; Slidable panel acar, satir yerinde kalir.
+  flutter_slidable: ^4.0.3
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

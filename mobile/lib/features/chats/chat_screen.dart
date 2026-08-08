@@ -67,6 +67,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   /// TURU 74: sunucuda medya acik mi (R2 env). Kapaliysa atac dugmesi CIZILMEZ.
   bool _medyaAcik = false;
+
+  /// ⚠️ TURU 76: bu bir GRUP sohbeti mi. `peerId` YOKSA gruptur — 1:1 sohbet
+  ///    acilirken `peer_id` HER ZAMAN gecirilir (`chats_screen`, `user_search`,
+  ///    `profil_sayfasi`), grup olusturmada gecirilmez.
+  ///    Balonlarda gonderen adi YALNIZ grupta cizilir.
+  bool get _grupMu => widget.peerId == null;
   bool _yukleniyor = false;
   double _ilerleme = 0;
 
@@ -500,7 +506,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                 mesaj: msg,
                                 benimMi: mine,
                                 chatId: widget.chatId),
-                            child: _Bubble(message: msg, mine: mine),
+                            child: _Bubble(message: msg, mine: mine, grup: _grupMu),
                           ),
                       ],
                     );
@@ -875,10 +881,37 @@ class _CallLogChip extends StatelessWidget {
 }
 
 class _Bubble extends StatelessWidget {
-  const _Bubble({required this.message, required this.mine});
+  const _Bubble({
+    required this.message,
+    required this.mine,
+    this.grup = false,
+  });
 
   final Message message;
   final bool mine;
+
+  /// ⚠️⚠️ TURU 76 — GRUPTA GONDEREN ADI/AVATARI ZORUNLU.
+  ///    Mesaj balonlarinda gonderen bilgisi HIC YOKTU. Grup ozelligi eklendigi
+  ///    ANDA sohbet OKUNAMAZ hale gelirdi: 20 kisilik grupta tum mesajlar
+  ///    isimsiz gri balon olarak gorunur, kimin yazdigi ayirt edilemezdi.
+  ///    Yani grup ucunu tek basina eklemek YETMEZDI.
+  /// ⚠️ 1:1'de CIZILMEZ (gereksiz gurultu — zaten iki kisi var).
+  final bool grup;
+
+  /// Gonderen adinin rengi — kimlige gore SABIT.
+  /// ⚠️ Rastgele DEGIL: her cizimde degisen renk grup sohbetini okunmaz yapar.
+  static Color _adRengi(String id) {
+    const palet = [
+      Color(0xFF8B5CF6), Color(0xFF2196F3), Color(0xFF4CAF50),
+      Color(0xFFFF9800), Color(0xFFE91E63), Color(0xFF00BCD4),
+      Color(0xFFFFC107), Color(0xFF9C27B0),
+    ];
+    var h = 0;
+    for (final c in id.codeUnits) {
+      h = (h * 31 + c) & 0x7fffffff;
+    }
+    return palet[h % palet.length];
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -911,6 +944,24 @@ class _Bubble extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.end,
           mainAxisSize: MainAxisSize.min,
           children: [
+            // ⚠️ GRUPTA gonderen adi — KENDI mesajimda cizilmez.
+            if (grup && !mine && message.senderName.isNotEmpty)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 3),
+                  child: Text(
+                    message.senderName,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      // Ada gore SABIT renk: ayni kisi hep ayni renkte gorunur
+                      // (WhatsApp deseni) — okunurlugu ciddi artirir.
+                      color: _adRengi(message.senderId),
+                    ),
+                  ),
+                ),
+              ),
             if (message.deletedForAll)
               Text('Bu mesaj silindi',
                   style: TextStyle(

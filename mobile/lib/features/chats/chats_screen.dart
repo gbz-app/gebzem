@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -10,6 +11,7 @@ import '../auth/auth_provider.dart';
 import '../medya/medya_gorsel.dart';
 import 'arama_kaydi.dart';
 import 'chats_provider.dart';
+import 'grup_olustur.dart';
 import 'models.dart';
 
 /// WhatsApp tarzi sohbet listesi. "Gebzem" basliginin altinda ARAMA INPUT'u (yerel filtre);
@@ -21,14 +23,74 @@ class ChatsScreen extends ConsumerStatefulWidget {
   ConsumerState<ChatsScreen> createState() => _ChatsScreenState();
 }
 
+/// Sohbet listesi filtresi.
+/// ⚠️ Arsiv AYRI bir gorunumdur: digerlerinde arsivlenmisler GIZLIDIR.
+enum _Filtre { tumu, okunmamis, gruplar, arsiv }
+
 class _ChatsScreenState extends ConsumerState<ChatsScreen> {
   final _aramaCtrl = TextEditingController();
   String _arama = '';
+  _Filtre _filtre = _Filtre.tumu;
 
   @override
   void dispose() {
     _aramaCtrl.dispose();
     super.dispose();
+  }
+
+  /// + dugmesi: yeni sohbet mi, yeni grup mu.
+  Future<void> _yeniSecenek(BuildContext context) async {
+    final secim = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (c) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(LucideIcons.messageCirclePlus),
+              title: const Text('Yeni sohbet'),
+              subtitle: const Text('Bir kişiyle mesajlaş'),
+              onTap: () => Navigator.pop(c, 'sohbet'),
+            ),
+            ListTile(
+              leading: const Icon(LucideIcons.users),
+              title: const Text('Yeni grup'),
+              subtitle: const Text('Birden fazla kişiyle mesajlaş'),
+              onTap: () => Navigator.pop(c, 'grup'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!context.mounted || secim == null) return;
+    if (secim == 'sohbet') {
+      context.push('/search');
+      return;
+    }
+    final chatId = await Navigator.of(context).push<String>(
+        MaterialPageRoute(builder: (_) => const GrupOlusturEkrani()));
+    if (chatId != null && context.mounted) {
+      context.push('/chat/$chatId', extra: {'title': 'Grup'});
+    }
+  }
+
+  /// Cip etiketi. Okunmamis ve arsiv icin SAYI da gosterilir — kullanici
+  /// filtreye dokunmadan kac tane oldugunu gorsun.
+  String _filtreAdi(_Filtre f, List<Chat>? liste) {
+    final l = liste ?? const <Chat>[];
+    switch (f) {
+      case _Filtre.tumu:
+        return 'Tümü';
+      case _Filtre.okunmamis:
+        final n = l.where((c) => !c.archived && c.unread > 0).length;
+        return n > 0 ? 'Okunmamış ($n)' : 'Okunmamış';
+      case _Filtre.gruplar:
+        return 'Gruplar';
+      case _Filtre.arsiv:
+        final n = l.where((c) => c.archived).length;
+        return n > 0 ? 'Arşiv ($n)' : 'Arşiv';
+    }
   }
 
   @override
@@ -66,6 +128,27 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
             ),
           ),
         ),
+        // FILTRE CIPLERI — arama kutusunun ALTINDA (WhatsApp deseni).
+        SizedBox(
+          height: 38,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            children: [
+              for (final f in _Filtre.values)
+                Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: ChoiceChip(
+                    label: Text(_filtreAdi(f, chats.valueOrNull)),
+                    selected: _filtre == f,
+                    onSelected: (_) => setState(() => _filtre = f),
+                    visualDensity: VisualDensity.compact,
+                    labelStyle: const TextStyle(fontSize: 12),
+                  ),
+                ),
+            ],
+          ),
+        ),
         Expanded(
           child: chats.when(
             loading: () => const Center(child: CircularProgressIndicator()),
@@ -74,7 +157,20 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
               onRetry: () => ref.read(chatsProvider.notifier).load(),
             ),
             data: (list) {
-              var visible = list.where((c) => !c.archived).toList();
+              // ⚠️⚠️ TURU 76 — FILTRE (kullanici emri: "tümü / okunmamış vs").
+              //    TAMAMEN ISTEMCI TARAFINDA: sunucu zaten `unread`, `type` ve
+              //    `archived` donduruyor, yani YENI UC GEREKMEZ. Liste kullanicinin
+              //    TUM sohbetleri oldugu icin sayfalama da gerekmiyor.
+              // ⚠️ Arsiv AYRI bir filtre: digerlerinde arsivlenmisler GIZLI kalir,
+              //    yoksa "arsivle" hicbir ise yaramaz.
+              var visible = switch (_filtre) {
+                _Filtre.okunmamis =>
+                  list.where((c) => !c.archived && c.unread > 0).toList(),
+                _Filtre.gruplar =>
+                  list.where((c) => !c.archived && c.type == 'group').toList(),
+                _Filtre.arsiv => list.where((c) => c.archived).toList(),
+                _ => list.where((c) => !c.archived).toList(),
+              };
               if (_arama.isNotEmpty) {
                 visible = visible
                     .where((c) => c.title.toLowerCase().contains(_arama))
@@ -82,7 +178,9 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
               }
               // SIK GORUSULEN kisiler (test turu 7): arama YOKKEN, arama input'unun altinda
               // en son gorusulen 1:1 kisiler yatay profil seridi (WhatsApp/Telegram deseni).
-              final sik = _arama.isEmpty
+              // ⚠️ Serit YALNIZ "Tümü" filtresinde: okunmamis/gruplar/arsiv
+              //    goruntusunde tum kisileri gostermek FILTREYI ANLAMSIZ kilar.
+              final sik = (_arama.isEmpty && _filtre == _Filtre.tumu)
                   ? (list.where((c) => c.type == 'direct' && !c.archived).toList()
                     ..sort((a, b) => (b.lastAt ?? DateTime(0))
                         .compareTo(a.lastAt ?? DateTime(0))))
@@ -92,7 +190,13 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
                   child: Text(
                       _arama.isNotEmpty
                           ? 'Eşleşen sohbet yok'
-                          : 'Henüz sohbet yok.\nSağ alttan yeni sohbet başlat!',
+                          : switch (_filtre) {
+                              _Filtre.okunmamis => 'Okunmamış sohbet yok',
+                              _Filtre.gruplar =>
+                                'Henüz grubun yok.\nSağ alttan grup oluştur!',
+                              _Filtre.arsiv => 'Arşivde sohbet yok',
+                              _ => 'Henüz sohbet yok.\nSağ alttan yeni sohbet başlat!',
+                            },
                       textAlign: TextAlign.center),
                 );
               }
@@ -119,7 +223,11 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
         ),
         child: FloatingActionButton(
           heroTag: 'fabYeniSohbet', // TURU 76: bkz. akis_ekrani hero serhi
-          onPressed: () => context.push('/search'),
+          // ⚠️⚠️ TURU 76: + artik SECENEK SUNUYOR (yeni sohbet / YENI GRUP).
+          //    Grup olusturma ekranini yalniz "uzun bas" gibi gizli bir hareketin
+          //    arkasina koymak, bu projede iki kez yasanan "OLU DOGMUS OZELLIK"
+          //    sinifidir: kod yazilir, kullanici varligini HIC ogrenemez.
+          onPressed: () => _yeniSecenek(context),
           backgroundColor: Colors.transparent,
           elevation: 0,
           highlightElevation: 0,
@@ -269,7 +377,7 @@ class _ChatTile extends ConsumerWidget {
     final bool? benimMi = (myId == null || chat.lastSenderId.isEmpty)
         ? null
         : chat.lastSenderId == myId;
-    return ListTile(
+    final satir = ListTile(
       // ⚠️ TURU 76: bkz. yukaridaki serh. Grup sohbetinin kendi `avatar_media_id`i
       //    henuz yok -> `Avatar` harf yedegine duser (dogru davranis).
       leading: Avatar(ad: chat.title, mediaId: chat.avatarMediaId, cap: 52),
@@ -333,6 +441,108 @@ class _ChatTile extends ConsumerWidget {
         'peer_id': chat.peerId,
       }),
     );
+
+    // ⚠️⚠️ TURU 76 — KAYDIRMA AKSIYONLARI (kullanici emri: "mesaj sol sag
+    //    yapinca sil/arsivle cikmali"). Uygulamada daha once HICBIR swipe
+    //    hareketi YOKTU (Dismissible/Slidable proje genelinde 0 kullanim).
+    // ⚠️ `Dismissible` DEGIL `Slidable`: Dismissible ogeyi AGACTAN SILER; arsiv
+    //    gibi GERI ALINABILIR bir islemde satiri geri getirmek icin ek durum
+    //    yonetimi gerekirdi. Slidable panel acar, satir YERINDE kalir.
+    // ⚠️ `groupTag` ZORUNLU: ayni gruptaki baska bir satir acilinca bu
+    //    kendiliginden KAPANIR (iki satir birden acik kalmaz).
+    return Slidable(
+      key: ValueKey(chat.id),
+      groupTag: 'sohbet',
+      startActionPane: ActionPane(
+        motion: const DrawerMotion(),
+        extentRatio: 0.5,
+        children: [
+          SlidableAction(
+            onPressed: (_) => _ayar(context, ref, pinned: !chat.pinned),
+            backgroundColor: const Color(0xFF3A3A45),
+            foregroundColor: Colors.white,
+            icon: chat.pinned ? LucideIcons.pinOff : LucideIcons.pin,
+            label: chat.pinned ? 'Kaldır' : 'Sabitle',
+          ),
+          SlidableAction(
+            onPressed: (_) => _ayar(context, ref, muted: !chat.sessiz),
+            backgroundColor: const Color(0xFF4A4A55),
+            foregroundColor: Colors.white,
+            icon: chat.sessiz ? LucideIcons.bell : LucideIcons.bellOff,
+            label: chat.sessiz ? 'Sesi aç' : 'Sessiz',
+          ),
+        ],
+      ),
+      endActionPane: ActionPane(
+        motion: const DrawerMotion(),
+        extentRatio: 0.5,
+        children: [
+          SlidableAction(
+            onPressed: (_) => _ayar(context, ref, archived: !chat.archived),
+            backgroundColor: const Color(0xFF6C2BD9),
+            foregroundColor: Colors.white,
+            icon: chat.archived ? LucideIcons.archiveRestore : LucideIcons.archive,
+            label: chat.archived ? 'Geri al' : 'Arşivle',
+          ),
+          SlidableAction(
+            onPressed: (_) => _sil(context, ref),
+            backgroundColor: const Color(0xFFD32F2F),
+            foregroundColor: Colors.white,
+            icon: LucideIcons.trash2,
+            label: 'Sil',
+          ),
+        ],
+      ),
+      child: satir,
+    );
+  }
+
+  /// Sabitle / arşivle / sessize al. ⚠️ Gonderilmeyen alan sunucuda DEGISMEZ.
+  Future<void> _ayar(BuildContext context, WidgetRef ref,
+      {bool? pinned, bool? archived, bool? muted}) async {
+    final mesajci = ScaffoldMessenger.of(context);
+    try {
+      await ref.read(apiProvider).patch('/chats/${chat.id}', data: {
+        if (pinned != null) 'pinned': pinned,
+        if (archived != null) 'archived': archived,
+        if (muted != null) 'muted': muted,
+      });
+      await ref.read(chatsProvider.notifier).load();
+    } catch (e) {
+      mesajci.showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
+    }
+  }
+
+  /// Sohbeti BENDEN sil.
+  /// ⚠️ Karsi tarafin gecmisi ETKILENMEZ — sunucu satiri silmez, `cleared_at`
+  ///    damgasi atar (bkz. internal/chat/grup.go serhi). Metin bunu ACIKCA soyler,
+  ///    yoksa kullanici "karsi taraftan da silindi" saniyor.
+  Future<void> _sil(BuildContext context, WidgetRef ref) async {
+    final mesajci = ScaffoldMessenger.of(context);
+    final onay = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Sohbet silinsin mi?'),
+        content: const Text(
+            'Bu sohbet yalnızca sizden silinir. Karşı taraf mesajları görmeye '
+            'devam eder.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(c, false),
+              child: const Text('Vazgeç')),
+          TextButton(
+              onPressed: () => Navigator.pop(c, true),
+              child: const Text('Sil', style: TextStyle(color: Color(0xFFD32F2F)))),
+        ],
+      ),
+    );
+    if (onay != true) return;
+    try {
+      await ref.read(apiProvider).delete('/chats/${chat.id}');
+      await ref.read(chatsProvider.notifier).load();
+    } catch (e) {
+      mesajci.showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
+    }
   }
 }
 

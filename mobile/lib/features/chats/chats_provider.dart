@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api.dart';
 import '../../core/ws.dart';
+import '../auth/auth_provider.dart';
 import 'models.dart';
 
 /// Sohbet listesi: REST'ten ceker, WebSocket olaylariyla canli guncellenir
@@ -73,6 +74,12 @@ class MessagesNotifier extends StateNotifier<AsyncValue<List<Message>>> {
   final String chatId;
   StreamSubscription? _sub;
   void Function()? _yakalama;
+
+  /// ⚠️ TURU 76: `receipt.read` olayini dogru islemek icin kendi kimligim.
+  ///    `myUserIdProvider` ASENKRON; gelmediyse `null` kalir ve o durumda ESKI
+  ///    (gevsek) davranisa duseriz — mavi tik yanlis cizilebilir ama mesajlar
+  ///    KAYBOLMAZ. Guvenli varsayilan.
+  String? get _benimId => _ref.read(myUserIdProvider).valueOrNull;
 
   /// "yaziyor..." gostergesi icin son olay zamani
   DateTime? typingAt;
@@ -154,10 +161,22 @@ class MessagesNotifier extends StateNotifier<AsyncValue<List<Message>>> {
           _ref.read(apiProvider).post('/chats/$chatId/read').ignore();
         }
       case 'receipt.read':
-        // karsi taraf okudu — benim mesajlarim mavi tik olsun
+        // ⚠️⚠️ TURU 76 — OKUYANIN KIM OLDUGU KONTROL EDILIYOR.
+        //    Eskiden olay KOSULSUZ isleniyor ve listedeki TUM mesajlar
+        //    (kendiminki olsun olmasin) `read = true` yapiliyordu.
+        //    1:1'de tesadufen dogruydu (tek karsi taraf var). GRUP acildigi AN
+        //    YALAN olurdu: 5 kisilik grupta SADECE BIRI okudugunda diger 4
+        //    kisinin ekraninda butun mesajlar mavi tike donerdi —
+        //    "herkes okudu" yalani.
+        // ⚠️ KENDI okuma olayimi da yok sayiyorum: kendi mesajlarimi mavi
+        //    yapmaz, gereksiz yeniden cizim uretirdi.
+        final okuyan = (ev['payload'] as Map?)?['user_id'] as String?;
+        if (okuyan != null && okuyan == _benimId) break;
         final current = List<Message>.from(state.valueOrNull ?? []);
         for (final m in current) {
-          m.read = true;
+          // ⚠️ Yalniz BENIM mesajlarim mavi tik alir — karsi tarafin mesajina
+          //    "okundu" yazmak anlamsizdi.
+          if (_benimId == null || m.senderId == _benimId) m.read = true;
         }
         state = AsyncValue.data(current);
       case 'typing':

@@ -8,6 +8,7 @@ class Chat {
     this.avatarMediaId,
     required this.pinned,
     required this.archived,
+    this.sessiz = false,
     required this.lastMessage,
     required this.lastType,
     required this.lastSenderId,
@@ -27,6 +28,9 @@ class Chat {
   final String? avatarMediaId;
   final bool pinned;
   final bool archived;
+
+  /// TURU 76: sessize alinmis mi (muted_until). 001'den beri OLU SUTUNDU.
+  final bool sessiz;
   final String lastMessage;
   final String lastType;
   /// TURU 59: son mesajin GONDERENI. Sohbet listesi arama kaydi onizlemesinde YON
@@ -46,6 +50,7 @@ class Chat {
         avatarMediaId: j['avatar_media_id'] as String?,
         pinned: j['pinned'] as bool? ?? false,
         archived: j['archived'] as bool? ?? false,
+        sessiz: j['muted'] as bool? ?? false,
         lastMessage: j['last_message'] as String? ?? '',
         lastType: j['last_type'] as String? ?? '',
         lastSenderId: j['last_sender_id'] as String? ?? '',
@@ -70,6 +75,8 @@ class Message {
     this.height = 0,
     this.fileName = '',
     this.bytes = 0,
+    this.senderName = '',
+    this.senderAvatarMediaId,
     required this.replyToId,
     required this.deletedForAll,
     required this.createdAt,
@@ -91,6 +98,9 @@ class Message {
   final int height;
   final String fileName;
   final int bytes;
+  /// TURU 76 — GRUP icin: gonderen adi/avatari. 1:1'de cizilmez.
+  final String senderName;
+  final String? senderAvatarMediaId;
   final int? replyToId;
   final bool deletedForAll;
   final DateTime createdAt;
@@ -109,6 +119,8 @@ class Message {
         height: (j['height'] as num?)?.toInt() ?? 0,
         fileName: j['file_name'] as String? ?? '',
         bytes: (j['bytes'] as num?)?.toInt() ?? 0,
+        senderName: j['sender_name'] as String? ?? '',
+        senderAvatarMediaId: j['sender_avatar_media_id'] as String?,
         replyToId: (j['reply_to_id'] as num?)?.toInt(),
         deletedForAll: j['deleted_for_all'] as bool? ?? false,
         createdAt: DateTime.tryParse(j['created_at'] as String? ?? '') ?? DateTime.now(),
@@ -120,6 +132,8 @@ class Message {
   Message silindiKopyasi() => Message(
         id: id,
         senderId: senderId,
+        senderName: senderName,
+        senderAvatarMediaId: senderAvatarMediaId,
         type: type,
         content: '',
         mediaUrl: '',
