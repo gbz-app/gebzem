@@ -14,6 +14,7 @@ import 'call_media_options.dart';
 import 'call_provider.dart';
 import 'call_sounds.dart';
 import 'callkit_service.dart';
+import '../medya/ses_notu_kontrol.dart'; // turu 74: arama kazanir kapisi
 
 /// Gelen arama ekrani — uygulama acikken her ekranin uzerinde belirir.
 /// (Kilit ekraninda calma/CallKit sonraki asamada eklenecek.)
@@ -183,6 +184,14 @@ class _IncomingCallSheetState extends ConsumerState<_IncomingCallSheet> {
 
   Future<void> _accept({bool zorla = false}) async {
     if (_busy && !zorla) return;
+    // ⚠️⚠️ TURU 74 — ARAMA KAZANIR: suren ses notu kaydi/oynatmasi SUSTURULUR.
+    //     ⚠️ Kayit SILINMEZ — taslak kalir, kullanici gorusme bitince gonderir.
+    //     ⚠️ 400ms tavanli (SesNotuKontrol.sustur): ses notunun yikimi HICBIR
+    //        KOSULDA aramayi bloklamaz (turu 67: zaman asimsiz await ekrani asti).
+    //     ⚠️ Ses notu `SesSahipligi` defterine YAZILMAZ — o defter
+    //        setAudioEnabled(false) kararini verir; yazilsaydi `aramaCanli` YALAN
+    //        soyler ve ses birimi bir daha kapanmazdi.
+    unawaited(SesNotuKontrol.sustur());
     if (mounted) setState(() => _busy = true);
     // FAZ-1B HIZ: zil durdurmayi BEKLEME (nesil jetonu + dispose'taki durdur yarisi zaten
     // koruyor) + izinleri answer REST'iyle PARALEL iste (verilmisse anlik doner; _connect'in

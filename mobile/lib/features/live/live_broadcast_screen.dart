@@ -18,6 +18,7 @@ import '../calls/call_provider.dart';
 import '../calls/active_call_controller.dart'; // turu 72
 import '../calls/call_room_lock.dart';
 import '../calls/medya_beklet.dart'; // turu 72: ortak duraklatma primitifi
+import '../medya/ses_notu_kontrol.dart'; // turu 74
 import '../calls/mini_izgara.dart';
 import '../calls/pip_service.dart';
 import 'live_info_sheets.dart';
@@ -107,6 +108,14 @@ class _LiveBroadcastScreenState extends ConsumerState<LiveBroadcastScreen>
     _svc = ref.read(callServiceProvider.notifier);
     _svc.ekranAcildi('yayin_${widget.streamId}'); // arama muhafizi
     SesSahipligi.kaydol('yayin_b_${widget.streamId}'); // turu 73b: b=yayinci
+    // ⚠️⚠️ TURU 74 — ARAMA KAZANIR: suren ses notu kaydi/oynatmasi SUSTURULUR.
+    //     ⚠️ Kayit SILINMEZ — taslak kalir, kullanici gorusme bitince gonderir.
+    //     ⚠️ 400ms tavanli (SesNotuKontrol.sustur): ses notunun yikimi HICBIR
+    //        KOSULDA aramayi bloklamaz (turu 67: zaman asimsiz await ekrani asti).
+    //     ⚠️ Ses notu `SesSahipligi` defterine YAZILMAZ — o defter
+    //        setAudioEnabled(false) kararini verir; yazilsaydi `aramaCanli` YALAN
+    //        soyler ve ses birimi bir daha kapanmazdi.
+    unawaited(SesNotuKontrol.sustur());
     // ⚠️⚠️ TURU 71 — GSM GOZCUSU BU EKRANDA DA ACIK (gizlilik). Eskiden yalniz
     // arama akisinda aciliyordu; odada/yayinda telefon gorusmesi yapilirsa
     // `gsmAramada` HIC guncellenmiyor ve mikrofon kapilari tetiklenmiyordu.

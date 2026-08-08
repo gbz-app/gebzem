@@ -57,6 +57,12 @@ class Message {
     required this.content,
     required this.mediaUrl,
     this.mediaId,
+    this.durationMs = 0,
+    this.waveform = '',
+    this.width = 0,
+    this.height = 0,
+    this.fileName = '',
+    this.bytes = 0,
     required this.replyToId,
     required this.deletedForAll,
     required this.createdAt,
@@ -71,6 +77,13 @@ class Message {
   /// TURU 74: R2 medya kaydinin kimligi. ⚠️ URL DEGIL id — adres her
   /// goruntulemede /media/{id}/url ile ALINIR (imza 600sn omurlu).
   final String? mediaId;
+  /// TURU 74: medya ustverisi — sunucudan mesajla BIRLIKTE gelir (N+1 istek yok).
+  final int durationMs;
+  final String waveform;
+  final int width;
+  final int height;
+  final String fileName;
+  final int bytes;
   final int? replyToId;
   final bool deletedForAll;
   final DateTime createdAt;
@@ -83,6 +96,12 @@ class Message {
         content: j['content'] as String? ?? '',
         mediaUrl: j['media_url'] as String? ?? '',
         mediaId: j['media_id'] as String?,
+        durationMs: (j['duration_ms'] as num?)?.toInt() ?? 0,
+        waveform: j['waveform'] as String? ?? '',
+        width: (j['width'] as num?)?.toInt() ?? 0,
+        height: (j['height'] as num?)?.toInt() ?? 0,
+        fileName: j['file_name'] as String? ?? '',
+        bytes: (j['bytes'] as num?)?.toInt() ?? 0,
         replyToId: (j['reply_to_id'] as num?)?.toInt(),
         deletedForAll: j['deleted_for_all'] as bool? ?? false,
         createdAt: DateTime.tryParse(j['created_at'] as String? ?? '') ?? DateTime.now(),

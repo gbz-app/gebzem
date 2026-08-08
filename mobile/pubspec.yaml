@@ -81,6 +81,9 @@ dependencies:
   # Uzak gorsel onbellegi. ⚠️ Bizde URL KISA OMURLU (600sn imzali) oldugu icin
   # onbellek anahtari URL DEGIL `media_id` olmali — bkz. medya_servisi.dart.
   cached_network_image: ^3.4.1
+  # Ses notu kaydi. ⚠️ Yeni IZIN GEREKMEZ: RECORD_AUDIO (AndroidManifest) ve
+  # NSMicrophoneUsageDescription (Info.plist) arama icin ZATEN var.
+  record: ^7.1.1
 
 dev_dependencies:
   flutter_test:

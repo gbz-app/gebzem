@@ -18,6 +18,7 @@ import '../../router.dart' show rootMessengerKey;
 import '../calls/active_call_controller.dart'; // turu 72: duraklatma tetikleyicisi
 import '../calls/call_room_lock.dart';
 import '../calls/medya_beklet.dart'; // turu 72: ortak duraklatma primitifi
+import '../medya/ses_notu_kontrol.dart'; // turu 74
 import '../calls/pip_service.dart'; // turu 71: GSM gizlilik kapisi
 import '../home/home_screen.dart' show myProfileProvider;
 import 'room_provider.dart';
@@ -128,6 +129,14 @@ class _RoomScreenState extends ConsumerState<RoomScreen> with WidgetsBindingObse
     _svc.ekranAcildi('oda_${widget.roomId}');
     // TURU 73: iOS ses birimi sahiplik defteri (bkz. SesSahipligi serhi).
     SesSahipligi.kaydol('oda_${widget.roomId}');
+    // ⚠️⚠️ TURU 74 — ARAMA KAZANIR: suren ses notu kaydi/oynatmasi SUSTURULUR.
+    //     ⚠️ Kayit SILINMEZ — taslak kalir, kullanici gorusme bitince gonderir.
+    //     ⚠️ 400ms tavanli (SesNotuKontrol.sustur): ses notunun yikimi HICBIR
+    //        KOSULDA aramayi bloklamaz (turu 67: zaman asimsiz await ekrani asti).
+    //     ⚠️ Ses notu `SesSahipligi` defterine YAZILMAZ — o defter
+    //        setAudioEnabled(false) kararini verir; yazilsaydi `aramaCanli` YALAN
+    //        soyler ve ses birimi bir daha kapanmazdi.
+    unawaited(SesNotuKontrol.sustur());
     // ⚠️⚠️ TURU 71 — GSM GOZCUSU BU EKRANDA DA ACIK (gizlilik). Eskiden yalniz
     // arama akisinda aciliyordu; odada/yayinda telefon gorusmesi yapilirsa
     // `gsmAramada` HIC guncellenmiyor ve mikrofon kapilari tetiklenmiyordu.

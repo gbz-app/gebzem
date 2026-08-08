@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -20,6 +21,8 @@ import '../medya/atac_paneli.dart';
 import '../medya/medya_gorsel.dart';
 import '../medya/medya_servisi.dart';
 import '../medya/tam_ekran_gorsel.dart';
+import '../medya/ses_notu_balon.dart';
+import '../medya/ses_notu_kaydedici.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
   const ChatScreen({
@@ -61,6 +64,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   bool _medyaAcik = false;
   bool _yukleniyor = false;
   double _ilerleme = 0;
+
+  /// TURU 74: ses notu kaydedicisine erisim (kayit seridi + basili tut alani).
+  final _sesKey = GlobalKey<State<SesNotuKaydedici>>();
   Timer? _durumTimer;
   ProviderSubscription? _aramaSub;
   bool _oncekiAramaVar = false;
@@ -172,6 +178,45 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       }
     }
     if (gonderilen > 0) _scrollToBottom();
+  }
+
+  /// ⚠️ TURU 74 — SES NOTU GONDER. Kaydedici dosyayi verir, yukleme burada olur.
+  /// ⚠️ `waveform` ve `duration_ms` presign istegine gider ve `media_assets`e
+  ///     yazilir; karsi taraf dalga formunu SUNUCUDAN alir (yeniden hesaplamaz).
+  Future<void> _sesNotuGonder(File dosya, int sureMs, String dalga) async {
+    if (!mounted) return;
+    setState(() => _yukleniyor = true);
+    try {
+      final mediaId = await ref.read(medyaServisiProvider).yukle(
+        dosya: dosya,
+        kind: 'audio',
+        mime: 'audio/mp4', // m4a (AAC-LC) — kaydedici bu kodeki uretir
+        durationMs: sureMs,
+        waveform: dalga,
+        ilerleme: (o) {
+          if (mounted) setState(() => _ilerleme = o);
+        },
+      );
+      await ref.read(messagesProvider(widget.chatId).notifier).send(
+            '',
+            type: 'audio',
+            mediaId: mediaId,
+            clientRef: mediaId,
+          );
+      _scrollToBottom();
+    } catch (e) {
+      if (mounted) {
+        rootMessengerKey.currentState
+            ?.showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _yukleniyor = false;
+          _ilerleme = 0;
+        });
+      }
+    }
   }
 
   /// TURU 74 — sunucuda medya açık mı (R2 env). Kapalıysa ataç düğmesi ÇİZİLMEZ.
@@ -467,10 +512,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  FloatingActionButton.small(
-                    onPressed: _sending ? null : _send,
-                    child: const Icon(LucideIcons.send),
-                  ),
+                  // ⚠️ TURU 74 — metin BOŞKEN mikrofon, DOLUYKEN gönder (WhatsApp).
+                  //    Ses notu kaydı arama/oda/yayın sırasında ENGELLİ; kapı
+                  //    `SesNotuKaydedici._basla` içinde. Ölçülmüş gerekçe:
+                  //    turu 64 `!pri`, turu 65 `didActivate` gelmiyor, turu 62-C rota.
+                  if (_medyaAcik && _input.text.trim().isEmpty)
+                    SesNotuKaydedici(key: _sesKey, onKayit: _sesNotuGonder)
+                  else
+                    FloatingActionButton.small(
+                      onPressed: _sending ? null : _send,
+                      child: const Icon(LucideIcons.send),
+                    ),
                 ],
               ),
             ),
@@ -849,6 +901,16 @@ class _Bubble extends StatelessWidget {
                       ),
                     ),
                   ),
+                ),
+              // ⚠️ TURU 74 — SES NOTU BALONU. Dalga formu ve süre SUNUCUDAN gelir
+              //    (`media_assets.waveform` / `duration_ms`), istemcide yeniden
+              //    hesaplanmaz — alıcının dosyayı indirmeden dalga çizebilmesi için.
+              if (message.type == 'audio' && (message.mediaId ?? '').isNotEmpty)
+                SesNotuBalon(
+                  mediaId: message.mediaId!,
+                  sureMs: message.durationMs,
+                  dalga: message.waveform,
+                  benimMi: mine,
                 ),
               if (message.content.isNotEmpty)
                 Text(message.content, style: const TextStyle(fontSize: 15.5)),

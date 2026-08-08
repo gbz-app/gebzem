@@ -16,7 +16,8 @@ import '../../router.dart';
 import 'call_media_options.dart';
 import 'call_provider.dart';
 import 'call_room_lock.dart';
-import 'medya_beklet.dart'; // turu 72: ortak duraklatma primitifi
+import 'medya_beklet.dart';
+import '../medya/ses_notu_kontrol.dart'; // turu 74: arama kazanir kapisi
 import 'call_screen.dart';
 import 'call_sounds.dart';
 import 'callkit_service.dart';
@@ -1346,6 +1347,14 @@ class ActiveCallController extends ChangeNotifier with WidgetsBindingObserver {
     // TURU 73: iOS ses birimi sahiplik defteri — odanin/yayinin kapanisi bu kayit
     //     dururken ses birimini KAPATMAZ (bkz. SesSahipligi serhi).
     SesSahipligi.kaydol("arama_$id");
+    // ⚠️⚠️ TURU 74 — ARAMA KAZANIR: suren ses notu kaydi/oynatmasi SUSTURULUR.
+    //     ⚠️ Kayit SILINMEZ — taslak kalir, kullanici gorusme bitince gonderir.
+    //     ⚠️ 400ms tavanli (SesNotuKontrol.sustur): ses notunun yikimi HICBIR
+    //        KOSULDA aramayi bloklamaz (turu 67: zaman asimsiz await ekrani asti).
+    //     ⚠️ Ses notu `SesSahipligi` defterine YAZILMAZ — o defter
+    //        setAudioEnabled(false) kararini verir; yazilsaydi `aramaCanli` YALAN
+    //        soyler ve ses birimi bir daha kapanmazdi.
+    unawaited(SesNotuKontrol.sustur());
 
     _aboneliklerKur(id);
 

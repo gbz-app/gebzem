@@ -321,14 +321,24 @@ func (h *Handler) GetMessages(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rows, err := h.db.Query(r.Context(), `
-		SELECT id, sender_id, type,
-		       CASE WHEN deleted_for_all THEN '' ELSE content END,
-		       CASE WHEN deleted_for_all THEN '' ELSE media_url END,
+		SELECT m.id, m.sender_id, m.type,
+		       CASE WHEN m.deleted_for_all THEN '' ELSE m.content END,
+		       CASE WHEN m.deleted_for_all THEN '' ELSE m.media_url END,
 		       -- ⚠️ TURU 74: silinen mesajda medya da GIZLENIR (id sizmasin).
-		       CASE WHEN deleted_for_all THEN NULL ELSE media_id END,
-		       reply_to_id, deleted_for_all, created_at
-		FROM messages WHERE chat_id=$1 AND id<$2
-		ORDER BY id DESC LIMIT $3`, chatID, beforeID, limit)
+		       CASE WHEN m.deleted_for_all THEN NULL ELSE m.media_id END,
+		       m.reply_to_id, m.deleted_for_all, m.created_at,
+		       -- ⚠️ TURU 74: medya USTVERISI mesajla BIRLIKTE doner. Ayri istek
+		       --    yapilsaydi 50 mesajlik sayfa 50 EK ISTEK uretirdi (N+1).
+		       --    Kaldirilmis medyada (karantina/silindi) alanlar BOS doner ama
+		       --    mesaj satiri DURUR — balon "bu icerik kaldirildi" cizer.
+		       COALESCE(a.duration_ms,0), COALESCE(a.waveform,''),
+		       COALESCE(a.width,0), COALESCE(a.height,0),
+		       COALESCE(a.file_name,''), COALESCE(a.bytes,0)
+		FROM messages m
+		LEFT JOIN media_assets a
+		       ON a.id = m.media_id AND a.status IN ('aktif','bagli')
+		WHERE m.chat_id=$1 AND m.id<$2
+		ORDER BY m.id DESC LIMIT $3`, chatID, beforeID, limit)
 	if err != nil {
 		httpErr(w, http.StatusInternalServerError, "sunucu hatası")
 		return
@@ -345,12 +355,20 @@ func (h *Handler) GetMessages(w http.ResponseWriter, r *http.Request) {
 		ReplyToID     *int64    `json:"reply_to_id"`
 		DeletedForAll bool      `json:"deleted_for_all"`
 		CreatedAt     time.Time `json:"created_at"`
+		// TURU 74 — medya ustverisi (N+1 istekten kacinmak icin mesajla birlikte)
+		DurationMs int    `json:"duration_ms,omitempty"`
+		Waveform   string `json:"waveform,omitempty"`
+		Width      int    `json:"width,omitempty"`
+		Height     int    `json:"height,omitempty"`
+		FileName   string `json:"file_name,omitempty"`
+		Bytes      int64  `json:"bytes,omitempty"`
 	}
 	out := []msg{}
 	for rows.Next() {
 		var m msg
 		if err := rows.Scan(&m.ID, &m.SenderID, &m.Type, &m.Content, &m.MediaURL, &m.MediaID,
-			&m.ReplyToID, &m.DeletedForAll, &m.CreatedAt); err == nil {
+			&m.ReplyToID, &m.DeletedForAll, &m.CreatedAt,
+			&m.DurationMs, &m.Waveform, &m.Width, &m.Height, &m.FileName, &m.Bytes); err == nil {
 			out = append(out, m)
 		}
 	}
