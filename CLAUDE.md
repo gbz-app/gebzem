@@ -17,6 +17,105 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (8 Agu):** TURU 75 KOD BITTI, DENETIM BITTI, **BUILD ALINMADI**.
+  Kullanici karari: **"testi en son yapacagiz, arastirma bittikten sonra hersyi bitir"**.
+  Turu 73/74 HENUZ TEST EDILMEDI — hepsi TEK SEFERDE test edilecek.
+  ⏳ **KULLANICIYA SORULACAK: build alalim mi?** (CLAUDE.md kural 0)
+- ✅ **TURU 75 — SOSYAL KATMAN + KANAL TAMAMLANDI.**
+  · migration **020** takip+sayaclar+gizli hesap+bildirimler · **021** gonderi/begeni/
+    yorum/kaydetme · **022** kanal · **023** denetimde bulunan eksik indeksler
+  · `internal/users/takip.go` · `internal/social/{handler,etkilesim}.go` ·
+    `internal/kanal/handler.go` · 13 yeni Flutter ekrani (sosyal/ + kanal/)
+  · Alt menu **6 sekme**: Akış · Sohbet · Arama · Oda · Canlı · Profil
+    ⚠️ `_index` sabitleri ustune yazilmis kosullar var (0=akis -> ust AppBar GIZLENIR
+    cunku akis kendi AppBar'ini cizer; 1=sohbet -> "yeni sohbet" + dugmesi).
+    ⚠️ YAPMA: sirayi degistirme, 7. sekme ekleme (360dp'de etiketler sinirda).
+  · Kanallar, Akis'in ustundeki **"Akış | Kanallar" segment secicisinde** (IndexedStack).
+- ⚠️⚠️ **TURU 75 — FAN-OUT KARARI: OKUMA ZAMANI (akis VE kanal).**
+  Yazma zamani fan-out'ta 10.000 takipcili biri gonderi atinca **10.000 satir yazilir**.
+  cx33'te Postgres LiveKit ile **AYNI 4 vCPU'yu** paylasiyor — bu yazma firtinasi SFU'yu
+  ac birakir (aramalar/yayinlar bozulur). Geri donulebilirlik de bu yonde: read-time ->
+  hibrit KOLAY, tersi zor. ⚠️ YAPMA: olcum gormeden yazma zamanina gecme.
+- ⚠️⚠️⚠️ **TURU 75 — KANAL `chats` HATTINI KULLANMIYOR (kod okunarak bulundu).**
+  CLAUDE.md "tek chats tablosu, type: channel" diyor ve CHECK'i 'channel'i kabul ediyor.
+  Ama `chat.SendMessage` her mesajda **UYE BASINA AYRI INSERT** yapiyor
+  (`for _, uid := range members { INSERT INTO message_receipts ... }`) -> 10.000 aboneli
+  kanalda TEK gonderi = **10.000 ayri sorgu**. `hub.Publish(To: members)` ve
+  `push.NotifyUsers(members,...)` ayni diziyi tasiyor; `ListChats` okunmamisi
+  `message_receipts` COUNT(*) ile buluyor. Ustelik kanalda **okundu bilgisi zaten
+  istenmiyor** (WhatsApp kanallarinda tik yok) — o satirlarin urun karsiligi da YOK.
+  COZUM: okunmamis = (kanal,kullanici) basina **TEK damga** (`son_okuma`).
+  ⚠️ YAPMA: kanali `messages`/`message_receipts` hattina tasima.
+  ⚠️ Kanal push'u **bilincli olarak YOK** (ilk surum): `NotifyUsers` tum aliciyi tek
+  cagrida isliyor, FCM'in 500 hedef/istek siniri asilir. Parcali+kuyruklu gonderim AYRI IS.
+- ⚠️⚠️⚠️ **TURU 75b DENETIMI — 5 SEVK ENGELI (38 bulgu, 18 onaylandi, 20 elendi):**
+  **(1) AKISTAKI TUM GORSEL/VIDEO IZLEYICIYE 403 DONUYORDU.** `media.erisebilir()`
+  yalniz iki dal taniyordu (mesaja bagli / avatar); `posts.media_ids` ve
+  `channel_posts.media_ids` icin DAL YOKTU. Akis sadece id donduruyor, istemci her
+  gorsel icin `GET /media/{id}/url` cagiriyor -> PAYLASANDAN BASKA HERKESE 403.
+  ⚠️⚠️ **TEK CIHAZDA TEST EDILSE GORULMEZDI**: kapi `if sahip != userID && ...` —
+  paylasan kendi gorselini kisa devreyle gorur; hata YALNIZ ikinci hesapta cikar.
+  ⚠️ YAPMA: yeni dallari "herhangi bir gonderiye bagliysa serbest"e gevsetme (gizli
+  hesap medyasi sizar + engelleme delinir).
+  **(2) `/users/{id}/posts` ENGEL KONTROLUNU ATLIYORDU** — engellenen kisi profile girip
+  her seyi okuyabiliyordu. Predikat DORT sorguya kopyalanmis, BESINCISINDE dusmustu
+  (turu 72b/H "ayni kuralin iki kopyasi drift eder" dersinin tekrari).
+  Artik `const engelYok` TEK KAYNAK. ⚠️ YAPMA: yuklemi sorgulara elle kopyalama.
+  **(3) YUKLEME BITERKEN `Navigator.pop()` YANLIS ROUTE'U KAPATIYORDU** (acik onay
+  diyalogu varsa) -> gonderi sunucuda OLUSUR ama ekran kalir, kullanici tekrar basar
+  -> **CIFT GONDERI**. FIX: `ModalRoute.of` ile kendi route'unu ADRESLE + `popUntil`.
+  **(4) VIDEO OYNATICI KURULUMU KAPISIZDI.** `video_player` iOS'ta `initialize()`
+  sirasinda `setMixWithOthers(...)` gonderir; bu RTCAudioSession kilidinin **DISINDAN**
+  AVAudioSession'i yeniden yapilandirir. ⚠️ **`mixWithOthers: true` "oturumu ele gecirme"
+  demek, "oturuma HIC DOKUNMA" DEMEK DEGIL.** FIX: `_kur()` basinda
+  `MedyaKapisi.donanimSerbest` kapisi. ⚠️ YAPMA: bu kapiyi kaldirma.
+  **(5) KENDI PROFILIMDE "Takip et/Mesaj/Engelle/Şikayet"** cikiyordu (hicbir "bu benim"
+  kapisi yoktu). FIX: `_benimMi` + "Profili düzenle/Kaydedilenler/**Gizli hesap**".
+- ⚠️⚠️ **TURU 75b — OLU OZELLIKLER (ayni sinif ucuncu ve dorduncu kez):**
+  · **Gizli hesap TAMAMEN ULASILAMAZDI**: `gizlilikAyarla()` yazilmis ama HIC
+    cagrilmiyordu -> hicbiri gizli hesap olamiyor, dolayisiyla takip isteginin
+    'bekliyor' dali + FollowApprove/Reject uclari + "Takip istekleri" ekrani + profil
+    kilit dallari HEPSI olu kaliyordu.
+  · **Kaydetme "KARA DELIK"ti**: `post_saves` yaziliyor, LISTELEYEN uc/ekran YOK.
+    Yeni `GET /users/me/saved` + `kaydedilenler_sayfasi.dart`.
+  · `posts.goruntulenme` OLU SUTUNDU (021'de var, yazan/okuyan yok) — baglandi.
+  ⚠️ **DERS (dorduncu tekrar): bir sutun/servis/dugme ekledigin AN onu OKUYAN yolu da
+  yaz. Onceki ornekler: `deleted_for_all`, `blocks`, foto gonderme, ses notu.**
+- ⚠️⚠️ **TURU 75b — `nil` DILIM SQL NULL GONDERIR (SEVK ENGELIYDI).**
+  `social.Create` icinde `req.MediaIDs = nil` yaziliyordu; `posts.media_ids` **NOT NULL**
+  -> **HER YAZI GONDERISI 500 DONECEKTI.** FIX: `[]string{}`.
+  ⚠️ YAPMA: `MediaIDs`i tekrar `nil`e set etme.
+- ⚠️⚠️ **TURU 75b — KENDI ALARMIMI KENDIM CURUTTUM (yontem dersi).**
+  Once "pgx `[]string`i `uuid[]`e kodlayamiyor, dolayisiyla TUM `= ANY($1)` cagrilari
+  (push, engelleme, medya sahipligi) BOZUK" sonucuna vardim. **YANLISTI.** pgx v5.7.4
+  `extended_query_builder.go:55-76` tercih edilen bicim hata verirse **DIGER bicimi
+  dener** ve metin bicimi calisir. Kaynak okunarak curutuldu -> buyuk ve gereksiz bir
+  refactor'dan donuldu.
+  📌 **DERS: "kanit" diye sunulan bir olcumun HANGI KATMANI olctugune bak.**
+  `Map.Encode`i dogrudan cagirmak, sorgu yolundaki geri donus mantigini ATLIYOR.
+  ⚠️ YAPMA: `[]string` -> `[]pgtype.UUID` donusumu ekleme; OLCULDU, gerek YOK.
+- ⚠️⚠️ **TURU 75 — YENI KALICI TESTLER (ikisi de canli DB GEREKTIRMEZ):**
+  · `cmd/api/rota_test.go` — chi CAKISAN desenlerde **calisma aninda PANIK** atar ve
+    `go build`/`go vet` bunu YAKALAMAZ. Desenleri `main.go` **KAYNAGINDAN** regex ile
+    okur -> DRIFT YOK. **126 rota cakismasiz**; riskli STATIK-vs-PARAMETRE yollari
+    (`/users/me/follow-requests` vs `/users/{id}/profile`, `/channels/kesfet` vs
+    `/channels/{id}`) chi'nin GERI DONUS davranisiyla dogru cozuluyor — test kanitliyor.
+    ⚠️ YAPMA: desenleri teste elle kopyalama.
+  · `internal/social/tip_test.go` — `uuid[]` tarama (bozulsaydi `satirlariOku`daki
+    `if rows.Scan(...) != nil { continue }` satirlari SESSIZCE atlar, akis BOMBOS
+    donerdi) + `nil` vs bos dilim + `bigint -> int64`.
+- ⚠️ **TURU 75 — GORUNTULENME YALNIZ REELS + GONDERI DETAYINDA ARTAR, AKISTA ARTMAZ.**
+  Akista 20 kart TEK ISTEKTE gelir ama cogu HIC gorulmez; orada saymak sayiyi YALAN yapar.
+  Kart uzerinde goruntulenme YALNIZ YAZARINA gorunur (Instagram deseni); reels'te herkese.
+  ⚠️ YAPMA: sayimi `Akis` icine kopyalama.
+- ⚠️ **DURUST SINIR — kanal gonderisinde VIDEO YOK (ilk surum):** `channel_posts.media_ids`
+  medyanin TURUNU tasimiyor; istemci bir id'nin video mu foto mu oldugunu BILEMEZ ve
+  video id'sini `MedyaGorsel`e verirse KIRIK GORSEL cizer. Once sunucu `media_kinds`
+  dondurmeli. ⚠️ YAPMA: tur bilgisi olmadan medyayi video sanip oynatmaya calisma.
+- ⚠️⚠️ **VERI POLITIKASI (kullanici karari 8 Agu): VERI SILINMEZ.** Hicbir semada yas
+  tabanli silme YOK; depolama buyur, maliyet kabul edildi. Istisnalar yalnizca yasal
+  zorunluluk: sahibi siler · hesap silinir (KVKK) · mahkeme/BTK karari · CSAM.
+  ⚠️ YAPMA: herhangi bir tabloya `expires_at`/otomatik supurge ekleme.
 - **KALDIGIMIZ YER (8 Agu):** TURU 74 — KOD YAZILIYOR, BUILD ALINMADI.
   Kullanici karari: **"testi en son yapacagiz, arastirma bittikten sonra hersyi bitir"** —
   yani medya + sosyal katman TAMAMLANIP TEK SEFERDE test edilecek. Turu 73 HENUZ TEST EDILMEDI.
