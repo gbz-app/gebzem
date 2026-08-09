@@ -17,7 +17,17 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (9 Agu):** TURU 77 — 6 YENI DIKEY + 77b DENETIMI BITTI, BUILD ALINIYOR.
+- **KALDIGIMIZ YER (9 Agu 06:40): TEST TURU 77 YAYINLANDI** — android 31292449948 +
+  ios 31292451069 (fd5fbaa), R2 apk=115303523 (md5 685c27b1) ipa=23688271
+  (md5 19616914), purge OK, **CDN BIREBIR** (apk + ipa + index.html MD5 esit),
+  indir sayfasi 06:40 (saat **5 yerde + canli saat**), debug imza YOK,
+  iOS min 16.0 dogrulandi, **BACKEND DEPLOY EDILDI** (fd5fbaa; migration
+  **027-031** uygulandi, "medya: aktif (R2)", "ai: KAPALI" beklenen) + health ok,
+  DB temiz (0/0/0/0/0/0/0).
+  ✅ **CANLI SUNUCUDA 105/105 UCTAN UCA KONTROL GECTI** (duzeltmelerden SONRA tekrar).
+  ✅ **171 ROTA CAKISMASIZ** + turu 77 uclari dogru cozuluyor.
+  **KULLANICI TEST EDECEK.**
+- **ONCEKI ADIM:** TURU 77 — 6 YENI DIKEY + 77b DENETIMI.
   Kullanici emri (uyurken, ONAYSIZ ILERLEME ACIKCA ISTENDI): hikaye editoru ·
   isletme profilleri · etkinlikler · ilanlar (sahibinden) · hizmetler · isletme
   urunleri + AI. ⚠️ **CLAUDE.md kural 0 (build oncesi sor) BU TUR ICIN ASKIYA ALINDI**
