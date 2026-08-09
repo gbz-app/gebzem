@@ -64,17 +64,32 @@ const (
 	//	gorsel modelleri listelendi: gpt-image-1 · gpt-image-1.5 · gpt-image-2 ·
 	//	gpt-image-1-mini · chatgpt-image-latest.
 	//
-	//	`gpt-image-1-mini` SECILDI: urun fotografi icin YETERLI ve ailenin EN
-	//	UCUZ uyesi. Odeme sistemi YOK, maliyet dogrudan cebimizden cikiyor.
+	//	Ilk secim `gpt-image-1-mini` + `quality:"medium"` idi (ailenin EN UCUZ
+	//	uyesi, "urun fotografi icin yeterli" varsayimiyla). **KULLANICI SAHADA
+	//	CURUTTU: "cok kotu resimler uretiyor."**
+	//
+	// ⚠️⚠️ TURU 79c — AYNI ISTEMLE UC MODEL YAN YANA URETILDI ve GOZLE
+	//
+	//	karsilastirildi (tahmin DEGIL, olcum):
+	//	  · gpt-image-1-mini / medium : zayif  —  ~21 sn
+	//	  · gpt-image-1.5    / high   : COK IYI — ~38 sn   <-- SECILDI
+	//	  · gpt-image-2      / high   : cok iyi — **132 sn**
+	//
+	//	`gpt-image-2` KULLANILMADI: 132 sn sunucu tavaninin (120 sn) USTUNDE,
+	//	yani oldugu gibi kullanilsa HER cagri zaman asimina duserdi. Tavani
+	//	yukseltmek de cozum degil — kullaniciyi 2+ DAKIKA bekletmek urun
+	//	olarak kabul edilemez.
 	//
 	// ⚠️ DERS: dis servisin model adini VARSAYMA — `/v1/models` ile DOGRULA.
 	//    Bu tur, bir varsayimin canli sunucuda IKI KEZ curutulmesiyle gecti
-	//    (`response_format` parametresi ve model adi).
-	modelGorsel = "gpt-image-1-mini"
+	//    (`response_format` parametresi ve model adi), UCUNCUSUNU de kullanici
+	//    curuttu (kalite). ⚠️ Model/kalite secimini GOZLE dogrulamadan degistirme.
+	modelGorsel = "gpt-image-1.5"
 
-	// ⚠️ `quality` gpt-image ailesinde GECERLI (canli dogrulandi). "medium"
-	//    urun fotografi icin yeterli; "high" maliyeti ciddi artirir.
-	gorselKalite = "medium"
+	// ⚠️ `quality` gpt-image ailesinde GECERLI (canli dogrulandi).
+	//    "high" secildi: kullanici sikayeti tam da KALITE uzerineydi ve fark
+	//    yan yana bakildiginda BUYUK. Maliyeti gunluk kota (10) sinirliyor.
+	gorselKalite = "high"
 
 	// Gorsel uretimi zaman asimi — metinden UZUN surer.
 	gorselZamanAsimi = 120 * time.Second
