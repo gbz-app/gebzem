@@ -30,6 +30,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -38,6 +39,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/gbz-app/gebzem/backend/internal/auth"
@@ -156,9 +158,20 @@ func (h *Handler) kapi(w http.ResponseWriter, r *http.Request, tur string) (stri
 		         WHERE user_id=$1 AND durum <> 'iptal'
 		           AND created_at > now() - interval '24 hours') < $3
 		RETURNING id`, me, tur, gunlukKota).Scan(&id)
-	if err != nil {
-		// Satir donmediyse kota dolmustur (pgx.ErrNoRows).
+	// ⚠️⚠️ TURU 78 — HATA TURU AYIRT EDILIR. Eskiden HER hata "kota doldu"
+	//    sayiliyordu ve bu YANILTICIYDI: migration 031'in CHECK'i 'beklemede'
+	//    degerini KABUL ETMIYORDU (036 ile duzeltildi), yani AI acildigi ANDA
+	//    herkes HENUZ TEK ISTEK BILE ATMAMISKEN "Günlük hakkın doldu" mesaji
+	//    alacakti. Kullanici bekleyerek cozmeye calisir, sorun ASLA gecmezdi.
+	// ⚠️ `pgx.ErrNoRows` = sorgu KOSTU ama satir donmedi = GERCEKTEN kota dolu.
+	//    Baska her hata SUNUCU sorunudur ve OYLE raporlanmali + LOGLANMALI.
+	if errors.Is(err, pgx.ErrNoRows) {
 		hata(w, 429, "Günlük yapay zekâ hakkın doldu, yarın tekrar dene")
+		return "", 0, false
+	}
+	if err != nil {
+		log.Printf("ai kota rezervasyonu: %v", err)
+		hata(w, 500, "Yapay zekâ şu anda kullanılamıyor")
 		return "", 0, false
 	}
 	return me, id, true
@@ -266,6 +279,29 @@ type aiReq struct {
 	Metin   string `json:"metin"`
 }
 
+// ⚠️⚠️ TURU 78 — GIRDI SINIRI. `req.Metin` HICBIR YERDE sinirlanmiyordu
+//
+//	(turu 77b denetim bulgusu) ve iki yere tam boyuyla gidiyordu:
+//	  · OpenAI istek govdesine  -> TOKEN maliyeti dogrudan faturaya yansir
+//	  · `ai_istekleri.girdi TEXT` sutununa -> DB sisirme
+//	Tek bir kullanici 5 MB'lik bir metin gonderip hem faturayi hem diski
+//	zorlayabilirdi. 2000 karakter bir menu/urun tarifi icin FAZLASIYLA yeterli.
+//
+// ⚠️ RUNE ile kirpilir, BAYT ile DEGIL: Turkce harfler UTF-8'de iki bayttir ve
+//
+//	bayt dilimi gecersiz UTF-8 uretip JSON'da bozuk karakter yapar (turu 78
+//	FAZ 0'da push onizlemesinde tam bu yasandi).
+const metinTavani = 2000
+
+func metniKirp(s string) string {
+	s = strings.TrimSpace(s)
+	r := []rune(s)
+	if len(r) <= metinTavani {
+		return s
+	}
+	return string(r[:metinTavani])
+}
+
 // POST /ai/menu — MENU FOTOGRAFINDAN ya da ACIKLAMADAN yapilandirilmis menu.
 //
 // Donen bicim: {"urunler":[{"ad":"...","aciklama":"...","fiyat_kurus":12500,
@@ -282,6 +318,8 @@ func (h *Handler) Menu(w http.ResponseWriter, r *http.Request) {
 	}
 	var req aiReq
 	json.NewDecoder(r.Body).Decode(&req)
+	// TURU 78: girdi tavani (bkz. metinTavani serhi).
+	req.Metin = metniKirp(req.Metin)
 
 	parcalar := []icerikParca{{
 		Tip: "text",
@@ -339,6 +377,8 @@ func (h *Handler) UrunMetni(w http.ResponseWriter, r *http.Request) {
 	}
 	var req aiReq
 	json.NewDecoder(r.Body).Decode(&req)
+	// TURU 78: girdi tavani (bkz. metinTavani serhi).
+	req.Metin = metniKirp(req.Metin)
 	if req.MediaID == "" && strings.TrimSpace(req.Metin) == "" {
 		hata(w, 400, "ürün fotoğrafı ya da adı gerekli")
 		return
@@ -390,6 +430,8 @@ func (h *Handler) Danisma(w http.ResponseWriter, r *http.Request) {
 	}
 	var req aiReq
 	json.NewDecoder(r.Body).Decode(&req)
+	// TURU 78: girdi tavani (bkz. metinTavani serhi).
+	req.Metin = metniKirp(req.Metin)
 	if req.MediaID == "" {
 		hata(w, 400, "fotoğraf gerekli")
 		return
