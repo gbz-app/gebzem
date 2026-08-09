@@ -91,7 +91,7 @@ func main() {
 	usersH := users.NewHandler(db, bildirimS)
 	socialH := social.NewHandler(db, bildirimS) // turu 75: gonderi + akis + etkilesim
 	kanalH := kanal.NewHandler(db)              // turu 75: kanal (tek yonlu yayin)
-	isletmeH := isletme.NewHandler(db)
+	isletmeH := isletme.NewHandler(db, bildirimS)
 	vitrinH := vitrin.NewHandler(db)
 	randevuH := randevu.NewHandler(db, bildirimS)
 	etkinlikH := etkinlik.NewHandler(db)

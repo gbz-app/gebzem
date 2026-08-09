@@ -77,12 +77,28 @@ type Ayar struct {
 func AyarOku(ctx context.Context, db *pgxpool.Pool, isletmeID string) (Ayar, error) {
 	a := Ayar{SlotDakika: 30, SlotKapasite: 1, IleriGun: 14}
 	var kategori string
+	// ⚠️⚠️ TURU 80b — `hesap_turu='isletme'` KAPISI (denetim bulgusu).
+	//
+	//	Sorgu yalnizca `isletmeler` satirina bakiyordu. Ama hesap kisisele
+	//	dondugunde o satir SILINMIYOR (veri politikasi: VERI SILINMEZ) —
+	//	yalnizca `users.hesap_turu` degisiyor. Kapi olmadigi icin kisisel
+	//	hesaba donmus biri randevu ALMAYA DEVAM EDIYORDU: profilde
+	//	"Randevu al" cizilmez (orası `Detay`in kendi kapisiyla korunuyor)
+	//	ama uc dogrudan cagrilabiliyordu ve slotlar uretiliyordu.
+	//
+	// ⚠️ KAPI **BURAYA** KONDU (cagiranlara DEGIL): `UygunSaatler`,
+	//    `Olustur`, `AyarGetir` ve `AyarKaydet` hepsi `AyarOku`dan gecer —
+	//    tek kaynak. Cagiranlara tek tek konsaydi biri unutulur ve DRIFT
+	//    ederdi (turu 75b/H dersi).
+	// ⚠️ Gecmis randevularin LISTELENMESI bundan ETKILENMEZ: o uclar
+	//    `AyarOku` cagirmaz, dogrudan `randevular` tablosunu okur.
 	err := db.QueryRow(ctx, `
 		SELECT COALESCE(i.kategori,'diger'),
 		       COALESCE(r.acik,false), COALESCE(r.slot_dakika,30),
 		       COALESCE(r.slot_kapasite,1), COALESCE(r.ileri_gun,14),
 		       COALESCE(r.otomatik_onay,false)
 		  FROM isletmeler i
+		  JOIN users u ON u.id = i.user_id AND u.hesap_turu = 'isletme'
 		  LEFT JOIN randevu_ayar r ON r.isletme_id = i.user_id
 		 WHERE i.user_id = $1`, isletmeID).
 		Scan(&kategori, &a.Acik, &a.SlotDakika, &a.SlotKapasite,

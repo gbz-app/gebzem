@@ -550,7 +550,20 @@ const kontrol = (ad, gecti, ek = '') => {
       govde: {
         kategori: 'yemek', adres: 'Test Cad. 1', il: 'Kocaeli', ilce: 'Gebze',
         telefon: '02620000000', web: 'https://ornek.test',
-        calisma: [{ gun: 1, acilis: '09:00', kapanis: '22:00', kapali: false }],
+        // ⚠️⚠️⚠️ TURU 80b — YEDI GUN BIRDEN (denetim: KALICI YALANCI-YESIL).
+        //
+        //	Eskiden burada YALNIZ `gun: 1` (Pazartesi) vardi. Turu 80'in
+        //	randevu blogu "yarin" icin slot istiyor; yani slotlar HAFTADA
+        //	YALNIZ BIR GUN uretiliyordu. Sonuc: testin randevu bolumu
+        //	haftanin ALTI GUNU ya kirmizi ya da `if (musait)` kapisinda
+        //	ATLANIYORDU — ve 172/172 gecmesinin sebebi, kosuldugu gunun
+        //	(9 Agustos Pazar) yarininin PAZARTESI olmasiydi. Yani yesil,
+        //	kodun dogrulugunu DEGIL takvimi olcuyordu.
+        // ⚠️ YAPMA: bunu tekrar tek gune indirme; e2e HANGI GUN kosulursa
+        //    kosulsun ayni sonucu vermeli.
+        calisma: [1, 2, 3, 4, 5, 6, 7].map((g) => ({
+          gun: g, acilis: '09:00', kapanis: '22:00', kapali: false,
+        })),
       },
     });
     kontrol('TURU 77: isletme hesabina gecis', isl.kod === 200, 'HTTP ' + isl.kod);
@@ -1198,6 +1211,76 @@ const kontrol = (ad, gecti, ek = '') => {
       kontrol('TURU 80: KAPALI GUNDE slot URETILMEZ (calisma saati "acik" dese de)',
         us3.kod === 200 && (us3.d.slotlar || []).length === 0,
         'adet=' + ((us3.d && us3.d.slotlar || []).length));
+
+      // ⚠️⚠️⚠️ TURU 80b — TAKVIM KURALLARI **YAZMA YOLUNDA** DA GECERLI Mi?
+      //
+      //	Denetim bulgusu: `Olustur` kapali gun / calisma saati / slot
+      //	hizasi kurallarinin HICBIRINI dogrulamiyordu; bunlar YALNIZ okuma
+      //	yolunda (`UygunSaatler`) vardi. Yani istemci takvimi HIC ACMADAN
+      //	dogrudan POST atarak bayramda saat 03:17'ye randevu yazdirabilirdi.
+      //	Arayuzun kurala uymasi, kuralin UYGULANDIGI anlamina gelmez.
+      // ⚠️ Bu UC kontrol o deligi kalici olarak kapatir.
+      const kapaliAn = yarin2 + 'T12:00:00Z';
+      const rKapali = await j('/isletmeler/' + A.id + '/randevu', {
+        yontem: 'POST', token: B.token, govde: { baslangic: kapaliAn },
+      });
+      kontrol('TURU 80b: KAPALI GUNE dogrudan POST REDDEDILIR (arayuz atlanamaz)',
+        rKapali.kod === 409 || rKapali.kod === 400, 'HTTP ' + rKapali.kod);
+
+      const mesaiDisi = new Date(Date.now() + 86400000);
+      mesaiDisi.setUTCHours(1, 0, 0, 0); // 04:00 TR — calisma 09:00-22:00
+      const rMesai = await j('/isletmeler/' + A.id + '/randevu', {
+        yontem: 'POST', token: B.token,
+        govde: { baslangic: mesaiDisi.toISOString() },
+      });
+      kontrol('TURU 80b: CALISMA SAATI DISINA randevu REDDEDILIR',
+        rMesai.kod === 409 || rMesai.kod === 400, 'HTTP ' + rMesai.kod);
+
+      const hizasiz = new Date(Date.now() + 86400000);
+      hizasiz.setUTCHours(9, 7, 0, 0); // :07 -> 30 dk'lik slot hizasinda YOK
+      const rHiza = await j('/isletmeler/' + A.id + '/randevu', {
+        yontem: 'POST', token: B.token,
+        govde: { baslangic: hizasiz.toISOString() },
+      });
+      kontrol('TURU 80b: SLOT HIZASINDA OLMAYAN saat REDDEDILIR (14:07)',
+        rHiza.kod === 409 || rHiza.kod === 400, 'HTTP ' + rHiza.kod);
+
+      // ⚠️⚠️⚠️ TURU 80b — KISMI AYAR KAYDI DIGER AYARLARI KORUMALI.
+      //
+      //	SEVK ENGELIYDI: `ON CONFLICT ... COALESCE(EXCLUDED.x, mevcut)`
+      //	OLU KODDU (EXCLUDED zaten `COALESCE($n,varsayilan)` sonucudur,
+      //	yani ASLA NULL olamaz). Sonuc: arayuz alanlari TEK TEK gonderdigi
+      //	icin isletme "Randevu suresi"ni degistirince `acik` FALSE'a
+      //	dusuyor ve ozellik KENDINI KAPATIYORDU.
+      //	⚠️ ESKI E2E BUNU GOREMEZDI: tum alanlari TEK cagrida gonderiyordu,
+      //	   yani hicbir parametre NULL olmuyor ve COALESCE yedegi HIC
+      //	   sinanmiyordu. Kontrol bu yuzden KISMI govde gonderir.
+      const kismi = await j('/isletme/randevu-ayar', {
+        yontem: 'PUT', token: A.token, govde: { slot_dakika: 45 },
+      });
+      kontrol('TURU 80b: KISMI ayar kaydi diger ayarlari KORUR (acik/kapasite/ileri_gun)',
+        kismi.kod === 200 && kismi.d.acik === true &&
+        kismi.d.slot_dakika === 45 && kismi.d.slot_kapasite === 2 &&
+        kismi.d.ileri_gun === 14,
+        JSON.stringify(kismi.d));
+
+      // ⚠️ Kapali gun LISTELENEBILIYOR mu (arayuzun okudugu uc).
+      const kapL = await j('/isletme/randevu-kapali', { token: A.token });
+      const kapDizi = (kapL.d && (kapL.d.gunler || kapL.d)) || [];
+      kontrol('TURU 80b: kapali gunler LISTELENIYOR (KapaliGunlerEkrani ucu)',
+        kapL.kod === 200 && Array.isArray(kapDizi) && kapDizi.includes(yarin2),
+        'HTTP ' + kapL.kod + ' ' + JSON.stringify(kapDizi));
+
+      // ⚠️ Kapali gun GERI ALINABILIYOR mu (silme yolu da yasamali).
+      const kapSil = await j('/isletme/randevu-kapali', {
+        yontem: 'POST', token: A.token, govde: { tarih: yarin2, kapali: false },
+      });
+      const us4 = await j('/isletmeler/' + A.id + '/uygun-saatler?tarih=' + yarin2,
+        { token: B.token });
+      kontrol('TURU 80b: kapali gun KALDIRILINCA slotlar GERI GELIR',
+        kapSil.kod === 200 && us4.kod === 200 &&
+        (us4.d.slotlar || []).length > 0,
+        'adet=' + ((us4.d && us4.d.slotlar || []).length));
     }
 
     // ---------- 6) GRUP SOHBETI AVATARI (turu 78b denetimi: SEVK ENGELIYDI)

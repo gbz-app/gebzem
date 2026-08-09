@@ -7,6 +7,7 @@
 package isletme
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -20,9 +21,24 @@ import (
 	"github.com/gbz-app/gebzem/backend/internal/randevu"
 )
 
-type Handler struct{ db *pgxpool.Pool }
+// Bildirimci — `randevu` paketindeki arayuzun AYNISI.
+//
+// ⚠️ TURU 80b: `KisiselYap` acik randevulari kapatirken musteriye bildirim
+//
+//	gonderiyor (yetim randevu bulgusu), bu yuzden isletme paketinin de
+//	bildirim servisine ihtiyaci var.
+type Bildirimci interface {
+	Bildir(ctx context.Context, alici, aktor, tur, hedefTur, hedefID string)
+}
 
-func NewHandler(db *pgxpool.Pool) *Handler { return &Handler{db: db} }
+type Handler struct {
+	db *pgxpool.Pool
+	bs Bildirimci
+}
+
+func NewHandler(db *pgxpool.Pool, bs Bildirimci) *Handler {
+	return &Handler{db: db, bs: bs}
+}
 
 func yaz(w http.ResponseWriter, kod int, v any) {
 	w.Header().Set("Content-Type", "application/json")
@@ -203,6 +219,46 @@ func (h *Handler) KisiselYap(w http.ResponseWriter, r *http.Request) {
 		`UPDATE users SET hesap_turu='kisisel' WHERE id=$1`, me); err != nil {
 		hata(w, 500, "işlem yapılamadı")
 		return
+	}
+
+	// ⚠️⚠️⚠️ TURU 80b — ACIK RANDEVULAR YETIM BIRAKILMAZ (denetim bulgusu).
+	//
+	//	`hesap_turu` 'kisisel'e dondugu an isletme yuzeyleri kapanir:
+	//	`Detay` (`AND u.hesap_turu='isletme'`) 404 doner, profildeki
+	//	"Randevu al" dugmesi cizilmez ve ISLETMENIN GELEN KUTUSUNA giden
+	//	yol da kapanir. Ama `randevular` satirlari 'bekliyor'/'onaylandi'
+	//	olarak DURUR: musterinin listesinde randevu HALA GORUNUR, restorana
+	//	gider ve kapali bulur; eski isletmenin ise onu iptal etmenin
+	//	HICBIR YOLU KALMAMISTIR.
+	//
+	// ⚠️ SATIR SILINMEZ — 'iptal_isletme' YAZILIR (veri politikasi: VERI
+	//    SILINMEZ, 8 Agu kullanici karari) ve musteri BILDIRIM alir.
+	// ⚠️ Yalniz AKTIF olanlar; gecmis randevulara DOKUNULMAZ.
+	// ⚠️ Hata OLDURUCU DEGIL: hesap turu ZATEN degisti, istek basarili
+	//    sayilir. Aksi halde kullanici "kisisele donemedim" sanip tekrar
+	//    dener ve ikinci cagri ayni yere duser.
+	rows, err := h.db.Query(r.Context(), `
+		UPDATE randevular SET durum='iptal_isletme', updated_at=now()
+		 WHERE isletme_id=$1 AND durum IN ('bekliyor','onaylandi')
+		RETURNING musteri_id`, me)
+	if err != nil {
+		log.Printf("kisisel yap — randevu kapatma: %v", err)
+		yaz(w, 200, map[string]bool{"ok": true})
+		return
+	}
+	var musteriler []string
+	for rows.Next() {
+		var mID string
+		if rows.Scan(&mID) == nil {
+			musteriler = append(musteriler, mID)
+		}
+	}
+	rows.Close()
+
+	if h.bs != nil {
+		for _, mID := range musteriler {
+			h.bs.Bildir(r.Context(), mID, me, "randevu_iptal", "randevu", "")
+		}
 	}
 	yaz(w, 200, map[string]bool{"ok": true})
 }
