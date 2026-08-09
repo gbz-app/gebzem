@@ -727,6 +727,266 @@ const kontrol = (ad, gecti, ek = '') => {
     await j('/users/' + A.id + '/block', { yontem: 'DELETE', token: B.token });
   }
 
+  // ---------- TURU 78: KAPAK · ONAYLI · DUZENLEME · VIDEO · SOHBET · KADRO
+  //
+  // ⚠️ Bu blogun EN KRITIK kontrolleri, STATIK DENETIMIN GORMEDIGI seylerdir:
+  //    · yeni sutunun yanit JSON'una GERCEKTEN konup konmadigi (turu 78'de
+  //      `kapak_media_id`/`onayli` Scan ediliyor ama haritaya konmuyordu),
+  //    · yeni `kind` degerinin DB CHECK'inden gecip gecmedigi (turu 78'de
+  //      `media_assets.kind` 'kapak' kabul etmiyordu -> presign PATLIYORDU),
+  //    · yeni SQL'lerin GERCEK POSTGRES'te kosup kosmadigi.
+  {
+    async function medyaYukle2(token, ad, kind) {
+      const md5x = crypto.createHash('md5').update(JPEG).digest('base64');
+      const p = await j('/media/upload', {
+        yontem: 'POST', token,
+        govde: { kind, mime: 'image/jpeg', bytes: JPEG.length, md5: md5x, file_name: ad },
+      });
+      if (p.kod !== 200) return { hata: p.kod, id: null };
+      await fetch(p.d.upload_url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'image/jpeg', 'Content-MD5': md5x },
+        body: JPEG,
+      });
+      await j('/media/' + p.d.media_id + '/commit', { yontem: 'POST', token });
+      return { hata: 0, id: p.d.media_id };
+    }
+
+    // ---------- 1) KAPAK GORSELI
+    // ⚠️ Bu kontrol `media_assets.kind` CHECK'ini SINAR. Turu 78'de kisit
+    //    'kapak' kabul etmiyordu ve presign 500 doneceki = ozellik %100 olu.
+    const kap = await medyaYukle2(A.token, 'kapak.jpg', 'kapak');
+    kontrol("TURU 78: kind='kapak' PRESIGN gecti (media_assets CHECK'i kabul ediyor)",
+      kap.hata === 0 && !!kap.id, 'HTTP ' + kap.hata);
+
+    if (kap.id) {
+      const pk = await j('/users/me', {
+        yontem: 'PATCH', token: A.token, govde: { kapak_media_id: kap.id },
+      });
+      kontrol('TURU 78: PATCH /users/me kapak baglaniyor', pk.kod === 200,
+        'HTTP ' + pk.kod);
+      kontrol('TURU 78: /users/me kapak_media_id donduruyor',
+        pk.d && pk.d.kapak_media_id === kap.id, String(pk.d && pk.d.kapak_media_id));
+
+      // ⚠️⚠️ EN KRITIK: profil ucu kapagi GERCEKTEN doner mu? Turu 78'de sutun
+      //    SELECT edilip Scan ediliyor ama YANIT HARITASINA KONMUYORDU —
+      //    kapak HICBIR PROFILDE gorunmeyecekti.
+      const pr = await j('/users/' + A.id + '/profile', { token: B.token });
+      kontrol('TURU 78: PROFIL UCU kapak_media_id DONDURUYOR (yanit haritasi)',
+        pr.kod === 200 && pr.d.kapak_media_id === kap.id,
+        'donen=' + JSON.stringify(pr.d && pr.d.kapak_media_id));
+      kontrol('TURU 78: PROFIL UCU onayli alanini DONDURUYOR',
+        pr.kod === 200 && typeof pr.d.onayli === 'boolean',
+        'tur=' + typeof (pr.d && pr.d.onayli));
+
+      // ⚠️ Medya (i) dali: kapak IKINCI HESAPTA acilmali (turu 75b/77 sinifi).
+      const km = await j('/media/' + kap.id + '/url', { token: B.token });
+      kontrol('TURU 78: KAPAK MEDYASI ikinci hesapta ACILIYOR (erisim dali)',
+        km.kod === 200, 'HTTP ' + km.kod);
+
+      // Kaldirma NOBETCISI: bos dize = SIL (null "degistirme" demek).
+      const ks = await j('/users/me', {
+        yontem: 'PATCH', token: A.token, govde: { kapak_media_id: '' },
+      });
+      kontrol("TURU 78: kapak KALDIRMA nobetcisi ('' = sil) calisiyor",
+        ks.kod === 200 && !ks.d.kapak_media_id,
+        'donen=' + JSON.stringify(ks.d && ks.d.kapak_media_id));
+      // geri koy (sonraki kontroller icin)
+      await j('/users/me', {
+        yontem: 'PATCH', token: A.token, govde: { kapak_media_id: kap.id },
+      });
+    }
+
+    // ---------- 2) ILAN DUZENLEME + VIDEO
+    const im2 = await medyaYukle2(A.token, 'ilan2.jpg', 'image');
+    const yeniIlan = await j('/ilanlar', {
+      yontem: 'POST', token: A.token,
+      govde: {
+        tur: 'vasita', kategori: 'otomobil', baslik: 'Duzenlenecek arac',
+        aciklama: 'ilk', fiyat_kurus: 50000000, il: 'Kocaeli', ilce: 'Gebze',
+        media_ids: [im2.id], ozellikler: { marka: 'Fiat', yil: 2015 },
+      },
+    });
+    const dId = yeniIlan.d && yeniIlan.d.id;
+    kontrol('TURU 78: duzenleme icin ilan olusturuldu', yeniIlan.kod === 201);
+
+    if (dId) {
+      const d0 = await j('/ilanlar/' + dId, { token: A.token });
+      kontrol('TURU 78: yeni ilanda duzenlendi_at NULL', d0.d.duzenlendi_at == null,
+        String(d0.d.duzenlendi_at));
+      kontrol('TURU 78: ilan media_kinds donduruyor',
+        Array.isArray(d0.d.media_kinds) && d0.d.media_kinds[0] === 'image',
+        JSON.stringify(d0.d.media_kinds));
+
+      // TAM duzenleme: kategori + il + ilce + ozellikler + media_ids
+      const g1 = await j('/ilanlar/' + dId, {
+        yontem: 'PATCH', token: A.token,
+        govde: {
+          baslik: 'Duzenlendi', kategori: 'suv', il: 'Kocaeli', ilce: 'Darica',
+          fiyat_kurus: 45000000, ozellikler: { marka: 'Fiat', yil: 2016 },
+        },
+      });
+      kontrol('TURU 78: ilan TAM duzenleme (kategori/il/ilce/ozellikler)',
+        g1.kod === 200, 'HTTP ' + g1.kod);
+      const d1 = await j('/ilanlar/' + dId, { token: A.token });
+      kontrol('TURU 78: duzenleme alanlari GERCEKTEN degisti',
+        d1.d.baslik === 'Duzenlendi' && d1.d.kategori === 'suv' &&
+        d1.d.ilce === 'Darica' && d1.d.ozellikler.yil === 2016,
+        JSON.stringify({ b: d1.d.baslik, k: d1.d.kategori, i: d1.d.ilce }));
+      kontrol('TURU 78: duzenlendi_at ARTIK DOLU (alici guveni etiketi)',
+        d1.d.duzenlendi_at != null, String(d1.d.duzenlendi_at));
+
+      // ⚠️ `durum` degisimi DUZENLEME SAYILMAZ — etiket anlamini yitirmesin.
+      const oncekiDamga = d1.d.duzenlendi_at;
+      await j('/ilanlar/' + dId, {
+        yontem: 'PATCH', token: A.token, govde: { durum: 'satildi' },
+      });
+      const d2 = await j('/ilanlar/' + dId, { token: A.token });
+      kontrol('TURU 78: sadece DURUM degisimi duzenlendi_at DAMGASINI DEGISTIRMEZ',
+        d2.d.duzenlendi_at === oncekiDamga, String(d2.d.duzenlendi_at));
+      await j('/ilanlar/' + dId, {
+        yontem: 'PATCH', token: A.token, govde: { durum: 'yayinda' },
+      });
+
+      // Baskasinin medyasini baglama denemesi (erisim dalini somurme yolu)
+      const bMedya = await medyaYukle2(B.token, 'bskns.jpg', 'image');
+      const kotu = await j('/ilanlar/' + dId, {
+        yontem: 'PATCH', token: A.token, govde: { media_ids: [bMedya.id] },
+      });
+      kontrol('TURU 78: BASKASININ medyasi ilana BAGLANAMAZ (403)',
+        kotu.kod === 403, 'HTTP ' + kotu.kod);
+
+      // ---------- 3) ILAN SOHBETI
+      const s1 = await j('/ilanlar/' + dId + '/sohbet', {
+        yontem: 'POST', token: B.token,
+      });
+      kontrol('TURU 78: ilan sohbeti acildi', s1.kod === 200 && !!s1.d.chat_id,
+        'HTTP ' + s1.kod);
+      const s2 = await j('/ilanlar/' + dId + '/sohbet', {
+        yontem: 'POST', token: B.token,
+      });
+      kontrol('TURU 78: AYNI ilan icin AYNI sohbet doner (yeni satir acmaz)',
+        s2.d && s2.d.chat_id === s1.d.chat_id);
+
+      const kendi = await j('/ilanlar/' + dId + '/sohbet', {
+        yontem: 'POST', token: A.token,
+      });
+      kontrol('TURU 78: KENDI ilanina mesaj ACILAMAZ (400)', kendi.kod === 400,
+        'HTTP ' + kendi.kod);
+
+      // ⚠️ Sohbet listesi ILAN BASLIGINI tasimali — yoksa satici hangi ilan
+      //    icin yazildigini goremez ve ozellik YARIM kalir.
+      const liste = await j('/chats', { token: A.token });
+      const ilanSohbeti = (Array.isArray(liste.d) ? liste.d : [])
+        .find((c) => c.ilan_id === dId);
+      kontrol('TURU 78: SOHBET LISTESI ilan_id + ilan_baslik donduruyor',
+        !!ilanSohbeti && ilanSohbeti.ilan_baslik === 'Duzenlendi',
+        JSON.stringify(ilanSohbeti && ilanSohbeti.ilan_baslik));
+
+      // ⚠️ KISISEL sohbet ILAN sohbetine DUSMEMELI (`ilan_id IS NULL` yuklemi).
+      const kisisel = await j('/chats/direct', {
+        yontem: 'POST', token: B.token, govde: { user_id: A.id },
+      });
+      kontrol('TURU 78: KISISEL sohbet ILAN sohbetinden AYRI (ilan_id IS NULL)',
+        kisisel.kod === 200 && kisisel.d.chat_id !== s1.d.chat_id,
+        'kisisel=' + (kisisel.d && kisisel.d.chat_id));
+    }
+
+    // ---------- 4) ETKINLIK DUZENLEME + BITIS + KADRO
+    const yarin2 = new Date(Date.now() + 2 * 86400000).toISOString();
+    const bitis2 = new Date(Date.now() + 2 * 86400000 + 7200000).toISOString();
+    const ye = await j('/etkinlikler', {
+      yontem: 'POST', token: A.token,
+      govde: {
+        baslik: 'Duzenlenecek konser', aciklama: 'ilk', kategori: 'konser',
+        baslangic: yarin2, konum: 'Sahne', il: 'Kocaeli', ilce: 'Gebze',
+        ucretsiz: true,
+      },
+    });
+    const eId2 = ye.d && ye.d.id;
+    kontrol('TURU 78: duzenleme icin etkinlik olusturuldu', ye.kod === 201);
+
+    if (eId2) {
+      const eg = await j('/etkinlikler/' + eId2, {
+        yontem: 'PATCH', token: A.token,
+        govde: { baslik: 'Konser (yeni)', konum: 'Yeni sahne', bitis: bitis2 },
+      });
+      kontrol('TURU 78: PATCH /etkinlikler/{id} (uc YENI)', eg.kod === 200,
+        'HTTP ' + eg.kod);
+      const ed = await j('/etkinlikler/' + eId2, { token: A.token });
+      kontrol('TURU 78: etkinlik duzenlemesi uygulandi + BITIS yazildi',
+        ed.d.baslik === 'Konser (yeni)' && ed.d.bitis != null,
+        JSON.stringify({ b: ed.d.baslik, bit: ed.d.bitis }));
+
+      // Bos dize = bitisi KALDIR nobetcisi
+      await j('/etkinlikler/' + eId2, {
+        yontem: 'PATCH', token: A.token, govde: { bitis: '' },
+      });
+      const ed2 = await j('/etkinlikler/' + eId2, { token: A.token });
+      kontrol("TURU 78: bitis KALDIRMA nobetcisi ('' = sil)", ed2.d.bitis == null,
+        String(ed2.d.bitis));
+
+      const bg = await j('/etkinlikler/' + eId2, {
+        yontem: 'PATCH', token: B.token, govde: { baslik: 'ele gecirildi' },
+      });
+      kontrol('TURU 78: BASKASI etkinligi duzenleyemez (404)', bg.kod === 404,
+        'HTTP ' + bg.kod);
+
+      // KADRO
+      const k1 = await j('/etkinlikler/' + eId2 + '/kadro', {
+        yontem: 'POST', token: A.token,
+        govde: { ad: 'Ornek Sanatci', rol: 'Sanatçı' },
+      });
+      kontrol('TURU 78: kadroya KAYITSIZ kisi eklendi (user_id ZORUNLU DEGIL)',
+        k1.kod === 201, 'HTTP ' + k1.kod);
+      const k2 = await j('/etkinlikler/' + eId2 + '/kadro', {
+        yontem: 'POST', token: A.token,
+        govde: { user_id: B.id, rol: 'Konuşmacı', ad: 'SAHTE AD' },
+      });
+      kontrol('TURU 78: kadroya KAYITLI kisi eklendi', k2.kod === 201,
+        'HTTP ' + k2.kod);
+      const kl = await j('/etkinlikler/' + eId2 + '/kadro', { token: B.token });
+      const kayitli = ((kl.d && kl.d.kadro) || []).find((x) => x.user_id === B.id);
+      kontrol('TURU 78: kadro listesi donuyor (2 kisi)',
+        ((kl.d && kl.d.kadro) || []).length === 2,
+        'adet=' + (((kl.d && kl.d.kadro) || []).length));
+      // ⚠️ KIMLIK TAKLIDI KAPISI: kayitli kisinin adi SUNUCUDAN gelir.
+      kontrol('TURU 78: kayitli kisinin adi SUNUCUDAN (istemcinin "SAHTE AD"i YOK)',
+        !!kayitli && kayitli.ad === 'E2E Okur', String(kayitli && kayitli.ad));
+
+      const kb = await j('/etkinlikler/' + eId2 + '/kadro', {
+        yontem: 'POST', token: B.token, govde: { ad: 'izinsiz' },
+      });
+      kontrol('TURU 78: BASKASI kadroya ekleyemez (404)', kb.kod === 404,
+        'HTTP ' + kb.kod);
+      const ks2 = await j(
+        '/etkinlikler/' + eId2 + '/kadro/' + (k1.d && k1.d.id),
+        { yontem: 'DELETE', token: A.token });
+      kontrol('TURU 78: kadrodan silme', ks2.kod === 200, 'HTTP ' + ks2.kod);
+    }
+
+    // ---------- 5) VITRIN + AI
+    const v1 = await j('/vitrin?dikey=yemek', { token: B.token });
+    kontrol('TURU 78: GET /vitrin calisiyor (isletme dali)',
+      v1.kod === 200 && Array.isArray(v1.d.slaytlar),
+      'HTTP ' + v1.kod + ' adet=' + ((v1.d && v1.d.slaytlar || []).length));
+    const v2 = await j('/vitrin?dikey=etkinlik', { token: B.token });
+    kontrol('TURU 78: GET /vitrin etkinlik dali (SQL gercek Postgres de kosuyor)',
+      v2.kod === 200 && Array.isArray(v2.d.slaytlar), 'HTTP ' + v2.kod);
+
+    // ⚠️ Yeni filtre parametreleri (hizli kartlarin ON KOSULU)
+    const fi = await j('/isletmeler?dogrulandi=1', { token: B.token });
+    kontrol('TURU 78: /isletmeler?dogrulandi=1 suzgeci calisiyor', fi.kod === 200,
+      'HTTP ' + fi.kod);
+    const fe = await j('/etkinlikler?bas_min=' + encodeURIComponent(yarin2),
+      { token: B.token });
+    kontrol('TURU 78: /etkinlikler?bas_min= suzgeci calisiyor (timestamptz cast)',
+      fe.kod === 200, 'HTTP ' + fe.kod);
+
+    const ai = await j('/ai/durum', { token: A.token });
+    kontrol('TURU 78: /ai/durum', ai.kod === 200, 'acik=' + (ai.d && ai.d.acik));
+  }
+
   // ---------- OZET
   const kalan = sonuclar.filter((s) => !s.gecti);
   console.log('\n==================================');
