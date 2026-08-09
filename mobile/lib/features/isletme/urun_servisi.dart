@@ -91,6 +91,10 @@ class AiServisi {
         acik: m['acik'] == true,
         kalan: (m['kalan'] as num?)?.toInt() ?? 0,
         kota: (m['gunluk_kota'] as num?)?.toInt() ?? 0,
+        // ⚠️ Eski sunucuda bu alanlar YOK -> `false`/0 (dugme cizilmez).
+        gorsel: m['gorsel'] == true,
+        gorselKalan: (m['gorsel_kalan'] as num?)?.toInt() ?? 0,
+        gorselKota: (m['gorsel_gunluk_kota'] as num?)?.toInt() ?? 0,
       );
     } catch (_) {
       // ⚠️ Hata durumunda KAPALI varsayilir — yanlislikla dugme cizmektense
@@ -146,6 +150,22 @@ class AiServisi {
     return (r.data['sonuc'] ?? '').toString();
   }
 
+  /// ⚠️⚠️ TURU 79 — METINDEN URUN GORSELI URETIR. **`media_id` DONER.**
+  ///
+  ///	URL degil id donmesi bilincli: imzali adres kisa omurludur ve kullanici
+  ///	gorseli kaydetmeden once olurdu. `media_id` mevcut TUM medya boru
+  ///	hattina (erisim dallari, kota, silme kuyrugu) oturur ve istemci onu
+  ///	ZATEN bildigi `MedyaGorsel` ile cizer.
+  /// ⚠️ Uretilen gorsel HICBIR YERE otomatik baglanmaz; kullanici onaylar.
+  Future<String> gorsel({required String metin}) async {
+    final r = await _api.post(
+      '/ai/gorsel',
+      data: {'metin': metin},
+      options: _aiSecenek,
+    );
+    return (r.data['media_id'] ?? '').toString();
+  }
+
   /// Fotograftan sorun tespiti.
   Future<String> danisma({required String mediaId, String metin = ''}) async {
     final r = await _api.post(
@@ -158,10 +178,29 @@ class AiServisi {
 }
 
 class AiDurum {
-  const AiDurum({required this.acik, required this.kalan, required this.kota});
+  const AiDurum({
+    required this.acik,
+    required this.kalan,
+    required this.kota,
+    this.gorsel = false,
+    this.gorselKalan = 0,
+    this.gorselKota = 0,
+  });
   final bool acik;
   final int kalan;
   final int kota;
+
+  /// ⚠️⚠️ TURU 79 — GORSEL URETIMI **AYRI BAYRAK**.
+  ///    `acik` ile aynilastirilamaz: anahtar VAR ama medya (R2) KAPALI ise
+  ///    uretilen bayti koyacak yer YOKTUR ve sunucu 503 doner. Dugmeyi bu
+  ///    bayraga bakmadan cizmek, projede alti kez tekrarlayan "ozellik var
+  ///    gorunup fiilen yok" hatasinin yenisi olurdu.
+  final bool gorsel;
+
+  /// ⚠️ Gorsel kotasi METINDEN AYRI sayilir (bir gorsel ~40 metin cagrisina
+  ///    bedel). Metin hakki dolu olsa bile gorsel hakki DURUYOR olabilir.
+  final int gorselKalan;
+  final int gorselKota;
 }
 
 final urunServisiProvider = Provider<UrunServisi>(UrunServisi.new);

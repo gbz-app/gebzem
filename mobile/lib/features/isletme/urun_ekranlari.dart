@@ -580,6 +580,16 @@ class _UrunDuzenleEkraniState extends ConsumerState<UrunDuzenleEkrani> {
   bool _kaydediliyor = false;
   bool _aiCalisiyor = false;
 
+  /// ⚠️ TURU 79 — gorsel uretimi surerken dugmeyi KILITLER. Cift dokunus IKI
+  ///    kotayi birden yakar ve uretim GERI ALINAMAZ (para harcanir).
+  bool _gorselUretiliyor = false;
+
+  /// ⚠️ TURU 79 — kullanicinin ONAYLADIGI AI gorselinin id'si.
+  ///    `_gorsel` (elle secilen dosya) ile AYNI ANDA dolu olamaz — onay
+  ///    adiminda oteki dusurulur, yoksa `_kaydet` hangisini gonderecegini
+  ///    bilemez ve biri SESSIZCE kaybolurdu.
+  String? _uretilenMediaId;
+
   /// yayinda | tukendi  (⚠️ 'kaldirildi' arayuzden AYARLANMAZ — o "Kaldır"
   /// dugmesinin isi; iki yol ayni durumu yazsaydi kullanici hangisinin ne
   /// yaptigini bilemezdi.)
@@ -605,7 +615,150 @@ class _UrunDuzenleEkraniState extends ConsumerState<UrunDuzenleEkrani> {
       MedyaKapisi.pickerAcik = false;
     }
     if (x == null || !mounted) return;
-    setState(() => _gorsel = File(x!.path));
+    setState(() {
+      _gorsel = File(x!.path);
+      // ⚠️⚠️ TURU 79 — SIMETRI ZORUNLU: onay adimi elle secilen dosyayi
+      //    dusuruyor, burasi da AI gorselini DUSURMELI. Ikisi ayni anda dolu
+      //    kalsaydi `_kaydet` AI'i tercih eder ve kullanicinin YENI SECTIGI
+      //    fotograf SESSIZCE kaybolurdu ("sectim ama eskisi kaldi").
+      _uretilenMediaId = null;
+    });
+  }
+
+  /// ⚠️⚠️⚠️ TURU 79 — YAPAY ZEKA ILE URUN GORSELI URETIR.
+  ///
+  /// Kullanici emri: *"yapay zeka ile görsel oluşturma nerede"* / *"hepsi olsun"*.
+  ///
+  /// ⚠️ SONUC **ONAY ADIMINDAN GECER**: uretilen gorsel dogrudan urune
+  ///
+  ///	baglanmaz, kullaniciya buyuk gosterilir ve "Kullan / Vazgeç" sorulur.
+  ///	Model yanlis/alakasiz bir sey cizebilir; menu onerisindeki ILKENIN AYNISI.
+  ///
+  /// ⚠️ URETIM PARA HARCAR ve GERI ALINAMAZ: dugme cagri boyunca KILITLENIR
+  ///
+  ///	(`_gorselUretiliyor`), yoksa cift dokunus IKI kotayi birden yakar.
+  ///
+  /// ⚠️ Servis await'lerden ONCE yakalanir (bkz. `_kaydet` serhi): uretim
+  ///
+  ///	120 saniyeye kadar surebiliyor ve o pencerede ekran dispose olabilir.
+  Future<void> _aiGorsel() async {
+    if (_gorselUretiliyor) return;
+    final ad = _ad.text.trim();
+    final tarif = await _gorselTarifiSor(ad);
+    if (tarif == null || tarif.isEmpty || !mounted) return;
+
+    final aiSvc = ref.read(aiServisiProvider);
+    setState(() => _gorselUretiliyor = true);
+    try {
+      final mediaId = await aiSvc.gorsel(metin: tarif);
+      if (!mounted) return;
+      // ⚠️ Kota sayaci TAZELENIR (turu 77b dersi: etiketteki sayi bayat kalirdi).
+      ref.invalidate(aiDurumProvider);
+      if (mediaId.isEmpty) {
+        rootMessengerKey.currentState?.showSnackBar(
+          const SnackBar(content: Text('Görsel oluşturulamadı')),
+        );
+        return;
+      }
+      await _uretilenGorseliOnayla(mediaId);
+    } catch (e) {
+      // ⚠️ KOK MESSENGER: uretim uzun surer, ekran degismis olabilir.
+      rootMessengerKey.currentState?.showSnackBar(
+        SnackBar(content: Text(apiErrorMessage(e))),
+      );
+    } finally {
+      if (mounted) setState(() => _gorselUretiliyor = false);
+    }
+  }
+
+  /// Ne cizilecegini sorar. ⚠️ Urun adi VARSA hazir gelir — kullanicinin
+  ///    coguna dokunmadan onaylamasi icin.
+  Future<String?> _gorselTarifiSor(String ad) async {
+    final ctrl = TextEditingController(text: ad);
+    final onay = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        // ⚠️ `scrollable`: klavye acilinca icerik kirpilmasin (turu 78b dersi).
+        scrollable: true,
+        title: const Text('Yapay zekâ ile görsel'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: ctrl,
+              autofocus: true,
+              minLines: 2,
+              maxLines: 4,
+              maxLength: 300,
+              decoration: const InputDecoration(
+                hintText:
+                    'Ne çizilsin?\n'
+                    'Örnek: tabakta Adana kebap, yanında bulgur pilavı',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Görsel yapay zekâ tarafından ÜRETİLİR; gerçek bir fotoğraf '
+              'değildir. Beğenmezsen kullanmak zorunda değilsin.',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c, false),
+            child: const Text('Vazgeç'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(c, true),
+            child: const Text('Oluştur'),
+          ),
+        ],
+      ),
+    );
+    final metin = ctrl.text.trim();
+    ctrl.dispose();
+    return onay == true ? metin : null;
+  }
+
+  /// Uretilen gorseli BUYUK gosterir ve onay ister.
+  ///
+  /// ⚠️ Onaylanirsa `_uretilenMediaId` doldurulur; `_kaydet` bunu `media_ids`e
+  ///    koyar. ⚠️ Reddedilirse HICBIR SEY yapilmaz — medya sunucuda 'aktif'
+  ///    kalir ama hicbir yere bagli DEGILDIR ve depolama kotasindan dusmustur
+  ///    (uretim gercekten para harcadi; sessizce silmek kotayi yanlis gosterirdi).
+  Future<void> _uretilenGorseliOnayla(String mediaId) async {
+    final kullan = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Görsel hazır'),
+        content: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: AspectRatio(
+            aspectRatio: 1,
+            child: MedyaGorsel(mediaId: mediaId, fit: BoxFit.cover),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c, false),
+            child: const Text('Vazgeç'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(c, true),
+            child: const Text('Kullan'),
+          ),
+        ],
+      ),
+    );
+    if (kullan != true || !mounted) return;
+    setState(() {
+      _uretilenMediaId = mediaId;
+      // ⚠️ Elle secilmis dosya varsa DUSURULUR: iki kaynak birden olursa
+      //    `_kaydet` hangisini yollayacagini bilemez ve sessizce biri kaybolur.
+      _gorsel = null;
+    });
   }
 
   /// ⚠️ AI ACIKLAMA — urunun fotografindan/adindan satis metni yazar.
@@ -677,7 +830,12 @@ class _UrunDuzenleEkraniState extends ConsumerState<UrunDuzenleEkrani> {
       if (widget.urun != null) govde['durum'] = _durum;
       if (widget.urun == null) {
         final idler = <String>[];
-        if (_gorsel != null) {
+        // ⚠️⚠️ TURU 79 — AI GORSELI ZATEN SUNUCUDA: yeniden YUKLENMEZ, id
+        //    dogrudan baglanir. (Uretim yolunda baytlar OpenAI'dan SUNUCUYA
+        //    gelip R2'ye orada yazildi; istemcide dosya HIC YOK.)
+        if (_uretilenMediaId != null) {
+          idler.add(_uretilenMediaId!);
+        } else if (_gorsel != null) {
           final hazir = await MedyaServisi.gorseliHazirla(_gorsel!);
           if (hazir == null) throw Exception('Görsel hazırlanamadı');
           idler.add(
@@ -769,7 +927,18 @@ class _UrunDuzenleEkraniState extends ConsumerState<UrunDuzenleEkrani> {
                     ).colorScheme.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(14),
                   ),
-                  child: _gorsel == null
+                  // ⚠️ TURU 79 — UC DURUM: (a) AI gorseli onaylandi -> SUNUCUDAN
+                  //    ciz, (b) elle dosya secildi -> dosyadan ciz, (c) hicbiri.
+                  //    (a) ve (b) AYNI ANDA olamaz (onay adiminda oteki dusuyor).
+                  child: _uretilenMediaId != null
+                      ? ClipRRect(
+                          borderRadius: BorderRadius.circular(14),
+                          child: MedyaGorsel(
+                            mediaId: _uretilenMediaId!,
+                            fit: BoxFit.cover,
+                          ),
+                        )
+                      : _gorsel == null
                       ? const Center(
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
@@ -784,6 +953,39 @@ class _UrunDuzenleEkraniState extends ConsumerState<UrunDuzenleEkrani> {
                           borderRadius: BorderRadius.circular(14),
                           child: Image.file(_gorsel!, fit: BoxFit.cover),
                         ),
+                ),
+              ),
+            ),
+          // ---- ⚠️⚠️ TURU 79 — YAPAY ZEKA ILE GORSEL OLUSTUR
+          //
+          // Kullanici emri: "yapay zeka ile gorsel oluşturma nerede?" —
+          // turu 77/78'de yalniz METIN uclari baglanmisti.
+          //
+          // ⚠️ YALNIZ YENI URUNDE ve YALNIZ `ai.gorsel` bayragi TRUE iken
+          //    cizilir. `ai.acik` YETMEZ: anahtar var ama medya (R2) kapaliysa
+          //    sunucu 503 doner ve dugme "var gorunup calismayan" olurdu.
+          // ⚠️ Duzenlemede GIZLI: sunucu PATCH'te medyaya DOKUNMUYOR (mevcut
+          //    davranis), yani uretilen gorsel kaydedilemezdi.
+          if (widget.urun == null && (ai?.gorsel ?? false))
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: _gorselUretiliyor ? null : _aiGorsel,
+                  icon: _gorselUretiliyor
+                      ? const SizedBox(
+                          width: 15,
+                          height: 15,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(LucideIcons.wandSparkles, size: 17),
+                  label: Text(
+                    _gorselUretiliyor
+                        ? 'Çiziliyor...'
+                        : 'Yapay zekâ ile görsel oluştur'
+                              '${(ai?.gorselKalan ?? 0) > 0 ? " (${ai!.gorselKalan})" : ""}',
+                  ),
                 ),
               ),
             ),

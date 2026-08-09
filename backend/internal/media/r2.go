@@ -2,6 +2,8 @@ package media
 
 import (
 	"context"
+	"crypto/md5"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"log"
@@ -106,6 +108,57 @@ func (i *Istemci) BasParcasi(ctx context.Context, nesneAnahtari string, n int64)
 	// ⚠️ LimitReader SART: sunucu Range'i yok sayip TUM dosyayi gonderirse
 	//     belleği koruruz.
 	return io.ReadAll(io.LimitReader(res.Body, n))
+}
+
+// Yukle — SUNUCUDAN R2'ye nesne yazar (PutObject).
+//
+// ⚠️⚠️⚠️ TURU 79 — BU FONKSIYON YUKARIDAKI TASARIM KARARININ **BILINCLI
+// ISTISNASIDIR**. Kural "medya API'DEN GECMEZ"dir ve o kural DURUYOR: kullanici
+// dosyalari (100 MB'a kadar video) HALA presigned PUT ile DOGRUDAN R2'ye gider.
+//
+//	ISTISNANIN SEBEBI: yapay zekanin URETTIGI gorsel istemcide HIC YOKTUR —
+//	OpenAI'dan SUNUCUYA base64 olarak gelir. Istemciye geri gonderip ondan
+//	yukletmek (a) ayni baytlari IKI KEZ tasir (sunucu->istemci->R2),
+//	(b) istemcinin yuklemeyi ATLAYIP kendi baska bir gorselini "AI uretti"
+//	diye kaydetmesine izin verir.
+//
+//	NEDEN GUVENLI: govde **SUNUCUNUN KENDI URETTIGI** birkac yuz KB'lik bir
+//	PNG'dir; boyutu `aiGorselTavani` ile SINIRLIDIR ve kullanicidan gelen
+//	hicbir bayt bu yoldan gecmez. cx33'te SFU'yu ac birakma riski YOK.
+//
+// ⚠️ YAPMA: bu fonksiyonu kullanici yuklemelerine acma (presigned PUT'ta kal).
+// ⚠️ `Content-MD5` GONDERILIR: R2 bozuk gövdeyi kabul etmesin (commit yolundaki
+//
+//	dogrulamanin karsiligi — burada commit adimi YOK, nesne dogrudan 'aktif'
+//	dogacagi icin butunluk BURADA kanitlanmali).
+func (i *Istemci) Yukle(ctx context.Context, nesneAnahtari, mime string, govde []byte) error {
+	md5b64 := md5Base64(govde)
+	u, err := i.ImzaliURL("PUT", nesneAnahtari, 120*time.Second, map[string]string{
+		"Content-Type": mime,
+		"Content-MD5":  md5b64,
+	})
+	if err != nil {
+		return err
+	}
+	req, _ := http.NewRequestWithContext(ctx, http.MethodPut, u,
+		strings.NewReader(string(govde)))
+	req.Header.Set("Content-Type", mime)
+	req.Header.Set("Content-MD5", md5b64)
+	req.ContentLength = int64(len(govde))
+	res, err := i.hc.Do(req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusCreated {
+		return i.hataOlarak("PUT", res.StatusCode)
+	}
+	return nil
+}
+
+func md5Base64(b []byte) string {
+	s := md5.Sum(b)
+	return base64.StdEncoding.EncodeToString(s[:])
 }
 
 // Sil — nesneyi R2'den kaldirir. DeleteObject R2'de UCRETSIZDIR.

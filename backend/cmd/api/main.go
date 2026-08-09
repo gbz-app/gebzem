@@ -101,7 +101,10 @@ func main() {
 	// ⚠️ TURU 77 — AI: MEVCUT medya istemcisini PAYLASIR (ikinci bir R2
 	//    istemcisi KURULMADI — ayri istemci = ayri imzalama yapilandirmasi =
 	//    drift). `mediaH` KURULDUKTAN SONRA olusturulmali.
-	aiH := ai.NewHandler(db, mediaH.ImzaliAdres)
+	// ⚠️ TURU 79 — gorsel uretimi icin IKI geri cagirim daha: AI paketi R2'ye ve
+	//    `media_assets`e DOGRUDAN dokunmaz (ikinci istemci = drift, turu 77/Ç12).
+	aiH := ai.NewHandler(db, mediaH.ImzaliAdres,
+		mediaH.AIGorseliKaydet, mediaH.AIGorselIzni)
 	usersH.MedyaDurumu(mediaH.Enabled()) // istemci atac dugmesini buna gore gizler
 	if mediaH.Enabled() {
 		mediaH.StartSweeper(ctx)
@@ -253,6 +256,10 @@ func main() {
 		r.Post("/ai/menu", aiH.Menu)
 		r.Post("/ai/urun-metni", aiH.UrunMetni)
 		r.Post("/ai/danisma", aiH.Danisma)
+		// ⚠️ TURU 79 — metinden URUN GORSELI uretir; AYRI ve DUSUK kota
+		//    (bir gorsel ~40 metin cagrisina bedel). Sonuc `media_id` doner ve
+		//    HICBIR YERE otomatik baglanmaz — kullanici onaylar.
+		r.Post("/ai/gorsel", aiH.Gorsel)
 		// TURU 76b — HIKAYE (story). 24 saat GORUNURLUK; veri SILINMEZ.
 		r.Post("/stories", socialH.StoryOlustur)
 		r.Get("/stories", socialH.StoryAkis)

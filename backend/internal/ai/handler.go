@@ -54,6 +54,36 @@ const gunlukKota = 20
 const (
 	modelMetin = "gpt-4o-mini"
 	zamanAsimi = 60 * time.Second
+
+	// ⚠️⚠️ TURU 79 — GORSEL URETIM MODELI.
+	//
+	//	`dall-e-3` SECILDI, `gpt-image-1` DEGIL: ikincisi bazi hesaplarda
+	//	**kurulus dogrulamasi** istiyor ve dogrulanmamis bir hesapta 403 doner —
+	//	yani ozellik sahada SESSIZCE olu olurdu. `dall-e-3` boyle bir kapi
+	//	tasimiyor. Model adi TEK YERDE: degistirmek tek satir.
+	//	⚠️ `response_format: "b64_json"` ZORUNLU (bkz. `GorselUret` serhi).
+	modelGorsel = "dall-e-3"
+
+	// Gorsel uretimi zaman asimi — metinden UZUN surer.
+	gorselZamanAsimi = 120 * time.Second
+
+	// ⚠️⚠️ GORSEL KOTASI METINDEN **AYRI VE COK DAHA DUSUK**.
+	//
+	//	Maliyet: dall-e-3 1024x1024 standart ~$0.040/gorsel; metin cagrisi
+	//	~$0.001. Yani BIR gorsel ~40 metin cagrisina bedel. Gunluk 20 gorsel
+	//	kullanici basina ~$0.80/gun eder ve odeme sistemi YOK.
+	//	5 gorsel/gun (~$0.20) urun fotografi ihtiyacini karsilar, kotu niyetli
+	//	kullanimda ise maliyeti sinirli tutar.
+	// ⚠️ Sayim `tur='gorsel'` uzerinden AYRI yapilir; metin kotasini YEMEZ ve
+	//    metin kotasi da gorseli kilitlemez.
+	gunlukGorselKota = 5
+
+	// Uretilen PNG icin ust sinir. ⚠️ `io.LimitReader` ile UYGULANIR: OpenAI
+	// beklenmedik sekilde devasa bir govde donerse cx33'un RAM'ini yemesin.
+	aiGorselTavani = 12 << 20 // 12 MB
+
+	// Kota kontrolu icin tahmini boyut (1024x1024 PNG ~2-4 MB).
+	aiGorselTahmini = 4 << 20
 )
 
 type Handler struct {
@@ -65,18 +95,41 @@ type Handler struct {
 	// ⚠️⚠️ Imza `sahipID` TASIR — AI yolu KULLANICININ KENDI medyasi disina
 	//    cikamaz (turu 77b gizlilik bulgusu; ayrinti: media.ImzaliAdres serhi).
 	medyaURL func(ctx context.Context, mediaID, sahipID string) (string, error)
+
+	// ⚠️⚠️ TURU 79 — URETILEN GORSELI KAYDEDEN GERI CAGIRIM.
+	//    `medyaURL` ile AYNI gerekce: AI paketi R2'ye ve `media_assets`e
+	//    DOGRUDAN DOKUNMAZ (ikinci istemci = drift). Govde OpenAI'dan SUNUCUYA
+	//    gelir; istemci ona hic dokunmaz.
+	gorselKaydet func(ctx context.Context, sahipID, mime string, govde []byte) (string, error)
+
+	// Uretimden ONCE depolama kotasi yeterli mi? ⚠️ ONCE sorulur: OpenAI cagrisi
+	// PARA HARCAR, sonradan "yer yok" demek parayi bosa yakar.
+	gorselIzni func(ctx context.Context, sahipID string, tahminiBayt int64) bool
 }
 
 func NewHandler(db *pgxpool.Pool,
-	medyaURL func(context.Context, string, string) (string, error)) *Handler {
+	medyaURL func(context.Context, string, string) (string, error),
+	gorselKaydet func(context.Context, string, string, []byte) (string, error),
+	gorselIzni func(context.Context, string, int64) bool) *Handler {
 	a := strings.TrimSpace(os.Getenv("OPENAI_API_KEY"))
 	if a == "" {
 		log.Printf("ai: OPENAI_API_KEY yok — AI KAPALI")
 	} else {
-		log.Printf("ai: aktif (model %s)", modelMetin)
+		log.Printf("ai: aktif (metin %s · gorsel %s)", modelMetin, modelGorsel)
 	}
-	return &Handler{db: db, anahtar: a, medyaURL: medyaURL}
+	return &Handler{
+		db: db, anahtar: a, medyaURL: medyaURL,
+		gorselKaydet: gorselKaydet, gorselIzni: gorselIzni,
+	}
 }
+
+// GorselAcik — gorsel uretimi kullanilabilir mi?
+//
+// ⚠️ Anahtar VAR ama medya KAPALI ise (R2 env eksik) gorsel URETILEMEZ: uretilen
+//
+//	bayti koyacak yer yoktur. Istemci `/ai/durum`daki `gorsel` bayragina bakip
+//	dugmeyi HIC CIZMEZ — "ozellik var gorunup fiilen yok" hatasina dusmemek icin.
+func (h *Handler) GorselAcik() bool { return h.Acik() && h.gorselKaydet != nil }
 
 func (h *Handler) Acik() bool { return h.anahtar != "" }
 
@@ -97,16 +150,24 @@ func hata(w http.ResponseWriter, kod int, m string) {
 //	alirdi — "ozellik var gorunup fiilen yok" hatasinin ta kendisi.
 func (h *Handler) Durum(w http.ResponseWriter, r *http.Request) {
 	me := auth.UserID(r.Context())
-	kalan := 0
+	kalan, gorselKalan := 0, 0
 	if h.Acik() {
-		kullanilan := h.bugunKullanilan(r.Context(), me)
-		kalan = gunlukKota - kullanilan
-		if kalan < 0 {
-			kalan = 0
+		if k := gunlukKota - h.bugunKullanilan(r.Context(), me, false); k > 0 {
+			kalan = k
+		}
+		if k := gunlukGorselKota - h.bugunKullanilan(r.Context(), me, true); k > 0 {
+			gorselKalan = k
 		}
 	}
 	yaz(w, 200, map[string]any{
 		"acik": h.Acik(), "gunluk_kota": gunlukKota, "kalan": kalan,
+		// ⚠️⚠️ TURU 79 — GORSEL AYRI BAYRAK VE AYRI SAYAC.
+		//    `gorsel` yalniz `Acik()`e bakmaz: anahtar VAR ama medya KAPALI ise
+		//    (R2 env eksik) uretilen bayti koyacak yer YOKTUR. Istemci bu
+		//    bayraga bakip dugmeyi HIC CIZMEZ.
+		"gorsel":             h.GorselAcik(),
+		"gorsel_gunluk_kota": gunlukGorselKota,
+		"gorsel_kalan":       gorselKalan,
 	})
 }
 
@@ -115,12 +176,18 @@ func (h *Handler) Durum(w http.ResponseWriter, r *http.Request) {
 //	'tamam' sayilsaydi (a) rezerve edilmis ('beklemede') istekler
 //	sayilmaz ve kota asilirdi, (b) zaman asimina ugrayan istek OpenAI
 //	tarafinda ISLENIP FATURALANMIS olabilecegi halde kotadan dusmezdi.
-func (h *Handler) bugunKullanilan(ctx context.Context, me string) int {
+//
+// ⚠️ TURU 79 — [gorsel] ile AYRISIR; `kapi()`deki sayimla AYNI yuklem
+//
+//	kullanilir (ikisi ayrilirsa kullaniciya gosterilen "kalan" ile gercek
+//	kota BIRBIRINI TUTMAZ — CLAUDE.md "ayni kuralin iki kopyasi drift eder").
+func (h *Handler) bugunKullanilan(ctx context.Context, me string, gorsel bool) int {
 	var n int
 	h.db.QueryRow(ctx, `
 		SELECT count(*)::int FROM ai_istekleri
 		 WHERE user_id=$1 AND durum <> 'iptal'
-		   AND created_at > now() - interval '24 hours'`, me).Scan(&n)
+		   AND ($2 = (tur = 'gorsel'))
+		   AND created_at > now() - interval '24 hours'`, me, gorsel).Scan(&n)
 	return n
 }
 
@@ -150,14 +217,27 @@ func (h *Handler) kapi(w http.ResponseWriter, r *http.Request, tur string) (stri
 		return "", 0, false
 	}
 	me := auth.UserID(r.Context())
+	// ⚠️⚠️ TURU 79 — GORSEL KOTASI **AYRI SAYILIR**.
+	//
+	//    Bir gorsel ~40 metin cagrisina bedel (bkz. `gunlukGorselKota` serhi).
+	//    Tek havuz kullanilsaydi ya metin kotasi gereksiz kisilirdi ya da 20
+	//    gorsel/gun (~$0.80/kullanici) serbest kalirdi.
+	//    ⚠️ Sayim `tur` uzerinden AYRISIR: gorsel istekleri metin kotasini
+	//       YEMEZ, metin istekleri de gorseli kilitlemez.
+	kota := gunlukKota
+	gorselMi := tur == "gorsel"
+	if gorselMi {
+		kota = gunlukGorselKota
+	}
 	var id int64
 	err := h.db.QueryRow(r.Context(), `
 		INSERT INTO ai_istekleri (user_id, tur, girdi, sonuc, durum)
 		SELECT $1, $2, '', '', 'beklemede'
 		 WHERE (SELECT count(*) FROM ai_istekleri
 		         WHERE user_id=$1 AND durum <> 'iptal'
+		           AND ($4 = (tur = 'gorsel'))
 		           AND created_at > now() - interval '24 hours') < $3
-		RETURNING id`, me, tur, gunlukKota).Scan(&id)
+		RETURNING id`, me, tur, kota, gorselMi).Scan(&id)
 	// ⚠️⚠️ TURU 78 — HATA TURU AYIRT EDILIR. Eskiden HER hata "kota doldu"
 	//    sayiliyordu ve bu YANILTICIYDI: migration 031'in CHECK'i 'beklemede'
 	//    degerini KABUL ETMIYORDU (036 ile duzeltildi), yani AI acildigi ANDA
@@ -166,7 +246,13 @@ func (h *Handler) kapi(w http.ResponseWriter, r *http.Request, tur string) (stri
 	// ⚠️ `pgx.ErrNoRows` = sorgu KOSTU ama satir donmedi = GERCEKTEN kota dolu.
 	//    Baska her hata SUNUCU sorunudur ve OYLE raporlanmali + LOGLANMALI.
 	if errors.Is(err, pgx.ErrNoRows) {
-		hata(w, 429, "Günlük yapay zekâ hakkın doldu, yarın tekrar dene")
+		// ⚠️ Mesaj TURE GORE ayrisir: gorsel hakki bitince "yapay zekâ hakkın
+		//    doldu" demek YANILTICI olurdu (metin hakki DURUYOR olabilir).
+		if gorselMi {
+			hata(w, 429, "Günlük görsel oluşturma hakkın doldu (5), yarın tekrar dene")
+		} else {
+			hata(w, 429, "Günlük yapay zekâ hakkın doldu, yarın tekrar dene")
+		}
 		return "", 0, false
 	}
 	if err != nil {
