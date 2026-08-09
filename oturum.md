@@ -5581,3 +5581,14 @@ uyarısı yoktu.
   soğan salatası + lavaş; sade zemin, yazı/logo yok.
   ⚠️ Uçtan uca aracında **üretim çağrılmıyor** — her sürümde para harcamasın.
 - `flutter analyze` 0 hata · `go build` + `go vet` temiz · DB temiz.
+
+### 🚢 Turu 79 YAYINLANDI (18:01)
+
+android `31319482419` + ios `31319483712` (**4496677**), R2 apk=115664779
+(md5 `afaa43ff`) ipa=23729271 (md5 `94d39739`), purge OK, **CDN birebir**
+(apk + ipa + index.html üçü de MD5 eşit), indir sayfası 18:01 (saat 5 yerde +
+canlı saat), debug imza YOK, iOS min 16.0, sürüm 1.0.128 build 128,
+backend deploy `d335af6` + health ok, DB temiz.
+
+⚠️ Build sonrası gelen commit'ler yalnız belge/araç dosyalarına dokundu;
+`git diff 4496677..HEAD -- mobile/ backend/` **BOŞ** — artifact geçerli.
