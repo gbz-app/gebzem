@@ -59,6 +59,36 @@ class EtkinlikServisi {
   }
 
   Future<void> sil(String id) => _api.delete('/etkinlikler/$id');
+
+  /// ⚠️ TURU 78 — DUZENLEME. Sunucuda bu uc HIC YOKTU: bir yazim hatasini
+  ///    duzeltmenin tek yolu etkinligi silip yeniden acmakti ve o zaman TUM
+  ///    KATILIMCILAR kayboluyordu.
+  Future<void> guncelle(String id, Map<String, dynamic> govde) =>
+      _api.patch('/etkinlikler/$id', data: govde);
+
+  // ---- KADRO (oyuncu / sarkici / konusmaci)
+  //
+  // ⚠️ "Kadro" ile "katilimci" AYRI kavramlar: kadro SAHNEDEKILER, katilim RSVP.
+  Future<List<Kadro>> kadro(String id) async {
+    final r = await _api.get('/etkinlikler/$id/kadro');
+    final m = (r.data as Map).cast<String, dynamic>();
+    return ((m['kadro'] as List?) ?? [])
+        .map((e) => Kadro.fromJson((e as Map).cast<String, dynamic>()))
+        .toList();
+  }
+
+  Future<void> kadroEkle(
+    String id, {
+    required String ad,
+    String rol = '',
+    String? userId,
+  }) => _api.post(
+    '/etkinlikler/$id/kadro',
+    data: {'ad': ad, 'rol': rol, if (userId != null) 'user_id': userId},
+  );
+
+  Future<void> kadroSil(String id, String kadroId) =>
+      _api.delete('/etkinlikler/$id/kadro/$kadroId');
 }
 
 /// ⚠️ `backend/internal/etkinlik/handler.go` ILE AYNI liste olmali.
@@ -101,6 +131,7 @@ class Etkinlik {
     required this.durum,
     required this.katilanSayisi,
     required this.benimDurumum,
+    required this.mediaKinds,
   });
 
   final String id;
@@ -119,6 +150,10 @@ class Etkinlik {
   final String il;
   final String ilce;
   final List<String> mediaIds;
+
+  /// TURU 78 — mediaKinds[i] <-> mediaIds[i] (image/video/yok).
+  /// ⚠️ Sunucu SIRA KORUYARAK donduruyor; istemci indeksle eslestirir.
+  final List<String> mediaKinds;
   final bool ucretsiz;
 
   /// ⚠️ KURUS. Ekranda `fiyatMetni` ile bicimlenir — ham deger gosterilmez.
@@ -167,6 +202,9 @@ class Etkinlik {
     fiyatKurus: (m['fiyat_kurus'] as num?)?.toInt() ?? 0,
     kontenjan: (m['kontenjan'] as num?)?.toInt() ?? 0,
     durum: (m['durum'] ?? 'yayinda').toString(),
+    mediaKinds: ((m['media_kinds'] as List?) ?? [])
+        .map((e) => e.toString())
+        .toList(),
     katilanSayisi: (m['katilan_sayisi'] as num?)?.toInt() ?? 0,
     benimDurumum: (m['benim_durumum'] ?? '').toString(),
   );
@@ -200,3 +238,42 @@ String etkinlikZamani(DateTime? t) {
 }
 
 final etkinlikServisiProvider = Provider<EtkinlikServisi>(EtkinlikServisi.new);
+
+/// Etkinlik KADROSU — sahnedeki kisi (sarkici / oyuncu / konusmaci).
+///
+/// ⚠️⚠️ [userId] NULL OLABILIR ve bu KASITLI: kadroya yazilacak kisi genelde
+///    unlu biridir ve uygulamaya KAYITLI DEGILDIR. Zorunlu olsaydi ozellik
+///    pratikte kullanilamazdi (bir konsere sarkicinin adini yazamazdiniz).
+///    Kayitliysa profiline baglanir.
+///
+/// ⚠️ AYRI FOTOGRAF ALANI YOK: kayitli kisi kendi avatarini kullanir, kayitsiz
+///    kisi harf avatari alir. Yeni bir `media_id` sutunu `media.erisebilir()`
+///    icine yeni bir dal gerektirirdi ve o dal unutuldugunda medya
+///    YUKLEYENDEN BASKA HERKESE 403 doner (turu 75b/77 sinifi). Risk YAPISAL
+///    OLARAK kaldirildi.
+class Kadro {
+  Kadro({
+    required this.id,
+    required this.userId,
+    required this.ad,
+    required this.rol,
+    required this.username,
+    required this.avatarMediaId,
+  });
+
+  final String id;
+  final String? userId;
+  final String ad;
+  final String rol;
+  final String username;
+  final String? avatarMediaId;
+
+  static Kadro fromJson(Map<String, dynamic> m) => Kadro(
+    id: (m['id'] ?? '').toString(),
+    userId: m['user_id'] as String?,
+    ad: (m['ad'] ?? '').toString(),
+    rol: (m['rol'] ?? '').toString(),
+    username: (m['username'] ?? '').toString(),
+    avatarMediaId: m['avatar_media_id'] as String?,
+  );
+}

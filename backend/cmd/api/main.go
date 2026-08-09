@@ -222,6 +222,11 @@ func main() {
 		r.Get("/etkinlikler/{id}", etkinlikH.Detay)
 		r.Post("/etkinlikler/{id}/katil", etkinlikH.Katil)
 		r.Get("/etkinlikler/{id}/katilimcilar", etkinlikH.Katilimcilar)
+		// TURU 78 — etkinlik DUZENLEME + KADRO (oyuncu/sarkici).
+		r.Patch("/etkinlikler/{id}", etkinlikH.Guncelle)
+		r.Get("/etkinlikler/{id}/kadro", etkinlikH.KadroListe)
+		r.Post("/etkinlikler/{id}/kadro", etkinlikH.KadroEkle)
+		r.Delete("/etkinlikler/{id}/kadro/{kadroId}", etkinlikH.KadroSil)
 		r.Delete("/etkinlikler/{id}", etkinlikH.Sil)
 		// TURU 77 — ILANLAR (+ HIZMETLER)
 		r.Post("/ilanlar", ilanH.Olustur)

@@ -152,6 +152,17 @@ func TestYeniUclarCozuluyor(t *testing.T) {
 		{"POST", "/etkinlikler/" + uid + "/katil", "/etkinlikler/{id}/katil"},
 		{"GET", "/etkinlikler/" + uid + "/katilimcilar", "/etkinlikler/{id}/katilimcilar"},
 		{"DELETE", "/etkinlikler/" + uid, "/etkinlikler/{id}"},
+		// ⚠️ TURU 78 — EN RISKLI YENI CIFT: `/etkinlikler/{id}` (PATCH/DELETE) ile
+		//    `/etkinlikler/{id}/kadro/{kadroId}` IC ICE gecmis desenler.
+		//    chi bunlari karistirirsa `go build` YAKALAMAZ (calisma aninda panik
+		//    ya da sessizce yanlis handler).
+		{"PATCH", "/etkinlikler/" + uid, "/etkinlikler/{id}"},
+		{"GET", "/etkinlikler/" + uid + "/kadro", "/etkinlikler/{id}/kadro"},
+		{"POST", "/etkinlikler/" + uid + "/kadro", "/etkinlikler/{id}/kadro"},
+		{
+			"DELETE", "/etkinlikler/" + uid + "/kadro/" + uid,
+			"/etkinlikler/{id}/kadro/{kadroId}",
+		},
 		// --- ilan
 		{"GET", "/ilanlar", "/ilanlar"},
 		{"GET", "/ilan-kategoriler", "/ilan-kategoriler"},

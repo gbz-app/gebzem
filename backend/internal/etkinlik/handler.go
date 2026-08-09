@@ -74,7 +74,28 @@ const sutunlar = `
 		(SELECT count(*)::int FROM etkinlik_katilim k
 		  WHERE k.etkinlik_id=e.id AND k.durum='katiliyor'),
 		COALESCE((SELECT k2.durum FROM etkinlik_katilim k2
-		  WHERE k2.etkinlik_id=e.id AND k2.user_id=$1),'')`
+		  WHERE k2.etkinlik_id=e.id AND k2.user_id=$1),''),
+		` + medyaTurleri
+
+// ⚠️⚠️ TURU 78 — MEDYA TURLERI (foto + video karma galeri).
+//
+//	`media_ids` yalnizca UUID dizisiydi; hangi medyanin FOTO hangisinin VIDEO
+//	oldugu istemciye HIC donmuyordu ve istemci bir video id'sini goruntu
+//	bilesenine verirse KIRIK GORSEL cizerdi.
+//
+// ⚠️ `unnest(...) WITH ORDINALITY` + `array_agg(... ORDER BY idx)` SIRA KORUR:
+//
+//	`media_kinds[i]` <-> `media_ids[i]`. Duz JOIN sira GARANTI ETMEZ.
+//
+// ⚠️⚠️ Silinmis medya icin 'yok' (NULL DEGIL): `array_agg` NULL uretirse
+//
+//	`[]string` taramasi PATLAR ve satir SESSIZCE ATLANIR = liste bosalir.
+//
+// ⚠️ Dis `COALESCE('{}')` ZORUNLU: `media_ids` bossa `array_agg` NULL doner.
+const medyaTurleri = `
+		COALESCE((SELECT array_agg(COALESCE(ma.kind,'yok') ORDER BY mm.idx)
+		            FROM unnest(e.media_ids) WITH ORDINALITY AS mm(mid, idx)
+		            LEFT JOIN media_assets ma ON ma.id = mm.mid), '{}')`
 
 // ⚠️ ENGEL YUKLEMI TEK KAYNAK (turu 75b dersi: kopyalanan yuklem DRIFT eder).
 //
@@ -93,7 +114,7 @@ func (h *Handler) satirlariOku(rows pgx.Rows) []map[string]any {
 		var bitis *time.Time
 		var baslangic, olusturma time.Time
 		var enlem, boylam float64
-		var medya []string
+		var medya, medyaKind []string
 		var ucretsiz bool
 		var kontenjan, katilan int
 		var fiyatKurus int64
@@ -103,7 +124,7 @@ func (h *Handler) satirlariOku(rows pgx.Rows) []map[string]any {
 			&baslik, &aciklama, &kategori, &baslangic, &bitis,
 			&konum, &il, &ilce, &enlem, &boylam, &medya,
 			&ucretsiz, &fiyatKurus, &kontenjan, &durum, &olusturma,
-			&katilan, &benimDurum) != nil {
+			&katilan, &benimDurum, &medyaKind) != nil {
 			continue
 		}
 		out = append(out, map[string]any{
@@ -114,7 +135,9 @@ func (h *Handler) satirlariOku(rows pgx.Rows) []map[string]any {
 			"baslangic": baslangic, "bitis": bitis,
 			"konum": konum, "il": il, "ilce": ilce,
 			"enlem": enlem, "boylam": boylam, "media_ids": medya,
-			"ucretsiz": ucretsiz, "fiyat_kurus": fiyatKurus, "kontenjan": kontenjan,
+			// media_kinds[i] <-> media_ids[i] SIRA GARANTILI (bkz. medyaTurleri).
+			"media_kinds": medyaKind,
+			"ucretsiz":    ucretsiz, "fiyat_kurus": fiyatKurus, "kontenjan": kontenjan,
 			"durum": durum, "created_at": olusturma,
 			"katilan_sayisi": katilan, "benim_durumum": benimDurum,
 		})
@@ -468,3 +491,166 @@ func (h *Handler) KategoriListesi(w http.ResponseWriter, r *http.Request) {
 
 // Kullanilmayan importu onlemek icin (strconv ileride sayfalama icin).
 var _ = strconv.Itoa
+
+// PATCH /etkinlikler/{id} — etkinlik DUZENLE.
+//
+// ⚠️⚠️ TURU 78 — BU UC HIC YOKTU. Kullanici emri: "etkinlik olusturma
+// DUZENLEME". Yalnizca Olustur/Liste/Detay/Katil/Katilimcilar/Sil vardi; yani
+// bir yazim hatasini duzeltmenin TEK yolu etkinligi silip yeniden acmakti ve o
+// zaman TUM KATILIMCILAR kayboluyordu.
+//
+// ⚠️ `tur` benzeri bir alan YOK ama KATEGORI degistirilebilir (semayi
+//
+//	etkilemiyor, yalniz suzgec).
+//
+// ⚠️⚠️ `durum` PATCH YUZEYINDE **YOK** (bilincli): `Liste` sorgusu
+//
+//	`durum='yayinda'` suzuyor ve `benim=1` dali da bununla AND'li. Kullanici
+//	etkinligi 'iptal' yapsaydi KENDI LISTESINDEN DE kaybolurdu ve geri donus
+//	yolu KALMAZDI. Iptal ozelligi ayri bir is (listeye 'iptal' dali gerekir).
+//	⚠️ YAPMA: buraya `durum` alani ekleme.
+func (h *Handler) Guncelle(w http.ResponseWriter, r *http.Request) {
+	me := auth.UserID(r.Context())
+	id := chi.URLParam(r, "id")
+	if !kimlik.Gecerli(id) {
+		hata(w, 404, "bulunamadı")
+		return
+	}
+	var req struct {
+		Baslik     *string   `json:"baslik"`
+		Aciklama   *string   `json:"aciklama"`
+		Kategori   *string   `json:"kategori"`
+		Baslangic  *string   `json:"baslangic"`
+		Bitis      *string   `json:"bitis"`
+		Konum      *string   `json:"konum"`
+		Il         *string   `json:"il"`
+		Ilce       *string   `json:"ilce"`
+		MediaIDs   *[]string `json:"media_ids"`
+		Ucretsiz   *bool     `json:"ucretsiz"`
+		FiyatKurus *int64    `json:"fiyat_kurus"`
+		Kontenjan  *int      `json:"kontenjan"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		hata(w, 400, "geçersiz istek")
+		return
+	}
+
+	// ⚠️⚠️ `Olustur`DAKI DOGRULAMALARIN AYNISI. Bu projede PATCH yolunun
+	//    POST'un kurallarini kaybetmesi turu 77b'de yasandi (bos baslik +
+	//    negatif fiyat ilanlarda gecmisti). Ayni hataya dusmemek icin her
+	//    kural burada TEKRAR uygulaniyor.
+	if req.Baslik != nil {
+		*req.Baslik = kisalt(strings.TrimSpace(*req.Baslik), 140)
+		if *req.Baslik == "" {
+			hata(w, 400, "başlık boş olamaz")
+			return
+		}
+	}
+	if req.Aciklama != nil {
+		*req.Aciklama = kisalt(strings.TrimSpace(*req.Aciklama), 4000)
+	}
+	if req.Kategori != nil {
+		if _, ok := Kategoriler[*req.Kategori]; !ok {
+			*req.Kategori = "diger"
+		}
+	}
+	if req.Konum != nil {
+		*req.Konum = kisalt(strings.TrimSpace(*req.Konum), 300)
+	}
+	if req.Il != nil {
+		*req.Il = kisalt(strings.TrimSpace(*req.Il), 60)
+	}
+	if req.Ilce != nil {
+		*req.Ilce = kisalt(strings.TrimSpace(*req.Ilce), 60)
+	}
+	if req.FiyatKurus != nil && *req.FiyatKurus < 0 {
+		*req.FiyatKurus = 0
+	}
+	if req.Ucretsiz != nil && *req.Ucretsiz {
+		sifir := int64(0)
+		req.FiyatKurus = &sifir
+	}
+	if req.Kontenjan != nil && (*req.Kontenjan < 0 || *req.Kontenjan > 1000000) {
+		*req.Kontenjan = 0
+	}
+
+	var bas, bitis *time.Time
+	if req.Baslangic != nil {
+		b, err := time.Parse(time.RFC3339, *req.Baslangic)
+		if err != nil {
+			hata(w, 400, "geçersiz tarih")
+			return
+		}
+		bas = &b
+	}
+	if req.Bitis != nil {
+		if *req.Bitis == "" {
+			// ⚠️ Bos dize = BITISI KALDIR (nobetci). `nil` "degistirme"
+			//    demek oldugu icin ayri bir isarete ihtiyac var — ayni
+			//    tuzak kapak gorselinde de vardi (turu 78 FAZ A).
+			bitis = nil
+		} else if b, err := time.Parse(time.RFC3339, *req.Bitis); err == nil {
+			bitis = &b
+		}
+	}
+
+	if req.MediaIDs != nil {
+		if *req.MediaIDs == nil {
+			// ⚠️ nil dilim pgx'te SQL NULL gonderir; `media_ids` NOT NULL -> 500.
+			*req.MediaIDs = []string{}
+		}
+		if len(*req.MediaIDs) > 10 {
+			*req.MediaIDs = (*req.MediaIDs)[:10]
+		}
+		// ⚠️⚠️ MEDYA SAHIPLIGI PATCH'TE DE DOGRULANIR: bu kapi olmasaydi
+		//    baskasinin medya id'sini kendi etkinligine baglayarak
+		//    `erisebilir()` (f) dalini somurmek mumkun olurdu.
+		if len(*req.MediaIDs) > 0 {
+			tag, err := h.db.Exec(r.Context(), `
+				SELECT 1 FROM media_assets
+				 WHERE id = ANY($1) AND owner_id=$2 AND status IN ('aktif','bagli')`,
+				*req.MediaIDs, me)
+			if err != nil || int(tag.RowsAffected()) != len(*req.MediaIDs) {
+				hata(w, 403, "geçersiz medya")
+				return
+			}
+		}
+	}
+
+	tag, err := h.db.Exec(r.Context(), `
+		UPDATE etkinlikler SET
+		  baslik      = COALESCE($3, baslik),
+		  aciklama    = COALESCE($4, aciklama),
+		  kategori    = COALESCE($5, kategori),
+		  baslangic   = COALESCE($6, baslangic),
+		  bitis       = CASE WHEN $7::text IS NULL THEN bitis ELSE $8 END,
+		  konum       = COALESCE($9, konum),
+		  il          = COALESCE($10, il),
+		  ilce        = COALESCE($11, ilce),
+		  media_ids   = COALESCE($12, media_ids),
+		  ucretsiz    = COALESCE($13, ucretsiz),
+		  fiyat_kurus = COALESCE($14, fiyat_kurus),
+		  kontenjan   = COALESCE($15, kontenjan),
+		  updated_at  = now()
+		 WHERE id=$1 AND olusturan_id=$2 AND durum<>'silindi'`,
+		id, me, req.Baslik, req.Aciklama, req.Kategori, bas,
+		req.Bitis, bitis, req.Konum, req.Il, req.Ilce, req.MediaIDs,
+		req.Ucretsiz, req.FiyatKurus, req.Kontenjan)
+	if err != nil {
+		log.Printf("etkinlik guncelle: %v", err)
+		hata(w, 500, "güncellenemedi")
+		return
+	}
+	if tag.RowsAffected() == 0 {
+		hata(w, 404, "etkinlik bulunamadı")
+		return
+	}
+	// ⚠️ Yeni medyalar 'bagli' yapilir (`Olustur` ile AYNI kural) — yoksa medya
+	//    supurgesi 'aktif' kaydi atilabilir sanip islem yapar ve gorsel KAYBOLUR.
+	// ⚠️ Cikarilan medya SILINMEZ (veri politikasi).
+	if req.MediaIDs != nil && len(*req.MediaIDs) > 0 {
+		h.db.Exec(r.Context(),
+			`UPDATE media_assets SET status='bagli' WHERE id = ANY($1)`, *req.MediaIDs)
+	}
+	yaz(w, 200, map[string]bool{"ok": true})
+}

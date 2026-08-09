@@ -3,10 +3,10 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/api.dart';
+import '../../router.dart' show rootMessengerKey;
 import '../home/home_screen.dart' show myProfileProvider;
 import '../medya/medya_gorsel.dart';
 import '../medya/medya_kapisi.dart';
@@ -335,6 +335,49 @@ class _EtkinlikDetayEkraniState extends ConsumerState<EtkinlikDetayEkrani> {
   late Etkinlik e = widget.etkinlik;
   bool _mesgul = false;
 
+  /// ⚠️ TURU 78 — KADRO (sahnedekiler). `null` = henuz yuklenmedi.
+  List<Kadro>? _kadro;
+
+  @override
+  void initState() {
+    super.initState();
+    _kadroYukle();
+  }
+
+  Future<void> _kadroYukle() async {
+    try {
+      final k = await ref.read(etkinlikServisiProvider).kadro(e.id);
+      if (mounted) setState(() => _kadro = k);
+    } catch (_) {
+      // ⚠️ SESSIZ: kadro alinamamasi etkinlik detayini BLOKLAMAMALI.
+      //    Bos liste cizilir, ozellik yokmus gibi gorunur — kabul edilebilir.
+      if (mounted) setState(() => _kadro = const []);
+    }
+  }
+
+  /// ⚠️ TURU 78 — DUZENLEME. Ayri ekran YOK: "Etkinlik oluştur" ekrani
+  ///    `etkinlik:` parametresiyle duzenleme modunda acilir (tek kaynak).
+  Future<void> _duzenle() async {
+    final degisti = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => EtkinlikOlusturEkrani(etkinlik: e)),
+    );
+    if (degisti != true || !mounted) return;
+    // ⚠️ `Etkinlik` modelinin alanlari cogunlukla `final` — yerel yamalama
+    //    yapilamaz, SUNUCUDAN taze nesne alinir.
+    try {
+      final yeni = await ref.read(etkinlikServisiProvider).detay(e.id);
+      if (!mounted) return;
+      setState(() => e = yeni);
+      rootMessengerKey.currentState?.showSnackBar(
+        const SnackBar(content: Text('Etkinlik güncellendi')),
+      );
+    } catch (_) {
+      // Guncelleme SUNUCUDA basarili oldu; yalniz tazeleme patladi.
+      // ⚠️ Kullaniciya "guncellenemedi" DEMEK YANLIS olurdu.
+      if (mounted) Navigator.of(context).pop(true);
+    }
+  }
+
   Future<void> _katil(String durum) async {
     if (_mesgul) return;
     setState(() => _mesgul = true);
@@ -410,6 +453,15 @@ class _EtkinlikDetayEkraniState extends ConsumerState<EtkinlikDetayEkrani> {
       appBar: AppBar(
         title: const Text('Etkinlik'),
         actions: [
+          // ⚠️⚠️ TURU 78 — "Düzenle" GIRISI. Sunucu ucu ve ekran yazilip
+          //    hicbir dugmeye baglanmasaydi ozellik ULASILAMAZ olurdu; bu
+          //    projede "olu dogmus ozellik" hatasi BES kez tekrarladi.
+          if (benimEtkinligim)
+            IconButton(
+              tooltip: 'Düzenle',
+              icon: const Icon(LucideIcons.pencil),
+              onPressed: _duzenle,
+            ),
           if (benimEtkinligim)
             IconButton(icon: const Icon(LucideIcons.trash2), onPressed: _sil),
         ],
@@ -477,6 +529,7 @@ class _EtkinlikDetayEkraniState extends ConsumerState<EtkinlikDetayEkrani> {
                   const Divider(height: 24),
                   Text(e.aciklama, style: const TextStyle(fontSize: 15)),
                 ],
+                _kadroBolumu(benimEtkinligim),
                 const SizedBox(height: 26),
                 // ⚠️ GECMIS etkinlikte katilim dugmesi CIZILMEZ — basmanin
                 //    anlami yok ve kullaniciyi yaniltir.
@@ -488,6 +541,156 @@ class _EtkinlikDetayEkraniState extends ConsumerState<EtkinlikDetayEkrani> {
         ],
       ),
     );
+  }
+
+  /// ⚠️⚠️ TURU 78 — KADRO (oyuncu / sarkici / konusmaci).
+  ///
+  /// ⚠️ "Kadro" ile "katilimci" AYRI kavramlar: kadro SAHNEDEKILER, katilim
+  ///    RSVP'dir. Ayni listede gosterilmeleri kullaniciyi yanilturdi.
+  /// ⚠️ Kadro BOSSA ve etkinlik BENIM DEGILSE bolum HIC CIZILMEZ — bos bir
+  ///    "Sahnede" basligi ozelligin var oldugunu ama kullanilmadigini
+  ///    dusundururdu.
+  Widget _kadroBolumu(bool benimEtkinligim) {
+    final k = _kadro;
+    if (k == null) return const SizedBox.shrink();
+    if (k.isEmpty && !benimEtkinligim) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Divider(height: 24),
+        Row(
+          children: [
+            const Text(
+              'Sahnede',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+            ),
+            const Spacer(),
+            if (benimEtkinligim)
+              TextButton.icon(
+                onPressed: _kadroEkleSor,
+                icon: const Icon(LucideIcons.plus, size: 16),
+                label: const Text('Ekle'),
+              ),
+          ],
+        ),
+        if (k.isEmpty)
+          const Padding(
+            padding: EdgeInsets.only(bottom: 6),
+            child: Text(
+              'Sanatçı, oyuncu ya da konuşmacı ekleyebilirsin.',
+              style: TextStyle(fontSize: 13, color: Colors.grey),
+            ),
+          ),
+        for (final kisi in k)
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+            // ⚠️ Kayitli kisi KENDI avatarini kullanir (medya dali (b) zaten
+            //    herkese acik); kayitsiz kisi HARF avatari alir. Kadroya ayri
+            //    fotograf alani EKLENMEDI — yeni bir medya sutunu
+            //    `erisebilir()` icine yeni dal gerektirirdi ve o dal
+            //    unutuldugunda medya yukleyenden baska herkese 403 donerdi.
+            leading: Avatar(
+              ad: kisi.ad,
+              mediaId: kisi.avatarMediaId,
+              avatarUrl: '',
+              cap: 38,
+            ),
+            title: Text(kisi.ad),
+            subtitle: kisi.rol.isEmpty ? null : Text(kisi.rol),
+            // ⚠️ Kayitliysa profiline BAGLANIR; degilse dokunulamaz (olu
+            //    dokunus alani birakmiyoruz).
+            onTap: kisi.userId == null
+                ? null
+                : () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => ProfilSayfasi(userId: kisi.userId!),
+                    ),
+                  ),
+            trailing: benimEtkinligim
+                ? IconButton(
+                    icon: const Icon(LucideIcons.x, size: 17),
+                    onPressed: () => _kadroSil(kisi),
+                  )
+                : null,
+          ),
+      ],
+    );
+  }
+
+  Future<void> _kadroEkleSor() async {
+    final ad = TextEditingController();
+    final rol = TextEditingController();
+    final onay = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Sahneye ekle'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: ad,
+              autofocus: true,
+              maxLength: 80,
+              decoration: const InputDecoration(
+                labelText: 'İsim',
+                counterText: '',
+              ),
+            ),
+            TextField(
+              controller: rol,
+              maxLength: 40,
+              decoration: const InputDecoration(
+                labelText: 'Rol (sanatçı, oyuncu, DJ...)',
+                counterText: '',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c, false),
+            child: const Text('Vazgeç'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(c, true),
+            child: const Text('Ekle'),
+          ),
+        ],
+      ),
+    );
+    final isim = ad.text.trim();
+    final gorev = rol.text.trim();
+    ad.dispose();
+    rol.dispose();
+    if (onay != true || isim.isEmpty || !mounted) return;
+    try {
+      // ⚠️ `userId` GONDERILMIYOR: kadroya yazilan kisi genelde uygulamaya
+      //    KAYITLI DEGIL (unlu bir sanatci). Kayitli kisiyi baglamak icin
+      //    ayri bir "kullanici ara" akisi gerekir — o AYRI BIR IS.
+      await ref
+          .read(etkinlikServisiProvider)
+          .kadroEkle(e.id, ad: isim, rol: gorev);
+      await _kadroYukle();
+    } catch (err) {
+      if (!mounted) return;
+      rootMessengerKey.currentState?.showSnackBar(
+        SnackBar(content: Text(apiErrorMessage(err))),
+      );
+    }
+  }
+
+  Future<void> _kadroSil(Kadro kisi) async {
+    try {
+      await ref.read(etkinlikServisiProvider).kadroSil(e.id, kisi.id);
+      await _kadroYukle();
+    } catch (err) {
+      if (!mounted) return;
+      // ⚠️ Sessiz basarisizlik YASAK: kullanici sildigini sanmasin.
+      rootMessengerKey.currentState?.showSnackBar(
+        SnackBar(content: Text(apiErrorMessage(err))),
+      );
+    }
   }
 
   Widget _katilimDugmeleri() {
@@ -540,8 +743,17 @@ class _EtkinlikDetayEkraniState extends ConsumerState<EtkinlikDetayEkrani> {
 }
 
 /// Etkinlik olustur.
+/// Etkinlik olustur **VE** duzenle — **TEK EKRAN**.
+///
+/// ⚠️⚠️ TURU 78 — AYRI "EtkinlikDuzenleEkrani" YAZILMADI. Iki ekran olsaydi
+///    dogrulama, tarih secici, medya yonetimi ve fiyat/kontenjan mantigi IKI
+///    KOPYA olurdu; bu projede "ayni kuralin iki kopyasi DRIFT eder" hatasi
+///    ALTI kez tekrarladi. [etkinlik] doluysa DUZENLEME modu.
 class EtkinlikOlusturEkrani extends ConsumerStatefulWidget {
-  const EtkinlikOlusturEkrani({super.key});
+  const EtkinlikOlusturEkrani({super.key, this.etkinlik});
+
+  /// Doluysa DUZENLEME modu.
+  final Etkinlik? etkinlik;
 
   @override
   ConsumerState<EtkinlikOlusturEkrani> createState() =>
@@ -559,9 +771,58 @@ class _EtkinlikOlusturEkraniState extends ConsumerState<EtkinlikOlusturEkrani> {
 
   String _kategori = 'konser';
   DateTime _baslangic = DateTime.now().add(const Duration(days: 1));
+
+  /// ⚠️ TURU 78 — BITIS. Sutun 029'dan beri VARDI ve detay ekrani onu
+  ///    CIZIYORDU, ama forma HIC KONULMAMISTI: yani "Bitiş: …" satiri sahada
+  ///    ASLA gorunmuyordu (olu ozellik, bu projede besinci tekrar).
+  DateTime? _bitis;
+
   bool _ucretsiz = true;
-  File? _gorsel;
+
+  /// ⚠️ TURU 78 — COKLU MEDYA. Onceden TEK gorsel (`File? _gorsel`) vardi;
+  ///    sunucu ZATEN 10 medya kabul ediyordu. Kullanici emri: "etkinlikte de
+  ///    gorsel ve videolar olacak".
+  final List<File> _gorseller = [];
+  final List<File> _videolar = [];
+
+  /// DUZENLEMEDE: sunucuda ZATEN duran medya id'leri (silinebilir).
+  final List<String> _mevcutMedya = [];
+
+  static const _enFazlaMedya = 10;
+  static const _enFazlaVideo = 2;
+
+  /// ⚠️ Gonderi/ilan tarafiyla AYNI tavan — yeni bir sure siniri UYDURULMADI.
+  static const _videoSuresiTavani = Duration(minutes: 5);
+
   bool _kaydediliyor = false;
+
+  bool get _duzenleme => widget.etkinlik != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final e = widget.etkinlik;
+    if (e == null) return;
+    _baslik.text = e.baslik;
+    _aciklama.text = e.aciklama;
+    _kategori = etkinlikKategorileri.containsKey(e.kategori)
+        ? e.kategori
+        : 'diger';
+    if (e.baslangic != null) _baslangic = e.baslangic!;
+    _bitis = e.bitis;
+    _konum.text = e.konum;
+    _il.text = e.il;
+    _ilce.text = e.ilce;
+    _ucretsiz = e.ucretsiz;
+    if (!e.ucretsiz && e.fiyatKurus > 0) {
+      final tl = e.fiyatKurus / 100;
+      _fiyat.text = tl == tl.roundToDouble()
+          ? tl.round().toString()
+          : tl.toStringAsFixed(2);
+    }
+    if (e.kontenjan > 0) _kontenjan.text = e.kontenjan.toString();
+    _mevcutMedya.addAll(e.mediaIds);
+  }
 
   @override
   void dispose() {
@@ -588,16 +849,47 @@ class _EtkinlikOlusturEkraniState extends ConsumerState<EtkinlikOlusturEkrani> {
       );
       return;
     }
-    XFile? x;
-    try {
-      MedyaKapisi.pickerAcik = true;
-      x = await ImagePicker().pickImage(source: ImageSource.gallery);
-    } catch (_) {
-    } finally {
-      MedyaKapisi.pickerAcik = false;
+    // ⚠️ TEK KAYNAK: `limit < 2` tuzagi + `take(kalan)` kirpmasi orada.
+    //    Dogrudan `pickMultiImage` cagrilsaydi tavanin BIR ALTINDA dugme
+    //    SESSIZCE olurdu (turu 77b bulgusu).
+    final kalan =
+        _enFazlaMedya -
+        _mevcutMedya.length -
+        _gorseller.length -
+        _videolar.length;
+    if (kalan <= 0) {
+      _uyar('En fazla $_enFazlaMedya medya eklenebilir');
+      return;
     }
-    if (x == null || !mounted) return;
-    setState(() => _gorsel = File(x!.path));
+    final secim = await MedyaSecici.coklu(kalan);
+    if (secim.isEmpty || !mounted) return;
+    setState(() => _gorseller.addAll(secim.map((x) => File(x.path))));
+  }
+
+  /// ⚠️ TURU 78 — ETKINLIGE VIDEO. Boyut + SURE kapisi `MedyaSecici.video`
+  ///    icinde (ilan ve gonderi ile AYNI tek kaynak).
+  Future<void> _videoSec() async {
+    if (!MedyaKapisi.izinVer(ref)) return;
+    if (_videolar.length >= _enFazlaVideo) {
+      _uyar('En fazla $_enFazlaVideo video eklenebilir');
+      return;
+    }
+    if (_mevcutMedya.length + _gorseller.length + _videolar.length >=
+        _enFazlaMedya) {
+      _uyar('En fazla $_enFazlaMedya medya eklenebilir');
+      return;
+    }
+    final dosya = await MedyaSecici.video(
+      sureTavani: _videoSuresiTavani,
+      uyar: _uyar,
+    );
+    if (dosya == null || !mounted) return;
+    setState(() => _videolar.add(dosya));
+  }
+
+  /// ⚠️ Kok messenger: bu ekran bir alt-sayfadan acilmis olabilir.
+  void _uyar(String m) {
+    rootMessengerKey.currentState?.showSnackBar(SnackBar(content: Text(m)));
   }
 
   Future<void> _tarihSec() async {
@@ -634,7 +926,48 @@ class _EtkinlikOlusturEkraniState extends ConsumerState<EtkinlikOlusturEkrani> {
         s?.hour ?? _baslangic.hour,
         s?.minute ?? _baslangic.minute,
       );
+      // ⚠️ Baslangic ILERI alinip bitisin GERIDE kalmasi mumkun. Sunucu
+      //    `b.After(bas)` sartiyla boyle bir bitisi zaten YOK SAYAR; kullanici
+      //    "bitis girdim ama gorunmedi" demesin diye burada TEMIZLENIYOR.
+      if (_bitis != null && !_bitis!.isAfter(_baslangic)) _bitis = null;
     });
+  }
+
+  /// Bitis saati (istege bagli).
+  ///
+  /// ⚠️ Sinirlar BASLANGICA gore: bitis baslangictan ONCE olamaz. Sunucu da
+  ///    ayni kurali uyguluyor (`b.After(bas)`), burada kullaniciya ONCEDEN
+  ///    gosteriliyor — sessizce yok sayilan bir giris kotu deneyimdir.
+  Future<void> _bitisSec() async {
+    final ilk = _baslangic;
+    final son = _baslangic.add(const Duration(days: 30));
+    var baslangicDegeri = _bitis ?? _baslangic.add(const Duration(hours: 2));
+    if (baslangicDegeri.isBefore(ilk)) baslangicDegeri = ilk;
+    if (baslangicDegeri.isAfter(son)) baslangicDegeri = son;
+    final g = await showDatePicker(
+      context: context,
+      initialDate: baslangicDegeri,
+      firstDate: ilk,
+      lastDate: son,
+    );
+    if (g == null || !mounted) return;
+    final s = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(baslangicDegeri),
+    );
+    if (!mounted) return;
+    final secilen = DateTime(
+      g.year,
+      g.month,
+      g.day,
+      s?.hour ?? baslangicDegeri.hour,
+      s?.minute ?? baslangicDegeri.minute,
+    );
+    if (!secilen.isAfter(_baslangic)) {
+      _uyar('Bitiş, başlangıçtan sonra olmalı');
+      return;
+    }
+    setState(() => _bitis = secilen);
   }
 
   Future<void> _kaydet() async {
@@ -647,9 +980,9 @@ class _EtkinlikOlusturEkraniState extends ConsumerState<EtkinlikOlusturEkrani> {
     setState(() => _kaydediliyor = true);
     try {
       final idler = <String>[];
-      if (_gorsel != null) {
+      for (final g in _gorseller) {
         // ⚠️ EXIF (KONUM) TEMIZLIGI ZORUNLU — sunucu GPS bulursa 422 doner.
-        final hazir = await MedyaServisi.gorseliHazirla(_gorsel!);
+        final hazir = await MedyaServisi.gorseliHazirla(g);
         if (hazir == null) throw Exception('Görsel hazırlanamadı');
         idler.add(
           await ref
@@ -657,21 +990,46 @@ class _EtkinlikOlusturEkraniState extends ConsumerState<EtkinlikOlusturEkrani> {
               .yukle(dosya: hazir, kind: 'image', mime: 'image/jpeg'),
         );
       }
+      // ⚠️ VIDEO HAM GIDER — `gorseliHazirla` bir GORSEL sikistiricisidir;
+      //    videoya uygulanirsa dosya BOZULUR.
+      for (final v in _videolar) {
+        idler.add(
+          await ref
+              .read(medyaServisiProvider)
+              .yukle(dosya: v, kind: 'video', mime: 'video/mp4'),
+        );
+      }
       // ⚠️ Fiyat KURUS'a cevrilir (sunucu kurus bekliyor — INT tasmasi icin).
       final tl = double.tryParse(_fiyat.text.trim().replaceAll(',', '.')) ?? 0;
-      final id = await ref.read(etkinlikServisiProvider).olustur({
+      final govde = <String, dynamic>{
         'baslik': _baslik.text.trim(),
         'aciklama': _aciklama.text.trim(),
         'kategori': _kategori,
         'baslangic': _baslangic.toUtc().toIso8601String(),
+        // ⚠️ Bos dize = BITISI KALDIR nobetcisi (sunucuda `null` "degistirme"
+        //    demek; ayni tuzak kapak gorselinde de vardi).
+        'bitis': _bitis?.toUtc().toIso8601String() ?? '',
         'konum': _konum.text.trim(),
         'il': _il.text.trim(),
         'ilce': _ilce.text.trim(),
-        'media_ids': idler,
+        // ⚠️ DUZENLEMEDE: KALAN mevcut medyalar + YENI yuklenenler. Kullanicinin
+        //    sildikleri bu listede olmadigi icin etkinlikten duser.
+        'media_ids': [..._mevcutMedya, ...idler],
         'ucretsiz': _ucretsiz,
         'fiyat_kurus': _ucretsiz ? 0 : (tl * 100).round(),
         'kontenjan': int.tryParse(_kontenjan.text.trim()) ?? 0,
-      });
+      };
+      if (_duzenleme) {
+        await ref
+            .read(etkinlikServisiProvider)
+            .guncelle(widget.etkinlik!.id, govde);
+        if (!mounted) return;
+        // ⚠️ `true` doner: cagiran ekran SUNUCUDAN tazeler. `Etkinlik` modeli
+        //    cogunlukla `final` oldugu icin yerel yamalama yapilamaz.
+        Navigator.of(context).pop(true);
+        return;
+      }
+      final id = await ref.read(etkinlikServisiProvider).olustur(govde);
       if (!mounted) return;
       Navigator.of(context).pop(id);
     } catch (err) {
@@ -686,11 +1044,11 @@ class _EtkinlikOlusturEkraniState extends ConsumerState<EtkinlikOlusturEkrani> {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
-      title: const Text('Etkinlik oluştur'),
+      title: Text(_duzenleme ? 'Etkinliği düzenle' : 'Etkinlik oluştur'),
       actions: [
         TextButton(
           onPressed: _kaydediliyor ? null : _kaydet,
-          child: const Text('Yayınla'),
+          child: Text(_duzenleme ? 'Kaydet' : 'Yayınla'),
         ),
       ],
     ),
@@ -699,32 +1057,32 @@ class _EtkinlikOlusturEkraniState extends ConsumerState<EtkinlikOlusturEkrani> {
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          GestureDetector(
-            onTap: _gorselSec,
-            child: AspectRatio(
-              aspectRatio: 16 / 9,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(14),
+          // ---- MEDYA (coklu gorsel + video) — TURU 78
+          // ⚠️ Onceden TEK kapak gorseli vardi; sunucu ZATEN 10 medya kabul
+          //    ediyordu, yani sinir yalnizca ARAYUZDEYDI.
+          _medyaSeridi(),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _gorselSec,
+                  icon: const Icon(LucideIcons.imagePlus, size: 18),
+                  label: Text(
+                    'Görsel '
+                    '(${_mevcutMedya.length + _gorseller.length + _videolar.length}'
+                    '/$_enFazlaMedya)',
+                  ),
                 ),
-                child: _gorsel == null
-                    ? const Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(LucideIcons.imagePlus, size: 30),
-                            SizedBox(height: 6),
-                            Text('Kapak görseli ekle'),
-                          ],
-                        ),
-                      )
-                    : ClipRRect(
-                        borderRadius: BorderRadius.circular(14),
-                        child: Image.file(_gorsel!, fit: BoxFit.cover),
-                      ),
               ),
-            ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _videoSec,
+                  icon: const Icon(LucideIcons.video, size: 18),
+                  label: Text('Video (${_videolar.length}/$_enFazlaVideo)'),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 14),
           TextField(
@@ -763,7 +1121,34 @@ class _EtkinlikOlusturEkraniState extends ConsumerState<EtkinlikOlusturEkrani> {
           OutlinedButton.icon(
             onPressed: _tarihSec,
             icon: const Icon(LucideIcons.calendar, size: 18),
-            label: Text(etkinlikZamani(_baslangic)),
+            label: Text('Başlangıç: ${etkinlikZamani(_baslangic)}'),
+          ),
+          const SizedBox(height: 8),
+          // ⚠️⚠️ TURU 78 — BITIS SECICI. `etkinlikler.bitis` sutunu 029'dan
+          //    beri VARDI, sunucu dogruluyordu ve DETAY EKRANI onu CIZIYORDU —
+          //    ama FORMA HIC KONULMAMISTI. Yani "Bitiş: …" satiri sahada ASLA
+          //    gorunmuyordu: klasik "olu ozellik" (bu projede besinci tekrar).
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _bitisSec,
+                  icon: const Icon(LucideIcons.clock, size: 18),
+                  label: Text(
+                    _bitis == null
+                        ? 'Bitiş saati (isteğe bağlı)'
+                        : 'Bitiş: ${etkinlikZamani(_bitis)}',
+                  ),
+                ),
+              ),
+              // ⚠️ "Kaldır" YALNIZ deger varken cizilir — bos ekranda olu dugme.
+              if (_bitis != null)
+                IconButton(
+                  tooltip: 'Bitişi kaldır',
+                  icon: const Icon(LucideIcons.x, size: 18),
+                  onPressed: () => setState(() => _bitis = null),
+                ),
+            ],
           ),
           const SizedBox(height: 12),
           TextField(
@@ -834,4 +1219,105 @@ class _EtkinlikOlusturEkraniState extends ConsumerState<EtkinlikOlusturEkrani> {
       ),
     ),
   );
+
+  /// Secilmis/mevcut medyalarin yatay seridi.
+  ///
+  /// ⚠️ UC AYRI KAYNAK tek seritte: sunucudaki medyalar (silinebilir), yeni
+  ///    secilen fotograflar, yeni secilen videolar. Tek listede tutulamazlardi
+  ///    (biri `String` id, ikisi `File` ve yukleme `kind`leri farkli).
+  /// ⚠️ VIDEO ONIZLEMESI CIZILMEZ (koyu kutu + film ikonu): formda oynatici
+  ///    kurmak iOS'ta ses oturumuna dokunur ve SUREN ARAMAYI sagirlastirabilir
+  ///    (turu 64/65/73).
+  Widget _medyaSeridi() {
+    if (_mevcutMedya.isEmpty && _gorseller.isEmpty && _videolar.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    Widget kaldir(VoidCallback onTap) => Positioned(
+      right: 0,
+      top: 0,
+      child: GestureDetector(
+        onTap: onTap,
+        child: const DecoratedBox(
+          decoration: BoxDecoration(
+            color: Color(0xAA000000),
+            shape: BoxShape.circle,
+          ),
+          child: Padding(
+            padding: EdgeInsets.all(2),
+            child: Icon(LucideIcons.x, size: 13, color: Colors.white),
+          ),
+        ),
+      ),
+    );
+    return SizedBox(
+      height: 90,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.only(bottom: 10),
+        children: [
+          for (var k = 0; k < _mevcutMedya.length; k++)
+            Padding(
+              padding: const EdgeInsets.only(right: 6),
+              child: Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: SizedBox(
+                      width: 72,
+                      height: 80,
+                      child: MedyaGorsel(
+                        mediaId: _mevcutMedya[k],
+                        kucuk: true,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  ),
+                  // ⚠️ Yalniz LISTEDEN cikarir; medya sunucuda SILINMEZ.
+                  kaldir(() => setState(() => _mevcutMedya.removeAt(k))),
+                ],
+              ),
+            ),
+          for (var k = 0; k < _gorseller.length; k++)
+            Padding(
+              padding: const EdgeInsets.only(right: 6),
+              child: Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.file(
+                      _gorseller[k],
+                      width: 72,
+                      height: 80,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                  kaldir(() => setState(() => _gorseller.removeAt(k))),
+                ],
+              ),
+            ),
+          for (var k = 0; k < _videolar.length; k++)
+            Padding(
+              padding: const EdgeInsets.only(right: 6),
+              child: Stack(
+                children: [
+                  Container(
+                    width: 72,
+                    height: 80,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF14101C),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      LucideIcons.video,
+                      color: Colors.white54,
+                    ),
+                  ),
+                  kaldir(() => setState(() => _videolar.removeAt(k))),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 }
