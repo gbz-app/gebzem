@@ -21,6 +21,7 @@ import (
 	"github.com/gbz-app/gebzem/backend/internal/config"
 	"github.com/gbz-app/gebzem/backend/internal/database"
 	"github.com/gbz-app/gebzem/backend/internal/etkinlik"
+	"github.com/gbz-app/gebzem/backend/internal/ilan"
 	"github.com/gbz-app/gebzem/backend/internal/isletme"
 	"github.com/gbz-app/gebzem/backend/internal/kanal"
 	"github.com/gbz-app/gebzem/backend/internal/media"
@@ -89,6 +90,7 @@ func main() {
 	kanalH := kanal.NewHandler(db)              // turu 75: kanal (tek yonlu yayin)
 	isletmeH := isletme.NewHandler(db)
 	etkinlikH := etkinlik.NewHandler(db)
+	ilanH := ilan.NewHandler(db)
 	// TURU 74 — MEDYA. R2 env eksikse Enabled()=false doner ve uclar KAYDEDILMEZ
 	// (fail-closed ama GORUNUR: acilista log yazar).
 	mediaH := media.NewHandler(db, rdb, cfg.R2Endpoint, cfg.R2AccessKeyID,
@@ -216,6 +218,14 @@ func main() {
 		r.Post("/etkinlikler/{id}/katil", etkinlikH.Katil)
 		r.Get("/etkinlikler/{id}/katilimcilar", etkinlikH.Katilimcilar)
 		r.Delete("/etkinlikler/{id}", etkinlikH.Sil)
+		// TURU 77 — ILANLAR (+ HIZMETLER)
+		r.Post("/ilanlar", ilanH.Olustur)
+		r.Get("/ilanlar", ilanH.Liste)
+		r.Get("/ilan-kategoriler", ilanH.Agac)
+		r.Get("/ilanlar/{id}", ilanH.Detay)
+		r.Patch("/ilanlar/{id}", ilanH.Guncelle)
+		r.Post("/ilanlar/{id}/favori", ilanH.FavoriEkle)
+		r.Delete("/ilanlar/{id}/favori", ilanH.FavoriSil)
 		// TURU 76b — HIKAYE (story). 24 saat GORUNURLUK; veri SILINMEZ.
 		r.Post("/stories", socialH.StoryOlustur)
 		r.Get("/stories", socialH.StoryAkis)
