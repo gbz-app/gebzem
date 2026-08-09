@@ -150,6 +150,20 @@ func Metin(tur, ad string) string {
 		return ad + " takip isteğini onayladı"
 	case "bahsetme":
 		return ad + " senden bahsetti"
+	// ⚠️ TURU 80 — REZERVASYON/RANDEVU. Metinler SAAT/KISI ICERMEZ: `Metin`
+	//    imzasi YALNIZCA aktor adini aliyor ve bu imza bes cagri yerinde
+	//    kullaniliyor; saat basmak icin imzayi genisletmek kozmetik kazanc
+	//    karsiliginda DRIFT davet eden bir refactor olurdu. Dokunus randevu
+	//    detayina gidiyor, ayrinti orada yaziyor.
+	// ⚠️ 'geldi'/'gelmedi' icin bildirim YOK (bkz. `randevu.Gecisler`).
+	case "randevu_yeni":
+		return ad + " randevu talebi gönderdi"
+	case "randevu_onaylandi":
+		return ad + " randevunu onayladı"
+	case "randevu_reddedildi":
+		return ad + " randevunu reddetti"
+	case "randevu_iptal":
+		return ad + " randevuyu iptal etti"
 	default:
 		return ad + " bir işlem yaptı"
 	}

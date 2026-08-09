@@ -27,6 +27,7 @@ import (
 	"github.com/gbz-app/gebzem/backend/internal/kanal"
 	"github.com/gbz-app/gebzem/backend/internal/media"
 	"github.com/gbz-app/gebzem/backend/internal/push"
+	"github.com/gbz-app/gebzem/backend/internal/randevu"
 	"github.com/gbz-app/gebzem/backend/internal/rooms"
 	"github.com/gbz-app/gebzem/backend/internal/sms"
 	"github.com/gbz-app/gebzem/backend/internal/social"
@@ -92,6 +93,7 @@ func main() {
 	kanalH := kanal.NewHandler(db)              // turu 75: kanal (tek yonlu yayin)
 	isletmeH := isletme.NewHandler(db)
 	vitrinH := vitrin.NewHandler(db)
+	randevuH := randevu.NewHandler(db, bildirimS)
 	etkinlikH := etkinlik.NewHandler(db)
 	ilanH := ilan.NewHandler(db)
 	// TURU 74 — MEDYA. R2 env eksikse Enabled()=false doner ve uclar KAYDEDILMEZ
@@ -264,6 +266,18 @@ func main() {
 		// ⚠️ TURU 79b — reddedilen uretimi siler (DEPOLAMA kotasini geri verir).
 		//    AI hakki iade EDILMEZ: uretim gercekten para harcadi.
 		r.Delete("/ai/gorsel/{id}", aiH.GorselVazgec)
+
+		// ⚠️ TURU 80 — REZERVASYON (restoran) + RANDEVU (doktor vb.). TEK tablo,
+		//    TEK gecis tablosu: `internal/randevu`.
+		r.Get("/isletmeler/{id}/uygun-saatler", randevuH.UygunSaatler)
+		r.Post("/isletmeler/{id}/randevu", randevuH.Olustur)
+		r.Post("/randevular/{id}/durum", randevuH.DurumDegistir)
+		r.Get("/randevularim", randevuH.Randevularim)
+		r.Get("/isletme/randevular", randevuH.IsletmeRandevulari)
+		r.Get("/isletme/randevu-ayar", randevuH.AyarGetir)
+		r.Put("/isletme/randevu-ayar", randevuH.AyarKaydet)
+		r.Get("/isletme/randevu-kapali", randevuH.KapaliGunler)
+		r.Post("/isletme/randevu-kapali", randevuH.KapaliGun)
 		// TURU 76b — HIKAYE (story). 24 saat GORUNURLUK; veri SILINMEZ.
 		r.Post("/stories", socialH.StoryOlustur)
 		r.Get("/stories", socialH.StoryAkis)

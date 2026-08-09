@@ -17,6 +17,7 @@ import (
 
 	"github.com/gbz-app/gebzem/backend/internal/auth"
 	"github.com/gbz-app/gebzem/backend/internal/engel"
+	"github.com/gbz-app/gebzem/backend/internal/randevu"
 )
 
 type Handler struct{ db *pgxpool.Pool }
@@ -235,13 +236,24 @@ func (h *Handler) Detay(w http.ResponseWriter, r *http.Request) {
 	var calisma []byte
 	var enlem, boylam float64
 	var dogrulandi bool
+	// ⚠️⚠️ TURU 80 — RANDEVU BILGISI BU YANITTA DONER.
+	//    Aksi halde istemci ya IKINCI bir istek atmak ya da TAHMIN etmek
+	//    zorunda kalirdi; tahmin = 404 veren bir dugme cizmek demek (projede
+	//    ALTI kez yasanan "ozellik var gorunup calismiyor" sinifi).
+	// ⚠️ LEFT JOIN: `randevu_ayar` satiri OLMAYABILIR (ozellik hic acilmamis).
+	//    INNER JOIN olsaydi randevusuz TUM isletmeler 404 donerdi.
+	// ⚠️ SELECT sirasi ile Scan sirasi BIREBIR — ikisi ayrilirsa satir
+	//    SESSIZCE atlanir ve isletme detayi "bulunamadi" olur (turu 76 dersi).
+	var randevuAcik bool
 	if h.db.QueryRow(r.Context(), `
 		SELECT i.kategori, i.adres, i.il, i.ilce, i.telefon, i.web, i.calisma,
-		       i.enlem, i.boylam, u.onayli
-		  FROM isletmeler i JOIN users u ON u.id = i.user_id
+		       i.enlem, i.boylam, u.onayli, COALESCE(ra.acik, false)
+		  FROM isletmeler i
+		  JOIN users u ON u.id = i.user_id
+		  LEFT JOIN randevu_ayar ra ON ra.isletme_id = i.user_id
 		 WHERE i.user_id=$1 AND u.hesap_turu='isletme'`, hedef).
 		Scan(&kategori, &adres, &il, &ilce, &telefon, &web, &calisma,
-			&enlem, &boylam, &dogrulandi) != nil {
+			&enlem, &boylam, &dogrulandi, &randevuAcik) != nil {
 		hata(w, 404, "işletme bulunamadı")
 		return
 	}
@@ -254,6 +266,19 @@ func (h *Handler) Detay(w http.ResponseWriter, r *http.Request) {
 		"telefon": telefon, "web": web,
 		"calisma": json.RawMessage(calisma),
 		"enlem":   enlem, "boylam": boylam, "dogrulandi": dogrulandi,
+		// ⚠️⚠️ TURU 80 — SCAN EDILEN HER ALAN YANIT HARITASINA DA KONUR.
+		//    Turu 78'de tam bu atlanmisti: sutunlar SELECT + Scan ediliyor ama
+		//    haritaya YAZILMIYORDU, yani kapak HICBIR PROFILDE gorunmuyordu ve
+		//    derleyici bunu GOREMIYORDU (Scan'in yan etkisi var).
+		"randevu_acik": randevuAcik,
+		// ⚠️⚠️ TUR **`randevu.TurBul`DAN** gelir — burada ikinci bir kopya
+		//    YAZILMADI. Ilk yazimda "katman temizligi" gerekcesiyle ayni
+		//    switch buraya kopyalanmisti; bu, projenin ALTI kez zarar gordugu
+		//    "ayni kuralin iki kopyasi drift eder" sinifinin ta kendisiydi.
+		//    Dairesel bagimlilik YOK: `randevu` paketi `isletme`yi import
+		//    ETMIYOR.
+		// ⚠️ YAPMA: bu cagriyi yerel bir switch ile degistirme.
+		"randevu_turu": randevu.TurBul(kategori),
 	})
 }
 
