@@ -464,6 +464,269 @@ const kontrol = (ad, gecti, ek = '') => {
     }
   }
 
+  // ---------- TURU 77: YENI DIKEYLER ----------
+  //
+  // ⚠️⚠️ EN KRITIK: `media.erisebilir()` dallari. Hikaye/etkinlik/ilan/urun
+  //    gorselleri icin dal YAZILMAZSA medya PAYLASANDAN BASKA HERKESE 403
+  //    doner ve bu TEK CIHAZDA GORULMEZ (sahip kisa devreyle gorur).
+  //    Turu 75b'de akistaki TUM gorsellerde, turu 77'de hikayede yasandi.
+  //    Bu yuzden HER dikeyin medyasi **B'NIN GOZUNDEN** isteniyor.
+  {
+    // A ve B birbirini engellememis olmali (yukaridaki testler engel acti/kapatti).
+    await j('/users/' + B.id + '/block', { yontem: 'DELETE', token: A.token });
+    await j('/users/' + A.id + '/block', { yontem: 'DELETE', token: B.token });
+
+    // Yardimci: yeni medya yukle
+    async function medyaYukle(token, ad) {
+      const md5x = crypto.createHash('md5').update(JPEG).digest('base64');
+      const p = await j('/media/upload', {
+        yontem: 'POST', token,
+        govde: { kind: 'image', mime: 'image/jpeg', bytes: JPEG.length, md5: md5x, file_name: ad },
+      });
+      if (p.kod !== 200) return null;
+      await fetch(p.d.upload_url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'image/jpeg', 'Content-MD5': md5x },
+        body: JPEG,
+      });
+      await j('/media/' + p.d.media_id + '/commit', { yontem: 'POST', token });
+      return p.d.media_id;
+    }
+
+    // ---------- 1) HIKAYE EDITORU (katmanlar + metin hikayesi)
+    const sm = await medyaYukle(A.token, 'story2.jpg');
+    const katmanli = await j('/stories', {
+      yontem: 'POST', token: A.token,
+      govde: {
+        media_id: sm, kind: 'image',
+        katmanlar: [{
+          metin: 'Merhaba', x: 0.5, y: 0.4, boyut: 32,
+          renk: '#FF3B5C', font: 'kalin', hiza: 'orta', kutu: 'dolu', aci: 0.1,
+        }],
+      },
+    });
+    kontrol('TURU 77: hikaye KATMANLI paylasildi', katmanli.kod === 201,
+      'HTTP ' + katmanli.kod);
+
+    const metinH = await j('/stories', {
+      yontem: 'POST', token: A.token,
+      govde: {
+        kind: 'metin', arka_plan: 'okyanus',
+        katmanlar: [{ metin: 'Sadece yazi', boyut: 40, renk: '#FFFFFF' }],
+      },
+    });
+    kontrol('TURU 77: MEDYASIZ metin hikayesi (media_id NULL olabiliyor)',
+      metinH.kod === 201, 'HTTP ' + metinH.kod + ' ' + JSON.stringify(metinH.d));
+
+    const bosMetin = await j('/stories', {
+      yontem: 'POST', token: A.token,
+      govde: { kind: 'metin', arka_plan: 'mor', katmanlar: [] },
+    });
+    kontrol('TURU 77: BOS metin hikayesi reddediliyor', bosMetin.kod === 400,
+      'HTTP ' + bosMetin.kod);
+
+    await j('/users/' + A.id + '/follow', { yontem: 'POST', token: B.token });
+    const hl = await j('/stories/' + A.id, { token: B.token });
+    const hikayeler = (hl.d && hl.d.stories) || [];
+    const katmanliH = hikayeler.find((s) => (s.katmanlar || []).length > 0);
+    kontrol('TURU 77: katmanlar GERI DONUYOR (JSONB tarama)',
+      !!katmanliH && katmanliH.katmanlar[0].metin === 'Merhaba',
+      JSON.stringify(katmanliH && katmanliH.katmanlar));
+    const metinliH = hikayeler.find((s) => s.kind === 'metin');
+    kontrol('TURU 77: metin hikayesi media_id NULL + arka_plan dolu',
+      !!metinliH && !metinliH.media_id && metinliH.arka_plan === 'okyanus',
+      JSON.stringify(metinliH && { m: metinliH.media_id, a: metinliH.arka_plan }));
+
+    // ⚠️⚠️ SEVK ENGELI KONTROLU: B, A'nin hikaye medyasini ALABILIYOR MU?
+    if (sm) {
+      const hm = await j('/media/' + sm + '/url', { token: B.token });
+      kontrol('TURU 77: HIKAYE MEDYASI ikinci hesapta ACILIYOR (e dali)',
+        hm.kod === 200, 'HTTP ' + hm.kod);
+    }
+
+    // ---------- 2) ISLETME
+    const isl = await j('/users/me/isletme', {
+      yontem: 'PUT', token: A.token,
+      govde: {
+        kategori: 'yemek', adres: 'Test Cad. 1', il: 'Kocaeli', ilce: 'Gebze',
+        telefon: '02620000000', web: 'https://ornek.test',
+        calisma: [{ gun: 1, acilis: '09:00', kapanis: '22:00', kapali: false }],
+      },
+    });
+    kontrol('TURU 77: isletme hesabina gecis', isl.kod === 200, 'HTTP ' + isl.kod);
+    const islD = await j('/users/' + A.id + '/isletme', { token: B.token });
+    kontrol('TURU 77: isletme detayi (kategori_ad sunucudan)',
+      islD.kod === 200 && islD.d.kategori === 'yemek' && islD.d.kategori_ad === 'Yemek',
+      'HTTP ' + islD.kod);
+    const islL = await j('/isletmeler?kategori=yemek', { token: B.token });
+    kontrol('TURU 77: isletme REHBERI (menu kartlarinin gittigi yer)',
+      islL.kod === 200 && ((islL.d && islL.d.isletmeler) || []).some((x) => x.id === A.id),
+      'adet=' + (((islL.d && islL.d.isletmeler) || []).length));
+    const me2 = await j('/users/me', { token: A.token });
+    kontrol('TURU 77: /users/me hesap_turu donduruyor',
+      me2.d.hesap_turu === 'isletme', String(me2.d.hesap_turu));
+
+    // ---------- 3) ETKINLIK
+    const em = await medyaYukle(A.token, 'etkinlik.jpg');
+    const yarin = new Date(Date.now() + 86400000).toISOString();
+    const etk = await j('/etkinlikler', {
+      yontem: 'POST', token: A.token,
+      govde: {
+        baslik: 'E2E Konser', aciklama: 'test', kategori: 'konser',
+        baslangic: yarin, konum: 'Sahne', il: 'Kocaeli', ilce: 'Gebze',
+        media_ids: [em], ucretsiz: false, fiyat_kurus: 15000, kontenjan: 2,
+      },
+    });
+    kontrol('TURU 77: etkinlik olusturuldu', etk.kod === 201, 'HTTP ' + etk.kod);
+    const eid = etk.d && etk.d.id;
+    const eList = await j('/etkinlikler', { token: B.token });
+    kontrol('TURU 77: YAKLASAN etkinlikler listesi (SQL gercek DB de kosuyor)',
+      eList.kod === 200 && ((eList.d && eList.d.etkinlikler) || []).some((x) => x.id === eid),
+      'HTTP ' + eList.kod + ' adet=' + (((eList.d && eList.d.etkinlikler) || []).length));
+    const eGecmis = await j('/etkinlikler?gecmis=1', { token: B.token });
+    kontrol('TURU 77: GECMIS suzgeci yaklasani GOSTERMIYOR',
+      eGecmis.kod === 200 &&
+      !((eGecmis.d && eGecmis.d.etkinlikler) || []).some((x) => x.id === eid));
+    if (eid) {
+      const kat = await j('/etkinlikler/' + eid + '/katil', {
+        yontem: 'POST', token: B.token, govde: { durum: 'katiliyor' },
+      });
+      kontrol('TURU 77: etkinlige katil', kat.kod === 200, 'HTTP ' + kat.kod);
+      const eD = await j('/etkinlikler/' + eid, { token: B.token });
+      kontrol('TURU 77: katilan sayisi 2 (olusturan + B) + benim_durumum',
+        eD.d.katilan_sayisi === 2 && eD.d.benim_durumum === 'katiliyor',
+        'sayi=' + eD.d.katilan_sayisi + ' durum=' + eD.d.benim_durumum);
+      kontrol('TURU 77: fiyat KURUS donuyor', eD.d.fiyat_kurus === 15000,
+        String(eD.d.fiyat_kurus));
+      // kontenjan 2 -> A ve B dolu; olusturan kendi etkinliginden ayrilamaz
+      const ayril = await j('/etkinlikler/' + eid + '/katil', {
+        yontem: 'POST', token: A.token, govde: { durum: 'vazgecti' },
+      });
+      kontrol('TURU 77: OLUSTURAN kendi etkinliginden ayrilamaz',
+        ayril.kod === 400, 'HTTP ' + ayril.kod);
+      // ⚠️ medya (f) dali
+      if (em) {
+        const emu = await j('/media/' + em + '/url', { token: B.token });
+        kontrol('TURU 77: ETKINLIK MEDYASI ikinci hesapta ACILIYOR (f dali)',
+          emu.kod === 200, 'HTTP ' + emu.kod);
+      }
+    }
+
+    // ---------- 4) ILAN
+    const agac = await j('/ilan-kategoriler', { token: A.token });
+    kontrol('TURU 77: ilan kategori AGACI sunucudan (istemcide kopya yok)',
+      agac.kod === 200 && ((agac.d && agac.d.turler) || []).length === 4 &&
+      (agac.d.turler[0].alanlar || []).length > 0,
+      'tur=' + (((agac.d && agac.d.turler) || []).length));
+    const im = await medyaYukle(A.token, 'ilan.jpg');
+    const ilanR = await j('/ilanlar', {
+      yontem: 'POST', token: A.token,
+      govde: {
+        tur: 'vasita', kategori: 'otomobil', baslik: 'E2E Araba',
+        aciklama: 'test', fiyat_kurus: 75000000, il: 'Kocaeli', ilce: 'Gebze',
+        media_ids: [im],
+        ozellikler: { marka: 'Ford', model: 'Focus', yil: 2018, yakit: 'Dizel' },
+      },
+    });
+    kontrol('TURU 77: ilan olusturuldu (fiyat 750.000 TL = BIGINT kurus)',
+      ilanR.kod === 201, 'HTTP ' + ilanR.kod);
+    const iid = ilanR.d && ilanR.d.id;
+    const iL = await j('/ilanlar?tur=vasita', { token: B.token });
+    kontrol('TURU 77: ilan listesi + tur suzgeci',
+      iL.kod === 200 && ((iL.d && iL.d.ilanlar) || []).some((x) => x.id === iid),
+      'adet=' + (((iL.d && iL.d.ilanlar) || []).length));
+    if (iid) {
+      const iD = await j('/ilanlar/' + iid, { token: B.token });
+      kontrol('TURU 77: JSONB ozellikler geri donuyor',
+        iD.kod === 200 && iD.d.ozellikler && iD.d.ozellikler.marka === 'Ford',
+        JSON.stringify(iD.d.ozellikler));
+      kontrol('TURU 77: ilan fiyati BIGINT tasmadan donuyor',
+        iD.d.fiyat_kurus === 75000000, String(iD.d.fiyat_kurus));
+      kontrol('TURU 77: favori ekle',
+        (await j('/ilanlar/' + iid + '/favori', { yontem: 'POST', token: B.token })).kod === 200);
+      const fav = await j('/ilanlar?favori=1', { token: B.token });
+      kontrol('TURU 77: FAVORILERIM listesi (uc + ekran ayni turda)',
+        ((fav.d && fav.d.ilanlar) || []).some((x) => x.id === iid),
+        'adet=' + (((fav.d && fav.d.ilanlar) || []).length));
+      const satildi = await j('/ilanlar/' + iid, {
+        yontem: 'PATCH', token: A.token, govde: { durum: 'satildi' },
+      });
+      kontrol('TURU 77: ilan SATILDI (satir SILINMEZ)', satildi.kod === 200);
+      const bakalim = await j('/ilanlar?tur=vasita', { token: B.token });
+      kontrol('TURU 77: satilan ilan genel listede YOK',
+        !((bakalim.d && bakalim.d.ilanlar) || []).some((x) => x.id === iid));
+      const benimIlan = await j('/ilanlar?benim=1', { token: A.token });
+      kontrol('TURU 77: ILANLARIM satilani da GOSTERIYOR (gecmis korunur)',
+        ((benimIlan.d && benimIlan.d.ilanlar) || []).some((x) => x.id === iid));
+      const baskasi = await j('/ilanlar/' + iid, {
+        yontem: 'PATCH', token: B.token, govde: { durum: 'kaldirildi' },
+      });
+      kontrol('TURU 77: BASKASI ilani duzenleyemez (404)', baskasi.kod === 404,
+        'HTTP ' + baskasi.kod);
+      // ⚠️ medya (g) dali
+      if (im) {
+        const imu = await j('/media/' + im + '/url', { token: B.token });
+        kontrol('TURU 77: ILAN MEDYASI ikinci hesapta ACILIYOR (g dali)',
+          imu.kod === 200, 'HTTP ' + imu.kod);
+      }
+    }
+
+    // ---------- 5) ISLETME URUNU
+    const um = await medyaYukle(A.token, 'urun.jpg');
+    const urun = await j('/isletme/urunler', {
+      yontem: 'POST', token: A.token,
+      govde: {
+        ad: 'E2E Lahmacun', aciklama: 'test', bolum: 'Ana Yemekler',
+        fiyat_kurus: 12500, media_ids: [um],
+      },
+    });
+    kontrol('TURU 77: isletme urunu eklendi', urun.kod === 201, 'HTTP ' + urun.kod);
+    const uL = await j('/users/' + A.id + '/urunler', { token: B.token });
+    kontrol('TURU 77: urun katalogu/menusu',
+      uL.kod === 200 && ((uL.d && uL.d.urunler) || []).length >= 1,
+      'adet=' + (((uL.d && uL.d.urunler) || []).length));
+    // Kisisel hesap urun EKLEYEMEZ
+    const izinsizUrun = await j('/isletme/urunler', {
+      yontem: 'POST', token: B.token, govde: { ad: 'olmaz' },
+    });
+    kontrol('TURU 77: KISISEL hesap urun ekleyemez (403)',
+      izinsizUrun.kod === 403, 'HTTP ' + izinsizUrun.kod);
+    // ⚠️ medya (h) dali
+    if (um) {
+      const umu = await j('/media/' + um + '/url', { token: B.token });
+      kontrol('TURU 77: URUN MEDYASI ikinci hesapta ACILIYOR (h dali)',
+        umu.kod === 200, 'HTTP ' + umu.kod);
+    }
+
+    // ---------- 6) AI KAPISI
+    const aiD = await j('/ai/durum', { token: A.token });
+    kontrol('TURU 77: /ai/durum calisiyor', aiD.kod === 200,
+      'acik=' + (aiD.d && aiD.d.acik));
+    if (aiD.d && aiD.d.acik === false) {
+      const aiM = await j('/ai/menu', {
+        yontem: 'POST', token: A.token, govde: { metin: 'test' },
+      });
+      kontrol('TURU 77: AI KAPALIYKEN uc 503 doner (istemci dugmeyi cizmez)',
+        aiM.kod === 503, 'HTTP ' + aiM.kod);
+    }
+
+    // ---------- 7) ENGEL — yeni dikeylerde de gecerli mi
+    await j('/users/' + A.id + '/block', { yontem: 'POST', token: B.token });
+    const eEngel = await j('/etkinlikler', { token: B.token });
+    kontrol('TURU 77: ENGELLI taraf etkinligi GORMEZ',
+      !((eEngel.d && eEngel.d.etkinlikler) || []).some((x) => x.olusturan_id === A.id));
+    const iEngel = await j('/ilanlar', { token: B.token });
+    kontrol('TURU 77: ENGELLI taraf ilani GORMEZ',
+      !((iEngel.d && iEngel.d.ilanlar) || []).some((x) => x.sahibi_id === A.id));
+    const islEngel = await j('/isletmeler', { token: B.token });
+    kontrol('TURU 77: ENGELLI taraf isletmeyi GORMEZ',
+      !((islEngel.d && islEngel.d.isletmeler) || []).some((x) => x.id === A.id));
+    const uEngel = await j('/users/' + A.id + '/urunler', { token: B.token });
+    kontrol('TURU 77: ENGELLI taraf urun katalogunu GORMEZ (404)',
+      uEngel.kod === 404, 'HTTP ' + uEngel.kod);
+    await j('/users/' + A.id + '/block', { yontem: 'DELETE', token: B.token });
+  }
+
   // ---------- OZET
   const kalan = sonuclar.filter((s) => !s.gecti);
   console.log('\n==================================');
