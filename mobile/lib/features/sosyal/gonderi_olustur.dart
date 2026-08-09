@@ -137,7 +137,11 @@ class _GonderiOlusturState extends ConsumerState<GonderiOlustur> {
     // ⚠️ TEK KAYNAK: boyut + SURE kapisi MedyaSecici.video icinde.
     //    Ayni zincir burada ve ilan/etkinlik ekranlarinda iki kopya olsaydi
     //    kacinilmaz olarak drift ederdi (bu projede ALTI kez yasandi).
-    final dosya = await MedyaSecici.video(sureTavani: _sureTavani, uyar: _uyar);
+    final dosya = await MedyaSecici.video(
+      sureTavani: _sureTavani,
+      uyar: _uyar,
+      ref: ref,
+    );
     if (dosya == null || !mounted) return;
     setState(() {
       // ⚠️ TURU 76 — REELS'te TEK video (dikey oynatici tek kaynak varsayiyor),

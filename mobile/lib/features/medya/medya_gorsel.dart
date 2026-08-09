@@ -257,3 +257,37 @@ class KapakGorseli extends StatelessWidget {
     );
   }
 }
+
+/// ⚠️⚠️⚠️ TURU 78b — DUZENLEME SERIDINDE **TEK MEDYA** kucuk resmi.
+///
+/// `KapakGorseli` bir LISTEDEN ilk fotografi secer (kart/izgara icin dogru).
+/// Duzenleme seridi ise medyalari **TEK TEK** cizer ve orada eskiden ham
+/// `MedyaGorsel(mediaId: ...)` kullaniliyordu — yani bir VIDEO id'si dogrudan
+/// gorsel yukleyiciye veriliyor ve **KIRIK GORSEL** ciziliyordu.
+///
+/// ⚠️ Neden onemli: turu 78'in manset ozelligi ilana/etkinlige VIDEO eklemek.
+///    Videolu bir ilani duzenlemeye giren kullanici kendi videosunu "bozulmus"
+///    sanip SILEBILIR — geri alinamaz bir kayip.
+/// ⚠️ Video icin oynatici KURULMAZ: serit yatay kayan bir liste; her ogede
+///    oynatici kurmak iOS'ta ses oturumuna dokunup SUREN ARAMAYI sagirlastirir
+///    (turu 64/65/73). Durust bir video rozeti cizilir.
+/// ⚠️ `tur` bos gelirse FOTOGRAF varsayilir (eski sunucu ile uyum).
+class MedyaKucukResmi extends StatelessWidget {
+  const MedyaKucukResmi({super.key, required this.mediaId, required this.tur});
+
+  final String mediaId;
+  final String tur;
+
+  @override
+  Widget build(BuildContext context) {
+    if (tur != 'video') {
+      return MedyaGorsel(mediaId: mediaId, kucuk: true, fit: BoxFit.cover);
+    }
+    return const ColoredBox(
+      color: Color(0xFF14101C),
+      child: Center(
+        child: Icon(LucideIcons.video, color: Colors.white54, size: 20),
+      ),
+    );
+  }
+}

@@ -189,8 +189,10 @@ class MedyaSecici {
   static Future<File?> video({
     required Duration sureTavani,
     required void Function(String) uyar,
+    WidgetRef? ref,
   }) async {
     XFile? x;
+    var hata = false;
     try {
       MedyaKapisi.pickerAcik = true;
       x = await ImagePicker().pickVideo(
@@ -198,9 +200,19 @@ class MedyaSecici {
         maxDuration: sureTavani,
       );
     } catch (e) {
+      hata = true;
       unawaited(Sentry.captureMessage('video secici hatasi: $e'));
     } finally {
       MedyaKapisi.pickerAcik = false;
+    }
+    // ⚠️⚠️ TURU 78b — SECICI PATLARSA KULLANICIYA SOYLENIR (denetim bulgusu).
+    //    Eskiden istisna yalnizca Sentry'e yazilip `null` donuluyordu ve TUM
+    //    cagiranlar `null`i "kullanici vazgecti" sayip SESSIZCE cikiyordu:
+    //    "Video" dugmesi hicbir sey soylemeden OLU gorunurdu. Bu, turu 77b'de
+    //    `pickMultiImage(limit:1)` ile YASANAN hatanin ayni sinifi.
+    if (hata) {
+      uyar('Video seçici açılamadı, tekrar deneyin');
+      return null;
     }
     if (x == null) return null;
 
@@ -214,13 +226,20 @@ class MedyaSecici {
       return null;
     }
 
-    final sure = await videoSuresi(dosya);
+    final sure = await videoSuresi(dosya, ref);
     if (sure != null && sure > sureTavani) {
-      final dk = sureTavani.inMinutes;
+      // ⚠️⚠️ TURU 78b — SURE METNI TAM SAYI BOLMESIYLE YANLIS CIKIYORDU
+      //    (denetim bulgusu). Reels tavani `Duration(seconds: 90)`;
+      //    `inMinutes` TAM SAYI bolmesi yapip **1** dondurdugu icin mesaj
+      //    "Video en fazla 1 dakika olabilir" diyordu. Kullanici 75 saniyelik
+      //    videoyu "1 dakikayi asiyor" diye kirpiyor, sonra 90 saniyeye kadar
+      //    izin oldugunu ogrenemiyordu.
+      // ⚠️ Artik yalniz TAM DAKIKA ise dakika yazilir; aksi halde saniye.
+      final sn = sureTavani.inSeconds;
       uyar(
-        dk >= 1
-            ? 'Video en fazla $dk dakika olabilir'
-            : 'Video en fazla ${sureTavani.inSeconds} saniye olabilir',
+        sn % 60 == 0
+            ? 'Video en fazla ${sn ~/ 60} dakika olabilir'
+            : 'Video en fazla $sn saniye olabilir',
       );
       return null;
     }
@@ -233,7 +252,21 @@ class MedyaSecici {
   ///    AVAudioSession kategorisini degistirip SUREN ARAMANIN sesini bozardi.
   ///    iOS'ta ses oturumu PROSES GENELINDE TEKTIR (turu 64/65/73 dersleri).
   /// ⚠️ Gecici oynatici HEMEN dispose edilir.
-  static Future<Duration?> videoSuresi(File f) async {
+  ///
+  /// ⚠️⚠️⚠️ TURU 78b — `donanimSerbest` KAPISI EKLENDI (denetim bulgusu).
+  ///    `mixWithOthers: true` "oturumu ELE GECIRME" demektir; **"oturuma HIC
+  ///    DOKUNMA" DEMEK DEGILDIR** — bu ayrim turu 75b'de `MedyaVideo._kur()`
+  ///    icin SEVK ENGELI olarak kayda gecti ve oraya ayni kapi konuldu.
+  ///    `video_player` iOS'ta `initialize()` sirasinda RTCAudioSession
+  ///    kilidinin DISINDAN AVAudioSession'i yeniden yapilandirir.
+  ///    Senaryo gercek: kullanici ilan formunda "Video" der, galeri DAKIKALARCA
+  ///    acik kalabilir, bu sirada gelen aramayi kilit ekranindan kabul eder,
+  ///    sonra galeriye donup video secer -> olcum SUREN ARAMANIN sesini bozar.
+  /// ⚠️ Kapi kapaliyken `null` donulur: sure OLCULEMEZ sayilir ve dosya kabul
+  ///    edilir (sunucu tavani yine korur). Bu, aramayi bozmaktansa dogru taviz.
+  /// ⚠️ YAPMA: bu kapiyi kaldirma.
+  static Future<Duration?> videoSuresi(File f, [WidgetRef? ref]) async {
+    if (ref != null && !MedyaKapisi.donanimSerbest(ref)) return null;
     VideoPlayerController? c;
     try {
       c = VideoPlayerController.file(

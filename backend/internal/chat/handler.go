@@ -835,14 +835,23 @@ func kisaltRef(s string) string {
 // ⚠️ Hata YUTULUR: mesaj silme islemi medya temizligi yuzunden BASARISIZ OLMAZ.
 func (h *Handler) medyayiKopar(ctx context.Context, mediaID string) {
 	var kalan int
+	// ⚠️⚠️ TURU 78b — SAYIM EKSIKTI (denetim bulgusu). `users.kapak_media_id`
+	//    (033) ve `chats.avatar_media_id` (024) SAYILMIYORDU. Ayni medya hem bir
+	//    mesaja hem profil kapagina/grup fotografina bagliysa, mesaj "herkesten
+	//    silindiginde" HALA KULLANILAN medya kopariliyordu -> kapak/grup
+	//    fotografi SESSIZCE kayboluyordu.
+	// ⚠️ YAPMA: yeni bir medya sutunu eklerken bu sayimi guncellemeyi atlama
+	//    (`erisebilir()` dal listesinin kardesi — ikisi BIRLIKTE degisir).
 	if err := h.db.QueryRow(ctx, `
 		SELECT (SELECT count(*) FROM messages WHERE media_id=$1)
-		     + (SELECT count(*) FROM users WHERE avatar_media_id=$1)`,
+		     + (SELECT count(*) FROM users WHERE avatar_media_id=$1
+		                                      OR kapak_media_id=$1)
+		     + (SELECT count(*) FROM chats WHERE avatar_media_id=$1)`,
 		mediaID).Scan(&kalan); err != nil {
 		return
 	}
 	if kalan > 0 {
-		return // baska mesaj/avatar hala kullaniyor
+		return // baska mesaj/avatar/kapak/grup fotografi hala kullaniyor
 	}
 	var anahtar, thumb string
 	if err := h.db.QueryRow(ctx, `

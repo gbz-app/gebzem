@@ -261,22 +261,7 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
     final medyaSvc = ref.read(medyaServisiProvider);
     final aiSvc = ref.read(aiServisiProvider);
 
-    // ⚠️ Bekleme diyalogunun ACIK olup olmadigini izler — bkz. catch dalindaki
-    //    "yanlis route pop" serhi.
-    var diyalogAcik = true;
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const AlertDialog(
-        content: Row(
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(width: 16),
-            Expanded(child: Text('Menü okunuyor...')),
-          ],
-        ),
-      ),
-    );
+    final bekleme = _beklemeAc('Menü okunuyor...');
     try {
       final hazir = await MedyaServisi.gorseliHazirla(File(x.path));
       if (hazir == null) throw Exception('Görsel hazırlanamadı');
@@ -287,27 +272,18 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
       );
       final sonuc = await aiSvc.menu(mediaId: mediaId);
       if (!mounted) return;
-      Navigator.of(context).pop(); // bekleme diyalogu
-      diyalogAcik = false;
+      bekleme.kapat(context);
       // ⚠️ TURU 77b — KOTA SAYACI TAZELENIR. `aiDurumProvider` SUREC OMURLU ve
       //    hicbir yerde invalidate EDILMIYORDU: dugme etiketindeki "(20)" 20
       //    cagridan sonra bile "(20)" der, kullanici sonra 429 alirdi.
       ref.invalidate(aiDurumProvider);
       await _oneriGoster(sonuc);
     } catch (e) {
-      if (!mounted) return;
-      // ⚠️⚠️ TURU 77b — KOSULSUZ `pop()` YANLIS ROUTE'U KAPATIYORDU.
-      //    Basari dali bekleme diyalogunu ZATEN pop edip `_oneriGoster`i
-      //    AWAIT ediyor; oradan bir istisna kacarsa buradaki ikinci pop
-      //    **KATALOG EKRANINI** kapatirdi (turu 75b/(3) "yanlis route" sinifi).
-      //    ⚠️ YAPMA: bayragi kaldirip kosulsuz pop'a donme.
-      if (diyalogAcik) {
-        Navigator.of(context).pop();
-        diyalogAcik = false;
-      }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
+      if (mounted) bekleme.kapat(context);
+      // ⚠️ KOK MESSENGER: cagri onlarca saniye surer, ekran degismis olabilir.
+      rootMessengerKey.currentState?.showSnackBar(
+        SnackBar(content: Text(apiErrorMessage(e))),
+      );
     }
   }
 
@@ -324,6 +300,14 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
     final onay = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
+        // ⚠️⚠️ TURU 78b — `scrollable: true` ZORUNLU (denetim bulgusu).
+        //    `AlertDialog`in scrollable OLMAYAN dalinda icerik
+        //    `Flexible(child: content)` icine konur ve klavye acilinca kalan
+        //    yukseklik cok kucuk olur: 6 satirlik metin kutusu + uyari metni
+        //    KIRPILIR, kullanici ne yazdigini goremez. Ozellikle kucuk
+        //    ekranlarda (360x640) "Oluştur" dugmesi bile erisilemez olur.
+        //    ⚠️ YAPMA: `scrollable`i kaldirma.
+        scrollable: true,
         title: const Text('Menüyü anlatarak oluştur'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -372,39 +356,58 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
     //    ile AYNI gerekce: AI cagrisi 60 saniyeye kadar surer).
     final aiSvc = ref.read(aiServisiProvider);
 
-    // ⚠️ Bekleme diyalogunun ACIK olup olmadigini izler (yanlis route pop
-    //    korumasi — fotograf yolundaki ile AYNI desen).
-    var diyalogAcik = true;
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const AlertDialog(
-        content: Row(
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(width: 16),
-            Expanded(child: Text('Menü oluşturuluyor...')),
-          ],
-        ),
-      ),
-    );
+    final bekleme = _beklemeAc('Menü oluşturuluyor...');
     try {
       final sonuc = await aiSvc.menu(metin: tarif);
       if (!mounted) return;
-      Navigator.of(context).pop();
-      diyalogAcik = false;
+      bekleme.kapat(context);
       ref.invalidate(aiDurumProvider); // kota sayaci tazelenir
       await _oneriGoster(sonuc);
     } catch (e) {
-      if (!mounted) return;
-      if (diyalogAcik) {
-        Navigator.of(context).pop();
-        diyalogAcik = false;
-      }
+      if (mounted) bekleme.kapat(context);
       rootMessengerKey.currentState?.showSnackBar(
         SnackBar(content: Text(apiErrorMessage(e))),
       );
     }
+  }
+
+  /// ⚠️⚠️⚠️ TURU 78b — BEKLEME DIYALOGU **GERI TUSUNA KAPALI** + kapanisini
+  /// KENDI izler (denetim: SEVK ENGELI).
+  ///
+  /// ESKI KOD: `var diyalogAcik = true;` + `barrierDismissible: false`.
+  /// **`barrierDismissible` YALNIZ PERDEYE DOKUNMAYI engeller — ANDROID GERI
+  /// TUSU diyalog route'unu YINE DE POP EDER.** Kullanici "Menü oluşturuluyor..."
+  /// beklerken (AI cagrisi ONLARCA saniye surer) sabirsizlanip geri basarsa:
+  ///   · diyalog kapanir, `diyalogAcik` bayragi HALA `true` (yalanci),
+  ///   · cagri donunce basari dali KOSULSUZ `Navigator.pop()` cagirir,
+  ///   · en ustteki route artik **KATALOG EKRANIDIR** -> kullanicinin urun
+  ///     listesi ekrani KAPANIR, ustelik oneri diyalogu bir daha acilamaz.
+  ///
+  /// FIX IKI KATMANLI:
+  ///   1. `PopScope(canPop: false)` — geri tusu diyalogu KAPATAMAZ, yani
+  ///      "en ustteki route diyalogdur" varsayimi GARANTI olur.
+  ///   2. `whenComplete` — diyalog HERHANGI bir yolla kapanirsa bayrak
+  ///      GERCEKLE senkron kalir (savunma katmani).
+  /// ⚠️ YAPMA: `PopScope`u kaldirma; bayragi elle yonetmeye geri donme.
+  _BeklemeKapisi _beklemeAc(String mesaj) {
+    final kapi = _BeklemeKapisi();
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => PopScope(
+        canPop: false,
+        child: AlertDialog(
+          content: Row(
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(width: 16),
+              Expanded(child: Text(mesaj)),
+            ],
+          ),
+        ),
+      ),
+    ).whenComplete(() => kapi.acik = false);
+    return kapi;
   }
 
   Future<void> _oneriGoster(String ham) async {
@@ -460,10 +463,16 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
                 //    HICBIR urunu ekleyemez. (Ayni cast bir alt satirda
                 //    `catch(_)` ile korunuyordu = ASIMETRI.)
                 //    ⚠️ YAPMA: ciplak cast'e geri donme.
-                final ham = u['fiyat_kurus'];
-                final kurus = ham is num
-                    ? ham.toInt()
-                    : int.tryParse(ham?.toString() ?? '') ?? 0;
+                //
+                // ⚠️⚠️ TURU 78b — AYRISTIRMA ARTIK **TEK KAYNAK** (`_kurusOku`).
+                //    Turu 77b bu korumayi YALNIZ BURAYA (gosterim yoluna)
+                //    koymustu; KAYDETME yolu ciplak `as num?` ile kalmisti.
+                //    Sonuc sinsiydi: model fiyati METIN dondurdugunde diyalog
+                //    urunleri DOGRU fiyatlariyla listeliyor, kullanici hepsini
+                //    isaretleyip "Menüye ekle" diyor ve **"0 ürün eklendi"**
+                //    goruyordu — hicbir ipucu olmadan.
+                //    ⚠️ YAPMA: iki yolda ayri ayristirma yazma (drift eder).
+                final kurus = _kurusOku(u['fiyat_kurus']);
                 return CheckboxListTile(
                   dense: true,
                   value: secili[i],
@@ -495,27 +504,54 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
     );
     if (onay != true || !mounted) return;
 
+    // ⚠️ Servis await'lerden ONCE (bkz. `_kaydet` serhi): dongu onlarca urun
+    //    icin onlarca istek atar ve arada ekran dispose olabilir.
+    final urunSvc = ref.read(urunServisiProvider);
     var eklenen = 0;
+    var basarisiz = 0;
     for (var i = 0; i < urunler.length; i++) {
       if (!secili[i]) continue;
       try {
-        await ref.read(urunServisiProvider).ekle({
+        await urunSvc.ekle({
           'ad': (urunler[i]['ad'] ?? '').toString(),
           'aciklama': (urunler[i]['aciklama'] ?? '').toString(),
           'bolum': (urunler[i]['bolum'] ?? '').toString(),
-          'fiyat_kurus': (urunler[i]['fiyat_kurus'] as num?)?.toInt() ?? 0,
+          // ⚠️ TEK KAYNAK (yukaridaki gosterim yoluyla AYNI ayristirma).
+          'fiyat_kurus': _kurusOku(urunler[i]['fiyat_kurus']),
           'media_ids': <String>[],
         });
         eklenen++;
-      } catch (_) {}
+      } catch (_) {
+        // ⚠️ SESSIZ YUTMA YOK: eskiden `catch (_) {}` idi ve bir sorun oldugunda
+        //    kullanici yalnizca "0 ürün eklendi" goruyordu — sebebi anlamasinin
+        //    HICBIR yolu yoktu.
+        basarisiz++;
+      }
     }
     if (!mounted) return;
     await _yukle();
-    if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('$eklenen ürün eklendi')));
-    }
+    // ⚠️ KOK MESSENGER: dongu uzun surer, ekran degismis olabilir.
+    rootMessengerKey.currentState?.showSnackBar(
+      SnackBar(
+        content: Text(
+          basarisiz == 0
+              ? '$eklenen ürün eklendi'
+              : '$eklenen ürün eklendi, $basarisiz tanesi eklenemedi',
+        ),
+      ),
+    );
+  }
+
+  /// AI'nin dondurdugu fiyati kurusa cevirir — **TEK KAYNAK**.
+  ///
+  /// ⚠️⚠️ Dil modelleri talimata ragmen sik sik `"fiyat_kurus": "1250"` (METIN)
+  ///    donduruyor. Ciplak `as num?` cast'i bu durumda `TypeError` atar.
+  ///    Turu 77b bu korumayi gosterim yoluna koydu, KAYDETME yoluna koymadi ve
+  ///    turu 78b denetimi bunu SEVK ENGELI olarak yakaladi ("0 ürün eklendi").
+  /// ⚠️ YAPMA: cagiran yerlere ayri ayristirma yazma.
+  static int _kurusOku(dynamic ham) {
+    if (ham is num) return ham.toInt();
+    return int.tryParse(ham?.toString() ?? '') ?? 0;
   }
 }
 
@@ -576,27 +612,33 @@ class _UrunDuzenleEkraniState extends ConsumerState<UrunDuzenleEkrani> {
   ///    Sonuc alana YAZILIR ama kullanici duzenleyebilir.
   Future<void> _aiAciklama() async {
     setState(() => _aiCalisiyor = true);
+    // ⚠️ Servisler await'lerden ONCE (bkz. `_kaydet` serhi) — AI cagrisi uzun.
+    final medyaSvc = ref.read(medyaServisiProvider);
+    final aiSvc = ref.read(aiServisiProvider);
     try {
       var mediaId = '';
       if (_gorsel != null) {
         final hazir = await MedyaServisi.gorseliHazirla(_gorsel!);
         if (hazir != null) {
-          mediaId = await ref
-              .read(medyaServisiProvider)
-              .yukle(dosya: hazir, kind: 'image', mime: 'image/jpeg');
+          mediaId = await medyaSvc.yukle(
+            dosya: hazir,
+            kind: 'image',
+            mime: 'image/jpeg',
+          );
         }
       }
-      final metin = await ref
-          .read(aiServisiProvider)
-          .urunMetni(mediaId: mediaId, metin: _ad.text.trim());
+      final metin = await aiSvc.urunMetni(
+        mediaId: mediaId,
+        metin: _ad.text.trim(),
+      );
       if (!mounted) return;
       setState(() => _aciklama.text = metin);
       ref.invalidate(aiDurumProvider); // kota sayaci tazelenir (turu 77b)
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
+      // ⚠️ KOK MESSENGER: AI cagrisi uzun surer, ekran degismis olabilir.
+      rootMessengerKey.currentState?.showSnackBar(
+        SnackBar(content: Text(apiErrorMessage(e))),
+      );
     } finally {
       if (mounted) setState(() => _aiCalisiyor = false);
     }
@@ -880,7 +922,22 @@ class _AiDanismaEkraniState extends ConsumerState<AiDanismaEkrani> {
     } finally {
       MedyaKapisi.pickerAcik = false;
     }
-    x ??= await ImagePicker().pickImage(source: ImageSource.gallery);
+    // ⚠️⚠️ TURU 78b — GALERI YEDEGI DE AYNI KORUMAYI KULLANIR (denetim: bu
+    //    cagri `pickerAcik` bayragini SET ETMIYOR ve `try/catch`SIZDI, yani
+    //    ayni dosyadaki diger iki secicisiyle ASIMETRIKTI).
+    //    `pickerAcik` bayragi, secici acikken gelen aramanin medya kapilarini
+    //    dogru degerlendirmesi icin var; burada set edilmeyince kamera iptal
+    //    edilip galeriye dusuldugunde bayrak YANLIS kaliyordu.
+    if (x == null) {
+      try {
+        MedyaKapisi.pickerAcik = true;
+        x = await ImagePicker().pickImage(source: ImageSource.gallery);
+      } catch (_) {
+        // secici acilamadi — asagidaki null kapisi devrali
+      } finally {
+        MedyaKapisi.pickerAcik = false;
+      }
+    }
     if (x == null || !mounted) return;
     setState(() => _gorsel = File(x!.path));
   }
@@ -891,23 +948,29 @@ class _AiDanismaEkraniState extends ConsumerState<AiDanismaEkrani> {
       _calisiyor = true;
       _sonuc = '';
     });
+    // ⚠️ Servisler await'lerden ONCE (bkz. `_kaydet` serhi) — AI cagrisi uzun.
+    final medyaSvc = ref.read(medyaServisiProvider);
+    final aiSvc = ref.read(aiServisiProvider);
     try {
       final hazir = await MedyaServisi.gorseliHazirla(_gorsel!);
       if (hazir == null) throw Exception('Görsel hazırlanamadı');
-      final mediaId = await ref
-          .read(medyaServisiProvider)
-          .yukle(dosya: hazir, kind: 'image', mime: 'image/jpeg');
-      final s = await ref
-          .read(aiServisiProvider)
-          .danisma(mediaId: mediaId, metin: _not.text.trim());
+      final mediaId = await medyaSvc.yukle(
+        dosya: hazir,
+        kind: 'image',
+        mime: 'image/jpeg',
+      );
+      final s = await aiSvc.danisma(
+        mediaId: mediaId,
+        metin: _not.text.trim(),
+      );
       if (!mounted) return;
       setState(() => _sonuc = s);
       ref.invalidate(aiDurumProvider); // kota sayaci tazelenir (turu 77b)
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
+      // ⚠️ KOK MESSENGER: AI cagrisi uzun surer, ekran degismis olabilir.
+      rootMessengerKey.currentState?.showSnackBar(
+        SnackBar(content: Text(apiErrorMessage(e))),
+      );
     } finally {
       if (mounted) setState(() => _calisiyor = false);
     }
@@ -1011,5 +1074,24 @@ class _AiDanismaEkraniState extends ConsumerState<AiDanismaEkrani> {
         ],
       ),
     );
+  }
+}
+
+/// Bekleme diyalogunun canliligini tutan kucuk kapi (bkz. `_beklemeAc` serhi).
+///
+/// ⚠️ Ayri bir SINIF olmasinin sebebi: `bool`u closure'da tutmak, kapatma
+///    sorumlulugunu cagirana birakir ve turu 77b/78b'de tam bu yuzden iki ayri
+///    yerde birbirinden bagimsiz (ve biri YANLIS) bayrak yonetimi olusmustu.
+class _BeklemeKapisi {
+  bool acik = true;
+
+  /// Diyalog HALA aciksa kapatir. Kapali ise HICBIR SEY YAPMAZ.
+  ///
+  /// ⚠️ Bu kontrol olmadan `Navigator.pop()` EN USTTEKI route'u kapatir ve
+  ///    diyalog zaten kapanmissa **CAGIRAN EKRANI** kapatir.
+  void kapat(BuildContext context) {
+    if (!acik) return;
+    acik = false;
+    Navigator.of(context).pop();
   }
 }

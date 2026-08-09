@@ -171,8 +171,22 @@ class Isletme {
     'telefon': telefon,
     'web': web,
     'calisma': calisma.map((c) => c.json()).toList(),
-    'enlem': enlem,
-    'boylam': boylam,
+    // ⚠️⚠️⚠️ TURU 78b — KOORDINATLAR **YALNIZ DOLUYSA** GONDERILIR (denetim).
+    //
+    //    Sunucuda `enlem`/`boylam` ISARETCI yapildi ve
+    //    `COALESCE(EXCLUDED.enlem, isletmeler.enlem)` ile "gonderilmediyse
+    //    MEVCUDU KORU" kurali yazildi. Ama istemci bu alanlari **HER ISTEKTE
+    //    0 olarak** gonderiyordu: `0` NULL DEGILDIR, dolayisiyla COALESCE
+    //    hicbir zaman devreye girmiyor ve koruma ATIL kaliyordu.
+    //
+    //    BUGUN gorunur bir zarari yok (koordinat girisi olan arayuz yok, tum
+    //    kayitlar zaten 0). AMA koordinat girisi eklendigi GUN, kullanicinin
+    //    haritadan sectigi konum, calisma saatlerini duzenlemek icin acilan
+    //    HERHANGI bir kaydetme ile SIFIRLANIRDI — ve "duzeltildi" diye yazili
+    //    oldugu icin kimse orada aramazdi.
+    // ⚠️ YAPMA: bu iki alani kosulsuz gondermeye donme.
+    if (enlem != 0) 'enlem': enlem,
+    if (boylam != 0) 'boylam': boylam,
   };
 
   /// ⚠️ Ad : sinifin bir de ORNEK metodu  var (giden yon).

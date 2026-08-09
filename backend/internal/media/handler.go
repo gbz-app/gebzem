@@ -615,6 +615,33 @@ func (h *Handler) erisebilir(ctx context.Context, userID, mediaID string) bool {
 		                  WHERE (b3.blocker_id=$2 AND b3.blocked_id=p.isletme_id)
 		                     OR (b3.blocker_id=p.isletme_id AND b3.blocked_id=$2)))`,
 		mediaID, userID).Scan(&varMi)
+	if varMi {
+		return true
+	}
+
+	// ⚠️⚠️⚠️ (i) GRUP SOHBETI AVATARI — TURU 78b DENETIMINDE **SEVK ENGELI**.
+	//
+	// `chats.avatar_media_id` migration **024**'ten beri VAR ve grup olusturma
+	// ekrani onu DOLDURUYOR, ama bu dal HIC YAZILMAMISTI. Migration'lardaki tum
+	// medya sutunlari tarandiginda **TEK KARSILIKSIZ SUTUN** buydu.
+	//
+	// SONUC: grubu KURAN kisi fotografi sorunsuz gorur (cagiran kapi
+	// `if sahip != userID && !erisebilir(...)` — sahibi KISA DEVREYLE gecer);
+	// gruptaki DIGER HERKES sohbet listesinde, sohbet basliginda ve "Grup
+	// bilgisi" ekraninda **KIRIK GORSEL** gorur.
+	//
+	// ⚠️⚠️ TEK CIHAZDA TEST EDILSE GORULMEZDI — turu 75b (akistaki tum
+	//    gorseller), turu 77 (hikaye medyasi) ve turu 78 (kapak) ile BIREBIR
+	//    AYNI sinif. Bu, o sinifin DORDUNCU tekrari.
+	//
+	// GORUNURLUK KURALI = **UYELIK**.
+	// ⚠️ YAPMA: kanal avatari gibi "herkese acik" yapma — grup fotografi
+	//    uye OLMAYANA sizmamali (grup adi/fotografi mahremdir).
+	h.db.QueryRow(ctx, `
+		SELECT EXISTS(
+		  SELECT 1 FROM chats c
+		    JOIN chat_members cm ON cm.chat_id = c.id AND cm.user_id = $2
+		   WHERE c.avatar_media_id = $1)`, mediaID, userID).Scan(&varMi)
 	return varMi
 }
 

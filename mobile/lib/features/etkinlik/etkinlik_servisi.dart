@@ -14,12 +14,20 @@ class EtkinlikServisi {
 
   Dio get _api => _ref.read(apiProvider);
 
+  /// ⚠️⚠️ TURU 78b — `basMin`/`basMaks` EKLENDI (denetim: OLU YETENEK).
+  ///    Sunucu bu iki suzgeci turu 77'den beri destekliyordu ama istemci
+  ///    **HIC GONDERMIYORDU**; serhi "hizli kartlarin on kosulu" diyordu ama
+  ///    o kartlar hicbir ekranda yoktu. Bu, projede alti kez tekrarlayan
+  ///    "sunucuda var, ekranda yok" sinifiydi. Artik "Bugün" / "Bu hafta sonu"
+  ///    kartlari bunlari kullaniyor.
   Future<List<Etkinlik>> liste({
     String kategori = '',
     String q = '',
     String il = '',
     bool gecmis = false,
     bool benim = false,
+    DateTime? basMin,
+    DateTime? basMaks,
   }) async {
     final r = await _api.get(
       '/etkinlikler',
@@ -29,6 +37,9 @@ class EtkinlikServisi {
         if (il.isNotEmpty) 'il': il,
         if (gecmis) 'gecmis': '1',
         if (benim) 'benim': '1',
+        // ⚠️ Sunucu timestamptz bekliyor — UTC ISO-8601 gonderilir.
+        if (basMin != null) 'bas_min': basMin.toUtc().toIso8601String(),
+        if (basMaks != null) 'bas_maks': basMaks.toUtc().toIso8601String(),
       },
     );
     final m = (r.data as Map).cast<String, dynamic>();

@@ -43,6 +43,30 @@ class _VitrinSliderState extends ConsumerState<VitrinSlider> {
     _yukle();
   }
 
+  /// ⚠️⚠️ TURU 78b — KATEGORI DEGISINCE **YENIDEN YUKLENIR** (denetim bulgusu).
+  ///
+  ///	`_yukle()` YALNIZCA `initState`te cagriliyordu. Ama iki ana ekran
+  ///	`dikey`i CALISMA ANINDA degistiriyor: isletme rehberinde kategori cipine
+  ///	("Yemek", "Kafe"), ilan listesinde tur cipine ("Emlak", "Vasıta")
+  ///	basildiginda widget'in tipi ve agactaki yeri AYNI kaldigi icin Flutter
+  ///	State'i KORUR ve slider **ESKI kategorinin slaytlarini** gostermeye devam
+  ///	ederdi. Kullanici "Emlak"a basip vitrinde ARABA gorurdu; slayta
+  ///	dokundugunda da yanlis kayda giderdi.
+  /// ⚠️ Liste SIFIRLANIR (`null`): eski slaytlar yenisi gelene kadar EKRANDA
+  ///	KALMAMALI, yoksa kisa bir sure yanlis kategori gosterilir.
+  /// ⚠️ Otomatik gecis timer'i da durdurulur; yeni liste gelince `_yukle`
+  ///	gerekiyorsa yeniden baslatir.
+  @override
+  void didUpdateWidget(covariant VitrinSlider eski) {
+    super.didUpdateWidget(eski);
+    if (eski.dikey != widget.dikey) {
+      _oto?.cancel();
+      _aktif = 0;
+      setState(() => _slaytlar = null);
+      _yukle();
+    }
+  }
+
   @override
   void dispose() {
     // ⚠️⚠️ TIMER **MUTLAKA** IPTAL EDILIR. Bu projede `IndexedStack` tum

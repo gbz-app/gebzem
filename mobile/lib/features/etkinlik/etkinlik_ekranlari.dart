@@ -40,6 +40,12 @@ class _EtkinlikListesiEkraniState extends ConsumerState<EtkinlikListesiEkrani> {
   bool _gecmis = false;
   bool _benim = false;
 
+  /// ⚠️⚠️ TURU 78b — ZAMAN HIZLI KARTLARI ('' | 'bugun' | 'haftasonu').
+  ///    Sunucudaki `bas_min`/`bas_maks` suzgecleri turu 77'den beri VARDI ama
+  ///    ONLARI CAGIRAN HICBIR EKRAN YOKTU (denetim: olu yetenek). Kullanicinin
+  ///    istedigi "kucuk kartlar"in etkinlik karsiligi budur.
+  String _zaman = '';
+
   @override
   void initState() {
     super.initState();
@@ -53,8 +59,37 @@ class _EtkinlikListesiEkraniState extends ConsumerState<EtkinlikListesiEkrani> {
     super.dispose();
   }
 
+  /// Secili zaman kartinin [baslangic, bitis) araligi. Kart yoksa (null, null).
+  ///
+  /// ⚠️ YEREL saatle hesaplanir (kullanicinin "bugün"u kendi gunudur); servis
+  ///    katmani UTC'ye cevirip gonderir.
+  /// ⚠️ "Bu hafta sonu" = gelecek CUMARTESI 00:00 -> PAZARTESI 00:00. Bugun
+  ///    zaten hafta sonuysa BUGUNDEN baslar (gecmis saatler zaten elenir).
+  (DateTime?, DateTime?) get _zamanAraligi {
+    final s = DateTime.now();
+    final bugun = DateTime(s.year, s.month, s.day);
+    if (_zaman == 'bugun') {
+      return (bugun, bugun.add(const Duration(days: 1)));
+    }
+    if (_zaman == 'haftasonu') {
+      // DateTime.saturday = 6, sunday = 7
+      final cumarteyeKalan = (DateTime.saturday - s.weekday) % 7;
+      final cmt = bugun.add(Duration(days: cumarteyeKalan));
+      final bas = cumarteyeKalan == 0 || s.weekday == DateTime.sunday
+          ? bugun
+          : cmt;
+      // Pazar gunundeysek bitis YARIN, degilse cumartesiden 2 gun sonra.
+      final bitis = s.weekday == DateTime.sunday
+          ? bugun.add(const Duration(days: 1))
+          : cmt.add(const Duration(days: 2));
+      return (bas, bitis);
+    }
+    return (null, null);
+  }
+
   Future<void> _yukle() async {
     final jeton = ++_istekNo;
+    final (basMin, basMaks) = _zamanAraligi;
     try {
       final l = await ref
           .read(etkinlikServisiProvider)
@@ -63,6 +98,8 @@ class _EtkinlikListesiEkraniState extends ConsumerState<EtkinlikListesiEkrani> {
             q: _arama.text.trim(),
             gecmis: _gecmis,
             benim: _benim,
+            basMin: basMin,
+            basMaks: basMaks,
           );
       if (!mounted || jeton != _istekNo) return;
       setState(() {
@@ -143,6 +180,25 @@ class _EtkinlikListesiEkraniState extends ConsumerState<EtkinlikListesiEkrani> {
               },
             ),
           ),
+          // ---- ZAMAN HIZLI KARTLARI (turu 78b: `bas_min`/`bas_maks` artik CANLI)
+          // ⚠️ YALNIZ "Yaklaşan" sekmesinde: gecmis etkinliklerde "Bugün"
+          //    suzgeci mantiksal olarak BOS sonuc uretirdi.
+          if (!_gecmis)
+            SizedBox(
+              height: 40,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                children: [
+                  _zamanCipi('bugun', 'Bugün', LucideIcons.calendarDays),
+                  _zamanCipi(
+                    'haftasonu',
+                    'Bu hafta sonu',
+                    LucideIcons.calendarRange,
+                  ),
+                ],
+              ),
+            ),
           SizedBox(
             height: 44,
             child: ListView(
@@ -191,6 +247,22 @@ class _EtkinlikListesiEkraniState extends ConsumerState<EtkinlikListesiEkrani> {
       ),
     );
   }
+
+  /// Zaman hizli karti. ⚠️ TEK SECIM: ikincisine basmak oncekini kapatir
+  ///    (isletme rehberindeki hizli kartlarla AYNI davranis — iki tarih araligi
+  ///    kesistiginde bos sonuc uretip "etkinlik yok" sanisina dusururdu).
+  Widget _zamanCipi(String anahtar, String ad, IconData ikon) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 2),
+    child: FilterChip(
+      avatar: Icon(ikon, size: 15),
+      label: Text(ad),
+      selected: _zaman == anahtar,
+      onSelected: (secili) {
+        setState(() => _zaman = secili ? anahtar : '');
+        _yukle();
+      },
+    ),
+  );
 
   Widget _cip(String anahtar, String ad) => Padding(
     padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 6),
@@ -520,6 +592,9 @@ class _EtkinlikDetayEkraniState extends ConsumerState<EtkinlikDetayEkrani> {
                           mediaId: e.mediaIds[k],
                           otoOynat: false,
                           sesli: false,
+                          // ⚠️ TURU 78b — ilan galerisiyle AYNI gerekce:
+                          //    varsayilan `true` sonsuz donguye sokuyordu.
+                          dongu: false,
                           dolgu: BoxFit.cover,
                         );
                       }
@@ -861,6 +936,12 @@ class _EtkinlikOlusturEkraniState extends ConsumerState<EtkinlikOlusturEkrani> {
   /// DUZENLEMEDE: sunucuda ZATEN duran medya id'leri (silinebilir).
   final List<String> _mevcutMedya = [];
 
+  /// ⚠️⚠️ TURU 78b — `_mevcutMedya[k]` ile **AYNI SIRADA** tur bilgisi
+  ///    (ilan ekranindaki ile birebir ayni gerekce: video id'si `MedyaGorsel`e
+  ///    verilirse KIRIK GORSEL cizilir ve kullanici videosunu silebilir).
+  /// ⚠️ IKI LISTE **BIRLIKTE** degisir.
+  final List<String> _mevcutTurler = [];
+
   static const _enFazlaMedya = 10;
   static const _enFazlaVideo = 2;
 
@@ -895,6 +976,10 @@ class _EtkinlikOlusturEkraniState extends ConsumerState<EtkinlikOlusturEkrani> {
     }
     if (e.kontenjan > 0) _kontenjan.text = e.kontenjan.toString();
     _mevcutMedya.addAll(e.mediaIds);
+    // ⚠️⚠️ TURU 78b — TUR BILGISI DE TASINIR (eskiden `e.mediaKinds` ATILIYORDU).
+    for (var k = 0; k < e.mediaIds.length; k++) {
+      _mevcutTurler.add(k < e.mediaKinds.length ? e.mediaKinds[k] : 'image');
+    }
   }
 
   @override
@@ -955,6 +1040,7 @@ class _EtkinlikOlusturEkraniState extends ConsumerState<EtkinlikOlusturEkrani> {
     final dosya = await MedyaSecici.video(
       sureTavani: _videoSuresiTavani,
       uyar: _uyar,
+      ref: ref,
     );
     if (dosya == null || !mounted) return;
     setState(() => _videolar.add(dosya));
@@ -1310,19 +1396,31 @@ class _EtkinlikOlusturEkraniState extends ConsumerState<EtkinlikOlusturEkrani> {
     if (_mevcutMedya.isEmpty && _gorseller.isEmpty && _videolar.isEmpty) {
       return const SizedBox.shrink();
     }
+    // ⚠️⚠️ TURU 78b — DOKUNMA ALANI BUYUTULDU (denetim bulgusu).
+    //    Eski hedef 13px ikon + 2px dolgu = **17x17 dp** idi; Material 48,
+    //    Apple 44 dp minimum onerir. Ustelik hedef, YATAY KAYAN bir listenin
+    //    icindeki 72x80 dp'lik kucuk resmin KOSESINDE: isabet etmeyen dokunus
+    //    kaydirma jestine donusuyor, kullanici medyayi kaldiramiyordu.
+    //    ⚠️ GORUNEN daire BUYUMEZ (tasarim bozulmaz); yalnizca SEFFAF dolgu
+    //       ile vurulabilir alan genisletilir + `HitTestBehavior.opaque`.
     Widget kaldir(VoidCallback onTap) => Positioned(
       right: 0,
       top: 0,
       child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
         onTap: onTap,
-        child: const DecoratedBox(
-          decoration: BoxDecoration(
-            color: Color(0xAA000000),
-            shape: BoxShape.circle,
-          ),
-          child: Padding(
-            padding: EdgeInsets.all(2),
-            child: Icon(LucideIcons.x, size: 13, color: Colors.white),
+        child: const Padding(
+          // gorunmez pay: 17x17 gorsel -> ~37x37 dokunma alani
+          padding: EdgeInsets.only(left: 10, bottom: 10),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: Color(0xAA000000),
+              shape: BoxShape.circle,
+            ),
+            child: Padding(
+              padding: EdgeInsets.all(2),
+              child: Icon(LucideIcons.x, size: 13, color: Colors.white),
+            ),
           ),
         ),
       ),
@@ -1343,15 +1441,23 @@ class _EtkinlikOlusturEkraniState extends ConsumerState<EtkinlikOlusturEkrani> {
                     child: SizedBox(
                       width: 72,
                       height: 80,
-                      child: MedyaGorsel(
+                      // ⚠️ TURU 78b: ham `MedyaGorsel` DEGIL — video id'si
+                      //    verilirse KIRIK GORSEL cizilirdi.
+                      child: MedyaKucukResmi(
                         mediaId: _mevcutMedya[k],
-                        kucuk: true,
-                        fit: BoxFit.cover,
+                        tur: k < _mevcutTurler.length
+                            ? _mevcutTurler[k]
+                            : 'image',
                       ),
                     ),
                   ),
                   // ⚠️ Yalniz LISTEDEN cikarir; medya sunucuda SILINMEZ.
-                  kaldir(() => setState(() => _mevcutMedya.removeAt(k))),
+                  // ⚠️ IKI LISTE BIRLIKTE dusurulur (aksi halde kalan ogeler
+                  //    YANLIS TIP cizer).
+                  kaldir(() => setState(() {
+                    _mevcutMedya.removeAt(k);
+                    if (k < _mevcutTurler.length) _mevcutTurler.removeAt(k);
+                  })),
                 ],
               ),
             ),

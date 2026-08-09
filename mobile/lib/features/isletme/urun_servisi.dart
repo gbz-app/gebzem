@@ -95,9 +95,35 @@ class AiServisi {
     } catch (_) {
       // ⚠️ Hata durumunda KAPALI varsayilir — yanlislikla dugme cizmektense
       //    cizmemek daha durust.
-      return const AiDurum(acik: false, kalan: 0, kota: 0);
+      // ⚠️⚠️ TURU 78b — AMA BU KARAR **ONBELLEKLENMEMELI** (denetim bulgusu):
+      //    `aiDurumProvider` `autoDispose` DEGILDIR ve tek bir gecici ag hatasi
+      //    (asansor, metro, sunucu restart'i) `acik:false`u SUREC OMRU BOYUNCA
+      //    onbelleklerdi -> AI ozelligi uygulama YENIDEN BASLATILANA kadar
+      //    KAYBOLURDU ve kullanici sebebini anlayamazdi.
+      //    Cozum saglayicida: hata durumu onbelleklenmez (bkz. `aiDurumProvider`).
+      rethrow;
     }
   }
+
+  /// ⚠️⚠️ TURU 78b — AI CAGRILARI ICIN **UZUN ZAMAN ASIMI** (denetim: SEVK ENGELI).
+  ///
+  /// Sunucu tarafi OpenAI cagrisina **60 saniye** veriyor. Istemcinin genel
+  /// Dio ayari ise `receiveTimeout: 20 sn` (core/api.dart) idi: yani model
+  /// 20 saniyeden uzun surdugunde
+  ///   · istemci VAZGECER ve kullaniciya jenerik "Bir şeyler ters gitti" der,
+  ///   · sunucu cagriyi TAMAMLAR ve **KOTAYI DUSURUR** (rezervasyon cagridan
+  ///     ONCE yapiliyor),
+  ///   · sonuc URETILMIS oldugu halde KAYBOLUR.
+  /// Yani kullanici gunluk 20 hakkindan birini HICBIR SEY ALMADAN yakardi ve
+  /// tekrar denedikce ayni sey tekrarlardi.
+  ///
+  /// ⚠️ 90 sn secildi: sunucu tavani 60 sn + ag/yukleme payi. Sunucu tavani
+  ///    degisirse BURASI DA degismeli (ikisi AYRI yerde — drift riski).
+  /// ⚠️ YAPMA: genel Dio zaman asimini buyutme (tum uclari yavaslatir).
+  static final _aiSecenek = Options(
+    receiveTimeout: const Duration(seconds: 90),
+    sendTimeout: const Duration(seconds: 90),
+  );
 
   /// Menu fotografindan ya da aciklamadan yapilandirilmis menu ONERISI.
   /// ⚠️ Sonuc DOGRUDAN KAYDEDILMEZ; kullanici gozden gecirip onaylar.
@@ -105,6 +131,7 @@ class AiServisi {
     final r = await _api.post(
       '/ai/menu',
       data: {'media_id': mediaId, 'metin': metin},
+      options: _aiSecenek,
     );
     return (r.data['sonuc'] ?? '').toString();
   }
@@ -114,6 +141,7 @@ class AiServisi {
     final r = await _api.post(
       '/ai/urun-metni',
       data: {'media_id': mediaId, 'metin': metin},
+      options: _aiSecenek,
     );
     return (r.data['sonuc'] ?? '').toString();
   }
@@ -123,6 +151,7 @@ class AiServisi {
     final r = await _api.post(
       '/ai/danisma',
       data: {'media_id': mediaId, 'metin': metin},
+      options: _aiSecenek,
     );
     return (r.data['sonuc'] ?? '').toString();
   }
@@ -139,9 +168,32 @@ final urunServisiProvider = Provider<UrunServisi>(UrunServisi.new);
 final aiServisiProvider = Provider<AiServisi>(AiServisi.new);
 
 /// ⚠️ SUREC OMURLU: AI acik mi sorusu her ekranda tekrar sorulmaz.
-final aiDurumProvider = FutureProvider<AiDurum>(
-  (ref) => ref.read(aiServisiProvider).durum(),
-);
+///
+/// ⚠️⚠️ TURU 78b — HATA **ONBELLEKLENMEZ** (denetim bulgusu).
+///
+///	Bu saglayici `autoDispose` DEGIL; eskiden `durum()` hatayi yutup
+///	`acik:false` DONDURDUGU icin tek bir gecici ag hatasi (asansor, metro,
+///	sunucu restart'i, 10 sn'lik connectTimeout) **AI ozelligini uygulama
+///	yeniden baslatilana kadar YOK EDIYORDU**: butun AI dugmeleri cizilmiyor,
+///	kullanici sebebini anlayamiyor, kurtarma yolu da yok (invalidate eden
+///	tek yer basarili bir AI cagrisiydi — ki dugme cizilmedigi icin
+///	ULASILAMAZ).
+///
+///	Artik `durum()` FIRLATIYOR, hata AsyncError olarak dusuyor ve
+///	`ref.invalidateSelf()` ile onbellek ATILIYOR: bir sonraki ekran acilisi
+///	YENIDEN SORUYOR. Bu arada `valueOrNull` null oldugu icin dugmeler yine
+///	cizilmez — yani "yanlislikla dugme cizme" korumasi KORUNUYOR, yalnizca
+///	kalicilik gidiyor.
+/// ⚠️ YAPMA: `durum()` icindeki `rethrow`u tekrar `return AiDurum(acik:false)`
+///	yapma; bu saglayiciyi `keepAlive`a cevirme.
+final aiDurumProvider = FutureProvider<AiDurum>((ref) async {
+  try {
+    return await ref.read(aiServisiProvider).durum();
+  } catch (_) {
+    ref.invalidateSelf();
+    rethrow;
+  }
+});
 
 /// Kurus -> "12,50 ₺" bicimi. **TEK KAYNAK.**
 ///

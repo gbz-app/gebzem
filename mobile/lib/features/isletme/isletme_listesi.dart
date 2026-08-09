@@ -74,8 +74,21 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
   ///    Sahte bir varsayilan ("Gebze") koymak YANLIS olurdu: kullanici baska
   ///    ilcedeyse liste yanlis gelir ve sebebini anlamaz.
   Future<void> _ilceyiOgren() async {
-    final id = (ref.read(myProfileProvider).valueOrNull?['id'] ?? '').toString();
-    if (id.isEmpty) return;
+    // ⚠️⚠️ TURU 78b — SAGLAYICI HENUZ COZULMEMISSE **BEKLENIR** (denetim).
+    //    `myProfileProvider` bir `FutureProvider`dir; `initState`ten cagrilan
+    //    bu metot `valueOrNull`u okuyup null bulunca SESSIZCE cikiyordu ve
+    //    TEKRAR DENEYEN HICBIR SEY YOKTU -> ekran soguk acildiginda "Şehrimde"
+    //    karti KALICI OLARAK cizilmiyordu (ozellik rastgele "yok" gorunuyordu).
+    var id = (ref.read(myProfileProvider).valueOrNull?['id'] ?? '').toString();
+    if (id.isEmpty) {
+      try {
+        final p = await ref.read(myProfileProvider.future);
+        id = (p['id'] ?? '').toString();
+      } catch (_) {
+        return; // profil alinamadi: kart cizilmez (durust davranis)
+      }
+    }
+    if (!mounted || id.isEmpty) return;
     try {
       final i = await ref.read(isletmeServisiProvider).detay(id);
       if (mounted && i != null && i.ilce.isNotEmpty) {

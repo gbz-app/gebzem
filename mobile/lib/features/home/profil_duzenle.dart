@@ -189,6 +189,25 @@ class _ProfilDuzenleEkraniState extends ConsumerState<ProfilDuzenleEkrani> {
   }
 
   Future<void> _kaydet() async {
+    // ⚠️⚠️⚠️ TURU 78b — PROFIL YUKLENMEDIYSE KAYDETME (denetim: VERI KAYBI).
+    //
+    //    Alanlar YALNIZ `profil.whenData(...)` icinde doldurulur (`_dolduruldu`
+    //    bayragi). `myProfileProvider` hata verirse (mobil ag / sunucu restart'i)
+    //    `whenData` HIC calismaz, `_ad` ve `_hakkimda` BOS kalir, ama Kaydet
+    //    dugmesi ETKINDIR ve `PATCH /users/me {name: ''}` gonderir ->
+    //    **KULLANICININ GORUNEN ADI VE HAKKINDA METNI SILINIR.**
+    //    Ad her yuzeyde gorunur (sohbet listesi, akis, arama) ve geri alma yolu
+    //    YOKTUR. Ustelik `FutureProvider` hatayi onbellekledigi icin durum
+    //    uygulama yeniden baslatilana kadar SURER.
+    //    ⚠️ YAPMA: bu kapiyi kaldirma; alanlari "bossa gonderme" gibi kismi bir
+    //       cozume gitme (kullanici adini GERCEKTEN silmek isteyebilir; ayrimi
+    //       yapan sey formun DOLU acilmis olmasidir).
+    if (!_dolduruldu) {
+      rootMessengerKey.currentState?.showSnackBar(
+        const SnackBar(content: Text('Profil yüklenemedi, tekrar deneyin')),
+      );
+      return;
+    }
     setState(() => _kaydediliyor = true);
     try {
       await ref

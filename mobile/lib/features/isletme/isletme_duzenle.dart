@@ -58,10 +58,40 @@ class _IsletmeDuzenleEkraniState extends ConsumerState<IsletmeDuzenleEkrani> {
   }
 
   Future<void> _yukle() async {
-    final id = (ref.read(myProfileProvider).valueOrNull?['id'] ?? '')
-        .toString();
+    // ⚠️⚠️⚠️ TURU 78b — KIMLIK YOKSA DA **HATA DALI** (denetim: VERI KAYBI).
+    //
+    //    Turu 77b bu veri kaybi icin `_yuklemeHatasi` kapisini yazmisti ama
+    //    kapiyi YALNIZ `catch` dalina koydu; KARDES DAL (`id.isEmpty`) acik
+    //    kaldi — CLAUDE.md'nin "ayni kuralin iki kopyasi drift eder" sinifi.
+    //
+    //    `myProfileProvider` bir `FutureProvider`dir ve `/users/me` bir kez
+    //    hata verirse (mobil ag, sunucu restart'i) hata KALICI onbelleklenir;
+    //    `valueOrNull` SUREC OMRU BOYUNCA null doner. Eski kod bu durumda
+    //    formu BOS ve **Kaydet'i ETKIN** aciyordu. Kullanici tek alan doldurup
+    //    kaydettiginde sunucudaki kosulsuz `ON CONFLICT DO UPDATE` adres, il,
+    //    ilce ve web sitesini BOSA CEKIYOR; ustelik `_kategori` varsayilani
+    //    'yemek' oldugu icin bir KUAFOR sessizce "Yemek" kategorisine gecip
+    //    rehberde YER DEGISTIRIYOR ve calisma saatleri 09:00-18:00 varsayilanina
+    //    dusuyordu (MAKUL GORUNDUGU icin tespiti daha da zor).
+    //
+    //    ⚠️ Once `.future` ile BEKLENIR: saglayici henuz cozulmemisse (yaris)
+    //       eskiden bos form aciliyordu; artik gercek sonuc beklenir.
+    //    ⚠️ YAPMA: bu dali sessiz `return`e dondurme.
+    String id = (ref.read(myProfileProvider).valueOrNull?['id'] ?? '').toString();
     if (id.isEmpty) {
-      setState(() => _yukleniyor = false);
+      try {
+        final p = await ref.read(myProfileProvider.future);
+        id = (p['id'] ?? '').toString();
+      } catch (_) {
+        id = '';
+      }
+    }
+    if (!mounted) return;
+    if (id.isEmpty) {
+      setState(() {
+        _yukleniyor = false;
+        _yuklemeHatasi = true;
+      });
       return;
     }
     // ⚠️⚠️ TURU 77b — YUKLEME HATASI **YUTULMAZ** (denetim bulgusu: VERI KAYBI).

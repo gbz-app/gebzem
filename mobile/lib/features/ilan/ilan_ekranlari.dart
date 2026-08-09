@@ -435,7 +435,17 @@ class _IlanDetayEkraniState extends ConsumerState<IlanDetayEkrani> {
   /// Yeni uc ILAN BASINA AYRI sohbet acar (sahibinden/Letgo davranisi) ve
   /// sohbet listesinde ilan basligi alt yazi olarak gorunur.
   /// ⚠️ YAPMA: `/chats/direct`e geri donme.
+  /// ⚠️ TURU 78b — CIFT DOKUNMA KILIDI (denetim bulgusu). `sohbetAc` bir ag
+  ///    cagrisidir; dugme cagri boyunca ETKIN kaliyordu ve iki dokunus AYNI
+  ///    sohbet ekranini yigina IKI KEZ push ediyordu (kullanici geri tusuna iki
+  ///    kez basmak zorunda kalir, "uygulama takildi" hissi verir).
+  ///    ⚠️ `finally` ile SIFIRLANIR — hata dalinda kilitli kalirsa dugme bir
+  ///       daha calismaz.
+  bool _mesajMesgul = false;
+
   Future<void> _saticiyaMesaj() async {
+    if (_mesajMesgul) return;
+    _mesajMesgul = true;
     try {
       final chatId = await ref.read(ilanServisiProvider).sohbetAc(i.id);
       if (!mounted || chatId.isEmpty) return;
@@ -448,10 +458,11 @@ class _IlanDetayEkraniState extends ConsumerState<IlanDetayEkrani> {
         },
       );
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
+      rootMessengerKey.currentState?.showSnackBar(
+        SnackBar(content: Text(apiErrorMessage(e))),
+      );
+    } finally {
+      _mesajMesgul = false;
     }
   }
 
@@ -588,6 +599,14 @@ class _IlanDetayEkraniState extends ConsumerState<IlanDetayEkrani> {
                           mediaId: i.mediaIds[k],
                           otoOynat: false,
                           sesli: false,
+                          // ⚠️⚠️ TURU 78b — `dongu: false` (denetim bulgusu).
+                          //    Varsayilan `true`dur ve akis kartlari icin
+                          //    dogrudur (kisa reels dongusu). Ilan galerisinde
+                          //    ise video bitince BASA DONUP sonsuza kadar
+                          //    calmaya devam ediyordu; kullanici baska sekmeye
+                          //    gecince pil/veri yakiyor, sesi acilmissa
+                          //    kaynagi gorunmeyen bir ses birakiyordu.
+                          dongu: false,
                           dolgu: BoxFit.cover,
                         );
                       }
@@ -777,6 +796,15 @@ class _IlanVerEkraniState extends ConsumerState<IlanVerEkrani> {
   ///    (biri `File`, oteki `String`) — iki liste bilincli.
   final List<String> _mevcutMedya = [];
 
+  /// ⚠️⚠️ TURU 78b — `_mevcutMedya[k]` ile **AYNI SIRADA** tur bilgisi.
+  ///    Bu liste OLMADAN serit bir VIDEO id'sini `MedyaGorsel`e veriyordu ve
+  ///    **KIRIK GORSEL** ciziyordu; kullanici videosunu bozulmus sanip
+  ///    silebilirdi (geri alinamaz kayip).
+  /// ⚠️ IKI LISTE **BIRLIKTE** degisir — ekleme/silmede ikisine de dokun.
+  ///    Ayrildiklari an serit YANLIS TIP cizer (ayni kural `Ilan` modelinde de
+  ///    ardisik iki satir olarak duruyor).
+  final List<String> _mevcutTurler = [];
+
   String _tur = '';
   String _kategori = '';
   bool _fiyatGizli = false;
@@ -809,6 +837,12 @@ class _IlanVerEkraniState extends ConsumerState<IlanVerEkrani> {
           : tl.toStringAsFixed(2);
     }
     _mevcutMedya.addAll(i.mediaIds);
+    // ⚠️⚠️ TURU 78b — TUR BILGISI DE TASINIR. Eskiden yalniz id'ler alinir,
+    //    `i.mediaKinds` ATILIRDI; serit her ogeyi FOTOGRAF sanip video icin
+    //    KIRIK GORSEL cizerdi. Eksik/kisa gelirse 'image' varsayilir.
+    for (var k = 0; k < i.mediaIds.length; k++) {
+      _mevcutTurler.add(k < i.mediaKinds.length ? i.mediaKinds[k] : 'image');
+    }
     // ⚠️ `ozellikler` JSONB'den gelir; degerler METIN olarak tutuluyor
     //    (form alanlari metin). Sayi gelirse `toString` ile duzlestirilir.
     i.ozellikler.forEach((k, v) {
@@ -867,6 +901,7 @@ class _IlanVerEkraniState extends ConsumerState<IlanVerEkrani> {
     final dosya = await MedyaSecici.video(
       sureTavani: _videoSuresi,
       uyar: _uyar,
+      ref: ref,
     );
     if (dosya == null || !mounted) return;
     setState(() => _videolar.add(dosya));
@@ -1153,10 +1188,13 @@ class _IlanVerEkraniState extends ConsumerState<IlanVerEkrani> {
                           child: SizedBox(
                             width: 66,
                             height: 74,
-                            child: MedyaGorsel(
+                            // ⚠️ TURU 78b: ham `MedyaGorsel` DEGIL — video id'si
+                            //    verilirse KIRIK GORSEL cizilirdi.
+                            child: MedyaKucukResmi(
                               mediaId: _mevcutMedya[k],
-                              kucuk: true,
-                              fit: BoxFit.cover,
+                              tur: k < _mevcutTurler.length
+                                  ? _mevcutTurler[k]
+                                  : 'image',
                             ),
                           ),
                         ),
@@ -1167,19 +1205,31 @@ class _IlanVerEkraniState extends ConsumerState<IlanVerEkrani> {
                             // ⚠️ Yalniz LISTEDEN cikarir; medya sunucuda
                             //    SILINMEZ (veri politikasi). Kullanici
                             //    vazgecip kaydetmezse hicbir sey degismez.
-                            onTap: () =>
-                                setState(() => _mevcutMedya.removeAt(k)),
-                            child: const DecoratedBox(
-                              decoration: BoxDecoration(
-                                color: Color(0xAA000000),
-                                shape: BoxShape.circle,
-                              ),
-                              child: Padding(
-                                padding: EdgeInsets.all(2),
-                                child: Icon(
-                                  LucideIcons.x,
-                                  size: 13,
-                                  color: Colors.white,
+                            // ⚠️ IKI LISTE BIRLIKTE dusurulur — ayrilirlarsa
+                            //    kalan ogeler YANLIS TIP cizer.
+                            // ⚠️ TURU 78b: dokunma alani 17x17 -> ~37x37
+                            //    (etkinlik seridiyle AYNI gerekce).
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () => setState(() {
+                              _mevcutMedya.removeAt(k);
+                              if (k < _mevcutTurler.length) {
+                                _mevcutTurler.removeAt(k);
+                              }
+                            }),
+                            child: const Padding(
+                              padding: EdgeInsets.only(left: 10, bottom: 10),
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  color: Color(0xAA000000),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Padding(
+                                  padding: EdgeInsets.all(2),
+                                  child: Icon(
+                                    LucideIcons.x,
+                                    size: 13,
+                                    color: Colors.white,
+                                  ),
                                 ),
                               ),
                             ),
@@ -1377,7 +1427,25 @@ class _IlanVerEkraniState extends ConsumerState<IlanVerEkrani> {
     return Padding(
       key: ValueKey('txt:$_tur:${a.anahtar}'),
       padding: const EdgeInsets.only(bottom: 10),
-      child: TextField(
+      // ⚠️⚠️⚠️ TURU 78b — `TextField` DEGIL `TextFormField` + `initialValue`
+      //    (denetim bulgusu; turu 78'in MANSET ozelligini yarim birakiyordu).
+      //
+      //    `TextField`in `initialValue` alani YOKTUR ve burada `controller` da
+      //    verilmemisti. `initState` mevcut ozellikleri `_ozellikler` haritasina
+      //    dogru sekilde yukluyordu ama o degerler EKRANA HIC ULASMIYORDU:
+      //    "İlanı düzenle" acildiginda SECIM alanlari (Yakit, Vites) DOLU,
+      //    METIN/SAYI alanlari (Marka, Model, Yıl, Kilometre, Metrekare,
+      //    Bulunduğu kat, Deneyim) BOS geliyordu. Kullanici kendi ilaninin
+      //    bilgisini goremiyor; hepsini elle yeniden yazmadigi surece de bir
+      //    seyi bozmus olmuyordu ama ozellik YARIM hissettiriyordu.
+      //
+      //    ⚠️ `ValueKey` ZORUNLU ve ZATEN VAR: `FormField.didUpdateWidget`
+      //       `initialValue` degisimini YOK SAYAR, yani anahtar olmasaydi tur
+      //       degisince element yeniden kullanilir ve "Metrekare" kutusunda
+      //       "Ford" gorunurdu (turu 77b'de SAHAYA CIKAN hayalet-veri hatasi).
+      //    ⚠️ YAPMA: `TextField`e geri donme; anahtari kaldirma.
+      child: TextFormField(
+        initialValue: _ozellikler[a.anahtar],
         keyboardType: a.tip == 'sayi' ? TextInputType.number : null,
         decoration: InputDecoration(
           labelText: etiket,

@@ -132,6 +132,28 @@ class _MedyaVideoState extends ConsumerState<MedyaVideo>
   /// Gorusme bitti mi? Bittiyse kilidi kaldir / duraklatilmis oynatmayi surdur.
   void _kapiyiYokla() {
     if (!mounted) return;
+    // ⚠️⚠️⚠️ TURU 78b — **ROTA KAPISI** (denetim bulgusu).
+    //
+    //    `MedyaVideo` rota farkindaligi TASIMIYORDU. Akista bu sorun degildi
+    //    (gorunurluk gozcusu + `IndexedStack` sekme kapisi vardi) ama TURU 78
+    //    ILAN ve ETKINLIK GALERILERINI acti: kullanici videoyu OYNATIR, sonra
+    //    ayni ekrandan "Mesaj gönder" / kadro / profil gibi bir sayfaya gecer —
+    //    ustteki sayfanin ALTINDA kalan video, `dongu` varsayilani `true`
+    //    oldugu icin **SONSUZ DONGUDE CALMAYA DEVAM EDER**. Sesi acilmissa
+    //    kullanici kaynagini goremedigi bir sesi dinler ve iOS'ta ses oturumu
+    //    cekismesi baslar.
+    //
+    //    `ModalRoute.isCurrent` akistaki kartlarin ZATEN kullandigi olcuttur
+    //    (turu 77b'nin dort kapisindan biri); burada da AYNI olcut kullaniliyor.
+    // ⚠️ Yalniz DURAKLATIR — kullanici geri dondugunde kaldigi yerden devam
+    //    edebilsin diye `_kullaniciDurdurdu` YAZILMAZ.
+    // ⚠️ YAPMA: bu kapiyi kaldirma.
+    final rota = ModalRoute.of(context);
+    if (rota != null && !rota.isCurrent) {
+      final c = _c;
+      if (c != null && c.value.isPlaying) c.pause();
+      return;
+    }
     // ⚠️ Tembel bekleyen oynatici KURULMAZ: kullanici dokunmadi.
     if (_tembel) return;
     final serbest = MedyaKapisi.donanimSerbest(ref);
@@ -302,6 +324,33 @@ class _MedyaVideoState extends ConsumerState<MedyaVideo>
     //    ANLAMSIZDI. Girmezse de zarar yok: ses acildigi anda `_sesiCevir`
     //    yeniden kaydolur.
     //    ⚠️ YAPMA: bu kapiyi kaldirip kosulsuz `kaydol`a donme.
+    _defteriGuncelle();
+
+    await c.play();
+    // ⚠️ Await SONRASI yeniden degerlendir: bu sirada arama baslamis olabilir.
+    if (!mounted || nesil != _nesil) return;
+    await c.setVolume(_sesVerilebilir ? 1.0 : 0.0);
+    if (mounted) setState(() {});
+  }
+
+  /// Ses defterindeki kaydi GERCEK ses durumuyla eslestirir. **TEK KAYNAK.**
+  ///
+  /// ⚠️⚠️⚠️ TURU 78b — BU METOT AYRILDI CUNKU `_sesiCevir` DEFTERE HIC
+  /// DOKUNMUYORDU (denetim: SEVK ENGELI, turu 77b hatasinin ikinci yuzu).
+  ///
+  ///	`_oynat()`in serhi "girmezse de zarar yok: ses acildigi anda `_sesiCevir`
+  ///	yeniden kaydolur" diyordu — ama `_sesiCevir` GOVDESINDE `kaydol` cagrisi
+  ///	YOKTU. Yani yorumun anlattigi kontrol gerceklesmiyordu (CLAUDE.md turu
+  ///	74 dersi: bir yorumun anlattigi kontrolun GOVDEDE olup olmadigini dogrula).
+  ///
+  ///	ETKI: akis/ilan/etkinlik/kanal galerilerindeki TUM videolar SESSIZ
+  ///	baslar; kullanici ses dugmesine bastiginda video SESLI calar ama
+  ///	`SesNotuKontrol` defterinde KAYITLI DEGILDIR. Gelen bir arama o sesi
+  ///	SUSTURAMAZ -> arama sesiyle video sesi ust uste biner ve iOS'ta ses
+  ///	oturumu cekismesi yasanir. Turu 78 ilan + etkinlik galerileriyle bu
+  ///	yuzeyi IKIYE KATLADI.
+  /// ⚠️ YAPMA: kaydolmayi tekrar yalniz `_oynat()`a birakma.
+  void _defteriGuncelle() {
     if (_sesVerilebilir) {
       SesNotuKontrol.kaydol(this, () async {
         // ⚠️⚠️ SEBEP AYRIMI ZORUNLU: susturan ARAMA MI, BASKA BIR OYNATICI MI?
@@ -318,12 +367,6 @@ class _MedyaVideoState extends ConsumerState<MedyaVideo>
       // Sessiz oynatici defterden CIKAR (bayat kayit birakmaz).
       SesNotuKontrol.birak(this);
     }
-
-    await c.play();
-    // ⚠️ Await SONRASI yeniden degerlendir: bu sirada arama baslamis olabilir.
-    if (!mounted || nesil != _nesil) return;
-    await c.setVolume(_sesVerilebilir ? 1.0 : 0.0);
-    if (mounted) setState(() {});
   }
 
   Future<void> _sesiCevir() async {
@@ -334,7 +377,10 @@ class _MedyaVideoState extends ConsumerState<MedyaVideo>
       return;
     }
     setState(() => _sesli = !_sesli);
-    // Defter kaydi _oynat()'ta yapilmisti; burada yalniz seviye degisiyor.
+    // ⚠️⚠️ DEFTER **BURADA DA** GUNCELLENIR — bkz. `_defteriGuncelle` serhi.
+    //    Eskiden yalniz seviye degisiyordu ve sesi acilan video defterde
+    //    olmadigi icin gelen arama tarafindan SUSTURULAMIYORDU.
+    _defteriGuncelle();
     await _c?.setVolume(_sesVerilebilir ? 1.0 : 0.0);
   }
 
