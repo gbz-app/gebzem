@@ -45,33 +45,32 @@ const surumEtiketi =
   `${now.getUTCFullYear()}${p2(now.getUTCMonth() + 1)}${p2(now.getUTCDate())}` +
   `-${p2(now.getUTCHours())}${p2(now.getUTCMinutes())}`;
 
-const YENI_ICERIK = `<div class="yeni"><b>Bu sürümde — alım satım, etkinlik ve işletme menüleri:</b>
-<br><br><b>0 · YAPAY ZEKÂ İLE GÖRSEL:</b> İşletme hesabında ürün eklerken
-<b>"Yapay zekâ ile görsel oluştur"</b> de, ne istediğini yaz — ürün fotoğrafı
-<b>senin için çizilir</b>. Beğenirsen kullanırsın, beğenmezsen atarsın (günde 10 hak).
-<br><br><b>1 · İlanına GÖRSEL ve VİDEO:</b> Artık ilana <b>12 medyaya kadar</b> fotoğraf
-<b>ve video</b> koyabilirsin. Galeri yan yana kayar; videolar oynatılır.
-<br><br><b>2 · İlanı DÜZENLE:</b> Yayınladıktan sonra başlık, açıklama, fiyat, kategori,
-il/ilçe, özellikler ve görselleri değiştirebilirsin. Düzenlenen ilanda
-<b>"düzenlendi"</b> etiketi görünür — alıcı neyin değiştiğini bilir.
-<br><br><b>3 · İLANA MESAJ:</b> İlan sayfasındaki <b>Mesaj gönder</b> ile satıcıya
-doğrudan yazarsın. Bu sohbet <b>kişisel sohbetinden ayrıdır</b> ve listede
-<b>"İlan: ..."</b> başlığıyla görünür — satıcı hangi ilan için yazıldığını görür.
-<br><br><b>4 · Etkinliği DÜZENLE + KADRO:</b> Etkinliğe <b>görsel/video</b>, <b>bitiş
-saati</b> ve <b>kadro</b> ekle — sahne alacak <b>sanatçı, oyuncu, konuşmacı</b>
-isimlerini yazabilirsin (kayıtlı kullanıcıyı da ekleyebilirsin).
-<br><br><b>5 · KAPAK GÖRSELİ + ONAY ROZETİ:</b> Profiline <b>arka plan kapak görseli</b>
-koyabilirsin; logo/avatar ortada durur. Onaylı hesaplarda <b>mavi rozet</b> görünür.
-İşletmelerde de aynısı.
-<br><br><b>6 · KATEGORİ SAYFALARI:</b> Sol üstteki menüden bir kategoriye gir —
-üstte <b>vitrin</b>, altında <b>hızlı kartlar</b> (Şehrimde · Onaylı), arama ve
-işletme listesi.
-<br><br><b>7 · YAPAY ZEKÂ İLE MENÜ:</b> Restoran sahibi <b>menü fotoğrafını çeker</b>
-ya da <b>ne sattığını yazar</b>; ürünler otomatik çıkarılır. <b>Hepsi onayına
-sunulur</b> — istediğini düzeltir, istemediğini atarsın.
+const YENI_ICERIK = `<div class="yeni"><b>Bu sürümde — REZERVASYON ve RANDEVU:</b>
+<br><br><b>1 · RESTORANDAN REZERVASYON, DOKTORDAN RANDEVU:</b> İşletme profilinde
+<b>"Rezervasyon al"</b> / <b>"Randevu al"</b> düğmesi çıkar. Gün şeridinden günü seç,
+<b>müsait saatler</b> alttaki ızgarada listelenir — dolu saat hiç görünmez.
+Kaç kişi olduğunu ve notunu yazıp gönderirsin.
+<br><br><b>2 · İŞLETME TARAFI:</b> <b>Gelen randevular</b> kutusundan onaylar,
+reddeder ya da iptal edersin; <b>ret sebebini yazarsan müşteri görür</b>.
+Müşteri geldiğinde <b>"Geldi" / "Gelmedi"</b> ile işaretlersin.
+<br><br><b>3 · AYARLAR:</b> Randevu süresi (15-90 dk), <b>aynı saatte kaç masa/kişi</b>,
+kaç gün ileriye ve <b>otomatik onay</b>. Saatler işletme profilindeki
+<b>çalışma saatlerinden</b> üretilir.
+<br><br><b>4 · KAPALI GÜNLER:</b> Bayram, tatil ya da izin günlerini takvimden
+işaretlersin — o günlerde randevu verilmez.
+<br><br><b>5 · ANASAYFA YENİLENDİ:</b> Üstteki "Akış | Kanallar" düğmesi kalktı;
+hikâyelerin altına <b>"Takip Ettiklerin | Keşfet"</b> geldi. <b>Kanallar</b> artık
+sol üstteki menüde.
+<br><br><b>6 · GÖNDERİLER KISALDI:</b> Fotoğraf ve videolar artık
+<b>çok daha az yer kaplıyor</b> ve köşeleri yuvarlak. Videoda <b>sol alttaki</b>
+düğmeyle tam ekran açarsın (kırpılmamış hâli orada).
+<br><br><b>7 · ALT MENÜ:</b> Canlı yayın simgesi değişti; sağdaki profil simgesi
+artık <b>senin profil resmin</b>.
+<br><br><b>8 · YENİ KATEGORİLER:</b> <b>Eğitim</b> ve <b>Sağlık</b> eklendi.
 <br><br><b>Sınırlar:</b> Harita ve "yakınımda" <b>henüz yok</b> (konum girişi eklenmedi);
-şehir/ilçe ile süzülür. Arama <b>birebir</b> · Sohbet odası 20 konuşmacı + sınırsız
-dinleyici · Canlı yayın 4 kişi + sınırsız izleyici.</div>`;
+şehir/ilçe ile süzülür. Ödeme yok — randevu <b>ücretsiz</b>. Arama <b>birebir</b> ·
+Sohbet odası 20 konuşmacı + sınırsız dinleyici · Canlı yayın 4 kişi + sınırsız
+izleyici.</div>`;
 
 let cikti = sablon
   .replace(/\{\{SAAT\}\}/g, saat)
@@ -91,8 +90,13 @@ const kontroller = [
     'CANLI SAAT kayboldu (bayat-onbellek suphesini cozen tek sey)'],
   [!/body\s*\{[^}]*align-items:\s*center/.test(cikti),
     'body flex ortalama GERI GELMIS (turu 50 regresyonu: saat kirpilir)'],
-  [cikti.includes('YAPAY ZEKÂ İLE GÖRSEL') && cikti.includes('YAPAY ZEKÂ İLE MENÜ'),
-    'turu 79 icerigi yazilmadi'],
+  // ⚠️ ICERIK MUHAFIZI **BU SURUME** SABITLENIR (her turda guncellenir).
+  //    Amaci: sablon degistirilip `YENI_ICERIK` guncellenmeden sayfa
+  //    uretilmesini ENGELLEMEK — yoksa kullaniciya BIR ONCEKI surumun
+  //    notlari gosterilir ve "yeni ne var" yalan olur.
+  // ⚠️ YAPMA: bu satiri silme; yeni turda ANAHTAR IFADEYI degistir.
+  [cikti.includes('REZERVASYON ve RANDEVU') && cikti.includes('KAPALI GÜNLER'),
+    'turu 80 icerigi yazilmadi (YENI_ICERIK guncellenmemis)'],
   // ⚠️ YALNIZ GORUNEN metin taranir. HTML/CSS/JS YORUMLARINDAKI ⚠️ isaretleri
   //    kullaniciya cizilmez ve serhin okunurlugu icin BILINCLI olarak durur.
   [!/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(
@@ -110,3 +114,28 @@ console.log('index.html uretildi');
 console.log('  saat        :', saat, `(${kacKez(saat)} yerde)`);
 console.log('  surumEtiketi:', surumEtiketi);
 console.log('  bayt        :', Buffer.byteLength(cikti));
+
+// ⚠️⚠️⚠️ TURU 80b — KULLANICIYA VERILECEK ADRES **/index.html?v=...** OLMALI.
+//
+//	Kullanici UCUNCU KEZ "indir sitesinde saati goremiyorum" dedi. Sunucu
+//	tarafi HER SEFERINDE dogru cikti (no-cache/no-store + DYNAMIC + saat
+//	alti yerde + canli saat). Bu turda OLCULEN GERCEK SEBEP:
+//
+//	  `https://indir.gebzem.app/?v=123`  --302-->  `/index.html`
+//	                                                  ^ SORGU DUSUYOR
+//
+//	Yani CIPLAK ALAN ADINA cache-busting parametresi eklemek ISE YARAMIYOR;
+//	R2'nin 302'si sorgu dizesini KORUMUYOR. Telefonda ana ekrana eklenmis
+//	bir kisayoldan ya da agresif onbellekli bir webview'dan girildiginde
+//	tarayici, `no-store` basligina RAGMEN elindeki eski kopyayi cizebiliyor
+//	ve kullanici BAYAT saat goruyor.
+//
+//	`/index.html?v=<surumEtiketi>` ise 302'ye HIC ugramaz (dogrudan nesne)
+//	ve her surumde FARKLI bir adres oldugu icin onbellek katmanlarinin
+//	HICBIRI eski kopyayi eslestiremez.
+//
+// ⚠️ YAPMA: kullaniciya ciplak alan adini verme; asagidaki adresi ver.
+const taze = `https://indir.gebzem.app/index.html?v=${surumEtiketi}`;
+console.log('');
+console.log('  ⚠️ KULLANICIYA VERILECEK ADRES (onbellek atlatir):');
+console.log('  ' + taze);
