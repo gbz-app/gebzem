@@ -20,6 +20,7 @@ import (
 	"github.com/gbz-app/gebzem/backend/internal/chat"
 	"github.com/gbz-app/gebzem/backend/internal/config"
 	"github.com/gbz-app/gebzem/backend/internal/database"
+	"github.com/gbz-app/gebzem/backend/internal/etkinlik"
 	"github.com/gbz-app/gebzem/backend/internal/isletme"
 	"github.com/gbz-app/gebzem/backend/internal/kanal"
 	"github.com/gbz-app/gebzem/backend/internal/media"
@@ -87,6 +88,7 @@ func main() {
 	socialH := social.NewHandler(db, bildirimS) // turu 75: gonderi + akis + etkilesim
 	kanalH := kanal.NewHandler(db)              // turu 75: kanal (tek yonlu yayin)
 	isletmeH := isletme.NewHandler(db)
+	etkinlikH := etkinlik.NewHandler(db)
 	// TURU 74 — MEDYA. R2 env eksikse Enabled()=false doner ve uclar KAYDEDILMEZ
 	// (fail-closed ama GORUNUR: acilista log yazar).
 	mediaH := media.NewHandler(db, rdb, cfg.R2Endpoint, cfg.R2AccessKeyID,
@@ -206,6 +208,14 @@ func main() {
 		r.Get("/users/{id}/isletme", isletmeH.Detay)
 		r.Get("/isletmeler", isletmeH.Liste)
 		r.Get("/isletme-kategorileri", isletmeH.KategoriListesi)
+		// TURU 77 — ETKINLIKLER
+		r.Post("/etkinlikler", etkinlikH.Olustur)
+		r.Get("/etkinlikler", etkinlikH.Liste)
+		r.Get("/etkinlik-kategorileri", etkinlikH.KategoriListesi)
+		r.Get("/etkinlikler/{id}", etkinlikH.Detay)
+		r.Post("/etkinlikler/{id}/katil", etkinlikH.Katil)
+		r.Get("/etkinlikler/{id}/katilimcilar", etkinlikH.Katilimcilar)
+		r.Delete("/etkinlikler/{id}", etkinlikH.Sil)
 		// TURU 76b — HIKAYE (story). 24 saat GORUNURLUK; veri SILINMEZ.
 		r.Post("/stories", socialH.StoryOlustur)
 		r.Get("/stories", socialH.StoryAkis)

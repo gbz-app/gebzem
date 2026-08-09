@@ -476,6 +476,43 @@ func (h *Handler) erisebilir(ctx context.Context, userID, mediaID string) bool {
 		    OR EXISTS(
 		  SELECT 1 FROM channels c2 WHERE c2.avatar_media_id=$1 AND c2.durum='aktif')`,
 		mediaID).Scan(&varMi)
+	if varMi {
+		return true
+	}
+
+	// ⚠️⚠️⚠️ (e) HIKAYE MEDYASI — TURU 77'DE **SEVK ENGELI** OLARAK YAKALANDI.
+	//
+	// Hikaye ozelligi turu 76b'de eklendi ama BU DAL YAZILMADI. Sonuc: hikaye
+	// akista/izleyicide yalnizca `media_id` doner, istemci her gorsel icin
+	// `GET /media/{id}/url` cagirir ve bu fonksiyon `false` donerdi ->
+	// **PAYLASANDAN BASKA HERKESE 403**.
+	//
+	// ⚠️⚠️ TEK CIHAZDA TEST EDILSE GORULMEZDI: yukaridaki cagrida `sahip ==
+	//    userID` kisa devresi var; paylasan kendi hikayesini SORUNSUZ gorur.
+	//    Hata YALNIZ ikinci hesapta ortaya cikar. Turu 75b'de akistaki TUM
+	//    gorseller icin BIREBIR AYNI hata yasandi.
+	//
+	// GORUNURLUK KURALI hikaye uclariyla AYNI olmak ZORUNDA (aksi halde
+	// kullanici hikayeyi listede gorur ama gorseli yuklenmez):
+	//   · hikaye 'yayinda' ve SON 24 SAAT icinde (aktif pencere)
+	//   · gizli hesapsa yalniz ONAYLI takipcisi
+	//   · engel IKI YONLU
+	// ⚠️ YAPMA: bu dali "herhangi bir hikayeye bagliysa serbest"e gevsetme —
+	//    gizli hesap medyasi sizar ve engelleme delinir.
+	h.db.QueryRow(ctx, `
+		SELECT EXISTS(
+		  SELECT 1 FROM stories s JOIN users u ON u.id = s.user_id
+		   WHERE s.media_id=$1 AND s.durum='yayinda'
+		     AND s.created_at > now() - interval '24 hours'
+		     AND (NOT u.gizli_hesap
+		          OR s.user_id = $2
+		          OR EXISTS(SELECT 1 FROM follows f
+		                WHERE f.follower_id=$2 AND f.followee_id=s.user_id
+		                  AND f.durum='onayli'))
+		     AND NOT EXISTS(SELECT 1 FROM blocks b
+		           WHERE (b.blocker_id=$2 AND b.blocked_id=s.user_id)
+		              OR (b.blocker_id=s.user_id AND b.blocked_id=$2)))`,
+		mediaID, userID).Scan(&varMi)
 	return varMi
 }
 
