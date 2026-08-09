@@ -754,26 +754,45 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
             //    (dokun -> TamEkranGorsel); videoda HIC YOKTU.
             // ⚠️ Dugme SOL ALTTA: sag ust sayac rozetinin, sag alt ise
             //    `MedyaVideo`nun kendi hoparlor dugmesinin yeri.
-            if (g.kind(i) == 'video')
+            //
+            // ⚠️⚠️ `i == _sayfa` KAPISI (turu 80b denetimi): coklu galeride
+            //    SAGDAN SARKAN komsu medya da ciziliyor; kapi olmadan orada
+            //    da bir tam ekran dugmesi belirir ve "iki dugme" izlenimi
+            //    verirdi. Turu 80 sayac rozetinde AYNI kapiyi tam bu yuzden
+            //    koymustu — yeni katman onu atlamisti.
+            //
+            // ⚠️⚠️ DOKUNMA ALANI **44dp** (turu 78b dersi: medya kaldirma
+            //    dugmesi 17x17dp idi ve basilamiyordu; Material 48 / Apple 44).
+            //    Bu dugme KIRPILAN ICERIGIN TEK KURTARMA YOLU — kucuk kalirsa
+            //    ozellik fiilen ulasilamaz olur. Gorunen daire kucuk kalir,
+            //    dokunma alani `SizedBox` + `behavior` ile buyutulur.
+            if (g.kind(i) == 'video' && i == _sayfa)
               Positioned(
-                left: 8,
-                bottom: 8,
+                left: 0,
+                bottom: 0,
                 child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute(
                       builder: (_) => TamEkranVideo(mediaId: g.mediaIds[i]),
                     ),
                   ),
-                  child: Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: const BoxDecoration(
-                      color: Color(0x99000000),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      LucideIcons.expand,
-                      size: 15,
-                      color: Colors.white,
+                  child: SizedBox(
+                    width: 44,
+                    height: 44,
+                    child: Center(
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: const BoxDecoration(
+                          color: Color(0x99000000),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          LucideIcons.expand,
+                          size: 15,
+                          color: Colors.white,
+                        ),
+                      ),
                     ),
                   ),
                 ),

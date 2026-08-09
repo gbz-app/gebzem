@@ -444,9 +444,26 @@ func (h *Handler) IsletmeRandevulari(w http.ResponseWriter, r *http.Request) {
 // ---------------------------------------------------------------- AYAR
 
 // GET /isletme/randevu-ayar
+// AyarGetir — SAHIBIN kendi randevu ayarlari.
+//
+// ⚠️⚠️ TURU 80b — BURADA `hesap_turu` KAPISI **YOKTUR** (denetim bulgusu).
+//
+//	Kapi `AyarOku` icindedir ve amaci RANDEVU ALINMASINI durdurmaktir
+//	(`UygunSaatler` + `Olustur` oradan gecer). Ama bu uc SALT OKUMADIR ve
+//	yalnizca SAHIBIN kendi ayarlarini dondurur — randevu alinmasini
+//	saglamaz. Kapiyi buraya da uygulamak, kisisele donmus bir isletmeye
+//	404 dondurup **ayar ekranini komple oldururdu**; o ekran ise
+//	"Gelen randevular" kutusuna giden TEK arayuz yoludur. Sonuc: ex-isletme
+//	KENDI GECMIS randevu kayitlarina ulasamazdi (uc `IsletmeRandevulari`
+//	calisiyor olmasina RAGMEN) — "olu ozellik" sinifinin ters yonu.
+//
+// ⚠️ Bu yuzden ayarlar `isletmeler` satiri VARSA dondurulur; `acik`
+//    degeri saklanan degerdir ve hesap kisiselken FIILEN ATILDIR
+//    (profilde dugme cizilmez, `Olustur` reddeder).
+// ⚠️ YAPMA: buraya `hesap_turu` kapisi ekleme; kapinin yeri `AyarOku`dur.
 func (h *Handler) AyarGetir(w http.ResponseWriter, r *http.Request) {
 	me := auth.UserID(r.Context())
-	a, err := AyarOku(r.Context(), h.db, me)
+	a, err := AyarOkuSahip(r.Context(), h.db, me)
 	if err != nil {
 		hata(w, 404, "önce işletme hesabına geç")
 		return
@@ -530,7 +547,24 @@ func (h *Handler) AyarKaydet(w http.ResponseWriter, r *http.Request) {
 		hata(w, 500, "ayar kaydedilemedi")
 		return
 	}
-	a, _ := AyarOku(r.Context(), h.db, me)
+	// ⚠️⚠️ TURU 80b — OKUMA HATASI YUTULMAZ (denetim bulgusu).
+	//
+	//	Eskiden `a, _ := AyarOku(...)` yaziliyordu. Yazma BASARILI olduktan
+	//	sonra okuma patlarsa (ag/DB dalgalanmasi) `a` sifir degerli SAHTE bir
+	//	yapiydi ve 200 ile donuyordu. Istemci yaniti dogrudan state'e yazdigi
+	//	icin (`setState(() => _a = a)`) ekranda UYDURMA varsayilanlar
+	//	gorunurdu: `acik=false` -> **ayar bloku kaybolur**, yani kullanici
+	//	az once kaydettigi ayarin geri alindigini sanardi. Ustelik bu, tam
+	//	da bu turda kapattigimiz SEVK ENGELININ semptomunun aynisidir.
+	//
+	// ⚠️ `AyarOkuSahip`: hesap turu kapisi burada ISTENMEZ — sahip kendi
+	//    ayarini yazdi, okurken kapiya takilmasi anlamsiz olurdu.
+	a, err := AyarOkuSahip(r.Context(), h.db, me)
+	if err != nil {
+		log.Printf("randevu ayar okuma (yazma basarili): %v", err)
+		hata(w, 500, "ayar kaydedildi ama okunamadı, sayfayı yenile")
+		return
+	}
 	yaz(w, 200, a)
 }
 
