@@ -19,6 +19,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/gbz-app/gebzem/backend/internal/auth"
+	"github.com/gbz-app/gebzem/backend/internal/kimlik"
 )
 
 type Handler struct{ db *pgxpool.Pool }
@@ -263,8 +264,12 @@ func (h *Handler) Olustur(w http.ResponseWriter, r *http.Request) {
 	// ⚠️ `ozellikler` bicimi DOGRULANIR (NESNE olmali, dizi/skaler DEGIL);
 	//    bozuksa '{}' yazilir. NULL yazilsaydi istemcide her okumada null
 	//    kontrolu gerekir ve bir yerde unutulup CRASH ederdi.
+	// ⚠️⚠️ **BAYT** SINIRI DA ZORUNLU (turu 77b denetim bulgusu).
+	//    `len(deneme)` ANAHTAR SAYISIDIR, bayt DEGIL: `{"a":"<50 MB metin>"}`
+	//    tek anahtardir ve eski kapidan GECIP JSONB'ye aynen yazilirdi.
+	//    ⚠️ YAPMA: yalniz anahtar sayisina guvenme.
 	ozellikler := []byte("{}")
-	if len(req.Ozellikler) > 0 {
+	if len(req.Ozellikler) > 0 && len(req.Ozellikler) <= 8<<10 {
 		var deneme map[string]any
 		if json.Unmarshal(req.Ozellikler, &deneme) == nil && len(deneme) <= 30 {
 			ozellikler = req.Ozellikler
@@ -347,10 +352,16 @@ func (h *Handler) Liste(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Detay(w http.ResponseWriter, r *http.Request) {
 	me := auth.UserID(r.Context())
 	id := chi.URLParam(r, "id")
+	if !kimlik.Gecerli(id) {
+		// ⚠️ Bicimsiz id sorguya girerse Postgres cast hatasi -> 500. Dogrusu 404.
+		hata(w, 404, "bulunamadı")
+		return
+	}
 	rows, err := h.db.Query(r.Context(), `
 		SELECT `+sutunlar+`
 		  FROM ilanlar i JOIN users u ON u.id = i.sahibi_id
-		 WHERE i.id=$2`+engelYok, me, id)
+		 WHERE i.id=$2
+		   AND (i.durum <> 'kaldirildi' OR i.sahibi_id=$1)`+engelYok, me, id)
 	if err != nil {
 		hata(w, 500, "ilan alınamadı")
 		return
@@ -374,6 +385,11 @@ func (h *Handler) Detay(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Guncelle(w http.ResponseWriter, r *http.Request) {
 	me := auth.UserID(r.Context())
 	id := chi.URLParam(r, "id")
+	if !kimlik.Gecerli(id) {
+		// ⚠️ Bicimsiz id sorguya girerse Postgres cast hatasi -> 500. Dogrusu 404.
+		hata(w, 404, "bulunamadı")
+		return
+	}
 	var req struct {
 		Durum      *string `json:"durum"`
 		Baslik     *string `json:"baslik"`
@@ -392,11 +408,23 @@ func (h *Handler) Guncelle(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	// ⚠️⚠️ `Olustur`DAKI DOGRULAMALARIN AYNISI (turu 77b denetim bulgusu).
+	//    PATCH yolu kirpmayi yapiyordu ama (a) BOS basligi reddetmiyor,
+	//    (b) NEGATIF fiyati hic kontrol etmiyordu -> `{"fiyat_kurus":-500000}`
+	//    ile eksi fiyatli ilan yayinlanabiliyordu. Ayni kuralin iki kopyasi
+	//    yine drift etmisti (CLAUDE.md turu 72b/H).
 	if req.Baslik != nil {
 		*req.Baslik = kisalt(strings.TrimSpace(*req.Baslik), 140)
+		if *req.Baslik == "" {
+			hata(w, 400, "başlık boş olamaz")
+			return
+		}
 	}
 	if req.Aciklama != nil {
 		*req.Aciklama = kisalt(strings.TrimSpace(*req.Aciklama), 6000)
+	}
+	if req.FiyatKurus != nil && *req.FiyatKurus < 0 {
+		*req.FiyatKurus = 0
 	}
 	tag, err := h.db.Exec(r.Context(), `
 		UPDATE ilanlar SET
@@ -427,11 +455,41 @@ func (h *Handler) Guncelle(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) FavoriEkle(w http.ResponseWriter, r *http.Request) {
 	me := auth.UserID(r.Context())
 	id := chi.URLParam(r, "id")
-	if _, err := h.db.Exec(r.Context(), `
-		INSERT INTO ilan_favoriler (ilan_id, user_id) VALUES ($1,$2)
-		ON CONFLICT DO NOTHING`, id, me); err != nil {
+	if !kimlik.Gecerli(id) {
+		// ⚠️ Bicimsiz id sorguya girerse Postgres cast hatasi -> 500. Dogrusu 404.
+		hata(w, 404, "bulunamadı")
+		return
+	}
+	// ⚠️⚠️ ILAN GORULEBILIR OLMALI (turu 77b denetim bulgusu). Eskiden duz
+	//    INSERT vardi: (a) olmayan id'de FK ihlali **500** doner (dogrusu 404),
+	//    (b) ENGELLENEN taraf da favoriye ekleyebiliyordu — okuyamadigi bir
+	//    ilani favorileyip listesinde bos satir tasirdi.
+	//    `INSERT ... SELECT ... WHERE EXISTS` ile ikisi de tek deyimde kapanir.
+	// ⚠️⚠️ PARAMETRE SIRASI: `engelYok` sabiti **$1'i OKUYAN KULLANICI** kabul
+	//    eder (dosyanin ustundeki serh). Bu yuzden burada $1=me, $2=ilan id.
+	//    Ters yazilsaydi engel yuklemi ilan id'siyle karsilastirilir, HICBIR
+	//    ZAMAN eslesmez ve kontrol SESSIZCE FAIL-OPEN olurdu.
+	tag, err := h.db.Exec(r.Context(), `
+		INSERT INTO ilan_favoriler (ilan_id, user_id)
+		SELECT $2,$1 WHERE EXISTS(
+		  SELECT 1 FROM ilanlar i
+		   WHERE i.id=$2 AND i.durum <> 'kaldirildi'`+engelYok+`)
+		ON CONFLICT DO NOTHING`, me, id)
+	if err != nil {
 		hata(w, 500, "eklenemedi")
 		return
+	}
+	// ⚠️ `ON CONFLICT DO NOTHING` zaten favorideyse 0 satir doner — o da BASARIDIR.
+	//    Bu yuzden 0 satiri "yok" saymak icin varligi AYRICA sormak gerekir.
+	if tag.RowsAffected() == 0 {
+		var v bool
+		h.db.QueryRow(r.Context(),
+			`SELECT EXISTS(SELECT 1 FROM ilan_favoriler WHERE ilan_id=$1 AND user_id=$2)`,
+			id, me).Scan(&v)
+		if !v {
+			hata(w, 404, "ilan bulunamadı")
+			return
+		}
 	}
 	yaz(w, 200, map[string]bool{"ok": true})
 }
@@ -439,6 +497,11 @@ func (h *Handler) FavoriEkle(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) FavoriSil(w http.ResponseWriter, r *http.Request) {
 	me := auth.UserID(r.Context())
 	id := chi.URLParam(r, "id")
+	if !kimlik.Gecerli(id) {
+		// ⚠️ Bicimsiz id sorguya girerse Postgres cast hatasi -> 500. Dogrusu 404.
+		hata(w, 404, "bulunamadı")
+		return
+	}
 	h.db.Exec(r.Context(),
 		`DELETE FROM ilan_favoriler WHERE ilan_id=$1 AND user_id=$2`, id, me)
 	yaz(w, 200, map[string]bool{"ok": true})

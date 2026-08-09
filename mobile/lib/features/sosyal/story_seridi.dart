@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../router.dart' show rootMessengerKey;
 import '../home/home_screen.dart' show myProfileProvider;
 import '../medya/medya_gorsel.dart';
 import '../medya/medya_kapisi.dart';
@@ -32,10 +33,26 @@ class StorySeridi extends ConsumerStatefulWidget {
   ConsumerState<StorySeridi> createState() => StorySeridiDurumu();
 }
 
-class StorySeridiDurumu extends ConsumerState<StorySeridi> {
+/// ⚠️⚠️ `AutomaticKeepAliveClientMixin` ZORUNLU (turu 77b denetim bulgusu).
+///
+/// Serit, akis `ListView`inin `i == 0` OGESIDIR. `ListView`in
+/// `addAutomaticKeepAlives: true` varsayilani TEK BASINA YETMEZ — cocugun
+/// KeepAlive bildirimi GONDERMESI gerekir. Bildirmeyince serit 106px ve
+/// varsayilan `cacheExtent` 250px oldugu icin kullanici akisi ~356px
+/// kaydirdiginda State **DISPOSE OLUYORDU**:
+///   · suren hikaye yuklemesi yarida kesiliyordu (bkz. `_paylas` serhi),
+///   · yukleme ilerleme halkasi kayboluyordu,
+///   · geri kaydirinca serit sifirdan yeniden yukleniyordu (gereksiz istek).
+/// ⚠️ YAPMA: `wantKeepAlive`i false yapma veya `super.build(context)` cagrisini
+///    silme (mixin bunu SART kosar).
+class StorySeridiDurumu extends ConsumerState<StorySeridi>
+    with AutomaticKeepAliveClientMixin {
   List<StoryKullanici>? _liste;
   bool _yukleniyor = false;
   double? _ilerleme;
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
@@ -54,9 +71,19 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi> {
     }
   }
 
+  /// ⚠️⚠️ KOK `scaffoldMessengerKey` KULLANILIR, `ScaffoldMessenger.of(context)`
+  ///    DEGIL (turu 77b denetim bulgusu).
+  ///
+  /// **NEDEN:** serit bir `ListView` OGESIDIR ve `AutomaticKeepAliveClientMixin`
+  /// kullanmaz -> kullanici akisi ~356px kaydirinca State **dispose olur**.
+  /// Yukleme surerken bu olursa `context` olur ve hata mesaji HIC gorunmezdi —
+  /// tam da "paylastim sandim ama gitmemis" sikayeti. Kok messenger widget'in
+  /// omrunden BAGIMSIZDIR, mesaj her halukarda gorunur.
+  /// ⚠️ YAPMA: buray... `ScaffoldMessenger.of(context)`e dondurme.
   void _uyar(String m) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+    rootMessengerKey.currentState?.showSnackBar(
+      SnackBar(content: Text(m)),
+    );
   }
 
   /// Hikaye paylas: medya sec -> **EDITOR** -> yukle -> POST /stories.
@@ -75,6 +102,26 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi> {
       _uyar(MedyaKapisi.engelSebebi(ref) ?? 'Şu anda medya seçilemez');
       return;
     }
+    // ⚠️⚠️ SEVK ENGELIYDI (turu 77b denetim bulgusu) — SERVISLER **TUM
+    //    AWAIT'LERDEN ONCE** YAKALANIR.
+    //
+    // ZINCIR: serit bir `ListView` OGESIDIR (akis_ekrani i==0) ve
+    // `AutomaticKeepAliveClientMixin` KULLANMAZ -> serit 106px, varsayilan
+    // `cacheExtent` 250px, yani kullanici akisi ~356px kaydirinca State
+    // **DISPOSE OLUR**. Disposed `ConsumerState`te `ref.read` `StateError`
+    // firlatir; asagidaki `catch (e)` onu yakalar, `if (!mounted) return;`
+    // ile de **HICBIR MESAJ GOSTERILMEZ**.
+    // SONUC: medya R2'ye yuklenir, `POST /stories` **HIC ATILMAZ**, medya
+    // `status='aktif'` takili kalir (yetim), kullanici ne hikayeyi ne hatayi
+    // gorur. 100 MB videoda bu pencere ONLARCA SANIYEDIR.
+    // Bu, dosyanin kendi serhinin ("paylastim sandim ama gitmemis") tam olarak
+    // engellemeye calistigi senaryonun kendisiydi.
+    // 📌 CLAUDE.md turu 67 dersinin birebir tekrari: `_notifier`/`_ctrl`
+    //    orada da `initState`te yakalanmisti.
+    // ⚠️ YAPMA: bu iki satiri await'lerin ALTINA tasima.
+    final medyaSvc = ref.read(medyaServisiProvider);
+    final storySvc = ref.read(storyServisiProvider);
+
     XFile? x;
     try {
       MedyaKapisi.pickerAcik = true;
@@ -117,37 +164,38 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi> {
         if (hazir == null) throw Exception('Fotoğraf hazırlanamadı');
         dosya = hazir;
       }
-      final mediaId = await ref
-          .read(medyaServisiProvider)
-          .yukle(
-            dosya: dosya,
-            kind: video ? 'video' : 'image',
-            mime: video ? 'video/mp4' : 'image/jpeg',
-            fileName: x.name,
-            ilerleme: (p) {
-              if (mounted) setState(() => _ilerleme = p);
-            },
-          );
-      await ref
-          .read(storyServisiProvider)
-          .paylas(
-            mediaId: mediaId,
-            kind: video ? 'video' : 'image',
-            katmanlar: cikti.katmanlar,
-          );
-      if (!mounted) return;
-      setState(() {
-        _yukleniyor = false;
-        _ilerleme = null;
-      });
-      await yukle();
-      if (mounted) _uyar('Hikâyen paylaşıldı');
+      final mediaId = await medyaSvc.yukle(
+        dosya: dosya,
+        kind: video ? 'video' : 'image',
+        mime: video ? 'video/mp4' : 'image/jpeg',
+        fileName: x.name,
+        ilerleme: (p) {
+          if (mounted) setState(() => _ilerleme = p);
+        },
+      );
+      await storySvc.paylas(
+        mediaId: mediaId,
+        kind: video ? 'video' : 'image',
+        katmanlar: cikti.katmanlar,
+      );
+      // ⚠️ Buradan sonrasi SADECE ARAYUZ tazelemesi. Serit kaydirilip dispose
+      //    olsa bile hikaye SUNUCUDA OLUSMUSTUR ve mesaj kok messenger'dan
+      //    gorunur (bkz. `_uyar` serhi).
+      if (mounted) {
+        setState(() {
+          _yukleniyor = false;
+          _ilerleme = null;
+        });
+        await yukle();
+      }
+      _uyar('Hikâyen paylaşıldı');
     } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _yukleniyor = false;
-        _ilerleme = null;
-      });
+      if (mounted) {
+        setState(() {
+          _yukleniyor = false;
+          _ilerleme = null;
+        });
+      }
       final d = e is DioException ? e.response?.data : null;
       _uyar(
         (d is Map && d['error'] is String)
@@ -247,6 +295,7 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // ⚠️ AutomaticKeepAliveClientMixin SART kosar.
     final l = _liste;
     final benimProfil = ref.watch(myProfileProvider).valueOrNull;
     final benim = l?.where((e) => e.benim).firstOrNull;

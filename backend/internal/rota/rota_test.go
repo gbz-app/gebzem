@@ -126,6 +126,50 @@ func TestYeniUclarCozuluyor(t *testing.T) {
 		{"POST", "/channels/" + uid + "/subscribe", "/channels/{id}/subscribe"},
 		{"POST", "/channel-posts/7/like", "/channel-posts/{id}/like"},
 		{"DELETE", "/channel-posts/7", "/channel-posts/{id}"},
+
+		// --- TURU 77 DIKEYLERI ---------------------------------------------
+		// ⚠️⚠️ EN RISKLI CIFT: `/users/{id}/urunler` ile `/users/{id}/isletme`,
+		//    zaten var olan `/users/{id}/{tur:followers|following}` ile AYNI
+		//    SEVIYEDE duruyor. chi'nin GERI DONUS (backtracking) davranisi
+		//    yanlis anlasilsaydi bu yollar birbirine karisirdi ve
+		//    `go build`/`go vet` bunu YAKALAMAZDI (chi CALISMA ANINDA panikler
+		//    ya da sessizce yanlis handler'a gider).
+		{"GET", "/users/" + uid + "/isletme", "/users/{id}/isletme"},
+		{"GET", "/users/" + uid + "/urunler", "/users/{id}/urunler"},
+		{"PUT", "/users/me/isletme", "/users/me/isletme"},
+		{"DELETE", "/users/me/isletme", "/users/me/isletme"},
+		{"GET", "/users/ozet", "/users/ozet"},
+		// --- isletme + urun (statik "urunler" vs {id})
+		{"GET", "/isletmeler", "/isletmeler"},
+		{"GET", "/isletme-kategorileri", "/isletme-kategorileri"},
+		{"POST", "/isletme/urunler", "/isletme/urunler"},
+		{"PATCH", "/isletme/urunler/" + uid, "/isletme/urunler/{id}"},
+		{"DELETE", "/isletme/urunler/" + uid, "/isletme/urunler/{id}"},
+		// --- etkinlik (statik "-kategorileri" ayri yol, cakisma yok)
+		{"GET", "/etkinlikler", "/etkinlikler"},
+		{"GET", "/etkinlik-kategorileri", "/etkinlik-kategorileri"},
+		{"GET", "/etkinlikler/" + uid, "/etkinlikler/{id}"},
+		{"POST", "/etkinlikler/" + uid + "/katil", "/etkinlikler/{id}/katil"},
+		{"GET", "/etkinlikler/" + uid + "/katilimcilar", "/etkinlikler/{id}/katilimcilar"},
+		{"DELETE", "/etkinlikler/" + uid, "/etkinlikler/{id}"},
+		// --- ilan
+		{"GET", "/ilanlar", "/ilanlar"},
+		{"GET", "/ilan-kategoriler", "/ilan-kategoriler"},
+		{"GET", "/ilanlar/" + uid, "/ilanlar/{id}"},
+		{"PATCH", "/ilanlar/" + uid, "/ilanlar/{id}"},
+		{"POST", "/ilanlar/" + uid + "/favori", "/ilanlar/{id}/favori"},
+		{"DELETE", "/ilanlar/" + uid + "/favori", "/ilanlar/{id}/favori"},
+		// --- ai
+		{"GET", "/ai/durum", "/ai/durum"},
+		{"POST", "/ai/menu", "/ai/menu"},
+		{"POST", "/ai/urun-metni", "/ai/urun-metni"},
+		{"POST", "/ai/danisma", "/ai/danisma"},
+		// --- hikaye (statik {userId} vs {id}/... ayrimi)
+		{"GET", "/stories", "/stories"},
+		{"GET", "/stories/" + uid, "/stories/{userId}"},
+		{"POST", "/stories/" + uid + "/view", "/stories/{id}/view"},
+		{"GET", "/stories/" + uid + "/viewers", "/stories/{id}/viewers"},
+		{"DELETE", "/stories/" + uid, "/stories/{id}"},
 	}
 
 	for _, v := range vakalar {

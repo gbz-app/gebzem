@@ -60,11 +60,13 @@ type Handler struct {
 	// Medya adresini cozmek icin geri cagirim. ⚠️ IKINCI BIR R2 ISTEMCISI
 	// KURULMADI: ayri istemci = ayri imzalama yapilandirmasi = drift
 	// (turu 77 denetim bulgusu Ç12).
-	medyaURL func(ctx context.Context, mediaID string) (string, error)
+	// ⚠️⚠️ Imza `sahipID` TASIR — AI yolu KULLANICININ KENDI medyasi disina
+	//    cikamaz (turu 77b gizlilik bulgusu; ayrinti: media.ImzaliAdres serhi).
+	medyaURL func(ctx context.Context, mediaID, sahipID string) (string, error)
 }
 
 func NewHandler(db *pgxpool.Pool,
-	medyaURL func(context.Context, string) (string, error)) *Handler {
+	medyaURL func(context.Context, string, string) (string, error)) *Handler {
 	a := strings.TrimSpace(os.Getenv("OPENAI_API_KEY"))
 	if a == "" {
 		log.Printf("ai: OPENAI_API_KEY yok — AI KAPALI")
@@ -106,34 +108,72 @@ func (h *Handler) Durum(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// ⚠️⚠️ `durum <> 'iptal'` — YALNIZ 'tamam' DEGIL (turu 77b denetim bulgusu).
+//
+//	'tamam' sayilsaydi (a) rezerve edilmis ('beklemede') istekler
+//	sayilmaz ve kota asilirdi, (b) zaman asimina ugrayan istek OpenAI
+//	tarafinda ISLENIP FATURALANMIS olabilecegi halde kotadan dusmezdi.
 func (h *Handler) bugunKullanilan(ctx context.Context, me string) int {
 	var n int
 	h.db.QueryRow(ctx, `
 		SELECT count(*)::int FROM ai_istekleri
-		 WHERE user_id=$1 AND durum='tamam'
+		 WHERE user_id=$1 AND durum <> 'iptal'
 		   AND created_at > now() - interval '24 hours'`, me).Scan(&n)
 	return n
 }
 
-// Ortak kapi: acik mi + kota var mi.
-func (h *Handler) kapi(w http.ResponseWriter, r *http.Request) (string, bool) {
+// Ortak kapi: acik mi + kota var mi. Kota varsa **REZERVASYON** acar.
+//
+// ⚠️⚠️⚠️ REZERVASYON ZORUNLU — YOKSA KOTA FIILEN YOKTUR (turu 77b bulgusu).
+//
+//	Onceki surumde `kapi()` yalnizca `SELECT count(*)` okuyordu ve sayaci
+//	artiran `kaydet()` **OpenAI cagrisi DONDUKTEN SONRA** (60 sn'ye kadar)
+//	kosuyordu. O pencerede atilan TUM istekler ayni bayat sayiyi gorur:
+//	100 escamanli `POST /ai/danisma` -> 100'u de `count=0` gorur -> 100'u de
+//	OpenAI'ya gider ve FATURALANIR. Kota 20 degil, pratikte SINIRSIZDI.
+//	`031_urun_ai.sql` serhi "kota olmadan tek kullanici bir gecede faturayi
+//	patlatir" diyor; kontrol yazilmisti ama bu haliyle o isi GORMUYORDU.
+//
+//	COZUM: satir cagridan **ONCE** `beklemede` ile acilir (rezervasyon) ve
+//	sayim TEK DEYIMDE, `INSERT ... SELECT ... WHERE (SELECT count(*)) < kota`
+//	ile yapilir -> Postgres seviyesinde atomiktir, ayri bir transaction
+//	yonetimi gerekmez.
+//	⚠️ YAPMA: rezervasyonu cagrinin ALTINA tasima; sayimi `kaydet` icine geri koyma.
+//
+// Donen: (kullanici, istek id'si, tamam mi).
+func (h *Handler) kapi(w http.ResponseWriter, r *http.Request, tur string) (string, int64, bool) {
 	if !h.Acik() {
 		// ⚠️ 503 + ACIK mesaj: istemci bunu kullaniciya AYNEN gosterir.
 		hata(w, 503, "Yapay zekâ şu anda kullanılamıyor")
-		return "", false
+		return "", 0, false
 	}
 	me := auth.UserID(r.Context())
-	if h.bugunKullanilan(r.Context(), me) >= gunlukKota {
+	var id int64
+	err := h.db.QueryRow(r.Context(), `
+		INSERT INTO ai_istekleri (user_id, tur, girdi, sonuc, durum)
+		SELECT $1, $2, '', '', 'beklemede'
+		 WHERE (SELECT count(*) FROM ai_istekleri
+		         WHERE user_id=$1 AND durum <> 'iptal'
+		           AND created_at > now() - interval '24 hours') < $3
+		RETURNING id`, me, tur, gunlukKota).Scan(&id)
+	if err != nil {
+		// Satir donmediyse kota dolmustur (pgx.ErrNoRows).
 		hata(w, 429, "Günlük yapay zekâ hakkın doldu, yarın tekrar dene")
-		return "", false
+		return "", 0, false
 	}
-	return me, true
+	return me, id, true
 }
 
-func (h *Handler) kaydet(ctx context.Context, me, tur, girdi, sonuc, durum string) {
+// Rezervasyonu SONUCLANDIRIR. `durum='iptal'` ise kotadan DUSER.
+//
+// ⚠️ `id == 0` ise (rezervasyon acilamadi) hicbir sey yapilmaz.
+func (h *Handler) kaydet(ctx context.Context, id int64, girdi, sonuc, durum string) {
+	if id == 0 {
+		return
+	}
 	h.db.Exec(ctx, `
-		INSERT INTO ai_istekleri (user_id, tur, girdi, sonuc, durum)
-		VALUES ($1,$2,$3,$4,$5)`, me, tur, girdi, sonuc, durum)
+		UPDATE ai_istekleri SET girdi=$2, sonuc=$3, durum=$4 WHERE id=$1`,
+		id, girdi, sonuc, durum)
 }
 
 // ---------------------------------------------------------------- OPENAI
@@ -212,11 +252,11 @@ func min(a, b int) int {
 // ⚠️ IMZALI ADRES kullanilir (medya bucket'i GIZLI). Adres kisa omurludur ve
 //
 //	OpenAI onu istek sirasinda indirir.
-func (h *Handler) gorselAdresi(ctx context.Context, mediaID string) (string, error) {
+func (h *Handler) gorselAdresi(ctx context.Context, mediaID, sahipID string) (string, error) {
 	if h.medyaURL == nil {
 		return "", fmt.Errorf("medya kapalı")
 	}
-	return h.medyaURL(ctx, mediaID)
+	return h.medyaURL(ctx, mediaID, sahipID)
 }
 
 // ---------------------------------------------------------------- UCLAR
@@ -236,7 +276,7 @@ type aiReq struct {
 //	gozden gecirip onaylar. Otomatik kaydetmek, yanlis okunan bir fiyati
 //	sessizce menuye yazardi.
 func (h *Handler) Menu(w http.ResponseWriter, r *http.Request) {
-	me, ok := h.kapi(w, r)
+	_, istekID, ok := h.kapi(w, r, "menu")
 	if !ok {
 		return
 	}
@@ -258,7 +298,7 @@ func (h *Handler) Menu(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	if req.MediaID != "" {
-		u, err := h.gorselAdresi(r.Context(), req.MediaID)
+		u, err := h.gorselAdresi(r.Context(), req.MediaID, auth.UserID(r.Context()))
 		if err != nil {
 			hata(w, 400, "görsel okunamadı")
 			return
@@ -276,11 +316,11 @@ func (h *Handler) Menu(w http.ResponseWriter, r *http.Request) {
 		"Sen bir restoran menüsü düzenleyicisisin. Yalnızca geçerli JSON dönersin.",
 		parcalar)
 	if err != nil {
-		h.kaydet(r.Context(), me, "menu", req.Metin, err.Error(), "hata")
+		h.kaydet(r.Context(), istekID, req.Metin, err.Error(), "hata")
 		hata(w, 502, "Yapay zekâ şu anda yanıt veremedi")
 		return
 	}
-	h.kaydet(r.Context(), me, "menu", req.Metin, sonuc, "tamam")
+	h.kaydet(r.Context(), istekID, req.Metin, sonuc, "tamam")
 	// ⚠️ Model bazen JSON'u ``` blogu icinde dondurur — temizlenir.
 	yaz(w, 200, map[string]any{"sonuc": jsonTemizle(sonuc)})
 }
@@ -293,7 +333,7 @@ func (h *Handler) Menu(w http.ResponseWriter, r *http.Request) {
 //	gorsel uretimi (DALL·E) ayri bir maliyet kalemi ve urun karari; bu surumde
 //	YOK ve istemcide de VAAT EDILMIYOR.
 func (h *Handler) UrunMetni(w http.ResponseWriter, r *http.Request) {
-	me, ok := h.kapi(w, r)
+	_, istekID, ok := h.kapi(w, r, "gorsel")
 	if !ok {
 		return
 	}
@@ -315,7 +355,7 @@ func (h *Handler) UrunMetni(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	if req.MediaID != "" {
-		u, err := h.gorselAdresi(r.Context(), req.MediaID)
+		u, err := h.gorselAdresi(r.Context(), req.MediaID, auth.UserID(r.Context()))
 		if err != nil {
 			hata(w, 400, "görsel okunamadı")
 			return
@@ -328,11 +368,11 @@ func (h *Handler) UrunMetni(w http.ResponseWriter, r *http.Request) {
 		"Sen bir e-ticaret metin yazarısın. Kısa, dürüst ve Türkçe yazarsın.",
 		parcalar)
 	if err != nil {
-		h.kaydet(r.Context(), me, "gorsel", req.Metin, err.Error(), "hata")
+		h.kaydet(r.Context(), istekID, req.Metin, err.Error(), "hata")
 		hata(w, 502, "Yapay zekâ şu anda yanıt veremedi")
 		return
 	}
-	h.kaydet(r.Context(), me, "gorsel", req.Metin, sonuc, "tamam")
+	h.kaydet(r.Context(), istekID, req.Metin, sonuc, "tamam")
 	yaz(w, 200, map[string]any{"sonuc": sonuc})
 }
 
@@ -344,7 +384,7 @@ func (h *Handler) UrunMetni(w http.ResponseWriter, r *http.Request) {
 //	tespit ile sinirliyor ve emin olmadigi yerde "uzmana danis" demesini
 //	istiyor. Yanlis bir tibbi/hukuki tavsiye gercek zarar dogurur.
 func (h *Handler) Danisma(w http.ResponseWriter, r *http.Request) {
-	me, ok := h.kapi(w, r)
+	_, istekID, ok := h.kapi(w, r, "danisma")
 	if !ok {
 		return
 	}
@@ -354,7 +394,7 @@ func (h *Handler) Danisma(w http.ResponseWriter, r *http.Request) {
 		hata(w, 400, "fotoğraf gerekli")
 		return
 	}
-	u, err := h.gorselAdresi(r.Context(), req.MediaID)
+	u, err := h.gorselAdresi(r.Context(), req.MediaID, auth.UserID(r.Context()))
 	if err != nil {
 		hata(w, 400, "görsel okunamadı")
 		return
@@ -378,11 +418,11 @@ func (h *Handler) Danisma(w http.ResponseWriter, r *http.Request) {
 			"VERMEZSİN, uzmana yönlendirirsin. Kısa ve maddeli yazarsın.",
 		parcalar)
 	if err != nil {
-		h.kaydet(r.Context(), me, "danisma", req.Metin, err.Error(), "hata")
+		h.kaydet(r.Context(), istekID, req.Metin, err.Error(), "hata")
 		hata(w, 502, "Yapay zekâ şu anda yanıt veremedi")
 		return
 	}
-	h.kaydet(r.Context(), me, "danisma", req.Metin, sonuc, "tamam")
+	h.kaydet(r.Context(), istekID, req.Metin, sonuc, "tamam")
 	yaz(w, 200, map[string]any{"sonuc": sonuc})
 }
 

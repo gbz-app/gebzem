@@ -20,6 +20,7 @@ import (
 
 	"github.com/gbz-app/gebzem/backend/internal/auth"
 	"github.com/gbz-app/gebzem/backend/internal/engel"
+	"github.com/gbz-app/gebzem/backend/internal/kimlik"
 )
 
 type Handler struct{ db *pgxpool.Pool }
@@ -175,8 +176,23 @@ func (h *Handler) Olustur(w http.ResponseWriter, r *http.Request) {
 	if req.Ucretsiz {
 		req.FiyatKurus = 0
 	}
-	if req.Kontenjan < 0 {
+	// ⚠️ UST SINIR DA ZORUNLU (turu 77b): sutun `INTEGER`; Go tarafi 64 bit
+	//    oldugu icin `3000000000` gonderilirse INSERT patlar ve kullanici
+	//    sebepsiz "etkinlik oluşturulamadı" gorur.
+	if req.Kontenjan < 0 || req.Kontenjan > 1000000 {
 		req.Kontenjan = 0
+	}
+	// ⚠️⚠️ ENLEM/BOYLAM KIRPMASI — AYNI KURAL `isletme.Kaydet`te VARDI, BURADA
+	//    DUSMUSTU (turu 77b denetim bulgusu; CLAUDE.md turu 75b/2 "ayni kuralin
+	//    iki kopyasi drift eder" dersinin tekrari). `{"enlem":1e308}` gecerli
+	//    JSON + gecerli float64'tur; DB'ye yazilir, `sutunlar` uzerinden
+	//    istemciye doner ve harita cizimini bozar.
+	//    ⚠️ `x != x` NaN kapisidir (NaN hicbir seye, kendisine bile esit degildir).
+	if req.Enlem < -90 || req.Enlem > 90 || req.Enlem != req.Enlem {
+		req.Enlem = 0
+	}
+	if req.Boylam < -180 || req.Boylam > 180 || req.Boylam != req.Boylam {
+		req.Boylam = 0
 	}
 	// ⚠️⚠️ nil DEGIL BOS DILIM: pgx nil dilimi SQL NULL gonderir ve
 	//    `media_ids` NOT NULL -> HER medyasiz etkinlik 500 donerdi
@@ -277,6 +293,11 @@ func (h *Handler) Liste(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Detay(w http.ResponseWriter, r *http.Request) {
 	me := auth.UserID(r.Context())
 	id := chi.URLParam(r, "id")
+	if !kimlik.Gecerli(id) {
+		// ⚠️ Bicimsiz id sorguya girerse Postgres cast hatasi -> 500. Dogrusu 404.
+		hata(w, 404, "bulunamadı")
+		return
+	}
 	rows, err := h.db.Query(r.Context(), `
 		SELECT `+sutunlar+`
 		  FROM etkinlikler e JOIN users u ON u.id = e.olusturan_id
@@ -306,6 +327,11 @@ func (h *Handler) Detay(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Katil(w http.ResponseWriter, r *http.Request) {
 	me := auth.UserID(r.Context())
 	id := chi.URLParam(r, "id")
+	if !kimlik.Gecerli(id) {
+		// ⚠️ Bicimsiz id sorguya girerse Postgres cast hatasi -> 500. Dogrusu 404.
+		hata(w, 404, "bulunamadı")
+		return
+	}
 	var req struct {
 		Durum string `json:"durum"`
 	}
@@ -336,23 +362,35 @@ func (h *Handler) Katil(w http.ResponseWriter, r *http.Request) {
 		hata(w, 400, "kendi etkinliğinden ayrılamazsın")
 		return
 	}
-	if kontenjan > 0 && req.Durum == "katiliyor" {
-		var dolu int
-		h.db.QueryRow(r.Context(), `
-			SELECT count(*)::int FROM etkinlik_katilim
-			 WHERE etkinlik_id=$1 AND durum='katiliyor' AND user_id<>$2`,
-			id, me).Scan(&dolu)
-		if dolu >= kontenjan {
-			hata(w, 409, "kontenjan doldu")
-			return
-		}
-	}
-	if _, err := h.db.Exec(r.Context(), `
+	// ⚠️⚠️ KONTENJAN KONTROLU **TEK DEYIMDE** — check-then-act DEGIL
+	//    (turu 77b denetim bulgusu).
+	//
+	//    Onceki surumde ayri bir `SELECT count(*)` ve ardindan ayri bir `INSERT`
+	//    vardi; ustundeki yorum "AYNI ISLEMDE yapilir" DIYORDU ama ortada ne
+	//    transaction ne kilit vardi. Son kontenjana ayni anda basan iki kisi
+	//    IKISI DE gecerdi; 100 kisilik bir konserde escamanli 50 istek
+	//    kontenjani asabilirdi.
+	//    📌 CLAUDE.md turu 74 dersinin tekrari: **bir yorumun anlattigi
+	//       kontrolun GOVDEDE gercekten olup olmadigini dogrula.**
+	//
+	//    `INSERT ... SELECT ... WHERE (SELECT count(*)) < kontenjan` Postgres
+	//    seviyesinde TEK deyimdir; ayri transaction yonetimi gerekmez.
+	//    ⚠️ `kontenjan = 0` SINIRSIZ demek -> `$4 <= 0` dali kosulu atlar.
+	//    ⚠️ YAPMA: ikiye bolup geri donme.
+	etiket, err := h.db.Exec(r.Context(), `
 		INSERT INTO etkinlik_katilim (etkinlik_id, user_id, durum)
-		VALUES ($1,$2,$3)
+		SELECT $1,$2,$3
+		 WHERE $4 <= 0 OR $3 <> 'katiliyor'
+		    OR (SELECT count(*) FROM etkinlik_katilim
+		         WHERE etkinlik_id=$1 AND durum='katiliyor' AND user_id<>$2) < $4
 		ON CONFLICT (etkinlik_id, user_id) DO UPDATE SET durum=EXCLUDED.durum`,
-		id, me, req.Durum); err != nil {
+		id, me, req.Durum, kontenjan)
+	if err != nil {
 		hata(w, 500, "işlem yapılamadı")
+		return
+	}
+	if etiket.RowsAffected() == 0 {
+		hata(w, 409, "kontenjan doldu")
 		return
 	}
 	yaz(w, 200, map[string]string{"durum": req.Durum})
@@ -362,6 +400,11 @@ func (h *Handler) Katil(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Katilimcilar(w http.ResponseWriter, r *http.Request) {
 	me := auth.UserID(r.Context())
 	id := chi.URLParam(r, "id")
+	if !kimlik.Gecerli(id) {
+		// ⚠️ Bicimsiz id sorguya girerse Postgres cast hatasi -> 500. Dogrusu 404.
+		hata(w, 404, "bulunamadı")
+		return
+	}
 	rows, err := h.db.Query(r.Context(), `
 		SELECT u.id, u.name, COALESCE(u.username,''), u.avatar_media_id, k.durum
 		  FROM etkinlik_katilim k JOIN users u ON u.id = k.user_id
@@ -395,6 +438,11 @@ func (h *Handler) Katilimcilar(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Sil(w http.ResponseWriter, r *http.Request) {
 	me := auth.UserID(r.Context())
 	id := chi.URLParam(r, "id")
+	if !kimlik.Gecerli(id) {
+		// ⚠️ Bicimsiz id sorguya girerse Postgres cast hatasi -> 500. Dogrusu 404.
+		hata(w, 404, "bulunamadı")
+		return
+	}
 	tag, err := h.db.Exec(r.Context(),
 		`UPDATE etkinlikler SET durum='silindi', updated_at=now()
 		  WHERE id=$1 AND olusturan_id=$2`, id, me)

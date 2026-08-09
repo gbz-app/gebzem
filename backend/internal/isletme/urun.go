@@ -13,6 +13,7 @@ import (
 
 	"github.com/gbz-app/gebzem/backend/internal/auth"
 	"github.com/gbz-app/gebzem/backend/internal/engel"
+	"github.com/gbz-app/gebzem/backend/internal/kimlik"
 )
 
 // ⚠️⚠️ TURU 77 — ISLETME URUNLERI / MENU.
@@ -128,6 +129,11 @@ func (h *Handler) UrunEkle(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) UrunGuncelle(w http.ResponseWriter, r *http.Request) {
 	me := auth.UserID(r.Context())
 	id := chi.URLParam(r, "id")
+	if !kimlik.Gecerli(id) {
+		// ⚠️ Bicimsiz id sorguya girerse Postgres cast hatasi -> 500. Dogrusu 404.
+		hata(w, 404, "bulunamadı")
+		return
+	}
 	var req struct {
 		Ad         *string `json:"ad"`
 		Aciklama   *string `json:"aciklama"`
@@ -176,6 +182,11 @@ func (h *Handler) UrunGuncelle(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) UrunSil(w http.ResponseWriter, r *http.Request) {
 	me := auth.UserID(r.Context())
 	id := chi.URLParam(r, "id")
+	if !kimlik.Gecerli(id) {
+		// ⚠️ Bicimsiz id sorguya girerse Postgres cast hatasi -> 500. Dogrusu 404.
+		hata(w, 404, "bulunamadı")
+		return
+	}
 	tag, err := h.db.Exec(r.Context(),
 		`UPDATE isletme_urunleri SET durum='kaldirildi', updated_at=now()
 		  WHERE id=$1 AND isletme_id=$2`, id, me)

@@ -372,17 +372,38 @@ func (h *Handler) reddet(ctx context.Context, k medyaKayit, sebep string) {
 //	dogar ve iki yapilandirma zamanla DRIFT ederdi (turu 77 denetim bulgusu).
 //	Bunun yerine mevcut istemci bu kucuk yardimciyla PAYLASILIYOR.
 //
-// ⚠️ ERISIM KONTROLU YOK — cagiran YETKIYI KENDISI dogrulamis olmali.
+// ⚠️⚠️ SAHIPLIK ZORUNLU — `sahipID` YALNIZ kendi yukledigi dosyayi acar.
 //
-//	AI yolunda medya KULLANICININ KENDI yukledigi dosyadir.
+//	**NEDEN (turu 77b denetim bulgusu — GIZLILIK ACIGIYDI):** onceki surumde
+//	imza `(ctx, mediaID)` idi ve govdede yalnizca `status` kontrol ediliyordu.
+//	Yorumda "cagiran yetkiyi kendisi dogrulamis olmali" yaziyordu ama AI
+//	paketinde O DOGRULAMA YAZILMAMISTI. Sonuc: elinde herhangi bir `media_id`
+//	olan (akis/hikaye/kanal yanitlarindan zaten aliniyor, ya da engellenmeden
+//	once toplanmis) bir kullanici `POST /ai/danisma {"media_id":"..."}` ile
+//	sunucuya 300 sn'lik imzali adres urettirip OpenAI'ya cozdurebilir ve donen
+//	metinde fotografin ICERIGINI okuyabilirdi. AYNI id ile `GET /media/{id}/url`
+//	**403** donuyordu — yani AI yolu `erisebilir()` kapisini KOMPLE ATLIYORDU;
+//	gizli hesap ve engelleme delinirdi.
+//	Bu surumde INERT'ti (`OPENAI_API_KEY` yok -> uclar 503) ama anahtar
+//	eklendigi GUN aktif olacakti.
+//
+//	📌 DERS (CLAUDE.md turu 74'un tekrari): **bir yorumun anlattigi kontrolun
+//	   GOVDEDE gercekten olup olmadigini dogrula.** Yetki argumani imzada
+//	   olmadigi icin "unutuldugu" tip sisteminde de gorunmuyordu — artik
+//	   goruyor: `sahipID` vermeden derlenmez.
+//	⚠️ YAPMA: `sahipID` parametresini kaldirma veya bos gecme.
 //	⚠️ YAPMA: bu fonksiyonu bir HTTP ucuna dogrudan baglama.
-func (h *Handler) ImzaliAdres(ctx context.Context, mediaID string) (string, error) {
+func (h *Handler) ImzaliAdres(ctx context.Context, mediaID, sahipID string) (string, error) {
 	if !h.acik {
 		return "", fmt.Errorf("medya kapalı")
 	}
+	if sahipID == "" {
+		return "", fmt.Errorf("yetkisiz")
+	}
 	var anahtar, durum string
 	if err := h.db.QueryRow(ctx,
-		`SELECT object_key, status FROM media_assets WHERE id=$1`, mediaID).
+		`SELECT object_key, status FROM media_assets WHERE id=$1 AND owner_id=$2`,
+		mediaID, sahipID).
 		Scan(&anahtar, &durum); err != nil {
 		return "", err
 	}

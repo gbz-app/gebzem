@@ -212,12 +212,66 @@ const storyArkaPlanAdlari = <String, String>{
   'gumus': 'Gümüş',
 };
 
-/// TEK bir metin katmanini cizer. **EDITOR ve IZLEYICI AYNI FONKSIYONU CAGIRIR.**
+/// ⚠️⚠️⚠️ HIKAYE TUVALI **SABIT 9:16**'DIR — EN KRITIK SOZLESME MADDESI.
 ///
-/// [alan] hikaye tuvalinin olculeri. [olcek] `alan.width / 390` — referans
-/// genislige gore mantiksal punto olceklemesi.
-Widget storyKatmanCiz(StoryKatman k, Size alan) {
-  final olcek = alan.width / 390.0;
+/// **NEDEN (turu 77b denetim bulgusu):** onceki surumde hem editor hem izleyici
+/// katmanlari **EKRANIN TAMAMINA** gore konumluyordu. Ikisi ayni ekranda ayni
+/// sonucu verdigi icin tek cihazda test edilse SORUN GORULMEZDI — ama medya
+/// `BoxFit.contain` ile ciziliyor ve fotografin kapladigi dikey oran EKRAN
+/// EN-BOYUNA gore degisiyor. Somut: 390x844 telefonda (oran 0.462) 4:3 bir
+/// fotografin ust kenari y=0.327'de; ayni hikaye 360x640'ta (oran 0.5625)
+/// y=0.144'te baslar. Yani `y=0.35`e konan yazi ILK cihazda fotografin
+/// tepesinden %2 asagida, IKINCISINDE %21 asagida cizilir — **fotografa gore
+/// ~%19 kayma**. Yazi fotograftaki bir seyi isaret ediyorsa artik baska yeri
+/// gosterir; ucta letterbox bandina duser.
+///
+/// COZUM: medya DA katmanlar DA **ayni 9:16 dikdortgenine** cizilir. Boylece
+/// `x`,`y` oranlarinin cihazdan bagimsiz TEK anlami olur.
+/// ⚠️ YAPMA: tuvali `MediaQuery.size` / ekran dikdortgeni yapma.
+/// ⚠️ YAPMA: iki tarafta farkli `BoxFit` kullanma.
+const storyEnBoy = 9 / 16;
+
+/// Verilen alana `contain` mantigiyla oturan 9:16 tuvalin olculeri.
+Size storyTuvalOlcusu(Size alan) {
+  final h = alan.width / storyEnBoy;
+  if (h <= alan.height) return Size(alan.width, h);
+  return Size(alan.height * storyEnBoy, alan.height);
+}
+
+/// Hikaye tuvali — icerigi 9:16 dikdortgene oturtur ve olculeri geri verir.
+/// **EDITOR ve IZLEYICI IKISI DE BUNU KULLANIR.**
+class StoryTuvali extends StatelessWidget {
+  const StoryTuvali({super.key, required this.yap});
+
+  /// [tuval] — 9:16 dikdortgenin olculeri. Katman konumlari BU olculere goredir.
+  final Widget Function(BuildContext context, Size tuval) yap;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (c, box) {
+      final t = storyTuvalOlcusu(Size(box.maxWidth, box.maxHeight));
+      return Center(
+        child: SizedBox(width: t.width, height: t.height, child: yap(c, t)),
+      );
+    },
+  );
+}
+
+/// ⚠️⚠️ KATMAN GOVDESI — **TEK KAYNAK**. Editor ve izleyici BUNU cagirir.
+///
+/// **NEDEN (turu 77b denetim bulgusu):** onceki surumde iki taraf yalnizca
+/// `storyMetinStili`yi paylasiyordu; SARMALAYICI DUZEN ayri ayri yazilmisti
+/// (izleyicide `Padding(horizontal: 16*olcek)`, editorde `Container(padding: 4)`
+/// + `ConstrainedBox(maxWidth: W - 40)` — **olceklenmemis sabit 40**). Sonuc:
+///   · yatay kayma: 390dp'de kenarlarda ~11px,
+///   · daha gorunuru: kutu acikken metin tavani editorde 350, izleyicide 338 ->
+///     editorde TEK SATIRA sigan cumle izleyicide IKI SATIRA sariyordu.
+/// Kullanici "yazdigim gibi durmuyor" der. Iki kopya DRIFT ETTI (CLAUDE.md
+/// turu 72b/H dersinin tekrari).
+/// ⚠️ YAPMA: editorde ayri bir govde yazma. Secim cercevesi LAYOUT'U
+///    DEGISTIRMEYEN bir katman olmali (`foregroundDecoration`), dolgu DEGIL.
+Widget storyKatmanGovdesi(StoryKatman k, Size tuval) {
+  final olcek = tuval.width / 390.0;
   final stil = storyMetinStili(k, olcek);
   final renk = storyRenk(k.renk);
   // ⚠️ Kutu rengi metnin TERSI: beyaz yazida koyu kutu, koyu yazida acik kutu.
@@ -253,24 +307,47 @@ Widget storyKatmanCiz(StoryKatman k, Size alan) {
       child: metin,
     );
   }
-  return Positioned(
-    left: 0,
-    top: 0,
-    width: alan.width,
-    height: alan.height,
-    child: IgnorePointer(
-      child: Align(
-        // ⚠️ `Alignment` -1..1 arasidir; oranimiz 0..1 -> donusum `2*v - 1`.
-        alignment: Alignment(k.x * 2 - 1, k.y * 2 - 1),
-        child: Padding(
-          // ⚠️ Kenar payi: metin tam kenara dayanirsa kirpilir.
-          padding: EdgeInsets.symmetric(horizontal: 16 * olcek),
-          child: Transform.rotate(angle: k.aci, child: metin),
-        ),
-      ),
-    ),
+  // ⚠️ Tavan TUVALE ORANLIDIR (sabit piksel DEGIL) — sabit deger tam da yukarida
+  //    anlatilan sarma farkini uretiyordu.
+  return ConstrainedBox(
+    constraints: BoxConstraints(maxWidth: tuval.width * 0.86),
+    child: metin,
   );
 }
+
+/// Katmani tuvalde KONUMLANDIRIR. [cocuk] genelde [storyKatmanGovdesi] ciktisi.
+///
+/// ⚠️⚠️ **`Align` DEGIL `Positioned` + `FractionalTranslation` (turu 77b bulgusu).**
+/// `Align` cocugu `(alan - cocuk) * x` noktasina koyar, yani cocugun GENISLIGI
+/// arttikca hareket alani DARALIR. Metin sarip tuval genisligine yaklasinca
+/// `(W - w)` sifira gider ve **YATAY SURUKLEME SESSIZCE OLURDU** — kullanici
+/// parmagini surukler, yazi kimildamaz. `FractionalTranslation(-0.5,-0.5)`
+/// cocugu KENDI boyutunun yarisi kadar geri kaydirir; boylece `left = x*W`
+/// GERCEKTEN merkezdir ve metin ne kadar genis olursa olsun surukleme calisir.
+/// (Modeldeki *"x,y = kutunun MERKEZI"* serhi de ancak boyle DOGRU olur.)
+/// ⚠️ YAPMA: `Align`e geri donme.
+///
+/// ⚠️ `Transform.rotate` bir BOYAMA donusumudur, yerlesimi degistirmez ->
+///    `FractionalTranslation` donmemis olcuyu kullanir, merkez (x,y)'de KALIR.
+Widget storyKatmanYerlestir({
+  required StoryKatman k,
+  required Size tuval,
+  required Widget cocuk,
+}) => Positioned(
+  left: k.x * tuval.width,
+  top: k.y * tuval.height,
+  child: FractionalTranslation(
+    translation: const Offset(-0.5, -0.5),
+    child: Transform.rotate(angle: k.aci, child: cocuk),
+  ),
+);
+
+/// TEK bir metin katmanini cizer (IZLEYICI yolu — dokunusa kapali).
+Widget storyKatmanCiz(StoryKatman k, Size tuval) => storyKatmanYerlestir(
+  k: k,
+  tuval: tuval,
+  cocuk: IgnorePointer(child: storyKatmanGovdesi(k, tuval)),
+);
 
 /// Metin hikayesinin zemini (medyasiz hikaye).
 Widget storyZemin(String anahtar) {

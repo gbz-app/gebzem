@@ -101,8 +101,10 @@ func (h *Handler) Kaydet(w http.ResponseWriter, r *http.Request) {
 	// ⚠️ `calisma` istemciden JSON olarak gelir; bicimi DOGRULANIR ama icerigi
 	//    yeniden kurulmaz. Bos/bozuksa '[]' yazilir — NULL yazilirsa istemcide
 	//    her okumada null kontrolu gerekir ve bir yerde unutulup CRASH eder.
+	// ⚠️⚠️ **BAYT** SINIRI DA ZORUNLU (turu 77b): `len(deneme)` ELEMAN SAYISIDIR;
+	//    tek elemanli ama devasa bir dizi eski kapidan gecip DB'ye yazilirdi.
 	calisma := []byte("[]")
-	if len(req.Calisma) > 0 {
+	if len(req.Calisma) > 0 && len(req.Calisma) <= 4<<10 {
 		var deneme []map[string]any
 		if json.Unmarshal(req.Calisma, &deneme) == nil && len(deneme) <= 14 {
 			calisma = req.Calisma

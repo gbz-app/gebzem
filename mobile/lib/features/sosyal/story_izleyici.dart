@@ -47,15 +47,20 @@ class _StoryIzleyiciState extends ConsumerState<StoryIzleyici>
   String? _hata;
   int _i = 0;
 
-  late final AnimationController _ilerleme =
-      AnimationController(vsync: this, duration: const Duration(seconds: 5))
-        ..addStatusListener((s) {
-          if (s == AnimationStatus.completed) _sonraki();
-        });
+  // ⚠️ `late final` DEGIL: `late final` TEMBEL baslar. `_yukle()` patlarsa
+  //    `_basla()` hic kosmaz ve alana ILK DOKUNAN yer `dispose()` olur — orada
+  //    `vsync: this` ile bir AnimationController YARATIP hemen dispose etmek
+  //    (State cozulurken) kirilgan bir yol. Artik `initState`te kurulur.
+  late AnimationController _ilerleme;
 
   @override
   void initState() {
     super.initState();
+    _ilerleme =
+        AnimationController(vsync: this, duration: const Duration(seconds: 5))
+          ..addStatusListener((s) {
+            if (s == AnimationStatus.completed) _sonraki();
+          });
     _yukle();
   }
 
@@ -275,22 +280,31 @@ class _StoryIzleyiciState extends ConsumerState<StoryIzleyici>
               },
               child: Stack(
                 children: [
-                  Positioned.fill(child: _icerik(s)),
-                  // ⚠️⚠️ TURU 77 — METIN KATMANLARI. `storyKatmanCiz`
-                  //    EDITORUN KULLANDIGI AYNI fonksiyondur; iki ayri cizim
-                  //    kodu olsaydi editorde koydugun yer ile izleyicideki yer
-                  //    DRIFT ederdi ("yazdigim yerde durmuyor").
-                  // ⚠️ Katmanlar UST CUBUKLARIN ALTINDA cizilir (Stack sirasi)
-                  //    ama dokunuslari YUTMAZ (`IgnorePointer` icinde) —
-                  //    yoksa ileri/geri dokunusu calismazdi.
-                  for (final k in s.katmanlar)
-                    storyKatmanCiz(
-                      k,
-                      Size(
-                        MediaQuery.of(context).size.width,
-                        MediaQuery.of(context).size.height,
+                  // ⚠️⚠️ TURU 77b — MEDYA VE KATMANLAR **AYNI 9:16 TUVALINE**
+                  //    cizilir (bkz. story_katman.dart `StoryTuvali` serhi).
+                  //    ONCEDEN ikisi de EKRANIN TAMAMINA gore konumlaniyordu;
+                  //    editorle izleyici ayni ekranda ayni sonucu verdigi icin
+                  //    TEK CIHAZDA TEST EDILSE GORULMEZDI — ama medya `contain`
+                  //    ciziliyor ve fotografin kapladigi dikey oran EKRAN
+                  //    EN-BOYUNA gore degisiyor. Ayni hikaye 390x844'te ve
+                  //    360x640'ta fotografa gore ~%19 kaymis cikiyordu; ucta
+                  //    yazi letterbox bandina dusuyordu.
+                  //    ⚠️ YAPMA: tuvali `MediaQuery.size`a geri baglama.
+                  Positioned.fill(
+                    child: StoryTuvali(
+                      yap: (c, tuval) => Stack(
+                        children: [
+                          Positioned.fill(child: _icerik(s)),
+                          // ⚠️⚠️ `storyKatmanCiz` EDITORUN KULLANDIGI AYNI
+                          //    fonksiyondur; iki ayri cizim kodu DRIFT eder
+                          //    ("yazdigim yerde durmuyor").
+                          // ⚠️ Katmanlar dokunuslari YUTMAZ (`IgnorePointer`) —
+                          //    yoksa ileri/geri dokunusu calismazdi.
+                          for (final k in s.katmanlar) storyKatmanCiz(k, tuval),
+                        ],
                       ),
                     ),
+                  ),
                   // Ust karartma — cubuklar ve isim acik renkli medyada da okunur.
                   Positioned(
                     top: 0,

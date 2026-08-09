@@ -52,6 +52,16 @@ class _StoryEditorState extends State<StoryEditor> {
   /// Alt panelde ne acik: yok | yazi | renk | font
   String _panel = 'yok';
 
+  /// Jest baslangicindaki degerler (dondurme/boyut iki parmakla degisir).
+  double _jestAci = 0;
+  double _jestBoyut = 28;
+
+  /// ⚠️ Sunucu 12 katmandan fazlasini SESSIZCE ATIYOR (`story.go` katmanlariDuzelt).
+  ///    Istemcide de tavan OLMAZSA 13. yaziyi ekleyen kullanici paylastiktan
+  ///    SONRA onun kayboldugunu gorur ve hicbir uyari almaz.
+  ///    ⚠️ YAPMA: bu sayiyi sunucudakinden buyuk yapma.
+  static const _katmanTavani = 12;
+
   StoryKatman? get _k => (_secili >= 0 && _secili < _katmanlar.length)
       ? _katmanlar[_secili]
       : null;
@@ -68,6 +78,12 @@ class _StoryEditorState extends State<StoryEditor> {
   }
 
   Future<void> _yaziEkle() async {
+    if (_katmanlar.length >= _katmanTavani) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('En fazla $_katmanTavani yazı eklenebilir')),
+      );
+      return;
+    }
     final yeni = StoryKatman(metin: '');
     final sonuc = await _metinGir(yeni);
     if (!mounted || sonuc == null || sonuc.trim().isEmpty) return;
@@ -176,16 +192,26 @@ class _StoryEditorState extends State<StoryEditor> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      body: LayoutBuilder(
-        builder: (context, kisit) {
-          final alan = Size(kisit.maxWidth, kisit.maxHeight);
-          return Stack(
+      body: Stack(
             children: [
-              Positioned.fill(child: _tuval()),
-
-              // ---- METIN KATMANLARI (surukle + dokun-duzenle)
-              for (var i = 0; i < _katmanlar.length; i++)
-                _suruklenebilir(i, alan),
+              // ⚠️⚠️ TUVAL **SABIT 9:16** ve medya + katmanlar AYNI dikdortgene
+              //    cizilir (bkz. story_katman.dart `StoryTuvali` serhi).
+              //    Onceki surumde ikisi de EKRANIN TAMAMINA gore konumlaniyordu;
+              //    medya `contain` oldugu icin fotografin kapladigi dikey oran
+              //    ekran en-boyuna gore degisiyor ve ayni hikaye baska telefonda
+              //    fotografa gore ~%19 kaymis cikiyordu.
+              Positioned.fill(
+                child: StoryTuvali(
+                  yap: (c, tuval) => Stack(
+                    children: [
+                      Positioned.fill(child: _zemin()),
+                      // ---- METIN KATMANLARI (surukle + dokun-duzenle)
+                      for (var i = 0; i < _katmanlar.length; i++)
+                        _suruklenebilir(i, tuval),
+                    ],
+                  ),
+                ),
+              ),
 
               // ---- UST CUBUK
               SafeArea(
@@ -225,7 +251,11 @@ class _StoryEditorState extends State<StoryEditor> {
                         });
                       }),
                     if (_k != null)
-                      _ustDugme(LucideIcons.square, 'Arka plan', () {
+                      // ⚠️ IPUCU DUZELTILDI: eskiden "Arka plan" yaziyordu ama
+                      //    yaptigi is METNIN OKUNABILIRLIK KUTUSU. Hikaye
+                      //    ZEMININI arayan kullanici birebir "Arka plan" yazan
+                      //    dugmeye basip alakasiz bir kutu efekti aliyordu.
+                      _ustDugme(LucideIcons.square, 'Okunabilirlik kutusu', () {
                         setState(() {
                           final k = _k!;
                           k.kutu = k.kutu == 'yok'
@@ -251,7 +281,19 @@ class _StoryEditorState extends State<StoryEditor> {
                     children: [
                       if (_panel == 'renk' && _k != null) _renkPaleti(),
                       if (_panel == 'font' && _k != null) _fontSecici(),
-                      if (widget.metinHikayesi && _panel == 'yok')
+                      // ⚠️⚠️ SEVK ENGELIYDI (turu 77b): kosul `_panel == 'yok'`
+                      //    idi. Ama `_yaziEkle()` basarili bitince `_panel`e
+                      //    'yazi' yaziliyor ve metin hikayesinde o cagri
+                      //    `initState` post-frame'de OTOMATIK kosuyor. Sonuc:
+                      //    kullanici "Renkli zemin üzerine yaz"i secip yaziyi
+                      //    yazdiginda ZEMIN SERIDI HIC CIZILMIYORDU — zemin
+                      //    'mor'da kilitli kaliyordu. (Tersine, ilk diyalogu
+                      //    IPTAL edince gorunuyordu: davranis TAM TERSI.)
+                      //    Artik yalnizca RENK/FONT panelleri onu gizler.
+                      //    ⚠️ YAPMA: kosulu tekrar `_panel == 'yok'` yapma.
+                      if (widget.metinHikayesi &&
+                          _panel != 'renk' &&
+                          _panel != 'font')
                         _zeminSecici(),
                       if (_k != null) _boyutKaydiraci(),
                       Padding(
@@ -282,14 +324,12 @@ class _StoryEditorState extends State<StoryEditor> {
                 ),
               ),
             ],
-          );
-        },
       ),
     );
   }
 
   /// Hikayenin zemini: medya ya da gradyan.
-  Widget _tuval() {
+  Widget _zemin() {
     if (widget.metinHikayesi) return storyZemin(_arkaPlan);
     final d = widget.dosya;
     if (d == null) return const ColoredBox(color: Colors.black);
@@ -307,86 +347,72 @@ class _StoryEditorState extends State<StoryEditor> {
     return Image.file(d, fit: BoxFit.contain, width: double.infinity);
   }
 
-  /// ⚠️ Katman SURUKLENEBILIR. Konum ORAN olarak guncellenir (piksel DEGIL) —
-  ///    bkz. story_katman.dart serhi.
-  Widget _suruklenebilir(int i, Size alan) {
+  /// ⚠️⚠️ Katman GOVDESI `storyKatmanGovdesi()` ILE cizilir ve
+  ///    `storyKatmanYerlestir()` ILE konumlanir — **IZLEYICININ KULLANDIGI AYNI
+  ///    IKI FONKSIYON**.
+  ///
+  /// **NEDEN (turu 77b denetim bulgusu):** onceki surumde editor kendi
+  /// sarmalayicisini yaziyordu (`Container(padding: 4)` + `maxWidth: W - 40`
+  /// **olceklenmemis sabit**), izleyici baskasini (`Padding(16*olcek)`).
+  /// Iki kopya DRIFT ETTI: kutu acikken metin tavani editorde 350, izleyicide
+  /// 338 -> editorde tek satira sigan cumle izleyicide IKI SATIRA sariyordu;
+  /// ayrica kenarlarda ~11px yatay kayma vardi. Kullanici "yazdigim gibi
+  /// durmuyor" der.
+  /// ⚠️ YAPMA: burada ayri bir govde/sarmalayici yazma.
+  ///
+  /// ⚠️⚠️ SECIM CERCEVESI `foregroundDecoration` ILE cizilir — **DOLGU (padding)
+  ///    veya `border` DEGIL**. `Border.all` kutuyu 2px BUYUTUR, dolgu 8px:
+  ///    ikisi de YERLESIMI DEGISTIRIR ve tam da yukaridaki kaymayi geri getirir.
+  ///    `foregroundDecoration` cocugun USTUNE cizer, olcusune DOKUNMAZ.
+  Widget _suruklenebilir(int i, Size tuval) {
     final k = _katmanlar[i];
     final secili = i == _secili;
-    return Positioned.fill(
-      child: Align(
-        alignment: Alignment(k.x * 2 - 1, k.y * 2 - 1),
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: () => setState(() {
-            if (secili) {
-              _duzenle(i);
-            } else {
-              _secili = i;
-            }
-          }),
-          onPanUpdate: (d) => setState(() {
-            k.x = (k.x + d.delta.dx / alan.width).clamp(0.05, 0.95);
-            k.y = (k.y + d.delta.dy / alan.height).clamp(0.06, 0.94);
-          }),
-          child: Container(
-            // ⚠️ Secili katmana kesikli cerceve: hangi katmanin duzenlendigini
-            //    gormeden coklu katman yonetilemez.
-            decoration: secili
-                ? BoxDecoration(
-                    border: Border.all(color: Colors.white54),
-                    borderRadius: BorderRadius.circular(6),
-                  )
-                : null,
-            padding: const EdgeInsets.all(4),
-            child: _katmanGovde(k, alan),
-          ),
+    return storyKatmanYerlestir(
+      k: k,
+      tuval: tuval,
+      cocuk: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          if (secili) {
+            _duzenle(i);
+          } else {
+            setState(() => _secili = i);
+          }
+        },
+        // ⚠️⚠️ `onPanUpdate` DEGIL `onScale*`: ikisi ayni anda kullanilamaz
+        //    (jest arenasi catisir). Olcek jesti TEK parmakta da pan verir
+        //    (`focalPointDelta`), IKI parmakta ayrica DONDURME (`rotation`) ve
+        //    BOYUT (`scale`) verir.
+        // 📌 `aci` alani modelde/JSON'da/sunucu kirpmasinda/cizimde VARDI ama
+        //    ONA YAZAN HICBIR SATIR YOKTU — yani hep 0 kaliyordu. Bu, CLAUDE.md'de
+        //    dort kez tekrarladigi yazilan "ekle ama okuyan/yazan yolu da yaz"
+        //    sinifinin BESINCI ornegiydi (bu sefer YAZAN taraf eksikti).
+        onScaleStart: (_) {
+          _jestAci = k.aci;
+          _jestBoyut = k.boyut;
+        },
+        onScaleUpdate: (d) => setState(() {
+          k.x = (k.x + d.focalPointDelta.dx / tuval.width).clamp(0.05, 0.95);
+          k.y = (k.y + d.focalPointDelta.dy / tuval.height).clamp(0.06, 0.94);
+          if (d.pointerCount >= 2) {
+            k.aci = _jestAci + d.rotation;
+            // ⚠️ Kaydiracin araligiyla AYNI (12..72) — iki giris yolu ayni
+            //    siniri paylasmazsa kaydirac jestle ulasilan degeri gosteremez.
+            k.boyut = (_jestBoyut * d.scale).clamp(12.0, 72.0);
+          }
+          _secili = i;
+        }),
+        child: Container(
+          foregroundDecoration: secili
+              ? BoxDecoration(
+                  border: Border.all(color: Colors.white54),
+                  borderRadius: BorderRadius.circular(6),
+                )
+              : null,
+          child: storyKatmanGovdesi(k, tuval),
         ),
       ),
     );
-  }
-
-  /// ⚠️ IZLEYICI ILE AYNI STIL. `storyKatmanCiz` bir `Positioned` dondurdugu
-  ///    icin burada govdesini AYNI kurallarla kuruyoruz (stil + kutu + golge).
-  ///    ⚠️ YAPMA: buradaki stil hesabini elle degistirme; `storyMetinStili`
-  ///    disina cikarsan editor ile izleyici DRIFT eder.
-  Widget _katmanGovde(StoryKatman k, Size alan) {
-    final olcek = alan.width / 390.0;
-    final stil = storyMetinStili(k, olcek);
-    final renk = storyRenk(k.renk);
-    final acikMi = renk.computeLuminance() > 0.5;
-    final kutuRengi = k.kutu == 'yok'
-        ? null
-        : (k.kutu == 'dolu'
-              ? (acikMi ? const Color(0xEE000000) : const Color(0xEEFFFFFF))
-              : (acikMi ? const Color(0x66000000) : const Color(0x66FFFFFF)));
-    Widget metin = ConstrainedBox(
-      constraints: BoxConstraints(maxWidth: alan.width - 40),
-      child: Text(
-        k.metin,
-        textAlign: storyHiza(k.hiza),
-        style: k.kutu == 'yok'
-            ? stil.copyWith(
-                shadows: const [
-                  Shadow(blurRadius: 10, color: Color(0xCC000000)),
-                ],
-              )
-            : stil,
-      ),
-    );
-    if (kutuRengi != null) {
-      metin = Container(
-        padding: EdgeInsets.symmetric(
-          horizontal: 10 * olcek,
-          vertical: 5 * olcek,
-        ),
-        decoration: BoxDecoration(
-          color: kutuRengi,
-          borderRadius: BorderRadius.circular(8 * olcek),
-        ),
-        child: metin,
-      );
-    }
-    return Transform.rotate(angle: k.aci, child: metin);
   }
 
   Widget _ustDugme(IconData ikon, String ipucu, VoidCallback onTap) =>

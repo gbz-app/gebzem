@@ -287,11 +287,37 @@ class _MedyaVideoState extends ConsumerState<MedyaVideo>
     //    `SesNotuKontrol.sustur()` cagirdiginda bizi BULAMAZ -> video arama
     //    boyunca TAM SESLE calar ve bir daha susturulamaz.
     // ⚠️ YAPMA: `kaydol`u tekrar await'in altina tasima.
-    SesNotuKontrol.kaydol(this, () async {
-      _aramaDurdurdu = true; // gorusme bitince otomatik devam icin isaret
-      await _c?.pause();
-      if (mounted) setState(() => _sesli = false);
-    });
+    //
+    // ⚠️⚠️⚠️ TURU 77b — **YALNIZ SES URETECEKSE DEFTERE GIRILIR. SEVK ENGELIYDI.**
+    //    `SesNotuKontrol` **TEK SLOTLUDUR**: `kaydol()` yeni sahip gelince
+    //    oncekini SUSTURUR. Akistaki videolar SESSIZ oynadigi halde (turu 76b
+    //    karari) kosulsuz kaydoluyordu. Sonuc "PING-PONG":
+    //      · akista video gorunurken Reels'e gec -> Reels ~1sn oynar, akistaki
+    //        1sn'lik `_kapiYoklama` timer'i sahipligi geri calar, Reels DONAR;
+    //        Reels'te `kontrolGoster:false` oldugu icin kullanicinin duzeltme
+    //        yolu da YOKTU.
+    //      · ayni sekilde VIDEO HIKAYE ve **SESLI MESAJ** (turu 74'te test
+    //        edilip onaylanmis ozellik) saniyede bir susup basa donuyordu.
+    //    Sessiz bir oynatici hicbir ses donanimi tuketmez; deftere girmesi
+    //    ANLAMSIZDI. Girmezse de zarar yok: ses acildigi anda `_sesiCevir`
+    //    yeniden kaydolur.
+    //    ⚠️ YAPMA: bu kapiyi kaldirip kosulsuz `kaydol`a donme.
+    if (_sesVerilebilir) {
+      SesNotuKontrol.kaydol(this, () async {
+        // ⚠️⚠️ SEBEP AYRIMI ZORUNLU: susturan ARAMA MI, BASKA BIR OYNATICI MI?
+        //    Ikisine de `_aramaDurdurdu = true` yazilirsa `_kapiyiYokla`
+        //    (1sn'lik timer) "arama bitti" sanip kendini geri baslatir ve
+        //    sahipligi geri calar — ping-pongun ikinci yarisi buydu.
+        //    Donanim SERBESTSE bizi susturan bir arama degil, baska bir
+        //    oynaticidir; o durumda KENDILIGINDEN DEVAM ETMEYIZ.
+        _aramaDurdurdu = !MedyaKapisi.donanimSerbest(ref);
+        await _c?.pause();
+        if (mounted) setState(() => _sesli = false);
+      });
+    } else {
+      // Sessiz oynatici defterden CIKAR (bayat kayit birakmaz).
+      SesNotuKontrol.birak(this);
+    }
 
     await c.play();
     // ⚠️ Await SONRASI yeniden degerlendir: bu sirada arama baslamis olabilir.
