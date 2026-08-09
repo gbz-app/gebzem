@@ -363,6 +363,37 @@ func (h *Handler) reddet(ctx context.Context, k medyaKayit, sebep string) {
 //
 //	edge onbellegini bosaltmaz -> 5651 "4 saat icinde kaldirma" beyani YANLIS
 //	BEYAN olurdu. Onbellek CIHAZDA (istemci media_id'ye gore saklar).
+//
+// ImzaliAdres — SUNUCU ICI kullanim icin imzali medya adresi (turu 77, AI).
+//
+// ⚠️⚠️ IKINCI BIR R2 ISTEMCISI KURULMADI. AI paketi kendi `media.YeniIstemci`
+//
+//	cagrisiyla ayri bir istemci kursaydi IKINCI bir imzalama yapilandirmasi
+//	dogar ve iki yapilandirma zamanla DRIFT ederdi (turu 77 denetim bulgusu).
+//	Bunun yerine mevcut istemci bu kucuk yardimciyla PAYLASILIYOR.
+//
+// ⚠️ ERISIM KONTROLU YOK — cagiran YETKIYI KENDISI dogrulamis olmali.
+//
+//	AI yolunda medya KULLANICININ KENDI yukledigi dosyadir.
+//	⚠️ YAPMA: bu fonksiyonu bir HTTP ucuna dogrudan baglama.
+func (h *Handler) ImzaliAdres(ctx context.Context, mediaID string) (string, error) {
+	if !h.acik {
+		return "", fmt.Errorf("medya kapalı")
+	}
+	var anahtar, durum string
+	if err := h.db.QueryRow(ctx,
+		`SELECT object_key, status FROM media_assets WHERE id=$1`, mediaID).
+		Scan(&anahtar, &durum); err != nil {
+		return "", err
+	}
+	if durum == "karantina" || durum == "silindi" || durum == "reddedildi" {
+		return "", fmt.Errorf("içerik kaldırıldı")
+	}
+	// ⚠️ 300 sn: OpenAI gorseli istek SIRASINDA indirir; uzun omur gereksiz
+	//    ve imzali adres ne kadar kisa omurluyse sizmasi o kadar zararsizdir.
+	return h.r2.ImzaliURL("GET", anahtar, 300*time.Second, nil)
+}
+
 func (h *Handler) URL(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserID(r.Context())
 	id := chi.URLParam(r, "id")
@@ -512,6 +543,38 @@ func (h *Handler) erisebilir(ctx context.Context, userID, mediaID string) bool {
 		     AND NOT EXISTS(SELECT 1 FROM blocks b
 		           WHERE (b.blocker_id=$2 AND b.blocked_id=s.user_id)
 		              OR (b.blocker_id=s.user_id AND b.blocked_id=$2)))`,
+		mediaID, userID).Scan(&varMi)
+	if varMi {
+		return true
+	}
+
+	// ⚠️⚠️ (f) ETKINLIK · (g) ILAN · (h) ISLETME URUNU — TURU 77.
+	//
+	// UCU DE **TEK SORGUDA** yazildi (denetim bulgusu Ç6): her dikey kendi
+	// dalini ayri ayri eklerse biri unutulur ve o dikeyin gorselleri sahibi
+	// disinda HERKESE 403 doner — hikayede (e dali) tam bu yasandi.
+	//
+	// GORUNURLUK: uc icerik de HERKESE ACIK listelerde gorunuyor; tek kapi
+	// ENGELLEME (iki yonlu) ve icerigin YAYINDA olmasi.
+	// ⚠️ YAPMA: bu dallari "herhangi bir kayda bagliysa serbest"e gevsetme —
+	//    kaldirilmis/silinmis icerigin medyasi da acilir.
+	h.db.QueryRow(ctx, `
+		SELECT
+		  EXISTS(SELECT 1 FROM etkinlikler e
+		          WHERE $1 = ANY(e.media_ids) AND e.durum='yayinda'
+		            AND NOT EXISTS(SELECT 1 FROM blocks b
+		                  WHERE (b.blocker_id=$2 AND b.blocked_id=e.olusturan_id)
+		                     OR (b.blocker_id=e.olusturan_id AND b.blocked_id=$2)))
+		  OR EXISTS(SELECT 1 FROM ilanlar i
+		          WHERE $1 = ANY(i.media_ids) AND i.durum <> 'kaldirildi'
+		            AND NOT EXISTS(SELECT 1 FROM blocks b2
+		                  WHERE (b2.blocker_id=$2 AND b2.blocked_id=i.sahibi_id)
+		                     OR (b2.blocker_id=i.sahibi_id AND b2.blocked_id=$2)))
+		  OR EXISTS(SELECT 1 FROM isletme_urunleri p
+		          WHERE $1 = ANY(p.media_ids) AND p.durum <> 'kaldirildi'
+		            AND NOT EXISTS(SELECT 1 FROM blocks b3
+		                  WHERE (b3.blocker_id=$2 AND b3.blocked_id=p.isletme_id)
+		                     OR (b3.blocker_id=p.isletme_id AND b3.blocked_id=$2)))`,
 		mediaID, userID).Scan(&varMi)
 	return varMi
 }

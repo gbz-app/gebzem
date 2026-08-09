@@ -1,0 +1,401 @@
+// Package ai — AI YARDIMCILARI (turu 77).
+//
+// Kullanici emri: "isletmeler urunlerini yukleyebilecek ya da ChatGPT
+// yardimiyla AI gorsel, AI menu, AI ile tek tek fotograftan problemleri ...".
+//
+// ═══════════ ⚠️⚠️⚠️ ENV KAPISI — R2 KALIBININ BIREBIR AYNISI ═══════════
+//
+// AI UCRETLI bir dis servistir ve bu projede anahtar YOK. Bu yuzden ozellik
+// TAMAMEN `OPENAI_API_KEY` kapisinin arkasindadir:
+//
+//	· anahtar YOKSA `Acik()` false doner, uclar 503 doner ve **istemci
+//	  ozelligi HIC CIZMEZ** (`GET /ai/durum` ile sorar),
+//	· acilista log: "ai: OPENAI_API_KEY yok — AI KAPALI" / "ai: aktif".
+//
+// ⚠️⚠️ TURU 75'IN BIREBIR TEKRARI RISKI: R2 anahtarlari sunucudaki `.env`e
+//
+//	yazilmis ama `docker-compose.yml`in **`environment:` blogu** guncellenmemis
+//	ve medya SESSIZCE KAPALI kalmisti (/health "ok" donuyordu!).
+//	`OPENAI_API_KEY` eklenirken **IKI YER** de guncellenmeli.
+//	⚠️ YAPMA: yalniz `.env`e yazip birakma.
+//
+// ⚠️ GUVENLIK: istemci ASLA anahtari gormez; her istek sunucudan gecer.
+// ⚠️ KOTA: AI ucretli — kullanici basina GUNLUK limit uygulanir, yoksa tek
+//
+//	kullanici bir gecede faturayi patlatir.
+package ai
+
+import (
+	"bytes"
+	"context"
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"io"
+	"log"
+	"net/http"
+	"os"
+	"strings"
+	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/gbz-app/gebzem/backend/internal/auth"
+)
+
+// ⚠️ Gunluk kota — kullanici basina. Ucretli servis icin ZORUNLU emniyet.
+const gunlukKota = 20
+
+// ⚠️ Model adlari TEK YERDE. Gorsel analizi ve metin uretimi ayni modelle
+//
+//	yapiliyor (vision destekli) — ikinci bir model adi ikinci bir drift kaynagi.
+const (
+	modelMetin = "gpt-4o-mini"
+	zamanAsimi = 60 * time.Second
+)
+
+type Handler struct {
+	db      *pgxpool.Pool
+	anahtar string
+	// Medya adresini cozmek icin geri cagirim. ⚠️ IKINCI BIR R2 ISTEMCISI
+	// KURULMADI: ayri istemci = ayri imzalama yapilandirmasi = drift
+	// (turu 77 denetim bulgusu Ç12).
+	medyaURL func(ctx context.Context, mediaID string) (string, error)
+}
+
+func NewHandler(db *pgxpool.Pool,
+	medyaURL func(context.Context, string) (string, error)) *Handler {
+	a := strings.TrimSpace(os.Getenv("OPENAI_API_KEY"))
+	if a == "" {
+		log.Printf("ai: OPENAI_API_KEY yok — AI KAPALI")
+	} else {
+		log.Printf("ai: aktif (model %s)", modelMetin)
+	}
+	return &Handler{db: db, anahtar: a, medyaURL: medyaURL}
+}
+
+func (h *Handler) Acik() bool { return h.anahtar != "" }
+
+func yaz(w http.ResponseWriter, kod int, v any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(kod)
+	json.NewEncoder(w).Encode(v)
+}
+
+func hata(w http.ResponseWriter, kod int, m string) {
+	yaz(w, kod, map[string]string{"error": m})
+}
+
+// GET /ai/durum — istemci ozelligi CIZMEDEN ONCE bunu sorar.
+//
+// ⚠️ Bu uc OLMASAYDI istemci AI dugmelerini cizer, kullanici basar ve 503
+//
+//	alirdi — "ozellik var gorunup fiilen yok" hatasinin ta kendisi.
+func (h *Handler) Durum(w http.ResponseWriter, r *http.Request) {
+	me := auth.UserID(r.Context())
+	kalan := 0
+	if h.Acik() {
+		kullanilan := h.bugunKullanilan(r.Context(), me)
+		kalan = gunlukKota - kullanilan
+		if kalan < 0 {
+			kalan = 0
+		}
+	}
+	yaz(w, 200, map[string]any{
+		"acik": h.Acik(), "gunluk_kota": gunlukKota, "kalan": kalan,
+	})
+}
+
+func (h *Handler) bugunKullanilan(ctx context.Context, me string) int {
+	var n int
+	h.db.QueryRow(ctx, `
+		SELECT count(*)::int FROM ai_istekleri
+		 WHERE user_id=$1 AND durum='tamam'
+		   AND created_at > now() - interval '24 hours'`, me).Scan(&n)
+	return n
+}
+
+// Ortak kapi: acik mi + kota var mi.
+func (h *Handler) kapi(w http.ResponseWriter, r *http.Request) (string, bool) {
+	if !h.Acik() {
+		// ⚠️ 503 + ACIK mesaj: istemci bunu kullaniciya AYNEN gosterir.
+		hata(w, 503, "Yapay zekâ şu anda kullanılamıyor")
+		return "", false
+	}
+	me := auth.UserID(r.Context())
+	if h.bugunKullanilan(r.Context(), me) >= gunlukKota {
+		hata(w, 429, "Günlük yapay zekâ hakkın doldu, yarın tekrar dene")
+		return "", false
+	}
+	return me, true
+}
+
+func (h *Handler) kaydet(ctx context.Context, me, tur, girdi, sonuc, durum string) {
+	h.db.Exec(ctx, `
+		INSERT INTO ai_istekleri (user_id, tur, girdi, sonuc, durum)
+		VALUES ($1,$2,$3,$4,$5)`, me, tur, girdi, sonuc, durum)
+}
+
+// ---------------------------------------------------------------- OPENAI
+
+type icerikParca struct {
+	Tip    string     `json:"type"`
+	Metin  string     `json:"text,omitempty"`
+	Gorsel *gorselURL `json:"image_url,omitempty"`
+}
+
+type gorselURL struct {
+	URL string `json:"url"`
+}
+
+// OpenAI Chat Completions cagrisi (vision destekli).
+//
+// ⚠️ HARICI SDK EKLENMEDI: tek bir POST istegi icin `openai-go` bagimliligi
+//
+//	almak (ve onun gecis surumleriyle ugrasmak) bu projede gereksiz risk.
+//	`net/http` yeterli.
+func (h *Handler) sor(ctx context.Context, sistem string,
+	parcalar []icerikParca) (string, error) {
+	govde := map[string]any{
+		"model": modelMetin,
+		"messages": []map[string]any{
+			{"role": "system", "content": sistem},
+			{"role": "user", "content": parcalar},
+		},
+		"max_tokens": 900,
+	}
+	ham, _ := json.Marshal(govde)
+	ctx, iptal := context.WithTimeout(ctx, zamanAsimi)
+	defer iptal()
+	req, err := http.NewRequestWithContext(ctx, "POST",
+		"https://api.openai.com/v1/chat/completions", bytes.NewReader(ham))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Authorization", "Bearer "+h.anahtar)
+	req.Header.Set("Content-Type", "application/json")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer res.Body.Close()
+	govdeHam, _ := io.ReadAll(io.LimitReader(res.Body, 1<<20))
+	if res.StatusCode != 200 {
+		// ⚠️ HATA YUTULMAZ: log'a GERCEK yanit yazilir. Bu projede "yutulan
+		//    hata + breadcrumb-only log" tekrarlayan kok neden (turu 50·56·60·63·64).
+		log.Printf("ai: openai %d: %s", res.StatusCode,
+			string(govdeHam[:min(300, len(govdeHam))]))
+		return "", fmt.Errorf("openai %d", res.StatusCode)
+	}
+	var yanit struct {
+		Choices []struct {
+			Message struct {
+				Content string `json:"content"`
+			} `json:"message"`
+		} `json:"choices"`
+	}
+	if json.Unmarshal(govdeHam, &yanit) != nil || len(yanit.Choices) == 0 {
+		return "", fmt.Errorf("boş yanıt")
+	}
+	return strings.TrimSpace(yanit.Choices[0].Message.Content), nil
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+// Medya id'sini OpenAI'nin okuyabilecegi bir gorsel adresine cevirir.
+//
+// ⚠️ IMZALI ADRES kullanilir (medya bucket'i GIZLI). Adres kisa omurludur ve
+//
+//	OpenAI onu istek sirasinda indirir.
+func (h *Handler) gorselAdresi(ctx context.Context, mediaID string) (string, error) {
+	if h.medyaURL == nil {
+		return "", fmt.Errorf("medya kapalı")
+	}
+	return h.medyaURL(ctx, mediaID)
+}
+
+// ---------------------------------------------------------------- UCLAR
+
+type aiReq struct {
+	MediaID string `json:"media_id"`
+	Metin   string `json:"metin"`
+}
+
+// POST /ai/menu — MENU FOTOGRAFINDAN ya da ACIKLAMADAN yapilandirilmis menu.
+//
+// Donen bicim: {"urunler":[{"ad":"...","aciklama":"...","fiyat_kurus":12500,
+// "bolum":"..."}]}
+//
+// ⚠️ Sonuc DOGRUDAN KAYDEDILMEZ — istemciye ONERI olarak doner, kullanici
+//
+//	gozden gecirip onaylar. Otomatik kaydetmek, yanlis okunan bir fiyati
+//	sessizce menuye yazardi.
+func (h *Handler) Menu(w http.ResponseWriter, r *http.Request) {
+	me, ok := h.kapi(w, r)
+	if !ok {
+		return
+	}
+	var req aiReq
+	json.NewDecoder(r.Body).Decode(&req)
+
+	parcalar := []icerikParca{{
+		Tip: "text",
+		Metin: "Bu menüyü yapılandırılmış JSON'a çevir. YALNIZCA şu biçimde " +
+			"JSON döndür, başka hiçbir şey yazma:\n" +
+			`{"urunler":[{"ad":"","aciklama":"","bolum":"","fiyat_kurus":0}]}` +
+			"\nfiyat_kurus KURUŞ cinsindendir (12,50 TL = 1250). " +
+			"Fiyatı okunamayan ürünlerde fiyat_kurus 0 yaz. " +
+			"Ürün adlarını Türkçe ve olduğu gibi yaz.",
+	}}
+	if req.Metin != "" {
+		parcalar = append(parcalar, icerikParca{
+			Tip: "text", Metin: "İşletme açıklaması: " + req.Metin,
+		})
+	}
+	if req.MediaID != "" {
+		u, err := h.gorselAdresi(r.Context(), req.MediaID)
+		if err != nil {
+			hata(w, 400, "görsel okunamadı")
+			return
+		}
+		parcalar = append(parcalar, icerikParca{
+			Tip: "image_url", Gorsel: &gorselURL{URL: u},
+		})
+	}
+	if req.Metin == "" && req.MediaID == "" {
+		hata(w, 400, "menü fotoğrafı ya da açıklama gerekli")
+		return
+	}
+
+	sonuc, err := h.sor(r.Context(),
+		"Sen bir restoran menüsü düzenleyicisisin. Yalnızca geçerli JSON dönersin.",
+		parcalar)
+	if err != nil {
+		h.kaydet(r.Context(), me, "menu", req.Metin, err.Error(), "hata")
+		hata(w, 502, "Yapay zekâ şu anda yanıt veremedi")
+		return
+	}
+	h.kaydet(r.Context(), me, "menu", req.Metin, sonuc, "tamam")
+	// ⚠️ Model bazen JSON'u ``` blogu icinde dondurur — temizlenir.
+	yaz(w, 200, map[string]any{"sonuc": jsonTemizle(sonuc)})
+}
+
+// POST /ai/urun-metni — urun fotografindan/adindan ACIKLAMA + BASLIK onerisi.
+//
+// ⚠️ "AI GORSEL" olarak istenen sey, gorsel URETMEK degil GORSELI ANLAMAKTIR:
+//
+//	kullanici urun fotografini ceker, AI ondan satis metni yazar. Gercek
+//	gorsel uretimi (DALL·E) ayri bir maliyet kalemi ve urun karari; bu surumde
+//	YOK ve istemcide de VAAT EDILMIYOR.
+func (h *Handler) UrunMetni(w http.ResponseWriter, r *http.Request) {
+	me, ok := h.kapi(w, r)
+	if !ok {
+		return
+	}
+	var req aiReq
+	json.NewDecoder(r.Body).Decode(&req)
+	if req.MediaID == "" && strings.TrimSpace(req.Metin) == "" {
+		hata(w, 400, "ürün fotoğrafı ya da adı gerekli")
+		return
+	}
+	parcalar := []icerikParca{{
+		Tip: "text",
+		Metin: "Bu ürün için kısa ve satış odaklı bir Türkçe açıklama yaz " +
+			"(en fazla 2 cümle). Abartma, uydurma özellik ekleme. " +
+			"YALNIZCA açıklamayı yaz.",
+	}}
+	if req.Metin != "" {
+		parcalar = append(parcalar, icerikParca{
+			Tip: "text", Metin: "Ürün adı: " + req.Metin,
+		})
+	}
+	if req.MediaID != "" {
+		u, err := h.gorselAdresi(r.Context(), req.MediaID)
+		if err != nil {
+			hata(w, 400, "görsel okunamadı")
+			return
+		}
+		parcalar = append(parcalar, icerikParca{
+			Tip: "image_url", Gorsel: &gorselURL{URL: u},
+		})
+	}
+	sonuc, err := h.sor(r.Context(),
+		"Sen bir e-ticaret metin yazarısın. Kısa, dürüst ve Türkçe yazarsın.",
+		parcalar)
+	if err != nil {
+		h.kaydet(r.Context(), me, "gorsel", req.Metin, err.Error(), "hata")
+		hata(w, 502, "Yapay zekâ şu anda yanıt veremedi")
+		return
+	}
+	h.kaydet(r.Context(), me, "gorsel", req.Metin, sonuc, "tamam")
+	yaz(w, 200, map[string]any{"sonuc": sonuc})
+}
+
+// POST /ai/danisma — FOTOGRAFTAN SORUN TESPITI (kullanici: "AI ile tek tek
+// fotograftan problemleri ...").
+//
+// ⚠️ SAGLIK/HUKUK TAVSIYESI VERILMEZ: sistem mesaji modeli teknik/pratik
+//
+//	tespit ile sinirliyor ve emin olmadigi yerde "uzmana danis" demesini
+//	istiyor. Yanlis bir tibbi/hukuki tavsiye gercek zarar dogurur.
+func (h *Handler) Danisma(w http.ResponseWriter, r *http.Request) {
+	me, ok := h.kapi(w, r)
+	if !ok {
+		return
+	}
+	var req aiReq
+	json.NewDecoder(r.Body).Decode(&req)
+	if req.MediaID == "" {
+		hata(w, 400, "fotoğraf gerekli")
+		return
+	}
+	u, err := h.gorselAdresi(r.Context(), req.MediaID)
+	if err != nil {
+		hata(w, 400, "görsel okunamadı")
+		return
+	}
+	parcalar := []icerikParca{
+		{
+			Tip: "text",
+			Metin: "Bu fotoğraftaki sorunu tespit et ve ne yapılması gerektiğini " +
+				"maddeler hâlinde, sade Türkçe ile anlat. Emin olmadığın yerde " +
+				"açıkça 'emin değilim' de ve bir uzmana danışılmasını öner.",
+		},
+		{Tip: "image_url", Gorsel: &gorselURL{URL: u}},
+	}
+	if req.Metin != "" {
+		parcalar = append(parcalar, icerikParca{
+			Tip: "text", Metin: "Ek bilgi: " + req.Metin,
+		})
+	}
+	sonuc, err := h.sor(r.Context(),
+		"Sen pratik bir teknik danışmansın. Sağlık ve hukuk konularında tavsiye "+
+			"VERMEZSİN, uzmana yönlendirirsin. Kısa ve maddeli yazarsın.",
+		parcalar)
+	if err != nil {
+		h.kaydet(r.Context(), me, "danisma", req.Metin, err.Error(), "hata")
+		hata(w, 502, "Yapay zekâ şu anda yanıt veremedi")
+		return
+	}
+	h.kaydet(r.Context(), me, "danisma", req.Metin, sonuc, "tamam")
+	yaz(w, 200, map[string]any{"sonuc": sonuc})
+}
+
+// Model yanitindaki ``` bloklarini temizler.
+func jsonTemizle(s string) string {
+	s = strings.TrimSpace(s)
+	if strings.HasPrefix(s, "```") {
+		if i := strings.Index(s, "\n"); i > 0 {
+			s = s[i+1:]
+		}
+		s = strings.TrimSuffix(strings.TrimSpace(s), "```")
+	}
+	return strings.TrimSpace(s)
+}
+
+var _ = base64.StdEncoding

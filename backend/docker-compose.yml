@@ -40,6 +40,14 @@ services:
       R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:-}
       R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:-}
       R2_BUCKET: ${R2_BUCKET:-}
+      # ⚠️⚠️ TURU 77 — AI (OpenAI). YUKARIDAKI R2 UYARISININ AYNISI GECERLI:
+      #   bu satir olmadan sunucudaki `.env`e OPENAI_API_KEY yazmak TEK BASINA
+      #   YETMEZ; API "ai: OPENAI_API_KEY yok — AI KAPALI" deyip acilir,
+      #   /health "ok" doner ve ozellik SESSIZCE olu kalir (turu 75'te R2 ile
+      #   birebir bu yasandi).
+      # ⚠️ Anahtar YOKKA da sorun yok: AI uclari 503 doner ve istemci
+      #   `GET /ai/durum` ile sorup ozelligi HIC CIZMEZ.
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
     volumes:
       - ./fcm-sa.json:/secrets/fcm-sa.json:ro
       - ./apns.p8:/secrets/apns.p8:ro

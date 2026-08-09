@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/redis/go-redis/v9"
 
+	"github.com/gbz-app/gebzem/backend/internal/ai"
 	"github.com/gbz-app/gebzem/backend/internal/auth"
 	"github.com/gbz-app/gebzem/backend/internal/bildirim"
 	"github.com/gbz-app/gebzem/backend/internal/calls"
@@ -95,6 +96,10 @@ func main() {
 	// (fail-closed ama GORUNUR: acilista log yazar).
 	mediaH := media.NewHandler(db, rdb, cfg.R2Endpoint, cfg.R2AccessKeyID,
 		cfg.R2SecretKey, cfg.R2Bucket, func(msg string) { sentry.CaptureMessage(msg) })
+	// ⚠️ TURU 77 — AI: MEVCUT medya istemcisini PAYLASIR (ikinci bir R2
+	//    istemcisi KURULMADI — ayri istemci = ayri imzalama yapilandirmasi =
+	//    drift). `mediaH` KURULDUKTAN SONRA olusturulmali.
+	aiH := ai.NewHandler(db, mediaH.ImzaliAdres)
 	usersH.MedyaDurumu(mediaH.Enabled()) // istemci atac dugmesini buna gore gizler
 	if mediaH.Enabled() {
 		mediaH.StartSweeper(ctx)
@@ -226,6 +231,17 @@ func main() {
 		r.Patch("/ilanlar/{id}", ilanH.Guncelle)
 		r.Post("/ilanlar/{id}/favori", ilanH.FavoriEkle)
 		r.Delete("/ilanlar/{id}/favori", ilanH.FavoriSil)
+		// TURU 77 — ISLETME URUNLERI / MENU
+		r.Post("/isletme/urunler", isletmeH.UrunEkle)
+		r.Patch("/isletme/urunler/{id}", isletmeH.UrunGuncelle)
+		r.Delete("/isletme/urunler/{id}", isletmeH.UrunSil)
+		r.Get("/users/{id}/urunler", isletmeH.UrunListesi)
+
+		// TURU 77 — AI (OPENAI_API_KEY yoksa 503; istemci /ai/durum ile sorar)
+		r.Get("/ai/durum", aiH.Durum)
+		r.Post("/ai/menu", aiH.Menu)
+		r.Post("/ai/urun-metni", aiH.UrunMetni)
+		r.Post("/ai/danisma", aiH.Danisma)
 		// TURU 76b — HIKAYE (story). 24 saat GORUNURLUK; veri SILINMEZ.
 		r.Post("/stories", socialH.StoryOlustur)
 		r.Get("/stories", socialH.StoryAkis)
