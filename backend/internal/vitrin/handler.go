@@ -122,13 +122,24 @@ func (h *Handler) isletmeler(w http.ResponseWriter, r *http.Request, me, dikey s
 }
 
 func (h *Handler) etkinlikler(w http.ResponseWriter, r *http.Request, me string) {
+	// ⚠️⚠️ TURU 78b — ILK **FOTOGRAF** SECILIR, ilk MEDYA DEGIL (denetim bulgusu).
+	//    Eskiden `e.media_ids[1]` aliniyordu; o medya VIDEO ise istemci onu
+	//    `MedyaGorsel`e verir ve slider'da **KIRIK GORSEL** cizilirdi (video
+	//    yuklemesinde kucuk resim gonderilmedigi icin `thumb_url` de bos).
+	//    Alt sorgu `media_assets.kind='image'` suzgeciyle SIRA KORUYARAK ilk
+	//    fotografi bulur; hic fotograf yoksa NULL doner ve WHERE kapisi o
+	//    etkinligi vitrinden ELER (bos kutu cizmektense HIC gostermemek dogru).
 	rows, err := h.db.Query(r.Context(), `
-		SELECT e.id, e.baslik, COALESCE(e.konum,''), e.media_ids[1]
+		SELECT e.id, e.baslik, COALESCE(e.konum,''),
+		       (SELECT mm.mid FROM unnest(e.media_ids) WITH ORDINALITY AS mm(mid, idx)
+		          JOIN media_assets ma ON ma.id = mm.mid AND ma.kind='image'
+		         ORDER BY mm.idx LIMIT 1) AS kapak
 		  FROM etkinlikler e
 		 WHERE e.durum='yayinda'
 		   AND e.baslangic > now()
-		   -- ⚠️ Gorselsiz etkinlik slider'da bos kutu olurdu.
-		   AND array_length(e.media_ids, 1) >= 1
+		   -- ⚠️ FOTOGRAFI OLMAYAN etkinlik vitrine GIRMEZ.
+		   AND EXISTS(SELECT 1 FROM unnest(e.media_ids) AS m(mid)
+		                JOIN media_assets ma2 ON ma2.id = m.mid AND ma2.kind='image')
 		   AND NOT EXISTS(SELECT 1 FROM blocks b
 		         WHERE (b.blocker_id=$1 AND b.blocked_id=e.olusturan_id)
 		            OR (b.blocker_id=e.olusturan_id AND b.blocked_id=$1))

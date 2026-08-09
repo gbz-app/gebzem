@@ -36,6 +36,10 @@ import '../../core/api.dart';
 const kTavanlar = <String, int>{
   'image': 8 << 20,
   'avatar': 4 << 20,
+  // ⚠️ TURU 78 — PROFIL KAPAGI. Sunucudaki `media/limits.go` ile AYNI deger
+  //    olmali; burada eksik olsaydi istemci tavani BILEMEZ ve kullanici
+  //    sunucunun reddettigi dosyayi bosuna yuklemeye baslardi.
+  'kapak': 8 << 20,
   'audio': 16 << 20,
   'video': 100 << 20, // kullanici karari 8 Agu
   'document': 32 << 20,

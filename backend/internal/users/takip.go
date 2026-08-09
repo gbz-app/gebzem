@@ -349,9 +349,32 @@ func (h *Handler) Profile(w http.ResponseWriter, r *http.Request) {
 		  EXISTS(SELECT 1 FROM blocks  WHERE blocker_id=$1 AND blocked_id=$2)`,
 		me, hedef).Scan(&d.TakipEdiyorMu, &d.BekliyorMu, &d.TakipEdiyorMu2, &d.Engelli)
 
+	// ⚠️⚠️⚠️ TURU 78 — SEVK ENGELI DUZELTMESI (denetim bulgusu).
+	//
+	//    Yanit ELLE KURULAN bir harita ve bu BILINCLI bir guvenlik tercihi:
+	//    profil HERKESE ACIK bir uctur, `userResp`u gomseydik `phone` ve
+	//    `coin_balance` gibi alanlar ileride SESSIZCE sizabilirdi. Yani
+	//    "beyaz liste" dogru desendir.
+	//
+	//    ⚠️ AMA BEDELI SU: sorguya sutun eklemek TEK BASINA YETMEZ, buraya da
+	//    ANAHTAR eklenmeli. Turu 78'de tam bu atlandi: `kapak_media_id` ve
+	//    `onayli` SELECT ediliyor, Scan ile struct'a yaziliyor ve sonra
+	//    SESSIZCE ATILIYORDU. Sonuc: kapak gorseli ve onayli rozeti HICBIR
+	//    PROFILDE gorunmeyecekti — yani FAZ A'nin kullaniciya donuk TEK
+	//    ciktisi sahada YOK olacakti.
+	//    ⚠️ TEK CIHAZDA TEST EDILSE DE GORULMEZDI: kullanici kendi kapagini
+	//       DUZENLEME ekraninda gorur (o `/users/me`den beslenir) ve
+	//       "calisiyor" sanir.
+	//    ⚠️ Derleme de yakalamaz: alanlar Scan'e verildigi icin "kullanilmiyor"
+	//       hatasi cikmaz; sutun/Scan muhafizi da hizali oldugu icin susar.
+	//
+	//    ⚠️ YAPMA: `userResp`u buraya gomme (telefon sizar).
+	//    ⚠️ YAPMA: sorguya sutun ekleyip bu haritayi guncellemeyi unutma —
+	//       `profil_yanit_test.go` bunu artik OTOMATIK dogruluyor.
 	writeJSON(w, http.StatusOK, map[string]any{
 		"id": u.ID, "username": u.Username, "name": u.Name, "about": u.About,
 		"avatar_url": u.AvatarURL, "avatar_media_id": u.AvatarMediaID,
+		"kapak_media_id": u.KapakMediaID, "onayli": u.Onayli,
 		"gizli_hesap": gizli, "baglanti": baglanti,
 		"takipci_sayisi": takipci, "takip_sayisi": takip, "gonderi_sayisi": gonderi,
 		"iliski": d,

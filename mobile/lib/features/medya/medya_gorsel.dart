@@ -188,3 +188,72 @@ class Avatar extends StatelessWidget {
     );
   }
 }
+
+/// ⚠️⚠️⚠️ TURU 78b — LISTE/KART KAPAK GORSELI. **TEK KAYNAK** (denetim bulgusu).
+///
+/// **SORUN:** `media_kinds` FAZ 1/2/4'te tam olarak "video id'sini goruntu
+/// bilesenine verme" hatasini onlemek icin eklendi — ama YALNIZ DETAY
+/// ekranlarinda okunuyordu. Ilan liste satiri, etkinlik karti, duzenleme
+/// seritleri ve `/vitrin` slayti hala `mediaIds.first`i dogrudan
+/// `MedyaGorsel`e veriyordu.
+///
+/// **SAHADAKI SONUC:** yalnizca VIDEO iceren bir ilan/etkinlik (form buna izin
+/// veriyor) listede **KIRIK GORSEL** cizerdi. Zincir: video yuklemesinde
+/// kucuk resim GONDERILMIYOR -> `thumb_url` bos -> `MedyaGorsel` ham `url`e
+/// duser -> o bir **video/mp4** adresidir -> `CachedNetworkImage` cozemez.
+///
+/// ⚠️ TEST SIRASI TUZAGI: form once fotograflari, sonra videolari yukluyor;
+///    yani "once foto sonra video" eklenen her denemede `mediaIds[0]` HEP
+///    fotograf olur ve hata HIC GORUNMEZ. Yalniz-video senaryosunda cikar.
+///
+/// ⚠️ LISTEDE OYNATICI KURULMAZ: her satirda `MedyaVideo` kurmak hem pahali
+///    hem de iOS'ta ses oturumuna dokunup SUREN ARAMAYI sagirlastirir
+///    (turu 64/65/73). Video icin sessiz bir YER TUTUCU cizilir.
+class KapakGorseli extends StatelessWidget {
+  const KapakGorseli({
+    super.key,
+    required this.mediaIds,
+    required this.mediaKinds,
+    this.fit = BoxFit.cover,
+    this.kucuk = true,
+  });
+
+  final List<String> mediaIds;
+
+  /// ⚠️ `mediaKinds[i]` <-> `mediaIds[i]`. Sunucu SIRA KORUYARAK donduruyor.
+  ///    Bos gelirse (eski sunucu) hepsi FOTOGRAF sayilir — guvenli varsayilan.
+  final List<String> mediaKinds;
+  final BoxFit fit;
+  final bool kucuk;
+
+  /// ⚠️ ILK **FOTOGRAF**I secer, ilk MEDYAYI degil. Tur bilinmiyorsa
+  ///    (liste bos) ilk medya fotograf varsayilir.
+  static String? ilkGorsel(List<String> ids, List<String> kinds) {
+    for (var i = 0; i < ids.length; i++) {
+      final t = i < kinds.length ? kinds[i] : 'image';
+      if (t == 'image') return ids[i];
+    }
+    return null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final id = ilkGorsel(mediaIds, mediaKinds);
+    if (id != null) {
+      return MedyaGorsel(mediaId: id, kucuk: kucuk, fit: fit);
+    }
+    // Hic fotograf yok. Video VARSA durust bir video yer tutucusu; hicbir
+    // medya yoksa notr kutu.
+    final videoVar = mediaKinds.contains('video');
+    return ColoredBox(
+      color: const Color(0xFF14101C),
+      child: Center(
+        child: Icon(
+          videoVar ? LucideIcons.video : LucideIcons.image,
+          color: Colors.white38,
+          size: 22,
+        ),
+      ),
+    );
+  }
+}

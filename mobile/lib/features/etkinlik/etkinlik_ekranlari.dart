@@ -12,6 +12,7 @@ import '../medya/medya_gorsel.dart';
 import '../vitrin/vitrin_slider.dart';
 import '../medya/medya_kapisi.dart';
 import '../medya/medya_servisi.dart';
+import '../sosyal/medya_video.dart';
 import '../sosyal/profil_sayfasi.dart';
 import 'etkinlik_servisi.dart';
 
@@ -222,7 +223,12 @@ class _EtkinlikListesiEkraniState extends ConsumerState<EtkinlikListesiEkrani> {
           if (e.mediaIds.isNotEmpty)
             AspectRatio(
               aspectRatio: 16 / 9,
-              child: MedyaGorsel(mediaId: e.mediaIds.first, fit: BoxFit.cover),
+              // ⚠️ TEK KAYNAK (bkz. KapakGorseli serhi): ilk FOTOGRAF secilir.
+              child: KapakGorseli(
+                mediaIds: e.mediaIds,
+                mediaKinds: e.mediaKinds,
+                kucuk: false,
+              ),
             ),
           Padding(
             padding: const EdgeInsets.all(12),
@@ -340,6 +346,9 @@ class EtkinlikDetayEkrani extends ConsumerStatefulWidget {
 class _EtkinlikDetayEkraniState extends ConsumerState<EtkinlikDetayEkrani> {
   late Etkinlik e = widget.etkinlik;
   bool _mesgul = false;
+
+  /// Galeri sayfa gostergesi (karma medya).
+  int _sayfa = 0;
 
   /// ⚠️ TURU 78 — KADRO (sahnedekiler). `null` = henuz yuklenmedi.
   List<Kadro>? _kadro;
@@ -474,10 +483,68 @@ class _EtkinlikDetayEkraniState extends ConsumerState<EtkinlikDetayEkrani> {
       ),
       body: ListView(
         children: [
+          // ⚠️⚠️ TURU 78b — KARMA GALERI (denetim bulgusu). Detay TEK bir
+          //    `MedyaGorsel` ciziyordu: coklu medya EKLENEBILIYOR ama YALNIZ
+          //    ILKI gorunuyordu, ustelik o ilk medya VIDEO ise KIRIK GORSEL
+          //    cizilirdi. Ilan detayindaki galeriyle AYNI yapi kullanildi.
           if (e.mediaIds.isNotEmpty)
-            AspectRatio(
-              aspectRatio: 16 / 9,
-              child: MedyaGorsel(mediaId: e.mediaIds.first, fit: BoxFit.cover),
+            SizedBox(
+              height: 240,
+              child: Stack(
+                alignment: Alignment.bottomCenter,
+                children: [
+                  PageView.builder(
+                    itemCount: e.mediaIds.length,
+                    onPageChanged: (p) => setState(() => _sayfa = p),
+                    itemBuilder: (_, k) {
+                      final tur = k < e.mediaKinds.length
+                          ? e.mediaKinds[k]
+                          : 'image';
+                      if (tur == 'yok') {
+                        return const ColoredBox(
+                          color: Color(0xFF14101C),
+                          child: Center(
+                            child: Text(
+                              'Bu içerik kaldırıldı',
+                              style: TextStyle(color: Colors.white54),
+                            ),
+                          ),
+                        );
+                      }
+                      if (tur == 'video') {
+                        // ⚠️⚠️ `otoOynat: false` + `sesli: false` ZORUNLU:
+                        //    iOS'ta ses oturumu PROSES GENELINDE TEKTIR ve
+                        //    kendiliginden calan bir video SUREN ARAMAYI
+                        //    SAGIRLASTIRIR (turu 64/65/73).
+                        return MedyaVideo(
+                          mediaId: e.mediaIds[k],
+                          otoOynat: false,
+                          sesli: false,
+                          dolgu: BoxFit.cover,
+                        );
+                      }
+                      return MedyaGorsel(
+                        mediaId: e.mediaIds[k],
+                        fit: BoxFit.cover,
+                      );
+                    },
+                  ),
+                  if (e.mediaIds.length > 1)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Text(
+                        '${_sayfa + 1}/${e.mediaIds.length}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                          shadows: [
+                            Shadow(blurRadius: 6, color: Colors.black87),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
           Padding(
             padding: const EdgeInsets.all(16),

@@ -285,10 +285,12 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
                 color: Theme.of(context).colorScheme.surfaceContainerHighest,
                 child: const Icon(LucideIcons.image, color: Colors.grey),
               )
-            : MedyaGorsel(
-                mediaId: i.mediaIds.first,
-                kucuk: true,
-                fit: BoxFit.cover,
+            // ⚠️ TEK KAYNAK: ilk FOTOGRAFI secer; yalniz video varsa video yer
+            //    tutucusu cizer (video id'sini MedyaGorsel'e vermek KIRIK
+            //    GORSEL demekti — bkz. KapakGorseli serhi).
+            : KapakGorseli(
+                mediaIds: i.mediaIds,
+                mediaKinds: i.mediaKinds,
               ),
       ),
     ),
@@ -391,9 +393,14 @@ class _IlanDetayEkraniState extends ConsumerState<IlanDetayEkrani> {
         i.duzenlendiAt = yeni.duzenlendiAt;
         // ⚠️ Liste REFERANSI korunur, ICERIGI degisir — dis kod (galeri
         //    gostergesi) ayni listeyi tutuyor olabilir.
+        // ⚠️ mediaIds ve mediaKinds ARDISIK iki satir — bir daha AYRILMASINLAR.
+        //    Biri guncellenip oteki bayat kalirsa galeri YANLIS TIP cizer.
         i.mediaIds
           ..clear()
           ..addAll(yeni.mediaIds);
+        i.mediaKinds
+          ..clear()
+          ..addAll(yeni.mediaKinds);
         i.ozellikler
           ..clear()
           ..addAll(yeni.ozellikler);
@@ -451,9 +458,9 @@ class _IlanDetayEkraniState extends ConsumerState<IlanDetayEkrani> {
   /// ⚠️ TURU 78 — DUZENLEME. Ayri bir ekran YOK: "İlan ver" ekrani
   ///    `ilan:` parametresiyle DUZENLEME modunda acilir (tek kaynak).
   Future<void> _duzenle() async {
-    final degisti = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(builder: (_) => IlanVerEkrani(ilan: i)),
-    );
+    final degisti = await Navigator.of(
+      context,
+    ).push<bool>(MaterialPageRoute(builder: (_) => IlanVerEkrani(ilan: i)));
     if (degisti != true || !mounted) return;
     // ⚠️ Yerel nesneyi YAMAMAK yerine SUNUCUDAN tazeliyoruz: `duzenlendi_at`
     //    ve `media_kinds` gibi alanlari SUNUCU uretiyor.
@@ -633,6 +640,16 @@ class _IlanDetayEkraniState extends ConsumerState<IlanDetayEkrani> {
                   [
                     [i.ilce, i.il].where((s) => s.isNotEmpty).join(', '),
                     gonderiZamani(i.createdAt),
+                    // ⚠️⚠️ TURU 78b — "düzenlendi" ETIKETI (denetim bulgusu).
+                    //    `duzenlendi_at` sunucuda yaziliyor, modelde tasiniyor
+                    //    ama HICBIR EKRAN CIZMIYORDU: migration 034'un TEK
+                    //    gerekcesi (ALICI GUVENI — fiyat/aciklama sessizce
+                    //    degistirilebiliyorsa alici pazarlik ettigi seyin
+                    //    aynisi oldugunu bilemez) sahaya ULASMIYORDU.
+                    // ⚠️ TARIH GOSTERILMEZ, yalnizca "düzenlendi" — gonderi
+                    //    tarafiyla ayni davranis; iki tarih yan yana
+                    //    ("2 gün önce · 1 saat önce düzenlendi") kafa karistirir.
+                    if (i.duzenlendiAt != null) 'düzenlendi',
                     '${i.goruntulenme} görüntülenme',
                   ].where((s) => s.isNotEmpty).join(' · '),
                   style: const TextStyle(fontSize: 12, color: Colors.grey),
@@ -858,9 +875,7 @@ class _IlanVerEkraniState extends ConsumerState<IlanVerEkrani> {
   /// ⚠️ Kok messenger: bu ekran bir alt-sayfadan acilmis olabilir ve
   ///    `ScaffoldMessenger.of(context)` olu baglamda kalabilir.
   void _uyar(String m) {
-    rootMessengerKey.currentState?.showSnackBar(
-      SnackBar(content: Text(m)),
-    );
+    rootMessengerKey.currentState?.showSnackBar(SnackBar(content: Text(m)));
   }
 
   Future<void> _kaydet() async {
@@ -967,24 +982,48 @@ class _IlanVerEkraniState extends ConsumerState<IlanVerEkrani> {
           data: (turler) => ListView(
             padding: const EdgeInsets.all(16),
             children: [
+              // ⚠️⚠️⚠️ TURU 78b — DUZENLEMEDE TUR **KILITLI** (denetim bulgusu:
+              //    VERI KAYBI). Serh "tur duzenlemede degistirilemez" diyordu
+              //    ama GOVDEDE KAPI YOKTU.
+              //
+              //    Yasanacak senaryo: kullanici bir arac ilaninin FIYATINI
+              //    duzeltmek icin girer, merakla Tur listesinden "Emlak" secer,
+              //    sonra "Vasita"ya GERI doner. `onChanged` HER secimde
+              //    `_kategori=''` + `_ozellikler.clear()` calistirir; geri
+              //    donus de bir secimdir, yani temizlik IKI KEZ olur ve
+              //    marka/model/yil/km/vites/yakit alanlari GERI GELMEZ.
+              //    Kaydet'e basinca sunucuya `kategori:''` + `ozellikler:{}`
+              //    gider, `COALESCE($8, kategori)` BOS DIZEYI yazar (NULL degil)
+              //    ve ilan: kategorisiz + ozelliksiz kalir. Ekranda yesil
+              //    "İlan güncellendi" cikar; kullanici kaybi SONRADAN fark eder
+              //    ve GERI ALMA YOLU YOKTUR.
+              //
+              //    ⚠️ `onChanged: null` Dart'ta dropdown'i DEVRE DISI cizer —
+              //       ayrica bir `enabled` bayragi gerekmez.
+              //    ⚠️ YAPMA: bu kapiyi kaldirma. Tur degistirmek YENI ILAN demek.
               DropdownButtonFormField<String>(
                 initialValue: _tur.isEmpty ? null : _tur,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Tür',
-                  border: OutlineInputBorder(),
+                  border: const OutlineInputBorder(),
+                  helperText: _duzenleme
+                      ? 'Tür değiştirilemez — yeni ilan vermelisin'
+                      : null,
                 ),
                 items: [
                   for (final t in turler)
                     DropdownMenuItem(value: t.anahtar, child: Text(t.ad)),
                 ],
-                onChanged: (v) => setState(() {
-                  _tur = v ?? '';
-                  // ⚠️ Tur degisince kategori VE tipe ozel alanlar SIFIRLANIR:
-                  //    eski turun alanlari yeni turde ANLAMSIZ ve JSONB'ye
-                  //    yanlis veri yazilirdi.
-                  _kategori = '';
-                  _ozellikler.clear();
-                }),
+                onChanged: _duzenleme
+                    ? null
+                    : (v) => setState(() {
+                        _tur = v ?? '';
+                        // ⚠️ Tur degisince kategori VE tipe ozel alanlar SIFIRLANIR:
+                        //    eski turun alanlari yeni turde ANLAMSIZ ve JSONB'ye
+                        //    yanlis veri yazilirdi.
+                        _kategori = '';
+                        _ozellikler.clear();
+                      }),
               ),
               if (turBilgi != null) ...[
                 const SizedBox(height: 12),
