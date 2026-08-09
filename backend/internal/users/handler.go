@@ -46,8 +46,13 @@ type userResp struct {
 	// TURU 77: kisisel | isletme. Istemci profil menusunde ve arama
 	// sonuclarinda ISLETME rozetini buna gore cizer.
 	// ⚠️ SCAN SIRASI SORGUYLA BIREBIR — uyusmazlik satiri sessizce bozar.
-	HesapTuru string     `json:"hesap_turu"`
-	LastSeen  *time.Time `json:"last_seen,omitempty"`
+	HesapTuru string `json:"hesap_turu"`
+	// TURU 78: profil KAPAK (arka plan) gorseli. Avatar gibi imzali adresle alinir.
+	KapakMediaID *string `json:"kapak_media_id"`
+	// ⚠️⚠️ TURU 78: ONAYLI HESAP rozeti. BU `users.verified` DEGILDIR — o "telefon
+	// dogrulandi" demek ve KAYIT OLAN HERKESTE true (rozete baglanamaz).
+	Onayli   bool       `json:"onayli"`
+	LastSeen *time.Time `json:"last_seen,omitempty"`
 }
 
 // GET /users/me — kendi profilim (jeton bakiyesi dahil)
@@ -55,9 +60,11 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserID(r.Context())
 	var u userResp
 	err := h.db.QueryRow(r.Context(), `
-		SELECT id, phone, COALESCE(username,''), name, about, avatar_url, avatar_media_id, coin_balance, hesap_turu, last_seen
+		SELECT id, phone, COALESCE(username,''), name, about, avatar_url, avatar_media_id,
+		       coin_balance, hesap_turu, kapak_media_id, onayli, last_seen
 		FROM users WHERE id=$1`, userID).
-		Scan(&u.ID, &u.Phone, &u.Username, &u.Name, &u.About, &u.AvatarURL, &u.AvatarMediaID, &u.CoinBalance, &u.HesapTuru, &u.LastSeen)
+		Scan(&u.ID, &u.Phone, &u.Username, &u.Name, &u.About, &u.AvatarURL, &u.AvatarMediaID,
+			&u.CoinBalance, &u.HesapTuru, &u.KapakMediaID, &u.Onayli, &u.LastSeen)
 	if err != nil {
 		writeErr(w, http.StatusNotFound, "kullanıcı bulunamadı")
 		return
@@ -201,6 +208,16 @@ func (h *Handler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 		Name          *string `json:"name"`
 		About         *string `json:"about"`
 		AvatarMediaID *string `json:"avatar_media_id"`
+		// ⚠️⚠️ TURU 78 — KAPAK. Bos dize `""` = **KALDIR** nobetcisi.
+		//    Gerekce (tasarim denetiminde yakalanan sevk engeli): avatar
+		//    `COALESCE($3::uuid, avatar_media_id)` deseniyle yaziliyor ve orada
+		//    NULL = "DEGISTIRME" demek. Kapak icin ayni desen kullanilsaydi
+		//    `kapak_media_id: null` gondermek **NO-OP** olurdu: "Kapağı kaldır"
+		//    dugmesi cizilir, basilir ve HICBIR SEY OLMAZDI.
+		//    Go tarafinda "alan hic gelmedi" ile "alan null geldi" `*string`
+		//    ile AYIRT EDILEMEZ (ikisi de nil) — bu yuzden nobetci ZORUNLU.
+		//    ⚠️ YAPMA: kapagi da COALESCE desenine cevirme.
+		KapakMediaID *string `json:"kapak_media_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeErr(w, http.StatusBadRequest, "geçersiz istek")
@@ -218,12 +235,30 @@ func (h *Handler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	// ⚠️ KAPAK SAHIPLIGI — avatarla AYNI kapi. Nobetci (`""`) dalinda
+	//    dogrulanacak medya YOKTUR, o yuzden `!= ""` sarti ZORUNLU.
+	if req.KapakMediaID != nil && *req.KapakMediaID != "" {
+		tag, err := h.db.Exec(r.Context(), `
+			UPDATE media_assets SET status='bagli', linked_at=now()
+			 WHERE id=$1 AND owner_id=$2 AND kind='kapak'
+			   AND status IN ('aktif','bagli')`, *req.KapakMediaID, userID)
+		if err != nil || tag.RowsAffected() == 0 {
+			writeErr(w, http.StatusForbidden, "geçersiz kapak görseli")
+			return
+		}
+	}
 	_, err := h.db.Exec(r.Context(), `
 		UPDATE users SET
 			name = COALESCE($1, name),
 			about = COALESCE($2, about),
-			avatar_media_id = COALESCE($3::uuid, avatar_media_id)
-		WHERE id=$4`, req.Name, req.About, req.AvatarMediaID, userID)
+			avatar_media_id = COALESCE($3::uuid, avatar_media_id),
+			-- TURU 78 — UC DURUM: alan gelmedi (NULL) / kaldir ('') / yeni id.
+			-- Ayrintili gerekce KapakMediaID alaninin serhinde.
+			kapak_media_id = CASE
+			  WHEN $5::text IS NULL THEN kapak_media_id
+			  WHEN $5::text = ''    THEN NULL
+			  ELSE $5::uuid END
+		WHERE id=$4`, req.Name, req.About, req.AvatarMediaID, userID, req.KapakMediaID)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "güncellenemedi")
 		return

@@ -324,9 +324,11 @@ func (h *Handler) Profile(w http.ResponseWriter, r *http.Request) {
 	var baglanti string
 	err := h.db.QueryRow(r.Context(), `
 		SELECT id, COALESCE(username,''), name, about, avatar_url, avatar_media_id,
+		       kapak_media_id, onayli,
 		       gizli_hesap, takipci_sayisi, takip_sayisi, gonderi_sayisi, baglanti
 		  FROM users WHERE id=$1 AND verified=true`, hedef).
 		Scan(&u.ID, &u.Username, &u.Name, &u.About, &u.AvatarURL, &u.AvatarMediaID,
+			&u.KapakMediaID, &u.Onayli,
 			&gizli, &takipci, &takip, &gonderi, &baglanti)
 	if err == pgx.ErrNoRows {
 		writeErr(w, http.StatusNotFound, "kullanıcı bulunamadı")

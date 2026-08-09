@@ -66,3 +66,33 @@ extension ChatColors on ColorScheme {
   Color get bubbleOther => const Color(0xFF262D31);
   Color get tickRead => const Color(0xFF34B7F1); // mavi tik
 }
+
+/// Kimlikten (kullanici id'si) turetilen SABIT renk. **TEK KAYNAK.**
+///
+/// ⚠️⚠️ TURU 78 — Govde `chat_screen.dart` icindeki `_MessageBubble._adRengi`
+///    metodundan TASINDI (kopyalanmadi; oradaki private metot silindi ve bu
+///    fonksiyonu cagiriyor). Iki kopya birakilsaydi palet kacinilmaz olarak
+///    DRIFT ederdi: ayni kisi grup sohbetinde mor, profil kapaginda yesil
+///    gorunurdu — bu projede "ayni kuralin iki kopyasi" hatasi ALTI kez tekrarladi.
+///
+/// ⚠️ RASTGELE DEGIL: ayni id her zaman ayni rengi verir (id'nin kod
+///    birimlerinden deterministik hash). Rastgele olsaydi her yeniden cizimde
+///    renk degisir ve kullanici "bozuldu" sanardi.
+/// ⚠️ YAPMA: bu paleti baska bir dosyaya kopyalama.
+Color kimlikRengi(String id) {
+  const palet = [
+    Color(0xFF8B5CF6),
+    Color(0xFF2196F3),
+    Color(0xFF4CAF50),
+    Color(0xFFFF9800),
+    Color(0xFFE91E63),
+    Color(0xFF00BCD4),
+    Color(0xFFFFC107),
+    Color(0xFF9C27B0),
+  ];
+  var h = 0;
+  for (final c in id.codeUnits) {
+    h = (h * 31 + c) & 0x7fffffff;
+  }
+  return palet[h % palet.length];
+}

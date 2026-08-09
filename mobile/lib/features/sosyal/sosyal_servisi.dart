@@ -376,6 +376,8 @@ class Profil {
     required this.istekBekliyor,
     required this.beniTakipEdiyor,
     required this.engelledim,
+    this.kapakMediaId,
+    this.onayli = false,
   });
 
   final String id;
@@ -384,6 +386,15 @@ class Profil {
   final String hakkinda;
   final String avatarUrl;
   final String? avatarMediaId;
+
+  /// TURU 78 — profil KAPAK (arka plan) gorseli. Yoksa kimlikten turetilen
+  /// degrade cizilir (bkz. profil_basligi.dart).
+  final String? kapakMediaId;
+
+  /// TURU 78 — ONAYLI HESAP rozeti.
+  /// ⚠️⚠️ Bu `users.verified` DEGILDIR: o "telefon dogrulandi" demek ve
+  ///    kayit olan HERKESTE true. Rozet ayri bir kavram (`users.onayli`).
+  final bool onayli;
   final bool gizli;
   final String baglanti;
   int takipciSayisi;
@@ -406,6 +417,8 @@ class Profil {
       hakkinda: (m['about'] ?? '').toString(),
       avatarUrl: (m['avatar_url'] ?? '').toString(),
       avatarMediaId: m['avatar_media_id'] as String?,
+      kapakMediaId: m['kapak_media_id'] as String?,
+      onayli: m['onayli'] == true,
       gizli: m['gizli_hesap'] == true,
       baglanti: (m['baglanti'] ?? '').toString(),
       takipciSayisi: (m['takipci_sayisi'] as num?)?.toInt() ?? 0,

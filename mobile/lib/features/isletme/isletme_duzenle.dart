@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../home/home_screen.dart' show myProfileProvider;
+import '../home/profil_duzenle.dart';
 import 'isletme_servisi.dart';
 
 /// ⚠️⚠️ TURU 77 — ISLETME PROFILINE GEC / BILGILERI DUZENLE.
@@ -227,6 +228,30 @@ class _IsletmeDuzenleEkraniState extends ConsumerState<IsletmeDuzenleEkrani> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          // ⚠️⚠️ TURU 78 — KAPAK VE LOGO **BURADAN DUZENLENMEZ**, yalnizca
+          //    yonlendirilir. Gerekce yapisal:
+          //      · Kapak ve avatar `users` tablosunda; bu ekran
+          //        `POST /users/me/isletme` ile SADECE `isletmeler` tablosuna
+          //        yaziyor ve `users`a HIC dokunmuyor. Kapagi buradan da
+          //        yazdirmak TEK SUTUNA IKI YAZICI demekti = drift'in ta kendisi.
+          //      · `ProfilDuzenleEkrani` presign -> R2 PUT -> commit zincirini,
+          //        EXIF temizligini ve `MedyaKapisi` kamera kapisini ZATEN
+          //        iceriyor; kopyalamak ~80 satir en kirilgan kodun ikizlenmesi
+          //        olurdu.
+          // ⚠️ YAPMA: buraya gorsel secici ekleme.
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(LucideIcons.image),
+            title: const Text('Kapak ve logo'),
+            subtitle: const Text(
+              'Profili düzenle ekranından değiştirilir',
+            ),
+            trailing: const Icon(LucideIcons.chevronRight, size: 18),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const ProfilDuzenleEkrani()),
+            ),
+          ),
+          const Divider(height: 20),
           if (!_zatenIsletme)
             const Padding(
               padding: EdgeInsets.only(bottom: 14),

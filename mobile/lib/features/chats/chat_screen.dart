@@ -1036,23 +1036,7 @@ class _Bubble extends StatelessWidget {
 
   /// Gonderen adinin rengi — kimlige gore SABIT.
   /// ⚠️ Rastgele DEGIL: her cizimde degisen renk grup sohbetini okunmaz yapar.
-  static Color _adRengi(String id) {
-    const palet = [
-      Color(0xFF8B5CF6),
-      Color(0xFF2196F3),
-      Color(0xFF4CAF50),
-      Color(0xFFFF9800),
-      Color(0xFFE91E63),
-      Color(0xFF00BCD4),
-      Color(0xFFFFC107),
-      Color(0xFF9C27B0),
-    ];
-    var h = 0;
-    for (final c in id.codeUnits) {
-      h = (h * 31 + c) & 0x7fffffff;
-    }
-    return palet[h % palet.length];
-  }
+  // TURU 78: govde core/theme.dart -> kimlikRengi() icine TASINDI (tek kaynak).
 
   @override
   Widget build(BuildContext context) {
@@ -1100,7 +1084,7 @@ class _Bubble extends StatelessWidget {
                       fontWeight: FontWeight.w700,
                       // Ada gore SABIT renk: ayni kisi hep ayni renkte gorunur
                       // (WhatsApp deseni) — okunurlugu ciddi artirir.
-                      color: _adRengi(message.senderId),
+                      color: kimlikRengi(message.senderId),
                     ),
                   ),
                 ),

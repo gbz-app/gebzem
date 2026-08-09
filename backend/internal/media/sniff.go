@@ -37,6 +37,12 @@ var izinliTipler = map[string]map[string]bool{
 		"image/png":  true,
 		"image/webp": true,
 	},
+	// TURU 78 — kapak: avatarla AYNI liste. ⚠️ SVG ASLA (XSS tasiyicisi).
+	"kapak": {
+		"image/jpeg": true,
+		"image/png":  true,
+		"image/webp": true,
+	},
 	"video": {
 		"video/mp4": true,
 	},

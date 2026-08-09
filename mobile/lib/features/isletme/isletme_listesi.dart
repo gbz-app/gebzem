@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../medya/medya_gorsel.dart';
+import '../sosyal/profil_basligi.dart' show kOnayliRengi;
 import '../sosyal/profil_sayfasi.dart';
 import 'isletme_servisi.dart';
 
@@ -184,15 +185,16 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
     title: Row(
       children: [
         Flexible(child: Text(o.ad, overflow: TextOverflow.ellipsis)),
-        // ⚠️ Dogrulama rozeti ISLETME dogrulamasidir (telefon dogrulamasi DEGIL).
+        // ⚠️⚠️ TURU 78 — ROZET RENGI/BOYUTU TEK KAYNAKTAN (`kOnayliRengi`).
+        //    Bu rozet iki ekranda ELLE cizilmisti ve ZATEN DRIFT ETMISTI
+        //    (burada 15px, profilde 16px, renkler elle yazilmis). Renk artik
+        //    `profil_basligi.dart`taki sabitten geliyor.
+        // ⚠️ `dogrulandi` alani artik sunucuda `users.onayli`dan doluyor
+        //    (JSON alan adi eski istemciler icin korundu).
         if (o.dogrulandi)
           const Padding(
             padding: EdgeInsets.only(left: 5),
-            child: Icon(
-              LucideIcons.badgeCheck,
-              size: 15,
-              color: Color(0xFF3AA9FF),
-            ),
+            child: Icon(LucideIcons.badgeCheck, size: 15, color: kOnayliRengi),
           ),
       ],
     ),

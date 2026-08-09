@@ -16,7 +16,9 @@ import '../isletme/isletme_servisi.dart';
 import '../isletme/urun_ekranlari.dart';
 import '../medya/medya_gorsel.dart';
 import 'gonderi_karti.dart' show sayiBicimle;
+import '../medya/tam_ekran_gorsel.dart';
 import 'gonderi_detay.dart';
+import 'profil_basligi.dart';
 import 'sosyal_servisi.dart';
 import 'kaydedilenler_sayfasi.dart';
 import 'takip_listesi.dart';
@@ -232,25 +234,32 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
         onRefresh: _yukle,
         child: ListView(
           children: [
-            const SizedBox(height: 16),
-            Center(
-              child: Avatar(
-                ad: p.ad,
-                mediaId: p.avatarMediaId,
-                avatarUrl: p.avatarUrl,
-                cap: 92,
-              ),
+            // ⚠️⚠️ TURU 78 — KAPAK + LOGO/AVATAR + ONAYLI ROZET.
+            //    Ust `SizedBox(height: 16)` KALDIRILDI: kapak AppBar'a YAPISIK
+            //    baslamali, arada bosluk olursa "arka plan resmi" hissi kaybolur.
+            // ⚠️ `SliverAppBar`a GECILMEDI (bilincli): bu sayfa `ListView` +
+            //    `RefreshIndicator` + `shrinkWrap` izgara + kilitli hesap dali
+            //    uzerine kurulu; sliver'a gecmek 756 satirin cekirdegini bastan
+            //    yazmak demek. Kazanc yalnizca "kapak kaydirirken cokme"
+            //    animasyonu olurdu ve ayni turda kapak + rozet + sliver birlikte
+            //    degisseydi bir ariza cikinca SEBEP AYIRT EDILEMEZDI (turu 67).
+            ProfilBasligi(
+              p: p,
+              // ⚠️ Avatara dokunus YALNIZ gercek bir medya varsa is yapar.
+              //    `avatarMediaId` bossa (harf avatari) `onTap` NULL gecilir —
+              //    dokunulabilir gorunup hicbir sey yapmayan bir alan
+              //    birakmak bu projede tekrar eden "olu dugme" sinifidir.
+              onAvatarDokun: (p.avatarMediaId ?? '').isEmpty
+                  ? null
+                  : () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            TamEkranGorsel(mediaId: p.avatarMediaId!),
+                      ),
+                    ),
             ),
             const SizedBox(height: 10),
-            Center(
-              child: Text(
-                p.ad,
-                style: const TextStyle(
-                  fontSize: 19,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
+            ProfilAdSatiri(ad: p.ad, onayli: p.onayli),
             if (p.gizli)
               const Center(
                 child: Padding(
@@ -665,14 +674,14 @@ class _IsletmeSeridiState extends ConsumerState<IsletmeSeridi> {
                     visualDensity: VisualDensity.compact,
                     padding: EdgeInsets.zero,
                   ),
-                  const SizedBox(width: 8),
-                  // ⚠️ ISLETME dogrulamasi (telefon dogrulamasi DEGIL).
-                  if (i.dogrulandi)
-                    const Icon(
-                      LucideIcons.badgeCheck,
-                      size: 16,
-                      color: Color(0xFF3AA9FF),
-                    ),
+                  // ⚠️⚠️ TURU 78 — BURADAKI IKINCI TIK KALDIRILDI.
+                  //    Onayli rozeti artik profil BASLIGINDA, adin yaninda
+                  //    ciziliyor (`ProfilAdSatiri`). Ayni bilgi iki yerde
+                  //    cizilseydi -- ki ZATEN DRIFT ETMISTI, burada 16px,
+                  //    isletme listesinde 15px -- kullanici "iki cesit onay mi
+                  //    var?" diye sorardi.
+                  // ⚠️ YAPMA: buraya tekrar rozet ekleme; rozet TEK yerde
+                  //    (`ProfilAdSatiri`) cizilir ve rengi `kOnayliRengi`.
                   const Spacer(),
                   // ⚠️ "Şu an açık" YALNIZ calisma saati GIRILMISSE cizilir;
                   //    bos veriyle "kapalı" demek YANILTICI olurdu.

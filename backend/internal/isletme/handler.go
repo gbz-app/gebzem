@@ -196,6 +196,19 @@ func (h *Handler) KisiselYap(w http.ResponseWriter, r *http.Request) {
 // ⚠️ ENGEL KAPISI: engelli taraf 404 alir (403 DEGIL — "var ama goremezsin"
 //
 //	cevabi kendisi de bilgidir).
+//
+// ⚠️⚠️ TURU 78 — `dogrulandi` JSON alani artik `users.onayli`dan doldurulur
+//
+//	(bu dosyada `Detay` ve `Liste` sorgularinin ikisinde de `u.onayli`).
+//	`isletmeler.dogrulandi` sutunu 6 Go + 8 Dart noktasinda OKUNUYORDU ama
+//	ONA YAZAN TEK BIR SATIR YOKTU ve admin ucu da yoktu: tamamen OLU bir
+//	ozellikti, rozet sahada ASLA gorunmezdi. Ustelik rozet iki ekranda ELLE
+//	cizilmisti ve boyutlari ZATEN DRIFT ETMISTI.
+//	Sutun KALDIRILMADI (veri politikasi + eski istemciler) ama TEK GERCEK
+//	KAYNAK artik `users.onayli`dir. JSON alan ADI korundugu icin istemcide
+//	hicbir sey degismedi.
+//	⚠️ Ek JOIN GEREKMEDI: iki sorgu da zaten `JOIN users u` yapiyordu.
+//	⚠️ YAPMA: `i.dogrulandi`ya geri donme; iki sutunu da yazan bir yol acma.
 func (h *Handler) Detay(w http.ResponseWriter, r *http.Request) {
 	me := auth.UserID(r.Context())
 	hedef := chi.URLParam(r, "id")
@@ -209,7 +222,7 @@ func (h *Handler) Detay(w http.ResponseWriter, r *http.Request) {
 	var dogrulandi bool
 	if h.db.QueryRow(r.Context(), `
 		SELECT i.kategori, i.adres, i.il, i.ilce, i.telefon, i.web, i.calisma,
-		       i.enlem, i.boylam, i.dogrulandi
+		       i.enlem, i.boylam, u.onayli
 		  FROM isletmeler i JOIN users u ON u.id = i.user_id
 		 WHERE i.user_id=$1 AND u.hesap_turu='isletme'`, hedef).
 		Scan(&kategori, &adres, &il, &ilce, &telefon, &web, &calisma,
@@ -246,14 +259,14 @@ func (h *Handler) Liste(w http.ResponseWriter, r *http.Request) {
 	//    yazmak (2^3 = 8 dal) drift eder. `$n = '' OR ...` deseni kullaniliyor.
 	rows, err := h.db.Query(r.Context(), `
 		SELECT u.id, u.name, COALESCE(u.username,''), u.avatar_url, u.avatar_media_id,
-		       i.kategori, i.il, i.ilce, i.adres, i.dogrulandi
+		       i.kategori, i.il, i.ilce, i.adres, u.onayli
 		  FROM isletmeler i JOIN users u ON u.id = i.user_id
 		 WHERE u.hesap_turu='isletme'
 		   AND ($2 = '' OR i.kategori = $2)
 		   AND ($3 = '' OR i.il ILIKE $3)
 		   AND ($4 = '' OR u.name ILIKE '%'||$4||'%' OR COALESCE(u.username,'') ILIKE '%'||$4||'%')
 		`+engel.Yuklem("$1", "u.id")+`
-		 ORDER BY i.dogrulandi DESC, u.name ASC
+		 ORDER BY u.onayli DESC, u.name ASC
 		 LIMIT 60`, me, kategori, il, q)
 	if err != nil {
 		log.Printf("isletme liste: %v", err)

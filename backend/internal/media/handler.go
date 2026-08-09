@@ -479,8 +479,26 @@ func (h *Handler) erisebilir(ctx context.Context, userID, mediaID string) bool {
 	if varMi {
 		return true
 	}
-	// (b) birinin AVATARI — profil fotograflari uygulama icinde herkese gorunur
-	h.db.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM users WHERE avatar_media_id=$1)`,
+	// (b) birinin AVATARI ya da KAPAGI — profil gorselleri uygulama icinde
+	//     herkese gorunur.
+	//
+	// ⚠️⚠️ TURU 78 — KAPAK BU DALA EKLENDI. Bu satir OLMASAYDI kapak gorseli
+	//    **SAHIBINDEN BASKA HERKESE 403** donerdi ve bu TEK CIHAZDA TEST
+	//    EDILSE GORULMEZDI: cagiran kapi `if sahip != userID && !erisebilir(...)`
+	//    seklinde, yani sahibi KISA DEVREYLE gorur. Ayni sinif hata turu 75b'de
+	//    (akistaki TUM gorseller) ve turu 77'de (hikaye medyasi) SAHAYA CIKTI.
+	//
+	// ⚠️ GIZLI HESAP KAPISI BILINCLI OLARAK YOK — avatar dalinin AYNISI.
+	//    `Profile()` gizli hesapta da ad, hakkinda ve avatari donduruyor
+	//    (yalnizca GONDERILER kilitli). Kapaga gizlilik kapisi koymak, kilitli
+	//    profil ekraninda kapagin KIRIK cizilmesi demekti.
+	// ⚠️ ENGEL KAPISI DA YOK — yine avatar dalinin aynisi. Engellenen taraf
+	//    zaten profile ULASAMIYOR (`Profile()` 404 doner); medya kapisina
+	//    ikinci bir engel sorgusu koymak HER medya isteginde ek sorgu demekti.
+	h.db.QueryRow(ctx, `
+		SELECT EXISTS(
+		  SELECT 1 FROM users
+		   WHERE avatar_media_id=$1 OR kapak_media_id=$1)`,
 		mediaID).Scan(&varMi)
 	if varMi {
 		return true

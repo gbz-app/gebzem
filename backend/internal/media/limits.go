@@ -34,8 +34,14 @@ import (
 //
 // ⚠️ YAPMA: tavani buyutup bunlardan birini guncellemeden birakma.
 var Tavanlar = map[string]int64{
-	"image":    8 << 20,   // 8 MB — sikistirilmis foto ~300 KB, tavan cok genis
-	"avatar":   4 << 20,   // 4 MB
+	"image":  8 << 20, // 8 MB — sikistirilmis foto ~300 KB, tavan cok genis
+	"avatar": 4 << 20, // 4 MB
+	// TURU 78 — PROFIL KAPAGI (16:9 arka plan). Avatarin 4 MB tavani dar:
+	// kapak tam genislik cizilir ve istemci 1600px uzun kenara sikistirir.
+	// ⚠️ Avatar turu YENIDEN KULLANILMADI: users/handler.go avatar baglarken
+	//    kind=avatar sartini uyguluyor; ayni turu paylassalardi o sart
+	//    ANLAMINI YITIRIRDI (kapak avatar yapilabilirdi).
+	"kapak":    8 << 20,   // 8 MB
 	"audio":    16 << 20,  // 16 MB — ~10 dk ses notu
 	"video":    100 << 20, // 100 MB (kullanici karari 8 Agu)
 	"document": 32 << 20,  // 32 MB
