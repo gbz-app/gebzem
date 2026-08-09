@@ -50,6 +50,10 @@ class IsletmeServisi {
     String kategori = '',
     String q = '',
     String il = '',
+    // ⚠️ TURU 78 — HIZLI KARTLARIN ON KOSULU. Bu iki parametre olmadan
+    //    "Şehrimde" ve "Onaylı" kartlari OLU DOGARDI.
+    String ilce = '',
+    bool yalnizOnayli = false,
   }) async {
     final r = await _api.get(
       '/isletmeler',
@@ -57,6 +61,8 @@ class IsletmeServisi {
         if (kategori.isNotEmpty) 'kategori': kategori,
         if (q.isNotEmpty) 'q': q,
         if (il.isNotEmpty) 'il': il,
+        if (ilce.isNotEmpty) 'ilce': ilce,
+        if (yalnizOnayli) 'dogrulandi': '1',
       },
     );
     final m = (r.data as Map).cast<String, dynamic>();

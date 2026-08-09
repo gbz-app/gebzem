@@ -10,6 +10,7 @@ import '../../core/api.dart';
 import '../../router.dart' show rootMessengerKey;
 import '../home/home_screen.dart' show myProfileProvider;
 import '../medya/medya_gorsel.dart';
+import '../vitrin/vitrin_slider.dart';
 import '../medya/medya_kapisi.dart';
 import '../medya/medya_servisi.dart';
 import '../sosyal/gonderi_karti.dart' show gonderiZamani;
@@ -156,6 +157,11 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
       ),
       body: Column(
         children: [
+          // ---- UST VITRIN (organik: yaklasan etkinlikler). Bos ise CIZILMEZ.
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: VitrinSlider(dikey: _tur.isEmpty ? 'ilan' : _tur),
+          ),
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
             child: TextField(

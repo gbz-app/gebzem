@@ -293,6 +293,15 @@ func (h *Handler) Liste(w http.ResponseWriter, r *http.Request) {
 			 WHERE k3.etkinlik_id=e.id AND k3.user_id=$1 AND k3.durum<>'vazgecti'))`
 	}
 
+	// ⚠️⚠️ TURU 78 — TARIH ARALIGI SUZGECI. "Bu hafta sonu" / "Bugün" gibi
+	//    HIZLI KARTLARIN ON KOSULU: bu iki parametre olmadan o kartlar OLU
+	//    DOGARDI (istemci tarafinda suzmek yanlis olurdu — sunucu 60 satir
+	//    dondurup istemci 3'e dusurseydi liste eksik gorunurdu).
+	// ⚠️ Bos dize = suzgec YOK. `NULL` yerine bos dize kullanildi cunku sorgu
+	//    zaten bu kalibi kullaniyor ($2/$3/$4) ve tutarlilik onemli.
+	basMin := strings.TrimSpace(r.URL.Query().Get("bas_min"))
+	basMaks := strings.TrimSpace(r.URL.Query().Get("bas_maks"))
+
 	rows, err := h.db.Query(r.Context(), `
 		SELECT `+sutunlar+`
 		  FROM etkinlikler e JOIN users u ON u.id = e.olusturan_id
@@ -301,8 +310,13 @@ func (h *Handler) Liste(w http.ResponseWriter, r *http.Request) {
 		   AND ($3 = '' OR e.il ILIKE $3)
 		   AND ($4 = '' OR e.baslik ILIKE '%'||$4||'%'
 		        OR e.aciklama ILIKE '%'||$4||'%')
+		   -- ⚠️ Bicimsiz tarih gonderilirse ::timestamptz cast'i PATLAR ve uc
+		   --    500 doner; bu yuzden istemci RFC3339 gondermek ZORUNDA.
+		   --    Bos dize dali cast'i HIC calistirmaz (kisa devre).
+		   AND ($5 = '' OR e.baslangic >= $5::timestamptz)
+		   AND ($6 = '' OR e.baslangic <= $6::timestamptz)
 		`+benimKosulu+engelYok+`
-		 ORDER BY `+siralama+` LIMIT 60`, me, kategori, il, q)
+		 ORDER BY `+siralama+` LIMIT 60`, me, kategori, il, q, basMin, basMaks)
 	if err != nil {
 		log.Printf("etkinlik liste: %v", err)
 		hata(w, 500, "etkinlikler alınamadı")

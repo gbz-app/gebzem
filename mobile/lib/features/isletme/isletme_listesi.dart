@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../home/home_screen.dart' show myProfileProvider;
 import '../medya/medya_gorsel.dart';
+import '../vitrin/vitrin_slider.dart';
 import '../sosyal/profil_basligi.dart' show kOnayliRengi;
 import '../sosyal/profil_sayfasi.dart';
 import 'isletme_servisi.dart';
@@ -39,10 +41,49 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
   String? _hata;
   late String _kategori = widget.kategori;
 
+  /// ⚠️⚠️ TURU 78 — HIZLI KARTLAR ("Şehrimde" / "Onaylı").
+  ///
+  /// Kullanici emri: "altta kucuk kartlar mesela yemekte yakinimda favoriler
+  /// vs diye kartlar olsun".
+  ///
+  /// ⚠️⚠️ "YAKINIMDA" YERINE "ŞEHRİMDE" — bu bilincli ve DURUST bir karar:
+  ///    GPS icin `AndroidManifest.xml`de `ACCESS_*_LOCATION`, `Info.plist`te
+  ///    `NSLocation*` anahtarlari YOK. Podfile olmadigi icin
+  ///    `permission_handler`in TUM izin isleyicileri derleniyor ve anahtar
+  ///    eksikken konum istenirse **iOS uygulamayi ANINDA SONLANDIRIR**.
+  ///    Ayrica sistemde tek bir gercek koordinat da yok (bkz. FAZ 0 koordinat
+  ///    ezme duzeltmesi). Il/ilce ile ayni isi BUGUN goruyoruz; GPS ayri tur.
+  ///    ⚠️ YAPMA: izin anahtarlarini eklemeden konum paketi cagirma.
+  String _hizli = '';
+
+  /// Kullanicinin kendi ilcesi — "Şehrimde" kartinin kaynagi.
+  /// ⚠️ Bos ise kart CIZILMEZ (olu kart birakmiyoruz).
+  String _benimIlce = '';
+
   @override
   void initState() {
     super.initState();
+    _ilceyiOgren();
     _yukle();
+  }
+
+  /// Kullanicinin ilcesini KENDI isletme kaydindan ogrenir.
+  ///
+  /// ⚠️ Bu YALNIZ isletme hesaplarinda dolu olur. Kisisel hesapta ilce bilgisi
+  ///    HICBIR YERDE tutulmuyor — o yuzden "Şehrimde" karti onlarda CIZILMEZ.
+  ///    Sahte bir varsayilan ("Gebze") koymak YANLIS olurdu: kullanici baska
+  ///    ilcedeyse liste yanlis gelir ve sebebini anlamaz.
+  Future<void> _ilceyiOgren() async {
+    final id = (ref.read(myProfileProvider).valueOrNull?['id'] ?? '').toString();
+    if (id.isEmpty) return;
+    try {
+      final i = await ref.read(isletmeServisiProvider).detay(id);
+      if (mounted && i != null && i.ilce.isNotEmpty) {
+        setState(() => _benimIlce = i.ilce);
+      }
+    } catch (_) {
+      // ⚠️ SESSIZ: ilce ogrenilemezse yalnizca "Şehrimde" karti cizilmez.
+    }
   }
 
   @override
@@ -57,7 +98,15 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
     try {
       final l = await ref
           .read(isletmeServisiProvider)
-          .liste(kategori: _kategori, q: _arama.text.trim());
+          .liste(
+            kategori: _kategori,
+            q: _arama.text.trim(),
+            // ⚠️ Hizli kart suzgecleri SUNUCUYA gider. Istemcide suzmek YANLIS
+            //    olurdu: sunucu `LIMIT 60` donuyor, istemci 3'e dusurseydi
+            //    kullanici "sadece 3 isletme var" sanirdi.
+            ilce: _hizli == 'sehrimde' ? _benimIlce : '',
+            yalnizOnayli: _hizli == 'onayli',
+          );
       if (!mounted || jeton != _istekNo) return;
       setState(() {
         _liste = l;
@@ -90,6 +139,18 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
       ),
       body: Column(
         children: [
+          // ---- UST VITRIN SLIDER'I (kullanici emri: "ustte slider")
+          // ⚠️ Icerik ORGANIK (dogrulanmis isletmeler); `reklamlar` tablosu
+          //    ACILMADI — gerekce backend/internal/vitrin/handler.go serhinde.
+          // ⚠️ Vitrin BOSSA widget HIC CIZILMEZ (bos gri kutu YOK).
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: VitrinSlider(
+              dikey: _kategori.isEmpty ? 'isletme' : _kategori,
+            ),
+          ),
+          // ---- HIZLI KARTLAR (kullanici emri: "altta kucuk kartlar")
+          _hizliKartlar(),
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
             child: TextField(
@@ -158,6 +219,48 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                     ),
                   ),
           ),
+        ],
+      ),
+    );
+  }
+
+  /// ⚠️⚠️ TURU 78 — HIZLI KARTLAR. Kullanici emri: "altta kucuk kartlar,
+  ///    mesela yemekte yakinimda, favoriler vs".
+  ///
+  /// ⚠️ KART SAYISI DEGISKEN: "Şehrimde" YALNIZ kullanicinin ilcesi
+  ///    BILINIYORSA cizilir. Bilinmediginde cizip bos sonuc dondurmek
+  ///    ozelligi "bozuk" gosterirdi (bu projede "var gorunup calismayan
+  ///    ozellik" hatasi BES kez tekrarladi).
+  /// ⚠️ Hicbir kart yoksa serit HIC CIZILMEZ (bos yatay bosluk kalmasin).
+  Widget _hizliKartlar() {
+    final kartlar = <({String anahtar, String ad, IconData ikon})>[
+      if (_benimIlce.isNotEmpty)
+        (anahtar: 'sehrimde', ad: _benimIlce, ikon: LucideIcons.mapPin),
+      (anahtar: 'onayli', ad: 'Onaylı', ikon: LucideIcons.badgeCheck),
+    ];
+    if (kartlar.isEmpty) return const SizedBox.shrink();
+    return SizedBox(
+      height: 40,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        children: [
+          for (final k in kartlar)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 2),
+              child: FilterChip(
+                avatar: Icon(k.ikon, size: 15),
+                label: Text(k.ad),
+                selected: _hizli == k.anahtar,
+                onSelected: (secili) {
+                  // ⚠️ TEK SECIM: ikinci karta basmak oncekini KAPATIR.
+                  //    Coklu secim "Şehrimde + Onaylı" gibi bos sonuclar
+                  //    uretip kullaniciyi "hic isletme yok" sanisina dusururdu.
+                  setState(() => _hizli = secili ? k.anahtar : '');
+                  _yukle();
+                },
+              ),
+            ),
         ],
       ),
     );

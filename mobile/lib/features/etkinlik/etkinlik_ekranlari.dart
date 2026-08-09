@@ -9,6 +9,7 @@ import '../../core/api.dart';
 import '../../router.dart' show rootMessengerKey;
 import '../home/home_screen.dart' show myProfileProvider;
 import '../medya/medya_gorsel.dart';
+import '../vitrin/vitrin_slider.dart';
 import '../medya/medya_kapisi.dart';
 import '../medya/medya_servisi.dart';
 import '../sosyal/profil_sayfasi.dart';
@@ -103,6 +104,11 @@ class _EtkinlikListesiEkraniState extends ConsumerState<EtkinlikListesiEkrani> {
       ),
       body: Column(
         children: [
+          // ---- UST VITRIN (yaklasan etkinlikler). Bos ise CIZILMEZ.
+          const Padding(
+            padding: EdgeInsets.only(top: 6),
+            child: VitrinSlider(dikey: 'etkinlik'),
+          ),
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
             child: TextField(

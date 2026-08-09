@@ -33,6 +33,7 @@ import (
 	"github.com/gbz-app/gebzem/backend/internal/streams"
 	"github.com/gbz-app/gebzem/backend/internal/udid"
 	"github.com/gbz-app/gebzem/backend/internal/users"
+	"github.com/gbz-app/gebzem/backend/internal/vitrin"
 )
 
 func main() {
@@ -90,6 +91,7 @@ func main() {
 	socialH := social.NewHandler(db, bildirimS) // turu 75: gonderi + akis + etkilesim
 	kanalH := kanal.NewHandler(db)              // turu 75: kanal (tek yonlu yayin)
 	isletmeH := isletme.NewHandler(db)
+	vitrinH := vitrin.NewHandler(db)
 	etkinlikH := etkinlik.NewHandler(db)
 	ilanH := ilan.NewHandler(db)
 	// TURU 74 — MEDYA. R2 env eksikse Enabled()=false doner ve uclar KAYDEDILMEZ
@@ -213,6 +215,8 @@ func main() {
 		r.Put("/users/me/isletme", isletmeH.Kaydet)
 		r.Delete("/users/me/isletme", isletmeH.KisiselYap)
 		r.Get("/users/{id}/isletme", isletmeH.Detay)
+		// TURU 78 — kategori inis sayfasinin ust slider'i (ORGANIK vitrin).
+		r.Get("/vitrin", vitrinH.Liste)
 		r.Get("/isletmeler", isletmeH.Liste)
 		r.Get("/isletme-kategorileri", isletmeH.KategoriListesi)
 		// TURU 77 — ETKINLIKLER

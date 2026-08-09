@@ -257,6 +257,12 @@ func (h *Handler) Liste(w http.ResponseWriter, r *http.Request) {
 
 	// ⚠️ Suzgecler OPSIYONEL ve TEK SORGUDA: her kombinasyon icin ayri sorgu
 	//    yazmak (2^3 = 8 dal) drift eder. `$n = '' OR ...` deseni kullaniliyor.
+	// ⚠️⚠️ TURU 78 — ILCE ve ONAYLI suzgecleri. "Şehrimde" ve "Onaylı" hizli
+	//    kartlarinin ON KOSULU; bunlar olmadan o kartlar OLU DOGARDI.
+	//    ⚠️ ASIMETRI DUZELTILDI: `ilce` suzgeci ILAN ucunda VARDI, isletmede YOKTU.
+	ilce := strings.TrimSpace(r.URL.Query().Get("ilce"))
+	yalnizOnayli := r.URL.Query().Get("dogrulandi") == "1"
+
 	rows, err := h.db.Query(r.Context(), `
 		SELECT u.id, u.name, COALESCE(u.username,''), u.avatar_url, u.avatar_media_id,
 		       i.kategori, i.il, i.ilce, i.adres, u.onayli
@@ -265,9 +271,11 @@ func (h *Handler) Liste(w http.ResponseWriter, r *http.Request) {
 		   AND ($2 = '' OR i.kategori = $2)
 		   AND ($3 = '' OR i.il ILIKE $3)
 		   AND ($4 = '' OR u.name ILIKE '%'||$4||'%' OR COALESCE(u.username,'') ILIKE '%'||$4||'%')
+		   AND ($5 = '' OR i.ilce ILIKE $5)
+		   AND (NOT $6 OR u.onayli)
 		`+engel.Yuklem("$1", "u.id")+`
 		 ORDER BY u.onayli DESC, u.name ASC
-		 LIMIT 60`, me, kategori, il, q)
+		 LIMIT 60`, me, kategori, il, q, ilce, yalnizOnayli)
 	if err != nil {
 		log.Printf("isletme liste: %v", err)
 		hata(w, 500, "işletmeler alınamadı")
