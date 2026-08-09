@@ -124,6 +124,10 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
       _yukleniyor = true;
       _hata = null;
     });
+    // ⚠️ Bolme kimligi await'ten ONCE ve **try'in DISINDA** yakalanir:
+    //    disinda olmasi ZORUNLU, cunku `catch` dali da bu kimlige bakiyor
+    //    (hatanin YANLIS bolmede cizilmemesi icin — turu 80b denetimi).
+    final bolme = _bolme;
     try {
       // ⚠️ Serit de tazelenir — asagi cekince yalniz gonderiler yenilenseydi
       //    yeni hikayeler gorunmezdi.
@@ -131,9 +135,6 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
       // ⚠️ Servis await'ten ONCE yakalanir (turu 78b dersi: disposed State'te
       //    `ref.read` StateError firlatir ve is SESSIZCE iptal olur).
       final svc = ref.read(sosyalServisiProvider);
-      // ⚠️ Bolme kimligi await'ten ONCE yakalanir: kullanici yuklenirken
-      //    bolme degistirirse gelen sonuc YANLIS listeye yazilmamali.
-      final bolme = _bolme;
       final List<Gonderi> gelen;
       var soguk = false;
       if (bolme == 1) {
@@ -156,7 +157,14 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
       //    bolme kapisiyla korunur.
       if (!mounted) return;
       if (bolme != _bolme) {
-        setState(() => _yukleniyor = false);
+        // ⚠️ `_ilkYukleme` DE temizlenir: aksi halde uygulama acilisindaki ilk
+        //    yukleme sirasinda bolme degistirilirse bayrak true kalir ve
+        //    `_govde`nin ILK dali ekrani KALICI (kaydirilamaz) spinner'a
+        //    kilitler. Bugun ulasilmasi zor bir yol ama bedeli agir.
+        setState(() {
+          _yukleniyor = false;
+          _ilkYukleme = false;
+        });
         return;
       }
       setState(() {
@@ -174,12 +182,36 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
       });
     } catch (e) {
       if (!mounted) return;
+      // ⚠️⚠️ TURU 80b — HATA DA **BOLMEYE OZGU** (denetim).
+      //    Basari yolunda bolme kapisi vardi ama catch dalinda YOKTU: bir
+      //    bolmenin ag hatasi, kullanici o sirada digerine gectiyse **DIGER
+      //    bolmenin ekraninda** "Akış yüklenemedi" cizdiriyordu — dolu ve
+      //    saglikli bir listenin uzerine yanlis hata. `_hata` paylasilan
+      //    oldugu icin kapiyi ELLE koymak zorundayiz.
       setState(() {
         _ilkYukleme = false;
         _yukleniyor = false;
-        _hata = 'Akış yüklenemedi';
+        if (bolme == _bolme) _hata = 'Akış yüklenemedi';
       });
     }
+  }
+
+  /// Kullanicinin ELLE tetikledigi yenileme (asagi-cek + "Tekrar dene").
+  ///
+  /// ⚠️⚠️ TURU 80b — DOGRUDAN `_yenile` CAGIRMAZ (denetim bulgusu).
+  ///    `_yenile`nin ilk satiri `if (_yukleniyor) return;`. Kurtarma yoluna
+  ///    en cok ihtiyac duyulan an, tam da ucusta bir istek OLDUGU andir
+  ///    (`_bolmeYukle` pes etmis, bolme bos kalmis). O anda asagi-cek
+  ///    SESSIZCE no-op olurdu: gosterge doner, hicbir sey olmaz, kullanici
+  ///    "uygulama bozuk" der. Once ucustaki istegin bitmesini bekliyoruz.
+  /// ⚠️ Sinirli bekleme (3sn): sonsuz asili kalmaz.
+  Future<void> _elleYenile() async {
+    for (var i = 0; i < 20 && _yukleniyor; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 150));
+      if (!mounted) return;
+    }
+    if (!mounted) return;
+    await _yenile();
   }
 
   Future<void> _dahaGetir() async {
@@ -282,9 +314,13 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
 
   /// Bir bolmeyi yukler; ucusta baska bir istek varsa BITMESINI bekler.
   ///
-  /// ⚠️ Sinirli deneme (10 x 150ms = 1.5sn): sonsuz dongu YOK. Bu sure icinde
-  ///    bitmezse kullanici asagi cekerek yenileyebilir (`_bolmeYuklendi` false
-  ///    kaldigi icin bir sonraki bolme gecisi de tekrar dener).
+  /// ⚠️ Sinirli deneme: **IKI TUR x 10 x 150ms = en fazla ~3sn** bekleme
+  ///    (artı her turda bir `_yenile` denemesi). Sonsuz dongu YOK.
+  /// ⚠️ Tukenirse KURTARMA YOLLARI ACIK KALIR — ikisi de govdede GERCEKTEN var:
+  ///    (1) yukleme dali KAYDIRILABILIR cizilir, yani asagi-cek mumkun;
+  ///    (2) asagi-cek `_elleYenile`ye baglidir, o da ucustaki istegin
+  ///        bitmesini BEKLER (dogrudan `_yenile` olsaydi `_yukleniyor`
+  ///        kapisinda sessizce yutulurdu — tam da gerektigi anda).
   /// ⚠️ Her turda `mounted` + bolme kimligi dogrulanir: kullanici geri
   ///    donduyse ISTEK ATILMAZ.
   Future<void> _bolmeYukle(int hedef) async {
@@ -389,7 +425,7 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
       //    Iki bolme artik TEK govdeyi paylasiyor; ayrim VERIDE (`_listeler`),
       //    widget agacinda DEGIL. Boylece gorunmeyen bolmenin videosu
       //    yasamiyor ve akista otomatik oynatmanin dort kapisi bozulmuyor.
-      body: RefreshIndicator(onRefresh: _yenile, child: _govde(benimId)),
+      body: RefreshIndicator(onRefresh: _elleYenile, child: _govde(benimId)),
     );
   }
 
@@ -416,7 +452,7 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
           const SizedBox(height: 12),
           Center(
             child: OutlinedButton(
-              onPressed: _yenile,
+              onPressed: _elleYenile,
               child: const Text('Tekrar dene'),
             ),
           ),
@@ -440,11 +476,19 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
       //    oldugu icin hata dali cizilmez ve kullanici **kurtarma yolu olmayan
       //    kalici bir spinner** gorurdu. Asagi-cek artik HER ZAMAN mumkun.
       // ⚠️ YAPMA: bu dali tekrar ciplak `Center`a cevirme.
+      // ⚠️⚠️ SERIT + BOLME SECICISI **BURADA DA CIZILIR** (turu 80b denetimi).
+      //    Ilk yazimda yalniz spinner vardi; Keşfet yuklenirken secici
+      //    EKRANDAN KAYBOLUYORDU ve kullanicinin "Takip Ettiklerin"e GERI
+      //    DONME YOLU KALMIYORDU (yavas agda saniyelerce). Dosyadaki diger
+      //    tum bos/hata dallari ikisini de ciziyor — bu dal ONLARDAN SAPMISTI.
+      // ⚠️ YAPMA: bu dali yalniz spinner'a indirgeme.
       return ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        children: const [
-          SizedBox(height: 160),
-          Center(child: CircularProgressIndicator()),
+        children: [
+          StorySeridi(key: _storyKey),
+          _bolmeSecici(),
+          const SizedBox(height: 120),
+          const Center(child: CircularProgressIndicator()),
         ],
       );
     }

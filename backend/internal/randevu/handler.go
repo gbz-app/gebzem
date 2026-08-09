@@ -164,26 +164,18 @@ func (h *Handler) Olustur(w http.ResponseWriter, r *http.Request) {
 	//	randevu yazdirabilirdi; isletme kapali oldugunu bilmeden musteri bekler.
 	//	Arayuzun kurala uymasi kuralin UYGULANDIGI anlamina GELMEZ.
 	//
-	// ⚠️ KURAL IKINCI KEZ YAZILMAZ: uretecin KENDISI cagrilir ve istenen anin
-	//    uretilen slotlar arasinda olup olmadigina bakilir. Boylece calisma
-	//    saati/gece yarisi sarmasi/gecmis-slot eleme mantigi TEK KAYNAKTA kalir
-	//    (turu 75b/H "ayni kuralin iki kopyasi drift eder" dersi).
-	// ⚠️ `Musait` BILEREK yok sayilir — kapasite kararini asagidaki advisory
-	//    kilitli tek deyim verir; burada okunsaydi karar IKI yerde yasardi.
-	yerel := bas.In(Konum())
-	gunBasi := time.Date(yerel.Year(), yerel.Month(), yerel.Day(), 0, 0, 0, 0, Konum())
-	slotlar, err := Slotlar(r.Context(), h.db, isletmeID, gunBasi, a)
+	// ⚠️ KURAL IKINCI KEZ YAZILMAZ: uretecin KENDISI cagrilir (`SlotVarMi`) ve
+	//    istenen anin uretilen slotlar arasinda olup olmadigina bakilir.
+	//    Boylece calisma saati / GECE YARISI SARMASI / gecmis-slot eleme
+	//    mantigi TEK KAYNAKTA kalir (turu 75b/H "ayni kuralin iki kopyasi
+	//    drift eder" dersi).
+	// ⚠️ Gun secimi `SlotVarMi` icinde: bir slot ONCEKI gunun calisma
+	//    penceresine ait olabilir (22:00-02:00). Burada elle gun hesaplama.
+	uygun, err := SlotVarMi(r.Context(), h.db, isletmeID, bas, a)
 	if err != nil {
+		log.Printf("randevu slot dogrulama: %v", err)
 		hata(w, 500, "randevu oluşturulamadı")
 		return
-	}
-	hedef := bas.UTC().Format(time.RFC3339)
-	uygun := false
-	for _, s := range slotlar {
-		if s.Zaman == hedef {
-			uygun = true
-			break
-		}
 	}
 	if !uygun {
 		hata(w, 409, "Bu saat için randevu alınamıyor")

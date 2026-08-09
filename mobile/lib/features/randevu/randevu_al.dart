@@ -72,7 +72,16 @@ class _RandevuAlEkraniState extends ConsumerState<RandevuAlEkrani> {
   /// Serit kac gun gostersin. ⚠️ ISLETMENIN ayarindan (bkz. `_gunSeridi` serhi);
   ///    veri gelmeden once 14 varsayilir. ⚠️ Sunucu tavani 60 — savunma amacli
   ///    burada da sinirlaniyor ki bozuk bir deger devasa liste uretmesin.
-  int get _gunSayisi => (_veri?.ileriGun ?? 14).clamp(1, 60);
+  ///
+  /// ⚠️⚠️ **+1** (turu 80b denetimi): sunucudaki `IleriGunDisi` yuklemi
+  ///    `gun.After(bugun + ileriGun)` — yani **bugun + ileriGun** gunu HALA
+  ///    IZINLIDIR. Serit `ileriGun` kadar oge cizerse (indeks 0 = bugun)
+  ///    son gorunen gun `bugun + ileriGun - 1` olur ve **sunucunun izin
+  ///    verdigi SON GUN kullaniciya HIC GOSTERILMEZ**: isletme "14 gun
+  ///    ileriye" dese de musteri yalniz 14 gun (bugun dahil) gorur.
+  /// ⚠️ Sunucudaki yuklem degisirse BURASI DA degismeli — ikisi ayni
+  ///    pencereyi tarif etmek ZORUNDA.
+  int get _gunSayisi => (_veri?.ileriGun ?? 14).clamp(1, 60) + 1;
 
   @override
   void initState() {

@@ -659,7 +659,16 @@ class _KapaliGunlerEkraniState extends ConsumerState<KapaliGunlerEkrani> {
     try {
       await svc.kapaliGunAyarla(tarih, kapali);
       final l = await svc.kapaliGunler();
-      if (mounted) setState(() => _gunler = l);
+      // ⚠️ `_hata` DA TEMIZLENIR (turu 80b denetimi): ilk yukleme hata
+      //    verdikten sonra kullanici "Gün ekle" ile BASARILI bir islem
+      //    yaparsa ekran hala ESKI HATA METNINI cizerdi — islem tuttugu
+      //    halde "yuklenemedi" gorunurdu.
+      if (mounted) {
+        setState(() {
+          _gunler = l;
+          _hata = null;
+        });
+      }
     } catch (e) {
       rootMessengerKey.currentState?.showSnackBar(
         SnackBar(content: Text(apiErrorMessage(e))),

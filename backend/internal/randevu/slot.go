@@ -121,6 +121,50 @@ func AyarOku(ctx context.Context, db *pgxpool.Pool, isletmeID string) (Ayar, err
 	return a, nil
 }
 
+// SlotVarMi — verilen AN, isletmenin uretilen slotlarindan biri mi?
+//
+// ⚠️⚠️⚠️ TURU 80b — **GECE YARISI SARMASI** (denetim: SEVK ENGELIYDI).
+//
+//	Ilk yazimda `Olustur` yalnizca `bas`in KENDI TAKVIM GUNUNE bakiyordu:
+//
+//	    gunBasi := gun(bas);  Slotlar(gunBasi) icinde bas var mi?
+//
+//	Ama `Slotlar(gun)` "22:00 - 02:00" gibi calisma saatlerinde gece
+//	yarisini ASAR ve ertesi takvim gunune tasan slotlari da URETIR
+//	(kapanis <= acilis ise +1 gun, bkz. asagisi). Yani 11 Agustos 00:30
+//	slotu **10 Agustos'un** calisma gunune aittir.
+//	Dogrulama onu 11 Agustos'un listesinde aradigi icin BULAMIYOR ve
+//	arayuzun GOSTERDIGI her gece-yarisi-sonrasi slot POST'ta **409**
+//	donuyordu. Gece calisan mekanlar (bar, restoran) randevu ALAMAZDI —
+//	ustelik bu, `ileri_gun` icin AYNI COMMIT'te duzelttigim
+//	"okuma ve yazma FARKLI TABAN kullaniyor" hatasinin tekrariydi.
+//
+// ⚠️ Bu yuzden IKI GUN denenir: anin kendi gunu VE bir onceki gun.
+//    (Bir slot en fazla bir gun tasabilir: `kapanis` en cok +24 saat kayar.)
+// ⚠️ `Musait` BILEREK yok sayilir — kapasite karari advisory kilitli tek
+//    deyimde verilir; burada okunsaydi karar IKI yerde yasardi.
+// ⚠️ YAPMA: cagiran yerlerde bu kontrolu elle yazma (drift eder).
+func SlotVarMi(ctx context.Context, db *pgxpool.Pool,
+	isletmeID string, an time.Time, a Ayar) (bool, error) {
+	loc := Konum()
+	y := an.In(loc)
+	gun := time.Date(y.Year(), y.Month(), y.Day(), 0, 0, 0, 0, loc)
+	hedef := an.UTC().Format(time.RFC3339)
+
+	for _, g := range []time.Time{gun, gun.AddDate(0, 0, -1)} {
+		slotlar, err := Slotlar(ctx, db, isletmeID, g, a)
+		if err != nil {
+			return false, err
+		}
+		for _, s := range slotlar {
+			if s.Zaman == hedef {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
+}
+
 // IleriGunDisi — verilen an, isletmenin "kac gun ileriye randevu alinabilir"
 // penceresinin DISINDA mi?
 //

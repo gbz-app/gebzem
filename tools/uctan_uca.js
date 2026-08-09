@@ -1285,6 +1285,60 @@ const kontrol = (ad, gecti, ek = '') => {
         kapL.kod === 200 && Array.isArray(kapDizi) && kapDizi.includes(yarin2),
         'HTTP ' + kapL.kod + ' ' + JSON.stringify(kapDizi));
 
+      // ⚠️⚠️⚠️ TURU 80b — GECE YARISINI ASAN CALISMA SAATI (SEVK ENGELIYDI).
+      //
+      //	`Slotlar(gun)` "22:00-02:00" gibi saatlerde gece yarisini ASAR ve
+      //	ERTESI takvim gunune tasan slotlari da uretir. Yazma yolundaki
+      //	dogrulama ise anin KENDI takvim gunune bakiyordu -> 11 Agu 00:30
+      //	slotu 10 Agu'nun calisma gunune ait oldugu halde 11 Agu'nun
+      //	listesinde araniyor, BULUNAMIYOR ve arayuzun GOSTERDIGI her
+      //	gece slotu POST'ta **409** donuyordu. Bar/restoran gibi gece
+      //	calisan mekanlar randevu ALAMAZDI.
+      // ⚠️ Bu kontrol AMPIRIK: isletmenin saatleri gecici olarak gece
+      //    vardiyasina cevrilir, uretilen bir gece-yarisi-sonrasi slot
+      //    POST edilir ve 201 beklenir. Sonunda saatler GERI ALINIR.
+      const geceSaat = [1, 2, 3, 4, 5, 6, 7].map((g) => ({
+        gun: g, acilis: '22:00', kapanis: '02:00', kapali: false,
+      }));
+      await j('/users/me/isletme', {
+        yontem: 'PUT', token: A.token,
+        govde: {
+          kategori: 'yemek', adres: 'Test Cad. 1', il: 'Kocaeli', ilce: 'Gebze',
+          telefon: '02620000000', web: 'https://ornek.test', calisma: geceSaat,
+        },
+      });
+      const geceGun = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+      const gs = await j('/isletmeler/' + A.id + '/uygun-saatler?tarih=' + geceGun,
+        { token: B.token });
+      const geceSlotlar = (gs.d && gs.d.slotlar) || [];
+      // Gece yarisindan SONRAKI slot: yerel saati 00:00-02:00 arasinda olan.
+      const sonrasi = geceSlotlar.find((s) => {
+        const h = parseInt(String(s.saat).split(':')[0], 10);
+        return s.musait && h >= 0 && h < 2;
+      });
+      kontrol('TURU 80b: gece vardiyasinda GECE YARISI SONRASI slot URETILIYOR',
+        !!sonrasi, 'adet=' + geceSlotlar.length +
+        ' saatler=' + JSON.stringify(geceSlotlar.slice(0, 3).map((s) => s.saat)));
+      if (sonrasi) {
+        const rGece = await j('/isletmeler/' + A.id + '/randevu', {
+          yontem: 'POST', token: B.token,
+          govde: { baslangic: sonrasi.zaman, kisi_sayisi: 2 },
+        });
+        kontrol('TURU 80b: GECE YARISI SONRASI slot POST ile KABUL EDILIYOR',
+          rGece.kod === 201, 'HTTP ' + rGece.kod + ' saat=' + sonrasi.saat);
+      }
+      // ⚠️ Saatleri GERI AL — sonraki kontroller gunduz penceresine dayaniyor.
+      await j('/users/me/isletme', {
+        yontem: 'PUT', token: A.token,
+        govde: {
+          kategori: 'yemek', adres: 'Test Cad. 1', il: 'Kocaeli', ilce: 'Gebze',
+          telefon: '02620000000', web: 'https://ornek.test',
+          calisma: [1, 2, 3, 4, 5, 6, 7].map((g) => ({
+            gun: g, acilis: '09:00', kapanis: '22:00', kapali: false,
+          })),
+        },
+      });
+
       // ⚠️ Kapali gun GERI ALINABILIYOR mu (silme yolu da yasamali).
       const kapSil = await j('/isletme/randevu-kapali', {
         yontem: 'POST', token: A.token, govde: { tarih: yarin2, kapali: false },
