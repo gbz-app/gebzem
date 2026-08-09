@@ -230,6 +230,7 @@ func main() {
 		r.Post("/channels/{id}/posts", kanalH.PostOlustur)
 		r.Get("/channels/{id}/posts", kanalH.Postlar)
 		r.Delete("/channel-posts/{id}", kanalH.PostSil)
+		r.Get("/channel-posts/{id}/istatistik", kanalH.PostIstatistik) // turu 76b
 		r.Post("/channel-posts/{id}/like", kanalH.Like)
 		r.Delete("/channel-posts/{id}/like", kanalH.Unlike)
 		r.Get("/ws", chatH.WebSocket)

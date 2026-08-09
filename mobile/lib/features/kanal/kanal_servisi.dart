@@ -102,6 +102,15 @@ class KanalServisi {
   }
 
   Future<void> gonderiSil(int postId) => _api.delete('/channel-posts/$postId');
+
+  /// TURU 76b — kanal gonderisinin istatistigi. Sunucu YALNIZ yazara ve kanal
+  /// sahibine doner (baskasina 404).
+  Future<Map<String, int>> gonderiIstatistik(int postId) async {
+    final r = await _api.get('/channel-posts/$postId/istatistik');
+    final m = (r.data as Map).cast<String, dynamic>();
+    return m.map((k, v) => MapEntry(k, (v as num?)?.toInt() ?? 0));
+  }
+
   Future<void> begen(int postId) => _api.post('/channel-posts/$postId/like');
   Future<void> begeniGeriAl(int postId) =>
       _api.delete('/channel-posts/$postId/like');
@@ -166,6 +175,7 @@ class KanalGonderi {
     required this.id,
     required this.metin,
     required this.mediaIds,
+    required this.mediaKinds,
     required this.begeniSayisi,
     required this.goruntulenme,
     required this.createdAt,
@@ -177,6 +187,12 @@ class KanalGonderi {
   final int id;
   final String metin;
   final List<String> mediaIds;
+
+  /// TURU 76b — her medyanin turu (image|video|audio|document|yok).
+  /// mediaKinds[i] <-> mediaIds[i] AYNI medya (sunucu sirayi GARANTI ediyor).
+  /// Bu alan OLMADAN kanalda VIDEO cizilemezdi: istemci id nin foto mu video mu
+  /// oldugunu bilemez, video id sini MedyaGorsel e verirse KIRIK GORSEL cizerdi.
+  final List<String> mediaKinds;
   int begeniSayisi;
   final int goruntulenme;
   final String createdAt;
@@ -188,6 +204,9 @@ class KanalGonderi {
     id: (m['id'] as num?)?.toInt() ?? 0,
     metin: (m['metin'] ?? '').toString(),
     mediaIds: ((m['media_ids'] as List?) ?? [])
+        .map((e) => e.toString())
+        .toList(),
+    mediaKinds: ((m['media_kinds'] as List?) ?? [])
         .map((e) => e.toString())
         .toList(),
     begeniSayisi: (m['begeni_sayisi'] as num?)?.toInt() ?? 0,

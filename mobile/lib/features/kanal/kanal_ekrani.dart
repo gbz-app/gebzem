@@ -13,6 +13,7 @@ import '../medya/medya_gorsel.dart';
 import '../medya/medya_kapisi.dart';
 import '../medya/medya_servisi.dart';
 import '../medya/tam_ekran_gorsel.dart';
+import '../sosyal/medya_video.dart';
 import '../sosyal/gonderi_karti.dart' show gonderiZamani, sayiBicimle;
 import 'kanal_servisi.dart';
 
@@ -22,12 +23,17 @@ import 'kanal_servisi.dart';
 ///    en altta acilir. Sunucu yeniden eskiye donuyor; liste ters cizildigi icin
 ///    ek siralama YOK.
 ///
-/// ⚠️ ILK SURUM SINIRI (durust not): kanal gonderisi FOTOGRAF + METIN.
-///    Video YOK cunku `channel_posts.media_ids` medyanin TURUNU tasimiyor;
-///    istemci bir id'nin video mu foto mu oldugunu BILEMEZ. Video eklenecekse
-///    once sunucu `media_kinds` dondurmeli — yoksa video id'si `MedyaGorsel`e
-///    verilir ve KIRIK GORSEL cizilir.
-/// ⚠️ YAPMA: tur bilgisi olmadan medyayi video sanip oynatmaya calisma.
+/// ✅ TURU 76b — VIDEO ARTIK DESTEKLENIYOR (kullanici emri: "kanallarda video
+///    eklenebilmeli"). Eski sinirin sebebi sunucunun yasagi DEGILDI:
+///    `channel_posts.media_ids` medyanin TURUNU tasimiyordu ve istemci bir
+///    id'nin foto mu video mu oldugunu BILEMIYORDU (video id'sini
+///    `MedyaGorsel`e verirse KIRIK GORSEL cizerdi). Sunucu artik gonderi
+///    tarafiyla AYNI `media_kinds` dizisini donduruyor -> kisit KALKTI.
+/// ⚠️ YAPMA: tur bilgisi olmadan medyayi video sanip oynatmaya calisma;
+///    `mediaKinds` eksikse 'image' varsayilir (guvenli taraf).
+/// ⚠️ Kanalda video ELLE baslar (akistaki gibi otomatik DEGIL): ekran TERS
+///    sirali ve acilista en alta ziplar; orada otomatik oynatma kullanicinin
+///    gormedigi bir videoyu calistirirdi.
 ///
 /// ⚠️ OKUNDU: ekran acilir acilmaz `okundu()` cagrilir. Rozeti gormek icin
 ///    girmek YETER (WhatsApp kanallarinda da boyle).
@@ -54,7 +60,11 @@ class _KanalEkraniState extends ConsumerState<KanalEkrani> {
 
   final _metin = TextEditingController();
   final _kaydirma = ScrollController();
-  final List<File> _secilenler = [];
+
+  /// ⚠️ TURU 76b: artik VIDEO da secilebiliyor, bu yuzden duz `File` YETMEZ —
+  ///    her secimin turunu tasimak ZORUNDA (yukleme yolu farkli: fotograf
+  ///    sikistirilir + EXIF temizlenir, video HAM gider).
+  final List<_KanalMedya> _secilenler = [];
   bool _paylasiliyor = false;
   double _ilerleme = 0;
   CancelToken? _iptal;
@@ -148,7 +158,46 @@ class _KanalEkraniState extends ConsumerState<KanalEkrani> {
       MedyaKapisi.pickerAcik = false;
     }
     if (secim.isEmpty || !mounted) return;
-    setState(() => _secilenler.addAll(secim.map((x) => File(x.path))));
+    setState(
+      () => _secilenler.addAll(
+        secim.map((x) => _KanalMedya(File(x.path), false)),
+      ),
+    );
+  }
+
+  /// ⚠️⚠️ TURU 76b — KANALA VIDEO (kullanici emri: "kanallarda video
+  ///    eklenebilmeli"). Onceki surumde kanal yalniz fotograf aliyordu ve bu
+  ///    bir SUNUCU yasagi degil, istemcinin medyanin turunu BILEMEMESIYDI.
+  ///    Sunucu artik `media_kinds` donduruyor -> kisit KALKTI.
+  /// ⚠️ Boyut tavani gonderi tarafiyla AYNI (100 MB) — istemcide kesmezsek
+  ///    kullanici dosyayi bosuna yukler ve commit'te reddedilir.
+  Future<void> _videoSec() async {
+    if (!MedyaKapisi.izinVer(ref)) {
+      _uyar(MedyaKapisi.engelSebebi(ref) ?? 'Şu anda medya seçilemez');
+      return;
+    }
+    if (_secilenler.length >= 10) {
+      _uyar('En fazla 10 medya ekleyebilirsin');
+      return;
+    }
+    XFile? x;
+    try {
+      MedyaKapisi.pickerAcik = true;
+      x = await ImagePicker().pickVideo(source: ImageSource.gallery);
+    } catch (_) {
+    } finally {
+      MedyaKapisi.pickerAcik = false;
+    }
+    if (x == null || !mounted) return;
+    final dosya = File(x.path);
+    final bayt = await dosya.length();
+    if (!mounted) return;
+    final tavan = kTavanlar['video'] ?? (100 << 20);
+    if (bayt > tavan) {
+      _uyar('Video çok büyük (en fazla ${(tavan / (1 << 20)).round()} MB)');
+      return;
+    }
+    setState(() => _secilenler.add(_KanalMedya(dosya, true)));
   }
 
   void _uyar(String m) {
@@ -168,13 +217,22 @@ class _KanalEkraniState extends ConsumerState<KanalEkrani> {
       final medyaS = ref.read(medyaServisiProvider);
       final idler = <String>[];
       for (var i = 0; i < _secilenler.length; i++) {
-        // ⚠️ EXIF (KONUM) TEMIZLIGI ZORUNLU: sunucu GPS bulursa 422 doner.
-        final hazir = await MedyaServisi.gorseliHazirla(_secilenler[i]);
-        if (hazir == null) throw Exception('Fotoğraf hazırlanamadı');
+        final m = _secilenler[i];
+        // ⚠️ FOTOGRAF: EXIF (KONUM) TEMIZLIGI ZORUNLU — sunucu GPS bulursa
+        //    422 doner ve yuklenen veri BOSA gider.
+        // ⚠️ VIDEO: sikistirilmaz/temizlenmez, HAM gider (gonderi tarafiyla
+        //    ayni davranis; video EXIF temizligi ayri bir is).
+        File gonderilecek = m.dosya;
+        if (!m.video) {
+          final hazir = await MedyaServisi.gorseliHazirla(m.dosya);
+          if (hazir == null) throw Exception('Fotoğraf hazırlanamadı');
+          gonderilecek = hazir;
+        }
         final id = await medyaS.yukle(
-          dosya: hazir,
-          kind: 'image',
-          mime: 'image/jpeg',
+          dosya: gonderilecek,
+          kind: m.video ? 'video' : 'image',
+          mime: m.video ? 'video/mp4' : 'image/jpeg',
+          fileName: m.dosya.uri.pathSegments.last,
           iptal: _iptal,
           ilerleme: (p) {
             if (mounted) {
@@ -403,6 +461,90 @@ class _KanalEkraniState extends ConsumerState<KanalEkrani> {
     );
   }
 
+  /// Coklu medyali kanal gonderilerinde hangi sayfadayiz (gonderi id -> indeks).
+  /// ⚠️ Kart durumsuz (`StatelessWidget` degil ama kendi state'i yok) oldugu
+  ///    icin sayfa bilgisi EKRAN seviyesinde tutulur.
+  final Map<int, int> _kanalSayfa = {};
+
+  /// TURU 76b — kanal gonderisinin istatistigi (yalniz yetkili/kanal sahibi).
+  Future<void> _istatistik(KanalGonderi g) async {
+    Map<String, int>? veri;
+    try {
+      veri = await ref.read(kanalServisiProvider).gonderiIstatistik(g.id);
+    } catch (_) {
+      veri = null;
+    }
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (c) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 26),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Gönderi istatistikleri',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 16),
+              if (veri == null)
+                const Text(
+                  'İstatistikler alınamadı',
+                  style: TextStyle(color: Colors.grey),
+                )
+              else
+                Row(
+                  children: [
+                    _istKutu(
+                      LucideIcons.eye,
+                      'Görüntülenme',
+                      veri['goruntulenme'] ?? 0,
+                    ),
+                    _istKutu(LucideIcons.heart, 'Beğeni', veri['begeni'] ?? 0),
+                  ],
+                ),
+              const SizedBox(height: 12),
+              // ⚠️ DURUSTLUK: kanal goruntulenmesi KABA sayilir (ayni kisi
+              //    tekrar bakinca yine artar). Yazmasak kullanici sayiyi
+              //    "bozuk" sanardi.
+              const Text(
+                'Görüntülenme, gönderi listede her yüklendiğinde sayılır.',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _istKutu(IconData ikon, String baslik, int deger) => Expanded(
+    child: Container(
+      margin: const EdgeInsets.symmetric(horizontal: 5),
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        children: [
+          Icon(ikon, size: 20),
+          const SizedBox(height: 6),
+          Text(
+            sayiBicimle(deger),
+            style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w700),
+          ),
+          Text(
+            baslik,
+            style: const TextStyle(fontSize: 11, color: Colors.grey),
+          ),
+        ],
+      ),
+    ),
+  );
+
   Widget _gonderiKarti(KanalGonderi g, Kanal k) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
@@ -421,11 +563,12 @@ class _KanalEkraniState extends ConsumerState<KanalEkrani> {
                 child: AspectRatio(
                   aspectRatio: 4 / 3,
                   child: g.mediaIds.length == 1
-                      ? _tekMedya(g.mediaIds.first)
-                      : PageView(
-                          children: g.mediaIds
-                              .map(_tekMedya)
-                              .toList(growable: false),
+                      ? _tekMedya(g, 0)
+                      : PageView.builder(
+                          itemCount: g.mediaIds.length,
+                          onPageChanged: (i) =>
+                              setState(() => _kanalSayfa[g.id] = i),
+                          itemBuilder: (_, i) => _tekMedya(g, i),
                         ),
                 ),
               ),
@@ -456,12 +599,39 @@ class _KanalEkraniState extends ConsumerState<KanalEkrani> {
                   ),
                 ),
                 const SizedBox(width: 14),
-                const Icon(LucideIcons.eye, size: 16, color: Colors.grey),
-                const SizedBox(width: 4),
-                Text(
-                  sayiBicimle(g.goruntulenme),
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
-                ),
+                // ⚠️⚠️ TURU 76b — ISTATISTIK (kullanici emri: "oradaki
+                //    paylasimlarin da istatistikleri gorunmeli").
+                //    YETKILIYE dokunulabilir bir ikon (detayli sayfa acilir);
+                //    aboneye yalniz goruntulenme sayisi gosterilir.
+                if (k.yetkiliMiyim)
+                  GestureDetector(
+                    onTap: () => _istatistik(g),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          LucideIcons.chartNoAxesColumn,
+                          size: 16,
+                          color: Colors.grey,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          sayiBicimle(g.goruntulenme),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else ...[
+                  const Icon(LucideIcons.eye, size: 16, color: Colors.grey),
+                  const SizedBox(width: 4),
+                  Text(
+                    sayiBicimle(g.goruntulenme),
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ],
                 const Spacer(),
                 Text(
                   gonderiZamani(g.createdAt),
@@ -487,12 +657,44 @@ class _KanalEkraniState extends ConsumerState<KanalEkrani> {
     );
   }
 
-  Widget _tekMedya(String id) => GestureDetector(
-    onTap: () => Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => TamEkranGorsel(mediaId: id))),
-    child: MedyaGorsel(mediaId: id, fit: BoxFit.cover),
-  );
+  /// ⚠️⚠️ TURU 76b — KANALDA VIDEO (kullanici emri: "kanallarda video
+  ///    eklenebilmeli"). Sunucu artik `media_kinds` donduruyor; her medyanin
+  ///    turu AYRI biliniyor. Onceki surumdeki "kanal gonderisinde video YOK"
+  ///    siniri KALKTI.
+  /// ⚠️ Video AKISTAKI gibi degil ELLE baslar (`otoOynat: false`): kanal ekrani
+  ///    TERS SIRALI (`reverse: true`) ve acilista en alta ziplar; orada
+  ///    otomatik oynatma kullanicinin gormedigi bir videoyu calistirirdi.
+  /// ⚠️ Video TAM EKRAN GORSELE gonderilmez — `TamEkranGorsel` yalniz fotograf
+  ///    cizer; video icin dokunus oynaticinin KENDI kontrolune birakilir.
+  Widget _tekMedya(KanalGonderi g, int i) {
+    final id = g.mediaIds[i];
+    final tur = i < g.mediaKinds.length ? g.mediaKinds[i] : 'image';
+    if (tur == 'yok') {
+      return const ColoredBox(
+        color: Color(0xFF15151F),
+        child: Center(
+          child: Text(
+            'Bu içerik kaldırıldı',
+            style: TextStyle(color: Colors.white38, fontSize: 12),
+          ),
+        ),
+      );
+    }
+    if (tur == 'video') {
+      return MedyaVideo(
+        mediaId: id,
+        otoOynat: false,
+        sesli: false,
+        dolgu: BoxFit.cover,
+      );
+    }
+    return GestureDetector(
+      onTap: () => Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => TamEkranGorsel(mediaId: id))),
+      child: MedyaGorsel(mediaId: id, fit: BoxFit.cover),
+    );
+  }
 
   Future<void> _gonderiSil(KanalGonderi g) async {
     final onay = await showDialog<bool>(
@@ -542,12 +744,26 @@ class _KanalEkraniState extends ConsumerState<KanalEkrani> {
                   children: [
                     ClipRRect(
                       borderRadius: BorderRadius.circular(8),
-                      child: Image.file(
-                        _secilenler[i],
-                        width: 56,
-                        height: 64,
-                        fit: BoxFit.cover,
-                      ),
+                      // ⚠️ Video icin `Image.file` CIZILEMEZ (kirik kare) —
+                      //    kapak yerine ikon gosterilir.
+                      child: _secilenler[i].video
+                          ? Container(
+                              width: 56,
+                              height: 64,
+                              color: const Color(0xFF1A1A24),
+                              alignment: Alignment.center,
+                              child: const Icon(
+                                LucideIcons.video,
+                                color: Colors.white70,
+                                size: 22,
+                              ),
+                            )
+                          : Image.file(
+                              _secilenler[i].dosya,
+                              width: 56,
+                              height: 64,
+                              fit: BoxFit.cover,
+                            ),
                     ),
                     if (!_paylasiliyor)
                       Positioned(
@@ -591,7 +807,17 @@ class _KanalEkraniState extends ConsumerState<KanalEkrani> {
             children: [
               IconButton(
                 icon: const Icon(LucideIcons.image),
+                tooltip: 'Fotoğraf',
                 onPressed: _paylasiliyor ? null : _gorselSec,
+              ),
+              // ⚠️ TURU 76b — VIDEO dugmesi (kullanici emri: "kanallarda video
+              //    eklenebilmeli"). Ayri dugme: fotograf secici COKLU, video
+              //    secici TEKLI calisir; tek dugmede birlestirmek kullaniciya
+              //    "hangisini secebiliyorum" belirsizligi yaratir.
+              IconButton(
+                icon: const Icon(LucideIcons.video),
+                tooltip: 'Video',
+                onPressed: _paylasiliyor ? null : _videoSec,
               ),
               Expanded(
                 child: TextField(
@@ -618,4 +844,14 @@ class _KanalEkraniState extends ConsumerState<KanalEkrani> {
       ),
     ),
   );
+}
+
+/// Kanal paylasiminda secilen tek medya.
+/// ⚠️ TURU 76b: kanal artik VIDEO da kabul ediyor; duz `File` listesi turu
+///    tasiyamadigi icin bu kucuk sarmalayici gerekti (yukleme yolu farkli:
+///    fotograf sikistirilir + EXIF temizlenir, video HAM gider).
+class _KanalMedya {
+  _KanalMedya(this.dosya, this.video);
+  final File dosya;
+  final bool video;
 }

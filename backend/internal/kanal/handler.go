@@ -621,8 +621,21 @@ func (h *Handler) Postlar(w http.ResponseWriter, r *http.Request) {
 			before = t
 		}
 	}
+	// ⚠️⚠️ TURU 76b — `media_kinds` (kullanici emri: "kanallarda video
+	//    eklenebilmeli"). Kanal gonderisi turu 75'ten beri VIDEO TASIYAMIYORDU;
+	//    sebep sunucunun yasagi DEGIL, istemcinin bir id'nin foto mu video mu
+	//    oldugunu BILEMEMESIYDI: video id'sini `MedyaGorsel`e verirse KIRIK
+	//    GORSEL cizerdi. Gonderi tarafiyla AYNI cozum uygulaniyor.
+	// ⚠️ SIRA KORUNUR (`WITH ORDINALITY`): `media_kinds[i]` <-> `media_ids[i]`.
+	//    Duz JOIN kullanma — sira GARANTI OLMAZ.
+	// ⚠️ Silinmis medya icin 'yok' (NULL DEGIL): `array_agg` NULL uretirse
+	//    `[]string` taramasi PATLAR ve satir SESSIZCE atlanir = kanal bosalir.
 	rows, err := h.db.Query(r.Context(), `
-		SELECT p.id, p.metin, p.media_ids, p.begeni_sayisi, p.goruntulenme,
+		SELECT p.id, p.metin, p.media_ids,
+		       COALESCE((SELECT array_agg(COALESCE(ma.kind,'yok') ORDER BY mm.idx)
+		                   FROM unnest(p.media_ids) WITH ORDINALITY AS mm(mid, idx)
+		                   LEFT JOIN media_assets ma ON ma.id = mm.mid), '{}'),
+		       p.begeni_sayisi, p.goruntulenme,
 		       p.created_at, p.author_id, u.name,
 		       EXISTS(SELECT 1 FROM channel_post_likes l
 		               WHERE l.post_id=p.id AND l.user_id=$2)
@@ -640,17 +653,22 @@ func (h *Handler) Postlar(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var pid int64
 		var metin, yazarID, yazarAd string
-		var medya []string
+		var medya, turler []string
 		var begeni, goruntulenme int
 		var t time.Time
 		var begendim bool
-		if rows.Scan(&pid, &metin, &medya, &begeni, &goruntulenme, &t,
+		// ⚠️ SCAN SIRASI SORGUYLA BIREBIR: `turler` `media_ids`ten HEMEN SONRA.
+		//    Uyusmazlik derleme hatasi VERMEZ; satir SESSIZCE atlanir ve kanal
+		//    BOMBOS gorunur (turu 76'da `Kaydedilenler`de tam bu yasandi).
+		if rows.Scan(&pid, &metin, &medya, &turler, &begeni, &goruntulenme, &t,
 			&yazarID, &yazarAd, &begendim) != nil {
 			continue
 		}
 		idler = append(idler, pid)
 		out = append(out, map[string]any{
 			"id": pid, "metin": metin, "media_ids": medya,
+			// ⚠️ `media_kinds[i]` <-> `media_ids[i]` AYNI medya (sira korunur).
+			"media_kinds":   turler,
 			"begeni_sayisi": begeni, "goruntulenme": goruntulenme,
 			"created_at": t, "yazar_id": yazarID, "yazar_ad": yazarAd,
 			"begendim": begendim,
@@ -667,6 +685,47 @@ func (h *Handler) Postlar(w http.ResponseWriter, r *http.Request) {
 			idler)
 	}
 	yaz(w, 200, map[string]any{"posts": out})
+}
+
+// GET /channel-posts/{id}/istatistik — kanal gonderisinin sayilari.
+//
+// ⚠️⚠️ TURU 76b — kullanici emri: "oradaki paylasimlarin da istatistikleri
+//
+//	gorunmeli". `channel_posts.goruntulenme` ve `begeni_sayisi` sutunlari
+//	turu 75'ten beri VARDI ve YAZILIYORDU, ama ONLARI GOSTEREN HICBIR YOL
+//	YOKTU (kanal kartinda yalniz begeni cizilir). Bu ucla yazilan veri
+//	nihayet OKUNUYOR — CLAUDE.md'nin "ekledigin sutunu OKUYAN yolu da yaz"
+//	dersinin geregi.
+//
+// ⚠️ YALNIZ YAZAR VE KANAL SAHIBI gorur (gonderi istatistigiyle ayni kural).
+//
+//	Aboneye baskasinin izlenme sayisi gosterilmez.
+//
+// ⚠️ 403 DEGIL 404: "var ama goremezsin" cevabi kendisi de bilgidir.
+func (h *Handler) PostIstatistik(w http.ResponseWriter, r *http.Request) {
+	me := auth.UserID(r.Context())
+	pid, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		hata(w, 400, "geçersiz gönderi")
+		return
+	}
+	var yazar, sahip string
+	var begeni, goruntulenme int
+	if h.db.QueryRow(r.Context(), `
+		SELECT p.author_id, c.owner_id, p.begeni_sayisi, p.goruntulenme
+		  FROM channel_posts p JOIN channels c ON c.id=p.channel_id
+		 WHERE p.id=$1 AND p.durum='yayinda'`, pid).
+		Scan(&yazar, &sahip, &begeni, &goruntulenme) != nil {
+		hata(w, 404, "gönderi bulunamadı")
+		return
+	}
+	if me != yazar && me != sahip {
+		hata(w, 404, "gönderi bulunamadı")
+		return
+	}
+	yaz(w, 200, map[string]int{
+		"begeni": begeni, "goruntulenme": goruntulenme,
+	})
 }
 
 // DELETE /channel-posts/{id} — gonderiyi kaldir (yazar VEYA kanal sahibi).
