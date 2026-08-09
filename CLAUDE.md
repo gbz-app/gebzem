@@ -17,9 +17,26 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (9 Agu 03:20):** TURU 76b — KOD BITTI, **BUILD ICIN ONAY BEKLIYOR**
-  (kural 0). Backend DEPLOY EDILDI (d0328a6, migration **026** uygulandi) + health ok,
-  **CANLI SUNUCUDA 65/65 UCTAN UCA GECTI**, DB temiz. Istemci HENUZ BUILD ALINMADI.
+- **KALDIGIMIZ YER (9 Agu 03:50):** TEST TURU 76b YAYINLANDI — android 31286588553 +
+  ios 31286593307 (**751c5fc**), R2 apk=113053743 (md5 053f2e3e) ipa=23397403
+  (md5 6079c71d), purge OK, **CDN birebir** (apk + ipa + index.html MD5 esit),
+  indir sayfasi 03:50 (saat 3 yerde), debug imza YOK,
+  **BACKEND DEPLOY EDILDI** (d0328a6; migration **026** uygulandi) + health ok,
+  DB temiz (0/0/0/0/0).
+  ✅ **CANLI SUNUCUDA 65/65 UCTAN UCA KONTROL GECTI** — `node tools/uctan_uca.js`.
+  **KULLANICI TEST EDECEK.**
+- ⚠️⚠️ **TURU 76b — GALERI KAYDIRMASI YANLIS YASLANIYORDU (build ONCESI yakalandi).**
+  Ilk surumde `ListView` + `PageScrollPhysics` kullanilmisti. O fizik sayfa
+  genisligini **VIEWPORT'UN TAMAMI** sanar; ogeler ekranin %78'i oldugu icin
+  yaslanma her ogede biraz daha kayar ve **ucuncu-dorduncu medyada tamamen bozulur**.
+  FIX: `PageView.builder` + `viewportFraction: 0.78` + **`padEnds: false`**.
+  ⚠️ `padEnds: false` ZORUNLU — varsayilan `true` sayfayi ORTALAR ve ILK medyanin
+  SOLUNDA bosluk birakir; Threads/Instagram'da ilk medya SOLA DAYALIDIR.
+  ⚠️ `PageController` **initState**te kurulur (build icinde kurulsaydi her cizimde
+  yeni controller olusur ve kaydirma konumu SIFIRLANIRDI) ve dispose edilir.
+  ⚠️ YAPMA: `ListView` + `PageScrollPhysics`e geri donme.
+  📌 **SUREC:** ilk build (8a47ca3) **YAYINLANMADI**, bulgu sonrasi IPTAL edilip
+  yeniden alindi — *"build ALMAK yayinlamak DEGILDIR"* (turu 59b dersi, ucuncu tekrar).
 - ⚠️⚠️ **TURU 76b — "GRUP OLUSTURMA NEREDE?" IKI KOK NEDEN.**
   (1) Alt menude **IKI TANE "+"** vardi ve FARKLI IS YAPIYORLARDI: ust (AppBar)
   dogrudan kisi aramaya gidiyordu (grup secenegi YOK), alt (FAB) ise

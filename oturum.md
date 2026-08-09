@@ -5154,3 +5154,24 @@ Threads ekran görüntüsü + yeni istekler gönderdi.
 
 **DURUM: kod bitti, backend deploy edildi, 65/65 uçtan uca geçti.
 İstemci build'i için kullanıcı onayı bekleniyor (CLAUDE.md kural 0).**
+
+### YAYIN (9 Ağustos 03:50) — TEST TURU 76b
+
+| | |
+|---|---|
+| Commit | `751c5fc` |
+| Android | run 31286588553 · `113053743` bayt · md5 `053f2e3e` |
+| iOS | run 31286593307 · `23397403` bayt · md5 `6079c71d` |
+| CDN | purge OK · apk + ipa + index.html **MD5 birebir** |
+| İndir sayfası | saat `9 Ağustos 03:50` (3 yerde) · APK linki `?v=20260809-0350` |
+| Debug imza | YOK |
+| Backend | `d0328a6` deploy · migration **026** (story) · health ok |
+| DB | temiz (0/0/0/0/0) |
+| Uçtan uca | **65/65 kontrol canlı sunucuda GEÇTİ** |
+
+**Build öncesi yakalanan bulgu:** galeri kaydırması yanlış yaslanıyordu
+(`PageScrollPhysics` sayfa genişliğini viewport'un tamamı sanıyor; öğeler %78
+olduğu için 3-4. medyada tamamen kayıyor). İlk build (`8a47ca3`) **yayınlanmadı**,
+iptal edilip `PageView` + `viewportFraction` + `padEnds:false` ile yeniden alındı.
+
+**Kullanıcı test edecek.**
