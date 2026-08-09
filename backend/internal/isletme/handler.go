@@ -98,6 +98,20 @@ func kisalt(s string, n int) string {
 //	FIX: istek alanlari `*float64` (gonderilmedi != 0) + SQL'de
 //	`COALESCE(EXCLUDED.enlem, isletmeler.enlem)`.
 //	⚠️ YAPMA: alanlari duz `float64`e, SQL'i kosulsuz `EXCLUDED`e dondurme.
+//
+// ⚠️⚠️ TURU 78b — INSERT DALINDA `COALESCE($9,0)` ZORUNLU (uctan uca testinde
+//
+//	yakalandi). Yukaridaki isaretci degisikliginde UPDATE dali dogru kuruldu
+//	ama INSERT dali ATLANDI: istemci enlem/boylam HIC gondermedigi icin pgx
+//	`nil`i SQL NULL'a cevirdi, sutun NOT NULL oldugu icin **ISLETME HESABINA
+//	GECIS HER SEFERINDE 500 DONDU** (SQLSTATE 23502) ve ona bagli alti kontrol
+//	daha coktu (isletme detayi, rehber, hesap_turu, urun ekleme, katalog,
+//	urun medyasi).
+//	⚠️ Bu, CLAUDE.md'de defalarca yazili "nil -> SQL NULL" sinifinin ta
+//	   kendisidir ve KENDI DUZELTMEMDE tekrarlandi. Statik denetim yakalamadi;
+//	   GERCEK POSTGRES'e giden uctan uca testi yakaladi.
+//	⚠️ Yeni satirda bilinmeyen konum 0'dir; MEVCUT satirda ON CONFLICT
+//	   dalindaki COALESCE eski degeri KORUR.
 func (h *Handler) Kaydet(w http.ResponseWriter, r *http.Request) {
 	me := auth.UserID(r.Context())
 	var req isletmeReq
@@ -153,7 +167,8 @@ func (h *Handler) Kaydet(w http.ResponseWriter, r *http.Request) {
 	if _, err := tx.Exec(r.Context(), `
 		INSERT INTO isletmeler
 		  (user_id, kategori, adres, il, ilce, telefon, web, calisma, enlem, boylam)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+		-- TURU 78b: COALESCE(...,0) ZORUNLU — ayrinti Kaydet serhinde.
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,COALESCE($9,0),COALESCE($10,0))
 		ON CONFLICT (user_id) DO UPDATE SET
 		  kategori=EXCLUDED.kategori, adres=EXCLUDED.adres, il=EXCLUDED.il,
 		  ilce=EXCLUDED.ilce, telefon=EXCLUDED.telefon, web=EXCLUDED.web,
