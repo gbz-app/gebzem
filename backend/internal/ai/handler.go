@@ -55,28 +55,40 @@ const (
 	modelMetin = "gpt-4o-mini"
 	zamanAsimi = 60 * time.Second
 
-	// ⚠️⚠️ TURU 79 — GORSEL URETIM MODELI.
+	// ⚠️⚠️⚠️ TURU 79 — GORSEL URETIM MODELI: **HESABIN MODEL LISTESINDEN SECILDI.**
 	//
-	//	`dall-e-3` SECILDI, `gpt-image-1` DEGIL: ikincisi bazi hesaplarda
-	//	**kurulus dogrulamasi** istiyor ve dogrulanmamis bir hesapta 403 doner —
-	//	yani ozellik sahada SESSIZCE olu olurdu. `dall-e-3` boyle bir kapi
-	//	tasimiyor. Model adi TEK YERDE: degistirmek tek satir.
-	//	⚠️ `response_format: "b64_json"` ZORUNLU (bkz. `GorselUret` serhi).
-	modelGorsel = "dall-e-3"
+	//	Ilk yazimda `dall-e-3` secilmisti ("yaygin, dogrulama istemiyor" diye).
+	//	CANLI SUNUCU onu curuttu:
+	//	    openai: The model 'dall-e-3' does not exist. (invalid_value)
+	//	Yani model ARTIK YOK. `GET /v1/models` ile hesabin GERCEKTEN erisebildigi
+	//	gorsel modelleri listelendi: gpt-image-1 · gpt-image-1.5 · gpt-image-2 ·
+	//	gpt-image-1-mini · chatgpt-image-latest.
+	//
+	//	`gpt-image-1-mini` SECILDI: urun fotografi icin YETERLI ve ailenin EN
+	//	UCUZ uyesi. Odeme sistemi YOK, maliyet dogrudan cebimizden cikiyor.
+	//
+	// ⚠️ DERS: dis servisin model adini VARSAYMA — `/v1/models` ile DOGRULA.
+	//    Bu tur, bir varsayimin canli sunucuda IKI KEZ curutulmesiyle gecti
+	//    (`response_format` parametresi ve model adi).
+	modelGorsel = "gpt-image-1-mini"
+
+	// ⚠️ `quality` gpt-image ailesinde GECERLI (canli dogrulandi). "medium"
+	//    urun fotografi icin yeterli; "high" maliyeti ciddi artirir.
+	gorselKalite = "medium"
 
 	// Gorsel uretimi zaman asimi — metinden UZUN surer.
 	gorselZamanAsimi = 120 * time.Second
 
-	// ⚠️⚠️ GORSEL KOTASI METINDEN **AYRI VE COK DAHA DUSUK**.
+	// ⚠️⚠️ GORSEL KOTASI METINDEN **AYRI VE DAHA DUSUK**.
 	//
-	//	Maliyet: dall-e-3 1024x1024 standart ~$0.040/gorsel; metin cagrisi
-	//	~$0.001. Yani BIR gorsel ~40 metin cagrisina bedel. Gunluk 20 gorsel
-	//	kullanici basina ~$0.80/gun eder ve odeme sistemi YOK.
-	//	5 gorsel/gun (~$0.20) urun fotografi ihtiyacini karsilar, kotu niyetli
-	//	kullanimda ise maliyeti sinirli tutar.
+	//	Maliyet: gorsel uretimi metin cagrisindan BIR KAC KAT PAHALI
+	//	(metin ~$0.001). Odeme sistemi YOK, maliyet dogrudan bize ait.
+	//	10 gorsel/gun secildi: bir restoran menusune fotograf eklerken ANLAMLI
+	//	bir sayi (5 cok kisitliydi), kotu niyetli kullanimda ise maliyet
+	//	sinirli kalir.
 	// ⚠️ Sayim `tur='gorsel'` uzerinden AYRI yapilir; metin kotasini YEMEZ ve
 	//    metin kotasi da gorseli kilitlemez.
-	gunlukGorselKota = 5
+	gunlukGorselKota = 10
 
 	// Uretilen PNG icin ust sinir. ⚠️ `io.LimitReader` ile UYGULANIR: OpenAI
 	// beklenmedik sekilde devasa bir govde donerse cx33'un RAM'ini yemesin.

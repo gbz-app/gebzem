@@ -157,10 +157,11 @@ func (h *Handler) gorselUret(ctx context.Context, metin string) ([]byte, error) 
 	//    Tek bicime bel baglamak, API'nin bir sonraki degisiminde ozelligi
 	//    yine sessizce oldururdu.
 	govde, _ := json.Marshal(map[string]any{
-		"model":  modelGorsel,
-		"prompt": fmt.Sprintf(gorselCerceve, metin),
-		"n":      1,
-		"size":   "1024x1024",
+		"model":   modelGorsel,
+		"prompt":  fmt.Sprintf(gorselCerceve, metin),
+		"n":       1,
+		"size":    "1024x1024",
+		"quality": gorselKalite,
 	})
 
 	c, iptal := context.WithTimeout(ctx, gorselZamanAsimi)
