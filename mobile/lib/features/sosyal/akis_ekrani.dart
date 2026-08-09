@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../home/home_screen.dart' show myProfileProvider;
-import '../kanal/kanallar_sekmesi.dart';
 import 'bildirim_sayaci.dart';
 import 'bildirimler_sayfasi.dart';
 import 'gonderi_karti.dart';
@@ -34,16 +33,45 @@ class AkisEkrani extends ConsumerStatefulWidget {
 class _AkisEkraniState extends ConsumerState<AkisEkrani>
     with AutomaticKeepAliveClientMixin {
   final _kaydirma = ScrollController();
-  final List<Gonderi> _liste = [];
+
+  /// ⚠️ TURU 80 — AKTIF bolmenin listesi. Alan DEGIL GETTER: iki bolme ayri
+  ///    liste tutuyor ve tum mevcut kod `_liste` uzerinden calisiyordu.
+  List<Gonderi> get _liste => _listeler[_bolme];
   bool _ilkYukleme = true;
   bool _dahaVar = true;
   bool _yukleniyor = false;
   bool _kesfet = false;
   String? _hata;
 
-  /// ⚠️ AKIS mi KANALLAR mi. Kanallar AYRI ALT SEKME YAPILMADI: alt menude
-  ///    zaten 6 hedef var ve 7.'si etiketleri okunmaz hale getirir.
+  /// ⚠️⚠️⚠️ TURU 80 — BOLME ARTIK "Takip Ettiklerin | Keşfet" (kullanici emri:
+  /// *"anasayfadaki akış ve kanallar butonunu kaldır, onun yerine hikaye
+  /// dairesinin altına Takip Ettiklerin / Keşfet olacak"*).
+  ///
+  /// 0 = Takip Ettiklerin (`/feed`) · 1 = Keşfet (`/kesfet`)
+  ///
+  /// ⚠️⚠️ KANALLAR NEREYE GITTI: eski secici KANALLARIN **TEK GIRIS
+  ///    NOKTASIYDI**. Kaldirip yerine bir sey koymamak kanal ozelligini
+  ///    TAMAMEN ULASILAMAZ birakirdi (bu projede ALTI kez yasanan "olu
+  ///    ozellik" sinifi). Kanallar sol ust hamburger menuye TASINDI
+  ///    (`hizmet_menusu.dart` -> `KanallarSayfasi`).
+  ///    ⚠️ YAPMA: buraya kanal bolmesini geri ekleme; iki giris DRIFT eder.
   int _bolme = 0;
+
+  /// ⚠️⚠️ HER BOLMENIN **KENDI LISTESI** var — bolme degisince liste SWAP
+  ///    edilir, yeniden ag istegi ATILMAZ ve kaydirma konumu korunur.
+  ///
+  /// ⚠️ NEDEN `IndexedStack` DEGIL (bu isin EN KRITIK karari): `IndexedStack`
+  ///    secili OLMAYAN cocuklari da agacta CANLI + LAYOUT EDILMIS tutar. Akista
+  ///    OTOMATIK OYNAYAN VIDEO var ve otomatik oynatma dort kapiya bagli
+  ///    (`_gorunurOran>=0.6` · `_sayfa==sira` · `aktifSekme==0` ·
+  ///    `ModalRoute.isCurrent`) — bunlarin HICBIRI "hangi BOLME acik" sorusunu
+  ///    bilmez. Iki bolme birden canli olsaydi GORUNMEYEN bolmedeki video da
+  ///    oynar, mobil veri harcar ve iOS'ta ses oturumunu tutardi (turu 64/65/73
+  ///    aramalari tam bu yuzden sagirlasti).
+  /// ⚠️ YAPMA: iki bolmeyi `IndexedStack`e koyma.
+  final List<List<Gonderi>> _listeler = [<Gonderi>[], <Gonderi>[]];
+  final List<bool> _bolmeYuklendi = [false, false];
+  final List<double> _bolmeKaydirma = [0, 0];
 
   /// ⚠️ TURU 76b — hikaye seridine erisim: akis YENILENINCE serit de
   ///    yenilenmeli (yeni hikaye paylasan biri aninda gorunsun).
@@ -85,14 +113,32 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
       // ⚠️ Serit de tazelenir — asagi cekince yalniz gonderiler yenilenseydi
       //    yeni hikayeler gorunmezdi.
       unawaited(_storyKey.currentState?.yukle() ?? Future.value());
-      final s = await ref.read(sosyalServisiProvider).akis();
-      if (!mounted) return;
+      // ⚠️ Servis await'ten ONCE yakalanir (turu 78b dersi: disposed State'te
+      //    `ref.read` StateError firlatir ve is SESSIZCE iptal olur).
+      final svc = ref.read(sosyalServisiProvider);
+      // ⚠️ Bolme kimligi await'ten ONCE yakalanir: kullanici yuklenirken
+      //    bolme degistirirse gelen sonuc YANLIS listeye yazilmamali.
+      final bolme = _bolme;
+      final List<Gonderi> gelen;
+      var soguk = false;
+      if (bolme == 1) {
+        gelen = await svc.kesfetAkisi();
+      } else {
+        final s = await svc.akis();
+        gelen = s.gonderiler;
+        soguk = s.kesfet;
+      }
+      if (!mounted || bolme != _bolme) return;
       setState(() {
-        _liste
+        _listeler[bolme]
           ..clear()
-          ..addAll(s.gonderiler);
-        _kesfet = s.kesfet;
-        _dahaVar = s.gonderiler.isNotEmpty;
+          ..addAll(gelen);
+        _bolmeYuklendi[bolme] = true;
+        // ⚠️ Soguk baslangic seridi YALNIZ "Takip Ettiklerin" bolmesinde
+        //    anlamli: Keşfet zaten kesfet icerigidir, orada "takip edecek kimse
+        //    bulamadik" seridi cizmek YANILTICI olurdu.
+        _kesfet = bolme == 0 && soguk;
+        _dahaVar = gelen.isNotEmpty;
         _ilkYukleme = false;
         _yukleniyor = false;
       });
@@ -110,24 +156,84 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
     if (_yukleniyor || !_dahaVar || _liste.isEmpty) return;
     setState(() => _yukleniyor = true);
     try {
-      final s = await ref
-          .read(sosyalServisiProvider)
-          .akis(before: _liste.last.createdAt);
-      if (!mounted) return;
+      // ⚠️ Servis ve bolme kimligi await'ten ONCE (bkz. `_yenile` serhi).
+      final svc = ref.read(sosyalServisiProvider);
+      final bolme = _bolme;
+      final imlec = _liste.last.createdAt;
+      final gelen = bolme == 1
+          ? await svc.kesfetAkisi(before: imlec)
+          : (await svc.akis(before: imlec)).gonderiler;
+      if (!mounted || bolme != _bolme) return;
       setState(() {
         // ⚠️ TEKRAR SUZGECI: imlec sinirinda ayni saniyede olusmus gonderiler
         //    hem onceki hem yeni sayfada gelebilir. Id'ye gore eliyoruz —
         //    yoksa listede CIFT KART cizilir (ve `Key` cakismasi patlatir).
-        final mevcut = _liste.map((g) => g.id).toSet();
-        final yeni = s.gonderiler.where((g) => !mevcut.contains(g.id)).toList();
-        _liste.addAll(yeni);
-        _dahaVar = s.gonderiler.isNotEmpty;
+        final hedef = _listeler[bolme];
+        final mevcut = hedef.map((g) => g.id).toSet();
+        hedef.addAll(gelen.where((g) => !mevcut.contains(g.id)));
+        _dahaVar = gelen.isNotEmpty;
         _yukleniyor = false;
       });
     } catch (_) {
       if (!mounted) return;
       setState(() => _yukleniyor = false);
     }
+  }
+
+  /// ⚠️⚠️⚠️ TURU 80 — "Takip Ettiklerin | Keşfet" SECICISI.
+  ///
+  /// Kullanici emri: *"hikaye dairesinin ALTINA Takip Ettiklerin / Keşfet"*.
+  ///
+  /// ⚠️ AKISLA BIRLIKTE KAYAR (sabitlenmedi). Sabit (pinned) bir baslik
+  ///    `gorunurluk.dart` gozcusuyle catisirdi: gozcu viewport'un TAMAMINI
+  ///    olcuyor, yani baslik ARKASINDA kalan kismi da "gorunur" sayardi ve
+  ///    otomatik video oynatmanin `>=0.6` kapisi olcusunu SASIRIRDI. Hikaye
+  ///    seridi de ayni gerekceyle akisla kayiyor (turu 76b karari).
+  /// ⚠️ Bolme degisiminde LISTE SWAP edilir, ag istegi ATILMAZ (bolme daha once
+  ///    yuklendiyse). Kaydirma konumu bolme basina saklanir.
+  Widget _bolmeSecici() => Padding(
+    padding: const EdgeInsets.fromLTRB(12, 2, 12, 8),
+    child: SegmentedButton<int>(
+      segments: const [
+        ButtonSegment(value: 0, label: Text('Takip Ettiklerin')),
+        ButtonSegment(value: 1, label: Text('Keşfet')),
+      ],
+      selected: {_bolme},
+      showSelectedIcon: false,
+      style: const ButtonStyle(
+        visualDensity: VisualDensity.compact,
+        textStyle: WidgetStatePropertyAll(TextStyle(fontSize: 13)),
+      ),
+      onSelectionChanged: (v) => _bolmeDegistir(v.first),
+    ),
+  );
+
+  void _bolmeDegistir(int yeni) {
+    if (yeni == _bolme) return;
+    // ⚠️ Mevcut bolmenin kaydirma konumu SAKLANIR — geri donunce kullanici
+    //    kaldigi yerde olsun (liste zaten bellekte).
+    if (_kaydirma.hasClients) _bolmeKaydirma[_bolme] = _kaydirma.offset;
+    setState(() {
+      _bolme = yeni;
+      // ⚠️ `_dahaVar` bolmeye ozgu: yeni bolme bos ise sayfalama tetiklenmesin.
+      _dahaVar = _listeler[yeni].isNotEmpty || !_bolmeYuklendi[yeni];
+      _hata = null;
+    });
+    // ⚠️ DAHA ONCE YUKLENMEDIYSE getir; yuklendiyse AG ISTEGI ATMA.
+    if (!_bolmeYuklendi[yeni]) {
+      unawaited(_yenile());
+      return;
+    }
+    // ⚠️ Kaydirma geri yuklemesi bir sonraki KAREDE yapilir: liste bu karede
+    //    henuz yeniden olculmedi, `jumpTo` `maxScrollExtent`i asardi.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_kaydirma.hasClients) return;
+      final hedef = _bolmeKaydirma[yeni].clamp(
+        0.0,
+        _kaydirma.position.maxScrollExtent,
+      );
+      _kaydirma.jumpTo(hedef);
+    });
   }
 
   void _profileGit(String userId) {
@@ -161,20 +267,16 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
         //    Akis kok route oldugu icin AppBar oraya geri oku KOYMAZ, cakisma YOK.
         leadingWidth: 46,
         leading: const HamburgerDugmesi(),
-        // ⚠️ Baslik yerine BOLME SECICI: "Akış | Kanallar". Kullanicinin kanal
-        //    diye bir sey oldugunu GORMESI icin tek yol bu (gizli menu degil).
-        title: SegmentedButton<int>(
-          segments: const [
-            ButtonSegment(value: 0, label: Text('Akış')),
-            ButtonSegment(value: 1, label: Text('Kanallar')),
-          ],
-          selected: {_bolme},
-          showSelectedIcon: false,
-          style: ButtonStyle(
-            visualDensity: VisualDensity.compact,
-            textStyle: WidgetStatePropertyAll(TextStyle(fontSize: 13)),
-          ),
-          onSelectionChanged: (v) => setState(() => _bolme = v.first),
+        // ⚠️⚠️ TURU 80 — BURADAKI "Akış | Kanallar" SECICISI **KALDIRILDI**
+        //    (kullanici emri). Yerine gelen "Takip Ettiklerin | Keşfet"
+        //    secicisi HIKAYE SERIDININ ALTINDA (bkz. `_bolmeSecici`).
+        //    Kanallar sol ust hamburger menuye TASINDI — o secici kanallarin
+        //    TEK GIRISIYDI, yerine bir sey konmasaydi ozellik OLURDU.
+        // ⚠️ Baslik "Gebzem": AppBar bomboş kalsaydi hamburger dugmesi havada
+        //    duran tek oge olurdu.
+        title: const Text(
+          'Gebzem',
+          style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800),
         ),
         actions: [
           // ⚠️⚠️ TURU 76 — BURADAKI "Reels" DUGMESI KALDIRILDI. Reels artik ALT
@@ -203,29 +305,23 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
           ),
         ],
       ),
-      // ⚠️ FAB yalniz AKIS bolmesinde: kanallar bolmesinin kendi "Kanal aç"
-      //    dugmesi var, ust uste binerlerdi.
-      floatingActionButton: _bolme == 0
-          ? FloatingActionButton(
-              // TURU 76: HERO ETIKETI ZORUNLU. Ucun de varsayilan etiketi paylasmasi
-              // debug/profile derlemede route gecisinde KIRMIZI EKRAN uretiyordu;
-              // release'te assert silindigi icin sessizce SON hero yaziliyor ve
-              // ucus YANLIS dugmeyi tasiyordu.
-              heroTag: 'fabGonderiOlustur',
-              onPressed: _olustur,
-              child: const Icon(LucideIcons.plus),
-            )
-          : null,
-      // ⚠️ IndexedStack: bolme degisince kaydirma konumu ve yuklenmis liste
-      //    KORUNUR. TabBarView olsaydi komsu bolme dispose olur ve her geciste
-      //    yeniden ag istegi atilirdi.
-      body: IndexedStack(
-        index: _bolme,
-        children: [
-          RefreshIndicator(onRefresh: _yenile, child: _govde(benimId)),
-          const KanallarSekmesi(),
-        ],
+      // ⚠️ TURU 80 — FAB ARTIK HER IKI BOLMEDE de var: eski "Kanallar" bolmesi
+      //    kendi "Kanal aç" FAB'ini tasidigi icin gizleniyordu; "Keşfet"in
+      //    boyle bir dugmesi YOK ve orada gonderi paylasamamak icin sebep yok.
+      floatingActionButton: FloatingActionButton(
+        // TURU 76: HERO ETIKETI ZORUNLU. Ucun de varsayilan etiketi paylasmasi
+        // debug/profile derlemede route gecisinde KIRMIZI EKRAN uretiyordu;
+        // release'te assert silindigi icin sessizce SON hero yaziliyor ve
+        // ucus YANLIS dugmeyi tasiyordu.
+        heroTag: 'fabGonderiOlustur',
+        onPressed: _olustur,
+        child: const Icon(LucideIcons.plus),
       ),
+      // ⚠️⚠️ TURU 80 — `IndexedStack` **KALDIRILDI** (bkz. `_listeler` serhi).
+      //    Iki bolme artik TEK govdeyi paylasiyor; ayrim VERIDE (`_listeler`),
+      //    widget agacinda DEGIL. Boylece gorunmeyen bolmenin videosu
+      //    yasamiyor ve akista otomatik oynatmanin dort kapisi bozulmuyor.
+      body: RefreshIndicator(onRefresh: _yenile, child: _govde(benimId)),
     );
   }
 
@@ -246,6 +342,7 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
       physics: const AlwaysScrollableScrollPhysics(),
         children: [
           StorySeridi(key: _storyKey),
+          _bolmeSecici(),
           const SizedBox(height: 120),
           Center(child: Text(_hata!)),
           const SizedBox(height: 12),
@@ -271,6 +368,7 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
       physics: const AlwaysScrollableScrollPhysics(),
         children: [
           StorySeridi(key: _storyKey),
+          _bolmeSecici(),
           const SizedBox(height: 100),
           const Icon(LucideIcons.images, size: 54, color: Colors.grey),
           const SizedBox(height: 14),
@@ -291,11 +389,16 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
       // ⚠️ ILK OGE HER ZAMAN HIKAYE SERIDI (kullanici emri: 'anasayfada
       //    storyler'). Serit akisla BIRLIKTE kayar (Instagram deseni) —
       //    sabit birakmak 106px'i kalici olarak yer.
-      // +1 hikaye seridi / +1 kesfet seridi / +1 alt yukleme gostergesi
-      itemCount: _liste.length + 1 + (_kesfet ? 1 : 0) + 1,
+      // ⚠️ TURU 80: +1 hikaye seridi / **+1 BOLME SECICI** / +1 kesfet seridi /
+      //    +1 alt yukleme gostergesi. Secici eklendiginde bu sayac da
+      //    guncellendi — atlanmis olsaydi listenin SON KARTI cizilmezdi.
+      itemCount: _liste.length + 2 + (_kesfet ? 1 : 0) + 1,
       itemBuilder: (_, i) {
+        // ⚠️ TURU 80: 0 = hikaye seridi, 1 = BOLME SECICI (kullanici emri:
+        //    "hikaye dairesinin ALTINA"). Ikisi de akisla BIRLIKTE kayar.
         if (i == 0) return StorySeridi(key: _storyKey);
-        var idx = i - 1;
+        if (i == 1) return _bolmeSecici();
+        var idx = i - 2;
         if (_kesfet) {
           if (idx == 0) return _kesfetSeridi();
           idx = idx - 1;

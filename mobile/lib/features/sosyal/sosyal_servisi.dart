@@ -80,6 +80,27 @@ class SosyalServisi {
     );
   }
 
+  /// ⚠️⚠️ TURU 80 — "Keşfet" BOLMESI (hikaye seridinin altindaki secici).
+  ///
+  /// `/kesfet` ucu `/feed` ile **AYNI** `{posts: [...]}` bicimini donduruyor
+  /// (`h.satirlariOku(rows)` — kaynaktan dogrulandi), bu yuzden SUNUCUDA
+  /// HICBIR DEGISIKLIK GEREKMEDI ve ayni `Gonderi.json` ayristirmasi kullanilir.
+  ///
+  /// ⚠️ Bu uc `cardinality(media_ids) > 0` suzuyor, yani kesfet YALNIZ MEDYALI
+  ///    gonderileri gosterir. BILINCLI: kesfet gorsel bir vitrindir (Instagram
+  ///    Explore da boyle) ve yazi gonderileri takip akisinda zaten gorunur.
+  /// ⚠️ `before` sayfalama ayni imlec desenini kullanir.
+  Future<List<Gonderi>> kesfetAkisi({String? before}) async {
+    final r = await _api.get(
+      '/kesfet',
+      queryParameters: {if (before != null) 'before': before},
+    );
+    final m = (r.data as Map).cast<String, dynamic>();
+    return ((m['posts'] as List?) ?? [])
+        .map((e) => Gonderi.json((e as Map).cast<String, dynamic>()))
+        .toList();
+  }
+
   /// Tek gonderi (bildirimden / derin baglantidan acilir).
   Future<Gonderi> gonderiGetir(String id) async {
     final r = await _api.get('/posts/$id');
