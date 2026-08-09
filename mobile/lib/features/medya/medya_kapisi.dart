@@ -1,11 +1,15 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'dart:io';
+
 import 'package:image_picker/image_picker.dart';
+import 'package:video_player/video_player.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../calls/call_provider.dart';
+import 'medya_servisi.dart' show kTavanlar;
 import '../calls/medya_beklet.dart' show SesSahipligi;
 import '../calls/pip_service.dart';
 import '../../router.dart' show rootMessengerKey;
@@ -163,5 +167,86 @@ class MedyaSecici {
       MedyaKapisi.pickerAcik = false;
     }
     return secim.take(kalan).toList();
+  }
+
+  /// ⚠️⚠️ TURU 78 — VIDEO SECIMI **TEK KAYNAK** (boyut + SURE kapisi dahil).
+  ///
+  /// Ayni zincir `gonderi_olustur.dart`ta yaziliydi; ilan/etkinlik icin ikinci
+  /// kez yazilsaydi iki kopya KACINILMAZ olarak drift ederdi (bu projede ALTI
+  /// kez yasandi). Ozellikle SURE OLCUMU kritik: yanlis kopyalanirsa bir yerde
+  /// 5 dakikalik, otekinde sinirsiz video kabul edilirdi.
+  ///
+  /// Donen `null` = kullanici vazgecti YA DA dosya reddedildi (sebep zaten
+  /// [uyar] ile gosterildi).
+  ///
+  /// ⚠️ `maxDuration` GALERI secimlerinde YOK SAYILIR (image_picker upstream
+  ///    davranisi: yalnizca KAMERA cekiminde uygulanir). Bu yuzden sure
+  ///    ASAGIDA KENDIMIZ olculur; parametre yine de veriliyor (kamera yolunda
+  ///    ise yarar).
+  /// ⚠️ Olcum BASARISIZ olursa video REDDEDILMEZ — sunucunun bayt tavani son
+  ///    savunma olarak kalir. Sessiz reddetmek, kullanicinin sebebini
+  ///    anlayamayacagi bir duvar olurdu.
+  static Future<File?> video({
+    required Duration sureTavani,
+    required void Function(String) uyar,
+  }) async {
+    XFile? x;
+    try {
+      MedyaKapisi.pickerAcik = true;
+      x = await ImagePicker().pickVideo(
+        source: ImageSource.gallery,
+        maxDuration: sureTavani,
+      );
+    } catch (e) {
+      unawaited(Sentry.captureMessage('video secici hatasi: $e'));
+    } finally {
+      MedyaKapisi.pickerAcik = false;
+    }
+    if (x == null) return null;
+
+    final dosya = File(x.path);
+    // ⚠️ BOYUT KAPISI (sunucu tavaniyla AYNI). Sunucu da reddeder ama kullanici
+    //    100 MB'lik dosyayi bosuna yuklemeye baslamasin.
+    final bayt = await dosya.length();
+    final tavan = kTavanlar['video'] ?? (100 << 20);
+    if (bayt > tavan) {
+      uyar('Video çok büyük (en fazla ${(tavan / (1 << 20)).round()} MB)');
+      return null;
+    }
+
+    final sure = await videoSuresi(dosya);
+    if (sure != null && sure > sureTavani) {
+      final dk = sureTavani.inMinutes;
+      uyar(
+        dk >= 1
+            ? 'Video en fazla $dk dakika olabilir'
+            : 'Video en fazla ${sureTavani.inSeconds} saniye olabilir',
+      );
+      return null;
+    }
+    return dosya;
+  }
+
+  /// Video suresini olcer. Olculemezse `null` doner (kapiyi ACIK birakir).
+  ///
+  /// ⚠️⚠️ `mixWithOthers: true` ZORUNLU — aksi halde bu KISA olcum bile iOS'ta
+  ///    AVAudioSession kategorisini degistirip SUREN ARAMANIN sesini bozardi.
+  ///    iOS'ta ses oturumu PROSES GENELINDE TEKTIR (turu 64/65/73 dersleri).
+  /// ⚠️ Gecici oynatici HEMEN dispose edilir.
+  static Future<Duration?> videoSuresi(File f) async {
+    VideoPlayerController? c;
+    try {
+      c = VideoPlayerController.file(
+        f,
+        videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
+      );
+      await c.initialize().timeout(const Duration(seconds: 8));
+      final d = c.value.duration;
+      return d == Duration.zero ? null : d;
+    } catch (_) {
+      return null;
+    } finally {
+      unawaited(c?.dispose());
+    }
   }
 }

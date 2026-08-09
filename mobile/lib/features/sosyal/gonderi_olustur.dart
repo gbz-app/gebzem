@@ -4,10 +4,7 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
-import 'package:sentry_flutter/sentry_flutter.dart';
-import 'package:video_player/video_player.dart';
 
 import '../medya/medya_kapisi.dart';
 import '../medya/medya_servisi.dart';
@@ -125,28 +122,7 @@ class _GonderiOlusturState extends ConsumerState<GonderiOlustur> {
   Duration get _sureTavani =>
       _reelsMi ? const Duration(seconds: 90) : const Duration(minutes: 5);
 
-  /// Video suresini olcer. Olculemezse `null` doner (kapiyi ACIK birakir).
-  ///
-  /// ⚠️ Gecici bir `VideoPlayerController` kurulur ve HEMEN dispose edilir.
-  ///    `mixWithOthers: true` ZORUNLU — aksi halde bu kisa olcum bile iOS'ta
-  ///    AVAudioSession kategorisini degistirip SUREN ARAMANIN sesini bozardi
-  ///    (bkz. sosyal/medya_video.dart baslik serhi).
-  static Future<Duration?> _videoSuresi(File f) async {
-    VideoPlayerController? c;
-    try {
-      c = VideoPlayerController.file(
-        f,
-        videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
-      );
-      await c.initialize().timeout(const Duration(seconds: 8));
-      final d = c.value.duration;
-      return d == Duration.zero ? null : d;
-    } catch (_) {
-      return null;
-    } finally {
-      unawaited(c?.dispose());
-    }
-  }
+  // ⚠️ TURU 78: sure olcumu MedyaKapisi.videoSuresi()e TASINDI (tek kaynak).
 
   Future<void> _videoSec() async {
     if (!MedyaKapisi.izinVer(ref)) {
@@ -158,54 +134,11 @@ class _GonderiOlusturState extends ConsumerState<GonderiOlustur> {
       _uyar('En fazla $_enFazlaGorsel medya ekleyebilirsin');
       return;
     }
-    XFile? x;
-    try {
-      MedyaKapisi.pickerAcik = true;
-      x = await ImagePicker().pickVideo(
-        source: ImageSource.gallery,
-        // ⚠️⚠️ TURU 76 — `maxDuration` GALERI SECIMLERINDE YOK SAYILIYOR
-        //    (image_picker upstream davranisi: yalnizca KAMERA cekiminde
-        //    uygulanir). Yani "reels 90 sn / video 5 dk" kurali SAHADA HIC
-        //    CALISMIYORDU; kullanici 1 saatlik 4K video secebiliyordu.
-        //    Parametre yine de veriliyor (kamera yolunda ise yarar) ama ASIL
-        //    kapi asagida, sureyi KENDIMIZ olcerek uygulaniyor.
-        maxDuration: _sureTavani,
-      );
-    } catch (e) {
-      unawaited(Sentry.captureMessage('gonderi video secici hatasi: $e'));
-    } finally {
-      MedyaKapisi.pickerAcik = false;
-    }
-    if (x == null || !mounted) return;
-
-    final dosya = File(x.path);
-
-    // ⚠️ BOYUT KAPISI (sunucu tavaniyla ayni). Sunucu da reddeder ama kullanici
-    //    100 MB'lik dosyayi bosuna yuklemeye baslamasin.
-    final bayt = await dosya.length();
-    if (!mounted) return;
-    final tavan = kTavanlar['video'] ?? (100 << 20);
-    if (bayt > tavan) {
-      _uyar('Video çok büyük (en fazla ${(tavan / (1 << 20)).round()} MB)');
-      return;
-    }
-
-    // ⚠️⚠️ SURE KAPISI — SUREYI KENDIMIZ OLCUYORUZ.
-    //    `video_player` zaten bagimli (reels/akis oynaticisi) — ek paket YOK.
-    //    Olcum basarisiz olursa (bozuk dosya, kodek yok) video REDDEDILMEZ:
-    //    sunucunun bayt tavani son savunma olarak kalir. Sessiz REDDETMEK,
-    //    kullanicinin sebebini anlayamayacagi bir duvar olurdu.
-    final sure = await _videoSuresi(dosya);
-    if (!mounted) return;
-    if (sure != null && sure > _sureTavani) {
-      _uyar(
-        _reelsMi
-            ? 'Reels en fazla 90 saniye olabilir'
-            : 'Video en fazla 5 dakika olabilir',
-      );
-      return;
-    }
-
+    // ⚠️ TEK KAYNAK: boyut + SURE kapisi MedyaSecici.video icinde.
+    //    Ayni zincir burada ve ilan/etkinlik ekranlarinda iki kopya olsaydi
+    //    kacinilmaz olarak drift ederdi (bu projede ALTI kez yasandi).
+    final dosya = await MedyaSecici.video(sureTavani: _sureTavani, uyar: _uyar);
+    if (dosya == null || !mounted) return;
     setState(() {
       // ⚠️ TURU 76 — REELS'te TEK video (dikey oynatici tek kaynak varsayiyor),
       //    normal gonderide video GALERIYE EKLENIR (karma medya).

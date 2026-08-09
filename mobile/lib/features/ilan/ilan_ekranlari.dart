@@ -13,6 +13,7 @@ import '../medya/medya_gorsel.dart';
 import '../medya/medya_kapisi.dart';
 import '../medya/medya_servisi.dart';
 import '../sosyal/gonderi_karti.dart' show gonderiZamani;
+import '../sosyal/medya_video.dart';
 import '../sosyal/profil_sayfasi.dart';
 import 'ilan_servisi.dart';
 
@@ -532,11 +533,52 @@ class _IlanDetayEkraniState extends ConsumerState<IlanDetayEkrani> {
               child: Stack(
                 alignment: Alignment.bottomCenter,
                 children: [
+                  // ⚠️⚠️ TURU 78 — KARMA GALERI (foto + video).
+                  //    Tur bilgisi `media_kinds`ten gelir ve sunucu SIRA
+                  //    KORUYARAK donduruyor: `mediaKinds[k]` <-> `mediaIds[k]`.
+                  //    Bu dizi olmasaydi video id'si `MedyaGorsel`e verilir ve
+                  //    KIRIK GORSEL cizilirdi (kanal gonderilerinde turu 76b'ye
+                  //    kadar tam bu sorun vardi).
+                  // ⚠️ Eski sunucudan bos gelirse hepsi FOTOGRAF sayilir —
+                  //    guvenli varsayilan.
                   PageView.builder(
                     itemCount: i.mediaIds.length,
                     onPageChanged: (p) => setState(() => _sayfa = p),
-                    itemBuilder: (_, k) =>
-                        MedyaGorsel(mediaId: i.mediaIds[k], fit: BoxFit.cover),
+                    itemBuilder: (_, k) {
+                      final tur = k < i.mediaKinds.length
+                          ? i.mediaKinds[k]
+                          : 'image';
+                      if (tur == 'yok') {
+                        // Silinmis medya — dürüst bir yer tutucu.
+                        return const ColoredBox(
+                          color: Color(0xFF14101C),
+                          child: Center(
+                            child: Text(
+                              'Bu içerik kaldırıldı',
+                              style: TextStyle(color: Colors.white54),
+                            ),
+                          ),
+                        );
+                      }
+                      if (tur == 'video') {
+                        // ⚠️⚠️ `otoOynat: false` + `sesli: false` ZORUNLU.
+                        //    iOS'ta ses oturumu PROSES GENELINDE TEKTIR;
+                        //    ilan detayinda kendiliginden calan bir video
+                        //    SUREN ARAMAYI SAGIRLASTIRIR (turu 64/65/73).
+                        //    Kullanici oynat dugmesine BASARAK baslatir.
+                        // ⚠️ YAPMA: buraya akistaki otomatik oynatmayi tasima.
+                        return MedyaVideo(
+                          mediaId: i.mediaIds[k],
+                          otoOynat: false,
+                          sesli: false,
+                          dolgu: BoxFit.cover,
+                        );
+                      }
+                      return MedyaGorsel(
+                        mediaId: i.mediaIds[k],
+                        fit: BoxFit.cover,
+                      );
+                    },
                   ),
                   if (i.mediaIds.length > 1)
                     Padding(
@@ -689,6 +731,19 @@ class _IlanVerEkraniState extends ConsumerState<IlanVerEkrani> {
   /// YENI secilen (henuz yuklenmemis) dosyalar.
   final List<File> _gorseller = [];
 
+  /// ⚠️ TURU 78 — YENI secilen VIDEOLAR (ayri liste: yukleme `kind`i farkli —
+  ///    'video' vs 'image' — ve sikistirma yolu da farkli; videoya
+  ///    `gorseliHazirla` UYGULANMAZ).
+  final List<File> _videolar = [];
+
+  /// ⚠️ Ilan basina VIDEO tavani. Toplam medya tavani (12) AYRI ve USTTEDIR.
+  ///    3 secildi: bir arac/ev ilaninda 1-2 tanitim videosu yeterli; daha
+  ///    fazlasi hem R2 maliyeti hem alici icin gorulmeyen icerik.
+  static const _enFazlaVideo = 3;
+
+  /// ⚠️ Gonderi tarafiyla AYNI tavan — ucuncu bir sure siniri UYDURULMADI.
+  static const _videoSuresi = Duration(minutes: 5);
+
   /// ⚠️ DUZENLEMEDE: sunucuda ZATEN duran medya id'leri. Kullanici bunlardan
   ///    silebilir; kaydederken "kalanlar + yeni yuklenenler" gonderilir.
   ///    Yeni dosya ile mevcut id'yi tek listede tutmak mumkun degildi
@@ -769,6 +824,35 @@ class _IlanVerEkraniState extends ConsumerState<IlanVerEkrani> {
     setState(() => _gorseller.addAll(secim.map((x) => File(x.path))));
   }
 
+  /// ⚠️ TURU 78 — ILANA VIDEO (kullanici emri: "ilanda gorsel ve videolar
+  ///    olacak"). Boyut + SURE kapisi `MedyaSecici.video` icinde (TEK KAYNAK).
+  Future<void> _videoSec() async {
+    if (!MedyaKapisi.izinVer(ref)) return;
+    if (_videolar.length >= _enFazlaVideo) {
+      _uyar('En fazla $_enFazlaVideo video eklenebilir');
+      return;
+    }
+    // ⚠️ Video da TOPLAM 12 medya tavanina dahildir.
+    if (_mevcutMedya.length + _gorseller.length + _videolar.length >= 12) {
+      _uyar('En fazla 12 medya eklenebilir');
+      return;
+    }
+    final dosya = await MedyaSecici.video(
+      sureTavani: _videoSuresi,
+      uyar: _uyar,
+    );
+    if (dosya == null || !mounted) return;
+    setState(() => _videolar.add(dosya));
+  }
+
+  /// ⚠️ Kok messenger: bu ekran bir alt-sayfadan acilmis olabilir ve
+  ///    `ScaffoldMessenger.of(context)` olu baglamda kalabilir.
+  void _uyar(String m) {
+    rootMessengerKey.currentState?.showSnackBar(
+      SnackBar(content: Text(m)),
+    );
+  }
+
   Future<void> _kaydet() async {
     if (_tur.isEmpty) {
       ScaffoldMessenger.of(
@@ -793,6 +877,19 @@ class _IlanVerEkraniState extends ConsumerState<IlanVerEkrani> {
           await ref
               .read(medyaServisiProvider)
               .yukle(dosya: hazir, kind: 'image', mime: 'image/jpeg'),
+        );
+      }
+      // ⚠️⚠️ VIDEO HAM GIDER — `gorseliHazirla` UYGULANMAZ (o bir GORSEL
+      //    sikistiricisidir; videoya uygularsak dosya BOZULUR).
+      // ⚠️⚠️ BILINCLI KABUL EDILEN RISK: video EXIF/`moov` icinde GPS
+      //    tasiyabilir ve emlak ilaninda bu EV ADRESI demektir. Tespit kodu
+      //    ayri bir is; kullaniciya form ustunde UYARI METNI gosteriliyor.
+      //    ⚠️ Fotografta bu risk YOK (`gorseliHazirla` EXIF'i temizliyor).
+      for (final v in _videolar) {
+        idler.add(
+          await ref
+              .read(medyaServisiProvider)
+              .yukle(dosya: v, kind: 'video', mime: 'video/mp4'),
         );
       }
       final tl = double.tryParse(_fiyat.text.trim().replaceAll(',', '.')) ?? 0;
@@ -1025,17 +1122,96 @@ class _IlanVerEkraniState extends ConsumerState<IlanVerEkrani> {
                     ),
                   ),
                 ),
-              OutlinedButton.icon(
-                onPressed: _gorselSec,
-                icon: const Icon(LucideIcons.imagePlus, size: 18),
-                // ⚠️ Sayac MEVCUT + YENI toplamini gosterir; yoksa duzenlemede
-                //    "0/12" yazip kullaniciyi 12 fotograf daha ekleyebilecegi
-                //    yanilgisina dusururdu (sunucu 12'de kirpardi).
-                label: Text(
-                  'Fotoğraf ekle '
-                  '(${_mevcutMedya.length + _gorseller.length}/12)',
-                ),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _gorselSec,
+                      icon: const Icon(LucideIcons.imagePlus, size: 18),
+                      // ⚠️ Sayac MEVCUT + YENI toplamini gosterir; yoksa
+                      //    duzenlemede "0/12" yazip kullaniciyi 12 fotograf
+                      //    daha ekleyebilecegi yanilgisina dusururdu.
+                      label: Text(
+                        'Fotoğraf '
+                        '(${_mevcutMedya.length + _gorseller.length + _videolar.length}/12)',
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _videoSec,
+                      icon: const Icon(LucideIcons.video, size: 18),
+                      label: Text('Video (${_videolar.length}/$_enFazlaVideo)'),
+                    ),
+                  ),
+                ],
               ),
+              // ---- YENI SECILEN VIDEOLAR
+              if (_videolar.isNotEmpty) ...[
+                const Padding(
+                  padding: EdgeInsets.only(top: 8),
+                  // ⚠️ DURUST UYARI: fotograftaki EXIF'i temizliyoruz ama
+                  //    videodaki konum verisini SILMIYORUZ (tespit ayri is).
+                  //    Emlak ilaninda bu EV ADRESI demek — sessiz gecilemez.
+                  child: Text(
+                    'Videolar konum bilgisi taşıyabilir. Ev veya iş yeri '
+                    'ilanlarında dikkatli ol.',
+                    style: TextStyle(fontSize: 12, color: Colors.orange),
+                  ),
+                ),
+                SizedBox(
+                  height: 84,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.only(top: 8),
+                    itemCount: _videolar.length,
+                    separatorBuilder: (_, _) => const SizedBox(width: 6),
+                    itemBuilder: (_, k) => Stack(
+                      children: [
+                        // ⚠️ Video ONIZLEMESI cizilmiyor: `MedyaVideo` yerel
+                        //    dosyada oynatici KURAR ve iOS'ta ses oturumuna
+                        //    dokunur. Formda 3 oynatici kurmak SUREN ARAMAYI
+                        //    sagirlastirabilirdi (turu 64/65/73). Koyu bir
+                        //    kutu + film ikonu YETERLI.
+                        Container(
+                          width: 66,
+                          height: 74,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF14101C),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(
+                            LucideIcons.video,
+                            color: Colors.white54,
+                          ),
+                        ),
+                        Positioned(
+                          right: 0,
+                          top: 0,
+                          child: GestureDetector(
+                            onTap: () => setState(() => _videolar.removeAt(k)),
+                            child: const DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: Color(0xAA000000),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Padding(
+                                padding: EdgeInsets.all(2),
+                                child: Icon(
+                                  LucideIcons.x,
+                                  size: 13,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
               if (_gorseller.isNotEmpty)
                 SizedBox(
                   height: 84,
