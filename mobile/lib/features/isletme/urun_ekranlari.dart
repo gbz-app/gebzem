@@ -80,7 +80,10 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
           // ⚠️ AI MENU dugmesi: YALNIZ sahibine ve YALNIZ AI aciksa.
           if (widget.benimMi && (ai?.acik ?? false))
             IconButton(
-              tooltip: 'Menüyü fotoğraftan oku',
+              // ⚠️ TURU 78: artik IKI yol var (fotograf + yazili tarif), bu
+              //    yuzden ipucu da genellestirildi. Eski metin kullaniciyi
+              //    "yalnizca fotograf" sanisina dusururdu.
+              tooltip: 'Yapay zekâ ile menü',
               icon: const Icon(LucideIcons.sparkles),
               onPressed: _aiMenu,
             ),
@@ -190,11 +193,53 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
         : null,
   );
 
-  /// ⚠️⚠️ AI MENU: menu fotografindan urunleri cikarir.
-  ///    Sonuc DOGRUDAN KAYDEDILMEZ — kullaniciya ONERI listesi gosterilir,
-  ///    o onaylar. Otomatik kaydetmek yanlis okunan bir fiyati sessizce
-  ///    menuye yazardi.
+  /// ⚠️⚠️ AI MENU — **IKI YOL**: menu FOTOGRAFINDAN oku ya da YAZILI TARIFTEN
+  ///    olustur.
+  ///
+  /// ⚠️⚠️ TURU 78 — YAZILI TARIF YOLU EKLENDI. Sunucu (`POST /ai/menu`)
+  ///    `metin` alanini BASINDAN BERI kabul ediyordu, ama istemci YALNIZCA
+  ///    fotograf gonderiyordu: yani "menuyu AI ile OLUSTUR" yetenegi sunucuda
+  ///    VAR, uygulamada ULASILAMAZ durumdaydi. Bu, projede BES kez tekrarlayan
+  ///    "sunucuda var, ekranda yok" sinifiydi.
+  ///    Kullanici emri acikca "menulerini yapay zeka ile OLUSTURABILMELI" idi;
+  ///    fotograftan OKUMAK farkli bir istir.
+  ///    ⚠️ YAPMA: bu secim sheet'ini kaldirip yalniz fotografa donme.
+  ///
+  /// ⚠️ Sonuc DOGRUDAN KAYDEDILMEZ — kullaniciya ONERI listesi gosterilir, o
+  ///    onaylar. Otomatik kaydetmek yanlis okunan/uydurulan bir fiyati
+  ///    sessizce menuye yazardi.
   Future<void> _aiMenu() async {
+    final yol = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (c) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(LucideIcons.camera),
+              title: const Text('Menü fotoğrafından oku'),
+              subtitle: const Text('Basılı menünün fotoğrafını seç'),
+              onTap: () => Navigator.pop(c, 'foto'),
+            ),
+            ListTile(
+              leading: const Icon(LucideIcons.penLine),
+              title: const Text('Anlatarak oluştur'),
+              subtitle: const Text(
+                'Örnek: Adana usulü kebapçı, 15 çeşit, ortalama 250 TL',
+              ),
+              onTap: () => Navigator.pop(c, 'metin'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (yol == null || !mounted) return;
+    if (yol == 'metin') {
+      await _aiMenuMetinden();
+      return;
+    }
+
     if (!MedyaKapisi.izinVer(ref)) return;
     XFile? x;
     try {
@@ -251,6 +296,98 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
+    }
+  }
+
+  /// ⚠️ TURU 78 — YAZILI TARIFTEN MENU OLUSTURMA.
+  ///
+  /// ⚠️ Model UYDURUR: fotograftan okumada "yanlis okuma" riski varken burada
+  ///    "hic olmayan urun" riski var. Bu yuzden onay adimi DAHA DA onemli ve
+  ///    diyalogda kullaniciya ACIKCA soyleniyor.
+  /// ⚠️ FIYAT: kullanici ortalama fiyat yazabilir ama model 2026 Gebze
+  ///    fiyatlarini BILMEZ. Onerilen fiyatlar TASLAKTIR — kullanici onay
+  ///    ekraninda gorur ve isterse duzenler.
+  Future<void> _aiMenuMetinden() async {
+    final ctrl = TextEditingController();
+    final onay = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Menüyü anlatarak oluştur'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: ctrl,
+              autofocus: true,
+              minLines: 3,
+              maxLines: 6,
+              // ⚠️ Sunucu 2000 karaktere kirpiyor; istemcide de AYNI tavan
+              //    gosterilsin ki kullanici sessizce kesilen metin yazmasin.
+              maxLength: 2000,
+              decoration: const InputDecoration(
+                hintText:
+                    'İşletmeni ve menünü anlat.\n'
+                    'Örnek: Adana usulü kebapçı, 15 çeşit, '
+                    'ortalama 250 TL, çorba ve tatlı da var.',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Yapay zekâ bir TASLAK üretir. Ürünleri ve fiyatları '
+              'onaylamadan menüne eklenmez.',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c, false),
+            child: const Text('Vazgeç'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(c, true),
+            child: const Text('Oluştur'),
+          ),
+        ],
+      ),
+    );
+    final tarif = ctrl.text.trim();
+    ctrl.dispose();
+    if (onay != true || tarif.isEmpty || !mounted) return;
+
+    // ⚠️ Bekleme diyalogunun ACIK olup olmadigini izler (yanlis route pop
+    //    korumasi — fotograf yolundaki ile AYNI desen).
+    var diyalogAcik = true;
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const AlertDialog(
+        content: Row(
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 16),
+            Expanded(child: Text('Menü oluşturuluyor...')),
+          ],
+        ),
+      ),
+    );
+    try {
+      final sonuc = await ref.read(aiServisiProvider).menu(metin: tarif);
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      diyalogAcik = false;
+      ref.invalidate(aiDurumProvider); // kota sayaci tazelenir
+      await _oneriGoster(sonuc);
+    } catch (e) {
+      if (!mounted) return;
+      if (diyalogAcik) {
+        Navigator.of(context).pop();
+        diyalogAcik = false;
+      }
+      rootMessengerKey.currentState?.showSnackBar(
+        SnackBar(content: Text(apiErrorMessage(e))),
+      );
     }
   }
 
