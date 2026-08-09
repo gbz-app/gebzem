@@ -407,12 +407,36 @@ class _ChatTile extends ConsumerWidget {
           style: TextStyle(
               fontWeight: chat.unread > 0 ? FontWeight.w600 : FontWeight.normal),
         );
-        if (ikon == null) return metin;
-        return Row(children: [
-          Icon(ikon, size: 14, color: scheme.outline),
-          const SizedBox(width: 5),
-          Expanded(child: metin),
-        ]);
+        final onizleme = ikon == null
+            ? metin
+            : Row(children: [
+                Icon(ikon, size: 14, color: scheme.outline),
+                const SizedBox(width: 5),
+                Expanded(child: metin),
+              ]);
+        // ⚠️⚠️ TURU 78 — ILAN BASLIGI. Bu satir olmasaydi ilan mesajlasmasi
+        //    YARIM kalirdi: sohbet ilana bagli olur ama satici HANGI ILAN
+        //    oldugunu goremezdi — cozulmek istenen sorunun ta kendisi.
+        if (chat.ilanBaslik.isEmpty) return onizleme;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              // ⚠️ Onek ZORUNLU: yalniz baslik yazsaydik kullanici bunu son
+              //    mesaj saniridi.
+              'İlan: ${chat.ilanBaslik}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: scheme.primary,
+              ),
+            ),
+            onizleme,
+          ],
+        );
       }),
       trailing: Column(
         mainAxisAlignment: MainAxisAlignment.center,

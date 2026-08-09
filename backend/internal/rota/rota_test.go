@@ -157,6 +157,9 @@ func TestYeniUclarCozuluyor(t *testing.T) {
 		{"GET", "/ilan-kategoriler", "/ilan-kategoriler"},
 		{"GET", "/ilanlar/" + uid, "/ilanlar/{id}"},
 		{"PATCH", "/ilanlar/" + uid, "/ilanlar/{id}"},
+		// ⚠️ TURU 78: `/ilanlar/{id}/sohbet` ile `/ilanlar/{id}/favori` AYNI
+		//    seviyede; chi'nin bunlari karistirmadigini kanitliyoruz.
+		{"POST", "/ilanlar/" + uid + "/sohbet", "/ilanlar/{id}/sohbet"},
 		{"POST", "/ilanlar/" + uid + "/favori", "/ilanlar/{id}/favori"},
 		{"DELETE", "/ilanlar/" + uid + "/favori", "/ilanlar/{id}/favori"},
 		// --- ai

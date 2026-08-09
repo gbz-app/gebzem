@@ -414,14 +414,18 @@ class _IlanDetayEkraniState extends ConsumerState<IlanDetayEkrani> {
   /// ⚠️ SATICIYA MESAJ mevcut sohbet hattini kullanir (`POST /chats/direct`).
   ///    Ayri bir "ilan mesajlasmasi" YAZILMADI — ikinci bir mesaj hatti
   ///    bildirim/okundu/engel kurallarini ikiye bolerdi.
+  /// ⚠️⚠️ TURU 78 — ILAN BAGLAMLI SOHBET.
+  ///
+  /// Eskiden duz `POST /chats/direct` cagriliyordu ve mesaj ILAN BAGLAMI
+  /// TASIMIYORDU: 20 ilani olan bir satici gelen mesajin HANGI ILAN icin
+  /// oldugunu bilemiyor, her seferinde sormak zorunda kaliyordu.
+  /// Yeni uc ILAN BASINA AYRI sohbet acar (sahibinden/Letgo davranisi) ve
+  /// sohbet listesinde ilan basligi alt yazi olarak gorunur.
+  /// ⚠️ YAPMA: `/chats/direct`e geri donme.
   Future<void> _saticiyaMesaj() async {
     try {
-      final r = await ref
-          .read(apiProvider)
-          .post('/chats/direct', data: {'user_id': i.sahibiId});
-      if (!mounted) return;
-      final chatId = (r.data['chat_id'] ?? r.data['id'] ?? '').toString();
-      if (chatId.isEmpty) return;
+      final chatId = await ref.read(ilanServisiProvider).sohbetAc(i.id);
+      if (!mounted || chatId.isEmpty) return;
       context.push(
         '/chat/$chatId',
         extra: {

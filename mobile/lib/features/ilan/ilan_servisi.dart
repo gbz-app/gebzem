@@ -70,6 +70,14 @@ class IlanServisi {
   Future<void> guncelle(String id, Map<String, dynamic> govde) =>
       _api.patch('/ilanlar/$id', data: govde);
 
+  /// ⚠️ TURU 78 — ILAN HAKKINDA saticiya yaz. Sohbet ILANA baglidir; ayni
+  ///    kisi ayni ilan icin tekrar yazarsa AYNI sohbet acilir, BASKA bir ilan
+  ///    icin AYRI sohbet (sahibinden/Letgo davranisi).
+  Future<String> sohbetAc(String id) async {
+    final r = await _api.post('/ilanlar/$id/sohbet');
+    return (r.data['chat_id'] ?? '').toString();
+  }
+
   Future<void> favoriEkle(String id) => _api.post('/ilanlar/$id/favori');
   Future<void> favoriSil(String id) => _api.delete('/ilanlar/$id/favori');
 }

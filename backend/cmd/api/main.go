@@ -229,6 +229,8 @@ func main() {
 		r.Get("/ilan-kategoriler", ilanH.Agac)
 		r.Get("/ilanlar/{id}", ilanH.Detay)
 		r.Patch("/ilanlar/{id}", ilanH.Guncelle)
+		// TURU 78 — ILAN HAKKINDA saticiya mesaj (ilan bagalamli sohbet).
+		r.Post("/ilanlar/{id}/sohbet", ilanH.SohbetAc)
 		r.Post("/ilanlar/{id}/favori", ilanH.FavoriEkle)
 		r.Delete("/ilanlar/{id}/favori", ilanH.FavoriSil)
 		// TURU 77 — ISLETME URUNLERI / MENU

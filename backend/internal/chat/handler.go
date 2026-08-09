@@ -511,8 +511,15 @@ func (h *Handler) ListChats(w http.ResponseWriter, r *http.Request) {
 		          -- ⚠️ TURU 76: temizlenen sohbetin ESKI okunmamislari sayilmasin.
 		          AND m.created_at > COALESCE(cm.cleared_at, '-infinity'::timestamptz)) AS unread,
 		       peer.id AS peer_id,
-		       cm.muted_until IS NOT NULL AND cm.muted_until > now() AS sessiz
+		       cm.muted_until IS NOT NULL AND cm.muted_until > now() AS sessiz,
+		       -- ⚠️⚠️ TURU 78 — ILAN BAGLAMI. Bu iki sutun OLMASAYDI ozellik
+		       --    YARIM kalirdi: sohbet ILANA bagli olur ama satici listede
+		       --    HANGI ILAN oldugunu goremezdi. Ilan basligi sohbet
+		       --    satirinda alt yazi olarak cizilir.
+		       -- ⚠️ LEFT JOIN: sohbetlerin EZICI COGUNLUGU kisisel (ilan_id NULL).
+		       c.ilan_id, COALESCE(il.baslik,'')
 		FROM chats c
+		LEFT JOIN ilanlar il ON il.id = c.ilan_id
 		JOIN chat_members cm ON cm.chat_id=c.id AND cm.user_id=$1
 		LEFT JOIN LATERAL (
 			SELECT u.id, u.name, u.avatar_url, u.avatar_media_id FROM chat_members cm2
@@ -560,6 +567,9 @@ func (h *Handler) ListChats(w http.ResponseWriter, r *http.Request) {
 		// ⚠️ TURU 76: `muted_until` sutunu 001'den beri vardi ama ONA YAZAN DA
 		//    OKUYAN DA YOKTU (olu sutun). Artik sessize alma calisiyor.
 		Sessiz bool `json:"muted"`
+		// TURU 78 — ilan sohbeti ise ilan kimligi + basligi (yoksa null/bos).
+		IlanID     *string `json:"ilan_id"`
+		IlanBaslik string  `json:"ilan_baslik"`
 	}
 	out := []chatRow{}
 	for rows.Next() {
@@ -567,7 +577,7 @@ func (h *Handler) ListChats(w http.ResponseWriter, r *http.Request) {
 		// ⚠️ SIRA SELECT ile BIREBIR ayni olmali (pgx konuma gore tarar).
 		if err := rows.Scan(&c.ID, &c.Type, &c.Title, &c.AvatarURL, &c.AvatarMediaID, &c.Pinned, &c.Archived,
 			&c.LastMessage, &c.LastType, &c.LastSender, &c.LastAt, &c.Unread, &c.PeerID,
-			&c.Sessiz); err == nil {
+			&c.Sessiz, &c.IlanID, &c.IlanBaslik); err == nil {
 			out = append(out, c)
 		}
 	}

@@ -15,6 +15,7 @@ class Chat {
     required this.lastAt,
     required this.unread,
     this.peerId,
+    this.ilanBaslik = '',
   });
 
   final String id;
@@ -42,6 +43,12 @@ class Chat {
   final int unread;
   final String? peerId; // 1:1 sohbette karsi tarafin id'si (arama icin)
 
+  /// TURU 78 — ILAN SOHBETI ise ilan basligi (yoksa bos).
+  /// ⚠️⚠️ Bu alan OLMASAYDI ozellik YARIM kalirdi: sohbet ilana bagli olur
+  ///    ama satici listede HANGI ILAN oldugunu goremezdi ve her seferinde
+  ///    sormak zorunda kalirdi — cozulmek istenen sorunun ta kendisi.
+  final String ilanBaslik;
+
   factory Chat.fromJson(Map<String, dynamic> j) => Chat(
         id: j['id'] as String,
         type: j['type'] as String? ?? 'direct',
@@ -57,6 +64,7 @@ class Chat {
         lastAt: j['last_at'] != null ? DateTime.tryParse(j['last_at'] as String) : null,
         unread: (j['unread'] as num?)?.toInt() ?? 0,
         peerId: j['peer_id'] as String?,
+        ilanBaslik: j['ilan_baslik'] as String? ?? '',
       );
 }
 
