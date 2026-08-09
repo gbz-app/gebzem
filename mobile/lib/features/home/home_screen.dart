@@ -13,6 +13,7 @@ import '../calls/calls_tab.dart';
 import '../chats/chats_provider.dart';
 import '../chats/chats_screen.dart';
 import '../ilan/ilan_ekranlari.dart';
+import '../randevu/randevu_listeleri.dart';
 import '../isletme/isletme_duzenle.dart';
 import '../live/live_tab.dart';
 import '../rooms/rooms_tab.dart';
@@ -458,6 +459,30 @@ class _ProfileTab extends ConsumerWidget {
             ref.invalidate(myProfileProvider);
           },
         ),
+        // ⚠️⚠️ TURU 80 — RANDEVULARIM (MUSTERI tarafi). Bu giris OLMASAYDI
+        //    kullanici aldigi randevuyu bir daha GOREMEZ ve IPTAL EDEMEZDI —
+        //    projede ALTI kez yasanan "yazan yol var, okuyan yol yok" sinifi.
+        ListTile(
+          leading: const Icon(LucideIcons.calendarCheck),
+          title: const Text('Randevularım'),
+          subtitle: const Text('Rezervasyon ve randevu taleplerin'),
+          trailing: const Icon(LucideIcons.chevronRight, size: 18),
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const RandevuListesiEkrani()),
+          ),
+        ),
+        // ⚠️ ISLETME tarafi: gelen kutusu + ayarlar. YALNIZ isletme hesabinda
+        //    cizilir — kisisel hesapta ulasilamaz bir ekran olurdu.
+        if ((profile.valueOrNull?['hesap_turu'] ?? '') == 'isletme')
+          ListTile(
+            leading: const Icon(LucideIcons.calendarClock),
+            title: const Text('Randevu ayarları'),
+            subtitle: const Text('Gelen talepler, saat aralığı, kapasite'),
+            trailing: const Icon(LucideIcons.chevronRight, size: 18),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const RandevuAyarEkrani()),
+            ),
+          ),
         // ⚠️ ILANLARIM: ilan verme akisinin ikinci giris noktasi (birincisi
         //    hamburger menudeki "Ilanlar" karti).
         ListTile(

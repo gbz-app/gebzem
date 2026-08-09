@@ -13,6 +13,7 @@ import '../home/home_screen.dart' show myProfileProvider;
 import '../home/profil_duzenle.dart';
 import '../isletme/isletme_duzenle.dart';
 import '../isletme/isletme_servisi.dart';
+import '../randevu/randevu_al.dart';
 import '../isletme/urun_ekranlari.dart';
 import '../medya/medya_gorsel.dart';
 import 'gonderi_karti.dart' show sayiBicimle;
@@ -728,6 +729,38 @@ class _IsletmeSeridiState extends ConsumerState<IsletmeSeridi> {
                       label: const Text('Ürünler / Menü'),
                     ),
                   ),
+                  // ⚠️⚠️ TURU 80 — REZERVASYON / RANDEVU DUGMESI.
+                  //
+                  //    Kullanici emri: "restoran/yemek firmalarindan
+                  //    rezervasyon, doktor vs.den randevu alinabilmeli".
+                  //
+                  // ⚠️ YALNIZ `randevuAcik` TRUE iken cizilir ve bu bilgi
+                  //    SUNUCUDAN gelir. Kategoriden tahmin edilseydi, ayari
+                  //    ACMAMIS bir isletmede de dugme cizilir ve kullanici 404
+                  //    alirdi — projede ALTI kez yasanan "ozellik var gorunup
+                  //    calismiyor" sinifi.
+                  // ⚠️ KENDI profilinde CIZILMEZ: kendi isletmenden randevu
+                  //    alinamaz (sunucu da 400 doner). Sahip icin ayarlar
+                  //    "İşletme bilgilerim" ekranindan ulasilir.
+                  if (!widget.benimMi && i.randevuAcik) ...[
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => RandevuAlEkrani(
+                              isletmeId: widget.userId,
+                              isletmeAd: widget.ad,
+                            ),
+                          ),
+                        ),
+                        icon: const Icon(LucideIcons.calendarPlus, size: 17),
+                        label: Text(
+                          i.rezervasyonMu ? 'Rezervasyon' : 'Randevu al',
+                        ),
+                      ),
+                    ),
+                  ],
                   if (widget.benimMi) ...[
                     const SizedBox(width: 8),
                     OutlinedButton(

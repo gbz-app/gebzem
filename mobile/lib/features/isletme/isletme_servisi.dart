@@ -147,6 +147,8 @@ class Isletme {
     this.enlem = 0,
     this.boylam = 0,
     this.dogrulandi = false,
+    this.randevuAcik = false,
+    this.randevuTuru = 'randevu',
   });
 
   String kategori;
@@ -162,6 +164,20 @@ class Isletme {
   /// ⚠️ `users.verified` (TELEFON dogrulamasi) ILE KARISTIRILMAZ — bu ISLETME
   ///    dogrulamasidir ve ayri bir sutunda tutulur (bkz. migration 028).
   final bool dogrulandi;
+
+  /// ⚠️⚠️ TURU 80 — isletme randevu/rezervasyon ALIYOR MU (SUNUCUDAN gelir).
+  ///
+  /// ⚠️ `json()`e **EKLENMEZ**: bu iki alan AYRI tablodan (`randevu_ayar`)
+  ///    yonetiliyor. Isletme kaydiyla birlikte gonderilseydi `PUT
+  ///    /users/me/isletme` upsert'i rezervasyon ayarini ilgisiz bir yerden
+  ///    ezerdi — turu 78'in koordinat ezme hatasinin ayni sinifi.
+  final bool randevuAcik;
+
+  /// 'rezervasyon' | 'randevu' — ARAYUZ METINLERI buna gore degisir.
+  /// ⚠️ Kategoriden ISTEMCIDE turetilmez (ikinci kopya = drift).
+  final String randevuTuru;
+
+  bool get rezervasyonMu => randevuTuru == 'rezervasyon';
 
   Map<String, dynamic> json() => {
     'kategori': kategori,
@@ -204,6 +220,11 @@ class Isletme {
     enlem: (m['enlem'] as num?)?.toDouble() ?? 0,
     boylam: (m['boylam'] as num?)?.toDouble() ?? 0,
     dogrulandi: m['dogrulandi'] == true,
+    // ⚠️⚠️ TURU 80 — RANDEVU BILGISI SUNUCUDAN gelir; istemci kategoriden
+    //    TAHMIN ETMEZ (ayni kuralin ikinci kopyasi olurdu ve isletme
+    //    ayari kapaliyken de dugme cizilirdi = 404 veren buton).
+    randevuAcik: m['randevu_acik'] == true,
+    randevuTuru: (m['randevu_turu'] ?? 'randevu').toString(),
   );
 
   /// "Şu an açık" mi? ⚠️ Cihaz saatine gore hesaplanir; sunucuya sorulmaz
