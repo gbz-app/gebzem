@@ -986,6 +986,46 @@ const kontrol = (ad, gecti, ek = '') => {
     const ai = await j('/ai/durum', { token: A.token });
     kontrol('TURU 78: /ai/durum', ai.kod === 200, 'acik=' + (ai.d && ai.d.acik));
 
+    // ---------- TURU 79: AI GORSEL URETME (BAGLANTI kontrolu — PARA HARCAMAZ)
+    //
+    // ⚠️⚠️ BURADA GERCEK URETIM **CAGRILMAZ**. Uretim her surumde kosulsaydi
+    //    her uctan uca calistirmasi PARA harcar ve kullanicinin gunluk gorsel
+    //    kotasindan duserdi. Onun yerine ucun DOGRU BAGLANDIGI ve kapilarin
+    //    calistigi, ucret dogurmayan yollardan dogrulanir.
+    // ⚠️ Gercek uretim ELLE sinanir: `scratchpad/gorsel_test.js`
+    //    (canli dogrulandi: 21 sn, 1,6 MB PNG, imzali adresten indi).
+    kontrol('TURU 79: /ai/durum GORSEL alanlarini donduruyor',
+      ai.kod === 200 && typeof ai.d.gorsel === 'boolean' &&
+      typeof ai.d.gorsel_kalan === 'number' &&
+      typeof ai.d.gorsel_gunluk_kota === 'number',
+      JSON.stringify({
+        g: ai.d && ai.d.gorsel,
+        k: ai.d && ai.d.gorsel_kalan,
+        q: ai.d && ai.d.gorsel_gunluk_kota,
+      }));
+
+    // ⚠️ GORSEL KOTASI METINDEN **AYRI** olmali (bir gorsel metinden cok daha
+    //    pahali). Ayni sayi cikarsa tek havuz kullaniliyor demektir.
+    kontrol('TURU 79: gorsel kotasi metin kotasindan AYRI',
+      ai.kod === 200 && ai.d.gorsel_gunluk_kota !== ai.d.gunluk_kota,
+      'gorsel=' + (ai.d && ai.d.gorsel_gunluk_kota) +
+      ' metin=' + (ai.d && ai.d.gunluk_kota));
+
+    // ⚠️ BOS METIN 400 dondurmeli — **kota rezervasyonundan ONCE**. Bu kontrol
+    //    ucun BAGLI oldugunu (404 degil) kanitlar ve kurus harcamaz.
+    const bos = await j('/ai/gorsel', {
+      yontem: 'POST', token: A.token, govde: { metin: '   ' },
+    });
+    kontrol('TURU 79: POST /ai/gorsel BAGLI ve bos metni 400 ile reddediyor',
+      bos.kod === 400, 'HTTP ' + bos.kod);
+
+    // ⚠️ Bos istek KOTA YAKMAMALI: reddin kota rezervasyonundan ONCE oldugunu
+    //    kanitlar. Yakiyorsa kullanici yazim hatasiyla hakkini tuketirdi.
+    const ai2 = await j('/ai/durum', { token: A.token });
+    kontrol('TURU 79: gecersiz istek KOTA YAKMIYOR',
+      ai2.kod === 200 && ai2.d.gorsel_kalan === ai.d.gorsel_kalan,
+      'once=' + (ai.d && ai.d.gorsel_kalan) + ' sonra=' + (ai2.d && ai2.d.gorsel_kalan));
+
     // ---------- 6) GRUP SOHBETI AVATARI (turu 78b denetimi: SEVK ENGELIYDI)
     //
     // ⚠️⚠️ BU KONTROL **ANCAK IKI HESAPLA** ANLAMLIDIR. Medya kapisi
