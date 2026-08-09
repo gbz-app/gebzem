@@ -104,7 +104,7 @@ func main() {
 	// ⚠️ TURU 79 — gorsel uretimi icin IKI geri cagirim daha: AI paketi R2'ye ve
 	//    `media_assets`e DOGRUDAN dokunmaz (ikinci istemci = drift, turu 77/Ç12).
 	aiH := ai.NewHandler(db, mediaH.ImzaliAdres,
-		mediaH.AIGorseliKaydet, mediaH.AIGorselIzni)
+		mediaH.AIGorseliKaydet, mediaH.AIGorselIzni, mediaH.Enabled)
 	usersH.MedyaDurumu(mediaH.Enabled()) // istemci atac dugmesini buna gore gizler
 	if mediaH.Enabled() {
 		mediaH.StartSweeper(ctx)

@@ -105,22 +105,40 @@ type Handler struct {
 	// Uretimden ONCE depolama kotasi yeterli mi? ⚠️ ONCE sorulur: OpenAI cagrisi
 	// PARA HARCAR, sonradan "yer yok" demek parayi bosa yakar.
 	gorselIzni func(ctx context.Context, sahipID string, tahminiBayt int64) bool
+
+	// ⚠️⚠️⚠️ MEDYA KATMANI GERCEKTEN ACIK MI (`media.Handler.Enabled`).
+	//
+	//    Bu alan ZORUNLU: `gorselKaydet != nil` kontrolu HICBIR SEY OLCMEZ
+	//    cunku `mediaH.AIGorseliKaydet` bir METOT DEGERIDIR ve R2 kapali olsa
+	//    bile ASLA nil olmaz. Ilk yazimda tam bu hataya dustum; sonuc:
+	//    R2 env'i eksik bir kurulumda `/ai/durum` `gorsel:true` der, istemci
+	//    dugmeyi CIZER ve kullanici basinca hata alirdi — projede alti kez
+	//    tekrarlayan "ozellik var gorunup fiilen yok" sinifinin yenisi.
+	// ⚠️ YAPMA: bunu tekrar `!= nil` kontroluyle degistirme.
+	medyaAcik func() bool
 }
 
 func NewHandler(db *pgxpool.Pool,
 	medyaURL func(context.Context, string, string) (string, error),
 	gorselKaydet func(context.Context, string, string, []byte) (string, error),
-	gorselIzni func(context.Context, string, int64) bool) *Handler {
+	gorselIzni func(context.Context, string, int64) bool,
+	medyaAcik func() bool) *Handler {
 	a := strings.TrimSpace(os.Getenv("OPENAI_API_KEY"))
-	if a == "" {
+	h := &Handler{
+		db: db, anahtar: a, medyaURL: medyaURL,
+		gorselKaydet: gorselKaydet, gorselIzni: gorselIzni, medyaAcik: medyaAcik,
+	}
+	switch {
+	case a == "":
 		log.Printf("ai: OPENAI_API_KEY yok — AI KAPALI")
-	} else {
+	case !h.GorselAcik():
+		// ⚠️ GORUNUR OLMALI: metin calisir ama gorsel calismaz. Sessiz kalsaydi
+		//    "AI acik ama gorsel dugmesi yok" teshisi imkansiz olurdu.
+		log.Printf("ai: aktif (metin %s) — GORSEL KAPALI (medya kapali)", modelMetin)
+	default:
 		log.Printf("ai: aktif (metin %s · gorsel %s)", modelMetin, modelGorsel)
 	}
-	return &Handler{
-		db: db, anahtar: a, medyaURL: medyaURL,
-		gorselKaydet: gorselKaydet, gorselIzni: gorselIzni,
-	}
+	return h
 }
 
 // GorselAcik — gorsel uretimi kullanilabilir mi?
@@ -129,7 +147,10 @@ func NewHandler(db *pgxpool.Pool,
 //
 //	bayti koyacak yer yoktur. Istemci `/ai/durum`daki `gorsel` bayragina bakip
 //	dugmeyi HIC CIZMEZ — "ozellik var gorunup fiilen yok" hatasina dusmemek icin.
-func (h *Handler) GorselAcik() bool { return h.Acik() && h.gorselKaydet != nil }
+func (h *Handler) GorselAcik() bool {
+	return h.Acik() && h.gorselKaydet != nil &&
+		h.medyaAcik != nil && h.medyaAcik()
+}
 
 func (h *Handler) Acik() bool { return h.anahtar != "" }
 
