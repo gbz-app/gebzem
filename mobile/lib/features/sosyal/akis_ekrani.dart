@@ -288,12 +288,20 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
   /// ⚠️ Her turda `mounted` + bolme kimligi dogrulanir: kullanici geri
   ///    donduyse ISTEK ATILMAZ.
   Future<void> _bolmeYukle(int hedef) async {
-    for (var i = 0; i < 10 && _yukleniyor; i++) {
-      await Future<void>.delayed(const Duration(milliseconds: 150));
-      if (!mounted || _bolme != hedef) return;
+    // ⚠️ IKI TUR: ilk turda ucustaki istegin bitmesini bekler ve dener; istek
+    //    o pencereden UZUN surerse `_yenile` yine yutulur (`_yukleniyor`
+    //    kapisi), bu yuzden IKINCI bir tur daha var. Sinirli (sonsuz dongu
+    //    YOK) — tukenirse kullanicinin asagi-cek yolu ACIKTIR (yukleme dali
+    //    kaydirilabilir cizilir).
+    for (var tur = 0; tur < 2; tur++) {
+      for (var i = 0; i < 10 && _yukleniyor; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 150));
+        if (!mounted || _bolme != hedef) return;
+      }
+      if (!mounted || _bolme != hedef || _bolmeYuklendi[hedef]) return;
+      await _yenile();
+      if (!mounted || _bolme != hedef || _bolmeYuklendi[hedef]) return;
     }
-    if (!mounted || _bolme != hedef || _bolmeYuklendi[hedef]) return;
-    await _yenile();
   }
 
   void _profileGit(String userId) {
@@ -425,7 +433,20 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
     // ⚠️ YAPMA: bu dali `_ilkYukleme` ile birlestirme (o bayrak bolmeye
     //    ozgu DEGIL ve olamaz — bkz. `_dahaVarlar`/`_kesfetler` serhi).
     if (_liste.isEmpty && !_bolmeYuklendi[_bolme]) {
-      return const Center(child: CircularProgressIndicator());
+      // ⚠️⚠️ KAYDIRILABILIR OLMAK ZORUNDA (turu 77b dersi, kendi eklememde
+      //    tekrarladim): duz bir `Center` KAYDIRILAMAZ, dolayisiyla sarmalayici
+      //    `RefreshIndicator` TETIKLENMEZ. `_bolmeYukle` 1.5sn'de pes ederse
+      //    (ucustaki istek uzarsa) bolme yuklenmemis kalir, `_hata` da null
+      //    oldugu icin hata dali cizilmez ve kullanici **kurtarma yolu olmayan
+      //    kalici bir spinner** gorurdu. Asagi-cek artik HER ZAMAN mumkun.
+      // ⚠️ YAPMA: bu dali tekrar ciplak `Center`a cevirme.
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: const [
+          SizedBox(height: 160),
+          Center(child: CircularProgressIndicator()),
+        ],
+      );
     }
     if (_liste.isEmpty) {
       return ListView(
