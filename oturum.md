@@ -5175,3 +5175,100 @@ olduğu için 3-4. medyada tamamen kayıyor). İlk build (`8a47ca3`) **yayınlan
 iptal edilip `PageView` + `viewportFraction` + `padEnds:false` ile yeniden alındı.
 
 **Kullanıcı test edecek.**
+
+---
+
+## Oturum 79 — TURU 77: ŞEHRİN TAMAMI (9 Ağustos, kullanıcı uyurken)
+
+Kullanıcı emri: *"storyde AA gibi renk gibi yazı tipi gibi ne varsa olacak · işletme
+profilleri olacak normal ve işletme · etkinlikler olacak soldaki menüde · ilanlar
+olacak sahibinden gibi araba ev 2.el · hizmetler kategorisi · işletmeler ürünlerini
+yükleyebilecek, AI görsel / AI menü / AI ile fotoğraftan problem tespiti · **tamamını
+bitir, ajan çalıştır, step step, durma sakın hepsini bitirene kadar**"*
+
+Kullanıcı ayrıca *"benden onay almadan ekleyebilir misin, ben uyuyacağım"* diye sordu;
+evet dedim ve CLAUDE.md kural 0'ın (build almadan önce sor) bu tur için askıya
+alındığını açıkça belirttim.
+
+### ✅ Yapılanlar — 6 yeni dikey
+
+| Migration | İçerik |
+|---|---|
+| **027** | `stories.katmanlar JSONB` + `arka_plan` + `media_id` NULL olabilir |
+| **028** | `users.hesap_turu` + `isletmeler` tablosu |
+| **029** | `etkinlikler` + `etkinlik_katilim` |
+| **030** | `ilanlar` + `ilan_favoriler` (`ozellikler` JSONB + GIN) |
+| **031** | `isletme_urunleri` + `ai_istekleri` (kota) |
+
+- **Hikâye editörü:** metin ekle/düzenle/sil · 10 renk · "AA" boyut kaydıracı ·
+  **6 yazı tipi (EK PAKET YOK** — sistem ailelerinin ağırlık/eğim/aralık
+  birleşimleri; `google_fonts` fontları çalışma anında indirir, editör ağ
+  bekleyemez) · hizalama · okunabilirlik kutusu · sürükle · iki parmakla
+  döndür+boyutlandır · medyasız gradyan zeminli "sadece yazı" hikâyesi.
+  ⚠️ **Metin görüntüye PİŞİRİLMEZ**, meta veri olarak gider — video hikâyeye
+  yazı gömülemez, pişirme seçilseydi özellik yalnız fotoğrafta çalışırdı.
+- **İşletme profili:** kategori/adres/telefon/web/çalışma saatleri + ürün kataloğu.
+  ⚠️ `isletmeler.dogrulandi` `users.verified`tan AYRI (o telefon doğrulaması).
+- **Etkinlikler · İlanlar · Hizmetler:** hepsi hamburger menüden.
+  ⚠️ İlan formu **sunucudan gelen alan tanımlarıyla** kurulur — yeni bir alan
+  eklemek istemci güncellemesi GEREKTİRMEZ.
+- **AI:** `OPENAI_API_KEY` kapısı (R2 kalıbının aynısı). Anahtar yoksa uçlar 503
+  ve **istemci düğmeyi HİÇ ÇİZMEZ** (`GET /ai/durum`).
+  ⚠️ `docker-compose.yml`in `environment:` bloğuna da eklendi — turu 75'te R2
+  tam bu yüzden sessizce kapalı kalmıştı.
+
+### ⚠️ Turu 77b — 5 ajanlık adversaryal denetim: 4 SEVK ENGELİ + 2 güvenlik
+
+Build ALMADAN ÖNCE koşuldu (turu 76'nın dersi). Kod yazılıp `go build` +
+`flutter analyze` geçtikten SONRA bulunanlar:
+
+1. **SES SAHİPLİĞİ PING-PONG'U** — `SesNotuKontrol` tek slotlu; sessiz akış
+   videoları koşulsuz kaydolduğu için reels, video hikâye ve **turu 74'te test
+   edilip onaylanmış sesli mesaj** saniyede bir susuyordu. Reels'te düzeltme yolu
+   bile yoktu (`kontrolGoster:false`).
+2. **Akış videosu sekme/ekran değişince DURMUYORDU** — `IndexedStack` tüm
+   çocukları canlı tutar; arka planda mobil veri yakıyordu. Autoplay artık DÖRT kapılı.
+3. **Hikâye yüklemesi SESSİZCE İPTAL** — şerit `ListView` öğesi ve KeepAlive
+   bildirmiyordu; kaydırınca State ölüyor, `ref.read` patlıyor, hata yutuluyordu.
+   Medya yükleniyor ama `POST /stories` hiç atılmıyordu.
+4. **Metin hikâyesinde zemin seçici ULAŞILAMAZ** — panel durumu otomatik 'yazi'ya
+   geçtiği için gradyan şeridi hiç çizilmiyordu.
+5. **GİZLİLİK: AI ucu medya sahiplik kapısını KOMPLE atlıyordu** — `ImzaliAdres`
+   imzası userID taşımıyordu; elinde herhangi bir `media_id` olan biri
+   `POST /ai/danisma` ile fotoğrafın içeriğini okutabilirdi. Aynı id `GET
+   /media/{id}/url`de 403 alıyordu. Bu sürümde inert (anahtar yok) ama anahtar
+   eklendiği gün aktif olacaktı.
+6. **AI kotası fiilen YOKTU** — sayaç çağrıdan SONRA artıyordu; 100 eşzamanlı
+   istek 100'ü de faturalanırdı. Atomik rezervasyona çevrildi.
+7. **VERİ KAYBI** — `isletme.detay()` her hatayı yutup `null` dönüyordu; ağ hatası
+   "işletme değil" gibi görünüyor, boş form + Kaydet mevcut adres/telefon/çalışma
+   saatlerini boşa çekiyordu.
+
+Ayrıca: hikâye çizim sözleşmesindeki **iki bağımsız drift** (editör/izleyici ayrı
+sarmalayıcı yazmış; katmanlar ekrana göre konumlanıyordu → aynı hikâye başka
+telefonda fotoğrafa göre ~%19 kaymış çıkıyordu), ilan formunda hayalet veri
+(`key` yok → tür değişince değerler yapışıyor), `pickMultiImage(limit:1)` üç
+ekranda sessizce ölüyordu, ilan görüntülenme sayacı ömür boyu 0, "İlanlarım"
+herkesin ilanını açıyordu, ürün "Tükendi" ölü özellikti.
+
+### ✅ Doğrulamalar
+
+- **Uçtan uca 105/105** — canlı sunucuda, İKİ AYRI HESAPLA. Düzeltmelerden sonra
+  tekrar koşuldu, yine 105/105.
+  En kritik: hikâye/etkinlik/ilan/ürün medyalarının hepsi **B'nin gözünden** 200.
+- **171 rota çakışmasız** + turu 77'nin 33 yeni yolu doğru desene çözülüyor.
+  ⚠️ **Go testleri 3 turdur "koşturulamıyor" diye geçiliyordu; kök neden bulundu:**
+  Windows Application Control `go test`in geçici dizindeki yeni ikilisini
+  engelliyor. `GOTMPDIR="$(pwd)/.gotmp"` ile çözüldü. Sunucuda Go kurulu değil,
+  yani bu test bugüne kadar **hiçbir ortamda** çalışmamıştı.
+- Migration 001→031 atılabilir kopya DB'de sırayla uygulandı, temiz.
+
+### 📌 İndir sayfası — "saati göremiyorum" (ikinci kez)
+
+Sunucu tarafı doğruydu: `no-cache, no-store, must-revalidate` + `cf-cache-status:
+DYNAMIC` + çubuk en üstte + turu 50'nin flexbox düzeltmesi duruyor. Yani sayfa taze
+servis ediliyordu; geriye kalan tek açıklama tarayıcının bayat kopya göstermesiydi.
+Saat artık **altı yerde**: sekme başlığı · üstteki mor şerit · **saniyesi akan canlı
+saat** · iki indirme düğmesinin içi · dosya satırı. Üretici artık yer tutucu tabanlı
+ve saat 5 yerden azsa **derlemeyi durduruyor**.
+
