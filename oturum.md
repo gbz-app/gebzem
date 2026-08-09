@@ -5390,3 +5390,109 @@ tekrarladım. Statik denetim görmedi; **uçtan uca testi yakaladı.**
 
 Kullanıcı OpenAI anahtarını sohbete yazdı ve "çalıştırdığınızda değiştireceğim"
 dedi. **Anahtar sunucuda çalışıyor → artık döndürülmeli.**
+
+---
+
+## Oturum 79b — 9 Ağustos 2026 (Turu 78 YAYINLANDI + yayın öncesi denetimde 27 bulgu)
+
+### 🚢 Yayın
+
+**TEST TURU 78 YAYINLANDI (16:33)** — android `31315541995` + ios `31315543585`
+(**7240bfb**), R2 apk=115648043 (md5 `2911b24e`) ipa=23723742 (md5 `99442aaf`),
+purge OK, **CDN birebir** (apk + ipa + index.html üçü de MD5 eşit), indir sayfası
+16:33 (saat 5 yerde + canlı saat), debug imza YOK, iOS min 16.0 doğrulandı,
+sürüm 1.0.127 build 127, **backend deploy edildi** (7240bfb; migration 032-037) +
+health ok, `ai: aktif (gpt-4o-mini)` + `medya: aktif (R2)`, DB temiz.
+✅ **CANLI SUNUCUDA 144/144 UÇTAN UCA KONTROL GEÇTİ.**
+
+### ⚠️⚠️ İLK BUILD ALINDI AMA YAYINLANMADI
+
+`79466d9` ile build alındı, **yayınlanmadan önce** adversaryal denetim koşuldu
+(7 mercek + doğrulama, 35 ajan): **27 bulgu, 27'si de doğrulandı, 0 çürütüldü.**
+Hepsi düzeltilip build **yeniden** alındı. Bu, *"build ALMAK yayınlamak
+DEĞİLDİR"* dersinin dördüncü doğrulanması.
+
+### Sevk engelleri
+
+**(1) `erisebilir()`de grup sohbeti avatarı dalı yoktu.** `chats.avatar_media_id`
+migration 024'ten beri var ve grup oluşturma ekranı onu dolduruyor — ama dal hiç
+yazılmamıştı. Tüm migration'lar tarandığında **tek karşılıksız medya sütunu**
+buydu. Grubu kuran fotoğrafı görür (kapı `sahip != userID` ile kısa devre);
+gruptaki **diğer herkes** kırık görsel görürdü. Turu 75b/77/78 ile aynı sınıfın
+**dördüncü** tekrarı. Ayrıca `medyayiKopar` referans sayımı `users.kapak_media_id`
+ve `chats.avatar_media_id`i saymıyordu.
+
+**(2) İşletme düzenlemede boş form + etkin Kaydet = veri silme.** Turu 77b bu
+kayıp için `_yuklemeHatasi` kapısını yazmış ama **yalnız `catch` dalına** koymuş;
+kardeş dal (`id.isEmpty`) açık kalmıştı. Sonuç sinsiydi: kategori varsayılanı
+'yemek' olduğu için bir **kuaför sessizce "Yemek" kategorisine** geçip rehberde
+yer değiştiriyordu.
+
+**(3) Profil düzenlemede aynı sınıf** — profil yüklenemezse Kaydet
+`PATCH {name:''}` gönderip **görünen adı siliyordu**.
+
+**(4) AI menüsü "0 ürün eklendi".** Model fiyatı metin döndürdüğünde önizleme
+doğru çalışıyor (turu 77b orayı sertleştirmişti) ama **kaydetme yolu** çıplak
+`as num?` ile kalmıştı ve `catch(_){}` yutuyordu. Aynı dosyanın şerhi bu cast'i
+açıkça yasaklıyordu.
+
+**(5) AI bekleme diyaloğu katalog ekranını kapatıyordu.**
+`barrierDismissible: false` yalnız perdeyi engeller; **Android geri tuşu diyaloğu
+yine de pop eder** ve `diyalogAcik` bayrağı yalancı kalırdı.
+
+**(6) AI çağrısı istemcide 20 sn'de zaman aşımına uğruyordu** (sunucu 60 sn'ye
+izin veriyor): kota rezervasyon yüzünden yanıyor, sonuç üretiliyor ama kayboluyordu.
+
+**(7) Sessiz başlayan videonun sesi açılınca `SesNotuKontrol` defterine
+girmiyordu** → gelen arama o sesi susturamıyordu. `_oynat()`ın şerhi "ses açılınca
+`_sesiCevir` yeniden kaydolur" diyordu ama **gövdede o satır yoktu**.
+
+**(8) `ref.read` yükleme await'lerinin altındaydı** (ilan/etkinlik/ürün + iki AI
+yolu): kullanıcı kaydederken geri basarsa medya R2'ye yükleniyor ama POST hiç
+atılmıyordu. Turu 77b'nin hikâye hatasının birebir aynısı.
+
+### Yüksek
+
+- **İlan düzenlemede tipe özel metin alanları boş açılıyordu** (`TextField`in
+  `initialValue`u yok, controller da verilmemişti) — turu 78'in manşet özelliği
+  yarım kalıyordu.
+- Düzenleme şeritleri video id'sini ham `MedyaGorsel`e veriyordu → kırık görsel;
+  kullanıcı videosunu bozuk sanıp **silebilirdi**.
+- Galeri videosu rota kapısız + `dongu` varsayılanı `true` → üste ekran açılınca
+  altta sonsuz döngüde çalıyordu.
+- `videoSuresi` `donanimSerbest` kapısı olmadan oynatıcı kuruyordu.
+  `mixWithOthers: true` *"oturumu ele geçirme"* demek, *"hiç dokunma"* demek değil.
+- "Menüyü anlatarak oluştur" diyaloğu `scrollable` değildi.
+- `aiDurumProvider` tek geçici ağ hatasında `acik:false`u süreç ömrü boyunca
+  önbellekliyordu → AI özelliği uygulama yeniden başlatılana kadar kayboluyor,
+  kurtarma yolu da yoktu.
+
+### Orta / düşük
+
+`VitrinSlider` `didUpdateWidget` yazmıyordu (kategori değişince bayat) · "Satıcıya
+mesaj" çift dokunma korumasızdı · istemci `enlem/boylam`ı her istekte 0 gönderip
+sunucudaki `COALESCE` korumasını atıl bırakıyordu · Reels süre uyarısı 90 sn için
+"1 dakika" diyordu (`inMinutes` tam sayı bölmesi) · medya kaldırma düğmesi 17×17 dp
+· `MedyaSecici.video` seçici patlarsa sessizce ölüyordu · `bas_min`/`bas_maks` ölü
+yetenekti → **"Bugün" / "Bu hafta sonu"** hızlı kartları eklendi.
+
+### ✅ Doğrulamalar
+
+- **144/144 uçtan uca** (140 → 144: grup avatarı için 4 yeni kontrol).
+  ⚠️ Son iki kontrol birlikte bir **kanıt** oluşturuyor: B ile C arasındaki tek
+  fark sohbet üyeliğidir; B'nin 200, C'nin 403 alması erişimi verenin **yalnızca
+  yeni (i) dalı** olduğunu gösterir.
+- `flutter analyze` 0 hata · `go build` + `go vet` temiz
+- Arayüzde emoji **yok**, Türkçe karakter eksiği **yok** (mekanik tarama)
+- CDN'den indirilen apk + ipa + index.html üçü de yerelle **MD5 birebir**
+
+### 📌 İndir sayfası araçları repoya taşındı (`tools/indir/`)
+
+Kullanıcı **iki ayrı turda** "saati göremiyorum" dediği için üretici artık repoda
+duruyor; muhafızları (saat ≥5 yerde, canlı saat, flexbox regresyonu, emoji) her
+oturumda yeniden kurulmak zorunda değil.
+
+### ⏳ Kalan
+
+`active_call_controller.dart` ölü bekletme/park zinciri (~500 satır) — kullanıcı
+isteğiyle en sona bırakıldı.

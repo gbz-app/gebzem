@@ -17,7 +17,105 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (9 Agu 15:10):** TURU 78 KODU BITTI, BACKEND DEPLOY EDILDI
+- **KALDIGIMIZ YER (9 Agu 16:33): TEST TURU 78 YAYINLANDI** — android 31315541995 +
+  ios 31315543585 (**7240bfb**), R2 apk=115648043 (md5 2911b24e) ipa=23723742
+  (md5 99442aaf), purge OK, **CDN BIREBIR** (apk + ipa + index.html UCU DE MD5
+  esit), indir sayfasi 16:33 (saat 5 yerde + **canli saat**), debug imza YOK,
+  iOS min 16.0 dogrulandi, surum 1.0.127 build 127, **BACKEND DEPLOY EDILDI**
+  (7240bfb; migration 032-037; `ai: aktif (gpt-4o-mini)` + `medya: aktif (R2)`)
+  + health ok, DB temiz. ✅ **CANLI SUNUCUDA 144/144 UCTAN UCA GECTI.**
+  **KULLANICI TEST EDECEK.**
+- ⚠️⚠️ **TURU 78b — ILK BUILD (79466d9) ALINDI AMA YAYINLANMADI.** Yayin oncesi
+  adversaryal denetim (7 mercek + curutucu dogrulama, 35 ajan) **27 BULGU**
+  buldu, **27'si de DOGRULANDI, 0 curutuldu**; hepsi duzeltilip build YENIDEN
+  alindi. *"build ALMAK yayinlamak DEGILDIR"* dersinin **DORDUNCU** dogrulanmasi.
+- ⚠️⚠️⚠️ **TURU 78b — `erisebilir()`DE GRUP SOHBETI AVATARI DALI YOKTU (SEVK
+  ENGELI).** `chats.avatar_media_id` migration **024**'ten beri VAR ve grup
+  olusturma ekrani onu DOLDURUYOR — ama dal HIC YAZILMAMISTI. Tum migration'lar
+  tarandiginda **TEK KARSILIKSIZ MEDYA SUTUNU** buydu. Grubu KURAN fotografi
+  gorur (kapi `sahip != userID` ile KISA DEVRE); gruptaki **DIGER HERKES**
+  sohbet listesinde, baslikta ve grup bilgisinde KIRIK GORSEL gorurdu.
+  Turu 75b (akis) · 77 (hikaye) · 78 (kapak) ile AYNI sinifin **DORDUNCU** tekrari.
+  FIX: (i) dali, gorunurluk kurali **UYELIK** (kanal gibi "herkese acik" DEGIL).
+  ⚠️ `medyayiKopar` referans sayimi da `users.kapak_media_id` ve
+     `chats.avatar_media_id`i SAYMIYORDU -> paylasilan medya kopariliyordu.
+  ⚠️ **YENI BIR MEDYA SUTUNU EKLERKEN UCUNU BIRLIKTE GUNCELLE:** `erisebilir()`
+     dali · `medyayiKopar` sayimi · uctan uca kontrolu.
+- ⚠️⚠️ **TURU 78b — VERI SILME: "AYNI KURALIN IKI KOPYASI DRIFT EDER" (iki yer).**
+  · `isletme_duzenle`: turu 77b `_yuklemeHatasi` kapisini YALNIZ `catch` daline
+    koymus, KARDES DAL (`id.isEmpty`) acik kalmisti. `/users/me` bir kez hata
+    verirse `FutureProvider` hatayi KALICI onbellekler -> form BOS acilir,
+    Kaydet ETKINDIR, kosulsuz `ON CONFLICT DO UPDATE` adres/il/ilce/web'i BOSA
+    CEKER ve kategori 'yemek'e duser (**bir KUAFOR sessizce "Yemek" olur**).
+  · `profil_duzenle`: profil yuklenemezse Kaydet `PATCH {name:''}` gonderip
+    **GORUNEN ADI SILIYORDU**. FIX: `_dolduruldu` kapisi.
+  ⚠️ Ikisinde de cozum `.future` ile BEKLEMEK + hata ekrani.
+- ⚠️⚠️ **TURU 78b — AI MENUSU DORT AYRI YERDEN KIRIKTI:**
+  · **"0 URUN EKLENDI"**: onizleme tip korumali (turu 77b), KAYDETME yolu ciplak
+    `as num?` ile kalmisti ve `catch(_){}` yutuyordu. Model `"1250"` (METIN)
+    dondurunce diyalog DOGRU gosteriyor, kaydetme HEPSINI atliyordu.
+    FIX: `_kurusOku` **TEK KAYNAK**. ⚠️ YAPMA: iki yolda ayri ayristirma yazma.
+  · **BEKLEME DIYALOGU KATALOG EKRANINI KAPATIYORDU**: `barrierDismissible:false`
+    YALNIZ perdeyi engeller; **ANDROID GERI TUSU diyalogu YINE DE pop eder**,
+    `diyalogAcik` yalanci kalir ve basari dalindaki kosulsuz `pop()` bir ustteki
+    ekrani kapatirdi. FIX: `PopScope(canPop:false)` + `whenComplete` +
+    `_BeklemeKapisi`. ⚠️ YAPMA: bayragi elle yonetmeye donme.
+  · **ISTEMCI 20 sn'DE VAZGECIYORDU** (sunucu 60 sn'ye izin veriyor): kota
+    rezervasyon yuzunden YANIYOR, sonuc URETILIYOR ama KAYBOLUYORDU.
+    FIX: AI uclarina 90 sn. ⚠️ Sunucu tavani degisirse BURASI DA degismeli.
+  · `aiDurumProvider` tek gecici ag hatasinda `acik:false`u SUREC OMRU BOYUNCA
+    onbellekliyordu -> AI ozelligi uygulama yeniden baslatilana kadar KAYBOLUR,
+    kurtarma yolu da YOKTU. FIX: hata onbelleklenmez (`invalidateSelf`).
+- ⚠️⚠️⚠️ **TURU 78b — SESI ACILAN VIDEO DEFTERE GIRMIYORDU (SEVK ENGELI).**
+  `_oynat()`in serhi *"ses acilinca `_sesiCevir` yeniden kaydolur"* diyordu ama
+  **GOVDEDE O SATIR YOKTU** (CLAUDE.md turu 74 dersi). Galerilerdeki TUM videolar
+  SESSIZ baslar; kullanici sesi acinca video SESLI calar ama `SesNotuKontrol`
+  defterinde KAYITLI DEGILDIR -> **GELEN ARAMA O SESI SUSTURAMAZ.** Turu 78
+  ilan + etkinlik galerileriyle bu yuzeyi IKIYE KATLADI.
+  FIX: `_defteriGuncelle()` **TEK KAYNAK**, hem `_oynat` hem `_sesiCevir`ten.
+- ⚠️⚠️ **TURU 78b — `ref.read` YUKLEME AWAIT'LERININ ALTINDAYDI** (ilan ·
+  etkinlik · urun · iki AI yolu). Bu ekranlarda `PopScope` YOK; kullanici
+  kaydetme surerken geri basarsa State DISPOSE olur, `ref.read` `StateError`
+  firlatir, `catch` yutar: **medya R2'ye YUKLENIR ama POST HIC ATILMAZ.**
+  Turu 77b'nin HIKAYE hatasinin birebir aynisi; duzeltmesi `story_seridi.dart:122`
+  de duruyordu ve yeni ekranlar dersi TEKRARLADI.
+  ⚠️ Servis yakalandigi icin is artik kullanici ekrandan ciksa bile TAMAMLANIR.
+- ⚠️ **TURU 78b — DUZENLEME SERITLERI VIDEOYU KIRIK CIZIYORDU.** `_mevcutMedya`
+  duz `List<String>`ti, `mediaKinds` ATILIYORDU -> video id'si `MedyaGorsel`e
+  gidiyor ve kullanici **videosunu bozuk sanip SILEBILIYORDU**. FIX:
+  `MedyaKucukResmi` + `_mevcutTurler` (ilan + etkinlik). ⚠️ IKI LISTE BIRLIKTE
+  degisir (ekleme/silmede ikisine de dokun).
+- ⚠️ **TURU 78b — GALERI VIDEOSU: rota kapisi YOKTU + `dongu` varsayilani TRUE**
+  -> uste ekran acilinca ALTTA SONSUZ DONGUDE caliyordu. FIX: `_kapiyiYokla`
+  icine `ModalRoute.isCurrent` kapisi (akistaki dort kapidan biri) + `dongu:false`.
+  ⚠️ `MedyaSecici.videoSuresi` de `donanimSerbest` KAPISIZ oynatici kuruyordu —
+  `mixWithOthers:true` **"oturumu ELE GECIRME"** demek, "HIC DOKUNMA" DEMEK DEGIL.
+- ⚠️ **TURU 78b — ILAN DUZENLEMEDE TIPE OZEL METIN ALANLARI BOS ACILIYORDU.**
+  `TextField`in `initialValue`u YOKTUR ve controller da verilmemisti: SECIM
+  alanlari DOLU, Marka/Model/Yıl/Km/Metrekare BOS geliyordu (mansett ozellik
+  yarim). FIX: `TextFormField` + `initialValue`. ⚠️ `ValueKey` ZATEN VAR ve
+  ZORUNLU (`FormField.didUpdateWidget` `initialValue` degisimini YOK SAYAR —
+  turu 77b hayalet-veri hatasi).
+- 📌 **TURU 78b — DIGER KAPATILANLAR:** `VitrinSlider` `didUpdateWidget` yoktu
+  (kategori degisince BAYAT kaliyor, slayta dokununca YANLIS kayda gidiyordu) ·
+  "Satıcıya mesaj" cift dokunma korumasizdi · istemci `enlem/boylam`i HER
+  ISTEKTE 0 gonderip sunucudaki `COALESCE` korumasini ATIL birakiyordu ·
+  Reels sure uyarisi `inMinutes` TAM SAYI bolmesi yuzunden 90 sn icin
+  "1 dakika" diyordu · medya kaldirma dugmesi 17x17 dp idi (Material 48/Apple 44)
+  · `MedyaSecici.video` secici patlarsa SESSIZCE oluyordu · `bas_min`/`bas_maks`
+  OLU YETENEKTI -> **"Bugün" / "Bu hafta sonu"** hizli kartlari eklendi.
+- 📌 **TURU 78b — UCTAN UCA 140 -> 144 (GRUP AVATARI).** ⚠️ Son iki kontrol
+  BIRLIKTE bir **KANIT**: B ile C arasindaki TEK fark sohbet UYELIGIDIR; B'nin
+  200, C'nin **403** almasi erisimi verenin YALNIZCA yeni (i) dali oldugunu
+  gosterir. Bu sinif **ancak IKI HESAPLA** yakalanir.
+- 📌 **TURU 78b — INDIR SAYFASI ARACLARI REPOYA TASINDI: `tools/indir/`.**
+  Kullanici IKI AYRI TURDA "saati goremiyorum" dedi; dosyalar scratchpad'de
+  oldugu icin her oturum yeniden yaziliyor ve muhafizlar da yeniden kuruluyordu.
+  Uretici; saat 5 yerden azsa · canli saat kaybolmussa · `?v=` yoksa · body'ye
+  flex ortalama geri gelmisse · gorunen metinde emoji kalmissa **DERLEMEYI
+  DURDURUR**. ⚠️ Yeni surumde `YENI_ICERIK` blogu ile onu dogrulayan
+  `'turu NN icerigi yazilmadi'` satiri **BIRLIKTE** guncellenir.
+- **ONCEKI (9 Agu 15:10):** TURU 78 KODU BITTI, BACKEND DEPLOY EDILDI
   (**fe104a8**; migration **032-037** uygulandi; `ai: aktif (model gpt-4o-mini)` +
   `medya: aktif (R2)`) + health ok, DB TRUNCATE edildi (7 tablo 0).
   ✅ **CANLI SUNUCUDA 140/140 UCTAN UCA KONTROL GECTI** (`node tools/uctan_uca.js`,
