@@ -1198,6 +1198,20 @@ const kontrol = (ad, gecti, ek = '') => {
           .filter((x) => String(x.tur || x.type || '').startsWith('randevu'));
         kontrol('TURU 80: randevu BILDIRIMI olustu (tek kaynak bildirim servisi)',
           rb.length > 0, 'adet=' + rb.length + ' HTTP ' + bil.kod);
+
+        // ⚠️⚠️ TURU 80b — IPTAL BILDIRIMI **ALICIYA GORE AYRI TUR** olmali.
+        //
+        //	`iptal` gecisini MUSTERI yapar ve alici ISLETMEDIR. Once iki
+        //	yon de "randevu_iptal" gonderiyordu; istemci turden aliciyi
+        //	turetemedigi icin isletme, bildirime dokununca KENDI musteri
+        //	listesine dusuyor ve iptali GOREMIYORDU.
+        //	Burada A = ISLETME; B (musteri) az once `iptal` etti, yani
+        //	A'nin kutusunda `randevu_iptal_musteri` OLMALI.
+        const iptalB = rb.filter((x) =>
+          String(x.tur || x.type || '') === 'randevu_iptal_musteri');
+        kontrol('TURU 80b: MUSTERI iptalinde ISLETMEYE ozel tur gidiyor',
+          iptalB.length > 0,
+          'turler=' + JSON.stringify(rb.map((x) => x.tur || x.type)));
       }
 
       // --- KAPALI GUN (bayram/tatil)

@@ -141,11 +141,22 @@ class _BildirimlerSayfasiState extends ConsumerState<BildirimlerSayfasi> {
           renk: const Color(0xFFFF3B5C),
           metin: '$ad randevunu reddetti',
         );
+      // ⚠️⚠️ IKI AYRI TUR — ALICIYA GORE (turu 80b denetimi).
+      //    `randevu_iptal`         : ISLETME iptal etti, alici MUSTERI
+      //    `randevu_iptal_musteri` : MUSTERI iptal etti, alici ISLETME
+      //    Tek tur olsaydi istemci aliciyi turetemezdi ve yonlendirme
+      //    (`_git`) isletmeyi KENDI musteri listesine dusururdu.
       case 'randevu_iptal':
         return (
           ikon: LucideIcons.calendarX,
           renk: Colors.orange,
-          metin: '$ad randevuyu iptal etti',
+          metin: '$ad randevunu iptal etti',
+        );
+      case 'randevu_iptal_musteri':
+        return (
+          ikon: LucideIcons.calendarX,
+          renk: Colors.orange,
+          metin: '$ad randevusunu iptal etti',
         );
       default:
         // ⚠️ SESSIZ DUSMEK YASAK (projenin 3. hata sinifi): sunucuya YENI bir
@@ -181,14 +192,22 @@ class _BildirimlerSayfasiState extends ConsumerState<BildirimlerSayfasi> {
     //    "randevun onaylandi" bildirimine dokunan kullanici restoranin
     //    profiline gidiyor ve randevusunu GOREMIYORDU.
     // ⚠️ Randevu DETAY ekrani YOK (bilincli — liste satiri tum bilgiyi
-    //    tasiyor), bu yuzden ILGILI LISTEYE goturuyoruz:
-    //      · `randevu_yeni` ISLETMEYE gider  -> gelen kutusu
-    //      · digerleri MUSTERIYE gider       -> "Randevularım"
+    //    tasiyor), bu yuzden ILGILI LISTEYE goturuyoruz.
+    //
+    // ⚠️⚠️ YON, BILDIRIM TURUNDEN TURETILIR (turu 80b denetimi). Onceki
+    //    surumde yalniz `randevu_yeni` isletmeye gidiyordu ve `randevu_iptal`
+    //    KOSULSUZ musteri listesine dusuyordu. Ama iptal CIFT YONLU bir olay:
+    //    musteri iptal ettiginde alici ISLETMEDIR. Sunucu artik iki AYRI tur
+    //    gonderiyor; ISLETMEYE GIDEN turler burada listelenir.
+    // ⚠️ YAPMA: sunucuya isletmeye giden yeni bir randevu bildirimi eklerken
+    //    bu kumeyi guncellemeyi atlama.
+    const isletmeyeGiden = {'randevu_yeni', 'randevu_iptal_musteri'};
     if (hedefTur == 'randevu') {
       Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (_) =>
-              RandevuListesiEkrani(isletmeGorunumu: tur == 'randevu_yeni'),
+          builder: (_) => RandevuListesiEkrani(
+            isletmeGorunumu: isletmeyeGiden.contains(tur),
+          ),
         ),
       );
       return;

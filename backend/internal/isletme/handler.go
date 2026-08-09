@@ -233,14 +233,30 @@ func (h *Handler) KisiselYap(w http.ResponseWriter, r *http.Request) {
 	//
 	// ⚠️ SATIR SILINMEZ — 'iptal_isletme' YAZILIR (veri politikasi: VERI
 	//    SILINMEZ, 8 Agu kullanici karari) ve musteri BILDIRIM alir.
-	// ⚠️ Yalniz AKTIF olanlar; gecmis randevulara DOKUNULMAZ.
+	//
+	// ⚠️⚠️⚠️ `baslangic > now()` **ZORUNLU** (turu 80b denetimi: SEVK ENGELIYDI).
+	//
+	//	Ilk yazimda yuklem yalnizca `durum IN ('bekliyor','onaylandi')` idi ve
+	//	hemen ustundeki serh "gecmis randevulara DOKUNULMAZ" diyordu — GOVDE
+	//	BUNU YAPMIYORDU (projenin en sik tekrarlayan sinifi).
+	//	'onaylandi' GELECEK demek DEGILDIR: 'geldi'/'gelmedi' gecisleri
+	//	OPSIYONEL ve o dugmeler turu 80b'ye kadar HIC YOKTU, yani
+	//	GERCEKLESMIS TUM GECMIS RANDEVULAR hala 'onaylandi' durumunda.
+	//	Kosul olmadan hesabini kisisele ceviren bir isletme, AYLAR ONCE
+	//	tamamlanmis rezervasyonlarini "isletme iptal etti"ye ceviriyor,
+	//	musterilere o eski ziyaretler icin bildirim yagdiriyor ve GERI
+	//	DONUSU OLMAYAN bir gecmis carpitmasi yapiyordu.
+	//
 	// ⚠️ Hata OLDURUCU DEGIL: hesap turu ZATEN degisti, istek basarili
 	//    sayilir. Aksi halde kullanici "kisisele donemedim" sanip tekrar
 	//    dener ve ikinci cagri ayni yere duser.
+	// ⚠️ Durum degerleri SERBEST METIN DEGIL `randevu` sabitleri — paket zaten
+	//    import edilmis ve ayni dosyada `randevu.TurBul` cagriliyor.
 	rows, err := h.db.Query(r.Context(), `
-		UPDATE randevular SET durum='iptal_isletme', updated_at=now()
-		 WHERE isletme_id=$1 AND durum IN ('bekliyor','onaylandi')
-		RETURNING musteri_id`, me)
+		UPDATE randevular SET durum=$2, updated_at=now()
+		 WHERE isletme_id=$1 AND durum = ANY($3) AND baslangic > now()
+		RETURNING musteri_id`,
+		me, randevu.IptalIsletme, []string{randevu.Bekliyor, randevu.Onaylandi})
 	if err != nil {
 		log.Printf("kisisel yap — randevu kapatma: %v", err)
 		yaz(w, 200, map[string]bool{"ok": true})
@@ -254,10 +270,22 @@ func (h *Handler) KisiselYap(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	rows.Close()
+	// ⚠️ `rows.Err()`: dongu SESSIZCE yarida kesilmis olabilir (ag/sunucu
+	//    hatasi). UPDATE'in kendisi COMMIT'lenir ama bazi musteriler BILDIRIM
+	//    ALMAZ — en azindan olcum birak.
+	if err := rows.Err(); err != nil {
+		log.Printf("kisisel yap — randevu satirlari: %v", err)
+	}
 
+	// ⚠️⚠️ `WithoutCancel` — koddaki DIGER TUM `Bildir` cagrilarinin deseni.
+	//    `r.Context()` kullanilsaydi: yanit yazildiktan sonra istemci
+	//    baglantiyi keserse (kullanici ekrandan cikar, uygulama arka plana
+	//    gider) context IPTAL olur ve bildirimler DUSERDI — tam da randevusu
+	//    iptal edilen musterinin ogrenmesi gereken an.
 	if h.bs != nil {
+		ctx := context.WithoutCancel(r.Context())
 		for _, mID := range musteriler {
-			h.bs.Bildir(r.Context(), mID, me, "randevu_iptal", "randevu", "")
+			h.bs.Bildir(ctx, mID, me, "randevu_iptal", "randevu", "")
 		}
 	}
 	yaz(w, 200, map[string]bool{"ok": true})

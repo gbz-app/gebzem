@@ -125,6 +125,39 @@ func TestDetaySelectVeScanHizali(t *testing.T) {
 		t.Fatalf("SELECT beklenenden kisa (%d) — ayristirma bozulmus olabilir",
 			len(sutunlar))
 	}
+
+	// ⚠️⚠️ SIRA DA OLCULUR (turu 80b denetimi: test adi "Hizali" diyordu ama
+	//    govde YALNIZ SAYIYI karsilastiriyordu).
+	//
+	//	SAYI esitligi TEK BASINA yetmez: `i.il` ile `i.ilce` (ikisi de TEXT)
+	//	yer degistirse Postgres HATA VERMEZ — sehir ile ilce SESSIZCE TAKAS
+	//	olur ve isletme rehberinde yanlis konum gorunur. Ayni tuzak
+	//	`telefon`/`web` icin de gecerli.
+	//
+	// ⚠️ Esleme KURALI: SELECT sutununun son parcasi (`i.kategori` -> kategori)
+	//    Scan hedefinin adiyla ESLESMELI. Uymayanlar `istisna`da ACIKCA
+	//    listelenir — boylece bilincli sapmalar gorunur kalir.
+	istisna := map[string]string{
+		"u.onayli":                 "dogrulandi",
+		"COALESCE(ra.acik, false)": "randevuAcik",
+	}
+	for i, s := range sutunlar {
+		bekle, ok := istisna[s]
+		if !ok {
+			bekle = s
+			if k := strings.LastIndex(bekle, "."); k >= 0 {
+				bekle = bekle[k+1:]
+			}
+		}
+		if hedefler[i] != bekle {
+			t.Errorf(
+				"SIRA BOZUK — %d. sutun `%s` ama %d. Scan hedefi `%s` (beklenen `%s`).\n"+
+					"Ayni tipteki iki sutun yer degistirirse Postgres HATA VERMEZ; "+
+					"degerler SESSIZCE TAKAS olur (or. il <-> ilce).\n"+
+					"Bilincli bir sapmaysa `istisna` haritasina ekle.",
+				i+1, s, i+1, hedefler[i], bekle)
+		}
+	}
 }
 
 func TestDetayScanEdilenAlanlarYanittaVar(t *testing.T) {
@@ -151,7 +184,7 @@ func TestDetayScanEdilenAlanlarYanittaVar(t *testing.T) {
 		// Degisken yanitta DOGRUDAN kullaniliyor mu, ya da snake_case
 		// karsiligi bir anahtar var mi?
 		anahtar := `"` + yilanla(ad) + `"`
-		kullanilmis := regexp.MustCompile(`\b`+regexp.QuoteMeta(ad)+`\b`).
+		kullanilmis := regexp.MustCompile(`\b` + regexp.QuoteMeta(ad) + `\b`).
 			MatchString(govdeYanit)
 		if !kullanilmis && !strings.Contains(govdeYanit, anahtar) {
 			t.Errorf(

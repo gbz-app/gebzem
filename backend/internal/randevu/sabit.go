@@ -96,9 +96,22 @@ var Gecisler = map[string]Gecis{
 	//    bu isaret isletmenin KENDI IC KAYDIDIR.
 	Geldi:   {Onceki: []string{Onaylandi}, IsletmeYapar: true},
 	Gelmedi: {Onceki: []string{Onaylandi}, IsletmeYapar: true},
+	// ⚠️⚠️⚠️ BILDIRIM TURU **ALICIYA GORE** AYRIDIR (turu 80b denetimi).
+	//
+	//	`IptalIsletme` ve `Iptal` ayni fiili anlatir ama ALICILARI TERSTIR:
+	//	  · IptalIsletme -> isletme yapar, alici MUSTERI
+	//	  · Iptal        -> musteri yapar, alici ISLETME
+	//	Ikisi de "randevu_iptal" gonderirken istemci turden aliciyi
+	//	TURETEMIYORDU ve `randevu_iptal`i kosulsuz MUSTERI listesine
+	//	("Randevularım") yonlendiriyordu. Sonuc: musteri randevusunu iptal
+	//	edince ISLETME bildirime dokunup KENDI musteri listesine dusuyor,
+	//	iptal edilen randevuyu GOREMIYORDU (gelen kutusunda).
+	// ⚠️ YAPMA: ikisini tekrar ayni tur adina indirgeme; istemcideki
+	//    `bildirimler_sayfasi.dart` switch'i ve `_git()` yonlendirmesi bu
+	//    ayrima BAGLI.
 	Iptal: {
 		Onceki: []string{Bekliyor, Onaylandi}, IsletmeYapar: false,
-		Bildirim: "randevu_iptal",
+		Bildirim: "randevu_iptal_musteri",
 	},
 }
 
