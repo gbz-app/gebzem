@@ -17,6 +17,76 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (9 Agu 15:10):** TURU 78 KODU BITTI, BACKEND DEPLOY EDILDI
+  (**fe104a8**; migration **032-037** uygulandi; `ai: aktif (model gpt-4o-mini)` +
+  `medya: aktif (R2)`) + health ok, DB TRUNCATE edildi (7 tablo 0).
+  ✅ **CANLI SUNUCUDA 140/140 UCTAN UCA KONTROL GECTI** (`node tools/uctan_uca.js`,
+  IKI AYRI HESAPLA). **BUILD ALINMADI — KULLANICIYA SORULACAK (kural 0).**
+- ⚠️⚠️⚠️ **TURU 78 — `Profile()` KAPAK/ONAYLI ALANLARINI YANIT HARITASINA KOYMUYORDU
+  (SEVK ENGELI).** Sutunlar SELECT ediliyor, `rows.Scan(&u.KapakMediaID, &u.Onayli)`
+  kosuyordu — ama yanit `map[string]any{...}` ELLE kuruluyor ve iki alan oraya
+  YAZILMAMISTI. Derleyici goremez (Scan'in yan etkisi var, degisken "kullaniliyor").
+  Sonuc: **kapak HICBIR PROFILDE gorunmez, onayli rozeti HIC cizilmezdi** —
+  kullanicinin ACIKCA istedigi iki sey.
+  **KALICI MUHAFIZ: `internal/users/profil_yanit_test.go`** — `Profile()`in `&u.Alan`
+  taramalarini ayristirir, her birini `userResp` JSON etiketine cozer ve o etiketi
+  yanit haritasinda ARAR. Muhafizin calistigi, duzeltme GERI ALINIP test KIRMIZIYA
+  dusurulerek KANITLANDI.
+  ⚠️ YAPMA: bu testi silme; `Profile()`e yeni sutun eklerken SELECT + Scan + yanit
+  haritasi UCUNU BIRLIKTE guncelle. (`sutun_test.go` ailesinin kardesi.)
+- ⚠️⚠️ **TURU 78 — CHECK CONSTRAINT TUZAGI IKI KEZ (SEVK ENGELI).**
+  `media_assets.kind` `'kapak'` KABUL ETMIYORDU -> presign HER SEFERINDE 500 =
+  kapak ozelligi **%100 OLU DOGARDI**. `ai_istekleri.durum` da `'iptal'` kabul
+  etmiyordu. `go build` + `go vet` + `flutter analyze` UCU DE TEMIZ; hata YALNIZ
+  gercek Postgres'te cikar. Migration **036** (durum) + **037** (kind).
+  ⚠️ **DERS: yeni bir `kind`/`durum`/`tur` DEGERI eklerken once CHECK'i ac.**
+- ⚠️⚠️ **TURU 78b — `PUT /users/me/isletme` HER SEFERINDE 500 (KENDI FAZ 0
+  REGRESYONUM).** Koordinatlar ISARETCI yapildi ("gonderilmedi" != "0") ve UPDATE
+  dali dogru kuruldu — **INSERT dali ATLANDI**. Istemci enlem/boylam HIC gondermedigi
+  icin pgx `nil`i SQL NULL'a cevirdi, sutun NOT NULL: `SQLSTATE 23502`. Buna bagli
+  **ALTI kontrol daha** coktu (isletme detayi, rehber, `hesap_turu`, urun ekleme,
+  katalog, urun medyasi).
+  ⚠️ CLAUDE.md'de defalarca yazili **"nil -> SQL NULL"** sinifini KENDI DUZELTMEMDE
+  tekrarladim. Statik denetim GORMEDI; **UCTAN UCA TESTI YAKALADI** — surum
+  rutinindeki "deploy sonrasi e2e" adimi bu yuzden ZORUNLU.
+  FIX: INSERT'te `COALESCE($9,0)`; ON CONFLICT dalindaki COALESCE eski degeri KORUR.
+- 📌 **TURU 78 — `etkinlik_kadro`DA MEDYA SUTUNU YOK (bilincli).** Sanatci fotografi
+  `media_assets`e baglansaydi `erisebilir()` icine YENI BIR DAL gerekirdi; o dal
+  unutuldugunda **yukleyenden baska HERKESE 403** donerdi (turu 75b + 77'de SAHAYA
+  CIKTI). Kadro simdilik ad + rol. `user_id` **NULLABLE** — unluler kayitli degil.
+  ⚠️ **KAYITLI kisinin adi SUNUCUDAN alinir**, istemcinin gonderdigi ad YOK SAYILIR
+  (kimlik taklidi kapisi); e2e "SAHTE AD" gondererek dogruluyor.
+- 📌 **TURU 78 — `reklamlar` TABLOSU ACILMADI (icerigini girecek YOL YOK).**
+  Odeme yok · isletme hesabi sayisi SIFIR · **admin panelinden GORSEL YUKLENEMEZ**
+  (admin uclari `?key=` ile JWT grubunun DISINDA, presign ICINDE -> onay kuyrugu
+  yalnizca bir UUID LISTESI olurdu = KOR ONAY). Slider ORGANIK vitrinden beslenir
+  (`/vitrin?dikey=`); odeme gelince tablo BU UCUN ARKASINA eklenir ve **istemci
+  sozlesmesi DEGISMEZ**. ⚠️ Vitrin ilk **FOTOGRAFI** secer, ilk medyayi DEGIL
+  (video olsaydi slider'da KIRIK GORSEL cizilirdi).
+- 📌 **TURU 78 — `chats.ilan_id` (032) EKLENDI ama `type` HALA `'direct'`.**
+  Kisisel sohbetin ilan sohbetine DUSMEMESI icin tum dogrudan-sohbet SQL'i TEK
+  KAYNAGA alindi: **`internal/sohbet/direkt.go`** (`ilan_id IS NULL` yuklemi orada).
+  ⚠️ YAPMA: yuklemi cagiran yerlere elle kopyalama (drift eder — turu 75b/H dersi).
+  Kendi ilanina mesaj 400; ayni ilan icin ikinci cagri AYNI satiri doner.
+- 📌 **TURU 78 — KALDIRMA NOBETCISI: BOS DIZE = SIL.** `null` "degistirme" demektir;
+  ikisi ayrilmadan `kapak_media_id` / etkinlik `bitis` alani TEMIZLENEMEZ.
+- ⚠️ **TURU 78 — UCTAN UCA 104 -> 140 KONTROL.** Turu 78'in sekiz fazi icin **36 yeni
+  kontrol**; oncesinde bu fazlarin HICBIRI otomatik dogrulanmiyordu. En kritikleri:
+  profil ucunun kapagi **yanit haritasinda** dondurmesi · `kind='kapak'` presign'in
+  CHECK'ten gecmesi · kapagin **IKINCI HESAPTA** acilmasi · sadece `durum`
+  degisiminin `duzenlendi_at` damgasini **DEGISTIRMEMESI** · kisisel sohbetin ilan
+  sohbetine **DUSMEMESI** · kadroda **ad'in SUNUCUDAN** gelmesi.
+- ⏳ **TURU 78 — DURUST SINIRLAR (yapilmadi, sebebiyle):** HARITA ve "yakinimda"
+  YOK — `isletmeler.enlem/boylam` VAR ama **hicbir kayitta DOLU DEGIL** ve
+  dolduracak arayuz yok; harita bos tuval olurdu. Once koordinat girisi lazim.
+  Kartlar bugun calisan olcutlerle (onayli, yeni) besleniyor. **AI ile GORSEL
+  URETME yok** — yalniz metin -> menu.
+- 🔑 **BEKLEYEN:** kullanici OpenAI anahtarini sohbete yazdi ve "calistirdiginizda
+  degistirecegim" dedi. Anahtar sunucuda CALISIYOR (canli test: metin -> 5,7 sn'de
+  gecerli Turkce JSON menu, kota 20->19) -> **ARTIK DONDURULMELI.**
+- 📌 **MIGRATION NUMARALARI (guncel):** 032 = `chats.ilan_id` · 033 = kapak + onayli ·
+  034 = `ilanlar.duzenlendi_at` · 035 = `etkinlik_kadro` · 036 = `ai_istekleri.durum`
+  CHECK · 037 = `media_assets.kind` CHECK. Sonraki **038**'den.
 - **KALDIGIMIZ YER (9 Agu 06:40): TEST TURU 77 YAYINLANDI** — android 31292449948 +
   ios 31292451069 (fd5fbaa), R2 apk=115303523 (md5 685c27b1) ipa=23688271
   (md5 19616914), purge OK, **CDN BIREBIR** (apk + ipa + index.html MD5 esit),

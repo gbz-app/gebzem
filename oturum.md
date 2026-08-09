@@ -5272,3 +5272,121 @@ Saat artık **altı yerde**: sekme başlığı · üstteki mor şerit · **saniy
 saat** · iki indirme düğmesinin içi · dosya satırı. Üretici artık yer tutucu tabanlı
 ve saat 5 yerden azsa **derlemeyi durduruyor**.
 
+
+---
+
+## Oturum 79 — 9 Ağustos 2026 (Turu 78: pazar yeri katmanı — kapak/onaylı, ilan düzenleme+video, ilan mesajlaşması, etkinlik düzenleme+kadro, kategori iniş sayfası, AI menü)
+
+### 🎯 Kullanıcının istediği (tek mesajda 12 konu)
+
+> "ilan galeri ekleme video ekleme yok mu düzenle favori ekleme **ilan mesajlaşma
+> sistemi** olmalı etkinlik oluşturma düzenleme etkinlik görsel **katılımcı oyuncu
+> şarkıcı ekleme** … alttaki menüye tıkladığında **ayrı bir sayfaya** gidecek burada
+> **üstte slider reklam alanı** altta **küçük kartlar** (yakınımda, favoriler) altında
+> **arama filtreleme** altında **işletmeler** … **restoran sahipleri menülerini yapay
+> zekâ ile oluşturabilmeli**"
+
+Ek mesaj: "ilanda görsel ve videolar olacak, etkinlikte de, işletmelerde **arka plan
+resmi logo ortada**, aynı şekilde normal kullanıcılarda **arka plan resmi** …
+**onaylı hesap ikonu** da olsun"
+
+Ertelenmesi istenen: `active_call_controller.dart` ölü bekletme/park zinciri
+("bunu en sona bırak dostum").
+
+### ✅ Yapılanlar — 8 faz, 6 migration
+
+| Faz | İş | Migration |
+|---|---|---|
+| 0 | Sevk engelleri + drift muhafızları | — |
+| A | Kapak görseli + logo + onaylı rozet | 033 |
+| 1 | İlan düzenleme + `media_kinds` | 034 |
+| 2 | İlan videosu + karma galeri | — |
+| 3 | İlan mesajlaşması | 032 |
+| 4 | Etkinlik düzenleme + video + kadro | 035 |
+| 5 | Kategori iniş sayfası + vitrin | — |
+| 6 | AI menü sertleştirme + istemciye bağlama | 036, 037 |
+
+### ⚠️⚠️⚠️ SEVK ENGELLERİ — denetimde yakalananlar (build ÖNCESİ)
+
+**(1) `Profile()` kapak ve onaylı alanlarını YANIT HARİTASINA KOYMUYORDU.**
+Sütunlar `SELECT` ediliyor, `rows.Scan(&u.KapakMediaID, &u.Onayli)` çalışıyor —
+ama yanıt `map[string]any{...}` elle kuruluyor ve iki alan oraya yazılmamıştı.
+Derleyici bunu göremez (Scan'in yan etkisi var, değişken "kullanılıyor").
+Sonuç: **kapak hiçbir profilde görünmezdi, onaylı rozeti hiç çizilmezdi** —
+kullanıcının açıkça istediği iki şey.
+Kalıcı muhafız: **`internal/users/profil_yanit_test.go`** — `Profile()`'ın
+`&u.Alan` taramalarını ayrıştırır, her birini `userResp` etiketine çözer ve o
+etiketi yanıt haritasında **arar**. Muhafızın çalıştığı, düzeltmeyi geri alıp
+test kırmızıya düşürülerek KANITLANDI.
+
+**(2) `media_assets.kind` CHECK'i `'kapak'` kabul etmiyordu.** Presign her
+seferinde 500 dönerdi = kapak özelliği **%100 ölü doğardı**. `go build`, `go vet`,
+`flutter analyze` üçü de temiz. Canlı DB'de doğrulandı → migration **037**.
+⚠️ Aynı sınıf ikinci kez: `ai_istekleri.durum` CHECK'i `'iptal'` kabul etmiyordu
+(migration **036**).
+
+**(3) İlan düzenlemede "Tür" açılır menüsü VERİ KAYBETTİRİYORDU.** Tür değişince
+`ozellikler` şeması komple değişiyor; düzenlemede tür değiştirilebiliyordu ve
+kaydedince eski özellikler siliniyordu. Düzenlemede kilitlendi.
+
+**(4) `PUT /users/me/isletme` HER SEFERİNDE 500 (kendi FAZ 0 regresyonum).**
+Koordinatlar işaretçi yapıldı ("gönderilmedi" ≠ "0") ve UPDATE dalı doğru
+kuruldu — **INSERT dalı atlandı**. İstemci enlem/boylam hiç göndermediği için
+pgx `nil`i SQL NULL'a çevirdi, sütun NOT NULL: `SQLSTATE 23502`.
+Buna bağlı **6 kontrol daha** çöktü (işletme detayı, rehber, `hesap_turu`, ürün
+ekleme, katalog, ürün medyası).
+⚠️ CLAUDE.md'de defalarca yazılı "nil → SQL NULL" sınıfını **kendi düzeltmemde**
+tekrarladım. Statik denetim görmedi; **uçtan uca testi yakaladı.**
+
+### 📌 Kalıcı kararlar (gerekçeleriyle)
+
+- **`etkinlik_kadro`da medya sütunu YOK.** Sanatçı fotoğrafı `media_assets`e
+  bağlansaydı `erisebilir()` içine yeni bir dal gerekirdi; o dal unutulduğunda
+  **yükleyenden başka herkese 403** dönerdi — bu sınıf turu 75b'de ve 77'de
+  sahaya çıktı. Kadro şimdilik ad + rol.
+- **`etkinlik_kadro.user_id` NULLABLE.** Ünlüler bu uygulamaya kayıtlı değil;
+  zorunlu olsaydı özellik pratikte kullanılamazdı.
+- **Kayıtlı kişinin adı SUNUCUDAN alınır** — istemcinin gönderdiği ad yok sayılır
+  (kimlik taklidi kapısı). Uçtan uca testi "SAHTE AD" göndererek doğruluyor.
+- **`reklamlar` tablosu AÇILMADI.** İçeriğini girecek yol yok: ödeme yok, işletme
+  hesabı sayısı sıfır ve **admin panelinden görsel yüklenemez** (admin uçları
+  `?key=` ile JWT grubunun dışında, presign içinde). Slider organik vitrinden
+  besleniyor; ödeme gelince tablo bu ucun arkasına eklenir, **istemci sözleşmesi
+  değişmez**.
+- **Vitrin ilk *fotoğrafı* seçer, ilk medyayı değil** — video olsaydı slider'da
+  kırık görsel çizilirdi.
+- **`chats.ilan_id`** eklendi ama `type` hâlâ `'direct'`. Kişisel sohbetin ilan
+  sohbetine düşmemesi için tüm doğrudan-sohbet SQL'i tek kaynağa alındı:
+  `internal/sohbet/direkt.go` (`ilan_id IS NULL` yüklemi orada).
+- **Kapak kaldırma nöbetçisi: boş dize = sil.** `null` "değiştirme" demek;
+  ikisini ayırmadan alan temizlenemez.
+
+### ✅ Doğrulamalar
+
+- **Uçtan uca 140/140** — canlı sunucuda, İKİ AYRI HESAPLA.
+  Turu 78 için **36 yeni kontrol** eklendi (önceden bu fazların *hiçbiri*
+  otomatik doğrulanmıyordu). En kritikleri: profil ucunun kapağı **yanıt
+  haritasında** döndürmesi, `kind='kapak'` presign'ın CHECK'ten geçmesi,
+  kapağın **ikinci hesapta** açılması, sadece `durum` değişiminin
+  `duzenlendi_at` damgasını **değiştirmemesi**, kişisel sohbetin ilan sohbetine
+  **düşmemesi**, kadroda **ad'ın sunucudan** gelmesi.
+- **176 rota çakışmasız.**
+- Migration 001→037 atılabilir kopya DB'de sırayla uygulandı, temiz.
+- AI menü **canlı sunucuda gerçekten çalıştı**: metin → 5,7 sn'de geçerli Türkçe
+  JSON menü, kota 20→19 düştü.
+- DB TRUNCATE edildi (users/ilan/etkinlik/medya/chat/kadro/ai = 0).
+
+### ⏳ Dürüst sınırlar (yapılmadı, sebebiyle)
+
+- **Harita ve "yakınımda"**: `isletmeler.enlem/boylam` var ama **hiçbir kayıtta
+  dolu değil** ve dolduracak bir arayüz yok. Harita çizmek boş bir tuval olurdu;
+  önce koordinat girişi lazım. Kartlar bugün çalışan ölçütlerle (onaylı, yeni)
+  besleniyor.
+- **AI ile görsel üretme** yok — yalnız metin→menü.
+- `active_call_controller.dart` ölü bekletme/park zinciri (~500 satır) —
+  kullanıcı isteğiyle en sona bırakıldı.
+
+### 🔑 Bekleyen
+
+Kullanıcı OpenAI anahtarını sohbete yazdı ve "çalıştırdığınızda değiştireceğim"
+dedi. **Anahtar sunucuda çalışıyor → artık döndürülmeli.**
