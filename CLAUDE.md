@@ -17,6 +17,157 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (9 Agu 23:45): TURU 80 + 80b KODU BITTI, BACKEND DEPLOY EDILDI**
+  (**001e2db**; migration 001->038 atilabilir kopya DB'de dogrulandi = 47 tablo;
+  `medya: aktif (R2)` + `ai: aktif (metin gpt-4o-mini · gorsel gpt-image-1.5)`)
+  + health ok, DB TRUNCATE edildi.
+  ✅ **CANLI SUNUCUDA 178/178 UCTAN UCA GECTI** · **188 ROTA CAKISMASIZ** ·
+  `go build`+`go vet`+`go test ./...` temiz · `flutter analyze` **0 hata**.
+  Build tetiklendi: android **31334733441** · ios **31334734942**.
+- ⚠️⚠️⚠️ **TURU 80b — DENETIM: 19/19 ONAYLANDI, 0 ELENDI (24 ajan, 5 mercek).**
+  Dordu SEVK ENGELI; hepsi build ONCESI yakalandi.
+- ⚠️⚠️⚠️ **(1) `randevu_ayar` UPSERT'te `COALESCE(EXCLUDED.x, mevcut)` OLU KODDU.**
+  `EXCLUDED.acik` ZATEN `COALESCE($2,false)` sonucudur -> **ASLA NULL OLAMAZ** ->
+  `randevu_ayar.acik` yedegi HIC degerlendirilmez. Istemci alanlari TEK TEK
+  gonderdigi icin isletme "Randevu suresi"ni degistirince `acik` FALSE'a dusuyor,
+  ayar bloku ekrandan kayboluyor: **ozellik ILK AYAR DOKUNUSUNDA KENDINI
+  KAPATIYORDU** (turu 80'in manset ozelligi varsayilanlar disinda
+  YAPILANDIRILAMAZDI). Gercek Postgres'te gecici tablo + ROLLBACK ile AMPIRIK
+  kanitlandi. FIX: UPDATE dalinda EXCLUDED yerine **HAM PARAMETRE** (`$2..$6`);
+  VALUES tarafindaki COALESCE'lar KALIR (INSERT'te NOT NULL sutunlar icin sart).
+  ⚠️ **DERS: `ON CONFLICT` dalinda `EXCLUDED.x`, VALUES'ta COALESCE'lanmis bir
+  parametreyse "gonderilmedi" bilgisi ZATEN KAYBOLMUSTUR.**
+  ⚠️ **E2E NEDEN GOREMEDI: tum alanlari TEK cagrida gonderiyordu** -> hicbir
+  parametre NULL olmuyor, COALESCE yedegi HIC sinanmiyordu. Artik KISMI govde
+  gonderen kontrol var.
+- ⚠️⚠️⚠️ **(2) `_yukleniyor` SIZINTISI — AKIS KALICI KILITLENIYORDU.**
+  `if (!mounted || bolme != _bolme) return;` erken donusu `_yukleniyor = false`
+  satirini ATLIYORDU. Bayrak **PAYLASILAN**: yukleme surerken bolme degistirilirse
+  surec boyunca true kalir; `_yenile` ve `_dahaGetir`in ILK SATIRI her cagriyi
+  reddeder -> asagi-cek CALISMAZ, sayfalama DURUR, paylasilan gonderi akista
+  GORUNMEZ. `AkisEkrani` keepAlive oldugu icin **uygulama OLDURULMEDEN duzelmez**
+  (turu 77b'de kapatilan hatanin AYNISI). Iki yerde birden duzeltildi.
+  ⚠️ **DERS: bir bayragi await'ten once yazip erken donus ekliyorsan, o donusun
+  bayragi TEMIZLEYIP temizlemedigini SOR.** Bayrak bolmeye ozgu DEGILSE, listeye
+  yazmayi kapiyla koru ama BAYRAGI HER DURUMDA temizle.
+- ⚠️⚠️ **(3) DORT RANDEVU BILDIRIM TURU ISTEMCIDE TANIMSIZDI** -> hepsi
+  "bir işlem yaptı" genel metnine dusuyordu (**onay ile red AYIRT EDILEMIYORDU**)
+  + her biri Sentry'ye alarm basiyordu. Turu 75b'deki `takip_onaylandi` hatasinin
+  aynisi ve uyarisi HEMEN USTUNDE yaziliydi.
+  ⚠️ **(4)** Randevu bildirimine dokunmak AKTORUN PROFILINE gidiyordu.
+  ⚠️ YAPMA: sunucuya yeni bildirim turu eklerken `bildirimler_sayfasi.dart`
+  switch'ini ve `_git()` yonlendirmesini atlama.
+- ⚠️⚠️ **TURU 80b — `Olustur` TAKVIM KURALLARININ HICBIRINI DOGRULAMIYORDU.**
+  Kapali gun · calisma saati · slot hizasi YALNIZ okuma yolunda (`Slotlar`)
+  vardi; istemci takvimi HIC ACMADAN POST atarak **bayramda 03:17'ye** randevu
+  yazdirabilirdi. **Arayuzun kurala uymasi, kuralin UYGULANDIGI anlamina GELMEZ.**
+  ⚠️ FIX'te kural **IKINCI KEZ YAZILMADI**: uretecin KENDISI cagrilip istenen anin
+  uretilen slotlar arasinda olup olmadigina bakiliyor (`Musait` BILEREK yok
+  sayilir — kapasite karari advisory kilitli tek deyimde kalsin).
+- ⚠️⚠️ **TURU 80b — `ileri_gun` IKI FARKLI TABANDA olculuyordu** (okuma GUN BASI,
+  yazma AN) -> son gunun ogleden sonraki slotlari "musait" gorunup POST'ta **400**
+  donuyordu. `IleriGunDisi()` TEK KAYNAGINA alindi (iki taraf da gun basi).
+- ⚠️⚠️ **TURU 80b — `myProfileProvider` OTURUMA BAGLI DEGILDI.** `keepAlive`
+  oldugu icin cikis sonrasi onbellek yasiyordu: baska hesapla girildiginde alt
+  menude ve Profil sekmesinde **ONCEKI kullanicinin adi + avatari** ciziliyordu.
+  Turu 80 profil ikonunu GERCEK RESME cevirdigi icin bedel gorunur oldu.
+  FIX: govdenin ilk satirinda `ref.watch(authProvider)` (`myUserIdProvider` ile
+  birebir ayni desen). ⚠️ YAPMA: `logout()` icine elle `invalidate` koyarak cozme
+  — bir sonraki oturuma bagli saglayicida yine unutulur.
+- ⚠️⚠️ **TURU 80b — E2E KALICI YALANCI-YESIL (yontem dersi).** Isletmenin calisma
+  saatleri YALNIZ `gun: 1` (Pazartesi) tanimliydi; randevu blogu haftada TEK GUN
+  calisiyordu. **172/172 gecmesinin sebebi, kosuldugu gunun (Pazar) yarininin
+  PAZARTESI olmasiydi** — yesil, kodun dogrulugunu DEGIL **TAKVIMI** olcuyordu.
+  ⚠️ **DERS: bir testin yesili, testin GERCEKTEN KOSTUGU anlamina gelmez.**
+  Kosul-bagimli bloklarda (`if (musait) {...}`) sartın saglandigini de DOGRULA.
+- ⚠️⚠️ **TURU 80b — OLU OZELLIKLER (bu sinifin YEDINCI tekrari):**
+  · **KAPALI GUNLER**: `randevu_kapali` tablosu (038) + IKI uc + `Slotlar`daki dal
+    + IKI servis metodu VARDI, **CAGIRAN EKRAN YOKTU** -> isletme bayramda randevu
+    almayi DURDURAMIYORDU. `KapaliGunlerEkrani` eklendi.
+  · **'geldi'/'gelmedi'**: gecis tablosunda tanimli, rozet 'geldi'yi YESIL
+    ciziyordu — **YAZAN DUGME YOKTU**.
+  · **`not_isletme`**: sutun + istek alani + SQL + yanit + Dart modeli vardi, ne
+    YAZAN ne CIZEN yol vardi. Isletme artik red/iptal sebebi yaziyor (OPSIYONEL),
+    musteri sebebi randevu satirinda goruyor.
+    ⚠️ Ayrica **MUSTERI isletmenin ozel notuna yazabiliyordu** (`iptal` gecisini
+    musteri yapiyor) — yetki `Gecisler` tablosuyla hizalandi.
+  ⚠️ **DERS (yedinci kez): bir sutun/uc/servis ekledigin AN onu KULLANAN yolu da yaz.**
+- 📌 **TURU 80b — MEDYA OLCULERI: DURUST NOT.** Yukseklik tavani DOGRU sonucu
+  verdi (kutu her cihazda ekranin ~%32'si; Threads ~%28-31). AMA **`kMedyaEnBoy`
+  BUGUN HICBIR CIHAZDA BAGLAYICI DEGIL** — `medyaYuksekligi` bir `math.min`dir ve
+  tavan HER ZAMAN kazanir (sabitin baglayici olmasi icin oge genisliginin
+  ~216dp ALTINA inmesi gerekir; en dar telefonda bile tek medya ~296dp).
+  SONUC: kutu en-boyu ~1.06-1.65 ve `cover` ile **dikey fotograf %41-51, video
+  %58-66 KIRPILIR.** Bu, *"cok uzun"* sikayetinin KACINILMAZ karsi tarafidir.
+  ⚠️ **KIRPMANIN KURTARMA YOLU ZORUNLU**: fotografta VARDI (`TamEkranGorsel`),
+  **VIDEODA HIC YOKTU** — yani videonun yalniz ORTA SERIDI gorulebiliyordu.
+  `TamEkranVideo` eklendi; giris **NOKTASAL DUGME** (sol alt).
+  ⚠️ YAPMA: videoya TAM ALANLI `GestureDetector` koyma — oynaticinin kendi tam
+  ekran dinleyicisi jest arenasini kazanip dokunuslari YUTAR (turu 77b'de
+  video hikayede ileri/geri dokunusu tam bu yuzden calismiyordu).
+  ⚠️ YAPMA: `cover`i `contain`e cevirme (yatay kutuda dikey icerik kus kadar
+  kalir + siyah bant).
+- 🛡️ **TURU 80b — KALICI MUHAFIZLAR:**
+  · **`internal/isletme/sutun_test.go`** (pakette HIC test yoktu): SELECT/Scan
+    hizasi + **"Scan edilip yanit haritasina konmayan alan"** sinifi (turu 78'de
+    kapak + onayli rozeti tam boyle kaybolmustu). ⚠️ Muhafizin calistigi,
+    `randevu_acik` yanittan CIKARILIP test KIRMIZIYA dusurulerek **KANITLANDI**.
+    ⚠️ Test ILK YAZIMDA kendi serhindeki "SELECT" kelimesini eslestirip YANLIS
+    ALARM verdi -> ayristiriciya YORUM TEMIZLIGI eklendi. Kaynak okuyan her
+    testte bu tuzagi hatirla.
+  · **`rota_test.go`**: turu 80'in 13 ucu cozumleme vakalarina eklendi. En riskli
+    ayrim `/isletme/...` (STATIK) vs `/isletmeler/{id}/...` (PARAMETRELI).
+    **188 rota cakismasiz.**
+  · **E2E 172 -> 178**: kapali gune dogrudan POST reddi · calisma saati disi reddi
+    · slot hizasi disi reddi · **kismi ayar kaydinin diger ayarlari korudugu** ·
+    kapali gun listeleme + geri alma.
+- 📌 **TURU 80b — DIGER DUZELTMELER:**
+  · Isletme kisisele donunce **bekleyen randevular YETIM kaliyordu** (musterinin
+    listesinde gorunmeye devam ediyor; isletmenin iptal yolu TAMAMEN kapanmis —
+    gelen kutusu 404). `KisiselYap` artik aktifleri `iptal_isletme` yapip
+    musteriye BILDIRIYOR. **Satir SILINMEZ** (veri politikasi).
+  · **`AyarOku`ya `hesap_turu='isletme'` kapisi**: hesap kisisellesince
+    `isletmeler` satiri SILINMIYOR, kapi olmadigi icin randevu almaya DEVAM
+    ediyordu. Kapi **TEK KAYNAGA** kondu (dort uc oradan gecer).
+  · `_dahaVar` ve `_kesfet` **BOLME BASINA** tasindi (soguk baslangic seridi
+    Keşfet'te de ciziliyordu; tukenmis sayfalama bolme degisiminde diriliyordu).
+  · `_bolmeDegistir`in tetikledigi `_yenile()` **sessizce yutulabiliyordu**
+    (`_yukleniyor` kapisi) ve TEKRAR DENEYEN yol yoktu -> **Keşfet KALICI BOS**.
+    `_bolmeYukle()`: ucustaki istegin bitmesini bekler (10 x 150ms).
+  · Yuklenmemis bolme artik SPINNER gosteriyor ("Henüz gönderi yok" YERINE).
+  · Gonderi silme **HER IKI BOLMEDEN** (ayni gonderi iki listede de bulunabilir).
+  · `IsletmeSeridi._yukle` **try/catch'siz** idi: tek ag kopmasi "Randevu al"
+    dugmesini TAMAMEN dusuruyordu (tekrar deneme yolu yok). Tek tekrar eklendi.
+  · `randevu_al` AppBar alt basligi **sabit 20px** idi; yazi olcegi 1.3'te tasip
+    **RenderFlex seridi** cikariyordu -> olcege gore + ellipsis.
+  · `u.username` COALESCE'siz taraniyordu (18 sorgunun tek istisnasi).
+  · Bayat serhler: iki dosya *"flutter_localizations YOK"* diyordu, turu 80 onu
+    **EKLEDI**; buna dayanan *"showDatePicker EKLEME"* hukmu GECERSIZDI.
+    (Saat secici karari AYRI gerekceyle DURUYOR: serbest saat, calisma saatine
+    uymayan secim demektir.)
+- ⚠️⚠️⚠️ **INDIR SAYFASI — KOK NEDEN NIHAYET OLCULDU (kullanici UCUNCU KEZ
+  "saati goremiyorum" dedi).** Sunucu tarafi YINE dogru cikti (`no-cache,
+  no-store, must-revalidate` + `cf-cache-status: DYNAMIC` + saat 5 yerde + canli
+  saat + turu 50 flexbox fix'i duruyor). **GERCEK SEBEP:**
+
+      https://indir.gebzem.app/?v=123  --302-->  /index.html   <- SORGU DUSUYOR
+
+  Yani **ciplak alan adina cache-busting parametresi eklemek ISE YARAMIYOR**;
+  R2'nin 302'si sorgu dizesini KORUMUYOR. Ana ekrana eklenmis kisayoldan ya da
+  agresif onbellekli bir webview'dan girildiginde tarayici `no-store` basligina
+  **RAGMEN** eski kopyayi cizebiliyor.
+  ✅ **COZUM: kullaniciya `/index.html?v=<surumEtiketi>` VERILECEK** — 302'ye HIC
+  ugramaz ve her surumde FARKLI adres oldugu icin hicbir onbellek katmani
+  eslestiremez. Uretici bu adresi kosu sonunda BASIYOR.
+  ⚠️ **YAPMA: kullaniciya ciplak alan adini verme.**
+  ⚠️ Icerik muhafizi turu 79'a SABITLENMISTI -> her turda BU SURUME sabitlenir
+  (muhafiz calisti: turu 80 metnini yazinca eski kontrol PATLADI, sayfa
+  uretilmedi).
+- 📌 **MIGRATION NUMARALARI (guncel):** 038 = randevu (`randevu_ayar`,
+  `randevu_kapali`, `randevular`). Sonraki **039**'dan.
+- ⏳ **EN SONA BIRAKILAN (kullanici emri):** `active_call_controller.dart`
+  ~500 satirlik olu bekletme/park zinciri temizligi.
+
 - **TURU 79 — YAPAY ZEKA ILE GORSEL URETME (kod BITTI, backend DEPLOY d335af6).**
   Kullanici: *"yapay zeka ile görsel oluşturma nerede?"* -> *"tamamda olacak
   dedim ya"*. HAKLIYDI: anahtari verirken **"hepsi olsun"** demisti; turu 77/78'de
