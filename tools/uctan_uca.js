@@ -1026,6 +1026,30 @@ const kontrol = (ad, gecti, ek = '') => {
       ai2.kod === 200 && ai2.d.gorsel_kalan === ai.d.gorsel_kalan,
       'once=' + (ai.d && ai.d.gorsel_kalan) + ' sonra=' + (ai2.d && ai2.d.gorsel_kalan));
 
+    // ⚠️⚠️⚠️ TURU 79b — **METIN UCU GORSEL KOTASINI YEMEMELI** (denetim: SEVK
+    //    ENGELI, kok neden turu 79'da BENIM yaptigim degisiklikti).
+    //
+    //    `tur` turu 77'de yalnizca bir ETIKETTI; turu 79'da onu "pahali gorsel
+    //    kotasi" olcutune cevirdim ama `UrunMetni` hala turu 77'den kalma
+    //    "gorsel" etiketini geciyordu. Sonuc: "Yapay zekâ ile açıklama yaz"
+    //    dugmesine her dokunus, turun MANSET OZELLIGI olan gorsel uretiminden
+    //    bir hak yakiyordu. Onceki kontrol bunu YAKALAYAMIYORDU (yalnizca iki
+    //    kotanin FARKLI SAYI oldugunu olcuyordu — 10 != 20 gecer).
+    //
+    // ⚠️ `/ai/urun-metni` UCUZ bir metin cagrisidir; e2e'de calistirmak kabul
+    //    edilebilir (~$0.001). Gorsel uretimi ise HALA cagrilmiyor.
+    const um = await j('/ai/urun-metni', {
+      yontem: 'POST', token: A.token, govde: { metin: 'Adana kebap' },
+    });
+    const ai3 = await j('/ai/durum', { token: A.token });
+    kontrol('TURU 79b: /ai/urun-metni GORSEL kotasini YEMIYOR',
+      ai3.kod === 200 && ai3.d.gorsel_kalan === ai.d.gorsel_kalan,
+      'gorsel once=' + (ai.d && ai.d.gorsel_kalan) +
+      ' sonra=' + (ai3.d && ai3.d.gorsel_kalan) + ' (uc HTTP ' + um.kod + ')');
+    kontrol('TURU 79b: /ai/urun-metni METIN kotasindan DUSUYOR',
+      ai3.kod === 200 && um.kod === 200 && ai3.d.kalan === ai.d.kalan - 1,
+      'metin once=' + (ai.d && ai.d.kalan) + ' sonra=' + (ai3.d && ai3.d.kalan));
+
     // ---------- 6) GRUP SOHBETI AVATARI (turu 78b denetimi: SEVK ENGELIYDI)
     //
     // ⚠️⚠️ BU KONTROL **ANCAK IKI HESAPLA** ANLAMLIDIR. Medya kapisi

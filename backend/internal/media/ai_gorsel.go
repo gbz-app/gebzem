@@ -100,3 +100,67 @@ func (h *Handler) AIGorselIzni(ctx context.Context, sahipID string, tahminiBayt 
 	}
 	return h.kota.Kalan(ctx, sahipID) >= tahminiBayt
 }
+
+// AIGorseliVazgec — kullanicinin BEGENMEDIGI AI gorselini siler ve depolama
+// kotasini GERI VERIR.
+//
+// ⚠️⚠️⚠️ TURU 79b — DENETIM BULGUSU: bu yol OLMADAN reddedilen her gorsel
+// depolama kotasini **KALICI** yiyordu.
+//
+//	Uretim gercek para harcadigi icin gorseli "sessizce silmek" ilk bakista
+//	yanlis gorunur — ama kullanici onu REDDETTI, yani hicbir yere baglanmayacak.
+//	Birkac deneme sonrasi kullanicinin aylik medya kotasi, GORMEDIGI dosyalarla
+//	dolardi ve temizleyecek HICBIR YOL yoktu (silme ucu yalniz mesaj medyasi
+//	icin var).
+//
+// ⚠️ GUVENLIK KAPILARI (ucu de ZORUNLU):
+//   - `owner_id = $2` — baskasinin medyasi SILINEMEZ,
+//   - `kind='image'` + `status='aktif'` — normal yukleme akisinin kayitlarina
+//     dokunmaz (onlar commit'ten gecmis ve BAGLI olabilir),
+//   - **HICBIR YERE BAGLI OLMAMA** kontrolu — kullanici bir sekilde baglanmis
+//     bir id gonderirse gorsel urunun/ilanin altindan CEKILMEZ.
+//
+// ⚠️ Kota `Ekle(-bayt)` ile geri verilir: `Ekle` negatif degeri KABUL EDER
+//
+//	(uzlastirma icin yazilmisti) ve sayaci dusurur.
+//
+// ⚠️ IDEMPOTENT: satir yoksa/uymuyorsa sessizce basarili sayilir — kullanici
+//
+//	iki kez "Vazgec" derse hata gormesin.
+func (h *Handler) AIGorseliVazgec(ctx context.Context, mediaID, sahipID string) error {
+	if h.r2 == nil {
+		return fmt.Errorf("medya kapali")
+	}
+	var anahtar string
+	var bayt int64
+	err := h.db.QueryRow(ctx, `
+		DELETE FROM media_assets
+		 WHERE id=$1 AND owner_id=$2 AND kind='image' AND status='aktif'
+		   -- ⚠️ HICBIR YERE BAGLI OLMAMALI. Bagli bir gorseli silmek, urunun
+		   --    fotografini ALTINDAN CEKMEK olurdu.
+		   AND NOT EXISTS(SELECT 1 FROM isletme_urunleri WHERE $1 = ANY(media_ids))
+		   AND NOT EXISTS(SELECT 1 FROM ilanlar          WHERE $1 = ANY(media_ids))
+		   AND NOT EXISTS(SELECT 1 FROM etkinlikler      WHERE $1 = ANY(media_ids))
+		   AND NOT EXISTS(SELECT 1 FROM posts            WHERE $1 = ANY(media_ids))
+		   AND NOT EXISTS(SELECT 1 FROM channel_posts    WHERE $1 = ANY(media_ids))
+		   AND NOT EXISTS(SELECT 1 FROM users
+		                   WHERE avatar_media_id=$1 OR kapak_media_id=$1)
+		   AND NOT EXISTS(SELECT 1 FROM chats WHERE avatar_media_id=$1)
+		   AND NOT EXISTS(SELECT 1 FROM messages WHERE media_id=$1)
+		RETURNING object_key, bytes`, mediaID, sahipID).Scan(&anahtar, &bayt)
+	if err != nil {
+		// Satir yok / bagli / baskasinin -> IDEMPOTENT sessiz basari.
+		return nil
+	}
+	if serr := h.r2.Sil(ctx, anahtar); serr != nil {
+		// ⚠️ Nesne SIZMASIN: sweeper tekrar dener.
+		h.db.Exec(ctx, `INSERT INTO media_delete_queue (object_key) VALUES ($1)`,
+			anahtar)
+	}
+	if bayt > 0 {
+		if _, kerr := h.kota.Ekle(ctx, sahipID, -bayt); kerr != nil {
+			log.Printf("ai gorsel kota iadesi: %v", kerr)
+		}
+	}
+	return nil
+}

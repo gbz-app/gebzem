@@ -645,29 +645,44 @@ class _UrunDuzenleEkraniState extends ConsumerState<UrunDuzenleEkrani> {
     if (_gorselUretiliyor) return;
     final ad = _ad.text.trim();
     final tarif = await _gorselTarifiSor(ad);
-    if (tarif == null || tarif.isEmpty || !mounted) return;
+    if (tarif == null || !mounted) return;
+    // ⚠️ TURU 79b — BOS TARIF **SESSIZCE GECILMEZ** (denetim bulgusu).
+    //    Eskiden bos metinle "Oluştur"a basmak hicbir sey yapmiyordu ve
+    //    kullanici dugmenin bozuk oldugunu saniyordu.
+    if (tarif.isEmpty) {
+      rootMessengerKey.currentState?.showSnackBar(
+        const SnackBar(content: Text('Ne çizilmesini istediğini yaz')),
+      );
+      return;
+    }
 
     final aiSvc = ref.read(aiServisiProvider);
     setState(() => _gorselUretiliyor = true);
     try {
       final mediaId = await aiSvc.gorsel(metin: tarif);
       if (!mounted) return;
-      // ⚠️ Kota sayaci TAZELENIR (turu 77b dersi: etiketteki sayi bayat kalirdi).
-      ref.invalidate(aiDurumProvider);
       if (mediaId.isEmpty) {
         rootMessengerKey.currentState?.showSnackBar(
           const SnackBar(content: Text('Görsel oluşturulamadı')),
         );
         return;
       }
-      await _uretilenGorseliOnayla(mediaId);
+      await _uretilenGorseliOnayla(mediaId, aiSvc);
     } catch (e) {
       // ⚠️ KOK MESSENGER: uretim uzun surer, ekran degismis olabilir.
       rootMessengerKey.currentState?.showSnackBar(
         SnackBar(content: Text(apiErrorMessage(e))),
       );
     } finally {
-      if (mounted) setState(() => _gorselUretiliyor = false);
+      // ⚠️⚠️ TURU 79b — KOTA SAYACI **`finally` ICINDE** TAZELENIR (denetim).
+      //    Eskiden yalniz BASARI dalindaydi; zaman asimi ya da 502 sonrasi
+      //    etiketteki hak sayisi BAYAT kaliyordu. Ustelik basarisiz istek de
+      //    (faturalanmis olabilecegi icin) kotadan DUSUYOR — yani sayacin
+      //    guncellenmesi gereken en onemli an tam da HATA aniydi.
+      if (mounted) {
+        setState(() => _gorselUretiliyor = false);
+        ref.invalidate(aiDurumProvider);
+      }
     }
   }
 
@@ -725,20 +740,40 @@ class _UrunDuzenleEkraniState extends ConsumerState<UrunDuzenleEkrani> {
   /// Uretilen gorseli BUYUK gosterir ve onay ister.
   ///
   /// ⚠️ Onaylanirsa `_uretilenMediaId` doldurulur; `_kaydet` bunu `media_ids`e
-  ///    koyar. ⚠️ Reddedilirse HICBIR SEY yapilmaz — medya sunucuda 'aktif'
-  ///    kalir ama hicbir yere bagli DEGILDIR ve depolama kotasindan dusmustur
-  ///    (uretim gercekten para harcadi; sessizce silmek kotayi yanlis gosterirdi).
-  Future<void> _uretilenGorseliOnayla(String mediaId) async {
+  ///    koyar.
+  /// ⚠️⚠️ TURU 79b — REDDEDILIRSE **SUNUCUDAN SILINIR** (denetim bulgusu).
+  ///    Eskiden hicbir sey yapilmiyordu: medya R2'de 'aktif' kaliyor, hicbir
+  ///    yere baglanmiyor ve kullanicinin AYLIK DEPOLAMA KOTASINDAN kalici
+  ///    olarak dusuyordu. Birkac denemeden sonra kota, kullanicinin HIC
+  ///    GORMEDIGI dosyalarla dolar ve temizleyecek bir yol da YOKTU.
+  ///    ⚠️ AI hakki iade EDILMEZ (uretim gercekten para harcadi) — yalnizca
+  ///       depolama geri verilir. Aksi halde "begenene kadar sinirsiz deneme"
+  ///       olurdu.
+  Future<void> _uretilenGorseliOnayla(String mediaId, AiServisi aiSvc) async {
     final kullan = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
         title: const Text('Görsel hazır'),
-        content: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: AspectRatio(
-            aspectRatio: 1,
-            child: MedyaGorsel(mediaId: mediaId, fit: BoxFit.cover),
-          ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: AspectRatio(
+                aspectRatio: 1,
+                child: MedyaGorsel(mediaId: mediaId, fit: BoxFit.cover),
+              ),
+            ),
+            const SizedBox(height: 8),
+            // ⚠️ TURU 79b — KARAR ANINDA BILGI (denetim bulgusu). Uyari ilk
+            //    diyalogda vardi ama ONAY aninda yoktu; kullanicinin "bu gercek
+            //    bir fotograf mi" sorusunu sorabilecegi TEK an burasi.
+            const Text(
+              'Bu görsel yapay zekâ ile üretildi; gerçek bir fotoğraf değildir.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+          ],
         ),
         actions: [
           TextButton(
@@ -752,7 +787,15 @@ class _UrunDuzenleEkraniState extends ConsumerState<UrunDuzenleEkrani> {
         ],
       ),
     );
-    if (kullan != true || !mounted) return;
+    if (kullan != true) {
+      // ⚠️ TURU 79b: reddedilen gorsel SUNUCUDAN SILINIR (depolama kotasi iade).
+      //    `mounted` KONTROLU YOK ve `unawaited` DEGIL: kullanici ekrandan
+      //    cikmis olsa bile temizlik TAMAMLANMALI. Servis await'ten ONCE
+      //    yakalandigi icin `ref` erisimi guvenli.
+      await aiSvc.gorselVazgec(mediaId);
+      return;
+    }
+    if (!mounted) return;
     setState(() {
       _uretilenMediaId = mediaId;
       // ⚠️ Elle secilmis dosya varsa DUSURULUR: iki kaynak birden olursa
@@ -906,8 +949,17 @@ class _UrunDuzenleEkraniState extends ConsumerState<UrunDuzenleEkrani> {
         actions: [
           if (widget.urun != null)
             IconButton(icon: const Icon(LucideIcons.trash2), onPressed: _sil),
+          // ⚠️⚠️ TURU 79b — URETIM SURERKEN **KAYDET KILITLI** (denetim bulgusu).
+          //    Eskiden yalniz `_kaydediliyor`a bakiyordu: kullanici gorsel
+          //    "Çiziliyor..." iken Kaydet'e basabiliyordu. Sonuc: urun
+          //    FOTOGRAFSIZ kaydedilir, ekran kapanir, saniyeler sonra biten
+          //    (ve PARASI ODENMIS) gorsel HICBIR YERE baglanmadan yetim kalir.
+          //    ⚠️ `_aiCalisiyor` (AI aciklama) da ayni gerekceyle eklendi:
+          //       yazilan metin alana ulasmadan ekran kapaniyordu.
           TextButton(
-            onPressed: _kaydediliyor ? null : _kaydet,
+            onPressed: (_kaydediliyor || _gorselUretiliyor || _aiCalisiyor)
+                ? null
+                : _kaydet,
             child: const Text('Kaydet'),
           ),
         ],
@@ -971,8 +1023,17 @@ class _UrunDuzenleEkraniState extends ConsumerState<UrunDuzenleEkrani> {
               padding: const EdgeInsets.only(top: 8),
               child: Align(
                 alignment: Alignment.centerLeft,
+                // ⚠️⚠️ TURU 79b — HAK BITINCE DUGME **PASIF** ve SEBEP YAZILI
+                //    (denetim bulgusu). Eskiden hak 0 olunca sayac etiketten
+                //    TAMAMEN kayboluyor, dugme ise ETKIN kaliyordu: kullanici
+                //    saglikli durumdan ayirt edemiyor, basiyor ve 429 aliyordu.
+                //    Ayrica sayi artik KOSULSUZ yaziliyor — "(0)" gormek,
+                //    hicbir sey gormemekten cok daha bilgilendirici.
                 child: TextButton.icon(
-                  onPressed: _gorselUretiliyor ? null : _aiGorsel,
+                  onPressed:
+                      (_gorselUretiliyor || (ai?.gorselKalan ?? 0) <= 0)
+                      ? null
+                      : _aiGorsel,
                   icon: _gorselUretiliyor
                       ? const SizedBox(
                           width: 15,
@@ -983,8 +1044,9 @@ class _UrunDuzenleEkraniState extends ConsumerState<UrunDuzenleEkrani> {
                   label: Text(
                     _gorselUretiliyor
                         ? 'Çiziliyor...'
-                        : 'Yapay zekâ ile görsel oluştur'
-                              '${(ai?.gorselKalan ?? 0) > 0 ? " (${ai!.gorselKalan})" : ""}',
+                        : (ai?.gorselKalan ?? 0) <= 0
+                        ? 'Günlük görsel hakkın doldu'
+                        : 'Yapay zekâ ile görsel oluştur (${ai!.gorselKalan})',
                   ),
                 ),
               ),

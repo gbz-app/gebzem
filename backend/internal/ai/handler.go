@@ -128,17 +128,23 @@ type Handler struct {
 	//    tekrarlayan "ozellik var gorunup fiilen yok" sinifinin yenisi.
 	// ⚠️ YAPMA: bunu tekrar `!= nil` kontroluyle degistirme.
 	medyaAcik func() bool
+
+	// ⚠️ TURU 79b — reddedilen uretimi siler (depolama kotasini geri verir).
+	//    Ayrinti: `media.AIGorseliVazgec` serhi.
+	gorselVazgec func(ctx context.Context, mediaID, sahipID string) error
 }
 
 func NewHandler(db *pgxpool.Pool,
 	medyaURL func(context.Context, string, string) (string, error),
 	gorselKaydet func(context.Context, string, string, []byte) (string, error),
 	gorselIzni func(context.Context, string, int64) bool,
-	medyaAcik func() bool) *Handler {
+	medyaAcik func() bool,
+	gorselVazgec func(context.Context, string, string) error) *Handler {
 	a := strings.TrimSpace(os.Getenv("OPENAI_API_KEY"))
 	h := &Handler{
 		db: db, anahtar: a, medyaURL: medyaURL,
 		gorselKaydet: gorselKaydet, gorselIzni: gorselIzni, medyaAcik: medyaAcik,
+		gorselVazgec: gorselVazgec,
 	}
 	switch {
 	case a == "":
@@ -165,6 +171,24 @@ func (h *Handler) GorselAcik() bool {
 }
 
 func (h *Handler) Acik() bool { return h.anahtar != "" }
+
+// ⚠️⚠️⚠️ TURU 79b — HANGI `tur` PAHALI GORSEL HAVUZUNA DUSER. **TEK KAYNAK.**
+//
+// Turu 79'da bu karar `kapi()` icine `tur == "gorsel"` diye GOMULMUSTU ve
+// `UrunMetni` turu 77'den kalma "gorsel" etiketini kullandigi icin METIN ucu
+// gorsel kotasini yiyordu (sevk engeli).
+//
+// ⚠️ Kural TEK YERDE olmali cunku ayni yuklem UC yerde kullaniliyor:
+//
+//	`kapi()` rezervasyonu · `bugunKullanilan()` sayimi · SQL yuklemi.
+//	Ucu ayrilirsa kullaniciya gosterilen "kalan" ile gercek kota TUTMAZ
+//	(CLAUDE.md: "ayni kuralin iki kopyasi drift eder").
+//
+// ⚠️ YAPMA: yeni bir AI ucu eklerken `tur`u rastgele secme. GORSEL URETMIYORSA
+//
+//	buraya EKLEME; uretiyorsa EKLE. Yanlis taraf, kullanicinin gunluk hakkini
+//	yanlis havuzdan yakar.
+func gorselKotasiMi(tur string) bool { return tur == "gorsel" }
 
 func yaz(w http.ResponseWriter, kod int, v any) {
 	w.Header().Set("Content-Type", "application/json")
@@ -258,12 +282,48 @@ func (h *Handler) kapi(w http.ResponseWriter, r *http.Request, tur string) (stri
 	//    ⚠️ Sayim `tur` uzerinden AYRISIR: gorsel istekleri metin kotasini
 	//       YEMEZ, metin istekleri de gorseli kilitlemez.
 	kota := gunlukKota
-	gorselMi := tur == "gorsel"
+	gorselMi := gorselKotasiMi(tur)
 	if gorselMi {
 		kota = gunlukGorselKota
 	}
+	// ⚠️⚠️⚠️ TURU 79b — KULLANICI BASINA **SERILESTIRME** (denetim bulgusu).
+	//
+	//	`INSERT ... SELECT WHERE (count) < kota` TEK BASINA **ATOMIK DEGILDIR**:
+	//	READ COMMITTED'da es zamanli iki istek AYNI sayimi okur, ikisi de
+	//	`count < kota` gorur ve IKISI DE satir acar. N escamanli istekle kota
+	//	ASILIR ve gorsel tarafinda bu **GERCEK PARA** demektir (her asim ~bir
+	//	uretim ucreti).
+	//
+	//	`pg_advisory_xact_lock` kullanici+havuz basina kilit alir; islem
+	//	bitince OTOMATIK birakilir (ayri bir unlock yolu YOK, dolayisiyla
+	//	hata dalinda kilit SIZMAZ).
+	//
+	// ⚠️ Kilit anahtari HAVUZU DA icerir: metin ve gorsel havuzlari birbirini
+	//	gereksiz yere BEKLETMESIN.
+	// ⚠️ Ayni islemde olmalari SART — bu yuzden tek `WITH` ifadesi degil,
+	//	acik bir transaction kullaniliyor.
+	// ⚠️ YAPMA: kilidi kaldirip yalniz `count < kota`ya donme.
+	tx, txErr := h.db.Begin(r.Context())
+	if txErr != nil {
+		log.Printf("ai kota tx: %v", txErr)
+		hata(w, 500, "Yapay zekâ şu anda kullanılamıyor")
+		return "", 0, false
+	}
+	defer tx.Rollback(context.WithoutCancel(r.Context()))
+
+	havuz := "ai:metin:"
+	if gorselMi {
+		havuz = "ai:gorsel:"
+	}
+	if _, lerr := tx.Exec(r.Context(),
+		`SELECT pg_advisory_xact_lock(hashtext($1))`, havuz+me); lerr != nil {
+		log.Printf("ai kota kilidi: %v", lerr)
+		hata(w, 500, "Yapay zekâ şu anda kullanılamıyor")
+		return "", 0, false
+	}
+
 	var id int64
-	err := h.db.QueryRow(r.Context(), `
+	err := tx.QueryRow(r.Context(), `
 		INSERT INTO ai_istekleri (user_id, tur, girdi, sonuc, durum)
 		SELECT $1, $2, '', '', 'beklemede'
 		 WHERE (SELECT count(*) FROM ai_istekleri
@@ -271,6 +331,15 @@ func (h *Handler) kapi(w http.ResponseWriter, r *http.Request, tur string) (stri
 		           AND ($4 = (tur = 'gorsel'))
 		           AND created_at > now() - interval '24 hours') < $3
 		RETURNING id`, me, tur, kota, gorselMi).Scan(&id)
+	if err == nil {
+		// ⚠️ COMMIT SART: aksi halde `defer tx.Rollback` rezervasyonu GERI ALIR
+		//    ve kota FIILEN calismaz.
+		if cerr := tx.Commit(r.Context()); cerr != nil {
+			log.Printf("ai kota commit: %v", cerr)
+			hata(w, 500, "Yapay zekâ şu anda kullanılamıyor")
+			return "", 0, false
+		}
+	}
 	// ⚠️⚠️ TURU 78 — HATA TURU AYIRT EDILIR. Eskiden HER hata "kota doldu"
 	//    sayiliyordu ve bu YANILTICIYDI: migration 031'in CHECK'i 'beklemede'
 	//    degerini KABUL ETMIYORDU (036 ile duzeltildi), yani AI acildigi ANDA
@@ -281,10 +350,19 @@ func (h *Handler) kapi(w http.ResponseWriter, r *http.Request, tur string) (stri
 	if errors.Is(err, pgx.ErrNoRows) {
 		// ⚠️ Mesaj TURE GORE ayrisir: gorsel hakki bitince "yapay zekâ hakkın
 		//    doldu" demek YANILTICI olurdu (metin hakki DURUYOR olabilir).
+		// ⚠️⚠️ SAYI **SABITTEN URETILIR** (turu 79b denetim bulgusu). Metne
+		//    gomulu "(5)" yaziyordu; sabit 10'a cikarilinca mesaj GUNCELLENMEDI
+		//    ve kullaniciya YANLIS hak sayisi soyleniyordu. Bu, projede tekrar
+		//    eden "ayni degerin iki kopyasi drift eder" sinifinin kucuk ama
+		//    gorunur bir ornegi.
+		// ⚠️ YAPMA: sayiyi tekrar metne gomme.
 		if gorselMi {
-			hata(w, 429, "Günlük görsel oluşturma hakkın doldu (5), yarın tekrar dene")
+			hata(w, 429, fmt.Sprintf(
+				"Günlük görsel oluşturma hakkın doldu (%d), yarın tekrar dene",
+				gunlukGorselKota))
 		} else {
-			hata(w, 429, "Günlük yapay zekâ hakkın doldu, yarın tekrar dene")
+			hata(w, 429, fmt.Sprintf(
+				"Günlük yapay zekâ hakkın doldu (%d), yarın tekrar dene", gunlukKota))
 		}
 		return "", 0, false
 	}
@@ -484,13 +562,33 @@ func (h *Handler) Menu(w http.ResponseWriter, r *http.Request) {
 
 // POST /ai/urun-metni — urun fotografindan/adindan ACIKLAMA + BASLIK onerisi.
 //
-// ⚠️ "AI GORSEL" olarak istenen sey, gorsel URETMEK degil GORSELI ANLAMAKTIR:
+// ⚠️ BU UC GORSEL URETMEZ, GORSELI ANLAR: kullanici urun fotografini ceker, AI
 //
-//	kullanici urun fotografini ceker, AI ondan satis metni yazar. Gercek
-//	gorsel uretimi (DALL·E) ayri bir maliyet kalemi ve urun karari; bu surumde
-//	YOK ve istemcide de VAAT EDILMIYOR.
+//	ondan satis metni yazar. (Gercek gorsel uretimi turu 79'da `gorsel.go`da
+//	eklendi ve AYRI bir uctur.)
+//
+// ⚠️⚠️⚠️ TURU 79b — `tur` DEGERI "gorsel"DEN "urun-metni"YE CEVRILDI. SEVK ENGELI
+// DUZELTMESI; kok neden BENIM turu 79 degisikligimdir:
+//
+//	Turu 77'de `tur` YALNIZCA BIR ETIKETTI (denetim izi) ve tum AI cagrilari
+//	tek 20/gun havuzunu paylasiyordu — bu ucun "gorsel" yazmasi ZARARSIZDI.
+//	Turu 79'da `kapi()` icine `gorselMi := tur == "gorsel"` eklendim ve o
+//	etiketi **"pahali gorsel kotasi, gunde 10"** anlamina cevirdim; ama
+//	CAGRI YERINI guncellemedim.
+//
+//	SONUC: isletme sahibinin "Yapay zekâ ile açıklama yaz" dugmesine her
+//	dokunusu, turun MANSET OZELLIGI olan gorsel uretiminden bir hak yakiyordu.
+//	10 aciklama yazdiran kisi HIC GORSEL URETMEDEN "Günlük görsel oluşturma
+//	hakkın doldu" goruyordu; ustelik aciklama dugmesindeki sayac METIN havuzunu
+//	gosterdigi icin 20'de CAKILI kaliyor, gercek dususu HIC gostermiyordu.
+//	Tersi de bozuktu: 20'lik metin havuzu bu uc tarafindan HIC harcanmiyordu.
+//
+// ⚠️ Migration GEREKMEZ: `ai_istekleri.tur` sutununda CHECK YOK (031).
+// ⚠️ YAPMA: bir kota olcutunu SERBEST METIN etiketine baglarken cagri
+//
+//	yerlerini taramadan birakma. `grep 'h.kapi(w, r,'` dort satir donduruyor.
 func (h *Handler) UrunMetni(w http.ResponseWriter, r *http.Request) {
-	_, istekID, ok := h.kapi(w, r, "gorsel")
+	_, istekID, ok := h.kapi(w, r, "urun-metni")
 	if !ok {
 		return
 	}

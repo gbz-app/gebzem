@@ -121,12 +121,25 @@ class AiServisi {
   /// Yani kullanici gunluk 20 hakkindan birini HICBIR SEY ALMADAN yakardi ve
   /// tekrar denedikce ayni sey tekrarlardi.
   ///
-  /// ⚠️ 90 sn secildi: sunucu tavani 60 sn + ag/yukleme payi. Sunucu tavani
-  ///    degisirse BURASI DA degismeli (ikisi AYRI yerde — drift riski).
+  /// ⚠️⚠️⚠️ TURU 79b — SURE **SUNUCU TAVANININ USTUNDE** OLMAK ZORUNDA
+  /// (denetim: SEVK ENGELI).
+  ///
+  ///	Metin uclari icin sunucu tavani 60 sn; **GORSEL uretimi icin 120 sn**
+  ///	(`gorselZamanAsimi`) ve ustune R2'ye yazma suresi biniyor. Istemci 90
+  ///	sn'de vazgectiginde:
+  ///	  · sunucu uretimi TAMAMLAR ve OpenAI faturayi KESER,
+  ///	  · gorsel R2'ye yazilir ama istemci `media_id`yi HIC ALMAZ,
+  ///	  · kota rezervasyonu 'tamam' olarak kapanir -> gunluk hak YANAR,
+  ///	  · uretilen gorsel HICBIR YERE baglanmadan YETIM kalir,
+  ///	  · kullanici jenerik bir hata gorur ve tekrar dener (ikinci hak da gider).
+  ///	Yani YAVAS uretim GARANTILI kayipti.
+  ///
+  /// ⚠️ 150 sn = sunucu 120 + R2 yazma payi + ag. Sunucudaki
+  ///	`gorselZamanAsimi` degisirse BURASI DA degismeli (iki AYRI yer).
   /// ⚠️ YAPMA: genel Dio zaman asimini buyutme (tum uclari yavaslatir).
   static final _aiSecenek = Options(
-    receiveTimeout: const Duration(seconds: 90),
-    sendTimeout: const Duration(seconds: 90),
+    receiveTimeout: const Duration(seconds: 150),
+    sendTimeout: const Duration(seconds: 150),
   );
 
   /// Menu fotografindan ya da aciklamadan yapilandirilmis menu ONERISI.
@@ -164,6 +177,15 @@ class AiServisi {
       options: _aiSecenek,
     );
     return (r.data['media_id'] ?? '').toString();
+  }
+
+  /// ⚠️ TURU 79b — BEGENILMEYEN uretimi siler; DEPOLAMA kotasi geri verilir.
+  ///    AI hakki IADE EDILMEZ (uretim gercekten para harcadi).
+  /// ⚠️ Hata YUTULUR: bu bir TEMIZLIK yolu, kullanicinin akisini kesmemeli.
+  Future<void> gorselVazgec(String mediaId) async {
+    try {
+      await _api.delete('/ai/gorsel/$mediaId');
+    } catch (_) {}
   }
 
   /// Fotograftan sorun tespiti.

@@ -104,7 +104,8 @@ func main() {
 	// ⚠️ TURU 79 — gorsel uretimi icin IKI geri cagirim daha: AI paketi R2'ye ve
 	//    `media_assets`e DOGRUDAN dokunmaz (ikinci istemci = drift, turu 77/Ç12).
 	aiH := ai.NewHandler(db, mediaH.ImzaliAdres,
-		mediaH.AIGorseliKaydet, mediaH.AIGorselIzni, mediaH.Enabled)
+		mediaH.AIGorseliKaydet, mediaH.AIGorselIzni, mediaH.Enabled,
+		mediaH.AIGorseliVazgec)
 	usersH.MedyaDurumu(mediaH.Enabled()) // istemci atac dugmesini buna gore gizler
 	if mediaH.Enabled() {
 		mediaH.StartSweeper(ctx)
@@ -260,6 +261,9 @@ func main() {
 		//    (bir gorsel ~40 metin cagrisina bedel). Sonuc `media_id` doner ve
 		//    HICBIR YERE otomatik baglanmaz — kullanici onaylar.
 		r.Post("/ai/gorsel", aiH.Gorsel)
+		// ⚠️ TURU 79b — reddedilen uretimi siler (DEPOLAMA kotasini geri verir).
+		//    AI hakki iade EDILMEZ: uretim gercekten para harcadi.
+		r.Delete("/ai/gorsel/{id}", aiH.GorselVazgec)
 		// TURU 76b — HIKAYE (story). 24 saat GORUNURLUK; veri SILINMEZ.
 		r.Post("/stories", socialH.StoryOlustur)
 		r.Get("/stories", socialH.StoryAkis)
