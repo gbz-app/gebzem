@@ -17,7 +17,84 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (9 Agu 16:33): TEST TURU 78 YAYINLANDI** — android 31315541995 +
+- **TURU 79 — YAPAY ZEKA ILE GORSEL URETME (kod BITTI, backend DEPLOY d335af6).**
+  Kullanici: *"yapay zeka ile görsel oluşturma nerede?"* -> *"tamamda olacak
+  dedim ya"*. HAKLIYDI: anahtari verirken **"hepsi olsun"** demisti; turu 77/78'de
+  yalniz METIN uclari baglanmisti. ✅ **CANLI DOGRULANDI** (uc kez: 21-28 sn,
+  ~1,5 MB PNG, imzali adresten indi, kota dogru dustu) ve **GORSEL GOZLE
+  KONTROL EDILDI**. ✅ **150/150 UCTAN UCA.**
+- ⚠️⚠️⚠️ **TURU 79 — DIS SERVISIN MODEL ADINI VE PARAMETRELERINI VARSAYMA.**
+  Iki varsayimim CANLI SUNUCUDA curudu:
+  · `response_format: "b64_json"` -> **400 Unknown parameter** (images ucunda
+    ARTIK YOK). Kaldirildi; artik `b64_json` VE `url` **IKI BICIM** de
+    destekleniyor (URL gelirse sunucu INDIRIR) — API bir daha degisirse ozellik
+    sessizce olmesin.
+  · `dall-e-3` -> **"The model does not exist"**. `GET /v1/models` ile hesabin
+    GERCEKTEN erisebildikleri listelendi -> **`gpt-image-1-mini`** (ailenin en
+    ucuzu, urun fotografi icin yeterli).
+  ⚠️ **YONTEM: once `/v1/models` ile listele, istegi `curl` ile SINA, SONRA kod yaz.**
+- 📌 **TURU 79 — `media.Yukle` (SUNUCU TARAFI PUT) EKLENDI.** "Medya API'DEN
+  GECMEZ" kuralinin **BILINCLI ISTISNASI**; kullanici dosyalari (100 MB video)
+  HALA presigned PUT ile dogrudan R2'ye gidiyor. AI gorseli **ISTEMCIDE HIC
+  YOKTUR** (OpenAI -> sunucu). Istemciye gonderip ondan yukletmek (a) baytlari
+  IKI KEZ tasirdi, (b) istemcinin yuklemeyi ATLAYIP kendi baska bir gorselini
+  "AI uretti" diye kaydetmesine izin verirdi. `Content-MD5` gonderilir (commit
+  adimi YOK, butunluk BURADA kanitlanir).
+  ⚠️ YAPMA: bu fonksiyonu kullanici yuklemelerine acma.
+- 📌 **TURU 79 — `kind='image'` KULLANILDI, YENI TUR ACILMADI.** Yeni bir `kind`
+  (a) `media_assets.kind` CHECK'ini genisletmeyi gerektirirdi (turu 78'de bu
+  tuzaga IKI KEZ dusuldu), (b) `erisebilir()` icine YENI DAL gerektirirdi ve o
+  dal unutuldugunda **yukleyenden baska HERKESE 403** donerdi (DORT kez sahaya
+  cikti). Mevcut urun/ilan dallari zaten kapsiyor.
+- ⚠️⚠️⚠️ **TURU 79b — `/ai/urun-metni` GORSEL KOTASINI YIYORDU (KENDI
+  REGRESYONUM, SEVK ENGELI).** Turu 77'de `tur` YALNIZCA BIR ETIKETTI ve o uc
+  "gorsel" yaziyordu — ZARARSIZDI. Turu 79'da `kapi()` icine
+  `gorselMi := tur == "gorsel"` ekleyip etiketi **"pahali gorsel kotasi"**
+  olcutune cevirdim ama CAGRI YERINI guncellemedim. Sonuc: "Yapay zekâ ile
+  açıklama yaz" dugmesine her dokunus, turun MANSET OZELLIGINDEN bir hak
+  yakiyordu; 10 aciklama yazdiran kisi HIC GORSEL URETMEDEN "gorsel hakkin
+  doldu" goruyordu.
+  FIX: `tur="urun-metni"` + olcut **TEK KAYNAGA** alindi (`gorselKotasiMi`).
+  ⚠️ **DERS: bir kota/yetki olcutunu SERBEST METIN etiketine baglarken TUM
+     cagri yerlerini TARA** (`grep 'h.kapi(w, r,'` dort satir donduruyor).
+- ⚠️⚠️ **TURU 79b — ISTEMCI ZAMAN ASIMI SUNUCUNUN USTUNDE OLMALI (SEVK ENGELI).**
+  Istemci 90 sn, sunucu gorsel uretimine 120 sn veriyordu: yavas uretim
+  **GARANTILI KAYIP** — sunucu tamamlar, OpenAI FATURAYI KESER, gorsel R2'ye
+  yazilir, kota 'tamam' kapanir, ama istemci `media_id`yi HIC ALMAZ; gorsel
+  yetim kalir, kullanici jenerik hata gorup TEKRAR dener (ikinci hak da gider).
+  FIX: istemci 150 sn. ⚠️ Sunucudaki `gorselZamanAsimi` degisirse BURASI DA.
+- ⚠️⚠️ **TURU 79b — `durum='iptal'` YAZAN YOL YOKTU** ("sutun var, yazan yol
+  yok" sinifinin **ALTINCI** tekrari). Sutun 036'da TAM BU IS ICIN eklenmis ve
+  kota sayimi `durum <> 'iptal'` yuklemini ZATEN kullaniyordu. Icerik politikasi
+  reddi **PARA HARCAMADIGI HALDE** gunluk hakki 24 saat yakiyordu.
+  FIX: OpenAI'ya ULASIP reddettiyse `'iptal'`; zaman asimi/5xx -> `'hata'`
+  (faturalanmis OLABILIR — turu 77b ilkesiyle ayni).
+- ⚠️⚠️ **TURU 79b — KOTA REZERVASYONU ATOMIK DEGILDI.** `INSERT ... SELECT
+  WHERE (count) < kota` READ COMMITTED'da escamanli iki istegi de gecirir; kota
+  asilir ve GORSEL tarafinda bu **GERCEK PARA** demektir. FIX:
+  `pg_advisory_xact_lock(hashtext(havuz+userID))` — islem bitince otomatik
+  birakilir (kilit SIZMAZ). ⚠️ Anahtar HAVUZU da icerir: metin ve gorsel
+  havuzlari birbirini gereksiz BEKLETMESIN. ⚠️ COMMIT sart (defer Rollback var).
+- 📌 **TURU 79b — REDDEDILEN GORSEL: `DELETE /ai/gorsel/{id}`.** Onceden
+  "Vazgec" denen gorsel R2'de kalip kullanicinin AYLIK DEPOLAMA kotasini KALICI
+  yiyordu ve temizleyecek yol YOKTU. Silme kapilari: sahiplik + `kind='image'` +
+  `status='aktif'` + **HICBIR YERE BAGLI OLMAMA** (urun/ilan/etkinlik/gonderi/
+  kanal/avatar/kapak/grup/mesaj). ⚠️ **AI hakki IADE EDILMEZ** (uretim gercekten
+  para harcadi); yalniz DEPOLAMA iade edilir — aksi halde "begenene kadar
+  sinirsiz deneme" olurdu.
+- ⚠️ **TURU 79b — `GorselAcik()` HICBIR SEY OLCMUYORDU** (deploy sonrasi kendi
+  yakaladigim hata): `gorselKaydet != nil` kontrolu YAPISAL OLARAK her zaman
+  true, cunku `mediaH.AIGorseliKaydet` bir **METOT DEGERIDIR**. R2 kapali bir
+  kurulumda dugme cizilir, kullanici basinca hata alirdi.
+  FIX: `medyaAcik func() bool` = `mediaH.Enabled`.
+  ⚠️ **DERS: bir yetenegi "geri cagirim nil mi" ile yoklama — metot degeri ise
+     HICBIR SEY OLCMEZ. Gercek durumu SORAN bir fonksiyon iste.**
+- 📌 **TURU 79 — UCTAN UCA 148 -> 150; URETIM CAGRILMIYOR (bilincli).** Uretim
+  her surumde kosulsaydi her e2e calistirmasi PARA harcar ve kullanicinin gunluk
+  gorsel kotasindan duserdi. Onun yerine BAGLANTI ve KAPILAR ucretsiz yollardan
+  dogrulaniyor + **`/ai/urun-metni` GORSEL kotasini YEMIYOR** (regresyon kaniti:
+  metin 20->19, gorsel 10->10). Gercek uretim ELLE: `scratchpad/gorsel_test.js`.
+- **ONCEKI (9 Agu 16:33): TEST TURU 78 YAYINLANDI** — android 31315541995 +
   ios 31315543585 (**7240bfb**), R2 apk=115648043 (md5 2911b24e) ipa=23723742
   (md5 99442aaf), purge OK, **CDN BIREBIR** (apk + ipa + index.html UCU DE MD5
   esit), indir sayfasi 16:33 (saat 5 yerde + **canli saat**), debug imza YOK,

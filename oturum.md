@@ -5496,3 +5496,88 @@ oturumda yeniden kurulmak zorunda değil.
 
 `active_call_controller.dart` ölü bekletme/park zinciri (~500 satır) — kullanıcı
 isteğiyle en sona bırakıldı.
+
+---
+
+## Oturum 79c — 9 Ağustos 2026 (Turu 79: YAPAY ZEKÂ İLE GÖRSEL ÜRETME)
+
+### 🎯 Neden bu tur
+
+Kullanıcı görsel üretmeyi sordu ("yapay zeka ile görsel oluşturma nerede?"),
+ben "yok, yapılmadı" dedim; kullanıcı **"tamamda olacak dedim ya"** diye
+hatırlattı — ve haklıydı: anahtarı verirken **"hepsi olsun"** demişti. Turu
+77/78'de yalnız *metin* uçları bağlanmıştı. Bu tur eksiği kapattı.
+
+### Akış
+
+`POST /ai/gorsel {metin}` → ayrı kota rezervasyonu → depolama kotası kontrolü
+(**üretimden önce**) → OpenAI images/generations → baytlar **sunucudan** R2'ye
+yazılır + `media_assets` satırı `aktif` doğar → `{media_id}` döner → istemci
+onay diyaloğunda **büyük gösterir** → "Kullan" denirse ürüne bağlanır.
+
+### İki varsayımım canlı sunucuda çürüdü
+
+1. **`response_format: b64_json`** → `400 Unknown parameter`. Parametre images
+   ucunda **artık yok**. Kaldırıldı; artık hem `b64_json` hem `url` biçimi
+   destekleniyor (URL gelirse sunucu indiriyor).
+2. **`dall-e-3`** → `The model 'dall-e-3' does not exist`. `/v1/models` ile
+   hesabın gerçekten erişebildikleri listelendi → **`gpt-image-1-mini`**
+   (ailenin en ucuzu, ürün fotoğrafı için yeterli). İstek biçimi kod yazmadan
+   önce `curl` ile doğrulandı.
+
+**Ders:** dış servisin model adını ve parametrelerini **varsayma** — listele,
+`curl` ile sına, sonra kod yaz.
+
+### Tasarım kararları
+
+- **`media.Yukle` (sunucu tarafı PUT)** — "medya API'den geçmez" kuralının
+  bilinçli istisnası. Kullanıcı dosyaları hâlâ presigned PUT ile gidiyor. AI
+  görseli istemcide **hiç yok**; istemciye gönderip ondan yükletmek baytları iki
+  kez taşır ve istemcinin "AI üretti" diye başka bir görsel kaydetmesine izin verirdi.
+- **`kind='image'` kullanıldı, yeni tür açılmadı** — yeni bir `kind` hem CHECK
+  kısıtı hem `erisebilir()` dalı gerektirirdi; o dalın unutulması bu projede
+  **dört kez** sahaya çıktı.
+- **Görsel kotası ayrı: 10/gün** (metin 20/gün).
+- **`media_id` döner, URL değil** — imzalı adres kısa ömürlü; kullanıcı görseli
+  kaydedemeden ölürdü.
+
+### ⚠️⚠️ Denetim: 16 bulgu, 16'sı doğrulandı, 0 elendi
+
+**Sevk engeli 1 — kendi regresyonum.** `/ai/urun-metni` **görsel kotasını
+yiyordu**. Turu 77'de `tur` yalnızca bir *etiketti* ve o uç "gorsel" yazıyordu —
+zararsızdı. Turu 79'da o etiketi "pahalı görsel kotası" ölçütüne çevirdim ama
+çağrı yerini güncellemedim. Sonuç: "açıklama yaz" düğmesine her dokunuş, turun
+**manşet özelliğinden** bir hak yakıyordu; 10 açıklama yazdıran kişi hiç görsel
+üretmeden "görsel hakkın doldu" görüyordu.
+
+**Sevk engeli 2.** İstemci 90 sn'de vazgeçiyor, sunucu 120 sn üretiyordu →
+yavaş üretim **garantili kayıp**: fatura kesilir, görsel R2'ye yazılır, kota
+yanar, ama istemci `media_id`yi hiç almaz.
+
+**Yüksek.** `durum='iptal'` yazan yol yoktu (sütun 036'da tam bu iş için
+eklenmişti — "sütun var, yazan yol yok" sınıfının **altıncı** tekrarı); içerik
+politikası reddi para harcamadığı hâlde günlük hakkı yakıyordu. Reddedilen
+görsel depolama kotasını **kalıcı** yiyordu (silme yolu yoktu) → yeni
+`DELETE /ai/gorsel/{id}`.
+
+**Orta.** Kota rezervasyonu atomik değildi (`count < kota` yarışı → görselde
+**gerçek para**) → `pg_advisory_xact_lock`. 429 mesajı "(5)" diyordu, sabit 10.
+Üretim sürerken Kaydet kilitli değildi. Hak bitince düğme etkin kalıyordu.
+
+**Düşük.** Prompt şerhi "talimat sonda tekrarlanır" diyordu ama gövdede tekrar
+yoktu (turu 74 dersinin tekrarı). Sayaç yalnız başarı dalında tazeleniyordu.
+Boş tarif sessizce iptal oluyordu. Onay anında "bu görsel yapay zekâ üretimidir"
+uyarısı yoktu.
+
+### ✅ Doğrulamalar
+
+- **150/150 uçtan uca.** Yeni kontrol regresyonu **kanıtlıyor**: `/ai/urun-metni`
+  metin kotasından düşüyor (20→19), görsel hakkına **dokunmuyor** (10→10).
+  Önceki kontrol bu sınıfı yakalayamıyordu (yalnız iki kotanın farklı *sayı*
+  olduğunu ölçüyordu).
+- **Gerçek üretim canlıda üç kez** sınandı: 21–28 sn, ~1,5 MB PNG, imzalı
+  adresten indi, sihirli bayt PNG, kota doğru düştü.
+  Üretilen görsel **gözle doğrulandı**: tabakta Adana kebap + bulgur pilavı +
+  soğan salatası + lavaş; sade zemin, yazı/logo yok.
+  ⚠️ Uçtan uca aracında **üretim çağrılmıyor** — her sürümde para harcamasın.
+- `flutter analyze` 0 hata · `go build` + `go vet` temiz · DB temiz.
