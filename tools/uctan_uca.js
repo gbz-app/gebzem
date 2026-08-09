@@ -339,6 +339,131 @@ const kontrol = (ad, gecti, ek = '') => {
       cokluVideo.kod === 400, 'HTTP ' + cokluVideo.kod);
   }
 
+  // ---------- TURU 76b ----------
+  //
+  // ⚠️ EN KRITIK: `stories` sorgulari (BOOL_AND + GROUP BY + 24 saat penceresi)
+  //    ve kanal `media_kinds` alt sorgusu GERCEK POSTGRES'TE HIC KOSMAMISTI.
+  //    Tip/sozdizim hatasi olsaydi hikaye seridi ve kanal akisi 500 dondururdu.
+  {
+    // ⚠️⚠️ TAKIBI GERI KUR — bu testin kendi sirasindan dogan bir tuzak:
+    //    yukarida B, A'yi ENGELLEDI ve engelleme TAKIBI DE DUSURUR (turu 75,
+    //    `Block` -> `takibiKaldir`, iki yonlu). Engel kaldirilsa bile takip
+    //    GERI GELMEZ. Hikaye seridi "takip ettiklerim" uzerinden calistigi
+    //    icin bu adim olmadan serit HAKLI OLARAK bos doner.
+    // ⚠️ YAPMA: bunu "hikaye bozuk" diye yorumlama; once takip durumuna bak.
+    await j('/users/' + A.id + '/follow', { yontem: 'POST', token: B.token });
+
+    // Yeni medya (hikaye icin) — ayni id iki kayda baglanmasin.
+    const md5c = crypto.createHash('md5').update(JPEG).digest('base64');
+    const pres3 = await j('/media/upload', {
+      yontem: 'POST', token: A.token,
+      govde: { kind: 'image', mime: 'image/jpeg', bytes: JPEG.length, md5: md5c, file_name: 'story.jpg' },
+    });
+    await fetch(pres3.d.upload_url, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'image/jpeg', 'Content-MD5': md5c },
+      body: JPEG,
+    });
+    await j('/media/' + pres3.d.media_id + '/commit', { yontem: 'POST', token: A.token });
+
+    // 1) HIKAYE PAYLAS
+    const st = await j('/stories', {
+      yontem: 'POST', token: A.token,
+      govde: { media_id: pres3.d.media_id, kind: 'image', metin: 'e2e hikaye' },
+    });
+    kontrol('TURU 76b: POST /stories (hikaye paylas)', st.kod === 201,
+      'HTTP ' + st.kod + ' ' + JSON.stringify(st.d));
+
+    // 2) SERIT — B, A'yi takip ediyor -> A'nin hikayesini GORMELI
+    const serit = await j('/stories', { token: B.token });
+    const kullanicilar = (serit.d && serit.d.users) || [];
+    kontrol('TURU 76b: GET /stories serit (SQL gercek DB de kosuyor)',
+      serit.kod === 200 && kullanicilar.some((u) => u.user_id === A.id),
+      'HTTP ' + serit.kod + ' adet=' + kullanicilar.length);
+    const aSatir = kullanicilar.find((u) => u.user_id === A.id);
+    kontrol('TURU 76b: serit adet + hepsi_izlendi=FALSE (henuz izlenmedi)',
+      !!aSatir && aSatir.adet === 1 && aSatir.hepsi_izlendi === false,
+      JSON.stringify(aSatir && { adet: aSatir.adet, izlendi: aSatir.hepsi_izlendi }));
+
+    // 3) IZLEYICI
+    const liste = await j('/stories/' + A.id, { token: B.token });
+    const hikayeler = (liste.d && liste.d.stories) || [];
+    kontrol('TURU 76b: GET /stories/{userId}', liste.kod === 200 && hikayeler.length === 1,
+      'HTTP ' + liste.kod + ' adet=' + hikayeler.length);
+    kontrol('TURU 76b: IZLENME sayisi BASKASINA DONMUYOR (gizlilik)',
+      hikayeler.length > 0 && hikayeler[0].izlenme === undefined);
+
+    if (hikayeler.length > 0) {
+      const sid = hikayeler[0].id;
+      kontrol('TURU 76b: izlendi isareti',
+        (await j('/stories/' + sid + '/view', { yontem: 'POST', token: B.token })).kod === 200);
+      // idempotent mi
+      kontrol('TURU 76b: izlendi IDEMPOTENT (ikinci cagri da 200)',
+        (await j('/stories/' + sid + '/view', { yontem: 'POST', token: B.token })).kod === 200);
+
+      const serit2 = await j('/stories', { token: B.token });
+      const a2 = ((serit2.d && serit2.d.users) || []).find((u) => u.user_id === A.id);
+      kontrol('TURU 76b: izledikten SONRA hepsi_izlendi=TRUE (halka griye doner)',
+        !!a2 && a2.hepsi_izlendi === true, JSON.stringify(a2 && a2.hepsi_izlendi));
+
+      const izl = await j('/stories/' + sid + '/viewers', { token: A.token });
+      kontrol('TURU 76b: izleyenler SAHIBINE doner', izl.kod === 200 && (izl.d || []).length === 1,
+        'HTTP ' + izl.kod + ' adet=' + ((izl.d || []).length));
+      const izlBaskasi = await j('/stories/' + sid + '/viewers', { token: B.token });
+      kontrol('TURU 76b: izleyenler BASKASINA 404', izlBaskasi.kod === 404, 'HTTP ' + izlBaskasi.kod);
+
+      // 4) SAHIBININ izlenme sayisi
+      const kendi = await j('/stories/' + A.id, { token: A.token });
+      kontrol('TURU 76b: SAHIBI izlenme sayisini GORUR',
+        ((kendi.d && kendi.d.stories) || [])[0]?.izlenme === 1,
+        JSON.stringify(((kendi.d && kendi.d.stories) || [])[0]?.izlenme));
+
+      // 5) ENGEL — engelli taraf hikayeyi GOREMEZ
+      await j('/users/' + B.id + '/block', { yontem: 'POST', token: A.token });
+      const engelliSerit = await j('/stories', { token: B.token });
+      kontrol('TURU 76b: ENGELLI taraf hikayeyi GORMEZ',
+        !((engelliSerit.d && engelliSerit.d.users) || []).some((u) => u.user_id === A.id));
+      const engelliListe = await j('/stories/' + A.id, { token: B.token });
+      kontrol('TURU 76b: ENGELLI taraf hikaye listesini de GORMEZ',
+        ((engelliListe.d && engelliListe.d.stories) || []).length === 0);
+      await j('/users/' + B.id + '/block', { yontem: 'DELETE', token: A.token });
+
+      // 6) SIL — satir FIZIKSEL silinmez, durum='silindi'
+      kontrol('TURU 76b: kendi hikayeni sil',
+        (await j('/stories/' + sid, { yontem: 'DELETE', token: A.token })).kod === 200);
+      const sonra = await j('/stories/' + A.id, { token: A.token });
+      kontrol('TURU 76b: silinen hikaye listede YOK',
+        ((sonra.d && sonra.d.stories) || []).length === 0);
+    }
+
+    // 7) BASKASININ MEDYASIYLA hikaye acilamaz
+    const calinti = await j('/stories', {
+      yontem: 'POST', token: B.token,
+      govde: { media_id: pres.d.media_id, kind: 'image' },
+    });
+    kontrol('TURU 76b: BASKASININ medyasiyla hikaye ACILAMAZ (403)',
+      calinti.kod === 403, 'HTTP ' + calinti.kod);
+
+    // 8) KANAL — media_kinds + istatistik
+    const kanalId = kanal.kod === 201 ? kanal.d.id : null;
+    if (kanalId) {
+      const kposts = await j('/channels/' + kanalId + '/posts', { token: A.token });
+      const kp = (kposts.d && kposts.d.posts) || [];
+      kontrol('TURU 76b: KANAL gonderileri media_kinds donduruyor (SQL kosuyor)',
+        kposts.kod === 200 && kp.length > 0 && Array.isArray(kp[0].media_kinds),
+        'HTTP ' + kposts.kod + ' ' + JSON.stringify(kp[0] && kp[0].media_kinds));
+      if (kp.length > 0) {
+        const kist = await j('/channel-posts/' + kp[0].id + '/istatistik', { token: A.token });
+        kontrol('TURU 76b: KANAL gonderi istatistigi (sahibe)',
+          kist.kod === 200 && typeof kist.d.goruntulenme === 'number',
+          'HTTP ' + kist.kod + ' ' + JSON.stringify(kist.d));
+        const kistB = await j('/channel-posts/' + kp[0].id + '/istatistik', { token: B.token });
+        kontrol('TURU 76b: KANAL istatistigi BASKASINA 404', kistB.kod === 404,
+          'HTTP ' + kistB.kod);
+      }
+    }
+  }
+
   // ---------- OZET
   const kalan = sonuclar.filter((s) => !s.gecti);
   console.log('\n==================================');
