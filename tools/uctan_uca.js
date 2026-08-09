@@ -1050,6 +1050,156 @@ const kontrol = (ad, gecti, ek = '') => {
       ai3.kod === 200 && um.kod === 200 && ai3.d.kalan === ai.d.kalan - 1,
       'metin once=' + (ai.d && ai.d.kalan) + ' sonra=' + (ai3.d && ai3.d.kalan));
 
+    // ---------- TURU 80: REZERVASYON + RANDEVU
+    //
+    // ⚠️ A ZATEN ISLETME (yukaridaki turu 77 blogu onu isletmeye gecirdi) ve
+    //    calisma saatleri dolu. B musteri olacak.
+    {
+      // --- ayar: ozelligi AC
+      const ay = await j('/isletme/randevu-ayar', {
+        yontem: 'PUT', token: A.token,
+        govde: { acik: true, slot_dakika: 30, slot_kapasite: 2, ileri_gun: 14 },
+      });
+      kontrol('TURU 80: randevu ayari kaydedildi',
+        ay.kod === 200 && ay.d.acik === true, 'HTTP ' + ay.kod);
+      kontrol('TURU 80: tur KATEGORIDEN turetiliyor (yemek -> rezervasyon)',
+        ay.d && ay.d.tur === 'rezervasyon', String(ay.d && ay.d.tur));
+
+      // ⚠️ ISLETME DETAYI randevu bilgisini DONDURMELI — istemci dugmeyi BUNA
+      //    gore ciziyor. Yanit haritasina konmamis olsaydi dugme HIC cizilmezdi
+      //    (turu 78'de kapak icin tam bu yasandi).
+      const det = await j('/users/' + A.id + '/isletme', { token: B.token });
+      kontrol('TURU 80: isletme detayi randevu_acik + randevu_turu donduruyor',
+        det.kod === 200 && det.d.randevu_acik === true &&
+        det.d.randevu_turu === 'rezervasyon',
+        JSON.stringify({ a: det.d && det.d.randevu_acik, t: det.d && det.d.randevu_turu }));
+
+      // --- musait saatler
+      const yarinTarih = new Date(Date.now() + 86400000)
+        .toISOString().slice(0, 10);
+      const us = await j('/isletmeler/' + A.id + '/uygun-saatler?tarih=' + yarinTarih,
+        { token: B.token });
+      kontrol('TURU 80: uygun saatler ucu calisiyor (slot uretimi SUNUCUDA)',
+        us.kod === 200 && us.d.acik === true && Array.isArray(us.d.slotlar),
+        'HTTP ' + us.kod + ' adet=' + ((us.d && us.d.slotlar || []).length));
+
+      const musait = ((us.d && us.d.slotlar) || []).find((s) => s.musait);
+      kontrol('TURU 80: en az bir MUSAIT slot var (calisma saatleri okundu)',
+        !!musait, 'ilk=' + JSON.stringify(musait && musait.saat));
+
+      if (musait) {
+        // --- randevu olustur
+        const r1 = await j('/isletmeler/' + A.id + '/randevu', {
+          yontem: 'POST', token: B.token,
+          govde: { baslangic: musait.zaman, kisi_sayisi: 4, not_musteri: 'Pencere kenarı' },
+        });
+        kontrol('TURU 80: randevu olusturuldu', r1.kod === 201 && !!r1.d.id,
+          'HTTP ' + r1.kod);
+        kontrol('TURU 80: durum BEKLIYOR (otomatik onay KAPALI)',
+          r1.d && r1.d.durum === 'bekliyor', String(r1.d && r1.d.durum));
+        kontrol('TURU 80: tur SUNUCUDAN geldi (istemci gondermedi)',
+          r1.d && r1.d.tur === 'rezervasyon', String(r1.d && r1.d.tur));
+
+        // ⚠️ KAPASITE: slot_kapasite=2, bir tane alindi -> HALA musait olmali.
+        const us2 = await j('/isletmeler/' + A.id + '/uygun-saatler?tarih=' + yarinTarih,
+          { token: B.token });
+        const ayniSlot = ((us2.d && us2.d.slotlar) || [])
+          .find((s) => s.zaman === musait.zaman);
+        kontrol('TURU 80: kapasite 2 iken 1 randevu slotu KAPATMIYOR',
+          !!ayniSlot && ayniSlot.musait === true,
+          'musait=' + (ayniSlot && ayniSlot.musait));
+
+        // --- kendi isletmesinden randevu ALAMAZ
+        const kendi = await j('/isletmeler/' + A.id + '/randevu', {
+          yontem: 'POST', token: A.token, govde: { baslangic: musait.zaman },
+        });
+        kontrol('TURU 80: kendi isletmenden randevu ALINAMAZ (400)',
+          kendi.kod === 400, 'HTTP ' + kendi.kod);
+
+        // --- GECMIS saate randevu
+        const gecmis = await j('/isletmeler/' + A.id + '/randevu', {
+          yontem: 'POST', token: B.token,
+          govde: { baslangic: new Date(Date.now() - 3600000).toISOString() },
+        });
+        kontrol('TURU 80: GECMIS saate randevu ALINAMAZ (400)',
+          gecmis.kod === 400, 'HTTP ' + gecmis.kod);
+
+        // --- listeler
+        const ben = await j('/randevularim', { token: B.token });
+        kontrol('TURU 80: /randevularim (musteri) listeliyor',
+          ben.kod === 200 && (ben.d.randevular || []).length === 1,
+          'adet=' + ((ben.d && ben.d.randevular || []).length));
+        kontrol('TURU 80: musteri listesinde ISLETME adi var (JOIN)',
+          !!(ben.d && ben.d.randevular[0] && ben.d.randevular[0].karsi_ad),
+          String(ben.d && ben.d.randevular[0] && ben.d.randevular[0].karsi_ad));
+
+        const gk = await j('/isletme/randevular', { token: A.token });
+        kontrol('TURU 80: /isletme/randevular (gelen kutusu) listeliyor',
+          gk.kod === 200 && (gk.d.randevular || []).length === 1,
+          'adet=' + ((gk.d && gk.d.randevular || []).length));
+
+        // --- YETKI: musteri kendini "onayladi" YAPAMAZ
+        const yetkisiz = await j('/randevular/' + r1.d.id + '/durum', {
+          yontem: 'POST', token: B.token, govde: { durum: 'onaylandi' },
+        });
+        kontrol('TURU 80: MUSTERI randevuyu ONAYLAYAMAZ (403)',
+          yetkisiz.kod === 403, 'HTTP ' + yetkisiz.kod);
+
+        // --- isletme ONAYLAR
+        const onay = await j('/randevular/' + r1.d.id + '/durum', {
+          yontem: 'POST', token: A.token, govde: { durum: 'onaylandi' },
+        });
+        kontrol('TURU 80: ISLETME randevuyu onayladi', onay.kod === 200,
+          'HTTP ' + onay.kod);
+
+        // ⚠️ AYNI GECIS IKINCI KEZ YAPILAMAZ (yaris kapisi).
+        const tekrar = await j('/randevular/' + r1.d.id + '/durum', {
+          yontem: 'POST', token: A.token, govde: { durum: 'onaylandi' },
+        });
+        kontrol('TURU 80: ayni gecis IKINCI KEZ yapilamaz (409)',
+          tekrar.kod === 409, 'HTTP ' + tekrar.kod);
+
+        // --- musteri IPTAL edebilir
+        const ipt = await j('/randevular/' + r1.d.id + '/durum', {
+          yontem: 'POST', token: B.token, govde: { durum: 'iptal' },
+        });
+        kontrol('TURU 80: MUSTERI iptal edebilir', ipt.kod === 200,
+          'HTTP ' + ipt.kod);
+
+        // ⚠️ VERI SILINMEZ: iptal SATIR SILMEZ, durum yazar.
+        const sonra = await j('/randevularim', { token: B.token });
+        const kayit = (sonra.d && sonra.d.randevular || [])[0];
+        kontrol('TURU 80: iptal SATIRI SILMEZ, durum yazar (veri politikasi)',
+          !!kayit && kayit.durum === 'iptal', String(kayit && kayit.durum));
+
+        // --- bildirim gitti mi (isletmeye "yeni randevu")
+        // ⚠️ Uc `/notifications`; yanit `{items:[...]}` ya da duz dizi olabilir
+        //    — ikisini de kabul ediyoruz ki bicim degisirse test PATLAMASIN,
+        //    KIRMIZI dussun.
+        const bil = await j('/notifications', { token: A.token });
+        const ham = bil.d;
+        const dizi = Array.isArray(ham)
+          ? ham
+          : (ham && (ham.items || ham.notifications || ham.bildirimler)) || [];
+        const rb = (Array.isArray(dizi) ? dizi : [])
+          .filter((x) => String(x.tur || x.type || '').startsWith('randevu'));
+        kontrol('TURU 80: randevu BILDIRIMI olustu (tek kaynak bildirim servisi)',
+          rb.length > 0, 'adet=' + rb.length + ' HTTP ' + bil.kod);
+      }
+
+      // --- KAPALI GUN (bayram/tatil)
+      const yarin2 = new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10);
+      const kap = await j('/isletme/randevu-kapali', {
+        yontem: 'POST', token: A.token, govde: { tarih: yarin2, kapali: true },
+      });
+      kontrol('TURU 80: kapali gun isaretlendi', kap.kod === 200, 'HTTP ' + kap.kod);
+      const us3 = await j('/isletmeler/' + A.id + '/uygun-saatler?tarih=' + yarin2,
+        { token: B.token });
+      kontrol('TURU 80: KAPALI GUNDE slot URETILMEZ (calisma saati "acik" dese de)',
+        us3.kod === 200 && (us3.d.slotlar || []).length === 0,
+        'adet=' + ((us3.d && us3.d.slotlar || []).length));
+    }
+
     // ---------- 6) GRUP SOHBETI AVATARI (turu 78b denetimi: SEVK ENGELIYDI)
     //
     // ⚠️⚠️ BU KONTROL **ANCAK IKI HESAPLA** ANLAMLIDIR. Medya kapisi
