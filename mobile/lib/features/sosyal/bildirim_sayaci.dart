@@ -63,8 +63,9 @@ class BildirimSayaci extends StateNotifier<int> {
   }
 }
 
-final bildirimSayaciProvider =
-    StateNotifierProvider<BildirimSayaci, int>(BildirimSayaci.new);
+final bildirimSayaciProvider = StateNotifierProvider<BildirimSayaci, int>(
+  BildirimSayaci.new,
+);
 
 /// Zil ikonunu rozetle saran yardimci.
 /// ⚠️ 99'dan sonra "99+" — dar AppBar'da tasmayi engeller.

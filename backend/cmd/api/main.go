@@ -198,6 +198,13 @@ func main() {
 		r.Get("/posts/{id}/istatistik", socialH.Istatistik) // turu 76: yazara ozel
 		r.Get("/feed", socialH.Akis)
 		r.Get("/kesfet", socialH.Kesfet) // turu 76: arama sekmesi izgarasi
+		// TURU 76b — HIKAYE (story). 24 saat GORUNURLUK; veri SILINMEZ.
+		r.Post("/stories", socialH.StoryOlustur)
+		r.Get("/stories", socialH.StoryAkis)
+		r.Get("/stories/{userId}", socialH.StoryKullanici)
+		r.Post("/stories/{id}/view", socialH.StoryIzlendi)
+		r.Get("/stories/{id}/viewers", socialH.StoryIzleyenler)
+		r.Delete("/stories/{id}", socialH.StorySil)
 		r.Get("/reels", socialH.Reels)
 		r.Get("/posts/{id}", socialH.Detay)
 		r.Get("/users/{id}/posts", socialH.UserPosts)

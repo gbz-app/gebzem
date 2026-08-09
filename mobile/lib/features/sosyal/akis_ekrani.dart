@@ -9,9 +9,11 @@ import '../kanal/kanallar_sekmesi.dart';
 import 'bildirim_sayaci.dart';
 import 'bildirimler_sayfasi.dart';
 import 'gonderi_karti.dart';
+import 'hizmet_menusu.dart';
 import 'gonderi_olustur.dart';
 import 'profil_sayfasi.dart';
 import 'sosyal_servisi.dart';
+import 'story_seridi.dart';
 
 /// ⚠️⚠️ TURU 75 — ANA SAYFA AKISI (Instagram/Facebook duzeni).
 ///
@@ -42,6 +44,10 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
   /// ⚠️ AKIS mi KANALLAR mi. Kanallar AYRI ALT SEKME YAPILMADI: alt menude
   ///    zaten 6 hedef var ve 7.'si etiketleri okunmaz hale getirir.
   int _bolme = 0;
+
+  /// ⚠️ TURU 76b — hikaye seridine erisim: akis YENILENINCE serit de
+  ///    yenilenmeli (yeni hikaye paylasan biri aninda gorunsun).
+  final _storyKey = GlobalKey<StorySeridiDurumu>();
 
   /// ⚠️ IndexedStack icinde oldugumuz icin sekme degisince state KORUNUR; ama
   ///    `AutomaticKeepAlive` olmadan ListView kaydirma konumu kaybolabiliyor.
@@ -76,6 +82,9 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
       _hata = null;
     });
     try {
+      // ⚠️ Serit de tazelenir — asagi cekince yalniz gonderiler yenilenseydi
+      //    yeni hikayeler gorunmezdi.
+      unawaited(_storyKey.currentState?.yukle() ?? Future.value());
       final s = await ref.read(sosyalServisiProvider).akis();
       if (!mounted) return;
       setState(() {
@@ -147,6 +156,11 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
 
     return Scaffold(
       appBar: AppBar(
+        // ⚠️⚠️ TURU 76b — SOL UST HAMBURGER (kullanici emri: "anasayfada sol
+        //    ustte menu ikonu olsun, 2 satir cizgi").  KULLANILDI:
+        //    Akis kok route oldugu icin AppBar oraya geri oku KOYMAZ, cakisma YOK.
+        leadingWidth: 46,
+        leading: const HamburgerDugmesi(),
         // ⚠️ Baslik yerine BOLME SECICI: "Akış | Kanallar". Kullanicinin kanal
         //    diye bir sey oldugunu GORMESI icin tek yol bu (gizli menu degil).
         title: SegmentedButton<int>(
@@ -222,6 +236,7 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
     if (_hata != null && _liste.isEmpty) {
       return ListView(
         children: [
+          StorySeridi(key: _storyKey),
           const SizedBox(height: 120),
           Center(child: Text(_hata!)),
           const SizedBox(height: 12),
@@ -236,11 +251,12 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
     }
     if (_liste.isEmpty) {
       return ListView(
-        children: const [
-          SizedBox(height: 100),
-          Icon(LucideIcons.images, size: 54, color: Colors.grey),
-          SizedBox(height: 14),
-          Padding(
+        children: [
+          StorySeridi(key: _storyKey),
+          const SizedBox(height: 100),
+          const Icon(LucideIcons.images, size: 54, color: Colors.grey),
+          const SizedBox(height: 14),
+          const Padding(
             padding: EdgeInsets.symmetric(horizontal: 40),
             child: Text(
               'Henüz gönderi yok.\nİlk paylaşımı sen yap ya da birilerini takip et.',
@@ -254,13 +270,17 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
 
     return ListView.builder(
       controller: _kaydirma,
-      // +1 = alt yukleme gostergesi / +1 = kesfet seridi
-      itemCount: _liste.length + (_kesfet ? 1 : 0) + 1,
+      // ⚠️ ILK OGE HER ZAMAN HIKAYE SERIDI (kullanici emri: 'anasayfada
+      //    storyler'). Serit akisla BIRLIKTE kayar (Instagram deseni) —
+      //    sabit birakmak 106px'i kalici olarak yer.
+      // +1 hikaye seridi / +1 kesfet seridi / +1 alt yukleme gostergesi
+      itemCount: _liste.length + 1 + (_kesfet ? 1 : 0) + 1,
       itemBuilder: (_, i) {
-        var idx = i;
+        if (i == 0) return StorySeridi(key: _storyKey);
+        var idx = i - 1;
         if (_kesfet) {
-          if (i == 0) return _kesfetSeridi();
-          idx = i - 1;
+          if (idx == 0) return _kesfetSeridi();
+          idx = idx - 1;
         }
         if (idx >= _liste.length) {
           return Padding(

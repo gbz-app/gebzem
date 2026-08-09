@@ -44,14 +44,14 @@ class SosyalServisi {
   ///     cevirmeye izin verilmez (Instagram deseni). Medya degisecekse gonderi
   ///     silinip yenisi paylasilir.
   /// ⚠️ Alanlar OPSIYONEL: gonderilmeyen alan sunucuda DEGISMEZ.
-  Future<void> gonderiDuzenle(
-    String id, {
-    String? metin,
-    bool? yorumKapali,
-  }) => _api.patch('/posts/$id', data: {
-    if (metin != null) 'metin': metin,
-    if (yorumKapali != null) 'yorum_kapali': yorumKapali,
-  });
+  Future<void> gonderiDuzenle(String id, {String? metin, bool? yorumKapali}) =>
+      _api.patch(
+        '/posts/$id',
+        data: {
+          if (metin != null) 'metin': metin,
+          if (yorumKapali != null) 'yorum_kapali': yorumKapali,
+        },
+      );
 
   /// TURU 76 — YAZARA OZEL istatistik. Sunucu baskasina 404 doner.
   Future<Map<String, int>> istatistik(String id) async {
@@ -289,8 +289,7 @@ class Gonderi {
   }
 
   /// Galeride EN AZ BIR video var mi (kapak/oto-oynatma karari icin).
-  bool get videoIceriyor =>
-      videoMu || mediaKinds.any((k) => k == 'video');
+  bool get videoIceriyor => videoMu || mediaKinds.any((k) => k == 'video');
 
   static Gonderi json(Map<String, dynamic> m) => Gonderi(
     id: (m['id'] ?? '').toString(),

@@ -204,9 +204,11 @@ class _GonderiOlusturState extends ConsumerState<GonderiOlustur> {
     final sure = await _videoSuresi(dosya);
     if (!mounted) return;
     if (sure != null && sure > _sureTavani) {
-      _uyar(_reelsMi
-          ? 'Reels en fazla 90 saniye olabilir'
-          : 'Video en fazla 5 dakika olabilir');
+      _uyar(
+        _reelsMi
+            ? 'Reels en fazla 90 saniye olabilir'
+            : 'Video en fazla 5 dakika olabilir',
+      );
       return;
     }
 
