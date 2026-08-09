@@ -17,7 +17,131 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (9 Agu 03:50):** TEST TURU 76b YAYINLANDI — android 31286588553 +
+- **KALDIGIMIZ YER (9 Agu):** TURU 77 — 6 YENI DIKEY + 77b DENETIMI BITTI, BUILD ALINIYOR.
+  Kullanici emri (uyurken, ONAYSIZ ILERLEME ACIKCA ISTENDI): hikaye editoru ·
+  isletme profilleri · etkinlikler · ilanlar (sahibinden) · hizmetler · isletme
+  urunleri + AI. ⚠️ **CLAUDE.md kural 0 (build oncesi sor) BU TUR ICIN ASKIYA ALINDI**
+  — kullanici *"durma sakin hepsini bitirene kadar"* dedi.
+- ⚠️⚠️ **GO TESTLERI 3 TURDUR KOSTURULAMIYORDU — KOK NEDEN BULUNDU.**
+  Windows Application Control, `go test`in VARSAYILAN gecici dizinde
+  (`%LOCALAPPDATA%\Temp`) urettigi YENI ikilileri engelliyor; sunucuda da Go
+  KURULU DEGIL (yalniz Docker derlemesi). Yani `internal/rota/rota_test.go`
+  **HICBIR ORTAMDA** kosmamisti. COZUM: `GOTMPDIR="$(pwd)/.gotmp" go test ./...`
+  (proje dizinindeki ikili engellenmiyor). `.gotmp/` gitignore'da.
+  ⚠️ YAPMA: bir daha "test kosturulamiyor" diye gecme.
+  SONUC: **171 rota cakismasiz** + turu 77'nin 33 yeni yolu dogru cozuluyor;
+  `sutun_test.go` (7 sorgu SELECT-vs-Scan) da gecti.
+- 📌 **MIGRATION NUMARALARI (guncel):** 027 = hikaye editoru (`stories.katmanlar`
+  JSONB + `arka_plan` + `media_id` NULL olabilir), 028 = `users.hesap_turu` +
+  `isletmeler`, 029 = `etkinlikler` + `etkinlik_katilim`, 030 = `ilanlar` +
+  `ilan_favoriler`, 031 = `isletme_urunleri` + `ai_istekleri`. Sonraki **032**'den.
+- ⚠️⚠️⚠️ **TURU 77 — AI KAPISI: `OPENAI_API_KEY` (R2 KALIBININ AYNISI).**
+  Anahtar YOKSA `Acik()` false, uclar **503**, ve **istemci ozelligi HIC CIZMEZ**
+  (`GET /ai/durum`). Acilista log: `ai: OPENAI_API_KEY yok — AI KAPALI`.
+  ⚠️⚠️ **TURU 75'IN TEKRARI RISKI:** R2 anahtarlari sunucudaki `.env`e yazilmis
+  ama `docker-compose.yml`in **`environment:` blogu** guncellenmemis ve medya
+  SESSIZCE KAPALI kalmisti (/health "ok" donuyordu!). `OPENAI_API_KEY` compose'a
+  ONCEDEN eklendi. ⚠️ YAPMA: yeni env'i yalniz `.env`e yazip birakma.
+- ⚠️⚠️⚠️ **TURU 77b — SES SAHIPLIGI PING-PONG'U (SEVK ENGELIYDI, EN AGIR).**
+  `SesNotuKontrol` **TEK SLOTLUDUR** (yeni sahip oncekini SUSTURUR) ama
+  `MedyaVideo._oynat()` **SESSIZ** akis videolarinda bile KOSULSUZ kaydoluyordu.
+  Akista bir video gorunurken Reels'e gecince Reels ~1sn oynayip DONUYOR
+  (akistaki 1sn'lik `_kapiYoklama` sahipligi geri caliyor); ayni sekilde VIDEO
+  HIKAYE ve **turu 74'te test edilip ONAYLANMIS SESLI MESAJ** susup basa donuyordu.
+  Reels'te `kontrolGoster:false` oldugu icin kullanicinin duzeltme yolu da YOKTU.
+  FIX: (a) deftere YALNIZ `_sesVerilebilir` ise girilir, (b) susturma SEBEBI
+  ayrilir — `_aramaDurdurdu = !MedyaKapisi.donanimSerbest(ref)`.
+  ⚠️ YAPMA: kosulsuz `kaydol`a donme; iki sebebi tek bayrakla temsil etme.
+- ⚠️⚠️ **TURU 77b — AKIS VIDEOSU ARTIK DORT KAPILI.** `IndexedStack` secili
+  OLMAYAN cocuklari da CANLI + LAYOUT EDILMIS tutar; sekme degisimi kaydirma
+  uretmedigi icin gorunurluk gozcusu de yeniden olcmuyordu (ustelik Stack hepsini
+  AYNI konuma koydugu icin gozcuyu duzeltmek TEK BASINA yetmezdi). Kapilar:
+  `_gorunurOran>=0.6` · `_sayfa==sira` · **`aktifSekme==0`** ·
+  **`ModalRoute.isCurrent`**. ⚠️ YAPMA: dortten birini kaldirma.
+- ⚠️⚠️⚠️ **TURU 77b — HIKAYE CIZIM SOZLESMESI: TUVAL **SABIT 9:16**.**
+  Onceki surumde hem editor hem izleyici katmanlari **EKRANIN TAMAMINA** gore
+  konumluyordu. Ikisi ayni ekranda ayni sonucu verdigi icin **TEK CIHAZDA TEST
+  EDILSE GORULMEZDI** — ama medya `contain` cizildigi icin fotografin kapladigi
+  dikey oran EKRAN EN-BOYUNA gore degisiyor: ayni hikaye 390x844 ile 360x640
+  arasinda fotografa gore **~%19 kayiyordu**; ucta yazi letterbox bandina dusuyordu.
+  · `StoryTuvali` — medya DA katmanlar DA ayni 9:16 dikdortgene cizilir.
+  · `storyKatmanGovdesi()` + `storyKatmanYerlestir()` **TEK KAYNAK** (eskiden
+    editor kendi sarmalayicisini yazmisti: kutu acikken metin tavani 350 vs 338 ->
+    editorde tek satira sigan cumle izleyicide IKI SATIRA sariyordu).
+  · Editorun secim cercevesi **`foregroundDecoration`** — `border`/`padding`
+    YERLESIMI DEGISTIRIR ve kaymayi geri getirir.
+  · Konum `Align` DEGIL **`Positioned` + `FractionalTranslation(-0.5,-0.5)`**:
+    `Align` cocugu `(alan-cocuk)*x`e koyar, metin sarip genisleyince hareket alani
+    sifira gider ve **YATAY SURUKLEME SESSIZCE OLURDU**.
+  ⚠️ YAPMA: tuvali `MediaQuery.size`a baglama; `Align`e donme; editorde ayri
+    govde yazma.
+- ⚠️⚠️ **TURU 77b — HIKAYE YUKLEMESI SESSIZCE IPTAL OLUYORDU** ("paylastim
+  sandim, gitmemis" — dosyanin KENDI serhinin engellemeye calistigi senaryo).
+  Serit bir `ListView` OGESI ve `AutomaticKeepAliveClientMixin` KULLANMIYORDU;
+  akis ~356px kaydirilinca State dispose oluyor, `ref.read` `StateError` atiyor,
+  `catch` + `if(!mounted) return` mesaji da yutuyordu. Medya R2'ye yukleniyor,
+  `POST /stories` HIC ATILMIYOR, medya yetim kaliyordu.
+  FIX: servisler TUM await'lerden ONCE yakalanir (turu 67 dersi) + KeepAlive +
+  mesajlar `rootMessengerKey`ten. ⚠️ YAPMA: `ref.read`i await'lerin altina tasima.
+- ⚠️⚠️⚠️ **TURU 77b — GIZLILIK: AI UCU MEDYA SAHIPLIK KAPISINI ATLIYORDU.**
+  `media.ImzaliAdres(ctx, mediaID)` imzasi userID TASIMIYORDU, yani yapisal olarak
+  sahiplik kontrolu YAPAMAZDI; govde yalniz `status`a bakiyordu. Ustundeki yorum
+  *"cagiran yetkiyi kendisi dogrulamis olmali"* diyordu ama AI paketinde O
+  DOGRULAMA YAZILMAMISTI. Elinde herhangi bir `media_id` olan biri
+  `POST /ai/danisma` ile fotografin ICERIGINI okutabilirdi; AYNI id ile
+  `GET /media/{id}/url` **403** donuyordu -> `erisebilir()`in TUM dallari (gizli
+  hesap, engelleme, "herkesten silinmis" mesaj medyasi, 24 saati gecmis hikaye)
+  tek seferde deliniyordu. Bu surumde INERT'ti (anahtar yok) ama anahtar eklendigi
+  GUN aktif olacakti. FIX: `(ctx, mediaID, sahipID)` + `AND owner_id=$2` — yetki
+  argumani artik TIP SISTEMINDE gorunuyor, vermeden DERLENMEZ.
+  📌 CLAUDE.md turu 74 dersinin tekrari: **bir yorumun anlattigi kontrolun GOVDEDE
+     gercekten olup olmadigini dogrula.**
+- ⚠️⚠️ **TURU 77b — AI KOTASI FIILEN YOKTU.** `kapi()` `SELECT count(*)` okuyor,
+  sayaci artiran `kaydet()` ise OpenAI cagrisi DONDUKTEN SONRA (60sn'ye kadar)
+  kosuyordu; 100 escamanli istek 100'u de `count=0` gorup FATURALANIRDI.
+  FIX: cagridan ONCE atomik rezervasyon
+  (`INSERT ... SELECT ... WHERE (count) < kota RETURNING id`), sonuc `UPDATE`.
+  Sayim `durum <> 'iptal'` (zaman asimina ugrayan istek de faturalanmis olabilir).
+  ⚠️ YAPMA: sayimi `kaydet` icine geri koyma.
+- ⚠️⚠️ **TURU 77b — VERI KAYBI: `isletme.detay()` HER hatayi yutup `null`
+  donuyordu.** "Isletme degil (404)" ile "ag hatasi" ayirt edilemiyordu; ekran BOS
+  aciliyor, kullanici tek alan doldurup kaydediyor ve sunucudaki `ON CONFLICT DO
+  UPDATE` MEVCUT adres + telefon + 7 gunluk calisma saatlerini BOSA CEKIYORDU.
+  FIX: 404'te `null`, digerlerinde FIRLAT; hata dalinda form CIZILMEZ + Kaydet YOK.
+- 📌 **TURU 77b — DIGER KAPATILAN BULGULAR (hepsi "olu ozellik" ya da drift):**
+  · Metin hikayesinde **zemin secici ULASILAMAZDI** (`_panel` otomatik 'yazi'ya
+    geciyordu) — gradyan seridi HIC cizilmiyor, zemin 'mor'da kilitli kaliyordu.
+  · `aci` (dondurme) modelde/JSON'da/sunucu kirpmasinda/cizimde VARDI ama ONA
+    YAZAN SATIR YOKTU — iki parmak jesti eklendi.
+  · Video hikayede oynaticinin tam ekran `GestureDetector`i jest arenasinda
+    kazanip ILERI/GERI dokunusu YUTUYORDU -> `kontrolGoster:false`.
+  · Ilan formunda **hayalet veri**: dinamik alanlar `key`siz oldugu icin tur
+    degisince element yeniden kullaniliyor, `FormField.didUpdateWidget`
+    `initialValue` degisimini YOK SAYIYOR -> "Metrekare" kutusunda "Ford"
+    gorunuyor, `_ozellikler` bos, ilan EKSIK yayinlaniyordu.
+    FIX: `ValueKey('$_tur:${a.anahtar}')`.
+  · **`pickMultiImage(limit:1)` `ArgumentError` FIRLATIR** ("cannot be lower than
+    2") ve UC ekranda `catch` yutuyordu: tavanin bir altinda "Fotoğraf ekle"
+    SESSIZCE OLUYORDU. Ayrica `limit` platformlarca YOK SAYILABILIR -> 30
+    secilirse 18 YETIM yukleme. FIX: `MedyaSecici.coklu()` + `take(kalan)`.
+  · Ilan goruntulenme sayaci sahada HEP 0 (turu 76'nin gonderi hatasinin birebir
+    tekrari) · "İlanlarım" HERKESIN ilanini aciyordu · urun "Tükendi" olu
+    ozellikti (sunucu kabul ediyor, rozet ciziliyor, istemci HIC gondermiyordu).
+  · Bos akista Android'de asagi-cek-yenile CALISMIYORDU
+    (`AlwaysScrollableScrollPhysics` yok + IndexedStack canli tutuyor) — YENI
+    kullanici uygulamayi oldurmeden akisini tazeleyemiyordu.
+- ⚠️ **TURU 77b — ELENEN ALARM (kaynaktan curutuldu):** "urun medyasinda engelleme
+  calismiyor; `blocks` kullanici id'siyle `p.isletme_id` karsilastiriliyor" iddiasi
+  **YANLIS** — `isletme_urunleri.isletme_id UUID REFERENCES users(id)`, yani zaten
+  kullanici id'si. ⚠️ Bunu bir daha "olasi risk" diye yazma.
+- 📌 **TURU 77 — INDIR SAYFASI SAATI ALTI YERDE (kullanici ikinci kez "goremiyorum"
+  dedi).** Sunucu tarafi DOGRUYDU: `no-cache, no-store, must-revalidate` +
+  `cf-cache-status: DYNAMIC` + cubuk en ustte + turu 50'nin flexbox fix'i duruyor.
+  Geriye kalan tek aciklama TARAYICI ONBELLEGI. Saat artik: `<title>` · mor serit ·
+  **saniyesi AKAN CANLI SAAT** (sayfanin bayat olmadigini KANITLAR) · iki indirme
+  dugmesinin ICI · dosya satiri. Uretici yer tutucu tabanli ve saat 5 yerden azsa
+  **derlemeyi DURDURUR**. ⚠️ YAPMA: canli saati kaldirma; body'ye flex ortalama koyma.
+- **ONCEKI (9 Agu 03:50):** TEST TURU 76b YAYINLANDI — android 31286588553 +
   ios 31286593307 (**751c5fc**), R2 apk=113053743 (md5 053f2e3e) ipa=23397403
   (md5 6079c71d), purge OK, **CDN birebir** (apk + ipa + index.html MD5 esit),
   indir sayfasi 03:50 (saat 3 yerde), debug imza YOK,
