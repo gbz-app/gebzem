@@ -5592,3 +5592,28 @@ backend deploy `d335af6` + health ok, DB temiz.
 
 ⚠️ Build sonrası gelen commit'ler yalnız belge/araç dosyalarına dokundu;
 `git diff 4496677..HEAD -- mobile/ backend/` **BOŞ** — artifact geçerli.
+
+### 🔧 Turu 79c — görsel modeli değişti (kullanıcı geri bildirimi)
+
+Kullanıcı: **"çok kötü resimler üretiyor."** Haklıydı — ailenin **en ucuz**
+üyesini seçmiştim (`gpt-image-1-mini` + `quality: medium`) ve "ürün fotoğrafı
+için yeterli" **varsayımı yanlıştı**.
+
+Aynı istemle üç model yan yana üretilip **gözle** karşılaştırıldı:
+
+| Model | Kalite | Süre | Sonuç |
+|---|---|---|---|
+| gpt-image-1-mini | medium | ~21 sn | zayıf |
+| **gpt-image-1.5** | **high** | **~38 sn** | **çok iyi — seçildi** |
+| gpt-image-2 | high | **132 sn** | çok iyi ama **tavanın üstünde** |
+
+`gpt-image-2` kullanılmadı: 132 sn sunucu tavanının (120 sn) üstünde, olduğu
+gibi kullanılsa **her çağrı zaman aşımına düşerdi**; tavanı yükseltmek de çözüm
+değil — kullanıcıyı 2+ dakika bekletmek kabul edilemez.
+
+⚠️ **Yalnızca sunucu tarafı**: yayınlanmış 1.0.128 olduğu gibi çalışıyor,
+yeni build gerekmedi. Deploy `da7235e`, uygulamanın kendi ucundan yeniden
+doğrulandı (lahmacun tabağı — gözle kontrol edildi).
+
+⚠️ **Ders:** bu turda aynı sınıf **üçüncü kez** çürüdü — `response_format`,
+model adı, ve şimdi **kalite**. Model/kalite seçimini gözle doğrulamadan yapma.
