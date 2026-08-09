@@ -8,6 +8,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../medya/medya_gorsel.dart';
 import '../chats/moderasyon_sheet.dart';
 import '../medya/tam_ekran_gorsel.dart';
+import 'gorunurluk.dart';
 import 'medya_video.dart';
 import 'paylas_sheet.dart';
 import 'sosyal_servisi.dart';
@@ -46,6 +47,10 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
 
   /// Cift dokunusta ucan kalp animasyonu.
   bool _kalpGoster = false;
+
+  /// ⚠️ TURU 76b — bu kartin ekranda gorunen orani (0..1). Otomatik video
+  ///    oynatmanin BIRINCI kapisi. Bkz. `sosyal/gorunurluk.dart`.
+  double _gorunurOran = 0;
 
   Gonderi get g => widget.gonderi;
 
@@ -224,9 +229,7 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
       builder: (c) => Padding(
         // ⚠️ viewInsets: klavye acilinca sheet YUKARI kayar; yoksa kaydet
         //    dugmesi klavyenin ALTINDA kalir ve ulasilamaz.
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(c).viewInsets.bottom,
-        ),
+        padding: EdgeInsets.only(bottom: MediaQuery.of(c).viewInsets.bottom),
         child: StatefulBuilder(
           builder: (c2, yenile) => SafeArea(
             child: Padding(
@@ -294,11 +297,9 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
       if (degistiMi) g.duzenlendi = true;
     });
     try {
-      await ref.read(sosyalServisiProvider).gonderiDuzenle(
-        g.id,
-        metin: yeniMetin,
-        yorumKapali: kapali,
-      );
+      await ref
+          .read(sosyalServisiProvider)
+          .gonderiDuzenle(g.id, metin: yeniMetin, yorumKapali: kapali);
     } catch (_) {
       if (!mounted) return;
       setState(() {
@@ -396,7 +397,10 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
             sayiBicimle(deger),
             style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w700),
           ),
-          Text(baslik, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+          Text(
+            baslik,
+            style: const TextStyle(fontSize: 11, color: Colors.grey),
+          ),
         ],
       ),
     ),
@@ -405,6 +409,24 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
   @override
   Widget build(BuildContext context) {
     final tema = Theme.of(context);
+    // ⚠️ Gozcu YALNIZ videolu gonderilerde kurulur: fotograf kartlarinda
+    //    kaydirma dinleyicisi bosuna calisir (akista onlarca kart var).
+    final govde = _icerik(tema);
+    if (!g.videoIceriyor) return govde;
+    return Gorunurluk(
+      onOran: (o) {
+        if (!mounted) return;
+        // ⚠️ Yalniz ESIGI GECISTE yeniden ciz — her olcumde setState akisi takar.
+        final oncekiAcik = _gorunurOran >= 0.6;
+        final yeniAcik = o >= 0.6;
+        _gorunurOran = o;
+        if (oncekiAcik != yeniAcik) setState(() {});
+      },
+      child: govde,
+    );
+  }
+
+  Widget _icerik(ThemeData tema) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -454,64 +476,60 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
         // ---- MEDYA
         if (g.mediaIds.isNotEmpty) _medya(),
 
-        // ---- ETKILESIM CUBUGU
+        // ---- ETKILESIM CUBUGU (Threads duzeni)
+        //
+        // ⚠️⚠️ TURU 76b — KULLANICI EMRI: *"gonderilerde halen istatistik ikonu
+        //    yok; ikonlarin hepsi ESIT gorunmeli"*.
+        //
+        //    ESKI HALI IKI SEBEPTEN ESITSIZDI:
+        //      · begeni/yorum/paylas `TextButton.icon` idi (ikon 21px, degisken
+        //        genislikte etiket, 10px yatay dolgu), kaydet ise ciplak
+        //        `IconButton` (24px ikon, 24px dolgu) -> BOYUT ve ARALIK farkli.
+        //      · `dolu` bayragi ikonu 21 -> 23px BUYUTUYORDU; begenince satirdaki
+        //        hizalama KAYIYORDU.
+        //    ARTIK: hepsi ayni `_eylem` bileseni, SABIT 22px ikon + sabit
+        //    dokunma alani. "Secili" farki YALNIZ RENKTEN gelir (Lucide'da dolu
+        //    kalp yok — bkz. asagidaki serh), boyut DEGISMEZ.
+        // ⚠️ YAPMA: buraya farkli bir dugme tipi (IconButton/TextButton) karistirma.
+        // ⚠️ YAPMA: `Icons.favorite` (Material) koyma — ikon seti karisir.
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          padding: const EdgeInsets.fromLTRB(10, 2, 10, 0),
           child: Row(
             children: [
-              // ⚠️⚠️ TURU 76 (DENETIM): ucluk operatorun IKI DALI DA AYNIYDI
-              //    (heart : heart) ve `dolu` parametresi HIC OKUNMUYORDU — yani
-              //    begenilmis/begenilmemis ayrimi yalniz renkten geliyordu.
-              // ⚠️ LUCIDE'DA DOLU KALP YOK: set tasarim geregi YALNIZ CIZGI
-              //    ikonlardan olusur (heart/heartCrack/heartOff... hepsi outline)
-              //    ve font glifi oldugu icin "fill" verilemez. Emoji de YASAK
-              //    (CLAUDE.md turu 62). Bu yuzden fark RENK + BOYUT + POP
-              //    ANIMASYONU ile veriliyor — durust ve gorunur bir ayrim.
-              // ⚠️ YAPMA: buraya Material `Icons.favorite` koyma (ikon seti karisir).
-              _dugme(
+              _eylem(
                 ikon: LucideIcons.heart,
-                dolu: g.begendim,
-                renk: g.begendim ? const Color(0xFFFF3B5C) : null,
                 sayi: g.begeniSayisi,
+                renk: g.begendim ? const Color(0xFFFF3B5C) : null,
+                vurgu: g.begendim,
                 onTap: _begeniCevir,
               ),
-              _dugme(
+              _eylem(
                 ikon: LucideIcons.messageCircle,
                 sayi: g.yorumSayisi,
                 onTap: g.yorumKapali ? null : _yorumlariAc,
               ),
-              _dugme(
+              _eylem(
                 ikon: LucideIcons.send,
                 onTap: () => _sohbeteGonder(context),
               ),
+              // ⚠️⚠️ ISTATISTIK IKONU — kullanici "hala istatistik ikonu yok" dedi.
+              //    Eskiden istatistik YALNIZ ••• menusunun icindeydi; menuye
+              //    girmeden gorunmuyordu, yani pratikte YOKTU.
+              //    Yanindaki sayi GORUNTULENME (Instagram'in "N goruntulenme"si).
+              // ⚠️ YALNIZ YAZARA gosterilir: baskasinin izlenme sayisi kullaniciya
+              //    bir sey ifade etmez ve dusuk sayi yazari utandirir.
+              if (g.yazarId == widget.benimId)
+                _eylem(
+                  ikon: LucideIcons.chartNoAxesColumn,
+                  sayi: g.goruntulenme,
+                  onTap: _istatistik,
+                ),
               const Spacer(),
-              // ⚠️ GORUNTULENME YALNIZ YAZARINA gosterilir (Instagram deseni):
-              //    baskasinin izlenme sayisi kullaniciya bir sey ifade etmez,
-              //    ustelik dusuk sayi yazari utandirir.
-              if (g.yazarId == widget.benimId && g.goruntulenme > 0)
-                Padding(
-                  padding: const EdgeInsets.only(right: 4),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(LucideIcons.eye, size: 15, color: Colors.grey),
-                      const SizedBox(width: 4),
-                      Text(
-                        sayiBicimle(g.goruntulenme),
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              IconButton(
-                icon: Icon(
-                  LucideIcons.bookmark,
-                  color: g.kaydettim ? tema.colorScheme.primary : null,
-                ),
-                onPressed: _kaydetCevir,
+              _eylem(
+                ikon: LucideIcons.bookmark,
+                renk: g.kaydettim ? tema.colorScheme.primary : null,
+                vurgu: g.kaydettim,
+                onTap: _kaydetCevir,
               ),
             ],
           ),
@@ -559,61 +577,111 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
     );
   }
 
+  /// ⚠️⚠️ TURU 76b — MEDYA DUZENI **THREADS** (kullanici ekran goruntusu gonderdi:
+  /// *"anasayfa boyle olacak, gorseller bu sekilde olacak, arada video da
+  /// olabilir direk otomatik oynayacak"*).
+  ///
+  /// ESKI (Instagram): tam genislikte `PageView`, altta nokta gostergesi.
+  /// YENI (Threads): YATAY KAYAN serit — her medya ~%78 genislikte, YUVARLAK
+  /// KOSELI, aralarinda bosluk; SONRAKI MEDYA SAGDAN SARKAR ve boylece "devami
+  /// var" bilgisi NOKTA GOSTERGESI OLMADAN anlasilir.
+  ///
+  /// ⚠️ NOKTA GOSTERGESI KALDIRILDI: sarkan onizleme zaten ayni bilgiyi veriyor;
+  ///    ikisi birden gorsel gurultu (Threads'te de yok).
+  /// ⚠️ TEK medyada serit KURULMAZ — tek ogeyi kaydirilabilir yapmak "devami
+  ///    var" yanilgisi uretir.
+  /// ⚠️ `ClipRRect` + `borderRadius` HER OGEDE: ekran goruntusundeki koseler
+  ///    yuvarlak.
   Widget _medya() {
     final coklu = g.mediaIds.length > 1;
-    return Stack(
-      alignment: Alignment.center,
-      children: [
-        GestureDetector(
-          onDoubleTap: () => _begeniCevir(yalnizBegen: true),
-          child: AspectRatio(
-            // ⚠️ 4:5 (dikey) — telefonla cekilen fotograflarin cogunlugu dikey;
-            //    1:1 kirpsaydik ustten/alttan kesilirdi. `contain` ile kirpma YOK.
-            aspectRatio: g.tur == 'reels' ? 9 / 16 : 4 / 5,
-            child: ColoredBox(
-              color: const Color(0xFF0B0B12),
-              child: coklu
-                  ? PageView.builder(
-                      itemCount: g.mediaIds.length,
-                      onPageChanged: (i) => setState(() => _sayfa = i),
-                      itemBuilder: (_, i) => _tekMedya(g.mediaIds[i], i),
-                    )
-                  : _tekMedya(g.mediaIds.first, 0),
-            ),
-          ),
-        ),
-        if (_kalpGoster)
-          const IgnorePointer(
-            child: Icon(LucideIcons.heart, size: 92, color: Color(0xEEFF3B5C)),
-          ),
-        if (coklu)
-          Positioned(
-            top: 10,
-            right: 12,
-            child: _rozet('${_sayfa + 1}/${g.mediaIds.length}'),
-          ),
-        if (coklu)
-          Positioned(
-            bottom: 8,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: List.generate(
-                g.mediaIds.length,
-                (i) => Container(
-                  width: 6,
-                  height: 6,
-                  margin: const EdgeInsets.symmetric(horizontal: 2),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: i == _sayfa ? Colors.white : Colors.white38,
+    // ⚠️ 4:5 (dikey) — telefonla cekilen fotograflarin cogunlugu dikey.
+    //    Reels DIKEY (9:16) oldugu icin ayrilir.
+    final enBoy = g.tur == 'reels' ? 9 / 16 : 4 / 5;
+
+    return LayoutBuilder(
+      builder: (context, kisit) {
+        final tamGenislik = kisit.maxWidth - 24; // 12 sol + 12 sag dolgu
+        // ⚠️ %78: sagdan sarkan parca ~%16 kalir — "devami var" belli olur ama
+        //    ana medya hala baskin. Daha dar yapmak okunurlugu bozar.
+        final ogeGenislik = coklu ? kisit.maxWidth * 0.78 : tamGenislik;
+        final yukseklik = ogeGenislik / enBoy;
+
+        return SizedBox(
+          height: yukseklik,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              if (!coklu)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: GestureDetector(
+                    onDoubleTap: () => _begeniCevir(yalnizBegen: true),
+                    child: _medyaKutusu(0, ogeGenislik, yukseklik),
+                  ),
+                )
+              else
+                NotificationListener<ScrollNotification>(
+                  // ⚠️ Yatay kaydirmada ORTADAKI ogeyi buluruz: otomatik oynayan
+                  //    video YALNIZ o olmali (iki video ayni anda calmasin —
+                  //    iOS ses oturumu proses genelinde TEK).
+                  onNotification: (n) {
+                    if (n.metrics.axis != Axis.horizontal) return false;
+                    final adim = ogeGenislik + 8;
+                    final i = (n.metrics.pixels / adim).round().clamp(
+                      0,
+                      g.mediaIds.length - 1,
+                    );
+                    if (i != _sayfa) setState(() => _sayfa = i);
+                    return false;
+                  },
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    // ⚠️ Kaydirma HIZLI ve tahmin edilebilir olsun diye oge
+                    //    genisligine OTURAN bir fizik: serbest birakinca en
+                    //    yakin ogeye yaslanir (Threads davranisi).
+                    physics: const PageScrollPhysics(),
+                    itemCount: g.mediaIds.length,
+                    separatorBuilder: (_, _) => const SizedBox(width: 8),
+                    itemBuilder: (_, i) => GestureDetector(
+                      onDoubleTap: () => _begeniCevir(yalnizBegen: true),
+                      child: _medyaKutusu(i, ogeGenislik, yukseklik),
+                    ),
                   ),
                 ),
-              ),
-            ),
+              if (_kalpGoster)
+                const IgnorePointer(
+                  child: Icon(
+                    LucideIcons.heart,
+                    size: 92,
+                    color: Color(0xEEFF3B5C),
+                  ),
+                ),
+              if (coklu)
+                Positioned(
+                  top: 10,
+                  right: 20,
+                  child: _rozet('${_sayfa + 1}/${g.mediaIds.length}'),
+                ),
+            ],
           ),
-      ],
+        );
+      },
     );
   }
+
+  /// Galerideki TEK kutu — yuvarlak koseli, sabit olculu.
+  Widget _medyaKutusu(int i, double genislik, double yukseklik) => ClipRRect(
+    borderRadius: BorderRadius.circular(16),
+    child: SizedBox(
+      width: genislik,
+      height: yukseklik,
+      child: ColoredBox(
+        color: const Color(0xFF0B0B12),
+        child: _tekMedya(g.mediaIds[i], i),
+      ),
+    ),
+  );
 
   Widget _tekMedya(String id, int sira) {
     // ⚠️⚠️ TURU 76 — TUR ARTIK MEDYA BASINA. Eskiden `g.videoMu` (GONDERI
@@ -642,13 +710,26 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
       );
     }
     if (t == 'video') {
+      // ⚠️⚠️ TURU 76b — AKISTA VIDEO ARTIK **OTOMATIK** OYNAR (kullanici emri:
+      //    "arada videoda olabilir direk otomatik oynuyacak videolar").
+      //
+      //    IKI KAPI BIRDEN saglanmali:
+      //      (1) KART ekranda yeterince gorunuyor (`_gorunurOran >= 0.6`)
+      //      (2) galeride ORTADAKI oge bu (`_sayfa == sira`)
+      //    Aksi halde akistaki 20 kartin tum videolari ayni anda calisir:
+      //    cihaz isinir, mobil veri yanar ve iOS'ta ses oturumu PROSES
+      //    GENELINDE TEK oldugu icin SUREN ARAMA SAGIRLASIR (turu 64/65/73).
+      //
+      // ⚠️⚠️ SESSIZ BASLAR (`sesli: false`) — bu bir tercih degil ZORUNLULUK:
+      //    kaydirirken kendiliginden ses patlatmak hem kotu bir deneyim hem de
+      //    iOS'ta AVAudioSession'i ele gecirip aramayi bozar. Kullanici
+      //    oynaticidaki hoparlor dugmesiyle sesi acar (`MedyaVideo` cizer).
+      // ⚠️ YAPMA: `sesli: true` yapma. ⚠️ YAPMA: kapilardan birini kaldirma.
       return MedyaVideo(
         mediaId: id,
-        // ⚠️ Akista video SESSIZ ve ELLE baslar: otomatik oynatma mobil veriyi
-        //    hizla tuketir ve bu projede olcum/kota altyapisi henuz yok.
-        otoOynat: false,
+        otoOynat: _gorunurOran >= 0.6 && _sayfa == sira,
         sesli: false,
-        dolgu: BoxFit.contain,
+        dolgu: BoxFit.cover,
       );
     }
     return GestureDetector(
@@ -673,40 +754,69 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
     ),
   );
 
-  Widget _dugme({
+  /// Etkilesim cubugundaki TEK eylem bileseni.
+  ///
+  /// ⚠️⚠️ TUM IKONLAR BUNDAN CIZILIR — kullanici emri "ikonlarin hepsi esit
+  ///    gorunmeli". Ikon boyutu SABIT 22, dokunma alani SABIT 40x40.
+  /// ⚠️ "Secili" hali BOYUTU DEGISTIRMEZ (eskiden 21->23 buyuyup satiri
+  ///    kaydiriyordu); yalniz RENK degisir + tek seferlik kisa bir pop
+  ///    animasyonu oynar. Lucide tasarim geregi YALNIZ CIZGI ikon icerir
+  ///    (dolu kalp YOK) ve emoji YASAK (CLAUDE.md turu 62).
+  /// ⚠️ Sayi 0 ise HIC yazilmaz (Threads/Instagram deseni) — "0" yazmak hem
+  ///    gorsel gurultu hem yeni gonderide moral bozucu.
+  Widget _eylem({
     required IconData ikon,
     VoidCallback? onTap,
     int? sayi,
-    bool dolu = false,
+    bool vurgu = false,
     Color? renk,
-  }) => TextButton.icon(
-    onPressed: onTap,
-    // ⚠️ `dolu` ARTIK OKUNUYOR: 21 -> 24 px + kisa pop. Lucide'da dolu kalp
-    //    olmadigi icin "secili" hissi boyut ve renkten geliyor (bkz. cagri serhi).
-    icon: AnimatedScale(
-      scale: dolu ? 1.14 : 1.0,
-      duration: const Duration(milliseconds: 160),
-      curve: Curves.easeOutBack,
-      child: Icon(ikon, size: dolu ? 23 : 21, color: renk),
-    ),
-    label: Text(
-      (sayi == null || sayi == 0) ? '' : sayiBicimle(sayi),
-      style: TextStyle(color: renk, fontWeight: FontWeight.w600),
-    ),
-    style: TextButton.styleFrom(
-      minimumSize: const Size(0, 40),
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      foregroundColor: renk ?? Theme.of(context).iconTheme.color,
-    ),
-  );
+  }) {
+    final etkin = onTap != null;
+    final c =
+        renk ??
+        (etkin
+            ? Theme.of(context).iconTheme.color
+            : Theme.of(context).disabledColor);
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AnimatedScale(
+              scale: vurgu ? 1.12 : 1.0,
+              duration: const Duration(milliseconds: 160),
+              curve: Curves.easeOutBack,
+              // ⚠️ SABIT BOYUT — `scale` yalniz gorsel; yerlesim etkilenmez.
+              child: SizedBox(
+                width: 22,
+                height: 22,
+                child: Icon(ikon, size: 22, color: c),
+              ),
+            ),
+            if (sayi != null && sayi > 0) ...[
+              const SizedBox(width: 6),
+              Text(
+                sayiBicimle(sayi),
+                style: TextStyle(
+                  color: c,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
 
   /// ⚠️ TURU 76: eskiden YALNIZCA panoya kopyalayip "sohbete yapistirin" diyordu.
   ///    Artik gercek paylasim sayfasi (coklu sohbet secimi + kopyala) aciliyor.
-  Future<void> _sohbeteGonder(BuildContext context) => paylasSheetAc(
-    context,
-    ref,
-    baglanti: 'https://gebzem.app/p/${g.id}',
-  );
+  Future<void> _sohbeteGonder(BuildContext context) =>
+      paylasSheetAc(context, ref, baglanti: 'https://gebzem.app/p/${g.id}');
 
   /// TURU 76 — begeni sayisina dokununca BEGENENLER listesi (Instagram deseni).
   /// ⚠️ Servis ucu (`begenenler`) turu 75'ten beri VARDI ama HICBIR EKRAN

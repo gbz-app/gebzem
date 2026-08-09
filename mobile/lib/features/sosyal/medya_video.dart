@@ -149,10 +149,24 @@ class _MedyaVideoState extends ConsumerState<MedyaVideo>
       _birak();
       _kur();
     } else if (eski.otoOynat != widget.otoOynat) {
-      // PageView'de sayfa degisti: gorunur olan oynar, olmayan DURUR.
+      // Gorunurluk degisti: gorunur olan oynar, olmayan DURUR.
       if (widget.otoOynat) {
         _kullaniciDurdurdu = false;
-        _oynat();
+        // ⚠️⚠️ TURU 76b (SEVK ENGELI) — TEMBEL OYNATICI KURULMALI.
+        //    Akista kart EKRAN DISINDA kurulur; o an `otoOynat: false` oldugu
+        //    icin `initState` `_tembel = true` yapar ve **oynatici HIC
+        //    YARATILMAZ**. Kart kaydirilip gorunur olunca buraya duseriz ve
+        //    eski kod dogrudan `_oynat()` cagiriyordu — `_c` NULL oldugu icin
+        //    HICBIR SEY OLMUYORDU: otomatik oynatma sahada HIC CALISMAZDI.
+        //    (PageView'de sorun cikmiyordu cunku komsu sayfa `otoOynat: true`
+        //    ile dogrudan kuruluyordu; gorunurluk tabanli akista durum TERS.)
+        // ⚠️ YAPMA: bu dali kaldirip yalniz `_oynat()`a donme.
+        if (_tembel) {
+          _tembel = false;
+          _kur();
+        } else {
+          _oynat();
+        }
       } else {
         _c?.pause();
         _c?.seekTo(Duration.zero);
