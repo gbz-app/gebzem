@@ -103,6 +103,19 @@ const double kMedyaEnBoy = 4 / 5;
 ///    gorunumune kayar.
 const double kMedyaYaricap = 18;
 
+/// Coklu galeride bir sayfanin viewport'a orani (`PageController` +
+/// yukseklik hesabi AYNI degeri kullanir).
+///
+/// ⚠️ %78: sagdan sarkan parca ~%16 kalir — "devami var" belli olur ama ana
+///    medya hala baskin. Daha dar yapmak okunurlugu bozar.
+/// ⚠️ TURU 80b: sabit BURAYA tasindi. Eskiden `PageController`da ve yukseklik
+///    hesabinda AYRI AYRI yaziliydi; biri degistiginde digeri sessizce drift
+///    ederdi (kutu orantisiz uzardi).
+const double kGaleriSayfaOrani = 0.78;
+
+/// Coklu galeride kutular arasi bosluk.
+const double kGaleriAra = 8;
+
 /// Kartin GENISLIK tavani (tablet/genis ekran).
 ///
 /// ⚠️ Yukseklik tavani TEK BASINA tablette 536x340'lik (en-boy 1.58) asiri

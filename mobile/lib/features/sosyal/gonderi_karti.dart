@@ -59,7 +59,9 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
   ///    ekranin %78'i yapar -> sonraki medya SAGDAN SARKAR.
   /// ⚠️ `initState`te kurulur (build icinde kurulsaydi her cizimde YENI
   ///    controller olusur ve kaydirma konumu SIFIRLANIRDI).
-  late final PageController _sayfaCtrl = PageController(viewportFraction: 0.78);
+  late final PageController _sayfaCtrl = PageController(
+    viewportFraction: kGaleriSayfaOrani,
+  );
 
   @override
   void dispose() {
@@ -625,7 +627,20 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
         final tamGenislik = kisit.maxWidth - 24; // 12 sol + 12 sag dolgu
         // ⚠️ %78: sagdan sarkan parca ~%16 kalir — "devami var" belli olur ama
         //    ana medya hala baskin. Daha dar yapmak okunurlugu bozar.
-        final ogeGenislik = coklu ? kisit.maxWidth * 0.78 : tamGenislik;
+        // ⚠️⚠️ TURU 80b — COKLU GALERIDE GENISLIK **GERCEK SAYFA GENISLIGI**
+        //    (denetim bulgusu). Eskiden `kisit.maxWidth * 0.78` yaziliyordu ama
+        //    `PageView` `Padding(left: 12)` ICINDE, yani viewport'u
+        //    `maxWidth - 12`; ustelik her sayfanin `right: 8` dolgusu var.
+        //    390px'te: hesaplanan 304, GERCEK 287 — **17px yalan**.
+        //    Bugun ZARARSIZ (yukseklik tavani her cihazda kazaniyor, bkz.
+        //    `medya_olcu.dart`), ama tavan ya da en-boy degistigi gun kutu
+        //    ORANTISIZ uzardi. Deger artik DOGRU.
+        // ⚠️ Sayilar TEK KAYNAKTAN: `kGaleriSayfaOrani` + `kGaleriAra` hem
+        //    burada hem `PageController`da kullaniliyor; ayri yazilsalardi
+        //    biri degisince digeri sessizce drift ederdi.
+        final ogeGenislik = coklu
+            ? (kisit.maxWidth - 12) * kGaleriSayfaOrani - kGaleriAra
+            : tamGenislik;
         // ⚠️⚠️⚠️ TURU 80 — YUKSEKLIK ARTIK **TAVANLI** (kullanici: "çok uzun").
         //    Eskiden `ogeGenislik / enBoy` idi, yani yukseklik YALNIZ genislige
         //    bagliydi ve ekran en-boyu degistikce ekran yuzdesi %45-%108
@@ -679,7 +694,7 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
                     //    video ayni anda calmasin — iOS ses oturumu TEK).
                     onPageChanged: (i) => setState(() => _sayfa = i),
                     itemBuilder: (_, i) => Padding(
-                      padding: const EdgeInsets.only(right: 8),
+                      padding: const EdgeInsets.only(right: kGaleriAra),
                       child: GestureDetector(
                         onDoubleTap: () => _begeniCevir(yalnizBegen: true),
                         child: _medyaKutusu(i, null, yukseklik),
