@@ -172,7 +172,9 @@ class Ilan {
   final List<String> mediaIds;
   final Map<String, dynamic> ozellikler;
   String durum;
-  final int goruntulenme;
+  /// ⚠️ DEGISEBILIR: detay ekrani acilista SESSIZCE tazeliyor (bkz.
+  ///    `IlanDetayEkrani` serhi). `final` olsaydi sayac EKRANDA HEP 0 kalirdi.
+  int goruntulenme;
   final String createdAt;
 
   /// ⚠️ DEGISEBILIR: iyimser guncelleme (kalp) icin.

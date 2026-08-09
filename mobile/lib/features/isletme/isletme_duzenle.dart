@@ -36,6 +36,8 @@ class _IsletmeDuzenleEkraniState extends ConsumerState<IsletmeDuzenleEkrani> {
   ];
   bool _yukleniyor = true;
   bool _kaydediliyor = false;
+  /// ⚠️ Yukleme hatasi: form CIZILMEZ (bkz. build serhi — veri kaybi kapisi).
+  bool _yuklemeHatasi = false;
   bool _zatenIsletme = false;
 
   @override
@@ -61,10 +63,26 @@ class _IsletmeDuzenleEkraniState extends ConsumerState<IsletmeDuzenleEkrani> {
       setState(() => _yukleniyor = false);
       return;
     }
-    final i = await ref.read(isletmeServisiProvider).detay(id);
+    // ⚠️⚠️ TURU 77b — YUKLEME HATASI **YUTULMAZ** (denetim bulgusu: VERI KAYBI).
+    //    `detay()` artik 404 disindaki hatalarda FIRLATIYOR. Yakalanmazsa
+    //    ekran BOS acilir, kullanici tek alan doldurup kaydeder ve sunucudaki
+    //    `ON CONFLICT DO UPDATE` MEVCUT adres/telefon/calisma saatlerini
+    //    BOSA CEKER. Bu dalda Kaydet KILITLENIR (bkz. `_yuklemeHatasi`).
+    Isletme? i;
+    try {
+      i = await ref.read(isletmeServisiProvider).detay(id);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _yukleniyor = false;
+        _yuklemeHatasi = true;
+      });
+      return;
+    }
     if (!mounted) return;
     setState(() {
       _yukleniyor = false;
+      _yuklemeHatasi = false;
       if (i != null) {
         _zatenIsletme = true;
         _kategori = i.kategori;
@@ -159,6 +177,42 @@ class _IsletmeDuzenleEkraniState extends ConsumerState<IsletmeDuzenleEkrani> {
   Widget build(BuildContext context) {
     if (_yukleniyor) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    // ⚠️⚠️ TURU 77b — YUKLEME HATASINDA FORM HIC GOSTERILMEZ.
+    //    Bos form + etkin "Kaydet" = mevcut isletme bilgilerinin SESSIZCE
+    //    SILINMESI (bkz. `_yukle` serhi). Tek cikis yolu tekrar denemek.
+    if (_yuklemeHatasi) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('İşletme bilgileri')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(28),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'İşletme bilgilerin yüklenemedi.\n'
+                  'Mevcut bilgilerin kaybolmaması için form açılmadı.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey),
+                ),
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  onPressed: () {
+                    setState(() {
+                      _yukleniyor = true;
+                      _yuklemeHatasi = false;
+                    });
+                    _yukle();
+                  },
+                  icon: const Icon(LucideIcons.refreshCw, size: 18),
+                  label: const Text('Tekrar dene'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
     }
     return Scaffold(
       appBar: AppBar(

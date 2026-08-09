@@ -147,16 +147,13 @@ class _KanalEkraniState extends ConsumerState<KanalEkrani> {
       _uyar(MedyaKapisi.engelSebebi(ref) ?? 'Şu anda medya seçilemez');
       return;
     }
-    List<XFile> secim = [];
-    try {
-      MedyaKapisi.pickerAcik = true;
-      secim = await ImagePicker().pickMultiImage(
-        limit: 10 - _secilenler.length,
-      );
-    } catch (_) {
-    } finally {
-      MedyaKapisi.pickerAcik = false;
+    final kalan = 10 - _secilenler.length;
+    if (kalan <= 0) {
+      _uyar('En fazla 10 görsel eklenebilir');
+      return;
     }
+    // ⚠️ TEK KAYNAK: limit<2 tuzagi + take(kalan) kirpmasi MedyaSecici'de.
+    final secim = await MedyaSecici.coklu(kalan);
     if (secim.isEmpty || !mounted) return;
     setState(
       () => _secilenler.addAll(

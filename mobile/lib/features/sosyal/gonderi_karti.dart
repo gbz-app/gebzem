@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../home/home_screen.dart' show aktifSekme;
 import '../medya/medya_gorsel.dart';
 import '../chats/moderasyon_sheet.dart';
 import '../medya/tam_ekran_gorsel.dart';
@@ -734,12 +735,31 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
       //    kaydirirken kendiliginden ses patlatmak hem kotu bir deneyim hem de
       //    iOS'ta AVAudioSession'i ele gecirip aramayi bozar. Kullanici
       //    oynaticidaki hoparlor dugmesiyle sesi acar (`MedyaVideo` cizer).
-      // ⚠️ YAPMA: `sesli: true` yapma. ⚠️ YAPMA: kapilardan birini kaldirma.
-      return MedyaVideo(
-        mediaId: id,
-        otoOynat: _gorunurOran >= 0.6 && _sayfa == sira,
-        sesli: false,
-        dolgu: BoxFit.cover,
+      //
+      // ⚠️⚠️⚠️ TURU 77b — **UCUNCU VE DORDUNCU KAPI EKLENDI (SEVK ENGELIYDI).**
+      //    Yalniz gorunurluk + sayfa kapilariyla video, kullanici BASKA SEKMEYE
+      //    gecince ya da ustune BASKA EKRAN acilinca DURMUYORDU:
+      //      (3) `aktifSekme == 0` — `IndexedStack` secili olmayan cocuklari da
+      //          agacta CANLI ve LAYOUT EDILMIS tutar; sekme degisimi kaydirma
+      //          uretmedigi icin gorunurluk gozcusu de HIC yeniden olcmuyordu.
+      //          Ustelik Stack tum cocuklari AYNI konuma yerlestirdigi icin
+      //          gozcuyu duzeltmek TEK BASINA yetmezdi.
+      //      (4) `ModalRoute.isCurrent` — yorumlar/profil/detay/hikaye ekrani
+      //          acildiginda akis ALTTA kalir; video oynamaya devam ediyordu.
+      //    Ikisi de mobil veri yakiyor ve iOS'ta ses donanimini gereksiz tutuyordu.
+      // ⚠️ YAPMA: `sesli: true` yapma. ⚠️ YAPMA: DORT kapidan birini kaldirma.
+      return ValueListenableBuilder<int>(
+        valueListenable: aktifSekme,
+        builder: (context, sekme, _) => MedyaVideo(
+          mediaId: id,
+          otoOynat:
+              _gorunurOran >= 0.6 &&
+              _sayfa == sira &&
+              sekme == 0 &&
+              (ModalRoute.of(context)?.isCurrent ?? true),
+          sesli: false,
+          dolgu: BoxFit.cover,
+        ),
       );
     }
     return GestureDetector(

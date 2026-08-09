@@ -342,6 +342,9 @@ class _StoryEditorState extends State<StoryEditor> {
         sesli: false,
         dongu: true,
         dolgu: BoxFit.contain,
+        // ⚠️ Editorde oynatici kontrolleri KAPALI: ekrana dokunmak METIN
+        //    KATMANINI secmeli/suruklemeli; oynat/hoparlor dugmesi jesti yutar.
+        kontrolGoster: false,
       );
     }
     return Image.file(d, fit: BoxFit.contain, width: double.infinity);

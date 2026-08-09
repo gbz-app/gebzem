@@ -32,6 +32,24 @@ class HomeScreen extends ConsumerStatefulWidget {
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
+/// ⚠️⚠️⚠️ TURU 77b — AKTIF SEKME **KURESEL** OLARAK YAYINLANIR.
+///
+/// **NEDEN (denetim bulgusu — SEVK ENGELIYDI):** akistaki videolar
+/// `IndexedStack` icinde yasar ve `IndexedStack` secili OLMAYAN cocuklari da
+/// **agacta canli + LAYOUT EDILMIS** tutar (`Visibility.maintain`). Sonuc:
+///   · Mesaj/Canli/Profil sekmesine gecince akistaki video OYNAMAYA DEVAM
+///     ediyordu — arka planda MOBIL VERI harciyor ve ses donanimini tutuyordu,
+///   · `gorunurluk.dart` gozcusu YALNIZ kaydirma olayinda olctugu icin
+///     `_gorunurOran` BAYAT kaliyordu; ustelik `IndexedStack` tum cocuklari
+///     AYNI konuma yerlestirdigi icin olcum eklemek TEK BASINA da COZMEZDI.
+/// CLAUDE.md'deki "IndexedStack TUM cocuklari canli tutar — reels sekmesi bu
+/// yuzden KOSULLU kuruldu" dersi akis videolarina uygulanmamisti.
+///
+/// ⚠️ `ValueNotifier` secildi (provider degil): `GonderiKarti` her karede
+///    okuyor; Riverpod dinleyicisi eklemek her kart icin ayri abonelik demekti.
+/// ⚠️ YAPMA: bunu kaldirip autoplay kapisini yalniz gorunurluge baglama.
+final aktifSekme = ValueNotifier<int>(0);
+
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   int _index = 0;
   bool? _permissionsAsked; // null = kontrol ediliyor
@@ -153,7 +171,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
         child: NavigationBar(
           selectedIndex: _index,
-          onDestinationSelected: (i) => setState(() => _index = i),
+          onDestinationSelected: (i) => setState(() {
+            _index = i;
+            // ⚠️ Akistaki videolarin autoplay kapisi buna bakiyor (bkz.
+            //    `aktifSekme` serhi). Sekme degisince akis videolari DURUR.
+            aktifSekme.value = i;
+          }),
           // ⚠️ Etiketler KISA (6 hedef) — bkz. _titles serhi.
           destinations: [
             const NavigationDestination(
@@ -431,7 +454,8 @@ class _ProfileTab extends ConsumerWidget {
           trailing: const Icon(LucideIcons.chevronRight, size: 18),
           onTap: () => Navigator.of(
             context,
-          ).push(MaterialPageRoute(builder: (_) => const IlanListesiEkrani())),
+          ).push(MaterialPageRoute(builder: (_) =>
+                  const IlanListesiEkrani(benim: true, baslik: 'İlanlarım'))),
         ),
         ListTile(
           leading: const Icon(LucideIcons.bell),

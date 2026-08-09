@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/api.dart';
+import '../../router.dart' show rootMessengerKey;
 import '../medya/medya_gorsel.dart';
 import '../medya/medya_kapisi.dart';
 import '../medya/medya_servisi.dart';
@@ -205,6 +206,9 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
     }
     if (x == null || !mounted) return;
 
+    // ⚠️ Bekleme diyalogunun ACIK olup olmadigini izler — bkz. catch dalindaki
+    //    "yanlis route pop" serhi.
+    var diyalogAcik = true;
     showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -227,10 +231,23 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
       final sonuc = await ref.read(aiServisiProvider).menu(mediaId: mediaId);
       if (!mounted) return;
       Navigator.of(context).pop(); // bekleme diyalogu
+      diyalogAcik = false;
+      // ⚠️ TURU 77b — KOTA SAYACI TAZELENIR. `aiDurumProvider` SUREC OMURLU ve
+      //    hicbir yerde invalidate EDILMIYORDU: dugme etiketindeki "(20)" 20
+      //    cagridan sonra bile "(20)" der, kullanici sonra 429 alirdi.
+      ref.invalidate(aiDurumProvider);
       await _oneriGoster(sonuc);
     } catch (e) {
       if (!mounted) return;
-      Navigator.of(context).pop();
+      // ⚠️⚠️ TURU 77b — KOSULSUZ `pop()` YANLIS ROUTE'U KAPATIYORDU.
+      //    Basari dali bekleme diyalogunu ZATEN pop edip `_oneriGoster`i
+      //    AWAIT ediyor; oradan bir istisna kacarsa buradaki ikinci pop
+      //    **KATALOG EKRANINI** kapatirdi (turu 75b/(3) "yanlis route" sinifi).
+      //    ⚠️ YAPMA: bayragi kaldirip kosulsuz pop'a donme.
+      if (diyalogAcik) {
+        Navigator.of(context).pop();
+        diyalogAcik = false;
+      }
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
@@ -281,7 +298,19 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
               itemCount: urunler.length,
               itemBuilder: (_, i) {
                 final u = urunler[i];
-                final kurus = (u['fiyat_kurus'] as num?)?.toInt() ?? 0;
+                // ⚠️⚠️ TURU 77b — TIP KORUMASI ZORUNLU (denetim bulgusu).
+                //    JSON *ayristirmasi* korunmustu ama ALAN TIPLERI
+                //    korunmamisti. Dil modelleri talimata ragmen sik sik
+                //    `"fiyat_kurus": "1250"` (METIN) donduruyor; ciplak
+                //    `as num?` cast'i `itemBuilder` ICINDE `TypeError` atar ve
+                //    oneri diyalogu KIRMIZI HATA KUTUSUNA doner -> kullanici
+                //    HICBIR urunu ekleyemez. (Ayni cast bir alt satirda
+                //    `catch(_)` ile korunuyordu = ASIMETRI.)
+                //    ⚠️ YAPMA: ciplak cast'e geri donme.
+                final ham = u['fiyat_kurus'];
+                final kurus = ham is num
+                    ? ham.toInt()
+                    : int.tryParse(ham?.toString() ?? '') ?? 0;
                 return CheckboxListTile(
                   dense: true,
                   value: secili[i],
@@ -291,7 +320,7 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
                     [
                       if ((u['bolum'] ?? '').toString().isNotEmpty)
                         u['bolum'].toString(),
-                      if (kurus > 0) '${kurus ~/ 100} ₺',
+                      if (kurus > 0) kurusMetni(kurus),
                     ].join(' · '),
                   ),
                 );
@@ -362,6 +391,11 @@ class _UrunDuzenleEkraniState extends ConsumerState<UrunDuzenleEkrani> {
   bool _kaydediliyor = false;
   bool _aiCalisiyor = false;
 
+  /// yayinda | tukendi  (⚠️ 'kaldirildi' arayuzden AYARLANMAZ — o "Kaldır"
+  /// dugmesinin isi; iki yol ayni durumu yazsaydi kullanici hangisinin ne
+  /// yaptigini bilemezdi.)
+  late String _durum = widget.urun?.durum == 'tukendi' ? 'tukendi' : 'yayinda';
+
   @override
   void dispose() {
     _ad.dispose();
@@ -404,6 +438,7 @@ class _UrunDuzenleEkraniState extends ConsumerState<UrunDuzenleEkrani> {
           .urunMetni(mediaId: mediaId, metin: _ad.text.trim());
       if (!mounted) return;
       setState(() => _aciklama.text = metin);
+      ref.invalidate(aiDurumProvider); // kota sayaci tazelenir (turu 77b)
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -430,6 +465,14 @@ class _UrunDuzenleEkraniState extends ConsumerState<UrunDuzenleEkrani> {
         'bolum': _bolum.text.trim(),
         'fiyat_kurus': (tl * 100).round(),
       };
+      // ⚠️⚠️ TURU 77b — "TUKENDI" OLU OZELLIKTI (denetim bulgusu).
+      //    Sunucu `durum` PATCH'ini beyaz listeyle KABUL EDIYORDU ve katalog
+      //    "Tükendi" rozetini CIZIYORDU, ama istemci `durum` alanini
+      //    **HICBIR YERDE GONDERMIYORDU** -> rozet sahada ASLA gorunmez,
+      //    isletme urununu tukendi isaretleyemezdi. Bu, projede BES kez
+      //    tekrarlayan "sutun eklendi, yazan yol yok" sinifinin yenisi.
+      //    ⚠️ Yalniz DUZENLEMEDE gonderilir (yeni urun zaten 'yayinda' dogar).
+      if (widget.urun != null) govde['durum'] = _durum;
       if (widget.urun == null) {
         final idler = <String>[];
         if (_gorsel != null) {
@@ -477,7 +520,18 @@ class _UrunDuzenleEkraniState extends ConsumerState<UrunDuzenleEkrani> {
       ),
     );
     if (onay != true || !mounted) return;
-    await ref.read(urunServisiProvider).sil(widget.urun!.id);
+    // ⚠️ TURU 77b — try/catch YOKTU: ag hatasi/404 durumunda Future reddedilir
+    //    (`onPressed` sonucu dusurur), ekran ACIK kalir ve HICBIR MESAJ
+    //    CIKMAZDI — kullanici urunu sildigini sanardi.
+    try {
+      await ref.read(urunServisiProvider).sil(widget.urun!.id);
+    } catch (_) {
+      if (!mounted) return;
+      rootMessengerKey.currentState?.showSnackBar(
+        const SnackBar(content: Text('Ürün kaldırılamadı')),
+      );
+      return;
+    }
     if (mounted) Navigator.of(context).pop(true);
   }
 
@@ -528,6 +582,41 @@ class _UrunDuzenleEkraniState extends ConsumerState<UrunDuzenleEkrani> {
                         ),
                 ),
               ),
+            ),
+          // ⚠️⚠️ TURU 77b — MEVCUT FOTOGRAF DUZENLEMEDE GORUNMUYORDU.
+          //    Gorsel blogu tamamen `widget.urun == null` kapisi altindaydi;
+          //    sahibi urununu acinca fotografini ne goruyor ne de oldugunu
+          //    biliyordu -> "fotografim silindi" algisi. Sunucu PATCH'te
+          //    medyaya DOKUNMUYOR (davranis dogru), eksik olan ILETISIMDI.
+          if (widget.urun != null && widget.urun!.mediaIds.isNotEmpty) ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: AspectRatio(
+                aspectRatio: 16 / 9,
+                child: MedyaGorsel(
+                  mediaId: widget.urun!.mediaIds.first,
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.only(top: 6),
+              child: Text(
+                'Fotoğraf düzenlemede değiştirilemez. Değiştirmek için ürünü '
+                'kaldırıp yeniden ekle.',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            ),
+          ],
+          // ⚠️ "Tükendi" anahtari — bkz. `_durum` ve `_kaydet` serhleri.
+          if (widget.urun != null)
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Tükendi'),
+              subtitle: const Text('Menüde "Tükendi" olarak görünür'),
+              value: _durum == 'tukendi',
+              onChanged: (v) =>
+                  setState(() => _durum = v ? 'tukendi' : 'yayinda'),
             ),
           const SizedBox(height: 14),
           TextField(
@@ -649,7 +738,9 @@ class _AiDanismaEkraniState extends ConsumerState<AiDanismaEkrani> {
       final s = await ref
           .read(aiServisiProvider)
           .danisma(mediaId: mediaId, metin: _not.text.trim());
-      if (mounted) setState(() => _sonuc = s);
+      if (!mounted) return;
+      setState(() => _sonuc = s);
+      ref.invalidate(aiDurumProvider); // kota sayaci tazelenir (turu 77b)
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(

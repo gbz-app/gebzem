@@ -395,7 +395,13 @@ class _MedyaVideoState extends ConsumerState<MedyaVideo>
           //    yanitinda `thumb_url` donduruyor — yani kucuk resim YUKLENMISSE
           //    ek bir alan gerekmeden gorunur. Yuklenmemisse `MedyaGorsel`
           //    sessizce koyu bir kutuya duser (kirik ikon YOK).
-          if (!_hazir)
+          // ⚠️ TURU 77b — YEREL DOSYA MODUNDA (hikaye editoru) kapak ISTEGI
+          //    ATILMAZ: `mediaId` BOS oldugu icin `GET /media//url` 404 doner
+          //    ve kirik gorsel ikonu cizilirdi. Yerel dosyanin ilk karesi
+          //    zaten milisaniyeler icinde gelir; koyu zemin yeterli.
+          if (!_hazir && widget.yerelDosya != null)
+            const ColoredBox(color: Color(0xFF14101C)),
+          if (!_hazir && widget.yerelDosya == null)
             MedyaGorsel(
               mediaId: widget.kapakMediaId ?? widget.mediaId,
               kucuk: true,

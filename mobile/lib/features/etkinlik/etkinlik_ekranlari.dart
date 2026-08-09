@@ -202,10 +202,13 @@ class _EtkinlikListesiEkraniState extends ConsumerState<EtkinlikListesiEkrani> {
     clipBehavior: Clip.antiAlias,
     child: InkWell(
       onTap: () async {
-        await Navigator.of(context).push(
+        final degisti = await Navigator.of(context).push<bool>(
           MaterialPageRoute(builder: (_) => EtkinlikDetayEkrani(etkinlik: e)),
         );
-        if (mounted) setState(() {});
+        if (!mounted) return;
+        // ⚠️ Silme/katilim degistiyse listeyi SUNUCUDAN tazele; salt setState
+        //    bayat nesneyi yeniden cizerdi.
+        if (degisti == true) { _yukle(); } else { setState(() {}); }
       },
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -385,7 +388,11 @@ class _EtkinlikDetayEkraniState extends ConsumerState<EtkinlikDetayEkrani> {
     if (onay != true || !mounted) return;
     try {
       await ref.read(etkinlikServisiProvider).sil(e.id);
-      if (mounted) Navigator.of(context).pop();
+      // ⚠️ TURU 77b — SONUC DONDURULUR. Eskiden ciplak pop vardi ve liste
+      //    yalniz setState yapip YENIDEN YUKLEMIYORDU: kullanici "kaldırdım
+      //    ama listede duruyor" gorup tekrar basiyor, sunucu 404 donuyor ve
+      //    ekranda "Kaldırılamadı" yaziyordu (oysa ZATEN kaldirilmisti).
+      if (mounted) Navigator.of(context).pop(true);
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(

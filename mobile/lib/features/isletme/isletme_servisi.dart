@@ -19,13 +19,29 @@ class IsletmeServisi {
   /// ⚠️ Isletme bilgileri SILINMEZ (veri politikasi) — tekrar gecince hazir gelir.
   Future<void> kisiselYap() => _api.delete('/users/me/isletme');
 
-  /// Bir kullanicinin isletme bilgileri. Isletme degilse 404.
+  /// Bir kullanicinin isletme bilgileri. **Isletme DEGILSE `null`; baska her
+  /// hatada FIRLATIR.**
+  ///
+  /// ⚠️⚠️⚠️ TURU 77b — BU AYRIM VERI KAYBINI ONLUYOR (denetim bulgusu).
+  ///
+  /// Eskiden `catch (_) { return null; }` vardi, yani "isletme degil (404)" ile
+  /// "ag/sunucu hatasi" AYIRT EDILEMIYORDU. Zincir:
+  ///   1. Isletme sahibi mobil agda "İşletme bilgilerim"e girer,
+  ///   2. GET zaman asimina ugrar -> `null` -> ekran ILK KAYIT gibi BOS acilir
+  ///      (hata mesaji YOK; normal ilk-kayit ekranindan ayirt edilemez),
+  ///   3. Kullanici yalnizca telefonunu yazip Kaydet'e basar,
+  ///   4. Sunucudaki `ON CONFLICT DO UPDATE SET adres=EXCLUDED.adres, il=...,
+  ///      telefon=..., web=..., calisma=...` **adres + 7 gunluk calisma
+  ///      saatlerini BOSA CEKER.**
+  /// Yani sessiz veri kaybi — ustelik "VERI SILINMEZ" politikasina ragmen.
+  /// ⚠️ YAPMA: burayi tekrar "her hatada null" haline dondurme.
   Future<Isletme?> detay(String userId) async {
     try {
       final r = await _api.get('/users/$userId/isletme');
       return Isletme.fromJson((r.data as Map).cast<String, dynamic>());
-    } catch (_) {
-      return null;
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) return null; // isletme degil
+      rethrow; // ag/sunucu hatasi — CAGIRAN bilmek ZORUNDA
     }
   }
 

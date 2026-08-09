@@ -463,6 +463,16 @@ class _StoryIzleyiciState extends ConsumerState<StoryIzleyici>
         //    kullanici "bozuldu" sanardi. Donguyle kisa video tekrar oynar.
         dongu: true,
         dolgu: BoxFit.contain,
+        // ⚠️⚠️ TURU 77b — **ZORUNLU (denetim bulgusu).** `kontrolGoster`
+        //    varsayilani `true`; o zaman `MedyaVideo` tum ekrani kaplayan bir
+        //    `GestureDetector(onTap: _duraklatCevir)` cizer ve jest arenasinda
+        //    DISTAKI `onTapUp`tan ONCE kazanir (hit-test en ICTEN baslar).
+        //    Sonuc: VIDEO hikayede saga dokununca sonraki hikayeye GECMIYOR,
+        //    videoyu duraklatiyordu — fotograf hikayelerde geciyordu, yani
+        //    davranis TUTARSIZDI. Ayrica Instagram'da olmayan oynat/hoparlor
+        //    dugmeleri ve mor ilerleme cubugu hikayenin ustune ciziliyordu.
+        //    ⚠️ YAPMA: burada kontrolleri geri acma.
+        kontrolGoster: false,
       );
     }
     return MedyaGorsel(mediaId: s.mediaId, fit: BoxFit.contain);

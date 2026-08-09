@@ -4,10 +4,10 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/api.dart';
+import '../../router.dart' show rootMessengerKey;
 import '../home/home_screen.dart' show myProfileProvider;
 import '../medya/medya_gorsel.dart';
 import '../medya/medya_kapisi.dart';
@@ -20,10 +20,21 @@ import 'ilan_servisi.dart';
 ///
 /// [tur] bos = tum ilanlar; 'hizmet' = HIZMETLER karti.
 class IlanListesiEkrani extends ConsumerStatefulWidget {
-  const IlanListesiEkrani({super.key, this.tur = '', this.baslik = ''});
+  const IlanListesiEkrani({
+    super.key,
+    this.tur = '',
+    this.baslik = '',
+    this.benim = false,
+  });
 
   final String tur;
   final String baslik;
+
+  /// ⚠️ TURU 77b — Profildeki **"İlanlarım"** girisi bu bayragi ACAR.
+  ///    Eskiden parametre YOKTU: menu "İlanlarım" diyor ama HERKESIN ilanini
+  ///    listeleyen ekran aciliyordu; ustelik sunucu `durum='yayinda'` suzdugu
+  ///    icin kullanici KENDI 'satildi' ilanini HIC goremiyordu.
+  final bool benim;
 
   @override
   ConsumerState<IlanListesiEkrani> createState() => _IlanListesiEkraniState();
@@ -42,7 +53,7 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
   //    kategori yeterli); uc ZATEN destekliyor, ekran eklendiginde buraya
   //    yazilir. Sabit birakip 'ozellik var' izlenimi vermiyoruz.
   final String _il = '';
-  bool _benim = false;
+  late bool _benim = widget.benim;
   bool _favori = false;
 
   @override
@@ -331,6 +342,40 @@ class _IlanDetayEkraniState extends ConsumerState<IlanDetayEkrani> {
   late Ilan i = widget.ilan;
   int _sayfa = 0;
 
+  @override
+  void initState() {
+    super.initState();
+    _sessizTazele();
+  }
+
+  /// ⚠️⚠️⚠️ TURU 77b — GORUNTULENME SAYACI (denetim bulgusu).
+  ///
+  /// Sunucu sayaci **YALNIZ `GET /ilanlar/{id}` icinde** artiriyor. Detay
+  /// ekrani ise listeden gelen HAZIR `Ilan` NESNESIYLE aciliyordu ve o istek
+  /// **HIC ATILMIYORDU** -> ekranda yazan "N görüntülenme" sahada **OMUR BOYU
+  /// 0** kalirdi. Bir satici icin ilanin ise yarayip yaramadigini gosteren TEK
+  /// sinyal olu olurdu.
+  /// 📌 Bu, turu 76'da GONDERI DETAYINDA yasanip duzeltilen hatanin BIREBIR
+  ///    tekrari; ayni cozum uygulaniyor.
+  ///
+  /// ⚠️⚠️ NESNE DEGISTIRILMEZ, ALANLARI GUNCELLENIR. `i = yeni` yazilsaydi
+  ///    model listeyle PAYLASILDIGI icin detayda yapilan favori/durum
+  ///    degisikligi geri donuldugunde LISTEDE GORUNMEZDI (turu 76 notu).
+  /// ⚠️ Hata YUTULUR: sayac tazelemesi ekrani BOZMAMALI.
+  Future<void> _sessizTazele() async {
+    try {
+      final yeni = await ref.read(ilanServisiProvider).detay(i.id);
+      if (!mounted) return;
+      setState(() {
+        i.goruntulenme = yeni.goruntulenme;
+        i.durum = yeni.durum;
+        i.favorim = yeni.favorim;
+      });
+    } catch (_) {
+      // sessiz
+    }
+  }
+
   Future<void> _favoriCevir() async {
     final eski = i.favorim;
     setState(() => i.favorim = !eski);
@@ -377,6 +422,20 @@ class _IlanDetayEkraniState extends ConsumerState<IlanDetayEkrani> {
       await ref.read(ilanServisiProvider).guncelle(i.id, {'durum': durum});
       if (!mounted) return;
       setState(() => i.durum = durum);
+      // ⚠️ TURU 77b — GERI BILDIRIM ZORUNLU: durum rozeti YALNIZ liste
+      //    satirinda ciziliyor, dolayisiyla detayda basan kullanici hicbir
+      //    degisiklik gormuyordu ve islemin olup olmadigini bilemiyordu.
+      rootMessengerKey.currentState?.showSnackBar(
+        SnackBar(
+          content: Text(
+            durum == 'satildi'
+                ? 'İlan "Satıldı" olarak işaretlendi'
+                : durum == 'kaldirildi'
+                ? 'İlan kaldırıldı'
+                : 'İlan yeniden yayında',
+          ),
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -596,14 +655,16 @@ class _IlanVerEkraniState extends ConsumerState<IlanVerEkrani> {
       );
       return;
     }
-    List<XFile> secim = [];
-    try {
-      MedyaKapisi.pickerAcik = true;
-      secim = await ImagePicker().pickMultiImage(limit: 12 - _gorseller.length);
-    } catch (_) {
-    } finally {
-      MedyaKapisi.pickerAcik = false;
+    final kalan = 12 - _gorseller.length;
+    if (kalan <= 0) {
+      // ⚠️ Kok messenger: bu ekran bir alt-sayfadan acilmis olabilir.
+      rootMessengerKey.currentState?.showSnackBar(
+        const SnackBar(content: Text('En fazla 12 fotoğraf eklenebilir')),
+      );
+      return;
     }
+    // ⚠️ TEK KAYNAK: limit<2 tuzagi + take(kalan) kirpmasi orada (MedyaSecici).
+    final secim = await MedyaSecici.coklu(kalan);
     if (secim.isEmpty || !mounted) return;
     setState(() => _gorseller.addAll(secim.map((x) => File(x.path))));
   }
@@ -859,10 +920,28 @@ class _IlanVerEkraniState extends ConsumerState<IlanVerEkrani> {
   }
 
   /// ⚠️ ALAN SUNUCUDAN GELEN TANIMDAN cizilir — istemcide sabit form YOK.
+  /// ⚠️⚠️⚠️ TURU 77b — **`key` ZORUNLU (SEVK ENGELIYDI).**
+  ///
+  /// Alanlar `ListView(children: [...])` icinde ve `SliverChildListDelegate`
+  /// cocuklari ANAHTARSIZ `KeyedSubtree`ye sarar -> eslesme tamamen **INDEKS**
+  /// bazlidir. Tur degisince `_ozellikler.clear()` yapiliyor ama widget'lar
+  /// ayni indekste ayni tipte oldugu icin **ELEMENT YENIDEN KULLANILIYOR** ve
+  /// Flutter'in `FormFieldState.didUpdateWidget`i `initialValue` degisimini
+  /// YOK SAYIYOR. Somut sonuc (Vasita -> Emlak):
+  ///   · "Marka" kutusundaki "Ford" yazisi kaliyor, etiket "Metrekare" oluyor,
+  ///     ama `_ozellikler['m2']` BOS -> ilan EKSIK OZELLIKLE yayinlaniyor;
+  ///   · "Vites: Yari otomatik" (indeks 2) secilipken tur degisirse yeni liste
+  ///     2 elemanli olur, `_selectedIndex` 2'de kalir -> debug'da
+  ///     `IndexedStack` ASSERT'i (KIRMIZI EKRAN), release'de BOS dropdown.
+  /// Kullanici ekranda dolu bir deger GORDUGU icin doldurdugunu saniyor.
+  ///
+  /// `ValueKey('$_tur:...')` eleman kimligini degistirir -> state SIFIRLANIR.
+  /// ⚠️ YAPMA: anahtari kaldirma veya tur onekini cikarma.
   Widget _alan(IlanAlani a) {
     final etiket = a.birim.isEmpty ? a.ad : '${a.ad} (${a.birim})';
     if (a.tip == 'secim') {
       return Padding(
+        key: ValueKey('sec:$_tur:${a.anahtar}'),
         padding: const EdgeInsets.only(bottom: 10),
         child: DropdownButtonFormField<String>(
           initialValue: _ozellikler[a.anahtar],
@@ -879,6 +958,7 @@ class _IlanVerEkraniState extends ConsumerState<IlanVerEkrani> {
       );
     }
     return Padding(
+      key: ValueKey('txt:$_tur:${a.anahtar}'),
       padding: const EdgeInsets.only(bottom: 10),
       child: TextField(
         keyboardType: a.tip == 'sayi' ? TextInputType.number : null,

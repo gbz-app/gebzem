@@ -103,19 +103,13 @@ class _GonderiOlusturState extends ConsumerState<GonderiOlustur> {
       _uyar(MedyaKapisi.engelSebebi(ref) ?? 'Şu anda medya seçilemez');
       return;
     }
-    List<XFile> secim = [];
-    try {
-      // ⚠️ Sistem secici uygulamayi ARKA PLANA alir; `pickerAcik` bunu "gercek
-      //    arka plan gecisi" saymayan kapilar icin ZORUNLU (bkz. MedyaKapisi).
-      MedyaKapisi.pickerAcik = true;
-      secim = await ImagePicker().pickMultiImage(
-        limit: _enFazlaGorsel - _medya.length,
-      );
-    } catch (e) {
-      unawaited(Sentry.captureMessage('gonderi gorsel secici hatasi: $e'));
-    } finally {
-      MedyaKapisi.pickerAcik = false;
+    final kalan = _enFazlaGorsel - _medya.length;
+    if (kalan <= 0) {
+      _uyar('En fazla  görsel eklenebilir');
+      return;
     }
+    // ⚠️ TEK KAYNAK: limit<2 tuzagi + take(kalan) kirpmasi MedyaSecici'de.
+    final secim = await MedyaSecici.coklu(kalan);
     if (secim.isEmpty || !mounted) return;
     // ⚠️ TURU 76: "video ile fotograf ayni gonderide olamaz" KAPISI KALDIRILDI —
     //    karma galeri artik hem sunucuda hem kartta destekleniyor.

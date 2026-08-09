@@ -1,4 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../calls/call_provider.dart';
@@ -115,5 +119,49 @@ class MedyaKapisi {
       SnackBar(content: Text(sebep), duration: const Duration(seconds: 3)),
     );
     return false;
+  }
+}
+
+/// ⚠️⚠️⚠️ TURU 77b — COKLU GORSEL SECIMI ICIN **TEK KAYNAK** (denetim bulgusu).
+///
+/// **SORUN:** `ImagePicker().pickMultiImage(limit: kalan)` cagrisi UC ekranda
+/// birebir kopyalanmisti (gonderi olustur / kanal / ilan ver) ve UCUNDE de
+/// `catch` hatayi YUTUYORDU. `image_picker` paketi `limit < 2` icin
+/// **`ArgumentError` FIRLATIR**
+/// (`multi_image_picker_options.dart`: *"cannot be lower than 2"*).
+///
+/// Sonuc: tavanin BIR ALTINA gelindiginde (gonderide 9., kanalda 9., ilanda
+/// 11. gorselden sonra) "Fotoğraf ekle" dugmesi **SESSIZCE OLUYORDU** —
+/// kullanici basiyor, hicbir sey olmuyor, hicbir mesaj cikmiyor. Araba/emlak
+/// ilaninda 11 fotograf tamamen normaldir.
+///
+/// **IKINCI TUZAK:** paket dokumanina gore `limit` platformlarca **YOK
+/// SAYILABILIR**. Android'de kullanici 30 fotograf secerse istemci 30 medya
+/// YUKLER, sunucu 12'ye kirpar ve geriye **18 YETIM YUKLEME** kalir. Bu yuzden
+/// `take(kalan)` ZORUNLU — `limit` bir istektir, GARANTI DEGILDIR.
+///
+/// ⚠️ YAPMA: `pickMultiImage`i ekranlarda dogrudan cagirma.
+/// ⚠️ YAPMA: `take(kalan)` kirpmasini kaldirma.
+class MedyaSecici {
+  MedyaSecici._();
+
+  /// [kalan] kac gorsel daha eklenebilir. 0/negatifse secici HIC ACILMAZ.
+  /// Donen liste EN FAZLA [kalan] eleman tasir.
+  static Future<List<XFile>> coklu(int kalan) async {
+    if (kalan <= 0) return const [];
+    List<XFile> secim = const [];
+    try {
+      MedyaKapisi.pickerAcik = true;
+      secim = await ImagePicker().pickMultiImage(
+        // ⚠️ `limit: 1` GECERSIZ (ArgumentError). Tek gorsel kaldiysa sinirsiz
+        //    ac ve donusu `take(1)` ile kirp — davranis kullanici icin AYNI.
+        limit: kalan >= 2 ? kalan : null,
+      );
+    } catch (e) {
+      unawaited(Sentry.captureMessage('coklu gorsel secici hatasi: $e'));
+    } finally {
+      MedyaKapisi.pickerAcik = false;
+    }
+    return secim.take(kalan).toList();
   }
 }

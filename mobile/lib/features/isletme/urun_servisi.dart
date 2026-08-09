@@ -55,12 +55,7 @@ class Urun {
   final int sira;
   String durum;
 
-  String get fiyatMetni {
-    if (fiyatKurus <= 0) return '';
-    final tl = fiyatKurus ~/ 100;
-    final kr = fiyatKurus % 100;
-    return kr == 0 ? '$tl ₺' : '$tl,${kr.toString().padLeft(2, '0')} ₺';
-  }
+  String get fiyatMetni => kurusMetni(fiyatKurus);
 
   static Urun fromJson(Map<String, dynamic> m) => Urun(
     id: (m['id'] ?? '').toString(),
@@ -147,3 +142,17 @@ final aiServisiProvider = Provider<AiServisi>(AiServisi.new);
 final aiDurumProvider = FutureProvider<AiDurum>(
   (ref) => ref.read(aiServisiProvider).durum(),
 );
+
+/// Kurus -> "12,50 ₺" bicimi. **TEK KAYNAK.**
+///
+/// ⚠️ TURU 77b — AI menu onizlemesi bu bicimlendiriciyi KULLANMIYOR, kendi
+///    `kurus ~/ 100` hesabini yapiyordu ve **KURUSU KIRPIYORDU** (12,50 TL
+///    "12 ₺" gorunuyordu) — ayni ekranin katalog satiri ise dogru gosteriyordu.
+///    Ayni kuralin iki kopyasi yine drift etmisti (CLAUDE.md turu 72b/H).
+/// ⚠️ YAPMA: fiyat bicimini baska bir yerde elle hesaplama.
+String kurusMetni(int kurus) {
+  if (kurus <= 0) return '';
+  final tl = kurus ~/ 100;
+  final kr = kurus % 100;
+  return kr == 0 ? '$tl ₺' : '$tl,${kr.toString().padLeft(2, '0')} ₺';
+}
