@@ -643,9 +643,30 @@ class _IsletmeSeridiState extends ConsumerState<IsletmeSeridi> {
     _yukle();
   }
 
-  Future<void> _yukle() async {
-    final i = await ref.read(isletmeServisiProvider).detay(widget.userId);
-    if (mounted) setState(() => _i = i);
+  /// ⚠️⚠️ TURU 80b — HATA YUTULMAZ AMA EKRANI DA DUSURMEZ (denetim).
+  ///
+  ///	`detay()` turu 77b'de BILEREK "404'te null, digerlerinde FIRLAT"
+  ///	yapilmisti (veri kaybi dersi). Ama burada `try/catch` YOKTU: mobil
+  ///	agda tek bir kopma `initState`ten baslayan bu async akisi
+  ///	YAKALANMAMIS ISTISNA ile bitiriyor, `_i` null kaliyor ve serit —
+  ///	dolayisiyla **"Randevu al" dugmesi** — hic cizilmiyordu. Serit
+  ///	`SizedBox.shrink()` dondugu icin kullaniciya HICBIR IPUCU da yoktu.
+  ///
+  /// ⚠️ TEK tekrar denemesi (1.2sn): serit YARDIMCI bir bilesendir, profilin
+  ///    kendisi degil — sonsuz yeniden deneme mobil veriyi ve pili yakardi.
+  /// ⚠️ Servis await'ten ONCE yakalanir (turu 78b: disposed State'te `ref.read`
+  ///    StateError firlatir).
+  Future<void> _yukle({bool tekrar = true}) async {
+    final svc = ref.read(isletmeServisiProvider);
+    try {
+      final i = await svc.detay(widget.userId);
+      if (mounted) setState(() => _i = i);
+    } catch (_) {
+      if (!mounted || !tekrar) return;
+      await Future<void>.delayed(const Duration(milliseconds: 1200));
+      if (!mounted) return;
+      await _yukle(tekrar: false);
+    }
   }
 
   @override

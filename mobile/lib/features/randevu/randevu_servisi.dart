@@ -293,9 +293,17 @@ class RandevuServisi {
 
 final randevuServisiProvider = Provider<RandevuServisi>(RandevuServisi.new);
 
-/// ⚠️ GUN ADLARI — TEK KAYNAK. `intl` paketi var ama `DateFormat` yerellestirme
-///    verisi gerektiriyor ve uygulamada `flutter_localizations` YOK; sabit
-///    Turkce liste hem daha ucuz hem KESIN.
+/// ⚠️ GUN ADLARI — TEK KAYNAK. `intl` paketi var ama `DateFormat` calisma
+///    zamaninda yerellestirme verisi yuklemeyi gerektirir; sabit Turkce liste
+///    hem daha ucuz hem KESIN (ve gun seridi her karede yeniden cizilir).
+///
+/// ⚠️⚠️ TURU 80b — BAYAT SERH DUZELTILDI (denetim). Bu blok eskiden
+///    *"uygulamada `flutter_localizations` YOK"* diyordu; turu 80 onu
+///    `pubspec.yaml`e VE `main.dart`taki uc delegeyle birlikte EKLEDI
+///    (`locale: Locale('tr')`). Serh yanlis kaldigi icin, ona dayanan
+///    *"showDatePicker EKLEME"* hukmu de artik GECERSIZ — nitekim
+///    `KapaliGunlerEkrani` Turkce tarih secici kullaniyor.
+/// ⚠️ YAPMA: bu listeleri `DateFormat`a cevirme (kazanc yok, risk var).
 const List<String> kGunKisa = [
   'Pzt',
   'Sal',
@@ -304,6 +312,18 @@ const List<String> kGunKisa = [
   'Cum',
   'Cmt',
   'Paz',
+];
+
+/// Uzun gun adlari — kapali gun listesinde ("30 Ağustos 2026, Pazar").
+/// ⚠️ Sira `DateTime.weekday` ile hizali (1 = Pazartesi).
+const List<String> kGunUzun = [
+  'Pazartesi',
+  'Salı',
+  'Çarşamba',
+  'Perşembe',
+  'Cuma',
+  'Cumartesi',
+  'Pazar',
 ];
 
 const List<String> kAyAdlari = [

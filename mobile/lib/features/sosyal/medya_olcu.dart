@@ -73,6 +73,27 @@ double medyaTavani(BuildContext c) =>
 ///    dal ileride drift kaynagi olur. Akista reels artik ayni kutuda `cover`
 ///    ile merkezden kirpilmis gorunur — REELS SEKMESI ETKILENMEZ (orasi kendi
 ///    tam ekran oynaticisini kullaniyor).
+///
+/// ⚠️⚠️⚠️ TURU 80b — DURUST NOT (denetim): BU SABIT **BUGUN HICBIR CIHAZDA
+///    BAGLAYICI DEGIL.** `medyaYuksekligi` bir `math.min`dir ve tavan pratikte
+///    HER ZAMAN kazanir: `ogeGenislik/0.8 < tavan` olabilmesi icin oge
+///    genisliginin ~216dp'nin ALTINA inmesi gerekir; en dar telefonda (320dp)
+///    bile tek medya ~296dp, coklu galeride (viewportFraction 0.78) ~231dp.
+///    Yani sabit, `min`in ALT SINIRI olarak yalnizca TEORIK bir emniyet agidir.
+///
+///    ⚠️ SONUCU (bilincli kabul edilen bedel): kutunun GERCEK en-boyu tavandan
+///    turer ve ~1.06-1.65 arasinda degisir; icerik `cover` cizildigi icin
+///    · 4:5 dikey fotograf ~%41-51 · 9:16 video ~%58-66 KIRPILIR.
+///    Bu, kullanicinin *"cok uzun"* sikayetinin kacinilmaz karsi tarafidir:
+///    kutuyu ekranin %32'sinde tutup dikey icerigi TAM gostermek ayni anda
+///    MUMKUN DEGIL (Threads bunu DEGISKEN GENISLIKLE cozer — bkz. yukarida
+///    "REDDEDILEN COZUMLER", PageView ile uygulanamaz).
+///    ⚠️ Kirpmanin KURTARMA YOLU zorunludur ve VARDIR: fotografta karta dokun
+///       (`TamEkranGorsel`), videoda sol alttaki tam ekran dugmesi
+///       (`TamEkranVideo`) — ikisi de `contain`. Turu 80b'ye kadar VIDEODA
+///       BU YOL YOKTU, yani videonun yalniz orta seridi gorulebiliyordu.
+///    ⚠️ YAPMA: kurtarma yollarindan birini kaldirma; `cover`i `contain`e
+///       cevirme (yatay kutuda dikey icerik kus kadar kalir + siyah bant).
 const double kMedyaEnBoy = 4 / 5;
 
 /// Kose yaricapi.

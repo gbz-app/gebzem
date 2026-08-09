@@ -15,18 +15,26 @@ import 'randevu_servisi.dart';
 ///
 /// ═══════════ ⚠️⚠️ NEDEN `showDatePicker` / `showTimePicker` YOK ═══════════
 ///
-/// (1) **UYGULAMADA `flutter_localizations` YOK** (`pubspec.yaml`de bagimlilik
-///     ve `main.dart`ta `localizationsDelegates` YOK — kaynaktan dogrulandi).
-///     Material takvim/saat secicileri bu durumda **INGILIZCE** acilir:
-///     "August", "Mon", "AM/PM". Turkce bir uygulamada kabul edilemez.
+/// ⚠️⚠️ TURU 80b — GEREKCE (1) DUSTU, KARAR DEGISMEDI (denetim).
+///     Bu blok eskiden birinci gerekce olarak *"uygulamada
+///     `flutter_localizations` YOK, secici INGILIZCE acilir"* diyordu. Turu 80
+///     bagimliligi ve `main.dart`taki uc delegeyi EKLEDI (`locale: Locale('tr')`),
+///     yani o gerekce ARTIK GECERSIZ — nitekim `KapaliGunlerEkrani` Turkce
+///     `showDatePicker` kullaniyor.
+///     **AMA KARAR AYNI KALIYOR**, cunku asil gerekce (2) tek basina yeterli:
+///
 /// (2) Saat secici SERBEST saat verir; ama isletmenin calisma saatleri ve
 ///     kapasitesi var. Kullanicinin 03:00 secip "kapali" hatasi almasi kotu
 ///     bir deneyim — MUSAIT OLMAYAN saati HIC GOSTERMEMEK dogrusu.
+///     ⚠️ Bu gerekce SAAT secicisi icindir; TARIH secicisi (kapali gun ekranı)
+///        ayni sinirlamaya tabi degildir — orada her gun secilebilir olmali.
 ///
-/// Bunun yerine: **14 gunluk yatay gun seridi** + **sunucudan gelen slot
-/// izgarasi**. Slotlari SUNUCU uretiyor (calisma saati + kapasite + gecmis saat
-/// + kapali gun kurallari orada) — istemcide TEK BIR KURAL YOK.
-/// ⚠️ YAPMA: buraya `showDatePicker`/`showTimePicker` ekleme; yeni paket ekleme.
+/// Bunun yerine: **isletmenin `ileri_gun` ayari kadar yatay gun seridi** +
+/// **sunucudan gelen slot izgarasi**. Slotlari SUNUCU uretiyor (calisma saati +
+/// kapasite + gecmis saat + kapali gun kurallari orada) — istemcide TEK BIR
+/// KURAL YOK.
+/// ⚠️ YAPMA: buraya `showTimePicker` ekleme (slot izgarasinin varlik sebebi
+///    tam olarak budur).
 class RandevuAlEkrani extends ConsumerStatefulWidget {
   const RandevuAlEkrani({
     super.key,
@@ -156,12 +164,27 @@ class _RandevuAlEkraniState extends ConsumerState<RandevuAlEkrani> {
         title: Text(rezervasyon ? 'Rezervasyon' : 'Randevu'),
         // ⚠️ Isletme adi ALT BASLIKTA: kullanici hangi isletmeye talep
         //    gonderdigini SON ANA kadar gormeli.
+        //
+        // ⚠️⚠️ TURU 80b — YUKSEKLIK **YAZI OLCEGINE GORE** (denetim).
+        //    Onceki surumde `Size.fromHeight(20)` SABITTI ama icindeki metin
+        //    cihazin yazi olcegiyle (Ayarlar > Yazi Boyutu) buyuyor: olcek
+        //    1.3'te 12px metin ~15.6px'e, satir yuksekligiyle ~21px'e cikip
+        //    20px'lik alani ASIYOR ve **"RenderFlex overflowed" sari-siyah
+        //    seridi** cikiyordu. Erisilebilirlik ayarini acan kullanicilar bu
+        //    ekrani BOZUK goruyordu.
+        // ⚠️ `maxLines: 1` + `ellipsis`: uzun isletme adi ikinci satira sarip
+        //    ayni tasmayi TEKRAR uretmesin.
+        // ⚠️ YAPMA: buraya tekrar sabit yukseklik yazma.
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(20),
+          preferredSize: Size.fromHeight(
+            20 * MediaQuery.textScalerOf(context).scale(1.0),
+          ),
           child: Padding(
-            padding: const EdgeInsets.only(bottom: 6),
+            padding: const EdgeInsets.only(bottom: 6, left: 16, right: 16),
             child: Text(
               widget.isletmeAd,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: const TextStyle(fontSize: 12, color: Colors.grey),
             ),
           ),

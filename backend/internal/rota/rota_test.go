@@ -184,6 +184,32 @@ func TestYeniUclarCozuluyor(t *testing.T) {
 		{"POST", "/stories/" + uid + "/view", "/stories/{id}/view"},
 		{"GET", "/stories/" + uid + "/viewers", "/stories/{id}/viewers"},
 		{"DELETE", "/stories/" + uid, "/stories/{id}"},
+		// --- TURU 80: randevu/rezervasyon
+		//
+		// ⚠️⚠️ EN RISKLI AYRIM BURADA: `/isletme/...` (STATIK, tekil) ile
+		//    `/isletmeler/{id}/...` (PARAMETRELI, cogul) YAN YANA yasiyor ve
+		//    ustelik `/isletmeler` (liste) + `/isletme-kategorileri` de var.
+		//    chi'nin geri donus davranisi yanlis calissaydi, isletmenin kendi
+		//    ayar ucu musteri ucuna DUSER ve isletme kendi randevu ayarlarini
+		//    baska bir isletmenin id'siyle okumaya calisirdi.
+		{"GET", "/isletmeler", "/isletmeler"},
+		{"GET", "/isletme-kategorileri", "/isletme-kategorileri"},
+		{"GET", "/users/" + uid + "/isletme", "/users/{id}/isletme"},
+		{
+			"GET", "/isletmeler/" + uid + "/uygun-saatler",
+			"/isletmeler/{id}/uygun-saatler",
+		},
+		{"POST", "/isletmeler/" + uid + "/randevu", "/isletmeler/{id}/randevu"},
+		{"POST", "/randevular/" + uid + "/durum", "/randevular/{id}/durum"},
+		{"GET", "/randevularim", "/randevularim"},
+		{"GET", "/isletme/randevular", "/isletme/randevular"},
+		{"GET", "/isletme/randevu-ayar", "/isletme/randevu-ayar"},
+		{"PUT", "/isletme/randevu-ayar", "/isletme/randevu-ayar"},
+		{"GET", "/isletme/randevu-kapali", "/isletme/randevu-kapali"},
+		{"POST", "/isletme/randevu-kapali", "/isletme/randevu-kapali"},
+		// ⚠️ `/isletme/urunler` de ayni STATIK grupta — birlikte cozulmeli.
+		{"POST", "/isletme/urunler", "/isletme/urunler"},
+		{"PATCH", "/isletme/urunler/" + uid, "/isletme/urunler/{id}"},
 	}
 
 	for _, v := range vakalar {

@@ -58,12 +58,29 @@ class _RandevuListesiEkraniState
     }
   }
 
+  /// ⚠️⚠️ TURU 80b — RED/IPTAL SEBEBI SORULUR (denetim: `not_isletme` OLU IDI).
+  ///
+  ///	Sunucudaki `not_isletme` alaninin YAZAN yolu yoktu; musteri red
+  ///	bildirimini sebepsiz aliyor, cogu zaman ayni talebi tekrar
+  ///	gonderiyordu. Sebep OPSIYONEL (bos gecilebilir) — zorunlu kilmak
+  ///	isletmeyi yavaslatirdi.
+  /// ⚠️ YALNIZ olumsuz gecislerde sorulur; "Onayla"/"Geldi" akisini
+  ///    yavaslatmak anlamsiz olurdu.
+  static const _sebepSorulan = {'reddedildi', 'iptal_isletme'};
+
   Future<void> _durum(Randevu r, String yeni) async {
     if (_mesgul != null) return;
+    var not = '';
+    if (widget.isletmeGorunumu && _sebepSorulan.contains(yeni)) {
+      final s = await _sebepSor(yeni == 'reddedildi' ? 'Reddet' : 'İptal et');
+      // ⚠️ `null` = VAZGECTI (bos dize = "sebep yazmadan devam et").
+      if (s == null || !mounted) return;
+      not = s;
+    }
     setState(() => _mesgul = r.id);
     final svc = ref.read(randevuServisiProvider);
     try {
-      await svc.durum(r.id, yeni);
+      await svc.durum(r.id, yeni, notIsletme: not);
       if (!mounted) return;
       // ⚠️ Yerel nesneyi YAMAMAK yerine listeyi SUNUCUDAN tazeliyoruz:
       //    durum gecisi sunucuda reddedilmis olabilir (yaris).
@@ -209,6 +226,36 @@ class _RandevuListesiEkraniState
                       style: const TextStyle(fontSize: 12, color: Colors.grey),
                     ),
                   ),
+                // ⚠️⚠️ TURU 80b — ISLETME NOTU ARTIK CIZILIYOR (denetim).
+                //    `not_isletme` sutunu, istek alani, SQL'i, yaniti ve Dart
+                //    modeli VARDI ama ne YAZAN ne CIZEN bir yol vardi. Isletme
+                //    "Reddet" derken sebep yaziyor (asagidaki `_durumSor`) ve
+                //    musteri o sebebi BURADA goruyor — aksi halde red sebepsiz
+                //    gorunur ve musteri tekrar tekrar talep gonderir.
+                if (r.notIsletme.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(
+                          LucideIcons.messageSquare,
+                          size: 13,
+                          color: Colors.grey,
+                        ),
+                        const SizedBox(width: 5),
+                        Expanded(
+                          child: Text(
+                            r.notIsletme,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
               ],
             ),
           ),
@@ -236,6 +283,28 @@ class _RandevuListesiEkraniState
                       child: const Text('Reddet'),
                     ),
                   ],
+                  // ⚠️⚠️⚠️ TURU 80b — "Geldi / Gelmedi" DUGMELERI (denetim:
+                  //    OLU OZELLIK). Iki durum da `sabit.go`daki gecis
+                  //    tablosunda TANIMLI, `durumMetni`nde METNI VAR ve
+                  //    `_durumRozeti` 'geldi'yi YESIL ciziyordu — ama bu
+                  //    durumlari YAZAN HICBIR DUGME YOKTU, yani isletme
+                  //    katilimi hicbir zaman isaretleyemiyordu.
+                  // ⚠️ Gecis tablosu ikisini de YALNIZ 'onaylandi'dan kabul
+                  //    eder; arayuz de ayni kapiyi uygular (sunucu OTORITE).
+                  if (widget.isletmeGorunumu && r.durum == 'onaylandi') ...[
+                    FilledButton.tonal(
+                      onPressed: _mesgul == r.id
+                          ? null
+                          : () => _durum(r, 'geldi'),
+                      child: const Text('Geldi'),
+                    ),
+                    OutlinedButton(
+                      onPressed: _mesgul == r.id
+                          ? null
+                          : () => _durum(r, 'gelmedi'),
+                      child: const Text('Gelmedi'),
+                    ),
+                  ],
                   if (widget.isletmeGorunumu && !bekliyor)
                     OutlinedButton(
                       onPressed: _mesgul == r.id
@@ -257,6 +326,39 @@ class _RandevuListesiEkraniState
         ],
       ),
     );
+  }
+
+  /// Sebep diyalogu. `null` = vazgecildi · `''` = sebepsiz devam.
+  Future<String?> _sebepSor(String eylem) async {
+    final c = TextEditingController();
+    final s = await showDialog<String>(
+      context: context,
+      builder: (d) => AlertDialog(
+        title: Text('$eylem — sebep'),
+        content: TextField(
+          controller: c,
+          autofocus: true,
+          maxLength: 200,
+          maxLines: 2,
+          decoration: const InputDecoration(
+            hintText: 'Örn. o saat doldu, başka saat önerebiliriz',
+            helperText: 'İsteğe bağlı — müşteri bu notu görür',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(d),
+            child: const Text('Vazgeç'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(d, c.text.trim()),
+            child: Text(eylem),
+          ),
+        ],
+      ),
+    );
+    c.dispose();
+    return s;
   }
 
   Widget _durumRozeti(Randevu r) {
@@ -410,6 +512,32 @@ class _RandevuAyarEkraniState extends ConsumerState<RandevuAyarEkrani> {
                         ? null
                         : (v) => _kaydet(otomatikOnay: v),
                   ),
+                  // ⚠️⚠️⚠️ TURU 80b — KAPALI GUNLERIN GIRISI (denetim: OLU OZELLIK).
+                  //    `randevu_kapali` tablosu (migration 038), IKI backend ucu
+                  //    (GET/PUT /isletme/randevu-kapali), `Slotlar` icindeki
+                  //    kapali-gun dali ve IKI servis metodu (`kapaliGunler`,
+                  //    `kapaliGunAyarla`) HEPSI vardi — ama CAGIRAN ARAYUZ YOKTU.
+                  //    Yani tablo hicbir zaman dolamiyor, dolayisiyla isletme
+                  //    bayramda/tatilde randevu almayi DURDURAMIYORDU.
+                  //    Bu, CLAUDE.md'de ALTI kez yasandigi yazili "olu ozellik"
+                  //    sinifinin YEDINCI tekrariydi.
+                  // ⚠️ DERS (tekrar): bir sutun/uc/servis ekledigin AN onu
+                  //    KULLANAN yolu da yaz.
+                  const Divider(),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(LucideIcons.calendarOff),
+                    title: const Text('Kapalı günler'),
+                    subtitle: const Text(
+                      'Bayram, tatil ya da izin günlerinde randevu verilmez',
+                    ),
+                    trailing: const Icon(LucideIcons.chevronRight, size: 18),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const KapaliGunlerEkrani(),
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: 10),
                   const Text(
                     'Saatler işletme profilindeki çalışma saatlerinden '
@@ -477,4 +605,157 @@ class _RandevuAyarEkraniState extends ConsumerState<RandevuAyarEkrani> {
             if (v != null) sec(v);
           },
   );
+}
+
+/// ⚠️⚠️⚠️ TURU 80b — KAPALI GUNLER (bayram/tatil/izin). **YENI EKRAN.**
+///
+/// Denetim bulgusu: `randevu_kapali` tablosu + iki uc + `Slotlar` icindeki
+/// kapali-gun dali + iki servis metodu HAZIRDI, ama ONLARI CAGIRAN EKRAN
+/// YOKTU — yani isletme tatilde randevu almayi DURDURAMIYORDU.
+///
+/// ⚠️ `showDatePicker` BURADA KULLANILABILIR: turu 80 `flutter_localizations`
+///    ve `locale: Locale('tr')` ekledi, yani secici TURKCE aciliyor. (Eski
+///    serhlerdeki "showDatePicker EKLEME" hukmu o eksiklige dayaniyordu ve
+///    ARTIK GECERSIZ.)
+/// ⚠️ Secici `firstDate` = BUGUN: gecmis bir gunu kapatmak anlamsiz, ustelik
+///    `Slotlar` gecmis slotlari zaten eliyor.
+/// ⚠️ `lastDate` = bugun + 1 yil: `ileri_gun` en fazla 60 olabilir, yani bir
+///    yil fazlasiyla yeterli ve secicide sonsuz kaydirma olusmaz.
+class KapaliGunlerEkrani extends ConsumerStatefulWidget {
+  const KapaliGunlerEkrani({super.key});
+
+  @override
+  ConsumerState<KapaliGunlerEkrani> createState() => _KapaliGunlerEkraniState();
+}
+
+class _KapaliGunlerEkraniState extends ConsumerState<KapaliGunlerEkrani> {
+  List<String>? _gunler;
+  String? _hata;
+  bool _mesgul = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _yukle();
+  }
+
+  Future<void> _yukle() async {
+    // ⚠️ Servis await'ten ONCE yakalanir (turu 78b: disposed State'te
+    //    `ref.read` StateError firlatir ve is SESSIZCE iptal olur).
+    final svc = ref.read(randevuServisiProvider);
+    try {
+      final l = await svc.kapaliGunler();
+      if (mounted) setState(() => _gunler = l);
+    } catch (e) {
+      if (mounted) setState(() => _hata = apiErrorMessage(e));
+    }
+  }
+
+  /// ⚠️ Yeniden giris kilidi (`_mesgul`): cift dokunus iki PUT atardi.
+  Future<void> _ayarla(String tarih, bool kapali) async {
+    if (_mesgul) return;
+    setState(() => _mesgul = true);
+    final svc = ref.read(randevuServisiProvider);
+    try {
+      await svc.kapaliGunAyarla(tarih, kapali);
+      final l = await svc.kapaliGunler();
+      if (mounted) setState(() => _gunler = l);
+    } catch (e) {
+      rootMessengerKey.currentState?.showSnackBar(
+        SnackBar(content: Text(apiErrorMessage(e))),
+      );
+    } finally {
+      if (mounted) setState(() => _mesgul = false);
+    }
+  }
+
+  Future<void> _ekle() async {
+    final bugun = DateTime.now();
+    final s = await showDatePicker(
+      context: context,
+      initialDate: bugun,
+      firstDate: DateTime(bugun.year, bugun.month, bugun.day),
+      lastDate: bugun.add(const Duration(days: 365)),
+      helpText: 'Kapatılacak günü seç',
+      cancelText: 'Vazgeç',
+      confirmText: 'Kapat',
+    );
+    if (s == null) return;
+    final t =
+        '${s.year.toString().padLeft(4, '0')}-'
+        '${s.month.toString().padLeft(2, '0')}-'
+        '${s.day.toString().padLeft(2, '0')}';
+    await _ayarla(t, true);
+  }
+
+  /// "2026-08-30" -> "30 Ağustos 2026, Pazar"
+  String _bicim(String iso) {
+    final d = DateTime.tryParse(iso);
+    if (d == null) return iso;
+    return '${d.day} ${kAyAdlari[d.month - 1]} ${d.year}, '
+        '${kGunUzun[d.weekday - 1]}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final g = _gunler;
+    return Scaffold(
+      appBar: AppBar(title: const Text('Kapalı günler')),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _mesgul ? null : _ekle,
+        icon: const Icon(LucideIcons.plus),
+        label: const Text('Gün ekle'),
+      ),
+      body: _hata != null
+          ? ListView(
+              children: [
+                const SizedBox(height: 120),
+                Center(child: Text(_hata!)),
+                const SizedBox(height: 12),
+                Center(
+                  child: OutlinedButton(
+                    onPressed: () {
+                      setState(() => _hata = null);
+                      _yukle();
+                    },
+                    child: const Text('Tekrar dene'),
+                  ),
+                ),
+              ],
+            )
+          : g == null
+          ? const Center(child: CircularProgressIndicator())
+          : g.isEmpty
+          ? ListView(
+              children: const [
+                SizedBox(height: 120),
+                Icon(LucideIcons.calendarCheck, size: 48, color: Colors.grey),
+                SizedBox(height: 14),
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 40),
+                  child: Text(
+                    'Kapalı gün yok.\nBayram ya da tatil günlerini buradan '
+                    'kapatabilirsin; o günlerde randevu verilmez.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ),
+              ],
+            )
+          : ListView.separated(
+              padding: const EdgeInsets.only(bottom: 88),
+              itemCount: g.length,
+              separatorBuilder: (_, _) => const Divider(height: 1),
+              itemBuilder: (_, i) => ListTile(
+                leading: const Icon(LucideIcons.calendarOff),
+                title: Text(_bicim(g[i])),
+                trailing: IconButton(
+                  icon: const Icon(LucideIcons.trash2, size: 18),
+                  tooltip: 'Kaldır',
+                  onPressed: _mesgul ? null : () => _ayarla(g[i], false),
+                ),
+              ),
+            ),
+    );
+  }
 }

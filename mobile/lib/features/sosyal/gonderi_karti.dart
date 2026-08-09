@@ -9,6 +9,7 @@ import '../home/home_screen.dart' show aktifSekme;
 import '../medya/medya_gorsel.dart';
 import '../chats/moderasyon_sheet.dart';
 import '../medya/tam_ekran_gorsel.dart';
+import '../medya/tam_ekran_video.dart';
 import 'gorunurluk.dart';
 import 'medya_olcu.dart';
 import 'medya_video.dart';
@@ -731,6 +732,36 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
                 top: 8,
                 right: 8,
                 child: _rozet('${_sayfa + 1}/${g.mediaIds.length}'),
+              ),
+            // ⚠️⚠️ TURU 80b — VIDEODA TAM EKRAN CIKISI (denetim bulgusu).
+            //    Yukseklik tavani kutuyu YATAY yaptigi icin 9:16 bir video
+            //    `cover` ile ~%58 KIRPILIYOR. Fotografta kurtarma yolu VARDI
+            //    (dokun -> TamEkranGorsel); videoda HIC YOKTU.
+            // ⚠️ Dugme SOL ALTTA: sag ust sayac rozetinin, sag alt ise
+            //    `MedyaVideo`nun kendi hoparlor dugmesinin yeri.
+            if (g.kind(i) == 'video')
+              Positioned(
+                left: 8,
+                bottom: 8,
+                child: GestureDetector(
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => TamEkranVideo(mediaId: g.mediaIds[i]),
+                    ),
+                  ),
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: const BoxDecoration(
+                      color: Color(0x99000000),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      LucideIcons.expand,
+                      size: 15,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
               ),
           ],
         ),
