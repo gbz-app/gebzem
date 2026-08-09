@@ -146,12 +146,21 @@ func (h *Handler) Gorsel(w http.ResponseWriter, r *http.Request) {
 //
 // ⚠️ `LimitReader` SART: beklenmedik devasa bir yanit cx33'un RAM'ini yemesin.
 func (h *Handler) gorselUret(ctx context.Context, metin string) ([]byte, error) {
+	// ⚠️⚠️⚠️ `response_format` **GONDERILMEZ** (canli sunucuda kanitlandi).
+	//
+	//	Ilk surumde `"response_format": "b64_json"` gonderiliyordu ve OpenAI
+	//	**400 "Unknown parameter: 'response_format'"** dondu — yani parametre
+	//	images ucunda ARTIK YOK. Gondermek ozelligi TAMAMEN oldururdu.
+	//
+	// ⚠️ Bu yuzden yanit IKI BICIMDE de gelebilir ve IKISI DE desteklenir:
+	//    `b64_json` (dogrudan bayt) ya da `url` (sunucu INDIRIR).
+	//    Tek bicime bel baglamak, API'nin bir sonraki degisiminde ozelligi
+	//    yine sessizce oldururdu.
 	govde, _ := json.Marshal(map[string]any{
-		"model":           modelGorsel,
-		"prompt":          fmt.Sprintf(gorselCerceve, metin),
-		"n":               1,
-		"size":            "1024x1024",
-		"response_format": "b64_json",
+		"model":  modelGorsel,
+		"prompt": fmt.Sprintf(gorselCerceve, metin),
+		"n":      1,
+		"size":   "1024x1024",
 	})
 
 	c, iptal := context.WithTimeout(ctx, gorselZamanAsimi)
@@ -182,20 +191,32 @@ func (h *Handler) gorselUret(ctx context.Context, metin string) ([]byte, error) 
 	if res.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("openai HTTP %d", res.StatusCode)
 	}
-	if len(y.Data) == 0 || y.Data[0].B64 == "" {
-		// ⚠️ URL geldiyse ACIKCA soyle: sessizce bos donmek, sahada "bazen
-		//    calismiyor" olarak gorunur ve teshisi imkansizlasir.
-		if len(y.Data) > 0 && y.Data[0].URL != "" {
-			return nil, fmt.Errorf("openai b64 yerine URL dondu (response_format yok sayildi)")
-		}
+	if len(y.Data) == 0 {
 		return nil, fmt.Errorf("openai bos gorsel dondu")
 	}
-	png, err := base64.StdEncoding.DecodeString(y.Data[0].B64)
-	if err != nil {
-		return nil, fmt.Errorf("base64 cozulemedi: %w", err)
+
+	// ⚠️⚠️ IKI BICIM DE DESTEKLENIR (bkz. istek govdesindeki serh):
+	//    (a) `b64_json` -> bayt ELIMIZDE,
+	//    (b) `url`      -> sunucu INDIRIR (OpenAI'nin adresi ~1 saat gecerli).
+	var png []byte
+	switch {
+	case y.Data[0].B64 != "":
+		var derr error
+		png, derr = base64.StdEncoding.DecodeString(y.Data[0].B64)
+		if derr != nil {
+			return nil, fmt.Errorf("base64 cozulemedi: %w", derr)
+		}
+	case y.Data[0].URL != "":
+		var ierr error
+		png, ierr = h.gorseliIndir(c, y.Data[0].URL)
+		if ierr != nil {
+			return nil, fmt.Errorf("gorsel indirilemedi: %w", ierr)
+		}
+	default:
+		return nil, fmt.Errorf("openai ne b64 ne url dondu")
 	}
 	if len(png) == 0 {
-		return nil, fmt.Errorf("bos png")
+		return nil, fmt.Errorf("bos gorsel govdesi")
 	}
 	// ⚠️ SIHIRLI BAYT KONTROLU: gelen seyin GERCEKTEN PNG oldugunu dogrula.
 	//    `mime: image/png` diye kaydedip baska bir sey yazmak, istemcide KIRIK
@@ -204,4 +225,30 @@ func (h *Handler) gorselUret(ctx context.Context, metin string) ([]byte, error) 
 		return nil, fmt.Errorf("donen govde PNG degil")
 	}
 	return png, nil
+}
+
+// gorseliIndir — OpenAI'nin dondurdugu gecici adresten baytlari ceker.
+//
+// ⚠️ YALNIZ `b64_json` GELMEDIGINDE kullanilir. Adres ~1 saat gecerlidir ve
+//
+//	istemciye VERILMEZ: kaydedilmemis bir adres kullanicinin elinde olurken
+//	suresi dolar ve gorsel "kayboldu" gorunurdu.
+//
+// ⚠️ `LimitReader` SART (cx33'un RAM'i) ve ayni `ctx` kullanilir — uretim
+//
+//	zaman asimi indirmeyi de KAPSAR, boylece toplam sure sinirli kalir.
+func (h *Handler) gorseliIndir(ctx context.Context, adres string) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, adres, nil)
+	if err != nil {
+		return nil, err
+	}
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("HTTP %d", res.StatusCode)
+	}
+	return io.ReadAll(io.LimitReader(res.Body, aiGorselTavani))
 }
