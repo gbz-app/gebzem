@@ -15,6 +15,7 @@ import (
 
 	"github.com/gbz-app/gebzem/backend/internal/auth"
 	"github.com/gbz-app/gebzem/backend/internal/push"
+	"github.com/gbz-app/gebzem/backend/internal/sohbet"
 )
 
 type Handler struct {
@@ -322,9 +323,13 @@ func (h *Handler) SendMessage(w http.ResponseWriter, r *http.Request) {
 		case "location":
 			preview = "Konum"
 		}
-		if len(preview) > 80 {
-			preview = preview[:80]
-		}
+		// ⚠️⚠️ TURU 78 — **RUNE** KIRPMASI, BAYT DEGIL (arastirma bulgusu).
+		//    Eskiden `preview[:80]` BAYT diliyordu. Turkce harfler UTF-8'de
+		//    IKI BAYT ("ğ" = 0xC4 0x9F): sinir bir harfin ORTASINA denk
+		//    geldiginde dize GECERSIZ UTF-8 olur, `json.Marshal` onu `�`
+		//    (bozuk karakter) yapar ve kullanici bildirimde SORU ISARETI gorur.
+		//    ⚠️ YAPMA: `preview[:N]` bayt dilimine geri donme.
+		preview = runeKirp(preview, 80)
 		// ⚠️⚠️ TURU 76 (DENETIM BULGUSU) — SESSIZE ALMA PUSH'TA UYGULANMIYORDU.
 		//    FAZ 6 "sohbeti sessize al"i ekledi (`muted_until`), listede ikon da
 		//    ciziliyor; ama bildirim yolu members'i OLDUGU GIBI kullaniyordu ->
@@ -457,11 +462,11 @@ func (h *Handler) CreateDirect(w http.ResponseWriter, r *http.Request) {
 
 	// mevcut direct sohbeti bul
 	var chatID string
-	err := h.db.QueryRow(r.Context(), `
-		SELECT c.id FROM chats c
-		JOIN chat_members m1 ON m1.chat_id=c.id AND m1.user_id=$1
-		JOIN chat_members m2 ON m2.chat_id=c.id AND m2.user_id=$2
-		WHERE c.type='direct' LIMIT 1`, userID, req.UserID).Scan(&chatID)
+	// ⚠️ TEK KAYNAK: `internal/sohbet.DirektSorgu` (bkz. o dosyanin serhi).
+	//    Sorgu UC yerde kopyalanmisti; ucunde de `ORDER BY` YOKTU ve ilan
+	//    sohbetlerini disarida birakan yuklem YOKTU.
+	err := h.db.QueryRow(r.Context(), sohbet.DirektSorgu,
+		userID, req.UserID).Scan(&chatID)
 	if err != nil {
 		// yoksa olustur
 		tx, err := h.db.Begin(r.Context())
@@ -841,4 +846,19 @@ func (h *Handler) medyayiKopar(ctx context.Context, mediaID string) {
 			h.db.Exec(ctx, `INSERT INTO media_delete_queue (object_key) VALUES ($1)`, a)
 		}
 	}
+}
+
+// runeKirp — dizeyi EN FAZLA n RUNE'a kirpar.
+//
+// ⚠️ Bayt dilimi (`s[:n]`) Turkce metinde GECERSIZ UTF-8 uretir: "ğ" iki bayttir
+//
+//	ve sinir ortasina denk gelirse `json.Marshal` cikti yerine `�` yazar.
+//	Ayni yardimci `ilan` ve `etkinlik` paketlerinde `kisalt` adiyla var; burada
+//	tekrar tanimlanmasinin sebebi paketler arasi bagimlilik yaratmamak.
+func runeKirp(s string, n int) string {
+	r := []rune(s)
+	if len(r) <= n {
+		return s
+	}
+	return string(r[:n])
 }

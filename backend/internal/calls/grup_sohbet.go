@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/gbz-app/gebzem/backend/internal/chat"
+	"github.com/gbz-app/gebzem/backend/internal/sohbet"
 )
 
 // GRUP ARAMASI SOHBET KAYITLARI (test turu 21 — WhatsApp deneyimi).
@@ -67,11 +68,8 @@ func (h *Handler) grupTumKatilimcilar(ctx context.Context, callID string) []stri
 // (logMissedToChat ile ayni desen; orada satir ici yazilmisti).
 func (h *Handler) direktSohbet(ctx context.Context, a, b string) string {
 	var chatID string
-	err := h.db.QueryRow(ctx, `
-		SELECT c.id FROM chats c
-		JOIN chat_members m1 ON m1.chat_id=c.id AND m1.user_id=$1
-		JOIN chat_members m2 ON m2.chat_id=c.id AND m2.user_id=$2
-		WHERE c.type='direct' LIMIT 1`, a, b).Scan(&chatID)
+	// ⚠️ TEK KAYNAK (bkz. internal/sohbet/direkt.go).
+	err := h.db.QueryRow(ctx, sohbet.DirektSorgu, a, b).Scan(&chatID)
 	if err == nil {
 		return chatID
 	}

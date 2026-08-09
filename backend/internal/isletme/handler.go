@@ -65,8 +65,12 @@ type isletmeReq struct {
 	Telefon  string          `json:"telefon"`
 	Web      string          `json:"web"`
 	Calisma  json.RawMessage `json:"calisma"`
-	Enlem    float64         `json:"enlem"`
-	Boylam   float64         `json:"boylam"`
+	// ⚠️⚠️ TURU 78 — **ISARETCI** (pointer): "gonderilmedi" ile "0" AYRI seydir.
+	//    Duz `float64` olsaydi istemcinin alani HIC gondermemesi de 0 olarak
+	//    okunur ve UPSERT mevcut koordinati SIFIRA EZERDI — sahada tam olarak
+	//    bu yasandi ve sistemde hicbir koordinat birikemedi.
+	Enlem  *float64 `json:"enlem"`
+	Boylam *float64 `json:"boylam"`
 }
 
 func kisalt(s string, n int) string {
@@ -83,6 +87,17 @@ func kisalt(s string, n int) string {
 //
 //	Ayri "gecis" ucu olsaydi kullanici bir kez gecip alanlari bos birakabilir
 //	ve profil BOS bir isletme olarak gorunurdu.
+//
+// ⚠️⚠️ TURU 78 — KOORDINAT EZME HATASI DUZELTILDI (arastirma bulgusu).
+//
+//	Eskiden UPSERT `enlem=EXCLUDED.enlem` yaziyordu. Istemci
+//	(`isletme_duzenle.dart` `_kaydet`) yeni bir `Isletme(...)` kurarken
+//	enlem/boylam VERMIYOR; Dart varsayilani 0, `json()` bunu gonderiyor ve
+//	UPSERT **HER KAYITTA KOORDINATI SIFIRA EZIYORDU**. Sonuc: sisteme hicbir
+//	koordinat birikemedi ve harita ozelligi bugun konsa SIFIR PIN cizerdi.
+//	FIX: istek alanlari `*float64` (gonderilmedi != 0) + SQL'de
+//	`COALESCE(EXCLUDED.enlem, isletmeler.enlem)`.
+//	⚠️ YAPMA: alanlari duz `float64`e, SQL'i kosulsuz `EXCLUDED`e dondurme.
 func (h *Handler) Kaydet(w http.ResponseWriter, r *http.Request) {
 	me := auth.UserID(r.Context())
 	var req isletmeReq
@@ -111,11 +126,13 @@ func (h *Handler) Kaydet(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	// ⚠️ Enlem/boylam SINIRLARA CEKILIR: bozuk deger haritayi patlatir.
-	if req.Enlem < -90 || req.Enlem > 90 || req.Enlem != req.Enlem {
-		req.Enlem = 0
+	// ⚠️ Bozuk deger MEVCUDU KORUR (nil), SIFIRLAMAZ. Sifirlamak, gecerli bir
+	//    koordinati tek bozuk istekle yok etmek demekti.
+	if req.Enlem != nil && (*req.Enlem < -90 || *req.Enlem > 90 || *req.Enlem != *req.Enlem) {
+		req.Enlem = nil
 	}
-	if req.Boylam < -180 || req.Boylam > 180 || req.Boylam != req.Boylam {
-		req.Boylam = 0
+	if req.Boylam != nil && (*req.Boylam < -180 || *req.Boylam > 180 || *req.Boylam != *req.Boylam) {
+		req.Boylam = nil
 	}
 
 	tx, err := h.db.Begin(r.Context())
@@ -140,7 +157,10 @@ func (h *Handler) Kaydet(w http.ResponseWriter, r *http.Request) {
 		ON CONFLICT (user_id) DO UPDATE SET
 		  kategori=EXCLUDED.kategori, adres=EXCLUDED.adres, il=EXCLUDED.il,
 		  ilce=EXCLUDED.ilce, telefon=EXCLUDED.telefon, web=EXCLUDED.web,
-		  calisma=EXCLUDED.calisma, enlem=EXCLUDED.enlem, boylam=EXCLUDED.boylam,
+		  calisma=EXCLUDED.calisma,
+		  -- TURU 78 — KOORDINAT KORUNUR (bkz. Kaydet serhi: SIFIRA EZILIYORDU).
+		  enlem  = COALESCE(EXCLUDED.enlem,  isletmeler.enlem),
+		  boylam = COALESCE(EXCLUDED.boylam, isletmeler.boylam),
 		  updated_at=now()`,
 		me, req.Kategori, req.Adres, req.Il, req.Ilce, req.Telefon, req.Web,
 		calisma, req.Enlem, req.Boylam); err != nil {

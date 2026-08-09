@@ -601,11 +601,24 @@ class _EtkinlikOlusturEkraniState extends ConsumerState<EtkinlikOlusturEkrani> {
   }
 
   Future<void> _tarihSec() async {
+    // ⚠️⚠️ TURU 78 — ÇÖKME DÜZELTMESİ (araştırma bulgusu).
+    //    `showDatePicker` `initialDate`in [firstDate, lastDate] ARALIĞINDA
+    //    olmasını ASSERTION ile şart koşar. Sınırlar `DateTime.now()`a sabitti;
+    //    GEÇMİŞ bir etkinlik düzenlenirken `initialDate < firstDate` olur ve
+    //    ekran ASSERTION ile ÇÖKER. Aynı sınıf `lastDate` için de geçerli
+    //    (2 yıldan uzak vadeli etkinlik).
+    //    FIX: sınırlar mevcut değeri DE kapsayacak şekilde genişletilir.
+    //    ⚠️ YAPMA: sınırları tekrar yalnız `now()`a bağlama.
+    final simdi = DateTime.now();
+    var ilk = simdi.subtract(const Duration(days: 1));
+    var son = simdi.add(const Duration(days: 730));
+    if (_baslangic.isBefore(ilk)) ilk = _baslangic;
+    if (_baslangic.isAfter(son)) son = _baslangic;
     final g = await showDatePicker(
       context: context,
       initialDate: _baslangic,
-      firstDate: DateTime.now().subtract(const Duration(days: 1)),
-      lastDate: DateTime.now().add(const Duration(days: 730)),
+      firstDate: ilk,
+      lastDate: son,
     );
     if (g == null || !mounted) return;
     final s = await showTimePicker(

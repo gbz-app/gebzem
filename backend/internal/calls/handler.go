@@ -23,6 +23,7 @@ import (
 	"github.com/gbz-app/gebzem/backend/internal/chat"
 	"github.com/gbz-app/gebzem/backend/internal/livekit"
 	"github.com/gbz-app/gebzem/backend/internal/push"
+	"github.com/gbz-app/gebzem/backend/internal/sohbet"
 )
 
 // Sesli/goruntulu arama — LiveKit (kendi sunucumuzda).
@@ -1634,11 +1635,10 @@ func (h *Handler) bitenAramayiSohbeteYaz(ctx context.Context, callID string) {
 func (h *Handler) logCallToChat(ctx context.Context, callerID, calleeID, icerik string) {
 	// direct sohbeti bul, yoksa olustur (chat.CreateDirect ile ayni desen)
 	var chatID string
-	err := h.db.QueryRow(ctx, `
-		SELECT c.id FROM chats c
-		JOIN chat_members m1 ON m1.chat_id=c.id AND m1.user_id=$1
-		JOIN chat_members m2 ON m2.chat_id=c.id AND m2.user_id=$2
-		WHERE c.type='direct' LIMIT 1`, callerID, calleeID).Scan(&chatID)
+	// ⚠️ TEK KAYNAK (bkz. internal/sohbet/direkt.go). Bu yol arama kaydini
+	//    sohbete yaziyor; `ilan_id IS NULL` yuklemi OLMASAYDI cevapsiz arama
+	//    kaydi rastgele bir ILAN sohbetine dusebilirdi.
+	err := h.db.QueryRow(ctx, sohbet.DirektSorgu, callerID, calleeID).Scan(&chatID)
 	if err != nil {
 		tx, txErr := h.db.Begin(ctx)
 		if txErr != nil {
