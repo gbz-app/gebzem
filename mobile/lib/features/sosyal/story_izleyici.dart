@@ -424,6 +424,10 @@ class _StoryIzleyiciState extends ConsumerState<StoryIzleyici>
         mediaId: s.mediaId,
         otoOynat: true,
         sesli: true,
+        // ⚠️ DONGU ACIK: hikaye penceresi SABIT 15 sn (bkz. sinif serhi) ama
+        //    video daha kisa olabilir. Dongu olmasaydi son karede DONAR ve
+        //    kullanici "bozuldu" sanardi. Donguyle kisa video tekrar oynar.
+        dongu: true,
         dolgu: BoxFit.contain,
       );
     }
