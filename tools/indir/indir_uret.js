@@ -46,6 +46,9 @@ const surumEtiketi =
   `-${p2(now.getUTCHours())}${p2(now.getUTCMinutes())}`;
 
 const YENI_ICERIK = `<div class="yeni"><b>Bu sürümde — alım satım, etkinlik ve işletme menüleri:</b>
+<br><br><b>0 · YAPAY ZEKÂ İLE GÖRSEL:</b> İşletme hesabında ürün eklerken
+<b>"Yapay zekâ ile görsel oluştur"</b> de, ne istediğini yaz — ürün fotoğrafı
+<b>senin için çizilir</b>. Beğenirsen kullanırsın, beğenmezsen atarsın (günde 10 hak).
 <br><br><b>1 · İlanına GÖRSEL ve VİDEO:</b> Artık ilana <b>12 medyaya kadar</b> fotoğraf
 <b>ve video</b> koyabilirsin. Galeri yan yana kayar; videolar oynatılır.
 <br><br><b>2 · İlanı DÜZENLE:</b> Yayınladıktan sonra başlık, açıklama, fiyat, kategori,
@@ -88,8 +91,8 @@ const kontroller = [
     'CANLI SAAT kayboldu (bayat-onbellek suphesini cozen tek sey)'],
   [!/body\s*\{[^}]*align-items:\s*center/.test(cikti),
     'body flex ortalama GERI GELMIS (turu 50 regresyonu: saat kirpilir)'],
-  [cikti.includes('İLANA MESAJ') && cikti.includes('YAPAY ZEKÂ İLE MENÜ'),
-    'turu 78 icerigi yazilmadi'],
+  [cikti.includes('YAPAY ZEKÂ İLE GÖRSEL') && cikti.includes('YAPAY ZEKÂ İLE MENÜ'),
+    'turu 79 icerigi yazilmadi'],
   // ⚠️ YALNIZ GORUNEN metin taranir. HTML/CSS/JS YORUMLARINDAKI ⚠️ isaretleri
   //    kullaniciya cizilmez ve serhin okunurlugu icin BILINCLI olarak durur.
   [!/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(
