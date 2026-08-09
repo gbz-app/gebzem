@@ -985,6 +985,39 @@ const kontrol = (ad, gecti, ek = '') => {
 
     const ai = await j('/ai/durum', { token: A.token });
     kontrol('TURU 78: /ai/durum', ai.kod === 200, 'acik=' + (ai.d && ai.d.acik));
+
+    // ---------- 6) GRUP SOHBETI AVATARI (turu 78b denetimi: SEVK ENGELIYDI)
+    //
+    // ⚠️⚠️ BU KONTROL **ANCAK IKI HESAPLA** ANLAMLIDIR. Medya kapisi
+    //    `if sahip != userID && !erisebilir(...)` seklinde: grubu KURAN kendi
+    //    fotografini HER ZAMAN gorur (kisa devre). `erisebilir()`de dal
+    //    olmadigi icin gruptaki DIGER HERKESE 403 donuyordu ve tek cihazda
+    //    test edilse ASLA gorunmezdi. Ayni sinif turu 75b (akis), 77 (hikaye)
+    //    ve 78 (kapak) icin de sahaya cikti — bu DORDUNCU tekrardi.
+    const gAvatar = await medyaYukle2(A.token, 'grup.jpg', 'avatar');
+    kontrol('TURU 78b: grup avatari yuklendi', gAvatar.hata === 0 && !!gAvatar.id,
+      'HTTP ' + gAvatar.hata);
+    if (gAvatar.id) {
+      const grup = await j('/chats/group', {
+        yontem: 'POST', token: A.token,
+        govde: {
+          title: 'E2E Grup', member_ids: [B.id], avatar_media_id: gAvatar.id,
+        },
+      });
+      kontrol('TURU 78b: grup olusturuldu (avatarli)',
+        grup.kod === 200 || grup.kod === 201, 'HTTP ' + grup.kod);
+
+      // ⚠️ ASIL KONTROL: UYE olan B, grubun fotografini acabiliyor mu?
+      const gm = await j('/media/' + gAvatar.id + '/url', { token: B.token });
+      kontrol('TURU 78b: GRUP AVATARI **UYEYE** ACILIYOR (erisebilir (i) dali)',
+        gm.kod === 200, 'HTTP ' + gm.kod);
+
+      // ⚠️ GIZLILIK: uye OLMAYAN gormemeli — dal "herkese acik"a gevsetilmis mi?
+      const C = await kullaniciAc('E2E Yabanci');
+      const gy = await j('/media/' + gAvatar.id + '/url', { token: C.token });
+      kontrol('TURU 78b: grup avatari UYE OLMAYANA KAPALI (403)',
+        gy.kod === 403, 'HTTP ' + gy.kod);
+    }
   }
 
   // ---------- OZET
