@@ -9,6 +9,7 @@ import '../medya/medya_gorsel.dart';
 import 'bildirim_sayaci.dart';
 import 'gonderi_detay.dart';
 import 'gonderi_karti.dart' show gonderiZamani;
+import '../randevu/randevu_listeleri.dart';
 import 'profil_sayfasi.dart';
 import 'sosyal_servisi.dart';
 import 'takip_listesi.dart';
@@ -113,6 +114,39 @@ class _BildirimlerSayfasiState extends ConsumerState<BildirimlerSayfasi> {
           renk: const Color(0xFF8B5CF6),
           metin: '$ad senden bahsetti',
         );
+      // ⚠️⚠️⚠️ TURU 80b — RANDEVU TURLERI (denetim: SEVK ENGELI).
+      //    Sunucu turu 80'de DORT yeni bildirim turu uretmeye basladi ama
+      //    istemcide karsiliklari YOKTU: hepsi `default` dalina dusup
+      //    "**bir işlem yaptı**" yaziyordu — yani rezervasyon onayi ile red
+      //    AYIRT EDILEMIYORDU. Ustelik her tur icin Sentry'ye "bilinmeyen
+      //    bildirim turu" olayi dusuyordu (gurultu).
+      //    ⚠️ Bu, turu 75b'de `takip_onaylandi` icin YASANAN hatanin AYNISI ve
+      //       uyarisi hemen yukarida yaziliydi.
+      // ⚠️ YAPMA: sunucuya yeni bildirim turu eklerken bu switch'i atlama.
+      case 'randevu_yeni':
+        return (
+          ikon: LucideIcons.calendarPlus,
+          renk: const Color(0xFF3AA9FF),
+          metin: '$ad randevu talebi gönderdi',
+        );
+      case 'randevu_onaylandi':
+        return (
+          ikon: LucideIcons.calendarCheck,
+          renk: const Color(0xFF2BB673),
+          metin: '$ad randevunu onayladı',
+        );
+      case 'randevu_reddedildi':
+        return (
+          ikon: LucideIcons.calendarX,
+          renk: const Color(0xFFFF3B5C),
+          metin: '$ad randevunu reddetti',
+        );
+      case 'randevu_iptal':
+        return (
+          ikon: LucideIcons.calendarX,
+          renk: Colors.orange,
+          metin: '$ad randevuyu iptal etti',
+        );
       default:
         // ⚠️ SESSIZ DUSMEK YASAK (projenin 3. hata sinifi): sunucuya YENI bir
         //    bildirim turu eklendiginde istemci onu genel metne dusurur ve kimse
@@ -140,6 +174,23 @@ class _BildirimlerSayfasiState extends ConsumerState<BildirimlerSayfasi> {
       Navigator.of(
         context,
       ).push(MaterialPageRoute(builder: (_) => const TakipIstekleri()));
+      return;
+    }
+    // ⚠️⚠️ TURU 80b — RANDEVU BILDIRIMI RANDEVU LISTESINE GIDER (denetim).
+    //    Eskiden asagidaki genel dala dusup AKTORUN PROFILINI aciyordu; yani
+    //    "randevun onaylandi" bildirimine dokunan kullanici restoranin
+    //    profiline gidiyor ve randevusunu GOREMIYORDU.
+    // ⚠️ Randevu DETAY ekrani YOK (bilincli — liste satiri tum bilgiyi
+    //    tasiyor), bu yuzden ILGILI LISTEYE goturuyoruz:
+    //      · `randevu_yeni` ISLETMEYE gider  -> gelen kutusu
+    //      · digerleri MUSTERIYE gider       -> "Randevularım"
+    if (hedefTur == 'randevu') {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) =>
+              RandevuListesiEkrani(isletmeGorunumu: tur == 'randevu_yeni'),
+        ),
+      );
       return;
     }
     // ⚠️ Gonderi hedefine gitmek icin gonderiyi TEK BASINA cekebilmeliyiz;

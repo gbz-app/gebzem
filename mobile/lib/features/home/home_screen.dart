@@ -357,7 +357,22 @@ class _CanliSekmesiState extends State<_CanliSekmesi> {
 }
 
 /// Kendi profilim (API'den)
+///
+/// ⚠️⚠️ TURU 80b — OTURUMA BAGLI (denetim: YUKSEK).
+///
+///	Bu saglayici `keepAlive` (autoDispose DEGIL) oldugu icin cikis yapilsa
+///	bile onbellegi SURECTE YASIYORDU. Turu 80'de alt menudeki profil ikonu
+///	GERCEK PROFIL RESMINE cevrilince bunun bedeli gorunur oldu: cikis yapip
+///	BASKA bir hesapla girildiginde alt menude ve Profil sekmesinde ONCEKI
+///	kullanicinin adi + avatari cizilmeye devam ediyordu (ekran elle
+///	yenilenene kadar). Tek cihazda tek hesapla test edilse GORULMEZDI.
+///
+/// ⚠️ `ref.watch(authProvider)` — `myUserIdProvider` ile BIREBIR ayni desen:
+///    oturum jetonu degisince saglayici KENDILIGINDEN yeniden kosar.
+/// ⚠️ YAPMA: bunu `logout()` icine elle `invalidate` koyarak cozme — bir
+///    sonraki oturuma bagli saglayicida yine unutulur (yapisal cozum budur).
 final myProfileProvider = FutureProvider<Map<String, dynamic>>((ref) async {
+  ref.watch(authProvider);
   final res = await ref.read(apiProvider).get('/users/me');
   return (res.data as Map).cast<String, dynamic>();
 });

@@ -83,7 +83,7 @@ func (h *Handler) UygunSaatler(w http.ResponseWriter, r *http.Request) {
 
 	// ⚠️ ILERI GUN SINIRI: cok uzak tarihe randevu, isletmenin planini
 	//    kilitler ve no-show orani artar.
-	if gun.After(time.Now().In(loc).AddDate(0, 0, a.IleriGun)) {
+	if IleriGunDisi(gun, a) {
 		yaz(w, 200, map[string]any{
 			"acik": true, "tur": a.Tur, "slotlar": []any{},
 			"mesaj": "Bu tarih için randevu açık değil",
@@ -141,7 +141,7 @@ func (h *Handler) Olustur(w http.ResponseWriter, r *http.Request) {
 		hata(w, 404, "Bu işletme randevu almıyor")
 		return
 	}
-	if bas.After(time.Now().AddDate(0, 0, a.IleriGun)) {
+	if IleriGunDisi(bas, a) {
 		hata(w, 400, "Bu tarih için randevu açık değil")
 		return
 	}
@@ -152,6 +152,41 @@ func (h *Handler) Olustur(w http.ResponseWriter, r *http.Request) {
 		`SELECT `+engelYok, me, isletmeID).Scan(&engelsiz)
 	if !engelsiz {
 		hata(w, 403, "Bu işletmeden randevu alınamıyor")
+		return
+	}
+
+	// ⚠️⚠️⚠️ TURU 80b — TAKVIM KURALLARI YAZMA YOLUNDA DA DOGRULANIR (denetim).
+	//
+	//	Onceki surumde `Olustur` yalnizca "gecmis mi", "ileri_gun" ve KAPASITE'ye
+	//	bakiyordu; KAPALI GUN · CALISMA SAATI · SLOT HIZASI kurallari YALNIZ
+	//	okuma yolunda (`UygunSaatler` -> `Slotlar`) yasiyordu. Yani istemci
+	//	takvimi hic acmadan dogrudan POST atarak **bayramda saat 03:17'ye**
+	//	randevu yazdirabilirdi; isletme kapali oldugunu bilmeden musteri bekler.
+	//	Arayuzun kurala uymasi kuralin UYGULANDIGI anlamina GELMEZ.
+	//
+	// ⚠️ KURAL IKINCI KEZ YAZILMAZ: uretecin KENDISI cagrilir ve istenen anin
+	//    uretilen slotlar arasinda olup olmadigina bakilir. Boylece calisma
+	//    saati/gece yarisi sarmasi/gecmis-slot eleme mantigi TEK KAYNAKTA kalir
+	//    (turu 75b/H "ayni kuralin iki kopyasi drift eder" dersi).
+	// ⚠️ `Musait` BILEREK yok sayilir — kapasite kararini asagidaki advisory
+	//    kilitli tek deyim verir; burada okunsaydi karar IKI yerde yasardi.
+	yerel := bas.In(Konum())
+	gunBasi := time.Date(yerel.Year(), yerel.Month(), yerel.Day(), 0, 0, 0, 0, Konum())
+	slotlar, err := Slotlar(r.Context(), h.db, isletmeID, gunBasi, a)
+	if err != nil {
+		hata(w, 500, "randevu oluşturulamadı")
+		return
+	}
+	hedef := bas.UTC().Format(time.RFC3339)
+	uygun := false
+	for _, s := range slotlar {
+		if s.Zaman == hedef {
+			uygun = true
+			break
+		}
+	}
+	if !uygun {
+		hata(w, 409, "Bu saat için randevu alınamıyor")
 		return
 	}
 
@@ -283,13 +318,25 @@ func (h *Handler) DurumDegistir(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// ⚠️⚠️ TURU 80b — `not_isletme`YE YALNIZ ISLETME YAZAR (denetim).
+	//
+	//	Alan adi "isletme notu" olmasina ragmen yetki kapisi YALNIZ `durum`
+	//	gecisini kontrol ediyordu; `iptal` gecisini MUSTERI yaptigi icin
+	//	musteri ayni istekte `not_isletme` gonderip isletmenin kendi
+	//	kayitlarina metin yazabiliyordu (musteriye gorunen alan `not_musteri`).
+	// ⚠️ YAPMA: bu kapiyi kaldirip alani tek `COALESCE`a dondurme.
+	notIsletme := ""
+	if g.IsletmeYapar {
+		notIsletme = kisalt(req.NotIsletme, 500)
+	}
+
 	// ⚠️ `AND durum=$3` YARIS KAPISI: iki es zamanli istek ayni gecisi
 	//    yapamaz (ikincisi 0 satir etkiler).
 	tag, err := h.db.Exec(r.Context(), `
 		UPDATE randevular SET durum=$2, not_isletme=COALESCE(NULLIF($4,''), not_isletme),
 		       updated_at=now()
 		 WHERE id=$1 AND durum=$3`,
-		id, req.Durum, mevcut, kisalt(req.NotIsletme, 500))
+		id, req.Durum, mevcut, notIsletme)
 	if err != nil || tag.RowsAffected() == 0 {
 		hata(w, 409, "Bu randevu artık değiştirilemez")
 		return
@@ -361,7 +408,7 @@ func (h *Handler) Randevularim(w http.ResponseWriter, r *http.Request) {
 		sira = "DESC"
 	}
 	rows, err := h.db.Query(r.Context(), `
-		SELECT `+sutunlar+`, u.name, u.username, u.avatar_media_id
+		SELECT `+sutunlar+`, u.name, COALESCE(u.username,''), u.avatar_media_id
 		  FROM randevular r
 		  JOIN users u ON u.id = r.isletme_id
 		 WHERE r.musteri_id=$1 AND `+kosul+`
@@ -387,7 +434,7 @@ func (h *Handler) IsletmeRandevulari(w http.ResponseWriter, r *http.Request) {
 	}
 	durum := r.URL.Query().Get("durum")
 	rows, err := h.db.Query(r.Context(), `
-		SELECT `+sutunlar+`, u.name, u.username, u.avatar_media_id
+		SELECT `+sutunlar+`, u.name, COALESCE(u.username,''), u.avatar_media_id
 		  FROM randevular r
 		  JOIN users u ON u.id = r.musteri_id
 		 WHERE r.isletme_id=$1 AND `+kosul+`
@@ -431,6 +478,28 @@ type ayarReq struct {
 //	isaretci yapilip UPDATE dali duzeltilmis ama INSERT dali atlanmisti ve
 //	`nil -> SQL NULL` NOT NULL sutuna gidip HER ISTEKTE 500 dondurmustu.
 //	Burada INSERT dali da COALESCE ile varsayilanlara duser.
+//
+// ⚠️⚠️⚠️ TURU 80b — UPDATE DALI **HAM PARAMETRELERI** ($2..$6) KULLANIR,
+// `EXCLUDED`I **DEGIL**. SEVK ENGELI DUZELTMESI (denetim bulgusu):
+//
+//	`EXCLUDED.acik` = INSERT'te YAZILACAK deger = `COALESCE($2,false)` ve bu
+//	**ASLA NULL DEGILDIR**. Dolayisiyla eski yazim
+//	`COALESCE(EXCLUDED.acik, randevu_ayar.acik)` HER ZAMAN EXCLUDED'i secer
+//	ve koruma **OLU KODDU**.
+//
+//	SONUC: kullanici yalnizca "Otomatik onayla" anahtarini cevirdiginde
+//	istemci `{otomatik_onay:true}` gonderir; digerleri NULL gelir ama INSERT
+//	dalindaki COALESCE onlari VARSAYILANA cevirir ve UPDATE dali o
+//	varsayilanlari YAZAR: **slot suresi 60 -> 30, kapasite 10 -> 1, ileri gun
+//	30 -> 14 SESSIZCE SIFIRLANIR.**
+//
+//	⚠️ Bu, turu 78'in koordinat ezme hatasinin BIREBIR aynisi ve uyarisi TAM
+//	   BU FONKSIYONUN serhinde yaziliydi — yine de yapildi.
+//	⚠️ DERS: "COALESCE yazdim" YETMEZ. COALESCE'in ILK argumaninin GERCEKTEN
+//	   NULL OLABILDIGINI dogrula; INSERT'te sarilmis bir ifade EXCLUDED'da
+//	   ASLA null gelmez.
+//
+// ⚠️ YAPMA: UPDATE dalinda `EXCLUDED`e geri donme.
 func (h *Handler) AyarKaydet(w http.ResponseWriter, r *http.Request) {
 	me := auth.UserID(r.Context())
 	var req ayarReq
@@ -453,12 +522,14 @@ func (h *Handler) AyarKaydet(w http.ResponseWriter, r *http.Request) {
 		  (isletme_id, acik, slot_dakika, slot_kapasite, ileri_gun, otomatik_onay)
 		VALUES ($1, COALESCE($2,false), COALESCE($3,30), COALESCE($4,1),
 		        COALESCE($5,14), COALESCE($6,false))
+		-- TURU 80b: UPDATE dali HAM PARAMETRELERI kullanir, EXCLUDED'i DEGIL.
+		-- Ayrinti ve gerekce fonksiyon serhinde (SEVK ENGELI duzeltmesi).
 		ON CONFLICT (isletme_id) DO UPDATE SET
-		  acik          = COALESCE(EXCLUDED.acik,          randevu_ayar.acik),
-		  slot_dakika   = COALESCE(EXCLUDED.slot_dakika,   randevu_ayar.slot_dakika),
-		  slot_kapasite = COALESCE(EXCLUDED.slot_kapasite, randevu_ayar.slot_kapasite),
-		  ileri_gun     = COALESCE(EXCLUDED.ileri_gun,     randevu_ayar.ileri_gun),
-		  otomatik_onay = COALESCE(EXCLUDED.otomatik_onay, randevu_ayar.otomatik_onay),
+		  acik          = COALESCE($2, randevu_ayar.acik),
+		  slot_dakika   = COALESCE($3, randevu_ayar.slot_dakika),
+		  slot_kapasite = COALESCE($4, randevu_ayar.slot_kapasite),
+		  ileri_gun     = COALESCE($5, randevu_ayar.ileri_gun),
+		  otomatik_onay = COALESCE($6, randevu_ayar.otomatik_onay),
 		  updated_at    = now()`,
 		me, req.Acik, req.SlotDakika, req.SlotKapasite, req.IleriGun,
 		req.OtomatikOnay)

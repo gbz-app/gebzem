@@ -416,18 +416,27 @@ class _RandevuAyarEkraniState extends ConsumerState<RandevuAyarEkrani> {
                     'üretilir. Kapalı olduğun günlerde randevu verilmez.',
                     style: TextStyle(fontSize: 12, color: Colors.grey),
                   ),
-                  const SizedBox(height: 16),
-                  OutlinedButton.icon(
-                    onPressed: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) =>
-                            const RandevuListesiEkrani(isletmeGorunumu: true),
-                      ),
-                    ),
-                    icon: const Icon(LucideIcons.calendarCheck, size: 18),
-                    label: const Text('Gelen randevular'),
-                  ),
                 ],
+                // ⚠️⚠️ TURU 80b — "Gelen randevular" ARTIK `a.acik` KAPISININ
+                //    DISINDA (denetim bulgusu). Iceride oldugunda isletme
+                //    randevu almayi KAPATIR KAPATMAZ dugme kayboluyor ve
+                //    ZATEN ALINMIS, HENUZ ONAYLANMAMIS randevular
+                //    **ULASILAMAZ** hale geliyordu: musteri bekliyor, isletme
+                //    goremiyor, kimse iptal edemiyor.
+                //    ⚠️ Ozelligi kapatmak GELECEK talepleri durdurur; MEVCUT
+                //       taahhutleri yok saymaz (sunucudaki "engel mevcut
+                //       randevuyu gizlemez" karariyla ayni ilke).
+                const SizedBox(height: 16),
+                OutlinedButton.icon(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          const RandevuListesiEkrani(isletmeGorunumu: true),
+                    ),
+                  ),
+                  icon: const Icon(LucideIcons.calendarCheck, size: 18),
+                  label: const Text('Gelen randevular'),
+                ),
               ],
             ),
     );

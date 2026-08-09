@@ -61,6 +61,11 @@ class _RandevuAlEkraniState extends ConsumerState<RandevuAlEkrani> {
     return DateTime(n.year, n.month, n.day);
   }
 
+  /// Serit kac gun gostersin. ⚠️ ISLETMENIN ayarindan (bkz. `_gunSeridi` serhi);
+  ///    veri gelmeden once 14 varsayilir. ⚠️ Sunucu tavani 60 — savunma amacli
+  ///    burada da sinirlaniyor ki bozuk bir deger devasa liste uretmesin.
+  int get _gunSayisi => (_veri?.ileriGun ?? 14).clamp(1, 60);
+
   @override
   void initState() {
     super.initState();
@@ -194,13 +199,22 @@ class _RandevuAlEkraniState extends ConsumerState<RandevuAlEkrani> {
     );
   }
 
-  /// 14 gunluk yatay serit. ⚠️ Yeni paket YOK — sade `ListView`.
+  /// Gun seridi. ⚠️ Yeni paket YOK — sade `ListView`.
+  ///
+  /// ⚠️⚠️ TURU 80b — GUN SAYISI **ISLETMENIN AYARINDAN** gelir (denetim
+  ///    bulgusu). Eskiden 14'e SABITTI: isletme "30 gün ileriye" secse bile
+  ///    kullanici yalnizca 14 gun gorebiliyor, 30 secen isletmenin ayari
+  ///    FIILEN CALISMIYORDU (olu ayar). Tersi de bozuktu: isletme 3 gun
+  ///    secmisse kullanici 14 gunluk serit gorup 4. gune dokunuyor ve
+  ///    "Bu tarih için randevu açık değil" mesajiyla karsilasiyordu.
+  /// ⚠️ Ayar HENUZ GELMEDIYSE 14 varsayilir (ilk cizim); veri gelince
+  ///    `setState` seridi yeniden cizer.
   Widget _gunSeridi() => SizedBox(
     height: 78,
     child: ListView.builder(
       scrollDirection: Axis.horizontal,
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      itemCount: 14,
+      itemCount: _gunSayisi,
       itemBuilder: (_, i) {
         final g = _bugun().add(Duration(days: i));
         final secili = g == _gun;

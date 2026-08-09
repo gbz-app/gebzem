@@ -38,10 +38,25 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
   ///    liste tutuyor ve tum mevcut kod `_liste` uzerinden calisiyordu.
   List<Gonderi> get _liste => _listeler[_bolme];
   bool _ilkYukleme = true;
-  bool _dahaVar = true;
   bool _yukleniyor = false;
-  bool _kesfet = false;
   String? _hata;
+
+  /// ⚠️⚠️ TURU 80b — `_dahaVar` ve `_kesfet` **BOLME BASINA** (denetim).
+  ///
+  ///	Ikisi de tek bir `bool` idi ve bolmeler arasinda TASINIYORDU:
+  ///	· `_kesfet` (soguk baslangic seridi) "Takip Ettiklerin"de true olunca
+  ///	  Keşfet'e gecince de cizilmeye devam ediyordu — Keşfet'te
+  ///	  *"takip edecek kimse bulamadik"* seridi YANILTICI.
+  ///	· `_dahaVar` bolme degisiminde kosulsuz diriliyor, tukenmis sayfalama
+  ///	  yeniden tetikleniyordu (bos istek + gereksiz spinner).
+  ///
+  /// ⚠️ YAPMA: bunlari tekrar tek `bool`a indirgeme; bolmeye ozgu HER durum
+  ///    listeye tasinmali (liste ve kaydirma konumu zaten oyle).
+  final List<bool> _dahaVarlar = [true, true];
+  final List<bool> _kesfetler = [false, false];
+
+  bool get _dahaVar => _dahaVarlar[_bolme];
+  bool get _kesfet => _kesfetler[_bolme];
 
   /// ⚠️⚠️⚠️ TURU 80 — BOLME ARTIK "Takip Ettiklerin | Keşfet" (kullanici emri:
   /// *"anasayfadaki akış ve kanallar butonunu kaldır, onun yerine hikaye
@@ -128,7 +143,22 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
         gelen = s.gonderiler;
         soguk = s.kesfet;
       }
-      if (!mounted || bolme != _bolme) return;
+      // ⚠️⚠️⚠️ TURU 80b — SEVK ENGELI DUZELTMESI (denetim bulgusu).
+      //    Eskiden burada `if (!mounted || bolme != _bolme) return;` vardi ve
+      //    ERKEN DONUS `_yukleniyor = false` satirini ATLIYORDU. `_yukleniyor`
+      //    BOLMEYE OZGU DEGIL, PAYLASILAN bir bayrak: kullanici yukleme
+      //    surerken bolme degistirdiginde bayrak SONSUZA KADAR true kaliyor ve
+      //    `_yenile` ile `_dahaGetir`in ILK SATIRI (`if (_yukleniyor) return;`)
+      //    her cagriyi reddediyordu -> **AKIS KALICI OLARAK KILITLENIYORDU**
+      //    (asagi-cek calismaz, sayfalama durur; uygulama yeniden baslatilana
+      //    kadar duzelmez).
+      // ⚠️ Bayrak ARTIK HER DURUMDA temizlenir; yalnizca LISTEYE YAZMA islemi
+      //    bolme kapisiyla korunur.
+      if (!mounted) return;
+      if (bolme != _bolme) {
+        setState(() => _yukleniyor = false);
+        return;
+      }
       setState(() {
         _listeler[bolme]
           ..clear()
@@ -137,8 +167,8 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
         // ⚠️ Soguk baslangic seridi YALNIZ "Takip Ettiklerin" bolmesinde
         //    anlamli: Keşfet zaten kesfet icerigidir, orada "takip edecek kimse
         //    bulamadik" seridi cizmek YANILTICI olurdu.
-        _kesfet = bolme == 0 && soguk;
-        _dahaVar = gelen.isNotEmpty;
+        _kesfetler[bolme] = bolme == 0 && soguk;
+        _dahaVarlar[bolme] = gelen.isNotEmpty;
         _ilkYukleme = false;
         _yukleniyor = false;
       });
@@ -163,7 +193,13 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
       final gelen = bolme == 1
           ? await svc.kesfetAkisi(before: imlec)
           : (await svc.akis(before: imlec)).gonderiler;
-      if (!mounted || bolme != _bolme) return;
+      // ⚠️ AYNI SIZINTI (bkz. `_yenile` serhi): erken donus `_yukleniyor`u
+      //    temizlemezse akis KALICI kilitlenir.
+      if (!mounted) return;
+      if (bolme != _bolme) {
+        setState(() => _yukleniyor = false);
+        return;
+      }
       setState(() {
         // ⚠️ TEKRAR SUZGECI: imlec sinirinda ayni saniyede olusmus gonderiler
         //    hem onceki hem yeni sayfada gelebilir. Id'ye gore eliyoruz —
@@ -171,7 +207,7 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
         final hedef = _listeler[bolme];
         final mevcut = hedef.map((g) => g.id).toSet();
         hedef.addAll(gelen.where((g) => !mevcut.contains(g.id)));
-        _dahaVar = gelen.isNotEmpty;
+        _dahaVarlar[bolme] = gelen.isNotEmpty;
         _yukleniyor = false;
       });
     } catch (_) {
@@ -215,13 +251,21 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
     if (_kaydirma.hasClients) _bolmeKaydirma[_bolme] = _kaydirma.offset;
     setState(() {
       _bolme = yeni;
-      // ⚠️ `_dahaVar` bolmeye ozgu: yeni bolme bos ise sayfalama tetiklenmesin.
-      _dahaVar = _listeler[yeni].isNotEmpty || !_bolmeYuklendi[yeni];
       _hata = null;
     });
     // ⚠️ DAHA ONCE YUKLENMEDIYSE getir; yuklendiyse AG ISTEGI ATMA.
     if (!_bolmeYuklendi[yeni]) {
-      unawaited(_yenile());
+      // ⚠️⚠️ TURU 80b — YUTULAN YENILEME (denetim: YUKSEK).
+      //
+      //	`_yenile()`nin ILK SATIRI `if (_yukleniyor) return;`. Onceki
+      //	bolmenin istegi HALA UCARKEN bolme degistirilirse bu cagri
+      //	SESSIZCE dusuyordu; `_bolmeYuklendi[yeni]` false kaldigi icin
+      //	de bir daha DENEYEN HICBIR YOL yoktu (`_kaydirmaDinle` bos
+      //	listede tetiklenmez, asagi-cek ise ancak kullanici bunu
+      //	kendiliginden denerse). Sonuc: Keşfet sekmesi KALICI BOS.
+      // ⚠️ Ucustaki istek bittiginde bayrak temizlenir; o ana kadar
+      //    bekleyip TEKRAR deniyoruz (yeniden giris kilidi `_yenile`de).
+      unawaited(_bolmeYukle(yeni));
       return;
     }
     // ⚠️ Kaydirma geri yuklemesi bir sonraki KAREDE yapilir: liste bu karede
@@ -234,6 +278,22 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
       );
       _kaydirma.jumpTo(hedef);
     });
+  }
+
+  /// Bir bolmeyi yukler; ucusta baska bir istek varsa BITMESINI bekler.
+  ///
+  /// ⚠️ Sinirli deneme (10 x 150ms = 1.5sn): sonsuz dongu YOK. Bu sure icinde
+  ///    bitmezse kullanici asagi cekerek yenileyebilir (`_bolmeYuklendi` false
+  ///    kaldigi icin bir sonraki bolme gecisi de tekrar dener).
+  /// ⚠️ Her turda `mounted` + bolme kimligi dogrulanir: kullanici geri
+  ///    donduyse ISTEK ATILMAZ.
+  Future<void> _bolmeYukle(int hedef) async {
+    for (var i = 0; i < 10 && _yukleniyor; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 150));
+      if (!mounted || _bolme != hedef) return;
+    }
+    if (!mounted || _bolme != hedef || _bolmeYuklendi[hedef]) return;
+    await _yenile();
   }
 
   void _profileGit(String userId) {
@@ -355,6 +415,18 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
         ],
       );
     }
+    // ⚠️⚠️ TURU 80b — HENUZ YUKLENMEMIS BOLME "BOS" DEGILDIR (denetim).
+    //
+    //	`_ilkYukleme` yalnizca UYGULAMA acilisindaki ILK yuklemeyi temsil
+    //	eder. Kullanici Keşfet'e ILK kez gectiginde o bayrak coktan false
+    //	oldugu icin, istek daha ucarken **"Henüz gönderi yok"** cizilyordu —
+    //	yani icerik VARKEN kullaniciya "hicbir sey yok" deniyordu ve cogu
+    //	kullanici o noktada sekmeyi terk ederdi.
+    // ⚠️ YAPMA: bu dali `_ilkYukleme` ile birlestirme (o bayrak bolmeye
+    //    ozgu DEGIL ve olamaz — bkz. `_dahaVarlar`/`_kesfetler` serhi).
+    if (_liste.isEmpty && !_bolmeYuklendi[_bolme]) {
+      return const Center(child: CircularProgressIndicator());
+    }
     if (_liste.isEmpty) {
       return ListView(
       // ⚠️⚠️ TURU 77b — AlwaysScrollableScrollPhysics ZORUNLU (denetim bulgusu).
@@ -372,12 +444,14 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
           const SizedBox(height: 100),
           const Icon(LucideIcons.images, size: 54, color: Colors.grey),
           const SizedBox(height: 14),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 40),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 40),
             child: Text(
-              'Henüz gönderi yok.\nİlk paylaşımı sen yap ya da birilerini takip et.',
+              _bolme == 1
+                  ? 'Keşfedilecek gönderi bulunamadı.\nBiraz sonra tekrar bak.'
+                  : 'Henüz gönderi yok.\nİlk paylaşımı sen yap ya da birilerini takip et.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey),
+              style: const TextStyle(color: Colors.grey),
             ),
           ),
         ],
@@ -428,8 +502,17 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
           gonderi: g,
           benimId: benimId,
           profileGit: _profileGit,
-          onSilindi: () =>
-              setState(() => _liste.removeWhere((x) => x.id == g.id)),
+          // ⚠️⚠️ TURU 80b — SILME **HER IKI BOLMEDEN** (denetim).
+          //    Ayni gonderi hem "Takip Ettiklerin"de hem Keşfet'te bulunabilir
+          //    (takip ettigin biri kesfete de dusebilir). Yalniz aktif
+          //    bolmeden silinseydi kullanici diger sekmeye gecince SILDIGI
+          //    gonderiyi TEKRAR gorurdu — ve oradan tekrar silmeye calisinca
+          //    sunucu 404 doner, yani "silinmedi" izlenimi kalicilasirdi.
+          onSilindi: () => setState(() {
+            for (final l in _listeler) {
+              l.removeWhere((x) => x.id == g.id);
+            }
+          }),
         );
       },
     );

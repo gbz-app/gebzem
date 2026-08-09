@@ -39,6 +39,7 @@ class UygunGun {
     required this.acik,
     required this.tur,
     required this.slotlar,
+    this.ileriGun = 14,
     this.mesaj = '',
   });
 
@@ -47,6 +48,15 @@ class UygunGun {
   /// 'rezervasyon' | 'randevu' — ARAYUZ METINLERI buna gore degisir.
   final String tur;
   final List<Slot> slotlar;
+
+  /// ⚠️⚠️ TURU 80b — ISLETMENIN "kac gun ileriye" AYARI (denetim bulgusu).
+  ///    Sunucu bu alani BASINDAN BERI donduruyordu ama model OKUMUYORDU ve
+  ///    gun seridi 14'e SABITTI: 30 gun secen isletmenin ayari FIILEN
+  ///    calismiyor, 3 gun secenin musterisi ise gormedigi bir duvara
+  ///    carpiyordu ("Bu tarih için randevu açık değil").
+  ///    Bu, projede ALTI kez tekrarlayan "sunucu donduruyor, istemci okumuyor"
+  ///    sinifinin yenisiydi.
+  final int ileriGun;
   final String mesaj;
 
   bool get rezervasyonMu => tur == 'rezervasyon';
@@ -57,6 +67,7 @@ class UygunGun {
     slotlar: ((m['slotlar'] as List?) ?? [])
         .map((e) => Slot.json((e as Map).cast<String, dynamic>()))
         .toList(),
+    ileriGun: (m['ileri_gun'] as num?)?.toInt() ?? 14,
     mesaj: (m['mesaj'] ?? '').toString(),
   );
 }

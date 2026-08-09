@@ -105,6 +105,29 @@ func AyarOku(ctx context.Context, db *pgxpool.Pool, isletmeID string) (Ayar, err
 	return a, nil
 }
 
+// IleriGunDisi — verilen an, isletmenin "kac gun ileriye randevu alinabilir"
+// penceresinin DISINDA mi?
+//
+// ⚠️⚠️ TURU 80b — IKI TARAF DA **GUN BASINA** normalize edilir (denetim).
+//
+//	Onceki surumde okuma yolu GUN BASINI (00:00), yazma yolu ise ISTENEN ANI
+//	`time.Now().AddDate(0,0,IleriGun)` ile karsilastiriyordu; yani olcunun
+//	TABANI farkliydi. Sonuc: ileriGun=14 ve saat 15:00 iken 14. gunun
+//	takvimi ACILIYOR ve 18:00 slotu "musait" ciziliyor, ama o slota POST
+//	atilinca 18:00 > 15:00 oldugu icin **400** donuyordu — kullanicinin
+//	gordugu ile sunucunun kabul ettigi AYRISIYORDU.
+//
+// ⚠️ YAPMA: cagiran yerlerde bu karsilastirmayi elle tekrar yazma.
+func IleriGunDisi(an time.Time, a Ayar) bool {
+	loc := Konum()
+	g := an.In(loc)
+	gun := time.Date(g.Year(), g.Month(), g.Day(), 0, 0, 0, 0, loc)
+	n := time.Now().In(loc)
+	son := time.Date(n.Year(), n.Month(), n.Day(), 0, 0, 0, 0, loc).
+		AddDate(0, 0, a.IleriGun)
+	return gun.After(son)
+}
+
 // Slotlar — bir isletmenin BELIRLI BIR GUNUNDEKI tum slotlari.
 //
 // ⚠️ `gun` YEREL gunun basi olmali (00:00, Konum()).
