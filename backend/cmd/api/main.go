@@ -20,6 +20,7 @@ import (
 	"github.com/gbz-app/gebzem/backend/internal/chat"
 	"github.com/gbz-app/gebzem/backend/internal/config"
 	"github.com/gbz-app/gebzem/backend/internal/database"
+	"github.com/gbz-app/gebzem/backend/internal/isletme"
 	"github.com/gbz-app/gebzem/backend/internal/kanal"
 	"github.com/gbz-app/gebzem/backend/internal/media"
 	"github.com/gbz-app/gebzem/backend/internal/push"
@@ -85,6 +86,7 @@ func main() {
 	usersH := users.NewHandler(db, bildirimS)
 	socialH := social.NewHandler(db, bildirimS) // turu 75: gonderi + akis + etkilesim
 	kanalH := kanal.NewHandler(db)              // turu 75: kanal (tek yonlu yayin)
+	isletmeH := isletme.NewHandler(db)
 	// TURU 74 — MEDYA. R2 env eksikse Enabled()=false doner ve uclar KAYDEDILMEZ
 	// (fail-closed ama GORUNUR: acilista log yazar).
 	mediaH := media.NewHandler(db, rdb, cfg.R2Endpoint, cfg.R2AccessKeyID,
@@ -198,6 +200,12 @@ func main() {
 		r.Get("/posts/{id}/istatistik", socialH.Istatistik) // turu 76: yazara ozel
 		r.Get("/feed", socialH.Akis)
 		r.Get("/kesfet", socialH.Kesfet) // turu 76: arama sekmesi izgarasi
+		// TURU 77 — ISLETME PROFILLERI
+		r.Put("/users/me/isletme", isletmeH.Kaydet)
+		r.Delete("/users/me/isletme", isletmeH.KisiselYap)
+		r.Get("/users/{id}/isletme", isletmeH.Detay)
+		r.Get("/isletmeler", isletmeH.Liste)
+		r.Get("/isletme-kategorileri", isletmeH.KategoriListesi)
 		// TURU 76b — HIKAYE (story). 24 saat GORUNURLUK; veri SILINMEZ.
 		r.Post("/stories", socialH.StoryOlustur)
 		r.Get("/stories", socialH.StoryAkis)

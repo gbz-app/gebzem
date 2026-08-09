@@ -1,0 +1,234 @@
+import 'package:dio/dio.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../core/api.dart';
+
+/// ⚠️⚠️ TURU 77 — ISLETME PROFILLERI (kullanici emri: "normal ve isletme
+/// profilleri olacak").
+class IsletmeServisi {
+  IsletmeServisi(this._ref);
+  final Ref _ref;
+
+  Dio get _api => _ref.read(apiProvider);
+
+  /// Isletmeye GEC / bilgileri guncelle (upsert).
+  Future<void> kaydet(Isletme i) =>
+      _api.put('/users/me/isletme', data: i.json());
+
+  /// Kisisel hesaba don.
+  /// ⚠️ Isletme bilgileri SILINMEZ (veri politikasi) — tekrar gecince hazir gelir.
+  Future<void> kisiselYap() => _api.delete('/users/me/isletme');
+
+  /// Bir kullanicinin isletme bilgileri. Isletme degilse 404.
+  Future<Isletme?> detay(String userId) async {
+    try {
+      final r = await _api.get('/users/$userId/isletme');
+      return Isletme.fromJson((r.data as Map).cast<String, dynamic>());
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Isletme rehberi (hamburger menudeki kategori kartlari BURAYA baglanir).
+  Future<List<IsletmeOzet>> liste({
+    String kategori = '',
+    String q = '',
+    String il = '',
+  }) async {
+    final r = await _api.get(
+      '/isletmeler',
+      queryParameters: {
+        if (kategori.isNotEmpty) 'kategori': kategori,
+        if (q.isNotEmpty) 'q': q,
+        if (il.isNotEmpty) 'il': il,
+      },
+    );
+    final m = (r.data as Map).cast<String, dynamic>();
+    return ((m['isletmeler'] as List?) ?? [])
+        .map((e) => IsletmeOzet.json((e as Map).cast<String, dynamic>()))
+        .toList();
+  }
+}
+
+/// ⚠️⚠️ KATEGORILER — `backend/internal/isletme/handler.go` ILE AYNI OLMALI.
+///    ⚠️ YAPMA: yalniz birini guncelleme. Istemci bilmedigi anahtari "Diğer"
+///       gosterir ve kullanici kendi sectigi kategoriyi goremez.
+const isletmeKategorileri = <String, String>{
+  'yemek': 'Yemek',
+  'kafe': 'Kafe',
+  'market': 'Market',
+  'giyim': 'Giyim',
+  'kuafor': 'Kuaför & Güzellik',
+  'oto': 'Oto & Servis',
+  'saglik': 'Sağlık',
+  'egitim': 'Eğitim',
+  'emlak': 'Emlak',
+  'spor': 'Spor',
+  'teknoloji': 'Teknoloji',
+  'eglence': 'Eğlence',
+  'hizmet': 'Hizmet',
+  'diger': 'Diğer',
+};
+
+String isletmeKategoriAdi(String anahtar) =>
+    isletmeKategorileri[anahtar] ?? 'Diğer';
+
+/// Haftanin bir gunu icin calisma saati.
+class CalismaGunu {
+  CalismaGunu({
+    required this.gun,
+    this.acilis = '09:00',
+    this.kapanis = '18:00',
+    this.kapali = false,
+  });
+
+  /// 1 = Pazartesi ... 7 = Pazar
+  final int gun;
+  String acilis;
+  String kapanis;
+  bool kapali;
+
+  Map<String, dynamic> json() => {
+    'gun': gun,
+    'acilis': acilis,
+    'kapanis': kapanis,
+    'kapali': kapali,
+  };
+
+  static CalismaGunu fromJson(Map<String, dynamic> m) => CalismaGunu(
+    gun: (m['gun'] as num?)?.toInt() ?? 1,
+    acilis: (m['acilis'] ?? '09:00').toString(),
+    kapanis: (m['kapanis'] ?? '18:00').toString(),
+    kapali: m['kapali'] == true,
+  );
+}
+
+const gunAdlari = <int, String>{
+  1: 'Pazartesi',
+  2: 'Salı',
+  3: 'Çarşamba',
+  4: 'Perşembe',
+  5: 'Cuma',
+  6: 'Cumartesi',
+  7: 'Pazar',
+};
+
+class Isletme {
+  Isletme({
+    this.kategori = 'diger',
+    this.adres = '',
+    this.il = '',
+    this.ilce = '',
+    this.telefon = '',
+    this.web = '',
+    this.calisma = const [],
+    this.enlem = 0,
+    this.boylam = 0,
+    this.dogrulandi = false,
+  });
+
+  String kategori;
+  String adres;
+  String il;
+  String ilce;
+  String telefon;
+  String web;
+  List<CalismaGunu> calisma;
+  double enlem;
+  double boylam;
+
+  /// ⚠️ `users.verified` (TELEFON dogrulamasi) ILE KARISTIRILMAZ — bu ISLETME
+  ///    dogrulamasidir ve ayri bir sutunda tutulur (bkz. migration 028).
+  final bool dogrulandi;
+
+  Map<String, dynamic> json() => {
+    'kategori': kategori,
+    'adres': adres,
+    'il': il,
+    'ilce': ilce,
+    'telefon': telefon,
+    'web': web,
+    'calisma': calisma.map((c) => c.json()).toList(),
+    'enlem': enlem,
+    'boylam': boylam,
+  };
+
+  /// ⚠️ Ad : sinifin bir de ORNEK metodu  var (giden yon).
+  ///    Ikisine de  denseydi Dart statik/ornek uye cakismasi verirdi.
+  static Isletme fromJson(Map<String, dynamic> m) => Isletme(
+    kategori: (m['kategori'] ?? 'diger').toString(),
+    adres: (m['adres'] ?? '').toString(),
+    il: (m['il'] ?? '').toString(),
+    ilce: (m['ilce'] ?? '').toString(),
+    telefon: (m['telefon'] ?? '').toString(),
+    web: (m['web'] ?? '').toString(),
+    calisma: ((m['calisma'] as List?) ?? [])
+        .map((e) => CalismaGunu.fromJson((e as Map).cast<String, dynamic>()))
+        .toList(),
+    enlem: (m['enlem'] as num?)?.toDouble() ?? 0,
+    boylam: (m['boylam'] as num?)?.toDouble() ?? 0,
+    dogrulandi: m['dogrulandi'] == true,
+  );
+
+  /// "Şu an açık" mi? ⚠️ Cihaz saatine gore hesaplanir; sunucuya sorulmaz
+  ///    (isletme ile kullanici ayni saat diliminde varsayiliyor — Turkiye pazari).
+  bool get simdiAcik {
+    if (calisma.isEmpty) return false;
+    final n = DateTime.now();
+    final g = calisma.where((c) => c.gun == n.weekday).firstOrNull;
+    if (g == null || g.kapali) return false;
+    int dk(String s) {
+      final p = s.split(':');
+      if (p.length != 2) return -1;
+      return (int.tryParse(p[0]) ?? 0) * 60 + (int.tryParse(p[1]) ?? 0);
+    }
+
+    final simdi = n.hour * 60 + n.minute;
+    final a = dk(g.acilis), k = dk(g.kapanis);
+    if (a < 0 || k < 0) return false;
+    // ⚠️ Gece yarisini asan saatler (22:00 - 02:00) icin sarma mantigi.
+    return k >= a ? (simdi >= a && simdi < k) : (simdi >= a || simdi < k);
+  }
+}
+
+/// Rehber listesindeki tek satir.
+class IsletmeOzet {
+  IsletmeOzet({
+    required this.id,
+    required this.ad,
+    required this.kullaniciAdi,
+    required this.avatarUrl,
+    required this.avatarMediaId,
+    required this.kategori,
+    required this.il,
+    required this.ilce,
+    required this.adres,
+    required this.dogrulandi,
+  });
+
+  final String id;
+  final String ad;
+  final String kullaniciAdi;
+  final String avatarUrl;
+  final String? avatarMediaId;
+  final String kategori;
+  final String il;
+  final String ilce;
+  final String adres;
+  final bool dogrulandi;
+
+  static IsletmeOzet json(Map<String, dynamic> m) => IsletmeOzet(
+    id: (m['id'] ?? '').toString(),
+    ad: (m['name'] ?? '').toString(),
+    kullaniciAdi: (m['username'] ?? '').toString(),
+    avatarUrl: (m['avatar_url'] ?? '').toString(),
+    avatarMediaId: m['avatar_media_id'] as String?,
+    kategori: (m['kategori'] ?? 'diger').toString(),
+    il: (m['il'] ?? '').toString(),
+    ilce: (m['ilce'] ?? '').toString(),
+    adres: (m['adres'] ?? '').toString(),
+    dogrulandi: m['dogrulandi'] == true,
+  );
+}
+
+final isletmeServisiProvider = Provider<IsletmeServisi>(IsletmeServisi.new);

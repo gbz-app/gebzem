@@ -1,9 +1,10 @@
-package main
+package rota
 
 import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -11,7 +12,17 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-// ⚠️⚠️ TURU 75 — ROTA KAYIT TESTI.
+// ⚠️⚠️ TURU 75 — ROTA KAYIT TESTI.  (turu 77:  DAN BURAYA TASINDI)
+//
+// ⚠️ NEDEN TASINDI:  test ikilisi TUM uygulamayi linkledigi icin
+//
+//	Windows "Uygulama Denetimi" ilkesi onu CALISTIRMIYOR ("Uygulama Denetimi
+//	ilkesi bu dosyayi engelledi"). Diger paketlerin kucuk test ikilileri
+//	sorunsuz kosuyor. Bu muhafiz PROJENIN EN DEGERLI testlerinden biri
+//	(chi cakismasi sunucuyu ACILISTA oldurur) — calisamaz durumda birakmak
+//	yerine kucuk bir pakete tasindi.
+//
+// ⚠️ Kaynak yine  DAN okunuyor: DRIFT YOK.
 //
 // NEDEN VAR: chi, CAKISAN yol desenlerinde **calisma aninda PANIK** atar ve bu
 // `go build`/`go vet` ile YAKALANMAZ. Turu 75'te tek seferde 25+ yeni uc eklendi
@@ -29,7 +40,7 @@ var rotaDeseni = regexp.MustCompile(`r\.(Get|Post|Put|Patch|Delete|Head|Options)
 
 func mainGoRotalari(t *testing.T) map[string][]string {
 	t.Helper()
-	ham, err := os.ReadFile("main.go")
+	ham, err := os.ReadFile(filepath.Join("..", "..", "cmd", "api", "main.go"))
 	if err != nil {
 		t.Fatalf("main.go okunamadi: %v", err)
 	}
