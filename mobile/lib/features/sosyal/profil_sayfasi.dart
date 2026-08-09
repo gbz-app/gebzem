@@ -11,6 +11,9 @@ import '../chats/chats_provider.dart';
 import '../chats/moderasyon_sheet.dart';
 import '../home/home_screen.dart' show myProfileProvider;
 import '../home/profil_duzenle.dart';
+import '../isletme/isletme_duzenle.dart';
+import '../isletme/isletme_servisi.dart';
+import '../isletme/urun_ekranlari.dart';
 import '../medya/medya_gorsel.dart';
 import 'gonderi_karti.dart' show sayiBicimle;
 import 'gonderi_detay.dart';
@@ -283,6 +286,10 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
                   ),
                 ),
               ),
+            // TURU 77 — ISLETME BILGI SERIDI. Profil bir ISLETME hesabiysa
+            // kategori/adres/telefon/calisma saatleri ve Urunler/Menu girisi
+            // burada cizilir. Kisisel hesapta HIC cizilmez.
+            _isletmeSeridi(p),
             const SizedBox(height: 16),
             _sayaclar(p),
             const SizedBox(height: 14),
@@ -326,6 +333,10 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
       ),
     );
   }
+
+  /// Isletme profiliyse bilgi seridi; degilse HIC yer kaplamaz.
+  Widget _isletmeSeridi(Profil p) =>
+      IsletmeSeridi(userId: p.id, ad: p.ad, benimMi: _benimMi);
 
   Widget _sayaclar(Profil p) => Row(
     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -585,5 +596,161 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
         ),
       );
     },
+  );
+}
+
+/// ⚠️⚠️ TURU 77 — PROFILDEKI ISLETME SERIDI.
+///
+/// Kullanici emri: "normal ve isletme profilleri olacak".
+///
+/// ⚠️ AYRI BIR WIDGET (profil_sayfasi'nin state'ine gomulmedi): isletme
+///    bilgisi AYRI bir uctan (`/users/{id}/isletme`) geliyor ve profilin
+///    yuklenmesini BEKLETMEMELI. Bilgi gelene kadar serit CIZILMEZ, profil
+///    normal gorunur.
+/// ⚠️ Isletme DEGILSE hicbir sey cizilmez (404 -> null).
+class IsletmeSeridi extends ConsumerStatefulWidget {
+  const IsletmeSeridi({
+    super.key,
+    required this.userId,
+    required this.ad,
+    required this.benimMi,
+  });
+
+  final String userId;
+  final String ad;
+  final bool benimMi;
+
+  @override
+  ConsumerState<IsletmeSeridi> createState() => _IsletmeSeridiState();
+}
+
+class _IsletmeSeridiState extends ConsumerState<IsletmeSeridi> {
+  Isletme? _i;
+
+  @override
+  void initState() {
+    super.initState();
+    _yukle();
+  }
+
+  Future<void> _yukle() async {
+    final i = await ref.read(isletmeServisiProvider).detay(widget.userId);
+    if (mounted) setState(() => _i = i);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final i = _i;
+    // ⚠️ Isletme degilse (ya da henuz yuklenmediyse) HIC yer kaplamaz.
+    if (i == null) return const SizedBox.shrink();
+    final bugun = i.calisma
+        .where((c) => c.gun == DateTime.now().weekday)
+        .firstOrNull;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: Card(
+        margin: EdgeInsets.zero,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Chip(
+                    label: Text(
+                      isletmeKategoriAdi(i.kategori),
+                      style: const TextStyle(fontSize: 11),
+                    ),
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                  ),
+                  const SizedBox(width: 8),
+                  // ⚠️ ISLETME dogrulamasi (telefon dogrulamasi DEGIL).
+                  if (i.dogrulandi)
+                    const Icon(
+                      LucideIcons.badgeCheck,
+                      size: 16,
+                      color: Color(0xFF3AA9FF),
+                    ),
+                  const Spacer(),
+                  // ⚠️ "Şu an açık" YALNIZ calisma saati GIRILMISSE cizilir;
+                  //    bos veriyle "kapalı" demek YANILTICI olurdu.
+                  if (i.calisma.isNotEmpty)
+                    Text(
+                      i.simdiAcik ? 'Şu an açık' : 'Şu an kapalı',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: i.simdiAcik
+                            ? const Color(0xFF2BB673)
+                            : Colors.grey,
+                      ),
+                    ),
+                ],
+              ),
+              if (i.adres.isNotEmpty || i.ilce.isNotEmpty)
+                _satir(
+                  LucideIcons.mapPin,
+                  [i.adres, i.ilce, i.il].where((s) => s.isNotEmpty).join(', '),
+                ),
+              if (bugun != null && !bugun.kapali)
+                _satir(
+                  LucideIcons.clock,
+                  'Bugün ${bugun.acilis} - ${bugun.kapanis}',
+                ),
+              if (i.telefon.isNotEmpty) _satir(LucideIcons.phone, i.telefon),
+              if (i.web.isNotEmpty) _satir(LucideIcons.globe, i.web),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => UrunKatalogEkrani(
+                            isletmeId: widget.userId,
+                            isletmeAd: widget.ad,
+                            benimMi: widget.benimMi,
+                          ),
+                        ),
+                      ),
+                      icon: const Icon(LucideIcons.bookOpen, size: 17),
+                      label: const Text('Ürünler / Menü'),
+                    ),
+                  ),
+                  if (widget.benimMi) ...[
+                    const SizedBox(width: 8),
+                    OutlinedButton(
+                      onPressed: () async {
+                        await Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const IsletmeDuzenleEkrani(),
+                          ),
+                        );
+                        if (mounted) _yukle();
+                      },
+                      child: const Icon(LucideIcons.pencil, size: 17),
+                    ),
+                  ],
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _satir(IconData ikon, String metin) => Padding(
+    padding: const EdgeInsets.only(top: 6),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(ikon, size: 15, color: Colors.grey),
+        const SizedBox(width: 7),
+        Expanded(child: Text(metin, style: const TextStyle(fontSize: 13))),
+      ],
+    ),
   );
 }

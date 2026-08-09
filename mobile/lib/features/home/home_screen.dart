@@ -12,6 +12,8 @@ import '../auth/permissions_screen.dart';
 import '../calls/calls_tab.dart';
 import '../chats/chats_provider.dart';
 import '../chats/chats_screen.dart';
+import '../ilan/ilan_ekranlari.dart';
+import '../isletme/isletme_duzenle.dart';
 import '../live/live_tab.dart';
 import '../rooms/rooms_tab.dart';
 import '../sosyal/akis_ekrani.dart';
@@ -48,7 +50,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   //       `mesgulMu` muhafizlari (`oda_` / `yayin_`) onlara bagli.
   // ⚠️ YAPMA: 7. sekme ekleme — 360dp ekranda hedef basina ~60dp duser,
   //    etiketler kirpilir.
-  static const _titles = ['Anasayfa', 'Ara', 'Reels', 'Mesaj', 'Canlı', 'Profil'];
+  static const _titles = [
+    'Anasayfa',
+    'Ara',
+    'Reels',
+    'Mesaj',
+    'Canlı',
+    'Profil',
+  ];
 
   // ⚠️ Sekme indeksleri SABIT olarak yazilir — build icinde ciplak sayi
   //    kullanmak, sira degisince sessizce yanlis ekran acar.
@@ -71,7 +80,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final cam = await Permission.camera.status;
     final notif = await Permission.notification.status;
     final tamam = mic.isGranted && cam.isGranted && notif.isGranted;
-    final kaliciRed = mic.isPermanentlyDenied ||
+    final kaliciRed =
+        mic.isPermanentlyDenied ||
         cam.isPermanentlyDenied ||
         notif.isPermanentlyDenied;
     if (mounted) {
@@ -165,11 +175,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             NavigationDestination(
               icon: _RozetliIkon(
                 ikon: LucideIcons.messageCircle,
-                sayi: ref
-                    .watch(chatsProvider)
-                    .valueOrNull
-                    ?.where((c) => !c.archived)
-                    .fold<int>(0, (a, c) => a + c.unread) ??
+                sayi:
+                    ref
+                        .watch(chatsProvider)
+                        .valueOrNull
+                        ?.where((c) => !c.archived)
+                        .fold<int>(0, (a, c) => a + c.unread) ??
                     0,
               ),
               label: 'Mesaj',
@@ -343,15 +354,24 @@ class _ProfileTab extends ConsumerWidget {
           error: (_, _) => const SizedBox.shrink(),
           data: (p) => Column(
             children: [
-              Text(p['name'] as String? ?? '',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.titleLarge),
-              Text('@${p['username'] ?? ''}',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: scheme.primary, fontWeight: FontWeight.w600)),
+              Text(
+                p['name'] as String? ?? '',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              Text(
+                '@${p['username'] ?? ''}',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: scheme.primary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
               const SizedBox(height: 4),
-              Text(p['phone'] as String? ?? '',
-                  style: TextStyle(color: scheme.outline, fontSize: 13)),
+              Text(
+                p['phone'] as String? ?? '',
+                style: TextStyle(color: scheme.outline, fontSize: 13),
+              ),
             ],
           ),
         ),
@@ -362,7 +382,8 @@ class _ProfileTab extends ConsumerWidget {
           subtitle: const Text('Ad, fotoğraf, hakkımda'),
           trailing: const Icon(LucideIcons.chevronRight, size: 18),
           onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const ProfilDuzenleEkrani())),
+            MaterialPageRoute(builder: (_) => const ProfilDuzenleEkrani()),
+          ),
         ),
         // ⚠️ TURU 74 — ENGELLENENLER. App Store 1.2 (UGC) engellemeyi şart koşuyor;
         //    engellemek kadar engeli GÖREBİLMEK ve KALDIRABİLMEK de gerekli
@@ -378,37 +399,73 @@ class _ProfileTab extends ConsumerWidget {
             final id = (profile.valueOrNull?['id'] ?? '').toString();
             if (id.isEmpty) return;
             Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => ProfilSayfasi(userId: id)));
+              MaterialPageRoute(builder: (_) => ProfilSayfasi(userId: id)),
+            );
           },
+        ),
+        // ⚠️⚠️ TURU 77 — ISLETME HESABI GIRISI (kullanici emri: "normal ve
+        //    isletme profilleri olacak"). Bu projede "kod var ama hicbir
+        //    dugmeye bagli degil" hatasi BES kez yasandi; giris noktasi
+        //    ozelligin YAZILDIGI turda eklendi.
+        ListTile(
+          leading: const Icon(LucideIcons.store),
+          title: Text(
+            (profile.valueOrNull?['hesap_turu'] ?? '') == 'isletme'
+                ? 'İşletme bilgilerim'
+                : 'İşletme hesabı',
+          ),
+          subtitle: const Text('Kategori, adres, çalışma saatleri, menü'),
+          trailing: const Icon(LucideIcons.chevronRight, size: 18),
+          onTap: () async {
+            await Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const IsletmeDuzenleEkrani()),
+            );
+            ref.invalidate(myProfileProvider);
+          },
+        ),
+        // ⚠️ ILANLARIM: ilan verme akisinin ikinci giris noktasi (birincisi
+        //    hamburger menudeki "Ilanlar" karti).
+        ListTile(
+          leading: const Icon(LucideIcons.tag),
+          title: const Text('İlanlarım'),
+          trailing: const Icon(LucideIcons.chevronRight, size: 18),
+          onTap: () => Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (_) => const IlanListesiEkrani())),
         ),
         ListTile(
           leading: const Icon(LucideIcons.bell),
           title: const Text('Bildirimler'),
           trailing: const Icon(LucideIcons.chevronRight, size: 18),
-          onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const BildirimlerSayfasi())),
+          onTap: () => Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (_) => const BildirimlerSayfasi())),
         ),
         ListTile(
           leading: const Icon(LucideIcons.userRoundCheck),
           title: const Text('Takip istekleri'),
           subtitle: const Text('Gizli hesapsan onay bekleyenler'),
           trailing: const Icon(LucideIcons.chevronRight, size: 18),
-          onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const TakipIstekleri())),
+          onTap: () => Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (_) => const TakipIstekleri())),
         ),
         ListTile(
           leading: const Icon(LucideIcons.ban),
           title: const Text('Engellenen kişiler'),
           trailing: const Icon(LucideIcons.chevronRight, size: 18),
           onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const EngellenenlerEkrani())),
+            MaterialPageRoute(builder: (_) => const EngellenenlerEkrani()),
+          ),
         ),
         ListTile(
           leading: const Icon(LucideIcons.coins),
           title: const Text('Jeton bakiyem'),
-          subtitle: Text(profile.valueOrNull != null
-              ? '${profile.valueOrNull!['coin_balance'] ?? 0} jeton'
-              : '...'),
+          subtitle: Text(
+            profile.valueOrNull != null
+                ? '${profile.valueOrNull!['coin_balance'] ?? 0} jeton'
+                : '...',
+          ),
         ),
         const Divider(),
         ListTile(

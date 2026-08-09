@@ -28,7 +28,8 @@ class ProfilDuzenleEkrani extends ConsumerStatefulWidget {
   const ProfilDuzenleEkrani({super.key});
 
   @override
-  ConsumerState<ProfilDuzenleEkrani> createState() => _ProfilDuzenleEkraniState();
+  ConsumerState<ProfilDuzenleEkrani> createState() =>
+      _ProfilDuzenleEkraniState();
 }
 
 class _ProfilDuzenleEkraniState extends ConsumerState<ProfilDuzenleEkrani> {
@@ -65,16 +66,20 @@ class _ProfilDuzenleEkraniState extends ConsumerState<ProfilDuzenleEkrani> {
       //     konum bilgisi taşır. Sunucu GPS bulursa 422 döner.
       final hazir = await MedyaServisi.gorseliHazirla(File(x.path));
       if (hazir == null) throw Exception('Fotoğraf hazırlanamadı');
-      final id = await ref.read(medyaServisiProvider).yukle(
+      final id = await ref
+          .read(medyaServisiProvider)
+          .yukle(
             dosya: hazir,
-            kind: 'avatar', // ⚠️ 'image' DEĞİL: sunucu avatar tavanını (4 MB) uygular
+            kind:
+                'avatar', // ⚠️ 'image' DEĞİL: sunucu avatar tavanını (4 MB) uygular
             mime: 'image/jpeg',
           );
       if (mounted) setState(() => _avatarMediaId = id);
     } catch (e) {
       if (mounted) {
-        rootMessengerKey.currentState
-            ?.showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
+        rootMessengerKey.currentState?.showSnackBar(
+          SnackBar(content: Text(apiErrorMessage(e))),
+        );
       }
     } finally {
       if (mounted) setState(() => _yukleniyor = false);
@@ -87,30 +92,35 @@ class _ProfilDuzenleEkraniState extends ConsumerState<ProfilDuzenleEkrani> {
       context: context,
       showDragHandle: true,
       builder: (c) => SafeArea(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          ListTile(
-            leading: const Icon(LucideIcons.image),
-            title: const Text('Galeriden seç'),
-            onTap: () {
-              Navigator.of(c).pop();
-              _fotoSec(ImageSource.gallery);
-            },
-          ),
-          // ⚠️ Görüşme sürerken kamera satırı PASİF (turu 66b: görünen ama
-          //     çalışmayan düğme kullanıcıyı yanıltır — sebebi yazılır).
-          ListTile(
-            enabled: donanim,
-            leading: const Icon(LucideIcons.camera),
-            title: const Text('Fotoğraf çek'),
-            subtitle: donanim ? null : const Text('Görüşme sürerken kullanılamaz'),
-            onTap: donanim
-                ? () {
-                    Navigator.of(c).pop();
-                    _fotoSec(ImageSource.camera);
-                  }
-                : null,
-          ),
-        ]),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(LucideIcons.image),
+              title: const Text('Galeriden seç'),
+              onTap: () {
+                Navigator.of(c).pop();
+                _fotoSec(ImageSource.gallery);
+              },
+            ),
+            // ⚠️ Görüşme sürerken kamera satırı PASİF (turu 66b: görünen ama
+            //     çalışmayan düğme kullanıcıyı yanıltır — sebebi yazılır).
+            ListTile(
+              enabled: donanim,
+              leading: const Icon(LucideIcons.camera),
+              title: const Text('Fotoğraf çek'),
+              subtitle: donanim
+                  ? null
+                  : const Text('Görüşme sürerken kullanılamaz'),
+              onTap: donanim
+                  ? () {
+                      Navigator.of(c).pop();
+                      _fotoSec(ImageSource.camera);
+                    }
+                  : null,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -118,23 +128,30 @@ class _ProfilDuzenleEkraniState extends ConsumerState<ProfilDuzenleEkrani> {
   Future<void> _kaydet() async {
     setState(() => _kaydediliyor = true);
     try {
-      await ref.read(apiProvider).patch('/users/me', data: {
-        'name': _ad.text.trim(),
-        'about': _hakkimda.text.trim(),
-        // ⚠️ URL DEĞİL id. Sunucu sahipliği ve doğrulanmışlığı kontrol eder.
-        if (_avatarMediaId != null) 'avatar_media_id': _avatarMediaId,
-      });
+      await ref
+          .read(apiProvider)
+          .patch(
+            '/users/me',
+            data: {
+              'name': _ad.text.trim(),
+              'about': _hakkimda.text.trim(),
+              // ⚠️ URL DEĞİL id. Sunucu sahipliği ve doğrulanmışlığı kontrol eder.
+              if (_avatarMediaId != null) 'avatar_media_id': _avatarMediaId,
+            },
+          );
       // ⚠️ Profil sağlayıcısını tazele — sohbet listesindeki avatar da güncellensin.
       ref.invalidate(myProfileProvider);
       if (mounted) {
         rootMessengerKey.currentState?.showSnackBar(
-            const SnackBar(content: Text('Profil güncellendi')));
+          const SnackBar(content: Text('Profil güncellendi')),
+        );
         Navigator.of(context).pop();
       }
     } catch (e) {
       if (mounted) {
-        rootMessengerKey.currentState
-            ?.showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
+        rootMessengerKey.currentState?.showSnackBar(
+          SnackBar(content: Text(apiErrorMessage(e))),
+        );
       }
     } finally {
       if (mounted) setState(() => _kaydediliyor = false);
@@ -161,36 +178,44 @@ class _ProfilDuzenleEkraniState extends ConsumerState<ProfilDuzenleEkrani> {
         padding: const EdgeInsets.all(20),
         children: [
           Center(
-            child: Stack(children: [
-              SizedBox(
-                width: 112,
-                height: 112,
-                child: _yukleniyor
-                    ? const Center(child: CircularProgressIndicator())
-                    : Avatar(
-                        ad: _ad.text,
-                        mediaId: _avatarMediaId,
-                        avatarUrl: profil.valueOrNull?['avatar_url'] as String? ?? '',
-                        cap: 112,
+            child: Stack(
+              children: [
+                SizedBox(
+                  width: 112,
+                  height: 112,
+                  child: _yukleniyor
+                      ? const Center(child: CircularProgressIndicator())
+                      : Avatar(
+                          ad: _ad.text,
+                          mediaId: _avatarMediaId,
+                          avatarUrl:
+                              profil.valueOrNull?['avatar_url'] as String? ??
+                              '',
+                          cap: 112,
+                        ),
+                ),
+                Positioned(
+                  right: 0,
+                  bottom: 0,
+                  child: Material(
+                    color: Theme.of(context).colorScheme.primary,
+                    shape: const CircleBorder(),
+                    child: InkWell(
+                      customBorder: const CircleBorder(),
+                      onTap: _yukleniyor ? null : _fotoPaneli,
+                      child: const Padding(
+                        padding: EdgeInsets.all(8),
+                        child: Icon(
+                          LucideIcons.camera,
+                          size: 18,
+                          color: Colors.white,
+                        ),
                       ),
-              ),
-              Positioned(
-                right: 0,
-                bottom: 0,
-                child: Material(
-                  color: Theme.of(context).colorScheme.primary,
-                  shape: const CircleBorder(),
-                  child: InkWell(
-                    customBorder: const CircleBorder(),
-                    onTap: _yukleniyor ? null : _fotoPaneli,
-                    child: const Padding(
-                      padding: EdgeInsets.all(8),
-                      child: Icon(LucideIcons.camera, size: 18, color: Colors.white),
                     ),
                   ),
                 ),
-              ),
-            ]),
+              ],
+            ),
           ),
           const SizedBox(height: 28),
           TextField(
@@ -219,8 +244,10 @@ class _ProfilDuzenleEkraniState extends ConsumerState<ProfilDuzenleEkrani> {
             onPressed: _kaydediliyor || _yukleniyor ? null : _kaydet,
             icon: _kaydediliyor
                 ? const SizedBox(
-                    width: 16, height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2))
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
                 : const Icon(LucideIcons.check),
             label: const Text('Kaydet'),
           ),

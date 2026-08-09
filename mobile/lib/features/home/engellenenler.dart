@@ -15,7 +15,8 @@ class EngellenenlerEkrani extends ConsumerStatefulWidget {
   const EngellenenlerEkrani({super.key});
 
   @override
-  ConsumerState<EngellenenlerEkrani> createState() => _EngellenenlerEkraniState();
+  ConsumerState<EngellenenlerEkrani> createState() =>
+      _EngellenenlerEkraniState();
 }
 
 class _EngellenenlerEkraniState extends ConsumerState<EngellenenlerEkrani> {
@@ -46,12 +47,14 @@ class _EngellenenlerEkraniState extends ConsumerState<EngellenenlerEkrani> {
       if (mounted) {
         setState(() => _liste?.removeWhere((x) => x['id'] == k['id']));
         rootMessengerKey.currentState?.showSnackBar(
-            SnackBar(content: Text('${k['name']} için engel kaldırıldı')));
+          SnackBar(content: Text('${k['name']} için engel kaldırıldı')),
+        );
       }
     } catch (e) {
       if (mounted) {
-        rootMessengerKey.currentState
-            ?.showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
+        rootMessengerKey.currentState?.showSnackBar(
+          SnackBar(content: Text(apiErrorMessage(e))),
+        );
       }
     }
   }

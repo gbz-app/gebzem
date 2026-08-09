@@ -41,9 +41,13 @@ type userResp struct {
 	AvatarURL string `json:"avatar_url"`
 	// TURU 74: yeni avatarlar R2'de; istemci /media/{id}/url ile imzali adresi alir
 	// ve ONBELLEGI media_id'ye gore tutar (URL 600sn omurlu, anahtar OLAMAZ).
-	AvatarMediaID *string    `json:"avatar_media_id,omitempty"`
-	CoinBalance   int64      `json:"coin_balance,omitempty"`
-	LastSeen      *time.Time `json:"last_seen,omitempty"`
+	AvatarMediaID *string `json:"avatar_media_id,omitempty"`
+	CoinBalance   int64   `json:"coin_balance,omitempty"`
+	// TURU 77: kisisel | isletme. Istemci profil menusunde ve arama
+	// sonuclarinda ISLETME rozetini buna gore cizer.
+	// ⚠️ SCAN SIRASI SORGUYLA BIREBIR — uyusmazlik satiri sessizce bozar.
+	HesapTuru string     `json:"hesap_turu"`
+	LastSeen  *time.Time `json:"last_seen,omitempty"`
 }
 
 // GET /users/me — kendi profilim (jeton bakiyesi dahil)
@@ -51,9 +55,9 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserID(r.Context())
 	var u userResp
 	err := h.db.QueryRow(r.Context(), `
-		SELECT id, phone, COALESCE(username,''), name, about, avatar_url, avatar_media_id, coin_balance, last_seen
+		SELECT id, phone, COALESCE(username,''), name, about, avatar_url, avatar_media_id, coin_balance, hesap_turu, last_seen
 		FROM users WHERE id=$1`, userID).
-		Scan(&u.ID, &u.Phone, &u.Username, &u.Name, &u.About, &u.AvatarURL, &u.AvatarMediaID, &u.CoinBalance, &u.LastSeen)
+		Scan(&u.ID, &u.Phone, &u.Username, &u.Name, &u.About, &u.AvatarURL, &u.AvatarMediaID, &u.CoinBalance, &u.HesapTuru, &u.LastSeen)
 	if err != nil {
 		writeErr(w, http.StatusNotFound, "kullanıcı bulunamadı")
 		return
