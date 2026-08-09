@@ -5762,3 +5762,67 @@ eşleştiremez. **Üretici artık bu adresi basıyor; kullanıcıya BU verilecek
   · görsel gpt-image-1.5)` + health ok
 - DB TRUNCATE edildi, **CANLI SUNUCUDA 178/178 UÇTAN UCA GEÇTİ**
 - Build tetiklendi: android **31334733441** · ios **31334734942**
+
+### ✅ TURU 80 YAYINLANDI (10 Ağustos 00:35)
+
+- android **31336651933** + ios **31336653481** (**edc0da8**)
+- R2: apk=117730375 (md5 `f97e5cb7`) · ipa=24040413 (md5 `63b38976`) · index=9624 (md5 `50bc97cb`)
+- purge OK · **CDN BİREBİR** (apk + ipa + index.html üçü de MD5 eşit)
+- indir sayfası 10 Ağu 00:35 (saat 5 yerde + canlı saat) · debug imza YOK
+- **iOS min 16.0 doğrulandı** · IPA içinde turu 80 kodu var ("Rezervasyon" geçti)
+- backend deploy edildi (edc0da8) + health ok · **DB TEMİZ (0/0/0/0/0)**
+- **CANLI SUNUCUDA 181/181 UÇTAN UCA GEÇTİ** · 188 rota çakışmasız
+- Kullanıcıya verilen adres: `https://indir.gebzem.app/index.html?v=20260810-0035`
+
+### ⚠️⚠️ İKİNCİ DENETİM TURU — KENDİ DÜZELTMELERİMDE 2 SEVK ENGELİ DAHA
+
+Turu 80b'de ~600 satır yeni kod yazmıştım ve **hiç denetlenmemişti**. Kendi
+düzeltmelerimi 5 mercekle denetime verdim: **20 bulgu → 17 onaylandı, 3 elendi,
+2'si SEVK ENGELİ.** İkisi de benim yeni kodumdaydı.
+
+**(A) `KisiselYap` geçmiş randevuları da iptal ediyordu.** Yüklemde `baslangic`
+koşulu yoktu; hemen üstündeki **kendi şerhim** "geçmiş randevulara DOKUNULMAZ"
+diyordu — projenin en sık tekrarlayan sınıfı ("yorumun anlattığı kontrol gövdede
+yok") ve bunu kendi düzeltmemde yaptım. `'onaylandi'` gelecek demek değil:
+`geldi`/`gelmedi` geçişleri opsiyonel ve o düğmeler bu tura kadar hiç yoktu →
+**gerçekleşmiş tüm geçmiş randevular hâlâ 'onaylandi'**. Kişisele dönen işletme
+aylar öncesinin tamamlanmış rezervasyonlarını "işletme iptal etti"ye çevirip
+müşterilere bildirim yağdıracaktı. `Gecisler` tablosunda `iptal_isletme`'den
+dönüş yok → **geri alınamaz kayıt tahrifatı.**
+
+**(B) Gece yarısını aşan çalışma saatlerinde her slot 409 dönüyordu.**
+`Slotlar(gun)` "22:00–02:00" mesaide gece yarısını aşar; 11 Ağu 00:30 slotu
+**10 Ağu'nun** çalışma gününe aittir. Eklediğim yazma-yolu doğrulaması ise anın
+kendi takvim gününe bakıyordu → arayüzün gösterdiği her gece slotu 409.
+**Bar/restoran gibi gece çalışan mekânlar randevu alamazdı.**
+⚠️ Bu, **aynı commit'te** `ileri_gun` için düzelttiğim "okuma ve yazma farklı
+taban kullanıyor" hatasının tekrarıydı.
+✅ E2E'de ampirik doğrulandı: `GECE YARISI SONRASI slot POST ile KABUL EDILIYOR
+| HTTP 201 saat=00:15`.
+
+**(C) `randevu_iptal` çift yönlü, istemci tek yön varsayıyordu.** `IptalIsletme`
+→ alıcı müşteri; `Iptal` → alıcı işletme. İkisi de aynı tür adını gönderiyordu →
+müşteri iptal edince işletme bildirime dokunup **kendi müşteri listesine**
+düşüyor, iptali gelen kutusunda göremiyordu. `randevu_iptal_musteri` ayrı türü
+eklendi.
+
+**Diğer:** gün şeridi sunucunun izin verdiği son günü hiç göstermiyordu · `_yenile`
+catch dalı bölme kimliğini kontrol etmiyordu · yükleme dalı bölme seçicisini
+çizmiyordu (Keşfet yüklenirken geri dönüş yolu kayboluyordu) · aşağı-çek
+kurtarması tam gerektiği anda no-op oluyordu · tam ekran düğmesi sarkan komşuda
+da çiziliyordu ve dokunma alanı 27dp idi (→44dp) · `AyarKaydet` okuma hatasını
+yutup uydurma varsayılanları 200 ile döndürüyordu · `AyarGetir` kapısı
+ex-işletmenin geçmiş kayıtlarına giden tek arayüz yolunu kapatıyordu.
+
+### 🛡️ MUHAFIZLAR KANITLANDI
+- `internal/isletme/sutun_test.go` artık **sırayı da** ölçüyor — `il`↔`ilce` takas
+  edilip test kırmızıya düşürülerek kanıtlandı (aynı tipteki iki sütun yer
+  değiştirse Postgres hata vermez, değerler sessizce takas olur).
+- `internal/randevu/sutun_test.go` (`oku()` iki Scan dalı) — `not_isletme` yanıttan
+  çıkarılarak kanıtlandı.
+- **E2E 172 → 181 kontrol.**
+
+### 📌 SÜREÇ DERSİ (beşinci doğrulama)
+**"Build ALMAK yayınlamak DEĞİLDİR."** Bu turda **üç build** alındı, ilk **ikisi
+yayınlanmadı**: birincisinden sonra galeri genişliği düzeltmesi çıktı, ikincisinden
+sonra denetim iki sevk engeli buldu. Yalnızca üçüncüsü (edc0da8) yayınlandı.

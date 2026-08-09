@@ -17,6 +17,66 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (10 Agu 00:35): TEST TURU 80 YAYINLANDI** — android **31336651933**
+  + ios **31336653481** (**edc0da8**), R2 apk=117730375 (md5 f97e5cb7) ipa=24040413
+  (md5 63b38976) index=9624 (md5 50bc97cb), purge OK, **CDN BIREBIR** (apk + ipa +
+  index.html UCU DE MD5 esit), indir sayfasi 10 Agu 00:35 (saat 5 yerde + canli saat),
+  debug imza YOK, **iOS min 16.0 dogrulandi**, IPA icinde turu 80 kodu var
+  ("Rezervasyon" gecti), **BACKEND DEPLOY EDILDI** (edc0da8; migration 001->038
+  atilabilir kopya DB'de dogrulandi = 47 tablo; `medya: aktif (R2)` +
+  `ai: aktif (metin gpt-4o-mini · gorsel gpt-image-1.5)`) + health ok, DB TEMIZ
+  (0/0/0/0/0).
+  ✅ **CANLI SUNUCUDA 181/181 UCTAN UCA GECTI** · **188 ROTA CAKISMASIZ** ·
+  `go build`+`go vet`+`go test ./...` temiz · `flutter analyze` **0 hata**.
+  ⚠️ **KULLANICIYA VERILEN ADRES:** https://indir.gebzem.app/index.html?v=20260810-0035
+  **KULLANICI TEST EDECEK.**
+- ⚠️⚠️⚠️ **TURU 80b — IKI TUR DENETIM. IKINCI TUR **KENDI DUZELTMELERIMDE** 2 SEVK
+  ENGELI DAHA BULDU (17/20 onaylandi, 3 elendi). "Build ALMAK yayinlamak DEGILDIR"
+  dersinin BESINCI dogrulanmasi: UC build alindi, ilk IKISI YAYINLANMADI.**
+- ⚠️⚠️⚠️ **(A) `KisiselYap` GECMIS RANDEVULARI DA IPTAL EDIYORDU (SEVK ENGELI).**
+  Yuklemde `baslangic` KOSULU YOKTU, ama HEMEN USTUNDEKI KENDI SERHIM
+  *"gecmis randevulara DOKUNULMAZ"* diyordu — projenin en sik tekrarlayan sinifi
+  ("yorumun anlattigi kontrol GOVDEDE yok") ve bunu KENDI DUZELTMEMDE yaptim.
+  `'onaylandi'` GELECEK demek DEGIL: `geldi`/`gelmedi` gecisleri OPSIYONEL ve o
+  dugmeler turu 80b'ye kadar HIC YOKTU -> **GERCEKLESMIS TUM GECMIS RANDEVULAR
+  hala 'onaylandi'**. Kisisele donen isletme aylar once tamamlanmis rezervasyonlari
+  "isletme iptal etti"ye ceviriyor, musterilere o eski ziyaretler icin BILDIRIM
+  yagdiriyordu. `Gecisler` tablosunda `iptal_isletme`den DONUS YOK -> **GERI
+  ALINAMAZ KAYIT TAHRIFATI**. FIX: `AND baslangic > now()`.
+- ⚠️⚠️⚠️ **(B) GECE YARISINI ASAN CALISMA SAATLERINDE HER SLOT 409 DONUYORDU
+  (SEVK ENGELI).** `Slotlar(gun)` "22:00-02:00" mesaide gece yarisini ASAR ve
+  ertesi takvim gunune tasan slotlari da uretir; yani 11 Agu 00:30 slotu **10 Agu'nun**
+  calisma gunune aittir. Turu 80b'de ekledigim yazma-yolu dogrulamasi ise anin
+  KENDI takvim gunune bakiyordu -> arayuzun GOSTERDIGI her gece slotu POST'ta 409.
+  **Bar/restoran gibi gece calisan mekanlar randevu ALAMAZDI.**
+  ⚠️ Bu, AYNI COMMIT'te `ileri_gun` icin duzelttigim *"okuma ve yazma FARKLI TABAN
+  kullaniyor"* hatasinin TEKRARIYDI. FIX: `SlotVarMi()` tek kaynagi — anin kendi
+  gunu VE bir onceki gun denenir.
+  ✅ E2E'de AMPIRIK dogrulandi: saatler gecici gece vardiyasina cevrilip
+  `GECE YARISI SONRASI slot POST ile KABUL EDILIYOR | HTTP 201 saat=00:15`.
+- ⚠️⚠️ **(C) `randevu_iptal` CIFT YONLUDUR, istemci TEK YON varsayiyordu.**
+  `IptalIsletme` -> alici MUSTERI · `Iptal` -> alici ISLETME. Ikisi de ayni tur
+  adini gonderiyordu; istemci `randevu_iptal`i KOSULSUZ musteri listesine
+  yonlendiriyordu -> musteri iptal edince ISLETME bildirime dokunup KENDI musteri
+  listesine dusuyor, iptali gelen kutusunda GOREMIYORDU.
+  FIX: `randevu_iptal_musteri` AYRI turu + istemcide `isletmeyeGiden` kumesi.
+  ⚠️ YAPMA: ikisini tekrar tek tur adina indirgeme.
+- 📌 **TURU 80b — DIGER (ikinci tur):** gun seridi sunucunun izin verdigi SON GUNU
+  HIC gostermiyordu (`+1`) · `_yenile` catch dali bolme kimligini kontrol etmiyordu
+  (bir bolmenin ag hatasi DIGER bolmenin dolu ekraninda hata cizdiriyordu) ·
+  yukleme dali hikaye seridini ve **BOLME SECICISINI** cizmiyordu (Keşfet
+  yuklenirken geri donme yolu KAYBOLUYORDU) · asagi-cek kurtarmasi tam gerektigi
+  anda no-op oluyordu (`_elleYenile`: ucustaki istegi bekler) · tam ekran dugmesi
+  SARKAN KOMSUDA da ciziliyordu ve dokunma alani **27dp** idi -> 44dp (turu 78b
+  dersi; bu dugme KIRPILAN ICERIGIN TEK kurtarma yolu) · `AyarKaydet` okuma
+  hatasini YUTUP uydurma varsayilanlari 200 ile donduruyordu · `AyarGetir`
+  `AyarOkuSahip` kullaniyor (kapi RANDEVU ALMA yolundadir; salt-okumaya
+  uygulanmasi ex-isletmenin gecmis kayitlarina giden TEK arayuz yolunu kapatiyordu).
+- 🛡️ **TURU 80b — MUHAFIZLAR KANITLANDI:** `internal/isletme/sutun_test.go` artik
+  SIRAYI da olcuyor (`il`<->`ilce` TAKAS EDILIP test KIRMIZIYA dusuruldu — ayni
+  tipteki iki sutun yer degistirse Postgres HATA VERMEZ, degerler SESSIZCE takas
+  olur) · `internal/randevu/sutun_test.go` (`oku()` IKI Scan dali) da
+  `not_isletme` yanittan cikarilarak dogrulandi · **E2E 172 -> 181**.
 - **KALDIGIMIZ YER (9 Agu 23:45): TURU 80 + 80b KODU BITTI, BACKEND DEPLOY EDILDI**
   (**001e2db**; migration 001->038 atilabilir kopya DB'de dogrulandi = 47 tablo;
   `medya: aktif (R2)` + `ai: aktif (metin gpt-4o-mini · gorsel gpt-image-1.5)`)
