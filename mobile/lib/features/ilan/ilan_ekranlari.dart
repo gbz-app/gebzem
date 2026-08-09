@@ -892,6 +892,24 @@ class _IlanVerEkraniState extends ConsumerState<IlanVerEkrani> {
       return;
     }
     setState(() => _kaydediliyor = true);
+    // ⚠️⚠️ TURU 78b — SERVISLER **TUM AWAIT'LERDEN ONCE** YAKALANIR.
+    //
+    //    Bu ekranda `PopScope` YOK ve kaydetme uzun surer (12 medyaya kadar
+    //    fotograf sikistirma + yukleme, ustelik VIDEO da var). Kullanici o
+    //    sirada geri tusuna basarsa `State` **DISPOSE OLUR**; disposed bir
+    //    `ConsumerState`te `ref.read` **`StateError` FIRLATIR**, asagidaki
+    //    `catch` onu yutar ve `if (!mounted) return;` sessizce cikar.
+    //    SONUC: medya R2'ye YUKLENMIS olur ama `POST /ilanlar` **HIC ATILMAZ**
+    //    -> ilan olusmaz, medya YETIM kalir, kullaniciya HICBIR SEY soylenmez.
+    //
+    //    ⚠️ Bu, turu 77b'de HIKAYE PAYLASIMINDA sahaya cikan hatanin BIREBIR
+    //       aynisidir ve duzeltmesi `story_seridi.dart:122`de duruyor; turu
+    //       78'in yeni ekranlari o dersi TEKRARLADI.
+    //    ⚠️ YAPMA: bu iki satiri await'lerin ALTINA tasima.
+    //    ⚠️ Servis yakalandigi icin is, kullanici ekrandan ciksa bile TAMAMLANIR
+    //       (ilan GERCEKTEN olusur) — sessizce iptal etmekten iyisi budur.
+    final medyaSvc = ref.read(medyaServisiProvider);
+    final ilanSvc = ref.read(ilanServisiProvider);
     try {
       final idler = <String>[];
       for (final g in _gorseller) {
@@ -899,9 +917,11 @@ class _IlanVerEkraniState extends ConsumerState<IlanVerEkrani> {
         final hazir = await MedyaServisi.gorseliHazirla(g);
         if (hazir == null) throw Exception('Görsel hazırlanamadı');
         idler.add(
-          await ref
-              .read(medyaServisiProvider)
-              .yukle(dosya: hazir, kind: 'image', mime: 'image/jpeg'),
+          await medyaSvc.yukle(
+            dosya: hazir,
+            kind: 'image',
+            mime: 'image/jpeg',
+          ),
         );
       }
       // ⚠️⚠️ VIDEO HAM GIDER — `gorseliHazirla` UYGULANMAZ (o bir GORSEL
@@ -912,9 +932,7 @@ class _IlanVerEkraniState extends ConsumerState<IlanVerEkrani> {
       //    ⚠️ Fotografta bu risk YOK (`gorseliHazirla` EXIF'i temizliyor).
       for (final v in _videolar) {
         idler.add(
-          await ref
-              .read(medyaServisiProvider)
-              .yukle(dosya: v, kind: 'video', mime: 'video/mp4'),
+          await medyaSvc.yukle(dosya: v, kind: 'video', mime: 'video/mp4'),
         );
       }
       final tl = double.tryParse(_fiyat.text.trim().replaceAll(',', '.')) ?? 0;
@@ -936,7 +954,7 @@ class _IlanVerEkraniState extends ConsumerState<IlanVerEkrani> {
         ),
       };
       if (_duzenleme) {
-        await ref.read(ilanServisiProvider).guncelle(widget.ilan!.id, govde);
+        await ilanSvc.guncelle(widget.ilan!.id, govde);
         if (!mounted) return;
         // ⚠️ `true` doner: cagiran ekran listeyi/detayi SUNUCUDAN tazeler.
         //    Yerel nesneyi yamamak yerine tazelemek, `duzenlendi_at` gibi
@@ -946,15 +964,15 @@ class _IlanVerEkraniState extends ConsumerState<IlanVerEkrani> {
       }
       // ⚠️ `tur` YALNIZ olusturmada gonderilir — PATCH'te sunucu kabul etmiyor.
       govde['tur'] = _tur;
-      final id = await ref.read(ilanServisiProvider).olustur(govde);
+      final id = await ilanSvc.olustur(govde);
       if (!mounted) return;
       Navigator.of(context).pop(id);
     } catch (e) {
-      if (!mounted) return;
-      setState(() => _kaydediliyor = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
+      // ⚠️ KOK MESSENGER: kullanici kaydetme surerken ekrandan CIKMIS olabilir;
+      //    `ScaffoldMessenger.of(context)` o durumda olu baglamda kalir ve hata
+      //    kullaniciya HIC ULASMAZDI ("paylastim sandim" sinifi).
+      if (mounted) setState(() => _kaydediliyor = false);
+      _uyar(apiErrorMessage(e));
     }
   }
 

@@ -251,6 +251,16 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
     }
     if (x == null || !mounted) return;
 
+    // ⚠️⚠️ TURU 78b — SERVISLER **AWAIT'LERDEN ONCE** yakalanir.
+    //    Buradaki pencere projedeki EN GENIS pencere: AI cagrisi **60 saniyeye
+    //    kadar** surebiliyor. Kullanici bekleme diyalogunu geri tusuyla kapatip
+    //    bir kez daha geri basarsa ekran dispose olur; `ref.read` `StateError`
+    //    firlatir, catch yutar ve KOTA ZATEN HARCANMIS oldugu halde kullanici
+    //    HICBIR SONUC GORMEZ (kota rezervasyonu cagridan ONCE yapiliyor).
+    //    ⚠️ YAPMA: bu satirlari await'lerin ALTINA tasima.
+    final medyaSvc = ref.read(medyaServisiProvider);
+    final aiSvc = ref.read(aiServisiProvider);
+
     // ⚠️ Bekleme diyalogunun ACIK olup olmadigini izler — bkz. catch dalindaki
     //    "yanlis route pop" serhi.
     var diyalogAcik = true;
@@ -270,10 +280,12 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
     try {
       final hazir = await MedyaServisi.gorseliHazirla(File(x.path));
       if (hazir == null) throw Exception('Görsel hazırlanamadı');
-      final mediaId = await ref
-          .read(medyaServisiProvider)
-          .yukle(dosya: hazir, kind: 'image', mime: 'image/jpeg');
-      final sonuc = await ref.read(aiServisiProvider).menu(mediaId: mediaId);
+      final mediaId = await medyaSvc.yukle(
+        dosya: hazir,
+        kind: 'image',
+        mime: 'image/jpeg',
+      );
+      final sonuc = await aiSvc.menu(mediaId: mediaId);
       if (!mounted) return;
       Navigator.of(context).pop(); // bekleme diyalogu
       diyalogAcik = false;
@@ -356,6 +368,10 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
     ctrl.dispose();
     if (onay != true || tarif.isEmpty || !mounted) return;
 
+    // ⚠️⚠️ TURU 78b — SERVIS **AWAIT'TEN ONCE** yakalanir (fotograf yolundaki
+    //    ile AYNI gerekce: AI cagrisi 60 saniyeye kadar surer).
+    final aiSvc = ref.read(aiServisiProvider);
+
     // ⚠️ Bekleme diyalogunun ACIK olup olmadigini izler (yanlis route pop
     //    korumasi — fotograf yolundaki ile AYNI desen).
     var diyalogAcik = true;
@@ -373,7 +389,7 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
       ),
     );
     try {
-      final sonuc = await ref.read(aiServisiProvider).menu(metin: tarif);
+      final sonuc = await aiSvc.menu(metin: tarif);
       if (!mounted) return;
       Navigator.of(context).pop();
       diyalogAcik = false;
@@ -594,6 +610,13 @@ class _UrunDuzenleEkraniState extends ConsumerState<UrunDuzenleEkrani> {
       return;
     }
     setState(() => _kaydediliyor = true);
+    // ⚠️⚠️ TURU 78b — SERVISLER **TUM AWAIT'LERDEN ONCE** (ayrinti icin
+    //    `ilan_ekranlari.dart` `_kaydet` serhi). Kullanici fotograf yuklenirken
+    //    geri basarsa `ref.read` `StateError` firlatir, catch yutar ve urun
+    //    OLUSMAZ; medya yetim kalir.
+    //    ⚠️ YAPMA: bu iki satiri await'lerin ALTINA tasima.
+    final medyaSvc = ref.read(medyaServisiProvider);
+    final urunSvc = ref.read(urunServisiProvider);
     try {
       final tl = double.tryParse(_fiyat.text.trim().replaceAll(',', '.')) ?? 0;
       final govde = <String, dynamic>{
@@ -616,26 +639,28 @@ class _UrunDuzenleEkraniState extends ConsumerState<UrunDuzenleEkrani> {
           final hazir = await MedyaServisi.gorseliHazirla(_gorsel!);
           if (hazir == null) throw Exception('Görsel hazırlanamadı');
           idler.add(
-            await ref
-                .read(medyaServisiProvider)
-                .yukle(dosya: hazir, kind: 'image', mime: 'image/jpeg'),
+            await medyaSvc.yukle(
+              dosya: hazir,
+              kind: 'image',
+              mime: 'image/jpeg',
+            ),
           );
         }
         govde['media_ids'] = idler;
-        await ref.read(urunServisiProvider).ekle(govde);
+        await urunSvc.ekle(govde);
       } else {
         // ⚠️ DUZENLEMEDE MEDYA DEGISMEZ (gonderi duzenlemesiyle ayni kural):
         //    medya degisecekse urun silinip yenisi eklenir.
-        await ref.read(urunServisiProvider).guncelle(widget.urun!.id, govde);
+        await urunSvc.guncelle(widget.urun!.id, govde);
       }
       if (!mounted) return;
       Navigator.of(context).pop(true);
     } catch (e) {
-      if (!mounted) return;
-      setState(() => _kaydediliyor = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
+      // ⚠️ KOK MESSENGER: kullanici kaydetme surerken ekrandan cikmis olabilir.
+      if (mounted) setState(() => _kaydediliyor = false);
+      rootMessengerKey.currentState?.showSnackBar(
+        SnackBar(content: Text(apiErrorMessage(e))),
+      );
     }
   }
 

@@ -1051,6 +1051,15 @@ class _EtkinlikOlusturEkraniState extends ConsumerState<EtkinlikOlusturEkrani> {
       return;
     }
     setState(() => _kaydediliyor = true);
+    // ⚠️⚠️ TURU 78b — SERVISLER **TUM AWAIT'LERDEN ONCE** (ayrinti icin
+    //    `ilan_ekranlari.dart` `_kaydet` serhi). Ozeti: kaydetme uzun surer
+    //    (fotograf sikistirma + yukleme + VIDEO), `PopScope` yok, kullanici
+    //    geri basarsa `State` dispose olur ve `ref.read` `StateError` firlatir;
+    //    catch yutar -> medya R2'ye YUKLENIR ama `POST /etkinlikler` HIC
+    //    ATILMAZ. Turu 77b'deki hikaye hatasinin birebir aynisi.
+    //    ⚠️ YAPMA: bu iki satiri await'lerin ALTINA tasima.
+    final medyaSvc = ref.read(medyaServisiProvider);
+    final etkinlikSvc = ref.read(etkinlikServisiProvider);
     try {
       final idler = <String>[];
       for (final g in _gorseller) {
@@ -1058,18 +1067,18 @@ class _EtkinlikOlusturEkraniState extends ConsumerState<EtkinlikOlusturEkrani> {
         final hazir = await MedyaServisi.gorseliHazirla(g);
         if (hazir == null) throw Exception('Görsel hazırlanamadı');
         idler.add(
-          await ref
-              .read(medyaServisiProvider)
-              .yukle(dosya: hazir, kind: 'image', mime: 'image/jpeg'),
+          await medyaSvc.yukle(
+            dosya: hazir,
+            kind: 'image',
+            mime: 'image/jpeg',
+          ),
         );
       }
       // ⚠️ VIDEO HAM GIDER — `gorseliHazirla` bir GORSEL sikistiricisidir;
       //    videoya uygulanirsa dosya BOZULUR.
       for (final v in _videolar) {
         idler.add(
-          await ref
-              .read(medyaServisiProvider)
-              .yukle(dosya: v, kind: 'video', mime: 'video/mp4'),
+          await medyaSvc.yukle(dosya: v, kind: 'video', mime: 'video/mp4'),
         );
       }
       // ⚠️ Fiyat KURUS'a cevrilir (sunucu kurus bekliyor — INT tasmasi icin).
@@ -1093,24 +1102,20 @@ class _EtkinlikOlusturEkraniState extends ConsumerState<EtkinlikOlusturEkrani> {
         'kontenjan': int.tryParse(_kontenjan.text.trim()) ?? 0,
       };
       if (_duzenleme) {
-        await ref
-            .read(etkinlikServisiProvider)
-            .guncelle(widget.etkinlik!.id, govde);
+        await etkinlikSvc.guncelle(widget.etkinlik!.id, govde);
         if (!mounted) return;
         // ⚠️ `true` doner: cagiran ekran SUNUCUDAN tazeler. `Etkinlik` modeli
         //    cogunlukla `final` oldugu icin yerel yamalama yapilamaz.
         Navigator.of(context).pop(true);
         return;
       }
-      final id = await ref.read(etkinlikServisiProvider).olustur(govde);
+      final id = await etkinlikSvc.olustur(govde);
       if (!mounted) return;
       Navigator.of(context).pop(id);
     } catch (err) {
-      if (!mounted) return;
-      setState(() => _kaydediliyor = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(apiErrorMessage(err))));
+      // ⚠️ KOK MESSENGER: kullanici kaydetme surerken ekrandan cikmis olabilir.
+      if (mounted) setState(() => _kaydediliyor = false);
+      _uyar(apiErrorMessage(err));
     }
   }
 
