@@ -153,6 +153,8 @@ class Ilan {
     required this.goruntulenme,
     required this.createdAt,
     required this.favorim,
+    required this.mediaKinds,
+    this.duzenlendiAt,
   });
 
   final String id;
@@ -160,17 +162,29 @@ class Ilan {
   final String sahibiAd;
   final String? sahibiAvatarMediaId;
   final String tur;
-  final String kategori;
+
+  // ⚠️⚠️ TURU 78 — DUZENLEME sonrasi SESSIZ TAZELEME bu alanlari GUNCELLER.
+  //    Nesne YENISIYLE DEGISTIRILMEZ (liste ayni ornegi tutuyor; yeni nesne
+  //    atansaydi listedeki kart ESKI degeri gostermeye devam ederdi —
+  //    turu 76 dersi). Bu yuzden duzenlenebilir alanlar `final` DEGIL.
+  String kategori;
   String baslik;
   String aciklama;
 
   /// ⚠️ KURUS. Ekranda `fiyatMetni` ile bicimlenir.
   int fiyatKurus;
-  final bool fiyatGizli;
-  final String il;
-  final String ilce;
-  final List<String> mediaIds;
+  bool fiyatGizli;
+  String il;
+  String ilce;
+  final List<String> mediaIds; // icerigi degisir, referans degil
   final Map<String, dynamic> ozellikler;
+
+  /// TURU 78 — `media_kinds[i]` <-> `mediaIds[i]` (image/video/yok).
+  /// ⚠️ Sunucu SIRA KORUYARAK donduruyor; istemci indeksle eslestirir.
+  final List<String> mediaKinds;
+
+  /// TURU 78 — NULL ise hic duzenlenmedi. Alici guveni icin gosterilir.
+  String? duzenlendiAt;
   String durum;
   /// ⚠️ DEGISEBILIR: detay ekrani acilista SESSIZCE tazeliyor (bkz.
   ///    `IlanDetayEkrani` serhi). `final` olsaydi sayac EKRANDA HEP 0 kalirdi.
@@ -212,6 +226,13 @@ class Ilan {
         .map((e) => e.toString())
         .toList(),
     ozellikler: (m['ozellikler'] as Map?)?.cast<String, dynamic>() ?? {},
+    // ⚠️ Sunucu SIRA KORUYARAK donduruyor (unnest ... WITH ORDINALITY);
+    //    `mediaKinds[i]` <-> `mediaIds[i]`. Eski sunucudan bos gelirse
+    //    galeri hepsini FOTOGRAF sayar (guvenli varsayilan).
+    mediaKinds: ((m['media_kinds'] as List?) ?? [])
+        .map((e) => e.toString())
+        .toList(),
+    duzenlendiAt: m['duzenlendi_at'] as String?,
     durum: (m['durum'] ?? 'yayinda').toString(),
     goruntulenme: (m['goruntulenme'] as num?)?.toInt() ?? 0,
     createdAt: (m['created_at'] ?? '').toString(),

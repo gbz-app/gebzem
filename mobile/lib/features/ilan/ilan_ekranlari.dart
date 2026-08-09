@@ -367,9 +367,29 @@ class _IlanDetayEkraniState extends ConsumerState<IlanDetayEkrani> {
       final yeni = await ref.read(ilanServisiProvider).detay(i.id);
       if (!mounted) return;
       setState(() {
+        // ⚠️⚠️ NESNE DEGISTIRILMEZ, ALANLARI GUNCELLENIR. `i = yeni` yazilsaydi
+        //    liste ESKI ornegi tutmaya devam ederdi ve kullanici geri
+        //    donduğunde duzenledigi ilani ESKI haliyle gorurdu (turu 76 dersi).
         i.goruntulenme = yeni.goruntulenme;
         i.durum = yeni.durum;
         i.favorim = yeni.favorim;
+        // ---- TURU 78: duzenleme sonrasi degisen alanlar
+        i.baslik = yeni.baslik;
+        i.aciklama = yeni.aciklama;
+        i.fiyatKurus = yeni.fiyatKurus;
+        i.fiyatGizli = yeni.fiyatGizli;
+        i.kategori = yeni.kategori;
+        i.il = yeni.il;
+        i.ilce = yeni.ilce;
+        i.duzenlendiAt = yeni.duzenlendiAt;
+        // ⚠️ Liste REFERANSI korunur, ICERIGI degisir — dis kod (galeri
+        //    gostergesi) ayni listeyi tutuyor olabilir.
+        i.mediaIds
+          ..clear()
+          ..addAll(yeni.mediaIds);
+        i.ozellikler
+          ..clear()
+          ..addAll(yeni.ozellikler);
       });
     } catch (_) {
       // sessiz
@@ -414,6 +434,23 @@ class _IlanDetayEkraniState extends ConsumerState<IlanDetayEkrani> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
+    }
+  }
+
+  /// ⚠️ TURU 78 — DUZENLEME. Ayri bir ekran YOK: "İlan ver" ekrani
+  ///    `ilan:` parametresiyle DUZENLEME modunda acilir (tek kaynak).
+  Future<void> _duzenle() async {
+    final degisti = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => IlanVerEkrani(ilan: i)),
+    );
+    if (degisti != true || !mounted) return;
+    // ⚠️ Yerel nesneyi YAMAMAK yerine SUNUCUDAN tazeliyoruz: `duzenlendi_at`
+    //    ve `media_kinds` gibi alanlari SUNUCU uretiyor.
+    await _sessizTazele();
+    if (mounted) {
+      rootMessengerKey.currentState?.showSnackBar(
+        const SnackBar(content: Text('İlan güncellendi')),
+      );
     }
   }
 
@@ -463,8 +500,20 @@ class _IlanDetayEkraniState extends ConsumerState<IlanDetayEkrani> {
             ),
           if (benimIlanim)
             PopupMenuButton<String>(
-              onSelected: _durumDegistir,
+              // ⚠️⚠️ TURU 78 — "Düzenle" BURAYA EKLENDI. Duzenleme ekrani
+              //    yazilip HICBIR DUGMEYE BAGLANMASAYDI ozellik ULASILAMAZ
+              //    olurdu; bu projede "olu dogmus ozellik" hatasi BES kez
+              //    tekrarladi (gizli hesap, kaydedilenler, goruntulenme,
+              //    blocks, urun 'tukendi').
+              onSelected: (v) {
+                if (v == 'duzenle') {
+                  _duzenle();
+                } else {
+                  _durumDegistir(v);
+                }
+              },
               itemBuilder: (_) => const [
+                PopupMenuItem(value: 'duzenle', child: Text('Düzenle')),
                 PopupMenuItem(
                   value: 'satildi',
                   child: Text('Satıldı işaretle'),
@@ -604,9 +653,24 @@ class _IlanDetayEkraniState extends ConsumerState<IlanDetayEkrani> {
 }
 
 /// Ilan ver — FORM SUNUCUDAN URETILIR (tipe ozel alanlar).
+/// İlan ver **VE** ilan düzenle — **TEK EKRAN**.
+///
+/// ⚠️⚠️ TURU 78 — AYRI BIR "IlanDuzenleEkrani" YAZILMADI. Iki ekran olsaydi
+///    alan listesi, dogrulama kurallari, tipe ozel form uretimi ve medya
+///    yonetimi IKI KOPYA olurdu; bu projede "ayni kuralin iki kopyasi DRIFT
+///    eder" hatasi ALTI kez tekrarladi (turu 72b/H, 75b/2, 77b).
+///    [ilan] doluysa ekran DUZENLEME modundadir.
+///
+/// ⚠️ TUR (vasita/emlak/...) DUZENLEMEDE DEGISTIRILEMEZ: tur degisirse
+///    `ozellikler` semasi tamamen degisir (vasitanin "vites"i emlakta
+///    anlamsizdir) ve kategori gecersizlesir. Tur degistirmek YENI ILAN demektir.
+///    Sunucu da `tur` alanini PATCH'te KABUL ETMIYOR.
 class IlanVerEkrani extends ConsumerStatefulWidget {
-  const IlanVerEkrani({super.key, this.tur = ''});
+  const IlanVerEkrani({super.key, this.tur = '', this.ilan});
   final String tur;
+
+  /// Doluysa DUZENLEME modu.
+  final Ilan? ilan;
 
   @override
   ConsumerState<IlanVerEkrani> createState() => _IlanVerEkraniState();
@@ -621,17 +685,53 @@ class _IlanVerEkraniState extends ConsumerState<IlanVerEkrani> {
 
   /// Tipe ozel alan degerleri (anahtar -> deger).
   final Map<String, String> _ozellikler = {};
+
+  /// YENI secilen (henuz yuklenmemis) dosyalar.
   final List<File> _gorseller = [];
+
+  /// ⚠️ DUZENLEMEDE: sunucuda ZATEN duran medya id'leri. Kullanici bunlardan
+  ///    silebilir; kaydederken "kalanlar + yeni yuklenenler" gonderilir.
+  ///    Yeni dosya ile mevcut id'yi tek listede tutmak mumkun degildi
+  ///    (biri `File`, oteki `String`) — iki liste bilincli.
+  final List<String> _mevcutMedya = [];
 
   String _tur = '';
   String _kategori = '';
   bool _fiyatGizli = false;
   bool _kaydediliyor = false;
 
+  bool get _duzenleme => widget.ilan != null;
+
   @override
   void initState() {
     super.initState();
-    _tur = widget.tur;
+    final i = widget.ilan;
+    if (i == null) {
+      _tur = widget.tur;
+      return;
+    }
+    // ---- DUZENLEME: mevcut degerlerle doldur
+    _tur = i.tur;
+    _kategori = i.kategori;
+    _baslik.text = i.baslik;
+    _aciklama.text = i.aciklama;
+    _il.text = i.il;
+    _ilce.text = i.ilce;
+    _fiyatGizli = i.fiyatGizli;
+    // ⚠️ KURUS -> TL. Tam sayiysa ondalik YAZILMAZ ("1500" gosterilir,
+    //    "1500.00" degil) — kullanici kendi girdigi bicimi gormeli.
+    if (!i.fiyatGizli && i.fiyatKurus > 0) {
+      final tl = i.fiyatKurus / 100;
+      _fiyat.text = tl == tl.roundToDouble()
+          ? tl.round().toString()
+          : tl.toStringAsFixed(2);
+    }
+    _mevcutMedya.addAll(i.mediaIds);
+    // ⚠️ `ozellikler` JSONB'den gelir; degerler METIN olarak tutuluyor
+    //    (form alanlari metin). Sayi gelirse `toString` ile duzlestirilir.
+    i.ozellikler.forEach((k, v) {
+      if (v != null) _ozellikler[k] = v.toString();
+    });
   }
 
   @override
@@ -655,7 +755,7 @@ class _IlanVerEkraniState extends ConsumerState<IlanVerEkrani> {
       );
       return;
     }
-    final kalan = 12 - _gorseller.length;
+    final kalan = 12 - _mevcutMedya.length - _gorseller.length;
     if (kalan <= 0) {
       // ⚠️ Kok messenger: bu ekran bir alt-sayfadan acilmis olabilir.
       rootMessengerKey.currentState?.showSnackBar(
@@ -696,8 +796,10 @@ class _IlanVerEkraniState extends ConsumerState<IlanVerEkrani> {
         );
       }
       final tl = double.tryParse(_fiyat.text.trim().replaceAll(',', '.')) ?? 0;
-      final id = await ref.read(ilanServisiProvider).olustur({
-        'tur': _tur,
+      // ⚠️ DUZENLEMEDE: KALAN mevcut medyalar + YENI yuklenenler. Sunucu
+      //    `media_ids`i OLDUGU GIBI yazar (COALESCE), yani kullanicinin
+      //    sildikleri bu listede olmadigi icin ilandan dusmus olur.
+      final govde = <String, dynamic>{
         'kategori': _kategori,
         'baslik': _baslik.text.trim(),
         'aciklama': _aciklama.text.trim(),
@@ -706,11 +808,23 @@ class _IlanVerEkraniState extends ConsumerState<IlanVerEkrani> {
         'fiyat_gizli': _fiyatGizli,
         'il': _il.text.trim(),
         'ilce': _ilce.text.trim(),
-        'media_ids': idler,
+        'media_ids': [..._mevcutMedya, ...idler],
         'ozellikler': Map.fromEntries(
           _ozellikler.entries.where((e) => e.value.trim().isNotEmpty),
         ),
-      });
+      };
+      if (_duzenleme) {
+        await ref.read(ilanServisiProvider).guncelle(widget.ilan!.id, govde);
+        if (!mounted) return;
+        // ⚠️ `true` doner: cagiran ekran listeyi/detayi SUNUCUDAN tazeler.
+        //    Yerel nesneyi yamamak yerine tazelemek, `duzenlendi_at` gibi
+        //    SUNUCUNUN urettigi alanlarin da dogru gelmesini saglar.
+        Navigator.of(context).pop(true);
+        return;
+      }
+      // ⚠️ `tur` YALNIZ olusturmada gonderilir — PATCH'te sunucu kabul etmiyor.
+      govde['tur'] = _tur;
+      final id = await ref.read(ilanServisiProvider).olustur(govde);
       if (!mounted) return;
       Navigator.of(context).pop(id);
     } catch (e) {
@@ -730,11 +844,11 @@ class _IlanVerEkraniState extends ConsumerState<IlanVerEkrani> {
         .firstOrNull;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('İlan ver'),
+        title: Text(_duzenleme ? 'İlanı düzenle' : 'İlan ver'),
         actions: [
           TextButton(
             onPressed: _kaydediliyor ? null : _kaydet,
-            child: const Text('Yayınla'),
+            child: Text(_duzenleme ? 'Kaydet' : 'Yayınla'),
           ),
         ],
       ),
@@ -857,10 +971,70 @@ class _IlanVerEkraniState extends ConsumerState<IlanVerEkrani> {
                 for (final a in turBilgi.alanlar) _alan(a),
               ],
               const SizedBox(height: 16),
+              // ---- DUZENLEMEDE: SUNUCUDA DURAN medyalar (silinebilir)
+              // ⚠️ Yeni secilen dosyalardan AYRI listede: biri `File`, oteki
+              //    sunucudaki `media_id`. Kaydederken ikisi BIRLESTIRILIR.
+              if (_mevcutMedya.isNotEmpty)
+                SizedBox(
+                  height: 84,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.only(bottom: 10),
+                    itemCount: _mevcutMedya.length,
+                    separatorBuilder: (_, _) => const SizedBox(width: 6),
+                    itemBuilder: (_, k) => Stack(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: SizedBox(
+                            width: 66,
+                            height: 74,
+                            child: MedyaGorsel(
+                              mediaId: _mevcutMedya[k],
+                              kucuk: true,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          right: 0,
+                          top: 0,
+                          child: GestureDetector(
+                            // ⚠️ Yalniz LISTEDEN cikarir; medya sunucuda
+                            //    SILINMEZ (veri politikasi). Kullanici
+                            //    vazgecip kaydetmezse hicbir sey degismez.
+                            onTap: () =>
+                                setState(() => _mevcutMedya.removeAt(k)),
+                            child: const DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: Color(0xAA000000),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Padding(
+                                padding: EdgeInsets.all(2),
+                                child: Icon(
+                                  LucideIcons.x,
+                                  size: 13,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               OutlinedButton.icon(
                 onPressed: _gorselSec,
                 icon: const Icon(LucideIcons.imagePlus, size: 18),
-                label: Text('Fotoğraf ekle (${_gorseller.length}/12)'),
+                // ⚠️ Sayac MEVCUT + YENI toplamini gosterir; yoksa duzenlemede
+                //    "0/12" yazip kullaniciyi 12 fotograf daha ekleyebilecegi
+                //    yanilgisina dusururdu (sunucu 12'de kirpardi).
+                label: Text(
+                  'Fotoğraf ekle '
+                  '(${_mevcutMedya.length + _gorseller.length}/12)',
+                ),
               ),
               if (_gorseller.isNotEmpty)
                 SizedBox(

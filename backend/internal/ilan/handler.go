@@ -162,8 +162,33 @@ const sutunlar = `
 		i.fiyat_kurus, i.para_birimi, i.fiyat_gizli,
 		i.il, i.ilce, i.media_ids, i.ozellikler, i.durum,
 		i.goruntulenme, i.created_at,
+		` + medyaTurleri + `
+		i.duzenlendi_at,
 		EXISTS(SELECT 1 FROM ilan_favoriler f
 		        WHERE f.ilan_id=i.id AND f.user_id=$1)`
+
+// ⚠️⚠️ TURU 78 — MEDYA TURLERI (foto/video karma galeri).
+//
+//	`media_ids` yalnizca UUID dizisi; hangi medyanin FOTO hangisinin VIDEO
+//	oldugu istemciye HIC donmuyordu. Istemci bir video id'sini goruntu
+//	bilesenine verirse KIRIK GORSEL cizer (kanal gonderilerinde turu 76b'ye
+//	kadar tam bu sorun vardi).
+//
+// ⚠️ `unnest(...) WITH ORDINALITY` + `array_agg(... ORDER BY idx)` SIRA KORUR:
+//
+//	`media_kinds[i]` ile `media_ids[i]` AYNI medyayi gosterir. Duz bir JOIN
+//	kullanilsaydi sira GARANTI OLMAZDI ve galeri yanlis tip cizerdi.
+//
+// ⚠️⚠️ SILINMIS medya icin 'yok' doner (NULL DEGIL): `array_agg` NULL eleman
+//
+//	uretirse `[]string`e tarama PATLAR ve satir SESSIZCE ATLANIR — liste
+//	bombos gorunur, log da dusmez.
+//
+// ⚠️ DIS `COALESCE('{}')` ZORUNLU: `media_ids` bossa `array_agg` NULL doner.
+const medyaTurleri = `
+		COALESCE((SELECT array_agg(COALESCE(ma.kind,'yok') ORDER BY mm.idx)
+		            FROM unnest(i.media_ids) WITH ORDINALITY AS mm(mid, idx)
+		            LEFT JOIN media_assets ma ON ma.id = mm.mid), '{}'),`
 
 // ⚠️ ENGEL YUKLEMI TEK KAYNAK. $1 = OKUYAN; tablo takma adi i.
 const engelYok = `
@@ -178,18 +203,20 @@ func (h *Handler) satirlariOku(rows pgx.Rows) []map[string]any {
 		var paraBirimi, il, ilce, durum string
 		var avatar *string
 		var ozellikler []byte
-		var medya []string
+		var medya, medyaKind []string
 		var fiyat int64
 		var goruntulenme int
 		var fiyatGizli, favori bool
 		var t time.Time
+		var duzenlendi *time.Time
 		// ⚠️ SCAN SIRASI `sutunlar` ILE BIREBIR. Uyusmazlik derleme hatasi
 		//    VERMEZ; satir SESSIZCE atlanir ve liste BOMBOS doner.
+		//    Bu hizalama `sutun_test.go` ile OTOMATIK dogrulanir.
 		if rows.Scan(&id, &sahibi, &ad, &kullanici, &avatar,
 			&tur, &kategori, &baslik, &aciklama,
 			&fiyat, &paraBirimi, &fiyatGizli,
 			&il, &ilce, &medya, &ozellikler, &durum,
-			&goruntulenme, &t, &favori) != nil {
+			&goruntulenme, &t, &medyaKind, &duzenlendi, &favori) != nil {
 			continue
 		}
 		if len(ozellikler) == 0 {
@@ -203,9 +230,14 @@ func (h *Handler) satirlariOku(rows pgx.Rows) []map[string]any {
 			"fiyat_kurus": fiyat, "para_birimi": paraBirimi,
 			"fiyat_gizli": fiyatGizli,
 			"il":          il, "ilce": ilce, "media_ids": medya,
-			"ozellikler": json.RawMessage(ozellikler),
-			"durum":      durum, "goruntulenme": goruntulenme,
+			// ⚠️ `media_kinds[i]` <-> `media_ids[i]` SIRA GARANTILI (bkz. medyaTurleri).
+			"media_kinds": medyaKind,
+			"ozellikler":  json.RawMessage(ozellikler),
+			"durum":       durum, "goruntulenme": goruntulenme,
 			"created_at": t, "favorim": favori,
+			// ⚠️ NULL = hic duzenlenmedi. Istemci bunu "Düzenlendi" etiketi
+			//    olarak cizer — alici guveni icin (bkz. migration 034 serhi).
+			"duzenlendi_at": duzenlendi,
 		})
 	}
 	return out
@@ -395,6 +427,19 @@ func (h *Handler) Guncelle(w http.ResponseWriter, r *http.Request) {
 		Baslik     *string `json:"baslik"`
 		Aciklama   *string `json:"aciklama"`
 		FiyatKurus *int64  `json:"fiyat_kurus"`
+		// ⚠️⚠️ TURU 78 — TAM DUZENLEME. Onceden bu dort alan disindaki hicbir
+		//    sey guncellenemiyordu: yanlis kategori secen ya da yanlis fotograf
+		//    yukleyen kullanicinin TEK CARESI ilani kaldirip yeniden vermekti
+		//    (goruntulenme ve favoriler de silinirdi).
+		// ⚠️ `Tur` BILINCLI OLARAK DISARIDA: tur degisirse `ozellikler` semasi
+		//    tamamen degisir (vasitanin "vites"i emlakta anlamsizdir) ve
+		//    kategori de gecersizlesir. Tur degistirmek YENI ILAN demektir.
+		FiyatGizli *bool            `json:"fiyat_gizli"`
+		Kategori   *string          `json:"kategori"`
+		Il         *string          `json:"il"`
+		Ilce       *string          `json:"ilce"`
+		MediaIDs   *[]string        `json:"media_ids"`
+		Ozellikler *json.RawMessage `json:"ozellikler"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		hata(w, 400, "geçersiz istek")
@@ -426,15 +471,82 @@ func (h *Handler) Guncelle(w http.ResponseWriter, r *http.Request) {
 	if req.FiyatKurus != nil && *req.FiyatKurus < 0 {
 		*req.FiyatKurus = 0
 	}
+	if req.Kategori != nil {
+		*req.Kategori = kisalt(strings.TrimSpace(*req.Kategori), 60)
+	}
+	if req.Il != nil {
+		*req.Il = kisalt(strings.TrimSpace(*req.Il), 60)
+	}
+	if req.Ilce != nil {
+		*req.Ilce = kisalt(strings.TrimSpace(*req.Ilce), 60)
+	}
+
+	// ⚠️ `ozellikler` — `Olustur`daki KAPININ AYNISI. Bicim NESNE olmali,
+	//    anahtar sayisi <= 30 VE **BAYT** boyutu <= 8 KB (turu 77b: `len(map)`
+	//    anahtar sayisidir, `{"a":"<50 MB>"}` tek anahtardir ve gecerdi).
+	var ozellikler *[]byte
+	if req.Ozellikler != nil {
+		ham := []byte("{}")
+		if len(*req.Ozellikler) > 0 && len(*req.Ozellikler) <= 8<<10 {
+			var deneme map[string]any
+			if json.Unmarshal(*req.Ozellikler, &deneme) == nil && len(deneme) <= 30 {
+				ham = *req.Ozellikler
+			}
+		}
+		ozellikler = &ham
+	}
+
+	// ⚠️⚠️ MEDYA SAHIPLIGI PATCH'TE DE DOGRULANIR. Bu kapi olmasaydi baskasinin
+	//    medya id'sini kendi ilanina baglayarak `erisebilir()` (g) dalini
+	//    somurmek mumkun olurdu (ilan medyasi herkese acik).
+	if req.MediaIDs != nil {
+		if *req.MediaIDs == nil {
+			// ⚠️ nil dilim pgx'te SQL NULL gonderir; `media_ids` NOT NULL ->
+			//    500. Bos dilim ZORUNLU (turu 75b sevk engeli).
+			*req.MediaIDs = []string{}
+		}
+		if len(*req.MediaIDs) > 12 {
+			*req.MediaIDs = (*req.MediaIDs)[:12]
+		}
+		if len(*req.MediaIDs) > 0 {
+			tag, err := h.db.Exec(r.Context(), `
+				SELECT 1 FROM media_assets
+				 WHERE id = ANY($1) AND owner_id=$2 AND status IN ('aktif','bagli')`,
+				*req.MediaIDs, me)
+			if err != nil || int(tag.RowsAffected()) != len(*req.MediaIDs) {
+				hata(w, 403, "geçersiz medya")
+				return
+			}
+		}
+	}
+
+	// ⚠️⚠️ `duzenlendi_at` YALNIZ ICERIK degisince yazilir — `durum` degisimi
+	//    (satildi/kaldirildi) DUZENLEME SAYILMAZ. Aksi halde "Satıldı"ya basan
+	//    her kullanicinin ilani "Düzenlendi" damgasi yer ve etiket ANLAMINI
+	//    YITIRIRDI (alici guveni icin konmustu).
+	icerikDegisti := req.Baslik != nil || req.Aciklama != nil ||
+		req.FiyatKurus != nil || req.FiyatGizli != nil || req.Kategori != nil ||
+		req.Il != nil || req.Ilce != nil || req.MediaIDs != nil ||
+		req.Ozellikler != nil
+
 	tag, err := h.db.Exec(r.Context(), `
 		UPDATE ilanlar SET
 		  durum       = COALESCE($3, durum),
 		  baslik      = COALESCE($4, baslik),
 		  aciklama    = COALESCE($5, aciklama),
 		  fiyat_kurus = COALESCE($6, fiyat_kurus),
+		  fiyat_gizli = COALESCE($7, fiyat_gizli),
+		  kategori    = COALESCE($8, kategori),
+		  il          = COALESCE($9, il),
+		  ilce        = COALESCE($10, ilce),
+		  media_ids   = COALESCE($11, media_ids),
+		  ozellikler  = COALESCE($12::jsonb, ozellikler),
+		  duzenlendi_at = CASE WHEN $13 THEN now() ELSE duzenlendi_at END,
 		  updated_at  = now()
 		 WHERE id=$1 AND sahibi_id=$2`,
-		id, me, req.Durum, req.Baslik, req.Aciklama, req.FiyatKurus)
+		id, me, req.Durum, req.Baslik, req.Aciklama, req.FiyatKurus,
+		req.FiyatGizli, req.Kategori, req.Il, req.Ilce, req.MediaIDs,
+		ozellikler, icerikDegisti)
 	if err != nil {
 		hata(w, 500, "güncellenemedi")
 		return
@@ -443,6 +555,16 @@ func (h *Handler) Guncelle(w http.ResponseWriter, r *http.Request) {
 		// ⚠️ 404 (403 DEGIL): baskasinin ilaninin VAR OLDUGU bilgisi de bilgidir.
 		hata(w, 404, "ilan bulunamadı")
 		return
+	}
+	// ⚠️ Yeni eklenen medyalar 'bagli' yapilir (`Olustur` ile AYNI kural) —
+	//    yoksa medya supurgesi 'aktif' kaydi bir sure sonra atilabilir sanip
+	//    islem yapar ve ilan gorseli KAYBOLURDU.
+	// ⚠️ CIKARILAN medya 'bagli' KALIR ve SILINMEZ — veri politikasi geregi.
+	//    Kullanici fikrini degistirip geri eklerse dosya yerinde durur.
+	//    Bedeli: kucuk bir depolama artisi (kabul edildi, 8 Agu karari).
+	if req.MediaIDs != nil && len(*req.MediaIDs) > 0 {
+		h.db.Exec(r.Context(),
+			`UPDATE media_assets SET status='bagli' WHERE id = ANY($1)`, *req.MediaIDs)
 	}
 	yaz(w, 200, map[string]bool{"ok": true})
 }

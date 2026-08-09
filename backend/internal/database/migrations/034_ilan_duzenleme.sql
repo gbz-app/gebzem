@@ -1,0 +1,25 @@
+-- 034_ilan_duzenleme.sql — TURU 78: ILAN DUZENLEME.
+--
+-- Kullanici emri: "ilan galeri ekleme video ekleme yok mu, DUZENLE".
+--
+-- ⚠️ Sunucudaki `PATCH /ilanlar/{id}` ucu VARDI ama yalnizca durum/baslik/
+--    aciklama/fiyat guncelliyordu; kategori, il, ilce, media_ids ve ozellikler
+--    GUNCELLENEMIYORDU. Ustelik istemcide ILAN DUZENLEME EKRANI HIC YOKTU:
+--    kullanici yanlis fotograf yuklerse tek care ilani kaldirip yeniden vermekti.
+--
+-- ⚠️⚠️ `duzenlendi_at` — ALICI GUVENI icin gerekli. Ikinci el bir ilanin
+--    fiyati ya da aciklamasi sessizce degistirilebiliyorsa alici pazarlik
+--    ettigi seyin AYNISI oldugunu bilemez. Gonderi tarafinda AYNI desen var
+--    (`posts.duzenlendi_at`, migration 025) — ayni cozum kopyalanmadi,
+--    AYNI SEMANTIK uygulandi.
+--
+-- ⚠️ NULL = "hic duzenlenmedi". Bos zaman damgasi yerine NULL secildi cunku
+--    "1970'te duzenlendi" gibi bir yalan uretmek istemiyoruz.
+--
+-- ⚠️ FIYAT GECMISI TUTULMUYOR (bilincli, ilk surum): istemcide fiyat
+--    duzenleme BU TURDA yeni geliyor; manipulasyon izlemek icin once o yolun
+--    sahada var olmasi gerek. VERI SILINMEZ politikasi geregi okunmayan bir
+--    tablo saf maliyettir.
+--    ⚠️ YAPMA: `ilan_fiyat_gecmisi` tablosunu okuyan ekran yazmadan acma.
+
+ALTER TABLE ilanlar ADD COLUMN IF NOT EXISTS duzenlendi_at TIMESTAMPTZ;
