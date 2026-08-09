@@ -5617,3 +5617,148 @@ doğrulandı (lahmacun tabağı — gözle kontrol edildi).
 
 ⚠️ **Ders:** bu turda aynı sınıf **üçüncü kez** çürüdü — `response_format`,
 model adı, ve şimdi **kalite**. Model/kalite seçimini gözle doğrulamadan yapma.
+
+---
+
+## Oturum — 9 Ağustos 2026 (akşam) · TURU 80b: DENETİM BULGULARI
+
+### Bağlam
+Turu 80 (rezervasyon/randevu + arayüz) kodu bitmişti. Build almadan **24 ajanlık
+adversaryal denetim** koşuldu (5 mercek: randevu backend · akış/bölme · medya
+ölçüleri · ölü özellik avı · e2e kapsamı). **38 ham bulgu → 19 tekilleştirilmiş,
+19'u ONAYLANDI, 0'ı elendi.** Dördü SEVK ENGELİ.
+
+### 🔴 SEVK ENGELLERİ (dördü de sahaya çıkacaktı)
+
+**1) `randevu_ayar` UPSERT'te `COALESCE(EXCLUDED.x, mevcut)` ÖLÜ KODDU.**
+`EXCLUDED.acik` zaten `COALESCE($2,false)` sonucudur → **asla NULL olamaz** →
+koruma dalı hiç değerlendirilmez. Arayüz alanları TEK TEK gönderdiği için
+işletme "Randevu süresi"ni değiştirince `acik` FALSE'a düşüyor, ayar bloğu
+ekrandan kayboluyor, yani **özellik ilk ayar dokunuşunda kendini kapatıyordu**.
+Doğrulayıcı bunu canlı Postgres'te geçici tablo + ROLLBACK ile **ampirik olarak
+kanıtladı** (4 adımda `acik` ve diğer üç ayarın sırayla sıfırlandığı gösterildi).
+→ UPDATE dalı ham parametrelere (`$2..$6`) çevrildi.
+⚠️ **E2E BUNU NEDEN GÖREMEDİ:** tüm alanları TEK çağrıda gönderiyordu, hiçbir
+parametre NULL olmuyordu, COALESCE yedeği HİÇ sınanmıyordu.
+
+**2) `_yukleniyor` sızıntısı — akış KALICI kilitleniyordu.**
+Turu 80'de eklediğim `if (!mounted || bolme != _bolme) return;` erken dönüşü
+`_yukleniyor = false` satırını atlıyordu. Bayrak **paylaşılan**: yükleme
+sürerken bölme değiştirilirse süreç boyunca true kalıyor, `_yenile` ve
+`_dahaGetir`in ilk satırı her çağrıyı reddediyordu → aşağı-çek çalışmaz,
+sayfalama durur, paylaşılan gönderi akışta görünmez. `AkisEkrani` keepAlive
+olduğu için **uygulama öldürülmeden düzelmiyordu** (turu 77b'de kapatılan
+hatanın aynısı). İki yerde birden düzeltildi.
+
+**3) Dört randevu bildirim türü istemcide TANIMSIZDI** → hepsi "bir işlem yaptı"
+genel metnine düşüyordu (onay ile red AYIRT EDİLEMİYORDU) + her biri Sentry'ye
+alarm basıyordu. Turu 75b'de `takip_onaylandi` için yaşanan hatanın aynısı,
+uyarısı hemen üstünde yazılıydı.
+
+**4) Randevu bildirimine dokunmak AKTÖRÜN PROFİLİNE gidiyordu** — müşteri
+"randevun onaylandı" bildirimine basınca restoranın profiline düşüyor,
+randevusunu göremiyordu.
+
+### ⚠️ YÜKSEK
+
+- **`Olustur` takvim kurallarının HİÇBİRİNİ doğrulamıyordu.** Kapalı gün,
+  çalışma saati ve slot hizası YALNIZ okuma yolunda vardı; istemci takvimi hiç
+  açmadan POST atarak **bayramda 03:17'ye** randevu yazdırabilirdi.
+  ⚠️ Kural **ikinci kez yazılmadı** — üretecin kendisi (`Slotlar`) çağrılıp
+  istenen anın üretilen slotlar arasında olup olmadığına bakılıyor.
+- **`ileri_gun` İKİ FARKLI TABANDA ölçülüyordu** (okuma gün başı, yazma an) →
+  son günün öğleden sonraki slotları "müsait" görünüp POST'ta 400 dönüyordu.
+  `IleriGunDisi()` tek kaynağına alındı.
+- **`myProfileProvider` oturuma bağlı değildi** (keepAlive) → çıkış yapıp başka
+  hesapla girince alt menüde ve Profil sekmesinde **önceki kullanıcının adı +
+  avatarı** çiziliyordu. Turu 80 profil ikonunu gerçek resme çevirdiği için
+  bedeli görünür oldu. `ref.watch(authProvider)` — `myUserIdProvider` deseni.
+- **`_bolmeDegistir`in tetiklediği `_yenile()` sessizce yutulabiliyordu** ve
+  tekrar deneyen HİÇBİR yol yoktu → **Keşfet sekmesi kalıcı boş**.
+- **E2E KALICI YALANCI-YEŞİL:** işletmenin çalışma saatleri yalnızca Pazartesi
+  tanımlıydı; randevu bloğu haftada TEK GÜN çalışıyordu. **172/172 geçmesinin
+  sebebi, koşulduğu günün (Pazar) yarınının Pazartesi olmasıydı** — yeşil,
+  kodun doğruluğunu değil TAKVİMİ ölçüyordu. Yedi güne çıkarıldı.
+
+### ⚠️ ÖLÜ ÖZELLİKLER (bu sınıfın YEDİNCİ tekrarı)
+
+- **KAPALI GÜNLER:** `randevu_kapali` tablosu (038) + iki uç + `Slotlar`daki dal
+  + iki servis metodu VARDI, **çağıran ekran YOKTU** → işletme bayramda randevu
+  almayı durduramıyordu. `KapaliGunlerEkrani` eklendi (Türkçe `showDatePicker`).
+- **'Geldi'/'Gelmedi':** geçiş tablosunda tanımlı, rozet 'geldi'yi yeşil
+  çiziyordu — **yazan düğme yoktu**.
+- **`not_isletme`:** sütun + istek alanı + SQL + yanıt + Dart modeli vardı, ne
+  yazan ne çizen yol vardı. İşletme artık red/iptal sebebi yazıyor (opsiyonel),
+  müşteri sebebi randevu satırında görüyor.
+  ⚠️ Ayrıca **müşteri işletmenin özel notuna yazabiliyordu** (iptal geçişini
+  müşteri yapıyor); yetki geçiş tablosuyla hizalandı.
+
+### 📌 MEDYA — dürüstlük notu (kullanıcının asıl isteği)
+Yükseklik tavanı doğru sonucu verdi (kutu her cihazda ekranın ~%32'si, Threads
+~%28-31). Ama **`kMedyaEnBoy` bugün hiçbir cihazda bağlayıcı değil** (`math.min`
+her zaman tavanı seçiyor) ve `cover` ile **dikey fotoğraf %41-51, video %58-66
+kırpılıyor**. Bu, "çok uzun" şikâyetinin kaçınılmaz karşı tarafı: kutuyu %32'de
+tutup dikey içeriği tam göstermek aynı anda mümkün değil (Threads bunu değişken
+genişlikle çözer, `PageView` ile uygulanamaz — turu 80'de reddedilmişti).
+**Kırpmanın kurtarma yolu ZORUNLU:** fotoğrafta vardı, **videoda HİÇ YOKTU**
+(yalnız orta şerit görülebiliyordu) → `TamEkranVideo` eklendi, giriş **noktasal
+düğme** (tam alanlı dokunuş oynatıcının jest arenasını bozar — turu 77b ölçümü).
+
+### 🛡️ KALICI MUHAFIZLAR
+- **`internal/isletme/sutun_test.go`** (pakette hiç test yoktu): SELECT/Scan
+  hizası + "Scan edilip yanıt haritasına konmayan alan" sınıfı (turu 78'de kapak
+  ve onaylı rozeti tam böyle kaybolmuştu). ⚠️ Muhafızın çalıştığı, `randevu_acik`
+  yanıttan **çıkarılıp test kırmızıya düşürülerek KANITLANDI**.
+  ⚠️ Test ilk yazımda kendi şerhimdeki "SELECT" kelimesini eşleştirip yanlış
+  alarm verdi → ayrıştırıcıya yorum temizliği eklendi.
+- **`rota_test.go`**: turu 80'in 13 ucu çözümleme vakalarına eklendi. En riskli
+  ayrım `/isletme/...` (statik) vs `/isletmeler/{id}/...` (parametreli).
+  **188 rota çakışmasız.**
+- **E2E 172 → 178 kontrol**: kapalı güne doğrudan POST reddi · çalışma saati dışı
+  reddi · slot hizası dışı reddi · **kısmi ayar kaydının diğer ayarları koruduğu**
+  · kapalı gün listeleme + geri alma.
+
+### 📌 DİĞER DÜZELTMELER
+- İşletme kişisele dönünce **bekleyen randevular yetim kalıyordu** (müşterinin
+  listesinde görünmeye devam ediyor, işletmenin iptal yolu tamamen kapanmış).
+  `KisiselYap` artık aktifleri `iptal_isletme` yapıp müşteriye bildiriyor.
+  Satır SİLİNMEZ (veri politikası).
+- **`AyarOku`ya `hesap_turu='isletme'` kapısı**: hesap kişiselleşince
+  `isletmeler` satırı silinmiyor, kapı olmadığı için randevu almaya devam
+  ediyordu. Kapı TEK KAYNAĞA kondu (dört uç oradan geçiyor).
+- `_dahaVar` ve `_kesfet` **bölme başına** taşındı (soğuk başlangıç şeridi
+  Keşfet'te de çiziliyordu; tükenmiş sayfalama diriliyordu).
+- Yüklenmemiş bölme artık spinner gösteriyor ("Henüz gönderi yok" yerine).
+- Gönderi silme **her iki bölmeden** (aynı gönderi iki listede de bulunabilir).
+- `IsletmeSeridi._yukle` try/catch'siz idi: tek ağ kopması "Randevu al"
+  düğmesini tamamen düşürüyordu (tekrar deneme yolu yok).
+- `randevu_al` AppBar alt başlığı sabit 20px idi; yazı ölçeği 1.3'te taşıp
+  RenderFlex şeridi çıkarıyordu → ölçeğe göre + ellipsis.
+- `u.username` COALESCE'siz taranıyordu (18 sorgunun tek istisnası).
+- Bayat şerhler: iki dosya "flutter_localizations YOK" diyordu, turu 80 onu
+  EKLEDİ; buna dayanan "showDatePicker EKLEME" hükmü geçersizdi.
+
+### ⚠️⚠️ İNDİR SAYFASI — KÖK NEDEN NİHAYET ÖLÇÜLDÜ
+Kullanıcı **üçüncü kez** "saati göremiyorum" dedi. Sunucu tarafı yine doğru
+çıktı (`no-cache, no-store, must-revalidate` + `cf-cache-status: DYNAMIC` + saat
+5 yerde + canlı saat + turu 50 flexbox fix'i duruyor). **Bu turda gerçek sebep
+bulundu:**
+
+    https://indir.gebzem.app/?v=123  --302-->  /index.html   <- SORGU DÜŞÜYOR
+
+Yani çıplak alan adına cache-busting parametresi eklemek **işe yaramıyor**;
+R2'nin 302'si sorgu dizesini korumuyor. Ana ekrana eklenmiş kısayoldan ya da
+agresif önbellekli bir webview'dan girildiğinde tarayıcı `no-store` başlığına
+**rağmen** eski kopyayı çizebiliyor. `/index.html?v=<etiket>` 302'ye hiç
+uğramaz ve her sürümde farklı adres olduğu için hiçbir önbellek katmanı
+eşleştiremez. **Üretici artık bu adresi basıyor; kullanıcıya BU verilecek.**
+⚠️ İçerik muhafızı turu 79'a sabitlenmişti → bu sürüme sabitlendi (muhafız
+çalıştı: turu 80 metnini yazınca eski kontrol patladı, sayfa üretilmedi).
+
+### Durum
+- `go build` + `go vet` + `go test ./...` temiz · `flutter analyze` **0 hata**
+- Migration **001→038** atılabilir kopya DB'de sırayla uygulandı (47 tablo), DROP
+- **Backend deploy edildi** — `medya: aktif (R2)` + `ai: aktif (metin gpt-4o-mini
+  · görsel gpt-image-1.5)` + health ok
+- DB TRUNCATE edildi, **CANLI SUNUCUDA 178/178 UÇTAN UCA GEÇTİ**
+- Build tetiklendi: android **31334733441** · ios **31334734942**
