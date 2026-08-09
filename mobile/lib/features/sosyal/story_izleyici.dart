@@ -7,6 +7,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../medya/medya_gorsel.dart';
 import 'gonderi_karti.dart' show gonderiZamani, sayiBicimle;
 import 'medya_video.dart';
+import 'story_katman.dart';
 import 'story_servisi.dart';
 
 /// ⚠️⚠️ TURU 76b — HIKAYE IZLEYICI (Instagram deseni).
@@ -275,6 +276,21 @@ class _StoryIzleyiciState extends ConsumerState<StoryIzleyici>
               child: Stack(
                 children: [
                   Positioned.fill(child: _icerik(s)),
+                  // ⚠️⚠️ TURU 77 — METIN KATMANLARI. `storyKatmanCiz`
+                  //    EDITORUN KULLANDIGI AYNI fonksiyondur; iki ayri cizim
+                  //    kodu olsaydi editorde koydugun yer ile izleyicideki yer
+                  //    DRIFT ederdi ("yazdigim yerde durmuyor").
+                  // ⚠️ Katmanlar UST CUBUKLARIN ALTINDA cizilir (Stack sirasi)
+                  //    ama dokunuslari YUTMAZ (`IgnorePointer` icinde) —
+                  //    yoksa ileri/geri dokunusu calismazdi.
+                  for (final k in s.katmanlar)
+                    storyKatmanCiz(
+                      k,
+                      Size(
+                        MediaQuery.of(context).size.width,
+                        MediaQuery.of(context).size.height,
+                      ),
+                    ),
                   // Ust karartma — cubuklar ve isim acik renkli medyada da okunur.
                   Positioned(
                     top: 0,
@@ -419,6 +435,10 @@ class _StoryIzleyiciState extends ConsumerState<StoryIzleyici>
   }
 
   Widget _icerik(Story s) {
+    // ⚠️ TURU 77 — MEDYASIZ METIN HIKAYESI: gradyan zemin cizilir, medya
+    //    istegi HIC atilmaz. `mediaId` bos oldugu icin `MedyaGorsel`e verilse
+    //    KIRIK/BOS kare cizerdi.
+    if (s.metinHikayesi) return storyZemin(s.arkaPlan);
     if (s.videoMu) {
       return MedyaVideo(
         mediaId: s.mediaId,

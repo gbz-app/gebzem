@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api.dart';
+import 'story_katman.dart';
 
 /// ⚠️⚠️ TURU 76b — HIKAYE (STORY) ISTEMCISI.
 ///
@@ -34,14 +35,25 @@ class StoryServisi {
         .toList();
   }
 
+  /// ⚠️ TURU 77 —  metin katmanlaridir; goruntuye PISIRILMEZ,
+  ///     META VERI olarak gonderilir (video hikayede pisirme imkansiz).
+  /// ⚠️  -> medyasiz hikaye; o durumda  ZORUNLU.
   Future<String> paylas({
     required String mediaId,
     required String kind,
     String metin = '',
+    List<StoryKatman> katmanlar = const [],
+    String arkaPlan = '',
   }) async {
     final r = await _api.post(
       '/stories',
-      data: {'media_id': mediaId, 'kind': kind, 'metin': metin},
+      data: {
+        'media_id': mediaId,
+        'kind': kind,
+        'metin': metin,
+        'katmanlar': katmanlar.map((k) => k.json()).toList(),
+        'arka_plan': arkaPlan,
+      },
     );
     return (r.data['id'] ?? '').toString();
   }
@@ -101,6 +113,8 @@ class Story {
     required this.createdAt,
     required this.izledim,
     required this.izlenme,
+    required this.katmanlar,
+    required this.arkaPlan,
   });
 
   final String id;
@@ -114,6 +128,14 @@ class Story {
   ///    GONDERMEZ — Instagram'da da yok).
   final int izlenme;
 
+  /// TURU 77 — metin katmanlari (izleyici bunlari medyanin USTUNE cizer).
+  final List<StoryKatman> katmanlar;
+
+  /// Medyasiz metin hikayesinde gradyan ANAHTARI. Bos = medyali hikaye.
+  final String arkaPlan;
+
+  bool get metinHikayesi => kind == 'metin' || arkaPlan.isNotEmpty;
+
   bool get videoMu => kind == 'video';
 
   static Story json(Map<String, dynamic> m) => Story(
@@ -124,6 +146,10 @@ class Story {
     createdAt: (m['created_at'] ?? '').toString(),
     izledim: m['izledim'] == true,
     izlenme: (m['izlenme'] as num?)?.toInt() ?? -1,
+    katmanlar: ((m['katmanlar'] as List?) ?? [])
+        .map((e) => StoryKatman.fromJson((e as Map).cast<String, dynamic>()))
+        .toList(),
+    arkaPlan: (m['arka_plan'] ?? '').toString(),
   );
 }
 

@@ -11,6 +11,7 @@ import '../home/home_screen.dart' show myProfileProvider;
 import '../medya/medya_gorsel.dart';
 import '../medya/medya_kapisi.dart';
 import '../medya/medya_servisi.dart';
+import 'story_editor.dart';
 import 'story_izleyici.dart';
 import 'story_servisi.dart';
 
@@ -58,10 +59,15 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
   }
 
-  /// Hikaye paylas: medya sec -> yukle -> POST /stories.
+  /// Hikaye paylas: medya sec -> **EDITOR** -> yukle -> POST /stories.
   ///
+  /// ⚠️⚠️ TURU 77 — ARAYA EDITOR GIRDI (kullanici emri: "storyde AA gibi, renk
+  ///    gibi, yazi tipi gibi ne varsa olacak"). Editor IPTAL edilirse hicbir sey
+  ///    YUKLENMEZ — once editor, sonra yukleme. Tersi yapilsaydi kullanici
+  ///    vazgectiginde bosuna 100 MB yuklenmis olurdu.
   /// ⚠️ FOTOGRAF: EXIF (KONUM) TEMIZLIGI ZORUNLU — sunucu GPS bulursa 422 doner.
   /// ⚠️ VIDEO: HAM gider (gonderi/kanal tarafiyla ayni davranis).
+  /// ⚠️ Metin goruntuye PISIRILMEZ, meta veri gider (bkz. migration 027).
   /// ⚠️ Hata YUTULMAZ: "paylastim sandim ama gitmemis" bu projenin tekrarlayan
   ///    sikayeti.
   Future<void> _paylas({required bool video}) async {
@@ -92,6 +98,15 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi> {
       }
     }
 
+    // ---- EDITOR (yazi/renk/boyut). Iptal edilirse YUKLEME YOK.
+    final cikti = await Navigator.of(context).push<StoryCikti>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => StoryEditor(dosya: dosya, video: video),
+      ),
+    );
+    if (cikti == null || !mounted) return;
+
     setState(() {
       _yukleniyor = true;
       _ilerleme = 0;
@@ -115,7 +130,11 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi> {
           );
       await ref
           .read(storyServisiProvider)
-          .paylas(mediaId: mediaId, kind: video ? 'video' : 'image');
+          .paylas(
+            mediaId: mediaId,
+            kind: video ? 'video' : 'image',
+            katmanlar: cikti.katmanlar,
+          );
       if (!mounted) return;
       setState(() {
         _yukleniyor = false;
@@ -129,6 +148,42 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi> {
         _yukleniyor = false;
         _ilerleme = null;
       });
+      final d = e is DioException ? e.response?.data : null;
+      _uyar(
+        (d is Map && d['error'] is String)
+            ? d['error'] as String
+            : 'Hikâye paylaşılamadı',
+      );
+    }
+  }
+
+  /// ⚠️ TURU 77 — SADECE METIN hikayesi (Instagram deseni): medya YOK, gradyan
+  ///    zemin + yazi. Medya yuklemesi HIC yapilmaz -> aninda paylasilir.
+  Future<void> _metinHikayesi() async {
+    final cikti = await Navigator.of(context).push<StoryCikti>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => const StoryEditor(metinHikayesi: true),
+      ),
+    );
+    if (cikti == null || !mounted) return;
+    setState(() => _yukleniyor = true);
+    try {
+      await ref
+          .read(storyServisiProvider)
+          .paylas(
+            mediaId: '',
+            kind: 'metin',
+            katmanlar: cikti.katmanlar,
+            arkaPlan: cikti.arkaPlan,
+          );
+      if (!mounted) return;
+      setState(() => _yukleniyor = false);
+      await yukle();
+      if (mounted) _uyar('Hikâyen paylaşıldı');
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _yukleniyor = false);
       final d = e is DioException ? e.response?.data : null;
       _uyar(
         (d is Map && d['error'] is String)
@@ -155,12 +210,23 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi> {
               title: const Text('Video'),
               onTap: () => Navigator.pop(c, 'video'),
             ),
+            // ⚠️ TURU 77: medyasiz metin hikayesi — Instagram'daki "Oluştur".
+            ListTile(
+              leading: const Icon(LucideIcons.type),
+              title: const Text('Yazı'),
+              subtitle: const Text('Renkli zemin üzerine yaz'),
+              onTap: () => Navigator.pop(c, 'metin'),
+            ),
           ],
         ),
       ),
     );
     if (secim == null || !mounted) return;
-    await _paylas(video: secim == 'video');
+    if (secim == 'metin') {
+      await _metinHikayesi();
+    } else {
+      await _paylas(video: secim == 'video');
+    }
   }
 
   Future<void> _ac(StoryKullanici k) async {

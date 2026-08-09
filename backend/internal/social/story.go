@@ -40,8 +40,121 @@ const storyGorunur = `
 
 type storyReq struct {
 	MediaID string `json:"media_id"`
-	Kind    string `json:"kind"` // image | video
+	Kind    string `json:"kind"` // image | video | metin
 	Metin   string `json:"metin"`
+
+	// ⚠️ TURU 77 — METIN KATMANLARI (hikaye editoru). Bicim sozlesmesi
+	//    migration 027'de yazili. Sunucu ICERIGI dogrular ama CIZMEZ.
+	Katmanlar []storyKatman `json:"katmanlar"`
+
+	// SADECE METIN hikayesinde zemin gradyan ANAHTARI ('mor','okyanus'...).
+	ArkaPlan string `json:"arka_plan"`
+}
+
+// ⚠️ Katman alanlari SUNUCUDA DOGRULANIR. Sebep: bunlar istemciden gelir ve
+//
+//	BASKALARININ ekraninda cizilir. Sinirsiz `boyut` ya da 10.000 katman,
+//	izleyicinin cihazini kilitleyebilirdi (ucuz bir hizmet reddi).
+type storyKatman struct {
+	Metin string  `json:"metin"`
+	X     float64 `json:"x"`     // 0..1 (ORAN — piksel DEGIL)
+	Y     float64 `json:"y"`     // 0..1
+	Boyut float64 `json:"boyut"` // mantiksal punto
+	Renk  string  `json:"renk"`  // #RRGGBB
+	Font  string  `json:"font"`  // sade | kalin | ince | serif | daktilo | el
+	Hiza  string  `json:"hiza"`  // sol | orta | sag
+	Kutu  string  `json:"kutu"`  // yok | dolu | seffaf
+	Aci   float64 `json:"aci"`   // radyan
+}
+
+// ⚠️ TAVANLAR: istemci arayuzu zaten bunlarin icinde kalir; buradaki kontrol
+// KOTU NIYETLI istemciye karsidir (istemci kapisi guvenlik DEGILDIR).
+const (
+	enFazlaKatman   = 12
+	enFazlaKatmanCh = 400
+	enKucukPunto    = 8
+	enBuyukPunto    = 96
+)
+
+// Katmanlari SINIRLARA CEKER (reddetmek yerine kirpar).
+//
+// ⚠️ REDDETMEK YERINE KIRPMA bilincli: kullanici hikayeyi hazirlamis ve
+//
+//	yuklemis oluyor; tek bir sayi sinir disi diye TUM paylasimi 400 ile
+//	geri cevirmek, kullanicinin emegini cope atar. Sinira cekmek gorunur
+//	bir bozulma yaratmaz.
+func katmanlariDuzelt(k []storyKatman) []storyKatman {
+	if len(k) > enFazlaKatman {
+		k = k[:enFazlaKatman]
+	}
+	out := make([]storyKatman, 0, len(k))
+	for _, s := range k {
+		s.Metin = strings.TrimSpace(s.Metin)
+		if s.Metin == "" {
+			continue // bos katman cizilmez, saklamanin anlami yok
+		}
+		if len(s.Metin) > enFazlaKatmanCh {
+			s.Metin = kisalt(s.Metin, enFazlaKatmanCh)
+		}
+		s.X = sinirla(s.X, 0, 1)
+		s.Y = sinirla(s.Y, 0, 1)
+		s.Boyut = sinirla(s.Boyut, enKucukPunto, enBuyukPunto)
+		s.Aci = sinirla(s.Aci, -3.2, 3.2)
+		if !renkGecerli(s.Renk) {
+			s.Renk = "#FFFFFF"
+		}
+		switch s.Font {
+		case "sade", "kalin", "ince", "serif", "daktilo", "el":
+		default:
+			s.Font = "sade"
+		}
+		switch s.Hiza {
+		case "sol", "orta", "sag":
+		default:
+			s.Hiza = "orta"
+		}
+		switch s.Kutu {
+		case "yok", "dolu", "seffaf":
+		default:
+			s.Kutu = "yok"
+		}
+		out = append(out, s)
+	}
+	return out
+}
+
+func sinirla(v, alt, ust float64) float64 {
+	// ⚠️ NaN/Inf kapisi: JSON'dan gelen bozuk sayi Postgres'e yazilirsa
+	//    izleyicide cizim PATLAR. `v != v` NaN testidir.
+	if v != v {
+		return alt
+	}
+	if v < alt {
+		return alt
+	}
+	if v > ust {
+		return ust
+	}
+	return v
+}
+
+func renkGecerli(s string) bool {
+	if len(s) != 7 || s[0] != '#' {
+		return false
+	}
+	for i := 1; i < 7; i++ {
+		c := s[i]
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') && (c < 'A' || c > 'F') {
+			return false
+		}
+	}
+	return true
+}
+
+// Metin hikayesi zeminleri — ANAHTARLA saklanir, ham renkle DEGIL (bkz. 027).
+var arkaPlanlar = map[string]bool{
+	"mor": true, "gun_batimi": true, "okyanus": true, "orman": true,
+	"gece": true, "seftali": true, "kor": true, "gumus": true,
 }
 
 // POST /stories — hikaye paylas.
@@ -52,12 +165,32 @@ func (h *Handler) StoryOlustur(w http.ResponseWriter, r *http.Request) {
 		hata(w, 400, "geçersiz istek")
 		return
 	}
-	if strings.TrimSpace(req.MediaID) == "" {
-		hata(w, 400, "medya bulunamadı")
-		return
-	}
-	if req.Kind != "image" && req.Kind != "video" {
+	req.MediaID = strings.TrimSpace(req.MediaID)
+	req.Katmanlar = katmanlariDuzelt(req.Katmanlar)
+
+	// ⚠️ TURU 77 — UC TUR: image | video | metin.
+	//    'metin' = medyasiz, gradyan zeminli hikaye (Instagram deseni).
+	if req.Kind != "image" && req.Kind != "video" && req.Kind != "metin" {
 		req.Kind = "image"
+	}
+	if req.Kind == "metin" {
+		// ⚠️ Medyasiz hikayede ZEMIN ZORUNLU (migration 027 CHECK'i de bunu
+		//    dayatiyor) — aksi halde izleyicide SIYAH BOS EKRAN cizilirdi.
+		if !arkaPlanlar[req.ArkaPlan] {
+			req.ArkaPlan = "mor"
+		}
+		if len(req.Katmanlar) == 0 {
+			hata(w, 400, "metin hikâyesi boş olamaz")
+			return
+		}
+		req.MediaID = ""
+	} else {
+		if req.MediaID == "" {
+			hata(w, 400, "medya bulunamadı")
+			return
+		}
+		// Medyali hikayede zemin ANLAMSIZ — CHECK'i yaniltmasin diye temizlenir.
+		req.ArkaPlan = ""
 	}
 	if len(req.Metin) > 300 {
 		req.Metin = kisalt(req.Metin, 300)
@@ -66,27 +199,45 @@ func (h *Handler) StoryOlustur(w http.ResponseWriter, r *http.Request) {
 	// ⚠️⚠️ MEDYA SAHIPLIGI + DURUMU DOGRULANIR (gonderi/mesajla AYNI kural).
 	//    Aksi halde biri BASKASININ medya id'sini kendi hikayesine baglayabilir
 	//    ya da dogrulanmamis ('beklemede') bir kaydi yayinlayabilirdi.
-	var sahipOk bool
-	if h.db.QueryRow(r.Context(), `
-		SELECT EXISTS(SELECT 1 FROM media_assets
-		        WHERE id=$1 AND owner_id=$2 AND status IN ('aktif','bagli'))`,
-		req.MediaID, me).Scan(&sahipOk) != nil || !sahipOk {
-		hata(w, 403, "geçersiz medya")
+	if req.MediaID != "" {
+		var sahipOk bool
+		if h.db.QueryRow(r.Context(), `
+			SELECT EXISTS(SELECT 1 FROM media_assets
+			        WHERE id=$1 AND owner_id=$2 AND status IN ('aktif','bagli'))`,
+			req.MediaID, me).Scan(&sahipOk) != nil || !sahipOk {
+			hata(w, 403, "geçersiz medya")
+			return
+		}
+	}
+
+	katmanJSON, err := json.Marshal(req.Katmanlar)
+	if err != nil {
+		hata(w, 400, "geçersiz istek")
 		return
+	}
+
+	// ⚠️ `media_id` artik NULL olabilir (metin hikayesi). Bos string GONDERILEMEZ:
+	//    `uuid` sutunu bos metni kabul etmez -> 500. Bu yuzden *string kullaniliyor.
+	var medyaParam *string
+	if req.MediaID != "" {
+		medyaParam = &req.MediaID
 	}
 
 	var id string
 	var t time.Time
 	if h.db.QueryRow(r.Context(), `
-		INSERT INTO stories (user_id, media_id, kind, metin)
-		VALUES ($1,$2,$3,$4) RETURNING id, created_at`,
-		me, req.MediaID, req.Kind, req.Metin).Scan(&id, &t) != nil {
+		INSERT INTO stories (user_id, media_id, kind, metin, katmanlar, arka_plan)
+		VALUES ($1,$2,$3,$4,$5,$6) RETURNING id, created_at`,
+		me, medyaParam, req.Kind, req.Metin, katmanJSON, req.ArkaPlan).
+		Scan(&id, &t) != nil {
 		hata(w, 500, "hikaye paylaşılamadı")
 		return
 	}
 	// Medyayi 'bagli' yap — supurge onu bosta sanip silmesin.
-	h.db.Exec(r.Context(),
-		`UPDATE media_assets SET status='bagli' WHERE id=$1`, req.MediaID)
+	if req.MediaID != "" {
+		h.db.Exec(r.Context(),
+			`UPDATE media_assets SET status='bagli' WHERE id=$1`, req.MediaID)
+	}
 
 	yaz(w, 201, map[string]any{"id": id, "created_at": t})
 }
@@ -154,8 +305,13 @@ func (h *Handler) StoryAkis(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) StoryKullanici(w http.ResponseWriter, r *http.Request) {
 	me := auth.UserID(r.Context())
 	hedef := chi.URLParam(r, "userId")
+	// ⚠️ TURU 77: `katmanlar` (JSONB) + `arka_plan` eklendi; `media_id` artik
+	//    NULL olabilir (metin hikayesi). SCAN SIRASI SORGUYLA BIREBIR olmali —
+	//    uyusmazlik derleme hatasi VERMEZ, satir SESSIZCE atlanir ve hikaye
+	//    listesi BOMBOS doner (turu 76'da `Kaydedilenler`de tam bu yasandi).
 	rows, err := h.db.Query(r.Context(), `
-		SELECT s.id, s.media_id, s.kind, s.metin, s.created_at,
+		SELECT s.id, s.media_id, s.kind, s.metin, s.katmanlar, s.arka_plan,
+		       s.created_at,
 		       EXISTS(SELECT 1 FROM story_views v
 		               WHERE v.story_id=s.id AND v.user_id=$1),
 		       (SELECT count(*)::int FROM story_views v2 WHERE v2.story_id=s.id)
@@ -170,15 +326,27 @@ func (h *Handler) StoryKullanici(w http.ResponseWriter, r *http.Request) {
 	defer rows.Close()
 	out := []map[string]any{}
 	for rows.Next() {
-		var id, mediaID, kind, metin string
+		var id, kind, metin, arkaPlan string
+		// ⚠️ `media_id` NULL olabilir -> *string. Duz string olsaydi metin
+		//    hikayesinde Scan HATA verir ve satir sessizce atlanirdi.
+		var mediaID *string
+		var katmanlar []byte
 		var t time.Time
 		var izledim bool
 		var izlenme int
-		if rows.Scan(&id, &mediaID, &kind, &metin, &t, &izledim, &izlenme) != nil {
+		if rows.Scan(&id, &mediaID, &kind, &metin, &katmanlar, &arkaPlan,
+			&t, &izledim, &izlenme) != nil {
 			continue
+		}
+		// ⚠️ `json.RawMessage` ile GECIRILIYOR: sunucu katmanlari yeniden
+		//    ayristirip yeniden kurmuyor (gereksiz is + bilgi kaybi riski).
+		//    Bos/bozuk ise istemci `[]` gorsun diye yedek deger veriliyor.
+		if len(katmanlar) == 0 {
+			katmanlar = []byte("[]")
 		}
 		m := map[string]any{
 			"id": id, "media_id": mediaID, "kind": kind, "metin": metin,
+			"katmanlar": json.RawMessage(katmanlar), "arka_plan": arkaPlan,
 			"created_at": t, "izledim": izledim,
 		}
 		// ⚠️ IZLENME SAYISI YALNIZ SAHIBINE: baskasinin hikayesinde kac kisinin

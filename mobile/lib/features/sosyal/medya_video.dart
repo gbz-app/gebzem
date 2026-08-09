@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -34,7 +35,8 @@ import '../medya/ses_notu_kontrol.dart';
 class MedyaVideo extends ConsumerStatefulWidget {
   const MedyaVideo({
     super.key,
-    required this.mediaId,
+    this.mediaId = '',
+    this.yerelDosya,
     this.kapakMediaId,
     this.otoOynat = false,
     this.dongu = true,
@@ -43,7 +45,12 @@ class MedyaVideo extends ConsumerStatefulWidget {
     this.kontrolGoster = true,
   });
 
+  /// Sunucudaki medya. ⚠️ `yerelDosya` verildiyse BOS olabilir.
   final String mediaId;
+
+  /// ⚠️ TURU 77 — HENUZ YUKLENMEMIS yerel dosya (hikaye editoru onizlemesi).
+  ///    Verilirse `mediaId` YOK SAYILIR ve ag istegi ATILMAZ.
+  final File? yerelDosya;
 
   /// Kucuk resim — video hazir olana kadar gosterilir (siyah kare yerine).
   final String? kapakMediaId;
@@ -218,16 +225,33 @@ class _MedyaVideoState extends ConsumerState<MedyaVideo>
       _kilitli = false;
     });
     try {
-      final bilgi = await ref.read(medyaServisiProvider).adres(widget.mediaId);
-      if (!mounted || nesil != _nesil) return;
-      final url = (bilgi['url'] ?? '').toString();
-      if (url.isEmpty) throw Exception('adres bos');
-
-      final c = VideoPlayerController.networkUrl(
-        Uri.parse(url),
-        // ⚠️⚠️ ZORUNLU — bkz. dosya basligi. Kaldirilirsa suren aramanin sesi olur.
-        videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
-      );
+      // ⚠️⚠️ TURU 77 — YEREL DOSYA DESTEGI (hikaye editoru onizlemesi).
+      //    Editorde secilen video HENUZ YUKLENMEDI; `mediaId` yok.
+      //    AYRI BIR OYNATICI YAZILMADI cunku bu widget'taki ses kapilari
+      //    (`MedyaKapisi.donanimSerbest`, `SesNotuKontrol`, `mixWithOthers`)
+      //    bu projenin en kirilgan yerini koruyor — ikinci bir oynatici o
+      //    korumalarin DISINDA kalir ve suren aramanin sesini bozar.
+      // ⚠️ YAPMA: editorde `VideoPlayerController.file` ile ayri oynatici kurma.
+      final VideoPlayerController c;
+      if (widget.yerelDosya != null) {
+        c = VideoPlayerController.file(
+          widget.yerelDosya!,
+          // ⚠️⚠️ ZORUNLU — bkz. dosya basligi.
+          videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
+        );
+      } else {
+        final bilgi = await ref
+            .read(medyaServisiProvider)
+            .adres(widget.mediaId);
+        if (!mounted || nesil != _nesil) return;
+        final url = (bilgi['url'] ?? '').toString();
+        if (url.isEmpty) throw Exception('adres bos');
+        c = VideoPlayerController.networkUrl(
+          Uri.parse(url),
+          // ⚠️⚠️ ZORUNLU — bkz. dosya basligi. Kaldirilirsa suren aramanin sesi olur.
+          videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
+        );
+      }
       await c.initialize();
       if (!mounted || nesil != _nesil) {
         unawaited(c.dispose());
