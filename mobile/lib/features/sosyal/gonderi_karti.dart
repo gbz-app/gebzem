@@ -52,6 +52,18 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
   ///    oynatmanin BIRINCI kapisi. Bkz. `sosyal/gorunurluk.dart`.
   double _gorunurOran = 0;
 
+  /// ⚠️ Threads galerisinin kaydiricisi. `viewportFraction` sayfa genisligini
+  ///    ekranin %78'i yapar -> sonraki medya SAGDAN SARKAR.
+  /// ⚠️ `initState`te kurulur (build icinde kurulsaydi her cizimde YENI
+  ///    controller olusur ve kaydirma konumu SIFIRLANIRDI).
+  late final PageController _sayfaCtrl = PageController(viewportFraction: 0.78);
+
+  @override
+  void dispose() {
+    _sayfaCtrl.dispose();
+    super.dispose();
+  }
+
   Gonderi get g => widget.gonderi;
 
   Future<void> _begeniCevir({bool yalnizBegen = false}) async {
@@ -620,32 +632,30 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
                   ),
                 )
               else
-                NotificationListener<ScrollNotification>(
-                  // ⚠️ Yatay kaydirmada ORTADAKI ogeyi buluruz: otomatik oynayan
-                  //    video YALNIZ o olmali (iki video ayni anda calmasin —
-                  //    iOS ses oturumu proses genelinde TEK).
-                  onNotification: (n) {
-                    if (n.metrics.axis != Axis.horizontal) return false;
-                    final adim = ogeGenislik + 8;
-                    final i = (n.metrics.pixels / adim).round().clamp(
-                      0,
-                      g.mediaIds.length - 1,
-                    );
-                    if (i != _sayfa) setState(() => _sayfa = i);
-                    return false;
-                  },
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    // ⚠️ Kaydirma HIZLI ve tahmin edilebilir olsun diye oge
-                    //    genisligine OTURAN bir fizik: serbest birakinca en
-                    //    yakin ogeye yaslanir (Threads davranisi).
-                    physics: const PageScrollPhysics(),
-                    itemCount: g.mediaIds.length,
-                    separatorBuilder: (_, _) => const SizedBox(width: 8),
-                    itemBuilder: (_, i) => GestureDetector(
+                // ⚠️⚠️ `PageView` + `viewportFraction` + `padEnds:false`
+                //    KULLANILIYOR, `ListView` + `PageScrollPhysics` DEGIL.
+                //
+                //    ILK DENEMEDE ListView'e `PageScrollPhysics` verilmisti ve
+                //    BU HATALIYDI: o fizik sayfa genisligini **VIEWPORT'un TAMAMI**
+                //    sanar. Ogeler ekranin %78'i oldugu icin yaslanma her ogede
+                //    biraz daha kayar ve ucuncu-dorduncu medyada tamamen bozulur.
+                //    `viewportFraction` sayfa genisligini DOGRU tanimlar.
+                // ⚠️ `padEnds: false` ZORUNLU: varsayilan `true` sayfayi ORTALAR
+                //    ve ILK medyanin SOLUNDA bosluk birakir. Threads/Instagram'da
+                //    ilk medya sola DAYALIDIR, sarkan parca SAGDA olur.
+                // ⚠️ YAPMA: `ListView` + `PageScrollPhysics`e geri donme.
+                PageView.builder(
+                  controller: _sayfaCtrl,
+                  padEnds: false,
+                  itemCount: g.mediaIds.length,
+                  // ⚠️ Otomatik oynayan video YALNIZ ortadaki oge olmali (iki
+                  //    video ayni anda calmasin — iOS ses oturumu TEK).
+                  onPageChanged: (i) => setState(() => _sayfa = i),
+                  itemBuilder: (_, i) => Padding(
+                    padding: EdgeInsets.only(left: i == 0 ? 12 : 0, right: 8),
+                    child: GestureDetector(
                       onDoubleTap: () => _begeniCevir(yalnizBegen: true),
-                      child: _medyaKutusu(i, ogeGenislik, yukseklik),
+                      child: _medyaKutusu(i, null, yukseklik),
                     ),
                   ),
                 ),
@@ -671,7 +681,7 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
   }
 
   /// Galerideki TEK kutu — yuvarlak koseli, sabit olculu.
-  Widget _medyaKutusu(int i, double genislik, double yukseklik) => ClipRRect(
+  Widget _medyaKutusu(int i, double? genislik, double yukseklik) => ClipRRect(
     borderRadius: BorderRadius.circular(16),
     child: SizedBox(
       width: genislik,
