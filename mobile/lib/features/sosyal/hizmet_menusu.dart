@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../etkinlik/etkinlik_ekranlari.dart';
+import '../kanal/kanallar_sekmesi.dart' show KanallarSayfasi;
 import '../ilan/ilan_ekranlari.dart';
 import '../isletme/isletme_listesi.dart';
 import '../isletme/urun_ekranlari.dart' show AiDanismaEkrani;
@@ -71,6 +72,32 @@ class HizmetMenusu extends ConsumerWidget {
         const Color(0xFF7A5CFF),
         const Color(0xFF3A2A8A),
       ], (c) => const IsletmeListesiEkrani(kategori: 'market', baslik: 'Alışveriş')),
+      // ⚠️ TURU 80 (kullanici emri: "bu alanda kategoriler eğitim ve sağlık ekle").
+      //    Iki anahtar ZATEN sistemde: `isletmeKategorileri` (istemci) ve
+      //    `isletme/handler.go` (sunucu) 'egitim'/'saglik' taniyor; ayrica
+      //    `vitrin/handler.go` `isletmeDikeyleri` haritasinda da VARLAR, yani
+      //    inis sayfasinin ust slider'i DOGRU calisir.
+      //    ⚠️ MIGRATION GEREKMEZ: `isletmeler.kategori` sutununda CHECK YOK.
+      _Bolum('Eğitim', [
+        const Color(0xFFEC4FA0),
+        const Color(0xFF7B1E6A),
+      ], (c) => const IsletmeListesiEkrani(kategori: 'egitim', baslik: 'Eğitim')),
+      _Bolum('Sağlık', [
+        const Color(0xFF17C3CE),
+        const Color(0xFF0A5B78),
+      ], (c) => const IsletmeListesiEkrani(kategori: 'saglik', baslik: 'Sağlık')),
+      // ⚠️⚠️⚠️ TURU 80 — KANALLAR **BURAYA TASINDI**.
+      //    Kullanici anasayfadaki "Akış | Kanallar" secicisini kaldirmami
+      //    istedi; ama o secici KANALLARIN **TEK GIRIS NOKTASIYDI**
+      //    (`kanallar_sekmesi.dart` yalnizca `akis_ekrani.dart`tan import
+      //    ediliyordu — grep ile dogrulandi). Yeni bir ev VERILMESEYDI kanal
+      //    ozelligi TAMAMEN ULASILAMAZ kalirdi; bu projede ALTI kez yasanan
+      //    "olu ozellik" sinifi.
+      //    ⚠️ YAPMA: bu karti kaldirma — kanallara baska giris YOK.
+      _Bolum('Kanallar', [
+        const Color(0xFF4A6CF7),
+        const Color(0xFF1B2A6B),
+      ], (c) => const KanallarSayfasi()),
       if (aiAcik)
         _Bolum('Yapay zekâ', [
           const Color(0xFF00C2A8),

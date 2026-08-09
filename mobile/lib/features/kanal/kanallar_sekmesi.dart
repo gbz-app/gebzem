@@ -295,3 +295,28 @@ class _KanallarSekmesiState extends ConsumerState<KanallarSekmesi>
     onTap: () => _kanalAc(k),
   );
 }
+
+/// ⚠️⚠️⚠️ TURU 80 — KANALLARIN YENI EVI (tam ekran sayfa).
+///
+/// Kullanici anasayfadaki "Akış | Kanallar" secicisini kaldirmami istedi; ama o
+/// secici kanallarin **TEK GIRIS NOKTASIYDI**. Kaldirip yerine bir sey koymamak
+/// kanal ozelligini TAMAMEN ULASILAMAZ birakirdi — bu projede ALTI kez yasanan
+/// "olu ozellik" sinifi. Kanallar artik sol ust hamburger menude bir KART.
+///
+/// ⚠️ NEDEN AYRI SARMALAYICI: `KanallarSekmesi` bir `Scaffold` donduruyor ama
+///    **AppBar'i YOK** (bir sekme govdesi olarak yazilmisti). Route olarak
+///    dogrudan push edilseydi GERI DUGMESI OLMAZDI ve kullanici ekranda
+///    sikisirdi. Sarmalayici AppBar'i disaridan ekler; `KanallarSekmesi`in
+///    kendi FAB'i ("Kanal aç") ve durum yonetimi AYNEN korunur.
+/// ⚠️ YAPMA: `KanallarSekmesi`in govdesini kopyalayip ikinci bir surum yazma.
+class KanallarSayfasi extends StatelessWidget {
+  const KanallarSayfasi({super.key});
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Kanallar')),
+    // ⚠️ Ic Scaffold KALIR: FAB'i o taşıyor. Ic ice Scaffold burada zararsiz —
+    //    dis olan yalnizca AppBar sagliyor.
+    body: const KanallarSekmesi(),
+  );
+}

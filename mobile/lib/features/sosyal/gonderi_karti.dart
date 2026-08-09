@@ -10,6 +10,7 @@ import '../medya/medya_gorsel.dart';
 import '../chats/moderasyon_sheet.dart';
 import '../medya/tam_ekran_gorsel.dart';
 import 'gorunurluk.dart';
+import 'medya_olcu.dart';
 import 'medya_video.dart';
 import 'paylas_sheet.dart';
 import 'sosyal_servisi.dart';
@@ -424,7 +425,17 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
     final tema = Theme.of(context);
     // ⚠️ Gozcu YALNIZ videolu gonderilerde kurulur: fotograf kartlarinda
     //    kaydirma dinleyicisi bosuna calisir (akista onlarca kart var).
-    final govde = _icerik(tema);
+    // ⚠️⚠️ TURU 80 — GENISLIK TAVANI (tablet/genis ekran).
+    //    Yukseklik tavani TEK BASINA tablette 536x340'lik asiri YATAY bir kutu
+    //    birakiyor ve 776dp genisliginde METIN SATIRI OKUNMUYOR.
+    // ⚠️ Tavan KARTIN KENDI kokunde: UC cagiran var (akis_ekrani, gonderi_detay,
+    //    kaydedilenler_sayfasi) ve ucune ayri ayri koymak drift demekti.
+    final govde = Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: kKolonTavani),
+        child: _icerik(tema),
+      ),
+    );
     if (!g.videoIceriyor) return govde;
     return Gorunurluk(
       onOran: (o) {
@@ -607,9 +618,6 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
   ///    yuvarlak.
   Widget _medya() {
     final coklu = g.mediaIds.length > 1;
-    // ⚠️ 4:5 (dikey) — telefonla cekilen fotograflarin cogunlugu dikey.
-    //    Reels DIKEY (9:16) oldugu icin ayrilir.
-    final enBoy = g.tur == 'reels' ? 9 / 16 : 4 / 5;
 
     return LayoutBuilder(
       builder: (context, kisit) {
@@ -617,7 +625,13 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
         // ⚠️ %78: sagdan sarkan parca ~%16 kalir — "devami var" belli olur ama
         //    ana medya hala baskin. Daha dar yapmak okunurlugu bozar.
         final ogeGenislik = coklu ? kisit.maxWidth * 0.78 : tamGenislik;
-        final yukseklik = ogeGenislik / enBoy;
+        // ⚠️⚠️⚠️ TURU 80 — YUKSEKLIK ARTIK **TAVANLI** (kullanici: "çok uzun").
+        //    Eskiden `ogeGenislik / enBoy` idi, yani yukseklik YALNIZ genislige
+        //    bagliydi ve ekran en-boyu degistikce ekran yuzdesi %45-%108
+        //    arasinda savruluyordu (tablette reels EKRANDAN UZUNDU).
+        //    Ayrinti ve reddedilen alternatifler: `medya_olcu.dart` serhi.
+        // ⚠️ YAPMA: burada kendi hesabini yazma — `medyaYuksekligi` TEK KAYNAK.
+        final yukseklik = medyaYuksekligi(context, ogeGenislik);
 
         return SizedBox(
           height: yukseklik,
@@ -645,18 +659,30 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
                 //    ve ILK medyanin SOLUNDA bosluk birakir. Threads/Instagram'da
                 //    ilk medya sola DAYALIDIR, sarkan parca SAGDA olur.
                 // ⚠️ YAPMA: `ListView` + `PageScrollPhysics`e geri donme.
-                PageView.builder(
-                  controller: _sayfaCtrl,
-                  padEnds: false,
-                  itemCount: g.mediaIds.length,
-                  // ⚠️ Otomatik oynayan video YALNIZ ortadaki oge olmali (iki
-                  //    video ayni anda calmasin — iOS ses oturumu TEK).
-                  onPageChanged: (i) => setState(() => _sayfa = i),
-                  itemBuilder: (_, i) => Padding(
-                    padding: EdgeInsets.only(left: i == 0 ? 12 : 0, right: 8),
-                    child: GestureDetector(
-                      onDoubleTap: () => _begeniCevir(yalnizBegen: true),
-                      child: _medyaKutusu(i, null, yukseklik),
+                // ⚠️⚠️ TURU 80 — SOL BOSLUK `PageView`IN KENDISINE (denetim
+                //    bulgusu). Eskiden `left: i == 0 ? 12 : 0` ile ILK OGEYE
+                //    ekstra 12px dolgu veriliyordu ama YUKSEKLIK hepsine ayni
+                //    `0.78*W`den hesaplaniyordu: 390px'te ilk kutu 284 genis,
+                //    digerleri 296 — yani ILK MEDYA gorunur sekilde DAHA DAR
+                //    (ve orantisiz uzun) cikiyordu.
+                // ⚠️ `viewportFraction: 0.78` ve `padEnds: false` AYNEN KALIR
+                //    (turu 76b: `ListView` + `PageScrollPhysics`e DONULMEZ,
+                //    `padEnds: true` ilk medyayi ORTALAR).
+                Padding(
+                  padding: const EdgeInsets.only(left: 12),
+                  child: PageView.builder(
+                    controller: _sayfaCtrl,
+                    padEnds: false,
+                    itemCount: g.mediaIds.length,
+                    // ⚠️ Otomatik oynayan video YALNIZ ortadaki oge olmali (iki
+                    //    video ayni anda calmasin — iOS ses oturumu TEK).
+                    onPageChanged: (i) => setState(() => _sayfa = i),
+                    itemBuilder: (_, i) => Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: GestureDetector(
+                        onDoubleTap: () => _begeniCevir(yalnizBegen: true),
+                        child: _medyaKutusu(i, null, yukseklik),
+                      ),
                     ),
                   ),
                 ),
@@ -668,12 +694,13 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
                     color: Color(0xEEFF3B5C),
                   ),
                 ),
-              if (coklu)
-                Positioned(
-                  top: 10,
-                  right: 20,
-                  child: _rozet('${_sayfa + 1}/${g.mediaIds.length}'),
-                ),
+              // ⚠️⚠️ TURU 80 — ROZET `_medyaKutusu`NUN ICINE TASINDI.
+              //    Eskiden burada `Positioned(top:10, right:20)` idi ve bu DIS
+              //    `Stack`e, yani KART genisligine goreydi: 390px ekranda aktif
+              //    medya x=12..296 arasindayken rozet x~340-370'e ciziliyordu —
+              //    yani sayac AKTIF medyanin degil, **SAGDAN SARKAN KOMSU**
+              //    medyanin uzerinde duruyordu.
+              // ⚠️ YAPMA: rozeti tekrar dis Stack'e koyma.
             ],
           ),
         );
@@ -682,14 +709,31 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
   }
 
   /// Galerideki TEK kutu — yuvarlak koseli, sabit olculu.
+  ///
+  /// ⚠️ Yaricap `kMedyaYaricap` (18) — TEK KAYNAK, bkz. `medya_olcu.dart`.
   Widget _medyaKutusu(int i, double? genislik, double yukseklik) => ClipRRect(
-    borderRadius: BorderRadius.circular(16),
+    borderRadius: BorderRadius.circular(kMedyaYaricap),
     child: SizedBox(
       width: genislik,
       height: yukseklik,
       child: ColoredBox(
         color: const Color(0xFF0B0B12),
-        child: _tekMedya(g.mediaIds[i], i),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            _tekMedya(g.mediaIds[i], i),
+            // ⚠️ TURU 80 — SAYAC ROZETI ARTIK KUTUNUN ICINDE (bkz. yukaridaki
+            //    serh). YALNIZ coklu galeride ve YALNIZ AKTIF kutuda cizilir;
+            //    her kutuya cizilseydi sarkan komsuda da gorunur ve "iki sayac"
+            //    izlenimi verirdi.
+            if (g.mediaIds.length > 1 && i == _sayfa)
+              Positioned(
+                top: 8,
+                right: 8,
+                child: _rozet('${_sayfa + 1}/${g.mediaIds.length}'),
+              ),
+          ],
+        ),
       ),
     ),
   );
@@ -766,7 +810,14 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
       onTap: () => Navigator.of(
         context,
       ).push(MaterialPageRoute(builder: (_) => TamEkranGorsel(mediaId: id))),
-      child: MedyaGorsel(mediaId: id, fit: BoxFit.contain),
+      // ⚠️⚠️ TURU 80 — `cover` (eskiden `contain`). MEVCUT HATAYDI: video dali
+      //    `BoxFit.cover` kullaniyordu, fotograf dali `contain` — yani KARMA
+      //    galeride (turu 76'nin `media_kinds` ile actigi tam senaryo) video
+      //    kutuyu doldururken FOTOGRAF ayni kutuda SIYAH BANTLA ciziliyordu.
+      //    Yukseklik tavani geldikten sonra kutu daha YATAY oldugu icin o
+      //    bantlar BUYUYECEKTI, yani hata gorunurlesecekti.
+      // ⚠️ `TamEkranGorsel` `contain` KALIR — kirpilmamis hali orada gorunur.
+      child: MedyaGorsel(mediaId: id, fit: BoxFit.cover),
     );
   }
 

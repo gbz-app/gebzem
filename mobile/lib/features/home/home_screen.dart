@@ -208,12 +208,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
               label: 'Mesaj',
             ),
+            // ⚠️ TURU 80 (kullanici emri): `radioTower` -> `radio`.
+            //    `LucideIcons.radio` bu kod tabaninda ZATEN kullaniliyor
+            //    (`davet_provider.dart` yayin daveti) — tutarlilik da kazanildi.
             const NavigationDestination(
-              icon: Icon(LucideIcons.radioTower),
+              icon: Icon(LucideIcons.radio),
               label: 'Canlı',
             ),
-            const NavigationDestination(
-              icon: Icon(LucideIcons.user),
+            // ⚠️⚠️ TURU 80 (kullanici emri): ikon YERINE **PROFIL RESMI**.
+            //
+            // ⚠️ `icon` ve `selectedIcon` AYNI SINIFI (`_ProfilIkonu`) kullanir.
+            //    Farkli sinif verilseydi Flutter element'i yeniden kurar ve
+            //    avatar her sekme degisiminde SIFIRDAN cizilirdi; ayni sinifla
+            //    State KORUNUR ve `secili` yalnizca bir alan degisimi olur.
+            // ⚠️ Secili/secili degil ayrimi ikonla yapilamadigi icin CERCEVE
+            //    ile yapilir (bkz. `_ProfilIkonu`).
+            NavigationDestination(
+              icon: const _ProfilIkonu(secili: false),
+              selectedIcon: const _ProfilIkonu(secili: true),
               label: 'Profil',
             ),
           ],
@@ -498,6 +510,53 @@ class _ProfileTab extends ConsumerWidget {
           onTap: () => ref.read(authProvider.notifier).logout(),
         ),
       ],
+    );
+  }
+}
+
+/// ⚠️⚠️⚠️ TURU 80 — ALT MENUDEKI PROFIL SEKMESI: IKON DEGIL **PROFIL RESMI**.
+///
+/// Kullanici emri: *"sağdaki profil ikonu yerine profil resmi olacak"*.
+///
+/// ⚠️ `ConsumerWidget`: avatar DEGISINCE (profil duzenleme) alt menu de
+///    KENDILIGINDEN guncellenir. `ref.watch` olmasaydi kullanici fotografini
+///    degistirir ve alt menude ESKISINI gormeye devam ederdi.
+/// ⚠️ AG ISTEGI KAYGISI YOK: `MedyaGorsel` imzali adresi SUREC OMURLU olarak
+///    onbellekliyor; ayrica `icon`/`selectedIcon` AYNI SINIF oldugu icin
+///    element yeniden kullanilir ve widget her sekme degisiminde SIFIRDAN
+///    kurulmaz.
+/// ⚠️ Profil resmi YOKSA `Avatar` zaten HARF YEDEGINE duser — bos kutu cizilmez.
+class _ProfilIkonu extends ConsumerWidget {
+  const _ProfilIkonu({required this.secili});
+
+  /// Secili sekmede ikon RENGI degistirilemedigi icin (avatar bir fotograf)
+  /// ayrim CERCEVE ile yapilir.
+  final bool secili;
+
+  static const double _cap = 26;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final p = ref.watch(myProfileProvider).valueOrNull;
+    final avatar = Avatar(
+      ad: (p?['name'] ?? '').toString(),
+      mediaId: p?['avatar_media_id'] as String?,
+      avatarUrl: (p?['avatar_url'] ?? '').toString(),
+      cap: _cap,
+    );
+    if (!secili) return avatar;
+    // ⚠️ Cerceve DISARIDAN cizilir (avatarin capini KUCULTMEZ): `Container`in
+    //    kendi kenarligi cocugu iceri iterdi ve secili/secili-degil arasinda
+    //    fotograf boyutu OYNAR, alt menu titrerdi.
+    return Container(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: Theme.of(context).colorScheme.primary,
+          width: 2,
+        ),
+      ),
+      child: Padding(padding: const EdgeInsets.all(1.5), child: avatar),
     );
   }
 }
