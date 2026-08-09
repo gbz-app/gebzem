@@ -5115,3 +5115,42 @@ DB temizle → kullanıcı tek seferde test edecek.
 
 İlk build (`deb05b2`) **yayınlanmadı** — 3. bulgu ondan sonra çıktı, build yeniden alındı.
 CLAUDE.md turu 59b dersi: *"build ALMAK yayınlamak DEĞİLDİR"*.
+
+---
+
+## Oturum 78 — TURU 76b (9 Ağustos, test sonrası kullanıcı istekleri)
+
+Kullanıcı turu 76'yı kurdu, **"grup oluşturma nerede?"** diye sordu ve ardından
+Threads ekran görüntüsü + yeni istekler gönderdi.
+
+### Yapılanlar
+
+| Konu | Commit |
+|---|---|
+| Grup üye yönetimi + çift "+" düzeltmesi | `0b822a5` |
+| Kart: Threads galerisi + otomatik video + eşit ikonlar + istatistik ikonu | `dc36cc3` |
+| Kanalda video + kanal gönderi istatistiği | `b10374b` |
+| STORY (backend 026 + 6 uç, şerit, izleyici) + hamburger menü | `d0328a6` |
+| Uçtan uca 65 kontrol | `9b52b17` |
+
+### Bulunan kök nedenler
+
+1. **"Grup oluşturma yok" — özellik vardı, ulaşılamıyordu.** İki ayrı sebep:
+   ekranda iki farklı "+" (üstteki grup seçeneği sunmuyordu) **ve** sunucudaki üç
+   grup-üye ucunun istemciden hiç çağrılmaması. Bu, "uç yazılır, hiçbir düğmeye
+   bağlanmaz" hatasının **beşinci** tekrarı.
+2. **Otomatik video sahada hiç çalışmayacaktı.** Kart ekran dışında kurulduğu için
+   oynatıcı hiç yaratılmıyor, görünür olunca `_oynat()` boşa gidiyordu.
+3. **İkonlar eşitsizdi** çünkü iki farklı düğme tipi karışmıştı; ayrıca "seçili"
+   hali ikonu büyütüp satırı kaydırıyordu.
+4. **Kanalda video yasağı sunucudan değildi** — istemci medyanın türünü bilmiyordu.
+
+### Kalıcı kararlar
+- **Story'de `expires_at` YOK.** 24 saat bir *görünürlük* kuralıdır; satır kalıcıdır.
+  Veri politikası (8 Ağu kullanıcı kararı) her şeyden önce gelir.
+- **Akışta otomatik video iki kapıya bağlı** (kart %60 görünür + galeride ortadaki).
+  Tek kapı bile kaldırılırsa iOS ses oturumu üzerinden aramalar bozulur.
+- **Hamburger kartlarında ikon yok** (açık kullanıcı emri).
+
+**DURUM: kod bitti, backend deploy edildi, 65/65 uçtan uca geçti.
+İstemci build'i için kullanıcı onayı bekleniyor (CLAUDE.md kural 0).**

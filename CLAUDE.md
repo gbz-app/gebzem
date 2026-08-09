@@ -17,7 +17,71 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (9 Agu 02:36):** TEST TURU 76 YAYINLANDI — android 31283866106 +
+- **KALDIGIMIZ YER (9 Agu 03:20):** TURU 76b — KOD BITTI, **BUILD ICIN ONAY BEKLIYOR**
+  (kural 0). Backend DEPLOY EDILDI (d0328a6, migration **026** uygulandi) + health ok,
+  **CANLI SUNUCUDA 65/65 UCTAN UCA GECTI**, DB temiz. Istemci HENUZ BUILD ALINMADI.
+- ⚠️⚠️ **TURU 76b — "GRUP OLUSTURMA NEREDE?" IKI KOK NEDEN.**
+  (1) Alt menude **IKI TANE "+"** vardi ve FARKLI IS YAPIYORLARDI: ust (AppBar)
+  dogrudan kisi aramaya gidiyordu (grup secenegi YOK), alt (FAB) ise
+  "Yeni sohbet | Yeni grup" sheet'i aciyordu. Ust dugme daha gorunurdu ->
+  kullanici "grup yok" sonucuna vardi. **AppBar'daki "+" KALDIRILDI, TEK GIRIS FAB.**
+  ⚠️ YAPMA: AppBar'a tekrar "+" ekleme; yeni eylem gerekirse `_yeniSecenek` sheet'ine koy.
+  (2) Sunucudaki **UC grup-uye ucu ISTEMCIDEN HIC CAGRILMIYORDU**
+  (`GET/POST/DELETE /chats/{id}/members`) -> grup KURULABILIYOR ama uyeleri
+  GORULEMIYOR, uye EKLENEMIYOR/CIKARILAMIYORDU. Bu sinifin **BESINCI** tekrari.
+  FIX: `chats/grup_bilgi.dart` + sohbet basligina dokunma ("Grup bilgisi icin dokun"
+  alt yazisi + chevron). ⚠️ `ChatScreen.isGroup` ACIKCA tasinir (`chat.type=='group'`);
+  `peerId==null` varsayimi YEDEK.
+- ⚠️⚠️ **TURU 76b — AKISTA OTOMATIK VIDEO (`sosyal/gorunurluk.dart`, HARICI PAKET YOK).**
+  Kullanici ekran goruntusu (Threads) gonderdi: galeri **YAN YANA KAYAR**, sonraki
+  medya SAGDAN SARKAR (%78 genislik, yuvarlak kose, nokta gostergesi YOK).
+  **IKI KAPI birden** saglanmadan video oynamaz: kart ekranda **>=%60 gorunur** VE
+  galeride **ORTADAKI oge**. Aksi halde 20 kartin videosu ayni anda calar ->
+  isinma + veri + iOS'ta proses-genelinde TEK ses oturumu yuzunden **ARAMA SAGIRLASIR**.
+  ⚠️ **SESSIZ baslar** — tercih degil ZORUNLULUK (kaydirirken ses patlatmak
+  AVAudioSession'i ele gecirip aramayi bozar). ⚠️ YAPMA: kapilardan birini kaldirma.
+  ⚠️⚠️ **SEVK ENGELI (kod okunarak yakalandi):** kart EKRAN DISINDA kuruldugu icin
+  `MedyaVideo` `_tembel` moda giriyor ve **oynatici HIC YARATILMIYOR**; gorunur
+  olunca `didUpdateWidget` dogrudan `_oynat()` cagiriyordu, `_c` NULL oldugu icin
+  **HICBIR SEY OLMUYORDU** = otomatik oynatma sahada HIC CALISMAZDI. FIX: tembel ise `_kur()`.
+- 📌 **TURU 76b — ETKILESIM CUBUGU ESITLENDI (kullanici: "ikonlarin hepsi esit
+  gorunmeli"):** begeni/yorum/paylas `TextButton.icon` (21px + degisken etiket),
+  kaydet ciplak `IconButton` (24px) idi. Hepsi tek `_eylem` bileseni: **SABIT 22px**
+  ikon + sabit dokunma alani. "Secili" hali artik BOYUT DEGISTIRMEZ (eskiden 21->23
+  buyuyup satiri kaydiriyordu). **ISTATISTIK IKONU cubuga eklendi** — eskiden yalniz
+  `•••` menusunun icindeydi, yani pratikte YOKTU (yalniz YAZARA gorunur).
+- 📌 **TURU 76b — KANALDA VIDEO + ISTATISTIK.** Eski "kanalda video yok" siniri
+  SUNUCU YASAGI DEGILDI: `channel_posts.media_ids` turu tasimiyordu. Gonderi
+  tarafiyla AYNI `media_kinds` cozumu uygulandi. Yeni
+  `GET /channel-posts/{id}/istatistik` (yalniz yazar + kanal sahibi, baskasina 404).
+- ⚠️⚠️⚠️ **TURU 76b — HIKAYE (STORY): "24 SAAT" GORUNURLUKTUR, SILME DEGIL.**
+  Alisilmis cozum `expires_at` + supurge ile SILMEK; **bu projede VERI SILINMEZ**
+  (kullanici karari 8 Agu). Satirlar KALICI, kaybolma YALNIZCA sorgu suzgeciyle
+  (`created_at > now() - interval '24 hours'`). Boylece ileride "hikaye arsivi"
+  EK IS GEREKTIRMEZ. ⚠️ YAPMA: `stories`e `expires_at` ekleme; yas tabanli DELETE yazma.
+  · migration **026** = `stories` + `story_views` (PK `(story_id,user_id)` -> ayni
+    kisi tekrar izleyince YENI SATIR ACILMAZ).
+  · 6 uc: `POST/GET /stories` · `GET /stories/{userId}` · `POST /stories/{id}/view`
+    · `GET /stories/{id}/viewers` · `DELETE /stories/{id}`.
+  · `GET /stories` **KULLANICI BASINA GRUPLU** doner — gruplamayi SUNUCU yapar;
+    istemci de yapsaydi "hepsi izlendi" hesabi iki yerde yasar ve DRIFT ederdi.
+  · Gizlilik gonderiyle AYNI (gizli hesabi yalniz onayli takipci gorur, engel IKI
+    YONLU); izlenme sayisi YALNIZ SAHIBINE; kendi hikayeni izlemek SAYILMAZ.
+  · Istemci: serit HER ZAMAN cizilir (hikaye yokken de) — "Hikâyen" halkasi
+    ozelligin VARLIGINI ogrenmenin TEK yolu.
+  · Video hikaye **SABIT 15 sn**: `MedyaVideo` sureyi disari VERMIYOR; oynaticiya
+    gizli kanal acmak yerine durust sabit sure secildi (oynatici zaten kirilgan).
+- 📌 **TURU 76b — ANASAYFA SOL UST HAMBURGER (`sosyal/hizmet_menusu.dart`).**
+  Kullanici emri: **2 SATIR cizgi** (Lucide `menu` UC cizgidir -> ikon KULLANILMADI,
+  cizgiler ELLE cizildi) · kartlar **Yemek/Restoran/Alisveris** · **IKON YOK**,
+  yazi KARTIN ALTINDA. Bolumler urun olarak tanimli olmadigi icin durust "yakinda"
+  bildirimi gosteriliyor. ⚠️ YAPMA: kartlarin icine ikon koyma; bos ekrana baglama.
+- ⚠️ **TURU 76b — UCTAN UCA ARAC 65 KONTROL.** Story SQL'leri (`BOOL_AND` +
+  `GROUP BY` + 24sa penceresi) ve kanal `media_kinds` GERCEK POSTGRES'TE ILK KEZ
+  kosturuldu. ⚠️ **TEST SIRASI TUZAGI:** engelleme TAKIBI DE DUSURUR ve engel
+  kaldirilinca takip GERI GELMEZ; hikaye seridi "takip ettiklerim" uzerinden
+  calistigi icin takip geri kurulmadan serit HAKLI OLARAK bos doner.
+- **ONCEKI (9 Agu 02:36):** TEST TURU 76 YAYINLANDI — android 31283866106 +
   ios 31283871070 (0eabe4a), R2 apk=112758779 (md5 85765bc9) ipa=23363163 (md5 8ce058e5),
   purge OK, **CDN birebir** (apk + ipa + index.html MD5 esit), indir sayfasi 02:36
   (saat 3 yerde gorunuyor), debug imza YOK, iOS deployment target 16.0 dogrulandi,
