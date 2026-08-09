@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_callkit_incoming/entities/entities.dart';
 import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
@@ -529,6 +530,26 @@ class _GebzemAppState extends ConsumerState<GebzemApp> with WidgetsBindingObserv
       theme: lightTheme,
       darkTheme: darkTheme,
       themeMode: ThemeMode.system, // karanlik mod: sistem ayarini izler (ayarlar Faz 2)
+      // ⚠️⚠️⚠️ TURU 80 — YERELLESTIRME (denetimde bulunan MEVCUT hata).
+      //
+      //    Bu uc satir OLMADAN Material'in TAKVIM ve SAAT secicileri
+      //    **INGILIZCE** aciliyordu: "August", "Mon", "AM/PM".
+      //    Sahada kullanan iki ekran VAR ve ikisi de TURKCE bir uygulamanin
+      //    ortasinda Ingilizce takvim aciyordu:
+      //      · `etkinlik_ekranlari.dart` (etkinlik tarihi/saati)
+      //      · `isletme_duzenle.dart`    (calisma saatleri)
+      //
+      // ⚠️ `locale` SABITLENDI ('tr'): uygulama TURKIYE pazarina ozel ve TUM
+      //    metinleri Turkce. Cihaz dili Ingilizce olan bir kullanicida
+      //    takvimin Ingilizce, arayuzun Turkce olmasi TUTARSIZ olurdu.
+      // ⚠️ YAPMA: bu blogu kaldirma; `supportedLocales`i bosaltma.
+      locale: const Locale('tr'),
+      supportedLocales: const [Locale('tr'), Locale('en')],
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
       routerConfig: router,
       // Gelen arama ekrani her sayfanin uzerinde; minimize arama banti onun ALTINDA
       // (sarmalama sirasi degismesin — gelen-arama tam ekrani bantin ustunde kalir)
