@@ -5941,3 +5941,99 @@ değişikliği yazarın kendi zamanladığı gönderisini **imleç tavanına** t
 - backend 3efe91e + health ok · migration 039/040/041 canlıda · **DB TEMİZ**
 - **E2E 208/208 canlıda**
 - Adres: `https://indir.gebzem.app/index.html?v=20260810-0740`
+
+---
+
+## Oturum — 10 Ağustos 2026 · TURU 82: KULLANICININ 7 MADDESİ
+
+Kullanıcı testten sonra 7 madde bildirdi. Dördüncü kez **görsel boyutları**.
+
+### ⚠️ ASIL BULGU — TURU 81'İN HATASI NEREDEYMİŞ
+
+Turu 81'in modeli (yükseklik → genişlik) **doğruydu**, ama tavan davranışı
+yanlıştı: genişlik kolona takıldığında **yükseklik sabit kalıyordu**, yani
+kutu oranı medyanın oranından **sapıyordu**.
+
+    4:5 fotoğraf, tavan 270dp, kolon 366dp
+      genişlik = 270 × 0.80 = 216dp     ← kolonun yalnız %59'u
+      kutu     = 216 × 270              ← SAĞINDA 150dp BOŞLUK
+
+Kullanıcının *"resimler geniş, sol sağ bir şeyler doluyor"* dediği tam buydu.
+Üstelik yükseklik tavanı (%32) o kadar düşüktü ki **hemen her fotoğraf** dar
+kalıyor, yani istenen "bazısı dar bazısı geniş" etkisi de oluşmuyordu.
+
+**Doğru model:** `w = min(kolon, tavan × enBoy)` · **`h = w / enBoy`**
+İkinci satır turu 81'de yoktu ve bütün hata oradaydı. Artık kutunun oranı
+**daima** medyanın oranına eşit → kırpma yapısal olarak imkânsız.
+
+**Tavan da düzeltildi:** ekran yüzdesine (%54) bağlıyken küçük telefonlarda
+4:5 kolonun yalnız %82'sini dolduruyordu (boşluk geri geliyordu). Artık
+`min(kolon / 0.8, ekran × 0.60)` — birincisi "4:5 kolonu tam doldursun"
+demek, ikincisi kısa/yatay ekranlar için emniyet.
+Doğrulandı (6 cihaz × 5 oran): 4:5 her dikey cihazda kolonun **%91-100'ü**,
+kutu oranı **her vakada** medya oranına eşit, yükseklik hiçbir yerde ekranın
+%60'ını geçmiyor.
+
+### Diğer altı madde
+1. Anasayfadaki **"Gebzem"** başlığı kaldırıldı.
+2. Story şeridi kutu genişliği 74 → 84 (aradaki boşluk ~5dp → ~15dp),
+   yatay dolgu 10 → 12 (halkalar kartlarla aynı hizadan başlıyor).
+3. **Story halkası artık her çıkışta uzlaştırılıyor.** Kök neden: izleyici
+   listeyi sunucudan **taze çekiyor**, yani şeritteki modelden ayrı nesneler;
+   tek köprü `onIzlendi` idi ve yalnız "liste bitti" dalından çağrılıyordu →
+   geri tuşu / X / aşağı kaydırma ile çıkışta halka **renkli kalıyordu**.
+4. **İkonlar optik olarak eşitlendi.** Ölçü zaten eşitti (22px); sorun `size`ın
+   çizilen mürekkebi değil **sınır kutusunu** ölçmesi — Lucide ızgarasında
+   `heart` kutuyu doldurur, `send`/`bookmark`/`chart` boşluk bırakır.
+5. İçerik zemini `0xFF161618` → `0xFF1C1C1E` (alt menü siyah kalır). Fark
+   %8.6'dayken göz "aynı" okuyordu.
+6. "Takip Ettiklerin / Keşfet" 15 → 17px.
+
+### ⚠️⚠️ DENETİM: 21 BULGU → 13 ONAYLANDI, 8 ELENDİ (24 ajan, 4.8M jeton)
+
+**Kendi soktuğum iki gerçek hatayı yakaladı:**
+
+1. **GALERİ ÇÖKÜYORDU.** `satirY = reduce(math.min)` yazmıştım. Matematik:
+   `h_i = min(tavan, ogeTavani/oran_i)` ifadesi oran büyüdükçe **küçülür**,
+   yani min **daima en geniş öğeye** aittir → galeriye giren **tek bir yatay
+   fotoğraf bütün galeriyi çökertiyordu**:
+   `4:5 + 4:5 + 16:9` → 4:5 öğeler **285×357'den 128×160'a** (%35 ölçek).
+   Yani şikâyet edilen tablo karma galeride geri geliyordu — üstelik turu 81'e
+   göre **gerileme**. FIX: satır yüksekliği artık **içerikten bağımsız**.
+2. **Galerinin 2. ve sonraki öğeleri fiilen ölüydü.** `_sayfa` ham kaydırma
+   ofsetine bakıyordu; öğeler viewport'a sığdığı için `maxScrollExtent` ilk
+   öğenin yarısına **hiç ulaşmıyor**: 16:9+9:16 galeride maxScroll **128dp**,
+   ilk öğenin yarısı **143dp** → `_sayfa` **0'da takılı**. Sonuç: 2. medyanın
+   oto-oynatma kapısı hiç açılmıyor, sayaç "1/2"de donuyor, videoda tam ekran
+   düğmesi görünmüyordu. FIX: aktif öğe **viewport merkezinden** bulunuyor.
+
+**Bir ajan gerçek bir `flutter test` yazıp ölçtü** ve `dispose()` içinden
+ebeveyn `setState`inin sadece hata vermekle kalmayıp **`dispose()`un geri
+kalanını iptal ettiğini** kanıtladı:
+```
+setState() ... called when widget tree was locked
+_ilerleme.dispose() çalıştı mı = false   ← AnimationController SIZAR
+super.dispose()     çalıştı mı = false
+```
+Yani her hikâye kapanışında hem kırmızı ekran hem kalıcı sızıntı olacaktı.
+İki katmanlı savunma kuruldu (geri çağırım artık `setState` çağırmıyor +
+`_ilerleme.dispose()` geri çağırımdan önce koşuyor).
+
+Ayrıca ölçüldü: etkileşim çubuğu yazı ölçeği 1.5'te, bölme yazıları 2.0'da
+**taşıyordu**; ikisi de yapısal olarak kapatıldı (sert 40dp sayaç tavanı +
+yatay kaydırma sarmalı). `kMedyaDolgu` **ölü sabitti** (iki dal `BoxFit.cover`ı
+elle yazıyordu) — tek kaynağa bağlandı. İki **yanlış şerh** düzeltildi.
+
+### 📌 İNDİRME SAYFASI — YENİ KÖK NEDEN BULUNDU
+`Content-Type: application/octet-stream` gönderiliyordu (r2put.js varsayılanı;
+tür argümanı hiç geçilmemiş). Tarayıcıların çoğu içeriği koklayıp yine çiziyor
+ama agresif bir webview bunu **indirme** sayabilir — kullanıcının üç turdur
+"sayfayı/saati göremiyorum" demesinin muhtemel payı. Artık
+`text/html; charset=utf-8` (APK de `vnd.android.package-archive`).
+
+### Durum
+- Backend **DEĞİŞMEDİ** (turu 82 salt Flutter) — `3efe91e` canlı, health ok
+- **Canlı sunucuda 208/208 uçtan uca geçti** · **192 rota çakışmasız**
+- `go build` + `go vet` + `go test ./...` temiz · `flutter analyze` **0 hata 0 uyarı**
+- Build android **31385139757** + ios **31385142078** (**2235554**)
+- CDN **birebir** (apk + ipa + index.html üçü de MD5 eşit), DB temiz

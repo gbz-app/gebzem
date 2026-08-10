@@ -45,22 +45,24 @@ const surumEtiketi =
   `${now.getUTCFullYear()}${p2(now.getUTCMonth() + 1)}${p2(now.getUTCDate())}` +
   `-${p2(now.getUTCHours())}${p2(now.getUTCMinutes())}`;
 
-const YENI_ICERIK = `<div class="yeni"><b>Bu sürümde — ses, konum, anket ve daha fazlası:</b>
-<br><br><b>1 · SESLİ MESAJ:</b> Sohbette mikrofona <b>bir kez dokun</b> — kayıt başlar,
-ses dalgan <b>canlı akar</b>, süreyi görürsün. Beğenmezsen çöpe at, beğenirsen gönder.
-<br><br><b>2 · KONUM PAYLAŞ:</b> Ataç düğmesinden <b>Konum</b> — bulunduğun yeri
-gönder, karşı taraf <b>Haritada aç</b> ile yol tarifi alsın.
-<br><br><b>3 · ANKET:</b> Sohbette soru sor, <b>12 seçeneğe kadar</b> ekle.
-Tek ya da çok seçimli olsun; oylar <b>canlı</b> güncellenir, istediğinde bitirirsin.
-<br><br><b>4 · IBAN · KİŞİ · ETKİNLİK:</b> IBAN gönder (<b>doğruluğu kontrol edilir</b>,
-karşı taraf tek dokunuşla kopyalar) · bir profili paylaş · sohbetten <b>etkinlik oluştur</b>.
-<br><br><b>5 · İLERİ TARİHLİ PAYLAŞIM:</b> Gönderini <b>ileri bir tarihe zamanla</b>.
-Yayın anına kadar kimse görmez; sen kendi profilinde görürsün.
-<br><br><b>6 · GÖRSELLER ARTIK DOĞRU ORANDA:</b> Fotoğraf ve videolar <b>kırpılmıyor</b>.
-Dikey fotoğraf dar, yatay fotoğraf geniş görünür — <b>kendi oranında</b>.
-<br><br><b>7 · AÇIK TEMA:</b> Ayarlar’dan <b>Açık / Koyu / Sistem</b> seç.
-<br><br><b>8 · İLK AÇILIŞ TANITIMI</b> ve anasayfada <b>Takip Ettiklerin / Keşfet</b>
-yazıları (düğme yerine).
+const YENI_ICERIK = `<div class="yeni"><b>Bu sürümde — senin bildirdiğin 7 madde:</b>
+<br><br><b>1 · GÖRSEL BOYUTLARI (asıl istediğin).</b> Kutunun oranı artık
+<b>fotoğrafın kendi oranına eşit</b>, yani <b>kırpma yok</b> ve <b>yanda boşluk yok</b>.
+Dikey fotoğraf sütunu doldurur, çok uzun video <b>dar</b> görünür, yatay fotoğraf
+<b>geniş ve kısa</b> — “bazısı dar bazısı geniş” dediğin davranış.
+<br><br><b>2 · ANASAYFADAKİ “Gebzem” YAZISI</b> kaldırıldı.
+<br><br><b>3 · HİKÂYELER ARASI BOŞLUK</b> açıldı (halkalar artık gönderilerle
+<b>aynı hizadan</b> başlıyor).
+<br><br><b>4 · HİKÂYE HALKASI:</b> izlediğin hikâyenin çevresindeki renk artık
+<b>her çıkışta</b> griye dönüyor — geri tuşuyla ya da aşağı kaydırarak çıksan bile.
+<br><br><b>5 · BEĞENİ / YORUM / PAYLAŞ İKONLARI</b> göz için eşitlendi. Ölçüleri
+zaten aynıydı; sorun bazı ikonların çizimi kutusunu daha az doldurmasıydı.
+<br><br><b>6 · ARKA PLAN:</b> alt menü <b>siyah</b>, sayfa zemini <b>bir tık açık</b> —
+aradaki fark artık gerçekten görünüyor.
+<br><br><b>7 · “Takip Ettiklerin / Keşfet”</b> yazıları büyütüldü.
+<br><br><b>Ayrıca:</b> çoklu galeride ikinci ve sonraki fotoğrafların sayacı,
+otomatik oynatması ve tam ekran düğmesi <b>çalışmıyordu</b> — düzeltildi. Yatay bir
+fotoğraf galerideki diğerlerini <b>küçültüyordu</b> — düzeltildi.
 <br><br><b>Sınırlar:</b> Harita <b>uygulama içinde değil</b> (telefonun harita uygulaması
 açılır). Ödeme yok. Arama <b>birebir</b> · Sohbet odası 20 konuşmacı + sınırsız
 dinleyici · Canlı yayın 4 kişi + sınırsız izleyici.</div>`;
@@ -88,8 +90,8 @@ const kontroller = [
   //    uretilmesini ENGELLEMEK — yoksa kullaniciya BIR ONCEKI surumun
   //    notlari gosterilir ve "yeni ne var" yalan olur.
   // ⚠️ YAPMA: bu satiri silme; yeni turda ANAHTAR IFADEYI degistir.
-  [cikti.includes('SESLİ MESAJ') && cikti.includes('ANKET'),
-    'turu 81 icerigi yazilmadi (YENI_ICERIK guncellenmemis)'],
+  [cikti.includes('GÖRSEL BOYUTLARI') && cikti.includes('HİKÂYE HALKASI'),
+    'turu 82 icerigi yazilmadi (YENI_ICERIK guncellenmemis)'],
   // ⚠️ YALNIZ GORUNEN metin taranir. HTML/CSS/JS YORUMLARINDAKI ⚠️ isaretleri
   //    kullaniciya cizilmez ve serhin okunurlugu icin BILINCLI olarak durur.
   [!/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(

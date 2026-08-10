@@ -17,7 +17,120 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (10 Agu 07:40): TEST TURU 81 YAYINLANDI** — android
+- **KALDIGIMIZ YER (10 Agu 15:03): TEST TURU 82 YAYINLANDI** — android
+  **31385139757** + ios **31385142078** (**2235554**), R2 apk=118045737
+  (md5 0ca789f7) ipa=24128899 (md5 b9b306e2) index=9443 (md5 be8a09e9),
+  purge OK, **CDN BIREBIR** (ucu de MD5 esit), indir sayfasi 10 Agu 15:03
+  (saat 5 yerde + canli saat), debug imza YOK, **iOS min 16.0** hem kaynakta
+  hem IPA'da dogrulandi, build **HEAD commit'inden** (2235554) alindi.
+  **BACKEND DEGISMEDI** (turu 82 salt Flutter) — `3efe91e` canli + health ok.
+  ✅ **CANLI SUNUCUDA 208/208 UCTAN UCA GECTI** · **192 ROTA CAKISMASIZ** ·
+  `go build`+`go vet`+`go test ./...` temiz · `flutter analyze` **0 hata 0 uyari**.
+  DB TEMIZ (0/0/0/0/0).
+  ⚠️ **KULLANICIYA VERILEN ADRES:**
+  https://indir.gebzem.app/index.html?v=20260810-1503
+  **KULLANICI TEST EDECEK.**
+- ⚠️⚠️⚠️ **TURU 82 — MEDYA OLCUSU (DORDUNCU SIKAYET): TURU 81'IN HATASI BULUNDU.**
+  Kullanici: *"resimler genis, SOL SAG BIRSEYLER DOLUYOR; tek resim galeri
+  seklini defalarca attim ama AYNI, degismemis"*.
+  Turu 81'in MODELI DOGRUYDU (yukseklik -> genislik) ama **TAVAN DAVRANISI
+  YANLISTI**: genislik kolona takildiginda **YUKSEKLIK SABIT KALIYORDU**, yani
+  kutu orani medyanin oranindan SAPIYORDU:
+      4:5 fotograf, tavan 270, kolon 366 -> genislik 216 (kolonun %59)
+      kutu 216x270  ->  SAGINDA 150dp BOSLUK
+  Ustelik tavan (%32) o kadar dusuktu ki HEMEN HER fotograf dar kaliyor,
+  yani istenen "bazisi dar bazisi genis" etkisi DE OLUSMUYORDU.
+      DOGRUSU:  w = min(kolon, tavan * enBoy)
+                **h = w / enBoy**   <- bu satir turu 81'de YOKTU
+  Kutu orani artik DAIMA medya oranina esit -> **kirpma YAPISAL OLARAK imkansiz**.
+  ⚠️ **TAVAN EKRANDAN DEGIL KOLONDAN TURER**: ekran yuzdesine (%54) bagliyken
+     kucuk telefonlarda 4:5 kolonun yalniz **%82**'sini dolduruyordu (bosluk geri
+     geliyordu). Artik `min(kolon / 0.8, ekran * 0.60)` — birincisi "4:5 kolonu
+     TAM DOLDURSUN", ikincisi kisa/yatay ekran emniyeti.
+     Dogrulandi (6 cihaz x 5 oran): 4:5 her dikey cihazda kolonun **%91-100**'u,
+     kutu orani HER vakada medya oranina esit, yukseklik hicbir yerde %60'i gecmiyor.
+  ⚠️ **REDDEDILEN UC MODEL (bir daha onerilmesin):** genislik sabit + yukseklik
+     tavani (turu 80: %41-51 KIRPMA) · yukseklik sabit + genislik tavani
+     (turu 81: YANDA BOSLUK) · tek `enBoy` sabiti (etki OLUSMAZ).
+- ⚠️⚠️⚠️ **TURU 82b — DENETIM: 21 BULGU -> 13 ONAY, 8 ELENDI. IKI GERCEK
+  REGRESYONU KENDI KODUMDA BULDU:**
+  · **GALERI COKUYORDU** (iki bagimsiz mercek buldu, iki hakem kendi
+    matematigiyle dogruladi): `satirY = reduce(math.min)` yazmistim.
+    `h_i = min(tavan, ogeTavani/oran_i)` ifadesi oran BUYUDUKCE KUCULUR, yani
+    min **DAIMA EN GENIS OGEYE** aittir -> galeriye giren **TEK BIR YATAY
+    FOTOGRAF BUTUN GALERIYI COKERTIYORDU**: `4:5+4:5+16:9` -> 4:5 ogeler
+    285x357'den **128x160**'a (%35 olcek). Sikayet edilen tablo karma galeride
+    GERI GELIYORDU, ustelik turu 81'e gore GERILEME.
+    FIX: `galeriSatirYuksekligi()` — yukseklik **ICERIKTEN BAGIMSIZ**
+    (`ogeTavani/0.8`). 4:5 ve daha dikey ogeler KIRPILMAZ; 4:5'ten genis oge
+    kirpilir (sabit yukseklikli satirda 16:9 ile 9:16 ayni anda kirpilmadan
+    DURAMAZ — yukseklikleri 3.2 kat ayrisir) ve tam ekranda tam haliyle acilir.
+    ⚠️ YAPMA: yuksekligi tekrar ogelerden (min/max/ilk oge) turetme.
+  · **GALERININ 2. VE SONRAKI OGELERI FIILEN OLUYDU**: `_sayfa` ham kaydirma
+    ofsetini ogelerin baslangic toplamlariyla karsilastiriyordu; ogeler
+    viewport'a SIGDIGI icin `maxScrollExtent` ilk ogenin YARISINA bile
+    ULASMIYOR (16:9+9:16: maxScroll **128dp**, ilk yari **143dp**) ->
+    `_sayfa` **0'DA TAKILI**. Sonuc: 2. medyanin oto-oynatma kapisi
+    (`_sayfa==sira`) HIC acilmiyor, sayac "1/2"de donuyor, videoda tam ekran
+    dugmesi gorunmuyordu. FIX: aktif oge **VIEWPORT MERKEZINDEN** bulunuyor.
+    ⚠️ YAPMA: karsilastirmayi ham ofsete geri dondurme.
+- ⚠️⚠️⚠️ **TURU 82b — AMPIRIK KANIT: `dispose()` ICINDEN EBEVEYN `setState`i
+  SADECE HATA VERMEZ, `dispose()`UN GERI KALANINI IPTAL EDER.** Bir denetim
+  ajani gercek bir `flutter test` yazip olctu:
+      setState() ... called when widget tree was locked
+      _ilerleme.dispose() calisti mi = false   <- AnimationController SIZAR
+      super.dispose()     calisti mi = false
+  Yani her hikaye kapanisinda hem kirmizi ekran hem KALICI SIZINTI olacakti.
+  IKI KATMANLI SAVUNMA: (a) serit geri cagirimi artik `setState` CAGIRMAZ
+  (yalniz modeli gunceller; cizimi `await Navigator.push` sonrasindaki mevcut
+  `setState` yapar), (b) `_ilerleme.dispose()` geri cagirimdan **ONCE** kosar —
+  biri (a)'yi ileride bozarsa bile controller serbest birakilir.
+  ⚠️ **GENEL DERS: bir cocuk route'un `dispose()`inden EBEVEYNIN `setState`ini
+     TETIKLEME.** Cocuk agactan sokulurken cerceve KILITLIDIR.
+- ⚠️⚠️ **TURU 82 — STORY HALKASI: IZLEYICI LISTEYI SUNUCUDAN TAZE CEKIYOR.**
+  Yani izleyicideki `Story` nesneleri seritteki modelden **AYRI NESNELERDIR**;
+  `s.izledim = true` yazmak seridi ETKILEMEZ. Tek kopru `onIzlendi` idi ve
+  YALNIZ `_sonraki()`nin "liste bitti" dalindan cagriliyordu -> geri tusu / X /
+  asagi kaydirma ile cikista (vakalarin COGU) halka RENKLI kaliyordu.
+  Artik `dispose()`ta `every(izledim)` ile uzlastiriliyor.
+  ⚠️ Kosul `every` OLARAK KALIR (Instagram deseni): 3 hikayenin 1'ini izleyip
+     cikanin halkasi RENKLI kalmalidir.
+- ⚠️⚠️ **TURU 82 — "ESIT OLCU" ESIT GORUNUM DEMEK DEGIL (ikon optik boyu).**
+  Kullanici: *"olculer aynidir ama goruntude biri kucuk biri buyuk"* — HAKLIYDI
+  ve olcu de dogruydu. `size` ikonun **CIZILEN MUREKKEBINI** degil **SINIR
+  KUTUSUNU** olcer; Lucide 24'luk izgarada `heart` govdeyi doldurur,
+  `send`/`bookmark`/`chartNoAxesColumn` bosluk birakir. `_optikBoy` haritasiyla
+  dengelendi, yerlesim kutusu **24x24 SABIT** (satir kaymaz).
+  ⚠️ Bes ikonun codePoint'i FARKLI dogrulandi (`==` calisiyor, olu kod degil).
+  ⚠️ YAPMA: hepsini tekrar tek sabite esitleme.
+- ⚠️⚠️ **TURU 82b — YAZI OLCEGI TASMALARI OLCULDU VE YAPISAL OLARAK KAPATILDI:**
+  · Etkilesim cubugu: normal 313dp / olcek 1.3 **335dp** (pay 1dp) / 1.5 TASMA.
+    FIX: yatay dolgu 8->6 + sayaca **SERT 40dp tavan** + ellipsis. Yeni
+    worst-case 318dp, en dar telefonda 18dp pay — **her olcekte** sabit.
+    ⚠️ `Flexible` KULLANILMADI: bu Row `mainAxisSize.min` ve dis Row'un esnek
+       OLMAYAN cocugu -> `Flexible` sinirsiz kisit alir, HICBIR SEY YAPMAZ.
+  · Bolme yazilari 15->17px: olcek 2.0'da 379dp vs 344dp alan -> TASMA
+    (15px'te 339 ile siginiyordu). FIX: yatay kaydirma sarmali.
+    ⚠️ `Flexible`+ellipsis SECILMEDI: "Takip Ettiklerin" -> "Takip Ettik…"
+       olurdu ve kullanicinin ACIKCA istedigi etiket okunamazdi.
+  · Story seridi 106 -> 116 (olcek 1.3'te 108 gerekiyordu).
+- 📌 **TURU 82 — `kMedyaDolgu` OLU SABITTI** (turu 81'de tanimlanmis, iki dal da
+  `BoxFit.cover`i ELLE yaziyordu -> sabiti degistirmek HICBIR SEYI degistirmezdi).
+  Tek kaynaga baglandi. **Bu sinifin dokuzuncu tekrari.**
+- ⚠️⚠️ **INDIR SAYFASI — YENI KOK NEDEN (dorduncu tur).** Sunucu
+  `Content-Type: application/octet-stream` gonderiyordu — `r2put.js`in
+  VARSAYILANI ve tur argumani HIC gecilmemis. Tarayicilarin cogu icerigi
+  koklayip yine cizer ama **agresif bir webview bunu INDIRME sayabilir**;
+  kullanicinin uc turdur "sayfayi/saati goremiyorum" demesinin muhtemel payi.
+  Artik `text/html; charset=utf-8` (APK de `vnd.android.package-archive`).
+  ⚠️ YAPMA: `r2put.js`e tur argumani gecmeden HTML yukleme.
+  ⚠️ Ciplak alan adi 302'si sorguyu HALA dusuruyor -> kullaniciya
+     **`/index.html?v=<surum>`** verilir (turu 80b kurali DURUYOR).
+- 📌 **MIGRATION NUMARALARI (guncel):** 041 = `posts.yayin_at`. Sonraki **042**'den.
+- ⏳ **EN SONA BIRAKILAN (kullanici emri):** `active_call_controller.dart`
+  ~500 satirlik olu bekletme/park zinciri temizligi.
+
+- **ONCEKI (10 Agu 07:40): TEST TURU 81 YAYINLANDI** — android
   **31355519304** + ios **31355521019** (**3efe91e**), R2 apk=118045737
   (md5 f0fadddb) ipa=24125685 (md5 ca885eb6) index=9344 (md5 c9bfdf58),
   purge OK, **CDN BIREBIR** (apk + ipa + index.html UCU DE MD5 esit),
