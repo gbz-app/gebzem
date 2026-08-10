@@ -1,130 +1,87 @@
-/// ⚠️⚠️⚠️ TURU 80 — GONDERI MEDYASININ OLCULERI. **TEK KAYNAK.**
+/// ⚠️⚠️⚠️ TURU 81 — GONDERI MEDYASININ OLCULERI. **TEK KAYNAK.**
 ///
-/// Kullanici: *"gönderilerin video resimler çok uzun yüksekliği, sana attığım
-/// bunun gibi olmalı, radüslü olması gerekiyor"* (Threads ekran goruntusu).
+/// Kullanici UC KEZ sikayet etti. Son ve NET tarifi (Threads ekran goruntusu):
+/// *"tek fotograflarda BAZILARI GENISLIK DAHA AZ BAZILARI BUYUK, bunun mantigi
+/// nedir, BIZIM DE BOYLE OLMASI GEREKIYOR"*.
 ///
-/// ═══════════════ KOK NEDEN ═══════════════
+/// ═══════════════ MODEL DEGISTI ═══════════════
 ///
-/// Yukseklik SADECE GENISLIKTEN turetiliyordu:
+/// ESKI (turu 80):  GENISLIK sabit  ->  yukseklik hesaplanir  ->  `cover` KIRPAR
+/// YENI (turu 81):  YUKSEKLIK sabit ->  GENISLIK ORANDAN gelir ->  KIRPMA YOK
 ///
-///     yukseklik = ogeGenislik / enBoy        // enBoy = 4/5
+/// Threads'in yaptigi budur ve kullanicinin gordugu "bazisi dar bazisi genis"
+/// etkisi tam olarak bundan dogar:
 ///
-/// Ekran en-boylari cihazdan cihaza degistigi icin (360x640 = 0.563,
-/// 390x844 = 0.462, tablet 800x1280 = 0.625) SABIT bir en-boy her cihazda
-/// **FARKLI EKRAN YUZDESI** uretir. Olculen:
+///     dikey  9:16  -> genislik = 320 * 0.5625 = 180dp   (DAR)
+///     dikey  4:5   -> genislik = 320 * 0.80   = 256dp
+///     kare   1:1   -> genislik = 320 * 1.00   = 320dp
+///     yatay  16:9  -> genislik = 320 * 1.78   = 569dp -> KOLON TAVANINA kirpilir
 ///
-///     tek foto   390x844  -> 457px = ekranin %54.2
-///     tek foto   360x640  -> 420px = %65.6
-///     tek foto   800x1280 -> 970px = %75.8
-///     tek reels  800x1280 -> 1379px = **%107.8** (ekrandan UZUN!)
+/// ═══════════════ ON KOSUL: ORAN BILINMELI ═══════════════
 ///
-/// Kullanicinin gonderdigi Threads ekraninda kutular ekranin **~%28-31**'i.
-///
-/// ═══════════════ SECILEN COZUM: YUKSEKLIK TAVANI ═══════════════
-///
-///     yukseklik = min(ogeGenislik / enBoy, medyaTavani(context))
-///
-/// Tavan EKRAN YUKSEKLIGINDEN turedigi icin ekran yuzdesi **cihazdan bagimsiz**
-/// sabitlenir. `min` sayesinde dar ekranlarda kutu zaten tavanin altinda kalir
-/// ve formul KENDILIGINDEN devre disi kalir (davranis degismez).
-///
-/// OLCULEN SONUC (tek medya): 360x640 -> 210px %32.8 · 390x844 -> 270px %32.0
-/// · 414x896 -> 287px %32.0 · 430x932 -> 298px %32.0 · 800x1280 -> 340px %26.6.
-/// Tumu %26.6-%32.8 bandinda.
+/// Bu model medyanin GERCEK en-boyunu bilmeyi gerektirir.
+/// `media_assets.width/height` sutunlari migration **015'ten beri VARDI** ama
+/// **17 yukleme cagrisinin HICBIRI deger gecmiyordu** ve gonderi sorgulari da
+/// DONDURMUYORDU — yani sutun bastan beri OLUYDU ve akis KIRPMAK ZORUNDAYDI.
+/// Turu 81'de zincirin ucu birden baglandi:
+///   1. `MedyaServisi.yukle()` olcuyu KENDI ICINDE alir (cagri yerleri degismedi),
+///   2. `medyaTurleri` sabiti `media_boyut` ("WxH") dondurur (7 sorgu birden),
+///   3. `Gonderi.enBoy(i)` orani verir, bu dosya olculeri hesaplar.
 ///
 /// ⚠️ REDDEDILEN COZUMLER (bir daha onerilmesin):
-///   · YALNIZ `enBoy` degistirmek — yukseklik hala GENISLIGE bagli kalir,
-///     yani cihazlar arasi savrulma SURER. %30 icin gereken 1.47 degeri
-///     ustelik YATAY bir kutu demek ve dikey fotograflari sert kirpar.
-///   · `viewportFraction` degistirmek — YALNIZ coklu medyayi etkiler, TEK
-///     medyayi (en kotu vaka) HIC degistirmez. Ayrica controller'i
-///     `MediaQuery`ye bagimli kilar ve turu 76b'nin "controller initState'te
-///     kurulur" kuralini riske atar.
-///   · Threads'in GERCEK modeli (sabit yukseklik + medyanin gercek en-boyuna
-///     gore DEGISKEN genislik) — dogru model ama BU SURUMDE UYGULANAMAZ:
-///     (a) `PageView` sayfalari TANIM GEREGI esit genisliktedir, degisken
-///     genislik PageView'i terk etmeyi gerektirir ki turu 76b bunu ACIKCA
-///     yasakladi; (b) medyanin gercek en-boyu ISTEMCIDE YOK
-///     (`media_assets.width/height` sutunlari VAR ama 18 yukleme cagrisinin
-///     HICBIRI deger gecmiyor — olu sutun).
+///   · Yalniz `enBoy` sabitini degistirmek — tum medyayi AYNI orana zorlar,
+///     yani kullanicinin istedigi "bazisi dar bazisi genis" ETKISI OLUSMAZ.
+///   · `cover` yerine `contain` — kutu orani medya oranindan farkli oldugu
+///     surece SIYAH BANT cikar; artik kutu orani medyaya ESIT oldugu icin
+///     `cover` zaten kirpmiyor (bkz. `kMedyaDolgu`).
 library;
 
 import 'dart:math' as math;
 
 import 'package:flutter/widgets.dart';
 
-/// Gonderi medyasinin YUKSEKLIK TAVANI.
+/// Medya kutusunun SABIT YUKSEKLIGI — modelin cekirdegi.
 ///
-/// ⚠️ `clamp` SINIRLARI ZORUNLU:
-///   · ALT 210 — 360x640'ta 640*0.32 = 205px cikiyor; bunsuz kucuk telefonda
-///     kutu "minicik" gorunurdu.
-///   · UST 340 — tablette 1280*0.32 = 410px cikardi; 340 tavani kutuyu
-///     %26.6'da tutar.
-/// Kullanicinin "tablette devasa olmamali, kucuk telefonda minicik olmamali"
-/// sartinin SAYISAL karsiligi tam olarak bu iki sinirdir.
-double medyaTavani(BuildContext c) =>
+/// ⚠️ Ekran yuksekliginden turer ki kutu her cihazda AYNI EKRAN YUZDESINI
+///    kaplasin (turu 80'de olculdu: sabit oran kullanildiginda ayni gonderi
+///    360x640'ta ekranin %65'ini, 800x1280'de %107'sini kapliyordu).
+/// ⚠️ `clamp` SINIRLARI: kucuk telefonda "minicik", tablette "devasa" olmasin.
+///    Turu 80'in olculmus degerleri KORUNDU — kullanici o yuksekligi
+///    ("cok uzun degil") ONAYLAMISTI; degisen yalnizca GENISLIGIN nasil
+///    turetildigi.
+double medyaYuksekligi(BuildContext c) =>
     (MediaQuery.sizeOf(c).height * 0.32).clamp(210.0, 340.0);
 
-/// Nominal en-boy (genislik/yukseklik). Telefonla cekilen fotograflarin cogu
-/// dikey oldugu icin 4:5.
-///
-/// ⚠️⚠️ REELS DALI SILINDI (`tur == 'reels' ? 9/16 : 4/5`). Tavan zaten ikisini
-///    de ayni degere indirdigi icin dalin AYIRT EDICI islevi kalmadi; duran bir
-///    dal ileride drift kaynagi olur. Akista reels artik ayni kutuda `cover`
-///    ile merkezden kirpilmis gorunur — REELS SEKMESI ETKILENMEZ (orasi kendi
-///    tam ekran oynaticisini kullaniyor).
-///
-/// ⚠️⚠️⚠️ TURU 80b — DURUST NOT (denetim): BU SABIT **BUGUN HICBIR CIHAZDA
-///    BAGLAYICI DEGIL.** `medyaYuksekligi` bir `math.min`dir ve tavan pratikte
-///    HER ZAMAN kazanir: `ogeGenislik/0.8 < tavan` olabilmesi icin oge
-///    genisliginin ~216dp'nin ALTINA inmesi gerekir; en dar telefonda (320dp)
-///    bile tek medya ~296dp, coklu galeride (viewportFraction 0.78) ~231dp.
-///    Yani sabit, `min`in ALT SINIRI olarak yalnizca TEORIK bir emniyet agidir.
-///
-///    ⚠️ SONUCU (bilincli kabul edilen bedel): kutunun GERCEK en-boyu tavandan
-///    turer ve ~1.06-1.65 arasinda degisir; icerik `cover` cizildigi icin
-///    · 4:5 dikey fotograf ~%41-51 · 9:16 video ~%58-66 KIRPILIR.
-///    Bu, kullanicinin *"cok uzun"* sikayetinin kacinilmaz karsi tarafidir:
-///    kutuyu ekranin %32'sinde tutup dikey icerigi TAM gostermek ayni anda
-///    MUMKUN DEGIL (Threads bunu DEGISKEN GENISLIKLE cozer — bkz. yukarida
-///    "REDDEDILEN COZUMLER", PageView ile uygulanamaz).
-///    ⚠️ Kirpmanin KURTARMA YOLU zorunludur ve VARDIR: fotografta karta dokun
-///       (`TamEkranGorsel`), videoda sol alttaki tam ekran dugmesi
-///       (`TamEkranVideo`) — ikisi de `contain`. Turu 80b'ye kadar VIDEODA
-///       BU YOL YOKTU, yani videonun yalniz orta seridi gorulebiliyordu.
-///    ⚠️ YAPMA: kurtarma yollarindan birini kaldirma; `cover`i `contain`e
-///       cevirme (yatay kutuda dikey icerik kus kadar kalir + siyah bant).
-const double kMedyaEnBoy = 4 / 5;
-
-/// Kose yaricapi.
-///
-/// ⚠️ 16 -> 18: yaricap kutu boyutuna GORELI algilanir; kutu 457px'den 270px'e
-///    inince ayni 16px daha "keskin" gorunur. 20+ ise kucuk kutularda "hap"
-///    gorunumune kayar.
+/// Kose yaricapi (Threads gorunumu: belirgin yuvarlak kose).
 const double kMedyaYaricap = 18;
 
-/// Coklu galeride bir sayfanin viewport'a orani (`PageController` +
-/// yukseklik hesabi AYNI degeri kullanir).
+/// Kartin GENISLIK tavani (tablet/genis ekran).
 ///
-/// ⚠️ %78: sagdan sarkan parca ~%16 kalir — "devami var" belli olur ama ana
-///    medya hala baskin. Daha dar yapmak okunurlugu bozar.
-/// ⚠️ TURU 80b: sabit BURAYA tasindi. Eskiden `PageController`da ve yukseklik
-///    hesabinda AYRI AYRI yaziliydi; biri degistiginde digeri sessizce drift
-///    ederdi (kutu orantisiz uzardi).
-const double kGaleriSayfaOrani = 0.78;
+/// ⚠️ Yukseklik tavani TEK BASINA tablette asiri YATAY bir kutu birakir ve
+///    776dp genisliginde METIN SATIRI OKUNMAZ.
+/// ⚠️ Tavan `GonderiKarti`in KENDI kokune konur, UC cagirana ayri ayri DEGIL
+///    (akis_ekrani, gonderi_detay, kaydedilenler) — ucu de unutulur ve drift eder.
+const double kKolonTavani = 560;
 
 /// Coklu galeride kutular arasi bosluk.
 const double kGaleriAra = 8;
 
-/// Kartin GENISLIK tavani (tablet/genis ekran).
+/// Medya kutusunun `BoxFit` degeri.
 ///
-/// ⚠️ Yukseklik tavani TEK BASINA tablette 536x340'lik (en-boy 1.58) asiri
-///    YATAY bir kutu birakir ve 776dp genisliginde METIN SATIRI OKUNMAZ.
-/// ⚠️ Tavan `GonderiKarti`in KENDI kokune konur, UC cagirana (akis_ekrani,
-///    gonderi_detay, kaydedilenler_sayfasi) ayri ayri DEGIL — ucu de unutulur
-///    ve drift eder.
-const double kKolonTavani = 560;
+/// ⚠️⚠️ `cover` KALIR ama ARTIK KIRPMAZ: kutunun orani medyanin oranina ESIT
+///    kuruluyor (bkz. `medyaGenisligi`). `cover` yalnizca yuvarlama
+///    farklarindan dogan yarim pikselleri doldurur — `contain` olsaydi o
+///    yarim piksel SIYAH CIZGI olarak gorunurdu.
+/// ⚠️ Oran SINIRA TAKILDIGINDA (cok panoramik / cok uzun medya) kirpma OLUR;
+///    bu bilincli bir tavandir ve kurtarma yolu vardir (fotografta karta
+///    dokun, videoda sol alttaki tam ekran dugmesi).
+const BoxFit kMedyaDolgu = BoxFit.cover;
 
-/// Yukseklik hesabinin TEK ifadesi. ⚠️ Cagiranlar bunu KENDILERI hesaplamaz.
-double medyaYuksekligi(BuildContext c, double ogeGenislik) =>
-    math.min(ogeGenislik / kMedyaEnBoy, medyaTavani(c));
+/// Bir medyanin GENISLIGI: yukseklik x oran, kolon genisligiyle sinirli.
+///
+/// ⚠️ [enBoy] = genislik / yukseklik (`Gonderi.enBoy(i)`; olcu yoksa 4/5).
+/// ⚠️ [kolonGenislik] kartin kullanilabilir genisligi. Yatay bir medya bunu
+///    asarsa TAVANA oturur — o durumda (ve yalniz o durumda) `cover` kirpar.
+/// ⚠️ ALT SINIR 96dp: bozuk/asiri dar bir oran kutuyu goze gorunmez yapmasin.
+double medyaGenisligi(double yukseklik, double enBoy, double kolonGenislik) =>
+    math.min(math.max(yukseklik * enBoy, 96.0), kolonGenislik);

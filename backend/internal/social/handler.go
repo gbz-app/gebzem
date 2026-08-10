@@ -75,10 +75,41 @@ import (
 //
 //	uretirse `[]string`e tarama PATLAR ve satir SESSIZCE ATLANIR (akis bosalir).
 //	Istemci 'yok' gorunce "bu icerik kaldirildi" cizer.
+// ⚠️⚠️ MEDYA TURLERI + OLCULERI. **YEDI gonderi sorgusu da bu sabiti kullanir**
+//
+//	(handler.go x4, etkilesim.go x3) — yani buraya eklenen bir sutun HEPSINE
+//	birden gider ve "6 sorguya ekleyip 7.'yi atlama" hatasi (turu 76'da
+//	"Kaydedilenler" sayfasini BOMBOS birakan sinif) YAPISAL OLARAK imkansizdir.
+//
+// ⚠️ `unnest(...) WITH ORDINALITY` SIRA KORUR: `media_kinds[i]` ve
+//
+//	`media_boyut[i]`, `media_ids[i]` ile BIREBIR hizalidir. Duz JOIN
+//	kullanilsaydi sira GARANTI OLMAZDI.
+//
+// ⚠️⚠️⚠️ TURU 81 — `media_boyut` EKLENDI ("WxH" metni, or. "1080x1920").
+//
+//	Kullanici UC KEZ "gorseller cok uzun / boyutlar tutarsiz" dedi. Threads
+//	modeli YUKSEKLIK SABIT + GENISLIK GERCEK ORANDAN ister; bunun icin
+//	istemcinin medyanin oranini BILMESI gerekir. `media_assets.width/height`
+//	015'ten beri VARDI ama HIC DOLDURULMUYORDU (17 yukleme cagrisinin hicbiri
+//	deger gecmiyordu) ve sorgular da DONDURMUYORDU — sutun bastan beri OLUYDU.
+//
+// ⚠️ TEK METIN DIZISI ("WxH") secildi, iki AYRI int dizisi DEGIL: her ek dizi
+//
+//	`satirlariOku`ya bir Scan hedefi daha ekler ve o hizanin bozulmasi
+//	SATIRLARI SESSIZCE DUSURUR. Tek dizi = tek hedef = daha az kirilma yuzeyi.
+//
+// ⚠️ Olcusu bilinmeyen (eski) medya "0x0" doner; istemci bunu guvenli
+//
+//	varsayilana dusurur. NULL DONDURULMEZ — `array_agg` NULL uretirse
+//	`[]string` taramasi PATLAR ve satir SESSIZCE atlanir (turu 76 dersi).
 const medyaTurleri = `
 		       COALESCE((SELECT array_agg(COALESCE(ma.kind,'yok') ORDER BY mm.idx)
 		                   FROM unnest(p.media_ids) WITH ORDINALITY AS mm(mid, idx)
 		                   LEFT JOIN media_assets ma ON ma.id = mm.mid), '{}'),
+		       COALESCE((SELECT array_agg(COALESCE(ma.width,0) || 'x' || COALESCE(ma.height,0) ORDER BY mb.idx)
+		                   FROM unnest(p.media_ids) WITH ORDINALITY AS mb(mid, idx)
+		                   LEFT JOIN media_assets ma ON ma.id = mb.mid), '{}'),
 		       p.duzenlendi_at,`
 
 const engelYok = `
@@ -681,7 +712,7 @@ func (h *Handler) satirlariOku(rows pgx.Rows) []map[string]any {
 	out := []map[string]any{}
 	for rows.Next() {
 		var id, yazarID, tur, metin, ad, kullanici, avatar string
-		var medya, turler []string
+		var medya, turler, boyutlar []string
 		var begeni, yorum, goruntulenme int
 		var yorumKapali, begendim, kaydettim bool
 		var t time.Time
@@ -690,10 +721,10 @@ func (h *Handler) satirlariOku(rows pgx.Rows) []map[string]any {
 		// ⚠️ SCAN SIRASI SORGUDAKI SUTUN SIRASIYLA BIREBIR OLMALI. Uyusmazlik
 		//    derleme hatasi VERMEZ; ya tip hatasiyla satir SESSIZCE ATLANIR
 		//    (asagidaki 'continue') ya da alanlar BIRBIRINE KARISIR.
-		// ⚠️ `turler` ve `duzenlendi` `goruntulenme`den HEMEN SONRA gelir
-		//    (bkz. `medyaTurleri` sabiti — o parca oraya ekleniyor).
+		// ⚠️ `turler`, `boyutlar` ve `duzenlendi` `goruntulenme`den HEMEN SONRA
+		//    gelir (bkz. `medyaTurleri` sabiti — uc parca da oraya ekleniyor).
 		if rows.Scan(&id, &yazarID, &tur, &metin, &medya, &begeni, &yorum,
-			&goruntulenme, &turler, &duzenlendi,
+			&goruntulenme, &turler, &boyutlar, &duzenlendi,
 			&yorumKapali, &t, &ad, &kullanici, &avatar, &avatarMedya,
 			&begendim, &kaydettim) != nil {
 			continue
@@ -702,7 +733,10 @@ func (h *Handler) satirlariOku(rows pgx.Rows) []map[string]any {
 			"id": id, "author_id": yazarID, "tur": tur, "metin": metin,
 			"media_ids": medya,
 			// ⚠️ `media_kinds[i]` <-> `media_ids[i]` AYNI medya (sira korunur).
-			"media_kinds":   turler,
+			"media_kinds": turler,
+			// ⚠️⚠️ TURU 81 — "WxH" (or. "1080x1920"); istemci ORANI buradan
+			//    turetir ve medyayi KIRPMADAN cizer. Bilinmeyen olcu "0x0".
+			"media_boyut":   boyutlar,
 			"begeni_sayisi": begeni, "yorum_sayisi": yorum,
 			"goruntulenme": goruntulenme,
 			"duzenlendi":   duzenlendi != nil,

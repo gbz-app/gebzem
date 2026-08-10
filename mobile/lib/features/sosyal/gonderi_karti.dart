@@ -55,17 +55,18 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
   ///    oynatmanin BIRINCI kapisi. Bkz. `sosyal/gorunurluk.dart`.
   double _gorunurOran = 0;
 
-  /// ⚠️ Threads galerisinin kaydiricisi. `viewportFraction` sayfa genisligini
-  ///    ekranin %78'i yapar -> sonraki medya SAGDAN SARKAR.
-  /// ⚠️ `initState`te kurulur (build icinde kurulsaydi her cizimde YENI
-  ///    controller olusur ve kaydirma konumu SIFIRLANIRDI).
-  late final PageController _sayfaCtrl = PageController(
-    viewportFraction: kGaleriSayfaOrani,
-  );
+  /// ⚠️⚠️ TURU 81 — Threads galerisinin kaydiricisi. `PageController` DEGIL
+  ///    `ScrollController`: ogeler artik DEGISKEN GENISLIKTE (her medya kendi
+  ///    oraninda cizilir) ve `PageView` tanim geregi ESIT genislik ister.
+  ///    Ayrinti: `_medya()` icindeki serh.
+  /// ⚠️ `initState`te (alan baslaticisinda) kurulur — build icinde kurulsaydi
+  ///    her cizimde YENI controller olusur ve kaydirma konumu SIFIRLANIRDI
+  ///    (turu 76b dersi).
+  late final ScrollController _seritCtrl = ScrollController();
 
   @override
   void dispose() {
-    _sayfaCtrl.dispose();
+    _seritCtrl.dispose();
     super.dispose();
   }
 
@@ -624,30 +625,15 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
 
     return LayoutBuilder(
       builder: (context, kisit) {
-        final tamGenislik = kisit.maxWidth - 24; // 12 sol + 12 sag dolgu
-        // ⚠️ %78: sagdan sarkan parca ~%16 kalir — "devami var" belli olur ama
-        //    ana medya hala baskin. Daha dar yapmak okunurlugu bozar.
-        // ⚠️⚠️ TURU 80b — COKLU GALERIDE GENISLIK **GERCEK SAYFA GENISLIGI**
-        //    (denetim bulgusu). Eskiden `kisit.maxWidth * 0.78` yaziliyordu ama
-        //    `PageView` `Padding(left: 12)` ICINDE, yani viewport'u
-        //    `maxWidth - 12`; ustelik her sayfanin `right: 8` dolgusu var.
-        //    390px'te: hesaplanan 304, GERCEK 287 — **17px yalan**.
-        //    Bugun ZARARSIZ (yukseklik tavani her cihazda kazaniyor, bkz.
-        //    `medya_olcu.dart`), ama tavan ya da en-boy degistigi gun kutu
-        //    ORANTISIZ uzardi. Deger artik DOGRU.
-        // ⚠️ Sayilar TEK KAYNAKTAN: `kGaleriSayfaOrani` + `kGaleriAra` hem
-        //    burada hem `PageController`da kullaniliyor; ayri yazilsalardi
-        //    biri degisince digeri sessizce drift ederdi.
-        final ogeGenislik = coklu
-            ? (kisit.maxWidth - 12) * kGaleriSayfaOrani - kGaleriAra
-            : tamGenislik;
-        // ⚠️⚠️⚠️ TURU 80 — YUKSEKLIK ARTIK **TAVANLI** (kullanici: "çok uzun").
-        //    Eskiden `ogeGenislik / enBoy` idi, yani yukseklik YALNIZ genislige
-        //    bagliydi ve ekran en-boyu degistikce ekran yuzdesi %45-%108
-        //    arasinda savruluyordu (tablette reels EKRANDAN UZUNDU).
-        //    Ayrinti ve reddedilen alternatifler: `medya_olcu.dart` serhi.
-        // ⚠️ YAPMA: burada kendi hesabini yazma — `medyaYuksekligi` TEK KAYNAK.
-        final yukseklik = medyaYuksekligi(context, ogeGenislik);
+        final kolon = kisit.maxWidth - 24; // 12 sol + 12 sag dolgu
+        // ⚠️⚠️⚠️ TURU 81 — MODEL TERSINE DONDU: YUKSEKLIK SABIT, GENISLIK ORANDAN.
+        //    Kullanicinin ucuncu kez tarif ettigi Threads davranisi budur:
+        //    "bazilari genislik daha az bazilari buyuk". Ayrinti + reddedilen
+        //    alternatifler: `medya_olcu.dart` serhi.
+        // ⚠️ YAPMA: burada kendi hesabini yazma — olculer TEK KAYNAKTA.
+        final yukseklik = medyaYuksekligi(context);
+        double genislikOf(int i) =>
+            medyaGenisligi(yukseklik, g.enBoy(i), kolon);
 
         return SizedBox(
           height: yukseklik,
@@ -655,49 +641,70 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
             alignment: Alignment.center,
             children: [
               if (!coklu)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: GestureDetector(
-                    onDoubleTap: () => _begeniCevir(yalnizBegen: true),
-                    child: _medyaKutusu(0, ogeGenislik, yukseklik),
+                // ⚠️ TEK medya SOLA DAYALI cizilir (Threads/Instagram) —
+                //    ortalanmis olsaydi dar (dikey) bir fotograf metin
+                //    bloguyla hizasini kaybederdi.
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: GestureDetector(
+                      onDoubleTap: () => _begeniCevir(yalnizBegen: true),
+                      child: _medyaKutusu(0, genislikOf(0), yukseklik),
+                    ),
                   ),
                 )
               else
-                // ⚠️⚠️ `PageView` + `viewportFraction` + `padEnds:false`
-                //    KULLANILIYOR, `ListView` + `PageScrollPhysics` DEGIL.
+                // ⚠️⚠️⚠️ TURU 81 — `PageView` TERK EDILDI, SEBEBI YAPISAL:
+                //    `PageView` TANIM GEREGI tum sayfalari ESIT GENISLIKTE
+                //    cizer (`viewportFraction` tek bir orandir). Degisken
+                //    genislik onunla MUMKUN DEGIL.
                 //
-                //    ILK DENEMEDE ListView'e `PageScrollPhysics` verilmisti ve
-                //    BU HATALIYDI: o fizik sayfa genisligini **VIEWPORT'un TAMAMI**
-                //    sanar. Ogeler ekranin %78'i oldugu icin yaslanma her ogede
-                //    biraz daha kayar ve ucuncu-dorduncu medyada tamamen bozulur.
-                //    `viewportFraction` sayfa genisligini DOGRU tanimlar.
-                // ⚠️ `padEnds: false` ZORUNLU: varsayilan `true` sayfayi ORTALAR
-                //    ve ILK medyanin SOLUNDA bosluk birakir. Threads/Instagram'da
-                //    ilk medya sola DAYALIDIR, sarkan parca SAGDA olur.
-                // ⚠️ YAPMA: `ListView` + `PageScrollPhysics`e geri donme.
-                // ⚠️⚠️ TURU 80 — SOL BOSLUK `PageView`IN KENDISINE (denetim
-                //    bulgusu). Eskiden `left: i == 0 ? 12 : 0` ile ILK OGEYE
-                //    ekstra 12px dolgu veriliyordu ama YUKSEKLIK hepsine ayni
-                //    `0.78*W`den hesaplaniyordu: 390px'te ilk kutu 284 genis,
-                //    digerleri 296 — yani ILK MEDYA gorunur sekilde DAHA DAR
-                //    (ve orantisiz uzun) cikiyordu.
-                // ⚠️ `viewportFraction: 0.78` ve `padEnds: false` AYNEN KALIR
-                //    (turu 76b: `ListView` + `PageScrollPhysics`e DONULMEZ,
-                //    `padEnds: true` ilk medyayi ORTALAR).
-                Padding(
-                  padding: const EdgeInsets.only(left: 12),
-                  child: PageView.builder(
-                    controller: _sayfaCtrl,
-                    padEnds: false,
+                // ⚠️ TURU 76b'nin YASAGI IHLAL EDILMIYOR: o yasak `ListView`in
+                //    KENDISINE degil **`PageScrollPhysics`e** aitti. O fizik
+                //    sayfa genisligini "viewport'un tamami" sanar ve esit
+                //    olmayan ogelerde yaslanma her ogede biraz daha kayar.
+                //    Burada `PageScrollPhysics` KULLANILMIYOR — serbest
+                //    kaydirma var, yani o hata YAPISAL OLARAK olusamaz.
+                // ⚠️ YAPMA: buraya `PageScrollPhysics` ya da `snap` ekleme.
+                //
+                // ⚠️ `_sayfa` artik KAYDIRMA KONUMUNDAN turetilir (asagidaki
+                //    `NotificationListener`): otomatik video oynatma ve sayac
+                //    rozeti ona bagli.
+                NotificationListener<ScrollNotification>(
+                  onNotification: (n) {
+                    if (n is! ScrollUpdateNotification &&
+                        n is! ScrollEndNotification) {
+                      return false;
+                    }
+                    // Merkeze en yakin ogeyi "aktif" say.
+                    final x = _seritCtrl.hasClients ? _seritCtrl.offset : 0.0;
+                    var toplam = 0.0;
+                    var yeni = 0;
+                    for (var i = 0; i < g.mediaIds.length; i++) {
+                      final w = genislikOf(i) + kGaleriAra;
+                      if (x < toplam + w / 2) {
+                        yeni = i;
+                        break;
+                      }
+                      toplam += w;
+                      yeni = i;
+                    }
+                    if (yeni != _sayfa) setState(() => _sayfa = yeni);
+                    return false;
+                  },
+                  child: ListView.builder(
+                    controller: _seritCtrl,
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.only(left: 12, right: 12),
                     itemCount: g.mediaIds.length,
-                    // ⚠️ Otomatik oynayan video YALNIZ ortadaki oge olmali (iki
-                    //    video ayni anda calmasin — iOS ses oturumu TEK).
-                    onPageChanged: (i) => setState(() => _sayfa = i),
                     itemBuilder: (_, i) => Padding(
-                      padding: const EdgeInsets.only(right: kGaleriAra),
+                      padding: EdgeInsets.only(
+                        right: i == g.mediaIds.length - 1 ? 0 : kGaleriAra,
+                      ),
                       child: GestureDetector(
                         onDoubleTap: () => _begeniCevir(yalnizBegen: true),
-                        child: _medyaKutusu(i, null, yukseklik),
+                        child: _medyaKutusu(i, genislikOf(i), yukseklik),
                       ),
                     ),
                   ),

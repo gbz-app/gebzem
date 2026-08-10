@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
@@ -8,6 +9,7 @@ import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
+import 'package:video_player/video_player.dart';
 
 import '../../core/api.dart';
 
@@ -100,6 +102,76 @@ class MedyaServisi {
     }
   }
 
+  /// ⚠️⚠️⚠️ TURU 81 — MEDYANIN PIKSEL OLCUSU. **TEK KAYNAK.**
+  ///
+  /// ═══════════ NEDEN VAR ═══════════
+  ///
+  /// Kullanici UC KEZ "gorseller cok uzun / boyutlar tutarsiz" dedi. Threads'in
+  /// modeli: **YUKSEKLIK SABIT, GENISLIK medyanin GERCEK EN-BOYUNDAN** gelir —
+  /// dikey fotograf DAR, yatay fotograf GENIS cizilir ve KIRPMA OLMAZ.
+  /// Bunun on kosulu istemcinin medyanin oranini BILMESIDIR.
+  ///
+  /// `media_assets.width/height` sutunlari migration **015'ten beri VAR**,
+  /// presign ucu bu alanlari **zaten kabul ediyor**, `yukle()` parametreleri
+  /// **zaten tasiyor** — ama **17 cagri yerinin HICBIRI deger gecmiyordu**.
+  /// Yani sutun bastan beri OLUYDU ve akis kirpmak ZORUNDAYDI.
+  ///
+  /// ⚠️⚠️ OLCUM **`yukle()` ICINDE** YAPILIR, CAGRI YERLERINDE DEGIL.
+  ///    Cagiranlara birakilsaydi 17 yerden biri kesin unutulurdu ve o yoldan
+  ///    yuklenen medya sessizce oransiz kalirdi (bu projede "ayni kuralin iki
+  ///    kopyasi drift eder" hatasi ALTI kez yasandi). Cagiran ACIKCA deger
+  ///    verirse o KORUNUR (or. kaydedici sureyi zaten biliyor).
+  ///
+  /// ⚠️ `ImageDescriptor.encoded` KULLANILIR, tam decode DEGIL: yalnizca
+  ///    dosya BASLIGI okunur. `instantiateImageCodec` ile tam cozme 1600x1600
+  ///    bir JPEG icin ~10 MB gecici RAM demekti; bu yol birkac KB.
+  /// ⚠️ Hata OLDURUCU DEGIL: olcu alinamazsa (0,0) doner ve yukleme SURER —
+  ///    boyut bir SUS, icerigin kendisi degil. Cizim tarafinda 0 gelirse
+  ///    guvenli varsayilana dusuluyor.
+  static Future<({int w, int h})> gorselOlcusu(File f) async {
+    ui.ImmutableBuffer? tampon;
+    ui.ImageDescriptor? tanim;
+    try {
+      tampon = await ui.ImmutableBuffer.fromUint8List(await f.readAsBytes());
+      tanim = await ui.ImageDescriptor.encoded(tampon);
+      return (w: tanim.width, h: tanim.height);
+    } catch (e) {
+      unawaited(Sentry.captureMessage('gorsel olcusu okunamadi: $e'));
+      return (w: 0, h: 0);
+    } finally {
+      tanim?.dispose();
+      tampon?.dispose();
+    }
+  }
+
+  /// Videonun piksel olcusu + suresi.
+  ///
+  /// ⚠️ `VideoPlayerController` KURULUP HEMEN BIRAKILIR. Bu, akistaki tembel
+  ///    oynaticidan BAGIMSIZDIR ve yalnizca yukleme aninda BIR KEZ kosar.
+  /// ⚠️ `size` bazi kodeklerde donmus olabilir; 0 gelirse (0,0) doneriz.
+  /// ⚠️⚠️ `MedyaKapisi.donanimSerbest` KAPISI BURADA **GEREKMEZ**: oynatici
+  ///    kurulur ama `play()` CAGRILMAZ, yani ses oturumu talep edilmez.
+  ///    Yine de `dispose` GARANTILIDIR (finally) — sizan oynatici iOS'ta
+  ///    sonraki aramanin ses kurulumuyla cekisirdi.
+  static Future<({int w, int h, int ms})> videoOlcusu(File f) async {
+    VideoPlayerController? c;
+    try {
+      c = VideoPlayerController.file(f);
+      await c.initialize().timeout(const Duration(seconds: 8));
+      final s = c.value.size;
+      return (
+        w: s.width.isFinite ? s.width.round() : 0,
+        h: s.height.isFinite ? s.height.round() : 0,
+        ms: c.value.duration.inMilliseconds,
+      );
+    } catch (e) {
+      unawaited(Sentry.captureMessage('video olcusu okunamadi: $e'));
+      return (w: 0, h: 0, ms: 0);
+    } finally {
+      await c?.dispose();
+    }
+  }
+
   /// Dosyanin MD5'ini AKIS uzerinden hesaplar (base64).
   ///
   /// ⚠️ Bellek SABIT kalir: `openRead()` parcalar halinde besler, `md5.bind`
@@ -144,6 +216,25 @@ class MedyaServisi {
     final tavan = kTavanlar[kind];
     if (tavan != null && bayt > tavan) {
       throw Exception('Dosya çok büyük (en fazla ${_mb(tavan)})');
+    }
+
+    // ⚠️⚠️⚠️ TURU 81 — PIKSEL OLCUSU **BURADA** ALINIR (bkz. `gorselOlcusu`
+    //    serhi). Cagiran ACIKCA vermediyse (0) olculur; verdiyse KORUNUR.
+    //    Boylece 17 cagri yerinin HICBIRI degismeden tum medya oranli olur ve
+    //    ileride eklenecek 18. cagri yeri de kendiliginden dogru davranir.
+    // ⚠️ Olcum BASARISIZ olursa 0 kalir ve yukleme SURER — boyut bir sustur,
+    //    icerigin kendisi degil. Cizim tarafi 0'i guvenli varsayilana dusurur.
+    if (width <= 0 || height <= 0) {
+      if (kind == 'image' || kind == 'avatar' || kind == 'kapak') {
+        final o = await gorselOlcusu(dosya);
+        width = o.w;
+        height = o.h;
+      } else if (kind == 'video') {
+        final o = await videoOlcusu(dosya);
+        width = o.w;
+        height = o.h;
+        if (durationMs <= 0) durationMs = o.ms;
+      }
     }
 
     // ⚠️ Content-MD5 SUNUCUYA BEYAN EDILIR ve IMZAYA girer. Yuklenen icerik

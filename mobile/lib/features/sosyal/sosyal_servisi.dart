@@ -3,6 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api.dart';
 
+/// ⚠️ TURU 81 — olcusu BILINMEYEN medyanin varsayilan en-boyu (genislik/yukseklik).
+///
+/// 4:5 secildi: telefonla cekilen fotograflarin cogunlugu dikeydir ve bu deger
+/// turu 80'e kadarki davranisin ta kendisidir — yani eski medya (olcusu
+/// doldurulmamis satirlar) BIRDEN BOZULMUS gibi gorunmez, TANIDIK kalir.
+const double _kVarsayilanEnBoy = 4 / 5;
+
 /// ⚠️⚠️ TURU 75 — SOSYAL KATMAN ISTEMCISI (gonderi + akis + etkilesim + takip).
 ///
 /// ⚠️ TEK KAYNAK: gonderi/profil/takip ile ilgili HER REST cagrisi buradan gecer.
@@ -248,6 +255,7 @@ class Gonderi {
     required this.metin,
     required this.mediaIds,
     required this.mediaKinds,
+    this.mediaBoyut = const [],
     required this.duzenlendi,
     required this.begeniSayisi,
     required this.yorumSayisi,
@@ -280,6 +288,16 @@ class Gonderi {
   /// ⚠️ ESKI SUNUCU YEDEGI: alan gelmezse gonderi turunden TUREYILIR (asagida).
   final List<String> mediaKinds;
 
+  /// ⚠️⚠️ TURU 81 — HER MEDYANIN PIKSEL OLCUSU, "WxH" (or. "1080x1920").
+  ///     `mediaBoyut[i]` ile `mediaIds[i]` AYNI medyayi gosterir (sunucu
+  ///     `WITH ORDINALITY` ile sirayi GARANTI EDIYOR).
+  /// ⚠️ Bu alan OLMADAN medya KIRPILMADAN cizilemez — kart orani bilmedigi
+  ///     icin sabit bir kutuya `cover` ile sigdirmak ZORUNDA kalirdi
+  ///     (turu 80'de dikey fotografin %41-51'i kirpiliyordu).
+  /// ⚠️ ESKI SUNUCU / ESKI MEDYA YEDEGI: alan gelmezse ya da "0x0" ise
+  ///     `enBoy()` varsayilana duser.
+  final List<String> mediaBoyut;
+
   /// Sunucudaki `duzenlendi_at != NULL`. Kart "· düzenlendi" etiketi cizer.
   bool duzenlendi;
   int begeniSayisi;
@@ -309,6 +327,30 @@ class Gonderi {
     return videoMu ? 'video' : 'image';
   }
 
+  /// ⚠️⚠️⚠️ TURU 81 — i. medyanin EN-BOY ORANI (genislik / yukseklik).
+  ///
+  /// Kullanici UC KEZ *"gorseller cok uzun / boyutlar tutarsiz"* dedi. Threads
+  /// modeli **YUKSEKLIK SABIT, GENISLIK ORANDAN** demektir: dikey fotograf DAR,
+  /// yatay fotograf GENIS cizilir ve **KIRPMA OLMAZ**. Bunun on kosulu orani
+  /// bilmektir; sunucu artik `media_boyut` ("WxH") donduruyor.
+  ///
+  /// ⚠️ OLCU YOKSA (eski medya "0x0", ya da alan hic gelmediyse) **4/5**
+  ///    varsayilir — telefonla cekilen fotograflarin cogunlugu dikeydir ve bu,
+  ///    turu 80'e kadarki davranisin ta kendisidir (yani yedek yol GORSEL
+  ///    OLARAK TANIDIK kalir, birden bozulmus gibi gorunmez).
+  /// ⚠️ SINIRLANIR (0.5 .. 1.91): asiri panoramik ya da asiri uzun bir medya
+  ///    satiri patlatmasin. Ust sinir Instagram'in yatay tavani, alt sinir
+  ///    9:16'dan biraz dar (story oraninin altina inmeye gerek yok).
+  double enBoy(int i) {
+    if (i < 0 || i >= mediaBoyut.length) return _kVarsayilanEnBoy;
+    final p = mediaBoyut[i].split('x');
+    if (p.length != 2) return _kVarsayilanEnBoy;
+    final w = int.tryParse(p[0]) ?? 0;
+    final h = int.tryParse(p[1]) ?? 0;
+    if (w <= 0 || h <= 0) return _kVarsayilanEnBoy;
+    return (w / h).clamp(0.5, 1.91);
+  }
+
   /// Galeride EN AZ BIR video var mi (kapak/oto-oynatma karari icin).
   bool get videoIceriyor => videoMu || mediaKinds.any((k) => k == 'video');
 
@@ -321,6 +363,9 @@ class Gonderi {
         .map((e) => e.toString())
         .toList(),
     mediaKinds: ((m['media_kinds'] as List?) ?? [])
+        .map((e) => e.toString())
+        .toList(),
+    mediaBoyut: ((m['media_boyut'] as List?) ?? [])
         .map((e) => e.toString())
         .toList(),
     duzenlendi: m['duzenlendi'] == true,

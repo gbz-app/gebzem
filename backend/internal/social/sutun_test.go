@@ -28,7 +28,7 @@ import (
 var beklenenSutunlar = []string{
 	"p.id", "p.author_id", "p.tur", "p.metin", "p.media_ids",
 	"p.begeni_sayisi", "p.yorum_sayisi", "p.goruntulenme",
-	"MEDIA_KINDS", "p.duzenlendi_at",
+	"MEDIA_KINDS", "MEDIA_BOYUT", "p.duzenlendi_at",
 	"p.yorum_kapali", "p.created_at",
 	"u.name", "USERNAME", "u.avatar_url", "u.avatar_media_id",
 	"BEGENDIM", "KAYDETTIM",
@@ -133,6 +133,10 @@ func sutunEslesir(gercek, beklenen string) bool {
 	switch beklenen {
 	case "MEDIA_KINDS":
 		return strings.Contains(d, "array_agg(COALESCE(ma.kind")
+	// ⚠️ TURU 81 — medya OLCUSU ("WxH"). `ma.width` ile eslestiriyoruz;
+	//    `ma.kind` ile karismasin diye AYRI dal.
+	case "MEDIA_BOYUT":
+		return strings.Contains(d, "array_agg(COALESCE(ma.width")
 	case "USERNAME":
 		return strings.Contains(d, "u.username")
 	case "BEGENDIM":
