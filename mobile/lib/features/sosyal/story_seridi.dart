@@ -398,7 +398,11 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi>
   );
 
   Widget _kutu({required String etiket, required Widget child}) => SizedBox(
-    width: 74,
+    // ⚠️ TURU 82 — kullanici: *"storyler arasinda bosluk cok az"*.
+    //    Halka capi 60 + 2.5 + 2 dolgu = ~69dp; 74 genislikte aradaki bosluk
+    //    yalnizca ~5dp kaliyordu. 84 -> ~15dp (Instagram'la ayni his).
+    // ⚠️ YAPMA: 74'e geri dusurme.
+    width: 84,
     child: Column(
       mainAxisSize: MainAxisSize.min,
       children: [

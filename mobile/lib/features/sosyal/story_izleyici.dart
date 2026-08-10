@@ -66,6 +66,27 @@ class _StoryIzleyiciState extends ConsumerState<StoryIzleyici>
 
   @override
   void dispose() {
+    // ⚠️⚠️⚠️ TURU 82 — HALKA ARTIK **HER CIKISTA** UZLASTIRILIR.
+    //
+    // Kullanici: *"story actigimda yine cevresinde renk gorunuyor, yani
+    // acildigini anlamiyor herhalde"*. KOK NEDEN: bu ekran listeyi SUNUCUDAN
+    // TAZE ceker (`storyServisi.kullanici`), yani buradaki `Story` nesneleri
+    // seritteki modelden **AYRI NESNELERDIR**; `s.izledim = true` yazmak
+    // seritteki halkayi ETKILEMEZ. Iki model arasindaki TEK kopru
+    // `onIzlendi` idi ve o yalnizca `_sonraki()`nin "liste bitti" dalindan
+    // cagriliyordu -> kullanici GERI tusu, X dugmesi ya da asagi kaydirma ile
+    // ciktiginda (yani vakalarin COGUNDA) kopru HIC kurulmuyordu.
+    //
+    // ⚠️ Kosul `every(izledim)` OLARAK KALIR (Instagram deseni): 3 hikayenin
+    //    1'ini izleyip cikan kullanicinin halkasi RENKLI kalmalidir. Duzelen
+    //    sey "hepsini izledi ama halka renkli kaldi" durumudur.
+    // ⚠️ `dispose` icinde cagirmak GUVENLI: `onIzlendi` yalnizca EBEVEYNIN
+    //    `setState`ini tetikler ve orada `mounted` kapisi var. Burada `ref`
+    //    KULLANILMAZ (CLAUDE.md: dispose sonrasi `ref` = StateError).
+    final l = _liste;
+    if (l != null && l.isNotEmpty && l.every((s) => s.izledim)) {
+      widget.onIzlendi?.call();
+    }
     _ilerleme.dispose();
     super.dispose();
   }

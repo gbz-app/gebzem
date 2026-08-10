@@ -14,7 +14,13 @@ const morGradient = LinearGradient(
 // ⚠️⚠️ KOYU TEMA renkleri (test turu 5 redesign, turu 81'de KULLANICI TARAFINDAN
 //    TEKRAR ONAYLANDI: "alt menu siyah, sayfa 1 tik acik rengi olacak").
 //    Yani bu iki sabit YENI IS DEGIL, KORUNACAK mevcut davranistir.
-const _icerikZemin = Color(0xFF161618); // icerik alani (siyahin acigi)
+// ⚠️⚠️ TURU 82 — kullanici IKINCI kez *"alt menu siyah, arka plan bir tik
+//    acigi olacak dedim, o da oyle degil"* dedi. Kablolama DOGRUYDU (alt menu
+//    `_altMenuZemin`, sayfa `scaffoldBackgroundColor`) ama FARK OLCULEBILIR
+//    DEGILDI: 0x16 = %8.6 parlaklik, OLED siyahin yaninda goz bunu "ayni"
+//    okuyor. 0x1C (Apple systemGray6-dark) ayrimin standart degeri.
+// ⚠️ YAPMA: bunu tekrar 0x16'ya dusurme; alt menuyu siyahtan cikarma.
+const _icerikZemin = Color(0xFF1C1C1E); // icerik alani (siyahin BIR TIK acigi)
 const _altMenuZemin = Color(0xFF000000); // alt menu SIYAH
 
 // ⚠️⚠️ ACIK TEMA renkleri (turu 81). KOYUNUN AYNADAKI KARSILIGI:

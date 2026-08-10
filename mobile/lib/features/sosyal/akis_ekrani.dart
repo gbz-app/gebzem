@@ -303,7 +303,9 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
           child: Text(
             metin,
             style: TextStyle(
-              fontSize: 15,
+              // ⚠️ TURU 82 — kullanici emri: *"Takip et ve Kesfet 2px daha
+              //    buyuk olsun o yazilar"*. 15 -> 17.
+              fontSize: 17,
               // ⚠️ Aktif/pasif AYRIMI IKI ISARETLE: kalinlik VE renk.
               //    Tek isaret (yalniz renk) dusuk kontrastli ekranlarda
               //    ve renk korlugunde ayirt edilemezdi.
@@ -420,12 +422,12 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
         //    secicisi HIKAYE SERIDININ ALTINDA (bkz. `_bolmeSecici`).
         //    Kanallar sol ust hamburger menuye TASINDI — o secici kanallarin
         //    TEK GIRISIYDI, yerine bir sey konmasaydi ozellik OLURDU.
-        // ⚠️ Baslik "Gebzem": AppBar bomboş kalsaydi hamburger dugmesi havada
-        //    duran tek oge olurdu.
-        title: const Text(
-          'Gebzem',
-          style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800),
-        ),
+        // ⚠️⚠️ TURU 82 — "Gebzem" BASLIGI KALDIRILDI (kullanici emri:
+        //    *"anasayfada gebzem yazisini kaldir"*). Onceki serh basligi
+        //    "hamburger havada kalmasin" diye savunuyordu; sag tarafta
+        //    bildirim + arama dugmeleri VAR, yani cubuk zaten dengeli.
+        // ⚠️ YAPMA: baslik geri ekleme.
+        title: null,
         actions: [
           // ⚠️⚠️ TURU 76 — BURADAKI "Reels" DUGMESI KALDIRILDI. Reels artik ALT
           //    MENUDE kendi sekmesi. Ikisini birden birakmak, kullanicinin ayni

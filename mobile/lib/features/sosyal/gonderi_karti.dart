@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -71,6 +72,16 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
   }
 
   Gonderi get g => widget.gonderi;
+
+  /// [i]. medyanin en-boy orani, bozuk degere karsi korumali.
+  ///
+  /// ⚠️ `medyaKutusu` ayni korumayi KENDI ICINDE yapar; bu yardimci yalnizca
+  ///    galeri genisligini ORTAK yukseklikten turetirken (o yol `medyaKutusu`a
+  ///    ugramaz) ayni savunmanin gecerli kalmasi icin var.
+  double _oran(int i) {
+    final o = g.enBoy(i);
+    return (o.isFinite && o > 0) ? o : 0.8;
+  }
 
   Future<void> _begeniCevir({bool yalnizBegen = false}) async {
     if (_mesgul) return;
@@ -626,17 +637,40 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
     return LayoutBuilder(
       builder: (context, kisit) {
         final kolon = kisit.maxWidth - 24; // 12 sol + 12 sag dolgu
-        // ⚠️⚠️⚠️ TURU 81 — MODEL TERSINE DONDU: YUKSEKLIK SABIT, GENISLIK ORANDAN.
-        //    Kullanicinin ucuncu kez tarif ettigi Threads davranisi budur:
-        //    "bazilari genislik daha az bazilari buyuk". Ayrinti + reddedilen
-        //    alternatifler: `medya_olcu.dart` serhi.
+        // ⚠️⚠️⚠️ TURU 82 — KUTU ORANI = MEDYA ORANI (turu 81'in hatasi burada).
+        //    Turu 81 yuksekligi SABITLIYOR, genisligi kolona kirpiyordu ->
+        //    4:5 bir fotograf kolonun %59'unda kalip SAGINDA 150dp BOSLUK
+        //    birakiyordu (kullanicinin "sol sag birseyler doluyor" dedigi sey).
+        //    Artik genislik tavana takilirsa YUKSEKLIK DE ORANLA kuculur.
+        //    Ayrinti + reddedilen alternatifler: `medya_olcu.dart` serhi.
         // ⚠️ YAPMA: burada kendi hesabini yazma — olculer TEK KAYNAKTA.
-        final yukseklik = medyaYuksekligi(context);
-        double genislikOf(int i) =>
-            medyaGenisligi(yukseklik, g.enBoy(i), kolon);
+        // ⚠️ YAPMA: disariya sabit bir `height` verme; yukseklik ARTIK degisken.
+        final tavan = medyaTavani(context);
+
+        // TEK medya: kolonun TAMAMINI kullanabilir (4:5 ve daha genis her
+        // fotograf kolonu DOLDURUR). COKLU galeri: oge kolonun %78'iyle
+        // sinirli ki sonraki medya sagdan SARKSIN (galeri oldugunun tek ipucu).
+        final ogeTavani = coklu ? kolon * kGaleriOgeOrani : kolon;
+        ({double w, double h}) kutuOf(int i) =>
+            medyaKutusu(tavan, g.enBoy(i), ogeTavani);
+
+        // ⚠️ Galeride TUM ogeler AYNI YUKSEKLIKTE olmali (aksi halde serit
+        //    tirtikli gorunur). Ortak yukseklik = ogeler icindeki EN KISASI:
+        //    boylece hicbir oge kendi tavanini asmaz ve seride sigar.
+        final satirY = coklu
+            ? List.generate(
+                g.mediaIds.length,
+                (i) => kutuOf(i).h,
+              ).reduce(math.min)
+            : kutuOf(0).h;
+
+        // Galeride oge genisligi ORTAK yukseklikten turer (oran korunur).
+        double genislikOf(int i) => coklu
+            ? math.min(ogeTavani, satirY * _oran(i))
+            : kutuOf(i).w;
 
         return SizedBox(
-          height: yukseklik,
+          height: satirY,
           child: Stack(
             alignment: Alignment.center,
             children: [
@@ -650,7 +684,7 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     child: GestureDetector(
                       onDoubleTap: () => _begeniCevir(yalnizBegen: true),
-                      child: _medyaKutusu(0, genislikOf(0), yukseklik),
+                      child: _medyaKutusu(0, genislikOf(0), satirY),
                     ),
                   ),
                 )
@@ -704,7 +738,7 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
                       ),
                       child: GestureDetector(
                         onDoubleTap: () => _begeniCevir(yalnizBegen: true),
-                        child: _medyaKutusu(i, genislikOf(i), yukseklik),
+                        child: _medyaKutusu(i, genislikOf(i), satirY),
                       ),
                     ),
                   ),
@@ -907,6 +941,38 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
     ),
   );
 
+  /// ⚠️⚠️⚠️ TURU 82 — IKON **OPTIK** BOYUTU. Kullanici: *"begeni yorum vs
+  /// ikonlar esit gorunmuyor; olculer aynidir ama goruntude biri kucuk biri
+  /// buyuk"*.
+  ///
+  /// **KULLANICI HAKLI VE OLCU DE DOGRUYDU** — ikisi celismiyor. Hepsi
+  /// nominal 22px'ti; sorun `size`in ikonun **CIZILEN MUREKKEBINI** degil
+  /// **SINIR KUTUSUNU** olcmesi. Lucide 24'luk izgarada her sembol kutuyu
+  /// FARKLI doldurur, dolayisiyla ayni `size` FARKLI gorunur:
+  ///
+  ///   heart          ~20x18 dolu govde        -> optik olarak EN BUYUK
+  ///   messageCircle  ~19x19 daire             -> buyuk
+  ///   bookmark       ~13x18 DAR dikdortgen    -> dar goze KUCUK gelir
+  ///   send           ~19x19 ama ucgen + BOSLUK-> mürekkep az, KUCUK gorunur
+  ///   chartNoAxes…   ~18x14 kisa cubuklar     -> KUCUK gorunur
+  ///
+  /// Cozum tipografideki "optical sizing" ile ayni: **gorsel agirligi dusuk
+  /// olan sembole daha buyuk nominal boy** verilir. Yerlesim kutusu 24x24
+  /// SABIT kaldigi icin satir kaymaz.
+  ///
+  /// ⚠️ YAPMA: hepsini tekrar tek bir sabite (22) esitleme — "esit olcu"
+  ///    ESIT GORUNUM DEMEK DEGIL; kullanicinin sikayeti tam olarak buydu.
+  /// ⚠️ Cubuga YENI ikon eklersen buraya da bir satir ekle; haritada olmayan
+  ///    ikon 22'ye duser (guvenli varsayilan, sessiz bozulma yok).
+  static double _optikBoy(IconData ikon) {
+    if (ikon == LucideIcons.heart) return 21;
+    if (ikon == LucideIcons.messageCircle) return 21.5;
+    if (ikon == LucideIcons.bookmark) return 23;
+    if (ikon == LucideIcons.send) return 23;
+    if (ikon == LucideIcons.chartNoAxesColumn) return 23.5;
+    return 22;
+  }
+
   /// Etkilesim cubugundaki TEK eylem bileseni.
   ///
   /// ⚠️⚠️ TUM IKONLAR BUNDAN CIZILIR — kullanici emri "ikonlarin hepsi esit
@@ -942,11 +1008,14 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
               scale: vurgu ? 1.12 : 1.0,
               duration: const Duration(milliseconds: 160),
               curve: Curves.easeOutBack,
-              // ⚠️ SABIT BOYUT — `scale` yalniz gorsel; yerlesim etkilenmez.
+              // ⚠️ SABIT YERLESIM KUTUSU — `scale` ve optik duzeltme yalnizca
+              //    GORSEL; kutu 24x24 sabit oldugu icin satir HIC kaymaz.
               child: SizedBox(
-                width: 22,
-                height: 22,
-                child: Icon(ikon, size: 22, color: c),
+                width: 24,
+                height: 24,
+                child: Center(
+                  child: Icon(ikon, size: _optikBoy(ikon), color: c),
+                ),
               ),
             ),
             if (sayi != null && sayi > 0) ...[
