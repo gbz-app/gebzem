@@ -335,6 +335,15 @@ func main() {
 		// ⚠️ TURU 74 — herkesten silme. `deleted_for_all` sutunu 001'den beri VARDI ve
 		//    listeleme sorgulari onu OKUYORDU, ama SILME UCU YOKTU (sutun olu duruyordu).
 		r.Delete("/chats/{chatID}/messages/{msgID}", chatH.DeleteMessage)
+		// ⚠️⚠️ TURU 81 — SOHBET ICI ANKET (migration 040).
+		//    `messages.type='poll'` 015'ten beri CHECK'te VARDI ama beyaz
+		//    liste onu reddediyordu ve hicbir uc yoktu (olu tip).
+		// ⚠️ `/polls/{id}` STATIK degil PARAMETRELI; `/chats/{chatID}/polls`
+		//    ile ayni seviyede DEGIL — rota_test.go cozumlemeyi dogruluyor.
+		r.Post("/chats/{chatID}/polls", chatH.AnketOlustur)
+		r.Get("/polls/{id}", chatH.AnketGetir)
+		r.Post("/polls/{id}/vote", chatH.AnketOyVer)
+		r.Post("/polls/{id}/close", chatH.AnketKapat)
 		// TURU 74 — MEDYA UCLARI (yalniz R2 yapilandirilmissa).
 		// ⚠️ YAPMA: /media/ yolunu api.dart 401 muafiyet listesine EKLEME —
 		//    bayat token bu uclarda oturumu SILMELI (turu 34-36 muafiyeti AYRI konu).
