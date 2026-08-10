@@ -450,8 +450,15 @@ func (h *Handler) GetMessages(w http.ResponseWriter, r *http.Request) {
 		// ⚠️ TURU 76 — GRUP ICIN ZORUNLU (bkz. sorgudaki serh).
 		SenderName          string  `json:"sender_name,omitempty"`
 		SenderAvatarMediaID *string `json:"sender_avatar_media_id,omitempty"`
+		// ⚠️⚠️ TURU 81 — ANKET. `type='poll'` mesajlarda DOLU olur.
+		//    Olmasaydi anket balonu YALNIZ yeni gelen mesajda cizilir, sohbete
+		//    tekrar girildiginde SORU METNI olarak gorunurdu (olu ozellik).
+		Poll map[string]any `json:"poll,omitempty"`
 	}
 	out := []msg{}
+	// ⚠️ Anket id'leri ONCE toplanir, sonra TEK TURDA okunur. Satir satir
+	//    okumak N+1 sorgu demekti (50 mesajlik sayfada 50 ek sorgu).
+	anketMesajlari := map[int64]int{}
 	for rows.Next() {
 		var m msg
 		// ⚠️ SCAN SIRASI SELECT ile BIREBIR.
@@ -459,7 +466,35 @@ func (h *Handler) GetMessages(w http.ResponseWriter, r *http.Request) {
 			&m.ReplyToID, &m.DeletedForAll, &m.CreatedAt,
 			&m.DurationMs, &m.Waveform, &m.Width, &m.Height, &m.FileName, &m.Bytes,
 			&m.SenderName, &m.SenderAvatarMediaID); err == nil {
+			if m.Type == "poll" {
+				anketMesajlari[m.ID] = len(out)
+			}
 			out = append(out, m)
+		}
+	}
+
+	if len(anketMesajlari) > 0 {
+		ids := make([]int64, 0, len(anketMesajlari))
+		for id := range anketMesajlari {
+			ids = append(ids, id)
+		}
+		prows, err := h.db.Query(r.Context(),
+			`SELECT message_id, id FROM polls WHERE message_id = ANY($1)`, ids)
+		if err == nil {
+			defer prows.Close()
+			for prows.Next() {
+				var mesajID, pollID int64
+				if prows.Scan(&mesajID, &pollID) != nil {
+					continue
+				}
+				// ⚠️ `anketOku` TEK KAYNAK — yanit sekli burada ELLE kurulsaydi
+				//    anket uclarindan DRIFT ederdi.
+				if a, err := h.anketOku(r.Context(), pollID, userID); err == nil {
+					if i, ok := anketMesajlari[mesajID]; ok {
+						out[i].Poll = a
+					}
+				}
+			}
 		}
 	}
 	writeJSON(w, http.StatusOK, out)

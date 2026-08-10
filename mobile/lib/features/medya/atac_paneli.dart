@@ -152,6 +152,12 @@ Future<AtacSecimi?> atacPaneliAc(BuildContext context, WidgetRef ref) async {
           onTap: () =>
               Navigator.of(c).pop(const AtacSecimi.eylemli('etkinlik')),
         ),
+        ListTile(
+          leading: const _AtacIkon(LucideIcons.chartBar, Color(0xFF8B5CF6)),
+          title: const Text('Anket'),
+          subtitle: const Text('Soru sor, oy toplansın'),
+          onTap: () => Navigator.of(c).pop(const AtacSecimi.eylemli('anket')),
+        ),
       ]),
     ),
   );

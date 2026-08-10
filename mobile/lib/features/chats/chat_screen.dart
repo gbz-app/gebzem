@@ -14,6 +14,7 @@ import '../../router.dart' show rootMessengerKey;
 import '../auth/auth_provider.dart';
 import '../calls/active_call_controller.dart';
 import '../calls/call_provider.dart';
+import 'anket.dart';
 import 'arama_kaydi.dart';
 import 'chats_provider.dart';
 import 'grup_bilgi.dart';
@@ -178,6 +179,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         return;
       case 'etkinlik':
         await _etkinlikGonder();
+        return;
+      case 'anket':
+        await _anketGonder();
         return;
     }
 
@@ -359,6 +363,34 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (!mounted) return;
     try {
       await notifier.send('$id|$baslik', type: 'etkinlik');
+      _scrollToBottom();
+    } catch (e) {
+      rootMessengerKey.currentState?.showSnackBar(
+        SnackBar(content: Text(apiErrorMessage(e))),
+      );
+    }
+  }
+
+  /// Anket olustur ve gonder.
+  ///
+  /// ⚠️ MESAJI SUNUCU YAZAR (`POST /chats/{id}/polls` tek islemde mesaj +
+  ///    anket + secenekler + makbuzlari yazar). Istemci AYRICA `send`
+  ///    CAGIRMAZ — cagirsaydi anketsiz IKINCI bir mesaj olusurdu.
+  Future<void> _anketGonder() async {
+    final taslak = await anketPaneliAc(context);
+    if (taslak == null || !mounted) return;
+    final anketSvc = ref.read(anketServisiProvider);
+    final notifier = ref.read(messagesProvider(widget.chatId).notifier);
+    try {
+      await anketSvc.olustur(
+        chatId: widget.chatId,
+        soru: taslak.soru,
+        secenekler: taslak.secenekler,
+        coklu: taslak.coklu,
+      );
+      // ⚠️ Liste SUNUCUDAN tazelenir: anket mesaji sunucuda olustugu icin
+      //    yerel listeye elle eklemek iki kaynak yaratirdi.
+      await notifier.load();
       _scrollToBottom();
     } catch (e) {
       rootMessengerKey.currentState?.showSnackBar(
@@ -1315,7 +1347,12 @@ class _Bubble extends StatelessWidget {
               //	acikca isaret etmisti — kapi UC yerde birden gerekiyor:
               //	balon (burasi), sohbet listesi onizlemesi ve PUSH (ikisi de
               //	SUNUCUDA, `handler.go` preview switch'i).
-              if (_yapisalTipler.contains(message.type))
+              // ⚠️ ANKET: `content` SORUYU tasir ama balon anketin KENDISINI
+              //    cizer (secenekler + oy sayilari). Soruyu ayrica `Text` ile
+              //    basmak IKI KEZ gosterirdi.
+              if (message.type == 'poll' && message.anket != null)
+                AnketBalon(anket: message.anket!, benimMi: mine)
+              else if (_yapisalTipler.contains(message.type))
                 _YapisalBalon(message: message, benimMi: mine)
               else if (message.content.isNotEmpty)
                 Text(message.content, style: const TextStyle(fontSize: 15.5)),

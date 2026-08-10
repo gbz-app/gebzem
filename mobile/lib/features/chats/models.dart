@@ -1,3 +1,5 @@
+import 'anket.dart';
+
 /// Sohbet listesi satiri
 class Chat {
   Chat({
@@ -89,6 +91,7 @@ class Message {
     required this.deletedForAll,
     required this.createdAt,
     this.read = false,
+    this.anket,
   });
 
   final int id;
@@ -114,6 +117,14 @@ class Message {
   final DateTime createdAt;
   bool read; // benim mesajim karsi tarafca okundu mu (mavi tik)
 
+  /// ⚠️⚠️ TURU 81 — ANKET. YALNIZ `type == 'poll'` mesajlarda dolu olur.
+  ///
+  /// Sunucu anketin TAM ANLIK GORUNTUSUNU (secenekler + sayimlar + benim
+  /// oylarim) mesaj govdesinin `poll` alaninda donduruyor; istemci balonu
+  /// cizmek icin AYRI bir istek ATMAZ. Aksi halde 20 mesajlik bir sohbette
+  /// 20 ek istek olurdu.
+  final Anket? anket;
+
   factory Message.fromJson(Map<String, dynamic> j) => Message(
         id: (j['id'] as num).toInt(),
         senderId: j['sender_id'] as String,
@@ -129,6 +140,9 @@ class Message {
         bytes: (j['bytes'] as num?)?.toInt() ?? 0,
         senderName: j['sender_name'] as String? ?? '',
         senderAvatarMediaId: j['sender_avatar_media_id'] as String?,
+        anket: j['poll'] is Map
+            ? Anket.fromJson((j['poll'] as Map).cast<String, dynamic>())
+            : null,
         replyToId: (j['reply_to_id'] as num?)?.toInt(),
         deletedForAll: j['deleted_for_all'] as bool? ?? false,
         createdAt: DateTime.tryParse(j['created_at'] as String? ?? '') ?? DateTime.now(),
