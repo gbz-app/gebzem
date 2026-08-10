@@ -140,6 +140,24 @@ func kisalt(s string, n int) string {
 //	⚠️ Yeni satirda bilinmeyen konum 0'dir; MEVCUT satirda ON CONFLICT
 //	   dalindaki COALESCE eski degeri KORUR.
 //
+// ⚠️⚠️⚠️ TURU 85b — `ON CONFLICT` DALINDA `EXCLUDED` **OLU KODDU** (SEVK ENGELI).
+//
+//	`EXCLUDED.enlem`, VALUES tarafindaki `COALESCE($9, 0::double precision)`
+//	SONUCUDUR — yani **ASLA NULL OLAMAZ**. Dolayisiyla
+//	`COALESCE(EXCLUDED.enlem, isletmeler.enlem)` yedegi HIC degerlendirilmez
+//	ve konum GONDERMEYEN her guncelleme (adres/telefon/calisma saati
+//	degistirmek gibi EN SIK islem) koordinati **0'A EZIYORDU**.
+//	Yani turu 78'de kapatilan hata, farkli bir kapidan GERI GELMISTI ve
+//	"harita ozelligi bugun konsa SIFIR PIN cizerdi" tespiti hala gecerliydi.
+//	⚠️ Bu, turu 80b `randevu_ayar` dersinin BIREBIR TEKRARIDIR:
+//	   **`ON CONFLICT` dalinda `EXCLUDED.x`, VALUES'ta COALESCE'lanmis bir
+//	   parametreyse "gonderilmedi" bilgisi ZATEN KAYBOLMUSTUR.**
+//	FIX: UPDATE dalinda HAM PARAMETRE (`$9`/`$10`); VALUES tarafindaki
+//	COALESCE'lar KALIR (INSERT'te sutunlar NOT NULL).
+//	⚠️ Uctan uca testi bunu KIRMIZI dusurerek yakaladi; statik denetim GOREMEZ.
+//	⚠️ Ayrica "Konumu kaldir" dugmesi de BURAYA bagli: acikca `0` gonderilirse
+//	   parametre NULL DEGILDIR, dolayisiyla 0 YAZILIR ve konum temizlenir.
+//
 // ⚠️⚠️⚠️ TURU 85 — `COALESCE($9, 0)` **ONDALIGI KIRPIYORDU** (AMPIRIK).
 //
 //	`0` literali Postgres'te **integer**dir. `$9` tipsiz geldiginde Postgres
@@ -219,8 +237,10 @@ func (h *Handler) Kaydet(w http.ResponseWriter, r *http.Request) {
 		  ilce=EXCLUDED.ilce, telefon=EXCLUDED.telefon, web=EXCLUDED.web,
 		  calisma=EXCLUDED.calisma,
 		  -- TURU 78 — KOORDINAT KORUNUR (bkz. Kaydet serhi: SIFIRA EZILIYORDU).
-		  enlem  = COALESCE(EXCLUDED.enlem,  isletmeler.enlem),
-		  boylam = COALESCE(EXCLUDED.boylam, isletmeler.boylam),
+		  -- TURU 85b: HAM PARAMETRE kullanilir, EXCLUDED DEGIL.
+		  -- Gerekce fonksiyon ustundeki serhte (EXCLUDED dali OLU KODDU).
+		  enlem  = COALESCE($9::double precision,  isletmeler.enlem),
+		  boylam = COALESCE($10::double precision, isletmeler.boylam),
 		  updated_at=now()`,
 		me, req.Kategori, req.Adres, req.Il, req.Ilce, req.Telefon, req.Web,
 		calisma, req.Enlem, req.Boylam); err != nil {

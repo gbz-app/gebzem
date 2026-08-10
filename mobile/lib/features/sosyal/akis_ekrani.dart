@@ -138,13 +138,13 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
       //    `ref.read` StateError firlatir ve is SESSIZCE iptal olur).
       final svc = ref.read(sosyalServisiProvider);
       final List<Gonderi> gelen;
-      var soguk = false;
       if (bolme == 1) {
         gelen = await svc.kesfetAkisi();
       } else {
         final s = await svc.akis();
         gelen = s.gonderiler;
-        soguk = s.kesfet;
+        // ⚠️ `s.kesfet` (soguk baslangic bayragi) BILEREK KULLANILMIYOR —
+        //    gerekce `_kesfetler[bolme] = false` satirinin ustunde yazili.
       }
       // ⚠️⚠️⚠️ TURU 80b — SEVK ENGELI DUZELTMESI (denetim bulgusu).
       //    Eskiden burada `if (!mounted || bolme != _bolme) return;` vardi ve
@@ -183,8 +183,8 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
         //    kullanici BOS EKRAN gormuyor — yalnizca ACIKLAMA SERIDI cizilmiyor.
         // ⚠️ YAPMA: sunucudaki soguk-baslangic dalini kaldirma; kaldirilirsa
         //    kimseyi takip etmeyen kullanicinin akisi GERCEKTEN bosalir.
-        // ⚠️ `soguk` bilerek okunuyor ama kullanilmiyor -> `_kesfetler` daima
-        //    false. Serit geri istenirse tek satir: `bolme == 0 && soguk`.
+        // ⚠️ `_kesfetler` daima false. Serit geri istenirse yukaridaki dalda
+        //    `s.kesfet` okunup buraya `bolme == 0 && soguk` yazilir.
         _kesfetler[bolme] = false;
         _dahaVarlar[bolme] = gelen.isNotEmpty;
         _ilkYukleme = false;

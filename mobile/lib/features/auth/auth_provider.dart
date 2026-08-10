@@ -181,9 +181,28 @@ class AuthNotifier extends StateNotifier<String?> {
     _ref.invalidate(pushProvider);
   }
 
+  /// ⚠️⚠️⚠️ TOLERANSLI OKUMA — KATI HALI **SEVK ENGELIYDI**.
+  ///
+  ///	Onceden `data['user_id'] as String` yaziyordu. Turu 84'un yeni
+  ///	`/auth/kayit/tamamla` ucu ise `{"token", "user": {"id": ...}}`
+  ///	donduruyordu — yani `user_id` YOKTU. Sonuc: `null as String` ->
+  ///	**TypeError**, jeton diske HIC yazilmiyor, `state` degismiyor ve
+  ///	**KAYIT AKISI ASLA TAMAMLANMIYORDU** (hesap sunucuda olusuyor,
+  ///	kullanici jenerik hata goruyor).
+  ///
+  /// ⚠️ Sunucu tarafi da duzeltildi (`user_id` eklendi), AMA bu tolerans
+  ///    KALIR: yanit anahtari drifti bir daha SESSIZ bir cokmeye donusmesin.
+  /// ⚠️ Jeton BOSSA acikca hata firlatilir — sessizce "girisli" saymak
+  ///    kullaniciyi 401 dongusune sokardi.
+  /// ⚠️ YAPMA: buray tekrar kati `as String` haline dondurme.
   Future<void> _saveSession(dynamic data) async {
-    final token = data['token'] as String;
-    final userId = data['user_id'] as String;
+    final token = (data['token'] ?? '').toString();
+    if (token.isEmpty) {
+      throw StateError('sunucu oturum jetonu dondurmedi');
+    }
+    final userId =
+        (data['user_id'] ?? (data['user'] is Map ? data['user']['id'] : null) ?? '')
+            .toString();
     await _ref.read(storageProvider).saveSession(token, userId);
     state = token;
     // Push/VoIP token'ini HEMEN kaydet (router rebuild'ini bekleme). Yeni hesapta ilk

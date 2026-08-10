@@ -136,9 +136,22 @@ func (h *Handler) KayitTelefon(w http.ResponseWriter, r *http.Request) {
 	// ⚠️ Yanit "zaten kayitli" DER — bu bir numara sayimi (enumeration)
 	//    acigidir ama giris ekraninda zaten ayni bilgi veriliyor ve
 	//    kullanicinin "neden giremiyorum" sorusunu cozmek daha degerli.
+	// ⚠️⚠️ OLCUT **`verified`** — `password_hash <> ''` DEGIL.
+	//
+	//	Ilk yazimda `password_hash <> ''` kullaniliyordu ve bu, GIRISIN
+	//	olcutunden (`verified`) AYRISIYORDU. Eski `/auth/register` satiri
+	//	OTP'den ONCE yaziyor; yani OTP adiminda vazgecen kullanicinin satiri
+	//	`password_hash` DOLU + `verified=false` halinde kaliyor. O kullanici:
+	//	  · giris yapamiyor  (Login: `if !verified {403}`)
+	//	  · YENIDEN KAYIT DA OLAMIYOR (buradaki kapi 409 doner)
+	//	yani hesabina KALICI OLARAK kilitleniyordu.
+	// ⚠️ `verified` olcutuyle yarim kalmis kayitlar akisi yeniden baslatabilir
+	//    ve `ON CONFLICT DO UPDATE` onlari TAMAMLAR.
+	// ⚠️ YAPMA: olcutu `password_hash`e dondurme; uc uc (kayit/giris/sifirlama)
+	//    AYNI "kayitli mi" tanimini paylasmali.
 	var kayitli bool
 	if err := h.db.QueryRow(r.Context(),
-		`SELECT EXISTS(SELECT 1 FROM users WHERE phone=$1 AND password_hash <> '')`,
+		`SELECT EXISTS(SELECT 1 FROM users WHERE phone=$1 AND verified=true)`,
 		req.Phone).Scan(&kayitli); err != nil {
 		writeErr(w, http.StatusInternalServerError, "kayıt başlatılamadı")
 		return
@@ -264,25 +277,69 @@ func (h *Handler) KayitTamamla(w http.ResponseWriter, r *http.Request) {
 
 	// ⚠️ `ON CONFLICT (phone) DO UPDATE`: eski `/auth/register` ile AYNI desen.
 	//    Yarim kalmis bir kayit (telefon satiri var, sifre bos) TAMAMLANIR.
+	//
+	// ⚠️⚠️⚠️ **`verified=true` ZORUNLU — YOKLUGU SEVK ENGELIYDI.**
+	//
+	//	Ilk yazimda bu sutun HIC yazilmiyordu. `users.verified` varsayilani
+	//	FALSE (001_init.sql) ve `SET verified=true` yazan TEK yer eski
+	//	`/auth/verify` ucuydu — yeni akis onu HIC cagirmiyor. Sonuc: yeni
+	//	akisla acilan **HER HESAP HAYALETTI**:
+	//	  · `Login` -> `if !verified { 403 }`  (giris IMKANSIZ)
+	//	  · `Forgot`/`Reset` -> `AND verified=true` (sifre sifirlama da yok)
+	//	  · kullanici arama · telefondan bulma · profil goruntuleme
+	//	  · akis + kesfet (`u.verified` yuklemi)
+	//	Yani kullanici kayit olur, uygulamayi kapatir ve BIR DAHA GIREMEZ;
+	//	kurtarma yolu da YOKTUR.
+	//
+	// ⚠️ Neden burada dogru: kayit jetonu ZATEN "OTP tuketildi" kanitidir ve
+	//    `verified` tam olarak bunu ifade eder.
+	// ⚠️ YAPMA: bu sutunu cikarma.
 	var userID string
 	if err := h.db.QueryRow(r.Context(), `
-		INSERT INTO users (phone, password_hash, name, username)
-		VALUES ($1,$2,$3,$4)
+		INSERT INTO users (phone, password_hash, name, username, verified)
+		VALUES ($1,$2,$3,$4,true)
 		ON CONFLICT (phone) DO UPDATE
-		   SET password_hash=$2, name=$3, username=$4
+		   SET password_hash=$2, name=$3, username=$4, verified=true
 		RETURNING id`,
 		phone, string(hash), name, uname).Scan(&userID); err != nil {
 		writeErr(w, http.StatusInternalServerError, "kayıt tamamlanamadı")
 		return
 	}
 
+	// ⚠️⚠️ KAYIT BONUSU — eski `/auth/verify` ile AYNI (handler.go). Bu satir
+	//    olmadan yeni akisla acilan hesabin `coin_ledger` DENETIM SATIRI
+	//    olusmuyordu; bakiye `coin_balance` varsayilanindan geliyor ama
+	//    "nereden geldi" izi KAYBOLUYORDU.
+	// ⚠️ `NOT EXISTS` kapisi: iki akistan hangisi once kosarsa kossun bonus
+	//    BIR KEZ islenir.
+	h.db.Exec(r.Context(), `
+		INSERT INTO coin_ledger (user_id, amount, reason)
+		SELECT $1, 10000, 'signup_bonus'
+		WHERE NOT EXISTS (
+			SELECT 1 FROM coin_ledger WHERE user_id=$1 AND reason='signup_bonus')`,
+		userID)
+
 	tok, err := GenerateToken(h.cfg.JWTSecret, userID)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "oturum açılamadı")
 		return
 	}
+	// ⚠️⚠️⚠️ **`user_id` ZORUNLU — YOKLUGU SEVK ENGELIYDI.**
+	//
+	//	Istemcideki `_saveSession` (auth_provider.dart) `data['user_id'] as
+	//	String` okuyor; ilk yazimda yanit yalnizca ic ice `user.id`
+	//	donduruyordu -> `null as String` -> **TypeError** -> jeton diske HIC
+	//	yazilmiyor ve oturum ACILMIYORDU. Yani hesap sunucuda olusuyor ama
+	//	kullanici jenerik bir hata goruyor ve akis TAMAMLANAMIYORDU.
+	//
+	// ⚠️ Eski `/auth/verify` ve `/auth/login` de `{"token","user_id"}`
+	//    donduruyor — uc uc artik AYNI sozlesmeyi konusuyor.
+	// ⚠️ `user` nesnesi de KALIR (additive): ileride istemci ada/kullanici
+	//    adina ihtiyac duyarsa ikinci istek atmasin.
+	// ⚠️ YAPMA: `user_id`yi kaldirma.
 	writeJSON(w, http.StatusOK, map[string]any{
-		"token": tok,
+		"token":   tok,
+		"user_id": userID,
 		"user": map[string]any{
 			"id": userID, "phone": phone, "name": name, "username": uname,
 		},

@@ -11,7 +11,9 @@ import 'features/auth/login_screen.dart';
 import 'features/auth/kayit_akisi.dart';
 import 'features/auth/onboarding_ekrani.dart';
 import 'features/auth/otp_screen.dart';
-import 'features/auth/register_screen.dart';
+// ⚠️ `register_screen.dart` ARTIK IMPORT EDILMIYOR: `/register` turu 84'te
+//    `KayitAkisi`ya baglandi. DOSYA SILINMEDI (sifre sifirlama akisi onun
+//    yardimcilarini paylasiyor); yalniz bu rotadan cozuldu.
 import 'features/chats/chat_screen.dart';
 import 'features/chats/user_search_screen.dart';
 import 'features/home/home_screen.dart';
@@ -21,19 +23,63 @@ import 'features/home/home_screen.dart';
 final rootNavigatorKey = GlobalKey<NavigatorState>();
 final rootMessengerKey = GlobalKey<ScaffoldMessengerState>();
 
-final routerProvider = Provider<GoRouter>((ref) {
-  final auth = ref.watch(authProvider);
-
-  // girisliyken WebSocket'i ac + push kaydini yap
-  if (auth != null && auth.isNotEmpty) {
-    ref.read(wsProvider).connect();
-    ref.read(pushProvider).register();
+/// ⚠️⚠️⚠️ TURU 85b — OTURUM DEGISIMINDE **ROUTER YENIDEN KURULMAZ**.
+///
+///	Onceden `routerProvider` govdesinde `ref.watch(authProvider)` vardi.
+///	Riverpod'da `watch` = **saglayiciyi YENIDEN CALISTIR**, yani her oturum
+///	degisiminde YEPYENI bir `GoRouter` uretiliyordu. `MaterialApp.router` yeni
+///	`routerConfig`i alinca gezinme yiginini ATAR ve `initialLocation: '/'`
+///	ile SIFIRDAN tohumlar.
+///
+///	SONUC (SEVK ENGELI): turu 84'un adimli kayit akisinda 3. adim hesabi
+///	olusturup oturumu aciyor -> `authProvider` degisiyor -> router BASTAN
+///	kuruluyor ve kullanici ANINDA `/`ye dusuyor. Asagidaki `redirect`e
+///	yazdigim `/register` ISTISNASI **HIC CALISMIYORDU**, cunku onu tasiyan
+///	router nesnesi coptu. Yani **4. ADIM (IZINLER) HICBIR ZAMAN GORUNMEZDI**
+///	— tam da o istisnanin engellemeye calistigi hata, BASKA bir katmandan.
+///
+///	FIX: router BIR KEZ kurulur; oturum degisimi `refreshListenable` ile
+///	yalnizca `redirect`i YENIDEN KOSTURUR (yigin korunur).
+///
+/// ⚠️ Yan etkiler (WS baglantisi + push kaydi) da buraya tasindi; eskiden
+///    saglayici govdesindeydiler ve govde artik tekrar kosmuyor.
+/// ⚠️ `fireImmediately` YOK: `authProvider` `null` (kontrol ediliyor) ile
+///    baslar, gercek deger `_init()` sonrasi GELIR ve dinleyici onu yakalar.
+/// ⚠️ YAPMA: `routerProvider` govdesine tekrar `ref.watch(authProvider)` koyma.
+class _OturumDinleyicisi extends ChangeNotifier {
+  _OturumDinleyicisi(this._ref) {
+    _kapat = _ref.listen<String?>(authProvider, (_, yeni) {
+      if (yeni != null && yeni.isNotEmpty) {
+        _ref.read(wsProvider).connect();
+        _ref.read(pushProvider).register();
+      }
+      notifyListeners();
+    }, fireImmediately: true).close;
   }
+
+  final Ref _ref;
+  late final void Function() _kapat;
+
+  @override
+  void dispose() {
+    _kapat();
+    super.dispose();
+  }
+}
+
+final routerProvider = Provider<GoRouter>((ref) {
+  final oturum = _OturumDinleyicisi(ref);
+  ref.onDispose(oturum.dispose);
 
   return GoRouter(
     navigatorKey: rootNavigatorKey,
     initialLocation: '/',
+    refreshListenable: oturum,
     redirect: (context, state) {
+      // ⚠️ `watch` DEGIL `read` — bkz. `_OturumDinleyicisi` serhi. Tazeleme
+      //    isini `refreshListenable` yapiyor; burada watch etmek routeri
+      //    yeniden kurar ve kayit akisini bozardi.
+      final auth = ref.read(authProvider);
       // ⚠️⚠️⚠️ TURU 81 — ONBOARDING **EN USTTE** (kullanici emri: "uygulama
       //    ilk acilisinda 4 tane onboarding olsun").
       //
