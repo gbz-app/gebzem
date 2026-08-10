@@ -136,9 +136,34 @@ class _YenileSarmaliState extends State<YenileSarmali> {
           //    yenileme ayri bayrakta izlenir ve ikisinin BIRLESIMI cizilir.
           // ⚠️ YAPMA: bu iki bayragi tek bayraga indirgeme.
           onNotification: (n) {
+            // ---- ANDROID yolu: `ClampingScrollPhysics` sinira dayaninca
+            //      `OverscrollNotification` uretir.
             if (n is OverscrollNotification && n.overscroll < 0) {
               if (!_cekiliyor) setState(() => _cekiliyor = true);
-            } else if (n is ScrollEndNotification) {
+              return false;
+            }
+            // ---- ⚠️⚠️⚠️ iOS yolu — **AYRI DAL ZORUNLU** (denetim bulgusu).
+            //
+            //      iOS'ta gecerli fizik `BouncingScrollPhysics`tir ve onun
+            //      `applyBoundaryConditions` metodu **DAIMA 0.0 doner**, yani
+            //      liste gercekten hareket eder ve **HICBIR ZAMAN
+            //      `OverscrollNotification` DOGMAZ**. Tek dalli haliyle uc
+            //      nokta iPhone'da CEKME sirasinda HIC cizilmiyordu — ozellik
+            //      kullanicinin gordugu ilk platformda OLU dogacakti.
+            //      (`AlwaysScrollableScrollPhysics` bunu DEGISTIRMEZ; Bouncing'i
+            //      ebeveyn olarak sarar, sinir davranisi ondan gelir.)
+            //
+            // ⚠️ `extentBefore == 0` ZORUNLU: onsuz listenin ORTASINDA
+            //    kaydirirken de noktalar cizilirdi.
+            // ⚠️ `dragDetails != null` ZORUNLU: balistik (parmak kalktiktan
+            //    sonraki) kaydirma yenileme DEGILDIR.
+            if (n is ScrollUpdateNotification &&
+                n.dragDetails != null &&
+                n.metrics.extentBefore == 0) {
+              if (!_cekiliyor) setState(() => _cekiliyor = true);
+              return false;
+            }
+            if (n is ScrollEndNotification) {
               if (_cekiliyor) setState(() => _cekiliyor = false);
             }
             return false;

@@ -8,6 +8,8 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../home/home_screen.dart' show aktifSekme;
 import '../medya/medya_gorsel.dart';
+import '../medya/ses_notu_balon.dart';
+import '../chats/anket.dart';
 import '../chats/moderasyon_sheet.dart';
 import '../medya/tam_ekran_gorsel.dart';
 import '../medya/tam_ekran_video.dart';
@@ -537,8 +539,53 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
             child: Text(g.metin, style: const TextStyle(fontSize: 15)),
           ),
 
+        // ---- SES (medyadan ONCE kontrol edilir — ses bir galeri DEGILDIR)
+        //
+        // ⚠️⚠️ TURU 83 — GONDERIDE SES (kullanici emri: "gonderide ses olmasi
+        //    elzem"). MIGRATION GEREKMEDI: `media_assets.kind` CHECK'i 037'den
+        //    beri 'audio' kabul ediyor ve `posts.media_ids` bir medya dizisi —
+        //    yani ALTYAPI ZATEN VARDI, eksik olan YALNIZCA bu cizim daliydi.
+        //    (Turu 81 dersi: "buyuk bir istek geldiginde once bunun ne kadari
+        //    zaten var diye sor.")
+        // ⚠️ `_medya()`DAN ONCE: ses `MedyaGorsel`e gitseydi KIRIK GORSEL
+        //    cizilirdi (turu 78b'de ilan/etkinlik seritlerinde tam bu oldu).
+        // ⚠️ `SesNotuBalon` SOHBETTEKI BILESENIN AYNISI — ikinci bir oynatici
+        //    yazmak `SesNotuKontrol` defterini (tek-slot ses sahipligi, turu 73)
+        //    ATLARDI ve gelen arama gonderi sesini SUSTURAMAZDI.
+        if (g.sesliMi)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(kKartYanDolgu, 0, kKartYanDolgu, 8),
+            child: SesNotuBalon(
+              mediaId: g.mediaIds.first,
+              // ⚠️ Sure/dalga gonderi hattinda TASINMIYOR (mesajdaki gibi ayri
+              //    sutunlar yok). Balon ikisi de bos/0 iken sureyi oynaticidan
+              //    ogrenir ve duz bir serit cizer — bilgi UYDURULMAZ.
+              sureMs: 0,
+              dalga: '',
+              benimMi: g.yazarId == widget.benimId,
+            ),
+          )
         // ---- MEDYA
-        if (g.mediaIds.isNotEmpty) _medya(),
+        else if (g.mediaIds.isNotEmpty)
+          _medya(),
+
+        // ---- ANKET
+        //
+        // ⚠️⚠️ TURU 83 — `AnketBalon` SOHBETTEKI BILESENIN AYNISI. Oylama,
+        //    sayim, kapatma ve `yayinlaBirlestir` (WS ile gelen sayimlari
+        //    KENDI oyumu EZMEDEN birlestirme — turu 81b sevk engeli) hepsi
+        //    orada TEK KAYNAK olarak duruyor.
+        // ⚠️ `benimMi` = anketi BEN mi olusturdum. Gonderi anketinde anketi
+        //    olusturan DAIMA gonderinin yazaridir (sunucu `creator_id`yi
+        //    `posts.author_id`den bagimsiz almaz — `Create` icinde `me`).
+        if (g.anket != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(kKartYanDolgu, 0, kKartYanDolgu, 8),
+            child: AnketBalon(
+              anket: g.anket!,
+              benimMi: g.yazarId == widget.benimId,
+            ),
+          ),
 
         // ---- ETKILESIM CUBUGU (Threads duzeni)
         //

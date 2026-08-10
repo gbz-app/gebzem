@@ -90,6 +90,23 @@ func main() {
 	bildirimS := bildirim.Yeni(db, hub, pushSender)
 	usersH := users.NewHandler(db, bildirimS)
 	socialH := social.NewHandler(db, bildirimS) // turu 75: gonderi + akis + etkilesim
+
+	// ⚠️⚠️⚠️ TURU 83 — GONDERI ANKETI: IKI PAKETIN KARSILIKLI BAGI.
+	//
+	//	`social` anketi YAZAR/OKUR ama anket mantigi `chat`te;
+	//	`chat` anketin yetkisini sorar ama gonderi gorunurlugu `social`da.
+	//	Ikisini birbirine IMPORT etmek DERLEME DONGUSU riski demekti —
+	//	bunun yerine bag BURADA, tek yerde kuruluyor.
+	//
+	// ⚠️⚠️ **BU UC SATIR UNUTULURSA OZELLIK OLU DOGAR** (ve bu projede
+	//
+	//	"sutun/servis var ama baglayan yol yok" hatasi DOKUZ kez yasandi):
+	//	  · `SetAnket` yoksa  -> anketli gonderi **500** doner,
+	//	  · `SetGonderiGorunur` yoksa -> gonderi anketine oy **403** (fail-closed).
+	//	Ikisi de SESSIZ degil, GORUNUR sekilde basarisiz olur — bilincli tercih.
+	// ⚠️ YAPMA: bu satirlari silme ya da `nil` gecme.
+	socialH.SetAnket(chatH.GonderiAnketiYaz, chatH.GonderiAnketleri)
+	chatH.SetGonderiGorunur(socialH.GorunurMu)
 	kanalH := kanal.NewHandler(db)              // turu 75: kanal (tek yonlu yayin)
 	isletmeH := isletme.NewHandler(db, bildirimS)
 	vitrinH := vitrin.NewHandler(db)

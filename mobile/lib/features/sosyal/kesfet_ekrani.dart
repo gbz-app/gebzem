@@ -290,9 +290,17 @@ class _KesfetEkraniState extends ConsumerState<KesfetEkrani>
                       // ⚠️ `kucuk: true` ZORUNLU — 3 sutunlu izgarada tam
                       //    cozunurlukte 30 gorsel indirmek kullanicinin mobil
                       //    verisini yakar (profil izgarasi da boyle yapiyor).
-                      : MedyaGorsel(
-                          mediaId: g.mediaIds.first,
-                          kucuk: true,
+                      // ⚠️⚠️ TURU 83 — `KapakGorseli` (denetim bulgusu, ayni
+                      //    kok neden profil izgarasinda SEVK ENGELIYDI):
+                      //    `mediaIds.first` TUR KONTROLSUZDU; ilk medyasi
+                      //    VIDEO olan bir gonderide thumb bulunmadigi icin
+                      //    ham `url`e dusuluyor ve **mp4'un TAMAMI indirilip**
+                      //    ardindan KIRIK GORSEL ciziliyordu.
+                      //    `KapakGorseli` ILK FOTOGRAFI secer; yalniz-video
+                      //    gonderide indirme YAPMADAN yer tutucu cizer.
+                      : KapakGorseli(
+                          mediaIds: g.mediaIds,
+                          mediaKinds: g.mediaKinds,
                           fit: BoxFit.cover,
                         ),
                 ),

@@ -29,6 +29,22 @@ import (
 // ⚠️ TEK KAYNAK: begeni, yorum, kaydetme ve gonderi detayi AYNI kapiyi kullanir.
 //
 //	Kopyalanirsa drift eder (turu 56'nin "mesgulluk kontrolu tek kaynak" dersi).
+// GorunurMu — bir gonderi bu kullaniciya gorunuyor mu (disariya acik surum).
+//
+// ⚠️⚠️ TURU 83 — `internal/chat` GONDERI ANKETININ yetkisini bununla acar.
+//
+//	Anket oylama/kapatma/okuma uclari `chat` paketinde; gonderi gorunurlugu
+//	ise burada. Iki paketi birbirine IMPORT etmek yerine `main` bu
+//	fonksiyonu geri cagirim olarak veriyor (bkz. `chat.GonderiGorunur`).
+//
+// ⚠️ Ayni yuklem: gizli hesap · engelleme (CIFT YONLU) · yayin ani
+// (zamanlanmis gonderi). Yani anket, gonderisi gorunmeyen kisiye de gorunmez.
+// ⚠️ YAPMA: anket icin AYRI bir gorunurluk kurali yazma — drift eder.
+func (h *Handler) GorunurMu(ctx context.Context, postID, userID string) (bool, error) {
+	ok, _ := h.erisebilirMi(ctx, userID, postID)
+	return ok, nil
+}
+
 func (h *Handler) erisebilirMi(ctx context.Context, me, postID string) (bool, string) {
 	var yazar, durum string
 	var yorumKapali, gizli bool

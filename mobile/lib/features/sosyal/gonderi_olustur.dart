@@ -6,8 +6,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../chats/anket.dart' show AnketTaslak, anketPaneliAc;
 import '../medya/medya_kapisi.dart';
 import '../medya/medya_servisi.dart';
+import '../medya/ses_notu_kaydedici.dart';
 import 'sosyal_servisi.dart';
 
 /// ⚠️⚠️ TURU 75 — GONDERI OLUSTURUCU (foto / video / reels / yazi).
@@ -36,9 +38,31 @@ class GonderiOlustur extends ConsumerStatefulWidget {
 }
 
 class _SecilenMedya {
-  _SecilenMedya(this.dosya, this.video);
+  _SecilenMedya(this.dosya, this.video, {this.ses = false});
   final File dosya;
   final bool video;
+
+  /// ⚠️ TURU 83 — SES kaydi. `video` ile BIRLIKTE true OLAMAZ.
+  ///    Ayri bir bayrak secildi (enum yerine) cunku mevcut tum kod
+  ///    `m.video` uzerinden dallaniyor; enum'a gecmek 14 dokunus yeri
+  ///    demekti ve bu turda gereksiz risk.
+  final bool ses;
+
+  /// Yukleme icin medya turu — TEK KAYNAK.
+  ///
+  /// ⚠️ `kind` ve `mime` AYNI yerden turer: ikisi cagri yerinde ayri ayri
+  ///    yazilsaydi biri guncellenip digeri unutulurdu (sunucu `kind` ile
+  ///    `mime`in uyusmasini bekliyor — `sniff.go`).
+  String get kind => ses
+      ? 'audio'
+      : video
+      ? 'video'
+      : 'image';
+  String get mime => ses
+      ? 'audio/m4a'
+      : video
+      ? 'video/mp4'
+      : 'image/jpeg';
 
   /// 0.0-1.0. `null` = henuz baslamadi.
   double? ilerleme;
@@ -49,6 +73,11 @@ class _SecilenMedya {
 class _GonderiOlusturState extends ConsumerState<GonderiOlustur> {
   final _metin = TextEditingController();
   final List<_SecilenMedya> _medya = [];
+
+  /// ⚠️ TURU 83 — gonderiye eklenen anket taslagi. `null` = anket YOK.
+  ///    Sunucuya `gonderiOlustur(anket:)` ile GONDERININ KENDISIYLE
+  ///    AYNI ISTEKTE gider (yarim kayit olmasin).
+  AnketTaslak? _anket;
   bool _yorumKapali = false;
 
   /// ⚠️ TURU 81 — ILERI TARIHLI PAYLASIM. `null` = HEMEN yayinla.
@@ -152,6 +181,101 @@ class _GonderiOlusturState extends ConsumerState<GonderiOlustur> {
     return 'foto';
   }
 
+  /// ⚠️⚠️ TURU 83 — GONDERIYE SES EKLE (kullanici emri).
+  ///
+  /// Kaydedici SOHBETTEKI BILESENIN AYNISI (`SesNotuKaydedici`) — ikinci bir
+  /// kayit yolu yazmak izinleri, `SesNotuKontrol` sahiplik defterini (turu 73)
+  /// ve genlik olcumunu iki yerde yasatmak demekti.
+  ///
+  /// ⚠️ SES **TEK BASINA** paylasilir: fotograf/video ile karistirilamaz.
+  ///    Sebep YAPISAL — kart ses dalinda galeri seridi CIZMEZ (`sesliMi`
+  ///    dali `_medya()`yi ATLAR), yani karma bir gonderide fotograflar
+  ///    GORUNMEZ olurdu. Kullaniciya bu ACIKCA soyleniyor.
+  Future<void> _sesEkle() async {
+    if (_medya.isNotEmpty) {
+      _uyar('Ses kaydı tek başına paylaşılır — önce diğer medyayı kaldır');
+      return;
+    }
+    if (!MedyaKapisi.izinVer(ref)) {
+      _uyar(MedyaKapisi.engelSebebi(ref) ?? 'Şu anda kayıt yapılamaz');
+      return;
+    }
+    final dosya = await showModalBottomSheet<File>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      builder: (c) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(c).viewInsets.bottom,
+          left: 12,
+          right: 12,
+          top: 14,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Ses kaydı',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Mikrofona bir kez dokun — bitince gönder.',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+            const SizedBox(height: 10),
+            SesNotuKaydedici(
+              // ⚠️ `sureMs`/`dalga` gonderi hattinda TASINMIYOR (mesajdaki
+              //    gibi ayri sutunlar yok). Dosya yeter; balon sureyi
+              //    oynaticidan ogrenir.
+              onKayit: (f, _, _) => Navigator.pop(c, f),
+            ),
+            const SizedBox(height: 14),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || dosya == null) return;
+    setState(() => _medya.add(_SecilenMedya(dosya, false, ses: true)));
+  }
+
+  /// ⚠️⚠️ TURU 83 — GONDERIYE ANKET EKLE (kullanici emri).
+  ///
+  /// Panel SOHBETTEKI ILE AYNI (`anketPaneliAc`): soru + 2..12 secenek +
+  /// tek/cok secim. Dogrulama sunucuda `chat.GonderiAnketiYaz` icinde ve
+  /// SOHBETLE AYNI sabitlerle yapilir.
+  Future<void> _anketEkle() async {
+    if (_anket != null) {
+      // Zaten anket varsa DEGISTIR (ikinci anket olamaz — `polls.post_id`
+      // uzerinde kismi UNIQUE index var, migration 042).
+      final sil = await showDialog<bool>(
+        context: context,
+        builder: (c) => AlertDialog(
+          title: const Text('Anket'),
+          content: const Text('Bu gönderide zaten bir anket var.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(c, false),
+              child: const Text('Vazgeç'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(c, true),
+              child: const Text(
+                'Anketi kaldır',
+                style: TextStyle(color: Colors.red),
+              ),
+            ),
+          ],
+        ),
+      );
+      if (sil == true && mounted) setState(() => _anket = null);
+      return;
+    }
+    final t = await anketPaneliAc(context);
+    if (!mounted || t == null) return;
+    setState(() => _anket = t);
+  }
+
   Future<void> _gorselSec() async {
     if (!MedyaKapisi.izinVer(ref)) {
       _uyar(MedyaKapisi.engelSebebi(ref) ?? 'Şu anda medya seçilemez');
@@ -222,8 +346,11 @@ class _GonderiOlusturState extends ConsumerState<GonderiOlustur> {
 
   Future<void> _paylas() async {
     final metin = _metin.text.trim();
-    if (_medya.isEmpty && metin.isEmpty) {
-      _uyar('Bir şeyler yaz ya da fotoğraf/video seç');
+    // ⚠️ TURU 83 — ANKET de tek basina icerik sayilir: anketin SORUSU zaten
+    //    metin tasir ve kullaniciyi ayrica yazi yazmaya zorlamak anlamsiz.
+    //    Sunucu tarafinda AYNI kural (`social.Create`: `metin bos && anket nil`).
+    if (_medya.isEmpty && metin.isEmpty && _anket == null) {
+      _uyar('Bir şeyler yaz, medya seç ya da anket ekle');
       return;
     }
     if (_reelsMi && _medya.isEmpty) {
@@ -247,7 +374,10 @@ class _GonderiOlusturState extends ConsumerState<GonderiOlustur> {
           m.hata = null;
         });
         File gonderilecek = m.dosya;
-        if (!m.video) {
+        // ⚠️ EXIF temizligi YALNIZ FOTOGRAFA uygulanir. Ses ve video dosyasi
+        //    `gorseliHazirla`ya girseydi null doner ve paylasim "Fotoğraf
+        //    hazırlanamadı" diye SESSIZCE olurdu.
+        if (!m.video && !m.ses) {
           // ⚠️ EXIF (KONUM) TEMIZLIGI burada olur ve ZORUNLUDUR — sunucu GPS
           //    bulursa 422 doner. Sikistirma basarisiz olursa HAM dosya
           //    GONDERILMEZ (konum sizabilir).
@@ -259,8 +389,9 @@ class _GonderiOlusturState extends ConsumerState<GonderiOlustur> {
         }
         final id = await servis.yukle(
           dosya: gonderilecek,
-          kind: m.video ? 'video' : 'image',
-          mime: m.video ? 'video/mp4' : 'image/jpeg',
+          // ⚠️ TEK KAYNAK: `_SecilenMedya.kind`/`.mime` (ses dali dahil).
+          kind: m.kind,
+          mime: m.mime,
           fileName: m.dosya.uri.pathSegments.last,
           iptal: _iptal,
           ilerleme: (p) {
@@ -283,6 +414,7 @@ class _GonderiOlusturState extends ConsumerState<GonderiOlustur> {
             mediaIds: idler,
             yorumKapali: _yorumKapali,
             yayinAt: _yayinAt,
+            anket: _anket,
           );
       if (!mounted) return;
       // ⚠️⚠️ TURU 75b (DENETIM BULGUSU — SEVK ENGELIYDI):
@@ -387,10 +519,27 @@ class _GonderiOlusturState extends ConsumerState<GonderiOlustur> {
         //    · "Paylaş" duz `TextButton`dan **dolu haplı** dugmeye cevrildi:
         //      birincil eylemin metin gibi gorunmesi profesyonel durmuyordu.
         appBar: AppBar(
+          // ⚠️⚠️⚠️ TURU 83 — **SEVK ENGELI DUZELTMESI** (denetim bulgusu).
+          //
+          //    Ilk yazimda `onPressed: _yukleniyor ? null : ... pop()` idi ve
+          //    bu, yukleme sirasindaki TUM cikis yollarini birden kapatiyordu:
+          //      · geri dugmesi OLU (`null`),
+          //      · "İptal" dugmesi `AbsorbPointer(absorbing: _yukleniyor)`in
+          //        ICINDE oldugu icin dokunus ALMIYOR,
+          //      · `PopScope(canPop: !_yukleniyor || _bitti)` iOS kenar-cekme
+          //        jestini de BLOKE ediyor.
+          //    Sonuc: 100 MB'lik bir video yuklenirken kullanici ekranda
+          //    KILITLI kaliyordu — uygulamayi oldurmekten baska cikis yoktu.
+          //
+          // ⚠️ `maybePop` SECILDI (`pop` DEGIL): `PopScope`a ugrar, yani
+          //    yukleme surerken ONAY DIYALOGU acilir, yukleme yokken normal
+          //    kapanir. Ciplak `pop()` ayrica bu dosyanin KENDI serhinin
+          //    yasakladigi desendir (yanlis route'u kapatabilir).
+          // ⚠️ YAPMA: buraya `_yukleniyor ? null :` kapisini geri koyma.
           leading: IconButton(
             icon: const Icon(LucideIcons.arrowLeft),
             tooltip: 'Geri',
-            onPressed: _yukleniyor ? null : () => Navigator.of(context).pop(),
+            onPressed: () => Navigator.of(context).maybePop(),
           ),
           titleSpacing: 4,
           title: Text(
@@ -413,9 +562,14 @@ class _GonderiOlusturState extends ConsumerState<GonderiOlustur> {
             ),
           ],
         ),
-        body: AbsorbPointer(
-          absorbing: _yukleniyor,
-          child: ListView(
+        // ⚠️⚠️ `AbsorbPointer` YALNIZ FORMU sarar; ilerleme + IPTAL blogu
+        //    ONUN DISINDA (bkz. `_ilerlemeBlogu` serhi — SEVK ENGELIYDI).
+        body: Column(
+          children: [
+            Expanded(
+              child: AbsorbPointer(
+                absorbing: _yukleniyor,
+                child: ListView(
             padding: const EdgeInsets.all(14),
             children: [
               TextField(
@@ -444,6 +598,64 @@ class _GonderiOlusturState extends ConsumerState<GonderiOlustur> {
               //    yazi olcegi 1.3'te sabit bir `Row` RenderFlex seridi
               //    cikarirdi (turu 82'de olculen sinif).
               _eklerSeridi(),
+              // ⚠️ TURU 83 — SECILEN ANKET GORUNUR OLMALI. Gorunmeseydi
+              //    kullanici anketi ekledigini UNUTUR ya da eklendigine emin
+              //    olamazdi ("ekledim mi?" belirsizligi bu projede defalarca
+              //    "iki kez gonderdim" hatasina yol acti).
+              if (_anket != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 10),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.primary.withValues(alpha: 0.45),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(LucideIcons.chartNoAxesColumn, size: 18),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _anket!.soru,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              Text(
+                                '${_anket!.secenekler.length} seçenek'
+                                '${_anket!.coklu ? ' · çoklu seçim' : ''}',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Anketi kaldır',
+                          icon: const Icon(LucideIcons.x, size: 18),
+                          onPressed: _yukleniyor
+                              ? null
+                              : () => setState(() => _anket = null),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               const SizedBox(height: 8),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
@@ -481,33 +693,58 @@ class _GonderiOlusturState extends ConsumerState<GonderiOlustur> {
                             : () => setState(() => _yayinAt = null),
                       ),
               ),
-              if (_yukleniyor) ...[
-                const SizedBox(height: 16),
-                LinearProgressIndicator(value: _toplamIlerleme),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        _toplamIlerleme >= 0.98
-                            ? 'Sunucu doğruluyor...'
-                            : 'Yükleniyor %${(_toplamIlerleme * 100).toStringAsFixed(0)}',
-                        style: const TextStyle(fontSize: 13),
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () => _iptal?.cancel('kullanici iptal'),
-                      child: const Text('İptal'),
-                    ),
+                    // ⚠️ ILERLEME + IPTAL BLOGU BURADAN CIKARILDI —
+                    //    `AbsorbPointer` icindeydi ve "İptal" dugmesi dokunus
+                    //    ALMIYORDU (bkz. `_ilerlemeBlogu` serhi).
                   ],
                 ),
-              ],
-            ],
-          ),
+              ),
+            ),
+            if (_yukleniyor) _ilerlemeBlogu(),
+          ],
         ),
       ),
     );
   }
+
+  /// Yukleme ilerlemesi + **IPTAL** dugmesi.
+  ///
+  /// ⚠️⚠️⚠️ TURU 83 — BU BLOK `AbsorbPointer`IN **DISINDA** cizilmek ZORUNDA.
+  ///
+  ///    Onceden `ListView`in son cocuguydu ve `AbsorbPointer(absorbing:
+  ///    _yukleniyor)` govdeyi sardigi icin **tam da gorundugu anda** (yani
+  ///    `_yukleniyor == true` iken) dokunus alamiyordu: dugme EKRANDA
+  ///    GORUNUYOR ama BASILAMIYORDU. Geri dugmesi de o sirada `null` idi ve
+  ///    `PopScope` kenar-cekmeyi blokluyordu -> 100 MB video yuklenirken
+  ///    kullanicinin uygulamayi OLDURMEKTEN baska cikisi yoktu.
+  ///
+  /// ⚠️ YAPMA: bu blogu tekrar `AbsorbPointer`in icine tasima.
+  Widget _ilerlemeBlogu() => Padding(
+    padding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        LinearProgressIndicator(value: _toplamIlerleme),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                _toplamIlerleme >= 0.98
+                    ? 'Sunucu doğruluyor...'
+                    : 'Yükleniyor %${(_toplamIlerleme * 100).toStringAsFixed(0)}',
+                style: const TextStyle(fontSize: 13),
+              ),
+            ),
+            TextButton(
+              onPressed: () => _iptal?.cancel('kullanici iptal'),
+              child: const Text('İptal'),
+            ),
+          ],
+        ),
+      ],
+    ),
+  );
 
   /// ⚠️⚠️ TURU 82b — YENI GONDERI EKLER SERIDI.
   ///
@@ -588,17 +825,17 @@ class _GonderiOlusturState extends ConsumerState<GonderiOlustur> {
             _yukleniyor ? null : _videoSec,
           ),
           if (!_reelsMi) ...[
-            ek(LucideIcons.mic, 'Ses', _yukleniyor ? null : () => yakinda('Ses')),
-            ek(
-              LucideIcons.chartNoAxesColumn,
-              'Anket',
-              _yukleniyor ? null : () => yakinda('Anket'),
-            ),
-            ek(
-              LucideIcons.mapPin,
-              'Konum',
-              _yukleniyor ? null : () => yakinda('Konum'),
-            ),
+            ek(LucideIcons.mic, 'Ses', _yukleniyor ? null : _sesEkle),
+            ek(LucideIcons.chartNoAxesColumn, 'Anket',
+                _yukleniyor ? null : _anketEkle),
+            // ⚠️ KONUM gonderide HENUZ YOK ve "yakinda" diyor. Ses ve anket
+            //    baglandi cunku ikisinin de SUNUCU KARSILIGI var (ses:
+            //    `media_assets.kind='audio'` · anket: migration 042). Konum
+            //    icin `posts`ta enlem/boylam sutunu YOK — yarim baglamak
+            //    yerine DURUST bilgi veriyoruz (dokuz kez yasanan
+            //    "sutun yok ama arayuz var" hatasinin tersi).
+            ek(LucideIcons.mapPin, 'Konum',
+                _yukleniyor ? null : () => yakinda('Konum')),
           ],
         ],
       ),
@@ -618,14 +855,18 @@ class _GonderiOlusturState extends ConsumerState<GonderiOlustur> {
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(10),
-                child: m.video
+                // ⚠️⚠️ TURU 83 — SES DALI **ZORUNLU**. Olmasaydi bir m4a
+                //    dosyasi `Image.file`a gider ve onizlemede KIRIK GORSEL
+                //    cizilirdi — turu 78b'de ilan/etkinlik seritlerinde tam
+                //    bu olmus, kullanici videosunu "bozuk" sanip SILMISTI.
+                child: (m.video || m.ses)
                     ? Container(
                         width: 100,
                         height: 140,
                         color: const Color(0xFF1A1A24),
                         alignment: Alignment.center,
-                        child: const Icon(
-                          LucideIcons.video,
+                        child: Icon(
+                          m.ses ? LucideIcons.mic : LucideIcons.video,
                           color: Colors.white70,
                           size: 30,
                         ),

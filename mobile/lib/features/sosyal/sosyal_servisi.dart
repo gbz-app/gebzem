@@ -2,6 +2,10 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api.dart';
+// ⚠️ TURU 83 — gonderi anketi modeli SOHBET tarafiyla AYNI (`chats/anket.dart`).
+//    Ikinci bir model yazmak sunucunun TEK yanit bicimini iki yerde
+//    cozumlemek demekti ve alanlar drift ederdi.
+import '../chats/anket.dart' show Anket, AnketTaslak;
 
 /// ⚠️ TURU 81 — olcusu BILINMEYEN medyanin varsayilan en-boyu (genislik/yukseklik).
 ///
@@ -32,6 +36,7 @@ class SosyalServisi {
     List<String> mediaIds = const [],
     bool yorumKapali = false,
     DateTime? yayinAt,
+    AnketTaslak? anket,
   }) async {
     final r = await _api.post(
       '/posts',
@@ -40,6 +45,16 @@ class SosyalServisi {
         'metin': metin,
         'media_ids': mediaIds,
         'yorum_kapali': yorumKapali,
+        // ⚠️ TURU 83 — GONDERI ANKETI. Alan YALNIZ anket varsa gonderilir;
+        //    `null` gondermek sunucuda `req.Anket != nil` kapisini gecerdi.
+        //    Alan adlari SOHBET anketiyle BIREBIR ayni (`question/options/
+        //    multi`) — sunucu ikisini de ayni `chat.GonderiAnketiYaz`a veriyor.
+        if (anket != null)
+          'anket': {
+            'question': anket.soru,
+            'options': anket.secenekler,
+            'multi': anket.coklu,
+          },
         // ⚠️ TURU 81 — ILERI TARIHLI PAYLASIM. Gonderilmezse ya da GECMIS bir
         //    zamansa sunucu gonderiyi HEMEN yayinlar.
         // ⚠️ `toUtc()`: sunucu RFC3339 bekliyor ve saat dilimi belirsizligi
@@ -274,6 +289,7 @@ class Gonderi {
     required this.yazarAvatarMediaId,
     required this.begendim,
     required this.kaydettim,
+    this.anket,
   });
 
   final String id;
@@ -325,7 +341,23 @@ class Gonderi {
 
   /// GONDERI SEVIYESINDE video mu (reels/tek video). Karma galeride tek tek
   /// medyanin turu icin `mediaKinds` kullanilir — bu getter ONU EZMEZ.
+  /// ⚠️⚠️ TURU 83 — GONDERI ANKETI (kullanici emri: "gonderide anket olmasi
+  ///    elzem"). Sema: migration 042 (`polls.post_id`).
+  ///
+  /// ⚠️ **DEGISTIRILEBILIR ALAN** (`final` DEGIL): oy verilince sunucudan
+  ///    gelen yeni anlik goruntu YERINDE yazilir. Yeni bir `Gonderi` nesnesi
+  ///    uretilseydi model akis/izgara/detay arasinda PAYLASILDIGI icin
+  ///    (turu 76 karari) diger yuzeyler eski anketi gostermeye devam ederdi.
+  Anket? anket;
+
   bool get videoMu => tur == 'video' || tur == 'reels';
+
+  /// Gonderinin SES ekli mi (ilk medya `audio` ise).
+  ///
+  /// ⚠️ Ses TEK medya olarak paylasilir: `media_kinds[0] == 'audio'`.
+  ///    Galeriyle karistirilamaz cunku `Create` ses turunde tek medya kabul
+  ///    ediyor ve kart ses dalinda galeri serodi CIZMIYOR.
+  bool get sesliMi => mediaIds.isNotEmpty && kind(0) == 'audio';
 
   /// i. medyanin turu. Liste kisa/eksikse gonderi turunden turetir.
   String kind(int i) {
@@ -386,6 +418,11 @@ class Gonderi {
     yazarAvatarMediaId: m['yazar_avatar_media_id'] as String?,
     begendim: m['begendim'] == true,
     kaydettim: m['kaydettim'] == true,
+    // ⚠️ TURU 83 — GONDERI ANKETI. Sunucu `anket` alanini YALNIZ anketli
+    //    gonderilerde gonderir (bkz. `social.satirlariOku`).
+    anket: m['anket'] is Map
+        ? Anket.fromJson((m['anket'] as Map).cast<String, dynamic>())
+        : null,
   );
 }
 

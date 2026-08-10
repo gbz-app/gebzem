@@ -716,9 +716,25 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
           fit: StackFit.expand,
           children: [
             if (g.mediaIds.isNotEmpty)
-              // ⚠️ Izgarada KUCUK RESIM (`kucuk: true`) — 3 sutunlu izgarada
-              //    tam cozunurluk indirmek kullanicinin verisini yakar.
-              MedyaGorsel(mediaId: g.mediaIds.first, kucuk: true)
+              // ⚠️⚠️⚠️ TURU 83 — **SEVK ENGELI DUZELTMESI** (denetim bulgusu).
+              //
+              //    Eskiden burada `MedyaGorsel(mediaId: g.mediaIds.first)`
+              //    vardi ve TUR KONTROLU YAPMIYORDU. Yeni "Videolar" sekmesi
+              //    TANIMI GEREGI yalniz `kind(0)=='video'` gonderileri
+              //    listeledigi icin O SEKMEDEKI HER HUCRE bir VIDEO id'sini
+              //    goruntu bileseni gonderiyordu:
+              //      · thumb uretilmedigi icin (`kucukResim:` repodaki 17
+              //        `yukle()` cagrisinin HICBIRINDE gecmiyor) ham `url`e
+              //        dusuyor -> **mp4'un TAMAMI indiriliyor**,
+              //      · ardindan goruntu cozucu patliyor -> **KIRIK GORSEL**.
+              //    Yani sekme hem bozuk goruyor hem kullanicinin mobil
+              //    verisini yakiyordu.
+              //
+              // ⚠️ `KapakGorseli` TAM BU IS ICIN yazilmis TEK KAYNAK:
+              //    ILK FOTOGRAFI secer, yalniz-video gonderide `null` doner
+              //    ve INDIRME YAPMADAN video yer tutucusu cizer.
+              // ⚠️ YAPMA: buraya `MedyaGorsel(... mediaIds.first ...)` geri koyma.
+              KapakGorseli(mediaIds: g.mediaIds, mediaKinds: g.mediaKinds)
             else
               Container(
                 color: const Color(0xFF1A1A24),
