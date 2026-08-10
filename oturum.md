@@ -6116,3 +6116,162 @@ dokunuş kalbi animasyonu **ölü koddu** · beş `ListView`'de `physics` eksikt
   çift-UTF8 **0 dosya**
 - Build android **31398063106** + ios **31398066317** (**9fdcea4**)
 - CDN **birebir** (apk + ipa + index.html üçü de MD5 eşit), DB temiz
+
+---
+
+## Oturum — 11 Ağustos 2026 · TURU 84 + 85: ADIMLI KAYIT · ONBOARDING · YAKINIMDA
+
+**YAYINLANDI 01:21** — android `31436812796` + ios `31436815156` (**df95e40**),
+R2 apk=120264179 (md5 `0387a6d4`) ipa=31373753 (md5 `df8222c7`) index=9456
+(md5 `f6aceead`), purge OK, **CDN BİREBİR (üçü de)**, debug imza YOK,
+**iOS min 16.0** doğrulandı, her iki artifact'te de turu 85 kodu var.
+Backend deploy **df95e40** + health ok, migration 001→042 atılabilir kopyada
+doğrulandı (canlıda 51 tablo), DB TRUNCATE edildi.
+✅ **CANLI SUNUCUDA 264/264 UÇTAN UCA GEÇTİ** · **196 ROTA ÇAKIŞMASIZ** ·
+`go build`+`go vet`+`go test ./...` temiz · `flutter analyze` **0 hata 0 uyarı**.
+⚠️ **KULLANICIYA VERİLEN ADRES:** https://indir.gebzem.app/index.html?v=20260811-0121
+
+### Kullanıcının istekleri
+1. **Onboarding** — beyaz zemin, yazılar solda, başlık + kısa profesyonel açıklama.
+2. **Kayıt adım adım** — telefon → OTP → kişisel bilgiler.
+3. **İzinler ayrı adımda**, video/ses için açıklamalı ("kullanıcılar anlasın").
+4. **Yakınımda** — menüde; üstte harita, altta kartlar; **otel** kategorisi;
+   **Uber tarzı grimsi-beyaz** harita.
+5. "Tüm problemleri derinlemesine araştır, ajan çalıştır ve çöz."
+
+### Denetim: 52 ajan · 46 bulgu → **42 ONAYLANDI**, 4 elendi · **10 SEVK ENGELİ**
+On sevk engelinin hepsi **dört kök nedene** iniyordu ve dördü de yeni kayıt
+akışını **tamamen ölü** bırakıyordu:
+
+- ⚠️⚠️⚠️ **`verified` HİÇ YAZILMIYORDU.** `grep -c verified kayit_adimli.go` = **0**.
+  `users.verified` varsayılanı FALSE ve onu `true` yapan tek yer eski
+  `/auth/verify` ucuydu — yeni akış onu hiç çağırmıyor. Sonuç: **yeni akışla
+  açılan HER hesap hayaletti** — `Login` 403, `Forgot`/`Reset` de `verified=true`
+  istiyor, arama/profil/akış hepsi `u.verified` yükleminde. Kullanıcı kayıt olup
+  uygulamayı kapatıyor ve **bir daha giremiyordu; kurtarma yolu da yoktu.**
+- ⚠️⚠️⚠️ **ROUTER OTURUM DEĞİŞİMİNDE YENİDEN KURULUYORDU.** `routerProvider`
+  gövdesinde `ref.watch(authProvider)` vardı; Riverpod'da `watch` = sağlayıcıyı
+  YENİDEN ÇALIŞTIR, yani her girişte **yepyeni bir `GoRouter`** üretiliyor ve
+  `MaterialApp.router` yığını atıp `initialLocation: '/'` ile tohumluyordu.
+  Adım 3 oturumu açar açmaz kullanıcı `/`ye düşüyor; `redirect`e yazdığım
+  `/register` istisnası **hiç çalışmıyordu** (onu taşıyan router çöpe gidiyordu).
+  Yani **4. adım (izinler) hiçbir zaman görünmüyordu** — tam da o istisnanın
+  engellemeye çalıştığı hata, başka bir katmandan.
+  FIX: router BİR KEZ kurulur, oturum değişimi `refreshListenable` ile yalnız
+  `redirect`i yeniden koşturur. ⚠️ YAPMA: gövdeye tekrar `ref.watch` koyma.
+- ⚠️⚠️⚠️ **YANIT ANAHTARI DRIFT ETTİ.** Sunucu `{token, user:{id}}` dönüyordu,
+  `auth_provider._saveSession` ise `data['user_id'] as String` okuyordu →
+  **TypeError**; jeton diske hiç yazılmıyor, `state` değişmiyor ve kayıt
+  **asla tamamlanmıyordu** (hesap sunucuda oluşuyor, kullanıcı jenerik hata
+  görüyor). İki tarafı da düzelttim: sunucu `user_id` de döner, istemci
+  **toleranslı okur** (`user_id` yoksa `user.id`).
+- ⚠️⚠️⚠️ **ADIM 1'İN ÖLÇÜTÜ GİRİŞTEN FARKLIYDI** (`password_hash <> ''` vs
+  `verified`). Eski `/auth/register` satırı OTP'den ÖNCE yazıyor; OTP adımında
+  vazgeçen kullanıcının satırı `password_hash` DOLU + `verified=false` kalıyor.
+  O kullanıcı ne giriş yapabiliyor ne **yeniden kayıt olabiliyordu** (409) —
+  hesabına **kalıcı kilitleniyordu**. Üç uç artık AYNI tanımı paylaşıyor.
+
+### ⚠️⚠️ TURU 85b — KABA KUTU BOYLAMDA `cos(enlem)` UYGULAMIYORDU
+`Yakinimda` yarıçapı dereceye çevirirken **boylamda da 111.0**'a bölüyordu.
+Oysa 1 derece boylam enleme göre kısalır: `111 * cos(enlem)`. Gebze enleminde
+(40.8°) `cos = 0.757` → 1 derece boylam **~84 km**; kutu `km/111` derece geniyor
+ama `km/84` gerekiyor → kutu **~%24 DAR** ve yarıçap İÇİNDEKİ işletmeler
+**sessizce eleniyordu**.
+⚠️ Şerh **tam tersini** iddia ediyordu (*"kutu gereğinden GENİŞ olur, yalnız
+performans kaybı; Haversine son sözü söyler"*). O iddia geçersizdi: Haversine
+yalnız **kutudan geçenlere** uygulanıyor; kutu elediyse sorgu hiç görmez.
+FIX: `111.0 * greatest(cos(radians($2)), 0.01)` (kutuplarda sıfıra bölme kapısı).
+✅ E2E'de **ampirik** doğrulandı: 8 km doğuya işletme konur, düz bölenle KIRMIZI
+düşer (`dLng=0.0952` vs kutunun kapsadığı `0.0721`).
+
+### ⚠️⚠️ `ON CONFLICT` DALINDA `EXCLUDED` **ÖLÜ KODDU** (turu 80b'nin tekrarı)
+`isletmeler` UPSERT'inde `COALESCE(EXCLUDED.enlem, isletmeler.enlem)` yazıyordu.
+Ama `EXCLUDED.enlem`, VALUES tarafındaki `COALESCE($9, 0::double precision)`
+**sonucudur** — yani **asla NULL olamaz** → yedek hiç değerlendirilmez ve konum
+göndermeyen her güncelleme (adres/telefon değiştirmek gibi **en sık işlem**)
+koordinatı **0'a eziyordu**. Turu 78'de kapatılan hata farklı kapıdan geri
+gelmişti. FIX: UPDATE dalında **ham parametre** (`$9`/`$10`).
+⚠️ **DERS (turu 80b `randevu_ayar` ile birebir aynı): `ON CONFLICT` dalındaki
+`EXCLUDED.x`, VALUES'ta COALESCE'lanmış bir parametreyse "gönderilmedi"
+bilgisi ZATEN KAYBOLMUŞTUR.**
+
+### ⚠️⚠️ İSTEMCİ DE AYNI KONUMU SİLİYORDU (ikinci, bağımsız yol)
+`isletme_duzenle` `_enlem`/`_boylam`ı `double` tutup `i.enlem ?? 0` yazıyordu →
+konumsuz her kayıtta sunucuya **açıkça 0** gidiyordu = "SIFIRLA" emri.
+Somut kayıp: kişisel hesaba dönen işletmenin `isletmeler` satırı **silinmez**
+(veri politikası) ve koordinatı orada durur; tekrar işletmeye geçerken
+`detay()` 404 döner, form boş açılır ve **ilk kaydetmede eski koordinat silinir**.
+FIX: alanlar `double?` — `null` = "dokunma", `0` = "sıfırla".
+
+### ⚠️⚠️ İZİN İSTEME İKİ KOPYAYDI — MANŞET ÖZELLİK KIRIKTI
+Kayıt akışının izin adımı izinleri **kendi gövdesinde** istiyordu ve iki kopya
+anında ayrıştı:
+- `CallKitService.izinleriIste()` (Android 14+ **tam ekran bildirim** izni)
+  çağrılmıyordu → **telefon kilitliyken gelen arama ekranı hiç açılmıyordu.**
+  Bu uygulamanın manşet özelliği.
+- Pil optimizasyonu muafiyeti istenmiyordu → arka planda öldürülüp arama alınamaz.
+- Kullanıcı reddederse/"Şimdilik geç" derse `HomeScreen` kendi kapısından
+  `PermissionsScreen`i açıyordu → **aynı izin ekranı arka arkaya İKİ KEZ.**
+FIX: `izinleriTopluIste()` **tek kaynak** + oturum ömürlü `izinBuOturumdaSoruldu`.
+
+### ⚠️ KOYU TEMA: YENİ BEYAZ EKRANLAR TEMADAN KOPMUŞTU
+Zemin sabit beyaz yapılınca imleç, seçim vurgusu, `TextField` etiketleri ve
+dolgulu düğme yazısı hâlâ **koyu temadan** geliyordu → beyaz zeminde beyaz
+imleç/yazı, düğmede **~1.9:1** kontrast. Beş alanı tek tek boyamak yerine iki
+ekran da `lightTheme` ile **sarıldı** (yarın eklenecek bileşen de doğru çizilsin)
++ `AnnotatedRegion` ile durum çubuğu ikonları koyu + onboarding kaydırılabilir
+(yazı ölçeği 1.5'te RenderFlex taşıyordu).
+
+### ⚠️ JETON TEKRAR OYNATMA — ŞİFRE EZİLEBİLİYORDU
+Kayıt jetonu 15 dk yaşıyor ve **tek kullanımlık değil**; korumasız
+`DO UPDATE` ile kayıt tamamlandıktan sonra aynı jetonla **şifre ve kullanıcı adı
+ezilebiliyordu**. FIX: UPDATE dalı `WHERE users.verified = false` ile korunur;
+0 satır = "hesap zaten tamamlanmış" → **hata değil**, yeniden deneme için oturum
+verilir ama **veri ezilmez**. ⚠️ 0 satırı 500'e çevirme (flaky ağda kayıt biter).
+
+### ⚠️ İNDİR SAYFASI — "SAATİ GÖREMİYORUM"UN DÖRDÜNCÜ KÖK NEDENİ BULUNDU
+Kullanıcı bunu **dördüncü kez** söyledi. Sunucu tarafı yine doğru çıktı
+(`no-cache, no-store` + `cf-cache-status: DYNAMIC` + saat 5 yerde + canlı saat).
+**GERÇEK SEBEP: `Content-Type: application/octet-stream`.** `r2put.js`'in
+varsayılanı buydu ve `index.html` o başlıkla yüklenince tarayıcı sayfayı
+**çizmez, DOSYAYI İNDİRİR** — kullanıcı sayfayı hiç görmüyor, indirilenlere ya da
+önbellekteki eski bir kopyaya bakıyordu. Başlıklar "doğru" çıkıyordu çünkü
+**yanlış olan başlık buydu.**
+✅ FIX: araç **repoya taşındı** (`tools/indir/r2yukle.js`) ve Content-Type
+**uzantıdan türetiliyor**. Scratchpad kopyası her oturum sıfırdan yazıldığı için
+düzeltme kayboluyordu; artık kaybolamaz.
+⚠️ YAPMA: varsayılanı tekrar octet-stream yapma; `.html`i elle tür geçmeye
+bırakma (unutulur ve hata SESSİZDİR — yükleme "OK" der, sayfa yine açılmaz).
+
+### 📊 E2E 248 → **265** (canlıda 264 kontrol koştu, hepsi geçti)
+Adımlı kayıt zinciri **hiç sınanmamıştı** ve denetim orada dört sevk engeli
+buldu. Kalıcı muhafızlar: adım 1 hesap OLUŞTURMAZ · yanlış OTP redde · 72 bayt
+tavanı **400 döner (500 değil)** · yanıt `user_id` İÇERİR (istemci sözleşmesi) ·
+`@` ön eki kırpılır · **adımlı kayıtla açılan hesap GİRİŞ YAPABİLİR** · jeton
+tekrar oynatılınca şifre EZİLMEZ · tamamlanmış numara 409 · kaba kutu cos
+düzeltmesi · NaN koordinat 400.
+
+### 📌 Diğer kapatılanlar
+- Şifre **72 bayt tavanı** yoktu → bcrypt hata → jenerik **500**; uzun şifre
+  seçen kullanıcı sebebini öğrenemeden kayıt olamıyordu. `@` ön eki de
+  kırpılmıyordu (form `@` gösteriyor, insanlar yazıyor).
+- `NaN` koordinat doğrulamadan **geçiyordu** (`ParseFloat("NaN")` hata dönmez ve
+  NaN her karşılaştırmadan `false` ile geçer) → 400 yerine **sessiz boş liste**.
+- `_yukle()` şerhi "yeniden girme kapısı" diyordu, **gövdede kapı yoktu** →
+  hızlı kategori değişiminde yavaş gelen eski yanıt yenisini eziyordu (nesil
+  kapısı eklendi). Aşağı-çek artık **GPS'i de tazeliyor**; hata dalında bayat
+  liste/pinler temizleniyor.
+- **Harita salt dekoratifti**: `Marker`ın `onTap`i verilmemişti, balona basınca
+  hiçbir şey olmuyordu → işletmeye ulaşmanın tek yolu 60 kayda kadar listede
+  aramaktı. `onInfoWindowTap` eklendi.
+- **Elle koordinat girişi** şerhte "BIRAKILDI" diyordu, gövdede **tek alan
+  bile yoktu** → konum izni vermeyen işletme "Yakınımda"da hiç görünemiyordu.
+  Gerçekten eklendi (virgüllü ondalık da kabul edilir — Türkçe klavye).
+- `vitrin` dikeyleri **üçüncü kopyaydı** ve `eczane`/`otel` eklenmemişti →
+  o kategorilerin iniş sayfasında slider işletme yerine etkinlik gösteriyordu.
+  Artık `isletme.Kategoriler`den **türetiliyor** (drift yapısal olarak imkânsız).
+- Menüde "Yakınımda" şerhi *"İLK SIRADA"* diyordu ama kart **4. sıradaydı**;
+  gerçekten öne alındı. Bayat "harita SDK kurulu değil" hükümleri kaldırıldı.
+
+### ⏳ EN SONA BIRAKILAN (kullanıcı emri)
+`active_call_controller.dart` ~500 satırlık ölü bekletme/park zinciri temizliği.

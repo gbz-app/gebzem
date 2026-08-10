@@ -17,6 +17,142 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (11 Agu 01:21): TEST TURU 84+85 YAYINLANDI** — android
+  **31436812796** + ios **31436815156** (**df95e40**), R2 apk=120264179
+  (md5 0387a6d4) ipa=31373753 (md5 df8222c7) index=9456 (md5 f6aceead),
+  purge OK, **CDN BIREBIR (ucu de)**, indir sayfasi 11 Agu 01:21 (saat 5
+  yerde + canli saat), debug imza YOK, **iOS min 16.0 dogrulandi**,
+  IKI ARTIFACT'TE DE turu 85 kodu var, **BACKEND DEPLOY EDILDI** (df95e40;
+  migration 001->042 atilabilir kopyada dogrulandi, canlida 51 tablo) +
+  health ok, DB TEMIZ.
+  ✅ **CANLI SUNUCUDA 264/264 UCTAN UCA GECTI** · **196 ROTA CAKISMASIZ** ·
+  `flutter analyze` **0 hata 0 uyari**.
+  ⚠️ **KULLANICIYA VERILEN ADRES:**
+  https://indir.gebzem.app/index.html?v=20260811-0121
+  **KULLANICI TEST EDECEK.**
+- **TURU 84+85:** onboarding (beyaz zemin, sola dayali) · **adimli kayit**
+  (telefon -> OTP -> bilgiler -> izinler) · **Yakinimda** (ustte harita, altta
+  mesafeye gore sirali kartlar) · **eczane + otel** kategorileri · Uber tarzi
+  grimsi-beyaz harita (YEREL JSON stil) · isletmede **elle koordinat girisi**.
+- ⚠️⚠️⚠️ **TURU 85b — DENETIM: 52 AJAN, 46 BULGU -> 42 ONAYLANDI, 10 SEVK
+  ENGELI.** Onunun hepsi **DORT KOK NEDENE** iniyordu ve dordu de yeni kayit
+  akisini **TAMAMEN OLU** birakiyordu:
+  · **`verified` HIC YAZILMIYORDU** (`grep -c verified` = **0**): yeni akisla
+    acilan HER hesap hayalet — `Login` 403, `Forgot`/`Reset` de `verified=true`
+    istiyor. Kullanici kayit olup uygulamayi kapatiyor ve **BIR DAHA GIREMIYOR**;
+    kurtarma yolu da YOK.
+  · **ROUTER OTURUM DEGISIMINDE YENIDEN KURULUYORDU**: `routerProvider`
+    govdesinde `ref.watch(authProvider)` vardi -> her giriste YEPYENI `GoRouter`
+    -> `MaterialApp.router` yigini ATIP `initialLocation: '/'` ile tohumluyor.
+    `redirect`e yazdigim `/register` ISTISNASI **HIC CALISMIYORDU** (onu tasiyan
+    router copte). Yani **4. ADIM (IZINLER) HICBIR ZAMAN GORUNMUYORDU** — tam da
+    o istisnanin engellemeye calistigi hata, BASKA bir katmandan.
+    FIX: router BIR KEZ kurulur, oturum degisimi **`refreshListenable`** ile
+    yalnizca `redirect`i yeniden kosturur.
+    ⚠️ YAPMA: `routerProvider` govdesine tekrar `ref.watch(authProvider)` koyma.
+  · **YANIT ANAHTARI DRIFT ETTI**: sunucu `{token, user:{id}}`, istemci
+    `data['user_id'] as String` -> **TypeError**, jeton diske HIC yazilmiyor ve
+    kayit **ASLA TAMAMLANMIYOR** (hesap sunucuda olusuyor, kullanici jenerik
+    hata goruyor). Iki taraf da duzeltildi; istemci artik TOLERANSLI okur.
+  · **ADIM 1'IN OLCUTU GIRISTEN FARKLIYDI** (`password_hash <> ''` vs
+    `verified`): OTP adiminda vazgecen kullanici ne giris yapabiliyor ne
+    YENIDEN KAYIT OLABILIYORDU (409) — hesabina **KALICI KILITLENIYORDU**.
+  ⚠️ **DERS: yeni bir kimlik akisi yazarken MEVCUT akisin yazdigi TUM sutunlari
+     ve olcutleri TEK TEK karsilastir; bir sutunu atlamak hesabi HAYALET yapar.**
+- ⚠️⚠️ **TURU 85b — KABA KUTU BOYLAMDA `cos(enlem)` UYGULAMIYORDU.**
+  `Yakinimda` yaricapi dereceye cevirirken **boylamda da 111.0**'a boluyordu.
+  1 derece boylam enleme gore KISALIR (`111*cos`): Gebze'de (40.8°) ~**84 km**.
+  Kutu `km/111` derece geniyor ama `km/84` lazim -> kutu **~%24 DAR** ve yaricap
+  ICINDEKI isletmeler **SESSIZCE ELENIYORDU**.
+  ⚠️ Serh **TAM TERSINI** iddia ediyordu (*"kutu gereginden GENIS olur, yalniz
+     performans kaybi; Haversine son sozu soyler"*). O iddia GECERSIZ: Haversine
+     yalniz KUTUDAN GECENLERE uygulaniyor; kutu elediyse sorgu HIC GORMEZ.
+  FIX: `111.0 * greatest(cos(radians($2)), 0.01)` (kutupta sifira bolme kapisi).
+  ✅ E2E'de AMPIRIK dogrulandi (8 km doguya isletme; duz bolenle KIRMIZI duser).
+- ⚠️⚠️ **TURU 85b — `ON CONFLICT` DALINDA `EXCLUDED` **OLU KODDU** (80b tekrari).**
+  `COALESCE(EXCLUDED.enlem, isletmeler.enlem)` yaziyordu ama `EXCLUDED.enlem`
+  VALUES'taki `COALESCE($9, 0::double precision)` **SONUCUDUR** -> ASLA NULL
+  OLAMAZ -> yedek HIC degerlendirilmez ve konum GONDERMEYEN her guncelleme
+  (adres/telefon degistirmek = EN SIK islem) koordinati **0'A EZIYORDU**.
+  Turu 78'de kapatilan hata FARKLI KAPIDAN geri gelmisti.
+  FIX: UPDATE dalinda **HAM PARAMETRE** (`$9`/`$10`).
+  ⚠️ **DERS (80b `randevu_ayar` ile birebir ayni): `ON CONFLICT` dalindaki
+     `EXCLUDED.x`, VALUES'ta COALESCE'lanmis bir parametreyse "gonderilmedi"
+     bilgisi ZATEN KAYBOLMUSTUR.**
+- ⚠️⚠️ **TURU 85b — ISTEMCI DE AYNI KONUMU SILIYORDU (ikinci, BAGIMSIZ yol).**
+  `isletme_duzenle` `_enlem/_boylam`i `double` tutup `i.enlem ?? 0` yaziyordu ->
+  konumsuz her kayitta sunucuya **ACIKCA 0** = "SIFIRLA" emri gidiyordu.
+  Kisisele donen isletmenin `isletmeler` satiri SILINMEZ (veri politikasi) ve
+  koordinati orada durur; tekrar isletmeye gecerken `detay()` 404 doner, form
+  bos acilir ve **ILK KAYDETMEDE ESKI KOORDINAT SILINIR**.
+  FIX: alanlar `double?` — `null` = "dokunma", `0` = "sifirla".
+  ⚠️ YAPMA: bu alanlari tekrar non-nullable yapma ya da `?? 0` ile doldurma.
+- ⚠️⚠️ **TURU 85b — IZIN ISTEME IKI KOPYAYDI, MANSET OZELLIK KIRIKTI.**
+  Kayit akisinin izin adimi izinleri KENDI govdesinde istiyordu:
+  · `CallKitService.izinleriIste()` (Android 14+ **TAM EKRAN BILDIRIM** izni)
+    cagrilmiyordu -> **telefon KILITLIYKEN gelen arama ekrani HIC ACILMIYORDU.**
+  · Pil optimizasyonu muafiyeti istenmiyordu.
+  · Kullanici reddederse/"Şimdilik geç" derse `HomeScreen` kendi kapisindan
+    `PermissionsScreen`i aciyordu -> **AYNI IZIN EKRANI ARKA ARKAYA IKI KEZ.**
+  FIX: **`izinleriTopluIste()` TEK KAYNAK** + oturum omurlu
+  `izinBuOturumdaSoruldu` (kalici DEGIL — uygulama yeniden basladiginda kapi
+  yine calisir). ⚠️ YAPMA: adimlari cagiran taraflara geri kopyalama.
+- ⚠️ **TURU 85b — YENI BEYAZ EKRANLAR TEMADAN KOPMUSTU.** Zemin sabit beyaz
+  yapilinca imlec, secim vurgusu, `TextField` etiketleri ve dolgulu dugme yazisi
+  HALA KOYU TEMADAN geliyordu -> beyaz zeminde beyaz imlec, dugmede **~1.9:1**.
+  Bes alani tek tek boyamak yerine iki ekran da **`lightTheme` ile SARILDI**
+  (yarin eklenecek bilesen de dogru cizilsin) + `AnnotatedRegion` ile durum
+  cubugu ikonlari koyu + onboarding KAYDIRILABILIR (yazi olcegi 1.5'te
+  RenderFlex tasiyordu).
+- ⚠️ **TURU 85b — KAYIT JETONU TEKRAR OYNATILINCA SIFRE EZILEBILIYORDU.**
+  Jeton 15 dk yasiyor ve TEK KULLANIMLIK DEGIL. FIX: UPDATE dali
+  `WHERE users.verified = false` ile korunur; **0 satir = "hesap ZATEN
+  tamamlanmis" ve HATA DEGILDIR** -> yeniden deneme icin oturum verilir ama veri
+  EZILMEZ. ⚠️ YAPMA: 0 satiri 500'e cevirme (flaky agda kayit hic bitmez).
+- ⚠️⚠️⚠️ **INDIR SAYFASI — "SAATI GOREMIYORUM"UN **DORDUNCU** KOK NEDENI.**
+  Sunucu tarafi YINE dogru cikti (`no-store` + `cf-cache-status: DYNAMIC` + saat
+  5 yerde + canli saat). **GERCEK SEBEP: `Content-Type: application/octet-stream`.**
+  `r2put.js`in varsayilani buydu; `index.html` o baslikla yuklenince tarayici
+  sayfayi **CIZMEZ, DOSYAYI INDIRIR** — kullanici sayfayi HIC gormuyor,
+  indirilenlere ya da onbellekteki ESKI kopyaya bakiyordu. Basliklar "dogru"
+  cikiyordu cunku **YANLIS OLAN BASLIK BUYDU.**
+  ✅ FIX: arac **REPOYA TASINDI** (`tools/indir/r2yukle.js`) ve Content-Type
+  **UZANTIDAN TURETILIYOR**. Scratchpad kopyasi her oturum sifirdan yazildigi
+  icin duzeltme KAYBOLUYORDU; artik kaybolamaz.
+  ⚠️ **SURUM RUTININDE ARTIK `node tools/indir/r2yukle.js` KULLAN** (scratchpad
+     `r2put.js` DEGIL).
+  ⚠️ YAPMA: varsayilani tekrar octet-stream yapma; `.html`i elle tur gecmeye
+     birakma (unutulur ve hata SESSIZDIR — yukleme "OK" der, sayfa yine acilmaz).
+- 📊 **TURU 85b — E2E 248 -> 265.** Adimli kayit zinciri **HIC SINANMAMISTI** ve
+  denetim orada DORT sevk engeli buldu. Muhafizlar: adim 1 hesap OLUSTURMAZ ·
+  yanlis OTP redde · 72 bayt tavani **400 (500 DEGIL)** · yanit `user_id` ICERIR
+  (istemci sozlesmesi) · `@` on eki kirpilir · **adimli kayitla acilan hesap
+  GIRIS YAPABILIR** · jeton tekrar oynatilinca sifre EZILMEZ · NaN koordinat 400.
+- 📌 **TURU 85b — DIGER:** sifre **72 bayt tavani** yoktu (bcrypt hata -> jenerik
+  500; uzun sifre secen kayit OLAMIYORDU) · `@` on eki kirpilmiyordu · `NaN`
+  koordinat dogrulamadan GECIYORDU (`ParseFloat("NaN")` hata DONDURMEZ ve NaN her
+  karsilastirmadan gecer) -> 400 yerine SESSIZ BOS LISTE · `_yukle()` serhi
+  "yeniden girme kapisi" diyordu, **govdede kapi YOKTU** (nesil kapisi eklendi) ·
+  asagi-cek artik **GPS'i de tazeler** · **harita SALT DEKORATIFTI**
+  (`Marker.onTap` verilmemis; balona basinca HICBIR SEY olmuyordu) · **elle
+  koordinat girisi** serhte "BIRAKILDI" diyordu, govdede TEK ALAN BILE YOKTU
+  (izin vermeyen isletme "Yakınımda"da HIC gorunemiyordu) · `vitrin` dikeyleri
+  **UCUNCU KOPYAYDI** ve `eczane`/`otel` eklenmemisti -> artik
+  `isletme.Kategoriler`den TURETILIYOR · menude "Yakınımda" serhi *"ILK SIRADA"*
+  diyordu ama kart **4. siradaydi** (gercekten one alindi).
+- 📌 **HARITA ANAHTARI — REPODA DEGIL, DERLEME ANINDA ENJEKTE EDILIYOR.**
+  Android `manifestPlaceholders` (env), iOS PlistBuddy -> `Info.plist`
+  **`MapsApiKey`** (AppDelegate ayni adi okur). GitHub secret + `.env.infra`
+  (gitignore'lu). Artifact'lerde enjekte oldugu DOGRULANDI; izlenen HICBIR
+  dosyada anahtar YOK. ⚠️ **REPO PUBLIC — anahtari koda/pubspec'e/Info.plist'e
+  SABIT YAZMA.** ⚠️ `--dart-define=HARITA` yoksa `haritaAnahtariVar` false olur
+  ve yer tutucu cizilir (anahtarsiz harita Android'de filigranli GRI kutu,
+  iOS'ta BOS ekran olurdu).
+- 📌 **MIGRATION NUMARALARI (guncel):** 042 = gonderi anketi (`polls.post_id`,
+  `message_id`/`chat_id` NULL olabilir + XOR CHECK). Sonraki **043**'ten.
+- ⏳ **EN SONA BIRAKILAN (kullanici emri):** `active_call_controller.dart`
+  ~500 satirlik olu bekletme/park zinciri temizligi.
+
 - **KALDIGIMIZ YER (10 Agu 17:39): TEST TURU 83 YAYINLANDI** — android
   **31398063106** + ios **31398066317** (**9fdcea4**), R2 apk=120004914
   (md5 66d88a96) ipa=25801161 (md5 5939d789) index=9381 (md5 118b266a),
