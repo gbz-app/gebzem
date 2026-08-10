@@ -136,6 +136,21 @@ class _YenileSarmaliState extends State<YenileSarmali> {
           //    yenileme ayri bayrakta izlenir ve ikisinin BIRLESIMI cizilir.
           // ⚠️ YAPMA: bu iki bayragi tek bayraga indirgeme.
           onNotification: (n) {
+            // ⚠️⚠️⚠️ **DERINLIK SUZGECI ZORUNLU** (denetim bulgusu).
+            //
+            //    `RefreshIndicator`in kendi varsayilan suzgeci
+            //    (`defaultScrollNotificationPredicate`) YALNIZ `depth == 0`
+            //    bildirimlerini kabul eder. Biz bildirimleri KENDI
+            //    `NotificationListener`imizle dinledigimiz icin o suzgec
+            //    devrede DEGIL — yani IC ICE her kaydirilabilir alan
+            //    noktalari tetikliyordu:
+            //      · akistaki YATAY galeri seridi (her gonderi kartinda),
+            //      · profil izgarasi, sekme seritleri, yatay ek seritleri.
+            //    Kullanici galeride saga kaydirirken ekranin ustunde uc nokta
+            //    beliriyordu — hicbir yenileme olmadigi halde.
+            // ⚠️ YAPMA: bu kapiyi kaldirma.
+            if (n.depth != 0) return false;
+
             // ---- ANDROID yolu: `ClampingScrollPhysics` sinira dayaninca
             //      `OverscrollNotification` uretir.
             if (n is OverscrollNotification && n.overscroll < 0) {

@@ -165,6 +165,13 @@ class _KanallarSekmesiState extends ConsumerState<KanallarSekmesi>
             ? const Center(child: CircularProgressIndicator())
             : _hata != null
             ? ListView(
+                  // TURU 83 - AlwaysScrollableScrollPhysics ZORUNLU:
+                  // icerigi ekrandan KISA olan bos/hata dallarinda Android in
+                  // varsayilan ClampingScrollPhysics i overscroll uretmez ve
+                  // asagi-cek-yenile HIC tetiklenmez -> kullanicinin kurtarma
+                  // yolu KALMAZ. (Ayni sinif ayni commit te profil icin
+                  // duzeltilmis, UC kardes ekranda atlanmisti - denetim buldu.)
+                physics: const AlwaysScrollableScrollPhysics(),
                 children: [
                   const SizedBox(height: 120),
                   Center(child: Text(_hata!)),

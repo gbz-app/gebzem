@@ -99,27 +99,56 @@ const double kGaleriAra = 8;
 ///    dolgudur (kutu zaten kolonu dolduruyor): 12 -> 6, kolon +12dp (~%3.3).
 const double kKartYanDolgu = 6;
 
-/// ⚠️⚠️⚠️ KUTU BICIM CARPANLARI — kullanici emri (turu 82b):
-/// *"gorsellerin uzunluklarini %20 daralt yukseklikten, genislik %5 arttir"*.
+/// ⚠️⚠️⚠️ **KUTUNUN EN DIKEY HALI.** Modelin TEK ayar dugmesi.
 ///
-/// ═══ DURUST UYARI: BU IKISI "YANDA BOSLUK OLMASIN" ILE CELISIR ═══
+/// Kullanici emri (turu 82b): *"gorsellerin uzunluklarini %20 daralt
+/// yukseklikten, genislik %5 arttir"* — ustelik ONCESINDE **DORT KEZ**
+/// "yanda bosluk olmasin" demisti.
 ///
-/// Oran KORUNURSA kutu kisaldikca DARALIR — aritmetik boyle. Yani "%20 kisa"
-/// ve "kolonu doldur" ayni anda saglanamaz; arada KIRPMA olmak zorundadir:
+/// ═══ BU IKISI ARITMETIK OLARAK CELISIR ═══
+///
+/// Kutu orani medyanin oranina ESIT tutulursa (kirpma yok), kutu KISALDIKCA
+/// DARALIR. Yani "%20 kisa" ve "kolonu doldur" ayni anda saglanamaz:
 ///
 ///     4:5 fotograf, kolon 378
-///       oran korunsaydi (kisaltma yok) : 378 x 472   <- bugunku
-///       oran korunup %20 kisaltilsaydi : 302 x 378   <- SAGINDA 76dp BOSLUK
-///       kirpmaya izin verilirse        : 378 x 378   <- bosluk YOK, %20 kirpma
+///       oran korunur, kisaltma yok : 378 x 472   (bosluk YOK, kirpma YOK)
+///       oran korunur, %20 kisa     : 302 x 378   <- SAGINDA 76dp BOSLUK
+///       KARE kutuya kirpilir       : 378 x 378   <- bosluk YOK, %20 KISA
 ///
-/// Kullanici bosluktan **DORT KEZ** sikayet ettigi icin **BOSLUK KORUNDU,
-/// kirpmaya izin verildi**. Kirpma yalnizca 4:5'ten DIKEY medyada olusur
-/// (yatay medya zaten kisadir ve carpanlar onu etkilemez).
+/// Bosluk dort kez sikayet edildigi icin **BOSLUK KORUNDU, kirpmaya izin
+/// verildi** — ve bu Instagram'in da yaptigi seydir (dikey icerik bir TABAN
+/// orana kirpilir).
 ///
-/// ⚠️ GERI ALMAK TEK SATIR: ikisini de 1.0 yap -> kirpma SIFIR, yukseklik
-///    turu 82'deki haline doner.
-const double kKutuKisaltma = 0.80; // yukseklik x0.80  (%20 kisa)
-const double kKutuGenisletme = 1.05; // genislik x1.05  (%5 genis)
+/// ═══ NEDEN TEK SABIT (onceki UC carpan DEGIL) ═══
+///
+/// Ilk deneme `kKutuKisaltma` + `kKutuGenisletme` + `oran < 1.0` kapisi
+/// kullaniyordu. Denetim bunun **BES AYRI tutarsizlik** urettigini gosterdi:
+///   · %5 genislik HEM yan dolgudan HEM orandan aliniyordu (CIFT SAYIM),
+///   · carpan yukseklige degil KUTU ORANINA uygulandigi icin genislik tavana
+///     dayandiginda HIC BAGLAMIYORDU (kisalma %0 ile %21 arasi dalgalaniyordu),
+///   · `oran < 1.0` kapisi 1.0'da SUREKSIZLIK yaratiyordu: kareye COK YAKIN
+///     dikey bir fotograf %24 kirpilirken TAM KARE hic kirpilmiyordu,
+///   · galeri yolu carpanlardan TAMAMEN MUAFTI: ayni fotograf tek basina
+///     kirpilip kisaliyor, ikinci fotograf eklenince UZUYORDU,
+///   · yatay medya %20 kisalmak yerine %3,3 UZUYORDU.
+///
+/// Tek sabit bunlarin HEPSINI yapisal olarak kapatir: **kural bir tane** ve
+/// tek/coklu, dikey/yatay AYRIMI YOK.
+///
+///     kutuOrani = max(medyaOrani, kEnDikKutu)
+///
+///     16:9 (1.78) -> 1.78  kirpma YOK, genis ve kisa
+///     1:1  (1.00) -> 1.00  kirpma YOK
+///     4:5  (0.80) -> 1.00  KARE kutuya kirpilir (%20)
+///     9:16 (0.56) -> 1.00  KARE kutuya kirpilir (%44)
+///
+/// ⚠️ 1.0 (KARE) secildi cunku kullanicinin istedigi "%20 kisa" TAM OLARAK
+///    bunu verir: 4:5 bir fotograf 366x457 yerine 366x366 cizilir.
+/// ⚠️ Kirpilan medyanin KURTARMA YOLU VAR: fotografa dokun (tam ekran),
+///    videoya uzun bas (tam ekran).
+/// ⚠️ GERI ALMAK TEK SATIR: `0.0` yap -> hicbir sey kirpilmaz, kutu orani
+///    daima medya oranina esit olur (turu 82 davranisi).
+const double kEnDikKutu = 1.0;
 
 /// Coklu galeride bir ogenin kaplayabilecegi EN FAZLA kolon orani.
 ///
@@ -156,18 +185,11 @@ const BoxFit kMedyaDolgu = BoxFit.cover;
 ) {
   // Bozuk olcuye karsi savunma: 0/negatif/NaN oran gelirse 4:5'e dus.
   final oran = (enBoy.isFinite && enBoy > 0) ? enBoy : 0.8;
-  // ⚠️⚠️ KISALTMA **YALNIZ DIKEY MEDYAYA** uygulanir (`oran < 1`).
-  //
-  //    Kullanicinin sikayeti UZUN gorsellerdi. Carpani yatay medyaya da
-  //    uygulamak olculdu ve ZARARLIYDI: 16:9 bir fotograf zaten ekranin
-  //    %19'u kadar KISA ve onu daha da kisaltmak **%24 KIRPMA** demekti —
-  //    yani hic sikayet edilmemis bir yuzeyde veri kaybi.
-  //    Kare ve yatay medya bu yuzden ORANINI KORUR (kirpma SIFIR).
-  // ⚠️ Iki carpan da 1.0 iken kutu orani medyaya ESITTIR ve HICBIR YERDE
-  //    kirpma olmaz — geri alma tek satirdir.
-  final kutuOrani = oran < 1.0
-      ? oran * (kKutuGenisletme / kKutuKisaltma)
-      : oran;
+  // ⚠️ TEK KURAL: kutu medyanin oranini alir ama `kEnDikKutu`dan DAHA DIKEY
+  //    olamaz. Yatay/kare medya oranini KORUR (kirpma yok); yalnizca taban
+  //    orandan daha dikey olan medya kirpilir. Ayrinti + reddedilen model:
+  //    `kEnDikKutu` serhi.
+  final kutuOrani = math.max(oran, kEnDikKutu);
   final w = math.max(math.min(kolonGenislik, tavan * kutuOrani), 96.0);
   return (w: w, h: w / kutuOrani);
 }
@@ -210,5 +232,12 @@ const BoxFit kMedyaDolgu = BoxFit.cover;
 ///    ekranin %60'ini asmama garantisini tasir, satir onu asmamali.
 /// ⚠️ YAPMA: yuksekligi tekrar ogelerden (min/max/ilk oge) turetme — hangisi
 ///    olursa olsun BIR OGE DIGERLERININ OLCEGINI BELIRLER ve cokme geri gelir.
+/// ⚠️⚠️ TURU 83 — GALERI ARTIK **AYNI KURALI** KULLANIYOR.
+///
+///    Onceden satir yuksekligi `ogeTavani / 0.8` idi, yani galeri
+///    `kEnDikKutu` tabanindan MUAFTI. Denetim bunun gorunur bir tutarsizlik
+///    urettigini gosterdi: **ayni fotograf tek basina kirpilip kisaliyor,
+///    ikinci fotograf eklenince UZUYOR ve kirpilmiyordu.**
+///    Artik taban her iki yolda da ayni.
 double galeriSatirYuksekligi(double tavan, double ogeTavani) =>
-    math.min(ogeTavani / _kYayginOran, tavan);
+    math.min(ogeTavani / kEnDikKutu, tavan);

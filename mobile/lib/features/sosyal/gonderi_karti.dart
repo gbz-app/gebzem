@@ -54,6 +54,9 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
   /// Cift dokunusta ucan kalp animasyonu.
   bool _kalpGoster = false;
 
+  /// ⚠️ Animasyonun BASTAN oynamasi icin anahtar tohumu (bkz. `_kalpAnimasyonu`).
+  int _kalpSayac = 0;
+
   /// ⚠️ TURU 76b — bu kartin ekranda gorunen orani (0..1). Otomatik video
   ///    oynatmanin BIRINCI kapisi. Bkz. `sosyal/gorunurluk.dart`.
   double _gorunurOran = 0;
@@ -125,7 +128,13 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
   }
 
   void _kalpAnimasyonu() {
-    setState(() => _kalpGoster = true);
+    // ⚠️ Sayac ARTAR: `ValueKey(_kalpSayac)` sayesinde art arda cift
+    //    dokunuslarda animasyon BASTAN oynar (aksi halde ikinci dokunusta
+    //    widget "ayni" sayilip hicbir sey oynamazdi).
+    setState(() {
+      _kalpGoster = true;
+      _kalpSayac++;
+    });
     Future.delayed(const Duration(milliseconds: 700), () {
       if (mounted) setState(() => _kalpGoster = false);
     });
@@ -613,8 +622,15 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
                 renk: g.begendim ? const Color(0xFFFF3B5C) : null,
                 vurgu: g.begendim,
                 onTap: _begeniCevir,
-                // ⚠️ Begenenler listesinin TEK girisi (alt satir kaldirildi).
+                // ⚠️⚠️ Begenenler listesinin TEK girisi (alt satir
+                //    kaldirildi). Uzun basma GORUNMEZ bir yol oldugu icin
+                //    `tooltip` ile ipucu veriliyor — denetim "sifir ipucu"
+                //    diye bildirdi ve HAKLIYDI: bu projede "ozellik var ama
+                //    KESFEDILEMIYOR" hatasi turu 81'de de yasandi.
                 onUzunBas: g.begeniSayisi > 0 ? _begenenler : null,
+                ipucu: g.begeniSayisi > 0
+                    ? 'Beğen · uzun bas: beğenenler'
+                    : 'Beğen',
               ),
               _eylem(
                 ikon: LucideIcons.messageCircle,
@@ -859,12 +875,28 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
               //    saydam ve 160ms'de yumusakca belirip kayboluyor.
               // ⚠️ YAPMA: boyutu geri buyutme; `easeOutBack`/`elasticOut` gibi
               //    geri sekmeli egri kullanma (patlama hissi ondan gelir).
+              // ⚠️⚠️ ANIMASYON `AnimatedOpacity` ILE **YAPILAMAZ** (denetim
+              //    bulgusu): widget `if (_kalpGoster)` kapisinin ICINDE
+              //    oldugu icin agaca ZATEN `opacity: 1` ile giriyor ve
+              //    `AnimatedOpacity` gecis yapacak bir ONCEKI deger
+              //    bulamiyordu -> **animasyon HIC OYNAMIYORDU** (olu kod).
+              //    Cikarken de widget bir anda agactan siliniyordu.
+              // ⚠️ `TweenAnimationBuilder` kapisiz calisir: her kuruldugunda
+              //    0 -> 1 gecisini GERCEKTEN oynatir.
+              // ⚠️ `ValueKey` ZORUNLU: art arda cift dokunusta widget yeniden
+              //    kurulup animasyonun BASTAN oynamasi icin.
               if (_kalpGoster)
                 IgnorePointer(
-                  child: AnimatedOpacity(
-                    opacity: _kalpGoster ? 1 : 0,
-                    duration: const Duration(milliseconds: 160),
+                  child: TweenAnimationBuilder<double>(
+                    key: ValueKey(_kalpSayac),
+                    tween: Tween(begin: 0.6, end: 1.0),
+                    duration: const Duration(milliseconds: 180),
                     curve: Curves.easeOut,
+                    builder: (_, t, cocuk) => Opacity(
+                      // Sonda hafifce solar — "cok hafif" istegi.
+                      opacity: (t.clamp(0.0, 1.0)) * 0.85,
+                      child: Transform.scale(scale: 0.85 + t * 0.15, child: cocuk),
+                    ),
                     child: const Icon(
                       LucideIcons.heart,
                       size: 54,
@@ -1124,6 +1156,7 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
     required IconData ikon,
     VoidCallback? onTap,
     VoidCallback? onUzunBas,
+    String? ipucu,
     int? sayi,
     bool vurgu = false,
     Color? renk,
@@ -1134,7 +1167,7 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
         (etkin
             ? Theme.of(context).iconTheme.color
             : Theme.of(context).disabledColor);
-    return InkWell(
+    final govde = InkWell(
       onTap: onTap,
       // ⚠️ "N beğenme" satiri kaldirilinca BEGENENLER listesinin TEK girisi
       //    burasi kaldi (bkz. yukaridaki serh). Yalnizca kalpte doludur.
@@ -1188,16 +1221,23 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
               //    kiriliyordu. Bu bir SEVK ENGELI degil ama gorunur bir hata
               //    ve turun konusu tam da "cubuk duzgun gorunsun".
               //
-              // ⚠️ 40dp SERT tavan olceklerden BAGIMSIZ bir ust sinir kurar:
-              //    en fazla 5 karakter ("999B"/"12.3M" — `sayiBicimle` tavani)
-              //    13px'te ~35dp, olcek 1.3'te ~45dp -> ellipsis devreye girer
-              //    ama TASMA YAPISAL OLARAK IMKANSIZ hale gelir.
-              //    Yeni worst-case: 5*(12+24) + 3*(6+40) = 318 < 336 ✓
+              // ⚠️⚠️ TAVAN 40 -> **46dp** (denetim bulgusu). Sayi bicimi turu
+              //    83'te "999B" (4 karakter) yerine **"1,3 bin"** (7 karakter)
+              //    uretmeye basladi; 13px'te ~46dp eder ve 40dp tavan sayaci
+              //    NORMAL yazi olceginde bile KIRPIYORDU ("1,3 b…").
+              //    Yani turun kendi getirdigi bicim, kendi tavanini asiyordu.
+              // ⚠️ Tavan yine SERT: yazi olcegi ne olursa olsun ellipsis
+              //    devreye girer, TASMA yapisal olarak IMKANSIZ kalir.
+              //    Worst-case (yazarin kendi gonderisi, UC sayac da dolu):
+              //      5*(5+26+5) + 3*(6+46) = 336dp
+              //    En dar telefonda (360dp ekran, kolon 348) 12dp pay kalir.
+              // ⚠️ 46'nin uzerine cikarma: 52'de worst-case 354dp olur ve
+              //    360dp telefonda TASAR.
               // ⚠️ YAPMA: bu tavani kaldirma ya da `Flexible` ile degistirme —
               //    `Flexible` bu Row'da (mainAxisSize.min, dis Row'un esnek
               //    OLMAYAN cocugu) sinirsiz kisit alir ve HICBIR SEY YAPMAZ.
               ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 40),
+                constraints: const BoxConstraints(maxWidth: 46),
                 child: Text(
                   sayiBicimle(sayi),
                   maxLines: 1,
@@ -1215,6 +1255,12 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
         ),
       ),
     );
+    // ⚠️ `Tooltip` uzun basmada da cikar; `onLongPress` ILE CAKISMAZ
+    //    (Tooltip kendi jestini `GestureDetector` uzerinden DEGIL,
+    //    `Listener` ile kurar ve olayi TUKETMEZ).
+    return ipucu == null
+        ? govde
+        : Tooltip(message: ipucu, child: govde);
   }
 
   /// ⚠️ TURU 76: eskiden YALNIZCA panoya kopyalayip "sohbete yapistirin" diyordu.
