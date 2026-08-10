@@ -17,6 +17,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'core/api.dart';
 import 'core/storage.dart';
+import 'core/tercihler.dart';
 import 'core/theme.dart';
 import 'core/ws.dart';
 import 'features/calls/active_call_banner.dart';
@@ -111,6 +112,14 @@ Future<void> main() async {
       await prefs.setBool('kurulum_tamam', true);
     }
   } catch (_) {}
+
+  // ⚠️⚠️ TURU 81 — TERCIHLER (tema + onboarding) `runApp`tan ONCE yuklenir.
+  //    Sonra yuklenseydi ilk kare varsayilan temayla cizilir ve tercih gelince
+  //    ekran ANIDEN degisirdi ("tema atlamasi"); onboarding de bir an icin
+  //    yanlis ekrani gosterebilirdi.
+  // ⚠️ ISTISNA FIRLATMAZ: depo acilamazsa varsayilanlarla devam edilir
+  //    (tema tercihi ugruna acilista cokmek kabul edilemez).
+  await tercihleriYukle();
   try {
     await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
     FirebaseMessaging.onBackgroundMessage(_fcmArkaPlan);
@@ -529,7 +538,12 @@ class _GebzemAppState extends ConsumerState<GebzemApp> with WidgetsBindingObserv
       scaffoldMessengerKey: rootMessengerKey, // gelen arama ekrani icin (Navigator disinda)
       theme: lightTheme,
       darkTheme: darkTheme,
-      themeMode: ThemeMode.system, // karanlik mod: sistem ayarini izler (ayarlar Faz 2)
+      // ⚠️⚠️ TURU 81 — TEMA ARTIK AYARLARDAN SECILIYOR (kullanici emri:
+      //    "dark ve beyaz 2 tema olsun, ayarlardan beyaz temayi da secelim").
+      //    Onceki surumde bu satir `ThemeMode.system` idi ama FIILEN NO-OP'tu:
+      //    `lightTheme` ve `darkTheme` DEGISKENLERININ IKISI DE ayni `_koyu()`
+      //    fonksiyonunu cagiriyordu, yani acik tema HIC TANIMLI DEGILDI.
+      themeMode: ref.watch(temaProvider),
       // ⚠️⚠️⚠️ TURU 80 — YERELLESTIRME (denetimde bulunan MEVCUT hata).
       //
       //    Bu uc satir OLMADAN Material'in TAKVIM ve SAAT secicileri

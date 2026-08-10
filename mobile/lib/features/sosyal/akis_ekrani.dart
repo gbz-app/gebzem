@@ -259,22 +259,66 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
   ///    seridi de ayni gerekceyle akisla kayiyor (turu 76b karari).
   /// ⚠️ Bolme degisiminde LISTE SWAP edilir, ag istegi ATILMAZ (bolme daha once
   ///    yuklendiyse). Kaydirma konumu bolme basina saklanir.
+  /// ⚠️⚠️⚠️ TURU 81 — DUGME DEGIL **SOL HIZALI KALIN YAZI** (kullanici emri:
+  /// *"Takip ettiklerim ve Keşfet BUTON DEGIL, YAZI SOLDA olacak, YAZI KALIN,
+  /// aktif/pasif belli olsun"*).
+  ///
+  /// Threads deseni: cerceve/dolgu YOK, iki metin yan yana; secili olan
+  /// PARLAK ve KALIN, digeri SOLUK ve normal agirlikta.
+  ///
+  /// ⚠️ `SegmentedButton` KALDIRILDI ama onun verdigi IKI SEY ELLE geri kondu:
+  ///   · **Dokunma alani**: ciplak `Text` ~17dp yuksekliktedir; `Padding` ile
+  ///     44dp'ye cikarildi (Material 48 / Apple 44 — turu 78b dersi, orada
+  ///     17x17dp bir dugme fiilen ULASILAMAZDI).
+  ///   · **Erisilebilirlik**: `Semantics(button + selected)` — ekran okuyucu
+  ///     hangi sekmenin secili oldugunu soylemeye devam etmeli.
+  /// ⚠️ YAPMA: bu ikisini kaldirma; gorunumu sadelestirmek islevsellik
+  ///    kaybetmek DEMEK DEGIL.
+  ///
+  /// ⚠️ Secici AKISLA BIRLIKTE KAYAN bir liste ogesidir (sabitlenmez) —
+  ///    gerekcesi `_bolmeSecici` cagrisinin yanindaki serhte.
   Widget _bolmeSecici() => Padding(
-    padding: const EdgeInsets.fromLTRB(12, 2, 12, 8),
-    child: SegmentedButton<int>(
-      segments: const [
-        ButtonSegment(value: 0, label: Text('Takip Ettiklerin')),
-        ButtonSegment(value: 1, label: Text('Keşfet')),
+    padding: const EdgeInsets.fromLTRB(4, 0, 12, 4),
+    child: Row(
+      children: [
+        _bolmeYazisi(0, 'Takip Ettiklerin'),
+        _bolmeYazisi(1, 'Keşfet'),
       ],
-      selected: {_bolme},
-      showSelectedIcon: false,
-      style: const ButtonStyle(
-        visualDensity: VisualDensity.compact,
-        textStyle: WidgetStatePropertyAll(TextStyle(fontSize: 13)),
-      ),
-      onSelectionChanged: (v) => _bolmeDegistir(v.first),
     ),
   );
+
+  Widget _bolmeYazisi(int deger, String metin) {
+    final secili = _bolme == deger;
+    return Semantics(
+      button: true,
+      selected: secili,
+      label: metin,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => _bolmeDegistir(deger),
+        child: Padding(
+          // ⚠️ Dikey 12 + yazi ~17 + 12 = ~41dp; yatay 10 ile birlikte
+          //    dokunma hedefi rahatca 44dp'yi asar.
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+          child: Text(
+            metin,
+            style: TextStyle(
+              fontSize: 15,
+              // ⚠️ Aktif/pasif AYRIMI IKI ISARETLE: kalinlik VE renk.
+              //    Tek isaret (yalniz renk) dusuk kontrastli ekranlarda
+              //    ve renk korlugunde ayirt edilemezdi.
+              fontWeight: secili ? FontWeight.w800 : FontWeight.w500,
+              color: secili
+                  ? Theme.of(context).colorScheme.onSurface
+                  : Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withValues(alpha: 0.45),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
   void _bolmeDegistir(int yeni) {
     if (yeni == _bolme) return;

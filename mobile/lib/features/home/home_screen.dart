@@ -23,6 +23,7 @@ import '../sosyal/kesfet_ekrani.dart';
 import '../sosyal/profil_sayfasi.dart';
 import '../sosyal/reels_sayfasi.dart';
 import '../sosyal/takip_listesi.dart';
+import 'ayarlar_ekrani.dart';
 
 /// Ana kabuk: 5 sekmeli alt menu (ozellik-listesi.md'deki yapi)
 /// Sohbetler aktif; Aramalar/Odalar/Canli sonraki fazlarda doluyor
@@ -542,6 +543,17 @@ class _ProfileTab extends ConsumerWidget {
                 ? '${profile.valueOrNull!['coin_balance'] ?? 0} jeton'
                 : '...',
           ),
+        ),
+        const Divider(),
+        // ⚠️⚠️ TURU 81 — AYARLAR (kullanici emri: "ayarlardan beyaz temayi da
+        //    secelim"). Uygulamada BUGUNE KADAR HIC ayarlar ekrani yoktu.
+        ListTile(
+          leading: const Icon(LucideIcons.settings),
+          title: const Text('Ayarlar'),
+          trailing: const Icon(LucideIcons.chevronRight, size: 18),
+          onTap: () => Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (_) => const AyarlarEkrani())),
         ),
         const Divider(),
         ListTile(

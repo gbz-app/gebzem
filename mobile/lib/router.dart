@@ -3,10 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'core/push.dart';
+import 'core/tercihler.dart';
 import 'core/ws.dart';
 import 'features/auth/auth_provider.dart';
 import 'features/auth/forgot_screen.dart';
 import 'features/auth/login_screen.dart';
+import 'features/auth/onboarding_ekrani.dart';
 import 'features/auth/otp_screen.dart';
 import 'features/auth/register_screen.dart';
 import 'features/chats/chat_screen.dart';
@@ -31,6 +33,20 @@ final routerProvider = Provider<GoRouter>((ref) {
     navigatorKey: rootNavigatorKey,
     initialLocation: '/',
     redirect: (context, state) {
+      // ⚠️⚠️⚠️ TURU 81 — ONBOARDING **EN USTTE** (kullanici emri: "uygulama
+      //    ilk acilisinda 4 tane onboarding olsun").
+      //
+      // ⚠️ Oturum kontrolunden ONCE gelir: onboarding hesaptan BAGIMSIZDIR ve
+      //    henuz oturum YOKKEN gosterilmelidir. Asagiya konsaydi kullanici
+      //    once LOGIN ekranini gorur, onboarding ancak ondan sonra cikardi.
+      // ⚠️ Bayrak CIHAZ YEREL (`shared_preferences`, `main()`de yuklendi) —
+      //    senkron okunur, yani redirect'i BEKLETMEZ.
+      if (!tercihler.onboardingGoruldu) {
+        return state.matchedLocation == '/onboarding' ? null : '/onboarding';
+      }
+      // ⚠️ Onboarding bittiyse o rotada KALINMAZ (geri tusuyla donulemesin).
+      if (state.matchedLocation == '/onboarding') return '/';
+
       if (auth == null) return null; // oturum kontrol ediliyor (splash aninda)
       final loggedIn = auth.isNotEmpty;
       final onAuthPage = ['/login', '/register', '/otp', '/forgot']
@@ -41,6 +57,13 @@ final routerProvider = Provider<GoRouter>((ref) {
     },
     routes: [
       GoRoute(path: '/', builder: (_, _) => const HomeScreen()),
+      GoRoute(
+        path: '/onboarding',
+        // ⚠️ Yonlendirmeyi EKRAN YAPMAZ: bayragi yazip `go('/')` diyor ve
+        //    yukaridaki redirect dogru hedefe (login ya da ana ekran) tasiyor.
+        //    Ekranin kendisi "login mi ana ekran mi" karari VERMEMELI.
+        builder: (ctx, _) => OnboardingEkrani(onBitti: () => ctx.go('/')),
+      ),
       GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
       GoRoute(path: '/register', builder: (_, _) => const RegisterScreen()),
       GoRoute(

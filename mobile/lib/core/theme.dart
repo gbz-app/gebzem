@@ -11,18 +11,49 @@ const morGradient = LinearGradient(
   colors: [morLogoAcik, morLogo],
 );
 
-// KOYU TEMA renkleri (test turu 5 redesign): alt menu SIYAH, icerik 1-2 ton acik.
+// ⚠️⚠️ KOYU TEMA renkleri (test turu 5 redesign, turu 81'de KULLANICI TARAFINDAN
+//    TEKRAR ONAYLANDI: "alt menu siyah, sayfa 1 tik acik rengi olacak").
+//    Yani bu iki sabit YENI IS DEGIL, KORUNACAK mevcut davranistir.
 const _icerikZemin = Color(0xFF161618); // icerik alani (siyahin acigi)
 const _altMenuZemin = Color(0xFF000000); // alt menu SIYAH
 
-/// KOYU TEMA (uygulama tek tema: koyu — kullanici istegi "alt menu siyah").
-ThemeData _koyu() {
-  final scheme = ColorScheme.fromSeed(seedColor: _seed, brightness: Brightness.dark)
-      .copyWith(surface: _icerikZemin);
+// ⚠️⚠️ ACIK TEMA renkleri (turu 81). KOYUNUN AYNADAKI KARSILIGI:
+//    koyuda alt menu EN KOYU (siyah) ve icerik 1 tik ACIK;
+//    acikta alt menu EN ACIK (beyaz) ve icerik 1 tik KOYU.
+//    Boylece iki temada da alt menu icerikten AYRISIR ve kullanicinin
+//    tarif ettigi katman hissi KORUNUR.
+const _icerikZeminAcik = Color(0xFFF2F2F5); // icerik alani (beyazin kirlisi)
+const _altMenuZeminAcik = Color(0xFFFFFFFF); // alt menu BEYAZ
+
+/// ⚠️⚠️⚠️ TURU 81 — TEK GOVDE, IKI PARLAKLIK.
+///
+/// Onceki surumde `lightTheme` ve `darkTheme` DEGISKENLERININ IKISI DE ayni
+/// `_koyu()` fonksiyonunu cagiriyordu; yani `main.dart`taki
+/// `themeMode: ThemeMode.system` **FIILEN NO-OP**tu ve acik tema HIC TANIMLI
+/// DEGILDI. Kullanici acikca "dark ve beyaz 2 tema olsun, ayarlardan
+/// secebilelim" dedi.
+///
+/// ⚠️ IKI TEMA **AYNI FONKSIYONDAN** uretilir, kopyalanmaz: iki ayri govde
+///    kacinilmaz olarak DRIFT ederdi (bu projede "ayni kuralin iki kopyasi"
+///    hatasi ALTI kez tekrarladi). Fark yalnizca renk sabitleri ve
+///    `Brightness`.
+/// ⚠️ DURUST SINIR: kod tabaninda ~500 sabit renk noktasi var
+///    (`Color(0xFF..)` + `Colors.white/black`). Bu tema iskeleti dogru olsa da
+///    o noktalar acik temada TEMANIN DISINDA kalir; kademeli olarak
+///    `Theme.of(context)`e cevrilmeleri gerekir.
+ThemeData _tema(Brightness parlaklik) {
+  final koyu = parlaklik == Brightness.dark;
+  final icerik = koyu ? _icerikZemin : _icerikZeminAcik;
+  final altMenu = koyu ? _altMenuZemin : _altMenuZeminAcik;
+  final scheme = ColorScheme.fromSeed(
+    seedColor: _seed,
+    brightness: parlaklik,
+  ).copyWith(surface: icerik);
   return ThemeData(
     useMaterial3: true,
+    brightness: parlaklik,
     colorScheme: scheme,
-    scaffoldBackgroundColor: _icerikZemin,
+    scaffoldBackgroundColor: icerik,
     // TEST TURU 58 — UYGULAMA YAZI TIPI: GOOGLE SANS (kullanici istegi).
     // Dosyalar resmi Google Fonts API'sinden alindi (400/500/600/700), pubspec
     // `fonts:` blogunda tanimli.
@@ -33,32 +64,36 @@ ThemeData _koyu() {
     splashFactory: NoSplash.splashFactory,
     splashColor: Colors.transparent,
     highlightColor: Colors.transparent,
-    appBarTheme: const AppBarTheme(
+    appBarTheme: AppBarTheme(
       centerTitle: false,
-      backgroundColor: _icerikZemin,
+      backgroundColor: icerik,
       elevation: 0,
       scrolledUnderElevation: 0,
     ),
     // ALT MENU: siyah zemin, gosterge (daire) YOK, yazi YOK, ikon buyuk, aktif beyaz/pasif gri.
     navigationBarTheme: NavigationBarThemeData(
-      backgroundColor: _altMenuZemin,
+      backgroundColor: altMenu,
       indicatorColor: Colors.transparent, // ikon arkasi daire KALDIRILDI (secili)
       overlayColor: WidgetStateProperty.all(Colors.transparent), // TAP dairesi de KALDIR
       labelBehavior: NavigationDestinationLabelBehavior.alwaysHide, // yazilar KALDIRILDI
       height: 62,
       iconTheme: WidgetStateProperty.resolveWith((states) {
         final aktif = states.contains(WidgetState.selected);
+        // ⚠️ Aktif ikon zemine gore TERS: koyuda beyaz, acikta siyah.
+        //    Sabit beyaz birakilsaydi acik temada gorunmezdi.
         return IconThemeData(
           size: 28, // 1 tik daha buyuk
-          color: aktif ? Colors.white : const Color(0xFF7A7A7E), // aktif beyaz / pasif hafif gri
+          color: aktif
+              ? (koyu ? Colors.white : Colors.black)
+              : const Color(0xFF7A7A7E), // pasif gri: iki temada da okunur
         );
       }),
     ),
   );
 }
 
-final lightTheme = _koyu(); // tek tema: koyu (light istense de koyu servis edilir)
-final darkTheme = _koyu();
+final lightTheme = _tema(Brightness.light);
+final darkTheme = _tema(Brightness.dark);
 
 // Mesaj balonu renkleri
 extension ChatColors on ColorScheme {
