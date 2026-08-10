@@ -282,11 +282,18 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi>
       MaterialPageRoute(
         builder: (_) => StoryIzleyici(
           kullanici: k,
-          // ⚠️ Halkayi ANINDA griye cevir — sunucuyu tekrar sormaya gerek yok
-          //    (izlendi zaten atesle-unut olarak gonderildi).
-          onIzlendi: () {
-            if (mounted) setState(() => k.hepsiIzlendi = true);
-          },
+          // ⚠️⚠️ TURU 82 — GERI CAGIRIM YALNIZCA MODELI GUNCELLER, `setState`
+          //    CAGIRMAZ. Sebep YAPISAL: bu geri cagirim artik iki yerden gelir
+          //    — (a) `_sonraki()` liste bitince, (b) izleyicinin `dispose()`i
+          //    (geri tusu / X / asagi kaydirma ile cikis). (b) yolunda cocuk
+          //    route AGACTAN SOKULURKEN, yani cerceve BUILD FAZINDA olabilir;
+          //    orada BASKA bir State'in `setState`ini tetiklemek Flutter'da
+          //    *"setState() or markNeedsBuild() called during build"*
+          //    ASSERTION'ini firlatir.
+          // ⚠️ Cizim ZATEN garanti: asagidaki `await` donunce var olan
+          //    `if (mounted) setState(() {});` seridi yeniden cizer.
+          // ⚠️ YAPMA: buraya `setState` geri koyma.
+          onIzlendi: () => k.hepsiIzlendi = true,
         ),
       ),
     );
@@ -304,7 +311,14 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi>
         .toList();
 
     return SizedBox(
-      height: 106,
+      // ⚠️ TURU 82 — 106 -> 116. Olcum: cember 69 + bosluk 5 + etiket satiri +
+      //    ListView dikey dolgusu 16. Etiket 11px'te ~14dp, ama YAZI OLCEGI
+      //    1.3'te ~18dp -> gereken 108 > 106 ve `Column` sari-siyah TASMA
+      //    SERIDI ciziyordu (turun konusu "serit duzgun gorunsun" oldugu icin
+      //    onceden beri var olan bu hata da kapatildi). 116, olcek ~1.6'ya
+      //    kadar pay birakir.
+      // ⚠️ YAPMA: 106'ya geri dusurme.
+      height: 116,
       child: ListView(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
