@@ -110,7 +110,7 @@ const medyaTurleri = `
 		       COALESCE((SELECT array_agg(COALESCE(ma.width,0) || 'x' || COALESCE(ma.height,0) ORDER BY mb.idx)
 		                   FROM unnest(p.media_ids) WITH ORDINALITY AS mb(mid, idx)
 		                   LEFT JOIN media_assets ma ON ma.id = mb.mid), '{}'),
-		       p.duzenlendi_at,`
+		       p.duzenlendi_at, p.yayin_at,`
 
 // ⚠️⚠️⚠️ TURU 81 — ZAMANLANMIS GONDERI SUZGECI. **TEK KAYNAK.**
 //
@@ -268,9 +268,25 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	// ⚠️⚠️⚠️ ZAMANLANMIS GONDERIDE `created_at` = `yayin_at` (denetim bulgusu:
+	//    SEVK ENGELIYDI).
+	//
+	//	Akis SIRALAMASI ve SAYFALAMA IMLECI `created_at` uzerinden yuruyor.
+	//	`created_at` OLUSTURMA ani olarak birakilsaydi, yarina zamanlanan bir
+	//	gonderi yayinlandiginda **DUNUN SIRASINDA** belirirdi — yani kimsenin
+	//	gormedigi bir yere gomulurdu ve kullanici "paylasildi ama kimse
+	//	gormedi" derdi. Ozellik teknik olarak calisir, URUN OLARAK COKERDI.
+	//
+	// ⚠️ Bu cozum siralama/imlec mantigina HIC DOKUNMADAN calisir: 7 sorgunun
+	//    ORDER BY ve cursor ifadeleri AYNEN kalir. Alternatif
+	//    (`COALESCE(yayin_at, created_at)` ile siralama) YEDI sorguyu VE
+	//    istemcinin imlec sozlesmesini degistirmeyi gerektirirdi.
+	// ⚠️ Gorunen TARIH de dogru olur: gonderi yayinlandigi gunun tarihini
+	//    tasir (olusturuldugu gunun degil) — kullanicinin bekledigi budur.
 	err = tx.QueryRow(r.Context(), `
-		INSERT INTO posts (author_id, tur, metin, media_ids, yorum_kapali, yayin_at)
-		VALUES ($1,$2,$3,$4,$5,$6) RETURNING id, created_at`,
+		INSERT INTO posts (author_id, tur, metin, media_ids, yorum_kapali,
+		                   yayin_at, created_at)
+		VALUES ($1,$2,$3,$4,$5,$6, COALESCE($6, now())) RETURNING id, created_at`,
 		me, req.Tur, req.Metin, req.MediaIDs, req.YorumKapali, yayinAt).
 		Scan(&id, &createdAt)
 	if err != nil {
@@ -768,7 +784,7 @@ func (h *Handler) satirlariOku(rows pgx.Rows) []map[string]any {
 		var begeni, yorum, goruntulenme int
 		var yorumKapali, begendim, kaydettim bool
 		var t time.Time
-		var duzenlendi *time.Time
+		var duzenlendi, yayinAt *time.Time
 		var avatarMedya *string
 		// ⚠️ SCAN SIRASI SORGUDAKI SUTUN SIRASIYLA BIREBIR OLMALI. Uyusmazlik
 		//    derleme hatasi VERMEZ; ya tip hatasiyla satir SESSIZCE ATLANIR
@@ -776,7 +792,7 @@ func (h *Handler) satirlariOku(rows pgx.Rows) []map[string]any {
 		// ⚠️ `turler`, `boyutlar` ve `duzenlendi` `goruntulenme`den HEMEN SONRA
 		//    gelir (bkz. `medyaTurleri` sabiti — uc parca da oraya ekleniyor).
 		if rows.Scan(&id, &yazarID, &tur, &metin, &medya, &begeni, &yorum,
-			&goruntulenme, &turler, &boyutlar, &duzenlendi,
+			&goruntulenme, &turler, &boyutlar, &duzenlendi, &yayinAt,
 			&yorumKapali, &t, &ad, &kullanici, &avatar, &avatarMedya,
 			&begendim, &kaydettim) != nil {
 			continue
@@ -792,6 +808,10 @@ func (h *Handler) satirlariOku(rows pgx.Rows) []map[string]any {
 			"begeni_sayisi": begeni, "yorum_sayisi": yorum,
 			"goruntulenme": goruntulenme,
 			"duzenlendi":   duzenlendi != nil,
+			// ⚠️⚠️ TURU 81 — ZAMANLANMIS MI (denetim bulgusu). Alan DONMEDEN
+			//    istemci "zamanlandi" rozetini CIZEMEZ ve yazar hangi
+			//    gonderisinin bekledigini AYIRT EDEMEZ.
+			"yayin_at":     yayinAt,
 			"yorum_kapali": yorumKapali, "created_at": t,
 			"yazar_ad": ad, "yazar_username": kullanici,
 			"yazar_avatar": avatar, "yazar_avatar_media_id": avatarMedya,

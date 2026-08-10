@@ -76,7 +76,28 @@ class _SesNotuKaydediciState extends ConsumerState<SesNotuKaydedici> {
     super.dispose();
   }
 
+  /// ⚠️⚠️ YENİDEN GİRİŞ KİLİDİ (denetim bulgusu). `_basla()` ÜÇ `await`
+  ///    içeriyor (izin isteği, kapı, `recorder.start()`) ve `_kayitta`
+  ///    bayrağı ancak EN SONDA yazılıyordu. O pencerede ikinci bir dokunuş
+  ///    İKİNCİ bir kayıt başlatır: iki `Timer`, iki genlik dinleyicisi ve
+  ///    iki dosya oluşur; ilkinin aboneliği kaybolur, mikrofon kaydı SIZAR
+  ///    ve iPhone'da gösterge kayıt bittikten sonra da YANAR KALIR.
+  /// ⚠️ Bayrak `_kayitta`dan AYRI: `_kayitta` ARAYÜZ durumudur (şerit çizilir
+  ///    mi), bu ise AKIŞ kilidi. İkisini birleştirmek şeridi izin diyaloğu
+  ///    açıkken çizerdi.
+  bool _basliyor = false;
+
   Future<void> _basla() async {
+    if (_basliyor || _kayitta) return;
+    _basliyor = true;
+    try {
+      await _baslaGovde();
+    } finally {
+      _basliyor = false;
+    }
+  }
+
+  Future<void> _baslaGovde() async {
     // ⚠️ SERT KAPI — sınıf şerhine bakın. Aksiyon yolunda, yan etkili kontrol.
     if (!MedyaKapisi.izinVer(ref)) return;
 
@@ -155,7 +176,18 @@ class _SesNotuKaydediciState extends ConsumerState<SesNotuKaydedici> {
         .listen((a) {
       // dBFS (-160..0) -> 0..99
       final n = ((a.current + 45) / 45 * 99).clamp(0, 99).toInt();
-      if (_dalga.length < 600) _dalga.add(n);
+      // ⚠️⚠️ TAVANA VURUNCA **KAYAN PENCERE** (denetim bulgusu). Eskiden
+      //    `if (_dalga.length < 600) add(n)` idi: 600 kova = 60 saniye, yani
+      //    60. saniyeden sonra liste BUYUMEYI DURDURUYOR, `shouldRepaint`
+      //    hicbir degisiklik gormuyor ve **canli dalga DONUYORDU** — sayac
+      //    akmaya devam ettigi icin kullanici "kayit bozuldu" sanardi
+      //    (kayit 10 dakikaya kadar surebiliyor).
+      // ⚠️ En eski kova atilir: dalga zaten SON kovalari gosteriyor, yani
+      //    atilan veri ekranda ZATEN gorunmuyordu. Sunucuya giden 60 kovalik
+      //    ozet de son pencereden turer — kayit uzadikca ozet SON kismi
+      //    temsil eder ki bu, donmus bir dalgadan durusttur.
+      _dalga.add(n);
+      if (_dalga.length > 600) _dalga.removeAt(0);
       // ⚠️⚠️ TURU 81 — CANLI DALGA. Genlik turu 74'ten beri OKUNUYORDU ama
       //    YALNIZCA sunucuya gönderilmek üzere biriktiriliyordu; kayıt
       //    sırasında HİÇBİR ŞEY çizilmiyordu (kullanıcının tek geri bildirimi
@@ -276,23 +308,32 @@ class _SesNotuKaydediciState extends ConsumerState<SesNotuKaydedici> {
     return _mikrofonDugmesi();
   }
 
-  /// ⚠️ HEM DOKUNUŞ HEM BASILI TUTMA desteklenir:
-  ///   · `onTap`        -> başlat (ikinci dokunuş şeritteki düğmelerle biter)
-  ///   · `onLongPress*` -> WhatsApp deseni (bas-konuş-bırak) KORUNDU
-  /// İkisi çakışmaz: uzun basışta `onTap` tetiklenmez.
-  /// ⚠️ YAPMA: `onTap`i kaldırma — kullanıcının açıkça istediği etkileşim bu.
+  /// ⚠️⚠️⚠️ YALNIZCA DOKUNUŞ — BASILI TUTMA **KALDIRILDI** (denetim bulgusu:
+  /// SEVK ENGELİYDİ).
+  ///
+  /// ═══════════ NEDEN KALDIRILDI ═══════════
+  ///
+  /// Turu 81'de kayıt şeridi eklendiğinde `build()` şöyle oldu:
+  ///     `if (_kayitta) return _kayitSeridi(...); return _mikrofonDugmesi();`
+  /// Yani `_basla()` çağrılır çağrılmaz mikrofonun `GestureDetector`ı
+  /// **AĞAÇTAN SİLİNİYOR**. Basılı tutan kullanıcı parmağını kaldırdığında
+  /// `onLongPressEnd` **BİR DAHA ÇALIŞAMAZ** (dinleyici artık yok) — kayıt
+  /// 10 dakikalık tavana kadar SÜRER ve kullanıcı ne gönderebilir ne iptal
+  /// edebilir. Yani "bas-konuş-bırak" YAPISAL OLARAK BOZULDU.
+  ///
+  /// İlk yazımda şerh "WhatsApp deseni KORUNDU" diyordu — **KORUNMAMIŞTI**.
+  /// Bu, projenin en sık tekrarlayan sınıfı ("yorumun anlattığı kontrol
+  /// gövdede yok") ve bunu kendi eklememde yaptım.
+  ///
+  /// ⚠️ Çözüm jesti "onarmak" DEĞİL KALDIRMAK: kullanıcı zaten açıkça
+  ///    *"bir defa tıklama yeterli"* dedi ve gönderdiği Instagram ekranında
+  ///    da basılı tutma YOK. Tamamlanamayan bir jesti ağaçta bırakmak,
+  ///    çalışmayan bir düğme bırakmakla aynı şeydir (turu 66b dersi).
+  /// ⚠️ YAPMA: `onLongPress*`ı geri ekleme — şerit tasarımıyla YAPISAL OLARAK
+  ///    bağdaşmıyor. Gerekirse önce şeridi mikrofonun ÜSTÜNDE ayrı bir katman
+  ///    yap, düğmeyi ağaçta BIRAK.
   Widget _mikrofonDugmesi() => GestureDetector(
         onTap: _basla,
-        onLongPressStart: (_) => _basla(),
-        onLongPressEnd: (_) => _durdur(gonder: !_iptalBolgesi),
-        onLongPressMoveUpdate: (d) {
-          // ⚠️ Sola kaydırarak iptal (WhatsApp deseni). Eşik 80px.
-          final iptal = d.localOffsetFromOrigin.dx < -80;
-          if (iptal != _iptalBolgesi) {
-            setState(() => _iptalBolgesi = iptal);
-            HapticFeedback.selectionClick();
-          }
-        },
         child: Container(
           // ⚠️ 44dp dokunma alanı (Material 48 / Apple 44). Turu 78b'de
           //    17x17dp bir düğme yüzünden özellik fiilen ulaşılamazdı.
@@ -373,13 +414,26 @@ class _SesNotuKaydediciState extends ConsumerState<SesNotuKaydedici> {
 ///
 /// ⚠️ SAĞDAN SOLA akar (yeni ses SAĞDA belirir) — ses kaydı arayüzlerinin
 ///    evrensel yönü budur; ters yön "geri sarıyor" izlenimi verir.
-/// ⚠️ `shouldRepaint` liste UZUNLUĞUNA bakar: her 100ms'de bir kova eklenir,
-///    yani uzunluk değişimi "yeni veri var" demektir. Referans eşitliği
-///    kullanılamaz (aynı liste yerinde büyüyor).
+/// ⚠️ `shouldRepaint` KURULUM ANINDAKI uzunluğa bakar (bkz. yapıcı şerhi):
+///    liste YERİNDE büyüdüğü için hem referans eşitliği hem de anlık uzunluk
+///    karşılaştırması ANLAMSIZDIR.
 class _DalgaCizer extends CustomPainter {
-  _DalgaCizer(this.kovalar);
+  /// ⚠️⚠️⚠️ UZUNLUK **KURULUM ANINDA** YAKALANIR (denetim bulgusu: dalga HİÇ
+  /// çizilmiyordu).
+  ///
+  /// İlk yazımda `shouldRepaint` şöyleydi:
+  ///     `eski.kovalar.length != kovalar.length`
+  /// Ama `_dalga` **AYNI LİSTE NESNESİDİR** ve her karede aynı referans
+  /// geçilir; yani `eski.kovalar` ile `kovalar` **AYNI NESNE**dir ve
+  /// uzunlukları TANIM GEREĞİ eşittir → `shouldRepaint` **HER ZAMAN false**
+  /// döner → canlı dalga **HİÇ YENİDEN ÇİZİLMEZ**. Kullanıcı düz bir çizgi
+  /// görürdü ve turun görünür işi sessizce ölürdü.
+  /// ⚠️ YAPMA: uzunluğu `kovalar.length` üzerinden karşılaştırmaya dönme;
+  ///    liste yerinde büyüdüğü için o karşılaştırma anlamsızdır.
+  _DalgaCizer(this.kovalar) : _uzunluk = kovalar.length;
 
   final List<int> kovalar;
+  final int _uzunluk;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -407,5 +461,5 @@ class _DalgaCizer extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_DalgaCizer eski) => eski.kovalar.length != kovalar.length;
+  bool shouldRepaint(_DalgaCizer eski) => eski._uzunluk != _uzunluk;
 }

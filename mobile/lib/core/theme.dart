@@ -95,10 +95,32 @@ ThemeData _tema(Brightness parlaklik) {
 final lightTheme = _tema(Brightness.light);
 final darkTheme = _tema(Brightness.dark);
 
-// Mesaj balonu renkleri
+// ⚠️⚠️⚠️ TURU 81 — MESAJ BALONU RENKLERI **PARLAKLIGA GORE** (denetim
+// bulgusu: SEVK ENGELIYDI).
+//
+// Onceki surumde bu uc renk SABITTI ve ikisi de KOYUYDU (`0xFF075E54`,
+// `0xFF262D31`). Balonun ICINDEKI yazi ise temadan geliyor. Acik tema
+// eklenince sonuc su oldu:
+//
+//	KOYU balon zemini  +  SIYAH yazi  =  **TUM SOHBET OKUNAMAZ**
+//
+// Yani turun getirdigi acik tema, uygulamanin EN COK KULLANILAN ekranini
+// kullanilamaz hale getiriyordu. Kullanici "beyaz temayi da secelim" derken
+// kastettigi kesinlikle bu degildi.
+//
+// ⚠️ Renkler `Brightness`e gore secilir. Acik temada:
+//   · benim balonum  -> acik yesil (WhatsApp'in acik tema tonu)
+//   · karsi balon    -> beyaz
+//   Ikisinde de koyu yazi OKUNUR.
+// ⚠️ YAPMA: bu uc renkten herhangi birini tekrar SABITE cevirme; acik tema
+//    eklendikten sonra sabit renk = okunamaz ekran demektir.
+// ⚠️ Mavi tik IKI TEMADA DA ayni kalir (marka isareti; iki zeminde de okunur).
 extension ChatColors on ColorScheme {
-  Color get bubbleMine => const Color(0xFF075E54);
-  Color get bubbleOther => const Color(0xFF262D31);
+  bool get _koyuMu => brightness == Brightness.dark;
+  Color get bubbleMine =>
+      _koyuMu ? const Color(0xFF075E54) : const Color(0xFFD9FDD3);
+  Color get bubbleOther =>
+      _koyuMu ? const Color(0xFF262D31) : const Color(0xFFFFFFFF);
   Color get tickRead => const Color(0xFF34B7F1); // mavi tik
 }
 

@@ -125,6 +125,34 @@ class Message {
   /// 20 ek istek olurdu.
   final Anket? anket;
 
+  /// Anketi DEGISTIRILMIS bir kopya doner.
+  ///
+  /// ⚠️ `anket` alani `final`; WS olayi geldiginde yerinde yamalamak yerine
+  ///    KOPYA uretiliyor. Alani `final` olmaktan cikarmak, listeyi tutan
+  ///    baska bir yerin ayni nesneyi paylasmasi durumunda sessiz yan etki
+  ///    uretirdi.
+  Message anketle(Anket yeni) => Message(
+    id: id,
+    senderId: senderId,
+    type: type,
+    content: content,
+    mediaUrl: mediaUrl,
+    mediaId: mediaId,
+    durationMs: durationMs,
+    waveform: waveform,
+    width: width,
+    height: height,
+    fileName: fileName,
+    bytes: bytes,
+    senderName: senderName,
+    senderAvatarMediaId: senderAvatarMediaId,
+    replyToId: replyToId,
+    deletedForAll: deletedForAll,
+    createdAt: createdAt,
+    read: read,
+    anket: yeni,
+  );
+
   factory Message.fromJson(Map<String, dynamic> j) => Message(
         id: (j['id'] as num).toInt(),
         senderId: j['sender_id'] as String,

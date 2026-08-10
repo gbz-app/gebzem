@@ -335,6 +335,16 @@ class _ChatTile extends ConsumerWidget {
         return LucideIcons.mic;
       case 'location':
         return LucideIcons.mapPin;
+      // ⚠️ TURU 81 — yeni tiplerin ikonlari (metinle BIRLIKTE eklenir; ikon
+      //    olmadan satirlar birbirine benzer ve tur ayirt edilemez).
+      case 'contact':
+        return LucideIcons.userRound;
+      case 'iban':
+        return LucideIcons.creditCard;
+      case 'etkinlik':
+        return LucideIcons.calendarDays;
+      case 'poll':
+        return LucideIcons.chartBar;
       case 'system':
         final k = AramaKaydi.coz(chat.lastMessage);
         if (k == null) return null;
@@ -363,6 +373,32 @@ class _ChatTile extends ConsumerWidget {
         // eklendiginde buraya ve `_CallLogChip`e insan-okur metin eklenmelidir.
         return AramaKaydi.coz(chat.lastMessage)?.onizleme(benimMi: benimMi) ??
             'Sistem mesajı';
+      // ⚠️⚠️⚠️ TURU 81 — YAPISAL TIPLER (denetim bulgusu: SEVK ENGELIYDI).
+      //
+      //	Bu `switch`in `default` dali `chat.lastMessage`i **HAM** basiyor.
+      //	Turu 81'in yeni tipleri (`contact`/`iban`/`etkinlik`/`poll`) yapisal
+      //	veri tasidigi icin kullanici sohbet listesinde sunlari gorurdu:
+      //	  · "TR330006100519786457841326|Ahmet Yilmaz"  ← IBAN SIZINTISI
+      //	  · "3f9a1c2e-...-...|Konser"                  ← ham UUID
+      //	IBAN'in bir listede (ve ekran goruntusunde) gorunmesi ayrica
+      //	GIZLILIK sorunudur.
+      //
+      // ⚠️⚠️ SUNUCUDAKI onizleme switch'i (`chat/handler.go`) ZATEN
+      //	duzeltilmisti — ama ISTEMCININ **KENDI KOPYASI** vardi ve o
+      //	atlanmisti. "Ayni kuralin iki kopyasi drift eder" dersinin bu
+      //	turdaki ornegidir: sunucu dogru, istemci yanlis.
+      // ⚠️ YAPMA: sunucuya yeni bir mesaj tipi eklerken YALNIZ sunucu
+      //	onizlemesini guncelleme; BURASI DA guncellenmeli.
+      case 'contact':
+        return 'Kişi';
+      case 'iban':
+        return 'IBAN';
+      case 'etkinlik':
+        return 'Etkinlik';
+      case 'poll':
+        // ⚠️ Ankette `content` SORUDUR (yapisal veri degil), yani gostermek
+        //    GUVENLI ve YARARLI — WhatsApp da soruyu gosterir.
+        return chat.lastMessage.isEmpty ? 'Anket' : 'Anket: ${chat.lastMessage}';
       default:
         return chat.lastMessage;
     }

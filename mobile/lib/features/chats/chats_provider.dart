@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api.dart';
 import '../../core/ws.dart';
 import '../auth/auth_provider.dart';
+import 'anket.dart';
 import 'models.dart';
 
 /// Sohbet listesi: REST'ten ceker, WebSocket olaylariyla canli guncellenir
@@ -159,6 +160,40 @@ class MessagesNotifier extends StateNotifier<AsyncValue<List<Message>>> {
           }
           // acik sohbette gelen mesaji hemen okundu isaretle
           _ref.read(apiProvider).post('/chats/$chatId/read').ignore();
+        }
+      // ⚠️⚠️⚠️ TURU 81 — ANKET OLAYLARI (denetim bulgusu: SEVK ENGELIYDI).
+      //
+      //	Sunucu `poll.vote` ve `poll.closed` olaylarini YAYINLIYORDU ama
+      //	istemcide onlari DINLEYEN HICBIR YER YOKTU. Sonuc: biri oy
+      //	verdiginde ya da anketi bitirdiginde DIGERLERININ ekraninda
+      //	HICBIR SEY DEGISMIYORDU — anket "canli" gorunmesine ragmen fiilen
+      //	statik bir resimdi ve kullanici sohbetten cikip girmeden sonucu
+      //	goremiyordu. ("Sunucu uretiyor ama tuketen yok" = olu ozellik.)
+      //
+      // ⚠️ Govde `anketOku` ile AYNI sekildedir; balon `vote_seq` ile
+      //    eskimis olayi zaten eliyor (WS bu projede KAYBOLABILIR/GECIKEBILIR).
+      // ⚠️ `mine` alani yayinda ANLAMSIZDIR (ortak govde) — balon kendi
+      //    secimini YEREL durumundan bilir, bu yuzden burada yalnizca
+      //    SAYIMLAR ve KAPALI bilgisi guncellenir.
+      case 'poll.vote':
+      case 'poll.closed':
+        final p = ev['payload'];
+        if (p is Map<String, dynamic>) {
+          final yeni = Anket.fromJson(p);
+          final current = List<Message>.from(state.valueOrNull ?? []);
+          var degisti = false;
+          for (var i = 0; i < current.length; i++) {
+            final m = current[i];
+            if (m.anket?.id != yeni.id) continue;
+            // ⚠️ ESKIMIS OLAY ELENIR: `vote_seq` kucuk/esitse yok say.
+            //    Aksi halde gecikmis bir olay, kullanicinin AZ ONCE verdigi
+            //    oyu geri alirdi.
+            if (yeni.seq <= (m.anket?.seq ?? 0)) break;
+            current[i] = m.anketle(yeni);
+            degisti = true;
+            break;
+          }
+          if (degisti) state = AsyncValue.data(current);
         }
       case 'receipt.read':
         // ⚠️⚠️ TURU 76 — OKUYANIN KIM OLDUGU KONTROL EDILIYOR.

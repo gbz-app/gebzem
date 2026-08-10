@@ -33,9 +33,16 @@ var istisnalar = map[string]string{
 	// Yazar KENDI zamanladigi gonderiyi gormeli; yoksa "kayboldu" sanar.
 	// O sorgu yuklemi `OR p.author_id = $1` ile GEVSETIYOR (kaldirmiyor).
 	"UserPosts": "yazar kendi zamanladigini gorur (OR p.author_id)",
-	// Tek gonderi ucu: id ile dogrudan erisim. Zamanlanmis gonderiye
-	// LINKLE erisim yazarin kendi paylasimidir; akista GORUNMEZ.
-	"Detay": "id ile dogrudan erisim",
+	// Tek gonderi ucu: id ile dogrudan erisim. Yetki `erisebilirMi`de ve o
+	// fonksiyon yuklemi TASIYOR (yazar haric).
+	"Detay": "yetki erisebilirMi'de; o yuklem tasiyor",
+	// Istatistik YALNIZ YAZARA acik (`author_id != me -> 404`, satir 373-379).
+	// Yazar kendi zamanladigi gonderisinin istatistigini gormeli.
+	"Istatistik": "yalniz yazara acik; yazar kendi zamanladigini gormeli",
+	// Yorum silme bir GORUNURLUK yuzeyi degil, SAHIPLIK kontroludur
+	// (`c.author_id=$2 OR p.author_id=$2`). Zamanlanmis gonderide zaten yorum
+	// olusamaz (etkilesim `erisebilirMi` ile kapali).
+	"CommentDelete": "gorunurluk degil sahiplik kontrolu",
 }
 
 func TestGonderiSorgularindaYayinYuklemi(t *testing.T) {
@@ -80,9 +87,15 @@ func TestGonderiSorgularindaYayinYuklemi(t *testing.T) {
 		return ad
 	}
 
+	// ⚠️⚠️ ARAMA DESENI GENISLETILDI (denetim bulgusu: muhafiz IKI YUZEYDE
+	//    calismiyordu). Ilk yazimda yalnizca "FROM posts p JOIN users"
+	//    araniyordu; ANA AKIS ve Kaydedilenler sorgulari `posts`u BASKA bir
+	//    bicimde birlestirdigi icin taranmiyor ve YANLIS NEGATIF veriyordu —
+	//    yani muhafiz, korumasi gereken en onemli iki yuzeyi ATLIYORDU.
+	// ⚠️ Artik `FROM posts p` yeterli; JOIN bicimi ne olursa olsun yakalanir.
 	sayac := 0
 	for i := 0; i < len(src); {
-		j := strings.Index(src[i:], "FROM posts p JOIN users")
+		j := strings.Index(src[i:], "FROM posts p")
 		if j < 0 {
 			break
 		}

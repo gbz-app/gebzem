@@ -56,7 +56,15 @@ func (h *Handler) erisebilirMi(ctx context.Context, me, postID string) (bool, st
 	if durum != "yayinda" {
 		return false, ""
 	}
-	if yayinAt != nil && yayinAt.After(time.Now()) {
+	// ⚠️⚠️ YAZAR HARIC (denetim bulgusu). Ilk yazimda kapi KOSULSUZDU ve
+	//    YAZARIN KENDISI de kendi zamanladigi gonderiyi ACAMIYORDU:
+	//    profilinde goruyor (bilincli), dokununca `Detay` 403 yiyordu ve
+	//    kullanici "gonderim bozuldu" derdi. Ayrica gonderiyi SILEMIYOR ya da
+	//    DUZENLEYEMIYORDU (o yollar da bu kapidan geciyor) — yani zamanlanan
+	//    gonderi YAYINA KADAR HIC MUDAHALE EDILEMEZ hale geliyordu.
+	// ⚠️ BASKALARI icin kapi KOSULSUZ kalir: yayinlanmamis icerige begeni/
+	//    yorum ATILAMAZ ve sayaclar yayin ONCESI sismez.
+	if yayinAt != nil && yayinAt.After(time.Now()) && yazar != me {
 		return false, ""
 	}
 	// ⚠️ ENGEL: iki yonlu. Engelli taraf etkilesemez.
