@@ -1934,6 +1934,153 @@ const kontrol = (ad, gecti, ek = '') => {
       'HTTP ' + vitOtel.kod);
   }
 
+  // ============= TURU 85c: ADIMLI KAYIT (telefon -> OTP -> bilgiler) =====
+  {
+    const tel = '+90555' + rastgele() + String(rastgele()).slice(0, 1);
+    const kadi = 'e2e' + rastgele();
+
+    // --- ADIM 1: telefon
+    const a1 = await j('/auth/kayit/telefon', {
+      yontem: 'POST', govde: { phone: tel },
+    });
+    kontrol('TURU 85c: adim 1 (telefon) SMS kodu uretiyor',
+      a1.kod === 200 && !!a1.d.dev_otp, 'HTTP ' + a1.kod);
+
+    // ⚠️ ADIM 1 HESAP OLUSTURMAZ — eski /auth/register den EN ONEMLI farki.
+    const erken = await j('/auth/login', {
+      yontem: 'POST', govde: { phone: tel, password: 'Test12345!' },
+    });
+    kontrol('TURU 85c: adim 1 HESAP OLUSTURMUYOR (giris yok)',
+      erken.kod >= 400, 'HTTP ' + erken.kod);
+
+    // --- ADIM 2: OTP -> kayit jetonu
+    const a2 = await j('/auth/kayit/dogrula', {
+      yontem: 'POST', govde: { phone: tel, code: String(a1.d.dev_otp) },
+    });
+    kontrol('TURU 85c: adim 2 (OTP) kayit jetonu veriyor',
+      a2.kod === 200 && !!a2.d.kayit_jetonu, 'HTTP ' + a2.kod);
+
+    // ⚠️ Yanlis kod REDDEDILMELI.
+    const kotuKod = await j('/auth/kayit/dogrula', {
+      yontem: 'POST', govde: { phone: tel, code: '000000' },
+    });
+    kontrol('TURU 85c: yanlis OTP reddediliyor', kotuKod.kod >= 400,
+      'HTTP ' + kotuKod.kod);
+
+    // ⚠️ TURU 85b: 72 BAYT TAVANI (eski ucta vardi, yenisinde ATLANMISTI ->
+    //    uzun sifre bcrypt hatasina, oradan jenerik 500 e dusuyordu).
+    const uzun = await j('/auth/kayit/tamamla', {
+      yontem: 'POST',
+      govde: { kayit_jetonu: a2.d.kayit_jetonu, name: 'Uzun',
+               username: kadi, password: 'x'.repeat(80) },
+    });
+    kontrol('TURU 85c: 72 bayttan uzun sifre 400 doner (500 DEGIL)',
+      uzun.kod === 400, 'HTTP ' + uzun.kod);
+
+    // --- ADIM 3: bilgiler -> hesap + oturum
+    // ⚠️ Kullanici adi @ ON EKIYLE gonderiliyor: form onu gosteriyor ve
+    //    kullanicilar yaziyor; eski uc kirpiyordu, yenisi ATLAMISTI.
+    const a3 = await j('/auth/kayit/tamamla', {
+      yontem: 'POST',
+      govde: { kayit_jetonu: a2.d.kayit_jetonu, name: 'E2E Adimli',
+               username: '@' + kadi, password: 'Test12345!' },
+    });
+    kontrol('TURU 85c: adim 3 hesabi olusturuyor', a3.kod === 200,
+      'HTTP ' + a3.kod);
+
+    // ⚠️⚠️ SEVK ENGELIYDI: istemci `user_id` okuyor; alan YOKSA TypeError
+    //    firlatir, oturum HIC kaydedilmez ve kayit ASLA tamamlanamaz.
+    kontrol('TURU 85c: yanit `user_id` ICERIYOR (istemci sozlesmesi)',
+      typeof (a3.d || {}).user_id === 'string' && a3.d.user_id.length > 0,
+      'anahtarlar=' + Object.keys(a3.d || {}).join(','));
+    kontrol('TURU 85c: yanit oturum jetonu ICERIYOR',
+      !!(a3.d && a3.d.token), 'token=' + !!(a3.d && a3.d.token));
+
+    kontrol('TURU 85c: `@` on eki KIRPILIYOR (kullanici adi kaydedildi)',
+      ((a3.d && a3.d.user && a3.d.user.username) || '') === kadi,
+      'kadi=' + ((a3.d && a3.d.user && a3.d.user.username) || '-'));
+
+    // ⚠️⚠️⚠️ SEVK ENGELIYDI: `verified` yazilmiyordu -> yeni akisla acilan
+    //    HER hesap giris yapamiyordu (Login: !verified -> 403) ve kurtarma
+    //    yolu da yoktu (Forgot/Reset de `verified=true` istiyor).
+    const giris = await j('/auth/login', {
+      yontem: 'POST', govde: { phone: tel, password: 'Test12345!' },
+    });
+    kontrol('TURU 85c: ADIMLI KAYITLA ACILAN HESAP GIRIS YAPABILIYOR',
+      giris.kod === 200 && !!giris.d.token, 'HTTP ' + giris.kod);
+
+    // ⚠️ Kayit bonusu defterine yazilmali (bakiye ile defter ayrismasin).
+    const ben = await j('/users/me', { token: a3.d.token });
+    kontrol('TURU 85c: yeni hesap /users/me okuyabiliyor',
+      ben.kod === 200 && ben.d.id === a3.d.user_id, 'HTTP ' + ben.kod);
+
+    // ⚠️⚠️ TURU 85b: JETON TEKRAR OYNATMA. Ayni jetonla ikinci cagri
+    //    hesabin SIFRESINI EZMEMELI; yeniden deneme icin oturum DONER.
+    const tekrar = await j('/auth/kayit/tamamla', {
+      yontem: 'POST',
+      govde: { kayit_jetonu: a2.d.kayit_jetonu, name: 'SALDIRGAN',
+               username: kadi, password: 'BaskaSifre999!' },
+    });
+    const eskiSifre = await j('/auth/login', {
+      yontem: 'POST', govde: { phone: tel, password: 'Test12345!' },
+    });
+    kontrol('TURU 85c: jeton TEKRAR OYNATILINCA sifre EZILMIYOR',
+      eskiSifre.kod === 200,
+      'tekrar=' + tekrar.kod + ' eskiSifreGiris=' + eskiSifre.kod);
+    const yeniSifre = await j('/auth/login', {
+      yontem: 'POST', govde: { phone: tel, password: 'BaskaSifre999!' },
+    });
+    kontrol('TURU 85c: tekrar oynatmadaki YENI sifre GECERSIZ',
+      yeniSifre.kod >= 400, 'HTTP ' + yeniSifre.kod);
+
+    // ⚠️ Adim 1 artik `verified` olcutunu kullaniyor (girisle AYNI olcut).
+    const tekrarKayit = await j('/auth/kayit/telefon', {
+      yontem: 'POST', govde: { phone: tel },
+    });
+    kontrol('TURU 85c: tamamlanmis numara icin adim 1 REDDEDIYOR (409)',
+      tekrarKayit.kod === 409, 'HTTP ' + tekrarKayit.kod);
+
+    // ⚠️ Gecersiz jetonla adim 3 -> 401 (telefon JETONDAN okunuyor).
+    const sahte = await j('/auth/kayit/tamamla', {
+      yontem: 'POST',
+      govde: { kayit_jetonu: 'sahte.jeton.imza', name: 'X',
+               username: 'e2e' + rastgele(), password: 'Test12345!' },
+    });
+    kontrol('TURU 85c: sahte kayit jetonu 401', sahte.kod === 401,
+      'HTTP ' + sahte.kod);
+  }
+
+  // ============= TURU 85c: YAKINIMDA KABA KUTU (cos duzeltmesi) =========
+  {
+    // ⚠️⚠️ Kutu boylamda `111.0`a bolunuyordu; Gebze enleminde 1 derece
+    //    boylam ~84 km oldugu icin kutu ~%24 DAR kaliyor ve yaricap
+    //    ICINDEKI isletmeler SESSIZCE eleniyordu. Bu kontrol tam o
+    //    araliga bir isletme koyar: DUZ 111.0 ile KIRMIZI duser.
+    const D = await kullaniciAc('E2E Dogu');
+    const lat = 40.8000, lng = 29.4000;
+    // 8 km dogusu: 8 / (111 * cos(40.8)) = ~0.0952 derece.
+    // Yanlis (duz) kutu yalniz 8/111 = 0.0721 derece kapsardi -> ELERDI.
+    const dLng = 8.0 / (111.0 * Math.cos((lat * Math.PI) / 180));
+    await j('/users/me/isletme', {
+      yontem: 'PUT', token: D.token,
+      govde: { kategori: 'eczane', adres: 'Dogudaki eczane', il: 'Kocaeli',
+               ilce: 'Gebze', enlem: lat, boylam: lng + dLng },
+    });
+    const y = await j(
+      '/isletmeler/yakinimda?lat=' + lat + '&lng=' + lng + '&km=10',
+      { token: D.token });
+    const bulundu = ((y.d && y.d.isletmeler) || []).some((x) => x.id === D.id);
+    kontrol('TURU 85c: KABA KUTU boylamda cos duzeltmesi yapiyor',
+      bulundu, 'bulundu=' + bulundu + ' dLng=' + dLng.toFixed(4));
+
+    // ⚠️ NaN koordinat 400 donmeli (ParseFloat NaN i KABUL EDER ve NaN her
+    //    karsilastirmadan gecer -> eskiden SESSIZ BOS liste donuyordu).
+    const nan = await j('/isletmeler/yakinimda?lat=NaN&lng=29.4&km=5',
+      { token: D.token });
+    kontrol('TURU 85c: NaN koordinat 400 (sessiz bos liste DEGIL)',
+      nan.kod === 400, 'HTTP ' + nan.kod);
+  }
+
   // ---------- OZET
   const kalan = sonuclar.filter((s) => !s.gecti);
   console.log('\n==================================');
