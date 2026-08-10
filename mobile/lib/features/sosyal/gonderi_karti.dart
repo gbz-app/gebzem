@@ -1000,7 +1000,13 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
       onTap: onTap,
       borderRadius: BorderRadius.circular(20),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
+        // ⚠️ TURU 82 — yatay dolgu 8 -> 6. Ikon KUTUSU 22'den 24'e cikti
+        //    (optik denge icin); dolgu kisilmasaydi cubuk 5 ogede net +10dp
+        //    genisleyecekti ve asagidaki tavan hesabinin payi erirdi.
+        //    Dokunma hedefi: 6+24+6 = 36 genislik x 42 yukseklik — 44dp'lik
+        //    Apple tavsiyesinin altinda kalan tek eksen genislik ve ogeler
+        //    BITISIK oldugu icin komsu hedefe basma riski YOK.
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 9),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1020,12 +1026,38 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
             ),
             if (sayi != null && sayi > 0) ...[
               const SizedBox(width: 6),
-              Text(
-                sayiBicimle(sayi),
-                style: TextStyle(
-                  color: c,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
+              // ⚠️⚠️ TURU 82 — SAYININ GENISLIGI **SERT TAVANLI**.
+              //
+              //    Cubuk bir `Row` ve ortasinda `Spacer` var; sabit cocuklar
+              //    kolonu asarsa Spacer 0'a duser ve RenderFlex SARI-SIYAH
+              //    TASMA SERIDI cizer. Olcum (360dp telefon, kolon 336):
+              //      · normal olcek        -> 313dp   (pay 23dp)
+              //      · yazi olcegi 1.3     -> 335dp   (pay 1dp!)
+              //      · yazi olcegi 1.5     -> TASMA
+              //    Yani erisilebilirlik ayarini acan kullanicida cubuk
+              //    kiriliyordu. Bu bir SEVK ENGELI degil ama gorunur bir hata
+              //    ve turun konusu tam da "cubuk duzgun gorunsun".
+              //
+              // ⚠️ 40dp SERT tavan olceklerden BAGIMSIZ bir ust sinir kurar:
+              //    en fazla 5 karakter ("999B"/"12.3M" — `sayiBicimle` tavani)
+              //    13px'te ~35dp, olcek 1.3'te ~45dp -> ellipsis devreye girer
+              //    ama TASMA YAPISAL OLARAK IMKANSIZ hale gelir.
+              //    Yeni worst-case: 5*(12+24) + 3*(6+40) = 318 < 336 ✓
+              // ⚠️ YAPMA: bu tavani kaldirma ya da `Flexible` ile degistirme —
+              //    `Flexible` bu Row'da (mainAxisSize.min, dis Row'un esnek
+              //    OLMAYAN cocugu) sinirsiz kisit alir ve HICBIR SEY YAPMAZ.
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 40),
+                child: Text(
+                  sayiBicimle(sayi),
+                  maxLines: 1,
+                  softWrap: false,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: c,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ],
