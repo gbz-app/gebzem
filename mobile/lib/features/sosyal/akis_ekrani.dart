@@ -446,7 +446,11 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
         // ⚠️⚠️ TURU 82 — "Gebzem" BASLIGI KALDIRILDI (kullanici emri:
         //    *"anasayfada gebzem yazisini kaldir"*). Onceki serh basligi
         //    "hamburger havada kalmasin" diye savunuyordu; sag tarafta
-        //    bildirim + arama dugmeleri VAR, yani cubuk zaten dengeli.
+        //    BILDIRIM dugmesi (tek `actions` ogesi) VAR, yani cubugun iki ucu
+        //    da dolu.
+        //    ⚠️ Bu serh once "bildirim + arama dugmeleri" (COGUL) diyordu;
+        //       denetim govdede TEK dugme oldugunu gosterdi. Arama ALT MENUDE
+        //       kendi sekmesinde (turu 76), AppBar'da DEGIL.
         // ⚠️ YAPMA: baslik geri ekleme.
         title: null,
         actions: [

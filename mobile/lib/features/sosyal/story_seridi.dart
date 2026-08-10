@@ -321,7 +321,12 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi>
       height: 116,
       child: ListView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        // ⚠️ TURU 82 — yatay 10 -> 12: serit ve gonderi kartlari AYNI dikey
+        //    cizgiden baslasin. Kart icerigi 12dp dolguyla basliyor (medya,
+        //    metin, etkilesim cubugu); serit 10'da kaldigi surece hikaye
+        //    halkalari kartlardan 2dp SOLDA duruyor ve goz bunu hizasizlik
+        //    olarak okuyor.
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         children: [
           _benimHalka(benim, benimProfil),
           for (final k in digerleri) _halka(k),

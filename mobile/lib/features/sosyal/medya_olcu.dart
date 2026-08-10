@@ -102,10 +102,16 @@ const double kGaleriOgeOrani = 0.78;
 
 /// Medya kutusunun `BoxFit` degeri.
 ///
-/// ⚠️⚠️ `cover` KALIR ama ARTIK KIRPMAZ: kutunun orani medyanin oranina ESIT
+/// ⚠️⚠️ TEK MEDYADA `cover` **KIRPMAZ**: kutunun orani medyanin oranina ESIT
 ///    kuruluyor (bkz. [medyaKutusu]). `cover` yalnizca yuvarlama farklarindan
 ///    dogan yarim pikselleri doldurur — `contain` olsaydi o yarim piksel
 ///    SIYAH CIZGI olarak gorunurdu.
+/// ⚠️ ISTISNA — COKLU GALERI: satir yuksekligi ortak oldugu icin **4:5'ten
+///    GENIS ogeler kirpilir** (bkz. [galeriSatirYuksekligi]). Bu bilincli bir
+///    odundur; kirpilan oge tam ekranda tam haliyle acilir.
+///    ⚠️ Eski serh "cover ARTIK HICBIR ZAMAN kirpmaz" diyordu — denetim bunu
+///       yakaladi: iddia TEK MEDYA icin dogru, GALERI icin YANLISTI.
+///       (Bu projede tekrarlayan sinif: "serhin anlattigi kontrol govdede yok".)
 const BoxFit kMedyaDolgu = BoxFit.cover;
 
 /// Bir medyanin kutu olculeri: **orani KORUYARAK** tavana ve kolona sigdirir.
@@ -125,3 +131,44 @@ const BoxFit kMedyaDolgu = BoxFit.cover;
   final w = math.max(math.min(kolonGenislik, tavan * oran), 96.0);
   return (w: w, h: w / oran);
 }
+
+/// COKLU galeride TUM ogelerin PAYLASTIGI satir yuksekligi.
+///
+/// ⚠️⚠️⚠️ BU FONKSIYON BIR REGRESYONU KAPATIR — **`min` ILE HESAPLAMA.**
+///
+/// Ilk turu 82 denemesi satir yuksekligini ogelerden turetiyordu:
+///     satirY = min_i( medyaKutusu(...).h )
+/// Denetim bunu iki bagimsiz mercekle yakaladi ve matematigi soyle:
+/// `h_i = min(tavan, ogeTavani / oran_i)` ifadesi **oran BUYUDUKCE KUCULUR**,
+/// yani `min` DAIMA EN GENIS ogeye aittir. Sonuc: galeriye giren **TEK bir
+/// yatay fotograf BUTUN GALERIYI COKERTIYORDU** (390x844'te olculdu):
+///
+///     hepsi 4:5              -> ogeler 285 x 357     dogru
+///     4:5 + 4:5 + 16:9       -> 4:5 ogeler 128 x 160  (%35 olcek!)
+///     9:16 + panorama 1.91   -> dikey oge  75 x 149
+///
+/// Yani kullanicinin DORT KEZ sikayet ettigi "gorseller kucuk, yanlarda
+/// bosluk" tablosu karma galeride GERI GELIYORDU — ustelik turu 81'e gore
+/// GERILEME (turu 81'in yuksekligi icerikten BAGIMSIZ sabitti).
+///
+/// ═══ DOGRU KURAL: yukseklik ICERIKTEN BAGIMSIZ ═══
+///
+/// `ogeTavani / 0.8` secildi, yani tek-medya kuralinin galeri karsiligi:
+/// **4:5 bir oge KENDI genislik tavanini tam doldurur.** Kolon ve oge tavani
+/// ayni katsayidan turedigi icin (`ogeTavani = kolon * 0.78`,
+/// `tavan = kolon / 0.8`) bu deger dogal olarak `tavan * 0.78`e esittir.
+///
+///     4:5   -> w = ogeTavani        oran KORUNUR (kirpma yok)
+///     9:16  -> w = ogeTavani * 0.70 oran KORUNUR, DAR (istenen etki)
+///     1:1   -> genislik tavana takilir, `cover` KIRPAR
+///     16:9  -> genislik tavana takilir, `cover` KIRPAR
+///
+/// ⚠️ 4:5'ten GENIS ogelerin kirpilmasi BILINCLI ODUN: sabit yukseklikli bir
+///    satirda 16:9 ile 9:16 ayni anda kirpilmadan DURAMAZ (yukseklikleri 3.2
+///    kat ayrisir). Kirpilan oge tam ekranda tam haliyle acilir.
+/// ⚠️ Ikinci terim (`tavan`) kisa ekranlarda emniyet: `medyaTavani` zaten
+///    ekranin %60'ini asmama garantisini tasir, satir onu asmamali.
+/// ⚠️ YAPMA: yuksekligi tekrar ogelerden (min/max/ilk oge) turetme — hangisi
+///    olursa olsun BIR OGE DIGERLERININ OLCEGINI BELIRLER ve cokme geri gelir.
+double galeriSatirYuksekligi(double tavan, double ogeTavani) =>
+    math.min(ogeTavani / _kYayginOran, tavan);

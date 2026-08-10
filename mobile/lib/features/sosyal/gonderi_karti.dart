@@ -654,14 +654,14 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
         ({double w, double h}) kutuOf(int i) =>
             medyaKutusu(tavan, g.enBoy(i), ogeTavani);
 
-        // ⚠️ Galeride TUM ogeler AYNI YUKSEKLIKTE olmali (aksi halde serit
-        //    tirtikli gorunur). Ortak yukseklik = ogeler icindeki EN KISASI:
-        //    boylece hicbir oge kendi tavanini asmaz ve seride sigar.
+        // ⚠️⚠️ Galeride TUM ogeler AYNI YUKSEKLIKTE ve o yukseklik
+        //    **ICERIKTEN BAGIMSIZ**. Onceki surumde ogelerin EN KISASI
+        //    aliniyordu ve tek bir yatay fotograf BUTUN GALERIYI cokertiyordu
+        //    (4:5 ogeler 285x357 -> 128x160). Gerekce + olcumler:
+        //    `medya_olcu.dart::galeriSatirYuksekligi` serhi.
+        // ⚠️ YAPMA: yuksekligi tekrar ogelerden turetme.
         final satirY = coklu
-            ? List.generate(
-                g.mediaIds.length,
-                (i) => kutuOf(i).h,
-              ).reduce(math.min)
+            ? galeriSatirYuksekligi(tavan, ogeTavani)
             : kutuOf(0).h;
 
         // Galeride oge genisligi ORTAK yukseklikten turer (oran korunur).
@@ -720,17 +720,37 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
                         n is! ScrollEndNotification) {
                       return false;
                     }
-                    // Merkeze en yakin ogeyi "aktif" say.
-                    final x = _seritCtrl.hasClients ? _seritCtrl.offset : 0.0;
-                    var toplam = 0.0;
+                    // ⚠️⚠️⚠️ TURU 82 — AKTIF OGE **VIEWPORT MERKEZINDEN**
+                    //    bulunur, kaydirma ofsetinden DEGIL.
+                    //
+                    //    Onceki hesap `x`i (ham ofset) ogelerin baslangic
+                    //    toplamlariyla karsilastiriyordu. Ama `ListView`
+                    //    ogeleri viewport'a SIGDIGI icin `maxScrollExtent`
+                    //    cok kucuk olabilir ve ofset ilk ogenin YARISINA bile
+                    //    ULASAMAZ -> `_sayfa` **0'DA TAKILI KALIR**.
+                    //    Olculdu (390x844, 16:9 + 9:16 galeri):
+                    //      icerik 518dp · viewport 390dp · maxScroll **128dp**
+                    //      ilk ogenin yarisi 143dp  ->  128 < 143  = ASLA GECMEZ
+                    //    Sonuc: 2. medyanin OTO-OYNATMA kapisi (`_sayfa==sira`)
+                    //    hic acilmiyor, sayac rozeti "1/2"de donuyor ve videoda
+                    //    tam ekran dugmesi gorunmuyordu. Yani coklu galerinin
+                    //    ikinci ve sonraki ogeleri fiilen OLU IDI.
+                    // ⚠️ YAPMA: karsilastirmayi ham ofsete geri dondurme.
+                    if (!_seritCtrl.hasClients) return false;
+                    final x = _seritCtrl.offset;
+                    final vp = _seritCtrl.position.viewportDimension;
+                    final merkez = x + vp / 2;
+                    var sol = 12.0; // ListView'in sol dolgusu
                     var yeni = 0;
                     for (var i = 0; i < g.mediaIds.length; i++) {
-                      final w = genislikOf(i) + kGaleriAra;
-                      if (x < toplam + w / 2) {
+                      final w = genislikOf(i);
+                      // Ogenin sag kenari + boslugun yarisi merkezi geciyorsa
+                      // merkez BU ogenin uzerindedir.
+                      if (merkez < sol + w + kGaleriAra / 2) {
                         yeni = i;
                         break;
                       }
-                      toplam += w;
+                      sol += w + kGaleriAra;
                       yeni = i;
                     }
                     if (yeni != _sayfa) setState(() => _sayfa = yeni);
@@ -917,7 +937,11 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
               sekme == 0 &&
               (ModalRoute.of(context)?.isCurrent ?? true),
           sesli: false,
-          dolgu: BoxFit.cover,
+          // ⚠️ TEK KAYNAK: `medya_olcu.dart::kMedyaDolgu`. Sabit turu 81'de
+          //    tanimlanmis ama HIC KULLANILMAMISTI (denetim yakaladi) — iki
+          //    dal da `BoxFit.cover`i ELLE yaziyordu, yani sabiti degistirmek
+          //    HICBIR SEYI degistirmezdi ("olu sabit" sinifi).
+          dolgu: kMedyaDolgu,
         ),
       );
     }
@@ -932,7 +956,8 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
       //    Yukseklik tavani geldikten sonra kutu daha YATAY oldugu icin o
       //    bantlar BUYUYECEKTI, yani hata gorunurlesecekti.
       // ⚠️ `TamEkranGorsel` `contain` KALIR — kirpilmamis hali orada gorunur.
-      child: MedyaGorsel(mediaId: id, fit: BoxFit.cover),
+      // ⚠️ TEK KAYNAK — bkz. video dalindaki serh.
+      child: MedyaGorsel(mediaId: id, fit: kMedyaDolgu),
     );
   }
 
