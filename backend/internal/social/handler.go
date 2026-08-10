@@ -612,6 +612,24 @@ func (h *Handler) UserPosts(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	before := time.Now().Add(time.Hour)
+	// ⚠️⚠️⚠️ TURU 81 — KENDI PROFILINDE IMLEC TAVANI YUKSELIR (E2E BULGUSU).
+	//
+	//	Zamanlanmis gonderide `created_at = yayin_at` (yani GELECEKTE).
+	//	Varsayilan tavan `now + 1 saat` oldugu icin bir saatten UZAGA
+	//	zamanlanan gonderi, GORUNURLUK yuklemine degil **IMLECE** takilip
+	//	yazarin KENDI profilinden de kayboluyordu — "yazar kendi
+	//	zamanladigini gorur" kurali fiilen CALISMIYORDU.
+	//	⚠️ Bu, kendi `created_at = yayin_at` duzeltmemin YAN ETKISIYDI;
+	//	   statik denetim GOREMEZ, UCTAN UCA testi yakaladi.
+	//
+	// ⚠️ YALNIZ kendi profilinde ve YALNIZ ILK SAYFADA: istemci sayfalarken
+	//    acik `before` gonderir ve o AYNEN kullanilir (asagida ezilir), yani
+	//    sayfalama mantigi DEGISMEZ.
+	// ⚠️ Baskasinin profilinde tavan DEGISMEZ: `yayindaOlan` zaten eliyor,
+	//    tavani yukseltmek gereksiz satir tarardi.
+	if hedef == me {
+		before = time.Now().AddDate(1, 0, 1) // sunucu tavani 1 yil + pay
+	}
 	if s := r.URL.Query().Get("before"); s != "" {
 		if t, err := time.Parse(time.RFC3339Nano, s); err == nil {
 			before = t

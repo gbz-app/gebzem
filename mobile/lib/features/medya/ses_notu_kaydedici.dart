@@ -3,7 +3,6 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:path_provider/path_provider.dart';
@@ -15,7 +14,12 @@ import '../../router.dart' show rootMessengerKey;
 import 'medya_kapisi.dart';
 import 'ses_notu_kontrol.dart';
 
-/// ⚠️⚠️ TURU 74 — SES NOTU KAYDEDİCİ (basılı tut → kaydet, bırak → gönder).
+/// ⚠️⚠️ SES NOTU KAYDEDİCİ — **tek dokunuş → kaydet, şeritten gönder/sil**.
+///
+/// ⚠️ TURU 81'de etkileşim DEĞİŞTİ: eskiden "basılı tut → bırak → gönder"
+///    (WhatsApp deseni) idi. Kaldırılma gerekçesi `_mikrofonDugmesi`
+///    şerhinde — özetle: kayıt başlayınca düğme ağaçtan silindiği için
+///    `onLongPressEnd` YAPISAL OLARAK çalışamıyordu.
 ///
 /// ⚠️⚠️ **SERT KAPI:** aktif arama / sesli oda / canlı yayın varken (ÇALMA fazı
 /// dahil) kayıt YASAK. Gerekçe TAHMİN DEĞİL, ÖLÇÜM:
@@ -62,7 +66,6 @@ class _SesNotuKaydediciState extends ConsumerState<SesNotuKaydedici> {
   final Object _sahip = Object();
 
   bool _kayitta = false;
-  bool _iptalBolgesi = false;
   int _ms = 0;
 
   /// Dalga formu kovaları (0-99). Sunucuda `media_assets.waveform` alanına gider.
@@ -157,12 +160,6 @@ class _SesNotuKaydediciState extends ConsumerState<SesNotuKaydedici> {
 
     _dalga.clear();
     _ms = 0;
-    // ⚠️⚠️ TURU 74b (DENETIM BULGUSU): `_iptalBolgesi` SIFIRLANMIYORDU.
-    //     Kullanici bir kez sola kaydirip iptal edince bayrak TRUE kaliyordu;
-    //     sonraki kayitta parmagini hic oynatmazsa `onLongPressMoveUpdate` hic
-    //     tetiklenmiyor ve kayit SESSIZCE COPE GIDIYORDU (serit de ilk kareden
-    //     itibaren kirmizi "iptal edilecek" cizilirdi).
-    _iptalBolgesi = false;
     setState(() => _kayitta = true);
     widget.onDurum?.call(true);
 

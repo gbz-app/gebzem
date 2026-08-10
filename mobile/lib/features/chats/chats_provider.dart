@@ -189,7 +189,9 @@ class MessagesNotifier extends StateNotifier<AsyncValue<List<Message>>> {
             //    Aksi halde gecikmis bir olay, kullanicinin AZ ONCE verdigi
             //    oyu geri alirdi.
             if (yeni.seq <= (m.anket?.seq ?? 0)) break;
-            current[i] = m.anketle(yeni);
+            // ⚠️ BIRLESTIR: sayimlar yayindan, `benim` secimleri YERELDEN
+            //    (yayin govdesi ortak oldugu icin `mine` her zaman false).
+            current[i] = m.anketle(m.anket!.yayinlaBirlestir(yeni));
             degisti = true;
             break;
           }

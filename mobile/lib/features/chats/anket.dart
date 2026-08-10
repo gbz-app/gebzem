@@ -35,6 +35,10 @@ class AnketSecenek {
   ///    kullanici ile uretir, cunku "benim oylarim" kisiye ozeldir. Istemci
   ///    kendi secimini YEREL durumundan bilir.
   final bool benim;
+
+  /// `benim` alani DEGISTIRILMIS kopya (yayin govdesi birlestirilirken).
+  AnketSecenek benimle(bool b) =>
+      AnketSecenek(id: id, metin: metin, oy: oy, benim: b);
 }
 
 class Anket {
@@ -76,6 +80,38 @@ class Anket {
 
   /// Bir secenegin yuzdesi (0..1). Toplam 0 ise 0.
   double oran(AnketSecenek s) => toplamOy == 0 ? 0 : s.oy / toplamOy;
+
+  /// ⚠️⚠️⚠️ TURU 81 (denetim bulgusu: SEVK ENGELI) — YAYIN GOVDESINI
+  /// BIRLESTIR: sayimlar YENIDEN, `benim` secimleri ESKIDEN.
+  ///
+  /// WS yayini ORTAK bir govdedir ve sunucu onu SIFIR UUID ile uretir, yani
+  /// `mine` **HER SECENEKTE false**tur. Gelen govde oldugu gibi uygulansaydi:
+  /// baska biri oy verdiginde **KULLANICININ KENDI OYU EKRANDAN SILINIRDI**
+  /// (isaret kaybolur, coklu secimde tum secimleri gider). Kullanici "oyum
+  /// gitti" der ve tekrar oy verirdi.
+  ///
+  /// ⚠️ `benim` YEREL GERCEKTIR: kendi oyunu yalnizca kendi istegin belirler
+  ///    (`oyVer` yaniti KISIYE OZELDIR ve `mine` tasir). Yayin yalnizca
+  ///    SAYIMLARI ve KAPALI bilgisini tasir.
+  /// ⚠️ YAPMA: yayin govdesini dogrudan atama.
+  Anket yayinlaBirlestir(Anket yayin) {
+    final benimSecimler = {
+      for (final s in secenekler)
+        if (s.benim) s.id,
+    };
+    return Anket(
+      id: yayin.id,
+      soru: yayin.soru,
+      olusturanId: yayin.olusturanId,
+      coklu: yayin.coklu,
+      kapali: yayin.kapali,
+      seq: yayin.seq,
+      toplamOy: yayin.toplamOy,
+      secenekler: yayin.secenekler
+          .map((s) => s.benimle(benimSecimler.contains(s.id)))
+          .toList(),
+    );
+  }
 }
 
 // ---------------------------------------------------------------- SERVIS
@@ -315,7 +351,11 @@ class _AnketBalonState extends ConsumerState<AnketBalon> {
     // ⚠️⚠️ `vote_seq` KAPISI: disaridan (WS / liste tazeleme) gelen anlik
     //    goruntu ESKIMIS olabilir. Kucuk ya da esit sirali bir govdeyi
     //    uygulamak, kullanicinin AZ ONCE verdigi oyu geri alirdi.
-    if (widget.anket.seq > _a.seq) _a = widget.anket;
+    // ⚠️⚠️ BIRLESTIRILEREK uygulanir, ATANMAZ: gelen govde WS yayinindan
+    //    turemis olabilir ve o govde ORTAKTIR (`mine` her secenekte false).
+    //    Dogrudan atansaydi baska biri oy verdiginde KULLANICININ KENDI OYU
+    //    ekrandan SILINIRDI. `benim` secimleri YEREL gercektir.
+    if (widget.anket.seq > _a.seq) _a = _a.yayinlaBirlestir(widget.anket);
   }
 
   Future<void> _oyVer(AnketSecenek s) async {
