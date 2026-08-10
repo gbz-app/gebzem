@@ -45,26 +45,27 @@ const surumEtiketi =
   `${now.getUTCFullYear()}${p2(now.getUTCMonth() + 1)}${p2(now.getUTCDate())}` +
   `-${p2(now.getUTCHours())}${p2(now.getUTCMinutes())}`;
 
-const YENI_ICERIK = `<div class="yeni"><b>Bu sürümde — gönderilerde SES ve ANKET:</b>
-<br><br><b>1 · GÖNDERİDE SES:</b> Yeni gönderide <b>Ses</b>’e dokun, mikrofona bir kez
-bas — kaydını akışta oynatılabilir olarak paylaş.
-<br><br><b>2 · GÖNDERİDE ANKET:</b> <b>Anket</b>’e dokun, soru + 2-12 seçenek ekle.
-Tek ya da çok seçimli olsun; oylar <b>canlı</b> güncellenir, istediğinde bitirirsin.
-Metin yazmasan bile olur — anketin sorusu yeter.
-<br><br><b>3 · GÖRSELLER:</b> Artık <b>hepsi sütunu tam dolduruyor</b> — yanlarda boşluk yok.
-Yatay ve kare fotoğraflar <b>hiç kırpılmıyor</b>; çok uzun olanlar kareye sığdırılıyor
-(tam halini görmek için fotoğrafa dokun, videoya uzun bas).
-<br><br><b>4 · PROFİL:</b> <b>Tümü / Fotoğraf / Video</b> sekmeleri geldi, kapak <b>%30 kısaldı</b>.
-<b>Profilde yenileyince ekranın beyaz olması düzeltildi.</b>
-<br><br><b>5 · YENİLEME:</b> Aşağı çekince <b>üç nokta</b> sırayla zıplıyor.
-<br><br><b>6 · İKONLAR:</b> Beğeni/yorum/paylaş göz için eşitlendi, <b>kalp büyütüldü</b>.
-Beğeni sayısı ikonun sağında; <b>kalbe uzun basınca beğenenler</b> açılır.
-<br><br><b>7 · DAHA:</b> Anasayfada <b>logo ortada</b> · videolarda büyütme ikonu ve
-ilerleme çubuğu kaldırıldı · rakamlar <b>binlik</b> (1,3 bin) · Takip Ettiklerin/Keşfet
-artık oynamıyor.
-<br><br><b>Sınırlar:</b> Gönderide <b>konum</b> henüz yok (sohbette var). Harita
-<b>uygulama içinde değil</b>. Ödeme yok. Arama <b>birebir</b> · Sohbet odası 20 konuşmacı +
-sınırsız dinleyici · Canlı yayın 4 kişi + sınırsız izleyici.</div>`;
+const YENI_ICERIK = `<div class="yeni"><b>Bu sürümde — YENİ GİRİŞ AKIŞI ve YAKINIMDA:</b>
+<br><br><b>1 · TANITIM EKRANLARI:</b> Uygulamayı ilk açtığında dört ekranlık tanıtım
+<b>beyaz zeminde, yazılar solda</b>, her biri tek cümlelik açıklamayla geliyor.
+<br><br><b>2 · KAYIT ARTIK ADIM ADIM:</b> Önce <b>telefon</b>, sonra <b>SMS kodu</b>,
+sonra <b>ad, kullanıcı adı ve şifre</b>. Hepsi tek sayfada değil; üstte ilerleme çubuğu var.
+<br><br><b>3 · İZİNLER AYRI ADIMDA:</b> Son adımda mikrofon, kamera ve bildirim
+izinlerinin <b>ne işe yaradığı tek tek anlatılıyor</b> — sesli/görüntülü arama ve
+gelen arama bildirimi için. İstersen <b>Şimdilik geç</b> diyebilirsin.
+<br><br><b>4 · YAKINIMDA:</b> Sol üstteki menüde <b>ilk sırada</b>. Üstte
+<b>harita</b>, altta <b>mesafeye göre sıralı</b> işletme kartları. Kategoriye ve
+mesafeye (2-50 km) göre süzebilirsin; haritadaki balona dokununca işletme açılır.
+<br><br><b>5 · YENİ KATEGORİLER:</b> <b>Eczane</b> ve <b>Otel</b> eklendi.
+<br><br><b>6 · İŞLETME KONUMU:</b> İşletme hesabında konumunu
+<b>bulunduğun yerden tek dokunuşla</b> ya da <b>koordinatı elle yazarak</b>
+belirleyebilirsin — konumu olmayan işletme Yakınımda listesinde çıkmaz.
+<br><br><b>7 · DÜZELTMELER:</b> Kayıtla açılan hesabın giriş yapamaması, izin
+ekranının iki kez çıkması, koyu temada beyaz ekranlarda yazının okunamaması ve
+işletme kaydederken konumun silinmesi giderildi.
+<br><br><b>Sınırlar:</b> Gönderide <b>konum</b> henüz yok (sohbette var). Ödeme yok.
+Arama <b>birebir</b> · Sohbet odası 20 konuşmacı + sınırsız dinleyici ·
+Canlı yayın 4 kişi + sınırsız izleyici.</div>`;
 
 let cikti = sablon
   .replace(/\{\{SAAT\}\}/g, saat)
@@ -89,8 +90,8 @@ const kontroller = [
   //    uretilmesini ENGELLEMEK — yoksa kullaniciya BIR ONCEKI surumun
   //    notlari gosterilir ve "yeni ne var" yalan olur.
   // ⚠️ YAPMA: bu satiri silme; yeni turda ANAHTAR IFADEYI degistir.
-  [cikti.includes('GÖNDERİDE SES') && cikti.includes('GÖNDERİDE ANKET'),
-    'turu 83 icerigi yazilmadi (YENI_ICERIK guncellenmemis)'],
+  [cikti.includes('KAYIT ARTIK ADIM ADIM') && cikti.includes('YAKINIMDA'),
+    'turu 85 icerigi yazilmadi (YENI_ICERIK guncellenmemis)'],
   // ⚠️ YALNIZ GORUNEN metin taranir. HTML/CSS/JS YORUMLARINDAKI ⚠️ isaretleri
   //    kullaniciya cizilmez ve serhin okunurlugu icin BILINCLI olarak durur.
   [!/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(
