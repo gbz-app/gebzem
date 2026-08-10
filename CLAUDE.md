@@ -17,6 +17,129 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (10 Agu 04:30): TURU 81 KODU BITTI, BACKEND DEPLOY EDILDI**
+  (**3efe91e**; migration 001->041 atilabilir kopyada dogrulandi, canlida
+  uygulandi = 51 tablo) + health ok, DB TRUNCATE edildi.
+  ✅ **CANLI SUNUCUDA 208/208 UCTAN UCA GECTI** · **192 ROTA CAKISMASIZ** ·
+  `go build`+`go vet`+`go test ./...` temiz · `flutter analyze` **0 hata 0 uyari**.
+  Build tetiklendi: android **31355519304** · ios **31355521019**.
+- **TURU 81 — YEDI OZELLIK** (kullanici istegi): medya olcusu (3. kez) · ses
+  paylasma · konum · anket · ileri tarihli paylasim · IBAN/kisi/etkinlik ·
+  acik-koyu tema + Ayarlar · 4 ekran onboarding · bolme secici (yazi).
+- ⚠️⚠️⚠️ **TURU 81 — ONCE KESIF YAPILDI (9 alt sistem, KOD YAZMADAN).**
+  Bu adim olmasaydi isin YARISI YENIDEN YAZILACAKTI, cunku cogunun altyapisi
+  ZATEN VARDI ve yalnizca BAGLANMAMISTI:
+  · **SES**: kayit + genlik + sunucu alanlari + oynatma balonu HEPSI calisiyor;
+    eksik olan `onTap` ve `kayitSeridi()`nin CAGRILMAMASIYDI.
+  · **KONUM**: `location` tipi DB CHECK'inde ve sunucu beyaz listesinde VARDI.
+  · **KISI**: `contact` tipi CHECK'te VARDI, Go beyaz listesi REDDEDIYORDU.
+  · **ANKET**: `docs/medya-arastirma/tasarim-anket.md` icinde **669 satirlik
+    tam muhendislik tasarimi** duruyordu.
+  ⚠️ **DERS: buyuk bir istek geldiginde ONCE "bunun ne kadari zaten var?"
+     diye SOR.** Bu projede ozelliklerin buyuk kismi "yazilmis ama
+     baglanmamis" durumda.
+- ⚠️⚠️⚠️ **TURU 81 — MEDYA OLCUSU: MODEL TERSINE DONDU (kullanicinin UCUNCU
+  sikayeti).** Kullanici: *"tek fotograflarda BAZILARI GENISLIK DAHA AZ
+  BAZILARI BUYUK, bunun mantigi nedir, BIZIM DE BOYLE OLMASI GEREKIYOR"*.
+      ESKI: genislik sabit -> yukseklik hesaplanir -> `cover` KIRPAR (%41-51)
+      YENI: **yukseklik sabit -> genislik ORANDAN gelir -> KIRPMA YOK**
+  ⚠️ ON KOSUL: `media_assets.width/height` 015'ten beri VARDI, presign ucu
+     kabul ediyordu, `yukle()` parametreleri tasiyordu — ama **17 CAGRI
+     YERININ HICBIRI DEGER GECMIYORDU**. Sutun bastan beri OLUYDU.
+  ⚠️ Olcum **`yukle()` ICINDE** yapilir, CAGRI YERLERINDE DEGIL (17 yerden
+     biri kesin unutulurdu). Gorselde `ui.ImageDescriptor.encoded` (yalniz
+     BASLIK okunur; tam decode 1600x1600 icin ~10 MB gecici RAM demekti).
+  ⚠️ `media_boyut` ("WxH") **`medyaTurleri` sabitine** eklendi — o sabiti YEDI
+     sorgu da kullandigi icin "6'ya ekleyip 7.'yi atlama" hatasi YAPISAL
+     OLARAK imkansiz.
+  ⚠️ Coklu galeri **`PageView` -> `ScrollController` + `ListView`**: `PageView`
+     TANIM GEREGI esit genislik ister. Turu 76b'nin yasagi `ListView`in
+     KENDISINE degil **`PageScrollPhysics`e** aitti (sabit-viewport varsayimi).
+     ⚠️ YAPMA: buraya `PageScrollPhysics`/`snap` ekleme.
+- ⚠️⚠️ **TURU 81 — SES: OZELLIK VARDI, KESFEDILEMEZDI.** Mikrofonda YALNIZ
+  `onLongPressStart/End` vardi (`onTap` YOK) ve `kayitSeridi()` REPODA
+  HICBIR YERDEN CAGRILMIYORDU — serhi *"turu 74b'de duzeltildi"* dese de
+  yalnizca `kayitAlani()` baglanmisti. Genlik 100ms'de bir okunuyordu ama
+  YALNIZCA sunucuya gonderilmek uzere; kayit aninda HICBIR SEY cizilmiyordu.
+  ⚠️ **DERS: "test edildi" yazan bir ozellik KESFEDILEBILIR mi diye ayrica sor.**
+- ⚠️⚠️ **TURU 81 — ANKET: TASARIMIN KENDI TUZAGINA DUSMEDIK.** Tasarim
+  `messages_type_check`i YENIDEN KURUYORDU; migration 039 (ayni tur) onu
+  ZATEN kurmustu. Tasarimin yazdigi kume `document`, `contact`, `iban`,
+  `etkinlik` tiplerini ICERMIYOR ve calissaydi **DORDUNU BIRDEN SESSIZCE
+  DUSURURDU**. Migration 040 kisita HIC DOKUNMUYOR.
+  ⚠️ 015'in "DOKUNMAYIN" serhinin korudugu sey tip kumesini DONDURMAK DEGIL,
+     **BIRBIRINDEN HABERSIZ IKI YENIDEN KURULUM**dur.
+- ⚠️⚠️ **TURU 81 — ZAMANLANMIS PAYLASIMDA SUPURGE YOK (tasarim kazanci).**
+  Akis OKUMA ZAMANI calistigi icin (turu 75) `yayin_at <= now()` yuklemi
+  yeterli. Bir sweeper'dan yalniz daha basit degil **DAHA GUVENLI**: sweeper
+  calismazsa gonderi HIC yayinlanmaz ve kullanici sebebini bilemez.
+  ⚠️ `created_at = yayin_at` YAZILIR: siralama ve imlec `created_at` uzerinden
+     yuruyor; olusturma ani birakilsaydi yarina zamanlanan gonderi
+     yayinlandiginda **DUNUN SIRASINDA** belirip GOMULURDU.
+- 🛡️ **TURU 81 — YENI MUHAFIZ: `internal/social/yayin_test.go`.**
+  Mevcut `sutun_test.go` YALNIZCA SELECT sutun listesini dogruluyor,
+  **WHERE yuklemini DEGIL** — yani yuklem bir sorguda eksik kalirsa
+  YAPISAL OLARAK yakalayamaz. Yeni muhafiz **ANINDA GERCEK BIR BOSLUK BULDU**
+  (`erisebilirMi`: yayinlanmamis gonderi ETKILESIME ACIKTI).
+  ⚠️ Calistigi, yuklem BIR SORGUDAN CIKARILIP test kirmiziya dusurulerek
+     KANITLANDI. Denetim ayrica muhafizin **IKI YUZEYDE calismadigini** buldu
+     (arama deseni `FROM posts p JOIN users` idi) -> `FROM posts p`ye
+     genisletildi; 9 sorgu taraniyor, iki mesru istisna GEREKCESIYLE yazili.
+- ⚠️⚠️⚠️ **TURU 81b — DENETIM: 31 AJAN, 25 BULGU -> 21 ONAYLANDI, 6 SEVK
+  ENGELI. HEPSI DUZELTILDI.** En agirlari:
+  · **ACIK TEMADA TUM SOHBET OKUNAMAZ**: balon renkleri SABIT KOYU, icindeki
+    yazi TEMADAN (acik temada siyah) -> **1.23:1 kontrast** (olculdu). Turun
+    getirdigi acik tema, uygulamanin EN COK KULLANILAN ekranini yok ediyordu.
+    FIX: `ChatColors` `brightness`e baglandi.
+    ⚠️ **DURUST SINIR: kod tabaninda ~500 sabit renk noktasi var**; tema
+       iskeleti dogru olsa da o noktalar acik temada TEMANIN DISINDA kalir.
+       Sohbet EN KRITIGIYDI ve kapatildi; digerleri kademeli cevrilmeli.
+  · **BASILI TUT BOZULDU**: kayit baslayinca `build()` seride donuyor ->
+    mikrofonun `GestureDetector`i AGACTAN SILINIYOR -> `onLongPressEnd` BIR
+    DAHA CALISAMAZ -> parmagini kaldiran kullanicinin kaydi 10 dk tavana
+    kadar TAKILI kaliyordu. Serhim *"WhatsApp deseni KORUNDU"* diyordu —
+    **KORUNMAMISTI** (projenin en sik sinifi, kendi eklememde).
+    ⚠️ Jest ONARILMADI **KALDIRILDI**: serit tasarimiyla YAPISAL OLARAK
+       bagdasmiyor ve kullanici zaten "bir defa tiklama yeterli" dedi.
+  · **CANLI DALGA HIC CIZILMIYORDU**: `shouldRepaint` AYNI liste nesnesinin
+    uzunlugunu KENDISIYLE karsilastiriyordu -> her zaman `false`. Uzunluk
+    artik KURULUM ANINDA yakalaniyor.
+  · **`poll.vote`/`poll.closed` ISTEMCIDE DINLENMIYORDU** (sunucu uretiyor,
+    tuketen yok) — biri oy verdiginde digerlerinin ekraninda HICBIR SEY
+    degismiyordu.
+  · **SOHBET LISTESI ONIZLEMESI HAM ICERIK BASIYORDU**: sunucudaki switch
+    duzeltilmisti ama **ISTEMCININ KENDI KOPYASI** atlanmisti -> listede
+    `TR33...|Ahmet` gorunurdu (**IBAN SIZINTISI**, ayrica PUSH'a da giderdi).
+  · **ZAMANLANMIS GONDERI GECMISE YAYINLANIYORDU** (siralama `created_at`).
+  · **WS DUZELTMEM `mine` ALANLARINI EZIYORDU**: yayin govdesi ORTAKTIR
+    (sifir UUID), yani `mine` her secenekte false. Dogrudan atayinca BASKA
+    BIRI oy verdiginde **KULLANICININ KENDI OYU EKRANDAN SILINIYORDU**.
+    FIX: `yayinlaBirlestir()` — sayimlar yayindan, `benim` YERELDEN.
+- ⚠️⚠️ **TURU 81 — KENDI BULDUKLARIM (denetim beklerken):**
+  · **ANKET YAYINI HIC YAPILMIYORDU**: `anketOku(ctx, pollID, "")` — bos dize
+    gecerli UUID DEGIL. **CANLI DB'DE DOGRULANDI:**
+    `invalid input syntax for type uuid: ""`. `anketOku` hata doner,
+    `anketYayinla` log basip cikar ve **WS yayini HIC yapilmaz.**
+    FIX: sifir UUID (`00000000-...`).
+  · **ONBOARDING HICBIR CIHAZDA ACILMAYACAKTI**: `_p?.getBool(k) ?? true`
+    ifadesi "depo ACILAMADI" ile "anahtar HENUZ YAZILMADI" (= TEMIZ KURULUM)
+    durumlarinin IKISINI DE `true`ya ceviriyordu. Dort ekran yazilmis olmasina
+    ragmen kullanici onlari HIC GORMEYECEKTI.
+- 📊 **TURU 81 — E2E 181 -> 208.** En degerli kontrol: **"GERCEK olcu
+  ZINCIRDEN geciyor"** — ilk yazimda **KIRMIZI DUSTU** ve gercek bir bosluk
+  gosterdi: e2e araci presign'da `width/height` GONDERMIYORDU, yani zincir
+  (presign -> sutun -> gonderi sorgusu) HIC SINANMIYORDU. Cikti artik
+  `["1080x1350","0x0"]`.
+  ⚠️ E2E ayrica **KENDI DUZELTMEMIN YAN ETKISINI YAKALADI**:
+     `created_at = yayin_at` degisikligi yazarin kendi zamanladigi gonderisini
+     **GORUNURLUK yuklemine degil IMLECE** takiyordu (`now + 1 saat` tavani).
+     Statik denetim GOREMEZDI.
+- 📌 **MIGRATION NUMARALARI (guncel):** 039 = mesaj tipleri (`iban`,`etkinlik`)
+  · 040 = anket (`polls`,`poll_options`,`poll_votes`) · 041 = `posts.yayin_at`.
+  Sonraki **042**'den.
+- ⏳ **EN SONA BIRAKILAN (kullanici emri):** `active_call_controller.dart`
+  ~500 satirlik olu bekletme/park zinciri temizligi.
+
 - **KALDIGIMIZ YER (10 Agu 00:35): TEST TURU 80 YAYINLANDI** — android **31336651933**
   + ios **31336653481** (**edc0da8**), R2 apk=117730375 (md5 f97e5cb7) ipa=24040413
   (md5 63b38976) index=9624 (md5 50bc97cb), purge OK, **CDN BIREBIR** (apk + ipa +

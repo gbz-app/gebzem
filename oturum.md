@@ -5826,3 +5826,110 @@ ex-işletmenin geçmiş kayıtlarına giden tek arayüz yolunu kapatıyordu.
 **"Build ALMAK yayınlamak DEĞİLDİR."** Bu turda **üç build** alındı, ilk **ikisi
 yayınlanmadı**: birincisinden sonra galeri genişliği düzeltmesi çıktı, ikincisinden
 sonra denetim iki sevk engeli buldu. Yalnızca üçüncüsü (edc0da8) yayınlandı.
+
+---
+
+## Oturum — 10 Ağustos 2026 · TURU 81: YEDİ ÖZELLİK
+
+Kullanıcının istekleri: medya boyutu (3. kez) · ses paylaşma · konum paylaşma ·
+anket · ileri tarihli paylaşım · IBAN/kişi/etkinlik paylaşma · açık-koyu tema +
+ayarlar · 4 ekran onboarding · "Takip Ettiklerin | Keşfet" düğme değil yazı.
+
+### 🔍 ÖNCE KEŞİF (9 alt sistem, kod yazmadan)
+Keşif olmasaydı işin yarısı **yeniden yazılacaktı** — çünkü çoğunun altyapısı
+zaten vardı, yalnızca bağlanmamıştı:
+
+| Alan | Keşif sonucu |
+|---|---|
+| Ses | Kayıt/dalga/sunucu alanları/oynatma **hepsi çalışıyor**; `onTap` yok, kayıt şeridi hiç çağrılmıyor |
+| Konum | `location` tipi DB CHECK'inde + sunucu beyaz listesinde **var**, gönderen yol yok (8. ölü özellik) |
+| Kişi | `contact` tipi CHECK'te **var**, Go beyaz listesi reddediyor |
+| Anket | `docs/` altında **669 satırlık tam mühendislik tasarımı** duruyor |
+| Medya ölçüsü | `width/height` sütunları 015'ten beri var, **17 çağrının hiçbiri doldurmuyor** |
+| Tema | `themeMode: system` **fiilen no-op** (iki tema da `_koyu()`) |
+
+### ✅ YAPILANLAR
+
+**1 · MEDYA ÖLÇÜSÜ (asıl şikâyet, 3. kez).** Model tersine döndü:
+**yükseklik sabit → genişlik fotoğrafın kendi oranından**. Dikey dar, yatay
+geniş, **kırpma yok** — kullanıcının Threads ekran görüntüsündeki davranış.
+Zincirin ucu birden bağlandı: ölçüm `yukle()`nin **içinde** (17 çağrı yerine
+bırakılsaydı biri unutulurdu) · `medyaTurleri` sabiti `media_boyut` döndürüyor
+(7 sorgu birden) · `Gonderi.enBoy()` · çoklu galeri `PageView` → `ListView`
+(PageView tanım gereği eşit genişlik ister; turu 76b'nin yasağı `ListView`e
+değil `PageScrollPhysics`e aitti).
+
+**2 · SES KAYDI.** Tek dokunuş + tam genişlikte mor şerit (çöp · **canlı
+dalga** · süre · gönder). Dalga projenin ilk `CustomPainter`'ı.
+
+**3 · KONUM.** `geolocator` + `url_launcher`, izinler, gönderen yol + balon.
+Harita SDK'si gömülmedi (API anahtarı + faturalandırma; cihazın kendi haritası
+"Haritada aç" ile açılıyor).
+
+**4 · KİŞİ · IBAN · ETKİNLİK** (migration 039). IBAN **mod-97 doğrulamalı**
+(yanlış IBAN'a havale geri dönmez).
+
+**5 · ANKET** (migration 040 + 4 uç + arayüz). Mevcut tasarımdan.
+⚠️ Tasarım `messages_type_check`'i yeniden kuruyordu; 039 onu zaten kurmuştu —
+tasarımınki çalışsaydı `document`, `contact`, `iban`, `etkinlik` tiplerinin
+**dördünü birden sessizce düşürecekti**. 040 kısıta hiç dokunmuyor.
+
+**6 · İLERİ TARİHLİ PAYLAŞIM** (migration 041). **Süpürge yok** — akış
+okuma-zamanlı olduğu için `yayin_at <= now()` yüklemi yeterli ve bir süpürgeden
+**daha güvenli** (süpürge çalışmazsa gönderi hiç yayınlanmaz).
+
+**7 · TEMA · AYARLAR · ONBOARDING · BÖLME SEÇİCİ.** Gerçek açık tema,
+Ayarlar ekranı (uygulamada hiç yoktu), 4 ekran onboarding, solda kalın yazı.
+
+### ⚠️⚠️ DENETİM: 31 AJAN · 25 BULGU → 21 ONAYLANDI · **6 SEVK ENGELİ**
+
+Hepsi düzeltildi. En ağırları:
+
+1. **Açık temada TÜM SOHBET OKUNAMAZ.** Balon renkleri sabit koyu, içindeki
+   yazı temadan (açık temada siyah) → 1.23:1 kontrast (ölçüldü). Turun
+   getirdiği açık tema, uygulamanın en çok kullanılan ekranını yok ediyordu.
+2. **Basılı tut bozuldu.** Kayıt başlayınca `build()` şeride dönüyor →
+   mikrofonun `GestureDetector`'ı ağaçtan siliniyor → `onLongPressEnd` bir daha
+   çalışamıyor → parmağını kaldıran kullanıcının kaydı 10 dk tavana kadar
+   takılı kalıyordu. Şerhim "korundu" diyordu, **korunmamıştı**. Jest onarılmadı
+   **kaldırıldı** (şerit tasarımıyla yapısal olarak bağdaşmıyor).
+3. **Canlı dalga hiç çizilmiyordu.** `shouldRepaint` aynı liste nesnesinin
+   uzunluğunu kendisiyle karşılaştırıyordu → her zaman `false`.
+4. **`poll.vote`/`poll.closed` dinlenmiyordu.** Sunucu yayınlıyor, tüketen yok.
+5. **Sohbet listesi önizlemesi ham içerik basıyordu.** Sunucudaki switch
+   düzeltilmişti ama **istemcinin kendi kopyası** atlanmıştı → listede
+   `TR33...|Ahmet` görünürdü (IBAN sızıntısı).
+6. **Zamanlanmış gönderi geçmişe yayınlanıyordu** (sıralama `created_at` ile).
+
+### 🔎 KENDİ BULDUKLARIM (denetim beklerken)
+- **Anket yayını hiç yapılmıyordu**: `anketOku(ctx, pollID, "")` — boş dize
+  geçerli UUID değil. **Canlı DB'de doğrulandı:**
+  `invalid input syntax for type uuid: ""`. Oy verilince kimse canlı görmüyordu.
+- **Onboarding hiçbir cihazda açılmayacaktı**: `?? true` iki farklı durumu
+  ("depo yok" / "anahtar henüz yazılmadı") birbirine karıştırıyordu; temiz
+  kurulumda "görüldü" sayılıyordu.
+
+### 🛡️ MUHAFIZLAR
+- **`yayin_test.go` (YENİ)**: mevcut `sutun_test.go` yalnız SELECT'i doğruluyor,
+  **WHERE'i değil** — yani zamanlanmış gönderi yükleminin bir sorguda eksik
+  kalmasını yapısal olarak yakalayamaz. Yeni muhafız **anında gerçek bir boşluk
+  buldu** (`erisebilirMi`: yayınlanmamış gönderi etkileşime açıktı).
+  Çalıştığı, yüklem çıkarılıp test kırmızıya düşürülerek **kanıtlandı**.
+  Denetim ayrıca muhafızın **iki yüzeyde çalışmadığını** buldu (arama deseni dar);
+  genişletildi, 9 sorgu taranıyor ve iki meşru istisna **gerekçesiyle** yazıldı.
+- `sutun_test.go` beklenen sütunları `media_boyut` + `yayin_at` ile güncellendi.
+
+### 📊 E2E 181 → 208
+En değerli kontrol: **"GERÇEK ölçü ZİNCİRDEN geçiyor"** — ilk yazımda **kırmızı
+düştü** ve gerçek bir boşluk gösterdi: e2e aracı presign'da `width/height`
+göndermiyordu, yani zincir hiç sınanmıyordu. Çıktı artık
+`["1080x1350","0x0"]`.
+E2E ayrıca **kendi düzeltmemin yan etkisini yakaladı**: `created_at = yayin_at`
+değişikliği yazarın kendi zamanladığı gönderisini **imleç tavanına** takıyordu
+(görünürlük yüklemine değil) — statik denetim göremezdi.
+
+### Durum
+- Migration **001→041** atılabilir kopyada doğrulandı, canlıda uygulandı (51 tablo)
+- Backend deploy (**3efe91e**) + health ok · **E2E 208/208 canlıda**
+- `go build` + `go vet` + `go test ./...` temiz · `flutter analyze` **0 hata 0 uyarı**
+- 192 rota çakışmasız
