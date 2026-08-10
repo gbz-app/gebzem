@@ -87,6 +87,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   /// TURU 74: ses notu kaydedicisine erisim (kayit seridi + basili tut alani).
   final _sesKey = GlobalKey<State<SesNotuKaydedici>>();
+
+  /// ⚠️ TURU 81 — ses kaydı sürüyor mu? Kaydedici `onDurum` ile bildirir;
+  ///    true iken giriş çubuğu (ataç + metin alanı) GİZLENİR ve kaydedici tam
+  ///    genişlikte şeride dönüşür. Tek kaynak KAYDEDİCİDİR — burada bağımsız
+  ///    bir kayıt durumu tutulmaz.
+  bool _sesKayitta = false;
   Timer? _durumTimer;
   ProviderSubscription? _aramaSub;
   bool _oncekiAramaVar = false;
@@ -624,6 +630,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
               child: Row(
                 children: [
+                  // ⚠️⚠️⚠️ TURU 81 — KAYIT SÜRERKEN GİRİŞ ÇUBUĞU YERİNİ ŞERİDE
+                  //    BIRAKIR (Instagram deseni). Kaydedici o anda tam
+                  //    genişlikte çizilir: [çöp] ~dalga~ 0:07 [gönder].
+                  //    Aksi halde şerit dar bir Row hücresine sıkışır ve
+                  //    dalga görünmezdi.
+                  // ⚠️ Durum kaydediciden `onDurum` ile gelir; burada AYRI bir
+                  //    kayıt bayrağı TUTULMAZ (iki kopya drift ederdi).
+                  if (_sesKayitta)
+                    Expanded(
+                      child: SesNotuKaydedici(
+                        key: _sesKey,
+                        onKayit: _sesNotuGonder,
+                        onDurum: (k) => setState(() => _sesKayitta = k),
+                      ),
+                    )
+                  else ...[
                   // ⚠️ TURU 74 — ATAÇ. Medya sunucuda kapalıysa (R2 env yok) düğme
                   //    HİÇ ÇİZİLMEZ: `GET /users/me` yanıtındaki `media_acik`.
                   //    Görünen ama çalışmayan düğme, turu 66b dersinin tekrarı olurdu.
@@ -662,12 +684,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   //    `SesNotuKaydedici._basla` içinde. Ölçülmüş gerekçe:
                   //    turu 64 `!pri`, turu 65 `didActivate` gelmiyor, turu 62-C rota.
                   if (_medyaAcik && _input.text.trim().isEmpty)
-                    SesNotuKaydedici(key: _sesKey, onKayit: _sesNotuGonder)
+                    SesNotuKaydedici(
+                      key: _sesKey,
+                      onKayit: _sesNotuGonder,
+                      onDurum: (k) => setState(() => _sesKayitta = k),
+                    )
                   else
                     FloatingActionButton.small(
                       onPressed: _sending ? null : _send,
                       child: const Icon(LucideIcons.send),
                     ),
+                  ],
                 ],
               ),
             ),

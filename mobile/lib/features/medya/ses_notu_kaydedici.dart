@@ -31,10 +31,23 @@ import 'ses_notu_kontrol.dart';
 ///     kaçırır.
 /// ⚠️ Kodek `aacLc` — opus Android 29+ ister, bizim minSdk 24.
 class SesNotuKaydedici extends ConsumerStatefulWidget {
-  const SesNotuKaydedici({super.key, required this.onKayit});
+  const SesNotuKaydedici({
+    super.key,
+    required this.onKayit,
+    this.onDurum,
+  });
 
   /// (dosya, süreMs, dalgaFormu) — kaydedici GÖNDERMEZ, çağırana verir.
   final void Function(File dosya, int sureMs, String dalga) onKayit;
+
+  /// ⚠️⚠️ TURU 81 — KAYIT DURUMU ÇAĞIRANA BİLDİRİLİR.
+  ///
+  /// Kayıt başlayınca widget **tüm giriş çubuğunu kaplayan** bir şeride
+  /// dönüşür (Instagram deseni: çöp · canlı dalga · süre · gönder). Sohbet
+  /// ekranı bunu bilmek ZORUNDA, çünkü o sırada metin alanını ve ataç
+  /// düğmesini GİZLEMESİ gerekiyor — aksi halde şerit dar bir Row hücresine
+  /// sıkışırdı.
+  final void Function(bool kayitta)? onDurum;
 
   @override
   ConsumerState<SesNotuKaydedici> createState() => _SesNotuKaydediciState();
@@ -130,6 +143,7 @@ class _SesNotuKaydediciState extends ConsumerState<SesNotuKaydedici> {
     //     itibaren kirmizi "iptal edilecek" cizilirdi).
     _iptalBolgesi = false;
     setState(() => _kayitta = true);
+    widget.onDurum?.call(true);
 
     _sayac = Timer.periodic(const Duration(milliseconds: 100), (_) {
       if (mounted) setState(() => _ms += 100);
@@ -142,6 +156,15 @@ class _SesNotuKaydediciState extends ConsumerState<SesNotuKaydedici> {
       // dBFS (-160..0) -> 0..99
       final n = ((a.current + 45) / 45 * 99).clamp(0, 99).toInt();
       if (_dalga.length < 600) _dalga.add(n);
+      // ⚠️⚠️ TURU 81 — CANLI DALGA. Genlik turu 74'ten beri OKUNUYORDU ama
+      //    YALNIZCA sunucuya gönderilmek üzere biriktiriliyordu; kayıt
+      //    sırasında HİÇBİR ŞEY çizilmiyordu (kullanıcının tek geri bildirimi
+      //    mikrofon ikonunun yeşile dönmesiydi ve o da fark edilmiyordu).
+      //    Kullanıcı bu yüzden "ses paylaşma YOK" dedi — özellik vardı ama
+      //    GÖRÜNMÜYORDU.
+      // ⚠️ `setState` BURADA: sayaç zaten 100ms'de bir çiziyor, yani ek maliyet
+      //    yok; ayrı bir tik eklemek gereksiz kare üretirdi.
+      if (mounted) setState(() {});
     });
   }
 
@@ -152,6 +175,7 @@ class _SesNotuKaydediciState extends ConsumerState<SesNotuKaydedici> {
     _genlikSub = null;
     final sure = _ms;
     setState(() => _kayitta = false);
+    widget.onDurum?.call(false);
     SesNotuKontrol.birak(_sahip);
 
     String? yol;
@@ -235,15 +259,30 @@ class _SesNotuKaydediciState extends ConsumerState<SesNotuKaydedici> {
   /// balonu da hiç oluşmuyordu.
   /// `flutter analyze` bunu YAKALAMAZ: ikisi de public sınıfın public metodu.
   /// ⚠️ YAPMA: `build()`i tekrar gesture'sız bir düğmeye çevirme.
+  /// ⚠️⚠️⚠️ TURU 81 — İKİ DURUMLU: mikrofon düğmesi / TAM GENİŞLİKTE kayıt şeridi.
+  ///
+  /// Kullanıcı: *"ses kaydederken BİR DEFA TIKLAMA yeterli, kayıt esnasında
+  /// GERÇEKÇİ SES DALGALARI olmalı"* (Instagram ekran görüntüsü).
+  ///
+  /// ⚠️ Turu 74'te özellik VARDI ama **KEŞFEDİLEMEZDİ**: mikrofonda yalnız
+  ///    `onLongPressStart/End` vardı, `onTap` YOKTU — düz dokunuş hiçbir şey
+  ///    yapmıyor, hiçbir geri bildirim vermiyordu. Üstelik `kayitSeridi()`
+  ///    **hiçbir yerden çağrılmıyordu** (şerhi "turu 74b'de düzeltildi" dese de
+  ///    yalnızca `kayitAlani()` bağlanmıştı), yani kayıt sırasında süre sayacı
+  ///    bile görünmüyordu. Kullanıcı bu yüzden "ses paylaşma YOK" dedi.
   @override
   Widget build(BuildContext context) {
-    // Kayıt şeridi giriş çubuğunun ÜSTÜNDE çizilir; onu çağıran taraf
-    // `SesNotuKaydedici.seritOf(context)` ile değil, `onSerit` geri çağrısıyla alır.
-    return kayitAlani();
+    if (_kayitta) return _kayitSeridi(context);
+    return _mikrofonDugmesi();
   }
 
-  /// Basılı tut alanı — `build()` bunu döndürür.
-  Widget kayitAlani() => GestureDetector(
+  /// ⚠️ HEM DOKUNUŞ HEM BASILI TUTMA desteklenir:
+  ///   · `onTap`        -> başlat (ikinci dokunuş şeritteki düğmelerle biter)
+  ///   · `onLongPress*` -> WhatsApp deseni (bas-konuş-bırak) KORUNDU
+  /// İkisi çakışmaz: uzun basışta `onTap` tetiklenmez.
+  /// ⚠️ YAPMA: `onTap`i kaldırma — kullanıcının açıkça istediği etkileşim bu.
+  Widget _mikrofonDugmesi() => GestureDetector(
+        onTap: _basla,
         onLongPressStart: (_) => _basla(),
         onLongPressEnd: (_) => _durdur(gonder: !_iptalBolgesi),
         onLongPressMoveUpdate: (d) {
@@ -255,36 +294,118 @@ class _SesNotuKaydediciState extends ConsumerState<SesNotuKaydedici> {
           }
         },
         child: Container(
-          padding: const EdgeInsets.all(10),
-          child: Icon(LucideIcons.mic,
-              color: _kayitta
-                  ? (_iptalBolgesi ? Colors.red : const Color(0xFF25D366))
-                  : null),
+          // ⚠️ 44dp dokunma alanı (Material 48 / Apple 44). Turu 78b'de
+          //    17x17dp bir düğme yüzünden özellik fiilen ulaşılamazdı.
+          width: 44,
+          height: 44,
+          alignment: Alignment.center,
+          child: const Icon(LucideIcons.mic),
         ),
       );
 
-  /// Kayıt sürerken giriş çubuğunun üstünde çizilen şerit.
-  Widget? kayitSeridi() {
-    if (!_kayitta) return null;
+  /// Kayıt şeridi — giriş çubuğunun YERİNE geçer (Instagram deseni).
+  ///
+  /// Düzen:  [çöp]  ~~~canlı dalga~~~  0:07  [gönder]
+  ///
+  /// ⚠️ Süre sayacı ve dalga AYNI şeritte: kullanıcı kaydın gerçekten
+  ///    ilerlediğini iki bağımsız işaretten görür (donmuş bir dalga ile
+  ///    duran bir sayaç aynı anda olamaz).
+  Widget _kayitSeridi(BuildContext context) {
+    final mor = Theme.of(context).colorScheme.primary;
     return Container(
-      color: _iptalBolgesi ? const Color(0x22D32F2F) : const Color(0x2225D366),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      child: Row(children: [
-        Icon(_iptalBolgesi ? LucideIcons.trash2 : LucideIcons.mic,
-            size: 18, color: _iptalBolgesi ? Colors.red : const Color(0xFF25D366)),
-        const SizedBox(width: 10),
-        Text(_sureMetni,
-            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            _iptalBolgesi ? 'Bırakınca iptal edilecek' : 'İptal için sola kaydırın',
-            style: const TextStyle(fontSize: 12.5),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+      height: 48,
+      padding: const EdgeInsets.symmetric(horizontal: 6),
+      decoration: BoxDecoration(
+        color: mor,
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Row(
+        children: [
+          IconButton(
+            tooltip: 'Kaydı sil',
+            icon: const Icon(LucideIcons.trash2, color: Colors.white, size: 20),
+            onPressed: () => _durdur(gonder: false),
           ),
-        ),
-      ]),
+          Expanded(
+            child: CustomPaint(
+              painter: _DalgaCizer(_dalga),
+              size: Size.infinite,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            _sureMetni,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+              fontSize: 13,
+              // ⚠️ Sabit genişlikli rakam: sayaç ilerlerken dalga SAĞA SOLA
+              //    OYNAMASIN (0:09 -> 0:10 geçişinde bir piksel kayardı).
+              fontFeatures: [FontFeature.tabularFigures()],
+            ),
+          ),
+          const SizedBox(width: 6),
+          // ⚠️ GÖNDER: beyaz daire içinde mor ok (ekran görüntüsündeki gibi).
+          GestureDetector(
+            onTap: () => _durdur(gonder: true),
+            child: Container(
+              width: 36,
+              height: 36,
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(LucideIcons.send, size: 17, color: mor),
+            ),
+          ),
+        ],
+      ),
     );
   }
+}
+
+/// ⚠️⚠️ TURU 81 — CANLI SES DALGASI. Projedeki **İLK** `CustomPainter`.
+///
+/// Genlik `record` paketinden 100ms'de bir dBFS olarak gelir ve 0..99'a
+/// eşlenir (`_basla` içinde). Bu çizer yalnızca SON kovaları gösterir: şerit
+/// dar olduğu için tüm kayıt sığmaz ve sığdırmaya çalışmak çubukları
+/// görünmez inceliğe düşürürdü.
+///
+/// ⚠️ SAĞDAN SOLA akar (yeni ses SAĞDA belirir) — ses kaydı arayüzlerinin
+///    evrensel yönü budur; ters yön "geri sarıyor" izlenimi verir.
+/// ⚠️ `shouldRepaint` liste UZUNLUĞUNA bakar: her 100ms'de bir kova eklenir,
+///    yani uzunluk değişimi "yeni veri var" demektir. Referans eşitliği
+///    kullanılamaz (aynı liste yerinde büyüyor).
+class _DalgaCizer extends CustomPainter {
+  _DalgaCizer(this.kovalar);
+
+  final List<int> kovalar;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const cubuk = 3.0;
+    const ara = 2.0;
+    final adet = math.max(1, (size.width / (cubuk + ara)).floor());
+    final bas = math.max(0, kovalar.length - adet);
+    final boya = Paint()
+      ..color = Colors.white.withValues(alpha: 0.92)
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = cubuk;
+
+    for (var i = bas; i < kovalar.length; i++) {
+      final x = (i - bas) * (cubuk + ara) + cubuk / 2;
+      if (x > size.width) break;
+      // ⚠️ En az 3px: sessiz anlar tamamen kaybolmasın (ses notu balonundaki
+      //    statik dalgayla AYNI kural — iki çizim tutarlı görünmeli).
+      final y = 3 + (kovalar[i] / 99) * (size.height - 6);
+      canvas.drawLine(
+        Offset(x, (size.height - y) / 2),
+        Offset(x, (size.height + y) / 2),
+        boya,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DalgaCizer eski) => eski.kovalar.length != kovalar.length;
 }
