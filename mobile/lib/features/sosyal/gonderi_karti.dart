@@ -665,8 +665,17 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
             : kutuOf(0).h;
 
         // Galeride oge genisligi ORTAK yukseklikten turer (oran korunur).
+        //
+        // ⚠️ 96dp ALT TABAN: `satirY` ogelerin EN KISASI oldugu icin KARMA bir
+        //    galeride (ornegin 16:9 + 9:16) satir yatay ogeye gore alcalir ve
+        //    dikey oge cok darlasir. Olculdu: 390x844'te 9:16 oge **69dp**'ye
+        //    dusuyordu — pul kadar, dokunulamaz. Taban `medya_olcu.dart`ta
+        //    zaten belgeli ama galeri yolu `medyaKutusu`a UGRAMADIGI icin onu
+        //    ATLIYORDU. Taban bagladiginda yalniz O OGE hafifce kirpilir
+        //    (kacinilmaz: sabit yukseklikli bir satirda 16:9 ile 9:16 ayni
+        //    anda kirpilmadan duramaz) ve tam ekran yolu kurtarma saglar.
         double genislikOf(int i) => coklu
-            ? math.min(ogeTavani, satirY * _oran(i))
+            ? math.max(math.min(ogeTavani, satirY * _oran(i)), 96.0)
             : kutuOf(i).w;
 
         return SizedBox(
