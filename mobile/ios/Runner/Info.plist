@@ -87,5 +87,13 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<!-- TURU 85 — Google Maps anahtari.
+	     Deger CI'da `MAPS_API_KEY` secret'inden DOLDURULUR (PlistBuddy);
+	     repo PUBLIC oldugu icin burada BOS durur.
+	     ⚠️ Bos ise AppDelegate `provideAPIKey` CAGIRMAZ — Google SDK'si bos
+	        anahtarla cagrildiginda ASSERT ATIP UYGULAMAYI COKERTIR. O durumda
+	        harita yer tutucuya duser ve uygulama saglam calisir. -->
+	<key>MapsApiKey</key>
+	<string></string>
 </dict>
 </plist>

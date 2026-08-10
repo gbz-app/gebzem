@@ -30,6 +30,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/yenile.dart';
@@ -44,6 +45,45 @@ import 'isletme_servisi.dart';
 ///    beyaz, yollar beyaz, su acik gri-mavi. Gercek harita geldiginde AYNI
 ///    palet JSON stil olarak verilecek — yer tutucu ile harita arasinda
 ///    gorsel SICRAMA olmasin.
+/// ⚠️⚠️ HARITA ANAHTARI DERLEMEYE GOMULUDUR — istemci onu OKUYAMAZ (Android'de
+///    manifest meta-data, iOS'ta Info.plist; ikisi de native tarafta).
+///
+///    Bu bayrak `--dart-define=HARITA=1` ile gelir ve CI'da anahtar VARSA
+///    gecilir. Boylece: anahtar yoksa harita HIC KURULMAZ ve kullanici bozuk
+///    gri kutu yerine DURUST bir yer tutucu gorur.
+/// ⚠️ YAPMA: varsayilani `true` yapma — yerel `flutter run` (secret'siz)
+///    anahtarsiz calisir ve harita bozuk gorunurdu.
+const haritaAnahtariVar = bool.fromEnvironment('HARITA');
+
+/// ⚠️⚠️ **UBER TARZI GRIMSI-BEYAZ** harita stili (kullanici emri).
+///
+/// Google'in "silver" ailesinden: zemin kirli beyaz, yollar beyaz, POI ve
+/// ilgisiz etiketler KAPALI (kalabalik yapiyor), su acik gri-mavi.
+/// ⚠️ `cloudMapId` KULLANILMADI (CLAUDE.md yasagi — ucretli). Yerel JSON
+///    stil UCRETSIZDIR ve ayni gorunumu verir.
+/// ⚠️ Renkler yer tutucu paletiyle (`_zemin`/`_yol`/`_su`) AYNI aileden:
+///    anahtar eklendiginde gorsel SICRAMA olmasin.
+const _uberStili = '''
+[
+ {"elementType":"geometry","stylers":[{"color":"#f2f3f5"}]},
+ {"elementType":"labels.icon","stylers":[{"visibility":"off"}]},
+ {"elementType":"labels.text.fill","stylers":[{"color":"#8b8b93"}]},
+ {"elementType":"labels.text.stroke","stylers":[{"color":"#f2f3f5"}]},
+ {"featureType":"administrative","elementType":"geometry","stylers":[{"visibility":"off"}]},
+ {"featureType":"poi","stylers":[{"visibility":"off"}]},
+ {"featureType":"road","elementType":"geometry","stylers":[{"color":"#ffffff"}]},
+ {"featureType":"road","elementType":"geometry.stroke","stylers":[{"color":"#e4e6ea"}]},
+ {"featureType":"road","elementType":"labels","stylers":[{"visibility":"off"}]},
+ {"featureType":"road.arterial","elementType":"geometry","stylers":[{"color":"#ffffff"}]},
+ {"featureType":"road.highway","elementType":"geometry","stylers":[{"color":"#ffffff"}]},
+ {"featureType":"road.highway","elementType":"geometry.stroke","stylers":[{"color":"#dcdee3"}]},
+ {"featureType":"landscape.natural","elementType":"geometry","stylers":[{"color":"#e8ede6"}]},
+ {"featureType":"transit","stylers":[{"visibility":"off"}]},
+ {"featureType":"water","elementType":"geometry","stylers":[{"color":"#dde6ec"}]},
+ {"featureType":"water","elementType":"labels.text","stylers":[{"visibility":"off"}]}
+]
+''';
+
 const _zemin = Color(0xFFF2F3F5);
 const _yol = Color(0xFFFFFFFF);
 const _yolCizgi = Color(0xFFE4E6EA);
@@ -314,12 +354,55 @@ class _HaritaAlani extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            const ColoredBox(color: _zemin),
-            CustomPaint(painter: _SehirCizer()),
-            if (merkez != null)
-              CustomPaint(
-                painter: _IgneCizer(merkez: merkez!, isletmeler: isletmeler),
-              ),
+            // ⚠️⚠️ GERCEK HARITA — yalniz ANAHTAR VARSA.
+            //
+            //    Anahtar yoksa Google SDK'si Android'de "For development
+            //    purposes only" filigranli GRI KUTU, iOS'ta BOS ekran cizer
+            //    (iOS'ta `provideAPIKey` bos anahtarla cagrilirsa ASSERT ATIP
+            //    COKER — bu yuzden `AppDelegate` de bos kontrolu yapiyor).
+            //    O yuzden anahtarsiz derlemede ALTTAKI yer tutucu kalir:
+            //    konumlar DOGRU gorunur, yalnizca karo katmani olmaz.
+            // ⚠️ YAPMA: bu kapiyi kaldirip haritayi kosulsuz cizme.
+            if (haritaAnahtariVar && merkez != null)
+              GoogleMap(
+                initialCameraPosition: CameraPosition(
+                  target: LatLng(merkez!.enlem, merkez!.boylam),
+                  zoom: 13.5,
+                ),
+                // ⚠️ **UBER TARZI GRIMSI-BEYAZ**: stil YEREL JSON olarak
+                //    veriliyor. CLAUDE.md `cloudMapId` kullanimini yasakliyor
+                //    (ucretli); yerel stil UCRETSIZDIR ve ayni gorunumu verir.
+                style: _uberStili,
+                myLocationEnabled: true,
+                myLocationButtonEnabled: false,
+                // ⚠️ Harita bir LISTE ICINDE: kendi dikey jestini alirsa
+                //    kullanici sayfayi kaydiramaz. Yalniz YAKINLASTIRMA acik.
+                scrollGesturesEnabled: false,
+                rotateGesturesEnabled: false,
+                tiltGesturesEnabled: false,
+                zoomControlsEnabled: false,
+                mapToolbarEnabled: false,
+                markers: {
+                  for (final i in isletmeler)
+                    if (i.enlem != 0 || i.boylam != 0)
+                      Marker(
+                        markerId: MarkerId(i.id),
+                        position: LatLng(i.enlem, i.boylam),
+                        infoWindow: InfoWindow(
+                          title: i.ad,
+                          snippet: i.mesafeMetni,
+                        ),
+                      ),
+                },
+              )
+            else ...[
+              const ColoredBox(color: _zemin),
+              CustomPaint(painter: _SehirCizer()),
+              if (merkez != null)
+                CustomPaint(
+                  painter: _IgneCizer(merkez: merkez!, isletmeler: isletmeler),
+                ),
+            ],
             // Durust bilgi seridi.
             Positioned(
               left: 10,

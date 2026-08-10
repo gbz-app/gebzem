@@ -7,6 +7,7 @@ import AVFoundation              // AVSampleBufferDisplayLayer (PiP kare besleme
 import AVKit                      // iOS sistem PiP (AVPictureInPictureController)
 import WebRTC                     // WebRTC-SDK pod -> modul adi "WebRTC". Derleme riski burada;
                                   // patlarsa Podfile'a :modular_headers => true (bkz. Podfile notu).
+import GoogleMaps                 // TURU 85 - Yakinimda haritasi
 import flutter_callkit_incoming
 
 // KILIT EKRANINDA GELEN ARAMA (iOS) — CallKit + PushKit + WebRTC ses koprusu.
@@ -37,6 +38,21 @@ import flutter_callkit_incoming
     if #available(iOS 16.0, *) {
       GebzemKameraKanca.kur()
       GebzemPip.shared.kesintileriDinle()
+    }
+
+    // ⚠️⚠️ TURU 85 — GOOGLE MAPS ANAHTARI.
+    //
+    //    Anahtar Info.plist'teki `MapsApiKey` alanindan okunur; o alan CI'da
+    //    `MAPS_API_KEY` secret'indan DERLEME ANINDA doldurulur (repo PUBLIC
+    //    oldugu icin anahtar kaynak koda YAZILAMAZ).
+    // ⚠️ BOS ISE `provideAPIKey` CAGRILMAZ: Google'in SDK'si bos anahtarla
+    //    cagrildiginda **ASSERT ATIP UYGULAMAYI COKERTIR**. Istemci tarafinda
+    //    ayrica `haritaAnahtariVar` kapisi var ve harita yerine yer tutucu
+    //    cizilir — yani anahtarsiz derleme SAGLAM calisir.
+    // ⚠️ YAPMA: buraya gercek anahtari yazma; bos kontrolunu kaldirma.
+    if let mapsKey = Bundle.main.object(forInfoDictionaryKey: "MapsApiKey") as? String,
+       !mapsKey.isEmpty, !mapsKey.hasPrefix("$(") {
+      GMSServices.provideAPIKey(mapsKey)
     }
 
     let voipRegistry = PKPushRegistry(queue: DispatchQueue.main)

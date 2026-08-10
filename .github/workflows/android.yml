@@ -42,7 +42,20 @@ jobs:
 
       - name: APK derle
         working-directory: mobile
-        run: flutter build apk --release --build-number=${GITHUB_RUN_NUMBER} --build-name=1.0.${GITHUB_RUN_NUMBER} --dart-define=API_URL=https://api.gebzem.app
+        # ⚠️ TURU 85 — MAPS_API_KEY ortam degiskeni olarak gecer;
+        #    `android/app/build.gradle.kts` onu manifestPlaceholder yapar ve
+        #    AndroidManifest'teki ${MAPS_API_KEY} doldurulur.
+        #    Repo PUBLIC oldugu icin anahtar KAYNAK KODA yazilamaz.
+        # ⚠️ Secret tanimli degilse bos gecer: harita yer tutucuya duser,
+        #    derleme BOZULMAZ.
+        env:
+          MAPS_API_KEY: ${{ secrets.MAPS_API_KEY }}
+        run: |
+          # HARITA=1 YALNIZ anahtar varsa: yoksa istemci haritayi HIC kurmaz
+          # ve bozuk gri kutu yerine durust yer tutucu cizer.
+          EK=""
+          [ -n "$MAPS_API_KEY" ] && EK="--dart-define=HARITA=1"
+          flutter build apk --release --build-number=${GITHUB_RUN_NUMBER} --build-name=1.0.${GITHUB_RUN_NUMBER} --dart-define=API_URL=https://api.gebzem.app $EK
 
       - uses: actions/upload-artifact@v4
         with:

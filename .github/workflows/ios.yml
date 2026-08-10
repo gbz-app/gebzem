@@ -43,11 +43,26 @@ jobs:
 
       - name: IPA derle
         working-directory: mobile
+        # ⚠️ TURU 85 — Maps anahtari Info.plist'e DERLEME ONCESI yazilir.
+        #    Android'den farkli: iOS'ta manifestPlaceholder yok, `AppDelegate`
+        #    anahtari `Bundle.main` uzerinden Info.plist'ten okuyor.
+        # ⚠️ Repo PUBLIC — anahtar kaynak koda YAZILAMAZ.
+        env:
+          MAPS_API_KEY: ${{ secrets.MAPS_API_KEY }}
         run: |
+          if [ -n "$MAPS_API_KEY" ]; then
+            /usr/libexec/PlistBuddy -c "Set :MapsApiKey $MAPS_API_KEY" ios/Runner/Info.plist
+            echo "Maps anahtari Info.plist'e yazildi"
+          else
+            echo "UYARI: MAPS_API_KEY secret YOK — harita yer tutucu ile derlenecek"
+          fi
+          EK=""
+          [ -n "$MAPS_API_KEY" ] && EK="--dart-define=HARITA=1"
           flutter build ipa --release \
             --build-number=${GITHUB_RUN_NUMBER} \
             --build-name=1.0.${GITHUB_RUN_NUMBER} \
             --dart-define=API_URL=https://api.gebzem.app \
+            $EK \
             --export-options-plist=$HOME/export_options.plist
           ls -la build/ios/ipa/
 

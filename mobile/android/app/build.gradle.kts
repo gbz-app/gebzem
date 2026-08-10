@@ -35,6 +35,16 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        // ⚠️⚠️ TURU 85 — GOOGLE MAPS ANAHTARI **DERLEME ANINDA** enjekte edilir.
+        //
+        //    Repo PUBLIC oldugu icin anahtar AndroidManifest'e ELLE YAZILAMAZ;
+        //    CI'da `MAPS_API_KEY` secret'indan gelir. Yerelde (secret yokken)
+        //    BOS kalir ve harita widget'i yer tutucuya duser — yani
+        //    `flutter run` BOZULMAZ, yalnizca karo katmani gorunmez.
+        // ⚠️ YAPMA: buraya gercek anahtari yazma.
+        manifestPlaceholders["MAPS_API_KEY"] =
+            System.getenv("MAPS_API_KEY") ?: ""
     }
 
     // Yayin imzasi: gercek anahtar (Firebase Phone Auth ve magaza icin sart)

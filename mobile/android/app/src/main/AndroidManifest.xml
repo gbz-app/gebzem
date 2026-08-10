@@ -78,6 +78,16 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!-- ⚠️⚠️ TURU 85 — GOOGLE MAPS ANAHTARI.
+             Deger DERLEME ANINDA gelir (build.gradle.kts manifestPlaceholders
+             -> MAPS_API_KEY ortam degiskeni -> CI secret). Repo PUBLIC oldugu
+             icin gercek anahtar BURAYA YAZILMAZ.
+             ⚠️ Anahtar bos oldugunda Maps SDK sessizce basarisiz olur; bu
+                yuzden istemci tarafinda `haritaAnahtariVar` kapisi var ve
+                harita yerine YER TUTUCU cizilir (bozuk gri kutu YOK). -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="${MAPS_API_KEY}" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
