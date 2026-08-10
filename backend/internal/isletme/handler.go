@@ -194,8 +194,23 @@ func (h *Handler) Kaydet(w http.ResponseWriter, r *http.Request) {
 	if _, err := tx.Exec(r.Context(), `
 		INSERT INTO isletmeler
 		  (user_id, kategori, adres, il, ilce, telefon, web, calisma, enlem, boylam)
-		-- TURU 78b: COALESCE(...,0) ZORUNLU — ayrinti Kaydet serhinde.
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,COALESCE($9,0),COALESCE($10,0))
+		-- ⚠️⚠️⚠️ TURU 85 — TIP DONUSUMU **ZORUNLU**: `COALESCE($9, 0)`
+		--    ONDALIGI KIRPIYORDU.
+		--
+		--    `0` literali Postgres'te **integer**dir. `$9` tipsiz geldiginde
+		--    Postgres COALESCE'in ortak tipini `integer` cozuyor ve
+		--    40.8020 -> **40** oluyordu (curl ile AMPIRIK dogrulandi:
+		--    gonderilen 40.8020, DB'de 40).
+		--
+		--    Hata turu 78b'den beri duruyordu ama GORUNMEDI: o gune kadar
+		--    hicbir isletmeye koordinat GIRILMIYORDU (girecek arayuz yoktu).
+		--    Turu 85 koordinat girisini acinca ortaya cikti ve "Yakinimda"
+		--    listesini BOSALTIYORDU — tum isletmeler tam-derece izgarasina
+		--    (~11 km hatayla) oturuyordu.
+		-- ⚠️ YAPMA: `0`i ciplak birakma; `0::double precision` yaz.
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,
+		        COALESCE($9, 0::double precision),
+		        COALESCE($10, 0::double precision))
 		ON CONFLICT (user_id) DO UPDATE SET
 		  kategori=EXCLUDED.kategori, adres=EXCLUDED.adres, il=EXCLUDED.il,
 		  ilce=EXCLUDED.ilce, telefon=EXCLUDED.telefon, web=EXCLUDED.web,
