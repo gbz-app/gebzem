@@ -6037,3 +6037,82 @@ ama agresif bir webview bunu **indirme** sayabilir — kullanıcının üç turd
 - `go build` + `go vet` + `go test ./...` temiz · `flutter analyze` **0 hata 0 uyarı**
 - Build android **31385139757** + ios **31385142078** (**2235554**)
 - CDN **birebir** (apk + ipa + index.html üçü de MD5 eşit), DB temiz
+
+---
+
+## Oturum — 10 Ağustos 2026 · TURU 83: GÖNDERİDE SES + ANKET (16 madde)
+
+Kullanıcı test sonrası 16 madde bildirdi, ardından **"gönderide ses anket ne
+varsa yapılması elzem"** dedi ve onay beklemeden bitirilmesini istedi.
+
+### 🔍 KEŞİF ÖNCE (turu 81 dersi tekrar işe yaradı)
+- **SES:** `media_assets.kind` CHECK'i **037'den beri `'audio'` kabul ediyor**
+  ve `posts.media_ids` bir medya dizisi → **migration GEREKMEDİ**, eksik olan
+  yalnızca kartın çizim dalıydı.
+- **ANKET:** `polls` tablosu (040) vardı ama **sohbete çivili**
+  (`message_id NOT NULL`, `chat_id NOT NULL`).
+
+### ✅ GÖNDERİ ANKETİ — TAM YIĞIN
+- **migration 042:** iki NOT NULL gevşetildi, `post_id` eklendi, CHECK
+  **"tam olarak BİR sahip"** zorluyor. (İkisi de NULL olan satır **hiçbir**
+  yetki kontrolünden geçmezdi = sessiz gizlilik açığı.)
+- **`polls` yeniden kullanıldı, ikinci tablo açılmadı:** oylama mantığı 040'ta
+  yazılıp sınandı; ikinci kopya **kaçınılmaz olarak drift eder** (bu hata
+  projede altı kez yaşandı). Değişen tek şey **yetki kapısı**.
+- **`chat.anketSahibi` TEK KAYNAK:** sohbet anketinde üyelik, gönderi
+  anketinde **gönderi görünürlüğü**. Dört uç (oy/kapat/getir/okuma) bunu çağırıyor.
+- **İmport döngüsü yok:** `chat` → `social` importu yerine **geri çağırım**.
+  `nil` ise **fail-closed** (403) — sessizce açık bırakmak gizli hesap
+  gönderisinin anketini herkese oylatırdı.
+- Anket gönderiyle **aynı işlemde** yazılır (yarım kayıt yok).
+- **`satirlariOku` imzası değişti** (ctx + userID): anket altı sorgunun
+  hepsinde çizilmeli ve çağrı yerlerine tek tek eklemek "6'ya ekle, 7.'yi
+  unut" hatasını açardı (turu 76'da Kaydedilenler'i **bomboş** bırakan sınıf).
+  İmza değişikliği **derleyiciyi zorlayıcı** kılar.
+
+### ⚠️⚠️ E2E GERÇEK BİR HATA YAKALADI
+`_SecilenMedya.mime` ses için **`audio/m4a`** döndürüyordu; sunucunun beyaz
+listesi **`audio/mp4`** bekliyor. Yani **gönderiye ses ekleme %100 ölü
+doğacaktı** — kullanıcı kaydı yapar, "Paylaş"a basar, "bu dosya türü
+desteklenmiyor" alırdı. `go build` + `flutter analyze` **ikisi de temiz**
+geçiyordu.
+
+### ⚠️⚠️⚠️ KENDİ ARAÇLARIM İKİ DOSYAYI BOZDU — YENİ KALICI MUHAFIZ
+Git Bash `sed -i` / `perl -0pi` Windows'ta UTF-8'i **çift kodluyor**
+(`ç` = C3 A7 → C3 83 C2 A7). Etki **sessiz**: derleme temiz geçiyor çünkü
+bozulan **kod değil dize içeriği**; hata yalnızca **kullanıcının ekranında**
+görünüyor. Bu sürüm yayınlansaydı **tüm Türkçe mesajlar okunamaz** olurdu.
+`internal/sutunkontrol/utf8_test.go` eklendi — **226 dosya** tarıyor.
+⚠️ İlk yazımda **kendi şerhindeki örneği** eşleştirip yanlış alarm verdi
+(`isletme/sutun_test.go` tuzağının birebir tekrarı) — örnekler artık harfle
+değil **bayt olarak** yazılıyor.
+
+### ⚠️⚠️ DENETİM: 39 BULGU → 34 ONAYLANDI (44 ajan, 8.7M jeton)
+**İki sevk engeli:**
+1. **"Videolar" sekmesi** tür kontrolsüz `MedyaGorsel` çağırıyordu → thumb
+   olmadığı için ham url'e düşülüp **mp4'ün tamamı indiriliyor**, ardından
+   **kırık görsel** çiziliyordu. `KapakGorseli` (tek kaynak) bağlandı —
+   keşfet ızgarasında da aynı kök vardı.
+2. **Yükleme sırasında bütün çıkış yolları kapalıydı:** geri düğmesi `null`,
+   "İptal" `AbsorbPointer` içinde, `PopScope` kenar-çekmeyi bloke →
+   100 MB video yüklenirken kullanıcı **kilitli** kalıyordu.
+
+**Medya modeli beş ayrı tutarsızlık taşıyordu** (çift sayım · çarpan
+yüksekliğe değil kutu oranına · 1.0'da süreksizlik · galeri muaf · yatay
+medya kısalmak yerine uzuyor) → **tek sabite** indirildi:
+`kutuOrani = max(medyaOranı, kEnDikKutu=1.0)`. Doğrulandı (3 cihaz × 6 oran):
+**her vakada kolonun %100'ü** (boşluk yok), yükseklik en fazla ekranın
+%45-54'ü (önceden %54-60), yatay/kare **hiç kırpılmıyor**.
+
+**Diğer:** iOS'ta üç nokta çekerken hiç çizilmiyordu (`BouncingScrollPhysics`
+overscroll üretmez) · `depth != 0` süzgeci yoktu (yatay galeri noktaları
+tetikliyordu) · sayaç tavanı yeni "1,3 bin" biçimine yetmiyordu · çift
+dokunuş kalbi animasyonu **ölü koddu** · beş `ListView`'de `physics` eksikti.
+
+### Durum
+- Backend **ae1de5d** deploy, migration 042 canlıda (51 tablo), health ok
+- **Canlıda 219/219 uçtan uca** (208 → 219) · **192 rota çakışmasız**
+- `go build` + `go vet` temiz · `flutter analyze` **0 hata 0 uyarı** ·
+  çift-UTF8 **0 dosya**
+- Build android **31398063106** + ios **31398066317** (**9fdcea4**)
+- CDN **birebir** (apk + ipa + index.html üçü de MD5 eşit), DB temiz

@@ -45,27 +45,26 @@ const surumEtiketi =
   `${now.getUTCFullYear()}${p2(now.getUTCMonth() + 1)}${p2(now.getUTCDate())}` +
   `-${p2(now.getUTCHours())}${p2(now.getUTCMinutes())}`;
 
-const YENI_ICERIK = `<div class="yeni"><b>Bu sürümde — senin bildirdiğin 7 madde:</b>
-<br><br><b>1 · GÖRSEL BOYUTLARI (asıl istediğin).</b> Kutunun oranı artık
-<b>fotoğrafın kendi oranına eşit</b>, yani <b>kırpma yok</b> ve <b>yanda boşluk yok</b>.
-Dikey fotoğraf sütunu doldurur, çok uzun video <b>dar</b> görünür, yatay fotoğraf
-<b>geniş ve kısa</b> — “bazısı dar bazısı geniş” dediğin davranış.
-<br><br><b>2 · ANASAYFADAKİ “Gebzem” YAZISI</b> kaldırıldı.
-<br><br><b>3 · HİKÂYELER ARASI BOŞLUK</b> açıldı (halkalar artık gönderilerle
-<b>aynı hizadan</b> başlıyor).
-<br><br><b>4 · HİKÂYE HALKASI:</b> izlediğin hikâyenin çevresindeki renk artık
-<b>her çıkışta</b> griye dönüyor — geri tuşuyla ya da aşağı kaydırarak çıksan bile.
-<br><br><b>5 · BEĞENİ / YORUM / PAYLAŞ İKONLARI</b> göz için eşitlendi. Ölçüleri
-zaten aynıydı; sorun bazı ikonların çizimi kutusunu daha az doldurmasıydı.
-<br><br><b>6 · ARKA PLAN:</b> alt menü <b>siyah</b>, sayfa zemini <b>bir tık açık</b> —
-aradaki fark artık gerçekten görünüyor.
-<br><br><b>7 · “Takip Ettiklerin / Keşfet”</b> yazıları büyütüldü.
-<br><br><b>Ayrıca:</b> çoklu galeride ikinci ve sonraki fotoğrafların sayacı,
-otomatik oynatması ve tam ekran düğmesi <b>çalışmıyordu</b> — düzeltildi. Yatay bir
-fotoğraf galerideki diğerlerini <b>küçültüyordu</b> — düzeltildi.
-<br><br><b>Sınırlar:</b> Harita <b>uygulama içinde değil</b> (telefonun harita uygulaması
-açılır). Ödeme yok. Arama <b>birebir</b> · Sohbet odası 20 konuşmacı + sınırsız
-dinleyici · Canlı yayın 4 kişi + sınırsız izleyici.</div>`;
+const YENI_ICERIK = `<div class="yeni"><b>Bu sürümde — gönderilerde SES ve ANKET:</b>
+<br><br><b>1 · GÖNDERİDE SES:</b> Yeni gönderide <b>Ses</b>’e dokun, mikrofona bir kez
+bas — kaydını akışta oynatılabilir olarak paylaş.
+<br><br><b>2 · GÖNDERİDE ANKET:</b> <b>Anket</b>’e dokun, soru + 2-12 seçenek ekle.
+Tek ya da çok seçimli olsun; oylar <b>canlı</b> güncellenir, istediğinde bitirirsin.
+Metin yazmasan bile olur — anketin sorusu yeter.
+<br><br><b>3 · GÖRSELLER:</b> Artık <b>hepsi sütunu tam dolduruyor</b> — yanlarda boşluk yok.
+Yatay ve kare fotoğraflar <b>hiç kırpılmıyor</b>; çok uzun olanlar kareye sığdırılıyor
+(tam halini görmek için fotoğrafa dokun, videoya uzun bas).
+<br><br><b>4 · PROFİL:</b> <b>Tümü / Fotoğraf / Video</b> sekmeleri geldi, kapak <b>%30 kısaldı</b>.
+<b>Profilde yenileyince ekranın beyaz olması düzeltildi.</b>
+<br><br><b>5 · YENİLEME:</b> Aşağı çekince <b>üç nokta</b> sırayla zıplıyor.
+<br><br><b>6 · İKONLAR:</b> Beğeni/yorum/paylaş göz için eşitlendi, <b>kalp büyütüldü</b>.
+Beğeni sayısı ikonun sağında; <b>kalbe uzun basınca beğenenler</b> açılır.
+<br><br><b>7 · DAHA:</b> Anasayfada <b>logo ortada</b> · videolarda büyütme ikonu ve
+ilerleme çubuğu kaldırıldı · rakamlar <b>binlik</b> (1,3 bin) · Takip Ettiklerin/Keşfet
+artık oynamıyor.
+<br><br><b>Sınırlar:</b> Gönderide <b>konum</b> henüz yok (sohbette var). Harita
+<b>uygulama içinde değil</b>. Ödeme yok. Arama <b>birebir</b> · Sohbet odası 20 konuşmacı +
+sınırsız dinleyici · Canlı yayın 4 kişi + sınırsız izleyici.</div>`;
 
 let cikti = sablon
   .replace(/\{\{SAAT\}\}/g, saat)
@@ -90,8 +89,8 @@ const kontroller = [
   //    uretilmesini ENGELLEMEK — yoksa kullaniciya BIR ONCEKI surumun
   //    notlari gosterilir ve "yeni ne var" yalan olur.
   // ⚠️ YAPMA: bu satiri silme; yeni turda ANAHTAR IFADEYI degistir.
-  [cikti.includes('GÖRSEL BOYUTLARI') && cikti.includes('HİKÂYE HALKASI'),
-    'turu 82 icerigi yazilmadi (YENI_ICERIK guncellenmemis)'],
+  [cikti.includes('GÖNDERİDE SES') && cikti.includes('GÖNDERİDE ANKET'),
+    'turu 83 icerigi yazilmadi (YENI_ICERIK guncellenmemis)'],
   // ⚠️ YALNIZ GORUNEN metin taranir. HTML/CSS/JS YORUMLARINDAKI ⚠️ isaretleri
   //    kullaniciya cizilmez ve serhin okunurlugu icin BILINCLI olarak durur.
   [!/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(
