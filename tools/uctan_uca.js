@@ -64,7 +64,15 @@ const kontrol = (ad, gecti, ek = '') => {
   const md5 = crypto.createHash('md5').update(JPEG).digest('base64');
   const pres = await j('/media/upload', {
     yontem: 'POST', token: A.token,
-    govde: { kind: 'image', mime: 'image/jpeg', bytes: JPEG.length, md5, file_name: 'e2e.jpg' },
+    govde: {
+      kind: 'image', mime: 'image/jpeg', bytes: JPEG.length, md5,
+      file_name: 'e2e.jpg',
+      // ⚠️⚠️ TURU 81 — OLCU. Bu iki alan turu 81'in MANSET isinin on kosulu:
+      //    istemci medyanin ORANINI bilmezse kirpmak zorunda kalir. Sutun
+      //    015'ten beri VARDI ama HIC DOLDURULMUYORDU — bu arac da
+      //    doldurmuyordu, yani zincir e2e'de SINANMIYORDU.
+      width: 1080, height: 1350,
+    },
   });
   kontrol('medya presign', pres.kod === 200 && !!pres.d.upload_url,
     'HTTP ' + pres.kod + (pres.kod !== 200 ? ' ' + JSON.stringify(pres.d) : ''));
@@ -477,11 +485,21 @@ const kontrol = (ad, gecti, ek = '') => {
     await j('/users/' + A.id + '/block', { yontem: 'DELETE', token: B.token });
 
     // Yardimci: yeni medya yukle
-    async function medyaYukle(token, ad) {
+    // ⚠️⚠️ TURU 81 — OLCU (width/height) GONDERILIYOR.
+    //    Gonderilmezse sutun 0 kalir ve `media_boyut` "0x0" doner; o durumda
+    //    istemci varsayilana duser ve turu 81'in MANSET isi (kirpmasiz,
+    //    ORANDAN genislik) SESSIZCE eski davranisa doner. Bu arac gercek
+    //    zinciri kanitlamali: presign -> sutun -> gonderi sorgusu -> istemci.
+    // ⚠️ Degerler GERCEK JPEG'in olculeri DEGIL (test resmi 1x1); amac
+    //    ZINCIRIN calistigini gostermek, kod cozucuyu sinamak degil.
+    async function medyaYukle(token, ad, w = 1080, h = 1350) {
       const md5x = crypto.createHash('md5').update(JPEG).digest('base64');
       const p = await j('/media/upload', {
         yontem: 'POST', token,
-        govde: { kind: 'image', mime: 'image/jpeg', bytes: JPEG.length, md5: md5x, file_name: ad },
+        govde: {
+          kind: 'image', mime: 'image/jpeg', bytes: JPEG.length, md5: md5x,
+          file_name: ad, width: w, height: h,
+        },
       });
       if (p.kod !== 200) return null;
       await fetch(p.d.upload_url, {
@@ -1382,6 +1400,219 @@ const kontrol = (ad, gecti, ek = '') => {
       const gy = await j('/media/' + gAvatar.id + '/url', { token: C.token });
       kontrol('TURU 78b: grup avatari UYE OLMAYANA KAPALI (403)',
         gy.kod === 403, 'HTTP ' + gy.kod);
+    }
+  }
+
+  // ---------- TURU 81: MEDYA OLCUSU · SOHBET EKLERI · ANKET · ZAMANLANMIS
+  {
+    // ⚠️⚠️ MEDYA OLCUSU: `media_boyut` alani AKISTA DONUYOR MU?
+    //    Donmezse istemci orani bilemez ve turu 81'in MANSET isi (kirpmasiz,
+    //    degisken genislikli medya) SESSIZCE eski davranisa duser.
+    const ak = await j('/feed', { token: A.token });
+    const ilkMedyali = ((ak.d && ak.d.posts) || [])
+      .find((p) => (p.media_ids || []).length > 0);
+    kontrol('TURU 81: akis `media_boyut` alanini donduruyor',
+      !!ilkMedyali && Array.isArray(ilkMedyali.media_boyut),
+      'alan=' + JSON.stringify(ilkMedyali && ilkMedyali.media_boyut));
+    // ⚠️ Dizi UZUNLUGU `media_ids` ile AYNI olmali — hizalama bozulursa
+    //    istemci YANLIS medyaya YANLIS oran uygular.
+    if (ilkMedyali) {
+      kontrol('TURU 81: media_boyut ile media_ids AYNI uzunlukta (hizali)',
+        (ilkMedyali.media_boyut || []).length === ilkMedyali.media_ids.length,
+        'boyut=' + (ilkMedyali.media_boyut || []).length +
+        ' ids=' + ilkMedyali.media_ids.length);
+      // ⚠️ Bicim "WxH" olmali; "0x0" bilinmeyen olcu (eski medya) demektir.
+      kontrol('TURU 81: media_boyut bicimi "WxH"',
+        (ilkMedyali.media_boyut || []).every((s) => /^\d+x\d+$/.test(String(s))),
+        JSON.stringify(ilkMedyali.media_boyut));
+      // ⚠️⚠️ ZINCIRIN TAMAMI: presign'da gonderilen olcu, media_assets'e
+      //    YAZILIP gonderi sorgusundan GERI DONUYOR mu? "0x0" gorursek sutun
+      //    doldurulmuyor demektir ve turu 81'in manset isi SESSIZCE eski
+      //    davranisa duser (kirpma geri gelir) — hicbir yerde hata gorunmez.
+      kontrol('TURU 81: GERCEK olcu ZINCIRDEN geciyor (presign -> sutun -> akis)',
+        (ilkMedyali.media_boyut || []).includes('1080x1350'),
+        JSON.stringify(ilkMedyali.media_boyut));
+    }
+
+    // ---- SOHBET EKLERI (yeni mesaj tipleri, migration 039)
+    const sohbet = await j('/chats/direct', {
+      yontem: 'POST', token: A.token, govde: { user_id: B.id },
+    });
+    const chatId = sohbet.d && sohbet.d.chat_id;
+    kontrol('TURU 81: sohbet acildi (ek tipler icin)', !!chatId,
+      'HTTP ' + sohbet.kod);
+
+    if (chatId) {
+      // ⚠️ 'location' tipi 015'ten beri CHECK'te VARDI ama GONDEREN yol yoktu
+      //    (olu ozellik sinifinin 8. ornegi). Artik kabul edilmeli.
+      const konum = await j('/chats/' + chatId + '/messages', {
+        yontem: 'POST', token: A.token,
+        govde: { type: 'location', content: '41.008200,28.978400' },
+      });
+      kontrol('TURU 81: KONUM mesaji kabul ediliyor (location)',
+        konum.kod === 201 || konum.kod === 200, 'HTTP ' + konum.kod);
+
+      // ⚠️ 'contact' de 015'te VARDI ama Go beyaz listesi REDDEDIYORDU.
+      const kisi = await j('/chats/' + chatId + '/messages', {
+        yontem: 'POST', token: A.token,
+        govde: { type: 'contact', content: B.id + '|E2E Okur' },
+      });
+      kontrol('TURU 81: KISI mesaji kabul ediliyor (contact)',
+        kisi.kod === 201 || kisi.kod === 200, 'HTTP ' + kisi.kod);
+
+      // ⚠️ 'iban' ve 'etkinlik' migration 039 ile CHECK'e eklendi. Bu kontrol
+      //    ayni zamanda 039'un CANLI DB'de UYGULANDIGINI kanitlar — CHECK
+      //    eksik olsaydi 500 donerdi (turu 78'de bu tuzaga IKI KEZ dusuldu).
+      const iban = await j('/chats/' + chatId + '/messages', {
+        yontem: 'POST', token: A.token,
+        govde: { type: 'iban', content: 'TR330006100519786457841326|E2E' },
+      });
+      kontrol('TURU 81: IBAN mesaji kabul ediliyor (039 CHECK canlida)',
+        iban.kod === 201 || iban.kod === 200, 'HTTP ' + iban.kod);
+
+      const etk = await j('/chats/' + chatId + '/messages', {
+        yontem: 'POST', token: A.token,
+        govde: { type: 'etkinlik', content: 'x|E2E Etkinlik' },
+      });
+      kontrol('TURU 81: ETKINLIK mesaji kabul ediliyor (039 CHECK canlida)',
+        etk.kod === 201 || etk.kod === 200, 'HTTP ' + etk.kod);
+
+      // ⚠️ SOHBET LISTESI ONIZLEMESI: yapisal tipin HAM icerigi SIZMAMALI.
+      //    Sizsaydi kullanici kilit ekraninda IBAN gorurdu (gizlilik).
+      const liste = await j('/chats', { token: A.token });
+      const satir = ((liste.d) || []).find((c) => c.id === chatId);
+      const onizleme = satir && (satir.last_message || satir.last_content || '');
+      kontrol('TURU 81: onizlemede HAM IBAN SIZMIYOR',
+        !String(onizleme).includes('TR33000610051978645784'),
+        'onizleme=' + JSON.stringify(onizleme));
+
+      // ---- ANKET (migration 040)
+      const anket = await j('/chats/' + chatId + '/polls', {
+        yontem: 'POST', token: A.token,
+        govde: {
+          question: 'Bu aksam nerede bulusalim?',
+          options: ['Sahil', 'Kafe', 'Evde'],
+          multi: false,
+        },
+      });
+      kontrol('TURU 81: ANKET olusturuldu (migration 040 canlida)',
+        anket.kod === 201 && anket.d && anket.d.poll,
+        'HTTP ' + anket.kod);
+
+      const pollId = anket.d && anket.d.poll && anket.d.poll.id;
+      if (pollId) {
+        kontrol('TURU 81: anket UC secenekle dondu',
+          (anket.d.poll.options || []).length === 3,
+          'adet=' + (anket.d.poll.options || []).length);
+
+        // ⚠️ SIRA KORUNUYOR MU (idx ile): `id`ye guvenilemez, BIGSERIAL
+        //    GLOBAL bir dizidir ve es zamanli anketlerde CAPRAZLASIR.
+        kontrol('TURU 81: secenek SIRASI korunuyor (idx)',
+          (anket.d.poll.options || []).map((o) => o.text).join(',') ===
+          'Sahil,Kafe,Evde',
+          (anket.d.poll.options || []).map((o) => o.text).join(','));
+
+        const sec1 = anket.d.poll.options[0].id;
+        const oy = await j('/polls/' + pollId + '/vote', {
+          yontem: 'POST', token: B.token, govde: { option_ids: [sec1] },
+        });
+        kontrol('TURU 81: B oy verdi', oy.kod === 200, 'HTTP ' + oy.kod);
+        kontrol('TURU 81: oy sayildi ve vote_seq ARTTI',
+          oy.d && oy.d.total_votes === 1 && oy.d.vote_seq > 0,
+          'oy=' + (oy.d && oy.d.total_votes) + ' seq=' + (oy.d && oy.d.vote_seq));
+
+        // ⚠️ TEK SECIMLIK ankette IKI secenek REDDEDILMELI (istemci hatasi
+        //    sessizce ilkini almak yerine ACIKCA reddediliyor).
+        const cift = await j('/polls/' + pollId + '/vote', {
+          yontem: 'POST', token: B.token,
+          govde: { option_ids: [sec1, anket.d.poll.options[1].id] },
+        });
+        kontrol('TURU 81: tek secimlikte IKI secenek REDDEDILIR (400)',
+          cift.kod === 400, 'HTTP ' + cift.kod);
+
+        // ⚠️ Oy GERI CEKME: bos kume = tum oylarimi sil.
+        const geri = await j('/polls/' + pollId + '/vote', {
+          yontem: 'POST', token: B.token, govde: { option_ids: [] },
+        });
+        kontrol('TURU 81: bos kume TUM oylari geri ceker',
+          geri.kod === 200 && geri.d.total_votes === 0,
+          'oy=' + (geri.d && geri.d.total_votes));
+
+        // ⚠️ KAPATMAYI YALNIZ OLUSTURAN yapabilir.
+        const yabanciKapat = await j('/polls/' + pollId + '/close', {
+          yontem: 'POST', token: B.token,
+        });
+        kontrol('TURU 81: anketi BASKASI kapatamaz (403)',
+          yabanciKapat.kod === 403, 'HTTP ' + yabanciKapat.kod);
+
+        const kapat = await j('/polls/' + pollId + '/close', {
+          yontem: 'POST', token: A.token,
+        });
+        kontrol('TURU 81: olusturan anketi kapatti',
+          kapat.kod === 200 && kapat.d.closed === true, 'HTTP ' + kapat.kod);
+
+        const kapaliOy = await j('/polls/' + pollId + '/vote', {
+          yontem: 'POST', token: B.token, govde: { option_ids: [sec1] },
+        });
+        kontrol('TURU 81: KAPALI ankete oy verilemez (409)',
+          kapaliOy.kod === 409, 'HTTP ' + kapaliOy.kod);
+      }
+
+      // ⚠️⚠️ ANKET MESAJ LISTESINDE `poll` ALANIYLA DONUYOR MU?
+      //    Donmezse balon YALNIZ yeni mesajda cizilir ve sohbete tekrar
+      //    girildiginde duz SORU METNI gorunur — yani ozellik yeniden
+      //    acilista OLU olur.
+      const msjlar = await j('/chats/' + chatId + '/messages', { token: A.token });
+      const anketMsj = ((msjlar.d) || []).find((m) => m.type === 'poll');
+      kontrol('TURU 81: mesaj listesi anketi `poll` alaniyla donduruyor',
+        !!anketMsj && !!anketMsj.poll &&
+        (anketMsj.poll.options || []).length === 3,
+        'poll=' + JSON.stringify(anketMsj && anketMsj.poll && anketMsj.poll.id));
+    }
+
+    // ---- ZAMANLANMIS PAYLASIM (migration 041)
+    const gelecek = new Date(Date.now() + 3600000).toISOString();
+    const zg = await j('/posts', {
+      yontem: 'POST', token: A.token,
+      govde: { tur: 'yazi', metin: 'E2E ZAMANLANMIS', yayin_at: gelecek },
+    });
+    kontrol('TURU 81: zamanlanmis gonderi olusturuldu (041 canlida)',
+      zg.kod === 201 && !!zg.d.id, 'HTTP ' + zg.kod);
+
+    if (zg.d && zg.d.id) {
+      // ⚠️⚠️ EN KRITIK: zamanlanmis gonderi BASKASININ akisinda GORUNMEMELI.
+      //    Yuklem tek bir sorguda eksik kalsa bile burada YAKALANIR.
+      const bAkis = await j('/feed', { token: B.token });
+      const sizdi = ((bAkis.d && bAkis.d.posts) || [])
+        .some((p) => p.id === zg.d.id);
+      kontrol('TURU 81: ZAMANLANMIS gonderi BASKASININ AKISINDA GORUNMEZ',
+        !sizdi, 'sizdi=' + sizdi);
+
+      const bKesfet = await j('/kesfet', { token: B.token });
+      const sizdi2 = ((bKesfet.d && bKesfet.d.posts) || [])
+        .some((p) => p.id === zg.d.id);
+      kontrol('TURU 81: ZAMANLANMIS gonderi KESFET\'te GORUNMEZ',
+        !sizdi2, 'sizdi=' + sizdi2);
+
+      const bProfil = await j('/users/' + A.id + '/posts', { token: B.token });
+      const sizdi3 = ((bProfil.d && bProfil.d.posts) || [])
+        .some((p) => p.id === zg.d.id);
+      kontrol('TURU 81: ZAMANLANMIS gonderi BASKASININ gozunde PROFILDE GORUNMEZ',
+        !sizdi3, 'sizdi=' + sizdi3);
+
+      // ⚠️ YAZAR KENDI zamanladigini GORMELI (yoksa "kayboldu" sanar).
+      const aProfil = await j('/users/' + A.id + '/posts', { token: A.token });
+      const yazarGoruyor = ((aProfil.d && aProfil.d.posts) || [])
+        .some((p) => p.id === zg.d.id);
+      kontrol('TURU 81: YAZAR kendi zamanladigi gonderiyi PROFILINDE GORUR',
+        yazarGoruyor, 'goruyor=' + yazarGoruyor);
+
+      // ⚠️ Yayinlanmamis gonderi ETKILESIME KAPALI (muhafizin buldugu bosluk).
+      const bBegeni = await j('/posts/' + zg.d.id + '/like', {
+        yontem: 'POST', token: B.token,
+      });
+      kontrol('TURU 81: ZAMANLANMIS gonderi BEGENILEMEZ (403)',
+        bBegeni.kod === 403, 'HTTP ' + bBegeni.kod);
     }
   }
 
