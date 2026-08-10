@@ -497,7 +497,33 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
         //       denetim govdede TEK dugme oldugunu gosterdi. Arama ALT MENUDE
         //       kendi sekmesinde (turu 76), AppBar'da DEGIL.
         // ⚠️ YAPMA: baslik geri ekleme.
-        title: null,
+        // ⚠️⚠️ TURU 83 — YAZI YERINE **LOGO, TAM ORTADA** (kullanici emri:
+        //    *"logo bu, header ortada olacak, olcuyu ona gore ayarla"*).
+        //
+        // ⚠️ `centerTitle: true` BURADA ACIKCA veriliyor: `theme.dart`taki
+        //    `appBarTheme` genelinde `centerTitle: false` (baslik SOLDA) —
+        //    tema degeri EZILMEZSE logo sola yapisir.
+        // ⚠️ OLCU: AppBar govdesi 56dp. Logo **32dp** — ustte/altta 12'ser dp
+        //    nefes birakir, hamburger (sol) ve bildirim (sag) dugmeleriyle
+        //    cakismaz. Daha buyugu (40+) cubugu doldurup sikisik gosteriyordu.
+        // ⚠️ `ClipRRect` 8dp: logo KARE bir ikon; koseleri yumusatilmadan
+        //    cubukta sert duruyor.
+        // ⚠️ `errorBuilder` ZORUNLU: logo dosyasi degistirilirken bozuk/eksik
+        //    kalirsa AppBar KIRMIZI HATA KUTUSU cizerdi.
+        // ⚠️ LOGOYU DEGISTIRMEK ICIN YALNIZ `assets/icon/logo.png` degisir —
+        //    bu koda DOKUNMAYA GEREK YOK.
+        centerTitle: true,
+        title: ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: Image.asset(
+            'assets/icon/logo.png',
+            height: 32,
+            width: 32,
+            fit: BoxFit.contain,
+            filterQuality: FilterQuality.medium,
+            errorBuilder: (_, _, _) => const SizedBox(height: 32),
+          ),
+        ),
         actions: [
           // ⚠️⚠️ TURU 76 — BURADAKI "Reels" DUGMESI KALDIRILDI. Reels artik ALT
           //    MENUDE kendi sekmesi. Ikisini birden birakmak, kullanicinin ayni
