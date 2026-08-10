@@ -1799,6 +1799,90 @@ const kontrol = (ad, gecti, ek = '') => {
       tekrarKayit.kod === 409, 'HTTP ' + tekrarKayit.kod);
   }
 
+  // ================= TURU 85: YAKINIMDA + YENI KATEGORILER ==============
+  //
+  // ON KOSUL: isletmeler.enlem/boylam 028 ten beri VARDI ama HICBIR KAYITTA
+  // DOLU DEGILDI (turu 78 notu). Turu 85 koordinat girisini ekledi; bu blok
+  // zincirin UCUNU sinar: kaydet -> yakinimda -> mesafe -> siralama.
+  {
+    const konumlu = await j('/users/me/isletme', {
+      yontem: 'PUT', token: A.token,
+      govde: {
+        kategori: 'eczane', adres: 'E2E Eczane', il: 'Kocaeli', ilce: 'Gebze',
+        enlem: 40.8020, boylam: 29.4300,
+      },
+    });
+    kontrol('TURU 85: YENI KATEGORI (eczane) kabul ediliyor',
+      konumlu.kod === 200 || konumlu.kod === 201, 'HTTP ' + konumlu.kod);
+
+    const otel = await j('/users/me/isletme', {
+      yontem: 'PUT', token: B.token,
+      govde: {
+        kategori: 'otel', adres: 'E2E Otel', il: 'Kocaeli', ilce: 'Gebze',
+        enlem: 40.8100, boylam: 29.4400,
+      },
+    });
+    kontrol('TURU 85: YENI KATEGORI (otel) kabul ediliyor',
+      otel.kod === 200 || otel.kod === 201, 'HTTP ' + otel.kod);
+
+    const yak = await j('/isletmeler/yakinimda?lat=40.8020&lng=29.4300&km=10',
+      { token: A.token });
+    kontrol('TURU 85: /isletmeler/yakinimda calisiyor', yak.kod === 200,
+      'HTTP ' + yak.kod);
+    const liste = (yak.d && yak.d.isletmeler) || [];
+    kontrol('TURU 85: yakindaki isletmeler donuyor', liste.length >= 1,
+      'adet=' + liste.length);
+
+    // MESAFE SUNUCUDA hesaplanip donuyor (istemcide tekrar hesaplamak
+    // "ayni kuralin iki kopyasi" olurdu ve siralamayla AYRISABILIRDI).
+    kontrol('TURU 85: her kayitta km alani var',
+      liste.length > 0 && liste.every((x) => typeof x.km === 'number'),
+      'adet=' + liste.length);
+
+    let sirali = true;
+    for (let i = 1; i < liste.length; i++) {
+      if (liste[i].km < liste[i - 1].km) sirali = false;
+    }
+    kontrol('TURU 85: liste MESAFEYE gore sirali', sirali, 'sirali=' + sirali);
+
+    // Yanit anahtari dogrulandi olmali - ilk yazimda onayli yazilmisti ve
+    // istemci dogrulandi okudugu icin onayli rozeti HIC cizilmezdi.
+    kontrol('TURU 85: yanit dogrulandi anahtarini tasiyor',
+      liste.length > 0 && liste.every((x) => 'dogrulandi' in x),
+      'anahtar=' + (liste[0] ? Object.keys(liste[0]).join(',') : '-'));
+
+    // KONUMSUZ isletme listede CIKMAMALI (0,0 = Gine Korfezi).
+    const K = await kullaniciAc('E2E Konumsuz');
+    await j('/users/me/isletme', {
+      yontem: 'PUT', token: K.token,
+      govde: { kategori: 'market', adres: 'Konumsuz', il: 'Kocaeli',
+               ilce: 'Gebze' },
+    });
+    const yak2 = await j('/isletmeler/yakinimda?lat=40.8020&lng=29.4300&km=50',
+      { token: A.token });
+    const l2 = (yak2.d && yak2.d.isletmeler) || [];
+    kontrol('TURU 85: KONUMSUZ isletme listede CIKMIYOR',
+      !l2.some((x) => x.id === K.id),
+      'sizdi=' + l2.some((x) => x.id === K.id));
+
+    // Cok uzak bir noktadan bakinca liste BOSALMALI (Ankara).
+    const uzak = await j('/isletmeler/yakinimda?lat=39.9208&lng=32.8541&km=5',
+      { token: A.token });
+    kontrol('TURU 85: UZAK noktadan bakinca liste bos (mesafe suzgeci)',
+      ((uzak.d && uzak.d.isletmeler) || []).length === 0,
+      'adet=' + ((uzak.d && uzak.d.isletmeler) || []).length);
+
+    const konumsuzIstek = await j('/isletmeler/yakinimda', { token: A.token });
+    kontrol('TURU 85: konumsuz istek REDDEDILIYOR (400)',
+      konumsuzIstek.kod === 400, 'HTTP ' + konumsuzIstek.kod);
+
+    const kotuKat = await j(
+      '/isletmeler/yakinimda?lat=40.80&lng=29.43&kategori=yokboyle',
+      { token: A.token });
+    kontrol('TURU 85: gecersiz kategori REDDEDILIYOR (400)',
+      kotuKat.kod === 400, 'HTTP ' + kotuKat.kod);
+  }
+
   // ---------- OZET
   const kalan = sonuclar.filter((s) => !s.gecti);
   console.log('\n==================================');

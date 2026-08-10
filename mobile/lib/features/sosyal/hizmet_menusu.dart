@@ -5,6 +5,7 @@ import '../etkinlik/etkinlik_ekranlari.dart';
 import '../kanal/kanallar_sekmesi.dart' show KanallarSayfasi;
 import '../ilan/ilan_ekranlari.dart';
 import '../isletme/isletme_listesi.dart';
+import '../isletme/yakinimda_ekrani.dart';
 import '../isletme/urun_ekranlari.dart' show AiDanismaEkrani;
 import '../isletme/urun_servisi.dart' show aiDurumProvider;
 
@@ -56,6 +57,15 @@ class HizmetMenusu extends ConsumerWidget {
         const Color(0xFF3AA9FF),
         const Color(0xFF12547A),
       ], (c) => const IlanListesiEkrani(tur: 'hizmet', baslik: 'Hizmetler')),
+      // ⚠️⚠️ TURU 85 — "YAKINIMDA" (kullanici emri: *"menuye tikladigimizda
+      //    acilan pencereye yakinimda eklemeliyiz"*). Ustte harita, altta
+      //    mesafeye gore sirali kartlar.
+      // ⚠️ ILK SIRADA: konum tabanli kesif menunun EN DEGERLI girisidir ve
+      //    izgarada ilk hucre en cok dokunulan yerdir.
+      _Bolum('Yakınımda', [
+        const Color(0xFF3AA9FF),
+        const Color(0xFF6C2BD9),
+      ], (c) => const YakinimdaEkrani()),
       _Bolum('İşletmeler', [
         const Color(0xFFFFB03A),
         const Color(0xFFFF7A45),

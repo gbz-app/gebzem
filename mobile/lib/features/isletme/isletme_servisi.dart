@@ -46,6 +46,32 @@ class IsletmeServisi {
   }
 
   /// Isletme rehberi (hamburger menudeki kategori kartlari BURAYA baglanir).
+  /// ⚠️ TURU 85 — KONUMA GORE isletmeler (mesafeye gore SIRALI).
+  ///
+  /// ⚠️ Konumu OLMAYAN isletme listede CIKMAZ (sunucu suzuyor) — bu bir
+  ///    eksiklik degil zorunluluk: (0,0) koordinati Gine Korfezi'ne denk
+  ///    gelir ve tum konumsuz isletmeler ~6000 km uzakta gorunurdu.
+  Future<List<IsletmeOzet>> yakinimda({
+    required double enlem,
+    required double boylam,
+    double km = 10,
+    String kategori = '',
+  }) async {
+    final r = await _api.get(
+      '/isletmeler/yakinimda',
+      queryParameters: {
+        'lat': enlem,
+        'lng': boylam,
+        'km': km,
+        if (kategori.isNotEmpty) 'kategori': kategori,
+      },
+    );
+    final l = (r.data['isletmeler'] as List?) ?? [];
+    return l
+        .map((e) => IsletmeOzet.json((e as Map).cast<String, dynamic>()))
+        .toList();
+  }
+
   Future<List<IsletmeOzet>> liste({
     String kategori = '',
     String q = '',
@@ -83,6 +109,10 @@ const isletmeKategorileri = <String, String>{
   'kuafor': 'Kuaför & Güzellik',
   'oto': 'Oto & Servis',
   'saglik': 'Sağlık',
+  // ⚠️ TURU 85 — kullanici emri (eczane + otel). Sunucudaki `Kategoriler`
+  //    haritasiyla BIREBIR ayni sirada ve ayni anahtarlarla.
+  'eczane': 'Eczane',
+  'otel': 'Otel & Konaklama',
   'egitim': 'Eğitim',
   'emlak': 'Emlak',
   'spor': 'Spor',
@@ -274,6 +304,18 @@ class IsletmeOzet {
   final String adres;
   final bool dogrulandi;
 
+  /// ⚠️ TURU 85 — YALNIZ "Yakinimda" ucunda dolu gelir; diger listelerde 0.
+  ///    Mesafe SUNUCUDA hesaplanir (istemcide tekrar hesaplamak "ayni
+  ///    kuralin iki kopyasi" olurdu ve siralama ile gosterilen deger
+  ///    AYRISABILIRDI).
+  double enlem = 0;
+  double boylam = 0;
+  double km = 0;
+
+  /// "1,2 km" / "350 m" — kart altinda gosterilir.
+  String get mesafeMetni =>
+      km <= 0 ? '' : (km < 1 ? '${(km * 1000).round()} m' : '${km.toStringAsFixed(1)} km');
+
   static IsletmeOzet json(Map<String, dynamic> m) => IsletmeOzet(
     id: (m['id'] ?? '').toString(),
     ad: (m['name'] ?? '').toString(),
@@ -285,7 +327,10 @@ class IsletmeOzet {
     ilce: (m['ilce'] ?? '').toString(),
     adres: (m['adres'] ?? '').toString(),
     dogrulandi: m['dogrulandi'] == true,
-  );
+  )
+    ..enlem = (m['enlem'] as num?)?.toDouble() ?? 0
+    ..boylam = (m['boylam'] as num?)?.toDouble() ?? 0
+    ..km = (m['km'] as num?)?.toDouble() ?? 0;
 }
 
 final isletmeServisiProvider = Provider<IsletmeServisi>(IsletmeServisi.new);

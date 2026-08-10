@@ -65,6 +65,16 @@ var Kategoriler = map[string]string{
 	"kuafor":    "Kuaför & Güzellik",
 	"oto":       "Oto & Servis",
 	"saglik":    "Sağlık",
+	// ⚠️ TURU 85 — kullanici emri: "eczane vs, birde otel kategoriler,
+	//    otel eklememiz gerekiyor".
+	// ⚠️ MIGRATION GEREKMEDI: `isletmeler.kategori` serbest TEXT, uzerinde
+	//    CHECK YOK (028 serhi: "sabit, kucuk ve nadiren degisen liste").
+	//    Yani yeni anahtar eklemek SEMA DEGISIKLIGI ISTEMEZ.
+	// ⚠️ AMA `Kategoriler` haritasi ISTEMCIYLE AYNI OLMAK ZORUNDA: istemci
+	//    bilmedigi anahtari "Diğer" gosterir ve kullanici kendi sectigi
+	//    kategoriyi GOREMEZ. Ikisi birlikte guncellendi.
+	"eczane":    "Eczane",
+	"otel":      "Otel & Konaklama",
 	"egitim":    "Eğitim",
 	"emlak":     "Emlak",
 	"spor":      "Spor",

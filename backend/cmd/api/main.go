@@ -250,6 +250,10 @@ func main() {
 		// TURU 78 — kategori inis sayfasinin ust slider'i (ORGANIK vitrin).
 		r.Get("/vitrin", vitrinH.Liste)
 		r.Get("/isletmeler", isletmeH.Liste)
+		// TURU 85 - konuma gore isletme listesi (ustte harita, altta kartlar).
+		// STATIK yol PARAMETRELI olandan ONCE gelmeli; chi geri donus yapiyor
+		// ama rota_test.go bu ayrimi ayrica dogruluyor.
+		r.Get("/isletmeler/yakinimda", isletmeH.Yakinimda)
 		r.Get("/isletme-kategorileri", isletmeH.KategoriListesi)
 		// TURU 77 — ETKINLIKLER
 		r.Post("/etkinlikler", etkinlikH.Olustur)

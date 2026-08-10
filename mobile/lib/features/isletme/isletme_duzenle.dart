@@ -4,6 +4,8 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../home/home_screen.dart' show myProfileProvider;
 import '../home/profil_duzenle.dart';
+// ⚠️ Konum alma TEK KAYNAK (turu 81) — izin/servis kontrolu orada.
+import '../medya/konum_servisi.dart';
 import 'isletme_servisi.dart';
 
 /// ⚠️⚠️ TURU 77 — ISLETME PROFILINE GEC / BILGILERI DUZENLE.
@@ -39,6 +41,19 @@ class _IsletmeDuzenleEkraniState extends ConsumerState<IsletmeDuzenleEkrani> {
   bool _kaydediliyor = false;
   /// ⚠️ Yukleme hatasi: form CIZILMEZ (bkz. build serhi — veri kaybi kapisi).
   bool _yuklemeHatasi = false;
+
+  /// ⚠️⚠️ TURU 85 — ISLETMENIN KOORDINATI.
+  ///
+  ///	`isletmeler.enlem/boylam` sutunlari **028'den beri VARDI** ama
+  ///	**HICBIR KAYITTA DOLU DEGILDI ve DOLDURACAK ARAYUZ YOKTU** — turu
+  ///	78'de "harita ve yakinimda YOK, once koordinat girisi lazim" diye
+  ///	acikca not edilmisti. Bu alanlar o bosluğu kapatiyor.
+  /// ⚠️ 0 = "belirlenmedi". `Isletme.toJson` sifiri GONDERMEZ ve sunucu
+  ///    `COALESCE` ile eskisini korur — yani konumu olmayan bir isletme
+  ///    baska bir alani duzenledi diye konumunu KAYBETMEZ.
+  double _enlem = 0;
+  double _boylam = 0;
+  bool _konumAliniyor = false;
   bool _zatenIsletme = false;
 
   @override
@@ -122,6 +137,13 @@ class _IsletmeDuzenleEkraniState extends ConsumerState<IsletmeDuzenleEkrani> {
         _ilce.text = i.ilce;
         _telefon.text = i.telefon;
         _web.text = i.web;
+        // ⚠️ Mevcut konum FORMA YUKLENIR: yuklenmezse kullanici baska bir
+        //    alani duzenleyip kaydettiginde `_enlem/_boylam` 0 kalir ve
+        //    `toJson` onlari GONDERMEZ -> sunucudaki konum KORUNUR (COALESCE).
+        //    Yani veri kaybi yok; ama ekranda "konum belirlenmedi" yazardi ve
+        //    kullanici konumunu SILINMIS sanardi.
+        _enlem = i.enlem;
+        _boylam = i.boylam;
         // ⚠️ Sunucudan eksik gun gelebilir — 7 gunu TAMAMLA, yoksa listede
         //    bosluk olur ve kullanici o gunu hic ayarlayamaz.
         if (i.calisma.isNotEmpty) {
@@ -149,6 +171,13 @@ class _IsletmeDuzenleEkraniState extends ConsumerState<IsletmeDuzenleEkrani> {
               telefon: _telefon.text.trim(),
               web: _web.text.trim(),
               calisma: _calisma,
+              // ⚠️⚠️ TURU 85 — KOORDINAT. `Isletme.toJson` bunlari YALNIZ
+              //    sifirdan farkliysa gonderir ve sunucu `COALESCE` ile eski
+              //    degeri KORUR; yani konum belirlenmemisse mevcut konum
+              //    BOSA CEKILMEZ (turu 78b'de yasanan "kaydet basinca veriler
+              //    siliniyor" sinifi).
+              enlem: _enlem,
+              boylam: _boylam,
             ),
           );
       if (!mounted) return;
@@ -323,6 +352,8 @@ class _IsletmeDuzenleEkraniState extends ConsumerState<IsletmeDuzenleEkrani> {
           const SizedBox(height: 12),
           _alan(_web, 'Web sitesi', LucideIcons.globe, tip: TextInputType.url),
           const SizedBox(height: 20),
+          _konumBolumu(),
+          const SizedBox(height: 20),
           const Text(
             'ÇALIŞMA SAATLERİ',
             style: TextStyle(
@@ -345,6 +376,106 @@ class _IsletmeDuzenleEkraniState extends ConsumerState<IsletmeDuzenleEkrani> {
         ],
       ),
     );
+  }
+
+  /// ⚠️⚠️⚠️ TURU 85 — KONUM BOLUMU. **"Yakinimda"nin ON KOSULU.**
+  ///
+  /// Kullanici "yakinimda" ekrani istedi; o ekran isletmeleri MESAFEYE gore
+  /// siralar. Ama `isletmeler.enlem/boylam` 028'den beri VAR olmasina ragmen
+  /// **HICBIR KAYITTA DOLU DEGILDI** ve dolduracak bir arayuz YOKTU — turu
+  /// 78'de bu acikca "once koordinat girisi lazim, yoksa harita bos tuval
+  /// olur" diye not edilmisti. Bu bolum o boslugu kapatir.
+  ///
+  /// ⚠️ HARITADAN SECIM YOK (bilincli): harita SDK'si projede kurulu degil
+  ///    (bkz. pubspec serhi — API anahtari + faturalandirma gerektiriyor).
+  ///    "Bulundugum konum" isletme sahibi DUKKANINDAYKEN tek dokunusla dogru
+  ///    sonucu verir ve bugun calisan TEK yoldur.
+  /// ⚠️ Elle giris de BIRAKILDI: sahibi dukkanda degilken (ya da konum izni
+  ///    vermek istemiyorken) koordinatlari haritadan bakip yazabilsin.
+  Widget _konumBolumu() {
+    final belirlendi = _enlem != 0 || _boylam != 0;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'KONUM',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.6,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          belirlendi
+              ? 'Konum belirlendi: ${_enlem.toStringAsFixed(5)}, '
+                    '${_boylam.toStringAsFixed(5)}'
+              : 'Konum belirlenmedi. İşletmen “Yakınımda” listesinde '
+                    'görünmesi için konumunu ekle.',
+          style: TextStyle(
+            fontSize: 12.5,
+            height: 1.4,
+            color: belirlendi
+                ? Theme.of(context).colorScheme.primary
+                : Colors.grey,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _konumAliniyor ? null : _konumuAl,
+                icon: _konumAliniyor
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(LucideIcons.locateFixed, size: 18),
+                label: Text(
+                  belirlendi ? 'Konumu güncelle' : 'Bulunduğum konumu kullan',
+                ),
+              ),
+            ),
+            if (belirlendi) ...[
+              const SizedBox(width: 8),
+              IconButton(
+                tooltip: 'Konumu kaldır',
+                icon: const Icon(LucideIcons.x, size: 18),
+                onPressed: () => setState(() {
+                  _enlem = 0;
+                  _boylam = 0;
+                }),
+              ),
+            ],
+          ],
+        ),
+      ],
+    );
+  }
+
+  Future<void> _konumuAl() async {
+    setState(() => _konumAliniyor = true);
+    try {
+      // ⚠️ `KonumServisi` TEK KAYNAK (turu 81, sohbette konum paylasimi icin
+      //    yazildi): izin isteme, servis kapali kontrolu ve hata mesajlari
+      //    orada. Ikinci bir konum yolu yazmak o kapilari atlardi.
+      final k = await KonumServisi.konumAl();
+      if (!mounted) return;
+      if (k == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Konum alınamadı — izin verildi mi?')),
+        );
+        return;
+      }
+      setState(() {
+        _enlem = k.enlem;
+        _boylam = k.boylam;
+      });
+    } finally {
+      if (mounted) setState(() => _konumAliniyor = false);
+    }
   }
 
   Widget _alan(
