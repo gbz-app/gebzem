@@ -40,6 +40,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/gbz-app/gebzem/backend/internal/auth"
+	// ⚠️ TURU 85b — dikeyler `isletme.Kategoriler`den TURETILIYOR (drift yok).
+	//    Dongu riski YOK: `isletme` paketi `vitrin`i IMPORT ETMIYOR.
+	"github.com/gbz-app/gebzem/backend/internal/isletme"
 )
 
 type Handler struct{ db *pgxpool.Pool }
@@ -52,13 +55,30 @@ func yaz(w http.ResponseWriter, kod int, v any) {
 	json.NewEncoder(w).Encode(v)
 }
 
-// ⚠️ Isletme dikeyleri: `isletmeler.kategori` degerleriyle BIREBIR.
-var isletmeDikeyleri = map[string]bool{
-	"yemek": true, "kafe": true, "market": true, "giyim": true,
-	"kuafor": true, "oto": true, "saglik": true, "egitim": true,
-	"emlak": true, "spor": true, "teknoloji": true, "eglence": true,
-	"hizmet": true, "diger": true, "isletme": true,
-}
+// ⚠️⚠️⚠️ TURU 85b — DIKEYLER ARTIK **TEK KAYNAKTAN TURETILIYOR**.
+//
+// Onceden burada ELLE yazilmis bir kopya vardi ve turu 85'te `eczane` ile
+// `otel` eklenince **BU KOPYA GUNCELLENMEDI**: `/vitrin?dikey=eczane`
+// `isletmeDikeyleri[dikey]` kapisindan GECEMIYOR ve sessizce "yaklasan
+// etkinlikler" daline dusuyordu — yani yeni kategorilerin inis sayfasinda
+// UST SLIDER HIC CIZILMEZDI.
+//
+// Bu, CLAUDE.md'de ALTI kez yazili **"ayni kuralin iki kopyasi DRIFT EDER"**
+// sinifinin UCUNCU kopyayla yasanan halidir (Go `Kategoriler` · Dart
+// `isletmeKategorileri` · buradaki liste).
+//
+// ⚠️ Artik `isletme.Kategoriler` haritasindan uretiliyor: yeni bir kategori
+//    eklendiginde burasi OTOMATIK ogrenir, drift YAPISAL OLARAK imkansiz.
+// ⚠️ `"isletme"` bir KATEGORI DEGIL, "tum isletmeler" dikeyidir — bu yuzden
+//    ayrica ekleniyor.
+// ⚠️ YAPMA: buraya tekrar elle liste yazma.
+var isletmeDikeyleri = func() map[string]bool {
+	m := map[string]bool{"isletme": true}
+	for k := range isletme.Kategoriler {
+		m[k] = true
+	}
+	return m
+}()
 
 // GET /vitrin?dikey=yemek — kategori inis sayfasinin ust slider'i.
 //

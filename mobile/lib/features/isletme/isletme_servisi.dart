@@ -174,8 +174,8 @@ class Isletme {
     this.telefon = '',
     this.web = '',
     this.calisma = const [],
-    this.enlem = 0,
-    this.boylam = 0,
+    this.enlem,
+    this.boylam,
     this.dogrulandi = false,
     this.randevuAcik = false,
     this.randevuTuru = 'randevu',
@@ -188,8 +188,20 @@ class Isletme {
   String telefon;
   String web;
   List<CalismaGunu> calisma;
-  double enlem;
-  double boylam;
+
+  /// ⚠️⚠️ TURU 85b — **NULLABLE**: "gonderilmedi" ile "SIFIRLA" AYRI seylerdir.
+  ///
+  ///   `null`  -> alan istege KONMAZ; sunucu COALESCE ile mevcut konumu KORUR
+  ///   `0`     -> alan 0 olarak GONDERILIR; sunucu konumu SIFIRLAR (kaldirma)
+  ///   deger   -> normal kayit
+  ///
+  /// Onceden `double enlem = 0` idi ve `toJson` 0'i GONDERMIYORDU. Sonuc:
+  /// isletme duzenlemedeki **"Konumu kaldır" (X) dugmesi OLU IDI** — ekranda
+  /// temizleniyor ama sunucuya HIC ULASMIYOR, sayfa yenilenince konum GERI
+  /// GELIYORDU. (Bu projenin 10 kez yasadigi "dugme var ama is yapmiyor" sinifi.)
+  /// ⚠️ YAPMA: bunlari tekrar `double = 0` yapma.
+  double? enlem;
+  double? boylam;
 
   /// ⚠️ `users.verified` (TELEFON dogrulamasi) ILE KARISTIRILMAZ — bu ISLETME
   ///    dogrulamasidir ve ayri bir sutunda tutulur (bkz. migration 028).
@@ -230,9 +242,19 @@ class Isletme {
     //    haritadan sectigi konum, calisma saatlerini duzenlemek icin acilan
     //    HERHANGI bir kaydetme ile SIFIRLANIRDI — ve "duzeltildi" diye yazili
     //    oldugu icin kimse orada aramazdi.
-    // ⚠️ YAPMA: bu iki alani kosulsuz gondermeye donme.
-    if (enlem != 0) 'enlem': enlem,
-    if (boylam != 0) 'boylam': boylam,
+    //
+    // ⚠️⚠️ TURU 85b — OLCUT `!= 0` DEGIL **`!= null`**.
+    //
+    //    `!= 0` kurali dogru sorunu cozuyordu ama YENI bir tane yaratti:
+    //    kullanici "Konumu kaldır"a bastiginda deger 0 olur ve alan
+    //    GONDERILMEZ -> sunucudaki COALESCE eski konumu KORUR -> **kaldirma
+    //    ISTEGI SUNUCUYA HIC ULASMAZ.** Dugme ekranda calisiyor gorunur,
+    //    sayfa yenilenince konum GERI GELIR.
+    //
+    //    Artik alanlar `double?`: `null` "dokunma", `0` "SIFIRLA" demek.
+    // ⚠️ YAPMA: olcutu tekrar `!= 0` yapma; alanlari non-nullable'a dondurme.
+    if (enlem != null) 'enlem': enlem,
+    if (boylam != null) 'boylam': boylam,
   };
 
   /// ⚠️ Ad : sinifin bir de ORNEK metodu  var (giden yon).

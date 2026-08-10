@@ -142,8 +142,10 @@ class _IsletmeDuzenleEkraniState extends ConsumerState<IsletmeDuzenleEkrani> {
         //    `toJson` onlari GONDERMEZ -> sunucudaki konum KORUNUR (COALESCE).
         //    Yani veri kaybi yok; ama ekranda "konum belirlenmedi" yazardi ve
         //    kullanici konumunu SILINMIS sanardi.
-        _enlem = i.enlem;
-        _boylam = i.boylam;
+        // ⚠️ `?? 0` — model artik nullable ("gonderilmedi" vs "sifirla"
+        //    ayrimi icin). Ekranda 0 = "konum belirlenmedi".
+        _enlem = i.enlem ?? 0;
+        _boylam = i.boylam ?? 0;
         // ⚠️ Sunucudan eksik gun gelebilir — 7 gunu TAMAMLA, yoksa listede
         //    bosluk olur ve kullanici o gunu hic ayarlayamaz.
         if (i.calisma.isNotEmpty) {

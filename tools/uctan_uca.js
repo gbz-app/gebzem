@@ -1883,6 +1883,57 @@ const kontrol = (ad, gecti, ek = '') => {
       kotuKat.kod === 400, 'HTTP ' + kotuKat.kod);
   }
 
+  // ================= TURU 85b: KONUM KALDIRMA + VITRIN DIKEYI ===========
+  {
+    const Z = await kullaniciAc('E2E KonumSil');
+    // Konumlu isletme olustur.
+    await j('/users/me/isletme', {
+      yontem: 'PUT', token: Z.token,
+      govde: { kategori: 'otel', adres: 'Konum silinecek', il: 'Kocaeli',
+               ilce: 'Gebze', enlem: 40.8050, boylam: 29.4350 },
+    });
+    const v1 = await j('/isletmeler/yakinimda?lat=40.8050&lng=29.4350&km=5',
+      { token: A.token });
+    kontrol('TURU 85b: konumlu isletme listede GORUNUYOR',
+      ((v1.d && v1.d.isletmeler) || []).some((x) => x.id === Z.id),
+      'var=' + ((v1.d && v1.d.isletmeler) || []).some((x) => x.id === Z.id));
+
+    // ⚠️ BASKA bir alani guncelle, KONUM GONDERME -> konum KORUNMALI.
+    await j('/users/me/isletme', {
+      yontem: 'PUT', token: Z.token,
+      govde: { kategori: 'otel', adres: 'Adres degisti', il: 'Kocaeli',
+               ilce: 'Gebze' },
+    });
+    const v2 = await j('/isletmeler/yakinimda?lat=40.8050&lng=29.4350&km=5',
+      { token: A.token });
+    kontrol('TURU 85b: konum GONDERILMEYINCE KORUNUYOR (COALESCE)',
+      ((v2.d && v2.d.isletmeler) || []).some((x) => x.id === Z.id),
+      'korundu=' + ((v2.d && v2.d.isletmeler) || []).some((x) => x.id === Z.id));
+
+    // ⚠️ ACIKCA 0 gonder -> konum SIFIRLANMALI ("Konumu kaldir" dugmesi).
+    //    Onceden istemci 0 i HIC GONDERMIYORDU ve dugme OLU IDI.
+    await j('/users/me/isletme', {
+      yontem: 'PUT', token: Z.token,
+      govde: { kategori: 'otel', adres: 'Adres degisti', il: 'Kocaeli',
+               ilce: 'Gebze', enlem: 0, boylam: 0 },
+    });
+    const v3 = await j('/isletmeler/yakinimda?lat=40.8050&lng=29.4350&km=5',
+      { token: A.token });
+    kontrol('TURU 85b: ACIKCA 0 gonderilince konum SIFIRLANIYOR (kaldirma)',
+      !((v3.d && v3.d.isletmeler) || []).some((x) => x.id === Z.id),
+      'silindi=' + !((v3.d && v3.d.isletmeler) || []).some((x) => x.id === Z.id));
+
+    // ⚠️ VITRIN DIKEYI: yeni kategoriler `isletmeDikeyleri`nden TURETILIYOR.
+    //    Elle yazilan eski kopya guncellenmemisti ve /vitrin?dikey=eczane
+    //    sessizce "yaklasan etkinlikler" daline dusuyordu.
+    const vitEczane = await j('/vitrin?dikey=eczane', { token: A.token });
+    kontrol('TURU 85b: /vitrin?dikey=eczane calisiyor (dikey taniniyor)',
+      vitEczane.kod === 200, 'HTTP ' + vitEczane.kod);
+    const vitOtel = await j('/vitrin?dikey=otel', { token: A.token });
+    kontrol('TURU 85b: /vitrin?dikey=otel calisiyor', vitOtel.kod === 200,
+      'HTTP ' + vitOtel.kod);
+  }
+
   // ---------- OZET
   const kalan = sonuclar.filter((s) => !s.gecti);
   console.log('\n==================================');
