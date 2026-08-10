@@ -32,14 +32,31 @@ import (
 func (h *Handler) erisebilirMi(ctx context.Context, me, postID string) (bool, string) {
 	var yazar, durum string
 	var yorumKapali, gizli bool
+	// ⚠️⚠️⚠️ TURU 81 — ZAMANLANMIS GONDERI ETKILESIME KAPALI (muhafiz bulgusu:
+	//    `yayin_test.go` bu sorguyu YUKLEMSIZ yakaladi).
+	//
+	//	Bu fonksiyon BEGENI / YORUM / KAYDETME kapisidir. Yuklem olmadan
+	//	HENUZ YAYINLANMAMIS bir gonderi etkilesime acik kalirdi ve bu tutarsiz
+	//	bir durumdur: yazar kendi profilinde zamanladigi gonderiyi GORUR
+	//	(bilincli), oradan acip BEGENEBILIR/YORUM YAPABILIRDI — yayinda
+	//	olmayan bir icerige. Sayaclar da yayin ONCESI sismis olurdu.
+	// ⚠️ `yayin_at` DA SECILIYOR ve asagida ACIKCA kontrol ediliyor; sorguya
+	//    gomulmedi cunku burada "bulunamadi" ile "henuz yayinda degil"
+	//    ayrimini korumak istiyoruz (ikisi de false doner ama ileride farkli
+	//    mesaj gerekirse ayrim ELDE kalir).
+	var yayinAt *time.Time
 	err := h.db.QueryRow(ctx, `
-		SELECT p.author_id, p.durum, p.yorum_kapali, u.gizli_hesap
+		SELECT p.author_id, p.durum, p.yorum_kapali, u.gizli_hesap, p.yayin_at
 		  FROM posts p JOIN users u ON u.id = p.author_id
-		 WHERE p.id=$1`, postID).Scan(&yazar, &durum, &yorumKapali, &gizli)
+		 WHERE p.id=$1`, postID).
+		Scan(&yazar, &durum, &yorumKapali, &gizli, &yayinAt)
 	if err != nil {
 		return false, ""
 	}
 	if durum != "yayinda" {
+		return false, ""
+	}
+	if yayinAt != nil && yayinAt.After(time.Now()) {
 		return false, ""
 	}
 	// ⚠️ ENGEL: iki yonlu. Engelli taraf etkilesemez.
@@ -371,7 +388,7 @@ func (h *Handler) Kaydedilenler(w http.ResponseWriter, r *http.Request) {
 		        OR p.author_id=$1
 		        OR EXISTS(SELECT 1 FROM follows f
 		              WHERE f.follower_id=$1 AND f.followee_id=p.author_id
-		                AND f.durum='onayli'))`+engelYok+`
+		                AND f.durum='onayli'))`+engelYok+yayindaOlan+`
 		 ORDER BY sv.created_at DESC LIMIT 30`, me, before)
 	if err != nil {
 		hata(w, 500, "kaydedilenler alınamadı")

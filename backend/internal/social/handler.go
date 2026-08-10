@@ -112,6 +112,29 @@ const medyaTurleri = `
 		                   LEFT JOIN media_assets ma ON ma.id = mb.mid), '{}'),
 		       p.duzenlendi_at,`
 
+// ⚠️⚠️⚠️ TURU 81 — ZAMANLANMIS GONDERI SUZGECI. **TEK KAYNAK.**
+//
+// `posts.yayin_at` NULL ise gonderi zamanlanmamistir (hemen yayinda);
+// doluysa o ANA KADAR HIC KIMSEYE gorunmez.
+//
+// ⚠️⚠️ BU YUKLEM **AKIS/KESFET/PROFIL/REELS/KAYDEDILENLER** sorgularinin
+//
+//	HEPSINDE olmak zorunda. Birinde eksik kalirsa zamanlanmis gonderi o
+//	yuzeyden SIZAR — ve bu, "6 sorguya ekleyip 7.'yi atlama" hatasinin
+//	(turu 76'da Kaydedilenler'i BOMBOS birakan sinif) YENI bir bicimidir.
+//
+// ⚠️⚠️ MEVCUT MUHAFIZ BU HATAYI **YAKALAYAMAZ**: `sutun_test.go` yalnizca
+//
+//	SELECT sutun listesini dogruluyor, WHERE yuklemini DEGIL. Bu yuzden
+//	turu 81'de AYRI bir muhafiz eklendi: `yayin_test.go`.
+//
+// ⚠️ YAZARIN KENDI listesi BILEREK HARIC: kullanici zamanladigi gonderiyi
+//
+//	kendi profilinde GORMELI (yoksa "kayboldu" sanar). O sorguda yuklem
+//	`p.author_id = $me` ile gevsetiliyor.
+const yayindaOlan = `
+			   AND (p.yayin_at IS NULL OR p.yayin_at <= now())`
+
 const engelYok = `
 			   AND NOT EXISTS(SELECT 1 FROM blocks b
 			         WHERE (b.blocker_id=$1 AND b.blocked_id=p.author_id)
@@ -134,6 +157,9 @@ type postReq struct {
 	Metin       string   `json:"metin"`
 	MediaIDs    []string `json:"media_ids"`
 	YorumKapali bool     `json:"yorum_kapali"`
+	// ⚠️ TURU 81 — ILERI TARIHLI PAYLASIM (RFC3339). Bos ya da GECMIS ise
+	//    gonderi HEMEN yayinlanir.
+	YayinAt string `json:"yayin_at"`
 	// ⚠️ TURU 75b: `ClientRef` KALDIRILDI — hicbir yerde OKUNMUYORDU ve `posts`
 	//    tablosunda karsiligi da yok. Olu alan, ileride birinin "tekrar korumasi
 	//    var" saniyla yanlis varsayim yapmasina yol acar. Gercekten gerekirse
@@ -223,10 +249,30 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 
 	var id string
 	var createdAt time.Time
+	// ⚠️⚠️ TURU 81 — ILERI TARIHLI PAYLASIM. `yayin_at` NULL = HEMEN.
+	//    GECMIS bir zaman gonderilirse NULL'a cevrilir (yani hemen yayinlanir):
+	//    "5 dakika once yayinlansin" anlamsizdir ve saat kaymasi olan bir
+	//    cihazdan gelen istegi sessizce reddetmek yerine dogru davranisi
+	//    uyguluyoruz.
+	var yayinAt *time.Time
+	if req.YayinAt != "" {
+		if t, err := time.Parse(time.RFC3339, req.YayinAt); err == nil && t.After(time.Now()) {
+			// ⚠️ TAVAN: 1 yil. Sinirsiz birakilsaydi bozuk/kotu niyetli bir
+			//    deger gonderiyi FIILEN GORUNMEZ yapardi ve kullanici sebebini
+			//    anlayamazdi.
+			if t.Before(time.Now().AddDate(1, 0, 0)) {
+				yayinAt = &t
+			} else {
+				hata(w, 400, "En fazla 1 yıl sonrasına zamanlayabilirsin")
+				return
+			}
+		}
+	}
 	err = tx.QueryRow(r.Context(), `
-		INSERT INTO posts (author_id, tur, metin, media_ids, yorum_kapali)
-		VALUES ($1,$2,$3,$4,$5) RETURNING id, created_at`,
-		me, req.Tur, req.Metin, req.MediaIDs, req.YorumKapali).Scan(&id, &createdAt)
+		INSERT INTO posts (author_id, tur, metin, media_ids, yorum_kapali, yayin_at)
+		VALUES ($1,$2,$3,$4,$5,$6) RETURNING id, created_at`,
+		me, req.Tur, req.Metin, req.MediaIDs, req.YorumKapali, yayinAt).
+		Scan(&id, &createdAt)
 	if err != nil {
 		log.Printf("gonderi insert: %v", err)
 		hata(w, 500, "gönderi oluşturulamadı")
@@ -435,7 +481,7 @@ func (h *Handler) Akis(w http.ResponseWriter, r *http.Request) {
 			   AND (p.author_id = $1 OR p.author_id IN (
 			         SELECT followee_id FROM follows
 			          WHERE follower_id=$1 AND durum='onayli'))
-			`+engelYok+`
+			`+engelYok+yayindaOlan+`
 			 ORDER BY p.created_at DESC LIMIT $3`, me, before, limit)
 	} else {
 		// KESFET: herkese acik hesaplarin yeni gonderileri + KENDI gonderilerim.
@@ -457,7 +503,7 @@ func (h *Handler) Akis(w http.ResponseWriter, r *http.Request) {
 			  FROM posts p JOIN users u ON u.id = p.author_id
 			 WHERE p.durum='yayinda' AND p.created_at < $2
 			   AND (p.author_id = $1 OR (NOT u.gizli_hesap AND u.verified))
-			`+engelYok+`
+			`+engelYok+yayindaOlan+`
 			 ORDER BY p.created_at DESC LIMIT $3`, me, before, limit)
 	}
 	if err != nil {
@@ -517,7 +563,7 @@ func (h *Handler) Kesfet(w http.ResponseWriter, r *http.Request) {
 		 WHERE p.durum='yayinda' AND p.created_at < $2
 		   AND cardinality(p.media_ids) > 0
 		   AND (p.author_id = $1 OR (NOT u.gizli_hesap AND u.verified))
-		`+engelYok+`
+		`+engelYok+yayindaOlan+`
 		 ORDER BY p.created_at DESC LIMIT $3`, me, before, limit)
 	if err != nil {
 		log.Printf("kesfet: %v", err)
@@ -578,6 +624,12 @@ func (h *Handler) UserPosts(w http.ResponseWriter, r *http.Request) {
 		  FROM posts p JOIN users u ON u.id = p.author_id
 		 WHERE p.author_id=$2 AND p.durum='yayinda' AND p.created_at < $3
 		   AND ($4 = '' OR p.tur = $4)`+engelYok+`
+		   -- ⚠️⚠️ TURU 81 — ZAMANLANMIS GONDERI: yazar KENDI listesinde GORUR.
+		   --    `+`Diger yuzeylerde `+"`yayindaOlan`"+` yuklemi kosulsuzdur; burada
+		   --    `+`YAZARIN KENDISI icin gevsetiliyor. Aksi halde kullanici
+		   --    `+`zamanladigi gonderiyi HICBIR YERDE goremez ve "gitmedi"
+		   --    `+`sanip tekrar paylasirdi.
+		   AND (p.yayin_at IS NULL OR p.yayin_at <= now() OR p.author_id = $1)
 		 ORDER BY p.created_at DESC LIMIT 30`, me, hedef, before, tur)
 	if err != nil {
 		hata(w, 500, "gönderiler alınamadı")
@@ -674,7 +726,7 @@ func (h *Handler) Reels(w http.ResponseWriter, r *http.Request) {
 		        OR EXISTS(SELECT 1 FROM follows f
 		              WHERE f.follower_id=$1 AND f.followee_id=p.author_id
 		                AND f.durum='onayli'))
-		`+engelYok+`
+		`+engelYok+yayindaOlan+`
 		 ORDER BY p.created_at DESC LIMIT $3`, me, before, limit)
 	if err != nil {
 		log.Printf("reels: %v", err)

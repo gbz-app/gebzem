@@ -31,6 +31,7 @@ class SosyalServisi {
     String metin = '',
     List<String> mediaIds = const [],
     bool yorumKapali = false,
+    DateTime? yayinAt,
   }) async {
     final r = await _api.post(
       '/posts',
@@ -39,6 +40,11 @@ class SosyalServisi {
         'metin': metin,
         'media_ids': mediaIds,
         'yorum_kapali': yorumKapali,
+        // ⚠️ TURU 81 — ILERI TARIHLI PAYLASIM. Gonderilmezse ya da GECMIS bir
+        //    zamansa sunucu gonderiyi HEMEN yayinlar.
+        // ⚠️ `toUtc()`: sunucu RFC3339 bekliyor ve saat dilimi belirsizligi
+        //    "1 saat once/sonra yayinlandi" hatalarinin klasik kaynagidir.
+        if (yayinAt != null) 'yayin_at': yayinAt.toUtc().toIso8601String(),
       },
     );
     return r.data['id'] as String;

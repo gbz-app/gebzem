@@ -50,6 +50,63 @@ class _GonderiOlusturState extends ConsumerState<GonderiOlustur> {
   final _metin = TextEditingController();
   final List<_SecilenMedya> _medya = [];
   bool _yorumKapali = false;
+
+  /// ⚠️ TURU 81 — ILERI TARIHLI PAYLASIM. `null` = HEMEN yayinla.
+  DateTime? _yayinAt;
+
+  /// "12 Ağustos 19:30"
+  String _zamanMetni(DateTime d) {
+    const aylar = [
+      'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
+      'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık',
+    ];
+    final s = d.hour.toString().padLeft(2, '0');
+    final dk = d.minute.toString().padLeft(2, '0');
+    return '${d.day} ${aylar[d.month - 1]} $s:$dk';
+  }
+
+  /// ⚠️ Tarih + saat AYRI iki adimda seciliyor (Material'in tek bir
+  ///    "tarih-saat" secicisi yok). Kullanici ikisinden birini iptal ederse
+  ///    zamanlama KURULMAZ — yarim bir deger yazmak "ne zaman yayinlanacak"
+  ///    sorusunu belirsiz birakirdi.
+  /// ⚠️ `flutter_localizations` turu 80'de eklendi, yani secici TURKCE acilir.
+  Future<void> _zamanSec() async {
+    final simdi = DateTime.now();
+    final gun = await showDatePicker(
+      context: context,
+      initialDate: simdi.add(const Duration(hours: 1)),
+      firstDate: simdi,
+      // ⚠️ Sunucu tavani 1 YIL — burasi onunla AYNI olmali, yoksa kullanici
+      //    secebildigi bir tarihte 400 yerdi.
+      lastDate: simdi.add(const Duration(days: 365)),
+      helpText: 'Yayın tarihi',
+      cancelText: 'Vazgeç',
+      confirmText: 'Devam',
+    );
+    if (gun == null || !mounted) return;
+    final saat = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(simdi.add(const Duration(hours: 1))),
+      helpText: 'Yayın saati',
+      cancelText: 'Vazgeç',
+      confirmText: 'Zamanla',
+    );
+    if (saat == null || !mounted) return;
+    final secilen = DateTime(
+      gun.year,
+      gun.month,
+      gun.day,
+      saat.hour,
+      saat.minute,
+    );
+    // ⚠️ GECMIS kontrolu ISTEMCIDE DE var: sunucu gecmisi sessizce "hemen"e
+    //    cevirir, ama kullaniciya BURADA soylemek daha durust.
+    if (!secilen.isAfter(DateTime.now())) {
+      _uyar('Geçmiş bir zamana paylaşım yapılamaz');
+      return;
+    }
+    setState(() => _yayinAt = secilen);
+  }
   bool _yukleniyor = false;
   CancelToken? _iptal;
 
@@ -102,7 +159,9 @@ class _GonderiOlusturState extends ConsumerState<GonderiOlustur> {
     }
     final kalan = _enFazlaGorsel - _medya.length;
     if (kalan <= 0) {
-      _uyar('En fazla  görsel eklenebilir');
+      // ⚠️ TURU 81 — MEVCUT HATA: sayi ENTERPOLASYONU KAYIPTI, mesaj
+      //    "En fazla  görsel eklenebilir" olarak cikiyordu (cift bosluk).
+      _uyar('En fazla $_enFazlaGorsel görsel eklenebilir');
       return;
     }
     // ⚠️ TEK KAYNAK: limit<2 tuzagi + take(kalan) kirpmasi MedyaSecici'de.
@@ -223,6 +282,7 @@ class _GonderiOlusturState extends ConsumerState<GonderiOlustur> {
             metin: metin,
             mediaIds: idler,
             yorumKapali: _yorumKapali,
+            yayinAt: _yayinAt,
           );
       if (!mounted) return;
       // ⚠️⚠️ TURU 75b (DENETIM BULGUSU — SEVK ENGELIYDI):
@@ -369,6 +429,33 @@ class _GonderiOlusturState extends ConsumerState<GonderiOlustur> {
                     : (v) => setState(() => _yorumKapali = v),
                 title: const Text('Yorumları kapat'),
                 secondary: const Icon(LucideIcons.messageCircleOff),
+              ),
+              // ⚠️⚠️ TURU 81 — ILERI TARIHLI PAYLASIM (kullanici emri).
+              //    Zamanlanan gonderi yayin anina kadar HICBIR yuzeyde
+              //    gorunmez; YALNIZ yazarin kendi profilinde (etiketli) durur.
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(LucideIcons.clock),
+                title: Text(
+                  _yayinAt == null ? 'Hemen paylaş' : 'Zamanlandı',
+                ),
+                subtitle: Text(
+                  _yayinAt == null
+                      ? 'İstersen ileri bir tarihe zamanlayabilirsin'
+                      : _zamanMetni(_yayinAt!),
+                ),
+                trailing: _yayinAt == null
+                    ? TextButton(
+                        onPressed: _yukleniyor ? null : _zamanSec,
+                        child: const Text('Zamanla'),
+                      )
+                    : IconButton(
+                        tooltip: 'Zamanlamayı kaldır',
+                        icon: const Icon(LucideIcons.x, size: 18),
+                        onPressed: _yukleniyor
+                            ? null
+                            : () => setState(() => _yayinAt = null),
+                      ),
               ),
               if (_yukleniyor) ...[
                 const SizedBox(height: 16),
