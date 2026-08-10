@@ -50,6 +50,26 @@ import (
 
 const kayitJetonOmru = 15 * time.Minute
 
+// ⚠️⚠️⚠️ OTP AMACI **'register'** — 'kayit' DEGIL.
+//
+// Ilk yazimda `"kayit"` yazilmisti ve adim 1 CANLIDA **500 donuyordu**.
+// Sebep `otp_codes` uzerindeki CHECK:
+//
+//	CHECK (purpose = ANY (ARRAY['register','reset_password','change_phone']))
+//
+// ⚠️ Bu, CLAUDE.md'de turu 78'den beri yazili olan tuzagin BIREBIR TEKRARI:
+//   **"yeni bir kind/durum/tur/amac DEGERI eklerken ONCE CHECK'i ac."**
+//   `go build` + `go vet` + `flutter analyze` UCU DE TEMIZ geciyordu; hata
+//   yalnizca GERCEK POSTGRES'te ortaya cikti (uctan uca testi yakaladi).
+//
+// ⚠️ MIGRATION ACILMADI, mevcut deger KULLANILDI: yeni bir amac eklemek
+//    CHECK'i DROP/ADD etmeyi gerektirirdi ve 015'in "iki migration kisiti
+//    bagimsiz yeniden kurarsa sonraki oncekinin degerlerini SILER" tuzagini
+//    acardi. Adimli kayit da SONUCTA bir "register" akisidir; ayri bir amac
+//    degeri urun olarak da bir sey ifade etmiyor.
+// ⚠️ YAPMA: burayi 'kayit' gibi yeni bir degere cevirme.
+const otpAmaciKayit = "register"
+
 // kayitClaims — YALNIZ kayit akisi icin. `Claims`ten AYRI bir tiptir:
 // ⚠️ Ayni tip kullanilsaydi bu jeton `Authorization: Bearer` ile gonderilip
 //    `ParseToken` tarafindan GECERLI bir oturum jetonu gibi cozulebilirdi
@@ -128,7 +148,7 @@ func (h *Handler) KayitTelefon(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	code, err := h.createOTP(r.Context(), req.Phone, "kayit")
+	code, err := h.createOTP(r.Context(), req.Phone, otpAmaciKayit)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "kod gönderilemedi")
 		return
@@ -168,7 +188,7 @@ func (h *Handler) KayitDogrula(w http.ResponseWriter, r *http.Request) {
 	}
 	req.Phone = strings.TrimSpace(req.Phone)
 	req.Code = strings.TrimSpace(req.Code)
-	if !h.consumeOTP(r.Context(), req.Phone, req.Code, "kayit") {
+	if !h.consumeOTP(r.Context(), req.Phone, req.Code, otpAmaciKayit) {
 		writeErr(w, http.StatusBadRequest, "Kod hatalı ya da süresi dolmuş")
 		return
 	}
