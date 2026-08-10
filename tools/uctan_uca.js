@@ -1723,6 +1723,82 @@ const kontrol = (ad, gecti, ek = '') => {
       'HTTP ' + sesPre.kod + ' ' + JSON.stringify(sesPre.d).slice(0, 120));
   }
 
+  // ================= TURU 84: ADIMLI KAYIT (telefon -> OTP -> bilgiler) =====
+  //
+  // ⚠️ Zincirin UCU birden sinanir. En kritik olan ADIM 3'un telefonu
+  //    **JETONDAN** almasi: istekten alsaydi biri kendi numarasini dogrulayip
+  //    BASKASININ numarasina hesap acabilirdi.
+  {
+    const tel = '+9055' + String(Date.now()).slice(-8);
+    const a1 = await j('/auth/kayit/telefon', { yontem: 'POST', govde: { phone: tel } });
+    kontrol('TURU 84: adim 1 telefon kabul edildi', a1.kod === 200, 'HTTP ' + a1.kod);
+    kontrol('TURU 84: test modunda dev_otp donuyor', !!(a1.d && a1.d.dev_otp),
+      'dev_otp=' + !!(a1.d && a1.d.dev_otp));
+
+    // ⚠️ Hesap HENUZ OLUSMAMALI — eski /register'dan EN ONEMLI fark.
+    const erken = await j('/auth/login', {
+      yontem: 'POST', govde: { phone: tel, password: 'herhangi123' },
+    });
+    kontrol('TURU 84: adim 1 sonrasi HESAP YOK (giris basarisiz)',
+      erken.kod === 401 || erken.kod === 400, 'HTTP ' + erken.kod);
+
+    const kod = a1.d && a1.d.dev_otp;
+    const yanlis = await j('/auth/kayit/dogrula', {
+      yontem: 'POST', govde: { phone: tel, code: '000000' },
+    });
+    kontrol('TURU 84: YANLIS kod reddediliyor', yanlis.kod === 400, 'HTTP ' + yanlis.kod);
+
+    const a2 = await j('/auth/kayit/dogrula', {
+      yontem: 'POST', govde: { phone: tel, code: kod },
+    });
+    kontrol('TURU 84: adim 2 kod dogrulandi', a2.kod === 200, 'HTTP ' + a2.kod);
+    kontrol('TURU 84: KAYIT JETONU donuyor', !!(a2.d && a2.d.kayit_jetonu),
+      'jeton=' + !!(a2.d && a2.d.kayit_jetonu));
+
+    // ⚠️ AYNI kod IKINCI KEZ kullanilamaz (consumeOTP tuketir).
+    const tekrar = await j('/auth/kayit/dogrula', {
+      yontem: 'POST', govde: { phone: tel, code: kod },
+    });
+    kontrol('TURU 84: kod IKINCI KEZ kullanilamaz', tekrar.kod === 400, 'HTTP ' + tekrar.kod);
+
+    const jeton = a2.d && a2.d.kayit_jetonu;
+    // ⚠️ GECERSIZ jeton reddedilmeli (imza kontrolu + alg kilidi).
+    const sahte = await j('/auth/kayit/tamamla', {
+      yontem: 'POST',
+      govde: {
+        kayit_jetonu: 'sahte.jeton.imza', name: 'X',
+        username: 'x' + String(Date.now()).slice(-6), password: 'abc123',
+      },
+    });
+    kontrol('TURU 84: SAHTE kayit jetonu reddediliyor (401)', sahte.kod === 401,
+      'HTTP ' + sahte.kod);
+
+    const kadi = 'e2e' + String(Date.now()).slice(-7);
+    const a3 = await j('/auth/kayit/tamamla', {
+      yontem: 'POST',
+      govde: {
+        kayit_jetonu: jeton, name: 'E2E Adimli',
+        username: kadi, password: 'gizli123',
+      },
+    });
+    kontrol('TURU 84: adim 3 hesap olustu', a3.kod === 200, 'HTTP ' + a3.kod);
+    kontrol('TURU 84: oturum jetonu donuyor', !!(a3.d && a3.d.token),
+      'token=' + !!(a3.d && a3.d.token));
+
+    // ⚠️ Telefon JETONDAN mi geldi? Olusan hesabin telefonu adim 1'deki olmali.
+    kontrol('TURU 84: hesap DOGRULANMIS telefonla acildi',
+      !!(a3.d && a3.d.user && a3.d.user.phone === tel),
+      'phone=' + (a3.d && a3.d.user && a3.d.user.phone));
+
+    // ⚠️ Ayni numara IKINCI kez kayit BASLATAMAZ (adim 1 kapisi) — kullanici
+    //    uc adim doldurup EN SONDA duvara toslamasin diye burada kontrol edilir.
+    const tekrarKayit = await j('/auth/kayit/telefon', {
+      yontem: 'POST', govde: { phone: tel },
+    });
+    kontrol('TURU 84: KAYITLI numara ile kayit baslatilamaz (409)',
+      tekrarKayit.kod === 409, 'HTTP ' + tekrarKayit.kod);
+  }
+
   // ---------- OZET
   const kalan = sonuclar.filter((s) => !s.gecti);
   console.log('\n==================================');

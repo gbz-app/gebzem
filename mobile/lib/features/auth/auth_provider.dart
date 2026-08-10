@@ -57,6 +57,53 @@ class AuthNotifier extends StateNotifier<String?> {
     return res.data['dev_otp'] as String?;
   }
 
+  // ══════════════ TURU 84 — ADIMLI KAYIT (telefon -> OTP -> bilgiler) ═══════
+  //
+  // ⚠️ ESKI `register`/`verify` cifti SILINMEDI: sunucuda o uclar duruyor ve
+  //    "sifre sifirlama" akisi hala `verify` mantigini paylasiyor.
+  //    Yeni akis AYRI uclar kullanir (`/auth/kayit/...`).
+
+  /// ADIM 1 — telefonu gonder, SMS kodu iste. Dev modda kod doner.
+  ///
+  /// ⚠️ HESAP OLUSTURULMAZ. Eski `register`in aksine burada yalnizca kod gider;
+  ///    boylece kullanici kisisel bilgileri EN SONDA doldurur.
+  Future<String?> kayitTelefon(String phone) async {
+    final res = await _ref
+        .read(apiProvider)
+        .post('/auth/kayit/telefon', data: {'phone': phone});
+    return res.data['dev_otp'] as String?;
+  }
+
+  /// ADIM 2 — kodu dogrula, KAYIT JETONU al.
+  ///
+  /// ⚠️ Oturum ACILMAZ (hesap henuz yok). Donen jeton yalnizca "bu telefon
+  ///    dogrulandi" demektir ve 15 dakika gecerlidir.
+  Future<String> kayitDogrula(String phone, String code) async {
+    final res = await _ref
+        .read(apiProvider)
+        .post('/auth/kayit/dogrula', data: {'phone': phone, 'code': code});
+    return (res.data['kayit_jetonu'] ?? '').toString();
+  }
+
+  /// ADIM 3 — hesabi olustur, OTURUM AC.
+  Future<void> kayitTamamla({
+    required String jeton,
+    required String name,
+    required String username,
+    required String password,
+  }) async {
+    final res = await _ref.read(apiProvider).post(
+      '/auth/kayit/tamamla',
+      data: {
+        'kayit_jetonu': jeton,
+        'name': name,
+        'username': username,
+        'password': password,
+      },
+    );
+    await _saveSession(res.data);
+  }
+
   /// OTP dogrula — basarili olursa oturum acilir (test modu)
   Future<void> verify(String phone, String code) async {
     final res = await _ref.read(apiProvider).post('/auth/verify', data: {

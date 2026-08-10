@@ -8,6 +8,7 @@ import 'core/ws.dart';
 import 'features/auth/auth_provider.dart';
 import 'features/auth/forgot_screen.dart';
 import 'features/auth/login_screen.dart';
+import 'features/auth/kayit_akisi.dart';
 import 'features/auth/onboarding_ekrani.dart';
 import 'features/auth/otp_screen.dart';
 import 'features/auth/register_screen.dart';
@@ -52,7 +53,22 @@ final routerProvider = Provider<GoRouter>((ref) {
       final onAuthPage = ['/login', '/register', '/otp', '/forgot']
           .contains(state.matchedLocation);
       if (!loggedIn && !onAuthPage) return '/login';
-      if (loggedIn && onAuthPage) return '/';
+      // ⚠️⚠️⚠️ TURU 84 — `/register` **ISTISNA**: adimli kayit akisi hesabi
+      //    3. adimda olusturur (yani OTURUM ACILIR) ve ardindan 4. adimda
+      //    IZINLERI ister.
+      //
+      //    Bu istisna OLMASAYDI: `kayitTamamla` oturumu acar acmaz
+      //    `loggedIn && onAuthPage` kosulu dogru olur ve router kullaniciyi
+      //    ANINDA `/`ye atardi -> **IZIN ADIMI HIC GORUNMEZDI** ve
+      //    `PermissionsScreen`in yillardir olu kalmasina yol acan hatanin
+      //    aynisi bu kez YENI akista tekrarlanirdi.
+      //
+      // ⚠️ Akis kendi bitisini `context.go('/')` ile YAPAR (izin ver ya da
+      //    "Şimdilik geç"). Yani kullanici burada MAHSUR KALMAZ.
+      // ⚠️ YAPMA: bu istisnayi kaldirma; kaldirilirsa izin adimi sessizce olur.
+      if (loggedIn && onAuthPage && state.matchedLocation != '/register') {
+        return '/';
+      }
       return null;
     },
     routes: [
@@ -65,7 +81,12 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (ctx, _) => OnboardingEkrani(onBitti: () => ctx.go('/')),
       ),
       GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
-      GoRoute(path: '/register', builder: (_, _) => const RegisterScreen()),
+      // TURU 84 - ADIMLI KAYIT (telefon -> OTP -> bilgiler -> izinler).
+      // Kullanici emri. Eski tek-sayfalik RegisterScreen ve /otp rotasi
+      // SILINMEDI: sifre sifirlama akisi /otp mantigini paylasiyor ve
+      // yayindaki eski surumler o yollari kullaniyor.
+      // YAPMA: /register i tekrar RegisterScreen e baglama.
+      GoRoute(path: '/register', builder: (_, _) => const KayitAkisi()),
       GoRoute(
         path: '/otp',
         builder: (_, state) {

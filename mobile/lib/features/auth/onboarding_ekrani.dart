@@ -41,37 +41,35 @@ class _OnboardingEkraniState extends ConsumerState<OnboardingEkrani> {
   final _ctrl = PageController();
   int _sayfa = 0;
 
+  /// ⚠️⚠️ TURU 84 — ACIKLAMALAR **KISALTILDI** (kullanici emri: *"baslik alta
+  ///    KISA PROFESYONEL aciklama"*). Onceki metinler iki cumleydi ve ozellik
+  ///    SAYIYORDU ("gruplar, sesli odalar, canli yayin da burada").
+  ///    Yeni metinler TEK CUMLE ve **faydayi** soyluyor, ozellik listelemiyor —
+  ///    profesyonel onboarding dili budur.
+  /// ⚠️ YAPMA: buraya ozellik listesi geri koyma; her satir tek cumle kalsin.
   static const _sayfalar = <_Sayfa>[
     _Sayfa(
       baslik: 'Mesajlaş, ara,',
       vurgu: 'görüntülü konuş',
-      alt:
-          'Anlık mesajlaşma, sesli ve görüntülü arama. '
-          'Gruplar, sesli odalar ve canlı yayın da burada.',
+      alt: 'Yakınlarınla anlık mesajlaş, sesli ve görüntülü görüş.',
       ikonlar: [LucideIcons.messageCircle, LucideIcons.phone, LucideIcons.video],
     ),
     _Sayfa(
       baslik: 'Paylaş,',
       vurgu: 'keşfet',
-      alt:
-          'Fotoğraf ve videolarını paylaş, hikâye at. '
-          'Takip ettiklerin ve Keşfet akışıyla şehrinde olan biteni gör.',
+      alt: 'Anlarını paylaş, şehrinde olan biteni akışında gör.',
       ikonlar: [LucideIcons.images, LucideIcons.compass, LucideIcons.heart],
     ),
     _Sayfa(
       baslik: 'Şehrindeki',
       vurgu: 'işletmeler',
-      alt:
-          'Restoran, kuaför, doktor, eğitim, sağlık… '
-          'Menülere bak, ürünleri incele, etkinlikleri kaçırma.',
+      alt: 'Restoran, kuaför, doktor — hepsi tek uygulamada.',
       ikonlar: [LucideIcons.store, LucideIcons.utensils, LucideIcons.ticket],
     ),
     _Sayfa(
       baslik: 'Rezervasyon ve',
       vurgu: 'randevu',
-      alt:
-          'Restoranda masa ayırt, doktordan randevu al. '
-          'Müsait saatleri gör, tek dokunuşla talebini gönder.',
+      alt: 'Müsait saati seç, randevunu tek dokunuşla al.',
       ikonlar: [
         LucideIcons.calendarCheck,
         LucideIcons.clock,
@@ -97,13 +95,27 @@ class _OnboardingEkraniState extends ConsumerState<OnboardingEkrani> {
   Widget build(BuildContext context) {
     final son = _sayfa == _sayfalar.length - 1;
     return Scaffold(
+      // ⚠️⚠️ TURU 84 — **ZEMIN BEYAZ** (kullanici emri: "arka plan beyaz").
+      //
+      //    Tema `scaffoldBackgroundColor`i KULLANILMAZ: koyu temada zemin
+      //    `0xFF1C1C1E` olurdu ve kullanicinin acikca istedigi beyaz tasarim
+      //    yalnizca acik temadaki kullanicilarda gorunurdu.
+      // ⚠️ ZEMIN SABITLENDIGI ICIN YAZI RENKLERI DE SABIT (`_kOnboardYazi` /
+      //    `_kOnboardAltYazi`). Temadan alinsaydi koyu temada BEYAZ yazi
+      //    BEYAZ zemine cizilirdi — turu 81b'de sohbet balonlarinda yasanan
+      //    1.23:1 kontrast hatasinin birebir aynisi.
+      // ⚠️ YAPMA: buradaki renkleri temaya baglama.
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: Column(
           children: [
             Align(
               alignment: Alignment.centerRight,
+              // ⚠️ Renk SABIT: temadan alinsaydi koyu temada BEYAZ olur ve
+              //    beyaz zeminde GORUNMEZDI (zemin artik sabit beyaz).
               child: TextButton(
                 onPressed: _bitir,
+                style: TextButton.styleFrom(foregroundColor: _kOnboardAltYazi),
                 child: const Text('Atla'),
               ),
             ),
@@ -126,11 +138,12 @@ class _OnboardingEkraniState extends ConsumerState<OnboardingEkrani> {
                   width: aktif ? 20 : 7,
                   height: 7,
                   decoration: BoxDecoration(
+                    // ⚠️ Pasif nokta rengi de SABIT (zemin beyaz — temadan
+                    //    alinsaydi koyu temada beyaz nokta beyaz zemine
+                    //    cizilir ve gosterge KAYBOLURDU).
                     color: aktif
                         ? morLogo
-                        : Theme.of(
-                            context,
-                          ).colorScheme.onSurface.withValues(alpha: 0.25),
+                        : _kOnboardAltYazi.withValues(alpha: 0.3),
                     borderRadius: BorderRadius.circular(4),
                   ),
                 );
@@ -171,6 +184,11 @@ class _OnboardingEkraniState extends ConsumerState<OnboardingEkrani> {
   }
 }
 
+/// ⚠️ Onboarding zemini SABIT BEYAZ oldugu icin yazi renkleri de SABIT.
+///    Temadan alinsalardi koyu temada beyaz-uzeri-beyaz cikardi.
+const Color _kOnboardYazi = Color(0xFF14141A);
+const Color _kOnboardAltYazi = Color(0xFF6B6B76);
+
 class _Sayfa {
   const _Sayfa({
     required this.baslik,
@@ -196,35 +214,47 @@ class _SayfaGorunumu extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 28),
+      padding: const EdgeInsets.fromLTRB(28, 0, 28, 0),
       child: Column(
+        // ⚠️⚠️ TURU 84 — **YAZILAR SOLA DAYALI** (kullanici emri: *"arka plan
+        //    beyaz, yazilar solda, baslik alta kisa profesyonel aciklama"*).
+        //    Onceki tasarim her seyi ORTALIYORDU.
+        // ⚠️ `crossAxisAlignment: start` TEK BASINA YETMEZ: `Text` ve
+        //    `RichText` kendi ICLERINDE de `textAlign` tasir; ikisi de
+        //    `TextAlign.left`a cevrildi. Yalniz biri degistirilseydi cok
+        //    satirli baslik yine ortalanirdi.
+        crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // ⚠️ Kompozisyon: uc yuvarlak kart, ortadaki buyuk. Gonderilen
-          //    tasarimdaki "kart yigini" hissini asset olmadan verir.
+          // ⚠️ Gorsel kompozisyon da SOLA hizalandi; ortada birakilsaydi
+          //    yazilarla ayni dikey cizgide durmaz, tasarim dagilirdi.
           SizedBox(
-            height: 190,
+            height: 168,
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisAlignment: MainAxisAlignment.start,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                _kart(scheme, s.ikonlar[0], 92, 120, 0.55),
-                const SizedBox(width: 12),
-                _kart(scheme, s.ikonlar[1], 118, 165, 1.0),
-                const SizedBox(width: 12),
-                _kart(scheme, s.ikonlar[2], 92, 120, 0.55),
+                _kart(scheme, s.ikonlar[0], 78, 100, 0.5),
+                const SizedBox(width: 10),
+                _kart(scheme, s.ikonlar[1], 100, 140, 1.0),
+                const SizedBox(width: 10),
+                _kart(scheme, s.ikonlar[2], 78, 100, 0.5),
               ],
             ),
           ),
-          const SizedBox(height: 36),
+          const SizedBox(height: 40),
           RichText(
-            textAlign: TextAlign.center,
+            textAlign: TextAlign.left,
             text: TextSpan(
               style: TextStyle(
-                fontSize: 28,
-                height: 1.22,
+                fontSize: 30,
+                height: 1.18,
                 fontWeight: FontWeight.w800,
-                color: scheme.onSurface,
+                // ⚠️ Zemin BEYAZ oldugu icin yazi rengi TEMADAN ALINMAZ —
+                //    koyu temada beyaz yaziyi beyaz zemine cizerdi (turu 81b'de
+                //    sohbet balonlarinda yasanan 1.23:1 kontrast hatasinin
+                //    birebir aynisi).
+                color: _kOnboardYazi,
               ),
               children: [
                 TextSpan(text: '${s.baslik}\n'),
@@ -232,20 +262,20 @@ class _SayfaGorunumu extends StatelessWidget {
                   text: s.vurgu,
                   style: const TextStyle(
                     fontStyle: FontStyle.italic,
-                    color: morLogoAcik,
+                    color: morLogo,
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 16),
           Text(
             s.alt,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 14.5,
-              height: 1.45,
-              color: scheme.onSurface.withValues(alpha: 0.62),
+            textAlign: TextAlign.left,
+            style: const TextStyle(
+              fontSize: 15,
+              height: 1.5,
+              color: _kOnboardAltYazi,
             ),
           ),
         ],

@@ -190,6 +190,15 @@ func main() {
 	r.Route("/auth", func(r chi.Router) {
 		r.Post("/register", authH.Register)
 		r.Post("/verify", authH.Verify)
+		// ⚠️⚠️ TURU 84 — ADIMLI KAYIT (telefon -> OTP -> kisisel bilgiler).
+		//    Kullanici emri. Eski `/register` + `/verify` ciftine
+		//    **DOKUNULMADI**: sahadaki eski surumler onlari kullaniyor ve
+		//    yayindaki bir kayit akisini kirmak, kullanicinin uygulamaya HIC
+		//    girememesi demektir.
+		// ⚠️ YAPMA: eski ikisini silme (once sahada eski surum kalmadigini dogrula).
+		r.Post("/kayit/telefon", authH.KayitTelefon)
+		r.Post("/kayit/dogrula", authH.KayitDogrula)
+		r.Post("/kayit/tamamla", authH.KayitTamamla)
 		r.Post("/login", authH.Login)
 		r.Post("/forgot", authH.Forgot)
 		r.Post("/reset", authH.Reset)
