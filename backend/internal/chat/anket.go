@@ -439,11 +439,23 @@ func (h *Handler) anketOku(ctx context.Context, pollID int64, userID string) (ma
 // ⚠️ Yayin govdesi `anketOku` ile AYNI: istemci tek bir cozumleyici kullanir.
 func (h *Handler) anketYayinla(ctx context.Context, pollID int64,
 	chatID string, uyeler []string, tur string) {
-	// ⚠️ Yayin govdesi olusturanin degil, ALICININ gozunden olmali ("benim
-	//    oylarim" kisiye ozeldir). Ortak govdede `mine` ANLAMSIZ olurdu, bu
-	//    yuzden bos kullanici ile okunuyor ve istemci kendi oyunu YEREL
-	//    durumundan biliyor; `vote_seq` ile de eskimis olayi eliyor.
-	anket, err := h.anketOku(ctx, pollID, "")
+	// ⚠️ Yayin govdesi ORTAKTIR: "benim oylarim" kisiye ozel oldugu icin
+	//    yayinda ANLAMSIZDIR. Istemci kendi secimini YEREL durumundan bilir;
+	//    `vote_seq` ile de eskimis olayi eler.
+	//
+	// ⚠️⚠️ BOS DIZE **KULLANILAMAZ** — SIFIR UUID kullaniliyor.
+	//
+	//	Ilk yazimda `anketOku(ctx, pollID, "")` yaziliyordu ve bu SESSIZ bir
+	//	SEVK ENGELIYDI: `poll_votes.user_id` UUID sutunu, pgx `$2`yi UUID
+	//	olarak cikarsiyor ve PostgreSQL bos dizeyi REDDEDIYOR
+	//	(`invalid input syntax for type uuid: ""` — canli DB'de dogrulandi).
+	//	Sonuc: `anketOku` HATA doner, `anketYayinla` log basip CIKAR ve
+	//	**WS YAYINI HIC YAPILMAZ.** Yani biri oy verdiginde digerleri
+	//	sonucu CANLI GORMEZ; ozellik sessizce "sayfayi yenile"ye duser.
+	// ⚠️ Sifir UUID hicbir kullaniciya ait olamaz, yani `mine` her secenekte
+	//    dogru sekilde `false` doner.
+	const kimseYok = "00000000-0000-0000-0000-000000000000"
+	anket, err := h.anketOku(ctx, pollID, kimseYok)
 	if err != nil {
 		log.Printf("anket yayin: %v", err)
 		return

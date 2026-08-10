@@ -42,10 +42,25 @@ class Tercihler {
     });
   }
 
-  /// ⚠️ Depo yoksa `true` DONER: onboarding'i GOSTERMEMEK, her acilista
-  ///    tekrar gostermekten iyidir (ikincisi kullaniciyi uygulamaya
-  ///    sokmayan bir dongu olurdu).
-  bool get onboardingGoruldu => _p?.getBool(_kOnboarding) ?? true;
+  /// ⚠️⚠️⚠️ IKI DURUM BIRBIRINDEN AYRILIR — ilk yazimda AYRILMAMISTI ve
+  /// ozellik OLU DOGACAKTI:
+  ///
+  ///	`_p?.getBool(k) ?? true` ifadesi
+  ///	  · "depo ACILAMADI"        (_p == null)      -> null
+  ///	  · "anahtar HENUZ YAZILMADI" (temiz kurulum) -> null
+  ///	durumlarinin IKISINI DE `true`ya cevirir. Ikincisi TAM OLARAK
+  ///	onboarding'in GOSTERILMESI gereken durumdur — yani **temiz kurulumda
+  ///	onboarding HIC ACILMAZDI** ve dort ekran yazilmis olmasina ragmen
+  ///	kullanici onlari GORMEZDI ("olu ozellik" sinifinin bir ornegi daha).
+  ///
+  /// ⚠️ Depo YOKSA `true` doner (gosterme): bayrak YAZILAMAYACAGI icin
+  ///    her acilista tekrar gosterilir ve kullanici uygulamaya HIC giremezdi.
+  /// ⚠️ Depo VARSA ve anahtar yoksa `false` doner: onboarding GOSTERILIR.
+  bool get onboardingGoruldu {
+    final p = _p;
+    if (p == null) return true;
+    return p.getBool(_kOnboarding) ?? false;
+  }
 
   Future<void> onboardingGorulduYaz() async {
     await _p?.setBool(_kOnboarding, true);
