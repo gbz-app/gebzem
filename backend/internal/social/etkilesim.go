@@ -405,7 +405,7 @@ func (h *Handler) Kaydedilenler(w http.ResponseWriter, r *http.Request) {
 	defer rows.Close()
 	// ⚠️ Imlec `sv.created_at` (KAYDETME zamani) — istemci son satirin
 	//    `created_at`ini degil, ayri donen `imlec` alanini kullanmali.
-	liste := h.satirlariOku(rows)
+	liste := h.satirlariOku(r.Context(), me, rows)
 	yaz(w, 200, map[string]any{"posts": liste})
 }
 

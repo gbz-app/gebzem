@@ -1,6 +1,7 @@
 package social
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/gbz-app/gebzem/backend/internal/auth"
 	"github.com/gbz-app/gebzem/backend/internal/bildirim"
+	"github.com/gbz-app/gebzem/backend/internal/chat"
 )
 
 // ⚠️⚠️⚠️ TURU 75 — GONDERI + ANA SAYFA AKISI.
@@ -144,10 +146,31 @@ type Handler struct {
 	db *pgxpool.Pool
 	// TURU 76: sosyal bildirimlerin WS + push ayagi. nil olabilir (test).
 	bil *bildirim.Servis
+
+	// ⚠️⚠️ TURU 83 — GONDERI ANKETI. Anketin TUM mantigi (dogrulama, sayim,
+	//    oylama, kapatma) `internal/chat`te; burada YENIDEN YAZILMAZ.
+	//    `main` acilista baglar (`SetAnketYazar` / `SetAnketOkuyucu`).
+	// ⚠️ NIL ISE anketli gonderi 500 doner ve akista anket cizilmez —
+	//    SESSIZCE anketsiz kaydetmek "anket ekledim ama yok" demekti.
+	anketYazar   AnketYazar
+	anketOkuyucu AnketOkuyucu
 }
+
+// AnketYazar — gonderi olusturulurken AYNI islemde anketi yazar.
+type AnketYazar func(ctx context.Context, tx pgx.Tx,
+	postID, creatorID, soru string, secenekler []string, coklu bool) (int64, error)
+
+// AnketOkuyucu — bir gonderi kumesinin anketlerini TEK sorguda okur.
+type AnketOkuyucu func(ctx context.Context, postIDs []string,
+	userID string) map[string]map[string]any
 
 func NewHandler(db *pgxpool.Pool, bil *bildirim.Servis) *Handler {
 	return &Handler{db: db, bil: bil}
+}
+
+// SetAnket — `main` acilista BIR KEZ cagirir.
+func (h *Handler) SetAnket(yaz AnketYazar, oku AnketOkuyucu) {
+	h.anketYazar, h.anketOkuyucu = yaz, oku
 }
 
 // ---------------------------------------------------------------- GONDERI
@@ -160,11 +183,23 @@ type postReq struct {
 	// ⚠️ TURU 81 — ILERI TARIHLI PAYLASIM (RFC3339). Bos ya da GECMIS ise
 	//    gonderi HEMEN yayinlanir.
 	YayinAt string `json:"yayin_at"`
+	// ⚠️⚠️ TURU 83 — GONDERI ANKETI (kullanici emri: "gonderide anket olmasi
+	//    elzem"). Bos birakilirsa anket YOK.
+	//    Sema: migration 042 · yazan: `chat.GonderiAnketiYaz` (TEK KAYNAK —
+	//    dogrulama ve sinirlar sohbet anketiyle AYNI).
+	Anket *anketReq `json:"anket,omitempty"`
 	// ⚠️ TURU 75b: `ClientRef` KALDIRILDI — hicbir yerde OKUNMUYORDU ve `posts`
 	//    tablosunda karsiligi da yok. Olu alan, ileride birinin "tekrar korumasi
 	//    var" saniyla yanlis varsayim yapmasina yol acar. Gercekten gerekirse
 	//    mesaj tarafindaki gibi TABLO SUTUNU + kismi UNIQUE index ile eklenir
 	//    (015'in `messages.client_ref` deseni).
+}
+
+// Gonderiye eklenen anketin istek govdesi (sohbet anketiyle AYNI alanlar).
+type anketReq struct {
+	Question string   `json:"question"`
+	Options  []string `json:"options"`
+	Multi    bool     `json:"multi"`
 }
 
 // POST /posts — gonderi olustur.
@@ -186,7 +221,10 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	// ⚠️ TUTARLILIK: medya tipi ise medya ZORUNLU, 'yazi' ise medya OLMAMALI.
 	//    Aksi halde akista BOS KART cizilir (kullanici "paylastim" sanir).
 	if req.Tur == "yazi" {
-		if strings.TrimSpace(req.Metin) == "" {
+		// ⚠️⚠️ TURU 83 — ANKETLI gonderide METIN BOS OLABILIR: anketin kendi
+		//    SORUSU zaten icerik tasir ve kullaniciyi ayrica metin yazmaya
+		//    zorlamak anlamsiz. Anket YOKSA eski kural aynen gecerli.
+		if strings.TrimSpace(req.Metin) == "" && req.Anket == nil {
 			hata(w, 400, "yazı boş olamaz")
 			return
 		}
@@ -294,13 +332,39 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		hata(w, 500, "gönderi oluşturulamadı")
 		return
 	}
+	// ⚠️⚠️ TURU 83 — ANKET **AYNI ISLEMDE** yazilir. Ayri islem olsaydi anket
+	//    yazilirken hata alan bir istek ANKETSIZ bir gonderi birakirdi ve
+	//    kullanici "anket ekledim ama yok" derdi (bu projede defalarca yasanan
+	//    "yarim kayit" sinifi). Hata olursa `defer tx.Rollback` GONDERIYI DE
+	//    geri alir — ya ikisi de olur ya hicbiri.
+	// ⚠️ Dogrulama `chat.GonderiAnketiYaz` icinde ve SOHBETLE AYNI sabitlerle
+	//    yapilir; burada TEKRAR YAZILMAZ (iki kopya drift eder).
+	var anketID *int64
+	if req.Anket != nil {
+		if h.anketYazar == nil {
+			hata(w, 500, "anket eklenemedi")
+			return
+		}
+		pid, aerr := h.anketYazar(r.Context(), tx, id, me,
+			req.Anket.Question, req.Anket.Options, req.Anket.Multi)
+		if aerr != nil {
+			if chat.AnketGecersizMi(aerr) {
+				hata(w, 400, "Anket geçersiz: soru ve en az 2 seçenek gerekli")
+			} else {
+				log.Printf("gonderi anketi: %v", aerr)
+				hata(w, 500, "anket eklenemedi")
+			}
+			return
+		}
+		anketID = &pid
+	}
 	// ⚠️ Sayac AYNI TRANSACTION'da (turu 75 takip sisteminde alinan karar).
 	tx.Exec(r.Context(), `UPDATE users SET gonderi_sayisi = gonderi_sayisi + 1 WHERE id=$1`, me)
 	if err := tx.Commit(r.Context()); err != nil {
 		hata(w, 500, "gönderi oluşturulamadı")
 		return
 	}
-	yaz(w, 201, map[string]any{"id": id, "created_at": createdAt})
+	yaz(w, 201, map[string]any{"id": id, "created_at": createdAt, "anket_id": anketID})
 }
 
 // PATCH /posts/{id} — kendi gonderini DUZENLE (aciklama + yorum ayari).
@@ -530,7 +594,7 @@ func (h *Handler) Akis(w http.ResponseWriter, r *http.Request) {
 	defer rows.Close()
 	yaz(w, 200, map[string]any{
 		"kesfet": !takipVar, // istemci "Keşfet" rozeti gosterir
-		"posts":  h.satirlariOku(rows),
+		"posts":  h.satirlariOku(r.Context(), me, rows),
 	})
 }
 
@@ -587,7 +651,7 @@ func (h *Handler) Kesfet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer rows.Close()
-	yaz(w, 200, map[string]any{"posts": h.satirlariOku(rows)})
+	yaz(w, 200, map[string]any{"posts": h.satirlariOku(r.Context(), me, rows)})
 }
 
 // GET /users/{id}/posts — bir kullanicinin gonderileri (profil sekmesi).
@@ -670,7 +734,7 @@ func (h *Handler) UserPosts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer rows.Close()
-	yaz(w, 200, map[string]any{"posts": h.satirlariOku(rows)})
+	yaz(w, 200, map[string]any{"posts": h.satirlariOku(r.Context(), me, rows)})
 }
 
 // GET /posts/{id} — TEK gonderi.
@@ -715,7 +779,7 @@ func (h *Handler) Detay(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer rows.Close()
-	liste := h.satirlariOku(rows)
+	liste := h.satirlariOku(r.Context(), me, rows)
 	if len(liste) == 0 {
 		hata(w, 404, "gönderi bulunamadı")
 		return
@@ -768,7 +832,7 @@ func (h *Handler) Reels(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer rows.Close()
-	liste := h.satirlariOku(rows)
+	liste := h.satirlariOku(r.Context(), me, rows)
 
 	// ⚠️⚠️ GORUNTULENME YALNIZ REELS VE DETAYDA ARTAR — AKISTA ARTMAZ.
 	//    Akista 20 kart TEK ISTEKTE gelir ama kullanici cogunu HIC GORMEZ;
@@ -794,7 +858,17 @@ func (h *Handler) Reels(w http.ResponseWriter, r *http.Request) {
 	yaz(w, 200, map[string]any{"posts": liste})
 }
 
-func (h *Handler) satirlariOku(rows pgx.Rows) []map[string]any {
+// �� TURU 83 — IMZA DEGISTI: ctx + userID ALIYOR.
+//
+// Sebep YAPISAL: gonderi anketi ALTI ayri sorgunun sonucunda cizilmeli
+// (akis, kesfet, profil, kaydedilenler, detay, istatistik). Anketi cagri
+// yerlerinde ayri ayri eklemek "alti yere ekle, YEDINCISINI unut" hatasini
+// acardi — bu projede turu 76'da tam boyle olmus ve "Kaydedilenler" sayfasi
+// HERKESTE BOMBOS kalmisti.
+// Imzayi degistirmek DERLEYICIYI zorlayici kilar: yeni bir cagri yeri
+// eklendiginde ctx/userID vermeden DERLENMEZ.
+// � YAPMA: anket eklemeyi cagri yerlerine tasima.
+func (h *Handler) satirlariOku(ctx context.Context, userID string, rows pgx.Rows) []map[string]any {
 	out := []map[string]any{}
 	for rows.Next() {
 		var id, yazarID, tur, metin, ad, kullanici, avatar string
@@ -835,6 +909,29 @@ func (h *Handler) satirlariOku(rows pgx.Rows) []map[string]any {
 			"yazar_avatar": avatar, "yazar_avatar_media_id": avatarMedya,
 			"begendim": begendim, "kaydettim": kaydettim,
 		})
+	}
+	// �� TURU 83  GONDERI ANKETLERI **TEK SORGUDA** eklenir (N+1 YASAK).
+	//    Okuma `chat.GonderiAnketleri`de; sayim/secenek/benim-oylarim mantigi
+	//    orada TEK KAYNAK olarak duruyor ve burada YENIDEN YAZILMIYOR.
+	// � `anketOkuyucu` nil ise (test kurulumu) anket alani hic eklenmez ve
+	//    akis AYNEN calisir  anket opsiyonel bir sustur, akisin sarti degil.
+	if h.anketOkuyucu != nil && len(out) > 0 {
+		idler := make([]string, 0, len(out))
+		for _, g := range out {
+			if s, ok := g["id"].(string); ok {
+				idler = append(idler, s)
+			}
+		}
+		anketler := h.anketOkuyucu(ctx, idler, userID)
+		if len(anketler) > 0 {
+			for _, g := range out {
+				if s, ok := g["id"].(string); ok {
+					if a, var2 := anketler[s]; var2 {
+						g["anket"] = a
+					}
+				}
+			}
+		}
 	}
 	return out
 }

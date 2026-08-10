@@ -22,6 +22,11 @@ type Handler struct {
 	db   *pgxpool.Pool
 	hub  *Hub
 	push *push.Sender // nil olabilir (push devre disi)
+
+	// ⚠️ TURU 83 — GONDERI ANKETI yetki kapisi. `main` acilista baglar
+	//    (`SetGonderiGorunur`). NIL ise gonderi anketleri FAIL-CLOSED reddedilir.
+	//    Ayrinti + neden import yerine geri cagirim: `anket.go` serhi.
+	gonderiGorunur GonderiGorunur
 }
 
 func NewHandler(db *pgxpool.Pool, hub *Hub, pushSender *push.Sender) *Handler {

@@ -3,6 +3,7 @@ package chat
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"strconv"
@@ -10,6 +11,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/gbz-app/gebzem/backend/internal/auth"
 )
@@ -32,6 +34,169 @@ const (
 	anketMaksSecenek = 100 // rune
 	anketMaksAdet    = 12
 )
+
+// ⚠️⚠️⚠️ TURU 83 — ANKET ARTIK **GONDERIDE DE** OLABILIR (kullanici emri).
+//
+// Sema: migration 042 (`polls.message_id` ve `chat_id` NULL olabilir,
+// `polls.post_id` eklendi, CHECK "tam olarak BIR sahip" zorluyor).
+//
+// ═══ NEDEN IKINCI BIR TABLO/PAKET ACILMADI ═══
+//
+// Oylama mantigi (tek/cok secim, `vote_seq`, kapatma, sayim) 040'ta yazildi
+// ve uctan uca SINANDI. Ikinci bir kopya **kacinilmaz olarak DRIFT EDER** —
+// bu projede "ayni kuralin iki kopyasi" hatasi ALTI kez yasandi. Bu yuzden
+// `polls` yeniden kullaniliyor ve DEGISEN TEK SEY **YETKI KAPISI**:
+//
+//	sohbet anketi  -> `chatMemberIDs` (uyelik + engel)
+//	gonderi anketi -> gonderinin GORUNURLUGU (gizli hesap, engel, yayin ani)
+//
+// ═══ NEDEN GERI CAGIRIM (dependency injection) ═══
+//
+// Gonderi gorunurlugu `internal/social`da. `chat` -> `social` importu bugun
+// YOK; eklemek iki paketi birbirine baglar ve ileride `social`in `chat`e
+// ihtiyaci olursa DERLEME DONGUSU olusur. Bunun yerine `main` bir fonksiyon
+// gecirir; `chat` paketi `social`i HIC BILMEZ.
+//
+// ⚠️ NIL ISE **FAIL-CLOSED**: geri cagirim baglanmazsa gonderi anketleri
+//    erisilemez olur (403). Sessizce ACIK birakmak gizli hesap gonderisinin
+//    anketini herkese oylatirdi.
+// ⚠️ YAPMA: bu alani kaldirip `chat` icine `internal/social` importu ekleme.
+type GonderiGorunur func(ctx context.Context, postID, userID string) (bool, error)
+
+// SetGonderiGorunur — `main` tarafindan acilista BIR KEZ cagrilir.
+func (h *Handler) SetGonderiGorunur(f GonderiGorunur) { h.gonderiGorunur = f }
+
+// GonderiAnketiYaz — bir GONDERIYE anket baglar. `internal/social` cagirir.
+//
+// ⚠️ `tx` DISARIDAN gelir: gonderi ve anketi AYNI islemde yazilmali. Ayri
+//    islemler olsaydi anket yazilirken hata alan bir istek ANKETSIZ bir
+//    gonderi birakirdi (kullanici "anket ekledim ama yok" derdi).
+// ⚠️ Dogrulama (soru/secenek uzunlugu, adet) SOHBET yoluyla AYNI sabitleri
+//    kullanir — iki yuzeyde farkli sinir olmasi kullaniciya aciklanamaz.
+// ⚠️ Donen `pollID` cagirana verilir; `social` onu yanitta dondurur.
+func (h *Handler) GonderiAnketiYaz(
+	ctx context.Context, tx pgx.Tx,
+	postID, creatorID, soru string, secenekler []string, coklu bool,
+) (int64, error) {
+	soru = strings.TrimSpace(soru)
+	if soru == "" || utf8.RuneCountInString(soru) > anketMaksSoru {
+		return 0, errAnketGecersiz
+	}
+	temiz := make([]string, 0, len(secenekler))
+	for _, s := range secenekler {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			continue
+		}
+		if utf8.RuneCountInString(s) > anketMaksSecenek {
+			return 0, errAnketGecersiz
+		}
+		temiz = append(temiz, s)
+	}
+	if len(temiz) < 2 || len(temiz) > anketMaksAdet {
+		return 0, errAnketGecersiz
+	}
+
+	var pollID int64
+	if err := tx.QueryRow(ctx,
+		`INSERT INTO polls (post_id, creator_id, question, multi)
+		 VALUES ($1,$2,$3,$4) RETURNING id`,
+		postID, creatorID, soru, coklu).Scan(&pollID); err != nil {
+		return 0, err
+	}
+	for i, s := range temiz {
+		if _, err := tx.Exec(ctx,
+			`INSERT INTO poll_options (poll_id, idx, text) VALUES ($1,$2,$3)`,
+			pollID, i, s); err != nil {
+			return 0, err
+		}
+	}
+	return pollID, nil
+}
+
+// GonderiAnketleri — bir GONDERI KUMESININ anketlerini **TEK SORGUDA** okur.
+//
+// ⚠️ N+1 YASAK: 20 kartlik bir akista gonderi basina ayri sorgu atmak 20 tur
+//    demekti (turu 17 dersi). Once `post_id -> poll_id` esleme tek sorguyla
+//    alinir, sonra her anket `anketOku` ile okunur (o zaten secenek+sayim+
+//    benim oylarim iceren TEK KAYNAK cozumdur).
+// ⚠️ Hatalar YUTULUR ve o gonderi anketsiz doner: bir anket okunamadi diye
+//    TUM AKISIN bosalmasi kabul edilemez (turu 76'nin "satir sessizce
+//    atlaniyor" hatasinin tersi — burada gonderi cizilir, yalniz anketi yok).
+func (h *Handler) GonderiAnketleri(
+	ctx context.Context, postIDs []string, userID string,
+) map[string]map[string]any {
+	sonuc := map[string]map[string]any{}
+	if len(postIDs) == 0 {
+		return sonuc
+	}
+	rows, err := h.db.Query(ctx,
+		`SELECT post_id::text, id FROM polls WHERE post_id = ANY($1)`, postIDs)
+	if err != nil {
+		return sonuc
+	}
+	tip := map[string]int64{}
+	for rows.Next() {
+		var pid string
+		var pollID int64
+		if rows.Scan(&pid, &pollID) == nil {
+			tip[pid] = pollID
+		}
+	}
+	rows.Close()
+	for pid, pollID := range tip {
+		if a, e := h.anketOku(ctx, pollID, userID); e == nil {
+			sonuc[pid] = a
+		}
+	}
+	return sonuc
+}
+
+var errAnketGecersiz = errors.New("gecersiz anket")
+
+// AnketGecersizMi — cagiranin hatayi 400'e cevirebilmesi icin.
+func AnketGecersizMi(err error) bool { return errors.Is(err, errAnketGecersiz) }
+
+// anketSahibi — anketin hangi yuzeye ait oldugunu ve cagiranin YETKISINI
+// tek yerde cozer.
+//
+// Doner: (chatID — sohbet anketiyse dolu, degilse bos), (yetkili mi), (hata).
+//
+// ⚠️ TEK KAYNAK: dort uc (oy ver / kapat / getir / okuma) bunu cagirir.
+// ⚠️ Yuklem cagiran yerlere KOPYALANMAZ — turu 75b'de ayni kural dort sorguya
+//    kopyalanmis, BESINCISINDE dusmustu ve engellenen kisi profili okuyabiliyordu.
+func (h *Handler) anketSahibi(
+	r *http.Request, pollID int64, userID string,
+) (chatID string, ok bool, err error) {
+	var cid, pid *string
+	if e := h.db.QueryRow(r.Context(),
+		`SELECT chat_id::text, post_id::text FROM polls WHERE id=$1`, pollID).
+		Scan(&cid, &pid); e != nil {
+		return "", false, e
+	}
+	// ---- GONDERI ANKETI
+	if pid != nil {
+		if h.gonderiGorunur == nil {
+			// FAIL-CLOSED (bkz. serh).
+			log.Printf("anket: gonderiGorunur BAGLANMAMIS — poll=%d reddedildi", pollID)
+			return "", false, nil
+		}
+		gor, e := h.gonderiGorunur(r.Context(), *pid, userID)
+		if e != nil {
+			return "", false, e
+		}
+		return "", gor, nil
+	}
+	// ---- SOHBET ANKETI
+	if cid == nil {
+		// 042'deki CHECK bunu imkansiz kilar; yine de savunma.
+		return "", false, nil
+	}
+	if _, e := h.chatMemberIDs(r, *cid, userID); e != nil {
+		return *cid, false, nil
+	}
+	return *cid, true, nil
+}
 
 type anketOlusturReq struct {
 	Question string   `json:"question"`
@@ -238,12 +403,11 @@ func (h *Handler) AnketOyVer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var chatID string
 	var multi bool
 	var kapali *string
 	if err := h.db.QueryRow(r.Context(),
-		`SELECT chat_id, multi, closed_at::text FROM polls WHERE id=$1`, pollID).
-		Scan(&chatID, &multi, &kapali); err != nil {
+		`SELECT multi, closed_at::text FROM polls WHERE id=$1`, pollID).
+		Scan(&multi, &kapali); err != nil {
 		httpErr(w, http.StatusNotFound, "anket bulunamadı")
 		return
 	}
@@ -251,10 +415,22 @@ func (h *Handler) AnketOyVer(w http.ResponseWriter, r *http.Request) {
 		httpErr(w, http.StatusConflict, "Bu anket kapandı")
 		return
 	}
-	uyeler, err := h.chatMemberIDs(r, chatID, userID)
+	// ⚠️ TURU 83 — YETKI TEK KAYNAKTAN (`anketSahibi`): sohbet anketinde
+	//    uyelik, gonderi anketinde gonderi GORUNURLUGU kontrol edilir.
+	chatID, yetkili, err := h.anketSahibi(r, pollID, userID)
 	if err != nil {
-		httpErr(w, http.StatusForbidden, "bu sohbetin üyesi değilsiniz")
+		httpErr(w, http.StatusInternalServerError, "oy verilemedi")
 		return
+	}
+	if !yetkili {
+		httpErr(w, http.StatusForbidden, "bu ankete oy veremezsiniz")
+		return
+	}
+	// ⚠️ Uye listesi YALNIZ sohbet anketinde anlamli (WS yayini icin).
+	//    Gonderi anketinde `chatID` bostur ve yayin gonderi kanalindan gider.
+	var uyeler []string
+	if chatID != "" {
+		uyeler, _ = h.chatMemberIDs(r, chatID, userID)
 	}
 	// ⚠️ TEK SECIMLIK ankette birden fazla secenek gonderilmesi ISTEMCI
 	//    HATASIDIR; sessizce ilkini almak yerine ACIKCA reddediyoruz.
@@ -319,10 +495,10 @@ func (h *Handler) AnketKapat(w http.ResponseWriter, r *http.Request) {
 		httpErr(w, http.StatusBadRequest, "geçersiz anket")
 		return
 	}
-	var chatID, creator string
+	var creator string
 	if err := h.db.QueryRow(r.Context(),
-		`SELECT chat_id, creator_id FROM polls WHERE id=$1`, pollID).
-		Scan(&chatID, &creator); err != nil {
+		`SELECT creator_id FROM polls WHERE id=$1`, pollID).
+		Scan(&creator); err != nil {
 		httpErr(w, http.StatusNotFound, "anket bulunamadı")
 		return
 	}
@@ -330,10 +506,20 @@ func (h *Handler) AnketKapat(w http.ResponseWriter, r *http.Request) {
 		httpErr(w, http.StatusForbidden, "anketi yalnızca oluşturan kapatabilir")
 		return
 	}
-	uyeler, err := h.chatMemberIDs(r, chatID, userID)
+	// ⚠️ Olusturan olsan bile YUZEYE erisimin surmeli (engellendiysen ya da
+	//    gonderi silindiyse kapatma da yapamazsin).
+	chatID, yetkili, err := h.anketSahibi(r, pollID, userID)
 	if err != nil {
-		httpErr(w, http.StatusForbidden, "bu sohbetin üyesi değilsiniz")
+		httpErr(w, http.StatusInternalServerError, "anket kapatılamadı")
 		return
+	}
+	if !yetkili {
+		httpErr(w, http.StatusForbidden, "bu ankete erişemezsiniz")
+		return
+	}
+	var uyeler []string
+	if chatID != "" {
+		uyeler, _ = h.chatMemberIDs(r, chatID, userID)
 	}
 	// ⚠️ `closed_at IS NULL` kapisi: ikinci kapatma isteği 0 satir etkiler ve
 	//    `vote_seq` bosuna artmaz.
@@ -361,14 +547,12 @@ func (h *Handler) AnketGetir(w http.ResponseWriter, r *http.Request) {
 		httpErr(w, http.StatusBadRequest, "geçersiz anket")
 		return
 	}
-	var chatID string
-	if err := h.db.QueryRow(r.Context(),
-		`SELECT chat_id FROM polls WHERE id=$1`, pollID).Scan(&chatID); err != nil {
+	// ⚠️ TURU 83 — yetki TEK KAYNAKTAN; gonderi anketi de bu uctan okunur.
+	if _, yetkili, e := h.anketSahibi(r, pollID, userID); e != nil {
 		httpErr(w, http.StatusNotFound, "anket bulunamadı")
 		return
-	}
-	if _, err := h.chatMemberIDs(r, chatID, userID); err != nil {
-		httpErr(w, http.StatusForbidden, "bu sohbetin üyesi değilsiniz")
+	} else if !yetkili {
+		httpErr(w, http.StatusForbidden, "bu ankete erişemezsiniz")
 		return
 	}
 	anket, err := h.anketOku(r.Context(), pollID, userID)
