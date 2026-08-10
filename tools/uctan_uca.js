@@ -1614,6 +1614,113 @@ const kontrol = (ad, gecti, ek = '') => {
       kontrol('TURU 81: ZAMANLANMIS gonderi BEGENILEMEZ (403)',
         bBegeni.kod === 403, 'HTTP ' + bBegeni.kod);
     }
+
+    // ================= TURU 83: GONDERI ANKETI (migration 042) =================
+    //
+    // ⚠️ EN KRITIK: anket SOHBET hattina civiliydi (`polls.message_id NOT NULL`).
+    //    042 onu gevsetti. Bu blok zincirin UCUNU birden sinar:
+    //    olusturma -> akista DONME -> oy -> YETKI -> kapatma.
+    const ga = await j('/posts', {
+      yontem: 'POST', token: A.token,
+      govde: {
+        tur: 'yazi', metin: '',
+        anket: {
+          question: 'E2E gonderi anketi?',
+          options: ['Evet', 'Hayir', 'Belki'],
+          multi: false,
+        },
+      },
+    });
+    kontrol('TURU 83: ANKETLI gonderi olusturuldu (042 canlida)',
+      ga.kod === 201 && !!ga.d.id, 'HTTP ' + ga.kod);
+    // ⚠️ Metin BOS ama anket VAR -> kabul edilmeli (anketin sorusu icerik tasir).
+    kontrol('TURU 83: METINSIZ ama ANKETLI gonderi KABUL EDILIYOR',
+      ga.kod === 201, 'HTTP ' + ga.kod);
+    kontrol('TURU 83: yanit anket_id donduruyor',
+      !!(ga.d && ga.d.anket_id), 'anket_id=' + (ga.d && ga.d.anket_id));
+
+    if (ga.d && ga.d.id && ga.d.anket_id) {
+      const pollID = ga.d.anket_id;
+
+      // ⚠️⚠️ ZINCIRIN EN DEGERLI HALKASI: anket AKISTA donuyor mu?
+      //    `satirlariOku` imzasi degistirildi (ctx+userID) ve anketler TEK
+      //    sorguda ekleniyor; bu adim o zincirin CALISTIGINI kanitlar.
+      //    Donmeseydi kullanici anketi HIC goremezdi (sessiz olu ozellik).
+      // ⚠️ **PROFIL** sorgusu kullanilir, `/kesfet` DEGIL: Keşfet bir IZGARA
+      //    ve `cardinality(p.media_ids) > 0` suzguyor — medyasiz bir anket
+      //    gonderisi oraya TANIM GEREGI girmez. (Ilk yazimda `/kesfet`
+      //    kullanilmis ve kontrol KIRMIZI dusmustu; kod degil TESTIN YUZEYI
+      //    yanlisti. Turu 80b dersi: "bir testin kirmizisi de yesili de once
+      //    DOGRU YUZEYDE mi diye sorulmali.")
+      const aProfilAnket = await j('/users/' + A.id + '/posts', {
+        token: A.token,
+      });
+      const ap = ((aProfilAnket.d && aProfilAnket.d.posts) || [])
+        .find((p) => p.id === ga.d.id);
+      kontrol('TURU 83: anket AKIS SORGUSUNDA donuyor (satirlariOku zinciri)',
+        !!(ap && ap.anket), 'anket=' + !!(ap && ap.anket));
+      kontrol('TURU 83: anket UC secenekle donuyor',
+        !!(ap && ap.anket && (ap.anket.options || []).length === 3),
+        'adet=' + ((ap && ap.anket && (ap.anket.options || []).length) || 0));
+
+      // ⚠️ B (baska hesap) oy verebilmeli — gorunurluk kapisi `GorunurMu`.
+      //    `chat.SetGonderiGorunur` BAGLANMAMIS olsaydi burada 403 alirdik;
+      //    yani bu kontrol main.go'daki BAGI da dogruluyor.
+      const opt = ap && ap.anket && ap.anket.options && ap.anket.options[0];
+      if (opt) {
+        const oy = await j('/polls/' + pollID + '/vote', {
+          yontem: 'POST', token: B.token, govde: { option_ids: [opt.id] },
+        });
+        kontrol('TURU 83: BASKA HESAP gonderi anketine oy verebiliyor',
+          oy.kod === 200, 'HTTP ' + oy.kod);
+        kontrol('TURU 83: oy sayildi',
+          !!(oy.d && (oy.d.options || []).some((o) => o.votes === 1)),
+          'sayim=' + JSON.stringify((oy.d && oy.d.options || []).map((o) => o.votes)));
+      }
+
+      // ⚠️ Anketi YALNIZ olusturan kapatabilir.
+      const kapatB = await j('/polls/' + pollID + '/close', {
+        yontem: 'POST', token: B.token,
+      });
+      kontrol('TURU 83: gonderi anketini BASKASI KAPATAMAZ (403)',
+        kapatB.kod === 403, 'HTTP ' + kapatB.kod);
+      const kapatA = await j('/polls/' + pollID + '/close', {
+        yontem: 'POST', token: A.token,
+      });
+      kontrol('TURU 83: olusturan gonderi anketini kapatti',
+        kapatA.kod === 200, 'HTTP ' + kapatA.kod);
+    }
+
+    // ⚠️ GECERSIZ anket (tek secenek) 400 donmeli — dogrulama SOHBETLE AYNI
+    //    sabitlerden geliyor (`chat.GonderiAnketiYaz`).
+    const kotuAnket = await j('/posts', {
+      yontem: 'POST', token: A.token,
+      govde: {
+        tur: 'yazi', metin: 'kotu',
+        anket: { question: 'Tek secenek', options: ['Evet'], multi: false },
+      },
+    });
+    kontrol('TURU 83: TEK secenekli anket REDDEDILIYOR (400)',
+      kotuAnket.kod === 400, 'HTTP ' + kotuAnket.kod);
+
+    // ================= TURU 83: GONDERIDE SES =================
+    //
+    // ⚠️ Ses icin MIGRATION GEREKMEDI (`media_assets.kind` 037'den beri
+    //    'audio' kabul ediyor). Bu kontrol o varsayimin CANLIDA da dogru
+    //    oldugunu kanitlar: presign 'audio' ile GECMELI.
+    // ⚠️ Uc adi `/media/upload` (presign DEGIL) — ilk yazimda `/media/presign`
+    //    denenmis ve 404 alinmisti. Yol adi kaynaktan dogrulandi (main.go).
+    const sesPre = await j('/media/upload', {
+      yontem: 'POST', token: A.token,
+      govde: {
+        kind: 'audio', mime: 'audio/mp4',
+        bytes: 4096, file_name: 'e2e.m4a',
+        md5: 'AAAAAAAAAAAAAAAAAAAAAA==',
+      },
+    });
+    kontrol('TURU 83: kind=audio presign KABUL EDILIYOR (CHECK gecti)',
+      sesPre.kod === 200 || sesPre.kod === 201,
+      'HTTP ' + sesPre.kod + ' ' + JSON.stringify(sesPre.d).slice(0, 120));
   }
 
   // ---------- OZET

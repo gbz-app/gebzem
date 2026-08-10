@@ -58,8 +58,21 @@ class _SecilenMedya {
       : video
       ? 'video'
       : 'image';
+  /// ⚠️⚠️⚠️ SES MIME'I **`audio/mp4`** — `audio/m4a` DEGIL.
+  ///
+  ///    Ilk yazimda `audio/m4a` yazilmisti ve sunucu bunu REDDEDIYOR
+  ///    (`sniff.go` beyaz listesi: `audio/mp4`, `audio/mpeg`). Yani gonderiye
+  ///    ses ekleme **%100 OLU DOGACAKTI** — kullanici kaydi yapar, "Paylaş"a
+  ///    basar ve "bu dosya türü desteklenmiyor" hatasi alirdi.
+  ///    UCTAN UCA TESTI YAKALADI (`go build` + `flutter analyze` ikisi de
+  ///    TEMIZ geciyordu — bu, projenin en sik hata sinifi).
+  /// ⚠️ Sohbetteki ses notu ZATEN `audio/mp4` gonderiyor
+  ///    (`chat_screen.dart`): kaydedici AAC-LC/m4a uretir ve o kabin
+  ///    standart MIME'i `audio/mp4`tir.
+  /// ⚠️ YAPMA: burayi `audio/m4a` ya da `audio/aac` yapma (ikincisi turu 74b'de
+  ///    beyaz listeden CIKARILDI — ham ADTS `audio/mpeg` olarak taninir).
   String get mime => ses
-      ? 'audio/m4a'
+      ? 'audio/mp4'
       : video
       ? 'video/mp4'
       : 'image/jpeg';
