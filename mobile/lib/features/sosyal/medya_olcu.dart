@@ -51,20 +51,35 @@ import 'dart:math' as math;
 
 import 'package:flutter/widgets.dart';
 
+/// En yaygin telefon fotografi orani (dikey 4:5). Tavan bundan turetilir.
+const double _kYayginOran = 0.8;
+
 /// Medya kutusunun YUKSEKLIK TAVANI.
 ///
-/// ⚠️ Ekran yuksekliginden turer ki kutu her cihazda AYNI EKRAN YUZDESINI
-///    kaplasin (turu 80'de olculdu: sabit dp kullanildiginda ayni gonderi
-///    360x640'ta ekranin %65'ini, 800x1280'de %107'sini kapliyordu).
-/// ⚠️ **%54** olcumden gelir: Threads'te tek fotograf ekranin ~%50'si ve o
-///    fotograflar tipik olarak 4:5. 390x844'te tavan=456 -> 4:5 bir fotograf
-///    366x456 cizilir, yani kolonu DOLDURUR ve ekranin %54'unu kaplar.
-///    ⚠️ YAPMA: bu degeri %32'ye (turu 81) dusurme — o zaman 4:5 bile kolonun
-///    yarisinda kalir ve YANDAKI BOSLUK geri gelir.
-/// ⚠️ `clamp` alt siniri kucuk telefonda "minicik", ust siniri tablette
-///    "devasa" olmasini engeller.
-double medyaTavani(BuildContext c) =>
-    (MediaQuery.sizeOf(c).height * 0.54).clamp(300.0, 520.0);
+/// ⚠️⚠️ TAVAN **KOLONDAN** TURER, ekrandan DEGIL. Sebep olculdu: ekran
+///    yuzdesine baglandiginda (ilk turu 82 denemesi, %54) kucuk telefonlarda
+///    tavan kolonun ihtiyacinin ALTINDA kaliyor ve **4:5 bir fotograf kolonun
+///    yalnizca %82'sini** dolduruyordu — yani kullanicinin sikayet ettigi
+///    YANDAKI BOSLUK kucuk cihazlarda GERI GELIYORDU:
+///
+///      390x844  kolon=366  tavan=456 -> 4:5 w=365  (%100)  ✓
+///      375x667  kolon=351  tavan=360 -> 4:5 w=288  (%82)   ✗ BOSLUK
+///      360x640  kolon=336  tavan=346 -> 4:5 w=276  (%82)   ✗ BOSLUK
+///
+///    `kolon / 0.8` tavani, **4:5'in kolonu tam doldurmasi** demektir; 4:5'ten
+///    daha DIKEY olan (9:16 video gibi) medya darlasir — kullanicinin istedigi
+///    "bazisi dar bazisi genis" etkisi TAM OLARAK budur.
+///
+/// ⚠️ Ikinci terim (`ekran * 0.60`) EMNIYET TAVANI: kisa ve genis ekranlarda
+///    (yatay tablet, katlanabilir) `kolon/0.8` ekrani asabilirdi. Turu 80'in
+///    "cok uzun" sikayeti tam bu sinifin hatasiydi.
+/// ⚠️ YAPMA: tavani sabit dp yapma (turu 80: ayni gonderi 360x640'ta ekranin
+///    %65'ini, 800x1280'de %107'sini kapliyordu).
+/// ⚠️ YAPMA: tavani yalniz ekran yuzdesine baglama (yukaridaki tablo).
+double medyaTavani(BuildContext c, double kolonGenislik) => math.min(
+  kolonGenislik / _kYayginOran,
+  MediaQuery.sizeOf(c).height * 0.60,
+);
 
 /// Kose yaricapi (Threads gorunumu: belirgin yuvarlak kose).
 const double kMedyaYaricap = 18;

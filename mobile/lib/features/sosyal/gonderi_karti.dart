@@ -645,7 +645,7 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
         //    Ayrinti + reddedilen alternatifler: `medya_olcu.dart` serhi.
         // ⚠️ YAPMA: burada kendi hesabini yazma — olculer TEK KAYNAKTA.
         // ⚠️ YAPMA: disariya sabit bir `height` verme; yukseklik ARTIK degisken.
-        final tavan = medyaTavani(context);
+        final tavan = medyaTavani(context, kolon);
 
         // TEK medya: kolonun TAMAMINI kullanabilir (4:5 ve daha genis her
         // fotograf kolonu DOLDURUR). COKLU galeri: oge kolonun %78'iyle
