@@ -6,6 +6,18 @@
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
     <uses-permission android:name="android.permission.VIBRATE"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <!-- TURU 81 — KONUM PAYLASMA (sohbette "Konum gonder").
+         ⚠️ YALNIZ KABA KONUM (COARSE) *ve* HASSAS (FINE) birlikte istenir:
+            Android 12+ kullaniciya "Yaklasik / Tam" secimi sunar ve yalniz
+            FINE tanimliysa "Yaklasik" secen kullanicida izin REDDEDILMIS
+            sayilir. Ikisi birlikte tanimliyken kullanici hangisini secerse
+            secsin konum ALINABILIR (dogruluk duser, ozellik OLMEZ).
+         ⚠️ ARKA PLAN KONUMU (ACCESS_BACKGROUND_LOCATION) ISTENMEZ: konum
+            YALNIZ kullanici "Konum gonder" dedigi an, bir kez okunur.
+            Arka plan izni Play Store'da ayri gerekce formu ister ve bizim
+            hicbir ozelligimiz onu gerektirmiyor. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE"/>

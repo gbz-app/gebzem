@@ -62,6 +62,12 @@
 	<string>Sesli ve goruntulu aramalarda konusabilmeniz icin mikrofon erisimi gerekir.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Goruntulu aramalarda kameranizi kullanabilmeniz icin erisim gerekir.</string>
+	<!-- TURU 81 — KONUM PAYLASMA.
+	     YALNIZ "WhenInUse": konum SADECE kullanici "Konum gonder" dedigi an,
+	     bir kez okunur. "Always" istemek App Store incelemesinde ayri gerekce
+	     ister ve hicbir ozelligimiz arka planda konum gerektirmiyor. -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Sohbette konumunuzu paylasabilmeniz icin konum erisimi gerekir. Konumunuz yalnizca siz gonderdiginizde okunur.</string>
 	<key>FirebaseAppDelegateProxyEnabled</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>

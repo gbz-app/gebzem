@@ -10,8 +10,18 @@ import '../medya/medya_gorsel.dart';
 import 'chats_provider.dart';
 
 /// Kisi arama: isim veya @kullaniciadi ile ara, sohbet baslat
+///
+/// ⚠️⚠️ TURU 81 — [secimModu] ile AYNI EKRAN "kisi secici" olarak da kullanilir
+///    (sohbette "Kişi paylaş"). AYRI BIR SECICI EKRAN YAZILMADI: arama sorgusu,
+///    gecikme (debounce), bos durum ve satir cizimi IKI KOPYA olurdu ve bu
+///    projede "ayni kuralin iki kopyasi drift eder" hatasi ALTI kez tekrarladi.
+/// ⚠️ Fark YALNIZCA dokunusun ne yaptigi: normalde sohbet acar, secim modunda
+///    secilen kullaniciyi `pop` ile geri verir.
 class UserSearchScreen extends ConsumerStatefulWidget {
-  const UserSearchScreen({super.key});
+  const UserSearchScreen({super.key, this.secimModu = false});
+
+  /// true ise sohbet ACILMAZ; secilen kullanici `Map` olarak `pop` edilir.
+  final bool secimModu;
 
   @override
   ConsumerState<UserSearchScreen> createState() => _UserSearchScreenState();
@@ -66,6 +76,13 @@ class _UserSearchScreenState extends ConsumerState<UserSearchScreen> {
   }
 
   Future<void> _startChat(Map<String, dynamic> user) async {
+    // ⚠️ SECIM MODU: sohbet ACILMAZ, secim cagirana doner. Kapi EN BASTA —
+    //    altta olsaydi `/chats/direct` istegi BOSA atilir ve secmek istedigi
+    //    kisiyle ISTEMEDIGI bir sohbet olusurdu.
+    if (widget.secimModu) {
+      Navigator.of(context).pop(user);
+      return;
+    }
     try {
       final chat = await ref
           .read(apiProvider)

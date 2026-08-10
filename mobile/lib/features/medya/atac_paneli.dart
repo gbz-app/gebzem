@@ -18,10 +18,28 @@ import 'medya_kapisi.dart';
 ///
 /// ⚠️ Arayüzde EMOJİ YOK — Lucide ikonlar (CLAUDE.md kuralı).
 class AtacSecimi {
-  const AtacSecimi(this.dosyalar, this.tur);
+  const AtacSecimi(this.dosyalar, this.tur) : eylem = '';
+
+  /// ⚠️⚠️ TURU 81 — DOSYASIZ EYLEMLER (konum · kişi · IBAN · etkinlik).
+  ///
+  /// Panel eskiden YALNIZCA dosya döndürebiliyordu (`Fotoğraf` + `Kamera`).
+  /// Kullanıcının istediği yeni paylaşımların hiçbiri dosya DEĞİL; yapısal
+  /// veri taşıyorlar ve akışları birbirinden farklı (konum izin ister,
+  /// kişi seçici açar, IBAN form açar, etkinlik ayrı ekrana gider).
+  ///
+  /// ⚠️ Panel bu akışları KENDİ YÜRÜTMEZ, yalnızca HANGİSİNİN seçildiğini
+  ///    söyler. Gerekçe: sheet `pop` edildikten sonra `context`i ölür ve
+  ///    turu 74b'de tam bu yüzden ataç düğmesi HİÇ ÇALIŞMIYORDU (aşağıdaki
+  ///    şerh). Akışı sohbet ekranı, kendi canlı `context`iyle yürütür.
+  const AtacSecimi.eylemli(this.eylem)
+    : dosyalar = const [],
+      tur = '';
 
   final List<File> dosyalar;
   final String tur; // image
+
+  /// '' | 'konum' | 'kisi' | 'iban' | 'etkinlik'
+  final String eylem;
 }
 
 /// ⚠️⚠️ TURU 74b (DENETİM BULGUSU — ÖZELLİK HİÇ ÇALIŞMIYORDU):
@@ -105,6 +123,35 @@ Future<AtacSecimi?> atacPaneliAc(BuildContext context, WidgetRef ref) async {
             title: Text('Kamera'),
             subtitle: Text('Görüşme sürerken kullanılamaz'),
           ),
+        const Divider(height: 1),
+        // ⚠️⚠️ TURU 81 — DOSYASIZ PAYLASIMLAR (kullanici emri).
+        //    Bunlar `pop(AtacSecimi.eylemli(...))` ile YALNIZCA SECIMI bildirir;
+        //    akisi sohbet ekrani yurutur (bkz. `AtacSecimi.eylemli` serhi).
+        ListTile(
+          leading: const _AtacIkon(LucideIcons.mapPin, Color(0xFFEF5350)),
+          title: const Text('Konum'),
+          subtitle: const Text('Bulunduğun yeri gönder'),
+          onTap: () => Navigator.of(c).pop(const AtacSecimi.eylemli('konum')),
+        ),
+        ListTile(
+          leading: const _AtacIkon(LucideIcons.userRound, Color(0xFF42A5F5)),
+          title: const Text('Kişi'),
+          subtitle: const Text('Bir profili paylaş'),
+          onTap: () => Navigator.of(c).pop(const AtacSecimi.eylemli('kisi')),
+        ),
+        ListTile(
+          leading: const _AtacIkon(LucideIcons.creditCard, Color(0xFF26A69A)),
+          title: const Text('IBAN'),
+          subtitle: const Text('Hesap bilgisi gönder'),
+          onTap: () => Navigator.of(c).pop(const AtacSecimi.eylemli('iban')),
+        ),
+        ListTile(
+          leading: const _AtacIkon(LucideIcons.calendarPlus, Color(0xFFFFA726)),
+          title: const Text('Etkinlik'),
+          subtitle: const Text('Etkinlik oluştur ve paylaş'),
+          onTap: () =>
+              Navigator.of(c).pop(const AtacSecimi.eylemli('etkinlik')),
+        ),
       ]),
     ),
   );

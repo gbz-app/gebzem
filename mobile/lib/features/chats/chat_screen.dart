@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -16,9 +17,15 @@ import '../calls/call_provider.dart';
 import 'arama_kaydi.dart';
 import 'chats_provider.dart';
 import 'grup_bilgi.dart';
+import 'iban_paneli.dart';
 import 'models.dart';
 import 'moderasyon_sheet.dart'; // turu 74: uzun basma menusu + engelle/sikayet
+import 'user_search_screen.dart';
+import '../etkinlik/etkinlik_ekranlari.dart';
+import '../etkinlik/etkinlik_servisi.dart';
 import '../medya/atac_paneli.dart';
+import '../medya/konum_servisi.dart';
+import '../sosyal/profil_sayfasi.dart';
 import '../medya/medya_gorsel.dart';
 import '../medya/medya_servisi.dart';
 import '../medya/tam_ekran_gorsel.dart';
@@ -153,7 +160,28 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   ///     projede defalarca yaşandı.
   Future<void> _atacAc() async {
     final secim = await atacPaneliAc(context, ref);
-    if (secim == null || secim.dosyalar.isEmpty || !mounted) return;
+    if (secim == null || !mounted) return;
+
+    // ⚠️⚠️ TURU 81 — DOSYASIZ EYLEMLER. Panel yalnizca HANGISININ secildigini
+    //    soyler; akisi BURADA yurutuyoruz cunku sheet pop edildikten sonra
+    //    onun `context`i olur (turu 74b'de ataç dugmesi tam bu yuzden HIC
+    //    calismiyordu).
+    switch (secim.eylem) {
+      case 'konum':
+        await _konumGonder();
+        return;
+      case 'kisi':
+        await _kisiGonder();
+        return;
+      case 'iban':
+        await _ibanGonder();
+        return;
+      case 'etkinlik':
+        await _etkinlikGonder();
+        return;
+    }
+
+    if (secim.dosyalar.isEmpty) return;
 
     final altyazi = _input.text.trim();
     setState(() => _yukleniyor = true);
@@ -227,6 +255,116 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       }
     }
     if (gonderilen > 0) _scrollToBottom();
+  }
+
+  // ══════════════ TURU 81 — DOSYASIZ PAYLASIMLAR ══════════════
+  //
+  // ⚠️⚠️ ORTAK KURAL: hepsi `notifier`i **await'ten ONCE** yakalar. Yukleme /
+  //    izin diyalogu / secici saniyelerce surebilir ve o sirada ekran dispose
+  //    olursa `ref.read` `StateError` atar, `catch` yutar ve is SESSIZCE iptal
+  //    olur — bu projede DEFALARCA yasandi (turu 67 · 77b · 78b).
+
+  /// Konum gonder. Icerik "enlem,boylam" DUZ METIN (bkz. `KonumServisi` serhi).
+  Future<void> _konumGonder() async {
+    final notifier = ref.read(messagesProvider(widget.chatId).notifier);
+    final k = await KonumServisi.konumAl();
+    if (k == null) return; // KonumServisi kullaniciya sebebi soyledi
+    try {
+      await notifier.send(
+        '${k.enlem.toStringAsFixed(6)},${k.boylam.toStringAsFixed(6)}',
+        type: 'location',
+      );
+      _scrollToBottom();
+    } catch (e) {
+      rootMessengerKey.currentState?.showSnackBar(
+        SnackBar(content: Text(apiErrorMessage(e))),
+      );
+    }
+  }
+
+  /// Kisi paylas — kullanici seciciden bir profil secilir.
+  ///
+  /// ⚠️ Icerik "userId|Ad Soyad": ID gorunmez, ad GORUNUR. Tanimadigi tipi
+  ///    HAM basan bir yuzey (eski istemci / push) en kotu ihtimalle
+  ///    "uuid|Ahmet" gorur — okunabilir bir seydir, JSON coplugu degil.
+  Future<void> _kisiGonder() async {
+    final notifier = ref.read(messagesProvider(widget.chatId).notifier);
+    final secilen = await Navigator.of(context).push<Map<String, dynamic>>(
+      MaterialPageRoute(
+        builder: (_) => const UserSearchScreen(secimModu: true),
+      ),
+    );
+    if (secilen == null || !mounted) return;
+    final id = (secilen['id'] ?? '').toString();
+    final ad = (secilen['name'] ?? '').toString();
+    if (id.isEmpty) return;
+    try {
+      await notifier.send('$id|$ad', type: 'contact');
+      _scrollToBottom();
+    } catch (e) {
+      rootMessengerKey.currentState?.showSnackBar(
+        SnackBar(content: Text(apiErrorMessage(e))),
+      );
+    }
+  }
+
+  /// IBAN gonder.
+  ///
+  /// ⚠️ IBAN **DOGRULANIR** (TR + 24 hane + mod-97). Gerekce: yanlis IBAN'a
+  ///    yapilan havale GERI DONMEZ. Bicimsel dogrulama tum hatalari yakalamaz
+  ///    ama tek karakter dusmesi/eklenmesi gibi en sik hatayi yakalar.
+  /// ⚠️ Icerik "TR.. |Ad Soyad" DUZ METIN.
+  Future<void> _ibanGonder() async {
+    final notifier = ref.read(messagesProvider(widget.chatId).notifier);
+    final sonuc = await ibanPaneliAc(context);
+    if (sonuc == null || !mounted) return;
+    try {
+      await notifier.send('${sonuc.iban}|${sonuc.ad}', type: 'iban');
+      _scrollToBottom();
+    } catch (e) {
+      rootMessengerKey.currentState?.showSnackBar(
+        SnackBar(content: Text(apiErrorMessage(e))),
+      );
+    }
+  }
+
+  /// Etkinlik olustur ve sohbette paylas.
+  ///
+  /// ⚠️ ETKINLIK MEVCUT UC ILE olusturulur (`internal/etkinlik`, turu 78) —
+  ///    sohbet icin AYRI bir etkinlik yolu YAZILMADI. Ikinci bir olusturma
+  ///    yolu kacinilmaz olarak DRIFT ederdi (alanlar, dogrulama, medya).
+  /// ⚠️ Icerik "etkinlikId|Baslik".
+  Future<void> _etkinlikGonder() async {
+    final notifier = ref.read(messagesProvider(widget.chatId).notifier);
+    final etkinlikSvc = ref.read(etkinlikServisiProvider);
+    // ⚠️ Ekran olusturulan etkinligin **id**'sini (String) doner — mevcut
+    //    sozlesme DEGISTIRILMEDI (diger cagiran da onu bekliyor).
+    final id = await Navigator.of(context).push<String>(
+      MaterialPageRoute(builder: (_) => const EtkinlikOlusturEkrani()),
+    );
+    if (id == null || id.isEmpty || !mounted) return;
+    // ⚠️ Baslik GONDERIM ANINDA bir kez cekilir ve icerige GOMULUR (baglanti
+    //    onizlemesi mantigi). Alternatif "her balon cizerken sunucudan cek"
+    //    olurdu ve cok paylasimli bir sohbette N istek demekti.
+    //    ⚠️ Baslik sonradan degisirse balondaki metin ESKI kalir — ama dokunus
+    //       her zaman GUNCEL detay ekranini acar, yani yanlis bilgiye
+    //       goturmez.
+    var baslik = '';
+    try {
+      baslik = (await etkinlikSvc.detay(id)).baslik;
+    } catch (_) {
+      // ⚠️ Baslik alinamazsa PAYLASIM IPTAL EDILMEZ: etkinlik OLUSTU, onu
+      //    sohbette gostermemek daha kotu olurdu. Balon id ile calisir.
+    }
+    if (!mounted) return;
+    try {
+      await notifier.send('$id|$baslik', type: 'etkinlik');
+      _scrollToBottom();
+    } catch (e) {
+      rootMessengerKey.currentState?.showSnackBar(
+        SnackBar(content: Text(apiErrorMessage(e))),
+      );
+    }
   }
 
   /// ⚠️ TURU 74 — SES NOTU GONDER. Kaydedici dosyayi verir, yukleme burada olur.
@@ -1168,7 +1306,18 @@ class _Bubble extends StatelessWidget {
                   dalga: message.waveform,
                   benimMi: mine,
                 ),
-              if (message.content.isNotEmpty)
+              // ⚠️⚠️⚠️ TURU 81 — YAPISAL TIPLER KENDI BALONUNU CIZER.
+              //
+              //	Bu kapi olmasaydi asagidaki `Text(message.content)` dali
+              //	devreye girer ve kullanici sohbette HAM icerik gorurdu:
+              //	"41.008200,28.978400" · "TR33…|Ahmet" · "uuid|Konser".
+              //	Denetim bu sinifi ("tanimadigi tipin content'ini HAM basma")
+              //	acikca isaret etmisti — kapi UC yerde birden gerekiyor:
+              //	balon (burasi), sohbet listesi onizlemesi ve PUSH (ikisi de
+              //	SUNUCUDA, `handler.go` preview switch'i).
+              if (_yapisalTipler.contains(message.type))
+                _YapisalBalon(message: message, benimMi: mine)
+              else if (message.content.isNotEmpty)
                 Text(message.content, style: const TextStyle(fontSize: 15.5)),
             ],
             const SizedBox(height: 2),
@@ -1192,6 +1341,218 @@ class _Bubble extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// ⚠️⚠️ TURU 81 — YAPISAL ICERIK TASIYAN MESAJ TIPLERI.
+///
+/// Bu kumedeki tiplerin `content` alani KULLANICIYA GOSTERILECEK METIN DEGIL,
+/// AYRISTIRILACAK VERIDIR. `_YapisalBalon` disinda hicbir yerde ham basilmamali.
+/// ⚠️ Sunucuya yeni bir yapisal tip eklerken BURAYI ve `handler.go`daki
+///    onizleme switch'ini BIRLIKTE guncelle.
+const _yapisalTipler = {'location', 'contact', 'iban', 'etkinlik'};
+
+/// Konum · Kisi · IBAN · Etkinlik balonlari.
+///
+/// ⚠️ HEPSI TEK WIDGET: dort ayri balon sinifi, dolgu/yaricap/renk kurallarini
+///    dort kez kopyalamak demekti ve bu projede "ayni kuralin iki kopyasi
+///    drift eder" hatasi ALTI kez tekrarladi.
+class _YapisalBalon extends ConsumerWidget {
+  const _YapisalBalon({required this.message, required this.benimMi});
+
+  final Message message;
+  final bool benimMi;
+
+  /// "deger|etiket" -> (deger, etiket). Etiket yoksa bos doner.
+  (String, String) _bol() {
+    final i = message.content.indexOf('|');
+    if (i < 0) return (message.content.trim(), '');
+    return (
+      message.content.substring(0, i).trim(),
+      message.content.substring(i + 1).trim(),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return switch (message.type) {
+      'location' => _konum(context),
+      'contact' => _kisi(context),
+      'iban' => _iban(context),
+      'etkinlik' => _etkinlik(context, ref),
+      _ => const SizedBox.shrink(),
+    };
+  }
+
+  Widget _kart(
+    BuildContext context, {
+    required IconData ikon,
+    required Color renk,
+    required String baslik,
+    required String alt,
+    required String eylem,
+    required VoidCallback onEylem,
+  }) {
+    return ConstrainedBox(
+      // ⚠️ Genislik TAVANI: uzun bir IBAN ya da etkinlik basligi balonu
+      //    ekrandan tasirmasin.
+      constraints: const BoxConstraints(maxWidth: 260),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: renk.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(ikon, size: 19, color: renk),
+              ),
+              const SizedBox(width: 10),
+              Flexible(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      baslik,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14.5,
+                      ),
+                    ),
+                    if (alt.isNotEmpty)
+                      Text(
+                        alt,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 12.5),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          // ⚠️ Eylem TAM GENISLIKTE ve 40dp: balon icinde kucuk bir metin
+          //    baglantisi olsaydi basmak zor olurdu (turu 78b dokunma alani dersi).
+          SizedBox(
+            width: double.infinity,
+            height: 34,
+            child: OutlinedButton(
+              onPressed: onEylem,
+              style: OutlinedButton.styleFrom(
+                padding: EdgeInsets.zero,
+                visualDensity: VisualDensity.compact,
+              ),
+              child: Text(eylem, style: const TextStyle(fontSize: 13)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _konum(BuildContext context) {
+    final k = KonumServisi.ayrist(message.content);
+    if (k == null) {
+      // ⚠️ BOZUK ICERIK: ham basmak yerine DURUST etiket.
+      return const Text('Konum (okunamadı)', style: TextStyle(fontSize: 14));
+    }
+    return _kart(
+      context,
+      ikon: LucideIcons.mapPin,
+      renk: const Color(0xFFEF5350),
+      baslik: 'Konum',
+      alt:
+          '${k.enlem.toStringAsFixed(4)}, ${k.boylam.toStringAsFixed(4)}',
+      eylem: 'Haritada aç',
+      onEylem: () => KonumServisi.haritadaAc(k.enlem, k.boylam),
+    );
+  }
+
+  Widget _kisi(BuildContext context) {
+    final (id, ad) = _bol();
+    return _kart(
+      context,
+      ikon: LucideIcons.userRound,
+      renk: const Color(0xFF42A5F5),
+      baslik: ad.isEmpty ? 'Kişi' : ad,
+      alt: '',
+      eylem: 'Profili gör',
+      onEylem: () {
+        if (id.isEmpty) return;
+        Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => ProfilSayfasi(userId: id)));
+      },
+    );
+  }
+
+  Widget _iban(BuildContext context) {
+    final (iban, ad) = _bol();
+    return _kart(
+      context,
+      ikon: LucideIcons.creditCard,
+      renk: const Color(0xFF26A69A),
+      // ⚠️ IBAN DORTLU GRUPLANIR: 26 karakterlik kesintisiz dize okunamaz ve
+      //    kullanici elle karsilastirirken hata yapar.
+      baslik: _ibanGruplu(iban),
+      alt: ad,
+      eylem: 'Kopyala',
+      onEylem: () async {
+        await Clipboard.setData(ClipboardData(text: iban));
+        rootMessengerKey.currentState?.showSnackBar(
+          const SnackBar(content: Text('IBAN kopyalandı')),
+        );
+      },
+    );
+  }
+
+  static String _ibanGruplu(String s) {
+    final b = StringBuffer();
+    for (var i = 0; i < s.length; i++) {
+      if (i > 0 && i % 4 == 0) b.write(' ');
+      b.write(s[i]);
+    }
+    return b.toString();
+  }
+
+  Widget _etkinlik(BuildContext context, WidgetRef ref) {
+    final (id, baslik) = _bol();
+    return _kart(
+      context,
+      ikon: LucideIcons.calendarDays,
+      renk: const Color(0xFFFFA726),
+      baslik: baslik.isEmpty ? 'Etkinlik' : baslik,
+      alt: '',
+      eylem: 'Etkinliği gör',
+      // ⚠️ Detay ekrani `Etkinlik` NESNESI istiyor (id degil) — mevcut
+      //    sozlesme DEGISTIRILMEDI, dokunusta SUNUCUDAN cekiyoruz.
+      //    Bu ayni zamanda DOGRU davranis: balondaki baslik paylasim aninin
+      //    fotografidir, detay ise HER ZAMAN guncel olmali.
+      onEylem: () async {
+        if (id.isEmpty) return;
+        final nav = Navigator.of(context);
+        try {
+          final e = await ref.read(etkinlikServisiProvider).detay(id);
+          await nav.push(
+            MaterialPageRoute(builder: (_) => EtkinlikDetayEkrani(etkinlik: e)),
+          );
+        } catch (_) {
+          rootMessengerKey.currentState?.showSnackBar(
+            const SnackBar(content: Text('Etkinlik bulunamadı')),
+          );
+        }
+      },
     );
   }
 }

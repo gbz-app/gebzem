@@ -109,6 +109,24 @@ dependencies:
   #    durum yonetimi gerektirir; Slidable panel acar, satir yerinde kalir.
   flutter_slidable: ^4.0.3
 
+  # TURU 81 — KONUM PAYLASMA.
+  # ⚠️ `location` mesaj tipi DB CHECK'inde ve sunucu beyaz listesinde ZATEN
+  #    kabul ediliyordu, sohbet listesi onizlemesi bile "Konum" cizyordu —
+  #    ama konum ALAN hicbir paket ve GONDEREN hicbir yol yoktu ("olu ozellik"
+  #    sinifinin SEKIZINCI ornegi).
+  # ⚠️ IZIN `permission_handler` ile isteniyor (geolocator'in kendi izin API'si
+  #    DEGIL): kod tabaninin geri kalani (mikrofon, kamera, telefon) o paketi
+  #    kullaniyor ve iki izin katmani tutmak kacinilmaz olarak DRIFT ederdi.
+  geolocator: ^13.0.2
+
+  # ⚠️ HARITA SDK'si (google_maps_flutter) BILINCLI OLARAK EKLENMEDI:
+  #    (a) CLAUDE.md "cloudMapId KULLANMA" diyor (bedava kalmasi icin),
+  #    (b) API anahtari + faturalandirma + iki platformda ek kurulum ister,
+  #    (c) sohbette bir konumu GOSTERMEK icin gereken sey harita degil,
+  #        KOORDINAT + "Haritada ac" baglantisidir. Kullanicinin telefonunda
+  #        zaten bir harita uygulamasi var ve yol tarifi orada calisir.
+  url_launcher: ^6.3.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

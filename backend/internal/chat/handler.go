@@ -189,7 +189,16 @@ func (h *Handler) SendMessage(w http.ResponseWriter, r *http.Request) {
 	// arama kayitlari icindir (calls paketi dogrudan INSERT eder, buradan gecmez).
 	// ⚠️ YAPMA: bu beyaz listeye 'system' ekleme.
 	switch req.Type {
-	case "text", "image", "video", "audio", "location", "document":
+	// ⚠️⚠️ TURU 81 — 'contact', 'iban', 'etkinlik' EKLENDI.
+	//    'contact' DB CHECK'inde 015'ten beri VARDI ama beyaz liste onu
+	//    REDDEDIYORDU (yani tip OLU idi). 'iban' ve 'etkinlik' migration
+	//    039 ile CHECK'e eklendi.
+	// ⚠️ Bu tiplerin `content` alani YAPISAL veri tasir ("TR..|Ad",
+	//    "uuid|Baslik", "enlem,boylam") ve DUZ METINDIR — JSON DEGIL.
+	//    Gerekce: onizleme/push yollari tanimadigi bir tipin icerigini HAM
+	//    basiyor; JSON olsaydi kullanici bildirimde `{"lat":41...}` gorurdu.
+	case "text", "image", "video", "audio", "location", "document",
+		"contact", "iban", "etkinlik":
 	default:
 		httpErr(w, http.StatusBadRequest, "geçersiz mesaj tipi")
 		return
@@ -322,6 +331,24 @@ func (h *Handler) SendMessage(w http.ResponseWriter, r *http.Request) {
 			preview = "Sesli mesaj"
 		case "location":
 			preview = "Konum"
+		// ⚠️⚠️⚠️ TURU 81 — YAPISAL TIPLERIN ONIZLEMESI **ZORUNLU**.
+		//
+		//	Bu `switch` bir sus DEGIL, bir GUVENLIK KAPISIDIR: dala girmeyen
+		//	her tip icin `preview` = ham `content` kalir ve o metin hem
+		//	sohbet listesinde hem PUSH BILDIRIMINDE gorunur.
+		//	Kapi olmasaydi kullanici kilit ekraninda
+		//	"TR330006100519786457841326|Ahmet Yilmaz" ya da
+		//	"3f9a…-…|Konser" gorurdu — IBAN'in bildirim olarak sizmasi
+		//	ayrica GIZLILIK sorunudur.
+		// ⚠️ YAPMA: sunucuya yeni bir mesaj tipi eklerken bu switch'i atlama.
+		case "contact":
+			preview = "Kişi"
+		case "iban":
+			preview = "IBAN"
+		case "etkinlik":
+			preview = "Etkinlik"
+		case "poll":
+			preview = "Anket"
 		}
 		// ⚠️⚠️ TURU 78 — **RUNE** KIRPMASI, BAYT DEGIL (arastirma bulgusu).
 		//    Eskiden `preview[:80]` BAYT diliyordu. Turkce harfler UTF-8'de
