@@ -17,7 +17,153 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (10 Agu 15:03): TEST TURU 82 YAYINLANDI** — android
+- **KALDIGIMIZ YER (10 Agu 17:39): TEST TURU 83 YAYINLANDI** — android
+  **31398063106** + ios **31398066317** (**9fdcea4**), R2 apk=120004914
+  (md5 66d88a96) ipa=25801161 (md5 5939d789) index=9381 (md5 118b266a),
+  purge OK, **CDN BIREBIR** (ucu de MD5 esit), indir sayfasi 10 Agu 17:39
+  (saat 5 yerde + canli saat), debug imza YOK, **iOS min 16.0**, build
+  **HEAD commit'inden**. **BACKEND DEPLOY (ae1de5d)** + migration 042 canlida
+  (51 tablo) + health ok.
+  ✅ **CANLIDA 219/219 UCTAN UCA** (208->219) · **192 ROTA CAKISMASIZ** ·
+  `go build`+`go vet` temiz · `flutter analyze` **0 hata 0 uyari** ·
+  **cift-UTF8 0 dosya**. DB TEMIZ.
+  ⚠️ **KULLANICIYA VERILEN ADRES:**
+  https://indir.gebzem.app/index.html?v=20260810-1739
+  ⚠️ Kullanici **onay beklemeden bitirilmesini** istedi (kural 0 bu tur ASKIDA).
+- ⚠️⚠️⚠️ **TURU 83 — YENI KALICI MUHAFIZ: `internal/sutunkontrol/utf8_test.go`.**
+  Git Bash `sed -i` / `perl -0pi` Windows'ta UTF-8'i **CIFT KODLUYOR**
+  (`ç` = C3 A7 -> C3 83 C2 A7). Bu turda **IKI DOSYA** boyle bozuldu.
+  ⚠️ **ETKI SESSIZ:** `go build` + `go vet` + `flutter analyze` UCU DE TEMIZ
+     gecer, cunku bozulan **KOD DEGIL DIZE ICERIGI**; hata yalnizca
+     KULLANICININ EKRANINDA gorunur. Yayinlansaydi TUM Turkce mesajlar
+     okunamaz olurdu. Muhafiz **226 dosya** tariyor.
+  ⚠️ **ARAC KURALI: Turkce/emoji iceren dosyada `sed -i`/`perl -pi` KULLANMA**
+     — `Edit`/`Write` kullan. (CLAUDE.md'de PowerShell icin yazili olan ayni
+     tuzak Git Bash araclarinda da var.)
+  ⚠️ Muhafiz ILK YAZIMDA **KENDI SERHINDEKI ornegi** eslestirip yanlis alarm
+     verdi (`isletme/sutun_test.go` tuzaginin birebir tekrari) — bozuk ornek
+     artik HARFLE degil **BAYT** olarak yaziliyor.
+  ⚠️ Onarim: dosyayi UTF-8 oku -> `Buffer.from(s,'latin1')` -> UTF-8 coz.
+- ⚠️⚠️⚠️ **TURU 83 — GONDERIDE ANKET (migration 042).**
+  · **KESIF KAZANCI: SES ICIN MIGRATION GEREKMEDI** — `media_assets.kind`
+    CHECK'i **037'den beri `'audio'` kabul ediyor** ve `posts.media_ids` bir
+    medya dizisi; eksik olan YALNIZCA kartin cizim daliydi.
+  · Anket icin `polls` **SOHBETE CIVILIYDI** (`message_id`/`chat_id` NOT NULL).
+    042 ikisini gevsetti, `post_id` ekledi, CHECK **"tam olarak BIR sahip"**
+    zorluyor. ⚠️ Ikisi de NULL olan satir HICBIR yetki kontrolunden gecmezdi
+    (sessiz gizlilik acigi).
+  · **`polls` YENIDEN KULLANILDI, ikinci tablo ACILMADI**: oylama mantigi
+    040'ta yazilip sinandi; ikinci kopya KACINILMAZ olarak drift eder (ALTI
+    kez yasandi). Degisen TEK sey **YETKI KAPISI**.
+  · **`chat.anketSahibi` TEK KAYNAK**: sohbette uyelik, gonderide GORUNURLUK.
+    Dort uc (oy/kapat/getir/okuma) bunu cagirir.
+  · ⚠️ **IMPORT DONGUSU YOK**: `chat` -> `social` importu yerine GERI CAGIRIM
+    (`GonderiGorunur` / `AnketYazar` / `AnketOkuyucu`). Bag `main.go`da TEK
+    YERDE kurulur. **NIL ISE FAIL-CLOSED** (403 / 500) — sessizce acik
+    birakmak gizli hesap gonderisinin anketini herkese oylatirdi.
+    ⚠️ YAPMA: `main.go`daki iki satiri silme; `nil` gecme.
+  · Anket gonderiyle **AYNI ISLEMDE** yazilir (yarim kayit yok).
+  · ⚠️⚠️ **`satirlariOku` IMZASI DEGISTI (ctx + userID)** — bilincli:
+    anket ALTI sorgunun hepsinde cizilmeli ve cagri yerlerine tek tek eklemek
+    "6'ya ekle, 7.'yi unut" hatasini acardi (turu 76'da Kaydedilenler'i
+    BOMBOS birakan sinif). Imza degisikligi **DERLEYICIYI ZORLAYICI** kilar.
+    ⚠️ YAPMA: anket eklemeyi cagri yerlerine tasima.
+  · Anketler **TEK SORGUDA** okunur (N+1 yasak — turu 17 dersi).
+- ⚠️⚠️ **TURU 83 — E2E GERCEK BIR HATA YAKALADI (mime).**
+  `_SecilenMedya.mime` ses icin `audio/m4a` donduruyordu; sunucu beyaz listesi
+  (`sniff.go`) **`audio/mp4`** bekliyor. Yani **gonderiye ses ekleme %100 OLU
+  DOGACAKTI**. `go build` + `flutter analyze` IKISI DE TEMIZ geciyordu.
+  ⚠️ Sohbetteki ses notu ZATEN `audio/mp4` gonderiyordu — iki yol artik ayni.
+  ⚠️ YAPMA: `audio/m4a` ya da `audio/aac` yazma (ikincisi turu 74b'de beyaz
+     listeden CIKARILDI).
+- ⚠️⚠️⚠️ **TURU 83b — DENETIM: 39 BULGU -> 34 ONAY (44 ajan). IKI SEVK ENGELI:**
+  · **"VIDEOLAR" SEKMESI KIRIK GORSEL CIZIP TUM mp4'U INDIRIYORDU**: izgara
+    hucresi TUR KONTROLSUZ `MedyaGorsel(mediaIds.first)` cagiriyordu; thumb
+    uretilmedigi icin (`kucukResim:` 17 `yukle()` cagrisinin HICBIRINDE
+    gecmiyor) ham `url`e dusuluyor. Yeni "Videolar" sekmesi TANIMI GEREGI
+    yalniz video listeledigi icin O SEKMEDEKI HER HUCRE bozuktu.
+    FIX: **`KapakGorseli`** (tam bu is icin yazilmis TEK KAYNAK) — ILK
+    FOTOGRAFI secer, yalniz-video gonderide INDIRME YAPMADAN yer tutucu cizer.
+    ⚠️ Ayni kok KESFET izgarasinda da vardi; ikisi de baglandi.
+    ⚠️ YAPMA: izgaraya `MedyaGorsel(... .first ...)` geri koyma.
+  · **YUKLEME SIRASINDA TUM CIKIS YOLLARI KAPALIYDI**: geri dugmesi `null`,
+    "İptal" `AbsorbPointer(absorbing: _yukleniyor)`in ICINDE (yani tam
+    gorundugu anda dokunus ALMIYOR), `PopScope` kenar-cekmeyi bloke.
+    100 MB video yuklenirken kullanici **KILITLI** kaliyordu.
+    FIX: `maybePop()` + ilerleme blogu `AbsorbPointer` **DISINA**.
+    ⚠️ YAPMA: `_yukleniyor ? null :` kapisini geri koyma; ilerleme blogunu
+       `AbsorbPointer` icine tasima.
+- ⚠️⚠️⚠️ **TURU 83b — MEDYA MODELI BES TUTARSIZLIK TASIYORDU, TEK SABITE
+  INDIRILDI.** Onceki hal (`kKutuKisaltma` + `kKutuGenisletme` + `oran<1.0`):
+  · %5 genislik HEM yan dolgudan HEM orandan aliniyordu (**CIFT SAYIM**),
+  · carpan yukseklige degil KUTU ORANINA uygulandigi icin genislik tavana
+    dayandiginda **HIC BAGLAMIYORDU** (kisalma %0-%21 dalgalaniyordu),
+  · `oran < 1.0` kapisi **1.0'da SUREKSIZLIK**: kareye COK YAKIN dikey
+    fotograf %24 kirpilirken TAM KARE hic kirpilmiyordu,
+  · **GALERI yolu TAMAMEN MUAFTI** — ayni fotograf tek basina kirpilip
+    kisaliyor, ikinci fotograf eklenince UZUYORDU,
+  · yatay medya %20 kisalmak yerine **%3,3 UZUYORDU**.
+  **YENI: `kutuOrani = max(medyaOrani, kEnDikKutu = 1.0)`** — kutu KAREDEN
+  daha dikey olamaz. Tek/coklu, dikey/yatay AYRIMI YOK.
+  Dogrulandi (3 cihaz x 6 oran): **her vakada kolonun %100'u** (BOSLUK YOK),
+  yukseklik en fazla ekranin %45-54'u (onceden %54-60), **yatay/kare medya
+  KIRPILMIYOR**, 4:5 -> 378x378 (onceki 366x457: genislik +%3,3, yukseklik
+  -%17 — kullanicinin istedigi "+%5 genis / -%20 kisa"ya en yakin ve YANDA
+  BOSLUK URETMEYEN nokta).
+  ⚠️ Kirpilan medyanin KURTARMA YOLU: fotografa dokun · videoya UZUN BAS.
+  ⚠️ GERI ALMA TEK SATIR: `kEnDikKutu = 0.0` -> hicbir sey kirpilmaz.
+- ⚠️⚠️ **TURU 83b — DIGER ONAYLI BULGULAR:**
+  · **iOS'ta UC NOKTA CEKERKEN HIC CIZILMIYORDU**: `BouncingScrollPhysics`in
+    `applyBoundaryConditions`i **DAIMA 0.0 doner**, yani iOS'ta
+    `OverscrollNotification` **HIC DOGMAZ**. Ozellik kullanicinin gordugu ilk
+    platformda OLU dogacakti. FIX: `ScrollUpdate` + `extentBefore==0` +
+    `dragDetails != null` dali. ⚠️ Uc sartin ucu de ZORUNLU.
+  · **`depth != 0` SUZGECI YOKTU**: `RefreshIndicator`in kendi varsayilan
+    suzgeci devre disiydi -> akistaki **YATAY GALERI SERIDI** uc noktayi
+    tetikliyordu. ⚠️ YAPMA: bu kapiyi kaldirma.
+  · **UC NOKTA EKRANDA ASILI KALIYORDU**: tek bayrak `Overscroll`da true,
+    yalniz `onRefresh` `finally`sinde false oluyordu; kullanici cekip
+    VAZGECERSE `onRefresh` HIC cagrilmaz. FIX: `_cekiliyor` (ScrollEnd ile
+    kapanir) + `_yenileniyor` AYRI bayraklar.
+  · **CIFT DOKUNUS KALBI ANIMASYONU OLU KODDU**: `AnimatedOpacity` `if`
+    kapisinin icinde oldugu icin agaca ZATEN `opacity:1` ile giriyor, gecis
+    yapacak onceki deger BULAMIYORDU. FIX: `TweenAnimationBuilder` + sayac
+    anahtari (art arda dokunusta bastan oynasin).
+  · Sayac tavani 40 -> **46dp**: turun kendi getirdigi "1,3 bin" bicimi
+    (7 karakter ~46dp) 40dp tavani NORMAL olcekte bile kirpiyordu.
+    ⚠️ 46'nin USTUNE CIKMA: 52'de worst-case 354dp olur ve 360dp telefonda TASAR.
+  · Bildirimler/Kaydedilenler/Kanallar: bos-hata dallarindaki **5 ListView**e
+    `AlwaysScrollableScrollPhysics` (ayni commit'te profil icin duzeltilen
+    sinif UC kardes ekranda atlanmisti).
+- ⚠️⚠️ **TURU 83 — PROFILDE "EKRAN BEYAZ PATLIYOR" (kullanici bildirimi).**
+  `build()` icinde `if (_yukleniyor) return Scaffold(spinner);` satiri
+  `Scaffold`+`AppBar`+`RefreshIndicator`+`ListView`in **USTUNDEYDI** ve
+  `_yukleniyor` SADECE ilk yuklemede degil **HER YENILEMEDE** true oluyordu
+  -> asagi-cek sayfanin TAMAMINI agactan siliyor, geriye AppBar'siz bos bir
+  `Scaffold` kaliyordu. **Turu 81'in ACIK TEMASI** zemini `0xFFF2F2F5`
+  yaptigi icin bu bosluk BEYAZ patliyor. (Koyu temada da vardi, "normal
+  yukleme" gibi gorundugu icin fark edilmemisti.)
+  ⚠️ **BES kullanici eyleminde** tetikleniyordu: asagi-cek · takip · engelle ·
+     profil duzenlemeden donus · gizli hesap anahtari.
+  FIX: tam sayfa bosaltma YALNIZ `_p == null` iken + AppBar korunur + yeniden
+  girme kapisi + `AlwaysScrollableScrollPhysics`.
+  ⚠️ Ayni sinif UC EKRANDA DAHA vardi (bildirimler/kaydedilenler/kanallar).
+- 📌 **TURU 83 — LOGO HEADER'IN ORTASINDA.** Kullanicinin verdigi PNG
+  1536x1024 YATAY ve ikonun etrafinda siyah parilti vardi; oldugu gibi 32dp
+  kutuya konsaydi ikon ~19px kalip yanlarda siyah bant birakirdi. Kare ikon
+  kirpilip 512x512 uretildi (`assets/icon/logo.png`).
+  ⚠️ **LOGOYU DEGISTIRMEK ICIN YALNIZ O DOSYA degisir — KODA DOKUNMA.**
+  ⚠️ `centerTitle: true` ACIKCA veriliyor (tema geneli `false`).
+- 📌 **MIGRATION NUMARALARI (guncel):** 042 = gonderi anketi (`polls.post_id`,
+  `message_id`/`chat_id` NULL olabilir). Sonraki **043**'ten.
+- ⏳ **DURUST SINIRLAR (yapilmadi, sebebiyle):** gonderide **KONUM** yok —
+  `posts`ta enlem/boylam sutunu yok; dugme var ama durust "yakinda" diyor
+  (yarim baglamak yerine). Profil izgarasi ilk 30 gonderiyle sinirli
+  (sayfalama yok) — "Henuz video yok" 30'dan sonrasi icin yaniltici olabilir.
+- ⏳ **EN SONA BIRAKILAN (kullanici emri):** `active_call_controller.dart`
+  ~500 satirlik olu bekletme/park zinciri temizligi.
+
+- **ONCEKI (10 Agu 15:03): TEST TURU 82 YAYINLANDI** — android
   **31385139757** + ios **31385142078** (**2235554**), R2 apk=118045737
   (md5 0ca789f7) ipa=24128899 (md5 b9b306e2) index=9443 (md5 be8a09e9),
   purge OK, **CDN BIREBIR** (ucu de MD5 esit), indir sayfasi 10 Agu 15:03
