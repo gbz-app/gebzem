@@ -83,11 +83,29 @@ class _StoryIzleyiciState extends ConsumerState<StoryIzleyici>
     // ⚠️ `dispose` icinde cagirmak GUVENLI: `onIzlendi` yalnizca EBEVEYNIN
     //    `setState`ini tetikler ve orada `mounted` kapisi var. Burada `ref`
     //    KULLANILMAZ (CLAUDE.md: dispose sonrasi `ref` = StateError).
+    // ⚠️⚠️⚠️ SIRA ZORUNLU: KRITIK TEMIZLIK **ONCE**, geri cagirim SONRA.
+    //
+    // AMPIRIK KANIT (turu 82, `flutter test` ile olculdu): geri cagirim
+    // `setState` cagirirsa Flutter
+    //   "setState() or markNeedsBuild() called when widget tree was locked"
+    // firlatir ve bu istisna **`dispose()`UN GERI KALANINI IPTAL EDER**:
+    //   _ilerleme.dispose() calisti mi = false   <- AnimationController SIZAR
+    //   super.dispose()     calisti mi = false
+    // Yani her hikaye kapanisinda hem kirmizi ekran hem KALICI SIZINTI.
+    //
+    // Iki katmanli savunma:
+    //   1. `story_seridi.dart` geri cagirimi artik `setState` CAGIRMAZ
+    //      (yalniz modeli gunceller; cizimi `await`ten sonraki setState yapar),
+    //   2. burada `_ilerleme.dispose()` geri cagirimdan ONCE kosar — ileride
+    //      biri (1)'i bozarsa bile controller YINE DE serbest birakilir.
+    // ⚠️ YAPMA: bu iki satirin sirasini degistirme.
+    // ⚠️ `widget`e `super.dispose()`tan ONCE erismek gecerlidir.
+    _ilerleme.dispose();
+
     final l = _liste;
     if (l != null && l.isNotEmpty && l.every((s) => s.izledim)) {
       widget.onIzlendi?.call();
     }
-    _ilerleme.dispose();
     super.dispose();
   }
 

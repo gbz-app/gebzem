@@ -277,13 +277,34 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
   ///
   /// ⚠️ Secici AKISLA BIRLIKTE KAYAN bir liste ogesidir (sabitlenmez) —
   ///    gerekcesi `_bolmeSecici` cagrisinin yanindaki serhte.
+  /// ⚠️⚠️ TURU 82 — YATAY KAYDIRMA SARMALI **ZORUNLU**.
+  ///
+  /// Yazi 15 -> 17px buyutuldu (kullanici emri). AMPIRIK OLCUM (`flutter test`,
+  /// 360dp ekran, kullanilabilir genislik 344dp):
+  ///
+  ///     olcek 1.0   15px=189  17px=209    ikisi de sigar
+  ///     olcek 1.3   15px=234  17px=260    ikisi de sigar
+  ///     olcek 1.5   15px=264  17px=294    ikisi de sigar
+  ///     olcek 2.0   15px=339  17px=379    <- 15px SIGIYOR, 17px **TASIYOR**
+  ///
+  /// Yani +2px, erisilebilirlik icin yazi olcegini 2.0 yapan kullanicida
+  /// sari-siyah RenderFlex seridi cikariyordu. `Flexible`+ellipsis secilmedi:
+  /// "Takip Ettiklerin" -> "Takip Ettik…" olurdu ve kullanicinin ACIKCA
+  /// istedigi etiket okunamaz hale gelirdi. Kaydirma metni BOZMAZ.
+  /// ⚠️ YAPMA: bu sarmali kaldirma; yaziyi kucultup "cozuldu" sayma.
   Widget _bolmeSecici() => Padding(
     padding: const EdgeInsets.fromLTRB(4, 0, 12, 4),
-    child: Row(
-      children: [
-        _bolmeYazisi(0, 'Takip Ettiklerin'),
-        _bolmeYazisi(1, 'Keşfet'),
-      ],
+    child: SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      // ⚠️ Kaydirma cubugu YOK ve normal olcekte icerik zaten sigiyor, yani
+      //    kullanici bu sarmali HIC fark etmez; yalniz asiri olcekte devreye girer.
+      physics: const ClampingScrollPhysics(),
+      child: Row(
+        children: [
+          _bolmeYazisi(0, 'Takip Ettiklerin'),
+          _bolmeYazisi(1, 'Keşfet'),
+        ],
+      ),
     ),
   );
 
