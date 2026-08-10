@@ -375,12 +375,41 @@ class _GonderiOlusturState extends ConsumerState<GonderiOlustur> {
         }
       },
       child: Scaffold(
+        // ⚠️⚠️ TURU 82b — BASLIK CUBUGU YENIDEN DUZENLENDI (kullanici emri:
+        //    *"geri tusu arrow-left olacak; 'Yeni gönderi' 2px daha kucuk ve
+        //    soldaki ikona biraz daha yakin; daha modern, daha profesyonel"*).
+        //
+        //    · Geri ikonu ACIKCA `arrow-left` (varsayilan platform ikonu
+        //      Android'de `arrow_back`, iOS'ta `chevron` cizerdi — iki
+        //      platformda FARKLI gorunuyordu).
+        //    · `titleSpacing: 4` -> baslik ikona yaklasti (varsayilan 16).
+        //    · Baslik 20 -> **18** (Material varsayilani 20'dir; "2px kucuk").
+        //    · "Paylaş" duz `TextButton`dan **dolu haplı** dugmeye cevrildi:
+        //      birincil eylemin metin gibi gorunmesi profesyonel durmuyordu.
         appBar: AppBar(
-          title: Text(_reelsMi ? 'Yeni Reels' : 'Yeni gönderi'),
+          leading: IconButton(
+            icon: const Icon(LucideIcons.arrowLeft),
+            tooltip: 'Geri',
+            onPressed: _yukleniyor ? null : () => Navigator.of(context).pop(),
+          ),
+          titleSpacing: 4,
+          title: Text(
+            _reelsMi ? 'Yeni Reels' : 'Yeni gönderi',
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+          ),
           actions: [
-            TextButton(
-              onPressed: _yukleniyor ? null : _paylas,
-              child: const Text('Paylaş'),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              child: FilledButton(
+                onPressed: _yukleniyor ? null : _paylas,
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 18),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                ),
+                child: const Text('Paylaş'),
+              ),
             ),
           ],
         ),
@@ -404,22 +433,17 @@ class _GonderiOlusturState extends ConsumerState<GonderiOlustur> {
               const SizedBox(height: 12),
               if (_medya.isNotEmpty) _onizleme(),
               const SizedBox(height: 12),
-              Row(
-                children: [
-                  if (!_reelsMi)
-                    OutlinedButton.icon(
-                      onPressed: _yukleniyor ? null : _gorselSec,
-                      icon: const Icon(LucideIcons.image, size: 18),
-                      label: const Text('Fotoğraf'),
-                    ),
-                  const SizedBox(width: 8),
-                  OutlinedButton.icon(
-                    onPressed: _yukleniyor ? null : _videoSec,
-                    icon: const Icon(LucideIcons.video, size: 18),
-                    label: Text(_reelsMi ? 'Video seç' : 'Video'),
-                  ),
-                ],
-              ),
+              // ⚠️⚠️ TURU 82b — EKLER SATIRI (kullanici emri: *"yeni gonderide
+              //    anket, ses, harita vb seyler olsun"*).
+              //
+              //    Iki `OutlinedButton.icon` (Fotograf | Video) yerine TEK
+              //    kaydirilabilir serit: yeni ek turu geldiginde satir
+              //    TASMAZ. Etiketler ikonun ALTINDA -> her ek AYNI genislikte
+              //    ve serit duzenli gorunuyor ("daha profesyonel" istegi).
+              // ⚠️ KAYDIRILABILIR olmasi ZORUNLU: bes ek + 360dp ekran +
+              //    yazi olcegi 1.3'te sabit bir `Row` RenderFlex seridi
+              //    cikarirdi (turu 82'de olculen sinif).
+              _eklerSeridi(),
               const SizedBox(height: 8),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
@@ -481,6 +505,102 @@ class _GonderiOlusturState extends ConsumerState<GonderiOlustur> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  /// ⚠️⚠️ TURU 82b — YENI GONDERI EKLER SERIDI.
+  ///
+  /// Kullanici: *"yeni gonderide anket, ses, harita vb seyler olsun"*.
+  ///
+  /// ⚠️⚠️⚠️ **DURUST SINIR — UCU DE BUGUN YALNIZCA SOHBETTE CALISIYOR.**
+  ///
+  ///    Ses · anket · konum **SOHBET hattina** baglidir:
+  ///      · anket  -> `polls` (migration 040), `messages.type='poll'`
+  ///      · konum  -> `messages.type='location'`
+  ///      · ses    -> `messages.type='audio'` + `SesBalonu` cizimi
+  ///
+  ///    **GONDERI hatti bunlarin HICBIRINI cizemez.** `posts` yalnizca
+  ///    `metin` + `media_ids` tasiyor ve `GonderiKarti._medyaKutusu` bir
+  ///    medyayi YA `MedyaGorsel` YA `MedyaVideo` olarak ciziyor — ses icin
+  ///    DAL YOK. Ses dosyasini `media_ids`e koymak DERLENIR ve YUKLENIR ama
+  ///    kartta **HICBIR SEY** gorunmez; kullanici sesini paylastigini sanip
+  ///    kaybeder.
+  ///
+  /// ⚠️ **YAPMA: bu ucunu "calisiyormus gibi" baglama.** Bu projede
+  ///    "sutun/uc var ama kullanan yol yok" (ve tersi) hatasi **DOKUZ KEZ**
+  ///    yasandi. Dugmeler ozelligin GELECEGINI gosteriyor, VARLIGINI degil;
+  ///    basildiginda DURUST bir bilgi mesaji cikiyor.
+  /// ⚠️ Gercekten baglamak icin gereken (AYRI IS): `posts` semasina ek alan
+  ///    (ya da yeni `post_ekleri` tablosu) · gonderi sorgularina sutun (YEDI
+  ///    sorgu — `medyaTurleri` sabiti gibi TEK KAYNAKTAN) · `GonderiKarti`e
+  ///    cizim dali · `sutun_test.go` guncellemesi · uctan uca kontrol.
+  Widget _eklerSeridi() {
+    Widget ek(IconData ikon, String etiket, VoidCallback? onTap) => Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          width: 74,
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.14),
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(ikon, size: 21),
+              const SizedBox(height: 6),
+              Text(
+                etiket,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 11),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    void yakinda(String ad) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$ad gönderilerde yakında — şimdilik sohbette')),
+      );
+    }
+
+    return SizedBox(
+      height: 74,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        children: [
+          if (!_reelsMi)
+            ek(LucideIcons.image, 'Fotoğraf', _yukleniyor ? null : _gorselSec),
+          ek(
+            LucideIcons.video,
+            _reelsMi ? 'Video seç' : 'Video',
+            _yukleniyor ? null : _videoSec,
+          ),
+          if (!_reelsMi) ...[
+            ek(LucideIcons.mic, 'Ses', _yukleniyor ? null : () => yakinda('Ses')),
+            ek(
+              LucideIcons.chartNoAxesColumn,
+              'Anket',
+              _yukleniyor ? null : () => yakinda('Anket'),
+            ),
+            ek(
+              LucideIcons.mapPin,
+              'Konum',
+              _yukleniyor ? null : () => yakinda('Konum'),
+            ),
+          ],
+        ],
       ),
     );
   }

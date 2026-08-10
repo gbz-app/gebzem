@@ -93,6 +93,34 @@ const double kKolonTavani = 560;
 /// Coklu galeride kutular arasi bosluk.
 const double kGaleriAra = 8;
 
+/// Kartin yan dolgusu (tek yon). Turu 82b'de 12 -> 6.
+///
+/// ⚠️ Kullanici: *"genislik %5 arttir"*. Genisligin BUYUYEBILECEGI tek yer yan
+///    dolgudur (kutu zaten kolonu dolduruyor): 12 -> 6, kolon +12dp (~%3.3).
+const double kKartYanDolgu = 6;
+
+/// ⚠️⚠️⚠️ KUTU BICIM CARPANLARI — kullanici emri (turu 82b):
+/// *"gorsellerin uzunluklarini %20 daralt yukseklikten, genislik %5 arttir"*.
+///
+/// ═══ DURUST UYARI: BU IKISI "YANDA BOSLUK OLMASIN" ILE CELISIR ═══
+///
+/// Oran KORUNURSA kutu kisaldikca DARALIR — aritmetik boyle. Yani "%20 kisa"
+/// ve "kolonu doldur" ayni anda saglanamaz; arada KIRPMA olmak zorundadir:
+///
+///     4:5 fotograf, kolon 378
+///       oran korunsaydi (kisaltma yok) : 378 x 472   <- bugunku
+///       oran korunup %20 kisaltilsaydi : 302 x 378   <- SAGINDA 76dp BOSLUK
+///       kirpmaya izin verilirse        : 378 x 378   <- bosluk YOK, %20 kirpma
+///
+/// Kullanici bosluktan **DORT KEZ** sikayet ettigi icin **BOSLUK KORUNDU,
+/// kirpmaya izin verildi**. Kirpma yalnizca 4:5'ten DIKEY medyada olusur
+/// (yatay medya zaten kisadir ve carpanlar onu etkilemez).
+///
+/// ⚠️ GERI ALMAK TEK SATIR: ikisini de 1.0 yap -> kirpma SIFIR, yukseklik
+///    turu 82'deki haline doner.
+const double kKutuKisaltma = 0.80; // yukseklik x0.80  (%20 kisa)
+const double kKutuGenisletme = 1.05; // genislik x1.05  (%5 genis)
+
 /// Coklu galeride bir ogenin kaplayabilecegi EN FAZLA kolon orani.
 ///
 /// ⚠️ 1.0'in ALTINDA olmasi ZORUNLU: ekran goruntusundeki gibi **sonraki
@@ -128,8 +156,20 @@ const BoxFit kMedyaDolgu = BoxFit.cover;
 ) {
   // Bozuk olcuye karsi savunma: 0/negatif/NaN oran gelirse 4:5'e dus.
   final oran = (enBoy.isFinite && enBoy > 0) ? enBoy : 0.8;
-  final w = math.max(math.min(kolonGenislik, tavan * oran), 96.0);
-  return (w: w, h: w / oran);
+  // ⚠️⚠️ KISALTMA **YALNIZ DIKEY MEDYAYA** uygulanir (`oran < 1`).
+  //
+  //    Kullanicinin sikayeti UZUN gorsellerdi. Carpani yatay medyaya da
+  //    uygulamak olculdu ve ZARARLIYDI: 16:9 bir fotograf zaten ekranin
+  //    %19'u kadar KISA ve onu daha da kisaltmak **%24 KIRPMA** demekti —
+  //    yani hic sikayet edilmemis bir yuzeyde veri kaybi.
+  //    Kare ve yatay medya bu yuzden ORANINI KORUR (kirpma SIFIR).
+  // ⚠️ Iki carpan da 1.0 iken kutu orani medyaya ESITTIR ve HICBIR YERDE
+  //    kirpma olmaz — geri alma tek satirdir.
+  final kutuOrani = oran < 1.0
+      ? oran * (kKutuGenisletme / kKutuKisaltma)
+      : oran;
+  final w = math.max(math.min(kolonGenislik, tavan * kutuOrani), 96.0);
+  return (w: w, h: w / kutuOrani);
 }
 
 /// COKLU galeride TUM ogelerin PAYLASTIGI satir yuksekligi.

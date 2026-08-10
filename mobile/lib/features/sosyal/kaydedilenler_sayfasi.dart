@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import "../../core/yenile.dart";
+
 import '../home/home_screen.dart' show myProfileProvider;
 import 'gonderi_karti.dart';
 import 'profil_sayfasi.dart';
@@ -68,9 +70,15 @@ class _KaydedilenlerSayfasiState extends ConsumerState<KaydedilenlerSayfasi> {
         .toString();
     return Scaffold(
       appBar: AppBar(title: const Text('Kaydedilenler')),
-      body: RefreshIndicator(
+      body: YenileSarmali(
         onRefresh: _yukle,
-        child: _yukleniyor
+        // TURU 82b - spinner YALNIZ VERI YOKKEN. Ciplak `_yukleniyor` her
+        //    YENILEMEDE govdeyi spinner ile degistiriyordu: icerik yanip
+        //    sonuyor, kaydirma konumu sifirlaniyor ve acik temada BEYAZ bir
+        //    kare gorunuyordu (profil sayfasindaki "ekran beyaz patliyor"
+        //    hatasinin daha hafif hali - ayni sinif, dort ekranda birden).
+        // YAPMA: kosulu tekrar ciplak `_yukleniyor`a dondurme.
+        child: _yukleniyor && _liste.isEmpty
             ? const Center(child: CircularProgressIndicator())
             : _hata != null
             ? ListView(

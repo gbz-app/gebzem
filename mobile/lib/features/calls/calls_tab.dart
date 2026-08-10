@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import "../../core/yenile.dart";
+
 import '../../core/api.dart';
 import 'active_call_controller.dart';
 import 'call_provider.dart';
@@ -36,7 +38,7 @@ class CallsTab extends ConsumerWidget {
               ),
             );
           }
-          return RefreshIndicator(
+          return YenileSarmali(
             onRefresh: () async => ref.invalidate(callHistoryProvider),
             child: ListView.builder(
               itemCount: list.length,

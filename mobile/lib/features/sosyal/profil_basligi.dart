@@ -29,15 +29,22 @@ const double _tasma = _avatarDis / 2; // 52
 /// mavi tik kullaniciyi "iki cesit onay mi var?" sorusuna dusururdu.
 const Color kOnayliRengi = Color(0xFF3AA9FF);
 
-/// Kapak yuksekligi: **16:9, 240dp TAVANLI**.
+/// Kapak yuksekligi. **TURU 82b: %30 KISALTILDI** (kullanici emri:
+/// *"profildeki header cok yuksek, %30 yuksekligini dusur"*).
 ///
-/// ⚠️ 16:9 secildi (Facebook Sayfa ve Google Isletme kapagiyla ayni): 3:1 gibi
-///    daha yassi oranlar mobilde "serit" gibi durur ve urun kimligi tasimaz.
-/// ⚠️⚠️ TAVAN ZORUNLU: tablette/genis ekranda saf 16:9 ekranin yarisini yerdi
-///    (1024dp genislikte 576dp kapak). Gorsel `BoxFit.cover` oldugu icin
-///    tavanda KIRPILIR, ESNEMEZ.
+/// ⚠️ Onceki deger 16:9 + 240dp tavan idi. Yeni deger **16:11.2 + 168dp tavan**
+///    — ikisi de tam olarak `x0.70`, yani kisaltma HEM dar HEM genis ekranda
+///    ayni oranda uygulanir. Yalniz tavani dusurmek genis ekranda etkili
+///    olurdu ama telefonda (oran bagliyor) HICBIR SEY degistirmezdi:
+///      390dp genislik -> eski 219dp, yalniz tavan dusseydi yine 219dp kalirdi.
+/// ⚠️ 16:9 secilme gerekcesi (Facebook Sayfa / Google Isletme kapagiyla ayni
+///    dil) ARTIK GECERSIZ; kullanici acikca daha alcak bir kapak istedi.
+/// ⚠️⚠️ TAVAN ZORUNLU KALIR: tablette saf oran ekranin yarisini yerdi. Gorsel
+///    `BoxFit.cover` oldugu icin tavanda KIRPILIR, ESNEMEZ.
 /// ⚠️ `num.clamp` **num** dondurur (double DEGIL) — `math.min` kullanildi.
-double kapakYuksekligi(double genislik) => math.min(genislik * 9 / 16, 240.0);
+const double kKapakKisaltma = 0.70; // %30 dusuruldu
+double kapakYuksekligi(double genislik) =>
+    math.min(genislik * 9 / 16, 240.0) * kKapakKisaltma;
 
 class ProfilBasligi extends StatelessWidget {
   const ProfilBasligi({super.key, required this.p, this.onAvatarDokun});

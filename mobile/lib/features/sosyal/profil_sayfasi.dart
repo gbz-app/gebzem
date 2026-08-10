@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import "../../core/yenile.dart";
+
 import '../../core/api.dart';
 import '../chats/chats_provider.dart';
 import '../chats/moderasyon_sheet.dart';
@@ -60,6 +62,12 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
   }
 
   Future<void> _yukle() async {
+    // ⚠️ TURU 82b — YENIDEN GIRME KAPISI. `_yukle` BES yerden cagriliyor
+    //    (asagi-cek · takip · engelle · profil duzenlemeden donus · gizli
+    //    hesap anahtari); ucusta bir istek varken ikincisini acmak iki paralel
+    //    yukleme ve yaris demekti. `_p != null` sarti ZORUNLU: gercek ilk
+    //    yuklemeyi ENGELLEMEMELI.
+    if (_yukleniyor && _p != null) return;
     setState(() {
       _yukleniyor = true;
       _hata = null;
@@ -201,8 +209,35 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
     _benimMi =
         (ref.watch(myProfileProvider).valueOrNull?['id'] ?? '').toString() ==
         widget.userId;
-    if (_yukleniyor) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    // ⚠️⚠️⚠️ TURU 82b — "PROFILDE YENILEDIGIMDE EKRAN PATLIYOR, BEYAZ OLUYOR"
+    //    (kullanici bildirimi). **KOK NEDEN BURASIYDI.**
+    //
+    //    Bu satir `_yukleniyor` bayragina bakiyordu ve o bayrak SADECE ilk
+    //    yuklemede degil **HER YENILEMEDE** true oluyor. Kosul asagidaki
+    //    `Scaffold` + `AppBar` + `RefreshIndicator` + `ListView`in USTUNDE
+    //    oldugu icin asagi-cek jesti sayfanin TAMAMINI agactan siliyordu:
+    //      · AppBar gidiyor        -> geri dugmesi kayboluyor
+    //      · RefreshIndicator gidiyor -> jestin sahibi yok oluyor
+    //      · kapak/avatar/sayaclar/izgara gidiyor
+    //    Geriye AppBar'siz bos bir `Scaffold` kaliyor ve **turu 81'in ACIK
+    //    TEMASI** ile zemin `0xFFF2F2F5` oldugu icin ekran BEYAZ patliyor.
+    //    (Koyu temada da ayni sey oluyordu, sadece "normal yukleme" gibi
+    //    goründügü için fark edilmemisti — acik tema bedeli gorunur yapti.)
+    //
+    //    ⚠️ Ayni yol BES kullanici eyleminde tetikleniyordu: asagi-cek ·
+    //       takip etme · engelleme · profili duzenleyip donme · gizli hesap
+    //       anahtari. Yani hata "yenileme"den cok daha genis bir yuzeydeydi.
+    //
+    // FIX: tam sayfa bosaltma YALNIZ **gercek ilk yuklemede** (`_p == null`).
+    // Yenilemede ESKI PROFIL EKRANDA KALIR; donen spinner'i zaten
+    // `RefreshIndicator` ciziyor.
+    // ⚠️ `AppBar()` KORUNDU — ilk yuklemede bile geri dugmesi kaybolmasin.
+    // ⚠️ YAPMA: kosulu tekrar ciplak `_yukleniyor`a dondurme.
+    if (_yukleniyor && _p == null) {
+      return Scaffold(
+        appBar: AppBar(),
+        body: const Center(child: CircularProgressIndicator()),
+      );
     }
     final p = _p;
     if (p == null) {
@@ -231,9 +266,16 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
           IconButton(icon: const Icon(LucideIcons.ellipsis), onPressed: _menu),
         ],
       ),
-      body: RefreshIndicator(
+      body: YenileSarmali(
         onRefresh: _yukle,
         child: ListView(
+          // ⚠️ TURU 82b — `AlwaysScrollableScrollPhysics` ZORUNLU: icerigi
+          //    ekrandan KISA profillerde (gonderisi olmayan hesap) Android'in
+          //    varsayilan `ClampingScrollPhysics`i overscroll uretmedigi icin
+          //    asagi-cek jesti HIC TETIKLENMIYORDU — yani o hesaplarda
+          //    yenileme yolu FIILEN YOKTU. Turu 77b'de akis icin duzeltilen
+          //    sinifin aynisi.
+          physics: const AlwaysScrollableScrollPhysics(),
           children: [
             // ⚠️⚠️ TURU 78 — KAPAK + LOGO/AVATAR + ONAYLI ROZET.
             //    Ust `SizedBox(height: 16)` KALDIRILDI: kapak AppBar'a YAPISIK
@@ -326,18 +368,24 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
                   ],
                 ),
               )
-            else if (_gonderiler.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 60),
-                child: Center(
-                  child: Text(
-                    'Henüz gönderi yok',
-                    style: TextStyle(color: Colors.grey),
+            else ...[
+              // ⚠️ TURU 82b — INSTAGRAM TARZI SEKME SERIDI (kullanici emri:
+              //    *"profilde gonderi, fotograf, video vb alan olsun Instagram
+              //    gibi, hepsi bir yerde, tikladiginda ona gecsin"*).
+              _sekmeSeridi(),
+              if (_sekmeliListe.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 60),
+                  child: Center(
+                    child: Text(
+                      _bosMetin,
+                      style: const TextStyle(color: Colors.grey),
+                    ),
                   ),
-                ),
-              )
-            else
-              _izgara(),
+                )
+              else
+                _izgara(),
+            ],
           ],
         ),
       ),
@@ -548,19 +596,119 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
     }
   }
 
-  Widget _izgara() => GridView.builder(
-    shrinkWrap: true,
-    physics: const NeverScrollableScrollPhysics(),
-    padding: const EdgeInsets.all(2),
-    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-      crossAxisCount: 3,
-      mainAxisSpacing: 2,
-      crossAxisSpacing: 2,
-    ),
-    itemCount: _gonderiler.length,
-    itemBuilder: (_, i) {
-      final g = _gonderiler[i];
-      return GestureDetector(
+  /// ⚠️⚠️ TURU 82b — PROFIL SEKMELERI (Instagram deseni).
+  ///
+  /// 0 = Tümü · 1 = Fotoğraf · 2 = Video
+  ///
+  /// ⚠️ SUZGEC **ISTEMCIDE**, yeni bir uc ACILMADI: profil gonderileri zaten
+  ///    TEK istekte geliyor ve `media_kinds` (turu 76) her medyanin turunu
+  ///    TASIYOR. Sunucuya `?tur=` eklemek (a) sayfalama imlecini tur basina
+  ///    ayirmayi, (b) `sutun_test.go` ailesine yeni bir sorgu daha eklemeyi
+  ///    gerektirirdi — kazanci olmayan iki risk.
+  /// ⚠️ Sekme degisimi AG ISTEGI ATMAZ; liste bellekte suzulur.
+  int _sekme = 0;
+
+  /// Aktif sekmenin listesi. ⚠️ `kind(0)` ILK medyanin turudur — izgara zaten
+  /// ilk medyayi kapak olarak ciziyor (turu 76 karari), yani suzgec kullanicinin
+  /// GORDUGU seyle birebir ortusur.
+  List<Gonderi> get _sekmeliListe {
+    if (_sekme == 1) {
+      return _gonderiler
+          .where((g) => g.mediaIds.isNotEmpty && g.kind(0) != 'video')
+          .toList();
+    }
+    if (_sekme == 2) {
+      return _gonderiler.where((g) => g.kind(0) == 'video').toList();
+    }
+    return _gonderiler;
+  }
+
+  String get _bosMetin => switch (_sekme) {
+    1 => 'Henüz fotoğraf yok',
+    2 => 'Henüz video yok',
+    _ => 'Henüz gönderi yok',
+  };
+
+  Widget _sekmeSeridi() {
+    final renk = Theme.of(context).colorScheme.onSurface;
+    Widget sekme(int deger, IconData ikon, String etiket) {
+      final secili = _sekme == deger;
+      return Expanded(
+        child: Semantics(
+          button: true,
+          selected: secili,
+          label: etiket,
+          child: InkWell(
+            onTap: () => setState(() => _sekme = deger),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 11),
+              child: Icon(
+                ikon,
+                size: 21,
+                // ⚠️ Aktif/pasif AYRIMI IKI ISARETLE (renk + alttaki cizgi) —
+                //    tek isaret renk korlugunde ayirt edilemez (turu 80 karari).
+                color: secili ? renk : renk.withValues(alpha: 0.38),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        Row(
+          children: [
+            sekme(0, LucideIcons.layoutGrid, 'Tümü'),
+            sekme(1, LucideIcons.image, 'Fotoğraflar'),
+            sekme(2, LucideIcons.video, 'Videolar'),
+          ],
+        ),
+        // Aktif sekmenin altindaki ince gosterge (Instagram deseni).
+        // ⚠️ `AnimatedAlign` YERLESIMI DEGISTIRMEZ (yukseklik sabit 2dp),
+        //    yalnizca yatay konumu kaydirir -> "ziplama" olusmaz.
+        SizedBox(
+          height: 2,
+          child: LayoutBuilder(
+            builder: (_, k) => Stack(
+              children: [
+                AnimatedPositioned(
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeOut,
+                  left: k.maxWidth / 3 * _sekme,
+                  width: k.maxWidth / 3,
+                  top: 0,
+                  bottom: 0,
+                  child: Container(color: renk),
+                ),
+              ],
+            ),
+          ),
+        ),
+        Divider(
+          height: 1,
+          thickness: 0.5,
+          color: renk.withValues(alpha: 0.08),
+        ),
+      ],
+    );
+  }
+
+  Widget _izgara() {
+    final liste = _sekmeliListe;
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.all(2),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        mainAxisSpacing: 2,
+        crossAxisSpacing: 2,
+      ),
+      itemCount: liste.length,
+      itemBuilder: (_, i) {
+        final g = liste[i];
+        return GestureDetector(
         onTap: () => Navigator.of(
           context,
         ).push(MaterialPageRoute(builder: (_) => GonderiDetay(gonderi: g))),
@@ -602,11 +750,12 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
                 top: 5,
                 child: Icon(LucideIcons.copy, size: 14, color: Colors.white),
               ),
-          ],
-        ),
-      );
-    },
-  );
+            ],
+          ),
+        );
+      },
+    );
+  }
 }
 
 /// ⚠️⚠️ TURU 77 — PROFILDEKI ISLETME SERIDI.

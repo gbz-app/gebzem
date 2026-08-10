@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import "../../core/yenile.dart";
+
 import '../medya/medya_gorsel.dart';
 import '../sosyal/gonderi_karti.dart' show gonderiZamani, sayiBicimle;
 import 'kanal_ekrani.dart';
@@ -151,9 +153,15 @@ class _KanallarSekmesiState extends ConsumerState<KanallarSekmesi>
         icon: const Icon(LucideIcons.plus),
         label: const Text('Kanal aç'),
       ),
-      body: RefreshIndicator(
+      body: YenileSarmali(
         onRefresh: _yukle,
-        child: _yukleniyor
+        // TURU 82b - spinner YALNIZ VERI YOKKEN. Ciplak `_yukleniyor` her
+        //    YENILEMEDE govdeyi spinner ile degistiriyordu: icerik yanip
+        //    sonuyor, kaydirma konumu sifirlaniyor ve acik temada BEYAZ bir
+        //    kare gorunuyordu (profil sayfasindaki "ekran beyaz patliyor"
+        //    hatasinin daha hafif hali - ayni sinif, dort ekranda birden).
+        // YAPMA: kosulu tekrar ciplak `_yukleniyor`a dondurme.
+        child: _yukleniyor && _benim.isEmpty && _kesfet.isEmpty
             ? const Center(child: CircularProgressIndicator())
             : _hata != null
             ? ListView(

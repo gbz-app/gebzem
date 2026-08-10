@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import "../../core/yenile.dart";
+
 import '../../core/api.dart';
 import '../../router.dart' show rootMessengerKey;
 import '../medya/medya_gorsel.dart';
@@ -121,7 +123,7 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
                 ),
               ),
             )
-          : RefreshIndicator(
+          : YenileSarmali(
               onRefresh: _yukle,
               child: ListView(
                 padding: const EdgeInsets.only(bottom: 90),

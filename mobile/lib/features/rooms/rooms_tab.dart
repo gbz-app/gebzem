@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import "../../core/yenile.dart";
+
 import '../../core/api.dart';
 import '../medya/medya_gorsel.dart';
 import '../../core/ws.dart';
@@ -183,7 +185,7 @@ class _RoomsTabState extends ConsumerState<RoomsTab> {
     final odalar = ref.watch(roomsProvider);
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
-      body: RefreshIndicator(
+      body: YenileSarmali(
         onRefresh: () async => ref.invalidate(roomsProvider),
         child: odalar.when(
           skipLoadingOnReload: true, // WS-invalidate'te spinner-flash olmasin

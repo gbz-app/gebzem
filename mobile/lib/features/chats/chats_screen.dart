@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import "../../core/yenile.dart";
+
 import '../../core/api.dart';
 import '../../core/theme.dart';
 import '../auth/auth_provider.dart';
@@ -200,7 +202,7 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
                       textAlign: TextAlign.center),
                 );
               }
-              return RefreshIndicator(
+              return YenileSarmali(
                 onRefresh: () => ref.read(chatsProvider.notifier).load(),
                 child: ListView(
                   children: [

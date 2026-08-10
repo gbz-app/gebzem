@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import "../../core/yenile.dart";
+
 import '../../core/api.dart';
 import '../medya/medya_gorsel.dart';
 import 'gonderi_detay.dart';
@@ -254,7 +256,7 @@ class _KesfetEkraniState extends ConsumerState<KesfetEkrani>
         ),
       );
     }
-    return RefreshIndicator(
+    return YenileSarmali(
       onRefresh: _izgaraYukle,
       child: GridView.builder(
         padding: const EdgeInsets.all(1),

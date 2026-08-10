@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import "../../core/yenile.dart";
+
 import '../../core/api.dart';
 import '../../router.dart' show rootMessengerKey;
 import '../home/home_screen.dart' show myProfileProvider;
@@ -234,7 +236,7 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
                       ),
                     ),
                   )
-                : RefreshIndicator(
+                : YenileSarmali(
                     onRefresh: _yukle,
                     child: ListView.separated(
                       padding: const EdgeInsets.only(bottom: 90),

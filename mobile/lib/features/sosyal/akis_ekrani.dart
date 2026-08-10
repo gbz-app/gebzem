@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import "../../core/yenile.dart";
+
 import '../home/home_screen.dart' show myProfileProvider;
 import 'bildirim_sayaci.dart';
 import 'bildirimler_sayfasi.dart';
@@ -175,7 +177,15 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
         // ⚠️ Soguk baslangic seridi YALNIZ "Takip Ettiklerin" bolmesinde
         //    anlamli: Keşfet zaten kesfet icerigidir, orada "takip edecek kimse
         //    bulamadik" seridi cizmek YANILTICI olurdu.
-        _kesfetler[bolme] = bolme == 0 && soguk;
+        // ⚠️⚠️ TURU 82b — SOGUK BASLANGIC SERIDI KAPATILDI (kullanici emri:
+        //    *"kesfet kimseyi takip etmiyorsun vb yaziyi kaldir, gereksiz"*).
+        //    Sunucu HALA kesfet icerigi donuyor (`soguk` bayragi), yani yeni
+        //    kullanici BOS EKRAN gormuyor — yalnizca ACIKLAMA SERIDI cizilmiyor.
+        // ⚠️ YAPMA: sunucudaki soguk-baslangic dalini kaldirma; kaldirilirsa
+        //    kimseyi takip etmeyen kullanicinin akisi GERCEKTEN bosalir.
+        // ⚠️ `soguk` bilerek okunuyor ama kullanilmiyor -> `_kesfetler` daima
+        //    false. Serit geri istenirse tek satir: `bolme == 0 && soguk`.
+        _kesfetler[bolme] = false;
         _dahaVarlar[bolme] = gelen.isNotEmpty;
         _ilkYukleme = false;
         _yukleniyor = false;
@@ -321,22 +331,52 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
           // ⚠️ Dikey 12 + yazi ~17 + 12 = ~41dp; yatay 10 ile birlikte
           //    dokunma hedefi rahatca 44dp'yi asar.
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-          child: Text(
-            metin,
-            style: TextStyle(
-              // ⚠️ TURU 82 — kullanici emri: *"Takip et ve Kesfet 2px daha
-              //    buyuk olsun o yazilar"*. 15 -> 17.
-              fontSize: 17,
-              // ⚠️ Aktif/pasif AYRIMI IKI ISARETLE: kalinlik VE renk.
-              //    Tek isaret (yalniz renk) dusuk kontrastli ekranlarda
-              //    ve renk korlugunde ayirt edilemezdi.
-              fontWeight: secili ? FontWeight.w800 : FontWeight.w500,
-              color: secili
-                  ? Theme.of(context).colorScheme.onSurface
-                  : Theme.of(
-                      context,
-                    ).colorScheme.onSurface.withValues(alpha: 0.45),
-            ),
+          // ⚠️⚠️⚠️ TURU 82b — YERLESIM OYNAMASI KAPATILDI (kullanici emri:
+          //    *"Takip ettiklerin ve Kesfet'e tikladiginda OYNAMA oluyor,
+          //    buyume kuculme olmasin"*).
+          //
+          //    KOK NEDEN: `fontWeight` w500 <-> w800 arasinda degisiyordu ve
+          //    KALIN METIN DAHA GENISTIR. Secim degisince iki etiketin de
+          //    genisligi degisiyor, `Row` yeniden olculuyor ve YAZILAR YANA
+          //    KAYIYORDU (tiklamada "ziplama" hissi).
+          //
+          //    COZUM: her etiket bir `Stack` icinde cizilir; altta GORUNMEZ
+          //    (`Opacity(0)`) ama DAIMA **w800** olan bir kopya durur ve kutu
+          //    genisligini O belirler. Ustteki gercek yazi bu sabit kutunun
+          //    icinde ortalanir -> kalinlik degisse de **genislik DEGISMEZ**.
+          // ⚠️ YAPMA: kalinlik farkini kaldirip yalniz renge dusurme —
+          //    kullanici "yazi KALIN" istedi ve tek isaret renk korlugunde
+          //    ayirt edilemez (turu 80 karari).
+          // ⚠️ YAPMA: `AnimatedDefaultTextStyle` ile yumusatmaya calisma;
+          //    genislik yine degisir, oynama SURER.
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Opacity(
+                opacity: 0,
+                child: Text(
+                  metin,
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              Text(
+                metin,
+                style: TextStyle(
+                  // ⚠️ TURU 82 — kullanici emri: +2px (15 -> 17).
+                  fontSize: 17,
+                  // ⚠️ Aktif/pasif AYRIMI IKI ISARETLE: kalinlik VE renk.
+                  fontWeight: secili ? FontWeight.w800 : FontWeight.w500,
+                  color: secili
+                      ? Theme.of(context).colorScheme.onSurface
+                      : Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withValues(alpha: 0.45),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -464,7 +504,7 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
           // olarak artar, sayfaya girilince sifirlanir.
           BildirimRozeti(
             child: IconButton(
-              icon: const Icon(LucideIcons.bell),
+              icon: const Icon(LucideIcons.trendingUp),
               tooltip: 'Bildirimler',
               onPressed: () async {
                 ref.read(bildirimSayaciProvider.notifier).sifirla();
@@ -496,7 +536,7 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
       //    Iki bolme artik TEK govdeyi paylasiyor; ayrim VERIDE (`_listeler`),
       //    widget agacinda DEGIL. Boylece gorunmeyen bolmenin videosu
       //    yasamiyor ve akista otomatik oynatmanin dort kapisi bozulmuyor.
-      body: RefreshIndicator(onRefresh: _elleYenile, child: _govde(benimId)),
+      body: YenileSarmali(onRefresh: _elleYenile, child: _govde(benimId)),
     );
   }
 
@@ -614,19 +654,21 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
           idx = idx - 1;
         }
         if (idx >= _liste.length) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 24),
+          // ⚠️ TURU 82b — "Hepsi bu kadar" yazisi KALDIRILDI (kullanici emri).
+          //    Liste bittiginde artik HICBIR SEY cizilmez; yalnizca DAHA VARSA
+          //    yukleme gostergesi kalir.
+          // ⚠️ `SizedBox.shrink()` donulur, oge SILINMEZ: `itemCount` bu son
+          //    ogeyi sayiyor (+1) ve burada `null`/kisa liste dondurmek son
+          //    KARTIN cizilmemesine yol acardi (turu 80 dersi).
+          if (!_dahaVar) return const SizedBox(height: 8);
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
             child: Center(
-              child: _dahaVar
-                  ? const SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text(
-                      'Hepsi bu kadar',
-                      style: TextStyle(color: Colors.grey, fontSize: 12),
-                    ),
+              child: SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
             ),
           );
         }

@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import "../../core/yenile.dart";
+
 import '../../core/api.dart';
 import '../../router.dart' show rootMessengerKey;
 import '../medya/medya_gorsel.dart';
@@ -147,7 +149,7 @@ class _RandevuListesiEkraniState
                       ),
                     ),
                   )
-                : RefreshIndicator(
+                : YenileSarmali(
                     onRefresh: _yukle,
                     child: ListView.separated(
                       // ⚠️ Icerik ekrani doldurmasa da asagi-cek calissin

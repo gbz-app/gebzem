@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import "../../core/yenile.dart";
+
 import '../home/home_screen.dart' show myProfileProvider;
 import '../medya/medya_gorsel.dart';
 import '../vitrin/vitrin_slider.dart';
@@ -223,7 +225,7 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                       ),
                     ),
                   )
-                : RefreshIndicator(
+                : YenileSarmali(
                     onRefresh: _yukle,
                     child: ListView.separated(
                       itemCount: l.length,

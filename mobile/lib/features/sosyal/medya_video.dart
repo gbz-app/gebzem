@@ -12,24 +12,24 @@ import '../medya/medya_gorsel.dart';
 import '../medya/medya_servisi.dart';
 import '../medya/ses_notu_kontrol.dart';
 
-/// ⚠️⚠️ TURU 75 — GONDERI/REELS VIDEO OYNATICI.
+/// â ï¸â ï¸ TURU 75 â GONDERI/REELS VIDEO OYNATICI.
 ///
-/// ⚠️⚠️⚠️ iOS SES OTURUMU — BU DOSYANIN VAROLUS SEBEBI:
+/// â ï¸â ï¸â ï¸ iOS SES OTURUMU â BU DOSYANIN VAROLUS SEBEBI:
 ///   `video_player` iOS'ta varsayilan olarak `AVAudioSession` kategorisini
-///   `.playback` yapar. O kategori **DIGER SESI KESER** — yani bir gonderi
+///   `.playback` yapar. O kategori **DIGER SESI KESER** â yani bir gonderi
 ///   videosu, SUREN LiveKit aramasinin/odanin sesini OLDURUR. Bu projede ayni
 ///   sinif hata (process-global ses oturumu) turu 64/65/73'te defalarca yasandi.
 ///
 ///   UC KATMANLI SAVUNMA:
-///   (1) `VideoPlayerOptions(mixWithOthers: true)` — oturumu ELE GECIRMEZ.
+///   (1) `VideoPlayerOptions(mixWithOthers: true)` â oturumu ELE GECIRMEZ.
 ///   (2) `MedyaKapisi.donanimSerbest` false ise ses ZORLA kapatilir (mixWithOthers
 ///       "karistir" demek; kullanici arama sesiyle reel sesini AYNI ANDA duymasin).
-///   (3) `SesNotuKontrol` defterine kaydolur — arama/oda/yayin BASLARKEN
+///   (3) `SesNotuKontrol` defterine kaydolur â arama/oda/yayin BASLARKEN
 ///       `sustur()` cagriliyor (5 giris noktasinda `await` ile) ve oynatma DURUR.
 ///
-/// ⚠️ YAPMA: `mixWithOthers: true`yi kaldirma.
-/// ⚠️ YAPMA: `SesNotuKontrol.kaydol/birak` cagrilarini kaldirma.
-/// ⚠️ YAPMA: bu widget'i `SesSahipligi`ne kaydetme — o defter
+/// â ï¸ YAPMA: `mixWithOthers: true`yi kaldirma.
+/// â ï¸ YAPMA: `SesNotuKontrol.kaydol/birak` cagrilarini kaldirma.
+/// â ï¸ YAPMA: bu widget'i `SesSahipligi`ne kaydetme â o defter
 ///    `setAudioEnabled(false)` kararini suruyor; video oynatici WebRTC ses birimi
 ///    DEGILDIR ve oraya yazilirsa `aramaCanli` YALAN soyler (bkz. ses_notu_kontrol).
 class MedyaVideo extends ConsumerStatefulWidget {
@@ -43,27 +43,36 @@ class MedyaVideo extends ConsumerStatefulWidget {
     this.sesli = false,
     this.dolgu = BoxFit.contain,
     this.kontrolGoster = true,
+    this.ilerlemeGoster = true,
   });
 
-  /// Sunucudaki medya. ⚠️ `yerelDosya` verildiyse BOS olabilir.
+  /// Sunucudaki medya. â ï¸ `yerelDosya` verildiyse BOS olabilir.
   final String mediaId;
 
-  /// ⚠️ TURU 77 — HENUZ YUKLENMEMIS yerel dosya (hikaye editoru onizlemesi).
+  /// â ï¸ TURU 77 â HENUZ YUKLENMEMIS yerel dosya (hikaye editoru onizlemesi).
   ///    Verilirse `mediaId` YOK SAYILIR ve ag istegi ATILMAZ.
   final File? yerelDosya;
 
-  /// Kucuk resim — video hazir olana kadar gosterilir (siyah kare yerine).
+  /// Kucuk resim â video hazir olana kadar gosterilir (siyah kare yerine).
   final String? kapakMediaId;
 
   /// Gorunur olunca kendiliginden oynasin mi (akista SESSIZ, reels'te SESLI).
   final bool otoOynat;
   final bool dongu;
 
-  /// Baslangicta sesli mi. ⚠️ Akista DAIMA `false` — kaydirirken aniden ses
+  /// Baslangicta sesli mi. â ï¸ Akista DAIMA `false` â kaydirirken aniden ses
   ///    patlamasi (Instagram/Facebook davranisi da sessiz otomatik oynatma).
   final bool sesli;
   final BoxFit dolgu;
   final bool kontrolGoster;
+
+  /// Alt ilerleme cubugu cizilsin mi.
+  ///
+  /// ⚠️ TURU 82b â AKISTA **false** (kullanici emri: "alttaki ilerleme
+  ///    cubugu da olmasin"). Reels, hikaye ve tam ekranda TRUE kalir:
+  ///    oralarda videonun ne kadar kaldigini gormek ISLEVSEL.
+  /// ⚠️ YAPMA: varsayilani false yapma â uc yuzey birden sessizce kaybeder.
+  final bool ilerlemeGoster;
 
   @override
   ConsumerState<MedyaVideo> createState() => _MedyaVideoState();
@@ -78,39 +87,39 @@ class _MedyaVideoState extends ConsumerState<MedyaVideo>
   bool _kullaniciDurdurdu = false;
 
   /// Arama/oda/yayin surdugu icin oynatici HIC kurulmadi.
-  /// ⚠️ `_hata` DEGIL: hata degil, gecici kilit — kapi acilinca kendini onarir.
+  /// â ï¸ `_hata` DEGIL: hata degil, gecici kilit â kapi acilinca kendini onarir.
   bool _kilitli = false;
 
   /// Oynatmayi BIZ degil, `SesNotuKontrol.sustur()` (arama basladi) durdurdu.
-  /// ⚠️ Bu ayrim ZORUNLU: reels'te `kontrolGoster: false` oldugu icin kullanicinin
-  ///    elle devam ettirecek DUGMESI YOK — gorusme bitince otomatik devam etmezse
+  /// â ï¸ Bu ayrim ZORUNLU: reels'te `kontrolGoster: false` oldugu icin kullanicinin
+  ///    elle devam ettirecek DUGMESI YOK â gorusme bitince otomatik devam etmezse
   ///    ekran DONMUS KAREDE kalir.
   bool _aramaDurdurdu = false;
 
   /// Kilit/durdurma durumunu yoklayan zamanlayici.
-  /// ⚠️ `MedyaKapisi.donanimSerbest` bir Notifier DEGIL (birden fazla kaynaktan
+  /// â ï¸ `MedyaKapisi.donanimSerbest` bir Notifier DEGIL (birden fazla kaynaktan
   ///    turetiliyor: GSM bayragi, SesSahipligi defteri, call provider). Dinlenecek
   ///    tek bir akis olmadigi icin SEYREK yoklama (1sn) en durust cozum.
-  /// ⚠️ YAPMA: yoklamayi hizlandirma; 1sn kullanici icin fark etmez, pil icin eder.
+  /// â ï¸ YAPMA: yoklamayi hizlandirma; 1sn kullanici icin fark etmez, pil icin eder.
   Timer? _kapiYoklama;
 
-  /// ⚠️ Kurulum ASENKRON (imzali adres + `initialize()`); bu arada widget dispose
+  /// â ï¸ Kurulum ASENKRON (imzali adres + `initialize()`); bu arada widget dispose
   ///    olabilir ya da `mediaId` degisebilir. Her await sonrasi bu jeton kontrol
-  ///    edilir — bu projede "bayat async" hatalarinin TEK caresi (turu 19 dersi).
+  ///    edilir â bu projede "bayat async" hatalarinin TEK caresi (turu 19 dersi).
   int _nesil = 0;
 
-  /// Oynatici HENUZ kurulmadi — kullanicinin dokunmasi bekleniyor.
+  /// Oynatici HENUZ kurulmadi â kullanicinin dokunmasi bekleniyor.
   ///
-  /// ⚠️⚠️ TURU 76 — AKISTA VIDEO ARTIK KENDILIGINDEN INDIRILMIYOR.
+  /// â ï¸â ï¸ TURU 76 â AKISTA VIDEO ARTIK KENDILIGINDEN INDIRILMIYOR.
   ///    Eskiden `initState` KOSULSUZ `_kur()` cagiriyordu ve `initialize()`
   ///    videonun basligini + ilk tamponu INDIRIR. Akista 20 kart varsa 20 video
   ///    bosuna indirilmeye baslardi. Video tavani 16 MB iken bu farkedilmiyordu;
   ///    **100 MB tavanda kullanicinin mobil verisini yakar** (kullanici emri
   ///    geregi tavan 100 MB'a cikarildi).
-  /// ⚠️ Kart TAM EKRAN DEGIL — kullanici kaydirip gecebilir. Bu yuzden
+  /// â ï¸ Kart TAM EKRAN DEGIL â kullanici kaydirip gecebilir. Bu yuzden
   ///    `otoOynat == false` iken oynatici DOKUNANA KADAR kurulmaz. Reels
-  ///    (`otoOynat: true`) tam ekrandir ve hemen kurulur — orada dogru olan bu.
-  /// ⚠️ YAPMA: `initState`e kosulsuz `_kur()` geri koyma.
+  ///    (`otoOynat: true`) tam ekrandir ve hemen kurulur â orada dogru olan bu.
+  /// â ï¸ YAPMA: `initState`e kosulsuz `_kur()` geri koyma.
   bool _tembel = false;
 
   @override
@@ -132,12 +141,12 @@ class _MedyaVideoState extends ConsumerState<MedyaVideo>
   /// Gorusme bitti mi? Bittiyse kilidi kaldir / duraklatilmis oynatmayi surdur.
   void _kapiyiYokla() {
     if (!mounted) return;
-    // ⚠️⚠️⚠️ TURU 78b — **ROTA KAPISI** (denetim bulgusu).
+    // â ï¸â ï¸â ï¸ TURU 78b â **ROTA KAPISI** (denetim bulgusu).
     //
     //    `MedyaVideo` rota farkindaligi TASIMIYORDU. Akista bu sorun degildi
     //    (gorunurluk gozcusu + `IndexedStack` sekme kapisi vardi) ama TURU 78
     //    ILAN ve ETKINLIK GALERILERINI acti: kullanici videoyu OYNATIR, sonra
-    //    ayni ekrandan "Mesaj gönder" / kadro / profil gibi bir sayfaya gecer —
+    //    ayni ekrandan "Mesaj gÃ¶nder" / kadro / profil gibi bir sayfaya gecer â
     //    ustteki sayfanin ALTINDA kalan video, `dongu` varsayilani `true`
     //    oldugu icin **SONSUZ DONGUDE CALMAYA DEVAM EDER**. Sesi acilmissa
     //    kullanici kaynagini goremedigi bir sesi dinler ve iOS'ta ses oturumu
@@ -145,16 +154,16 @@ class _MedyaVideoState extends ConsumerState<MedyaVideo>
     //
     //    `ModalRoute.isCurrent` akistaki kartlarin ZATEN kullandigi olcuttur
     //    (turu 77b'nin dort kapisindan biri); burada da AYNI olcut kullaniliyor.
-    // ⚠️ Yalniz DURAKLATIR — kullanici geri dondugunde kaldigi yerden devam
+    // â ï¸ Yalniz DURAKLATIR â kullanici geri dondugunde kaldigi yerden devam
     //    edebilsin diye `_kullaniciDurdurdu` YAZILMAZ.
-    // ⚠️ YAPMA: bu kapiyi kaldirma.
+    // â ï¸ YAPMA: bu kapiyi kaldirma.
     final rota = ModalRoute.of(context);
     if (rota != null && !rota.isCurrent) {
       final c = _c;
       if (c != null && c.value.isPlaying) c.pause();
       return;
     }
-    // ⚠️ Tembel bekleyen oynatici KURULMAZ: kullanici dokunmadi.
+    // â ï¸ Tembel bekleyen oynatici KURULMAZ: kullanici dokunmadi.
     if (_tembel) return;
     final serbest = MedyaKapisi.donanimSerbest(ref);
     if (!serbest) return;
@@ -162,7 +171,7 @@ class _MedyaVideoState extends ConsumerState<MedyaVideo>
       _kur(); // kapi acildi, oynaticiyi simdi kur
       return;
     }
-    // ⚠️ Yalniz ARAMA durdurduysa devam et — kullanici elle duraklattiysa
+    // â ï¸ Yalniz ARAMA durdurduysa devam et â kullanici elle duraklattiysa
     //    ona saygi duyulur (turu 72 "devam otomatik degil, dugmeyle" karari).
     if (_aramaDurdurdu && widget.otoOynat && !_kullaniciDurdurdu) {
       _aramaDurdurdu = false;
@@ -181,15 +190,15 @@ class _MedyaVideoState extends ConsumerState<MedyaVideo>
       // Gorunurluk degisti: gorunur olan oynar, olmayan DURUR.
       if (widget.otoOynat) {
         _kullaniciDurdurdu = false;
-        // ⚠️⚠️ TURU 76b (SEVK ENGELI) — TEMBEL OYNATICI KURULMALI.
+        // â ï¸â ï¸ TURU 76b (SEVK ENGELI) â TEMBEL OYNATICI KURULMALI.
         //    Akista kart EKRAN DISINDA kurulur; o an `otoOynat: false` oldugu
         //    icin `initState` `_tembel = true` yapar ve **oynatici HIC
         //    YARATILMAZ**. Kart kaydirilip gorunur olunca buraya duseriz ve
-        //    eski kod dogrudan `_oynat()` cagiriyordu — `_c` NULL oldugu icin
+        //    eski kod dogrudan `_oynat()` cagiriyordu â `_c` NULL oldugu icin
         //    HICBIR SEY OLMUYORDU: otomatik oynatma sahada HIC CALISMAZDI.
         //    (PageView'de sorun cikmiyordu cunku komsu sayfa `otoOynat: true`
         //    ile dogrudan kuruluyordu; gorunurluk tabanli akista durum TERS.)
-        // ⚠️ YAPMA: bu dali kaldirip yalniz `_oynat()`a donme.
+        // â ï¸ YAPMA: bu dali kaldirip yalniz `_oynat()`a donme.
         if (_tembel) {
           _tembel = false;
           _kur();
@@ -205,8 +214,8 @@ class _MedyaVideoState extends ConsumerState<MedyaVideo>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState durum) {
-    // ⚠️ Arka planda video oynatmak YOK: pil + veri harcar, ustelik iOS'ta
-    //    ses oturumunu arka planda tutmaya calisir. `inactive` DE dahil degil —
+    // â ï¸ Arka planda video oynatmak YOK: pil + veri harcar, ustelik iOS'ta
+    //    ses oturumunu arka planda tutmaya calisir. `inactive` DE dahil degil â
     //    o durumdan (bildirim merkezi/app switcher) donuste devam etmeli.
     if (durum == AppLifecycleState.paused ||
         durum == AppLifecycleState.detached) {
@@ -220,15 +229,15 @@ class _MedyaVideoState extends ConsumerState<MedyaVideo>
 
   Future<void> _kur() async {
     final nesil = ++_nesil;
-    // ⚠️⚠️⚠️ TURU 75b (DENETIM BULGUSU) — KURULUM KAPISI.
+    // â ï¸â ï¸â ï¸ TURU 75b (DENETIM BULGUSU) â KURULUM KAPISI.
     //    Eskiden kapi YALNIZ SES SEVIYESINE uygulaniyordu; oynatici KOSULSUZ
     //    kuruluyordu. Ama `video_player` iOS'ta `initialize()` sirasinda
     //    `setMixWithOthers(...)` gonderir ve bu, RTCAudioSession kilidinin
-    //    DISINDAN AVAudioSession'i yeniden yapilandirir — yani SUREN LiveKit
+    //    DISINDAN AVAudioSession'i yeniden yapilandirir â yani SUREN LiveKit
     //    aramasinin ses oturumuna dokunur. `mixWithOthers: true` "oturumu ele
     //    gecirme" demek, "oturuga hic dokunma" DEMEK DEGIL.
     //    Bu projede proses-geneli ses oturumu turu 64/65/73'te defalarca yakti.
-    // ⚠️ YAPMA: bu kapiyi kaldirma. Gorusme surerken video KURULMAZ; kapak
+    // â ï¸ YAPMA: bu kapiyi kaldirma. Gorusme surerken video KURULMAZ; kapak
     //    gorseli + acik bir mesaj gosterilir, gorusme bitince `_yenidenDene`
     //    ile kurulur.
     if (!MedyaKapisi.donanimSerbest(ref)) {
@@ -247,18 +256,18 @@ class _MedyaVideoState extends ConsumerState<MedyaVideo>
       _kilitli = false;
     });
     try {
-      // ⚠️⚠️ TURU 77 — YEREL DOSYA DESTEGI (hikaye editoru onizlemesi).
+      // â ï¸â ï¸ TURU 77 â YEREL DOSYA DESTEGI (hikaye editoru onizlemesi).
       //    Editorde secilen video HENUZ YUKLENMEDI; `mediaId` yok.
       //    AYRI BIR OYNATICI YAZILMADI cunku bu widget'taki ses kapilari
       //    (`MedyaKapisi.donanimSerbest`, `SesNotuKontrol`, `mixWithOthers`)
-      //    bu projenin en kirilgan yerini koruyor — ikinci bir oynatici o
+      //    bu projenin en kirilgan yerini koruyor â ikinci bir oynatici o
       //    korumalarin DISINDA kalir ve suren aramanin sesini bozar.
-      // ⚠️ YAPMA: editorde `VideoPlayerController.file` ile ayri oynatici kurma.
+      // â ï¸ YAPMA: editorde `VideoPlayerController.file` ile ayri oynatici kurma.
       final VideoPlayerController c;
       if (widget.yerelDosya != null) {
         c = VideoPlayerController.file(
           widget.yerelDosya!,
-          // ⚠️⚠️ ZORUNLU — bkz. dosya basligi.
+          // â ï¸â ï¸ ZORUNLU â bkz. dosya basligi.
           videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
         );
       } else {
@@ -270,7 +279,7 @@ class _MedyaVideoState extends ConsumerState<MedyaVideo>
         if (url.isEmpty) throw Exception('adres bos');
         c = VideoPlayerController.networkUrl(
           Uri.parse(url),
-          // ⚠️⚠️ ZORUNLU — bkz. dosya basligi. Kaldirilirsa suren aramanin sesi olur.
+          // â ï¸â ï¸ ZORUNLU â bkz. dosya basligi. Kaldirilirsa suren aramanin sesi olur.
           videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
         );
       }
@@ -290,7 +299,7 @@ class _MedyaVideoState extends ConsumerState<MedyaVideo>
     }
   }
 
-  /// ⚠️ SES KARARI TEK YERDE: arama/oda/yayin/GSM canliysa ses KAPALI.
+  /// â ï¸ SES KARARI TEK YERDE: arama/oda/yayin/GSM canliysa ses KAPALI.
   ///    Her oynatmadan once YENIDEN degerlendirilir (kullanici video acikken
   ///    arama kabul edebilir).
   bool get _sesVerilebilir =>
@@ -301,33 +310,33 @@ class _MedyaVideoState extends ConsumerState<MedyaVideo>
     final nesil = _nesil;
     if (c == null || !mounted) return;
 
-    // ⚠️⚠️ TURU 75b (DENETIM BULGUSU) — SIRA DEGISTI: ONCE DEFTERE YAZ, SONRA SES.
+    // â ï¸â ï¸ TURU 75b (DENETIM BULGUSU) â SIRA DEGISTI: ONCE DEFTERE YAZ, SONRA SES.
     //    Eskiden `await c.setVolume(...)` ONCE kosuyordu ve deftere kaydolma o
     //    await'in ALTINDAYDI. Dart argumani await'ten ONCE degerlendirdigi icin
     //    ses seviyesi 1.0 olarak KESINLESIYOR, ama platform kanali gidis-donusu
     //    suresince oynatici DEFTERDE OLMUYORDU. O pencerede baslayan bir arama
     //    `SesNotuKontrol.sustur()` cagirdiginda bizi BULAMAZ -> video arama
     //    boyunca TAM SESLE calar ve bir daha susturulamaz.
-    // ⚠️ YAPMA: `kaydol`u tekrar await'in altina tasima.
+    // â ï¸ YAPMA: `kaydol`u tekrar await'in altina tasima.
     //
-    // ⚠️⚠️⚠️ TURU 77b — **YALNIZ SES URETECEKSE DEFTERE GIRILIR. SEVK ENGELIYDI.**
+    // â ï¸â ï¸â ï¸ TURU 77b â **YALNIZ SES URETECEKSE DEFTERE GIRILIR. SEVK ENGELIYDI.**
     //    `SesNotuKontrol` **TEK SLOTLUDUR**: `kaydol()` yeni sahip gelince
     //    oncekini SUSTURUR. Akistaki videolar SESSIZ oynadigi halde (turu 76b
     //    karari) kosulsuz kaydoluyordu. Sonuc "PING-PONG":
-    //      · akista video gorunurken Reels'e gec -> Reels ~1sn oynar, akistaki
+    //      Â· akista video gorunurken Reels'e gec -> Reels ~1sn oynar, akistaki
     //        1sn'lik `_kapiYoklama` timer'i sahipligi geri calar, Reels DONAR;
     //        Reels'te `kontrolGoster:false` oldugu icin kullanicinin duzeltme
     //        yolu da YOKTU.
-    //      · ayni sekilde VIDEO HIKAYE ve **SESLI MESAJ** (turu 74'te test
+    //      Â· ayni sekilde VIDEO HIKAYE ve **SESLI MESAJ** (turu 74'te test
     //        edilip onaylanmis ozellik) saniyede bir susup basa donuyordu.
     //    Sessiz bir oynatici hicbir ses donanimi tuketmez; deftere girmesi
     //    ANLAMSIZDI. Girmezse de zarar yok: ses acildigi anda `_sesiCevir`
     //    yeniden kaydolur.
-    //    ⚠️ YAPMA: bu kapiyi kaldirip kosulsuz `kaydol`a donme.
+    //    â ï¸ YAPMA: bu kapiyi kaldirip kosulsuz `kaydol`a donme.
     _defteriGuncelle();
 
     await c.play();
-    // ⚠️ Await SONRASI yeniden degerlendir: bu sirada arama baslamis olabilir.
+    // â ï¸ Await SONRASI yeniden degerlendir: bu sirada arama baslamis olabilir.
     if (!mounted || nesil != _nesil) return;
     await c.setVolume(_sesVerilebilir ? 1.0 : 0.0);
     if (mounted) setState(() {});
@@ -335,11 +344,11 @@ class _MedyaVideoState extends ConsumerState<MedyaVideo>
 
   /// Ses defterindeki kaydi GERCEK ses durumuyla eslestirir. **TEK KAYNAK.**
   ///
-  /// ⚠️⚠️⚠️ TURU 78b — BU METOT AYRILDI CUNKU `_sesiCevir` DEFTERE HIC
+  /// â ï¸â ï¸â ï¸ TURU 78b â BU METOT AYRILDI CUNKU `_sesiCevir` DEFTERE HIC
   /// DOKUNMUYORDU (denetim: SEVK ENGELI, turu 77b hatasinin ikinci yuzu).
   ///
   ///	`_oynat()`in serhi "girmezse de zarar yok: ses acildigi anda `_sesiCevir`
-  ///	yeniden kaydolur" diyordu — ama `_sesiCevir` GOVDESINDE `kaydol` cagrisi
+  ///	yeniden kaydolur" diyordu â ama `_sesiCevir` GOVDESINDE `kaydol` cagrisi
   ///	YOKTU. Yani yorumun anlattigi kontrol gerceklesmiyordu (CLAUDE.md turu
   ///	74 dersi: bir yorumun anlattigi kontrolun GOVDEDE olup olmadigini dogrula).
   ///
@@ -349,14 +358,14 @@ class _MedyaVideoState extends ConsumerState<MedyaVideo>
   ///	SUSTURAMAZ -> arama sesiyle video sesi ust uste biner ve iOS'ta ses
   ///	oturumu cekismesi yasanir. Turu 78 ilan + etkinlik galerileriyle bu
   ///	yuzeyi IKIYE KATLADI.
-  /// ⚠️ YAPMA: kaydolmayi tekrar yalniz `_oynat()`a birakma.
+  /// â ï¸ YAPMA: kaydolmayi tekrar yalniz `_oynat()`a birakma.
   void _defteriGuncelle() {
     if (_sesVerilebilir) {
       SesNotuKontrol.kaydol(this, () async {
-        // ⚠️⚠️ SEBEP AYRIMI ZORUNLU: susturan ARAMA MI, BASKA BIR OYNATICI MI?
+        // â ï¸â ï¸ SEBEP AYRIMI ZORUNLU: susturan ARAMA MI, BASKA BIR OYNATICI MI?
         //    Ikisine de `_aramaDurdurdu = true` yazilirsa `_kapiyiYokla`
         //    (1sn'lik timer) "arama bitti" sanip kendini geri baslatir ve
-        //    sahipligi geri calar — ping-pongun ikinci yarisi buydu.
+        //    sahipligi geri calar â ping-pongun ikinci yarisi buydu.
         //    Donanim SERBESTSE bizi susturan bir arama degil, baska bir
         //    oynaticidir; o durumda KENDILIGINDEN DEVAM ETMEYIZ.
         _aramaDurdurdu = !MedyaKapisi.donanimSerbest(ref);
@@ -372,12 +381,12 @@ class _MedyaVideoState extends ConsumerState<MedyaVideo>
   Future<void> _sesiCevir() async {
     if (!_sesli && !MedyaKapisi.donanimSerbest(ref)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Görüşme sürüyor — video sesi açılamaz')),
+        const SnackBar(content: Text('GÃ¶rÃ¼Åme sÃ¼rÃ¼yor â video sesi aÃ§Ä±lamaz')),
       );
       return;
     }
     setState(() => _sesli = !_sesli);
-    // ⚠️⚠️ DEFTER **BURADA DA** GUNCELLENIR — bkz. `_defteriGuncelle` serhi.
+    // â ï¸â ï¸ DEFTER **BURADA DA** GUNCELLENIR â bkz. `_defteriGuncelle` serhi.
     //    Eskiden yalniz seviye degisiyordu ve sesi acilan video defterde
     //    olmadigi icin gelen arama tarafindan SUSTURULAMIYORDU.
     _defteriGuncelle();
@@ -385,7 +394,7 @@ class _MedyaVideoState extends ConsumerState<MedyaVideo>
   }
 
   void _duraklatCevir() {
-    // ⚠️ TEMBEL YUKLEME: ilk dokunus oynaticiyi KURAR ve oynatir. Akista video
+    // â ï¸ TEMBEL YUKLEME: ilk dokunus oynaticiyi KURAR ve oynatir. Akista video
     //    bu dokunusa kadar TEK BAYT indirmez (bkz. `_tembel` serhi).
     if (_tembel) {
       setState(() => _tembel = false);
@@ -432,16 +441,16 @@ class _MedyaVideoState extends ConsumerState<MedyaVideo>
       child: Stack(
         fit: StackFit.expand,
         children: [
-          // Kapak: video hazir DEGILKEN gorunur. Siyah kare yerine gercek kare —
+          // Kapak: video hazir DEGILKEN gorunur. Siyah kare yerine gercek kare â
           // kaydirirken "bos delik" hissi olmasin.
           //
-          // ⚠️ TURU 76 — KAPAK KAYNAGI: ayri bir `kapakMediaId` verilmediyse
+          // â ï¸ TURU 76 â KAPAK KAYNAGI: ayri bir `kapakMediaId` verilmediyse
           //    VIDEONUN KENDI media_id'sinin KUCUK RESMI denenir. Sunucu her
           //    medya kaydi icin `thumb_key` tutuyor ve `/media/{id}/url`
-          //    yanitinda `thumb_url` donduruyor — yani kucuk resim YUKLENMISSE
+          //    yanitinda `thumb_url` donduruyor â yani kucuk resim YUKLENMISSE
           //    ek bir alan gerekmeden gorunur. Yuklenmemisse `MedyaGorsel`
           //    sessizce koyu bir kutuya duser (kirik ikon YOK).
-          // ⚠️ TURU 77b — YEREL DOSYA MODUNDA (hikaye editoru) kapak ISTEGI
+          // â ï¸ TURU 77b â YEREL DOSYA MODUNDA (hikaye editoru) kapak ISTEGI
           //    ATILMAZ: `mediaId` BOS oldugu icin `GET /media//url` 404 doner
           //    ve kirik gorsel ikonu cizilirdi. Yerel dosyanin ilk karesi
           //    zaten milisaniyeler icinde gelir; koyu zemin yeterli.
@@ -463,7 +472,7 @@ class _MedyaVideoState extends ConsumerState<MedyaVideo>
                 child: VideoPlayer(c),
               ),
             ),
-          // ⚠️ Tembel beklerken SPINNER GOSTERME — hicbir sey yuklenmiyor;
+          // â ï¸ Tembel beklerken SPINNER GOSTERME â hicbir sey yuklenmiyor;
           //    donen cark kullaniciya "bekliyor" yalanini soylerdi.
           if (!_hazir && !_hata && !_kilitli && !_tembel)
             const Center(
@@ -483,7 +492,7 @@ class _MedyaVideoState extends ConsumerState<MedyaVideo>
                     Icon(LucideIcons.phone, color: Colors.white70, size: 26),
                     SizedBox(height: 8),
                     Text(
-                      'Görüşme sürerken video oynatılamaz',
+                      'GÃ¶rÃ¼Åme sÃ¼rerken video oynatÄ±lamaz',
                       textAlign: TextAlign.center,
                       style: TextStyle(color: Colors.white70, fontSize: 12),
                     ),
@@ -499,13 +508,13 @@ class _MedyaVideoState extends ConsumerState<MedyaVideo>
                   Icon(LucideIcons.circleAlert, color: Colors.white70),
                   SizedBox(height: 6),
                   Text(
-                    'Video açılamadı',
+                    'Video aÃ§Ä±lamadÄ±',
                     style: TextStyle(color: Colors.white70, fontSize: 12),
                   ),
                 ],
               ),
             ),
-          // ⚠️ Oynat dugmesi TEMBEL durumda da gorunur — kullanici videonun
+          // â ï¸ Oynat dugmesi TEMBEL durumda da gorunur â kullanici videonun
           //    orada oldugunu ve dokununca oynayacagini gormeli.
           if (widget.kontrolGoster &&
               (_tembel || (_hazir && c != null && !c.value.isPlaying)))
@@ -545,7 +554,7 @@ class _MedyaVideoState extends ConsumerState<MedyaVideo>
                 ),
               ),
             ),
-          if (_hazir && c != null)
+          if (_hazir && c != null && widget.ilerlemeGoster)
             Positioned(
               left: 0,
               right: 0,

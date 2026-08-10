@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
+import "../../core/yenile.dart";
+
 import '../medya/medya_gorsel.dart';
 import 'bildirim_sayaci.dart';
 import 'gonderi_detay.dart';
@@ -242,9 +244,15 @@ class _BildirimlerSayfasiState extends ConsumerState<BildirimlerSayfasi> {
           ),
         ],
       ),
-      body: RefreshIndicator(
+      body: YenileSarmali(
         onRefresh: _yukle,
-        child: _yukleniyor
+        // TURU 82b - spinner YALNIZ VERI YOKKEN. Ciplak `_yukleniyor` her
+        //    YENILEMEDE govdeyi spinner ile degistiriyordu: icerik yanip
+        //    sonuyor, kaydirma konumu sifirlaniyor ve acik temada BEYAZ bir
+        //    kare gorunuyordu (profil sayfasindaki "ekran beyaz patliyor"
+        //    hatasinin daha hafif hali - ayni sinif, dort ekranda birden).
+        // YAPMA: kosulu tekrar ciplak `_yukleniyor`a dondurme.
+        child: _yukleniyor && _liste.isEmpty
             ? const Center(child: CircularProgressIndicator())
             : _hata != null
             ? ListView(

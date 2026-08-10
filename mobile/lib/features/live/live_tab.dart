@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import "../../core/yenile.dart";
+
 import '../../core/api.dart';
 import '../../core/ws.dart';
 import '../calls/active_call_controller.dart';
@@ -112,7 +114,7 @@ class _LiveTabState extends ConsumerState<LiveTab> {
     final yayinlar = ref.watch(liveStreamsProvider);
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
-      body: RefreshIndicator(
+      body: YenileSarmali(
         onRefresh: () async => ref.invalidate(liveStreamsProvider),
         child: yayinlar.when(
           // Sik WS-invalidate'te spinner-flash olmasin (liste sabit kalir, arkada tazelenir)

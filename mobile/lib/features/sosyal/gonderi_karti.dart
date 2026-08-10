@@ -481,24 +481,49 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
               cap: 38,
             ),
           ),
+          // ⚠️⚠️ TURU 82b — KULLANICI ADI KALDIRILDI, ZAMAN ISMIN SAGINA
+          //    (kullanici emri: *"isim altinda kullanici adi olmasin, zaman
+          //    1dk mesela ismin saginda olacak"*).
+          //    Alt satir tamamen bosaldigi icin `subtitle` YOK -> `ListTile`
+          //    tek satira duser ve baslik ~16dp KISALIR (yan fayda).
+          // ⚠️ Isim `Flexible` + ellipsis: uzun ad zamani EZMEZ; zaman
+          //    `Flexible` DEGIL cunku her zaman TAM gorunmeli.
+          // ⚠️ YAPMA: `@kullaniciadi`ni geri ekleme.
           title: GestureDetector(
             onTap: () => widget.profileGit?.call(g.yazarId),
-            child: Text(
-              g.yazarAd,
-              style: const TextStyle(fontWeight: FontWeight.w600),
+            child: Row(
+              children: [
+                Flexible(
+                  child: Text(
+                    g.yazarAd,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  [
+                    gonderiZamani(g.createdAt),
+                    // ⚠️ TURU 76: duzenlenmis gonderi GORUNUR isaretlenir.
+                    //    Sessizce degistirmek, altinda yorum birikmis bir
+                    //    icerigin anlamini bozmaya izin verirdi.
+                    if (g.duzenlendi) 'düzenlendi',
+                  ].join(' · '),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withValues(alpha: 0.55),
+                  ),
+                ),
+              ],
             ),
           ),
-          subtitle: Text(
-            [
-              if (g.yazarUsername.isNotEmpty) '@${g.yazarUsername}',
-              gonderiZamani(g.createdAt),
-              // ⚠️ TURU 76: duzenlenmis gonderi GORUNUR sekilde isaretlenir.
-              //    Sessizce degistirmek, altinda yorum birikmis bir icerigin
-              //    anlamini bozmaya izin verirdi.
-              if (g.duzenlendi) 'düzenlendi',
-            ].join(' · '),
-            style: const TextStyle(fontSize: 12),
-          ),
+          // ⚠️ `subtitle` YOK -> ListTile tek satira duser, baslik kisalir.
+          dense: true,
+          visualDensity: VisualDensity.compact,
+          horizontalTitleGap: 10,
           trailing: IconButton(
             icon: const Icon(LucideIcons.ellipsis),
             onPressed: _menu,
@@ -541,6 +566,8 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
                 renk: g.begendim ? const Color(0xFFFF3B5C) : null,
                 vurgu: g.begendim,
                 onTap: _begeniCevir,
+                // ⚠️ Begenenler listesinin TEK girisi (alt satir kaldirildi).
+                onUzunBas: g.begeniSayisi > 0 ? _begenenler : null,
               ),
               _eylem(
                 ikon: LucideIcons.messageCircle,
@@ -573,21 +600,13 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
             ],
           ),
         ),
-        // ---- "N beğenme" (Instagram deseni) — dokununca BEGENENLER listesi
-        if (g.begeniSayisi > 0)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 2),
-            child: GestureDetector(
-              onTap: _begenenler,
-              child: Text(
-                '${sayiBicimle(g.begeniSayisi)} beğenme',
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ),
+        // ⚠️⚠️ TURU 82b — "N beğenme" ALT SATIRI KALDIRILDI (kullanici emri:
+        //    *"begeni attigimda saginda rakam olacak, ALTTA YAZMAYACAK"*).
+        //    Sayi zaten kalbin SAGINDA (`_eylem(sayi:)`), yani bu satir AYNI
+        //    bilgiyi ikinci kez yaziyordu.
+        // ⚠️ BEGENENLER LISTESI KAYBOLMADI: giris artik kalbin kendisine UZUN
+        //    BASMA (asagidaki `_eylem(onUzunBas:)`). Satiri silip listeyi de
+        //    olduren bir degisiklik "olu ozellik" sinifini yeniden acardi.
         // ---- "N yorumun tümünü gör" (Instagram deseni)
         if (!g.yorumKapali && g.yorumSayisi > 0)
           Padding(
@@ -611,7 +630,19 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
             ),
           ),
         const SizedBox(height: 8),
-        const Divider(height: 1),
+        // ⚠️ TURU 82b — GONDERI AYRACI SAYDAMLASTIRILDI (kullanici emri:
+        //    *"gonderi ayraclarini biraz saydamlastir"*). Material'in
+        //    varsayilan `Divider` rengi temanin `outlineVariant`idir ve koyu
+        //    temada belirgin bir cizgi birakiyordu; artik metin renginin
+        //    **%8**'i — kartlari ayirmaya yetiyor, goze carpmiyor.
+        // ⚠️ `height: 1` KALIR (ayirici bosluk); yalniz RENK ve KALINLIK degisti.
+        // ⚠️ Bu YALNIZ akistaki kart ayracidir; "Beğenenler" sayfasindaki
+        //    baslik ayraci (asagida) BILEREK belirgin birakildi.
+        Divider(
+          height: 1,
+          thickness: 0.5,
+          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.08),
+        ),
       ],
     );
   }
@@ -636,7 +667,7 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
 
     return LayoutBuilder(
       builder: (context, kisit) {
-        final kolon = kisit.maxWidth - 24; // 12 sol + 12 sag dolgu
+        final kolon = kisit.maxWidth - kKartYanDolgu * 2;
         // ⚠️⚠️⚠️ TURU 82 — KUTU ORANI = MEDYA ORANI (turu 81'in hatasi burada).
         //    Turu 81 yuksekligi SABITLIYOR, genisligi kolona kirpiyordu ->
         //    4:5 bir fotograf kolonun %59'unda kalip SAGINDA 150dp BOSLUK
@@ -690,7 +721,7 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
                 Align(
                   alignment: Alignment.centerLeft,
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    padding: const EdgeInsets.symmetric(horizontal: kKartYanDolgu),
                     child: GestureDetector(
                       onDoubleTap: () => _begeniCevir(yalnizBegen: true),
                       child: _medyaKutusu(0, genislikOf(0), satirY),
@@ -740,7 +771,7 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
                     final x = _seritCtrl.offset;
                     final vp = _seritCtrl.position.viewportDimension;
                     final merkez = x + vp / 2;
-                    var sol = 12.0; // ListView'in sol dolgusu
+                    var sol = kKartYanDolgu; // ListView'in sol dolgusu
                     var yeni = 0;
                     for (var i = 0; i < g.mediaIds.length; i++) {
                       final w = genislikOf(i);
@@ -759,7 +790,10 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
                   child: ListView.builder(
                     controller: _seritCtrl,
                     scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.only(left: 12, right: 12),
+                    padding: const EdgeInsets.only(
+                      left: kKartYanDolgu,
+                      right: kKartYanDolgu,
+                    ),
                     itemCount: g.mediaIds.length,
                     itemBuilder: (_, i) => Padding(
                       padding: EdgeInsets.only(
@@ -772,12 +806,23 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
                     ),
                   ),
                 ),
+              // ⚠️ TURU 82b — CIFT DOKUNUS KALBI KUCULDU VE YUMUSADI.
+              //    Kullanici: *"patlama olmasin, hafif COK HAFIF animasyonla"*.
+              //    92px + tam opak kirmizi bir "patlama" idi; artik 54px, yari
+              //    saydam ve 160ms'de yumusakca belirip kayboluyor.
+              // ⚠️ YAPMA: boyutu geri buyutme; `easeOutBack`/`elasticOut` gibi
+              //    geri sekmeli egri kullanma (patlama hissi ondan gelir).
               if (_kalpGoster)
-                const IgnorePointer(
-                  child: Icon(
-                    LucideIcons.heart,
-                    size: 92,
-                    color: Color(0xEEFF3B5C),
+                IgnorePointer(
+                  child: AnimatedOpacity(
+                    opacity: _kalpGoster ? 1 : 0,
+                    duration: const Duration(milliseconds: 160),
+                    curve: Curves.easeOut,
+                    child: const Icon(
+                      LucideIcons.heart,
+                      size: 54,
+                      color: Color(0xCCFF3B5C),
+                    ),
                   ),
                 ),
               // ⚠️⚠️ TURU 80 — ROZET `_medyaKutusu`NUN ICINE TASINDI.
@@ -836,33 +881,26 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
             //    Bu dugme KIRPILAN ICERIGIN TEK KURTARMA YOLU — kucuk kalirsa
             //    ozellik fiilen ulasilamaz olur. Gorunen daire kucuk kalir,
             //    dokunma alani `SizedBox` + `behavior` ile buyutulur.
+            // ⚠️⚠️⚠️ TURU 82b — SOL ALTTAKI TAM EKRAN DUGMESI KALDIRILDI
+            //    (kullanici emri: *"anasayfadaki videolarda buyutme ikonu,
+            //    soldaki ikon olmasin"*).
+            //
+            // ⚠️ AMA KURTARMA YOLU KAYBOLMADI — kaybolsaydi turun getirdigi
+            //    %20 kisaltma yuzunden KIRPILAN video bir daha tam haliyle
+            //    GORULEMEZDI ("olu ozellik" sinifi). Giris **UZUN BASMA**ya
+            //    tasindi: gorunmez, dugme degil, ve videonun kendi `onTap`i
+            //    (duraklat/devam) ile CAKISMAZ.
+            // ⚠️ YAPMA: videoya TAM ALANLI `onTap` ekleme — oynaticinin kendi
+            //    dinleyicisi jest arenasini kazanip dokunusu YUTAR (turu 77b:
+            //    video hikayede ileri/geri dokunusu tam bu yuzden calismiyordu).
+            //    `onLongPress` AYRI bir tanidir, arena cakismasi olusmaz.
             if (g.kind(i) == 'video' && i == _sayfa)
-              Positioned(
-                left: 0,
-                bottom: 0,
+              Positioned.fill(
                 child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () => Navigator.of(context).push(
+                  behavior: HitTestBehavior.translucent,
+                  onLongPress: () => Navigator.of(context).push(
                     MaterialPageRoute(
                       builder: (_) => TamEkranVideo(mediaId: g.mediaIds[i]),
-                    ),
-                  ),
-                  child: SizedBox(
-                    width: 44,
-                    height: 44,
-                    child: Center(
-                      child: Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: const BoxDecoration(
-                          color: Color(0x99000000),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          LucideIcons.expand,
-                          size: 15,
-                          color: Colors.white,
-                        ),
-                      ),
                     ),
                   ),
                 ),
@@ -937,6 +975,9 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
               sekme == 0 &&
               (ModalRoute.of(context)?.isCurrent ?? true),
           sesli: false,
+          // ⚠️ TURU 82b — AKISTA ALT ILERLEME CUBUGU YOK (kullanici emri).
+          //    Reels/hikaye/tam ekranda TRUE kalir (orada islevsel).
+          ilerlemeGoster: false,
           // ⚠️ TEK KAYNAK: `medya_olcu.dart::kMedyaDolgu`. Sabit turu 81'de
           //    tanimlanmis ama HIC KULLANILMAMISTI (denetim yakaladi) — iki
           //    dal da `BoxFit.cover`i ELLE yaziyordu, yani sabiti degistirmek
@@ -998,13 +1039,28 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
   ///    ESIT GORUNUM DEMEK DEGIL; kullanicinin sikayeti tam olarak buydu.
   /// ⚠️ Cubuga YENI ikon eklersen buraya da bir satir ekle; haritada olmayan
   ///    ikon 22'ye duser (guvenli varsayilan, sessiz bozulma yok).
+  /// ⚠️⚠️⚠️ TURU 82b — **KALP YUKARI CEKILDI, YON HATALIYDI.**
+  ///
+  /// Turu 82'de kalbi 21'e DUSURMUSTUM ("govdeyi doldurur" varsayimi).
+  /// Kullanici tam tersini gordu: *"kalp diger ikonlarin yaninda COK KUCUK
+  /// duruyor"*. **KULLANICI HAKLI** — varsayimim yanlis eksende kuruluydu:
+  /// Lucide `heart` YATAYDA genis ama **DIKEYDE KISA** (~20x17 govde), yani
+  /// ayni `size` degerinde gozun algiladigi YUKSEKLIK digerlerinden kucuktur.
+  /// `messageCircle` (19x19 daire) ve `bookmark` (13x18) dikeyde daha doludur.
+  /// Optik denge YUKSEKLIGE gore kurulur -> kalp EN BUYUK nominal boyu alir.
+  ///
+  /// ⚠️ Yerlesim kutusu **26x26 SABIT** — nominal boy degisse de satir kaymaz.
+  /// ⚠️ YAPMA: kalbi tekrar kucultme; hepsini tek sabite esitleme
+  ///    ("esit olcu" ESIT GORUNUM demek degil — turu 82 dersi).
+  /// ⚠️ Cubuga yeni ikon eklersen buraya da satir ekle (haritada olmayan 23'e
+  ///    duser: guvenli varsayilan, sessiz bozulma yok).
   static double _optikBoy(IconData ikon) {
-    if (ikon == LucideIcons.heart) return 21;
-    if (ikon == LucideIcons.messageCircle) return 21.5;
-    if (ikon == LucideIcons.bookmark) return 23;
-    if (ikon == LucideIcons.send) return 23;
-    if (ikon == LucideIcons.chartNoAxesColumn) return 23.5;
-    return 22;
+    if (ikon == LucideIcons.heart) return 26;
+    if (ikon == LucideIcons.messageCircle) return 23;
+    if (ikon == LucideIcons.send) return 24;
+    if (ikon == LucideIcons.bookmark) return 24;
+    if (ikon == LucideIcons.chartNoAxesColumn) return 24;
+    return 23;
   }
 
   /// Etkilesim cubugundaki TEK eylem bileseni.
@@ -1020,6 +1076,7 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
   Widget _eylem({
     required IconData ikon,
     VoidCallback? onTap,
+    VoidCallback? onUzunBas,
     int? sayi,
     bool vurgu = false,
     Color? renk,
@@ -1032,6 +1089,9 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
             : Theme.of(context).disabledColor);
     return InkWell(
       onTap: onTap,
+      // ⚠️ "N beğenme" satiri kaldirilinca BEGENENLER listesinin TEK girisi
+      //    burasi kaldi (bkz. yukaridaki serh). Yalnizca kalpte doludur.
+      onLongPress: onUzunBas,
       borderRadius: BorderRadius.circular(20),
       child: Padding(
         // ⚠️ TURU 82 — yatay dolgu 8 -> 6. Ikon KUTUSU 22'den 24'e cikti
@@ -1040,19 +1100,28 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
         //    Dokunma hedefi: 6+24+6 = 36 genislik x 42 yukseklik — 44dp'lik
         //    Apple tavsiyesinin altinda kalan tek eksen genislik ve ogeler
         //    BITISIK oldugu icin komsu hedefe basma riski YOK.
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 9),
+        // ⚠️ TURU 82b — 6 -> 5: ikon kutusu 24'ten 26'ya cikti (kalp optik
+        //    duzeltmesi), bes ogede net +10dp. Dolgu kisilarak geri alindi ki
+        //    asagidaki tasma tavani AYNEN gecerli kalsin
+        //    (5*(5+26+5) + 3*(6+40) = 318dp, en dar telefonda 18dp pay).
+        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 9),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             AnimatedScale(
-              scale: vurgu ? 1.12 : 1.0,
-              duration: const Duration(milliseconds: 160),
-              curve: Curves.easeOutBack,
+              // ⚠️ TURU 82b — kullanici: *"PATLAMA OLMASIN, hafif COK HAFIF
+              //    animasyonla olacak"*. 1.12 + `easeOutBack` (geri sekmeli,
+              //    "pop" hissi veren egri) -> **1.04 + `easeOut`**.
+              // ⚠️ YAPMA: `easeOutBack`e donme — o egri 1.0'i ASIP geri geldigi
+              //    icin degeri dusursen bile "patlama" hissi KALIR.
+              scale: vurgu ? 1.04 : 1.0,
+              duration: const Duration(milliseconds: 130),
+              curve: Curves.easeOut,
               // ⚠️ SABIT YERLESIM KUTUSU — `scale` ve optik duzeltme yalnizca
-              //    GORSEL; kutu 24x24 sabit oldugu icin satir HIC kaymaz.
+              //    GORSEL; kutu 26x26 sabit oldugu icin satir HIC kaymaz.
               child: SizedBox(
-                width: 24,
-                height: 24,
+                width: 26,
+                height: 26,
                 child: Center(
                   child: Icon(ikon, size: _optikBoy(ikon), color: c),
                 ),
@@ -1176,14 +1245,26 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
 }
 
 /// 1.2B / 43,5B / 980 gibi kisa sayi.
+/// ⚠️⚠️ TURU 82b — TURKCE BINLIK BICIM (kullanici emri: *"rakamlar binlik
+/// olsun, mesela 1.3bin"*).
+///
+///     999      -> "999"
+///     1340     -> "1,3 bin"
+///     23500    -> "24 bin"
+///     1240000  -> "1,2 mn"
+///
+/// ⚠️ ONDALIK AYIRAC **VIRGUL** (Turkce yazim) — `toStringAsFixed` nokta
+///    uretir, o yuzden acikca cevriliyor.
+/// ⚠️ Kisaltma "B" DEGIL "bin": tek harf "B" Turkce'de "bin"i cagristirmiyor
+///    ve "byte"la karisiyordu.
+/// ⚠️ Bicimin TAVANI 6 karakter ("1000 bin" olusamaz cunku 1e6'da "mn"ye
+///    geciliyor). Etkilesim cubugundaki 40dp sert tavan bunu varsayar.
 String sayiBicimle(int n) {
+  String v(double x) =>
+      x.toStringAsFixed(x < 10 ? 1 : 0).replaceAll('.', ',').replaceAll(',0', '');
   if (n < 1000) return '$n';
-  if (n < 1000000) {
-    final b = n / 1000;
-    return '${b.toStringAsFixed(b < 10 ? 1 : 0)}B';
-  }
-  final m = n / 1000000;
-  return '${m.toStringAsFixed(m < 10 ? 1 : 0)}M';
+  if (n < 1000000) return '${v(n / 1000)} bin';
+  return '${v(n / 1000000)} mn';
 }
 
 /// "3dk", "5sa", "2g", "12 Tem" — WhatsApp/Instagram tarzi.
