@@ -17,6 +17,18 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (10 Agu 07:40): TEST TURU 81 YAYINLANDI** — android
+  **31355519304** + ios **31355521019** (**3efe91e**), R2 apk=118045737
+  (md5 f0fadddb) ipa=24125685 (md5 ca885eb6) index=9344 (md5 c9bfdf58),
+  purge OK, **CDN BIREBIR** (apk + ipa + index.html UCU DE MD5 esit),
+  indir sayfasi 10 Agu 07:40 (saat 5 yerde + canli saat), debug imza YOK,
+  **iOS min 16.0 dogrulandi**, IPA icinde turu 81 kodu var,
+  **BACKEND DEPLOY EDILDI** (3efe91e; migration 039/040/041 canlida uygulandi
+  = 51 tablo) + health ok, DB TEMIZ (0/0/0/0/0).
+  ✅ **CANLI SUNUCUDA 208/208 UCTAN UCA GECTI** · **192 ROTA CAKISMASIZ**.
+  ⚠️ **KULLANICIYA VERILEN ADRES:**
+  https://indir.gebzem.app/index.html?v=20260810-0740
+  **KULLANICI TEST EDECEK.**
 - **KALDIGIMIZ YER (10 Agu 04:30): TURU 81 KODU BITTI, BACKEND DEPLOY EDILDI**
   (**3efe91e**; migration 001->041 atilabilir kopyada dogrulandi, canlida
   uygulandi = 51 tablo) + health ok, DB TRUNCATE edildi.

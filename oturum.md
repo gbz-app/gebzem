@@ -5933,3 +5933,11 @@ değişikliği yazarın kendi zamanladığı gönderisini **imleç tavanına** t
 - Backend deploy (**3efe91e**) + health ok · **E2E 208/208 canlıda**
 - `go build` + `go vet` + `go test ./...` temiz · `flutter analyze` **0 hata 0 uyarı**
 - 192 rota çakışmasız
+
+### ✅ TURU 81 YAYINLANDI (10 Ağustos 07:40)
+- android **31355519304** + ios **31355521019** (**3efe91e**)
+- R2: apk=118045737 (`f0fadddb`) · ipa=24125685 (`ca885eb6`) · index=9344 (`c9bfdf58`)
+- purge OK · **CDN BİREBİR** (üçü de MD5 eşit) · debug imza YOK · iOS min 16.0
+- backend 3efe91e + health ok · migration 039/040/041 canlıda · **DB TEMİZ**
+- **E2E 208/208 canlıda**
+- Adres: `https://indir.gebzem.app/index.html?v=20260810-0740`

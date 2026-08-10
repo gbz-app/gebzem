@@ -45,32 +45,25 @@ const surumEtiketi =
   `${now.getUTCFullYear()}${p2(now.getUTCMonth() + 1)}${p2(now.getUTCDate())}` +
   `-${p2(now.getUTCHours())}${p2(now.getUTCMinutes())}`;
 
-const YENI_ICERIK = `<div class="yeni"><b>Bu sürümde — REZERVASYON ve RANDEVU:</b>
-<br><br><b>1 · RESTORANDAN REZERVASYON, DOKTORDAN RANDEVU:</b> İşletme profilinde
-<b>"Rezervasyon al"</b> / <b>"Randevu al"</b> düğmesi çıkar. Gün şeridinden günü seç,
-<b>müsait saatler</b> alttaki ızgarada listelenir — dolu saat hiç görünmez.
-Kaç kişi olduğunu ve notunu yazıp gönderirsin.
-<br><br><b>2 · İŞLETME TARAFI:</b> <b>Gelen randevular</b> kutusundan onaylar,
-reddeder ya da iptal edersin; <b>ret sebebini yazarsan müşteri görür</b>.
-Müşteri geldiğinde <b>"Geldi" / "Gelmedi"</b> ile işaretlersin.
-<br><br><b>3 · AYARLAR:</b> Randevu süresi (15-90 dk), <b>aynı saatte kaç masa/kişi</b>,
-kaç gün ileriye ve <b>otomatik onay</b>. Saatler işletme profilindeki
-<b>çalışma saatlerinden</b> üretilir.
-<br><br><b>4 · KAPALI GÜNLER:</b> Bayram, tatil ya da izin günlerini takvimden
-işaretlersin — o günlerde randevu verilmez.
-<br><br><b>5 · ANASAYFA YENİLENDİ:</b> Üstteki "Akış | Kanallar" düğmesi kalktı;
-hikâyelerin altına <b>"Takip Ettiklerin | Keşfet"</b> geldi. <b>Kanallar</b> artık
-sol üstteki menüde.
-<br><br><b>6 · GÖNDERİLER KISALDI:</b> Fotoğraf ve videolar artık
-<b>çok daha az yer kaplıyor</b> ve köşeleri yuvarlak. Videoda <b>sol alttaki</b>
-düğmeyle tam ekran açarsın (kırpılmamış hâli orada).
-<br><br><b>7 · ALT MENÜ:</b> Canlı yayın simgesi değişti; sağdaki profil simgesi
-artık <b>senin profil resmin</b>.
-<br><br><b>8 · YENİ KATEGORİLER:</b> <b>Eğitim</b> ve <b>Sağlık</b> eklendi.
-<br><br><b>Sınırlar:</b> Harita ve "yakınımda" <b>henüz yok</b> (konum girişi eklenmedi);
-şehir/ilçe ile süzülür. Ödeme yok — randevu <b>ücretsiz</b>. Arama <b>birebir</b> ·
-Sohbet odası 20 konuşmacı + sınırsız dinleyici · Canlı yayın 4 kişi + sınırsız
-izleyici.</div>`;
+const YENI_ICERIK = `<div class="yeni"><b>Bu sürümde — ses, konum, anket ve daha fazlası:</b>
+<br><br><b>1 · SESLİ MESAJ:</b> Sohbette mikrofona <b>bir kez dokun</b> — kayıt başlar,
+ses dalgan <b>canlı akar</b>, süreyi görürsün. Beğenmezsen çöpe at, beğenirsen gönder.
+<br><br><b>2 · KONUM PAYLAŞ:</b> Ataç düğmesinden <b>Konum</b> — bulunduğun yeri
+gönder, karşı taraf <b>Haritada aç</b> ile yol tarifi alsın.
+<br><br><b>3 · ANKET:</b> Sohbette soru sor, <b>12 seçeneğe kadar</b> ekle.
+Tek ya da çok seçimli olsun; oylar <b>canlı</b> güncellenir, istediğinde bitirirsin.
+<br><br><b>4 · IBAN · KİŞİ · ETKİNLİK:</b> IBAN gönder (<b>doğruluğu kontrol edilir</b>,
+karşı taraf tek dokunuşla kopyalar) · bir profili paylaş · sohbetten <b>etkinlik oluştur</b>.
+<br><br><b>5 · İLERİ TARİHLİ PAYLAŞIM:</b> Gönderini <b>ileri bir tarihe zamanla</b>.
+Yayın anına kadar kimse görmez; sen kendi profilinde görürsün.
+<br><br><b>6 · GÖRSELLER ARTIK DOĞRU ORANDA:</b> Fotoğraf ve videolar <b>kırpılmıyor</b>.
+Dikey fotoğraf dar, yatay fotoğraf geniş görünür — <b>kendi oranında</b>.
+<br><br><b>7 · AÇIK TEMA:</b> Ayarlar’dan <b>Açık / Koyu / Sistem</b> seç.
+<br><br><b>8 · İLK AÇILIŞ TANITIMI</b> ve anasayfada <b>Takip Ettiklerin / Keşfet</b>
+yazıları (düğme yerine).
+<br><br><b>Sınırlar:</b> Harita <b>uygulama içinde değil</b> (telefonun harita uygulaması
+açılır). Ödeme yok. Arama <b>birebir</b> · Sohbet odası 20 konuşmacı + sınırsız
+dinleyici · Canlı yayın 4 kişi + sınırsız izleyici.</div>`;
 
 let cikti = sablon
   .replace(/\{\{SAAT\}\}/g, saat)
@@ -95,8 +88,8 @@ const kontroller = [
   //    uretilmesini ENGELLEMEK — yoksa kullaniciya BIR ONCEKI surumun
   //    notlari gosterilir ve "yeni ne var" yalan olur.
   // ⚠️ YAPMA: bu satiri silme; yeni turda ANAHTAR IFADEYI degistir.
-  [cikti.includes('REZERVASYON ve RANDEVU') && cikti.includes('KAPALI GÜNLER'),
-    'turu 80 icerigi yazilmadi (YENI_ICERIK guncellenmemis)'],
+  [cikti.includes('SESLİ MESAJ') && cikti.includes('ANKET'),
+    'turu 81 icerigi yazilmadi (YENI_ICERIK guncellenmemis)'],
   // ⚠️ YALNIZ GORUNEN metin taranir. HTML/CSS/JS YORUMLARINDAKI ⚠️ isaretleri
   //    kullaniciya cizilmez ve serhin okunurlugu icin BILINCLI olarak durur.
   [!/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(
