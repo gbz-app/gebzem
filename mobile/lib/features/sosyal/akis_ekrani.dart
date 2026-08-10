@@ -350,7 +350,12 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
           // ⚠️ YAPMA: `AnimatedDefaultTextStyle` ile yumusatmaya calisma;
           //    genislik yine degisir, oynama SURER.
           child: Stack(
-            alignment: Alignment.center,
+            // ⚠️⚠️ `centerLeft` ZORUNLU, `center` DEGIL. Kutu genisligini
+            //    gorunmez w800 kopya belirliyor; ortalama kullanilsaydi
+            //    SECILI OLMAYAN (daha dar w500) yazi kutunun ICINDE saga
+            //    kayar ve kullanicinin turu 80'de acikca istedigi
+            //    *"yazi SOLDA olacak"* kurali bozulurdu.
+            alignment: Alignment.centerLeft,
             children: [
               Opacity(
                 opacity: 0,

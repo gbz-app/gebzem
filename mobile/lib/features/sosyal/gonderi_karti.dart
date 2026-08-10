@@ -1257,14 +1257,46 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
 ///    uretir, o yuzden acikca cevriliyor.
 /// ⚠️ Kisaltma "B" DEGIL "bin": tek harf "B" Turkce'de "bin"i cagristirmiyor
 ///    ve "byte"la karisiyordu.
-/// ⚠️ Bicimin TAVANI 6 karakter ("1000 bin" olusamaz cunku 1e6'da "mn"ye
-///    geciliyor). Etkilesim cubugundaki 40dp sert tavan bunu varsayar.
+/// ⚠️⚠️⚠️ ILK YAZIMDA IKI HATA VARDI — ikisi de KENDI KONTROLUMDE olculdu:
+///
+///   1. **`replaceAll(',0', '')` GLOBAL bir dize islemiydi.** Bir deger 10'un
+///      hemen ALTINDAYKEN yuvarlanip "10.0" uretirse (or. 9,95 -> "10.0")
+///      sonuc "10,0" olur ve global replace ",0"yi silip **"1"** birakirdi:
+///      **9.950 begeni "1 bin" yerine "1" gorunurdu — 10 KAT HATA.**
+///   2. **`999.999` bin dalinda kalip "1000 bin" uretiyordu** (olmasi gereken
+///      "1 mn"). Ustelik 8 karakterdi ve serhim "tavan 6 karakter, '1000 bin'
+///      OLUSAMAZ" diyordu — **serh govdeyi yanlis anlatiyordu.**
+///
+/// ⚠️ COZUM: ONCE YUVARLA, SONRA BIRIM SEC. Dize ameliyati YOK; ondalik
+///    basamak sayisi karara gore veriliyor ve virgul TEK SEFER cevriliyor.
+/// ⚠️ Cikti TAVANI: **7 karakter** ("999 bin"). Etkilesim cubugundaki 40dp
+///    sert tavan bunu varsayar.
+/// ⚠️ YAPMA: `.0` kirpmayi tekrar `replaceAll` ile yapma.
 String sayiBicimle(int n) {
-  String v(double x) =>
-      x.toStringAsFixed(x < 10 ? 1 : 0).replaceAll('.', ',').replaceAll(',0', '');
+  if (n < 0) return '0';
   if (n < 1000) return '$n';
-  if (n < 1000000) return '${v(n / 1000)} bin';
-  return '${v(n / 1000000)} mn';
+
+  /// Deger + birim uretir. [x] birime bolunmus deger.
+  /// Ondalik YALNIZ 10'un altinda ve kirpildiktan SONRA hala anlamliysa yazilir.
+  String bicim(double x, String birim) {
+    final tekBasamak = (x * 10).round() / 10;
+    // ⚠️⚠️ **CIFT YUVARLAMA TUZAGI**: burada `tekBasamak.round()` yazmak
+    //    HATALIYDI. 999,499 once 0,1 basamagina yuvarlanip 999,5 oluyor,
+    //    sonra tam sayiya yuvarlanip **1000** cikiyordu ("1000 bin").
+    //    Tam sayi dali HAM degerden (`x`) yuvarlanir; `tekBasamak` yalnizca
+    //    "ondalik gerekli mi" KARARI icin kullanilir.
+    if (tekBasamak >= 10) return '${x.round()} $birim';
+    final tam = tekBasamak.truncate();
+    final ondalik = ((tekBasamak - tam) * 10).round();
+    return ondalik == 0 ? '$tam $birim' : '$tam,$ondalik $birim';
+  }
+
+  final bin = n / 1000;
+  // ⚠️ Terfi olcutu **YUVARLANMIS** degere bakar: 999.500 yuvarlaninca
+  //    "1000 bin" olurdu, bu yuzden milyona gecer. 999.499 ise "999 bin"
+  //    olarak KALIR (dogru ve daha kisa).
+  if (bin.round() < 1000) return bicim(bin, 'bin');
+  return bicim(n / 1000000, 'mn');
 }
 
 /// "3dk", "5sa", "2g", "12 Tem" — WhatsApp/Instagram tarzi.

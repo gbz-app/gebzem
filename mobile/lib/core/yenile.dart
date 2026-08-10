@@ -109,31 +109,49 @@ class YenileSarmali extends StatefulWidget {
 }
 
 class _YenileSarmaliState extends State<YenileSarmali> {
-  bool _gorunur = false;
+  /// Kullanici SU AN listeyi asagi cekiyor (henuz birakmadi).
+  bool _cekiliyor = false;
+
+  /// `onRefresh` SU AN kosuyor.
+  bool _yenileniyor = false;
+
+  bool get _gorunur => _cekiliyor || _yenileniyor;
 
   @override
   Widget build(BuildContext context) {
     return Stack(
       children: [
         NotificationListener<ScrollNotification>(
-          // ⚠️ Noktalari YALNIZ yenileme sirasinda cizmek icin cekme durumunu
-          //    izliyoruz. `OverscrollNotification` cekmeyi, `ScrollEnd`
-          //    birakmayi bildirir.
+          // ⚠️⚠️ IKI AYRI DURUM, IKI AYRI BAYRAK — **TEK BAYRAK YETMEZ.**
+          //
+          //    Ilk yazimda tek bir `_gorunur` vardi ve `OverscrollNotification`
+          //    ile true yapiliyor, YALNIZ `onRefresh`in `finally`sinde false
+          //    yapiliyordu. Kullanici listeyi BIRAZ cekip yenilemeyi
+          //    TETIKLEMEDEN birakirsa `onRefresh` HIC CAGRILMAZ, dolayisiyla
+          //    `finally` de kosmaz -> **NOKTALAR EKRANDA SONSUZA KADAR ASILI
+          //    KALIRDI** (ustelik `IgnorePointer` oldugu icin kullanicinin
+          //    onlari kaldirma yolu da yoktu).
+          //
+          //    Artik cekme durumu `ScrollEndNotification` ile KAPANIR; asil
+          //    yenileme ayri bayrakta izlenir ve ikisinin BIRLESIMI cizilir.
+          // ⚠️ YAPMA: bu iki bayragi tek bayraga indirgeme.
           onNotification: (n) {
             if (n is OverscrollNotification && n.overscroll < 0) {
-              if (!_gorunur) setState(() => _gorunur = true);
+              if (!_cekiliyor) setState(() => _cekiliyor = true);
+            } else if (n is ScrollEndNotification) {
+              if (_cekiliyor) setState(() => _cekiliyor = false);
             }
             return false;
           },
           child: RefreshIndicator(
             onRefresh: () async {
-              if (mounted) setState(() => _gorunur = true);
+              if (mounted) setState(() => _yenileniyor = true);
               try {
                 await widget.onRefresh();
               } finally {
                 // ⚠️ `finally` ZORUNLU: `onRefresh` firlatirsa noktalar
                 //    ekranda ASILI kalirdi.
-                if (mounted) setState(() => _gorunur = false);
+                if (mounted) setState(() => _yenileniyor = false);
               }
             },
             // Material halkasi GORUNMEZ — yerine noktalar cizilir.
