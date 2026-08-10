@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // SystemUiOverlayStyle (durum cubugu)
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
@@ -94,6 +95,21 @@ class _OnboardingEkraniState extends ConsumerState<OnboardingEkrani> {
   @override
   Widget build(BuildContext context) {
     final son = _sayfa == _sayfalar.length - 1;
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      // ⚠️ TURU 85b — beyaz zeminde durum cubugu ikonlari KOYU olmali;
+      //    gerekcenin tamami `kayit_akisi.dart` build() serhinde.
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+        statusBarBrightness: Brightness.light,
+      ),
+      // ⚠️ TURU 85b — acik temaya sarilir; gerekce `kayit_akisi.dart` build()
+      //    serhinde (beyaz zemin + koyu tema = gorunmez metin/imlec).
+      child: Theme(data: lightTheme, child: _govde(son)),
+    );
+  }
+
+  Widget _govde(bool son) {
     return Scaffold(
       // ⚠️⚠️ TURU 84 — **ZEMIN BEYAZ** (kullanici emri: "arka plan beyaz").
       //
@@ -163,6 +179,15 @@ class _OnboardingEkraniState extends ConsumerState<OnboardingEkrani> {
                         ),
                   style: FilledButton.styleFrom(
                     backgroundColor: morLogo,
+                    // ⚠️⚠️ TURU 85b — `foregroundColor` ACIKCA BEYAZ (denetim).
+                    //    Verilmezse `FilledButton` yazi rengini
+                    //    `colorScheme.onPrimary`den alir; KOYU temada bu deger
+                    //    KOYU olduğu icin mor dugmenin uzerinde ~1.9:1
+                    //    kontrast cikiyor ve **"Devam"/"Başla" yazisi
+                    //    okunamiyordu**. Zemin sabit beyaz yapildigi icin bu
+                    //    ekran temanin geri kalanindan KOPUKTUR; renkler de
+                    //    sabit olmak ZORUNDA (turu 81b dersi).
+                    foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(26),
                     ),
@@ -213,6 +238,30 @@ class _SayfaGorunumu extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    // ⚠️⚠️ TURU 85b — SAYFA **KAYDIRILABILIR** (denetim bulgusu).
+    //    Govde sabit yuksekliklerden olusuyor (168 gorsel + 40 bosluk + 30px
+    //    baslik + aciklama). Sistem yazi olcegi 1.5 ve ustunde toplam
+    //    yukseklik viewport'u asiyor ve `Column` **RenderFlex OVERFLOW**
+    //    sari-siyah seridini ciziyordu — kullanicinin gordugu ILK ekranda.
+    //    Kayit akisi (`kayit_akisi.dart`) `SingleChildScrollView` ile
+    //    ZATEN korunmustu; onboarding ATLANMISTI (asimetri = hatanin kendisi).
+    // ⚠️ `ConstrainedBox` + `IntrinsicHeight` DEGIL: `minHeight` ile
+    //    `mainAxisAlignment: center` normal cihazlarda ORTALAMAYI KORUR,
+    //    yalnizca sigmadiginda kaydirma devreye girer.
+    // ⚠️ `ClampingScrollPhysics` degil `AlwaysScrollable...`: `PageView`
+    //    icindeki dikey kaydirma yatay sayfa gecisiyle CAKISMAZ (eksenler ayri).
+    return LayoutBuilder(
+      builder: (_, kisit) => SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: kisit.maxHeight),
+          child: _icerik(scheme),
+        ),
+      ),
+    );
+  }
+
+  Widget _icerik(ColorScheme scheme) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(28, 0, 28, 0),
       child: Column(

@@ -96,6 +96,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     // SharedPreferences silinmedigi icin eski flag kaliyor ve izin ekrani bir daha
     // gelmiyordu. Izinlerden biri eksikse (ve kullanici "bir daha sorma" DEMEDIYSE)
     // izin ekranini goster; hepsi verilince gec.
+    // ⚠️⚠️ TURU 85b — ADIMLI KAYITTAN GELEN KULLANICI MUAF (denetim bulgusu).
+    //    Turu 84 kayit akisina 4. adim olarak izin sayfasi ekledi. Kullanici
+    //    orada "Şimdilik geç" derse ya da izinlerden birini reddederse
+    //    asagidaki olcut FALSE kalir ve **AYNI IZIN EKRANI ARKA ARKAYA IKINCI
+    //    KEZ** cikardi (kayit bitti -> ana ekran -> yine izin ekrani).
+    // ⚠️ Bayrak SUREC OMURLUDUR: uygulama yeniden baslatildiginda bu kapi
+    //    yine calisir, yani "bir daha hic sorulmaz" DEGIL.
+    if (izinBuOturumdaSoruldu) {
+      if (mounted) setState(() => _permissionsAsked = true);
+      return;
+    }
     final mic = await Permission.microphone.status;
     final cam = await Permission.camera.status;
     final notif = await Permission.notification.status;

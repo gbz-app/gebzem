@@ -2,12 +2,14 @@ package auth
 
 import (
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/jackc/pgx/v5"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -239,14 +241,18 @@ func (h *Handler) KayitTamamla(w http.ResponseWriter, r *http.Request) {
 	}
 
 	name := strings.TrimSpace(req.Name)
-	uname := strings.ToLower(strings.TrimSpace(req.Username))
+	// ⚠️⚠️ TURU 85b — `TrimPrefix(..., "@")` EKLENDI (denetim bulgusu).
+	//    Serhim *"kurallar eski `/auth/register` ile BIREBIR AYNI"* diyordu
+	//    ama DEGILDI. Eski uc `@` on ekini KIRPIYOR; kayit formu kullanici
+	//    adini `@` ile GOSTERDIGI icin insanlar onu yaziyor ve yeni akista
+	//    "kullanıcı adı 3-20 karakter olmalı" hatasi aliyorlardi — hicbir
+	//    sey ACIKLAMADAN, cunku yazdiklari zaten 3-20 karakterdi.
+	uname := strings.ToLower(strings.TrimSpace(strings.TrimPrefix(
+		strings.TrimSpace(req.Username), "@")))
 	if name == "" {
 		writeErr(w, http.StatusBadRequest, "adını yaz")
 		return
 	}
-	// ⚠️ Kurallar eski `/auth/register` ile BIREBIR AYNI (`usernameRe`,
-	//    6 karakter sifre). Iki yolda farkli kural olmasi kullaniciya
-	//    aciklanamaz ve "orada kabul etti burada etmedi" sikayeti uretirdi.
 	if !usernameRe.MatchString(uname) {
 		writeErr(w, http.StatusBadRequest,
 			"kullanıcı adı 3-20 karakter olmalı (a-z, 0-9, _)")
@@ -254,6 +260,16 @@ func (h *Handler) KayitTamamla(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(req.Password) < 6 {
 		writeErr(w, http.StatusBadRequest, "şifre en az 6 karakter olmalı")
+		return
+	}
+	// ⚠️⚠️ 72 BAYT TAVANI ZORUNLU (eski ucta VARDI, burada ATLANMISTI).
+	//    `bcrypt.GenerateFromPassword` 72 bayttan uzun parolada **HATA
+	//    DONDURUR**; o hata asagida jenerik `500 kayıt tamamlanamadı`ya
+	//    dusuyordu. Yani uzun parola secen kullanici, SEBEBINI OGRENEMEDEN
+	//    kayit olamiyordu ve tekrar denemesi de ise yaramiyordu.
+	// ⚠️ Olcut BAYT (`len`), karakter DEGIL: Turkce harfler 2 bayt.
+	if len(req.Password) > 72 {
+		writeErr(w, http.StatusBadRequest, "şifre çok uzun (en fazla 72 karakter)")
 		return
 	}
 
@@ -294,14 +310,38 @@ func (h *Handler) KayitTamamla(w http.ResponseWriter, r *http.Request) {
 	// ⚠️ Neden burada dogru: kayit jetonu ZATEN "OTP tuketildi" kanitidir ve
 	//    `verified` tam olarak bunu ifade eder.
 	// ⚠️ YAPMA: bu sutunu cikarma.
+	// ⚠️⚠️⚠️ TURU 85b — UPDATE DALI **`verified=false` ILE KORUNUYOR**.
+	//
+	//	Kayit jetonu 15 dakika yasar ve TEK KULLANIMLIK DEGILDIR. Korumasiz
+	//	`DO UPDATE` ile ayni jeton, kayit TAMAMLANDIKTAN sonra tekrar
+	//	oynatilarak hesabin **sifresini ve kullanici adini EZEBILIYORDU**.
+	//	Kapi, guncellemeyi YALNIZ yarim kalmis (dogrulanmamis) satirlara
+	//	uygular; tamamlanmis hesap ARTIK DEGISTIRILEMEZ.
+	//
+	// ⚠️ 0 SATIR = "hesap ZATEN tamamlanmis" demektir ve bu **HATA DEGIL**:
+	//    ag koptugunda istemci ayni istegi tekrarlar. O yuzden asagida
+	//    mevcut hesap bulunup OTURUM VERILIR (jeton telefon sahipligini
+	//    kanitliyor; bu, SMS ile giris ile ayni guvenceye sahiptir).
+	//    Boylece yeniden deneme CALISIR ama VERI EZILMEZ.
+	// ⚠️ YAPMA: `WHERE users.verified = false` kapisini kaldirma.
+	// ⚠️ YAPMA: 0 satir durumunu 500'e cevirme (flaky agda kayit tamamlanamaz).
 	var userID string
-	if err := h.db.QueryRow(r.Context(), `
+	err = h.db.QueryRow(r.Context(), `
 		INSERT INTO users (phone, password_hash, name, username, verified)
 		VALUES ($1,$2,$3,$4,true)
 		ON CONFLICT (phone) DO UPDATE
 		   SET password_hash=$2, name=$3, username=$4, verified=true
+		 WHERE users.verified = false
 		RETURNING id`,
-		phone, string(hash), name, uname).Scan(&userID); err != nil {
+		phone, string(hash), name, uname).Scan(&userID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		// Tamamlanmis hesap: yalniz oturum ver, HICBIR ALANI DEGISTIRME.
+		if e2 := h.db.QueryRow(r.Context(),
+			`SELECT id FROM users WHERE phone=$1`, phone).Scan(&userID); e2 != nil {
+			writeErr(w, http.StatusInternalServerError, "kayıt tamamlanamadı")
+			return
+		}
+	} else if err != nil {
 		writeErr(w, http.StatusInternalServerError, "kayıt tamamlanamadı")
 		return
 	}

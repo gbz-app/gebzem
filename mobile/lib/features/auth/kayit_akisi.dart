@@ -30,11 +30,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
-import 'package:permission_handler/permission_handler.dart';
 
 import '../../core/api.dart';
 import '../../core/theme.dart';
 import 'auth_provider.dart';
+import 'permissions_screen.dart' show izinleriTopluIste, izinSorulduIsaretle;
 
 const Color _yazi = Color(0xFF14141A);
 const Color _altYazi = Color(0xFF6B6B76);
@@ -168,16 +168,25 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
   Future<void> _izinleriIste() async {
     setState(() => _mesgul = true);
     try {
-      // ⚠️ SIRA ONEMLI: bildirim -> mikrofon -> kamera. Diyaloglar SIRAYLA
-      //    cikar; hepsini ayni anda istemek platformda TANIMSIZ davranistir.
-      await Permission.notification.request();
-      await Permission.microphone.request();
-      await Permission.camera.request();
+      // ⚠️⚠️ TURU 85b — TEK KAYNAK (`permissions_screen.dart`).
+      //    Eskiden burada YALNIZ bildirim/mikrofon/kamera isteniyordu;
+      //    Android 14+ TAM EKRAN BILDIRIM izni ve pil optimizasyonu muafiyeti
+      //    ATLANMISTI -> kayit akisiyla gelen kullanicinin telefonu KILITLIYKEN
+      //    gelen arama ekrani ACILMIYORDU. Ayrintili gerekce o dosyada.
+      // ⚠️ YAPMA: adimlari buraya geri kopyalama.
+      await izinleriTopluIste();
     } catch (_) {
       // Izin reddi HATA DEGIL — kullanici sonra Ayarlar'dan verebilir.
     }
     if (!mounted) return;
     setState(() => _mesgul = false);
+    _bitir();
+  }
+
+  Future<void> _izinleriGec() async {
+    // ⚠️ "Şimdilik geç" de akisin KOSTUGUNU isaretler; aksi halde `HomeScreen`
+    //    izin kapisi AYNI EKRANI ikinci kez acardi (denetim bulgusu).
+    await izinSorulduIsaretle();
     _bitir();
   }
 
@@ -188,10 +197,40 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      // ⚠️ Zemin SABIT BEYAZ — onboarding ile ayni dil (kullanici emri).
-      backgroundColor: Colors.white,
-      body: SafeArea(
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      // ⚠️⚠️ TURU 85b — DURUM CUBUGU IKONLARI **KOYU** (denetim bulgusu).
+      //    Zemin sabit beyaz yapildi ama durum cubugu stili TEMADAN geliyordu:
+      //    koyu temada (ve Android'in `values-night/styles.xml` yolunda)
+      //    ikonlar BEYAZ kaliyor ve beyaz zeminde **saat/pil/sinyal
+      //    GORUNMUYORDU**. `AnnotatedRegion` bu ekran icin stili ZORLAR ve
+      //    ekrandan cikilinca otomatik geri alinir.
+      // ⚠️ `statusBarIconBrightness` ANDROID, `statusBarBrightness` iOS icin —
+      //    ikisi BIRLIKTE yazilir ve iOS'ta anlam TERSTIR (`light` = acik
+      //    ZEMIN = koyu ikon).
+      // ⚠️ YAPMA: bu sarmali kaldirma; zemin beyaz kaldigi surece gerekli.
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+        statusBarBrightness: Brightness.light,
+      ),
+      // ⚠️⚠️⚠️ TURU 85b — EKRAN **ACIK TEMAYA SARILIYOR** (kok cozum).
+      //
+      //	Zemin sabit beyaz yapilinca ekran temanin geri kalanindan KOPTU:
+      //	koyu temadaki kullanicida imlec rengi, secim vurgusu, `TextField`
+      //	etiketleri, `helperText`, hata rengi ve dugme yazisi HALA KOYU
+      //	temadan geliyordu -> beyaz zeminde BEYAZ imlec/yazi = GORUNMEZ.
+      //	Bes metin alanini TEK TEK boyamak yerine tum alt agac `lightTheme`
+      //	ile sariliyor; boylece bugun eklenmemis bir bilesen bile yarin
+      //	DOGRU renkle cizilir (turu 81b'nin "~500 sabit renk noktasi"
+      //	dersinin yapisal cevabi).
+      // ⚠️ YAPMA: bunu kaldirip tek tek `cursorColor` yazmaya donme; yeni
+      //    eklenen her alan sessizce gorunmez olur.
+      child: Theme(
+        data: lightTheme,
+        child: Scaffold(
+        // ⚠️ Zemin SABIT BEYAZ — onboarding ile ayni dil (kullanici emri).
+        backgroundColor: Colors.white,
+        body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -210,6 +249,8 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
             ),
             _altDugme(),
           ],
+          ),
+          ),
         ),
       ),
     );
@@ -499,6 +540,15 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
               onPressed: _mesgul ? null : is_,
               style: FilledButton.styleFrom(
                 backgroundColor: morLogo,
+                // ⚠️⚠️ TURU 85b — BEYAZ ZORUNLU: verilmezse koyu temada yazi
+                //    `colorScheme.onPrimary`den (KOYU) gelir ve mor dugmede
+                //    ~1.9:1 kontrastla OKUNAMAZ. Bu ekranin zemini SABIT
+                //    beyaz oldugu icin renkler de temadan BAGIMSIZ olmali.
+                foregroundColor: Colors.white,
+                // ⚠️ Devre disi (mesgul) halde de temanin gri tonu beyaz
+                //    zeminde kaybolabiliyordu -> acikca soluk mor.
+                disabledBackgroundColor: morLogo.withValues(alpha: 0.45),
+                disabledForegroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(26),
                 ),
@@ -525,7 +575,7 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
           //    incelemesinde de kotu karsilanir ve kullaniciyi kaybettirir.
           if (_adim == 3)
             TextButton(
-              onPressed: _mesgul ? null : _bitir,
+              onPressed: _mesgul ? null : _izinleriGec,
               style: TextButton.styleFrom(foregroundColor: _altYazi),
               child: const Text('Şimdilik geç'),
             ),

@@ -4,26 +4,29 @@
 /// eklemeliyiz; ustte harita altta kartlar olacak — isletmeler, eczane vs;
 /// harita uber tarzi grimsi beyaz olsun"*.
 ///
-/// ═══════════ HARITA HAKKINDA DURUST DURUM ═══════════
+/// ═══════════ HARITA HAKKINDA DURUST DURUM (TURU 85b'de GUNCELLENDI) ═══════
 ///
-/// **GERCEK bir harita SDK'si bu projede KURULU DEGIL** ve kurulmasi
-/// kullanicinin bir adimina baglidir:
-///   · `google_maps_flutter` pubspec'e BILINCLI olarak eklenmemis
-///     (pubspec serhi: API anahtari + faturalandirma + iki platformda kurulum),
-///   · Repoda hicbir yerde Maps API anahtari YOK,
-///   · CLAUDE.md `cloudMapId` kullanimini YASAKLIYOR (ucretsiz kalmasi icin) —
-///     ama YEREL JSON stil ucretsizdir ve "uber tarzi grimsi beyaz" gorunum
-///     tam olarak odur (Google'in "silver/light" stili).
+/// ⚠️⚠️ **BU SERH ESKIDEN "SDK KURULU DEGIL" DIYORDU — ARTIK KURULU.**
+///	Turu 85'te `google_maps_flutter` eklendi, Maps SDK'lari (Android +
+///	iOS) `gebzem-app` projesinde ACILDI ve Maps'e KISITLI bir anahtar
+///	uretildi. Denetim bu bayat serhi bulguladi: metin hala *"YAPMA:
+///	`google_maps_flutter` ekleme"* hukmu tasiyordu, yani gelecekte biri
+///	SDK'yi KALDIRMAYA calisabilirdi.
 ///
-/// Bu yuzden ekran **harita ALANI** ile geliyor: alan gercek boyutunda,
-/// gercek konumda ve isletmeleri **konumlarina gore** yerlestiriyor; yalnizca
-/// altindaki KARO KATMANI yok. Anahtar eklendigi anda `_HaritaAlani`
-/// govdesi gercek haritayla degistirilir — cagri yerleri DEGISMEZ.
+/// BUGUNKU DURUM:
+///   · SDK KURULU ve KULLANILIYOR (`GoogleMap` asagida).
+///   · ANAHTAR **REPODA DEGIL**: derleme aninda enjekte edilir (Android
+///     `manifestPlaceholders`, iOS PlistBuddy -> Info.plist). Repo PUBLIC
+///     oldugu icin anahtarin izlenen hicbir dosyada bulunmamasi ZORUNLU.
+///   · `haritaAnahtariVar` (`--dart-define=HARITA`) derlemede anahtar
+///     verilip verilmedigini soyler; verilmediyse ALTTAKI yer tutucu cizilir.
+///   · Stil YEREL JSON ("uber tarzi grimsi beyaz"); CLAUDE.md `cloudMapId`
+///     kullanimini yasakliyor (ucretli) — yerel stil UCRETSIZDIR.
 ///
-/// ⚠️ YAPMA: anahtar olmadan `google_maps_flutter` ekleme. Anahtarsiz harita
-///    Android'de "For development purposes only" filigranli GRI bir kutu,
-///    iOS'ta ise BOS ekran cizer — yani ozellik BOZUK gorunur. Yer tutucu
-///    en azindan DURUSTTUR ve konumlari dogru gosterir.
+/// ⚠️ YAPMA: `haritaAnahtariVar` kapisini kaldirip haritayi kosulsuz cizme.
+///    Anahtarsiz derlemede harita Android'de "For development purposes only"
+///    filigranli GRI kutu, iOS'ta BOS ekran olur — ozellik BOZUK gorunur.
+/// ⚠️ YAPMA: anahtari koda/pubspec'e/Info.plist'e SABIT yazma (repo PUBLIC).
 library;
 
 import 'dart:math' as math;
@@ -111,10 +114,27 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
     _yukle();
   }
 
-  Future<void> _yukle() async {
-    // ⚠️ Yeniden girme kapisi: `_yukle` uc yerden cagriliyor (acilis,
-    //    asagi-cek, kategori/mesafe degisimi).
+  /// ⚠️⚠️⚠️ TURU 85b — BAYAT-YANIT KAPISI (denetim bulgusu).
+  ///
+  ///	Serhim *"yeniden girme kapisi"* diyordu ama GOVDEDE KAPI YOKTU —
+  ///	yalnizca `mounted` kontrolu vardi (CLAUDE.md'nin defalarca yazdigi
+  ///	"yorumun anlattigi kontrol govdede yok" sinifi, bu kez yeni kodda).
+  ///	`_yukle` DORT yerden cagriliyor (acilis · asagi-cek · kategori
+  ///	degisimi · mesafe degisimi) ve kullanici hizli hizli kategori
+  ///	degistirdiginde istekler PARALEL ucuyor. Yanitlar GELIS SIRASINA gore
+  ///	`setState` ettigi icin YAVAS gelen ESKI sorgu, HIZLI gelen YENISININ
+  ///	uzerine yaziyordu: ekranda "Eczane" secili gorunurken liste
+  ///	OTELLERI gosteriyordu.
+  ///
+  /// FIX: her cagri bir NESIL alir; yalnizca EN SON nesil ekrana yazabilir.
+  /// ⚠️ Sayac `await`lerden ONCE artirilir ve YEREL bir kopya yakalanir.
+  /// ⚠️ YAPMA: bunu tek bir `bool _mesgul` bayragiyla degistirme — o, ikinci
+  ///    istegi TAMAMEN reddeder ve kullanicinin son secimi UYGULANMAZDI.
+  int _nesil = 0;
+
+  Future<void> _yukle({bool konumuTazele = false}) async {
     if (!mounted) return;
+    final nesil = ++_nesil;
     setState(() {
       _yukleniyor = true;
       _hata = null;
@@ -123,8 +143,13 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
       // ⚠️ Servis await'ten ONCE yakalanir (turu 78b dersi: disposed State'te
       //    `ref.read` StateError firlatir ve is SESSIZCE iptal olur).
       final svc = ref.read(isletmeServisiProvider);
-      final k = _konum ?? await KonumServisi.konumAl();
-      if (!mounted) return;
+      // ⚠️⚠️ TURU 85b — ASAGI-CEK **GPS'I DE TAZELER** (denetim bulgusu).
+      //    Eskiden `_konum` bir kez alinip SUREKLI onbellekten okunuyordu;
+      //    kullanici baska bir semte gidip asagi cekse bile liste ESKI
+      //    konuma gore geliyordu. Ustelik haritadaki mavi nokta cihazin
+      //    GERCEK konumunu ciziyordu -> pin ile liste BIRBIRINI TUTMUYORDU.
+      final k = (konumuTazele ? null : _konum) ?? await KonumServisi.konumAl();
+      if (!mounted || nesil != _nesil) return;
       if (k == null) {
         setState(() {
           _yukleniyor = false;
@@ -139,16 +164,21 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
         km: _km,
         kategori: _kategori,
       );
-      if (!mounted) return;
+      if (!mounted || nesil != _nesil) return;
       setState(() {
         _konum = k;
         _liste = l;
         _yukleniyor = false;
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || nesil != _nesil) return;
       setState(() {
         _yukleniyor = false;
+        // ⚠️ Hata halinde liste BOSALTILIR: aksi halde harita ve kartlar
+        //    BAYAT sonuclari cizmeye devam ediyordu ("N işletme yakınında"
+        //    rozeti + pinler), yani kullanici hata seridini gorurken ALTTA
+        //    guncel saniyordu (denetim bulgusu).
+        _liste = const [];
         _hata = 'Yakındaki işletmeler alınamadı';
       });
     }
@@ -159,13 +189,20 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
     return Scaffold(
       appBar: AppBar(title: const Text('Yakınımda')),
       body: YenileSarmali(
-        onRefresh: _yukle,
+        // ⚠️ Asagi-cek KONUMU DA tazeler (bkz. `_yukle` serhi).
+        onRefresh: () => _yukle(konumuTazele: true),
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: EdgeInsets.zero,
           children: [
             // ---- USTTE HARITA
-            _HaritaAlani(merkez: _konum, isletmeler: _liste),
+            _HaritaAlani(
+              merkez: _konum,
+              isletmeler: _liste,
+              acildi: (i) => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => ProfilSayfasi(userId: i.id)),
+              ),
+            ),
             _suzgecSeridi(),
             // ---- ALTTA KARTLAR
             if (_yukleniyor)
@@ -341,10 +378,19 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
 /// ⚠️ Gercek haritaya gecerken SADECE bu sinifin `build`i degisir; ekranin
 ///    geri kalani ve cagri yeri AYNEN kalir.
 class _HaritaAlani extends StatelessWidget {
-  const _HaritaAlani({required this.merkez, required this.isletmeler});
+  const _HaritaAlani({
+    required this.merkez,
+    required this.isletmeler,
+    this.acildi,
+  });
 
   final ({double enlem, double boylam})? merkez;
   final List<IsletmeOzet> isletmeler;
+
+  /// Harita balonuna dokununca cagrilir (bkz. `onInfoWindowTap` serhi).
+  /// ⚠️ Gezinmeyi EKRAN yapar, bu bilesen DEGIL: `_HaritaAlani` saf gorunum
+  ///    kalsin ki anahtarsiz yer tutucu daliyla ayni sozlesmeyi paylassin.
+  final void Function(IsletmeOzet)? acildi;
 
   @override
   Widget build(BuildContext context) {
@@ -388,9 +434,20 @@ class _HaritaAlani extends StatelessWidget {
                       Marker(
                         markerId: MarkerId(i.id),
                         position: LatLng(i.enlem, i.boylam),
+                        // ⚠️⚠️ TURU 85b — BALONA DOKUNMA ISLETMEYI ACAR.
+                        //    Eskiden `onTap` VERILMEMISTI: kullanici pine
+                        //    dokunup adi goruyor, sonra balona basiyor ve
+                        //    **HICBIR SEY OLMUYORDU**. Harita fiilen
+                        //    DEKORATIFTI; isletmeye ulasmanin tek yolu alttaki
+                        //    karti listede BULMAKTI (60 kayda kadar).
+                        // ⚠️ `onTap` DEGIL `onInfoWindowTap`: pinin kendi
+                        //    dokunusu balonu acmali (ad + mesafe), gezinme
+                        //    ONAYLI eylem olmali — yanlislikla kaydirirken
+                        //    ekran degistirmesin.
                         infoWindow: InfoWindow(
                           title: i.ad,
                           snippet: i.mesafeMetni,
+                          onTap: () => acildi?.call(i),
                         ),
                       ),
                 },

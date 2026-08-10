@@ -32,7 +32,8 @@ import '../isletme/urun_servisi.dart' show aiDurumProvider;
 ///    ⚠️ YAPMA: bir karti "yakında" haline geri dondurme; ekran yoksa karti
 ///       EKLEME.
 ///
-/// ⚠️ DUZEN: 8 bolum var, 3 SUTUNLU IZGARA. Tek satirlik Row 4. kartta
+/// ⚠️ DUZEN: 12 bolum (AI acikken 12, kapaliyken 11), 3 SUTUNLU IZGARA.
+///    Tek satirlik Row 4. kartta
 ///    RenderFlex overflow verirdi (turu 60/62 dersi). Sheet KAYDIRILABILIR
 ///    (`isScrollControlled` + yukseklik tavani) — kucuk ekranda tasmasin.
 class HizmetMenusu extends ConsumerWidget {
@@ -45,6 +46,17 @@ class HizmetMenusu extends ConsumerWidget {
     // ⚠️ Liste BURADA kuruluyor cunku AI karti KOSULLU (sunucuda kapaliysa
     //    HIC cizilmez — basip 503 almasin).
     final bolumler = <_Bolum>[
+      // ⚠️⚠️ TURU 85 — "YAKINIMDA" (kullanici emri: *"menuye tikladigimizda
+      //    acilan pencereye yakinimda eklemeliyiz"*). Ustte harita, altta
+      //    mesafeye gore sirali kartlar.
+      // ⚠️ ILK SIRADA: konum tabanli kesif menunun EN DEGERLI girisidir ve
+      //    izgarada ilk hucre en cok dokunulan yerdir.
+      // ⚠️ TURU 85b: serh "ILK SIRADA" diyordu ama kart 4. siradaydi
+      //    (denetim bulgusu) — GERCEKTEN one alindi.
+      _Bolum('Yakınımda', [
+        const Color(0xFF3AA9FF),
+        const Color(0xFF6C2BD9),
+      ], (c) => const YakinimdaEkrani()),
       _Bolum('Etkinlikler', [
         const Color(0xFF8B3FFF),
         const Color(0xFF5A1EBE),
@@ -57,15 +69,6 @@ class HizmetMenusu extends ConsumerWidget {
         const Color(0xFF3AA9FF),
         const Color(0xFF12547A),
       ], (c) => const IlanListesiEkrani(tur: 'hizmet', baslik: 'Hizmetler')),
-      // ⚠️⚠️ TURU 85 — "YAKINIMDA" (kullanici emri: *"menuye tikladigimizda
-      //    acilan pencereye yakinimda eklemeliyiz"*). Ustte harita, altta
-      //    mesafeye gore sirali kartlar.
-      // ⚠️ ILK SIRADA: konum tabanli kesif menunun EN DEGERLI girisidir ve
-      //    izgarada ilk hucre en cok dokunulan yerdir.
-      _Bolum('Yakınımda', [
-        const Color(0xFF3AA9FF),
-        const Color(0xFF6C2BD9),
-      ], (c) => const YakinimdaEkrani()),
       _Bolum('İşletmeler', [
         const Color(0xFFFFB03A),
         const Color(0xFFFF7A45),
@@ -117,7 +120,7 @@ class HizmetMenusu extends ConsumerWidget {
 
     return SafeArea(
       child: ConstrainedBox(
-        // ⚠️ Yukseklik TAVANI: 8+ kart kucuk telefonda sheet'i ekran disina
+        // ⚠️ Yukseklik TAVANI: 12 kart kucuk telefonda sheet'i ekran disina
         //    taşırırdı. Icerik daha uzunsa `GridView` kaydirilir.
         constraints: BoxConstraints(
           maxHeight: MediaQuery.of(context).size.height * 0.82,
@@ -240,7 +243,7 @@ class HamburgerDugmesi extends StatelessWidget {
       tooltip: 'Menü',
       onPressed: () => showModalBottomSheet<void>(
         context: context,
-        // ⚠️ ZORUNLU: 8 kartlik izgara varsayilan yukseklige SIGMAZ.
+        // ⚠️ ZORUNLU: 12 kartlik izgara varsayilan yukseklige SIGMAZ.
         isScrollControlled: true,
         showDragHandle: false,
         builder: (_) => const HizmetMenusu(),

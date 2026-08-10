@@ -48,11 +48,23 @@ class _IsletmeDuzenleEkraniState extends ConsumerState<IsletmeDuzenleEkrani> {
   ///	**HICBIR KAYITTA DOLU DEGILDI ve DOLDURACAK ARAYUZ YOKTU** — turu
   ///	78'de "harita ve yakinimda YOK, once koordinat girisi lazim" diye
   ///	acikca not edilmisti. Bu alanlar o bosluğu kapatiyor.
-  /// ⚠️ 0 = "belirlenmedi". `Isletme.toJson` sifiri GONDERMEZ ve sunucu
-  ///    `COALESCE` ile eskisini korur — yani konumu olmayan bir isletme
-  ///    baska bir alani duzenledi diye konumunu KAYBETMEZ.
-  double _enlem = 0;
-  double _boylam = 0;
+  /// ⚠️⚠️⚠️ TURU 85b — ALANLAR **NULLABLE** (denetim bulgusu, VERI KAYBI).
+  ///
+  ///	Ustteki eski serh *"`toJson` sifiri GONDERMEZ"* diyordu — bu ARTIK
+  ///	DOGRU DEGIL: model `!= 0`dan `!= null`a cevrildi (cunku `!= 0` olcutu
+  ///	"Konumu kaldır" dugmesini OLU birakiyordu). Ekran ise hala `double`
+  ///	tutup `i.enlem ?? 0` yaziyordu, yani konumu OLMAYAN her kayitta
+  ///	sunucuya ACIKCA `0` gonderiyordu = **"KONUMU SIFIRLA"** emri.
+  ///
+  ///	SOMUT KAYIP: kisisel hesaba donen bir isletmenin `isletmeler` satiri
+  ///	SILINMEZ (veri politikasi) ve koordinati orada DURUR. Kullanici tekrar
+  ///	isletmeye gecerken `detay()` 404 doner, form BOS acilir, `_enlem` 0
+  ///	olur ve ilk kaydetmede **eski koordinat SILINIR** — geri alma yolu yok.
+  ///
+  /// SOZLESME: `null` = "bu alana DOKUNMA" · `0` = "SIFIRLA" (kaldir dugmesi).
+  /// ⚠️ YAPMA: bu alanlari tekrar non-nullable yapma ya da `?? 0` ile doldurma.
+  double? _enlem;
+  double? _boylam;
   bool _konumAliniyor = false;
   bool _zatenIsletme = false;
 
@@ -142,10 +154,11 @@ class _IsletmeDuzenleEkraniState extends ConsumerState<IsletmeDuzenleEkrani> {
         //    `toJson` onlari GONDERMEZ -> sunucudaki konum KORUNUR (COALESCE).
         //    Yani veri kaybi yok; ama ekranda "konum belirlenmedi" yazardi ve
         //    kullanici konumunu SILINMIS sanardi.
-        // ⚠️ `?? 0` — model artik nullable ("gonderilmedi" vs "sifirla"
-        //    ayrimi icin). Ekranda 0 = "konum belirlenmedi".
-        _enlem = i.enlem ?? 0;
-        _boylam = i.boylam ?? 0;
+        // ⚠️ `?? 0` YOK — sozlesme korunur (bkz. alan serhi): sunucu konum
+        //    dondurmediyse ekran da `null` tutar ve kaydetmede o alan
+        //    GONDERILMEZ. `?? 0` yazilsaydi "sifirla" emri uretilirdi.
+        _enlem = i.enlem;
+        _boylam = i.boylam;
         // ⚠️ Sunucudan eksik gun gelebilir — 7 gunu TAMAMLA, yoksa listede
         //    bosluk olur ve kullanici o gunu hic ayarlayamaz.
         if (i.calisma.isNotEmpty) {
@@ -173,11 +186,9 @@ class _IsletmeDuzenleEkraniState extends ConsumerState<IsletmeDuzenleEkrani> {
               telefon: _telefon.text.trim(),
               web: _web.text.trim(),
               calisma: _calisma,
-              // ⚠️⚠️ TURU 85 — KOORDINAT. `Isletme.toJson` bunlari YALNIZ
-              //    sifirdan farkliysa gonderir ve sunucu `COALESCE` ile eski
-              //    degeri KORUR; yani konum belirlenmemisse mevcut konum
-              //    BOSA CEKILMEZ (turu 78b'de yasanan "kaydet basinca veriler
-              //    siliniyor" sinifi).
+              // ⚠️⚠️ TURU 85b — KOORDINAT SOZLESMESI: `null` gonderilmez
+              //    (sunucu mevcudu korur), `0` ACIKCA sifirlar. Ayrintili
+              //    gerekce `_enlem` alan serhinde.
               enlem: _enlem,
               boylam: _boylam,
             ),
@@ -388,14 +399,18 @@ class _IsletmeDuzenleEkraniState extends ConsumerState<IsletmeDuzenleEkrani> {
   /// 78'de bu acikca "once koordinat girisi lazim, yoksa harita bos tuval
   /// olur" diye not edilmisti. Bu bolum o boslugu kapatir.
   ///
-  /// ⚠️ HARITADAN SECIM YOK (bilincli): harita SDK'si projede kurulu degil
-  ///    (bkz. pubspec serhi — API anahtari + faturalandirma gerektiriyor).
-  ///    "Bulundugum konum" isletme sahibi DUKKANINDAYKEN tek dokunusla dogru
-  ///    sonucu verir ve bugun calisan TEK yoldur.
-  /// ⚠️ Elle giris de BIRAKILDI: sahibi dukkanda degilken (ya da konum izni
-  ///    vermek istemiyorken) koordinatlari haritadan bakip yazabilsin.
+  /// ⚠️ HARITADAN DOKUNARAK SECIM YOK (bilincli): "Yakınımda" ekranindaki
+  ///    harita SALT GORUNUM (liste icinde oldugu icin kaydirma jesti kapali);
+  ///    buraya ayri bir "haritadan sec" ekrani koymak yeni bir tam ekran
+  ///    harita + kamera yonetimi demektir. Iki yol bugun YETIYOR:
+  ///      · "Bulunduğum konumu kullan" — sahibi DUKKANINDAYKEN tek dokunus,
+  ///      · **elle koordinat girisi** (asagida, `_ElleKonum`) — sahibi
+  ///        dukkanda degilken ya da konum izni vermek istemiyorken.
+  /// ⚠️⚠️ TURU 85b: elle giris serhte "BIRAKILDI" yaziyordu ama GOVDEDE YOKTU;
+  ///    gercekten eklendi (ayrinti `_ElleKonum` bileseninde).
   Widget _konumBolumu() {
-    final belirlendi = _enlem != 0 || _boylam != 0;
+    final en = _enlem ?? 0, boy = _boylam ?? 0;
+    final belirlendi = en != 0 || boy != 0;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -410,8 +425,8 @@ class _IsletmeDuzenleEkraniState extends ConsumerState<IsletmeDuzenleEkrani> {
         const SizedBox(height: 6),
         Text(
           belirlendi
-              ? 'Konum belirlendi: ${_enlem.toStringAsFixed(5)}, '
-                    '${_boylam.toStringAsFixed(5)}'
+              ? 'Konum belirlendi: ${en.toStringAsFixed(5)}, '
+                    '${boy.toStringAsFixed(5)}'
               : 'Konum belirlenmedi. İşletmen “Yakınımda” listesinde '
                     'görünmesi için konumunu ekle.',
           style: TextStyle(
@@ -445,6 +460,9 @@ class _IsletmeDuzenleEkraniState extends ConsumerState<IsletmeDuzenleEkrani> {
               IconButton(
                 tooltip: 'Konumu kaldır',
                 icon: const Icon(LucideIcons.x, size: 18),
+                // ⚠️ ACIKCA 0 = "SIFIRLA" (bkz. `_enlem` alan serhi). `null`
+                //    yazilsaydi sunucu mevcut konumu KORUR ve dugme yine OLU
+                //    olurdu — turu 85'te tam bu hata yasandi.
                 onPressed: () => setState(() {
                   _enlem = 0;
                   _boylam = 0;
@@ -452,6 +470,27 @@ class _IsletmeDuzenleEkraniState extends ConsumerState<IsletmeDuzenleEkrani> {
               ),
             ],
           ],
+        ),
+        // ⚠️⚠️⚠️ TURU 85b — ELLE GIRIS **GERCEKTEN EKLENDI** (denetim bulgusu).
+        //
+        //	Ustteki serh yillardir *"Elle giris de BIRAKILDI"* diyordu ama
+        //	govdede TEK BIR METIN ALANI BILE YOKTU — CLAUDE.md'nin defalarca
+        //	yazdigi "yorumun anlattigi sey govdede yok" sinifi.
+        //	SOMUT SONUC: konum iznini vermeyen ya da dukkaninda olmayan
+        //	isletme sahibi koordinat GIREMIYOR, dolayisiyla isletmesi
+        //	"Yakınımda" listesinde HIC gorunmuyordu. Tek yol GPS'ti.
+        //
+        // ⚠️ Alan `TextFormField` + `initialValue` DEGIL, controller'li:
+        //    "Bulunduğum konumu kullan" degeri disaridan degistirdiginde
+        //    `initialValue` guncellenmezdi (turu 77b hayalet-veri dersi).
+        const SizedBox(height: 6),
+        _ElleKonum(
+          enlem: _enlem,
+          boylam: _boylam,
+          degisti: (e, b) => setState(() {
+            _enlem = e;
+            _boylam = b;
+          }),
         ),
       ],
     );
@@ -549,4 +588,152 @@ class _IsletmeDuzenleEkraniState extends ConsumerState<IsletmeDuzenleEkrani> {
     ),
     child: Text(deger, style: const TextStyle(fontSize: 13)),
   );
+}
+
+/// ELLE KOORDINAT GIRISI — bkz. `_konumBolumu` icindeki serh.
+///
+/// ⚠️ AYRI BILESEN: iki `TextEditingController` gerekiyor ve bunlarin
+///    `dispose` edilmesi ZORUNLU. Ana State'e konsaydi, "Bulunduğum konumu
+///    kullan" ile gelen degeri controller'lara yansitmak icin ana State'in
+///    her `setState`inde senkronizasyon kodu gerekirdi; burada
+///    `didUpdateWidget` ile TEK YERDE hallediliyor.
+/// ⚠️ Gecersiz/eksik giris SESSIZCE yok sayilmaz — kullaniciya hata yazilir;
+///    aksi halde "yazdim ama kaydolmadi" sikayeti uretirdi.
+class _ElleKonum extends StatefulWidget {
+  const _ElleKonum({
+    required this.enlem,
+    required this.boylam,
+    required this.degisti,
+  });
+
+  final double? enlem;
+  final double? boylam;
+  final void Function(double enlem, double boylam) degisti;
+
+  @override
+  State<_ElleKonum> createState() => _ElleKonumState();
+}
+
+class _ElleKonumState extends State<_ElleKonum> {
+  late final TextEditingController _en = TextEditingController(
+    text: _metin(widget.enlem),
+  );
+  late final TextEditingController _boy = TextEditingController(
+    text: _metin(widget.boylam),
+  );
+  bool _acik = false;
+  String? _hata;
+
+  static String _metin(double? d) =>
+      (d == null || d == 0) ? '' : d.toStringAsFixed(6);
+
+  @override
+  void didUpdateWidget(covariant _ElleKonum eski) {
+    super.didUpdateWidget(eski);
+    // ⚠️ Disaridan (GPS dugmesi / "Konumu kaldır") gelen degisiklik alanlara
+    //    YANSITILIR. Kullanicinin O ANDA yazdigi metni EZMEMEK icin yalniz
+    //    gercekten degistiginde yazilir.
+    if (eski.enlem != widget.enlem) _en.text = _metin(widget.enlem);
+    if (eski.boylam != widget.boylam) _boy.text = _metin(widget.boylam);
+  }
+
+  @override
+  void dispose() {
+    _en.dispose();
+    _boy.dispose();
+    super.dispose();
+  }
+
+  void _uygula() {
+    // ⚠️ Virgul de kabul edilir: Turkce klavyede ondalik ayirici VIRGULDUR ve
+    //    `double.tryParse` virgullu metni `null` dondurur -> kullanici dogru
+    //    koordinati yazip "gecersiz" hatasi alirdi.
+    final e = double.tryParse(_en.text.trim().replaceAll(',', '.'));
+    final b = double.tryParse(_boy.text.trim().replaceAll(',', '.'));
+    if (e == null || b == null) {
+      setState(() => _hata = 'Enlem ve boylamı sayı olarak yaz.');
+      return;
+    }
+    if (e < -90 || e > 90 || b < -180 || b > 180) {
+      setState(() => _hata = 'Enlem -90/90, boylam -180/180 aralığında olmalı.');
+      return;
+    }
+    setState(() => _hata = null);
+    widget.degisti(e, b);
+    FocusScope.of(context).unfocus();
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Konum ayarlandı')),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_acik) {
+      return Align(
+        alignment: Alignment.centerLeft,
+        child: TextButton.icon(
+          onPressed: () => setState(() => _acik = true),
+          icon: const Icon(LucideIcons.pencil, size: 15),
+          label: const Text('Koordinatı elle gir'),
+          style: TextButton.styleFrom(padding: EdgeInsets.zero),
+        ),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _en,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                  signed: true,
+                ),
+                decoration: const InputDecoration(
+                  labelText: 'Enlem',
+                  hintText: '40.802000',
+                  isDense: true,
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: TextField(
+                controller: _boy,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                  signed: true,
+                ),
+                decoration: const InputDecoration(
+                  labelText: 'Boylam',
+                  hintText: '29.435000',
+                  isDense: true,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            TextButton(onPressed: _uygula, child: const Text('Uygula')),
+          ],
+        ),
+        if (_hata != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              _hata!,
+              style: const TextStyle(fontSize: 12, color: Colors.redAccent),
+            ),
+          ),
+        const Padding(
+          padding: EdgeInsets.only(top: 4),
+          child: Text(
+            'Haritadan koordinat bakıp yazabilirsin (örn. Google Haritalar’da '
+            'işletmene uzun bas).',
+            style: TextStyle(fontSize: 11.5, color: Colors.grey),
+          ),
+        ),
+      ],
+    );
+  }
 }

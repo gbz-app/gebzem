@@ -89,10 +89,12 @@ class KonumServisi {
 
   /// Cihazin KENDI harita uygulamasinda acar.
   ///
-  /// ⚠️ HARITA SDK'si GOMULMEDI (google_maps_flutter): API anahtari +
-  ///    faturalandirma + iki platformda kurulum ister ve CLAUDE.md
-  ///    "cloudMapId KULLANMA" diyor. Kullanicinin telefonunda zaten bir harita
-  ///    uygulamasi var; yol tarifi de orada calisir.
+  /// ⚠️ TURU 85b — SERH GUNCELLENDI: `google_maps_flutter` ARTIK KURULU
+  ///    ("Yakınımda" ekrani kullaniyor). Buradaki yol yine de DOGRU:
+  ///    YOL TARIFI icin cihazin KENDI harita uygulamasi acilir — gomulu
+  ///    haritada navigasyon yoktur ve kullanici zaten alisik oldugu
+  ///    uygulamada rota almak ister.
+  /// ⚠️ CLAUDE.md `cloudMapId` yasagi DURUYOR (ucretli).
   /// ⚠️ `geo:` semasi Android'de dogru calisir; iOS onu TANIMAZ, bu yuzden
   ///    once evrensel `https://maps.google.com/?q=` denenir — o da iOS'ta
   ///    Apple Haritalar/Google Haritalar secimini sisteme birakir.

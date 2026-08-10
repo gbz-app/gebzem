@@ -8,6 +8,68 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../calls/callkit_service.dart';
 
+/// ⚠️⚠️⚠️ TURU 85b — IZIN ISTEME **TEK KAYNAK** (denetim bulgusu).
+///
+///	Turu 84'te adimli kayita 4. adim olarak bir izin sayfasi eklendi ve o
+///	sayfa izinleri KENDI govdesinde istiyordu. Iki kopya ANINDA ayristi:
+///	  · Kayit adimi `CallKitService.izinleriIste()` (Android 14+ TAM EKRAN
+///	    BILDIRIM izni) cagirmiyordu -> telefon KILITLIYKEN gelen arama ekrani
+///	    HIC ACILMIYORDU. Bu, uygulamanin MANSET ozelligi.
+///	  · Pil optimizasyonu muafiyeti de istenmiyordu -> uygulama arka planda
+///	    oldurulup arama alinamiyordu.
+///	  · `permissions_asked` tercihi yazilmiyordu.
+///	Ustelik kullanici izni REDDEDERSE `HomeScreen` kendi kapisindan
+///	`PermissionsScreen`i ACIYORDU: kayit biter bitmez **AYNI IZIN EKRANI
+///	IKINCI KEZ** cikiyordu.
+///
+/// Bu fonksiyon o sirayi TEK YERDE tutar; iki cagiran da ayni isi yapar.
+/// ⚠️ SIRA ONEMLI: sistem diyaloglari SIRAYLA cikmali (hepsini ayni anda
+///    istemek platformda tanimsiz davranistir).
+/// ⚠️ YAPMA: cagiran taraflarda bu adimlari tekrar yazma.
+Future<void> izinleriTopluIste() async {
+  // Sirayla iste — sistem pencereleri ust uste binmesin.
+  await Permission.notification.request();
+  await Permission.microphone.request();
+  await Permission.camera.request();
+
+  // Android 14+: "tam ekran bildirim" AYRI bir ozel izin. Play Store disi
+  // (sideload) kurulumda otomatik VERILMEZ -> verilmezse telefon kilitliyken
+  // gelen arama ekrani HIC acilmaz. Ayarlar sayfasina yonlendirir.
+  await CallKitService.izinleriIste();
+
+  // Pil optimizasyonu muafiyeti: TEK sistem dialogu (menuye gitmeden).
+  // Kapaliyken arama gelmesi icin uygulamanin arka planda oldurulmemesi
+  // gerekir. Sadece Android.
+  if (Platform.isAndroid) {
+    try {
+      if (!await Permission.ignoreBatteryOptimizations.isGranted) {
+        await Permission.ignoreBatteryOptimizations.request();
+      }
+    } catch (_) {}
+  }
+  await izinSorulduIsaretle();
+}
+
+/// Izin akisinin KOSTUGUNU isaretler (hem kalici tercih hem OTURUM bayragi).
+///
+/// ⚠️ `_buOturumdaSoruldu` ZORUNLU: `HomeScreen` kapisi kalici tercihe DEGIL
+///    GERCEK izin durumuna bakiyor (APK ustune guncellemede bayat bayrak
+///    sorunu — bilincli karar). Kullanici izinleri REDDEDERSE o kapi ekrani
+///    yeniden acar; kayit akisindan cikan kullanici icin bu **AYNI EKRANI
+///    ARKA ARKAYA IKI KEZ** gormek demektir. Oturum bayragi yalniz o ANLIK
+///    tekrari engeller; uygulama yeniden baslatildiginda kapi YINE calisir.
+/// ⚠️ YAPMA: bayragi kalici hale getirme (izin ekrani bir daha HIC cikmaz).
+Future<void> izinSorulduIsaretle() async {
+  izinBuOturumdaSoruldu = true;
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('permissions_asked', true);
+  } catch (_) {}
+}
+
+/// Bkz. [izinSorulduIsaretle]. Surec omurlu; kalici DEGIL.
+bool izinBuOturumdaSoruldu = false;
+
 /// Giriste izin ekrani — mikrofon, kamera ve bildirim izinleri tek seferde alinir.
 /// Bir kez gosterilir (tercih kaydedilir), sonra ana ekrana gecilir.
 class PermissionsScreen extends ConsumerStatefulWidget {
@@ -24,29 +86,8 @@ class _PermissionsScreenState extends ConsumerState<PermissionsScreen> {
 
   Future<void> _requestAll() async {
     setState(() => _busy = true);
-    // Sirayla iste — sistem pencereleri ust uste binmesin
-    await Permission.notification.request();
-    await Permission.microphone.request();
-    await Permission.camera.request();
-
-    // Android 14+: "tam ekran bildirim" AYRI bir ozel izin. Play Store disi
-    // (sideload) kurulumda otomatik VERILMEZ -> verilmezse telefon kilitliyken
-    // gelen arama ekrani HIC acilmaz. Ayarlar sayfasina yonlendirir.
-    await CallKitService.izinleriIste();
-
-    // Pil optimizasyonu muafiyeti: TEK sistem dialogu (menuye gitmeden). Kapaliyken
-    // arama gelmesi icin uygulamanin arka planda oldurulmemesi gerekir. Sadece Android.
-    if (Platform.isAndroid) {
-      try {
-        if (!await Permission.ignoreBatteryOptimizations.isGranted) {
-          await Permission.ignoreBatteryOptimizations.request();
-        }
-      } catch (_) {}
-    }
-
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('permissions_asked', true);
-
+    // ⚠️ Sira ve tum adimlar TEK KAYNAKTA (bkz. `izinleriTopluIste` serhi).
+    await izinleriTopluIste();
     if (mounted) {
       setState(() => _busy = false);
       widget.onDone();
@@ -54,8 +95,7 @@ class _PermissionsScreenState extends ConsumerState<PermissionsScreen> {
   }
 
   Future<void> _skip() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('permissions_asked', true);
+    await izinSorulduIsaretle();
     widget.onDone();
   }
 
