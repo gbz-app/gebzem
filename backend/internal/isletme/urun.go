@@ -30,24 +30,34 @@ import (
 //	(turu 76 `Kaydedilenler` sevk engelinin sinifi).
 const urunSutunlari = `
 		p.id, p.isletme_id, p.ad, p.aciklama, p.bolum,
-		p.fiyat_kurus, p.media_ids, p.sira, p.durum, p.created_at`
+		p.fiyat_kurus, p.media_ids, p.sira, p.durum, p.created_at,
+		p.tur, p.ozellikler`
 
 func (h *Handler) urunleriOku(rows pgx.Rows) []map[string]any {
 	out := []map[string]any{}
 	for rows.Next() {
-		var id, isletme, ad, aciklama, bolum, durum string
+		var id, isletme, ad, aciklama, bolum, durum, tur string
 		var medya []string
 		var fiyat int64
 		var sira int
 		var t time.Time
+		// ⚠️ TURU 89 — `ozellikler` JSONB; pgx onu `map[string]any`e tarar.
+		var ozellikler map[string]any
 		if rows.Scan(&id, &isletme, &ad, &aciklama, &bolum,
-			&fiyat, &medya, &sira, &durum, &t) != nil {
+			&fiyat, &medya, &sira, &durum, &t, &tur, &ozellikler) != nil {
 			continue
+		}
+		// ⚠️ `nil` harita JSON'da `null` olur; istemci `Map` bekliyor.
+		if ozellikler == nil {
+			ozellikler = map[string]any{}
 		}
 		out = append(out, map[string]any{
 			"id": id, "isletme_id": isletme, "ad": ad, "aciklama": aciklama,
 			"bolum": bolum, "fiyat_kurus": fiyat, "media_ids": medya,
 			"sira": sira, "durum": durum, "created_at": t,
+			// ⚠️ SCAN EDILEN HER ALAN YANIT HARITASINA DA KONUR — turu 78'de
+			//    `Profile()` kapak/onayli alanlari tam burada kaybolmustu.
+			"tur": tur, "ozellikler": ozellikler,
 		})
 	}
 	return out
@@ -232,3 +242,36 @@ func (h *Handler) UrunListesi(w http.ResponseWriter, r *http.Request) {
 }
 
 var _ = strconv.Itoa
+
+// ⚠️⚠️ TURU 89 — JSONB YARDIMCILARI.
+//
+// pgx bir Go haritasini JSONB sutununa DOGRUDAN yazamaz; once JSON'a
+// kodlanmasi gerekir. Bos harita da GECERLIDIR (`{}`) — sutun NOT NULL.
+func ozellikJSON(m map[string]string) []byte {
+	if m == nil {
+		m = map[string]string{}
+	}
+	b, err := json.Marshal(m)
+	if err != nil {
+		return []byte("{}")
+	}
+	return b
+}
+
+// ⚠️ GUNCELLEMEDE "gonderilmedi" ile "bosalt" AYRILIR: `nil` -> SQL NULL ->
+//
+//	`COALESCE` mevcut degeri KORUR. Bos harita gonderilirse ozellikler
+//	GERCEKTEN temizlenir. (Turu 85b'deki koordinat sozlesmesinin aynisi.)
+func ozellikIsaretci(m *map[string]string) any {
+	if m == nil {
+		return nil
+	}
+	return ozellikJSON(*m)
+}
+
+func turIsaretci(t *string) any {
+	if t == nil || *t == "" {
+		return nil
+	}
+	return TurGecerli(*t)
+}

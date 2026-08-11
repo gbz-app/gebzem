@@ -255,6 +255,10 @@ func main() {
 		// ama rota_test.go bu ayrimi ayrica dogruluyor.
 		r.Get("/isletmeler/yakinimda", isletmeH.Yakinimda)
 		r.Get("/isletme-kategorileri", isletmeH.KategoriListesi)
+		// TURU 89 - kategoriye ozel katalog modulleri (otel->oda, doktor->hizmet).
+		// Istemci bir kez cekip onbellekler; yeni alan eklemek ISTEMCI
+		// GUNCELLEMESI GEREKTIRMEZ (ilan.Agac ucuyla ayni gerekce).
+		r.Get("/isletme-modulleri", isletmeH.Moduller)
 		// TURU 77 — ETKINLIKLER
 		r.Post("/etkinlikler", etkinlikH.Olustur)
 		r.Get("/etkinlikler", etkinlikH.Liste)

@@ -195,3 +195,94 @@ func TestDetayScanEdilenAlanlarYanittaVar(t *testing.T) {
 		}
 	}
 }
+
+// ⚠️⚠️⚠️ TURU 89 — URUN SORGUSU DA KAPSAMA ALINDI.
+//
+// `urunSutunlari` (SELECT) ile `urunleriOku` (Scan) BIREBIR ayni sirada
+// olmak ZORUNDA. Govdede `if rows.Scan(...) != nil { continue }` var, yani
+// hata **YUTULUYOR**: sira ayrisirsa HER SATIR SESSIZCE ATLANIR, derleme
+// temiz gecer, log dusmez ve **KATALOG HERKESTE BOMBOS** gorunur.
+// Turu 76'da "Kaydedilenler" sayfasi tam bu sekilde bosalmisti.
+//
+// ⚠️ Bu test turu 89'da `tur` + `ozellikler` eklenirken yazildi: iki sutun
+//    UC YERE (SELECT · Scan · yanit haritasi) birlikte eklenmeliydi.
+func TestUrunSelectVeScanHizali(t *testing.T) {
+	govde := yorumsuzKaynak(t, "urun.go")
+
+	sel := regexp.MustCompile("(?s)const urunSutunlari = `(.*?)`").
+		FindStringSubmatch(govde)
+	if sel == nil {
+		t.Fatal("urunSutunlari sabiti bulunamadi")
+	}
+	var sutunlar []string
+	for _, p := range strings.Split(sel[1], ",") {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		// "p.fiyat_kurus" -> "fiyat_kurus"
+		if i := strings.LastIndex(p, "."); i >= 0 {
+			p = p[i+1:]
+		}
+		sutunlar = append(sutunlar, strings.TrimSpace(p))
+	}
+
+	scan := regexp.MustCompile(`(?s)rows\.Scan\((.*?)\)\s*!=\s*nil`).
+		FindStringSubmatch(govde)
+	if scan == nil {
+		t.Fatal("urunleriOku icinde rows.Scan(...) bulunamadi")
+	}
+	var tarananlar []string
+	for _, p := range strings.Split(scan[1], ",") {
+		ad := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(p), "&"))
+		if ad != "" {
+			tarananlar = append(tarananlar, ad)
+		}
+	}
+
+	if len(sutunlar) != len(tarananlar) {
+		t.Fatalf(
+			"SELECT %d sutun donduruyor ama Scan %d alan bekliyor.\n"+
+				"Sira/sayi ayrisirsa `rows.Scan` hata doner, `continue` onu YUTAR "+
+				"ve KATALOG HERKESTE BOMBOS gorunur (turu 76 sinifi).\n"+
+				"SELECT: %v\nScan  : %v",
+			len(sutunlar), len(tarananlar), sutunlar, tarananlar)
+	}
+
+	// Yanit haritasinda her sutunun karsiligi olmali (turu 78 sinifi).
+	yanit := regexp.MustCompile(`(?s)out = append\(out, map\[string\]any\{(.*?)\}\)`).
+		FindStringSubmatch(govde)
+	if yanit == nil {
+		t.Fatal("urunleriOku yanit haritasi bulunamadi")
+	}
+	for _, s := range sutunlar {
+		if !strings.Contains(yanit[1], `"`+s+`"`) {
+			t.Errorf(
+				"`%s` SELECT+Scan ediliyor ama YANIT HARITASINDA YOK — "+
+					"alan istemciye HIC ULASMAZ (turu 78 sinifi).", s)
+		}
+	}
+}
+
+// Bir kaynak dosyayi YORUMLARDAN TEMIZLEYEREK okur.
+//
+// ⚠️ Yorum temizligi ZORUNLU: bu paketin serhleri "SELECT sirasi ile Scan
+//    sirasi BIREBIR" gibi cumleler iceriyor ve ayristirici onlari GERCEK
+//    sorgu sanip YANLIS ALARM veriyordu (turu 80b'de tam bu oldu; turu 83'te
+//    `utf8_test.go` ayni tuzaga dustu).
+func yorumsuzKaynak(t *testing.T, dosya string) string {
+	t.Helper()
+	b, err := os.ReadFile(dosya)
+	if err != nil {
+		t.Fatalf("%s okunamadi: %v", dosya, err)
+	}
+	var temiz []string
+	for _, satir := range strings.Split(string(b), "\n") {
+		k := strings.TrimSpace(satir)
+		if strings.HasPrefix(k, "//") || strings.HasPrefix(k, "--") {
+			continue
+		}
+		temiz = append(temiz, satir)
+	}
+	return strings.Join(temiz, "\n")
+}

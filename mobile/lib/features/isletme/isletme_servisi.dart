@@ -2,6 +2,8 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api.dart';
+// TURU 89 - Modul modeli (kategoriye ozel katalog).
+import 'urun_servisi.dart' show Modul;
 
 /// ⚠️⚠️ TURU 77 — ISLETME PROFILLERI (kullanici emri: "normal ve isletme
 /// profilleri olacak").
@@ -179,6 +181,7 @@ class Isletme {
     this.dogrulandi = false,
     this.randevuAcik = false,
     this.randevuTuru = 'randevu',
+    this.modul = Modul.varsayilan,
   });
 
   String kategori;
@@ -220,6 +223,12 @@ class Isletme {
   final String randevuTuru;
 
   bool get rezervasyonMu => randevuTuru == 'rezervasyon';
+
+  /// TURU 89 — KATEGORIYE OZEL KATALOG MODULU (otel->Odalar,
+  /// doktor->Hizmetler, restoran->Menü). SUNUCUDAN gelir; kategoriden
+  /// ISTEMCIDE turetilmez (randevuTuru ile ayni gerekce: ikinci kopya
+  /// kacinilmaz olarak DRIFT EDER).
+  final Modul modul;
 
   Map<String, dynamic> json() => {
     'kategori': kategori,
@@ -277,6 +286,9 @@ class Isletme {
     //    ayari kapaliyken de dugme cizilirdi = 404 veren buton).
     randevuAcik: m['randevu_acik'] == true,
     randevuTuru: (m['randevu_turu'] ?? 'randevu').toString(),
+    modul: m['modul'] is Map
+        ? Modul.fromJson((m['modul'] as Map).cast<String, dynamic>())
+        : Modul.varsayilan,
   );
 
   /// "Şu an açık" mi? ⚠️ Cihaz saatine gore hesaplanir; sunucuya sorulmaz

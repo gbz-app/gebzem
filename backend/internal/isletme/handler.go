@@ -411,6 +411,12 @@ func (h *Handler) Detay(w http.ResponseWriter, r *http.Request) {
 		//    ETMIYOR.
 		// ⚠️ YAPMA: bu cagriyi yerel bir switch ile degistirme.
 		"randevu_turu": randevu.TurBul(kategori),
+		// ⚠️⚠️ TURU 89 — KATALOG MODULU (kullanici emri: otel -> odalar,
+		//    doktor -> hizmetler). `randevu_turu` ile BIREBIR ayni desen:
+		//    kategori -> davranis turetmesi SUNUCUDA yapilir, istemci onu
+		//    yanittan ogrenir. Kategoriden ISTEMCIDE tahmin edilseydi
+		//    Go + Dart arasinda UCUNCU bir kopya acilirdi.
+		"modul": ModulBul(kategori),
 	})
 }
 

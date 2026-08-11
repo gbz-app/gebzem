@@ -43,6 +43,8 @@ class Urun {
     required this.mediaIds,
     required this.sira,
     required this.durum,
+    required this.tur,
+    required this.ozellikler,
   });
 
   final String id;
@@ -54,6 +56,12 @@ class Urun {
   final List<String> mediaIds;
   final int sira;
   String durum;
+
+  /// TURU 89 — kategoriye ozel modul turu: 'urun' | 'oda' | 'hizmet'.
+  String tur;
+
+  /// Modulun kendi alanlari (kapasite, yatak, sure_dakika...).
+  Map<String, String> ozellikler;
 
   String get fiyatMetni => kurusMetni(fiyatKurus);
 
@@ -69,6 +77,9 @@ class Urun {
         .toList(),
     sira: (m['sira'] as num?)?.toInt() ?? 0,
     durum: (m['durum'] ?? 'yayinda').toString(),
+    tur: (m['tur'] ?? 'urun').toString(),
+    ozellikler: ((m['ozellikler'] as Map?) ?? {})
+        .map((k, v) => MapEntry(k.toString(), (v ?? '').toString())),
   );
 }
 
@@ -268,4 +279,86 @@ String kurusMetni(int kurus) {
   final tl = kurus ~/ 100;
   final kr = kurus % 100;
   return kr == 0 ? '$tl ₺' : '$tl,${kr.toString().padLeft(2, '0')} ₺';
+}
+
+/// ⚠️⚠️⚠️ TURU 89 — KATEGORIYE OZEL KATALOG MODULU.
+///
+/// Kullanici emri: *"otel ekledin ama ODALAR var mi? isletme oda eklemeli,
+/// doktorlar vs HIZMET ALANI eklemeli, belirli baslikli MODULLER olacakti"*.
+///
+/// ⚠️ TANIM **SUNUCUDAN** gelir (`GET /isletme-modulleri`), istemciye
+///    GOMULMEZ. Gomulseydi Go + Dart arasinda UCUNCU bir kopya acilirdi;
+///    `isletmeKategorileri` zaten itiraf edilmis bir kopya ve onun ucuncusu
+///    (vitrin) turu 85b'de SESSIZCE KIRILMISTI.
+/// ⚠️ Boylece yeni bir alan eklemek ISTEMCI GUNCELLEMESI GEREKTIRMEZ.
+class Modul {
+  const Modul({
+    required this.ad,
+    required this.tekil,
+    required this.tur,
+    required this.bolumEtiketi,
+    required this.alanlar,
+  });
+
+  /// Katalog basligi ("Odalar", "Hizmetler", "Menü").
+  final String ad;
+
+  /// Tekil ad ("Oda ekle", "Hizmet ekle").
+  final String tekil;
+
+  /// `isletme_urunleri.tur` degeri.
+  final String tur;
+
+  /// "Bölüm" alaninin kategoriye ozel etiketi.
+  final String bolumEtiketi;
+
+  /// Kategoriye ozel ek alanlar.
+  final List<ModulAlan> alanlar;
+
+  static const varsayilan = Modul(
+    ad: 'Ürünler',
+    tekil: 'Ürün',
+    tur: 'urun',
+    bolumEtiketi: 'Bölüm',
+    alanlar: [],
+  );
+
+  static Modul fromJson(Map<String, dynamic> m) => Modul(
+    ad: (m['ad'] ?? 'Ürünler').toString(),
+    tekil: (m['tekil'] ?? 'Ürün').toString(),
+    tur: (m['tur'] ?? 'urun').toString(),
+    bolumEtiketi: (m['bolum_etiketi'] ?? 'Bölüm').toString(),
+    alanlar: ((m['alanlar'] as List?) ?? [])
+        .map((e) => ModulAlan.fromJson((e as Map).cast<String, dynamic>()))
+        .toList(),
+  );
+}
+
+/// Modulun tek bir alani. `ilan.Alan` ile AYNI sozlesme (sunucuda da ayni tip).
+class ModulAlan {
+  const ModulAlan({
+    required this.anahtar,
+    required this.ad,
+    required this.tip,
+    required this.secenekler,
+    required this.birim,
+  });
+
+  final String anahtar;
+  final String ad;
+
+  /// metin | sayi | secim
+  final String tip;
+  final List<String> secenekler;
+  final String birim;
+
+  static ModulAlan fromJson(Map<String, dynamic> m) => ModulAlan(
+    anahtar: (m['anahtar'] ?? '').toString(),
+    ad: (m['ad'] ?? '').toString(),
+    tip: (m['tip'] ?? 'metin').toString(),
+    secenekler: ((m['secenekler'] as List?) ?? [])
+        .map((e) => e.toString())
+        .toList(),
+    birim: (m['birim'] ?? '').toString(),
+  );
 }

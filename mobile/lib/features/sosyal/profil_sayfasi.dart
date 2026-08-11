@@ -908,11 +908,15 @@ class _IsletmeSeridiState extends ConsumerState<IsletmeSeridi> {
                             isletmeId: widget.userId,
                             isletmeAd: widget.ad,
                             benimMi: widget.benimMi,
+                            // TURU 89 - modul SUNUCUDAN gelir.
+                            modul: i.modul,
                           ),
                         ),
                       ),
                       icon: const Icon(LucideIcons.bookOpen, size: 17),
-                      label: const Text('Ürünler / Menü'),
+                      // TURU 89 - kategoriye gore: Odalar / Hizmetler / Menü.
+                      //    Kategoriden ISTEMCIDE tahmin edilmez.
+                      label: Text(i.modul.ad),
                     ),
                   ),
                   // ⚠️⚠️ TURU 80 — REZERVASYON / RANDEVU DUGMESI.

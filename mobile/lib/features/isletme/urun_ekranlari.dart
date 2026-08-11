@@ -28,11 +28,17 @@ class UrunKatalogEkrani extends ConsumerStatefulWidget {
     required this.isletmeId,
     required this.isletmeAd,
     this.benimMi = false,
+    this.modul = Modul.varsayilan,
   });
 
   final String isletmeId;
   final String isletmeAd;
   final bool benimMi;
+
+  /// TURU 89 — kategoriye ozel katalog modulu (Odalar/Hizmetler/Menü).
+  /// ⚠️ Cagiran vermezse varsayilan 'Ürünler' kullanilir; ekran HICBIR
+  ///    durumda kategoriden TAHMIN yurutmez.
+  final Modul modul;
 
   @override
   ConsumerState<UrunKatalogEkrani> createState() => _UrunKatalogEkraniState();
@@ -96,12 +102,15 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
               heroTag: 'fabUrunEkle',
               onPressed: () async {
                 final ok = await Navigator.of(context).push<bool>(
-                  MaterialPageRoute(builder: (_) => const UrunDuzenleEkrani()),
+                  MaterialPageRoute(
+                    builder: (_) => UrunDuzenleEkrani(modul: widget.modul),
+                  ),
                 );
                 if (ok == true) _yukle();
               },
               icon: const Icon(LucideIcons.plus),
-              label: const Text('Ürün ekle'),
+              // TURU 89 - 'Oda ekle' / 'Hizmet ekle' / 'Ürün ekle'.
+              label: Text('${widget.modul.tekil} ekle'),
             )
           : null,
       body: _hata != null
@@ -188,7 +197,9 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
     onTap: widget.benimMi
         ? () async {
             final ok = await Navigator.of(context).push<bool>(
-              MaterialPageRoute(builder: (_) => UrunDuzenleEkrani(urun: u)),
+              MaterialPageRoute(
+                builder: (_) => UrunDuzenleEkrani(urun: u, modul: widget.modul),
+              ),
             );
             if (ok == true) _yukle();
           }
@@ -559,7 +570,10 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
 
 /// Urun ekle / duzenle (+ AI aciklama).
 class UrunDuzenleEkrani extends ConsumerStatefulWidget {
-  const UrunDuzenleEkrani({super.key, this.urun});
+  const UrunDuzenleEkrani({super.key, this.urun, this.modul = Modul.varsayilan});
+
+  /// TURU 89 — kategoriye ozel alan tanimlari ve etiketler.
+  final Modul modul;
   final Urun? urun;
 
   @override
@@ -577,6 +591,17 @@ class _UrunDuzenleEkraniState extends ConsumerState<UrunDuzenleEkrani> {
         ? ''
         : (widget.urun!.fiyatKurus / 100).toStringAsFixed(2),
   );
+
+  /// ⚠️⚠️ TURU 89 — MODULE OZEL ALANLARIN DEGERLERI (kapasite, yatak, süre...).
+  ///
+  /// Alan TANIMLARI sunucudan gelir (`widget.modul.alanlar`); burada yalnizca
+  /// GIRILEN DEGERLER tutulur ve `ozellikler` JSONB'sine yazilir.
+  /// ⚠️ Duzenlemede mevcut degerlerle DOLDURULUR — aksi halde kullanici
+  ///    baska bir alani degistirip kaydettiginde girdigi kapasite/süre
+  ///    SESSIZCE SILINIRDI.
+  late final Map<String, String> _ozellikler = {
+    ...?widget.urun?.ozellikler,
+  };
 
   File? _gorsel;
   bool _kaydediliyor = false;
@@ -864,6 +889,10 @@ class _UrunDuzenleEkraniState extends ConsumerState<UrunDuzenleEkrani> {
         'aciklama': _aciklama.text.trim(),
         'bolum': _bolum.text.trim(),
         'fiyat_kurus': (tl * 100).round(),
+        // TURU 89 - kategoriye ozel modul turu ve alanlari.
+        // Sunucu `tur`u beyaz listeden gecirir; gecersizse 'urun'a duser.
+        'tur': widget.modul.tur,
+        'ozellikler': _ozellikler,
       };
       // ⚠️⚠️ TURU 77b — "TUKENDI" OLU OZELLIKTI (denetim bulgusu).
       //    Sunucu `durum` PATCH'ini beyaz listeyle KABUL EDIYORDU ve katalog
@@ -1132,11 +1161,79 @@ class _UrunDuzenleEkraniState extends ConsumerState<UrunDuzenleEkrani> {
           TextField(
             controller: _bolum,
             maxLength: 60,
-            decoration: const InputDecoration(
-              labelText: 'Bölüm (Ana Yemekler, Tatlılar...)',
-              border: OutlineInputBorder(),
+            decoration: InputDecoration(
+              // TURU 89 - etiket KATEGORIYE gore (otelciye 'Ana Yemekler'
+              //    ornegi gosterilmesi kullanicinin sikayetiydi).
+              labelText: widget.modul.bolumEtiketi,
+              border: const OutlineInputBorder(),
             ),
           ),
+          // ⚠️⚠️⚠️ TURU 89 — KATEGORIYE OZEL ALANLAR (kullanici emri).
+          //
+          //	Otel -> kapasite / yatak / kahvaltı, doktor -> süre.
+          //	Alan TANIMLARI **SUNUCUDAN** gelir; burada yalnizca ciziliyor.
+          //	Boylece yeni bir alan eklemek ISTEMCI GUNCELLEMESI GEREKTIRMEZ
+          //	(`ilan` tarafiyla ayni desen).
+          //
+          // ⚠️ `ValueKey` ZORUNLU: modul degisirse (kategori degistirildiginde)
+          //    Flutter alan elemanlarini YENIDEN KULLANIR ve
+          //    `FormField.didUpdateWidget` `initialValue` degisimini YOK
+          //    SAYAR -> "Metrekare" kutusunda "Ford" kalir (turu 77b/78b
+          //    HAYALET VERI hatasi).
+          for (final a in widget.modul.alanlar) ...[
+            if (a.tip == 'secim')
+              Padding(
+                key: ValueKey('sec:${widget.modul.tur}:${a.anahtar}'),
+                padding: const EdgeInsets.only(bottom: 12),
+                child: DropdownButtonFormField<String>(
+                  initialValue: _ozellikler[a.anahtar]?.isNotEmpty == true
+                      ? _ozellikler[a.anahtar]
+                      : null,
+                  isExpanded: true,
+                  decoration: InputDecoration(
+                    labelText: a.ad,
+                    border: const OutlineInputBorder(),
+                  ),
+                  items: [
+                    for (final s in a.secenekler)
+                      DropdownMenuItem(value: s, child: Text(s)),
+                  ],
+                  onChanged: (v) => setState(() {
+                    if (v == null) {
+                      _ozellikler.remove(a.anahtar);
+                    } else {
+                      _ozellikler[a.anahtar] = v;
+                    }
+                  }),
+                ),
+              )
+            else
+              Padding(
+                key: ValueKey('txt:${widget.modul.tur}:${a.anahtar}'),
+                padding: const EdgeInsets.only(bottom: 12),
+                child: TextFormField(
+                  initialValue: _ozellikler[a.anahtar] ?? '',
+                  keyboardType: a.tip == 'sayi'
+                      ? TextInputType.number
+                      : TextInputType.text,
+                  decoration: InputDecoration(
+                    labelText: a.birim.isEmpty ? a.ad : '${a.ad} (${a.birim})',
+                    border: const OutlineInputBorder(),
+                  ),
+                  // ⚠️ `onChanged` — odak kaybi `onSubmitted` TETIKLEMEZ ve
+                  //    kullanicinin yazdigi deger SESSIZCE ATILIRDI
+                  //    (turu 85c'de elle koordinat girisinde tam bu yasandi).
+                  onChanged: (v) {
+                    final t = v.trim();
+                    if (t.isEmpty) {
+                      _ozellikler.remove(a.anahtar);
+                    } else {
+                      _ozellikler[a.anahtar] = t;
+                    }
+                  },
+                ),
+              ),
+          ],
           TextField(
             controller: _fiyat,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
