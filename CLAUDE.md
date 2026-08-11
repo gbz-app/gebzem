@@ -17,7 +17,57 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (11 Agu 07:36): TURU 85c YAYINLANDI (SON SURUM)** — android
+- **KALDIGIMIZ YER (11 Agu 08:26): TURU 86 YAYINLANDI (SON SURUM)** — android
+  **31460848125** + ios **31460849840** (**5088dda**), R2 apk=120264179
+  (md5 678c63d9) ipa=31373498 (md5 7ffeafd3) index=9456 (md5 473f2d7b),
+  purge OK, **CDN BIREBIR (ucu de)**, debug imza YOK. Backend DEGISMEDI.
+  ⚠️ **KULLANICIYA VERILEN ADRES:**
+  https://indir.gebzem.app/index.html?v=20260811-0826
+- ⚠️⚠️⚠️ **TURU 86 — HARITA: "BU NASIL BIR HARITA?" (kullanici, SAHADA).**
+  Kullanici: *"bu nasil bir harita? normal google haritasi degil ki bu"*.
+  **HAKLIYDI.** Turu 85'te "uber tarzi grimsi beyaz" istegini stil JSON'una
+  cevirirken haritanin **TANIMLAYICI HER UNSURUNU** kapatmisim:
+  `poi: off` (hicbir mekan yok) · `road ... labels: off` (**SOKAK ADI YOK**) ·
+  `labels.icon: off` · `transit: off` · `administrative geometry: off`.
+  Geriye beyaz cizgili **GRI BIR KAGIT** kaliyordu; kullanici nerede oldugunu
+  anlayamiyor, hicbir yeri taniyamiyordu.
+  ⚠️ **"Grimsi beyaz" bir RENK TERCIHIYDI; haritayi OKUNAMAZ hale getirme
+     yetkisi DEGILDI.**
+  IKINCI KUSUR: harita **CANLI DEGILDI** — `scroll/zoom/rotate/tilt`
+  jestlerinin HEPSI `false` idi (gerekce: *"liste icinde, dikey jesti alirsa
+  sayfa kaydirilamaz"*). Kullanici haritaya dokunup suruyor ve **HICBIR SEY
+  OLMUYORDU**; etiketlerin de kapali olmasiyla birlesince ortaya **"harita
+  olmayan bir harita"** cikmisti.
+  ✅ FIX: ozel stil **KALDIRILDI** (normal Google haritasi) · kaydirma +
+  yakinlastirma **ACILDI**, liste catismasi **`EagerGestureRecognizer`** ile
+  cozuldu (dokunus HARITADA baslarsa harita, KARTLARDA baslarsa liste alir) ·
+  "konumuma don" dugmesi acildi (harita artik suruklendigi icin SART).
+  ⚠️ YAPMA: `poi`/`road labels`/`transit` kapatan bir stil geri koyma. Renk
+     tonu istenirse YALNIZCA `geometry` renkleri degistirilir, hicbir
+     `visibility: off` eklenmez.
+  ⚠️ YAPMA: jestleri tekrar `false` yapma; catismayi recognizer YERINE
+     jestleri kapatarak "cozme".
+- 🛡️ **TURU 86 — KALICI MUHAFIZ: `mobile/test/harita_stili_test.dart`**
+  (projenin ILK Flutter testi). Bu hata **SESSIZDI**: `flutter analyze` temiz
+  gecti, uygulama COKMEDI, harita "calisiyor" gorundu — yalnizca
+  **KULLANILAMAZ** oldu. Bu sinifi ancak GOZLE bakan biri yakalayabilirdi;
+  nitekim **KULLANICI SAHADA YAKALADI**. Muhafiz kaynagi DOSYADAN okur
+  (kopya yok -> drift imkansiz) ve dogrular: (1) stilde hicbir
+  `visibility: off` YOK, (2) scroll+zoom ACIK + `EagerGestureRecognizer` VAR.
+  ⚠️ **Calistigi KANITLANDI**: eski bozuk stil **IKI AYRI YAZIM BICIMIYLE**
+     (`'''` ham dize ve KACISLI duz dize) geri konup test KIRMIZIYA dusuruldu.
+     Ilk desen yalniz ham dizeyi yakaliyordu; **kacisli bicim SESSIZCE
+     GECIYORDU** -> desen ikisini de kapsayacak sekilde genisletildi.
+  ⚠️ Test kendi serhini eslestirmesin diye kaynak once **YORUMLARDAN
+     TEMIZLENIR** (turu 80b `sutun_test.go` + turu 83 `utf8_test.go` tuzagi).
+  ⚠️ YAPMA: bu testi silme.
+- ⚠️ **TURU 86 — DOGRULAMA SINIRI (durust not):** Dart AOT bu dizeleri duz
+  metin olarak SAKLAMADIGI icin "eski stil artifact'ten cikti" dize aramasiyla
+  KANITLANAMADI. Kanit zinciri: `libapp.so` MD5 degisti (37202a0f ->
+  7a76d7b0) + build `5088dda`'dan alindi + o commit duzeltmeyi iceriyor +
+  muhafiz testi o commit uzerinde YESIL.
+
+- **ONCEKI (11 Agu 07:36): TURU 85c YAYINLANDI** — android
   **31458313670** + ios **31458315418** (**43a6038**), R2 apk=120264179
   (md5 8a91aad1) ipa=31373352 (md5 5f58fd78) index=9456 (md5 2a257758),
   purge OK, **CDN BIREBIR (ucu de)**, debug imza YOK, **iOS min 16.0** +

@@ -6365,3 +6365,59 @@ okuyucusu yok (bilinçli) · pil isteğinin ayar ekranı üzerinde açılması (
 sıfırlanmıyor (etkisi yok) · `Isletme.fromJson`daki `?? 0` (nedensel olarak
 etkisiz) · `acildi` yer tutucu dalında kullanılmıyor (şerh balonu kapsıyor) ·
 onboarding'de `AlwaysScrollableScrollPhysics` (onaylı tasarım değişmiyor).
+
+### ⚠️⚠️⚠️ TURU 86 — HARİTA: "BU NASIL BİR HARİTA?" (kullanıcı, saha)
+
+**YAYINLANDI 08:26** — android `31460848125` + ios `31460849840` (**5088dda**),
+R2 apk=120264179 (md5 `678c63d9`) ipa=31373498 (md5 `7ffeafd3`) index=9456
+(md5 `473f2d7b`), purge OK, **CDN BİREBİR (üçü de)**, debug imza YOK.
+⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260811-0826
+
+Kullanıcı test ederken: *"bu nasıl bir harita? normal google haritası değil ki bu"*.
+**HAKLIYDI.** Turu 85'te "uber tarzı grimsi beyaz" isteğini bir stil JSON'una
+çevirirken haritanın **TANIMLAYICI HER UNSURUNU** kapatmışım:
+
+| kapatılan | sonuç |
+|---|---|
+| `poi: off` | hiçbir mekân/işletme görünmüyor |
+| `road … labels: off` | **SOKAK ADI YOK** |
+| `labels.icon: off` | simgeler yok |
+| `transit: off` | metro/otobüs yok |
+| `administrative geometry: off` | ilçe sınırları yok |
+
+Geriye beyaz çizgili **gri bir kâğıt** kalıyordu: kullanıcı nerede olduğunu
+anlayamıyor, hiçbir yeri tanıyamıyordu. **"Grimsi beyaz" bir RENK TERCİHİYDİ;
+haritayı okunamaz hale getirme yetkisi değildi.**
+
+İkinci kusur: harita **CANLI DEĞİLDİ** — `scroll/zoom/rotate/tilt` jestlerinin
+hepsi `false` idi (gerekçe: *"liste içinde, dikey jesti alırsa sayfa
+kaydırılamaz"*). Kullanıcı haritaya dokunup sürüyor ve **hiçbir şey
+olmuyordu**; etiketlerin de kapalı olmasıyla birleşince ortaya
+**"harita olmayan bir harita"** çıkmıştı.
+
+**FIX:** özel stil KALDIRILDI (normal Google haritası) · kaydırma +
+yakınlaştırma AÇILDI, liste çatışması **`EagerGestureRecognizer`** ile
+çözüldü (dokunuş haritada başlarsa harita, kartlarda başlarsa liste alır) ·
+"konumuma dön" düğmesi açıldı (harita artık sürüklendiği için şart).
+
+#### 🛡️ KALICI MUHAFIZ: `mobile/test/harita_stili_test.dart`
+Bu hata **SESSİZDİ**: `flutter analyze` temiz geçti, uygulama çökmedi,
+harita "çalışıyor" göründü — yalnızca **kullanılamaz** oldu. Bu sınıfı ancak
+gözle bakan biri yakalayabilirdi; nitekim **kullanıcı sahada yakaladı**.
+Test kaynağı DOSYADAN okur (kopya yok → drift imkânsız) ve doğrular:
+(1) stilde hiçbir `visibility: off` yok, (2) scroll+zoom açık +
+`EagerGestureRecognizer` var.
+⚠️ **Muhafızın çalıştığı KANITLANDI:** eski bozuk stil **iki ayrı yazım
+biçimiyle** (`'''` ham dize ve kaçışlı düz dize) geri konup test kırmızıya
+düşürüldü. İlk desen yalnız ham dizeyi yakalıyordu; **kaçışlı biçim sessizce
+geçiyordu** — desen ikisini de kapsayacak şekilde genişletildi.
+⚠️ Test kendi şerhini eşleştirmesin diye kaynak önce **yorumlardan
+temizlenir** (turu 80b `sutun_test.go` + turu 83 `utf8_test.go` tuzağı).
+
+⚠️ **DERS: bir görsel tercihi uygularken ürünün TEMEL İŞLEVİNİ elinden alma.**
+Harita bir dekor değil; sokak adı ve mekân etiketleri onun varoluş sebebidir.
+⚠️ **DOĞRULAMA SINIRI (dürüst not):** Dart AOT bu dizeleri düz metin olarak
+saklamadığı için "eski stil artifact'ten çıktı" dize aramasıyla
+kanıtlanamadı. Kanıt zinciri: `libapp.so` MD5 değişti
+(`37202a0f` → `7a76d7b0`) + build `5088dda`'dan alındı + o commit düzeltmeyi
+içeriyor + muhafız testi o commit üzerinde yeşil.
