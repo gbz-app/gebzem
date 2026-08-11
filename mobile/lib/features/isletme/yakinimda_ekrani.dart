@@ -239,7 +239,18 @@ const _su = Color(0xFFDDE6EC);
 const _yesil = Color(0xFFE8EDE6);
 
 class YakinimdaEkrani extends ConsumerStatefulWidget {
-  const YakinimdaEkrani({super.key});
+  const YakinimdaEkrani({super.key, this.kategori = ''});
+
+  /// ⚠️⚠️ TURU 92 — ACILIS KATEGORISI (kullanici emri: *"slider sag uste
+  ///    HARITA ekle, ona tikladiginda haritadan gorunsun"*).
+  ///
+  ///    Kategori listesindeki harita ikonundan gelindiginde AYNI kategoriyle
+  ///    acilir; kullanici serit ustunden degistirebilir.
+  /// ⚠️ IKINCI BIR HARITA EKRANI YAZILMADI: bu ekranda harita stili muhafizi,
+  ///    jest cakismasi cozumu (`EagerGestureRecognizer`), kamera takibi ve
+  ///    adresten pin cozumleme ZATEN var (turu 85-88). Kopyasi KACINILMAZ
+  ///    olarak drift ederdi.
+  final String kategori;
 
   @override
   ConsumerState<YakinimdaEkrani> createState() => _YakinimdaEkraniState();
@@ -250,7 +261,7 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
   List<IsletmeOzet> _liste = [];
   bool _yukleniyor = true;
   String? _hata;
-  String _kategori = '';
+  late String _kategori = widget.kategori;
   /// ⚠️⚠️ TURU 88 — MESAFE **SABIT 10 km**, secici KALDIRILDI (kullanici emri:
   ///    *"10km icinde vs kaldir"*). Slider + "N km icinde" satiri ekrandan
   ///    cikti; yaricap yine sunucuya GONDERILIYOR (uc onu ZORUNLU beklemiyor

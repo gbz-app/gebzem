@@ -98,6 +98,30 @@ class IsletmeServisi {
         .map((e) => IsletmeOzet.json((e as Map).cast<String, dynamic>()))
         .toList();
   }
+
+  /// ⚠️⚠️ TURU 92 — KATEGORI KESIF VERISI (alt kategoriler + slayt metinleri).
+  ///
+  /// ⚠️ TEK UC, IKI VERI: ayri iki uc, ekran acilisinda IKI istek demekti
+  ///    (turu 91'de olculen "acilistaki es zamanli istek" maliyeti).
+  Future<KesifVerisi> kesif(String kategori) async {
+    final r = await _api.get('/isletme-kesif',
+        queryParameters: {if (kategori.isNotEmpty) 'kategori': kategori});
+    final m = (r.data as Map).cast<String, dynamic>();
+    return (
+      altKategoriler: ((m['alt_kategoriler'] as List?) ?? [])
+          .map((e) => (
+                ad: ((e as Map)['ad'] ?? '').toString(),
+                ara: (e['ara'] ?? '').toString(),
+              ))
+          .toList(),
+      slaytlar: ((m['slaytlar'] as List?) ?? [])
+          .map((e) => (
+                baslik: ((e as Map)['baslik'] ?? '').toString(),
+                alt: (e['alt'] ?? '').toString(),
+              ))
+          .toList(),
+    );
+  }
 }
 
 /// ⚠️⚠️ KATEGORILER — `backend/internal/isletme/handler.go` ILE AYNI OLMALI.
@@ -371,3 +395,15 @@ class IsletmeOzet {
 }
 
 final isletmeServisiProvider = Provider<IsletmeServisi>(IsletmeServisi.new);
+
+/// ⚠️⚠️ TURU 92 — KATEGORI KESIF VERISI (alt kategoriler + slayt metinleri).
+///
+/// ⚠️ HER IKISI DE SUNUCUDAN: istemciye sabit yazmak turu 77'nin "Dart'a
+///    kategori sabiti YAZMA" kuralinin ihlali olurdu; yeni bir alt kategori
+///    ya da slayt metni eklemek MAGAZA ONAYI gerektirirdi ve eski surumler
+///    listeyi EKSIK gosterirdi.
+typedef KesifVerisi = ({
+  List<({String ad, String ara})> altKategoriler,
+  List<({String baslik, String alt})> slaytlar,
+});
+
