@@ -108,7 +108,10 @@ const isletmeKategorileri = <String, String>{
   'kafe': 'Kafe',
   'market': 'Market',
   'giyim': 'Giyim',
-  'kuafor': 'Kuaför & Güzellik',
+  'kuafor': 'Kuaför',
+  // TURU 90 - Go tarafiyla BIREBIR (handler.go Kategoriler).
+  'guzellik': 'Güzellik Merkezi',
+  'diyetisyen': 'Diyetisyen',
   'oto': 'Oto & Servis',
   'saglik': 'Sağlık',
   // ⚠️ TURU 85 — kullanici emri (eczane + otel). Sunucudaki `Kategoriler`

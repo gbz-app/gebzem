@@ -69,6 +69,20 @@ class HizmetMenusu extends ConsumerWidget {
         const Color(0xFF3AA9FF),
         const Color(0xFF12547A),
       ], (c) => const IlanListesiEkrani(tur: 'hizmet', baslik: 'Hizmetler')),
+      // ⚠️ TURU 90 — kullanici emri: *"is ilani ve OTELLER KATEGORILERDE
+      //    olmali"*. Ikisi de MEVCUT ekranlara baglanir, yeni ekran YOK:
+      //    · İş İlanları -> `IlanListesiEkrani(tur: 'is')` ('Hizmetler'in
+      //      birebir ayni kalibi; 'is' turu turu 90'da `ilan.Turler`e eklendi)
+      //    · Oteller     -> `IsletmeListesiEkrani(kategori: 'otel')`
+      //      ('Yemek'/'Sağlık' kartlariyla ayni kalip)
+      _Bolum('İş İlanları', [
+        const Color(0xFF0EA5A5),
+        const Color(0xFF0B5F63),
+      ], (c) => const IlanListesiEkrani(tur: 'is', baslik: 'İş İlanları')),
+      _Bolum('Oteller', [
+        const Color(0xFF6C7BFF),
+        const Color(0xFF2A3390),
+      ], (c) => const IsletmeListesiEkrani(kategori: 'otel', baslik: 'Oteller')),
       _Bolum('İşletmeler', [
         const Color(0xFFFFB03A),
         const Color(0xFFFF7A45),
@@ -118,6 +132,15 @@ class HizmetMenusu extends ConsumerWidget {
         ], (c) => const AiDanismaEkrani()),
     ];
 
+    // ⚠️ TURU 90 — "Yakınımda" listeden AYRILIR: ustte tek basina cizilir.
+    //    Listede de kalsaydi kullanici onu IKI KEZ gorurdu.
+    final yakinimda = bolumler
+        .where((b) => b.ad == 'Yakınımda')
+        .cast<_Bolum?>()
+        .firstWhere((_) => true, orElse: () => null);
+    final kategoriler =
+        bolumler.where((b) => b.ad != 'Yakınımda').toList();
+
     return SafeArea(
       child: ConstrainedBox(
         // ⚠️ Yukseklik TAVANI: 12 kart kucuk telefonda sheet'i ekran disina
@@ -152,21 +175,40 @@ class HizmetMenusu extends ConsumerWidget {
                 style: TextStyle(fontSize: 13, color: Colors.grey),
               ),
               const SizedBox(height: 14),
+              // ⚠️⚠️⚠️ TURU 90 — DUZEN YENIDEN KURULDU (kullanici emri:
+              //    *"kategorilerdeki kartlar 5 TANE ALT ALTA olacak;
+              //    YAKINIMDA YUKARIDA AYRI, altinda KATEGORILER yazacak"*).
+              //
+              //    ESKI: 3 sutunlu izgara, "Yakınımda" da diger kartlarla
+              //    ayni kutuda ve ayni boyutta.
+              //    YENI: "Yakınımda" USTTE TEK BASINA (vurgulu) · altinda
+              //    **KATEGORİLER** basligi · sonra TEK SUTUNLU satirlar.
+              //
+              // ⚠️ Satir yuksekligi 62 + 10 bosluk = 72; besi 360dp eder ve
+              //    sheet tavanina (%82) rahat sigar, kalani KAYDIRILIR.
+              // ⚠️ IKON YOK kurali KORUNDU (kullanici emri, turu 76b): satir
+              //    bir renk gecisli zemindir, yazi ICINDE. Tek sutunda yaziyi
+              //    kartin ALTINA koymak her satiri iki kat uzatirdi ve "5 tane
+              //    alt alta" istegi SAGLANAMAZDI.
+              if (yakinimda != null) _yakinimdaSatiri(context, yakinimda),
+              const SizedBox(height: 18),
+              const Text(
+                'KATEGORİLER',
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.1,
+                  color: Colors.grey,
+                ),
+              ),
+              const SizedBox(height: 10),
               Flexible(
-                child: GridView.builder(
+                child: ListView.separated(
                   shrinkWrap: true,
                   padding: EdgeInsets.zero,
-                  gridDelegate:
-                      const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 3,
-                        crossAxisSpacing: 10,
-                        mainAxisSpacing: 12,
-                        // ⚠️ Kart = kare zemin + altinda yazi -> 1'den kucuk
-                        //    en-boy. 0.82 ile yazi kirpilmadan sigar.
-                        childAspectRatio: 0.82,
-                      ),
-                  itemCount: bolumler.length,
-                  itemBuilder: (_, i) => _kart(context, bolumler[i]),
+                  itemCount: kategoriler.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 10),
+                  itemBuilder: (_, i) => _satir(context, kategoriler[i]),
                 ),
               ),
             ],
@@ -176,43 +218,85 @@ class HizmetMenusu extends ConsumerWidget {
     );
   }
 
-  Widget _kart(BuildContext context, _Bolum b) => GestureDetector(
-    onTap: () {
-      // ⚠️⚠️ NAVIGATOR POP'TAN **ONCE** YAKALANIR. `Navigator.of(context)`
-      //    pop'tan sonra okunursa sheet'in context'i olu olur ve ekran HIC
-      //    ACILMAZ (turu 59b/75b'nin "yanlis route" sinifi).
-      final nav = Navigator.of(context);
-      nav.pop();
-      nav.push(MaterialPageRoute(builder: b.ac));
-    },
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // ⚠️ IKONSUZ kart: yalnizca renk gecisli zemin (kullanici emri).
-        Expanded(
-          child: AspectRatio(
-            aspectRatio: 1,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(18),
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: b.renkler,
-                ),
-              ),
+  /// Sheet'i kapatip hedef ekrani acar.
+  ///
+  /// ⚠️⚠️ `Navigator.of(context)` **POP'TAN ONCE** yakalanir. Pop'tan sonra
+  ///    okunursa sheet'in context'i OLU olur ve ekran HIC ACILMAZ
+  ///    (turu 59b/75b'nin "yanlis route" sinifi).
+  void _ac(BuildContext context, _Bolum b) {
+    final nav = Navigator.of(context);
+    nav.pop();
+    nav.push(MaterialPageRoute(builder: b.ac));
+  }
+
+  /// "Yakınımda" — listeden AYRI, daha yuksek ve vurgulu (kullanici emri).
+  Widget _yakinimdaSatiri(BuildContext context, _Bolum b) => GestureDetector(
+    onTap: () => _ac(context, b),
+    child: Container(
+      height: 78,
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 18),
+      alignment: Alignment.centerLeft,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: b.renkler,
+        ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            b.ad,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: Colors.white,
             ),
           ),
+          const SizedBox(height: 2),
+          const Text(
+            'Çevrendeki işletmeleri haritada gör',
+            style: TextStyle(fontSize: 12.5, color: Colors.white70),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  /// Kategori satiri — TEK SUTUN, tam genislik.
+  ///
+  /// ⚠️ IKON YOK (kullanici emri, turu 76b): satir bir renk gecisli zemindir.
+  ///    Tek sutunda yaziyi kartin ALTINA koymak her satiri iki kat uzatir ve
+  ///    "5 tane alt alta" istegi SAGLANAMAZDI; bu yuzden yazi ICINDE.
+  Widget _satir(BuildContext context, _Bolum b) => GestureDetector(
+    onTap: () => _ac(context, b),
+    child: Container(
+      height: 62,
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 18),
+      alignment: Alignment.centerLeft,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        gradient: LinearGradient(
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+          colors: b.renkler,
         ),
-        const SizedBox(height: 7),
-        // ⚠️ Yazi KARTIN ALTINDA (icinde DEGIL) — kullanici emri.
-        Text(
-          b.ad,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+      ),
+      child: Text(
+        b.ad,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w700,
+          color: Colors.white,
         ),
-      ],
+      ),
     ),
   );
 }

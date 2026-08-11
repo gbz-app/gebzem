@@ -607,8 +607,35 @@ class _GebzemAppState extends ConsumerState<GebzemApp> with WidgetsBindingObserv
             statusBarIconBrightness: koyu ? Brightness.light : Brightness.dark,
             statusBarBrightness: koyu ? Brightness.dark : Brightness.light,
           ),
-          child: IncomingCallOverlay(
-              child: AktifAramaBanner(child: child ?? const SizedBox.shrink())),
+          // ⚠️⚠️⚠️ TURU 90 — BOSLUGA DOKUNUNCA ODAK BIRAKILIR (kullanici emri).
+          //
+          //	*"bir inputa tikladigimda YUKARIDA BIR YERE TIKLADIGIMDA
+          //	 INPUTTAN CIKMIYOR; mesaj, telefon, HERHANGI BIR SEYDE boyle"*.
+          //
+          //	Flutter'in VARSAYILAN davranisi budur: `TextField` disina
+          //	dokunmak klavyeyi KAPATMAZ. Uygulamada bunu yapan global bir
+          //	mekanizma YOKTU — `grep unfocus` yalnizca IKI ekranda elle
+          //	yazilmis cagri buluyordu (`isletme_duzenle`, `kesfet_ekrani`).
+          //	Yani sorun tek bir ekranda degil, HER ekranda vardi.
+          //
+          // ⚠️⚠️ `HitTestBehavior.translucent` **ZORUNLU**, `opaque` DEGIL:
+          //    `opaque` altindaki her seye dokunusu ENGELLER ve uygulama
+          //    KULLANILAMAZ hale gelir. `translucent` ile dokunus hem buraya
+          //    hem alttaki bilesenlere ULASIR.
+          // ⚠️ Jest arenasi: bir dugme/ListTile kendi `TapGestureRecognizer`i
+          //    ile ARENAYI KAZANIR ve buradaki `onTap` CALISMAZ — yani dugme
+          //    tiklamalari BOZULMAZ. Yalnizca BOS ALANA dokunus buraya duser.
+          // ⚠️ Video oynatici, harita (`EagerGestureRecognizer`) ve kaydirma
+          //    jestleri de kendi tanicilariyla kazanir; `onTap` yalniz
+          //    HAREKETSIZ dokunusta atesler, kaydirmayi ETKILEMEZ.
+          // ⚠️ YAPMA: `behavior`i `opaque` yapma; bu sarmali `Navigator`in
+          //    ICINE tasima (o zaman tam ekran route'larda calismaz).
+          child: GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+            child: IncomingCallOverlay(
+                child: AktifAramaBanner(child: child ?? const SizedBox.shrink())),
+          ),
         );
       },
     );

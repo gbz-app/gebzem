@@ -192,7 +192,25 @@ class _StoryEditorState extends State<StoryEditor> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      body: Stack(
+      // ⚠️⚠️⚠️ TURU 90 — `SizedBox.expand` **ZORUNLU** (kullanici bulgusu:
+      //    *"storyde RESIM COK UFAK, PAYLAS YUKARIDA PATLAMIS"*).
+      //
+      //	`Scaffold.body` cocuguna **GEVSEK** kisit verir (`minHeight: 0`).
+      //	`Stack` ise boyutunu **POSITIONED OLMAYAN** cocuklarindan alir;
+      //	buradaki cocuklarin cogu `Positioned` oldugu icin Stack KENDINI
+      //	ICERIGE gore kucultuyordu. Sonuc: tuval ekrani DOLDURMUYOR
+      //	(fotograf minicik) ve ust bardaki "Paylaş" satiri kayan/tasan bir
+      //	kutuya dusuyordu.
+      //	Girintinin fazla olmasi (cocuklar bir seviye ICERIDE) bir zamanlar
+      //	burada bir SARMALAYICI oldugunu ve bir duzenlemede DUSTUGUNU
+      //	gosteriyor.
+      //
+      // ⚠️ `StoryTuvali` SABIT 9:16 tuval sozlesmesini KORUR — burada yalnizca
+      //    Stack'e "tum alani kapla" deniyor; tuvalin kendi orani DEGISMEZ
+      //    (turu 77b: editor ile izleyici AYNI govdeyi kullanmak ZORUNDA).
+      // ⚠️ YAPMA: bu sarmali kaldirma.
+      body: SizedBox.expand(
+        child: Stack(
             children: [
               // ⚠️⚠️ TUVAL **SABIT 9:16** ve medya + katmanlar AYNI dikdortgene
               //    cizilir (bkz. story_katman.dart `StoryTuvali` serhi).
@@ -324,6 +342,7 @@ class _StoryEditorState extends State<StoryEditor> {
                 ),
               ),
             ],
+        ),
       ),
     );
   }

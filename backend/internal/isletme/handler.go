@@ -62,7 +62,13 @@ var Kategoriler = map[string]string{
 	"kafe":      "Kafe",
 	"market":    "Market",
 	"giyim":     "Giyim",
-	"kuafor":    "Kuaför & Güzellik",
+	"kuafor":    "Kuaför",
+	// TURU 90 - kullanici emri: 2 diyetisyen + 2 guzellik merkezi profili.
+	// Once 'guzellik' ayri anahtar DEGILDI (kuafor adinin icindeydi) ve
+	// 'diyetisyen' HIC YOKTU -> o isletmeler "Diğer"e dusuyordu.
+	// MIGRATION GEREKMEZ: isletmeler.kategori serbest TEXT (028).
+	"guzellik":  "Güzellik Merkezi",
+	"diyetisyen": "Diyetisyen",
 	"oto":       "Oto & Servis",
 	"saglik":    "Sağlık",
 	// ⚠️ TURU 85 — kullanici emri: "eczane vs, birde otel kategoriler,

@@ -139,6 +139,36 @@ var Turler = []Tur{
 			{Anahtar: "bolge", Ad: "Hizmet bölgesi", Tip: "metin"},
 		},
 	},
+	// ⚠️⚠️⚠️ TURU 90 — **IS ILANI** (kullanici emri: *"is ilani da olacak,
+	//    HERKES verebilmeli, normal kullanicilar haricinde BASVURU
+	//    YAPILABILMELI"*).
+	//
+	// ⚠️ MIGRATION GEREKMEDI: `ilanlar.tur` serbest TEXT (030'da CHECK YOK) ve
+	//    tura ozel alanlar `ozellikler JSONB`e yazilir. 030'un kendi serhi:
+	//    *"JSONB ile yeni tur SIFIR sema degisikligi"*.
+	// ⚠️ "HERKES verebilmeli": `ilan.Olustur` ISLETME HESABI ISTEMEZ (yalnizca
+	//    oturum) — yani bu istek EK BIR KAPI ACMADAN karsilaniyor.
+	// ⚠️ `fiyat_kurus` is ilaninda MAAS anlamina gelir; istemci etiketi
+	//    tura gore degistirir (0 = "belirtilmemiş").
+	{
+		Anahtar: "is", Ad: "İş İlanı",
+		Kategoriler: []Kat{
+			{"satis", "Satış & Pazarlama"}, {"garson", "Garson & Servis"},
+			{"mutfak", "Mutfak & Aşçı"}, {"kasiyer", "Kasiyer"},
+			{"guvenlik", "Güvenlik"}, {"temizlik_is", "Temizlik"},
+			{"sofor", "Şoför & Kurye"}, {"ofis", "Ofis & Muhasebe"},
+			{"saglik_is", "Sağlık"}, {"egitim_is", "Eğitim"},
+			{"teknik", "Teknik & Usta"}, {"is_diger", "Diğer"},
+		},
+		Alanlar: []Alan{
+			{Anahtar: "pozisyon", Ad: "Pozisyon", Tip: "metin"},
+			{Anahtar: "calisma_sekli", Ad: "Çalışma şekli", Tip: "secim",
+				Secenekler: []string{"Tam zamanlı", "Yarı zamanlı", "Stajyer", "Sözleşmeli", "Vardiyalı"}},
+			{Anahtar: "deneyim_yil", Ad: "Deneyim", Tip: "sayi", Birim: "yıl"},
+			{Anahtar: "egitim", Ad: "Eğitim", Tip: "secim",
+				Secenekler: []string{"Fark etmez", "İlköğretim", "Lise", "Ön lisans", "Lisans"}},
+		},
+	},
 }
 
 func turGecerli(t string) bool {
