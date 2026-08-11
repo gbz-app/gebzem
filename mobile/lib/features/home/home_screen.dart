@@ -1,14 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
-import 'package:permission_handler/permission_handler.dart';
 
 import '../../core/api.dart';
 import '../auth/auth_provider.dart';
 import '../medya/medya_gorsel.dart';
 import 'engellenenler.dart';
 import 'profil_duzenle.dart';
-import '../auth/permissions_screen.dart';
 import '../calls/calls_tab.dart';
 import '../chats/chats_provider.dart';
 import '../chats/chats_screen.dart';
@@ -54,7 +52,6 @@ final aktifSekme = ValueNotifier<int>(0);
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   int _index = 0;
-  bool? _permissionsAsked; // null = kontrol ediliyor
 
   // ⚠️⚠️ TURU 76 — SEKME DUZENI YENIDEN KURULDU (kullanici emri: "alt menude
   //    arama olmali: anasayfa, arama, mesaj, profil, reels, canli yayin").
@@ -85,53 +82,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   static const _ara = 1;
   static const _reels = 2;
 
-  @override
-  void initState() {
-    super.initState();
-    _checkPermissions();
-  }
+  /// TURU 89 — IZIN EKRANI KALDIRILDI, IZINLER ONBOARDINGTE ALINIYOR.
+  ///
+  ///	Kullanici emri: *"sana onboardingde izin al demistim, o izin ekrani
+  ///	icin AYRI SAYFAYI KALDIR, onboardingte sirayla gecerken izin
+  ///	alinsin"*.
+  ///
+  /// Bu ekranin ONUNDEKI tam sayfa izin kapisi ARTIK YOK. Onboarding
+  /// (uygulamanin ILK acilisi, oturumdan ONCE) her sayfasinda ilgili izni
+  /// istiyor; PermissionsScreen SILINDI.
+  ///
+  /// ⚠️ KURTARMA YOLU **Ayarlar > IZINLER**e tasindi: onboarding bayragi
+  ///    KALICI oldugu icin, izinleri reddeden kullanicinin baska donus yolu
+  ///    kalmazdi (uygulamayi silip yeniden kurmak disinda).
+  /// ⚠️ YAPMA: buraya tam sayfa izin kapisi geri koyma — kullanici ACIKCA
+  ///    ayri izin sayfasi ISTEMEDIGINI soyledi.
 
-  Future<void> _checkPermissions() async {
-    // "Sordum mu" isaretine DEGIL gercek izin durumuna bak: APK ustune guncellenince
-    // SharedPreferences silinmedigi icin eski flag kaliyor ve izin ekrani bir daha
-    // gelmiyordu. Izinlerden biri eksikse (ve kullanici "bir daha sorma" DEMEDIYSE)
-    // izin ekranini goster; hepsi verilince gec.
-    // ⚠️⚠️ TURU 85b — ADIMLI KAYITTAN GELEN KULLANICI MUAF (denetim bulgusu).
-    //    Turu 84 kayit akisina 4. adim olarak izin sayfasi ekledi. Kullanici
-    //    orada "Şimdilik geç" derse ya da izinlerden birini reddederse
-    //    asagidaki olcut FALSE kalir ve **AYNI IZIN EKRANI ARKA ARKAYA IKINCI
-    //    KEZ** cikardi (kayit bitti -> ana ekran -> yine izin ekrani).
-    // ⚠️ Bayrak SUREC OMURLUDUR: uygulama yeniden baslatildiginda bu kapi
-    //    yine calisir, yani "bir daha hic sorulmaz" DEGIL.
-    if (izinBuOturumdaSoruldu) {
-      if (mounted) setState(() => _permissionsAsked = true);
-      return;
-    }
-    final mic = await Permission.microphone.status;
-    final cam = await Permission.camera.status;
-    final notif = await Permission.notification.status;
-    final tamam = mic.isGranted && cam.isGranted && notif.isGranted;
-    final kaliciRed =
-        mic.isPermanentlyDenied ||
-        cam.isPermanentlyDenied ||
-        notif.isPermanentlyDenied;
-    if (mounted) {
-      setState(() => _permissionsAsked = tamam || kaliciRed);
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
-    // Ilk giriste izin ekrani (mikrofon, kamera, bildirim)
-    if (_permissionsAsked == null) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
-    if (_permissionsAsked == false) {
-      return PermissionsScreen(
-        onDone: () => setState(() => _permissionsAsked = true),
-      );
-    }
-
     return Scaffold(
       // ⚠️ AKIS, ARA ve REELS KENDI ust duzenlerini cizer — ust AppBar OLMAZ.
       //    Akista bolme secici + bildirim ikonu kendi seridinde; ARA'da ustte

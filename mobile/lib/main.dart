@@ -318,7 +318,22 @@ class _GebzemAppState extends ConsumerState<GebzemApp> with WidgetsBindingObserv
     // Izin ekraninda "Simdilik atla" denirse bu izinler hic istenmiyordu ->
     // gelen arama servisi basliyor (yesil mikrofon) ama EKRAN GORUNMUYORDU.
     // Her acilista idempotent iste (verilmisse tekrar sormaz).
-    if (Platform.isAndroid) {
+    //
+    // ⚠️⚠️⚠️ TURU 89 — `onboardingGoruldu` KAPISI **ZORUNLU** (SEVK ENGELI).
+    //
+    //	Turu 89'da izinler onboarding sayfalarina tasindi. Bu cagri KAPISIZ
+    //	kalsaydi IKI IZIN AKISI PARALEL kosardi ve `callkit_service.dart`
+    //	serhinde belgeli zincir islerdi: Android ayni anda TEK izin kumesi
+    //	kabul eder, ikinci istegi **SENKRON BOS SONUCLA** duserur ->
+    //	READ_PHONE_STATE sessizce `denied` -> `TelefonDurumu.izinVar()` false
+    //	-> **GSM dinleyicisi KAPALI** -> turu 56/63'te kapatilan GIZLILIK
+    //	acigi (GSM gorusmesi surerken Gebzem mikrofonunun acik kalmasi)
+    //	GERI GELIR. Turu 87'de tam bu carpisma yasandi ve duzeltildi.
+    //
+    // ⚠️ Kapi onboardingi BITIRENLERI korumaya devam eder: onlar icin bu
+    //    cagri hala her acilista idempotent kosar (izin verilmisse sormaz).
+    // ⚠️ YAPMA: bu kapiyi kaldirma; onboarding surerken izin isteme.
+    if (Platform.isAndroid && tercihler.onboardingGoruldu) {
       await CallKitService.izinleriIste();
     }
   }

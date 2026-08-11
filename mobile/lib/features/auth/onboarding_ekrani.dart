@@ -1,10 +1,15 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // SystemUiOverlayStyle (durum cubugu)
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../../core/tercihler.dart';
 import '../../core/theme.dart';
+import '../calls/callkit_service.dart';
+import 'permissions_screen.dart' show izinSorulduIsaretle;
 
 /// ⚠️⚠️⚠️ TURU 81 — ILK ACILIS ONBOARDING (4 EKRAN).
 ///
@@ -42,6 +47,9 @@ class _OnboardingEkraniState extends ConsumerState<OnboardingEkrani> {
   final _ctrl = PageController();
   int _sayfa = 0;
 
+  /// Izin diyalogu ucustayken "Devam" kilitlenir (bkz. _devam serhi).
+  bool _mesgul = false;
+
   /// ⚠️⚠️ TURU 84 — ACIKLAMALAR **KISALTILDI** (kullanici emri: *"baslik alta
   ///    KISA PROFESYONEL aciklama"*). Onceki metinler iki cumleydi ve ozellik
   ///    SAYIYORDU ("gruplar, sesli odalar, canli yayin da burada").
@@ -49,33 +57,54 @@ class _OnboardingEkraniState extends ConsumerState<OnboardingEkrani> {
   ///    profesyonel onboarding dili budur.
   /// ⚠️ YAPMA: buraya ozellik listesi geri koyma; her satir tek cumle kalsin.
   static const _sayfalar = <_Sayfa>[
+    // ⚠️⚠️ TURU 89 — HER SAYFA KENDI IZNINI ISTER (kullanici emri).
+    //    Aciklama metinleri IZNIN NEDEN GEREKTIGINI soyluyor; kullanici
+    //    diyalogu gormeden ONCE gerekceyi okumus oluyor (App Store'un da
+    //    bekledigi desen).
     _Sayfa(
-      baslik: 'Mesajlaş, ara,',
-      vurgu: 'görüntülü konuş',
-      alt: 'Yakınlarınla anlık mesajlaş, sesli ve görüntülü görüş.',
-      ikonlar: [LucideIcons.messageCircle, LucideIcons.phone, LucideIcons.video],
+      baslik: 'Sesli ve görüntülü',
+      vurgu: 'konuş',
+      alt: 'Görüşme yapabilmek için mikrofona erişmemiz gerekiyor. '
+          'Yalnızca sen arama başlattığında veya bir aramayı kabul '
+          'ettiğinde kullanılır.',
+      ikonlar: [LucideIcons.phone, LucideIcons.mic, LucideIcons.video],
+      izin: _OnboardIzin.mikrofon,
     ),
     _Sayfa(
-      baslik: 'Paylaş,',
-      vurgu: 'keşfet',
-      alt: 'Anlarını paylaş, şehrinde olan biteni akışında gör.',
-      ikonlar: [LucideIcons.images, LucideIcons.compass, LucideIcons.heart],
+      baslik: 'Görüntülü aramada',
+      vurgu: 'kameran',
+      alt: 'Görüntülü görüşme ve hikâye paylaşımı için kamera izni. '
+          'Kamerayı yalnızca sen açtığında çalışır.',
+      ikonlar: [LucideIcons.video, LucideIcons.camera, LucideIcons.images],
+      izin: _OnboardIzin.kamera,
     ),
     _Sayfa(
-      baslik: 'Şehrindeki',
-      vurgu: 'işletmeler',
-      alt: 'Restoran, kuaför, doktor — hepsi tek uygulamada.',
-      ikonlar: [LucideIcons.store, LucideIcons.utensils, LucideIcons.ticket],
-    ),
-    _Sayfa(
-      baslik: 'Rezervasyon ve',
-      vurgu: 'randevu',
-      alt: 'Müsait saati seç, randevunu tek dokunuşla al.',
+      baslik: 'Gelen aramayı',
+      vurgu: 'kaçırma',
+      alt: 'Mesaj ve aramaları görebilmen için bildirim izni gerekiyor. '
+          'İzin vermezsen telefonun çalmaz.',
       ikonlar: [
-        LucideIcons.calendarCheck,
-        LucideIcons.clock,
+        LucideIcons.bell,
+        LucideIcons.messageCircle,
+        LucideIcons.phoneIncoming,
+      ],
+      izin: _OnboardIzin.bildirim,
+    ),
+    // ⚠️ TAM EKRAN BILDIRIM EN SON: sistem AYARLAR ekranini acar ve Activity
+    //    duraklar. Ortada olsaydi sonraki izin diyalogu GOSTERILMEZDI
+    //    (turu 56'da tam bu yuzden READ_PHONE_STATE 36 tur boyunca hic
+    //    alinamadi).
+    _Sayfa(
+      baslik: 'Telefon kilitliyken',
+      vurgu: 'arama ekranı',
+      alt: 'Telefonun kilitliyken gelen aramanın ekranda açılabilmesi için '
+          'son bir izin. Bir sonraki adımda ayarlar açılabilir.',
+      ikonlar: [
+        LucideIcons.smartphone,
+        LucideIcons.bellRing,
         LucideIcons.circleCheck,
       ],
+      izin: _OnboardIzin.tamEkran,
     ),
   ];
 
@@ -89,7 +118,68 @@ class _OnboardingEkraniState extends ConsumerState<OnboardingEkrani> {
     // ⚠️ Bayrak ONCE yazilir, sonra yonlendirilir: ters sirada olsaydi
     //    yonlendirme sirasinda uygulama oldurulurse onboarding TEKRAR cikardi.
     await tercihler.onboardingGorulduYaz();
+    // ⚠️ TURU 89 — izin akisinin KOSTUGU isaretlenir; `HomeScreen` kapisi
+    //    ayni oturumda izin ekranini bir daha ACMAZ (o ekran zaten silindi
+    //    ama bayrak kapiyi da susturur).
+    await izinSorulduIsaretle();
     if (mounted) widget.onBitti();
+  }
+
+  /// ⚠️⚠️⚠️ TURU 89 — "DEVAM": once SAYFANIN IZNI istenir, SONRA gecilir.
+  ///
+  ///	Kullanici emri: *"o izin ekrani icin ayri sayfayi kaldir, onboardingte
+  ///	SIRAYLA GECERKEN izin alinsin"*.
+  ///
+  /// ⚠️ IZIN REDDEDILSE BILE AKIS DEVAM EDER. Zorlamak (a) App Store
+  ///    incelemesinde kotu karsilanir, (b) kullaniciyi ilk ekranda kaybettirir.
+  ///    Reddeden kullanici izinleri sonra Ayarlar > İzinler'den verebilir.
+  /// ⚠️ `_mesgul` kapisi ZORUNLU: izin diyalogu acikken "Devam"a tekrar
+  ///    basmak IKINCI bir istek gonderir ve Android ayni anda TEK izin kumesi
+  ///    kabul ettigi icin ikincisi SESSIZCE `denied` doner (turu 87 carpismasi).
+  /// ⚠️ Her adim KENDI `try` blogunda: biri firlarsa sonrakiler ve sayfa
+  ///    gecisi ETKILENMEZ.
+  Future<void> _devam(bool son) async {
+    if (_mesgul) return;
+    final izin = _sayfalar[_sayfa].izin;
+    if (izin != null) {
+      setState(() => _mesgul = true);
+      try {
+        switch (izin) {
+          case _OnboardIzin.bildirim:
+            await Permission.notification.request();
+          case _OnboardIzin.mikrofon:
+            await Permission.microphone.request();
+          case _OnboardIzin.kamera:
+            await Permission.camera.request();
+          case _OnboardIzin.tamEkran:
+            // ⚠️ `bildirimIste: false` — POST_NOTIFICATIONS bir onceki
+            //    sayfada ZATEN istendi. Tekrar istemek turu 87'de belgelenen
+            //    carpismayi (READ_PHONE_STATE sessizce `denied`) uretir.
+            await CallKitService.izinleriIste(bildirimIste: false);
+            // Pil optimizasyonu muafiyeti: kapaliyken arama alabilmek icin.
+            if (Platform.isAndroid) {
+              try {
+                if (!await Permission.ignoreBatteryOptimizations.isGranted) {
+                  await Permission.ignoreBatteryOptimizations.request();
+                }
+              } catch (_) {}
+            }
+        }
+      } catch (_) {
+        // Izin reddi ya da platform hatasi AKISI DURDURMAZ.
+      }
+      if (!mounted) return;
+      setState(() => _mesgul = false);
+    }
+    if (!mounted) return;
+    if (son) {
+      await _bitir();
+    } else {
+      await _ctrl.nextPage(
+        duration: const Duration(milliseconds: 260),
+        curve: Curves.easeOutCubic,
+      );
+    }
   }
 
   @override
@@ -171,12 +261,9 @@ class _OnboardingEkraniState extends ConsumerState<OnboardingEkrani> {
                 width: double.infinity,
                 height: 52,
                 child: FilledButton(
-                  onPressed: son
-                      ? _bitir
-                      : () => _ctrl.nextPage(
-                          duration: const Duration(milliseconds: 260),
-                          curve: Curves.easeOutCubic,
-                        ),
+                  // ⚠️ TURU 89 — izin ONCE istenir, sonra gecilir/bitirilir
+                  //    (bkz. `_devam` serhi).
+                  onPressed: _mesgul ? null : () => _devam(son),
                   style: FilledButton.styleFrom(
                     backgroundColor: morLogo,
                     // ⚠️⚠️ TURU 85b — `foregroundColor` ACIKCA BEYAZ (denetim).
@@ -220,15 +307,36 @@ class _Sayfa {
     required this.vurgu,
     required this.alt,
     required this.ikonlar,
+    this.izin,
   });
 
   final String baslik;
 
-  /// Baslikta ITALIK ve MOR cizilen kelime (kullanicinin gonderdigi tasarim).
+  /// Baslikta AYRI cizilen kelime.
+  /// ⚠️ TURU 89: artik italik/mor DEGIL — baslikla birlestirilip SIYAH cizilir
+  ///    (kullanici emri). Alan KORUNDU: metin ayrimi okunakli kaliyor.
   final String vurgu;
   final String alt;
   final List<IconData> ikonlar;
+
+  /// ⚠️⚠️ TURU 89 — SAYFANIN ISTEDIGI IZIN (kullanici emri: *"o izin ekrani
+  ///    icin ayri sayfayi kaldir, onboardingte SIRAYLA GECERKEN izin
+  ///    alinsin"*).
+  ///
+  /// "Devam"a basildiginda, BIR SONRAKI sayfaya gecmeden ONCE bu izin
+  /// istenir. `null` ise izin istenmez.
+  /// ⚠️ Izin REDDEDILSE BILE akis DEVAM EDER — zorlama yok (App Store
+  ///    incelemesinde de kotu karsilanir ve kullaniciyi kaybettirir).
+  final _OnboardIzin? izin;
 }
+
+/// Onboarding sayfalarinin isteyebilecegi izinler.
+///
+/// ⚠️ `tamEkran` (Android 14+ tam ekran bildirim) BILEREK EN SONA konuldu:
+///    o izin SISTEM AYARLAR EKRANINI acar ve Activity duraklar. Ortada
+///    istenirse `PageView` durumu bozulur ve ardindan gelen izin diyalogu
+///    GOSTERILMEZ (turu 56 dersi: "ayar ekranina sicrama EN SON").
+enum _OnboardIzin { bildirim, mikrofon, kamera, tamEkran }
 
 class _SayfaGorunumu extends StatelessWidget {
   const _SayfaGorunumu({required this.s});

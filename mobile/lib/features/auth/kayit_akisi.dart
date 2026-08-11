@@ -4,20 +4,19 @@
 /// kisisel bilgiler seklinde olacak; izinleri step sayfasinda alalim, video ses
 /// icin aciklama yapalim ki kullanicilar anlasin"*.
 ///
-/// ═══════════ DORT ADIM ═══════════
+/// ═══════════ UC ADIM ═══════════
 ///   0 · TELEFON        -> `/auth/kayit/telefon`  (hesap OLUSTURULMAZ)
 ///   1 · KOD            -> `/auth/kayit/dogrula`  (kayit jetonu alinir)
 ///   2 · KISISEL BILGI  -> `/auth/kayit/tamamla`  (hesap olusur, OTURUM ACILIR)
-///   3 · IZINLER        -> sistem diyaloglari + NEDEN gerekli aciklamasi
 ///
-/// ⚠️ **IZIN ADIMI OTURUM ACILDIKTAN SONRA** gelir. Sebep: izin diyaloglari
-///    reddedilse bile hesap ZATEN kurulmus olmali — aksi halde izni reddeden
-///    kullanici kayit olamamis sayilirdi.
-///
-/// ⚠️⚠️ `PermissionsScreen` REPODA VARDI AMA **HICBIR YERDEN CAGRILMIYORDU**
-///    (yalnizca kendi dosyasinda gecen bir sinif). Yani izin ekrani ONUNCU
-///    "olu ozellik" ornegiydi: yazilmis, test edilmemis, ulasilamaz.
-///    Bu akis onu nihayet gercek bir yola bagliyor.
+/// ⚠️⚠️⚠️ TURU 89 — **IZIN ADIMI KALDIRILDI.** Kullanici emri: *"sana
+///    onboardingde izin al demistim; o izin ekrani icin AYRI SAYFAYI KALDIR,
+///    onboardingte SIRAYLA GECERKEN izin alinsin"*.
+///    Izinler artik `onboarding_ekrani.dart`ta aliniyor — her sayfa kendi
+///    iznini istiyor ve aciklamasi da o sayfanin metninde.
+///    Kurtarma yolu: **Ayarlar > IZINLER** (onboarding bayragi kalici
+///    oldugu icin reddeden kullanicinin baska donus yolu kalmazdi).
+///    ⚠️ YAPMA: buraya 4. adim olarak izin ekrani geri koyma.
 ///
 /// ═══════════ TASARIM ═══════════
 /// Onboarding ile AYNI dil: **beyaz zemin · yazilar SOLDA · baslik + kisa
@@ -34,7 +33,6 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../core/api.dart';
 import '../../core/theme.dart';
 import 'auth_provider.dart';
-import 'permissions_screen.dart' show izinleriTopluIste, izinSorulduIsaretle;
 
 const Color _yazi = Color(0xFF14141A);
 const Color _altYazi = Color(0xFF6B6B76);
@@ -174,42 +172,14 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
             password: _sifre.text,
           );
       if (!mounted) return;
-      // ⚠️⚠️ OTURUM ACILDI ama YONLENDIRME YOK — izin adimina geciyoruz.
-      //    `go_router` yonlendirmesi oturum acilinca ana ekrana atmak
-      //    isteyecek; bu ekran yigindaki route oldugu icin izin adimi USTTE
-      //    kalir ve kullanici "Devam"a basana kadar gorunur.
-      setState(() => _adim = 3);
+      // ⚠️ TURU 89 — izin adimi KALKTI: hesap kurulur kurulmaz ana ekrana.
+      //    Izinler onboardingte ZATEN alindi (uygulamanin ilk acilisinda).
+      _bitir();
     } catch (e) {
       if (mounted) _uyar(apiErrorMessage(e));
     } finally {
       if (mounted) setState(() => _mesgul = false);
     }
-  }
-
-  // ------------------------------------------------------------ ADIM 3
-  Future<void> _izinleriIste() async {
-    setState(() => _mesgul = true);
-    try {
-      // ⚠️⚠️ TURU 85b — TEK KAYNAK (`permissions_screen.dart`).
-      //    Eskiden burada YALNIZ bildirim/mikrofon/kamera isteniyordu;
-      //    Android 14+ TAM EKRAN BILDIRIM izni ve pil optimizasyonu muafiyeti
-      //    ATLANMISTI -> kayit akisiyla gelen kullanicinin telefonu KILITLIYKEN
-      //    gelen arama ekrani ACILMIYORDU. Ayrintili gerekce o dosyada.
-      // ⚠️ YAPMA: adimlari buraya geri kopyalama.
-      await izinleriTopluIste();
-    } catch (_) {
-      // Izin reddi HATA DEGIL — kullanici sonra Ayarlar'dan verebilir.
-    }
-    if (!mounted) return;
-    setState(() => _mesgul = false);
-    _bitir();
-  }
-
-  Future<void> _izinleriGec() async {
-    // ⚠️ "Şimdilik geç" de akisin KOSTUGUNU isaretler; aksi halde `HomeScreen`
-    //    izin kapisi AYNI EKRANI ikinci kez acardi (denetim bulgusu).
-    await izinSorulduIsaretle();
-    _bitir();
   }
 
   void _bitir() {
@@ -259,12 +229,7 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
       // ⚠️ Geri tusu AKISI TERK ETMEZ; "Şimdilik geç" ile AYNI yolu kosar
       //    (isaretle + ana ekrana git), yani kullanici mahsur da kalmaz.
       // ⚠️ Yalniz 4. adimda kilitlenir; 1-3. adimlarda geri normal calisir.
-      child: PopScope(
-        canPop: _adim != 3,
-        onPopInvokedWithResult: (didPop, _) {
-          if (!didPop) _izinleriGec();
-        },
-        child: Theme(
+      child: Theme(
         data: lightTheme,
         child: Scaffold(
         // ⚠️ Zemin SABIT BEYAZ — onboarding ile ayni dil (kullanici emri).
@@ -281,8 +246,7 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
                 child: switch (_adim) {
                   0 => _adimTelefon(),
                   1 => _adimKod(),
-                  2 => _adimBilgiler(),
-                  _ => _adimIzinler(),
+                  _ => _adimBilgiler(),
                 },
               ),
             ),
@@ -290,7 +254,6 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
           ],
           ),
           ),
-        ),
         ),
       ),
     );
@@ -303,7 +266,7 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
       children: [
         // ⚠️ IZIN ADIMINDA GERI YOK: hesap ZATEN kuruldu, geri donmek
         //    kullaniciyi doldurulmus ama artik gecersiz bir forma dondururdu.
-        if (_adim > 0 && _adim < 3)
+        if (_adim > 0)
           IconButton(
             icon: const Icon(LucideIcons.arrowLeft, color: _yazi),
             onPressed: _mesgul ? null : () => setState(() => _adim -= 1),
@@ -317,20 +280,20 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
     ),
   );
 
-  /// Dort adimlik ince ilerleme cubugu.
+  /// Uc adimlik ince ilerleme cubugu.
   ///
   /// ⚠️ Yuzde YAZISI YOK: adim adimlarin kendisi zaten gorunuyor ve yuzde
   ///    kullaniciya bir sey katmiyor (gorsel gurultu).
   Widget _ilerlemeCubugu() => Padding(
     padding: const EdgeInsets.symmetric(horizontal: 28),
     child: Row(
-      children: List.generate(4, (i) {
+      children: List.generate(3, (i) {
         final dolu = i <= _adim;
         return Expanded(
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 220),
             height: 3,
-            margin: EdgeInsets.only(right: i == 3 ? 0 : 6),
+            margin: EdgeInsets.only(right: i == 2 ? 0 : 6),
             decoration: BoxDecoration(
               color: dolu ? morLogo : _cizgi,
               borderRadius: BorderRadius.circular(2),
@@ -476,97 +439,12 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
     ],
   );
 
-  /// ⚠️⚠️ IZIN ADIMI — **HER IZNIN NEDENI YAZILI** (kullanici emri:
-  ///    *"video ses icin aciklama yapalim ki kullanicilar anlasin"*).
-  ///
-  /// ⚠️ Sistem diyaloglari kendi metinlerini gosterir ve orada NEDEN
-  ///    yazamayiz; bu yuzden gerekce diyalogdan ONCE burada anlatilir
-  ///    (Apple'in ve Google'in onerdigi "pre-permission priming" deseni).
-  ///    Aksi halde kullanici baglamsiz bir "mikrofona erisim" diyalogu gorup
-  ///    reddediyor ve arama ozelligi SESSIZCE calismaz hale geliyor.
-  Widget _adimIzinler() => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      _baslik(
-        'Son bir adım',
-        'Aramaların ve paylaşımların çalışması için birkaç izne ihtiyacımız var.',
-      ),
-      _izinSatiri(
-        LucideIcons.mic,
-        'Mikrofon',
-        'Sesli arama, görüntülü arama ve sesli mesaj için. '
-            'İzin vermezsen karşı taraf seni duyamaz.',
-      ),
-      _izinSatiri(
-        LucideIcons.video,
-        'Kamera',
-        'Görüntülü arama, hikâye ve fotoğraf/video paylaşımı için. '
-            'İzin vermezsen kameran açılmaz.',
-      ),
-      _izinSatiri(
-        LucideIcons.bell,
-        'Bildirim',
-        'Mesaj ve arama geldiğinde haberin olsun diye. '
-            'İzin vermezsen telefonun çalmaz.',
-      ),
-      const SizedBox(height: 8),
-      const Text(
-        'İzinleri sonra Ayarlar’dan da verebilirsin.',
-        style: TextStyle(fontSize: 12.5, color: _altYazi),
-      ),
-    ],
-  );
-
-  Widget _izinSatiri(IconData ikon, String baslik, String aciklama) => Padding(
-    padding: const EdgeInsets.only(bottom: 20),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: morLogo.withValues(alpha: 0.10),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Icon(ikon, size: 20, color: morLogo),
-        ),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                baslik,
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: _yazi,
-                ),
-              ),
-              const SizedBox(height: 3),
-              Text(
-                aciklama,
-                style: const TextStyle(
-                  fontSize: 13,
-                  height: 1.45,
-                  color: _altYazi,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    ),
-  );
-
   // ------------------------------------------------------------ ALT DUGME
   Widget _altDugme() {
     final (etiket, is_) = switch (_adim) {
       0 => ('Kodu gönder', _telefonGonder),
       1 => ('Doğrula', _koduDogrula),
-      2 => ('Hesabı oluştur', _hesabiKur),
-      _ => ('İzin ver ve başla', _izinleriIste),
+      _ => ('Hesabı oluştur', _hesabiKur),
     };
     return Padding(
       padding: const EdgeInsets.fromLTRB(28, 8, 28, 18),
@@ -611,14 +489,6 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
                     ),
             ),
           ),
-          // ⚠️ IZIN ADIMINDA "sonra" secenegi ZORUNLU: zorlamak App Store
-          //    incelemesinde de kotu karsilanir ve kullaniciyi kaybettirir.
-          if (_adim == 3)
-            TextButton(
-              onPressed: _mesgul ? null : _izinleriGec,
-              style: TextButton.styleFrom(foregroundColor: _altYazi),
-              child: const Text('Şimdilik geç'),
-            ),
         ],
       ),
     );

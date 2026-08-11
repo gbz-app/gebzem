@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:permission_handler/permission_handler.dart' show openAppSettings;
 
 import '../../core/tercihler.dart';
+// ⚠️ TURU 89 — izin dizisi TEK KAYNAK (bkz. o dosyanin serhi).
+import '../auth/permissions_screen.dart' show izinleriTopluIste;
 
 /// ⚠️⚠️⚠️ TURU 81 — AYARLAR. Uygulamada BUGUNE KADAR HIC ayarlar ekrani yoktu.
 ///
@@ -67,6 +70,41 @@ class AyarlarEkrani extends ConsumerWidget {
               'Açık gri', 'Sade, düşük renkli gündüz görünümü'),
           _haritaSecenek(context, ref, harita, 'gece', LucideIcons.moonStar,
               'Gece', 'Koyu harita'),
+          const Divider(height: 32),
+          // ⚠️⚠️⚠️ TURU 89 — IZIN KURTARMA YOLU **ZORUNLU**.
+          //
+          //	Bu tur, ayri izin ekranini (`PermissionsScreen` + kayit 4. adim)
+          //	KALDIRDI ve izinleri onboarding sayfalarina tasidi. Onboarding
+          //	bayragi KALICIDIR (`shared_preferences`), yani bir kez bitiren
+          //	kullanici o sayfalari BIR DAHA GORMEZ.
+          //	Bu giris OLMASAYDI: izinleri reddeden kullanicinin uygulamayi
+          //	SILIP YENIDEN KURMAKTAN baska donus yolu KALMAZDI.
+          // ⚠️ YAPMA: bu girisi kaldirma.
+          const _Baslik('İZİNLER'),
+          ListTile(
+            leading: const Icon(LucideIcons.shieldCheck),
+            title: const Text('İzinleri yeniden iste'),
+            subtitle: const Text(
+              'Mikrofon, kamera, bildirim ve kilit ekranı arama izni',
+            ),
+            onTap: () async {
+              await izinleriTopluIste();
+              if (!context.mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('İzin ayarları güncellendi')),
+              );
+            },
+          ),
+          ListTile(
+            leading: const Icon(LucideIcons.settings),
+            title: const Text('Telefon ayarlarını aç'),
+            subtitle: const Text(
+              'Kalıcı olarak reddettiğin izinler yalnızca buradan verilebilir',
+            ),
+            // ⚠️ "Bir daha sorma" denmis bir izin `request()` ile ASLA geri
+            //    alinamaz; tek yol sistem ayarlaridir.
+            onTap: () => openAppSettings(),
+          ),
           const Divider(height: 32),
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 16),
