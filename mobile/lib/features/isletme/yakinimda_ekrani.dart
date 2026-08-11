@@ -31,6 +31,9 @@ library;
 
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show Factory;
+import 'package:flutter/gestures.dart'
+    show EagerGestureRecognizer, OneSequenceGestureRecognizer;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -66,26 +69,30 @@ const haritaAnahtariVar = bool.fromEnvironment('HARITA');
 ///    stil UCRETSIZDIR ve ayni gorunumu verir.
 /// ⚠️ Renkler yer tutucu paletiyle (`_zemin`/`_yol`/`_su`) AYNI aileden:
 ///    anahtar eklendiginde gorsel SICRAMA olmasin.
-const _uberStili = '''
-[
- {"elementType":"geometry","stylers":[{"color":"#f2f3f5"}]},
- {"elementType":"labels.icon","stylers":[{"visibility":"off"}]},
- {"elementType":"labels.text.fill","stylers":[{"color":"#8b8b93"}]},
- {"elementType":"labels.text.stroke","stylers":[{"color":"#f2f3f5"}]},
- {"featureType":"administrative","elementType":"geometry","stylers":[{"visibility":"off"}]},
- {"featureType":"poi","stylers":[{"visibility":"off"}]},
- {"featureType":"road","elementType":"geometry","stylers":[{"color":"#ffffff"}]},
- {"featureType":"road","elementType":"geometry.stroke","stylers":[{"color":"#e4e6ea"}]},
- {"featureType":"road","elementType":"labels","stylers":[{"visibility":"off"}]},
- {"featureType":"road.arterial","elementType":"geometry","stylers":[{"color":"#ffffff"}]},
- {"featureType":"road.highway","elementType":"geometry","stylers":[{"color":"#ffffff"}]},
- {"featureType":"road.highway","elementType":"geometry.stroke","stylers":[{"color":"#dcdee3"}]},
- {"featureType":"landscape.natural","elementType":"geometry","stylers":[{"color":"#e8ede6"}]},
- {"featureType":"transit","stylers":[{"visibility":"off"}]},
- {"featureType":"water","elementType":"geometry","stylers":[{"color":"#dde6ec"}]},
- {"featureType":"water","elementType":"labels.text","stylers":[{"visibility":"off"}]}
-]
-''';
+/// ⚠️⚠️⚠️ TURU 86 — **ÖZEL STİL KALDIRILDI, NORMAL GOOGLE HARİTASI KULLANILIYOR.**
+///
+/// Kullanıcı (11 Ağu): *"bu nasıl bir harita? normal google haritası değil ki bu"*.
+/// **HAKLIYDI.** Turu 85'te "uber tarzı grimsi beyaz" isteğini bir stil JSON'una
+/// çevirirken haritanın TANIMLAYICI her unsurunu kapatmıştım:
+///
+///	· `poi` -> **visibility: off**     (hiçbir işletme/mekân görünmüyor)
+///	· `road … labels` -> **off**       (SOKAK ADI YOK)
+///	· `labels.icon` -> **off**         (simgeler yok)
+///	· `transit` -> **off**             (metro/otobüs yok)
+///	· `administrative geometry` -> off (ilçe sınırları yok)
+///
+/// Geriye beyaz çizgili GRİ BİR KÂĞIT kalıyordu — kullanıcı nerede olduğunu
+/// anlayamıyor, bir yeri tanıyamıyordu. "Grimsi beyaz" bir RENK TERCİHİYDİ;
+/// haritayı OKUNAMAZ hale getirme yetkisi değildi.
+///
+/// ⚠️ **DERS: bir görsel tercihi uygularken ürünün TEMEL İŞLEVİNİ elinden
+///    alma.** Harita bir dekor değil; sokak adı ve mekân etiketleri onun
+///    VAROLUŞ SEBEBİDİR.
+/// ⚠️ YAPMA: buraya `poi`/`road labels`/`transit` kapatan bir stil geri koyma.
+///    Renk tonu istenirse YALNIZCA `geometry` renkleri değiştirilir, hiçbir
+///    `visibility: off` eklenmez.
+/// ⚠️ `cloudMapId` YASAK (CLAUDE.md — ücretli).
+const String? _haritaStili = null;
 
 const _zemin = Color(0xFFF2F3F5);
 const _yol = Color(0xFFFFFFFF);
@@ -481,19 +488,38 @@ class _HaritaAlaniState extends State<_HaritaAlani> {
                 // ⚠️ Controller SAKLANIR: konum degisince kamerayi tasiyan
                 //    TEK yol budur (bkz. sinif serhi).
                 onMapCreated: (c) => _harita = c,
-                // ⚠️ **UBER TARZI GRIMSI-BEYAZ**: stil YEREL JSON olarak
-                //    veriliyor. CLAUDE.md `cloudMapId` kullanimini yasakliyor
-                //    (ucretli); yerel stil UCRETSIZDIR ve ayni gorunumu verir.
-                style: _uberStili,
+                // ⚠️ NORMAL GOOGLE HARITASI (bkz. `_haritaStili` serhi).
+                style: _haritaStili,
                 myLocationEnabled: true,
-                myLocationButtonEnabled: false,
-                // ⚠️ Harita bir LISTE ICINDE: kendi dikey jestini alirsa
-                //    kullanici sayfayi kaydiramaz. Yalniz YAKINLASTIRMA acik.
-                scrollGesturesEnabled: false,
+                // ⚠️ TURU 86 — "konumuma don" dugmesi ACILDI: harita artik
+                //    surukleniyor, dolayisiyla geri donme yolu SART.
+                myLocationButtonEnabled: true,
+                // ⚠️⚠️⚠️ TURU 86 — HARITA JESTLERI **ACILDI** (kullanici emri).
+                //
+                //	Turu 85'te bunlarin hepsi `false` idi ve gerekce olarak
+                //	*"harita bir LISTE ICINDE, dikey jesti alirsa kullanici
+                //	sayfayi kaydiramaz"* yazilmisti. Sonuc: kullanici haritaya
+                //	dokunuyor, parmagini suruyor ve **HICBIR SEY OLMUYORDU** —
+                //	harita canli degil, EKRAN GORUNTUSU gibi duruyordu.
+                //	Etiketlerin de kapali olmasiyla birlesince ortaya
+                //	"harita olmayan bir harita" cikmisti.
+                //
+                //	Kaydirma catismasi `EagerGestureRecognizer` ile cozulur:
+                //	dokunus HARITANIN UZERINDE baslarsa jesti HARITA alir,
+                //	kartlarin uzerinde baslarsa LISTE alir. Iki yuzey ayri.
+                // ⚠️ YAPMA: jestleri tekrar `false` yapma; catismayi
+                //    recognizer YERINE jestleri kapatarak "cozme".
+                scrollGesturesEnabled: true,
+                zoomGesturesEnabled: true,
                 rotateGesturesEnabled: false,
                 tiltGesturesEnabled: false,
                 zoomControlsEnabled: false,
                 mapToolbarEnabled: false,
+                gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
+                  Factory<OneSequenceGestureRecognizer>(
+                    () => EagerGestureRecognizer(),
+                  ),
+                },
                 markers: {
                   for (final i in isletmeler)
                     if (i.enlem != 0 || i.boylam != 0)
