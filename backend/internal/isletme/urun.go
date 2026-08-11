@@ -71,6 +71,10 @@ type urunReq struct {
 	MediaIDs   []string `json:"media_ids"`
 	Sira       int      `json:"sira"`
 	Durum      string   `json:"durum"`
+	// ⚠️ TURU 89 — kategoriye ozel modul (oda/hizmet/urun) ve alanlari.
+	//    `Tur` beyaz listeden gecer (`TurGecerli`); DB'de CHECK YOK.
+	Tur        string            `json:"tur"`
+	Ozellikler map[string]string `json:"ozellikler"`
 }
 
 // POST /isletme/urunler — urun ekle (YALNIZ kendi isletmene).
@@ -121,10 +125,12 @@ func (h *Handler) UrunEkle(w http.ResponseWriter, r *http.Request) {
 	var id string
 	if h.db.QueryRow(r.Context(), `
 		INSERT INTO isletme_urunleri
-		  (isletme_id, ad, aciklama, bolum, fiyat_kurus, media_ids, sira)
-		VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+		  (isletme_id, ad, aciklama, bolum, fiyat_kurus, media_ids, sira,
+		   tur, ozellikler)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
 		me, req.Ad, req.Aciklama, req.Bolum, req.FiyatKurus,
-		req.MediaIDs, req.Sira).Scan(&id) != nil {
+		req.MediaIDs, req.Sira, TurGecerli(req.Tur),
+		ozellikJSON(req.Ozellikler)).Scan(&id) != nil {
 		hata(w, 500, "ürün eklenemedi")
 		return
 	}
@@ -151,6 +157,10 @@ func (h *Handler) UrunGuncelle(w http.ResponseWriter, r *http.Request) {
 		FiyatKurus *int64  `json:"fiyat_kurus"`
 		Sira       *int    `json:"sira"`
 		Durum      *string `json:"durum"`
+		// ⚠️ TURU 89 — ISARETCI: "gonderilmedi" (nil -> SQL NULL -> COALESCE
+		//    mevcut degeri korur) ile "bosalt" AYRI seylerdir.
+		Tur        *string            `json:"tur"`
+		Ozellikler *map[string]string `json:"ozellikler"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		hata(w, 400, "geçersiz istek")
@@ -172,10 +182,14 @@ func (h *Handler) UrunGuncelle(w http.ResponseWriter, r *http.Request) {
 		  fiyat_kurus = COALESCE($6, fiyat_kurus),
 		  sira        = COALESCE($7, sira),
 		  durum       = COALESCE($8, durum),
+		  -- ⚠️ TURU 89: GONDERILMEZSE mevcut deger KORUNUR (isaretci -> NULL
+		  --    -> COALESCE). Bos harita gonderilirse GERCEKTEN temizlenir.
+		  tur         = COALESCE($9, tur),
+		  ozellikler  = COALESCE($10, ozellikler),
 		  updated_at  = now()
 		 WHERE id=$1 AND isletme_id=$2`,
 		id, me, req.Ad, req.Aciklama, req.Bolum, req.FiyatKurus,
-		req.Sira, req.Durum)
+		req.Sira, req.Durum, turIsaretci(req.Tur), ozellikIsaretci(req.Ozellikler))
 	if err != nil {
 		hata(w, 500, "güncellenemedi")
 		return

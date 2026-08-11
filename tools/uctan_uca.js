@@ -2081,6 +2081,87 @@ const kontrol = (ad, gecti, ek = '') => {
       nan.kod === 400, 'HTTP ' + nan.kod);
   }
 
+  // ============= TURU 89: KATEGORIYE OZEL ISLETME MODULLERI ============
+  {
+    const O = await kullaniciAc('E2E Otel');
+
+    // --- Modul haritasi ucu
+    const mods = await j('/isletme-modulleri', { token: O.token });
+    kontrol('TURU 89: GET /isletme-modulleri calisiyor', mods.kod === 200,
+      'HTTP ' + mods.kod);
+    const otelM = ((mods.d || {}).moduller || {}).otel || {};
+    kontrol('TURU 89: otel modulu ODALAR', otelM.ad === 'Odalar' && otelM.tur === 'oda',
+      'ad=' + otelM.ad + ' tur=' + otelM.tur);
+    const saglikM = ((mods.d || {}).moduller || {}).saglik || {};
+    kontrol('TURU 89: saglik modulu HIZMETLER',
+      saglikM.ad === 'Hizmetler' && saglikM.tur === 'hizmet',
+      'ad=' + saglikM.ad + ' tur=' + saglikM.tur);
+    // ⚠️ Otel modulunun ALANLARI sunucudan gelmeli (istemci form uretir).
+    const alanlar = (otelM.alanlar || []).map((a) => a.anahtar);
+    kontrol('TURU 89: otel modulu ALAN TANIMI tasiyor (kapasite/yatak)',
+      alanlar.includes('kapasite') && alanlar.includes('yatak'),
+      'alanlar=' + alanlar.join(','));
+
+    // --- Isletme ac (otel) ve Detay yanitinda modul gelsin
+    await j('/users/me/isletme', {
+      yontem: 'PUT', token: O.token,
+      govde: { kategori: 'otel', adres: 'Sahil yolu', il: 'Kocaeli',
+               ilce: 'Gebze', enlem: 40.7900, boylam: 29.4300 },
+    });
+    const det = await j('/users/' + O.id + '/isletme', { token: O.token });
+    const dm = (det.d || {}).modul || {};
+    kontrol('TURU 89: Detay yaniti MODUL iceriyor (istemci sozlesmesi)',
+      dm.ad === 'Odalar' && dm.tur === 'oda',
+      'modul=' + JSON.stringify(dm.ad || null));
+
+    // --- Oda ekle: tur + ozellikler ZINCIRI (istek -> sutun -> liste)
+    const oda = await j('/isletme/urunler', {
+      yontem: 'POST', token: O.token,
+      govde: { ad: 'Deniz manzarali suit', aciklama: 'Balkonlu',
+               bolum: 'Suit', fiyat_kurus: 450000, tur: 'oda',
+               ozellikler: { kapasite: '2', yatak: 'Çift kişilik',
+                             kahvalti: 'Dahil' } },
+    });
+    kontrol('TURU 89: oda eklenebiliyor', oda.kod === 201, 'HTTP ' + oda.kod);
+
+    const kat = await j('/users/' + O.id + '/urunler', { token: O.token });
+    const ilk = (((kat.d || {}).urunler) || [])[0] || {};
+    kontrol('TURU 89: listede `tur` DONUYOR (SELECT+Scan+yanit zinciri)',
+      ilk.tur === 'oda', 'tur=' + ilk.tur);
+    kontrol('TURU 89: listede `ozellikler` DONUYOR ve DEGERLERI KORUYOR',
+      ilk.ozellikler && ilk.ozellikler.kapasite === '2' &&
+      ilk.ozellikler.yatak === 'Çift kişilik',
+      'ozellikler=' + JSON.stringify(ilk.ozellikler || null));
+
+    // ⚠️ GECERSIZ tur BEYAZ LISTEDEN GECMELI (DB CHECK yok, Go suzer).
+    const kotu = await j('/isletme/urunler', {
+      yontem: 'POST', token: O.token,
+      govde: { ad: 'Bilinmeyen tur', fiyat_kurus: 100, tur: 'zirva' },
+    });
+    const kat2 = await j('/users/' + O.id + '/urunler', { token: O.token });
+    const zirva = (((kat2.d || {}).urunler) || []).find((x) => x.ad === 'Bilinmeyen tur');
+    kontrol('TURU 89: gecersiz tur `urun`a DUSUYOR (500 DEGIL)',
+      kotu.kod === 201 && zirva && zirva.tur === 'urun',
+      'HTTP ' + kotu.kod + ' tur=' + (zirva ? zirva.tur : '-'));
+
+    // ⚠️ GUNCELLEMEDE `ozellikler` GONDERILMEZSE MEVCUT KORUNMALI
+    //    (COALESCE + isaretci sozlesmesi; turu 85b koordinat dersi).
+    await j('/isletme/urunler/' + ilk.id, {
+      yontem: 'PATCH', token: O.token, govde: { ad: 'Suit (yenilendi)' },
+    });
+    const kat3 = await j('/users/' + O.id + '/urunler', { token: O.token });
+    const g = (((kat3.d || {}).urunler) || []).find((x) => x.id === ilk.id) || {};
+    kontrol('TURU 89: ozellikler GONDERILMEYINCE KORUNUYOR',
+      g.ozellikler && g.ozellikler.kapasite === '2' && g.tur === 'oda',
+      'tur=' + g.tur + ' kapasite=' + ((g.ozellikler || {}).kapasite));
+
+    // ⚠️ Bilinmeyen kategori VARSAYILAN module dusmeli (yeni kategori
+    //    eklemek modul.go degistirmeyi ZORUNLU kilmasin).
+    const vars_ = (mods.d || {}).varsayilan || {};
+    kontrol('TURU 89: varsayilan modul TANIMLI',
+      vars_.tur === 'urun' && !!vars_.ad, 'ad=' + vars_.ad);
+  }
+
   // ---------- OZET
   const kalan = sonuclar.filter((s) => !s.gecti);
   console.log('\n==================================');
