@@ -39,7 +39,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import '../../core/yenile.dart';
+// ⚠️ TURU 88 — YenileSarmali ARTIK KULLANILMIYOR: ekran dikey kaydirilmiyor
+//    (harita %70 + yatay kart seridi), asagi-cek jesti YOK. Yenileme
+//    AppBar dugmesine tasindi.
 import '../medya/konum_servisi.dart';
 import '../medya/medya_gorsel.dart';
 import '../sosyal/profil_sayfasi.dart';
@@ -122,7 +124,28 @@ const haritaAnahtariVar =
 ///    Renk tonu istenirse YALNIZCA `geometry` renkleri değiştirilir, hiçbir
 ///    `visibility: off` eklenmez.
 /// ⚠️ `cloudMapId` YASAK (CLAUDE.md — ücretli).
-const String? _haritaStili = null;
+/// ⚠️⚠️ TURU 88 — TEK BIR SEY GIZLENIR: **GOOGLE'IN KENDI ISLETME ETIKETLERI.**
+///
+/// Kullanici emri: *"haritadaki isletmeler gorunmeyecek"* — yani Google'in
+/// varsayilan POI balonlari (restoran/market/kafe adlari ve simgeleri). Sebep:
+/// haritada BIZIM pinlerimiz var ve Google'in yuzlerce POI etiketi onlari
+/// gorunmez kiliyor, kullanici hangisinin uygulamadaki isletme oldugunu
+/// ayirt edemiyordu.
+///
+/// ⚠️⚠️ **YALNIZCA `poi.business` KAPATILIR.** Turu 85'te "grimsi beyaz"
+///    istegi uygulanirken `poi` (HEPSI) + `road labels` + `transit` +
+///    `labels.icon` + `administrative` kapatilmis ve harita OKUNAMAZ bir gri
+///    kagida donmustu (kullanici: *"bu nasil bir harita?"*).
+///    Burada SOKAK ADLARI, park/hastane/okul, toplu tasima ve tum zemin
+///    **AYNEN DURUYOR** — kapanan tek sey TICARI POI etiketleri.
+/// ⚠️ YAPMA: bu listeye `road`, `transit`, `administrative`, `labels.icon`
+///    ya da alt tur belirtmeden `poi` ekleme. Muhafiz
+///    (`test/harita_stili_test.dart`) bunlari REDDEDER.
+const _haritaStili = '''
+[
+ {"featureType":"poi.business","stylers":[{"visibility":"off"}]}
+]
+''';
 
 const _zemin = Color(0xFFF2F3F5);
 const _yol = Color(0xFFFFFFFF);
@@ -143,7 +166,16 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
   bool _yukleniyor = true;
   String? _hata;
   String _kategori = '';
-  double _km = 10;
+  /// ⚠️⚠️ TURU 88 — MESAFE **SABIT 10 km**, secici KALDIRILDI (kullanici emri:
+  ///    *"10km icinde vs kaldir"*). Slider + "N km icinde" satiri ekrandan
+  ///    cikti; yaricap yine sunucuya GONDERILIYOR (uc onu ZORUNLU beklemiyor
+  ///    ama varsayilani da 10, yani sozlesme degismedi).
+  /// ⚠️ Alan : secici kalkinca degisen tek yazici da gitti.
+///    Secici geri istenirse  yapilip slider baglanir.
+  /// ⚠️ YAPMA: sunucuya `km` gondermeyi birakma — uc tavani 50 km ile
+  ///    sinirliyor ve gondermezsek varsayilan yine 10 olur, ama acik
+  ///    gondermek niyeti belgeliyor.
+  static const double _km = 10;
 
   @override
   void initState() {
@@ -229,128 +261,136 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
     }
   }
 
+  /// ⚠️⚠️⚠️ TURU 88 — DUZEN YENIDEN KURULDU (kullanici emri).
+  ///
+  ///	*"harita %70 yukseklikte olacak · isletmeler sol sag scroll olacak ·
+  ///	 10km icinde vs kaldir"*.
+  ///
+  /// ⚠️ Ekran artik **DIKEY KAYDIRILMIYOR**: harita ekranin %70'i, altta
+  ///    YATAY kart seridi. Onceki hal bir `ListView` idi ve harita sabit
+  ///    220px'ti. Dikey kaydirma KALKTIGI icin asagi-cek-yenile de anlamsiz
+  ///    kaldi -> yenileme AppBar dugmesine tasindi (kaybolmadi).
+  /// ⚠️ Yukseklikler `LayoutBuilder`dan turer, `MediaQuery`den DEGIL: AppBar
+  ///    ve sistem cubuklari dusuldukten SONRAKI gercek alan budur; ekran
+  ///    yuksekliginin %70'i alinsaydi kart seridi tasardi.
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Yakınımda')),
-      body: YenileSarmali(
-        // ⚠️ Asagi-cek KONUMU DA tazeler (bkz. `_yukle` serhi).
-        onRefresh: () => _yukle(konumuTazele: true),
-        child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: EdgeInsets.zero,
-          children: [
-            // ---- USTTE HARITA
-            _HaritaAlani(
-              merkez: _konum,
-              isletmeler: _liste,
-              acildi: (i) => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => ProfilSayfasi(userId: i.id)),
+      appBar: AppBar(
+        title: const Text('Yakınımda'),
+        actions: [
+          IconButton(
+            tooltip: 'Yenile',
+            icon: const Icon(LucideIcons.rotateCw, size: 20),
+            onPressed: _yukleniyor ? null : () => _yukle(konumuTazele: true),
+          ),
+        ],
+      ),
+      body: LayoutBuilder(
+        builder: (context, kisit) {
+          final haritaBoy = kisit.maxHeight * 0.70;
+          return Column(
+            children: [
+              // ---- USTTE HARITA (%70)
+              _HaritaAlani(
+                yukseklik: haritaBoy,
+                merkez: _konum,
+                isletmeler: _liste,
+                yukleniyor: _yukleniyor,
+                acildi: (i) => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => ProfilSayfasi(userId: i.id)),
+                ),
               ),
-            ),
-            _suzgecSeridi(),
-            // ---- ALTTA KARTLAR
-            // ⚠️⚠️ TURU 85c — SPINNER YALNIZ **LISTE BOSKEN** (denetim bulgusu).
-            //    Kapi duz `_yukleniyor` iken her asagi-cekte kart listesi
-            //    agactan silinip yerine ikinci bir spinner geliyordu; yenileme
-            //    gostergesi ZATEN uc noktayla veriliyor. Bu, turu 83'te
-            //    profil/bildirimler/kaydedilenler ekranlarinda duzeltilen
-            //    "yenilerken sayfa bosaliyor" sinifinin hafif tekrariydi.
-            // ⚠️ YAPMA: kapiyi tekrar duz `_yukleniyor`a dondurme.
-            if (_yukleniyor && _liste.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 60),
-                child: Center(child: CircularProgressIndicator()),
-              )
-            else if (_hata != null)
-              _bilgi(LucideIcons.mapPinOff, _hata!, dugme: 'Tekrar dene')
-            else if (_liste.isEmpty)
-              _bilgi(
-                LucideIcons.store,
-                'Bu mesafede işletme bulunamadı.\n'
-                'Mesafeyi artırmayı dene.',
-              )
-            else
-              ..._liste.map(_kart),
-            const SizedBox(height: 20),
-          ],
-        ),
+              // ---- KATEGORI CIPLERI
+              _kategoriSeridi(),
+              // ---- ALTTA YATAY KART SERIDI
+              Expanded(child: _altSerit()),
+            ],
+          );
+        },
       ),
     );
   }
 
-  Widget _bilgi(IconData ikon, String metin, {String? dugme}) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 50, horizontal: 40),
-    child: Column(
+  /// Alt serit: durum ne olursa olsun **AYNI YUKSEKLIGI** kaplar (düzen
+  /// zıplamasın).
+  Widget _altSerit() {
+    // ⚠️ Spinner YALNIZ liste boskken (turu 85c dersi: her yenilemede
+    //    kartlarin kaybolmasi "sayfa bosaliyor" hissi veriyordu).
+    if (_yukleniyor && _liste.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_hata != null) {
+      return _bilgi(LucideIcons.mapPinOff, _hata!, dugme: 'Tekrar dene');
+    }
+    if (_liste.isEmpty) {
+      return _bilgi(
+        LucideIcons.store,
+        'Yakınında işletme bulunamadı.',
+      );
+    }
+    return ListView.builder(
+      scrollDirection: Axis.horizontal,
+      // ⚠️ Serit kenarlarindaki 10px bosluk: ilk/son kart ekran kenarina
+      //    YAPISMASIN (kullanici: "sol sag radius 10px").
+      padding: const EdgeInsets.fromLTRB(10, 4, 10, 10),
+      itemCount: _liste.length,
+      itemBuilder: (_, s) => _kart(_liste[s]),
+    );
+  }
+
+  Widget _kategoriSeridi() => SizedBox(
+    height: 44,
+    child: ListView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
       children: [
-        Icon(ikon, size: 40, color: Colors.grey),
-        const SizedBox(height: 14),
-        Text(
-          metin,
-          textAlign: TextAlign.center,
-          style: const TextStyle(color: Colors.grey, height: 1.45),
-        ),
-        if (dugme != null) ...[
-          const SizedBox(height: 14),
-          OutlinedButton(onPressed: _yukle, child: Text(dugme)),
-        ],
+        _cip('Tümü', _kategori.isEmpty, () {
+          setState(() => _kategori = '');
+          _yukle();
+        }),
+        for (final e in isletmeKategorileri.entries)
+          _cip(e.value, _kategori == e.key, () {
+            setState(() => _kategori = e.key);
+            _yukle();
+          }),
       ],
     ),
   );
 
-  /// Kategori cipleri + mesafe secici.
-  ///
-  /// ⚠️ Kategori listesi `isletmeKategorileri` TEK KAYNAGINDAN gelir —
-  ///    burada elle yazilsaydi sunucuya eklenen 'eczane'/'otel' gibi yeni
-  ///    kategoriler bu ekranda GORUNMEZDI.
-  Widget _suzgecSeridi() => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      SizedBox(
-        height: 46,
-        child: ListView(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          children: [
-            _cip('Tümü', _kategori.isEmpty, () {
-              setState(() => _kategori = '');
-              _yukle();
-            }),
-            for (final e in isletmeKategorileri.entries)
-              _cip(e.value, _kategori == e.key, () {
-                setState(() => _kategori = e.key);
-                _yukle();
-              }),
-          ],
-        ),
-      ),
-      Padding(
-        padding: const EdgeInsets.fromLTRB(16, 2, 16, 6),
-        child: Row(
-          children: [
-            const Icon(LucideIcons.ruler, size: 15, color: Colors.grey),
-            const SizedBox(width: 8),
-            Text(
-              '${_km.round()} km içinde',
-              style: const TextStyle(fontSize: 12.5, color: Colors.grey),
+  /// ⚠️ Alt seritte kullanilir; SERIT YUKSEKLIGINE SIGMALI (ekranin ~%30'u).
+  ///    Eski hali dikey listede yasadigi icin 50px dikey dolgu tasiyordu ve
+  ///    yeni duzende **RenderFlex tasmasi** uretirdi.
+  Widget _bilgi(IconData ikon, String metin, {String? dugme}) => Center(
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 8),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(ikon, size: 26, color: Colors.grey),
+          const SizedBox(height: 8),
+          Flexible(
+            child: Text(
+              metin,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: Colors.grey, fontSize: 13),
             ),
-            Expanded(
-              child: Slider(
-                value: _km,
-                min: 1,
-                max: 50,
-                divisions: 49,
-                label: '${_km.round()} km',
-                onChanged: (v) => setState(() => _km = v),
-                // ⚠️ Istek YALNIZ birakinca atilir: her piksel hareketinde
-                //    atsaydi tek surukleme onlarca sorgu uretirdi.
-                onChangeEnd: (_) => _yukle(),
+          ),
+          if (dugme != null) ...[
+            const SizedBox(height: 6),
+            OutlinedButton(
+              onPressed: _yukle,
+              style: OutlinedButton.styleFrom(
+                visualDensity: VisualDensity.compact,
               ),
+              child: Text(dugme),
             ),
           ],
-        ),
+        ],
       ),
-    ],
+    ),
   );
 
   Widget _cip(String etiket, bool secili, VoidCallback onTap) => Padding(
@@ -362,62 +402,121 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
     ),
   );
 
-  Widget _kart(IsletmeOzet i) => ListTile(
-    onTap: () => Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => ProfilSayfasi(userId: i.id)),
-    ),
-    leading: Avatar(
-      ad: i.ad,
-      mediaId: i.avatarMediaId,
-      avatarUrl: i.avatarUrl,
-      cap: 46,
-    ),
-    title: Row(
-      children: [
-        Flexible(
-          child: Text(
-            i.ad,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontWeight: FontWeight.w600),
+  /// ⚠️⚠️ TURU 88 — KART **YATAY SERIT** icin yeniden yazildi.
+  ///
+  ///	Kullanici emri: *"isletmeler sol sag scroll olacak · sol sag radius
+  ///	10px"*. Eski hali dikey listeye ait bir `ListTile` idi ve yatay
+  ///	seritte SINIRSIZ genislik isteyip **RenderFlex tasmasi** uretirdi.
+  /// ⚠️ Genislik SABIT (238): yatay `ListView` cocuklarina genislik
+  ///    DAYATMAZ; her kart kendi olcusunu vermek ZORUNDA.
+  /// ⚠️ Yukseklik VERILMEZ — serit (`Expanded`) ne veriyorsa o kullanilir;
+  ///    sabit yukseklik kucuk ekranda tasardi.
+  /// ⚠️ Radius 10 (kullanici emri) + kartlar arasi 10px bosluk.
+  Widget _kart(IsletmeOzet i) => Padding(
+    padding: const EdgeInsets.only(right: 10),
+    child: SizedBox(
+      width: 238,
+      child: Material(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(10),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => ProfilSayfasi(userId: i.id)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Avatar(
+                      ad: i.ad,
+                      mediaId: i.avatarMediaId,
+                      avatarUrl: i.avatarUrl,
+                      cap: 38,
+                    ),
+                    const SizedBox(width: 9),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  i.ad,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+                              if (i.dogrulandi) ...[
+                                const SizedBox(width: 3),
+                                const Icon(LucideIcons.badgeCheck,
+                                    size: 13, color: Color(0xFF3AA9FF)),
+                              ],
+                            ],
+                          ),
+                          Text(
+                            i.mesafeMetni,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF3AA9FF),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 7),
+                Flexible(
+                  child: Text(
+                    [
+                      isletmeKategoriAdi(i.kategori),
+                      if (i.ilce.isNotEmpty) i.ilce,
+                      if (i.adres.isNotEmpty) i.adres,
+                    ].join(' · '),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 11.5, color: Colors.grey),
+                  ),
+                ),
+                const Spacer(),
+                // ⚠️ "Yol tarifi" TELEFONUN KENDI harita uygulamasini acar
+                //    (`KonumServisi.haritadaAc`) — uygulama ici harita
+                //    gerekmez ve yol tarifi orada zaten calisir (turu 81).
+                InkWell(
+                  onTap: () => KonumServisi.haritadaAc(i.enlem, i.boylam),
+                  borderRadius: BorderRadius.circular(6),
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 3),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(LucideIcons.navigation, size: 13,
+                            color: Color(0xFF3AA9FF)),
+                        SizedBox(width: 5),
+                        Text('Yol tarifi',
+                            style: TextStyle(
+                                fontSize: 12, color: Color(0xFF3AA9FF))),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
-        if (i.dogrulandi) ...[
-          const SizedBox(width: 4),
-          const Icon(LucideIcons.badgeCheck, size: 15, color: Color(0xFF3AA9FF)),
-        ],
-      ],
-    ),
-    subtitle: Text(
-      [
-        isletmeKategoriAdi(i.kategori),
-        if (i.ilce.isNotEmpty) i.ilce,
-        if (i.adres.isNotEmpty) i.adres,
-      ].join(' · '),
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      style: const TextStyle(fontSize: 12.5),
-    ),
-    trailing: Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        Text(
-          i.mesafeMetni,
-          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-        ),
-        const SizedBox(height: 2),
-        // ⚠️ "Yol tarifi" TELEFONUN KENDI harita uygulamasini acar
-        //    (`KonumServisi.haritadaAc`) — uygulama ici harita gerekmez ve
-        //    yol tarifi orada zaten calisir (turu 81 karari).
-        GestureDetector(
-          onTap: () => KonumServisi.haritadaAc(i.enlem, i.boylam),
-          child: const Text(
-            'Yol tarifi',
-            style: TextStyle(fontSize: 11.5, color: Color(0xFF3AA9FF)),
-          ),
-        ),
-      ],
+      ),
     ),
   );
 }
@@ -446,13 +545,21 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
 ///    yapma; `initialCameraPosition` TEK BASINA yeterli DEGILDIR.
 class _HaritaAlani extends StatefulWidget {
   const _HaritaAlani({
+    required this.yukseklik,
     required this.merkez,
     required this.isletmeler,
+    required this.yukleniyor,
     this.acildi,
   });
 
+  /// Ekranin %70'i (bkz. `build` serhi). `MediaQuery`den DEGIL
+  /// `LayoutBuilder`dan turer.
+  final double yukseklik;
   final ({double enlem, double boylam})? merkez;
   final List<IsletmeOzet> isletmeler;
+
+  /// Konum/liste hala geliyorsa true — ilk acilista NE cizilecegini belirler.
+  final bool yukleniyor;
 
   /// Harita balonuna dokununca cagrilir (bkz. `onInfoWindowTap` serhi).
   /// ⚠️ Gezinmeyi EKRAN yapar, bu bilesen DEGIL: `_HaritaAlani` saf gorunum
@@ -495,7 +602,7 @@ class _HaritaAlaniState extends State<_HaritaAlani> {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 220,
+      height: widget.yukseklik,
       child: ClipRect(
         child: Stack(
           fit: StackFit.expand,
@@ -573,6 +680,38 @@ class _HaritaAlaniState extends State<_HaritaAlani> {
                         ),
                       ),
                 },
+              )
+            // ⚠️⚠️⚠️ TURU 88 — CIZIM HARITASI **ANAHTAR VARKEN HIC CIZILMEZ.**
+            //
+            //	Kullanici: *"harita ilkten gelirken o eski cizim harita
+            //	geliyor gidiyor, onu kaldir"*. Sebep: kapi
+            //	`haritaAnahtariVar && merkez != null` idi; acilista `merkez`
+            //	HENUZ NULL oldugu icin (GPS ~1-2 sn suruyor) `else` dali
+            //	kosuyor ve elle boyanmis sahte sehir ciziliyordu. Konum
+            //	gelince gercek haritaya geciyor -> **GORUNUR BIR SICRAMA**.
+            //
+            //	Artik iki kapi AYRILDI:
+            //	  · anahtar VAR + konum YOK  -> notr zemin + spinner
+            //	  · anahtar YOK              -> durust yer tutucu (cizim)
+            //	Yani cizim harita YALNIZCA anahtarsiz derlemede gorunur;
+            //	yayindaki surumde ASLA cizilmez.
+            // ⚠️ YAPMA: iki kapiyi tekrar tek `else`de birlestirme.
+            else if (haritaAnahtariVar)
+              ColoredBox(
+                color: _zemin,
+                child: Center(
+                  child: widget.yukleniyor
+                      ? const SizedBox(
+                          width: 26,
+                          height: 26,
+                          child: CircularProgressIndicator(strokeWidth: 2.4),
+                        )
+                      : const Icon(
+                          LucideIcons.mapPinOff,
+                          size: 26,
+                          color: Colors.grey,
+                        ),
+                ),
               )
             else ...[
               const ColoredBox(color: _zemin),

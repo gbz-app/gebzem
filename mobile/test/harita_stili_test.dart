@@ -164,24 +164,57 @@ void main() {
   test('harita stili hicbir katmani GIZLEMEZ (okunabilirlik muhafizi)', () {
     final govde = yorumsuz(dosya.readAsStringSync());
 
-    // ⚠️ `visibility` + `off` ayni stil kuralinda gecerse harita katmani
-    //    KAPATILIYOR demektir. Normal Google haritasinda bu kelime HIC gecmez.
-    // ⚠️⚠️ TIRNAKLAR **KACISLI DA OLABILIR**: stil `'''...'''` ham dizesinde
-    //    `"visibility"`, duz `'...'` dizesinde ise `\"visibility\"` olarak
-    //    yazilir. Desen ILK YAZIMDA yalniz ilkini yakaliyordu, yani ikinci
-    //    bicimle yazilan bir gerileme muhafizdan SESSIZCE GECERDI.
-    //    (Kanit: desen kirmiziya dusurulerek IKI BICIMDE de sinandi.)
-    final gizleyen =
-        RegExp(r'\\?"visibility\\?"\s*:\s*\\?"off\\?"').allMatches(govde);
+    // ⚠️⚠️ TURU 88 — MUHAFIZ **KATMAN BAZINDA** oldu (once TOPYEKUN yasakti).
+    //
+    //	Kullanici *"haritadaki isletmeler gorunmeyecek"* dedi; bu, Google'in
+    //	kendi TICARI POI etiketlerini kapatmak demek ve MESRU. Ama turu 85'te
+    //	haritayi okunamaz kilan sey POI DEGIL, **sokak adlari · toplu tasima ·
+    //	simgeler · idari sinirlar** kapatilmasiydi.
+    //	Bu yuzden yasak artik TEHLIKELI KATMANLARA ozgu: dar bir
+    //	`poi.business` istisnasi gecer, haritayi bosaltan hicbir kural gecmez.
+    //
+    // ⚠️ TIRNAKLAR **KACISLI DA OLABILIR** (`'''` ham dize vs duz dize) —
+    //    desen ikisini de kapsar (ilk yazimda yalniz ham dizeyi yakaliyordu).
+    const yasakli = [
+      'road',            // SOKAK ADLARI — turu 85'te en yikici olani
+      'transit',         // metro/otobus
+      'administrative',  // ilce/il sinirlari
+      'landscape',       // zemin
+      'water',           // su
+    ];
+    final kurallar = RegExp(
+      r'\{[^{}]*\\?"featureType\\?"\s*:\s*\\?"([a-z._]+)\\?"[^{}]*'
+      r'\\?"visibility\\?"\s*:\s*\\?"off\\?"',
+    ).allMatches(govde.replaceAll(RegExp(r'\s+'), ' '));
+
+    for (final k in kurallar) {
+      final tur = k.group(1)!;
+      // ⚠️ Alt tur BELIRTILMEDEN `poi` kapatmak TUM mekanlari (park, hastane,
+      //    okul, otogar...) siler — bu da haritayi bosaltir.
+      final tehlikeli = tur == 'poi' ||
+          yasakli.any((y) => tur == y || tur.startsWith('$y.'));
+      expect(
+        tehlikeli,
+        isFalse,
+        reason: 'Harita stili "$tur" katmanini KAPATIYOR. Bu, haritayi '
+            'okunamaz hale getirir (turu 85 hatasi: kullanici "bu nasil bir '
+            'harita?" dedi). Yalniz `poi.business` gibi DAR bir kural kabul '
+            'edilir; sokak adlari, toplu tasima, idari sinirlar ve zemin '
+            'ASLA gizlenmez.',
+      );
+    }
+
+    // ⚠️ `featureType` BELIRTMEDEN, yani TUM HARITAYA uygulanan bir
+    //    `visibility: off` en yikici bicimdir; ayrica yakalanir.
+    final genelKapatma = RegExp(
+      r'\{\s*\\?"elementType\\?"[^{}]*\\?"visibility\\?"\s*:\s*\\?"off\\?"',
+    ).allMatches(govde.replaceAll(RegExp(r'\s+'), ' '));
     expect(
-      gizleyen.isEmpty,
+      genelKapatma.isEmpty,
       isTrue,
-      reason:
-          'Harita stilinde ${gizleyen.length} adet "visibility":"off" var. '
-          'Bu, sokak adlarini/mekanlari/simgeleri KAPATIR ve haritayi '
-          'okunamaz gri bir kagida cevirir (turu 85 hatasi; kullanici '
-          '"bu nasil bir harita?" dedi). Renk tonu istiyorsan YALNIZCA '
-          '"geometry" renklerini degistir, hicbir katmani gizleme.',
+      reason: 'Stilde `featureType` OLMADAN (yani TUM harita icin) '
+          '`visibility: off` var — turu 85\'te `labels.icon` boyle '
+          'kapatilmis ve tum simgeler silinmisti.',
     );
   });
 
