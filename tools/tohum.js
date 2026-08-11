@@ -356,6 +356,116 @@ async function main() {
       basarisiz.map((x) => `${x.ad}(${x.kod ?? x.sebep})`).join(', '));
   }
 
+  // ═══════════ TURU 91 — TEKLIF AKISI + DIYET TOHUMU ═══════════
+  //
+  // ⚠️ Bu blok olmadan kullanici "Düğün & Organizasyon" kartina basiyor ve
+  //    BOS BIR EKRAN goruyor; isletme hesabi da "Gelen talepler"de hicbir
+  //    sey bulmuyor. Yani ozellik TEST EDILEMEZ olurdu.
+
+  // --- DUGUN TALEBI (kullanicidan) + IKI TEKLIF (isletmelerden)
+  const talepR = await j('/ilanlar', {
+    yontem: 'POST', token: kullanicilar[0].token,
+    govde: {
+      tur: 'talep', kategori: 'sac_makyaj',
+      baslik: 'Düğün için saç & makyaj arıyorum',
+      aciklama: '150 kişilik düğün, gelin + 2 nedime.',
+      il: 'Kocaeli', ilce: 'Gebze',
+      ozellikler: {
+        tarih: '12.09.2026', esneklik: 'Birkaç gün esnek',
+        kisi_sayisi: '150', mekan_tipi: 'Kapalı salon',
+        hizmetler: ['Saç & makyaj', 'Fotoğraf & video'],
+        butce_araligi: '50.000 - 100.000 ₺',
+      },
+    },
+  });
+  if (talepR.kod >= 300) {
+    throw new Error(`talep: ${talepR.kod} ${JSON.stringify(talepR.d)}`);
+  }
+  console.log('  talep OK: Düğün saç & makyaj');
+
+  // ⚠️ Teklifi KUAFOR hesaplari verir (fan-out haritasinda `sac_makyaj`
+  //    -> kuafor/guzellik). Boylece kullanici "Gelen teklifler"de GERCEK
+  //    iki teklif gorur ve secim akisini deneyebilir.
+  const teklifVerenler = isletmeler.filter(
+    (x) => x.grup === 'Kuaför' || x.grup === 'Güzellik');
+  let teklifSayisi = 0;
+  for (const [i, isl] of teklifVerenler.slice(0, 3).entries()) {
+    const t = await j(`/ilanlar/${talepR.d.id}/basvuru`, {
+      yontem: 'POST', token: isl.token,
+      govde: {
+        not: `${isl.ad} olarak hazırız. Gelin + nedime paketi dahil.`,
+        fiyat_kurus: 1800000 + i * 400000,
+      },
+    });
+    if (t.kod !== 200) {
+      throw new Error(`teklif (${isl.ad}): ${t.kod} ${JSON.stringify(t.d)}`);
+    }
+    teklifSayisi++;
+  }
+  console.log(`  teklif OK: ${teklifSayisi} isletme teklif verdi`);
+
+  // --- DIYET BAGI + OGUN + LISTE
+  const diyetisyen = isletmeler.find((x) => x.grup === 'Diyetisyen');
+  const danisan = kullanicilar[1];
+  const bagR = await j('/diyet/bag', {
+    yontem: 'POST', token: danisan.token,
+    govde: { diyetisyen_id: diyetisyen.id },
+  });
+  if (bagR.kod !== 200) {
+    throw new Error(`diyet bag: ${bagR.kod} ${JSON.stringify(bagR.d)}`);
+  }
+  // ⚠️ ONAY KARSI TARAFTAN (riza kapisi `baslatan_id <> me`).
+  const onayR = await j(`/diyet/bag/${bagR.d.id}`, {
+    yontem: 'PATCH', token: diyetisyen.token, govde: { durum: 'aktif' },
+  });
+  if (onayR.kod !== 200) {
+    throw new Error(`diyet onay: ${onayR.kod} ${JSON.stringify(onayR.d)}`);
+  }
+
+  const bugunT = new Date().toISOString().slice(0, 10);
+  for (const o of [
+    { ad: 'Yulaf ezmesi', kalori: 156, veri: { ogun: 'kahvalti', gram: 40 } },
+    { ad: 'Yumurta (haşlanmış)', kalori: 155, veri: { ogun: 'kahvalti', gram: 100 } },
+    { ad: 'Tavuk göğsü (ızgara)', kalori: 198, veri: { ogun: 'ogle', gram: 120 } },
+    { ad: 'Bulgur pilavı', kalori: 125, veri: { ogun: 'ogle', gram: 150 } },
+  ]) {
+    const k = await j('/diyet/kayit', {
+      yontem: 'POST', token: danisan.token,
+      govde: { tur: 'ogun', tarih: bugunT, ...o },
+    });
+    if (k.kod !== 201) throw new Error(`ogun: ${k.kod}`);
+  }
+  const olcumR = await j('/diyet/kayit', {
+    yontem: 'POST', token: danisan.token,
+    govde: {
+      tur: 'olcum', tarih: bugunT, ad: 'Ölçüm',
+      veri: { kilo: 78.4, bel: 92, boy: 178 },
+    },
+  });
+  if (olcumR.kod !== 201) throw new Error(`olcum: ${olcumR.kod}`);
+
+  const listeR = await j('/diyet/kayit', {
+    yontem: 'POST', token: diyetisyen.token,
+    govde: {
+      tur: 'liste', tarih: bugunT, ad: 'Haftalık beslenme planı',
+      user_id: danisan.id,
+      veri: {
+        metin: 'PAZARTESİ\n' +
+          'Kahvaltı: 1 haşlanmış yumurta, 40 g yulaf, 1 bardak süt\n' +
+          'Ara: 1 elma\n' +
+          'Öğle: 120 g ızgara tavuk, 150 g bulgur pilavı, salata\n' +
+          'İkindi: 10 adet badem\n' +
+          'Akşam: Sebze yemeği, 1 kase yoğurt\n\n' +
+          'SALI\n' +
+          'Kahvaltı: Peynir, zeytin, tam buğday ekmek\n' +
+          'Öğle: Mercimek çorbası, ızgara köfte\n' +
+          'Akşam: Fırında somon, brokoli',
+      },
+    },
+  });
+  if (listeR.kod !== 201) throw new Error(`diyet listesi: ${listeR.kod}`);
+  console.log('  diyet OK: bag aktif + 4 ogun + olcum + haftalik liste');
+
   // ---- KULLANICIYA VERILECEK TABLO
   const g = (s, n) => String(s).padEnd(n);
   console.log('');
