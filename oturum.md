@@ -6710,3 +6710,44 @@ Yeni zincirler: iş ilanı başvurusu (9) · gönderide konum (4) · geri çekme
 - Başvuru listesi baskasına **404/boş** döner, 403 DEĞİL — 403 "bu ilanın başvurusu var" bilgisini sızdırırdı.
 - Geri çekilmiş başvuruyu **yalnız adayın kendisi** yeniden açabilir; sahibi diriltemez (rızanın geri alınması karşı tarafça iptal edilemez).
 - Hikâye ve Sesli oda menüde **ekran açmaz, yolu söyler** — o akışların mantığı mevcut ekranların içinde ve kopyalamak ikinci kopya olurdu.
+
+---
+
+## Oturum — 11 Ağustos 2026 · TURU 91: TEKLİF AKIŞI · DİYET · IZGARA · PERFORMANS
+
+### Kullanıcının 7 maddesi
+1. Kategoriler **soldan sağa** kart olacaktı, eski halin küçüğü — düzelt.
+2. **Düğün** ve **diyet** kategorisi ekle.
+3. Düğün/hizmette **adım adım** akış: salon, misafir sayısı, dış mekân... → bilgiler **kuaföre ve diğerlerine teklif olarak gider**, onlar **karşı teklif** verir (Armut'tan araştır).
+4. Profilde **Düğünüm / Hizmetlerim / Diyetim** — oradan takip.
+5. Diyette **kalori, yiyecek adı, kalori sayımı, ölçüm**; **hangi diyetisyenle çalışıyorsan diyet listesi**.
+6. **Uygulama bir tık kasıyor** — problem varsa düzelt.
+7. Hepsi bitince **tek temiz build**.
+
+### 📐 Önce plan (kod yazmadan)
+Keşif + Armut/diyet araştırması + **üç bağımsız tasarım + üç hakem** → `docs/turu91-plan.md`. Keşif, işin büyük kısmının **zaten var olduğunu** gösterdi: `ilan_basvurular` "istek→yanıt" deseni, `ilanlar` JSONB+GIN, `chats.ilan_id` pazarlık, bildirim altyapısı, randevu motoru.
+
+### ✅ Yapılanlar
+- **migration 045** — teklif için **yeni tablo açılmadı**: `ilan_basvurular` + `fiyat_kurus` + `guncellendi_at`. Diyet için `diyet_bag` (rıza) + `diyet_kayit` (öğün/ölçüm/liste tek tabloda).
+- **Teklif akışı** — `talep` türü (15 kategori), adım adım form tanımı **sunucudan** (`Alan.adim`), sızıntı kapısı, işletme/fiyat/7-gün/5-teklif kapıları, `secildi` tek işlemde üç yan etki, ilgili işletmelere fan-out.
+- **`internal/diyet`** — 9 uç, `diyetErisim()` tek kaynak fail-closed, Go'da gömülü ~85 kalemlik Türkçe besin listesi.
+- **`POST /ai/kalori`** — metin kotasından düşer.
+- **Flutter** — talep sihirbazı, teklif modu, Diyetim/öğün/ölçüm/liste, Danışanlarım, kategori **ızgarası**, profil girişleri, bildirim türleri + yön ayrımı.
+- **Performans** — `memCacheWidth`, istek semaforu (6) + birleştirme, `shrinkWrap` kaldırma, `RepaintBoundary`.
+
+### ⚠️ Bu turun dersleri
+- **Yasak testi formülleştirildi:** bir migration yasağı ancak **aynı kavram + aynı görünürlük + aynı aktörler** üçü birden tutuyorsa bağlayıcıdır. Teklif için üçü de tuttu → yeni tablo açılmadı ve turu 90'ın beş ucu, yetki kapıları, bildirim bastırması **dokunulmadan** miras alındı.
+- **Muhafız kendisi yanlış-yeşil olabilir.** `sutun_test.go` genişletmesi ilk yazımda dosya genelinde arıyordu; alanı tek fonksiyondan silince kardeş fonksiyondaki aynı anahtarı bulup geçiyordu. Fonksiyon gövdesine çevrildi ve **iki yönden** kanıtlandı.
+- **"Betik OK dedi" ≠ "değişiklik uygulandı."** Fan-out muhafızının ikinci kanıtı ilk denemede uygulanmadı ve test yeşil kaldı; betiğe "uygulanmadıysa patla" kapısı kondu (turu 89 CRLF dersinin tekrarı).
+- **E2E kontrolü de yalancı-yeşil olabilir.** AI kota kontrolü var olmayan `/ai/kota` ucunu çağırıyor, `undefined === undefined` ile geçiyordu. Artık üç koşul birden ölçülüyor.
+- **SQL yorumundaki ters tırnak** Go ham dizesini kapattı (turu 90'da aynısı) — yorum kaldırıldı.
+- **Sahiplik kapısının SIRASI mesajı değiştirir:** kendi talebine teklif veren kişisel hesaplı sahip, kapı sonda kalsaydı "işletme hesabına geç" diyen **yanlış** mesajı alır ve gereksiz bir hesap türü değişikliğine yönlendirilirdi.
+
+### 📊 Sayılar
+E2E **301 → 336** (canlıda 336/336) · **211 rota** çakışmasız · migration 001→045 temiz (53 tablo) · `flutter analyze` 0/0 · `flutter test` 6/6.
+
+### 🌱 Tohum
+10 işletme (10/10 randevu 201) + 2 kullanıcı + 2 ilan + 2 etkinlik + **düğün talebi + 3 teklif** + **dolu diyet günü** (4 öğün + ölçüm + haftalık liste).
+
+### ⏳ Dürüst sınırlar
+Diyet listesi düz metin (yapılı editör yok) · ölçüm grafiği yok · teklif pazarlığı mevcut ilan sohbeti üzerinden · otel odaları hâlâ vitrin · düğün talebi tek kategoriye gider.

@@ -17,7 +17,121 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (11 Agu 15:59): TEST TURU 90 + 90b YAYINLANDI** — android
+- **KALDIGIMIZ YER (11 Agu 19:06): TEST TURU 91 YAYINLANDI** — android
+  **31509234749** + ios **31509238078** (**cee3038**), R2 apk=121728599
+  (md5 4a2dff31) ipa=31584232 (md5 a56b7c2a) index=9771 (md5 4f63d676),
+  purge OK, **CDN BIREBIR (ucu de)**, indir sayfasi 11 Agu 19:06 (saat 5
+  yerde + canli saat), text/html + no-store + DYNAMIC, debug imza YOK,
+  **iOS min 16.0**, HARITA=true dogrulandi, **IPA'da turu 91 kodu VAR**
+  (dizeler UTF-16 arandi), **BACKEND DEPLOY** (migration 045 canlida;
+  atilabilir kopyada 001->045 temiz = 53 tablo) + health ok.
+  ✅ **CANLI SUNUCUDA 336/336 UCTAN UCA** · **211 ROTA CAKISMASIZ** ·
+  `flutter analyze` **0 hata 0 uyari** · `flutter test` 6/6 · go build+vet temiz.
+  🌱 **DB TEMIZ + TOHUM**: 10 isletme (10/10 randevu 201) · 2 kullanici ·
+  2 ilan · 2 etkinlik · **dugun talebi + 3 teklif** · **diyet zinciri**.
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260811-1906
+- **TURU 91 — DORT IS:** dugun/hizmet **TEKLIF AKISI** (Armut deseni) ·
+  **DIYET TAKIBI** · kategori **IZGARASI** · **PERFORMANS**.
+- ⚠️⚠️ **TURU 91 — TEKLIF: YENI TABLO ACILMADI.** `ilan_basvurular` ZATEN
+  "cok kisi -> tek ilan" istek/yanit iliskisi; teklif de "cok isletme ->
+  tek talep". Yon BIREBIR AYNI. **YASAK TESTI (bu turda formullestirildi):**
+  bir migration yasagi ancak **AYNI KAVRAM + AYNI GORUNURLUK + AYNI
+  AKTORLER** ucu birden tutuyorsa baglayicidir. GIZLI KAZANC: turu 90'in
+  bes ucu, yetki kapilari, `geri_cekildi` semantigi ve 1 saatlik bildirim
+  bastirmasi DOKUNULMADAN miras alindi.
+- ⚠️⚠️⚠️ **TURU 91 — TALEP HERKESE ACIKTIR** (migration 045 basinda yazili).
+  Tercih degil, `ilanlar`in her yerine gomulu bir gercek (`media` ilan dali
+  TEK KAPI olarak `durum <> 'kaldirildi'` + engel diyor).
+  ⚠️ YAPMA: talep satirina isim/telefon/adres/"gizli butce" ekleme —
+     eklenecekse `ilanlar` YANLIS EVDIR ve o dal MIRAS ALINAMAZ.
+  ⚠️ Sihirbazin SON ADIMINDA kullaniciya bu ACIKCA soylenir.
+- ⚠️⚠️ **TURU 91 — TALEP SIZINTI KAPISI (sevk engeli onlendi).** Talepler
+  `ilanlar`da yasiyor; kapi olmasaydi "Sahibinden Ford Focus" ile "Düğün
+  yapacağım" AYNI LISTEDE yan yana cikardi. `tur` BOSKEN
+  `AND i.tur <> 'talep'`; `benim=1` MUAF.
+- ⚠️⚠️ **TURU 91 — TEKLIF KAPILARI:** yalniz ISLETME (403 + ne yapmasi
+  gerektigi) · FIYAT ZORUNLU (liste fiyata gore sirali) · **TAVAN 5,
+  ADVISORY KILIT ICINDE** (`INSERT ... WHERE count < 5` READ COMMITTED'da
+  escamanli iki istegi de gecirir — turu 79b'de AI kotasinda TAM BU yasandi)
+  · 7 GUNLUK PENCERE **OKUMA VE YAZMA**da AYNI sabitten (`TalepPenceresi`;
+  turu 80b'de `ileri_gun` iki tabanda olculunce arayuz "musait" gosterip
+  POST 400 donmustu).
+  ⚠️ SAHIPLIK KAPISI TALEP KAPILARININ **ONUNDE**: sonda kalsaydi kendi
+     talebine teklif veren kisisel hesapli sahibi "işletme hesabına geç"
+     mesaji alir ve GEREKSIZ bir hesap turu degisikligine yonlendirilirdi.
+- ⚠️⚠️ **TURU 91 — `secildi` TEK ISLEMDE UC YAN ETKI:** kazanan isaretlenir ·
+  digerleri `elendi` · talep `satildi`. Ayri isteklerde "kazanan var ama
+  talep acik" gibi YARIM durumlar kalirdi ve secim GERI ALINAMAZ.
+  ⚠️ Bildirim COMMIT'TEN SONRA (geri alinan islem icin "teklifin secildi"
+     bildirimi gonderilmis olurdu). ⚠️ Elenenlere bildirim GONDERILMEZ.
+  ⚠️ Is ilaninda yan etki UYGULANMAZ (birden fazla kisi ise alinabilir).
+- ⚠️⚠️⚠️ **TURU 91 — DIYET: `diyet_bag` RIZA KAYDININ GEREKCESI HUKUKI.**
+  Mevcut hicbir tablo "bu kisi benim SAGLIK VERIMI gorebilir" rizasini
+  temsil etmiyor (`follows` tek yonlu sosyal · `randevular` tek seferlik ·
+  `chats` mesajlasma). ⚠️ `baslatan_id` ZORUNLU: olmadan taraflardan biri
+  KENDI istegini KENDISI onaylayabilirdi.
+  ⚠️ **`diyetErisim()` TEK KAYNAK** ve FAIL-CLOSED. Yuklemi cagri yerlerine
+     kopyalamak SAGLIK VERISI SIZINTISI demektir.
+  ⚠️ `liste` YAZMA icin `diyetErisim` YETMEZ (o kapi CIFT YONLU) — ayri,
+     tek yonlu yuklem yazildi.
+  ⚠️ `ogun`/`olcum`da govdedeki `user_id` YOK SAYILIR: aksi halde biri
+     baskasinin gunune 5000 kalori ekleyebilirdi.
+  ⚠️ KISIYE OZEL diyet listesi `isletme_urunleri`ne YAZILAMAZ:
+     `GET /users/{id}/urunler` HERKESE ACIK -> saglik verisi ANINDA sizar.
+- ⚠️ **TURU 91 — `diyet_kayit.tarih` AYRI `DATE` SUTUNU**, `created_at`ten
+  TURETILMEZ: (a) kullanici DUN yedigini BUGUN girebilmeli, (b) UTC/yerel
+  farkiyla gece yarisindan sonraki ogun BIR ONCEKI gune yazilirdi.
+- 📌 **TURU 91 — BESIN LISTESI GO'DA GOMULU** (~85 Turkce kalem), tabloda
+  DEGIL: kucuk, sabit, KIMSEYE AIT OLMAYAN bir lookup (turu 77 kategori
+  agaci gerekcesi). ⚠️ Turkce kucultme ELLE: `strings.ToLower` "İ"yi
+  birlesik noktaya cevirir ve "İSPANAK" aramasi "ispanak"i BULAMAZDI.
+- ⚠️ **TURU 91 — `/ai/kalori` `tur="kalori"`**, "gorsel" DEGIL (turu 79b
+  sevk engelinin tekrarini onler). `grep 'h.kapi(w, r,'` ile TUM cagri
+  yerleri TARANDI. Sonuc DOGRUDAN KAYDEDILMEZ, ONERI doner.
+- 📌 **TURU 91 — KATEGORI IZGARASI (kullanici emri, DUZELTME).** Turu 90'da
+  "5 tane alt alta" denmis, TEK SUTUN yapilmisti; turu 91'de netlesti:
+  **SOLDAN SAGA akan, ASAGI ~5 satir, ESKI KARTLARIN KUCUGU**. 3 sutun,
+  360dp'de hucre 102.7x125.2 · 414dp'de 120.7x147.2. "Yakınımda" USTTE
+  AYRI + "KATEGORİLER" basligi KALDI. Yeni iki kart ILK IKI SIRADA.
+- 🚀 **TURU 91 — PERFORMANS ("bir tik kasiyor"):**
+  1. **`memCacheWidth`** — EN BUYUK KAZANC. Bayrak yokken 1600x1600 bir
+     fotograf 120dp'lik hucre icin TAM COZUNURLUKTE cozuluyordu (~10 MB
+     gecici RAM/kare). ⚠️ `devicePixelRatio` ile carpilir (yoksa BULANIK).
+  2. **SEMAFOR (6) + ISTEK BIRLESTIRME** — soguk acilista ~60 ES ZAMANLI
+     `/media/{id}/url` istegi havuzu doyuruyor ve ana isolate 60 JSON
+     cozumuyle mesgul oluyordu. ⚠️ `finally` ZORUNLU (sayac dusmezse kuyruk
+     KALICI kilitlenir); ⚠️ `whenComplete` ile kayit HEM basarida HEM hatada
+     dusurulur (yoksa bir kez patlayan id SUREC BOYUNCA hatali Future'i
+     paylasirdi).
+  3. `shrinkWrap` KALDIRILDI · kartlar `RepaintBoundary` icinde.
+- 🛡️ **TURU 91 — UC YENI MUHAFIZ, HEPSI BOZULARAK KANITLANDI:**
+  · `ilan/sutun_test.go` `basvuru.go`ya genisletildi. ⚠️⚠️ MUHAFIZ ILK
+    YAZIMDA **KENDISI YANLIS-YESILDI**: alan YALNIZ bir fonksiyonun yanit
+    haritasindan silindiginde test GECIYORDU (arama DOSYA GENELINDEYDI ve
+    kardes fonksiyondaki ayni anahtari buluyordu). FONKSIYON GOVDESINE
+    cevrildi ve IKI YONDEN kanitlandi.
+  · `ilan/talep_test.go`: her talep kategorisinin fan-out hedefi olmali +
+    hedefler GECERLI isletme kategorisi olmali. Ikisi de bozularak
+    kanitlandi. ⚠️ Ikinci kanit ILK DENEMEDE UYGULANMAMISTI (betik
+    eslesmedi, test yesil kaldi) — betige "uygulanmadiysa PATLA" kapisi
+    konup tekrarlandi (turu 89 CRLF dersi).
+  · `sutunkontrol` paketi genisletildi (`YorumsuzGo` · `SelectSutunlari` ·
+    `ScanSayilari`) — kopya ayristirici YAZILMADI.
+- ⚠️⚠️ **TURU 91 — E2E'DE BIR KONTROL YALANCI-YESILDI.** AI kota kontrolu
+  `/ai/kota` cagiriyordu ama **O UC YOK**; `undefined === undefined` ile
+  geciyor ve HICBIR SEY OLCMUYORDU. Dogru uc `/ai/durum`; kontrol artik
+  UC KOSUL birden bakiyor (metin 20->19, gorsel 10->10 DEGISMEDI).
+- 📌 **MIGRATION NUMARALARI (guncel):** 045 = teklif (`ilan_basvurular.
+  fiyat_kurus` + `guncellendi_at`) + diyet (`diyet_bag`, `diyet_kayit`).
+  Sonraki **046**'dan.
+- ⏳ **DURUST SINIRLAR (turu 91):** diyet listesi DUZ METIN (gun/ogun yapili
+  editor yok) · olcum GRAFIGI yok (sayi listesi) · teklif pazarligi mevcut
+  ilan sohbeti uzerinden (ayri teklif mesajlasmasi yok) · otel odalari HALA
+  VITRIN · dugun talebi TEK kategoriye gider (coklu dal secimi yok).
+- ⏳ **EN SONA BIRAKILAN (kullanici emri):** `active_call_controller.dart`
+  ~500 satirlik olu bekletme/park zinciri temizligi.
+
+- **ONCEKI (11 Agu 15:59): TEST TURU 90 + 90b YAYINLANDI** — android
   **31492792085** + ios **31492794766** (**bc4eace**), R2 apk=121332927
   (md5 707b0ef7) ipa=31518916 (md5 c6c8498b) index=9417 (md5 b6f2c96e),
   purge OK, **CDN BIREBIR (ucu de)**, indir sayfasi 11 Agu 15:59 (saat 5
