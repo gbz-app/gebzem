@@ -6421,3 +6421,66 @@ saklamadığı için "eski stil artifact'ten çıktı" dize aramasıyla
 kanıtlanamadı. Kanıt zinciri: `libapp.so` MD5 değişti
 (`37202a0f` → `7a76d7b0`) + build `5088dda`'dan alındı + o commit düzeltmeyi
 içeriyor + muhafız testi o commit üzerinde yeşil.
+
+### ⚠️⚠️⚠️ TURU 87 — GERÇEK GOOGLE HARİTASI **HİÇ ÇİZİLMİYORDU** (kök neden)
+
+**YAYINLANDI 09:05** — android `31463073346` + ios `31463075086` (**f5781ca**),
+R2 apk=121151851 (md5 `8f390b14`) ipa=31514590 (md5 `6de8bda0`) index=9456
+(md5 `286c3cc3`), purge OK, **CDN BİREBİR (üçü de)**.
+⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260811-0905
+
+Kullanıcı **üç kez** söyledi (*"bu nasıl bir harita"* → *"normal google
+haritası değil ki bu"* → *"yine saçma sapan bir harita, neden google
+haritasını kullanmıyorsun"*) ve **her seferinde haklıydı**.
+
+```
+CI   : --dart-define=HARITA=1
+Dart : bool.fromEnvironment('HARITA')
+```
+Dart sözleşmesi: değer **yalnızca** `"true"` ise true, `"false"` ise false,
+**başka her şeyde `defaultValue` (false)**. Yani `"1"` → **FALSE**.
+`if (haritaAnahtariVar && ...)` kapısı **hiç açılmadı**; uygulama gerçek
+Google haritasını **hiçbir sürümde çizmedi**, hep elle boyanmış yer tutucuyu
+(`_SehirCizer`) gösterdi.
+
+✅ **AMPİRİK KANIT:** `flutter test --dart-define=HARITA=1` → `false`,
+`--dart-define=HARITA=true` → `true`.
+
+#### ⚠️ NEDEN 76 AJANLIK İKİ DENETİM BUNU GÖREMEDİ (yöntem dersi)
+Hepsi **kod↔kod** ve **kod↔şerh** tutarlılığına baktı. Bu hata **kod ile
+DERLEME YAPILANDIRMASI arasında** duruyordu ve o sınırı hiçbir mercek
+denetlemedi. Üstelik anahtarın APK manifestine ve iOS `Info.plist`ine
+enjekte edildiğini doğrulamak **"harita çalışıyor" kanıtı sanıldı** — oysa
+**enjeksiyon ile bayrak ayrı iki şeydir**; biri doğruyken öteki sessizce
+yanlıştı. Derleme temiz, uygulama sağlam, hata **yalnızca ekranda**.
+⚠️ **DERS: bir özelliğin çalıştığının tek kanıtı ONA BAKMAKTIR.** Yan
+kanıtlar (anahtar enjekte oldu, paket kurulu, testler yeşil) özelliğin
+GÖRÜNDÜĞÜNÜ kanıtlamaz.
+
+**FIX (iki katmanlı):** bayrak dizeden türetiliyor (`true`|`1`|`yes`) +
+CI `HARITA=true` geçiyor. Biri bozulursa öteki tutar.
+
+#### 🛡️ MUHAFIZ: DERLEME BAYRAĞI ↔ KOD
+`test/harita_stili_test.dart` artık CI dosyalarındaki `--dart-define=HARITA`
+değerini **kodun kabul kümesiyle** karşılaştırıyor.
+⚠️ Çalıştığı kanıtlandı: (a) CI'ya tanımsız değer (`HARITA=on`), (b) bayrağı
+hiç geçmemek, (c) koda çıplak `bool.fromEnvironment` — **üçü de kırmızı**.
+
+#### ADRESTEN PİN (kullanıcı emri)
+*"işletmeler adreslerinde yer işaretlemesi gerekiyor"* — turu 85'te işletmenin
+haritada görünmesi için sahibinin ya dükkanında "Bulunduğum konumu kullan"a
+basması ya da koordinatı elle yazması gerekiyordu; ikisini de yapmayan işletme
+adresini yazmış olsa bile **hiç görünmüyordu**. Artık konum boşsa adres
+metninden otomatik çözümleniyor (`geocoding` — Android `Geocoder`, iOS
+`CLGeocoder`; **API anahtarı gerektirmez**). Yalnız konum yokken çalışır,
+GPS/elle girilene dokunmaz; sonuç "Türkiye" ile sınırlı.
+
+#### ⚠️ ARA HATA: geocoding 3.0.0 ANDROID BUILD'INI PATLATTI
+`geocoding_android` 3.x **android-33**'e derlenmiş; mevcut androidx
+bağımlılıklarımız daha yükseğini istediği için
+`:geocoding_android:checkReleaseAarMetadata` hata verdi. 5.1.0 `compileSdk 36`.
+⚠️ **DERS: yeni bir Flutter paketi eklerken pub çözümlemesi TEK BAŞINA
+yetmez** — paketin `android/build.gradle` `compileSdk` değerine BAK.
+`flutter analyze` bu sınıfı **görmez** (yalnız Dart'a bakar); hata Gradle'da
+çıkar. ⚠️ 5.x API **sınıf tabanlı**: üst düzey `locationFromAddress()`
+kaldırıldı → `Geocoding().locationFromAddress(...)`.

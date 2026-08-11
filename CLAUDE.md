@@ -17,7 +17,66 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (11 Agu 08:26): TURU 86 YAYINLANDI (SON SURUM)** — android
+- **KALDIGIMIZ YER (11 Agu 09:05): TURU 87 YAYINLANDI (SON SURUM)** — android
+  **31463073346** + ios **31463075086** (**f5781ca**), R2 apk=121151851
+  (md5 8f390b14) ipa=31514590 (md5 6de8bda0) index=9456 (md5 286c3cc3),
+  purge OK, **CDN BIREBIR (ucu de)**. Backend DEGISMEDI.
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260811-0905
+- ⚠️⚠️⚠️ **TURU 87 — GERCEK GOOGLE HARITASI **HIC CIZILMIYORDU** (KOK NEDEN).**
+
+      CI   : --dart-define=HARITA=1
+      Dart : bool.fromEnvironment('HARITA')
+
+  Dart sozlesmesi: deger **YALNIZCA** `"true"` ise true, `"false"` ise false,
+  **BASKA HER SEYDE `defaultValue` (false)**. Yani `"1"` -> **FALSE**.
+  `if (haritaAnahtariVar && ...)` kapisi **HIC ACILMADI**; uygulama gercek
+  Google haritasini **HICBIR SURUMDE CIZMEDI**, hep elle boyanmis yer
+  tutucuyu (`_SehirCizer`) gosterdi. Kullanici **UC KEZ** soyledi
+  (*"bu nasil bir harita"* -> *"normal google haritasi degil ki bu"* ->
+  *"yine sacma sapan bir harita, neden google haritasini kullanmiyorsun"*)
+  ve **HER SEFERINDE HAKLIYDI**.
+  ✅ **AMPIRIK KANIT:** `flutter test --dart-define=HARITA=1` -> `false`,
+     `--dart-define=HARITA=true` -> `true`.
+  **FIX (iki katmanli):** bayrak DIZEDEN turetiliyor (`true`|`1`|`yes`) +
+  CI `HARITA=true` geciyor. Biri bozulursa oteki tutar.
+  ⚠️ YAPMA: ciplak `bool.fromEnvironment('HARITA')`a donme.
+- ⚠️⚠️⚠️ **TURU 87 — NEDEN 76 AJANLIK IKI DENETIM BUNU GOREMEDI (YONTEM DERSI).**
+  Hepsi **kod<->kod** ve **kod<->serh** tutarliligina bakti. Bu hata **KOD ILE
+  DERLEME YAPILANDIRMASI ARASINDA** duruyordu ve o siniri HICBIR mercek
+  denetlemedi. Ustelik anahtarin APK manifestine ve iOS `Info.plist`ine
+  enjekte edildigini dogrulamak **"harita calisiyor" KANITI SANILDI** — oysa
+  **ENJEKSIYON ILE BAYRAK AYRI IKI SEYDIR**; biri dogruyken oteki sessizce
+  yanlisti. Derleme temiz, uygulama saglam, hata **YALNIZCA EKRANDA**.
+  ⚠️⚠️ **DERS: bir ozelligin CALISTIGININ TEK KANITI ONA BAKMAKTIR.** Yan
+     kanitlar (anahtar enjekte oldu · paket kurulu · testler yesil · e2e
+     264/264) ozelligin **GORUNDUGUNU** kanitlamaz.
+- 🛡️ **TURU 87 — MUHAFIZ: DERLEME BAYRAGI <-> KOD** (`harita_stili_test.dart`).
+  CI dosyalarindaki `--dart-define=HARITA` degerini **KODUN kabul kumesiyle**
+  karsilastirir. ⚠️ Calistigi KANITLANDI: (a) CI'ya tanimsiz deger
+  (`HARITA=on`), (b) bayragi HIC gecmemek, (c) koda ciplak
+  `bool.fromEnvironment` — **UCU DE KIRMIZI**.
+  ⚠️ **YENI BIR `--dart-define` EKLERKEN bu muhafiza da bir vaka ekle.**
+- 📌 **TURU 87 — ADRESTEN PIN** (kullanici emri: *"isletmeler adreslerinde yer
+  isaretlemesi gerekiyor"*). Turu 85'te isletmenin haritada gorunmesi icin
+  sahibinin ya DUKKANINDA "Bulundugum konumu kullan"a basmasi ya da
+  koordinati ELLE yazmasi gerekiyordu; ikisini de yapmayan isletme adresini
+  yazmis olsa bile **HIC gorunmuyordu**. Artik konum BOSSA adres metninden
+  otomatik cozumlenir (`geocoding`: Android `Geocoder`, iOS `CLGeocoder` —
+  **API ANAHTARI GEREKTIRMEZ**). Yalniz konum YOKKEN calisir, GPS/elle
+  girilene DOKUNMAZ; sonuc "Türkiye" ile sinirli (yanlis ulkeye pin,
+  pinsizlikten KOTUDUR). Basarisizlik hata degil.
+- ⚠️⚠️ **TURU 87 — ARA HATA: `geocoding` 3.0.0 ANDROID BUILD'INI PATLATTI.**
+  `geocoding_android` 3.x **android-33**'e derlenmis; mevcut androidx
+  bagimliliklarimiz daha yuksegini istedigi icin
+  `:geocoding_android:checkReleaseAarMetadata` HATA VERDI. 5.1.0 `compileSdk 36`.
+  ⚠️ **DERS: yeni bir Flutter paketi eklerken `flutter pub get` TEK BASINA
+     YETMEZ** — paketin `android/build.gradle` `compileSdk` degerine BAK.
+     `flutter analyze` bu sinifi **GORMEZ** (yalniz Dart'a bakar); hata
+     GRADLE'da cikar ve YEREL Android SDK yoksa ancak CI'da gorunur.
+  ⚠️ `geocoding` 5.x API **SINIF TABANLI**: ust duzey `locationFromAddress()`
+     KALDIRILDI -> `Geocoding().locationFromAddress(...)`.
+
+- **ONCEKI (11 Agu 08:26): TURU 86 YAYINLANDI** — android
   **31460848125** + ios **31460849840** (**5088dda**), R2 apk=120264179
   (md5 678c63d9) ipa=31373498 (md5 7ffeafd3) index=9456 (md5 473f2d7b),
   purge OK, **CDN BIREBIR (ucu de)**, debug imza YOK. Backend DEGISMEDI.
