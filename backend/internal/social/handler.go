@@ -105,6 +105,10 @@ import (
 //
 //	varsayilana dusurur. NULL DONDURULMEZ — `array_agg` NULL uretirse
 //	`[]string` taramasi PATLAR ve satir SESSIZCE atlanir (turu 76 dersi).
+// TURU 90 - KONUM sutunlari (p.konum_ad/p.enlem/p.boylam) da BU SABITTE:
+// boylece YEDI gonderi sorgusu otomatik alir, sorgular tek tek duzenlenmez.
+// UYARI: bu ham dizeye SQL yorumu (--) YAZMA; sutun_test ayristiricisi
+// sutunlari virgulle ayirir ve yorum satiri sutun adina YAPISIR.
 const medyaTurleri = `
 		       COALESCE((SELECT array_agg(COALESCE(ma.kind,'yok') ORDER BY mm.idx)
 		                   FROM unnest(p.media_ids) WITH ORDINALITY AS mm(mid, idx)
@@ -112,7 +116,8 @@ const medyaTurleri = `
 		       COALESCE((SELECT array_agg(COALESCE(ma.width,0) || 'x' || COALESCE(ma.height,0) ORDER BY mb.idx)
 		                   FROM unnest(p.media_ids) WITH ORDINALITY AS mb(mid, idx)
 		                   LEFT JOIN media_assets ma ON ma.id = mb.mid), '{}'),
-		       p.duzenlendi_at, p.yayin_at,`
+		       p.duzenlendi_at, p.yayin_at,
+		       p.konum_ad, p.enlem, p.boylam,`
 
 // ⚠️⚠️⚠️ TURU 81 — ZAMANLANMIS GONDERI SUZGECI. **TEK KAYNAK.**
 //
@@ -183,6 +188,13 @@ type postReq struct {
 	// ⚠️ TURU 81 — ILERI TARIHLI PAYLASIM (RFC3339). Bos ya da GECMIS ise
 	//    gonderi HEMEN yayinlanir.
 	YayinAt string `json:"yayin_at"`
+	// TURU 90 - KONUM (kullanici emri: "normal paylasimda konum
+	// paylasamiyoruz"). enlem/boylam 0 ise KONUM YOK.
+	// Konum adi ISTEMCIDEN gelir (cihazin geocoder'i uretir); sunucu
+	// DOGRULAMAZ, yalnizca KIRPAR.
+	Konum  string  `json:"konum"`
+	Enlem  float64 `json:"enlem"`
+	Boylam float64 `json:"boylam"`
 	// ⚠️⚠️ TURU 83 — GONDERI ANKETI (kullanici emri: "gonderide anket olmasi
 	//    elzem"). Bos birakilirsa anket YOK.
 	//    Sema: migration 042 · yazan: `chat.GonderiAnketiYaz` (TEK KAYNAK —
@@ -323,9 +335,11 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	//    tasir (olusturuldugu gunun degil) — kullanicinin bekledigi budur.
 	err = tx.QueryRow(r.Context(), `
 		INSERT INTO posts (author_id, tur, metin, media_ids, yorum_kapali,
-		                   yayin_at, created_at)
-		VALUES ($1,$2,$3,$4,$5,$6, COALESCE($6, now())) RETURNING id, created_at`,
-		me, req.Tur, req.Metin, req.MediaIDs, req.YorumKapali, yayinAt).
+		                   yayin_at, created_at, konum_ad, enlem, boylam)
+		VALUES ($1,$2,$3,$4,$5,$6, COALESCE($6, now()), $7,$8,$9)
+		RETURNING id, created_at`,
+		me, req.Tur, req.Metin, req.MediaIDs, req.YorumKapali, yayinAt,
+		kisalt(strings.TrimSpace(req.Konum), 120), req.Enlem, req.Boylam).
 		Scan(&id, &createdAt)
 	if err != nil {
 		log.Printf("gonderi insert: %v", err)
@@ -871,7 +885,8 @@ func (h *Handler) Reels(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) satirlariOku(ctx context.Context, userID string, rows pgx.Rows) []map[string]any {
 	out := []map[string]any{}
 	for rows.Next() {
-		var id, yazarID, tur, metin, ad, kullanici, avatar string
+		var id, yazarID, tur, metin, ad, kullanici, avatar, konumAd string
+		var enlem, boylam float64
 		var medya, turler, boyutlar []string
 		var begeni, yorum, goruntulenme int
 		var yorumKapali, begendim, kaydettim bool
@@ -884,7 +899,7 @@ func (h *Handler) satirlariOku(ctx context.Context, userID string, rows pgx.Rows
 		// ⚠️ `turler`, `boyutlar` ve `duzenlendi` `goruntulenme`den HEMEN SONRA
 		//    gelir (bkz. `medyaTurleri` sabiti — uc parca da oraya ekleniyor).
 		if rows.Scan(&id, &yazarID, &tur, &metin, &medya, &begeni, &yorum,
-			&goruntulenme, &turler, &boyutlar, &duzenlendi, &yayinAt,
+			&goruntulenme, &turler, &boyutlar, &duzenlendi, &yayinAt, &konumAd, &enlem, &boylam,
 			&yorumKapali, &t, &ad, &kullanici, &avatar, &avatarMedya,
 			&begendim, &kaydettim) != nil {
 			continue
@@ -897,6 +912,10 @@ func (h *Handler) satirlariOku(ctx context.Context, userID string, rows pgx.Rows
 			// ⚠️⚠️ TURU 81 — "WxH" (or. "1080x1920"); istemci ORANI buradan
 			//    turetir ve medyayi KIRPMADAN cizer. Bilinmeyen olcu "0x0".
 			"media_boyut":   boyutlar,
+			// TURU 90 - KONUM. Scan edilen her alan yanit haritasina da konur
+			// (turu 78 'Profile()' dersi: derleyici bunu goremez).
+			// enlem/boylam 0 ise KONUM YOK demektir.
+			"konum": konumAd, "enlem": enlem, "boylam": boylam,
 			"begeni_sayisi": begeni, "yorum_sayisi": yorum,
 			"goruntulenme": goruntulenme,
 			"duzenlendi":   duzenlendi != nil,

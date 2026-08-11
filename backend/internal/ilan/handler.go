@@ -7,6 +7,7 @@
 package ilan
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -22,9 +23,23 @@ import (
 	"github.com/gbz-app/gebzem/backend/internal/kimlik"
 )
 
-type Handler struct{ db *pgxpool.Pool }
+// Bildirimci — is ilani BASVURUSU geldiginde ilan sahibine bildirim.
+//
+// TURU 90: arayuz `isletme`/`randevu` paketlerindekiyle AYNI imza; ayri bir
+// bildirim yolu yazmak ikinci bir kopya olurdu.
+type Bildirimci interface {
+	Bildir(ctx context.Context, alici, aktor, tur, hedefTur, hedefID string)
+}
 
-func NewHandler(db *pgxpool.Pool) *Handler { return &Handler{db: db} }
+type Handler struct {
+	db *pgxpool.Pool
+	bs Bildirimci
+}
+
+// NOT: `bs` NIL olabilir; cagiran yerlerde kapi ZORUNLU.
+func NewHandler(db *pgxpool.Pool, bs Bildirimci) *Handler {
+	return &Handler{db: db, bs: bs}
+}
 
 func yaz(w http.ResponseWriter, kod int, v any) {
 	w.Header().Set("Content-Type", "application/json")

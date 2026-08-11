@@ -29,6 +29,9 @@ var beklenenSutunlar = []string{
 	"p.id", "p.author_id", "p.tur", "p.metin", "p.media_ids",
 	"p.begeni_sayisi", "p.yorum_sayisi", "p.goruntulenme",
 	"MEDIA_KINDS", "MEDIA_BOYUT", "p.duzenlendi_at", "p.yayin_at",
+	// ⚠️ TURU 90 — GONDERIDE KONUM. Uc sutun `medyaTurleri` SABITINE eklendi,
+	//    yani YEDI sorgu da otomatik aldi; burasi da guncellendi.
+	"p.konum_ad", "p.enlem", "p.boylam",
 	"p.yorum_kapali", "p.created_at",
 	"u.name", "USERNAME", "u.avatar_url", "u.avatar_media_id",
 	"BEGENDIM", "KAYDETTIM",
@@ -43,6 +46,11 @@ func TestGonderiSorgulariScanIleUyumlu(t *testing.T) {
 		}
 		kaynak += strings.ReplaceAll(string(b), "\r\n", "\n")
 	}
+	// ⚠️ TURU 90 — SQL yorumlari ATILIR (bkz. `sqlYorumsuz` serhi): sorgu
+	//    sabitine aciklama yazmak dogaldir ama ayristirici sutunlari virgulle
+	//    boldugu icin yorum BIR SONRAKI sutun adina yapisir ve YANLIS ALARM
+	//    verir.
+	kaynak = sqlYorumsuz(kaynak)
 
 	// Go sabitlerini yerine koy: sorgular `...`+medyaTurleri+`...` seklinde kuruluyor.
 	kaynak = strings.ReplaceAll(kaynak, "`+medyaTurleri+`", medyaTurleri)
@@ -126,6 +134,23 @@ func ustDuzeydeAyir(liste string) []string {
 		out = append(out, son)
 	}
 	return out
+}
+
+// TURU 90 - SQL yorumlarini (--) atar.
+//
+// Sorgu sabitlerine aciklama yazmak DOGALDIR; ayristirici sutunlari
+// virgulle boldugu icin yorum satiri BIR SONRAKI sutun adina YAPISIR ve
+// test YANLIS ALARM verir (bu tuzak turu 80b sutun_test.go ve turu 83
+// utf8_test.go'da da yasandi).
+func sqlYorumsuz(s string) string {
+	var b []string
+	for _, satir := range strings.Split(s, "\n") {
+		if i := strings.Index(satir, "--"); i >= 0 {
+			satir = satir[:i]
+		}
+		b = append(b, satir)
+	}
+	return strings.Join(b, "\n")
 }
 
 func sutunEslesir(gercek, beklenen string) bool {

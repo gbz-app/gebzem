@@ -112,7 +112,7 @@ func main() {
 	vitrinH := vitrin.NewHandler(db)
 	randevuH := randevu.NewHandler(db, bildirimS)
 	etkinlikH := etkinlik.NewHandler(db)
-	ilanH := ilan.NewHandler(db)
+	ilanH := ilan.NewHandler(db, bildirimS)
 	// TURU 74 — MEDYA. R2 env eksikse Enabled()=false doner ve uclar KAYDEDILMEZ
 	// (fail-closed ama GORUNUR: acilista log yazar).
 	mediaH := media.NewHandler(db, rdb, cfg.R2Endpoint, cfg.R2AccessKeyID,
@@ -282,6 +282,13 @@ func main() {
 		r.Post("/ilanlar/{id}/sohbet", ilanH.SohbetAc)
 		r.Post("/ilanlar/{id}/favori", ilanH.FavoriEkle)
 		r.Delete("/ilanlar/{id}/favori", ilanH.FavoriSil)
+		// TURU 90 - IS ILANI BASVURUSU (kullanici emri).
+		// Basvuru YALNIZ tur=is ilanlara yapilir; kapi handler icinde.
+		r.Post("/ilanlar/{id}/basvuru", ilanH.BasvuruYap)
+		r.Delete("/ilanlar/{id}/basvuru", ilanH.BasvuruGeriCek)
+		r.Get("/ilanlar/{id}/basvurular", ilanH.Basvurular)
+		r.Patch("/ilanlar/{id}/basvurular/{basvuruID}", ilanH.BasvuruDurum)
+		r.Get("/users/me/basvurular", ilanH.Basvurularim)
 		// TURU 77 — ISLETME URUNLERI / MENU
 		r.Post("/isletme/urunler", isletmeH.UrunEkle)
 		r.Patch("/isletme/urunler/{id}", isletmeH.UrunGuncelle)
