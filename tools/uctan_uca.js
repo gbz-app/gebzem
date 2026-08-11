@@ -2162,6 +2162,117 @@ const kontrol = (ad, gecti, ek = '') => {
       vars_.tur === 'urun' && !!vars_.ad, 'ad=' + vars_.ad);
   }
 
+  // ============= TURU 90: IS ILANI BASVURUSU + GONDERIDE KONUM =========
+  {
+    const I = await kullaniciAc('E2E Isveren');
+    const B = await kullaniciAc('E2E Basvuran');
+
+    // --- IS ILANI turu sunucudan geliyor mu
+    const agac = await j('/ilan-kategoriler', { token: I.token });
+    const turler = ((agac.d && agac.d.turler) || []).map((t) => t.anahtar);
+    kontrol('TURU 90: `is` ilan turu TANIMLI', turler.includes('is'),
+      'turler=' + turler.join(','));
+
+    // --- Is ilani olustur (ISLETME HESABI GEREKMEZ)
+    const ilan = await j('/ilanlar', {
+      yontem: 'POST', token: I.token,
+      govde: { tur: 'is', kategori: 'garson', baslik: 'E2E Garson araniyor',
+               aciklama: 'Deneme', fiyat_kurus: 3000000,
+               il: 'Kocaeli', ilce: 'Gebze',
+               ozellikler: { pozisyon: 'Garson', calisma_sekli: 'Tam zamanlı' } },
+    });
+    kontrol('TURU 90: is ilani NORMAL kullanici tarafindan acilabiliyor',
+      ilan.kod === 201, 'HTTP ' + ilan.kod);
+    const ilanID = (ilan.d || {}).id;
+
+    // --- Basvuru
+    const bas = await j('/ilanlar/' + ilanID + '/basvuru', {
+      yontem: 'POST', token: B.token, govde: { not: 'Ilgileniyorum' },
+    });
+    kontrol('TURU 90: is ilanina basvurulabiliyor', bas.kod === 200,
+      'HTTP ' + bas.kod);
+
+    // ⚠️ TEKRAR BASVURU HATA DEGIL (ON CONFLICT DO NOTHING).
+    const bas2 = await j('/ilanlar/' + ilanID + '/basvuru', {
+      yontem: 'POST', token: B.token, govde: { not: 'Tekrar' },
+    });
+    kontrol('TURU 90: tekrar basvuru HATA DEGIL (200)', bas2.kod === 200,
+      'HTTP ' + bas2.kod);
+
+    // ⚠️ KENDI ilanina basvuru 400.
+    const kendi = await j('/ilanlar/' + ilanID + '/basvuru', {
+      yontem: 'POST', token: I.token, govde: {} });
+    kontrol('TURU 90: kendi ilanina basvuru REDDEDILIYOR', kendi.kod === 400,
+      'HTTP ' + kendi.kod);
+
+    // --- Sahibi basvurulari GORUR
+    const liste = await j('/ilanlar/' + ilanID + '/basvurular', { token: I.token });
+    const adaylar = ((liste.d && liste.d.basvurular) || []);
+    kontrol('TURU 90: ilan sahibi basvurulari GORUYOR',
+      liste.kod === 200 && adaylar.length === 1 && adaylar[0].user_id === B.id,
+      'HTTP ' + liste.kod + ' adet=' + adaylar.length);
+
+    // ⚠️ BASKASI 404 (403 DEGIL — 403 basvuru VARLIGINI sizdirirdi).
+    const yabanci = await j('/ilanlar/' + ilanID + '/basvurular', { token: B.token });
+    const yList = ((yabanci.d && yabanci.d.basvurular) || []);
+    kontrol('TURU 90: baskasi basvurulari GOREMIYOR', yList.length === 0,
+      'adet=' + yList.length);
+
+    // --- Durum degistirme (yalniz sahibi)
+    const dur = await j('/ilanlar/' + ilanID + '/basvurular/' + adaylar[0].id, {
+      yontem: 'PATCH', token: I.token, govde: { durum: 'olumlu' } });
+    kontrol('TURU 90: sahibi basvuru durumunu degistirebiliyor', dur.kod === 200,
+      'HTTP ' + dur.kod);
+
+    // --- Basvuran KENDI basvurularini gorur
+    const benim = await j('/users/me/basvurular', { token: B.token });
+    const bList = ((benim.d && benim.d.basvurular) || []);
+    kontrol('TURU 90: kullanici KENDI basvurularini goruyor',
+      bList.length === 1 && bList[0].durum === 'olumlu',
+      'adet=' + bList.length + ' durum=' + (bList[0] || {}).durum);
+
+    // ⚠️ IS OLMAYAN ilana basvuru 400.
+    const arac = await j('/ilanlar', {
+      yontem: 'POST', token: I.token,
+      govde: { tur: 'vasita', kategori: 'otomobil', baslik: 'E2E Araba' } });
+    const yanlis = await j('/ilanlar/' + arac.d.id + '/basvuru', {
+      yontem: 'POST', token: B.token, govde: {} });
+    kontrol('TURU 90: is OLMAYAN ilana basvuru REDDEDILIYOR',
+      yanlis.kod === 400, 'HTTP ' + yanlis.kod);
+
+    // ============= GONDERIDE KONUM =============
+    const gk = await j('/posts', {
+      yontem: 'POST', token: I.token,
+      govde: { tur: 'yazi', metin: 'E2E konumlu gonderi',
+               konum: 'Gebze, Kocaeli', enlem: 40.8028, boylam: 29.4307 },
+    });
+    kontrol('TURU 90: konumlu gonderi olusturulabiliyor', gk.kod === 201,
+      'HTTP ' + gk.kod);
+
+    const det = await j('/posts/' + gk.d.id, { token: I.token });
+    const d = det.d || {};
+    kontrol('TURU 90: gonderi KONUM alanlarini DONDURUYOR (7 sorgu zinciri)',
+      d.konum === 'Gebze, Kocaeli' && Math.abs((d.enlem || 0) - 40.8028) < 0.0001,
+      'konum=' + d.konum + ' enlem=' + d.enlem);
+
+    // ⚠️ KONUMSUZ gonderi 0,0 + bos ad donmeli (sozlesme: 0,0 = YOK).
+    const gk2 = await j('/posts', {
+      yontem: 'POST', token: I.token,
+      govde: { tur: 'yazi', metin: 'E2E konumsuz' } });
+    const det2 = await j('/posts/' + gk2.d.id, { token: I.token });
+    kontrol('TURU 90: konumsuz gonderi 0,0 donuyor',
+      (det2.d || {}).enlem === 0 && (det2.d || {}).konum === '',
+      'enlem=' + (det2.d || {}).enlem + ' konum=' + JSON.stringify((det2.d || {}).konum));
+
+    // ⚠️ AKISTA da konum gelmeli (sabit YEDI sorguya eklendi).
+    const akis = await j('/posts/feed', { token: I.token });
+    const akisG = (((akis.d && akis.d.gonderiler) || [])
+      .find((x) => x.id === gk.d.id)) || {};
+    kontrol('TURU 90: AKIS sorgusu da konum donduruyor',
+      akisG.konum === 'Gebze, Kocaeli',
+      'konum=' + JSON.stringify(akisG.konum));
+  }
+
   // ---------- OZET
   const kalan = sonuclar.filter((s) => !s.gecti);
   console.log('\n==================================');
