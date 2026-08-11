@@ -57,7 +57,7 @@ jobs:
             echo "UYARI: MAPS_API_KEY secret YOK — harita yer tutucu ile derlenecek"
           fi
           EK=""
-          [ -n "$MAPS_API_KEY" ] && EK="--dart-define=HARITA=1"
+          [ -n "$MAPS_API_KEY" ] && EK="--dart-define=HARITA=true"
           flutter build ipa --release \
             --build-number=${GITHUB_RUN_NUMBER} \
             --build-name=1.0.${GITHUB_RUN_NUMBER} \

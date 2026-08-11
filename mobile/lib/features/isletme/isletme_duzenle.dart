@@ -1,3 +1,6 @@
+// ⚠️ TURU 87 — adres -> koordinat. Isletim sisteminin geocoder'ini kullanir,
+//    API anahtari GEREKTIRMEZ (bkz. `_adrestenKoordinat` serhi).
+import 'package:geocoding/geocoding.dart' show locationFromAddress;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -172,8 +175,60 @@ class _IsletmeDuzenleEkraniState extends ConsumerState<IsletmeDuzenleEkrani> {
     });
   }
 
+  /// ⚠️⚠️⚠️ TURU 87 — ADRESTEN KOORDINAT (kullanici emri).
+  ///
+  ///	*"isletmeler adreslerinde yer isaretlemesi gerekiyor"* — turu 85'te
+  ///	isletmenin haritada gorunmesi icin sahibinin ya DUKKANINDA olup
+  ///	"Bulundugum konumu kullan"a basmasi ya da koordinati ELLE yazmasi
+  ///	gerekiyordu. Ikisini de yapmayan isletme, adresini yazmis olsa bile
+  ///	"Yakinimda" listesinde ve haritada **HIC GORUNMUYORDU** (sorgu
+  ///	`enlem <> 0 OR boylam <> 0` suzgeciyle onu eliyor).
+  ///
+  ///	Artik konum BOSSA adres metninden otomatik cozumlenir. Cozumleme
+  ///	ISLETIM SISTEMININ geocoder'ini kullanir (Android `Geocoder`, iOS
+  ///	`CLGeocoder`) — **API anahtari GEREKTIRMEZ**.
+  ///
+  /// ⚠️ Yalnizca konum YOKKEN calisir: kullanici GPS ile ya da elle bir
+  ///    koordinat belirlediyse ona DOKUNULMAZ (adres daha kaba bir bilgidir).
+  /// ⚠️ Basarisizlik HATA DEGILDIR: ag yoksa ya da adres bulunamazsa kayit
+  ///    normal surer, isletme yalnizca haritada gorunmez (elle giris durur).
+  /// ⚠️ Sonuc ULKE ile sinirlanir ("..., Turkiye"): "Cumhuriyet Caddesi"
+  ///    dunyada yuzlerce yerde var ve yanlis ulkeye pin dusmesi, hicbir pin
+  ///    dusmemesinden DAHA KOTUDUR.
+  Future<({double enlem, double boylam})?> _adrestenKoordinat() async {
+    final parcalar = [
+      _adres.text.trim(),
+      _ilce.text.trim(),
+      _il.text.trim(),
+      'Türkiye',
+    ].where((p) => p.isNotEmpty).toList();
+    // ⚠️ Yalniz "Türkiye" kaldiysa arama anlamsizdir (ulke merkezine pin duser).
+    if (parcalar.length < 2) return null;
+    try {
+      final sonuc = await locationFromAddress(parcalar.join(', '))
+          .timeout(const Duration(seconds: 12));
+      if (sonuc.isEmpty) return null;
+      final k = sonuc.first;
+      if (k.latitude == 0 && k.longitude == 0) return null;
+      return (enlem: k.latitude, boylam: k.longitude);
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> _kaydet() async {
     setState(() => _kaydediliyor = true);
+    // ⚠️ Konum belirlenmemisse ADRESTEN cozumle (bkz. `_adrestenKoordinat`).
+    //    `_enlem` ACIKCA 0 ise kullanici "Konumu kaldir" demistir -> DOKUNMA.
+    var enlem = _enlem, boylam = _boylam;
+    if (enlem == null && boylam == null) {
+      final k = await _adrestenKoordinat();
+      if (k != null) {
+        enlem = k.enlem;
+        boylam = k.boylam;
+      }
+    }
+    if (!mounted) return;
     try {
       await ref
           .read(isletmeServisiProvider)
@@ -189,8 +244,9 @@ class _IsletmeDuzenleEkraniState extends ConsumerState<IsletmeDuzenleEkrani> {
               // ⚠️⚠️ TURU 85b — KOORDINAT SOZLESMESI: `null` gonderilmez
               //    (sunucu mevcudu korur), `0` ACIKCA sifirlar. Ayrintili
               //    gerekce `_enlem` alan serhinde.
-              enlem: _enlem,
-              boylam: _boylam,
+              // ⚠️ TURU 87 — yerel degiskenler: adresten cozumlenmis olabilir.
+              enlem: enlem,
+              boylam: boylam,
             ),
           );
       if (!mounted) return;

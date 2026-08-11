@@ -82,6 +82,80 @@ String yorumsuz(String kaynak) {
 void main() {
   final dosya = File('lib/features/isletme/yakinimda_ekrani.dart');
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // ⚠️⚠️⚠️ TURU 87 — EN PAHALI MUHAFIZ: **DERLEME BAYRAGI ↔ KOD**.
+  //
+  //	UC SURUM boyunca gercek Google haritasi HIC CIZILMEDI. Sebep:
+  //	  CI   : --dart-define=HARITA=1
+  //	  Dart : bool.fromEnvironment('HARITA')   // "1" KABUL ETMEZ -> false
+  //	Yani kapi hic acilmadi, uygulama hep elle boyanmis yer tutucuyu
+  //	gosterdi. Kullanici UC KEZ "bu nasil bir harita?" dedi.
+  //
+  //	⚠️ **HICBIR DENETIM BUNU GOREMEDI** (52 + 24 ajan): hepsi kod↔kod ve
+  //	   kod↔serh tutarliligina bakti. Bu hata **KOD ILE DERLEME
+  //	   YAPILANDIRMASI ARASINDA** duruyordu ve o siniri kimse denetlemedi.
+  //	   Ustelik anahtarin APK'ya enjekte edildigini dogrulamak "harita
+  //	   calisiyor" KANITI SANILDI — oysa enjeksiyon ile bayrak AYRI IKI SEY.
+  //
+  // ⚠️ Bu test o siniri kapatir: CI dosyalarindaki degeri KODUN kabul ettigi
+  //    kumeyle karsilastirir. Ikisi ayrisirsa DERLEME KIRMIZIYA DUSER.
+  // ⚠️ YAPMA: bu testi silme; `--dart-define` degerini kodun kabul kumesini
+  //    genisletmeden degistirme.
+  // ═══════════════════════════════════════════════════════════════════════
+  group('derleme bayragi <-> kod', () {
+    final akislar = [
+      File('../.github/workflows/android.yml'),
+      File('../.github/workflows/ios.yml'),
+    ];
+
+    test('CI dosyalari bulunuyor', () {
+      for (final f in akislar) {
+        expect(f.existsSync(), isTrue, reason: '${f.path} yok');
+      }
+    });
+
+    test('CI HARITA degeri KODUN kabul ettigi bir deger', () {
+      // Koddaki kabul kumesi KAYNAKTAN okunur (elle kopyalanmaz -> drift yok).
+      final kod = yorumsuz(dosya.readAsStringSync());
+      final kabul = RegExp(r"_haritaBayragi\s*==\s*'([^']*)'")
+          .allMatches(kod)
+          .map((m) => m.group(1)!)
+          .toSet();
+      expect(kabul, isNotEmpty,
+          reason: 'kodda `_haritaBayragi == ...` karsilastirmasi bulunamadi — '
+              'bayrak cozumleme bicimi degismis olabilir');
+
+      for (final f in akislar) {
+        final ci = f.readAsStringSync();
+        final m = RegExp(r'--dart-define=HARITA=([^\s"\x27]+)').firstMatch(ci);
+        expect(m, isNotNull,
+            reason: '${f.path} icinde --dart-define=HARITA=... YOK — '
+                'harita bayragi hic gecilmiyorsa GERCEK HARITA CIZILMEZ');
+        final deger = m!.group(1)!;
+        expect(
+          kabul.contains(deger),
+          isTrue,
+          reason:
+              '${f.path}: --dart-define=HARITA=$deger geciliyor ama kod yalniz '
+              '$kabul degerlerini kabul ediyor. Bayrak FALSE kalir ve uygulama '
+              'GERCEK GOOGLE HARITASINI HIC CIZMEZ (turu 85-86 hatasi: '
+              'CI "1" geciyordu, `bool.fromEnvironment` yalniz "true" kabul eder).',
+        );
+      }
+    });
+
+    test('kod ciplak bool.fromEnvironment KULLANMIYOR', () {
+      final kod = yorumsuz(dosya.readAsStringSync());
+      expect(
+        RegExp(r"bool\.fromEnvironment\(\s*'HARITA'").hasMatch(kod),
+        isFalse,
+        reason: '`bool.fromEnvironment` YALNIZCA "true"/"false" dizesini kabul '
+            'eder; "1" gibi bir deger SESSIZCE false olur. Bayrak DIZEDEN '
+            'turetilmeli (bkz. `_haritaBayragi`).',
+      );
+    });
+  });
+
   test('Yakinimda kaynagi bulunuyor', () {
     expect(dosya.existsSync(), isTrue,
         reason: 'test proje kokunden (mobile/) kosulmali');

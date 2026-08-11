@@ -119,6 +119,22 @@ dependencies:
   #    kullaniyor ve iki izin katmani tutmak kacinilmaz olarak DRIFT ederdi.
   geolocator: ^13.0.2
 
+  # ⚠️⚠️⚠️ TURU 87 — ADRES -> KOORDINAT (kullanici emri: *"isletmeler
+  #    adreslerinde yer isaretlemesi gerekiyor"*).
+  #
+  #    Turu 85'te isletmenin haritada gorunmesi icin sahibinin ya dukkaninda
+  #    "Bulundugum konumu kullan"a basmasi ya da koordinati ELLE yazmasi
+  #    gerekiyordu. Ikisi de yapilmayinca isletme "Yakinimda"da **HIC
+  #    GORUNMUYORDU** — oysa adresini ZATEN yazmisti.
+  #
+  # ⚠️ Bu paket **API ANAHTARI GEREKTIRMEZ**: Android'de `Geocoder`, iOS'ta
+  #    `CLGeocoder` yani ISLETIM SISTEMININ kendi servisini kullanir.
+  #    Google Geocoding API SECILMEDI — ayri bir uc, ayri faturalandirma ve
+  #    (Maps'e kisitli olan) anahtarimizin kapsami disinda kalirdi.
+  # ⚠️ Coozumleme AGA baglidir ve BASARISIZ OLABILIR; cagiran taraf bunu
+  #    hata degil "koordinat bulunamadi" olarak ele alir (elle giris durur).
+  geocoding: ^3.0.0
+
   # ⚠️⚠️ TURU 85 — HARITA SDK'si ARTIK EKLENDI ("Yakinimda" ekrani icin).
   #    Onceki karar (eklenmedi) su gerekcelere dayaniyordu ve UCU DE COZULDU:
   #      (a) "cloudMapId KULLANMA" -> kullanilmiyor; stil YEREL JSON olarak

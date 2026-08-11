@@ -59,7 +59,37 @@ import 'isletme_servisi.dart';
 ///    gri kutu yerine DURUST bir yer tutucu gorur.
 /// ⚠️ YAPMA: varsayilani `true` yapma — yerel `flutter run` (secret'siz)
 ///    anahtarsiz calisir ve harita bozuk gorunurdu.
-const haritaAnahtariVar = bool.fromEnvironment('HARITA');
+/// ⚠️⚠️⚠️ TURU 87 — **BU BAYRAK ÜÇ SÜRÜM BOYUNCA HEP `false` KALDI.**
+///
+///	Eski hali `bool.fromEnvironment('HARITA')` idi ve CI `--dart-define=
+///	**HARITA=1**` geciyordu. Dart'in `bool.fromEnvironment` sozlesmesi:
+///	deger **YALNIZCA** `"true"` ise true, `"false"` ise false, **BASKA HER
+///	SEYDE `defaultValue` (false)**. Yani `"1"` -> **FALSE**.
+///
+///	SONUC: `if (haritaAnahtariVar && ...)` kapisi HIC ACILMADI; uygulama
+///	GERCEK Google haritasini **hicbir surumde cizmedi**, hep elle boyanmis
+///	yer tutucuyu (`_SehirCizer`) gosterdi. Kullanici uc kez soyledi:
+///	*"bu nasil bir harita?"* / *"normal google haritasi degil ki bu"* /
+///	*"yine sacma sapan bir harita var, neden google haritasini
+///	kullanmiyorsun"*. HER SEFERINDE HAKLIYDI.
+///
+///	⚠️ **HATA NEDEN GORUNMEDI:** anahtarin APK manifestine ve iOS
+///	   `Info.plist`ine enjekte edildigini DOGRULADIM ve "harita hazir"
+///	   sandim. Ama enjeksiyon ile `HARITA` bayragi **AYRI IKI SEY**;
+///	   biri dogruyken oteki sessizce yanlisti. Derleme temiz, uygulama
+///	   saglam, hata YALNIZCA EKRANDA.
+///
+/// FIX (iki katmanli — biri bozulursa oteki tutar):
+///   1. Bayrak artik **DIZEDEN** turetiliyor ve `true`/`1`/`yes` kabul ediyor.
+///   2. CI `--dart-define=HARITA=true` geciyor (dogru sozlesme).
+/// ⚠️ Muhafiz: `test/harita_stili_test.dart` CI dosyalarindaki degeri
+///    KODDAKI kabul kumesiyle karsilastirir; ikisi ayrisirsa test KIRMIZI.
+/// ⚠️ YAPMA: bunu tekrar ciplak `bool.fromEnvironment`a dondurme.
+/// ⚠️ YAPMA: varsayilani `true` yapma — yerel `flutter run` (secret'siz)
+///    anahtarsiz calisir ve harita bozuk gorunurdu.
+const _haritaBayragi = String.fromEnvironment('HARITA');
+const haritaAnahtariVar =
+    _haritaBayragi == 'true' || _haritaBayragi == '1' || _haritaBayragi == 'yes';
 
 /// ⚠️⚠️ **UBER TARZI GRIMSI-BEYAZ** harita stili (kullanici emri).
 ///
