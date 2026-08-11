@@ -17,7 +17,114 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (11 Agu 13:37): TURU 89 YAYINLANDI (SON SURUM)** — android
+- **KALDIGIMIZ YER (11 Agu 15:59): TEST TURU 90 + 90b YAYINLANDI** — android
+  **31492792085** + ios **31492794766** (**bc4eace**), R2 apk=121332927
+  (md5 707b0ef7) ipa=31518916 (md5 c6c8498b) index=9417 (md5 b6f2c96e),
+  purge OK, **CDN BIREBIR (ucu de)**, indir sayfasi 11 Agu 15:59 (saat 5
+  yerde + canli saat), `Content-Type: text/html` + `no-store` + DYNAMIC,
+  debug imza YOK, **iOS min 16.0**, `--dart-define=HARITA=true` IKI build
+  logunda da dogrulandi, **IKI ARTIFACT'TE DE turu 90b kodu var**
+  (dizeler UTF-16 olarak arandi — bkz. asagidaki tuzak),
+  **BACKEND DEPLOY** (bc4eace; migration 044 canlida) + health ok.
+  ✅ **CANLI SUNUCUDA 301/301 UCTAN UCA** · `flutter analyze` **0 hata 0 uyari**
+  · `go build`+`go vet` temiz · UTF-8 muhafizi temiz.
+  🌱 **DB TEMIZLENDI + TOHUM ATILDI**: 10 isletme · 2 kullanici · 2 ilan
+  (1 is ilani + basvuru) · 2 etkinlik · **10/10 isletmeden randevu 201**.
+  ⚠️ **KULLANICIYA VERILEN ADRES:**
+  https://indir.gebzem.app/index.html?v=20260811-1559
+  **KULLANICI TEST EDECEK.**
+- **TURU 90:** is ilani + **basvuru** (herkes ilan verir, normal kullanici
+  basvurur) · **tohum veri** (`tools/tohum.js`) · gonderide **konum** ·
+  sag altta **olustur menusu** · global **odak birakma** (klavye kapanmasi) ·
+  story editor cokmesi · menu duzeni (Yakinimda ayri + KATEGORILER).
+- ⚠️⚠️⚠️ **TURU 90b — DENETIM: 6 MERCEK, 4 SEVK ENGELI + 15 BULGU.
+  ILK BUILD (22d625d) ALINDI AMA YAYINLANMADI.** *"Build ALMAK yayinlamak
+  DEGILDIR"* dersinin **ALTINCI** dogrulanmasi.
+  · **BASVURU OZELLIGININ ISTEMCISI HIC YOKTU**: `grep -rn "basvur"
+    mobile/lib/` = **SIFIR**. Sunucuda 5 uc + tablo + yetki kapilari +
+    bildirim vardi, istemcide TEK SATIR YOKTU -> turun MANSET EMRI
+    ("normal kullanicilar basvuru yapabilmeli") **%100 OLU DOGACAKTI**.
+    UC BAGIMSIZ ajan ayni sonuca vardi. ⚠️ **DERS (DOKUZUNCU tekrar): bir
+    uc/sutun/servis ekledigin AN onu KULLANAN yolu da yaz.**
+  · **GERI CEKEN KULLANICI O ISE KALICI KILITLENIYORDU**: geri cekme satiri
+    SILMEZ (`durum='geri_cekildi'`), yeniden basvuruda UNIQUE cakisir,
+    `ON CONFLICT DO NOTHING` satira DOKUNMAZ, uc yine **200** doner.
+    Kullanici "basvurum gitti" sanar, ilan sahibi onu HIC GORMEZ.
+    KURTARMA YOLU YOKTU. FIX: kosullu `DO UPDATE ... WHERE
+    durum='geri_cekildi'`. ⚠️ `WHERE` ZORUNLU — kosulsuz olsaydi sahibinin
+    'olumsuz' verdigi basvuru her dokunusta 'bekliyor'a doner = SPAM KAPISI.
+  · **`Create` KONUM DOGRULAMASI YAPMIYORDU**: kapi yalniz `Update`e
+    konmustu, `Create` ise BIRINCIL yol. Yarim koordinat (`{"enlem":41.0}`)
+    geciyordu ve istemci olcutu `enlem!=0||boylam!=0` oldugu icin gonderi
+    "konumlu" sayilip cipe dokunanin haritasi **GINE KORFEZI'nde** aciliyordu.
+    Turu 85c'nin *"ASIMETRININ KENDISI HATAYDI"* dersinin tekrari.
+    ⚠️ INSERT'te `COALESCE($8, 0::double precision)` — ciplak `0` tamsayiya
+       cozulup ondaligi KIRPARDI (40.8028 -> 40 = ~90 km).
+  · **ANASAYFADA IKI FAB**: `AkisEkrani` KENDI Scaffold'unda ZATEN "+"
+    tasiyor; turu 90 dis Scaffold'a ikincisini koydu. Ikisi de `endFloat` ve
+    dipler AYNI cizgide -> PIKSEL PIKSEL ust uste; dokunusu DIS FAB aliyor,
+    akisin kendi FAB'i **ULASILAMAZ** kaliyordu (turu 76b'de bilerek
+    kapatilan hata geri gelmisti). ⚠️ YAPMA: `home_screen`e FAB ekleme.
+  · **PAYLASILAN GONDERI AKISTA GORUNMUYORDU**: eski yol `nav.push<String>`
+    sonucunu okuyup akisi tazeliyordu; menu DONEN ID'yi ATIYORDU. Ustteki
+    sevk engeli eski yolu ulasilamaz kildigi icin bu KESIN yasanirdi.
+    FIX: `olusturMenusuAc(context, sonrasinda:)`.
+    ⚠️ Sheet'in KENDI future'i kullanilamaz (ekran sheet POP EDILDIKTEN
+       SONRA push edilir, o an sheet context'i OLUDUR).
+- ⚠️⚠️ **TURU 90b — ARAYUZ BULGULARI OLCULDU (font metrikleri fonttan
+  okundu, `FontLoader` ile ampirik):**
+  · **Olustur sheet'i 360x640'ta VARSAYILAN olcekte 44px TASIYORDU** ("Grup"
+    maddesi kirpik). `isScrollControlled` yokken tavan `ekran*9/16`, ustune
+    `showDragHandle` 48dp. ⚠️ **Test cihazi 414x896 oldugu icin ORADA
+    GORUNMUYORDU — turu 70b dersinin birebir tekrari.**
+  · **FAB SON GONDERININ "KAYDET" DUGMESINI KAPATIYORDU**: uzaklik 16.8dp,
+    dokunma yaricapi 28dp -> kaydet FAB dairesinin TAM ICINDE. FIX: listeye
+    `bottom: 80` dolgu. ⚠️ Son ogedeki `SizedBox`i buyutmek YETMEZ.
+  · **KONUM CIPI ACIK TEMADA 2.27:1** (12px metin icin 4.5:1 gerekiyor;
+    koyu temada 6.72:1 ile sorunsuzdu -> YALNIZ ACIK TEMA hatasi).
+    FIX: `colorScheme.primary`.
+  · `'Konum ✓'`: `✓` Lucide DEGIL · olcek 2.0'da **kirpilan ILK karakter
+    "✓"** oluyordu (kullanici konumun ekli oldugunu ANLAYAMIYORDU) · olcut
+    kaldirma daliyla UYUMSUZDU. FIX: durum IKONDAN + tek olcut `_konumVar`.
+- 🧪 **TURU 90b — ODAK SARMALI AMPIRIK DOGRULANDI.** Denetim gercek
+  `flutter test` sondalariyla KONTROL GRUBU kurdu: dugmeler · cift dokunus ·
+  uzun basma · kaydirma · TextField **HICBIRI BOZULMUYOR** (arena uyeleri
+  derinden koke eklenir, kok DAIMA SON uyedir, jest CALAMAZ).
+  ⚠️ Bilinen sinir: yalniz-`onDoubleTap` alanlarda (akis medyasi/Reels) odak
+     DUSMEZ — o ekranlarda metin girisi yok, pratik etkisi yok.
+  ⚠️ `excludeFromSemantics: true` eklendi (olculdu: sarmal kok semantik
+     dugume `tap` eylemi ekliyordu, TalkBack tum ekrani "etkinlestirilebilir"
+     duyurabilirdi).
+- 🛡️ **TURU 90b — YENI MUHAFIZ: `internal/isletme/modul_test.go`.**
+  Her `Kategoriler` girisinin bir `moduller` karsiligi olmasini zorlar.
+  ⚠️ **ILK KOSUDA IKI KATEGORI DAHA yakaladi** (`eglence`, `teknoloji`) —
+     sorun turu 90'in getirdigi ikisinden ibaret DEGILDI.
+  Ikinci test: `hizmet`/`oda` turu modul ALAN TANIMLAMAK ZORUNDA (istemci
+  yalniz `modul.alanlar`i cizer; alansiz modulun verisi **OLU VERIDIR** —
+  `diyetisyen`/`guzellik` tam bunu yasiyordu: "Ürün ekle" yaziyor,
+  `sure_dakika` HIC cizilmiyor, duzenlemede tur 'hizmet'->'urun' donuyordu).
+- ⚠️⚠️ **ARTIFACT ICINDE TURKCE DIZE ARAMA — UTF-16 (yeni tuzak).**
+  Dart AOT anlik goruntusunde ASCII olmayan dizeler **UTF-16** saklanir
+  (ASCII olanlar UTF-8/Latin-1). `grep -a "Başvuranlar"` **HER ZAMAN YOK
+  DONER** ve build'in eski oldugu SANILIR. Dogrulama once "Yakınımda" gibi
+  BILINEN bir dizeyle YAPILMALI: yontem yanlissa o da YOK doner.
+  ⚠️ Kontrol: `buf.includes(Buffer.from(s,'utf16le'))`.
+- 📌 **TURU 90 — SURUM RUTINI DEGISTI:** TRUNCATE'ten sonra
+  **`node tools/tohum.js`** ZORUNLU (kullanici emri) ve cikan telefon/sifre
+  tablosu KULLANICIYA VERILIR. Betik hicbir yerden otomatik cagrilmiyor;
+  atlanirsa kullanici BOS uygulamaya girer.
+  ⚠️ Betik 409'da login'e duserek IDEMPOTENT; randevu sonuclarini ASSERT
+     eder (ilk yazimda kosulsuz "TOHUM TAMAM" diyordu).
+- 📌 **MIGRATION NUMARALARI (guncel):** 044 = `posts` konum + `ilan_basvurular`.
+  Sonraki **045**'ten.
+- ⏳ **DURUST SINIRLAR:** otel odalari hala VITRIN (gece bazli fiyatlama yok;
+  rezervasyon slot motorundan gecer, oda secimi YOK) · ilan detayindaki
+  "Başvurun alındı" YALNIZ o oturumdaki dokunusu yansitir (sunucuda tekil
+  basvuru durumu donduren uc yok; gercek durum "Başvurularım"da).
+- ⏳ **EN SONA BIRAKILAN (kullanici emri):** `active_call_controller.dart`
+  ~500 satirlik olu bekletme/park zinciri temizligi.
+
+- **ONCEKI (11 Agu 13:37): TURU 89 YAYINLANDI** — android
   **31481923964** + ios **31481926355** (**70e255d**), R2 apk=121152035
   (md5 e0756fc3) ipa=31507031 (md5 7650529c) index=9327 (md5 495a60ca),
   purge OK, **CDN BIREBIR (ucu de)**, debug imza YOK, build logunda
@@ -3570,9 +3677,18 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
 
 ## RUTİN: HER YENİ SÜRÜMDE
 1. Build (GitHub Actions) → artifact indir → içerik doğrula
-2. R2'ye yükle → **Cloudflare purge** → sunucudaki boyut = yerel boyut kontrolü
-3. **Veritabanını temizle:** `TRUNCATE users CASCADE; TRUNCATE otp_codes;` (kullanıcı isteği — her sürümde temiz başlangıç)
-4. Ancak sonra "hazır" de
+2. **`node tools/uctan_uca.js`** canlı sunucuda (301 kontrol) — deploy SONRASI ZORUNLU
+3. R2'ye yükle (**`node tools/indir/r2yukle.js`**) → **Cloudflare purge** → CDN MD5 = yerel MD5
+4. **Veritabanını temizle:** `TRUNCATE users CASCADE; TRUNCATE otp_codes;`
+5. ⚠️⚠️ **`node tools/tohum.js`** — TRUNCATE'ten HEMEN SONRA (turu 90 kullanıcı emri:
+   *"her build'de hesaplar temiz olacak YENİDEN KURULACAK"*). 10 işletme + 2 kullanıcı
+   + 2 ilan (1 iş ilanı + başvuru) + 2 etkinlik kurar, 10/10 işletmeden randevu alır
+   ve **hesap tablosunu basar**. Betik idempotent (409'da login'e düşer).
+   ⚠️ **Bu adım atlanırsa kullanıcı BOŞ bir uygulamaya girer** — test edecek hiçbir
+   işletme/randevu/ilan olmaz. Betik hiçbir yerden otomatik çağrılmıyor.
+6. **Çıktıdaki telefon/şifre tablosunu KULLANICIYA VER** (kullanıcı emri: *"her seferinde
+   telefon ve şifrelerini TABLO ŞEKLİNDE verirsin"*).
+7. Ancak sonra "hazır" de
 
 ## ARAMA SİSTEMİ (LiveKit — kendi sunucumuzda)
 - LiveKit v1.13.3: `backend/livekit-compose.yml` + `livekit.yaml` (host network, TURN açık)

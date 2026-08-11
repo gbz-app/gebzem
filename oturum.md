@@ -6647,3 +6647,66 @@ ekran kayıt akışının diline çevrildi.
 · **`forgot_screen`** yeni beyaz dile çevrilmedi (kullanıcı istemedi).
   Dürüst not: "Şifremi unuttum" hâlâ eski görünümlü ekranı açıyor.
 · `active_call_controller.dart` ölü park zinciri (kullanıcı emriyle en sona).
+
+---
+
+## Oturum — 11 Ağustos 2026 · TURU 90 + 90b: İŞ İLANI BAŞVURUSU · TOHUM VERİ · OLUŞTUR MENÜSÜ
+
+### Kullanıcının 9 maddesi
+1. **Her build'de DB temizliği** — hesaplar kalıyordu.
+2. **Her temizlikte tohum veri:** 2 doktor, 2 diyetisyen, 2 kuaför, 2 güzellik merkezi, 2 otel, 2 ilan, 2 etkinlik — **hepsinden randevu/rezervasyon alınabilmeli** + telefon/şifre **tablo halinde**.
+3. **İş ilanı:** herkes verebilsin, normal kullanıcılar **başvurabilsin**.
+4. İş ilanı ve oteller **kategorilerde** olsun.
+5. Kategori kartları **5 tane alt alta**, "Yakınımda" yukarıda ayrı, altında **KATEGORİLER** başlığı.
+6. **Input'tan çıkılamıyor** — boş yere dokununca klavye kapanmalı (mesaj, telefon, her yerde).
+7. **Normal paylaşımda konum** yok.
+8. **Story'de resim çok ufak + paylaş yukarıda patlamış.**
+9. **Sağ alttaki "+"** alttan popup açsın: gönderi/story/reels/canlı yayın/oda kur/grup kur.
+
+### ✅ Yapılanlar (turu 90)
+- **migration 044** — `posts.enlem/boylam/konum_ad` + `ilan_basvurular` tablosu.
+- **`internal/ilan/basvuru.go`** (YENİ) — 5 uç: başvur · geri çek · başvuranlar (sahibi) · durum değiştir · başvurularım.
+- `ilanlar`a **`is` türü** (pozisyon/çalışma şekli/deneyim/eğitim alanlarıyla) · `guzellik` + `diyetisyen` kategorileri · `otel` → rezervasyon.
+- **Gönderide konum** — `medyaTurleri` SABİTİNE eklendi (7 sorgu birden aldı) · istemcide GPS + ters geokod + kartta pin.
+- **`main.dart` global odak bırakma** — tek `GestureDetector` tüm ekranları sarıyor.
+- **`story_editor` `SizedBox.expand`** — tek satırlık kök neden düzeltmesi.
+- **`hizmet_menusu`** yeniden düzenlendi + **`olustur_menusu.dart`** (FAB menüsü).
+- **`tools/tohum.js`** (YENİ) — GERÇEK UÇLARDAN tohum atar, sonunda hesap tablosunu basar.
+
+### ⚠️⚠️⚠️ TURU 90b — DENETİM: 6 MERCEK, **4 SEVK ENGELİ** + 15 bulgu. İLK BUILD YAYINLANMADI.
+`22d625d` artifact'i başarıyla derlendi ama denetim sevk engeli bulduğu için **iptal edildi**; kod düzeltilip build **yeniden** alındı. *"Build ALMAK yayınlamak DEĞİLDİR"* dersinin **altıncı** doğrulanması.
+
+**(1) BAŞVURU ÖZELLİĞİNİN İSTEMCİSİ HİÇ YOKTU.** `grep -rn "basvur" mobile/lib/` → **SIFIR**. Sunucuda 5 uç + tablo + yetki kapıları + bildirim vardı; istemcide **tek satır yoktu**. Kullanıcının manşet emri **%100 ölü doğacaktı**. Üç bağımsız ajan aynı sonuca vardı.
+
+**(2) GERİ ÇEKEN KULLANICI O İŞE KALICI KİLİTLENİYORDU.** Geri çekme satırı silmez (`durum='geri_cekildi'`), yeniden başvuruda `ON CONFLICT DO NOTHING` satıra dokunmaz, uç yine 200 döner. Kullanıcı "başvurum gitti" sanar, ilan sahibi onu hiç görmez. **Kurtarma yolu yoktu.** FIX: koşullu `DO UPDATE ... WHERE durum='geri_cekildi'`.
+
+**(3) `Create` KONUM DOĞRULAMASI YAPMIYORDU.** Kapı yalnız `Update`e konmuştu; `Create` **birincil yoldur**. Yarım koordinat (`{"enlem":41.0}`) geçiyordu ve istemci ölçütü `enlem!=0||boylam!=0` olduğu için gönderi "konumlu" sayılıp çipe dokunanın haritası **Gine Körfezi'nde** açılıyordu. Turu 85c'nin *"asimetrinin kendisi hataydı"* dersinin tekrarı.
+
+**(4) ANASAYFADA İKİ FAB.** `AkisEkrani` kendi Scaffold'unda **zaten** bir "+" taşıyor; turu 90 dış Scaffold'a ikincisini koydu. İkisi de `endFloat` ve dipler aynı çizgide → **piksel piksel üst üste**; dokunuşu dış FAB alıyor, akışın kendi FAB'i **ulaşılamaz** kalıyordu. Turu 76b'de bilerek kapatılan *"iki tane + var ve farklı iş yapıyorlar"* hatası geri gelmişti.
+
+**(4b) PAYLAŞILAN GÖNDERİ AKIŞTA GÖRÜNMÜYORDU.** Eski yol `nav.push<String>` sonucunu okuyup akışı tazeliyordu; menü **dönen id'yi atıyordu**. Sevk engeli 4 eski yolu ulaşılamaz kıldığı için bu **kesin** yaşanırdı.
+
+### 📊 Ölçülmüş arayüz bulguları (font metrikleri fonttan okundu, `FontLoader` ile ampirik)
+- **Oluştur sheet'i 360×640'ta VARSAYILAN ölçekte 44px taşıyordu** ("Grup" maddesi kırpık). Test cihazı 414×896 olduğu için orada görünmüyordu — **turu 70b dersinin birebir tekrarı**. FIX: `isScrollControlled` + `SingleChildScrollView`.
+- **FAB, son gönderinin "Kaydet" düğmesini kapatıyordu**: uzaklık 16.8dp, dokunma yarıçapı 28dp → kaydet FAB dairesinin **tam içinde**. FIX: `bottom: 80` dolgu.
+- **Konum çipi açık temada 2.27:1 kontrast** (12px metin için gereken 4.5:1'in çok altında; koyu temada 6.72:1 ile sorunsuzdu → **yalnız açık tema** hatası). FIX: `colorScheme.primary`.
+- "Yakınımda" kutusu sabit 78dp iken ölçek 1.5'te taşıyordu → `minHeight` + `maxLines`.
+- `'Konum ✓'`: `✓` Lucide değil · ölçek 2.0'da **kırpılan ilk karakter "✓"** oluyordu (kullanıcı konumun ekli olduğunu anlayamıyordu) · ölçüt kaldırma dalıyla uyumsuzdu. FIX: durum **ikondan** + tek ölçüt.
+
+### 🧪 Odak sarmalı AMPİRİK doğrulandı
+Denetim gerçek `flutter test` sondalarıyla kontrol grubu kurdu: düğmeler · çift dokunuş · uzun basma · kaydırma · TextField **hiçbiri bozulmuyor** (arena üyeleri derinden köke eklenir, kök **daima son üyedir**, jest çalamaz). Bilinen sınır: yalnız-`onDoubleTap` alanlarda (akış medyası/Reels) odak düşmez — o ekranlarda metin girişi yok.
+
+### 🛡️ Yeni kalıcı muhafız: `internal/isletme/modul_test.go`
+Her `Kategoriler` girişinin bir `moduller` karşılığı olmasını zorlar. **İlk koşuda iki kategori daha yakaladı** (`eglence`, `teknoloji`) — sorun turu 90'ın getirdiği ikisinden ibaret değildi. İkinci test: `hizmet`/`oda` türü modül **alan tanımlamak zorunda** (istemci yalnız `modul.alanlar`ı çizer; alansız modülün verisi **ölü veridir**).
+
+### 📊 E2E 274 → 301
+Yeni zincirler: iş ilanı başvurusu (9) · gönderide konum (4) · geri çekme→yeniden başvuru · çapraz-ilan yetki aşımı · kaldırılmış ilana başvuru 404 · yarım/aralık dışı koordinat 400 · **ondalık kırpma yok** · konum düzenlemeden kaldırılabiliyor · konum gönderilmeyince korunuyor · yeni kategori modülleri.
+⚠️ E2E kendi hatalarımı da yakaladı: `/posts/feed` yerine `/feed`, `gonderiler` yerine `posts`, `?kategori=` yerine harita yanıtı. **Yeni kontrol yazarken yanıt şeklini kaynaktan doğrula.**
+
+### 🌱 Tohum veri (kullanıcı emri)
+`node tools/tohum.js` — 10 işletme + 2 kullanıcı + 2 ilan (1'i iş ilanı + başvuru) + 2 etkinlik. **10/10 işletmeden randevu 201 alındı** ve sonuç **assert ediliyor** (ilk yazımda sonuç kontrol edilmiyordu ve betik koşulsuz "TOHUM TAMAM" diyordu). 409'da login'e düşerek **idempotent**.
+
+### 📌 Kararlar
+- Başvuru listesi baskasına **404/boş** döner, 403 DEĞİL — 403 "bu ilanın başvurusu var" bilgisini sızdırırdı.
+- Geri çekilmiş başvuruyu **yalnız adayın kendisi** yeniden açabilir; sahibi diriltemez (rızanın geri alınması karşı tarafça iptal edilemez).
+- Hikâye ve Sesli oda menüde **ekran açmaz, yolu söyler** — o akışların mantığı mevcut ekranların içinde ve kopyalamak ikinci kopya olurdu.
