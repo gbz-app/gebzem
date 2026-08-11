@@ -893,11 +893,11 @@ class _GonderiOlusturState extends ConsumerState<GonderiOlustur> {
       ),
     );
 
-    void yakinda(String ad) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$ad gönderilerde yakında — şimdilik sohbette')),
-      );
-    }
+    // ⚠️ TURU 90b — `yakinda()` yardimcisi SILINDI: turu 90 konumu GERCEKTEN
+    //    bagladi ve bu yardimciyi cagiran son yol da kalkti. Dart olu bir
+    //    yerel fonksiyonu UYARI olarak bildirir; Go'da ayni sinif SESSIZ
+    //    gecerdi (kullanilmayan FONKSIYON hata degildir) — bu yuzden olu
+    //    kodu bulundugu ANDA silmek gerekiyor.
 
     return SizedBox(
       height: 74,

@@ -58,6 +58,32 @@ async function hesapAc({ tel, kadi, ad }) {
     yontem: 'POST',
     govde: { phone: tel, password: SIFRE, name: ad, username: kadi },
   });
+  // ⚠️⚠️ TURU 90b — 409 = "hesap ZATEN VAR" ve HATA DEGILDIR.
+  //
+  // Ilk yazimda betik burada COKUYORDU. Iki somut bedeli vardi:
+  //  (a) TRUNCATE atlanmis bir sunucuda tohum ILK HESAPTA olup HICBIR SEY
+  //      yaratmiyordu ve sebebi "409" gibi anlamsiz bir satirdi;
+  //  (b) kosunun ORTASINDA ag koparsa devam ETMEK IMKANSIZDI — dogrulanmis
+  //      hesaplar artik 409 doner, tek kurtarma yolu DB'yi bastan silmekti.
+  // Artik mevcut hesaba GIRIS YAPILIR: betik idempotent olur ve yarim
+  // kalan kosu kaldigi yerden tamamlanir.
+  // ⚠️ Sifre SABIT oldugu icin giris deterministik calisir; hesap baska bir
+  //    sifreyle acilmissa giris de basarisiz olur ve betik DURUR (dogru
+  //    davranis: sessizce yanlis hesapla devam etmez).
+  if (kayit.kod === 409) {
+    const giris = await j('/auth/login', {
+      yontem: 'POST', govde: { phone: tel, password: SIFRE },
+    });
+    if (giris.kod >= 300) {
+      throw new Error(
+        `${ad}: hesap VAR ama giris yapilamadi (${giris.kod}). ` +
+        `Muhtemelen farkli bir sifreyle acilmis — DB'yi TRUNCATE et.`);
+    }
+    const tk = giris.d.token || giris.d.access_token;
+    const ben = await j('/users/me', { token: tk });
+    console.log(`  (mevcut hesap kullanildi: ${ad})`);
+    return { ad, tel, kadi, token: tk, id: ben.d.id };
+  }
   if (kayit.kod >= 300) {
     throw new Error(`${ad} kayit: ${kayit.kod} ${JSON.stringify(kayit.d)}`);
   }
@@ -299,12 +325,36 @@ async function main() {
   // ---- GERCEK RANDEVU + REZERVASYON (kullanici emri)
   // ⚠️ Doktordan RANDEVU, otelden REZERVASYON: `randevu.TurBul` kategoriden
   //    turetir ve turu 90'da 'otel' -> rezervasyon eklendi.
-  const doktor = isletmeler.find((x) => x.grup === 'Doktor');
-  const otel = isletmeler.find((x) => x.grup === 'Otel');
-  const r1 = await randevuAl(kullanicilar[0], doktor.id, 'Baş ağrısı şikayeti');
-  console.log('  RANDEVU (doktor):', JSON.stringify(r1.kod ?? r1.atlandi));
-  const r2 = await randevuAl(kullanicilar[1], otel.id, '2 kişi, 1 gece');
-  console.log('  REZERVASYON (otel):', JSON.stringify(r2.kod ?? r2.atlandi));
+  // ⚠️⚠️⚠️ TURU 90b — **HER ISLETMEDEN** randevu denenir ve SONUC DOGRULANIR.
+  //
+  // Ilk yazimda yalniz IKI isletme (ilk doktor + ilk otel) deneniyordu ve
+  // sonuc **HIC KONTROL EDILMIYORDU**: `randevuAl` throw etmiyor, sadece
+  // kodu basiyordu, ardindan betik KOSULSUZ "TOHUM TAMAM ... randevu +
+  // rezervasyon" yazip **exit 0** ile cikiyordu. Yani kullanicinin en cok
+  // onemsedigi madde ("BUNLARDAN RANDEVU VE REZERVASYON ALABILMELIYIZ")
+  // tam da DOGRULANMAYAN tek maddeydi — tohum "TAMAM" derken 10 isletmenin
+  // 10'undan da randevu alinamiyor olabilirdi.
+  //
+  // ⚠️ Her isletme ayri ayri denenir: randevu ayari/calisma saati bir
+  //    kategoride sessizce farkli davranirsa (or. yeni bir kategori
+  //    kapisi) BURADA yakalanir, kullanicinin elinde patlamaz.
+  const randevuSonuc = [];
+  for (let i = 0; i < isletmeler.length; i++) {
+    const isl = isletmeler[i];
+    const musteri = kullanicilar[i % kullanicilar.length];
+    const r = await randevuAl(musteri, isl.id, 'Tohum kaydı');
+    randevuSonuc.push({ ad: isl.ad, grup: isl.grup, kod: r.kod, sebep: r.atlandi });
+  }
+  const basarisiz = randevuSonuc.filter((x) => x.kod !== 201);
+  for (const x of randevuSonuc) {
+    console.log(`  ${x.kod === 201 ? 'RANDEVU OK ' : 'RANDEVU HATA'} ` +
+      `${x.grup.padEnd(10)} ${x.ad} -> ${x.kod ?? x.sebep}`);
+  }
+  if (basarisiz.length) {
+    throw new Error(
+      `${basarisiz.length}/${randevuSonuc.length} isletmeden randevu ALINAMADI: ` +
+      basarisiz.map((x) => `${x.ad}(${x.kod ?? x.sebep})`).join(', '));
+  }
 
   // ---- KULLANICIYA VERILECEK TABLO
   const g = (s, n) => String(s).padEnd(n);

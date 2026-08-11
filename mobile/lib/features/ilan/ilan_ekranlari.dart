@@ -18,6 +18,7 @@ import '../medya/medya_servisi.dart';
 import '../sosyal/gonderi_karti.dart' show gonderiZamani;
 import '../sosyal/medya_video.dart';
 import '../sosyal/profil_sayfasi.dart';
+import 'basvuru_ekranlari.dart';
 import 'ilan_servisi.dart';
 
 /// ⚠️⚠️ TURU 77 — ILAN LISTESI (sahibinden deseni).
@@ -144,6 +145,21 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
               _yukle();
             },
           ),
+          // ⚠️⚠️ TURU 90b — "BASVURULARIM" GIRISI.
+          //
+          // Ekrani yazmak YETMEZ; ona GIDEN yol yoksa ozellik yine olu
+          // kalir. Kullanici basvurusunun durumunu (Olumlu/Olumsuz) ancak
+          // buradan gorebilir ve geri cekme yolu da yalniz orada.
+          // ⚠️ YALNIZ IS ILANI listesinde cizilir: vasita/emlak listesinde
+          //    "Başvurularım" anlamsiz olurdu.
+          if (widget.tur == 'is')
+            IconButton(
+              tooltip: 'Başvurularım',
+              icon: const Icon(LucideIcons.briefcase),
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const BasvurularimEkrani()),
+              ),
+            ),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
@@ -445,6 +461,24 @@ class _IlanDetayEkraniState extends ConsumerState<IlanDetayEkrani> {
   ///       daha calismaz.
   bool _mesajMesgul = false;
 
+  /// ⚠️ TURU 90b — YALNIZ BU OTURUMDAKI dokunusu yansitir, "sunucuda
+  ///    basvurum var mi" DEGIL. Sunucu bugun tekil basvuru durumu donduren
+  ///    bir uc sunmuyor; ekran acilisinda `Basvurularim` listesini cekip
+  ///    aramak, her ilan detayinda FAZLADAN bir istek demekti.
+  /// ⚠️ Yaniltici DEGIL: uc IDEMPOTENT (tekrar basvuru 200) ve kullanici
+  ///    gercek durumu **Başvurularım** ekraninda goruyor.
+  bool _basvurdum = false;
+
+  Future<void> _basvur() async {
+    final ok = await basvurSheet(context, ref, i.id, i.baslik);
+    if (ok && mounted) {
+      setState(() => _basvurdum = true);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Başvurun gönderildi — durumu "Başvurularım"da '
+              'takip edebilirsin')));
+    }
+  }
+
   Future<void> _saticiyaMesaj() async {
     if (_mesajMesgul) return;
     _mesajMesgul = true;
@@ -723,14 +757,58 @@ class _IlanDetayEkraniState extends ConsumerState<IlanDetayEkrani> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                if (!benimIlanim)
+                // ⚠️⚠️⚠️ TURU 90b — IS ILANINDA **BASVURU** YOLU.
+                //
+                // Turu 90 sunucuda bes uc acti ama ISTEMCIDE hicbir giris
+                // yoktu; kullanicinin acik emri (*"normal kullanicilar
+                // basvuru yapabilmeli"*) OLU DOGACAKTI.
+                // ⚠️ Dugme TURE KAPILI (`tur == 'is'`): vasita/emlak
+                //    ilaninda "Basvur" anlamsizdir ve sunucu da 400 doner.
+                if (i.tur == 'is' && !benimIlanim) ...[
                   SizedBox(
                     width: double.infinity,
                     child: FilledButton.icon(
-                      onPressed: _saticiyaMesaj,
-                      icon: const Icon(LucideIcons.messageCircle, size: 18),
-                      label: const Text('Satıcıya mesaj gönder'),
+                      onPressed: _basvur,
+                      icon: const Icon(LucideIcons.briefcase, size: 18),
+                      label: Text(_basvurdum ? 'Başvurun alındı' : 'Başvur'),
                     ),
+                  ),
+                  const SizedBox(height: 8),
+                ],
+                // ⚠️ SAHIBI icin basvuranlar listesi — yoksa gelen
+                //    basvurulari GORECEK HICBIR YER olmazdi.
+                if (i.tur == 'is' && benimIlanim) ...[
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => BasvuranlarEkrani(
+                              ilanID: i.id, baslik: i.baslik),
+                        ),
+                      ),
+                      icon: const Icon(LucideIcons.users, size: 18),
+                      label: const Text('Başvuranlar'),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                ],
+                if (!benimIlanim)
+                  SizedBox(
+                    width: double.infinity,
+                    child: i.tur == 'is'
+                        ? OutlinedButton.icon(
+                            onPressed: _saticiyaMesaj,
+                            icon: const Icon(LucideIcons.messageCircle,
+                                size: 18),
+                            label: const Text('İlan sahibine mesaj'),
+                          )
+                        : FilledButton.icon(
+                            onPressed: _saticiyaMesaj,
+                            icon: const Icon(LucideIcons.messageCircle,
+                                size: 18),
+                            label: const Text('Satıcıya mesaj gönder'),
+                          ),
                   ),
                 const SizedBox(height: 40),
               ],
@@ -1119,7 +1197,10 @@ class _IlanVerEkraniState extends ConsumerState<IlanVerEkrani> {
                 contentPadding: EdgeInsets.zero,
                 value: _fiyatGizli,
                 onChanged: (v) => setState(() => _fiyatGizli = v),
-                title: const Text('Fiyat belirtme'),
+                // ⚠️ TURU 90b — IS ILANINDA ETIKET **MAAS**. Sunucudaki serh
+                //    "istemci etiketi ture gore degistirir" diyordu ama
+                //    etiketler SABITTI: is ilani verirken "Fiyat (₺)" yaziyordu.
+                title: Text(_tur == 'is' ? 'Maaş belirtme' : 'Fiyat belirtme'),
               ),
               if (!_fiyatGizli)
                 TextField(
@@ -1127,9 +1208,9 @@ class _IlanVerEkraniState extends ConsumerState<IlanVerEkrani> {
                   keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
                   ),
-                  decoration: const InputDecoration(
-                    labelText: 'Fiyat (₺)',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: _tur == 'is' ? 'Maaş (₺ / ay)' : 'Fiyat (₺)',
+                    border: const OutlineInputBorder(),
                   ),
                 ),
               const SizedBox(height: 12),

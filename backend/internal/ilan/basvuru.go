@@ -32,9 +32,14 @@ type basvuruReq struct {
 // POST /ilanlar/{id}/basvuru — is ilanina basvur.
 //
 // ⚠️ KENDI ILANINA BASVURU 400: anlamsiz ve basvuru listesini kirletir.
-// ⚠️ TEKRAR BASVURU **HATA DEGIL**: `ON CONFLICT DO NOTHING` + 200. Kullanici
+// ⚠️ TEKRAR BASVURU **HATA DEGIL** (200): kullanici iki kez dokunursa ya da
 //
-//	iki kez dokunursa hata gormemeli; UNIQUE zaten tek satir birakir.
+//	zayif agda istek tekrarlanirsa hata gormemeli.
+//
+// ⚠️ Govde KOSULLU `ON CONFLICT ... DO UPDATE`tir — `DO NOTHING` DEGIL.
+// Gerekcesi asagida, INSERT'in hemen ustunde yazili (geri ceken kullaniciyi
+// o ise KALICI KILITLIYORDU). ⚠️ Bu serh turu 90b'de govdeyle YENIDEN
+// HIZALANDI; ilk hali hala "DO NOTHING" diyordu.
 func (h *Handler) BasvuruYap(w http.ResponseWriter, r *http.Request) {
 	me := auth.UserID(r.Context())
 	id := chi.URLParam(r, "id")
@@ -63,8 +68,12 @@ func (h *Handler) BasvuruYap(w http.ResponseWriter, r *http.Request) {
 		hata(w, 400, "bu ilan bir iş ilanı değil")
 		return
 	}
+	// ⚠️ TURU 90b — 404, 400 DEGIL: 400 + "artık yayında değil", ilanin VAR
+	//    OLDUGUNU ve KALDIRILDIGINI dogrular. Bu dosyanin kendi kurali
+	//    (asagida `Basvurular`) "403 varligi sizdirir" diyor; ayni olcut
+	//    burada da gecerli.
 	if durum != "yayinda" {
-		hata(w, 400, "bu ilan artık yayında değil")
+		hata(w, 404, "ilan bulunamadı")
 		return
 	}
 	if sahip == me {
@@ -72,21 +81,42 @@ func (h *Handler) BasvuruYap(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := h.db.Exec(r.Context(), `
+	// ⚠️⚠️⚠️ TURU 90b — `DO NOTHING` DEGIL, KOSULLU `DO UPDATE`.
+	//
+	// Ilk yazimda `DO NOTHING` vardi ve GERI CEKEN KULLANICIYI O ISE KALICI
+	// KILITLIYORDU: geri cekme satiri SILMEZ (`durum='geri_cekildi'` —
+	// veri politikasi), yeniden basvuruda UNIQUE cakisir, `DO NOTHING`
+	// satira DOKUNMAZ, uc yine de 200 doner. Kullanici "basvurum gitti"
+	// sanar; ilan sahibi ise onu HIC GORMEZ (liste `geri_cekildi`yi eler).
+	// Kurtarma yolu YOKTU. Turu 85b'nin "OTP'de vazgecen hesabina KALICI
+	// KILITLENIYORDU" hatasiyla ayni sinif.
+	//
+	// ⚠️ `WHERE durum='geri_cekildi'` ZORUNLU: kosulsuz DO UPDATE, sahibinin
+	//    'olumsuz' verdigi bir basvuruyu her dokunusta 'bekliyor'a
+	//    dondurup listenin basina tasirdi = SPAM KAPISI.
+	// ⚠️ Buradaki `EXCLUDED.not_metin` OLU KOD DEGIL: VALUES tarafinda
+	//    `$3` COALESCE'lanmiyor, yani gonderilen NOT gercekten tasiniyor
+	//    (turu 78/80b/85b'deki `EXCLUDED` tuzagi burada GECERLI DEGIL).
+	tag, err := h.db.Exec(r.Context(), `
 		INSERT INTO ilan_basvurular (ilan_id, user_id, not_metin)
 		VALUES ($1,$2,$3)
-		ON CONFLICT (ilan_id, user_id) DO NOTHING`, id, me, req.Not); err != nil {
+		ON CONFLICT (ilan_id, user_id) DO UPDATE
+		   SET durum='bekliyor', not_metin=EXCLUDED.not_metin, created_at=now()
+		 WHERE ilan_basvurular.durum='geri_cekildi'`, id, me, req.Not)
+	if err != nil {
 		log.Printf("basvuru: %v", err)
 		hata(w, 500, "başvuru gönderilemedi")
 		return
 	}
 
-	// ⚠️ ILAN SAHIBINE BILDIRIM. Bildirimci `nil` olabilir (test/kurulum) —
-	//    kapi ZORUNLU, aksi halde nil pointer panik ederdi.
-	// ⚠️ Bildirim turu `ilan_basvuru`; ISTEMCI SWITCH'I DE GUNCELLENDI
-	//    (turu 80b dersi: sunucuya yeni tur eklerken istemciyi atlamak
-	//    "bir islem yaptı" jenerik metnine ve Sentry gurultusune yol acar).
-	if h.bs != nil {
+	// ⚠️⚠️ TURU 90b — BILDIRIM YALNIZ SATIR DEGISTIYSE.
+	//
+	// Ilk yazimda `RowsAffected()` ATILIYOR ve bildirim KOSULSUZ gidiyordu.
+	// Bildirim katmani ayni dortluyu 1 SAAT bastirdigi icin sonuc "sessiz"
+	// degil, SAATTE BIR HAYALET BILDIRIM idi: basvurusu ZATEN duran biri
+	// ucu tekrar cagirdiginda hicbir satir degismiyor ama ilan sahibinin
+	// telefonu caliyor ve actiginda listede YENI HICBIR SEY olmuyordu.
+	if h.bs != nil && tag.RowsAffected() > 0 {
 		h.bs.Bildir(r.Context(), sahip, me, "ilan_basvuru", "ilan", id)
 	}
 	yaz(w, 200, map[string]bool{"ok": true})
@@ -186,10 +216,20 @@ func (h *Handler) BasvuruDurum(w http.ResponseWriter, r *http.Request) {
 		hata(w, 400, "geçersiz durum")
 		return
 	}
+	// ⚠️⚠️ TURU 90b — `durum <> 'geri_cekildi'` ZORUNLU.
+	//
+	// Beyaz liste 'geri_cekildi'yi ICERMEZ, yani sahibi bir basvuruyu geri
+	// cekilmis YAPAMAZ — ama bu yuklem olmadan geri CEKILMIS bir basvuruyu
+	// 'olumlu' yapip listeye GERI SOKABILIYORDU. Sonuc: adayin RIZASINI
+	// GERI ALMASI karsi tarafca iptal edilebiliyor ve basvuru adayin kendi
+	// listesinde "olumlu" olarak DIRILIYORDU.
+	// ⚠️ Geri cekilmis basvuruyu yalnizca ADAYIN KENDISI yeniden acabilir
+	//    (`BasvuruYap`in kosullu `DO UPDATE` dali).
 	tag, err := h.db.Exec(r.Context(), `
 		UPDATE ilan_basvurular SET durum=$3
 		 WHERE id=$1
 		   AND ilan_id=$2
+		   AND durum <> 'geri_cekildi'
 		   AND EXISTS(SELECT 1 FROM ilanlar i
 		               WHERE i.id=$2 AND i.sahibi_id=$4)`,
 		bid, id, req.Durum, me)

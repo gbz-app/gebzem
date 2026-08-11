@@ -80,6 +80,109 @@ class IlanServisi {
 
   Future<void> favoriEkle(String id) => _api.post('/ilanlar/$id/favori');
   Future<void> favoriSil(String id) => _api.delete('/ilanlar/$id/favori');
+
+  // ═══════════════ TURU 90 — IS ILANI BASVURUSU ═══════════════
+  //
+  // ⚠️⚠️⚠️ BU BES METOT TURU 90b DENETIMINDE EKLENDI. Sunucu tarafi
+  // (5 uc + tablo + yetki kapilari + bildirim) turu 90'da yazilmisti ama
+  // ISTEMCIDE TEK SATIR YOKTU: `grep -rn "basvur" mobile/lib/` SIFIR
+  // donuyordu. Yani kullanicinin bu turdaki MANSET EMRI
+  // (*"normal kullanicilar basvuru yapabilmeli"*) sahada **%100 OLU
+  // DOGACAKTI** — uc bagimsiz denetim ajani da ayni sonuca vardi.
+  // ⚠️ DERS (dokuzuncu tekrar): bir uc/sutun/servis ekledigin AN onu
+  //    KULLANAN yolu da yaz; "sunucu hazir" YARIM istir.
+
+  /// Basvur (ya da geri cekilmis basvuruyu YENIDEN AC).
+  ///
+  /// ⚠️ Sunucu tekrar basvuruyu HATA SAYMAZ (200) — istemci de saymaz.
+  Future<void> basvur(String ilanID, String not) =>
+      _api.post('/ilanlar/$ilanID/basvuru', data: {'not': not});
+
+  Future<void> basvuruGeriCek(String ilanID) =>
+      _api.delete('/ilanlar/$ilanID/basvuru');
+
+  /// ILAN SAHIBI icin basvuranlar.
+  ///
+  /// ⚠️ Sahibi olmayan BOS liste alir (sunucu 404/bos doner — 403 DEGIL,
+  ///    cunku 403 "bu ilanin basvurusu var" bilgisini SIZDIRIRDI).
+  Future<List<Basvuru>> basvurular(String ilanID) async {
+    final r = await _api.get('/ilanlar/$ilanID/basvurular');
+    final m = (r.data as Map).cast<String, dynamic>();
+    return ((m['basvurular'] as List?) ?? [])
+        .map((e) => Basvuru.fromJson((e as Map).cast<String, dynamic>()))
+        .toList();
+  }
+
+  Future<void> basvuruDurum(String ilanID, String basvuruID, String durum) =>
+      _api.patch('/ilanlar/$ilanID/basvurular/$basvuruID',
+          data: {'durum': durum});
+
+  /// Kullanicinin KENDI basvurulari.
+  Future<List<Basvuru>> basvurularim() async {
+    final r = await _api.get('/users/me/basvurular');
+    final m = (r.data as Map).cast<String, dynamic>();
+    return ((m['basvurular'] as List?) ?? [])
+        .map((e) => Basvuru.fromJson((e as Map).cast<String, dynamic>()))
+        .toList();
+  }
+}
+
+/// Is ilani basvurusu.
+///
+/// ⚠️ TEK MODEL, IKI YON: sahibinin listesi basvuran bilgisini (ad/kadi/
+///    avatar/not) tasir, kullanicinin kendi listesi ilan bilgisini
+///    (ilan_id/baslik). Iki ayri model yazmak, ortak alanlarin (durum,
+///    created_at) IKI KOPYASINI dogurur ve bu projede o kopyalar
+///    KACINILMAZ olarak drift eder. Kullanilmayan alanlar bos kalir.
+class Basvuru {
+  Basvuru({
+    required this.id,
+    required this.userID,
+    required this.ad,
+    required this.kullaniciAdi,
+    required this.avatarID,
+    required this.not,
+    required this.durum,
+    required this.ilanID,
+    required this.baslik,
+  });
+
+  final String id;
+  final String userID;
+  final String ad;
+  final String kullaniciAdi;
+  final String? avatarID;
+  final String not;
+
+  /// bekliyor | goruldu | olumlu | olumsuz | geri_cekildi
+  final String durum;
+
+  /// Yalniz "Basvurularim" listesinde dolu.
+  final String ilanID;
+  final String baslik;
+
+  static Basvuru fromJson(Map<String, dynamic> m) => Basvuru(
+    id: (m['id'] ?? '').toString(),
+    userID: (m['user_id'] ?? '').toString(),
+    ad: (m['name'] ?? '').toString(),
+    kullaniciAdi: (m['username'] ?? '').toString(),
+    avatarID: m['avatar_media_id'] as String?,
+    not: (m['not'] ?? '').toString(),
+    durum: (m['durum'] ?? 'bekliyor').toString(),
+    ilanID: (m['ilan_id'] ?? '').toString(),
+    baslik: (m['baslik'] ?? '').toString(),
+  );
+
+  /// ⚠️ ETIKET TEK KAYNAK: uc ekran (basvuranlar · basvurularim · rozet)
+  ///    ayni metni cizer. Uc kopya yazilsaydi biri guncellenmeden kalirdi.
+  String get durumEtiketi => switch (durum) {
+    'bekliyor' => 'Bekliyor',
+    'goruldu' => 'Görüldü',
+    'olumlu' => 'Olumlu',
+    'olumsuz' => 'Olumsuz',
+    'geri_cekildi' => 'Geri çekildi',
+    _ => durum,
+  };
 }
 
 class IlanTuru {

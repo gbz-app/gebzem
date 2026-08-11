@@ -164,6 +164,12 @@ func Metin(tur, ad string) string {
 		return ad + " randevunu reddetti"
 	case "randevu_iptal":
 		return ad + " randevuyu iptal etti"
+	// ⚠️ TURU 90b — bu satir ILK YAZIMDA ATLANMISTI ve `basvuru.go`daki
+	//    yorum "istemci switch'i de guncellendi" diyordu (GUNCELLENMEMISTI).
+	//    Sonuc: isveren "X bir işlem yaptı" push'u aliyordu — onay ile
+	//    reddin ayirt edilememesiyle ayni sinif (turu 75b/80b).
+	case "ilan_basvuru":
+		return ad + " iş ilanına başvurdu"
 	default:
 		return ad + " bir işlem yaptı"
 	}

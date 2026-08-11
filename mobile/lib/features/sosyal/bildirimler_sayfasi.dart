@@ -15,6 +15,7 @@ import '../randevu/randevu_listeleri.dart';
 import 'profil_sayfasi.dart';
 import 'sosyal_servisi.dart';
 import 'takip_listesi.dart';
+import '../ilan/basvuru_ekranlari.dart';
 
 /// ⚠️⚠️ TURU 75 — BILDIRIMLER.
 ///
@@ -160,6 +161,18 @@ class _BildirimlerSayfasiState extends ConsumerState<BildirimlerSayfasi> {
           renk: Colors.orange,
           metin: '$ad randevusunu iptal etti',
         );
+      // ⚠️⚠️ TURU 90b — BU DAL ILK YAZIMDA ATLANMISTI ve sunucudaki serh
+      //    "ISTEMCI SWITCH'I DE GUNCELLENDI" diyordu (GUNCELLENMEMISTI).
+      //    Bedeli: isveren "X bir işlem yaptı" goruyordu, uygulama her
+      //    acilista Sentry'ye alarm basiyordu ve bildirime dokununca
+      //    basvuru listesi yerine BASVURANIN PROFILI aciliyordu.
+      //    Tam da yukaridaki uyarinin engellemeye calistigi hata — UCUNCU kez.
+      case 'ilan_basvuru':
+        return (
+          ikon: LucideIcons.briefcase,
+          renk: const Color(0xFF3AA9FF),
+          metin: '$ad iş ilanına başvurdu',
+        );
       default:
         // ⚠️ SESSIZ DUSMEK YASAK (projenin 3. hata sinifi): sunucuya YENI bir
         //    bildirim turu eklendiginde istemci onu genel metne dusurur ve kimse
@@ -211,6 +224,17 @@ class _BildirimlerSayfasiState extends ConsumerState<BildirimlerSayfasi> {
             isletmeGorunumu: isletmeyeGiden.contains(tur),
           ),
         ),
+      );
+      return;
+    }
+    // ⚠️ TURU 90b — IS ILANI BASVURUSU: dogrudan BASVURANLAR ekranina.
+    //    Aksi halde (dal yokken) son dala dusup BASVURANIN PROFILINI aciyordu;
+    //    isveren basvuruya HICBIR ZAMAN ulasamiyordu.
+    // ⚠️ Ekran yalniz ILAN SAHIBINE veri doner (yetki SUNUCUDA); baskasi
+    //    acarsa bos liste gorur — sizinti yok.
+    if (hedefTur == 'ilan' && hedefId.isNotEmpty) {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => BasvuranlarEkrani(ilanID: hedefId)),
       );
       return;
     }

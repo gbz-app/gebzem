@@ -124,6 +124,28 @@ var moduller = map[string]Modul{
 			{Anahtar: "sure_dakika", Ad: "Süre", Tip: "sayi", Birim: "dk"},
 		},
 	},
+	// ⚠️⚠️ TURU 90b — BU IKISI TURU 90'DA `Kategoriler`E EKLENDI AMA BURAYA
+	// EKLENMEDI ve `varsayilanModul`e (= "Ürünler") dusuyorlardi. Somut bedel:
+	// bir DIYETISYEN katalogunda "Hizmet ekle" yerine "Ürün ekle" ve bolum
+	// etiketinde **"Bölüm (İçecekler, Tatlılar...)"** goruyordu; ustelik
+	// `sure_dakika` HICBIR YERDE cizilmiyordu (`alanlar` bos) ve o kaydi
+	// DUZENLEYINCE turu sessizce `'hizmet'` -> `'urun'` donuyordu.
+	// ⚠️ DERS (turu 89'un aynisi): yeni bir KATEGORI eklerken `Kategoriler`
+	//    ve `moduller` HARITALARINI BIRLIKTE guncelle.
+	"diyetisyen": {
+		Ad: "Hizmetler", Tekil: "Hizmet", Tur: "hizmet",
+		BolumEtiketi: "Bölüm (Danışmanlık, Program...)",
+		Alanlar: []ilan.Alan{
+			{Anahtar: "sure_dakika", Ad: "Süre", Tip: "sayi", Birim: "dk"},
+		},
+	},
+	"guzellik": {
+		Ad: "Hizmetler", Tekil: "Hizmet", Tur: "hizmet",
+		BolumEtiketi: "Bölüm (Cilt, Bakım...)",
+		Alanlar: []ilan.Alan{
+			{Anahtar: "sure_dakika", Ad: "Süre", Tip: "sayi", Birim: "dk"},
+		},
+	},
 }
 
 // ModulBul, kategoriye gore modulu doner (bilinmeyen kategori -> varsayilan).

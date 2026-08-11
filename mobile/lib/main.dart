@@ -632,6 +632,11 @@ class _GebzemAppState extends ConsumerState<GebzemApp> with WidgetsBindingObserv
           //    ICINE tasima (o zaman tam ekran route'larda calismaz).
           child: GestureDetector(
             behavior: HitTestBehavior.translucent,
+            // ⚠️ TURU 90b — **OLCULDU**: sarmal olmadan kok semantik dugumde
+            //    `tap` eylemi YOK, sarmalla VAR. Yani TalkBack/VoiceOver TUM
+            //    EKRANI "etkinlestirilebilir" duyurabiliyordu. Bu sarmal bir
+            //    DUGME DEGIL, yalnizca odak birakan bir dinleyicidir.
+            excludeFromSemantics: true,
             onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
             child: IncomingCallOverlay(
                 child: AktifAramaBanner(child: child ?? const SizedBox.shrink())),

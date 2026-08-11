@@ -3,7 +3,9 @@ package social
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -191,10 +193,16 @@ type postReq struct {
 	// TURU 90 - KONUM (kullanici emri: "normal paylasimda konum
 	// paylasamiyoruz"). enlem/boylam 0 ise KONUM YOK.
 	// Konum adi ISTEMCIDEN gelir (cihazin geocoder'i uretir); sunucu
-	// DOGRULAMAZ, yalnizca KIRPAR.
-	Konum  string  `json:"konum"`
-	Enlem  float64 `json:"enlem"`
-	Boylam float64 `json:"boylam"`
+	// yalnizca KIRPAR ve satir sonlarini temizler.
+	// ⚠️⚠️ TURU 90b — ALANLAR **ISARETCI**: `konumDogrula` "gonderilmedi"
+	//    ile "sifir gonderildi"yi ayirt etmek zorunda. Duz `float64` iken
+	//    yarim koordinat (`{"enlem":41.0}`) DOGRULAMADAN GECIYORDU: istemci
+	//    olcutu `enlem != 0 || boylam != 0` oldugu icin gonderi "konumlu"
+	//    sayiliyor, cipe dokunan kullanicinin haritasi GINE KORFEZI'nde
+	//    aciliyordu.
+	Konum  *string  `json:"konum"`
+	Enlem  *float64 `json:"enlem"`
+	Boylam *float64 `json:"boylam"`
 	// ⚠️⚠️ TURU 83 — GONDERI ANKETI (kullanici emri: "gonderide anket olmasi
 	//    elzem"). Bos birakilirsa anket YOK.
 	//    Sema: migration 042 · yazan: `chat.GonderiAnketiYaz` (TEK KAYNAK —
@@ -228,6 +236,14 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	case "foto", "video", "reels", "yazi":
 	default:
 		hata(w, 400, "geçersiz gönderi türü")
+		return
+	}
+	// ⚠️⚠️ TURU 90b — KONUM KAPISI **BURADA DA**. Ilk yazimda yalniz `Update`
+	//    sertlestirilmisti; `Create` ise BIRINCIL yoldur (her gonderi oradan
+	//    gecer). Kardes yolu koruyup asil yolu acik birakmak, turu 85c'nin
+	//    "ASIMETRININ KENDISI HATAYDI" dersinin birebir tekrariydi.
+	if err := konumDogrula(req.Enlem, req.Boylam); err != nil {
+		hata(w, 400, err.Error())
 		return
 	}
 	// ⚠️ TUTARLILIK: medya tipi ise medya ZORUNLU, 'yazi' ise medya OLMAMALI.
@@ -333,13 +349,23 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	//    istemcinin imlec sozlesmesini degistirmeyi gerektirirdi.
 	// ⚠️ Gorunen TARIH de dogru olur: gonderi yayinlandigi gunun tarihini
 	//    tasir (olusturuldugu gunun degil) — kullanicinin bekledigi budur.
+	// ⚠️ `COALESCE($8, 0::double precision)` — TIP **ACIKCA** yazilir.
+	//    Ciplak `0` yazilsaydi Postgres tipsiz `$8` ile tamsayi `0`i
+	//    INTEGER'a cozer ve ondaligi KIRPARDI (turu 85 tuzagi): 40.8028
+	//    enlem 40'a duser = ~90 km sapma.
+	var konumAdi string
+	if req.Konum != nil {
+		konumAdi = kisalt(temizSatir(*req.Konum), 120)
+	}
 	err = tx.QueryRow(r.Context(), `
 		INSERT INTO posts (author_id, tur, metin, media_ids, yorum_kapali,
 		                   yayin_at, created_at, konum_ad, enlem, boylam)
-		VALUES ($1,$2,$3,$4,$5,$6, COALESCE($6, now()), $7,$8,$9)
+		VALUES ($1,$2,$3,$4,$5,$6, COALESCE($6, now()), $7,
+		        COALESCE($8, 0::double precision),
+		        COALESCE($9, 0::double precision))
 		RETURNING id, created_at`,
 		me, req.Tur, req.Metin, req.MediaIDs, req.YorumKapali, yayinAt,
-		kisalt(strings.TrimSpace(req.Konum), 120), req.Enlem, req.Boylam).
+		konumAdi, req.Enlem, req.Boylam).
 		Scan(&id, &createdAt)
 	if err != nil {
 		log.Printf("gonderi insert: %v", err)
@@ -400,12 +426,31 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	me := auth.UserID(r.Context())
 	id := chi.URLParam(r, "id")
 	var req struct {
-		Metin       *string `json:"metin"`
-		YorumKapali *bool   `json:"yorum_kapali"`
+		Metin       *string  `json:"metin"`
+		YorumKapali *bool    `json:"yorum_kapali"`
+		Konum       *string  `json:"konum"`
+		Enlem       *float64 `json:"enlem"`
+		Boylam      *float64 `json:"boylam"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		hata(w, 400, "geçersiz istek")
 		return
+	}
+	// ⚠️⚠️ TURU 90b — KONUM DUZENLEMEDEN **KALDIRILABILIR**.
+	//
+	// Ilk yazimda `Update` konuma HIC dokunmuyordu; yani yanlislikla konumla
+	// paylasan birinin TEK caresi GONDERIYI SILMEKTI (begeni/yorum/
+	// goruntulenme ile birlikte). Ev adresini paylastigini fark eden biri
+	// icin bu gercek bir gizlilik sorunudur. Isletme tarafinda kaldirma yolu
+	// turu 85b'den beri VAR; gonderi tarafinda ATLANMISTI.
+	// ⚠️ SOZLESME (migration 044 ile ayni): **0,0 = KONUM YOK**. Yani
+	//    `{"enlem":0,"boylam":0,"konum":""}` KALDIRIR.
+	if err := konumDogrula(req.Enlem, req.Boylam); err != nil {
+		hata(w, 400, err.Error())
+		return
+	}
+	if req.Konum != nil {
+		*req.Konum = kisalt(temizSatir(*req.Konum), 120)
 	}
 	if req.Metin != nil {
 		*req.Metin = strings.TrimSpace(*req.Metin)
@@ -416,15 +461,22 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	// ⚠️ Alanlar POINTER: gonderilmeyen alan DEGISMEZ (kismi guncelleme).
 	// ⚠️ `duzenlendi_at` YALNIZ metin GERCEKTEN degistiyse yazilir — yorum
 	//    ayarini acip kapamak "düzenlendi" etiketi dogurmamali.
+	// ⚠️ KONUM UC ALANI **BIRLIKTE** yazilir: yalniz `konum_ad`i degistirip
+	//    koordinati birakmak "Gebze" yazip Ankara'yi acan bir cip uretirdi.
+	//    `enlem` gonderildiyse ucu de uygulanir; gonderilmediyse ucu de durur.
 	tag, err := h.db.Exec(r.Context(), `
 		UPDATE posts SET
 		  metin        = COALESCE($3, metin),
 		  yorum_kapali = COALESCE($4, yorum_kapali),
+		  enlem        = COALESCE($5, enlem),
+		  boylam       = COALESCE($6, boylam),
+		  konum_ad     = CASE WHEN $5 IS NULL THEN konum_ad
+		                      ELSE COALESCE($7, '') END,
 		  duzenlendi_at = CASE
 		      WHEN $3 IS NOT NULL AND $3 <> metin THEN now()
 		      ELSE duzenlendi_at END
 		 WHERE id=$1 AND author_id=$2 AND durum='yayinda'`,
-		id, me, req.Metin, req.YorumKapali)
+		id, me, req.Metin, req.YorumKapali, req.Enlem, req.Boylam, req.Konum)
 	if err != nil {
 		hata(w, 500, "güncellenemedi")
 		return
@@ -961,6 +1013,53 @@ func kisalt(s string, n int) string {
 		return s
 	}
 	return strings.TrimSpace(string(r[:n]))
+}
+
+// temizSatir — satir sonu ve kontrol karakterlerini bosluga cevirir.
+//
+// ⚠️ TURU 90b — konum adi TEK SATIRLIK bir cipte cizilir; icine `\n` giren
+// bir ad kartin basligini bozar. XSS riski YOK (yanit `encoding/json` ile
+// kodlanir, Flutter `Text` cizer) — bu bir YERLESIM korumasidir.
+func temizSatir(s string) string {
+	s = strings.Map(func(r rune) rune {
+		if r == '\n' || r == '\r' || r == '\t' || r < 0x20 {
+			return ' '
+		}
+		return r
+	}, s)
+	return strings.TrimSpace(strings.Join(strings.Fields(s), " "))
+}
+
+// konumDogrula — enlem/boylam araligi + "ikisi de ya var ya yok" kurali.
+//
+// ⚠️⚠️ TURU 90b — BU KAPI ILK YAZIMDA YOKTU ve proje KENDI HAZIR EMSALINI
+// atlamisti (`isletme/yakinimda.go` ayni kontrolu turu 85b'den beri yapiyor).
+//
+// ⚠️ NaN/Inf bu yoldan GIREMEZ (JSON dilbilgisinde `NaN` literal'i yoktur ve
+//    tasan sayi `json.Decode`'u hataya dusurur) — yani turu 85b'nin
+//    `ParseFloat("NaN")` tuzagi BURADA GECERLI DEGIL. Yine de `IsNaN`
+//    kontrolu duruyor: bu fonksiyon ileride JSON DISI bir cagirandan
+//    (form, query, ic servis) beslenirse kapi ONCEDEN kapali olsun.
+// ⚠️ YARIM KOORDINAT REDDEDILIR: istemcinin `konumVar` olcutu
+//    `enlem != 0 || boylam != 0`; yarim koordinat "konum var" sayilir ve
+//    cipe dokunan kullanicinin harita uygulamasi ANLAMSIZ bir noktada
+//    acilirdi. Sozlesme: **ikisi de 0 (=yok) ya da ikisi de gecerli**.
+func konumDogrula(enlem, boylam *float64) error {
+	if enlem == nil && boylam == nil {
+		return nil
+	}
+	if enlem == nil || boylam == nil {
+		return errors.New("konum eksik (enlem ve boylam birlikte gönderilir)")
+	}
+	la, lo := *enlem, *boylam
+	if la == 0 && lo == 0 {
+		return nil // sozlesme: 0,0 = KONUM YOK (kaldirma)
+	}
+	if math.IsNaN(la) || math.IsNaN(lo) || math.IsInf(la, 0) || math.IsInf(lo, 0) ||
+		la < -90 || la > 90 || lo < -180 || lo > 180 {
+		return errors.New("konum geçersiz")
+	}
+	return nil
 }
 
 func yaz(w http.ResponseWriter, kod int, v any) {
