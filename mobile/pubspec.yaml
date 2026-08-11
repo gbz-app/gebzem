@@ -133,7 +133,7 @@ dependencies:
   #    (Maps'e kisitli olan) anahtarimizin kapsami disinda kalirdi.
   # ⚠️ Coozumleme AGA baglidir ve BASARISIZ OLABILIR; cagiran taraf bunu
   #    hata degil "koordinat bulunamadi" olarak ele alir (elle giris durur).
-  geocoding: ^3.0.0
+  geocoding: ^5.0.0
 
   # ⚠️⚠️ TURU 85 — HARITA SDK'si ARTIK EKLENDI ("Yakinimda" ekrani icin).
   #    Onceki karar (eklenmedi) su gerekcelere dayaniyordu ve UCU DE COZULDU:

@@ -1,6 +1,11 @@
 // ⚠️ TURU 87 — adres -> koordinat. Isletim sisteminin geocoder'ini kullanir,
 //    API anahtari GEREKTIRMEZ (bkz. `_adrestenKoordinat` serhi).
-import 'package:geocoding/geocoding.dart' show locationFromAddress;
+// ⚠️⚠️ SURUM 5.x SART: 3.0.0 android-33'e derlenmis ve ANDROID BUILD'I
+//    PATLATIYOR (`:geocoding_android:checkReleaseAarMetadata` — mevcut
+//    androidx bagimliliklarimiz daha yuksek compileSdk istiyor).
+// ⚠️ 5.x'te API **SINIF TABANLI**: ust duzey `locationFromAddress`
+//    fonksiyonu KALDIRILDI, `Geocoding().locationFromAddress(...)` oldu.
+import 'package:geocoding/geocoding.dart' show Geocoding;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -205,7 +210,8 @@ class _IsletmeDuzenleEkraniState extends ConsumerState<IsletmeDuzenleEkrani> {
     // ⚠️ Yalniz "Türkiye" kaldiysa arama anlamsizdir (ulke merkezine pin duser).
     if (parcalar.length < 2) return null;
     try {
-      final sonuc = await locationFromAddress(parcalar.join(', '))
+      final sonuc = await Geocoding()
+          .locationFromAddress(parcalar.join(', '))
           .timeout(const Duration(seconds: 12));
       if (sonuc.isEmpty) return null;
       final k = sonuc.first;
