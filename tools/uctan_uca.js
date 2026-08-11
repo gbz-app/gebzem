@@ -2394,12 +2394,19 @@ const kontrol = (ad, gecti, ek = '') => {
     // ═══════ ISLETME MODULLERI: YENI KATEGORILER ═══════
     // ⚠️ turu 90 `Kategoriler`e `diyetisyen`+`guzellik` ekledi ama
     //    `moduller`e EKLEMEDI -> ikisi de "Ürünler"e dusuyordu.
+    // ⚠️ UC HARITA DONDURUYOR (`{moduller: {kategori: {...}}}`), sorgu
+    //    parametresi ALMIYOR — turu 89 kontrolu (satir ~2102) ayni sekilde
+    //    okuyor. Ilk yazimda `?kategori=` + `.modul` denendi ve `undefined`
+    //    olctu. ⚠️ Yeni kontrol yazarken YANIT SEKLINI mevcut kontrolden ya da
+    //    handler kaynagindan DOGRULA.
+    const modHarita = await j('/isletme-modulleri', { token: I.token });
     for (const kat of ['diyetisyen', 'guzellik']) {
-      const m = await j('/isletme-modulleri?kategori=' + kat, { token: I.token });
-      const md = (m.d || {}).modul || {};
+      const md = ((modHarita.d || {}).moduller || {})[kat] || {};
       kontrol('TURU 90b: `' + kat + '` modulu HIZMETLER (varsayilana DUSMUYOR)',
-        md.ad === 'Hizmetler' && (md.alanlar || []).some((a) => a.anahtar === 'sure_dakika'),
-        'ad=' + md.ad + ' alanlar=' + ((md.alanlar || []).map((a) => a.anahtar).join(',')));
+        md.ad === 'Hizmetler' &&
+        (md.alanlar || []).some((a) => a.anahtar === 'sure_dakika'),
+        'ad=' + md.ad + ' alanlar=' +
+        ((md.alanlar || []).map((a) => a.anahtar).join(',')));
     }
   }
 
