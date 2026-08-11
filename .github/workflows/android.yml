@@ -51,7 +51,14 @@ jobs:
         env:
           MAPS_API_KEY: ${{ secrets.MAPS_API_KEY }}
         run: |
-          # HARITA=1 YALNIZ anahtar varsa: yoksa istemci haritayi HIC kurmaz
+          # ⚠️ DEGER **"true"** OLMAK ZORUNDA — "1" DEGIL.
+          #    `bool.fromEnvironment` YALNIZCA "true"/"false" dizelerini tanir;
+          #    baska her deger (ozellikle "1") SESSIZCE varsayilana ("false")
+          #    duser. Burasi uc surum boyunca "HARITA=1" yaziyordu ve
+          #    `haritaAnahtariVar` HEP false kaldi: anahtar artifact'e DOGRU
+          #    enjekte ediliyordu, harita yine de HIC CIZILMIYORDU.
+          # ⚠️ Bayrak YALNIZ anahtar varsa verilir; yoksa istemci yer tutucu
+          #    cizer (anahtarsiz harita Android'de filigranli GRI kutu olurdu).
           # ve bozuk gri kutu yerine durust yer tutucu cizer.
           EK=""
           [ -n "$MAPS_API_KEY" ] && EK="--dart-define=HARITA=true"
