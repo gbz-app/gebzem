@@ -6751,3 +6751,33 @@ E2E **301 → 336** (canlıda 336/336) · **211 rota** çakışmasız · migrati
 
 ### ⏳ Dürüst sınırlar
 Diyet listesi düz metin (yapılı editör yok) · ölçüm grafiği yok · teklif pazarlığı mevcut ilan sohbeti üzerinden · otel odaları hâlâ vitrin · düğün talebi tek kategoriye gider.
+
+---
+
+## Oturum — 11 Ağustos 2026 · TURU 92: KATEGORİ EKRANI YENİDEN KURULDU
+
+### Kullanıcının emri
+"Yemek kategorisinde aramanın altında **60x60 radiuslu ufak kartlar** (döner, kebap gibi), altında **filtreleme butonu** sağında genel filtreler; **üstünde %100 genişlikte 350px slider**, sol-sağ **alta bakan radius**, '**Yemek' yazısı gerek yok sadece geri ikonu** yeni gönderideki gibi **opak beyaz**, arkası **çok hafif gri**, kısa başlık + kısa **profesyonel** alt başlık, **3-4 slayt, 3 saniyede bir**, **buton yok**." → sonra: "**her kategori farklı**" + "**slider sağ üste harita ekle**, tıklayınca haritadan görünsün".
+
+### ✅ Yapılanlar
+- **`internal/isletme/altkategori.go`** — 17 kategori için alt kategori listesi + 11 kategori için slider metni (+ varsayılan). Tek uç: `GET /isletme-kesif`.
+- **`kategori_slider.dart`** — 350px, alta bakan radius, çok hafif gri, 3sn otomatik, buton yok; geri (sol üst) + harita (sağ üst) opak beyaz ikonlar.
+- **`isletme_listesi.dart`** yeniden kuruldu: AppBar kaldırıldı, arama, 60x60 kartlar, "Filtrele" + sık filtreler.
+- **`YakinimdaEkrani`** `kategori` parametresi aldı — ikinci harita ekranı yazılmadı.
+
+### ⚠️ Kararlar ve gerekçeleri
+- **Alt kategoriler sunucudan.** İstemciye sabit yazmak turu 77 kuralının ihlali olurdu; yeni bir kalem eklemek mağaza onayı gerektirir ve eski sürümler listeyi eksik gösterirdi.
+- **Alt kategori = arama kısayolu, ayrı sütun açılmadı.** `isletmeler.alt_kategori` eklemek işletmelerin o alanı doldurmasını gerektirirdi; bugün hiçbir kayıtta dolu olmayan bir sütun kartların **hepsini boş sonuç** döndürürdü.
+- **Tek uç, iki veri.** Ayrı iki uç, ekran açılışında iki istek demekti (turu 91'de ölçülen açılış maliyeti).
+- **İkinci harita yazılmadı.** `YakinimdaEkrani`de harita stili muhafızı, jest çakışması çözümü, kamera takibi ve adresten pin çözümleme zaten var (turu 85-88).
+- **Kategori değişince `_altSecili` sıfırlanır.** "döner" seçili kalıp kategori "Kuaför"e geçseydi sonuç daima boş olur ve seçili kart artık çizilmediği için kullanıcı sebebini göremezdi.
+- Eski `_hizliKartlar` ve `_cip` **silindi** — ölü bırakmak ileride iki ayrı kategori seçicisi oluşmasına yol açardı (turu 90b `OlusturFab` dersi).
+
+### 🛡️ Üç muhafız, üçü de bozularak kanıtlandı
+`altkategori_test.go`: (a) her kategorinin alt kategorisi olmalı — `kuafor` silindi → kırmızı · (b) `Ara` boş olamaz (boş arama metni kartı tamamen etkisiz yapar) → kırmızı · (c) slayt sayısı 3-4 + metin uzunluk tavanları — başlık 61 karaktere çıkarıldı → kırmızı. Ayrıca ters yön: haritada var olmayan kategori girişi de yakalanır.
+
+### 📊 Sayılar
+E2E **336 → 341** (canlıda 341/341) · **213 rota** çakışmasız · `flutter analyze` 0/0 · `flutter test` 6/6 · CDN üç dosyada bire bir.
+
+### 📌 Doğrulama notu
+IPA'da "Bugün ne yesek?" dizesi **YOK** — bu **doğru**: metin sunucuda yaşıyor, istemciye gömülmedi. Sunucu-güdümlü tasarımın kanıtı.

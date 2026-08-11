@@ -17,7 +17,53 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (11 Agu 19:06): TEST TURU 91 YAYINLANDI** — android
+- **KALDIGIMIZ YER (11 Agu 23:08): TEST TURU 92 YAYINLANDI** — android
+  **31530038962** + ios **31530042894** (**9558e76**), R2 apk=121745231
+  (md5 d923054b) ipa=31586912 (md5 bd2318b2) index=9673 (md5 c5e0d025),
+  purge OK, **CDN BIREBIR (ucu de)**, indir sayfasi 11 Agu 23:08 (saat 5
+  yerde), debug imza YOK, iOS min 16.0, HARITA=true, **BACKEND DEPLOY** +
+  health ok. ✅ **CANLIDA 341/341 UCTAN UCA** · **213 ROTA CAKISMASIZ** ·
+  `flutter analyze` 0/0 · `flutter test` 6/6.
+  🌱 DB TEMIZ + TOHUM (10/10 randevu + dugun talebi + 3 teklif + diyet).
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260811-2308
+- **TURU 92 — KATEGORI EKRANI YENIDEN KURULDU** (kullanici emri).
+  Ustte 350px slider (alta bakan radius, cok hafif gri, 3sn, BUTON YOK) ·
+  AppBar YOK, geri (sol ust) + **harita (sag ust)** opak beyaz ikonlar ·
+  arama · **60x60 alt kategori kartlari** · **Filtrele** + sik filtreler.
+- ⚠️⚠️ **TURU 92 — ALT KATEGORI VE SLIDER METINLERI SUNUCUDAN**
+  (`internal/isletme/altkategori.go`, 17 kategori + 11 slider seti).
+  Kullanici: *"her kategori FARKLI"*. Istemciye sabit yazmak turu 77
+  kuralinin ihlali olurdu: yeni bir alt kategori MAGAZA ONAYI gerektirir ve
+  eski surumler listeyi EKSIK gosterirdi. Bir slayt cumlesi degistirmek
+  artik DEPLOY yeter.
+  ⚠️ **ALT KATEGORI = ARAMA KISAYOLU, AYRI SUTUN ACILMADI.**
+     `isletmeler.alt_kategori` eklemek isletmelerin o alani DOLDURMASINI
+     gerektirirdi; bugun hicbir kayitta dolu olmayan bir sutun kartlarin
+     HEPSINI BOS SONUC dondururdu. ⚠️ YAPMA: bunun icin migration acma.
+  ⚠️ TEK UC (`/isletme-kesif`) IKI VERI dondurur — ayri iki uc acilista
+     IKI istek demekti (turu 91 performans dersi).
+- ⚠️ **TURU 92 — IKINCI HARITA EKRANI YAZILMADI:** `YakinimdaEkrani`
+  `kategori` parametresi aldi. O ekranda harita stili muhafizi, jest
+  cakismasi cozumu (`EagerGestureRecognizer`), kamera takibi ve adresten
+  pin cozumleme ZATEN var (turu 85-88); kopyasi drift ederdi.
+- ⚠️ **TURU 92 — SLIDER TUZAKLARI:** `ClipRRect` ZORUNLU (yalniz
+  `BoxDecoration` ile `PageView` kose disina TASAR) · nokta gostergesi
+  `IgnorePointer` (kullanici "BUTON YOK" dedi) · TEK slaytta zamanlayici
+  KURULMAZ · `dispose`ta zamanlayici ONCE iptal edilir (dispose edilmis
+  `PageController`a `animateToPage` PATLAR) · `didUpdateWidget`te slayt
+  sayisi degisirse zamanlayici YENIDEN kurulur.
+- ⚠️ **TURU 92 — KATEGORI DEGISINCE `_altSecili` SIFIRLANIR:** "döner"
+  secili kalip kategori "Kuaför"e gecerse sonuc DAIMA BOS olurdu ve
+  secili kart artik cizilmedigi icin kullanici sebebini GOREMEZDI.
+  ⚠️ `_kesfiYukle` DE cagrilir (alt kategoriler kategoriye ozel).
+- 🛡️ **TURU 92 — UC MUHAFIZ, UCU DE BOZULARAK KANITLANDI**
+  (`altkategori_test.go`): (a) her kategorinin alt kategorisi olmali
+  (`kuafor` silindi -> KIRMIZI) · (b) `Ara` BOS OLAMAZ, bos arama metni
+  karti TAMAMEN ETKISIZ yapar (bosaltildi -> KIRMIZI) · (c) slayt sayisi
+  3-4 + metin uzunluk tavanlari (baslik 61 karaktere cikarildi -> KIRMIZI).
+  Ayrica TERS YON: haritada var olmayan kategori girisi de yakalanir.
+
+- **ONCEKI (11 Agu 19:06): TEST TURU 91 YAYINLANDI** — android
   **31509234749** + ios **31509238078** (**cee3038**), R2 apk=121728599
   (md5 4a2dff31) ipa=31584232 (md5 a56b7c2a) index=9771 (md5 4f63d676),
   purge OK, **CDN BIREBIR (ucu de)**, indir sayfasi 11 Agu 19:06 (saat 5
