@@ -261,63 +261,44 @@ class _SayfaGorunumu extends StatelessWidget {
     );
   }
 
+  /// ⚠️⚠️ TURU 89 — SADE KARSILAMA (kullanici emri).
+  ///
+  ///	*"onboarding ekranindaki IKONLARI ve arkasindaki KARTLARI kaldir ·
+  ///	yazilarda EGIM vs olmasin · SOL USTTE yazsin SIYAH, altinda aciklama"*.
+  ///
+  /// KALDIRILANLAR:
+  ///   · uc adet mor gradyanli ikon karti (`_kart`) ve 168px'lik alani,
+  ///   · basligin ikinci parcasindaki `FontStyle.italic` (EGIM),
+  ///   · vurgu parcasinin MOR rengi -> baslik TAMAMEN SIYAH.
+  ///
+  /// ⚠️ Dikey hizalama `center` -> `start`: kullanici **"SOL USTTE"** dedi.
+  ///    Yalniz `crossAxisAlignment` degistirilseydi yazi SOLDA ama DIKEY
+  ///    ORTADA kalirdi (iki eksen AYRI ayarlanir).
+  /// ⚠️ Baslik artik tek parca `Text` — `RichText` GEREKMIYOR cunku iki
+  ///    parcanin bicimi ayni. `_Sayfa.vurgu` alani KORUNDU: metin ayrimi
+  ///    okunakli kaliyor ve vurgu ileride geri istenirse yerinde duruyor.
+  /// ⚠️ YAPMA: buraya ikon/kart/gradyan geri koyma; egim (italic) ekleme.
   Widget _icerik(ColorScheme scheme) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(28, 0, 28, 0),
+      padding: const EdgeInsets.fromLTRB(28, 44, 28, 0),
       child: Column(
-        // ⚠️⚠️ TURU 84 — **YAZILAR SOLA DAYALI** (kullanici emri: *"arka plan
-        //    beyaz, yazilar solda, baslik alta kisa profesyonel aciklama"*).
-        //    Onceki tasarim her seyi ORTALIYORDU.
-        // ⚠️ `crossAxisAlignment: start` TEK BASINA YETMEZ: `Text` ve
-        //    `RichText` kendi ICLERINDE de `textAlign` tasir; ikisi de
-        //    `TextAlign.left`a cevrildi. Yalniz biri degistirilseydi cok
-        //    satirli baslik yine ortalanirdi.
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisAlignment: MainAxisAlignment.start,
         children: [
-          // ⚠️ Gorsel kompozisyon da SOLA hizalandi; ortada birakilsaydi
-          //    yazilarla ayni dikey cizgide durmaz, tasarim dagilirdi.
-          SizedBox(
-            height: 168,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.start,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                _kart(scheme, s.ikonlar[0], 78, 100, 0.5),
-                const SizedBox(width: 10),
-                _kart(scheme, s.ikonlar[1], 100, 140, 1.0),
-                const SizedBox(width: 10),
-                _kart(scheme, s.ikonlar[2], 78, 100, 0.5),
-              ],
-            ),
-          ),
-          const SizedBox(height: 40),
-          RichText(
+          Text(
+            [s.baslik, s.vurgu].where((x) => x.isNotEmpty).join(' '),
             textAlign: TextAlign.left,
-            text: TextSpan(
-              style: TextStyle(
-                fontSize: 30,
-                height: 1.18,
-                fontWeight: FontWeight.w800,
-                // ⚠️ Zemin BEYAZ oldugu icin yazi rengi TEMADAN ALINMAZ —
-                //    koyu temada beyaz yaziyi beyaz zemine cizerdi (turu 81b'de
-                //    sohbet balonlarinda yasanan 1.23:1 kontrast hatasinin
-                //    birebir aynisi).
-                color: _kOnboardYazi,
-              ),
-              children: [
-                TextSpan(text: '${s.baslik}\n'),
-                TextSpan(
-                  text: s.vurgu,
-                  style: const TextStyle(
-                    fontStyle: FontStyle.italic,
-                    color: morLogo,
-                  ),
-                ),
-              ],
+            style: const TextStyle(
+              fontSize: 30,
+              height: 1.22,
+              fontWeight: FontWeight.w800,
+              // ⚠️ SIYAH ve SABIT: zemin sabit beyaz oldugu icin renk TEMADAN
+              //    alinamaz (koyu temada beyaz yazi beyaz zemine cizilirdi —
+              //    turu 81b kontrast hatasi).
+              color: _kOnboardYazi,
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
           Text(
             s.alt,
             textAlign: TextAlign.left,
@@ -332,29 +313,7 @@ class _SayfaGorunumu extends StatelessWidget {
     );
   }
 
-  Widget _kart(
-    ColorScheme scheme,
-    IconData ikon,
-    double g,
-    double y,
-    double opaklik,
-  ) => Opacity(
-    opacity: opaklik,
-    child: Container(
-      width: g,
-      height: y,
-      decoration: BoxDecoration(
-        gradient: morGradient,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: morLogo.withValues(alpha: 0.28),
-            blurRadius: 22,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Icon(ikon, color: Colors.white, size: g * 0.38),
-    ),
-  );
+  // ⚠️ TURU 89 — `_kart()` (mor gradyanli ikon karti) SILINDI: kullanici
+  //    "ikonlari ve arkasindaki kartlari kaldir" dedi. Bayrakla kapatilmadi,
+  //    cunku geri istenirse tasarim ZATEN bastan konusulacak.
 }
