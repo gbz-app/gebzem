@@ -17,7 +17,103 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (11 Agu 09:05): TURU 87 YAYINLANDI (SON SURUM)** — android
+- **KALDIGIMIZ YER (11 Agu 13:37): TURU 89 YAYINLANDI (SON SURUM)** — android
+  **31481923964** + ios **31481926355** (**70e255d**), R2 apk=121152035
+  (md5 e0756fc3) ipa=31507031 (md5 7650529c) index=9327 (md5 495a60ca),
+  purge OK, **CDN BIREBIR (ucu de)**, debug imza YOK, build logunda
+  `--dart-define=HARITA=true` dogrulandi. **BACKEND DEPLOY** (70e255d;
+  migration 001->043 atilabilir kopyada dogrulandi, canlida `tur` +
+  `ozellikler` sutunlari mevcut) + health ok, DB TEMIZ.
+  ✅ **CANLI SUNUCUDA 275/275 UCTAN UCA** · **197 ROTA CAKISMASIZ** ·
+  `flutter analyze` **0 hata 0 uyari** · `flutter test` 6/6.
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260811-1337
+- ⚠️⚠️⚠️ **TURU 89 — HARITA MUHAFIZI **KORDU** (stil eklemeden ONCE onarildi).**
+  Turu 86-88 regex'i `featureType` ile `visibility`nin **AYNI kume
+  parantezinde** olmasini bekliyordu. Gercek Google JSON'unda `visibility`
+  **DAIMA** `"stylers":[{...}]` icindedir; desendeki `[^{}]*` bir `{`
+  gecemedigi icin muhafiz **HICBIR SEYI** eslestiriyordu — kodda DURAN kural
+  bile. Test YESILDI ama **YANLIS SEBEPTEN**: turu 85'i onlemek icin yazilmis
+  muhafiz turu 85'in TA KENDISINI yakalayamiyordu.
+  FIX: stil artik **`jsonDecode`** ile YAPI OLARAK geziliyor.
+  ✅ KANIT: Google'in **RESMI Silver** stili yapistirildi (icinde
+     `labels.icon: off` var) -> test ANINDA KIRMIZI.
+  ⚠️ **DERS: bir muhafizin YESIL olmasi, GERCEKTEN OLCTUGU anlamina GELMEZ.
+     Yazdiktan sonra BOZ ve kirmiziya dustugunu GOR.**
+  ⚠️ YAPMA: bu testi tekrar regex'e dondurme.
+- 📌 **TURU 89 — HARITA RENGI (Ayarlar > Harita): `sistem`/`gri`/`gece`.**
+  · **gri** = Google **Silver** TEMELLI ama `labels.icon: off` satiri
+    **CIKARILMIS** (o satir turu 85 hatasinin ta kendisi).
+  · **gece** = Google **Night** (hicbir `visibility` kurali icermez).
+  · Her ikisine turu 88'in `poi.business` kurali TASINDI.
+  Tercih diskte (tema deseninin IKIZI) + `haritaStiliProvider`.
+  ⚠️ `style:` **CALISMA ANINDA** degisir (eklenti stili DIFF'leyip
+     `didUpdateWidget -> _updateOptions` ile push eder; harita yeniden
+     KURULMAZ, `key` degistirmek GEREKMEZ).
+  ⚠️ YAPMA: `GoogleMapController.setMapStyle` kullanma — DEPRECATED.
+- ⚠️⚠️ **TURU 89 — ISLETME MODULLERI (otel->Odalar, doktor->Hizmetler).**
+  ⚠️ **AYRI TABLO ACILMADI** — UC ayri migration bunu ISIMLE yasakliyor
+     (030:14, 038:15, 031:12). `ilanlar`in `tur` + `ozellikler JSONB` + GIN
+     deseni kopyalandi; alan tanimlari **SUNUCUDAN** gelir
+     (`GET /isletme-modulleri`) ve form ISTEMCIDE uretilir -> yeni alan
+     eklemek **ISTEMCI GUNCELLEMESI GEREKTIRMEZ**.
+  ⚠️ **GIZLI KAZANC:** tablo DEGISMEDIGI icin `media.erisebilir()` urun dali
+     ve `ai_gorsel` referans sayimi DOKUNULMADAN kaldi. Yeni tablo acilsaydi
+     bu iki nokta sessizce bozulur ve hata **YALNIZ IKINCI HESAPTA**
+     gorunurdu (turu 75b/77/78/78b'de DORT kez sahaya cikan sinif).
+  ⚠️ `Detay` yaniti `modul` doner (`randevu_turu` ile BIREBIR ayni desen:
+     kategori -> davranis turetmesi SUNUCUDA).
+  ⚠️ `tur`a CHECK YOK (036/037'de IKI KEZ sevk engeli uretmis tuzak);
+     beyaz liste Go'da (`TurGecerli`).
+- ⚠️⚠️⚠️ **TURU 89 — E2E GERCEK BIR HATA YAKALADI: BETIK "OK" DEDI AMA
+  DEGISIKLIK UYGULANMAMISTI (CRLF).** `tur`/`ozellikler` kaydedilmiyordu.
+  KOK NEDEN: bir onceki adimda `git checkout -- urun.go` calistirilmis ve git
+  dosyayi **CRLF** ile geri yazmisti; betigimin `\n` iceren arama dizeleri
+  ESLESMEDI ve INSERT, UPDATE ile IKI istek tipi **UYGULANMADI**. Derleme de
+  gecti cunku **Go kullanilmayan FONKSIYON icin hata VERMEZ** (yardimcilar
+  olu kalmisti).
+  ⚠️ **DERS: Windows'ta betikle metin degistirirken SATIR SONLARINI VARSAYMA;
+     `git checkout` sonrasi dosya CRLF olur. Kritik degisikligi `Edit` ile yap
+     ve sonucu GREP'LE DOGRULA.**
+  ⚠️ Bu sinifi `go build`+`go vet`+birim testler **GOREMEDI**; yalnizca
+     **CANLI E2E** yakaladi.
+- ⚠️⚠️ **TURU 89 — IZINLER ONBOARDINGE TASINDI, AYRI SAYFA KALDIRILDI.**
+  Dort sayfa sirayla: mikrofon -> kamera -> bildirim -> tam ekran bildirim.
+  ⚠️ **TAM EKRAN BILDIRIM EN SON**: sistem AYARLAR ekranini acar ve Activity
+     duraklar; ortada olsaydi sonraki diyalog GOSTERILMEZDI (turu 56'da tam bu
+     yuzden READ_PHONE_STATE 36 tur boyunca hic alinamadi).
+  ⚠️⚠️ **SEVK ENGELI ONLENDI:** `main.dart` HER SOGUK ACILISTA, onboardingten
+     BAGIMSIZ `CallKitService.izinleriIste()` cagiriyordu. Iki akis paralel
+     kosunca Android ikinci istegi sessizce duserur -> READ_PHONE_STATE denied
+     -> GSM gizlilik kapisi (turu 56/63) GERI GELIR.
+     **`&& tercihler.onboardingGoruldu` kapisi ZORUNLU.**
+  ⚠️⚠️ **KURTARMA YOLU (Ayarlar > IZINLER) ZORUNLU:** onboarding bayragi
+     KALICI oldugu icin izinleri reddeden kullanicinin uygulamayi SILMEDEN
+     donus yolu KALMAZDI. ⚠️ YAPMA: o girisi kaldirma.
+  KALDIRILANLAR: `PermissionsScreen` kapisi + kayit akisinin 4. adimi
+  (akis **4 -> 3 adim**).
+- 📌 **TURU 89 — SADE KARSILAMA + GIRIS.** Onboardingden uc mor gradyanli ikon
+  karti, `FontStyle.italic` (egim) ve mor vurgu KALDIRILDI; baslik TAMAMEN
+  SIYAH, sol ustte (`mainAxisAlignment` da `center -> start` — iki eksen AYRI
+  ayarlanir). Giris ekranindan 72px `messageCircle` ikonu ve "Gebzem" basligi
+  kaldirildi; ekran kayit akisinin diline cevrildi.
+  ⚠️ Ortak parcalar **KOPYALANMADI**: `auth_stil.dart` TEK KAYNAK.
+- 🛡️ **TURU 89 — MUHAFIZ GENISLEMESI:** `internal/isletme/sutun_test.go` artik
+  **URUN sorgusunu da** kapsiyor. ⚠️ Calistigi KANITLANDI: (a) SELECT'ten
+  sutun cikarilinca *"SELECT 11 sutun donduruyor ama Scan 12 alan bekliyor"*,
+  (b) `tur` yanit haritasindan cikarilinca *"YANIT HARITASINDA YOK"* — ikisi
+  de KIRMIZI. **E2E 265 -> 276.**
+- 📌 **MIGRATION NUMARALARI (guncel):** 043 = `isletme_urunleri.tur` +
+  `ozellikler` JSONB + GIN. Sonraki **044**'ten.
+- ⏳ **TURU 89 — KAPSAM DISI (durust not):** otel icin **gece bazli
+  rezervasyon** YOK (`randevular` SLOT bazlidir; `slot_kapasite` "ayni anda
+  kac randevu" demek, "kac oda bos" DEMEK DEGIL — tam cozum yeni bir
+  tarih-araligi modeli ister ve cakisma mantigi advisory kilitli TEK deyim
+  uzerine kurulu). Bu turda **oda modulu VITRIN**: tip/kapasite/fiyat/gorsel
+  listelenir, iletisim mesajla. · **eczane nobetci** bilgisi YOK (sifir kod +
+  resmi kaynak gerektirir) · `forgot_screen` yeni beyaz dile CEVRILMEDI
+  (kullanici istemedi; "Şifremi unuttum" hala eski gorunumlu ekrani aciyor).
+
+- **ONCEKI (11 Agu 09:05): TURU 87 YAYINLANDI** — android
   **31463073346** + ios **31463075086** (**f5781ca**), R2 apk=121151851
   (md5 8f390b14) ipa=31514590 (md5 6de8bda0) index=9456 (md5 286c3cc3),
   purge OK, **CDN BIREBIR (ucu de)**. Backend DEGISMEDI.

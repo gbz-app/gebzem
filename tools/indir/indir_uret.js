@@ -45,27 +45,7 @@ const surumEtiketi =
   `${now.getUTCFullYear()}${p2(now.getUTCMonth() + 1)}${p2(now.getUTCDate())}` +
   `-${p2(now.getUTCHours())}${p2(now.getUTCMinutes())}`;
 
-const YENI_ICERIK = `<div class="yeni"><b>Bu sürümde — YENİ GİRİŞ AKIŞI ve YAKINIMDA:</b>
-<br><br><b>1 · TANITIM EKRANLARI:</b> Uygulamayı ilk açtığında dört ekranlık tanıtım
-<b>beyaz zeminde, yazılar solda</b>, her biri tek cümlelik açıklamayla geliyor.
-<br><br><b>2 · KAYIT ARTIK ADIM ADIM:</b> Önce <b>telefon</b>, sonra <b>SMS kodu</b>,
-sonra <b>ad, kullanıcı adı ve şifre</b>. Hepsi tek sayfada değil; üstte ilerleme çubuğu var.
-<br><br><b>3 · İZİNLER AYRI ADIMDA:</b> Son adımda mikrofon, kamera ve bildirim
-izinlerinin <b>ne işe yaradığı tek tek anlatılıyor</b> — sesli/görüntülü arama ve
-gelen arama bildirimi için. İstersen <b>Şimdilik geç</b> diyebilirsin.
-<br><br><b>4 · YAKINIMDA:</b> Sol üstteki menüde <b>ilk sırada</b>. Üstte
-<b>harita</b>, altta <b>mesafeye göre sıralı</b> işletme kartları. Kategoriye ve
-mesafeye (2-50 km) göre süzebilirsin; haritadaki balona dokununca işletme açılır.
-<br><br><b>5 · YENİ KATEGORİLER:</b> <b>Eczane</b> ve <b>Otel</b> eklendi.
-<br><br><b>6 · İŞLETME KONUMU:</b> İşletme hesabında konumunu
-<b>bulunduğun yerden tek dokunuşla</b> ya da <b>koordinatı elle yazarak</b>
-belirleyebilirsin — konumu olmayan işletme Yakınımda listesinde çıkmaz.
-<br><br><b>7 · DÜZELTMELER:</b> Kayıtla açılan hesabın giriş yapamaması, izin
-ekranının iki kez çıkması, koyu temada beyaz ekranlarda yazının okunamaması ve
-işletme kaydederken konumun silinmesi giderildi.
-<br><br><b>Sınırlar:</b> Gönderide <b>konum</b> henüz yok (sohbette var). Ödeme yok.
-Arama <b>birebir</b> · Sohbet odası 20 konuşmacı + sınırsız dinleyici ·
-Canlı yayın 4 kişi + sınırsız izleyici.</div>`;
+const YENI_ICERIK = `<div class="yeni"><b>Bu sürümde:</b><br><br><b>1 · GERÇEK GOOGLE HARİTASI:</b> Yakınımda ekranındaki harita artık sokak adları ve mekânlarla birlikte geliyor; parmakla kaydırıp yakınlaştırabilirsin. Harita ekranın <b>%70</b>&#39;i, altta işletmeler <b>sol-sağ kayan kartlar</b> halinde.<br><br><b>2 · HARİTA RENGİ AYARDAN:</b> Ayarlar &gt; Harita &rarr; <b>Sistem / Açık gri / Gece</b>. Açık gri, sade ve düşük renkli bir gündüz görünümü.<br><br><b>3 · İŞLETME MODÜLLERİ:</b> Kategoriye göre değişiyor — <b>otel &rarr; Odalar</b> (kapasite, yatak, kahvaltı), <b>doktor/kuaför &rarr; Hizmetler</b> (süre), <b>restoran &rarr; Menü</b>. Artık otelci &quot;Ana Yemekler&quot; formu görmüyor.<br><br><b>4 · İŞLETMELER ADRESİNDEN PİNLENİYOR:</b> Koordinat girmeye gerek yok; adresi yazman yeterli. İstersen koordinatı elle de girebilirsin.<br><br><b>5 · KARŞILAMA VE GİRİŞ SADELEŞTİ:</b> Tanıtım ekranlarındaki kartlar ve ikonlar kaldırıldı; başlık sol üstte, siyah, altında açıklama. Giriş ekranı kayıt ekranıyla aynı görünümde.<br><br><b>6 · İZİNLER TANITIMDA:</b> Ayrı izin sayfası kaldırıldı; izinler tanıtım ekranlarında sırayla, <b>ne işe yaradığı anlatılarak</b> isteniyor. Sonradan <b>Ayarlar &gt; İzinler</b>&#39;den verebilirsin.<br><br><b>Sınırlar:</b> Otel odaları şimdilik <b>vitrin</b> (gece bazlı rezervasyon yok, iletişim mesajla). Gönderide konum yok. Ödeme yok. Arama <b>birebir</b> · Sohbet odası 20 konuşmacı · Canlı yayın 4 kişi.</div>`;
 
 let cikti = sablon
   .replace(/\{\{SAAT\}\}/g, saat)
@@ -90,8 +70,8 @@ const kontroller = [
   //    uretilmesini ENGELLEMEK — yoksa kullaniciya BIR ONCEKI surumun
   //    notlari gosterilir ve "yeni ne var" yalan olur.
   // ⚠️ YAPMA: bu satiri silme; yeni turda ANAHTAR IFADEYI degistir.
-  [cikti.includes('KAYIT ARTIK ADIM ADIM') && cikti.includes('YAKINIMDA'),
-    'turu 85 icerigi yazilmadi (YENI_ICERIK guncellenmemis)'],
+  [cikti.includes('GERÇEK GOOGLE HARİTASI') && cikti.includes('İŞLETME MODÜLLERİ'),
+    'turu 89 icerigi yazilmadi (YENI_ICERIK guncellenmemis)'],
   // ⚠️ YALNIZ GORUNEN metin taranir. HTML/CSS/JS YORUMLARINDAKI ⚠️ isaretleri
   //    kullaniciya cizilmez ve serhin okunurlugu icin BILINCLI olarak durur.
   [!/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(

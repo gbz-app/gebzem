@@ -6525,3 +6525,125 @@ oysa kullanıcının istediği `poi.business` gizlemesi meşru. Yasak artık
 Ayrıca `featureType` olmadan tüm haritaya uygulanan `visibility: off` ayrı
 yakalanıyor. Dar bir `poi.business` kuralı geçer, haritayı boşaltan hiçbir
 kural geçmez.
+
+### TURU 89 — İŞLETME MODÜLLERİ · HARİTA RENGİ · SADE KARŞILAMA · İZİNLER
+
+**YAYINLANDI 13:37** — android `31481923964` + ios `31481926355` (**70e255d**),
+R2 apk=121152035 (md5 `e0756fc3`) ipa=31507031 (md5 `7650529c`) index=9327
+(md5 `495a60ca`), purge OK, **CDN BİREBİR (üçü de)**, debug imza YOK,
+build logunda `--dart-define=HARITA=true` doğrulandı.
+Backend deploy **70e255d**, migration 001→043 atılabilir kopyada doğrulandı,
+canlıda `tur` + `ozellikler` sütunları mevcut, DB TEMİZ.
+✅ **CANLI SUNUCUDA 275/275 UÇTAN UCA** · **197 ROTA ÇAKIŞMASIZ** ·
+`go build`+`go vet`+`go test` temiz · `flutter analyze` **0 hata 0 uyarı** ·
+`flutter test` 6/6.
+⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260811-1337
+
+#### KEŞİF ÖNCE — işin yarısı zaten vardı
+Dört alanda keşif koşturuldu (CLAUDE.md turu 81 dersi: *"büyük bir istek
+geldiğinde ÖNCE bunun ne kadarı zaten var diye SOR"*). Sonuç: harita renginin
+~%80'i (tema deseni + uygulamada TEK `GoogleMap`), izin dizisinin ~%70'i
+(`izinleriTopluIste`) ve modüllerin altyapısı (`ilanlar`ın `tur`+`ozellikler`
+JSONB deseni) HAZIRDI.
+
+#### ⚠️⚠️⚠️ HARİTA MUHAFIZI **KÖRDÜ** — stil eklemeden önce onarıldı
+Turu 86-88'de yazdığım regex, `featureType` ile `visibility`nin **aynı küme
+parantezinde** olmasını bekliyordu. Gerçek Google JSON'unda `visibility`
+**daima** `"stylers":[{...}]` içindedir; desendeki `[^{}]*` bir `{` geçemediği
+için muhafız **hiçbir şeyi** eşleştirmiyordu — kodda duran kural bile.
+Yani test yeşildi ama **yanlış sebepten**: turu 85'i önlemek için yazılmış
+muhafız, turu 85'in ta kendisini yakalayamıyordu.
+FIX: stil artık `jsonDecode` ile **yapı olarak** geziliyor; biçimlendirmeden
+(boşluk, satır sonu, tırnak kaçışı) tamamen bağımsız.
+✅ **KANIT:** Google'ın **resmî Silver** stili yapıştırıldı (içinde
+`labels.icon: off` var) → test anında **kırmızı**.
+
+#### HARİTA RENGİ (Ayarlar > Harita)
+`Sistem / Açık gri / Gece`.
+· **Açık gri** = Google **Silver** temelli ama `labels.icon: off` satırı
+  **çıkarılmış** (o satır turu 85 hatasının ta kendisi).
+· **Gece** = Google **Night** — hiçbir `visibility` kuralı içermez.
+· Her ikisine turu 88'in `poi.business` kuralı taşındı.
+Tercih diskte (tema deseninin ikizi) + `haritaStiliProvider`.
+`style:` **çalışma anında** değişiyor: eklenti stili diff'leyip
+`didUpdateWidget → _updateOptions` ile push ediyor, harita yeniden kurulmuyor.
+⚠️ `GoogleMapController.setMapStyle` DEPRECATED, kullanılmadı.
+
+#### İŞLETME MODÜLLERİ (otel→Odalar, doktor→Hizmetler, restoran→Menü)
+⚠️ **Ayrı tablo açılmadı** — üç ayrı migration bunu isimle yasaklıyor
+(030:14, 038:15, 031:12). `ilanlar`ın `tur` + `ozellikler JSONB` + GIN deseni
+kopyalandı; alan tanımları **sunucudan** geliyor (`GET /isletme-modulleri`) ve
+form istemcide üretiliyor → yeni alan eklemek **istemci güncellemesi
+gerektirmez**.
+⚠️ **Gizli kazanç:** tablo değişmediği için `media.erisebilir()` ürün dalı ve
+`ai_gorsel` referans sayımı dokunulmadan kaldı. Yeni tablo açılsaydı bu iki
+nokta sessizce bozulur ve hata **yalnız ikinci hesapta** görünürdü — bu sınıf
+turu 75b/77/78/78b'de **dört kez** sahaya çıktı.
+Migration **043**: `tur` (DEFAULT 'urun') + `ozellikler` JSONB + GIN.
+⚠️ `tur`a CHECK YOK — 036/037'de iki kez sevk engeli üretmiş tuzak
+(`go build`+`go vet`+`flutter analyze` üçü de temiz geçer, hata yalnız gerçek
+Postgres'te çıkar); beyaz liste Go'da (`TurGecerli`).
+
+#### ⚠️⚠️ E2E GERÇEK BİR HATA YAKALADI (statik denetim göremedi)
+`tur`/`ozellikler` **kaydedilmiyordu** (liste `tur=urun`, `ozellikler={}`).
+**Kök neden:** bir önceki adımda `git checkout -- urun.go` çalıştırılmış ve git
+dosyayı **CRLF** ile geri yazmıştı; betiğimin `\n` içeren arama dizeleri
+eşleşmedi ve INSERT, UPDATE ile iki istek tipi **uygulanmadı**. Betik "ok" dedi.
+Derleme de geçti çünkü Go kullanılmayan **fonksiyon** için hata vermez —
+yardımcılar ölü kalmıştı.
+⚠️ **DERS: Windows'ta betikle metin değiştirirken satır sonlarını VARSAYMA;
+`git checkout` sonrası dosya CRLF olur. Kritik değişikliği `Edit` ile yap ve
+sonucu GREP'LE DOĞRULA.**
+⚠️ Bu sınıfı `go build` + `go vet` + birim testler **göremedi**; yalnızca
+**canlı e2e** yakaladı — "deploy sonrası e2e" adımı bu yüzden rutinde zorunlu.
+
+#### İZİNLER ONBOARDINGE TAŞINDI, AYRI SAYFA KALDIRILDI
+Dört sayfa sırayla: **mikrofon → kamera → bildirim → tam ekran bildirim**.
+Açıklama metinleri iznin **neden gerektiğini** söylüyor; kullanıcı diyaloğu
+görmeden önce gerekçeyi okuyor.
+⚠️ **Tam ekran bildirim EN SON**: sistem ayarlar ekranını açar ve Activity
+duraklar; ortada olsaydı sonraki diyalog gösterilmezdi (turu 56'da tam bu
+yüzden READ_PHONE_STATE 36 tur boyunca hiç alınamadı).
+⚠️⚠️ **SEVK ENGELİ ÖNLENDİ:** `main.dart` her soğuk açılışta, onboardingten
+bağımsız `CallKitService.izinleriIste()` çağırıyordu. Onboardinge izin
+eklenince iki akış paralel koşar ve Android ikinci isteği sessizce düşürür →
+READ_PHONE_STATE denied → GSM gizlilik kapısı (turu 56/63) geri gelir.
+`&& tercihler.onboardingGoruldu` kapısı kondu.
+⚠️⚠️ **KURTARMA YOLU** (Ayarlar > İzinler): onboarding bayrağı **kalıcı**
+olduğu için izinleri reddeden kullanıcının uygulamayı silmeden dönüş yolu
+kalmazdı. "İzinleri yeniden iste" + "Telefon ayarlarını aç" (kalıcı red
+yalnızca oradan geri alınır).
+Kaldırılanlar: `PermissionsScreen` kapısı (HomeScreen tam sayfa dalı) ve kayıt
+akışının 4. adımı → akış **4 → 3 adım**.
+
+#### SADE KARŞILAMA + GİRİŞ
+Onboardingden üç mor gradyanlı ikon kartı (`_kart`), `FontStyle.italic` (eğim)
+ve mor vurgu **kaldırıldı**; başlık tamamen siyah, sol üstte
+(`mainAxisAlignment` da `center → start` — iki eksen ayrı ayarlanır).
+Giriş ekranından 72px `messageCircle` ikonu ve "Gebzem" başlığı kaldırıldı;
+ekran kayıt akışının diline çevrildi.
+⚠️ Ortak parçalar **kopyalanmadı**: `auth_stil.dart` tek kaynak
+(`AuthSayfa` + `authBaslik` + `authAlan` + `authAnaDugme` + renkler).
+
+#### 🛡️ MUHAFIZLAR
+· `harita_stili_test.dart` **jsonDecode**'a çevrildi (kanıt: resmî Silver kırmızı).
+· `isletme/sutun_test.go` artık **ürün sorgusunu da** kapsıyor. Kanıt:
+  (a) SELECT'ten sütun çıkarılınca *"SELECT 11 sütun döndürüyor ama Scan 12
+  alan bekliyor"*, (b) `tur` yanıt haritasından çıkarılınca *"YANIT HARİTASINDA
+  YOK"* — ikisi de kırmızı.
+· E2E 265 → **276** (canlıda 275 koştu, hepsi geçti).
+
+#### ⏳ KAPSAM DIŞI (dürüst not)
+· **Otel için gece bazlı rezervasyon**: `randevular` SLOT bazlıdır
+  (`baslangic` + `sure_dakika`) ve `slot_kapasite` "aynı anda kaç randevu"
+  demek, "kaç oda boş" DEMEK DEĞİL. Tam çözüm yeni bir tarih-aralığı modeli +
+  çakışma sorgusunun aralık mantığına genişletilmesi ister; o mantık advisory
+  kilitli tek deyim üzerine kurulu ve iki modeli aynı turda değiştirmek
+  "müsait gösterilen slot POST'ta 409" sınıfını geri getirirdi (turu 80b'de iki
+  kez yaşandı). Bu turda **oda modülü vitrin**: tip, kapasite, fiyat, görsel
+  listelenir; iletişim mesajla.
+· **Eczane nöbetçi bilgisi**: sıfır kod var ve nöbet listesi resmî bir
+  kaynaktan gelmeli; işletmenin kendi beyanı yanıltıcı olur.
+· **`forgot_screen`** yeni beyaz dile çevrilmedi (kullanıcı istemedi).
+  Dürüst not: "Şifremi unuttum" hâlâ eski görünümlü ekranı açıyor.
+· `active_call_controller.dart` ölü park zinciri (kullanıcı emriyle en sona).
