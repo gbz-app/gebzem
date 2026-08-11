@@ -15,15 +15,21 @@
 ///    duruyor. Bu menu onlara EK bir kestirmedir, YERINE gecmez.
 ///
 /// ⚠️ YUKSEKLIK: alti madde x ~52dp + baslik = ~360dp. `mainAxisSize.min`
-///    ile sheet icerigi kadar yer kaplar; `isScrollControlled` VERILMEZ
-///    (verilirse tam ekrana kadar buyuyebilir — kullanici "yukseklik fazla
-///    olmasin" dedi).
+///    ile sheet icerigi kadar yer kaplar — kullanicinin "yukseklik fazla
+///    olmasin" istegi BOYLE karsilanir.
+///    ⚠️ TURU 90c — BU SERH DUZELTILDI: eskiden *"`isScrollControlled`
+///       VERILMEZ"* diyordu ama govde turu 90b'de `true` vermeye baslamisti
+///       (kucuk telefonlarda son madde KIRPILIYORDU). Bayrak yalnizca
+///       TAVANI kaldirir, yuksekligi ZORLAMAZ — ikisi CELISMEZ.
+///       Bu, projenin en sik hata sinifinin (serh govdeyi YANLIS anlatiyor)
+///       bu dosyadaki ornegiydi.
 library;
 
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../router.dart' show rootNavigatorKey;
 import '../chats/grup_olustur.dart';
 import '../live/live_start_screen.dart';
 import 'gonderi_olustur.dart';
@@ -94,8 +100,25 @@ Future<void> olusturMenusuAc(
           _madde(c, LucideIcons.audioLines, 'Sesli oda',
               'Canlı sekmesinden aç', null,
               ipucu: 'Canlı sekmesi > Odalar > "+"'),
+          // ⚠️⚠️ TURU 90c — GRUP KURULUNCA SOHBETE GIDILIR.
+          //    `GrupOlusturEkrani` `pop(chatId)` ile kurulan grubun kimligini
+          //    donduruyor; menu onu ATIYORDU. Sonuc: kullanici grubu kuruyor,
+          //    ekran kapaniyor ve **hicbir yere gitmiyordu** — grubu bulmak
+          //    icin Mesaj sekmesine gidip listede aramasi gerekiyordu.
+          //    Bu, turu 90b'nin GONDERI icin duzelttigi "donen id atiliyor"
+          //    hatasinin GRUP kopyasiydi.
           _madde(c, LucideIcons.users, 'Grup', 'Yeni grup sohbeti',
-              () => const GrupOlusturEkrani()),
+              () => const GrupOlusturEkrani(), sonrasinda: (chatId) {
+            if (chatId == null || chatId.isEmpty) return;
+            // ⚠️ `call_screen.dart:286-290` ile BIREBIR AYNI desen (kanitli):
+            //    kok context alinir, `mounted` kontrol edilir, `GoRouter.of`
+            //    ile push edilir. Ciplak `Navigator` KULLANILMAZ — sohbet
+            //    rotasi GoRouter'da tanimli.
+            final ctx = rootNavigatorKey.currentContext;
+            if (ctx != null && ctx.mounted) {
+              GoRouter.of(ctx).push('/chat/$chatId');
+            }
+          }),
           const SizedBox(height: 8),
         ],
         ),
@@ -144,17 +167,16 @@ Widget _madde(
       },
     );
 
-/// Anasayfadaki sag alt "+" dugmesi.
-///
-/// ⚠️ YALNIZ ANASAYFADA cizilir: Mesaj sekmesinin KENDI FAB'i var
-///    (turu 76b "TEK GIRIS FAB") ve iki FAB ayni ekranda ust uste binerdi.
-class OlusturFab extends ConsumerWidget {
-  const OlusturFab({super.key});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) => FloatingActionButton(
-    heroTag: 'olustur-fab',
-    onPressed: () => olusturMenusuAc(context),
-    child: const Icon(LucideIcons.plus),
-  );
-}
+// ⚠️⚠️⚠️ TURU 90c — `OlusturFab` SINIFI **SILINDI**.
+//
+// Turu 90'da `home_screen`e konmus, turu 90b'de ORADAN KALDIRILMISTI
+// (akisin KENDI FAB'iyle piksel piksel ust uste biniyordu ve akisinkini
+// ULASILAMAZ kiliyordu). Geriye SINIF kaldi: hicbir yerden cagrilmayan,
+// ama **DOLU BIR SILAH** — birisi "hazir bir FAB var" diye onu bir
+// Scaffold'a koydugu anda turu 90b'nin IKI duzeltmesini birden geri
+// getirirdi (cift FAB + paylasim sonrasi akisin tazelenmemesi, cunku bu
+// sinif `sonrasinda` geri cagirimini GECMIYORDU).
+//
+// ⚠️ YAPMA: "kolaylik olsun" diye bunu geri ekleme. Olusturma menusunun
+//    TEK GIRISI `akis_ekrani.dart`taki FAB'dir ve o, sonucu
+//    `_paylasimSonrasi`ya baglar.

@@ -54,15 +54,32 @@ Future<bool> basvurSheet(BuildContext context, WidgetRef ref, String ilanID,
     String baslik) async {
   final not = TextEditingController();
   var gonderiliyor = false;
+  // ⚠️ TURU 90c — KENDI ROUTE'UM. `Navigator.pop()` EN USTTEKI route'u
+  //    kapatir, "beni" DEGIL: istek ucustayken kullanici baska bir sey
+  //    acarsa (or. klavye ustu bir menu) `pop(true)` YANLIS ROUTE'U
+  //    kapatirdi. Turu 59b'de aynen yasandi ve oradaki cozum route'u
+  //    ADRESLEMEKTI.
+  ModalRoute<Object?>? rota;
+  // ⚠️ SONUC POP DEGERINDEN DEGIL, BURADAN okunur: route'u `removeRoute` ile
+  //    kaldirmak zorunda kalirsak pop degeri `null` doner ve cagiran taraf
+  //    basariyi KACIRIRDI ("Başvurun gönderildi" bildirimi cikmaz, dugme
+  //    guncellenmezdi).
+  var basarili = false;
 
-  final sonuc = await showModalBottomSheet<bool>(
+  await showModalBottomSheet<bool>(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
     builder: (c) => StatefulBuilder(
-      builder: (c, yenile) => Padding(
+      builder: (c, yenile) {
+        rota ??= ModalRoute.of(c);
+        return Padding(
         padding: EdgeInsets.fromLTRB(
             20, 0, 20, MediaQuery.of(c).viewInsets.bottom + 20),
+        // ⚠️ TURU 90c — KAYDIRMA SARMALI: buyuk yazi olceginde klavye
+        //    acikken `Column` (baslik + aciklama + 4 satirlik TextField +
+        //    sayac + dugme) kalan yeri asiyordu -> RenderFlex tasmasi.
+        child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -101,7 +118,17 @@ Future<bool> basvurSheet(BuildContext context, WidgetRef ref, String ilanID,
                         await ref
                             .read(ilanServisiProvider)
                             .basvur(ilanID, not.text.trim());
-                        nav.pop(true);
+                        basarili = true;
+                        // ⚠️ KENDI route'umu ADRESLE (bkz. `rota` serhi).
+                        //    En ustteysem normal pop; degilsem (istek
+                        //    ucustayken uste bir sey acilmis) KENDI route'umu
+                        //    kaldiririm — BASKASINI kapatmam.
+                        final r = rota;
+                        if (r == null || r.isCurrent) {
+                          nav.pop(true);
+                        } else if (r.isActive) {
+                          nav.removeRoute(r);
+                        }
                       } catch (e) {
                         yenile(() => gonderiliyor = false);
                         mesajci.showSnackBar(
@@ -117,11 +144,13 @@ Future<bool> basvurSheet(BuildContext context, WidgetRef ref, String ilanID,
             ),
           ],
         ),
-      ),
+        ),
+        );
+      },
     ),
   );
   not.dispose();
-  return sonuc ?? false;
+  return basarili;
 }
 
 // ═══════════════════ 2) BASVURANLAR (ilan sahibi) ═══════════════════

@@ -264,6 +264,8 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
   Future<void> _duzenle() async {
     final ctrl = TextEditingController(text: g.metin);
     var kapali = g.yorumKapali;
+    // ⚠️ TURU 90c — konum kaldirma anahtari (yalniz konumlu gonderide cizilir).
+    var konumSil = false;
     final sonuc = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
@@ -300,6 +302,22 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
                     onChanged: (v) => yenile(() => kapali = v),
                     title: const Text('Yorumları kapat'),
                   ),
+                  // ⚠️⚠️ TURU 90c — KONUM KALDIRMA (GIZLILIK).
+                  //    Sunucu ucu turu 90b'de acildi ama ISTEMCIDE cagiran
+                  //    yol YOKTU; yanlislikla ev konumunu paylasan kullanicinin
+                  //    tek caresi HALA gonderiyi silmekti (begeni/yorum/
+                  //    goruntulenme ile birlikte).
+                  if (g.konumVar)
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      value: konumSil,
+                      onChanged: (v) => yenile(() => konumSil = v),
+                      title: const Text('Konumu kaldır'),
+                      subtitle: Text(
+                        g.konum.isEmpty ? 'Konum ekli' : g.konum,
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ),
                   if (g.mediaIds.isNotEmpty)
                     const Padding(
                       padding: EdgeInsets.only(bottom: 10),
@@ -326,27 +344,44 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
     ctrl.dispose();
     if (sonuc != true || !mounted) return;
     final degistiMi = yeniMetin != g.metin;
-    if (!degistiMi && kapali == g.yorumKapali) return;
+    // ⚠️ `konumSil` de "degisiklik var mi" kapisina GIRER — girmeseydi
+    //    kullanici YALNIZ konumu kaldirmak istediginde istek HIC ATILMAZDI
+    //    (anahtar acilir, "Kaydet"e basilir, hicbir sey olmazdi).
+    if (!degistiMi && kapali == g.yorumKapali && !konumSil) return;
     // ⚠️ IYIMSER guncelleme + HATA'DA GERI ALMA (kartin geri kalaniyla ayni desen).
     final eskiMetin = g.metin;
     final eskiKapali = g.yorumKapali;
     final eskiDuz = g.duzenlendi;
+    final eskiKonum = g.konum;
+    final eskiEnlem = g.enlem;
+    final eskiBoylam = g.boylam;
     setState(() {
       g.metin = yeniMetin;
       g.yorumKapali = kapali;
       // ⚠️ Etiket YALNIZ metin degistiyse — sunucudaki kural birebir ayni.
       if (degistiMi) g.duzenlendi = true;
+      if (konumSil) {
+        g.konum = '';
+        g.enlem = 0;
+        g.boylam = 0;
+      }
     });
     try {
-      await ref
-          .read(sosyalServisiProvider)
-          .gonderiDuzenle(g.id, metin: yeniMetin, yorumKapali: kapali);
+      await ref.read(sosyalServisiProvider).gonderiDuzenle(
+            g.id,
+            metin: yeniMetin,
+            yorumKapali: kapali,
+            konumKaldir: konumSil,
+          );
     } catch (_) {
       if (!mounted) return;
       setState(() {
         g.metin = eskiMetin;
         g.yorumKapali = eskiKapali;
         g.duzenlendi = eskiDuz;
+        g.konum = eskiKonum;
+        g.enlem = eskiEnlem;
+        g.boylam = eskiBoylam;
       });
       ScaffoldMessenger.of(
         context,

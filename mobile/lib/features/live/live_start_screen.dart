@@ -41,10 +41,49 @@ class _LiveStartScreenState extends ConsumerState<LiveStartScreen> {
   // YAKALANIR (call_screen deseni), dispose ondan kullanir.
   late final CallService _svc;
 
+  /// ⚠️ Mesgul oldugumuz icin ekran kendini kapatiyor mu (kamera HIC acilmaz).
+  bool _mesgulKapandi = false;
+
   @override
   void initState() {
     super.initState();
     _svc = ref.read(callServiceProvider.notifier);
+
+    // ⚠️⚠️⚠️ TURU 90c — MESGULLUK KAPISI **EKRANIN ICINDE** (SEVK ENGELI).
+    //
+    // Bu kapi turu 90'a kadar YALNIZCA `live_tab.dart`teki tek giris
+    // noktasindaydi (`_aramaVarMi()` -> `mesgulMu(etiket:'yayin')`). Turu 90
+    // "olustur" menusune IKINCI bir giris ekledi ve o giris kapiyi ATLIYORDU.
+    //
+    // BEDELI EKRANIN ACILMASIYLA OLUSUYOR, "Yayına başla"ya BASILMASI
+    // GEREKMIYOR: `initState` hemen `_onizlemeBaslat()` cagirir ve o da
+    // `createCameraTrack` ile FIZIKSEL KAMERAYI acar. iOS'ta flutter_webrtc
+    // **TEK PAYLASILAN `videoCapturer`** tutar (turu 50 kok nedeni: 64
+    // aramanin 9'unda tek tarafli video, **9/9 iOS**) — ikinci capture
+    // oturumu birincisini oldurur ve goruntulu aramadaki KARSI TARAF
+    // goruntuyu SESSIZCE kaybeder. `_basla()` icindeki `baskaIsleMesgul`
+    // kontrolu COK GEC kalir.
+    //
+    // ⚠️ Kapi **BURAYA** kondu, menuye DEGIL: boylece ileride eklenecek HER
+    //    yeni giris noktasi otomatik korunur. `live_tab`deki kapi da KALIR
+    //    (orada kullaniciya "Aramaya don" kisayolu sunuluyor).
+    // ⚠️ `mesgulMu` TEK KAYNAKTIR (turu 56 self-heal'i icerir) — kurali
+    //    buraya KOPYALAMA, yalnizca CAGIR.
+    // ⚠️ `ekranAcildi` cagrisi kapinin ALTINDA: mesgulken muhafiz kaydi
+    //    ACILMAMALI, yoksa `yayin-onizleme` (duraklatilamaz) kaydi kumeye
+    //    sizip gelen aramalarin oda/yayin muafiyetini de dusururdu.
+    if (_svc.mesgulMu(etiket: 'yayin')) {
+      _mesgulKapandi = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Önce aramayı/odayı bitirin')),
+        );
+        Navigator.of(context).maybePop();
+      });
+      return;
+    }
+
     _svc.ekranAcildi(_muhafizId);
     _onizlemeBaslat();
   }
@@ -187,7 +226,16 @@ class _LiveStartScreenState extends ConsumerState<LiveStartScreen> {
 
   @override
   void dispose() {
-    _svc.ekranKapandi(_muhafizId); // ref DEGIL cache — ref burada StateError firlatiyordu
+    // ⚠️⚠️ TURU 90c — MESGULKEN ACILDIYSAK MUHAFIZA **DOKUNMAYIZ**.
+    //
+    // `_muhafizId` SABIT bir dize (`'yayin-onizleme'`). Mesgul oldugumuz icin
+    // `ekranAcildi` HIC cagrilmadiysa, burada `ekranKapandi` cagirmak BASKA
+    // bir sahibin kaydini dusururdu. CLAUDE.md turu 71/72b: *"sabit ad
+    // kullanirsan ayni isimli iki ekran bir an ust uste yasadiginda gozcu
+    // ERKEN kapanir ve gizlilik kapilari SESSIZCE oler"*.
+    if (!_mesgulKapandi) {
+      _svc.ekranKapandi(_muhafizId); // ref DEGIL cache — ref StateError firlatiyordu
+    }
     _baslik.dispose();
     _onizlemeBirak();
     super.dispose();

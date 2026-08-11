@@ -152,7 +152,14 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
           // buradan gorebilir ve geri cekme yolu da yalniz orada.
           // ⚠️ YALNIZ IS ILANI listesinde cizilir: vasita/emlak listesinde
           //    "Başvurularım" anlamsiz olurdu.
-          if (widget.tur == 'is')
+          // ⚠️⚠️ TURU 90c — `_tur`, `widget.tur` DEGIL (denetim bulgusu).
+          //    `widget.tur` yalnizca ILK turdur ve SABITTIR; kullanici tur
+          //    cipine dokununca (satir ~280) degisen `_tur`dur. Kapi sabite
+          //    bagliyken: menuden "Ilanlar"a (tursuz) girip tur cipinden
+          //    "Is" secen kullanici, ekran IS ILANLARINI GOSTERDIGI HALDE
+          //    "Basvurularim" girisini HIC GORMUYORDU — yani ayni kuralin
+          //    iki kopyasi (kapi vs. icerik) DRIFT ETMISTI.
+          if (_tur == 'is')
             IconButton(
               tooltip: 'Başvurularım',
               icon: const Icon(LucideIcons.briefcase),

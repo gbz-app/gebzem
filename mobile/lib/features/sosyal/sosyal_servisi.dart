@@ -80,12 +80,30 @@ class SosyalServisi {
   ///     cevirmeye izin verilmez (Instagram deseni). Medya degisecekse gonderi
   ///     silinip yenisi paylasilir.
   /// ⚠️ Alanlar OPSIYONEL: gonderilmeyen alan sunucuda DEGISMEZ.
-  Future<void> gonderiDuzenle(String id, {String? metin, bool? yorumKapali}) =>
+  /// ⚠️⚠️ TURU 90c — [konumKaldir] ile KONUM SILINEBILIR (GIZLILIK).
+  ///
+  /// Turu 90b sunucuya konum kaldirma yolunu ekledi ve gerekcesini ACIKCA
+  /// gizlilik olarak yazdi (*"yanlislikla konumla paylasan birinin TEK caresi
+  /// GONDERIYI SILMEKTI... ev adresini paylastigini fark eden biri icin bu
+  /// gercek bir gizlilik sorunudur"*) — ama ISTEMCI o ucu HIC CAGIRMIYORDU.
+  /// Yani duzeltme sahada **OLU DOGMUSTU**; e2e'nin yesil olmasi yaniltiyordu
+  /// cunku e2e SUNUCU ucunu cagiriyor, ISTEMCININ onu cagirdigini DEGIL
+  /// (turu 87 dersi: *"bir ozelligin CALISTIGININ TEK KANITI ONA BAKMAKTIR"*).
+  ///
+  /// ⚠️ SOZLESME: `0,0 + bos ad` = KONUM YOK. Sunucu `enlem` gonderilmediyse
+  ///    ucune de DOKUNMAZ, gonderildiyse UCUNU BIRLIKTE yazar.
+  Future<void> gonderiDuzenle(
+    String id, {
+    String? metin,
+    bool? yorumKapali,
+    bool konumKaldir = false,
+  }) =>
       _api.patch(
         '/posts/$id',
         data: {
           if (metin != null) 'metin': metin,
           if (yorumKapali != null) 'yorum_kapali': yorumKapali,
+          if (konumKaldir) ...{'konum': '', 'enlem': 0, 'boylam': 0},
         },
       );
 
@@ -335,9 +353,16 @@ class Gonderi {
   bool duzenlendi;
 
   /// TURU 90 - GONDERI KONUMU. Bos ad + 0 koordinat = KONUM YOK.
-  final String konum;
-  final double enlem;
-  final double boylam;
+  ///
+  /// ⚠️ TURU 90c — alanlar **DEGISEBILIR** (`final` DEGIL): duzenleme
+  ///    ekranindan konum kaldirildiginda iyimser guncelleme yapilir ve hata
+  ///    halinde GERI ALINIR. `metin`/`yorumKapali`/`duzenlendi` ile ayni desen.
+  /// ⚠️ Nesne akis/izgara/detay arasinda PAYLASILIR — bu yuzden ALANLAR
+  ///    guncellenir, YENI NESNE atanmaz (turu 76 dersi: yeni nesne atanirsa
+  ///    detayda yapilan degisiklik izgarada gorunmez).
+  String konum;
+  double enlem;
+  double boylam;
 
   bool get konumVar => enlem != 0 || boylam != 0;
   int begeniSayisi;
