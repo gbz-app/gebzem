@@ -645,10 +645,20 @@ const kontrol = (ad, gecti, ek = '') => {
 
     // ---------- 4) ILAN
     const agac = await j('/ilan-kategoriler', { token: A.token });
-    kontrol('TURU 77: ilan kategori AGACI sunucudan (istemcide kopya yok)',
-      agac.kod === 200 && ((agac.d && agac.d.turler) || []).length === 4 &&
-      (agac.d.turler[0].alanlar || []).length > 0,
-      'tur=' + (((agac.d && agac.d.turler) || []).length));
+    // ⚠️ TURU 90 — SAYI YERINE KUME: burasi eskiden `length === 4` diyordu ve
+    //    turu 90'da BESINCI tur ('is') eklenince KIRMIZIYA dustu. Oysa kontrolun
+    //    ASIL amaci "agac SUNUCUDAN geliyor" idi, "tam dort tur var" degil.
+    //    Sabit sayi, her yeni turde YANLIS ALARM verip gercek bir bulguyu
+    //    gurultuye gomerdi. Artik BEKLENEN TURLERIN HEPSI VAR MI diye bakilir
+    //    (biri DUSERSE yine kirmizi olur — koruma kaybolmaz).
+    {
+      const t = ((agac.d && agac.d.turler) || []).map((x) => x.anahtar);
+      const beklenen = ['vasita', 'emlak', 'ikinci_el', 'hizmet', 'is'];
+      kontrol('TURU 77: ilan kategori AGACI sunucudan (istemcide kopya yok)',
+        agac.kod === 200 && beklenen.every((b) => t.includes(b)) &&
+        ((agac.d.turler[0] || {}).alanlar || []).length > 0,
+        'turler=' + t.join(','));
+    }
     const im = await medyaYukle(A.token, 'ilan.jpg');
     const ilanR = await j('/ilanlar', {
       yontem: 'POST', token: A.token,
@@ -2265,12 +2275,19 @@ const kontrol = (ad, gecti, ek = '') => {
       'enlem=' + (det2.d || {}).enlem + ' konum=' + JSON.stringify((det2.d || {}).konum));
 
     // ⚠️ AKISTA da konum gelmeli (sabit YEDI sorguya eklendi).
-    const akis = await j('/posts/feed', { token: I.token });
-    const akisG = (((akis.d && akis.d.gonderiler) || [])
-      .find((x) => x.id === gk.d.id)) || {};
+    // ⚠️ YANIT ANAHTARI `posts` — `gonderiler` DEGIL. Ilk yazimda `gonderiler`
+    //    yazmistim; kontrol KIRMIZI dustu ve BOS NESNEYI olcuyordu. Yani yanlis
+    //    anahtar bir kontrolu SESSIZ YESILE degil, GURULTULU KIRMIZIYA cevirdi —
+    //    ama tersi de olabilirdi. ⚠️ Yeni kontrol yazarken YANIT ANAHTARINI
+    //    handler kaynagindan DOGRULA (turu 85b'nin `user_id` drift dersi).
+    // ⚠️ UC `/feed` — `/posts/feed` DEGIL (main.go:330 civari; dosyanin
+    //    geri kalani da `/feed` kullaniyor).
+    const akis = await j('/feed', { token: I.token });
+    const akisListe = ((akis.d && akis.d.posts) || []);
+    const akisG = akisListe.find((x) => x.id === gk.d.id) || {};
     kontrol('TURU 90: AKIS sorgusu da konum donduruyor',
-      akisG.konum === 'Gebze, Kocaeli',
-      'konum=' + JSON.stringify(akisG.konum));
+      akisListe.length > 0 && akisG.konum === 'Gebze, Kocaeli',
+      'adet=' + akisListe.length + ' konum=' + JSON.stringify(akisG.konum));
   }
 
   // ---------- OZET
