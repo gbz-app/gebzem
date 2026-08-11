@@ -170,6 +170,22 @@ func Metin(tur, ad string) string {
 	//    reddin ayirt edilememesiyle ayni sinif (turu 75b/80b).
 	case "ilan_basvuru":
 		return ad + " iş ilanına başvurdu"
+	// ⚠️⚠️ TURU 91 — TEKLIF AKISI. UC TUR, UC AYRI ALICI:
+	//    `talep_yeni`     -> ISLETMEYE  (yeni is firsati)
+	//    `teklif_geldi`   -> TALEP SAHIBINE
+	//    `teklif_secildi` -> TEKLIFI VEREN ISLETMEYE
+	// ⚠️ Aliciya gore AYRI TUR sart: tek tur olsaydi istemci aliciyi
+	//    turetemez ve `_git()` yonlendirmesi YANLIS ekrani acardi
+	//    (turu 80b'de `randevu_iptal` tam bu yuzden IKIYE bolundu).
+	// ⚠️ ISTEMCI SWITCH'I + `_git()` yonlendirmesi AYNI COMMIT'te guncellendi
+	//    — bu serhin dogrulugu `bildirimler_sayfasi.dart`tan KONTROL EDILDI
+	//    (turu 90b'de ayni serh YANLIS cikmisti).
+	case "talep_yeni":
+		return ad + " yeni bir teklif isteği oluşturdu"
+	case "teklif_geldi":
+		return ad + " talebine teklif verdi"
+	case "teklif_secildi":
+		return ad + " teklifini seçti"
 	default:
 		return ad + " bir işlem yaptı"
 	}

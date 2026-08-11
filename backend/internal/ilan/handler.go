@@ -9,6 +9,7 @@ package ilan
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -85,9 +86,26 @@ type Kat struct {
 type Alan struct {
 	Anahtar    string   `json:"anahtar"`
 	Ad         string   `json:"ad"`
-	Tip        string   `json:"tip"` // metin | sayi | secim
+	Tip        string   `json:"tip"` // metin | sayi | secim | cok_secim | tarih
 	Secenekler []string `json:"secenekler,omitempty"`
 	Birim      string   `json:"birim,omitempty"`
+
+	// ⚠️⚠️ TURU 91 — ADIM ADIM FORM (kullanici emri: *"burada STEP STEP...
+	//    salon sececek, misafir sayisi, dis mekan mi"*).
+	//
+	//    `Adim` alani tanimin ICINDE tasinir; istemci alanlari `Adim`e gore
+	//    GRUPLAYIP her adimi ayri ekran cizer. Sirayi istemciye YAZMAK,
+	//    "alan sunucudan gelir ama SIRASI istemcide" gibi YARI-SUNUCU bir
+	//    tasarim olurdu ve yeni alan eklemek yine istemci guncellemesi
+	//    isterdi — turu 77'nin "Dart'a kategori/tur sabiti yazma" kuralinin
+	//    ihlali.
+	// ⚠️ `omitempty`: 0 = adimsiz (mevcut TUM turler DEGISMEDEN calisir).
+	Adim int `json:"adim,omitempty"`
+
+	// ⚠️ Zorunlu alan istemcide "Devam" dugmesini kilitler. Sunucu tarafi
+	//    DOGRULAMA YAPMAZ (talep alanlari serbest JSONB) — bu bir ARAYUZ
+	//    kolayligidir, guvenlik kapisi DEGILDIR.
+	Zorunlu bool `json:"zorunlu,omitempty"`
 }
 
 var Turler = []Tur{
@@ -184,7 +202,98 @@ var Turler = []Tur{
 				Secenekler: []string{"Fark etmez", "İlköğretim", "Lise", "Ön lisans", "Lisans"}},
 		},
 	},
+	// ⚠️⚠️⚠️ TURU 91 — **TEKLIF ISTEGI** (kullanici emri: *"dugun mu yapmak
+	//    istiyorsun hizmet mi almak istiyorsun, burada STEP STEP... sonra bu
+	//    bilgiler ornegin kuafore teklif gidecek, digerlerine gidecek, onlar
+	//    da KARSI TEKLIF verecekler"*). Armut deseni.
+	//
+	// ═══════════ YON: DIGER TURLERIN TERSI ═══════════
+	//
+	// Diger turlerde ilani SATICI acar, alici mesaj atar. Talepte ilani
+	// ALICI acar ("dugun yapacagim") ve ISLETMELER teklif verir. Ayni tablo,
+	// TERS YON — `ilan_basvurular` bu yonu ZATEN dogru modelliyor
+	// (cok kisi -> tek ilan).
+	//
+	// ⚠️ MIGRATION GEREKMEDI: `ilanlar.tur` serbest TEXT, tura ozel alanlar
+	//    `ozellikler JSONB`. Turu 90'daki `is` turu de tam boyle eklendi.
+	// ⚠️ `fiyat_kurus` TALEPTE **BUTCE** anlamina gelir (0 = belirtilmemis);
+	//    isletmenin verdigi teklif `ilan_basvurular.fiyat_kurus`tur. Ikisi
+	//    AYRI sutunlardir — karistirilirsa musterinin butcesi teklif diye
+	//    gorunurdu.
+	// ⚠️ TALEP HERKESE ACIKTIR (migration 045 basindaki karar). Forma
+	//    telefon/adres alani EKLEME.
+	{
+		Anahtar: "talep", Ad: "Teklif İsteği",
+		Kategoriler: []Kat{
+			// Dugun dali
+			{"dugun_organizasyon", "Düğün Organizasyonu"},
+			{"dugun_mekan", "Düğün Salonu & Mekân"},
+			{"dugun_fotograf", "Düğün Fotoğrafçısı"},
+			{"gelinlik", "Gelinlik & Damatlık"},
+			{"sac_makyaj", "Saç & Makyaj"},
+			{"dugun_muzik", "Müzik & Orkestra"},
+			{"dugun_pasta", "Pasta & İkram"},
+			{"davetiye", "Davetiye & Nikâh Şekeri"},
+			{"gelin_arabasi", "Gelin Arabası"},
+			// Hizmet dali
+			{"tadilat_talep", "Tadilat & Tamirat"},
+			{"nakliyat_talep", "Nakliyat"},
+			{"temizlik_talep", "Temizlik"},
+			{"ozel_ders_talep", "Özel Ders"},
+			{"diyet_program", "Diyet & Beslenme Programı"},
+			{"talep_diger", "Diğer"},
+		},
+		// ⚠️ ADIMLAR: 1) ne zaman  2) olcek  3) yer/tercih  4) butce+not
+		//    Her adim TEK EKRAN. Alan sayisi adim basina 1-3 tutuldu —
+		//    daha fazlasi "adim adim" hissini bozar ve kucuk telefonda
+		//    klavye acikken tasar.
+		Alanlar: []Alan{
+			{Anahtar: "tarih", Ad: "Ne zaman?", Tip: "tarih", Adim: 1,
+				Zorunlu: true},
+			{Anahtar: "esneklik", Ad: "Tarih esnek mi?", Tip: "secim", Adim: 1,
+				Secenekler: []string{"Kesin tarih", "Birkaç gün esnek",
+					"Ay içinde herhangi bir gün", "Henüz belirsiz"}},
+
+			{Anahtar: "kisi_sayisi", Ad: "Kişi sayısı", Tip: "sayi", Adim: 2,
+				Birim: "kişi"},
+			{Anahtar: "mekan_tipi", Ad: "Mekân", Tip: "secim", Adim: 2,
+				Secenekler: []string{"Kapalı salon", "Dış mekân / bahçe",
+					"Kır düğünü", "Otel", "Fark etmez"}},
+
+			{Anahtar: "hizmetler", Ad: "İhtiyacın olanlar", Tip: "cok_secim",
+				Adim: 3,
+				Secenekler: []string{"Organizasyon", "Mekân", "Fotoğraf & video",
+					"Saç & makyaj", "Gelinlik", "Müzik", "Pasta & ikram",
+					"Davetiye", "Gelin arabası", "Diğer"}},
+
+			{Anahtar: "butce_araligi", Ad: "Bütçe aralığı", Tip: "secim",
+				Adim: 4,
+				Secenekler: []string{"Belirtmek istemiyorum", "50.000 ₺ altı",
+					"50.000 - 100.000 ₺", "100.000 - 250.000 ₺",
+					"250.000 - 500.000 ₺", "500.000 ₺ üzeri"}},
+		},
+	},
 }
+
+// TalepTuru — bu tur bir TEKLIF ISTEGI mi?
+//
+// ⚠️ TEK KAYNAK: "talep" dizesi kod tabaninda BES yerde kontrol ediliyor
+//
+//	(liste suzgeci · basvuru kapisi · isletme kapisi · fiyat zorunlulugu ·
+//	bildirim fan-out). Elle karsilastirma yazmak, birini guncelleyip
+//	otekini unutma sinifini acardi (bu projede DORT kez sahaya cikti).
+func TalepTuru(t string) bool { return t == "talep" }
+
+// TalepPenceresi — bir talep KAC SURE acik kalir.
+//
+// ⚠️⚠️ OKUMA **VE** YAZMA yollari AYNI sabiti kullanir. Turu 80b'de
+//
+//	`ileri_gun` IKI FARKLI TABANDA olculmus ve arayuzun GOSTERDIGI slot
+//	POST'ta 400 donmustu ("arayuzun kurala uymasi, kuralin UYGULANDIGI
+//	anlamina gelmez"). Ayni hatayi tekrarlamamak icin sabit disari alindi.
+//
+// ⚠️ Talep SILINMEZ, yalnizca GORUNMEZ olur (veri politikasi).
+const TalepPenceresi = 7 * 24 * time.Hour
 
 func turGecerli(t string) bool {
 	for _, x := range Turler {
@@ -369,6 +478,15 @@ func (h *Handler) Olustur(w http.ResponseWriter, r *http.Request) {
 		h.db.Exec(r.Context(),
 			`UPDATE media_assets SET status='bagli' WHERE id = ANY($1)`, req.MediaIDs)
 	}
+	// ⚠️⚠️ TURU 91 — TALEP ACILINCA ILGILI ISLETMELERE BILDIRIM.
+	//    Bu satir olmasaydi ozellik yarim kalirdi: talep acilir, listede
+	//    durur, ama HICBIR ISLETME ondan HABERDAR OLMAZDI — kullanici
+	//    "kimse teklif vermiyor" derdi ve sebebini bulmak imkansiz olurdu.
+	// ⚠️ Hata YUTULUR (icinde log var): bildirim gonderilemedi diye ilan
+	//    olusturma basarisiz sayilmaz.
+	if TalepTuru(req.Tur) {
+		h.talepBildir(r.Context(), id, req.Kategori, req.Il, me)
+	}
 	yaz(w, 201, map[string]any{"id": id})
 }
 
@@ -398,8 +516,33 @@ func (h *Handler) Liste(w http.ResponseWriter, r *http.Request) {
 		              WHERE f2.ilan_id=i.id AND f2.user_id=$1)`
 	}
 	durumKosulu := " AND i.durum='yayinda'"
-	if q.Get("benim") == "1" {
+	benim := q.Get("benim") == "1"
+	if benim {
 		durumKosulu = "" // kendi ilanlarinda tum durumlar
+	}
+
+	// ⚠️⚠️⚠️ TURU 91 — TALEP SIZINTI KAPISI.
+	//
+	// Talepler `ilanlar` tablosunda yasiyor; hicbir sey yapilmasaydi
+	// "Sahibinden 2019 Ford Focus" ile "Düğün yapacağım, teklif bekliyorum"
+	// AYNI LISTEDE yan yana cikardi. Kullanicinin gordugu ilk ekran
+	// (hamburger > Ilanlar) ANINDA bozulurdu ve bu, ozelligin kendisinden
+	// ONCE fark edilirdi.
+	//
+	// ⚠️ Kapi `tur` BOSKEN uygulanir: `?tur=talep` diyen ACIKCA talep
+	//    istiyordur, `?tur=vasita` zaten suzuyor.
+	// ⚠️ `benim=1` MUAF: kullanici "Taleplerim"i gorebilmeli.
+	// ⚠️ 7 GUNLUK PENCERE de burada; sabit `TalepPenceresi` — YAZMA yolu
+	//    (teklif verme) AYNI sabiti kullanir. Turu 80b'de `ileri_gun` iki
+	//    farkli tabanda olculunce arayuz "musait" gosterip POST 400
+	//    donmustu; ayni hatayi tekrarlamamak icin tek kaynak.
+	talepKosulu := ""
+	if tur == "" && !benim {
+		talepKosulu = " AND i.tur <> 'talep'"
+	} else if TalepTuru(tur) && !benim {
+		talepKosulu = fmt.Sprintf(
+			" AND i.created_at > now() - interval '%d hours'",
+			int(TalepPenceresi.Hours()))
 	}
 
 	rows, err := h.db.Query(r.Context(), `
@@ -413,7 +556,7 @@ func (h *Handler) Liste(w http.ResponseWriter, r *http.Request) {
 		   AND ($6 = '' OR i.baslik ILIKE '%'||$6||'%'
 		        OR i.aciklama ILIKE '%'||$6||'%')
 		   AND (i.fiyat_gizli OR (i.fiyat_kurus >= $7 AND i.fiyat_kurus <= $8))
-		`+ekKosul+engelYok+`
+		`+talepKosulu+ekKosul+engelYok+`
 		 ORDER BY i.created_at DESC LIMIT 60`,
 		me, tur, kategori, il, ilce, ara, min, maks)
 	if err != nil {

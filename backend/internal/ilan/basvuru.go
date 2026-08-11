@@ -1,10 +1,12 @@
 package ilan
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -27,7 +29,24 @@ import (
 
 type basvuruReq struct {
 	Not string `json:"not"`
+
+	// ⚠️ TURU 91 — TEKLIF TUTARI (yalniz `tur='talep'` ilanlarda).
+	//    Is ilaninda YOK SAYILIR (sifirlanir) — bkz. `BasvuruYap` kapisi.
+	//    ⚠️ Bu, TALEBIN butcesiyle KARISTIRILMAMALI: butce `ilanlar.
+	//       fiyat_kurus`ta, teklif `ilan_basvurular.fiyat_kurus`ta durur.
+	FiyatKurus int64 `json:"fiyat_kurus"`
 }
+
+// ⚠️⚠️ TURU 91 — BIR TALEBE EN FAZLA KAC TEKLIF GELIR.
+//
+// Armut deseni: talep sahibi 40 teklif arasinda BOGULMAMALI, isletmeler de
+// "nasil olsa doldu" diye vazgecmemeli. 5, karsilastirilabilir ama bunaltmayan
+// bir sayi.
+// ⚠️ Tavan ADVISORY KILIT icinde sayilir: `INSERT ... WHERE (count) < 5`
+//
+//	READ COMMITTED'da escamanli iki istegi de gecirir (turu 79b'de AI
+//	kotasinda TAM BU sorun yasandi ve orada bedeli GERCEK PARAYDI).
+const TeklifTavani = 5
 
 // POST /ilanlar/{id}/basvuru — is ilanina basvur.
 //
@@ -55,17 +74,24 @@ func (h *Handler) BasvuruYap(w http.ResponseWriter, r *http.Request) {
 	//    · engel var mi. Ayri sorgular yazmak "ayni kuralin iki kopyasi"
 	//    sinifini acardi; `engelYok` TEK KAYNAKTAN geliyor.
 	// ⚠️ `engelYok` icinde parametre **$1 = OKUYAN** olarak yaziliyor.
-	var sahip, tur, durum string
+	// ⚠️ TURU 91 — sorgu `created_at` ve BENIM hesap turumu de getiriyor:
+	//    talep dalindaki UC kapi (7 gunluk pencere · isletme zorunlulugu ·
+	//    teklif tavani) icin AYRI sorgular acmak, ayni yuklemleri ikinci kez
+	//    yazmak olurdu.
+	var sahip, tur, durum, benimHesap string
+	var acilis time.Time
 	err := h.db.QueryRow(r.Context(), `
-		SELECT i.sahibi_id, i.tur, i.durum
+		SELECT i.sahibi_id, i.tur, i.durum, i.created_at,
+		       (SELECT COALESCE(hesap_turu,'kisisel') FROM users WHERE id=$1)
 		  FROM ilanlar i
-		 WHERE i.id=$2`+engelYok, me, id).Scan(&sahip, &tur, &durum)
+		 WHERE i.id=$2`+engelYok, me, id).
+		Scan(&sahip, &tur, &durum, &acilis, &benimHesap)
 	if err != nil {
 		hata(w, 404, "ilan bulunamadı")
 		return
 	}
-	if tur != "is" {
-		hata(w, 400, "bu ilan bir iş ilanı değil")
+	if tur != "is" && !TalepTuru(tur) {
+		hata(w, 400, "bu ilana başvurulamaz")
 		return
 	}
 	// ⚠️ TURU 90b — 404, 400 DEGIL: 400 + "artık yayında değil", ilanin VAR
@@ -76,10 +102,50 @@ func (h *Handler) BasvuruYap(w http.ResponseWriter, r *http.Request) {
 		hata(w, 404, "ilan bulunamadı")
 		return
 	}
+	// ⚠️⚠️ TURU 91 — SAHIPLIK KAPISI **TALEP KAPILARININ ONUNDE**.
+	//    Sonda kalsaydi, kendi talebine teklif vermeye calisan (kisisel
+	//    hesapli) sahibi *"teklif vermek için işletme hesabına geçmelisin"*
+	//    mesajini alirdi — dogru olan "kendi ilanına başvuramazsın".
+	//    Yanlis hata mesaji, kullaniciyi GEREKSIZ bir hesap turu
+	//    degisikligine yonlendirirdi.
 	if sahip == me {
 		hata(w, 400, "kendi ilanına başvuramazsın")
 		return
 	}
+
+	// ═════════ TURU 91 — TALEP (TEKLIF) DALININ EK KAPILARI ═════════
+	if TalepTuru(tur) {
+		// ⚠️ 7 GUNLUK PENCERE **YAZMA YOLUNDA DA** uygulanir.
+		//    Turu 80b dersi: *"arayuzun kurala uymasi, kuralin UYGULANDIGI
+		//    anlamina GELMEZ"* — istemci listeyi HIC ACMADAN dogrudan POST
+		//    atabilir. Sabit `TalepPenceresi` OKUMA yoluyla AYNI.
+		if time.Since(acilis) > TalepPenceresi {
+			hata(w, 404, "ilan bulunamadı")
+			return
+		}
+		// ⚠️ TEKLIFI YALNIZ ISLETME VERIR. Kullanicinin emri "isletmeler
+		//    karsi teklif verecek"ti; kisisel hesaplarin teklif vermesi
+		//    talebi spam'e acardi ve "kiminle calisiyorum" belirsizlesirdi.
+		// ⚠️ 403 (404 DEGIL): burada gizlenecek bir VARLIK yok — talep zaten
+		//    herkese acik. Kullaniciya NE YAPMASI GEREKTIGI soylenir.
+		if benimHesap != "isletme" {
+			hata(w, 403, "teklif vermek için işletme hesabına geçmelisin")
+			return
+		}
+		// ⚠️ FIYATSIZ TEKLIF YOK: teklif listesi FIYATA gore siralaniyor ve
+		//    fiyatsiz bir satir listenin anlamini bozardi.
+		if req.FiyatKurus <= 0 {
+			hata(w, 400, "teklif tutarı gerekli")
+			return
+		}
+	} else if req.FiyatKurus != 0 {
+		// ⚠️ Is ilaninda fiyat alani YOK SAYILIR (sessizce sifirlanir):
+		//    hata dondurmek eski istemcileri kirardi, degeri yazmak ise
+		//    "maas teklifi" gibi YANLIS bir anlam uretirdi.
+		req.FiyatKurus = 0
+	}
+	// ⚠️ (Yayinda-mi ve sahiplik kapilari YUKARI TASINDI — turu 91;
+	//    gerekcesi orada yazili.)
 
 	// ⚠️⚠️⚠️ TURU 90b — `DO NOTHING` DEGIL, KOSULLU `DO UPDATE`.
 	//
@@ -97,14 +163,66 @@ func (h *Handler) BasvuruYap(w http.ResponseWriter, r *http.Request) {
 	// ⚠️ Buradaki `EXCLUDED.not_metin` OLU KOD DEGIL: VALUES tarafinda
 	//    `$3` COALESCE'lanmiyor, yani gonderilen NOT gercekten tasiniyor
 	//    (turu 78/80b/85b'deki `EXCLUDED` tuzagi burada GECERLI DEGIL).
-	tag, err := h.db.Exec(r.Context(), `
-		INSERT INTO ilan_basvurular (ilan_id, user_id, not_metin)
-		VALUES ($1,$2,$3)
+	// ⚠️⚠️ TURU 91 — TEKLIF TAVANI **ADVISORY KILIT** ICINDE.
+	//
+	// `INSERT ... WHERE (SELECT count(*)) < 5` READ COMMITTED'da escamanli
+	// iki istegi de gecirir; turu 79b'de AI kotasinda TAM BU sorun yasandi.
+	// Burada bedeli para degil ama tavan asilinca talep sahibi bunalir ve
+	// "5 teklif" sozu YALAN olur.
+	// ⚠️ Kilit anahtari ILANA OZGU: farkli talepler birbirini BEKLETMEZ.
+	// ⚠️ `pg_advisory_xact_lock` islem bitince OTOMATIK birakilir (kilit
+	//    SIZMAZ) — bu yuzden islem ZORUNLU.
+	// ⚠️ REVIZE tavana SAYILMAZ: ayni isletmenin mevcut satiri `ON CONFLICT`
+	//    dalina duser, yeni satir acilmaz.
+	tx, err := h.db.Begin(r.Context())
+	if err != nil {
+		hata(w, 500, "başvuru gönderilemedi")
+		return
+	}
+	defer tx.Rollback(context.Background())
+
+	if TalepTuru(tur) {
+		if _, err := tx.Exec(r.Context(),
+			`SELECT pg_advisory_xact_lock(hashtext($1))`, "teklif:"+id); err != nil {
+			hata(w, 500, "başvuru gönderilemedi")
+			return
+		}
+		var adet int
+		// ⚠️ `geri_cekildi` SAYILMAZ: vazgecen bir isletme kontenjani
+		//    KILITLEMEMELI.
+		if err := tx.QueryRow(r.Context(), `
+			SELECT count(*) FROM ilan_basvurular
+			 WHERE ilan_id=$1 AND user_id <> $2 AND durum <> 'geri_cekildi'`,
+			id, me).Scan(&adet); err != nil {
+			hata(w, 500, "başvuru gönderilemedi")
+			return
+		}
+		if adet >= TeklifTavani {
+			hata(w, 409, "bu talep için teklif kontenjanı doldu")
+			return
+		}
+	}
+
+	// ⚠️ `created_at` REVIZEDE **KORUNUR** (turu 91): her guncellemede
+	//    listenin basina ziplamak SPAM KAPISI olurdu. Degisen `guncellendi_at`.
+	// ⚠️ `WHERE` kumesi turu 90b'ye gore GENISLEDI: teklif REVIZE
+	//    EDILEBILMELI, yani 'bekliyor'/'goruldu' de guncellenir. Ama
+	//    'secildi'/'elendi' HARIC — karar verilmis bir teklifi degistirmek,
+	//    talep sahibinin gordugu fiyati ARKASINDAN degistirmek olurdu.
+	tag, err := tx.Exec(r.Context(), `
+		INSERT INTO ilan_basvurular (ilan_id, user_id, not_metin, fiyat_kurus)
+		VALUES ($1,$2,$3,$4)
 		ON CONFLICT (ilan_id, user_id) DO UPDATE
-		   SET durum='bekliyor', not_metin=EXCLUDED.not_metin, created_at=now()
-		 WHERE ilan_basvurular.durum='geri_cekildi'`, id, me, req.Not)
+		   SET durum='bekliyor', not_metin=EXCLUDED.not_metin,
+		       fiyat_kurus=EXCLUDED.fiyat_kurus, guncellendi_at=now()
+		 WHERE ilan_basvurular.durum IN ('geri_cekildi','bekliyor','goruldu')`,
+		id, me, req.Not, req.FiyatKurus)
 	if err != nil {
 		log.Printf("basvuru: %v", err)
+		hata(w, 500, "başvuru gönderilemedi")
+		return
+	}
+	if err := tx.Commit(r.Context()); err != nil {
 		hata(w, 500, "başvuru gönderilemedi")
 		return
 	}
@@ -117,7 +235,20 @@ func (h *Handler) BasvuruYap(w http.ResponseWriter, r *http.Request) {
 	// ucu tekrar cagirdiginda hicbir satir degismiyor ama ilan sahibinin
 	// telefonu caliyor ve actiginda listede YENI HICBIR SEY olmuyordu.
 	if h.bs != nil && tag.RowsAffected() > 0 {
-		h.bs.Bildir(r.Context(), sahip, me, "ilan_basvuru", "ilan", id)
+		// ⚠️⚠️ TURU 91 — TUR ALICIYA GORE SECILIR.
+		//    Is ilaninda alici ISVEREN ("başvurdu"), talepte alici TALEP
+		//    SAHIBI ("teklif verdi"). Tek tur kullanilsaydi istemci
+		//    yonlendirmesi (`_git`) hangi ekrani acacagini bilemezdi ve
+		//    metin de yanlis olurdu — turu 80b'de `randevu_iptal` tam bu
+		//    yuzden IKIYE bolunmustu.
+		// ⚠️ `teklif_geldi` metni `bildirim.Metin()`de TANIMLI; burasi onu
+		//    GONDEREN yol. Metin tanimlanip gonderen yol yazilmasaydi, o
+		//    `case` OLU KOD olurdu (bu projede DOKUZ kez yasandi).
+		tip := "ilan_basvuru"
+		if TalepTuru(tur) {
+			tip = "teklif_geldi"
+		}
+		h.bs.Bildir(r.Context(), sahip, me, tip, "ilan", id)
 	}
 	yaz(w, 200, map[string]bool{"ok": true})
 }
@@ -210,6 +341,9 @@ func (h *Handler) Basvurular(w http.ResponseWriter, r *http.Request) {
 // ⚠️ DURUM BEYAZ LISTESI — DB'de CHECK YOK (bkz. migration 044 serhi).
 var basvuruDurumlari = map[string]bool{
 	"bekliyor": true, "goruldu": true, "olumlu": true, "olumsuz": true,
+	// ⚠️ TURU 91 — TEKLIF KARARLARI. `secildi` YAN ETKILIDIR (asagi bak);
+	//    `elendi` yalniz etiket.
+	"secildi": true, "elendi": true,
 }
 
 // PATCH /ilanlar/{id}/basvurular/{basvuruID} — SAHIBI durumu degistirir.
@@ -237,21 +371,72 @@ func (h *Handler) BasvuruDurum(w http.ResponseWriter, r *http.Request) {
 	// listesinde "olumlu" olarak DIRILIYORDU.
 	// ⚠️ Geri cekilmis basvuruyu yalnizca ADAYIN KENDISI yeniden acabilir
 	//    (`BasvuruYap`in kosullu `DO UPDATE` dali).
-	tag, err := h.db.Exec(r.Context(), `
-		UPDATE ilan_basvurular SET durum=$3
-		 WHERE id=$1
-		   AND ilan_id=$2
-		   AND durum <> 'geri_cekildi'
-		   AND EXISTS(SELECT 1 FROM ilanlar i
-		               WHERE i.id=$2 AND i.sahibi_id=$4)`,
-		bid, id, req.Durum, me)
+	// ⚠️⚠️⚠️ TURU 91 — `secildi` **TEK ISLEMDE UC YAN ETKI**.
+	//
+	// Kazanan isaretlenir · DIGER tum teklifler `elendi` olur · talep
+	// `durum='satildi'`ye gecer. Ucu ayri isteklerde yapilsaydi araya giren
+	// bir hata "kazanan var ama talep hala acik" ya da "talep kapandi ama
+	// kimse kazanmadi" gibi YARIM durumlar birakirdi ve kullanicinin
+	// duzeltme yolu OLMAZDI (secim GERI ALINAMAZ bir karardir).
+	// ⚠️ Talep SILINMEZ, `satildi` olur — veri politikasi.
+	// ⚠️ Is ilaninda (`tur='is'`) yan etki UYGULANMAZ: bir isverenin bir
+	//    adayi "olumlu" isaretlemesi ilani KAPATMAZ, cunku birden fazla kisi
+	//    ise alinabilir.
+	tx, err := h.db.Begin(r.Context())
 	if err != nil {
 		hata(w, 500, "güncellenemedi")
 		return
 	}
-	if tag.RowsAffected() == 0 {
+	defer tx.Rollback(context.Background())
+
+	// ⚠️ Kazananin kim oldugu ve ilanin turu AYNI UPDATE'ten `RETURNING` ile
+	//    alinir: ayri bir SELECT yarisa acik olurdu ve sahiplik kapisini
+	//    IKINCI KEZ yazmak gerekirdi.
+	var kazanan, ilanTuru string
+	err = tx.QueryRow(r.Context(), `
+		UPDATE ilan_basvurular b SET durum=$3
+		 WHERE b.id=$1
+		   AND b.ilan_id=$2
+		   AND b.durum <> 'geri_cekildi'
+		   AND EXISTS(SELECT 1 FROM ilanlar i
+		               WHERE i.id=$2 AND i.sahibi_id=$4)
+		RETURNING b.user_id,
+		          (SELECT tur FROM ilanlar WHERE id=$2)`,
+		bid, id, req.Durum, me).Scan(&kazanan, &ilanTuru)
+	if err != nil {
+		// ⚠️ `pgx.ErrNoRows` burada "yetkin yok" ya da "boyle bir basvuru yok"
+		//    demektir; ikisi de disaridan 404'tur (403 varligi sizdirirdi).
 		hata(w, 404, "başvuru bulunamadı")
 		return
+	}
+
+	if req.Durum == "secildi" && TalepTuru(ilanTuru) {
+		if _, err := tx.Exec(r.Context(), `
+			UPDATE ilan_basvurular SET durum='elendi'
+			 WHERE ilan_id=$1 AND id <> $2
+			   AND durum NOT IN ('geri_cekildi','elendi')`, id, bid); err != nil {
+			hata(w, 500, "güncellenemedi")
+			return
+		}
+		if _, err := tx.Exec(r.Context(),
+			`UPDATE ilanlar SET durum='satildi' WHERE id=$1 AND sahibi_id=$2`,
+			id, me); err != nil {
+			hata(w, 500, "güncellenemedi")
+			return
+		}
+	}
+	if err := tx.Commit(r.Context()); err != nil {
+		hata(w, 500, "güncellenemedi")
+		return
+	}
+
+	// ⚠️ BILDIRIM COMMIT'TEN SONRA: islem geri alinirsa "teklifin secildi"
+	//    diyen bir bildirim gonderilmis olurdu ve GERI ALINAMAZDI.
+	// ⚠️ Bildirim turu ALICIYA GORE ayrilmaz — burada tek alici var (teklifi
+	//    veren isletme). Elenenlere bildirim GONDERILMEZ: "kaybettin"
+	//    bildirimi urun degeri katmaz, gurultu yapar.
+	if h.bs != nil && req.Durum == "secildi" && TalepTuru(ilanTuru) {
+		h.bs.Bildir(r.Context(), kazanan, me, "teklif_secildi", "ilan", id)
 	}
 	yaz(w, 200, map[string]bool{"ok": true})
 }
