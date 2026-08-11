@@ -210,6 +210,30 @@ func TestYeniUclarCozuluyor(t *testing.T) {
 		// ⚠️ `/isletme/urunler` de ayni STATIK grupta — birlikte cozulmeli.
 		{"POST", "/isletme/urunler", "/isletme/urunler"},
 		{"PATCH", "/isletme/urunler/" + uid, "/isletme/urunler/{id}"},
+
+		// --- TURU 91: DIYET (9 uc)
+		// ⚠️ EN RISKLI AYRIM: `/diyet/bag` (STATIK, POST) ile
+		//    `/diyet/bag/{id}` (PARAMETRELI, PATCH). chi bunlari dogru
+		//    cozer ama cakisan bir desen eklenirse CALISMA ANINDA PANIK
+		//    atar ve `go build` bunu YAKALAMAZ — testin var olus sebebi bu.
+		{"POST", "/diyet/bag", "/diyet/bag"},
+		{"PATCH", "/diyet/bag/" + uid, "/diyet/bag/{id}"},
+		{"GET", "/diyet/baglarim", "/diyet/baglarim"},
+		{"GET", "/diyet/danisanlarim", "/diyet/danisanlarim"},
+		// ⚠️ `/diyet/kayit` (POST) vs `/diyet/kayitlar` (GET): AYRI yollar,
+		//    biri otekinin oneki DEGIL — ama harf farki tek "lar" oldugu
+		//    icin gozden kacabilir.
+		{"POST", "/diyet/kayit", "/diyet/kayit"},
+		{"PATCH", "/diyet/kayit/" + uid, "/diyet/kayit/{id}"},
+		{"GET", "/diyet/kayitlar", "/diyet/kayitlar"},
+		{"GET", "/diyet/ozet", "/diyet/ozet"},
+		{"GET", "/diyet/besinler", "/diyet/besinler"},
+
+		// --- TURU 91: TEKLIF (yeni rota YOK — mevcut basvuru uclari
+		//     `tur='talep'` ilanlarda da calisir; burada YENIDEN dogrulanir
+		//     ki ileride biri onlari bolmeye kalkarsa test uyarsin.)
+		{"POST", "/ilanlar/" + uid + "/basvuru", "/ilanlar/{id}/basvuru"},
+		{"GET", "/ilanlar/" + uid + "/basvurular", "/ilanlar/{id}/basvurular"},
 	}
 
 	for _, v := range vakalar {

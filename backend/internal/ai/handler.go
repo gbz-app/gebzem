@@ -713,3 +713,75 @@ func jsonTemizle(s string) string {
 }
 
 var _ = base64.StdEncoding
+
+// POST /ai/kalori — bir yiyecegin adindan (ya da fotografindan) KALORI TAHMINI.
+//
+// ⚠️⚠️⚠️ TURU 91 — `tur` **"kalori"**, "gorsel" DEGIL.
+//
+//	Turu 79b'de `tur` etiketini yanlis yazmak SEVK ENGELI olmustu: aciklama
+//	yazan her dokunus, turun manset ozelligi olan GORSEL URETIMINDEN bir hak
+//	yakiyordu. `gorselKotasiMi` yalnizca `"gorsel"`e true dondugu icin bu uc
+//	METIN havuzundan (20/gun) duser — dogru olan budur, cunku bu bir metin
+//	cagrisidir (gorsel gonderilse bile ANLAMA islemidir, URETME degil).
+//	⚠️ Yeni bir AI ucu eklerken `grep 'h.kapi(w, r,'` ile TUM cagri yerlerini
+//	   tara ve etiketin ne ANLAMA GELDIGINI dogrula.
+//
+// ⚠️ SONUC DOGRUDAN KAYDEDILMEZ, ONERI DONER: kullanici degeri gorup
+//
+//	onaylar. AI'nin urettigi bir sayiyi sessizce saglik kaydina yazmak,
+//	kullanicinin gormedigi bir veriyi ona ait kilardi.
+//
+// ⚠️ SISTEM MESAJI SAGLIK TAVSIYESI VERMEZ. Model yalnizca besin degeri
+//
+//	TAHMIN eder; diyet karari diyetisyene aittir ve arayuz de bunu yazar.
+func (h *Handler) Kalori(w http.ResponseWriter, r *http.Request) {
+	_, istekID, ok := h.kapi(w, r, "kalori")
+	if !ok {
+		return
+	}
+	var req aiReq
+	json.NewDecoder(r.Body).Decode(&req)
+	req.Metin = metniKirp(req.Metin)
+
+	parcalar := []icerikParca{{
+		Tip: "text",
+		Metin: "Bu yiyeceğin besin değerlerini TAHMİN et. YALNIZCA şu biçimde " +
+			"JSON döndür, başka hiçbir şey yazma:\n" +
+			`{"ad":"","gram":0,"kalori":0,"protein":0,"karbonhidrat":0,"yag":0}` +
+			"\nkalori = verilen gram için TOPLAM kcal. " +
+			"gram = tahmini porsiyon ağırlığı. " +
+			"protein/karbonhidrat/yag = o porsiyondaki gram cinsinden değer. " +
+			"Ad'ı Türkçe yaz. Emin değilsen en yakın tahmini ver.",
+	}}
+	if req.Metin != "" {
+		parcalar = append(parcalar, icerikParca{
+			Tip: "text", Metin: "Yiyecek: " + req.Metin,
+		})
+	}
+	if req.MediaID != "" {
+		u, err := h.gorselAdresi(r.Context(), req.MediaID, auth.UserID(r.Context()))
+		if err != nil {
+			hata(w, 400, "görsel okunamadı")
+			return
+		}
+		parcalar = append(parcalar, icerikParca{
+			Tip: "image_url", Gorsel: &gorselURL{URL: u},
+		})
+	}
+	if req.Metin == "" && req.MediaID == "" {
+		hata(w, 400, "yiyecek adı ya da fotoğrafı gerekli")
+		return
+	}
+
+	sonuc, err := h.sor(r.Context(),
+		"Sen bir besin değeri tahmin aracısın. Yalnızca geçerli JSON dönersin. "+
+			"Tıbbi tavsiye VERMEZSİN, diyet önerisi YAPMAZSIN.",
+		parcalar)
+	if err != nil {
+		h.kaydet(r.Context(), istekID, req.Metin, err.Error(), "hata")
+		hata(w, 502, "Yapay zekâ şu anda yanıt veremedi")
+		return
+	}
+	h.kaydet(r.Context(), istekID, req.Metin, sonuc, "tamam")
+	yaz(w, 200, map[string]any{"sonuc": jsonTemizle(sonuc)})
+}

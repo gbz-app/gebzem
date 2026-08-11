@@ -21,6 +21,7 @@ import (
 	"github.com/gbz-app/gebzem/backend/internal/chat"
 	"github.com/gbz-app/gebzem/backend/internal/config"
 	"github.com/gbz-app/gebzem/backend/internal/database"
+	"github.com/gbz-app/gebzem/backend/internal/diyet"
 	"github.com/gbz-app/gebzem/backend/internal/etkinlik"
 	"github.com/gbz-app/gebzem/backend/internal/ilan"
 	"github.com/gbz-app/gebzem/backend/internal/isletme"
@@ -107,12 +108,16 @@ func main() {
 	// ⚠️ YAPMA: bu satirlari silme ya da `nil` gecme.
 	socialH.SetAnket(chatH.GonderiAnketiYaz, chatH.GonderiAnketleri)
 	chatH.SetGonderiGorunur(socialH.GorunurMu)
-	kanalH := kanal.NewHandler(db)              // turu 75: kanal (tek yonlu yayin)
+	kanalH := kanal.NewHandler(db) // turu 75: kanal (tek yonlu yayin)
 	isletmeH := isletme.NewHandler(db, bildirimS)
 	vitrinH := vitrin.NewHandler(db)
 	randevuH := randevu.NewHandler(db, bildirimS)
 	etkinlikH := etkinlik.NewHandler(db)
 	ilanH := ilan.NewHandler(db, bildirimS)
+	// ⚠️ TURU 91 — DIYET TAKIBI. `bildirimS` NIL GECILMEZ: bag istegi ve
+	//    diyetisyenden gelen liste bildirim URETIR; nil gecilseydi ozellik
+	//    sessizce yarim calisirdi.
+	diyetH := diyet.NewHandler(db, bildirimS)
 	// TURU 74 — MEDYA. R2 env eksikse Enabled()=false doner ve uclar KAYDEDILMEZ
 	// (fail-closed ama GORUNUR: acilista log yazar).
 	mediaH := media.NewHandler(db, rdb, cfg.R2Endpoint, cfg.R2AccessKeyID,
@@ -259,6 +264,20 @@ func main() {
 		// Istemci bir kez cekip onbellekler; yeni alan eklemek ISTEMCI
 		// GUNCELLEMESI GEREKTIRMEZ (ilan.Agac ucuyla ayni gerekce).
 		r.Get("/isletme-modulleri", isletmeH.Moduller)
+
+		// ⚠️⚠️ TURU 91 — DIYET (9 uc). HEPSI auth grubunun ICINDE.
+		//    Saglik verisi; kimliksiz erisim OLAMAZ.
+		// ⚠️ `/diyet/besinler` de korumali: gomulu liste kucuk ama kimliksiz
+		//    bir uc acmak, ileride buyuyecek bir yuzeyi bedavaya acardi.
+		r.Post("/diyet/bag", diyetH.BagIste)
+		r.Patch("/diyet/bag/{id}", diyetH.BagDurum)
+		r.Get("/diyet/baglarim", diyetH.Baglarim)
+		r.Get("/diyet/danisanlarim", diyetH.Danisanlarim)
+		r.Post("/diyet/kayit", diyetH.KayitEkle)
+		r.Patch("/diyet/kayit/{id}", diyetH.KayitGuncelle)
+		r.Get("/diyet/kayitlar", diyetH.Kayitlar)
+		r.Get("/diyet/ozet", diyetH.Ozet)
+		r.Get("/diyet/besinler", diyetH.Besinler)
 		// TURU 77 — ETKINLIKLER
 		r.Post("/etkinlikler", etkinlikH.Olustur)
 		r.Get("/etkinlikler", etkinlikH.Liste)
@@ -298,6 +317,11 @@ func main() {
 		// TURU 77 — AI (OPENAI_API_KEY yoksa 503; istemci /ai/durum ile sorar)
 		r.Get("/ai/durum", aiH.Durum)
 		r.Post("/ai/menu", aiH.Menu)
+		// ⚠️ TURU 91 — kalori tahmini METIN kotasindan duser
+		//    (`tur="kalori"`). Turu 79b'de yanlis etiket SEVK ENGELI olmustu:
+		//    "gorsel" yazan bir metin ucu, turun manset ozelligi olan gorsel
+		//    uretiminden hak yiyordu.
+		r.Post("/ai/kalori", aiH.Kalori)
 		r.Post("/ai/urun-metni", aiH.UrunMetni)
 		r.Post("/ai/danisma", aiH.Danisma)
 		// ⚠️ TURU 79 — metinden URUN GORSELI uretir; AYRI ve DUSUK kota
