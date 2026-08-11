@@ -22,6 +22,9 @@ import '../sosyal/profil_sayfasi.dart';
 import '../sosyal/reels_sayfasi.dart';
 import '../sosyal/takip_listesi.dart';
 import 'ayarlar_ekrani.dart';
+import '../diyet/diyet_ekranlari.dart';
+import '../diyet/danisan_ekranlari.dart';
+import '../ilan/basvuru_ekranlari.dart';
 
 /// Ana kabuk: 5 sekmeli alt menu (ozellik-listesi.md'deki yapi)
 /// Sohbetler aktif; Aramalar/Odalar/Canli sonraki fazlarda doluyor
@@ -504,6 +507,68 @@ class _ProfileTab extends ConsumerWidget {
           ).push(MaterialPageRoute(builder: (_) =>
                   const IlanListesiEkrani(benim: true, baslik: 'İlanlarım'))),
         ),
+        // ⚠️⚠️ TURU 91 — PROFILDE TAKIP GIRISLERI (kullanici emri:
+        //    *"profilde DIYETIM ve DUGUNUM olsun, HIZMETLERIM olsun,
+        //    oradan takip edebilsin"*).
+        //
+        // ⚠️ "Düğünüm/Hizmetlerim" TEK GIRISTE birlesti: ikisi de
+        //    `tur='talep'` ilanlaridir ve AYRI iki ekran ayni listenin iki
+        //    kopyasi olurdu. Baslik "Taleplerim" — kullanicinin dugun VE
+        //    hizmet taleplerinin ikisini de kapsar.
+        ListTile(
+          leading: const Icon(LucideIcons.clipboardList),
+          title: const Text('Taleplerim'),
+          subtitle: const Text('Düğün · hizmet teklif istekleri'),
+          trailing: const Icon(LucideIcons.chevronRight, size: 18),
+          onTap: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => const IlanListesiEkrani(
+                  tur: 'talep', benim: true, baslik: 'Taleplerim'))),
+        ),
+        ListTile(
+          leading: const Icon(LucideIcons.salad),
+          title: const Text('Diyetim'),
+          trailing: const Icon(LucideIcons.chevronRight, size: 18),
+          onTap: () => Navigator.of(context)
+              .push(MaterialPageRoute(builder: (_) => const DiyetimEkrani())),
+        ),
+        // ⚠️ Basvurularim: turu 90'da YALNIZ ilan listesinin AppBar'indan
+        //    ulasilabiliyordu; profil ikinci ve daha kesfedilebilir giris.
+        ListTile(
+          leading: const Icon(LucideIcons.briefcase),
+          title: const Text('Başvurularım'),
+          trailing: const Icon(LucideIcons.chevronRight, size: 18),
+          onTap: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => const BasvurularimEkrani(tur: 'is'))),
+        ),
+        // ⚠️ ISLETME'ye ozel girisler.
+        if ((profile.valueOrNull?['hesap_turu'] ?? '') == 'isletme') ...[
+          ListTile(
+            leading: const Icon(LucideIcons.megaphone),
+            title: const Text('Gelen talepler'),
+            subtitle: const Text('Teklif verebileceğin istekler'),
+            trailing: const Icon(LucideIcons.chevronRight, size: 18),
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => const IlanListesiEkrani(
+                    tur: 'talep', baslik: 'Gelen Talepler'))),
+          ),
+          ListTile(
+            leading: const Icon(LucideIcons.handCoins),
+            title: const Text('Tekliflerim'),
+            trailing: const Icon(LucideIcons.chevronRight, size: 18),
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => const BasvurularimEkrani(tur: 'talep'))),
+          ),
+          // ⚠️ YALNIZ DIYETISYEN: baska bir isletme icin "Danışanlarım"
+          //    BOS bir ekran olurdu (sunucu yalniz diyetisyene veri doner).
+          if ((profile.valueOrNull?['isletme_kategori'] ?? '') == 'diyetisyen')
+            ListTile(
+              leading: const Icon(LucideIcons.users),
+              title: const Text('Danışanlarım'),
+              trailing: const Icon(LucideIcons.chevronRight, size: 18),
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => const DanisanlarimEkrani())),
+            ),
+        ],
         ListTile(
           leading: const Icon(LucideIcons.bell),
           title: const Text('Bildirimler'),

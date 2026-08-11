@@ -159,12 +159,13 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
           //    "Is" secen kullanici, ekran IS ILANLARINI GOSTERDIGI HALDE
           //    "Basvurularim" girisini HIC GORMUYORDU — yani ayni kuralin
           //    iki kopyasi (kapi vs. icerik) DRIFT ETMISTI.
-          if (_tur == 'is')
+          if (_tur == 'is' || _tur == 'talep')
             IconButton(
-              tooltip: 'Başvurularım',
+              tooltip: _tur == 'talep' ? 'Tekliflerim' : 'Başvurularım',
               icon: const Icon(LucideIcons.briefcase),
               onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const BasvurularimEkrani()),
+                MaterialPageRoute(
+                    builder: (_) => BasvurularimEkrani(tur: _tur)),
               ),
             ),
         ],
@@ -476,6 +477,20 @@ class _IlanDetayEkraniState extends ConsumerState<IlanDetayEkrani> {
   ///    gercek durumu **Başvurularım** ekraninda goruyor.
   bool _basvurdum = false;
 
+  /// ⚠️ TURU 91 — TEKLIF VERME. `_basvur` ile AYNI govde; tek fark
+  ///    `teklifModu` bayragi (fiyat alani + metinler). Ayri bir metot
+  ///    yazmak cift-dokunma kilidinin ve mesaj mantiginin IKINCI KOPYASINI
+  ///    dogururdu.
+  Future<void> _teklifVer() async {
+    final ok = await basvurSheet(context, ref, i.id, i.baslik,
+        teklifModu: true);
+    if (ok && mounted) {
+      setState(() => _basvurdum = true);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Teklifin gönderildi — "Tekliflerim"de takip et')));
+    }
+  }
+
   Future<void> _basvur() async {
     final ok = await basvurSheet(context, ref, i.id, i.baslik);
     if (ok && mounted) {
@@ -771,6 +786,38 @@ class _IlanDetayEkraniState extends ConsumerState<IlanDetayEkrani> {
                 // basvuru yapabilmeli"*) OLU DOGACAKTI.
                 // ⚠️ Dugme TURE KAPILI (`tur == 'is'`): vasita/emlak
                 //    ilaninda "Basvur" anlamsizdir ve sunucu da 400 doner.
+                // ⚠⚠ TURU 91 — TALEP: "Teklif ver" (isletme) /
+                //    "Gelen teklifler" (sahibi). Sheet teklif modunda
+                //    FIYAT alani gosterir; sunucu fiyatsiz teklifi 400 ile
+                //    reddeder (liste fiyata gore siralanir).
+                if (i.tur == 'talep' && !benimIlanim) ...[
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: _teklifVer,
+                      icon: const Icon(LucideIcons.handCoins, size: 18),
+                      label: Text(_basvurdum ? 'Teklifin alındı' : 'Teklif ver'),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                ],
+                if (i.tur == 'talep' && benimIlanim) ...[
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => BasvuranlarEkrani(
+                              ilanID: i.id, baslik: i.baslik,
+                              teklifModu: true),
+                        ),
+                      ),
+                      icon: const Icon(LucideIcons.listChecks, size: 18),
+                      label: const Text('Gelen teklifler'),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                ],
                 if (i.tur == 'is' && !benimIlanim) ...[
                   SizedBox(
                     width: double.infinity,
@@ -1542,6 +1589,69 @@ class _IlanVerEkraniState extends ConsumerState<IlanVerEkrani> {
           border: const OutlineInputBorder(),
         ),
         onChanged: (v) => _ozellikler[a.anahtar] = v,
+      ),
+    );
+  }
+}
+
+/// ⚠️⚠️ TURU 91 — ID ILE ILAN DETAYI.
+///
+/// `IlanDetayEkrani` bir `Ilan` NESNESI ister (liste ile detay AYNI nesneyi
+/// paylassin diye — turu 76 karari: yeni nesne atanirsa detayda yapilan
+/// begeni izgarada gorunmez). Ama BILDIRIMDEN gelindiginde elimizde yalnizca
+/// **ID** vardir.
+///
+/// ⚠️ `IlanDetayEkrani`nin imzasini id alacak sekilde degistirmek, liste
+///    yolundaki nesne paylasimini bozardi; bu yuzden ARADA bir yukleyici var.
+class IlanDetayId extends ConsumerStatefulWidget {
+  const IlanDetayId({super.key, required this.ilanId});
+  final String ilanId;
+
+  @override
+  ConsumerState<IlanDetayId> createState() => _IlanDetayIdState();
+}
+
+class _IlanDetayIdState extends ConsumerState<IlanDetayId> {
+  Ilan? _ilan;
+  String? _hata;
+
+  @override
+  void initState() {
+    super.initState();
+    _yukle();
+  }
+
+  Future<void> _yukle() async {
+    try {
+      final i = await ref.read(ilanServisiProvider).detay(widget.ilanId);
+      if (!mounted) return;
+      setState(() => _ilan = i);
+    } catch (e) {
+      if (!mounted) return;
+      // ⚠️ 404 da buraya duser: talep KAPANMIS ya da 7 gunluk pencere
+      //    dolmus olabilir. Bos ekran "uygulama bozuk" izlenimi verirdi.
+      setState(() => _hata = 'İlan bulunamadı ya da kapanmış');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final i = _ilan;
+    if (i != null) return IlanDetayEkrani(ilan: i);
+    return Scaffold(
+      appBar: AppBar(),
+      body: Center(
+        child: _hata == null
+            ? const CircularProgressIndicator()
+            : Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(_hata!),
+                  const SizedBox(height: 8),
+                  TextButton(
+                      onPressed: _yukle, child: const Text('Tekrar dene')),
+                ],
+              ),
       ),
     );
   }

@@ -95,8 +95,13 @@ class IlanServisi {
   /// Basvur (ya da geri cekilmis basvuruyu YENIDEN AC).
   ///
   /// ⚠️ Sunucu tekrar basvuruyu HATA SAYMAZ (200) — istemci de saymaz.
-  Future<void> basvur(String ilanID, String not) =>
-      _api.post('/ilanlar/$ilanID/basvuru', data: {'not': not});
+  /// ⚠️ TURU 91 — [fiyatKurus] YALNIZ `tur='talep'` ilanlarda anlamlidir
+  ///    (KARSI TEKLIF tutari). Is ilaninda sunucu onu YOK SAYAR.
+  ///    ⚠️ Talebin BUTCESIYLE karistirilmamali: butce `ilanlar.fiyat_kurus`,
+  ///       teklif `ilan_basvurular.fiyat_kurus`.
+  Future<void> basvur(String ilanID, String not, {int fiyatKurus = 0}) =>
+      _api.post('/ilanlar/$ilanID/basvuru',
+          data: {'not': not, 'fiyat_kurus': fiyatKurus});
 
   Future<void> basvuruGeriCek(String ilanID) =>
       _api.delete('/ilanlar/$ilanID/basvuru');
@@ -118,8 +123,12 @@ class IlanServisi {
           data: {'durum': durum});
 
   /// Kullanicinin KENDI basvurulari.
-  Future<List<Basvuru>> basvurularim() async {
-    final r = await _api.get('/users/me/basvurular');
+  /// ⚠️ TURU 91 — [tur] suzgeci: ayni uc hem "Başvurularım" (is ilanlari)
+  ///    hem "Tekliflerim" (talepler) ekranini besler. Iki ayri uc acmak
+  ///    ayni yetki yuklemini iki kez yazmak olurdu.
+  Future<List<Basvuru>> basvurularim({String tur = ''}) async {
+    final r = await _api.get('/users/me/basvurular',
+        queryParameters: {if (tur.isNotEmpty) 'tur': tur});
     final m = (r.data as Map).cast<String, dynamic>();
     return ((m['basvurular'] as List?) ?? [])
         .map((e) => Basvuru.fromJson((e as Map).cast<String, dynamic>()))
@@ -145,6 +154,8 @@ class Basvuru {
     required this.durum,
     required this.ilanID,
     required this.baslik,
+    this.fiyatKurus = 0,
+    this.guncellendiAt = '',
   });
 
   final String id;
@@ -161,6 +172,14 @@ class Basvuru {
   final String ilanID;
   final String baslik;
 
+  /// ⚠️ TURU 91 — TEKLIF TUTARI (talep ilanlarinda). Is ilaninda 0.
+  final int fiyatKurus;
+
+  /// ⚠️ Teklif REVIZE edilince degisir; `created_at` KORUNUR (revizede
+  ///    listenin basina ziplamak spam kapisi olurdu). Arayuz "revize
+  ///    edildi" etiketini bununla cizer — cizilmezse sutun OLU KALIR.
+  final String guncellendiAt;
+
   static Basvuru fromJson(Map<String, dynamic> m) => Basvuru(
     id: (m['id'] ?? '').toString(),
     userID: (m['user_id'] ?? '').toString(),
@@ -171,6 +190,8 @@ class Basvuru {
     durum: (m['durum'] ?? 'bekliyor').toString(),
     ilanID: (m['ilan_id'] ?? '').toString(),
     baslik: (m['baslik'] ?? '').toString(),
+    fiyatKurus: (m['fiyat_kurus'] as num?)?.toInt() ?? 0,
+    guncellendiAt: (m['guncellendi_at'] ?? '').toString(),
   );
 
   /// ⚠️ ETIKET TEK KAYNAK: uc ekran (basvuranlar · basvurularim · rozet)
@@ -180,6 +201,11 @@ class Basvuru {
     'goruldu' => 'Görüldü',
     'olumlu' => 'Olumlu',
     'olumsuz' => 'Olumsuz',
+    // ⚠️ TURU 91 — TEKLIF kararlari. Sunucudaki `basvuruDurumlari` beyaz
+    //    listesiyle AYNI kume; biri guncellenip oteki unutulursa kullanici
+    //    ham dize ("secildi") gorur.
+    'secildi' => 'Seçildi',
+    'elendi' => 'Elendi',
     'geri_cekildi' => 'Geri çekildi',
     _ => durum,
   };
@@ -223,20 +249,33 @@ class IlanAlani {
     required this.tip,
     required this.secenekler,
     required this.birim,
+    this.adim = 0,
+    this.zorunlu = false,
   });
 
   final String anahtar;
   final String ad;
 
-  /// metin | sayi | secim
+  /// metin | sayi | secim | cok_secim | tarih
   final String tip;
   final List<String> secenekler;
   final String birim;
+
+  /// ⚠️ TURU 91 — ADIM ADIM FORM. Sunucudan gelir; 0 = adimsiz (mevcut
+  ///    tum turler). Istemci alanlari buna gore GRUPLAR — sirayi Dart'a
+  ///    yazmak turu 77'nin "Dart'a sabit yazma" kuralini ihlal ederdi.
+  final int adim;
+
+  /// Istemcide "Devam" dugmesini kilitler. SUNUCU DOGRULAMAZ — bu bir
+  /// arayuz kolayligidir, guvenlik kapisi DEGILDIR.
+  final bool zorunlu;
 
   static IlanAlani fromJson(Map<String, dynamic> m) => IlanAlani(
     anahtar: (m['anahtar'] ?? '').toString(),
     ad: (m['ad'] ?? '').toString(),
     tip: (m['tip'] ?? 'metin').toString(),
+    adim: (m['adim'] as num?)?.toInt() ?? 0,
+    zorunlu: m['zorunlu'] == true,
     secenekler: ((m['secenekler'] as List?) ?? [])
         .map((e) => e.toString())
         .toList(),

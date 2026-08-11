@@ -22,6 +22,23 @@ import 'medya_servisi.dart';
 ///
 /// ⚠️ Adres 600 sn geçerli olduğu için bellekte kısa süreli tutulur; süresi
 ///     dolmadan yeniden istenmez (`_adresOnbellek`).
+/// ⚠️⚠️ TURU 91 — DECODE GENISLIGI (performans).
+///
+/// Bir gorselin BELLEGE KAC PIKSEL genisliginde cozulecegini soyler.
+/// `CachedNetworkImage.memCacheWidth` bunu alir ve gorseli o boyutta
+/// cozer — dosya diskte tam cozunurlukte kalir, yalnizca RAM'deki kopya
+/// kucultulur.
+///
+/// ⚠️ FIZIKSEL PIKSEL: `devicePixelRatio` ile carpilir. Mantiksal dp
+///    kullanilsaydi retina ekranda gorsel BULANIK cikardi.
+/// ⚠️ Tavan 2048: cok buyuk bir `width` verilse bile decode maliyeti
+///    patlamasin.
+int _decodeGenisligiHesapla(BuildContext c, double? width, bool kucuk) {
+  final dpr = MediaQuery.devicePixelRatioOf(c);
+  final w = width ?? (kucuk ? 320.0 : 1080.0);
+  return (w * dpr).round().clamp(64, 2048);
+}
+
 class MedyaGorsel extends ConsumerStatefulWidget {
   const MedyaGorsel({
     super.key,
@@ -123,6 +140,22 @@ class _MedyaGorselState extends ConsumerState<MedyaGorsel> {
         fit: widget.fit,
         width: widget.width,
         height: widget.height,
+        // ⚠️⚠️⚠️ TURU 91 PERFORMANS — **DECODE COZUNURLUGU SINIRLANIR.**
+        //
+        //    Kullanici: *"uygulama sanki bir tik kasiyor gibi"*.
+        //    Bu bayrak VERILMEDIGINDE 1600x1600 bir fotograf, 120dp'lik bir
+        //    izgara hucresi icin TAM COZUNURLUKTE cozuluyordu: kare basina
+        //    ~10 MB gecici RAM + CPU. Bir izgarada 12 hucre varsa bedel
+        //    ~120 MB'lik decode isidir ve takilma BURADAN gelir.
+        //
+        // ⚠️ `devicePixelRatio` ILE CARPILIR: yoksa retina ekranda gorsel
+        //    BULANIK cikardi (mantiksal dp degil FIZIKSEL piksel gerekir).
+        // ⚠️ `width` verilmediyse iki makul taban: kucuk mod (izgara/avatar)
+        //    icin 320, tam genislik icin 1080. Sinirsiz birakmak, tam da
+        //    duzeltmeye calistigimiz sorunu geri getirirdi.
+        // ⚠️ YAPMA: bu satiri kaldirma ya da `null` yapma.
+        memCacheWidth:
+            _decodeGenisligiHesapla(context, widget.width, widget.kucuk),
         placeholder: (_, _) => _kutu(const SizedBox(
             width: 18,
             height: 18,

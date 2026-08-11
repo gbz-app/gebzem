@@ -16,6 +16,9 @@ import 'profil_sayfasi.dart';
 import 'sosyal_servisi.dart';
 import 'takip_listesi.dart';
 import '../ilan/basvuru_ekranlari.dart';
+import '../diyet/diyet_ekranlari.dart';
+import '../diyet/danisan_ekranlari.dart';
+import '../ilan/ilan_ekranlari.dart' show IlanDetayId;
 
 /// ⚠️⚠️ TURU 75 — BILDIRIMLER.
 ///
@@ -173,6 +176,40 @@ class _BildirimlerSayfasiState extends ConsumerState<BildirimlerSayfasi> {
           renk: const Color(0xFF3AA9FF),
           metin: '$ad iş ilanına başvurdu',
         );
+      // ⚠⚠ TURU 91 — TEKLIF AKISI + DIYET. Sunucudaki
+      //    `bildirim.Metin()` ile AYNI COMMIT'te eklendi; yalniz sunucuya
+      //    eklemek "$ad bir işlem yaptı" metnine duserdi (turu 75b/80b/90b
+      //    — ayni hata UC KEZ yasandi).
+      case 'talep_yeni':
+        return (
+          ikon: LucideIcons.megaphone,
+          renk: const Color(0xFFFF6B9D),
+          metin: '$ad yeni bir teklif isteği oluşturdu',
+        );
+      case 'teklif_geldi':
+        return (
+          ikon: LucideIcons.handCoins,
+          renk: const Color(0xFF2BB673),
+          metin: '$ad talebine teklif verdi',
+        );
+      case 'teklif_secildi':
+        return (
+          ikon: LucideIcons.partyPopper,
+          renk: const Color(0xFF2BB673),
+          metin: '$ad teklifini seçti',
+        );
+      case 'diyet_istek':
+        return (
+          ikon: LucideIcons.userRoundPlus,
+          renk: const Color(0xFF0E7A52),
+          metin: '$ad diyet bağlantısı istedi',
+        );
+      case 'diyet_liste':
+        return (
+          ikon: LucideIcons.clipboardList,
+          renk: const Color(0xFF0E7A52),
+          metin: '$ad sana diyet listesi gönderdi',
+        );
       default:
         // ⚠️ SESSIZ DUSMEK YASAK (projenin 3. hata sinifi): sunucuya YENI bir
         //    bildirim turu eklendiginde istemci onu genel metne dusurur ve kimse
@@ -232,10 +269,35 @@ class _BildirimlerSayfasiState extends ConsumerState<BildirimlerSayfasi> {
     //    isveren basvuruya HICBIR ZAMAN ulasamiyordu.
     // ⚠️ Ekran yalniz ILAN SAHIBINE veri doner (yetki SUNUCUDA); baskasi
     //    acarsa bos liste gorur — sizinti yok.
+    // ⚠⚠⚠ TURU 91 — `hedefTur=='ilan'` ARTIK **YON AYIRIR**.
+    //    Turu 90b'de bu dal KOSULSUZ `BasvuranlarEkrani`na gidiyordu.
+    //    `talep_yeni` bildirimi ISLETMEYE gider ve o ekran ona BOS liste
+    //    gosterir (yetki sunucuda) — yani ozellik ILK GUNDEN kirik
+    //    gorunurdu. Isletme TALEBIN KENDISINI gormeli.
     if (hedefTur == 'ilan' && hedefId.isNotEmpty) {
+      if (tur == 'talep_yeni' || tur == 'teklif_secildi') {
+        // Aliciya TALEP gosterilir (teklif verecek / secildigini gorecek).
+        Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => IlanDetayId(ilanId: hedefId),
+        ));
+        return;
+      }
       Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => BasvuranlarEkrani(ilanID: hedefId)),
+        MaterialPageRoute(
+          builder: (_) => BasvuranlarEkrani(
+              ilanID: hedefId, teklifModu: tur == 'teklif_geldi'),
+        ),
       );
+      return;
+    }
+    // ⚠️ DIYET: alici DANISAN ise kendi ekrani, DIYETISYEN ise danisan
+    //    listesi. Tur bunu ayirt eder (`diyet_liste` daima danisana gider).
+    if (hedefTur == 'diyet') {
+      Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => tur == 'diyet_liste'
+            ? const DiyetimEkrani()
+            : const DanisanlarimEkrani(),
+      ));
       return;
     }
     // ⚠️ Gonderi hedefine gitmek icin gonderiyi TEK BASINA cekebilmeliyiz;

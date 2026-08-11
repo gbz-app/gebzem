@@ -53,6 +53,18 @@ type userResp struct {
 	// dogrulandi" demek ve KAYIT OLAN HERKESTE true (rozete baglanamaz).
 	Onayli   bool       `json:"onayli"`
 	LastSeen *time.Time `json:"last_seen,omitempty"`
+	// ⚠️⚠️ TURU 91 — ISLETME KATEGORISI (yalniz `/users/me`).
+	//
+	// Istemci profil menusunde KATEGORIYE OZEL girisleri buna gore cizer
+	// (or. "Danışanlarım" YALNIZ diyetisyende). Bu alan olmadan o giris ya
+	// HIC cizilmez ya da HER isletmede cizilip BOS ekran acardi — projenin
+	// "ozellik var gorunup calismiyor" sinifi.
+	// ⚠️ `omitempty` DEGIL: bos dize "isletme degil / kategorisi yok"
+	//    anlamini TASIR; alani gizlemek istemcide "alan yok mu, bos mu"
+	//    belirsizligi yaratirdi.
+	// ⚠️ Yalniz KENDI profilinde doner (`Profile()` yanitina EKLENMEDI):
+	//    baskasinin kategorisi zaten `/isletmeler/{id}` ucundan geliyor.
+	IsletmeKategori string `json:"isletme_kategori"`
 }
 
 // GET /users/me — kendi profilim (jeton bakiyesi dahil)
@@ -60,11 +72,16 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserID(r.Context())
 	var u userResp
 	err := h.db.QueryRow(r.Context(), `
-		SELECT id, phone, COALESCE(username,''), name, about, avatar_url, avatar_media_id,
-		       coin_balance, hesap_turu, kapak_media_id, onayli, last_seen
-		FROM users WHERE id=$1`, userID).
+		SELECT u.id, u.phone, COALESCE(u.username,''), u.name, u.about,
+		       u.avatar_url, u.avatar_media_id, u.coin_balance, u.hesap_turu,
+		       u.kapak_media_id, u.onayli, u.last_seen,
+		       COALESCE(i.kategori,'')
+		  FROM users u
+		  LEFT JOIN isletmeler i ON i.user_id = u.id
+		 WHERE u.id=$1`, userID).
 		Scan(&u.ID, &u.Phone, &u.Username, &u.Name, &u.About, &u.AvatarURL, &u.AvatarMediaID,
-			&u.CoinBalance, &u.HesapTuru, &u.KapakMediaID, &u.Onayli, &u.LastSeen)
+			&u.CoinBalance, &u.HesapTuru, &u.KapakMediaID, &u.Onayli, &u.LastSeen,
+			&u.IsletmeKategori)
 	if err != nil {
 		writeErr(w, http.StatusNotFound, "kullanıcı bulunamadı")
 		return

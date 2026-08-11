@@ -22,12 +22,51 @@ import '../medya/medya_gorsel.dart';
 import '../sosyal/profil_sayfasi.dart';
 import 'ilan_servisi.dart';
 
+/// Kullanicinin yazdigi tutari KURUSA cevirir.
+///
+/// ⚠⚠ TEK KAYNAK ve TOLERANSLI: "1.500,50" · "1500" · "1500,5"
+///    hepsi kabul edilir. Ciplak `int.parse` YASAK — turu 78b'de AI
+///    menusu tam bu yuzden **"0 URUN EKLENDI"** diyordu: model `"1250"`
+///    (METIN) donduruyor, ciplak cast `null` veriyor ve `catch(_){}`
+///    yutuyordu.
+/// ⚠️ Bozuk girdide **0** doner; cagiran taraf 0'i HATA sayar ve
+///    kullaniciya soyler (sessizce 0 TL teklif GONDERILMEZ).
+/// Kurusu okunur TL metnine cevirir (binlik ayiricili).
+///
+/// ⚠️ `intl` KULLANILMAZ: `NumberFormat` yerel ayar yuklemesi ister ve
+///    uygulama acilisina yuk bindirir (`ilan_servisi.fiyatMetni` ile AYNI
+///    gerekce).
+String _tl(int kurus) {
+  final tam = (kurus ~/ 100).toString();
+  final buf = StringBuffer();
+  for (var i = 0; i < tam.length; i++) {
+    if (i > 0 && (tam.length - i) % 3 == 0) buf.write('.');
+    buf.write(tam[i]);
+  }
+  return '${buf.toString()} ₺';
+}
+
+int _kurusOku(String s) {
+  var t = s.trim().replaceAll('₺', '').replaceAll(' ', '');
+  if (t.isEmpty) return 0;
+  // Binlik ayirici olarak nokta kullanilmis olabilir: "1.500,50".
+  if (t.contains(',')) {
+    t = t.replaceAll('.', '').replaceAll(',', '.');
+  }
+  final v = double.tryParse(t);
+  if (v == null || v <= 0) return 0;
+  return (v * 100).round();
+}
+
 /// Basvuru durumunun rengi — UC EKRANDA da ayni.
 Color basvuruRengi(String durum) => switch (durum) {
   'olumlu' => const Color(0xFF2ECC71),
   'olumsuz' => const Color(0xFFE74C3C),
   'goruldu' => const Color(0xFF3AA9FF),
   'geri_cekildi' => Colors.grey,
+  // ⚠️ TURU 91 — TEKLIF kararlari.
+  'secildi' => const Color(0xFF2ECC71),
+  'elendi' => const Color(0xFFE74C3C),
   _ => const Color(0xFFF39C12),
 };
 
@@ -51,8 +90,11 @@ Widget _rozet(String durum, String etiket) => Container(
 /// ⚠️ `isScrollControlled` + `viewInsets` ZORUNLU: icinde `TextField` var ve
 ///    klavye acilinca sheet'in altini yerdi.
 Future<bool> basvurSheet(BuildContext context, WidgetRef ref, String ilanID,
-    String baslik) async {
+    String baslik, {bool teklifModu = false}) async {
   final not = TextEditingController();
+  // ⚠️ TURU 91 — TEKLIF TUTARI (yalniz talep ilanlarinda). Sunucu
+  //    fiyatsiz teklifi 400 ile REDDEDER: liste fiyata gore siralaniyor.
+  final fiyat = TextEditingController();
   var gonderiliyor = false;
   // ⚠️ TURU 90c — KENDI ROUTE'UM. `Navigator.pop()` EN USTTEKI route'u
   //    kapatir, "beni" DEGIL: istek ucustayken kullanici baska bir sey
@@ -93,6 +135,18 @@ Future<bool> basvurSheet(BuildContext context, WidgetRef ref, String ilanID,
             const Text('İlan sahibi adını, kullanıcı adını ve notunu görür.',
                 style: TextStyle(fontSize: 12, color: Colors.grey)),
             const SizedBox(height: 14),
+            if (teklifModu) ...[
+              TextField(
+                controller: fiyat,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Teklif tutarı (₺) *',
+                  helperText: 'Müşteri teklifleri fiyata göre sıralı görür',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
             TextField(
               controller: not,
               maxLines: 4,
@@ -115,9 +169,20 @@ Future<bool> basvurSheet(BuildContext context, WidgetRef ref, String ilanID,
                       final nav = Navigator.of(c);
                       final mesajci = ScaffoldMessenger.of(c);
                       try {
+                        // ⚠️ KURUSA CEVIRME **TEK KAYNAK**: virgul de kabul
+                        //    edilir (kullanici "1.500,50" yazabilir).
+                        //    Ciplak `int.parse` YASAK — turu 78b'de "0 URUN
+                        //    EKLENDI" hatasi tam bu yuzden olusmustu.
+                        final k = teklifModu ? _kurusOku(fiyat.text) : 0;
+                        if (teklifModu && k <= 0) {
+                          yenile(() => gonderiliyor = false);
+                          mesajci.showSnackBar(const SnackBar(
+                              content: Text('Teklif tutarı gerekli')));
+                          return;
+                        }
                         await ref
                             .read(ilanServisiProvider)
-                            .basvur(ilanID, not.text.trim());
+                            .basvur(ilanID, not.text.trim(), fiyatKurus: k);
                         basarili = true;
                         // ⚠️ KENDI route'umu ADRESLE (bkz. `rota` serhi).
                         //    En ustteysem normal pop; degilsem (istek
@@ -140,7 +205,7 @@ Future<bool> basvurSheet(BuildContext context, WidgetRef ref, String ilanID,
                       height: 18,
                       width: 18,
                       child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Text('Başvuruyu gönder'),
+                  : Text(teklifModu ? 'Teklifi gönder' : 'Başvuruyu gönder'),
             ),
           ],
         ),
@@ -150,15 +215,27 @@ Future<bool> basvurSheet(BuildContext context, WidgetRef ref, String ilanID,
     ),
   );
   not.dispose();
+  fiyat.dispose();
   return basarili;
 }
 
 // ═══════════════════ 2) BASVURANLAR (ilan sahibi) ═══════════════════
 
 class BasvuranlarEkrani extends ConsumerStatefulWidget {
-  const BasvuranlarEkrani({super.key, required this.ilanID, this.baslik = ''});
+  const BasvuranlarEkrani({
+    super.key,
+    required this.ilanID,
+    this.baslik = '',
+    this.teklifModu = false,
+  });
   final String ilanID;
   final String baslik;
+
+  /// ⚠⚠ TURU 91 — TEKLIF MODU: fiyat büyük puntoyla çizilir ve
+  ///    "Teklifi seç" düğmesi çıkar. Ayrı bir ekran YAZILMADI: liste,
+  ///    yetki kapısı ve yenileme mantığı BİREBİR AYNI; ikinci kopya
+  ///    kaçınılmaz olarak drift ederdi.
+  final bool teklifModu;
 
   @override
   ConsumerState<BasvuranlarEkrani> createState() => _BasvuranlarState();
@@ -186,6 +263,33 @@ class _BasvuranlarState extends ConsumerState<BasvuranlarEkrani> {
       if (!mounted) return;
       setState(() => _hata = 'Başvurular alınamadı');
     }
+  }
+
+  /// ⚠⚠ TURU 91 — TEKLIF SECIMI GERI ALINAMAZ.
+  ///    Sunucu TEK ISLEMDE: kazanani `secildi` yapar · DIGER tum teklifleri
+  ///    `elendi` yapar · talebi `satildi`ya kapatir. Onay diyalogu olmadan
+  ///    tek dokunusla bu karar verilemez.
+  Future<void> _teklifSec(Basvuru b) async {
+    final onay = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Teklifi seç'),
+        content: Text(
+          '${b.ad.isEmpty ? "Bu işletme" : b.ad} seçilecek.\n\n'
+          'Diğer teklifler kapanacak ve talebin sonlanacak. '
+          'Bu işlem geri alınamaz.',
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(c, false),
+              child: const Text('Vazgeç')),
+          FilledButton(
+              onPressed: () => Navigator.pop(c, true),
+              child: const Text('Seç')),
+        ],
+      ),
+    );
+    if (onay == true) await _durum(b, 'secildi');
   }
 
   Future<void> _durum(Basvuru b, String yeni) async {
@@ -275,15 +379,54 @@ class _BasvuranlarState extends ConsumerState<BasvuranlarEkrani> {
                     ],
                   ),
                 ),
+                if (widget.teklifModu && b.fiyatKurus > 0)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: Text(
+                      _tl(b.fiyatKurus),
+                      style: const TextStyle(
+                          fontSize: 17, fontWeight: FontWeight.w800),
+                    ),
+                  ),
                 _rozet(b.durum, b.durumEtiketi),
               ],
             ),
+            // ⚠️ TURU 91 — "revize edildi" ETIKETI. `guncellendi_at`
+            //    sutunu bunun icin eklendi; cizilmezse projenin SEKIZ kez
+            //    yasadigi "sutun var, okuyan yol yok" sinifina yeni ornek
+            //    olurdu.
+            if (widget.teklifModu && b.guncellendiAt.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text('revize edildi',
+                    style: TextStyle(fontSize: 11, color: Colors.grey[600])),
+              ),
             if (b.not.isNotEmpty) ...[
               const SizedBox(height: 8),
               Text(b.not, style: const TextStyle(fontSize: 13)),
             ],
             const SizedBox(height: 6),
-            Row(
+            // ⚠⚠ TEKLIF MODU: "Seç" GERI ALINAMAZ bir karardir (sunucu
+            //    tek islemde kazanani isaretler, digerlerini eler ve talebi
+            //    kapatir) — bu yuzden ONAY DIYALOGU zorunlu.
+            if (widget.teklifModu)
+              Row(
+                children: [
+                  if (b.durum != 'secildi' && b.durum != 'elendi')
+                    FilledButton.icon(
+                      onPressed: () => _teklifSec(b),
+                      icon: const Icon(LucideIcons.check, size: 16),
+                      label: const Text('Teklifi seç'),
+                    ),
+                  TextButton.icon(
+                    onPressed: () => _durum(b, 'goruldu'),
+                    icon: const Icon(LucideIcons.eye, size: 16),
+                    label: const Text('Görüldü'),
+                  ),
+                ],
+              )
+            else
+              Row(
               children: [
                 TextButton.icon(
                   onPressed: () => _durum(b, 'olumlu'),
@@ -305,7 +448,10 @@ class _BasvuranlarState extends ConsumerState<BasvuranlarEkrani> {
 // ═══════════════════ 3) BASVURULARIM (kullanici) ═══════════════════
 
 class BasvurularimEkrani extends ConsumerStatefulWidget {
-  const BasvurularimEkrani({super.key});
+  const BasvurularimEkrani({super.key, this.tur = ''});
+
+  /// `'talep'` -> "Tekliflerim", `'is'` -> "Başvurularım", boş -> hepsi.
+  final String tur;
 
   @override
   ConsumerState<BasvurularimEkrani> createState() => _BasvurularimState();
@@ -323,7 +469,8 @@ class _BasvurularimState extends ConsumerState<BasvurularimEkrani> {
 
   Future<void> _yukle() async {
     try {
-      final l = await ref.read(ilanServisiProvider).basvurularim();
+      final l = await ref.read(ilanServisiProvider)
+          .basvurularim(tur: widget.tur);
       if (!mounted) return;
       setState(() {
         _liste = l;
@@ -366,7 +513,8 @@ class _BasvurularimState extends ConsumerState<BasvurularimEkrani> {
   Widget build(BuildContext context) {
     final l = _liste;
     return Scaffold(
-      appBar: AppBar(title: const Text('Başvurularım')),
+      appBar: AppBar(title: Text(
+          widget.tur == 'talep' ? 'Tekliflerim' : 'Başvurularım')),
       body: RefreshIndicator(
         onRefresh: _yukle,
         child: _hata != null
@@ -398,6 +546,12 @@ class _BasvurularimState extends ConsumerState<BasvurularimEkrani> {
                             //    onu cagiran ekran olmasaydi bu, kapatmaya
                             //    calistigimiz "olu ozellik" sinifinin
                             //    KENDI ICINDE tekrari olurdu.
+                            // ⚠️ Teklifse TUTARI da goster.
+                            leading: b.fiyatKurus > 0
+                                ? Text(_tl(b.fiyatKurus),
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.w700))
+                                : null,
                             trailing: b.durum == 'geri_cekildi'
                                 ? null
                                 : IconButton(

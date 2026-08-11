@@ -345,9 +345,73 @@ class MedyaServisi {
   /// Indirme adresi. ⚠️ 600 saniye gecerli — SAKLAMA.
   /// ⚠️ Onbellek anahtari olarak URL KULLANILAMAZ (her cagrida degisir);
   ///     `media_id` kullanilir (bkz. `medyaOnbellekAnahtari`).
-  Future<Map<String, dynamic>> adres(String mediaId) async {
-    final res = await _ref.read(apiProvider).get('/media/$mediaId/url');
-    return (res.data as Map).cast<String, dynamic>();
+  /// ⚠️⚠️⚠️ TURU 91 PERFORMANS — **ES ZAMANLILIK SINIRI + ISTEK BIRLESTIRME.**
+  ///
+  /// Kullanici: *"uygulama sanki bir tik kasiyor gibi"*.
+  ///
+  /// SOGUK ACILISTA olculen davranis: bir izgara ekraninda ~60 hucre aninda
+  /// kuruluyor ve her biri KENDI `/media/{id}/url` istegini atiyordu ->
+  /// **60 ES ZAMANLI Dio istegi**. Sonuc:
+  ///   · HTTP baglanti havuzu doyuyor, istekler birbirini bekletiyor,
+  ///   · ANA ISOLATE 60 JSON yanitini cozmekle mesgul oluyor (Dart'ta JSON
+  ///     cozumu varsayilan olarak ana isolate'te kosar),
+  ///   · ilk kare gecikiyor ve kaydirma TAKILIYOR.
+  ///
+  /// IKI KATMAN:
+  ///  1. **SEMAFOR (6)**: ayni anda en fazla alti istek ucar; kalani kuyrukta
+  ///     bekler. 6, mobil agda tipik HTTP/2 es zamanlilik penceresine yakin
+  ///     ve ana isolate'i doyurmayan bir sayi.
+  ///  2. **BIRLESTIRME**: AYNI `mediaId` icin ucusta bir istek varsa yenisi
+  ///     ACILMAZ, mevcut `Future` PAYLASILIR. Ayni gorsel iki yerde birden
+  ///     ciziliyorsa (or. akista + izgarada) bu tek basina istegi yariya
+  ///     indirir.
+  ///
+  /// ⚠️ `_adresOnbellek` (medya_gorsel.dart) ZATEN VAR ve dogru calisiyor;
+  ///    o SONUCU onbellekler, burasi UCUSTAKI ISTEGI birlestirir. Ikisi
+  ///    farkli sorunlari cozer — biri otekinin yerine gecmez.
+  /// ⚠️ Hata YAYILIR: basarisiz istek onbelleklenmez, cagiran taraf kendi
+  ///    hata dalini calistirir.
+  Future<Map<String, dynamic>> adres(String mediaId) {
+    final ucusta = _ucustakiAdres[mediaId];
+    if (ucusta != null) return ucusta;
+
+    final f = _semaforIle(() async {
+      final res = await _ref.read(apiProvider).get('/media/$mediaId/url');
+      return (res.data as Map).cast<String, dynamic>();
+    });
+    _ucustakiAdres[mediaId] = f;
+    // ⚠️ `whenComplete`: HEM basarida HEM hatada kaydi dusur. Yalniz basarida
+    //    dusurulseydi bir kez patlayan medya id'si SUREC BOYUNCA hatali
+    //    Future'i paylasirdi ve gorsel BIR DAHA yuklenemezdi.
+    f.whenComplete(() => _ucustakiAdres.remove(mediaId));
+    return f;
+  }
+}
+
+/// media_id -> UCUSTAKI istek. Bkz. `adres` serhi.
+final _ucustakiAdres = <String, Future<Map<String, dynamic>>>{};
+
+/// ⚠️ Es zamanli medya adresi istegi tavani.
+const _adresEsZamanTavani = 6;
+int _adresAktif = 0;
+final _adresKuyruk = <Completer<void>>[];
+
+/// Basit semafor: tavan asilirsa sirada bekler.
+///
+/// ⚠️ `finally` ZORUNLU: is patlarsa sayac dusurulmezse kuyruk KALICI
+///    kilitlenir ve HICBIR gorsel bir daha yuklenmez.
+Future<T> _semaforIle<T>(Future<T> Function() is_) async {
+  if (_adresAktif >= _adresEsZamanTavani) {
+    final c = Completer<void>();
+    _adresKuyruk.add(c);
+    await c.future;
+  }
+  _adresAktif++;
+  try {
+    return await is_();
+  } finally {
+    _adresAktif--;
+    if (_adresKuyruk.isNotEmpty) _adresKuyruk.removeAt(0).complete();
   }
 }
 

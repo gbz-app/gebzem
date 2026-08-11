@@ -8,6 +8,8 @@ import '../isletme/isletme_listesi.dart';
 import '../isletme/yakinimda_ekrani.dart';
 import '../isletme/urun_ekranlari.dart' show AiDanismaEkrani;
 import '../isletme/urun_servisi.dart' show aiDurumProvider;
+import '../diyet/diyet_ekranlari.dart';
+import '../talep/talep_ekranlari.dart';
 
 /// ⚠️⚠️ TURU 76b/77 — ANASAYFA SOL UST MENU.
 ///
@@ -57,6 +59,19 @@ class HizmetMenusu extends ConsumerWidget {
         const Color(0xFF3AA9FF),
         const Color(0xFF6C2BD9),
       ], (c) => const YakinimdaEkrani()),
+      // ⚠️⚠️ TURU 91 — IKI YENI KART **ILK IKI SIRADA** (kullanici emri:
+      //    "dugun kategorisi ekle birde DIYET kategorisi ekle").
+      //    Basa konmalarinin sebebi olculmus: 360x640'ta izgarada kaydirma
+      //    yapmadan yalniz ILK IKI SATIR (6 kart) gorunuyor; yeni ozellikler
+      //    KESFEDILEBILIR olmali.
+      _Bolum('Düğün & Organizasyon', [
+        const Color(0xFFFF6B9D),
+        const Color(0xFFC2185B),
+      ], (c) => const TalepAkisiEkrani()),
+      _Bolum('Diyet', [
+        const Color(0xFF2BB673),
+        const Color(0xFF0E7A52),
+      ], (c) => const DiyetimEkrani()),
       _Bolum('Etkinlikler', [
         const Color(0xFF8B3FFF),
         const Color(0xFF5A1EBE),
@@ -175,21 +190,29 @@ class HizmetMenusu extends ConsumerWidget {
                 style: TextStyle(fontSize: 13, color: Colors.grey),
               ),
               const SizedBox(height: 14),
-              // ⚠️⚠️⚠️ TURU 90 — DUZEN YENIDEN KURULDU (kullanici emri:
-              //    *"kategorilerdeki kartlar 5 TANE ALT ALTA olacak;
-              //    YAKINIMDA YUKARIDA AYRI, altinda KATEGORILER yazacak"*).
+              // ⚠️⚠️⚠️ TURU 91 — DUZEN **IZGARAYA DONDU** (kullanici emri:
+              //    *"kategoriler ALT ALTA yapmissin ama SOLDAN SAGA 5 tane
+              //    ALTA DOGRU kart olacakti, ESKI HALININ KUCUK HALI
+              //    olacakti — duzelt"*).
               //
-              //    ESKI: 3 sutunlu izgara, "Yakınımda" da diger kartlarla
-              //    ayni kutuda ve ayni boyutta.
-              //    YENI: "Yakınımda" USTTE TEK BASINA (vurgulu) · altinda
-              //    **KATEGORİLER** basligi · sonra TEK SUTUNLU satirlar.
+              //    Turu 90'da kullanici "5 tane alt alta" demis, ben TEK
+              //    SUTUN yapmistim. Turu 91'de netlestirdi: kartlar SOLDAN
+              //    SAGA aksin, ASAGI dogru ~5 SATIR olsun ve eski (turu 76b)
+              //    kartlarin KUCULTULMUS hali olsun.
               //
-              // ⚠️ Satir yuksekligi 62 + 10 bosluk = 72; besi 360dp eder ve
-              //    sheet tavanina (%82) rahat sigar, kalani KAYDIRILIR.
-              // ⚠️ IKON YOK kurali KORUNDU (kullanici emri, turu 76b): satir
-              //    bir renk gecisli zemindir, yazi ICINDE. Tek sutunda yaziyi
-              //    kartin ALTINA koymak her satiri iki kat uzatirdi ve "5 tane
-              //    alt alta" istegi SAGLANAMAZDI.
+              // ⚠️ "Yakınımda" USTTE AYRI ve KATEGORILER basligi KALIR —
+              //    onlar turu 90'da acikca istenmisti ve degismedi.
+              //
+              // ═══════ OLCU (hesaplanmis, tahmin degil) ═══════
+              //    3 sutun · yatay bosluk 10 · dis dolgu 2x16
+              //    hucre genisligi 360dp'de (360-32-20)/3 = 102.7
+              //                    414dp'de (414-32-20)/3 = 120.7
+              //    `childAspectRatio: 0.82` -> yukseklik 125.2 / 147.2
+              //    16 kart = 6 satir; kaydirilarak tamami gorunur.
+              // ⚠️ Kart ESKI TASARIMIN KUCUGU: kare gradyan kutu (yaricap 18)
+              //    + ALTINDA yazi — turu 76b'nin "IKON YOK, yazi kartin
+              //    ALTINDA" kurali BOYLECE GERI GELDI (tek sutunda yazi
+              //    icerideydi cunku alt alta yazi satiri iki katina cikariyordu).
               if (yakinimda != null) _yakinimdaSatiri(context, yakinimda),
               const SizedBox(height: 18),
               const Text(
@@ -203,12 +226,22 @@ class HizmetMenusu extends ConsumerWidget {
               ),
               const SizedBox(height: 10),
               Flexible(
-                child: ListView.separated(
-                  shrinkWrap: true,
+                // ⚠️ TURU 91 PERFORMANS — `shrinkWrap: true` KALDIRILDI.
+                //    `Flexible` zaten SINIRLI yukseklik veriyor; `shrinkWrap`
+                //    ise TUM cocuklari HER KAREDE layout ettiriyordu
+                //    (16 kart x her cizim). Kullanicinin "bir tik kasiyor"
+                //    tarifine katkida bulunan noktalardan biri.
+                child: GridView.builder(
                   padding: EdgeInsets.zero,
+                  gridDelegate:
+                      const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 3,
+                    crossAxisSpacing: 10,
+                    mainAxisSpacing: 12,
+                    childAspectRatio: 0.82,
+                  ),
                   itemCount: kategoriler.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 10),
-                  itemBuilder: (_, i) => _satir(context, kategoriler[i]),
+                  itemBuilder: (_, i) => _kart(context, kategoriler[i]),
                 ),
               ),
             ],
@@ -282,30 +315,46 @@ class HizmetMenusu extends ConsumerWidget {
   /// ⚠️ IKON YOK (kullanici emri, turu 76b): satir bir renk gecisli zemindir.
   ///    Tek sutunda yaziyi kartin ALTINA koymak her satiri iki kat uzatir ve
   ///    "5 tane alt alta" istegi SAGLANAMAZDI; bu yuzden yazi ICINDE.
-  Widget _satir(BuildContext context, _Bolum b) => GestureDetector(
-    onTap: () => _ac(context, b),
-    child: Container(
-      height: 62,
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 18),
-      alignment: Alignment.centerLeft,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(14),
-        gradient: LinearGradient(
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
-          colors: b.renkler,
-        ),
-      ),
-      child: Text(
-        b.ad,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.w700,
-          color: Colors.white,
-        ),
+  /// Kategori KARTI — izgara hucresi (kullanici emri: "eski halinin kucuk hali").
+  ///
+  /// ⚠️ IKON YOK (turu 76b kurali): kutu bir RENK GECISIDIR, yazi ALTINDA.
+  /// ⚠️ `RepaintBoundary`: her kart kendi katmaninda cizilir; biri
+  ///    degistiginde (dokunma dalgasi) DIGER 15 kart yeniden BOYANMAZ.
+  ///    Turu 91 performans maddesi.
+  Widget _kart(BuildContext context, _Bolum b) => RepaintBoundary(
+    child: GestureDetector(
+      onTap: () => _ac(context, b),
+      // ⚠️ `opaque`: gradyan kutunun ALTINDAKI bosluga (yazi ile kutu arasi)
+      //    dokunmak da karti acar; aksi halde kullanici "bastim acilmadi" der.
+      behavior: HitTestBehavior.opaque,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(18),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: b.renkler,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 7),
+          // ⚠️ `maxLines: 2` + ellipsis: "Düğün & Organizasyon" gibi uzun
+          //    adlar 102dp genislikte tek satira SIGMAZ; tek satirda
+          //    "Düğün &…" olurdu. Iki satir izgara yuksekligine dahil
+          //    (childAspectRatio hesabinda sayildi).
+          Text(
+            b.ad,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+          ),
+        ],
       ),
     ),
   );
