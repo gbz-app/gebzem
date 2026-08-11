@@ -22,22 +22,12 @@ class AyarlarEkrani extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final mod = ref.watch(temaProvider);
+    final harita = ref.watch(haritaStiliProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('Ayarlar')),
       body: ListView(
         children: [
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 16, 16, 6),
-            child: Text(
-              'GÖRÜNÜM',
-              style: TextStyle(
-                fontSize: 11.5,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.1,
-                color: Colors.grey,
-              ),
-            ),
-          ),
+          const _Baslik('GÖRÜNÜM'),
           _secenek(
             context,
             ref,
@@ -66,15 +56,52 @@ class AyarlarEkrani extends ConsumerWidget {
             'Siyah tema',
           ),
           const Divider(height: 32),
+          // ⚠️⚠️ TURU 89 — HARITA RENGI (kullanici emri: *"ayarlardan harita
+          //    rengi ayarlanmali, GECE ve UBER'in gri beyaz tarzi"*).
+          //    Secim `haritaStiliProvider`da; harita `style:` parametresini
+          //    CALISMA ANINDA guncelliyor (yeniden kurulmuyor).
+          const _Baslik('HARİTA'),
+          _haritaSecenek(context, ref, harita, 'sistem', LucideIcons.smartphone,
+              'Sistem', 'Uygulama temasına uyar'),
+          _haritaSecenek(context, ref, harita, 'gri', LucideIcons.map,
+              'Açık gri', 'Sade, düşük renkli gündüz görünümü'),
+          _haritaSecenek(context, ref, harita, 'gece', LucideIcons.moonStar,
+              'Gece', 'Koyu harita'),
+          const Divider(height: 32),
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 16),
             child: Text(
-              'Tema seçimi bu cihazda saklanır; hesabına bağlı değildir.',
+              'Bu ayarlar bu cihazda saklanır; hesabına bağlı değildir.',
               style: TextStyle(fontSize: 12, color: Colors.grey),
             ),
           ),
         ],
       ),
+    );
+  }
+
+  /// Harita stili secenegi — tema `_secenek`inin ikizi.
+  ///
+  /// ⚠️ Ayri bir yardimci: tema `ThemeMode`, harita `String` tutuyor. Tek
+  ///    jenerik yardimci yazmak iki tercihin tipini gevsetirdi.
+  Widget _haritaSecenek(
+    BuildContext context,
+    WidgetRef ref,
+    String mevcut,
+    String deger,
+    IconData ikon,
+    String baslik,
+    String altBaslik,
+  ) {
+    final secili = mevcut == deger;
+    return ListTile(
+      leading: Icon(ikon),
+      title: Text(baslik),
+      subtitle: Text(altBaslik),
+      trailing: secili
+          ? Icon(LucideIcons.check, color: Theme.of(context).colorScheme.primary)
+          : null,
+      onTap: () => ref.read(haritaStiliProvider.notifier).ayarla(deger),
     );
   }
 
@@ -100,4 +127,28 @@ class AyarlarEkrani extends ConsumerWidget {
       onTap: () => ref.read(temaProvider.notifier).ayarla(deger),
     );
   }
+}
+
+/// Bolum basligi (GÖRÜNÜM / HARİTA ...).
+///
+/// ⚠️ Iki bolum ayni bicimi kullaniyor; elle kopyalansaydi biri degistiginde
+///    oteki geride kalirdi.
+class _Baslik extends StatelessWidget {
+  const _Baslik(this.metin);
+
+  final String metin;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
+    child: Text(
+      metin,
+      style: const TextStyle(
+        fontSize: 11.5,
+        fontWeight: FontWeight.w800,
+        letterSpacing: 1.1,
+        color: Colors.grey,
+      ),
+    ),
+  );
 }

@@ -42,6 +42,8 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 // ⚠️ TURU 88 — YenileSarmali ARTIK KULLANILMIYOR: ekran dikey kaydirilmiyor
 //    (harita %70 + yatay kart seridi), asagi-cek jesti YOK. Yenileme
 //    AppBar dugmesine tasindi.
+// ⚠️ TURU 89 — harita rengi tercihi (Ayarlar > Harita).
+import '../../core/tercihler.dart';
 import '../medya/konum_servisi.dart';
 import '../medya/medya_gorsel.dart';
 import '../sosyal/profil_sayfasi.dart';
@@ -146,6 +148,89 @@ const _haritaStili = '''
  {"featureType":"poi.business","stylers":[{"visibility":"off"}]}
 ]
 ''';
+
+/// ⚠️⚠️⚠️ TURU 89 — "UBER TARZI GRI-BEYAZ" (kullanici emri, arastirildi).
+///
+/// Google'in RESMI **"Silver"** ornek stili temel alindi (Uber'in acik
+/// haritasinin gorunumu bu aileden: dusuk doygunluk, kirli beyaz zemin,
+/// beyaz yollar, gri-mavi su).
+///
+/// ⚠️⚠️ RESMI SILVER **OLDUGU GIBI KULLANILAMAZ**: icinde
+///	`{"elementType":"labels.icon","stylers":[{"visibility":"off"}]}`
+///	satiri VARDIR ve bu, turu 85'te haritayi okunamaz kilan hatanin TA
+///	KENDISIDIR. O satir **CIKARILDI**. (Muhafiz da bunu dogruluyor: resmi
+///	Silver yapistirilip test KIRMIZIYA dusuruldu.)
+///
+/// SONUC: yalnizca **RENK** degisiyor — sokak adlari, park/hastane/okul,
+/// toplu tasima ve idari sinirlar AYNEN duruyor.
+/// ⚠️ `poi.business` kurali turu 88'den TASINDI (kullanici: "haritadaki
+///    isletmeler gorunmeyecek") — her stilde TEKRARLANMALI.
+const _haritaGri = '''
+[
+ {"elementType":"geometry","stylers":[{"color":"#f5f5f5"}]},
+ {"elementType":"labels.text.fill","stylers":[{"color":"#616161"}]},
+ {"elementType":"labels.text.stroke","stylers":[{"color":"#f5f5f5"}]},
+ {"featureType":"administrative.land_parcel","elementType":"labels.text.fill","stylers":[{"color":"#bdbdbd"}]},
+ {"featureType":"poi","elementType":"geometry","stylers":[{"color":"#eeeeee"}]},
+ {"featureType":"poi","elementType":"labels.text.fill","stylers":[{"color":"#757575"}]},
+ {"featureType":"poi.park","elementType":"geometry","stylers":[{"color":"#e5e5e5"}]},
+ {"featureType":"poi.park","elementType":"labels.text.fill","stylers":[{"color":"#9e9e9e"}]},
+ {"featureType":"road","elementType":"geometry","stylers":[{"color":"#ffffff"}]},
+ {"featureType":"road.arterial","elementType":"labels.text.fill","stylers":[{"color":"#757575"}]},
+ {"featureType":"road.highway","elementType":"geometry","stylers":[{"color":"#dadada"}]},
+ {"featureType":"road.highway","elementType":"labels.text.fill","stylers":[{"color":"#616161"}]},
+ {"featureType":"road.local","elementType":"labels.text.fill","stylers":[{"color":"#9e9e9e"}]},
+ {"featureType":"transit.line","elementType":"geometry","stylers":[{"color":"#e5e5e5"}]},
+ {"featureType":"transit.station","elementType":"geometry","stylers":[{"color":"#eeeeee"}]},
+ {"featureType":"water","elementType":"geometry","stylers":[{"color":"#c9c9c9"}]},
+ {"featureType":"water","elementType":"labels.text.fill","stylers":[{"color":"#9e9e9e"}]},
+ {"featureType":"poi.business","stylers":[{"visibility":"off"}]}
+]
+''';
+
+/// ⚠️⚠️ TURU 89 — GECE STILI (kullanici emri: *"gece ve uberin gri beyaz"*).
+///
+/// Google'in RESMI **"Night"** ornek stili. Bu stil `visibility` kurali
+/// ICERMEZ — yani hicbir katmani gizlemez, yalnizca renk degistirir; oldugu
+/// gibi kullanilabilir. Sonuna yalnizca turu 88'in `poi.business` kurali
+/// eklendi.
+/// ⚠️ Koyu temada haritanin PARLAK BEYAZ kalmasi ekranin %70'ini temadan
+///    KOPARIYORDU; "Sistem" secenegi bunu kapatir.
+const _haritaGece = '''
+[
+ {"elementType":"geometry","stylers":[{"color":"#242f3e"}]},
+ {"elementType":"labels.text.fill","stylers":[{"color":"#746855"}]},
+ {"elementType":"labels.text.stroke","stylers":[{"color":"#242f3e"}]},
+ {"featureType":"administrative.locality","elementType":"labels.text.fill","stylers":[{"color":"#d59563"}]},
+ {"featureType":"poi","elementType":"labels.text.fill","stylers":[{"color":"#d59563"}]},
+ {"featureType":"poi.park","elementType":"geometry","stylers":[{"color":"#263c3f"}]},
+ {"featureType":"poi.park","elementType":"labels.text.fill","stylers":[{"color":"#6b9a76"}]},
+ {"featureType":"road","elementType":"geometry","stylers":[{"color":"#38414e"}]},
+ {"featureType":"road","elementType":"geometry.stroke","stylers":[{"color":"#212a37"}]},
+ {"featureType":"road","elementType":"labels.text.fill","stylers":[{"color":"#9ca5b3"}]},
+ {"featureType":"road.highway","elementType":"geometry","stylers":[{"color":"#746855"}]},
+ {"featureType":"road.highway","elementType":"geometry.stroke","stylers":[{"color":"#1f2835"}]},
+ {"featureType":"road.highway","elementType":"labels.text.fill","stylers":[{"color":"#f3d19c"}]},
+ {"featureType":"transit","elementType":"geometry","stylers":[{"color":"#2f3948"}]},
+ {"featureType":"transit.station","elementType":"labels.text.fill","stylers":[{"color":"#d59563"}]},
+ {"featureType":"water","elementType":"geometry","stylers":[{"color":"#17263c"}]},
+ {"featureType":"water","elementType":"labels.text.fill","stylers":[{"color":"#515c6d"}]},
+ {"featureType":"water","elementType":"labels.text.stroke","stylers":[{"color":"#17263c"}]},
+ {"featureType":"poi.business","stylers":[{"visibility":"off"}]}
+]
+''';
+
+/// Ayardaki tercihi (+ tema parlakligini) somut bir stile cevirir.
+///
+/// ⚠️ `'sistem'` seceneginin varligi ZORUNLU: koyu temaya gecen kullanicinin
+///    haritasi da kararmali, aksi halde ekranin %70'i uygulamadan KOPUK
+///    parlak beyaz bir dikdortgen olarak kalir.
+String haritaStiliSec(String tercih, Brightness parlaklik) => switch (tercih) {
+  'gri' => _haritaGri,
+  'gece' => _haritaGece,
+  // 'sistem' (ve bilinmeyen her deger) -> temaya uy.
+  _ => parlaklik == Brightness.dark ? _haritaGece : _haritaStili,
+};
 
 const _zemin = Color(0xFFF2F3F5);
 const _yol = Color(0xFFFFFFFF);
@@ -297,6 +382,17 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
                 merkez: _konum,
                 isletmeler: _liste,
                 yukleniyor: _yukleniyor,
+                // ⚠️⚠️ TURU 89 — STIL AYARDAN GELIR (kullanici emri).
+                //    Stil CALISMA ANINDA degistirilebilir: eklenti
+                //    `map_configuration.dart` stili DIFF'liyor ve
+                //    `didUpdateWidget -> _updateOptions` ile push ediyor,
+                //    yani harita YENIDEN KURULMAZ (`key` degistirmek GEREKMEZ).
+                // ⚠️ YAPMA: `GoogleMapController.setMapStyle` kullanma —
+                //    eklentide `@Deprecated('Use GoogleMap.style instead.')`.
+                stil: haritaStiliSec(
+                  ref.watch(haritaStiliProvider),
+                  Theme.of(context).brightness,
+                ),
                 acildi: (i) => Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => ProfilSayfasi(userId: i.id)),
                 ),
@@ -546,6 +642,7 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
 class _HaritaAlani extends StatefulWidget {
   const _HaritaAlani({
     required this.yukseklik,
+    required this.stil,
     required this.merkez,
     required this.isletmeler,
     required this.yukleniyor,
@@ -555,6 +652,9 @@ class _HaritaAlani extends StatefulWidget {
   /// Ekranin %70'i (bkz. `build` serhi). `MediaQuery`den DEGIL
   /// `LayoutBuilder`dan turer.
   final double yukseklik;
+
+  /// Ayardan gelen harita stili JSON (bkz. haritaStiliSec).
+  final String stil;
   final ({double enlem, double boylam})? merkez;
   final List<IsletmeOzet> isletmeler;
 
@@ -626,7 +726,7 @@ class _HaritaAlaniState extends State<_HaritaAlani> {
                 //    TEK yol budur (bkz. sinif serhi).
                 onMapCreated: (c) => _harita = c,
                 // ⚠️ NORMAL GOOGLE HARITASI (bkz. `_haritaStili` serhi).
-                style: _haritaStili,
+                style: widget.stil,
                 myLocationEnabled: true,
                 // ⚠️ TURU 86 — "konumuma don" dugmesi ACILDI: harita artik
                 //    surukleniyor, dolayisiyla geri donme yolu SART.

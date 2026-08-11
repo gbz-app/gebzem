@@ -25,6 +25,7 @@
 //    TEMIZLENIR (turu 80b `sutun_test.go` ve turu 83 `utf8_test.go` tuzagi:
 //    ikisi de ILK YAZIMDA kendi aciklamasini eslestirip yanlis alarm verdi).
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -161,61 +162,88 @@ void main() {
         reason: 'test proje kokunden (mobile/) kosulmali');
   });
 
-  test('harita stili hicbir katmani GIZLEMEZ (okunabilirlik muhafizi)', () {
+  // ═════════════════════════════════════════════════════════════════════
+  // ⚠️⚠️⚠️ TURU 89 — MUHAFIZ **KORDU**, GERCEK JSON AYRISTIRMASIYLA ONARILDI.
+  //
+  //	Turu 86-88 surumu regex'liydi ve `featureType` ile `visibility`nin
+  //	AYNI kume parantezinde olmasini bekliyordu. Gercek Google Maps stil
+  //	JSON'unda ise `visibility` DAIMA bir ALT nesnededir:
+  //	    {"featureType":"poi","stylers":[{"visibility":"off"}]}
+  //	                                    ^^^^^ AYRI kume
+  //	Desendeki `[^{}]*` bir `{` gecemedigi icin muhafiz **HICBIR SEYI**
+  //	eslestiriyordu; kodda duran mevcut kural bile eslesmiyordu. Yani test
+  //	YESILDI ama **YANLIS SEBEPTEN**: turu 85'i onlemek icin yazilmis
+  //	muhafiz, turu 85'in ta kendisini YAKALAYAMIYORDU.
+  //
+  // ⚠️ Artik stil METIN olarak degil **jsonDecode ile** okunuyor: yapinin
+  //    kendisi geziliyor, bicimlendirmeden (bosluk, satir sonu, tirnak)
+  //    TAMAMEN bagimsiz.
+  // ⚠️ Stil SAYISI artabilir (sistem/gri/gece) — muhafiz tek bir sabite
+  //    baglanmaz, kaynaktaki JSON gibi gorunen HER ham dizeyi dogrular.
+  // ⚠️ YAPMA: bunu tekrar regex'e dondurme.
+  // ═════════════════════════════════════════════════════════════════════
+  test('harita stilleri hicbir kritik katmani GIZLEMEZ', () {
     final govde = yorumsuz(dosya.readAsStringSync());
 
-    // ⚠️⚠️ TURU 88 — MUHAFIZ **KATMAN BAZINDA** oldu (once TOPYEKUN yasakti).
-    //
-    //	Kullanici *"haritadaki isletmeler gorunmeyecek"* dedi; bu, Google'in
-    //	kendi TICARI POI etiketlerini kapatmak demek ve MESRU. Ama turu 85'te
-    //	haritayi okunamaz kilan sey POI DEGIL, **sokak adlari · toplu tasima ·
-    //	simgeler · idari sinirlar** kapatilmasiydi.
-    //	Bu yuzden yasak artik TEHLIKELI KATMANLARA ozgu: dar bir
-    //	`poi.business` istisnasi gecer, haritayi bosaltan hicbir kural gecmez.
-    //
-    // ⚠️ TIRNAKLAR **KACISLI DA OLABILIR** (`'''` ham dize vs duz dize) —
-    //    desen ikisini de kapsar (ilk yazimda yalniz ham dizeyi yakaliyordu).
-    const yasakli = [
-      'road',            // SOKAK ADLARI — turu 85'te en yikici olani
-      'transit',         // metro/otobus
-      'administrative',  // ilce/il sinirlari
-      'landscape',       // zemin
-      'water',           // su
-    ];
-    final kurallar = RegExp(
-      r'\{[^{}]*\\?"featureType\\?"\s*:\s*\\?"([a-z._]+)\\?"[^{}]*'
-      r'\\?"visibility\\?"\s*:\s*\\?"off\\?"',
-    ).allMatches(govde.replaceAll(RegExp(r'\s+'), ' '));
-
-    for (final k in kurallar) {
-      final tur = k.group(1)!;
-      // ⚠️ Alt tur BELIRTILMEDEN `poi` kapatmak TUM mekanlari (park, hastane,
-      //    okul, otogar...) siler — bu da haritayi bosaltir.
-      final tehlikeli = tur == 'poi' ||
-          yasakli.any((y) => tur == y || tur.startsWith('$y.'));
-      expect(
-        tehlikeli,
-        isFalse,
-        reason: 'Harita stili "$tur" katmanini KAPATIYOR. Bu, haritayi '
-            'okunamaz hale getirir (turu 85 hatasi: kullanici "bu nasil bir '
-            'harita?" dedi). Yalniz `poi.business` gibi DAR bir kural kabul '
-            'edilir; sokak adlari, toplu tasima, idari sinirlar ve zemin '
-            'ASLA gizlenmez.',
-      );
+    final dizeler = RegExp(r"'''([\s\S]*?)'''").allMatches(govde);
+    final stiller = <List<dynamic>>[];
+    for (final d in dizeler) {
+      final ham = d.group(1)!.trim();
+      if (!ham.startsWith('[')) continue;
+      try {
+        final c = jsonDecode(ham);
+        if (c is List) stiller.add(c);
+      } catch (e) {
+        fail('Harita stili GECERLI JSON DEGIL: $e\n$ham');
+      }
     }
 
-    // ⚠️ `featureType` BELIRTMEDEN, yani TUM HARITAYA uygulanan bir
-    //    `visibility: off` en yikici bicimdir; ayrica yakalanir.
-    final genelKapatma = RegExp(
-      r'\{\s*\\?"elementType\\?"[^{}]*\\?"visibility\\?"\s*:\s*\\?"off\\?"',
-    ).allMatches(govde.replaceAll(RegExp(r'\s+'), ' '));
     expect(
-      genelKapatma.isEmpty,
-      isTrue,
-      reason: 'Stilde `featureType` OLMADAN (yani TUM harita icin) '
-          '`visibility: off` var — turu 85\'te `labels.icon` boyle '
-          'kapatilmis ve tum simgeler silinmisti.',
+      stiller,
+      isNotEmpty,
+      reason: 'Kaynakta hicbir harita stili JSON bulunamadi — stil '
+          'sabitlerinin bicimi degismis olabilir. Muhafiz KOR kalmasin '
+          '(turu 89: onceki desen tam da boyle hicbir seyi eslestirmiyordu).',
     );
+
+    // Kapatilmasi YASAK katmanlar: turu 85'te haritayi okunamaz kilanlar.
+    const yasakli = ['road', 'transit', 'administrative', 'landscape', 'water'];
+
+    for (final stil in stiller) {
+      for (final kural in stil) {
+        if (kural is! Map) continue;
+        final stylers = kural['stylers'];
+        if (stylers is! List) continue;
+        if (!stylers.any((s) => s is Map && s['visibility'] == 'off')) continue;
+
+        final tur = (kural['featureType'] ?? '').toString();
+        final oge = (kural['elementType'] ?? '').toString();
+
+        // (1) `featureType` YOKSA kural TUM HARITAYA uygulanir — en yikici hal.
+        expect(
+          tur.isNotEmpty,
+          isTrue,
+          reason: 'Stilde `featureType` OLMADAN `visibility: off` var '
+              '(elementType: "$oge"). Bu kural TUM haritaya uygulanir; '
+              'turu 85te `labels.icon` boyle kapatilmis ve butun simgeler '
+              'silinmisti.',
+        );
+
+        // (2) Alt tur belirtmeden `poi` -> park/hastane/okul/otogar HEPSI gider.
+        // (3) Yol, toplu tasima, idari sinir, zemin ve su ASLA gizlenmez.
+        final tehlikeli = tur == 'poi' ||
+            yasakli.any((y) => tur == y || tur.startsWith('$y.'));
+        expect(
+          tehlikeli,
+          isFalse,
+          reason: 'Harita stili "$tur" katmanini KAPATIYOR '
+              '(elementType: "${oge.isEmpty ? "hepsi" : oge}"). Bu, haritayi '
+              'okunamaz hale getirir — turu 85te tam bu yapildi ve kullanici '
+              'UC KEZ "bu nasil bir harita?" dedi. Yalniz `poi.business` gibi '
+              'DAR kurallar kabul edilir.',
+        );
+      }
+    }
   });
 
   test('harita jestleri ACIK (harita canli olmali, ekran goruntusu degil)', () {

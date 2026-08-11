@@ -26,6 +26,19 @@ class Tercihler {
 
   static const _kTema = 'tema_modu';
   static const _kOnboarding = 'onboarding_goruldu';
+  static const _kHarita = 'harita_stili';
+
+  /// ⚠️ TURU 89 — HARITA RENGI (kullanici emri: *"ayarlardan harita rengi
+  ///    ayarlanmali, gece ve uberin gri beyaz tarzi"*).
+  ///    Degerler: `'sistem'` | `'gri'` | `'gece'`.
+  /// ⚠️ Tema deseninin BIREBIR kardesi — yeni bir saklama yolu ACILMADI.
+  /// ⚠️ Varsayilan `'sistem'`: temaya uyar. Sabit bir renk secilseydi koyu
+  ///    temadaki kullanicinin ekraninin %70'i parlak beyaz kalirdi.
+  String get haritaStili => _p?.getString(_kHarita) ?? 'sistem';
+
+  Future<void> haritaStiliYaz(String s) async {
+    await _p?.setString(_kHarita, s);
+  }
 
   /// 'sistem' | 'acik' | 'koyu'
   ThemeMode get temaModu => switch (_p?.getString(_kTema)) {
@@ -99,4 +112,21 @@ class TemaNotifier extends StateNotifier<ThemeMode> {
 
 final temaProvider = StateNotifierProvider<TemaNotifier, ThemeMode>(
   (ref) => TemaNotifier(),
+);
+
+/// Harita rengi tercihi — `TemaNotifier`in birebir kardesi.
+///
+/// ⚠️ Baslangic degeri DISKTEN gelir: aksi halde harita once bir stille
+///    acilip sonra otekine ATLARDI (tema serhindeki "tema atlamasi" gerekcesi).
+class HaritaStiliNotifier extends StateNotifier<String> {
+  HaritaStiliNotifier() : super(tercihler.haritaStili);
+
+  Future<void> ayarla(String s) async {
+    state = s;
+    await tercihler.haritaStiliYaz(s);
+  }
+}
+
+final haritaStiliProvider = StateNotifierProvider<HaritaStiliNotifier, String>(
+  (ref) => HaritaStiliNotifier(),
 );
