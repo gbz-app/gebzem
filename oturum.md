@@ -6484,3 +6484,44 @@ yetmez** — paketin `android/build.gradle` `compileSdk` değerine BAK.
 `flutter analyze` bu sınıfı **görmez** (yalnız Dart'a bakar); hata Gradle'da
 çıkar. ⚠️ 5.x API **sınıf tabanlı**: üst düzey `locationFromAddress()`
 kaldırıldı → `Geocoding().locationFromAddress(...)`.
+
+### TURU 88 — YAKINIMDA DÜZENİ (kullanıcı emri)
+
+**YAYINLANDI 09:50** — android `31465785638` + ios `31465787481` (**c075493**),
+R2 apk=121004511 (md5 `7f6a6458`) ipa=31512179 (md5 `c4a51472`) index=9456
+(md5 `38cea2a9`), purge OK, **CDN BİREBİR (üçü de)**, debug imza YOK,
+build logunda `--dart-define=HARITA=true` doğrulandı.
+⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260811-0950
+
+Kullanıcı istekleri ve karşılıkları:
+
+| istek | yapılan |
+|---|---|
+| harita %70 yükseklikte | `LayoutBuilder`ın verdiği alanın %70'i (`MediaQuery` değil — AppBar/sistem çubukları düşülmüş gerçek alan budur) |
+| işletmeler sol-sağ scroll | yatay `ListView`; kart genişliği sabit 238 |
+| sol-sağ radius 10px | kart `borderRadius: 10`, aralık 10, şerit kenarında 10px boşluk |
+| "10 km içinde" vs kaldır | slider + mesafe satırı silindi, yarıçap sabit 10 km |
+| ilk açılıştaki çizim harita gidip geliyor | aşağıda |
+| haritadaki işletmeler görünmeyecek | Google'ın kendi `poi.business` etiketleri gizlendi |
+
+#### ⚠️ İLK AÇILIŞTAKİ "ÇİZİM HARİTA" PARLAMASI
+Kapı `haritaAnahtariVar && merkez != null` idi. Açılışta `merkez` **henüz
+null** (GPS 1-2 sn sürüyor) → `else` dalı koşuyor ve elle boyanmış sahte
+şehir çiziliyor; konum gelince gerçek haritaya geçiyordu → **görünür sıçrama**.
+İki kapı ayrıldı: *anahtar VAR + konum YOK* → nötr zemin + spinner;
+*anahtar YOK* → dürüst yer tutucu. Yani çizim harita **yayındaki sürümde
+asla görünmez**.
+
+#### ⚠️ KART `ListTile`DAN YENİDEN YAZILDI
+Yatay `ListView` çocuklarına genişlik **dayatmaz**; eski `ListTile` sınırsız
+genişlik isteyip **RenderFlex taşması** üretirdi. Kart artık kendi ölçüsünü
+veriyor (238), yüksekliği şeritten alıyor.
+
+#### 🛡️ MUHAFIZ KESKİNLEŞTİRİLDİ (topyekûn yasak → katman bazlı)
+Turu 86'da eklenen kontrol **her** `visibility: off` kuralını reddediyordu;
+oysa kullanıcının istediği `poi.business` gizlemesi meşru. Yasak artık
+**tehlikeli katmanlara** özgü: `road` (sokak adları), `transit`,
+`administrative`, `landscape`, `water` ve **alt tür belirtmeden** `poi`.
+Ayrıca `featureType` olmadan tüm haritaya uygulanan `visibility: off` ayrı
+yakalanıyor. Dar bir `poi.business` kuralı geçer, haritayı boşaltan hiçbir
+kural geçmez.
