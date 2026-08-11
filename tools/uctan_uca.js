@@ -2410,6 +2410,292 @@ const kontrol = (ad, gecti, ek = '') => {
     }
   }
 
+  // ═══════════ TURU 91: TEKLIF AKISI + DIYET ═══════════
+  {
+    const M = await kullaniciAc('E2E Musteri');       // talep sahibi (kisisel)
+    const I1 = await kullaniciAc('E2E Kuafor');       // teklif veren isletme
+    const I2 = await kullaniciAc('E2E Fotografci');   // ikinci isletme
+    const K = await kullaniciAc('E2E Kisisel');       // teklif VEREMEZ
+
+    // Iki isletmeyi isletme hesabina gecir.
+    for (const [h, kat] of [[I1, 'kuafor'], [I2, 'eglence']]) {
+      await j('/users/me/isletme', {
+        yontem: 'PUT', token: h.token,
+        govde: { kategori: kat, adres: 'Gebze', il: 'Kocaeli', ilce: 'Gebze',
+                 telefon: '+905550000000',
+                 calisma: [1,2,3,4,5,6,7].map((g) => ({
+                   gun: g, acilis: '09:00', kapanis: '20:00', kapali: false })) },
+      });
+    }
+
+    // --- `talep` turu sunucudan geliyor mu
+    const agac91 = await j('/ilan-kategoriler', { token: M.token });
+    const t91 = ((agac91.d && agac91.d.turler) || []).find((x) => x.anahtar === 'talep');
+    kontrol('TURU 91: \`talep\` turu TANIMLI', !!t91,
+      'turler=' + ((agac91.d && agac91.d.turler) || []).map((x) => x.anahtar).join(','));
+    // ⚠️ ADIM ADIM FORM sunucudan gelmezse sihirbaz TEK ADIMA duser.
+    kontrol('TURU 91: talep alanlari ADIM tasiyor (adim adim form)',
+      !!t91 && (t91.alanlar || []).some((a) => (a.adim || 0) > 0),
+      'adimlar=' + ((t91 && t91.alanlar) || []).map((a) => a.adim || 0).join(','));
+    kontrol('TURU 91: dugun kategorileri VAR',
+      !!t91 && (t91.kategoriler || []).some((k) => k.anahtar === 'dugun_organizasyon'),
+      'adet=' + ((t91 && t91.kategoriler) || []).length);
+
+    // --- Talep olustur
+    const talep = await j('/ilanlar', {
+      yontem: 'POST', token: M.token,
+      govde: { tur: 'talep', kategori: 'sac_makyaj', baslik: 'Düğün saç & makyaj',
+               aciklama: 'E2E talep', il: 'Kocaeli', ilce: 'Gebze',
+               ozellikler: { tarih: '01.09.2026', kisi_sayisi: '150' } },
+    });
+    kontrol('TURU 91: talep olusturulabiliyor', talep.kod === 201, 'HTTP ' + talep.kod);
+    const talepID = (talep.d || {}).id;
+
+    // ⚠️⚠️ SIZINTI MUHAFIZI: talep GENEL ilan listesini KIRLETMEMELI.
+    const genel = await j('/ilanlar', { token: I1.token });
+    const genelListe = ((genel.d && genel.d.ilanlar) || []);
+    kontrol('TURU 91: talep GENEL ilan listesinde GORUNMUYOR (sizinti muhafizi)',
+      !genelListe.some((x) => x.id === talepID),
+      'adet=' + genelListe.length);
+
+    const talepListe = await j('/ilanlar?tur=talep', { token: I1.token });
+    kontrol('TURU 91: \`?tur=talep\` ile GORUNUYOR',
+      ((talepListe.d && talepListe.d.ilanlar) || []).some((x) => x.id === talepID),
+      'adet=' + ((talepListe.d && talepListe.d.ilanlar) || []).length);
+
+    // --- Teklif kapilari
+    const kisiselTeklif = await j('/ilanlar/' + talepID + '/basvuru', {
+      yontem: 'POST', token: K.token, govde: { not: 'ben', fiyat_kurus: 100000 } });
+    kontrol('TURU 91: KISISEL hesap teklif VEREMIYOR (403)',
+      kisiselTeklif.kod === 403, 'HTTP ' + kisiselTeklif.kod);
+
+    const fiyatsiz = await j('/ilanlar/' + talepID + '/basvuru', {
+      yontem: 'POST', token: I1.token, govde: { not: 'fiyatsiz' } });
+    kontrol('TURU 91: FIYATSIZ teklif REDDEDILIYOR (400)',
+      fiyatsiz.kod === 400, 'HTTP ' + fiyatsiz.kod);
+
+    const kendi91 = await j('/ilanlar/' + talepID + '/basvuru', {
+      yontem: 'POST', token: M.token, govde: { not: 'x', fiyat_kurus: 1 } });
+    kontrol('TURU 91: KENDI talebine teklif REDDEDILIYOR',
+      kendi91.kod === 400, 'HTTP ' + kendi91.kod);
+
+    const tk1 = await j('/ilanlar/' + talepID + '/basvuru', {
+      yontem: 'POST', token: I1.token, govde: { not: 'Uygunuz', fiyat_kurus: 250000 } });
+    const tk2 = await j('/ilanlar/' + talepID + '/basvuru', {
+      yontem: 'POST', token: I2.token, govde: { not: 'Biz de', fiyat_kurus: 180000 } });
+    kontrol('TURU 91: isletmeler teklif verebiliyor',
+      tk1.kod === 200 && tk2.kod === 200, 'HTTP ' + tk1.kod + '/' + tk2.kod);
+
+    // --- Sahibi teklifleri gorur, FIYATA GORE SIRALI
+    const teklifler = await j('/ilanlar/' + talepID + '/basvurular', { token: M.token });
+    const tl = ((teklifler.d && teklifler.d.basvurular) || []);
+    kontrol('TURU 91: teklifler FIYAT alanini DONDURUYOR (yanit haritasi)',
+      tl.length === 2 && tl.every((x) => typeof x.fiyat_kurus === 'number'),
+      'adet=' + tl.length + ' fiyatlar=' + tl.map((x) => x.fiyat_kurus).join(','));
+    kontrol('TURU 91: teklifler UCUZDAN PAHALIYA sirali',
+      tl.length === 2 && tl[0].fiyat_kurus === 180000,
+      'ilk=' + (tl[0] || {}).fiyat_kurus);
+    kontrol('TURU 91: \`guncellendi_at\` yanitta VAR (revize etiketi icin)',
+      tl.every((x) => !!x.guncellendi_at), JSON.stringify((tl[0] || {}).guncellendi_at));
+
+    // ⚠️ REVIZE: created_at KORUNUR, guncellendi_at DEGISIR.
+    const oncekiOlus = tl[0].created_at;
+    await new Promise((r) => setTimeout(r, 1100));
+    const revize = await j('/ilanlar/' + talepID + '/basvuru', {
+      yontem: 'POST', token: I2.token, govde: { not: 'indirim', fiyat_kurus: 150000 } });
+    const t2 = ((await j('/ilanlar/' + talepID + '/basvurular', { token: M.token })).d || {}).basvurular || [];
+    const revizeli = t2.find((x) => x.user_id === I2.id) || {};
+    kontrol('TURU 91: teklif REVIZE edilebiliyor, created_at KORUNUYOR',
+      revize.kod === 200 && revizeli.fiyat_kurus === 150000 &&
+      revizeli.created_at === oncekiOlus,
+      'HTTP ' + revize.kod + ' fiyat=' + revizeli.fiyat_kurus +
+      ' created_at ayni=' + (revizeli.created_at === oncekiOlus));
+
+    // ⚠️ BASKASI teklifleri GOREMEZ.
+    const yabanci91 = await j('/ilanlar/' + talepID + '/basvurular', { token: I1.token });
+    kontrol('TURU 91: baskasi teklif listesini GOREMIYOR',
+      (((yabanci91.d || {}).basvurular) || []).length === 0,
+      'adet=' + (((yabanci91.d || {}).basvurular) || []).length);
+
+    // --- SECIM: tek islemde uc yan etki
+    const kazananID = revizeli.id;
+    const sec = await j('/ilanlar/' + talepID + '/basvurular/' + kazananID, {
+      yontem: 'PATCH', token: M.token, govde: { durum: 'secildi' } });
+    const sonrasi91 = ((await j('/ilanlar/' + talepID + '/basvurular', { token: M.token })).d || {}).basvurular || [];
+    const detay91 = (await j('/ilanlar/' + talepID, { token: M.token })).d || {};
+    kontrol('TURU 91: teklif SECILDI + digerleri ELENDI + talep KAPANDI',
+      sec.kod === 200 &&
+      sonrasi91.find((x) => x.id === kazananID).durum === 'secildi' &&
+      sonrasi91.filter((x) => x.id !== kazananID).every((x) => x.durum === 'elendi') &&
+      detay91.durum === 'satildi',
+      'HTTP ' + sec.kod + ' talepDurum=' + detay91.durum +
+      ' durumlar=' + sonrasi91.map((x) => x.durum).join(','));
+
+    // ⚠️ KAPANMIS talebe yeni teklif 404.
+    const kapali91 = await j('/ilanlar/' + talepID + '/basvuru', {
+      yontem: 'POST', token: I1.token, govde: { not: 'gec', fiyat_kurus: 90000 } });
+    kontrol('TURU 91: KAPANMIS talebe teklif 404', kapali91.kod === 404,
+      'HTTP ' + kapali91.kod);
+
+    // --- Tekliflerim (tur suzgeci)
+    const benimTeklif = await j('/users/me/basvurular?tur=talep', { token: I2.token });
+    const bt = (((benimTeklif.d || {}).basvurular) || []);
+    kontrol('TURU 91: "Tekliflerim" tur suzgeciyle calisiyor + fiyat tasiyor',
+      bt.length === 1 && bt[0].fiyat_kurus === 150000 && bt[0].durum === 'secildi',
+      'adet=' + bt.length + ' fiyat=' + (bt[0] || {}).fiyat_kurus);
+
+    // ═══════════ DIYET ═══════════
+    const DN = await kullaniciAc('E2E Danisan');
+    const DY = await kullaniciAc('E2E Diyetisyen');
+    const DY2 = await kullaniciAc('E2E Diyetisyen2');
+    for (const h of [DY, DY2]) {
+      await j('/users/me/isletme', {
+        yontem: 'PUT', token: h.token,
+        govde: { kategori: 'diyetisyen', adres: 'Gebze', il: 'Kocaeli',
+                 ilce: 'Gebze', telefon: '+905550000001',
+                 calisma: [1,2,3,4,5,6,7].map((g) => ({
+                   gun: g, acilis: '09:00', kapanis: '20:00', kapali: false })) },
+      });
+    }
+
+    // ⚠️ Diyetisyen OLMAYAN birine bag istegi 400.
+    const yanlisBag = await j('/diyet/bag', {
+      yontem: 'POST', token: DN.token, govde: { diyetisyen_id: M.id } });
+    kontrol('TURU 91: diyetisyen OLMAYANA bag istegi REDDEDILIYOR',
+      yanlisBag.kod === 400, 'HTTP ' + yanlisBag.kod);
+
+    const bag = await j('/diyet/bag', {
+      yontem: 'POST', token: DN.token, govde: { diyetisyen_id: DY.id } });
+    kontrol('TURU 91: bag istegi olusturuluyor',
+      bag.kod === 200 && (bag.d || {}).durum === 'bekliyor',
+      'HTTP ' + bag.kod + ' durum=' + (bag.d || {}).durum);
+    const bagID = (bag.d || {}).id;
+
+    // ⚠️⚠️ RIZA KAPISI: KENDI istegini KENDISI onaylayamaz.
+    const kendiOnay = await j('/diyet/bag/' + bagID, {
+      yontem: 'PATCH', token: DN.token, govde: { durum: 'aktif' } });
+    kontrol('TURU 91: KENDI bag istegini KENDISI onaylayamiyor (riza kapisi)',
+      kendiOnay.kod === 404, 'HTTP ' + kendiOnay.kod);
+
+    // ⚠️ BAG YOKKEN diyetisyen kayitlari GOREMEZ.
+    const bagsizOku = await j('/diyet/kayitlar?user_id=' + DN.id, { token: DY.token });
+    kontrol('TURU 91: BAG YOKKEN saglik verisi GORUNMUYOR (404)',
+      bagsizOku.kod === 404, 'HTTP ' + bagsizOku.kod);
+
+    const onay = await j('/diyet/bag/' + bagID, {
+      yontem: 'PATCH', token: DY.token, govde: { durum: 'aktif' } });
+    kontrol('TURU 91: KARSI TARAF bagi onaylayabiliyor', onay.kod === 200,
+      'HTTP ' + onay.kod);
+
+    // --- Danisan kendi ogununu ekler
+    const bugun91 = new Date().toISOString().slice(0, 10);
+    const ogun = await j('/diyet/kayit', {
+      yontem: 'POST', token: DN.token,
+      govde: { tur: 'ogun', tarih: bugun91, ad: 'Yulaf', kalori: 320,
+               veri: { ogun: 'kahvalti', gram: 80 } } });
+    kontrol('TURU 91: ogun kaydi eklenebiliyor', ogun.kod === 201,
+      'HTTP ' + ogun.kod);
+
+    // ⚠️⚠️ `user_id` GOVDEDE GELSE BILE YOK SAYILIR (kendine yazilir).
+    const baskasina = await j('/diyet/kayit', {
+      yontem: 'POST', token: DN.token,
+      govde: { tur: 'ogun', tarih: bugun91, ad: 'Sahte', kalori: 5000,
+               user_id: DY.id } });
+    const dyKayit = await j('/diyet/kayitlar?tur=ogun', { token: DY.token });
+    kontrol('TURU 91: baskasinin gunune ogun YAZILAMIYOR (user_id yok sayilir)',
+      baskasina.kod === 201 &&
+      !(((dyKayit.d || {}).kayitlar) || []).some((k) => k.ad === 'Sahte'),
+      'HTTP ' + baskasina.kod);
+
+    // --- Bagli diyetisyen okuyabiliyor
+    const dyOku = await j('/diyet/kayitlar?user_id=' + DN.id, { token: DY.token });
+    kontrol('TURU 91: BAGLI diyetisyen danisanin kayitlarini GORUYOR',
+      dyOku.kod === 200 && (((dyOku.d || {}).kayitlar) || []).length >= 1,
+      'HTTP ' + dyOku.kod);
+
+    // ⚠️ BASKA diyetisyen GOREMEZ.
+    const dy2Oku = await j('/diyet/kayitlar?user_id=' + DN.id, { token: DY2.token });
+    kontrol('TURU 91: BASKA diyetisyen GOREMIYOR (404)', dy2Oku.kod === 404,
+      'HTTP ' + dy2Oku.kod);
+
+    // --- Liste yazma: yalniz BAGLI diyetisyen
+    const liste = await j('/diyet/kayit', {
+      yontem: 'POST', token: DY.token,
+      govde: { tur: 'liste', tarih: bugun91, ad: 'Haftalik plan',
+               user_id: DN.id, veri: { metin: 'Pazartesi: ...' } } });
+    kontrol('TURU 91: BAGLI diyetisyen danisana LISTE yazabiliyor',
+      liste.kod === 201, 'HTTP ' + liste.kod);
+
+    const yanlisListe = await j('/diyet/kayit', {
+      yontem: 'POST', token: DY2.token,
+      govde: { tur: 'liste', tarih: bugun91, ad: 'Izinsiz', user_id: DN.id } });
+    kontrol('TURU 91: BAGLI OLMAYAN diyetisyen liste YAZAMIYOR (403)',
+      yanlisListe.kod === 403, 'HTTP ' + yanlisListe.kod);
+
+    // --- Ozet: gun `tarih` sutunundan gruplanir
+    const ozet = await j('/diyet/ozet', { token: DN.token });
+    const gunler = (((ozet.d || {}).gunler) || []);
+    kontrol('TURU 91: gunluk ozet \`tarih\` sutunundan gruplaniyor',
+      gunler.some((g) => g.tarih === bugun91 && g.kalori >= 320),
+      'gunler=' + JSON.stringify(gunler.slice(0, 3)));
+
+    // --- Besin listesi (Turkce arama)
+    const besin = await j('/diyet/besinler?q=yulaf', { token: DN.token });
+    kontrol('TURU 91: besin aramasi calisiyor (Turkce)',
+      (((besin.d || {}).besinler) || []).some((b) => /Yulaf/i.test(b.ad)),
+      'adet=' + (((besin.d || {}).besinler) || []).length);
+
+    // ⚠️ SILME YOK: kaldirilan kayit listede GORUNMEZ ama satir DURUR.
+    await j('/diyet/kayit/' + ogun.d.id, {
+      yontem: 'PATCH', token: DN.token, govde: { durum: 'kaldirildi' } });
+    const kalan = await j('/diyet/kayitlar?tur=ogun', { token: DN.token });
+    kontrol('TURU 91: kaldirilan kayit listede GORUNMUYOR (satir SILINMEZ)',
+      !((((kalan.d || {}).kayitlar) || []).some((k) => k.id === ogun.d.id)),
+      'adet=' + (((kalan.d || {}).kayitlar) || []).length);
+
+    // ⚠️ BAG SONLANINCA erisim BITER.
+    await j('/diyet/bag/' + bagID, {
+      yontem: 'PATCH', token: DN.token, govde: { durum: 'sonlandi' } });
+    const sonra = await j('/diyet/kayitlar?user_id=' + DN.id, { token: DY.token });
+    kontrol('TURU 91: BAG SONLANINCA diyetisyen erisimi BITIYOR (404)',
+      sonra.kod === 404, 'HTTP ' + sonra.kod);
+
+    // --- /users/me isletme_kategori (profil menusu buna bagli)
+    const ben91 = await j('/users/me', { token: DY.token });
+    kontrol('TURU 91: /users/me \`isletme_kategori\` donduruyor (profil girisi)',
+      (ben91.d || {}).isletme_kategori === 'diyetisyen',
+      'kategori=' + JSON.stringify((ben91.d || {}).isletme_kategori));
+
+    // --- AI kalori: kapaliysa 503, acikSA metin kotasindan duser
+    const aiDurum = await j('/ai/durum', { token: DN.token });
+    if ((aiDurum.d || {}).acik) {
+      // ⚠️ UC `/ai/durum` — `/ai/kota` YOKTUR. Ilk yazimda yanlis uc
+      //    cagrilmis ve kontrol `undefined === undefined` ile YALANCI
+      //    YESIL vermisti: HICBIR SEY OLCMUYORDU. Turu 89 dersi ("bir
+      //    muhafizin yesil olmasi GERCEKTEN OLCTUGU anlamina gelmez").
+      const once = await j('/ai/durum', { token: DN.token });
+      const kal = await j('/ai/kalori', {
+        yontem: 'POST', token: DN.token, govde: { metin: 'bir elma' } });
+      const sonraK = await j('/ai/durum', { token: DN.token });
+      // ⚠️ UC KOSUL BIRDEN: (a) cagri basarili, (b) METIN kotasi DUSTU,
+      //    (c) GORSEL kotasi DEGISMEDI. Yalniz (c) bakilsaydi, kota
+      //    okunamadiginda da (undefined===undefined) YESIL olurdu.
+      kontrol('TURU 91: /ai/kalori METIN kotasindan duser, GORSEL kotasi DEGISMEZ',
+        kal.kod === 200 &&
+        typeof (once.d || {}).kalan === 'number' &&
+        (sonraK.d || {}).kalan === (once.d || {}).kalan - 1 &&
+        (sonraK.d || {}).gorsel_kalan === (once.d || {}).gorsel_kalan,
+        'metin ' + (once.d || {}).kalan + '->' + (sonraK.d || {}).kalan +
+        ' | gorsel ' + (once.d || {}).gorsel_kalan + '->' + (sonraK.d || {}).gorsel_kalan);
+    } else {
+      const kal = await j('/ai/kalori', {
+        yontem: 'POST', token: DN.token, govde: { metin: 'elma' } });
+      kontrol('TURU 91: AI kapaliyken /ai/kalori 503', kal.kod === 503,
+        'HTTP ' + kal.kod);
+    }
+  }
+
+
   // ---------- OZET
   const kalan = sonuclar.filter((s) => !s.gecti);
   console.log('\n==================================');
