@@ -27,27 +27,43 @@ import '../calls/callkit_service.dart';
 ///    istemek platformda tanimsiz davranistir).
 /// ⚠️ YAPMA: cagiran taraflarda bu adimlari tekrar yazma.
 Future<void> izinleriTopluIste() async {
-  // Sirayla iste — sistem pencereleri ust uste binmesin.
-  await Permission.notification.request();
-  await Permission.microphone.request();
-  await Permission.camera.request();
+  // ⚠️⚠️ TURU 85c — ISARETLEME `finally`DE (denetim bulgusu).
+  //    Eskiden en SONDA duz bir satirdi; aradaki adimlardan biri FIRLARSA
+  //    hic kosmuyordu ve `HomeScreen` kapisi izin ekranini ARKA ARKAYA
+  //    IKINCI KEZ aciyordu — yani 85b'nin kapatmaya calistigi hata hata
+  //    yolunda GERI GELIYORDU. Isaretin anlami zaten "izin VERILDI" degil
+  //    **"kullaniciya SORULDU"**; dolayisiyla sonuctan BAGIMSIZ yazilmali.
+  // ⚠️ YAPMA: bunu tekrar duz son satira cevirme.
+  try {
+    // Sirayla iste — sistem pencereleri ust uste binmesin.
+    await Permission.notification.request();
+    await Permission.microphone.request();
+    await Permission.camera.request();
 
-  // Android 14+: "tam ekran bildirim" AYRI bir ozel izin. Play Store disi
-  // (sideload) kurulumda otomatik VERILMEZ -> verilmezse telefon kilitliyken
-  // gelen arama ekrani HIC acilmaz. Ayarlar sayfasina yonlendirir.
-  await CallKitService.izinleriIste();
+    // Android 14+: "tam ekran bildirim" AYRI bir ozel izin. Play Store disi
+    // (sideload) kurulumda otomatik VERILMEZ -> verilmezse telefon kilitliyken
+    // gelen arama ekrani HIC acilmaz. Ayarlar sayfasina yonlendirir.
+    // ⚠️⚠️ `bildirimIste: false` ZORUNLU: POST_NOTIFICATIONS yukarida ZATEN
+    //    istendi. Eklentinin kendi istegi BEKLEMEDIGI icin, kullanici bildirimi
+    //    reddetmisse diyalog IKINCI KEZ acilir ve hemen ardindan istenen
+    //    READ_PHONE_STATE **hicbir diyalog gostermeden `denied`** olur
+    //    (Android ayni anda tek izin kumesi kabul eder). Ayrinti:
+    //    `CallKitService.izinleriIste` serhi.
+    await CallKitService.izinleriIste(bildirimIste: false);
 
-  // Pil optimizasyonu muafiyeti: TEK sistem dialogu (menuye gitmeden).
-  // Kapaliyken arama gelmesi icin uygulamanin arka planda oldurulmemesi
-  // gerekir. Sadece Android.
-  if (Platform.isAndroid) {
-    try {
-      if (!await Permission.ignoreBatteryOptimizations.isGranted) {
-        await Permission.ignoreBatteryOptimizations.request();
-      }
-    } catch (_) {}
+    // Pil optimizasyonu muafiyeti: TEK sistem dialogu (menuye gitmeden).
+    // Kapaliyken arama gelmesi icin uygulamanin arka planda oldurulmemesi
+    // gerekir. Sadece Android.
+    if (Platform.isAndroid) {
+      try {
+        if (!await Permission.ignoreBatteryOptimizations.isGranted) {
+          await Permission.ignoreBatteryOptimizations.request();
+        }
+      } catch (_) {}
+    }
+  } finally {
+    await izinSorulduIsaretle();
   }
-  await izinSorulduIsaretle();
 }
 
 /// Izin akisinin KOSTUGUNU isaretler (hem kalici tercih hem OTURUM bayragi).
@@ -84,10 +100,26 @@ class PermissionsScreen extends ConsumerStatefulWidget {
 class _PermissionsScreenState extends ConsumerState<PermissionsScreen> {
   bool _busy = false;
 
+  /// ⚠️⚠️ TURU 85c — `try/catch` ZORUNLU (denetim bulgusu: KALICI KILITLENME).
+  ///
+  ///	Bu ekran `HomeScreen`in TAM SAYFA dalidir; ustunde `Scaffold` yok,
+  ///	geri tusu de bir yere goturmez. Cagri FIRLARSA `_busy = false` ve
+  ///	`widget.onDone()` **hicbir zaman kosmaz** -> "İzin ver" dugmesi
+  ///	spinner'da donmus kalir, "Şimdilik geç" `_busy` yuzunden devre disidir
+  ///	ve **kullanici uygulamaya HIC GIREMEZ** (uygulamayi silmeden cikis yok).
+  ///	Kardes cagiran (`kayit_akisi._izinleriIste`) ZATEN `try/catch` ile
+  ///	sariyordu — asimetrinin kendisi hataydi.
+  /// ⚠️ Izin REDDI hata degildir; gercek bir istisna da olsa kullanici
+  ///    uygulamaya girebilmeli — izinler sonra Ayarlar'dan verilebilir.
+  /// ⚠️ YAPMA: `_skip` dugmesini `_busy`ye baglama (kacis yolu her zaman acik).
   Future<void> _requestAll() async {
     setState(() => _busy = true);
-    // ⚠️ Sira ve tum adimlar TEK KAYNAKTA (bkz. `izinleriTopluIste` serhi).
-    await izinleriTopluIste();
+    try {
+      // ⚠️ Sira ve tum adimlar TEK KAYNAKTA (bkz. `izinleriTopluIste` serhi).
+      await izinleriTopluIste();
+    } catch (_) {
+      // Yutulur: asagida her durumda ana ekrana gecilir.
+    }
     if (mounted) {
       setState(() => _busy = false);
       widget.onDone();
@@ -152,7 +184,10 @@ class _PermissionsScreenState extends ConsumerState<PermissionsScreen> {
                     : const Text('İzin Ver ve Devam Et'),
               ),
               TextButton(
-                onPressed: _busy ? null : _skip,
+                // ⚠️ TURU 85c — KACIS YOLU **HER ZAMAN ACIK**: `_busy`ye
+                //    baglanirsa izin akisi takildiginda kullanici bu ekranda
+                //    mahsur kalir (bkz. `_requestAll` serhi).
+                onPressed: _skip,
                 child: Text('Şimdilik atla', style: TextStyle(color: scheme.outline)),
               ),
             ],

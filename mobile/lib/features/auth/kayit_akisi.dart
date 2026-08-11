@@ -61,6 +61,10 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
   /// ⚠️ Adim 2'de alinir, adim 3'te kullanilir. 15 dk gecerli.
   String _kayitJetonu = '';
 
+  /// Sunucuda TUKETILEN OTP. Geri donup ayni kodu tekrar gondermeyi engeller
+  /// (bkz. `_koduDogrula` basindaki kapi).
+  String _dogrulananKod = '';
+
   @override
   void dispose() {
     _telefon.dispose();
@@ -104,6 +108,21 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
       _uyar('6 haneli kodu gir');
       return;
     }
+    // ⚠️⚠️ TURU 85c — ELIMDE GECERLI JETON VARSA SUNUCUYA CIKMA (denetim).
+    //
+    //	`consumeOTP` kodu **TUKETIR** (tek kullanimlik). Kullanici adim 2'ye
+    //	gecip GERI okuyla adim 1'e donerse kod kutusu HALA DOLUDUR ve
+    //	"Doğrula"ya basmak DETERMINISTIK olarak 400 dondururdu
+    //	("Kod hatalı ya da süresi dolmuş") — ustelik `catch` dali calisip
+    //	elindeki **GECERLI** kayit jetonunu da kullanilamaz hale getirirdi
+    //	(kullanici kodu yeniden isteyip bastan baslamak zorunda kalirdi).
+    // ⚠️ Ayni kod + elde jeton = zaten dogrulanmis demektir; ileri gec.
+    // ⚠️ YAPMA: bu kisa devreyi kaldirma ya da kod karsilastirmasini atlama
+    //    (farkli bir kod girildiyse GERCEKTEN sunucuya cikmali).
+    if (_kayitJetonu.isNotEmpty && kod == _dogrulananKod) {
+      setState(() => _adim = 2);
+      return;
+    }
     setState(() => _mesgul = true);
     try {
       final jeton = await ref
@@ -116,6 +135,9 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
       }
       setState(() {
         _kayitJetonu = jeton;
+        // ⚠️ Hangi kodun TUKETILDIGI kaydedilir — geri donulup ayni kodla
+        //    ilerlenirse sunucuya cikilmaz (bkz. metodun basindaki kapi).
+        _dogrulananKod = kod;
         _adim = 2;
       });
     } catch (e) {
@@ -225,7 +247,24 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
       //	dersinin yapisal cevabi).
       // ⚠️ YAPMA: bunu kaldirip tek tek `cursorColor` yazmaya donme; yeni
       //    eklenen her alan sessizce gorunmez olur.
-      child: Theme(
+      // ⚠️⚠️ TURU 85c — DONANIM GERI TUSU KAPISI (denetim bulgusu).
+      //
+      //	`_ustCubuk` serhi *"IZIN ADIMINDA GERI YOK"* diyordu ama govdede
+      //	uygulanan TEK sey ARAYUZ OKUNUN CIZILMEMESIYDI. Android donanim
+      //	geri tusu (ve iOS kenar cekmesi) route'u yine de pop ediyor:
+      //	kullanici 4. adimdan cikiyor, `izinSorulduIsaretle()` HIC kosmuyor
+      //	ve `HomeScreen` kapisi izin ekranini YENIDEN aciyordu — yani turu
+      //	85b'de kapatilan "ayni ekran arka arkaya iki kez" hatasi bu yoldan
+      //	geri geliyordu.
+      // ⚠️ Geri tusu AKISI TERK ETMEZ; "Şimdilik geç" ile AYNI yolu kosar
+      //    (isaretle + ana ekrana git), yani kullanici mahsur da kalmaz.
+      // ⚠️ Yalniz 4. adimda kilitlenir; 1-3. adimlarda geri normal calisir.
+      child: PopScope(
+        canPop: _adim != 3,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop) _izinleriGec();
+        },
+        child: Theme(
         data: lightTheme,
         child: Scaffold(
         // ⚠️ Zemin SABIT BEYAZ — onboarding ile ayni dil (kullanici emri).
@@ -251,6 +290,7 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
           ],
           ),
           ),
+        ),
         ),
       ),
     );

@@ -644,6 +644,19 @@ class _ElleKonumState extends State<_ElleKonum> {
     super.dispose();
   }
 
+  /// Yazarken sessizce ebeveyne tasir: gecerliyse yazar, degilse DOKUNMAZ.
+  ///
+  /// ⚠️ Burada hata GOSTERILMEZ — kullanici "40." yazarken kirmizi uyari
+  ///    gormemeli. Acik geri bildirim "Uygula" dugmesinin isidir.
+  void _yazdikca() {
+    final e = double.tryParse(_en.text.trim().replaceAll(',', '.'));
+    final b = double.tryParse(_boy.text.trim().replaceAll(',', '.'));
+    if (e == null || b == null) return;
+    if (e < -90 || e > 90 || b < -180 || b > 180) return;
+    if (_hata != null) setState(() => _hata = null);
+    widget.degisti(e, b);
+  }
+
   void _uygula() {
     // ⚠️ Virgul de kabul edilir: Turkce klavyede ondalik ayirici VIRGULDUR ve
     //    `double.tryParse` virgullu metni `null` dondurur -> kullanici dogru
@@ -691,6 +704,15 @@ class _ElleKonumState extends State<_ElleKonum> {
                   decimal: true,
                   signed: true,
                 ),
+                // ⚠️⚠️ TURU 85c — YAZDIKCA EBEVEYNE TASINIR (denetim bulgusu).
+                //    Eskiden metin alanlariyla ekran arasindaki TEK kopru
+                //    "Uygula" dugmesiydi. Kullanici koordinati yazip DOGRUDAN
+                //    "Kaydet"e basinca girdigi konum **SESSIZCE ATILIYORDU**
+                //    (Flutter'da odak kaybi `onSubmitted` TETIKLEMEZ) — hicbir
+                //    uyari da cikmiyordu. "Uygula" DURUYOR (dogrulama +
+                //    geri bildirim icin) ama artik ZORUNLU DEGIL.
+                // ⚠️ `didUpdateWidget` ayni degeri yeniden YAZMAZ, dongu olmaz.
+                onChanged: (_) => _yazdikca(),
                 decoration: const InputDecoration(
                   labelText: 'Enlem',
                   hintText: '40.802000',
@@ -706,6 +728,15 @@ class _ElleKonumState extends State<_ElleKonum> {
                   decimal: true,
                   signed: true,
                 ),
+                // ⚠️⚠️ TURU 85c — YAZDIKCA EBEVEYNE TASINIR (denetim bulgusu).
+                //    Eskiden metin alanlariyla ekran arasindaki TEK kopru
+                //    "Uygula" dugmesiydi. Kullanici koordinati yazip DOGRUDAN
+                //    "Kaydet"e basinca girdigi konum **SESSIZCE ATILIYORDU**
+                //    (Flutter'da odak kaybi `onSubmitted` TETIKLEMEZ) — hicbir
+                //    uyari da cikmiyordu. "Uygula" DURUYOR (dogrulama +
+                //    geri bildirim icin) ama artik ZORUNLU DEGIL.
+                // ⚠️ `didUpdateWidget` ayni degeri yeniden YAZMAZ, dongu olmaz.
+                onChanged: (_) => _yazdikca(),
                 decoration: const InputDecoration(
                   labelText: 'Boylam',
                   hintText: '29.435000',

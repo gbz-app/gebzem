@@ -482,16 +482,52 @@ class CallKitService {
   /// Android 14+: "tam ekran bildirim" AYRI bir ozel izindir. Play Store disi
   /// (sideload) kurulumda OTOMATIK VERILMEZ -> verilmezse kilitli ekranda arama
   /// ekrani HIC acilmaz, sadece bildirim cikar.
-  static Future<void> izinleriIste() async {
+  /// ⚠️⚠️⚠️ TURU 85c — `bildirimIste` KAPISI: **IKI IZIN ISTEGI CAKISIYORDU.**
+  ///
+  ///	`FlutterCallkitIncoming.requestNotificationPermission` eklentide
+  ///	**BEKLEMEZ**: `FlutterCallkitIncomingPlugin.kt` `requestPermissions(...)`
+  ///	cagirdiktan HEMEN SONRA `result.success(true)` doner (ardisik iki satir).
+  ///	Yani `await` diyalog kapanmadan cozulur ve bir alttaki
+  ///	`Permission.phone.request()` **POST_NOTIFICATIONS diyalogu HALA
+  ///	EKRANDAYKEN** kosar. Android ayni anda TEK izin kumesi kabul eder
+  ///	(*"Can request only one set of permissions at a time"*) ve ikinci istegi
+  ///	**SENKRON bos sonucla** dusurur -> `permission_handler` haritada PHONE
+  ///	anahtarini bulamaz -> `PermissionStatus.denied`.
+  ///	SONUC: kullanici **HICBIR DIYALOG GORMEDEN** READ_PHONE_STATE'i
+  ///	kaybeder -> `TelefonDurumu.izinVar()` false -> **GSM dinleyicisi
+  ///	SESSIZCE KAPALI** -> turu 56/63'te kapatilan GIZLILIK acigi (GSM
+  ///	gorusmesi surerken Gebzem mikrofonunun acik kalmasi) GERI GELIR.
+  ///
+  /// ⚠️ Carpisma YALNIZ bildirim izni **REDDEDILMISSE** olusur: eklenti
+  ///    `checkSelfPermission` GRANTED gorurse diyalog ACMAZ ve cakisma olmaz.
+  ///    Turu 56 olcumunun `telefon=TRUE` cikmasinin sebebi de budur — test
+  ///    eden kisi bildirime IZIN VERMISTI.
+  /// ⚠️ `izinleriTopluIste` POST_NOTIFICATIONS'i ZATEN kendisi istiyor;
+  ///    oradan `bildirimIste: false` gecilir ve cakisma yapisal olarak biter.
+  /// ⚠️ `main.dart` acilis cagrisi bildirimi ISTEMEYE devam eder (orada baska
+  ///    isteyen yok) ama artik **once bildirim SONUCU BEKLENIR**, sonra
+  ///    telefon istenir.
+  /// ⚠️ YAPMA: telefon iznini bildirim diyalogu ucustayken isteme.
+  static Future<void> izinleriIste({bool bildirimIste = true}) async {
     if (!Platform.isAndroid) return;
     try {
-      final bildirim = await FlutterCallkitIncoming.requestNotificationPermission({
-        'title': 'Bildirim izni',
-        'rationaleMessagePermission':
-            'Gelen aramaları görebilmek için bildirim izni gerekiyor.',
-        'postNotificationMessageRequired':
-            'Bildirim izni olmadan gelen aramalar gösterilemez.',
-      });
+      var bildirim = true;
+      if (bildirimIste) {
+        // ⚠️ ONCE permission_handler ile iste ve **GERCEKTEN BEKLE**; eklentinin
+        //    kendi cagrisi beklemedigi icin tek basina kullanilamaz.
+        try {
+          if (!await Permission.notification.isGranted) {
+            await Permission.notification.request();
+          }
+        } catch (_) {}
+        bildirim = await FlutterCallkitIncoming.requestNotificationPermission({
+          'title': 'Bildirim izni',
+          'rationaleMessagePermission':
+              'Gelen aramaları görebilmek için bildirim izni gerekiyor.',
+          'postNotificationMessageRequired':
+              'Bildirim izni olmadan gelen aramalar gösterilemez.',
+        });
+      }
       // ⚠️⚠️ TEST TURU 56 — SIRA KRITIK (36 turdur GSM BEKLETME HIC CALISMIYORDU).
       // KOK NEDEN: `requestFullIntentPermission()` fire-and-forget SISTEM AYARLAR
       // EKRANINI ACAR. Eskiden `Permission.phone.request()` ONDAN SONRA cagriliyordu;

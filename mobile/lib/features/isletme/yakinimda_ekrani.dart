@@ -153,6 +153,14 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
       if (k == null) {
         setState(() {
           _yukleniyor = false;
+          // ⚠️ TURU 85c — LISTE BURADA DA BOSALTILIR (denetim bulgusu).
+          //    Kardes `catch` dalinda duzeltme yapilmisti ama BU dal
+          //    atlanmisti: konum izni kaldirilip asagi cekildiginde ekran
+          //    "Konumun alınamadı" derken harita BAYAT pinleri ve
+          //    "N işletme yakınında" rozetini cizmeye devam ediyordu.
+          //    ("Ayni kuralin iki kopyasi drift eder" — bu kez KENDI
+          //     duzeltmemin kardes dalinda.)
+          _liste = const [];
           _hata = 'Konumun alınamadı. Yakındakileri görebilmek için '
               'konum iznine ihtiyacımız var.';
         });
@@ -205,7 +213,14 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
             ),
             _suzgecSeridi(),
             // ---- ALTTA KARTLAR
-            if (_yukleniyor)
+            // ⚠️⚠️ TURU 85c — SPINNER YALNIZ **LISTE BOSKEN** (denetim bulgusu).
+            //    Kapi duz `_yukleniyor` iken her asagi-cekte kart listesi
+            //    agactan silinip yerine ikinci bir spinner geliyordu; yenileme
+            //    gostergesi ZATEN uc noktayla veriliyor. Bu, turu 83'te
+            //    profil/bildirimler/kaydedilenler ekranlarinda duzeltilen
+            //    "yenilerken sayfa bosaliyor" sinifinin hafif tekrariydi.
+            // ⚠️ YAPMA: kapiyi tekrar duz `_yukleniyor`a dondurme.
+            if (_yukleniyor && _liste.isEmpty)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 60),
                 child: Center(child: CircularProgressIndicator()),
@@ -377,7 +392,22 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
 ///
 /// ⚠️ Gercek haritaya gecerken SADECE bu sinifin `build`i degisir; ekranin
 ///    geri kalani ve cagri yeri AYNEN kalir.
-class _HaritaAlani extends StatelessWidget {
+/// ⚠️⚠️⚠️ TURU 85c — **`StatelessWidget` DEGIL `StatefulWidget`** (denetim).
+///
+///	`GoogleMap`in `initialCameraPosition`i adindan da anlasilacagi gibi
+///	YALNIZCA ILK KURULUMDA uygulanir; sonraki `build`lerde YOK SAYILIR.
+///	Ustelik `scrollGesturesEnabled: false` (harita bir listenin icinde
+///	oldugu icin ZORUNLU) ve `myLocationButtonEnabled: false` -> kullanicinin
+///	kamerayi elle tasima yolu da YOK.
+///	SONUC: asagi-cek GPS'i tazeleyip listeyi guncelliyor ama **harita ilk
+///	konuma CIVILI kaliyordu**; kullanici baska bir semte gidip yenilediginde
+///	kartlar yeni sehri, harita ESKI sehri gosteriyordu ve duzeltmenin
+///	HICBIR YOLU yoktu (uygulamayi oldurmek disinda).
+///	FIX: `onMapCreated` ile controller saklanir, `merkez` degistiginde
+///	`animateCamera` ile takip edilir.
+/// ⚠️ YAPMA: `onMapCreated`i kaldirma ya da bu sinifi tekrar `Stateless`
+///    yapma; `initialCameraPosition` TEK BASINA yeterli DEGILDIR.
+class _HaritaAlani extends StatefulWidget {
   const _HaritaAlani({
     required this.merkez,
     required this.isletmeler,
@@ -391,6 +421,39 @@ class _HaritaAlani extends StatelessWidget {
   /// ⚠️ Gezinmeyi EKRAN yapar, bu bilesen DEGIL: `_HaritaAlani` saf gorunum
   ///    kalsin ki anahtarsiz yer tutucu daliyla ayni sozlesmeyi paylassin.
   final void Function(IsletmeOzet)? acildi;
+
+  @override
+  State<_HaritaAlani> createState() => _HaritaAlaniState();
+}
+
+class _HaritaAlaniState extends State<_HaritaAlani> {
+  GoogleMapController? _harita;
+
+  ({double enlem, double boylam})? get merkez => widget.merkez;
+  List<IsletmeOzet> get isletmeler => widget.isletmeler;
+  void Function(IsletmeOzet)? get acildi => widget.acildi;
+
+  @override
+  void didUpdateWidget(covariant _HaritaAlani eski) {
+    super.didUpdateWidget(eski);
+    // ⚠️ Kamera YALNIZ merkez GERCEKTEN degistiginde tasinir; her `build`te
+    //    `animateCamera` cagirmak haritayi surekli sarsardi.
+    final y = widget.merkez;
+    final e = eski.merkez;
+    if (y != null && (e == null || e.enlem != y.enlem || e.boylam != y.boylam)) {
+      _harita?.animateCamera(
+        CameraUpdate.newLatLng(LatLng(y.enlem, y.boylam)),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    // ⚠️ `GoogleMapController.dispose()` platform gorunumunu de yikar; burada
+    //    YALNIZ referans birakilir (gorunumu Flutter'in kendisi soker).
+    _harita = null;
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -415,6 +478,9 @@ class _HaritaAlani extends StatelessWidget {
                   target: LatLng(merkez!.enlem, merkez!.boylam),
                   zoom: 13.5,
                 ),
+                // ⚠️ Controller SAKLANIR: konum degisince kamerayi tasiyan
+                //    TEK yol budur (bkz. sinif serhi).
+                onMapCreated: (c) => _harita = c,
                 // ⚠️ **UBER TARZI GRIMSI-BEYAZ**: stil YEREL JSON olarak
                 //    veriliyor. CLAUDE.md `cloudMapId` kullanimini yasakliyor
                 //    (ucretli); yerel stil UCRETSIZDIR ve ayni gorunumu verir.

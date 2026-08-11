@@ -567,8 +567,35 @@ class _GebzemAppState extends ConsumerState<GebzemApp> with WidgetsBindingObserv
       routerConfig: router,
       // Gelen arama ekrani her sayfanin uzerinde; minimize arama banti onun ALTINDA
       // (sarmalama sirasi degismesin — gelen-arama tam ekrani bantin ustunde kalir)
-      builder: (context, child) => IncomingCallOverlay(
-          child: AktifAramaBanner(child: child ?? const SizedBox.shrink())),
+      // ⚠️⚠️⚠️ TURU 85c — UYGULAMA GENELI DURUM CUBUGU VARSAYILANI (denetim).
+      //
+      //	Onboarding ve adimli kayit ekranlari zemini SABIT BEYAZ yaptigi
+      //	icin kendi `AnnotatedRegion`lariyla durum cubugu ikonlarini KOYU
+      //	yapiyor. Ama `AnnotatedRegion` **cikista otomatik geri ALINMIYOR**:
+      //	`SystemChrome` en son uygulanan stili KORUR. Kayit bitip koyu
+      //	temali ana ekrana gecildiginde saat/pil/sinyal KOYU kaliyor ve
+      //	koyu zeminde **GORUNMEZ** oluyordu (kullanicinin turu 83'te
+      //	sikayet ettigi sinifin kardesi).
+      //
+      // ⚠️ Cozum EKRAN ICINDE DEGIL BURADA: `AnnotatedRegion` katman
+      //    agacinda **EN YAKIN (yaprak)** olani kazanir, yani beyaz ekranlarin
+      //    kendi sarmalari BUNU EZMEYE DEVAM EDER; onlardan cikilinca ise
+      //    uygulama otomatik olarak DOGRU varsayilana doner.
+      // ⚠️ YAPMA: her ekrana tek tek "geri al" kodu yazma (iki kopya drift
+      //    eder ve yeni eklenen ekran mutlaka unutulur).
+      // ⚠️ Olcut TEMA: acik temada koyu ikon, koyu temada acik ikon.
+      builder: (context, child) {
+        final koyu = Theme.of(context).brightness == Brightness.dark;
+        return AnnotatedRegion<SystemUiOverlayStyle>(
+          value: SystemUiOverlayStyle(
+            statusBarColor: Colors.transparent,
+            statusBarIconBrightness: koyu ? Brightness.light : Brightness.dark,
+            statusBarBrightness: koyu ? Brightness.dark : Brightness.light,
+          ),
+          child: IncomingCallOverlay(
+              child: AktifAramaBanner(child: child ?? const SizedBox.shrink())),
+        );
+      },
     );
   }
 }
