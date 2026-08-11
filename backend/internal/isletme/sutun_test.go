@@ -205,7 +205,8 @@ func TestDetayScanEdilenAlanlarYanittaVar(t *testing.T) {
 // Turu 76'da "Kaydedilenler" sayfasi tam bu sekilde bosalmisti.
 //
 // ⚠️ Bu test turu 89'da `tur` + `ozellikler` eklenirken yazildi: iki sutun
-//    UC YERE (SELECT · Scan · yanit haritasi) birlikte eklenmeliydi.
+//
+//	UC YERE (SELECT · Scan · yanit haritasi) birlikte eklenmeliydi.
 func TestUrunSelectVeScanHizali(t *testing.T) {
 	govde := yorumsuzKaynak(t, "urun.go")
 
@@ -267,9 +268,10 @@ func TestUrunSelectVeScanHizali(t *testing.T) {
 // Bir kaynak dosyayi YORUMLARDAN TEMIZLEYEREK okur.
 //
 // ⚠️ Yorum temizligi ZORUNLU: bu paketin serhleri "SELECT sirasi ile Scan
-//    sirasi BIREBIR" gibi cumleler iceriyor ve ayristirici onlari GERCEK
-//    sorgu sanip YANLIS ALARM veriyordu (turu 80b'de tam bu oldu; turu 83'te
-//    `utf8_test.go` ayni tuzaga dustu).
+//
+//	sirasi BIREBIR" gibi cumleler iceriyor ve ayristirici onlari GERCEK
+//	sorgu sanip YANLIS ALARM veriyordu (turu 80b'de tam bu oldu; turu 83'te
+//	`utf8_test.go` ayni tuzaga dustu).
 func yorumsuzKaynak(t *testing.T, dosya string) string {
 	t.Helper()
 	b, err := os.ReadFile(dosya)

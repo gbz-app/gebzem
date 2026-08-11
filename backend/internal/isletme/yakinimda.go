@@ -168,7 +168,7 @@ func (h *Handler) Yakinimda(w http.ResponseWriter, r *http.Request) {
 			// ⚠️ Bu, turu 78'de `Profile()`in kapak/onayli alanlarini yanit
 			//    haritasina koymamasiyla AYNI SINIF hata.
 			"dogrulandi": dogru,
-			"enlem": enlem, "boylam": boylam,
+			"enlem":      enlem, "boylam": boylam,
 			// ⚠️ Mesafe SUNUCUDA hesaplanip donuyor: istemcide tekrar
 			//    hesaplamak "ayni kuralin iki kopyasi" olurdu ve siralama ile
 			//    gosterilen deger AYRISABILIRDI.

@@ -458,8 +458,10 @@ func (h *Handler) IsletmeRandevulari(w http.ResponseWriter, r *http.Request) {
 //	calisiyor olmasina RAGMEN) — "olu ozellik" sinifinin ters yonu.
 //
 // ⚠️ Bu yuzden ayarlar `isletmeler` satiri VARSA dondurulur; `acik`
-//    degeri saklanan degerdir ve hesap kisiselken FIILEN ATILDIR
-//    (profilde dugme cizilmez, `Olustur` reddeder).
+//
+//	degeri saklanan degerdir ve hesap kisiselken FIILEN ATILDIR
+//	(profilde dugme cizilmez, `Olustur` reddeder).
+//
 // ⚠️ YAPMA: buraya `hesap_turu` kapisi ekleme; kapinin yeri `AyarOku`dur.
 func (h *Handler) AyarGetir(w http.ResponseWriter, r *http.Request) {
 	me := auth.UserID(r.Context())

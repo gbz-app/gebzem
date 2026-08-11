@@ -12,13 +12,14 @@ import "testing"
 // haritasini GUNCELLEMEDI. Ikisi de sessizce `varsayilanModul`e dustu.
 //
 // ⚠️ HATA **TAMAMEN SESSIZDI**: `go build` + `go vet` + `flutter analyze`
-//    ucu de temiz gecer, uc 200 doner, hicbir log dusmez. Bedel YALNIZ
-//    KULLANICININ EKRANINDA gorunurdu:
-//      · bir DIYETISYEN "Hizmet ekle" yerine **"Ürün ekle"** goruyordu,
-//      · bolum etiketi **"Bölüm (İçecekler, Tatlılar...)"** diyordu,
-//      · `sure_dakika` HICBIR YERDE cizilmiyordu (`alanlar` BOS),
-//      · o kaydi DUZENLEYINCE tur `'hizmet'` -> `'urun'` **SESSIZCE**
-//        donuyordu (istemci `modul.tur`u geri gonderiyor).
+//
+//	ucu de temiz gecer, uc 200 doner, hicbir log dusmez. Bedel YALNIZ
+//	KULLANICININ EKRANINDA gorunurdu:
+//	  · bir DIYETISYEN "Hizmet ekle" yerine **"Ürün ekle"** goruyordu,
+//	  · bolum etiketi **"Bölüm (İçecekler, Tatlılar...)"** diyordu,
+//	  · `sure_dakika` HICBIR YERDE cizilmiyordu (`alanlar` BOS),
+//	  · o kaydi DUZENLEYINCE tur `'hizmet'` -> `'urun'` **SESSIZCE**
+//	    donuyordu (istemci `modul.tur`u geri gonderiyor).
 //
 // Bu, bu projenin en sik hata sinifinin ("iki harita/liste birlikte
 // guncellenmedi") kategori duzeyindeki tekrariydi. Muhafiz onu YAPISAL
@@ -26,7 +27,8 @@ import "testing"
 // unutan gelistirici KIRMIZI test gorur.
 //
 // ⚠️ YAPMA: bu testi silme ya da `varsayilanModul`u "zaten var" diye
-//    gecerli sayma — varsayilan bir YEDEKTIR, KARAR DEGILDIR.
+//
+//	gecerli sayma — varsayilan bir YEDEKTIR, KARAR DEGILDIR.
 func TestHerKategorininModuluVar(t *testing.T) {
 	// ⚠️ MUAFIYETLER **GEREKCESIYLE** yazilir. Bir kategori burada yer
 	//    aliyorsa, varsayilan modulun ("Ürünler") onun icin GERCEKTEN
@@ -72,8 +74,9 @@ func TestHerKategorininModuluVar(t *testing.T) {
 // tanimlamadan ise yaramaz (istemci yalniz `modul.alanlar`i cizer).
 //
 // ⚠️ Bu, turu 90b'de olculen somut hatanin ikinci yarisiydi: `diyetisyen`
-//    kaydi `sure_dakika` TASIYORDU ama modulde alan olmadigi icin deger
-//    OLU VERIYDI — yazilir, okunur, HIC GOSTERILMEZ.
+//
+//	kaydi `sure_dakika` TASIYORDU ama modulde alan olmadigi icin deger
+//	OLU VERIYDI — yazilir, okunur, HIC GOSTERILMEZ.
 func TestOzelModullerAlanTanimliyor(t *testing.T) {
 	for anahtar, m := range moduller {
 		if m.Tur == "urun" {

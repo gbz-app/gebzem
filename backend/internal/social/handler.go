@@ -79,6 +79,7 @@ import (
 //
 //	uretirse `[]string`e tarama PATLAR ve satir SESSIZCE ATLANIR (akis bosalir).
 //	Istemci 'yok' gorunce "bu icerik kaldirildi" cizer.
+//
 // ⚠️⚠️ MEDYA TURLERI + OLCULERI. **YEDI gonderi sorgusu da bu sabiti kullanir**
 //
 //	(handler.go x4, etkilesim.go x3) — yani buraya eklenen bir sutun HEPSINE
@@ -107,6 +108,7 @@ import (
 //
 //	varsayilana dusurur. NULL DONDURULMEZ — `array_agg` NULL uretirse
 //	`[]string` taramasi PATLAR ve satir SESSIZCE atlanir (turu 76 dersi).
+//
 // TURU 90 - KONUM sutunlari (p.konum_ad/p.enlem/p.boylam) da BU SABITTE:
 // boylece YEDI gonderi sorgusu otomatik alir, sorgular tek tek duzenlenmez.
 // UYARI: bu ham dizeye SQL yorumu (--) YAZMA; sutun_test ayristiricisi
@@ -963,7 +965,7 @@ func (h *Handler) satirlariOku(ctx context.Context, userID string, rows pgx.Rows
 			"media_kinds": turler,
 			// ⚠️⚠️ TURU 81 — "WxH" (or. "1080x1920"); istemci ORANI buradan
 			//    turetir ve medyayi KIRPMADAN cizer. Bilinmeyen olcu "0x0".
-			"media_boyut":   boyutlar,
+			"media_boyut": boyutlar,
 			// TURU 90 - KONUM. Scan edilen her alan yanit haritasina da konur
 			// (turu 78 'Profile()' dersi: derleyici bunu goremez).
 			// enlem/boylam 0 ise KONUM YOK demektir.
@@ -1036,14 +1038,17 @@ func temizSatir(s string) string {
 // atlamisti (`isletme/yakinimda.go` ayni kontrolu turu 85b'den beri yapiyor).
 //
 // ⚠️ NaN/Inf bu yoldan GIREMEZ (JSON dilbilgisinde `NaN` literal'i yoktur ve
-//    tasan sayi `json.Decode`'u hataya dusurur) — yani turu 85b'nin
-//    `ParseFloat("NaN")` tuzagi BURADA GECERLI DEGIL. Yine de `IsNaN`
-//    kontrolu duruyor: bu fonksiyon ileride JSON DISI bir cagirandan
-//    (form, query, ic servis) beslenirse kapi ONCEDEN kapali olsun.
+//
+//	tasan sayi `json.Decode`'u hataya dusurur) — yani turu 85b'nin
+//	`ParseFloat("NaN")` tuzagi BURADA GECERLI DEGIL. Yine de `IsNaN`
+//	kontrolu duruyor: bu fonksiyon ileride JSON DISI bir cagirandan
+//	(form, query, ic servis) beslenirse kapi ONCEDEN kapali olsun.
+//
 // ⚠️ YARIM KOORDINAT REDDEDILIR: istemcinin `konumVar` olcutu
-//    `enlem != 0 || boylam != 0`; yarim koordinat "konum var" sayilir ve
-//    cipe dokunan kullanicinin harita uygulamasi ANLAMSIZ bir noktada
-//    acilirdi. Sozlesme: **ikisi de 0 (=yok) ya da ikisi de gecerli**.
+//
+//	`enlem != 0 || boylam != 0`; yarim koordinat "konum var" sayilir ve
+//	cipe dokunan kullanicinin harita uygulamasi ANLAMSIZ bir noktada
+//	acilirdi. Sozlesme: **ikisi de 0 (=yok) ya da ikisi de gecerli**.
 func konumDogrula(enlem, boylam *float64) error {
 	if enlem == nil && boylam == nil {
 		return nil

@@ -177,3 +177,172 @@ func ScanSayisi(kaynak string) (int, error) {
 	}
 	return 0, fmt.Errorf("`rows.Scan(` kapanmamis")
 }
+
+// ═══════════════════ TURU 91 — COKLU SORGU DESTEGI ═══════════════════
+//
+// ⚠️ NEDEN GEREKTI: mevcut `SutunSayisi`/`ScanSayisi` ciftı TEK sorgulu
+//    dosyalar icin yazilmisti (`satirlariOku` deseni). `internal/ilan/
+//    basvuru.go` gibi dosyalarda BIRDEN COK bagimsiz sorgu var ve her biri
+//    kendi `Scan`ine sahip; tek sayi donduren API onlari OLCEMEZ.
+//    Kopyasini teste yazmak yerine paket genisletildi — bu paketin var olus
+//    sebebi zaten "ayni ayristirma mantiginin ikinci kopyasi olmasin".
+
+// YorumsuzGo — Go kaynagindan `//` ve `/* */` yorumlarini SILER.
+//
+// ⚠️ ZORUNLU: bu ailedeki testler ILK YAZIMDA IKI KEZ (turu 80b
+//
+//	`isletme/sutun_test.go`, turu 83 `utf8_test.go`) KENDI SERHLERINDEKI
+//	ornegi eslestirip yanlis alarm verdi. Serhler SQL ve alan adi ornekleri
+//	icerdigi icin ayristiriciya girmemeleri sart.
+//
+// ⚠️ Dize icindeki `//` KORUNUR (or. bir URL) — kaba bir silme, `"` ve
+//
+//	backtick takibi yaparak yapilir.
+func YorumsuzGo(kaynak string) string {
+	var out strings.Builder
+	out.Grow(len(kaynak))
+	const (
+		duz = iota
+		dizeCift
+		dizeTers
+		satirYorum
+		blokYorum
+	)
+	durum := duz
+	for i := 0; i < len(kaynak); i++ {
+		c := kaynak[i]
+		switch durum {
+		case duz:
+			if c == '"' {
+				durum = dizeCift
+			} else if c == '`' {
+				durum = dizeTers
+			} else if c == '/' && i+1 < len(kaynak) && kaynak[i+1] == '/' {
+				durum = satirYorum
+				continue
+			} else if c == '/' && i+1 < len(kaynak) && kaynak[i+1] == '*' {
+				durum = blokYorum
+				i++
+				continue
+			}
+			out.WriteByte(c)
+		case dizeCift:
+			out.WriteByte(c)
+			if c == '\\' && i+1 < len(kaynak) {
+				i++
+				out.WriteByte(kaynak[i])
+			} else if c == '"' {
+				durum = duz
+			}
+		case dizeTers:
+			out.WriteByte(c)
+			if c == '`' {
+				durum = duz
+			}
+		case satirYorum:
+			if c == '\n' {
+				out.WriteByte(c)
+				durum = duz
+			}
+		case blokYorum:
+			if c == '*' && i+1 < len(kaynak) && kaynak[i+1] == '/' {
+				i++
+				durum = duz
+			}
+		}
+	}
+	return out.String()
+}
+
+// SelectSutunlari — kaynaktaki HER `SELECT ... FROM` blogunun ust duzey
+// sutun sayisini, GORULME SIRASIYLA dondurur.
+//
+// ⚠️ `UstDuzeyVirgul` kullanilir: `COALESCE(u.name,”)` gibi fonksiyon
+//
+//	cagrilarinin ICINDEKI virguller SAYILMAZ (paketin cekirdek islevi).
+//
+// ⚠️ Alt sorgular (`EXISTS(SELECT 1 ...)`) da eslesir; bu YANLIS DEGILDIR —
+//
+//	her SELECT'in bir Scan karsiligi olmasi beklenmez, cagiran taraf
+//	sayilari SIRAYLA karsilastirir ve alt sorgular icin de bir Scan
+//	bulunmasi gerekir. Bu yuzden alt sorgu ICEREN dosyalarda cagiran,
+//	esitligi degil MANTIKLI ESLESMEYI dogrulamalidir.
+//	⚠️ Pratikte alt sorgular `SELECT 1` oldugu icin 1 sutun sayilir ve
+//	   kolayca ayirt edilir.
+func SelectSutunlari(kaynak string) ([]int, error) {
+	var sonuc []int
+	kalan := kaynak
+	for {
+		i := strings.Index(kalan, "SELECT ")
+		if i < 0 {
+			break
+		}
+		govde := kalan[i+len("SELECT "):]
+		j := strings.Index(govde, "FROM ")
+		if j < 0 {
+			break
+		}
+		ic := strings.TrimSpace(govde[:j])
+		// ⚠️ ALT SORGULAR ATLANIR. `EXISTS(SELECT 1 FROM ...)` ve
+		//    `(SELECT count(*) FROM ...)` bir `Scan`e KARSILIK GELMEZ;
+		//    sayilsalardi SELECT ve Scan listeleri hizalanamaz ve muhafiz
+		//    "eslestirme yapilamiyor" diye SUREKLI kirmizi kalirdi —
+		//    yani KAPATILAN bir muhafiz olurdu.
+		// ⚠️ Olcut ICERIK: alt sorgular sabit/toplama secer (`1`, `count(*)`),
+		//    gercek satir sorgulari SUTUN ADI secer.
+		altSorgu := ic == "1" || strings.HasPrefix(ic, "count(") ||
+			strings.HasPrefix(ic, "COUNT(")
+		if !altSorgu {
+			sonuc = append(sonuc, UstDuzeyVirgul(ic)+1)
+		}
+		kalan = govde[j:]
+	}
+	if len(sonuc) == 0 {
+		return nil, fmt.Errorf("hic `SELECT ... FROM` bulunamadi")
+	}
+	return sonuc, nil
+}
+
+// ScanSayilari — kaynaktaki HER `.Scan(` cagrisinin argüman sayisini,
+// GORULME SIRASIYLA dondurur.
+//
+// ⚠️ `rows.Scan` ve `QueryRow(...).Scan` IKISI DE sayilir: ikisi de ayni
+//
+//	sessiz-bosalma sinifini uretir.
+func ScanSayilari(kaynak string) ([]int, error) {
+	var sonuc []int
+	kalan := kaynak
+	for {
+		i := strings.Index(kalan, ".Scan(")
+		if i < 0 {
+			break
+		}
+		govde := kalan[i+len(".Scan("):]
+		derinlik := 0
+		bulundu := false
+		for j := 0; j < len(govde); j++ {
+			switch govde[j] {
+			case '(':
+				derinlik++
+			case ')':
+				if derinlik == 0 {
+					sonuc = append(sonuc, UstDuzeyVirgul(govde[:j])+1)
+					kalan = govde[j:]
+					bulundu = true
+				} else {
+					derinlik--
+				}
+			}
+			if bulundu {
+				break
+			}
+		}
+		if !bulundu {
+			return nil, fmt.Errorf("`.Scan(` kapanmamis")
+		}
+	}
+	if len(sonuc) == 0 {
+		return nil, fmt.Errorf("hic `.Scan(` bulunamadi")
+	}
+	return sonuc, nil
+}

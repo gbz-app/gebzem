@@ -60,22 +60,26 @@ const kayitJetonOmru = 15 * time.Minute
 //	CHECK (purpose = ANY (ARRAY['register','reset_password','change_phone']))
 //
 // ⚠️ Bu, CLAUDE.md'de turu 78'den beri yazili olan tuzagin BIREBIR TEKRARI:
-//   **"yeni bir kind/durum/tur/amac DEGERI eklerken ONCE CHECK'i ac."**
-//   `go build` + `go vet` + `flutter analyze` UCU DE TEMIZ geciyordu; hata
-//   yalnizca GERCEK POSTGRES'te ortaya cikti (uctan uca testi yakaladi).
+//
+//	**"yeni bir kind/durum/tur/amac DEGERI eklerken ONCE CHECK'i ac."**
+//	`go build` + `go vet` + `flutter analyze` UCU DE TEMIZ geciyordu; hata
+//	yalnizca GERCEK POSTGRES'te ortaya cikti (uctan uca testi yakaladi).
 //
 // ⚠️ MIGRATION ACILMADI, mevcut deger KULLANILDI: yeni bir amac eklemek
-//    CHECK'i DROP/ADD etmeyi gerektirirdi ve 015'in "iki migration kisiti
-//    bagimsiz yeniden kurarsa sonraki oncekinin degerlerini SILER" tuzagini
-//    acardi. Adimli kayit da SONUCTA bir "register" akisidir; ayri bir amac
-//    degeri urun olarak da bir sey ifade etmiyor.
+//
+//	CHECK'i DROP/ADD etmeyi gerektirirdi ve 015'in "iki migration kisiti
+//	bagimsiz yeniden kurarsa sonraki oncekinin degerlerini SILER" tuzagini
+//	acardi. Adimli kayit da SONUCTA bir "register" akisidir; ayri bir amac
+//	degeri urun olarak da bir sey ifade etmiyor.
+//
 // ⚠️ YAPMA: burayi 'kayit' gibi yeni bir degere cevirme.
 const otpAmaciKayit = "register"
 
 // kayitClaims — YALNIZ kayit akisi icin. `Claims`ten AYRI bir tiptir:
 // ⚠️ Ayni tip kullanilsaydi bu jeton `Authorization: Bearer` ile gonderilip
-//    `ParseToken` tarafindan GECERLI bir oturum jetonu gibi cozulebilirdi
-//    (`UserID` bos olurdu ama bazi yollar bos id'yi kontrol etmiyor).
+//
+//	`ParseToken` tarafindan GECERLI bir oturum jetonu gibi cozulebilirdi
+//	(`UserID` bos olurdu ama bazi yollar bos id'yi kontrol etmiyor).
 type kayitClaims struct {
 	Phone string `json:"tel"`
 	Amac  string `json:"amac"` // daima "kayit"

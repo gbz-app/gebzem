@@ -48,7 +48,7 @@ var kategoriTuru = map[string]string{
 	"eglence": TurRezervasyon,
 	// TURU 90 - OTEL de REZERVASYONDUR. Once haritada YOKTU ve otel
 	// "randevu" etiketi aliyordu; arayuz "Randevu al" yaziyordu.
-	"otel":    TurRezervasyon,
+	"otel": TurRezervasyon,
 }
 
 // TurBul — isletme kategorisinden randevu turunu TURETIR.

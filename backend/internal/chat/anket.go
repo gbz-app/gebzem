@@ -58,8 +58,10 @@ const (
 // gecirir; `chat` paketi `social`i HIC BILMEZ.
 //
 // ⚠️ NIL ISE **FAIL-CLOSED**: geri cagirim baglanmazsa gonderi anketleri
-//    erisilemez olur (403). Sessizce ACIK birakmak gizli hesap gonderisinin
-//    anketini herkese oylatirdi.
+//
+//	erisilemez olur (403). Sessizce ACIK birakmak gizli hesap gonderisinin
+//	anketini herkese oylatirdi.
+//
 // ⚠️ YAPMA: bu alani kaldirip `chat` icine `internal/social` importu ekleme.
 type GonderiGorunur func(ctx context.Context, postID, userID string) (bool, error)
 
@@ -69,10 +71,14 @@ func (h *Handler) SetGonderiGorunur(f GonderiGorunur) { h.gonderiGorunur = f }
 // GonderiAnketiYaz — bir GONDERIYE anket baglar. `internal/social` cagirir.
 //
 // ⚠️ `tx` DISARIDAN gelir: gonderi ve anketi AYNI islemde yazilmali. Ayri
-//    islemler olsaydi anket yazilirken hata alan bir istek ANKETSIZ bir
-//    gonderi birakirdi (kullanici "anket ekledim ama yok" derdi).
+//
+//	islemler olsaydi anket yazilirken hata alan bir istek ANKETSIZ bir
+//	gonderi birakirdi (kullanici "anket ekledim ama yok" derdi).
+//
 // ⚠️ Dogrulama (soru/secenek uzunlugu, adet) SOHBET yoluyla AYNI sabitleri
-//    kullanir — iki yuzeyde farkli sinir olmasi kullaniciya aciklanamaz.
+//
+//	kullanir — iki yuzeyde farkli sinir olmasi kullaniciya aciklanamaz.
+//
 // ⚠️ Donen `pollID` cagirana verilir; `social` onu yanitta dondurur.
 func (h *Handler) GonderiAnketiYaz(
 	ctx context.Context, tx pgx.Tx,
@@ -117,12 +123,15 @@ func (h *Handler) GonderiAnketiYaz(
 // GonderiAnketleri — bir GONDERI KUMESININ anketlerini **TEK SORGUDA** okur.
 //
 // ⚠️ N+1 YASAK: 20 kartlik bir akista gonderi basina ayri sorgu atmak 20 tur
-//    demekti (turu 17 dersi). Once `post_id -> poll_id` esleme tek sorguyla
-//    alinir, sonra her anket `anketOku` ile okunur (o zaten secenek+sayim+
-//    benim oylarim iceren TEK KAYNAK cozumdur).
+//
+//	demekti (turu 17 dersi). Once `post_id -> poll_id` esleme tek sorguyla
+//	alinir, sonra her anket `anketOku` ile okunur (o zaten secenek+sayim+
+//	benim oylarim iceren TEK KAYNAK cozumdur).
+//
 // ⚠️ Hatalar YUTULUR ve o gonderi anketsiz doner: bir anket okunamadi diye
-//    TUM AKISIN bosalmasi kabul edilemez (turu 76'nin "satir sessizce
-//    atlaniyor" hatasinin tersi — burada gonderi cizilir, yalniz anketi yok).
+//
+//	TUM AKISIN bosalmasi kabul edilemez (turu 76'nin "satir sessizce
+//	atlaniyor" hatasinin tersi — burada gonderi cizilir, yalniz anketi yok).
 func (h *Handler) GonderiAnketleri(
 	ctx context.Context, postIDs []string, userID string,
 ) map[string]map[string]any {
@@ -164,7 +173,8 @@ func AnketGecersizMi(err error) bool { return errors.Is(err, errAnketGecersiz) }
 //
 // ⚠️ TEK KAYNAK: dort uc (oy ver / kapat / getir / okuma) bunu cagirir.
 // ⚠️ Yuklem cagiran yerlere KOPYALANMAZ — turu 75b'de ayni kural dort sorguya
-//    kopyalanmis, BESINCISINDE dusmustu ve engellenen kisi profili okuyabiliyordu.
+//
+//	kopyalanmis, BESINCISINDE dusmustu ve engellenen kisi profili okuyabiliyordu.
 func (h *Handler) anketSahibi(
 	r *http.Request, pollID int64, userID string,
 ) (chatID string, ok bool, err error) {

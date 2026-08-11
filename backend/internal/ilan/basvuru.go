@@ -151,6 +151,7 @@ func (h *Handler) BasvuruGeriCek(w http.ResponseWriter, r *http.Request) {
 // ⚠️ YALNIZ SAHIBI: baskasi 404 alir (403 DEGIL — 403 "bu ilanin basvurusu
 //
 //	var" bilgisini SIZDIRIRDI).
+//
 // ⚠️ Geri cekilen basvurular GOSTERILMEZ.
 func (h *Handler) Basvurular(w http.ResponseWriter, r *http.Request) {
 	me := auth.UserID(r.Context())
@@ -159,9 +160,17 @@ func (h *Handler) Basvurular(w http.ResponseWriter, r *http.Request) {
 		hata(w, 404, "bulunamadı")
 		return
 	}
+	// ⚠️⚠️ TURU 91 — SIRALAMA TURE GORE. Is ilaninda basvuru sirasi (yeni
+	//    once) anlamli; TEKLIFTE kullanicinin bakmak istedigi ilk sey
+	//    FIYATTIR. `ORDER BY` sunucuda yapilir — istemcide siralamak, ayni
+	//    kuralin ikinci kopyasini dogurur ve "ucuz teklif ustte" davranisi
+	//    iki ekranda drift ederdi.
+	// ⚠️ `fiyat_kurus` teklif DISI turlerde 0'dir; is ilaninda ikincil
+	//    olcut `created_at` oldugu icin siralama BOZULMAZ.
 	rows, err := h.db.Query(r.Context(), `
 		SELECT b.id, b.user_id, COALESCE(u.name,''), COALESCE(u.username,''),
-		       u.avatar_media_id, b.not_metin, b.durum, b.created_at
+		       u.avatar_media_id, b.not_metin, b.durum, b.created_at,
+		       b.fiyat_kurus, b.guncellendi_at
 		  FROM ilan_basvurular b
 		  JOIN users u ON u.id = b.user_id
 		 WHERE b.ilan_id=$1
@@ -170,7 +179,8 @@ func (h *Handler) Basvurular(w http.ResponseWriter, r *http.Request) {
 		   --    dogrulamak "iki kopya drift eder" sinifini acardi.
 		   AND EXISTS(SELECT 1 FROM ilanlar i
 		               WHERE i.id=$1 AND i.sahibi_id=$2)
-		 ORDER BY b.created_at DESC
+		 ORDER BY CASE WHEN b.fiyat_kurus > 0 THEN 0 ELSE 1 END,
+		          b.fiyat_kurus ASC, b.created_at DESC
 		 LIMIT 200`, id, me)
 	if err != nil {
 		log.Printf("basvurular: %v", err)
@@ -182,14 +192,16 @@ func (h *Handler) Basvurular(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var bid, uid, ad, kadi, notM, durum string
 		var avatar *string
-		var t any
-		if rows.Scan(&bid, &uid, &ad, &kadi, &avatar, &notM, &durum, &t) != nil {
+		var fiyat int64
+		var t, gunc any
+		if rows.Scan(&bid, &uid, &ad, &kadi, &avatar, &notM, &durum, &t,
+			&fiyat, &gunc) != nil {
 			continue
 		}
 		out = append(out, map[string]any{
 			"id": bid, "user_id": uid, "name": ad, "username": kadi,
 			"avatar_media_id": avatar, "not": notM, "durum": durum,
-			"created_at": t,
+			"created_at": t, "fiyat_kurus": fiyat, "guncellendi_at": gunc,
 		})
 	}
 	yaz(w, 200, map[string]any{"basvurular": out})
@@ -247,13 +259,20 @@ func (h *Handler) BasvuruDurum(w http.ResponseWriter, r *http.Request) {
 // GET /users/me/basvurular — KENDI basvurularim.
 func (h *Handler) Basvurularim(w http.ResponseWriter, r *http.Request) {
 	me := auth.UserID(r.Context())
+	// ⚠️ TURU 91 — `tur` SUZGECI: ayni uc hem "Başvurularım" (is ilanlari)
+	//    hem "Tekliflerim" (talepler) ekranini besler. Iki AYRI uc acmak,
+	//    ayni yetki yuklemini ve ayni sirali okumayi IKI KEZ yazmak demekti.
+	//    Bos birakilirsa HEPSI doner (mevcut davranis KORUNUR).
+	turSuzgec := strings.TrimSpace(r.URL.Query().Get("tur"))
 	rows, err := h.db.Query(r.Context(), `
-		SELECT b.id, b.ilan_id, COALESCE(i.baslik,''), b.durum, b.created_at
+		SELECT b.id, b.ilan_id, COALESCE(i.baslik,''), b.durum, b.created_at,
+		       b.fiyat_kurus
 		  FROM ilan_basvurular b
 		  JOIN ilanlar i ON i.id = b.ilan_id
 		 WHERE b.user_id=$1
+		   AND ($2 = '' OR i.tur = $2)
 		 ORDER BY b.created_at DESC
-		 LIMIT 200`, me)
+		 LIMIT 200`, me, turSuzgec)
 	if err != nil {
 		hata(w, 500, "başvurular alınamadı")
 		return
@@ -262,13 +281,14 @@ func (h *Handler) Basvurularim(w http.ResponseWriter, r *http.Request) {
 	out := []map[string]any{}
 	for rows.Next() {
 		var bid, ilanID, baslik, durum string
+		var fiyat int64
 		var t any
-		if rows.Scan(&bid, &ilanID, &baslik, &durum, &t) != nil {
+		if rows.Scan(&bid, &ilanID, &baslik, &durum, &t, &fiyat) != nil {
 			continue
 		}
 		out = append(out, map[string]any{
 			"id": bid, "ilan_id": ilanID, "baslik": baslik,
-			"durum": durum, "created_at": t,
+			"durum": durum, "created_at": t, "fiyat_kurus": fiyat,
 		})
 	}
 	yaz(w, 200, map[string]any{"basvurular": out})

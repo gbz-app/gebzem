@@ -74,6 +74,7 @@ type Ayar struct {
 // ⚠️ Satir YOKSA `acik=false` ile VARSAYILAN doner (hata DEGIL): ozellik
 //
 //	acilmamis bir isletme icin bu normal durumdur.
+//
 // ⚠️⚠️ TURU 80b — `hesap_turu='isletme'` KAPISI (denetim bulgusu).
 //
 //	Sorgu yalnizca `isletmeler` satirina bakiyordu. Ama hesap kisisele
@@ -158,9 +159,13 @@ func ayarOku(ctx context.Context, db *pgxpool.Pool,
 //	"okuma ve yazma FARKLI TABAN kullaniyor" hatasinin tekrariydi.
 //
 // ⚠️ Bu yuzden IKI GUN denenir: anin kendi gunu VE bir onceki gun.
-//    (Bir slot en fazla bir gun tasabilir: `kapanis` en cok +24 saat kayar.)
+//
+//	(Bir slot en fazla bir gun tasabilir: `kapanis` en cok +24 saat kayar.)
+//
 // ⚠️ `Musait` BILEREK yok sayilir — kapasite karari advisory kilitli tek
-//    deyimde verilir; burada okunsaydi karar IKI yerde yasardi.
+//
+//	deyimde verilir; burada okunsaydi karar IKI yerde yasardi.
+//
 // ⚠️ YAPMA: cagiran yerlerde bu kontrolu elle yazma (drift eder).
 func SlotVarMi(ctx context.Context, db *pgxpool.Pool,
 	isletmeID string, an time.Time, a Ayar) (bool, error) {

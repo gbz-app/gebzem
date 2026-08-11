@@ -68,9 +68,13 @@ func yaz(w http.ResponseWriter, kod int, v any) {
 // `isletmeKategorileri` · buradaki liste).
 //
 // ⚠️ Artik `isletme.Kategoriler` haritasindan uretiliyor: yeni bir kategori
-//    eklendiginde burasi OTOMATIK ogrenir, drift YAPISAL OLARAK imkansiz.
+//
+//	eklendiginde burasi OTOMATIK ogrenir, drift YAPISAL OLARAK imkansiz.
+//
 // ⚠️ `"isletme"` bir KATEGORI DEGIL, "tum isletmeler" dikeyidir — bu yuzden
-//    ayrica ekleniyor.
+//
+//	ayrica ekleniyor.
+//
 // ⚠️ YAPMA: buraya tekrar elle liste yazma.
 var isletmeDikeyleri = func() map[string]bool {
 	m := map[string]bool{"isletme": true}

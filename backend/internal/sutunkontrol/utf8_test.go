@@ -19,10 +19,12 @@ import (
 //	bozulmus  aynisi = C3 83 C2 A7  (DORT bayt — her bayt AYRI yeniden kodlanmis)
 //
 // ⚠️⚠️ BU SERHTE BOZUK ORNEK **HARF OLARAK YAZILMAZ** — yalnizca BAYT olarak
-//    anlatilir. Ilk yazimda ornekler harfle yazilmisti ve muhafiz **KENDI
-//    DOSYASINI** yakalayip yanlis alarm verdi. Bu, projede daha once
-//    `isletme/sutun_test.go`da yasanan "test kendi serhindeki kelimeyi
-//    eslestiriyor" tuzaginin BIREBIR tekrari.
+//
+//	anlatilir. Ilk yazimda ornekler harfle yazilmisti ve muhafiz **KENDI
+//	DOSYASINI** yakalayip yanlis alarm verdi. Bu, projede daha once
+//	`isletme/sutun_test.go`da yasanan "test kendi serhindeki kelimeyi
+//	eslestiriyor" tuzaginin BIREBIR tekrari.
+//
 // ⚠️ YAPMA: buraya ornek bozuk metni harfle yazma.
 //
 // ETKISI SESSIZ VE AGIR: `go build`, `go vet`, `flutter analyze` UCU DE TEMIZ
@@ -44,9 +46,10 @@ import (
 //
 // ⚠️ YAPMA: bu testi silme. Iki kez yasandi, ucuncusu yayina cikabilirdi.
 // ⚠️ ⚠️ ARAC KURALI: Turkce ya da emoji iceren dosyalarda `sed -i` / `perl -pi`
-//    KULLANMA. `Edit`/`Write` araclarini kullan (CLAUDE.md'de zaten yazili:
-//    "PowerShell ile Dart/emoji iceren dosyalarda toplu regex replace YAPMA" —
-//    ayni tuzak Git Bash araclarinda da var).
+//
+//	KULLANMA. `Edit`/`Write` araclarini kullan (CLAUDE.md'de zaten yazili:
+//	"PowerShell ile Dart/emoji iceren dosyalarda toplu regex replace YAPMA" —
+//	ayni tuzak Git Bash araclarinda da var).
 func TestCiftUTF8KodlamaYok(t *testing.T) {
 	// Depo koku: bu paket `backend/internal/sutunkontrol` altinda.
 	kok, err := filepath.Abs(filepath.Join("..", "..", ".."))

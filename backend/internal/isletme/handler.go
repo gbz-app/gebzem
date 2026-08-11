@@ -58,19 +58,19 @@ func hata(w http.ResponseWriter, kod int, m string) {
 //
 // ⚠️ DB tablosuna alinmadi: sabit, kucuk, nadiren degisen liste (bkz. 028 serhi).
 var Kategoriler = map[string]string{
-	"yemek":     "Yemek",
-	"kafe":      "Kafe",
-	"market":    "Market",
-	"giyim":     "Giyim",
-	"kuafor":    "Kuaför",
+	"yemek":  "Yemek",
+	"kafe":   "Kafe",
+	"market": "Market",
+	"giyim":  "Giyim",
+	"kuafor": "Kuaför",
 	// TURU 90 - kullanici emri: 2 diyetisyen + 2 guzellik merkezi profili.
 	// Once 'guzellik' ayri anahtar DEGILDI (kuafor adinin icindeydi) ve
 	// 'diyetisyen' HIC YOKTU -> o isletmeler "Diğer"e dusuyordu.
 	// MIGRATION GEREKMEZ: isletmeler.kategori serbest TEXT (028).
-	"guzellik":  "Güzellik Merkezi",
+	"guzellik":   "Güzellik Merkezi",
 	"diyetisyen": "Diyetisyen",
-	"oto":       "Oto & Servis",
-	"saglik":    "Sağlık",
+	"oto":        "Oto & Servis",
+	"saglik":     "Sağlık",
 	// ⚠️ TURU 85 — kullanici emri: "eczane vs, birde otel kategoriler,
 	//    otel eklememiz gerekiyor".
 	// ⚠️ MIGRATION GEREKMEDI: `isletmeler.kategori` serbest TEXT, uzerinde

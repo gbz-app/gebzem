@@ -29,6 +29,7 @@ import (
 // ⚠️ TEK KAYNAK: begeni, yorum, kaydetme ve gonderi detayi AYNI kapiyi kullanir.
 //
 //	Kopyalanirsa drift eder (turu 56'nin "mesgulluk kontrolu tek kaynak" dersi).
+//
 // GorunurMu — bir gonderi bu kullaniciya gorunuyor mu (disariya acik surum).
 //
 // ⚠️⚠️ TURU 83 — `internal/chat` GONDERI ANKETININ yetkisini bununla acar.

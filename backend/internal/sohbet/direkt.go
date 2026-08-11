@@ -29,6 +29,7 @@
 //	`CreateDirect` engeli ONDEN kontrol ediyor (kullanici eylemi).
 //	`calls` yollari ise arama ZATEN GERCEKLESTIKTEN sonra kayit yaziyor;
 //	oraya engel kapisi koymak gecmis bir aramanin kaydini yutardi.
+//
 // ⚠️ Bu paket YALNIZ SQL SABITLERI ihrac eder, fonksiyon DEGIL.
 //
 //	Bir `Sorgulayici` arayuzu + adapter yazmak denendi ve ELENDI: uc cagiran
