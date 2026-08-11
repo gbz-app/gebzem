@@ -2696,6 +2696,47 @@ const kontrol = (ad, gecti, ek = '') => {
   }
 
 
+  // ═══════════ TURU 92: KATEGORI KESIF (alt kategoriler + slider) ═══════
+  {
+    const Z = await kullaniciAc('E2E Kesif');
+    const y = await j('/isletme-kesif?kategori=yemek', { token: Z.token });
+    const alt = ((y.d || {}).alt_kategoriler) || [];
+    const sl = ((y.d || {}).slaytlar) || [];
+    kontrol('TURU 92: yemek ALT KATEGORILERI donuyor (doner/kebap)',
+      y.kod === 200 && alt.some((a) => a.ad === 'Döner') &&
+      alt.every((a) => a.ara && a.ara.length > 0),
+      'adet=' + alt.length + ' ilk=' + JSON.stringify((alt[0] || {}).ad));
+    kontrol('TURU 92: slider 3-4 slayt + baslik/alt metin donuyor',
+      sl.length >= 3 && sl.length <= 4 &&
+      sl.every((x) => x.baslik && x.alt),
+      'adet=' + sl.length + ' ilk=' + JSON.stringify((sl[0] || {}).baslik));
+
+    // ⚠️ HER KATEGORI FARKLI (kullanici emri): yemek ile kuafor AYNI
+    //    listeyi dondurmemeli.
+    const k = await j('/isletme-kesif?kategori=kuafor', { token: Z.token });
+    const kAlt = ((k.d || {}).alt_kategoriler) || [];
+    kontrol('TURU 92: HER KATEGORI FARKLI (yemek != kuafor)',
+      kAlt.length > 0 &&
+      JSON.stringify(kAlt.map((a) => a.ad)) !==
+        JSON.stringify(alt.map((a) => a.ad)),
+      'kuafor=' + kAlt.map((a) => a.ad).join(','));
+
+    // ⚠️ Alt kategori ARAMAYA cevriliyor: `q` ile suzgec CALISMALI
+    //    (kart bir arama kisayolu; calismazsa 'dugme var ama etkisiz').
+    const arama = await j('/isletmeler?kategori=yemek&q=döner', { token: Z.token });
+    kontrol('TURU 92: alt kategori aramasi UC TARAFINDAN kabul ediliyor',
+      arama.kod === 200, 'HTTP ' + arama.kod);
+
+    // ⚠️ BILINMEYEN kategori: slider VARSAYILANA duser, serit BOS doner
+    //    (350px bos gri kutu OLMAMALI).
+    const bos = await j('/isletme-kesif?kategori=yokboyle', { token: Z.token });
+    kontrol('TURU 92: bilinmeyen kategoride slider VARSAYILANA dusuyor',
+      bos.kod === 200 && (((bos.d || {}).slaytlar) || []).length >= 3 &&
+      (((bos.d || {}).alt_kategoriler) || []).length === 0,
+      'slayt=' + (((bos.d || {}).slaytlar) || []).length +
+      ' alt=' + (((bos.d || {}).alt_kategoriler) || []).length);
+  }
+
   // ---------- OZET
   const kalan = sonuclar.filter((s) => !s.gecti);
   console.log('\n==================================');
