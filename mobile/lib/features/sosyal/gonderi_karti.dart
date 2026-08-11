@@ -540,23 +540,41 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
           //    navigasyon yoktur).
           subtitle: g.konumVar
               ? GestureDetector(
+                  // ⚠️ TURU 90b — `opaque` + dikey dolgu: ciplak `Row`un
+                  //    yuksekligi 15dp idi (Material 48 / Apple 44 kuralinin
+                  //    COK altinda). Dolgu ile kutu ~31dp olur; `ListTile`
+                  //    zaten 56dp'ye oturdugu icin YERLESIM DEGISMEZ.
+                  behavior: HitTestBehavior.opaque,
                   onTap: () => KonumServisi.haritadaAc(g.enlem, g.boylam),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(LucideIcons.mapPin, size: 12,
-                          color: Color(0xFF3AA9FF)),
-                      const SizedBox(width: 3),
-                      Flexible(
-                        child: Text(
-                          g.konum.isEmpty ? 'Konum' : g.konum,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              fontSize: 12, color: Color(0xFF3AA9FF)),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // ⚠️⚠️ TURU 90b — RENK **TEMADAN** (olculdu).
+                        //    Sabit `0xFF3AA9FF`, acik temanin `0xFFF2F2F5`
+                        //    zemininde **2.27:1** kontrast veriyordu — 12px
+                        //    normal metin icin gereken 4.5:1'in cok altinda,
+                        //    3:1'lik buyuk-metin esigini bile gecmiyordu.
+                        //    Koyu temada 6.72:1 ile sorunsuzdu; yani hata
+                        //    YALNIZ ACIK TEMADA gorunurdu (turu 81'in
+                        //    1.23:1 sohbet balonu vakasinin hafif hali).
+                        Icon(LucideIcons.mapPin,
+                            size: 12,
+                            color: Theme.of(context).colorScheme.primary),
+                        const SizedBox(width: 3),
+                        Flexible(
+                          child: Text(
+                            g.konum.isEmpty ? 'Konum' : g.konum,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                                fontSize: 12,
+                                color: Theme.of(context).colorScheme.primary),
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 )
               : null,

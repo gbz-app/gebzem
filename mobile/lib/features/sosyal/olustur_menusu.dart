@@ -32,12 +32,36 @@ import 'gonderi_olustur.dart';
 ///
 /// ⚠️ `Navigator` POP'TAN ONCE yakalanir: pop'tan sonra sheet'in context'i
 ///    OLU olur ve ekran HIC ACILMAZ (turu 59b/75b "yanlis route" sinifi).
-Future<void> olusturMenusuAc(BuildContext context) async {
+/// [sonrasinda] — acilan ekran KAPANDIGINDA sonucuyla cagrilir.
+///
+/// ⚠️⚠️ TURU 90b — BU GERI CAGIRIM ZORUNLU. `GonderiOlustur` `pop(postId)`
+///    ile id dondurur ve akis onu kullanarak kendini tazeler. Ilk yazimda
+///    menu ekrani `nav.push(...)` ile acip DONEN ID'yi ATIYORDU; kullanici
+///    paylasip geri donuyor ve **gonderisini akista GORMUYORDU**.
+/// ⚠️ Sheet'in KENDI future'i KULLANILAMAZ: ekran, sheet POP EDILDIKTEN
+///    SONRA push edilir (sheet context'i o an olu olur) — bu yuzden geri
+///    cagirim sart.
+Future<void> olusturMenusuAc(
+  BuildContext context, {
+  void Function(String? id)? sonrasinda,
+}) async {
   await showModalBottomSheet<void>(
     context: context,
+    // ⚠️⚠️ TURU 90b — `isScrollControlled` **ZORUNLU** (olculdu).
+    //    Verilmediginde Flutter tavani `ekranYuksekligi * 9/16`; ustune
+    //    `showDragHandle` 48dp yiyor. Icerik 371dp, 360x640'ta butce 312dp
+    //    -> **VARSAYILAN yazi olceginde bile** son madde ("Grup") KIRPILIYOR
+    //    ve release'te sessizce ekran disina boyaniyordu.
+    //    ⚠️ Test cihazi 414x896 oldugu icin hata ORADA GORUNMUYORDU
+    //       (turu 70b'nin birebir tekrari).
+    // ⚠️ Kullanicinin "yukseklik fazla olmasin" istegi BOZULMAZ:
+    //    `mainAxisSize.min` duruyor, sheet yine icerik boyunda acilir;
+    //    `isScrollControlled` yalnizca TAVANI kaldirir, yuksekligi ZORLAMAZ.
+    isScrollControlled: true,
     showDragHandle: true,
     builder: (c) => SafeArea(
-      child: Column(
+      child: SingleChildScrollView(
+        child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           const Padding(
@@ -51,9 +75,9 @@ Future<void> olusturMenusuAc(BuildContext context) async {
             ),
           ),
           _madde(c, LucideIcons.imagePlus, 'Gönderi', 'Fotoğraf, video, anket',
-              () => const GonderiOlustur()),
+              () => const GonderiOlustur(), sonrasinda: sonrasinda),
           _madde(c, LucideIcons.clapperboard, 'Reels', 'Dikey kısa video',
-              () => const GonderiOlustur(reels: true)),
+              () => const GonderiOlustur(reels: true), sonrasinda: sonrasinda),
           // ⚠️ HIKAYE: editor bir DOSYA bekliyor ve secici mantigi
           //    `story_seridi.dart`ta (izin + boyut tavani + yukleme ilerlemesi).
           //    O mantigi BURAYA KOPYALAMAK ikinci bir kopya olurdu; bunun
@@ -74,6 +98,7 @@ Future<void> olusturMenusuAc(BuildContext context) async {
               () => const GrupOlusturEkrani()),
           const SizedBox(height: 8),
         ],
+        ),
       ),
     ),
   );
@@ -92,6 +117,7 @@ Widget _madde(
   String altBaslik,
   Widget Function()? ekran, {
   String? ipucu,
+  void Function(String? id)? sonrasinda,
 }) =>
     ListTile(
       dense: true,
@@ -99,7 +125,7 @@ Widget _madde(
       leading: Icon(ikon, size: 21),
       title: Text(baslik, style: const TextStyle(fontWeight: FontWeight.w600)),
       subtitle: Text(altBaslik, style: const TextStyle(fontSize: 12)),
-      onTap: () {
+      onTap: () async {
         final nav = Navigator.of(c);
         final mesajci = ScaffoldMessenger.of(c);
         nav.pop();
@@ -107,7 +133,14 @@ Widget _madde(
           mesajci.showSnackBar(SnackBar(content: Text(ipucu ?? baslik)));
           return;
         }
-        nav.push(MaterialPageRoute(builder: (_) => ekran()));
+        // ⚠️ SONUC BEKLENIR ve GERI VERILIR: `GonderiOlustur` paylasilan
+        //    gonderinin id'sini `pop(...)` ile dondurur; akis onu kullanip
+        //    kendini tazeler. `await` atlanirsa kullanici paylasip donuyor
+        //    ve gonderisini AKISTA GOREMIYOR (turu 90b bulgusu).
+        final id = await nav.push<String>(
+          MaterialPageRoute(builder: (_) => ekran()),
+        );
+        sonrasinda?.call(id);
       },
     );
 

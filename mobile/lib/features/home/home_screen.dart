@@ -18,7 +18,6 @@ import '../rooms/rooms_tab.dart';
 import '../sosyal/akis_ekrani.dart';
 import '../sosyal/bildirimler_sayfasi.dart';
 import '../sosyal/kesfet_ekrani.dart';
-import '../sosyal/olustur_menusu.dart';
 import '../sosyal/profil_sayfasi.dart';
 import '../sosyal/reels_sayfasi.dart';
 import '../sosyal/takip_listesi.dart';
@@ -128,7 +127,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       // TURU 90 - SAG ALT OLUSTUR DUGMESI (kullanici emri).
       // YALNIZ ANASAYFADA: Mesaj sekmesinin KENDI FAB'i var (turu 76b
       // "TEK GIRIS FAB") ve iki FAB ust uste binerdi.
-      floatingActionButton: _index == _akis ? const OlusturFab() : null,
+      // ⚠️⚠️⚠️ TURU 90b — BURAYA FAB **KOYULMAZ**.
+      //    Turu 90 buraya `OlusturFab` koymustu; ama `AkisEkrani` KENDI
+      //    Scaffold'unda ZATEN bir "+" FAB'i tasiyor. Ikisi de `endFloat`
+      //    ve ic Scaffold'un dibi dis govdenin dibiyle AYNI cizgide oldugu
+      //    icin PIKSEL PIKSEL ust uste biniyorlardi; dokunusu bu (dis) FAB
+      //    aliyor, akisin kendi FAB'i ULASILAMAZ kaliyordu. Sonuc: turu
+      //    76b'de bilerek kapatilan "iki tane + var ve FARKLI IS
+      //    YAPIYORLAR" hatasinin GERI DONMESI.
+      //    Olusturma menusu artik AKISIN KENDI FAB'inden acilir.
+      // ⚠️ YAPMA: buraya FAB geri ekleme. Yeni bir olusturma eylemi
+      //    gerekiyorsa `olustur_menusu.dart` icine madde ekle.
       body: IndexedStack(
         index: _index,
         children: [

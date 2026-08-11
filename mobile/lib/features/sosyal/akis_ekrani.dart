@@ -11,10 +11,10 @@ import 'bildirim_sayaci.dart';
 import 'bildirimler_sayfasi.dart';
 import 'gonderi_karti.dart';
 import 'hizmet_menusu.dart';
-import 'gonderi_olustur.dart';
 import 'profil_sayfasi.dart';
 import 'sosyal_servisi.dart';
 import 'story_seridi.dart';
+import 'olustur_menusu.dart';
 
 /// ⚠️⚠️ TURU 75 — ANA SAYFA AKISI (Instagram/Facebook duzeni).
 ///
@@ -458,17 +458,28 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
     ).push(MaterialPageRoute(builder: (_) => ProfilSayfasi(userId: userId)));
   }
 
-  Future<void> _olustur({bool reels = false}) async {
-    final id = await Navigator.of(context).push<String>(
-      MaterialPageRoute(builder: (_) => GonderiOlustur(reels: reels)),
-    );
-    // Paylasildiysa akisi bastan getir — kendi gonderini EN USTTE gormelisin.
-    if (id != null && mounted) {
-      unawaited(_yenile());
-      // Profil sayaci (`gonderi_sayisi`) degisti.
-      ref.invalidate(myProfileProvider);
-    }
+  /// ⚠️⚠️ TURU 90b — MENU SONUCU **OKUNUR**.
+  ///
+  /// Turu 90'in menusu ekrani `nav.push(...)` ile aciyor ve DONEN ID'yi
+  /// ATIYORDU. `GonderiOlustur` `pop(postId)` ile id dondurur; akis onu
+  /// kullanarak kendini tazeler. Okunmayinca kullanici paylasip geri
+  /// donuyor ve **gonderisini akista GORMUYORDU** (profildeki
+  /// `gonderi_sayisi` da bayat kaliyordu). Eski yol bunu DOGRU yapiyordu —
+  /// menu onu ulasilamaz kilinca davranis GERILEDI.
+  Future<void> _olusturMenusu() =>
+      olusturMenusuAc(context, sonrasinda: _paylasimSonrasi);
+
+  void _paylasimSonrasi(String? id) {
+    if (id == null || !mounted) return;
+    unawaited(_yenile());
+    ref.invalidate(myProfileProvider);
   }
+
+  // ⚠️ TURU 90b — `_olustur()` **SILINDI**: FAB artik olusturma menusunu
+  //    aciyor ve menu ekrani kendisi push edip sonucu `_paylasimSonrasi`ya
+  //    veriyor. Govde ayni ise iki yoldan yapilsaydi (biri menuden, biri
+  //    dogrudan) "ayni kuralin iki kopyasi drift eder" sinifi acilirdi:
+  //    tazeleme mantigi birinde guncellenip digerinde unutulurdu.
 
   @override
   Widget build(BuildContext context) {
@@ -560,7 +571,14 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
         // release'te assert silindigi icin sessizce SON hero yaziliyor ve
         // ucus YANLIS dugmeyi tasiyordu.
         heroTag: 'fabGonderiOlustur',
-        onPressed: _olustur,
+        // ⚠️⚠️⚠️ TURU 90b — **TEK FAB** (olculdu).
+        //    Turu 90 dis Scaffold'a IKINCI bir "+" FAB'i koymustu. Ikisi de
+        //    `endFloat` ve ic Scaffold'un dibi dis govdenin dibiyle AYNI
+        //    cizgide oldugu icin PIKSEL PIKSEL UST USTE biniyorlardi;
+        //    dokunusu DIS FAB aliyordu, yani BU FAB ULASILAMAZDI.
+        //    Turu 76b'nin "TEK GIRIS FAB" kurali boylece GERI GELMISTI.
+        //    ⚠️ YAPMA: `home_screen`e tekrar FAB ekleme.
+        onPressed: _olusturMenusu,
         child: const Icon(LucideIcons.plus),
       ),
       // ⚠️⚠️ TURU 80 — `IndexedStack` **KALDIRILDI** (bkz. `_listeler` serhi).
@@ -667,6 +685,13 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
 
     return ListView.builder(
       controller: _kaydirma,
+      // ⚠️⚠️ TURU 90b — **OLCULDU**: FAB (56dp, dipten 16dp) merkezi ile son
+      //    gonderinin KAYDET dugmesi arasindaki uzaklik 16.8dp, dugmenin
+      //    dokunma yaricapi ise 28dp -> kaydet, FAB dairesinin TAM ICINDE
+      //    kaliyor ve dokunusu FAB aliyordu.
+      //    ⚠️ Son ogedeki `SizedBox`i buyutmek YETMEZ: `_dahaVar` true iken
+      //       o dal HIC cizilmez.
+      padding: const EdgeInsets.only(bottom: 80),
       // ⚠️ ILK OGE HER ZAMAN HIKAYE SERIDI (kullanici emri: 'anasayfada
       //    storyler'). Serit akisla BIRLIKTE kayar (Instagram deseni) —
       //    sabit birakmak 106px'i kalici olarak yer.

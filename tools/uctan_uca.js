@@ -2288,6 +2288,119 @@ const kontrol = (ad, gecti, ek = '') => {
     kontrol('TURU 90: AKIS sorgusu da konum donduruyor',
       akisListe.length > 0 && akisG.konum === 'Gebze, Kocaeli',
       'adet=' + akisListe.length + ' konum=' + JSON.stringify(akisG.konum));
+
+    // ═══════ TURU 90b — DENETIMIN BULDUGU KOR NOKTALAR ═══════
+
+    // ⚠️⚠️ GERI CEKME -> YENIDEN BASVURU. Ilk yazimda `DO NOTHING` vardi ve
+    //    geri ceken kullaniciyi o ise KALICI KILITLIYORDU: uc 200 doner ama
+    //    satir DEGISMEZ, ilan sahibi basvuruyu HIC GORMEZ. E2E bunu HIC
+    //    SINAMIYORDU — bu yuzden yesilden KACTI.
+    await j('/ilanlar/' + ilanID + '/basvuru', {
+      yontem: 'DELETE', token: B.token });
+    const cekildi = await j('/ilanlar/' + ilanID + '/basvurular', { token: I.token });
+    kontrol('TURU 90b: geri cekilen basvuru sahibin listesinden CIKIYOR',
+      (((cekildi.d || {}).basvurular) || []).length === 0,
+      'adet=' + (((cekildi.d || {}).basvurular) || []).length);
+
+    const tekrar = await j('/ilanlar/' + ilanID + '/basvuru', {
+      yontem: 'POST', token: B.token, govde: { not: 'Yeniden basvuruyorum' } });
+    const geriGeldi = await j('/ilanlar/' + ilanID + '/basvurular', { token: I.token });
+    const gg = (((geriGeldi.d || {}).basvurular) || []);
+    kontrol('TURU 90b: GERI CEKEN kullanici YENIDEN BASVURABILIYOR',
+      tekrar.kod === 200 && gg.length === 1 && gg[0].durum === 'bekliyor' &&
+      gg[0].not === 'Yeniden basvuruyorum',
+      'HTTP ' + tekrar.kod + ' adet=' + gg.length +
+      ' durum=' + (gg[0] || {}).durum + ' not=' + JSON.stringify((gg[0] || {}).not));
+
+    // ⚠️ SAHIBI geri cekilmis basvuruyu DIRILTEMEZ (rizanin geri alinmasi
+    //    karsi tarafca iptal edilemez).
+    await j('/ilanlar/' + ilanID + '/basvuru', { yontem: 'DELETE', token: B.token });
+    const diriltme = await j('/ilanlar/' + ilanID + '/basvurular/' + gg[0].id, {
+      yontem: 'PATCH', token: I.token, govde: { durum: 'olumlu' } });
+    const sonrasi = await j('/users/me/basvurular', { token: B.token });
+    const sb = (((sonrasi.d || {}).basvurular) || [])[0] || {};
+    kontrol('TURU 90b: sahibi GERI CEKILMIS basvuruyu DIRILTEMIYOR',
+      diriltme.kod === 404 && sb.durum === 'geri_cekildi',
+      'HTTP ' + diriltme.kod + ' durum=' + sb.durum);
+
+    // ⚠️ CAPRAZ-ILAN YETKI ASIMI: baska bir ilanin basvuru id'si ile PATCH.
+    const ilan2 = await j('/ilanlar', {
+      yontem: 'POST', token: I.token,
+      govde: { tur: 'is', kategori: 'garson', baslik: 'E2E ikinci is' } });
+    const capraz = await j('/ilanlar/' + ilan2.d.id + '/basvurular/' + gg[0].id, {
+      yontem: 'PATCH', token: I.token, govde: { durum: 'olumlu' } });
+    kontrol('TURU 90b: CAPRAZ-ILAN basvuru guncellemesi REDDEDILIYOR',
+      capraz.kod === 404, 'HTTP ' + capraz.kod);
+
+    // ⚠️ KALDIRILMIS ilana basvuru 404 (400 DEGIL — 400 ilanin VAR OLDUGUNU
+    //    ve KALDIRILDIGINI dogrulardi).
+    await j('/ilanlar/' + ilan2.d.id, {
+      yontem: 'PATCH', token: I.token, govde: { durum: 'kaldirildi' } });
+    const kapali = await j('/ilanlar/' + ilan2.d.id + '/basvuru', {
+      yontem: 'POST', token: B.token, govde: {} });
+    kontrol('TURU 90b: KALDIRILMIS ilana basvuru 404 (varlik SIZDIRMAZ)',
+      kapali.kod === 404, 'HTTP ' + kapali.kod);
+
+    // ═══════ KOORDINAT DOGRULAMASI (Create VE Update) ═══════
+
+    // ⚠️ YARIM KOORDINAT: istemci olcutu `enlem != 0 || boylam != 0` oldugu
+    //    icin gonderi "konumlu" sayilir ve cipe dokunanin haritasi ANLAMSIZ
+    //    bir noktada acilirdi.
+    const yarim = await j('/posts', {
+      yontem: 'POST', token: I.token,
+      govde: { tur: 'yazi', metin: 'yarim koordinat', enlem: 41.0 } });
+    kontrol('TURU 90b: YARIM koordinat REDDEDILIYOR (Create)',
+      yarim.kod === 400, 'HTTP ' + yarim.kod);
+
+    const arali = await j('/posts', {
+      yontem: 'POST', token: I.token,
+      govde: { tur: 'yazi', metin: 'aralik disi', enlem: -999, boylam: 29.4 } });
+    kontrol('TURU 90b: ARALIK DISI koordinat REDDEDILIYOR (Create)',
+      arali.kod === 400, 'HTTP ' + arali.kod);
+
+    // ⚠️ ONDALIK KIRPMA: `COALESCE($8, 0)` ciplak tamsayiyla yazilsaydi
+    //    Postgres tipi INTEGER'a cozer ve 40.8028 -> 40 olurdu (~90 km).
+    const hassas = await j('/posts', {
+      yontem: 'POST', token: I.token,
+      govde: { tur: 'yazi', metin: 'hassasiyet', konum: 'Gebze',
+               enlem: 40.8028, boylam: 29.4307 } });
+    const hd = (await j('/posts/' + hassas.d.id, { token: I.token })).d || {};
+    kontrol('TURU 90b: koordinat ONDALIGI KORUNUYOR (INTEGER kirpmasi YOK)',
+      Math.abs(hd.enlem - 40.8028) < 1e-9 && Math.abs(hd.boylam - 29.4307) < 1e-9,
+      'enlem=' + hd.enlem + ' boylam=' + hd.boylam);
+
+    // ⚠️ KONUM DUZENLEMEDEN KALDIRILABILIR (gizlilik): onceden tek care
+    //    gonderiyi SILMEKTI.
+    await j('/posts/' + hassas.d.id, {
+      yontem: 'PATCH', token: I.token,
+      govde: { enlem: 0, boylam: 0, konum: '' } });
+    const temiz = (await j('/posts/' + hassas.d.id, { token: I.token })).d || {};
+    kontrol('TURU 90b: gonderi konumu DUZENLEMEDEN KALDIRILABILIYOR',
+      temiz.enlem === 0 && temiz.boylam === 0 && temiz.konum === '',
+      'enlem=' + temiz.enlem + ' konum=' + JSON.stringify(temiz.konum));
+
+    // ⚠️ KONUM GONDERILMEYINCE KORUNUR (kismi guncelleme).
+    const kal = await j('/posts', {
+      yontem: 'POST', token: I.token,
+      govde: { tur: 'yazi', metin: 'korunacak', konum: 'Darıca',
+               enlem: 40.7669, boylam: 29.3897 } });
+    await j('/posts/' + kal.d.id, {
+      yontem: 'PATCH', token: I.token, govde: { metin: 'metin degisti' } });
+    const kd = (await j('/posts/' + kal.d.id, { token: I.token })).d || {};
+    kontrol('TURU 90b: konum GONDERILMEYINCE KORUNUYOR',
+      kd.konum === 'Darıca' && Math.abs(kd.enlem - 40.7669) < 1e-9,
+      'konum=' + kd.konum + ' enlem=' + kd.enlem);
+
+    // ═══════ ISLETME MODULLERI: YENI KATEGORILER ═══════
+    // ⚠️ turu 90 `Kategoriler`e `diyetisyen`+`guzellik` ekledi ama
+    //    `moduller`e EKLEMEDI -> ikisi de "Ürünler"e dusuyordu.
+    for (const kat of ['diyetisyen', 'guzellik']) {
+      const m = await j('/isletme-modulleri?kategori=' + kat, { token: I.token });
+      const md = (m.d || {}).modul || {};
+      kontrol('TURU 90b: `' + kat + '` modulu HIZMETLER (varsayilana DUSMUYOR)',
+        md.ad === 'Hizmetler' && (md.alanlar || []).some((a) => a.anahtar === 'sure_dakika'),
+        'ad=' + md.ad + ' alanlar=' + ((md.alanlar || []).map((a) => a.anahtar).join(',')));
+    }
   }
 
   // ---------- OZET

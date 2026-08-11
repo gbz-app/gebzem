@@ -233,9 +233,15 @@ class HizmetMenusu extends ConsumerWidget {
   Widget _yakinimdaSatiri(BuildContext context, _Bolum b) => GestureDetector(
     onTap: () => _ac(context, b),
     child: Container(
-      height: 78,
+      // ⚠️⚠️ TURU 90b — SABIT `height` DEGIL, `minHeight` (olculdu).
+      //    Sabit 78dp iken alt yazi 360dp ekranda yazi olcegi 1.5'te IKI
+      //    SATIRA sariyor ve kutu 82.8dp gerekiyordu -> RenderFlex tasmasi
+      //    (360x640 @1.5'te 17px, tum cihazlarda @2.0'da 47px).
+      //    ⚠️ Kardes `_satir` bu ikisini (maxLines + esnek yukseklik) ZATEN
+      //       dogru yapiyordu; ASIMETRININ KENDISI hatanin isaretiydi.
+      constraints: const BoxConstraints(minHeight: 78),
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 18),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
       alignment: Alignment.centerLeft,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(18),
@@ -251,6 +257,8 @@ class HizmetMenusu extends ConsumerWidget {
         children: [
           Text(
             b.ad,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: const TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w800,
@@ -260,6 +268,8 @@ class HizmetMenusu extends ConsumerWidget {
           const SizedBox(height: 2),
           const Text(
             'Çevrendeki işletmeleri haritada gör',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(fontSize: 12.5, color: Colors.white70),
           ),
         ],

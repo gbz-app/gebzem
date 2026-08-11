@@ -160,6 +160,13 @@ class _GonderiOlusturState extends ConsumerState<GonderiOlustur> {
   String _konumAd = '';
   double _konumEnlem = 0;
   double _konumBoylam = 0;
+
+  /// ⚠️ TURU 90b — "KONUM EKLI Mi" **TEK OLCUT**.
+  ///    Onceden dugme yalniz `_konumAd`a, kaldirma sheet'i ise koordinata da
+  ///    bakiyordu: ad cozumlenemedigi (ag yok / adres bulunamadi) ama
+  ///    koordinat KAYDEDILDIGI durumda dugme "konum yok" gorunumundeydi.
+  bool get _konumVar =>
+      _konumAd.isNotEmpty || _konumEnlem != 0 || _konumBoylam != 0;
   CancelToken? _iptal;
 
   /// ⚠️ KENDI ROUTE'UM. `Navigator.pop()` en usteki route'u kapatir, "beni" degil —
@@ -276,7 +283,7 @@ class _GonderiOlusturState extends ConsumerState<GonderiOlustur> {
   ///    kaydedilir ve "Konum eklendi" denir — ozellik yarim kalmaz.
   Future<void> _konumEkle() async {
     // Zaten eklenmisse: kaldirma secenegi sun.
-    if (_konumAd.isNotEmpty || _konumEnlem != 0 || _konumBoylam != 0) {
+    if (_konumVar) {
       final kaldir = await showModalBottomSheet<bool>(
         context: context,
         showDragHandle: true,
@@ -900,7 +907,10 @@ class _GonderiOlusturState extends ConsumerState<GonderiOlustur> {
     //    kodu bulundugu ANDA silmek gerekiyor.
 
     return SizedBox(
-      height: 74,
+      // ⚠️ TURU 90b — 74 -> 80 (olculdu). Icerik `10+21+6+11*1.252*olcek`;
+      //    yazi olcegi 2.0'da 74.5dp gerekiyordu ve serit 0.5dp tasiyordu.
+      //    (`Icon.applyTextScaling` varsayilan `false` — ikon olceklenmez.)
+      height: 80,
       child: ListView(
         scrollDirection: Axis.horizontal,
         children: [
@@ -918,9 +928,19 @@ class _GonderiOlusturState extends ConsumerState<GonderiOlustur> {
             // ⚠️⚠️ TURU 90 — KONUM ARTIK GERCEK (kullanici emri: 'normal
             //    paylasimda konum paylasamiyoruz, bunu eklememissin').
             //    Migration 044 `posts`a konum_ad/enlem/boylam ekledi.
+            // ⚠️⚠️ TURU 90b — DURUM **IKONDAN** verilir, metne "✓" EKLENMEZ.
+            //    Onceki hal (`'Konum ✓'`) uc kusur tasiyordu:
+            //     (a) `✓` Lucide DEGIL — arayuzde yalniz Lucide 2B ikon kurali,
+            //     (b) yazi olcegi 2.0'da etiket 96dp'ye cikip 74dp kutuda
+            //         ellipsis'e giriyor ve KIRPILAN ILK KARAKTER "✓" oluyordu
+            //         -> kullanici "Konum…" gorup konumun EKLI OLUP OLMADIGINI
+            //         ANLAYAMIYORDU,
+            //     (c) olcut YALNIZ `_konumAd`a bakiyordu; ad cozumlenemedigi
+            //         halde koordinat KAYDEDILEN durumda dugme "Konum" diyordu
+            //         (kaldirma sheet'i ise koordinata da bakiyor = IKI OLCUT).
             ek(
-              LucideIcons.mapPin,
-              _konumAd.isEmpty ? 'Konum' : 'Konum ✓',
+              _konumVar ? LucideIcons.mapPinCheck : LucideIcons.mapPin,
+              'Konum',
               _yukleniyor ? null : _konumEkle,
             ),
           ],
