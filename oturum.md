@@ -6275,3 +6275,93 @@ düzeltmesi · NaN koordinat 400.
 
 ### ⏳ EN SONA BIRAKILAN (kullanıcı emri)
 `active_call_controller.dart` ~500 satırlık ölü bekletme/park zinciri temizliği.
+
+### ⚠️⚠️ TURU 85c — YAYINDAN SONRA **SON DOĞRULAMA DENETİMİ** (24 ajan)
+
+Kullanıcı *"her şey tamam mı"* diye sordu. Yayınlanan sürümde e2e'nin
+**göremediği istemci yüzeyi** (router, izinler, tema, konum formu, harita)
+altı mercekle yeniden okundu ve her iddia bağımsız bir çürütücüye verildi:
+**18 iddia → 11 ONAYLANDI, 7 elendi.** Sevk engeli YOK; hepsi düzeltilip
+**build YENİDEN ALINDI** (`43a6038`).
+📌 *"Build almak yayınlamak değildir"* dersinin **altıncı** doğrulanması.
+
+**YAYINLANDI 07:36** — android `31458313670` + ios `31458315418` (**43a6038**),
+R2 apk=120264179 (md5 `8a91aad1`) ipa=31373352 (md5 `5f58fd78`) index=9456
+(md5 `2a257758`), purge OK, **CDN BİREBİR (üçü de)**, debug imza YOK,
+**iOS min 16.0** + `MapsApiKey` enjekte doğrulandı.
+⚠️ **KULLANICIYA VERİLEN ADRES:** https://indir.gebzem.app/index.html?v=20260811-0736
+⚠️ APK boyutu bir öncekiyle **BİREBİR AYNI** çıktı (120264179) ama MD5 farklı
+(`0387a6d4` → `8a91aad1`). *"Boyut aynı = build eski"* deme kuralı yine doğrulandı.
+
+#### ⚠️⚠️⚠️ YÜKSEK — İKİ İZİN İSTEĞİ ÇARPIŞIYORDU (turu 56'nın yeni kapısı)
+`FlutterCallkitIncoming.requestNotificationPermission` eklentide **BEKLEMEZ**:
+`FlutterCallkitIncomingPlugin.kt` `requestPermissions(...)` çağırdıktan hemen
+sonra `result.success(true)` döner (ardışık iki satır). Yani `await` diyalog
+kapanmadan çözülüyor ve bir alttaki `Permission.phone.request()`
+**POST_NOTIFICATIONS diyaloğu HÂLÂ EKRANDAYKEN** koşuyordu. Android aynı anda
+tek izin kümesi kabul eder (*"Can request only one set of permissions at a
+time"*) ve ikinci isteği **senkron boş sonuçla** düşürür → `permission_handler`
+haritada PHONE anahtarını bulamaz → `PermissionStatus.denied`.
+
+**SONUÇ:** kullanıcı **hiçbir diyalog görmeden** READ_PHONE_STATE'i kaybediyor
+→ `TelefonDurumu.izinVar()` false → **GSM dinleyicisi sessizce KAPALI** →
+turu 56/63'te kapatılan **gizlilik açığı** (GSM görüşmesi sürerken Gebzem
+mikrofonunun açık kalması) geri geliyordu.
+
+⚠️ Çarpışma **yalnız bildirim izni REDDEDİLMİŞSE** oluşur: eklenti
+`checkSelfPermission` GRANTED görürse diyalog açmaz. **Turu 56 ölçümünün
+`telefon=TRUE` çıkmasının sebebi de budur** — test eden kişi bildirime izin
+vermişti, yani ölçüm hatayı göremeyecek daldan geçmişti.
+⚠️ Aynı tuzak `main.dart` açılış çağrısında da vardı (taze kurulumda bildirim
+henüz verilmemişken) → orada da kapatıldı; kendi kendine düzelme yolu yoktu.
+FIX: `izinleriIste({bildirimIste})` + toplu akıştan `false`; ayrıca eklenti
+çağrısından ÖNCE `permission_handler` ile **gerçekten beklenir**.
+
+#### ⚠️⚠️ ORTA — dört bulgu
+- **Kayıt adım 4'te `PopScope` YOKTU.** `_ustCubuk` şerhi *"İZİN ADIMINDA GERİ
+  YOK"* diyordu ama gövdede uygulanan tek şey **arayüz okunun çizilmemesiydi**.
+  Donanım geri tuşu route'u yine pop ediyor, `izinSorulduIsaretle()` hiç
+  koşmuyor ve `HomeScreen` izin ekranını **yeniden açıyordu** — yani 85b'de
+  kapatılan "aynı ekran arka arkaya iki kez" hatası bu yoldan geri geliyordu.
+  Geri tuşu artık akışı terk etmez, "Şimdilik geç" ile **aynı yolu** koşar.
+- **`PermissionsScreen._requestAll` try/catch'siz.** Bu ekran `HomeScreen`in
+  tam sayfa dalı; üstünde Scaffold yok, geri tuşu bir yere götürmez. Çağrı
+  fırlarsa `_busy` true takılı kalır, **"Şimdilik geç" de `_busy`ye bağlıydı**
+  → kullanıcı uygulamaya **hiç giremezdi**. Kaçış yolu artık her zaman açık.
+  ⚠️ Kardeş çağıran (`kayit_akisi`) zaten try/catch ile sarıyordu —
+  **asimetrinin kendisi hataydı.**
+- **Elle girilen koordinat "Uygula"ya basılmadan "Kaydet" denince sessizce
+  atılıyordu.** Flutter'da odak kaybı `onSubmitted` TETİKLEMEZ; metin
+  alanlarıyla ekran arasındaki tek köprü düğmeydi. Artık `onChanged` ile
+  taşınıyor ("Uygula" doğrulama + geri bildirim için duruyor).
+- **Harita kamerası konumu HİÇ takip etmiyordu.** `initialCameraPosition`
+  adından da anlaşılacağı gibi yalnız ilk kurulumda uygulanır; `onMapCreated`
+  verilmemişti ve `scrollGesturesEnabled: false` (liste içinde zorunlu) olduğu
+  için kullanıcının kamerayı elle taşıma yolu da yoktu. Aşağı-çek GPS'i
+  tazeleyip listeyi güncelliyor ama **harita ilk konuma çivili** kalıyordu:
+  başka bir semtte yenileyen kullanıcı kartlarda yeni, haritada eski şehri
+  görüyordu ve düzeltmenin hiçbir yolu yoktu. FIX: `_HaritaAlani`
+  `StatefulWidget` oldu, controller saklanıyor, `didUpdateWidget`te
+  `animateCamera`.
+
+#### ⚠️ DÜŞÜK — beş bulgu
+- Adım 2'den geri dönüp aynı kodla "Doğrula" **deterministik 400** dönerdi
+  (`consumeOTP` kodu tüketmiştir) ve `catch` dalı elindeki **geçerli** kayıt
+  jetonunu da atardı → "jeton zaten var" kısa devresi eklendi.
+- `izinSorulduIsaretle()` artık `finally`de — hata yolunda atlanıyordu.
+- Konum alınamayan dalda liste boşaltılmıyordu (kardeş `catch` dalı
+  düzeltilmişti, bu atlanmıştı — kendi düzeltmemin kardeş dalında).
+- Her yenilemede kart listesi silinip spinner'a dönüyordu (turu 83'te
+  profil/bildirimler/kaydedilenler için düzeltilen sınıfın tekrarı).
+- `AnnotatedRegion` çıkışta geri alınmıyordu → koyu temaya dönünce saat/pil
+  görünmez kalıyordu. Çözüm ekran içine **kopyalanmadı**: uygulama geneli
+  varsayılan `MaterialApp.builder`a kondu (yaprak annotation ezmeye devam
+  eder, çıkışta otomatik doğru değere döner).
+
+#### Elenen 7 iddia (bir daha araştırılmasın)
+`fireImmediately` şerh-gövde çelişkisi (yön ters okunmuş) · `permissions_asked`
+okuyucusu yok (bilinçli) · pil isteğinin ayar ekranı üzerinde açılması (sıra
+85c'de gelmedi, öncesinde de aynıydı) · `izinBuOturumdaSoruldu` çıkışta
+sıfırlanmıyor (etkisi yok) · `Isletme.fromJson`daki `?? 0` (nedensel olarak
+etkisiz) · `acildi` yer tutucu dalında kullanılmıyor (şerh balonu kapsıyor) ·
+onboarding'de `AlwaysScrollableScrollPhysics` (onaylı tasarım değişmiyor).

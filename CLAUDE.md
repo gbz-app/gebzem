@@ -17,7 +17,87 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (11 Agu 01:21): TEST TURU 84+85 YAYINLANDI** — android
+- **KALDIGIMIZ YER (11 Agu 07:36): TURU 85c YAYINLANDI (SON SURUM)** — android
+  **31458313670** + ios **31458315418** (**43a6038**), R2 apk=120264179
+  (md5 8a91aad1) ipa=31373352 (md5 5f58fd78) index=9456 (md5 2a257758),
+  purge OK, **CDN BIREBIR (ucu de)**, debug imza YOK, **iOS min 16.0** +
+  `MapsApiKey` enjekte dogrulandi. Backend DEGISMEDI (df95e40 canli) +
+  health ok. **264/264 uctan uca** yine gecti, `flutter analyze` 0/0.
+  ⚠️ **KULLANICIYA VERILEN ADRES:**
+  https://indir.gebzem.app/index.html?v=20260811-0736
+  **KULLANICI TEST EDECEK.**
+  ⚠️ APK boyutu onceki build ile **BIREBIR AYNI** (120264179) ama MD5 FARKLI
+     (0387a6d4 -> 8a91aad1). *"Boyut ayni = build eski"* DEME kurali dogrulandi.
+- ⚠️⚠️ **TURU 85c — YAYINDAN SONRA SON DOGRULAMA (24 ajan, 18 iddia -> 11
+  ONAY, 7 elendi).** E2E'nin GOREMEDIGI istemci yuzeyi (router · izinler ·
+  tema · konum formu · harita) yeniden okundu. Sevk engeli YOK; hepsi
+  duzeltilip **build YENIDEN ALINDI**. *"Build almak yayinlamak degildir"*
+  dersinin **ALTINCI** dogrulanmasi.
+- ⚠️⚠️⚠️ **TURU 85c (YUKSEK) — IKI IZIN ISTEGI CAKISIYORDU (turu 56'nin YENI
+  KAPISI).** `FlutterCallkitIncoming.requestNotificationPermission` eklentide
+  **BEKLEMEZ** (`requestPermissions(...)` sonrasi ARDISIK satirda
+  `result.success(true)`). Yani `await` diyalog kapanmadan cozuluyor ve bir
+  alttaki `Permission.phone.request()` **POST_NOTIFICATIONS diyalogu HALA
+  EKRANDAYKEN** kosuyordu. Android ayni anda TEK izin kumesi kabul eder ve
+  ikinci istegi **SENKRON BOS SONUCLA** dusurur -> `permission_handler`
+  haritada PHONE anahtarini bulamaz -> **`denied`**.
+  SONUC: kullanici **HICBIR DIYALOG GORMEDEN** READ_PHONE_STATE'i kaybeder ->
+  `TelefonDurumu.izinVar()` false -> **GSM dinleyicisi SESSIZCE KAPALI** ->
+  turu 56/63'te kapatilan **GIZLILIK ACIGI** (GSM gorusmesi surerken Gebzem
+  mikrofonunun acik kalmasi) GERI GELIR.
+  ⚠️ Carpisma **YALNIZ bildirim izni REDDEDILMISSE** olusur (eklenti
+     `checkSelfPermission` GRANTED gorurse diyalog ACMAZ).
+     **Turu 56 olcumunun `telefon=TRUE` cikmasinin sebebi TAM BUDUR** — test
+     eden kisi bildirime IZIN VERMISTI, yani olcum hatayi GOREMEYECEK daldan
+     gecmisti. ⚠️ **DERS: bir olcumun YESIL cikmasi, olculen hatanin TUM
+     dallarda yok oldugu anlamina GELMEZ.**
+  FIX: `CallKitService.izinleriIste({bildirimIste})` + toplu akistan `false`;
+  ayrica eklenti cagrisindan ONCE `permission_handler` ile GERCEKTEN beklenir.
+  ⚠️ Ayni tuzak `main.dart` acilis cagrisinda da vardi (taze kurulumda) ve
+     kendi kendine duzelme yolu YOKTU.
+  ⚠️ YAPMA: telefon iznini bildirim diyalogu ucustayken isteme.
+- ⚠️⚠️ **TURU 85c (ORTA) — DORT BULGU:**
+  · **Kayit adim 4'te `PopScope` YOKTU**: `_ustCubuk` serhi *"IZIN ADIMINDA
+    GERI YOK"* diyordu ama govdede uygulanan TEK sey ARAYUZ OKUNUN
+    CIZILMEMESIYDI. Donanim geri tusu route'u yine pop ediyor,
+    `izinSorulduIsaretle()` HIC kosmuyor ve `HomeScreen` izin ekranini YENIDEN
+    aciyordu -> 85b'de kapatilan "ayni ekran iki kez" hatasi BU YOLDAN geri
+    geliyordu. Geri tusu artik "Şimdilik geç" ile AYNI yolu kosar.
+  · **`PermissionsScreen._requestAll` try/catch'siz**: bu ekran `HomeScreen`in
+    TAM SAYFA dali (ustunde Scaffold yok, geri tusu bir yere goturmez). Cagri
+    FIRLARSA `_busy` true takili kalir ve **"Şimdilik geç" DE `_busy`ye
+    bagliydi** -> kullanici uygulamaya **HIC GIREMEZDI**. Kacis yolu artik HER
+    ZAMAN acik. ⚠️ Kardes cagiran ZATEN try/catch ile sariyordu —
+    **ASIMETRININ KENDISI HATAYDI.**
+  · **Elle koordinat "Uygula"siz SESSIZCE ATILIYORDU**: Flutter'da odak kaybi
+    `onSubmitted` TETIKLEMEZ; metin alanlariyla ekran arasindaki TEK kopru
+    dugmeydi. Artik `onChanged` ile tasinir.
+  · **HARITA KAMERASI KONUMU HIC TAKIP ETMIYORDU**: `initialCameraPosition`
+    YALNIZ ilk kurulumda uygulanir, `onMapCreated` verilmemisti ve
+    `scrollGesturesEnabled: false` (liste icinde ZORUNLU) oldugu icin elle
+    tasima yolu da YOKTU -> asagi-cek GPS'i tazelese bile **harita ILK KONUMA
+    CIVILI** kaliyordu (kartlar yeni sehri, harita eski sehri gosterir ve
+    kurtarma yolu YOK). FIX: `_HaritaAlani` **StatefulWidget** + controller +
+    `didUpdateWidget`te `animateCamera`.
+    ⚠️ YAPMA: `onMapCreated`i kaldirma; `initialCameraPosition` TEK BASINA
+       YETERLI DEGILDIR.
+- 📌 **TURU 85c (DUSUK):** adim 2'den geri donup ayni kodla "Doğrula"
+  **deterministik 400** donerdi (`consumeOTP` kodu TUKETIR) ve `catch` dali
+  elindeki GECERLI kayit jetonunu da atardi -> kisa devre · `izinSorulduIsaretle`
+  artik `finally`de · konum alinamayan dalda liste bosaltilmiyordu (kardes dal
+  duzeltilmisti) · her yenilemede kart listesi silinip spinner'a donuyordu
+  (turu 83 sinifi) · `AnnotatedRegion` cikista geri alinmiyordu -> cozum ekrana
+  KOPYALANMADI, uygulama geneli varsayilan `MaterialApp.builder`a kondu
+  (yaprak annotation ezmeye DEVAM eder, cikista otomatik dogru degere doner).
+- 🚫 **TURU 85c — ELENEN 7 IDDIA (bir daha arastirilmasin):** `fireImmediately`
+  serh-govde celiskisi (yon TERS okunmus) · `permissions_asked` okuyucusu yok
+  (bilincli) · pil isteginin ayar ekrani uzerinde acilmasi (sira 85c'de
+  GELMEDI, oncesinde de ayniydi) · `izinBuOturumdaSoruldu` cikista
+  sifirlanmiyor (etkisi yok) · `Isletme.fromJson`daki `?? 0` (nedensel olarak
+  ETKISIZ) · `acildi` yer tutucu dalinda kullanilmiyor (serh BALONU kapsiyor) ·
+  onboarding'de `AlwaysScrollableScrollPhysics` (onayli tasarim degismiyor).
+
+- **ONCEKI (11 Agu 01:21): TEST TURU 84+85 YAYINLANDI** — android
   **31436812796** + ios **31436815156** (**df95e40**), R2 apk=120264179
   (md5 0387a6d4) ipa=31373753 (md5 df8222c7) index=9456 (md5 f6aceead),
   purge OK, **CDN BIREBIR (ucu de)**, indir sayfasi 11 Agu 01:21 (saat 5
