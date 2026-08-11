@@ -8,6 +8,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../chats/anket.dart' show AnketTaslak, anketPaneliAc;
 import '../medya/medya_kapisi.dart';
+import '../medya/konum_servisi.dart';
 import '../medya/medya_servisi.dart';
 import '../medya/ses_notu_kaydedici.dart';
 import 'sosyal_servisi.dart';
@@ -150,6 +151,15 @@ class _GonderiOlusturState extends ConsumerState<GonderiOlustur> {
     setState(() => _yayinAt = secilen);
   }
   bool _yukleniyor = false;
+
+  /// ⚠️⚠️ TURU 90 — GONDERI KONUMU (kullanici emri).
+  ///
+  /// `_konumAd` bos + koordinatlar 0 ise KONUM YOK demektir; sunucu da ayni
+  /// sozlesmeyi kullanir (migration 044 serhi).
+  /// ⚠️ Ad ISTEMCIDE uretilir (cihazin geocoder'i); sunucu DOGRULAMAZ.
+  String _konumAd = '';
+  double _konumEnlem = 0;
+  double _konumBoylam = 0;
   CancelToken? _iptal;
 
   /// ⚠️ KENDI ROUTE'UM. `Navigator.pop()` en usteki route'u kapatir, "beni" degil —
@@ -257,6 +267,67 @@ class _GonderiOlusturState extends ConsumerState<GonderiOlustur> {
   /// Panel SOHBETTEKI ILE AYNI (`anketPaneliAc`): soru + 2..12 secenek +
   /// tek/cok secim. Dogrulama sunucuda `chat.GonderiAnketiYaz` icinde ve
   /// SOHBETLE AYNI sabitlerle yapilir.
+  /// ⚠️⚠️ TURU 90 — KONUM EKLE / KALDIR.
+  ///
+  /// ⚠️ `KonumServisi` TEK KAYNAK (turu 81, sohbette konum paylasimi icin
+  ///    yazildi): izin isteme, servis kapali kontrolu ve hata mesajlari
+  ///    ORADA. Ikinci bir konum yolu yazmak o kapilari ATLARDI.
+  /// ⚠️ Yer adi cozumlenemezse (ag yok / geocoder bulamadi) koordinat YINE DE
+  ///    kaydedilir ve "Konum eklendi" denir — ozellik yarim kalmaz.
+  Future<void> _konumEkle() async {
+    // Zaten eklenmisse: kaldirma secenegi sun.
+    if (_konumAd.isNotEmpty || _konumEnlem != 0 || _konumBoylam != 0) {
+      final kaldir = await showModalBottomSheet<bool>(
+        context: context,
+        showDragHandle: true,
+        builder: (c) => SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(LucideIcons.mapPin, size: 20),
+                title: Text(_konumAd.isEmpty ? 'Konum ekli' : _konumAd),
+                subtitle: const Text('Gönderinde gösterilecek'),
+              ),
+              ListTile(
+                leading: const Icon(LucideIcons.x, size: 20),
+                title: const Text('Konumu kaldır'),
+                onTap: () => Navigator.of(c).pop(true),
+              ),
+            ],
+          ),
+        ),
+      );
+      if (kaldir == true && mounted) {
+        setState(() {
+          _konumAd = '';
+          _konumEnlem = 0;
+          _konumBoylam = 0;
+        });
+      }
+      return;
+    }
+
+    final k = await KonumServisi.konumAl();
+    if (!mounted) return;
+    if (k == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Konum alınamadı — izin verildi mi?')),
+      );
+      return;
+    }
+    final ad = await KonumServisi.yerAdi(k.enlem, k.boylam);
+    if (!mounted) return;
+    setState(() {
+      _konumEnlem = k.enlem;
+      _konumBoylam = k.boylam;
+      _konumAd = ad;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(ad.isEmpty ? 'Konum eklendi' : 'Konum: $ad')),
+    );
+  }
+
   Future<void> _anketEkle() async {
     if (_anket != null) {
       // Zaten anket varsa DEGISTIR (ikinci anket olamaz — `polls.post_id`
@@ -428,6 +499,9 @@ class _GonderiOlusturState extends ConsumerState<GonderiOlustur> {
             yorumKapali: _yorumKapali,
             yayinAt: _yayinAt,
             anket: _anket,
+            konum: _konumAd,
+            enlem: _konumEnlem,
+            boylam: _konumBoylam,
           );
       if (!mounted) return;
       // ⚠️⚠️ TURU 75b (DENETIM BULGUSU — SEVK ENGELIYDI):
@@ -841,14 +915,14 @@ class _GonderiOlusturState extends ConsumerState<GonderiOlustur> {
             ek(LucideIcons.mic, 'Ses', _yukleniyor ? null : _sesEkle),
             ek(LucideIcons.chartNoAxesColumn, 'Anket',
                 _yukleniyor ? null : _anketEkle),
-            // ⚠️ KONUM gonderide HENUZ YOK ve "yakinda" diyor. Ses ve anket
-            //    baglandi cunku ikisinin de SUNUCU KARSILIGI var (ses:
-            //    `media_assets.kind='audio'` · anket: migration 042). Konum
-            //    icin `posts`ta enlem/boylam sutunu YOK — yarim baglamak
-            //    yerine DURUST bilgi veriyoruz (dokuz kez yasanan
-            //    "sutun yok ama arayuz var" hatasinin tersi).
-            ek(LucideIcons.mapPin, 'Konum',
-                _yukleniyor ? null : () => yakinda('Konum')),
+            // ⚠️⚠️ TURU 90 — KONUM ARTIK GERCEK (kullanici emri: 'normal
+            //    paylasimda konum paylasamiyoruz, bunu eklememissin').
+            //    Migration 044 `posts`a konum_ad/enlem/boylam ekledi.
+            ek(
+              LucideIcons.mapPin,
+              _konumAd.isEmpty ? 'Konum' : 'Konum ✓',
+              _yukleniyor ? null : _konumEkle,
+            ),
           ],
         ],
       ),

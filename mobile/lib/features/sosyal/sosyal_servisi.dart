@@ -37,6 +37,10 @@ class SosyalServisi {
     bool yorumKapali = false,
     DateTime? yayinAt,
     AnketTaslak? anket,
+    // TURU 90 - KONUM. Bos ad + 0 koordinat = KONUM YOK.
+    String konum = '',
+    double enlem = 0,
+    double boylam = 0,
   }) async {
     final r = await _api.post(
       '/posts',
@@ -60,6 +64,10 @@ class SosyalServisi {
         // ⚠️ `toUtc()`: sunucu RFC3339 bekliyor ve saat dilimi belirsizligi
         //    "1 saat once/sonra yayinlandi" hatalarinin klasik kaynagidir.
         if (yayinAt != null) 'yayin_at': yayinAt.toUtc().toIso8601String(),
+        // TURU 90 - KONUM (kullanici emri). Sunucu sozlesmesi: 0,0 = yok.
+        'konum': konum,
+        'enlem': enlem,
+        'boylam': boylam,
       },
     );
     return r.data['id'] as String;
@@ -278,6 +286,9 @@ class Gonderi {
     required this.mediaKinds,
     this.mediaBoyut = const [],
     required this.duzenlendi,
+    this.konum = '',
+    this.enlem = 0,
+    this.boylam = 0,
     required this.begeniSayisi,
     required this.yorumSayisi,
     required this.goruntulenme,
@@ -322,6 +333,13 @@ class Gonderi {
 
   /// Sunucudaki `duzenlendi_at != NULL`. Kart "· düzenlendi" etiketi cizer.
   bool duzenlendi;
+
+  /// TURU 90 - GONDERI KONUMU. Bos ad + 0 koordinat = KONUM YOK.
+  final String konum;
+  final double enlem;
+  final double boylam;
+
+  bool get konumVar => enlem != 0 || boylam != 0;
   int begeniSayisi;
   int yorumSayisi;
 
@@ -407,6 +425,9 @@ class Gonderi {
         .map((e) => e.toString())
         .toList(),
     duzenlendi: m['duzenlendi'] == true,
+    konum: (m['konum'] ?? '').toString(),
+    enlem: (m['enlem'] as num?)?.toDouble() ?? 0,
+    boylam: (m['boylam'] as num?)?.toDouble() ?? 0,
     begeniSayisi: (m['begeni_sayisi'] as num?)?.toInt() ?? 0,
     yorumSayisi: (m['yorum_sayisi'] as num?)?.toInt() ?? 0,
     goruntulenme: (m['goruntulenme'] as num?)?.toInt() ?? 0,

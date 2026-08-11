@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:geocoding/geocoding.dart' show Geocoding;
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -28,6 +29,37 @@ import '../../router.dart' show rootMessengerKey;
 ///    ihtimalle KOORDINAT olarak okunur — bozuk degil, sadece sade.
 /// ⚠️ YAPMA: bu alani JSON'a cevirme.
 class KonumServisi {
+  /// TURU 90 - KOORDINATTAN OKUNUR YER ADI (ters geocoding).
+  ///
+  /// Gonderide gosterilecek metni uretir (or. "Gebze, Kocaeli").
+  ///
+  /// ⚠️ ISLETIM SISTEMININ geocoder'i kullanilir (Android Geocoder, iOS
+  ///    CLGeocoder) — API ANAHTARI GEREKTIRMEZ. Google Geocoding API ayri
+  ///    bir uc ve ayri faturalandirma isterdi.
+  /// ⚠️ geocoding 5.x API'si SINIF TABANLI: ust duzey
+  ///    `placemarkFromCoordinates(...)` fonksiyonu KALDIRILDI (turu 87
+  ///    dersi — o surumde `locationFromAddress` de ayni sekilde tasindi).
+  /// ⚠️ BASARISIZLIK HATA DEGIL: ag yoksa ya da adres bulunamazsa BOS DIZE
+  ///    doner ve cagiran taraf koordinati YINE DE kaydeder — ozellik yarim
+  ///    kalmaz.
+  static Future<String> yerAdi(double enlem, double boylam) async {
+    try {
+      final l = await Geocoding()
+          .placemarkFromCoordinates(enlem, boylam)
+          .timeout(const Duration(seconds: 8));
+      if (l.isEmpty) return '';
+      final p = l.first;
+      // Ilce + il: kullanicinin tanidigi olcek budur.
+      final parcalar = <String>[
+        if ((p.subAdministrativeArea ?? '').isNotEmpty) p.subAdministrativeArea!,
+        if ((p.administrativeArea ?? '').isNotEmpty) p.administrativeArea!,
+      ];
+      return parcalar.join(', ');
+    } catch (_) {
+      return '';
+    }
+  }
+
   /// Konumu bir kez okur. Basarisizsa `null` doner ve KULLANICIYA SOYLER
   /// (sessizce basarisiz olmaz — bu projede "gonderdim sandim" defalarca yasandi).
   static Future<({double enlem, double boylam})?> konumAl() async {

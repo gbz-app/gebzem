@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../home/home_screen.dart' show aktifSekme;
+import '../medya/konum_servisi.dart';
 import '../medya/medya_gorsel.dart';
 import '../medya/ses_notu_balon.dart';
 import '../chats/anket.dart';
@@ -531,6 +532,34 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
               ],
             ),
           ),
+          // ⚠️⚠️ TURU 90 — KONUM (kullanici emri: "normal paylasimda konum
+          //    paylasamiyoruz"). YALNIZ konum varsa cizilir; yoksa `subtitle`
+          //    null kalir ve `ListTile` TEK SATIRA duser (asagidaki serh).
+          // ⚠️ Dokununca cihazin KENDI harita uygulamasi acilir
+          //    (`KonumServisi.haritadaAc` — turu 81 karari: gomulu haritada
+          //    navigasyon yoktur).
+          subtitle: g.konumVar
+              ? GestureDetector(
+                  onTap: () => KonumServisi.haritadaAc(g.enlem, g.boylam),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(LucideIcons.mapPin, size: 12,
+                          color: Color(0xFF3AA9FF)),
+                      const SizedBox(width: 3),
+                      Flexible(
+                        child: Text(
+                          g.konum.isEmpty ? 'Konum' : g.konum,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              fontSize: 12, color: Color(0xFF3AA9FF)),
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : null,
           // ⚠️ `subtitle` YOK -> ListTile tek satira duser, baslik kisalir.
           dense: true,
           visualDensity: VisualDensity.compact,

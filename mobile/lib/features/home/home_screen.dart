@@ -18,6 +18,7 @@ import '../rooms/rooms_tab.dart';
 import '../sosyal/akis_ekrani.dart';
 import '../sosyal/bildirimler_sayfasi.dart';
 import '../sosyal/kesfet_ekrani.dart';
+import '../sosyal/olustur_menusu.dart';
 import '../sosyal/profil_sayfasi.dart';
 import '../sosyal/reels_sayfasi.dart';
 import '../sosyal/takip_listesi.dart';
@@ -124,6 +125,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           // ⚠️ YAPMA: buraya tekrar "+" ekleme; yeni bir sohbet eylemi
           //    gerekiyorsa `_yeniSecenek` sheet'ine madde ekle.
           : AppBar(title: Text(_titles[_index])),
+      // TURU 90 - SAG ALT OLUSTUR DUGMESI (kullanici emri).
+      // YALNIZ ANASAYFADA: Mesaj sekmesinin KENDI FAB'i var (turu 76b
+      // "TEK GIRIS FAB") ve iki FAB ust uste binerdi.
+      floatingActionButton: _index == _akis ? const OlusturFab() : null,
       body: IndexedStack(
         index: _index,
         children: [
