@@ -11,6 +11,22 @@ jobs:
 
       - uses: subosito/flutter-action@v2
         with:
+          # ⚠️⚠️⚠️ SURUM **SABIT** — 'channel: stable' TEK BASINA YETMEZ.
+          #
+          #	CI bir gun once BASARILI derledi, ertesi kosuda AYNI COMMIT
+          #	**PATLADI**: hata bizim kodda degil, `livekit_client` paketinin
+          #	KENDI kaynagindaydi ('VideoPublishOptions?' uzerinde null
+          #	guvenligi). Sebep: `stable` kanali yukaridan YENI bir Flutter
+          #	getirdi ve derleyici sikilasti; paket o surumle uyumsuzdu.
+          #	Yani build'in basarisi UPSTREAM'IN TAKVIMINE bagliydi.
+          #
+          # ⚠️ Yerelde calisan surum burada da kullanilir; `pubspec.lock`
+          #    bagimliliklari sabitliyor ama SDK'yi sabitleyen tek sey budur.
+          # ⚠️ YAPMA: bu satiri silip yalniz `channel: stable` birakma.
+          # ⚠️ Surumu yukseltirken ONCE yerelde `flutter build apk --release`
+          #    ile dogrula (emulatordeki debug derlemesi YETMEZ: bu hata
+          #    yalnizca release/AOT yolunda cikti).
+          flutter-version: "3.44.2"
           channel: stable
 
       - name: Imzalama araclari
