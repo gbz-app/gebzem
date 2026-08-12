@@ -29,6 +29,17 @@ import 'yakinimda_ekrani.dart';
 ///    guncellenip otekiler unutuldugunda hizalama SESSIZCE bozulur.
 const double kYanBosluk = 16;
 
+/// ⚠️⚠️ **EKRANDAKI TEK GRI.** Slider zemini, kapak yer tutucusu ve 60x60
+///    kartlar AYNI tonu kullanir (kullanici emri: *"kucuk kartlarda ayni
+///    grilikte olsun"*).
+/// ⚠️ Uc yerde ayri ayri yazilsaydi biri guncellenip otekiler unutulur ve
+///    ekranda IKI-UC farkli gri olusurdu — bu ekranda zaten yasandi.
+/// ⚠️ YAPMA: bu ekranda elle `0xFFE7E7EA` gibi bir gri yazma.
+Color kYuzeyGri(BuildContext c) =>
+    Theme.of(c).brightness == Brightness.dark
+        ? const Color(0xFF2A2A2E)
+        : const Color(0xFFE7E7EA);
+
 /// [kategori] bos ise TUM isletmeler; doluysa o kategori.
 class IsletmeListesiEkrani extends ConsumerStatefulWidget {
   const IsletmeListesiEkrani({super.key, this.kategori = '', this.baslik = ''});
@@ -451,7 +462,8 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontSize: 16,
+                    // ⚠️ Kullanici emri: 16 -> **18**.
+                    fontSize: 18,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -501,25 +513,46 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
       onChanged: _aramaDegisti,
       decoration: InputDecoration(
         hintText: 'İşletme ara',
-        prefixIcon: Icon(
-          LucideIcons.search,
-          size: 21,
-          color: ikonRenk,
-          shadows: [
-            for (final d in const [
-              Offset(0.4, 0),
-              Offset(-0.4, 0),
-              Offset(0, 0.4),
-              Offset(0, -0.4),
-            ])
-              Shadow(color: ikonRenk, offset: d),
-          ],
+        // ⚠️⚠️ MESAFELER **ACIKCA** VERILIR (kullanici emri: *"arama ikonu
+        //	input soluna dayanmis, bu mesafeleri lutfen mimarisini iyi
+        //	ayarla"*).
+        //
+        //	ONCEKI HAL BIR HACKTI: `prefixIconConstraints` ile 38x38'lik bir
+        //	kutu zorlaniyor, ikon O KUTUNUN ORTASINA dusuyordu. Kutunun sol
+        //	kenari inputun sol kenariyla CAKISTIGI icin ikon kenara YAPISIK
+        //	gorunuyordu ve aradaki bosluk DOLAYLI (kutu genisligi eksi ikon
+        //	genisliginin yarisi) belirleniyordu — yani sayilar ekranda ne
+        //	oldugunu ANLATMIYORDU.
+        //
+        //	YENI: kisit SIFIRLANIR, bosluklar ikonun KENDI `Padding`inde
+        //	yazilir. Artik sayilar birebir ekranda gordugun mesafedir:
+        //	  · sol kenar -> ikon      : **16**
+        //	  · ikon -> "İşletme ara"  : **10**
+        //	  · dikey (yukseklik ~48)  : **14**
+        // ⚠️ `contentPadding` yatayda **0**: yatay bosluklarin TEK sahibi
+        //    ustteki `Padding` olsun; iki yerden beslenirse toplam mesafe
+        //    "neden 24 cikti" sorusuna donusur.
+        prefixIcon: Padding(
+          padding: const EdgeInsets.only(left: 16, right: 10),
+          child: Icon(
+            LucideIcons.search,
+            size: 21,
+            color: ikonRenk,
+            shadows: [
+              for (final d in const [
+                Offset(0.4, 0),
+                Offset(-0.4, 0),
+                Offset(0, 0.4),
+                Offset(0, -0.4),
+              ])
+                Shadow(color: ikonRenk, offset: d),
+            ],
+          ),
         ),
-        prefixIconConstraints:
-            const BoxConstraints(minWidth: 38, minHeight: 38),
+        prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
         isDense: true,
         contentPadding:
-            const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+            const EdgeInsets.only(right: 16, top: 14, bottom: 14),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(24),
           borderSide: BorderSide(color: bos),
@@ -599,6 +632,11 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                       height: 60,
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(16),
+                        // ⚠️ KENARLIK YOK (kullanici emri: *"kucuk kartlarda
+                        //    neden border var, onu da kaldir"*). Secili
+                        //    kartta da kenarlik cizilmez — secim ZEMIN
+                        //    RENGIYLE ve ad kalinligiyla belli olur.
+                        // ⚠️ Ton `kYuzeyGri` — kapak ve slider ile AYNI.
                         // ⚠️⚠️ TURU 93b — ALFA KALDIRILDI + KENARLIK EKLENDI
                         //	(denetim: kontrast **~1.06** olculdu).
                         //
@@ -615,13 +653,7 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                         //    (`_notrKenar`) — yeni bir sabit renk eklemez.
                         color: secili
                             ? renk.withValues(alpha: 0.16)
-                            : Theme.of(context)
-                                .colorScheme
-                                .surfaceContainerHighest,
-                        border: Border.all(
-                          color: secili ? renk : _notrKenar,
-                          width: secili ? 1.6 : 1,
-                        ),
+                            : kYuzeyGri(context),
                       ),
                       // ⚠️⚠️ TURU 93 — KUTUNUN ICI **BOS** (kullanici emri:
                       //    *"kart icinde yazi olmasin, kartlarin icindeki
@@ -1018,12 +1050,15 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
       ));
     }
 
-    // ── KATEGORİ · İLÇE ──
-    final yer = [
-      isletmeKategoriAdi(o.kategori),
-      if (o.ilce.isNotEmpty || o.il.isNotEmpty)
-        [o.ilce, o.il].where((s) => s.isNotEmpty).join(', '),
-    ].where((s) => s.isNotEmpty).join(' · ');
+    // ── KONUM ──
+    // ⚠️ TEK SATIRDA KALSIN diye YALNIZ ILCE. Referans ekranda meta satiri
+    //    TEK SATIR; kategori adini da eklemek 360dp'de alta sardiriyor ve
+    //    satir sonunda SARKAN bir "·" birakiyordu.
+    // ⚠️ Kategori zaten EKRANIN BASLIGI ("Yemek") — tekrar yazmak bilgi
+    //    tasimiyor. Kategorisiz genel listede ilce yine yeterli ayirt edici.
+    final yer = o.ilce.isNotEmpty
+        ? o.ilce
+        : (o.il.isNotEmpty ? o.il : isletmeKategoriAdi(o.kategori));
     if (yer.isNotEmpty) {
       parcalar.add(Text(yer, style: TextStyle(fontSize: 13, color: soluk)));
     }
@@ -1098,21 +1133,13 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
   ///    iki farkli gri olmasin.
   /// ⚠️ Bas harf KALDI ama artik SOLUK: kartin bos degil "gorseli yok"
   ///    oldugunu gosterir; tamamen bos bir kutu "yukleniyor" gibi durur.
-  Widget _kapakYerTutucu(IsletmeOzet o) {
-    final koyu = Theme.of(context).brightness == Brightness.dark;
-    return ColoredBox(
-      color: koyu ? const Color(0xFF2A2A2E) : const Color(0xFFE7E7EA),
-      child: Center(
-        child: Text(
-          o.ad.isEmpty ? '?' : o.ad.characters.first.toUpperCase(),
-          style: TextStyle(
-            fontSize: 34,
-            fontWeight: FontWeight.w800,
-            color: (koyu ? Colors.white : Colors.black).withValues(alpha: 0.18),
-          ),
-        ),
-      ),
-    );
-  }
+  /// Kapak yoksa: **DUZ HAFIF GRI**, icinde hicbir sey yok.
+  ///
+  /// ⚠️ Kullanici emri: *"kartlarin neden icine harf koyuyorsun, kaldir"*.
+  ///    Onceden ortada bas harf ciziliyordu; kullanici bunu IKI KEZ
+  ///    kaldirtti (once 60x60 kartlardan, sonra buradan).
+  /// ⚠️ Ton `kYuzeyGri` — slider ve 60x60 kartlarla AYNI.
+  Widget _kapakYerTutucu(IsletmeOzet o) => ColoredBox(color: kYuzeyGri(context));
+
 
 }

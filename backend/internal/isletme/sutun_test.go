@@ -333,6 +333,9 @@ func TestListeSelectScanVeYanitHizali(t *testing.T) {
 		"i.il":                    "il2",
 		"u.onayli":                "dogru",
 		"u.kapak_media_id":        "kapak",
+		// ⚠️ Degisken adinda "dk" eki YOK; sutunda VAR. Bilincli sapma.
+		"i.teslimat_dk_min": "teslimatMin",
+		"i.teslimat_dk_max": "teslimatMax",
 	}
 	for i, s := range sutunlar {
 		bekle, ok := scanIstisna[s]
@@ -350,7 +353,18 @@ func TestListeSelectScanVeYanitHizali(t *testing.T) {
 				bekle = bekle[k+1:]
 			}
 		}
-		if hedefler[i] != bekle {
+		// ⚠️ camelCase Scan degiskeni (`minTutar`) ile snake_case sutun
+		//    (`min_tutar_kurus`) esittir: karsilastirma YILAN-HARFE cevrilir.
+		//    Aksi halde her yeni sutun icin `scanIstisna`ya elle satir
+		//    yazmak gerekirdi ve unutuldugunda test YANLIS ALARM verirdi.
+		// ⚠️ Onek eslesmesi (`min_tutar` <- `min_tutar_kurus`) KABUL EDILIR:
+		//    degisken adi genelde birim ekini tasimaz.
+		hedefYilan := yilanla(hedefler[i])
+		uyar := hedefler[i] != bekle &&
+			hedefYilan != bekle &&
+			!strings.HasPrefix(bekle, hedefYilan+"_") &&
+			!strings.HasPrefix(hedefYilan, bekle+"_")
+		if uyar {
 			t.Errorf(
 				"SIRA BOZUK — %d. sutun `%s` ama %d. Scan hedefi `%s` "+
 					"(beklenen `%s`).\nAyni tipteki iki sutun yer degistirirse "+

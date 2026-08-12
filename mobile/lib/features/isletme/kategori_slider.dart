@@ -23,10 +23,10 @@ class KategoriSlider extends StatefulWidget {
 
   /// ⚠️ Kullanicinin verdigi olcu. Sabit tutulur: `MediaQuery` ile oranlamak
   ///    kucuk telefonda metni sikistirir, buyukte gereksiz bosluk birakir.
-  /// ⚠️ 350 -> **250** (kullanici emri: *"slider yuksekligini 100px azalt"*).
-  ///    Emulatorde bakildiginda 350px yalnizca iki satir metin icin COK BOS
-  ///    duruyordu; 250 ayni metni tasiyor, liste 100px daha erken basliyor.
-  static const yukseklik = 250.0;
+  /// ⚠️ 350 -> 250 -> **200** (kullanici emri, iki adimda). Slayt metinleri
+  ///    kaldirildiktan sonra 250 de fazlaydi; liste artik 150px daha erken
+  ///    basliyor.
+  static const yukseklik = 200.0;
 
   /// ⚠️⚠️ TURU 93 — GERI/HARITA IKONLARI **BURADAN CIKARILDI**.
   ///
@@ -102,6 +102,7 @@ class _KategoriSliderState extends State<KategoriSlider> {
     // ⚠️ TURU 93 — GRI TONU **BIR KAT KOYULASTIRILDI** (kullanici emri:
     //    *"slider gri tonu 1 kat daha artik"*). Onceki `0xFFF1F1F3` beyaz
     //    zeminde neredeyse fark edilmiyordu.
+    // ⚠️ TEK KAYNAK: kapak yer tutucusu ve 60x60 kartlarla AYNI gri.
     final zemin = koyu ? const Color(0xFF2A2A2E) : const Color(0xFFE7E7EA);
 
     return SizedBox(
@@ -146,17 +147,21 @@ class _KategoriSliderState extends State<KategoriSlider> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
+                    // ⚠️ Kullanici emri: *"gecis cubuklari daire yerine
+                    //    **cizgi** seklinde"* -> 1px denendi, **2px** secildi.
+                    // ⚠️ `borderRadius` YOK: yaricap verilse 1px yukseklikte
+                    //    uclar yuvarlanir ve cizgi yine "hap" gibi gorunur.
+                    // ⚠️ Dokunma alani DEGIL — bunlar `IgnorePointer` icinde
+                    //    (kullanici "BUTON YOK" demisti), o yuzden 1px
+                    //    yukseklik erisilebilirlik sorunu yaratmaz.
                     for (var i = 0; i < widget.slaytlar.length; i++)
                       AnimatedContainer(
                         duration: const Duration(milliseconds: 250),
                         margin: const EdgeInsets.symmetric(horizontal: 3),
-                        width: i == _aktif ? 18 : 6,
-                        height: 6,
-                        decoration: BoxDecoration(
-                          color: (koyu ? Colors.white : Colors.black)
-                              .withValues(alpha: i == _aktif ? 0.55 : 0.18),
-                          borderRadius: BorderRadius.circular(3),
-                        ),
+                        width: i == _aktif ? 26 : 14,
+                        height: 2,
+                        color: (koyu ? Colors.white : Colors.black)
+                            .withValues(alpha: i == _aktif ? 0.55 : 0.18),
                       ),
                   ],
                 ),
@@ -167,45 +172,17 @@ class _KategoriSliderState extends State<KategoriSlider> {
     );
   }
 
-  Widget _slayt(Slayt s) => Padding(
-        // ⚠️ Alt dolgu nokta gostergesine yer birakir.
-        padding: const EdgeInsets.fromLTRB(24, 0, 24, 34),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              s.baslik,
-              // ⚠️ `maxLines` + ellipsis: metin SUNUCUDAN geliyor ve uzun bir
-              //    cumle yazilirsa 350px'lik kutuyu TASIRMAMALI.
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 26,
-                fontWeight: FontWeight.w800,
-                height: 1.15,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              s.alt,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                // ⚠️ TURU 93 — 14.5 -> 16 (kullanici emri: "baslik altindaki
-                //    aciklama 1 tik daha buyuk").
-                fontSize: 16,
-                height: 1.3,
-                color: Theme.of(context)
-                    .textTheme
-                    .bodyMedium
-                    ?.color
-                    ?.withValues(alpha: 0.62),
-              ),
-            ),
-          ],
-        ),
-      );
+  /// ⚠️⚠️ SLAYT **BOS** — metinler kaldirildi (kullanici emri: *"sliderdaki
+  ///	yazilari kaldir"*).
+  ///
+  ///	Slayt VERISI (`baslik`/`alt`) sunucudan GELMEYE DEVAM EDIYOR ve
+  ///	burada BILEREK cizilmiyor. Iki sebeple:
+  ///	  · slayt SAYISI hala sayfalayiciyi ve gecis cubuklarini besliyor;
+  ///	  · yarin bu alana gorsel/kampanya konuldugunda sunucu sozlesmesi
+  ///	    DEGISMEYECEK (turu 77 kurali: liste sunucudan gelir).
+  /// ⚠️ YAPMA: veriyi `Kesif` ucundan silme — sildigin an slayt sayisi 0
+  ///    olur, `PageView` tek sayfaya duser ve gecis cubuklari KAYBOLUR.
+  Widget _slayt(Slayt s) => const SizedBox.expand();
 
   // ⚠️ TURU 93 — `_yuvarlakIkon` SILINDI: ikonlar header'a tasindi ve
   //    kullanici "arkasindaki DAIRE KALDIR" dedi. Olu birakmak, ileride

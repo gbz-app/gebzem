@@ -104,6 +104,17 @@ type isletmeReq struct {
 	//    bu yasandi ve sistemde hicbir koordinat birikemedi.
 	Enlem  *float64 `json:"enlem"`
 	Boylam *float64 `json:"boylam"`
+
+	// ⚠️⚠️ TURU 94 — VITRIN ALANLARI (migration 046). Hepsi **ISARETCI**:
+	//	"gonderilmedi" ile "0" AYRI seydir. Duz tip olsaydi alani HIC
+	//	gondermeyen bir istemci (or. eski surum ya da yalniz adres guncelleyen
+	//	ekran) puani/min tutari SIFIRA EZERDI — bu projede koordinatlarda
+	//	TAM OLARAK bu yasandi (turu 78/85b).
+	MinTutarKurus *int64           `json:"min_tutar_kurus"`
+	TeslimatMin   *int             `json:"teslimat_dk_min"`
+	TeslimatMax   *int             `json:"teslimat_dk_max"`
+	Puan          *float64         `json:"puan"`
+	Kampanyalar   json.RawMessage  `json:"kampanyalar"`
 }
 
 func kisalt(s string, n int) string {
@@ -216,6 +227,46 @@ func (h *Handler) Kaydet(w http.ResponseWriter, r *http.Request) {
 		req.Boylam = nil
 	}
 
+	// ⚠️⚠️ VITRIN ALANLARI: bozuk deger **MEVCUDU KORUR** (nil), sifirlamaz —
+	//	koordinatlarda ogrenilen ders. DB'de CHECK de var (046); buradaki
+	//	kapi kullaniciya 500 yerine SESSIZ YOK SAYMA veriyor cunku bu alanlar
+	//	IKINCIL (adres kaydini bozuk bir puan yuzunden reddetmek yanlis olur).
+	if req.Puan != nil && (*req.Puan < 0 || *req.Puan > 5 || *req.Puan != *req.Puan) {
+		req.Puan = nil
+	}
+	if req.MinTutarKurus != nil && *req.MinTutarKurus < 0 {
+		req.MinTutarKurus = nil
+	}
+	// ⚠️ Teslimat araligi IKISI BIRDEN gecerli olmali; yalniz biri gelirse
+	//    kart "15- dk" gibi yarim bir metin cizerdi.
+	if req.TeslimatMin != nil && req.TeslimatMax != nil {
+		if *req.TeslimatMin <= 0 || *req.TeslimatMax < *req.TeslimatMin ||
+			*req.TeslimatMax > 600 {
+			req.TeslimatMin, req.TeslimatMax = nil, nil
+		}
+	} else {
+		req.TeslimatMin, req.TeslimatMax = nil, nil
+	}
+	// ⚠️ Kampanya: **DIZE DIZISI** ve tavanli. Bayt tavani ZORUNLU —
+	//    `len(dizi)` eleman sayisidir, tek elemanli devasa bir dizi gecerdi
+	//    (turu 77b `calisma` dersi).
+	var kampanyalar []byte
+	if len(req.Kampanyalar) > 0 && len(req.Kampanyalar) <= 2<<10 {
+		var deneme []string
+		if json.Unmarshal(req.Kampanyalar, &deneme) == nil && len(deneme) <= 4 {
+			temiz := make([]string, 0, len(deneme))
+			for _, k := range deneme {
+				k = kisalt(strings.TrimSpace(k), 40)
+				if k != "" {
+					temiz = append(temiz, k)
+				}
+			}
+			if b, e := json.Marshal(temiz); e == nil {
+				kampanyalar = b
+			}
+		}
+	}
+
 	tx, err := h.db.Begin(r.Context())
 	if err != nil {
 		hata(w, 500, "kaydedilemedi")
@@ -233,11 +284,13 @@ func (h *Handler) Kaydet(w http.ResponseWriter, r *http.Request) {
 	}
 	if _, err := tx.Exec(r.Context(), `
 		INSERT INTO isletmeler
-		  (user_id, kategori, adres, il, ilce, telefon, web, calisma, enlem, boylam)
+		  (user_id, kategori, adres, il, ilce, telefon, web, calisma, enlem, boylam,
+		   min_tutar_kurus, teslimat_dk_min, teslimat_dk_max, puan, kampanyalar)
 		-- TURU 85 - TIP DONUSUMU ZORUNLU (ayrinti: fonksiyon ustundeki serh).
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,
 		        COALESCE($9, 0::double precision),
-		        COALESCE($10, 0::double precision))
+		        COALESCE($10, 0::double precision),
+		        $11,$12,$13,$14, COALESCE($15::jsonb, '[]'::jsonb))
 		ON CONFLICT (user_id) DO UPDATE SET
 		  kategori=EXCLUDED.kategori, adres=EXCLUDED.adres, il=EXCLUDED.il,
 		  ilce=EXCLUDED.ilce, telefon=EXCLUDED.telefon, web=EXCLUDED.web,
@@ -247,9 +300,19 @@ func (h *Handler) Kaydet(w http.ResponseWriter, r *http.Request) {
 		  -- Gerekce fonksiyon ustundeki serhte (EXCLUDED dali OLU KODDU).
 		  enlem  = COALESCE($9::double precision,  isletmeler.enlem),
 		  boylam = COALESCE($10::double precision, isletmeler.boylam),
+		  -- ⚠️ HAM PARAMETRE, EXCLUDED DEGIL: EXCLUDED degeri
+		  --    VALUES'taki COALESCE'in SONUCUDUR ve "gonderilmedi" bilgisi
+		  --    orada ZATEN KAYBOLUR (turu 80b/85b'de IKI KEZ sahaya cikti).
+		  min_tutar_kurus = COALESCE($11::bigint,  isletmeler.min_tutar_kurus),
+		  teslimat_dk_min = COALESCE($12::integer, isletmeler.teslimat_dk_min),
+		  teslimat_dk_max = COALESCE($13::integer, isletmeler.teslimat_dk_max),
+		  puan            = COALESCE($14::numeric, isletmeler.puan),
+		  kampanyalar     = COALESCE($15::jsonb,   isletmeler.kampanyalar),
 		  updated_at=now()`,
 		me, req.Kategori, req.Adres, req.Il, req.Ilce, req.Telefon, req.Web,
-		calisma, req.Enlem, req.Boylam); err != nil {
+		calisma, req.Enlem, req.Boylam,
+		req.MinTutarKurus, req.TeslimatMin, req.TeslimatMax, req.Puan,
+		kampanyalar); err != nil {
 		log.Printf("isletme kaydet: %v", err)
 		hata(w, 500, "kaydedilemedi")
 		return
@@ -495,7 +558,9 @@ func (h *Handler) Liste(w http.ResponseWriter, r *http.Request) {
 		         WHERE p.isletme_id = u.id AND p.durum = 'yayinda'
 		           AND p.fiyat_kurus > 0),
 		       (SELECT count(*) FROM isletme_urunleri p
-		         WHERE p.isletme_id = u.id AND p.durum <> 'kaldirildi')
+		         WHERE p.isletme_id = u.id AND p.durum <> 'kaldirildi'),
+		       i.min_tutar_kurus, i.teslimat_dk_min, i.teslimat_dk_max,
+		       i.puan, i.puan_sayisi, i.kampanyalar
 		  FROM isletmeler i JOIN users u ON u.id = i.user_id
 		 WHERE u.hesap_turu='isletme'
 		   AND ($2 = '' OR i.kategori = $2)
@@ -531,9 +596,16 @@ func (h *Handler) Liste(w http.ResponseWriter, r *http.Request) {
 		var calisma []byte
 		var minFiyat *int64
 		var urunSayisi int
+		var minTutar *int64
+		var teslimatMin, teslimatMax *int
+		var puan *float64
+		var puanSayisi int
+		var kampanyalar []byte
 		if e := rows.Scan(&id, &ad, &kullanici, &avatar, &medya,
 			&kat, &il2, &ilce, &adres, &dogru, &kapak,
-			&calisma, &minFiyat, &urunSayisi); e != nil {
+			&calisma, &minFiyat, &urunSayisi,
+			&minTutar, &teslimatMin, &teslimatMax,
+			&puan, &puanSayisi, &kampanyalar); e != nil {
 			// ⚠️ TURU 93b — HATA ARTIK LOGLANIYOR. `continue` KORUNUR (tek
 			//    bozuk satir tum rehberi oldurmesin) ama sessiz kalirsa
 			//    SELECT/Scan sirasi bozuldugunda rehber HICBIR IZ BIRAKMADAN
@@ -550,6 +622,12 @@ func (h *Handler) Liste(w http.ResponseWriter, r *http.Request) {
 			"calisma": json.RawMessage(calisma),
 			"min_fiyat_kurus": minFiyat,
 			"urun_sayisi": urunSayisi,
+			"min_tutar_kurus": minTutar,
+			"teslimat_dk_min": teslimatMin,
+			"teslimat_dk_max": teslimatMax,
+			"puan": puan,
+			"puan_sayisi": puanSayisi,
+			"kampanyalar": json.RawMessage(kampanyalar),
 		})
 	}
 	// ⚠️ TURU 93b — `rows.Err()` OKUNMUYORDU. Dongu ag/sunucu hatasiyla
