@@ -251,26 +251,73 @@ func TestListeSelectScanVeYanitHizali(t *testing.T) {
 	}
 	sutunlar = append(sutunlar, strings.TrimSpace(ham[son:]))
 
-	scan := regexp.MustCompile(`(?s)rows\.Scan\((.*?)\)\s*!=\s*nil`).
+	// ⚠️ Desen HEM `rows.Scan(...) != nil` HEM `if e := rows.Scan(...); e != nil`
+	//    bicimini yakalar. Turu 93b'de hata loglanmak icin ikinci bicime
+	//    gecildi ve dar desen ESLESMEYI KAYBETTI — ama test SESSIZCE
+	//    GECMEDI, `t.Fatal` ile DURDU. Ayristiramadiginda GECEN bir muhafiz,
+	//    olmayan bir muhafizdan KOTUDUR (yanlis guven verir).
+	scan := regexp.MustCompile(`(?s)rows\.Scan\((.*?)\)\s*;?\s*e?\s*!=\s*nil`).
 		FindStringSubmatch(govde)
 	if scan == nil {
-		t.Fatal("Liste icinde rows.Scan(...) != nil bulunamadi")
+		t.Fatal("Liste icinde rows.Scan(...) bulunamadi — yazim degistiyse " +
+			"BU DESENI DE guncelle (sessizce gecmesindense DURMASI dogrudur)")
 	}
-	hedefSayisi := 0
+	var hedefler []string
 	for _, p := range strings.Split(scan[1], ",") {
-		if strings.TrimSpace(p) != "" {
-			hedefSayisi++
+		p = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(p), "&"))
+		if p != "" {
+			hedefler = append(hedefler, p)
 		}
 	}
-	if len(sutunlar) != hedefSayisi {
+	if len(sutunlar) != len(hedefler) {
 		t.Fatalf(
 			"SELECT %d sutun donduruyor ama Scan %d alan bekliyor — "+
 				"HER SATIR SESSIZCE ATLANIR (rehber BOMBOS gorunur).\nSELECT: %v",
-			len(sutunlar), hedefSayisi, sutunlar)
+			len(sutunlar), len(hedefler), sutunlar)
 	}
 	if len(sutunlar) < 9 {
 		t.Fatalf("SELECT beklenenden kisa (%d) — ayristirma bozulmus olabilir",
 			len(sutunlar))
+	}
+
+	// ⚠️⚠️⚠️ TURU 93b — **SIRA DA OLCULUR** (denetim: kardes `Detay` testi
+	//	bunu yapiyordu, turu 93'te yazdigim `Liste` testi YAPMIYORDU).
+	//
+	//	SAYI esitligi TEK BASINA YETMEZ: `i.il`, `i.ilce`, `i.adres` UCU DE
+	//	TEXT ve YAN YANA. Yer degistirseler Postgres **HATA VERMEZ** —
+	//	degerler SESSIZCE TAKAS olur ve isletme rehberinde sehir ile ilce
+	//	yer degistirir. Sutun sayisi degismedigi ve anahtarlar yanitta
+	//	durdugu icin eski test **YESIL KALIRDI**.
+	//
+	// ⚠️ `Liste`de degisken adlari sutunlardan FARKLI (`ad` <- `u.name`),
+	//    bu yuzden istisna haritasi ZORUNLU. Uymayanlar burada ACIKCA
+	//    listelenir — bilincli sapmalar gorunur kalir.
+	scanIstisna := map[string]string{
+		"u.name":                  "ad",
+		"COALESCE(u.username,'')": "kullanici",
+		"u.avatar_url":            "avatar",
+		"u.avatar_media_id":       "medya",
+		"i.kategori":              "kat",
+		"i.il":                    "il2",
+		"u.onayli":                "dogru",
+		"u.kapak_media_id":        "kapak",
+	}
+	for i, s := range sutunlar {
+		bekle, ok := scanIstisna[s]
+		if !ok {
+			bekle = s
+			if k := strings.LastIndex(bekle, "."); k >= 0 {
+				bekle = bekle[k+1:]
+			}
+		}
+		if hedefler[i] != bekle {
+			t.Errorf(
+				"SIRA BOZUK — %d. sutun `%s` ama %d. Scan hedefi `%s` "+
+					"(beklenen `%s`).\nAyni tipteki iki sutun yer degistirirse "+
+					"Postgres HATA VERMEZ; degerler SESSIZCE TAKAS olur "+
+					"(or. il <-> ilce).\nBilincli bir sapmaysa `scanIstisna`ya ekle.",
+				i+1, s, i+1, hedefler[i], bekle)
+		}
 	}
 
 	// ── YANIT HARITASI (`out = append(out, map[string]any{...})`) ──

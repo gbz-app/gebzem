@@ -96,13 +96,25 @@ func (h *Handler) diyetErisim(ctx context.Context, me, hedef string) bool {
 	if me == hedef {
 		return true
 	}
+	// ⚠️⚠️⚠️ TURU 93b — OKUMA **TEK YONLU** (denetimde yakalanan gizlilik acigi).
+	//
+	//	Yuklem CIFT YONLUYDU: `(danisan=$1 AND diyetisyen=$2) OR (danisan=$2 AND diyetisyen=$1)`
+	//	Yani aktif bagi olan bir DANISAN, `GET /diyet/kayitlar?user_id=<diyetisyen>`
+	//	ve `GET /diyet/ozet?user_id=<diyetisyen>` cagirip **DIYETISYENIN
+	//	KENDI KILOSUNU, BEL OLCUSUNU VE OGUNLERINI** okuyabiliyordu.
+	//	Bu SAGLIK VERISIDIR ve boyle bir urun karsiligi YOK (istemcide
+	//	danisanin diyetisyenin verisine baktigi HICBIR ekran yok).
+	//
+	// ⚠️ DOGRU YON: diyetisyen DANISANI gorur; danisan diyetisyeni GORMEZ.
+	//    (`me == hedef` kisa devresi zaten ustte — herkes KENDI verisini
+	//    her zaman gorur.)
+	// ⚠️ YAPMA: yuklemi tekrar cift yonlu yapma.
 	var v bool
 	err := h.db.QueryRow(ctx, `
 		SELECT EXISTS(
 			SELECT 1 FROM diyet_bag
 			 WHERE durum='aktif'
-			   AND ((danisan_id=$1 AND diyetisyen_id=$2)
-			     OR (danisan_id=$2 AND diyetisyen_id=$1)))`, hedef, me).Scan(&v)
+			   AND danisan_id=$1 AND diyetisyen_id=$2)`, hedef, me).Scan(&v)
 	if err != nil {
 		log.Printf("diyet erisim: %v", err)
 		return false
@@ -476,18 +488,47 @@ func (h *Handler) KayitGuncelle(w http.ResponseWriter, r *http.Request) {
 	if req.Ad != nil {
 		*req.Ad = kisalt(strings.TrimSpace(*req.Ad), 200)
 	}
+	// ⚠️⚠️⚠️ TURU 93b — KALORI TAVANI **PATCH'TE DE** UYGULANIR (denetim).
+	//
+	//	POST'ta tavan vardi (`> 20000 -> 400`), PATCH'te **HIC YOKTU**.
+	//	`kalori INTEGER` (int4, tavan 2.147.483.647). Uc kayda 2.000.000.000
+	//	yazilirsa `/diyet/ozet` sorgusundaki `SUM(k.kalori)::int` cast'i
+	//	**`integer out of range`** verir -> ozet uc KALICI **500** doner ve
+	//	danisanin "Diyetim" ozeti ile diyetisyenin danisan detayi BIR DAHA
+	//	ACILMAZ. Asimetri (ayni kural bir yolda var, kardes yolda yok) bu
+	//	projenin turu 85c/90b'de adi konmus hata sinifi.
+	if req.Kalori != nil && (*req.Kalori < 0 || *req.Kalori > 20000) {
+		hata(w, 400, "kalori değeri geçersiz")
+		return
+	}
 	var veri any
 	if req.Veri != nil {
 		veri = []byte(*req.Veri)
 	}
 
+	// ⚠️⚠️ TURU 93b — YAZMA KAPISI: `yazan_id` TEK BASINA YETMEZ (denetim).
+	//
+	//	Eski yuklem `(yazan_id=$2 OR user_id=$2)` idi ve `diyetErisim`
+	//	YENIDEN SORULMUYORDU. Danisan bagi `sonlandi` yaptiktan SONRA bile
+	//	eski diyetisyen, yazdigi `liste` kayitlarinin ad/kalori/veri
+	//	alanlarini degistirmeye DEVAM edebiliyordu — yani RIZA GERI
+	//	ALINDIKTAN SONRA danisanin saglik kaydina yazma suruyordu.
+	//	Migration 045'in kendi sozu: *"sonlanmis bag OKUMA YETKISI VERMEZ...
+	//	gecmis korunur, ERISIM KORUNMAZ"*. Yazma icin bu soz tutulmuyordu.
+	// ⚠️ SAHIBI (`user_id=$2`) HER ZAMAN kendi kaydina dokunabilir.
 	tag, err := h.db.Exec(r.Context(), `
 		UPDATE diyet_kayit SET
 		  ad     = COALESCE($3, ad),
 		  kalori = COALESCE($4, kalori),
 		  veri   = COALESCE($5::jsonb, veri),
 		  durum  = COALESCE($6, durum)
-		 WHERE id=$1 AND (yazan_id=$2 OR user_id=$2)`,
+		 WHERE id=$1
+		   AND (user_id=$2
+		     OR (yazan_id=$2 AND EXISTS(
+		           SELECT 1 FROM diyet_bag
+		            WHERE durum='aktif'
+		              AND danisan_id=diyet_kayit.user_id
+		              AND diyetisyen_id=$2)))`,
 		id, me, req.Ad, req.Kalori, veri, req.Durum)
 	if err != nil {
 		log.Printf("diyet guncelle: %v", err)

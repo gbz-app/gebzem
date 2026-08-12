@@ -447,6 +447,46 @@ func (h *Handler) Liste(w http.ResponseWriter, r *http.Request) {
 	ilce := strings.TrimSpace(r.URL.Query().Get("ilce"))
 	yalnizOnayli := r.URL.Query().Get("dogrulandi") == "1"
 
+	// ⚠️⚠️⚠️ TURU 93b — ARAMA YUKLEMI IKI KEZ KIRIKTI (denetimde yakalandi,
+	//	build ONCESI).
+	//
+	//	(1) **ALT KATEGORI KARTLARININ HEPSI BOS SONUC DONDURUYORDU.**
+	//	    Turu 92 kartlari bir ARAMA KISAYOLUDUR: "Saç Kesim" karti
+	//	    `q=saç` gonderir. Ama yuklem YALNIZ `u.name` ve `u.username`e
+	//	    bakiyordu; eslesmesi gereken metin (`Saç kesimi`) isletmenin
+	//	    URUN KATALOGUNDA. Isletme adi "Kuaför Serkan"dir ve icinde
+	//	    "saç" GECMEZ. Tohum verisiyle bire bir sayildi: veri bulunan
+	//	    bes kategoride **25 kartin 25'i de BOS** donuyordu — yani turun
+	//	    MANSET OZELLIGI OLU DOGACAKTI.
+	//	    ⚠️ Muhafiz (`altkategori_test.go`) bunu GOREMEZ: o yalniz
+	//	       `Ara` alaninin DOLU oldugunu olcer. Hicbir seyle eslesmeyen
+	//	       dolu bir `Ara`, kullanici acisindan BOS `Ara` ile BIREBIR
+	//	       AYNIDIR. (turu 89 dersi: muhafizin yesili, olctugu seyin
+	//	       CALISTIGI anlamina gelmez.)
+	//
+	//	(2) **KART + YAZI BIRLIKTE KULLANILINCA LISTE KALICI BOSALIYORDU.**
+	//	    Istemci iki terimi BOSLUKLA BIRLESTIRIP tek `q` gonderiyor;
+	//	    eski yuklem bunu TEK BITISIK ALT DIZE olarak ariyordu:
+	//	    `q="saç serkan"` -> `ILIKE '%saç serkan%'`. "Kuaför Serkan"
+	//	    eslesmez, **"Serkan Saç" bile eslesmez** (sira ters). Kullanici
+	//	    yazdigini silse de kart secili kaldigi icin liste bos kalir ve
+	//	    kurtarma yolunu bulamaz.
+	//
+	//	FIX (TEK YUKLEM, migration YOK): `q` kelimelere bolunur ve
+	//	**HER KELIME** ad / kullanici adi / urun adi / menu bolumunden
+	//	EN AZ BIRINDE gecmelidir (AND semantigi).
+	//	Ifade "eslesmeyen bir kelime YOK" (`NOT EXISTS ... NOT ILIKE`)
+	//	seklinde yazilir; dogrudan "hepsi eslesiyor" demenin SQL'de
+	//	karsiligi budur.
+	//
+	// ⚠️ `EXISTS` alt sorgusu ZORUNLU, `JOIN` DEGIL: JOIN ile uc urunu
+	//    eslesen isletme listede **UC KEZ** cikardi.
+	// ⚠️ `p.durum <> 'kaldirildi'` — kaldirilan urun aramaya girmemeli;
+	//    031'deki kismi indeks de tam bu yuklemle kurulu.
+	// ⚠️ `lower()` KULLANILMADI: `ILIKE` zaten harf duyarsizdir ve
+	//    `lower()` Turkce'de "İ" icin YANLIS sonuc verir (turu 91 dersi).
+	// ⚠️ YAPMA: yuklemi tekrar tek `ILIKE '%'||$4||'%'`e dondurme.
+
 	rows, err := h.db.Query(r.Context(), `
 		SELECT u.id, u.name, COALESCE(u.username,''), u.avatar_url, u.avatar_media_id,
 		       i.kategori, i.il, i.ilce, i.adres, u.onayli, u.kapak_media_id
@@ -454,7 +494,18 @@ func (h *Handler) Liste(w http.ResponseWriter, r *http.Request) {
 		 WHERE u.hesap_turu='isletme'
 		   AND ($2 = '' OR i.kategori = $2)
 		   AND ($3 = '' OR i.il ILIKE $3)
-		   AND ($4 = '' OR u.name ILIKE '%'||$4||'%' OR COALESCE(u.username,'') ILIKE '%'||$4||'%')
+		   AND ($4 = '' OR NOT EXISTS (
+		         SELECT 1
+		           FROM unnest(string_to_array(btrim($4), ' ')) AS t(kelime)
+		          WHERE t.kelime <> ''
+		            AND u.name NOT ILIKE '%'||t.kelime||'%'
+		            AND COALESCE(u.username,'') NOT ILIKE '%'||t.kelime||'%'
+		            AND NOT EXISTS (
+		                  SELECT 1 FROM isletme_urunleri p
+		                   WHERE p.isletme_id = u.id
+		                     AND p.durum <> 'kaldirildi'
+		                     AND (p.ad ILIKE '%'||t.kelime||'%'
+		                       OR p.bolum ILIKE '%'||t.kelime||'%'))))
 		   AND ($5 = '' OR i.ilce ILIKE $5)
 		   AND (NOT $6 OR u.onayli)
 		`+engel.Yuklem("$1", "u.id")+`
@@ -471,8 +522,13 @@ func (h *Handler) Liste(w http.ResponseWriter, r *http.Request) {
 		var id, ad, kullanici, avatar, kat, il2, ilce, adres string
 		var medya, kapak *string
 		var dogru bool
-		if rows.Scan(&id, &ad, &kullanici, &avatar, &medya,
-			&kat, &il2, &ilce, &adres, &dogru, &kapak) != nil {
+		if e := rows.Scan(&id, &ad, &kullanici, &avatar, &medya,
+			&kat, &il2, &ilce, &adres, &dogru, &kapak); e != nil {
+			// ⚠️ TURU 93b — HATA ARTIK LOGLANIYOR. `continue` KORUNUR (tek
+			//    bozuk satir tum rehberi oldurmesin) ama sessiz kalirsa
+			//    SELECT/Scan sirasi bozuldugunda rehber HICBIR IZ BIRAKMADAN
+			//    bosalir (turu 76 "Kaydedilenler BOMBOS" sinifi).
+			log.Printf("isletme liste — satir atlandi: %v", e)
 			continue
 		}
 		out = append(out, map[string]any{
@@ -482,6 +538,14 @@ func (h *Handler) Liste(w http.ResponseWriter, r *http.Request) {
 			"il": il2, "ilce": ilce, "adres": adres, "dogrulandi": dogru,
 			"kapak_media_id": kapak,
 		})
+	}
+	// ⚠️ TURU 93b — `rows.Err()` OKUNMUYORDU. Dongu ag/sunucu hatasiyla
+	//    YARIDA KESILIRSE `Next()` false doner ve kullanici EKSIK bir listeyi
+	//    **200** olarak alir; kesildigini BILEMEZ. Kardes `KisiselYap` bunu
+	//    zaten dogru yapiyordu — ASIMETRININ KENDISI hataydi.
+	if e := rows.Err(); e != nil {
+		log.Printf("isletme liste — satirlar yarida kesildi (%d satir dondu): %v",
+			len(out), e)
 	}
 	yaz(w, 200, map[string]any{"isletmeler": out})
 }

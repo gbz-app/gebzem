@@ -59,6 +59,10 @@ class _KategoriSliderState extends State<KategoriSlider> {
     //    OLMAYAN bir sayfaya gitmeye calisirdi.
     if (eski.slaytlar.length != widget.slaytlar.length) {
       _aktif = 0;
+      // ⚠️ TURU 93b — CONTROLLER DA BASA ALINIR (denetim). Yalniz `_aktif`
+      //    sifirlaniyordu; `PageController` hala ESKI sayfadaydi ve ilk
+      //    timer atisi `animateToPage(1)` ile **GERIYE** kayiyordu.
+      if (_sayfa.hasClients) _sayfa.jumpToPage(0);
       _zamanlayiciKur();
     }
   }

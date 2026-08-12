@@ -570,9 +570,11 @@ class _IlanDetayEkraniState extends ConsumerState<IlanDetayEkrani> {
 
   @override
   Widget build(BuildContext context) {
-    final benimId = (ref.watch(myProfileProvider).valueOrNull?['id'] ?? '')
-        .toString();
+    final profil = ref.watch(myProfileProvider).valueOrNull;
+    final benimId = (profil?['id'] ?? '').toString();
     final benimIlanim = i.sahibiId == benimId;
+    // ⚠️ TURU 93b — teklif dugmesinin kapisi (bkz. asagidaki serh).
+    final isletmeyim = (profil?['hesap_turu'] ?? '') == 'isletme';
     return Scaffold(
       appBar: AppBar(
         title: const Text('İlan'),
@@ -790,15 +792,50 @@ class _IlanDetayEkraniState extends ConsumerState<IlanDetayEkrani> {
                 //    "Gelen teklifler" (sahibi). Sheet teklif modunda
                 //    FIYAT alani gosterir; sunucu fiyatsiz teklifi 400 ile
                 //    reddeder (liste fiyata gore siralanir).
+                // ⚠️⚠️⚠️ TURU 93b — DUGME **ISLETME HESABINA KAPILI**
+                //	(denetimde yakalandi).
+                //
+                //	Kapi yalniz TURE bakiyordu, HESAP TURUNE degil. Kisisel
+                //	hesapli kullanici tam genislikte "Teklif ver" dugmesini
+                //	goruyor, sheet'i aciyor, tutari yaziyor, gonderiyor ->
+                //	sunucu **403** doner ve istemci SABIT bir mesaj basiyordu
+                //	("Başvuru gönderilemedi"). Kullanici sebebini ASLA
+                //	ogrenemiyor ve tekrar tekrar deniyordu.
+                //	⚠️ Sunucu tam bu durum icin ACIKLAYICI bir mesaj yazmis
+                //	   ("teklif vermek için işletme hesabına geçmelisin") ve
+                //	   serhinde *"kullaniciya NE YAPMASI GEREKTIGI soylenir"*
+                //	   diyordu — o mesaj istemcide YUTULUYORDU.
                 if (i.tur == 'talep' && !benimIlanim) ...[
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.icon(
-                      onPressed: _teklifVer,
-                      icon: const Icon(LucideIcons.handCoins, size: 18),
-                      label: Text(_basvurdum ? 'Teklifin alındı' : 'Teklif ver'),
+                  if (isletmeyim)
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: _teklifVer,
+                        icon: const Icon(LucideIcons.handCoins, size: 18),
+                        label:
+                            Text(_basvurdum ? 'Teklifin alındı' : 'Teklif ver'),
+                      ),
+                    )
+                  else
+                    // ⚠️ DUGME GIZLENMEZ, YERINE SEBEP YAZILIR: sessizce
+                    //    kaybolan bir dugme "ozellik yok" gibi gorunur;
+                    //    kullanici NE YAPACAGINI bilmeli.
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        color: Theme.of(context)
+                            .colorScheme
+                            .surfaceContainerHighest,
+                      ),
+                      child: const Text(
+                        'Teklif vermek için işletme hesabına geçmelisin.\n'
+                        'Profil → İşletme hesabı',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 13),
+                      ),
                     ),
-                  ),
                   const SizedBox(height: 8),
                 ],
                 if (i.tur == 'talep' && benimIlanim) ...[

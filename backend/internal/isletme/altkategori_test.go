@@ -59,6 +59,54 @@ func TestAltKategorilerKapsamli(t *testing.T) {
 				"ISLETME KATEGORISI YOK — bu giris HIC KULLANILMAZ.", anahtar)
 		}
 	}
+
+	// ⚠️⚠️⚠️ TURU 93b — SLIDER ICIN **ILERI YON** KAPSAMA (kullanici emri:
+	//	*"butun kategoriler AYRI olmali ... kategorilerin HEPSI AYRI"*).
+	//
+	//	Muhafiz ASIMETRIKTI: `altKategoriler` icin ileri yon (her kategorinin
+	//	girisi OLMALI) zorlaniyor, `kategoriSlider` icin YALNIZ ters yon
+	//	(olu giris) olculuyordu. Sonuc: `giyim`, `eczane`, `emlak`,
+	//	`teknoloji`, `eglence`, `hizmet` sessizce `sliderVarsayilan`a
+	//	dusuyordu ve kullanici Giyim, Teknoloji, Eczane, Emlak ekranlarinda
+	//	**BIREBIR AYNI UC SLAYDI** goruyordu.
+	//	Ayni testte, ayni amac icin IKI FARKLI sikilik — "asimetrinin
+	//	KENDISI hataydi" desenin tekrari.
+	//
+	// ⚠️ YAPMA: yeni bir kategori eklerken bu haritaya girisini yazmadan
+	//    gecme; gercekten ozel metin turetilemiyorsa `sliderMuaf`a
+	//    GEREKCESIYLE ekle (sessizce varsayilana dusurme).
+	sliderMuaf := map[string]string{
+		"diger": "kategorisi belirsiz — ozel bir slider metni turetilemez; " +
+			"genel varsayilan ORASI ICIN dogrudur",
+	}
+	for anahtar, ad := range Kategoriler {
+		if _, ok := kategoriSlider[anahtar]; ok {
+			continue
+		}
+		if _, muaf := sliderMuaf[anahtar]; muaf {
+			continue
+		}
+		t.Errorf("`kategoriSlider` icinde %q (%s) YOK — bu kategori "+
+			"`sliderVarsayilan`a duser ve kullanici BASKA kategorilerle "+
+			"BIREBIR AYNI slaytlari gorur. Kullanici emri: HER KATEGORI "+
+			"FARKLI. Ozel metin turetilemiyorsa `sliderMuaf`a GEREKCESIYLE "+
+			"ekle.", anahtar, ad)
+	}
+
+	// ⚠️ SLAYT METINLERI KATEGORILER ARASINDA **TEKRARLAMAMALI**. Girisi
+	//    olmak yetmez: birinden kopyalanmis bir metin de kullaniciya "ayni
+	//    ekran" hissi verir (hatanin GORUNEN bicimi tam buydu).
+	gorulen := map[string]string{}
+	for anahtar, slaytlar := range kategoriSlider {
+		for _, s := range slaytlar {
+			if once, ok := gorulen[s.Baslik]; ok {
+				t.Errorf("slider basligi %q hem %q hem %q kategorisinde "+
+					"kullanilmis — kategoriler AYRI gorunmeli.",
+					s.Baslik, once, anahtar)
+			}
+			gorulen[s.Baslik] = anahtar
+		}
+	}
 }
 
 // Alt kategori kalemlerinin KENDI IC tutarliligi.

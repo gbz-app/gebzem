@@ -5,6 +5,8 @@
 /// calisiyorsan diyet listesi olacak, buradan takip edebilsin"*.
 library;
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -49,6 +51,11 @@ class _DiyetimState extends ConsumerState<DiyetimEkrani> {
   String _tarih = _bugun();
   List<DiyetKayit>? _kayitlar;
   List<DiyetBag> _baglar = [];
+
+  /// ⚠️ TURU 93b — DIYET LISTELERI **GUN SERIDINDEN BAGIMSIZ** tutulur.
+  ///    Liste yazildigi gune kaydedilir; gun seridiyle suzulseydi ertesi
+  ///    gun EKRANDAN KAYBOLURDU (bkz. `_yukle` serhi).
+  List<DiyetKayit> _listeler = [];
   String? _hata;
 
   @override
@@ -60,15 +67,33 @@ class _DiyetimState extends ConsumerState<DiyetimEkrani> {
   Future<void> _yukle() async {
     try {
       final svc = ref.read(diyetServisiProvider);
-      // ⚠️ IKI ISTEK PARALEL: seri atmak acilisi iki katina cikarirdi.
+      // ⚠️ ISTEKLER PARALEL: seri atmak acilisi kat kat uzatirdi.
       final sonuc = await Future.wait([
         svc.kayitlar(bas: _tarih, bit: _tarih),
         svc.baglarim(),
+        // ⚠️⚠️⚠️ TURU 93b — DIYET LISTESI ICIN **AYRI, TARIHSIZ** CAGRI
+        //	(denetimde yakalanan SEVK ENGELI).
+        //
+        //	Liste, gun seridiyle AYNI tarih araligindan suzuluyordu:
+        //	`kayitlar(bas: _tarih, bit: _tarih)`. Ama diyetisyen listeyi
+        //	YAZDIGI GUNE kaydeder (`tarih: _bugun()`). Sonuc: diyetisyen
+        //	PAZARTESI liste gonderir, danisan SALI "Diyetim"i acar ve
+        //	**LISTE YOKTUR** — kart "Bu gün için gönderilmiş liste yok"
+        //	der. Kullanicinin istedigi sey KALICI BIR PLAN, gunluk bir
+        //	kayit degil (*"hangi diyetisyenle calisiyorsan DIYET LISTESI
+        //	olacak"*). Ozellik pratikte yalnizca gonderildigi gun
+        //	calisiyordu.
+        //
+        // ⚠️ Tarih araligi VERILMEZ -> sunucu varsayilani (son 30 gun);
+        //    icinden EN YENISI gosterilir. Gun seridi YALNIZ ogun/olcum
+        //    bolumunu surer.
+        svc.kayitlar(tur: 'liste'),
       ]);
       if (!mounted) return;
       setState(() {
         _kayitlar = sonuc[0] as List<DiyetKayit>;
         _baglar = sonuc[1] as List<DiyetBag>;
+        _listeler = sonuc[2] as List<DiyetKayit>;
         _hata = null;
       });
     } catch (e) {
@@ -149,7 +174,7 @@ class _DiyetimState extends ConsumerState<DiyetimEkrani> {
             else ...[
               for (final o in _ogunler) _ogunBolumu(o, k),
               const SizedBox(height: 18),
-              _diyetisyenKarti(k),
+              _diyetisyenKarti(),
             ],
           ],
         ),
@@ -267,9 +292,11 @@ class _DiyetimState extends ConsumerState<DiyetimEkrani> {
     );
   }
 
-  Widget _diyetisyenKarti(List<DiyetKayit> kayitlar) {
+  Widget _diyetisyenKarti() {
     final d = _diyetisyenim;
-    final listeler = kayitlar.where((k) => k.tur == 'liste').toList();
+    // ⚠️ TURU 93b — kaynak artik `_listeler` (tarihsiz cagri). Eskiden
+    //    gunun kayitlarindan suzuluyordu ve liste ertesi gun KAYBOLUYORDU.
+    final listeler = _listeler;
     if (d == null) {
       return Card(
         child: ListTile(
@@ -355,16 +382,39 @@ class _OgunEkleState extends ConsumerState<OgunEkleSayfasi> {
 
   @override
   void dispose() {
+    // ⚠️ ZORUNLU: bekleyen timer dispose sonrasi `setState` cagirirdi.
+    _aramaGecikme?.cancel();
     _ara.dispose();
     super.dispose();
+  }
+
+  /// ⚠️⚠️ TURU 93b — DEBOUNCE + YARIS KAPISI (denetim).
+  ///
+  ///	Onceden `onChanged: _araBesin` idi: **her tus vurusunda** bir HTTP
+  ///	istegi atiliyordu ("ispanak" = 7 istek). Ustelik yanitlar SIRASIZ
+  ///	donebildigi icin eski bir istek yenisinin uzerine yazabiliyor ve
+  ///	kullanici "ispanak" yazmisken **"i" sonuclarini** gorebiliyordu.
+  /// ⚠️ Kapi metni KARSILASTIRIR (jeton yerine): arama kutusunun GUNCEL
+  ///    icerigi neyse sonuc o olmali.
+  Timer? _aramaGecikme;
+
+  void _araBesinGecikmeli(String q) {
+    _aramaGecikme?.cancel();
+    _aramaGecikme = Timer(const Duration(milliseconds: 250), () {
+      _araBesin(q);
+    });
   }
 
   Future<void> _araBesin(String q) async {
     try {
       final l = await ref.read(diyetServisiProvider).besinler(q);
-      if (!mounted) return;
+      // ⚠️ Yanit gelene kadar kullanici yazmaya devam etmis olabilir.
+      if (!mounted || q != _ara.text.trim()) return;
       setState(() => _sonuc = l);
-    } catch (_) {}
+    } catch (_) {
+      // ⚠️ SESSIZ: gomulu besin listesi zaten sunucuda; ag hatasinda
+      //    onceki sonuc ekranda kalir (bos ekrandan iyidir).
+    }
   }
 
   Future<void> _kaydet() async {
@@ -405,7 +455,7 @@ class _OgunEkleState extends ConsumerState<OgunEkleSayfasi> {
                 hintText: 'Yiyecek ara (elma, pilav...)',
                 border: OutlineInputBorder(),
               ),
-              onChanged: _araBesin,
+              onChanged: _araBesinGecikmeli,
             ),
           ),
           if (b != null)

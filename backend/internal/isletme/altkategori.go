@@ -188,6 +188,51 @@ var kategoriSlider = map[string][]SliderKarti{
 		{"Bakım zamanı", "Yakınındaki ustalar"},
 		{"Hızlı çözüm", "Lastik, yıkama, kaporta"},
 	},
+
+	// ⚠️⚠️ TURU 93b — ALTI KATEGORI EKSIKTI (denetimde yakalandi).
+	//
+	//	`giyim`, `eczane`, `emlak`, `teknoloji`, `eglence`, `hizmet`
+	//	`sliderVarsayilan`a dusuyordu; yani kullanici Giyim, Teknoloji,
+	//	Eczane ve Emlak ekranlarinda BIREBIR AYNI uc slaydi goruyordu.
+	//	Kullanici emri acikti: *"her kategori FARKLI dostum onu demek
+	//	istedim"*.
+	// ⚠️ Muhafiz bunu GOREMIYORDU: `altKategoriler` icin ILERI YON kapsama
+	//    zorlaniyor, `kategoriSlider` icin YALNIZ TERS YON (olu giris)
+	//    olculuyordu. Ayni testte, ayni amac icin IKI FARKLI sikilik —
+	//    "asimetrinin kendisi hataydi" desenin tekrari. Test bu turda
+	//    ileri yone de genisletildi.
+	"giyim": {
+		{"Yeni sezon", "Çevrendeki mağazalar"},
+		{"Dene, beğen, al", "Vitrini önce telefonundan gör"},
+		{"Terzi de burada", "Tadilat ve dikiş"},
+	},
+	"eczane": {
+		{"Sağlığın önce", "Yakınındaki eczaneler"},
+		{"Reçeteni sor", "Adres ve telefon tek dokunuşta"},
+		{"Dermokozmetik", "Cilt ve bakım ürünleri"},
+	},
+	"emlak": {
+		{"Yeni bir yer", "Kiralık ve satılık"},
+		{"Bölgeni tanı", "Semtindeki ofisler"},
+		{"Danış, acele etme", "Değerleme ve danışmanlık"},
+	},
+	"teknoloji": {
+		{"Tamir mi lazım?", "Telefon ve bilgisayar servisleri"},
+		{"Yakınında usta", "Aynı gün çözüm"},
+		{"Aksesuar", "Kılıf, şarj, kulaklık"},
+	},
+	"eglence": {
+		{"Bu akşam ne var?", "Çevrendeki mekânlar"},
+		{"Arkadaşlarını topla", "Bilardo, oyun, langırt"},
+		{"Hafta sonu planı", "Yakınındaki seçenekler"},
+	},
+	"hizmet": {
+		{"Bir usta lazım", "Tesisat, boya, nakliyat"},
+		{"Yakınından çağır", "Semtindeki ustalar"},
+		{"Önce fiyat sor", "Mesajla teklif al"},
+	},
+	// ⚠️ `diger` BILEREK YOK: kategorisi belirsiz bir isletmeye ozel bir
+	//    slider metni turetilemez; genel varsayilan ORASI ICIN DOGRUDUR.
 }
 
 var sliderVarsayilan = []SliderKarti{

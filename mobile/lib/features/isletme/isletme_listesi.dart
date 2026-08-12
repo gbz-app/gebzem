@@ -130,16 +130,58 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
   ///    (sunucu zaten oyle donuyor) ve alt kategori seridi CIZILMEDEN
   ///    calisir. Ekranin ASIL isi (isletme listesi) bundan BAGIMSIZ.
   Future<void> _kesfiYukle() async {
+    // ⚠️⚠️ TURU 93b — BAYAT YANIT KAPISI (denetim: kardes metotta VARDI,
+    //	BURADA YOKTU).
+    //
+    //	Kullanici filtre sheet'inde ChoiceChip'ler yan yana oldugu icin
+    //	hizlica "Yemek" -> "Kuaför" secebiliyor. Iki `kesif` istegi PARALEL
+    //	ucar; Yemek'in yaniti GEC gelirse Kuaför'un uzerine YAZAR. Ekranda
+    //	"Kuaför" cipi SECILI gorunur ama alt kategori kartlari
+    //	**Döner/Kebap/Pide** olur. Kullanici "Döner"e basar ->
+    //	`kategori=kuafor` + `q=döner` -> **KALICI BOS LISTE**, sebebi
+    //	ekranda hicbir yerde yazmaz.
+    // ⚠️ AYNI sayac (`_istekNo`) kullanilir: ikisi de kategori degisiminde
+    //    BIRLIKTE cagriliyor, ayri sayac ikisini ayristirirdi.
+    final jeton = ++_istekNo;
     try {
       final d = await ref.read(isletmeServisiProvider).kesif(_kategori);
-      if (!mounted) return;
+      if (!mounted || jeton != _istekNo) return;
       setState(() {
         _altKategoriler = d.altKategoriler;
         _slaytlar = d.slaytlar;
       });
     } catch (_) {
-      // sessiz — bkz. serh
+      // ⚠️ SESSIZ: slider ve serit cizilmez, ekranin ASIL isi (liste)
+      //    bundan bagimsiz calisir. Kurtarma yolu asagi-cek (`_tazele`).
     }
+  }
+
+  /// ⚠️⚠️ TURU 93b — KATEGORI DEGISTIRMENIN **TEK KAPISI** (denetim).
+  ///
+  /// Onceden kategori UC ayri yerde yaziliyordu ve `_altSecili` sifirlamasi
+  /// YALNIZ BIRINDE vardi:
+  ///   · kategori cipi secimi          -> `_altSecili = ''`  ✓
+  ///   · "Tümü" cipi                   -> **YOK**
+  ///   · `InputChip.onDeleted` (✕)     -> **YOK**
+  ///
+  /// Sonuc: "Yemek → Döner" seciliyken "Tümü"ye basan kullanicida
+  /// `_altSecili='döner'` KALIYORDU. Yeni kategoride o kart LISTEDE
+  /// OLMADIGI icin secili gorunmuyor bile — yani **GORUNMEZ bir suzgec**
+  /// takili kaliyor ve kullanici neden az sonuc gordugunu EKRANDA HICBIR
+  /// YERDE goremiyordu.
+  ///
+  /// ⚠️ Duzeltmenin dogru yeri "ucuncu dala da o satiri ekle" DEGIL, tek
+  ///    kapiya indirmektir: dordunc bir dal eklendiginde ayni hata
+  ///    tekrarlanmasin.
+  /// ⚠️ YAPMA: `_kategori`ye bu metodun DISINDA atama yapma.
+  void _kategoriSec(String k) {
+    setState(() {
+      _kategori = k;
+      _altSecili = '';
+    });
+    _gecikme?.cancel();
+    _kesfiYukle();
+    _yukle();
   }
 
   @override
@@ -202,74 +244,152 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
       //    `kYanBosluk` TEK KAYNAK: header, slider, arama, kartlar ve
       //    filtreler AYNI hizada durur. Ayri ayri sayilar yazilsaydi biri
       //    guncellenip otekiler unutulurdu.
+      // ⚠️⚠️⚠️ TURU 93b — GOVDE **KAYDIRILABILIR** OLDU (denetimde yakalanan
+      //    IKINCI SEVK ENGELI).
+      //
+      //	Onceki hal bir `Column` + `Expanded(liste)` idi. `Expanded`in
+      //	USTUNDEKI SABIT bloklar olculdu:
+      //
+      //	   header 48 + bosluk 10 + slider 350 + arama ~58
+      //	   + 60x60 serit 92 + filtre satiri 56  =  **614 px**
+      //
+      //	· 360x800 (en yaygin modern Android, kullanilabilir ~776):
+      //	  listeye **162px** kaliyor. Bir kart ~250px (16:9 kapak + ad +
+      //	  meta) -> kapagin bir kismi gorunuyor, **AD VE META HIC
+      //	  GORUNMUYOR**.
+      //	· 360x640 + 3 tus navigasyon (~568): `Expanded` NEGATIF alan alir
+      //	  -> **RenderFlex overflowed** sari-siyah serit.
+      //	· 414x896 (test cihazi): 238px — yine tek kart bile tam sigmiyor.
+      //
+      //	Yani "kategori ekrani bastan tasarlandi" denen ekranda kullanici
+      //	KAYDIRMADAN TEK BIR ISLETME ADI GOREMIYORDU.
+      //
+      // ⚠️ FIX: slider + arama + 60x60 serit + filtre satiri artik LISTENIN
+      //    KENDISININ parcasi (`CustomScrollView` slaytlari). Yemeksepeti/
+      //    Getir de boyle yapar: ust blok yukari kayip gider, liste ekranin
+      //    TAMAMINI kullanir.
+      // ⚠️ Slider yuksekligi (350) **DEGISTIRILMEDI** — kullanicinin verdigi
+      //    olcu. Sorun yuksekligin kendisi degil, SABIT bir dikey butceyi
+      //    listeden CALMASIYDI.
+      // ⚠️ `AlwaysScrollableScrollPhysics` ZORUNLU: icerik ekrandan kisa
+      //    oldugunda (bos liste / hata) asagi-cek-yenile CALISMAZ (turu 83b
+      //    dersi — dort kardes ekranda ayni sinif duzeltilmisti).
+      // ⚠️ YAPMA: bunu tekrar `Column` + `Expanded`e cevirme.
       body: SafeArea(
         bottom: false,
         child: Column(
           children: [
+            // ⚠️ Header SABIT kalir: geri dugmesi HER ZAMAN erisilebilir
+            //    olmali (kaydirinca kaybolan bir geri tusu tuzaktir).
             _header(),
-            // ⚠️ Kullanici emri: header'in ALTINDA **10px** bosluk.
-            const SizedBox(height: 10),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: kYanBosluk),
-              child: KategoriSlider(slaytlar: _slaytlar),
-            ),
-            Padding(
-              padding:
-                  const EdgeInsets.fromLTRB(kYanBosluk, 12, kYanBosluk, 0),
-              child: _aramaKutusu(),
-            ),
-            // ---- ALT KATEGORI KARTLARI (60x60) — kullanici emri
-            _altKategoriSeridi(),
-            // ---- FILTRE SATIRI: solda "Filtrele", saginda sik kullanilanlar
-            _filtreSatiri(),
             Expanded(
-            child: _hata != null
-                ? Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          _hata!,
-                          style: const TextStyle(color: Colors.grey),
+              child: YenileSarmali(
+                // ⚠️ TURU 93b — YENILEME **IKISINI DE** tazeler. Eskiden
+                //    yalniz `_yukle` cagriliyordu; kesif istegi hata verirse
+                //    350px BOS GRI KUTU kaliyor ve kullanicinin onu
+                //    duzeltecek HICBIR yolu olmuyordu.
+                onRefresh: _tazele,
+                child: CustomScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  slivers: [
+                    // ⚠️ Kullanici emri: header'in ALTINDA **10px** bosluk.
+                    const SliverToBoxAdapter(child: SizedBox(height: 10)),
+
+                    // ⚠️⚠️ SLAYT YOKSA SLIDER HIC CIZILMEZ. Eski serh
+                    //    "veri gelmezse VARSAYILAN metinler gosterilir"
+                    //    diyordu ama bu YALNIZ istek BASARILI olursa dogru
+                    //    (varsayilani SUNUCU donduruyor). Istek PATLARSA
+                    //    `_slaytlar` bos kalir ve `PageView` 0 ogeyle
+                    //    cizilir -> ekranin tepesinde **350px hicbir sey
+                    //    icermeyen gri dikdortgen**.
+                    if (_slaytlar.isNotEmpty)
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: kYanBosluk),
+                          child: KategoriSlider(slaytlar: _slaytlar),
                         ),
-                        TextButton(
-                          onPressed: _yukle,
-                          child: const Text('Tekrar dene'),
-                        ),
-                      ],
-                    ),
-                  )
-                : l == null
-                ? const Center(child: CircularProgressIndicator())
-                : l.isEmpty
-                ? const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(30),
-                      child: Text(
-                        'Bu kategoride henüz işletme yok.\n'
-                        'İlk işletme sen ol: Profil → İşletme hesabı.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.grey),
+                      ),
+
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                            kYanBosluk, 12, kYanBosluk, 0),
+                        child: _aramaKutusu(),
                       ),
                     ),
-                  )
-                : YenileSarmali(
-                    onRefresh: _yukle,
-                    // ⚠️ TURU 93 — AYIRICI CIZGI KALDIRILDI: kartlar artik
-                    //    kendi golgeleriyle ayriliyor (Yemeksepeti/Getir
-                    //    deseni). Cizgi + kart ARADA cift ayirici olurdu.
-                    child: ListView.builder(
-                      padding: const EdgeInsets.fromLTRB(
-                          kYanBosluk, 6, kYanBosluk, 24),
-                      itemCount: l.length,
-                      itemBuilder: (_, i) => _kart(l[i]),
-                    ),
-                  ),
+
+                    // ---- ALT KATEGORI KARTLARI (60x60) — kullanici emri
+                    SliverToBoxAdapter(child: _altKategoriSeridi()),
+                    // ---- FILTRE SATIRI: solda "Filtrele", saginda sik kullanilanlar
+                    SliverToBoxAdapter(child: _filtreSatiri()),
+
+                    if (_hata != null)
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 40),
+                          child: Column(
+                            children: [
+                              Text(_hata!,
+                                  style: const TextStyle(color: Colors.grey)),
+                              TextButton(
+                                // ⚠️ IKISI BIRDEN: kesif verisi de bu
+                                //    hatadan etkilenmis olabilir.
+                                onPressed: _tazele,
+                                child: const Text('Tekrar dene'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    else if (l == null)
+                      const SliverToBoxAdapter(
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(vertical: 48),
+                          child: Center(child: CircularProgressIndicator()),
+                        ),
+                      )
+                    else if (l.isEmpty)
+                      const SliverToBoxAdapter(
+                        child: Padding(
+                          padding: EdgeInsets.all(30),
+                          child: Text(
+                            'Bu kategoride henüz işletme yok.\n'
+                            'İlk işletme sen ol: Profil → İşletme hesabı.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                        ),
+                      )
+                    else
+                      // ⚠️ TURU 93 — AYIRICI CIZGI KALDIRILDI: kartlar artik
+                      //    kendi golgeleriyle ayriliyor (Yemeksepeti/Getir
+                      //    deseni). Cizgi + kart ARADA cift ayirici olurdu.
+                      SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(
+                            kYanBosluk, 6, kYanBosluk, 24),
+                        sliver: SliverList.builder(
+                          itemCount: l.length,
+                          itemBuilder: (_, i) => _kart(l[i]),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
             ),
           ],
         ),
       ),
     );
+  }
+
+  /// Kesif verisi + liste birlikte tazelenir.
+  ///
+  /// ⚠️ Asagi-cek YALNIZ `_yukle` cagirsaydi, kesif istegi patlamis bir
+  ///    ekranda slider ve 60x60 serit KALICI olarak bos kalirdi ve
+  ///    kullanicinin ekrani kapatmaktan baska yolu olmazdi.
+  Future<void> _tazele() async {
+    await Future.wait([_kesfiYukle(), _yukle()]);
   }
 
   /// ⚠️⚠️ TURU 93 — HEADER: geri (arrow-left) + harita, DAIRE YOK.
@@ -295,6 +415,35 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
               icon: const Icon(LucideIcons.arrowLeft, size: 24),
               onPressed: () => Navigator.of(context).maybePop(),
             ),
+            // ⚠️⚠️ TURU 93b — `baslik` **OLU PARAMETREYDI** (denetim).
+            //
+            //	Alan tanimliydi, `hizmet_menusu.dart` ALTI cagri yerinde
+            //	deger geciyordu ("Oteller", "Kafe & Restoran"...) ama govde
+            //	onu HIC OKUMUYORDU: turu 92'de AppBar kaldirilinca tek
+            //	tuketicisi yok olmus, parametre ve cagri yerleri kalmisti.
+            //	Sonuc: "Oteller" kartina basan kullanici, acilan ekranda
+            //	hangi kategoride oldugunu HICBIR YERDE goremiyordu (tek
+            //	gosterge filtre satirindaki cip, o da yatay serit icinde
+            //	kismen kirpilabiliyor).
+            // ⚠️ Kullanicinin *"Yemek yazisi gerek yok"* emri **KOCAMAN BIR
+            //    APPBAR BASLIGINA** yonelikti; burada iki ikon arasinda
+            //    kalan kucuk, ikincil bir etiket var — o emrin ihlali degil,
+            //    yon bilgisi.
+            // ⚠️ `Expanded` + ellipsis: uzun ad ("Kafe & Restoran") yazi
+            //    olcegi 2.0'da bile ikonlari EZMEZ.
+            if (widget.baslik.isNotEmpty)
+              Expanded(
+                child: Text(
+                  widget.baslik,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
             IconButton(
               tooltip: 'Haritada gör',
               icon: const Icon(LucideIcons.map, size: 22),
@@ -384,11 +533,30 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
   ///    neredeyse DAIMA BOS sonuc doner.
   Widget _altKategoriSeridi() {
     if (_altKategoriler.isEmpty) return const SizedBox.shrink();
+    // ⚠️⚠️ TURU 93b — YUKSEKLIK **YAZI OLCEGINDEN TURETILIR** (denetim).
+    //
+    //	Sabit 92px idi. Icerik: 60 (kutu) + 5 (bosluk) + iki satir metin
+    //	(11 x 1.15 x 2 = 25.3) = **90.3** -> pay yalnizca **1.7px**.
+    //	Android "Yazi tipi boyutu" ayarinin ILK KADEMESI (1.15) bile
+    //	2.1px tasirir ve "Lahmacun / Ev Yemeği / Kahvaltı" gibi IKI SATIRA
+    //	SARAN adlarda sari-siyah **RenderFlex** seridi cikar.
+    // ⚠️ Iki satir bir KENAR DURUM DEGIL, tasarimin NORMAL dali (serh
+    //    zaten "disarida iki satira sarabilir" diyor) — yani tasma nadir
+    //    degil, YAYGIN olurdu.
+    // ⚠️ `textScaler` ile turetmek `MediaQuery`ye baglamak DEMEK DEGILDIR:
+    //    olculen sey EKRAN BOYUTU degil KULLANICININ YAZI TERCIHI.
+    final olcek = MediaQuery.textScalerOf(context);
+    final serit = 60 + 5 + olcek.scale(11) * 1.15 * 2 + 12 + 2;
     return SizedBox(
-      height: 92,
+      height: serit,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+        // ⚠️ TURU 93b — `12` idi; `kYanBosluk` TEK KAYNAK (dosya basindaki
+        //    serhin ACIKCA yasakladigi sey elle yazilmisti: 60x60 kartlar
+        //    slider ve arama kutusundan **4px solda** duruyordu).
+        // ⚠️ Sag dolgu da `kYanBosluk`: yatay serit kaydirildiginda son
+        //    kartin kenara YAPISMAMASI icin.
+        padding: const EdgeInsets.fromLTRB(kYanBosluk, 12, kYanBosluk, 0),
         itemCount: _altKategoriler.length,
         itemBuilder: (_, i) {
           final a = _altKategoriler[i];
@@ -402,6 +570,11 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
               behavior: HitTestBehavior.opaque,
               onTap: () {
                 setState(() => _altSecili = secili ? '' : a.ara);
+                // ⚠️ TURU 93b — BEKLEYEN ARAMA ZAMANLAYICISI IPTAL EDILIR:
+                //    kullanici yazip hemen karta basarsa 320ms'lik timer
+                //    ikinci bir istek daha atardi (jeton kapisi yanlis
+                //    veriyi engelliyor ama istek bosuna gidiyordu).
+                _gecikme?.cancel();
                 _yukle();
               },
               child: SizedBox(
@@ -414,15 +587,28 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                       height: 60,
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(16),
+                        // ⚠️⚠️ TURU 93b — ALFA KALDIRILDI + KENARLIK EKLENDI
+                        //	(denetim: kontrast **~1.06** olculdu).
+                        //
+                        //	`surfaceContainerHighest` (~#E3E1E6) %50 alfa ile
+                        //	acik tema zemini `#F2F2F5` uzerine binince
+                        //	**~#EBEAEE** cikiyordu — zeminden 7-8 birim fark.
+                        //	Kullanici kartlarin ICINDEKI HARFLERI kaldirttigi
+                        //	icin (turu 93) kutunun TEK isi "burada bir kart
+                        //	var" demek; gorunmez bir kart o isi YAPMAZ.
+                        //	⚠️ Ustelik cevresindeki slider zemini `#E7E7EA`
+                        //	   idi: "kart" kendi arka planindan DAHA ACIK
+                        //	   kaliyor, gorsel hiyerarsi TERS donuyordu.
+                        // ⚠️ Kenarlik filtre cipleriyle AYNI dili konusur
+                        //    (`_notrKenar`) — yeni bir sabit renk eklemez.
                         color: secili
                             ? renk.withValues(alpha: 0.16)
                             : Theme.of(context)
                                 .colorScheme
-                                .surfaceContainerHighest
-                                .withValues(alpha: 0.5),
+                                .surfaceContainerHighest,
                         border: Border.all(
-                          color: secili ? renk : Colors.transparent,
-                          width: 1.6,
+                          color: secili ? renk : _notrKenar,
+                          width: secili ? 1.6 : 1,
                         ),
                       ),
                       // ⚠️⚠️ TURU 93 — KUTUNUN ICI **BOS** (kullanici emri:
@@ -462,9 +648,20 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
   /// ⚠️ Solraki dugme KAYMAZ (`Row` + `Expanded`): kullanici filtreyi
   ///    ararken seridi kaydirmak zorunda kalmamali.
   Widget _filtreSatiri() {
-    final aktifSayi = (_hizli.isEmpty ? 0 : 1) + (_kategori.isEmpty ? 0 : 1);
+    // ⚠️ TURU 93b — `_altSecili` DE SAYILIR (denetim). Rozetin kendi
+    //    gerekcesi "kullanici neden az sonuc gordugunu anlayabilmeli"
+    //    diyor; alt kategori EN DARALTICI suzgec oldugu halde sayilmiyordu
+    //    -> "Filtre (1)" yazarken FIILEN IKI suzgec aktifti.
+    final aktifSayi = (_hizli.isEmpty ? 0 : 1) +
+        (_kategori.isEmpty ? 0 : 1) +
+        (_altSecili.isEmpty ? 0 : 1);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 10, 0, 6),
+      // ⚠️ TURU 93b — `12` idi -> `kYanBosluk` (dosya basindaki "elle yatay
+      //    dolgu YAZMA" serhinin ikinci ihlali; "Filtrele" dugmesi arama
+      //    kutusundan 4px solda duruyordu).
+      // ⚠️ Sag 0 KALIR: sagdaki serit YATAY KAYIYOR, sag dolgu son cipi
+      //    kirpiyormus gibi gosterirdi.
+      padding: const EdgeInsets.fromLTRB(kYanBosluk, 10, 0, 6),
       child: Row(
         children: [
           OutlinedButton.icon(
@@ -491,7 +688,13 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
           const SizedBox(width: 8),
           Expanded(
             child: SizedBox(
-              height: 36,
+              // ⚠️ TURU 93b — 36 -> 48 (denetim). `FilterChip` varsayilan
+              //    `materialTapTargetSize: padded` ile **48dp**lik dokunma
+              //    alani ister; ebeveyn 36'ya kesince hedef Material 48 /
+              //    Apple 44 kuralinin ALTINA dusuyordu.
+              // ⚠️ Eklenen 12px artik bir sorun degil: govde turu 93b'de
+              //    KAYDIRILABILIR oldu, yani sabit dikey butce yok.
+              height: 48,
               child: ListView(
                 scrollDirection: Axis.horizontal,
                 children: [
@@ -508,11 +711,8 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                       padding: const EdgeInsets.only(right: 6),
                       child: InputChip(
                         label: Text(isletmeKategoriAdi(_kategori)),
-                        onDeleted: () {
-                          setState(() => _kategori = '');
-                          _kesfiYukle();
-                          _yukle();
-                        },
+                        // ⚠️ TURU 93b — TEK KAPI (`_altSecili` de sifirlanir).
+                        onDeleted: () => _kategoriSec(''),
                       ),
                     ),
                   const SizedBox(width: 12),
@@ -589,14 +789,17 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                     spacing: 8,
                     runSpacing: 8,
                     children: [
+                      // ⚠️⚠️ TURU 93b — UC DAL DA `_kategoriSec` KAPISINDAN
+                      //    gecer. Onceden "Tümü" ve ✕ dallari `_altSecili`yi
+                      //    SIFIRLAMIYORDU: "Yemek → Döner" seciliyken
+                      //    "Tümü"ye basan kullanicida GORUNMEZ bir "döner"
+                      //    suzgeci takili kaliyordu.
                       ChoiceChip(
                         label: const Text('Tümü'),
                         selected: _kategori.isEmpty,
                         onSelected: (_) {
                           yenile(() {});
-                          setState(() => _kategori = '');
-                          _kesfiYukle();
-                          _yukle();
+                          _kategoriSec('');
                         },
                       ),
                       for (final e in isletmeKategorileri.entries)
@@ -605,16 +808,7 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                           selected: _kategori == e.key,
                           onSelected: (_) {
                             yenile(() {});
-                            setState(() {
-                              _kategori = e.key;
-                              // ⚠️ Alt kategori SIFIRLANIR: "döner" secili
-                              //    kalip kategori "Kuaför"e gecerse sonuc
-                              //    DAIMA BOS olurdu ve kullanici sebebini
-                              //    goremezdi (secili kart artik cizilmiyor).
-                              _altSecili = '';
-                            });
-                            _kesfiYukle();
-                            _yukle();
+                            _kategoriSec(e.key);
                           },
                         ),
                     ],
@@ -664,12 +858,23 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
     final gorselID = (o.kapakMediaId != null && o.kapakMediaId!.isNotEmpty)
         ? o.kapakMediaId!
         : (o.avatarMediaId ?? '');
+    // ⚠️⚠️ TURU 93b — KAPAK GENISLIGI ACIKCA VERILIR (denetim; turu 91
+    //	performans dersinin tekrari — kullanici "uygulama bir tik kasiyor"
+    //	demisti).
+    //
+    //	`MedyaGorsel`e `width` verilmezse varsayilan 1080 kabul edilir ve
+    //	`dpr=3` cihazda `1080*3=3240` -> **2048'e** kirpilir; yani kartin
+    //	gercek ihtiyaci ~984px iken gorsel iki katindan fazla cozunurlukte
+    //	belleğe aciliyordu (~9 MB gecici RAM x 10 kart).
+    final kartGenislik =
+        MediaQuery.sizeOf(context).width - kYanBosluk * 2;
     return Padding(
       padding: const EdgeInsets.only(bottom: 18),
-      child: GestureDetector(
-        // ⚠️ `opaque`: gorsel ile yazi ARASINDAKI bosluga dokunmak da karti
-        //    acar; aksi halde kullanici "bastim acilmadi" der.
-        behavior: HitTestBehavior.opaque,
+      child: InkWell(
+        // ⚠️ TURU 93b — `GestureDetector` -> `InkWell`: kardes ekran
+        //    (`yakinimda_ekrani`) AYNI kart icin `InkWell` kullaniyordu;
+        //    ayni veriye iki farkli dokunma dili konusuluyordu.
+        borderRadius: BorderRadius.circular(14),
         onTap: () => Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => ProfilSayfasi(userId: o.id)),
         ),
@@ -683,7 +888,11 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                 aspectRatio: 16 / 9,
                 child: gorselID.isEmpty
                     ? _kapakYerTutucu(o)
-                    : MedyaGorsel(mediaId: gorselID, fit: BoxFit.cover),
+                    : MedyaGorsel(
+                        mediaId: gorselID,
+                        fit: BoxFit.cover,
+                        width: kartGenislik,
+                      ),
               ),
             ),
             const SizedBox(height: 9),

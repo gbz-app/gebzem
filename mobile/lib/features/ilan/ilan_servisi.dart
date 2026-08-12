@@ -18,8 +18,20 @@ class IlanServisi {
 
   Dio get _api => _ref.read(apiProvider);
 
-  Future<List<IlanTuru>> agac() async {
-    final r = await _api.get('/ilan-kategoriler');
+  /// ⚠️⚠️ TURU 93b — `kategori` VERILIRSE SUNUCU ALANLARI SUZER.
+  ///
+  ///	Kullanicinin emri iki daldi (*"düğün mü yapmak istiyorsun HIZMET mi
+  ///	almak istiyorsun"*). Istemci dali ayiriyordu ama SORULAR ayni
+  ///	kaliyor ve "Temizlik" talebi acana **Gelinlik / Gelin arabası /
+  ///	Kır düğünü** soruluyordu.
+  /// ⚠️ Suzme SUNUCUDA: hangi alanin hangi kategoride cizilecegini Dart'a
+  ///    yazmak turu 77'nin "istemciye tur/kategori sabiti YAZMA" kuralini
+  ///    ihlal ederdi ve yeni alan MAGAZA ONAYI gerektirirdi.
+  /// ⚠️ Bos birakilirsa TAM agac doner (ilan verme formu DEGISMEDEN calisir).
+  Future<List<IlanTuru>> agac({String kategori = ''}) async {
+    final r = await _api.get('/ilan-kategoriler', queryParameters: {
+      if (kategori.isNotEmpty) 'kategori': kategori,
+    });
     final m = (r.data as Map).cast<String, dynamic>();
     return ((m['turler'] as List?) ?? [])
         .map((e) => IlanTuru.fromJson((e as Map).cast<String, dynamic>()))
@@ -156,6 +168,7 @@ class Basvuru {
     required this.baslik,
     this.fiyatKurus = 0,
     this.guncellendiAt = '',
+    this.createdAt = '',
   });
 
   final String id;
@@ -180,6 +193,12 @@ class Basvuru {
   ///    edildi" etiketini bununla cizer — cizilmezse sutun OLU KALIR.
   final String guncellendiAt;
 
+  /// ⚠️ TURU 93b — REVIZE KIYASI ICIN GEREKLI. Sunucu bu alani ZATEN
+  ///    donduruyordu (`basvuru.go` yanit haritasi) ama istemci OKUMUYORDU;
+  ///    o yuzden "revize edildi" etiketi `guncellendi_at`in yalnizca DOLU
+  ///    olup olmadigina bakiyor ve HER teklifte ciziliyordu.
+  final String createdAt;
+
   static Basvuru fromJson(Map<String, dynamic> m) => Basvuru(
     id: (m['id'] ?? '').toString(),
     userID: (m['user_id'] ?? '').toString(),
@@ -192,6 +211,7 @@ class Basvuru {
     baslik: (m['baslik'] ?? '').toString(),
     fiyatKurus: (m['fiyat_kurus'] as num?)?.toInt() ?? 0,
     guncellendiAt: (m['guncellendi_at'] ?? '').toString(),
+    createdAt: (m['created_at'] ?? '').toString(),
   );
 
   /// ⚠️ ETIKET TEK KAYNAK: uc ekran (basvuranlar · basvurularim · rozet)

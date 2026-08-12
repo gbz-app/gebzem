@@ -142,6 +142,13 @@ func TestYeniUclarCozuluyor(t *testing.T) {
 		// --- isletme + urun (statik "urunler" vs {id})
 		{"GET", "/isletmeler", "/isletmeler"},
 		{"GET", "/isletme-kategorileri", "/isletme-kategorileri"},
+		// ⚠️ TURU 93b — elle tutulan liste DRIFT ETMISTI: turu 89'un
+		//    `/isletme-modulleri` ve turu 92'nin `/isletme-kesif` uclari
+		//    eklenmemisti. Ikisi de TEK SEGMENTLI STATIK yol ve
+		//    `/isletme/{...}` ile karismiyor — ama chi'nin bunu dogru
+		//    cozdugunu KANITLAYAN vaka yoktu.
+		{"GET", "/isletme-kesif", "/isletme-kesif"},
+		{"GET", "/isletme-modulleri", "/isletme-modulleri"},
 		{"POST", "/isletme/urunler", "/isletme/urunler"},
 		{"PATCH", "/isletme/urunler/" + uid, "/isletme/urunler/{id}"},
 		{"DELETE", "/isletme/urunler/" + uid, "/isletme/urunler/{id}"},

@@ -102,6 +102,24 @@ type Alan struct {
 	// ⚠️ `omitempty`: 0 = adimsiz (mevcut TUM turler DEGISMEDEN calisir).
 	Adim int `json:"adim,omitempty"`
 
+	// ⚠️⚠️⚠️ TURU 93b — ALAN **KATEGORIYE GORE** SUZULUR (denetim).
+	//
+	//	Onceden `talep` turunun alan listesi TEK ve 15 kategorinin HEPSINDE
+	//	ayni ciziliyordu. "Temizlik" talebi acan kullaniciya sorulan sorular:
+	//	*"Kişi sayısı"*, *"Mekân: Kapalı salon / KIR DÜĞÜNÜ / Otel"*,
+	//	*"İhtiyacın olanlar: GELİNLİK, GELİN ARABASI, Saç & makyaj,
+	//	Davetiye"*, *"Bütçe: 250.000 - 500.000 ₺"*. **"Diyet & Beslenme
+	//	Programı"** talebinde de aynisi. Kullanicinin emri acikca IKI DALDI
+	//	(*"düğün mü yapmak istiyorsun HIZMET mi almak istiyorsun"*);
+	//	istemci dali ayiriyordu ama SORULAR ayrilmiyordu.
+	//
+	// ⚠️ BOS = HER KATEGORIDE gorunur (tarih, esneklik, butce, not gibi
+	//    ortak alanlar). Yani mevcut TUM turler DEGISMEDEN calisir.
+	// ⚠️ Suzme SUNUCUDA yapilir: istemciye "hangi alan hangi kategoride"
+	//    kurali yazmak, turu 77'nin "Dart'a tur/kategori sabiti YAZMA"
+	//    kuralinin ihlali olurdu ve yeni bir alan MAGAZA ONAYI gerektirirdi.
+	Kategoriler []string `json:"-"`
+
 	// ⚠️ Zorunlu alan istemcide "Devam" dugmesini kilitler. Sunucu tarafi
 	//    DOGRULAMA YAPMAZ (talep alanlari serbest JSONB) — bu bir ARAYUZ
 	//    kolayligidir, guvenlik kapisi DEGILDIR.
@@ -225,7 +243,7 @@ var Turler = []Tur{
 	{
 		Anahtar: "talep", Ad: "Teklif İsteği",
 		Kategoriler: []Kat{
-			// Dugun dali
+			// Dugun dali (alan suzgeci icin `dugunKategorileri` sabiti)
 			{"dugun_organizasyon", "Düğün Organizasyonu"},
 			{"dugun_mekan", "Düğün Salonu & Mekân"},
 			{"dugun_fotograf", "Düğün Fotoğrafçısı"},
@@ -254,18 +272,78 @@ var Turler = []Tur{
 				Secenekler: []string{"Kesin tarih", "Birkaç gün esnek",
 					"Ay içinde herhangi bir gün", "Henüz belirsiz"}},
 
+			// ── DUGUN DALI ──────────────────────────────────────────────
 			{Anahtar: "kisi_sayisi", Ad: "Kişi sayısı", Tip: "sayi", Adim: 2,
-				Birim: "kişi"},
+				Birim: "kişi", Kategoriler: dugunKategorileri},
 			{Anahtar: "mekan_tipi", Ad: "Mekân", Tip: "secim", Adim: 2,
 				Secenekler: []string{"Kapalı salon", "Dış mekân / bahçe",
-					"Kır düğünü", "Otel", "Fark etmez"}},
+					"Kır düğünü", "Otel", "Fark etmez"},
+				Kategoriler: dugunKategorileri},
 
 			{Anahtar: "hizmetler", Ad: "İhtiyacın olanlar", Tip: "cok_secim",
 				Adim: 3,
 				Secenekler: []string{"Organizasyon", "Mekân", "Fotoğraf & video",
 					"Saç & makyaj", "Gelinlik", "Müzik", "Pasta & ikram",
-					"Davetiye", "Gelin arabası", "Diğer"}},
+					"Davetiye", "Gelin arabası", "Diğer"},
+				Kategoriler: dugunKategorileri},
 
+			// ── HIZMET DALI ─────────────────────────────────────────────
+			// ⚠️ Bu alanlar dugun dalinda CIZILMEZ: "kaç oda / kaç m²"
+			//    sorusu bir dugun talebinde anlamsizdir.
+			{Anahtar: "yer_tipi", Ad: "Nerede?", Tip: "secim", Adim: 2,
+				Secenekler: []string{"Ev", "İş yeri", "Ofis", "Fark etmez"},
+				Kategoriler: []string{"tadilat_talep", "nakliyat_talep",
+					"temizlik_talep"}},
+			{Anahtar: "metrekare", Ad: "Yaklaşık büyüklük", Tip: "sayi",
+				Adim: 2, Birim: "m²",
+				Kategoriler: []string{"tadilat_talep", "temizlik_talep"}},
+			{Anahtar: "oda_sayisi", Ad: "Oda sayısı", Tip: "secim", Adim: 2,
+				Secenekler: []string{"1+0", "1+1", "2+1", "3+1", "4+1",
+					"5+1 ve üzeri"},
+				Kategoriler: []string{"tadilat_talep", "nakliyat_talep",
+					"temizlik_talep"}},
+			{Anahtar: "kat", Ad: "Bulunduğu kat", Tip: "secim", Adim: 3,
+				Secenekler: []string{"Zemin", "1-3", "4-6", "7 ve üzeri",
+					"Asansör var"},
+				Kategoriler: []string{"nakliyat_talep", "tadilat_talep"}},
+			{Anahtar: "is_kapsami", Ad: "Neye ihtiyacın var?", Tip: "cok_secim",
+				Adim: 3,
+				Secenekler: []string{"Boya & badana", "Tesisat", "Elektrik",
+					"Zemin & parke", "Mutfak / banyo", "Alçı & tavan",
+					"Kapı & pencere", "Diğer"},
+				Kategoriler: []string{"tadilat_talep"}},
+			{Anahtar: "temizlik_kapsami", Ad: "Ne tür temizlik?",
+				Tip: "cok_secim", Adim: 3,
+				Secenekler: []string{"Genel temizlik", "İnşaat sonrası",
+					"Cam temizliği", "Koltuk & halı yıkama", "Düzenli (haftalık)"},
+				Kategoriler: []string{"temizlik_talep"}},
+
+			// ── OZEL DERS ───────────────────────────────────────────────
+			{Anahtar: "ders_konusu", Ad: "Hangi konu?", Tip: "metin", Adim: 2,
+				Kategoriler: []string{"ozel_ders_talep"}},
+			{Anahtar: "seviye", Ad: "Seviye", Tip: "secim", Adim: 2,
+				Secenekler: []string{"İlkokul", "Ortaokul", "Lise", "Üniversite",
+					"Yetişkin / hobi"},
+				Kategoriler: []string{"ozel_ders_talep"}},
+			{Anahtar: "ders_bicimi", Ad: "Nasıl olsun?", Tip: "secim", Adim: 3,
+				Secenekler: []string{"Yüz yüze", "Online", "Fark etmez"},
+				Kategoriler: []string{"ozel_ders_talep"}},
+
+			// ── DIYET ───────────────────────────────────────────────────
+			// ⚠️ KILO/BOY SORULMUYOR: bu SAGLIK VERISIDIR ve talep
+			//    **HERKESE ACIKTIR** (`ilanlar` genel listede gorunur).
+			//    Hedefi sormak yeterli; olcumler diyetisyenle BAG kurulunca
+			//    `diyet_kayit`ta RIZAYLA tutulur.
+			{Anahtar: "diyet_hedef", Ad: "Hedefin ne?", Tip: "secim", Adim: 2,
+				Secenekler: []string{"Kilo vermek", "Kilo almak",
+					"Sporcu beslenmesi", "Sağlıklı beslenme", "Hastalık kaynaklı"},
+				Kategoriler: []string{"diyet_program"}},
+			{Anahtar: "diyet_bicimi", Ad: "Görüşme şekli", Tip: "secim",
+				Adim: 3,
+				Secenekler: []string{"Yüz yüze", "Online", "Fark etmez"},
+				Kategoriler: []string{"diyet_program"}},
+
+			// ── ORTAK (kategori BOS = hepsinde) ─────────────────────────
 			{Anahtar: "butce_araligi", Ad: "Bütçe aralığı", Tip: "secim",
 				Adim: 4,
 				Secenekler: []string{"Belirtmek istemiyorum", "50.000 ₺ altı",
@@ -273,6 +351,26 @@ var Turler = []Tur{
 					"250.000 - 500.000 ₺", "500.000 ₺ üzeri"}},
 		},
 	},
+}
+
+// ⚠️⚠️ TURU 93b — DUGUN DALININ KATEGORILERI (alan suzgeci icin TEK KAYNAK).
+//
+//	`Turler` icindeki "talep" kategorileri IKI DALDIR: dugun ve hizmet.
+//	Kisi sayisi / mekan tipi / "İhtiyacın olanlar" YALNIZ dugun dalinda
+//	sorulmali; aksi halde "Temizlik" talebi acan kullaniciya **Gelinlik**
+//	ve **Gelin arabası** soruluyordu.
+//
+// ⚠️ SABIT LISTE, "dugun_" ONEKI DEGIL: `gelinlik`, `sac_makyaj`,
+//
+//	`davetiye`, `gelin_arabasi` dugun dalindadir ama o oneki TASIMAZ.
+//	Onek kontrolu bu dordunu SESSIZCE hizmet dalina dusururdu.
+//
+// ⚠️ Yeni bir DUGUN kategorisi eklerken bu listeye de ekle; muhafiz
+//
+//	(`talep_test.go`) kapsamayi zorluyor.
+var dugunKategorileri = []string{
+	"dugun_organizasyon", "dugun_mekan", "dugun_fotograf", "gelinlik",
+	"sac_makyaj", "dugun_muzik", "dugun_pasta", "davetiye", "gelin_arabasi",
 }
 
 // TalepTuru — bu tur bir TEKLIF ISTEGI mi?
@@ -826,5 +924,50 @@ func (h *Handler) FavoriSil(w http.ResponseWriter, r *http.Request) {
 //	sayesinde ILAN VERME FORMU SUNUCUDAN URETILIYOR — yeni bir alan eklemek
 //	icin istemci guncellemesi GEREKMIYOR.
 func (h *Handler) Agac(w http.ResponseWriter, r *http.Request) {
-	yaz(w, 200, map[string]any{"turler": Turler})
+	// ⚠️⚠️⚠️ TURU 93b — `?kategori=` VERILIRSE ALANLAR **SUZULUR**.
+	//
+	//	Kullanicinin emri iki daldi: *"düğün mü yapmak istiyorsun HIZMET mi
+	//	almak istiyorsun"*. Istemci dali ayiriyordu ama SORULAR ayni kaliyor
+	//	ve "Temizlik" talebi acana **Gelinlik / Gelin arabası / Kır düğünü**
+	//	soruluyordu.
+	//
+	// ⚠️ GERIYE DONUK UYUMLU: `kategori` verilmezse TAM agac doner (ilan
+	//    verme formu ve mevcut TUM turler DEGISMEDEN calisir).
+	// ⚠️ Suzme SUNUCUDA: istemciye "hangi alan hangi kategoride" kurali
+	//    yazmak turu 77'nin "Dart'a sabit YAZMA" kuralini ihlal ederdi.
+	kat := strings.TrimSpace(r.URL.Query().Get("kategori"))
+	if kat == "" {
+		yaz(w, 200, map[string]any{"turler": Turler})
+		return
+	}
+	suzulmus := make([]Tur, 0, len(Turler))
+	for _, t := range Turler {
+		alanlar := make([]Alan, 0, len(t.Alanlar))
+		for _, a := range t.Alanlar {
+			if alanGecerli(a, kat) {
+				alanlar = append(alanlar, a)
+			}
+		}
+		t.Alanlar = alanlar
+		suzulmus = append(suzulmus, t)
+	}
+	yaz(w, 200, map[string]any{"turler": suzulmus})
+}
+
+// alanGecerli — alan bu kategoride cizilmeli mi?
+//
+// ⚠️ BOS `Kategoriler` = HER KATEGORIDE gorunur (tarih, butce, not gibi
+//
+//	ortak alanlar). Varsayilanin "hepsinde gorunur" olmasi ZORUNLU: aksi
+//	halde mevcut turlerin TUM alanlari kategori suzgeciyle KAYBOLURDU.
+func alanGecerli(a Alan, kategori string) bool {
+	if len(a.Kategoriler) == 0 {
+		return true
+	}
+	for _, k := range a.Kategoriler {
+		if k == kategori {
+			return true
+		}
+	}
+	return false
 }

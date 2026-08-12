@@ -18,6 +18,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../core/api.dart';
+
 import '../medya/medya_gorsel.dart';
 import '../sosyal/profil_sayfasi.dart';
 import 'ilan_servisi.dart';
@@ -46,16 +48,55 @@ String _tl(int kurus) {
   return '${buf.toString()} ₺';
 }
 
+/// ⚠️⚠️⚠️ TURU 93b — **"85.000" YAZAN ISLETME 85 ₺ TEKLIF VERIYORDU**
+/// (denetimde yakalandi; para hatasi).
+///
+/// Eski govde noktayi YALNIZ virgul de varsa temizliyordu:
+///
+///     if (t.contains(',')) { t = t.replaceAll('.', '')... }
+///
+/// Virgul YOKSA nokta ONDALIK sayiliyordu: `double.parse("85.000")` =
+/// **85.0** -> 8.500 kurus = **85 ₺**. Turkiye'de fiyat yazarken binlik
+/// ayirici olarak nokta kullanmak YAYGIN ve alan `TextInputType.number`
+/// olsa bile Turkce klavyede nokta girilebiliyor.
+///
+/// ⚠️ ETKISI SESSIZ VE AGIR: teklif listesi FIYATA GORE siralaniyor, yani
+///    bu isletme listenin **BASINA** cikar; talep sahibi "en ucuz" diye
+///    onu secer ve iki taraf da yanlis fiyata baglanir.
+///
+/// YENI KURAL — noktanin rolu KONUMDAN turetilir:
+///   · virgul varsa  -> nokta BINLIK, virgul ONDALIK  ("1.500,50" -> 1500.50)
+///   · virgul yoksa ve noktadan sonra TAM UC HANE varsa -> BINLIK
+///     ("85.000" -> 85000 · "1.250.000" -> 1250000)
+///   · aksi halde nokta ONDALIK ("85.5" -> 85.50)
+/// ⚠️ "Tam uc hane" olcutu zorunlu: `85.50` bir binlik ayirici OLAMAZ.
 int _kurusOku(String s) {
   var t = s.trim().replaceAll('₺', '').replaceAll(' ', '');
   if (t.isEmpty) return 0;
-  // Binlik ayirici olarak nokta kullanilmis olabilir: "1.500,50".
   if (t.contains(',')) {
     t = t.replaceAll('.', '').replaceAll(',', '.');
+  } else if (RegExp(r'^\d{1,3}(\.\d{3})+$').hasMatch(t)) {
+    t = t.replaceAll('.', '');
   }
   final v = double.tryParse(t);
   if (v == null || v <= 0) return 0;
   return (v * 100).round();
+}
+
+/// Teklif GERCEKTEN revize edildi mi?
+///
+/// ⚠️ `guncellendi_at` sutunu `NOT NULL DEFAULT now()` ile eklendigi icin
+///    HER SATIRDA DOLUDUR — "dolu mu" sinamak HER teklifte "revize edildi"
+///    yazdiriyordu. Olcut ZAMAN FARKI olmali.
+/// ⚠️ 2 saniyelik pay: INSERT ile RETURNING arasindaki mikro farklar ve
+///    sunucu saati yuvarlamalari yanlis pozitif uretmesin.
+/// ⚠️ Tarihlerden biri ayristirilamazsa **FALSE** (yaniltici etiket
+///    basmaktansa hic basmamak dogru).
+bool _revizeEdildi(Basvuru b) {
+  final olusum = DateTime.tryParse(b.createdAt);
+  final guncel = DateTime.tryParse(b.guncellendiAt);
+  if (olusum == null || guncel == null) return false;
+  return guncel.difference(olusum).inSeconds > 2;
 }
 
 /// Basvuru durumunun rengi — UC EKRANDA da ayni.
@@ -197,7 +238,11 @@ Future<bool> basvurSheet(BuildContext context, WidgetRef ref, String ilanID,
                       } catch (e) {
                         yenile(() => gonderiliyor = false);
                         mesajci.showSnackBar(
-                            const SnackBar(content: Text('Başvuru gönderilemedi')));
+                            // ⚠️ TURU 93b — SUNUCUNUN mesaji gosterilir.
+                            //    Sabit metin, "işletme hesabına geçmelisin"
+                            //    gibi EYLEM SOYLEYEN yanitlari yutuyordu ve
+                            //    kullanici tekrar tekrar deniyordu.
+                            SnackBar(content: Text(apiErrorMessage(e))));
                       }
                     },
               child: gonderiliyor
@@ -395,7 +440,16 @@ class _BasvuranlarState extends ConsumerState<BasvuranlarEkrani> {
             //    sutunu bunun icin eklendi; cizilmezse projenin SEKIZ kez
             //    yasadigi "sutun var, okuyan yol yok" sinifina yeni ornek
             //    olurdu.
-            if (widget.teklifModu && b.guncellendiAt.isNotEmpty)
+            // ⚠️⚠️ TURU 93b — ETIKET **HER TEKLIFTE** CIZILIYORDU (denetim).
+            //	Migration 045 sutunu `NOT NULL DEFAULT now()` ile ekledi,
+            //	yani `guncellendi_at` **HER SATIRDA DOLU**. Kosul yalniz
+            //	bosluk sinadigi icin ILK KEZ gelen teklifin altinda da
+            //	"revize edildi" yaziyordu -> etiket bilgi TASIMIYOR, ustelik
+            //	talep sahibini yaniltiyordu ("bu fiyat degismis mi?").
+            // ⚠️ Olcut artik ZAMAN FARKI: olusturma ile guncelleme arasinda
+            //    anlamli bir fark var mi. 2 sn pay, ayni islemdeki mikro
+            //    farklari eler.
+            if (widget.teklifModu && _revizeEdildi(b))
               Padding(
                 padding: const EdgeInsets.only(top: 2),
                 child: Text('revize edildi',
@@ -418,11 +472,22 @@ class _BasvuranlarState extends ConsumerState<BasvuranlarEkrani> {
                       icon: const Icon(LucideIcons.check, size: 16),
                       label: const Text('Teklifi seç'),
                     ),
-                  TextButton.icon(
-                    onPressed: () => _durum(b, 'goruldu'),
-                    icon: const Icon(LucideIcons.eye, size: 16),
-                    label: const Text('Görüldü'),
-                  ),
+                  // ⚠️⚠️ TURU 93b — "Görüldü" DE AYNI KAPIYA ALINDI (denetim).
+                  //	"Teklifi seç" durum kapiliydi, bu KAPISIZDI: talep
+                  //	sahibi kazanani sectikten SONRA bile dugme duruyordu ve
+                  //	dokununca kazananin durumu `secildi` -> `goruldu`
+                  //	oluyordu. Artik hic kimse `secildi` degil, ilan
+                  //	`satildi` kalmis, digerleri `elendi` kalmis ve kazanan
+                  //	"teklifin secildi" bildirimini ZATEN almis oluyordu.
+                  // ⚠️ Sunucuda da kapatildi (`durum NOT IN
+                  //    (secildi,elendi,geri_cekildi)`) — arayuz TEK basina
+                  //    yeterli degildir (turu 80b dersi).
+                  if (b.durum != 'secildi' && b.durum != 'elendi')
+                    TextButton.icon(
+                      onPressed: () => _durum(b, 'goruldu'),
+                      icon: const Icon(LucideIcons.eye, size: 16),
+                      label: const Text('Görüldü'),
+                    ),
                 ],
               )
             else

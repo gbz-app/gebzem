@@ -171,7 +171,18 @@ class _SihirbazState extends ConsumerState<TalepSihirbaziEkrani> {
   final _ilce = TextEditingController();
   final _not = TextEditingController();
 
-  late final List<TalepAdimi> _adimlar = adimlaraBol(widget.tur.alanlar);
+  /// ⚠️⚠️⚠️ TURU 93b — ALANLAR **KATEGORIYE GORE SUNUCUDAN** (denetim).
+  ///
+  ///	Onceden `widget.tur.alanlar` kullaniliyordu ve o liste TEK'ti: 15
+  ///	kategorinin HEPSINDE ayni sorular ciziliyordu. "Temizlik" talebi
+  ///	acan kullaniciya *"Kişi sayısı"*, *"Mekân: KIR DÜĞÜNÜ"*,
+  ///	*"İhtiyacın olanlar: GELİNLİK, GELİN ARABASI"* soruluyordu;
+  ///	*"Diyet & Beslenme Programı"* talebinde de aynisi.
+  ///	Kullanicinin emri acikca IKI DALDI.
+  /// ⚠️ ILK CIZIM `widget.tur.alanlar` ile yapilir (ekran BOS ACILMAZ),
+  ///    suzulmus liste gelince yerine gecer. Istek patlarsa TAM liste
+  ///    kalir — fazla soru sormak, HIC soru sormamaktan iyidir.
+  late List<TalepAdimi> _adimlar = adimlaraBol(widget.tur.alanlar);
 
   /// Sunucudan gelen adimlar + SON ADIM (konum/not/ozet).
   int get _toplam => _adimlar.length + 1;
@@ -183,6 +194,29 @@ class _SihirbazState extends ConsumerState<TalepSihirbaziEkrani> {
     _ilce.dispose();
     _not.dispose();
     super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _alanlariSuz();
+  }
+
+  Future<void> _alanlariSuz() async {
+    try {
+      final agac = await ref
+          .read(ilanServisiProvider)
+          .agac(kategori: widget.kategori.anahtar);
+      final talep = agac.where((t) => t.anahtar == 'talep').firstOrNull;
+      if (!mounted || talep == null || talep.alanlar.isEmpty) return;
+      setState(() {
+        _adimlar = adimlaraBol(talep.alanlar);
+        // ⚠️ Adim indisi TASABILIR: suzulmus listede daha az adim olabilir.
+        if (_adim >= _adimlar.length) _adim = _adimlar.length - 1;
+      });
+    } catch (_) {
+      // ⚠️ SESSIZ: tam liste ekranda kalir (bkz. `_adimlar` serhi).
+    }
   }
 
   /// ⚠️ Bu adimdaki ZORUNLU alanlarin hepsi dolu mu?
@@ -221,10 +255,33 @@ class _SihirbazState extends ConsumerState<TalepSihirbaziEkrani> {
         'ilce': _ilce.text.trim(),
         'ozellikler': _cevaplar,
       });
-      // ⚠️ `IlanDetayEkrani` bir `Ilan` NESNESI istiyor (id degil) — detay
-      //    ayrica cekilir. Nesne gecmek, listeden acilan ilanla AYNI nesnenin
-      //    paylasilmasini sagladigi icin bilincli bir tasarim (turu 76).
-      final ilan = await svc.detay(id);
+      // ⚠️⚠️⚠️ TURU 93b — **TALEP OLUSTU, KULLANICI IKINCI KEZ GONDERIYORDU**
+      //	(denetimde yakalandi).
+      //
+      //	Iki ag cagrisi TEK `try` icindeydi: `olustur` BASARILI olup
+      //	talep sunucuda olusuyor ve fan-out bildirimleri GIDIYOR, ardindan
+      //	`detay` bir ag hickirigiyla firlatinca `catch` "Talep
+      //	olusturulamadi" basiyordu. Kullanici tekrar basiyor -> **IKINCI
+      //	TALEP** + hedef isletmelere **IKINCI BILDIRIM**. `ilanlar`da
+      //	tekillik kisiti YOK, yani kayit kaliciydi.
+      //
+      // ⚠️ FIX: `detay` AYRI bir `try` icinde. Basarisiz olursa talep
+      //    YINE OLUSMUSTUR; kullaniciya oyle soylenir ve sihirbaz kapanir —
+      //    "olusturulamadi" YALANI bir daha soylenmez.
+      // ⚠️ `IlanDetayEkrani` bir `Ilan` NESNESI istiyor (id degil); nesne
+      //    gecmek listeden acilan ilanla AYNI nesnenin paylasilmasini
+      //    saglar (turu 76).
+      final Ilan ilan;
+      try {
+        ilan = await svc.detay(id);
+      } catch (_) {
+        if (!mounted) return;
+        nav.pop(true);
+        mesajci.showSnackBar(const SnackBar(
+          content: Text('Talebin oluşturuldu. Detayı "Taleplerim"den açabilirsin.'),
+        ));
+        return;
+      }
       if (!mounted) return;
       // ⚠️ Sihirbazi YIGINDAN KALDIRIP detaya gidiyoruz: kullanici geri
       //    tusuna bastiginda doldurdugu forma DONMEMELI (talep zaten

@@ -263,9 +263,18 @@ func (h *Handler) BasvuruGeriCek(w http.ResponseWriter, r *http.Request) {
 		hata(w, 404, "bulunamadı")
 		return
 	}
+	// ⚠️⚠️⚠️ TURU 93b — **SECILMIS TEKLIF GERI CEKILEMEZ** (denetim).
+	//
+	//	Kapi YOKTU. Senaryo: talep sahibi A'yi secer -> ilan 'satildi',
+	//	B/C/D 'elendi'. A vazgecip "Geri cek"e basar. Artik: talep
+	//	'satildi' (listede GORUNMEZ, 7 gun penceresi de islemez), KAZANAN
+	//	YOK, digerleri elendi — ve talep sahibinin arayuzunde talebi yeniden
+	//	acan **HICBIR YOL YOK**. Kayit KALICI OLARAK kilitli kaliyordu.
+	// ⚠️ Secim "GERI ALINAMAZ" sozu artik YAPISAL: iptal talep sahibinden
+	//    gecer, teklif verenden DEGIL.
 	tag, err := h.db.Exec(r.Context(), `
 		UPDATE ilan_basvurular SET durum='geri_cekildi'
-		 WHERE ilan_id=$1 AND user_id=$2`, id, me)
+		 WHERE ilan_id=$1 AND user_id=$2 AND durum <> 'secildi'`, id, me)
 	if err != nil {
 		hata(w, 500, "geri çekilemedi")
 		return
@@ -397,7 +406,7 @@ func (h *Handler) BasvuruDurum(w http.ResponseWriter, r *http.Request) {
 		UPDATE ilan_basvurular b SET durum=$3
 		 WHERE b.id=$1
 		   AND b.ilan_id=$2
-		   AND b.durum <> 'geri_cekildi'
+		   AND b.durum NOT IN ('geri_cekildi','secildi','elendi')
 		   AND EXISTS(SELECT 1 FROM ilanlar i
 		               WHERE i.id=$2 AND i.sahibi_id=$4)
 		RETURNING b.user_id,

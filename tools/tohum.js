@@ -151,7 +151,62 @@ async function isletmeKur(h, { kategori, adres, ilce, urunler, i }) {
     });
     if (ur.kod >= 300) throw new Error(`${h.ad} urun: ${ur.kod} ${JSON.stringify(ur.d)}`);
   }
+
+  // ⚠️⚠️ TURU 93 — KAPAK GORSELI (isletmelerin YARISINA).
+  //
+  //	Turu 93 kartlari 16:9 kapak ciziyor. Hicbir tohum isletmesinde kapak
+  //	olmasaydi kullanici YALNIZ yer tutucu dalini gorurdu ve gercek kapak
+  //	yolu (yukle -> liste -> imzali adres -> 16:9 cizim) CIHAZDA HIC
+  //	sinanmazdi. Bu projede "yalnizca ikinci hesapta gorunen" medya
+  //	hatalari DORT KEZ sahaya cikti.
+  // ⚠️ YARISINA verilir, hepsine DEGIL: kullanici IKI DALI DA (kapakli ve
+  //    kapaksiz) ayni listede yan yana gorup tasarimi degerlendirebilsin.
+  // ⚠️ EN IYI CABA: medya kapaliysa ya da yukleme patlarsa tohum DEVAM
+  //    EDER. Kapak bir SUS; tohumun asil isi hesap/randevu/ilan kurmak.
+  if (i % 2 === 0) {
+    try {
+      await kapakYukle(h, i);
+    } catch (e) {
+      console.log(`  (kapak atlandi — ${h.ad}: ${e.message})`);
+    }
+  }
   return h;
+}
+
+/// Kapak PNG'sini presign -> PUT -> commit -> PATCH zincirinden gecirir.
+/// ⚠️ `kind: 'kapak'` ZORUNLU: sunucu `PATCH /users/me` icinde bunu **403**
+///    ile dayatiyor (turu 78 kapisi). `kind:'image'` bir medya kapak
+///    YAPILAMAZ — aksi halde `limits.go`daki ayri boyut tavanlari (avatar
+///    2 MB / kapak 8 MB) anlamini yitirirdi.
+async function kapakYukle(h, i) {
+  const png = kapakUret(i);
+  const md5 = crypto.createHash('md5').update(png).digest('base64');
+  const p = await j('/media/upload', {
+    yontem: 'POST', token: h.token,
+    govde: {
+      kind: 'kapak', mime: 'image/png', bytes: png.length, md5,
+      file_name: 'kapak.png', width: 1200, height: 675,
+    },
+  });
+  if (p.kod !== 200) throw new Error(`presign ${p.kod}`);
+
+  const put = await fetch(p.d.upload_url, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'image/png', 'Content-MD5': md5 },
+    body: png,
+  });
+  if (!put.ok) throw new Error(`PUT ${put.status}`);
+
+  const c = await j(`/media/${p.d.media_id}/commit`, {
+    yontem: 'POST', token: h.token,
+  });
+  if (c.kod !== 200) throw new Error(`commit ${c.kod}`);
+
+  const pa = await j('/users/me', {
+    yontem: 'PATCH', token: h.token,
+    govde: { kapak_media_id: p.d.media_id },
+  });
+  if (pa.kod !== 200) throw new Error(`PATCH ${pa.kod}`);
 }
 
 const yarin = () => {

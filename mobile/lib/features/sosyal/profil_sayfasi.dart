@@ -15,6 +15,7 @@ import '../home/home_screen.dart' show myProfileProvider;
 import '../home/profil_duzenle.dart';
 import '../isletme/isletme_duzenle.dart';
 import '../isletme/isletme_servisi.dart';
+import '../diyet/diyet_servisi.dart';
 import '../randevu/randevu_al.dart';
 import '../isletme/urun_ekranlari.dart';
 import '../medya/medya_gorsel.dart';
@@ -967,11 +968,86 @@ class _IsletmeSeridiState extends ConsumerState<IsletmeSeridi> {
                   ],
                 ],
               ),
+
+              // ⚠️⚠️⚠️ TURU 93b — DIYETISYEN BAGLANTISI: **SEVK ENGELI**
+              //	(denetimde yakalandi, build ONCESI).
+              //
+              //	`DiyetServisi.bagIste()` yazilmisti ama **HICBIR YERDEN
+              //	CAGRILMIYORDU** (`grep -rn "bagIste" lib/` -> yalniz
+              //	TANIMIN KENDISI). Yani hicbir kullanici bir `diyet_bag`
+              //	satiri OLUSTURAMIYORDU ve zincirin TAMAMI oluydu:
+              //	  · `Danışanlarım` HER diyetisyende DAIMA bos
+              //	  · `Diyetim` DAIMA "Diyetisyenin yok — Yakınımda'dan bir
+              //	    diyetisyen bul ve baglanti istegi gonder" diyordu ama
+              //	    **oyle bir dugme UYGULAMADA YOKTU**
+              //	  · `DiyetListeYazEkrani` / `DanisanDetayEkrani`
+              //	    ULASILAMAZ
+              //	  · `diyet_istek` / `diyet_liste` bildirimleri HIC dogmaz
+              //	Kullanicinin manset emri (*"hangi diyetisyenle
+              //	calisiyorsan DIYET LISTESI olacak"*) sahada TAMAMEN oluydu;
+              //	yalniz kendi kendine ogun/olcum girisi calisiyordu.
+              //
+              // ⚠️ DOGRU YER BURASI: bir diyetisyene ulasmanin gercek yolu
+              //    onun PROFILIDIR (rehber/harita -> kart -> profil). Menuye
+              //    konsaydi kullanici once "hangi diyetisyen" sorusunu
+              //    cozmek zorunda kalirdi.
+              // ⚠️ YALNIZ `kategori == 'diyetisyen'` VE baskasinin profili.
+              // ⚠️ YAPMA: bu girisi kaldirma — kaldirilirsa diyet ozelliginin
+              //    TAMAMI tekrar olu kalir.
+              if (!widget.benimMi && i.kategori == 'diyetisyen') ...[
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _bagIsteDiyetisyen,
+                    icon: const Icon(LucideIcons.heartPulse, size: 17),
+                    label: const Text('Diyetisyenim ol'),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
       ),
     );
+  }
+
+  /// Diyetisyene baglanti istegi gonderir.
+  ///
+  /// ⚠️ ONAY KARSI TARAFTAN GELIR: `diyet_bag` `bekliyor` dogar ve
+  ///    `baslatan_id <> onaylayan` kapisi sunucuda uygulanir (kimse kendi
+  ///    istegini onaylayamaz). Yani bu dugme "bagi kurar" DEMEK DEGIL,
+  ///    "istek gonderir" demektir — mesaj da oyle yazildi.
+  /// ⚠️ **RIZA**: diyet verisi SAGLIK VERISIDIR; bag olmadan hicbir taraf
+  ///    otekinin kaydini goremez (`diyetErisim` fail-closed).
+  /// ⚠️ CIFT DOKUNMA KORUMASI (`_bagIstendi`): iki hizli dokunus IKI istek
+  ///    atardi. Sunucu `UNIQUE(danisan_id,diyetisyen_id)` ile korunuyor ama
+  ///    kullaniciya IKI hata mesaji gosterilirdi.
+  bool _bagIstendi = false;
+
+  Future<void> _bagIsteDiyetisyen() async {
+    if (_bagIstendi) return;
+    setState(() => _bagIstendi = true);
+    // ⚠️ Servis ve mesajci TUM await'lerden ONCE yakalanir: kullanici
+    //    istek ucarken geri basarsa `ref.read` `StateError` firlatir ve
+    //    `catch` onu yutar -> istek gider ama kullanici HICBIR SEY gormez
+    //    (turu 77b/78b dersi).
+    final svc = ref.read(diyetServisiProvider);
+    final mesajci = ScaffoldMessenger.of(context);
+    try {
+      await svc.bagIste(diyetisyenID: widget.userId);
+      mesajci.showSnackBar(const SnackBar(
+        content: Text('Bağlantı isteği gönderildi. Diyetisyen onaylayınca '
+            '"Diyetim" ekranında görünecek.'),
+      ));
+    } catch (e) {
+      // ⚠️ SUNUCUNUN mesaji gosterilir ("zaten bağlısınız" gibi durumlari
+      //    jenerik bir metne cevirmek kullaniciyi tekrar tekrar denemeye
+      //    iter — turu 93b denetiminin `apiErrorMessage` bulgusu).
+      mesajci.showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
+    } finally {
+      if (mounted) setState(() => _bagIstendi = false);
+    }
   }
 
   Widget _satir(IconData ikon, String metin) => Padding(
