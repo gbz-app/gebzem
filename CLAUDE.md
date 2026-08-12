@@ -17,6 +17,192 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (12 Agu): TURU 93 + 93b KODU BITTI, BACKEND DEPLOY**
+  + health ok. ✅ **CANLIDA 349/349 UCTAN UCA** · **213 ROTA CAKISMASIZ** ·
+  `flutter analyze` **0 hata 0 uyari** · `flutter test` **11/11** ·
+  `go build`+`go vet`+`go test` temiz. 🌱 DB TEMIZ + TOHUM (10 isletme,
+  **5'inde KAPAK**, 10/10 randevu, dugun talebi + 3 teklif, dolu diyet gunu).
+- ⚠️⚠️⚠️ **TURU 93b — ALT KATEGORI KARTLARININ HEPSI BOS SONUC DONDURUYORDU
+  (SEVK ENGELI).** Turu 92'nin MANSET OZELLIGI olu dogacakti. Kart bir arama
+  kisayolu ("Saç Kesim" -> `q=saç`) ama yuklem YALNIZ `u.name`/`u.username`e
+  bakiyordu; eslesmesi gereken metin (`Saç kesimi`) **URUN KATALOGUNDA**.
+  Isletme adi "Kuaför Serkan" ve icinde "saç" GECMEZ. Tohum verisiyle bire bir
+  sayildi: veri bulunan bes kategoride **25 kartin 25'i de BOS**.
+  ⚠️ `altkategori.go` serhi *"ad/aciklama uzerinde arama BUGUN calisir"*
+     diyordu — `isletmeler` tablosunda **`aciklama` SUTUNU YOK**. Ustelik
+     serh reddettigi alternatifi *"kartlarin HEPSINI BOS dondururdu"* diye
+     eliyordu: **SECILEN YOL DA TAM BUNU YAPIYORDU.**
+  ⚠️⚠️ **DERS: muhafiz bunu GOREMEZ.** `altkategori_test.go` yalniz `Ara`
+     alaninin DOLU oldugunu olcer. **Hicbir seyle eslesmeyen dolu bir `Ara`,
+     kullanici acisindan BOS `Ara` ile BIREBIR AYNIDIR.** "Alan var mi"
+     olcmek, "is goruyor mu" olcmek DEGILDIR.
+  FIX: yuklem urun katalogunu da tarar.
+  ⚠️ `EXISTS` ZORUNLU, `JOIN` DEGIL: JOIN ile uc urunu eslesen isletme
+     listede **UC KEZ** cikardi.
+  ⚠️ `lower()` KULLANILMADI: `ILIKE` zaten harf duyarsiz ve `lower()`
+     Turkce'de "İ" icin YANLIS sonuc verir.
+  ✅ CANLI: kuafor/saç=2 · saglik/dahiliye=1 · diyetisyen/sporcu=1 ·
+     guzellik/cilt=1 (duzeltmeden ONCE **hepsi 0**).
+- ⚠️⚠️ **TURU 93b — KART + YAZI BIRLIKTE KULLANILINCA LISTE KALICI BOSALIYORDU.**
+  Istemci iki terimi bosluklu birlestirip tek `q` gonderiyor; yuklem bunu
+  **TEK BITISIK ALT DIZE** ariyordu: `q="saç serkan"` -> `ILIKE '%saç serkan%'`.
+  "Kuaför Serkan" eslesmez, **"Serkan Saç" bile eslesmez** (sira ters).
+  FIX: `q` kelimelere bolunur, HER KELIME bir alanda gecmelidir (**AND**).
+  ⚠️ E2E bunu `saç zurafa` -> 0 ile dogruluyor (OR degil AND kaniti).
+- ⚠️⚠️⚠️ **TURU 93b — KATEGORI EKRANINDA ISLETME LISTESI GORUNMUYORDU
+  (IKINCI SEVK ENGELI).** `Expanded`in USTUNDEKI sabit bloklar olculdu:
+  48 + 10 + **350** + 58 + 92 + 56 = **614px**.
+  · 360x800 (en yaygin modern Android): listeye **162px** kaliyor, bir kart
+    ~250px -> **AD VE META HIC GORUNMUYOR**
+  · 360x640 + 3 tus navigasyon: `Expanded` NEGATIF alan alir ->
+    **RenderFlex overflowed**
+  · 414x896 (TEST CIHAZI): 238px — yine tek kart bile sigmiyor
+  FIX: govde **`CustomScrollView`**; slider/arama/60x60 serit/filtre artik
+  **LISTENIN PARCASI** (Yemeksepeti/Getir deseni).
+  ⚠️ **Slider 350px KORUNDU** (kullanici olcusu) — sorun yukseklik DEGIL,
+     SABIT bir dikey butceyi listeden CALMASIYDI.
+  ⚠️ `AlwaysScrollableScrollPhysics` ZORUNLU (bos listede asagi-cek).
+  ⚠️ YAPMA: tekrar `Column` + `Expanded`e cevirme.
+- 📌 **TURU 93 — KATEGORI EKRANI INCE AYAR (kullanicinin 11 maddesi).**
+  Kart ici harf YOK · arama odak kenarligi `0xFF1A1A1A` · ikon bir tik kalin ·
+  ikon-yazi boslugu az · slider %100 DEGIL · header `arrow-left` + harita,
+  **daire YOK**, altinda 10px · filtrelerde **YESIL YOK** · **hepsi tek yatay
+  dolguda** (`kYanBosluk`) · gri bir kat koyu · alt metin 16 · kartlar
+  **Getir/Yemeksepeti** duzeni (16:9 kapak + ad + rozet + meta).
+  ⚠️⚠️ **`strokeWidth` YOKTUR**: `lucide_icons_flutter` ikonlari bir **FONT**
+     olarak sunar (glif), SVG DEGIL. Kalinlik ayni renkte ±0.4px kaydirilmis
+     **DORT GOLGE** ile simule edilir. `Icon`a `strokeWidth` yazarsan DERLENMEZ.
+  ⚠️⚠️ **PUAN / TESLIMAT SURESI / MIN. TUTAR UYDURULMADI**: referans ekranda
+     var ama bu projede o verilerin **HICBIRI YOK**. Sahte deger kullaniciya
+     YANLIS BILGI olurdu. ⚠️ YAPMA: yer tutucu puan/sure/mesafe ekleme.
+  📌 Sunucu: liste sorgusuna `u.kapak_media_id` (SELECT + Scan + yanit
+     haritasi **UCU BIRLIKTE**). Gorsel sirasi: kapak -> avatar -> gradyan
+     yer tutucu (KIRIK GORSEL CIZILMEZ).
+- ⚠️⚠️⚠️ **TURU 93b — MUHAFIZ YALANCI-YESILDI (turu 89 dersinin TEKRARI).**
+  `internal/isletme/sutun_test.go` YALNIZ `Detay` ve `Urun` sorgularini
+  kapsiyordu. Turu 93'te `kapak_media_id` **Liste** sorgusuna eklendi;
+  yanit haritasindan CIKARILIP test kosuldu ve **YESIL GECTI**.
+  ⚠️ **DERS: bir muhafizin yesil olmasi, DEGISTIRDIGIN YUZEYI olctugu
+     anlamina GELMEZ.** Yeni sutun eklerken once "bu sorgu muhafizin
+     KAPSAMINDA mi" diye SOR.
+  Artik SELECT/Scan sayisi + **SIRA** + yanit haritasi olculuyor.
+  ✅ UC BICIMDE kirmizi dusuruldu: (a) yanittan sutun cikarma, (b) SELECT'ten
+     sutun cikarma, (c) `i.il` <-> `i.ilce` TAKASI.
+  ⚠️⚠️ **(c)'nin ILK denemesi YANLIS KURULMUSTU**: desen dosyada ONCE gecen
+     `Detay`in haritasini vurdu ve `-run TestListe` suzgeci yuzunden test
+     YESIL kaldi. **Bozma kanitinin DOGRU YERI bozdugunu da DOGRULA.**
+- 🎯 **TURU 93b — "HER KATEGORI AYRI" (kullanici emri).**
+  7 kategori (`giyim`,`eczane`,`emlak`,`teknoloji`,`eglence`,`hizmet`)
+  `sliderVarsayilan`a dusuyor ve **BIREBIR AYNI** uc slaydi gosteriyordu.
+  ⚠️ Muhafiz ASIMETRIKTI: `altKategoriler` icin ILERI YON zorlaniyor,
+     `kategoriSlider` icin YALNIZ TERS YON olculuyordu — ayni testte, ayni
+     amac icin IKI FARKLI sikilik.
+  FIX: alti kategoriye ozel metin + muhafiza **ileri yon kapsama** +
+  **slayt basligi TEKRARI YASAGI**. ✅ Iki bicimde kirmizi dusuruldu.
+  ⚠️ `diger` BILINCLI MUAF (`sliderMuaf`, gerekcesi yazili).
+  ⚠️ YAPMA: yeni kategori eklerken slider girisini yazmadan gecme.
+- ⚠️⚠️⚠️ **TURU 93b — DIYETISYEN BAGLANTISI %100 OLUYDU (SEVK ENGELI).**
+  `DiyetServisi.bagIste()` yazilmisti ama **HICBIR YERDEN CAGRILMIYORDU**
+  (`grep -rn "bagIste" lib/` -> yalniz TANIMIN KENDISI). Hicbir kullanici
+  `diyet_bag` satiri OLUSTURAMIYORDU: `Danışanlarım` DAIMA bos · `Diyetim`
+  *"bir diyetisyen bul ve istek gonder"* diyor ama **oyle bir dugme YOKTU** ·
+  liste yazma / danisan detayi ULASILAMAZ · `diyet_istek`/`diyet_liste`
+  bildirimleri HIC dogmaz. Kullanicinin manset emri sahada TAMAMEN oluydu.
+  FIX: diyetisyen PROFILINE **"Diyetisyenim ol"** (dogru yer: bir diyetisyene
+  ulasmanin gercek yolu onun profilidir). ⚠️ YAPMA: bu girisi kaldirma.
+- ⚠️⚠️ **TURU 93b — DIYET LISTESI YALNIZ YAZILDIGI GUN GORUNUYORDU.**
+  Gun seridiyle AYNI tarih araligindan suzuluyordu; diyetisyen listeyi YAZDIGI
+  gune kaydeder. Pazartesi gonderilen liste SALI **YOK**. Kullanicinin
+  istedigi **KALICI BIR PLAN**, gunluk kayit degil.
+  FIX: liste icin AYRI, TARIHSIZ cagri (`kayitlar(tur:'liste')`); gun seridi
+  yalniz ogun/olcum bolumunu surer.
+- 💰 **TURU 93b — PARA HATASI: `_kurusOku("85.000")` = 85 ₺ IDI.**
+  Nokta ONDALIK sayiliyordu. Teklif listesi **FIYATA GORE** siralandigi icin
+  bu isletme listenin **BASINA** cikiyor ve "en ucuz" diye seciliyordu.
+  ⚠️ `flutter analyze` bunu GORMEZ, sunucu da goremez (100 kurus da gecerli).
+  FIX + **`mobile/test/kurus_test.dart`** (11 vaka). ✅ Kaynaktan dal
+  cikarilip KIRMIZI dusuruldu. ⚠️ YAPMA: bu testi silme.
+- ⚠️⚠️ **TURU 93b — DIGER ONAYLI BULGULAR (hepsi duzeltildi):**
+  · **HIZMET TALEBI SORANIN KARSISINA DUGUN FORMU CIKIYORDU** ("Temizlik"
+    talebinde *Gelinlik · Gelin arabası · Kır düğünü*). Alanlar artik
+    **SUNUCUDA** kategoriye gore suzuluyor (`GET /ilan-kategoriler?kategori=`);
+    hizmet/ders/diyet dallarina KENDI sorulari yazildi.
+    ⚠️ Istemciye sabit EKLENMEDI (turu 77 kurali). ⚠️ Bos `Kategoriler` =
+       HER kategoride gorunur -> mevcut TUM turler DEGISMEDEN calisir.
+    ⚠️ `dugunKategorileri` SABIT LISTE, "dugun_" ONEKI DEGIL: `gelinlik`,
+       `sac_makyaj`, `davetiye`, `gelin_arabasi` o oneki TASIMAZ ve onek
+       kontrolu bu dordunu SESSIZCE hizmet dalina dusururdu.
+  · **KISISEL HESAP "Teklif ver" DUGMESINI GORUYORDU** ve sunucunun
+    ACIKLAYICI 403'u ("işletme hesabına geçmelisin") jenerik metne
+    cevriliyordu -> kullanici sebebini ogrenemeden TEKRAR TEKRAR deniyordu.
+    Dugme yerine SEBEP yaziliyor (sessizce kaybolan dugme "ozellik yok" gibi
+    gorunur) + `apiErrorMessage(e)`.
+  · **KAZANAN TEKLIFINI GERI CEKEBILIYORDU** -> talep `satildi` KILITLI,
+    kazanan YOK, digerleri elendi ve talebi YENIDEN ACAN HICBIR YOL YOK.
+    Kapi: `AND durum <> 'secildi'`.
+  · **"Görüldü" SECILMIS teklifin uzerinde de duruyordu** ve secimi GERI
+    DUSURUYORDU (istemci + **SUNUCU** kapisi — arayuz TEK BASINA yetmez).
+  · **"revize edildi" HER TEKLIFTE ciziliyordu**: `guncellendi_at`
+    `NOT NULL DEFAULT now()` ile eklendigi icin HER SATIRDA DOLU. Olcut artik
+    **ZAMAN FARKI** (`created_at` istemciye eklendi).
+  · **`PATCH /diyet/kayit` KALORI TAVANINI UYGULAMIYORDU** (POST'ta vardi) ->
+    `SUM(kalori)::int` **integer out of range** -> `/diyet/ozet` KALICI 500
+    ve "Diyetim" ozeti BIR DAHA ACILMAZ.
+  · ⚠️ **GIZLILIK: `diyetErisim` CIFT YONLUYDU** — aktif bagi olan DANISAN,
+    `?user_id=<diyetisyen>` ile **DIYETISYENIN KENDI kilo/olcum/ogun**
+    verisini okuyabiliyordu (SAGLIK VERISI). Okuma **TEK YONLU** yapildi:
+    diyetisyen danisani gorur, tersi GORMEZ. ⚠️ YAPMA: cift yone dondurme.
+  · **BAG SONLANDIKTAN SONRA eski diyetisyen YAZMAYA devam edebiliyordu**
+    (`yazan_id` tek basina yetiyordu). 045'in kendi sozu: *"gecmis korunur,
+    ERISIM KORUNMAZ"*.
+  · **`svc.detay()` PATLARSA KULLANICI TALEBI IKINCI KEZ OLUSTURUYORDU**
+    (+ hedef isletmelere IKINCI fan-out). `detay` AYRI `try`a alindi.
+  · Besin aramasinda **debounce YOKTU** (her tusta istek) + yanit yarisi.
+  · **`_kesfiYukle`de BAYAT YANIT KAPISI YOKTU** (kardes `_yukle`de VARDI):
+    hizli kategori degisiminde "Kuaför" secili gorunurken **Döner/Kebap**
+    kartlari ciziliyordu.
+  · **`_altSecili` sifirlamasi UC daldan yalniz BIRINDE vardi** -> "Tümü"ye
+    basan kullanicida **GORUNMEZ bir suzgec** takili kaliyordu. Tek kapi:
+    `_kategoriSec()`. ⚠️ YAPMA: `_kategori`ye o metodun DISINDA atama yapma.
+  · Kesif istegi patlarsa ekranin tepesinde **350px BOS GRI KUTU** kaliyordu.
+  · **Kart kapagi TAM DOSYA indirip 2048px decode ediyordu** (kullanicinin
+    "bir tik kasiyor" sikayetinin kaynagi) -> genislik ACIKCA veriliyor.
+  · `kYanBosluk` "TEK KAYNAK" serhi **AYNI DOSYADA IKI YERDE** ihlal edilmis.
+  · 60x60 serit **92px SABITTI**; yazi olcegi **1.15**'te (ilk kademe) TASIYOR.
+    Yukseklik artik `textScaler`dan turetiliyor.
+  · 60x60 kartlar acik temada kontrast **~1.06** ile GORUNMEZDI (ustelik
+    slider zemininden DAHA ACIK -> hiyerarsi TERS).
+  · Filtre rozeti `_altSecili`yi saymiyordu · cip dokunma alani **36dp** idi
+    (Material 48) · bos listede asagi-cek CALISMIYORDU · **`baslik` parametresi
+    OLUYDU** (6 cagri yeri veri geciyor, ekran HIC okumuyordu).
+- 🌱 **TURU 93b — TOHUMA KAPAK GORSELI** (`tools/kapak_uret.js`, bagimliliksiz
+  PNG, salt `zlib`). Isletmelerin **YARISINA** verilir ki kullanici IKI DALI
+  DA (kapakli/kapaksiz) ayni listede yan yana gorup tasarimi degerlendirsin.
+  ⚠️ **AI ILE URETILMEDI**: (a) PARA harcar + gunluk kotayi yer, (b)
+     `/ai/gorsel` `kind='image'` uretir ve `PATCH /users/me` kapak icin
+     `kind='kapak'` sartini **403** ile DAYATIR.
+  ⚠️ Uretilen gorsel bir FOTOGRAF DEGIL, desenli bir kapaktir — sahte yemek
+     fotografi gosterilmiyor.
+  ⚠️ EN IYI CABA (hata tohumu BOZMAZ): degeri aninda olculdu — ilk kosuda
+     `require` unutulmustu, tohum bozulmadan devam etti ve eksik SATIRDAN
+     gorundu.
+- ⚠️⚠️ **TURU 93b — `tools/indir/r2put.js` ARTIK HTML YUKLEYEMEZ.**
+  Kullanici **DORT TURDUR** "indir sitesinde saati goremiyorum" diyor ve
+  sunucu tarafi HER SEFERINDE dogru cikiyor. Turu 85b'de OLCULEN kok neden
+  BU DOSYANIN varsayilani (`application/octet-stream`) idi: `index.html` o
+  baslikla yuklenince tarayici sayfayi **CIZMEZ, DOSYA OLARAK INDIRIR**.
+  Duzeltme `r2yukle.js`e tasinmisti ama **bozuk varsayilan AYNI DIZINDE,
+  BENZER ISIMLE kaldi** — yanlis araci secmek icin tek gereken iki isimden
+  birini yazmak, hata da SESSIZ.
+  FIX: `.html/.css/.js/.json/.txt/.xml/.svg` uzantisini ACIK tur olmadan
+  yuklemeyi **REDDEDER** (cikis kodu 1) ve dogru araci gosterir.
+  ⚠️ **SURUM RUTININDE `node tools/indir/r2yukle.js` KULLAN.**
+- 📌 **MIGRATION NUMARALARI (guncel):** 045 = teklif (`ilan_basvurular.fiyat_kurus`
+  + `guncellendi_at`) + diyet (`diyet_bag`, `diyet_kayit`). Sonraki **046**'dan.
+- ⏳ **EN SONA BIRAKILAN (kullanici emri):** `active_call_controller.dart`
+  ~500 satirlik olu bekletme/park zinciri temizligi.
+  ⚠️ `beklemeyeAl`in `!bekletmeAcik` dali **CANLI** — silinirken KORUNMALI.
+
 - **KALDIGIMIZ YER (11 Agu 23:08): TEST TURU 92 YAYINLANDI** — android
   **31530038962** + ios **31530042894** (**9558e76**), R2 apk=121745231
   (md5 d923054b) ipa=31586912 (md5 bd2318b2) index=9673 (md5 c5e0d025),
