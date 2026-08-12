@@ -492,12 +492,21 @@ const kontrol = (ad, gecti, ek = '') => {
     //    zinciri kanitlamali: presign -> sutun -> gonderi sorgusu -> istemci.
     // ⚠️ Degerler GERCEK JPEG'in olculeri DEGIL (test resmi 1x1); amac
     //    ZINCIRIN calistigini gostermek, kod cozucuyu sinamak degil.
-    async function medyaYukle(token, ad, w = 1080, h = 1350) {
+    // ⚠️⚠️ TURU 93 — `kind` PARAMETRELESTIRILDI (varsayilan 'image', mevcut
+    //    cagiranlar ETKILENMEZ).
+    //
+    //	SEBEP: kapak medyasi 'image' olarak yuklenemez. Sunucu
+    //	`PATCH /users/me` icinde `kind='kapak'` sartini **403 ile**
+    //	uyguluyor (turu 78 kapisi: aksi halde bir avatar kapak, bir kapak
+    //	avatar yapilabilirdi ve `limits.go`daki AYRI boyut tavanlari
+    //	ANLAMINI YITIRIRDI). Ilk yazimda 'image' gecmistim ve e2e KIRMIZI
+    //	dustu — yani bu kontrol ISE YARADI: sunucunun kapisini KANITLADI.
+    async function medyaYukle(token, ad, w = 1080, h = 1350, kind = 'image') {
       const md5x = crypto.createHash('md5').update(JPEG).digest('base64');
       const p = await j('/media/upload', {
         yontem: 'POST', token,
         govde: {
-          kind: 'image', mime: 'image/jpeg', bytes: JPEG.length, md5: md5x,
+          kind, mime: 'image/jpeg', bytes: JPEG.length, md5: md5x,
           file_name: ad, width: w, height: h,
         },
       });
@@ -608,10 +617,23 @@ const kontrol = (ad, gecti, ek = '') => {
     //    derleyici SUSAR, alan istemciye HIC ULASMAZ ve kartlar sessizce
     //    gradyan yer tutucuya duser (= "kapak ozelligi yok" gibi gorunur).
     {
-      const kpk = await medyaYukle(A.token, 'kapak93.jpg', 1600, 900);
-      await j('/users/me', {
+      const kpk = await medyaYukle(A.token, 'kapak93.jpg', 1600, 900, 'kapak');
+      const pk93 = await j('/users/me', {
         yontem: 'PATCH', token: A.token, govde: { kapak_media_id: kpk },
       });
+      kontrol('TURU 93: kapak PATCH kabul edildi', pk93.kod === 200,
+        'HTTP ' + pk93.kod);
+
+      // ⚠️ KIND KAPISI: 'image' bir medya KAPAK YAPILAMAZ. Bu kapi olmasaydi
+      //    `limits.go`daki ayri boyut tavanlari (avatar 2 MB / kapak 8 MB)
+      //    anlamini yitirirdi.
+      const yanlisKind = await medyaYukle(A.token, 'yanlis.jpg', 1600, 900);
+      const rd = await j('/users/me', {
+        yontem: 'PATCH', token: A.token,
+        govde: { kapak_media_id: yanlisKind },
+      });
+      kontrol("TURU 93: kind='image' medya KAPAK YAPILAMIYOR (403)",
+        rd.kod === 403, 'HTTP ' + rd.kod);
       const l93 = await j('/isletmeler?kategori=yemek', { token: B.token });
       const ben = (((l93.d && l93.d.isletmeler) || [])
         .find((x) => x.id === A.id)) || {};
