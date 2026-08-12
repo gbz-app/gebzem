@@ -2765,6 +2765,9 @@ const kontrol = (ad, gecti, ek = '') => {
 
     // ⚠️ HER KATEGORI FARKLI (kullanici emri): yemek ile kuafor AYNI
     //    listeyi dondurmemeli.
+    // ⚠️ Varsayilan slaytlar: "her kategori farkli" kontrolunun TABANI.
+    const bos0 = await j('/isletme-kesif?kategori=yokboyle',
+      { token: Z.token });
     const k = await j('/isletme-kesif?kategori=kuafor', { token: Z.token });
     const kAlt = ((k.d || {}).alt_kategoriler) || [];
     kontrol('TURU 92: HER KATEGORI FARKLI (yemek != kuafor)',
@@ -2778,6 +2781,93 @@ const kontrol = (ad, gecti, ek = '') => {
     const arama = await j('/isletmeler?kategori=yemek&q=döner', { token: Z.token });
     kontrol('TURU 92: alt kategori aramasi UC TARAFINDAN kabul ediliyor',
       arama.kod === 200, 'HTTP ' + arama.kod);
+
+    // ═══════ TURU 93b: KART GERCEKTEN SONUC DONDURUYOR MU ═══════
+    //
+    // ⚠️⚠️⚠️ DENETIMIN BULDUGU SEVK ENGELI TAM BURADAYDI: turu 92 kartlari
+    //	arama kisayoludur ("Saç Kesim" -> `q=saç`) ama sunucudaki yuklem
+    //	YALNIZ `u.name`/`u.username`e bakiyordu. Eslesmesi gereken metin
+    //	(`Saç kesimi`) URUN KATALOGUNDA; isletme adi "Kuaför Serkan" ve
+    //	icinde "saç" GECMEZ. Tohum verisiyle sayildi: veri bulunan bes
+    //	kategoride **25 kartin 25'i de BOS** donuyordu.
+    //
+    // ⚠️⚠️ BIRIM TESTI BUNU YAPISAL OLARAK OLCEMEZ: `altkategori_test.go`
+    //	yalniz `Ara` alaninin DOLU oldugunu sinar. **Hicbir seyle
+    //	eslesmeyen dolu bir `Ara`, kullanici acisindan BOS `Ara` ile
+    //	BIREBIR AYNIDIR.** Bu ancak GERCEK VERIYLE, CANLI olculur.
+    // ⚠️ YAPMA: bu kontrolu silme; yeni alt kategori eklerken calistir.
+    {
+      // Urun katalogunda "saç" gecen bir kuafor kur.
+      const K = await kullaniciAc('E2E Kuafor');
+      await j('/users/me/isletme', {
+        yontem: 'PUT', token: K.token,
+        govde: {
+          kategori: 'kuafor', adres: 'Test', il: 'Kocaeli', ilce: 'Gebze',
+          telefon: '02620000001',
+          calisma: [1, 2, 3, 4, 5, 6, 7].map((g) => ({
+            gun: g, acilis: '09:00', kapanis: '20:00', kapali: false,
+          })),
+        },
+      });
+      // ⚠️ Isletme ADINDA "saç" GECMIYOR ("E2E Kuafor") — eslesme YALNIZ
+      //    urun katalogundan gelebilir. Kontrolun degeri tam burada.
+      const ur = await j('/isletme/urunler', {
+        yontem: 'POST', token: K.token,
+        govde: { ad: 'Saç kesimi', bolum: 'Saç', fiyat_kurus: 35000,
+                 tur: 'hizmet' },
+      });
+
+      const kart = await j('/isletmeler?kategori=kuafor&q=' +
+        encodeURIComponent('saç'), { token: Z.token });
+      const bulundu = (((kart.d || {}).isletmeler) || [])
+        .some((x) => x.id === K.id);
+      kontrol('TURU 93b: ALT KATEGORI KARTI GERCEKTEN SONUC DONDURUYOR ' +
+        '(eslesme URUN KATALOGUNDAN)',
+        ur.kod < 300 && kart.kod === 200 && bulundu,
+        'urun HTTP ' + ur.kod + ' | liste HTTP ' + kart.kod +
+        ' | adet=' + (((kart.d || {}).isletmeler) || []).length);
+
+      // ⚠️ COK KELIMELI ARAMA (kart + yazi birlikte): eskiden tek bitisik
+      //    alt dize araniyordu (`ILIKE '%saç kuafor%'`) ve "E2E Kuafor"
+      //    ESLESMIYORDU -> liste KALICI BOS kaliyordu.
+      const cift = await j('/isletmeler?kategori=kuafor&q=' +
+        encodeURIComponent('saç kuafor'), { token: Z.token });
+      kontrol('TURU 93b: KART + YAZI birlikte calisiyor (kelime kelime AND)',
+        cift.kod === 200 &&
+        (((cift.d || {}).isletmeler) || []).some((x) => x.id === K.id),
+        'adet=' + (((cift.d || {}).isletmeler) || []).length);
+
+      // ⚠️ AND semantigi GERCEKTEN AND mi: eslesmeyen bir kelime eklenince
+      //    sonuc DUSMELI (aksi halde yuklem OR gibi davraniyor demektir).
+      const olmayan = await j('/isletmeler?kategori=kuafor&q=' +
+        encodeURIComponent('saç zurafa'), { token: Z.token });
+      kontrol('TURU 93b: eslesmeyen kelime sonucu ELER (OR degil AND)',
+        olmayan.kod === 200 &&
+        !(((olmayan.d || {}).isletmeler) || []).some((x) => x.id === K.id),
+        'adet=' + (((olmayan.d || {}).isletmeler) || []).length);
+    }
+
+    // ⚠️ TURU 93b — HER KATEGORININ **KENDI SLIDER METNI** OLMALI
+    //    (kullanici emri: *"butun kategoriler AYRI olmali"*). Varsayilana
+    //    dusen kategori, baska kategorilerle BIREBIR AYNI ekrani gosterir.
+    {
+      const katL = await j('/isletme-kategorileri', { token: Z.token });
+      const anahtarlar = Object.keys(
+        ((katL.d || {}).kategoriler) || {});
+      const varsayilan = JSON.stringify(
+        ((bos0.d || {}).slaytlar) || []);
+      const ayniOlanlar = [];
+      for (const a of anahtarlar) {
+        if (a === 'diger') continue; // bilincli muaf (sunucu serhinde yazili)
+        const r = await j('/isletme-kesif?kategori=' + a, { token: Z.token });
+        if (JSON.stringify(((r.d || {}).slaytlar) || []) === varsayilan) {
+          ayniOlanlar.push(a);
+        }
+      }
+      kontrol('TURU 93b: HER KATEGORININ KENDI SLIDER METNI VAR',
+        ayniOlanlar.length === 0,
+        'varsayilana dusen: ' + (ayniOlanlar.join(',') || 'yok'));
+    }
 
     // ⚠️ BILINMEYEN kategori: slider VARSAYILANA duser, serit BOS doner
     //    (350px bos gri kutu OLMAMALI).
