@@ -28,6 +28,10 @@
 // KULLANIM:  node tools/tohum.js
 // ⚠️ ONCE DB TEMIZLENIR (surum rutini), SONRA bu kosar.
 
+const crypto = require('crypto');
+// ⚠️ TURU 93b — kapak gorseli uretici (harici bagimlilik YOK, salt zlib).
+const { kapakUret } = require('./kapak_uret');
+
 const API = process.env.GEBZEM_API || 'https://api.gebzem.app';
 
 // ⚠️ TEK SIFRE: kullaniciya verilecek tabloyu okunur kilar. Bunlar TEST
