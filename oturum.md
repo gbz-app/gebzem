@@ -6781,3 +6781,141 @@ E2E **336 → 341** (canlıda 341/341) · **213 rota** çakışmasız · `flutte
 
 ### 📌 Doğrulama notu
 IPA'da "Bugün ne yesek?" dizesi **YOK** — bu **doğru**: metin sunucuda yaşıyor, istemciye gömülmedi. Sunucu-güdümlü tasarımın kanıtı.
+
+---
+
+## Oturum — 12 Ağustos 2026 · TURU 93 + 93b: KATEGORİ EKRANI İNCE AYAR · 3 DENETİM · İKİ SEVK ENGELİ
+
+### Kullanıcının istediği (Migros Yemek ekran görüntüsü referansıyla, 11 madde)
+60x60 kartların içindeki harfler kalksın · arama odak kenarlığı **tam siyahın bir tık açığı** ·
+arama ikonu bir tık kalın · ikon-yazı boşluğu azalsın · slider %100 genişlikte olmasın ·
+header'da `arrow-left` + harita, **arkalarındaki daire kalksın**, altında 10px boşluk ·
+filtrelerde **yeşil yok**, arama kutusu dili · **hepsi tek container, sol-sağ boşluk içinde** ·
+slider grisi bir kat koyu · alt metin bir tık büyük · **firmalar Getir/Yemeksepeti kartları gibi**.
+Ayrıca: *"bütün kategoriler ayrı olmalı — kategorilerin hepsi ayrı"*.
+
+### Yapılanlar (11 maddenin hepsi + sunucu)
+- Kart içi harf kaldırıldı · odak kenarlığı `0xFF1A1A1A` · **ikon kalınlığı 4 gölgeyle simüle
+  edildi** (`lucide_icons_flutter` ikonları FONT'tur, `strokeWidth` YOKTUR — derlenmez) ·
+  `prefixIconConstraints` ile boşluk daraltıldı · `width: double.infinity` kaldırıldı ·
+  header ayrı satır, `IconButton` 48dp hedefi korundu · filtreler `_notrKenar`/`_notrYazi`
+  TEK KAYNAK · **`kYanBosluk` tek sabit** · gri `F1F1F3 -> E7E7EA` · alt metin 14.5 -> 16 ·
+  kart 16:9 kapak + ad + onaylı rozeti + meta.
+- **Sunucu:** işletme listesine `u.kapak_media_id` (SELECT + Scan + yanıt haritası birlikte).
+- **Puan/teslimat süresi/min. tutar UYDURULMADI** — o veriler projede yok; sahte değer
+  kullanıcıya yanlış bilgi olurdu. Sayfada da dürüstçe yazıldı.
+
+### ⚠️⚠️⚠️ ÜÇ DENETİM KOŞULDU — İKİ SEVK ENGELİ (build ÖNCESİ yakalandı)
+
+**(1) ALT KATEGORİ KARTLARININ HEPSİ BOŞ SONUÇ DÖNDÜRÜYORDU.** Turu 92'nin manşet özelliği
+ölü doğacaktı. Kart bir arama kısayolu ("Saç Kesim" -> `q=saç`) ama yüklem yalnız
+`u.name`/`u.username`e bakıyordu; eşleşmesi gereken metin (`Saç kesimi`) **ürün kataloğunda**.
+İşletme adı "Kuaför Serkan" ve içinde "saç" GEÇMEZ. Tohum verisiyle bire bir sayıldı:
+veri bulunan beş kategoride **25 kartın 25'i de BOŞ**.
+- ⚠️ `altkategori.go` şerhi *"ad/açıklama üzerinde arama BUGÜN çalışır"* diyordu —
+  `isletmeler` tablosunda **`aciklama` sütunu YOK**. Üstelik şerh reddettiği alternatifi
+  *"kartların HEPSİNİ BOŞ döndürürdü"* diye eliyordu: **seçilen yol da tam bunu yapıyordu.**
+- ⚠️ Muhafız göremezdi: `altkategori_test.go` yalnız `Ara`nın DOLU olduğunu ölçer.
+  **Hiçbir şeyle eşleşmeyen dolu bir `Ara`, kullanıcı açısından BOŞ `Ara` ile BİREBİR AYNIDIR.**
+- FIX: yüklem ürün kataloğunu da tarar (`EXISTS` — `JOIN` üç ürünü eşleşen işletmeyi ÜÇ KEZ
+  listelerdi). ✅ Canlı doğrulandı: kuaför/saç=2, sağlık/dahiliye=1, diyetisyen/sporcu=1,
+  güzellik/cilt=1 (düzeltmeden önce **hepsi 0**).
+
+**(2) KATEGORİ EKRANINDA İŞLETME LİSTESİ GÖRÜNMÜYORDU.** `Expanded`in üstündeki sabit
+bloklar ölçüldü: 48+10+350+58+92+56 = **614px**.
+- 360x800 (en yaygın modern Android): listeye **162px** kalıyor, bir kart ~250px ->
+  **ad ve meta HİÇ görünmüyor**
+- 360x640 + 3 tuş navigasyon: `Expanded` negatif alan alıyor -> **RenderFlex overflowed**
+- 414x896 (test cihazı): 238px — yine tek kart bile sığmıyor
+- FIX: gövde `CustomScrollView`; slider/arama/kartlar/filtre artık **listenin parçası**
+  (Yemeksepeti/Getir deseni). **Slider 350px KORUNDU** — sorun yükseklik değil, sabit dikey
+  bütçeyi listeden çalmasıydı.
+
+### ⚠️⚠️ TURU 90-91 DENETİMİ: İKİ SEVK ENGELİ DAHA
+- **`bagIste()` HİÇBİR YERDEN ÇAĞRILMIYORDU** -> diyetisyen bağlantısı %100 ölü:
+  `Danışanlarım` daima boş · `Diyetim` *"bir diyetisyen bul ve istek gönder"* diyor ama
+  **öyle bir düğme YOKTU** · liste yazma/danışan detayı ulaşılamaz · `diyet_istek`/
+  `diyet_liste` bildirimleri hiç doğmaz. Kullanıcının manşet emri sahada TAMAMEN ölüydü.
+  FIX: diyetisyen profiline **"Diyetisyenim ol"**.
+- **DİYET LİSTESİ YALNIZ YAZILDIĞI GÜN GÖRÜNÜYORDU** (gün şeridiyle aynı tarih aralığından
+  süzülüyordu). Diyetisyen pazartesi gönderir, danışan salı açar -> liste YOK. Kullanıcının
+  istediği **kalıcı bir plan**. FIX: liste için ayrı, tarihsiz çağrı.
+
+### PARA HATASI (muhafızlı)
+`_kurusOku("85.000")` = **85 ₺** idi (nokta ondalık sayılıyordu). Teklif listesi **fiyata göre**
+sıralandığı için bu işletme listenin **başına** çıkıyor ve "en ucuz" diye seçiliyordu.
+⚠️ `flutter analyze` bunu görmez, sunucu da göremez (100 kuruş da geçerli teklif).
+`test/kurus_test.dart` (11 vaka) eklendi; kaynaktan dal çıkarılıp **kırmızı düşürüldü**.
+
+### Diğer onaylı bulgular (hepsi düzeltildi)
+- Hizmet talebi soranın karşısına **düğün formu** çıkıyordu ("Temizlik" talebinde *Gelinlik ·
+  Gelin arabası · Kır düğünü*). Alanlar artık kategoriye göre **sunucuda** süzülüyor
+  (`?kategori=`); hizmet/ders/diyet dallarına kendi soruları yazıldı — istemciye sabit eklenmedi.
+- Kişisel hesap "Teklif ver" düğmesini görüyordu; sunucunun açıklayıcı 403'ü jenerik metne
+  çevriliyordu -> kullanıcı sebebini öğrenemeden tekrar deniyordu.
+- Kazanan teklifini **geri çekebiliyordu** -> talep `satildi` kilitli, kazanan yok, diğerleri
+  elendi, yeniden açan yol YOK.
+- **"Görüldü" seçilmiş teklifin üzerinde de duruyordu** ve seçimi geri düşürüyordu (istemci +
+  sunucu kapısı).
+- **"revize edildi" HER teklifte çiziliyordu** (`NOT NULL DEFAULT now()`); ölçüt artık zaman farkı.
+- `PATCH /diyet/kayit` kalori tavanını uygulamıyordu -> `SUM(kalori)::int` taşar, `/diyet/ozet`
+  **kalıcı 500**.
+- **GİZLİLİK: `diyetErisim` ÇİFT YÖNLÜYDÜ** — danışan, diyetisyenin kendi kilo/ölçüm/öğün
+  verisini okuyabiliyordu. Okuma tek yönlü yapıldı.
+- Bağ sonlandıktan sonra eski diyetisyen yazmaya devam edebiliyordu.
+- `svc.detay()` patlarsa kullanıcı **talebi ikinci kez** oluşturuyordu (+ ikinci fan-out).
+- Besin aramasında debounce yoktu (her tuşta istek) + yanıt yarışı.
+- `_kesfiYukle`de bayat yanıt kapısı yoktu (kardeş metotta VARDI).
+- `_altSecili` sıfırlaması üç daldan yalnız birinde vardı -> "Tümü"ye basan kullanıcıda
+  **görünmez bir süzgeç** takılı kalıyordu.
+- Keşif isteği patlarsa ekranın tepesinde **350px boş gri kutu** kalıyordu.
+- Kart kapağı tam dosya indirip **2048px** decode ediyordu (kullanıcının "bir tık kasıyor"
+  şikâyetinin kaynağı) -> genişlik açıkça veriliyor.
+- `kYanBosluk` "TEK KAYNAK" şerhi **aynı dosyada iki yerde** ihlal edilmişti.
+- 60x60 şerit 92px sabitti; yazı ölçeği **1.15**'te (ilk kademe) taşıyordu.
+- 60x60 kartlar açık temada kontrast **~1.06** ile görünmezdi.
+- Filtre rozeti `_altSecili`yi saymıyordu · çip dokunma alanı 36dp idi · boş listede aşağı-çek
+  çalışmıyordu · `baslik` parametresi ÖLÜYDÜ (6 çağrı yeri veri geçiyor, ekran okumuyordu).
+
+### "HER KATEGORİ AYRI" (kullanıcının bu oturumdaki emri)
+7 kategori (`giyim`,`eczane`,`emlak`,`teknoloji`,`eglence`,`hizmet`) `sliderVarsayilan`a
+düşüyor ve **birebir aynı üç slaydı** gösteriyordu.
+⚠️ Muhafız asimetrikti: `altKategoriler` için ileri yön zorlanıyor, `kategoriSlider` için
+yalnız ters yön ölçülüyordu.
+FIX: altı kategoriye özel metin + muhafıza **ileri yön kapsama** + **slayt başlığı tekrarı
+yasağı**. ✅ İki biçimde kırmızı düşürüldü. (`diger` bilinçli muaf, gerekçesi yazılı.)
+
+### Muhafızlar
+- `internal/isletme/sutun_test.go`: **Liste sorgusu kapsama alındı** — turu 93'te eklenen
+  `kapak_media_id` yanıt haritasından çıkarılıp test koşuldu ve **YEŞİL GEÇTİ**
+  (muhafız yalancı-yeşildi). Artık SELECT/Scan sayısı + **SIRA** + yanıt haritası ölçülüyor.
+  ✅ Üç biçimde kırmızı: (a) yanıttan sütun çıkarma, (b) SELECT'ten sütun çıkarma,
+  (c) `i.il` <-> `i.ilce` takası.
+  ⚠️ **(c)'nin ilk denemesi yanlış kurulmuştu**: desen dosyada önce geçen `Detay`ın
+  haritasını vurdu ve `-run TestListe` süzgeci yüzünden test yeşil kaldı. **Bozma kanıtının
+  DOĞRU YERİ bozduğunu da doğrula.**
+- `internal/rota/rota_test.go`: `/isletme-kesif` + `/isletme-modulleri` (elle tutulan liste
+  drift etmişti). **213 rota çakışmasız.**
+- `tools/indir/r2put.js`: **HTML yüklemeyi REDDEDİYOR** — kullanıcının dört turdur söylediği
+  "saati göremiyorum"un turu 85b'de ölçülen kök nedeni bu dosyanın `octet-stream`
+  varsayılanıydı ve düzeltme kardeş dosyaya taşınmışken **bozuk varsayılan aynı dizinde
+  benzer isimle kalmıştı**.
+- `mobile/test/kurus_test.dart`: para ayrıştırma (11 vaka).
+
+### E2E 341 -> 349
+En değerlisi: **kartların gerçekten sonuç döndürdüğü** canlı ölçülüyor (adında "saç" GEÇMEYEN
+bir kuaför kurulur, kataloğa "Saç kesimi" eklenir ve kart araması onu bulur) + kelime-kelime
+AND (`saç zurafa` -> 0) + **her kategorinin kendi slider metni**.
+⚠️ Birim testi bunu yapısal olarak ölçemez — gerçek veri gerekir.
+
+### Tohum: kapak görseli
+Bağımlılıksız PNG üretici (`tools/kapak_uret.js`, salt `zlib`); işletmelerin **yarısına**
+kapak verilir ki iki dal (kapaklı/kapaksız) aynı listede yan yana görülebilsin.
+⚠️ AI ile görsel üretilmedi: para harcar, günlük kotayı yer ve `/ai/gorsel` `kind=image`
+üretirken `PATCH /users/me` kapak için `kind=kapak` şartını **403** ile dayatıyor.
+⚠️ En iyi çaba kapısının değeri anında ölçüldü: ilk koşuda `require` unutulmuştu, tohum
+bozulmadan devam etti ve eksik satırdan görüldü.
+
+### Sonuç
+`flutter analyze` **0 hata 0 uyarı** · `flutter test` **11/11** · `go build`+`go vet`+`go test`
+temiz · **213 rota çakışmasız** · **349/349 canlı uçtan uca**.
