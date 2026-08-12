@@ -167,7 +167,11 @@ async function isletmeKur(h, { kategori, adres, ilce, urunler, i }) {
   //    kapaksiz) ayni listede yan yana gorup tasarimi degerlendirebilsin.
   // ⚠️ EN IYI CABA: medya kapaliysa ya da yukleme patlarsa tohum DEVAM
   //    EDER. Kapak bir SUS; tohumun asil isi hesap/randevu/ilan kurmak.
-  if (i % 2 === 0) {
+  // ⚠️ YEMEK/KAFE **HEPSI** kapakli: kullanicinin referans aldigi ekran
+  //    (Migros Yemek) bastan asagi gorselli kartlardan olusuyor. Diger
+  //    kategorilerde YARISI kapakli birakilir ki yer tutucu dali da ayni
+  //    listede gorulebilsin.
+  if (kategori === 'yemek' || kategori === 'kafe' || i % 2 === 0) {
     try {
       await kapakYukle(h, i);
     } catch (e) {
@@ -242,6 +246,85 @@ async function randevuAl(musteri, isletmeID, notMetni) {
 // ⚠️ Telefonlar SABIT ve OKUNUR: +90555 + 3 haneli grup kodu + sira.
 //    Boylece kullaniciya verilen tablo her surumde AYNI kalir.
 const ISLETMELER = [
+  // ⚠️⚠️⚠️ YEMEK & KAFE — **EN BASTA** (kullanici emri).
+  //
+  //	Tohum 10 isletme kuruyordu ama HICBIRI yemek/kafe DEGILDI (2 doktor,
+  //	2 diyetisyen, 2 kuafor, 2 guzellik, 2 otel). Kullanici uygulamayi acip
+  //	"Yemek" kategorisine girince **TEK BIR ISLETME BILE** gormuyordu ve
+  //	uygulama bir "doktor uygulamasi" gibi gorunuyordu:
+  //	*"kartlar yemek firma kartlari yok, yemekte doktor kartlari cikiyor"*.
+  //
+  // ⚠️ URUN ADLARI ALT KATEGORI KARTLARIYLA **BILEREK** eslesiyor
+  //    (Döner/Kebap/Pide/Lahmacun/Burger/Pizza/Çorba/Tatlı/Kahve/Kahvaltı):
+  //    kartlar bir ARAMA KISAYOLUDUR ve eslesecek urun yoksa kart BOS
+  //    sonuc dondurur — turu 93b'de tam bu yuzden 25 kartin 25'i oluydu.
+  { grup: 'Yemek', kategori: 'yemek', ad: 'Gebze Kebap Salonu', kadi: 'gebzekebap',
+    tel: '+905551070001', adres: 'Hacı Halil Mah. Zübeyde Hanım Cd. No:14', ilce: 'Gebze',
+    urunler: [
+      { ad: 'Adana kebap', bolum: 'Kebap', fiyat_kurus: 42000, tur: 'urun' },
+      { ad: 'Urfa kebap', bolum: 'Kebap', fiyat_kurus: 42000, tur: 'urun' },
+      { ad: 'Tavuk şiş', bolum: 'Kebap', fiyat_kurus: 36000, tur: 'urun' },
+      { ad: 'Lahmacun', bolum: 'Fırın', fiyat_kurus: 9000, tur: 'urun' },
+      { ad: 'Mercimek çorba', bolum: 'Çorba', fiyat_kurus: 8000, tur: 'urun' },
+      { ad: 'Künefe', bolum: 'Tatlı', fiyat_kurus: 18000, tur: 'urun' },
+    ] },
+  { grup: 'Yemek', kategori: 'yemek', ad: 'Usta Döner & Pide', kadi: 'ustadoner',
+    tel: '+905551070002', adres: 'İstasyon Cd. No:31', ilce: 'Gebze',
+    urunler: [
+      { ad: 'Et döner porsiyon', bolum: 'Döner', fiyat_kurus: 38000, tur: 'urun' },
+      { ad: 'Tavuk döner dürüm', bolum: 'Döner', fiyat_kurus: 19000, tur: 'urun' },
+      { ad: 'Kaşarlı pide', bolum: 'Pide', fiyat_kurus: 22000, tur: 'urun' },
+      { ad: 'Kıymalı pide', bolum: 'Pide', fiyat_kurus: 24000, tur: 'urun' },
+      { ad: 'Ayran', bolum: 'İçecek', fiyat_kurus: 4000, tur: 'urun' },
+    ] },
+  { grup: 'Yemek', kategori: 'yemek', ad: 'Burger Durağı', kadi: 'burgerduragi',
+    tel: '+905551070003', adres: 'Osman Yılmaz Mah. No:7', ilce: 'Gebze',
+    urunler: [
+      { ad: 'Klasik burger menü', bolum: 'Burger', fiyat_kurus: 35000, tur: 'urun' },
+      { ad: 'Double cheese burger', bolum: 'Burger', fiyat_kurus: 47000, tur: 'urun' },
+      { ad: 'Tavuk burger', bolum: 'Burger', fiyat_kurus: 32000, tur: 'urun' },
+      { ad: 'Patates kızartması', bolum: 'Yanında', fiyat_kurus: 9000, tur: 'urun' },
+    ] },
+  { grup: 'Yemek', kategori: 'yemek', ad: 'Napoli Pizza', kadi: 'napolipizza',
+    tel: '+905551070004', adres: 'Mustafa Kemal Bul. No:52', ilce: 'Darıca',
+    urunler: [
+      { ad: 'Margherita pizza', bolum: 'Pizza', fiyat_kurus: 33000, tur: 'urun' },
+      { ad: 'Karışık pizza', bolum: 'Pizza', fiyat_kurus: 39000, tur: 'urun' },
+      { ad: 'Sucuklu pizza', bolum: 'Pizza', fiyat_kurus: 37000, tur: 'urun' },
+      { ad: 'Tiramisu', bolum: 'Tatlı', fiyat_kurus: 15000, tur: 'urun' },
+    ] },
+  { grup: 'Yemek', kategori: 'yemek', ad: 'Anadolu Ev Yemekleri', kadi: 'anadoluev',
+    tel: '+905551070005', adres: 'Cumhuriyet Mah. No:9', ilce: 'Gebze',
+    urunler: [
+      { ad: 'Ev yemeği tabağı', bolum: 'Ana Yemek', fiyat_kurus: 28000, tur: 'urun' },
+      { ad: 'Kuru fasulye', bolum: 'Ana Yemek', fiyat_kurus: 16000, tur: 'urun' },
+      { ad: 'Ezogelin çorba', bolum: 'Çorba', fiyat_kurus: 8000, tur: 'urun' },
+      { ad: 'Sütlaç', bolum: 'Tatlı', fiyat_kurus: 11000, tur: 'urun' },
+    ] },
+  { grup: 'Yemek', kategori: 'yemek', ad: 'Marmara Balık Evi', kadi: 'marmarabalik',
+    tel: '+905551070006', adres: 'Sahil Yolu No:3', ilce: 'Darıca',
+    urunler: [
+      { ad: 'Levrek ızgara', bolum: 'Balık', fiyat_kurus: 58000, tur: 'urun' },
+      { ad: 'Hamsi tava', bolum: 'Balık', fiyat_kurus: 34000, tur: 'urun' },
+      { ad: 'Balık çorbası', bolum: 'Çorba', fiyat_kurus: 14000, tur: 'urun' },
+    ] },
+
+  { grup: 'Kafe', kategori: 'kafe', ad: 'Kahve Molası', kadi: 'kahvemolasi',
+    tel: '+905551080001', adres: 'Hürriyet Cd. No:60', ilce: 'Gebze',
+    urunler: [
+      { ad: 'Filtre kahve', bolum: 'Kahve', fiyat_kurus: 9000, tur: 'urun' },
+      { ad: 'Latte', bolum: 'Kahve', fiyat_kurus: 11000, tur: 'urun' },
+      { ad: 'Serpme kahvaltı (kişi başı)', bolum: 'Kahvaltı', fiyat_kurus: 32000, tur: 'urun' },
+      { ad: 'Belçika waffle', bolum: 'Tatlı', fiyat_kurus: 17000, tur: 'urun' },
+    ] },
+  { grup: 'Kafe', kategori: 'kafe', ad: 'Tatlıcı Baklava Evi', kadi: 'baklavaevi',
+    tel: '+905551080002', adres: 'Çarşı Cd. No:2', ilce: 'Gebze',
+    urunler: [
+      { ad: 'Fıstıklı baklava (porsiyon)', bolum: 'Tatlı', fiyat_kurus: 21000, tur: 'urun' },
+      { ad: 'Sütlü nuriye', bolum: 'Tatlı', fiyat_kurus: 16000, tur: 'urun' },
+      { ad: 'Türk kahvesi', bolum: 'Kahve', fiyat_kurus: 7000, tur: 'urun' },
+    ] },
+
   { grup: 'Doktor', kategori: 'saglik', ad: 'Dr. Ayşe Yılmaz', kadi: 'drayse', tel: '+905551010001',
     adres: 'Hürriyet Cd. No:12', ilce: 'Gebze',
     urunler: [

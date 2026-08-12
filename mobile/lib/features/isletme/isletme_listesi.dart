@@ -48,6 +48,17 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
   /// Bayat yanit kapisi — yanitlar SIRASIZ donebilir (kesfet ekraniyla ayni desen).
   int _istekNo = 0;
 
+  /// ⚠️⚠️⚠️ **SLIDER HIC CIZILMIYORDU — AYRI SAYAC ZORUNLU.**
+  ///
+  ///	`_kesfiYukle` ile `_yukle` AYNI `_istekNo` sayacini paylasiyordu ve
+  ///	ikisi de `initState`te ARDISIK cagriliyor:
+  ///	   `_kesfiYukle()` -> jeton 1 · `_yukle()` -> jeton 2
+  ///	Kesif yaniti donunce `1 != 2` cikip **SESSIZCE ATILIYORDU**. Yani
+  ///	slider ve 60x60 serit **HICBIR ZAMAN** cizilmiyordu.
+  /// ⚠️ YAPMA: bu iki sayaci tekrar birlestirme. Farkli iki istegin bayatlik
+  ///    kapisi AYRI olmak ZORUNDA.
+  int _kesifNo = 0;
+
   List<IsletmeOzet>? _liste;
   String? _hata;
   late String _kategori = widget.kategori;
@@ -140,12 +151,13 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
     //	**Döner/Kebap/Pide** olur. Kullanici "Döner"e basar ->
     //	`kategori=kuafor` + `q=döner` -> **KALICI BOS LISTE**, sebebi
     //	ekranda hicbir yerde yazmaz.
-    // ⚠️ AYNI sayac (`_istekNo`) kullanilir: ikisi de kategori degisiminde
-    //    BIRLIKTE cagriliyor, ayri sayac ikisini ayristirirdi.
-    final jeton = ++_istekNo;
+    // ⚠️⚠️ **AYRI SAYAC** (`_kesifNo`): `_yukle` ile paylasilirsa ikisi de
+    //    `initState`te ardisik cagrildigi icin kesif yaniti DAIMA bayat
+    //    sayilir ve slider HIC CIZILMEZ (bkz. `_kesifNo` serhi).
+    final jeton = ++_kesifNo;
     try {
       final d = await ref.read(isletmeServisiProvider).kesif(_kategori);
-      if (!mounted || jeton != _istekNo) return;
+      if (!mounted || jeton != _kesifNo) return;
       setState(() {
         _altKategoriler = d.altKategoriler;
         _slaytlar = d.slaytlar;
