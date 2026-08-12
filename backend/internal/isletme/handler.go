@@ -561,16 +561,7 @@ func (h *Handler) Liste(w http.ResponseWriter, r *http.Request) {
 	// ⚠️ YAPMA: yuklemi tekrar tek `ILIKE '%'||$4||'%'`e dondurme.
 
 	rows, err := h.db.Query(r.Context(), `
-		SELECT u.id, u.name, COALESCE(u.username,''), u.avatar_url, u.avatar_media_id,
-		       i.kategori, i.il, i.ilce, i.adres, u.onayli, u.kapak_media_id,
-		       i.calisma,
-		       (SELECT min(p.fiyat_kurus) FROM isletme_urunleri p
-		         WHERE p.isletme_id = u.id AND p.durum = 'yayinda'
-		           AND p.fiyat_kurus > 0),
-		       (SELECT count(*) FROM isletme_urunleri p
-		         WHERE p.isletme_id = u.id AND p.durum <> 'kaldirildi'),
-		       i.min_tutar_kurus, i.teslimat_dk_min, i.teslimat_dk_max,
-		       i.puan, i.puan_sayisi, i.kampanyalar
+		SELECT `+isletmeSutunlari+`
 		  FROM isletmeler i JOIN users u ON u.id = i.user_id
 		 WHERE u.hesap_turu='isletme'
 		   AND ($2 = '' OR i.kategori = $2)
@@ -600,45 +591,17 @@ func (h *Handler) Liste(w http.ResponseWriter, r *http.Request) {
 	defer rows.Close()
 	out := []map[string]any{}
 	for rows.Next() {
-		var id, ad, kullanici, avatar, kat, il2, ilce, adres string
-		var medya, kapak *string
-		var dogru bool
-		var calisma []byte
-		var minFiyat *int64
-		var urunSayisi int
-		var minTutar *int64
-		var teslimatMin, teslimatMax *int
-		var puan *float64
-		var puanSayisi int
-		var kampanyalar []byte
-		if e := rows.Scan(&id, &ad, &kullanici, &avatar, &medya,
-			&kat, &il2, &ilce, &adres, &dogru, &kapak,
-			&calisma, &minFiyat, &urunSayisi,
-			&minTutar, &teslimatMin, &teslimatMax,
-			&puan, &puanSayisi, &kampanyalar); e != nil {
-			// ⚠️ TURU 93b — HATA ARTIK LOGLANIYOR. `continue` KORUNUR (tek
-			//    bozuk satir tum rehberi oldurmesin) ama sessiz kalirsa
-			//    SELECT/Scan sirasi bozuldugunda rehber HICBIR IZ BIRAKMADAN
-			//    bosalir (turu 76 "Kaydedilenler BOMBOS" sinifi).
+		// ⚠️ TEK KAYNAK (`satir.go`): `Favorilerim` de AYNI okuyucuyu
+		//    kullanir; iki kopya kacinilmaz olarak drift ederdi.
+		m, e := isletmeSatiri(rows)
+		if e != nil {
+			// ⚠️ `continue` KORUNUR (tek bozuk satir rehberi oldurmesin) ama
+			//    hata LOGLANIR: sessiz kalirsa SELECT/Scan ayrisinca rehber
+			//    HICBIR IZ BIRAKMADAN bosalir.
 			log.Printf("isletme liste — satir atlandi: %v", e)
 			continue
 		}
-		out = append(out, map[string]any{
-			"id": id, "name": ad, "username": kullanici,
-			"avatar_url": avatar, "avatar_media_id": medya,
-			"kategori": kat, "kategori_ad": Kategoriler[kat],
-			"il": il2, "ilce": ilce, "adres": adres, "dogrulandi": dogru,
-			"kapak_media_id": kapak,
-			"calisma": json.RawMessage(calisma),
-			"min_fiyat_kurus": minFiyat,
-			"urun_sayisi": urunSayisi,
-			"min_tutar_kurus": minTutar,
-			"teslimat_dk_min": teslimatMin,
-			"teslimat_dk_max": teslimatMax,
-			"puan": puan,
-			"puan_sayisi": puanSayisi,
-			"kampanyalar": json.RawMessage(kampanyalar),
-		})
+		out = append(out, m)
 	}
 	// ⚠️ TURU 93b — `rows.Err()` OKUNMUYORDU. Dongu ag/sunucu hatasiyla
 	//    YARIDA KESILIRSE `Next()` false doner ve kullanici EKSIK bir listeyi

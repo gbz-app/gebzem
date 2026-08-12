@@ -263,6 +263,12 @@ func main() {
 		// TURU 92 - kategori kesif verisi (alt kategoriler + slayt metinleri).
 		// Tek uc, iki veri: ayri iki uc acilis anindaki istek sayisini artirirdi.
 		r.Get("/isletme-kesif", isletmeH.Kesif)
+		// ⚠️ TURU 94 — FAVORI ISLETMELER. Kategori ekraninin sag ustundeki
+		//    kalp buraya gider; favorileme kartin uzerindeki kalpten yapilir.
+		//    Ikisi BIRLIKTE yazildi (uc var, cagiran yol yok sinifi).
+		r.Post("/isletmeler/{id}/favori", isletmeH.FavoriEkle)
+		r.Delete("/isletmeler/{id}/favori", isletmeH.FavoriCikar)
+		r.Get("/users/me/favori-isletmeler", isletmeH.Favorilerim)
 		// TURU 89 - kategoriye ozel katalog modulleri (otel->oda, doktor->hizmet).
 		// Istemci bir kez cekip onbellekler; yeni alan eklemek ISTEMCI
 		// GUNCELLEMESI GEREKTIRMEZ (ilan.Agac ucuyla ayni gerekce).

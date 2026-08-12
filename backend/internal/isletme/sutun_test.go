@@ -62,9 +62,38 @@ func detayGovdesi(t *testing.T) string {
 //    muhafizin KAPSAMINDA mi" diye sor.
 func govdeAl(t *testing.T, imza string) string {
 	t.Helper()
-	b, err := os.ReadFile("handler.go")
+	return govdeAlDosya(t, "handler.go", imza)
+}
+
+// govdeAlDosya — istenen DOSYADAN, imzadan sonraki ust duzey blogu okur.
+//
+// ⚠️ Turu 94: isletme kart sorgusu `satir.go`ya tasindi; muhafizin dosya
+//    adini SABIT tutmasi onu o tasimayla birlikte KOR yapardi.
+// dosyaTemiz — dosyanin TAMAMINI yorumlardan arindirip dondurur.
+//
+// Yorumlar ATILIR: bu dosyalarin serhleri "SELECT sirasi ile Scan sirasi"
+//    gibi cumleler iceriyor ve ayristirici onlari GERCEK sorgu saniyordu.
+func dosyaTemiz(t *testing.T, dosya string) string {
+	t.Helper()
+	b, err := os.ReadFile(dosya)
 	if err != nil {
-		t.Fatalf("handler.go okunamadi: %v", err)
+		t.Fatalf("%s okunamadi: %v", dosya, err)
+	}
+	var temiz []string
+	for _, satir := range strings.Split(string(b), "\n") {
+		if strings.HasPrefix(strings.TrimSpace(satir), "//") {
+			continue
+		}
+		temiz = append(temiz, satir)
+	}
+	return strings.Join(temiz, "\n")
+}
+
+func govdeAlDosya(t *testing.T, dosya, imza string) string {
+	t.Helper()
+	b, err := os.ReadFile(dosya)
+	if err != nil {
+		t.Fatalf("%s okunamadi: %v", dosya, err)
 	}
 	src := string(b)
 	i := strings.Index(src, imza)
@@ -225,43 +254,49 @@ func TestDetayScanEdilenAlanlarYanittaVar(t *testing.T) {
 //    istemciye HIC ULASMAZ ve kartlar sessizce gradyan yer tutucuya duser.
 //    Bu sinif projede DORT KEZ sahaya cikti.
 func TestListeSelectScanVeYanitHizali(t *testing.T) {
-	govde := govdeAl(t, "func (h *Handler) Liste(")
+	// ⚠️⚠️⚠️ TURU 94 — SORGU **`satir.go`ya TASINDI** (tek kaynak).
+	//
+	//	`Liste` ve `Favorilerim` AYNI karti ciziyor, yani AYNI sutunlari
+	//	dondurmek ZORUNDA. Sorgu iki yere kopyalansaydi biri guncellenip
+	//	oteki geride kalirdi ve favori ekraninda puan/teslimat/kampanya
+	//	SESSIZCE kaybolurdu.
+	//	Muhafiz da bu yuzden `isletmeSutunlari` + `isletmeSatiri` ikilisini
+	//	olcer; iki cagri yerini ayri ayri taramaz.
+	// ⚠️ Test ONCEKI yazimda `Liste` govdesini ariyordu ve tasima sonrasi
+	//    SESSIZCE GECMEDI, `t.Fatal` ile DURDU — dogru davranis.
+	// TURU 94 — SORGU satir.go ya TASINDI (tek kaynak).
+	//
+	//	Liste ve Favorilerim AYNI karti ciziyor, yani AYNI sutunlari
+	//	dondurmek ZORUNDA. Sorgu iki yere kopyalansaydi biri guncellenip
+	//	oteki geride kalirdi ve favori ekraninda puan/teslimat/kampanya
+	//	SESSIZCE kaybolurdu.
+	// Test ONCEKI yazimda Liste govdesini ariyordu; tasima sonrasi
+	//    SESSIZCE GECMEDI, t.Fatal ile DURDU — dogru davranis.
+	govde := dosyaTemiz(t, "satir.go")
 
-	// ⚠️⚠️ ALT SORGU FARKINDALIGI: duz `SELECT ... FROM` regexi, sutun
-	//	listesindeki bir ALT SORGUNUN `FROM`unda kesiliyordu ve sutunlari
-	//	EKSIK sayiyordu. Turu 93c'de `min(fiyat_kurus)` alt sorgusu eklenince
-	//	test "13 sutun ama 14 Scan" diye YANLIS ALARM verdi.
-	//	⚠️ Yine de DOGRU davrandi: ayristiramadiginda GECMEK yerine DURDU.
-	//	   Sessizce gecen bir muhafiz, olmayan muhafizdan KOTUDUR.
-	//	Dis `FROM` **parantez derinligi 0**da olandir.
-	selBas := strings.Index(govde, "SELECT")
-	if selBas < 0 {
-		t.Fatal("Liste icinde SELECT bulunamadi")
+	// Sutun listesi: const isletmeSutunlari ham dizesinin ICI.
+	// Burada DIS FROM YOKTUR (yalniz alt sorgularinki); o yuzden
+	//    "FROM a kadar al" mantigi KULLANILAMAZ — dize bir butun olarak
+	//    sutun listesidir.
+	ci := strings.Index(govde, "const isletmeSutunlari = ")
+	if ci < 0 {
+		t.Fatal("isletmeSutunlari bulunamadi — yeniden adlandirildiysa " +
+			"BU TESTI DE guncelle")
 	}
-	govdeSel := govde[selBas+len("SELECT"):]
-	d, fromIdx := 0, -1
-	for i := 0; i+4 <= len(govdeSel); i++ {
-		switch govdeSel[i] {
-		case '(':
-			d++
-		case ')':
-			d--
-		}
-		if d == 0 && strings.HasPrefix(govdeSel[i:], "FROM") {
-			fromIdx = i
-			break
-		}
+	t1 := strings.Index(govde[ci:], "`")
+	if t1 < 0 {
+		t.Fatal("isletmeSutunlari ham dizesi ayristirilamadi")
 	}
-	if fromIdx < 0 {
-		t.Fatal("Liste icinde dis FROM bulunamadi — sorgu yapisi degistiyse " +
-			"BU AYRISTIRICIYI DA guncelle")
+	t2 := strings.Index(govde[ci+t1+1:], "`")
+	if t2 < 0 {
+		t.Fatal("isletmeSutunlari ham dizesi kapanmamis")
 	}
+	ham := govde[ci+t1+1 : ci+t1+1+t2]
 
 	// Parantez derinligi tutulur — COALESCE(u.username,'') icindeki virgul
 	// sutun ayirici DEGILDIR.
 	var sutunlar []string
 	derinlik, son := 0, 0
-	ham := govdeSel[:fromIdx]
 	for i, c := range ham {
 		switch c {
 		case '(':
@@ -282,7 +317,7 @@ func TestListeSelectScanVeYanitHizali(t *testing.T) {
 	//    gecildi ve dar desen ESLESMEYI KAYBETTI — ama test SESSIZCE
 	//    GECMEDI, `t.Fatal` ile DURDU. Ayristiramadiginda GECEN bir muhafiz,
 	//    olmayan bir muhafizdan KOTUDUR (yanlis guven verir).
-	scan := regexp.MustCompile(`(?s)rows\.Scan\((.*?)\)\s*;?\s*e?\s*!=\s*nil`).
+	scan := regexp.MustCompile(`(?s)rows\.Scan\((.*?)\)\s*;?\s*\w*\s*!=\s*nil`).
 		FindStringSubmatch(govde)
 	if scan == nil {
 		t.Fatal("Liste icinde rows.Scan(...) bulunamadi — yazim degistiyse " +
@@ -330,7 +365,9 @@ func TestListeSelectScanVeYanitHizali(t *testing.T) {
 		"u.avatar_url":            "avatar",
 		"u.avatar_media_id":       "medya",
 		"i.kategori":              "kat",
-		"i.il":                    "il2",
+		// ⚠️ satir.go'da degisken adi `il` (handler.go'daki `il2` cakisma
+		//    onlemek icindi; tasima sonrasi gerek kalmadi).
+		"i.il": "il",
 		"u.onayli":                "dogru",
 		"u.kapak_media_id":        "kapak",
 		// ⚠️ Degisken adinda "dk" eki YOK; sutunda VAR. Bilincli sapma.
@@ -375,10 +412,10 @@ func TestListeSelectScanVeYanitHizali(t *testing.T) {
 	}
 
 	// ── YANIT HARITASI (`out = append(out, map[string]any{...})`) ──
-	yanit := regexp.MustCompile(`(?s)out\s*=\s*append\(out,\s*map\[string\]any\{(.*?)\}\)`).
+	yanit := regexp.MustCompile(`(?s)return map\[string\]any\{(.*?)\}, nil`).
 		FindStringSubmatch(govde)
 	if yanit == nil {
-		t.Fatal("Liste yanit haritasi bulunamadi")
+		t.Fatal("isletmeSatiri yanit haritasi bulunamadi")
 	}
 
 	// SELECT sutunu -> beklenen JSON anahtari. Uymayanlar ACIKCA yazili;

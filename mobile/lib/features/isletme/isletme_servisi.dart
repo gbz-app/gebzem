@@ -362,6 +362,7 @@ class IsletmeOzet {
     this.puan,
     this.puanSayisi = 0,
     this.kampanyalar = const [],
+    this.favorim = false,
   });
 
   final String id;
@@ -408,6 +409,11 @@ class IsletmeOzet {
   final int puanSayisi;
   final List<String> kampanyalar;
 
+  /// ⚠️ DEGISTIRILEBILIR: kalp iyimser guncelleniyor ve kart nesnesi liste
+  ///    ile PAYLASILIYOR — yeni nesne atansaydi favori degisikligi baska
+  ///    ekranda gorunmezdi (turu 76 dersi).
+  bool favorim;
+
   /// ⚠️ TURU 85 — YALNIZ "Yakinimda" ucunda dolu gelir; diger listelerde 0.
   ///    Mesafe SUNUCUDA hesaplanir (istemcide tekrar hesaplamak "ayni
   ///    kuralin iki kopyasi" olurdu ve siralama ile gosterilen deger
@@ -442,10 +448,30 @@ class IsletmeOzet {
     puanSayisi: (m['puan_sayisi'] as num?)?.toInt() ?? 0,
     kampanyalar:
         ((m['kampanyalar'] as List?) ?? const []).map((e) => e.toString()).toList(),
+    favorim: m['favorim'] == true,
   )
     ..enlem = (m['enlem'] as num?)?.toDouble() ?? 0
     ..boylam = (m['boylam'] as num?)?.toDouble() ?? 0
     ..km = (m['km'] as num?)?.toDouble() ?? 0;
+}
+
+extension IsletmeFavori on IsletmeServisi {
+  /// ⚠️ TURU 94 — favori ac/kapa. Sunucu IDEMPOTENT (cift dokunusta hata yok).
+  Future<void> favoriCevir(String id, bool favori) async {
+    if (favori) {
+      await _api.post('/isletmeler/$id/favori');
+    } else {
+      await _api.delete('/isletmeler/$id/favori');
+    }
+  }
+
+  Future<List<IsletmeOzet>> favorilerim() async {
+    final r = await _api.get('/users/me/favori-isletmeler');
+    final m = (r.data as Map).cast<String, dynamic>();
+    return ((m['isletmeler'] as List?) ?? [])
+        .map((e) => IsletmeOzet.json((e as Map).cast<String, dynamic>()))
+        .toList();
+  }
 }
 
 final isletmeServisiProvider = Provider<IsletmeServisi>(IsletmeServisi.new);
