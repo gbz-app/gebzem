@@ -218,3 +218,4 @@ class _KategoriSliderState extends State<KategoriSlider> {
       ),
     );
   }
+}

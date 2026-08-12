@@ -851,7 +851,10 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                 _yukle();
               },
               child: SizedBox(
-                width: 64,
+                // ⚠️ 64 -> **78**: yazi 13px olunca "Lahmacun" 64dp'ye
+                //    sigmayip KELIME ORTASINDAN bolunuyordu ("Lahmacu/n").
+                //    Kutu 60x60 KALIR, yalnizca yazi alani genisler.
+                width: 78,
                 child: Column(
                   children: [
                     AnimatedContainer(
