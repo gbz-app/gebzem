@@ -21,6 +21,14 @@ import 'yakinimda_ekrani.dart';
 ///    ("yakında" diyordu) — bu projede tekrar eden "olu dogmus ozellik"
 ///    sinifiydi. Artik gercek bir listeye baglaniyor.
 ///
+/// ⚠️⚠️ TURU 93 — YAN BOSLUK **TEK KAYNAK** (kullanici emri: *"hepsi bir
+///    container icinde sol sag bosluk icinde"*). Header, slider, arama
+///    kutusu, 60x60 kartlar, filtre satiri ve isletme kartlari AYNI hizada
+///    durur.
+/// ⚠️ YAPMA: bu ekranda elle 12/14/16 gibi yatay dolgu yazma — bir tanesi
+///    guncellenip otekiler unutuldugunda hizalama SESSIZCE bozulur.
+const double kYanBosluk = 16;
+
 /// [kategori] bos ise TUM isletmeler; doluysa o kategori.
 class IsletmeListesiEkrani extends ConsumerStatefulWidget {
   const IsletmeListesiEkrani({super.key, this.kategori = '', this.baslik = ''});
@@ -189,41 +197,32 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
       //    dogrudan ekranin tepesinden baslar ve durum cubugunun altina
       //    girer — ikonlar `MediaQuery.paddingOf(context).top` ile
       //    guvenli alana konumlanir.
-      body: Column(
-        children: [
-          // ---- UST SLIDER (350px, alta bakan radius, cok hafif gri)
-          KategoriSlider(
-            slaytlar: _slaytlar,
-            haritaya: () => Navigator.of(context).push(
-              // ⚠️ IKINCI HARITA EKRANI YAZILMADI: `YakinimdaEkrani`
-              //    kategori parametresi aldi. O ekranda harita stili
-              //    muhafizi, jest cakismasi cozumu ve kamera takibi ZATEN
-              //    var (turu 85-88).
-              MaterialPageRoute(
-                builder: (_) => YakinimdaEkrani(kategori: _kategori),
-              ),
+      // ⚠️⚠️ TURU 93 — HER SEY **TEK YATAY DOLGUDA** (kullanici emri:
+      //    *"hepsi bir container icinde sol sag bosluk icinde"*).
+      //    `kYanBosluk` TEK KAYNAK: header, slider, arama, kartlar ve
+      //    filtreler AYNI hizada durur. Ayri ayri sayilar yazilsaydi biri
+      //    guncellenip otekiler unutulurdu.
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            _header(),
+            // ⚠️ Kullanici emri: header'in ALTINDA **10px** bosluk.
+            const SizedBox(height: 10),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: kYanBosluk),
+              child: KategoriSlider(slaytlar: _slaytlar),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-            child: TextField(
-              controller: _arama,
-              onChanged: _aramaDegisti,
-              decoration: InputDecoration(
-                hintText: 'İşletme ara',
-                prefixIcon: const Icon(LucideIcons.search, size: 19),
-                isDense: true,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(24),
-                ),
-              ),
+            Padding(
+              padding:
+                  const EdgeInsets.fromLTRB(kYanBosluk, 12, kYanBosluk, 0),
+              child: _aramaKutusu(),
             ),
-          ),
-          // ---- ALT KATEGORI KARTLARI (60x60) — kullanici emri
-          _altKategoriSeridi(),
-          // ---- FILTRE SATIRI: solda "Filtrele", saginda sik kullanilanlar
-          _filtreSatiri(),
-          Expanded(
+            // ---- ALT KATEGORI KARTLARI (60x60) — kullanici emri
+            _altKategoriSeridi(),
+            // ---- FILTRE SATIRI: solda "Filtrele", saginda sik kullanilanlar
+            _filtreSatiri(),
+            Expanded(
             child: _hata != null
                 ? Center(
                     child: Column(
@@ -256,18 +255,121 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                   )
                 : YenileSarmali(
                     onRefresh: _yukle,
-                    child: ListView.separated(
+                    // ⚠️ TURU 93 — AYIRICI CIZGI KALDIRILDI: kartlar artik
+                    //    kendi golgeleriyle ayriliyor (Yemeksepeti/Getir
+                    //    deseni). Cizgi + kart ARADA cift ayirici olurdu.
+                    child: ListView.builder(
+                      padding: const EdgeInsets.fromLTRB(
+                          kYanBosluk, 6, kYanBosluk, 24),
                       itemCount: l.length,
-                      separatorBuilder: (_, _) => const Divider(height: 1),
-                      itemBuilder: (_, i) => _satir(l[i]),
+                      itemBuilder: (_, i) => _kart(l[i]),
                     ),
                   ),
-          ),
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }
 
+  /// ⚠️⚠️ TURU 93 — HEADER: geri (arrow-left) + harita, DAIRE YOK.
+  ///
+  /// Kullanici emri: *"header'da geri ikonu ARROW-LEFT olsun, sagdaki harita
+  /// kalsin, bunlarin ARKASINDAKI DAIRE KALDIR; bunlar bir HEADER olacak"*.
+  ///
+  /// ⚠️ Daire (opak beyaz zemin) kalkinca ikonlar SAYFA ZEMINI uzerinde
+  ///    duruyor — renk TEMADAN alinir; sabit siyah yazilsaydi koyu temada
+  ///    GORUNMEZ olurdu.
+  /// ⚠️ `IconButton` 48dp dokunma alanini KORUR (gorsel olarak yalniz ikon
+  ///    gorunse de); ciplak `Icon` + `GestureDetector` hedefi 24dp'ye
+  ///    dusururdu (Material 48 / Apple 44 kurali).
+  Widget _header() => Padding(
+        // ⚠️ `IconButton`in kendi 8dp ic dolgusu var; yan bosluk ondan
+        //    dusulur ki ikonlar slider/arama ile AYNI hizada dursun.
+        padding: const EdgeInsets.symmetric(horizontal: kYanBosluk - 8),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            IconButton(
+              tooltip: 'Geri',
+              icon: const Icon(LucideIcons.arrowLeft, size: 24),
+              onPressed: () => Navigator.of(context).maybePop(),
+            ),
+            IconButton(
+              tooltip: 'Haritada gör',
+              icon: const Icon(LucideIcons.map, size: 22),
+              // ⚠️ IKINCI HARITA EKRANI YAZILMADI: `YakinimdaEkrani` kategori
+              //    parametresi aldi. O ekranda harita stili muhafizi, jest
+              //    cakismasi cozumu ve kamera takibi ZATEN var (turu 85-88).
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => YakinimdaEkrani(kategori: _kategori),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+
+  /// ⚠️⚠️ TURU 93 — ARAMA KUTUSU (kullanici emri).
+  ///
+  /// · Odaklaninca kenarlik **TAM SIYAHIN BIR TIK ACIGI** (`0xFF1A1A1A`).
+  ///   Varsayilan Material odak rengi TEMA VURGUSU idi; kullanici notr
+  ///   istedi.
+  /// · Arama ikonu **BIR TIK KALIN**: `size` 19 -> 21 **+ golge hilesi**.
+  ///   ⚠️⚠️ `strokeWidth` YOKTUR: `lucide_icons_flutter` ikonlari bir FONT
+  ///      olarak sunar (glif), SVG olarak degil — cizgi kalinligi
+  ///      ayarlanamaz. Yalniz `size` buyutmek ikonu BUYUTUR ama oransal
+  ///      olarak AYNI incelikte birakir.
+  ///   ⚠️ Cozum: ayni renkte, ±0.4px kaydirilmis DORT golge. Glif kendi
+  ///      uzerine hafifce yayilir ve cizgi KALINLASIR. Bu, font tabanli
+  ///      ikonlarda kalinlik simule etmenin standart yolu.
+  ///   ⚠️ YAPMA: `Icon`a `strokeWidth` eklemeye calisma — DERLENMEZ.
+  /// · Ikon ile yazi arasi **BIR TIK AZ**: `prefixIconConstraints` ile kutu
+  ///   daraltilir. Varsayilan `prefixIcon` 48dp'lik bir kutuya oturur ve
+  ///   metin ondan SONRA baslar.
+  /// ⚠️ Koyu temada siyah kenarlik GORUNMEZ olurdu — tema parlakligina gore
+  ///    secilir.
+  Widget _aramaKutusu() {
+    final koyu = Theme.of(context).brightness == Brightness.dark;
+    final odak = koyu ? const Color(0xFFE8E8EA) : const Color(0xFF1A1A1A);
+    final bos = (koyu ? Colors.white : Colors.black).withValues(alpha: 0.14);
+    final ikonRenk = koyu ? Colors.white70 : Colors.black87;
+    return TextField(
+      controller: _arama,
+      onChanged: _aramaDegisti,
+      decoration: InputDecoration(
+        hintText: 'İşletme ara',
+        prefixIcon: Icon(
+          LucideIcons.search,
+          size: 21,
+          color: ikonRenk,
+          shadows: [
+            for (final d in const [
+              Offset(0.4, 0),
+              Offset(-0.4, 0),
+              Offset(0, 0.4),
+              Offset(0, -0.4),
+            ])
+              Shadow(color: ikonRenk, offset: d),
+          ],
+        ),
+        prefixIconConstraints:
+            const BoxConstraints(minWidth: 38, minHeight: 38),
+        isDense: true,
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(24),
+          borderSide: BorderSide(color: bos),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(24),
+          borderSide: BorderSide(color: odak, width: 1.6),
+        ),
+      ),
+    );
+  }
 
   /// ⚠️⚠️ TURU 92 — ALT KATEGORI KARTLARI (kullanici emri: *"aramanin
   ///    altinda soyle kartlar olacak, UFAK kartlar 60x60 RADIUSLU, iste
@@ -323,20 +425,11 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                           width: 1.6,
                         ),
                       ),
-                      alignment: Alignment.center,
-                      // ⚠️ IKON YOK, HARF: alt kategoriler SUNUCUDAN geliyor
-                      //    ve her biri icin ikon eslemesi tutmak IKINCI BIR
-                      //    LISTE demekti (drift). Bas harf hem sunucudan
-                      //    turetilir hem yeni kalem eklemek istemci
-                      //    guncellemesi GEREKTIRMEZ.
-                      child: Text(
-                        a.ad.characters.first.toUpperCase(),
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w800,
-                          color: secili ? renk : null,
-                        ),
-                      ),
+                      // ⚠️⚠️ TURU 93 — KUTUNUN ICI **BOS** (kullanici emri:
+                      //    *"kart icinde yazi olmasin, kartlarin icindeki
+                      //    HARFLERI KALDIR"*). Kutu artik salt renkli bir
+                      //    yuzey; ad ALTINDA yaziyor.
+                      // ⚠️ YAPMA: buraya harf ya da ikon geri koyma.
                     ),
                     const SizedBox(height: 5),
                     Text(
@@ -381,8 +474,15 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
             //    anlayabilmeli. Rozetsiz bir filtre, "hic isletme yok"
             //    yanilgisinin en sik sebebidir.
             label: Text(aktifSayi == 0 ? 'Filtrele' : 'Filtre ($aktifSayi)'),
+            // ⚠️⚠️ TURU 93 — **ARAMA KUTUSUYLA AYNI DIL** (kullanici emri:
+            //    *"filtre vs butonlarda YESIL RENK OLMAYACAK, arama inputu
+            //    mantigi olacak"*). Material'in varsayilan secili hali TEMA
+            //    VURGU RENGINI kullaniyordu; hepsi notr siyah/beyaz dile
+            //    cevrildi ve renk TEK KAYNAKTAN geliyor (`_notrKenar`).
             style: OutlinedButton.styleFrom(
               visualDensity: VisualDensity.compact,
+              foregroundColor: _notrYazi,
+              side: BorderSide(color: _notrKenar),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),
               ),
@@ -425,12 +525,32 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
     );
   }
 
+  /// Notr renkler — arama kutusuyla AYNI dil (kullanici emri: yesil YOK).
+  ///
+  /// ⚠️ TEK KAYNAK: filtre dugmesi, hizli cipler ve secili kategori cipi
+  ///    ayni iki degeri kullanir. Elle yazilsaydi biri guncellenip otekiler
+  ///    unutulur ve ekranda IKI FARKLI vurgu rengi olusurdu.
+  Color get _notrKenar =>
+      (Theme.of(context).brightness == Brightness.dark
+              ? Colors.white
+              : Colors.black)
+          .withValues(alpha: 0.16);
+
+  Color get _notrYazi => Theme.of(context).brightness == Brightness.dark
+      ? Colors.white
+      : const Color(0xFF1A1A1A);
+
   Widget _hizliCip(String anahtar, String ad, IconData ikon) => Padding(
         padding: const EdgeInsets.only(right: 6),
         child: FilterChip(
-          avatar: Icon(ikon, size: 15),
+          avatar: Icon(ikon, size: 15, color: _notrYazi),
           label: Text(ad),
           selected: _hizli == anahtar,
+          // ⚠️ Secili hal TEMA RENGI DEGIL, notr dolgu (kullanici emri).
+          showCheckmark: false,
+          selectedColor: _notrYazi.withValues(alpha: 0.10),
+          side: BorderSide(color: _notrKenar),
+          labelStyle: TextStyle(color: _notrYazi),
           onSelected: (secili) {
             // ⚠️ TEK SECIM: ikinci karta basmak oncekini KAPATIR. Coklu
             //    secim ("Şehrimde + Onaylı") bos sonuclar uretip kullaniciyi
@@ -522,40 +642,133 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
   //    kategori secicisi olusturmasina yol acardi (turu 90b'de
   //    `OlusturFab` tam bu sebeple silinmisti).
 
-  Widget _satir(IsletmeOzet o) => ListTile(
-    leading: Avatar(
-      ad: o.ad,
-      mediaId: o.avatarMediaId,
-      avatarUrl: o.avatarUrl,
-      cap: 46,
-    ),
-    title: Row(
-      children: [
-        Flexible(child: Text(o.ad, overflow: TextOverflow.ellipsis)),
-        // ⚠️⚠️ TURU 78 — ROZET RENGI/BOYUTU TEK KAYNAKTAN (`kOnayliRengi`).
-        //    Bu rozet iki ekranda ELLE cizilmisti ve ZATEN DRIFT ETMISTI
-        //    (burada 15px, profilde 16px, renkler elle yazilmis). Renk artik
-        //    `profil_basligi.dart`taki sabitten geliyor.
-        // ⚠️ `dogrulandi` alani artik sunucuda `users.onayli`dan doluyor
-        //    (JSON alan adi eski istemciler icin korundu).
-        if (o.dogrulandi)
-          const Padding(
-            padding: EdgeInsets.only(left: 5),
-            child: Icon(LucideIcons.badgeCheck, size: 15, color: kOnayliRengi),
+  /// ⚠️⚠️⚠️ TURU 93 — ISLETME KARTI (kullanici emri: *"firmalar Getir Yemek /
+  /// Yemeksepeti kartlari gibi olsun"*, ekran goruntusu referansiyla).
+  ///
+  /// YAPI: ustte GENIS GORSEL (16:9, yuvarlak kose) · altinda AD + onayli
+  /// rozeti · altinda META satiri (kategori · ilce/il).
+  ///
+  /// ⚠️⚠️ **PUAN, TESLIMAT SURESI VE MINIMUM TUTAR YOK — VE UYDURULMADI.**
+  ///    Referans ekranda "25-35 dk · Min. 260 TL · 3,9 (500+)" var; bu
+  ///    projede o verilerin HICBIRI YOK (ne degerlendirme tablosu, ne
+  ///    teslimat modeli, ne siparis). Sahte deger basmak kullaniciya
+  ///    YANLIS BILGI gostermek olurdu; bos yildiz/sure cizmek de "bozuk"
+  ///    izlenimi verirdi. Kart, BUGUN GERCEK OLAN alanlarla dolduruldu.
+  ///    ⚠️ YAPMA: yer tutucu puan/sure/mesafe ekleme.
+  ///
+  /// ⚠️ GORSEL SIRASI: kapak -> avatar -> gradyan yer tutucu. Kapak yoksa
+  ///    avatar 46px icin uretilmis bir gorseldir ve 150px kutuda BULANIK
+  ///    cikar; yine de bos gri kutudan iyidir. Ikisi de yoksa KIRIK GORSEL
+  ///    CIZILMEZ, kategori renginde bir gradyan cizilir.
+  Widget _kart(IsletmeOzet o) {
+    final gorselID = (o.kapakMediaId != null && o.kapakMediaId!.isNotEmpty)
+        ? o.kapakMediaId!
+        : (o.avatarMediaId ?? '');
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 18),
+      child: GestureDetector(
+        // ⚠️ `opaque`: gorsel ile yazi ARASINDAKI bosluga dokunmak da karti
+        //    acar; aksi halde kullanici "bastim acilmadi" der.
+        behavior: HitTestBehavior.opaque,
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => ProfilSayfasi(userId: o.id)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── KAPAK ──
+            ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: AspectRatio(
+                aspectRatio: 16 / 9,
+                child: gorselID.isEmpty
+                    ? _kapakYerTutucu(o)
+                    : MedyaGorsel(mediaId: gorselID, fit: BoxFit.cover),
+              ),
+            ),
+            const SizedBox(height: 9),
+            // ── AD + ONAYLI ──
+            Row(
+              children: [
+                Flexible(
+                  child: Text(
+                    o.ad,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                // ⚠️⚠️ TURU 78 — ROZET RENGI/BOYUTU TEK KAYNAKTAN
+                //    (`kOnayliRengi`). Bu rozet iki ekranda ELLE cizilmisti
+                //    ve ZATEN DRIFT ETMISTI.
+                if (o.dogrulandi)
+                  const Padding(
+                    padding: EdgeInsets.only(left: 5),
+                    child: Icon(LucideIcons.badgeCheck,
+                        size: 16, color: kOnayliRengi),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 3),
+            // ── META ──
+            Text(
+              [
+                isletmeKategoriAdi(o.kategori),
+                if (o.ilce.isNotEmpty || o.il.isNotEmpty)
+                  [o.ilce, o.il].where((s) => s.isNotEmpty).join(', '),
+              ].where((s) => s.isNotEmpty).join(' · '),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 13,
+                color: Theme.of(context)
+                    .textTheme
+                    .bodyMedium
+                    ?.color
+                    ?.withValues(alpha: 0.6),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Kapak da avatar da yoksa: kategori renginde gradyan + isletme adinin
+  /// bas harfi.
+  ///
+  /// ⚠️ Renk ADDAN turetilir (kategoriden DEGIL): ayni kategorideki tum
+  ///    kartlar ayni renk olsaydi liste tekduze bir blok gibi gorunurdu.
+  Widget _kapakYerTutucu(IsletmeOzet o) {
+    final tohum = o.ad.isEmpty ? 0 : o.ad.codeUnitAt(0);
+    final renkler = [
+      [const Color(0xFF3AA9FF), const Color(0xFF6C2BD9)],
+      [const Color(0xFF2BB673), const Color(0xFF0E7A52)],
+      [const Color(0xFFFF7A45), const Color(0xFFFF3B5C)],
+      [const Color(0xFF8B3FFF), const Color(0xFF5A1EBE)],
+      [const Color(0xFF0EA5A5), const Color(0xFF0B5F63)],
+    ][tohum % 5];
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: renkler,
+        ),
+      ),
+      child: Center(
+        child: Text(
+          o.ad.isEmpty ? '?' : o.ad.characters.first.toUpperCase(),
+          style: const TextStyle(
+            fontSize: 34,
+            fontWeight: FontWeight.w800,
+            color: Colors.white,
           ),
-      ],
-    ),
-    subtitle: Text(
-      [
-        isletmeKategoriAdi(o.kategori),
-        if (o.ilce.isNotEmpty || o.il.isNotEmpty)
-          [o.ilce, o.il].where((s) => s.isNotEmpty).join(', '),
-      ].join(' · '),
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-    ),
-    onTap: () => Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => ProfilSayfasi(userId: o.id))),
-  );
+        ),
+      ),
+    );
+  }
 }

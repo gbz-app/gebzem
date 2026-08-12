@@ -12,26 +12,29 @@ library;
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 /// Sunucudan gelen slayt.
 typedef Slayt = ({String baslik, String alt});
 
 class KategoriSlider extends StatefulWidget {
-  const KategoriSlider({
-    super.key,
-    required this.slaytlar,
-    required this.haritaya,
-  });
+  const KategoriSlider({super.key, required this.slaytlar});
 
   final List<Slayt> slaytlar;
-
-  /// Sag ustteki harita ikonuna dokununca.
-  final VoidCallback haritaya;
 
   /// ⚠️ Kullanicinin verdigi olcu. Sabit tutulur: `MediaQuery` ile oranlamak
   ///    kucuk telefonda metni sikistirir, buyukte gereksiz bosluk birakir.
   static const yukseklik = 350.0;
+
+  /// ⚠️⚠️ TURU 93 — GERI/HARITA IKONLARI **BURADAN CIKARILDI**.
+  ///
+  /// Kullanici: *"header'da geri ikonu arrow-left olsun, sagdaki harita
+  /// kalsin, bunlarin ARKASINDAKI DAIRE KALDIR — bunlar BIR HEADER olacak,
+  /// ALTINDA 10px bosluktan sonra slider olacak"*.
+  ///
+  /// Yani ikonlar artik slider'in USTUNDE YUZMUYOR; ayri bir header
+  /// satirinda duruyorlar ve slider onlarin ALTINDAN basliyor.
+  /// ⚠️ Bu sayede slider'in ust koseleri de yuvarlanabildi (eskiden durum
+  ///    cubuguna dayandigi icin duz birakilmisti).
 
   @override
   State<KategoriSlider> createState() => _KategoriSliderState();
@@ -89,27 +92,27 @@ class _KategoriSliderState extends State<KategoriSlider> {
   @override
   Widget build(BuildContext context) {
     final koyu = Theme.of(context).brightness == Brightness.dark;
-    // ⚠️ "COK HAFIF GRI" (kullanici emri). Koyu temada ayni tonu kullanmak
-    //    metni okunamaz yapardi; koyu temada hafif ACIK bir yuzey secilir.
-    final zemin = koyu ? const Color(0xFF232326) : const Color(0xFFF1F1F3);
+    // ⚠️ TURU 93 — GRI TONU **BIR KAT KOYULASTIRILDI** (kullanici emri:
+    //    *"slider gri tonu 1 kat daha artik"*). Onceki `0xFFF1F1F3` beyaz
+    //    zeminde neredeyse fark edilmiyordu.
+    final zemin = koyu ? const Color(0xFF2A2A2E) : const Color(0xFFE7E7EA);
 
     return SizedBox(
       height: KategoriSlider.yukseklik,
-      width: double.infinity,
       child: Stack(
         children: [
-          // ── ZEMIN + ALTA BAKAN RADIUS ──
-          // ⚠️ YALNIZ ALT KOSELER yuvarlak (kullanici emri: "sol sag radius
-          //    ALTA BAKAN"). Ust koseler DUZ kalir cunku slider ekranin en
-          //    ustune, durum cubugunun ALTINA dayaniyor.
+          // ── ZEMIN + RADIUS ──
+          // ⚠️ TURU 93 — SLIDER ARTIK **%100 GENISLIKTE DEGIL** (kullanici
+          //    emri). Yan bosluk cagiran ekranin `Padding`inden gelir; bu
+          //    widget kendi genisligini DAYATMAZ (`width: double.infinity`
+          //    KALDIRILDI) — boylece ayni container icindeki arama kutusu ve
+          //    kartlarla AYNI hizada durur.
+          // ⚠️ Ikonlar header'a tasindigi icin ARTIK DORT KOSE de yuvarlak.
           // ⚠️ `ClipRRect` ZORUNLU: yalniz `BoxDecoration` verilseydi icindeki
           //    `PageView` kose disina TASARDI.
           Positioned.fill(
             child: ClipRRect(
-              borderRadius: const BorderRadius.only(
-                bottomLeft: Radius.circular(28),
-                bottomRight: Radius.circular(28),
-              ),
+              borderRadius: BorderRadius.circular(22),
               child: ColoredBox(
                 color: zemin,
                 child: PageView.builder(
@@ -120,26 +123,6 @@ class _KategoriSliderState extends State<KategoriSlider> {
                 ),
               ),
             ),
-          ),
-
-          // ── GERI (sol ust) ──
-          // ⚠️ "yeni gonderideki gibi OPAK BEYAZ": beyaz dolgu + hafif golge.
-          //    Saydam bir ikon acik gri zeminde KAYBOLURDU.
-          Positioned(
-            top: MediaQuery.paddingOf(context).top + 8,
-            left: 12,
-            child: _yuvarlakIkon(
-              LucideIcons.chevronLeft,
-              () => Navigator.of(context).maybePop(),
-              'Geri',
-            ),
-          ),
-
-          // ── HARITA (sag ust) ──
-          Positioned(
-            top: MediaQuery.paddingOf(context).top + 8,
-            right: 12,
-            child: _yuvarlakIkon(LucideIcons.map, widget.haritaya, 'Haritada gör'),
           ),
 
           // ── SAYFA NOKTALARI ──
@@ -178,7 +161,8 @@ class _KategoriSliderState extends State<KategoriSlider> {
   }
 
   Widget _slayt(Slayt s) => Padding(
-        padding: const EdgeInsets.fromLTRB(28, 0, 28, 34),
+        // ⚠️ Alt dolgu nokta gostergesine yer birakir.
+        padding: const EdgeInsets.fromLTRB(24, 0, 24, 34),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -201,7 +185,9 @@ class _KategoriSliderState extends State<KategoriSlider> {
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                fontSize: 14.5,
+                // ⚠️ TURU 93 — 14.5 -> 16 (kullanici emri: "baslik altindaki
+                //    aciklama 1 tik daha buyuk").
+                fontSize: 16,
                 height: 1.3,
                 color: Theme.of(context)
                     .textTheme
@@ -214,27 +200,8 @@ class _KategoriSliderState extends State<KategoriSlider> {
         ),
       );
 
-  /// Opak beyaz yuvarlak ikon dugmesi.
-  ///
-  /// ⚠️ 40x40: Material'in 48dp hedefinin altinda ama `InkWell` splash'i
-  ///    kutunun disina tasarak dokunma alanini buyutur; ayrica iki ikon da
-  ///    ekran kenarinda ve cevresinde rakip hedef YOK.
-  Widget _yuvarlakIkon(IconData ikon, VoidCallback bas, String ipucu) =>
-      Material(
-        color: Colors.white,
-        shape: const CircleBorder(),
-        elevation: 2,
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: bas,
-          child: Tooltip(
-            message: ipucu,
-            child: SizedBox(
-              width: 40,
-              height: 40,
-              child: Icon(ikon, size: 20, color: Colors.black87),
-            ),
-          ),
-        ),
-      );
+  // ⚠️ TURU 93 — `_yuvarlakIkon` SILINDI: ikonlar header'a tasindi ve
+  //    kullanici "arkasindaki DAIRE KALDIR" dedi. Olu birakmak, ileride
+  //    birinin onu geri baglayip IKI AYRI geri dugmesi olusturmasina yol
+  //    acardi (turu 90b `OlusturFab` dersi).
 }

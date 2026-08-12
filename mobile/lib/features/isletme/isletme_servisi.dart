@@ -352,6 +352,7 @@ class IsletmeOzet {
     required this.ilce,
     required this.adres,
     required this.dogrulandi,
+    this.kapakMediaId,
   });
 
   final String id;
@@ -364,6 +365,13 @@ class IsletmeOzet {
   final String ilce;
   final String adres;
   final bool dogrulandi;
+
+  /// ⚠️ TURU 93 — KART KAPAGI. Yemeksepeti tarzi kartta BUYUK gorsel
+  ///    gerekiyor; avatar 46px icin uygun ama 150px yuksekliginde kart
+  ///    kapagi olarak BULANIK cikar.
+  /// ⚠️ Bos olabilir: kapak yoksa avatara, o da yoksa gradyan yer tutucuya
+  ///    dusulur — kirik gorsel CIZILMEZ.
+  final String? kapakMediaId;
 
   /// ⚠️ TURU 85 — YALNIZ "Yakinimda" ucunda dolu gelir; diger listelerde 0.
   ///    Mesafe SUNUCUDA hesaplanir (istemcide tekrar hesaplamak "ayni
@@ -388,6 +396,7 @@ class IsletmeOzet {
     ilce: (m['ilce'] ?? '').toString(),
     adres: (m['adres'] ?? '').toString(),
     dogrulandi: m['dogrulandi'] == true,
+    kapakMediaId: m['kapak_media_id'] as String?,
   )
     ..enlem = (m['enlem'] as num?)?.toDouble() ?? 0
     ..boylam = (m['boylam'] as num?)?.toDouble() ?? 0

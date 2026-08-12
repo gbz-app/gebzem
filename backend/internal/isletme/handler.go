@@ -449,7 +449,7 @@ func (h *Handler) Liste(w http.ResponseWriter, r *http.Request) {
 
 	rows, err := h.db.Query(r.Context(), `
 		SELECT u.id, u.name, COALESCE(u.username,''), u.avatar_url, u.avatar_media_id,
-		       i.kategori, i.il, i.ilce, i.adres, u.onayli
+		       i.kategori, i.il, i.ilce, i.adres, u.onayli, u.kapak_media_id
 		  FROM isletmeler i JOIN users u ON u.id = i.user_id
 		 WHERE u.hesap_turu='isletme'
 		   AND ($2 = '' OR i.kategori = $2)
@@ -469,10 +469,10 @@ func (h *Handler) Liste(w http.ResponseWriter, r *http.Request) {
 	out := []map[string]any{}
 	for rows.Next() {
 		var id, ad, kullanici, avatar, kat, il2, ilce, adres string
-		var medya *string
+		var medya, kapak *string
 		var dogru bool
 		if rows.Scan(&id, &ad, &kullanici, &avatar, &medya,
-			&kat, &il2, &ilce, &adres, &dogru) != nil {
+			&kat, &il2, &ilce, &adres, &dogru, &kapak) != nil {
 			continue
 		}
 		out = append(out, map[string]any{
@@ -480,6 +480,7 @@ func (h *Handler) Liste(w http.ResponseWriter, r *http.Request) {
 			"avatar_url": avatar, "avatar_media_id": medya,
 			"kategori": kat, "kategori_ad": Kategoriler[kat],
 			"il": il2, "ilce": ilce, "adres": adres, "dogrulandi": dogru,
+			"kapak_media_id": kapak,
 		})
 	}
 	yaz(w, 200, map[string]any{"isletmeler": out})
