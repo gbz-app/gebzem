@@ -1,6 +1,25 @@
 // R2'ye dosya yukler (S3 SigV4, harici bagimlilik YOK).
 // Kullanim: node r2put.js <yerel-dosya> <anahtar> [content-type]
 //
+// ⚠️⚠️⚠️ TURU 93 — BU ARAC ARTIK **HTML YUKLEYEMEZ**. `r2yukle.js` KULLAN.
+//
+//	Kullanici DORT AYRI TURDA "indir sitesinde saati goremiyorum" dedi ve
+//	sunucu tarafi HER SEFERINDE dogru cikti (`no-store` + `DYNAMIC` + saat
+//	bes yerde + canli saat). Turu 85b'de OLCULEN gercek sebep BU DOSYANIN
+//	VARSAYILANIYDI: ucuncu argumani gecmeyi unutunca `index.html`
+//	`application/octet-stream` basligiyla yukleniyor, tarayici sayfayi
+//	CIZMIYOR **DOSYA OLARAK INDIRIYOR** — kullanici sayfayi HIC gormuyor,
+//	indirilenlere ya da onbellekteki ESKI kopyaya bakiyor.
+//
+//	Duzeltme `r2yukle.js`e (turu MIME'i UZANTIDAN turetir) tasindi, ama BU
+//	DOSYA yaninda AYNI DIZINDE, BENZER ISIMLE ve BOZUK VARSAYILANLA kaldi.
+//	Bir sonraki surumde yanlis araci secmek icin tek gereken, iki isimden
+//	birini yazmak. Hata SESSIZ: yukleme "OK" der, sayfa yine acilmaz.
+//
+// ⚠️ Bu yuzden HTML icin ARTIK PATLIYOR (asagida). YAPMA: bu kapiyi
+//    kaldirma; varsayilani octet-stream'den baska bir seye cevirerek
+//    "duzeltmeye" calisma — TEK KAYNAK `r2yukle.js` olmali.
+//
 // ⚠️ .env.infra'da satir-sonu YORUMLARI var — deger okurken `\s+#.*` KESILIR
 //    (CLAUDE.md kurali; yoksa imza bozulur ve 403 alinir).
 // ⚠️ Cache-Control: no-cache -> CDN eski dosyayi tutmasin. Purge YINE DE SART.
@@ -103,6 +122,25 @@ if (!dosya || !anahtar) {
   console.error('kullanim: node r2put.js <dosya> <anahtar> [content-type]');
   process.exit(1);
 }
+
+// ⚠️⚠️ SESSIZ HATAYI GURULTULU HALE GETIREN KAPI (turu 93).
+//
+//	Bir sayfayi `octet-stream` ile yuklemek, yuklemeyi BASARISIZ YAPMAZ —
+//	sadece tarayicinin onu CIZMEK yerine INDIRMESINE yol acar. Yani hata
+//	yalnizca KULLANICININ EKRANINDA gorunur ve "sunucu dogru" dedigimiz
+//	her olcum yesil kalir. Bu yuzden yanlis araci secmek DERLEME ZAMANI
+//	yakalanmali.
+if (/\.(html?|css|js|json|txt|xml|svg)$/i.test(String(anahtar)) &&
+    !String(ctype || '').trim()) {
+  console.error(
+    'DURDURULDU: metin/sayfa dosyalari BU ARACLA yuklenemez.\n' +
+    '  Sebep: varsayilan `application/octet-stream` -> tarayici sayfayi\n' +
+    '         CIZMEZ, DOSYA OLARAK INDIRIR (turu 85b kok nedeni; kullanici\n' +
+    '         dort turdur "saati goremiyorum" diyordu).\n' +
+    '  Kullan: node tools/indir/r2yukle.js   (turu UZANTIDAN turetir)');
+  process.exit(1);
+}
+
 yukle(dosya, anahtar, ctype || 'application/octet-stream')
   .then((m) => console.log('OK', m))
   .catch((e) => { console.error('HATA', e.message); process.exit(1); });
