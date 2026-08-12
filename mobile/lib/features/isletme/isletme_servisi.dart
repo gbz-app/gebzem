@@ -356,6 +356,12 @@ class IsletmeOzet {
     this.calisma = const [],
     this.minFiyatKurus,
     this.urunSayisi = 0,
+    this.minTutarKurus,
+    this.teslimatDkMin,
+    this.teslimatDkMax,
+    this.puan,
+    this.puanSayisi = 0,
+    this.kampanyalar = const [],
   });
 
   final String id;
@@ -388,6 +394,20 @@ class IsletmeOzet {
   final int? minFiyatKurus;
   final int urunSayisi;
 
+  /// ⚠️⚠️ TURU 94 — VITRIN ALANLARI (migration 046).
+  ///
+  /// ⚠️ Hepsi NULL olabilir = **bilgi yok**. Kart o parcayi CIZMEZ; sifir
+  ///    gostermek ("0 dk", "★ 0") YANLIS BILGI olurdu.
+  /// ⚠️⚠️ `puan` bir DEGERLENDIRME SISTEMINDEN gelmiyor — isletmenin/
+  ///    yoneticinin girdigi editoryal bir sayidir. Gercek puan icin oy
+  ///    tablosu + siparis dogrulamasi gerekir (AYRI IS).
+  final int? minTutarKurus;
+  final int? teslimatDkMin;
+  final int? teslimatDkMax;
+  final double? puan;
+  final int puanSayisi;
+  final List<String> kampanyalar;
+
   /// ⚠️ TURU 85 — YALNIZ "Yakinimda" ucunda dolu gelir; diger listelerde 0.
   ///    Mesafe SUNUCUDA hesaplanir (istemcide tekrar hesaplamak "ayni
   ///    kuralin iki kopyasi" olurdu ve siralama ile gosterilen deger
@@ -415,6 +435,13 @@ class IsletmeOzet {
     calisma: (m['calisma'] as List?) ?? const [],
     minFiyatKurus: (m['min_fiyat_kurus'] as num?)?.toInt(),
     urunSayisi: (m['urun_sayisi'] as num?)?.toInt() ?? 0,
+    minTutarKurus: (m['min_tutar_kurus'] as num?)?.toInt(),
+    teslimatDkMin: (m['teslimat_dk_min'] as num?)?.toInt(),
+    teslimatDkMax: (m['teslimat_dk_max'] as num?)?.toInt(),
+    puan: (m['puan'] as num?)?.toDouble(),
+    puanSayisi: (m['puan_sayisi'] as num?)?.toInt() ?? 0,
+    kampanyalar:
+        ((m['kampanyalar'] as List?) ?? const []).map((e) => e.toString()).toList(),
   )
     ..enlem = (m['enlem'] as num?)?.toDouble() ?? 0
     ..boylam = (m['boylam'] as num?)?.toDouble() ?? 0

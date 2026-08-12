@@ -106,6 +106,11 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
   /// Secili alt kategori (arama metni). Bos = hicbiri.
   String _altSecili = '';
 
+  /// ⚠️ TURU 94 — GORUNUM: false = liste (tek sutun), true = kart (iki sutun).
+  ///    Varsayilan LISTE: genis kapak + tum bilgiler sigar. Izgara,
+  ///    "cok isletme var, hizlica tara" durumu icin ikincil bir gorunum.
+  bool _izgara = false;
+
   @override
   void initState() {
     super.initState();
@@ -334,16 +339,25 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                         ),
                       ),
 
+                    // ---- ALT KATEGORI KARTLARI (60x60) — kullanici emri
+                    SliverToBoxAdapter(child: _altKategoriSeridi()),
+
+                    // ⚠️ TURU 94 — ARAMA **KARTLARIN ALTINA** alindi
+                    //    (kullanici emri: *"inputu kucuk kartlarin altina al"*).
+                    //    Saginda liste/izgara **gorunum anahtari**.
                     SliverToBoxAdapter(
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(
-                            kYanBosluk, 12, kYanBosluk, 0),
-                        child: _aramaKutusu(),
+                            kYanBosluk, 4, kYanBosluk, 0),
+                        child: Row(
+                          children: [
+                            Expanded(child: _aramaKutusu()),
+                            const SizedBox(width: 10),
+                            _gorunumAnahtari(),
+                          ],
+                        ),
                       ),
                     ),
-
-                    // ---- ALT KATEGORI KARTLARI (60x60) — kullanici emri
-                    SliverToBoxAdapter(child: _altKategoriSeridi()),
                     // ---- FILTRE SATIRI: solda "Filtrele", saginda sik kullanilanlar
                     SliverToBoxAdapter(child: _filtreSatiri()),
 
@@ -391,10 +405,30 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                       SliverPadding(
                         padding: const EdgeInsets.fromLTRB(
                             kYanBosluk, 6, kYanBosluk, 24),
-                        sliver: SliverList.builder(
-                          itemCount: l.length,
-                          itemBuilder: (_, i) => _kart(l[i]),
-                        ),
+                        // ⚠️ IKI GORUNUM (kullanici emri: "kart gorunumu").
+                        //    Izgarada IKI SUTUN; ucuncusu 360dp'de kapagi
+                        //    ~104px'e dusurup okunamaz yapardi.
+                        sliver: _izgara
+                            ? SliverGrid(
+                                gridDelegate:
+                                    const SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: 2,
+                                  crossAxisSpacing: 12,
+                                  mainAxisSpacing: 20,
+                                  // ⚠️ Kapak 16:9 + ad + iki bilgi satiri.
+                                  //    Dusuk oran metni kirpar, yuksek oran
+                                  //    kartlar arasinda bosluk birakir.
+                                  childAspectRatio: 0.86,
+                                ),
+                                delegate: SliverChildBuilderDelegate(
+                                  (_, i) => _izgaraKarti(l[i]),
+                                  childCount: l.length,
+                                ),
+                              )
+                            : SliverList.builder(
+                                itemCount: l.length,
+                                itemBuilder: (_, i) => _kart(l[i]),
+                              ),
                       ),
                   ],
                 ),
@@ -550,9 +584,38 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
           ),
         ),
         prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+        // ⚠️⚠️ SAGDAKI IKON: **ARKASI HAFIF GRI** (kullanici emri).
+        //	Yazi varken TEMIZLE, yokken sesli arama gibi ikincil bir eylem
+        //	tasir. Bugun sesli arama YOK — o yuzden yalnizca yazi varken
+        //	cizilir; bos bir dugme koymak "calismayan dugme" olurdu.
+        // ⚠️ Ton `kYuzeyGri` — ekrandaki tek gri.
+        suffixIcon: _arama.text.isEmpty
+            ? null
+            : Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: GestureDetector(
+                  onTap: () {
+                    _arama.clear();
+                    _gecikme?.cancel();
+                    setState(() {});
+                    _yukle();
+                  },
+                  child: Container(
+                    width: 32,
+                    height: 32,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: kYuzeyGri(context),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(LucideIcons.x, size: 17, color: ikonRenk),
+                  ),
+                ),
+              ),
+        suffixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
         isDense: true,
         contentPadding:
-            const EdgeInsets.only(right: 16, top: 14, bottom: 14),
+            const EdgeInsets.only(right: 8, top: 14, bottom: 14),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(24),
           borderSide: BorderSide(color: bos),
@@ -692,13 +755,6 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
   /// ⚠️ Solraki dugme KAYMAZ (`Row` + `Expanded`): kullanici filtreyi
   ///    ararken seridi kaydirmak zorunda kalmamali.
   Widget _filtreSatiri() {
-    // ⚠️ TURU 93b — `_altSecili` DE SAYILIR (denetim). Rozetin kendi
-    //    gerekcesi "kullanici neden az sonuc gordugunu anlayabilmeli"
-    //    diyor; alt kategori EN DARALTICI suzgec oldugu halde sayilmiyordu
-    //    -> "Filtre (1)" yazarken FIILEN IKI suzgec aktifti.
-    final aktifSayi = (_hizli.isEmpty ? 0 : 1) +
-        (_kategori.isEmpty ? 0 : 1) +
-        (_altSecili.isEmpty ? 0 : 1);
     return Padding(
       // ⚠️ TURU 93b — `12` idi -> `kYanBosluk` (dosya basindaki "elle yatay
       //    dolgu YAZMA" serhinin ikinci ihlali; "Filtrele" dugmesi arama
@@ -708,28 +764,10 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
       padding: const EdgeInsets.fromLTRB(kYanBosluk, 10, 0, 6),
       child: Row(
         children: [
-          OutlinedButton.icon(
-            onPressed: _filtreSheet,
-            icon: const Icon(LucideIcons.slidersHorizontal, size: 16),
-            // ⚠️ AKTIF SAYI ROZETI: kullanici neden az sonuc gordugunu
-            //    anlayabilmeli. Rozetsiz bir filtre, "hic isletme yok"
-            //    yanilgisinin en sik sebebidir.
-            label: Text(aktifSayi == 0 ? 'Filtrele' : 'Filtre ($aktifSayi)'),
-            // ⚠️⚠️ TURU 93 — **ARAMA KUTUSUYLA AYNI DIL** (kullanici emri:
-            //    *"filtre vs butonlarda YESIL RENK OLMAYACAK, arama inputu
-            //    mantigi olacak"*). Material'in varsayilan secili hali TEMA
-            //    VURGU RENGINI kullaniyordu; hepsi notr siyah/beyaz dile
-            //    cevrildi ve renk TEK KAYNAKTAN geliyor (`_notrKenar`).
-            style: OutlinedButton.styleFrom(
-              visualDensity: VisualDensity.compact,
-              foregroundColor: _notrYazi,
-              side: BorderSide(color: _notrKenar),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
+          // ⚠️ TURU 94 — "Filtrele" DUGMESI **KALDIRILDI** (kullanici emri).
+          //    Kategori secimi artik hamburger menusunden ve secili kategori
+          //    cipinden yonetiliyor; ekranda IKI AYRI kategori kapisi vardi.
+          // ⚠️ YAPMA: bu satira yeni bir "Filtrele" dugmesi geri koyma.
           Expanded(
             child: SizedBox(
               // ⚠️ TURU 93b — 36 -> 48 (denetim). `FilterChip` varsayilan
@@ -811,93 +849,12 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
   ///    slayt metinleri KATEGORIYE OZELDIR (kullanici: "her kategori
   ///    FARKLI"). Cagrilmasaydi "Yemek"in doner/kebap kartlari "Kuaför"
   ///    kategorisinde de gorunurdu.
-  Future<void> _filtreSheet() async {
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (c) => SafeArea(
-        child: StatefulBuilder(
-          builder: (c, yenile) => SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('Kategori',
-                      style: TextStyle(
-                          fontSize: 15, fontWeight: FontWeight.w800)),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      // ⚠️⚠️ TURU 93b — UC DAL DA `_kategoriSec` KAPISINDAN
-                      //    gecer. Onceden "Tümü" ve ✕ dallari `_altSecili`yi
-                      //    SIFIRLAMIYORDU: "Yemek → Döner" seciliyken
-                      //    "Tümü"ye basan kullanicida GORUNMEZ bir "döner"
-                      //    suzgeci takili kaliyordu.
-                      ChoiceChip(
-                        label: const Text('Tümü'),
-                        selected: _kategori.isEmpty,
-                        onSelected: (_) {
-                          yenile(() {});
-                          _kategoriSec('');
-                        },
-                      ),
-                      for (final e in isletmeKategorileri.entries)
-                        ChoiceChip(
-                          label: Text(e.value),
-                          selected: _kategori == e.key,
-                          onSelected: (_) {
-                            yenile(() {});
-                            _kategoriSec(e.key);
-                          },
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 18),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                      onPressed: () => Navigator.pop(c),
-                      child: const Text('Uygula'),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ⚠️ TURU 92 — `_cip` ve `_hizliKartlar` SILINDI: kategori secimi
-  //    "Filtrele" sheet'ine, hizli suzgecler ise filtre satirina tasindi.
-  //    Olu birakmak, ileride birinin onlari geri baglayip IKI AYRI
-  //    kategori secicisi olusturmasina yol acardi (turu 90b'de
-  //    `OlusturFab` tam bu sebeple silinmisti).
-
-  /// ⚠️⚠️⚠️ TURU 93 — ISLETME KARTI (kullanici emri: *"firmalar Getir Yemek /
-  /// Yemeksepeti kartlari gibi olsun"*, ekran goruntusu referansiyla).
-  ///
-  /// YAPI: ustte GENIS GORSEL (16:9, yuvarlak kose) · altinda AD + onayli
-  /// rozeti · altinda META satiri (kategori · ilce/il).
-  ///
-  /// ⚠️⚠️ **PUAN, TESLIMAT SURESI VE MINIMUM TUTAR YOK — VE UYDURULMADI.**
-  ///    Referans ekranda "25-35 dk · Min. 260 TL · 3,9 (500+)" var; bu
-  ///    projede o verilerin HICBIRI YOK (ne degerlendirme tablosu, ne
-  ///    teslimat modeli, ne siparis). Sahte deger basmak kullaniciya
-  ///    YANLIS BILGI gostermek olurdu; bos yildiz/sure cizmek de "bozuk"
-  ///    izlenimi verirdi. Kart, BUGUN GERCEK OLAN alanlarla dolduruldu.
-  ///    ⚠️ YAPMA: yer tutucu puan/sure/mesafe ekleme.
-  ///
-  /// ⚠️ GORSEL SIRASI: kapak -> avatar -> gradyan yer tutucu. Kapak yoksa
-  ///    avatar 46px icin uretilmis bir gorseldir ve 150px kutuda BULANIK
-  ///    cikar; yine de bos gri kutudan iyidir. Ikisi de yoksa KIRIK GORSEL
-  ///    CIZILMEZ, kategori renginde bir gradyan cizilir.
+  // ⚠️ TURU 94 — `_filtreSheet` **SILINDI** (kullanici "Filtrele dugmesini
+  //    kaldir" dedi ve sheet ULASILAMAZ kalmisti). Olu birakmak, ileride
+  //    birinin onu geri baglayip EKRANDA IKI AYRI kategori kapisi
+  //    olusturmasina yol acardi (turu 90b `OlusturFab` dersi).
+  //    Kategori secimi hamburger menusunden ve secili kategori cipinden
+  //    yonetiliyor.
   Widget _kart(IsletmeOzet o) {
     final gorselID = (o.kapakMediaId != null && o.kapakMediaId!.isNotEmpty)
         ? o.kapakMediaId!
@@ -929,18 +886,28 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── KAPAK ──
+            // ── KAPAK + KAMPANYA ROZETLERI ──
+            // ⚠️ Rozetler kapagin **SOL ALTINA BINER** (kullanici emri,
+            //    referans ekran). `Stack` icinde `Positioned` — kapagin
+            //    ALTINA ayri bir satir olsaydi kart uzar ve gorsel ile
+            //    rozet arasindaki bag kopardi.
+            // ⚠️ `ClipRRect` Stack'i SARAR: rozet kose disina tasmasin.
             ClipRRect(
               borderRadius: BorderRadius.circular(14),
-              child: AspectRatio(
-                aspectRatio: 16 / 9,
-                child: gorselID.isEmpty
-                    ? _kapakYerTutucu(o)
-                    : MedyaGorsel(
-                        mediaId: gorselID,
-                        fit: BoxFit.cover,
-                        width: kartGenislik,
-                      ),
+              child: Stack(
+                children: [
+                  AspectRatio(
+                    aspectRatio: 16 / 9,
+                    child: gorselID.isEmpty
+                        ? _kapakYerTutucu(o)
+                        : MedyaGorsel(
+                            mediaId: gorselID,
+                            fit: BoxFit.cover,
+                            width: kartGenislik,
+                          ),
+                  ),
+                  _kampanyaRozetleri(o),
+                ],
               ),
             ),
             const SizedBox(height: 9),
@@ -982,6 +949,9 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
             //	  · **En uygun fiyat** (katalogdaki en dusuk urun)
             //	  · kategori · ilce, il
             // ⚠️ YAPMA: buraya yer tutucu puan/sure/mesafe ekleme.
+            // ── PUAN · TESLIMAT · MIN. TUTAR (migration 046) ──
+            _vitrinSatiri(o, kompakt: false),
+            const SizedBox(height: 2),
             _bilgiSatiri(o),
           ],
         ),
@@ -994,6 +964,218 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
   ///
   /// ⚠️ Renk ADDAN turetilir (kategoriden DEGIL): ayni kategorideki tum
   ///    kartlar ayni renk olsaydi liste tekduze bir blok gibi gorunurdu.
+  /// Izgara gorunumundeki kompakt kart (iki sutun).
+  ///
+  /// ⚠️ Liste kartinin KOPYASI DEGIL: dar sutunda "Açık · 20:00'a kadar ·
+  ///    En uygun 80 ₺ · Gebze" satiri UC SATIRA sarardi. Burada yalnizca
+  ///    **puan · sure · min tutar** cizilir; gerisi karta dokununca acilan
+  ///    profilde zaten var.
+  /// ⚠️ Kapak genisligi: (ekran - 2*yan bosluk - sutun araligi) / 2.
+  ///    Verilmezse gorsel iki katindan fazla cozunurlukte decode edilir
+  ///    (turu 91 performans dersi).
+  Widget _izgaraKarti(IsletmeOzet o) {
+    final gorselID = (o.kapakMediaId != null && o.kapakMediaId!.isNotEmpty)
+        ? o.kapakMediaId!
+        : (o.avatarMediaId ?? '');
+    final hucre = (MediaQuery.sizeOf(context).width - kYanBosluk * 2 - 12) / 2;
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => ProfilSayfasi(userId: o.id)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Stack(
+              children: [
+                AspectRatio(
+                  aspectRatio: 16 / 9,
+                  child: gorselID.isEmpty
+                      ? _kapakYerTutucu(o)
+                      : MedyaGorsel(
+                          mediaId: gorselID,
+                          fit: BoxFit.cover,
+                          width: hucre,
+                        ),
+                ),
+                _kampanyaRozetleri(o),
+              ],
+            ),
+          ),
+          const SizedBox(height: 7),
+          Row(
+            children: [
+              Flexible(
+                child: Text(
+                  o.ad,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              if (o.dogrulandi)
+                const Padding(
+                  padding: EdgeInsets.only(left: 4),
+                  child: Icon(LucideIcons.badgeCheck,
+                      size: 13, color: kOnayliRengi),
+                ),
+            ],
+          ),
+          const SizedBox(height: 2),
+          _vitrinSatiri(o, kompakt: true),
+        ],
+      ),
+    );
+  }
+
+  /// ⚠️⚠️ TURU 94 — GORUNUM ANAHTARI (kullanici emri: *"inputun sagina
+  ///    gorunum ekle, kart gorunumu"*).
+  ///
+  /// Iki gorunum: **liste** (tek sutun, genis kapak + tum bilgiler) ve
+  /// **kart** (iki sutun, kompakt). Referans uygulamada da ayni ikili var.
+  /// ⚠️ Tercih EKRAN OMURLU (diske yazilmiyor): kalici yapmak icin once
+  ///    kullanicinin bunu gercekten istedigini gormek gerek — bugun tek
+  ///    dokunusla geri alinabiliyor.
+  Widget _gorunumAnahtari() => GestureDetector(
+        onTap: () => setState(() => _izgara = !_izgara),
+        child: Container(
+          width: 48,
+          height: 48,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: kYuzeyGri(context),
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Icon(
+            // ⚠️ IKON **HEDEFI** gosterir, mevcut durumu DEGIL: izgaradayken
+            //    "listeye gec" ikonu cizilir. Tersi, kullanicinin "zaten
+            //    listedeyim, neden liste ikonu var" diye durakalmasina yol
+            //    acar (referans uygulamada da hedef gosterilir).
+            _izgara ? LucideIcons.list : LucideIcons.layoutGrid,
+            size: 20,
+            color: _notrYazi,
+          ),
+        ),
+      );
+
+  /// Kampanya rozetleri — kapagin **SOL ALTINA** binen kucuk etiketler.
+  ///
+  /// ⚠️ Kullanici emri: *"firma resmin kartin sol altinda ... 300 TL indirim,
+  ///    İlk sipariş 100 TL indirim gibi ufak butonlar olsun"*.
+  /// ⚠️ Metin SUNUCUDAN gelir (`isletmeler.kampanyalar`), istemcide sabit
+  ///    YAZILMAZ — yeni bir kampanya cumlesi MAGAZA ONAYI gerektirmesin.
+  /// ⚠️ EN FAZLA IKI rozet cizilir: ucuncusu 360dp'de kapagin yarisini
+  ///    kapatiyor ve gorseli okunamaz kiliyordu.
+  /// ⚠️ Rozet DUGME DEGIL (dokunma yok): bir eylemi yok, kapagin tamami
+  ///    zaten isletmeye gidiyor. Dokunulabilir gostermek yanlis vaat olurdu.
+  Widget _kampanyaRozetleri(IsletmeOzet o) {
+    if (o.kampanyalar.isEmpty) return const SizedBox.shrink();
+    return Positioned(
+      left: 8,
+      bottom: 8,
+      right: 8,
+      child: IgnorePointer(
+        child: Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            for (final k in o.kampanyalar.take(2))
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                decoration: BoxDecoration(
+                  // ⚠️ OPAK BEYAZ: kapak fotografi acik ya da koyu olabilir;
+                  //    yari saydam bir zemin bazi fotograflarda metni
+                  //    OKUNAMAZ yapardi.
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  k,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF1A1A1A),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Puan · teslimat suresi · minimum tutar.
+  ///
+  /// ⚠️ Her parca YALNIZ verisi VARSA cizilir. Bu alanlar migration 046'da
+  ///    OPSIYONEL tanimlandi; NULL = "bilgi yok" demek ve "★ 0" ya da
+  ///    "0 dk" gostermek YANLIS BILGI olurdu.
+  /// ⚠️⚠️ `puan` bir DEGERLENDIRME SISTEMINDEN gelmiyor (bkz. migration 046
+  ///    serhi) — bugun editoryal bir sayidir.
+  Widget _vitrinSatiri(IsletmeOzet o, {required bool kompakt}) {
+    final soluk = Theme.of(context)
+        .textTheme
+        .bodyMedium
+        ?.color
+        ?.withValues(alpha: 0.62);
+    final boy = kompakt ? 12.0 : 13.0;
+    final p = <Widget>[];
+
+    if (o.puan != null) {
+      p.add(Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(LucideIcons.star, size: 13, color: Color(0xFF16A34A)),
+          const SizedBox(width: 3),
+          Text(
+            o.puan!.toStringAsFixed(1).replaceAll('.', ','),
+            style: TextStyle(
+              fontSize: boy,
+              fontWeight: FontWeight.w700,
+              color: const Color(0xFF16A34A),
+            ),
+          ),
+          // ⚠️ Oy sayisi YALNIZ genis gorunumde: kompakt kartta satiri
+          //    tasiriyordu.
+          if (!kompakt && o.puanSayisi > 0) ...[
+            const SizedBox(width: 3),
+            Text('(${o.puanSayisi})',
+                style: TextStyle(fontSize: boy, color: soluk)),
+          ],
+        ],
+      ));
+    }
+    if (o.teslimatDkMin != null && o.teslimatDkMax != null) {
+      p.add(Text('${o.teslimatDkMin}-${o.teslimatDkMax} dk',
+          style: TextStyle(fontSize: boy, color: soluk)));
+    }
+    if (o.minTutarKurus != null && o.minTutarKurus! > 0) {
+      p.add(Text('Min. ${(o.minTutarKurus! / 100).round()} ₺',
+          style: TextStyle(fontSize: boy, color: soluk)));
+    }
+    if (p.isEmpty) return const SizedBox.shrink();
+
+    // ⚠️ `Wrap`: 360dp'de uc parca sigmazsa alta sarar; `Row` TASARDI.
+    return Wrap(
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 7,
+      runSpacing: 2,
+      children: [
+        for (var i = 0; i < p.length; i++) ...[
+          if (i > 0) Text('·', style: TextStyle(fontSize: boy, color: soluk)),
+          p[i],
+        ],
+      ],
+    );
+  }
+
   /// Kartin bilgi satiri: **Açık/Kapalı · En uygun XX ₺ · Kategori · İlçe**.
   ///
   /// ⚠️ Hicbir deger UYDURULMAZ; hepsi sunucudan gelen GERCEK alanlardan

@@ -114,6 +114,10 @@ type isletmeReq struct {
 	TeslimatMin   *int             `json:"teslimat_dk_min"`
 	TeslimatMax   *int             `json:"teslimat_dk_max"`
 	Puan          *float64         `json:"puan"`
+	// ⚠️ Oy sayisi da BEYAN: gercek bir oy tablosu YOK (bkz. 046 serhi).
+	//    Puanin yaninda "(120)" gostermek puani daha inandirici kilar; o
+	//    yuzden ikisi BIRLIKTE anlamli, ayri ayri degil.
+	PuanSayisi    *int             `json:"puan_sayisi"`
 	Kampanyalar   json.RawMessage  `json:"kampanyalar"`
 }
 
@@ -234,6 +238,9 @@ func (h *Handler) Kaydet(w http.ResponseWriter, r *http.Request) {
 	if req.Puan != nil && (*req.Puan < 0 || *req.Puan > 5 || *req.Puan != *req.Puan) {
 		req.Puan = nil
 	}
+	if req.PuanSayisi != nil && *req.PuanSayisi < 0 {
+		req.PuanSayisi = nil
+	}
 	if req.MinTutarKurus != nil && *req.MinTutarKurus < 0 {
 		req.MinTutarKurus = nil
 	}
@@ -285,12 +292,14 @@ func (h *Handler) Kaydet(w http.ResponseWriter, r *http.Request) {
 	if _, err := tx.Exec(r.Context(), `
 		INSERT INTO isletmeler
 		  (user_id, kategori, adres, il, ilce, telefon, web, calisma, enlem, boylam,
-		   min_tutar_kurus, teslimat_dk_min, teslimat_dk_max, puan, kampanyalar)
+		   min_tutar_kurus, teslimat_dk_min, teslimat_dk_max, puan, kampanyalar,
+		   puan_sayisi)
 		-- TURU 85 - TIP DONUSUMU ZORUNLU (ayrinti: fonksiyon ustundeki serh).
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,
 		        COALESCE($9, 0::double precision),
 		        COALESCE($10, 0::double precision),
-		        $11,$12,$13,$14, COALESCE($15::jsonb, '[]'::jsonb))
+		        $11,$12,$13,$14, COALESCE($15::jsonb, '[]'::jsonb),
+		        COALESCE($16, 0))
 		ON CONFLICT (user_id) DO UPDATE SET
 		  kategori=EXCLUDED.kategori, adres=EXCLUDED.adres, il=EXCLUDED.il,
 		  ilce=EXCLUDED.ilce, telefon=EXCLUDED.telefon, web=EXCLUDED.web,
@@ -308,11 +317,12 @@ func (h *Handler) Kaydet(w http.ResponseWriter, r *http.Request) {
 		  teslimat_dk_max = COALESCE($13::integer, isletmeler.teslimat_dk_max),
 		  puan            = COALESCE($14::numeric, isletmeler.puan),
 		  kampanyalar     = COALESCE($15::jsonb,   isletmeler.kampanyalar),
+		  puan_sayisi     = COALESCE($16::integer, isletmeler.puan_sayisi),
 		  updated_at=now()`,
 		me, req.Kategori, req.Adres, req.Il, req.Ilce, req.Telefon, req.Web,
 		calisma, req.Enlem, req.Boylam,
 		req.MinTutarKurus, req.TeslimatMin, req.TeslimatMax, req.Puan,
-		kampanyalar); err != nil {
+		kampanyalar, req.PuanSayisi); err != nil {
 		log.Printf("isletme kaydet: %v", err)
 		hata(w, 500, "kaydedilemedi")
 		return
