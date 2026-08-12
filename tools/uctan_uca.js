@@ -597,6 +597,36 @@ const kontrol = (ad, gecti, ek = '') => {
     kontrol('TURU 77: /users/me hesap_turu donduruyor',
       me2.d.hesap_turu === 'isletme', String(me2.d.hesap_turu));
 
+    // ═════ TURU 93: ISLETME LISTESI `kapak_media_id` DONDURUYOR ═════
+    //
+    // ⚠️⚠️ NEDEN KONTROL EDILIYOR: turu 93 kartlari **16:9 BUYUK GORSEL**
+    //    cizyor. Avatar 46px'lik daire icin uretilmis; o kutuya konsaydi
+    //    BULANIK cikardi. Bu yuzden liste sorgusuna `u.kapak_media_id`
+    //    eklendi — SELECT + Scan + YANIT HARITASI **UCU BIRLIKTE**.
+    //    Yanit haritasina koymayi unutmak, projede DORT KEZ sahaya cikmis
+    //    bir sinif (turu 78 `Profile()` kapak/onayli): Scan CALISIR,
+    //    derleyici SUSAR, alan istemciye HIC ULASMAZ ve kartlar sessizce
+    //    gradyan yer tutucuya duser (= "kapak ozelligi yok" gibi gorunur).
+    {
+      const kpk = await medyaYukle(A.token, 'kapak93.jpg', 1600, 900);
+      await j('/users/me', {
+        yontem: 'PATCH', token: A.token, govde: { kapak_media_id: kpk },
+      });
+      const l93 = await j('/isletmeler?kategori=yemek', { token: B.token });
+      const ben = (((l93.d && l93.d.isletmeler) || [])
+        .find((x) => x.id === A.id)) || {};
+      kontrol('TURU 93: ISLETME LISTESI kapak_media_id DONDURUYOR (kart kapagi)',
+        l93.kod === 200 && ben.kapak_media_id === kpk,
+        'donen=' + JSON.stringify(ben.kapak_media_id) + ' beklenen=' + kpk);
+
+      // ⚠️ Kapak BASKA HESAPTAN da erisilebilir olmali: kart listeyi ACAN
+      //    herkese cizilir. `media.erisebilir()` kapak dalini turu 78'de
+      //    almisti; burada REGRESYON muhafizi olarak duruyor.
+      const im = await j('/media/' + kpk + '/url', { token: B.token });
+      kontrol('TURU 93: kart kapagi IKINCI HESAPTAN acilabiliyor',
+        im.kod === 200 && !!(im.d && im.d.url), 'HTTP ' + im.kod);
+    }
+
     // ---------- 3) ETKINLIK
     const em = await medyaYukle(A.token, 'etkinlik.jpg');
     const yarin = new Date(Date.now() + 86400000).toISOString();

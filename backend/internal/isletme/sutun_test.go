@@ -48,14 +48,28 @@ func yilanla(s string) string {
 // Detay govdesini kaynaktan cikarir.
 func detayGovdesi(t *testing.T) string {
 	t.Helper()
+	return govdeAl(t, "func (h *Handler) Detay(")
+}
+
+// ⚠️⚠️⚠️ TURU 93 — GOVDE CIKARMA GENELLESTIRILDI.
+//
+// Eskiden bu is YALNIZ `Detay` icin yaziliydi. Turu 93'te `Liste` sorgusuna
+// `u.kapak_media_id` eklendi ve **muhafiz onu GORMEDI**: yanit haritasindan
+// alan CIKARILIP test kosuldu, test **YESIL GECTI**. Yani muhafiz duruyordu
+// ama olcmedigi bir yuzey vardi.
+// ⚠️ DERS (turu 89'un tekrari): bir muhafizin YESIL olmasi, DEGISTIRDIGIN
+//    YUZEYI olctugu anlamina GELMEZ. Yeni sutun eklerken once "bu sorgu
+//    muhafizin KAPSAMINDA mi" diye sor.
+func govdeAl(t *testing.T, imza string) string {
+	t.Helper()
 	b, err := os.ReadFile("handler.go")
 	if err != nil {
 		t.Fatalf("handler.go okunamadi: %v", err)
 	}
 	src := string(b)
-	i := strings.Index(src, "func (h *Handler) Detay(")
+	i := strings.Index(src, imza)
 	if i < 0 {
-		t.Fatal("Detay() bulunamadi — yeniden adlandirildiysa BU TESTI DE guncelle")
+		t.Fatalf("%q bulunamadi — yeniden adlandirildiysa BU TESTI DE guncelle", imza)
 	}
 	// Bir sonraki ust duzey fonksiyona kadar.
 	govde := src[i:]
@@ -192,6 +206,99 @@ func TestDetayScanEdilenAlanlarYanittaVar(t *testing.T) {
 					"Derleyici bunu goremez (Scan'in yan etkisi var) — alan "+
 					"istemciye HIC ULASMAZ. Turu 78'de kapak/onayli tam boyle kayboldu.\n"+
 					"Beklenen anahtar: %s", ad, anahtar)
+		}
+	}
+}
+
+// ⚠️⚠️⚠️ TURU 93 — ISLETME **LISTE** SORGUSU DA KAPSAMA ALINDI.
+//
+// Bu, isletme rehberini ve kategori ekranini besleyen sorgu. Turu 93 kartlari
+// 16:9 kapak cizdigi icin `u.kapak_media_id` eklendi.
+//
+// ⚠️ NEDEN AYRI BIR TEST: `Liste` govdesinde `if rows.Scan(...) != nil {
+//    continue }` var — yani hata **YUTULUYOR**. SELECT ile Scan sayisi
+//    ayrisirsa HER SATIR SESSIZCE ATLANIR: derleme temiz gecer, log dusmez,
+//    ve isletme rehberi **HERKESTE BOMBOS** gorunur. Kullaniciya bu, "hic
+//    isletme yok" gibi gorunur — bir hata gibi DEGIL.
+//
+// ⚠️ Yanit haritasi kontrolu de ZORUNLU: Scan calisir, derleyici susar, alan
+//    istemciye HIC ULASMAZ ve kartlar sessizce gradyan yer tutucuya duser.
+//    Bu sinif projede DORT KEZ sahaya cikti.
+func TestListeSelectScanVeYanitHizali(t *testing.T) {
+	govde := govdeAl(t, "func (h *Handler) Liste(")
+
+	sel := regexp.MustCompile(`(?s)SELECT\s+(.*?)\s+FROM`).FindStringSubmatch(govde)
+	if sel == nil {
+		t.Fatal("Liste icinde SELECT ... FROM bulunamadi")
+	}
+	// Parantez derinligi tutulur — COALESCE(u.username,'') icindeki virgul
+	// sutun ayirici DEGILDIR.
+	var sutunlar []string
+	derinlik, son := 0, 0
+	ham := sel[1]
+	for i, c := range ham {
+		switch c {
+		case '(':
+			derinlik++
+		case ')':
+			derinlik--
+		case ',':
+			if derinlik == 0 {
+				sutunlar = append(sutunlar, strings.TrimSpace(ham[son:i]))
+				son = i + 1
+			}
+		}
+	}
+	sutunlar = append(sutunlar, strings.TrimSpace(ham[son:]))
+
+	scan := regexp.MustCompile(`(?s)rows\.Scan\((.*?)\)\s*!=\s*nil`).
+		FindStringSubmatch(govde)
+	if scan == nil {
+		t.Fatal("Liste icinde rows.Scan(...) != nil bulunamadi")
+	}
+	hedefSayisi := 0
+	for _, p := range strings.Split(scan[1], ",") {
+		if strings.TrimSpace(p) != "" {
+			hedefSayisi++
+		}
+	}
+	if len(sutunlar) != hedefSayisi {
+		t.Fatalf(
+			"SELECT %d sutun donduruyor ama Scan %d alan bekliyor — "+
+				"HER SATIR SESSIZCE ATLANIR (rehber BOMBOS gorunur).\nSELECT: %v",
+			len(sutunlar), hedefSayisi, sutunlar)
+	}
+	if len(sutunlar) < 9 {
+		t.Fatalf("SELECT beklenenden kisa (%d) — ayristirma bozulmus olabilir",
+			len(sutunlar))
+	}
+
+	// ── YANIT HARITASI (`out = append(out, map[string]any{...})`) ──
+	yanit := regexp.MustCompile(`(?s)out\s*=\s*append\(out,\s*map\[string\]any\{(.*?)\}\)`).
+		FindStringSubmatch(govde)
+	if yanit == nil {
+		t.Fatal("Liste yanit haritasi bulunamadi")
+	}
+
+	// SELECT sutunu -> beklenen JSON anahtari. Uymayanlar ACIKCA yazili;
+	// boylece bilincli sapmalar gorunur kalir.
+	istisna := map[string]string{
+		"COALESCE(u.username,'')": "username",
+		"u.onayli":                "dogrulandi",
+	}
+	for _, s := range sutunlar {
+		anahtar, ok := istisna[s]
+		if !ok {
+			anahtar = s
+			if k := strings.LastIndex(anahtar, "."); k >= 0 {
+				anahtar = anahtar[k+1:]
+			}
+		}
+		if !strings.Contains(yanit[1], `"`+anahtar+`"`) {
+			t.Errorf(
+				"`%s` SELECT+Scan ediliyor ama YANIT HARITASINDA YOK (beklenen `%q`).\n"+
+					"Alan istemciye HIC ULASMAZ; kart sessizce yer tutucuya duser.\n"+
+					"Bilincli bir sapmaysa `istisna` haritasina ekle.", s, anahtar)
 		}
 	}
 }
