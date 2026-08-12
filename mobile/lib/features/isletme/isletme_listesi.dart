@@ -533,34 +533,27 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
   /// ⚠️ `IconButton` 48dp dokunma alanini KORUR (gorsel olarak yalniz ikon
   ///    gorunse de); ciplak `Icon` + `GestureDetector` hedefi 24dp'ye
   ///    dusururdu (Material 48 / Apple 44 kurali).
+  /// ⚠️⚠️ HEADER — geri · baslik · favoriler · profil.
+  ///
+  /// Kullanici emri: *"header'daki ikonlar profil dairesi boyutunda olsun,
+  /// o dairenin icinde harf yazmasin, rengi slider renginde olsun"*.
+  ///
+  /// ⚠️ UC OGE DE **AYNI 34dp DAIRE** ve **AYNI GRI** (`kYuzeyGri`): farkli
+  ///    boyut/zemin, ayni satirdaki ogeleri "baska bilesenler" gibi
+  ///    gosteriyordu.
+  /// ⚠️ Profil dairesinde **HARF YOK**: avatar yoksa duz gri daire cizilir.
+  ///    Harf, yanindaki iki ikonla ayni dili konusmuyordu.
+  /// ⚠️ Dokunma alani daireden BUYUK (44dp): 34dp gorsel, Material'in 48 /
+  ///    Apple'in 44 kuralinin altinda kalirdi.
   Widget _header() => Padding(
-        // ⚠️ `IconButton`in kendi 8dp ic dolgusu var; yan bosluk ondan
-        //    dusulur ki ikonlar slider/arama ile AYNI hizada dursun.
-        padding: const EdgeInsets.symmetric(horizontal: kYanBosluk - 8),
+        padding: const EdgeInsets.fromLTRB(kYanBosluk, 4, kYanBosluk, 0),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            IconButton(
-              tooltip: 'Geri',
-              icon: const Icon(LucideIcons.arrowLeft, size: 24),
-              onPressed: () => Navigator.of(context).maybePop(),
+            _headerDaire(
+              LucideIcons.arrowLeft,
+              'Geri',
+              () => Navigator.of(context).maybePop(),
             ),
-            // ⚠️⚠️ TURU 93b — `baslik` **OLU PARAMETREYDI** (denetim).
-            //
-            //	Alan tanimliydi, `hizmet_menusu.dart` ALTI cagri yerinde
-            //	deger geciyordu ("Oteller", "Kafe & Restoran"...) ama govde
-            //	onu HIC OKUMUYORDU: turu 92'de AppBar kaldirilinca tek
-            //	tuketicisi yok olmus, parametre ve cagri yerleri kalmisti.
-            //	Sonuc: "Oteller" kartina basan kullanici, acilan ekranda
-            //	hangi kategoride oldugunu HICBIR YERDE goremiyordu (tek
-            //	gosterge filtre satirindaki cip, o da yatay serit icinde
-            //	kismen kirpilabiliyor).
-            // ⚠️ Kullanicinin *"Yemek yazisi gerek yok"* emri **KOCAMAN BIR
-            //    APPBAR BASLIGINA** yonelikti; burada iki ikon arasinda
-            //    kalan kucuk, ikincil bir etiket var — o emrin ihlali degil,
-            //    yon bilgisi.
-            // ⚠️ `Expanded` + ellipsis: uzun ad ("Kafe & Restoran") yazi
-            //    olcegi 2.0'da bile ikonlari EZMEZ.
             if (widget.baslik.isNotEmpty)
               Expanded(
                 child: Text(
@@ -569,55 +562,101 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    // ⚠️ Kullanici emri: 16 -> **18**.
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-              ),
-            // ⚠️⚠️ TURU 94 — SAG UST: **KALP (favoriler) + PROFIL** (kullanici
-            //	emri: *"sag uste harita ikonu yerine kalp koy, favoriler
-            //	olacak; saginda daire icinde profil resmi olsun"*).
-            //
-            // ⚠️ HARITA KAYBOLMADI: gorunum anahtarinin yanina tasindi
-            //    (arama satiri). Buradan kaldirip hicbir yere koymamak,
-            //    turu 92'de yazilan harita girisini OLU birakirdi.
-            // ⚠️ Kalbin gittigi liste ve favorileme eylemi AYNI TURDA
-            //    yazildi (migration 047) — "dugme var, hicbir sey yapmiyor"
-            //    sinifina yeni ornek eklemiyoruz.
-            IconButton(
-              tooltip: 'Favorilerim',
-              icon: const Icon(LucideIcons.heart, size: 22),
-              onPressed: () => Navigator.of(context).push(
+              )
+            else
+              const Spacer(),
+            _headerDaire(
+              LucideIcons.heart,
+              'Favorilerim',
+              () => Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => const FavorilerimEkrani()),
               ),
             ),
-            // ⚠️ PROFIL: kendi profiline gider. Avatar `myProfileProvider`dan
-            //    okunur; henuz cozulmemisse harf avatari cizilir (bos daire
-            //    "yukleniyor" gibi durur ve dokunulabilir oldugu anlasilmaz).
+            const SizedBox(width: 8),
             _profilDairesi(),
           ],
         ),
       );
 
+  /// Header'daki gri daire — ikonlu.
+  Widget _headerDaire(IconData ikon, String ipucu, VoidCallback onTap) =>
+      Semantics(
+        button: true,
+        label: ipucu,
+        child: GestureDetector(
+          // ⚠️ **DALGA YOK**: kullanici "tikladiginda titreme olmasin" dedi.
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: SizedBox(
+            // ⚠️ Dokunma alani 44, GORSEL daire 34.
+            width: 44,
+            height: 44,
+            child: Center(
+              child: Container(
+                width: 34,
+                height: 34,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: kYuzeyGri(context),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(ikon, size: 18, color: _notrYazi),
+              ),
+            ),
+          ),
+        ),
+      );
+  /// Profil dairesi — avatar varsa gorsel, yoksa **DUZ GRI** (harf YOK).
+  ///
+  /// ⚠️ Kullanici emri: *"o dairenin icinde harf yazmasin, rengi slider
+  ///    renginde olsun"*. `Avatar` bileseni harf yaziyor; o yuzden burada
+  ///    KULLANILMIYOR ve gorsel dogrudan `MedyaGorsel` ile ciziliyor.
+  /// ⚠️ Avatar yoksa ikon da konmadi: yanindaki iki daire ikonlu, ucuncusu
+  ///    kimlik tasiyor — bos gri daire "senin profilin" demenin en sessiz
+  ///    yolu ve kullanicinin istedigi bu.
   Widget _profilDairesi() {
     final p = ref.watch(myProfileProvider).valueOrNull;
     final id = (p?['id'] ?? '').toString();
-    final ad = (p?['name'] ?? '').toString();
     final medya = p?['avatar_media_id'] as String?;
-    return Padding(
-      padding: const EdgeInsets.only(left: 2, right: 6),
+    return Semantics(
+      button: true,
+      label: 'Profilim',
       child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
         onTap: id.isEmpty
             ? null
             : () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                      builder: (_) => ProfilSayfasi(userId: id)),
+                  MaterialPageRoute(builder: (_) => ProfilSayfasi(userId: id)),
                 ),
-        child: Avatar(mediaId: medya, ad: ad, cap: 34),
+        child: SizedBox(
+          width: 44,
+          height: 44,
+          child: Center(
+            child: ClipOval(
+              child: Container(
+                width: 34,
+                height: 34,
+                color: kYuzeyGri(context),
+                child: (medya == null || medya.isEmpty)
+                    ? null
+                    : MedyaGorsel(
+                        mediaId: medya,
+                        kucuk: true,
+                        width: 34,
+                        fit: BoxFit.cover,
+                      ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
+
 
   /// ⚠️⚠️ TURU 93 — ARAMA KUTUSU (kullanici emri).
   ///
@@ -641,7 +680,8 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
   Widget _aramaKutusu() {
     final koyu = Theme.of(context).brightness == Brightness.dark;
     final odak = koyu ? const Color(0xFFE8E8EA) : const Color(0xFF1A1A1A);
-    final bos = (koyu ? Colors.white : Colors.black).withValues(alpha: 0.14);
+    // ⚠️ TEK KAYNAK: cipler de `_notrKenar` kullaniyor.
+    final bos = _notrKenar;
     final ikonRenk = koyu ? Colors.white70 : Colors.black87;
     return TextField(
       controller: _arama,
@@ -779,7 +819,7 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
     // ⚠️ `textScaler` ile turetmek `MediaQuery`ye baglamak DEMEK DEGILDIR:
     //    olculen sey EKRAN BOYUTU degil KULLANICININ YAZI TERCIHI.
     final olcek = MediaQuery.textScalerOf(context);
-    final serit = 60 + 5 + olcek.scale(11) * 1.15 * 2 + 12 + 2;
+    final serit = 60 + 5 + olcek.scale(13) * 1.15 * 2 + 12 + 2;
     return SizedBox(
       height: serit,
       child: ListView.builder(
@@ -856,7 +896,12 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                       textAlign: TextAlign.center,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 11,
+                        // ⚠️ 11 -> **13** (kullanici emri: *"alt kategoriler
+                        //    doner kebap bunlari 2px daha buyuk yap yazi"*).
+                        // ⚠️ Serit yuksekligi bu degerden TURETILIYOR
+                        //    (`olcek.scale(13)`), yani buyutme tasma
+                        //    URETMEZ — sabit 92px olsaydi ederdi.
+                        fontSize: 13,
                         height: 1.15,
                         fontWeight: secili ? FontWeight.w700 : FontWeight.w500,
                         color: secili ? renk : null,
@@ -927,10 +972,42 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                   if (_kategori.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.only(right: 6),
-                      child: InputChip(
-                        label: Text(isletmeKategoriAdi(_kategori)),
-                        // ⚠️ TURU 93b — TEK KAPI (`_altSecili` de sifirlanir).
-                        onDeleted: () => _kategoriSec(''),
+                      // ⚠️⚠️ `InputChip` YERINE ELDE CIZILDI: Material'in
+                      //	chip'i `StadiumBorder` verilse bile ic dolgusu ve
+                      //	silme ikonunun kutusu yuzunden yan yandaki elde
+                      //	cizilmis ciplerle AYNI yuksekligi/yaricapi
+                      //	tutturmuyordu — kullanici *"tam radius olmamis"*
+                      //	dedi ve HAKLIYDI.
+                      // ⚠️ Ayrica dokununca DALGA oynuyordu (ayni "titreme").
+                      child: Semantics(
+                        button: true,
+                        label: '${isletmeKategoriAdi(_kategori)} filtresini kaldır',
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          // ⚠️ TEK KAPI: `_altSecili` de sifirlanir.
+                          onTap: () => _kategoriSec(''),
+                          child: Container(
+                            height: 40,
+                            padding: const EdgeInsets.fromLTRB(14, 0, 10, 0),
+                            decoration: BoxDecoration(
+                              // ⚠️ TAM RADIUS: yaricap = yukseklik / 2.
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: _notrKenar),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  isletmeKategoriAdi(_kategori),
+                                  style: TextStyle(
+                                      fontSize: 14, color: _notrYazi),
+                                ),
+                                const SizedBox(width: 6),
+                                Icon(LucideIcons.x, size: 15, color: _notrYazi),
+                              ],
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                   const SizedBox(width: 12),
@@ -948,11 +1025,20 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
   /// ⚠️ TEK KAYNAK: filtre dugmesi, hizli cipler ve secili kategori cipi
   ///    ayni iki degeri kullanir. Elle yazilsaydi biri guncellenip otekiler
   ///    unutulur ve ekranda IKI FARKLI vurgu rengi olusurdu.
+  /// ⚠️⚠️ KENARLIK **ARAMA KUTUSUYLA BIREBIR AYNI** (kullanici emri:
+  ///	*"border input gibi olacak"*).
+  ///
+  ///	Onceden cipler 0.16, arama kutusu 0.14 alfa kullaniyordu. Yan yana
+  ///	duran iki eleman icin bu fark GORUNUR: cipler bir tik daha koyu
+  ///	cizilip "baska bir bilesen" gibi duruyordu.
+  /// ⚠️ Deger **TEK YERDE**: arama kutusu da bunu kullanir. Iki ayri sayi
+  ///    yazilsaydi biri guncellenip oteki geride kalirdi — bu ekranda gri
+  ///    tonda ZATEN yasandi.
   Color get _notrKenar =>
       (Theme.of(context).brightness == Brightness.dark
               ? Colors.white
               : Colors.black)
-          .withValues(alpha: 0.16);
+          .withValues(alpha: 0.14);
 
   Color get _notrYazi => Theme.of(context).brightness == Brightness.dark
       ? Colors.white

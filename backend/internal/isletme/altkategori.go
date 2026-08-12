@@ -134,109 +134,95 @@ type SliderKarti struct {
 
 var kategoriSlider = map[string][]SliderKarti{
 	"yemek": {
-		{"Bugün ne yesek?", "Çevrendeki lezzetleri keşfet"},
-		{"Sıcak ve taze", "Yakınındaki mutfaklar seni bekliyor"},
-		{"Kalabalık sofralar", "Ailece gidebileceğin mekânlar"},
+		{"Ne yemek istersin?", "Çevrendeki mutfaklar bir dokunuş uzakta"},
+		{"Acıktın mı?", "Yakınındaki açık restoranlar"},
+		{"Kalabalık mısınız?", "Ailece oturulacak mekânlar"},
 	},
 	"kafe": {
-		{"Bir kahve molası", "Sakin köşeler, iyi kahveler"},
-		{"Tatlı bir ara", "Pastane ve tatlıcılar"},
-		{"Kahvaltı zamanı", "Güne iyi başla"},
-	},
-	"kuafor": {
-		{"Yeni bir görünüm", "Çevrendeki kuaförler"},
-		{"Randevunu şimdi al", "Sıra beklemeden"},
-		{"Özel günler", "Gelin saçı ve bakım"},
-	},
-	"guzellik": {
-		{"Kendine iyi bak", "Güzellik merkezleri yakınında"},
-		{"Cilt bakımı", "Uzman eller"},
-		{"Randevu kolaylığı", "Uygun saati seç, gel"},
-	},
-	"saglik": {
-		{"Sağlığın önce gelir", "Yakınındaki sağlık hizmetleri"},
-		{"Randevu al", "Beklemeden, kolayca"},
-		{"Uzman hekimler", "Alanında deneyimli"},
-	},
-	"diyetisyen": {
-		{"Hedefine ulaş", "Sana özel beslenme planı"},
-		{"Takipte kal", "Öğün ve ölçüm takibi tek yerde"},
-		{"Uzman desteği", "Diyetisyenin her adımda yanında"},
-	},
-	"otel": {
-		{"Konaklama bul", "Çevrendeki oteller ve apartlar"},
-		{"Kısa kaçamaklar", "Hafta sonu için"},
-		{"Uygun fiyat", "Karşılaştır, seç"},
+		{"Kahve molası?", "Yakınındaki kafeler ve pastaneler"},
+		{"Kahvaltı nerede?", "Serpme ve açık büfe seçenekleri"},
+		{"Tatlı krizi mi?", "Waffle, pasta ve daha fazlası"},
 	},
 	"market": {
-		{"Günlük alışveriş", "Yakınındaki marketler"},
-		{"Taze ürünler", "Manav ve kasaplar"},
-		{"Hemen yanında", "Adım atmadan bul"},
+		{"Bir şey mi lazım?", "Semtindeki market ve bakkallar"},
+		{"Taze mi arıyorsun?", "Manav, kasap ve şarküteriler"},
+		{"Son dakika alışverişi", "En yakın açık marketler"},
 	},
-	"egitim": {
-		{"Öğrenmeye devam", "Kurslar ve dershaneler"},
-		{"Yeni bir beceri", "Dil, müzik, meslek"},
-		{"Yakınında", "Ulaşımı kolay seçenekler"},
+	"kuafor": {
+		{"Saç zamanı mı?", "Çevrendeki kuaför ve berberler"},
+		{"Yeni bir görünüm?", "Kesim, boya ve bakım"},
+		{"Özel bir gün mü var?", "Gelin saçı ve makyaj"},
+	},
+	"guzellik": {
+		{"Kendine vakit ayır", "Yakınındaki güzellik merkezleri"},
+		{"Cildin nasıl?", "Bakım ve temizlik seçenekleri"},
+		{"Randevu almak kolay", "Uygun saati seç, sıra bekleme"},
+	},
+	"saglik": {
+		{"Bir doktora mı ihtiyacın var?", "Çevrendeki hekim ve klinikler"},
+		{"Kontrol zamanı", "Diş, göz ve dahiliye"},
+		{"Hızlı randevu", "Uygun saati seç, hemen al"},
+	},
+	"diyetisyen": {
+		{"Hedefin ne?", "Sana uygun diyetisyenler"},
+		{"Beslenme planı mı arıyorsun?", "Kişiye özel programlar"},
+		{"Takipte kal", "Ölçüm ve öğün takibi tek yerde"},
+	},
+	"otel": {
+		{"Nerede kalacaksın?", "Çevrendeki oteller ve apartlar"},
+		{"Kaç gece?", "Uygun oda seçenekleri"},
+		{"Erken rezervasyon", "Uygun saati seç, yerini ayır"},
 	},
 	"spor": {
-		{"Harekete geç", "Salonlar ve sahalar"},
-		{"Bugün başla", "Çevrendeki spor tesisleri"},
-		{"Birlikte daha iyi", "Grup dersleri"},
+		{"Harekete hazır mısın?", "Yakınındaki salon ve sahalar"},
+		{"Hangi spor?", "Fitness, yüzme, dövüş ve daha fazlası"},
+		{"Yalnız değilsin", "Grup dersleri ve takımlar"},
 	},
 	"oto": {
-		{"Aracın emin ellerde", "Servis ve tamirciler"},
-		{"Bakım zamanı", "Yakınındaki ustalar"},
-		{"Hızlı çözüm", "Lastik, yıkama, kaporta"},
+		{"Aracın bakımda mı?", "Çevrendeki servis ve ustalar"},
+		{"Lastik mi değişecek?", "Yıkama, kaporta ve lastikçiler"},
+		{"Hızlı çözüm", "Yakınındaki açık servisler"},
 	},
-
-	// ⚠️⚠️ TURU 93b — ALTI KATEGORI EKSIKTI (denetimde yakalandi).
-	//
-	//	`giyim`, `eczane`, `emlak`, `teknoloji`, `eglence`, `hizmet`
-	//	`sliderVarsayilan`a dusuyordu; yani kullanici Giyim, Teknoloji,
-	//	Eczane ve Emlak ekranlarinda BIREBIR AYNI uc slaydi goruyordu.
-	//	Kullanici emri acikti: *"her kategori FARKLI dostum onu demek
-	//	istedim"*.
-	// ⚠️ Muhafiz bunu GOREMIYORDU: `altKategoriler` icin ILERI YON kapsama
-	//    zorlaniyor, `kategoriSlider` icin YALNIZ TERS YON (olu giris)
-	//    olculuyordu. Ayni testte, ayni amac icin IKI FARKLI sikilik —
-	//    "asimetrinin kendisi hataydi" desenin tekrari. Test bu turda
-	//    ileri yone de genisletildi.
+	"egitim": {
+		{"Ne öğrenmek istersin?", "Kurs ve özel ders seçenekleri"},
+		{"Sınava mı hazırlanıyorsun?", "Dershane ve etüt merkezleri"},
+		{"Yeni bir dil", "Yakınındaki dil kursları"},
+	},
 	"giyim": {
-		{"Yeni sezon", "Çevrendeki mağazalar"},
-		{"Dene, beğen, al", "Vitrini önce telefonundan gör"},
-		{"Terzi de burada", "Tadilat ve dikiş"},
+		{"Ne giyeceksin?", "Çevrendeki mağazalar"},
+		{"Yeni sezon geldi", "Vitrini telefonundan gör"},
+		{"Terzi mi lazım?", "Tadilat ve dikiş"},
 	},
 	"eczane": {
-		{"Sağlığın önce", "Yakınındaki eczaneler"},
-		{"Reçeteni sor", "Adres ve telefon tek dokunuşta"},
-		{"Dermokozmetik", "Cilt ve bakım ürünleri"},
+		{"Reçeten mi var?", "Yakınındaki eczaneler"},
+		{"Cilt bakımı", "Dermokozmetik ürünler"},
+		{"Aradığını sor", "Adres ve telefon tek dokunuşta"},
 	},
 	"emlak": {
-		{"Yeni bir yer", "Kiralık ve satılık"},
-		{"Bölgeni tanı", "Semtindeki ofisler"},
-		{"Danış, acele etme", "Değerleme ve danışmanlık"},
+		{"Yeni bir yer mi arıyorsun?", "Kiralık ve satılık seçenekler"},
+		{"Semtini tanı", "Bölgendeki emlak ofisleri"},
+		{"Acele etme", "Değerleme ve danışmanlık"},
 	},
 	"teknoloji": {
-		{"Tamir mi lazım?", "Telefon ve bilgisayar servisleri"},
-		{"Yakınında usta", "Aynı gün çözüm"},
-		{"Aksesuar", "Kılıf, şarj, kulaklık"},
+		{"Cihazın mı bozuldu?", "Telefon ve bilgisayar servisleri"},
+		{"Aynı gün çözüm", "Yakınındaki ustalar"},
+		{"Aksesuar lazım mı?", "Kılıf, şarj ve kulaklık"},
 	},
 	"eglence": {
 		{"Bu akşam ne var?", "Çevrendeki mekânlar"},
-		{"Arkadaşlarını topla", "Bilardo, oyun, langırt"},
+		{"Arkadaşlarını topla", "Bilardo, oyun ve langırt"},
 		{"Hafta sonu planı", "Yakınındaki seçenekler"},
 	},
 	"hizmet": {
-		{"Bir usta lazım", "Tesisat, boya, nakliyat"},
-		{"Yakınından çağır", "Semtindeki ustalar"},
+		{"Bir usta mı lazım?", "Tesisat, boya ve nakliyat"},
+		{"Semtinden çağır", "Yakınındaki ustalar"},
 		{"Önce fiyat sor", "Mesajla teklif al"},
 	},
 	// ⚠️ `diger` BILEREK YOK: kategorisi belirsiz bir isletmeye ozel bir
-	//    slider metni turetilemez; genel varsayilan ORASI ICIN DOGRUDUR.
+	//    slider metni turetilemez; genel varsayilan ORASI ICIN dogrudur.
 }
-
 var sliderVarsayilan = []SliderKarti{
-	{"Çevrende keşfet", "Yakınındaki işletmeler tek yerde"},
+	{"Ne arıyorsun?", "Çevrendeki işletmeler tek yerde"},
 	{"Kolayca ulaş", "Adres, telefon ve mesaj tek dokunuşta"},
 	{"Randevu al", "Uygun saati seç, sıra bekleme"},
 }

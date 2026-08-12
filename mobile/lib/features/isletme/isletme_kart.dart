@@ -125,7 +125,8 @@ class _IsletmeKartiState extends ConsumerState<IsletmeKarti> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      fontSize: 16,
+                      // ⚠️ 16 -> 17 (kullanici emri: "isletme yazi tipi 1px").
+                      fontSize: 17,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -139,9 +140,14 @@ class _IsletmeKartiState extends ConsumerState<IsletmeKarti> {
               ],
             ),
             const SizedBox(height: 3),
+            // ⚠️ IKINCI SATIR ("Açık · … · En uygun … · Gebze") **KALDIRILDI**
+            //    (kullanici emri: *"alttaki kartlardaki en uygun, Gebze vs
+            //    sil"*). Kart artik TEK bilgi satiri tasiyor: puan · sure ·
+            //    min. tutar. Ayrinti karta dokununca acilan profilde zaten
+            //    var; iki satir kartlari uzatip listeyi agirlastiriyordu.
+            // ⚠️ `bilgiSatiri` SILINMEDI: acik/kapali bilgisi isletme
+            //    profilinde kullanilabilir. Burada CAGRILMIYOR.
             vitrinSatiri(context, o, kompakt: false),
-            const SizedBox(height: 2),
-            bilgiSatiri(context, o),
           ],
         ),
       ),
@@ -163,27 +169,48 @@ class _Kalp extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => GestureDetector(
-        // ⚠️ `opaque`: dairenin bos kosesine dokunmak da calisir.
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: Container(
-          width: 36,
-          height: 36,
-          alignment: Alignment.center,
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            shape: BoxShape.circle,
-          ),
-          child: Icon(
-            LucideIcons.heart,
-            size: 19,
-            // ⚠️ Dolu kalp KIRMIZI ve DOLGULU gorunsun diye ikon rengi
-            //    degistirilir; Lucide'da ayri bir "dolu kalp" glifi yok.
-            color: dolu ? const Color(0xFFE11D48) : const Color(0xFF6B7280),
-          ),
+  Widget build(BuildContext context) {
+    const pembe = Color(0xFFE11D48);
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        width: 38,
+        height: 38,
+        alignment: Alignment.center,
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          shape: BoxShape.circle,
         ),
-      );
+        // ⚠️⚠️ SECILI HAL **DOLU PEMBE** (kullanici emri: *"kalbe
+        //	tikladigimda TAM PEMBE olsun"*).
+        //
+        //	Lucide'da **dolu kalp glifi YOK** (paket tarandi: heart,
+        //	heartCrack, heartOff... hepsi cizgi). O yuzden secili halde
+        //	Material'in `Icons.favorite`i kullaniliyor — 2B ve dolu.
+        //	⚠️ Bu, "arayuzde Lucide kullan" kuralinin BILINCLI istisnasi:
+        //	   kural 3B/emoji ikonlara karsiydi; `Icons.favorite` duz 2B
+        //	   bir siluet. Alternatif (cizgi ikonu golgeyle doldurmaya
+        //	   calismak) kirli bir kenar birakiyordu.
+        child: dolu
+            ? const Icon(Icons.favorite, size: 21, color: pembe)
+            // ⚠️ BOS HAL: cizgi **1px DAHA KALIN** (kullanici emri).
+            //    Lucide bir FONT oldugu icin `strokeWidth` YOKTUR; kalinlik
+            //    ayni renkte ±0.5px kaydirilmis dort golgeyle simule edilir.
+            : const Icon(
+                LucideIcons.heart,
+                size: 20,
+                color: Color(0xFF4B5563),
+                shadows: [
+                  Shadow(color: Color(0xFF4B5563), offset: Offset(0.5, 0)),
+                  Shadow(color: Color(0xFF4B5563), offset: Offset(-0.5, 0)),
+                  Shadow(color: Color(0xFF4B5563), offset: Offset(0, 0.5)),
+                  Shadow(color: Color(0xFF4B5563), offset: Offset(0, -0.5)),
+                ],
+              ),
+      ),
+    );
+  }
 }
 
 /// Kampanya rozetleri — kapagin **SOL ALTINA** biner.
@@ -236,14 +263,15 @@ Widget kampanyaRozetleri(IsletmeOzet o) {
 Widget vitrinSatiri(BuildContext c, IsletmeOzet o, {required bool kompakt}) {
   final soluk =
       Theme.of(c).textTheme.bodyMedium?.color?.withValues(alpha: 0.62);
-  final boy = kompakt ? 12.0 : 13.0;
+  // ⚠️ 13 -> 14 (kullanici emri: "dakika, fiyat 1px daha buyuk").
+  final boy = kompakt ? 13.0 : 14.0;
   final p = <Widget>[];
 
   if (o.puan != null) {
     p.add(Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Icon(LucideIcons.star, size: 13, color: Color(0xFF16A34A)),
+        const Icon(LucideIcons.star, size: 14, color: Color(0xFF16A34A)),
         const SizedBox(width: 3),
         Text(
           o.puan!.toStringAsFixed(1).replaceAll('.', ','),
@@ -261,28 +289,40 @@ Widget vitrinSatiri(BuildContext c, IsletmeOzet o, {required bool kompakt}) {
       ],
     ));
   }
+  // ⚠️ TESLIMAT SURESI — saat ikonu (kullanici emri: "bunlara modern
+  //    ikonlar ekle"). Ikon metnin ANLAMINI tasir; yalnizca "25-35 dk"
+  //    yazmak tarama sirasinda sayiyi neyle karistiracagini belirsiz birakir.
   if (o.teslimatDkMin != null && o.teslimatDkMax != null) {
-    p.add(Text('${o.teslimatDkMin}-${o.teslimatDkMax} dk',
-        style: TextStyle(fontSize: boy, color: soluk)));
+    p.add(_ikonluMetin(LucideIcons.clock, '${o.teslimatDkMin}-${o.teslimatDkMax} dk',
+        boy, soluk));
   }
+  // ⚠️ MIN. TUTAR — cuzdan ikonu. **"₺" YERINE "TL"** (kullanici emri):
+  //    bazi Android yazi tiplerinde ₺ glifi eksik ve tofu (kutu) cizilir.
   if (o.minTutarKurus != null && o.minTutarKurus! > 0) {
-    p.add(Text('Min. ${(o.minTutarKurus! / 100).round()} ₺',
-        style: TextStyle(fontSize: boy, color: soluk)));
+    p.add(_ikonluMetin(LucideIcons.wallet,
+        'Min. ${(o.minTutarKurus! / 100).round()} TL', boy, soluk));
   }
   if (p.isEmpty) return const SizedBox.shrink();
 
+  // ⚠️ Ikonlar ayirici gorevi de goruyor; ARADAKI NOKTA KALDIRILDI (ikon +
+  //    nokta birlikte satiri gurultulu yapiyordu).
   return Wrap(
     crossAxisAlignment: WrapCrossAlignment.center,
-    spacing: 7,
-    runSpacing: 2,
-    children: [
-      for (var i = 0; i < p.length; i++) ...[
-        if (i > 0) Text('·', style: TextStyle(fontSize: boy, color: soluk)),
-        p[i],
-      ],
-    ],
+    spacing: 12,
+    runSpacing: 3,
+    children: p,
   );
 }
+
+/// Ikon + metin ikilisi — vitrin satirinin tek yapi tasi.
+Widget _ikonluMetin(IconData ikon, String metin, double boy, Color? renk) => Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(ikon, size: 14, color: renk),
+        const SizedBox(width: 4),
+        Text(metin, style: TextStyle(fontSize: boy, color: renk)),
+      ],
+    );
 
 /// **Açık/Kapalı · En uygun XX ₺ · İlçe** — hepsi gercek alanlardan turer.
 Widget bilgiSatiri(BuildContext c, IsletmeOzet o) {

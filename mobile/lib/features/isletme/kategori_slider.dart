@@ -160,8 +160,14 @@ class _KategoriSliderState extends State<KategoriSlider> {
                         margin: const EdgeInsets.symmetric(horizontal: 3),
                         width: i == _aktif ? 26 : 14,
                         height: 2,
+                        // ⚠️ **TAM SIYAH** (kullanici emri: *"alttaki gecis
+                        //    cubuklari da siyah olsun tam olarak"*).
+                        // ⚠️ Aktif olmayanlar yine de AYIRT EDILEBILIR olmali:
+                        //    ucu de tam opak olsaydi hangisinde oldugun
+                        //    anlasilmazdi. Fark artik RENKTE degil UZUNLUKTA
+                        //    (26 vs 14) ve hafif saydamlikta.
                         color: (koyu ? Colors.white : Colors.black)
-                            .withValues(alpha: i == _aktif ? 0.55 : 0.18),
+                            .withValues(alpha: i == _aktif ? 1.0 : 0.25),
                       ),
                   ],
                 ),
@@ -172,20 +178,43 @@ class _KategoriSliderState extends State<KategoriSlider> {
     );
   }
 
-  /// ⚠️⚠️ SLAYT **BOS** — metinler kaldirildi (kullanici emri: *"sliderdaki
-  ///	yazilari kaldir"*).
+  /// ⚠️⚠️ SLAYT: **20px IC BOSLUK**, SOLA DAYALI, IKI YAZI DA **TAM SIYAH**
+  ///	(kullanici emri).
   ///
-  ///	Slayt VERISI (`baslik`/`alt`) sunucudan GELMEYE DEVAM EDIYOR ve
-  ///	burada BILEREK cizilmiyor. Iki sebeple:
-  ///	  · slayt SAYISI hala sayfalayiciyi ve gecis cubuklarini besliyor;
-  ///	  · yarin bu alana gorsel/kampanya konuldugunda sunucu sozlesmesi
-  ///	    DEGISMEYECEK (turu 77 kurali: liste sunucudan gelir).
-  /// ⚠️ YAPMA: veriyi `Kesif` ucundan silme — sildigin an slayt sayisi 0
-  ///    olur, `PageView` tek sayfaya duser ve gecis cubuklari KAYBOLUR.
-  Widget _slayt(Slayt s) => const SizedBox.expand();
-
-  // ⚠️ TURU 93 — `_yuvarlakIkon` SILINDI: ikonlar header'a tasindi ve
-  //    kullanici "arkasindaki DAIRE KALDIR" dedi. Olu birakmak, ileride
-  //    birinin onu geri baglayip IKI AYRI geri dugmesi olusturmasina yol
-  //    acardi (turu 90b `OlusturFab` dersi).
-}
+  /// ⚠️ Metin SUNUCUDAN gelir; istemcide sabit yazilsaydi yeni bir slayt
+  ///    cumlesi MAGAZA ONAYI gerektirirdi (turu 77 kurali).
+  /// ⚠️ Alt dolgu 20 DEGIL 34: gecis cubuklari icin yer birakir, yoksa
+  ///    aciklama onlarin uzerine biner.
+  /// ⚠️ TAM SIYAH koyu temada GORUNMEZ olurdu — tema parlakligina gore
+  ///    secilir (koyu temada tam beyaz).
+  Widget _slayt(Slayt s) {
+    final koyu = Theme.of(context).brightness == Brightness.dark;
+    final renk = koyu ? Colors.white : Colors.black;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 34),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            s.baslik,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.w800,
+              height: 1.15,
+              color: renk,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            s.alt,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 15, height: 1.3, color: renk),
+          ),
+        ],
+      ),
+    );
+  }
