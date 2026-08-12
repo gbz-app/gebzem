@@ -353,6 +353,9 @@ class IsletmeOzet {
     required this.adres,
     required this.dogrulandi,
     this.kapakMediaId,
+    this.calisma = const [],
+    this.minFiyatKurus,
+    this.urunSayisi = 0,
   });
 
   final String id;
@@ -372,6 +375,18 @@ class IsletmeOzet {
   /// ⚠️ Bos olabilir: kapak yoksa avatara, o da yoksa gradyan yer tutucuya
   ///    dusulur — kirik gorsel CIZILMEZ.
   final String? kapakMediaId;
+
+  /// ⚠️⚠️ KART BILGI SATIRI ICIN (kullanici emri: *"sana attigim gorseldeki
+  ///    gibi bilgiler icersin"*).
+  ///
+  ///	Referans ekranda "25-35 dk · Min. 260 TL · ★ 3,9 (500+)" var. Bu
+  ///	projede **puan, teslimat suresi ve minimum tutar YOK** — sahte deger
+  ///	basmak kullaniciya YANLIS BILGI olurdu. Yerine BUGUN GERCEK OLAN iki
+  ///	sey konuyor: **acik/kapali + kapanis saati** ve **en uygun fiyat**.
+  /// ⚠️ Ikisi de sunucudan gelir; istemci HESAPLAMAZ, yalnizca cizer.
+  final List<dynamic> calisma;
+  final int? minFiyatKurus;
+  final int urunSayisi;
 
   /// ⚠️ TURU 85 — YALNIZ "Yakinimda" ucunda dolu gelir; diger listelerde 0.
   ///    Mesafe SUNUCUDA hesaplanir (istemcide tekrar hesaplamak "ayni
@@ -397,6 +412,9 @@ class IsletmeOzet {
     adres: (m['adres'] ?? '').toString(),
     dogrulandi: m['dogrulandi'] == true,
     kapakMediaId: m['kapak_media_id'] as String?,
+    calisma: (m['calisma'] as List?) ?? const [],
+    minFiyatKurus: (m['min_fiyat_kurus'] as num?)?.toInt(),
+    urunSayisi: (m['urun_sayisi'] as num?)?.toInt() ?? 0,
   )
     ..enlem = (m['enlem'] as num?)?.toDouble() ?? 0
     ..boylam = (m['boylam'] as num?)?.toDouble() ?? 0

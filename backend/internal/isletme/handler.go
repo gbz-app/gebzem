@@ -489,7 +489,13 @@ func (h *Handler) Liste(w http.ResponseWriter, r *http.Request) {
 
 	rows, err := h.db.Query(r.Context(), `
 		SELECT u.id, u.name, COALESCE(u.username,''), u.avatar_url, u.avatar_media_id,
-		       i.kategori, i.il, i.ilce, i.adres, u.onayli, u.kapak_media_id
+		       i.kategori, i.il, i.ilce, i.adres, u.onayli, u.kapak_media_id,
+		       i.calisma,
+		       (SELECT min(p.fiyat_kurus) FROM isletme_urunleri p
+		         WHERE p.isletme_id = u.id AND p.durum = 'yayinda'
+		           AND p.fiyat_kurus > 0),
+		       (SELECT count(*) FROM isletme_urunleri p
+		         WHERE p.isletme_id = u.id AND p.durum <> 'kaldirildi')
 		  FROM isletmeler i JOIN users u ON u.id = i.user_id
 		 WHERE u.hesap_turu='isletme'
 		   AND ($2 = '' OR i.kategori = $2)
@@ -522,8 +528,12 @@ func (h *Handler) Liste(w http.ResponseWriter, r *http.Request) {
 		var id, ad, kullanici, avatar, kat, il2, ilce, adres string
 		var medya, kapak *string
 		var dogru bool
+		var calisma []byte
+		var minFiyat *int64
+		var urunSayisi int
 		if e := rows.Scan(&id, &ad, &kullanici, &avatar, &medya,
-			&kat, &il2, &ilce, &adres, &dogru, &kapak); e != nil {
+			&kat, &il2, &ilce, &adres, &dogru, &kapak,
+			&calisma, &minFiyat, &urunSayisi); e != nil {
 			// ⚠️ TURU 93b — HATA ARTIK LOGLANIYOR. `continue` KORUNUR (tek
 			//    bozuk satir tum rehberi oldurmesin) ama sessiz kalirsa
 			//    SELECT/Scan sirasi bozuldugunda rehber HICBIR IZ BIRAKMADAN
@@ -537,6 +547,9 @@ func (h *Handler) Liste(w http.ResponseWriter, r *http.Request) {
 			"kategori": kat, "kategori_ad": Kategoriler[kat],
 			"il": il2, "ilce": ilce, "adres": adres, "dogrulandi": dogru,
 			"kapak_media_id": kapak,
+			"calisma": json.RawMessage(calisma),
+			"min_fiyat_kurus": minFiyat,
+			"urun_sayisi": urunSayisi,
 		})
 	}
 	// ⚠️ TURU 93b — `rows.Err()` OKUNMUYORDU. Dongu ag/sunucu hatasiyla

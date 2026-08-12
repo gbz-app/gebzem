@@ -881,7 +881,11 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
     final kartGenislik =
         MediaQuery.sizeOf(context).width - kYanBosluk * 2;
     return Padding(
-      padding: const EdgeInsets.only(bottom: 18),
+      // ⚠️ KARTLAR ARASI BOSLUK **AD-GORSEL BOSLUGUNUN 3.5 KATI** olmali.
+      //    18 iken (gorsel-ad araligi 9) oran 1:2 kaliyordu ve goz hangi
+      //    ismin hangi gorsele ait oldugunu AYIRAMIYORDU — emulatorde
+      //    bakinca ilk fark edilen sey buydu.
+      padding: const EdgeInsets.only(bottom: 32),
       child: InkWell(
         // ⚠️ TURU 93b — `GestureDetector` -> `InkWell`: kardes ekran
         //    (`yakinimda_ekrani`) AYNI kart icin `InkWell` kullaniyordu;
@@ -934,24 +938,19 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
               ],
             ),
             const SizedBox(height: 3),
-            // ── META ──
-            Text(
-              [
-                isletmeKategoriAdi(o.kategori),
-                if (o.ilce.isNotEmpty || o.il.isNotEmpty)
-                  [o.ilce, o.il].where((s) => s.isNotEmpty).join(', '),
-              ].where((s) => s.isNotEmpty).join(' · '),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 13,
-                color: Theme.of(context)
-                    .textTheme
-                    .bodyMedium
-                    ?.color
-                    ?.withValues(alpha: 0.6),
-              ),
-            ),
+            // ── BILGI SATIRI (kullanici emri: referans ekrandaki gibi) ──
+            //
+            // ⚠️⚠️ **PUAN / TESLIMAT SURESI / MIN. TUTAR UYDURULMADI.**
+            //	Referans ekranda "25-35 dk · Min. 260 TL · ★ 3,9 (500+)" var
+            //	ama bu projede o verilerin HICBIRI YOK (ne degerlendirme
+            //	tablosu, ne teslimat modeli, ne siparis). Sahte deger basmak
+            //	kullaniciya YANLIS BILGI gostermek olurdu.
+            //	Yerine BUGUN GERCEK OLAN uc sey ciziliyor:
+            //	  · **Acik / Kapali** (+ bugunun kapanis saati)
+            //	  · **En uygun fiyat** (katalogdaki en dusuk urun)
+            //	  · kategori · ilce, il
+            // ⚠️ YAPMA: buraya yer tutucu puan/sure/mesafe ekleme.
+            _bilgiSatiri(o),
           ],
         ),
       ),
@@ -963,33 +962,157 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
   ///
   /// ⚠️ Renk ADDAN turetilir (kategoriden DEGIL): ayni kategorideki tum
   ///    kartlar ayni renk olsaydi liste tekduze bir blok gibi gorunurdu.
+  /// Kartin bilgi satiri: **Açık/Kapalı · En uygun XX ₺ · Kategori · İlçe**.
+  ///
+  /// ⚠️ Hicbir deger UYDURULMAZ; hepsi sunucudan gelen GERCEK alanlardan
+  ///    turetilir. Veri yoksa o parca CIZILMEZ (bos yildiz/sure gostermek
+  ///    "bozuk" izlenimi verirdi).
+  Widget _bilgiSatiri(IsletmeOzet o) {
+    final soluk = Theme.of(context)
+        .textTheme
+        .bodyMedium
+        ?.color
+        ?.withValues(alpha: 0.6);
+
+    final acik = _acikMi(o.calisma);
+    final kapanis = _bugunKapanis(o.calisma);
+
+    final parcalar = <Widget>[];
+
+    // ── AÇIK / KAPALI ──
+    // ⚠️ `null` = calisma saati TANIMSIZ -> hicbir sey yazilmaz. "Kapalı"
+    //    yazmak, saatini girmemis isletmeyi HAKSIZ yere kapali gosterirdi.
+    if (acik != null) {
+      parcalar.add(Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 7,
+            height: 7,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: acik ? const Color(0xFF16A34A) : const Color(0xFF9CA3AF),
+            ),
+          ),
+          const SizedBox(width: 5),
+          Text(
+            acik
+                ? (kapanis.isEmpty ? 'Açık' : 'Açık · $kapanis\'a kadar')
+                : 'Kapalı',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: acik ? const Color(0xFF16A34A) : soluk,
+            ),
+          ),
+        ],
+      ));
+    }
+
+    // ── EN UYGUN FİYAT ──
+    final f = o.minFiyatKurus;
+    if (f != null && f > 0) {
+      parcalar.add(Text(
+        'En uygun ${(f / 100).round()} ₺',
+        style: TextStyle(fontSize: 13, color: soluk),
+      ));
+    }
+
+    // ── KATEGORİ · İLÇE ──
+    final yer = [
+      isletmeKategoriAdi(o.kategori),
+      if (o.ilce.isNotEmpty || o.il.isNotEmpty)
+        [o.ilce, o.il].where((s) => s.isNotEmpty).join(', '),
+    ].where((s) => s.isNotEmpty).join(' · ');
+    if (yer.isNotEmpty) {
+      parcalar.add(Text(yer, style: TextStyle(fontSize: 13, color: soluk)));
+    }
+
+    // ⚠️ `Wrap`: dar ekranda (360dp) uc parca tek satira sigmazsa alta
+    //    sarar — `Row` olsaydi RenderFlex TASARDI.
+    return Wrap(
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 8,
+      runSpacing: 2,
+      children: [
+        for (var i = 0; i < parcalar.length; i++) ...[
+          if (i > 0)
+            Text('·', style: TextStyle(fontSize: 13, color: soluk)),
+          parcalar[i],
+        ],
+      ],
+    );
+  }
+
+  /// Bugün için işletme açık mı? `null` = çalışma saati tanımsız.
+  ///
+  /// ⚠️ Sunucu `calisma`yi `[{gun:1..7, acilis:"09:00", kapanis:"20:00",
+  ///    kapali:bool}]` olarak tutuyor; `gun` **1=Pazartesi**, Dart'in
+  ///    `DateTime.weekday` degeriyle BIREBIR ayni.
+  /// ⚠️ GECE YARISINI ASAN mesai (22:00-02:00) destekleniyor: kapanis
+  ///    acilistan kucukse aralik ertesi gune tasar.
+  bool? _acikMi(List<dynamic> calisma) {
+    final bugun = _bugunKaydi(calisma);
+    if (bugun == null) return null;
+    if (bugun['kapali'] == true) return false;
+    final a = _dk(bugun['acilis']);
+    final k = _dk(bugun['kapanis']);
+    if (a == null || k == null) return null;
+    final now = DateTime.now();
+    final s = now.hour * 60 + now.minute;
+    return k > a ? (s >= a && s < k) : (s >= a || s < k);
+  }
+
+  String _bugunKapanis(List<dynamic> calisma) {
+    final b = _bugunKaydi(calisma);
+    if (b == null || b['kapali'] == true) return '';
+    return (b['kapanis'] ?? '').toString();
+  }
+
+  Map<String, dynamic>? _bugunKaydi(List<dynamic> calisma) {
+    for (final g in calisma) {
+      if (g is Map && (g['gun'] as num?)?.toInt() == DateTime.now().weekday) {
+        return g.cast<String, dynamic>();
+      }
+    }
+    return null;
+  }
+
+  /// "09:00" -> 540. Bozuk deger `null`.
+  int? _dk(dynamic s) {
+    final p = (s ?? '').toString().split(':');
+    if (p.length != 2) return null;
+    final h = int.tryParse(p[0]);
+    final m = int.tryParse(p[1]);
+    if (h == null || m == null) return null;
+    return h * 60 + m;
+  }
+
+  /// ⚠️⚠️ KAPAK YOKSA **HAFIF GRI** (kullanici emri: *"kapaklardaki renkli
+  ///    desenleri kaldir, onun yerine hafif gri slider gibi yap"*).
+  ///
+  ///	Onceden ADDAN turetilen RENKLI bir gradyan ciziliyordu. Listede alt
+  ///	alta duran kirmizi/mor/yesil bloklar dikkati icerikten CALIYOR ve
+  ///	referans ekrandaki sakin gorunumden UZAKLASTIRIYORDU.
+  /// ⚠️ Ton **slider ile AYNI** (`0xFFE7E7EA` / koyu `0xFF2A2A2E`): ekranda
+  ///    iki farkli gri olmasin.
+  /// ⚠️ Bas harf KALDI ama artik SOLUK: kartin bos degil "gorseli yok"
+  ///    oldugunu gosterir; tamamen bos bir kutu "yukleniyor" gibi durur.
   Widget _kapakYerTutucu(IsletmeOzet o) {
-    final tohum = o.ad.isEmpty ? 0 : o.ad.codeUnitAt(0);
-    final renkler = [
-      [const Color(0xFF3AA9FF), const Color(0xFF6C2BD9)],
-      [const Color(0xFF2BB673), const Color(0xFF0E7A52)],
-      [const Color(0xFFFF7A45), const Color(0xFFFF3B5C)],
-      [const Color(0xFF8B3FFF), const Color(0xFF5A1EBE)],
-      [const Color(0xFF0EA5A5), const Color(0xFF0B5F63)],
-    ][tohum % 5];
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: renkler,
-        ),
-      ),
+    final koyu = Theme.of(context).brightness == Brightness.dark;
+    return ColoredBox(
+      color: koyu ? const Color(0xFF2A2A2E) : const Color(0xFFE7E7EA),
       child: Center(
         child: Text(
           o.ad.isEmpty ? '?' : o.ad.characters.first.toUpperCase(),
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 34,
             fontWeight: FontWeight.w800,
-            color: Colors.white,
+            color: (koyu ? Colors.white : Colors.black).withValues(alpha: 0.18),
           ),
         ),
       ),
     );
   }
+
 }

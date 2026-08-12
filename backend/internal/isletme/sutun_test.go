@@ -227,15 +227,41 @@ func TestDetayScanEdilenAlanlarYanittaVar(t *testing.T) {
 func TestListeSelectScanVeYanitHizali(t *testing.T) {
 	govde := govdeAl(t, "func (h *Handler) Liste(")
 
-	sel := regexp.MustCompile(`(?s)SELECT\s+(.*?)\s+FROM`).FindStringSubmatch(govde)
-	if sel == nil {
-		t.Fatal("Liste icinde SELECT ... FROM bulunamadi")
+	// ⚠️⚠️ ALT SORGU FARKINDALIGI: duz `SELECT ... FROM` regexi, sutun
+	//	listesindeki bir ALT SORGUNUN `FROM`unda kesiliyordu ve sutunlari
+	//	EKSIK sayiyordu. Turu 93c'de `min(fiyat_kurus)` alt sorgusu eklenince
+	//	test "13 sutun ama 14 Scan" diye YANLIS ALARM verdi.
+	//	⚠️ Yine de DOGRU davrandi: ayristiramadiginda GECMEK yerine DURDU.
+	//	   Sessizce gecen bir muhafiz, olmayan muhafizdan KOTUDUR.
+	//	Dis `FROM` **parantez derinligi 0**da olandir.
+	selBas := strings.Index(govde, "SELECT")
+	if selBas < 0 {
+		t.Fatal("Liste icinde SELECT bulunamadi")
 	}
+	govdeSel := govde[selBas+len("SELECT"):]
+	d, fromIdx := 0, -1
+	for i := 0; i+4 <= len(govdeSel); i++ {
+		switch govdeSel[i] {
+		case '(':
+			d++
+		case ')':
+			d--
+		}
+		if d == 0 && strings.HasPrefix(govdeSel[i:], "FROM") {
+			fromIdx = i
+			break
+		}
+	}
+	if fromIdx < 0 {
+		t.Fatal("Liste icinde dis FROM bulunamadi — sorgu yapisi degistiyse " +
+			"BU AYRISTIRICIYI DA guncelle")
+	}
+
 	// Parantez derinligi tutulur — COALESCE(u.username,'') icindeki virgul
 	// sutun ayirici DEGILDIR.
 	var sutunlar []string
 	derinlik, son := 0, 0
-	ham := sel[1]
+	ham := govdeSel[:fromIdx]
 	for i, c := range ham {
 		switch c {
 		case '(':
@@ -292,6 +318,12 @@ func TestListeSelectScanVeYanitHizali(t *testing.T) {
 	// ⚠️ `Liste`de degisken adlari sutunlardan FARKLI (`ad` <- `u.name`),
 	//    bu yuzden istisna haritasi ZORUNLU. Uymayanlar burada ACIKCA
 	//    listelenir — bilincli sapmalar gorunur kalir.
+	// ⚠️ ALT SORGULAR: adlari sutundan turetilemez, ACIKCA yazilir. Anahtar
+	//    alt sorgunun ILK SATIRIYLA eslestirilir (govde cok satirli).
+	altSorgu := map[string]string{
+		"min(p.fiyat_kurus)": "minFiyat",
+		"count(*)":           "urunSayisi",
+	}
 	scanIstisna := map[string]string{
 		"u.name":                  "ad",
 		"COALESCE(u.username,'')": "kullanici",
@@ -304,6 +336,14 @@ func TestListeSelectScanVeYanitHizali(t *testing.T) {
 	}
 	for i, s := range sutunlar {
 		bekle, ok := scanIstisna[s]
+		if !ok {
+			for imza, hedef := range altSorgu {
+				if strings.Contains(s, imza) {
+					bekle, ok = hedef, true
+					break
+				}
+			}
+		}
 		if !ok {
 			bekle = s
 			if k := strings.LastIndex(bekle, "."); k >= 0 {
@@ -333,8 +373,21 @@ func TestListeSelectScanVeYanitHizali(t *testing.T) {
 		"COALESCE(u.username,'')": "username",
 		"u.onayli":                "dogrulandi",
 	}
+	// ⚠️ Alt sorgularin JSON anahtari sutundan turetilemez — ACIKCA yazilir.
+	altAnahtar := map[string]string{
+		"min(p.fiyat_kurus)": "min_fiyat_kurus",
+		"count(*)":           "urun_sayisi",
+	}
 	for _, s := range sutunlar {
 		anahtar, ok := istisna[s]
+		if !ok {
+			for imza, a := range altAnahtar {
+				if strings.Contains(s, imza) {
+					anahtar, ok = a, true
+					break
+				}
+			}
+		}
 		if !ok {
 			anahtar = s
 			if k := strings.LastIndex(anahtar, "."); k >= 0 {

@@ -23,7 +23,10 @@ class KategoriSlider extends StatefulWidget {
 
   /// ⚠️ Kullanicinin verdigi olcu. Sabit tutulur: `MediaQuery` ile oranlamak
   ///    kucuk telefonda metni sikistirir, buyukte gereksiz bosluk birakir.
-  static const yukseklik = 350.0;
+  /// ⚠️ 350 -> **250** (kullanici emri: *"slider yuksekligini 100px azalt"*).
+  ///    Emulatorde bakildiginda 350px yalnizca iki satir metin icin COK BOS
+  ///    duruyordu; 250 ayni metni tasiyor, liste 100px daha erken basliyor.
+  static const yukseklik = 250.0;
 
   /// ⚠️⚠️ TURU 93 — GERI/HARITA IKONLARI **BURADAN CIKARILDI**.
   ///
