@@ -520,6 +520,20 @@ func (h *Handler) Liste(w http.ResponseWriter, r *http.Request) {
 	ilce := strings.TrimSpace(r.URL.Query().Get("ilce"))
 	yalnizOnayli := r.URL.Query().Get("dogrulandi") == "1"
 
+	// ⚠️⚠️ TURU 95 — HIZLI KESIF SUZGECLERI ("İndirim", "Gece Kuşu",
+	//	"Şu an açık"). Kartlar `/isletme-kesif`ten gelir; YUKLEM BURADA.
+	//
+	// ⚠️ Beyaz liste: bilinmeyen deger SESSIZCE YOK SAYILIR (400 DEGIL).
+	//    Eski bir istemci yeni bir anahtar gonderirse liste bos donmez,
+	//    yalnizca suzgec uygulanmaz — bu, "guncelleme almayan kullanicida
+	//    ekran boşaldi" sinifini kokten kapatir.
+	hizli := r.URL.Query().Get("hizli")
+	switch hizli {
+	case "kampanyali", "gec_acik", "acik":
+	default:
+		hizli = ""
+	}
+
 	// ⚠️⚠️⚠️ TURU 93b — ARAMA YUKLEMI IKI KEZ KIRIKTI (denetimde yakalandi,
 	//	build ONCESI).
 	//
@@ -580,9 +594,35 @@ func (h *Handler) Liste(w http.ResponseWriter, r *http.Request) {
 		                       OR p.bolum ILIKE '%'||t.kelime||'%'))))
 		   AND ($5 = '' OR i.ilce ILIKE $5)
 		   AND (NOT $6 OR u.onayli)
+		   -- ⚠️⚠️ HIZLI SUZGECLER (turu 95). Gerekce: fonksiyon ustundeki serh.
+		   -- ⚠️ SQL YORUMUNDA **BACKTICK KULLANMA**: ham dizeyi KAPATIR ve
+		   --    hata satirlarca asagida, anlamsiz bir yerde cikar (bu projede
+		   --    DORDUNCU kez).
+		   AND ($7 = '' OR CASE $7
+		         WHEN 'kampanyali' THEN jsonb_array_length(i.kampanyalar) > 0
+		         WHEN 'gec_acik' THEN EXISTS (
+		               SELECT 1 FROM jsonb_array_elements(i.calisma) g
+		                WHERE (g->>'kapali') IS DISTINCT FROM 'true'
+		                  AND ((g->>'kapanis')::time >= TIME '22:00'
+		                    OR (g->>'kapanis')::time < (g->>'acilis')::time))
+		         WHEN 'acik' THEN EXISTS (
+		               SELECT 1 FROM jsonb_array_elements(i.calisma) g
+		                WHERE (g->>'gun')::int = EXTRACT(isodow FROM
+		                        (now() AT TIME ZONE 'Europe/Istanbul'))
+		                  AND (g->>'kapali') IS DISTINCT FROM 'true'
+		                  AND CASE
+		                        WHEN (g->>'kapanis')::time > (g->>'acilis')::time
+		                          THEN (now() AT TIME ZONE 'Europe/Istanbul')::time
+		                               BETWEEN (g->>'acilis')::time AND (g->>'kapanis')::time
+		                        ELSE (now() AT TIME ZONE 'Europe/Istanbul')::time
+		                               >= (g->>'acilis')::time
+		                          OR (now() AT TIME ZONE 'Europe/Istanbul')::time
+		                               < (g->>'kapanis')::time
+		                      END)
+		         ELSE true END)
 		`+engel.Yuklem("$1", "u.id")+`
 		 ORDER BY u.onayli DESC, u.name ASC
-		 LIMIT 60`, me, kategori, il, q, ilce, yalnizOnayli)
+		 LIMIT 60`, me, kategori, il, q, ilce, yalnizOnayli, hizli)
 	if err != nil {
 		log.Printf("isletme liste: %v", err)
 		hata(w, 500, "işletmeler alınamadı")
