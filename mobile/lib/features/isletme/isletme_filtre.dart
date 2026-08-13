@@ -37,7 +37,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import 'isletme_kart.dart' show kYaricap, kVurgu, kYuzeyGri, isletmeAcikMi;
+import 'isletme_kart.dart' show kYaricap, kVurgu, kYuzeyGri, isletmeAcikMi, isletmeGeceAcikMi;
 import 'isletme_servisi.dart';
 
 /// Liste siralamasi.
@@ -70,6 +70,16 @@ class IsletmeFiltre {
   bool kampanyali = false;
   bool suAnAcik = false;
 
+  /// ⚠️ TURU 96d — "Gece Kuşu" karti: **gec saate kadar acik**.
+  ///    `suAnAcik`tan AYRI bir olcut; ikisi birlikte de secilebilir
+  ///    ("su an acik VE gece gec kapaniyor" anlamli bir istek).
+  bool geceAcik = false;
+
+  /// ⚠️ TURU 96d — "Yeni Restourant" karti: **puani henuz olmayan**.
+  ///    Sunucu kayit tarihi dondurmuyor; elde kalan tek durust gosterge bu
+  ///    (gerekce `isletme_listesi.dart`taki kart serhinde).
+  bool puansiz = false;
+
   /// Kac suzgec aktif? Arama kutusundaki noktayi ve "Temizle" dugmesini besler.
   /// ⚠️ Siralama SAYILMAZ: "Önerilen" disina cikmak bir SUZGEC degil, bir
   ///    goruntuleme tercihidir; nokta cizilseydi kullanici "neden az sonuc
@@ -79,7 +89,9 @@ class IsletmeFiltre {
       (puanTaban != null ? 1 : 0) +
       (teslimatTavanDk != null ? 1 : 0) +
       (kampanyali ? 1 : 0) +
-      (suAnAcik ? 1 : 0);
+      (suAnAcik ? 1 : 0) +
+      (geceAcik ? 1 : 0) +
+      (puansiz ? 1 : 0);
 
   void temizle() {
     siralama = Siralama.onerilen;
@@ -88,6 +100,8 @@ class IsletmeFiltre {
     teslimatTavanDk = null;
     kampanyali = false;
     suAnAcik = false;
+    geceAcik = false;
+    puansiz = false;
   }
 
   /// ⚠️⚠️ VERISI OLMAYAN KAYIT **ELENIR**, gecirilmez.
@@ -115,6 +129,10 @@ class IsletmeFiltre {
       if (kampanyali && o.kampanyalar.isEmpty) return false;
       // ⚠️ `null` = calisma saati TANIMSIZ -> ELENIR (yukaridaki kural).
       if (suAnAcik && isletmeAcikMi(o.calisma) != true) return false;
+      if (geceAcik && !isletmeGeceAcikMi(o.calisma)) return false;
+      // ⚠️ "Yeni" = puani HENUZ YOK. `0` degil **null** aranir: 0 puan bir
+      //    degerlendirmedir, yokluk degil.
+      if (puansiz && o.puan != null) return false;
       return true;
     }).toList();
 
@@ -261,6 +279,21 @@ class _FiltrePaneliState extends State<_FiltrePaneli> {
                   f.suAnAcik,
                   () => setState(() => f.suAnAcik = !f.suAnAcik),
                   ikon: LucideIcons.doorOpen,
+                ),
+                // ⚠️ Panel ile KESIF KARTLARI ayni suzgeci paylasir: birinden
+                //    secilen otekinde de secili gorunur. Iki ayri alan
+                //    tutulsaydi kullanici "kapattim ama hala suzuyor" derdi.
+                _secenek(
+                  'Gece Kuşu',
+                  f.geceAcik,
+                  () => setState(() => f.geceAcik = !f.geceAcik),
+                  ikon: LucideIcons.moon,
+                ),
+                _secenek(
+                  'Yeni (puanı yok)',
+                  f.puansiz,
+                  () => setState(() => f.puansiz = !f.puansiz),
+                  ikon: LucideIcons.sparkles,
                 ),
               ], yazi),
             ],

@@ -25,6 +25,17 @@ import 'isletme_servisi.dart';
 ///    guncellenip otekiler unutuldugunda hizalama SESSIZCE bozulur.
 const double kYanBosluk = 16;
 
+/// ⚠️⚠️⚠️ TURU 96d — ISLETME KARTLARININ CEVRESINDEKI BOSLUK (kullanici
+///	emri: *"isletmelerdeki sol sag ust alt bosluk 30px olarak ayarla"*).
+///
+/// ⚠️ Bu deger `kYanBosluk`tan (16) BUYUK, yani isletme kartlari slider,
+///    arama kutusu ve "İşletmeler (N)" basligindan **DAHA ICERIDE** durur.
+///    Bilincli: kullanici bu bolum icin ACIKCA 30 istedi. Hizayi geri
+///    istersen tek yer burasi — `kYanBosluk` yaz, her sey aynilasir.
+/// ⚠️ TEK KAYNAK: liste dolgusu, kartlar arasi bosluk ve kart kapaginin
+///    decode genisligi UCU DE buradan turer.
+const double kListeBosluk = 30;
+
 /// ⚠️⚠️ **EKRANDAKI TEK GRI.** Slider zemini, kapak yer tutucusu ve 60x60
 ///    kartlar AYNI tonu kullanir (kullanici emri: *"ayni grilikte olsun"*).
 /// ⚠️ YAPMA: bu ekranlarda elle `0xFFE7E7EA` gibi bir gri yazma.
@@ -143,11 +154,12 @@ class _IsletmeKartiState extends ConsumerState<IsletmeKarti> {
         : (o.avatarMediaId ?? '');
     // ⚠️ Kapak genisligi ACIKCA verilir: yoksa gorsel 2048px'e kadar decode
     //    edilir (turu 91 performans dersi, ~9 MB gecici RAM/kart).
-    final kartGenislik = MediaQuery.sizeOf(context).width - 32;
+    final kartGenislik =
+        MediaQuery.sizeOf(context).width - kListeBosluk * 2;
     return Padding(
       // ⚠️ Kartlar arasi bosluk, ad-gorsel boslugunun ~3.5 kati: goz hangi
       //    ismin hangi gorsele ait oldugunu ancak boyle ayirir.
-      padding: const EdgeInsets.only(bottom: 32),
+      padding: const EdgeInsets.only(bottom: kListeBosluk),
       child: GestureDetector(
         // ⚠️ **DALGA YOK** (kullanici emri: "tikladiginda titreme olmasin").
         behavior: HitTestBehavior.opaque,
@@ -207,7 +219,9 @@ class _IsletmeKartiState extends ConsumerState<IsletmeKarti> {
                   ),
               ],
             ),
-            const SizedBox(height: 3),
+            // ⚠️ TURU 96d — 3 -> **6** (kullanici emri: *"isletme adi ve
+            //    altindaki puan vb. arasindaki boslugu bir tik daha arttir"*).
+            const SizedBox(height: 6),
             // ⚠️ IKINCI SATIR ("Açık · … · En uygun … · Gebze") **KALDIRILDI**
             //    (kullanici emri: *"alttaki kartlardaki en uygun, Gebze vs
             //    sil"*). Kart artik TEK bilgi satiri tasiyor: puan · sure ·
@@ -253,11 +267,14 @@ class _Kalp extends StatelessWidget {
   final bool dolu;
   final VoidCallback onTap;
 
-  /// Fotograftan ayiran yumusak koyu golge — IKI HALDE DE ayni.
-  static const _golge = Shadow(
-    color: Color(0x66000000),
-    blurRadius: 5,
-  );
+  // ⚠️⚠️ TURU 96d — **KOYU GOLGE KALDIRILDI** (kullanici emri: *"isletme
+  //	kartlarinda favori ikonu ARKA PLAN GOLGESINI kaldir"*).
+  //
+  // ⚠️ BEDELI BILINIYOR: beyaz kontur, ACIK RENKLI bir kapak fotografi
+  //    uzerinde okunurlugunu kaybedebilir. Beyaz kalinlastirma golgeleri
+  //    (asagida) DURUYOR ve cizgiyi bir tik belirgin tutuyor.
+  // ⚠️ YAPMA: okunurluk icin daire/zemin geri koyma (o da ayri bir turda
+  //    kaldirilmisti).
 
   @override
   Widget build(BuildContext context) {
@@ -270,8 +287,7 @@ class _Kalp extends StatelessWidget {
         height: 38,
         child: Center(
           child: dolu
-              ? const Icon(Icons.favorite,
-                  size: 24, color: pembe, shadows: [_golge])
+              ? const Icon(Icons.favorite, size: 24, color: pembe)
               // ⚠️ BOS HAL: **BEYAZ** cizgi (kullanici emri). Lucide bir FONT
               //    oldugu icin `strokeWidth` YOKTUR; kalinlik ayni renkte
               //    ±0.5px kaydirilmis dort golgeyle simule edilir.
@@ -284,7 +300,6 @@ class _Kalp extends StatelessWidget {
                   size: 24,
                   color: Colors.white,
                   shadows: [
-                    _golge,
                     Shadow(color: Colors.white, offset: Offset(0.5, 0)),
                     Shadow(color: Colors.white, offset: Offset(-0.5, 0)),
                     Shadow(color: Colors.white, offset: Offset(0, 0.5)),
@@ -408,7 +423,9 @@ Widget vitrinSatiri(BuildContext c, IsletmeOzet o, {required bool kompakt}) {
   //    BOS doner ve HICBIR SEY cizilmez. "0 m" ya da "?" yazmak yanlis
   //    bilgi olurdu; bu projede kapak/puan/teslimat da ayni kurali izliyor.
   if (o.mesafeMetni.isNotEmpty) {
-    p.add(_ikonluMetin(LucideIcons.mapPin, o.mesafeMetni, boy, soluk));
+    // ⚠️ IKON `mapPin` -> `navigation` (kullanici emri): cip seridindeki
+    //    "Yakınımda" ile AYNI ikon — ikisi de mesafeden bahsediyor.
+    p.add(_ikonluMetin(LucideIcons.navigation, o.mesafeMetni, boy, soluk));
   }
   if (p.isEmpty) return const SizedBox.shrink();
 
@@ -513,6 +530,25 @@ bool? isletmeAcikMi(List<dynamic> calisma) {
   final now = DateTime.now();
   final s = now.hour * 60 + now.minute;
   return k > a ? (s >= a && s < k) : (s >= a || s < k);
+}
+
+/// ⚠️⚠️ TURU 96d — "Gece Kuşu" karti icin: **gec saate kadar acik mi?**
+///
+/// Olcut: bugunun kapanisi **23:00 ve sonrasi**, ya da mesai GECE YARISINI
+/// ASIYOR (kapanis <= acilis, ornegin 22:00-02:00).
+/// ⚠️ Bu, `isletmeAcikMi`den AYRI bir sorudur: ogle vakti acik olan bir
+///    yer "gece kusu" DEGILDIR. Iki olcut tek fonksiyona sikistirilsaydi
+///    kartin adi yuklemiyle AYRISIRDI.
+/// ⚠️ Calisma saati TANIMSIZ ise **false**: bilinmeyen bir yeri "gece acik"
+///    saymak yanlis bilgi olurdu (bu dosyadaki genel kural).
+bool isletmeGeceAcikMi(List<dynamic> calisma) {
+  final b = _bugunKaydi(calisma);
+  if (b == null || b['kapali'] == true) return false;
+  final a = _dk(b['acilis']);
+  final k = _dk(b['kapanis']);
+  if (a == null || k == null) return false;
+  if (k <= a) return true; // gece yarisini asiyor
+  return k >= 23 * 60;
 }
 
 String _bugunKapanis(List<dynamic> calisma) {
