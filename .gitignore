@@ -41,3 +41,8 @@ gebzem-release.jks
 mobile/android/key.properties
 backend/apns.p8
 tools/indir/index.html
+# ⚠️ Yayin artifact'leri: surum rutininde buraya KOPYALANIYOR (r2yukle.js
+#    girdisi) ve GitHub'in 100 MB sinirini asiyorlar. Bir kez sehven
+#    commit'lenip push REDDEDILDI.
+tools/indir/gebzem.apk
+tools/indir/gebzem.ipa
