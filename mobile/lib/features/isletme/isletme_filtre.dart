@@ -213,7 +213,7 @@ class _FiltrePaneliState extends State<_FiltrePaneli> {
     return Column(
       children: [
         _baslik(yazi),
-        const Divider(height: 1),
+        Divider(height: 1, color: kYuzeyGri(context)),
         Expanded(
           child: ListView(
             padding: const EdgeInsets.fromLTRB(16, 18, 16, 24),
@@ -316,39 +316,55 @@ class _FiltrePaneliState extends State<_FiltrePaneli> {
   Widget _baslik(Color yazi) => SafeArea(
         bottom: false,
         child: SizedBox(
-        height: 56,
-        child: Row(
-          children: [
-            IconButton(
-              icon: Icon(LucideIcons.x, size: 22, color: yazi),
-              tooltip: 'Kapat',
-              onPressed: () => Navigator.of(context).pop(false),
-            ),
-            Expanded(
-              child: Text(
-                'Filtre',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                    fontSize: 17, fontWeight: FontWeight.w800, color: yazi),
+          height: 56,
+          // ⚠️⚠️⚠️ TURU 96f — BASLIK **GERCEK MERKEZDE** (kullanici:
+          //	*"filtrelemede Filtreleme yazsin, tam ortada degil"*).
+          //
+          //	ONCEKI HAL `Row` + `Expanded` idi: soldaki X (48) ile sagdaki
+          //	Temizle kutusu (88) ESIT OLMADIGI icin "orta" 20 dp saga
+          //	kayiyordu. `Stack` + `Center` bunu yapisal olarak cozer:
+          //	baslik yanindaki ogelerden BAGIMSIZ, panelin gercek ortasinda.
+          // ⚠️ YAPMA: tekrar `Row`+`Expanded`e donme.
+          child: Stack(
+            children: [
+              Center(
+                child: Text(
+                  'Filtreleme',
+                  style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                      color: yazi),
+                ),
               ),
-            ),
-            SizedBox(
-              width: 88,
-              child: f.aktifSayi == 0
-                  ? const SizedBox.shrink()
-                  : TextButton(
-                      onPressed: () => setState(f.temizle),
-                      child: const Text('Temizle'),
-                    ),
-            ),
-          ],
-        ),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: IconButton(
+                  icon: Icon(LucideIcons.x, size: 22, color: yazi),
+                  tooltip: 'Kapat',
+                  onPressed: () => Navigator.of(context).pop(false),
+                ),
+              ),
+              // ⚠️ "Temizle" BURADAN KALKTI -> alt satira (kullanici emri:
+              //    *"2 buton olsun liste ve temizle"*). Ustte de durursa
+              //    AYNI EYLEM IKI YERDE olurdu.
+            ],
+          ),
         ),
       );
 
-  Widget _ayirac() => const Padding(
-        padding: EdgeInsets.symmetric(vertical: 18),
-        child: Divider(height: 1),
+  /// ⚠️ TURU 96f — AYRAC **DAHA SOLUK** (kullanici emri). Varsayilan
+  ///    `Divider` temanin cizgi rengini kullaniyordu ve bolumleri
+  ///    ayirmaktan cok BOLUYORDU.
+  Widget _ayirac() => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 18),
+        child: Divider(
+          height: 1,
+          thickness: 1,
+          color: (Theme.of(context).brightness == Brightness.dark
+                  ? Colors.white
+                  : Colors.black)
+              .withValues(alpha: 0.06),
+        ),
       );
 
   Widget _bolum(String baslik, List<Widget> secenekler, Color yazi) => Column(
@@ -415,45 +431,81 @@ class _FiltrePaneliState extends State<_FiltrePaneli> {
     );
   }
 
-  /// Alt sabit dugme — referans ekrandaki "Restoranları Listele".
+  /// ⚠️⚠️⚠️ TURU 96f — ALT SATIRDA **IKI DUGME** (kullanici emri:
+  ///	*"temizle alttaki butonun saginda olsun, 2 buton olsun: liste ve
+  ///	temizle"*).
   ///
-  /// ⚠️ `SafeArea` ZORUNLU: jest cubugu olan telefonlarda dugme cubugun
+  /// ⚠️ "Temizle" USTTEN KALKTI: ayni eylem iki yerde durursa hangisinin
+  ///    ne yaptigi belirsizlesir.
+  /// ⚠️ SOLDA **Listele** (birincil, dolu, GENIS), SAGDA **Temizle**
+  ///    (ikincil, cerceveli, DAR) — kullanicinin verdigi sira.
+  /// ⚠️ "Temizle" paneli KAPATMAZ: kullanici temizleyip yeni secim yapmak
+  ///    isteyebilir. Kapatsaydi her temizlemede paneli yeniden acmasi
+  ///    gerekirdi.
+  /// ⚠️ Aktif suzgec yoksa "Temizle" **PASIF**: basildiginda hicbir sey
+  ///    olmayan aktif bir dugme "bozuk" gorunur.
+  /// ⚠️ `SafeArea` ZORUNLU: jest cubugu olan telefonlarda dugmeler cubugun
   ///    ALTINDA kalir ve dokunulamaz.
-  /// ⚠️ Ustunde ince bir cizgi: liste dugmenin ARKASINDAN kayiyor; cizgi
-  ///    olmadan son secenek dugmenin icinden cikiyormus gibi gorunuyor.
-  Widget _altDugme() => Container(
-        decoration: BoxDecoration(
-          color: Theme.of(context).scaffoldBackgroundColor,
-          border: Border(top: BorderSide(color: kYuzeyGri(context))),
-        ),
-        child: SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-            child: SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: FilledButton(
-                style: FilledButton.styleFrom(
-                  // ⚠️ Renk TEMADAN ALINMAZ: `FilledButton` varsayilani
-                  //    `colorScheme.primary` = YESIL ve kullanici bu ekranda
-                  //    yesili acikca reddetti (bkz. `kVurgu`).
-                  backgroundColor: kVurgu(context),
-                  foregroundColor:
-                      Theme.of(context).brightness == Brightness.dark
-                          ? Colors.black
-                          : Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(kYaricap(52)),
+  Widget _altDugme() {
+    final koyu = Theme.of(context).brightness == Brightness.dark;
+    final vurgu = kVurgu(context);
+    final aktif = f.aktifSayi > 0;
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).scaffoldBackgroundColor,
+        border: Border(top: BorderSide(color: kYuzeyGri(context))),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+          child: Row(
+            children: [
+              Expanded(
+                flex: 2,
+                child: SizedBox(
+                  height: 52,
+                  child: FilledButton(
+                    style: FilledButton.styleFrom(
+                      // ⚠️ Renk TEMADAN ALINMAZ: varsayilan `primary` YESIL
+                      //    ve kullanici bu ekranda yesili reddetti.
+                      backgroundColor: vurgu,
+                      foregroundColor: koyu ? Colors.black : Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(kYaricap(52)),
+                      ),
+                    ),
+                    onPressed: () => Navigator.of(context).pop(true),
+                    child: const Text('Listele',
+                        style: TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.w700)),
                   ),
                 ),
-                onPressed: () => Navigator.of(context).pop(true),
-                child: const Text('İşletmeleri listele',
-                    style: TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.w700)),
               ),
-            ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: SizedBox(
+                  height: 52,
+                  child: OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: vurgu,
+                      side: BorderSide(
+                          color: vurgu.withValues(alpha: aktif ? 1 : 0.25)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(kYaricap(52)),
+                      ),
+                    ),
+                    onPressed: aktif ? () => setState(f.temizle) : null,
+                    child: const Text('Temizle',
+                        style: TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.w700)),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
-      );
+      ),
+    );
+  }
 }

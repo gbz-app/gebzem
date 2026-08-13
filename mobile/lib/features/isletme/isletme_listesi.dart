@@ -15,6 +15,7 @@ import 'favorilerim_ekrani.dart';
 import 'isletme_filtre.dart';
 import 'isletme_kart.dart';
 import 'isletme_servisi.dart';
+import 'konum_secici.dart';
 import 'kategori_slider.dart';
 import 'yakinimda_ekrani.dart';
 
@@ -132,7 +133,7 @@ const double kCipPay = (40 - 32) / 2; // = 4
 
 /// ⚠️ Header ikonlarinin GLIF ICI boslugu — ekrandan OLCULDU (bkz. header
 ///    dolgusu serhi). Ikon degisirse yeniden olc.
-const double kGeriOptik = 3.8; // arrow-left
+const double kNavOptik = 1.6; // navigation (konum dugmesi, olculdu)
 const double kKalpOptik = 0.8; // heart
 
 /// ⚠️ Bolum basliklarinin ("Mutfaklar", "İşletmeler (N)") GLIF ICI boslugu.
@@ -236,9 +237,39 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
   ///    "cok isletme var, hizlica tara" durumu icin ikincil bir gorunum.
   bool _izgara = false;
 
-  /// ⚠️⚠️ TURU 96 — KART MESAFESI ICIN CIHAZ KONUMU (kullanici emri).
+  /// ⚠️⚠️ TURU 96 — KART MESAFESI ICIN KONUM (kullanici emri).
   ///    `null` = konum bilinmiyor -> kartlarda mesafe CIZILMEZ.
   (double, double)? _konumum;
+
+  /// Header'da yazan konum adi. Bos = kayitli konum yok ("Konum seç").
+  String _konumAdi = '';
+
+  /// ⚠️⚠️⚠️ TURU 96f — **KAYITLI KONUM, GPS'TEN ONCELIKLI.**
+  ///
+  ///	Kullanici bir konum sectiyse (Ev/İş) mesafe ONA gore hesaplanir;
+  ///	kayitli konum yoksa cihazin GPS'ine dusulur. Tersi olsaydi kullanici
+  ///	"Ev"i secer ama kartlar hala bulundugu yerden uzakligi gosterirdi —
+  ///	secim GORUNURDE calisir, FIILEN hicbir sey yapmazdi.
+  /// ⚠️ Sunucunun doldurdugu `km` (Yakınımda ucu) YINE de kazanir; bu
+  ///    fonksiyon yalnizca `_konumum`u belirler.
+  Future<void> _kayitliKonumuOku() async {
+    final k = await KonumDeposu.secili();
+    if (!mounted || k == null) return;
+    setState(() => _konumAdi = k.ad);
+    _konumuUygula(k.enlem, k.boylam);
+  }
+
+  /// Konum panelini acar; secim degistiyse mesafeleri yeniden hesaplar.
+  Future<void> _konumSec() async {
+    await konumSeciciAc(context);
+    if (!mounted) return;
+    final k = await KonumDeposu.secili();
+    if (!mounted) return;
+    setState(() => _konumAdi = k?.ad ?? '');
+    if (k != null) {
+      _konumuUygula(k.enlem, k.boylam);
+    }
+  }
 
   @override
   void initState() {
@@ -246,6 +277,8 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
     _ilceyiOgren();
     _kesfiYukle();
     _yukle();
+    // ⚠️ ONCE kayitli konum (varsa mesafe ANINDA cizilir), SONRA GPS.
+    _kayitliKonumuOku();
     _konumuAl();
   }
 
@@ -279,6 +312,9 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
           izin != LocationPermission.whileInUse) {
         return;
       }
+      // ⚠️⚠️ KAYITLI KONUM VARSA GPS **EZMEZ**: kullanici "Ev"i sectiyse
+      //    mesafe ona gore kalmali (bkz.  serhi).
+      if (_konumAdi.isNotEmpty) return;
       // 1) Hizli yol — varsa aninda ciz.
       final son = await Geolocator.getLastKnownPosition();
       if (son != null) _konumuUygula(son.latitude, son.longitude);
@@ -584,11 +620,27 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                 child: CustomScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   slivers: [
-                    // ── HEADER -> SLIDER ──
-                    // ⚠️ Header'in ALTINDA 5px kendi payi var (bkz.
-                    //    `kHeaderPay`): ekranda gorunen bosluk yine 16.
+                    // ── HEADER -> ARAMA ──
+                    // ⚠️ Header'in ALTINDA kendi payi var (bkz. `kHeaderPay`):
+                    //    ekranda gorunen bosluk yine 16.
                     const SliverToBoxAdapter(
                         child: SizedBox(height: kBosluk - kHeaderPay)),
+
+                    // ── ARAMA ──
+                    // ⚠️⚠️ TURU 96f — ARAMA **HEADER ALTINA, SLIDER USTUNE**
+                    //	tasindi (kullanici emri). Onceden kesif kartlarinin
+                    //	ALTINDAYDI; artik ekrana girer girmez gorunuyor.
+                    // ⚠️ Gorunum ve harita dugmeleri BURADA DEGIL, liste
+                    //    basliginda (turu 96c) — input satirin TAMAMI.
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: kYanBosluk),
+                        child: _aramaKutusu(),
+                      ),
+                    ),
+                    const SliverToBoxAdapter(
+                        child: SizedBox(height: kBosluk)),
 
                     // ⚠️⚠️ SLAYT YOKSA SLIDER HIC CIZILMEZ: istek patlarsa
                     //    `_slaytlar` bos kalir ve `PageView` 0 ogeyle
@@ -617,19 +669,6 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                     const SliverToBoxAdapter(
                         child: SizedBox(height: kBosluk)),
 
-                    // ── ARAMA ──
-                    // ⚠️ Kullanici emri: *"inputu kartlarin altina koy"* +
-                    //    turu 96c: *"arama inputunu da GENISLET"*.
-                    // ⚠️⚠️ GORUNUM VE HARITA DUGMELERI **BURADAN TASINDI**
-                    //    (liste basligina). Input artik satirin TAMAMI.
-                    // ⚠️ YAPMA: bu satira tekrar dugme ekleme — input daralir.
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: kYanBosluk),
-                        child: _aramaKutusu(),
-                      ),
-                    ),
                     // ⚠️ Alt kategori seridi VARSA tam bosluk; YOKSA hemen
                     //    altta cip seridi geliyor demektir ve onun kendi
                     //    4px payi DUSULUR (bkz. `kCipPay`).
@@ -752,7 +791,7 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                       //    kendi golgeleriyle ayriliyor (Yemeksepeti/Getir
                       //    deseni). Cizgi + kart ARADA cift ayirici olurdu.
                       SliverPadding(
-                        // ⚠️ TURU 96e — yatay dolgu a GERI
+                        // ⚠️ TURU 96e — yatay dolgu `kYanBosluk`a GERI
                         //    DONDU (kartlar daralmisti). Kartlar arasi dikey
                         //    bosluk kartin KENDI alt marjindan geliyor.
                         padding: const EdgeInsets.fromLTRB(
@@ -858,16 +897,28 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
         // ⚠️ Ikonlar degisirse bu iki sayi YENIDEN OLCULMELI (ekrandan;
         //    tahmin etme). Olcum araci: scratchpad/hiza.js
         padding: const EdgeInsets.only(
-          left: kYanBosluk - kHeaderPay - kGeriOptik,
+          // ⚠️⚠️ TURU 96f — SOL TARAF YENIDEN OLCULDU. Geri tusu (44dp kutuda
+          //	ortali ikon) yerine artik konum dugmesi var ve o bir `Row`:
+          //	dolgunun BASINDAN basliyor, yani `kHeaderPay` SOLDA GECERSIZ.
+          //	Eski telafi birakilinca ikon **3.8 dp**ye kaydi (olculdu).
+          // ⚠️ SAG hala `_headerDaire` -> orada ikisi de gecerli.
+          left: kYanBosluk - kNavOptik,
           right: kYanBosluk - kHeaderPay - kKalpOptik,
         ),
         child: Row(
           children: [
-            _headerDaire(
-              LucideIcons.arrowLeft,
-              'Geri',
-              () => Navigator.of(context).maybePop(),
-            ),
+            // ⚠️⚠️⚠️ TURU 96f — GERI TUSU YERINE **KONUM SECICI** (kullanici
+            //	emri: *"geri tusu yerine navigator ikonu koy, saginda Ev
+            //	yazsin, tikladiginda filtreleme gibi popup ciksin"*).
+            //
+            // ⚠️⚠️ **GERI DUGMESI KALKTI — CIKIS YOLU JESTE KALDI.** Android'de
+            //	donanim/jest geri tusu, iOS'ta kenardan cekme calismaya
+            //	DEVAM EDER (`MaterialPageRoute` ikisini de destekler), ama
+            //	ekranda GORUNEN bir geri yolu artik YOK. Kullanici bunu
+            //	acikca istedi; Getir/Yemeksepeti ana ekraninda da boyle.
+            // ⚠️ YAPMA: ekranda baska bir cikis yolu kalmadigi icin bu satiri
+            //    "sadelestirmek" adina kaldirma.
+            _konumDugmesi(),
             if (widget.baslik.isNotEmpty)
               Expanded(
                 child: Text(
@@ -875,9 +926,20 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                   textAlign: TextAlign.center,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
+                  // ⚠️⚠️ TURU 96f — DIKEY DENGE (kullanici: *"header icindeki
+                  //	yazi yukari asagi bosluk esit degil, alt kismi kisa
+                  //	kaliyor"*). HAKLIYDI: yazi tipinin ascent'i descent'ten
+                  //	buyuk oldugu icin varsayilan satir kutusunda glif
+                  //	YUKARI kayik oturur.
+                  //	`height: 1.0` + `leadingDistribution: even` satir
+                  //	boslugunu ust/alt ESIT dagitir.
+                  // ⚠️ YAPMA: bunu `Padding`le "duzeltme" — yazi olcegi
+                  //    degisince yeniden kayar.
                   style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
+                    height: 1.0,
+                    leadingDistribution: TextLeadingDistribution.even,
                   ),
                 ),
               )
@@ -898,6 +960,52 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
               ),
             ),
           ],
+        ),
+      );
+
+  /// ⚠️⚠️ TURU 96f — KONUM DUGMESI: navigator ikonu + secili konumun ADI.
+  ///
+  /// ⚠️ Kayitli konum YOKSA **"Konum seç"** yazar. "Ev" yazmak SAHTE olurdu:
+  ///    kullanicinin kayitli bir evi yok ve dokununca bos liste gorurdu.
+  ///    Ilk konum eklenirken ad alani ZATEN "Ev" ile dolu geliyor.
+  /// ⚠️ Ad UZUNSA kirpilir (`Flexible` + ellipsis): "Babaannemin Evi" gibi
+  ///    bir ad header'i tasirdi.
+  /// ⚠️ Dokunma alani ikon + yazinin TAMAMI (`opaque`): yalniz ikon
+  ///    dokunulabilir olsaydi kullanici yaziya basip "calismiyor" derdi.
+  Widget _konumDugmesi() => Semantics(
+        button: true,
+        label: 'Konum: ${_konumAdi.isEmpty ? "seçilmedi" : _konumAdi}',
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: _konumSec,
+          child: SizedBox(
+            height: 44,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // ⚠️ Ikonun sol GLIF boslugu header dolgusunda telafi ediliyor
+                //    (bkz. `kNavOptik`) — deger `navigation` icin olculdu.
+                Icon(LucideIcons.navigation, size: 22, color: _notrYazi),
+                const SizedBox(width: 7),
+                Flexible(
+                  child: Text(
+                    _konumAdi.isEmpty ? 'Konum seç' : _konumAdi,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: _notrYazi,
+                      height: 1.0,
+                      leadingDistribution: TextLeadingDistribution.even,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 3),
+                Icon(LucideIcons.chevronDown, size: 15, color: _notrYazi),
+              ],
+            ),
+          ),
         ),
       );
 
