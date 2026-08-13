@@ -32,6 +32,29 @@ import 'yakinimda_ekrani.dart';
 ///    guncellenip otekiler unutuldugunda hizalama SESSIZCE bozulur.
 const double kYanBosluk = 16;
 
+/// ⚠️⚠️⚠️ TURU 95 — **DIKEY RITIM: TEK KAYNAK.**
+///
+///	Kullanici: *"slider inputa yapismis; bu bosluklari yukari, sol, sag
+///	guzel bir mimari yap, olculeri duzgun yap"*. HAKLIYDI ve sebebi
+///	yapisaldi: dikey bosluklar BES AYRI YERDE, birbirinden habersiz
+///	sayilarla yaziliydi —
+///	  slider  : hic ust dolgu yok
+///	  60x60   : icinde `fromLTRB(.., 12, ..)`
+///	  arama   : icinde `fromLTRB(.., 4, ..)`
+///	  filtre  : icinde `fromLTRB(.., 10, ..)`
+///	  liste   : `fromLTRB(.., 6, ..)`
+///	Yani iki oge arasindaki mesafe, o iki ogeden BIRININ ic dolgusuydu;
+///	sirayi degistirince (input yukari/asagi) bosluk da rastgele degisiyor
+///	ve "yapismis" gorunuyordu.
+///
+///	YENI KURAL: bolumlerin IC DIKEY DOLGUSU YOKTUR. Aralarindaki mesafe
+///	YALNIZCA asagidaki uc sabitten biriyle, sliver sirasinda verilir.
+/// ⚠️ YAPMA: bu ekrandaki bir bolume tekrar ust/alt dolgu yazma; mesafeyi
+///    sliver arasina koy.
+const double kBoslukS = 10; // sikica bagli ogeler (filtre -> liste)
+const double kBoslukM = 14; // normal bolum arasi
+const double kBoslukL = 18; // gorsel agirlikli bolumden sonra (slider)
+
 // ⚠️ `kYuzeyGri` `isletme_kart.dart`a TASINDI (tek kaynak): kart ve bu
 //    ekran ayni griyi kullanmak ZORUNDA.
 
@@ -100,6 +123,7 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
 
   /// Secili alt kategori (arama metni). Bos = hicbiri.
   String _altSecili = '';
+
 
   /// ⚠️ TURU 94 — GORUNUM: false = liste (tek sutun), true = kart (iki sutun).
   ///    Varsayilan LISTE: genis kapak + tum bilgiler sigar. Izgara,
@@ -379,17 +403,14 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                 child: CustomScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   slivers: [
-                    // ⚠️ Kullanici emri: header'in ALTINDA **10px** bosluk.
-                    const SliverToBoxAdapter(child: SizedBox(height: 10)),
+                    // ── HEADER -> SLIDER ──
+                    const SliverToBoxAdapter(
+                        child: SizedBox(height: kBoslukM)),
 
-                    // ⚠️⚠️ SLAYT YOKSA SLIDER HIC CIZILMEZ. Eski serh
-                    //    "veri gelmezse VARSAYILAN metinler gosterilir"
-                    //    diyordu ama bu YALNIZ istek BASARILI olursa dogru
-                    //    (varsayilani SUNUCU donduruyor). Istek PATLARSA
+                    // ⚠️⚠️ SLAYT YOKSA SLIDER HIC CIZILMEZ: istek patlarsa
                     //    `_slaytlar` bos kalir ve `PageView` 0 ogeyle
-                    //    cizilir -> ekranin tepesinde **350px hicbir sey
-                    //    icermeyen gri dikdortgen**.
-                    if (_slaytlar.isNotEmpty)
+                    //    cizilir -> ekranin tepesinde ICI BOS gri dikdortgen.
+                    if (_slaytlar.isNotEmpty) ...[
                       SliverToBoxAdapter(
                         child: Padding(
                           padding: const EdgeInsets.symmetric(
@@ -397,26 +418,31 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                           child: KategoriSlider(slaytlar: _slaytlar),
                         ),
                       ),
+                      // ⚠️ Slider gorsel agirlikli bir blok; ondan sonraki
+                      //    nefes daha genis (`L`).
+                      const SliverToBoxAdapter(
+                          child: SizedBox(height: kBoslukL)),
+                    ],
 
-                    // ---- ALT KATEGORI KARTLARI (60x60) — kullanici emri
+                    // ── ALT KATEGORI KARTLARI (60x60) ──
                     SliverToBoxAdapter(child: _altKategoriSeridi()),
+                    const SliverToBoxAdapter(
+                        child: SizedBox(height: kBoslukM)),
 
-                    // ⚠️ TURU 94 — ARAMA **KARTLARIN ALTINA** alindi
-                    //    (kullanici emri: *"inputu kucuk kartlarin altina al"*).
-                    //    Saginda liste/izgara **gorunum anahtari**.
+                    // ── ARAMA + GORUNUM + HARITA ──
+                    // ⚠️ Kullanici emri: *"inputu kartlarin altina koy"*.
                     SliverToBoxAdapter(
                       child: Padding(
-                        padding: const EdgeInsets.fromLTRB(
-                            kYanBosluk, 4, kYanBosluk, 0),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: kYanBosluk),
                         child: Row(
                           children: [
                             Expanded(child: _aramaKutusu()),
                             const SizedBox(width: 10),
                             _gorunumAnahtari(),
                             const SizedBox(width: 8),
-                            // ⚠️ HARITA header'dan BURAYA tasindi (kullanici
-                            //    emri: *"haritayi gorunum saginda ekle"*).
-                            //    Gorunum anahtariyla ayni dilde: gri daire.
+                            // ⚠️ Harita, gorunum anahtariyla ayni dilde:
+                            //    gri daire (kullanici emri).
                             _daireDugme(
                               LucideIcons.map,
                               'Haritada gör',
@@ -431,8 +457,13 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                         ),
                       ),
                     ),
-                    // ---- FILTRE SATIRI: solda "Filtrele", saginda sik kullanilanlar
+                    const SliverToBoxAdapter(
+                        child: SizedBox(height: kBoslukM)),
+
+                    // ── HIZLI SUZGECLER ──
                     SliverToBoxAdapter(child: _filtreSatiri()),
+                    const SliverToBoxAdapter(
+                        child: SizedBox(height: kBoslukS)),
 
                     if (_hata != null)
                       SliverToBoxAdapter(
@@ -477,7 +508,7 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                       //    deseni). Cizgi + kart ARADA cift ayirici olurdu.
                       SliverPadding(
                         padding: const EdgeInsets.fromLTRB(
-                            kYanBosluk, 6, kYanBosluk, 24),
+                            kYanBosluk, 0, kYanBosluk, 24),
                         // ⚠️ IKI GORUNUM (kullanici emri: "kart gorunumu").
                         //    Izgarada IKI SUTUN; ucuncusu 360dp'de kapagi
                         //    ~104px'e dusurup okunamaz yapardi.
@@ -546,7 +577,7 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
   /// ⚠️ Dokunma alani daireden BUYUK (44dp): 34dp gorsel, Material'in 48 /
   ///    Apple'in 44 kuralinin altinda kalirdi.
   Widget _header() => Padding(
-        padding: const EdgeInsets.fromLTRB(kYanBosluk, 4, kYanBosluk, 0),
+        padding: const EdgeInsets.symmetric(horizontal: kYanBosluk),
         child: Row(
           children: [
             _headerDaire(
@@ -829,14 +860,20 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
         //    slider ve arama kutusundan **4px solda** duruyordu).
         // ⚠️ Sag dolgu da `kYanBosluk`: yatay serit kaydirildiginda son
         //    kartin kenara YAPISMAMASI icin.
-        padding: const EdgeInsets.fromLTRB(kYanBosluk, 12, kYanBosluk, 0),
+        // ⚠️ IC DIKEY DOLGU YOK (bkz. `kBosluk*` serhi): bolumler arasi
+        //    mesafe YALNIZCA sliver sirasinda verilir.
+        padding: const EdgeInsets.symmetric(horizontal: kYanBosluk),
         itemCount: _altKategoriler.length,
         itemBuilder: (_, i) {
           final a = _altKategoriler[i];
           final secili = _altSecili == a.ara;
           final renk = Theme.of(context).colorScheme.primary;
           return Padding(
-            padding: const EdgeInsets.only(right: 10),
+            // ⚠️ 10 -> **4** (kullanici emri: *"doner kebap kartlarin
+            //    arasindaki boslugu azalt"*) -> 10, sonra 4, simdi **2**.
+            //    Hucre genisligi 78 KALIR: daraltmak "Lahmacun"u tekrar
+            //    kelime ortasindan bolerdi.
+            padding: const EdgeInsets.only(right: 2),
             child: GestureDetector(
               // ⚠️ `opaque`: kutu ile yazi ARASINDAKI bosluga dokunmak da
               //    secer; aksi halde kullanici "bastim olmadi" der.
@@ -934,7 +971,9 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
       //    kutusundan 4px solda duruyordu).
       // ⚠️ Sag 0 KALIR: sagdaki serit YATAY KAYIYOR, sag dolgu son cipi
       //    kirpiyormus gibi gosterirdi.
-      padding: const EdgeInsets.fromLTRB(kYanBosluk, 10, 0, 6),
+      // ⚠️ IC DIKEY DOLGU YOK; sag 0 KALIR (serit yatay kayiyor, sag dolgu
+      //    son cipi kirpiyormus gibi gosterirdi).
+      padding: const EdgeInsets.fromLTRB(kYanBosluk, 0, 0, 0),
       child: Row(
         children: [
           // ⚠️ TURU 94 — "Filtrele" DUGMESI **KALDIRILDI** (kullanici emri).
@@ -949,7 +988,8 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
               //    Apple 44 kuralinin ALTINA dusuyordu.
               // ⚠️ Eklenen 12px artik bir sorun degil: govde turu 93b'de
               //    KAYDIRILABILIR oldu, yani sabit dikey butce yok.
-              height: 48,
+              // ⚠️ Cipler 32'ye indi; serit de 48 -> 40.
+              height: 40,
               child: ListView(
                 scrollDirection: Axis.horizontal,
                 children: [
@@ -990,11 +1030,11 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                           // ⚠️ TEK KAPI: `_altSecili` de sifirlanir.
                           onTap: () => _kategoriSec(''),
                           child: Container(
-                            height: 40,
-                            padding: const EdgeInsets.fromLTRB(14, 0, 10, 0),
+                            // ⚠️ Kardes ciplerle AYNI olcu.
+                            height: 32,
+                            padding: const EdgeInsets.fromLTRB(11, 0, 8, 0),
                             decoration: BoxDecoration(
-                              // ⚠️ TAM RADIUS: yaricap = yukseklik / 2.
-                              borderRadius: BorderRadius.circular(20),
+                              borderRadius: BorderRadius.circular(16),
                               border: Border.all(color: _notrKenar),
                             ),
                             child: Row(
@@ -1003,10 +1043,10 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                                 Text(
                                   isletmeKategoriAdi(_kategori),
                                   style: TextStyle(
-                                      fontSize: 14, color: _notrYazi),
+                                      fontSize: 13, color: _notrYazi),
                                 ),
-                                const SizedBox(width: 6),
-                                Icon(LucideIcons.x, size: 15, color: _notrYazi),
+                                const SizedBox(width: 5),
+                                Icon(LucideIcons.x, size: 13, color: _notrYazi),
                               ],
                             ),
                           ),
@@ -1083,24 +1123,27 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
             setState(() => _hizli = secili ? '' : anahtar);
             _yukle();
           },
+          // ⚠️ DAHA MINIMAL (kullanici emri): 40 -> **32** yukseklik,
+          //    yatay dolgu 14 -> 11, ikon 15 -> 13, yazi 14 -> 13.
+          //    Yaricap yine yuksekligin yarisi (= tam radius).
           child: Container(
-            height: 40,
-            padding: const EdgeInsets.symmetric(horizontal: 14),
+            height: 32,
+            padding: const EdgeInsets.symmetric(horizontal: 11),
             decoration: BoxDecoration(
               // ⚠️ TAM RADIUS: yaricap = yukseklik / 2.
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(16),
               color: secili ? _notrYazi.withValues(alpha: 0.10) : null,
               border: Border.all(color: _notrKenar),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(ikon, size: 15, color: _notrYazi),
-                const SizedBox(width: 6),
+                Icon(ikon, size: 13, color: _notrYazi),
+                const SizedBox(width: 5),
                 Text(
                   ad,
                   style: TextStyle(
-                    fontSize: 14,
+                    fontSize: 13,
                     color: _notrYazi,
                     fontWeight: secili ? FontWeight.w700 : FontWeight.w500,
                   ),

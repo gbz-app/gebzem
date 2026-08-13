@@ -127,34 +127,6 @@ var altKategoriler = map[string][]AltKategori{
 // ⚠️ Kategori girisi YOKSA `sliderVarsayilan` kullanilir — slider HICBIR
 //
 //	kategoride BOS kalmaz (kullanici 350px'lik bos gri kutu gormemeli).
-// ⚠️⚠️ TURU 95 — HIZLI KESIF KARTLARI (kullanici emri: *"oraya yeni kartlar
-//	olsun, mesela Indirim, Gece Kusu gibi"*).
-//
-//	Bunlar 60x60 alt kategori kartlarindan FARKLIDIR: alt kategori bir
-//	ARAMA metnine cevrilir (`q=döner`), bu kartlar ise SUNUCU TARAFI BIR
-//	YUKLEM secer (`hizli=kampanyali`). Ikisini tek listede toplamak,
-//	istemcinin "bu metin mi yoksa suzgec mi" diye ayirmasini gerektirirdi.
-//
-// ⚠️ HER KARTIN GERCEK BIR KARSILIGI VAR — dekoratif kart YOK. Bir kart
-//
-//	eklerken `Liste` icindeki yuklemi de yaz; yoksa dokunulunca HICBIR SEY
-//	olmayan bir dugme kalir (bu projede DOKUZ kez sahaya cikti).
-type HizliKart struct {
-	Ad      string `json:"ad"`
-	Anahtar string `json:"anahtar"`
-}
-
-// ⚠️ KATEGORIDEN BAGIMSIZ: uc kart da her kategoride anlamli (kampanya,
-//
-//	gec saat, su an acik). Kategoriye ozel kart gerekirse bu harita
-//	`map[string][]HizliKart`a cevrilir; bugun oyle bir ihtiyac yok ve
-//	17 kategori icin ayni ucluyu yazmak olu tekrar olurdu.
-var hizliKartlar = []HizliKart{
-	{"İndirim", "kampanyali"},
-	{"Gece Kuşu", "gec_acik"},
-	{"Şu an açık", "acik"},
-}
-
 type SliderKarti struct {
 	Baslik  string `json:"baslik"`
 	AltMetn string `json:"alt"`
@@ -274,7 +246,6 @@ func (h *Handler) Kesif(w http.ResponseWriter, r *http.Request) {
 	}
 	yaz(w, 200, map[string]any{
 		"alt_kategoriler": alt,
-		"hizli_kartlar":   hizliKartlar,
 		"slaytlar":        slayt,
 		"kategori_ad":     KategoriAdi(kat),
 	})
