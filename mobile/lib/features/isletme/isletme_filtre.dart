@@ -37,7 +37,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import 'isletme_kart.dart' show kYaricap, kYuzeyGri, isletmeAcikMi;
+import 'isletme_kart.dart' show kYaricap, kVurgu, kYuzeyGri, isletmeAcikMi;
 import 'isletme_servisi.dart';
 
 /// Liste siralamasi.
@@ -340,7 +340,7 @@ class _FiltrePaneliState extends State<_FiltrePaneli> {
   /// ⚠️ **DALGA YOK**: `InkWell` degil `GestureDetector`.
   Widget _secenek(String etiket, bool secili, VoidCallback onTap,
       {IconData? ikon}) {
-    final vurgu = Theme.of(context).colorScheme.primary;
+    final vurgu = kVurgu(context);
     final koyu = Theme.of(context).brightness == Brightness.dark;
     final notr = (koyu ? Colors.white : Colors.black).withValues(alpha: 0.14);
     final yazi = koyu ? Colors.white : const Color(0xFF1A1A1A);
@@ -402,6 +402,14 @@ class _FiltrePaneliState extends State<_FiltrePaneli> {
               height: 52,
               child: FilledButton(
                 style: FilledButton.styleFrom(
+                  // ⚠️ Renk TEMADAN ALINMAZ: `FilledButton` varsayilani
+                  //    `colorScheme.primary` = YESIL ve kullanici bu ekranda
+                  //    yesili acikca reddetti (bkz. `kVurgu`).
+                  backgroundColor: kVurgu(context),
+                  foregroundColor:
+                      Theme.of(context).brightness == Brightness.dark
+                          ? Colors.black
+                          : Colors.white,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(kYaricap(52)),
                   ),

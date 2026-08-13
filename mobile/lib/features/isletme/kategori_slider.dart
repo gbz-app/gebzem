@@ -15,7 +15,7 @@ import 'package:flutter/material.dart';
 
 // ⚠️ Kose yaricapi TEK KAYNAK: slider, kart kapagi ve 60x60 kutu ayni
 //    sabiti kullanmak ZORUNDA (bkz. `isletme_kart.dart` yaricap serhi).
-import 'isletme_kart.dart' show kYaricap;
+import 'isletme_kart.dart' show kYanBosluk, kYaricap;
 
 /// Sunucudan gelen slayt.
 typedef Slayt = ({String baslik, String alt});
@@ -47,8 +47,59 @@ class KategoriSlider extends StatefulWidget {
   State<KategoriSlider> createState() => _KategoriSliderState();
 }
 
+/// Iki slayt arasindaki bosluk.
+const double kSlaytAralik = 8;
+
 class _KategoriSliderState extends State<KategoriSlider> {
-  final _sayfa = PageController();
+  /// ⚠️⚠️⚠️ TURU 96b — **YANDAKI SLAYTLAR HAFIF GORUNUR** (kullanici emri:
+  ///	*"slider sol sag diger sliderler hafif gorunsun"*).
+  ///
+  ///	`viewportFraction: 1.0` (varsayilan) ile ekranda TEK slayt olur ve
+  ///	kullanici baska slayt oldugunu ANLAYAMAZ — gecis cizgileri de
+  ///	kaldirildigi icin (turu 96) hicbir ipucu kalmamisti.
+  ///
+  /// ⚠️⚠️ ORAN **SABIT YAZILAMAZ, EKRANDAN TURETILIR.** Ilk denemede 0.92
+  ///	sabiti yazildi ve HIZAYI BOZDU: slider disaridan `kYanBosluk`
+  ///	dolgusuyla sariliyordu, ustune viewport da daraliyordu -> aktif
+  ///	kartin sol kenari 16 yerine **~35 dp**'ye kayiyordu. Kullanici bu
+  ///	ekranda hizayi IKI TURDUR takip ediyor.
+  ///
+  ///	DOGRU KURULUM: slider **TAM GENISLIK** (dis dolgu YOK) ve
+  ///	    vf = (W - 2*kYanBosluk + kSlaytAralik) / W
+  ///	Boylece sayfa genisligi = kart (W-32) + aralik; aktif sayfa
+  ///	ortalandigi icin kartin sol kenari TAM `kYanBosluk`ta durur ve
+  ///	komsu kart ekranin kenarindan `kSlaytAralik` kadar sarkar.
+  ///	✅ 411dp'de: vf=0.9416, kart 16..395, sonraki kart 403'te baslar.
+  /// ⚠️ Slaytlarin ARASINDA BOSLUK OLMASI SART: hepsi ayni gri oldugu icin
+  ///    bitisik cizilseydi tek uzun blok gibi gorunur, "yandaki slayt"
+  ///    hissi OLUSMAZDI. Bosluk `_slayt` icindeki yatay dolgudan gelir.
+  /// ⚠️ YAPMA: cagiran ekranda slider'i `Padding` ile sarma; vf'yi sabit
+  ///    yazma; slayt dolgusunu kaldirma — ucu BIRLIKTE calisir.
+  PageController? _sayfa;
+  double _olculenEn = 0;
+
+  /// ⚠️ `MediaQuery` `initState`te OKUNAMAZ; controller burada kurulur.
+  ///    Genislik degisirse (donme / katlanabilir cihaz) YENIDEN kurulur.
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final en = MediaQuery.sizeOf(context).width;
+    if (en == _olculenEn) return;
+    _olculenEn = en;
+    final eski = _sayfa;
+    _sayfa = PageController(
+      initialPage: _aktif,
+      viewportFraction:
+          ((en - kYanBosluk * 2 + kSlaytAralik) / en).clamp(0.5, 1.0),
+    );
+    // ⚠️ Eski controller ANINDA dispose EDILEMEZ: bu karede hala
+    //    `PageView`e bagli. Kare bitince birakilir.
+    if (eski != null) {
+      WidgetsBinding.instance
+          .addPostFrameCallback((_) => eski.dispose());
+    }
+    _zamanlayiciKur();
+  }
   Timer? _zamanlayici;
   int _aktif = 0;
 
@@ -69,7 +120,7 @@ class _KategoriSliderState extends State<KategoriSlider> {
       // ⚠️ TURU 93b — CONTROLLER DA BASA ALINIR (denetim). Yalniz `_aktif`
       //    sifirlaniyordu; `PageController` hala ESKI sayfadaydi ve ilk
       //    timer atisi `animateToPage(1)` ile **GERIYE** kayiyordu.
-      if (_sayfa.hasClients) _sayfa.jumpToPage(0);
+      if (_sayfa?.hasClients ?? false) _sayfa!.jumpToPage(0);
       _zamanlayiciKur();
     }
   }
@@ -81,9 +132,9 @@ class _KategoriSliderState extends State<KategoriSlider> {
     //    performans dersi).
     if (widget.slaytlar.length < 2) return;
     _zamanlayici = Timer.periodic(const Duration(seconds: 3), (_) {
-      if (!mounted || !_sayfa.hasClients) return;
+      if (!mounted || !(_sayfa?.hasClients ?? false)) return;
       final sonraki = (_aktif + 1) % widget.slaytlar.length;
-      _sayfa.animateToPage(
+      _sayfa!.animateToPage(
         sonraki,
         duration: const Duration(milliseconds: 450),
         curve: Curves.easeInOut,
@@ -96,7 +147,7 @@ class _KategoriSliderState extends State<KategoriSlider> {
     // ⚠️ ZAMANLAYICI ONCE iptal edilir: `dispose` edilmis bir
     //    `PageController`a `animateToPage` cagirmak PATLAR.
     _zamanlayici?.cancel();
-    _sayfa.dispose();
+    _sayfa?.dispose();
     super.dispose();
   }
 
@@ -123,10 +174,11 @@ class _KategoriSliderState extends State<KategoriSlider> {
           // ⚠️ `ClipRRect` ZORUNLU: yalniz `BoxDecoration` verilseydi icindeki
           //    `PageView` kose disina TASARDI.
           Positioned.fill(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(kYaricap(KategoriSlider.yukseklik)),
-              child: ColoredBox(
-                color: zemin,
+            child: SizedBox(
+              // ⚠️ Kirpma ve zemin ARTIK SLAYTIN KENDISINDE (asagida):
+              //    ust seviyede `ClipRRect` + `ColoredBox` kalsaydi tum
+              //    viewport tek bir gri blok olur ve yandaki slaytlar
+              //    AYIRT EDILEMEZDI.
                 child: PageView.builder(
                   controller: _sayfa,
                   // ⚠️ TURU 96 — `setState` KALDIRILDI. Gecis cizgileri
@@ -136,9 +188,8 @@ class _KategoriSliderState extends State<KategoriSlider> {
                   //    zamanlayici bir sonraki sayfayi ondan hesapliyor.
                   onPageChanged: (i) => _aktif = i,
                   itemCount: widget.slaytlar.length,
-                  itemBuilder: (_, i) => _slayt(widget.slaytlar[i]),
+                  itemBuilder: (_, i) => _slayt(widget.slaytlar[i], zemin),
                 ),
-              ),
             ),
           ),
 
@@ -169,5 +220,17 @@ class _KategoriSliderState extends State<KategoriSlider> {
   ///	    DEGISMEYECEK (turu 77 kurali: liste sunucudan gelir).
   /// ⚠️ YAPMA: veriyi `Kesif` ucundan silme — sildigin an slayt sayisi 0 olur,
   ///    `PageView` tek sayfaya duser ve gecis cizgileri KAYBOLUR.
-  Widget _slayt(Slayt s) => const SizedBox.expand();
+  /// ⚠️ ZEMIN VE KIRPMA BURADA (ust seviyede DEGIL): her slayt KENDI
+  ///    yuvarlak gri karti. Ust seviyede olsaydi tum viewport tek gri blok
+  ///    olur ve yandaki slaytlar ayirt edilemezdi.
+  /// ⚠️ Yatay dolgu, komsu kartlar arasindaki BOSLUGU uretir; kaldirilirsa
+  ///    kartlar bitisir ve yine tek blok gibi gorunur.
+  Widget _slayt(Slayt s, Color zemin) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: kSlaytAralik / 2),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(
+              kYaricap(KategoriSlider.yukseklik)),
+          child: ColoredBox(color: zemin, child: const SizedBox.expand()),
+        ),
+      );
 }

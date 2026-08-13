@@ -17,6 +17,14 @@ import '../sosyal/profil_basligi.dart' show kOnayliRengi;
 import '../sosyal/profil_sayfasi.dart';
 import 'isletme_servisi.dart';
 
+/// ⚠️⚠️ TURU 93 — YAN BOSLUK **TEK KAYNAK** (kullanici emri: *"hepsi bir
+///    container icinde sol sag bosluk icinde"*). Header, slider, arama
+///    kutusu, 60x60 kartlar, filtre satiri ve isletme kartlari AYNI hizada
+///    durur.
+/// ⚠️ YAPMA: bu ekranda elle 12/14/16 gibi yatay dolgu yazma — bir tanesi
+///    guncellenip otekiler unutuldugunda hizalama SESSIZCE bozulur.
+const double kYanBosluk = 16;
+
 /// ⚠️⚠️ **EKRANDAKI TEK GRI.** Slider zemini, kapak yer tutucusu ve 60x60
 ///    kartlar AYNI tonu kullanir (kullanici emri: *"ayni grilikte olsun"*).
 /// ⚠️ YAPMA: bu ekranlarda elle `0xFFE7E7EA` gibi bir gri yazma.
@@ -65,6 +73,23 @@ double kYaricap(double yukseklik) => (yukseklik * 0.29).clamp(8.0, 18.0);
 /// Buyuk yuzeyler (slider, kapak, panel) — tavana dayanir.
 /// ⚠️ Ayri bir SAYI DEGIL, ayni fonksiyonun tavani: kural tek.
 final double kYaricapBuyuk = kYaricap(1000);
+
+/// ⚠️⚠️⚠️ **VURGU RENGI: SIYAH — YESIL DEGIL** (kullanici emri, IKINCI kez:
+///	*"filtreye tikladigimda YESIL RENKLER VAR, KALDIR; SIYAH bizim
+///	rengimiz"* + *"dönere tikladigimda yesil oluyor, siyah olacak"*).
+///
+///	Bu ekranlar `Theme.of(context).colorScheme.primary` kullaniyordu ve
+///	uygulamanin temasinda o renk YESIL. Kullanici bu ekranda yesili iki
+///	ayri turda reddetti: secili filtre kutusu, "İşletmeleri listele"
+///	dugmesi, secili alt kategori ve filtre noktasi hep yesildi.
+///
+/// ⚠️ Koyu temada siyah GORUNMEZ olurdu -> orada beyaz.
+/// ⚠️ TEK KAYNAK: bu ekranlarda vurgu gereken HER yer bunu cagirir.
+///    `colorScheme.primary` yazilirsa yesil GERI GELIR.
+/// ⚠️ YAPMA: bu ekranlarda `colorScheme.primary`/`secondary` kullanma.
+Color kVurgu(BuildContext c) => Theme.of(c).brightness == Brightness.dark
+    ? Colors.white
+    : const Color(0xFF1A1A1A);
 
 /// Liste gorunumundeki genis kart.
 class IsletmeKarti extends ConsumerStatefulWidget {

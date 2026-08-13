@@ -25,13 +25,9 @@ import 'yakinimda_ekrani.dart';
 ///    ("yakında" diyordu) — bu projede tekrar eden "olu dogmus ozellik"
 ///    sinifiydi. Artik gercek bir listeye baglaniyor.
 ///
-/// ⚠️⚠️ TURU 93 — YAN BOSLUK **TEK KAYNAK** (kullanici emri: *"hepsi bir
-///    container icinde sol sag bosluk icinde"*). Header, slider, arama
-///    kutusu, 60x60 kartlar, filtre satiri ve isletme kartlari AYNI hizada
-///    durur.
-/// ⚠️ YAPMA: bu ekranda elle 12/14/16 gibi yatay dolgu yazma — bir tanesi
-///    guncellenip otekiler unutuldugunda hizalama SESSIZCE bozulur.
-const double kYanBosluk = 16;
+// ⚠️ `kYanBosluk` `isletme_kart.dart`a TASINDI: slider da ayni sabiti
+//    kullanmak ZORUNDA (peek orani ondan turuyor) ve bu dosyayi import
+//    etmesi dongu olurdu.
 
 /// ⚠️⚠️⚠️ TURU 95 — **DIKEY RITIM: TEK KAYNAK.**
 ///
@@ -98,8 +94,17 @@ const double kInputBoy = 48;
 ///    payidir, gorsel hiza degil).
 /// ⚠️ YAPMA: bu ikisinden birini degistirip otekini birakma; hiza
 ///    `kAltIcBosluk` uzerinden TURETILIYOR.
+/// Kesif kartlari (4 x 2) — bkz. `_kesifIzgarasi`.
+/// ⚠️ TURU 96c — 60 -> **78** (kullanici emri: *"kartin yuksekligini
+///    arttir"*). Kutu ICI BOS oldugu icin (ikonlar kaldirildi) alcak bir
+///    kutu "yer tutucu" gibi duruyordu.
+/// ⚠️ Kutu yuksekligi SABIT, genislik EKRANDAN turer: dorduncu kart dar
+///    telefonda tasmasin.
+const double kKesifKutu = 78;
+const double kKesifAralik = 8;
+
 const double kAltKutu = 60; // gorsel kutu (kare)
-const double kAltHucre = 78; // kutu + altindaki yazi alani
+const double kAltHucre = 70; // kutu + altindaki yazi alani
 const double kAltIcBosluk = (kAltHucre - kAltKutu) / 2; // = 9
 
 /// ⚠️⚠️⚠️ TURU 96 — **BOLUMLERIN IC PAYI ARALIKTAN DUSULUR.**
@@ -114,8 +119,10 @@ const double kAltIcBosluk = (kAltHucre - kAltKutu) / 2; // = 9
 /// EKSI o bolumun ic payi.
 /// ⚠️ YAPMA: bir bolumun dokunma alanini kucultup "duzelttim" deme; payi
 ///    ARALIKTAN dus.
-const double kHeaderPay = 5; // (44 - 34) / 2
-const double kCipPay = 4; // (40 - 32) / 2
+/// ⚠️ TURU 96b — daire kaldirilip ikon 24'e cikinca **5 -> 10** oldu.
+///    Pay, dokunma alani ile GORSEL oge arasindaki farkin yarisidir.
+const double kHeaderPay = (44 - 24) / 2; // = 10
+const double kCipPay = (40 - 32) / 2; // = 4
 
 // ⚠️ `kYuzeyGri` `isletme_kart.dart`a TASINDI (tek kaynak): kart ve bu
 //    ekran ayni griyi kullanmak ZORUNDA.
@@ -564,12 +571,15 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                     //    `_slaytlar` bos kalir ve `PageView` 0 ogeyle
                     //    cizilir -> ekranin tepesinde ICI BOS gri dikdortgen.
                     if (_slaytlar.isNotEmpty) ...[
+                      // ⚠️⚠️ **DOLGU YOK — SLIDER TAM GENISLIK** (turu 96b).
+                      //    Yandaki slaytlarin sarkmasi icin viewport ekranin
+                      //    TAMAMI olmali; yan bosluk slider'in KENDI
+                      //    `viewportFraction` hesabindan geliyor ve aktif
+                      //    kartin sol kenari yine tam `kYanBosluk`ta duruyor.
+                      // ⚠️ YAPMA: burayi tekrar `Padding` ile sarma — kart
+                      //    16 yerine ~35 dp'ye kayar (olculdu).
                       SliverToBoxAdapter(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: kYanBosluk),
-                          child: KategoriSlider(slaytlar: _slaytlar),
-                        ),
+                        child: KategoriSlider(slaytlar: _slaytlar),
                       ),
                       // ⚠️ TURU 96 — bu bosluk artik OTEKILERLE BIREBIR AYNI
                       //    (kullanici emri); slider'a ozel genis nefes YOK.
@@ -577,49 +587,76 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                           child: SizedBox(height: kBosluk)),
                     ],
 
-                    // ── ALT KATEGORI KARTLARI (60x60) ──
-                    SliverToBoxAdapter(child: _altKategoriSeridi()),
+                    // ── KESIF KARTLARI (4 x 2) ──
+                    // ⚠️ Kullanici emri: 60x60 seridinin ESKI YERINE, daha
+                    //    buyuk 8 kart (bkz. `_kesifIzgarasi`).
+                    SliverToBoxAdapter(child: _kesifIzgarasi()),
                     const SliverToBoxAdapter(
                         child: SizedBox(height: kBosluk)),
 
-                    // ── ARAMA + GORUNUM + HARITA ──
-                    // ⚠️ Kullanici emri: *"inputu kartlarin altina koy"*.
+                    // ── ARAMA ──
+                    // ⚠️ Kullanici emri: *"inputu kartlarin altina koy"* +
+                    //    turu 96c: *"arama inputunu da GENISLET"*.
+                    // ⚠️⚠️ GORUNUM VE HARITA DUGMELERI **BURADAN TASINDI**
+                    //    (liste basligina). Input artik satirin TAMAMI.
+                    // ⚠️ YAPMA: bu satira tekrar dugme ekleme — input daralir.
                     SliverToBoxAdapter(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
                             horizontal: kYanBosluk),
-                        child: Row(
-                          children: [
-                            Expanded(child: _aramaKutusu()),
-                            const SizedBox(width: 10),
-                            _gorunumAnahtari(),
-                            const SizedBox(width: 8),
-                            // ⚠️ Harita, gorunum anahtariyla ayni dilde:
-                            //    gri daire (kullanici emri).
-                            _daireDugme(
-                              LucideIcons.map,
-                              'Haritada gör',
-                              () => Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) =>
-                                      YakinimdaEkrani(kategori: _kategori),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
+                        child: _aramaKutusu(),
                       ),
                     ),
-                    // ⚠️ Cip seridinin USTUNDE 4px kendi payi var
-                    //    (bkz. `kCipPay`): gorunen bosluk yine 16.
-                    const SliverToBoxAdapter(
-                        child: SizedBox(height: kBosluk - kCipPay)),
+                    // ⚠️ Alt kategori seridi VARSA tam bosluk; YOKSA hemen
+                    //    altta cip seridi geliyor demektir ve onun kendi
+                    //    4px payi DUSULUR (bkz. `kCipPay`).
+                    SliverToBoxAdapter(
+                        child: SizedBox(
+                            height: _altKategoriler.isNotEmpty
+                                ? kBosluk
+                                : kBosluk - kCipPay)),
+
+                    // ── "MUTFAKLAR" + ALT KATEGORI SERIDI (60x60) ──
+                    // ⚠️ Kullanici emri: *"döner kebap vs. bunlari isletme ara
+                    //    ALTINA al, sol uste MUTFAKLAR yazsin"*.
+                    // ⚠️ Baslik YALNIZ serit varken cizilir: bos bir "Mutfaklar"
+                    //    basligi, altinda hicbir sey yokken tuhaf durur
+                    //    (her kategoride alt kategori tanimli degil).
+                    if (_altKategoriler.isNotEmpty) ...[
+                      const SliverToBoxAdapter(
+                        child: Padding(
+                          padding:
+                              EdgeInsets.symmetric(horizontal: kYanBosluk),
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              'Mutfaklar',
+                              style: TextStyle(
+                                  fontSize: 17, fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SliverToBoxAdapter(child: SizedBox(height: 10)),
+                      SliverToBoxAdapter(child: _altKategoriSeridi()),
+                      // ⚠️ Cip seridinin USTUNDE 4px kendi payi var
+                      //    (bkz. `kCipPay`): gorunen bosluk yine 16.
+                      const SliverToBoxAdapter(
+                          child: SizedBox(height: kBosluk - kCipPay)),
+                    ],
 
                     // ── HIZLI SUZGECLER ──
                     SliverToBoxAdapter(child: _filtreSatiri()),
                     // ⚠️ Cip seridinin ALTINDA da 4px pay var.
                     const SliverToBoxAdapter(
                         child: SizedBox(height: kBosluk - kCipPay)),
+
+                    // ── "İşletmeler (N)" + GORUNUM + HARITA ──
+                    if (l != null && l.isNotEmpty) ...[
+                      SliverToBoxAdapter(child: _listeBasligi(l.length)),
+                      const SliverToBoxAdapter(
+                          child: SizedBox(height: kBosluk)),
+                    ],
 
                     if (_hata != null)
                       SliverToBoxAdapter(
@@ -769,12 +806,16 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
         //	altindaki slider/kart/input ise 16px'te baslardi: header 5px
         //	SAGA KAYMIS gorunurdu.
         //
-        //	FIX: dolgu `kYanBosluk - 5`. Boylece SOLDA dairenin sol kenari
-        //	tam 16, SAGDA da (ayni 5px'lik ic bosluk simetrik oldugu icin)
-        //	dairenin sag kenari tam `genislik - 16`.
-        // ⚠️ YAPMA: burayi `kYanBosluk`a dondurme; ya da daire/dokunma
-        //    olculerini degistirirsen bu 5'i de yeniden hesapla ((44-34)/2).
-        padding: const EdgeInsets.symmetric(horizontal: kYanBosluk - 5),
+        //	FIX: dolgudan o ic pay DUSULUR. Boylece SOLDA ikonun sol kenari
+        //	tam 16, SAGDA da (pay simetrik oldugu icin) sag kenari tam
+        //	`genislik - 16`.
+        // ⚠️⚠️ TURU 96b — DAIRE KALKTI, IKON 24 OLDU -> pay `(44-34)/2 = 5`
+        //    DEGIL artik **`(44-24)/2 = 10`**. Eski 5 birakilsaydi ikonlar
+        //    5px ICERIDE kalir ve hiza YENIDEN bozulurdu.
+        // ⚠️ YAPMA: burayi sabit bir sayiya donme; ikon ya da dokunma olcusu
+        //    degisirse `kHeaderPay` uzerinden yeniden turer.
+        padding: const EdgeInsets.symmetric(
+            horizontal: kYanBosluk - kHeaderPay),
         child: Row(
           children: [
             _headerDaire(
@@ -825,24 +866,17 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
           behavior: HitTestBehavior.opaque,
           onTap: onTap,
           child: SizedBox(
-            // ⚠️ Dokunma alani 44, GORSEL daire 34.
+            // ⚠️ Dokunma alani 44 KALIR (Material 48 / Apple 44 kurali):
+            //    daire kalksa da dokunulabilir alan KUCULMEZ.
             width: 44,
             height: 44,
             child: Center(
-              child: Container(
-                width: 34,
-                height: 34,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: kYuzeyGri(context),
-                  shape: BoxShape.circle,
-                ),
-                // ⚠️ 18 -> **20** (kullanici emri: *"geri ve kalp ikonu 2px
-                //    daha buyut"*). Daire 34 KALIR: buyuyen ikon, kutu degil
-                //    — kutu buyuseydi header'in sol hizasi (bkz. `-5` serhi)
-                //    yeniden kayardi.
-                child: Icon(ikon, size: 20, color: _notrYazi),
-              ),
+              // ⚠️⚠️ TURU 96b — **DAIRE KALDIRILDI** (kullanici emri: *"geri
+              //	ve kalp arkasindaki daireleri kaldir, o ikonlari 4px daha
+              //	buyut"*). Ikon artik sayfa zemini uzerinde ciplak duruyor.
+              // ⚠️ 20 -> **24**: daire kalkinca ikon kucuk kaliyordu; 4px
+              //    buyume o boslugu dolduruyor.
+              child: Icon(ikon, size: 24, color: _notrYazi),
             ),
           ),
         ),
@@ -888,11 +922,20 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
     //	`kInputBoy` yuksekliginde bir kutuya alinir, gri daire onun ICINDE
     //	ortalanir -> cerceve GERCEKTEN 48 olur.
     // ⚠️ YAPMA: burayi tekrar `SizedBox`la sarip cozdum sanma; olcup dogrula.
+    // ⚠️⚠️ TURU 96c — YAZI **1px KUCUK, BIR TIK KALIN** (kullanici emri:
+    //	*"isletme ara yazisini 1px ufalt ve 1 tik kalinlastir"*).
+    //	Varsayilan `bodyLarge` 16/w400 idi -> **15/w500**.
+    // ⚠️ Ipucu ve GERCEK METIN **AYNI** stili kullanir: farkli olsalardi
+    //    kullanici yazmaya basladigi an yazi boyu ZIPLARDI.
+    const yaziStili = TextStyle(fontSize: 15, fontWeight: FontWeight.w500);
     return TextField(
       controller: _arama,
       onChanged: _aramaDegisti,
+      style: yaziStili,
       decoration: InputDecoration(
         hintText: 'İşletme ara',
+        hintStyle: yaziStili.copyWith(
+            color: (koyu ? Colors.white : Colors.black).withValues(alpha: 0.45)),
         // ⚠️⚠️ MESAFELER **ACIKCA** VERILIR (kullanici emri: *"arama ikonu
         //	input soluna dayanmis, bu mesafeleri lutfen mimarisini iyi
         //	ayarla"*).
@@ -981,7 +1024,7 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                       width: 8,
                       height: 8,
                       decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.primary,
+                        color: kVurgu(context),
                         shape: BoxShape.circle,
                         // ⚠️ Kutu ile ayni renkte cerceve: nokta gri dairenin
                         //    kenarinda "yapisik" gorunmesin.
@@ -1010,6 +1053,187 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
           borderSide: BorderSide(color: odak, width: 1.6),
         ),
       ),
+    );
+  }
+
+  /// ⚠️⚠️⚠️ TURU 96b — **KESIF KARTLARI: 4 x 2 = 8** (kullanici emri:
+  ///	*"döner kebap kartlari yerine 4 tane soldan saga dogru, ama daha
+  ///	buyuk kart seklinde 'Ne Yesem?', 'İndirimli Restoranlar' gibi; 4
+  ///	altina 4, 8 tane kart olacak, isimlerini sen bul"*).
+  ///
+  /// ⚠️⚠️ **SEKIZININ DE ARKASINDA GERCEK BIR DAVRANIS VAR.** Bu projede
+  ///	"arayuz var, veri yok" en pahali hata sinifi (filtre panelinde
+  ///	"Ödeme Yöntemleri"ni tam bu yuzden cizmedik). Her kart, ZATEN
+  ///	calisan bir suzgece/siralamaya/ekrana baglandi:
+  ///	  Ne Yesem?     -> listeden RASTGELE bir isletme acar
+  ///	  İndirimli     -> `kampanyali` suzgeci
+  ///	  Yüksek Puanlı -> `puan >= 4,5`
+  ///	  En Hızlı      -> teslimat suresine gore siralama
+  ///	  Yakınımda     -> mesafeye gore siralama
+  ///	  Şu An Açık    -> calisma saatine gore suzgec
+  ///	  Uygun Fiyatlı -> `min. tutar <= 150 TL`
+  ///	  Favorilerim   -> favoriler ekrani
+  /// ⚠️ YAPMA: buraya davranisi olmayan "guzel duran" bir kart ekleme.
+  ///
+  /// ⚠️⚠️ ETIKETLER ISTEMCIDE (alt kategorilerin AKSINE) ve bu BILINCLI:
+  ///	alt kategoriler VERIDIR (her kategoride baska mutfaklar var, sunucu
+  ///	doldurur — turu 92 kurali). Bunlar ise DAVRANIS: her biri istemcideki
+  ///	bir suzgec alanina baglaniyor, sunucudan gelen bir metin o alani
+  ///	YARATAMAZ. Suzgecler sunucuya tasindiginda bu liste de oraya taşınır.
+  /// ⚠️ "Ne Yesem?" YALNIZ yemek kategorisinde; digerlerinde "Sürpriz"
+  ///    (kuaförde "Ne Yesem?" yazmak sacma olurdu).
+  Widget _kesifIzgarasi() {
+    final f = _filtre;
+    final kartlar = <({String ad, bool secili, VoidCallback ac})>[
+      (
+        ad: _kategori == 'yemek' ? 'Ne Yesem?' : 'Sürpriz',
+        secili: false,
+        ac: _rastgeleAc,
+      ),
+      (
+        ad: 'İndirimli',
+        secili: f.kampanyali,
+        ac: () => setState(() => f.kampanyali = !f.kampanyali),
+      ),
+      (
+        ad: 'Yüksek Puanlı',
+        secili: f.puanTaban == 4.5,
+        ac: () => setState(() => f.puanTaban = f.puanTaban == 4.5 ? null : 4.5),
+      ),
+      (
+        ad: 'En Hızlı',
+        secili: f.siralama == Siralama.teslimat,
+        ac: () => setState(() => f.siralama = f.siralama == Siralama.teslimat
+            ? Siralama.onerilen
+            : Siralama.teslimat),
+      ),
+      (
+        ad: 'Yakınımda',
+        secili: f.siralama == Siralama.mesafe,
+        ac: () => setState(() => f.siralama = f.siralama == Siralama.mesafe
+            ? Siralama.onerilen
+            : Siralama.mesafe),
+      ),
+      (
+        ad: 'Şu An Açık',
+        secili: f.suAnAcik,
+        ac: () => setState(() => f.suAnAcik = !f.suAnAcik),
+      ),
+      (
+        ad: 'Uygun Fiyatlı',
+        secili: f.minTutarTavanKurus == 15000,
+        ac: () => setState(() =>
+            f.minTutarTavanKurus = f.minTutarTavanKurus == 15000 ? null : 15000),
+      ),
+      (
+        ad: 'Favorilerim',
+        secili: false,
+        ac: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const FavorilerimEkrani()),
+        ),
+      ),
+    ];
+    // ⚠️ Hucre genisligi EKRANDAN turetilir: sabit yazilsaydi 360dp'lik
+    //    telefonda dorduncu kart TASARDI.
+    final en =
+        (MediaQuery.sizeOf(context).width - kYanBosluk * 2 - kKesifAralik * 3) /
+            4;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: kYanBosluk),
+      child: Column(
+        children: [
+          for (var satir = 0; satir < 2; satir++) ...[
+            if (satir > 0) const SizedBox(height: kKesifAralik),
+            Row(
+              children: [
+                for (var s = 0; s < 4; s++) ...[
+                  if (s > 0) const SizedBox(width: kKesifAralik),
+                  SizedBox(
+                    width: en,
+                    child: _kesifKarti(kartlar[satir * 4 + s]),
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// Tek kesif karti — gri kutu + ikon, ALTINDA ad.
+  ///
+  /// ⚠️ Ad kutunun ICINE yazilmaz: "Yüksek Puanlı" ~89dp'lik bir kutuya tek
+  ///    satirda SIGMAZ; disarida iki satira sarabilir (60x60 kartlarla ayni
+  ///    desen).
+  /// ⚠️ Secili hal **KENARLIK** (yesil dolgu DEGIL — bkz. `kVurgu`), ve
+  ///    kutuyu BUYUTMEZ.
+  Widget _kesifKarti(
+      ({String ad, bool secili, VoidCallback ac}) k) {
+    final vurgu = kVurgu(context);
+    return Semantics(
+      button: true,
+      selected: k.secili,
+      label: k.ad,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: k.ac,
+        child: Column(
+          children: [
+            Container(
+              height: kKesifKutu,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: kYuzeyGri(context),
+                borderRadius: BorderRadius.circular(kYaricap(kKesifKutu)),
+                border:
+                    k.secili ? Border.all(color: vurgu, width: 1.6) : null,
+              ),
+              // ⚠️⚠️ TURU 96c — **IKON KALDIRILDI** (kullanici emri: *"ne
+              //	yesem vb. kartlardaki ikonlari kaldir"*). Kutu artik salt
+              //	bir yuzey; ad ALTINDA yaziyor — 60x60 mutfak kartlariyla
+              //	BIREBIR ayni dil.
+              // ⚠️ YAPMA: buraya ikon ya da harf geri koyma (kullanici bu
+              //    ekranda kutu icine kondan HER SEYI uc kez kaldirtti).
+            ),
+            const SizedBox(height: 5),
+            Text(
+              k.ad,
+              maxLines: 2,
+              textAlign: TextAlign.center,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 12,
+                height: 1.15,
+                // ⚠️ KALINLIK SABIT: degisseydi metin genisleyip satiri
+                //    kaydirirdi (ciplerde yasanan hata).
+                fontWeight: FontWeight.w600,
+                color: k.secili ? vurgu : null,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// "Ne Yesem?" — elindeki listeden RASTGELE bir isletme acar.
+  ///
+  /// ⚠️ Liste BOSSA hicbir sey yapmaz ama kullaniciya SEBEP soylenir:
+  ///    sessizce hicbir sey olmamasi "dugme bozuk" hissi verirdi.
+  /// ⚠️ **SUZULMUS** listeden secer (`_gosterilen`): kullanici bir filtre
+  ///    acmissa "rastgele" onun disina cikmamali.
+  void _rastgeleAc() {
+    final l = _gosterilen ?? const <IsletmeOzet>[];
+    if (l.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Önce listede işletme olmalı.'),
+      ));
+      return;
+    }
+    final o = l[DateTime.now().microsecondsSinceEpoch % l.length];
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => ProfilSayfasi(userId: o.id)),
     );
   }
 
@@ -1095,7 +1319,7 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
         itemBuilder: (_, i) {
           final a = _altKategoriler[i];
           final secili = _altSecili == a.ara;
-          final renk = Theme.of(context).colorScheme.primary;
+          final renk = kVurgu(context);
           return Padding(
             // ⚠️ Kullanici emri (DORDUNCU kez azaltildi): 10 -> 4 -> 2 -> **0**.
             //    Hucre genisligi 78 KALIR: daraltmak "Lahmacun"u tekrar
@@ -1152,9 +1376,19 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                         //	   kaliyor, gorsel hiyerarsi TERS donuyordu.
                         // ⚠️ Kenarlik filtre cipleriyle AYNI dili konusur
                         //    (`_notrKenar`) — yeni bir sabit renk eklemez.
-                        color: secili
-                            ? renk.withValues(alpha: 0.16)
-                            : kYuzeyGri(context),
+                        color: kYuzeyGri(context),
+                        // ⚠️⚠️ SECILI HAL **KENARLIK** (kullanici emri: *"dönere
+                        //	tikladigimda yesil oluyor, SIYAH olacak ya da eskisi
+                        //	gibi GRIMSI BORDER icinde"*).
+                        //
+                        //	Onceki hal kutuyu yesile boyuyordu. Artik zemin
+                        //	DEGISMEZ, cevresine siyah bir kenarlik cizilir —
+                        //	filtre cipleriyle AYNI dil.
+                        // ⚠️ Kenarlik kutuyu BUYUTMEZ: `BoxDecoration.border`
+                        //    ic tarafa cizilir, olculer sabit kalir.
+                        border: secili
+                            ? Border.all(color: renk, width: 1.6)
+                            : null,
                       ),
                       // ⚠️⚠️ TURU 93 — KUTUNUN ICI **BOS** (kullanici emri:
                       //    *"kart icinde yazi olmasin, kartlarin icindeki
@@ -1176,7 +1410,9 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                         //    URETMEZ — sabit 92px olsaydi ederdi.
                         fontSize: 13,
                         height: 1.15,
-                        fontWeight: secili ? FontWeight.w700 : FontWeight.w500,
+                        // ⚠️ KALINLIK SABIT: degisseydi metin genisler ve
+                        //    serit yana KAYARDI (ciplerde yasanan hata).
+                        fontWeight: FontWeight.w600,
                         color: secili ? renk : null,
                       ),
                     ),
@@ -1561,6 +1797,41 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
             ),
             child: Icon(ikon, size: 20, color: _notrYazi),
           ),
+        ),
+      );
+
+  /// ⚠️⚠️⚠️ TURU 96c — LISTE BASLIGI (kullanici emri: *"arama inputun
+  ///	sagindaki gorunumleri isletme kartinin SOL USTUNDE 'İşletmeler (2)',
+  ///	EN SAGDA gorunum ikonlari olsun"*).
+  ///
+  /// ⚠️ SAYI **SUZULMUS** listeden gelir: kullanici bir filtre acinca kacini
+  ///    gordugunu ANINDA bilmeli. Ham listeden verilseydi "İşletmeler (14)"
+  ///    yazip altta 2 kart cizerdi.
+  /// ⚠️ Liste HENUZ YUKLENMEDIYSE ya da BOSSA baslik CIZILMEZ: "İşletmeler
+  ///    (0)" ustunde bos bir alan, hata gibi gorunurdu — o durumda zaten
+  ///    aciklayici bos-durum metni var.
+  Widget _listeBasligi(int adet) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: kYanBosluk),
+        child: Row(
+          children: [
+            Text(
+              'İşletmeler ($adet)',
+              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+            ),
+            const Spacer(),
+            _gorunumAnahtari(),
+            const SizedBox(width: 8),
+            // ⚠️ Harita, gorunum anahtariyla ayni dilde: gri daire.
+            _daireDugme(
+              LucideIcons.map,
+              'Haritada gör',
+              () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => YakinimdaEkrani(kategori: _kategori),
+                ),
+              ),
+            ),
+          ],
         ),
       );
 
