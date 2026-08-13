@@ -2878,6 +2878,146 @@ const kontrol = (ad, gecti, ek = '') => {
       'slayt=' + (((bos.d || {}).slaytlar) || []).length +
       ' alt=' + (((bos.d || {}).alt_kategoriler) || []).length);
 
+    // ⚠️⚠️⚠️ TURU 96h — SUZGECLER **SUNUCUDA** (arayuzdeki filtre paneli).
+    //
+    //	Turu 96'da suzme ISTEMCIDE yapiliyordu ve sunucu `LIMIT 60`
+    //	donduruyordu: "60'in icinden suzulmus" sonuc "hepsinden suzulmus"ten
+    //	FARKLI olabiliyordu. Bu kontroller yuklemin GERCEKTEN calistigini
+    //	kanitlar — yalnizca "200 dondu" degil, SAYININ DEGISTIGI olculur.
+    const hepsi = await j('/isletmeler?kategori=yemek', { token: Z.token });
+    const hepsiAdet = (((hepsi.d || {}).isletmeler) || []).length;
+
+    // puan >= 4.5 -> tohumda yalniz bir restoran (4.5); oteki 3.6.
+    const puanli = await j('/isletmeler?kategori=yemek&puan=4.5',
+      { token: Z.token });
+    const puanliListe = ((puanli.d || {}).isletmeler) || [];
+    kontrol('TURU 96h: puan suzgeci SUNUCUDA calisiyor',
+      puanli.kod === 200 && puanliListe.length > 0 &&
+      puanliListe.length < hepsiAdet &&
+      puanliListe.every((o) => (o.puan || 0) >= 4.5),
+      'hepsi=' + hepsiAdet + ' suzulmus=' + puanliListe.length);
+
+    // ⚠️ PUANI OLMAYAN KAYIT ELENMELI: istemcideki kural buydu, sunucuya
+    //    BIREBIR tasindi. Gecirseydi suzgec ETKISIZ gorunurdu.
+    const puansizVar = await j('/isletmeler?kategori=doktor&puan=4.5',
+      { token: Z.token });
+    kontrol('TURU 96h: puani NULL olan kayit suzgecten GECMEZ',
+      puansizVar.kod === 200 &&
+      (((puansizVar.d || {}).isletmeler) || [])
+        .every((o) => o.puan !== null && o.puan !== undefined),
+      'adet=' + (((puansizVar.d || {}).isletmeler) || []).length);
+
+    // min tutar: tohumda restoranlarin ikisi de 260 TL -> 150 TL tavani BOS
+    const ucuz = await j('/isletmeler?kategori=yemek&min_tutar=15000',
+      { token: Z.token });
+    kontrol('TURU 96h: min. tutar suzgeci SUNUCUDA calisiyor',
+      ucuz.kod === 200 && (((ucuz.d || {}).isletmeler) || []).length === 0,
+      'adet=' + (((ucuz.d || {}).isletmeler) || []).length);
+
+    // ⚠️ BOZUK DEGER 400 DEGIL, "suzme yok"a duser: bir yazim hatasi
+    //    yuzunden listenin HIC gelmemesindense suzgecsiz gelmesi yeglenir.
+    const bozuk = await j('/isletmeler?kategori=yemek&puan=abc&min_tutar=-5',
+      { token: Z.token });
+    kontrol('TURU 96h: BOZUK suzgec degeri listeyi OLDURMEZ (suzme yok)',
+      bozuk.kod === 200 &&
+      (((bozuk.d || {}).isletmeler) || []).length === hepsiAdet,
+      'adet=' + (((bozuk.d || {}).isletmeler) || []).length);
+
+    // kampanyali
+    const kamp = await j('/isletmeler?kategori=yemek&kampanyali=1',
+      { token: Z.token });
+    kontrol('TURU 96h: kampanyali suzgeci SUNUCUDA calisiyor',
+      kamp.kod === 200 &&
+      (((kamp.d || {}).isletmeler) || [])
+        .every((o) => (o.kampanyalar || []).length > 0),
+      'adet=' + (((kamp.d || {}).isletmeler) || []).length);
+
+    // ⚠️ created_at: "Yeni Restourant" kartinin GERCEK olcutu buna baglanacak.
+    kontrol('TURU 96h: liste yaniti created_at donduruyor',
+      hepsiAdet > 0 && typeof
+        (((hepsi.d || {}).isletmeler) || [])[0].created_at === 'string',
+      'ornek=' + ((((hepsi.d || {}).isletmeler) || [])[0] || {}).created_at);
+
+    // ── KAYITLI ADRESLER (migration 048) ──
+    const bosAdres = await j('/users/me/adresler', { token: Z.token });
+    kontrol('TURU 96h: adres listesi BOS baslar',
+      bosAdres.kod === 200 &&
+      (((bosAdres.d || {}).adresler) || []).length === 0,
+      'HTTP ' + bosAdres.kod);
+
+    const ekle1 = await j('/users/me/adresler', {
+      yontem: 'POST', token: Z.token,
+      govde: { ad: 'Ev', enlem: 40.8028, boylam: 29.4307 },
+    });
+    const ekle2 = await j('/users/me/adresler', {
+      yontem: 'POST', token: Z.token,
+      govde: { ad: 'İş', enlem: 40.81, boylam: 29.44 },
+    });
+    kontrol('TURU 96h: adres eklenebiliyor',
+      ekle1.kod === 201 && ekle2.kod === 201,
+      'ev=' + ekle1.kod + ' is=' + ekle2.kod);
+
+    // ⚠️⚠️ AYNI ANDA TEK SECILI ADRES — kisimli tekil indeks bunu VERITABANI
+    //    seviyesinde dayatir. Uygulama katmaninda "once hepsini false yap"
+    //    iki deyimdir ve arada bir istek girerse IKI SECILI kalirdi.
+    const iki = await j('/users/me/adresler', { token: Z.token });
+    const ikiListe = ((iki.d || {}).adresler) || [];
+    kontrol('TURU 96h: AYNI ANDA TEK adres secili (son eklenen)',
+      ikiListe.length === 2 &&
+      ikiListe.filter((a) => a.secili).length === 1 &&
+      (ikiListe.find((a) => a.secili) || {}).ad === 'İş',
+      'secili=' + ikiListe.filter((a) => a.secili).map((a) => a.ad).join(','));
+
+    const evId = (ikiListe.find((a) => a.ad === 'Ev') || {}).id;
+    const sec = await j('/users/me/adresler/' + evId + '/sec',
+      { yontem: 'POST', token: Z.token });
+    const sonra = await j('/users/me/adresler', { token: Z.token });
+    const sonraListe = ((sonra.d || {}).adresler) || [];
+    kontrol('TURU 96h: adres secimi degistirilebiliyor',
+      sec.kod === 204 &&
+      sonraListe.filter((a) => a.secili).length === 1 &&
+      (sonraListe.find((a) => a.secili) || {}).ad === 'Ev',
+      'secili=' + sonraListe.filter((a) => a.secili).map((a) => a.ad).join(','));
+
+    // ⚠️⚠️ YATAY YETKI: BASKASININ adresini secmek/silmek 404 olmali.
+    //    Sorgular `user_id` ile bagli; olmasaydi id bilen herkes baskasinin
+    //    adresini degistirebilirdi.
+    const baskasi = await j('/users/me/adresler/' + evId + '/sec',
+      { yontem: 'POST', token: A.token });
+    kontrol('TURU 96h: BASKASININ adresi secilemez (yatay yetki)',
+      baskasi.kod === 404, 'HTTP ' + baskasi.kod);
+    const baskasiSil = await j('/users/me/adresler/' + evId,
+      { yontem: 'DELETE', token: A.token });
+    kontrol('TURU 96h: BASKASININ adresi silinemez (yatay yetki)',
+      baskasiSil.kod === 404, 'HTTP ' + baskasiSil.kod);
+
+    // ⚠️ NaN/aralik disi koordinat 400: `ParseFloat("NaN")` hata DONDURMEZ ve
+    //    NaN her karsilastirmadan gecer (turu 85b dersi).
+    const bozukKoord = await j('/users/me/adresler', {
+      yontem: 'POST', token: Z.token,
+      govde: { ad: 'Bozuk', enlem: 999, boylam: 0 },
+    });
+    kontrol('TURU 96h: aralik disi koordinat 400',
+      bozukKoord.kod === 400, 'HTTP ' + bozukKoord.kod);
+
+    // ⚠️ AYNI AD ikinci kez -> GUNCELLENIR (istemci "Ev"i yeniden secebilmeli)
+    const tekrar = await j('/users/me/adresler', {
+      yontem: 'POST', token: Z.token,
+      govde: { ad: 'Ev', enlem: 41.0, boylam: 29.0 },
+    });
+    const guncel = await j('/users/me/adresler', { token: Z.token });
+    const ev = (((guncel.d || {}).adresler) || []).find((a) => a.ad === 'Ev');
+    kontrol('TURU 96h: AYNI AD ikinci kez gonderilince GUNCELLENIR',
+      tekrar.kod === 201 && (((guncel.d || {}).adresler) || []).length === 2 &&
+      Math.abs((ev || {}).enlem - 41.0) < 0.001,
+      'adet=' + (((guncel.d || {}).adresler) || []).length +
+      ' enlem=' + ((ev || {}).enlem));
+
+    const sil = await j('/users/me/adresler/' + evId,
+      { yontem: 'DELETE', token: Z.token });
+    kontrol('TURU 96h: adres silinebiliyor', sil.kod === 204,
+      'HTTP ' + sil.kod);
+
     // ⚠️⚠️⚠️ TURU 96 — LISTE YANITI **KOORDINAT DONDURMELI**.
     //
     //	Kart altindaki "1,2 km" mesafesi ISTEMCIDE hesaplaniyor (Haversine)
