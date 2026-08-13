@@ -31,7 +31,14 @@ class _LiveTabState extends ConsumerState<LiveTab> {
   @override
   void initState() {
     super.initState();
-    ref.invalidate(liveStreamsProvider); // aciliste taze
+    // ⚠️⚠️ TURU 96i — bkz. `rooms_tab.dart` (ayni hata, ayni gerekce):
+    //	`ref.invalidate` `initState` govdesinde cagrilirsa Flutter
+    //	*"...before _LiveTabState.initState() completed"* assertion'i atar ve
+    //	`IndexedStack` yuzunden bu HER SOGUK ACILISTA olur.
+    // ⚠️ YAPMA: govdeye geri tasima.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) ref.invalidate(liveStreamsProvider);
+    });
     // ANLIK (test turu 5): yayin baslat/bitir -> backend broadcast -> listeyi HEMEN tazele.
     // (home IndexedStack ile bu State kalici -> WS dinleyici surekli aktif, olay kacmaz.)
     _wsSub = ref.read(wsProvider).events.listen((ev) {

@@ -67,7 +67,19 @@ func (h *AdresHandler) Liste(w http.ResponseWriter, r *http.Request) {
 	if e := rows.Err(); e != nil {
 		log.Printf("adres rows: %v", e)
 	}
-	json.NewEncoder(w).Encode(map[string]any{"adresler": out})
+	// ⚠️⚠️⚠️ TURU 96i — `yaz()` KULLANILIR, ciplak `json.NewEncoder(w)` DEGIL.
+	//	Ciplak encoder **`Content-Type` BASLIGINI YAZMAZ**; Go govdeyi koklayip
+	//	`text/plain; charset=utf-8` koyar. Dio bu basligi gorunce govdeyi
+	//	AYRISTIRMAZ ve `response.data` bir **String** olur ->
+	//	`data['adresler']` -> *"type 'String' is not a subtype of type 'int'
+	//	of 'index'"* -> istemcideki `catch` YUTAR -> **panel "Kayıtlı konumun
+	//	yok" der, oysa sunucuda adres VARDIR.**
+	// ⚠️ SAHADA YASANDI: sunucu 200 + dogru govde donduruyordu, e2e de
+	//    GECIYORDU (Node `JSON.parse`i basliga BAKMAZ) — hata YALNIZ
+	//    uygulamada gorunuyordu.
+	// ⚠️ YAPMA: bu pakette ciplak `json.NewEncoder(w).Encode` yazma
+	//    (`icerik_turu_test.go` muhafizi bunu KIRMIZI dusurur).
+	yaz(w, 200, map[string]any{"adresler": out})
 }
 
 // POST /users/me/adresler
@@ -153,8 +165,9 @@ func (h *AdresHandler) Ekle(w http.ResponseWriter, r *http.Request) {
 		hata(w, 500, "konum kaydedilemedi")
 		return
 	}
-	w.WriteHeader(201)
-	json.NewEncoder(w).Encode(map[string]any{"id": id})
+	// ⚠️ `yaz()` — bkz. `Liste`deki serh (Content-Type olmadan istemci
+	//    govdeyi String okur).
+	yaz(w, 201, map[string]any{"id": id})
 }
 
 // POST /users/me/adresler/{id}/sec

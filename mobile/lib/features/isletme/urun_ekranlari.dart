@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import '../../core/denetleyici_sahibi.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -312,7 +313,9 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
     final ctrl = TextEditingController();
     final onay = await showDialog<bool>(
       context: context,
-      builder: (c) => AlertDialog(
+      builder: (c) => DenetleyiciSahibi(
+        denetleyiciler: [ctrl],
+        child: AlertDialog(
         // ⚠️⚠️ TURU 78b — `scrollable: true` ZORUNLU (denetim bulgusu).
         //    `AlertDialog`in scrollable OLMAYAN dalinda icerik
         //    `Flexible(child: content)` icine konur ve klavye acilinca kalan
@@ -359,10 +362,12 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
             child: const Text('Oluştur'),
           ),
         ],
+        ),
       ),
     );
+    // ⚠️ Metin SENKRON okunur (route hala cikis animasyonunda = denetleyici
+    //    CANLI); birakmayi DenetleyiciSahibi yapar.
     final tarif = ctrl.text.trim();
-    ctrl.dispose();
     if (onay != true || tarif.isEmpty || !mounted) return;
 
     // ⚠️⚠️ TURU 78b — SERVIS **AWAIT'TEN ONCE** yakalanir (fotograf yolundaki
@@ -719,7 +724,9 @@ class _UrunDuzenleEkraniState extends ConsumerState<UrunDuzenleEkrani> {
     final ctrl = TextEditingController(text: ad);
     final onay = await showDialog<bool>(
       context: context,
-      builder: (c) => AlertDialog(
+      builder: (c) => DenetleyiciSahibi(
+        denetleyiciler: [ctrl],
+        child: AlertDialog(
         // ⚠️ `scrollable`: klavye acilinca icerik kirpilmasin (turu 78b dersi).
         scrollable: true,
         title: const Text('Yapay zekâ ile görsel'),
@@ -757,10 +764,11 @@ class _UrunDuzenleEkraniState extends ConsumerState<UrunDuzenleEkrani> {
             child: const Text('Oluştur'),
           ),
         ],
+        ),
       ),
     );
+    // ⚠️ Metin SENKRON okunur; birakmayi DenetleyiciSahibi yapar.
     final metin = ctrl.text.trim();
-    ctrl.dispose();
     return onay == true ? metin : null;
   }
 

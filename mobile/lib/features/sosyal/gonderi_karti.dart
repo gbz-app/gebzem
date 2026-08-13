@@ -6,6 +6,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../core/denetleyici_sahibi.dart';
+
 import '../home/home_screen.dart' show aktifSekme;
 import '../medya/konum_servisi.dart';
 import '../medya/medya_gorsel.dart';
@@ -269,7 +271,9 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
     final sonuc = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
-      builder: (c) => Padding(
+      builder: (c) => DenetleyiciSahibi(
+        denetleyiciler: [ctrl],
+        child: Padding(
         // ⚠️ viewInsets: klavye acilinca sheet YUKARI kayar; yoksa kaydet
         //    dugmesi klavyenin ALTINDA kalir ve ulasilamaz.
         padding: EdgeInsets.only(bottom: MediaQuery.of(c).viewInsets.bottom),
@@ -338,10 +342,11 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
             ),
           ),
         ),
+        ),
       ),
     );
+    // ⚠️ Metin SENKRON okunur; birakmayi DenetleyiciSahibi yapar.
     final yeniMetin = ctrl.text.trim();
-    ctrl.dispose();
     if (sonuc != true || !mounted) return;
     final degistiMi = yeniMetin != g.metin;
     // ⚠️ `konumSil` de "degisiklik var mi" kapisina GIRER — girmeseydi

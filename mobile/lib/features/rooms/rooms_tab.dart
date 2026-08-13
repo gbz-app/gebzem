@@ -30,7 +30,18 @@ class _RoomsTabState extends ConsumerState<RoomsTab> {
   @override
   void initState() {
     super.initState();
-    ref.invalidate(roomsProvider); // aciliste taze
+    // ⚠️⚠️ TURU 96i — `ref.invalidate` `initState` GOVDESINDE CAGRILAMAZ.
+    //	Riverpod kapsayiciya `dependOnInheritedWidgetOfExactType` ile ulasir;
+    //	`initState` HENUZ BITMEDIGI icin Flutter assertion atar:
+    //	*"...was called before _RoomsTabState.initState() completed"*.
+    //	`home_screen`deki `IndexedStack` TUM sekmeleri acilista kurdugu icin
+    //	bu istisna **HER SOGUK ACILISTA** dusuyordu (Sentry gurultusu +
+    //	`flutter run` konsolunda kirmizi blok).
+    // ⚠️ Kare sonrasina alindi: davranis ayni ("aciliste taze"), yalniz bir
+    //    kare sonra kosar. YAPMA: govdeye geri tasima.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) ref.invalidate(roomsProvider);
+    });
     // ANLIK (test turu 5): oda ac/bitir -> backend broadcast -> listeyi HEMEN tazele.
     _wsSub = ref.read(wsProvider).events.listen((ev) {
       if (mounted && ev['type'] == 'room.list.changed') {

@@ -26,8 +26,18 @@ async function j(yol, { yontem = 'GET', govde, token } = {}) {
   const t = await r.text();
   let d = null;
   try { d = JSON.parse(t); } catch { d = t; }
-  return { kod: r.status, d };
+  // ⚠️⚠️⚠️ TURU 96i — `tur` (Content-Type) DONDURULUYOR.
+  //	Bu betik `JSON.parse` kullanir ve **BASLIGA BAKMAZ**; yani sunucu
+  //	`text/plain` dondurse bile 200 + dogru govde ile YESIL gecerdi.
+  //	Sahada tam bu oldu: `/users/me/adresler` basliksiz donuyordu, e2e
+  //	365/365 gecti, ama **Dio govdeyi String okudu** ve "Konumun" paneli
+  //	sunucuda adres VARKEN "Kayıtlı konumun yok" dedi.
+  //	⚠️ DERS: govdenin dogrulugu, ISTEMCININ okuyabildigi anlamina gelmez.
+  return { kod: r.status, d, tur: r.headers.get('content-type') || '' };
 }
+
+/// JSON dondurmesi beklenen bir yanitin basligini dogrular.
+const jsonMu = (y) => (y.tur || '').toLowerCase().includes('application/json');
 
 const rastgele = () => Math.floor(Math.random() * 900000 + 100000);
 
@@ -2940,6 +2950,9 @@ const kontrol = (ad, gecti, ek = '') => {
 
     // ── KAYITLI ADRESLER (migration 048) ──
     const bosAdres = await j('/users/me/adresler', { token: Z.token });
+    kontrol('TURU 96i: adres yaniti application/json BASLIGI tasiyor',
+      jsonMu(bosAdres),
+      'tur=' + bosAdres.tur);
     kontrol('TURU 96h: adres listesi BOS baslar',
       bosAdres.kod === 200 &&
       (((bosAdres.d || {}).adresler) || []).length === 0,
@@ -2956,6 +2969,9 @@ const kontrol = (ad, gecti, ek = '') => {
     kontrol('TURU 96h: adres eklenebiliyor',
       ekle1.kod === 201 && ekle2.kod === 201,
       'ev=' + ekle1.kod + ' is=' + ekle2.kod);
+    kontrol('TURU 96i: adres EKLEME yaniti da application/json',
+      jsonMu(ekle1) && jsonMu(ekle2),
+      'ev=' + ekle1.tur + ' is=' + ekle2.tur);
 
     // ⚠️⚠️ AYNI ANDA TEK SECILI ADRES — kisimli tekil indeks bunu VERITABANI
     //    seviyesinde dayatir. Uygulama katmaninda "once hepsini false yap"

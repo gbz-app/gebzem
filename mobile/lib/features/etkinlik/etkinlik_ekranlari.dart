@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import '../../core/denetleyici_sahibi.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
@@ -773,7 +774,9 @@ class _EtkinlikDetayEkraniState extends ConsumerState<EtkinlikDetayEkrani> {
     final rol = TextEditingController();
     final onay = await showDialog<bool>(
       context: context,
-      builder: (c) => AlertDialog(
+      builder: (c) => DenetleyiciSahibi(
+        denetleyiciler: [ad, rol],
+        child: AlertDialog(
         title: const Text('Sahneye ekle'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -807,12 +810,13 @@ class _EtkinlikDetayEkraniState extends ConsumerState<EtkinlikDetayEkrani> {
             child: const Text('Ekle'),
           ),
         ],
+        ),
       ),
     );
+    // ⚠️ Metin SENKRON okunur: route hala cikis animasyonunda, denetleyici
+    //    CANLI. DenetleyiciSahibi birakmayi kendisi yapar.
     final isim = ad.text.trim();
     final gorev = rol.text.trim();
-    ad.dispose();
-    rol.dispose();
     if (onay != true || isim.isEmpty || !mounted) return;
     try {
       // ⚠️ `userId` GONDERILMIYOR: kadroya yazilan kisi genelde uygulamaya

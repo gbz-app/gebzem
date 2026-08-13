@@ -21,13 +21,17 @@
 ///    okur, yoksa GPS'e duser.
 library;
 
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 
 import '../../core/api.dart';
+import '../../core/denetleyici_sahibi.dart';
 import 'harita_pin.dart';
 import 'isletme_kart.dart' show kYanBosluk, kYaricap, kVurgu, kYuzeyGri;
 
@@ -74,7 +78,15 @@ class KonumDeposu {
       return l
           .map((e) => Konum.json((e as Map).cast<String, dynamic>()))
           .toList();
-    } catch (_) {
+    } catch (e) {
+      // ⚠️⚠️ TURU 96i — SESSIZ YUTMA YASAK. Hata yine YUTULUYOR (konum bir
+      //	KOLAYLIK, ekran acilmaya devam etmeli) ama ARTIK GORUNUR: aksi
+      //	halde "sunucuda adres VAR, panel BOS diyor" durumu hicbir yerde
+      //	iz birakmiyordu ve teshis EMULATORDE ELLE arandi.
+      //	(CLAUDE.md tekrarlayan ders: *"bu patlarsa TELEMETRIDE gorur
+      //	muyum?" — cevap hayirsa once olcumu koy.*)
+      debugPrint('KONUM: adresler okunamadi -> $e');
+      unawaited(Sentry.captureMessage('adresler okunamadi: $e'));
       return const [];
     }
   }
@@ -282,7 +294,9 @@ class _KonumPaneliState extends ConsumerState<_KonumPaneli> {
     );
     final sonuc = await showDialog<String>(
       context: context,
-      builder: (c) => AlertDialog(
+      builder: (c) => DenetleyiciSahibi(
+        denetleyiciler: [kutu],
+        child: AlertDialog(
         title: const Text('Konuma ad ver'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -320,9 +334,9 @@ class _KonumPaneliState extends ConsumerState<_KonumPaneli> {
             child: const Text('Kaydet'),
           ),
         ],
+        ),
       ),
     );
-    kutu.dispose();
     return sonuc;
   }
 

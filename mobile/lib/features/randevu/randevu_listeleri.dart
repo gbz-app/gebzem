@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import '../../core/denetleyici_sahibi.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
@@ -335,7 +336,9 @@ class _RandevuListesiEkraniState
     final c = TextEditingController();
     final s = await showDialog<String>(
       context: context,
-      builder: (d) => AlertDialog(
+      builder: (d) => DenetleyiciSahibi(
+        denetleyiciler: [c],
+        child: AlertDialog(
         title: Text('$eylem — sebep'),
         content: TextField(
           controller: c,
@@ -357,9 +360,9 @@ class _RandevuListesiEkraniState
             child: Text(eylem),
           ),
         ],
+        ),
       ),
     );
-    c.dispose();
     return s;
   }
 
