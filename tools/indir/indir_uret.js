@@ -45,7 +45,7 @@ const surumEtiketi =
   `${now.getUTCFullYear()}${p2(now.getUTCMonth() + 1)}${p2(now.getUTCDate())}` +
   `-${p2(now.getUTCHours())}${p2(now.getUTCMinutes())}`;
 
-const YENI_ICERIK = `<div class="yeni"><b>Bu sürümde:</b><br><br><b>1 · KONUM (yeni):</b> Kategori ekranının sol üstünde <b>konum düğmesi</b>. Dokun, <b>Yeni konum ekle</b> ile ya <b>GPS</b>&#39;ten ya da <b>haritadan pin taşıyarak</b> bulunduğun yeri <b>Ev</b>/<b>İş</b> diye kaydet. Konumlar artık <b>hesabına kayıtlı</b> — başka telefondan girsen de duruyor. Seçtiğin konum işletme kartlarındaki <b>uzaklığı</b> besler (<b>1,2 km</b> / <b>300 m</b>).<br><br><b>2 · KEŞİF KARTLARI:</b> <b>Ne Yesem?</b> (rastgele işletme açar), <b>İndirimli</b>, <b>4+</b>, <b>Şimşek</b> (en hızlı), <b>Yakınımda</b>, <b>Gece Kuşu</b> (geç saate kadar açık), <b>Yeni Restourant</b>, <b>Favori</b>. Sekizi de gerçekten süzüyor/sıralıyor.<br><br><b>3 · FİLTRELEME:</b> Süzgeç şeridinde <b>Filtre</b> ve yanında bölüm kısayolları (<b>Sıralama · Min. tutar · Puan · Teslimat · Onaylı</b>). Panel tam ekran açılır, altta <b>Listele</b> ve <b>Temizle</b>. Süzme artık <b>sunucuda</b> yapılıyor — liste ne kadar uzarsa uzasın doğru sonuç geliyor.<br><br><b>4 · MUTFAKLAR:</b> Arama kutusunun altında <b>Mutfaklar</b> başlığı ve Döner/Kebap/Pide — <b>her kategori kendine özel</b> (Kuaför&#39;de Saç Kesim/Boya...).<br><br><b>5 · LİSTE BAŞLIĞI:</b> Solda kategoriye özel ad (<b>Restoranlar (2)</b>), sağda tek kutuda <b>liste · kart · harita</b>; aktif olan gri zeminle işaretli.<br><br><b>6 · ALT MENÜ:</b> <b>3 ikon sol · logo · 3 ikon sağ</b>. Ortadaki yuvarlak logo ikonların iki katı.<br><br><b>7 · TASARIM:</b> Yeşil vurgular kaldırıldı — seçili her şey <b>siyah kenarlık</b>. Köşe yuvarlaklığı tek kurala bağlandı. Tüm bölümler <b>ekrandan piksel piksel ölçülerek</b> hizalandı. Kayan alanda <b>yandaki slaytlar</b> hafifçe görünüyor.<br><br><b>8 · HAZIR TEST HESAPLARI:</b> Veritabanı sıfırlandı; <b>14 işletme</b> (2 restoran + 2 kafe + doktor, diyetisyen, kuaför, güzellik, otel) + 2 kullanıcı, <b>14/14&#39;ünden randevu alınabiliyor</b>, hazır bir <b>düğün talebi + 3 teklif</b> ve <b>dolu bir diyet günü</b> var — hesap listesi ayrıca verildi.<br><br><b>Sınırlar:</b> Karttaki <b>puan, teslimat süresi ve minimum tutar</b> işletmenin girdiği değerlerdir; <b>değerlendirme sistemi ve sipariş/kurye modeli henüz yok</b>. Filtrede <b>ödeme yöntemi</b> bölümü yok — o veri hiç tutulmuyor, boş seçenek koymadık. <b>Yeni Restourant</b> kartı <b>puanı olmayan</b> işletmeleri gösterir; tohumdaki herkesin puanı olduğu için <b>şimdilik boş döner</b>. Kategori ekranında <b>geri düğmesi yok</b> — telefonun geri tuşu/kenar çekme ile çıkılır. Kayan alan hâlâ <b>boş</b>. Teklif isteğin <b>7 gün</b> açık kalır, en fazla <b>5 teklif</b> alır. Talepler <b>herkese açıktır</b> — telefon/adres yazma. Ödeme yok.</div>`;
+const YENI_ICERIK = `<div class="yeni"><b>Bu sürümde — ÖNEMLİ İKİ HATA DÜZELTİLDİ:</b><br><br><b>1 · KIRMIZI EKRAN GİTTİ (sen bildirdin):</b> Konumu kaydederken (ve ürün/etkinlik/randevu/gönderi düzenleme gibi <b>metin soran altı yerde</b>) ekranın tamamı kırmızı oluyordu. Sebep: yazı kutusu, pencere kapanma animasyonu <b>daha bitmeden</b> serbest bırakılıyordu. Altı yerde de düzeltildi ve bir daha olmaması için <b>kalıcı test</b> eklendi.<br><br><b>2 · KONUM KAYDEDİLİYOR AMA GÖRÜNMÜYORDU:</b> Sunucu adresi doğru kaydediyordu, uygulama <b>&quot;Kayıtlı konumun yok&quot;</b> diyordu. Sebep: sunucu yanıtı JSON olduğunu <b>söylemiyordu</b>, uygulama da okuyamıyordu. Artık <b>Konumun</b> panelinde <b>Ev</b> görünüyor, üst köşede <b>Konum: Ev</b> yazıyor ve işletme kartlarında <b>1,5 km · 948 m</b> gibi uzaklıklar çıkıyor.<br><br><b>3 · BU SAYFA ARTIK KENDİNİ KONTROL EDİYOR:</b> Telefonun tarayıcısı <b>eski bir kopyayı</b> gösterirse en üstte <b>kırmızı bir şerit</b> çıkıp &quot;BU SAYFA ESKİ&quot; diyor ve tek dokunuşla yenisini açıyor. (Saat zaten sayfada <b>5 yerde</b> yazıyor ve en üstteki <b>saniyesi akan saat</b> sayfanın az önce yüklendiğini kanıtlıyor.)<br><br><b>4 · Açılışta düşen bir hata</b> (Canlı ve Oda sekmeleri) da giderildi.<br><br><b>Önceki sürümün tamamı duruyor:</b> konum seçme (<b>GPS</b> ya da <b>haritadan pin taşıyarak</b>, hesabına kayıtlı) · 8 keşif kartı (<b>Ne Yesem? · İndirimli · 4+ · Şimşek · Yakınımda · Gece Kuşu · Yeni Restourant · Favori</b>) · <b>Filtre</b> paneli ve kısayolları (süzme <b>sunucuda</b>) · <b>Mutfaklar</b> şeridi · <b>Restoranlar (2)</b> başlığı + <b>liste · kart · harita</b> geçişi · <b>3 ikon sol · logo · 3 ikon sağ</b> alt menü.<br><br><b>HAZIR TEST HESAPLARI:</b> Veritabanı sıfırlandı; <b>14 işletme</b> (2 restoran + 2 kafe + doktor, diyetisyen, kuaför, güzellik, otel) + 2 kullanıcı, <b>14/14&#39;ünden randevu alınabiliyor</b>, hazır bir <b>düğün talebi + 3 teklif</b> ve <b>dolu bir diyet günü</b> var — hesap listesi ayrıca verildi.<br><br><b>Sınırlar:</b> Karttaki <b>puan, teslimat süresi ve minimum tutar</b> işletmenin girdiği değerlerdir; <b>değerlendirme sistemi ve sipariş/kurye modeli henüz yok</b>. Filtrede <b>ödeme yöntemi</b> bölümü yok — o veri hiç tutulmuyor. <b>Yeni Restourant</b> kartı <b>puanı olmayan</b> işletmeleri gösterir; tohumdaki herkesin puanı olduğu için <b>şimdilik boş döner</b>. Kategori ekranında <b>geri düğmesi yok</b> — telefonun geri tuşuyla çıkılır. Kayan alan hâlâ <b>boş</b>. Teklif isteğin <b>7 gün</b> açık kalır, en fazla <b>5 teklif</b> alır. Talepler <b>herkese açıktır</b> — telefon/adres yazma. Ödeme yok.</div>`;
 
 let cikti = sablon
   .replace(/\{\{SAAT\}\}/g, saat)
@@ -63,6 +63,16 @@ const kontroller = [
   [cikti.includes('class="saatbar"'), 'saat cubugu KAYBOLDU'],
   [cikti.includes('id="ss"') && cikti.includes('setInterval'),
     'CANLI SAAT kayboldu (bayat-onbellek suphesini cozen tek sey)'],
+  // ⚠️⚠️⚠️ TURU 96i — BAYAT SAYFA NOBETCISI. Kullanici BES TURDUR "saati
+  //    goremiyorum" diyor ve sunucu HER SEFERINDE dogru cikiyor; geriye kalan
+  //    tek aciklama TARAYICI ONBELLEGI. Sayfaya "saat yaz" demek bu durumda
+  //    ISE YARAMAZ (kullanici zaten ESKI sayfaya bakiyor). Nobetci sayfanin
+  //    gomulu surumunu `surum.json` ile karsilastirir ve eskiyse KIRMIZI
+  //    SERIT + taze baglanti gosterir.
+  // ⚠️ YAPMA: bu kontrolu kaldirma.
+  [cikti.includes("id=\"bayat\"") && cikti.includes('surum.json') &&
+    cikti.includes("cache: 'no-store'"),
+    'BAYAT SAYFA NOBETCISI kayboldu (surum.json karsilastirmasi)'],
   [!/body\s*\{[^}]*align-items:\s*center/.test(cikti),
     'body flex ortalama GERI GELMIS (turu 50 regresyonu: saat kirpilir)'],
   // ⚠️ ICERIK MUHAFIZI **BU SURUME** SABITLENIR (her turda guncellenir).
@@ -70,8 +80,9 @@ const kontroller = [
   //    uretilmesini ENGELLEMEK — yoksa kullaniciya BIR ONCEKI surumun
   //    notlari gosterilir ve "yeni ne var" yalan olur.
   // ⚠️ YAPMA: bu satiri silme; yeni turda ANAHTAR IFADEYI degistir.
-  [cikti.includes('haritadan pin') && cikti.includes('hesabına kayıtlı'),
-    'turu 96h icerigi yazilmadi (YENI_ICERIK guncellenmemis)'],
+  [cikti.includes('KIRMIZI EKRAN GİTTİ') && cikti.includes('kendini kontrol')
+    || cikti.includes('KENDİNİ KONTROL EDİYOR'),
+    'turu 96i icerigi yazilmadi (YENI_ICERIK guncellenmemis)'],
   // ⚠️ YALNIZ GORUNEN metin taranir. HTML/CSS/JS YORUMLARINDAKI ⚠️ isaretleri
   //    kullaniciya cizilmez ve serhin okunurlugu icin BILINCLI olarak durur.
   [!/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(
@@ -85,7 +96,16 @@ for (const [ok, mesaj] of kontroller) {
 if (hata) process.exit(1);
 
 fs.writeFileSync(path.join(DIZIN, 'index.html'), cikti, 'utf8');
-console.log('index.html uretildi');
+
+// ⚠️ TURU 96i — NOBETCININ OKUDUGU DOSYA. `index.html` ile AYNI KOSUDA
+//    yazilir ki ikisi birbirinden ayrisamasin (ayri yazilsaydi biri
+//    yuklenip oteki unutuldugunda sayfa KENDINI "eski" sanip sonsuz
+//    "YENİ SAYFAYI AÇ" gosterirdi).
+// ⚠️ `r2yukle.js` bunu da YUKLEMELI ve purge listesine GIRMELI.
+fs.writeFileSync(path.join(DIZIN, 'surum.json'),
+  JSON.stringify({ v: surumEtiketi, saat }), 'utf8');
+
+console.log('index.html + surum.json uretildi');
 console.log('  saat        :', saat, `(${kacKez(saat)} yerde)`);
 console.log('  surumEtiketi:', surumEtiketi);
 console.log('  bayt        :', Buffer.byteLength(cikti));

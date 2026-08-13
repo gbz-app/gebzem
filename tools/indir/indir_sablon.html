@@ -86,6 +86,12 @@
 </style>
 </head>
 <body>
+  <!-- ⚠️ TURU 96i — BAYAT SAYFA SERIDI. Normalde GIZLI; yalnizca sayfanin
+       gomulu surumu sunucudaki `surum.json` ile UYUSMAZSA acilir. Sayfanin
+       EN USTUNDE ve kirmizi: kullanici "eski sayfaya bakiyorum"u kacirmasin. -->
+  <div id="bayat" style="display:none;background:#c0392b;color:#fff;
+       padding:14px 16px;font-size:15px;font-weight:700;text-align:center;
+       line-height:1.5"></div>
   <span class="saatbar">
     <span class="etiket">BU SAYFADAKİ SÜRÜMÜN SAATİ</span>
     <span class="deger">{{SAAT}}</span>
@@ -166,6 +172,39 @@ dinleyici · Canlı yayın 4 kişi (yayıncı dahil) + sınırsız izleyici.</di
   }
   tik();
   setInterval(tik, 1000);
+})();
+
+/* ⚠️⚠️⚠️ TURU 96i — BAYAT SAYFA NOBETCISI.
+   Kullanici BES TURDUR *"indir sitesinde saati goremiyorum"* diyor ve sunucu
+   tarafi HER SEFERINDE dogru cikiyor (text/html + no-store + DYNAMIC + saat
+   5 yerde + akan canli saat + ciplak alan adi bile ayni govdeyi veriyor).
+   Geriye kalan TEK aciklama: tarayici/webview ONBELLEGINDEN ESKI KOPYA.
+   O durumda sayfaya "saati yaz" demek ISE YARAMAZ — kullanici ZATEN eski
+   bir sayfaya bakiyor ve orada eski saat yaziyor.
+
+   COZUM: sayfa kendini SORGULAR. `surum.json` her yayinda yeniden yazilir;
+   sayfadaki gomulu surum ile sunucudaki surum FARKLIYSA buyuk kirmizi bir
+   serit cikar ve tek dokunusla TAZE adrese gecer.
+   ⚠️ `cache: 'no-store'` + `?t=` ZORUNLU: aksi halde nobetcinin KENDISI
+      onbellekten okunur ve hicbir sey olcmez.
+   ⚠️ Ag yoksa/hata olursa SESSIZ kalir (yanlis alarm vermez).
+   ⚠️ YAPMA: bu blogu kaldirma. */
+(function () {
+  var buSurum = '{{SURUM}}';
+  try {
+    fetch('/surum.json?t=' + Date.now(), { cache: 'no-store' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d || !d.v || d.v === buSurum) return;
+        var s = document.getElementById('bayat');
+        if (!s) return;
+        s.style.display = 'block';
+        s.innerHTML = 'BU SAYFA ESKİ (' + buSurum + ').<br>' +
+          'Yeni sürüm: <b>' + d.v + '</b> — ' +
+          '<a href="/index.html?v=' + d.v + '">YENİ SAYFAYI AÇ</a>';
+      })
+      .catch(function () {});
+  } catch (e) {}
 })();
 </script>
 </body>
