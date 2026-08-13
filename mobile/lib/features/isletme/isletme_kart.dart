@@ -34,21 +34,37 @@ Color kYuzeyGri(BuildContext c) =>
 ///	  slider 22 · kapak 14 · 60x60 kutu 16 · kampanya rozeti 8 · cip 16
 /// Yani ayni ekrandaki iki kutu, ayni tasarim dilini konusmuyordu.
 ///
-/// ⚠️⚠️⚠️ **TEK DEGER: HAFIF YARICAP — HER YERDE.**
+/// ⚠️⚠️⚠️ **YARICAP = ARAMA KUTUSUNUN ORANI** (kullanici emri, UCUNCU
+///	yazimda dogru anlasildi):
+///	*"slider, alttaki kartlar, input, sagdaki gorunum vs. bunlarin radius
+///	mantigi SU ANKI ISLETME ARA INPUT radius mantigi gibi olacak; kart
+///	uzerindeki '300 TL indirim' de"*.
 ///
-///	Ilk denemede iki sinif tanimlanmisti (kucuk ogeler HAP = boy/2, buyuk
-///	yuzeyler sabit 16). Kullanici bunu GORUR GORMEZ reddetti:
-///	*"yakinimda, onayli gibi butonlari TAM RADIUS yapmissin; ben ESKI
-///	radius hallerini tum div/kartlara uygula dedim, HAFIF radiusu vardi"*.
-///	Yani istenen sey "boyuta gore kademe" DEGIL, **TEK bir hafif yaricap**:
-///	cip de kart da kapak da input da AYNI kose diliyle cizilir.
+///	ONCEKI IKI DENEME NEDEN YANLISTI:
+///	  1. "Kucuk oge = HAP (boy/2)" -> cipler TAM YUVARLAK oldu, kullanici
+///	     *"butonlari tam radius yapmissin"* diye reddetti.
+///	  2. "Her yerde SABIT 14" -> 48px'lik inputta hos duruyor ama **32px'lik
+///	     cipte 14, yuksekligin %44'u** demek; goz onu yine HAP olarak
+///	     gorur. Kullanici IKINCI KEZ ayni sikayeti yapti — hakliydi,
+///	     cunku sabit bir sayi kucuk ogede oransal olarak BUYUR.
 ///
-/// ⚠️ 14 secildi: 32px'lik cipte hap'a (16) donmeyecek kadar kucuk, 200px'lik
-///    sliderda "keskin kose" gorunmeyecek kadar buyuk.
-/// ⚠️ YAPMA: buraya boyuta bagli bir formul (`boy / 2` vb.) geri koyma.
+///	DOGRUSU: yaricap OGENIN YUKSEKLIGINE ORANLI olmali ve o oran, kullanicinin
+///	BEGENDIGI referanstan gelmeli — arama kutusu **48 boyunda 14** yaricap
+///	kullaniyor, yani **%29**.
+///
+/// ⚠️ TAVAN/TABAN ZORUNLU: oran ciplak birakilsaydi 200px'lik slider **58**
+///    yaricap alir ve dev bir hapa donerdi; 26px'lik rozet ise 7.5 ile
+///    neredeyse KESKIN kose olurdu. `clamp(8, 18)` ikisini de kapatir ve
+///    60x60 kutunun degeriyle (17.4) suruklu devam eder.
+/// ⚠️ YAPMA: sabit bir sayiya geri donme; orani degistirirken referansin
+///    (arama kutusu) hala 14 aldigini DOGRULA.
 /// ⚠️ YAPMA: bu ekranlarda elle `BorderRadius.circular(16)` gibi bir sayi
-///    yazma; DAIMA bu sabiti kullan.
-const double kYaricap = 14;
+///    yazma; DAIMA bu fonksiyonu, ogenin GERCEK yuksekligiyle cagir.
+double kYaricap(double yukseklik) => (yukseklik * 0.29).clamp(8.0, 18.0);
+
+/// Buyuk yuzeyler (slider, kapak, panel) — tavana dayanir.
+/// ⚠️ Ayri bir SAYI DEGIL, ayni fonksiyonun tavani: kural tek.
+final double kYaricapBuyuk = kYaricap(1000);
 
 /// Liste gorunumundeki genis kart.
 class IsletmeKarti extends ConsumerStatefulWidget {
@@ -119,7 +135,7 @@ class _IsletmeKartiState extends ConsumerState<IsletmeKarti> {
             ClipRRect(
               // ⚠️ Kapak, slider, 60x60 kutu, cip ve input ARTIK AYNI yaricapi
               //    kullanir (bkz. `kYaricap` serhi).
-              borderRadius: BorderRadius.circular(kYaricap),
+              borderRadius: BorderRadius.circular(kYaricapBuyuk),
               child: Stack(
                 children: [
                   AspectRatio(
@@ -284,7 +300,7 @@ Widget kampanyaRozetleri(IsletmeOzet o) {
               decoration: BoxDecoration(
                 color: Colors.white,
                 // ⚠️ 8 -> hap (13): cipler ve arama kutusuyla AYNI mantik.
-                borderRadius: BorderRadius.circular(kYaricap),
+                borderRadius: BorderRadius.circular(kYaricap(26)),
               ),
               // ⚠️⚠️ `Center(widthFactor: 1)` — `Container`a `alignment`
               //	VERILEMEZ: alignment'li bir Container gelen kisitin

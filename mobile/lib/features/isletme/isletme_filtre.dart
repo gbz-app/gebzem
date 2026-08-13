@@ -166,7 +166,7 @@ Future<bool> isletmeFiltreAc(BuildContext context, IsletmeFiltre f) async {
     isScrollControlled: true,
     backgroundColor: Theme.of(context).scaffoldBackgroundColor,
     shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(kYaricap)),
+      borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
     ),
     builder: (c) => FractionallySizedBox(
       // ⚠️ Kullanici emri: EKRANIN **%95**'i.
@@ -355,7 +355,7 @@ class _FiltrePaneliState extends State<_FiltrePaneli> {
           height: 46,
           padding: const EdgeInsets.symmetric(horizontal: 14),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(kYaricap),
+            borderRadius: BorderRadius.circular(kYaricap(46)),
             color: secili ? vurgu.withValues(alpha: 0.08) : null,
             border:
                 Border.all(color: secili ? vurgu : notr, width: 1.2),
@@ -403,7 +403,7 @@ class _FiltrePaneliState extends State<_FiltrePaneli> {
               child: FilledButton(
                 style: FilledButton.styleFrom(
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(kYaricap),
+                    borderRadius: BorderRadius.circular(kYaricap(52)),
                   ),
                 ),
                 onPressed: () => Navigator.of(context).pop(true),

@@ -124,7 +124,7 @@ class _KategoriSliderState extends State<KategoriSlider> {
           //    `PageView` kose disina TASARDI.
           Positioned.fill(
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(kYaricap),
+              borderRadius: BorderRadius.circular(kYaricap(KategoriSlider.yukseklik)),
               child: ColoredBox(
                 color: zemin,
                 child: PageView.builder(

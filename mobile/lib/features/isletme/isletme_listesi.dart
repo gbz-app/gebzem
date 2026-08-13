@@ -219,43 +219,66 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
     _ilceyiOgren();
     _kesfiYukle();
     _yukle();
-    _konumuSessizAl();
+    _konumuAl();
   }
 
-  /// ⚠️⚠️⚠️ TURU 96 — KONUM **IZIN ISTEMEDEN** okunur.
+  /// ⚠️⚠️⚠️ TURU 96 — KART MESAFESI ICIN KONUM.
   ///
-  /// Kartta mesafe gostermek icin konum lazim ama ekrana girer girmez izin
-  /// diyalogu acmak SALDIRGAN olurdu: kullanici "İşletmeler"e bakmak istedi,
-  /// konum paylasmak istedigini SOYLEMEDI. Bu yuzden yalnizca izin ZATEN
-  /// verilmisse konum alinir; verilmemisse hicbir sey sorulmaz ve kartlarda
-  /// mesafe cizilmez.
-  /// ⚠️ Izin isteyen TEK yol "Yakınımda" cipidir — orada kullanici mesafeyi
-  ///    ACIKCA istemis olur.
-  /// ⚠️ YAPMA: buraya `requestPermission` ekleme.
-  Future<void> _konumuSessizAl() async {
+  /// ⚠️⚠️ **IZIN BURADA ISTENIR** (ilk yazimda ISTENMIYORDU ve bu bir
+  ///	HATAYDI): kullanici *"isletme kartlarinda 1 km / 300 m gibi mesafeler
+  ///	gorunsun"* dedi. Ilk surumde izin YALNIZ "Yakınımda" cipine
+  ///	dokunulunca isteniyordu; yani TEMIZ KURULUMDA hicbir kartta mesafe
+  ///	GORUNMUYORDU ve kullanici bunu ozelligin yapilmadigi sanabilirdi.
+  ///	Mesafe bu ekranin ANA vaadi — Getir/Yemeksepeti de tam bu noktada
+  ///	izin ister.
+  /// ⚠️ **BLOKLAMAZ**: izin reddedilirse liste normal calisir, yalnizca
+  ///    mesafe cizilmez. Hicbir yerde hata gosterilmez.
+  /// ⚠️ `deniedForever` ise TEKRAR SORULMAZ (sistem zaten gostermez);
+  ///    ayarlara yonlendiren bir diyalog da acilmaz — kullanici bir kez
+  ///    "bir daha sorma" dediyse ona uyulur.
+  ///
+  /// ⚠️⚠️ **ONCE `getLastKnownPosition`**: cihazda genelde saniyeler oncesine
+  ///	ait bir konum ZATEN vardir; onu okumak ANINDA doner ve GPS'i hic
+  ///	uyandirmaz. `getCurrentPosition` kapali alanda 8 saniyeye kadar
+  ///	bekleyebilir ve o sure boyunca kartlarda mesafe GORUNMEZDI.
+  ///	Taze olcum yine de arkadan alinir ve degeri gunceller.
+  Future<void> _konumuAl() async {
     try {
-      final izin = await Geolocator.checkPermission();
+      var izin = await Geolocator.checkPermission();
+      if (izin == LocationPermission.denied) {
+        izin = await Geolocator.requestPermission();
+      }
       if (izin != LocationPermission.always &&
           izin != LocationPermission.whileInUse) {
         return;
       }
+      // 1) Hizli yol — varsa aninda ciz.
+      final son = await Geolocator.getLastKnownPosition();
+      if (son != null) _konumuUygula(son.latitude, son.longitude);
+      // 2) Taze olcum — gelince degeri tazeler.
       final p = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
           accuracy: LocationAccuracy.medium,
           timeLimit: Duration(seconds: 8),
         ),
       );
-      if (!mounted) return;
-      _konumum = (p.latitude, p.longitude);
-      // ⚠️ Liste konumdan ONCE gelmis olabilir: mevcut kayitlara da uygulanir.
-      final l = _liste;
-      if (l != null) {
-        mesafeleriDoldur(l, p.latitude, p.longitude);
-        setState(() {});
-      }
+      _konumuUygula(p.latitude, p.longitude);
     } catch (_) {
       // ⚠️ SESSIZ: konum alinamazsa yalnizca mesafe cizilmez.
     }
+  }
+
+  /// Konumu kaydeder ve ELDEKI listeye uygular.
+  ///
+  /// ⚠️ Liste konumdan ONCE gelmis olabilir; bu yuzden mevcut kayitlara da
+  ///    uygulanir. Yalniz `_konumum`u yazmak yetmezdi (bir sonraki `_yukle`ye
+  ///    kadar mesafe gorunmezdi).
+  void _konumuUygula(double enlem, double boylam) {
+    if (!mounted) return;
+    _konumum = (enlem, boylam);
+    final l = _liste;
+    if (l != null) mesafeleriDoldur(l, enlem, boylam);
+    setState(() {});
   }
 
   /// Kullanicinin ilcesini KENDI isletme kaydindan ogrenir.
@@ -979,11 +1002,11 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
         //    input dairelerden UZUN olurdu.
         contentPadding: const EdgeInsets.only(right: 8),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(kYaricap),
+          borderRadius: BorderRadius.circular(kYaricap(kInputBoy)),
           borderSide: BorderSide(color: bos),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(kYaricap),
+          borderRadius: BorderRadius.circular(kYaricap(kInputBoy)),
           borderSide: BorderSide(color: odak, width: 1.6),
         ),
       ),
@@ -1109,7 +1132,7 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                       decoration: BoxDecoration(
                         // ⚠️ YUZEY yaricapi — kapak ve slider ile AYNI sabit
                         //    (bkz. `kYaricap` serhi).
-                        borderRadius: BorderRadius.circular(kYaricap),
+                        borderRadius: BorderRadius.circular(kYaricap(kAltKutu)),
                         // ⚠️ KENARLIK YOK (kullanici emri: *"kucuk kartlarda
                         //    neden border var, onu da kaldir"*). Secili
                         //    kartta da kenarlik cizilmez — secim ZEMIN
@@ -1252,7 +1275,7 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                             padding: const EdgeInsets.fromLTRB(11, 0, 8, 0),
                             decoration: BoxDecoration(
                               // ⚠️ HAP — kardes ciplerle AYNI mantik.
-                              borderRadius: BorderRadius.circular(kYaricap),
+                              borderRadius: BorderRadius.circular(kYaricap(32)),
                               // ⚠️ Bu cip DAIMA "secili" bir durumu temsil
                               //    eder (aktif kategori) -> kenarlik SIYAH,
                               //    tipki secili hizli cip gibi.
@@ -1365,7 +1388,7 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
             padding: const EdgeInsets.symmetric(horizontal: 11),
             decoration: BoxDecoration(
               // ⚠️ Kart/kapak/input ile AYNI hafif yaricap (bkz. `kYaricap`).
-              borderRadius: BorderRadius.circular(kYaricap),
+              borderRadius: BorderRadius.circular(kYaricap(32)),
               // ⚠️⚠️⚠️ TURU 96 — SECILI HAL **YALNIZ SIYAH KENARLIK**
               //	(kullanici emri: *"yakinimda vb. bunlara tikladiginda
               //	border SIYAH olacak, tikladiginda patlama vb. oynama
@@ -1450,7 +1473,7 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
         : (o.avatarMediaId ?? '');
     final hucre = (MediaQuery.sizeOf(context).width - kYanBosluk * 2 - 12) / 2;
     return InkWell(
-      borderRadius: BorderRadius.circular(kYaricap),
+      borderRadius: BorderRadius.circular(kYaricapBuyuk),
       onTap: () => Navigator.of(context).push(
         MaterialPageRoute(builder: (_) => ProfilSayfasi(userId: o.id)),
       ),
@@ -1458,7 +1481,7 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           ClipRRect(
-            borderRadius: BorderRadius.circular(kYaricap),
+            borderRadius: BorderRadius.circular(kYaricapBuyuk),
             child: Stack(
               children: [
                 AspectRatio(

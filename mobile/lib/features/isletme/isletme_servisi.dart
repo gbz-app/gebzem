@@ -425,8 +425,20 @@ class IsletmeOzet {
   double km = 0;
 
   /// "1,2 km" / "350 m" — kart altinda gosterilir.
-  String get mesafeMetni =>
-      km <= 0 ? '' : (km < 1 ? '${(km * 1000).round()} m' : '${km.toStringAsFixed(1)} km');
+  ///
+  /// ⚠️⚠️ ONDALIK AYRACI **VIRGUL** (`mesafe_test.dart` bunu yakaladi):
+  ///	`toStringAsFixed` DAIMA nokta uretir ve kartta "1.3 km" yaziyordu.
+  ///	Ayni ekranda puan ZATEN virgulle ("4,5") ciziliyor; iki sayi yan yana
+  ///	iki FARKLI ayracla duruyordu.
+  /// ⚠️ 1 km ALTINDA metre: "0,3 km" demek, "300 m"den hem daha uzun hem
+  ///    daha az okunakli.
+  /// ⚠️ `km <= 0` = mesafe BILINMIYOR -> BOS doner ve kartta hicbir sey
+  ///    cizilmez ("0 m" yazmak yanlis bilgi olurdu).
+  String get mesafeMetni => km <= 0
+      ? ''
+      : (km < 1
+          ? '${(km * 1000).round()} m'
+          : '${km.toStringAsFixed(1).replaceAll('.', ',')} km');
 
   static IsletmeOzet json(Map<String, dynamic> m) => IsletmeOzet(
     id: (m['id'] ?? '').toString(),
