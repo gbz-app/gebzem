@@ -6919,3 +6919,129 @@ bozulmadan devam etti ve eksik satırdan görüldü.
 ### Sonuç
 `flutter analyze` **0 hata 0 uyarı** · `flutter test` **11/11** · `go build`+`go vet`+`go test`
 temiz · **213 rota çakışmasız** · **349/349 canlı uçtan uca**.
+
+---
+
+## Oturum — Turu 96i (14 Ağustos 2026, 01:07) — KIRMIZI EKRAN + KONUM PANELİ
+
+### Kullanıcı bildirimi
+> "dostum ekran kırmzıı şuan emulator de"
+
+Ardından: *"canlı yayın yap, temiz bir build almadan önce çok kapsamlı bug fix
+araştırması yap, en son derinlemesine step step yap ve temiz build al. indir
+sitesinde saat yazmıyor göremiyorum."*
+
+### YAYINLANDI
+- android **31748701025** + ios **31748703520** (**c2d6282**)
+- R2: apk=121959483 (md5 46fbcc66) · ipa=31620789 (md5 66bb8661) ·
+  index=12530 (md5 1199835d) · **surum.json=48 (md5 ed2ac45e — YENİ)**
+- Cloudflare purge OK · **CDN DÖRDÜ DE BİREBİR**
+- debug imza YOK · `HARITA=true` iki build logunda da doğrulandı · iOS min **16.0**
+- **İKİ ARTIFACT'TE DE turu 96i kodu VAR** (`DenetleyiciSahibi` = utf8/latin1,
+  `Kayıtlı konumun yok` = utf16 — üç kodlama da denendi)
+- Backend deploy **c2d6282** + health ok
+- ✅ **CANLIDA 367/367 UÇTAN UCA** · `flutter analyze` 0 hata 0 uyarı ·
+  `flutter test` **19/19** · `go build`+`go vet`+`go test ./...` temiz
+- 🌱 DB TEMİZ + TOHUM (14 işletme · 2 kullanıcı · 14/14 randevu · düğün talebi
+  + 3 teklif · dolu diyet günü)
+- ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260814-0107
+
+### Teşhis yöntemi (kayda değer)
+Kırmızı ekran **logcat'e hiçbir şey düşürmüyordu** ve `uiautomator dump` tek
+düğüm bile vermiyordu. Ekranın tamamı düz `135,0,0` idi. Flutter kaynağı
+okundu: `RenderErrorBox.backgroundColor = 0xF0900000` → siyah üstünde
+`144 × 240/255 = 135` — **tam eşleşme**, yani bu Flutter'ın debug hata kutusu.
+Metin çizilmemişti çünkü hata route'un tamamını kapsıyordu.
+
+Hata ancak `sleep 900 | flutter run` (stdin açık tutularak) ile yakalandı:
+etkileşimsiz `flutter run` stdin kapanınca çıkıyor ve konsol hiç görünmüyordu.
+
+### ⚠️⚠️⚠️ KÖK NEDEN 1 — DİYALOG KAPANIRKEN `TextEditingController.dispose()`
+```dart
+final ctrl = TextEditingController();
+final x = await showDialog(... TextField(controller: ctrl) ...);
+ctrl.dispose();            // <-- ÇOK ERKEN
+```
+`showDialog`/`showModalBottomSheet` future'ı **`pop` anında** çözülür; route'un
+**çıkış animasyonu** (~150-250 ms) sürerken alt ağaç çizilmeye devam eder ve
+`EditableText` denetleyiciye dokunur:
+*"A TextEditingController was used after being disposed."* → `build` istisnası →
+`ErrorWidget` → **ekranın tamamı kırmızı** (ardından "RenderFlex overflowed by
+99750 pixels" ve `_dependents.isEmpty` çöküntüleri).
+
+⚠️ **BU HATA SESSİZDİR:** `flutter analyze` temiz geçer, uygulama çökmez, geri
+tuşuna basılınca ekran **kendiliğinden düzelir** — bu yüzden "bazen oluyor" gibi
+görünür ve tekil bir ekrana bağlanamaz. **KULLANICI SAHADA YAKALADI.**
+
+Kod tabanında **ALTI** yerde vardı: `konum_secici` · `etkinlik_ekranlari`
+(2 denetleyici) · `urun_ekranlari` ×2 · `randevu_listeleri` · `gonderi_karti`.
+
+**FIX:** `mobile/lib/core/denetleyici_sahibi.dart` — denetleyiciyi diyalogun
+KENDİ ağacında tutar, route gerçekten söküldüğünde bırakır. Çağıran taraf metni
+`await`ten hemen sonra **senkron** okur (nesne hâlâ canlı).
+⚠️ YAPMA: çağrı yerlerine tekrar `ctrl.dispose()` koyma.
+
+🛡️ **MUHAFIZ: `mobile/test/denetleyici_test.dart`** — kaynağı tarar, bu deseni
+yakalar. **Bozularak KANITLANDI** (yeşil → kırmızı → yeşil).
+⚠️ Test kaynağı önce **yorumlardan temizler**: bu dosyaların şerhlerinde hatalı
+desenin kendisi örnek olarak yazılı (turu 80b/83/86/93b tuzağı).
+
+### ⚠️⚠️⚠️ KÖK NEDEN 2 — KONUM PANELİ SUNUCUDA ADRES VARKEN "yok" DİYORDU
+`internal/isletme/adres.go` paketin kendi `yaz()` yardımcısını **atlayıp** çıplak
+`json.NewEncoder(w).Encode(...)` kullanıyordu → **`Content-Type` yazılmıyor** →
+Go gövdeyi koklayıp `text/plain; charset=utf-8` koyuyor → **Dio gövdeyi
+ayrıştırmıyor**, `response.data` bir **String** oluyor → `data['adresler']` →
+*"type 'String' is not a subtype of type 'int' of 'index'"* → istemcideki
+`catch (_)` **yutuyor** → panel "Kayıtlı konumun yok" diyor.
+
+⚠️⚠️ **UÇTAN UCA BİLE GEÇİYORDU (365/365):** Node tarafında `JSON.parse(gövde)`
+**başlığa bakmaz**. Yani yeşildi ve özellik yine de ölü doğdu.
+**DERS: bir yanıtın DOĞRU olması, İSTEMCİNİN onu OKUYABİLECEĞİ anlamına gelmez —
+BAŞLIK DA SÖZLEŞMENİN PARÇASIDIR.**
+
+**FIX:** `yaz(w, 200, ...)` / `yaz(w, 201, ...)`; ayrıca sessiz `catch` artık
+`debugPrint` + Sentry (teşhis emülatörde elle arandı — bir daha aranmasın).
+
+🛡️ **MUHAFIZ: `backend/internal/sutunkontrol/icerik_turu_test.go`** — `internal/`
+ve `cmd/` altındaki her fonksiyon için: `json.NewEncoder(w)` varsa
+`Header().Set("Content-Type"` da olmalı. **Bozularak KANITLANDI.**
+🛡️ E2E: `j()` artık `tur` (Content-Type) döndürüyor + iki yeni kontrol
+(`jsonMu`). **365 → 367.**
+
+### ⚠️ KÖK NEDEN 3 — HER SOĞUK AÇILIŞTA DÜŞEN ASSERTION
+`_LiveTabState.initState` ve `_RoomsTabState.initState` gövdesinde
+`ref.invalidate(...)`. Riverpod kapsayıcıya `dependOnInheritedWidgetOfExactType`
+ile ulaşır ve `initState` henüz bitmediği için Flutter assertion atar.
+`home_screen`deki `IndexedStack` tüm sekmeleri açılışta kurduğu için **her soğuk
+açılışta** düşüyordu. FIX: `addPostFrameCallback`.
+
+### ⚠️⚠️ İNDİR SAYFASI — "SAATİ GÖREMİYORUM" (BEŞİNCİ KEZ)
+Sunucu tarafı **yine** doğru çıktı, ölçüldü:
+`text/html; charset=utf-8` · `no-cache, no-store, must-revalidate` ·
+`cf-cache-status: DYNAMIC` · saat **5 yerde** · akan canlı saat ·
+**çıplak alan adı bile birebir aynı gövdeyi veriyor** (10346 = 10346).
+
+Geriye kalan tek açıklama **tarayıcı önbelleğinden eski kopya**. O durumda
+sayfaya "saat yaz" demek **işe yaramaz** — kullanıcı zaten eski sayfaya bakıyor
+ve orada eski saat yazıyor.
+
+**FIX — BAYAT SAYFA NÖBETÇİSİ:** her yayında `surum.json` yazılır; sayfa
+açılışta onu `cache: 'no-store'` + `?t=` ile çeker ve gömülü sürümüyle
+karşılaştırır. Farklıysa **en üstte kırmızı şerit**: *"BU SAYFA ESKİ … YENİ
+SAYFAYI AÇ"*. Ağ hatasında sessiz kalır (yanlış alarm yok).
+⚠️ `surum.json` `index.html` ile **AYNI KOŞUDA** yazılır (ayrışırlarsa sayfa
+kendini sonsuza kadar "eski" sanardı) ve **r2yukle ile birlikte yüklenir**.
+⚠️ Üretici muhafızı bu bloğun varlığını zorunlu kılar.
+
+### Emülatörde doğrulanan yollar (0 istisna)
+konum paneli · haritadan pin · konum kaydetme · **kartlarda mesafe
+(1,5 km · 948 m)** · filtre paneli + Listele · liste/kart/**harita** görünümü ·
+8 keşif kartının hepsi · alt menünün 6 sekmesi.
+
+### Dürüst sınırlar
+- `konum_secici` hâlâ ağ hatasında **boş liste** gösterir (artık Sentry'ye
+  yazıyor ama ekranda "tekrar dene" yok).
+- `SharedPreferences`ta turu 96f'den kalan `konumlar` / `konum_secili`
+  anahtarları duruyor (zararsız, okunmuyor).
+- ⏳ EN SONA BIRAKILAN: `active_call_controller.dart` ~500 satırlık ölü
+  bekletme/park zinciri temizliği.

@@ -17,6 +17,85 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (14 Agu 01:07): TURU 96i YAYINLANDI** — android
+  **31748701025** + ios **31748703520** (**c2d6282**), R2 apk=121959483
+  (md5 46fbcc66) ipa=31620789 (md5 66bb8661) index=12530 (md5 1199835d)
+  **surum.json=48 (md5 ed2ac45e — YENI)**, purge OK, **CDN DORDU DE BIREBIR**,
+  debug imza YOK, iOS min 16.0, HARITA=true, **IKI ARTIFACT'TE DE turu 96i
+  kodu VAR**, **BACKEND DEPLOY** (c2d6282) + health ok.
+  ✅ **CANLIDA 367/367 UCTAN UCA** · `flutter analyze` **0 hata 0 uyari** ·
+  `flutter test` **19/19** · go build+vet+test temiz.
+  🌱 DB TEMIZ + TOHUM (14 isletme · 2 kullanici · 14/14 randevu · dugun talebi
+  + 3 teklif · dolu diyet gunu).
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260814-0107
+- ⚠️⚠️⚠️ **TURU 96i — TAM EKRAN KIRMIZI (KULLANICI SAHADA BILDIRDI).**
+  Yerel `TextEditingController` diyalog KAPANIR KAPANMAZ dispose ediliyordu:
+
+      final ctrl = TextEditingController();
+      final x = await showDialog(... TextField(controller: ctrl) ...);
+      ctrl.dispose();            // <-- COK ERKEN
+
+  `showDialog`/`showModalBottomSheet` future'i **`pop` aninda** cozulur;
+  route'un **CIKIS ANIMASYONU** (~150-250ms) surerken alt agac CIZILMEYE DEVAM
+  EDER ve `EditableText` denetleyiciye dokunur -> *"A TextEditingController
+  was used after being disposed."* -> `build` istisnasi -> `ErrorWidget`
+  **EKRANIN TAMAMINI** kirmizi boyar (ardindan "RenderFlex overflowed by
+  99750 pixels" ve `_dependents.isEmpty` cokuntuleri gelir).
+  ⚠️⚠️ **HATA SESSIZDIR:** `flutter analyze` TEMIZ, uygulama COKMEZ, geri
+     tusuna basilinca ekran **KENDILIGINDEN DUZELIR** -> "bazen oluyor" gibi
+     gorunur ve tek bir ekrana baglanamaz. **KULLANICI SAHADA YAKALADI.**
+  ⚠️ **TESHIS (kayda deger):** logcat'e HICBIR SEY dusmuyordu ve
+     `uiautomator dump` TEK DUGUM veriyordu. Ekran duz **135,0,0** idi;
+     Flutter kaynagi okundu: `RenderErrorBox.backgroundColor = 0xF0900000`
+     -> siyah ustunde 144*240/255 = **135**, TAM ESLESME.
+     Istisna ancak **`sleep 900 | flutter run`** (stdin ACIK tutularak)
+     goruldu — etkilesimsiz `flutter run` stdin kapaninca CIKIYOR.
+  **ALTI YERDE VARDI**: konum_secici · etkinlik (2 denetleyici) · urun ×2 ·
+  randevu · gonderi_karti. FIX: **`core/denetleyici_sahibi.dart`** (TEK
+  KAYNAK) — denetleyici diyalogun KENDI agacinda yasar, route gercekten
+  sokuldugunde birakilir. Metin `await`ten hemen sonra **SENKRON** okunur.
+  🛡️ **`mobile/test/denetleyici_test.dart`** — bozularak KANITLANDI
+     (yesil -> kirmizi -> yesil).
+  ⚠️ YAPMA: cagri yerlerine tekrar `ctrl.dispose()` koyma.
+- ⚠️⚠️⚠️ **TURU 96i — KONUM PANELI SUNUCUDA ADRES VARKEN "yok" DIYORDU.**
+  `internal/isletme/adres.go` paketin kendi **`yaz()` yardimcisini ATLAYIP**
+  ciplak `json.NewEncoder(w).Encode` kullaniyordu -> **Content-Type YAZILMAZ**
+  -> Go govdeyi koklayip `text/plain; charset=utf-8` koyar -> **Dio
+  AYRISTIRMAZ**, `response.data` bir **String** olur -> `data['adresler']` ->
+  *"type 'String' is not a subtype of type 'int' of 'index'"* -> istemcideki
+  `catch (_)` **YUTAR** -> panel "Kayitli konumun yok" der.
+  ⚠️⚠️ **UCTAN UCA BILE GECIYORDU (365/365)**: Node tarafinda `JSON.parse`
+     **BASLIGA BAKMAZ**. Yani yesildi ve ozellik yine de OLU DOGDU.
+     **DERS: bir yanitin DOGRU olmasi, ISTEMCININ onu OKUYABILECEGI anlamina
+     GELMEZ — BASLIK DA SOZLESMENIN PARCASIDIR.**
+  🛡️ **`internal/sutunkontrol/icerik_turu_test.go`**: `internal/` ve `cmd/`
+     altinda `json.NewEncoder(w)` iceren HER fonksiyon
+     `Header().Set("Content-Type"` de icermeli. Bozularak KANITLANDI.
+  🛡️ E2E `j()` artik `tur` (Content-Type) donduruyor + `jsonMu()` kontrolleri
+     (**365 -> 367**).
+  ⚠️ Sessiz `catch` artik `debugPrint` + Sentry (teshis emulatorde ELLE
+     arandi — bir daha aranmasin).
+- ⚠️ **TURU 96i — HER SOGUK ACILISTA ASSERTION:** `ref.invalidate`
+  `initState` GOVDESINDE cagriliyordu (`live_tab` + `rooms_tab`). Riverpod
+  kapsayiciya `dependOnInheritedWidgetOfExactType` ile ulasir ve `initState`
+  bitmedigi icin Flutter assertion atar; `home_screen`deki `IndexedStack` tum
+  sekmeleri acilista kurdugu icin **HER SOGUK ACILISTA** dusuyordu.
+  FIX: `addPostFrameCallback`. ⚠️ YAPMA: govdeye geri tasima.
+- ⚠️⚠️ **INDIR SAYFASI — "SAATI GOREMIYORUM" BESINCI KEZ; ARTIK SAYFA KENDINI
+  KONTROL EDIYOR.** Sunucu YINE dogru cikti (OLCULDU): `text/html; charset=utf-8`
+  + `no-cache, no-store, must-revalidate` + `cf-cache-status: DYNAMIC` + saat
+  **5 yerde** + akan canli saat + **ciplak alan adi BIREBIR ayni govdeyi
+  veriyor** (10346 = 10346). Kalan tek aciklama TARAYICI ONBELLEGI — o durumda
+  sayfaya "saat yaz" demek **ISE YARAMAZ** (kullanici ZATEN eski sayfaya
+  bakiyor, orada eski saat yazar).
+  FIX: her yayinda **`surum.json`**; sayfa acilista onu `cache: 'no-store'` +
+  `?t=` ile ceker, GOMULU surumuyle karsilastirir, farkliysa **EN USTTE
+  KIRMIZI SERIT** + tek dokunusla taze adres. Ag hatasinda SESSIZ.
+  ⚠️ `surum.json` `index.html` ile **AYNI KOSUDA** yazilir ve
+     **`node tools/indir/r2yukle.js tools/indir/surum.json surum.json` ile
+     BIRLIKTE YUKLENIR** (ayrisirsa sayfa kendini sonsuza kadar "eski" sanip
+     surekli "YENI SAYFAYI AC" gosterir).
+  ⚠️ Uretici muhafizi bu blogun varligini ZORUNLU kilar.
 - **KALDIGIMIZ YER (12 Agu): TURU 93 + 93b KODU BITTI, BACKEND DEPLOY**
   + health ok. ✅ **CANLIDA 349/349 UCTAN UCA** · **213 ROTA CAKISMASIZ** ·
   `flutter analyze` **0 hata 0 uyari** · `flutter test` **11/11** ·
