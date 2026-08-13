@@ -101,11 +101,17 @@ const double kInputBoy = 48;
 /// ⚠️ Kutu yuksekligi SABIT, genislik EKRANDAN turer: dorduncu kart dar
 ///    telefonda tasmasin.
 const double kKesifKutu = 78;
-const double kKesifAralik = 8;
+/// ⚠️ Kutular kac px DARALIR (kullanici emri). Yatay aralik bundan TURER.
+const double kKesifDaralt = 10;
+/// Iki satir arasindaki dikey bosluk.
+const double kKesifSatirAralik = 12;
 
-const double kAltKutu = 60; // gorsel kutu (kare)
-const double kAltHucre = 70; // kutu + altindaki yazi alani
-const double kAltIcBosluk = (kAltHucre - kAltKutu) / 2; // = 9
+// ⚠️⚠️ TURU 96e — kullanici emri: kutu **+10px** (60 -> 70), kutular arasi
+//    bosluk **+2px** (10 -> 12). Aralik hucre ile kutu farkindan turer:
+//    hucre 82 - kutu 70 = 12.
+const double kAltKutu = 70; // gorsel kutu (kare)
+const double kAltHucre = 82; // kutu + altindaki yazi alani
+const double kAltIcBosluk = (kAltHucre - kAltKutu) / 2; // = 6
 
 /// ⚠️⚠️⚠️ TURU 96 — **BOLUMLERIN IC PAYI ARALIKTAN DUSULUR.**
 ///
@@ -123,6 +129,17 @@ const double kAltIcBosluk = (kAltHucre - kAltKutu) / 2; // = 9
 ///    Pay, dokunma alani ile GORSEL oge arasindaki farkin yarisidir.
 const double kHeaderPay = (44 - 24) / 2; // = 10
 const double kCipPay = (40 - 32) / 2; // = 4
+
+/// ⚠️ Header ikonlarinin GLIF ICI boslugu — ekrandan OLCULDU (bkz. header
+///    dolgusu serhi). Ikon degisirse yeniden olc.
+const double kGeriOptik = 3.8; // arrow-left
+const double kKalpOptik = 0.8; // heart
+
+/// ⚠️ Bolum basliklarinin ("Mutfaklar", "İşletmeler (N)") GLIF ICI boslugu.
+///    Ikisi de ekrandan 17.1 dp olculdu; kutular 16.0. Metin sabit oldugu
+///    icin (bas harfleri degismez) telafi guvenli.
+/// ⚠️ Baslik metni degisirse yeniden olc.
+const double kBaslikOptik = 1.1;
 
 // ⚠️ `kYuzeyGri` `isletme_kart.dart`a TASINDI (tek kaynak): kart ve bu
 //    ekran ayni griyi kullanmak ZORUNDA.
@@ -631,8 +648,11 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                     if (_altKategoriler.isNotEmpty) ...[
                       const SliverToBoxAdapter(
                         child: Padding(
-                          padding:
-                              EdgeInsets.symmetric(horizontal: kYanBosluk),
+                          // ⚠️ Baslik metninin GLIF ICI boslugu telafi edilir
+                          //    (bkz. `kBaslikOptik`): kutular 16'da hizaliyken
+                          //    yazi 17.1'de basliyordu.
+                          padding: EdgeInsets.only(
+                              left: kYanBosluk - kBaslikOptik),
                           child: Align(
                             alignment: Alignment.centerLeft,
                             child: Text(
@@ -732,9 +752,11 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                       //    kendi golgeleriyle ayriliyor (Yemeksepeti/Getir
                       //    deseni). Cizgi + kart ARADA cift ayirici olurdu.
                       SliverPadding(
-                        // ⚠️ TURU 96d — kullanici emri: isletme kartlarinin
-                        //    DORT YANI **30** (bkz. `kListeBosluk`).
-                        padding: const EdgeInsets.all(kListeBosluk),
+                        // ⚠️ TURU 96e — yatay dolgu a GERI
+                        //    DONDU (kartlar daralmisti). Kartlar arasi dikey
+                        //    bosluk kartin KENDI alt marjindan geliyor.
+                        padding: const EdgeInsets.fromLTRB(
+                            kYanBosluk, 0, kYanBosluk, 24),
                         // ⚠️ IKI GORUNUM (kullanici emri: "kart gorunumu").
                         //    Izgarada IKI SUTUN; ucuncusu 360dp'de kapagi
                         //    ~104px'e dusurup okunamaz yapardi.
@@ -821,8 +843,24 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
         //    5px ICERIDE kalir ve hiza YENIDEN bozulurdu.
         // ⚠️ YAPMA: burayi sabit bir sayiya donme; ikon ya da dokunma olcusu
         //    degisirse `kHeaderPay` uzerinden yeniden turer.
-        padding: const EdgeInsets.symmetric(
-            horizontal: kYanBosluk - kHeaderPay),
+        // ⚠️⚠️⚠️ TURU 96e — **OPTIK TELAFI** (kullanici: *"sol sag container
+        //	icinde olanlar ayni hizada degil"* — HAKLIYDI, ekrandan olculdu).
+        //
+        //	Ikonun YERLESIM kutusu tam 16 dp'de basliyor ama CIZILEN glif
+        //	kutunun icinde bosluk (side bearing) tasiyor: olcum
+        //	  · arrow-left : 19.8 dp'de basliyor -> **3.8 dp** ic bosluk
+        //	  · heart      : sagdan 16.8 dp -> **0.8 dp** ic bosluk
+        //	Sonuc: slider, input ve kartlar 16'da hizaliyken header 4 dp
+        //	SAGA kayik gorunuyordu. Daire varken sorun yoktu (dairenin
+        //	KENDISI 16'da basliyordu); daireler kalkinca glif ortaya cikti.
+        //
+        // ⚠️ Telafi IKI YAN ICIN AYRI: bearing degerleri ikona OZEL.
+        // ⚠️ Ikonlar degisirse bu iki sayi YENIDEN OLCULMELI (ekrandan;
+        //    tahmin etme). Olcum araci: scratchpad/hiza.js
+        padding: const EdgeInsets.only(
+          left: kYanBosluk - kHeaderPay - kGeriOptik,
+          right: kYanBosluk - kHeaderPay - kKalpOptik,
+        ),
         child: Row(
           children: [
             _headerDaire(
@@ -940,7 +978,7 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
       onChanged: _aramaDegisti,
       style: yaziStili,
       decoration: InputDecoration(
-        hintText: 'İşletme ara',
+        hintText: 'Ne Aramıştın?',
         hintStyle: yaziStili.copyWith(
             color: (koyu ? Colors.white : Colors.black).withValues(alpha: 0.45)),
         // ⚠️⚠️ MESAFELER **ACIKCA** VERILIR (kullanici emri: *"arama ikonu
@@ -1101,19 +1139,29 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
     ];
     // ⚠️ Hucre genisligi EKRANDAN turetilir: sabit yazilsaydi 360dp'lik
     //    telefonda dorduncu kart TASARDI.
-    final en =
-        (MediaQuery.sizeOf(context).width - kYanBosluk * 2 - kKesifAralik * 3) /
-            4;
+    // ⚠️⚠️⚠️ TURU 96e — KUTU 10px DAR **AMA HIZA BOZULMADAN**.
+    //
+    //	ILK DENEME kutuya `margin: horizontal 5` vermekti ve HIZAYI BOZDU:
+    //	kutunun sol kenari 16 yerine **21 dp**ye kayiyordu — kullanici
+    //	fark etti (*"sol sag container icinde olanlar ayni hizada degil"*).
+    //
+    //	DOGRUSU: hucreyi daralt, ARTAN YERI ARALIGA VER. Boylece ilk
+    //	kutunun sol kenari tam `kYanBosluk`, sonuncununki tam `W-kYanBosluk`
+    //	kalir ve kutular gercekten 10px darallir.
+    // ⚠️ Aralik SABIT DEGIL, TURETILIR: dar ekranda da dort kutu tam otursun.
+    final alan = MediaQuery.sizeOf(context).width - kYanBosluk * 2;
+    final en = alan / 4 - kKesifDaralt;
+    final aralik = (alan - en * 4) / 3;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: kYanBosluk),
       child: Column(
         children: [
           for (var satir = 0; satir < 2; satir++) ...[
-            if (satir > 0) const SizedBox(height: kKesifAralik),
+            if (satir > 0) const SizedBox(height: kKesifSatirAralik),
             Row(
               children: [
                 for (var s = 0; s < 4; s++) ...[
-                  if (s > 0) const SizedBox(width: kKesifAralik),
+                  if (s > 0) SizedBox(width: aralik),
                   SizedBox(
                     width: en,
                     child: _kesifKarti(kartlar[satir * 4 + s]),
@@ -1149,13 +1197,6 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
             Container(
               height: kKesifKutu,
               alignment: Alignment.center,
-              // ⚠️⚠️ TURU 96d — KUTU **10px DAR** (kullanici emri: *"ne yesem
-              //	vb. bu kartlarin genisliklerini 10px azalt"*).
-              //	Daraltma HUCREYE degil KUTUYA uygulanir: hucre genisligi
-              //	ekrandan turuyor (4 kart + araliklar) ve degistirilseydi
-              //	YAZI ALANI da daralip "Yeni Restourant" gibi uzun adlari
-              //	kelime ortasindan bolerdi.
-              margin: const EdgeInsets.symmetric(horizontal: 5),
               decoration: BoxDecoration(
                 color: kYuzeyGri(context),
                 borderRadius: BorderRadius.circular(kYaricap(kKesifKutu)),
@@ -1777,7 +1818,10 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
   ///    gordugunu ANINDA bilmeli. Ham listeden verilseydi "İşletmeler (14)"
   ///    yazip altta 2 kart cizerdi.
   Widget _listeBasligi(int adet) => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: kYanBosluk),
+        // ⚠️ Solda baslik metni (glif telafili), sagda segment kutusu (kutu
+        //    oldugu icin telafisiz) — bkz. `kBaslikOptik`.
+        padding: const EdgeInsets.only(
+            left: kYanBosluk - kBaslikOptik, right: kYanBosluk),
         child: Row(
           children: [
             Text(

@@ -25,16 +25,23 @@ import 'isletme_servisi.dart';
 ///    guncellenip otekiler unutuldugunda hizalama SESSIZCE bozulur.
 const double kYanBosluk = 16;
 
-/// ⚠️⚠️⚠️ TURU 96d — ISLETME KARTLARININ CEVRESINDEKI BOSLUK (kullanici
-///	emri: *"isletmelerdeki sol sag ust alt bosluk 30px olarak ayarla"*).
+/// ⚠️⚠️⚠️ TURU 96e — KARTLAR ARASI DIKEY BOSLUK.
 ///
-/// ⚠️ Bu deger `kYanBosluk`tan (16) BUYUK, yani isletme kartlari slider,
-///    arama kutusu ve "İşletmeler (N)" basligindan **DAHA ICERIDE** durur.
-///    Bilincli: kullanici bu bolum icin ACIKCA 30 istedi. Hizayi geri
-///    istersen tek yer burasi — `kYanBosluk` yaz, her sey aynilasir.
-/// ⚠️ TEK KAYNAK: liste dolgusu, kartlar arasi bosluk ve kart kapaginin
-///    decode genisligi UCU DE buradan turer.
-const double kListeBosluk = 30;
+/// ⚠️ ONCEKI TUR YANLIS ANLASILDI: kullanici *"isletmelerdeki sol sag ust
+///    alt bosluk 30px"* dediginde LISTENIN yan dolgusu 30 yapilmis, kartlar
+///    daralmisti. Duzeltme: *"sen isletme kartlarini neden kuculttun? ben
+///    KART ICINDE oradaki 300 TL indirim, sag ustteki favori bunlar 25px
+///    bosluk icinde olsun dedim"*. Yani 30 DIS degil, 25 IC boslukmus.
+/// ⚠️ Yatay dolgu `kYanBosluk`a GERI DONDU: kartlar yine slider, input ve
+///    "İşletmeler (N)" basligiyla AYNI hizada.
+/// ⚠️ Bu sabit artik YALNIZ kartlar arasindaki dikey bosluk.
+const double kKartAralik = 30;
+
+/// ⚠️⚠️ KAPAGA BINEN OGELERIN (kampanya rozeti · kalp) KENARDAN BOSLUGU
+///    (kullanici emri: 25 -> **15px**, dort yandan).
+/// ⚠️ TEK KAYNAK: rozet SOL-ALT, kalp SAG-UST — ikisi de bu sabiti kullanir.
+///    Ayri sayilar yazilsaydi biri guncellenip oteki geride kalirdi.
+const double kKartIcBosluk = 15;
 
 /// ⚠️⚠️ **EKRANDAKI TEK GRI.** Slider zemini, kapak yer tutucusu ve 60x60
 ///    kartlar AYNI tonu kullanir (kullanici emri: *"ayni grilikte olsun"*).
@@ -155,11 +162,11 @@ class _IsletmeKartiState extends ConsumerState<IsletmeKarti> {
     // ⚠️ Kapak genisligi ACIKCA verilir: yoksa gorsel 2048px'e kadar decode
     //    edilir (turu 91 performans dersi, ~9 MB gecici RAM/kart).
     final kartGenislik =
-        MediaQuery.sizeOf(context).width - kListeBosluk * 2;
+        MediaQuery.sizeOf(context).width - kYanBosluk * 2;
     return Padding(
       // ⚠️ Kartlar arasi bosluk, ad-gorsel boslugunun ~3.5 kati: goz hangi
       //    ismin hangi gorsele ait oldugunu ancak boyle ayirir.
-      padding: const EdgeInsets.only(bottom: kListeBosluk),
+      padding: const EdgeInsets.only(bottom: kKartAralik),
       child: GestureDetector(
         // ⚠️ **DALGA YOK** (kullanici emri: "tikladiginda titreme olmasin").
         behavior: HitTestBehavior.opaque,
@@ -189,8 +196,8 @@ class _IsletmeKartiState extends ConsumerState<IsletmeKarti> {
                   // ⚠️ KALP **SAG UST** (referans ekran). Kapaga biner;
                   //    altta rozetler var, ustte bos alan.
                   Positioned(
-                    right: 8,
-                    top: 8,
+                    right: kKartIcBosluk,
+                    top: kKartIcBosluk,
                     child: _Kalp(dolu: _favori, onTap: _cevir),
                   ),
                 ],
@@ -322,9 +329,10 @@ class _Kalp extends StatelessWidget {
 Widget kampanyaRozetleri(IsletmeOzet o) {
   if (o.kampanyalar.isEmpty) return const SizedBox.shrink();
   return Positioned(
-    left: 8,
-    bottom: 8,
-    right: 52, // kalbin altina girmesin
+    left: kKartIcBosluk,
+    bottom: kKartIcBosluk,
+    // ⚠️ Kalbin ALTINA girmesin: kalbin dokunma alani (38) + kendi bosluğu.
+    right: kKartIcBosluk + 38,
     child: IgnorePointer(
       child: Wrap(
         spacing: 6,
