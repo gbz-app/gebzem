@@ -162,76 +162,165 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           const _ProfileTab(),
         ],
       ),
-      // ALT MENU sol/sag (ust kose) RADIUS (test turu 7): icerik zeminine karsi yuvarlak kose.
-      bottomNavigationBar: ClipRRect(
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(20),
-          topRight: Radius.circular(20),
-        ),
-        child: NavigationBar(
-          selectedIndex: _index,
-          onDestinationSelected: (i) => setState(() {
-            _index = i;
-            // ⚠️ Akistaki videolarin autoplay kapisi buna bakiyor (bkz.
-            //    `aktifSekme` serhi). Sekme degisince akis videolari DURUR.
-            aktifSekme.value = i;
-          }),
-          // ⚠️ Etiketler KISA (6 hedef) — bkz. _titles serhi.
-          destinations: [
-            const NavigationDestination(
-              icon: Icon(LucideIcons.house),
-              label: 'Anasayfa',
+      // ⚠️⚠️⚠️ TURU 96g — ALT MENU **YENIDEN KURULDU** (kullanici emri:
+      //	*"alt menuyu getir menun ortasina, alt menudeki ikonlari ortasina
+      //	3 sol 3 sag, ortada sana verdigim logoyu daire yap, ikonlarin 2
+      //	kati olsun, alt menu ikonlari bir tik yukarisinda kalsin"*).
+      //
+      // ⚠️⚠️ `NavigationBar` **KULLANILAMAZ**: Material'in bu bileseni esit
+      //	genislikte N hedef cizer; ORTAYA farkli olculu bir oge (logo)
+      //	koymanin yolu yoktur. O yuzden elde cizildi.
+      // ⚠️ Sekme INDEKSLERI DEGISMEDI (0..5): `_index`, `aktifSekme` ve
+      //    `_reels` sabiti bu sayilara bagli. Sira degistirilseydi reels'in
+      //    ses guvenligi kapisi (bkz. `IndexedStack` serhi) YANLIS sekmeye
+      //    bakardi.
+      bottomNavigationBar: _altMenu(),
+    );
+  }
+
+  /// Alt menu — 3 sol · LOGO · 3 sag.
+  ///
+  /// ⚠️ Logo GENISLIGI SABIT, yanlardaki uc oge `Expanded`: boylece iki grup
+  ///    SIMETRIK kalir ve logo tam ortada durur.
+  /// ⚠️ Ikonlar "bir tik yukarida" (kullanici emri): alt dolgu ust dolgudan
+  ///    BUYUK verilerek saglanir — `Align` ile degil, cunku jest cubugu olan
+  ///    telefonlarda `SafeArea` zaten alttan pay ekliyor.
+  Widget _altMenu() {
+    final koyu = Theme.of(context).brightness == Brightness.dark;
+    return ClipRRect(
+      // ALT MENU sol/sag (ust kose) RADIUS (test turu 7).
+      borderRadius: const BorderRadius.only(
+        topLeft: Radius.circular(20),
+        topRight: Radius.circular(20),
+      ),
+      child: Container(
+        color: Theme.of(context).colorScheme.surfaceContainer,
+        child: SafeArea(
+          top: false,
+          child: SizedBox(
+            height: 66,
+            child: Row(
+              children: [
+                _menuOge(0, LucideIcons.house, 'Anasayfa'),
+                _menuOge(1, LucideIcons.search, 'Ara'),
+                _menuOge(2, LucideIcons.clapperboard, 'Reels'),
+                _logoDugmesi(koyu),
+                // ⚠️ OKUNMAMIS ROZETI: mesaj sekmesi alt menude ve kullanici
+                //    surekli akista/reels'te olacagi icin rozet OLMADAN yeni
+                //    mesaji HIC fark etmezdi (kullanicinin 1 numarali
+                //    sikayeti "mesajlar anlik gelmiyor").
+                _menuOge(3, LucideIcons.messageCircle, 'Mesaj',
+                    rozet: ref
+                            .watch(chatsProvider)
+                            .valueOrNull
+                            ?.where((c) => !c.archived)
+                            .fold<int>(0, (a, c) => a + c.unread) ??
+                        0),
+                _menuOge(4, LucideIcons.radio, 'Canlı'),
+                _menuOge(5, null, 'Profil'),
+              ],
             ),
-            const NavigationDestination(
-              icon: Icon(LucideIcons.search),
-              label: 'Ara',
-            ),
-            const NavigationDestination(
-              icon: Icon(LucideIcons.clapperboard),
-              label: 'Reels',
-            ),
-            // ⚠️ OKUNMAMIS ROZETI: mesaj sekmesi artik alt menude ve kullanici
-            //    surekli akista/reels'te olacagi icin rozet OLMADAN yeni mesaji
-            //    HIC fark etmezdi (kullanicinin 1 numarali sikayeti "mesajlar
-            //    ve bildirimler anlik gelmiyor" — gorunurluk bunun parcasi).
-            NavigationDestination(
-              icon: _RozetliIkon(
-                ikon: LucideIcons.messageCircle,
-                sayi:
-                    ref
-                        .watch(chatsProvider)
-                        .valueOrNull
-                        ?.where((c) => !c.archived)
-                        .fold<int>(0, (a, c) => a + c.unread) ??
-                    0,
-              ),
-              label: 'Mesaj',
-            ),
-            // ⚠️ TURU 80 (kullanici emri): `radioTower` -> `radio`.
-            //    `LucideIcons.radio` bu kod tabaninda ZATEN kullaniliyor
-            //    (`davet_provider.dart` yayin daveti) — tutarlilik da kazanildi.
-            const NavigationDestination(
-              icon: Icon(LucideIcons.radio),
-              label: 'Canlı',
-            ),
-            // ⚠️⚠️ TURU 80 (kullanici emri): ikon YERINE **PROFIL RESMI**.
-            //
-            // ⚠️ `icon` ve `selectedIcon` AYNI SINIFI (`_ProfilIkonu`) kullanir.
-            //    Farkli sinif verilseydi Flutter element'i yeniden kurar ve
-            //    avatar her sekme degisiminde SIFIRDAN cizilirdi; ayni sinifla
-            //    State KORUNUR ve `secili` yalnizca bir alan degisimi olur.
-            // ⚠️ Secili/secili degil ayrimi ikonla yapilamadigi icin CERCEVE
-            //    ile yapilir (bkz. `_ProfilIkonu`).
-            NavigationDestination(
-              icon: const _ProfilIkonu(secili: false),
-              selectedIcon: const _ProfilIkonu(secili: true),
-              label: 'Profil',
-            ),
-          ],
+          ),
         ),
       ),
     );
   }
+
+  /// Tek menu ogesi. [ikon] `null` ise PROFIL RESMI cizilir.
+  ///
+  /// ⚠️ Secili/secili degil ayrimi RENKLE: secilide tam opak + kalin etiket.
+  ///    Material'in hap gostergesi (indicator) elde cizimde YOK — kullanici
+  ///    bu ekranlarda sade bir dil istedi.
+  /// ⚠️ **DALGA YOK** (`GestureDetector`): kullanici "tikladiginda titreme
+  ///    olmasin" dedi ve bu kural tum uygulamaya tasindi.
+  Widget _menuOge(int sira, IconData? ikon, String etiket, {int rozet = 0}) {
+    final secili = _index == sira;
+    final renk = Theme.of(context).colorScheme.onSurface;
+    return Expanded(
+      child: Semantics(
+        button: true,
+        selected: secili,
+        label: etiket,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => setState(() {
+            _index = sira;
+            // ⚠️ Akistaki videolarin autoplay kapisi buna bakiyor; sekme
+            //    degisince akis videolari DURUR.
+            aktifSekme.value = sira;
+          }),
+          child: Padding(
+            // ⚠️ Ikonlar "bir tik yukarida": alt dolgu ustten BUYUK.
+            padding: const EdgeInsets.only(top: 6, bottom: 12),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Opacity(
+                  opacity: secili ? 1 : 0.5,
+                  child: ikon == null
+                      ? _ProfilIkonu(secili: secili)
+                      : (rozet > 0
+                          ? _RozetliIkon(ikon: ikon, sayi: rozet)
+                          : Icon(ikon, size: 24, color: renk)),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  etiket,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 10,
+                    height: 1.0,
+                    fontWeight: secili ? FontWeight.w700 : FontWeight.w500,
+                    color: renk.withValues(alpha: secili ? 1 : 0.5),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// ⚠️⚠️ ORTADAKI LOGO — **ikonlarin 2 KATI** (kullanici emri): ikon 24,
+  ///	logo dairesi **48**.
+  ///
+  /// ⚠️ Logo dosyasi TEK KAYNAK: `assets/icon/logo.png` (akis basliginda da
+  ///    ayni dosya kullaniliyor). Degistirmek icin YALNIZ o dosya degisir.
+  /// ⚠️ **DAVRANIS: ANASAYFA.** Kullanici logo icin bir islev SOYLEMEDI;
+  ///    en beklenen davranis secildi ve BOS BIRAKILMADI — dokununca hicbir
+  ///    sey yapmayan bir dugme, bu projede "olu ozellik" sinifidir.
+  /// ⚠️ Daire icinde `BoxFit.cover`: logo kare degilse yanlarda bant
+  ///    olusmasin.
+  Widget _logoDugmesi(bool koyu) => Semantics(
+        button: true,
+        label: 'Anasayfa',
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => setState(() {
+            _index = 0;
+            aktifSekme.value = 0;
+          }),
+          child: Padding(
+            padding: const EdgeInsets.only(top: 6, bottom: 12, left: 4, right: 4),
+            child: Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: koyu ? Colors.white10 : Colors.black.withValues(alpha: 0.04),
+              ),
+              child: ClipOval(
+                child: Padding(
+                  padding: const EdgeInsets.all(3),
+                  child: Image.asset('assets/icon/logo.png', fit: BoxFit.cover),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
 }
 
 /// Alt menu ikonu + sag-ust kirmizi sayac.

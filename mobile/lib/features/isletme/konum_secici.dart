@@ -28,6 +28,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'harita_pin.dart';
 import 'isletme_kart.dart' show kYanBosluk, kYaricap, kVurgu, kYuzeyGri;
 
 /// Kayitli bir konum.
@@ -166,6 +167,86 @@ class _KonumPaneliState extends State<_KonumPaneli> {
   ///    "dugme bozuk" hissi verir.
   /// ⚠️ Ad **ZORUNLU DEGIL**: bos birakilirsa sira numarasi verilir. Zorunlu
   ///    olsaydi konum eklemek iki adima cikardi.
+  /// ⚠️⚠️⚠️ TURU 96g — IKI YOL: **GPS** ya da **HARITADAN PIN** (kullanici
+  ///	emri: *"konum secte haritadan pin secebilelim, Yemeksepeti gibi"*).
+  ///
+  /// ⚠️ Harita secenegi YALNIZ harita anahtarli derlemede cizilir
+  ///    (`haritadanSecilebilir`): anahtarsiz derlemede `GoogleMap`
+  ///    Android'de filigranli gri kutu, iOS'ta BOS ekran olurdu (turu 85).
+  ///    Basildiginda bos ekran acan bir dugme "bozuk" gorunur.
+  /// ⚠️ Tek secenek varsa SORU SORULMAZ: dogrudan GPS'e gider. Tek maddelik
+  ///    bir menu, kullaniciya gereksiz bir dokunus maliyeti demektir.
+  Future<void> _yeniKonum() async {
+    if (!haritadanSecilebilir) {
+      await _ekle();
+      return;
+    }
+    final secim = await showModalBottomSheet<String>(
+      context: context,
+      builder: (c) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(LucideIcons.crosshair),
+              title: const Text('Bulunduğum konum'),
+              subtitle: const Text('GPS ile otomatik bul'),
+              onTap: () => Navigator.of(c).pop('gps'),
+            ),
+            ListTile(
+              leading: const Icon(LucideIcons.map),
+              title: const Text('Haritadan seç'),
+              subtitle: const Text('Pini istediğin yere taşı'),
+              onTap: () => Navigator.of(c).pop('harita'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || secim == null) return;
+    if (secim == 'gps') {
+      await _ekle();
+    } else {
+      await _haritadan();
+    }
+  }
+
+  /// Haritadan pin secip kaydeder.
+  ///
+  /// ⚠️ Baslangic noktasi: **son bilinen konum**, yoksa secili konum, o da
+  ///    yoksa Gebze merkezi. Haritayi 0,0'da (Gine Korfezi) acmak kullaniciya
+  ///    okyanus gosterirdi.
+  Future<void> _haritadan() async {
+    var enlem = 40.8028, boylam = 29.4307; // Gebze merkez
+    try {
+      final son = await Geolocator.getLastKnownPosition();
+      if (son != null) {
+        enlem = son.latitude;
+        boylam = son.longitude;
+      } else if (_liste.isNotEmpty) {
+        enlem = _liste.first.enlem;
+        boylam = _liste.first.boylam;
+      }
+    } catch (_) {/* baslangic noktasi bir KOLAYLIK; hata onemli degil */}
+    if (!mounted) return;
+    final nokta = await haritadanPinSec(context,
+        baslangicEnlem: enlem, baslangicBoylam: boylam);
+    if (nokta == null || !mounted) return;
+    final ad = await _adSor();
+    if (ad == null || !mounted) return;
+    final yeni = [
+      ..._liste,
+      Konum(ad: ad, enlem: nokta.$1, boylam: nokta.$2),
+    ];
+    await KonumDeposu.yaz(yeni);
+    await KonumDeposu.seciliYaz(ad);
+    if (!mounted) return;
+    setState(() {
+      _liste = yeni;
+      _secili = ad;
+    });
+  }
+
   Future<void> _ekle() async {
     if (_ekleniyor) return;
     setState(() => _ekleniyor = true);
@@ -377,7 +458,7 @@ class _KonumPaneliState extends State<_KonumPaneli> {
                     borderRadius: BorderRadius.circular(kYaricap(52)),
                   ),
                 ),
-                onPressed: _ekleniyor ? null : _ekle,
+                onPressed: _ekleniyor ? null : _yeniKonum,
                 icon: _ekleniyor
                     ? const SizedBox(
                         width: 16,

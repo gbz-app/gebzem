@@ -43,6 +43,11 @@ import 'isletme_servisi.dart';
 /// Liste siralamasi.
 enum Siralama { onerilen, puan, teslimat, minTutar, mesafe }
 
+/// ⚠️ TURU 96g — **PUBLIC**: cip seridi de siralama adini yaziyor
+///    ("Sıralama · Puana göre"). Iki kopya olsaydi biri guncellenip oteki
+///    geride kalirdi.
+String siralamaAdi(Siralama s) => _siralamaAdi[s] ?? '';
+
 const _siralamaAdi = {
   Siralama.onerilen: 'Önerilen',
   Siralama.puan: 'Puana göre',

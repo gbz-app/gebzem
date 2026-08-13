@@ -212,8 +212,9 @@ class _IsletmeKartiState extends ConsumerState<IsletmeKarti> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      // ⚠️ 16 -> 17 (kullanici emri: "isletme yazi tipi 1px").
-                      fontSize: 17,
+                      // ⚠️ 16 -> 17 -> **16** (kullanici emri, turu 96g:
+                      //    "isletme kartlarinin basliklari 1px kucuk").
+                      fontSize: 16,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -294,7 +295,26 @@ class _Kalp extends StatelessWidget {
         height: 38,
         child: Center(
           child: dolu
-              ? const Icon(Icons.favorite, size: 24, color: pembe)
+              // ⚠️⚠️ TURU 96g — DOLU HALDE DE **BEYAZ KENARLIK** (kullanici
+              //	emri: *"kalbe tikladigimda beyaz border kaybolmasin"*).
+              //
+              //	Beyaz golgeler glifin cevresine yayilarak bir kontur
+              //	uretir; boylece pembe kalp acik renkli bir kapak
+              //	fotografi uzerinde de sinirini korur. Bos haldeki beyaz
+              //	cizgiyle AYNI teknik — iki hal arasinda gorsel sureklilik.
+              // ⚠️ Golge OFSETI bos haldekiyle AYNI (0.5): farkli olsaydi
+              //    dokununca kontur kalinligi ZIPLARDI.
+              ? const Icon(
+                  Icons.favorite,
+                  size: 24,
+                  color: pembe,
+                  shadows: [
+                    Shadow(color: Colors.white, offset: Offset(0.5, 0)),
+                    Shadow(color: Colors.white, offset: Offset(-0.5, 0)),
+                    Shadow(color: Colors.white, offset: Offset(0, 0.5)),
+                    Shadow(color: Colors.white, offset: Offset(0, -0.5)),
+                  ],
+                )
               // ⚠️ BOS HAL: **BEYAZ** cizgi (kullanici emri). Lucide bir FONT
               //    oldugu icin `strokeWidth` YOKTUR; kalinlik ayni renkte
               //    ±0.5px kaydirilmis dort golgeyle simule edilir.
@@ -386,8 +406,9 @@ Widget kampanyaRozetleri(IsletmeOzet o) {
 Widget vitrinSatiri(BuildContext c, IsletmeOzet o, {required bool kompakt}) {
   final soluk =
       Theme.of(c).textTheme.bodyMedium?.color?.withValues(alpha: 0.62);
-  // ⚠️ 13 -> 14 (kullanici emri: "dakika, fiyat 1px daha buyuk").
-  final boy = kompakt ? 13.0 : 14.0;
+  // ⚠️ 13 -> 14 -> **13** (kullanici emri, turu 96g: "baslik altindaki
+  //    bilgileri 1px kucuk"). Kompakt (izgara) dali 12ye iner.
+  final boy = kompakt ? 12.0 : 13.0;
   final p = <Widget>[];
 
   if (o.puan != null) {

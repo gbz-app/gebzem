@@ -905,61 +905,56 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
           left: kYanBosluk - kNavOptik,
           right: kYanBosluk - kHeaderPay - kKalpOptik,
         ),
-        child: Row(
-          children: [
-            // ⚠️⚠️⚠️ TURU 96f — GERI TUSU YERINE **KONUM SECICI** (kullanici
-            //	emri: *"geri tusu yerine navigator ikonu koy, saginda Ev
-            //	yazsin, tikladiginda filtreleme gibi popup ciksin"*).
-            //
-            // ⚠️⚠️ **GERI DUGMESI KALKTI — CIKIS YOLU JESTE KALDI.** Android'de
-            //	donanim/jest geri tusu, iOS'ta kenardan cekme calismaya
-            //	DEVAM EDER (`MaterialPageRoute` ikisini de destekler), ama
-            //	ekranda GORUNEN bir geri yolu artik YOK. Kullanici bunu
-            //	acikca istedi; Getir/Yemeksepeti ana ekraninda da boyle.
-            // ⚠️ YAPMA: ekranda baska bir cikis yolu kalmadigi icin bu satiri
-            //    "sadelestirmek" adina kaldirma.
-            _konumDugmesi(),
-            if (widget.baslik.isNotEmpty)
-              Expanded(
-                child: Text(
-                  widget.baslik,
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  // ⚠️⚠️ TURU 96f — DIKEY DENGE (kullanici: *"header icindeki
-                  //	yazi yukari asagi bosluk esit degil, alt kismi kisa
-                  //	kaliyor"*). HAKLIYDI: yazi tipinin ascent'i descent'ten
-                  //	buyuk oldugu icin varsayilan satir kutusunda glif
-                  //	YUKARI kayik oturur.
-                  //	`height: 1.0` + `leadingDistribution: even` satir
-                  //	boslugunu ust/alt ESIT dagitir.
-                  // ⚠️ YAPMA: bunu `Padding`le "duzeltme" — yazi olcegi
-                  //    degisince yeniden kayar.
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    height: 1.0,
-                    leadingDistribution: TextLeadingDistribution.even,
+        // ⚠️⚠️⚠️ TURU 96g — BASLIK **GERCEK MERKEZDE** (kullanici emri:
+        //	*"Yemek yazisi ortada olacak"*).
+        //
+        //	ONCEKI HAL `Row` + `Expanded` idi: soldaki konum dugmesi ile
+        //	sagdaki kalp ESIT GENISLIKTE OLMADIGI icin "orta" kayiyordu.
+        //	`Stack` + `Center` yapisal cozum: baslik yanindakilerden
+        //	BAGIMSIZ, header'in gercek ortasinda durur.
+        // ⚠️ Ayni hata filtre panelinde de vardi ve kullanici orada da fark
+        //    etti — cozum ayni.
+        child: SizedBox(
+          height: 44,
+          child: Stack(
+            children: [
+              if (widget.baslik.isNotEmpty)
+                Center(
+                  child: Text(
+                    widget.baslik,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    // ⚠️ DIKEY DENGE: yazi tipinin ascent'i descent'ten
+                    //    buyuk oldugu icin varsayilan satir kutusunda glif
+                    //    YUKARI kayik oturur (kullanici: *"alt kismi kisa
+                    //    kaliyor"*). `height: 1.0` + `even` esit dagitir.
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      height: 1.0,
+                      leadingDistribution: TextLeadingDistribution.even,
+                    ),
                   ),
                 ),
-              )
-            else
-              const Spacer(),
-            // ⚠️⚠️ TURU 96 — **PROFIL DAIRESI KALDIRILDI** (kullanici emri:
-            //	*"sag ustteki profil ikonu kaldir"*).
-            //
-            //	Profil zaten ALT MENUDE var; header'daki ikinci giris hem
-            //	gereksizdi hem de bu satirdaki tek KIMLIK tasiyan oge oldugu
-            //	icin yanindaki iki notr ikonla ayni dili konusmuyordu.
-            // ⚠️ YAPMA: buraya profil/avatar geri koyma.
-            _headerDaire(
-              LucideIcons.heart,
-              'Favorilerim',
-              () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const FavorilerimEkrani()),
+              // ⚠️⚠️ GERI TUSU YERINE **KONUM SECICI** (turu 96f).
+              //	Geri dugmesi yok; Android'de donanim/jest geri, iOS'ta
+              //	kenardan cekme CALISMAYA DEVAM EDER.
+              // ⚠️ YAPMA: bu satiri "sadelestirme" adina kaldirma — ekranda
+              //    baska cikis yolu yok.
+              Align(alignment: Alignment.centerLeft, child: _konumDugmesi()),
+              Align(
+                alignment: Alignment.centerRight,
+                child: _headerDaire(
+                  LucideIcons.heart,
+                  'Favorilerim',
+                  () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                        builder: (_) => const FavorilerimEkrani()),
+                  ),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       );
 
@@ -978,7 +973,19 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: _konumSec,
-          child: SizedBox(
+          // ⚠️⚠️ TURU 96g — **GENISLIK TAVANI** (kullanici emri: *"belirli
+          //	bir yazidan sonra ... olmasi gerekiyor, ortadaki Yemek
+          //	yazisina cok yaklasmasin"*).
+          //
+          //	Baslik artik `Stack` icinde ORTALI, yani konum dugmesi
+          //	buyudukce onu ITMEZ — UZERINE BINER. Tavan olmadan "Babaannemin
+          //	Evi" gibi bir ad basligin altina girerdi.
+          // ⚠️ Oran ekrandan turer (%32): sabit dp dar telefonda cok yer
+          //    kaplar, genis telefonda gereksiz erken kirpardi.
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+                maxWidth: MediaQuery.sizeOf(context).width * 0.32),
+            child: SizedBox(
             height: 44,
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -1005,6 +1012,7 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                 Icon(LucideIcons.chevronDown, size: 15, color: _notrYazi),
               ],
             ),
+          ),
           ),
         ),
       );
@@ -1267,6 +1275,18 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
           for (var satir = 0; satir < 2; satir++) ...[
             if (satir > 0) const SizedBox(height: kKesifSatirAralik),
             Row(
+              // ⚠️⚠️⚠️ TURU 96g — **`start` ZORUNLU** (kullanici: *"Yeni
+              //	Restourant karti yukari kalmis, onu duzelt"*).
+              //
+              //	`Row`un varsayilani `center`: hucreler FARKLI YUKSEKLIKTE
+              //	oldugunda (etiket bir satir mi iki satir mi) dikeyde
+              //	ORTALANIR. "Yeni Restourant" iki satira sardigi icin o
+              //	hucre daha uzun, ORTALANINCA da GRI KUTUSU yukari kaydi.
+              //	`start` ile tum kutular AYNI ust hizada; farkli olan
+              //	yalnizca etiketin alt tarafi.
+              // ⚠️ YAPMA: bunu kaldirma; iki satirlik bir etiket eklendigi
+              //    an ayni kayma geri gelir.
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 for (var s = 0; s < 4; s++) ...[
                   if (s > 0) SizedBox(width: aralik),
@@ -1325,7 +1345,9 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
               textAlign: TextAlign.center,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                fontSize: 12,
+                // ⚠️ TURU 96g — 12 -> **14** (kullanici emri: *"slider
+                //    altindaki kartlardaki yazilari 2px buyut"*).
+                fontSize: 14,
                 height: 1.15,
                 // ⚠️ KALINLIK SABIT: degisseydi metin genisleyip satiri
                 //    kaydirirdi (ciplerde yasanan hata).
@@ -1603,13 +1625,53 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                   // ⚠️ Aktif suzgec varsa **NOKTA** cizilir — kullanici
                   //    listenin neden kisaldigini gorebilmeli.
                   _filtreCipi(),
-                  // ⚠️ IKON `locateFixed` -> **`navigation`** (kullanici emri:
-                  //    *"yakinimda navigator olarak ikonu degistir"*) — yon
-                  //    oku, harita uygulamalarinin ortak dili.
-                  _hizliCip('yakinimda', 'Yakınımda', LucideIcons.navigation),
+                  // ⚠️⚠️⚠️ TURU 96g — CIPLER ARTIK **FILTRE PANELININ BOLUM
+                  //	BASLIKLARI** (kullanici emri: *"filtreler sagindaki
+                  //	butonlara filtrelerdeki basliklar olsun, ekstra olarak
+                  //	Onayli butonu olsun"*).
+                  //
+                  //	Her cip bir BOLUMU temsil eder; o bolumde secim varsa
+                  //	**DEGERI YAZAR** ("Puan" -> "4,0+") ve kenarligi siyah
+                  //	olur. Dokununca filtre panelini acar.
+                  // ⚠️ Cip KENDI BASINA SUZMEZ: tek dokunusla "Puan"in hangi
+                  //    esik olacagi (4+ mi 3+ mi) secilemez. Paneli acmak TEK
+                  //    durust davranis; aksi halde cip bir degeri kendiliginden
+                  //    secer ve kullanici sebebini bilemezdi.
+                  // ⚠️ "Yakınımda" cipi KALDIRILDI: ayni is hem kesif kartinda
+                  //    hem "Sıralama > Mesafe"de var; ucuncu kapi gereksizdi.
+                  _bolumCipi(
+                    'Sıralama',
+                    LucideIcons.arrowUpDown,
+                    _filtre.siralama == Siralama.onerilen
+                        ? ''
+                        : siralamaAdi(_filtre.siralama),
+                  ),
+                  _bolumCipi(
+                    'Min. tutar',
+                    LucideIcons.wallet,
+                    _filtre.minTutarTavanKurus == null
+                        ? ''
+                        : '${_filtre.minTutarTavanKurus! ~/ 100} TL',
+                  ),
+                  _bolumCipi(
+                    'Puan',
+                    LucideIcons.star,
+                    _filtre.puanTaban == null
+                        ? ''
+                        : '${_puanYaz(_filtre.puanTaban!)}+',
+                  ),
+                  _bolumCipi(
+                    'Teslimat',
+                    LucideIcons.clock,
+                    _filtre.teslimatTavanDk == null
+                        ? ''
+                        : '${_filtre.teslimatTavanDk} dk',
+                  ),
+                  // ⚠️ "Onaylı" KENDI BASINA SUZER: tek degerli (acik/kapali),
+                  //    panele gerek yok. Kullanici acikca istedi.
+                  _hizliCip('onayli', 'Onaylı', LucideIcons.badgeCheck),
                   if (_benimIlce.isNotEmpty)
                     _hizliCip('sehrimde', _benimIlce, LucideIcons.mapPin),
-                  _hizliCip('onayli', 'Onaylı', LucideIcons.badgeCheck),
                   // ⚠️ Kategori CIPLERI buraya TASINDI: eskiden ayri bir
                   //    44px'lik serit vardi ve ekranin ustunde ARKA ARKAYA
                   //    UC yatay serit (hizli kartlar + arama + kategoriler)
@@ -1690,8 +1752,7 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(LucideIcons.slidersHorizontal,
-                      size: 13, color: _notrYazi),
+                  _cipIkon(LucideIcons.slidersHorizontal),
                   const SizedBox(width: 5),
                   Text(
                     'Filtre',
@@ -1718,6 +1779,83 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
       ),
     );
   }
+
+  /// Filtre panelinin bir BOLUMUNU temsil eden cip.
+  ///
+  /// [deger] bos ise yalniz baslik yazar (notr kenarlik); doluysa
+  /// "Baslik · deger" yazar ve kenarlik SIYAH olur.
+  /// ⚠️ Dokununca filtre panelini acar — cip kendi basina suzmez (gerekce
+  ///    cagri yerindeki serhte).
+  /// ⚠️ Kardes ciplerle AYNI olcu (32 boy, `kYaricap(32)`, ayni dolgu).
+  Widget _bolumCipi(String baslik, IconData ikon, String deger) {
+    final aktif = deger.isNotEmpty;
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: Semantics(
+        button: true,
+        selected: aktif,
+        label: aktif ? '$baslik: $deger' : baslik,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: _filtreSheet,
+          child: Center(
+            child: Container(
+              height: 32,
+              padding: const EdgeInsets.symmetric(horizontal: 11),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(kYaricap(32)),
+                border: Border.all(color: aktif ? _notrYazi : _notrKenar),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _cipIkon(ikon),
+                  const SizedBox(width: 5),
+                  Text(
+                    aktif ? '$baslik · $deger' : baslik,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: _notrYazi,
+                      // ⚠️ KALINLIK SABIT: degisseydi metin genisler ve serit
+                      //    yana KAYARDI (ciplerde yasanan hata).
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// ⚠️⚠️ TURU 96g — CIP IKONLARI **BIR TIK KALIN** (kullanici emri:
+  ///	*"ikonlar 1px kalinlastirirsin"*).
+  ///
+  ///	`lucide_icons_flutter` ikonlari bir **FONT** olarak sunar (glif),
+  ///	SVG degil — `strokeWidth` YOKTUR ve yazilsa DERLENMEZ. Kalinlik ayni
+  ///	renkte ±0.4px kaydirilmis DORT golgeyle simule edilir; glif kendi
+  ///	uzerine hafifce yayilir ve cizgi kalinlasir.
+  /// ⚠️ TEK KAYNAK: serit uzerindeki HER cip bunu kullanir. Ayri ayri
+  ///    yazilsaydi biri guncellenip otekiler ince kalirdi.
+  Widget _cipIkon(IconData ikon) => Icon(
+        ikon,
+        size: 13,
+        color: _notrYazi,
+        shadows: [
+          for (final d in const [
+            Offset(0.4, 0),
+            Offset(-0.4, 0),
+            Offset(0, 0.4),
+            Offset(0, -0.4),
+          ])
+            Shadow(color: _notrYazi, offset: d),
+        ],
+      );
+
+  /// "4.0" -> "4,0" (Turkce ondalik ayraci).
+  String _puanYaz(double p) => p.toStringAsFixed(1).replaceAll('.', ',');
 
   /// Hizli suzgec cipi.
   ///
@@ -1798,7 +1936,7 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(ikon, size: 13, color: _notrYazi),
+                _cipIkon(ikon),
                 const SizedBox(width: 5),
                 Text(
                   ad,
@@ -1933,7 +2071,7 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
         child: Row(
           children: [
             Text(
-              'İşletmeler ($adet)',
+              '${_listeAdi()} ($adet)',
               style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
             ),
             const Spacer(),
@@ -1941,6 +2079,37 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
           ],
         ),
       );
+
+  /// ⚠️⚠️ TURU 96g — LISTE BASLIGI **KATEGORIYE OZEL** (kullanici emri:
+  ///	*"İşletmeler (2) yerine Restoranlar olarak yazabilirsin"*).
+  ///
+  /// ⚠️ Cogul adlar ISTEMCIDE ve bu bilincli bir GECICI: sunucudaki
+  ///    `Kategoriler` haritasi TEKIL ad tutuyor ("Yemek"), cogulunu
+  ///    ("Restoranlar") tutmuyor. Sunucuya eklemek bir alan + deploy
+  ///    demekti; bu tur SALT ARAYUZ turu.
+  /// ⚠️ **BACKEND TURUNDA** bu harita `altkategori.go`ya tasinmali —
+  ///    yeni bir kategori eklendiginde istemci guncellemesi gerekmesin
+  ///    (turu 77 kurali).
+  /// ⚠️ Bilinmeyen kategori "İşletmeler"e duser: eksik bir anahtar yuzunden
+  ///    baslik BOS kalmaz.
+  String _listeAdi() {
+    const adlar = {
+      'yemek': 'Restoranlar',
+      'kafe': 'Kafeler',
+      'doktor': 'Doktorlar',
+      'diyetisyen': 'Diyetisyenler',
+      'kuafor': 'Kuaförler',
+      'guzellik': 'Güzellik Merkezleri',
+      'otel': 'Oteller',
+      'eczane': 'Eczaneler',
+      'emlak': 'Emlak Ofisleri',
+      'giyim': 'Mağazalar',
+      'teknoloji': 'Teknoloji Mağazaları',
+      'eglence': 'Eğlence Mekânları',
+      'hizmet': 'Hizmetler',
+    };
+    return adlar[_kategori] ?? 'İşletmeler';
+  }
 
   /// ⚠️⚠️⚠️ TURU 96d — GORUNUM SECICI **TEK KUTU** (kullanici emri:
   ///	*"isletmelerin sagindaki ikonlari TEK BIR DIVIN ICINE al, tikladiginda
@@ -1958,8 +2127,15 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
   ///    tam `kYuzeyGri`. Ikisi ayni ton olsaydi aktiflik GORUNMEZDI.
   /// ⚠️ **DALGA YOK**: `GestureDetector` (kullanici "titreme olmasin" dedi).
   Widget _gorunumSecici() {
-    final koyu = Theme.of(context).brightness == Brightness.dark;
-    final kutu = (koyu ? Colors.white : Colors.black).withValues(alpha: 0.05);
+    // ⚠️⚠️ TURU 96g — KUTU ZEMINI **BEYAZ + KENARLIK** (kullanici emri:
+    //	*"sagdaki ikonlari arkasi beyaz, filtre butonu gibi; neye tikladiysam
+    //	arkasi gri olacak"*).
+    //
+    //	Onceki hal kutuyu hafif GRI boyuyordu; aktif segment de gri olunca
+    //	ikisi birbirine cok yakin kaliyor ve hangisinin secili oldugu zor
+    //	anlasiliyordu. Artik kutu ZEMINLE AYNI (seffaf) + cip kenarligi,
+    //	aktif segment ise dolu gri -> kontrast net.
+    // ⚠️ Kenarlik cipler ile AYNI kaynaktan (`_notrKenar`).
     Widget segment(IconData ikon, String ipucu, bool aktif, VoidCallback ac) =>
         Semantics(
           button: true,
@@ -1983,8 +2159,8 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
     return Container(
       padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
-        color: kutu,
         borderRadius: BorderRadius.circular(kYaricap(42)),
+        border: Border.all(color: _notrKenar),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
