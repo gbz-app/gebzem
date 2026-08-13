@@ -561,6 +561,17 @@ func (h *Handler) Liste(w http.ResponseWriter, r *http.Request) {
 	//    `lower()` Turkce'de "İ" icin YANLIS sonuc verir (turu 91 dersi).
 	// ⚠️ YAPMA: yuklemi tekrar tek `ILIKE '%'||$4||'%'`e dondurme.
 
+	// ⚠️⚠️ TURU 96h — SUZGEC PARAMETRELERI (arayuzdeki filtre paneli).
+	//    Hepsi OPSIYONEL: gecilmezse 0/false olur ve yuklem devre disi
+	//    kalir — eski istemci surumleri AYNEN calisir.
+	// ⚠️ Bozuk deger 400 DEGIL, "suzme yok"a duser: bir yazim hatasi
+	//    yuzunden liste HIC gelmemesindense suzgecsiz gelmesi yeglenir.
+	minTutar := sayi(r.URL.Query().Get("min_tutar"))
+	puanTaban := ondalik(r.URL.Query().Get("puan"))
+	teslimatTavan := sayi(r.URL.Query().Get("teslimat"))
+	kampanyali := r.URL.Query().Get("kampanyali") == "1"
+	puansiz := r.URL.Query().Get("puansiz") == "1"
+
 	rows, err := h.db.Query(r.Context(), `
 		SELECT `+isletmeSutunlari+`
 		  FROM isletmeler i JOIN users u ON u.id = i.user_id
@@ -581,10 +592,37 @@ func (h *Handler) Liste(w http.ResponseWriter, r *http.Request) {
 		                       OR p.bolum ILIKE '%'||t.kelime||'%'))))
 		   AND ($5 = '' OR i.ilce ILIKE $5)
 		   AND (NOT $6 OR u.onayli)
+		   -- ⚠️⚠️⚠️ TURU 96h — SUZGECLER **SUNUCUDA**.
+		   --
+		   --   Turu 96'da filtre paneli yazildi ama suzme ISTEMCIDE
+		   --   yapiliyordu ve sinir kodda durustce yaziliydi: sunucu
+		   --   LIMIT 60 donduruyor, yani "60un icinden suzulmus" sonuc
+		   --   "hepsinden suzulmus"ten FARKLI olabilir. Cok isletme
+		   --   oldugunda kullanici "4,5 ve ustu" secip BOS liste gorebilir
+		   --   ve sebebini ANLAYAMAZDI (isletme var, LIMIT disinda).
+		   --   Artik suzgec LIMIT'ten ONCE uygulanir.
+		   -- ⚠️ Her parametre "0/bos = suzme yok" ile kapilanir; istemci
+		   --   alani gondermezse davranis DEGISMEZ (eski surumler calisir).
+		   -- NULL kayit ELENIR ($8 icin puan IS NOT NULL): kullanici
+		   --   puani yuksek yerleri istedi, puani BILINMEYEN yeri degil.
+		   --   Istemcideki kural buydu; sunucuya BIREBIR tasindi.
+		   AND ($7 = 0 OR (i.min_tutar_kurus IS NOT NULL
+		                   AND i.min_tutar_kurus <= $7))
+		   AND ($8 = 0 OR (i.puan IS NOT NULL AND i.puan >= $8))
+		   AND ($9 = 0 OR (i.teslimat_dk_max IS NOT NULL
+		                   AND i.teslimat_dk_max <= $9))
+		   -- kampanyalar JSONB dizi; bos dizi de NULL de "kampanya yok".
+		   AND (NOT $10 OR jsonb_array_length(
+		         COALESCE(i.kampanyalar, '[]'::jsonb)) > 0)
+		   -- ⚠️ "Yeni" = puani HENUZ YOK (istemcideki olcutle ayni). Kayit
+		   --   tarihi artik yanitta ama SIRALAMA hala ad/onaylı uzerinden;
+		   --   olcutu degistirmek arayuzu de degistirmek demek olurdu.
+		   AND (NOT $11 OR i.puan IS NULL)
 
 		`+engel.Yuklem("$1", "u.id")+`
 		 ORDER BY u.onayli DESC, u.name ASC
-		 LIMIT 60`, me, kategori, il, q, ilce, yalnizOnayli)
+		 LIMIT 60`, me, kategori, il, q, ilce, yalnizOnayli,
+		minTutar, puanTaban, teslimatTavan, kampanyali, puansiz)
 	if err != nil {
 		log.Printf("isletme liste: %v", err)
 		hata(w, 500, "işletmeler alınamadı")

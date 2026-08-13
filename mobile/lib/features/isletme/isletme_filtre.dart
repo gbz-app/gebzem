@@ -98,6 +98,13 @@ class IsletmeFiltre {
       (geceAcik ? 1 : 0) +
       (puansiz ? 1 : 0);
 
+  /// ⚠️ SUNUCUYA giden suzgeclerin imzasi. Panel kapaninca bu degisitiyse
+  ///    liste YENIDEN CEKILIR; degismediyse yalnizca yeniden cizilir.
+  /// ⚠️ Saat suzgecleri (`suAnAcik`, `geceAcik`) ve `siralama` BURAYA
+  ///    GIRMEZ: onlar istemcide uygulaniyor, yeni istek gerektirmezler.
+  String get sunucuImzasi =>
+      '$minTutarTavanKurus|$puanTaban|$teslimatTavanDk|$kampanyali|$puansiz';
+
   void temizle() {
     siralama = Siralama.onerilen;
     minTutarTavanKurus = null;
@@ -118,30 +125,39 @@ class IsletmeFiltre {
   /// ⚠️ Liste **KOPYALANIR** (`toList`): yerinde siralamak cagiran ekranin
   ///    ham listesini bozar ve "Önerilen"e donuldugunde ESKI SIRA GERI
   ///    GELMEZDI.
+  /// ⚠️⚠️⚠️ TURU 96h — **SUZME SUNUCUYA TASINDI; BURADA YALNIZ SIRALAMA.**
+  ///
+  ///	Turu 96'da suzgecler istemcide uygulaniyordu ve sinir durustce
+  ///	yaziliydi: sunucu `LIMIT 60` donduruyor, yani "60'in icinden
+  ///	suzulmus" sonuc "hepsinden suzulmus"ten FARKLI olabilir. Cok isletme
+  ///	oldugunda kullanici "4,5 ve ustu" secip BOS liste gorur ve sebebini
+  ///	ANLAYAMAZDI (isletme var, LIMIT'in disinda kalmis).
+  ///	Artik `min_tutar`/`puan`/`teslimat`/`kampanyali`/`puansiz`
+  ///	sunucuya parametre olarak gidiyor ve LIMIT'ten ONCE uygulaniyor.
+  ///
+  /// ⚠️⚠️ **"Gece Kuşu" ve "Şu an açık" ISTEMCIDE KALDI** ve bu bilincli:
+  ///	ikisi de **SAAT** sorusudur ("su anda" acik mi). Sunucuda uygulamak
+  ///	istemcinin saat diliminde degerlendirmek demektir; kullanicinin
+  ///	telefonu UTC+2'de, sunucu UTC'de calisiyor ve gece yarisini asan
+  ///	mesai (22:00-02:00) bu farkla YANLIS TARAFA duserdi.
+  ///	Calisma saati zaten yanitta geliyor; istemcide degerlendirmek hem
+  ///	dogru hem bedava.
+  /// ⚠️ Bu ikisi LIMIT sorunundan ETKILENMEZ mi? Etkilenir — ama saat
+  ///    dilimi hatasi DAHA KOTU: "acik" yazan bir yer KAPALI olurdu.
+  ///
+  /// ⚠️ Liste **KOPYALANIR** (`toList`): yerinde siralamak cagiran ekranin
+  ///    ham listesini bozar ve "Önerilen"e donuldugunde ESKI SIRA GERI
+  ///    GELMEZDI.
   List<IsletmeOzet> uygula(List<IsletmeOzet> ham) {
     var l = ham.where((o) {
-      if (minTutarTavanKurus != null &&
-          (o.minTutarKurus == null || o.minTutarKurus! > minTutarTavanKurus!)) {
-        return false;
-      }
-      if (puanTaban != null && (o.puan == null || o.puan! < puanTaban!)) {
-        return false;
-      }
-      if (teslimatTavanDk != null &&
-          (o.teslimatDkMax == null || o.teslimatDkMax! > teslimatTavanDk!)) {
-        return false;
-      }
-      if (kampanyali && o.kampanyalar.isEmpty) return false;
-      // ⚠️ `null` = calisma saati TANIMSIZ -> ELENIR (yukaridaki kural).
+      // ⚠️ `null` = calisma saati TANIMSIZ -> ELENIR: kullanici acik yerleri
+      //    istedi, saati BILINMEYEN yeri degil.
       if (suAnAcik && isletmeAcikMi(o.calisma) != true) return false;
       if (geceAcik && !isletmeGeceAcikMi(o.calisma)) return false;
-      // ⚠️ "Yeni" = puani HENUZ YOK. `0` degil **null** aranir: 0 puan bir
-      //    degerlendirmedir, yokluk degil.
-      if (puansiz && o.puan != null) return false;
       return true;
     }).toList();
 
-    // ⚠️ Siralamada da VERISI OLMAYAN KAYIT SONA atilir (`?? sonsuz`):
+    // ⚠️ Siralamada VERISI OLMAYAN KAYIT SONA atilir (`?? sonsuz`):
     //    varsayilan 0 verilseydi puani olmayan isletme "en yuksek puanli"
     //    listenin BASINDA cikardi.
     switch (siralama) {

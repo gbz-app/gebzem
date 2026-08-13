@@ -110,6 +110,7 @@ func main() {
 	chatH.SetGonderiGorunur(socialH.GorunurMu)
 	kanalH := kanal.NewHandler(db) // turu 75: kanal (tek yonlu yayin)
 	isletmeH := isletme.NewHandler(db, bildirimS)
+	adresH := isletme.NewAdresHandler(db)
 	vitrinH := vitrin.NewHandler(db)
 	randevuH := randevu.NewHandler(db, bildirimS)
 	etkinlikH := etkinlik.NewHandler(db)
@@ -269,6 +270,15 @@ func main() {
 		r.Post("/isletmeler/{id}/favori", isletmeH.FavoriEkle)
 		r.Delete("/isletmeler/{id}/favori", isletmeH.FavoriCikar)
 		r.Get("/users/me/favori-isletmeler", isletmeH.Favorilerim)
+
+		// ⚠️⚠️ TURU 96h — KAYITLI KONUMLAR (migration 048). Arayuz bunlari
+		//    turu 96fde CIHAZDA tutuyordu; telefon degisince kayboluyorlardi.
+		// ⚠️ Rotalar `/users/me/...` altinda: adresler KISIYE OZEL ve
+		//    kimlik JWT'den geliyor — id URL'de tasinmaz.
+		r.Get("/users/me/adresler", adresH.Liste)
+		r.Post("/users/me/adresler", adresH.Ekle)
+		r.Post("/users/me/adresler/{id}/sec", adresH.Sec)
+		r.Delete("/users/me/adresler/{id}", adresH.Sil)
 		// TURU 89 - kategoriye ozel katalog modulleri (otel->oda, doktor->hizmet).
 		// Istemci bir kez cekip onbellekler; yeni alan eklemek ISTEMCI
 		// GUNCELLEMESI GEREKTIRMEZ (ilan.Agac ucuyla ayni gerekce).

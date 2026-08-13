@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../core/api.dart';
 import "../../core/yenile.dart";
 
 import '../home/home_screen.dart' show myProfileProvider;
@@ -253,7 +254,7 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
   /// ⚠️ Sunucunun doldurdugu `km` (Yakınımda ucu) YINE de kazanir; bu
   ///    fonksiyon yalnizca `_konumum`u belirler.
   Future<void> _kayitliKonumuOku() async {
-    final k = await KonumDeposu.secili();
+    final k = await KonumDeposu.secili(ref.read(apiProvider));
     if (!mounted || k == null) return;
     setState(() => _konumAdi = k.ad);
     _konumuUygula(k.enlem, k.boylam);
@@ -263,7 +264,7 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
   Future<void> _konumSec() async {
     await konumSeciciAc(context);
     if (!mounted) return;
-    final k = await KonumDeposu.secili();
+    final k = await KonumDeposu.secili(ref.read(apiProvider));
     if (!mounted) return;
     setState(() => _konumAdi = k?.ad ?? '');
     if (k != null) {
@@ -502,6 +503,14 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
             //    kullanici "sadece 3 isletme var" sanirdi.
             ilce: _hizli == 'sehrimde' ? _benimIlce : '',
             yalnizOnayli: _hizli == 'onayli',
+            // ⚠️⚠️ TURU 96h — SUZGECLER **SUNUCUYA** gonderilir (LIMIT 60
+            //    sorunu icin; gerekce `isletme_filtre.dart` `uygula`da).
+            //    "Gece Kuşu" ve "Şu an açık" ISTEMCIDE kalir (saat dilimi).
+            minTutarKurus: _filtre.minTutarTavanKurus ?? 0,
+            puanTaban: _filtre.puanTaban ?? 0,
+            teslimatTavanDk: _filtre.teslimatTavanDk ?? 0,
+            kampanyali: _filtre.kampanyali,
+            puansiz: _filtre.puansiz,
           );
       if (!mounted || jeton != _istekNo) return;
       // ⚠️ MESAFE: sunucu bu ucta hesaplamiyor (siralama mesafeye gore DEGIL),
@@ -767,7 +776,7 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                               ),
                               TextButton(
                                 onPressed: () =>
-                                    setState(() => _filtre.temizle()),
+                                    _suzgecDegistir(_filtre.temizle),
                                 child: const Text('Filtreleri temizle'),
                               ),
                             ],
@@ -1196,26 +1205,26 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
       (
         ad: 'İndirimli',
         secili: f.kampanyali,
-        ac: () => setState(() => f.kampanyali = !f.kampanyali),
+        ac: () => _suzgecDegistir(() => f.kampanyali = !f.kampanyali),
       ),
       // ⚠️ ETIKET **4+** oldugu icin esik de 4.5 -> **4.0**: kart "4+" deyip
       //    4.5 suzseydi etiket YALAN SOYLERDI.
       (
         ad: '4+',
         secili: f.puanTaban == 4.0,
-        ac: () => setState(() => f.puanTaban = f.puanTaban == 4.0 ? null : 4.0),
+        ac: () => _suzgecDegistir(() => f.puanTaban = f.puanTaban == 4.0 ? null : 4.0),
       ),
       (
         ad: 'Şimşek',
         secili: f.siralama == Siralama.teslimat,
-        ac: () => setState(() => f.siralama = f.siralama == Siralama.teslimat
+        ac: () => _suzgecDegistir(() => f.siralama = f.siralama == Siralama.teslimat
             ? Siralama.onerilen
             : Siralama.teslimat),
       ),
       (
         ad: 'Yakınımda',
         secili: f.siralama == Siralama.mesafe,
-        ac: () => setState(() => f.siralama = f.siralama == Siralama.mesafe
+        ac: () => _suzgecDegistir(() => f.siralama = f.siralama == Siralama.mesafe
             ? Siralama.onerilen
             : Siralama.mesafe),
       ),
@@ -1227,7 +1236,7 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
       (
         ad: 'Gece Kuşu',
         secili: f.geceAcik,
-        ac: () => setState(() => f.geceAcik = !f.geceAcik),
+        ac: () => _suzgecDegistir(() => f.geceAcik = !f.geceAcik),
       ),
       // ⚠️⚠️⚠️ "Yeni Restourant" — **DURUST SINIR**. Sunucu liste sorgusu
       //	`ORDER BY u.onayli DESC, u.name ASC` ile siraliyor ve yanitta
@@ -1243,7 +1252,7 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
       (
         ad: 'Yeni Restourant',
         secili: f.puansiz,
-        ac: () => setState(() => f.puansiz = !f.puansiz),
+        ac: () => _suzgecDegistir(() => f.puansiz = !f.puansiz),
       ),
       (
         ad: 'Favori',
@@ -1359,6 +1368,22 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
         ),
       ),
     );
+  }
+
+  /// ⚠️⚠️⚠️ TURU 96h — SUZGEC DEGISTIRMENIN **TEK KAPISI**.
+  ///
+  ///	Suzgecler artik SUNUCUDA uygulaniyor (LIMIT 60 sorunu). Kesif
+  ///	kartlari eskiden yalniz setState cagiriyordu; sunucuya tasindiktan
+  ///	sonra bu, kartin GORUNURDE secilip listenin DEGISMEMESI demek
+  ///	olurdu — yani "kart calismiyor".
+  /// ⚠️ Istek YALNIZ sunucu imzasi degistiyse atilir: siralama ve saat
+  ///    suzgecleri istemcide uygulaniyor, bosuna ag trafigi olurdu.
+  /// ⚠️ YAPMA: kart/cip icinde dogrudan setState ile filtre alani yazma;
+  ///    bu kapidan gec.
+  void _suzgecDegistir(void Function() degistir) {
+    final onceki = _filtre.sunucuImzasi;
+    setState(degistir);
+    if (_filtre.sunucuImzasi != onceki) _yukle();
   }
 
   /// "Ne Yesem?" — elindeki listeden RASTGELE bir isletme acar.
@@ -1971,11 +1996,22 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
   /// ⚠️ Suzgecler ISTEMCIDE uygulaniyor (gecici) — gerekce ve durust sinir
   ///    `isletme_filtre.dart` dosyasinin basinda YAZILI.
   Future<void> _filtreSheet() async {
+    final onceki = _filtre.sunucuImzasi;
     await isletmeFiltreAc(context, _filtre);
     // ⚠️ Sunucuya YENI ISTEK ATILMAZ: suzgecler istemcide uygulaniyor ve ham
     //    liste degismiyor; yalnizca yeniden cizilir (nokta + liste guncel
     //    kalsin). Suzgecler sunucuya tasindiginda BURAYA `_yukle()` gelecek.
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    // ⚠️⚠️ TURU 96h — SUNUCU SUZGECI DEGISTIYSE **YENIDEN SORULUR**.
+    //    Suzme artik sunucuda; yalniz yeniden cizmek eski listeyi
+    //    gosterirdi ve kullanici "filtre calismiyor" derdi.
+    // ⚠️ Yalniz SIRALAMA/saat suzgeci degistiyse istek ATILMAZ: onlar
+    //    istemcide uygulaniyor ve bosuna ag trafigi olurdu.
+    if (_filtre.sunucuImzasi != onceki) {
+      _yukle();
+    } else {
+      setState(() {});
+    }
   }
 
   /// Kapak da avatar da yoksa: kategori renginde gradyan + isletme adinin

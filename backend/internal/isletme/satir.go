@@ -2,6 +2,7 @@ package isletme
 
 import (
 	"encoding/json"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -34,7 +35,8 @@ const isletmeSutunlari = `
 		  WHERE p.isletme_id = u.id AND p.durum <> 'kaldirildi'),
 		i.min_tutar_kurus, i.teslimat_dk_min, i.teslimat_dk_max,
 		i.puan, i.puan_sayisi, i.kampanyalar,
-		i.enlem, i.boylam`
+		i.enlem, i.boylam,
+		u.created_at`
 
 // isletmeSatiri — bir satiri okur ve istemci sozlesmesine cevirir.
 //
@@ -55,12 +57,13 @@ func isletmeSatiri(rows pgx.Rows) (map[string]any, error) {
 	var puanSayisi int
 	var kampanyalar []byte
 	var enlem, boylam float64
+	var createdAt time.Time
 	if err := rows.Scan(&id, &ad, &kullanici, &avatar, &medya,
 		&kat, &il, &ilce, &adres, &dogru, &kapak,
 		&calisma, &minFiyat, &urunSayisi,
 		&minTutar, &teslimatMin, &teslimatMax,
 		&puan, &puanSayisi, &kampanyalar,
-		&enlem, &boylam); err != nil {
+		&enlem, &boylam, &createdAt); err != nil {
 		return nil, err
 	}
 	return map[string]any{
@@ -80,6 +83,11 @@ func isletmeSatiri(rows pgx.Rows) (map[string]any, error) {
 		"kampanyalar":     json.RawMessage(kampanyalar),
 		"enlem":           enlem,
 		"boylam":          boylam,
+		// ⚠️⚠️ TURU 96h — "Yeni Restourant" karti bunu bekliyordu.
+		//    Turu 96d'de yanitta KAYIT TARIHI YOKTU ve kart mecburen
+		//    "puani olmayan" isletmeleri gosteriyordu (durust ama YANLIS
+		//    SORUYA cevap). Artik gercek olcut burada.
+		"created_at":      createdAt,
 	}, nil
 }
 

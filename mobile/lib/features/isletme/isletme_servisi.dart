@@ -84,6 +84,16 @@ class IsletmeServisi {
     //    "Şehrimde" ve "Onaylı" kartlari OLU DOGARDI.
     String ilce = '',
     bool yalnizOnayli = false,
+    // ⚠️⚠️ TURU 96h — FILTRE PANELI SUZGECLERI **SUNUCUYA** gecti.
+    //    Onceden istemcide uygulaniyordu ve sunucu `LIMIT 60` donduruyordu:
+    //    "60'in icinden suzulmus" sonuc "hepsinden suzulmus"ten FARKLIYDI.
+    // ⚠️ Hepsi OPSIYONEL ve 0/false varsayilanli: gonderilmezse sunucu
+    //    yuklemleri devre disi birakir.
+    int minTutarKurus = 0,
+    double puanTaban = 0,
+    int teslimatTavanDk = 0,
+    bool kampanyali = false,
+    bool puansiz = false,
   }) async {
     final r = await _api.get(
       '/isletmeler',
@@ -93,6 +103,13 @@ class IsletmeServisi {
         if (il.isNotEmpty) 'il': il,
         if (ilce.isNotEmpty) 'ilce': ilce,
         if (yalnizOnayli) 'dogrulandi': '1',
+        // ⚠️ Yalnizca DOLU olanlar gonderilir: bos parametre sunucuda
+        //    "suzme yok" demek ama URL'i gereksiz sisirmenin anlami yok.
+        if (minTutarKurus > 0) 'min_tutar': '$minTutarKurus',
+        if (puanTaban > 0) 'puan': '$puanTaban',
+        if (teslimatTavanDk > 0) 'teslimat': '$teslimatTavanDk',
+        if (kampanyali) 'kampanyali': '1',
+        if (puansiz) 'puansiz': '1',
       },
     );
     final m = (r.data as Map).cast<String, dynamic>();
