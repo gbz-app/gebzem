@@ -2877,6 +2877,26 @@ const kontrol = (ad, gecti, ek = '') => {
       (((bos.d || {}).alt_kategoriler) || []).length === 0,
       'slayt=' + (((bos.d || {}).slaytlar) || []).length +
       ' alt=' + (((bos.d || {}).alt_kategoriler) || []).length);
+
+    // ⚠️⚠️⚠️ TURU 96 — LISTE YANITI **KOORDINAT DONDURMELI**.
+    //
+    //	Kart altindaki "1,2 km" mesafesi ISTEMCIDE hesaplaniyor (Haversine)
+    //	ve girdisi bu iki alan. Sunucu bunlari dondurmeyi birakirsa mesafe
+    //	SESSIZCE KAYBOLUR: istemci patlamaz, log dusmez, `flutter analyze`
+    //	temiz gecer — kullanici yalnizca "mesafe yok" der (nitekim bir kez
+    //	oyle oldu, cunku alanlar bastan YOKTU).
+    // ⚠️ `sutun_test.go` SELECT/Scan/yanit UCLUSUNU olcer ama ucu birden
+    //    silinirse yesil kalir; bu kontrol UCTAN UCA bakar.
+    const koord = await j('/isletmeler?kategori=yemek', { token: Z.token });
+    const kliste = ((koord.d || {}).isletmeler) || [];
+    const koordVar = kliste.length > 0 &&
+      kliste.every((o) => typeof o.enlem === 'number' &&
+        typeof o.boylam === 'number') &&
+      kliste.some((o) => o.enlem !== 0 || o.boylam !== 0);
+    kontrol('TURU 96: liste yaniti KOORDINAT donduruyor (kart mesafesi buna bagli)',
+      koordVar,
+      'adet=' + kliste.length + ' ilk=' +
+      (kliste[0] ? kliste[0].enlem + ',' + kliste[0].boylam : '-'));
   }
 
   // ---------- OZET
