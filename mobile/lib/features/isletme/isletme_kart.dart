@@ -25,6 +25,31 @@ Color kYuzeyGri(BuildContext c) =>
         ? const Color(0xFF2A2A2E)
         : const Color(0xFFE7E7EA);
 
+/// ⚠️⚠️⚠️ TURU 96 — **KOSE YARICAPI: TEK MANTIK.**
+///
+/// Kullanici: *"onayli gibi butonlardaki radius mantigi tum kart, input vb.
+/// radius verilen HER SEYDE ayni olmali — olcuye gore radius ne verilmisse
+/// digerleri de ayni mantikta gorunmeli"*. HAKLIYDI: ekranda **BES FARKLI**
+/// yaricap vardi ve hicbiri digerinden turemiyordu —
+///	  slider 22 · kapak 14 · 60x60 kutu 16 · kampanya rozeti 8 · cip 16
+/// Yani ayni ekrandaki iki kutu, ayni tasarim dilini konusmuyordu.
+///
+/// ⚠️⚠️⚠️ **TEK DEGER: HAFIF YARICAP — HER YERDE.**
+///
+///	Ilk denemede iki sinif tanimlanmisti (kucuk ogeler HAP = boy/2, buyuk
+///	yuzeyler sabit 16). Kullanici bunu GORUR GORMEZ reddetti:
+///	*"yakinimda, onayli gibi butonlari TAM RADIUS yapmissin; ben ESKI
+///	radius hallerini tum div/kartlara uygula dedim, HAFIF radiusu vardi"*.
+///	Yani istenen sey "boyuta gore kademe" DEGIL, **TEK bir hafif yaricap**:
+///	cip de kart da kapak da input da AYNI kose diliyle cizilir.
+///
+/// ⚠️ 14 secildi: 32px'lik cipte hap'a (16) donmeyecek kadar kucuk, 200px'lik
+///    sliderda "keskin kose" gorunmeyecek kadar buyuk.
+/// ⚠️ YAPMA: buraya boyuta bagli bir formul (`boy / 2` vb.) geri koyma.
+/// ⚠️ YAPMA: bu ekranlarda elle `BorderRadius.circular(16)` gibi bir sayi
+///    yazma; DAIMA bu sabiti kullan.
+const double kYaricap = 14;
+
 /// Liste gorunumundeki genis kart.
 class IsletmeKarti extends ConsumerStatefulWidget {
   const IsletmeKarti({super.key, required this.o, this.favoriDegisti});
@@ -92,7 +117,9 @@ class _IsletmeKartiState extends ConsumerState<IsletmeKarti> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             ClipRRect(
-              borderRadius: BorderRadius.circular(14),
+              // ⚠️ Kapak, slider, 60x60 kutu, cip ve input ARTIK AYNI yaricapi
+              //    kullanir (bkz. `kYaricap` serhi).
+              borderRadius: BorderRadius.circular(kYaricap),
               child: Stack(
                 children: [
                   AspectRatio(
@@ -157,16 +184,39 @@ class _IsletmeKartiState extends ConsumerState<IsletmeKarti> {
 
 /// Kapaga binen kalp.
 ///
-/// ⚠️ OPAK BEYAZ ZEMIN: kapak fotografi acik ya da koyu olabilir; ciplak bir
-///    ikon bazi fotograflarda GORUNMEZ olurdu.
-/// ⚠️ Dokunma alani 36dp — kapak uzerinde daha buyugu gorseli kapatir;
-///    Material 48 kurali burada gorsel butunlugu lehine esnetildi ve
-///    BILINCLIDIR (kartin tamami zaten dokunulabilir, kalp ikincil eylem).
+/// ⚠️⚠️⚠️ TURU 96 — **BEYAZ DAIRE KALDIRILDI** (kullanici emri: *"favori
+///	arkasindaki beyaz daire kaldir, favori BEYAZ olacak border;
+///	tikladiginda TAM PEMBE olacak, sadece oynama/patlama olmasin"*).
+///
+///	Zemin kalkinca ikonun kapak fotografi uzerinde okunmasi gerekiyor:
+///	beyaz bir cizgi, acik renkli bir fotografta KAYBOLURDU. Cozum
+///	**yumusak koyu golge** — daire gibi gorseli kapatmaz ama ikonu her
+///	fotograftan ayirir.
+///
+/// ⚠️⚠️ IKI HALDE DE **AYNI `size`** (24). Onceki kod dolu halde 21, bos
+///	halde 20 kullaniyordu: kalbe her dokunusta ikon 1px **ZIPLIYORDU** —
+///	kullanicinin *"kuculme / oynama"* dedigi sey tam buydu. Olcek
+///	animasyonu YOK; degisen tek sey RENK.
+/// ⚠️ YAPMA: iki dala farkli `size` yazma; buraya `AnimatedScale`/`Transform`
+///    ekleme.
+///
+/// ⚠️ Lucide'da **dolu kalp glifi YOK** (paket tarandi: heart, heartCrack,
+///    heartOff... hepsi cizgi). Dolu hal Material'in `Icons.favorite`i —
+///    duz 2B siluet, "emoji/3B yasak" kuralini IHLAL ETMEZ.
+/// ⚠️ Dokunma alani 38dp — kapak uzerinde daha buyugu gorseli kapatir;
+///    Material 48 kurali burada gorsel butunlugu lehine BILINCLI esnetildi
+///    (kartin tamami zaten dokunulabilir, kalp ikincil eylem).
 class _Kalp extends StatelessWidget {
   const _Kalp({required this.dolu, required this.onTap});
 
   final bool dolu;
   final VoidCallback onTap;
+
+  /// Fotograftan ayiran yumusak koyu golge — IKI HALDE DE ayni.
+  static const _golge = Shadow(
+    color: Color(0x66000000),
+    blurRadius: 5,
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -174,40 +224,33 @@ class _Kalp extends StatelessWidget {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
-      child: Container(
+      child: SizedBox(
         width: 38,
         height: 38,
-        alignment: Alignment.center,
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          shape: BoxShape.circle,
+        child: Center(
+          child: dolu
+              ? const Icon(Icons.favorite,
+                  size: 24, color: pembe, shadows: [_golge])
+              // ⚠️ BOS HAL: **BEYAZ** cizgi (kullanici emri). Lucide bir FONT
+              //    oldugu icin `strokeWidth` YOKTUR; kalinlik ayni renkte
+              //    ±0.5px kaydirilmis dort golgeyle simule edilir.
+              // ⚠️ Koyu golge LISTENIN BASINDA: golgeler sirayla ve glifin
+              //    ARKASINA cizilir, yani once koyu bulanik yayilma, ustune
+              //    beyaz kalinlastirma gelir. Ters sirada koyu golge beyaz
+              //    kalinlastirmayi ORTERDI.
+              : const Icon(
+                  LucideIcons.heart,
+                  size: 24,
+                  color: Colors.white,
+                  shadows: [
+                    _golge,
+                    Shadow(color: Colors.white, offset: Offset(0.5, 0)),
+                    Shadow(color: Colors.white, offset: Offset(-0.5, 0)),
+                    Shadow(color: Colors.white, offset: Offset(0, 0.5)),
+                    Shadow(color: Colors.white, offset: Offset(0, -0.5)),
+                  ],
+                ),
         ),
-        // ⚠️⚠️ SECILI HAL **DOLU PEMBE** (kullanici emri: *"kalbe
-        //	tikladigimda TAM PEMBE olsun"*).
-        //
-        //	Lucide'da **dolu kalp glifi YOK** (paket tarandi: heart,
-        //	heartCrack, heartOff... hepsi cizgi). O yuzden secili halde
-        //	Material'in `Icons.favorite`i kullaniliyor — 2B ve dolu.
-        //	⚠️ Bu, "arayuzde Lucide kullan" kuralinin BILINCLI istisnasi:
-        //	   kural 3B/emoji ikonlara karsiydi; `Icons.favorite` duz 2B
-        //	   bir siluet. Alternatif (cizgi ikonu golgeyle doldurmaya
-        //	   calismak) kirli bir kenar birakiyordu.
-        child: dolu
-            ? const Icon(Icons.favorite, size: 21, color: pembe)
-            // ⚠️ BOS HAL: cizgi **1px DAHA KALIN** (kullanici emri).
-            //    Lucide bir FONT oldugu icin `strokeWidth` YOKTUR; kalinlik
-            //    ayni renkte ±0.5px kaydirilmis dort golgeyle simule edilir.
-            : const Icon(
-                LucideIcons.heart,
-                size: 20,
-                color: Color(0xFF4B5563),
-                shadows: [
-                  Shadow(color: Color(0xFF4B5563), offset: Offset(0.5, 0)),
-                  Shadow(color: Color(0xFF4B5563), offset: Offset(-0.5, 0)),
-                  Shadow(color: Color(0xFF4B5563), offset: Offset(0, 0.5)),
-                  Shadow(color: Color(0xFF4B5563), offset: Offset(0, -0.5)),
-                ],
-              ),
       ),
     );
   }
@@ -233,19 +276,35 @@ Widget kampanyaRozetleri(IsletmeOzet o) {
         children: [
           for (final k in o.kampanyalar.take(2))
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+              // ⚠️ YUKSEKLIK **ACIKCA** verilir: yaricap ondan turuyor
+              //    (hap kurali). Dolguya birakilsaydi yazi olcegi degisince
+              //    yukseklik kayar ve yaricap "hap" olmaktan cikardi.
+              height: 26,
+              padding: const EdgeInsets.symmetric(horizontal: 9),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(8),
+                // ⚠️ 8 -> hap (13): cipler ve arama kutusuyla AYNI mantik.
+                borderRadius: BorderRadius.circular(kYaricap),
               ),
-              child: Text(
-                k,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF1A1A1A),
+              // ⚠️⚠️ `Center(widthFactor: 1)` — `Container`a `alignment`
+              //	VERILEMEZ: alignment'li bir Container gelen kisitin
+              //	TAMAMINI kaplar; `Wrap` cocuguna ekran genisligi kadar
+              //	gevsek kisit verdigi icin rozet **TAM GENISLIKTE** cizilir
+              //	(ilk denemede tam bu oldu, emulatorde goruldu).
+              //	`widthFactor: 1` yatayda ICERIGE sarilmayi zorlar, dikeyde
+              //	ise 26px'lik kutunun ortasina yerlestirir.
+              // ⚠️ YAPMA: buraya `alignment: Alignment.center` koyma.
+              child: Center(
+                widthFactor: 1,
+                child: Text(
+                  k,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF1A1A1A),
+                  ),
                 ),
               ),
             ),
@@ -302,6 +361,14 @@ Widget vitrinSatiri(BuildContext c, IsletmeOzet o, {required bool kompakt}) {
     p.add(_ikonluMetin(LucideIcons.wallet,
         'Min. ${(o.minTutarKurus! / 100).round()} TL', boy, soluk));
   }
+  // ⚠️⚠️ MESAFE — "1,2 km" / "300 m" (kullanici emri).
+  //
+  // ⚠️ Konum izni YOKSA ya da isletme koordinat girmemisse `mesafeMetni`
+  //    BOS doner ve HICBIR SEY cizilmez. "0 m" ya da "?" yazmak yanlis
+  //    bilgi olurdu; bu projede kapak/puan/teslimat da ayni kurali izliyor.
+  if (o.mesafeMetni.isNotEmpty) {
+    p.add(_ikonluMetin(LucideIcons.mapPin, o.mesafeMetni, boy, soluk));
+  }
   if (p.isEmpty) return const SizedBox.shrink();
 
   // ⚠️ Ikonlar ayirici gorevi de goruyor; ARADAKI NOKTA KALDIRILDI (ikon +
@@ -328,7 +395,7 @@ Widget _ikonluMetin(IconData ikon, String metin, double boy, Color? renk) => Row
 Widget bilgiSatiri(BuildContext c, IsletmeOzet o) {
   final soluk =
       Theme.of(c).textTheme.bodyMedium?.color?.withValues(alpha: 0.6);
-  final acik = _acikMi(o.calisma);
+  final acik = isletmeAcikMi(o.calisma);
   final kapanis = _bugunKapanis(o.calisma);
   final parcalar = <Widget>[];
 
@@ -389,9 +456,13 @@ Widget bilgiSatiri(BuildContext c, IsletmeOzet o) {
 
 /// Bugün için işletme açık mı? `null` = çalışma saati tanımsız.
 ///
+/// ⚠️ TURU 96 — **PUBLIC**: filtre ekranindaki "Şu an açık" suzgeci de bunu
+///    cagirir. Ikinci bir kopya yazilsaydi gece yarisini asan mesai kurali
+///    iki yerde yasar ve DRIFT ederdi.
+///
 /// ⚠️ `gun` **1=Pazartesi**, Dart'in `DateTime.weekday` degeriyle BIREBIR ayni.
 /// ⚠️ GECE YARISINI ASAN mesai (22:00-02:00) destekleniyor.
-bool? _acikMi(List<dynamic> calisma) {
+bool? isletmeAcikMi(List<dynamic> calisma) {
   final bugun = _bugunKaydi(calisma);
   if (bugun == null) return null;
   if (bugun['kapali'] == true) return false;

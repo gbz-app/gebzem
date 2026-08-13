@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -454,6 +456,41 @@ class IsletmeOzet {
     ..boylam = (m['boylam'] as num?)?.toDouble() ?? 0
     ..km = (m['km'] as num?)?.toDouble() ?? 0;
 }
+
+/// ⚠️⚠️⚠️ TURU 96 — NORMAL LISTEDE MESAFE (kullanici emri: *"isletme
+///	kartlarinda yakinlik 1 km ya da 300 m gibi mesafeler gorunsun"*).
+///
+/// ⚠️ **SUNUCU DEGERI HER ZAMAN KAZANIR** (`km > 0` ise DOKUNULMAZ).
+///	"Yakinimda" ucu mesafeyi SUNUCUDA hesaplar ve ona gore SIRALAR;
+///	istemci ayni kaydin mesafesini yeniden hesaplarsa (farkli yuvarlama,
+///	farkli konum ornegi) liste "3 km, 1 km, 5 km" gibi SIRASIZ gorunurdu —
+///	yani gosterilen deger siralamayi YALANLARDI.
+///	Bu fonksiyon YALNIZCA sunucunun mesafe hesaplamadigi listelerde
+///	(kategori/rehber/favoriler) devreye girer. Orada siralama zaten
+///	mesafeye gore DEGIL, dolayisiyla celiski YOK.
+/// ⚠️ Koordinati OLMAYAN isletme atlanir: `0,0` Gine Korfezi'dir ve
+///    "5.100 km" yazardi (turu 90b'de ayni sabit sahaya cikmisti).
+/// ⚠️ Haversine — kaba kutu YOK: elimizde zaten en fazla 60 kayit var,
+///    eleme degil GOSTERIM yapiyoruz.
+void mesafeleriDoldur(List<IsletmeOzet> liste, double enlem, double boylam) {
+  for (final o in liste) {
+    if (o.km > 0) continue;
+    if (o.enlem == 0 && o.boylam == 0) continue;
+    o.km = _haversineKm(enlem, boylam, o.enlem, o.boylam);
+  }
+}
+
+double _haversineKm(double la1, double lo1, double la2, double lo2) {
+  const r = 6371.0; // Dunya yaricapi (km)
+  final dLa = _rad(la2 - la1);
+  final dLo = _rad(lo2 - lo1);
+  final a = math.sin(dLa / 2) * math.sin(dLa / 2) +
+      math.cos(_rad(la1)) * math.cos(_rad(la2)) *
+          math.sin(dLo / 2) * math.sin(dLo / 2);
+  return r * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+}
+
+double _rad(double d) => d * math.pi / 180.0;
 
 extension IsletmeFavori on IsletmeServisi {
   /// ⚠️ TURU 94 — favori ac/kapa. Sunucu IDEMPOTENT (cift dokunusta hata yok).

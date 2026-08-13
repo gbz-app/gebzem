@@ -13,6 +13,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+// ⚠️ Kose yaricapi TEK KAYNAK: slider, kart kapagi ve 60x60 kutu ayni
+//    sabiti kullanmak ZORUNDA (bkz. `isletme_kart.dart` yaricap serhi).
+import 'isletme_kart.dart' show kYaricap;
+
 /// Sunucudan gelen slayt.
 typedef Slayt = ({String baslik, String alt});
 
@@ -120,12 +124,17 @@ class _KategoriSliderState extends State<KategoriSlider> {
           //    `PageView` kose disina TASARDI.
           Positioned.fill(
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(22),
+              borderRadius: BorderRadius.circular(kYaricap),
               child: ColoredBox(
                 color: zemin,
                 child: PageView.builder(
                   controller: _sayfa,
-                  onPageChanged: (i) => setState(() => _aktif = i),
+                  // ⚠️ TURU 96 — `setState` KALDIRILDI. Gecis cizgileri
+                  //    silindikten sonra `_aktif`e BAGLI CIZILEN HICBIR SEY
+                  //    kalmadi; `setState` her 3 saniyede bir bos bir
+                  //    yeniden cizim tetikliyordu. Alan hala gerekli:
+                  //    zamanlayici bir sonraki sayfayi ondan hesapliyor.
+                  onPageChanged: (i) => _aktif = i,
                   itemCount: widget.slaytlar.length,
                   itemBuilder: (_, i) => _slayt(widget.slaytlar[i]),
                 ),
@@ -133,46 +142,19 @@ class _KategoriSliderState extends State<KategoriSlider> {
             ),
           ),
 
-          // ── SAYFA NOKTALARI ──
-          // ⚠️ KULLANICI "BUTON YOK" DEDI: ok/ileri-geri dugmesi ve
-          //    tiklanabilir gosterge YOKTUR. Bu noktalar SALT BILGI
-          //    (`IgnorePointer`) — kacinci slaytta oldugunu gosterir ve
-          //    kaydirmanin mumkun oldugunu ima eder.
-          if (widget.slaytlar.length > 1)
-            Positioned(
-              bottom: 18,
-              left: 0,
-              right: 0,
-              child: IgnorePointer(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // ⚠️ Kullanici emri: *"gecis cubuklari daire yerine
-                    //    **cizgi** seklinde"* -> 1px denendi, **2px** secildi.
-                    // ⚠️ `borderRadius` YOK: yaricap verilse 1px yukseklikte
-                    //    uclar yuvarlanir ve cizgi yine "hap" gibi gorunur.
-                    // ⚠️ Dokunma alani DEGIL — bunlar `IgnorePointer` icinde
-                    //    (kullanici "BUTON YOK" demisti), o yuzden 1px
-                    //    yukseklik erisilebilirlik sorunu yaratmaz.
-                    for (var i = 0; i < widget.slaytlar.length; i++)
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 250),
-                        margin: const EdgeInsets.symmetric(horizontal: 3),
-                        width: i == _aktif ? 26 : 14,
-                        height: 2,
-                        // ⚠️ **TAM SIYAH** (kullanici emri: *"alttaki gecis
-                        //    cubuklari da siyah olsun tam olarak"*).
-                        // ⚠️ Aktif olmayanlar yine de AYIRT EDILEBILIR olmali:
-                        //    ucu de tam opak olsaydi hangisinde oldugun
-                        //    anlasilmazdi. Fark artik RENKTE degil UZUNLUKTA
-                        //    (26 vs 14) ve hafif saydamlikta.
-                        color: (koyu ? Colors.white : Colors.black)
-                            .withValues(alpha: i == _aktif ? 1.0 : 0.25),
-                      ),
-                  ],
-                ),
-              ),
-            ),
+          // ⚠️⚠️⚠️ TURU 96 — **GECIS CIZGILERI KALDIRILDI** (kullanici
+          //	emri: *"sliderdeki alt cizgileri kaldir"*).
+          //
+          //	Onceden 2px kalinliginda, aktif olani 26px / digerleri 14px
+          //	uzunlugunda siyah cizgiler ciziliyordu. Slaytlarin ICI BOS
+          //	oldugu icin (metinler turu 95te kaldirildi) bu cizgiler
+          //	gri bir dikdortgenin uzerinde TEK gorsel unsurdu ve
+          //	"sayfalayici" degil "cizik" gibi duruyordu.
+          // ⚠️ Slayt VERISI ve otomatik gecis DURUYOR: sunucudan gelen slayt
+          //    sayisi hala `PageView`i besliyor ve 3 saniyede bir donuyor.
+          //    Bu alana gorsel konuldugunda gecis ZATEN gorunur olacak.
+          // ⚠️ YAPMA: buraya nokta/cizgi/ok gostergesi geri koyma (kullanici
+          //    iki ayri turda "BUTON YOK" ve "cizgileri kaldir" dedi).
         ],
       ),
     );

@@ -33,7 +33,8 @@ const isletmeSutunlari = `
 		(SELECT count(*) FROM isletme_urunleri p
 		  WHERE p.isletme_id = u.id AND p.durum <> 'kaldirildi'),
 		i.min_tutar_kurus, i.teslimat_dk_min, i.teslimat_dk_max,
-		i.puan, i.puan_sayisi, i.kampanyalar`
+		i.puan, i.puan_sayisi, i.kampanyalar,
+		i.enlem, i.boylam`
 
 // isletmeSatiri — bir satiri okur ve istemci sozlesmesine cevirir.
 //
@@ -53,11 +54,13 @@ func isletmeSatiri(rows pgx.Rows) (map[string]any, error) {
 	var puan *float64
 	var puanSayisi int
 	var kampanyalar []byte
+	var enlem, boylam float64
 	if err := rows.Scan(&id, &ad, &kullanici, &avatar, &medya,
 		&kat, &il, &ilce, &adres, &dogru, &kapak,
 		&calisma, &minFiyat, &urunSayisi,
 		&minTutar, &teslimatMin, &teslimatMax,
-		&puan, &puanSayisi, &kampanyalar); err != nil {
+		&puan, &puanSayisi, &kampanyalar,
+		&enlem, &boylam); err != nil {
 		return nil, err
 	}
 	return map[string]any{
@@ -75,6 +78,8 @@ func isletmeSatiri(rows pgx.Rows) (map[string]any, error) {
 		"puan":            puan,
 		"puan_sayisi":     puanSayisi,
 		"kampanyalar":     json.RawMessage(kampanyalar),
+		"enlem":           enlem,
+		"boylam":          boylam,
 	}, nil
 }
 
