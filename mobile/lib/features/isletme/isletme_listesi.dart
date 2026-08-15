@@ -143,6 +143,36 @@ const double kKalpOptik = 0.8; // heart
 /// ⚠️ Baslik metni degisirse yeniden olc.
 const double kBaslikOptik = 1.1;
 
+/// ⚠️⚠️⚠️ TURU 96j — GORUNUM SECICI (liste · kart · harita) **MINIMALIST**.
+///
+///	Kullanici emri: *"Restoranlar yazisinin sagindaki ikonlari minimalist
+///	yapar misin, bir tik ustunde de olsun, boyutlar dikkatli olsun"*.
+///	Dis kutu (kenarlik + dolgu) KALDIRILDI; geriye yalnizca ikonlar kaldi.
+///
+/// ⚠️ Dokunma alani **44x40** (Material 48'e en yakin, satiri sismeyen olcu);
+///    GORUNEN oge ise `kSegIkon`. Aradaki fark `kSegYan`/`kSegDikey`dir ve
+///    hizalama HER ZAMAN bu paydan turetilir — turu 96b'de header ikonlarinda
+///    kurulan kural (`kHeaderPay`) ile BIREBIR ayni desen.
+/// ⚠️ Aktif segmentin gri zemini `kSegBoy` yuksekliginde kalir: dokunma
+///    alanini boyamak, uc ikonun arasini birlesik bir blok gibi gosterirdi.
+const double kSegHucre = 44; // dokunma alani (genislik)
+const double kSegHucreBoy = 40; // dokunma alani (yukseklik)
+const double kSegBoy = 34; // aktif zeminin yuksekligi
+const double kSegIkon = 20; // GORUNEN ikon
+const double kSegYan = (kSegHucre - kSegIkon) / 2; // = 12 (sag hiza telafisi)
+
+/// ⚠️ GLIF ICI BOSLUK — ekrandan OLCULDU: dolgu yalniz `kSegYan` ile
+///    duzeltildiginde `map` ikonunun GORUNEN sag kenari **393.5 dp**te
+///    kaliyordu, kartin murekkep kenari ise **395.0 dp**. Lucide glifi 20dp
+///    kutusunu tam doldurmuyor. Fark telafi edilmezse ikon, altindaki
+///    kartlardan 1.5 dp ICERIDE durur.
+/// ⚠️ IKON DEGISIRSE YENIDEN OLC (`kNavOptik`/`kBaslikOptik` ile ayni kural).
+const double kSegOptik = 1.5;
+
+/// ⚠️ "Bir tik ustte" — kullanicinin istedigi kaydirma. `Transform` ile
+///    uygulanir (yerlesimi DEGISTIRMEZ, bkz. `_listeBasligi`).
+const double kSegYukari = 2;
+
 // ⚠️ `kYuzeyGri` `isletme_kart.dart`a TASINDI (tek kaynak): kart ve bu
 //    ekran ayni griyi kullanmak ZORUNDA.
 
@@ -1864,20 +1894,13 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
   ///	uzerine hafifce yayilir ve cizgi kalinlasir.
   /// ⚠️ TEK KAYNAK: serit uzerindeki HER cip bunu kullanir. Ayri ayri
   ///    yazilsaydi biri guncellenip otekiler ince kalirdi.
-  Widget _cipIkon(IconData ikon) => Icon(
-        ikon,
-        size: 13,
-        color: _notrYazi,
-        shadows: [
-          for (final d in const [
-            Offset(0.4, 0),
-            Offset(-0.4, 0),
-            Offset(0, 0.4),
-            Offset(0, -0.4),
-          ])
-            Shadow(color: _notrYazi, offset: d),
-        ],
-      );
+  /// ⚠️ TURU 96j — GOVDE `isletme_kart.dart`taki **`kalinIkon`**a tasindi
+  ///    (TEK KAYNAK). Kullanici kart meta ikonlarinin da "filtre gibi"
+  ///    olmasini isteyince ayni teknik iki dosyada birden gerekti; kopya
+  ///    birakilsaydi biri guncellenip oteki ince kalirdi.
+  /// ⚠️ YAPMA: buraya golge listesini geri kopyalama.
+  Widget _cipIkon(IconData ikon) =>
+      kalinIkon(ikon, olcu: 13, renk: _notrYazi);
 
   /// "4.0" -> "4,0" (Turkce ondalik ayraci).
   String _puanYaz(double p) => p.toStringAsFixed(1).replaceAll('.', ',');
@@ -2100,10 +2123,16 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
   ///    gordugunu ANINDA bilmeli. Ham listeden verilseydi "İşletmeler (14)"
   ///    yazip altta 2 kart cizerdi.
   Widget _listeBasligi(int adet) => Padding(
-        // ⚠️ Solda baslik metni (glif telafili), sagda segment kutusu (kutu
-        //    oldugu icin telafisiz) — bkz. `kBaslikOptik`.
+        // ⚠️ Solda baslik metni (glif telafili), sagda ikonlar.
+        // ⚠️⚠️ TURU 96j — SAG DOLGU `kYanBosluk` DEGIL `kYanBosluk - kSegYan`.
+        //	Kutu kaldirilinca ikon, hucrenin ORTASINDA kaldi ve iki yaninda
+        //	`(kSegHucre - kSegIkon) / 2` kadar BOSLUK olustu. Dolgu 16'da
+        //	biraksaydik ikonun GORUNEN sag kenari 16 + kSegYan = 24'e kayar,
+        //	alttaki kartlarin 16'lik hizasindan KOPARDI (kullanici bu tur
+        //	kaymalari defalarca yakaladi). Simdi glif kenari TAM 16'da.
         padding: const EdgeInsets.only(
-            left: kYanBosluk - kBaslikOptik, right: kYanBosluk),
+            left: kYanBosluk - kBaslikOptik,
+            right: kYanBosluk - kSegYan - kSegOptik),
         child: Row(
           children: [
             Text(
@@ -2111,7 +2140,16 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
               style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
             ),
             const Spacer(),
-            _gorunumSecici(),
+            // ⚠️⚠️ TURU 96j — "BIR TIK USTTE" (kullanici emri). `Transform`
+            //	KULLANILDI, dolgu DEGIL: dolgu satirin yuksekligini degistirir
+            //	ve altindaki kart listesi asagi kayardi. `Transform.translate`
+            //	YALNIZ cizimi tasir, yerlesim BIREBIR ayni kalir.
+            // ⚠️ Dokunma alani da birlikte tasinir (`Transform` hit-test'i
+            //    donusturur) — ikon nerede gorunuyorsa orada basiliyor.
+            Transform.translate(
+              offset: const Offset(0, -kSegYukari),
+              child: _gorunumSecici(),
+            ),
           ],
         ),
       );
@@ -2172,6 +2210,20 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
     //	anlasiliyordu. Artik kutu ZEMINLE AYNI (seffaf) + cip kenarligi,
     //	aktif segment ise dolu gri -> kontrast net.
     // ⚠️ Kenarlik cipler ile AYNI kaynaktan (`_notrKenar`).
+    // ⚠️⚠️⚠️ TURU 96j — **MINIMALIST** (kullanici emri: *"Restoranlar
+    //	yazisinin sagindaki ikonlari minimalist yapar misin"*).
+    //
+    //	KALDIRILAN: dis kutu (kenarlik + 3px dolgu). Baslik satirinda solda
+    //	CIPLAK BIR YAZI, sagda CERCEVELI BIR KUTU vardi; kutu satirin tek
+    //	"agir" ogesiydi ve basligi bastiriyordu. Artik yalnizca ikonlar var.
+    // ⚠️ **AKTIF HALI KALDI** ve kalmali: turu 96d'de kullanici "hangi
+    //    gorunumdeyim anlayamiyorum" dedigi icin segment kutusuna gecilmisti.
+    //    Zemin dolgusu silinseydi o sorun GERI GELIRDI. Aktif = hafif gri
+    //    yuvarlak; degisen tek sey CERCEVENIN gitmesi.
+    // ⚠️ DOKUNMA ALANI KUCULTULMEDI: hucre `kSegHucre`x`kSegHucreBoy`
+    //    (44x40) kaldi, yalnizca GORUNEN zemin `kSegBoy`e (34) indi. Turu
+    //    90b dersi: "ikonu kucultup dokunma alanini da kucultmek" bu projede
+    //    daha once 27dp'lik bir dugme uretmisti.
     Widget segment(IconData ikon, String ipucu, bool aktif, VoidCallback ac) =>
         Semantics(
           button: true,
@@ -2180,25 +2232,25 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTap: ac,
-            child: Container(
-              width: 44,
-              height: 36,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: aktif ? kYuzeyGri(context) : Colors.transparent,
-                borderRadius: BorderRadius.circular(kYaricap(36)),
+            child: SizedBox(
+              width: kSegHucre,
+              height: kSegHucreBoy,
+              child: Center(
+                child: Container(
+                  width: kSegHucre,
+                  height: kSegBoy,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: aktif ? kYuzeyGri(context) : Colors.transparent,
+                    borderRadius: BorderRadius.circular(kYaricap(kSegBoy)),
+                  ),
+                  child: Icon(ikon, size: kSegIkon, color: _notrYazi),
+                ),
               ),
-              child: Icon(ikon, size: 19, color: _notrYazi),
             ),
           ),
         );
-    return Container(
-      padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(kYaricap(42)),
-        border: Border.all(color: _notrKenar),
-      ),
-      child: Row(
+    return Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           segment(LucideIcons.list, 'Liste görünümü', !_izgara,
@@ -2216,7 +2268,6 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
             ),
           ),
         ],
-      ),
     );
   }
 

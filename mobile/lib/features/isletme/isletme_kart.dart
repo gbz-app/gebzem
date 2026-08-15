@@ -198,7 +198,7 @@ class _IsletmeKartiState extends ConsumerState<IsletmeKarti> {
                   Positioned(
                     right: kKartIcBosluk,
                     top: kKartIcBosluk,
-                    child: _Kalp(dolu: _favori, onTap: _cevir),
+                    child: IsletmeKapakKalbi(dolu: _favori, onTap: _cevir),
                   ),
                 ],
               ),
@@ -269,8 +269,13 @@ class _IsletmeKartiState extends ConsumerState<IsletmeKarti> {
 /// ⚠️ Dokunma alani 38dp — kapak uzerinde daha buyugu gorseli kapatir;
 ///    Material 48 kurali burada gorsel butunlugu lehine BILINCLI esnetildi
 ///    (kartin tamami zaten dokunulabilir, kalp ikincil eylem).
-class _Kalp extends StatelessWidget {
-  const _Kalp({required this.dolu, required this.onTap});
+/// ⚠️ TURU 96j — `_Kalp` -> **PUBLIC**. Kullanici IKI TUR ust uste "dolu
+///    halde beyaz border kaybolmasin" dedi; kalici muhafiz
+///    (`test/liste_basligi_test.dart`) bu bileseni DOGRUDAN kurup golge
+///    sayisini/ofsetini olcuyor. Private kalsaydi test edilemezdi.
+/// ⚠️ YAPMA: tekrar private yapma (muhafiz derlenmez).
+class IsletmeKapakKalbi extends StatelessWidget {
+  const IsletmeKapakKalbi({super.key, required this.dolu, required this.onTap});
 
   final bool dolu;
   final VoidCallback onTap;
@@ -308,11 +313,34 @@ class _Kalp extends StatelessWidget {
                   Icons.favorite,
                   size: 24,
                   color: pembe,
+                  // ⚠️⚠️⚠️ TURU 96j — KONTUR **KALINLASTIRILDI ve 8 YONE
+                  //	CIKARILDI** (kullanici IKINCI KEZ bildirdi: *"kalbe
+                  //	tikladigimda favori ikonuna tikladigimda BORDER BEYAZI
+                  //	KALSIN dedim"*).
+                  //
+                  //	Turu 96g'de beyaz golgeler EKLENMISTI ama ±0.5px ve
+                  //	yalniz DORT yondeydi. BOS haldeki kalp bir CIZGI
+                  //	glifidir — beyaz oradaki cizginin KENDISI, kalin ve
+                  //	acikca gorunur. DOLU haldeki `Icons.favorite` ise MASIF
+                  //	bir siluettir; 0.5px'lik halka pembe kutlenin yaninda
+                  //	**gorunmez kaliyordu**. Kullanicinin "kayboluyor"
+                  //	demesinin sebebi buydu: kontur teknik olarak vardi ama
+                  //	OPTIK OLARAK YOKTU.
+                  // ⚠️ 8 YON ZORUNLU: yalniz dort eksende kaydirilan golge
+                  //    KOSELERDE incelir ve kalbin egik kenarlarinda halka
+                  //    kesintiye ugrar. Capraz dortlu bunu kapatir.
+                  // ⚠️ 1.1 px OLCULDU: daha buyugu (1.5+) glifi sisirip
+                  //    kalbi kalin beyaz bir lekeye cevirir.
+                  // ⚠️ YAPMA: 0.5'e geri dusurme; capraz golgeleri silme.
                   shadows: [
-                    Shadow(color: Colors.white, offset: Offset(0.5, 0)),
-                    Shadow(color: Colors.white, offset: Offset(-0.5, 0)),
-                    Shadow(color: Colors.white, offset: Offset(0, 0.5)),
-                    Shadow(color: Colors.white, offset: Offset(0, -0.5)),
+                    Shadow(color: Colors.white, offset: Offset(1.1, 0)),
+                    Shadow(color: Colors.white, offset: Offset(-1.1, 0)),
+                    Shadow(color: Colors.white, offset: Offset(0, 1.1)),
+                    Shadow(color: Colors.white, offset: Offset(0, -1.1)),
+                    Shadow(color: Colors.white, offset: Offset(0.8, 0.8)),
+                    Shadow(color: Colors.white, offset: Offset(-0.8, 0.8)),
+                    Shadow(color: Colors.white, offset: Offset(0.8, -0.8)),
+                    Shadow(color: Colors.white, offset: Offset(-0.8, -0.8)),
                   ],
                 )
               // ⚠️ BOS HAL: **BEYAZ** cizgi (kullanici emri). Lucide bir FONT
@@ -415,7 +443,8 @@ Widget vitrinSatiri(BuildContext c, IsletmeOzet o, {required bool kompakt}) {
     p.add(Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Icon(LucideIcons.star, size: 14, color: Color(0xFF16A34A)),
+        // ⚠️ Yildiz da AYNI kalinlikta (satirdaki tek ince ikon kalmasin).
+        kalinIkon(LucideIcons.star, olcu: 14, renk: const Color(0xFF16A34A)),
         const SizedBox(width: 3),
         Text(
           o.puan!.toStringAsFixed(1).replaceAll('.', ','),
@@ -427,8 +456,11 @@ Widget vitrinSatiri(BuildContext c, IsletmeOzet o, {required bool kompakt}) {
         ),
         if (!kompakt && o.puanSayisi > 0) ...[
           const SizedBox(width: 3),
+          // ⚠️ Oy sayisi da `w600` — satirdaki TEK ince parca kalsaydi
+          //    "(320)" digerlerinin yaninda soluk bir kaza gibi gorunurdu.
           Text('(${o.puanSayisi})',
-              style: TextStyle(fontSize: boy, color: soluk)),
+              style: TextStyle(
+                  fontSize: boy, color: soluk, fontWeight: kMetaKalinlik)),
         ],
       ],
     ));
@@ -469,12 +501,63 @@ Widget vitrinSatiri(BuildContext c, IsletmeOzet o, {required bool kompakt}) {
 }
 
 /// Ikon + metin ikilisi — vitrin satirinin tek yapi tasi.
+/// ⚠️⚠️ TURU 96j — META YAZISI **`w600`** (kullanici emri: *"restoran
+///	altindaki kartlarin 25-35 dk vb. bunlari BIR TIK KALINLASTIR, filtre
+///	vb. gibi olsun"*).
+///
+/// ⚠️ Hedef ACIKCA VERILDI: suzgec cipleriyle AYNI (`fontSize: 13` +
+///    `FontWeight.w600` — bkz. `isletme_listesi.dart` cip govdesi). Bu yuzden
+///    "bir tik" varsayilan `w400`ten w500'e DEGIL, dogrudan **w600**a cikti;
+///    kullanicinin istedigi sey referansa ESITLENMEKTI.
+/// ⚠️ **RENK DEGISMEDI** (`soluk`, alpha .62): kalinlik artarken renk de
+///    koyulsaydi meta satiri isletme ADIYLA yarisir ve hiyerarsi bozulurdu.
+/// ⚠️ IKON BOYU 14'te KALDI: 13px yazinin yaninda 14px ikon zaten bir tik
+///    buyuk; kalinlikla birlikte ikonu da buyutmek satiri sismis gosterirdi.
+const FontWeight kMetaKalinlik = FontWeight.w600;
+
+/// Bir tik **KALIN** cizilmis ikon.
+///
+/// ⚠️⚠️⚠️ `lucide_icons_flutter` ikonlari bir **FONT** olarak sunar (glif),
+///	SVG DEGIL — `strokeWidth` YOKTUR ve `Icon`a yazilirsa DERLENMEZ.
+///	Kalinlik, AYNI RENKTE ±[yayilma] kaydirilmis DORT golgeyle simule edilir:
+///	glif kendi uzerine hafifce yayilir ve cizgi kalinlasir.
+///
+/// ⚠️⚠️ TEK KAYNAK (turu 96j): suzgec cipleri (`_cipIkon`) ve kart meta
+///	satiri AYNI teknigi kullanmak ZORUNDA — kullanicinin emri zaten
+///	*"filtre butonlari gibi yapar misin kalinliklarini"* idi. Iki yerde ayri
+///	ayri yazilsaydi biri guncellenip oteki ince kalirdi (bu projede "ayni
+///	kuralin iki kopyasi" sinifi ALTI kez sahaya cikti).
+/// ⚠️ `yayilma` BUYUTULURSE glif BULANIKLASIR (golge, kenar yumusatmali bir
+///    kopyadir). 0.4 olculdu: cizgi belirginlesiyor, keskinlik bozulmuyor.
+Widget kalinIkon(IconData ikon,
+        {required double olcu, required Color? renk, double yayilma = 0.4}) =>
+    Icon(
+      ikon,
+      size: olcu,
+      color: renk,
+      shadows: renk == null
+          ? null
+          : [
+              for (final d in [
+                Offset(yayilma, 0),
+                Offset(-yayilma, 0),
+                Offset(0, yayilma),
+                Offset(0, -yayilma),
+              ])
+                Shadow(color: renk, offset: d),
+            ],
+    );
+
 Widget _ikonluMetin(IconData ikon, String metin, double boy, Color? renk) => Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(ikon, size: 14, color: renk),
+        // ⚠️ TURU 96j — ikon da metinle BIRLIKTE kalinlasti (kullanici emri:
+        //    *"25-35 gibi bunlarin IKONLARINI kalinlastirmamissin"*).
+        kalinIkon(ikon, olcu: 14, renk: renk),
         const SizedBox(width: 4),
-        Text(metin, style: TextStyle(fontSize: boy, color: renk)),
+        Text(metin,
+            style: TextStyle(
+                fontSize: boy, color: renk, fontWeight: kMetaKalinlik)),
       ],
     );
 
