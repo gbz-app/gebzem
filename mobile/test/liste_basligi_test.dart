@@ -129,30 +129,46 @@ void main() {
     }
   });
 
-  testWidgets('DOLU kalp beyaz konturunu KORUR', (tester) async {
-    // ⚠️⚠️⚠️ Kullanici IKI TUR ust uste bildirdi: *"kalbe tikladigimda beyaz
-    //	border kaybolmasin"*. Turu 96g'de golge EKLENMISTI ama ±0.5px ve
-    //	dort yonluydu; masif `Icons.favorite` siluetinin yaninda OPTIK OLARAK
-    //	GORUNMUYORDU. Turu 96j'de 8 yon x 1.1px'e cikarildi.
-    // ⚠️ Bu test SAYIYI ve OFSETI olcer — "golge var mi" demek YETMEZ,
-    //    cunku hata tam olarak "golge var ama gorunmuyor" idi.
+  testWidgets('DOLU kalp beyaz konturu PEMBENIN USTUNE cizilir',
+      (tester) async {
+    // ⚠️⚠️⚠️ Kullanici **UC TUR** ust uste bildirdi: *"kalbe tikladigimda
+    //	beyaz border gorunmuyor"*. Ilk iki denemede kontur `shadows` ile
+    //	uretiliyordu, yani glifin **DISINA** — kapagin uzerine. Kapak yer
+    //	tutucusu ACIK GRI (0xFFE7E7EA ≈ 231) oldugu icin beyaz halka piksel
+    //	olarak VARDI ama GORUNMUYORDU.
+    //	Cozum: kontur ZEMINE degil **PEMBE KUTLENIN USTUNE** cizilir.
+    // ⚠️ Bu test "golge var mi" diye BAKMAZ — hata tam olarak "golge var ama
+    //    gorunmuyor" idi. Onun yerine **UST USTE IKI GLIF** oldugunu ve
+    //    ustekinin BEYAZ KENAR CIZGISI oldugunu dogrular.
     await tester.pumpWidget(MaterialApp(
-      home: Scaffold(
-        body: IsletmeKapakKalbi(dolu: true, onTap: () {}),
-      ),
+      home: Scaffold(body: IsletmeKapakKalbi(dolu: true, onTap: () {})),
     ));
 
-    final kalp = tester.widget<Icon>(find.byType(Icon));
-    expect(kalp.color, const Color(0xFFE11D48), reason: 'dolu kalp pembe olmali');
-    expect(kalp.shadows, isNotNull, reason: 'beyaz kontur YOK');
-    expect(kalp.shadows!.length, 8,
-        reason: 'kontur 8 yonlu olmali (dort yonlu koselerde KESILIR)');
-    for (final g in kalp.shadows!) {
-      expect(g.color, Colors.white);
-      expect(g.offset.distance, greaterThanOrEqualTo(1.0),
-          reason: 'kontur cok ince — masif kalbin yaninda GORUNMEZ '
-              '(${g.offset.distance})');
-    }
+    final ikonlar = tester.widgetList<Icon>(find.byType(Icon)).toList();
+    expect(ikonlar.length, 2,
+        reason: 'dolu kalp IKI katmandan olusur: pembe dolgu + beyaz kenar '
+            '(bulundu: ${ikonlar.length})');
+    expect(ikonlar[0].icon, Icons.favorite);
+    expect(ikonlar[0].color, const Color(0xFFE11D48),
+        reason: 'alt katman pembe dolgu olmali');
+    expect(ikonlar[1].icon, Icons.favorite_border,
+        reason: 'ust katman KENAR CIZGISI olmali');
+    expect(ikonlar[1].color, Colors.white,
+        reason: 'kenar cizgisi BEYAZ olmali (kullanici emri)');
+    // ⚠️ Ikisi de AYNI olcu: farkli olsalardi cizgi dolgunun sinirina
+    //    oturmaz, bir yanda tasar obur yanda iceride kalirdi.
+    expect(ikonlar[0].size, ikonlar[1].size);
+
+    // BOS hal: yalniz beyaz kenar cizgisi, dolgu YOK.
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(body: IsletmeKapakKalbi(dolu: false, onTap: () {})),
+    ));
+    final bos = tester.widgetList<Icon>(find.byType(Icon)).toList();
+    expect(bos.length, 1, reason: 'bos kalpte dolgu CIZILMEMELI');
+    // ⚠️ IKI HAL AYNI SILUET: farkli glif kullanilsaydi dokununca kalbin
+    //    SEKLI ziplardi.
+    expect(bos[0].icon, Icons.favorite_border);
+    expect(bos[0].color, Colors.white);
   });
 
   test('kMetaKalinlik suzgec cipleriyle AYNI degerde', () {

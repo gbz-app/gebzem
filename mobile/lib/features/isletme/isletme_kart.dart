@@ -298,69 +298,56 @@ class IsletmeKapakKalbi extends StatelessWidget {
       child: SizedBox(
         width: 38,
         height: 38,
+        // ⚠️⚠️⚠️ TURU 96j — BEYAZ KONTUR ARTIK **PEMBENIN USTUNE CIZILIYOR**
+        //	(kullanici UCUNCU KEZ bildirdi: *"kalbe tikladigimda beyaz border
+        //	GORUNMUYOR"*).
+        //
+        //	ONCEKI IKI DENEME NEDEN TUTMADI — ikisi de GOLGEYDI:
+        //	  turu 96g: 0.5px x 4 yon · turu 96j (ilk): 1.1px x 8 yon
+        //	Golge glifin **DISINA**, yani KAPAGIN uzerine tasar. Tohumdaki
+        //	isletmelerin cogunda kapak yok ve yer tutucu **ACIK GRI**
+        //	(`kYuzeyGri` = 0xFFE7E7EA ≈ 231). Beyaz (255) ile acik gri (231)
+        //	arasindaki fark GOZLE SECILEMEZ. Yani halka piksel olarak VARDI
+        //	(401 saf beyaz piksel olculdu) ama kullanici HAKLI olarak
+        //	goremiyordu: beyaz, beyaza yakin bir zeminin ustundeydi.
+        //
+        //	COZUM: kontur artik ZEMINE degil **PEMBE KUTLENIN USTUNE** cizilir
+        //	(`Icons.favorite` + ustune `Icons.favorite_border` BEYAZ). Beyaz
+        //	ile pembe (0xFFE11D48) arasindaki kontrast ~4.3:1 — zemin ne
+        //	olursa olsun (beyaz kapak, acik gri, koyu fotograf) kontur
+        //	GORUNUR. Artik "kaybolabilecegi" bir zemin YOK.
+        //
+        // ⚠️ IKI GLIF **MATERIAL CIFTI** (`favorite` + `favorite_border`):
+        //	ayni siluet icin tasarlanmislardir, kenar cizgisi dolgunun
+        //	sinirina TAM oturur. Lucide'in `heart`i ile karistirilamaz —
+        //	silueti farklidir ve beyaz cizgi pembenin bir yaninda TASAR,
+        //	obur yaninda ICERIDE kalirdi.
+        // ⚠️ BOS HAL DE `favorite_border`a cevrildi: iki hal AYNI silueti
+        //	kullanmak ZORUNDA, yoksa dokununca kalbin SEKLI ZIPLARDI.
+        // ⚠️ YAPMA: konturu tekrar `shadows` ile uretmeye donme.
         child: Center(
-          child: dolu
-              // ⚠️⚠️ TURU 96g — DOLU HALDE DE **BEYAZ KENARLIK** (kullanici
-              //	emri: *"kalbe tikladigimda beyaz border kaybolmasin"*).
-              //
-              //	Beyaz golgeler glifin cevresine yayilarak bir kontur
-              //	uretir; boylece pembe kalp acik renkli bir kapak
-              //	fotografi uzerinde de sinirini korur. Bos haldeki beyaz
-              //	cizgiyle AYNI teknik — iki hal arasinda gorsel sureklilik.
-              // ⚠️ Golge OFSETI bos haldekiyle AYNI (0.5): farkli olsaydi
-              //    dokununca kontur kalinligi ZIPLARDI.
-              ? const Icon(
-                  Icons.favorite,
-                  size: 24,
-                  color: pembe,
-                  // ⚠️⚠️⚠️ TURU 96j — KONTUR **KALINLASTIRILDI ve 8 YONE
-                  //	CIKARILDI** (kullanici IKINCI KEZ bildirdi: *"kalbe
-                  //	tikladigimda favori ikonuna tikladigimda BORDER BEYAZI
-                  //	KALSIN dedim"*).
-                  //
-                  //	Turu 96g'de beyaz golgeler EKLENMISTI ama ±0.5px ve
-                  //	yalniz DORT yondeydi. BOS haldeki kalp bir CIZGI
-                  //	glifidir — beyaz oradaki cizginin KENDISI, kalin ve
-                  //	acikca gorunur. DOLU haldeki `Icons.favorite` ise MASIF
-                  //	bir siluettir; 0.5px'lik halka pembe kutlenin yaninda
-                  //	**gorunmez kaliyordu**. Kullanicinin "kayboluyor"
-                  //	demesinin sebebi buydu: kontur teknik olarak vardi ama
-                  //	OPTIK OLARAK YOKTU.
-                  // ⚠️ 8 YON ZORUNLU: yalniz dort eksende kaydirilan golge
-                  //    KOSELERDE incelir ve kalbin egik kenarlarinda halka
-                  //    kesintiye ugrar. Capraz dortlu bunu kapatir.
-                  // ⚠️ 1.1 px OLCULDU: daha buyugu (1.5+) glifi sisirip
-                  //    kalbi kalin beyaz bir lekeye cevirir.
-                  // ⚠️ YAPMA: 0.5'e geri dusurme; capraz golgeleri silme.
-                  shadows: [
-                    Shadow(color: Colors.white, offset: Offset(1.1, 0)),
-                    Shadow(color: Colors.white, offset: Offset(-1.1, 0)),
-                    Shadow(color: Colors.white, offset: Offset(0, 1.1)),
-                    Shadow(color: Colors.white, offset: Offset(0, -1.1)),
-                    Shadow(color: Colors.white, offset: Offset(0.8, 0.8)),
-                    Shadow(color: Colors.white, offset: Offset(-0.8, 0.8)),
-                    Shadow(color: Colors.white, offset: Offset(0.8, -0.8)),
-                    Shadow(color: Colors.white, offset: Offset(-0.8, -0.8)),
-                  ],
-                )
-              // ⚠️ BOS HAL: **BEYAZ** cizgi (kullanici emri). Lucide bir FONT
-              //    oldugu icin `strokeWidth` YOKTUR; kalinlik ayni renkte
-              //    ±0.5px kaydirilmis dort golgeyle simule edilir.
-              // ⚠️ Koyu golge LISTENIN BASINDA: golgeler sirayla ve glifin
-              //    ARKASINA cizilir, yani once koyu bulanik yayilma, ustune
-              //    beyaz kalinlastirma gelir. Ters sirada koyu golge beyaz
-              //    kalinlastirmayi ORTERDI.
-              : const Icon(
-                  LucideIcons.heart,
-                  size: 24,
-                  color: Colors.white,
-                  shadows: [
-                    Shadow(color: Colors.white, offset: Offset(0.5, 0)),
-                    Shadow(color: Colors.white, offset: Offset(-0.5, 0)),
-                    Shadow(color: Colors.white, offset: Offset(0, 0.5)),
-                    Shadow(color: Colors.white, offset: Offset(0, -0.5)),
-                  ],
-                ),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              if (dolu)
+                const Icon(Icons.favorite, size: 24, color: pembe),
+              // ⚠️ Kenar cizgisi HER IKI HALDE de cizilir; dolu halde pembenin
+              //    ustune biner ve "beyaz border" tam olarak budur.
+              // ⚠️ Golgeler cizgiyi bir tik KALINLASTIRIR (Lucide/Material
+              //    ikonlari FONT'tur, `strokeWidth` YOKTUR).
+              const Icon(
+                Icons.favorite_border,
+                size: 24,
+                color: Colors.white,
+                shadows: [
+                  Shadow(color: Colors.white, offset: Offset(0.5, 0)),
+                  Shadow(color: Colors.white, offset: Offset(-0.5, 0)),
+                  Shadow(color: Colors.white, offset: Offset(0, 0.5)),
+                  Shadow(color: Colors.white, offset: Offset(0, -0.5)),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -143,31 +143,25 @@ const double kKalpOptik = 0.8; // heart
 /// ⚠️ Baslik metni degisirse yeniden olc.
 const double kBaslikOptik = 1.1;
 
-/// ⚠️⚠️⚠️ TURU 96j — GORUNUM SECICI (liste · kart · harita) **MINIMALIST**.
+/// ⚠️⚠️⚠️ TURU 96j — GORUNUM SECICI (liste · kart · harita).
 ///
-///	Kullanici emri: *"Restoranlar yazisinin sagindaki ikonlari minimalist
-///	yapar misin, bir tik ustunde de olsun, boyutlar dikkatli olsun"*.
-///	Dis kutu (kenarlik + dolgu) KALDIRILDI; geriye yalnizca ikonlar kaldi.
+///	Kullanici once *"ikonlari minimalist yapar misin, bir tik ustunde de
+///	olsun"* dedi; dis kutu kaldirildi ve bu REDDEDILDI:
+///	*"ikonlarin ARKASINDA BORDER YOK; hepsi BIR SEYIN ICINDE border olacak,
+///	aktif ikon ARKA RENGI olacakti"*.
+///	Yani **KUTU KALIR**; sadelestirme ikonun KENDISINDE yapilir.
 ///
-/// ⚠️ Dokunma alani **44x40** (Material 48'e en yakin, satiri sismeyen olcu);
-///    GORUNEN oge ise `kSegIkon`. Aradaki fark `kSegYan`/`kSegDikey`dir ve
-///    hizalama HER ZAMAN bu paydan turetilir — turu 96b'de header ikonlarinda
-///    kurulan kural (`kHeaderPay`) ile BIREBIR ayni desen.
-/// ⚠️ Aktif segmentin gri zemini `kSegBoy` yuksekliginde kalir: dokunma
-///    alanini boyamak, uc ikonun arasini birlesik bir blok gibi gosterirdi.
+/// ⚠️ Dokunma alani **44x40** (satiri sismeden Material 48'e en yakin olcu);
+///    aktif gri zemin `kSegBoy` (34) — dokunma alanini boyamak uc segmenti
+///    birlesik tek blok gibi gosterirdi.
+/// ⚠️ Dis kutunun GORUNEN sag kenari `kYanBosluk`ta durur; kutu bir CIZGI
+///    oldugu icin glif telafisi (turu 96b `kNavOptik` deseni) GEREKMEZ —
+///    kenarlik zaten murekkebin ta kendisidir.
 const double kSegHucre = 44; // dokunma alani (genislik)
 const double kSegHucreBoy = 40; // dokunma alani (yukseklik)
 const double kSegBoy = 34; // aktif zeminin yuksekligi
 const double kSegIkon = 20; // GORUNEN ikon
-const double kSegYan = (kSegHucre - kSegIkon) / 2; // = 12 (sag hiza telafisi)
-
-/// ⚠️ GLIF ICI BOSLUK — ekrandan OLCULDU: dolgu yalniz `kSegYan` ile
-///    duzeltildiginde `map` ikonunun GORUNEN sag kenari **393.5 dp**te
-///    kaliyordu, kartin murekkep kenari ise **395.0 dp**. Lucide glifi 20dp
-///    kutusunu tam doldurmuyor. Fark telafi edilmezse ikon, altindaki
-///    kartlardan 1.5 dp ICERIDE durur.
-/// ⚠️ IKON DEGISIRSE YENIDEN OLC (`kNavOptik`/`kBaslikOptik` ile ayni kural).
-const double kSegOptik = 1.5;
+const double kSegDolgu = 3; // kutu ile segmentler arasi
 
 /// ⚠️ "Bir tik ustte" — kullanicinin istedigi kaydirma. `Transform` ile
 ///    uygulanir (yerlesimi DEGISTIRMEZ, bkz. `_listeBasligi`).
@@ -2123,16 +2117,13 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
   ///    gordugunu ANINDA bilmeli. Ham listeden verilseydi "İşletmeler (14)"
   ///    yazip altta 2 kart cizerdi.
   Widget _listeBasligi(int adet) => Padding(
-        // ⚠️ Solda baslik metni (glif telafili), sagda ikonlar.
-        // ⚠️⚠️ TURU 96j — SAG DOLGU `kYanBosluk` DEGIL `kYanBosluk - kSegYan`.
-        //	Kutu kaldirilinca ikon, hucrenin ORTASINDA kaldi ve iki yaninda
-        //	`(kSegHucre - kSegIkon) / 2` kadar BOSLUK olustu. Dolgu 16'da
-        //	biraksaydik ikonun GORUNEN sag kenari 16 + kSegYan = 24'e kayar,
-        //	alttaki kartlarin 16'lik hizasindan KOPARDI (kullanici bu tur
-        //	kaymalari defalarca yakaladi). Simdi glif kenari TAM 16'da.
+        // ⚠️ Solda baslik metni (glif telafili), sagda segment KUTUSU.
+        // ⚠️ Kutunun kenarligi murekkeptir: sag dolgu dogrudan `kYanBosluk`,
+        //    boylece cerceve alttaki kartlarin kenariyla AYNI hizada durur.
+        //    (Kutu kaldirilmis surumde `kSegYan + kSegOptik` telafisi
+        //    gerekiyordu; kutu geri gelince o telafi GECERSIZ.)
         padding: const EdgeInsets.only(
-            left: kYanBosluk - kBaslikOptik,
-            right: kYanBosluk - kSegYan - kSegOptik),
+            left: kYanBosluk - kBaslikOptik, right: kYanBosluk),
         child: Row(
           children: [
             Text(
@@ -2210,20 +2201,22 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
     //	anlasiliyordu. Artik kutu ZEMINLE AYNI (seffaf) + cip kenarligi,
     //	aktif segment ise dolu gri -> kontrast net.
     // ⚠️ Kenarlik cipler ile AYNI kaynaktan (`_notrKenar`).
-    // ⚠️⚠️⚠️ TURU 96j — **MINIMALIST** (kullanici emri: *"Restoranlar
-    //	yazisinin sagindaki ikonlari minimalist yapar misin"*).
+    // ⚠️⚠️⚠️ TURU 96j — **KUTU GERI GELDI** (kullanici DUZELTMESI).
     //
-    //	KALDIRILAN: dis kutu (kenarlik + 3px dolgu). Baslik satirinda solda
-    //	CIPLAK BIR YAZI, sagda CERCEVELI BIR KUTU vardi; kutu satirin tek
-    //	"agir" ogesiydi ve basligi bastiriyordu. Artik yalnizca ikonlar var.
-    // ⚠️ **AKTIF HALI KALDI** ve kalmali: turu 96d'de kullanici "hangi
-    //    gorunumdeyim anlayamiyorum" dedigi icin segment kutusuna gecilmisti.
-    //    Zemin dolgusu silinseydi o sorun GERI GELIRDI. Aktif = hafif gri
-    //    yuvarlak; degisen tek sey CERCEVENIN gitmesi.
-    // ⚠️ DOKUNMA ALANI KUCULTULMEDI: hucre `kSegHucre`x`kSegHucreBoy`
-    //    (44x40) kaldi, yalnizca GORUNEN zemin `kSegBoy`e (34) indi. Turu
-    //    90b dersi: "ikonu kucultup dokunma alanini da kucultmek" bu projede
-    //    daha once 27dp'lik bir dugme uretmisti.
+    //	Once *"ikonlari minimalist yapar misin"* dendi ve dis kutu (kenarlik +
+    //	dolgu) KALDIRILDI. Kullanici bunu REDDETTI:
+    //	  *"Restoranlar sagdaki ikonlarin ARKASINDA BORDER YOK; hepsi BIR
+    //	   SEYIN ICINDE border olacak, ikonlari icinde, AKTIF ikon ARKA
+    //	   RENGI olacakti"*
+    //	Yani "minimalist" istegi KUTUYU DEGIL, ikonlarin kendisini
+    //	sadelestirmeyi kastediyordu. Segment kutusu bu ekranin TASARIM
+    //	DILIDIR: uc gorunum TEK bir cerceve icinde yasar, aktif olan gri
+    //	zeminle isaretlenir (turu 96d'de "hangi gorunumdeyim anlayamiyorum"
+    //	sikayetinin cozumu buydu).
+    // ⚠️ YAPMA: kutuyu bir daha kaldirma. Sadelestirme gerekiyorsa ikon
+    //    OLCUSU/kalinligi ile oyna, CERCEVEYI silme.
+    // ⚠️ Kenarlik cipler ile AYNI kaynaktan (`_notrKenar`) — satirdaki iki
+    //    cerceve (Filtre cipi ve bu kutu) ayni tonda olmak ZORUNDA.
     Widget segment(IconData ikon, String ipucu, bool aktif, VoidCallback ac) =>
         Semantics(
           button: true,
@@ -2250,7 +2243,14 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
             ),
           ),
         );
-    return Row(
+    return Container(
+      padding: const EdgeInsets.all(kSegDolgu),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(
+            kYaricap(kSegHucreBoy + kSegDolgu * 2)),
+        border: Border.all(color: _notrKenar),
+      ),
+      child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           segment(LucideIcons.list, 'Liste görünümü', !_izgara,
@@ -2268,6 +2268,7 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
             ),
           ),
         ],
+      ),
     );
   }
 
