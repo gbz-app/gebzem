@@ -17,7 +17,27 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (14 Agu 01:07): TURU 96i YAYINLANDI** — android
+- **KALDIGIMIZ YER (15 Agu): TURU 96j·96k·96l·96m KODU BITTI, BUILD ALINMADI**
+  (kural 0 — kullanici "al" demedi). `flutter analyze` **0/0** ·
+  `flutter test` **34/34** · calisma agaci temiz, `origin/main` senkron.
+  · **96j** gorunum secici + meta satiri kalinligi (referans: filtre cipi) + kalpler 28
+  · **96k** BOSLUK OLCEGI **8/12/16** (baslik↔kartlar · izgara ici · bolumler arasi)
+  · **96l** ALT MENU kategori ekraninda da (`home/alt_menu.dart` TEK KAYNAK)
+  · **96m** ALT MENU **SIYAH + YAZISIZ**, aktif beyaz / pasif `0xFF7A7A7E`,
+    ikonlar 5dp yukari, **logo TAM DAIRE 52dp**, fotografsiz profilde
+    **HARF DEGIL** `circleUserRound`, sistem gezinme cubugu ikonlari ACIK.
+  ⚠️⚠️ **ALT MENU RENKLERI TEMADAN BAGIMSIZ SABIT** (`kAltMenuZemin` /
+     `kAltMenuAktifIkon` / `kAltMenuPasifIkon`, `core/theme.dart`). Zemin
+     sabit siyahken renk `onSurface`e baglanirsa **acik temada SIYAH ikon
+     SIYAH zemine** cizilir ve **menu tamamen kaybolur**.
+  ⚠️ **LOGO DAIRESINE IC DOLGU KOYMA**: 48'lik dairede 3px dolgu kirpmanin
+     yalniz koseleri yemesine yol aciyordu -> ekranda **yuvarlatilmis KARE**
+     (turu 96m'de olculdu). Gorsel daireyi TAM DOLDURUR (`cover`).
+  ⚠️ Alt menude `etiket` parametresi **A11Y ICIN DURUYOR** (gorunur yazi yok);
+     "kullanilmiyor" diye silme.
+  🛡️ `mobile/test/alt_menu_test.dart` — 9 kontrol, **BES BICIMDE bozularak
+     KANITLANDI**. ⚠️ Silme.
+- **ONCEKI (14 Agu 01:07): TURU 96i YAYINLANDI** — android
   **31748701025** + ios **31748703520** (**c2d6282**), R2 apk=121959483
   (md5 46fbcc66) ipa=31620789 (md5 66bb8661) index=12530 (md5 1199835d)
   **surum.json=48 (md5 ed2ac45e — YENI)**, purge OK, **CDN DORDU DE BIREBIR**,
