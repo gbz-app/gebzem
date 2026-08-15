@@ -7130,3 +7130,81 @@ uygulamanın geri kalanına ulaşamıyordu.
 `flutter test` 25/25 (96k koşusunda) · çalışma ağacı **temiz** · `origin/main`
 ile senkron.
 **BEKLEYEN:** bu üç tur için build alınmadı — kullanıcı testi sonrası karar.
+
+## Oturum — Turu 96m (15 Ağustos 2026) — ALT MENÜ YENİDEN
+
+Kullanıcı emri (iki mesaj): *"alt menü siyah olacak, ikonlar aktif beyaz pasif
+hafif gri, iconlardaki anasayfa vb alt yazı olmayacak, iconu yukarı kaldır biraz
+daha, icon tam daire olması gerekiyor yani logoyu bir dairenin içine koyman
+gerekiyor bir tık daha büyük"* + *"profilde a vb yazmasın, eğer resim yoksa o da
+pasif icon renginde olsun"*.
+
+### Yapılanlar
+- **Zemin TEMADAN BAĞIMSIZ SİYAH** (`kAltMenuZemin`, `core/theme.dart` TEK KAYNAK).
+  ⚠️⚠️ İkon renkleri de sabit — bu tercih değil **zorunluluk**: zemin sabitken
+  renk `onSurface`e bağlansaydı **açık temada SİYAH ikon SİYAH zemine** çizilir
+  ve menü tamamen kaybolurdu. (Turu 81/82'nin "alt menü açık temada beyaz"
+  ayna simetrisi kullanıcı tarafından bilerek kaldırıldı.)
+- **Aktif beyaz · pasif `0xFF7A7A7E`** — siyah zeminde **4.9:1** (WCAG 1.4.11
+  eşiği 3:1). ⚠️ Daha koyu bir gri "daha şık" görünür ama pasif sekmeler güneş
+  altında görünmez olur; test bu eşiği zorluyor.
+- **Etiketler kaldırıldı**, `Semantics(label:)` **DURUYOR**. ⚠️ YAPMA: `etiket`
+  parametresini "kullanılmıyor" diye silme — görünür etiketi olmayan bir ikon
+  TalkBack'te yalnızca "düğme" diye okunur ve kullanıcı hangi sekmede olduğunu
+  anlayamaz. A11y'nin TEK kaynağı o parametredir.
+- **İkonlar 5 dp yukarı** — `Transform.translate` ile, **`padding` ile DEĞİL**:
+  dolgu çocuğa kalan yüksekliği daraltır ve 52 dp logo + 66 dp çubukta pay
+  eriyip RenderFlex taşması riski doğardı. Çeviri bir ÇİZİM dönüşümüdür.
+- **LOGO TAM DAİRE, 48 → 52.**
+  ⚠️⚠️ **ÖNCEKİ HAL NEDEN DAİRE DEĞİLDİ (ölçüldü):** görsel 48'lik `ClipOval`in
+  **içinde 3 px dolguyla** çiziliyordu. Daire yarıçapı 24 iken görselin kenar
+  ortaları yalnızca 21'de kalıyor; yani kırpma **sadece köşeleri** yiyor,
+  kenarlar düz kalıyordu → ekranda **köşesi yuvarlatılmış KARE**. Çözüm dolguyu
+  kaldırıp görseli daireye TAM DOLDURMAK (`cover`).
+  ⚠️ YAPMA: oraya tekrar iç dolgu koyma.
+- **PROFİL: fotoğraf yoksa BAŞ HARF değil `circleUserRound` ikonu**, kardeş
+  sekmelerle AYNI renk kaynağından. (Fotoğraf varsa avatar; pasifken %55
+  opaklık, aktifken beyaz çerçeve.)
+- **Sistem gezinme çubuğu ikonları AÇIK** (`AnnotatedRegion`). ⚠️ Kozmetik
+  değil, değişikliğin **gerektirdiği** kapatma: siyah şerit üzerinde açık
+  temanın KOYU "pill"i görünmez oluyordu. Flutter sistem stilini ekranın **en
+  üst** ve **en alt** noktasından AYRI AYRI okur (`RendererBinding
+  ._updateSystemChrome`), yani buradaki değer yalnız gezinme çubuğunu etkiler;
+  durum çubuğu `main.dart`taki uygulama geneli varsayılandan gelmeye devam eder.
+  ⚠️ YAPMA: buraya `statusBar*` alanı ekleme — yaprak annotation kazanır ve
+  koyu/açık tema mantığını sessizce ezersin.
+- `theme.dart`taki **ölü** `navigationBarTheme` aynı sabitlere bağlandı
+  (`grep 'NavigationBar('` = **sıfır**; blok yalnızca ileride biri Material
+  `NavigationBar` eklerse ayrışmasın diye duruyor).
+- `home_screen`de turu 96l'den kalan **ölü `chats_provider` importu** silindi.
+
+### ÖLÇÜLDÜ (emülatör, dpr 2.625 — göz kararı DEĞİL)
+Ekran görüntüsü PNG olarak çözülüp piksel piksel ölçüldü:
+
+    çubuk        66 dp + 23.9 dp güvenli alan
+    pasif ikon   rgb(122,122,126) = 0xFF7A7A7E   <- TAM EŞLEŞME
+    logo         51.8 x 50.7 dp (hedef 52)
+    daire testi  üst+3px kiriş 54 px  (tam daire ~39 · KARE ~136)
+    hiza         ikon merkezi 5.5 dp · logo merkezi 5.1 dp çubuk merkezinin ÜSTÜNDE
+
+⚠️ İlk ölçüm YANLIŞ ÇIKTI: 1. hücrenin "beyaz" taraması **20 dp köşe
+radiusunun dışında kalan açık sayfa zeminini** (242,242,245) ikon sanıyordu
+(38 dp'lik hayali ikon). Tarama x≥60 px'ten başlatıldı. **Ölçüm aracının
+kendisi de doğrulanmalı.**
+
+### 🛡️ MUHAFIZ: `mobile/test/alt_menu_test.dart` (9 kontrol)
+Zemin iki temada da siyah · etiket metni YOK ama semantik etiket VAR · aktif
+beyaz/pasif gri · `secili: null` iken hiçbiri beyaz değil · ikon ve logo çubuk
+merkezinin üstünde (kaldırma miktarı sabitle karşılaştırılır) · logo dairesi +
+**iç dolgu YASAK** + görsel dairenin tamamını doldurur · fotoğrafsız profilde
+harf yok, ikon var · pasif gri kontrastı ≥ 3:1.
+
+✅ **BEŞ BİÇİMDE bozularak KANITLANDI** (hepsi kırmızı düştü): (a) logo
+dairesine iç dolgu, (b) zemini temaya bağlama, (c) etiket metnini geri koyma,
+(d) yukarı kaldırmayı sıfırlama, (e) harf avatarına dönme.
+⚠️ Bozma betiği `sed`/`perl` KULLANMAZ (Windows'ta UTF-8'i çift kodlar — turu
+83) ve desen eşleşmezse **PATLAR** (turu 91: "betik eşleşmedi, test yeşil kaldı").
+
+### Durum
+`flutter analyze` **0 hata 0 uyarı** · `flutter test` **34/34** · commit
+`a0bce52` push'lu. **BUILD ALINMADI** (kural 0).
