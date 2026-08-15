@@ -15,6 +15,8 @@ import '../sosyal/profil_sayfasi.dart';
 import 'favorilerim_ekrani.dart';
 import 'isletme_filtre.dart';
 import 'isletme_kart.dart';
+import '../home/alt_menu.dart';
+import '../home/home_screen.dart' show aktifSekme;
 import 'isletme_servisi.dart';
 import 'konum_secici.dart';
 import 'kategori_slider.dart';
@@ -640,6 +642,29 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
     // ⚠️ HAM liste degil **SUZULMUS** liste cizilir (bkz. `_gosterilen`).
     final l = _gosterilen;
     return Scaffold(
+      // ⚠️⚠️⚠️ TURU 96l — **ALT MENU BU EKRANDA DA CIZILIR** (kullanici emri:
+      //	*"alt menuyu getir, alt menu gorunmesi gerekiyor"*).
+      //
+      //	Bu ekran `home_screen` uzerine PUSH edilmis bir route oldugu icin
+      //	ev sahibinin `bottomNavigationBar`i gorunmuyordu; kullanici
+      //	kategoriye girince uygulamanin geri kalanina ulasamiyordu.
+      // ⚠️ GOVDE KOPYALANMADI: `AltMenu` tek kaynak (`home/alt_menu.dart`).
+      // ⚠️ `secili: null` — kategori ekrani bir SEKME DEGIL. "Anasayfa"yi
+      //    secili gostermek kullaniciya yalan soylerdi.
+      // ⚠️ Sekmeye dokunulunca ONCE hedef sekme yazilir, SONRA bu route
+      //    kapatilir: ters sirada `home` eski sekmesiyle bir kare cizer ve
+      //    goz "yanlis sekmeye dondu" diye okur.
+      bottomNavigationBar: AltMenu(
+        secili: null,
+        // ⚠️ IKINCI BIR NOTIFIER ACILMADI: `aktifSekme` ZATEN sekme durumunu
+        //    tasiyor (akis videolarinin ses kapisi ona bakiyor) ve
+        //    `HomeScreen` artik onu DINLIYOR. Ayri bir kanal acilsaydi iki
+        //    kaynak birbirinden ayrisirdi.
+        onSec: (sira) {
+          aktifSekme.value = sira;
+          Navigator.of(context).popUntil((r) => r.isFirst);
+        },
+      ),
       // ⚠️⚠️⚠️ TURU 92 — **APPBAR KALDIRILDI** (kullanici emri: *"'Yemek'
       //    yazisi gerek yok, sadece GERI IKONU"*). Baslik slider'in
       //    kendisinde degil, HIC YOK; geri ve harita ikonlari slider'in
