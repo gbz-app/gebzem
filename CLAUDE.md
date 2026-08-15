@@ -17,9 +17,39 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (15 Agu): TURU 96j·96k·96l·96m KODU BITTI, BUILD ALINMADI**
-  (kural 0 — kullanici "al" demedi). `flutter analyze` **0/0** ·
-  `flutter test` **34/34** · calisma agaci temiz, `origin/main` senkron.
+- **KALDIGIMIZ YER (15 Agu 22:09): TURU 96n YAYINLANDI** — android
+  **31902434942** + ios **31902436964** (**33bb07b**), R2 apk=121959543
+  (md5 1e4e6bf7) ipa=31627019 (md5 92282752) index=12077 (md5 e0970e6f)
+  surum.json=48 (md5 e9e05839), purge OK, **CDN DORDU DE BIREBIR**, debug
+  imza YOK, `HARITA=true` iki logda da dogrulandi.
+  ⚠️ **BACKEND DEGISMEDI** → deploy YOK, **DB TRUNCATE EDILMEDI** (sema
+     degismedigi icin kullanicinin oturumu/verisi KORUNDU, tohum atilmadi).
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260815-2209
+  **KULLANICI TELEFONDA TEST EDECEK.**
+- ⚠️⚠️⚠️ **TURU 96n — "LOGONUN CEVRESINDE TIRTIKLAR" KOD DEGILDI (UC KEZ
+  BILDIRILDI).** Kullanici sonunda *"profil dairesinde de ayni cizgi var"*
+  dedi — o daire DUZ bir `BoxDecoration` dairesi (gorsel/kirpma/kenarlik YOK).
+  Denenen DORT sey de **piksel piksel AYNI** cikti: (1) `cacheWidth` +
+  `FilterQuality.medium`, (2) `Clip.antiAliasWithSaveLayer`, (3) kirpmayi
+  TAMAMEN kaldirip daireyi `BoxShape.circle`+`DecorationImage` ile SEKIL
+  olarak cizme, (4) **Impeller yerine Skia** ile derleme.
+  Ekran belleginden alinan daire **6 kat buyutulunce PURUZSUZ**.
+  **KOK NEDEN: emulator penceresinin ~2.5 kat kucultmesi** — her egri kenari
+  basamakli gosterir. Telefonda yok.
+  ⚠️⚠️ **OLCUM DERSI (iki kez yanildim):** daire kenarini TAM SOL UCUNDAN
+     olcup "anti-alias yok" dedim — orada kenar DIKEYDIR, yumusatma zaten
+     gorunmez. "En buyuk basamak 21px" olcumu de dairenin KENDI geometrisiydi.
+     **Egri kenar kalitesini tek pikselden olcme — BUYUT VE BAK.**
+  ⚠️ `flutter run --enable-impeller=false` **HATALI SOZDIZIMI** (komut hic
+     kurulmaz, "Flag option should not be given a value" der). Dogrusu
+     **`--no-enable-impeller`**.
+- ⚠️⚠️ **SUREC (kullanici uyarisi 15 Agu):** *"emulatoru hizli arayuz icin
+  yaptik, 1 saat oldu"* + *"sana soylediklerimi iki dk yapsana"*.
+  **ARAYUZ TURLARINDA muhafiz testi / olcum betigi / bozma kaniti YAPILMAZ;**
+  kod degistirilir, `flutter run` edilir, ekran gosterilir. Sertlestirme
+  BUILD TURUNA biriktirilir.
+- **ONCEKI (15 Agu): TURU 96j·96k·96l·96m KODU** — `flutter analyze` **0/0** ·
+  `flutter test` **40/40** · calisma agaci temiz, `origin/main` senkron.
   · **96j** gorunum secici + meta satiri kalinligi (referans: filtre cipi) + kalpler 28
   · **96k** BOSLUK OLCEGI **8/12/16** (baslik↔kartlar · izgara ici · bolumler arasi)
   · **96l** ALT MENU kategori ekraninda da (`home/alt_menu.dart` TEK KAYNAK)
