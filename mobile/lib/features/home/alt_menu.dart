@@ -25,24 +25,29 @@ const double kAltMenuBoy = 66;
 ///    CIZIM donusumudur, yerlesimi daraltmaz.
 const double kAltMenuIkonKaldir = 5;
 
-/// Ikon boyu (NOMINAL taban) — `theme.dart`taki `navigationBarTheme` ile AYNI.
+/// Ikon boyu (NOMINAL taban).
+/// ⚠️ TURU 96o — kullanici emri *"ikonlari 2px daha buyut"*: 24 -> **26**.
 /// ⚠️ Bazi ikonlar bundan SAPAR: bkz. `_ikonBoy` (optik denge).
-const double kAltMenuIkonBoy = 24;
+const double kAltMenuIkonBoy = 26;
 
-/// ⚠️⚠️ ORTADAKI LOGO (kullanici emri: *"bir tik daha buyuk"*): 48 -> **52**.
+/// ⚠️⚠️ ORTADAKI LOGO DAIRESI. Kullanici *"daire 5px daha buyut, logoyu da o
+///	oranda buyut"* dedi (logo daireyi TAM doldurdugu icin ikisi birlikte
+///	buyur): 47 -> **52**.
 const double kAltMenuLogoCap = 52;
 
 /// ⚠️⚠️⚠️ TURU 96n — LOGONUN IKI YANINDAKI **NEFES PAYI** (kullanici:
 ///	*"ikonlar ortadaki menuye cok yaklasmis"*). Yer tutucu hucrenin
 ///	genisligi `kAltMenuLogoCap + kAltMenuLogoBosluk`tur.
 ///
-/// ⚠️⚠️ **GERI ALINDI — ILK DEGERINDE (12).** Kullanici once *"ikonlar ortadaki
-///	menuye cok yaklasmis"* dedi, 32 ve 60 denendi; sonucu gorunce *"ikonlara
-///	ne yaptiysan GERI AL"* dedi. Buyuk pay 6 esnek hucreden calindigi icin
-///	ikonlari ekran kenarlarina dogru sikistiriyor ve ortada buyuk bir boşluk
-///	birakiyordu.
-/// ⚠️ YAPMA: bu sayiyi kullanici ACIKCA istemeden buyutme.
-const double kAltMenuLogoBosluk = 12;
+/// ⚠️⚠️ Logo yer tutucusunun EK payi. Bu sayi 6 esnek hucreden calindigi icin
+///	**ikonlarin ARASINI da belirler**: buyudukce hucreler daralir, ikonlar
+///	birbirine YAKLASIR.
+///	Gecmis: 12 -> 32 -> 60 (*"cok yapisik"* -> GERI AL) -> 12 ->
+///	**30** (kullanici: *"aralarindaki boslugu 1 tik daha azalt"*).
+///	411 dp'de hucre 57.0 -> **52.0**.
+/// ⚠️ 360 dp'de hucre 41.3 dp'ye iner; daha fazlasi dokunma hedefini
+///    kullanilamaz yapar (muhafiz testi 360 dp'de olcer).
+const double kAltMenuLogoBosluk = 30;
 
 /// ⚠️⚠️⚠️ TURU 96n — LOGO IKONLARDAN **10 dp DAHA YUKARIDA** (kullanici emri:
 ///	*"logoyu ... mevcut boyutu ile koy, 10px yukarida duracak sekilde"*).
@@ -126,18 +131,24 @@ class AltMenu extends ConsumerWidget {
       //    tiklanmaz" hatasi YAPISAL OLARAK olusmaz.
       child: Stack(
         children: [
-          Padding(
-            padding: EdgeInsets.only(top: kAltMenuLogoTasma),
-            child: ClipRRect(
-              // ALT MENU sol/sag (ust kose) RADIUS (test turu 7).
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(20),
-                topRight: Radius.circular(20),
-              ),
-              child: ColoredBox(
-                // ⚠️ TURU 96m — zemin TEMADAN DEGIL sabit siyah (`theme.dart`).
-                color: kAltMenuZemin,
-                child: SafeArea(
+          // ⚠️⚠️⚠️ TURU 96o — **CUBUGUN CEVRESINDE HICBIR SEY YOK** (kullanici
+          //	emri: *"alt menu ustunde 5-10px bir alan var kesit gibi; alt
+          //	menu cevresinde border vs hicbir sey olmamali"*).
+          //
+          //	Onceki halde logonun tasma payi **SAYDAM** birakilmisti; telefonda
+          //	bu, siyah cubugun ustunde sayfa zemininin gorundugu ince bir
+          //	**SERIT** gibi okunuyordu. Ayrica ust koselerde 20 dp radius
+          //	vardi ve o da "kesit/cerceve" hissi veriyordu.
+          //
+          //	COZUM: tasma payi ARTIK SIYAHIN ICINDE (zemin en tepeden baslar)
+          //	ve **radius YOK** -> duz, kenarsiz, tek parca siyah serit.
+          // ⚠️ YAPMA: buraya `ClipRRect`/`borderRadius`/`Border`/golge ekleme.
+          ColoredBox(
+            // ⚠️ TURU 96m — zemin TEMADAN DEGIL sabit siyah (`theme.dart`).
+            color: kAltMenuZemin,
+            child: Padding(
+              padding: EdgeInsets.only(top: kAltMenuLogoTasma),
+              child: SafeArea(
                   top: false,
                   child: SizedBox(
                     height: kAltMenuBoy,
@@ -164,7 +175,6 @@ class AltMenu extends ConsumerWidget {
                       ],
                     ),
                   ),
-                ),
               ),
             ),
           ),
@@ -247,7 +257,7 @@ class AltMenu extends ConsumerWidget {
     //    buyut"). Olculdu: 24'te murekkep 22.6x16.0 dp, 28'de 25.1x18.7 dp —
     //    yani kardeslerinin (~19.8 dikey) HALA altindaydi. 31'de dikey
     //    murekkep ~20.7 dp ile hizalanir.
-    if (ikon == LucideIcons.radio) return 31;
+    if (ikon == LucideIcons.radio) return 33;
     return kAltMenuIkonBoy;
   }
 
@@ -341,7 +351,7 @@ class AltMenu extends ConsumerWidget {
           //    ince halkalar aliasing yapar. `devicePixelRatio` ILE carpilir,
           //    yoksa bu kez BULANIK cizilir (turu 91 tuzagi).
           child: Builder(builder: (context) {
-            const cap = kAltMenuLogoCap - 5;
+            const cap = kAltMenuLogoCap;
             final px = (cap * MediaQuery.devicePixelRatioOf(context)).round();
             return Container(
               width: cap,

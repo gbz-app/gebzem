@@ -382,12 +382,30 @@ class _Bolum {
 ///	"ayni kuralin iki kopyasi drift eder" sinifi ALTI kez sahaya cikti).
 ///
 /// ⚠️ YAPMA: cagri yerlerinde dogrudan `showModalBottomSheet` yazma.
+/// ⚠️⚠️⚠️ TURU 96o — PANEL **FILTRE PANELIYLE AYNI OLCUDE** (kullanici emri:
+///	*"alttaki logoya bastigimda menu, filtre gibi genislik yukseklik ayni
+///	olsun"*). Ucu de `isletme_filtre.dart`taki `isletmeFiltreAc` ile BIREBIR:
+///	  · `isScrollControlled: true` — olmadan tavan ekranin 9/16'si olur ve
+///	    izgaranin yarisi KIRPILIR,
+///	  · genislik **%100** (`constraints` YAZILMAZ; varsayilan zaten tam
+///	    genisliktir — `maxWidth` yazmak buyuk ekranda ORTALAR),
+///	  · yukseklik **%95** (`FractionallySizedBox`), ust koseler **18** radius.
+/// ⚠️ `useSafeArea` KULLANILMAZ: kullanilirsa yukseklik ekranin degil GUVENLI
+///    ALANIN %95'i olur (turu 96b'de olculdu: %89,6).
+/// ⚠️ Iki panel ayrisirsa kullanici farki ANINDA gorur; olculer degisecekse
+///    IKISI BIRLIKTE degisir.
 Future<void> hizmetMenusuAc(BuildContext context) => showModalBottomSheet<void>(
       context: context,
-      // ⚠️ ZORUNLU: 12 kartlik izgara varsayilan yukseklige SIGMAZ.
       isScrollControlled: true,
       showDragHandle: false,
-      builder: (_) => const HizmetMenusu(),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (_) => const FractionallySizedBox(
+        heightFactor: 0.95,
+        child: HizmetMenusu(),
+      ),
     );
 
 /// ⚠️ IKI CIZGI (kullanici emri: "2 tane 2 satir cizgi hamburger tarzi").

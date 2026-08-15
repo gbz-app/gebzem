@@ -631,10 +631,27 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
     }
   }
 
-  void _aramaDegisti(String _) {
+  void _aramaDegisti(String metin) {
     _gecikme?.cancel();
+    // ⚠️⚠️ TURU 96o — TEMIZLE (X) DUGMESI **BOS/DOLU GECISINDE** cizilir;
+    //	o yuzden burada `setState` gerekir. AMA her tusta setState etmek
+    //	tum listeyi yeniden cizerdi: yalniz **gecis anlarinda** cagrilir.
+    final dolu = metin.isNotEmpty;
+    if (dolu != _aramaDolu) setState(() => _aramaDolu = dolu);
     // ⚠️ 320ms gecikme — her tusa basista istek atmak sunucuyu bosuna yorar.
     _gecikme = Timer(const Duration(milliseconds: 320), _yukle);
+  }
+
+  /// Arama kutusunda metin var mi (X dugmesinin gorunurlugu).
+  bool _aramaDolu = false;
+
+  /// ⚠️ Temizleme TEK KAPIDAN: metni sil, X'i gizle, listeyi HEMEN tazele
+  ///    (gecikmeyi bekletmek "sildim ama sonuclar duruyor" hissi verirdi).
+  void _aramaTemizle() {
+    _gecikme?.cancel();
+    _arama.clear();
+    setState(() => _aramaDolu = false);
+    _yukle();
   }
 
   @override
@@ -1264,6 +1281,67 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
           ),
         ),
         prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+        // ⚠️⚠️⚠️ TURU 96o — **TEMIZLE (X)** (kullanici emri: *"inputta bir sey
+        //	yazdiginda inputun saginda x isareti olsun, arkasinda hafif gri
+        //	daire olacak, x isareti ikonu bir tik kalin olsun"*).
+        //
+        // ⚠️ YALNIZ METIN VARKEN cizilir: bos kutuda X gostermek "neyi
+        //    temizleyecegim" sorusu dogurur ve dokunma alanini bosa harcar.
+        // ⚠️ Kalinlik `strokeWidth` ILE VERILEMEZ — `lucide_icons_flutter`
+        //    ikonlari bir FONT olarak sunar (glif), SVG degil. Kalinlik ayni
+        //    renkte ±0.4 px kaydirilmis DORT GOLGE ile simule edilir
+        //    (turu 93'te olculen tek yol).
+        // ⚠️ Dokunma alani 32x32 daireden BUYUK tutulur (`padding`), yoksa
+        //    parmak ucu kaciriyor.
+        suffixIcon: !_aramaDolu
+            ? null
+            : GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: _aramaTemizle,
+                // ⚠️⚠️⚠️ GENISLIK **ACIKCA** VERILIR (44). Ilk yazimda yalniz
+                //	`height` verilmisti ve `suffixIconConstraints`in
+                //	`minWidth: 0`i yaniltici cikti: `InputDecorator` suffix'e
+                //	KALAN GENISLIGIN TAMAMINI veriyor, icteki `Center` de
+                //	daireyi o genis kutunun ORTASINA koyuyordu.
+                //	SONUC (emulatorde olculdu): X **inputun tam ortasinda**
+                //	duruyor ve **yaziya hic yer kalmadigi icin metin
+                //	GORUNMUYORDU**.
+                // ⚠️ YAPMA: bu genisligi kaldirip `Center`a guvenme.
+                child: SizedBox(
+                  height: kInputBoy,
+                  width: 44,
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 8, right: 12),
+                    child: Center(
+                      child: Container(
+                        width: 24,
+                        height: 24,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          // "hafif gri daire"
+                          color: (koyu ? Colors.white : Colors.black)
+                              .withValues(alpha: koyu ? 0.16 : 0.10),
+                        ),
+                        child: Icon(
+                          LucideIcons.x,
+                          size: 15,
+                          color: ikonRenk,
+                          shadows: [
+                            for (final d in const [
+                              Offset(0.4, 0),
+                              Offset(-0.4, 0),
+                              Offset(0, 0.4),
+                              Offset(0, -0.4),
+                            ])
+                              Shadow(color: ikonRenk, offset: d),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+        suffixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
         isDense: true,
         // ⚠️ DIKEY DOLGU **0**: yukseklik suffix kutusundan geliyor (bkz.
         //    `kInputBoy`). Burada da deger yazilsaydi ikisi TOPLANIR ve

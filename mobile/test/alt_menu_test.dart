@@ -64,7 +64,20 @@ Widget _kur({
       ),
     );
 
-/// Alt menunun zemin kutusu (`ColoredBox`) — rengi olcmek icin.
+/// ⚠️ TURU 96o — LOGO BULUCU. Logo artik bir `Image` WIDGET'I DEGIL: daire
+/// `BoxShape.circle` olarak cizilir ve gorsel `DecorationImage` ile
+/// doldurulur. Bu yuzden `find.byType(Image)` HICBIR SEY bulmaz.
+Finder get _logoBulucu => find.byWidgetPredicate((w) =>
+    w is Container &&
+    w.decoration is BoxDecoration &&
+    (w.decoration as BoxDecoration).image != null);
+
+/// 66 dp'lik SIYAH CUBUK (zemin kutusu ARTIK logonun tasma payini da kapsadigi
+/// icin olcut olarak KULLANILAMAZ — merkezi yukari kayar).
+Finder get _cubukBulucu =>
+    find.byWidgetPredicate((w) => w is SizedBox && w.height == kAltMenuBoy);
+
+/// Alt menunun zemin kutusu (ColoredBox) — rengi olcmek icin.
 Color _zeminRengi(WidgetTester t) {
   final kutu = t.widget<ColoredBox>(
     find.descendant(of: find.byType(AltMenu), matching: find.byType(ColoredBox)),
@@ -129,8 +142,7 @@ void main() {
     final ikon = t.getCenter(find.byIcon(LucideIcons.house));
     // ⚠️ Olcut AltMenu'nun TAMAMI DEGIL siyah cubuk: widget artik logonun
     //    tasmasi icin ustte saydam bir serit tasiyor.
-    final cubuk = t.getRect(find.descendant(
-        of: find.byType(AltMenu), matching: find.byType(ColoredBox)));
+    final cubuk = t.getRect(_cubukBulucu);
     expect(cubuk.center.dy - ikon.dy, greaterThan(1),
         reason: 'ikon merkezi cubuk merkezinin USTUNDE olmali');
     expect((cubuk.center.dy - ikon.dy - kAltMenuIkonKaldir).abs(), lessThan(0.6),
@@ -142,37 +154,41 @@ void main() {
     await t.pump();
 
     final ikon = t.getCenter(find.byIcon(LucideIcons.house));
-    final logo = t.getCenter(find.byType(Image));
+    final logo = t.getCenter(_logoBulucu);
     expect((ikon.dy - logo.dy - 10).abs(), lessThan(0.6),
         reason: 'kullanici emri: logo ikonlardan 10px daha yukarida');
     expect(kAltMenuLogoKaldir - kAltMenuIkonKaldir, 10);
   });
 
-  testWidgets('LOGO ham cizilir: kirpma/daire/radius/arka plan YOK', (t) async {
+  testWidgets('LOGO daire icinde, KIRPILMADAN cizilir', (t) async {
     await t.pumpWidget(_kur(secili: 0));
     await t.pump();
 
-    final gorsel = find.byType(Image);
-    // ⚠️⚠️ Kullanici emri (iki kez): *"logoyu aynen koy, daire yapma, radius
-    //	kose vs verme"*. Turu 96m'de daireye kirpilmisti ve kullanici
-    //	*"koseleri sikintili"* dedi — kirpma gorselin KENDI kose sanatini
-    //	kesiyordu.
-    for (final kirpici in [ClipRRect, ClipPath]) {
+    final gorsel = _logoBulucu;
+    // ⚠️⚠️⚠️ **KIRPMA YASAK, DAIRE SERBEST.** Kullanici once *"daire yapma"*
+    //	dedi, sonra *"logodan 5px kucuk daire icine doldur"* dedi — yani
+    //	istenmeyen sey DAIRE DEGIL, **`ClipOval` ile KIRPMAK**ti: kirpma
+    //	kenarda gorunur artefakt birakiyordu (*"cevresinde tirtiklar"*).
+    //	Cozum daireyi SEKIL olarak cizmek (`BoxShape.circle` +
+    //	`DecorationImage`), boylece kenar yumusatmasini GPU'nun daire cizimi
+    //	yapar.
+    // ⚠️ YAPMA: logoyu tekrar `ClipOval`/`ClipRRect` icine alma.
+    for (final kirpici in [ClipOval, ClipRRect, ClipPath]) {
       expect(
         find.ancestor(of: gorsel, matching: find.byType(kirpici)),
         findsNothing,
-        reason: '$kirpici logoyu SARMAMALI (kirpma yok)',
+        reason: '$kirpici logoyu SARMAMALI (kirpma artefakt uretiyor)',
       );
     }
-    expect(
-      find.ancestor(of: gorsel, matching: find.byType(DecoratedBox)),
-      findsNothing,
-      reason: 'logonun arkasina daire/kart/arka plan cizilmemeli',
-    );
+    final sus = t.widget<Container>(gorsel).decoration as BoxDecoration;
+    expect(sus.shape, BoxShape.circle, reason: 'logo DAIRE icinde olmali');
+    expect(sus.image, isNotNull);
+    expect(sus.image!.fit, BoxFit.cover,
+        reason: 'gorsel daireyi TAM doldurmali (bosluk/ic dolgu yok)');
 
     final boyut = t.getSize(gorsel);
-    expect(boyut.width, kAltMenuLogoCap - 5);
-    expect(boyut.height, kAltMenuLogoCap - 5);
+    expect(boyut.width, kAltMenuLogoCap);
+    expect(boyut.height, kAltMenuLogoCap);
     expect(kAltMenuLogoCap, greaterThan(kAltMenuIkonBoy),
         reason: 'logo ikonlardan BUYUK olmali');
   });
@@ -183,15 +199,14 @@ void main() {
     await t.pump();
 
     final cerceve = t.getRect(find.byType(AltMenu));
-    final logo = t.getRect(find.byType(Image));
+    final logo = t.getRect(_logoBulucu);
     // ⚠️ Logo siyah cubugun USTUNE tasar; tasma payi widget'in KENDI
     //    yuksekligine dahil olmazsa (a) ClipRRect keser, (b) tasan kisim
     //    GORUNUR AMA TIKLANMAZ olur (Flutter ebeveyn kutusu disini hit-test
     //    etmez). Bu satir ikisini birden kapatir.
     expect(logo.top, greaterThanOrEqualTo(cerceve.top - 0.01),
         reason: 'logonun ust kenari widget cercevesinin DISINA tasmamali');
-    final cubuk = t.getRect(find.descendant(
-        of: find.byType(AltMenu), matching: find.byType(ColoredBox)));
+    final cubuk = t.getRect(_cubukBulucu);
     expect(logo.top, lessThan(cubuk.top),
         reason: 'logo GERCEKTEN siyah cubugun ustune tasmali');
     expect((cubuk.top - cerceve.top - kAltMenuLogoTasma).abs(), lessThan(0.01),
@@ -217,6 +232,7 @@ void main() {
             w is Container &&
             w.child == null &&
             w.decoration is BoxDecoration &&
+            (w.decoration as BoxDecoration).image == null &&
             (w.decoration as BoxDecoration).shape == BoxShape.circle),
       );
 
@@ -263,7 +279,7 @@ void main() {
     await t.pumpWidget(_kur(secili: 0));
     await t.pump();
 
-    final logo = t.getRect(find.byType(Image));
+    final logo = t.getRect(_logoBulucu);
     final reels = t.getRect(find.byIcon(LucideIcons.clapperboard));
     final mesaj = t.getRect(find.byIcon(LucideIcons.messageCircle));
     // ⚠️ Kullanici: "ikonlar ortadaki menuye cok yaklasmis". Olcut ikonun
@@ -313,7 +329,7 @@ void main() {
     ));
     await t.pump();
 
-    await t.tap(find.byType(Image));
+    await t.tap(_logoBulucu);
     // ⚠️ `pumpAndSettle` ZORUNLU: sheet acilis animasyonu bitmeden test
     //    biterse "timers pending" ile patlar (ilk yazimda oldu).
     await t.pumpAndSettle();
