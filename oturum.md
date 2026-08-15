@@ -7045,3 +7045,88 @@ konum paneli · haritadan pin · konum kaydetme · **kartlarda mesafe
   anahtarları duruyor (zararsız, okunmuyor).
 - ⏳ EN SONA BIRAKILAN: `active_call_controller.dart` ~500 satırlık ölü
   bekletme/park zinciri temizliği.
+
+## Oturum — Turu 96j + 96k + 96l (15 Ağustos 2026) — LİSTE EKRANI İNCE AYAR + ALT MENÜ
+
+> Turu 96i **yayınlandıktan sonra** yapılan üç arayüz turu. **HENÜZ BUILD
+> ALINMADI** (kural 0: kullanıcı "al" demeden derleme başlatılmaz).
+> Commit'ler: `8e71c30` · `0daf675` · `8f38f99` · `34770ef` (96j) ·
+> `ffe6964` (96k) · `0fef997` (96l). Hepsi push'lu (`origin/main = 0fef997`).
+
+### TURU 96j — GÖRÜNÜM SEÇİCİ + META SATIRI + KALPLER
+- Görünüm seçici (liste/kart/harita) minimalist yapıldı; ilk denemede **kutusu
+  kaldırılmıştı**, kullanıcı geri istedi → kutu geri geldi ve **filtre çipiyle
+  ÖLÇÜ OLARAK EŞİTLENDİ (31.6 dp)**.
+- İlk ikon `layoutList` → **`LucideIcons.listFilter`** (kullanıcı seçimi).
+- Kart kalpleri **24 → 28**; dolu kalbin beyaz konturu **pembenin ÜSTÜNE**
+  çizilir (altta kalınca kontur yutuluyordu).
+- Meta satırı (**puan · teslimat · min. tutar · mesafe**) bir tık
+  kalınlaştırıldı — hedef tahmin değil **REFERANSA EŞİTLENME**: süzgeç
+  çipleriyle aynı (`fontSize 13` + `w600`).
+- ⚠️⚠️ **BU KALINLIK GÖZLE ÖLÇÜLEMEZ:** meta yazısı `soluk` (alpha .62)
+  çizildiği için ekran görüntüsünden çizgi kalınlığı ölçmek YANILTIR — aynı
+  kalınlıktaki soluk yazı daha İNCE ölçülür (ampirik: meta 1.83 dp, çip
+  2.57 dp; **ikisi de w600'dü**). Bu yüzden kalınlık **AĞAÇTAN** okunur.
+- 🛡️ **`mobile/test/liste_basligi_test.dart`** — meta satırı ile süzgeç
+  çipinin aynı `FontWeight`te olduğunu ağaçtan doğrular.
+  ⚠️ YAPMA: bu testi silme; `kMetaKalinlik` değişirse önce "çipler hâlâ w600
+  mü" diye BAK — kural bir sayı değil **EŞİTLİK**tir.
+
+### TURU 96k — BOŞLUK ÖLÇEĞİ **8 · 12 · 16** (hepsi eşit DEĞİL)
+Kullanıcı sordu: *"hepsinin arasındaki eşitlik aynı olmalı mı?"*
+**CEVAP HAYIR.** Hepsi eşit olsaydı bir başlık, kendi kartlarına tam da
+üstündeki bölüme olduğu kadar uzak dururdu ve göz neyin neye ait olduğunu
+ayırt edemezdi (yakınlık ilkesi). Üç kademe:
+
+    kBaslikBosluk   8  — başlık ↔ KENDİ kartları (en sıkı bağ)
+    kIzgaraAralik  12  — aynı ızgaranın kartları arası
+    kBosluk        16  — BÖLÜMLER arası (sayfa ritmi)
+
+⚠️ Bu ekrana bu üç sayı dışında elle dikey boşluk YAZMA.
+
+**ÖLÇÜMLE BULUNAN DÖRT GERÇEK HATA:**
+1. **IZGARA KENDİ İÇİNDE EŞİT DEĞİLDİ:** yatay aralık *"hücreyi 10 daralt"*
+   emrinin YAN ÜRÜNÜYDÜ (13.3), dikey ise ayrıca 12 yazılıydı — aynı ızgarada
+   iki farklı sayı. Artık **aralık SEÇİLİR, hücre ondan TÜRETİLİR**.
+   ⚠️ YAPMA: yatay ve dikey için ayrı sabit açma.
+2. **KEŞİF HÜCRELERİ FARKLI YÜKSEKLİKTEYDİ:** "Yeni Restourant" iki satıra
+   sardığı için 115 dp, diğerleri 99 dp. Satır yüksekliğini en uzun hücre
+   belirlediği için **ızgara altındaki boşluk sütundan sütuna 32-48 dp**
+   değişiyordu. Etiket alanı artık **SABİT İKİ SATIR** (yazı ölçeğinden
+   türetilir) → sekiz hücre de 115.4 dp.
+3. **IZGARA → "Mutfaklar" 32 dp İDİ:** `kBosluk` + koşullu `kBosluk`
+   **iki `SizedBox` üst üste** konmuştu. Fazlası kaldırıldı → 16.
+4. **"Restoranlar" YAKINLIĞI TERSTİ:** üstündeki süzgece 16, kendi listesine
+   19.8 dp (yani başlık kendi içeriğinden DAHA UZAKTI). Artık `kBaslikBosluk`.
+
+**ÖLÇÜLDÜ (emülatör):** sütun 12.2 · satır 11.8 · keşif→Mutfaklar 16.0 ·
+Mutfaklar→kartlar 8.0 · filtre→Restoranlar 16.0.
+🛡️ Muhafız ölçek **HİYERARŞİSİNİ** zorlar (8 < 12 < 16) — bozularak KANITLANDI.
+
+### TURU 96l — ALT MENÜ KATEGORİ EKRANINDA DA ÇİZİLİR (tek kaynak)
+Kullanıcı: *"alt menüyü getir, alt menü görünmesi gerekiyor"*.
+Kategori ekranı `home_screen` **üzerine PUSH edilmiş bir route** olduğu için ev
+sahibinin `bottomNavigationBar`ı görünmüyordu; kullanıcı kategoriye girince
+uygulamanın geri kalanına ulaşamıyordu.
+
+- Menü `home_screen`in **private bir metoduydu** → **`mobile/lib/features/home/
+  alt_menu.dart`** dosyasına çıkarıldı (**TEK KAYNAK**). İkinci ekrana
+  KOPYALANSAYDI rozet sayacı, logo davranışı ve dolgu birinde güncellenip
+  ötekinde geride kalırdı — bu projede *"aynı kuralın iki kopyası drift eder"*
+  sınıfı **altı kez** sahaya çıktı.
+- ⚠️ **`secili: null`** — kategori ekranı bir SEKME DEĞİL. Orada "Anasayfa"yı
+  seçili göstermek kullanıcıya **YALAN** söylerdi.
+- ⚠️ **İKİNCİ BİR NOTIFIER AÇILMADI:** `aktifSekme` zaten sekme durumunu
+  taşıyor (akıştaki videoların **ses güvenliği kapısı** ona bakıyor) ve
+  `HomeScreen` artık onu DİNLİYOR. Ayrı bir kanal açılsaydı iki kaynak ayrışırdı.
+- ⚠️ Sekmeye dokunulunca **ÖNCE hedef sekme yazılır, SONRA route kapatılır**:
+  ters sırada `home` eski sekmesiyle bir kare çizer ve göz "yanlış sekmeye
+  döndü" diye okur.
+- ⚠️ Sekme **İNDEKSLERİ (0..5) DEĞİŞMEZ** — `aktifSekme` ve ses güvenliği
+  kapısı bunlara bağlı.
+
+### DURUM
+`flutter analyze` **0 hata 0 uyarı** (33 info-level lint, hepsi eski/stil) ·
+`flutter test` 25/25 (96k koşusunda) · çalışma ağacı **temiz** · `origin/main`
+ile senkron.
+**BEKLEYEN:** bu üç tur için build alınmadı — kullanıcı testi sonrası karar.
