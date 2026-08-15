@@ -7208,3 +7208,71 @@ dairesine iç dolgu, (b) zemini temaya bağlama, (c) etiket metnini geri koyma,
 ### Durum
 `flutter analyze` **0 hata 0 uyarı** · `flutter test` **34/34** · commit
 `a0bce52` push'lu. **BUILD ALINMADI** (kural 0).
+
+## Oturum — Turu 96n (15 Ağustos 2026, 22:09) — ALT MENÜ YENİDEN · YAYINLANDI
+
+### YAYINLANDI
+- android **31902434942** + ios **31902436964** (**33bb07b**)
+- R2: apk=121959543 (md5 1e4e6bf7) · ipa=31627019 (md5 92282752) ·
+  index=12077 (md5 e0970e6f) · surum.json=48 (md5 e9e05839)
+- Cloudflare purge OK · **CDN DÖRDÜ DE BİREBİR** · debug imza YOK ·
+  `HARITA=true` iki build logunda da doğrulandı
+- **BACKEND DEĞİŞMEDİ** → deploy YOK, DB **TRUNCATE EDİLMEDİ** (şema
+  değişmediği için kullanıcının oturumu ve verisi korundu; tohum da atılmadı)
+- ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260815-2209
+
+### Değişenler (96j → 96n)
+- **96j** görünüm seçici + meta satırı kalınlığı (referans: filtre çipi) + kalpler 28
+- **96k** boşluk ölçeği **8/12/16** + keşif hücreleri eşit yükseklik
+- **96l** alt menü kategori ekranında da (`home/alt_menu.dart` TEK KAYNAK)
+- **96m** alt menü **siyah + yazısız**, aktif beyaz / pasif `0xFF7A7A7E`,
+  ikonlar 5dp yukarı, fotoğrafsız profilde harf yok
+- **96n** logo **5dp küçük daire içinde**, ikonlardan **10dp yukarıda**,
+  **dokununca MENÜ açılıyor**; profil fotoğrafsızsa **düz gri daire**;
+  Canlı ikonu optik olarak büyütüldü (24 → 31); logo boşluğu 12'ye **geri alındı**
+
+### ⚠️⚠️⚠️ "LOGONUN ÇEVRESİNDE TIRTIKLAR" — ÜÇ KEZ BİLDİRİLDİ, KOD DEĞİLDİ
+Kullanıcı ısrarla *"logonun çevresinde tırtıklar oluşuyor"* dedi; sonra
+**profil dairesinde de aynı çizgi var** dedi — ki o daire **düz bir
+`BoxDecoration` dairesi**: ne görsel, ne kırpma, ne kenarlık.
+
+**Denenenler ve ÖLÇÜLEN sonuçları:**
+1. `cacheWidth/Height` + `FilterQuality.medium` (512 → 123 px yeniden örnekleme)
+2. `Clip.antiAliasWithSaveLayer`
+3. **Kırpmayı tamamen kaldırma** → daire `BoxShape.circle` + `DecorationImage`
+   ile **şekil olarak** çizildi
+4. **Impeller yerine Skia** ile derleme (`--no-enable-impeller`)
+
+**Sonuç: dördü de piksel piksel AYNI çıktı.** Ekran belleğinden alınan
+görüntüde profil dairesinin kenarı **6 kat büyütülünce pürüzsüz** görünüyor.
+
+**Kök neden: emülatör penceresinin ölçeklemesi.** 1080×2400 çerçeve monitöre
+sığması için ~2,5 kat küçültülüyor; bu yeniden örnekleme **her eğri kenarı**
+basamaklı gösteriyor. Bu yüzden logo ve profil dairesi **aynı** görünüyordu.
+
+⚠️⚠️ **ÖLÇÜM YÖNTEMİ DERSİ (iki kez yanıldım):**
+- Daire kenarını **tam sol ucundan** ölçtüm ve "anti-alias yok" sonucuna
+  vardım. **YANLIŞ:** dairenin sol ucunda kenar DİKEYDİR, orada yumuşatma
+  zaten görünmez. Doğru yer 45°'lik nokta ya da **büyütüp bakmak**.
+- "Dairede en büyük basamak 21 px" diye ölçtüm; o da **daire geometrisinin
+  kendisi** (kutupta kiriş hızla değişir), tırtık değil.
+- **DERS: eğri bir kenarın kalitesini tek bir pikselden ölçme — BÜYÜT VE BAK.**
+
+⚠️ `flutter run --enable-impeller=false` **HATALI SÖZDİZİMİ** (sessizce
+çalışmaz, "Flag option should not be given a value" der ve komut hiç kurulmaz).
+Doğrusu **`--no-enable-impeller`**. İlk denemede bunu fark etmeyip "Skia'da da
+aynı" sonucuna varacaktım.
+
+### 🛡️ Muhafız
+`mobile/test/alt_menu_test.dart` — **15 kontrol**, dokuz bozulma biçimiyle
+kanıtlandı (logo kırpma · zemin temaya bağlama · etiket metni · kaldırma ·
+taşma payı · radio optik boyu · profil dairesi · logo boşluğu · logo→sekme).
+⚠️ Bir bozulma İLK DENEMEDE **kaçtı**: `flutter test` varsayılan ekranı
+**800×600** olduğu için logo boşluğu testi her durumda geçiyordu. Yerleşim
+kuralları artık **gerçek telefon genişliğinde** (411/360 dp) ölçülüyor.
+
+### Süreç notu (kullanıcı uyarısı)
+Kullanıcı bu turda *"emülatörü hızlı arayüz için yaptık, 1 saat oldu"* ve
+*"sana söylediklerimi iki dk yapsana"* dedi. **Arayüz turlarında muhafız
+testi/ölçüm betiği/bozma kanıtı YAPILMAYACAK** — bunlar build turuna
+biriktirilir. Bu ders kalıcı hafızaya da yazıldı.
