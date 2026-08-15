@@ -16,20 +16,40 @@ const morGradient = LinearGradient(
 //    Yani bu iki sabit YENI IS DEGIL, KORUNACAK mevcut davranistir.
 // ⚠️⚠️ TURU 82 — kullanici IKINCI kez *"alt menu siyah, arka plan bir tik
 //    acigi olacak dedim, o da oyle degil"* dedi. Kablolama DOGRUYDU (alt menu
-//    `_altMenuZemin`, sayfa `scaffoldBackgroundColor`) ama FARK OLCULEBILIR
-//    DEGILDI: 0x16 = %8.6 parlaklik, OLED siyahin yaninda goz bunu "ayni"
-//    okuyor. 0x1C (Apple systemGray6-dark) ayrimin standart degeri.
-// ⚠️ YAPMA: bunu tekrar 0x16'ya dusurme; alt menuyu siyahtan cikarma.
+//    siyah, sayfa `scaffoldBackgroundColor`) ama FARK OLCULEBILIR DEGILDI:
+//    0x16 = %8.6 parlaklik, OLED siyahin yaninda goz bunu "ayni" okuyor.
+//    0x1C (Apple systemGray6-dark) ayrimin standart degeri.
+// ⚠️ YAPMA: bunu tekrar 0x16'ya dusurme.
+// ⚠️ Alt menunun siyahi artik AYRI ve PUBLIC bir sabit: `kAltMenuZemin`
+//    (asagida) — cunku iki temada da AYNI ve `alt_menu.dart` onu okuyor.
 const _icerikZemin = Color(0xFF1C1C1E); // icerik alani (siyahin BIR TIK acigi)
-const _altMenuZemin = Color(0xFF000000); // alt menu SIYAH
 
-// ⚠️⚠️ ACIK TEMA renkleri (turu 81). KOYUNUN AYNADAKI KARSILIGI:
-//    koyuda alt menu EN KOYU (siyah) ve icerik 1 tik ACIK;
-//    acikta alt menu EN ACIK (beyaz) ve icerik 1 tik KOYU.
-//    Boylece iki temada da alt menu icerikten AYRISIR ve kullanicinin
-//    tarif ettigi katman hissi KORUNUR.
+// ⚠️⚠️ ACIK TEMA icerik zemini (turu 81): koyuda icerik siyahin 1 tik acigi,
+//    acikta beyazin 1 tik kirlisi. Alt menu ARTIK BU SIMETRIYE DAHIL DEGIL
+//    (bkz. asagidaki turu 96m blogu).
 const _icerikZeminAcik = Color(0xFFF2F2F5); // icerik alani (beyazin kirlisi)
-const _altMenuZeminAcik = Color(0xFFFFFFFF); // alt menu BEYAZ
+
+// ⚠️⚠️⚠️ TURU 96m — ALT MENU **IKI TEMADA DA SIYAH** (kullanici emri 15 Agu:
+//	*"alt menu siyah olacak, ikonlar aktif beyaz pasif hafif gri"*).
+//
+//	Turu 81/82'de cubuk acik temada BEYAZ, koyu temada SIYAH idi ("aynadaki
+//	karsiligi"). Kullanici o simetriyi ACIKCA kaldirdi: alt menu artik
+//	temayla birlikte donen bir KATMAN degil, SABIT BIR SIYAH SERIT.
+//
+// ⚠️⚠️ IKON RENKLERI DE TEMADAN BAGIMSIZ SABITTIR — bu bir tercih degil
+//    ZORUNLULUK: zemin sabit siyahken renk temaya baglansaydi (`onSurface`)
+//    ACIK TEMADA SIYAH IKON SIYAH ZEMINE cizilir ve **menu tamamen
+//    kaybolurdu**. Zemin sabitse onun uzerindeki her sey de sabit olmali.
+// ⚠️ YAPMA: bu uc sabiti `Theme.of(context)`ten turetmeye calisma.
+const kAltMenuZemin = Color(0xFF000000);
+const kAltMenuAktifIkon = Color(0xFFFFFFFF);
+
+/// Pasif ikon grisi. ⚠️ Deger KEYFI DEGIL: siyah zeminde kontrast **4.9:1**
+/// (ikon/grafik icin gereken 3:1'in belirgin uzerinde) ama beyaza gore
+/// ACIKCA soluk — yani hem OKUNUR hem "pasif" okunur.
+/// ⚠️ Daha koyu bir gri (ornegin 0xFF4A4A4A) 3:1'in ALTINA duser ve pasif
+///    sekmeler zayif gozde/gunes altinda GORUNMEZ olur.
+const kAltMenuPasifIkon = Color(0xFF7A7A7E);
 
 /// ⚠️⚠️⚠️ TURU 81 — TEK GOVDE, IKI PARLAKLIK.
 ///
@@ -50,7 +70,6 @@ const _altMenuZeminAcik = Color(0xFFFFFFFF); // alt menu BEYAZ
 ThemeData _tema(Brightness parlaklik) {
   final koyu = parlaklik == Brightness.dark;
   final icerik = koyu ? _icerikZemin : _icerikZeminAcik;
-  final altMenu = koyu ? _altMenuZemin : _altMenuZeminAcik;
   final scheme = ColorScheme.fromSeed(
     seedColor: _seed,
     brightness: parlaklik,
@@ -76,22 +95,25 @@ ThemeData _tema(Brightness parlaklik) {
       elevation: 0,
       scrolledUnderElevation: 0,
     ),
-    // ALT MENU: siyah zemin, gosterge (daire) YOK, yazi YOK, ikon buyuk, aktif beyaz/pasif gri.
+    // ALT MENU: siyah zemin, gosterge (daire) YOK, yazi YOK, aktif beyaz/pasif gri.
+    // ⚠️⚠️ TURU 96m — **CANLI ALT MENU BU BLOK DEGIL**: uygulamanin alt menusu
+    //	`features/home/alt_menu.dart` icinde ELLE cizilir (`NavigationBar`
+    //	kullanilmiyor — `grep 'NavigationBar('` SIFIR sonuc). Bu blok yalnizca
+    //	ileride biri Material `NavigationBar` eklerse gorunumun AYRISMAMASI
+    //	icin duruyor ve **ayni sabitleri** kullanir.
+    // ⚠️ YAPMA: buradaki renkleri elle degistirme; `kAltMenu*` sabitlerini
+    //    degistir — iki yuzey birlikte doner.
     navigationBarTheme: NavigationBarThemeData(
-      backgroundColor: altMenu,
+      backgroundColor: kAltMenuZemin,
       indicatorColor: Colors.transparent, // ikon arkasi daire KALDIRILDI (secili)
       overlayColor: WidgetStateProperty.all(Colors.transparent), // TAP dairesi de KALDIR
       labelBehavior: NavigationDestinationLabelBehavior.alwaysHide, // yazilar KALDIRILDI
       height: 62,
       iconTheme: WidgetStateProperty.resolveWith((states) {
         final aktif = states.contains(WidgetState.selected);
-        // ⚠️ Aktif ikon zemine gore TERS: koyuda beyaz, acikta siyah.
-        //    Sabit beyaz birakilsaydi acik temada gorunmezdi.
         return IconThemeData(
-          size: 28, // 1 tik daha buyuk
-          color: aktif
-              ? (koyu ? Colors.white : Colors.black)
-              : const Color(0xFF7A7A7E), // pasif gri: iki temada da okunur
+          size: 24,
+          color: aktif ? kAltMenuAktifIkon : kAltMenuPasifIkon,
         );
       }),
     ),

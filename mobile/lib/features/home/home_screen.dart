@@ -8,7 +8,8 @@ import '../medya/medya_gorsel.dart';
 import 'engellenenler.dart';
 import 'profil_duzenle.dart';
 import '../calls/calls_tab.dart';
-import '../chats/chats_provider.dart';
+// ⚠️ `chats_provider` importu TURU 96m'de KALDIRILDI: okunmamis rozeti sayaci
+//    96l'de `alt_menu.dart`a tasindi, import geride kalmisti (olu bagimlilik).
 import '../chats/chats_screen.dart';
 import '../ilan/ilan_ekranlari.dart';
 import '../randevu/randevu_listeleri.dart';
