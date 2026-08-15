@@ -2283,13 +2283,13 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // ⚠️ TURU 96j — ILK IKON `list` -> **`layoutList`** (kullanici emri:
-          //	*"ilk gorunum ikonunu degistir"*).
-          //	`list` duz uc cizgiydi ve yanindaki `layoutGrid` ile AYNI DILI
-          //	konusmuyordu (biri "madde isareti", oteki "yerlesim"). `layoutList`
-          //	ile ikisi ayni ailedendir: solda gorsel bloklari, sagda satirlar —
-          //	kullanici iki gorunumu YAN YANA kiyaslayabiliyor.
-          segment(LucideIcons.layoutList, 'Liste görünümü', !_izgara,
+          // ⚠️ TURU 96j — ILK IKON **`listFilter`** (kullanici SECTI:
+          //	*"list-filter dostum ilk ikonu boyle yap"*).
+          //	Once `list`ti, `layoutList` denendi; kullanici son olarak
+          //	`listFilter`i istedi.
+          // ⚠️ YAPMA: "liste ikonu daha dogru olur" diye geri degistirme —
+          //    bu bir KULLANICI SECIMI, cikarim degil.
+          segment(LucideIcons.listFilter, 'Liste görünümü', !_izgara,
               () => setState(() => _izgara = false)),
           segment(LucideIcons.layoutGrid, 'Kart görünümü', _izgara,
               () => setState(() => _izgara = true)),
