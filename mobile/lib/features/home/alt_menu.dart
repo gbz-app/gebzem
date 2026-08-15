@@ -49,22 +49,26 @@ const double kAltMenuLogoCap = 52;
 ///    kullanilamaz yapar (muhafiz testi 360 dp'de olcer).
 const double kAltMenuLogoBosluk = 30;
 
-/// ⚠️⚠️⚠️ TURU 96n — LOGO IKONLARDAN **10 dp DAHA YUKARIDA** (kullanici emri:
-///	*"logoyu ... mevcut boyutu ile koy, 10px yukarida duracak sekilde"*).
-const double kAltMenuLogoKaldir = kAltMenuIkonKaldir + 10;
-
-/// Logonun siyah cubugun UST KENARINDAN tasan miktari.
+/// ⚠️⚠️⚠️ TURU 96p — LOGO KALDIRMASI **CUBUGUN ICINDE KALACAK KADAR**.
 ///
-/// ⚠️⚠️ **ELLE YAZILMAZ, TURETILIR.** Logo cubuktan tasiyor; bu deger cubugun
-///	ustune konan SAYDAM SERIDIN yuksekligidir. Boylece:
-///	· `ClipRRect` logoyu **KIRPMAZ** (kirpsaydi ust %15'i kesilirdi),
-///	· `Stack` kendi yuksekligine dahil ettigi icin **tasma uyarisi olusmaz**,
-///	· logonun TAMAMI dokunulabilir kalir (Flutter, ebeveyn kutusunun DISINA
-///	  tasan alani hit-test ETMEZ — orasi gorunur ama tiklanmaz olurdu).
-/// ⚠️ Sabitlerden biri degisirse bu deger KENDILIGINDEN uyar; asagidaki
-///    muhafiz testi de ayni formulden okur.
-final double kAltMenuLogoTasma =
-    math.max(0.0, kAltMenuLogoCap / 2 + kAltMenuLogoKaldir - kAltMenuBoy / 2);
+///	Istenen 10 dp'ydi (ikonlarin 5'i + 10). AMA 96o'da bunu saglamak icin
+///	logonun cubugun USTUNE tasmasina izin verilmis, tasan pay da cubugun
+///	ustune SAYDAM bir serit olarak eklenmisti. Kullanici bunu sahada gordu:
+///	*"alt menu ustunde 5-10px bir alan var, kesit gibi"*. Ardindan cubuk
+///	komple siyaha boyanip yuvarlak koseleri kaldirilinca da haklı olarak
+///	*"radius nerede, yuksekligi neden artirdin"* dedi.
+///
+///	**KARAR: cubuk 66 dp ve YUVARLAK KOSELI kalir; logo DISARI TASMAZ.**
+///	Bu, kaldirmayi geometrik olarak sinirlar:
+///	  `(kAltMenuBoy - kAltMenuLogoCap) / 2` = (66 - 52) / 2 = **7 dp**
+///	Deger `min` ile TURETILIR — logo ya da cubuk boyu degisirse kendiliginden
+///	uyar ve **kirpilma/tasma YAPISAL OLARAK imkansiz** olur.
+/// ⚠️ Daha fazla kaldirma isteniyorsa tek yol logoyu KUCULTMEK ya da cubugu
+///    UZATMAK; ikisi de kullaniciya sorulmadan yapilmaz.
+final double kAltMenuLogoKaldir = math.min(
+  kAltMenuIkonKaldir + 10,
+  (kAltMenuBoy - kAltMenuLogoCap) / 2,
+);
 
 /// Alt menu — **3 sol · LOGO · 3 sag**.
 ///
@@ -123,69 +127,76 @@ class AltMenu extends ConsumerWidget {
         systemNavigationBarDividerColor: kAltMenuZemin,
         systemNavigationBarIconBrightness: Brightness.light,
       ),
-      // ⚠️⚠️⚠️ TURU 96n — LOGO CUBUGUN USTUNE TASAR, bu yuzden `ClipRRect`in
-      //	**DISINDA** cizilir. Icinde kalsaydi ust %15'i KIRPILIRDI (kirpma
-      //	sessizdir: ne analiz ne test uyarir, yalniz ekranda gorunur).
-      // ⚠️ Ustteki saydam serit `kAltMenuLogoTasma` kadar; Stack yuksekligine
-      //    dahil oldugu icin hem RenderFlex tasmasi hem "gorunur ama
-      //    tiklanmaz" hatasi YAPISAL OLARAK olusmaz.
-      child: Stack(
-        children: [
-          // ⚠️⚠️⚠️ TURU 96o — **CUBUGUN CEVRESINDE HICBIR SEY YOK** (kullanici
-          //	emri: *"alt menu ustunde 5-10px bir alan var kesit gibi; alt
-          //	menu cevresinde border vs hicbir sey olmamali"*).
-          //
-          //	Onceki halde logonun tasma payi **SAYDAM** birakilmisti; telefonda
-          //	bu, siyah cubugun ustunde sayfa zemininin gorundugu ince bir
-          //	**SERIT** gibi okunuyordu. Ayrica ust koselerde 20 dp radius
-          //	vardi ve o da "kesit/cerceve" hissi veriyordu.
-          //
-          //	COZUM: tasma payi ARTIK SIYAHIN ICINDE (zemin en tepeden baslar)
-          //	ve **radius YOK** -> duz, kenarsiz, tek parca siyah serit.
-          // ⚠️ YAPMA: buraya `ClipRRect`/`borderRadius`/`Border`/golge ekleme.
-          ColoredBox(
-            // ⚠️ TURU 96m — zemin TEMADAN DEGIL sabit siyah (`theme.dart`).
-            color: kAltMenuZemin,
-            child: Padding(
-              padding: EdgeInsets.only(top: kAltMenuLogoTasma),
-              child: SafeArea(
-                  top: false,
-                  child: SizedBox(
-                    height: kAltMenuBoy,
-                    child: Row(
-                      // ⚠️ `stretch`: her hucre cubugun TAM YUKSEKLIGINI kaplar,
-                      //    yani dokunma hedefi ikon degil HUCRENIN TAMAMIDIR.
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _oge(0, LucideIcons.house, 'Anasayfa'),
-                        _oge(1, LucideIcons.search, 'Ara'),
-                        _oge(2, LucideIcons.clapperboard, 'Reels'),
-                        // ⚠️ Logonun YERI: govdesi Stack'te cizilir, burada
-                        //    yalnizca YER TUTAR. Bu sayede "3 sol · logo ·
-                        //    3 sag" simetrisi bozulmaz.
-                        const SizedBox(
-                            width: kAltMenuLogoCap + kAltMenuLogoBosluk),
-                        // ⚠️ OKUNMAMIS ROZETI: mesaj sekmesi alt menude ve
-                        //    kullanici surekli akista/reels'te olacagi icin
-                        //    rozet OLMADAN yeni mesaji HIC fark etmezdi.
-                        _oge(3, LucideIcons.messageCircle, 'Mesaj',
-                            rozet: okunmamis),
-                        _oge(4, LucideIcons.radio, 'Canlı'),
-                        _profil(),
-                      ],
+      // ⚠️⚠️⚠️ TURU 96p — **CUBUK: 66 dp + UST KOSELERDE 20 RADIUS.** Ikisi de
+      //	KULLANICI ISTEGI ve degistirilmez.
+      //
+      //	96o'da bu ikisi de bozulmustu: logonun tasmasina izin vermek icin
+      //	cubuk UZATILMIS, "kenarlik olmasin" cumlesi de YANLIS anlasilip
+      //	**radius kaldirilmisti**. Kullanici ikisini de sordu:
+      //	*"radius nerede, yuksekligi neden artirdin anlamadim"* ve
+      //	netlestirdi: *"sadece alt menude border vb kalinlik olmayacak"*.
+      //
+      // ⚠️ "Kenarlik yok" demek **`Border`/`BoxShadow`/ayirici cizgi yok**
+      //    demektir; RADIUS bir kenarlik DEGILDIR.
+      // ⚠️ YAPMA: buraya `Border`, `BoxShadow`, `Divider` ya da ust cizgi
+      //    ekleme; radius'u kaldirma; yuksekligi degistirme.
+      child: ClipRRect(
+        // ALT MENU sol/sag (ust kose) RADIUS (test turu 7).
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(20),
+          topRight: Radius.circular(20),
+        ),
+        child: ColoredBox(
+          // ⚠️ TURU 96m — zemin TEMADAN DEGIL sabit siyah (`theme.dart`).
+          color: kAltMenuZemin,
+          child: SafeArea(
+            top: false,
+            child: SizedBox(
+              height: kAltMenuBoy,
+              // ⚠️ Logo `Stack`te cizilir cunku Row'un HUCRE HIZASINDAN
+              //    BAGIMSIZ olarak yukari cekilir; ama artik cubugun ICINDE
+              //    kaldigi icin `ClipRRect`in icinde olmasi GUVENLIDIR
+              //    (bkz. `kAltMenuLogoKaldir` — tasma yapisal olarak yok).
+              child: Stack(
+                children: [
+                  Row(
+                    // ⚠️ `stretch`: her hucre cubugun TAM YUKSEKLIGINI kaplar,
+                    //    yani dokunma hedefi ikon degil HUCRENIN TAMAMIDIR.
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _oge(0, LucideIcons.house, 'Anasayfa'),
+                      _oge(1, LucideIcons.search, 'Ara'),
+                      _oge(2, LucideIcons.clapperboard, 'Reels'),
+                      // ⚠️ Logonun YERI: govdesi Stack'te cizilir, burada
+                      //    yalnizca YER TUTAR. Bu sayede "3 sol · logo ·
+                      //    3 sag" simetrisi bozulmaz.
+                      const SizedBox(
+                          width: kAltMenuLogoCap + kAltMenuLogoBosluk),
+                      // ⚠️ OKUNMAMIS ROZETI: mesaj sekmesi alt menude ve
+                      //    kullanici surekli akista/reels'te olacagi icin
+                      //    rozet OLMADAN yeni mesaji HIC fark etmezdi.
+                      _oge(3, LucideIcons.messageCircle, 'Mesaj',
+                          rozet: okunmamis),
+                      _oge(4, LucideIcons.radio, 'Canlı'),
+                      _profil(),
+                    ],
+                  ),
+                  // ⚠️ `Positioned.fill` + `Center`: logo cubugun YATAY
+                  //    ORTASINA oturur — Row'daki yer tutucu da tam ortada
+                  //    oldugu icin ikisi cakisir.
+                  Positioned.fill(
+                    child: Center(
+                      child: Transform.translate(
+                        offset: Offset(0, -kAltMenuLogoKaldir),
+                        child: _logo(context),
+                      ),
                     ),
                   ),
+                ],
               ),
             ),
           ),
-          // ⚠️ `left/right: 0` + `Center`: logo cubugun YATAY ORTASINA oturur —
-          //    Row'daki yer tutucu da tam ortada oldugu icin ikisi cakisir.
-          Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              child: Center(child: _logo(context))),
-        ],
+        ),
       ),
     );
   }

@@ -149,15 +149,20 @@ void main() {
         reason: 'kaldirma miktari kAltMenuIkonKaldir olmali');
   });
 
-  testWidgets('LOGO ikonlardan tam 10dp daha yukarida', (t) async {
+  testWidgets('LOGO ikonlardan DAHA YUKARIDA (kaldirma sabitiyle ayni)', (t) async {
     await t.pumpWidget(_kur(secili: 0));
     await t.pump();
 
     final ikon = t.getCenter(find.byIcon(LucideIcons.house));
     final logo = t.getCenter(_logoBulucu);
-    expect((ikon.dy - logo.dy - 10).abs(), lessThan(0.6),
-        reason: 'kullanici emri: logo ikonlardan 10px daha yukarida');
-    expect(kAltMenuLogoKaldir - kAltMenuIkonKaldir, 10);
+    // Istenen 10 dp'ydi; cubuk 66 ve logo 52 oldugu icin TASMADAN
+    // saglanabilecek EN BUYUK kaldirma (66-52)/2 = 7 dp'dir. Test sabitle
+    // karsilastirir, sayiyi TEKRAR YAZMAZ.
+    expect((ikon.dy - logo.dy - (kAltMenuLogoKaldir - kAltMenuIkonKaldir)).abs(),
+        lessThan(0.6));
+    expect(logo.dy, lessThan(ikon.dy), reason: 'logo ikonlardan YUKARIDA olmali');
+    expect(kAltMenuLogoKaldir, (kAltMenuBoy - kAltMenuLogoCap) / 2,
+        reason: 'kaldirma tasmayacak en buyuk deger olmali');
   });
 
   testWidgets('LOGO daire icinde, KIRPILMADAN cizilir', (t) async {
@@ -173,7 +178,7 @@ void main() {
     //	`DecorationImage`), boylece kenar yumusatmasini GPU'nun daire cizimi
     //	yapar.
     // ⚠️ YAPMA: logoyu tekrar `ClipOval`/`ClipRRect` icine alma.
-    for (final kirpici in [ClipOval, ClipRRect, ClipPath]) {
+    for (final kirpici in [ClipOval, ClipPath]) {
       expect(
         find.ancestor(of: gorsel, matching: find.byType(kirpici)),
         findsNothing,
@@ -193,24 +198,50 @@ void main() {
         reason: 'logo ikonlardan BUYUK olmali');
   });
 
-  testWidgets('LOGO tasan haliyle de TAMAMEN widget icinde (kirpilmaz)',
+  testWidgets('LOGO CUBUGUN ICINDE kalir — cubuk uzamaz, radius durur',
       (t) async {
     await t.pumpWidget(_kur(secili: 0));
     await t.pump();
 
     final cerceve = t.getRect(find.byType(AltMenu));
-    final logo = t.getRect(_logoBulucu);
-    // ⚠️ Logo siyah cubugun USTUNE tasar; tasma payi widget'in KENDI
-    //    yuksekligine dahil olmazsa (a) ClipRRect keser, (b) tasan kisim
-    //    GORUNUR AMA TIKLANMAZ olur (Flutter ebeveyn kutusu disini hit-test
-    //    etmez). Bu satir ikisini birden kapatir.
-    expect(logo.top, greaterThanOrEqualTo(cerceve.top - 0.01),
-        reason: 'logonun ust kenari widget cercevesinin DISINA tasmamali');
     final cubuk = t.getRect(_cubukBulucu);
-    expect(logo.top, lessThan(cubuk.top),
-        reason: 'logo GERCEKTEN siyah cubugun ustune tasmali');
-    expect((cubuk.top - cerceve.top - kAltMenuLogoTasma).abs(), lessThan(0.01),
-        reason: 'saydam serit yuksekligi formulle ayni olmali');
+    final logo = t.getRect(_logoBulucu);
+
+    // ⚠️⚠️⚠️ TURU 96p — ASIL KURAL: **logo cubuktan TASMAZ.**
+    //	96o'da tasmasina izin verilmis, tasan pay da cubugun ustune SAYDAM
+    //	bir serit olarak eklenmisti; kullanici bunu *"alt menu ustunde
+    //	5-10px bir alan, kesit gibi"* diye bildirdi. Ardindan cubuk komple
+    //	siyaha boyanip radius kaldirilinca *"radius nerede, yuksekligi neden
+    //	artirdin"* dedi. Bu test ikisini birden kilitler.
+    expect(logo.top, greaterThanOrEqualTo(cubuk.top - 0.01),
+        reason: 'logo cubugun UST KENARINDAN TASMAMALI');
+    expect(logo.bottom, lessThanOrEqualTo(cubuk.bottom + 0.01),
+        reason: 'logo cubugun ALT KENARINDAN TASMAMALI');
+    // ⚠️ Widget'in KENDISI de cubuktan uzun OLMAMALI: uzunsa ustte sayfa
+    //    zemininin gorundugu o "serit" geri gelmis demektir.
+    expect((cerceve.top - cubuk.top).abs(), lessThan(0.01),
+        reason: 'cubugun USTUNDE ek bir serit/alan OLMAMALI');
+
+    // ⚠️ UST KOSE RADIUSU **KULLANICI ISTEGI** — kaldirilamaz.
+    final kirpici = t.widget<ClipRRect>(find.descendant(
+        of: find.byType(AltMenu), matching: find.byType(ClipRRect)));
+    final r = kirpici.borderRadius as BorderRadius;
+    expect(r.topLeft.x, greaterThan(0), reason: 'sol ust radius DURMALI');
+    expect(r.topRight.x, greaterThan(0), reason: 'sag ust radius DURMALI');
+
+    // ⚠️ "Kenarlik yok" (kullanici: *"sadece alt menude border vb kalinlik
+    //    olmayacak"*): zemin duz renk, `Border`/`BoxShadow` YOK.
+    expect(
+      find.descendant(
+          of: find.byType(AltMenu),
+          matching: find.byWidgetPredicate((w) =>
+              w is Container &&
+              w.decoration is BoxDecoration &&
+              ((w.decoration as BoxDecoration).border != null ||
+                  (w.decoration as BoxDecoration).boxShadow != null))),
+      findsNothing,
+      reason: 'alt menude kenarlik/golge OLMAMALI',
+    );
   });
 
   testWidgets('CANLI (radio) ikonu optik olarak BUYUK cizilir', (t) async {
