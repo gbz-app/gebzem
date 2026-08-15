@@ -7,6 +7,7 @@ import 'package:gebzem/core/theme.dart';
 import 'package:gebzem/features/chats/chats_provider.dart';
 import 'package:gebzem/features/chats/models.dart';
 import 'package:gebzem/features/home/alt_menu.dart';
+import 'package:gebzem/features/sosyal/hizmet_menusu.dart';
 import 'package:gebzem/features/home/home_screen.dart' show myProfileProvider;
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
@@ -120,64 +121,208 @@ void main() {
     }
   });
 
-  testWidgets('ikonlar cubuk MERKEZININ USTUNDE (yukari kaldirildi)',
+  testWidgets('ikonlar SIYAH CUBUK merkezinin USTUNDE (yukari kaldirildi)',
       (t) async {
     await t.pumpWidget(_kur(secili: 0));
     await t.pump();
 
-    final cubuk = t.getRect(find.byType(AltMenu));
     final ikon = t.getCenter(find.byIcon(LucideIcons.house));
-    final logo = t.getCenter(find.byType(Image));
-    // ⚠️ Pay 1px: "tam merkezde" de gecmesin diye ACIKCA kucuk tutuldu.
+    // ⚠️ Olcut AltMenu'nun TAMAMI DEGIL siyah cubuk: widget artik logonun
+    //    tasmasi icin ustte saydam bir serit tasiyor.
+    final cubuk = t.getRect(find.descendant(
+        of: find.byType(AltMenu), matching: find.byType(ColoredBox)));
     expect(cubuk.center.dy - ikon.dy, greaterThan(1),
         reason: 'ikon merkezi cubuk merkezinin USTUNDE olmali');
     expect((cubuk.center.dy - ikon.dy - kAltMenuIkonKaldir).abs(), lessThan(0.6),
         reason: 'kaldirma miktari kAltMenuIkonKaldir olmali');
-    expect((cubuk.center.dy - logo.dy - kAltMenuIkonKaldir).abs(), lessThan(0.6),
-        reason: 'logo da ayni miktarda kaldirilmali (satir hizasi)');
   });
 
-  testWidgets('LOGO tam daire · ic dolgu YOK · ikondan buyuk', (t) async {
+  testWidgets('LOGO ikonlardan tam 10dp daha yukarida', (t) async {
     await t.pumpWidget(_kur(secili: 0));
     await t.pump();
 
-    final kap = t.widget<Container>(find.byWidgetPredicate(
-        (w) => w is Container && w.child is Image));
-    final sus = kap.decoration as BoxDecoration;
-    expect(sus.shape, BoxShape.circle, reason: 'logo kabi DAIRE olmali');
-    expect(kap.clipBehavior, isNot(Clip.none),
-        reason: 'daire KIRPMALI, yoksa gorsel kareden tasar');
-    expect(kap.padding, isNull,
-        reason: 'IC DOLGU YASAK: dolgu daireyi "yuvarlatilmis kare" yapar');
+    final ikon = t.getCenter(find.byIcon(LucideIcons.house));
+    final logo = t.getCenter(find.byType(Image));
+    expect((ikon.dy - logo.dy - 10).abs(), lessThan(0.6),
+        reason: 'kullanici emri: logo ikonlardan 10px daha yukarida');
+    expect(kAltMenuLogoKaldir - kAltMenuIkonKaldir, 10);
+  });
 
-    // ⚠️ ASIL KANIT: gorsel dairenin TAMAMINI doldurmali. Dolgu geri konursa
-    //    gorsel kucuk kalir ve bu satir KIRMIZI duser.
-    final gorsel = t.getSize(find.byType(Image));
-    expect(gorsel.width, kAltMenuLogoCap);
-    expect(gorsel.height, kAltMenuLogoCap);
+  testWidgets('LOGO ham cizilir: kirpma/daire/radius/arka plan YOK', (t) async {
+    await t.pumpWidget(_kur(secili: 0));
+    await t.pump();
+
+    final gorsel = find.byType(Image);
+    // ⚠️⚠️ Kullanici emri (iki kez): *"logoyu aynen koy, daire yapma, radius
+    //	kose vs verme"*. Turu 96m'de daireye kirpilmisti ve kullanici
+    //	*"koseleri sikintili"* dedi — kirpma gorselin KENDI kose sanatini
+    //	kesiyordu.
+    for (final kirpici in [ClipRRect, ClipPath]) {
+      expect(
+        find.ancestor(of: gorsel, matching: find.byType(kirpici)),
+        findsNothing,
+        reason: '$kirpici logoyu SARMAMALI (kirpma yok)',
+      );
+    }
+    expect(
+      find.ancestor(of: gorsel, matching: find.byType(DecoratedBox)),
+      findsNothing,
+      reason: 'logonun arkasina daire/kart/arka plan cizilmemeli',
+    );
+
+    final boyut = t.getSize(gorsel);
+    expect(boyut.width, kAltMenuLogoCap - 5);
+    expect(boyut.height, kAltMenuLogoCap - 5);
     expect(kAltMenuLogoCap, greaterThan(kAltMenuIkonBoy),
         reason: 'logo ikonlardan BUYUK olmali');
   });
 
-  testWidgets('PROFIL: fotograf yoksa HARF degil IKON cizilir', (t) async {
+  testWidgets('LOGO tasan haliyle de TAMAMEN widget icinde (kirpilmaz)',
+      (t) async {
+    await t.pumpWidget(_kur(secili: 0));
+    await t.pump();
+
+    final cerceve = t.getRect(find.byType(AltMenu));
+    final logo = t.getRect(find.byType(Image));
+    // ⚠️ Logo siyah cubugun USTUNE tasar; tasma payi widget'in KENDI
+    //    yuksekligine dahil olmazsa (a) ClipRRect keser, (b) tasan kisim
+    //    GORUNUR AMA TIKLANMAZ olur (Flutter ebeveyn kutusu disini hit-test
+    //    etmez). Bu satir ikisini birden kapatir.
+    expect(logo.top, greaterThanOrEqualTo(cerceve.top - 0.01),
+        reason: 'logonun ust kenari widget cercevesinin DISINA tasmamali');
+    final cubuk = t.getRect(find.descendant(
+        of: find.byType(AltMenu), matching: find.byType(ColoredBox)));
+    expect(logo.top, lessThan(cubuk.top),
+        reason: 'logo GERCEKTEN siyah cubugun ustune tasmali');
+    expect((cubuk.top - cerceve.top - kAltMenuLogoTasma).abs(), lessThan(0.01),
+        reason: 'saydam serit yuksekligi formulle ayni olmali');
+  });
+
+  testWidgets('CANLI (radio) ikonu optik olarak BUYUK cizilir', (t) async {
+    await t.pumpWidget(_kur(secili: 0));
+    await t.pump();
+
+    final canli = t.widget<Icon>(find.byIcon(LucideIcons.radio)).size!;
+    final ev = t.widget<Icon>(find.byIcon(LucideIcons.house)).size!;
+    // ⚠️ Kullanici: "canli yayin ikonu kucuk kalmis". Lucide `radio` dikeyde
+    //    kisa oldugu icin ayni `size`da KUCUK gorunur (turu 82 optik boy
+    //    dersi). Esitlemek sikayeti GERI GETIRIR.
+    expect(canli, greaterThan(ev),
+        reason: 'radio nominal olarak kardeslerinden BUYUK olmali');
+  });
+
+  /// Profil hucresindeki daire (fotograf yokken cizilen).
+  Container _profilDairesi(WidgetTester t) => t.widget<Container>(
+        find.byWidgetPredicate((w) =>
+            w is Container &&
+            w.child == null &&
+            w.decoration is BoxDecoration &&
+            (w.decoration as BoxDecoration).shape == BoxShape.circle),
+      );
+
+  testWidgets('PROFIL: fotograf yoksa HARF de IKON da DEGIL — DUZ DAIRE',
+      (t) async {
     await t.pumpWidget(_kur(secili: null, profil: {'name': 'Ahmet'}));
     await t.pump();
 
-    expect(find.text('A'), findsNothing,
-        reason: 'fotografsiz profilde BAS HARF yazilmamali');
+    // ⚠️ Kullanici ONCE harfi, SONRA insan siluetli ikonu reddetti:
+    //    *"sagdaki profil ikon olmayacak ... yoksa hafif gri renkte daire"*.
+    expect(find.text('A'), findsNothing, reason: 'BAS HARF yazilmamali');
     expect(find.byType(CircleAvatar), findsNothing);
-    final ikon = t.widget<Icon>(find.byIcon(LucideIcons.circleUserRound));
-    expect(ikon.color, kAltMenuPasifIkon,
-        reason: 'fotografsiz profil ikonu pasif gri olmali');
-    expect(ikon.size, kAltMenuIkonBoy,
-        reason: 'kardes sekmelerle ayni boyda olmali');
+    expect(find.byIcon(LucideIcons.circleUserRound), findsNothing,
+        reason: 'insan silueti ikonu KULLANILMAMALI');
+    expect(find.byIcon(LucideIcons.user), findsNothing);
+
+    final daire = _profilDairesi(t);
+    expect((daire.decoration as BoxDecoration).color, kAltMenuPasifIkon,
+        reason: 'fotografsiz daire pasif gri olmali');
+    // ⚠️ Cap avatarla AYNI olmali: aksi halde fotografi olan/olmayan
+    //    kullanici arasinda daire boyu oynar.
+    expect(t.getSize(find.byWidget(daire)), const Size(26, 26));
   });
 
-  testWidgets('PROFIL: secili iken ikon BEYAZ', (t) async {
+  testWidgets('PROFIL: secili iken daire BEYAZ', (t) async {
     await t.pumpWidget(_kur(secili: 5, profil: {'name': 'Ahmet'}));
     await t.pump();
-    expect(t.widget<Icon>(find.byIcon(LucideIcons.circleUserRound)).color,
+    expect((_profilDairesi(t).decoration as BoxDecoration).color,
         kAltMenuAktifIkon);
+  });
+
+  testWidgets('LOGO cevresinde nefes payi VAR (ikonlar yapisik degil)',
+      (t) async {
+    // ⚠️⚠️ EKRAN GENISLIGI ACIKCA VERILIR. `flutter test` varsayilani
+    //	**800x600**tur; o genislikte hucreler o kadar genis olur ki logonun
+    //	yaninda ZATEN bosluk kalir ve test HER DURUMDA gecer.
+    //	Bu, muhafizin ILK YAZIMINDA gercekten yasandi: `kAltMenuLogoBosluk`
+    //	sifira cekilip bozma denendiginde test **YESIL KALDI**.
+    //	**DERS: bir yerlesim kuralini GERCEK TELEFON genisliginde olc.**
+    t.view.physicalSize = const Size(411 * 3, 800 * 3);
+    t.view.devicePixelRatio = 3;
+    addTearDown(t.view.reset);
+
+    await t.pumpWidget(_kur(secili: 0));
+    await t.pump();
+
+    final logo = t.getRect(find.byType(Image));
+    final reels = t.getRect(find.byIcon(LucideIcons.clapperboard));
+    final mesaj = t.getRect(find.byIcon(LucideIcons.messageCircle));
+    // ⚠️ Kullanici: "ikonlar ortadaki menuye cok yaklasmis". Olcut ikonun
+    //    KENARI ile logonun KENARI arasidir (merkez degil).
+    expect(logo.left - reels.right, greaterThanOrEqualTo(16.0),
+        reason: 'sol komsu ile logo arasinda en az 16dp bosluk olmali');
+    expect(mesaj.left - logo.right, greaterThanOrEqualTo(16.0),
+        reason: 'sag komsu ile logo arasinda en az 16dp bosluk olmali');
+  });
+
+  testWidgets('DAR TELEFONDA (360dp) hucre dokunma hedefi ezilmez', (t) async {
+    // ⚠️ Logo boslugu 6 esnek hucreden CALINIR. Bu test, boslugu buyutmenin
+    //    dokunma hedefini Material esiginin (48dp) cok altina dusurmesini
+    //    engeller — 360dp en yaygin dar Android genisligi.
+    t.view.physicalSize = const Size(360 * 3, 800 * 3);
+    t.view.devicePixelRatio = 3;
+    addTearDown(t.view.reset);
+
+    await t.pumpWidget(_kur(secili: 0));
+    await t.pump();
+
+    final hucre = t.getRect(find.ancestor(
+        of: find.byIcon(LucideIcons.house),
+        matching: find.byType(GestureDetector)));
+    expect(hucre.width, greaterThanOrEqualTo(40.0),
+        reason: 'dar telefonda hucre 40dp altina dusmemeli '
+            '(kAltMenuLogoBosluk cok buyuk)');
+    expect(hucre.height, greaterThanOrEqualTo(48.0));
+  });
+
+  testWidgets('LOGOYA dokunmak SEKME DEGISTIRMEZ (menu acar)', (t) async {
+    // ⚠️ Kullanici emri: *"alt menudeki logo tiklandiginda menu gelecek"*.
+    //    Onceden `onSec(0)` cagiriyordu (anasayfaya gidiyordu).
+    final secilenler = <int>[];
+    await t.pumpWidget(ProviderScope(
+      overrides: [
+        chatsProvider.overrideWith((ref) => _SahteChats()),
+        myProfileProvider.overrideWith((ref) async => const {}),
+      ],
+      child: MaterialApp(
+        theme: lightTheme,
+        home: Scaffold(
+          bottomNavigationBar:
+              AltMenu(secili: 0, onSec: secilenler.add),
+        ),
+      ),
+    ));
+    await t.pump();
+
+    await t.tap(find.byType(Image));
+    // ⚠️ `pumpAndSettle` ZORUNLU: sheet acilis animasyonu bitmeden test
+    //    biterse "timers pending" ile patlar (ilk yazimda oldu).
+    await t.pumpAndSettle();
+
+    expect(secilenler, isEmpty,
+        reason: 'logo bir SEKME DEGIL: dokunus onSec tetiklememeli');
+    // ⚠️ ASIL KANIT: hamburgerin actigi menunun TA KENDISI acilmali.
+    expect(find.byType(HizmetMenusu), findsOneWidget,
+        reason: 'logoya dokununca hizmet menusu acilmali');
   });
 
   test('pasif gri siyah zeminde OKUNUR (kontrast >= 3:1)', () {

@@ -372,6 +372,24 @@ class _Bolum {
 
 /// Anasayfa AppBar'inin sol ustundeki hamburger dugmesi.
 ///
+/// ⚠️⚠️⚠️ TURU 96n — MENUYU ACAN **TEK KAYNAK**.
+///
+///	Kullanici alt menudeki logoya dokununca da bu menunun acilmasini istedi
+///	(*"alt menudeki logo tiklandiginda menu gelecek, anasayfada sol ustteki
+///	hamburgere tikladigin gibi"*). Acma kodu `HamburgerDugmesi`nin ICINDE
+///	gomuluydu; alt menuye KOPYALANSAYDI `isScrollControlled` gibi ayarlar
+///	iki yerde yasar ve biri guncellenince oteki sessizce eskirdi (bu projede
+///	"ayni kuralin iki kopyasi drift eder" sinifi ALTI kez sahaya cikti).
+///
+/// ⚠️ YAPMA: cagri yerlerinde dogrudan `showModalBottomSheet` yazma.
+Future<void> hizmetMenusuAc(BuildContext context) => showModalBottomSheet<void>(
+      context: context,
+      // ⚠️ ZORUNLU: 12 kartlik izgara varsayilan yukseklige SIGMAZ.
+      isScrollControlled: true,
+      showDragHandle: false,
+      builder: (_) => const HizmetMenusu(),
+    );
+
 /// ⚠️ IKI CIZGI (kullanici emri: "2 tane 2 satir cizgi hamburger tarzi").
 ///    Lucide'in `menu` ikonu UC cizgidir; bu yuzden ikon KULLANILMADI, iki
 ///    cizgi ELLE cizildi.
@@ -384,13 +402,7 @@ class HamburgerDugmesi extends StatelessWidget {
     final renk = Theme.of(context).iconTheme.color;
     return IconButton(
       tooltip: 'Menü',
-      onPressed: () => showModalBottomSheet<void>(
-        context: context,
-        // ⚠️ ZORUNLU: 12 kartlik izgara varsayilan yukseklige SIGMAZ.
-        isScrollControlled: true,
-        showDragHandle: false,
-        builder: (_) => const HizmetMenusu(),
-      ),
+      onPressed: () => hizmetMenusuAc(context),
       icon: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,

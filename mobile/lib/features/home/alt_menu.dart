@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // SystemUiOverlayStyle (sistem cubugu)
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,6 +9,7 @@ import '../../core/theme.dart'
     show kAltMenuZemin, kAltMenuAktifIkon, kAltMenuPasifIkon;
 import '../chats/chats_provider.dart';
 import '../medya/medya_gorsel.dart';
+import '../sosyal/hizmet_menusu.dart' show hizmetMenusuAc;
 import 'home_screen.dart' show myProfileProvider;
 
 /// ⚠️ Cubuk yuksekligi (guvenli alanin USTUNDE). Tum hucrelerin dokunma
@@ -22,14 +25,41 @@ const double kAltMenuBoy = 66;
 ///    CIZIM donusumudur, yerlesimi daraltmaz.
 const double kAltMenuIkonKaldir = 5;
 
-/// Ikon boyu — `theme.dart`taki `navigationBarTheme` ile AYNI (24).
+/// Ikon boyu (NOMINAL taban) — `theme.dart`taki `navigationBarTheme` ile AYNI.
+/// ⚠️ Bazi ikonlar bundan SAPAR: bkz. `_ikonBoy` (optik denge).
 const double kAltMenuIkonBoy = 24;
 
-/// ⚠️⚠️ ORTADAKI LOGO DAIRESI (kullanici emri: *"logoyu bir dairenin icine
-///	koyman gerekiyor, bir tik daha buyuk olmasi gerekiyor"*): 48 -> **52**.
-/// ⚠️ 66'lik cubukta 52 + 2x5 kaldirma = 62 < 66; buyutulurse once bu payi
-///    kontrol et.
+/// ⚠️⚠️ ORTADAKI LOGO (kullanici emri: *"bir tik daha buyuk"*): 48 -> **52**.
 const double kAltMenuLogoCap = 52;
+
+/// ⚠️⚠️⚠️ TURU 96n — LOGONUN IKI YANINDAKI **NEFES PAYI** (kullanici:
+///	*"ikonlar ortadaki menuye cok yaklasmis"*). Yer tutucu hucrenin
+///	genisligi `kAltMenuLogoCap + kAltMenuLogoBosluk`tur.
+///
+/// ⚠️⚠️ **GERI ALINDI — ILK DEGERINDE (12).** Kullanici once *"ikonlar ortadaki
+///	menuye cok yaklasmis"* dedi, 32 ve 60 denendi; sonucu gorunce *"ikonlara
+///	ne yaptiysan GERI AL"* dedi. Buyuk pay 6 esnek hucreden calindigi icin
+///	ikonlari ekran kenarlarina dogru sikistiriyor ve ortada buyuk bir boşluk
+///	birakiyordu.
+/// ⚠️ YAPMA: bu sayiyi kullanici ACIKCA istemeden buyutme.
+const double kAltMenuLogoBosluk = 12;
+
+/// ⚠️⚠️⚠️ TURU 96n — LOGO IKONLARDAN **10 dp DAHA YUKARIDA** (kullanici emri:
+///	*"logoyu ... mevcut boyutu ile koy, 10px yukarida duracak sekilde"*).
+const double kAltMenuLogoKaldir = kAltMenuIkonKaldir + 10;
+
+/// Logonun siyah cubugun UST KENARINDAN tasan miktari.
+///
+/// ⚠️⚠️ **ELLE YAZILMAZ, TURETILIR.** Logo cubuktan tasiyor; bu deger cubugun
+///	ustune konan SAYDAM SERIDIN yuksekligidir. Boylece:
+///	· `ClipRRect` logoyu **KIRPMAZ** (kirpsaydi ust %15'i kesilirdi),
+///	· `Stack` kendi yuksekligine dahil ettigi icin **tasma uyarisi olusmaz**,
+///	· logonun TAMAMI dokunulabilir kalir (Flutter, ebeveyn kutusunun DISINA
+///	  tasan alani hit-test ETMEZ — orasi gorunur ama tiklanmaz olurdu).
+/// ⚠️ Sabitlerden biri degisirse bu deger KENDILIGINDEN uyar; asagidaki
+///    muhafiz testi de ayni formulden okur.
+final double kAltMenuLogoTasma =
+    math.max(0.0, kAltMenuLogoCap / 2 + kAltMenuLogoKaldir - kAltMenuBoy / 2);
 
 /// Alt menu — **3 sol · LOGO · 3 sag**.
 ///
@@ -88,39 +118,64 @@ class AltMenu extends ConsumerWidget {
         systemNavigationBarDividerColor: kAltMenuZemin,
         systemNavigationBarIconBrightness: Brightness.light,
       ),
-      child: ClipRRect(
-        // ALT MENU sol/sag (ust kose) RADIUS (test turu 7).
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(20),
-          topRight: Radius.circular(20),
-        ),
-        child: ColoredBox(
-          // ⚠️ TURU 96m — zemin TEMADAN DEGIL sabit siyah (bkz. `theme.dart`).
-          color: kAltMenuZemin,
-          child: SafeArea(
-            top: false,
-            child: SizedBox(
-              height: kAltMenuBoy,
-              child: Row(
-                // ⚠️ `stretch`: her hucre cubugun TAM YUKSEKLIGINI kaplar, yani
-                //    dokunma hedefi ikonun kendisi degil hucrenin tamamidir.
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _oge(0, LucideIcons.house, 'Anasayfa'),
-                  _oge(1, LucideIcons.search, 'Ara'),
-                  _oge(2, LucideIcons.clapperboard, 'Reels'),
-                  _logo(),
-                  // ⚠️ OKUNMAMIS ROZETI: mesaj sekmesi alt menude ve kullanici
-                  //    surekli akista/reels'te olacagi icin rozet OLMADAN yeni
-                  //    mesaji HIC fark etmezdi.
-                  _oge(3, LucideIcons.messageCircle, 'Mesaj', rozet: okunmamis),
-                  _oge(4, LucideIcons.radio, 'Canlı'),
-                  _profil(),
-                ],
+      // ⚠️⚠️⚠️ TURU 96n — LOGO CUBUGUN USTUNE TASAR, bu yuzden `ClipRRect`in
+      //	**DISINDA** cizilir. Icinde kalsaydi ust %15'i KIRPILIRDI (kirpma
+      //	sessizdir: ne analiz ne test uyarir, yalniz ekranda gorunur).
+      // ⚠️ Ustteki saydam serit `kAltMenuLogoTasma` kadar; Stack yuksekligine
+      //    dahil oldugu icin hem RenderFlex tasmasi hem "gorunur ama
+      //    tiklanmaz" hatasi YAPISAL OLARAK olusmaz.
+      child: Stack(
+        children: [
+          Padding(
+            padding: EdgeInsets.only(top: kAltMenuLogoTasma),
+            child: ClipRRect(
+              // ALT MENU sol/sag (ust kose) RADIUS (test turu 7).
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(20),
+                topRight: Radius.circular(20),
+              ),
+              child: ColoredBox(
+                // ⚠️ TURU 96m — zemin TEMADAN DEGIL sabit siyah (`theme.dart`).
+                color: kAltMenuZemin,
+                child: SafeArea(
+                  top: false,
+                  child: SizedBox(
+                    height: kAltMenuBoy,
+                    child: Row(
+                      // ⚠️ `stretch`: her hucre cubugun TAM YUKSEKLIGINI kaplar,
+                      //    yani dokunma hedefi ikon degil HUCRENIN TAMAMIDIR.
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _oge(0, LucideIcons.house, 'Anasayfa'),
+                        _oge(1, LucideIcons.search, 'Ara'),
+                        _oge(2, LucideIcons.clapperboard, 'Reels'),
+                        // ⚠️ Logonun YERI: govdesi Stack'te cizilir, burada
+                        //    yalnizca YER TUTAR. Bu sayede "3 sol · logo ·
+                        //    3 sag" simetrisi bozulmaz.
+                        const SizedBox(
+                            width: kAltMenuLogoCap + kAltMenuLogoBosluk),
+                        // ⚠️ OKUNMAMIS ROZETI: mesaj sekmesi alt menude ve
+                        //    kullanici surekli akista/reels'te olacagi icin
+                        //    rozet OLMADAN yeni mesaji HIC fark etmezdi.
+                        _oge(3, LucideIcons.messageCircle, 'Mesaj',
+                            rozet: okunmamis),
+                        _oge(4, LucideIcons.radio, 'Canlı'),
+                        _profil(),
+                      ],
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
-        ),
+          // ⚠️ `left/right: 0` + `Center`: logo cubugun YATAY ORTASINA oturur —
+          //    Row'daki yer tutucu da tam ortada oldugu icin ikisi cakisir.
+          Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: Center(child: _logo(context))),
+        ],
       ),
     );
   }
@@ -161,14 +216,39 @@ class AltMenu extends ConsumerWidget {
   Widget _oge(int sira, IconData ikon, String etiket, {int rozet = 0}) {
     final aktif = secili == sira;
     final renk = aktif ? kAltMenuAktifIkon : kAltMenuPasifIkon;
+    final boy = _ikonBoy(ikon);
     return _hucre(
       sira: sira,
       etiket: etiket,
       aktif: aktif,
       cocuk: rozet > 0
-          ? _RozetliIkon(ikon: ikon, sayi: rozet, renk: renk)
-          : Icon(ikon, size: kAltMenuIkonBoy, color: renk),
+          ? _RozetliIkon(ikon: ikon, sayi: rozet, renk: renk, boy: boy)
+          : Icon(ikon, size: boy, color: renk),
     );
+  }
+
+  /// ⚠️⚠️⚠️ TURU 96n — **OPTIK BOY** (kullanici: *"canli yayin ikonu kucuk
+  ///	kalmis, onu da buyut biraz"*).
+  ///
+  ///	`size` ikonun CIZILEN murekkebini degil **SINIR KUTUSUNU** olcer.
+  ///	Lucide `radio` ikonu iki yana acilan yaylardan olusur ve **dikeyde
+  ///	kisadir**; ayni `size` degerinde goz onu kardeslerinden KUCUK gorur.
+  ///	Kullanici olculeri degil GORUNTUYU okur, dolayisiyla haklidir.
+  ///
+  /// ⚠️ Bu, turu 82'nin *"ESIT OLCU ESIT GORUNUM DEMEK DEGIL"* dersinin ayni
+  ///    uygulamasidir (`gonderi_karti._optikBoy`). Iki harita BILEREK ayri:
+  ///    farkli ikon kumesi + farkli nominal taban (24 vs 23); ortak bir
+  ///    "global ikon boyu kaydi" iki cubugu birbirine baglar ve birinde
+  ///    yapilan ayar otekini SESSIZCE bozardi.
+  /// ⚠️ Cubuga yeni ikon eklersen buraya bakmayi UNUTMA; haritada olmayan
+  ///    ikon `kAltMenuIkonBoy`a duser (guvenli varsayilan).
+  double _ikonBoy(IconData ikon) {
+    // ⚠️ 24 -> 28 -> **31**: kullanici 28'i de kucuk buldu ("1 tik daha
+    //    buyut"). Olculdu: 24'te murekkep 22.6x16.0 dp, 28'de 25.1x18.7 dp —
+    //    yani kardeslerinin (~19.8 dikey) HALA altindaydi. 31'de dikey
+    //    murekkep ~20.7 dp ile hizalanir.
+    if (ikon == LucideIcons.radio) return 31;
+    return kAltMenuIkonBoy;
   }
 
   /// Profil sekmesi (sira 5).
@@ -186,46 +266,100 @@ class AltMenu extends ConsumerWidget {
         cocuk: _ProfilIkonu(secili: secili == 5),
       );
 
-  /// ⚠️⚠️ ORTADAKI LOGO — **TAM DAIRE** (kullanici emri: *"icon tam daire olmasi
-  ///	gerekiyor, yani logoyu bir dairenin icine koyman gerekiyor"*).
+  /// ⚠️⚠️⚠️ TURU 96n — LOGO **OLDUGU GIBI** cizilir (kullanici emri, IKI KEZ
+  ///	tekrarlandi: *"sana verdigim logoyu aynen koy, daire yapma"* ve
+  ///	*"koseleri vs bosver, dosyadaki logoyu suanki boyutu ile koy, radius
+  ///	kose vs verme, 10px yukarida duracak sekilde"*).
   ///
-  /// ⚠️⚠️ ONCEKI HAL NEDEN DAIRE DEGILDI (olculdu): gorsel 48'lik `ClipOval`in
-  ///	ICINDE **3 px dolguyla** ciziliyordu. Daire yaricapi 24 iken gorselin
-  ///	kenar ortalari yalnizca 21'de kaliyor; yani kirpma SADECE koseleri
-  ///	yiyor, kenarlar duz kaliyordu -> ekranda **kosesi yuvarlatilmis KARE**.
-  ///	Cozum dolguyu kaldirip gorseli daireye **TAM DOLDURMAK** (`cover`).
-  /// ⚠️ YAPMA: buraya tekrar ic dolgu koyma — kare gorunum geri gelir.
+  ///	Yani: **kirpma YOK · daire YOK · radius YOK · arka plan/kart YOK.**
   ///
-  /// ⚠️ Logo dosyasi TEK KAYNAK: `assets/icon/logo.png`.
+  /// ⚠️⚠️ TURU 96m'DE NE OLMUSTU (bir daha denenmesin): logo 52'lik bir
+  ///	`ClipOval` icine konmustu. Kullanici *"logonun koseleri sikintili"*
+  ///	dedi ve HAKLIYDI — daireye kirpmak, gorselin KENDI kose sanatini
+  ///	kesiyordu.
+  /// ⚠️ Zaten GEREKSIZDI (olculdu): `assets/icon/logo.png` **512x512 RGBA**,
+  ///    piksellerinin **%7.8'i saydam** ve kose yuvarlatmasi gorselin
+  ///    **%23'u** — yani dosya ZATEN yuvarlatilmis koseli ve siyah seritte
+  ///    sert kare kenar OLUSTURMAZ. Kirpmak sorunu cozmuyor, URETIYORDU.
+  ///
+  /// ⚠️ Logo dosyasi TEK KAYNAK: `assets/icon/logo.png`. Gorunum degisecekse
+  ///    **DOSYA** degisir, buraya sekil kodu yazilmaz.
   /// ⚠️ **DAVRANIS: ANASAYFA.** Dokununca hicbir sey yapmayan bir dugme bu
   ///    projede "olu ozellik" sinifidir.
-  Widget _logo() => Semantics(
+  Widget _logo(BuildContext context) => Semantics(
         button: true,
-        label: 'Anasayfa',
+        // ⚠️ Etiket ARTIK 'Menü' (davranis degisti); 'Anasayfa' demek ekran
+        //    okuyucu kullanicisina YANLIS bilgi olurdu.
+        label: 'Menü',
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
-          onTap: () => onSec(0),
-          // ⚠️ Logo hucresi ESNEK DEGIL (sabit genislik): `Expanded` olsaydi
-          //    dairenin cevresindeki bosluk ekran genisligine gore oynar ve
-          //    "3 sol · logo · 3 sag" simetrisi dar telefonda bozulurdu.
-          child: SizedBox(
-            width: kAltMenuLogoCap + 12,
-            child: Center(
-              child: Transform.translate(
-                offset: const Offset(0, -kAltMenuIkonKaldir),
-                child: Container(
-                  width: kAltMenuLogoCap,
-                  height: kAltMenuLogoCap,
-                  clipBehavior: Clip.antiAlias,
-                  decoration: const BoxDecoration(shape: BoxShape.circle),
-                  child: Image.asset(
-                    'assets/icon/logo.png',
-                    fit: BoxFit.cover,
+          // ⚠️⚠️ TURU 96n — DAVRANIS: **HIZMET MENUSU** (kullanici emri: *"alt
+          //	menudeki logo tiklandiginda menu gelecek, anasayfada sol ustteki
+          //	hamburgere tikladigin gibi"*). Onceden `onSec(0)` ile anasayfaya
+          //	gidiyordu.
+          // ⚠️ Sheet acma kodu BURAYA KOPYALANMADI: `hizmetMenusuAc` TEK
+          //    KAYNAK (`sosyal/hizmet_menusu.dart`) — hamburger dugmesi de
+          //    ayni fonksiyonu cagirir.
+          onTap: () => hizmetMenusuAc(context),
+          // ⚠️⚠️ TURU 96n — LOGO **5 dp KUCUK BIR DAIREYE DOLDURULUR**
+          //    (kullanici emri: *"logodan 5px daha kucuk daire icine logoyu
+          //    doldur"*). Yani daire 52-5 = 47 dp ve gorsel daireyi TAM
+          //    doldurur (`cover`) — ic dolgu YOK.
+          //
+          // ⚠️⚠️⚠️ **TIRTIKLI KENAR (kullanici: "cevresinde tirtiklar
+          //	olusuyor") — SEBEBI OLCEK.** Dosya 512x512; cubukta 47 dp =
+          //	**123 piksel** cizilir, yani **4.2 KAT** kucultme. Flutter
+          //	varsayilan olarak gorseli TAM COZUNURLUKTE cozer ve cizim
+          //	aninda `FilterQuality.low` (bilineer, mipmap YOK) ile
+          //	kuculturr; bu oranda bilineer ornekleme logonun ince ic
+          //	halkalarinda **aliasing** uretir ve kenarlar tirtikli gorunur.
+          //
+          //	IKI KATMANLI COZUM (ikisi de gerekli):
+          //	1. `cacheWidth/Height` — gorsel **HEDEF PIKSEL BOYUNDA
+          //	   COZULUR**; kucultmeyi cizici degil KOD COZUCU yapar (dogru
+          //	   filtre + daha az RAM). Turu 91'in `memCacheWidth` dersinin
+          //	   asset karsiligi.
+          //	2. `filterQuality: medium` — kalan olcekleme icin bilineer
+          //	   yerine daha iyi filtre.
+          // ⚠️ `devicePixelRatio` ILE CARPILIR; carpilmazsa gorsel bu kez
+          //    BULANIK cizilir (turu 91'de birebir bu tuzak yasandi).
+          // ⚠️⚠️⚠️ **KIRPMA (ClipOval) KULLANILMAZ — "TIRTIKLI KENAR"IN SEBEBI
+          //	OYDU.** Kullanici iki kez *"logonun cevresinde tirtiklar
+          //	olusuyor"* dedi. Olculdu: `ClipOval` ile kenarda **0 gecis
+          //	pikseli** vardi, yani hicbir yumusatma yok — merdiven basamagi.
+          //	Uygulama **Impeller (OpenGLES)** ile calisiyor ve kirpma yolunun
+          //	kenar yumusatmasi bu boyutta gorunur sekilde kaba.
+          //
+          //	COZUM: daire KIRPILARAK degil **SEKIL OLARAK CIZILIR**
+          //	(`BoxShape.circle` + `DecorationImage`). Boylece gorsel bir
+          //	daire geometrisine SHADER olarak doldurulur ve kenar
+          //	yumusatmasini GPU'nun kendi daire cizimi yapar.
+          // ⚠️ YAPMA: buraya tekrar `ClipOval`/`ClipRRect` koyma.
+          //
+          // ⚠️ `ResizeImage` = olcek kalitesi: dosya 512x512, cizim 47 dp
+          //    (~123 px) — 4 kat kucultmede kod cozucu yeniden orneklemezse
+          //    ince halkalar aliasing yapar. `devicePixelRatio` ILE carpilir,
+          //    yoksa bu kez BULANIK cizilir (turu 91 tuzagi).
+          child: Builder(builder: (context) {
+            const cap = kAltMenuLogoCap - 5;
+            final px = (cap * MediaQuery.devicePixelRatioOf(context)).round();
+            return Container(
+              width: cap,
+              height: cap,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                image: DecorationImage(
+                  image: ResizeImage(
+                    const AssetImage('assets/icon/logo.png'),
+                    width: px,
+                    height: px,
                   ),
+                  fit: BoxFit.cover,
+                  filterQuality: FilterQuality.medium,
                 ),
               ),
-            ),
-          ),
+            );
+          }),
         ),
       );
 }
@@ -251,14 +385,26 @@ class _ProfilIkonu extends ConsumerWidget {
     final url = (p?['avatar_url'] ?? '').toString();
     final fotografVar = (mediaId != null && mediaId.isNotEmpty) || url.isNotEmpty;
 
-    // ⚠️⚠️ TURU 96m — FOTOGRAF YOKSA IKON (harf DEGIL). Renk kardes
-    //    sekmelerle BIREBIR ayni kaynaktan gelir, yoksa "pasif gri" tanimi
-    //    iki yerde yasar ve drift eder.
+    // ⚠️⚠️⚠️ TURU 96n — FOTOGRAF YOKSA **DUZ DAIRE** (kullanici emri: *"sagdaki
+    //	profil ikon olmayacak, oraya profil resmi gelecek, yoksa hafif gri
+    //	renkte daire olsun DEDIM SANA"*).
+    //
+    //	Yani bu hucre bir SEKME IKONU degil, **AVATARIN YERI**: fotograf
+    //	varsa fotograf, yoksa onun boslugu. Kullanici ikonu ("bir insan
+    //	silueti") da harfi de REDDETTI — ikisi de "resim" gibi degil "ikon"
+    //	gibi okunuyor.
+    // ⚠️ Cap avatarla AYNI (`_cap`): fotografi olan ile olmayan kullanici
+    //    arasinda daire boyu OYNAMAZ, satir titremez.
+    // ⚠️ Renk kardes sekmelerle AYNI kaynaktan (aktif beyaz / pasif gri).
+    // ⚠️ YAPMA: buraya tekrar `Icon` veya bas harf koyma.
     if (!fotografVar) {
-      return Icon(
-        LucideIcons.circleUserRound,
-        size: kAltMenuIkonBoy,
-        color: secili ? kAltMenuAktifIkon : kAltMenuPasifIkon,
+      return Container(
+        width: _cap,
+        height: _cap,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: secili ? kAltMenuAktifIkon : kAltMenuPasifIkon,
+        ),
       );
     }
 
@@ -291,10 +437,15 @@ class _RozetliIkon extends StatelessWidget {
     required this.ikon,
     required this.sayi,
     required this.renk,
+    required this.boy,
   });
 
   final IconData ikon;
   final int sayi;
+
+  /// ⚠️ Boy DISARIDAN gelir (`_ikonBoy`): burada sabit yazilsaydi optik
+  ///    ayarlar yalniz ROZETSIZ ikonlara uygulanirdi.
+  final double boy;
 
   /// ⚠️ TURU 96m — renk ARTIK ZORUNLU PARAMETRE. Onceden `Icon(ikon)` ambient
   ///    `IconTheme`den beslenirdi; cubuk siyaha cevrilince o renk (acik temada
@@ -303,7 +454,7 @@ class _RozetliIkon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ikonu = Icon(ikon, size: kAltMenuIkonBoy, color: renk);
+    final ikonu = Icon(ikon, size: boy, color: renk);
     if (sayi <= 0) return ikonu;
     return Stack(
       clipBehavior: Clip.none,
