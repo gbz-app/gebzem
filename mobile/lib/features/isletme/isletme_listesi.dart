@@ -103,10 +103,28 @@ const double kInputBoy = 48;
 /// ⚠️ Kutu yuksekligi SABIT, genislik EKRANDAN turer: dorduncu kart dar
 ///    telefonda tasmasin.
 const double kKesifKutu = 78;
-/// ⚠️ Kutular kac px DARALIR (kullanici emri). Yatay aralik bundan TURER.
-const double kKesifDaralt = 10;
-/// Iki satir arasindaki dikey bosluk.
-const double kKesifSatirAralik = 12;
+/// ⚠️⚠️⚠️ TURU 96k — **BOSLUK OLCEGI: 8 · 12 · 16.**
+///
+///	Kullanici sordu: *"hepsinin arasindaki esitlik ayni olmali mi?"*
+///	CEVAP HAYIR — hepsi esit olsaydi bir BASLIK, kendi kartlarina tam da
+///	ustundeki bolume oldugu kadar uzak dururdu ve goz neyin neye ait
+///	oldugunu ayirt edemezdi (yakinlik ilkesi). Dogru olan TEK SAYI degil,
+///	UC KADEMELI bir olcektir:
+///
+///	  `kBaslikBosluk` **8**  — baslik ↔ KENDI kartlari (en sıkı bag)
+///	  `kIzgaraAralik` **12** — ayni izgaranin kartlari arasi
+///	  `kBosluk`       **16** — BOLUMLER arasi (sayfa ritmi)
+///
+/// ⚠️ Bu uc sayi disinda bu ekrana elle bir dikey bosluk YAZMA; biri
+///    guncellenip otekiler unutuldugunda ritim SESSIZCE bozulur.
+const double kBaslikBosluk = 8;
+
+/// ⚠️ IZGARA ARALIGI **HER IKI EKSENDE** (turu 96k). Onceden yatay aralik
+///    "hucreyi 10 daralt" emrinden TURUYOR (13.3) ve dikey aralik ayrica 12
+///    yaziliyordu — ayni izgarada iki farkli sayi. Artik aralik SECILIR,
+///    hucre genisligi ondan turetilir.
+/// ⚠️ YAPMA: yatay ve dikey icin ayri sabit acma.
+const double kIzgaraAralik = 12;
 
 // ⚠️⚠️ TURU 96e — kullanici emri: kutu **+10px** (60 -> 70), kutular arasi
 //    bosluk **+2px** (10 -> 12). Aralik hucre ile kutu farkindan turer:
@@ -729,12 +747,17 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                     // ⚠️ Kullanici emri: 60x60 seridinin ESKI YERINE, daha
                     //    buyuk 8 kart (bkz. `_kesifIzgarasi`).
                     SliverToBoxAdapter(child: _kesifIzgarasi()),
-                    const SliverToBoxAdapter(
-                        child: SizedBox(height: kBosluk)),
 
+                    // ⚠️⚠️⚠️ TURU 96k — BURADA **IKI BOSLUK UST USTE** VARDI
+                    //	(`kBosluk` + kosullu `kBosluk`) ve izgara ile
+                    //	"Mutfaklar" arasi **32 dp** oluyordu; sayfanin geri
+                    //	kalani 16 ile yuruyor. Kullanici olculeri isteyince
+                    //	ortaya cikti — gozle "burasi biraz genis" denip
+                    //	gecilebilecek, OLCMEDEN bulunamayacak bir hataydi.
                     // ⚠️ Alt kategori seridi VARSA tam bosluk; YOKSA hemen
                     //    altta cip seridi geliyor demektir ve onun kendi
                     //    4px payi DUSULUR (bkz. `kCipPay`).
+                    // ⚠️ YAPMA: buraya ikinci bir `SizedBox` ekleme.
                     SliverToBoxAdapter(
                         child: SizedBox(
                             height: _altKategoriler.isNotEmpty
@@ -765,7 +788,12 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                           ),
                         ),
                       ),
-                      const SliverToBoxAdapter(child: SizedBox(height: 10)),
+                      // ⚠️ Baslik ↔ KENDI kartlari: `kBaslikBosluk` (8).
+                      //    Bolum araligindan (16) KUCUK olmasi ZORUNLU —
+                      //    yoksa "Mutfaklar" altindaki seride degil,
+                      //    ustundeki bolume ait gibi gorunur.
+                      const SliverToBoxAdapter(
+                          child: SizedBox(height: kBaslikBosluk)),
                       SliverToBoxAdapter(child: _altKategoriSeridi()),
                       // ⚠️ Cip seridinin USTUNDE 4px kendi payi var
                       //    (bkz. `kCipPay`): gorunen bosluk yine 16.
@@ -782,8 +810,14 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                     // ── "İşletmeler (N)" + GORUNUM + HARITA ──
                     if (l != null && l.isNotEmpty) ...[
                       SliverToBoxAdapter(child: _listeBasligi(l.length)),
+                      // ⚠️⚠️ TURU 96k — 16 -> **`kBaslikBosluk` (8)**.
+                      //	Olculdugunde YAKINLIK TERSTI: "Restoranlar" ustundeki
+                      //	suzgec seridine 16, KENDI listesine 19.8 dp uzaktaydi.
+                      //	Yani baslik, ait oldugu listeye degil bir onceki
+                      //	bolume yapisik duruyordu. Artik "Mutfaklar" ile ayni
+                      //	kurala tabi.
                       const SliverToBoxAdapter(
-                          child: SizedBox(height: kBosluk)),
+                          child: SizedBox(height: kBaslikBosluk)),
                     ],
 
                     if (_hata != null)
@@ -1328,15 +1362,28 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
     //	kutunun sol kenari tam `kYanBosluk`, sonuncununki tam `W-kYanBosluk`
     //	kalir ve kutular gercekten 10px darallir.
     // ⚠️ Aralik SABIT DEGIL, TURETILIR: dar ekranda da dort kutu tam otursun.
+    // ⚠️⚠️⚠️ TURU 96k — **ARALIK SECILIR, HUCRE TURETILIR** (onceden tersiydi).
+    //
+    //	Eski hesap: `en = alan/4 - 10` · `aralik = (alan - en*4)/3`
+    //	Yani aralik, "hucreyi 10 daralt" emrinin bir YAN URUNUYDU ve
+    //	**13.3 dp** cikiyordu; ayni izgaranin SATIR araligi ise
+    //	`kKesifSatirAralik = 12` idi. Ayni izgarada yatay 13.7 / dikey 12.2
+    //	olcen kullanici hakli olarak "bosluklar esit degil" dedi.
+    // ⚠️ Artik IKI EKSEN DE `kIzgaraAralik`: once aralik konur, kalan yer
+    //    dorde bolunur. Hucre ~1 dp genisler (84.9 -> 85.9) — kullanicinin
+    //    "10px daralt" istegi pratikte korunur, ama izgara KARE bir ritme
+    //    oturur.
     final alan = MediaQuery.sizeOf(context).width - kYanBosluk * 2;
-    final en = alan / 4 - kKesifDaralt;
-    final aralik = (alan - en * 4) / 3;
+    const aralik = kIzgaraAralik;
+    final en = (alan - aralik * 3) / 4;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: kYanBosluk),
       child: Column(
         children: [
           for (var satir = 0; satir < 2; satir++) ...[
-            if (satir > 0) const SizedBox(height: kKesifSatirAralik),
+            // ⚠️ Satir araligi = sutun araligi (turu 96k): izgara icindeki
+            //    ritim TEK sayidir.
+            if (satir > 0) const SizedBox(height: kIzgaraAralik),
             Row(
               // ⚠️⚠️⚠️ TURU 96g — **`start` ZORUNLU** (kullanici: *"Yeni
               //	Restourant karti yukari kalmis, onu duzelt"*).
@@ -1402,7 +1449,24 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
               //    ekranda kutu icine kondan HER SEYI uc kez kaldirtti).
             ),
             const SizedBox(height: 5),
-            Text(
+            // ⚠️⚠️⚠️ ETIKET ALANI **SABIT IKI SATIR** (turu 96k).
+            //
+            //	Onceden yukseklik ICERIGE gore degisiyordu: "Yeni Restourant"
+            //	iki satira sardigi icin o hucre **115**, digerleri **99** dp
+            //	oluyordu. `Row` yuksekligini EN UZUN hucre belirledigi icin
+            //	izgaranin altindaki bosluk sutundan sutuna **32 ile 48 dp**
+            //	arasinda degisiyor, goz bunu "boslukar esit degil" diye
+            //	okuyordu (kullanici olculeri sorunca ortaya cikti).
+            // ⚠️ Iki satirlik yer HER hucrede AYRILIR ve tek satirlik
+            //    etiketler bu alanda DIKEYDE ORTALANIR; boylece tum hucreler
+            //    ayni yukseklikte olur ve izgaranin alt sinirî DUZ olur.
+            // ⚠️ Yukseklik ELLE YAZILMAZ, yazi olceginden TURETILIR: kullanici
+            //    yazi boyutunu buyutunce alan da buyumeli (turu 90b'de sabit
+            //    92px'lik bir serit yazi olcegi 1.15'te tasmisti).
+            SizedBox(
+              height: MediaQuery.textScalerOf(context).scale(14) * 1.15 * 2,
+              child: Center(
+                child: Text(
               k.ad,
               maxLines: 2,
               textAlign: TextAlign.center,
@@ -1416,6 +1480,8 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                 //    kaydirirdi (ciplerde yasanan hata).
                 fontWeight: FontWeight.w600,
                 color: k.secili ? vurgu : null,
+              ),
+                ),
               ),
             ),
           ],

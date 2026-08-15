@@ -234,6 +234,37 @@ void main() {
     expect(sabit('kSegIkon'), lessThan(sabit('kSegHucre')));
   });
 
+  test('BOSLUK OLCEGI hiyerarsisi bozulmamis (8 < 12 < 16)', () {
+    // ⚠️⚠️⚠️ Kullanici sordu: *"hepsinin arasindaki esitlik ayni olmali mi?"*
+    //	CEVAP HAYIR. Hepsi esit olsaydi bir BASLIK, kendi kartlarina tam da
+    //	ustundeki bolume oldugu kadar uzak dururdu ve goz neyin neye ait
+    //	oldugunu ayirt edemezdi (yakinlik ilkesi).
+    //
+    // ⚠️ KORUNAN SEY SAYILAR DEGIL **SIRALAMA**: baslik boslugu izgara
+    //	araligindan, o da bolum araligindan KUCUK olmali. Bu siralama
+    //	bozulursa tasarim sessizce duzlesir.
+    // ⚠️ Turu 96k'da olculen GERCEK hata: "Restoranlar" ustundeki suzgec
+    //	seridine 16, KENDI listesine 19.8 dp uzaktaydi — yakinlik TERSTI.
+    final kaynak = _yorumsuz(
+        File('lib/features/isletme/isletme_listesi.dart').readAsStringSync());
+    double sabit(String ad) {
+      final m = RegExp('const double $ad = ([0-9.]+)').firstMatch(kaynak);
+      expect(m, isNotNull, reason: '`$ad` sabiti BULUNAMADI');
+      return double.parse(m!.group(1)!);
+    }
+
+    final baslik = sabit('kBaslikBosluk');
+    final izgara = sabit('kIzgaraAralik');
+    final bolum = sabit('kBosluk');
+
+    expect(baslik, lessThan(izgara),
+        reason: 'baslik ↔ kartlari boslugu ($baslik) izgara araligindan '
+            '($izgara) KUCUK olmali');
+    expect(izgara, lessThan(bolum),
+        reason: 'izgara araligi ($izgara) bolum araligindan ($bolum) '
+            'KUCUK olmali');
+  });
+
   test('kMetaKalinlik suzgec cipleriyle AYNI degerde', () {
     // ⚠️ Cip kalinligi kaynaktan OKUNUR (kopya sabit YAZILMAZ — drift eder).
     final kaynak = _yorumsuz(
