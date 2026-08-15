@@ -151,17 +151,47 @@ const double kBaslikOptik = 1.1;
 ///	aktif ikon ARKA RENGI olacakti"*.
 ///	Yani **KUTU KALIR**; sadelestirme ikonun KENDISINDE yapilir.
 ///
-/// ⚠️ Dokunma alani **44x40** (satiri sismeden Material 48'e en yakin olcu);
-///    aktif gri zemin `kSegBoy` (34) — dokunma alanini boyamak uc segmenti
-///    birlesik tek blok gibi gosterirdi.
+/// ⚠️⚠️⚠️ **KUTU, FILTRE BUTONUYLA AYNI YUKSEKLIKTE** (kullanici emri:
+///	*"filtre butonu genislik yuksekliginde olsun, gorunum alani cok
+///	buyuk"*).
+///
+///	Onceki olcu 44x40'lik hucrelerdi ve kutu toplam **48 dp** oluyordu;
+///	yanindaki `Filtre` cipi ise **40 dp**. Ayni satirda iki cerceve vardi ve
+///	biri otekinden 8 dp daha yuksekti — goz bunu "gorunum alani cok buyuk"
+///	diye okuyor.
+///
+/// ⚠️⚠️⚠️ **OLCUT: CIPIN *GORUNEN* YUKSEKLIGI (32), DOKUNMA ALANI (40)
+///	DEGIL.** Bu ayrim ekrandan OLCULEREK bulundu:
+///	  Filtre cipi — dugum kutusu **40** dp, GORUNEN murekkep **31.6** dp
+///	  (aradaki 8 dp `kCipPay`, yani goze GORUNMEYEN dokunma payi)
+///	Ilk denemede kutu 40'a esitlendi ve kullanici HAKLI olarak "hala buyuk"
+///	dedi: goz murekkebi kiyasliyor, dokunma alanini DEGIL.
+///
+/// ⚠️ **HESAP TERSTEN KURULUR** (gorunen yukseklik SABIT hedeftir):
+///	  kutu = hucre + kSegDolgu*2 + kenarlik*2
+///	  32   = 26    + 2*2         + 1*2          ✔ cipin murekkebiyle BIREBIR
+///	`kSegHucreBoy` degistirilirse `kSegDolgu` da yeniden hesaplanmali;
+///	ikisi bagimsiz sayilar DEGILDIR (muhafiz bunu zorluyor).
+/// ⚠️ HUCRE **KARE** (26x26): kullanici *"genislik yuksekliginde olsun"*
+///	dedi. Kutu 140 -> **84 dp**; yanindaki cip 88.8 dp, yani satirdaki iki
+///	oge artik ayni agirlikta.
+/// ⚠️⚠️ DOKUNMA ALANI 26x26 = Material 48 kuralinin ALTINDA. **BILINCLI
+///	TAVIZ**: kullanici alanin kucultulmesini IKI KEZ acikca istedi ve kutu
+///	ancak hucre kadar kucultulebiliyor. Zararini sinirlayan sey, uc hedefin
+///	YAN YANA ve hepsinin `HitTestBehavior.opaque` olmasi: iska giden dokunus
+///	komsu GORUNUME duser (tek dokunusla geri alinir), oluye gitmez.
+/// ⚠️ YAPMA: hucreyi daha da kucultme (ikon 16 ve 26'lik hucrede zaten 5 dp
+///    pay kaliyor).
+/// ⚠️ Aktif gri zemin hucrenin TAMAMINI doldurur: kutu dolgusu (`kSegDolgu`)
+///    zaten bosluk veriyor, ikinci bir ic bosluk zemini "yuzen" gosterirdi.
 /// ⚠️ Dis kutunun GORUNEN sag kenari `kYanBosluk`ta durur; kutu bir CIZGI
 ///    oldugu icin glif telafisi (turu 96b `kNavOptik` deseni) GEREKMEZ —
 ///    kenarlik zaten murekkebin ta kendisidir.
-const double kSegHucre = 44; // dokunma alani (genislik)
-const double kSegHucreBoy = 40; // dokunma alani (yukseklik)
-const double kSegBoy = 34; // aktif zeminin yuksekligi
-const double kSegIkon = 20; // GORUNEN ikon
-const double kSegDolgu = 3; // kutu ile segmentler arasi
+const double kSegHucre = 26; // dokunma alani (genislik) — KARE
+const double kSegHucreBoy = 26; // dokunma alani (yukseklik)
+const double kSegBoy = 26; // aktif zemin hucreyi doldurur
+const double kSegIkon = 16; // GORUNEN ikon (26'lik hucrede optik denge)
+const double kSegDolgu = 2; // kutu ile segmentler arasi
 
 /// ⚠️ "Bir tik ustte" — kullanicinin istedigi kaydirma. `Transform` ile
 ///    uygulanir (yerlesimi DEGISTIRMEZ, bkz. `_listeBasligi`).
@@ -2253,7 +2283,13 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          segment(LucideIcons.list, 'Liste görünümü', !_izgara,
+          // ⚠️ TURU 96j — ILK IKON `list` -> **`layoutList`** (kullanici emri:
+          //	*"ilk gorunum ikonunu degistir"*).
+          //	`list` duz uc cizgiydi ve yanindaki `layoutGrid` ile AYNI DILI
+          //	konusmuyordu (biri "madde isareti", oteki "yerlesim"). `layoutList`
+          //	ile ikisi ayni ailedendir: solda gorsel bloklari, sagda satirlar —
+          //	kullanici iki gorunumu YAN YANA kiyaslayabiliyor.
+          segment(LucideIcons.layoutList, 'Liste görünümü', !_izgara,
               () => setState(() => _izgara = false)),
           segment(LucideIcons.layoutGrid, 'Kart görünümü', _izgara,
               () => setState(() => _izgara = true)),

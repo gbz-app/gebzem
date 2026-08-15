@@ -43,6 +43,18 @@ const double kKartAralik = 30;
 ///    Ayri sayilar yazilsaydi biri guncellenip oteki geride kalirdi.
 const double kKartIcBosluk = 15;
 
+/// ⚠️⚠️ KART KAPAGINDAKI FAVORI KALBI — **24 -> 28** (kullanici emri:
+///	*"kalpleri 4px daha buyut"*).
+///
+/// ⚠️ TEK KAYNAK: dolu ve bos hal AYNI sabiti kullanir. Iki yere ayri sayi
+///    yazilsaydi dokununca kalbin BOYU ZIPLARDI.
+/// ⚠️ DOKUNMA KUTUSU 38x38 SABIT KALDI: 28'lik glif rahat siger (5 dp pay)
+///    ve kapaktaki yerlesim (`kKartIcBosluk`) DEGISMEZ — kalp buyurken
+///    kenardan uzakligi ayni kalir.
+/// ⚠️ 32'ye CIKARMA: kutuya 3 dp pay kalir ve kalp kapak koseine yapisik
+///    gorunur; ayrica kampanya rozetiyle optik agirligi esitlenirdi.
+const double kKalpOlcu = 28;
+
 /// ⚠️⚠️ **EKRANDAKI TEK GRI.** Slider zemini, kapak yer tutucusu ve 60x60
 ///    kartlar AYNI tonu kullanir (kullanici emri: *"ayni grilikte olsun"*).
 /// ⚠️ YAPMA: bu ekranlarda elle `0xFFE7E7EA` gibi bir gri yazma.
@@ -330,14 +342,14 @@ class IsletmeKapakKalbi extends StatelessWidget {
             alignment: Alignment.center,
             children: [
               if (dolu)
-                const Icon(Icons.favorite, size: 24, color: pembe),
+                const Icon(Icons.favorite, size: kKalpOlcu, color: pembe),
               // ⚠️ Kenar cizgisi HER IKI HALDE de cizilir; dolu halde pembenin
               //    ustune biner ve "beyaz border" tam olarak budur.
               // ⚠️ Golgeler cizgiyi bir tik KALINLASTIRIR (Lucide/Material
               //    ikonlari FONT'tur, `strokeWidth` YOKTUR).
               const Icon(
                 Icons.favorite_border,
-                size: 24,
+                size: kKalpOlcu,
                 color: Colors.white,
                 shadows: [
                   Shadow(color: Colors.white, offset: Offset(0.5, 0)),

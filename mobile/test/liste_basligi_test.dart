@@ -171,6 +171,69 @@ void main() {
     expect(bos[0].color, Colors.white);
   });
 
+  test('gorunum secici kutusu FILTRE BUTONUYLA ayni yukseklikte', () {
+    // ⚠️⚠️⚠️ Kullanici emri: *"filtre butonu genislik yuksekliginde olsun,
+    //	gorunum alani cok buyuk"*. Onceki halde kutu 48 dp, `Filtre` cipi
+    //	40 dp idi — ayni satirda iki cerceve ve biri 8 dp daha yuksek.
+    //
+    // ⚠️ Bu ARITMETIK bir kuraldir, gozle bakilarak korunamaz:
+    //	  kutu = hucre + kSegDolgu*2 + kenarlik*2
+    //	Biri degistiginde oteki elle guncellenmezse kutu SESSIZCE ayrisir
+    //	(derleme de analiz de gormez).
+    // ⚠️ YAPMA: bu testi silme; `kSegHucreBoy`/`kSegDolgu` degistirirken
+    //    cip yuksekligini de DOGRULA.
+    final kaynak = _yorumsuz(
+        File('lib/features/isletme/isletme_listesi.dart').readAsStringSync());
+
+    // ⚠️ Sabitlerin bir kismi DUZ SAYI (`= 32;`), bir kismi IFADE
+    //    (`kCipPay = (40 - 32) / 2;`). Ayristirici ikisini de anlamali —
+    //    ilk yazimda yalniz duz sayi aranmis ve test SAGLAM KODDA kirmizi
+    //    dusmustu.
+    double sabit(String ad) {
+      final m = RegExp('const double $ad = ([^;]+);').firstMatch(kaynak);
+      expect(m, isNotNull, reason: '`$ad` sabiti BULUNAMADI');
+      final ifade = m!.group(1)!.trim();
+      final duz = double.tryParse(ifade);
+      if (duz != null) return duz;
+      final e = RegExp(r'^\((\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)\)\s*/\s*'
+              r'(\d+(?:\.\d+)?)$')
+          .firstMatch(ifade);
+      expect(e, isNotNull, reason: '`$ad` ifadesi cozulemedi: $ifade');
+      return (double.parse(e!.group(1)!) - double.parse(e.group(2)!)) /
+          double.parse(e.group(3)!);
+    }
+
+    // ⚠️⚠️⚠️ OLCUT **GORUNEN** YUKSEKLIK (32), dokunma alani (40) DEGIL.
+    //	Cip: gorsel govde 32 dp + `kCipPay` * 2 = 8 dp GORUNMEYEN dokunma
+    //	payi -> dugum kutusu 40 dp.
+    //	Ilk yazimda 40 ile karsilastirildi ve kutu goze HALA BUYUK geldi;
+    //	ekrandan olculunce cipin murekkebi 31.6 dp cikti. Goz MUREKKEBI
+    //	kiyasliyor, dokunma alanini DEGIL.
+    // ⚠️ `kCipPay` yine de OKUNUR: degisirse bu testin dayandigi varsayim
+    //    (gorsel 32 + pay) bozulmus demektir.
+    final cipPay = sabit('kCipPay');
+    expect(cipPay, 4.0,
+        reason: 'kCipPay degismis — cipin gorsel yuksekligi artik 32 '
+            'olmayabilir, ekrandan yeniden olc');
+    const cipGorunen = 32.0;
+
+    const kenarlik = 1.0; // Border.all varsayilani
+    final kutuBoy = sabit('kSegHucreBoy') + sabit('kSegDolgu') * 2 + kenarlik * 2;
+
+    expect(kutuBoy, cipGorunen,
+        reason: 'gorunum kutusu ($kutuBoy dp) ile Filtre cipinin GORUNEN '
+            'yuksekligi ($cipGorunen dp) AYNI olmali');
+
+    // ⚠️ Hucre KARE: kullanici *"genislik yuksekliginde olsun"* dedi.
+    expect(sabit('kSegHucre'), sabit('kSegHucreBoy'),
+        reason: 'segment hucresi KARE olmali');
+    // ⚠️ Aktif zemin hucreyi DOLDURUR (ikinci bir ic bosluk zemini
+    //    "yuzen" gosterirdi).
+    expect(sabit('kSegBoy'), sabit('kSegHucreBoy'));
+    // ⚠️ Ikon hucreye SIGMALI, aksi halde kirpilir.
+    expect(sabit('kSegIkon'), lessThan(sabit('kSegHucre')));
+  });
+
   test('kMetaKalinlik suzgec cipleriyle AYNI degerde', () {
     // ⚠️ Cip kalinligi kaynaktan OKUNUR (kopya sabit YAZILMAZ — drift eder).
     final kaynak = _yorumsuz(
