@@ -12,6 +12,13 @@ import '../diyet/diyet_ekranlari.dart';
 import '../talep/talep_ekranlari.dart';
 import '../isletme/kategori_slider.dart';
 import '../isletme/isletme_servisi.dart' show isletmeServisiProvider;
+// ⚠️⚠️⚠️ TURU 96s — MENU KARTLARI **KATEGORI EKRANIYLA AYNI DILDE** (kullanici
+//	emri: *"kartlarin genisliklerini diyorum, yemekteki gibi; renk ve yazi
+//	tipleri de oyle olsun"*). Olcu/renk/yazi sabitleri BURADAN alinir,
+//	KOPYALANMAZ — iki ekran birlikte doner.
+import '../isletme/isletme_kart.dart'
+    show kYanBosluk, kYaricap, kYuzeyGri;
+import '../isletme/isletme_listesi.dart' show kKesifKutu, kIzgaraAralik;
 
 /// ⚠️⚠️ TURU 76b/77 — ANASAYFA SOL UST MENU.
 ///
@@ -291,25 +298,35 @@ class HizmetMenusu extends ConsumerWidget {
               //    KENDILIGINDEN uyar ve iki blok ayrisamaz.
               if (yakinimda != null)
                 LayoutBuilder(
-                  builder: (c, bc) => SizedBox(
-                    height: ((bc.maxWidth - 3 * 8) / 4) / 0.86,
-                    child: Row(
+                  builder: (c, bc) {
+                    // GENISLIK KATEGORI EKRANIYLA AYNI FORMUL (kullanici:
+                    // "kartlarin genisliklerini diyorum, yemekteki gibi"):
+                    // once aralik konur, kalan yer DORDE bolunur. Ucuncu
+                    // karttan sonrasi BOS kalir; boylece bu satirin kartlari
+                    // alttaki izgarayla BIREBIR ayni genislikte olur.
+                    final en = (bc.maxWidth - kIzgaraAralik * 3) / 4;
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         for (final b in [yakinimda, ...hizli]) ...[
-                          Expanded(child: _kart(context, b)),
-                          if (b != hizli.last) const SizedBox(width: 10),
+                          SizedBox(width: en, child: _kart(context, b)),
+                          const SizedBox(width: kIzgaraAralik),
                         ],
                       ],
-                    ),
-                  ),
+                    );
+                  },
                 ),
               const SizedBox(height: 18),
               const Text(
                 'KATEGORİLER',
+                // TURU 96s - HARF ARALIGI YASAK (kullanici emri: "Kategoriler
+                // yazisi vb ozel bosluk ASLA kullanma; ornegin Ahmet'te a ile
+                // h arasinda ozel bosluk olmasin"). Yazi tipinin KENDI
+                // aralligi kullanilir.
+                // YAPMA: bu dosyaya tekrar harf araligi ekleme.
                 style: TextStyle(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1.1,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
                   color: Colors.grey,
                 ),
               ),
@@ -337,11 +354,16 @@ class HizmetMenusu extends ConsumerWidget {
                 child: GridView.builder(
                   padding: EdgeInsets.zero,
                   gridDelegate:
-                      const SliverGridDelegateWithFixedCrossAxisCount(
+                      SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 4,
-                    crossAxisSpacing: 8,
-                    mainAxisSpacing: 10,
-                    childAspectRatio: 0.86,
+                    crossAxisSpacing: kIzgaraAralik,
+                    mainAxisSpacing: kIzgaraAralik,
+                    // ORAN DEGIL SABIT YUKSEKLIK: kart = gri kutu (78) + 5
+                    // bosluk + iki satirlik etiket alani. Kategori
+                    // ekranindaki kesif izgarasinin BIREBIR ayni olcusu.
+                    mainAxisExtent: kKesifKutu +
+                        5 +
+                        MediaQuery.textScalerOf(context).scale(14) * 1.15 * 2,
                   ),
                   itemCount: kategoriler.length,
                   itemBuilder: (_, i) => _kart(context, kategoriler[i]),
@@ -435,35 +457,59 @@ class HizmetMenusu extends ConsumerWidget {
   Widget _kart(BuildContext context, _Bolum b) => RepaintBoundary(
     child: GestureDetector(
       onTap: () => _ac(context, b),
-      // ⚠️ `opaque`: gradyan kutunun ALTINDAKI bosluga (yazi ile kutu arasi)
-      //    dokunmak da karti acar; aksi halde kullanici "bastim acilmadi" der.
+      // ⚠️ `opaque`: kutunun ALTINDAKI bosluga (yazi ile kutu arasi) dokunmak
+      //    da karti acar; aksi halde kullanici "bastim acilmadi" der.
       behavior: HitTestBehavior.opaque,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Expanded(
+          // ⚠️⚠️⚠️ TURU 96s — KUTU **KATEGORI EKRANININ KESIF KARTIYLA BIREBIR**
+          //	(kullanici emri: *"yemekteki gibi renk ve yazi tipleri de oyle
+          //	olsun"*): renkli gradyan DEGIL, `kYuzeyGri` yuzey + `kYaricap`.
+          //	Sabitler ORADAN import edilir, kopyalanmaz.
+          // ⚠️ YAPMA: buraya gradyan/ikon/harf geri koyma (kullanici kategori
+          //    ekraninda kutu icine konan HER SEYI uc kez kaldirtti).
+          SizedBox(
+            height: kKesifKutu,
             child: DecoratedBox(
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(18),
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: b.renkler,
-                ),
+                color: kYuzeyGri(context),
+                borderRadius: BorderRadius.circular(kYaricap(kKesifKutu)),
               ),
             ),
           ),
-          const SizedBox(height: 7),
-          // ⚠️ `maxLines: 2` + ellipsis: "Düğün & Organizasyon" gibi uzun
-          //    adlar 102dp genislikte tek satira SIGMAZ; tek satirda
-          //    "Düğün &…" olurdu. Iki satir izgara yuksekligine dahil
-          //    (childAspectRatio hesabinda sayildi).
-          Text(
-            b.ad,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+          const SizedBox(height: 5),
+          // ⚠️⚠️ ETIKET ALANI **SABIT IKI SATIR** — kesif izgarasindaki formulun
+          //	AYNISI. Icerige gore degisseydi "Organizasyon" gibi iki satira
+          //	saran etiketler o hucreyi uzatir, `Row`/`GridView` yuksekligi
+          //	en uzun hucreye gore olusur ve izgaranin alt sinirî DALGALANIRDI
+          //	(turu 96k'da olculen hata).
+          // ⚠️ Yukseklik yazi olceginden TURETILIR (sabit px DEGIL): kullanici
+          //    yazi boyutunu buyutunce alan da buyur.
+          SizedBox(
+            height: MediaQuery.textScalerOf(context).scale(14) * 1.15 * 2,
+            child: Center(
+              // TURU 96s - UZUN TEK KELIME KELIMENIN ORTASINDAN BOLUNMESIN.
+              // 'Organizasyon' 86 dp'lik hucreye tek satirda sigmiyor ve
+              // Flutter onu 'Organizasyo / n' diye BOLUYORDU (bosluksuz
+              // kelimede sarma noktasi yok). FittedBox yalniz SIGMAYAN
+              // etiketi bir tik kucultur; sigan etiketler 14 dp kalir.
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                b.ad,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                // ⚠️ Kesif kartiyla AYNI yazi: 14 / 1.15 / w600.
+                style: const TextStyle(
+                  fontSize: 14,
+                  height: 1.15,
+                  fontWeight: FontWeight.w600,
+                ),
+                ),
+              ),
+            ),
           ),
         ],
       ),
