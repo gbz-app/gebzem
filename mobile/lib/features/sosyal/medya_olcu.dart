@@ -239,5 +239,14 @@ const BoxFit kMedyaDolgu = BoxFit.cover;
 ///    urettigini gosterdi: **ayni fotograf tek basina kirpilip kisaliyor,
 ///    ikinci fotograf eklenince UZUYOR ve kirpilmiyordu.**
 ///    Artik taban her iki yolda da ayni.
+/// ⚠️⚠️ TURU 97 — **COKLU GALERI %15 DAHA KISA** (kullanici emri:
+///	*"coklu resimde yuksekligi %15 azalt"*).
+///
+/// ⚠️ Yalnizca GALERI (2+ medya) etkilenir; TEK medyanin yuksekligi
+///    `medyaYuksekligi` ile hesaplanir ve DOKUNULMAMISTIR.
+/// ⚠️ Sabit `tavan` da carpilir: aksi halde dar/kisa ekranlarda kural
+///    tavana takilip %15'lik azalma UYGULANMAZDI.
+const double kGaleriKisaltma = 0.85;
+
 double galeriSatirYuksekligi(double tavan, double ogeTavani) =>
-    math.min(ogeTavani / kEnDikKutu, tavan);
+    math.min(ogeTavani / kEnDikKutu, tavan) * kGaleriKisaltma;

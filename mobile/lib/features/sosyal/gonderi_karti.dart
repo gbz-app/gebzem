@@ -627,6 +627,14 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
             onPressed: _menu,
           ),
         ),
+        // ⚠️⚠️ TURU 97 — BASLIK ILE ICERIK ARASINDA **NEFES** (kullanici:
+        //	*"gonderilerde profil gondere yapismis"*). `ListTile` burada
+        //	`dense: true` + `VisualDensity.compact` ile ciziliyor; ikisi
+        //	birlikte satirin DIKEY dolgusunu sifira yaklastiriyor ve avatar
+        //	altindaki medyaya YAPISIK gorunuyordu.
+        // ⚠️ Cozum `dense`i kaldirmak DEGIL (o zaman baslik satiri uzar ve
+        //    akista her kart buyur); yalnizca ARAYA bosluk konuyor.
+        const SizedBox(height: 8),
 
         // ---- METIN (medya ustunde — Facebook duzeni)
         if (g.metin.isNotEmpty)

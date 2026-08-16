@@ -6,7 +6,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import "../../core/yenile.dart";
 
-import '../home/home_screen.dart' show myProfileProvider;
+import '../home/home_screen.dart' show myProfileProvider, aktifSekme;
 import 'bildirim_sayaci.dart';
 import 'bildirimler_sayfasi.dart';
 import 'gonderi_karti.dart';
@@ -311,12 +311,49 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
       physics: const ClampingScrollPhysics(),
       child: Row(
         children: [
-          _bolmeYazisi(0, 'Takip Ettiklerin'),
+          // ⚠️ TURU 97 — 'Takip Ettiklerin' -> **'Arkadaşlar'** (kullanici emri).
+          _bolmeYazisi(0, 'Arkadaşlar'),
           _bolmeYazisi(1, 'Keşfet'),
+          // ⚠️⚠️ 'Canlı Yayın' bir AKIS BOLMESI DEGIL, alt menudeki CANLI
+          //	sekmesine giden bir KISAYOLDUR (kullanici emri: *"kesfetin
+          //	sagina Canli Yayin olsun"*).
+          //
+          // ⚠️⚠️ UCUNCU BOLME OLARAK EKLENMEDI ve sebebi kullanicinin
+          //	kendi uyarisidir (*"yer degistirince patlamasin"*):
+          //	`_bolmeYuklendi` ve `_bolmeKaydirma` **IKI ELEMANLI** sabit
+          //	dizilerdir; `_bolme = 2` yazmak bu dizilerde RANGE ERROR
+          //	verirdi. Yayin listesi ZATEN `LiveTab`ta yasiyor — ikinci bir
+          //	kopya yazmak yerine oraya goturuluyor.
+          // ⚠️ YAPMA: buraya `_bolmeYazisi(2, ...)` yazma; once iki diziyi
+          //    ve `_bolmeYukle` dallarini uc elemana cikarman gerekir.
+          _bolmeLinki('Canlı Yayın', () => aktifSekme.value = 4),
         ],
       ),
     ),
   );
+
+  /// Baska bir SEKMEYE goturen secici ogesi (secili hali YOKTUR).
+  Widget _bolmeLinki(String metin, VoidCallback git) => Semantics(
+        button: true,
+        label: metin,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: git,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+            child: Text(
+              metin,
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                color: Theme.of(context).colorScheme.onSurface.withValues(
+                      alpha: 0.45,
+                    ),
+              ),
+            ),
+          ),
+        ),
+      );
 
   Widget _bolmeYazisi(int deger, String metin) {
     final secili = _bolme == deger;

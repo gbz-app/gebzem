@@ -3,6 +3,9 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+
+// ⚠️ TURU 97 — 'bizim gri' TEK KAYNAK (kart yuzeyiyle ayni renk).
+import '../isletme/isletme_kart.dart' show kYuzeyGri;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -318,7 +321,14 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi>
       //    onceden beri var olan bu hata da kapatildi). 116, olcek ~1.6'ya
       //    kadar pay birakir.
       // ⚠️ YAPMA: 106'ya geri dusurme.
-      height: 116,
+      // ⚠️⚠️ TURU 97 — etiket satiri kaldirilinca serit kisaldi: 116 -> **90**.
+      //	⚠️ ILK DENEME **78** IDI ve emulatorde *"BOTTOM OVERFLOWED BY 11
+      //	PIXELS"* verdi: halka 60 + cember kenarligi/dolgusu (~9) + kose '+'
+      //	rozetinin tastigi (~2) + seridin dikey dolgusu hesaba katilmamisti.
+      //	OLCULEN gereksinim 89 dp; 90 yazildi (1 dp pay).
+      // ⚠️ YAPMA: bu sayiyi 'daha derli toplu dursun' diye tahminle dusurme;
+      //    tasma sessiz DEGIL ama yalniz debug derlemede gorunur.
+      height: 90,
       child: ListView(
         scrollDirection: Axis.horizontal,
         // ⚠️ TURU 82 — yatay 10 -> 12: serit ve gonderi kartlari AYNI dikey
@@ -352,12 +362,12 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi>
             child: _cember(
               halka: benim != null && !benim.hepsiIzlendi,
               gri: benim != null && benim.hepsiIzlendi,
-              child: Avatar(
-                ad: ad,
-                mediaId: profil?['avatar_media_id'] as String?,
-                avatarUrl: (profil?['avatar_url'] ?? '').toString(),
-                cap: 60,
-              ),
+              // ⚠️⚠️⚠️ TURU 97 — FOTOGRAF YOKSA **HARF DEGIL DUZ GRI DAIRE**
+              //	(kullanici emri: *"A yazmasin, bos olsun, gri bizim gri
+              //	renk olsun"*). Alt menudeki profil dairesiyle AYNI dil.
+              // ⚠️ Etiket de kaldirildigi icin (asagida) harf tek basina
+              //    zaten hicbir sey anlatmiyordu.
+              child: _benimAvatar(ad, profil),
             ),
           ),
           if (_yukleniyor)
@@ -383,7 +393,9 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi>
                 onTap: _paylasSecenek,
                 child: Container(
                   decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primary,
+                    // ⚠️ TURU 97 — kullanici emri: **SIYAH** (yesil vurgu
+                    //    degil). Alt menunun siyahiyla ayni dil.
+                    color: Colors.black,
                     shape: BoxShape.circle,
                     border: Border.all(
                       color: Theme.of(context).scaffoldBackgroundColor,
@@ -416,25 +428,52 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi>
     ),
   );
 
+  /// Fotograf varsa avatar, yoksa **duz gri daire** (turu 97).
+  Widget _benimAvatar(String ad, Map<String, dynamic>? profil) {
+    final mediaId = profil?['avatar_media_id'] as String?;
+    final url = (profil?['avatar_url'] ?? '').toString();
+    final fotografVar = (mediaId != null && mediaId.isNotEmpty) || url.isNotEmpty;
+    if (!fotografVar) {
+      return Container(
+        width: 60,
+        height: 60,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: kYuzeyGri(context),
+        ),
+      );
+    }
+    return Avatar(ad: ad, mediaId: mediaId, avatarUrl: url, cap: 60);
+  }
+
   Widget _kutu({required String etiket, required Widget child}) => SizedBox(
     // ⚠️ TURU 82 — kullanici: *"storyler arasinda bosluk cok az"*.
     //    Halka capi 60 + 2.5 + 2 dolgu = ~69dp; 74 genislikte aradaki bosluk
     //    yalnizca ~5dp kaliyordu. 84 -> ~15dp (Instagram'la ayni his).
     // ⚠️ YAPMA: 74'e geri dusurme.
     width: 84,
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        child,
-        const SizedBox(height: 5),
-        Text(
-          etiket,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 11),
-        ),
-      ],
+    // ⚠️⚠️⚠️ TURU 97 — **HIKAYE ETIKETLERI KALDIRILDI** (kullanici emri:
+    //	*"hikayen yazmasin, bir sey yazmasin"*). Halkanin altinda artik hicbir
+    //	yazi yok; serit yalniz dairelerden olusuyor.
+    //
+    // ⚠️ `etiket` parametresi **DURUYOR** ve `Semantics`e verilir: gorunur
+    //    yazisi olmayan bir daire ekran okuyucuda "resim" diye okunur ve
+    //    TalkBack kullanicisi kimin hikayesi oldugunu ANLAYAMAZ (alt menude
+    //    de ayni karar verildi — turu 96m).
+    // ⚠️ YAPMA: `etiket`i "kullanilmiyor" diye silme.
+    // ⚠️⚠️ `Column(mainAxisSize.min)` ZORUNLU — etiket kalksa bile.
+    //	Ilk denemede cocuk DOGRUDAN verilmisti ve serit ozeti soyle bozuldu:
+    //	`SizedBox`in yuksekligi YOK, yani cocuk seridin TAM YUKSEKLIGINE
+    //	yayiliyor; halkanin kose '+' rozeti `Positioned(bottom: -2)` ile
+    //	konumlandigi icin rozet DAIRENIN degil SERIDIN dibine dusuyordu
+    //	(ekranda daireden kopuk duruyordu).
+    // ⚠️ YAPMA: bu Column'u kaldirip cocugu dogrudan verme.
+    child: Semantics(
+      label: etiket,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [child],
+      ),
     ),
   );
 
