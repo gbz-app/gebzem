@@ -559,8 +559,12 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
       children: [
         // ---- BASLIK
         ListTile(
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: kBaslikYanDolgu,
+          // ⚠️ Sagda 8 dp EKSIK dolgu: `IconButton` kutusu (40) ikondan (24)
+          //    8 dp genis oldugu icin ikonun GORUNEN sag kenari tam
+          //    `kBaslikYanDolgu` cizgisine oturur (turu 98d).
+          contentPadding: const EdgeInsets.only(
+            left: kBaslikYanDolgu,
+            right: kBaslikYanDolgu - 8,
           ),
           leading: GestureDetector(
             onTap: () =>
@@ -590,7 +594,12 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
                     g.yazarAd,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.w600),
+                    // ⚠️ TURU 98d — kullanici: *"kullanici adi 1 tik daha buyuk
+                    //    olsun"*. `ListTile` varsayilani 16 (bodyLarge) idi.
+                    style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 6),
@@ -665,8 +674,22 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
           dense: true,
           visualDensity: VisualDensity.compact,
           horizontalTitleGap: kBaslikAra,
+          // ⚠️⚠️ TURU 98d — ••• **KARTIN SAG KENARINA HIZALANIR** (kullanici:
+          //	*"3 nokta tam sagda degil, onu da duzenle"*).
+          //
+          //	`IconButton` varsayilan olarak 48x48 kutuya 24'luk ikonu ortalar
+          //	(her yanda 12 dp) ve `contentPadding` 16 ile birlesince ikon
+          //	kartin sag kenarindan **28 dp** iceride kaliyordu — medya kutusu
+          //	ve etkilesim cubugu ise 16'da. Goz bunu "3 nokta ice kacmis"
+          //	diye okur.
+          // ⚠️ Dokunma hedefi KUCULMEZ: kutu 40x40 (Material asgari 48'e
+          //    yakin) ve komsu dokunma hedefi YOK.
           trailing: IconButton(
             icon: const Icon(LucideIcons.ellipsis),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+            // ⚠️ 8 = (40 - 24) / 2 -> ikonun sag kenari tam `kBaslikYanDolgu`da.
+            visualDensity: VisualDensity.compact,
             onPressed: _menu,
           ),
         ),

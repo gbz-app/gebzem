@@ -485,7 +485,7 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi>
               halka: durum == null && !k.hepsiIzlendi,
               gri: durum == null && k.hepsiIzlendi,
               duzRenk: renk,
-              child: Avatar(ad: k.ad, mediaId: k.avatarMediaId, cap: kHalkaCap),
+              child: _seritAvatar(k.ad, k.avatarMediaId, kHalkaCap),
             ),
           ),
           if (durum != null)
@@ -535,6 +535,35 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi>
     );
   }
 
+  /// ⚠️⚠️ TURU 98d — KAPSULDEKI IKI DAIRENIN ARASINDAKI **NEFES** (kullanici:
+  ///	*"ust uste binmesin, arasinda COK AZ bir bosluk olsun"*).
+  static const double kIkiliAra = 4;
+
+  /// ⚠️⚠️⚠️ TURU 98d — SERITTE **HARF YOK** (kullanici emri: *"harf
+  ///	olmayacak"*, ayrica turu 97'de kendi halkam icin de ayni sey
+  ///	istenmisti: *"A yazmasin, bos gri daire olsun"*).
+  ///
+  ///	`Avatar` fotograf yokken bas harfli renkli bir daire cizer; serit
+  ///	yazisiz bir dil kullandigi icin (etiketler turu 97'de kaldirildi) harf
+  ///	tek basina hicbir sey anlatmiyor, ustelik kendi halkamla DIGERLERI
+  ///	arasinda gorunum farki yaratiyordu.
+  /// ⚠️ TEK KAYNAK: hem halka hem kapsul hem kendi halkam bunu kullanir.
+  /// ⚠️ YAPMA: cagri yerlerine tekrar ciplak `Avatar` koyma.
+  Widget _seritAvatar(String ad, String? mediaId, double cap) {
+    final fotografVar = mediaId != null && mediaId.isNotEmpty;
+    if (!fotografVar) {
+      return Container(
+        width: cap,
+        height: cap,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: kYuzeyGri(context),
+        ),
+      );
+    }
+    return Avatar(ad: ad, mediaId: mediaId, cap: cap);
+  }
+
   /// ⚠️⚠️⚠️ TURU 98c — **CANLI YAYIN / SESLI ODA OGESI** (kullanici emri +
   ///	referans gorseli): daire DEGIL **KAPSUL**; icinde ust uste binen IKI
   ///	avatar, cevresinde durum rengiyle halka, sag ustte izleyici sayisi.
@@ -554,8 +583,14 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi>
   ) {
     // Ic cap: dis halka (2.5) + zemin boslugu (2) iki yandan = 9.
     const ic = kHalkaCap - 9;
-    // Ikinci avatarin GORUNEN payi (ust uste binme ~%40 — referans gorsel).
-    const kayma = ic * 0.58;
+    // ⚠️⚠️⚠️ TURU 98d — **UST USTE BINME KALDIRILDI** (kullanici emri:
+    //	*"canlida profiller ust uste binmesin, arasinda cok az bir bosluk
+    //	olsun; hepsi story paylasma dairesi buyuklugunde olsun"*).
+    //	Yani iki avatar da TAM CAP (`ic`) cizilir ve aralarinda yalniz
+    //	`kIkiliAra` kadar nefes olur; kapsul genisligi buna gore turer.
+    // ⚠️ Onceki hal referans gorseldeki gibi %42 bindirmeliydi; kullanici
+    //    sahada gorup REDDETTI. Bindirmeye geri donme.
+    const kayma = ic + kIkiliAra;
     return _kutu(
       etiket: y.durum == 'canli'
           ? '${k.ad} canlı yayında'
@@ -585,26 +620,11 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi>
                   //    ustte kalir — referans gorseldeki sira.
                   child: Stack(
                     children: [
-                      Positioned(
-                        right: 0,
-                        child: Avatar(ad: y.ikinciAd, cap: ic),
-                      ),
-                      // ⚠️ Ondeki avatarin cevresinde ZEMIN RENGINDE ince bir
-                      //    ayrac: iki avatar ayni renkteyse birbirine karisir.
-                      Container(
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: Theme.of(context).scaffoldBackgroundColor,
-                            width: 2,
-                          ),
-                        ),
-                        child: Avatar(
-                          ad: k.ad,
-                          mediaId: k.avatarMediaId,
-                          cap: ic - 4,
-                        ),
-                      ),
+                      // ⚠️ TURU 98d — bindirme YOK: ikisi de TAM CAP, aralarinda
+                      //    yalniz `kIkiliAra` nefes var. Ayrac cercevesine de
+                      //    GEREK KALMADI (daireler birbirine degmiyor).
+                      Positioned(right: 0, child: _seritAvatar(y.ikinciAd, null, ic)),
+                      _seritAvatar(k.ad, k.avatarMediaId, ic),
                     ],
                   ),
                 ),
