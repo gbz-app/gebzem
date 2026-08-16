@@ -268,11 +268,11 @@ class HizmetMenusu extends ConsumerWidget {
         const Color(0xFF0B7A5A),
       ], (c) => const IsletmeListesiEkrani(
           kategori: 'eczane', baslik: 'Eczaneler')),
-      _Bolum('Durak', [
-        const Color(0xFF6C7BFF),
-        const Color(0xFF2A3390),
-      ], (c) => const IsletmeListesiEkrani(
-          kategori: 'hizmet', baslik: 'Durak', ara: 'durak')),
+      // ⚠️⚠️ TURU 96y — SIRA **GEREKLILIGE GORE** (kullanici emri:
+      //	*"olmasi gereken gerekliligie gore sirala"*). Ilk dokuz kisayol
+      //	izgarada gorunur; gerisi 'Tümü' listesinden ulasilir.
+      //	Taksi ve akaryakit acil ihtiyactir; DURAK ise verisi olmayan
+      //	(kayitli isletme arayan) bir kisayol oldugu icin onlarin ARDINDA.
       _Bolum('Taksi', [
         const Color(0xFFFFC531),
         const Color(0xFFB88600),
@@ -283,6 +283,11 @@ class HizmetMenusu extends ConsumerWidget {
         const Color(0xFFB33A12),
       ], (c) => const IsletmeListesiEkrani(
           kategori: 'oto', baslik: 'Akaryakıt & Oto')),
+      _Bolum('Durak', [
+        const Color(0xFF6C7BFF),
+        const Color(0xFF2A3390),
+      ], (c) => const IsletmeListesiEkrani(
+          kategori: 'hizmet', baslik: 'Durak', ara: 'durak')),
       // ⚠️⚠️ TURU 96x — BES YENI KISAYOL (kullanici: *"ekle bir seyler
       //	daha"*). Hepsi **ZATEN VAR OLAN** isletme kategorileridir
       //	(`isletmeKategorileri`): yeni ekran, yeni uc, yeni migration YOK.
@@ -414,6 +419,16 @@ class HizmetMenusu extends ConsumerWidget {
                   // ⚠️ Kart genisligi izgara hucresinin **0.8 KATI**; kutu
                   //    yuksekligi de ayni oranda. Etiket yazisi KUCULMEZ
                   //    (14 dp) — okunurluk kartin suslemesinden onemli.
+                  // ⚠️⚠️⚠️ TURU 96y — **SABIT 2 x 5 = 10 HUCRE, KAYDIRMA YOK**
+                  //	(kullanici emri: *"sol sag 5 tane olacak, 2 satir
+                  //	olacak, 2. satirin sonunda 'hepsi' diyecek"*).
+                  //
+                  // ⚠️ Yatay kaydirmali izgara KALDIRILDI: orada ogeler
+                  //    once ASAGI sonra SAGA akiyordu, yani okuma sirasi
+                  //    sutun sutundu ve kullanici *"yerleri degistirme"*
+                  //    dedi. Dikey izgarada sira SOLDAN SAGA'dir.
+                  // ⚠️ Ilk **DOKUZ** kisayol cizilir, onuncu hucre 'Tümü';
+                  //    gerisi o listeden ulasilir (hicbiri KAYBOLMAZ).
                   LayoutBuilder(
                     builder: (c, bc) {
                       // ⚠️⚠️ TURU 96x — SATIRDA **BES KART** (kullanici emri:
@@ -429,27 +444,31 @@ class HizmetMenusu extends ConsumerWidget {
                               5;
                       final kutu = en * 0.878;
                       final satirBoy = kutu + 5 + etiketAlani;
-                      final tumu = [...hizliTumu, _tumuBolumu(bolumler)];
-                      return SizedBox(
-                        height: satirBoy * 2 + kIzgaraAralik,
-                        child: GridView.builder(
-                          scrollDirection: Axis.horizontal,
-                          // ⚠️ Yan bosluk LISTENIN DOLGUSUNDA: disariya
-                          //    `Padding` konsaydi kartlar kaydirirken 16 dp
-                          //    once KESILIRDI.
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: kYanBosluk),
-                          gridDelegate:
-                              SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
-                            crossAxisSpacing: kIzgaraAralik,
-                            mainAxisSpacing: kIzgaraAralik,
-                            mainAxisExtent: en,
-                          ),
-                          itemCount: tumu.length,
-                          itemBuilder: (_, i) =>
-                              _kart(context, tumu[i], kutuBoy: kutu),
+                      // ⚠️ 9 kisayol + 'Tümü' = 10 hucre (2 x 5).
+                      final gosterilen = [
+                        ...hizliTumu.take(9),
+                        // ⚠️ 'Tümü' listesi HEM hizli kisayollari HEM
+                        //    kategorileri icerir: izgaraya sigmayan hicbir
+                        //    giris ULASILAMAZ kalmasin.
+                        _tumuBolumu([...hizliTumu, ...kategoriler]),
+                      ];
+                      return GridView.builder(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: kYanBosluk),
+                        // ⚠️ Kendi kaydirmasi YOK: sayfanin tamami zaten
+                        //    `CustomScrollView` icinde kayiyor (turu 96v).
+                        physics: const NeverScrollableScrollPhysics(),
+                        shrinkWrap: true,
+                        gridDelegate:
+                            SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 5,
+                          crossAxisSpacing: kIzgaraAralik,
+                          mainAxisSpacing: kIzgaraAralik,
+                          mainAxisExtent: satirBoy,
                         ),
+                        itemCount: gosterilen.length,
+                        itemBuilder: (_, i) =>
+                            _kart(context, gosterilen[i], kutuBoy: kutu),
                       );
                     },
                   ),
