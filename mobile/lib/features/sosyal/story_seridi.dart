@@ -321,14 +321,24 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi>
       //    onceden beri var olan bu hata da kapatildi). 116, olcek ~1.6'ya
       //    kadar pay birakir.
       // ⚠️ YAPMA: 106'ya geri dusurme.
-      // ⚠️⚠️ TURU 97 — etiket satiri kaldirilinca serit kisaldi: 116 -> **90**.
-      //	⚠️ ILK DENEME **78** IDI ve emulatorde *"BOTTOM OVERFLOWED BY 11
-      //	PIXELS"* verdi: halka 60 + cember kenarligi/dolgusu (~9) + kose '+'
-      //	rozetinin tastigi (~2) + seridin dikey dolgusu hesaba katilmamisti.
-      //	OLCULEN gereksinim 89 dp; 90 yazildi (1 dp pay).
-      // ⚠️ YAPMA: bu sayiyi 'daha derli toplu dursun' diye tahminle dusurme;
-      //    tasma sessiz DEGIL ama yalniz debug derlemede gorunur.
-      height: 90,
+      // ⚠️⚠️⚠️ TURU 97d — YUKSEKLIK **TURETILIR, ELLE YAZILMAZ**.
+      //
+      //	Gecmis: 116 (etiketliyken) -> 78 (etiket kalkti; **emulatorde
+      //	'BOTTOM OVERFLOWED BY 11 PIXELS' verdi**) -> 90. Her seferinde
+      //	sayi TAHMIN edildigi icin bir kez tasti. Artik formul:
+      //	  halka capi
+      //	  + ic dolgu 2x2   = 4
+      //	  + dis dolgu 2x2.5 = 5
+      //	  + **KENARLIK 2x2 = 4**  <- ILK FORMULDE UNUTULDU
+      //	  + seridin dikey dolgusu (2 x `kDikey`)
+      //
+      // ⚠️⚠️ Kenarlik (`Border.all(width: 2)`) kutuyu BUYUTUR; ilk formul
+      //	onu saymadigi icin emulatorde *"RenderFlex overflowed by 2.0
+      //	pixels"* verdi. **Olcup duzeltildi** — tahminle degil.
+      // ⚠️ Kullanici *"ust ve alttan boslugu biraz azalt"* dedi: dikey
+      //    dolgu 8 -> **4**. Halka 10 dp buyudu ama serit yalnizca 1 dp
+      //    uzadi (90 -> 91).
+      height: kHalkaCap + 13 + kDikey * 2,
       child: ListView(
         scrollDirection: Axis.horizontal,
         // ⚠️ TURU 82 — yatay 10 -> 12: serit ve gonderi kartlari AYNI dikey
@@ -336,7 +346,7 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi>
         //    metin, etkilesim cubugu); serit 10'da kaldigi surece hikaye
         //    halkalari kartlardan 2dp SOLDA duruyor ve goz bunu hizasizlik
         //    olarak okuyor.
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: kDikey),
         children: [
           _benimHalka(benim, benimProfil),
           for (final k in digerleri) _halka(k),
@@ -429,6 +439,15 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi>
     );
   }
 
+  /// ⚠️⚠️ TURU 97d — HALKA CAPI **60 -> 70** (kullanici emri: *"story daire
+  ///	10px daha buyut"*). TEK SABIT: uc cizim yeri de bunu okur (kendi
+  ///	halkam · baskasinin halkasi · fotografsiz gri daire). Uc yere ayri
+  ///	sayi yazilsaydi biri guncellenip otekiler geride kalirdi.
+  static const double kHalkaCap = 70;
+
+  /// Seridin ust/alt boslugu (kullanici emri: *"biraz daha azalt"*): 8 -> 4.
+  static const double kDikey = 4;
+
   Widget _halka(StoryKullanici k) => _kutu(
     etiket: k.ad.isEmpty ? '@${k.kullaniciAdi}' : k.ad,
     child: GestureDetector(
@@ -436,7 +455,7 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi>
       child: _cember(
         halka: !k.hepsiIzlendi,
         gri: k.hepsiIzlendi,
-        child: Avatar(ad: k.ad, mediaId: k.avatarMediaId, cap: 60),
+        child: Avatar(ad: k.ad, mediaId: k.avatarMediaId, cap: kHalkaCap),
       ),
     ),
   );
@@ -448,23 +467,26 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi>
     final fotografVar = (mediaId != null && mediaId.isNotEmpty) || url.isNotEmpty;
     if (!fotografVar) {
       return Container(
-        width: 60,
-        height: 60,
+        width: kHalkaCap,
+        height: kHalkaCap,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           color: kYuzeyGri(context),
         ),
       );
     }
-    return Avatar(ad: ad, mediaId: mediaId, avatarUrl: url, cap: 60);
+    return Avatar(ad: ad, mediaId: mediaId, avatarUrl: url, cap: kHalkaCap);
   }
 
   Widget _kutu({required String etiket, required Widget child}) => SizedBox(
-    // ⚠️ TURU 82 — kullanici: *"storyler arasinda bosluk cok az"*.
-    //    Halka capi 60 + 2.5 + 2 dolgu = ~69dp; 74 genislikte aradaki bosluk
-    //    yalnizca ~5dp kaliyordu. 84 -> ~15dp (Instagram'la ayni his).
-    // ⚠️ YAPMA: 74'e geri dusurme.
-    width: 84,
+    // ⚠️⚠️ TURU 97d — GENISLIK DE **TURETILIR**: halka capi + cember dolgusu
+    //	(9) + halkalar arasi bosluk (**15**, turu 82'de kullanicinin istedigi
+    //	'Instagram hissi'). Halka 60 -> 70 buyuyunce bu sayi elle
+    //	guncellenmeseydi kutu 84'te kalir ve halkalar birbirine YAPISIRDI
+    //	(70 + 9 = 79, geriye 5 dp kalirdi — tam da turu 82'de sikayet edilen
+    //	durum).
+    // ⚠️ YAPMA: buraya sabit sayi yazma.
+    width: kHalkaCap + 9 + 15,
     // ⚠️⚠️⚠️ TURU 97 — **HIKAYE ETIKETLERI KALDIRILDI** (kullanici emri:
     //	*"hikayen yazmasin, bir sey yazmasin"*). Halkanin altinda artik hicbir
     //	yazi yok; serit yalniz dairelerden olusuyor.
