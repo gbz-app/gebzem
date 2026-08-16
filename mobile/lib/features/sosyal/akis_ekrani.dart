@@ -404,8 +404,21 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
                 style: TextStyle(
                   // ⚠️ TURU 82 — kullanici emri: +2px (15 -> 17).
                   fontSize: 17,
-                  // ⚠️ Aktif/pasif AYRIMI IKI ISARETLE: kalinlik VE renk.
-                  fontWeight: secili ? FontWeight.w800 : FontWeight.w500,
+                  // ⚠️⚠️⚠️ TURU 97c — **KALINLIK ARTIK DEGISMIYOR** (kullanici
+                  //	IKINCI kez *"gecis yaparken oynuyor"* dedi).
+                  //
+                  //	Kutu genisligi gorunmez w800 kopyayla SABITLENMISTI, yani
+                  //	etiketler YER DEGISTIRMIYORDU (olculdu: Kesfet x=331,
+                  //	Canli Yayin x=524 - uc durumda da ayni). Ama kalinlik
+                  //	w500 <-> w800 arasinda degisince HARFLERIN KENDISI kutu
+                  //	icinde geniyor/daraliyor; goz bunu 'oynama' olarak
+                  //	okuyor. Tek kesin cozum kalinligi SABITLEMEK.
+                  //
+                  // ⚠️ Bu, turu 80'in *"yazi KALIN olsun"* tercihini
+                  //    GUNCELLER: ayrim artik yalniz RENKTEN (koyu <-> %45
+                  //    soluk). Instagram/Threads da boyle yapar.
+                  // ⚠️ YAPMA: kalinligi tekrar secime bagli yapma.
+                  fontWeight: FontWeight.w700,
                   color: secili
                       ? Theme.of(context).colorScheme.onSurface
                       : Theme.of(

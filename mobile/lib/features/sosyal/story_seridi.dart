@@ -386,9 +386,22 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi>
               ),
             )
           else
+            // ⚠️⚠️⚠️ TURU 97c — '+' ROZETI **DAIRENIN KENARINA** oturur
+            //	(kullanici: *"+ daire storynin disina kalmis"*).
+            //
+            //	OLCU (hesaplandi): `_cember` iki ic ice `Container`dir —
+            //	dis dolgu 2.5 + ic dolgu 2 = **4.5 dp**; yani `Stack` kutusu
+            //	60 + 9 = **69 dp**, gorunen daire ise ortadaki **60 dp**.
+            //	Eski deger (-2) rozetin MERKEZINI kutunun disina, daire
+            //	merkezinden **38 dp** uzaga koyuyordu — daire yaricapi 30,
+            //	yani rozet daireden **8 dp KOPUKTU**.
+            //	Dairenin 45 derecelik kenar noktasi merkezden 30 dp uzakta:
+            //	  kenar = 34.5 + 30*0.707 = 55.7  ->  rozet (19 dp) sol/ust
+            //	  kosesi 46.2  ->  sag/alt bosluk = 69 - 46.2 - 19 = **3.8**
+            // ⚠️ YAPMA: negatif degere dondurme; rozet daireden kopar.
             Positioned(
-              right: -2,
-              bottom: -2,
+              right: 4,
+              bottom: 4,
               child: GestureDetector(
                 onTap: _paylasSecenek,
                 child: Container(
