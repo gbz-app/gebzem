@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../etkinlik/etkinlik_ekranlari.dart';
 import '../kanal/kanallar_sekmesi.dart' show KanallarSayfasi;
@@ -286,7 +287,19 @@ class HizmetMenusu extends ConsumerWidget {
     // ⚠️ Hizli erisim listesi BURADA kurulur: `yakinimda` nullable ve
     //    Dart bunu closure icinde daraltmiyor (analiz hatasi verdi).
     //    Koleksiyon-if ile tek seferde null-guvenli hale getirilir.
-    final hizliTumu = <_Bolum>[if (yakinimda != null) yakinimda, ...hizli];
+    // ⚠️⚠️ TURU 96w — SIRA: **GebzemAI · Sosyal · Yakınımda · ...**
+    //	(kullanici emri: *"yakinimda sosyalden sonra olacak"*).
+    //	`hizli` listesinin ilk iki ogesi GebzemAI ve Sosyal; Yakinimda
+    //	onlarin ARDINA eklenir, kalanlar (eczane/durak/taksi/akaryakit)
+    //	sirasini korur.
+    // ⚠️ AI kapaliyken `hizli` bir oge eksik baslar; bu yuzden konum SABIT
+    //    SAYIYLA degil, 'Sosyal'in indeksinden TURETILIR.
+    final sosyalNo = hizli.indexWhere((b) => b.ad == 'Sosyal');
+    final hizliTumu = <_Bolum>[
+      ...hizli.take(sosyalNo + 1),
+      if (yakinimda != null) yakinimda,
+      ...hizli.skip(sosyalNo + 1),
+    ];
 
     // ⚠️⚠️⚠️ TURU 96v — **SAYFANIN TAMAMI BIRLIKTE KAYAR** (kullanici emri:
     //	*"asagi inerken sadece kategoriler iniyor; komple asagi inmesi
@@ -361,25 +374,44 @@ class HizmetMenusu extends ConsumerWidget {
                   const SizedBox(height: 10),
                   // ⚠️ TEK SATIR + YATAY KAYDIRMA (turu 96u). Kart genisligi
                   //    izgarayla AYNI: ekranda dort kart, besincisi SARKAR.
+                  // ⚠️⚠️⚠️ TURU 96w — **IKI SATIR + YATAY KAYDIRMA** ve
+                  //	kartlar kategori kartlarindan **%20 KUCUK**
+                  //	(kullanici emri).
+                  //
+                  // ⚠️ `GridView` YATAY yonde: `crossAxisCount: 2` burada
+                  //    SUTUN degil **SATIR** sayisidir (cross ekseni dikey).
+                  //    Ogeler once ASAGI, sonra SAGA akar.
+                  // ⚠️ Kart genisligi izgara hucresinin **0.8 KATI**; kutu
+                  //    yuksekligi de ayni oranda. Etiket yazisi KUCULMEZ
+                  //    (14 dp) — okunurluk kartin suslemesinden onemli.
                   LayoutBuilder(
                     builder: (c, bc) {
-                      final en =
+                      final izgaraEn =
                           (bc.maxWidth - kYanBosluk * 2 - kIzgaraAralik * 3) /
                               4;
+                      final en = izgaraEn * 0.8;
+                      final kutu = kKesifKutu * 0.8;
+                      final satirBoy = kutu + 5 + etiketAlani;
+                      final tumu = [...hizliTumu, _tumuBolumu(bolumler)];
                       return SizedBox(
-                        height: hucreBoy,
-                        child: ListView.separated(
+                        height: satirBoy * 2 + kIzgaraAralik,
+                        child: GridView.builder(
                           scrollDirection: Axis.horizontal,
                           // ⚠️ Yan bosluk LISTENIN DOLGUSUNDA: disariya
                           //    `Padding` konsaydi kartlar kaydirirken 16 dp
                           //    once KESILIRDI.
                           padding: const EdgeInsets.symmetric(
                               horizontal: kYanBosluk),
-                          itemCount: hizliTumu.length,
-                          separatorBuilder: (_, __) =>
-                              const SizedBox(width: kIzgaraAralik),
-                          itemBuilder: (_, i) => SizedBox(
-                              width: en, child: _kart(context, hizliTumu[i])),
+                          gridDelegate:
+                              SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            crossAxisSpacing: kIzgaraAralik,
+                            mainAxisSpacing: kIzgaraAralik,
+                            mainAxisExtent: en,
+                          ),
+                          itemCount: tumu.length,
+                          itemBuilder: (_, i) =>
+                              _kart(context, tumu[i], kutuBoy: kutu),
                         ),
                       );
                     },
@@ -423,6 +455,20 @@ class HizmetMenusu extends ConsumerWidget {
       ),
     );
   }
+
+  /// ⚠️⚠️⚠️ TURU 96w — HIZLI ERISIMIN SONUNDAKI **"Tümü"** KARTI (kullanici
+  ///	emri: *"en sonunda hepsi ya da tumu gibi bir sey olsun, tikladiginda
+  ///	LISTE seklinde gelsin"*).
+  ///
+  /// ⚠️ Liste ekrani **AYNI `_Bolum` LISTESINDEN** beslenir: ikinci bir menu
+  ///    tanimi yazilsaydi yeni bir kart eklendiginde biri guncellenip oteki
+  ///    geride kalirdi (bu projede "ayni kuralin iki kopyasi drift eder"
+  ///    sinifi ALTI kez sahaya cikti).
+  _Bolum _tumuBolumu(List<_Bolum> hepsi) => _Bolum(
+        'Tümü',
+        [const Color(0xFF8E8E93), const Color(0xFF4A4A4F)],
+        (c) => _TumuEkrani(bolumler: hepsi),
+      );
 
   /// Kart etiketi — kategori ekranindaki kesif kartiyla AYNI yazi (14/1.15/w600).
   Widget _etiket(String ad) => Text(
@@ -515,7 +561,10 @@ class HizmetMenusu extends ConsumerWidget {
   /// ⚠️ `RepaintBoundary`: her kart kendi katmaninda cizilir; biri
   ///    degistiginde (dokunma dalgasi) DIGER 15 kart yeniden BOYANMAZ.
   ///    Turu 91 performans maddesi.
-  Widget _kart(BuildContext context, _Bolum b) => RepaintBoundary(
+  /// ⚠️ [kutuBoy] verilmezse izgara olcusu (`kKesifKutu`). Hizli erisim
+  ///    kartlari bunun **%80**'ini kullanir (turu 96w kullanici emri).
+  Widget _kart(BuildContext context, _Bolum b, {double? kutuBoy}) =>
+      RepaintBoundary(
     child: GestureDetector(
       onTap: () => _ac(context, b),
       // ⚠️ `opaque`: kutunun ALTINDAKI bosluga (yazi ile kutu arasi) dokunmak
@@ -531,11 +580,12 @@ class HizmetMenusu extends ConsumerWidget {
           // ⚠️ YAPMA: buraya gradyan/ikon/harf geri koyma (kullanici kategori
           //    ekraninda kutu icine konan HER SEYI uc kez kaldirtti).
           SizedBox(
-            height: kKesifKutu,
+            height: kutuBoy ?? kKesifKutu,
             child: DecoratedBox(
               decoration: BoxDecoration(
                 color: kYuzeyGri(context),
-                borderRadius: BorderRadius.circular(kYaricap(kKesifKutu)),
+                borderRadius:
+                    BorderRadius.circular(kYaricap(kutuBoy ?? kKesifKutu)),
               ),
             ),
           ),
@@ -587,6 +637,56 @@ class _Bolum {
   /// ⚠️ HER BOLUM GERCEK BIR EKRANA GIDER. `null` (yakında) DESTEGI YOK —
   ///    ekran yoksa kart EKLENMEZ.
   final Widget Function(BuildContext) ac;
+}
+
+/// ⚠️⚠️⚠️ TURU 96w — **"Tümü" LISTESI** (kullanici emri: *"tikladiginda liste
+///	seklinde gelsin"*).
+///
+///	Menudeki HER bolum burada tek sutunlu bir liste olarak gorunur. Kartlarda
+///	ad kisadir ve kutu renksizdir; listede ise ad + KUCUK RENK NOKTASI vardir,
+///	yani kullanici menude gordugu rengi burada da taniyabilir.
+///
+/// ⚠️ Bolum listesi DISARIDAN gelir (`bolumler`): bu ekran KENDI menusunu
+///    TANIMLAMAZ. Aksi halde menuye eklenen yeni bir kart burada eksik kalir
+///    ve fark ancak kullanici sikayet edince anlasilirdi.
+class _TumuEkrani extends StatelessWidget {
+  const _TumuEkrani({required this.bolumler});
+
+  final List<_Bolum> bolumler;
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(title: const Text('Tümü')),
+        body: ListView.separated(
+          itemCount: bolumler.length,
+          separatorBuilder: (_, __) => const Divider(height: 1),
+          itemBuilder: (_, i) {
+            final b = bolumler[i];
+            return ListTile(
+              // ⚠️ Renk NOKTASI: menudeki kart renginin ta kendisi.
+              leading: Container(
+                width: 12,
+                height: 12,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(colors: b.renkler),
+                ),
+              ),
+              title: Text(
+                b.ad,
+                style: const TextStyle(
+                    fontSize: 15, fontWeight: FontWeight.w600),
+              ),
+              trailing: const Icon(LucideIcons.chevronRight, size: 18),
+              // ⚠️ Bu ekran bir ROUTE (sheet DEGIL): once pop etmeye gerek yok,
+              //    hedef ekran bunun USTUNE push edilir ve geri tusu buraya
+              //    doner.
+              onTap: () => Navigator.of(context)
+                  .push(MaterialPageRoute(builder: b.ac)),
+            );
+          },
+        ),
+      );
 }
 
 /// Anasayfa AppBar'inin sol ustundeki hamburger dugmesi.
