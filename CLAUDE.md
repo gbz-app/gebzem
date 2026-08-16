@@ -17,6 +17,57 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (16 Agu 20:11): TURU 98e-98i YAYINLANDI** — android
+  **31960110991** + ios **31960112573** (**142a630**), R2 apk=121992523
+  (md5 168c36fb) ipa=31636527 (md5 679375ff) index=12167 (md5 5e9313fc)
+  **surum.json=48 (md5 175444c0)**, purge OK, **CDN DORDU DE BIREBIR**,
+  debug imza YOK, harita anahtari enjekte. **BACKEND DEGISMEDI.**
+  flutter analyze 0/0 · flutter test **40/40** · emulatorde 0 tasma.
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260816-2011
+- 📌 **TURU 98e-98i — ARAYUZ (kullanici emirleri + Threads referansi):**
+  · bolme secici **APPBAR ORTASINDA** (+ ile bildirim arasi).
+    ⚠️ `titleSpacing: 0` ZORUNLU — varsayilan 16+16 dp "Canlı Yayın"in son
+       harfini KIRPIYORDU (ekranda olculdu).
+    ⚠️ Ortalama `Align` ILE OLMAZ: `SingleChildScrollView` cocuguna
+       kaydirma ekseninde SINIRSIZ genislik verir. Dogrusu `LayoutBuilder`
+       + `ConstrainedBox(minWidth: alan)` + `MainAxisAlignment.center`.
+  · ust cubuk ikonlari `kAltMenuIkonBoy` (alt menuyle TEK KAYNAK, import).
+  · hikaye daireleri **65 dp** ve **HEPSI ESIT** (ekleme dairesi dahil);
+    aralik **9 dp** (`kAralik`), serit -> ilk gonderi **20 dp**.
+    ⚠️ Kapsulun GORUNEN genisligi zaten `cap + kayma + 9`; kutu buna ESIT
+       yapilirsa aradaki bosluk **0** olur (bir kez oyle yazildi, canli ile
+       oda BITISIK cikti). Kutu = gorunen + `kAralik`.
+    ⚠️ Halkasiz (kendi) daire `_cember` dolgusunu KULLANIR, yoksa gorunen
+       cap kardeslerinden 9 dp kucuk kalir.
+  · canli/oda kapsulunde **iki profil UST USTE** (98d ayirmisti, 98e geri
+    aldi — SON SOZ KULLANICIDA) + zemin renginde ayrac + izleyici sayisi.
+  · gonderi basligi `ListTile`dan CIKARILDI: ad avatarin UST kenariyla
+    hizali, aciklama AYNI kolonda; **ad->aciklama** ve **aciklama->medya**
+    bosluklari TEK SABITTEN (`kIcBosluk`) gelir, yani YAPISAL OLARAK esit.
+  · begenilince **DOLU KIRMIZI KALP**: Lucide 3.1.14 dolu kalp ICERMIYOR
+    (kontrol edildi) -> YALNIZ o durumda Material `Icons.favorite`.
+    Sayi da KIRMIZI + degisince YUKARI kayan gecis.
+  · sayilar ikon boyunda (13 -> 15); paylas ikonu 24 -> 23; repost `redo2`.
+  · **GONDERI DETAYI Threads duzeni**: "Yazışma" + goruntulenme · Başlıca /
+    Hareketi gör · threadli mockup yorumlar (mavi tik · yazar begenisi ·
+    "Gönderi sahibi" rozeti · "Yanıtları göster" · bagli alt yanit).
+  · akista bazi gonderilerin ALTINDA tek yanit · **SPONSORLU** gonderi
+    (zaman yerine "Sponsorlu" + alan adi/CTA karti).
+    ⚠️ **DURUST SINIR:** sponsorlu kart TIKLANMAZ (reklam altyapisi yok);
+       yorumlar/izleyici sayilari DEMO verisidir.
+- ⚠️⚠️ **TURU 98i — OLCULEN UC HATA:**
+  · `DemoYorumSatiri`daki thread cizgisi `Expanded` ile SINIRSIZ yukseklik
+    kisiti aliyordu -> *"RenderBox was not laid out"* -> **DETAY EKRANI
+    BOMBOS aciliyordu**. FIX: `IntrinsicHeight`. ⚠️ YAPMA: kaldirma.
+  · Demo acikken **SAYFALAMA sunucudan cekmeye DEVAM EDIYORDU**: demo
+    kartlarin altina GERCEK gonderiler ekleniyordu (`_dahaGetir` kapisi).
+  · Sahte yanit **GERCEK gonderilerin altinda da** ciziliyordu
+    (`demoKimlik` kapisi).
+- ⚠️ **TURU 98h — ALT MENU KOSELERINDE BEYAZLIK** (kullanici sahada gordu):
+  radius disi ucgenler SAYDAM oldugu icin sayfa gecisinde arkadaki BEYAZ
+  sayfa goruluyordu. FIX: cubugun ARKASINA uygulama zemini boyandi.
+  ⚠️ Radius KALDIRILMADI. ⚠️ Muhafiz testi iki `ColoredBox` gorunce
+     patliyordu; olcut artik `ClipRRect` ICINDEKI cubuk zemini.
 - **KALDIGIMIZ YER (16 Agu 16:56): TURU 98 + 98b/c/d YAYINLANDI** — android
   **31950598996** + ios **31950603733** (**2067a50**), R2 apk=121992539
   (md5 3371f917) ipa=31634251 (md5 044db861) index=11863 (md5 013246d1)

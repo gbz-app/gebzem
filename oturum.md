@@ -7399,3 +7399,41 @@ Bu yöntem, statik denetimin göremediği iki hatayı yakaladı.
   akış semantiği) yok.
 - `active_call_controller.dart` ~500 satırlık ölü bekletme/park zinciri
   (kullanıcı emriyle en sona bırakıldı).
+
+---
+
+## Oturum — Turu 98e–98i (16 Ağustos 2026, 20:11) — THREADS DÜZENİ · YAYINLANDI
+
+**Yayın:** android **31960110991** + ios **31960112573** (`142a630`) ·
+apk=121992523 (md5 168c36fb) · ipa=31636527 (md5 679375ff) ·
+index=12167 (5e9313fc) · surum.json (175444c0) · **CDN dördü de birebir** ·
+debug imza YOK · **backend değişmedi**.
+Adres: https://indir.gebzem.app/index.html?v=20260816-2011
+
+### ✅ Yapılanlar
+- Bölme seçici **AppBar ortasına** (+ ile bildirim arası); üst çubuk ikonları
+  alt menüyle aynı ölçüde (tek kaynak import).
+- Hikâye daireleri **65 dp**, hepsi eşit; aralık **9 dp**; şerit → ilk gönderi
+  **20 dp**. Canlı/oda kapsülünde **iki profil üst üste** + izleyici sayısı.
+- Gönderi başlığı `ListTile`dan çıkarıldı: ad avatarın üst kenarıyla hizalı,
+  açıklama aynı kolonda; ad→açıklama ve açıklama→medya boşlukları tek sabitten.
+- Beğenilince **dolu kırmızı kalp** + kırmızı sayı + yukarı kayan geçiş;
+  sayılar ikon boyunda; paylaş ikonu eşitlendi; repost → `redo2`.
+- **Gönderi detayı Threads düzeni** (Yazışma · görüntülenme · Başlıca /
+  Hareketi gör · threadli mockup yorumlar) + **akışta tek yanıt** +
+  **sponsorlu gönderi**.
+
+### 🐞 Ölçülen hatalar
+1. Thread çizgisindeki `Expanded` sınırsız yükseklik kısıtı alıyordu →
+   "RenderBox was not laid out" → **detay ekranı bomboş**. FIX: `IntrinsicHeight`.
+2. Demo açıkken **sayfalama** sunucudan çekmeye devam ediyor, demo kartların
+   altına gerçek gönderiler ekleniyordu.
+3. Sahte yanıt **gerçek gönderilerin altında da** çiziliyordu.
+4. Alt menü köşelerinde sayfa geçişlerinde **beyazlık** (radius dışı üçgenler
+   saydamdı) → çubuğun arkasına uygulama zemini boyandı.
+5. Kapsülün kutu genişliği görünen genişliğe eşitlenince **canlı ile oda
+   bitişik** kalıyordu (boşluk 0).
+
+### ⚠️ Açık
+- `kDemoAkis = true` — gerçek yayından önce `false`.
+- Sponsorlu kart tıklanmaz, repost altyapısı yok, yorumlar demo verisi.
