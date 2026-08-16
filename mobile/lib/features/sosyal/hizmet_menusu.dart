@@ -283,6 +283,36 @@ class HizmetMenusu extends ConsumerWidget {
         const Color(0xFFB33A12),
       ], (c) => const IsletmeListesiEkrani(
           kategori: 'oto', baslik: 'Akaryakıt & Oto')),
+      // ⚠️⚠️ TURU 96x — BES YENI KISAYOL (kullanici: *"ekle bir seyler
+      //	daha"*). Hepsi **ZATEN VAR OLAN** isletme kategorileridir
+      //	(`isletmeKategorileri`): yeni ekran, yeni uc, yeni migration YOK.
+      // ⚠️ YAPMA: buraya karsiligi olmayan bir baslik ekleme — kart
+      //    gercek bir ekrana gitmiyorsa EKLENMEZ (turu 76b dersi).
+      _Bolum('Kuaför', [
+        const Color(0xFFEC4FA0),
+        const Color(0xFF7B1E6A),
+      ], (c) => const IsletmeListesiEkrani(
+          kategori: 'kuafor', baslik: 'Kuaför')),
+      _Bolum('Güzellik', [
+        const Color(0xFFFF6B9D),
+        const Color(0xFFB03060),
+      ], (c) => const IsletmeListesiEkrani(
+          kategori: 'guzellik', baslik: 'Güzellik Merkezi')),
+      _Bolum('Oto Servis', [
+        const Color(0xFF6C7BFF),
+        const Color(0xFF2A3390),
+      ], (c) => const IsletmeListesiEkrani(
+          kategori: 'oto', baslik: 'Oto & Servis')),
+      _Bolum('Emlak', [
+        const Color(0xFF17C3CE),
+        const Color(0xFF0A5B78),
+      ], (c) => const IsletmeListesiEkrani(
+          kategori: 'emlak', baslik: 'Emlak')),
+      _Bolum('Spor', [
+        const Color(0xFF2BB673),
+        const Color(0xFF0E7A52),
+      ], (c) => const IsletmeListesiEkrani(
+          kategori: 'spor', baslik: 'Spor')),
     ];
     // ⚠️ Hizli erisim listesi BURADA kurulur: `yakinimda` nullable ve
     //    Dart bunu closure icinde daraltmiyor (analiz hatasi verdi).
@@ -386,11 +416,18 @@ class HizmetMenusu extends ConsumerWidget {
                   //    (14 dp) — okunurluk kartin suslemesinden onemli.
                   LayoutBuilder(
                     builder: (c, bc) {
-                      final izgaraEn =
-                          (bc.maxWidth - kYanBosluk * 2 - kIzgaraAralik * 3) /
-                              4;
-                      final en = izgaraEn * 0.8;
-                      final kutu = kKesifKutu * 0.8;
+                      // ⚠️⚠️ TURU 96x — SATIRDA **BES KART** (kullanici emri:
+                      //	*"5 satir yapsana, 4 tane olmus"*). Genislik
+                      //	dogrudan BESE bolunur; onceki hal 'dortlu izgaranin
+                      //	%80'i' idi ve ekranda yine DORT kart cikiyordu.
+                      // ⚠️ Kutu oraninin izgarayla AYNI kalmasi icin
+                      //    yukseklik genislikten TURETILIR (78/88.8 = 0.878);
+                      //    sabit yazilsaydi kartlar dar ekranda kare,
+                      //    genisde basik gorunurdu.
+                      final en =
+                          (bc.maxWidth - kYanBosluk * 2 - kIzgaraAralik * 4) /
+                              5;
+                      final kutu = en * 0.878;
                       final satirBoy = kutu + 5 + etiketAlani;
                       final tumu = [...hizliTumu, _tumuBolumu(bolumler)];
                       return SizedBox(
