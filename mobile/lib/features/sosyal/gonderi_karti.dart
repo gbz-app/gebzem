@@ -17,13 +17,23 @@ import '../chats/moderasyon_sheet.dart';
 import '../medya/tam_ekran_gorsel.dart';
 import '../medya/tam_ekran_video.dart';
 import 'gorunurluk.dart';
-import '../isletme/isletme_kart.dart' show kYuzeyGri;
+import '../isletme/isletme_kart.dart' show kYuzeyGri, kYanBosluk;
 import 'demo_veri.dart';
 import 'medya_olcu.dart';
 import 'medya_video.dart';
 import 'paylas_sheet.dart';
 import 'sosyal_servisi.dart';
 import 'yorumlar_sayfasi.dart';
+
+/// ⚠️⚠️ TURU 98c — BASLIK SATIRININ **YAN DOLGUSU** (kullanici: *"sol sag
+///	bosluklar yemekteki gibi olacak"*) — kategori ekraniyla ayni olcu.
+///
+/// ⚠️ Metnin girintisi BU SABITTEN TURETILIR (`+ avatar 38 + kBaslikAra`);
+///    iki yerde ayri sayi yazilirsa metin adin altindan KAYAR.
+const double kBaslikYanDolgu = kYanBosluk;
+
+/// Avatar ile ad arasindaki bosluk (`ListTile.horizontalTitleGap`).
+const double kBaslikAra = 10;
 
 /// ⚠️⚠️ TURU 75 — AKISTAKI GONDERI KARTI (Instagram/Facebook duzeni).
 ///
@@ -276,74 +286,77 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
       builder: (c) => DenetleyiciSahibi(
         denetleyiciler: [ctrl],
         child: Padding(
-        // ⚠️ viewInsets: klavye acilinca sheet YUKARI kayar; yoksa kaydet
-        //    dugmesi klavyenin ALTINDA kalir ve ulasilamaz.
-        padding: EdgeInsets.only(bottom: MediaQuery.of(c).viewInsets.bottom),
-        child: StatefulBuilder(
-          builder: (c2, yenile) => SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Gönderiyi düzenle',
-                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: ctrl,
-                    maxLines: 6,
-                    minLines: 3,
-                    maxLength: 2200,
-                    decoration: const InputDecoration(
-                      hintText: 'Açıklama',
-                      border: OutlineInputBorder(),
+          // ⚠️ viewInsets: klavye acilinca sheet YUKARI kayar; yoksa kaydet
+          //    dugmesi klavyenin ALTINDA kalir ve ulasilamaz.
+          padding: EdgeInsets.only(bottom: MediaQuery.of(c).viewInsets.bottom),
+          child: StatefulBuilder(
+            builder: (c2, yenile) => SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Gönderiyi düzenle',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
-                  ),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    value: kapali,
-                    onChanged: (v) => yenile(() => kapali = v),
-                    title: const Text('Yorumları kapat'),
-                  ),
-                  // ⚠️⚠️ TURU 90c — KONUM KALDIRMA (GIZLILIK).
-                  //    Sunucu ucu turu 90b'de acildi ama ISTEMCIDE cagiran
-                  //    yol YOKTU; yanlislikla ev konumunu paylasan kullanicinin
-                  //    tek caresi HALA gonderiyi silmekti (begeni/yorum/
-                  //    goruntulenme ile birlikte).
-                  if (g.konumVar)
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: ctrl,
+                      maxLines: 6,
+                      minLines: 3,
+                      maxLength: 2200,
+                      decoration: const InputDecoration(
+                        hintText: 'Açıklama',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,
-                      value: konumSil,
-                      onChanged: (v) => yenile(() => konumSil = v),
-                      title: const Text('Konumu kaldır'),
-                      subtitle: Text(
-                        g.konum.isEmpty ? 'Konum ekli' : g.konum,
-                        style: const TextStyle(fontSize: 12),
+                      value: kapali,
+                      onChanged: (v) => yenile(() => kapali = v),
+                      title: const Text('Yorumları kapat'),
+                    ),
+                    // ⚠️⚠️ TURU 90c — KONUM KALDIRMA (GIZLILIK).
+                    //    Sunucu ucu turu 90b'de acildi ama ISTEMCIDE cagiran
+                    //    yol YOKTU; yanlislikla ev konumunu paylasan kullanicinin
+                    //    tek caresi HALA gonderiyi silmekti (begeni/yorum/
+                    //    goruntulenme ile birlikte).
+                    if (g.konumVar)
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        value: konumSil,
+                        onChanged: (v) => yenile(() => konumSil = v),
+                        title: const Text('Konumu kaldır'),
+                        subtitle: Text(
+                          g.konum.isEmpty ? 'Konum ekli' : g.konum,
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                      ),
+                    if (g.mediaIds.isNotEmpty)
+                      const Padding(
+                        padding: EdgeInsets.only(bottom: 10),
+                        child: Text(
+                          'Fotoğraf ve videolar değiştirilemez.',
+                          style: TextStyle(fontSize: 12, color: Colors.grey),
+                        ),
+                      ),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: () => Navigator.pop(c2, true),
+                        child: const Text('Kaydet'),
                       ),
                     ),
-                  if (g.mediaIds.isNotEmpty)
-                    const Padding(
-                      padding: EdgeInsets.only(bottom: 10),
-                      child: Text(
-                        'Fotoğraf ve videolar değiştirilemez.',
-                        style: TextStyle(fontSize: 12, color: Colors.grey),
-                      ),
-                    ),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                      onPressed: () => Navigator.pop(c2, true),
-                      child: const Text('Kaydet'),
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
-        ),
         ),
       ),
     );
@@ -374,7 +387,9 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
       }
     });
     try {
-      await ref.read(sosyalServisiProvider).gonderiDuzenle(
+      await ref
+          .read(sosyalServisiProvider)
+          .gonderiDuzenle(
             g.id,
             metin: yeniMetin,
             yorumKapali: kapali,
@@ -525,7 +540,9 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
       children: [
         // ---- BASLIK
         ListTile(
-          contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: kBaslikYanDolgu,
+          ),
           leading: GestureDetector(
             onTap: () => widget.profileGit?.call(g.yazarId),
             child: Avatar(
@@ -601,9 +618,11 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
                         //    Koyu temada 6.72:1 ile sorunsuzdu; yani hata
                         //    YALNIZ ACIK TEMADA gorunurdu (turu 81'in
                         //    1.23:1 sohbet balonu vakasinin hafif hali).
-                        Icon(LucideIcons.mapPin,
-                            size: 12,
-                            color: Theme.of(context).colorScheme.primary),
+                        Icon(
+                          LucideIcons.mapPin,
+                          size: 12,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
                         const SizedBox(width: 3),
                         Flexible(
                           child: Text(
@@ -611,8 +630,9 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                                fontSize: 12,
-                                color: Theme.of(context).colorScheme.primary),
+                              fontSize: 12,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
                           ),
                         ),
                       ],
@@ -623,7 +643,7 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
           // ⚠️ `subtitle` YOK -> ListTile tek satira duser, baslik kisalir.
           dense: true,
           visualDensity: VisualDensity.compact,
-          horizontalTitleGap: 10,
+          horizontalTitleGap: kBaslikAra,
           trailing: IconButton(
             icon: const Icon(LucideIcons.ellipsis),
             onPressed: _menu,
@@ -639,9 +659,29 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
         const SizedBox(height: 8),
 
         // ---- METIN (medya ustunde — Facebook duzeni)
+        //
+        // ⚠️⚠️⚠️ TURU 98c — METIN **KULLANICI ADININ ALTINDA HIZALANIR**
+        //	(kullanici emri: *"aciklamalar kullanici adinin altinda olacak,
+        //	sol sag bosluklar yemekteki gibi olacak"*).
+        //
+        // ⚠️ Sol dolgu ELLE YAZILMAZ, **BASLIKTAN TURETILIR**
+        //	(`kBaslikYanDolgu + 38 + horizontalTitleGap`). Sabit bir sayi
+        //	yazilsaydi avatar capi ya da baslik dolgusu degistiginde metin
+        //	SESSIZCE kayardi — bu projede "ayni olcu iki yerde yasiyor"
+        //	sinifi defalarca sahaya cikti.
+        // ⚠️ Sag dolgu `kYanBosluk` (16) — kategori ("yemek") ekraniyla AYNI
+        //    kaynak.
+        // ⚠️ MEDYA BU HIZAYA ALINMADI: kullanici turu 82b'de **DORT KEZ**
+        //    *"yanda bosluk olmasin"* dedi ve `kKartYanDolgu` 12 -> 6'ya
+        //    indirildi. Metnin girintilenmesi o karari BOZMAZ.
         if (g.metin.isNotEmpty)
           Padding(
-            padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+            padding: const EdgeInsets.fromLTRB(
+              kBaslikYanDolgu + 38 + kBaslikAra,
+              0,
+              kYanBosluk,
+              10,
+            ),
             child: Text(g.metin, style: const TextStyle(fontSize: 15)),
           ),
 
@@ -660,7 +700,12 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
         //    ATLARDI ve gelen arama gonderi sesini SUSTURAMAZDI.
         if (g.sesliMi)
           Padding(
-            padding: const EdgeInsets.fromLTRB(kKartYanDolgu, 0, kKartYanDolgu, 8),
+            padding: const EdgeInsets.fromLTRB(
+              kKartYanDolgu,
+              0,
+              kKartYanDolgu,
+              8,
+            ),
             child: SesNotuBalon(
               mediaId: g.mediaIds.first,
               // ⚠️ Sure/dalga gonderi hattinda TASINMIYOR (mesajdaki gibi ayri
@@ -686,7 +731,12 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
         //    `posts.author_id`den bagimsiz almaz — `Create` icinde `me`).
         if (g.anket != null)
           Padding(
-            padding: const EdgeInsets.fromLTRB(kKartYanDolgu, 0, kKartYanDolgu, 8),
+            padding: const EdgeInsets.fromLTRB(
+              kKartYanDolgu,
+              0,
+              kKartYanDolgu,
+              8,
+            ),
             child: AnketBalon(
               anket: g.anket!,
               benimMi: g.yazarId == widget.benimId,
@@ -709,66 +759,101 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
         //    kalp yok — bkz. asagidaki serh), boyut DEGISMEZ.
         // ⚠️ YAPMA: buraya farkli bir dugme tipi (IconButton/TextButton) karistirma.
         // ⚠️ YAPMA: `Icons.favorite` (Material) koyma — ikon seti karisir.
+        // ⚠️⚠️⚠️ TURU 98c — **TASMA OLCULDU VE YAPISAL OLARAK KAPATILDI.**
+        //
+        //	Turu 98b'de bes eylemin DORDU sayi tasimaya basladi (begeni ·
+        //	yorum · paylas · repost). 82b'nin sabit butcesi UC sayiya gore
+        //	hesaplanmisti (`5*(5+26+5) + 3*(6+40) = 318dp`), dolayisiyla
+        //	gecersiz kaldi. **360 dp'de EMULATORDE OLCULDU: satir 9.3 piksel
+        //	TASIYOR ve KAYDET IKONU EKRAN DISINDA kaliyordu.**
+        //	(411 dp test cihazinda GORUNMUYORDU — turu 70b/90b dersinin
+        //	birebir tekrari: dar ekranda olcmeden "sigiyor" deme.)
+        //
+        // ⚠️⚠️ COZUM SABIT BUTCE DEGIL: her yeni sayi/ikon o butceyi yeniden
+        //	bozar ve hata YINE dar ekranda ortaya cikar. Sol grup artik
+        //	`Expanded` ile SINIRLI genislik alir ve `FittedBox(scaleDown)` ile
+        //	**yalnizca GEREKTIGINDE** kucultulur:
+        //	  · 411 dp / normal yazi -> olcek 1.0, HICBIR SEY degismez
+        //	  · 360 dp -> ~%97, gozle fark edilmez
+        //	  · yazi olcegi 1.3-2.0 -> orantili kucultme, TASMA YOK
+        // ⚠️ Kaydet ikonu `FittedBox`IN DISINDA: saga dayali kalmali ve
+        //    kucultulmemeli (tek ogedir, yer sorunu cikarmaz).
+        // ⚠️ `Spacer` KALDIRILDI — `Expanded` zaten bosluu doldurur; ikisi
+        //    birlikte iki esnek cocuk demek olurdu.
+        // ⚠️ YAPMA: `FittedBox`i kaldirip sabit butce hesabina donme.
         Padding(
-          padding: const EdgeInsets.fromLTRB(10, 2, 10, 0),
+          padding: const EdgeInsets.fromLTRB(6, 2, 6, 0),
           child: Row(
             children: [
-              _eylem(
-                ikon: LucideIcons.heart,
-                sayi: g.begeniSayisi,
-                renk: g.begendim ? const Color(0xFFFF3B5C) : null,
-                vurgu: g.begendim,
-                onTap: _begeniCevir,
-                // ⚠️⚠️ Begenenler listesinin TEK girisi (alt satir
-                //    kaldirildi). Uzun basma GORUNMEZ bir yol oldugu icin
-                //    `tooltip` ile ipucu veriliyor — denetim "sifir ipucu"
-                //    diye bildirdi ve HAKLIYDI: bu projede "ozellik var ama
-                //    KESFEDILEMIYOR" hatasi turu 81'de de yasandi.
-                onUzunBas: g.begeniSayisi > 0 ? _begenenler : null,
-                ipucu: g.begeniSayisi > 0
-                    ? 'Beğen · uzun bas: beğenenler'
-                    : 'Beğen',
-              ),
-              _eylem(
-                ikon: LucideIcons.messageCircle,
-                sayi: g.yorumSayisi,
-                onTap: g.yorumKapali ? null : _yorumlariAc,
-              ),
-              // ⚠️⚠️ TURU 98b — PAYLAS ARTIK **SAYI** gosterir + yanina
-              //	**REPOST** ikonu (kullanici emri).
-              // ⚠️⚠️⚠️ **DURUST SINIR:** sunucuda paylasim/repost SAYACI
-              //	YOK. Sayi yalnizca DEMO verisinde doludur; gercek akista
-              //	`0` gelir ve `_eylem` sifiri HIC yazmaz (Threads deseni),
-              //	yani kullaniciya SAHTE bir sayi gosterilmez.
-              // ⚠️ Repost dokununca ne yapacagi HENUZ YOK: backend ucu,
-              //    tablo ve akis semantigi gerekiyor. Simdilik paylasim
-              //    sayfasini acar — kullaniciya "yakinda" demez, ISE
-              //    YARAR bir sey yapar.
-              _eylem(
-                ikon: LucideIcons.send,
-                sayi: g.paylasimSayisi,
-                onTap: () => _sohbeteGonder(context),
-              ),
-              _eylem(
-                ikon: LucideIcons.repeat2,
-                sayi: g.repostSayisi,
-                onTap: () => _sohbeteGonder(context),
-                ipucu: "Yeniden paylaş",
-              ),
-              // ⚠️⚠️ ISTATISTIK IKONU — kullanici "hala istatistik ikonu yok" dedi.
-              //    Eskiden istatistik YALNIZ ••• menusunun icindeydi; menuye
-              //    girmeden gorunmuyordu, yani pratikte YOKTU.
-              //    Yanindaki sayi GORUNTULENME (Instagram'in "N goruntulenme"si).
-              // ⚠️ YALNIZ YAZARA gosterilir: baskasinin izlenme sayisi kullaniciya
-              //    bir sey ifade etmez ve dusuk sayi yazari utandirir.
-              if (g.yazarId == widget.benimId)
-                _eylem(
-                  // ⚠️ TURU 98 — kullanici emri: istatistik ikonu **trendingUp**.
-                  ikon: LucideIcons.trendingUp,
-                  sayi: g.goruntulenme,
-                  onTap: _istatistik,
+              Expanded(
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _eylem(
+                          ikon: LucideIcons.heart,
+                          sayi: g.begeniSayisi,
+                          renk: g.begendim ? const Color(0xFFFF3B5C) : null,
+                          vurgu: g.begendim,
+                          onTap: _begeniCevir,
+                          // ⚠️⚠️ Begenenler listesinin TEK girisi (alt satir
+                          //    kaldirildi). Uzun basma GORUNMEZ bir yol oldugu icin
+                          //    `tooltip` ile ipucu veriliyor — denetim "sifir ipucu"
+                          //    diye bildirdi ve HAKLIYDI: bu projede "ozellik var ama
+                          //    KESFEDILEMIYOR" hatasi turu 81'de de yasandi.
+                          onUzunBas: g.begeniSayisi > 0 ? _begenenler : null,
+                          ipucu: g.begeniSayisi > 0
+                              ? 'Beğen · uzun bas: beğenenler'
+                              : 'Beğen',
+                        ),
+                        _eylem(
+                          ikon: LucideIcons.messageCircle,
+                          sayi: g.yorumSayisi,
+                          onTap: g.yorumKapali ? null : _yorumlariAc,
+                        ),
+                        // ⚠️⚠️ TURU 98b — PAYLAS ARTIK **SAYI** gosterir + yanina
+                        //	**REPOST** ikonu (kullanici emri).
+                        // ⚠️⚠️⚠️ **DURUST SINIR:** sunucuda paylasim/repost SAYACI
+                        //	YOK. Sayi yalnizca DEMO verisinde doludur; gercek akista
+                        //	`0` gelir ve `_eylem` sifiri HIC yazmaz (Threads deseni),
+                        //	yani kullaniciya SAHTE bir sayi gosterilmez.
+                        // ⚠️ Repost dokununca ne yapacagi HENUZ YOK: backend ucu,
+                        //    tablo ve akis semantigi gerekiyor. Simdilik paylasim
+                        //    sayfasini acar — kullaniciya "yakinda" demez, ISE
+                        //    YARAR bir sey yapar.
+                        _eylem(
+                          ikon: LucideIcons.send,
+                          sayi: g.paylasimSayisi,
+                          onTap: () => _sohbeteGonder(context),
+                        ),
+                        _eylem(
+                          ikon: LucideIcons.repeat2,
+                          sayi: g.repostSayisi,
+                          onTap: () => _sohbeteGonder(context),
+                          ipucu: "Yeniden paylaş",
+                        ),
+                        // ⚠️⚠️ ISTATISTIK IKONU — kullanici "hala istatistik ikonu yok" dedi.
+                        //    Eskiden istatistik YALNIZ ••• menusunun icindeydi; menuye
+                        //    girmeden gorunmuyordu, yani pratikte YOKTU.
+                        //    Yanindaki sayi GORUNTULENME (Instagram'in "N goruntulenme"si).
+                        // ⚠️ YALNIZ YAZARA gosterilir: baskasinin izlenme sayisi kullaniciya
+                        //    bir sey ifade etmez ve dusuk sayi yazari utandirir.
+                        if (g.yazarId == widget.benimId)
+                          _eylem(
+                            // ⚠️ TURU 98 — kullanici emri: istatistik ikonu **trendingUp**.
+                            ikon: LucideIcons.trendingUp,
+                            sayi: g.goruntulenme,
+                            onTap: _istatistik,
+                          ),
+                      ],
+                    ),
+                  ),
                 ),
-              const Spacer(),
+              ),
               _eylem(
                 ikon: LucideIcons.bookmark,
                 renk: g.kaydettim ? tema.colorScheme.primary : null,
@@ -823,7 +908,9 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
         Divider(
           height: 1,
           thickness: 0.5,
-          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.08),
+          color: Theme.of(
+            context,
+          ).colorScheme.onSurface.withValues(alpha: 0.08),
         ),
         // ⚠️ Ayractan SONRA da nefes: sonraki kartin `ListTile` basligi
         //    `dense` oldugu icin ayraca yapisiyordu.
@@ -906,7 +993,9 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
                 Align(
                   alignment: Alignment.centerLeft,
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: kKartYanDolgu),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: kKartYanDolgu,
+                    ),
                     child: GestureDetector(
                       onDoubleTap: () => _begeniCevir(yalnizBegen: true),
                       child: _medyaKutusu(0, genislikOf(0), satirY),
@@ -1017,7 +1106,10 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
                     builder: (_, t, cocuk) => Opacity(
                       // Sonda hafifce solar — "cok hafif" istegi.
                       opacity: (t.clamp(0.0, 1.0)) * 0.85,
-                      child: Transform.scale(scale: 0.85 + t * 0.15, child: cocuk),
+                      child: Transform.scale(
+                        scale: 0.85 + t * 0.15,
+                        child: cocuk,
+                      ),
                     ),
                     child: const Icon(
                       LucideIcons.heart,
@@ -1383,9 +1475,7 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
     // ⚠️ `Tooltip` uzun basmada da cikar; `onLongPress` ILE CAKISMAZ
     //    (Tooltip kendi jestini `GestureDetector` uzerinden DEGIL,
     //    `Listener` ile kurar ve olayi TUKETMEZ).
-    return ipucu == null
-        ? govde
-        : Tooltip(message: ipucu, child: govde);
+    return ipucu == null ? govde : Tooltip(message: ipucu, child: govde);
   }
 
   /// ⚠️ TURU 76: eskiden YALNIZCA panoya kopyalayip "sohbete yapistirin" diyordu.

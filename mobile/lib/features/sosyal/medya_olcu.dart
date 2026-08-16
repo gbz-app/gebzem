@@ -48,6 +48,7 @@
 library;
 
 import 'dart:math' as math;
+import '../isletme/isletme_kart.dart' show kYanBosluk;
 
 import 'package:flutter/widgets.dart';
 
@@ -97,7 +98,18 @@ const double kGaleriAra = 8;
 ///
 /// ⚠️ Kullanici: *"genislik %5 arttir"*. Genisligin BUYUYEBILECEGI tek yer yan
 ///    dolgudur (kutu zaten kolonu dolduruyor): 12 -> 6, kolon +12dp (~%3.3).
-const double kKartYanDolgu = 6;
+///
+/// ⚠️⚠️⚠️ TURU 98c — **6 -> 16 (`kYanBosluk`)**: kullanici *"sol sag bosluklar
+///	yemekteki gibi olacak"* dedi; yani akis karti artik KATEGORI ("yemek")
+///	ekraniyla AYNI yan olcuyu kullanir ve iki ekran arasinda kenar cizgisi
+///	kaymaz.
+///
+/// ⚠️⚠️ Bu, turu 82b'nin *"yanda bosluk olmasin"* kararini BILEREK geri alir.
+///	O karar medya kutusu KOLONU doldurmadigi ve yanda GERCEKTEN bos serit
+///	kaldigi donemde verilmisti; bugun kutu kolonu tam dolduruyor, dolayisiyla
+///	16 dp bir "bosluk" degil **SAYFA KENAR PAYI**.
+/// ⚠️ Deger `kYanBosluk`tan TURETILIR — iki ekranin kenari tek yerden degisir.
+const double kKartYanDolgu = kYanBosluk;
 
 /// ⚠️⚠️⚠️ **KUTUNUN EN DIKEY HALI.** Modelin TEK ayar dugmesi.
 ///

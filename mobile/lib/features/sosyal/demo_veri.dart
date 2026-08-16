@@ -233,8 +233,22 @@ List<StoryKullanici> demoStoryler() => [
 ///    yok). Demo icin kullanici kimliginden turetilir; gercek ozellik
 ///    yazilirken serit yaniti bir `durum` alani dondurmeli.
 /// Degerler: `canli` (yayin) · `oda` (sesli oda) · `null` (sadece hikaye).
-String? demoYayinDurumu(String userId) => switch (userId) {
-      'demo-canli' => 'canli',
-      'demo-s2' => 'oda',
+String? demoYayinDurumu(String userId) => demoYayin(userId)?.durum;
+
+/// ⚠️⚠️⚠️ TURU 98c — YAYIN OGESI **IKI KISILIK** (kullanici emri + referans
+///	gorseli: *"canlinin yanina birini daha ekle, radüslü, iki kisi olacak;
+///	oda da oyle"*).
+///
+/// Gonderilen referansta oge bir DAIRE degil **KAPSUL**: ust uste binen iki
+/// avatar, cevresinde renkli halka ve sag ustte izleyici sayisi rozeti.
+/// Ilk kisi yayini/odayi ACAN, ikincisi ona KATILAN.
+///
+/// ⚠️ Bu bilgi bugun sunucudan GELMIYOR (`StoryKullanici`de katilimci alani
+///    yok). Gercek ozellik yazilirken serit yaniti katilimci listesi ve
+///    izleyici sayisi dondurmeli; istemci burada UYDURMAZ, demo verisi okur.
+({String durum, String ikinciAd, int izleyici})? demoYayin(String userId) =>
+    switch (userId) {
+      'demo-canli' => (durum: 'canli', ikinciAd: 'Cem', izleyici: 12300),
+      'demo-s2' => (durum: 'oda', ikinciAd: 'Naz', izleyici: 486),
       _ => null,
     };

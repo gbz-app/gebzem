@@ -16,6 +16,8 @@ import '../medya/medya_gorsel.dart';
 import '../medya/medya_kapisi.dart';
 import '../medya/medya_servisi.dart';
 import 'demo_veri.dart';
+// ⚠️ Sayi bicimleme TEK KAYNAK (akis kartiyla ayni dil: '12,3 bin').
+import 'gonderi_karti.dart' show sayiBicimle;
 import 'story_editor.dart';
 import 'story_izleyici.dart';
 import 'story_servisi.dart';
@@ -460,12 +462,15 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi>
   /// ⚠️ Renk TEK BASINA yetmez (renk korlugu): durum ayrica **IKONLU BIR
   ///    ROZETLE** yazilir — canli icin `radio`, oda icin `mic`.
   Widget _halka(StoryKullanici k) {
-    final durum = demoYayinDurumu(k.userId);
+    final yayin = demoYayin(k.userId);
+    final durum = yayin?.durum;
     final renk = durum == 'canli'
         ? const Color(0xFFFF3B30)
         : durum == 'oda'
             ? const Color(0xFF8B3FFF)
             : null;
+    // ⚠️⚠️⚠️ TURU 98c — YAYIN/ODA OGESI **KAPSUL** (kullanici referans gorseli).
+    if (yayin != null && renk != null) return _yayinKapsulu(k, yayin, renk);
     return _kutu(
       etiket: k.ad.isEmpty ? '@${k.kullaniciAdi}' : k.ad,
       child: Stack(
@@ -526,6 +531,154 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi>
     );
   }
 
+  /// ⚠️⚠️⚠️ TURU 98c — **CANLI YAYIN / SESLI ODA OGESI** (kullanici emri +
+  ///	referans gorseli): daire DEGIL **KAPSUL**; icinde ust uste binen IKI
+  ///	avatar, cevresinde durum rengiyle halka, sag ustte izleyici sayisi.
+  ///
+  /// ⚠️ Neden ayri bir govde: hikaye halkasi TEK avatarlik bir DAIREDIR
+  ///	(`BoxShape.circle`); ayni govdeye ikinci avatar sokmak `shape`i
+  ///	kapsule cevirmeyi ve capi genisletmeyi gerektirir — o kod yolu tek
+  ///	kisilik hikayeler icin de kosardi ve daire GERI DONULMEZ sekilde
+  ///	bozulurdu. Iki gorunum AYRI, ama olculer AYNI SABITLERDEN turer.
+  /// ⚠️ Yukseklik `kHalkaCap`: kapsul, kardes dairelerle AYNI dikey cizgide
+  ///    durur; serit yuksekligi DEGISMEZ (tasma riski yok).
+  /// ⚠️ Renk TEK BASINA birakilmaz: alttaki ikonlu rozet (CANLI/ODA) DURUR.
+  Widget _yayinKapsulu(
+    StoryKullanici k,
+    ({String durum, String ikinciAd, int izleyici}) y,
+    Color renk,
+  ) {
+    // Ic cap: dis halka (2.5) + zemin boslugu (2) iki yandan = 9.
+    const ic = kHalkaCap - 9;
+    // Ikinci avatarin GORUNEN payi (ust uste binme ~%40 — referans gorsel).
+    const kayma = ic * 0.58;
+    return _kutu(
+      etiket: y.durum == 'canli'
+          ? '${k.ad} canlı yayında'
+          : '${k.ad} sesli odada',
+      genislik: kHalkaCap + kayma + 15,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          GestureDetector(
+            onTap: () => _ac(k),
+            child: Container(
+              padding: const EdgeInsets.all(2.5),
+              decoration: BoxDecoration(
+                color: renk,
+                borderRadius: BorderRadius.circular(kHalkaCap / 2),
+              ),
+              child: Container(
+                padding: const EdgeInsets.all(2),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).scaffoldBackgroundColor,
+                  borderRadius: BorderRadius.circular(kHalkaCap / 2),
+                ),
+                child: SizedBox(
+                  width: ic + kayma,
+                  height: ic,
+                  // ⚠️ ARKADAKI (katilan) ONCE cizilir; ONDEKI (yayini acan)
+                  //    ustte kalir — referans gorseldeki sira.
+                  child: Stack(
+                    children: [
+                      Positioned(
+                        right: 0,
+                        child: Avatar(ad: y.ikinciAd, cap: ic),
+                      ),
+                      // ⚠️ Ondeki avatarin cevresinde ZEMIN RENGINDE ince bir
+                      //    ayrac: iki avatar ayni renkteyse birbirine karisir.
+                      Container(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Theme.of(context).scaffoldBackgroundColor,
+                            width: 2,
+                          ),
+                        ),
+                        child: Avatar(
+                          ad: k.ad,
+                          mediaId: k.avatarMediaId,
+                          cap: ic - 4,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          // ⚠️ IZLEYICI SAYISI — referans gorselde sag ustte. Bicimleme
+          //    `sayiBicimle` TEK KAYNAGINDAN (akis kartiyla ayni dil).
+          Positioned(
+            right: 9,
+            top: -4,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+              decoration: BoxDecoration(
+                color: renk,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: Theme.of(context).scaffoldBackgroundColor,
+                  width: 2,
+                ),
+              ),
+              child: Text(
+                sayiBicimle(y.izleyici),
+                style: const TextStyle(
+                  fontSize: 9,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                  height: 1.1,
+                ),
+              ),
+            ),
+          ),
+          // ⚠️ Durum rozeti (CANLI/ODA) DURUR: renk tek basina renk korlugu
+          //    olan kullaniciya hicbir sey anlatmaz.
+          Positioned(
+            left: 0,
+            right: 15,
+            bottom: -6,
+            child: Center(
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: renk,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: Theme.of(context).scaffoldBackgroundColor,
+                    width: 2,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      y.durum == 'canli' ? LucideIcons.radio : LucideIcons.mic,
+                      size: 10,
+                      color: Colors.white,
+                    ),
+                    const SizedBox(width: 3),
+                    Text(
+                      y.durum == 'canli' ? 'CANLI' : 'ODA',
+                      style: const TextStyle(
+                        fontSize: 8.5,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                        height: 1.1,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   /// Fotograf varsa avatar, yoksa **duz gri daire** (turu 97).
   Widget _benimAvatar(String ad, Map<String, dynamic>? profil) {
     final mediaId = profil?['avatar_media_id'] as String?;
@@ -544,7 +697,13 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi>
     return Avatar(ad: ad, mediaId: mediaId, avatarUrl: url, cap: kHalkaCap);
   }
 
-  Widget _kutu({required String etiket, required Widget child}) => SizedBox(
+  /// [genislik] verilmezse DAIRE olcusu kullanilir; kapsul (canli/oda) ogesi
+  /// daha genis oldugu icin kendi olcusunu gecirir.
+  Widget _kutu({
+    required String etiket,
+    required Widget child,
+    double? genislik,
+  }) => SizedBox(
     // ⚠️⚠️ TURU 97d — GENISLIK DE **TURETILIR**: halka capi + cember dolgusu
     //	(9) + halkalar arasi bosluk (**15**, turu 82'de kullanicinin istedigi
     //	'Instagram hissi'). Halka 60 -> 70 buyuyunce bu sayi elle
@@ -552,7 +711,7 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi>
     //	(70 + 9 = 79, geriye 5 dp kalirdi — tam da turu 82'de sikayet edilen
     //	durum).
     // ⚠️ YAPMA: buraya sabit sayi yazma.
-    width: kHalkaCap + 9 + 15,
+    width: genislik ?? (kHalkaCap + 9 + 15),
     // ⚠️⚠️⚠️ TURU 97 — **HIKAYE ETIKETLERI KALDIRILDI** (kullanici emri:
     //	*"hikayen yazmasin, bir sey yazmasin"*). Halkanin altinda artik hicbir
     //	yazi yok; serit yalniz dairelerden olusuyor.

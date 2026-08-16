@@ -178,8 +178,33 @@ class AltMenu extends ConsumerWidget {
                   // ⚠️ Logonun YERI: govdesi dis Stack'te cizilir, burada
                   //    yalnizca YER TUTAR. Bu sayede "3 sol · logo · 3 sag"
                   //    simetrisi bozulmaz.
-                  const SizedBox(
-                      width: kAltMenuLogoCap + kAltMenuLogoBosluk),
+                  //
+                  // ⚠️⚠️⚠️ TURU 98c — YER TUTUCU **ARTIK DOKUNMA HEDEFI**
+                  //	(emulatorde OLCULDU, gercek hata):
+                  //	logonun cubuktan tasan ~10 dp'lik ust seridi Flutter
+                  //	tarafindan hit-test EDILMEZ (ebeveyn kutusunun disi) ve
+                  //	dokunus **ALTTAKI AKISA** duser. Kor bir dokunusta
+                  //	gonderinin "Paylaş" sayfasi acildi — yani logonun ust
+                  //	kenarina basan kullanici RASTGELE bir akis eylemi
+                  //	tetikliyordu.
+                  //	Cubugun ICINDEKI bu hucre de ayni menuyu actigi icin
+                  //	hedef 42 dp'den **66 dp'ye** cikar ve isabetsiz dokunus
+                  //	pratikte kalmaz.
+                  // ⚠️ Tasan serit HALA tiklanmaz; onu tiklatmanin tek yolu
+                  //    cubugu uzatmak ya da logoyu kucultmekti — kullanici
+                  //    IKISINI DE acikca reddetti (96p/96z).
+                  // ⚠️ YAPMA: burayi tekrar duz `SizedBox` yapma.
+                  SizedBox(
+                    width: kAltMenuLogoCap + kAltMenuLogoBosluk,
+                    child: Semantics(
+                      button: true,
+                      label: 'Menü',
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () => hizmetMenusuAc(context),
+                      ),
+                    ),
+                  ),
                   // ⚠️ OKUNMAMIS ROZETI: mesaj sekmesi alt menude ve kullanici
                   //    surekli akista/reels'te olacagi icin rozet OLMADAN yeni
                   //    mesaji HIC fark etmezdi.
