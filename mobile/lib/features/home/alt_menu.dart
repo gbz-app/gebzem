@@ -65,10 +65,18 @@ const double kAltMenuLogoBosluk = 30;
 ///	uyar ve **kirpilma/tasma YAPISAL OLARAK imkansiz** olur.
 /// ⚠️ Daha fazla kaldirma isteniyorsa tek yol logoyu KUCULTMEK ya da cubugu
 ///    UZATMAK; ikisi de kullaniciya sorulmadan yapilmaz.
-final double kAltMenuLogoKaldir = math.min(
-  kAltMenuIkonKaldir + 10,
-  (kAltMenuBoy - kAltMenuLogoCap) / 2,
-);
+/// ⚠️⚠️⚠️ TURU 96z — kullanici *"ortadaki logoyu 10px yukari kaldir"* dedi.
+///	Cubuk 66, logo 52 oldugu icin TASMADAN en fazla 7 dp kaldirilabiliyordu;
+///	istenen 10 dp fazlasi ancak logonun cubuktan **TASMASIYLA** mumkun.
+///
+/// ⚠️⚠️ **TASMA CUBUGU UZATMAZ.** Turu 96o'da tasma payi cubugun ustune
+///	SAYDAM BIR SERIT olarak eklenmisti ve kullanici bunu *"kesit gibi bir
+///	alan"* diye bildirdi. Bu kez cubuk 66 dp ve YUVARLAK KOSELI kalir;
+///	logo yalnizca `ClipRRect`in DISINDA cizilerek yukari TASAR.
+/// ⚠️ Bedeli: tasan ~10 dp GORUNUR ama TIKLANMAZ (Flutter ebeveyn kutusunun
+///    disini hit-test etmez). Logonun kalan ~42 dp'si dokunma hedefi olarak
+///    fazlasiyla yeterli (Material asgari 48 dp'ye yakin).
+const double kAltMenuLogoKaldir = kAltMenuIkonKaldir + 12;
 
 /// Alt menu — **3 sol · LOGO · 3 sag**.
 ///
@@ -140,7 +148,12 @@ class AltMenu extends ConsumerWidget {
       //    demektir; RADIUS bir kenarlik DEGILDIR.
       // ⚠️ YAPMA: buraya `Border`, `BoxShadow`, `Divider` ya da ust cizgi
       //    ekleme; radius'u kaldirma; yuksekligi degistirme.
-      child: ClipRRect(
+      // ⚠️ TURU 96z — logo `ClipRRect`in DISINDA (yukari tasabilsin diye);
+      //    `clipBehavior: Clip.none` ZORUNLU, yoksa Stack tasan kismi keser.
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+        ClipRRect(
         // ALT MENU sol/sag (ust kose) RADIUS (test turu 7).
         borderRadius: const BorderRadius.only(
           topLeft: Radius.circular(20),
@@ -153,50 +166,50 @@ class AltMenu extends ConsumerWidget {
             top: false,
             child: SizedBox(
               height: kAltMenuBoy,
-              // ⚠️ Logo `Stack`te cizilir cunku Row'un HUCRE HIZASINDAN
-              //    BAGIMSIZ olarak yukari cekilir; ama artik cubugun ICINDE
-              //    kaldigi icin `ClipRRect`in icinde olmasi GUVENLIDIR
-              //    (bkz. `kAltMenuLogoKaldir` — tasma yapisal olarak yok).
-              child: Stack(
+              // ⚠️ TURU 96z — logo ARTIK BURADA DEGIL: cubugun ustune tastigi
+              //    icin `ClipRRect`in DISINDAKI dis `Stack`te ciziliyor.
+              //    Burada yalnizca YER TUTUCUSU var (asagida).
+              child: Row(
+                // ⚠️ `stretch`: her hucre cubugun TAM YUKSEKLIGINI kaplar,
+                //    yani dokunma hedefi ikon degil HUCRENIN TAMAMIDIR.
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Row(
-                    // ⚠️ `stretch`: her hucre cubugun TAM YUKSEKLIGINI kaplar,
-                    //    yani dokunma hedefi ikon degil HUCRENIN TAMAMIDIR.
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _oge(0, LucideIcons.house, 'Anasayfa'),
-                      _oge(1, LucideIcons.search, 'Ara'),
-                      _oge(2, LucideIcons.clapperboard, 'Reels'),
-                      // ⚠️ Logonun YERI: govdesi Stack'te cizilir, burada
-                      //    yalnizca YER TUTAR. Bu sayede "3 sol · logo ·
-                      //    3 sag" simetrisi bozulmaz.
-                      const SizedBox(
-                          width: kAltMenuLogoCap + kAltMenuLogoBosluk),
-                      // ⚠️ OKUNMAMIS ROZETI: mesaj sekmesi alt menude ve
-                      //    kullanici surekli akista/reels'te olacagi icin
-                      //    rozet OLMADAN yeni mesaji HIC fark etmezdi.
-                      _oge(3, LucideIcons.messageCircle, 'Mesaj',
-                          rozet: okunmamis),
-                      _oge(4, LucideIcons.radio, 'Canlı'),
-                      _profil(),
-                    ],
-                  ),
-                  // ⚠️ `Positioned.fill` + `Center`: logo cubugun YATAY
-                  //    ORTASINA oturur — Row'daki yer tutucu da tam ortada
-                  //    oldugu icin ikisi cakisir.
-                  Positioned.fill(
-                    child: Center(
-                      child: Transform.translate(
-                        offset: Offset(0, -kAltMenuLogoKaldir),
-                        child: _logo(context),
-                      ),
-                    ),
-                  ),
+                  _oge(0, LucideIcons.house, 'Anasayfa'),
+                  _oge(1, LucideIcons.search, 'Ara'),
+                  _oge(2, LucideIcons.clapperboard, 'Reels'),
+                  // ⚠️ Logonun YERI: govdesi dis Stack'te cizilir, burada
+                  //    yalnizca YER TUTAR. Bu sayede "3 sol · logo · 3 sag"
+                  //    simetrisi bozulmaz.
+                  const SizedBox(
+                      width: kAltMenuLogoCap + kAltMenuLogoBosluk),
+                  // ⚠️ OKUNMAMIS ROZETI: mesaj sekmesi alt menude ve kullanici
+                  //    surekli akista/reels'te olacagi icin rozet OLMADAN yeni
+                  //    mesaji HIC fark etmezdi.
+                  _oge(3, LucideIcons.messageCircle, 'Mesaj',
+                      rozet: okunmamis),
+                  _oge(4, LucideIcons.radio, 'Canlı'),
+                  _profil(),
                 ],
               ),
             ),
           ),
         ),
+        ),
+        // ⚠️⚠️⚠️ TURU 96z — LOGO **CUBUGUN USTUNE TASAR** ve bu yuzden
+        //	`ClipRRect`in DISINDA, dis `Stack`te cizilir.
+        //
+        // ⚠️ Konum ELLE YAZILMAZ, TURETILIR: cubugun dikey ortasi eksi
+        //    logonun yarisi eksi kaldirma. Sabitlerden biri degisirse
+        //    kendiliginden uyar.
+        // ⚠️ `left/right: 0` + `Center`: Row'daki yer tutucu da tam ortada
+        //    oldugu icin ikisi cakisir.
+        Positioned(
+          left: 0,
+          right: 0,
+          top: kAltMenuBoy / 2 - kAltMenuLogoCap / 2 - kAltMenuLogoKaldir,
+          child: Center(child: _logo(context)),
+        ),
+        ],
       ),
     );
   }

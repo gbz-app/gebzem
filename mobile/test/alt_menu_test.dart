@@ -161,8 +161,12 @@ void main() {
     expect((ikon.dy - logo.dy - (kAltMenuLogoKaldir - kAltMenuIkonKaldir)).abs(),
         lessThan(0.6));
     expect(logo.dy, lessThan(ikon.dy), reason: 'logo ikonlardan YUKARIDA olmali');
-    expect(kAltMenuLogoKaldir, (kAltMenuBoy - kAltMenuLogoCap) / 2,
-        reason: 'kaldirma tasmayacak en buyuk deger olmali');
+    // ⚠️ TURU 96z — kullanici logoyu 10 dp DAHA yukari istedi; bu, cubukta
+    //    tasmadan saglanamaz (66-52)/2 = 7. Artik kaldirma TAVANDAN BUYUK
+    //    ve logo cubugun ustune TASIYOR (bir alttaki test bunu olcer).
+    expect(kAltMenuLogoKaldir,
+        greaterThan((kAltMenuBoy - kAltMenuLogoCap) / 2),
+        reason: 'logo cubuktan tasacak kadar kaldirilmali');
   });
 
   testWidgets('LOGO daire icinde, KIRPILMADAN cizilir', (t) async {
@@ -198,7 +202,7 @@ void main() {
         reason: 'logo ikonlardan BUYUK olmali');
   });
 
-  testWidgets('LOGO CUBUGUN ICINDE kalir — cubuk uzamaz, radius durur',
+  testWidgets('LOGO cubugun USTUNE TASAR ama cubuk uzamaz, radius durur',
       (t) async {
     await t.pumpWidget(_kur(secili: 0));
     await t.pump();
@@ -213,14 +217,19 @@ void main() {
     //	5-10px bir alan, kesit gibi"* diye bildirdi. Ardindan cubuk komple
     //	siyaha boyanip radius kaldirilinca *"radius nerede, yuksekligi neden
     //	artirdin"* dedi. Bu test ikisini birden kilitler.
-    expect(logo.top, greaterThanOrEqualTo(cubuk.top - 0.01),
-        reason: 'logo cubugun UST KENARINDAN TASMAMALI');
+    // ⚠️⚠️ TURU 96z — kullanici emri: logo 10 dp DAHA yukari. Cubuk 66 ve
+    //    logo 52 oldugu icin bu ancak TASMAYLA olur; tasma KASITLIDIR.
+    expect(logo.top, lessThan(cubuk.top),
+        reason: 'logo cubugun USTUNE tasmali');
     expect(logo.bottom, lessThanOrEqualTo(cubuk.bottom + 0.01),
-        reason: 'logo cubugun ALT KENARINDAN TASMAMALI');
+        reason: 'logo ALTTAN tasmamali');
     // ⚠️ Widget'in KENDISI de cubuktan uzun OLMAMALI: uzunsa ustte sayfa
     //    zemininin gorundugu o "serit" geri gelmis demektir.
-    expect((cerceve.top - cubuk.top).abs(), lessThan(0.01),
-        reason: 'cubugun USTUNDE ek bir serit/alan OLMAMALI');
+    // ⚠️⚠️ **ASIL KURAL BU**: tasma cubugu UZATMAZ. Turu 96o'da tasma payi
+    //    cubugun ustune SAYDAM SERIT olarak eklenmisti ve kullanici bunu
+    //    'kesit gibi bir alan' diye bildirdi.
+    expect((cerceve.height - cubuk.height).abs(), lessThan(0.01),
+        reason: 'widget cubuktan UZUN olmamali (ustte serit yok)');
 
     // ⚠️ UST KOSE RADIUSU **KULLANICI ISTEGI** — kaldirilamaz.
     final kirpici = t.widget<ClipRRect>(find.descendant(

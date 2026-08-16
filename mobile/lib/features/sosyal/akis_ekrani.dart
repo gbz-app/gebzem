@@ -492,8 +492,22 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
         // ⚠️⚠️ TURU 76b — SOL UST HAMBURGER (kullanici emri: "anasayfada sol
         //    ustte menu ikonu olsun, 2 satir cizgi").  KULLANILDI:
         //    Akis kok route oldugu icin AppBar oraya geri oku KOYMAZ, cakisma YOK.
+        // ⚠️⚠️⚠️ TURU 96z — SOL USTTE **HAMBURGER YERINE "+" (squarePlus)**
+        //	ve islevi **SAG ALTTAKI FABIN ISLEVI** (kullanici emri: *"sol
+        //	ustteki hamburgeri kaldir, yerine + icon square-plus ekle"* +
+        //	*"sag alttaki + sol ustteki + yerine gececek islev olarak"*).
+        //
+        // ⚠️⚠️ MENUYE GIRIS KAYBOLMADI: hamburgerin actigi hizmet menusu
+        //    artik ALT MENUDEKI LOGOYA baglidir (turu 96n).
+        // ⚠️ FAB **KALDIRILDI** (asagida): ayni islevin iki dugmesi
+        //    olsaydi kullanici hangisinin ne yaptigini bilemezdi ve turu
+        //    90bdeki "iki FAB ust uste" hatasinin kardesi dogardi.
         leadingWidth: 46,
-        leading: const HamburgerDugmesi(),
+        leading: IconButton(
+          icon: const Icon(LucideIcons.squarePlus),
+          tooltip: "Oluştur",
+          onPressed: _olusturMenusu,
+        ),
         // ⚠️⚠️ TURU 80 — BURADAKI "Akış | Kanallar" SECICISI **KALDIRILDI**
         //    (kullanici emri). Yerine gelen "Takip Ettiklerin | Keşfet"
         //    secicisi HIKAYE SERIDININ ALTINDA (bkz. `_bolmeSecici`).
@@ -524,17 +538,12 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
         // ⚠️ LOGOYU DEGISTIRMEK ICIN YALNIZ `assets/icon/logo.png` degisir —
         //    bu koda DOKUNMAYA GEREK YOK.
         centerTitle: true,
-        title: ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: Image.asset(
-            'assets/icon/logo.png',
-            height: 32,
-            width: 32,
-            fit: BoxFit.contain,
-            filterQuality: FilterQuality.medium,
-            errorBuilder: (_, _, _) => const SizedBox(height: 32),
-          ),
-        ),
+        // ⚠️⚠️ TURU 96z — **ORTADAKI LOGO KALDIRILDI** (kullanici emri:
+        //	*"ortadaki logoyu kaldir"*). Logo artik ALT MENUNUN ortasinda
+        //	duruyor ve menuyu aciyor; AppBarda ikinci bir kopyasi
+        //	gereksiz tekrardi.
+        // ⚠️ `centerTitle` bilerek DURUYOR: ileride bir baslik konursa
+        //    ortalanmis gelsin (tema geneli `centerTitle: false`).
         actions: [
           // ⚠️⚠️ TURU 76 — BURADAKI "Reels" DUGMESI KALDIRILDI. Reels artik ALT
           //    MENUDE kendi sekmesi. Ikisini birden birakmak, kullanicinin ayni
@@ -546,7 +555,11 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
           // olarak artar, sayfaya girilince sifirlanir.
           BildirimRozeti(
             child: IconButton(
-              icon: const Icon(LucideIcons.trendingUp),
+              // ⚠️ TURU 96z — ikon **bildirim (bell)** (kullanici emri:
+              //    *"en sagdaki ise push icon olacak"*). Onceki
+              //    `trendingUp` bildirimle ilgisi olmayan bir grafik
+              //    okuydu; dugmenin ISLEVI zaten bildirimlerdi.
+              icon: const Icon(LucideIcons.bell),
               tooltip: 'Bildirimler',
               onPressed: () async {
                 ref.read(bildirimSayaciProvider.notifier).sifirla();
@@ -565,22 +578,8 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
       // ⚠️ TURU 80 — FAB ARTIK HER IKI BOLMEDE de var: eski "Kanallar" bolmesi
       //    kendi "Kanal aç" FAB'ini tasidigi icin gizleniyordu; "Keşfet"in
       //    boyle bir dugmesi YOK ve orada gonderi paylasamamak icin sebep yok.
-      floatingActionButton: FloatingActionButton(
-        // TURU 76: HERO ETIKETI ZORUNLU. Ucun de varsayilan etiketi paylasmasi
-        // debug/profile derlemede route gecisinde KIRMIZI EKRAN uretiyordu;
-        // release'te assert silindigi icin sessizce SON hero yaziliyor ve
-        // ucus YANLIS dugmeyi tasiyordu.
-        heroTag: 'fabGonderiOlustur',
-        // ⚠️⚠️⚠️ TURU 90b — **TEK FAB** (olculdu).
-        //    Turu 90 dis Scaffold'a IKINCI bir "+" FAB'i koymustu. Ikisi de
-        //    `endFloat` ve ic Scaffold'un dibi dis govdenin dibiyle AYNI
-        //    cizgide oldugu icin PIKSEL PIKSEL UST USTE biniyorlardi;
-        //    dokunusu DIS FAB aliyordu, yani BU FAB ULASILAMAZDI.
-        //    Turu 76b'nin "TEK GIRIS FAB" kurali boylece GERI GELMISTI.
-        //    ⚠️ YAPMA: `home_screen`e tekrar FAB ekleme.
-        onPressed: _olusturMenusu,
-        child: const Icon(LucideIcons.plus),
-      ),
+      // ⚠️⚠️ TURU 96z — **FAB KALDIRILDI**: islevi sol ustteki "+"
+      //    (squarePlus) dugmesine tasindi (kullanici emri).
       // ⚠️⚠️ TURU 80 — `IndexedStack` **KALDIRILDI** (bkz. `_listeler` serhi).
       //    Iki bolme artik TEK govdeyi paylasiyor; ayrim VERIDE (`_listeler`),
       //    widget agacinda DEGIL. Boylece gorunmeyen bolmenin videosu
