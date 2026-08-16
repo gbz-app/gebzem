@@ -104,11 +104,11 @@ class HizmetMenusu extends ConsumerWidget {
         const Color(0xFF8B3FFF),
         const Color(0xFF5A1EBE),
       ], (c) => const EtkinlikListesiEkrani()),
-      _Bolum('İlanlar', [
+      _Bolum('İlan', [
         const Color(0xFF2BB673),
         const Color(0xFF12805A),
       ], (c) => const IlanListesiEkrani()),
-      _Bolum('Hizmetler', [
+      _Bolum('Hizmet', [
         const Color(0xFF3AA9FF),
         const Color(0xFF12547A),
       ], (c) => const IlanListesiEkrani(tur: 'hizmet', baslik: 'Hizmetler')),
@@ -122,7 +122,7 @@ class HizmetMenusu extends ConsumerWidget {
         const Color(0xFF0EA5A5),
         const Color(0xFF0B5F63),
       ], (c) => const IlanListesiEkrani(tur: 'is', baslik: 'İş İlanları')),
-      _Bolum('Oteller', [
+      _Bolum('Otel', [
         const Color(0xFF6C7BFF),
         const Color(0xFF2A3390),
       ], (c) => const IsletmeListesiEkrani(kategori: 'otel', baslik: 'Oteller')),
@@ -134,10 +134,19 @@ class HizmetMenusu extends ConsumerWidget {
         const Color(0xFFFF7A45),
         const Color(0xFFFF3B5C),
       ], (c) => const IsletmeListesiEkrani(kategori: 'yemek', baslik: 'Yemek')),
+      // ⚠️⚠️ TURU 96t — 'Restoran' ve 'Cafe' AYRI IKI KART (kullanici
+      //	listesinde ikisi de var) ama **AYNI VERI KATEGORISINE** gider:
+      //	veritabaninda tek bir `kafe` kategorisi var ve kafe ile restoran
+      //	onun altinda. Ayri anahtar acmak, isletmelerin o alani YENIDEN
+      //	doldurmasini gerektirirdi (turu 92'nin alt-kategori gerekcesi).
       _Bolum('Restoran', [
         const Color(0xFFFF3B5C),
         const Color(0xFF8B1E3A),
-      ], (c) => const IsletmeListesiEkrani(kategori: 'kafe', baslik: 'Kafe & Restoran')),
+      ], (c) => const IsletmeListesiEkrani(kategori: 'kafe', baslik: 'Restoran')),
+      _Bolum('Cafe', [
+        const Color(0xFFC98A5B),
+        const Color(0xFF7A4A22),
+      ], (c) => const IsletmeListesiEkrani(kategori: 'kafe', baslik: 'Kafe')),
       _Bolum('Alışveriş', [
         const Color(0xFF7A5CFF),
         const Color(0xFF3A2A8A),
@@ -184,6 +193,31 @@ class HizmetMenusu extends ConsumerWidget {
     final kategoriler =
         bolumler.where((b) => b.ad != 'Yakınımda').toList();
 
+    // ⚠️⚠️⚠️ TURU 96t — **SIRALAMA KULLANICI TARAFINDAN VERILDI**:
+    //	*"Yemek Restorant Cafe Alışveriş Hizmet İlan Düğün Eğitim Sağlık
+    //	Otel diye daha güzel ve sıralı şekilde"*.
+    //
+    // ⚠️ Siralama LISTENIN KENDISINDE degil BURADA yapilir: kart tanimlari
+    //    (renk, hedef ekran, gerekce serhleri) yillardir o sirada duruyor
+    //    ve tasinsalardi serhler kartlardan KOPARDI.
+    // ⚠️ Listede OLMAYAN kartlar (Organizasyon, Diyet, Etkinlikler, İş
+    //    İlanları, İşletmeler, Kanallar, Yapay zekâ) tanim sirasini
+    //    KORUYARAK bunlarin ARDINA dizilir — yeni bir kart eklendiginde
+    //    sessizce kaybolmaz, sona eklenir.
+    const sira = [
+      'Yemek', 'Restoran', 'Cafe', 'Alışveriş', 'Hizmet',
+      'İlan', 'Düğün', 'Eğitim', 'Sağlık', 'Otel',
+    ];
+    final yerler = {
+      for (var i = 0; i < kategoriler.length; i++) kategoriler[i].ad: i,
+    };
+    int agirlik(_Bolum b) {
+      final i = sira.indexOf(b.ad);
+      return i >= 0 ? i : 1000 + (yerler[b.ad] ?? 0);
+    }
+
+    kategoriler.sort((a, b) => agirlik(a).compareTo(agirlik(b)));
+
     // ⚠️⚠️⚠️ TURU 96q — **HIZLI ERISIM SATIRI** (kullanici emri: *"Yakınımda...
     //	onun da sagina nobetci, cilingir vs ekle"*). Yakinimda kucultulup
     //	yanina iki kart daha kondu; ucu de ESIT genislikte.
@@ -196,17 +230,39 @@ class HizmetMenusu extends ConsumerWidget {
     // ⚠️ YAPMA: karta "Nöbetçi Eczane" yazip eczane listesi acma — kullanici
     //    kapali eczaneye gider ve bu, projenin en pahali hata sinifi olan
     //    "arayuz soz veriyor, veri yok" durumudur.
+    // ⚠️⚠️ TURU 96t — HIZLI ERISIM **BES KART** (kullanici emri:
+    //	*"Yakınımda, Nöbetçi Eczane, Durak, Taksi, Akaryakıt gibi"*).
+    //
+    // ⚠️⚠️⚠️ **DURUST SINIR — BU KARTLAR SADECE KAYITLI ISLETMEYI GOSTERIR.**
+    //	Projede belediye/POI verisi YOK: nobetci eczane listesi, otobus
+    //	duragi konumlari ve akaryakit istasyonu veritabani HICBIR YERDE
+    //	tutulmuyor (resmi kaynak + ayri entegrasyon ister).
+    //	Kartlar bu yuzden **ARAMA KISAYOLU** olarak baglandi: ilgili
+    //	kategori acilir ve arama kutusuna terim GORUNUR sekilde yazilir.
+    //	Kayitli isletme yoksa liste BOS doner — bu bir hata degil, verinin
+    //	olmamasidir; kullanici da neyin arandigini kutuda GORUR.
+    // ⚠️ YAPMA: bu kartlara sahte/gomulu liste yazma.
     final hizli = <_Bolum>[
-      _Bolum('Eczaneler', [
+      _Bolum('Nöbetçi Eczane', [
         const Color(0xFF20C997),
         const Color(0xFF0B7A5A),
       ], (c) => const IsletmeListesiEkrani(
           kategori: 'eczane', baslik: 'Eczaneler')),
-      _Bolum('Çilingir', [
-        const Color(0xFFFFB03A),
-        const Color(0xFFB86A00),
+      _Bolum('Durak', [
+        const Color(0xFF6C7BFF),
+        const Color(0xFF2A3390),
       ], (c) => const IsletmeListesiEkrani(
-          kategori: 'hizmet', baslik: 'Çilingir & Hizmet')),
+          kategori: 'hizmet', baslik: 'Durak', ara: 'durak')),
+      _Bolum('Taksi', [
+        const Color(0xFFFFC531),
+        const Color(0xFFB88600),
+      ], (c) => const IsletmeListesiEkrani(
+          kategori: 'hizmet', baslik: 'Taksi', ara: 'taksi')),
+      _Bolum('Akaryakıt', [
+        const Color(0xFFFF7A45),
+        const Color(0xFFB33A12),
+      ], (c) => const IsletmeListesiEkrani(
+          kategori: 'oto', baslik: 'Akaryakıt & Oto')),
     ];
 
     return SafeArea(
@@ -217,7 +273,19 @@ class HizmetMenusu extends ConsumerWidget {
           maxHeight: MediaQuery.of(context).size.height * 0.82,
         ),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 10, 16, 20),
+          // ⚠️⚠️⚠️ TURU 96t — **YATAY DOLGU BURADAN KALKTI** (kullanici:
+          //	*"slider ilk basliginda solda bosluk oluyor"*).
+          //
+          //	`KategoriSlider` yan boslugu KENDI `viewportFraction`indan
+          //	uretir ve bunun icin **TAM EKRAN GENISLIGINDE** cizilmek
+          //	zorundadir (kategori ekraninda da oyle: orada slider
+          //	`Padding`in DISINDA duruyor ve serhinde *"burayi Padding ile
+          //	sarma — kart 16 yerine ~35 dp'ye kayar"* yaziyor).
+          //	Menude slider dis dolgunun ICINDEYDI, yani bosluk iki kez
+          //	uygulaniyordu.
+          // ⚠️ Cozum: dis dolgu YALNIZ DIKEY; yatay dolguyu artik her
+          //    cocuk kendi tasiyor (`_yan`). Slider ise tasimaz.
+          padding: const EdgeInsets.only(top: 10, bottom: 20),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -233,14 +301,23 @@ class HizmetMenusu extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 16),
-              const Text(
-                'Gebzem',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
-              ),
-              const SizedBox(height: 2),
-              const Text(
-                'Şehrindeki her şey',
-                style: TextStyle(fontSize: 13, color: Colors.grey),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: kYanBosluk),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Gebzem',
+                      style:
+                          TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      'Şehrindeki her şey',
+                      style: TextStyle(fontSize: 13, color: Colors.grey),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 12),
               // ⚠️⚠️⚠️ TURU 96q — BASLIGIN ALTINA **SLIDER** (kullanici emri:
@@ -297,7 +374,9 @@ class HizmetMenusu extends ConsumerWidget {
               //    odur. Boylece izgara olculeri degistiginde bu satir
               //    KENDILIGINDEN uyar ve iki blok ayrisamaz.
               if (yakinimda != null)
-                LayoutBuilder(
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: kYanBosluk),
+                  child: LayoutBuilder(
                   builder: (c, bc) {
                     // GENISLIK KATEGORI EKRANIYLA AYNI FORMUL (kullanici:
                     // "kartlarin genisliklerini diyorum, yemekteki gibi"):
@@ -305,19 +384,24 @@ class HizmetMenusu extends ConsumerWidget {
                     // karttan sonrasi BOS kalir; boylece bu satirin kartlari
                     // alttaki izgarayla BIREBIR ayni genislikte olur.
                     final en = (bc.maxWidth - kIzgaraAralik * 3) / 4;
-                    return Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    // ⚠️ `Wrap`: kart sayisi 4'u gecince (bes hizli kart)
+                    //    ALT SATIRA gecer. `Row` olsaydi besinci kart
+                    //    RenderFlex tasmasi verirdi.
+                    return Wrap(
+                      spacing: kIzgaraAralik,
+                      runSpacing: kIzgaraAralik,
                       children: [
-                        for (final b in [yakinimda, ...hizli]) ...[
+                        for (final b in [yakinimda, ...hizli])
                           SizedBox(width: en, child: _kart(context, b)),
-                          const SizedBox(width: kIzgaraAralik),
-                        ],
                       ],
                     );
                   },
+                  ),
                 ),
               const SizedBox(height: 18),
-              const Text(
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: kYanBosluk),
+                child: Text(
                 'KATEGORİLER',
                 // TURU 96s - HARF ARALIGI YASAK (kullanici emri: "Kategoriler
                 // yazisi vb ozel bosluk ASLA kullanma; ornegin Ahmet'te a ile
@@ -328,6 +412,7 @@ class HizmetMenusu extends ConsumerWidget {
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
                   color: Colors.grey,
+                ),
                 ),
               ),
               const SizedBox(height: 10),
@@ -352,7 +437,8 @@ class HizmetMenusu extends ConsumerWidget {
                 //    **0.86**'da: daha dar hucrede yazi daha kolay sariyor ve
                 //    0.82 (daha uzun kart) gereksiz bosluk birakiyordu.
                 child: GridView.builder(
-                  padding: EdgeInsets.zero,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: kYanBosluk),
                   gridDelegate:
                       SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 4,

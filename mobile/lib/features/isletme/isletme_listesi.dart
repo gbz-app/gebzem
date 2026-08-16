@@ -222,10 +222,25 @@ const double kSegYukari = 2;
 
 /// [kategori] bos ise TUM isletmeler; doluysa o kategori.
 class IsletmeListesiEkrani extends ConsumerStatefulWidget {
-  const IsletmeListesiEkrani({super.key, this.kategori = '', this.baslik = ''});
+  const IsletmeListesiEkrani({
+    super.key,
+    this.kategori = '',
+    this.baslik = '',
+    this.ara = '',
+  });
 
   final String kategori;
   final String baslik;
+
+  /// ⚠️⚠️ TURU 96t — EKRAN ACILIRKEN KUTUYA YAZILACAK ARAMA.
+  ///
+  ///	Menudeki "Taksi · Akaryakıt · Durak" gibi kartlar bir KATEGORI
+  ///	DEGIL bir ARAMA KISAYOLUDUR (turu 92'nin alt-kategori kartlariyla
+  ///	ayni desen). Bu alan olmadan o kartlar ya olu olurdu ya da her biri
+  ///	icin AYRI EKRAN yazmak gerekirdi.
+  /// ⚠️ Kutuya GORUNUR sekilde yazilir: kullanici neyin suzuldugunu gorur
+  ///    ve X ile temizleyip tum kategoriye donebilir.
+  final String ara;
 
   @override
   ConsumerState<IsletmeListesiEkrani> createState() =>
@@ -349,6 +364,11 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
   @override
   void initState() {
     super.initState();
+    // ⚠️ Arama metni ILK ISTEKTEN ONCE konur: `_yukle()` kutuyu okuyor.
+    if (widget.ara.isNotEmpty) {
+      _arama.text = widget.ara;
+      _aramaDolu = true;
+    }
     _ilceyiOgren();
     _kesfiYukle();
     _yukle();
