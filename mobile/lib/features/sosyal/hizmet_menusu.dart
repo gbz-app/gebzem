@@ -276,16 +276,32 @@ class HizmetMenusu extends ConsumerWidget {
               //    + ALTINDA yazi — turu 76b'nin "IKON YOK, yazi kartin
               //    ALTINDA" kurali BOYLECE GERI GELDI (tek sutunda yazi
               //    icerideydi cunku alt alta yazi satiri iki katina cikariyordu).
-              // ⚠️ TURU 96q — Yakinimda ARTIK TEK BASINA DEGIL: yaninda iki
-              //    hizli erisim karti var, ucu de esit genislikte.
+              // ⚠️⚠️⚠️ TURU 96r — HIZLI ERISIM KARTLARI **IZGARA KARTLARIYLA
+              //	AYNI TASARIMDA** (kullanici emri: *"Yakınımda vs alttaki
+              //	kart tarzinda olacak"*).
+              //
+              //	Onceden bunlar "yazi KUTUNUN ICINDE" bir seritti; asagidaki
+              //	kategoriler ise "gradyan kutu + ALTINDA yazi" (turu 76b
+              //	kurali). Iki farkli dil yan yana duruyordu.
+              //	Artik ucu de **`_kart`** ile cizilir — TEK KAYNAK.
+              //
+              // ⚠️ YUKSEKLIK IZGARADAN TURETILIR (elle sayi yazilmaz):
+              //    4 sutunlu izgaranin hucre yuksekligi ne ise bu satir da
+              //    odur. Boylece izgara olculeri degistiginde bu satir
+              //    KENDILIGINDEN uyar ve iki blok ayrisamaz.
               if (yakinimda != null)
-                Row(
-                  children: [
-                    for (final b in [yakinimda, ...hizli]) ...[
-                      Expanded(child: _hizliKart(context, b)),
-                      if (b != hizli.last) const SizedBox(width: 10),
-                    ],
-                  ],
+                LayoutBuilder(
+                  builder: (c, bc) => SizedBox(
+                    height: ((bc.maxWidth - 3 * 8) / 4) / 0.86,
+                    child: Row(
+                      children: [
+                        for (final b in [yakinimda, ...hizli]) ...[
+                          Expanded(child: _kart(context, b)),
+                          if (b != hizli.last) const SizedBox(width: 10),
+                        ],
+                      ],
+                    ),
+                  ),
                 ),
               const SizedBox(height: 18),
               const Text(
