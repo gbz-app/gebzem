@@ -7437,3 +7437,30 @@ Adres: https://indir.gebzem.app/index.html?v=20260816-2011
 ### ⚠️ Açık
 - `kDemoAkis = true` — gerçek yayından önce `false`.
 - Sponsorlu kart tıklanmaz, repost altyapısı yok, yorumlar demo verisi.
+
+---
+
+## Oturum — Turu 98j–98l (17 Ağustos 2026, 02:25) — ÜÇ NOKTA MENÜSÜ · YAYINLANDI
+
+**Yayın:** android **31978476680** + ios **31978478226** (`f36acfc`) ·
+apk=122009383 (7751960a) · ipa=31639043 (bd31cdb7) · index=11965 (d7acb718) ·
+surum.json (c6dd9167) · **CDN dördü de birebir** · debug imza YOK ·
+**backend değişmedi**. Adres: https://indir.gebzem.app/index.html?v=20260817-0225
+
+### ✅ Yapılanlar
+- **`gonderi_menusu.dart` (yeni)** — ••• menüsü Threads/Facebook düzeninde:
+  gruplu yuvarlak kartlar, başlık solda / ikon sağda, yıkıcı maddeler kırmızı;
+  sponsorlu gönderide **ayrı reklam menüsü** (ikon solda + açıklama satırı).
+- Canlı/oda öğesi **tek profil** (kapsül ve ikinci avatar kaldırıldı).
+- İzleyici rozeti dairenin **tam üstünde** ortalı.
+- Story ekleme dairesi demoda "hikâye eklenmiş" görünüyor.
+
+### ⚠️ Dürüst sınır (menüde tek tek yazılı)
+Çalışan: kopyala · kaydet · engelle · şikayet · düzenle · istatistik · sil.
+Sunucuda yok: İlgilenmiyorum · Sessize al · Kısıtla + **tüm reklam maddeleri**
+→ dokununca durumu söylüyor, sessizce "yapmış gibi" davranmıyor.
+
+### 📌 Denenip reddedilen (bir daha denenmesin)
+Kapsülde ayraç halkası yalnız öndeki dairede → solda 4 dp / sağda 2 dp
+**asimetri**; yalnız arkadakinde → ayraç öndekinin altında kalıp **görünmüyor**.
+Kullanıcı sonunda tek profil istedi, konu kapandı.
