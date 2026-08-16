@@ -193,6 +193,7 @@ class HizmetMenusu extends ConsumerWidget {
     final kategoriler =
         bolumler.where((b) => b.ad != 'Yakınımda').toList();
 
+
     // ⚠️⚠️⚠️ TURU 96t — **SIRALAMA KULLANICI TARAFINDAN VERILDI**:
     //	*"Yemek Restorant Cafe Alışveriş Hizmet İlan Düğün Eğitim Sağlık
     //	Otel diye daha güzel ve sıralı şekilde"*.
@@ -264,6 +265,10 @@ class HizmetMenusu extends ConsumerWidget {
       ], (c) => const IsletmeListesiEkrani(
           kategori: 'oto', baslik: 'Akaryakıt & Oto')),
     ];
+    // ⚠️ Hizli erisim listesi BURADA kurulur: `yakinimda` nullable ve
+    //    Dart bunu closure icinde daraltmiyor (analiz hatasi verdi).
+    //    Koleksiyon-if ile tek seferde null-guvenli hale getirilir.
+    final hizliTumu = <_Bolum>[if (yakinimda != null) yakinimda, ...hizli];
 
     return SafeArea(
       child: ConstrainedBox(
@@ -373,31 +378,70 @@ class HizmetMenusu extends ConsumerWidget {
               //    4 sutunlu izgaranin hucre yuksekligi ne ise bu satir da
               //    odur. Boylece izgara olculeri degistiginde bu satir
               //    KENDILIGINDEN uyar ve iki blok ayrisamaz.
-              if (yakinimda != null)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: kYanBosluk),
-                  child: LayoutBuilder(
+              if (hizliTumu.isNotEmpty) ...[
+                // ⚠️⚠️⚠️ TURU 96u — HIZLI ERISIM **TEK SATIR + YATAY
+                //	KAYDIRMA** (kullanici emri: *"yakinimda vb bunlar tek
+                //	satir olarak scroll sol sag olacak, birde ustune baslik
+                //	olsun"*).
+                //
+                //	Onceki hal `Wrap`ti: besinci kart ALT SATIRA gecip
+                //	yaninda kocaman bir bosluk birakiyordu. Yatay listede
+                //	kart sayisi arttikca duzen BOZULMAZ, sadece kaydirilir.
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: kYanBosluk),
+                  child: Text(
+                    'HIZLI ERİŞİM',
+                    // ⚠️ 'KATEGORİLER' basligiyla BIREBIR ayni stil (harf
+                    //    araligi YOK — turu 96s kullanici emri).
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.grey,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                LayoutBuilder(
                   builder: (c, bc) {
                     // GENISLIK KATEGORI EKRANIYLA AYNI FORMUL (kullanici:
                     // "kartlarin genisliklerini diyorum, yemekteki gibi"):
                     // once aralik konur, kalan yer DORDE bolunur. Ucuncu
                     // karttan sonrasi BOS kalir; boylece bu satirin kartlari
                     // alttaki izgarayla BIREBIR ayni genislikte olur.
-                    final en = (bc.maxWidth - kIzgaraAralik * 3) / 4;
-                    // ⚠️ `Wrap`: kart sayisi 4'u gecince (bes hizli kart)
-                    //    ALT SATIRA gecer. `Row` olsaydi besinci kart
-                    //    RenderFlex tasmasi verirdi.
-                    return Wrap(
-                      spacing: kIzgaraAralik,
-                      runSpacing: kIzgaraAralik,
-                      children: [
-                        for (final b in [yakinimda, ...hizli])
-                          SizedBox(width: en, child: _kart(context, b)),
-                      ],
+                    // ⚠️ Kart genisligi IZGARAYLA AYNI: ekranda dort kart
+                    //    gorunur, besincisi kenardan SARKAR ve boylece
+                    //    kaydirilabilir oldugu KENDILIGINDEN belli olur.
+                    final en =
+                        (bc.maxWidth - kYanBosluk * 2 - kIzgaraAralik * 3) / 4;
+                    // ⚠️ `yakinimda` tipi `_Bolum?`; blok ZATEN `!= null`
+                    //    kapisinin icinde ama Dart bunu closure icinde
+                    //    daraltmaz — yerel bir degiskene alinir.
+                    final tumu = hizliTumu;
+                    return SizedBox(
+                      // ⚠️ Yukseklik kartin KENDI formulunden (kutu + 5 +
+                      //    iki satirlik etiket) — izgarayla ayni.
+                      height: kKesifKutu +
+                          5 +
+                          MediaQuery.textScalerOf(context).scale(14) *
+                              1.15 *
+                              2,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        // ⚠️ Yan bosluk LISTENIN DOLGUSUNDA: disariya
+                        //    `Padding` konsaydi kaydirirken kartlar 16 dp
+                        //    once KESILIRDI (kenardan cikip gitmezlerdi).
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: kYanBosluk),
+                        itemCount: tumu.length,
+                        separatorBuilder: (_, __) =>
+                            const SizedBox(width: kIzgaraAralik),
+                        itemBuilder: (_, i) =>
+                            SizedBox(width: en, child: _kart(context, tumu[i])),
+                      ),
                     );
                   },
-                  ),
                 ),
+              ],
               const SizedBox(height: 18),
               const Padding(
                 padding: EdgeInsets.symmetric(horizontal: kYanBosluk),
