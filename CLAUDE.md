@@ -17,7 +17,76 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (16 Agu 13:33): TURU 96u YAYINLANDI** — android
+- **KALDIGIMIZ YER (16 Agu 16:56): TURU 98 + 98b/c/d YAYINLANDI** — android
+  **31950598996** + ios **31950603733** (**2067a50**), R2 apk=121992539
+  (md5 3371f917) ipa=31634251 (md5 044db861) index=11863 (md5 013246d1)
+  **surum.json=48 (md5 3c479e25)**, purge OK, **CDN DORDU DE BIREBIR**,
+  debug imza YOK, harita anahtari IKI ARTIFACT'TE DE enjekte,
+  **IKI ARTIFACT'TE DE turu 98d kodu VAR** (dizeler UTF-16 arandi).
+  **BACKEND DEGISMEDI** (health ok) — bu tur salt Flutter.
+  ✅ `flutter analyze` **0 hata 0 uyari** · `flutter test` **40/40** ·
+  go build+vet temiz · **emulatorde 360 dp + yazi olcegi 1.3'te 0 TASMA**.
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260816-1656
+- ⚠️⚠️⚠️ **TURU 98 — TASARIM DEMOSU ACIK (`kDemoAkis = true`).**
+  Kullanici emri: *"icerikleri sil, gri icerikler olsun, story atmis biri
+  olsun, canli yayinda biri olsun — demo gibi dusun"*.
+  `mobile/lib/features/sosyal/demo_veri.dart` TEK KAYNAK; akis + serit demo
+  dallari YALNIZ bu bayraga bagli.
+  ⚠️⚠️ **GERCEK YAYIN ONCESI `kDemoAkis = false` YAPILACAK.** Bayrak acikken
+     akista SAHTE gonderiler ve sahte izleyici sayilari gorunur.
+  ⚠️ Demo icerigi SUNUCUYA GITMEZ: `demoKimlik()` kapisi begeni/kaydet/yorum/
+     istatistik/menu/paylas/profil/story yollarinin HEPSINDE. Kapi olmadan
+     begeni "gonderilemedi" uyarisi veriyor, yorum/profil BOS aciliyordu ve
+     kullanici bunlari GERCEK HATA sanardi.
+- 🗑️ **16 Agu — KULLANICI EMRIYLE ICERIK SILINDI** (*"kayitli kullanicilara
+  dair her seyi sil, profiller kalsin"*): `posts` · `post_likes` ·
+  `post_saves` · `post_comments` · `comment_likes` · `stories` ·
+  `story_views` · `polls`+`poll_options`+`poll_votes` · `messages` ·
+  `message_receipts` · `chats` · `chat_members` · `channels` (+alt tablolar)
+  · `bildirimler` **TRUNCATE**. **KALDI:** `users` (22) · `isletmeler` (14) ·
+  `ilanlar` (3) · `etkinlikler` (2) · `randevular` (17).
+  ⚠️ Kullanicilar YENIDEN KAYIT OLMAZ; hesaplar ve isletme verisi duruyor.
+- ⚠️⚠️⚠️ **TURU 98c — ETKILESIM SATIRI 360 dp'DE 9.3 PIKSEL TASIYORDU
+  (EMULATORDE OLCULDU, 411 dp'de GORUNMUYORDU).**
+  98b'de dorduncu sayi (repost) eklenince turu 82b'nin **UC sayiya gore**
+  kurulmus sabit butcesi (`5*(5+26+5) + 3*(6+40) = 318dp`) gecersiz kaldi;
+  **KAYDET IKONU EKRAN DISINDA** kaliyordu.
+  FIX: sol grup `Expanded` + **`FittedBox(scaleDown)`** — yalniz gerektiginde
+  kuculur (411 dp'de olcek 1.0, 360 dp'de ~%97), her genislik ve yazi
+  olceginde tasma **YAPISAL OLARAK imkansiz**.
+  ⚠️ **DERS (turu 70b/90b'nin ucuncu tekrari): dar ekranda OLCMEDEN
+     "sigiyor" deme.** Test cihazi 411 dp; en yaygin dar telefon 360 dp.
+  ⚠️ YAPMA: `FittedBox`i kaldirip sabit butce hesabina donme.
+- ⚠️⚠️ **TURU 98c — ALT MENUDEKI LOGONUN TASAN USTU YANLIS EYLEM TETIKLIYORDU.**
+  Logo cubuktan ~10 dp yukari tasiyor (96z kullanici emri) ve Flutter
+  ebeveyn kutusunun DISINI hit-test ETMEZ; dokunus **ALTTAKI AKISA** dusuyor,
+  kor bir dokunusta gonderinin **paylas sayfasi** aciliyordu.
+  FIX: cubugun ICINDEKI yer tutucu hucre de ayni menuyu acar (hedef 42 ->
+  66 dp). Tasan serit hala tiklanmaz — cubugu uzatmak/logoyu kucultmek
+  kullanici tarafindan ACIKCA reddedildi (96p/96z).
+- 📌 **TURU 98c/d — GONDERI KARTI OLCULERI (kullanici emri):**
+  · aciklama metni **KULLANICI ADININ ALTINDA** hizali; sol dolgu
+    `kBaslikYanDolgu + 38 + kBaslikAra` ile **TURETILIR** (sabit sayi YOK).
+  · `kKartYanDolgu` **6 -> `kYanBosluk` (16)**: kart artik kategori
+    ("yemek") ekraniyla AYNI yan olcuyu kullanir. Turu 82b'nin *"yanda
+    bosluk olmasin"* karari BILEREK geri alindi (gerekce serhte yazili).
+  · ad 16 -> **17**; ••• kartin **SAG KENARINA** hizalandi (IconButton
+    kutusu 48 -> 40, sag dolgu 8 eksik).
+  · akista **video ilerleme cubugu YOK** (`kontrolGoster` kapisi) — yalniz
+    ses ac/kapa; cubuk TAM EKRANDA duruyor.
+  · paylas artik SAYI gosterir + yanina **repost** (`repeat2`).
+    ⚠️ **DURUST SINIR: sunucuda paylasim/repost sayaci YOK** — alanlar 0
+       varsayilan, `_eylem` sifiri hic yazmaz, yani gercek akista SAHTE sayi
+       CIKMAZ. Repost dokununca paylasma sayfasini acar (altyapi yok).
+- 📌 **TURU 98b/c/d — HIKAYE SERIDI:** canli yayin **KIRMIZI**, sesli oda
+  **MOR**; ikisi de **KAPSUL** icinde **IKI KISI** gosterir (bindirme YOK,
+  arada `kIkiliAra`=4 dp) + sag ustte izleyici sayisi + altta **ikonlu
+  CANLI/ODA rozeti** (renk TEK BASINA renk korlugu olana hicbir sey
+  anlatmaz). Fotografsiz her daire **duz gri** — **HARF YOK**
+  (`_seritAvatar` TEK KAYNAK).
+  ⚠️ Yayin durumu ve izleyici sayisi **SUNUCUDAN GELMIYOR** (demo verisi);
+     gercek ozellikte serit yaniti `durum` + katilimci + izleyici dondurmeli.
+- **ONCEKI (16 Agu 13:33): TURU 96u YAYINLANDI** — android
   **31941390675** + ios **31941392713** (**1446820**), R2 apk=121959543
   (md5 a6ba51e7) ipa=31621462 (md5 dc51e60e) index=11845 (md5 da111310)
   surum.json=48 (md5 f56871ff), purge OK, **CDN DORDU DE BIREBIR**, debug

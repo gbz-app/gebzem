@@ -7344,3 +7344,58 @@ kurulmaz). Doğrusu **`--no-enable-impeller`**.
 kanıtlandı. ⚠️ Ölçüler değişince testler de güncellendi (logo artık `Image`
 değil `DecorationImage`; çubuk ölçütü 66dp `SizedBox`).
 `flutter analyze` **0/0** · `flutter test` **40/40**.
+
+---
+
+## Oturum — Turu 98 / 98b / 98c / 98d (16 Ağustos 2026, 16:56) — AKIŞ DEMOSU + HİKÂYE ŞERİDİ · YAYINLANDI
+
+**Yayın:** android **31950598996** + ios **31950603733** (`2067a50`) ·
+R2 apk=121992539 (md5 3371f917) · ipa=31634251 (md5 044db861) ·
+index=11863 (md5 013246d1) · surum.json=48 (md5 3c479e25) · purge OK ·
+**CDN dördü de birebir** · debug imza YOK · harita anahtarı iki artifact'te
+de enjekte · **iki artifact'te de turu 98d kodu var** (UTF-16 arandı).
+**Backend değişmedi** (health ok). Adres:
+https://indir.gebzem.app/index.html?v=20260816-1656
+
+### ✅ Yapılanlar (kullanıcı emirleri)
+- **Tasarım demosu** (`demo_veri.dart`, `kDemoAkis`): akışta her içerik
+  türünden bir örnek (yazı · foto · galeri · video · ses · konum · anket),
+  görseller gri kutu; şeritte hikâye + canlı yayın + sesli oda.
+- **Hikâye şeridi:** canlı **kırmızı**, oda **mor**; ikisi de **kapsül**
+  içinde **iki kişi** (bindirme YOK, arada 4 dp) + izleyici sayısı + ikonlu
+  CANLI/ODA rozeti. Fotoğrafsız daireler **düz gri, harf yok**.
+- **Gönderi kartı:** açıklama **kullanıcı adının altında**; yan boşluklar
+  kategori ekranıyla aynı (16); ad 17; ••• sağ kenarda; akışta **video
+  ilerleme çubuğu yok**; paylaş **sayı** gösteriyor + **repost** ikonu;
+  kart sonu 12+ayraç+12.
+- **Sunucuda içerik silindi** (kullanıcı emri): gönderi/hikâye/sohbet/
+  bildirim/anket/kanal TRUNCATE; **users · isletmeler · ilanlar ·
+  etkinlikler · randevular KALDI**.
+
+### 🐞 Ölçülen iki gerçek hata (ikisi de 411 dp'de görünmüyordu)
+1. **360 dp'de etkileşim satırı 9.3 px taşıyordu** ve kaydet ikonu ekran
+   dışındaydı — 98b'de dördüncü sayı (repost) eklenince turu 82b'nin üç
+   sayıya göre kurulmuş sabit bütçesi geçersiz kaldı.
+   FIX: `Expanded` + `FittedBox(scaleDown)` → her genişlik/yazı ölçeğinde
+   taşma yapısal olarak imkânsız. **Ders (3. tekrar): dar ekranda ölçmeden
+   "sığıyor" deme.**
+2. **Alt menüdeki logonun taşan üst şeridi** hit-test edilmiyor, dokunuş
+   alttaki akışa düşüyordu — kör bir dokunuş gönderinin paylaş sayfasını
+   açtı. FIX: çubuğun içindeki yer tutucu hücre de menüyü açıyor (42 → 66 dp).
+
+### 🧪 Ölçüm yöntemi (kayda değer)
+Emülatörde `adb shell wm density 480` ile **gerçek 360 dp** ve
+`settings put system font_scale 1.3` ile büyük yazı denendi; taşma
+ekran görüntüsünden (sarı-siyah şerit) ve `flutter run` logundan sayıldı.
+Bu yöntem, statik denetimin göremediği iki hatayı yakaladı.
+⚠️ Ölçüm bitince `wm density reset` + `font_scale 1.0` — kullanıcı
+"yazılar yine büyüdü" diye bildirdi (test ayarı ekranda kalmıştı).
+
+### ⚠️ Açık kalan
+- **`kDemoAkis = true`** — gerçek yayından önce `false` yapılacak.
+- Şeritteki canlı/oda ve izleyici sayısı **demo verisi**; sunucu bu bilgiyi
+  döndürmüyor.
+- **Repost** ikonu paylaşma sayfasını açıyor; repost altyapısı (tablo + uç +
+  akış semantiği) yok.
+- `active_call_controller.dart` ~500 satırlık ölü bekletme/park zinciri
+  (kullanıcı emriyle en sona bırakıldı).
