@@ -231,6 +231,17 @@ List<Gonderi> demoGonderiler() => [
 /// ⚠️ `canli` alani `StoryKullanici`de YOKTUR; canli rozeti demo icin
 ///    kullanici adindan turetilir (bkz. `story_seridi` demo dali).
 List<StoryKullanici> demoStoryler() => [
+  // ⚠️ TURU 98j — KENDI HIKAYEM DE VAR (kullanici: story eklenmis gibi
+  //    gorunsun): benim=true olunca serit o daireyi RENKLI halkayla cizer.
+  StoryKullanici(
+    userId: 'demo-ben',
+    ad: 'Sen',
+    kullaniciAdi: 'sen',
+    avatarMediaId: null,
+    adet: 1,
+    hepsiIzlendi: false,
+    benim: true,
+  ),
   StoryKullanici(
     userId: 'demo-s1',
     ad: 'Elif',

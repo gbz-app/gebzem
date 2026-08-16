@@ -502,8 +502,15 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi>
         : durum == 'oda'
         ? const Color(0xFF8B3FFF)
         : null;
-    // ⚠️⚠️⚠️ TURU 98c — YAYIN/ODA OGESI **KAPSUL** (kullanici referans gorseli).
-    if (yayin != null && renk != null) return _yayinKapsulu(k, yayin, renk);
+    // ⚠️⚠️⚠️ TURU 98k — YAYIN/ODA OGESI **TEK PROFIL** (kullanici emri:
+    //	*"tekli yapalim, kim actiysa canli yayini/odayi onun resmi olsun,
+    //	ikinciyi kaldir"*).
+    //
+    // ⚠️ 98c-98j arasinda burada IKI avatarlik bir KAPSUL vardi (Threads
+    //    referansi). Kullanici sahada gorup reddetti: oge artik kardes
+    //    hikaye daireleriyle AYNI daire, farki YALNIZ halka rengi ve
+    //    ustundeki iki rozet.
+    // ⚠️ YAPMA: kapsul/ikinci avatar geri getirme.
     return _kutu(
       etiket: k.ad.isEmpty ? '@${k.kullaniciAdi}' : k.ad,
       child: Stack(
@@ -518,6 +525,42 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi>
               child: _seritAvatar(k.ad, k.avatarMediaId, kHalkaCap),
             ),
           ),
+          // ⚠️ IZLEYICI SAYISI (sag ust) — yalniz canli/odada.
+          if (yayin != null && renk != null)
+            Positioned(
+              // ⚠️ TURU 98k — rozet dairenin TAM USTUNDE ORTALI (kullanici:
+              //    *"sayilar tam orada olsun, hafif sagda duruyor"*).
+              //    `right: 6` kutunun sagina yaslıyordu; kutu daireden 9 dp
+              //    genis oldugu icin rozet saga kaciyordu.
+              left: 0,
+              right: 0,
+              top: -4,
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 5,
+                    vertical: 1,
+                  ),
+                  decoration: BoxDecoration(
+                    color: renk,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: Theme.of(context).scaffoldBackgroundColor,
+                      width: 2,
+                    ),
+                  ),
+                  child: Text(
+                    sayiBicimle(yayin.izleyici),
+                    style: const TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                      height: 1.1,
+                    ),
+                  ),
+                ),
+              ),
+            ),
           if (durum != null)
             Positioned(
               left: 0,
@@ -565,10 +608,6 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi>
     );
   }
 
-  /// ⚠️⚠️ TURU 98d — KAPSULDEKI IKI DAIRENIN ARASINDAKI **NEFES** (kullanici:
-  ///	*"ust uste binmesin, arasinda COK AZ bir bosluk olsun"*).
-  static const double kIkiliAra = 4;
-
   /// ⚠️⚠️⚠️ TURU 98d — SERITTE **HARF YOK** (kullanici emri: *"harf
   ///	olmayacak"*, ayrica turu 97'de kendi halkam icin de ayni sey
   ///	istenmisti: *"A yazmasin, bos gri daire olsun"*).
@@ -592,173 +631,6 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi>
       );
     }
     return Avatar(ad: ad, mediaId: mediaId, cap: cap);
-  }
-
-  /// ⚠️⚠️⚠️ TURU 98c — **CANLI YAYIN / SESLI ODA OGESI** (kullanici emri +
-  ///	referans gorseli): daire DEGIL **KAPSUL**; icinde ust uste binen IKI
-  ///	avatar, cevresinde durum rengiyle halka, sag ustte izleyici sayisi.
-  ///
-  /// ⚠️ Neden ayri bir govde: hikaye halkasi TEK avatarlik bir DAIREDIR
-  ///	(`BoxShape.circle`); ayni govdeye ikinci avatar sokmak `shape`i
-  ///	kapsule cevirmeyi ve capi genisletmeyi gerektirir — o kod yolu tek
-  ///	kisilik hikayeler icin de kosardi ve daire GERI DONULMEZ sekilde
-  ///	bozulurdu. Iki gorunum AYRI, ama olculer AYNI SABITLERDEN turer.
-  /// ⚠️ Yukseklik `kHalkaCap`: kapsul, kardes dairelerle AYNI dikey cizgide
-  ///    durur; serit yuksekligi DEGISMEZ (tasma riski yok).
-  /// ⚠️ Renk TEK BASINA birakilmaz: alttaki ikonlu rozet (CANLI/ODA) DURUR.
-  Widget _yayinKapsulu(
-    StoryKullanici k,
-    ({String durum, String ikinciAd, int izleyici}) y,
-    Color renk,
-  ) {
-    // ⚠️⚠️⚠️ TURU 98g — KAPSULDEKI DAIRELER **NORMAL STORY DAIRESIYLE AYNI**
-    //	(kullanici UC KEZ soyledi: *"hepsi ayni buyuklukte olsun, canli
-    //	sohbet ne varsa"*).
-    //
-    // ⚠️ ONCEKI HATA (olculdu): `ic = kHalkaCap - 9` idi, yani kapsuldeki
-    //	daireler **61 dp**, kardesleri **70 dp** cizilyordu — kullanicinin
-    //	gordugu fark buydu. Halka/dolgu payi (9 dp) capTAN DUSULMEZ,
-    //	capın DISINA eklenir; `_cember` de tam boyle davranir.
-    // ⚠️ YAPMA: buradan tekrar 9 dusme.
-    const ic = kHalkaCap;
-    // ⚠️⚠️⚠️ TURU 98e — **UST USTE BINME GERI GELDI** (kullanici emri:
-    //	*"canli yayin ve sesli odadaki profiller ust uste gelsin, bir
-    //	onceki yaptigin gibi"*).
-    //
-    // ⚠️ TARIHCE (bir daha gidip gelmeyelim): 98c bindirmeliydi (referans
-    //    gorsel) -> 98d kullanici istegiyle AYRILDI -> 98e YINE bindirmeli.
-    //    Son soz KULLANICIDA; degistirmeden once bu satiri oku.
-    // ⚠️ Ikinci daire de TAM CAP cizilir (kullanici: *"hepsi ayni
-    //    buyuklukte"*); yalniz KONUMU kayar.
-    const kayma = ic * 0.58;
-    return _kutu(
-      etiket: y.durum == 'canli'
-          ? '${k.ad} canlı yayında'
-          : '${k.ad} sesli odada',
-      // ⚠️ TURU 98g — ARALIK NORMAL DAIRELERLE AYNI (11): kapsul eski 15i
-      //    kullaniyordu, yani yanindaki bosluk 11 yerine 6 dp cikiyordu.
-      // ⚠️⚠️ KAPSULUN **GORUNEN** GENISLIGI ZATEN `kHalkaCap + kayma + 9`
-      //	(iki daire + halka/zemin dolgusu). Kutu buna ESIT yapilirsa
-      //	yandaki bosluk **0** olur — bir kez oyle yazildi ve canli ile oda
-      //	BITISIK cikti. Kutu = gorunen + aralik:
-      genislik: kHalkaCap + kayma + 9 + kAralik,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          GestureDetector(
-            onTap: () => _ac(k),
-            child: Container(
-              padding: const EdgeInsets.all(2.5),
-              decoration: BoxDecoration(
-                color: renk,
-                borderRadius: BorderRadius.circular(kHalkaCap / 2),
-              ),
-              child: Container(
-                padding: const EdgeInsets.all(2),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).scaffoldBackgroundColor,
-                  borderRadius: BorderRadius.circular(kHalkaCap / 2),
-                ),
-                child: SizedBox(
-                  width: ic + kayma,
-                  height: ic,
-                  // ⚠️ ARKADAKI (katilan) ONCE cizilir; ONDEKI (yayini acan)
-                  //    ustte kalir — referans gorseldeki sira.
-                  child: Stack(
-                    children: [
-                      // ⚠️ ARKADAKI (katilan) ONCE cizilir; ONDEKI (yayini
-                      //    acan) ustte kalir.
-                      Positioned(
-                        right: 0,
-                        child: _seritAvatar(y.ikinciAd, null, ic),
-                      ),
-                      // ⚠️⚠️ BINDIRMEDE **AYRAC ZORUNLU**: iki daire de duz gri
-                      //    oldugu icin (fotografsiz) ayrac olmadan tek bir
-                      //    bulanik lekeye donusuyorlar. Zemin renginde 2 dp
-                      //    halka ikisini AYIRIR.
-                      Container(
-                        padding: const EdgeInsets.all(2),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Theme.of(context).scaffoldBackgroundColor,
-                        ),
-                        child: _seritAvatar(k.ad, k.avatarMediaId, ic - 4),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-          // ⚠️ IZLEYICI SAYISI — referans gorselde sag ustte. Bicimleme
-          //    `sayiBicimle` TEK KAYNAGINDAN (akis kartiyla ayni dil).
-          Positioned(
-            right: 9,
-            top: -4,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-              decoration: BoxDecoration(
-                color: renk,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: Theme.of(context).scaffoldBackgroundColor,
-                  width: 2,
-                ),
-              ),
-              child: Text(
-                sayiBicimle(y.izleyici),
-                style: const TextStyle(
-                  fontSize: 9,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.white,
-                  height: 1.1,
-                ),
-              ),
-            ),
-          ),
-          // ⚠️ Durum rozeti (CANLI/ODA) DURUR: renk tek basina renk korlugu
-          //    olan kullaniciya hicbir sey anlatmaz.
-          Positioned(
-            left: 0,
-            right: 15,
-            bottom: -6,
-            child: Center(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: renk,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: Theme.of(context).scaffoldBackgroundColor,
-                    width: 2,
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      y.durum == 'canli' ? LucideIcons.radio : LucideIcons.mic,
-                      size: 10,
-                      color: Colors.white,
-                    ),
-                    const SizedBox(width: 3),
-                    Text(
-                      y.durum == 'canli' ? 'CANLI' : 'ODA',
-                      style: const TextStyle(
-                        fontSize: 8.5,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                        height: 1.1,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
   /// Fotograf varsa avatar, yoksa **duz gri daire** (turu 97).

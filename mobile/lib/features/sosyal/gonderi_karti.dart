@@ -21,6 +21,7 @@ import '../isletme/isletme_kart.dart' show kYuzeyGri, kYanBosluk;
 import 'demo_veri.dart';
 import 'demo_yorum.dart';
 import 'gonderi_detay.dart';
+import 'gonderi_menusu.dart';
 import 'medya_olcu.dart';
 import 'medya_video.dart';
 import 'paylas_sheet.dart';
@@ -231,95 +232,105 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
     if (mounted) setState(() {});
   }
 
+  /// ⚠️⚠️⚠️ TURU 98l — ••• MENUSU (kullanici emri + Threads/Facebook
+  ///	referans gorselleri). Gorunum ve maddeler `gonderi_menusu.dart`ta
+  ///	TEK KAYNAK; burada yalnizca SECIMIN KARSILIGI kosuluyor.
+  ///
+  /// ⚠️ Demo gonderide menu ACILIR (kullanici gormek istiyor) ama sunucuya
+  ///    giden hicbir eylem kosmaz.
   Future<void> _menu() async {
-    if (_demo) return _demoUyar();
     final benim = g.yazarId == widget.benimId;
-    final secim = await showModalBottomSheet<String>(
-      context: context,
-      builder: (c) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(LucideIcons.link),
-              title: const Text('Bağlantıyı kopyala'),
-              onTap: () => Navigator.pop(c, 'link'),
-            ),
-            // ⚠️ TURU 76 — kullanici emri: "paylastigim gonderilerde duzenleme".
-            if (benim)
-              ListTile(
-                leading: const Icon(LucideIcons.pencil),
-                title: const Text('Düzenle'),
-                onTap: () => Navigator.pop(c, 'duzenle'),
-              ),
-            if (benim)
-              ListTile(
-                leading: const Icon(LucideIcons.trendingUp),
-                title: const Text('İstatistikler'),
-                onTap: () => Navigator.pop(c, 'istatistik'),
-              ),
-            if (benim)
-              ListTile(
-                leading: const Icon(LucideIcons.trash2, color: Colors.red),
-                title: const Text(
-                  'Gönderiyi sil',
-                  style: TextStyle(color: Colors.red),
-                ),
-                onTap: () => Navigator.pop(c, 'sil'),
-              ),
-            if (!benim)
-              ListTile(
-                leading: const Icon(LucideIcons.flag),
-                title: const Text('Şikayet et'),
-                onTap: () => Navigator.pop(c, 'sikayet'),
-              ),
-          ],
-        ),
-      ),
+    final secim = await gonderiMenusuAc(
+      context,
+      benimGonderim: benim,
+      sponsorlu: g.sponsorlu,
+      kaydedildi: g.kaydettim,
     );
     if (!mounted || secim == null) return;
-    if (secim == 'link') {
-      await Clipboard.setData(
-        ClipboardData(text: 'https://gebzem.app/p/${g.id}'),
-      );
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Bağlantı kopyalandı')));
-    } else if (secim == 'sil') {
-      final onay = await showDialog<bool>(
-        context: context,
-        builder: (c) => AlertDialog(
-          title: const Text('Gönderi silinsin mi?'),
-          content: const Text('Bu işlem geri alınamaz.'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(c, false),
-              child: const Text('Vazgeç'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(c, true),
-              child: const Text('Sil', style: TextStyle(color: Colors.red)),
-            ),
-          ],
-        ),
-      );
-      if (onay != true || !mounted) return;
-      try {
-        await ref.read(sosyalServisiProvider).gonderiSil(g.id);
-        widget.onSilindi?.call();
-      } catch (_) {
+
+    switch (secim) {
+      case MenuSecim.kopyala:
+        await Clipboard.setData(
+          ClipboardData(text: 'https://gebzem.app/p/${g.id}'),
+        );
         if (!mounted) return;
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('Gönderi silinemedi')));
-      }
-    } else if (secim == 'duzenle') {
-      await _duzenle();
-    } else if (secim == 'istatistik') {
-      await _istatistik();
-    } else if (secim == 'sikayet') {
-      await sikayetSheetAc(context, ref, hedefTur: 'gonderi', hedefId: g.id);
+        ).showSnackBar(const SnackBar(content: Text('Bağlantı kopyalandı')));
+      case MenuSecim.kaydet:
+        await _kaydetCevir();
+      case MenuSecim.duzenle:
+        await _duzenle();
+      case MenuSecim.istatistik:
+        await _istatistik();
+      case MenuSecim.sil:
+        await _silOnayla();
+      case MenuSecim.engelle:
+        if (_demo) return _demoUyar();
+        await engelleOnayiAc(
+          context,
+          ref,
+          kullaniciId: g.yazarId,
+          ad: g.yazarAd,
+          suAnEngelli: false,
+        );
+      case MenuSecim.sikayet:
+      case MenuSecim.reklamSikayet:
+        if (_demo) return _demoUyar();
+        await sikayetSheetAc(context, ref, hedefTur: 'gonderi', hedefId: g.id);
+      // ⚠️⚠️ ASAGIDAKILERIN SUNUCU KARSILIGI **YOK** (bkz. gonderi_menusu.dart
+      //	serhi). Sessizce hicbir sey yapmak yerine DURUSTCE soyleniyor —
+      //	bu projede "dugme var, is yok" sinifi alti kez sahaya cikti.
+      case MenuSecim.ilgilenmiyorum:
+      case MenuSecim.sessize:
+      case MenuSecim.kisitla:
+        _bilgi(
+          'Bu seçenek henüz aktif değil — akış tercihleri sunucuda tutulmuyor.',
+        );
+      case MenuSecim.reklamIlgimiCekiyor:
+      case MenuSecim.reklamIlgimiCekmiyor:
+      case MenuSecim.reklamGizle:
+      case MenuSecim.reklamNeden:
+      case MenuSecim.reklamHakkinda:
+        _bilgi('Bu bir tasarım demosu — reklam altyapısı henüz yok.');
+    }
+  }
+
+  void _bilgi(String m) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(m), duration: const Duration(seconds: 3)),
+    );
+  }
+
+  /// Gonderiyi sil (onay diyalogu ile).
+  Future<void> _silOnayla() async {
+    if (_demo) return _demoUyar();
+    final onay = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Gönderi silinsin mi?'),
+        content: const Text('Bu işlem geri alınamaz.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c, false),
+            child: const Text('Vazgeç'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(c, true),
+            child: const Text('Sil', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (onay != true || !mounted) return;
+    try {
+      await ref.read(sosyalServisiProvider).gonderiSil(g.id);
+      widget.onSilindi?.call();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Gönderi silinemedi')));
     }
   }
 
