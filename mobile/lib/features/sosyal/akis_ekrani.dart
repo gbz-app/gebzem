@@ -7,6 +7,8 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import "../../core/yenile.dart";
 
 import '../home/home_screen.dart' show myProfileProvider, aktifSekme;
+// ⚠️ TURU 98e — ust cubuk ikonlari alt menuyle AYNI olcude (TEK KAYNAK).
+import '../home/alt_menu.dart' show kAltMenuIkonBoy;
 import 'demo_veri.dart';
 import 'bildirim_sayaci.dart';
 import 'bildirimler_sayfasi.dart';
@@ -318,32 +320,55 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
   /// "Takip Ettiklerin" -> "Takip Ettik…" olurdu ve kullanicinin ACIKCA
   /// istedigi etiket okunamaz hale gelirdi. Kaydirma metni BOZMAZ.
   /// ⚠️ YAPMA: bu sarmali kaldirma; yaziyi kucultup "cozuldu" sayma.
+  /// ⚠️⚠️ TURU 98e — SECICI **ORTALANIR** (kullanici emri: *"Arkadaslar,
+  ///	Kesfet ve Canli Yayin header ortasinda olacak"*).
+  ///
+  /// ⚠️ Ortalama `Center` ILE DEGIL, kaydirma alaninin KENDI hizasiyla
+  ///	yapilir: `Center` sarmali kaydirma alanini icerigin genisligine
+  ///	daraltir ve ASIRI YAZI OLCEGINDE kaydirmayi OLDURURDU
+  ///	(yukaridaki olcum tablosu: olcek 2.0da icerik 379dp, alan 344dp).
+  ///	**`ConstrainedBox(minWidth: alanGenisligi)` + `MainAxisAlignment.center`**
+  ///	ikisini birden verir: icerik sigiyorsa satir alan genisligine uzar ve
+  ///	ORTALANIR, sigmiyorsa dogal genisligine cikar ve KAYDIRILIR.
+  ///
+  /// ⚠️⚠️ ILK DENEME `Align(center)` IDI ve **HICBIR SEY YAPMADI** (ekranda
+  ///	olculdu): `SingleChildScrollView` cocuguna kaydirma ekseninde
+  ///	**SINIRSIZ** genislik verir; sinirsiz kisitta `Align` hizalayacak
+  ///	fazla alan BULAMAZ. Ortalamak icin alt sinir (`minWidth`) SART.
+  /// ⚠️ YAPMA: `Center`/`Align` ile "cozdum" sayma; `LayoutBuilder`i kaldirma.
   Widget _bolmeSecici() => Padding(
     padding: const EdgeInsets.fromLTRB(4, 0, 12, 4),
-    child: SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      // ⚠️ Kaydirma cubugu YOK ve normal olcekte icerik zaten sigiyor, yani
-      //    kullanici bu sarmali HIC fark etmez; yalniz asiri olcekte devreye girer.
-      physics: const ClampingScrollPhysics(),
-      child: Row(
-        children: [
-          // ⚠️ TURU 97 — 'Takip Ettiklerin' -> **'Arkadaşlar'** (kullanici emri).
-          _bolmeYazisi(0, 'Arkadaşlar'),
-          _bolmeYazisi(1, 'Keşfet'),
-          // ⚠️⚠️ 'Canlı Yayın' bir AKIS BOLMESI DEGIL, alt menudeki CANLI
-          //	sekmesine giden bir KISAYOLDUR (kullanici emri: *"kesfetin
-          //	sagina Canli Yayin olsun"*).
-          //
-          // ⚠️⚠️ UCUNCU BOLME OLARAK EKLENMEDI ve sebebi kullanicinin
-          //	kendi uyarisidir (*"yer degistirince patlamasin"*):
-          //	`_bolmeYuklendi` ve `_bolmeKaydirma` **IKI ELEMANLI** sabit
-          //	dizilerdir; `_bolme = 2` yazmak bu dizilerde RANGE ERROR
-          //	verirdi. Yayin listesi ZATEN `LiveTab`ta yasiyor — ikinci bir
-          //	kopya yazmak yerine oraya goturuluyor.
-          // ⚠️ YAPMA: buraya `_bolmeYazisi(2, ...)` yazma; once iki diziyi
-          //    ve `_bolmeYukle` dallarini uc elemana cikarman gerekir.
-          _bolmeLinki('Canlı Yayın', () => aktifSekme.value = 4),
-        ],
+    child: LayoutBuilder(
+      builder: (context, kisit) => SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        // ⚠️ Kaydirma cubugu YOK ve normal olcekte icerik zaten sigiyor, yani
+        //    kullanici bu sarmali HIC fark etmez; yalniz asiri olcekte devreye girer.
+        physics: const ClampingScrollPhysics(),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minWidth: kisit.maxWidth),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // ⚠️ TURU 97 — 'Takip Ettiklerin' -> **'Arkadaşlar'** (kullanici emri).
+              _bolmeYazisi(0, 'Arkadaşlar'),
+              _bolmeYazisi(1, 'Keşfet'),
+              // ⚠️⚠️ 'Canlı Yayın' bir AKIS BOLMESI DEGIL, alt menudeki CANLI
+              //	sekmesine giden bir KISAYOLDUR (kullanici emri: *"kesfetin
+              //	sagina Canli Yayin olsun"*).
+              //
+              // ⚠️⚠️ UCUNCU BOLME OLARAK EKLENMEDI ve sebebi kullanicinin
+              //	kendi uyarisidir (*"yer degistirince patlamasin"*):
+              //	`_bolmeYuklendi` ve `_bolmeKaydirma` **IKI ELEMANLI** sabit
+              //	dizilerdir; `_bolme = 2` yazmak bu dizilerde RANGE ERROR
+              //	verirdi. Yayin listesi ZATEN `LiveTab`ta yasiyor — ikinci bir
+              //	kopya yazmak yerine oraya goturuluyor.
+              // ⚠️ YAPMA: buraya `_bolmeYazisi(2, ...)` yazma; once iki diziyi
+              //    ve `_bolmeYukle` dallarini uc elemana cikarman gerekir.
+              _bolmeLinki('Canlı Yayın', () => aktifSekme.value = 4),
+            ],
+          ),
+        ),
       ),
     ),
   );
@@ -565,6 +590,13 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
         //    90bdeki "iki FAB ust uste" hatasinin kardesi dogardi.
         leadingWidth: 46,
         leading: IconButton(
+          // ⚠️⚠️ TURU 98e — IKON BOYU **ALT MENUYLE AYNI** (kullanici emri:
+          //	*"sol ustteki + ve bildirim ikonlari alt menudeki ikonlar
+          //	ile ayni buyuklukte olacak"*). Sabit `alt_menu.dart`tan
+          //	IMPORT edilir — iki cubuk arasinda drift YAPISAL OLARAK
+          //	imkansiz olsun diye (bu projede "ayni olcu iki yerde"
+          //	sinifi defalarca sahaya cikti).
+          iconSize: kAltMenuIkonBoy,
           icon: const Icon(LucideIcons.squarePlus),
           tooltip: "Oluştur",
           onPressed: _olusturMenusu,
@@ -616,6 +648,8 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
           // olarak artar, sayfaya girilince sifirlanir.
           BildirimRozeti(
             child: IconButton(
+              // ⚠️ TURU 98e — alt menuyle AYNI olcu (yukaridaki serh).
+              iconSize: kAltMenuIkonBoy,
               // ⚠️ TURU 96z — ikon **bildirim (bell)** (kullanici emri:
               //    *"en sagdaki ise push icon olacak"*). Onceki
               //    `trendingUp` bildirimle ilgisi olmayan bir grafik

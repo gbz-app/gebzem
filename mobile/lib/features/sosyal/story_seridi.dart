@@ -454,7 +454,11 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi>
   ///	10px daha buyut"*). TEK SABIT: uc cizim yeri de bunu okur (kendi
   ///	halkam · baskasinin halkasi · fotografsiz gri daire). Uc yere ayri
   ///	sayi yazilsaydi biri guncellenip otekiler geride kalirdi.
-  static const double kHalkaCap = 70;
+  /// ⚠️ TURU 98e — 70 -> **74** (kullanici: *"story paylasma dairesini
+  ///    4px daha buyut, digerleri de AYNI buyuklukte olsun"*). Tek sabit
+  ///    oldugu icin kendi halkam · baskasinin halkasi · kapsuldeki iki
+  ///    daire HEPSI birlikte buyur.
+  static const double kHalkaCap = 74;
 
   /// Seridin ust/alt boslugu (kullanici emri: *"biraz daha azalt"*): 8 -> 4.
   static const double kDikey = 4;
@@ -583,14 +587,16 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi>
   ) {
     // Ic cap: dis halka (2.5) + zemin boslugu (2) iki yandan = 9.
     const ic = kHalkaCap - 9;
-    // ⚠️⚠️⚠️ TURU 98d — **UST USTE BINME KALDIRILDI** (kullanici emri:
-    //	*"canlida profiller ust uste binmesin, arasinda cok az bir bosluk
-    //	olsun; hepsi story paylasma dairesi buyuklugunde olsun"*).
-    //	Yani iki avatar da TAM CAP (`ic`) cizilir ve aralarinda yalniz
-    //	`kIkiliAra` kadar nefes olur; kapsul genisligi buna gore turer.
-    // ⚠️ Onceki hal referans gorseldeki gibi %42 bindirmeliydi; kullanici
-    //    sahada gorup REDDETTI. Bindirmeye geri donme.
-    const kayma = ic + kIkiliAra;
+    // ⚠️⚠️⚠️ TURU 98e — **UST USTE BINME GERI GELDI** (kullanici emri:
+    //	*"canli yayin ve sesli odadaki profiller ust uste gelsin, bir
+    //	onceki yaptigin gibi"*).
+    //
+    // ⚠️ TARIHCE (bir daha gidip gelmeyelim): 98c bindirmeliydi (referans
+    //    gorsel) -> 98d kullanici istegiyle AYRILDI -> 98e YINE bindirmeli.
+    //    Son soz KULLANICIDA; degistirmeden once bu satiri oku.
+    // ⚠️ Ikinci daire de TAM CAP cizilir (kullanici: *"hepsi ayni
+    //    buyuklukte"*); yalniz KONUMU kayar.
+    const kayma = ic * 0.58;
     return _kutu(
       etiket: y.durum == 'canli'
           ? '${k.ad} canlı yayında'
@@ -620,11 +626,24 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi>
                   //    ustte kalir — referans gorseldeki sira.
                   child: Stack(
                     children: [
-                      // ⚠️ TURU 98d — bindirme YOK: ikisi de TAM CAP, aralarinda
-                      //    yalniz `kIkiliAra` nefes var. Ayrac cercevesine de
-                      //    GEREK KALMADI (daireler birbirine degmiyor).
-                      Positioned(right: 0, child: _seritAvatar(y.ikinciAd, null, ic)),
-                      _seritAvatar(k.ad, k.avatarMediaId, ic),
+                      // ⚠️ ARKADAKI (katilan) ONCE cizilir; ONDEKI (yayini
+                      //    acan) ustte kalir.
+                      Positioned(
+                        right: 0,
+                        child: _seritAvatar(y.ikinciAd, null, ic),
+                      ),
+                      // ⚠️⚠️ BINDIRMEDE **AYRAC ZORUNLU**: iki daire de duz gri
+                      //    oldugu icin (fotografsiz) ayrac olmadan tek bir
+                      //    bulanik lekeye donusuyorlar. Zemin renginde 2 dp
+                      //    halka ikisini AYIRIR.
+                      Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Theme.of(context).scaffoldBackgroundColor,
+                        ),
+                        child: _seritAvatar(k.ad, k.avatarMediaId, ic - 4),
+                      ),
                     ],
                   ),
                 ),
@@ -735,7 +754,10 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi>
     //	(70 + 9 = 79, geriye 5 dp kalirdi — tam da turu 82'de sikayet edilen
     //	durum).
     // ⚠️ YAPMA: buraya sabit sayi yazma.
-    width: genislik ?? (kHalkaCap + 9 + 15),
+    // ⚠️ TURU 98e — halkalar arasi bosluk **15 -> 11** (kullanici: *"aralarindaki
+    //    boslugu bir tik azalt"*). Daire 4 dp buyudugu icin toplam kutu
+    //    genisligi degismez, yalniz nefes payi kisilir.
+    width: genislik ?? (kHalkaCap + 9 + 11),
     // ⚠️⚠️⚠️ TURU 97 — **HIKAYE ETIKETLERI KALDIRILDI** (kullanici emri:
     //	*"hikayen yazmasin, bir sey yazmasin"*). Halkanin altinda artik hicbir
     //	yazi yok; serit yalniz dairelerden olusuyor.
