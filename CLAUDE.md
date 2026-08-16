@@ -17,7 +17,50 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (15 Agu 22:09): TURU 96n YAYINLANDI** — android
+- **KALDIGIMIZ YER (16 Agu 13:33): TURU 96u YAYINLANDI** — android
+  **31941390675** + ios **31941392713** (**1446820**), R2 apk=121959543
+  (md5 a6ba51e7) ipa=31621462 (md5 dc51e60e) index=11845 (md5 da111310)
+  surum.json=48 (md5 f56871ff), purge OK, **CDN DORDU DE BIREBIR**, debug
+  imza YOK, `HARITA=true` iki logda da dogrulandi.
+  ⚠️ **BACKEND DEGISMEDI** → deploy YOK, **DB TRUNCATE EDILMEDI**.
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260816-1333
+  · **96p** alt menu radius + 66dp yukseklik GERI (96o'da yanlislikla
+    kaldirilmisti); logo cubugun ICINDE, kaldirma `min(15, (66-52)/2)` ile
+    TURETILIR — tasma yapisal olarak imkansiz.
+  · **96q-96u** menu: 4 sutun · kartlar kategori ekraniyla **BIREBIR**
+    (gri kutu + altinda 14/w600 yazi, sabitler oradan IMPORT) · hizli erisim
+    **tek satir yatay kaydirma** (Yakinimda · Nobetci Eczane · Durak · Taksi ·
+    Akaryakit) + "HIZLI ERISIM" basligi · kategori sirasi kullanicidan
+    (Yemek·Restoran·Cafe·Alisveris·Hizmet·Ilan·Dugun·Egitim·Saglik·Otel) ·
+    Dugun/Organizasyon ayri · baslik altina slider · aramada TEMIZLE (X).
+  ⚠️ **HARF ARALIGI (`letterSpacing`) YASAK** (kullanici emri): "Kategoriler"
+     gibi basliklarda ozel bosluk kullanma.
+- ⚠️⚠️⚠️ **TURU 96n-96p — "LOGONUN CEVRESINDE TIRTIKLAR" KOD DEGILDI (UC KEZ
+  BILDIRILDI).** Kullanici sonunda *"profil dairesinde de ayni cizgi var"*
+  dedi — o daire DUZ bir `BoxDecoration` dairesi. Denenen DORT sey de
+  **piksel piksel AYNI** cikti: `cacheWidth`+`FilterQuality.medium` ·
+  `Clip.antiAliasWithSaveLayer` · kirpmayi kaldirip daireyi SEKIL olarak
+  cizme · **Skia** ile derleme. 6 kat buyutulunce kenar PURUZSUZ.
+  **KOK NEDEN: emulator penceresinin ~2.5 kat kucultmesi.** Telefonda YOK
+  (kullanici dogruladi).
+  ⚠️⚠️ **OLCUM DERSI:** daire kenarini TAM SOL UCUNDAN olcup "anti-alias yok"
+     dedim — orada kenar DIKEYDIR. "21px basamak" da dairenin KENDI
+     geometrisiydi. **Egri kenari tek pikselden olcme — BUYUT VE BAK.**
+  ⚠️ `--enable-impeller=false` HATALI; dogrusu **`--no-enable-impeller`**.
+- ⚠️⚠️ **IKI YERLESIM TUZAGI (turu 96o/96t):**
+  · **`suffixIcon`e KALAN GENISLIGIN TAMAMI verilir.** Aramadaki X ilk
+    yazimda yalniz `height` + `Center` ile kuruldu -> X **inputun ORTASINDA**
+    cikti ve **metne yer kalmadigi icin yazi GORUNMEDI**. Genislik ACIKCA
+    verilir (44).
+  · **`KategoriSlider` TAM EKRAN genisliginde cizilmek ZORUNDA** (yan boslugu
+    kendi `viewportFraction`indan uretir). Menude dis dolgunun icindeydi ve
+    bosluk IKI KEZ uygulaniyordu -> ilk slaytin solunda fazladan bosluk.
+- ⏳ **DURUST SINIRLAR (turu 96t):** Durak/Taksi/Akaryakit kartlari YALNIZ
+  kayitli isletmeyi gosterir (belediye/POI verisi YOK; arama kisayolu) ·
+  "Nobetci Eczane" nobet verisi olmadan eczaneleri mesafeye gore listeler ·
+  Restoran ve Cafe DB'de tek `kafe` kategorisi · menudeki slider BOS
+  (reklam/kampanya verisi yok).
+- **ONCEKI (15 Agu 22:09): TURU 96n YAYINLANDI** — android
   **31902434942** + ios **31902436964** (**33bb07b**), R2 apk=121959543
   (md5 1e4e6bf7) ipa=31627019 (md5 92282752) index=12077 (md5 e0970e6f)
   surum.json=48 (md5 e9e05839), purge OK, **CDN DORDU DE BIREBIR**, debug
