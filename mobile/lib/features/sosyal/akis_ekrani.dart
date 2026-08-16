@@ -337,7 +337,7 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
   ///	fazla alan BULAMAZ. Ortalamak icin alt sinir (`minWidth`) SART.
   /// ⚠️ YAPMA: `Center`/`Align` ile "cozdum" sayma; `LayoutBuilder`i kaldirma.
   Widget _bolmeSecici() => Padding(
-    padding: const EdgeInsets.fromLTRB(4, 0, 12, 4),
+    padding: EdgeInsets.zero,
     child: LayoutBuilder(
       builder: (context, kisit) => SingleChildScrollView(
         scrollDirection: Axis.horizontal,
@@ -631,6 +631,20 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
         // ⚠️ LOGOYU DEGISTIRMEK ICIN YALNIZ `assets/icon/logo.png` degisir —
         //    bu koda DOKUNMAYA GEREK YOK.
         centerTitle: true,
+        // ⚠️⚠️⚠️ TURU 98f — SECICI **APPBAR ORTASINA** TASINDI (kullanici
+        //	emri: *"Arkadaslar · Kesfet · Canli Yayin bunlari header
+        //	ortasina, + ile bildirim arasina yapacaktin"*).
+        //
+        //	Onceden hikaye seridinin ALTINDA, listenin i==1 ogesiydi (turu
+        //	80 karari) ve akisla birlikte KAYIYORDU; artik ust cubukta
+        //	SABIT duruyor. Liste indisleri de buna gore 1 azaltildi.
+        // ⚠️ centerTitle: true ZORUNLU (tema geneli false).
+        // ⚠️ Secici hala yatay KAYDIRILABILIR: asiri yazi olceginde dar
+        //    alana sigmazsa kayar, TASMAZ.
+        // ⚠️ TURU 98f — `titleSpacing: 0`: varsayilan 16+16 dp bosluk
+        //    "Canlı Yayın"in son harfini KIRPIYORDU (ekranda olculdu).
+        titleSpacing: 0,
+        title: _bolmeSecici(),
         // ⚠️⚠️ TURU 96z — **ORTADAKI LOGO KALDIRILDI** (kullanici emri:
         //	*"ortadaki logoyu kaldir"*). Logo artik ALT MENUNUN ortasinda
         //	duruyor ve menuyu aciyor; AppBarda ikinci bir kopyasi
@@ -700,7 +714,6 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
         physics: const AlwaysScrollableScrollPhysics(),
         children: [
           StorySeridi(key: _storyKey),
-          _bolmeSecici(),
           const SizedBox(height: 120),
           Center(child: Text(_hata!)),
           const SizedBox(height: 12),
@@ -740,7 +753,6 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
         physics: const AlwaysScrollableScrollPhysics(),
         children: [
           StorySeridi(key: _storyKey),
-          _bolmeSecici(),
           const SizedBox(height: 120),
           const Center(child: CircularProgressIndicator()),
         ],
@@ -759,7 +771,6 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
         physics: const AlwaysScrollableScrollPhysics(),
         children: [
           StorySeridi(key: _storyKey),
-          _bolmeSecici(),
           const SizedBox(height: 100),
           const Icon(LucideIcons.images, size: 54, color: Colors.grey),
           const SizedBox(height: 14),
@@ -792,13 +803,15 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
       // ⚠️ TURU 80: +1 hikaye seridi / **+1 BOLME SECICI** / +1 kesfet seridi /
       //    +1 alt yukleme gostergesi. Secici eklendiginde bu sayac da
       //    guncellendi — atlanmis olsaydi listenin SON KARTI cizilmezdi.
-      itemCount: _liste.length + 2 + (_kesfet ? 1 : 0) + 1,
+      // ⚠️ TURU 98f — secici ARTIK APPBARDA; listeden CIKTI, bu yuzden
+      //    sayac +2 yerine **+1** (yalniz hikaye seridi) ve indis kaymasi da
+      //    1 azaldi. Atlanirsa listenin SON KARTI cizilmezdi.
+      itemCount: _liste.length + 1 + (_kesfet ? 1 : 0) + 1,
       itemBuilder: (_, i) {
         // ⚠️ TURU 80: 0 = hikaye seridi, 1 = BOLME SECICI (kullanici emri:
         //    "hikaye dairesinin ALTINA"). Ikisi de akisla BIRLIKTE kayar.
         if (i == 0) return StorySeridi(key: _storyKey);
-        if (i == 1) return _bolmeSecici();
-        var idx = i - 2;
+        var idx = i - 1;
         if (_kesfet) {
           if (idx == 0) return _kesfetSeridi();
           idx = idx - 1;

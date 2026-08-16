@@ -32,8 +32,16 @@ import 'yorumlar_sayfasi.dart';
 ///    iki yerde ayri sayi yazilirsa metin adin altindan KAYAR.
 const double kBaslikYanDolgu = kYanBosluk;
 
-/// Avatar ile ad arasindaki bosluk (`ListTile.horizontalTitleGap`).
+/// Avatar ile ad arasindaki bosluk.
 const double kBaslikAra = 10;
+
+/// Baslik avatarinin capi. Metnin girintisi bundan TURETILIR.
+const double kAvatarCap = 38;
+
+/// ⚠️⚠️ TURU 98f — **AD -> ACIKLAMA** ve **ACIKLAMA -> MEDYA** bosluklari
+///	AYNI sabitten gelir (kullanici emri: *"esit olsun"*). Tek sayi
+///	oldugu icin biri degisip oteki geride KALAMAZ.
+const double kIcBosluk = 8;
 
 /// ⚠️⚠️ TURU 75 — AKISTAKI GONDERI KARTI (Instagram/Facebook duzeni).
 ///
@@ -557,177 +565,150 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // ---- BASLIK
-        ListTile(
-          // ⚠️ Sagda 8 dp EKSIK dolgu: `IconButton` kutusu (40) ikondan (24)
-          //    8 dp genis oldugu icin ikonun GORUNEN sag kenari tam
-          //    `kBaslikYanDolgu` cizgisine oturur (turu 98d).
-          contentPadding: const EdgeInsets.only(
+        // ---- BASLIK + METIN (TEK BLOK)
+        //
+        // ⚠️⚠️⚠️ TURU 98f — `ListTile` BIRAKILDI (kullanici emri):
+        //	*"profil isimleri profil resminin UST KISMI ile hizali olsun ve
+        //	profil ismi ile aciklama arasindaki bosluk, aciklama ile resim
+        //	arasindaki boslukla ESIT olsun"*.
+        //
+        //	`ListTile` bunlarin IKISINI DE YAPAMAZ: baslik dikeyde
+        //	ORTALANIR (38 dp avatarin ortasina) ve aciklama satiri
+        //	`ListTile`in DISINDA kaldigi icin aradaki bosluk avatarin
+        //	yuksekliginden artakalan pay + dolgu olur — yani ELLE
+        //	AYARLANAMAZ.
+        //
+        // ⚠️ YENI YAPI: `Row(crossAxisAlignment: start)` -> ad, avatarin UST
+        //	kenariyla ayni cizgide baslar. Ad ve aciklama AYNI kolonda
+        //	oldugu icin aralarindaki bosluk TEK SABITTEN (`kIcBosluk`)
+        //	gelir; ayni sabit bu blogun ALTINA da konur, yani
+        //	**ad -> aciklama** ve **aciklama -> medya** bosluklari
+        //	YAPISAL OLARAK esittir.
+        // ⚠️ YAPMA: burayı tekrar `ListTile`a cevirme.
+        Padding(
+          padding: const EdgeInsets.only(
             left: kBaslikYanDolgu,
+            // ⚠️ 8 EKSIK: `IconButton` kutusu (40) ikondan (24) 8 dp genis;
+            //    boylece ••• ikonunun GORUNEN sag kenari tam
+            //    `kBaslikYanDolgu` cizgisine oturur.
             right: kBaslikYanDolgu - 8,
           ),
-          leading: GestureDetector(
-            onTap: () =>
-                _demo ? _demoUyar() : widget.profileGit?.call(g.yazarId),
-            child: Avatar(
-              ad: g.yazarAd,
-              mediaId: g.yazarAvatarMediaId,
-              avatarUrl: g.yazarAvatar,
-              cap: 38,
-            ),
-          ),
-          // ⚠️⚠️ TURU 82b — KULLANICI ADI KALDIRILDI, ZAMAN ISMIN SAGINA
-          //    (kullanici emri: *"isim altinda kullanici adi olmasin, zaman
-          //    1dk mesela ismin saginda olacak"*).
-          //    Alt satir tamamen bosaldigi icin `subtitle` YOK -> `ListTile`
-          //    tek satira duser ve baslik ~16dp KISALIR (yan fayda).
-          // ⚠️ Isim `Flexible` + ellipsis: uzun ad zamani EZMEZ; zaman
-          //    `Flexible` DEGIL cunku her zaman TAM gorunmeli.
-          // ⚠️ YAPMA: `@kullaniciadi`ni geri ekleme.
-          title: GestureDetector(
-            onTap: () =>
-                _demo ? _demoUyar() : widget.profileGit?.call(g.yazarId),
-            child: Row(
-              children: [
-                Flexible(
-                  child: Text(
-                    g.yazarAd,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    // ⚠️ TURU 98d — kullanici: *"kullanici adi 1 tik daha buyuk
-                    //    olsun"*. `ListTile` varsayilani 16 (bodyLarge) idi.
-                    style: const TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              GestureDetector(
+                onTap: () =>
+                    _demo ? _demoUyar() : widget.profileGit?.call(g.yazarId),
+                child: Avatar(
+                  ad: g.yazarAd,
+                  mediaId: g.yazarAvatarMediaId,
+                  avatarUrl: g.yazarAvatar,
+                  cap: kAvatarCap,
                 ),
-                const SizedBox(width: 6),
-                Text(
-                  [
-                    gonderiZamani(g.createdAt),
-                    // ⚠️ TURU 76: duzenlenmis gonderi GORUNUR isaretlenir.
-                    //    Sessizce degistirmek, altinda yorum birikmis bir
-                    //    icerigin anlamini bozmaya izin verirdi.
-                    if (g.duzenlendi) 'düzenlendi',
-                  ].join(' · '),
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.onSurface.withValues(alpha: 0.55),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          // ⚠️⚠️ TURU 90 — KONUM (kullanici emri: "normal paylasimda konum
-          //    paylasamiyoruz"). YALNIZ konum varsa cizilir; yoksa `subtitle`
-          //    null kalir ve `ListTile` TEK SATIRA duser (asagidaki serh).
-          // ⚠️ Dokununca cihazin KENDI harita uygulamasi acilir
-          //    (`KonumServisi.haritadaAc` — turu 81 karari: gomulu haritada
-          //    navigasyon yoktur).
-          subtitle: g.konumVar
-              ? GestureDetector(
-                  // ⚠️ TURU 90b — `opaque` + dikey dolgu: ciplak `Row`un
-                  //    yuksekligi 15dp idi (Material 48 / Apple 44 kuralinin
-                  //    COK altinda). Dolgu ile kutu ~31dp olur; `ListTile`
-                  //    zaten 56dp'ye oturdugu icin YERLESIM DEGISMEZ.
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () => KonumServisi.haritadaAc(g.enlem, g.boylam),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // ⚠️⚠️ TURU 90b — RENK **TEMADAN** (olculdu).
-                        //    Sabit `0xFF3AA9FF`, acik temanin `0xFFF2F2F5`
-                        //    zemininde **2.27:1** kontrast veriyordu — 12px
-                        //    normal metin icin gereken 4.5:1'in cok altinda,
-                        //    3:1'lik buyuk-metin esigini bile gecmiyordu.
-                        //    Koyu temada 6.72:1 ile sorunsuzdu; yani hata
-                        //    YALNIZ ACIK TEMADA gorunurdu (turu 81'in
-                        //    1.23:1 sohbet balonu vakasinin hafif hali).
-                        Icon(
-                          LucideIcons.mapPin,
-                          size: 12,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                        const SizedBox(width: 3),
-                        Flexible(
-                          child: Text(
-                            g.konum.isEmpty ? 'Konum' : g.konum,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Theme.of(context).colorScheme.primary,
+              ),
+              const SizedBox(width: kBaslikAra),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    GestureDetector(
+                      onTap: () => _demo
+                          ? _demoUyar()
+                          : widget.profileGit?.call(g.yazarId),
+                      child: Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              g.yazarAd,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              // ⚠️ TURU 98d — kullanici: "1 tik daha buyuk".
+                              style: const TextStyle(
+                                fontSize: 17,
+                                fontWeight: FontWeight.w600,
+                                height: 1.15,
+                              ),
                             ),
                           ),
-                        ),
-                      ],
+                          const SizedBox(width: 6),
+                          Text(
+                            [
+                              gonderiZamani(g.createdAt),
+                              // ⚠️ TURU 76: duzenlenmis gonderi GORUNUR isaretlenir.
+                              if (g.duzenlendi) 'düzenlendi',
+                            ].join(' · '),
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurface.withValues(alpha: 0.55),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                )
-              : null,
-          // ⚠️ `subtitle` YOK -> ListTile tek satira duser, baslik kisalir.
-          dense: true,
-          visualDensity: VisualDensity.compact,
-          horizontalTitleGap: kBaslikAra,
-          // ⚠️⚠️ TURU 98d — ••• **KARTIN SAG KENARINA HIZALANIR** (kullanici:
-          //	*"3 nokta tam sagda degil, onu da duzenle"*).
-          //
-          //	`IconButton` varsayilan olarak 48x48 kutuya 24'luk ikonu ortalar
-          //	(her yanda 12 dp) ve `contentPadding` 16 ile birlesince ikon
-          //	kartin sag kenarindan **28 dp** iceride kaliyordu — medya kutusu
-          //	ve etkilesim cubugu ise 16'da. Goz bunu "3 nokta ice kacmis"
-          //	diye okur.
-          // ⚠️ Dokunma hedefi KUCULMEZ: kutu 40x40 (Material asgari 48'e
-          //    yakin) ve komsu dokunma hedefi YOK.
-          trailing: IconButton(
-            icon: const Icon(LucideIcons.ellipsis),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints.tightFor(width: 40, height: 40),
-            // ⚠️ 8 = (40 - 24) / 2 -> ikonun sag kenari tam `kBaslikYanDolgu`da.
-            visualDensity: VisualDensity.compact,
-            onPressed: _menu,
+                    // ⚠️⚠️ TURU 90 — KONUM (yalniz varsa cizilir). Dokununca
+                    //    cihazin KENDI harita uygulamasi acilir.
+                    if (g.konumVar)
+                      GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () =>
+                            KonumServisi.haritadaAc(g.enlem, g.boylam),
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 3, bottom: 3),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              // ⚠️ TURU 90b — RENK TEMADAN (sabit mavi acik
+                              //    temada 2.27:1 kontrast veriyordu).
+                              Icon(
+                                LucideIcons.mapPin,
+                                size: 12,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                              const SizedBox(width: 3),
+                              Flexible(
+                                child: Text(
+                                  g.konum.isEmpty ? 'Konum' : g.konum,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    // ---- ACIKLAMA (adin ALTINDA, adla AYNI kolonda)
+                    if (g.metin.isNotEmpty) ...[
+                      const SizedBox(height: kIcBosluk),
+                      Text(g.metin, style: const TextStyle(fontSize: 15)),
+                    ],
+                  ],
+                ),
+              ),
+              IconButton(
+                icon: const Icon(LucideIcons.ellipsis),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints.tightFor(
+                  width: 40,
+                  height: 40,
+                ),
+                visualDensity: VisualDensity.compact,
+                onPressed: _menu,
+              ),
+            ],
           ),
         ),
-        // ⚠️⚠️ TURU 97 — BASLIK ILE ICERIK ARASINDA **NEFES** (kullanici:
-        //	*"gonderilerde profil gondere yapismis"*). `ListTile` burada
-        //	`dense: true` + `VisualDensity.compact` ile ciziliyor; ikisi
-        //	birlikte satirin DIKEY dolgusunu sifira yaklastiriyor ve avatar
-        //	altindaki medyaya YAPISIK gorunuyordu.
-        // ⚠️ Cozum `dense`i kaldirmak DEGIL (o zaman baslik satiri uzar ve
-        //    akista her kart buyur); yalnizca ARAYA bosluk konuyor.
-        const SizedBox(height: 8),
+        // ⚠️ ACIKLAMA -> MEDYA boslugu, AD -> ACIKLAMA boslugu ile AYNI
+        //    sabittir (kullanici emri).
+        const SizedBox(height: kIcBosluk),
 
-        // ---- METIN (medya ustunde — Facebook duzeni)
-        //
-        // ⚠️⚠️⚠️ TURU 98c — METIN **KULLANICI ADININ ALTINDA HIZALANIR**
-        //	(kullanici emri: *"aciklamalar kullanici adinin altinda olacak,
-        //	sol sag bosluklar yemekteki gibi olacak"*).
-        //
-        // ⚠️ Sol dolgu ELLE YAZILMAZ, **BASLIKTAN TURETILIR**
-        //	(`kBaslikYanDolgu + 38 + horizontalTitleGap`). Sabit bir sayi
-        //	yazilsaydi avatar capi ya da baslik dolgusu degistiginde metin
-        //	SESSIZCE kayardi — bu projede "ayni olcu iki yerde yasiyor"
-        //	sinifi defalarca sahaya cikti.
-        // ⚠️ Sag dolgu `kYanBosluk` (16) — kategori ("yemek") ekraniyla AYNI
-        //    kaynak.
-        // ⚠️ MEDYA BU HIZAYA ALINMADI: kullanici turu 82b'de **DORT KEZ**
-        //    *"yanda bosluk olmasin"* dedi ve `kKartYanDolgu` 12 -> 6'ya
-        //    indirildi. Metnin girintilenmesi o karari BOZMAZ.
-        if (g.metin.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              kBaslikYanDolgu + 38 + kBaslikAra,
-              0,
-              kYanBosluk,
-              10,
-            ),
-            child: Text(g.metin, style: const TextStyle(fontSize: 15)),
-          ),
 
         // ---- SES (medyadan ONCE kontrol edilir — ses bir galeri DEGILDIR)
         //

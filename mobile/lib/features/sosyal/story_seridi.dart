@@ -380,16 +380,26 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi>
             onTap: _yukleniyor
                 ? null
                 : (benim != null ? () => _ac(benim) : _paylasSecenek),
-            child: _cember(
-              halka: benim != null && !benim.hepsiIzlendi,
-              gri: benim != null && benim.hepsiIzlendi,
-              // ⚠️⚠️⚠️ TURU 97 — FOTOGRAF YOKSA **HARF DEGIL DUZ GRI DAIRE**
-              //	(kullanici emri: *"A yazmasin, bos olsun, gri bizim gri
-              //	renk olsun"*). Alt menudeki profil dairesiyle AYNI dil.
-              // ⚠️ Etiket de kaldirildigi icin (asagida) harf tek basina
-              //    zaten hicbir sey anlatmiyordu.
-              child: _benimAvatar(ad, profil),
-            ),
+            // ⚠️⚠️⚠️ TURU 98f — HALKASIZ HALDE **CEMBER SARMALI YOK**
+            //	(kullanici: *"story ekleme dairesi digerleriyle AYNI
+            //	buyuklukte olsun"*).
+            //	 4.5 dp dolgu ekler; halka CIZILMEDIGINDE o dolgu
+            //	SAYDAM kalir ve gorunen daire kardeslerinden **9 dp KUCUK**
+            //	cikardi. Hikayesi olmayan kullanici daireyi dolgu kadar
+            //	BUYUK cizer; ikisinin DIS capi artik esit.
+            // ⚠️ YAPMA: halkasiz dali tekrar  icine alma.
+            child: benim == null
+                ? _benimAvatar(ad, profil, kHalkaCap + 9)
+                : _cember(
+                    halka: !benim.hepsiIzlendi,
+                    gri: benim.hepsiIzlendi,
+                    // ⚠️⚠️⚠️ TURU 97 — FOTOGRAF YOKSA **HARF DEGIL DUZ GRI DAIRE**
+                    //	(kullanici emri: *"A yazmasin, bos olsun, gri bizim gri
+                    //	renk olsun"*). Alt menudeki profil dairesiyle AYNI dil.
+                    // ⚠️ Etiket de kaldirildigi icin (asagida) harf tek basina
+                    //    zaten hicbir sey anlatmiyordu.
+                    child: _benimAvatar(ad, profil, kHalkaCap),
+                  ),
           ),
           if (_yukleniyor)
             Positioned.fill(
@@ -722,22 +732,22 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi>
   }
 
   /// Fotograf varsa avatar, yoksa **duz gri daire** (turu 97).
-  Widget _benimAvatar(String ad, Map<String, dynamic>? profil) {
+  Widget _benimAvatar(String ad, Map<String, dynamic>? profil, double cap) {
     final mediaId = profil?['avatar_media_id'] as String?;
     final url = (profil?['avatar_url'] ?? '').toString();
     final fotografVar =
         (mediaId != null && mediaId.isNotEmpty) || url.isNotEmpty;
     if (!fotografVar) {
       return Container(
-        width: kHalkaCap,
-        height: kHalkaCap,
+        width: cap,
+        height: cap,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           color: kYuzeyGri(context),
         ),
       );
     }
-    return Avatar(ad: ad, mediaId: mediaId, avatarUrl: url, cap: kHalkaCap);
+    return Avatar(ad: ad, mediaId: mediaId, avatarUrl: url, cap: cap);
   }
 
   /// [genislik] verilmezse DAIRE olcusu kullanilir; kapsul (canli/oda) ogesi
