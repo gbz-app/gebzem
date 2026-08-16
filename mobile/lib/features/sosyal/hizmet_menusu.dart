@@ -10,6 +10,8 @@ import '../isletme/urun_ekranlari.dart' show AiDanismaEkrani;
 import '../isletme/urun_servisi.dart' show aiDurumProvider;
 import '../diyet/diyet_ekranlari.dart';
 import '../talep/talep_ekranlari.dart';
+import '../isletme/kategori_slider.dart';
+import '../isletme/isletme_servisi.dart' show isletmeServisiProvider;
 
 /// ⚠️⚠️ TURU 76b/77 — ANASAYFA SOL UST MENU.
 ///
@@ -38,6 +40,14 @@ import '../talep/talep_ekranlari.dart';
 ///    Tek satirlik Row 4. kartta
 ///    RenderFlex overflow verirdi (turu 60/62 dersi). Sheet KAYDIRILABILIR
 ///    (`isScrollControlled` + yukseklik tavani) — kucuk ekranda tasmasin.
+/// ⚠️ TURU 96q — MENUNUN SLIDER VERISI. Kategori ekraninin kullandigi
+///    `/isletme-kesif` ucunun **VARSAYILAN** (kategorisiz) slayt seti.
+/// ⚠️ `autoDispose` DEGIL: menu her acilista yeniden istek atmasin — slayt
+///    metinleri sunucuda sabit ve nadiren degisir.
+final _menuSlaytProvider = FutureProvider<List<Slayt>>((ref) async {
+  final d = await ref.read(isletmeServisiProvider).kesif('');
+  return d.slaytlar;
+});
 class HizmetMenusu extends ConsumerWidget {
   const HizmetMenusu({super.key});
 
@@ -64,9 +74,20 @@ class HizmetMenusu extends ConsumerWidget {
       //    Basa konmalarinin sebebi olculmus: 360x640'ta izgarada kaydirma
       //    yapmadan yalniz ILK IKI SATIR (6 kart) gorunuyor; yeni ozellikler
       //    KESFEDILEBILIR olmali.
-      _Bolum('Düğün & Organizasyon', [
+      // ⚠️⚠️ TURU 96q — **DUGUN ile ORGANIZASYON AYRILDI** (kullanici emri:
+      //	*"Düğün ve Organizasyonu ayır"*). Ikisi de AYNI ekrana gider
+      //	(`TalepAkisiEkrani` = teklif iste): ayrim KULLANICININ ZIHNINDEKI
+      //	ayrimdir — dugun eden ile kurumsal/organizasyon isi arayan ayni
+      //	karta bakmak zorunda kalmasin.
+      // ⚠️ Yeni EKRAN acilmadi: talep akisi zaten kategori agacini sunucudan
+      //    cekip soruyor (turu 91).
+      _Bolum('Düğün', [
         const Color(0xFFFF6B9D),
         const Color(0xFFC2185B),
+      ], (c) => const TalepAkisiEkrani()),
+      _Bolum('Organizasyon', [
+        const Color(0xFFFF9A6B),
+        const Color(0xFFC24A18),
       ], (c) => const TalepAkisiEkrani()),
       _Bolum('Diyet', [
         const Color(0xFF2BB673),
@@ -156,6 +177,31 @@ class HizmetMenusu extends ConsumerWidget {
     final kategoriler =
         bolumler.where((b) => b.ad != 'Yakınımda').toList();
 
+    // ⚠️⚠️⚠️ TURU 96q — **HIZLI ERISIM SATIRI** (kullanici emri: *"Yakınımda...
+    //	onun da sagina nobetci, cilingir vs ekle"*). Yakinimda kucultulup
+    //	yanina iki kart daha kondu; ucu de ESIT genislikte.
+    //
+    // ⚠️⚠️ **DURUST SINIR — "NOBETCI" VERISI YOK.** Bu projede nobetci eczane
+    //	bilgisi HICBIR YERDE tutulmuyor (resmi kaynak + ayri entegrasyon
+    //	ister; CLAUDE.md turu 89'da bilerek kapsam disi birakildi). Bu yuzden
+    //	kart **"Eczaneler"** adiyla ve eczane kategorisini (mesafeye gore)
+    //	acacak sekilde baglandi.
+    // ⚠️ YAPMA: karta "Nöbetçi Eczane" yazip eczane listesi acma — kullanici
+    //    kapali eczaneye gider ve bu, projenin en pahali hata sinifi olan
+    //    "arayuz soz veriyor, veri yok" durumudur.
+    final hizli = <_Bolum>[
+      _Bolum('Eczaneler', [
+        const Color(0xFF20C997),
+        const Color(0xFF0B7A5A),
+      ], (c) => const IsletmeListesiEkrani(
+          kategori: 'eczane', baslik: 'Eczaneler')),
+      _Bolum('Çilingir', [
+        const Color(0xFFFFB03A),
+        const Color(0xFFB86A00),
+      ], (c) => const IsletmeListesiEkrani(
+          kategori: 'hizmet', baslik: 'Çilingir & Hizmet')),
+    ];
+
     return SafeArea(
       child: ConstrainedBox(
         // ⚠️ Yukseklik TAVANI: 12 kart kucuk telefonda sheet'i ekran disina
@@ -189,6 +235,23 @@ class HizmetMenusu extends ConsumerWidget {
                 'Şehrindeki her şey',
                 style: TextStyle(fontSize: 13, color: Colors.grey),
               ),
+              const SizedBox(height: 12),
+              // ⚠️⚠️⚠️ TURU 96q — BASLIGIN ALTINA **SLIDER** (kullanici emri:
+              //	*"Gebzem sehrindeki her sey altina slider ekle"*).
+              //
+              // ⚠️⚠️ **ILK DENEME `VitrinSlider` IDI — EKRANDA HICBIR SEY
+              //	CIKMADI.** Sebep olculdu: o slider ONAYLI isletme +
+              //	YAKLASAN etkinlik gosterir, ikisi de bugun BOS; bos olunca
+              //	`SizedBox.shrink()` donuyor. Yani kod "calisiyordu" ama
+              //	kullanici acisindan ozellik YOKTU (bu projenin en sik hata
+              //	sinifi).
+              //
+              //	COZUM: kategori ekraninin **ZATEN DOLU** olan slider'i
+              //	(`KategoriSlider` + `/isletme-kesif` slaytlari). Metinler
+              //	SUNUCUDAN gelir (turu 92 kurali: istemciye sabit yazilmaz).
+              // ⚠️ Bos donerse yine hicbir sey cizilmez — ama varsayilan set
+              //    sunucuda TANIMLI oldugu icin pratikte hep dolu.
+              _slider(ref),
               const SizedBox(height: 14),
               // ⚠️⚠️⚠️ TURU 91 — DUZEN **IZGARAYA DONDU** (kullanici emri:
               //    *"kategoriler ALT ALTA yapmissin ama SOLDAN SAGA 5 tane
@@ -213,7 +276,17 @@ class HizmetMenusu extends ConsumerWidget {
               //    + ALTINDA yazi — turu 76b'nin "IKON YOK, yazi kartin
               //    ALTINDA" kurali BOYLECE GERI GELDI (tek sutunda yazi
               //    icerideydi cunku alt alta yazi satiri iki katina cikariyordu).
-              if (yakinimda != null) _yakinimdaSatiri(context, yakinimda),
+              // ⚠️ TURU 96q — Yakinimda ARTIK TEK BASINA DEGIL: yaninda iki
+              //    hizli erisim karti var, ucu de esit genislikte.
+              if (yakinimda != null)
+                Row(
+                  children: [
+                    for (final b in [yakinimda, ...hizli]) ...[
+                      Expanded(child: _hizliKart(context, b)),
+                      if (b != hizli.last) const SizedBox(width: 10),
+                    ],
+                  ],
+                ),
               const SizedBox(height: 18),
               const Text(
                 'KATEGORİLER',
@@ -231,14 +304,28 @@ class HizmetMenusu extends ConsumerWidget {
                 //    ise TUM cocuklari HER KAREDE layout ettiriyordu
                 //    (16 kart x her cizim). Kullanicinin "bir tik kasiyor"
                 //    tarifine katkida bulunan noktalardan biri.
+                // ⚠️⚠️⚠️ TURU 96q — **4 SUTUN, KARTLAR ~%30 KUCUK** (kullanici
+                //	emri: *"kategoriler altindaki kartlar 4 tane olacak, sol
+                //	sag yukseklik buyukluk %30 daha az olacak"*).
+                //
+                // ═══ OLCU (hesaplanmis) — 411 dp ekran, dis dolgu 2x16 ═══
+                //	ESKI 3 sutun: (411-32-2x10)/3 = **119.7** genislik,
+                //	              0.82 orani -> **146.0** yukseklik
+                //	YENI 4 sutun: (411-32-3x8)/4  = **88.8**  genislik  (-26%)
+                //	              0.86 orani  -> **103.2** yukseklik (-29%)
+                //	Alan olarak kart **~%48** kucuk; kullanicinin istedigi
+                //	"%30 daha az" kenar olcusunde birebir tutuyor.
+                // ⚠️ Etiket iki satira sarabildigi icin oran 0.82'de degil
+                //    **0.86**'da: daha dar hucrede yazi daha kolay sariyor ve
+                //    0.82 (daha uzun kart) gereksiz bosluk birakiyordu.
                 child: GridView.builder(
                   padding: EdgeInsets.zero,
                   gridDelegate:
                       const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 3,
-                    crossAxisSpacing: 10,
-                    mainAxisSpacing: 12,
-                    childAspectRatio: 0.82,
+                    crossAxisCount: 4,
+                    crossAxisSpacing: 8,
+                    mainAxisSpacing: 10,
+                    childAspectRatio: 0.86,
                   ),
                   itemCount: kategoriler.length,
                   itemBuilder: (_, i) => _kart(context, kategoriler[i]),
@@ -248,6 +335,20 @@ class HizmetMenusu extends ConsumerWidget {
           ),
         ),
       ),
+    );
+  }
+
+  /// Menunun ust slider'i — kategori ekraniyla **AYNI BILESEN**.
+  ///
+  /// ⚠️ Veri gelmeden ya da bos donunce **HICBIR SEY cizilmez** (bos gri kutu
+  ///    yerine hic yer kaplamamak: turu 93b'de kesif istegi patlayinca ekranin
+  ///    tepesinde 350px bos gri kutu kalmasi bulgusuydu).
+  Widget _slider(WidgetRef ref) {
+    final s = ref.watch(_menuSlaytProvider).valueOrNull ?? const [];
+    if (s.isEmpty) return const SizedBox.shrink();
+    return SizedBox(
+      height: KategoriSlider.yukseklik,
+      child: KategoriSlider(slaytlar: s),
     );
   }
 
@@ -262,50 +363,44 @@ class HizmetMenusu extends ConsumerWidget {
     nav.push(MaterialPageRoute(builder: b.ac));
   }
 
-  /// "Yakınımda" — listeden AYRI, daha yuksek ve vurgulu (kullanici emri).
-  Widget _yakinimdaSatiri(BuildContext context, _Bolum b) => GestureDetector(
+  /// ⚠️⚠️⚠️ TURU 96q — HIZLI ERISIM KARTI (Yakınımda · Eczaneler · Çilingir).
+  ///
+  ///	Onceki halde "Yakınımda" TEK BASINA tam genislikte, 78 dp'lik bir
+  ///	seritti ve icinde bir de aciklama satiri vardi. Kullanici yanina iki
+  ///	kart daha isteyince (*"onun da sagina nobetci, cilingir vs ekle"*) o
+  ///	duzen SIGMAZ oldu: uc kart x tam genislik = tasma.
+  ///
+  /// ⚠️ **ACIKLAMA SATIRI KALDIRILDI** ("Çevrendeki işletmeleri haritada
+  ///    gör"): ucte bir genislikte tek satira sigmiyor, iki satira sarinca da
+  ///    kart 100 dp'yi asiyordu. Baslik TEK BASINA yeterince anlatiyor.
+  /// ⚠️ SABIT `height` DEGIL `minHeight` (turu 90b dersi): yazi olcegi
+  ///    1.5-2.0'da etiket iki satira sarar ve sabit yukseklikte RenderFlex
+  ///    tasmasi olurdu.
+  /// ⚠️ `maxLines: 2` + ellipsis: "Organizasyon" gibi uzun etiketler dar
+  ///    hucrede kirpilsin, TASMASIN.
+  Widget _hizliKart(BuildContext context, _Bolum b) => GestureDetector(
     onTap: () => _ac(context, b),
     child: Container(
-      // ⚠️⚠️ TURU 90b — SABIT `height` DEGIL, `minHeight` (olculdu).
-      //    Sabit 78dp iken alt yazi 360dp ekranda yazi olcegi 1.5'te IKI
-      //    SATIRA sariyor ve kutu 82.8dp gerekiyordu -> RenderFlex tasmasi
-      //    (360x640 @1.5'te 17px, tum cihazlarda @2.0'da 47px).
-      //    ⚠️ Kardes `_satir` bu ikisini (maxLines + esnek yukseklik) ZATEN
-      //       dogru yapiyordu; ASIMETRININ KENDISI hatanin isaretiydi.
-      constraints: const BoxConstraints(minHeight: 78),
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+      constraints: const BoxConstraints(minHeight: 62),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       alignment: Alignment.centerLeft,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: b.renkler,
         ),
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            b.ad,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-              color: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 2),
-          const Text(
-            'Çevrendeki işletmeleri haritada gör',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(fontSize: 12.5, color: Colors.white70),
-          ),
-        ],
+      child: Text(
+        b.ad,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w800,
+          color: Colors.white,
+        ),
       ),
     ),
   );
