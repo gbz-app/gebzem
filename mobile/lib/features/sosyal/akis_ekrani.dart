@@ -332,38 +332,33 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
     ),
   );
 
-  /// Baska bir SEKMEYE goturen secici ogesi (secili hali YOKTUR).
-  Widget _bolmeLinki(String metin, VoidCallback git) => Semantics(
-        button: true,
-        label: metin,
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: git,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-            child: Text(
-              metin,
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
-                color: Theme.of(context).colorScheme.onSurface.withValues(
-                      alpha: 0.45,
-                    ),
-              ),
-            ),
-          ),
-        ),
-      );
+  /// Bir akis bolmesi (secilebilir).
+  Widget _bolmeYazisi(int deger, String metin) =>
+      _bolmeOgesi(metin, _bolme == deger, () => _bolmeDegistir(deger));
 
-  Widget _bolmeYazisi(int deger, String metin) {
-    final secili = _bolme == deger;
+  /// ⚠️⚠️⚠️ TURU 97b — BASKA BIR SEKMEYE goturen oge (ornegin "Canlı Yayın").
+  ///
+  ///	⚠️ **AYRI BIR GOVDE YAZILMAZ.** Ilk yazimda bu ogenin kendi metodu
+  ///	vardi ve yazi tipi 20/w700 idi; kardesleri 17 oldugu icin ekranda
+  ///	BELIRGIN sekilde daha buyuk duruyordu (kullanici: *"yazi fontlari
+  ///	esit olsun"*). Artik ucu de AYNI govdeden ciziliyor.
+  /// ⚠️ `secili: false` SABIT: bu oge bir bolme degil, gecis baglantisidir.
+  Widget _bolmeLinki(String metin, VoidCallback git) =>
+      _bolmeOgesi(metin, false, git);
+
+  /// Secicinin TEK govdesi.
+  ///
+  /// ⚠️⚠️ **SECILI HAL BOYUT DEGISTIRMEZ** (kullanici emri: *"gecislerde
+  ///	buyume kuculme patlama olmasin"*). Kalinlik degisir ama kutu
+  ///	genisligini DAIMA w800 olan gorunmez kopya belirler (asagida).
+  Widget _bolmeOgesi(String metin, bool secili, VoidCallback onTap) {
     return Semantics(
       button: true,
       selected: secili,
       label: metin,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: () => _bolmeDegistir(deger),
+        onTap: onTap,
         child: Padding(
           // ⚠️ Dikey 12 + yazi ~17 + 12 = ~41dp; yatay 10 ile birlikte
           //    dokunma hedefi rahatca 44dp'yi asar.
