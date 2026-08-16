@@ -554,7 +554,16 @@ class _MedyaVideoState extends ConsumerState<MedyaVideo>
                 ),
               ),
             ),
-          if (_hazir && c != null)
+          // ⚠️⚠️ TURU 98b — **AKISTA ILERLEME CUBUGU YOK** (kullanici emri:
+          //	*"anasayfada videolarin altinda mor ilerleme cubugu olmasin,
+          //	sadece ses ac/kapa ikonu kalsin"*).
+          //
+          // ⚠️ `kontrolGoster` bu ekranin TAM EKRAN mi yoksa AKIS karti mi
+          //    oldugunu soyleyen mevcut bayraktir (akista false). Cubuk
+          //    yalniz tam ekranda cizilir — orada kaydirilabilir olmasi
+          //    islevseldir.
+          // ⚠️ YAPMA: cubugu kosulsuz cizmeye donme.
+          if (_hazir && c != null && widget.kontrolGoster)
             Positioned(
               left: 0,
               right: 0,

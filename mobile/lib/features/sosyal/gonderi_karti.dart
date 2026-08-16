@@ -17,6 +17,8 @@ import '../chats/moderasyon_sheet.dart';
 import '../medya/tam_ekran_gorsel.dart';
 import '../medya/tam_ekran_video.dart';
 import 'gorunurluk.dart';
+import '../isletme/isletme_kart.dart' show kYuzeyGri;
+import 'demo_veri.dart';
 import 'medya_olcu.dart';
 import 'medya_video.dart';
 import 'paylas_sheet.dart';
@@ -191,7 +193,7 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
               ),
             if (benim)
               ListTile(
-                leading: const Icon(LucideIcons.chartNoAxesColumn),
+                leading: const Icon(LucideIcons.trendingUp),
                 title: const Text('İstatistikler'),
                 onTap: () => Navigator.pop(c, 'istatistik'),
               ),
@@ -732,9 +734,26 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
                 sayi: g.yorumSayisi,
                 onTap: g.yorumKapali ? null : _yorumlariAc,
               ),
+              // ⚠️⚠️ TURU 98b — PAYLAS ARTIK **SAYI** gosterir + yanina
+              //	**REPOST** ikonu (kullanici emri).
+              // ⚠️⚠️⚠️ **DURUST SINIR:** sunucuda paylasim/repost SAYACI
+              //	YOK. Sayi yalnizca DEMO verisinde doludur; gercek akista
+              //	`0` gelir ve `_eylem` sifiri HIC yazmaz (Threads deseni),
+              //	yani kullaniciya SAHTE bir sayi gosterilmez.
+              // ⚠️ Repost dokununca ne yapacagi HENUZ YOK: backend ucu,
+              //    tablo ve akis semantigi gerekiyor. Simdilik paylasim
+              //    sayfasini acar — kullaniciya "yakinda" demez, ISE
+              //    YARAR bir sey yapar.
               _eylem(
                 ikon: LucideIcons.send,
+                sayi: g.paylasimSayisi,
                 onTap: () => _sohbeteGonder(context),
+              ),
+              _eylem(
+                ikon: LucideIcons.repeat2,
+                sayi: g.repostSayisi,
+                onTap: () => _sohbeteGonder(context),
+                ipucu: "Yeniden paylaş",
               ),
               // ⚠️⚠️ ISTATISTIK IKONU — kullanici "hala istatistik ikonu yok" dedi.
               //    Eskiden istatistik YALNIZ ••• menusunun icindeydi; menuye
@@ -744,7 +763,8 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
               //    bir sey ifade etmez ve dusuk sayi yazari utandirir.
               if (g.yazarId == widget.benimId)
                 _eylem(
-                  ikon: LucideIcons.chartNoAxesColumn,
+                  // ⚠️ TURU 98 — kullanici emri: istatistik ikonu **trendingUp**.
+                  ikon: LucideIcons.trendingUp,
                   sayi: g.goruntulenme,
                   onTap: _istatistik,
                 ),
@@ -787,7 +807,11 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
               style: TextStyle(fontSize: 12, color: Colors.grey),
             ),
           ),
-        const SizedBox(height: 8),
+        // ⚠️⚠️ TURU 98b — KART SONU ILE AYRAC ARASI **12** (kullanici:
+        //	*"ilk gonderinin sonu ile profil ismi bitisik olmus"*).
+        //	Ayracin ALTINDA da nefes var (asagida): 8 + ayrac + 12 =
+        //	sonraki kartin basligi artik yapisik degil.
+        const SizedBox(height: 12),
         // ⚠️ TURU 82b — GONDERI AYRACI SAYDAMLASTIRILDI (kullanici emri:
         //    *"gonderi ayraclarini biraz saydamlastir"*). Material'in
         //    varsayilan `Divider` rengi temanin `outlineVariant`idir ve koyu
@@ -801,6 +825,9 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
           thickness: 0.5,
           color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.08),
         ),
+        // ⚠️ Ayractan SONRA da nefes: sonraki kartin `ListTile` basligi
+        //    `dense` oldugu icin ayraca yapisiyordu.
+        const SizedBox(height: 12),
       ],
     );
   }
@@ -1022,7 +1049,10 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
       width: genislik,
       height: yukseklik,
       child: ColoredBox(
-        color: const Color(0xFF0B0B12),
+        // ⚠️ TURU 98 — DEMO'da medya kutusu **GRI** (kullanici: *"gri
+        //    icerikler olsun"*). Gercek akista koyu kalir: fotograf/video
+        //    letterbox'i icin dogru olan odur.
+        color: kDemoAkis ? kYuzeyGri(context) : const Color(0xFF0B0B12),
         child: Stack(
           fit: StackFit.expand,
           children: [
@@ -1233,7 +1263,7 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
     if (ikon == LucideIcons.messageCircle) return 23;
     if (ikon == LucideIcons.send) return 24;
     if (ikon == LucideIcons.bookmark) return 24;
-    if (ikon == LucideIcons.chartNoAxesColumn) return 24;
+    if (ikon == LucideIcons.trendingUp) return 24;
     return 23;
   }
 

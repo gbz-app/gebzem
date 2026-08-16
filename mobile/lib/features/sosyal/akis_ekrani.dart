@@ -7,10 +7,10 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import "../../core/yenile.dart";
 
 import '../home/home_screen.dart' show myProfileProvider, aktifSekme;
+import 'demo_veri.dart';
 import 'bildirim_sayaci.dart';
 import 'bildirimler_sayfasi.dart';
 import 'gonderi_karti.dart';
-import 'hizmet_menusu.dart';
 import 'profil_sayfasi.dart';
 import 'sosyal_servisi.dart';
 import 'story_seridi.dart';
@@ -134,6 +134,22 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
       // ⚠️ Serit de tazelenir — asagi cekince yalniz gonderiler yenilenseydi
       //    yeni hikayeler gorunmezdi.
       unawaited(_storyKey.currentState?.yukle() ?? Future.value());
+      // ⚠️⚠️⚠️ TURU 98 — **TASARIM DEMOSU** (bkz. `demo_veri.dart`).
+      //	`kDemoAkis` false iken bu dal calismaz ve akis normal isler.
+      //	Sunucudan HICBIR SEY SILINMEDI; yalniz ekranda demo icerik
+      //	cizilir (gri yer tutucu medya + her icerik turunden bir ornek).
+      if (kDemoAkis) {
+        if (!mounted) return;
+        setState(() {
+          _listeler[bolme]
+            ..clear()
+            ..addAll(demoGonderiler());
+          _bolmeYuklendi[bolme] = true;
+          _yukleniyor = false;
+          _ilkYukleme = false;
+        });
+        return;
+      }
       // ⚠️ Servis await'ten ONCE yakalanir (turu 78b dersi: disposed State'te
       //    `ref.read` StateError firlatir ve is SESSIZCE iptal olur).
       final svc = ref.read(sosyalServisiProvider);

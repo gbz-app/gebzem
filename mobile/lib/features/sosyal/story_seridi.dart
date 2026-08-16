@@ -15,6 +15,7 @@ import '../home/home_screen.dart' show myProfileProvider;
 import '../medya/medya_gorsel.dart';
 import '../medya/medya_kapisi.dart';
 import '../medya/medya_servisi.dart';
+import 'demo_veri.dart';
 import 'story_editor.dart';
 import 'story_izleyici.dart';
 import 'story_servisi.dart';
@@ -64,6 +65,11 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi>
   }
 
   Future<void> yukle() async {
+    // ⚠️ TURU 98 — tasarim demosu (bkz. `demo_veri.dart`).
+    if (kDemoAkis) {
+      if (mounted) setState(() => _liste = demoStoryler());
+      return;
+    }
     try {
       final l = await ref.read(storyServisiProvider).serit();
       if (mounted) setState(() => _liste = l);
@@ -448,17 +454,77 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi>
   /// Seridin ust/alt boslugu (kullanici emri: *"biraz daha azalt"*): 8 -> 4.
   static const double kDikey = 4;
 
-  Widget _halka(StoryKullanici k) => _kutu(
-    etiket: k.ad.isEmpty ? '@${k.kullaniciAdi}' : k.ad,
-    child: GestureDetector(
-      onTap: () => _ac(k),
-      child: _cember(
-        halka: !k.hepsiIzlendi,
-        gri: k.hepsiIzlendi,
-        child: Avatar(ad: k.ad, mediaId: k.avatarMediaId, cap: kHalkaCap),
+  /// ⚠️⚠️⚠️ TURU 98b — HALKA **YAYIN DURUMUNU** GOSTERIR (kullanici emri:
+  ///	*"canli yayin KIRMIZI, sesli oda MOR olsun, ikon koy"*).
+  ///
+  /// ⚠️ Renk TEK BASINA yetmez (renk korlugu): durum ayrica **IKONLU BIR
+  ///    ROZETLE** yazilir — canli icin `radio`, oda icin `mic`.
+  Widget _halka(StoryKullanici k) {
+    final durum = demoYayinDurumu(k.userId);
+    final renk = durum == 'canli'
+        ? const Color(0xFFFF3B30)
+        : durum == 'oda'
+            ? const Color(0xFF8B3FFF)
+            : null;
+    return _kutu(
+      etiket: k.ad.isEmpty ? '@${k.kullaniciAdi}' : k.ad,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          GestureDetector(
+            onTap: () => _ac(k),
+            child: _cember(
+              halka: durum == null && !k.hepsiIzlendi,
+              gri: durum == null && k.hepsiIzlendi,
+              duzRenk: renk,
+              child:
+                  Avatar(ad: k.ad, mediaId: k.avatarMediaId, cap: kHalkaCap),
+            ),
+          ),
+          if (durum != null)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: -6,
+              child: Center(
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: renk,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: Theme.of(context).scaffoldBackgroundColor,
+                      width: 2,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        durum == 'canli' ? LucideIcons.radio : LucideIcons.mic,
+                        size: 10,
+                        color: Colors.white,
+                      ),
+                      const SizedBox(width: 3),
+                      Text(
+                        durum == 'canli' ? 'CANLI' : 'ODA',
+                        style: const TextStyle(
+                          fontSize: 8.5,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                          height: 1.1,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
-    ),
-  );
+    );
+  }
 
   /// Fotograf varsa avatar, yoksa **duz gri daire** (turu 97).
   Widget _benimAvatar(String ad, Map<String, dynamic>? profil) {
@@ -513,14 +579,17 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi>
   );
 
   /// Halka: RENKLI (izlenmemis) / GRI (izlenmis) / YOK (hikaye yok).
+  /// [duzRenk] verilirse halka GRADYAN degil O RENKTE cizilir (canli/oda).
   Widget _cember({
     required bool halka,
     required bool gri,
     required Widget child,
+    Color? duzRenk,
   }) => Container(
     padding: const EdgeInsets.all(2.5),
     decoration: BoxDecoration(
       shape: BoxShape.circle,
+      color: duzRenk,
       gradient: halka
           ? const LinearGradient(
               begin: Alignment.topLeft,
@@ -528,7 +597,7 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi>
               colors: [Color(0xFF8B3FFF), Color(0xFFFF3B5C), Color(0xFFFFB03A)],
             )
           : null,
-      border: halka
+      border: (halka || duzRenk != null)
           ? null
           : Border.all(
               color: gri

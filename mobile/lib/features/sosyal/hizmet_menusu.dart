@@ -564,53 +564,6 @@ class HizmetMenusu extends ConsumerWidget {
     nav.push(MaterialPageRoute(builder: b.ac));
   }
 
-  /// ⚠️⚠️⚠️ TURU 96q — HIZLI ERISIM KARTI (Yakınımda · Eczaneler · Çilingir).
-  ///
-  ///	Onceki halde "Yakınımda" TEK BASINA tam genislikte, 78 dp'lik bir
-  ///	seritti ve icinde bir de aciklama satiri vardi. Kullanici yanina iki
-  ///	kart daha isteyince (*"onun da sagina nobetci, cilingir vs ekle"*) o
-  ///	duzen SIGMAZ oldu: uc kart x tam genislik = tasma.
-  ///
-  /// ⚠️ **ACIKLAMA SATIRI KALDIRILDI** ("Çevrendeki işletmeleri haritada
-  ///    gör"): ucte bir genislikte tek satira sigmiyor, iki satira sarinca da
-  ///    kart 100 dp'yi asiyordu. Baslik TEK BASINA yeterince anlatiyor.
-  /// ⚠️ SABIT `height` DEGIL `minHeight` (turu 90b dersi): yazi olcegi
-  ///    1.5-2.0'da etiket iki satira sarar ve sabit yukseklikte RenderFlex
-  ///    tasmasi olurdu.
-  /// ⚠️ `maxLines: 2` + ellipsis: "Organizasyon" gibi uzun etiketler dar
-  ///    hucrede kirpilsin, TASMASIN.
-  Widget _hizliKart(BuildContext context, _Bolum b) => GestureDetector(
-    onTap: () => _ac(context, b),
-    child: Container(
-      constraints: const BoxConstraints(minHeight: 62),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      alignment: Alignment.centerLeft,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: b.renkler,
-        ),
-      ),
-      child: Text(
-        b.ad,
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w800,
-          color: Colors.white,
-        ),
-      ),
-    ),
-  );
-
-  /// Kategori satiri — TEK SUTUN, tam genislik.
-  ///
-  /// ⚠️ IKON YOK (kullanici emri, turu 76b): satir bir renk gecisli zemindir.
-  ///    Tek sutunda yaziyi kartin ALTINA koymak her satiri iki kat uzatir ve
-  ///    "5 tane alt alta" istegi SAGLANAMAZDI; bu yuzden yazi ICINDE.
   /// Kategori KARTI — izgara hucresi (kullanici emri: "eski halinin kucuk hali").
   ///
   /// ⚠️ IKON YOK (turu 76b kurali): kutu bir RENK GECISIDIR, yazi ALTINDA.

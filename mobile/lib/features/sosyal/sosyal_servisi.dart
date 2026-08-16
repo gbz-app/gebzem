@@ -319,7 +319,17 @@ class Gonderi {
     required this.begendim,
     required this.kaydettim,
     this.anket,
+    this.paylasimSayisi = 0,
+    this.repostSayisi = 0,
   });
+
+  /// ⚠️⚠️ TURU 98b — PAYLASIM ve REPOST SAYACI **SUNUCUDA YOK**.
+  ///	Kullanici bu iki sayiyi tasarim demosunda gormek istedi. Alanlar
+  ///	varsayilan **0**'dir ve `_eylem` sifiri HIC yazmaz; yani gercek
+  ///	akista kullaniciya SAHTE sayi gosterilmez.
+  /// ⚠️ Sunucu bu alanlari donmeye baslarsa `fromJson`a eklenmeli.
+  final int paylasimSayisi;
+  final int repostSayisi;
 
   final String id;
   final String yazarId;
