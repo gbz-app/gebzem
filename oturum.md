@@ -7276,3 +7276,71 @@ Kullanıcı bu turda *"emülatörü hızlı arayüz için yaptık, 1 saat oldu"*
 *"sana söylediklerimi iki dk yapsana"* dedi. **Arayüz turlarında muhafız
 testi/ölçüm betiği/bozma kanıtı YAPILMAYACAK** — bunlar build turuna
 biriktirilir. Bu ders kalıcı hafızaya da yazıldı.
+
+## Oturum — Turu 96n–96u (15-16 Ağustos 2026) — ALT MENÜ + MENÜ EKRANI
+
+### YAYINLANDI (16 Ağu 13:33)
+- android **31941390675** + ios **31941392713** (**1446820**)
+- R2: apk=121959543 (md5 a6ba51e7) · ipa=31621462 (md5 dc51e60e) ·
+  index=11845 (md5 da111310) · surum.json=48 (md5 f56871ff)
+- purge OK · **CDN DÖRDÜ DE BİREBİR** · debug imza YOK · `HARITA=true` ✓
+- **BACKEND DEĞİŞMEDİ** → deploy yok, DB truncate **YAPILMADI** (kullanıcının
+  oturumu ve verisi korundu)
+- ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260816-1333
+
+### Turlar
+| Tur | İş |
+|---|---|
+| 96n | Logo daire içinde (5dp küçük), menüyü açar; profil dairesi; Canlı ikonu büyüdü |
+| 96o | Logo dairesi 52; ikonlar 26; boşluk 30 — **çubuk uzatıldı + radius kaldırıldı (HATALIYDI)** |
+| 96p | **Radius ve 66dp yükseklik GERİ**; logo çubuğun içinde kalıyor |
+| 96q | Menü: 4 sütun, hızlı erişim satırı, slider, Düğün/Organizasyon ayrımı |
+| 96r | Hızlı kartlar ızgara kartlarıyla aynı tasarımda |
+| 96s | Kartlar kategori ekranıyla **birebir** ölçü/renk/yazı; `letterSpacing` silindi |
+| 96t | Hızlı erişim 5 kart; kategori sırası kullanıcıdan; slider tam genişlik |
+| 96u | Hızlı erişim **tek satır + yatay kaydırma** + "HIZLI ERİŞİM" başlığı |
+
+### ⚠️⚠️⚠️ "TIRTIKLI KENAR" — ÜÇ KEZ BİLDİRİLDİ, KOD DEĞİLDİ
+Kullanıcı logonun çevresinde tırtıklar gördü; sonra **profil dairesinde de
+aynı** dedi — ki o daire düz bir `BoxDecoration` dairesi (görsel/kırpma yok).
+
+Denenen ve **hepsi piksel piksel AYNI çıkan** dört müdahale: (1) `cacheWidth`
++ `FilterQuality.medium`, (2) `Clip.antiAliasWithSaveLayer`, (3) kırpmayı
+tamamen kaldırıp daireyi `BoxShape.circle` + `DecorationImage` ile **şekil
+olarak** çizmek, (4) **Impeller yerine Skia** (`--no-enable-impeller`).
+
+Ekran belleğinden alınan daire **6 kat büyütülünce pürüzsüz**.
+**Kök neden: emülatör penceresinin ~2,5 kat küçültmesi.** Telefonda yok
+(kullanıcı doğruladı: *"telefondan sıkıntı yok"*).
+
+⚠️⚠️ **ÖLÇÜM DERSİ (iki kez yanıldım):** daire kenarını **tam sol ucundan**
+ölçüp "anti-alias yok" dedim — orada kenar DİKEYDİR, yumuşatma zaten görünmez.
+"En büyük basamak 21px" ölçümü de dairenin **kendi geometrisiydi**.
+**Eğri kenar kalitesini tek pikselden ölçme — BÜYÜT VE BAK.**
+⚠️ `flutter run --enable-impeller=false` **hatalı sözdizimi** (komut hiç
+kurulmaz). Doğrusu **`--no-enable-impeller`**.
+
+### ⚠️ ÖĞRENİLEN İKİ YERLEŞİM TUZAĞI
+- **`suffixIcon`e kalan genişliğin TAMAMI verilir.** Arama kutusundaki X ilk
+  yazımda `SizedBox(height:)` + `Center` ile kuruldu; sonuç: **X inputun tam
+  ortasında** ve **metne yer kalmadığı için yazı görünmüyordu**. Genişlik
+  açıkça verildi (44).
+- **`KategoriSlider` TAM EKRAN genişliğinde çizilmek zorunda** — yan boşluğu
+  kendi `viewportFraction`ından üretir. Menüde dış dolgunun içindeydi, boşluk
+  **iki kez** uygulanıyordu (kullanıcı: *"slider ilk başlığında solda boşluk"*).
+  Dış yatay dolgu kaldırıldı, diğer bloklar kendi dolgusunu taşıyor.
+
+### Dürüst sınırlar (kullanıcıya da yazıldı)
+- **Durak · Taksi · Akaryakıt** kartları yalnızca **kayıtlı işletmeleri**
+  gösterir; belediye/POI verisi (durak konumu, akaryakıt istasyonu listesi)
+  sistemde YOK. Kartlar arama kısayolu (`IsletmeListesiEkrani.ara`).
+- **Nöbetçi Eczane**: nöbet verisi yok; eczaneleri mesafeye göre listeler.
+  (Kullanıcı "Eczaneler" adını iki kez "Nöbetçi" yapmamı istedi — kararı onun.)
+- **Restoran / Cafe** ayrı iki kart, DB'de tek `kafe` kategorisi.
+- **Menüdeki slider boş** — içine görsel koyacak veri (reklam/kampanya) yok.
+
+### Muhafız
+`mobile/test/alt_menu_test.dart` **15 kontrol**; dokuz bozulma biçimiyle
+kanıtlandı. ⚠️ Ölçüler değişince testler de güncellendi (logo artık `Image`
+değil `DecorationImage`; çubuk ölçütü 66dp `SizedBox`).
+`flutter analyze` **0/0** · `flutter test` **40/40**.
