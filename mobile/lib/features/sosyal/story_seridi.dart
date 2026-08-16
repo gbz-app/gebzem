@@ -372,6 +372,11 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi>
   Widget _benimHalka(StoryKullanici? benim, Map<String, dynamic>? profil) {
     final ad = (profil?['name'] ?? '').toString();
     return _kutu(
+      // ⚠️⚠️⚠️ TURU 98g — HALKASIZ TILE **HALKA PAYINI AYIRMAZ** (olculdu).
+      //	Kutu herkes icin `cap + 9(halka) + 9(aralik)` idi; bu dairede halka
+      //	CIZILMEDIGI icin o 9 dp bos kaliyor ve komsusuyla arasi **13 dp**
+      //	olcultuyordu (kardeslerinde 9). Halka yoksa pay da ayrilmaz.
+      genislik: benim == null ? kHalkaCap + kAralik : null,
       etiket: 'Hikâyen',
       child: Stack(
         clipBehavior: Clip.none,
@@ -388,8 +393,16 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi>
             //	cikardi. Hikayesi olmayan kullanici daireyi dolgu kadar
             //	BUYUK cizer; ikisinin DIS capi artik esit.
             // ⚠️ YAPMA: halkasiz dali tekrar  icine alma.
+            // ⚠️⚠️ TURU 98g — HALKASIZ DALDA DA `_cember` KULLANILIR:
+            //	boylece GRI DISK her yerde `kHalkaCap`, DIS KUTU her yerde
+            //	`kHalkaCap + 9` olur. 98fde disk 79ye cikarilmisti; o zaman
+            //	bu daire kardeslerinin DISKINDEN buyuk gorunuyordu.
             child: benim == null
-                ? _benimAvatar(ad, profil, kHalkaCap + 9)
+                ? _cember(
+                    halka: false,
+                    gri: false,
+                    child: _benimAvatar(ad, profil, kHalkaCap),
+                  )
                 : _cember(
                     halka: !benim.hepsiIzlendi,
                     gri: benim.hepsiIzlendi,
@@ -468,10 +481,13 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi>
   ///    4px daha buyut, digerleri de AYNI buyuklukte olsun"*). Tek sabit
   ///    oldugu icin kendi halkam · baskasinin halkasi · kapsuldeki iki
   ///    daire HEPSI birlikte buyur.
-  static const double kHalkaCap = 74;
+  static const double kHalkaCap = 65;
 
   /// Seridin ust/alt boslugu (kullanici emri: *"biraz daha azalt"*): 8 -> 4.
   static const double kDikey = 4;
+
+  /// Halkalar arasi bosluk — TEK SABIT (normal daire + kapsul ayni deger).
+  static const double kAralik = 9;
 
   /// ⚠️⚠️⚠️ TURU 98b — HALKA **YAYIN DURUMUNU** GOSTERIR (kullanici emri:
   ///	*"canli yayin KIRMIZI, sesli oda MOR olsun, ikon koy"*).
@@ -595,8 +611,16 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi>
     ({String durum, String ikinciAd, int izleyici}) y,
     Color renk,
   ) {
-    // Ic cap: dis halka (2.5) + zemin boslugu (2) iki yandan = 9.
-    const ic = kHalkaCap - 9;
+    // ⚠️⚠️⚠️ TURU 98g — KAPSULDEKI DAIRELER **NORMAL STORY DAIRESIYLE AYNI**
+    //	(kullanici UC KEZ soyledi: *"hepsi ayni buyuklukte olsun, canli
+    //	sohbet ne varsa"*).
+    //
+    // ⚠️ ONCEKI HATA (olculdu): `ic = kHalkaCap - 9` idi, yani kapsuldeki
+    //	daireler **61 dp**, kardesleri **70 dp** cizilyordu — kullanicinin
+    //	gordugu fark buydu. Halka/dolgu payi (9 dp) capTAN DUSULMEZ,
+    //	capın DISINA eklenir; `_cember` de tam boyle davranir.
+    // ⚠️ YAPMA: buradan tekrar 9 dusme.
+    const ic = kHalkaCap;
     // ⚠️⚠️⚠️ TURU 98e — **UST USTE BINME GERI GELDI** (kullanici emri:
     //	*"canli yayin ve sesli odadaki profiller ust uste gelsin, bir
     //	onceki yaptigin gibi"*).
@@ -611,7 +635,13 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi>
       etiket: y.durum == 'canli'
           ? '${k.ad} canlı yayında'
           : '${k.ad} sesli odada',
-      genislik: kHalkaCap + kayma + 15,
+      // ⚠️ TURU 98g — ARALIK NORMAL DAIRELERLE AYNI (11): kapsul eski 15i
+      //    kullaniyordu, yani yanindaki bosluk 11 yerine 6 dp cikiyordu.
+      // ⚠️⚠️ KAPSULUN **GORUNEN** GENISLIGI ZATEN `kHalkaCap + kayma + 9`
+      //	(iki daire + halka/zemin dolgusu). Kutu buna ESIT yapilirsa
+      //	yandaki bosluk **0** olur — bir kez oyle yazildi ve canli ile oda
+      //	BITISIK cikti. Kutu = gorunen + aralik:
+      genislik: kHalkaCap + kayma + 9 + kAralik,
       child: Stack(
         clipBehavior: Clip.none,
         children: [
@@ -767,7 +797,7 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi>
     // ⚠️ TURU 98e — halkalar arasi bosluk **15 -> 11** (kullanici: *"aralarindaki
     //    boslugu bir tik azalt"*). Daire 4 dp buyudugu icin toplam kutu
     //    genisligi degismez, yalniz nefes payi kisilir.
-    width: genislik ?? (kHalkaCap + 9 + 11),
+    width: genislik ?? (kHalkaCap + 9 + kAralik),
     // ⚠️⚠️⚠️ TURU 97 — **HIKAYE ETIKETLERI KALDIRILDI** (kullanici emri:
     //	*"hikayen yazmasin, bir sey yazmasin"*). Halkanin altinda artik hicbir
     //	yazi yok; serit yalniz dairelerden olusuyor.

@@ -108,7 +108,8 @@ class AltMenu extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final okunmamis = ref
+    final okunmamis =
+        ref
             .watch(chatsProvider)
             .valueOrNull
             ?.where((c) => !c.archived)
@@ -148,91 +149,109 @@ class AltMenu extends ConsumerWidget {
       //    ekleme; radius'u kaldirma; yuksekligi degistirme.
       // ⚠️ TURU 96z — logo `ClipRRect`in DISINDA (yukari tasabilsin diye);
       //    `clipBehavior: Clip.none` ZORUNLU, yoksa Stack tasan kismi keser.
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-        ClipRRect(
-        // ALT MENU sol/sag (ust kose) RADIUS (test turu 7).
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(20),
-          topRight: Radius.circular(20),
-        ),
-        child: ColoredBox(
-          // ⚠️ TURU 96m — zemin TEMADAN DEGIL sabit siyah (`theme.dart`).
-          color: kAltMenuZemin,
-          child: SafeArea(
-            top: false,
-            child: SizedBox(
-              height: kAltMenuBoy,
-              // ⚠️ TURU 96z — logo ARTIK BURADA DEGIL: cubugun ustune tastigi
-              //    icin `ClipRRect`in DISINDAKI dis `Stack`te ciziliyor.
-              //    Burada yalnizca YER TUTUCUSU var (asagida).
-              child: Row(
-                // ⚠️ `stretch`: her hucre cubugun TAM YUKSEKLIGINI kaplar,
-                //    yani dokunma hedefi ikon degil HUCRENIN TAMAMIDIR.
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _oge(0, LucideIcons.house, 'Anasayfa'),
-                  _oge(1, LucideIcons.search, 'Ara'),
-                  _oge(2, LucideIcons.clapperboard, 'Reels'),
-                  // ⚠️ Logonun YERI: govdesi dis Stack'te cizilir, burada
-                  //    yalnizca YER TUTAR. Bu sayede "3 sol · logo · 3 sag"
-                  //    simetrisi bozulmaz.
-                  //
-                  // ⚠️⚠️⚠️ TURU 98c — YER TUTUCU **ARTIK DOKUNMA HEDEFI**
-                  //	(emulatorde OLCULDU, gercek hata):
-                  //	logonun cubuktan tasan ~10 dp'lik ust seridi Flutter
-                  //	tarafindan hit-test EDILMEZ (ebeveyn kutusunun disi) ve
-                  //	dokunus **ALTTAKI AKISA** duser. Kor bir dokunusta
-                  //	gonderinin "Paylaş" sayfasi acildi — yani logonun ust
-                  //	kenarina basan kullanici RASTGELE bir akis eylemi
-                  //	tetikliyordu.
-                  //	Cubugun ICINDEKI bu hucre de ayni menuyu actigi icin
-                  //	hedef 42 dp'den **66 dp'ye** cikar ve isabetsiz dokunus
-                  //	pratikte kalmaz.
-                  // ⚠️ Tasan serit HALA tiklanmaz; onu tiklatmanin tek yolu
-                  //    cubugu uzatmak ya da logoyu kucultmekti — kullanici
-                  //    IKISINI DE acikca reddetti (96p/96z).
-                  // ⚠️ YAPMA: burayi tekrar duz `SizedBox` yapma.
-                  SizedBox(
-                    width: kAltMenuLogoCap + kAltMenuLogoBosluk,
-                    child: Semantics(
-                      button: true,
-                      label: 'Menü',
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: () => hizmetMenusuAc(context),
-                      ),
+      // ⚠️⚠️⚠️ TURU 98h — KOSELERDE **BEYAZLIK** (kullanici sahada gordu:
+      //	*"alt menude beyazliklar var, radusun yaninda sayfa gecislerinde
+      //	gorunuyor"*).
+      //
+      //	Cubugun ust koseleri 20 dp yuvarlak; o iki ucgen alan SAYDAM
+      //	kalir ve ARKASINDAKI ne varsa gorunur. Route gecisi sirasinda
+      //	arkada gelen sayfa BEYAZ oldugu icin koselerde beyaz parlamalar
+      //	cikiyordu.
+      // ⚠️ COZUM: cubugun ARKASINA uygulama zemini boyanir; boylece kose
+      //    ucgenleri gecis boyunca da uygulama zemini rengindedir.
+      // ⚠️ Radius KALDIRILMADI (kullanici emri, turu 96p).
+      child: ColoredBox(
+        color: Theme.of(context).scaffoldBackgroundColor,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            ClipRRect(
+              // ALT MENU sol/sag (ust kose) RADIUS (test turu 7).
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(20),
+                topRight: Radius.circular(20),
+              ),
+              child: ColoredBox(
+                // ⚠️ TURU 96m — zemin TEMADAN DEGIL sabit siyah (`theme.dart`).
+                color: kAltMenuZemin,
+                child: SafeArea(
+                  top: false,
+                  child: SizedBox(
+                    height: kAltMenuBoy,
+                    // ⚠️ TURU 96z — logo ARTIK BURADA DEGIL: cubugun ustune tastigi
+                    //    icin `ClipRRect`in DISINDAKI dis `Stack`te ciziliyor.
+                    //    Burada yalnizca YER TUTUCUSU var (asagida).
+                    child: Row(
+                      // ⚠️ `stretch`: her hucre cubugun TAM YUKSEKLIGINI kaplar,
+                      //    yani dokunma hedefi ikon degil HUCRENIN TAMAMIDIR.
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _oge(0, LucideIcons.house, 'Anasayfa'),
+                        _oge(1, LucideIcons.search, 'Ara'),
+                        _oge(2, LucideIcons.clapperboard, 'Reels'),
+                        // ⚠️ Logonun YERI: govdesi dis Stack'te cizilir, burada
+                        //    yalnizca YER TUTAR. Bu sayede "3 sol · logo · 3 sag"
+                        //    simetrisi bozulmaz.
+                        //
+                        // ⚠️⚠️⚠️ TURU 98c — YER TUTUCU **ARTIK DOKUNMA HEDEFI**
+                        //	(emulatorde OLCULDU, gercek hata):
+                        //	logonun cubuktan tasan ~10 dp'lik ust seridi Flutter
+                        //	tarafindan hit-test EDILMEZ (ebeveyn kutusunun disi) ve
+                        //	dokunus **ALTTAKI AKISA** duser. Kor bir dokunusta
+                        //	gonderinin "Paylaş" sayfasi acildi — yani logonun ust
+                        //	kenarina basan kullanici RASTGELE bir akis eylemi
+                        //	tetikliyordu.
+                        //	Cubugun ICINDEKI bu hucre de ayni menuyu actigi icin
+                        //	hedef 42 dp'den **66 dp'ye** cikar ve isabetsiz dokunus
+                        //	pratikte kalmaz.
+                        // ⚠️ Tasan serit HALA tiklanmaz; onu tiklatmanin tek yolu
+                        //    cubugu uzatmak ya da logoyu kucultmekti — kullanici
+                        //    IKISINI DE acikca reddetti (96p/96z).
+                        // ⚠️ YAPMA: burayi tekrar duz `SizedBox` yapma.
+                        SizedBox(
+                          width: kAltMenuLogoCap + kAltMenuLogoBosluk,
+                          child: Semantics(
+                            button: true,
+                            label: 'Menü',
+                            child: GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onTap: () => hizmetMenusuAc(context),
+                            ),
+                          ),
+                        ),
+                        // ⚠️ OKUNMAMIS ROZETI: mesaj sekmesi alt menude ve kullanici
+                        //    surekli akista/reels'te olacagi icin rozet OLMADAN yeni
+                        //    mesaji HIC fark etmezdi.
+                        _oge(
+                          3,
+                          LucideIcons.messageCircle,
+                          'Mesaj',
+                          rozet: okunmamis,
+                        ),
+                        _oge(4, LucideIcons.radio, 'Canlı'),
+                        _profil(),
+                      ],
                     ),
                   ),
-                  // ⚠️ OKUNMAMIS ROZETI: mesaj sekmesi alt menude ve kullanici
-                  //    surekli akista/reels'te olacagi icin rozet OLMADAN yeni
-                  //    mesaji HIC fark etmezdi.
-                  _oge(3, LucideIcons.messageCircle, 'Mesaj',
-                      rozet: okunmamis),
-                  _oge(4, LucideIcons.radio, 'Canlı'),
-                  _profil(),
-                ],
+                ),
               ),
             ),
-          ),
+            // ⚠️⚠️⚠️ TURU 96z — LOGO **CUBUGUN USTUNE TASAR** ve bu yuzden
+            //	`ClipRRect`in DISINDA, dis `Stack`te cizilir.
+            //
+            // ⚠️ Konum ELLE YAZILMAZ, TURETILIR: cubugun dikey ortasi eksi
+            //    logonun yarisi eksi kaldirma. Sabitlerden biri degisirse
+            //    kendiliginden uyar.
+            // ⚠️ `left/right: 0` + `Center`: Row'daki yer tutucu da tam ortada
+            //    oldugu icin ikisi cakisir.
+            Positioned(
+              left: 0,
+              right: 0,
+              top: kAltMenuBoy / 2 - kAltMenuLogoCap / 2 - kAltMenuLogoKaldir,
+              child: Center(child: _logo(context)),
+            ),
+          ],
         ),
-        ),
-        // ⚠️⚠️⚠️ TURU 96z — LOGO **CUBUGUN USTUNE TASAR** ve bu yuzden
-        //	`ClipRRect`in DISINDA, dis `Stack`te cizilir.
-        //
-        // ⚠️ Konum ELLE YAZILMAZ, TURETILIR: cubugun dikey ortasi eksi
-        //    logonun yarisi eksi kaldirma. Sabitlerden biri degisirse
-        //    kendiliginden uyar.
-        // ⚠️ `left/right: 0` + `Center`: Row'daki yer tutucu da tam ortada
-        //    oldugu icin ikisi cakisir.
-        Positioned(
-          left: 0,
-          right: 0,
-          top: kAltMenuBoy / 2 - kAltMenuLogoCap / 2 - kAltMenuLogoKaldir,
-          child: Center(child: _logo(context)),
-        ),
-        ],
       ),
     );
   }
@@ -246,24 +265,23 @@ class AltMenu extends ConsumerWidget {
     required String etiket,
     required bool aktif,
     required Widget cocuk,
-  }) =>
-      Expanded(
-        child: Semantics(
-          button: true,
-          selected: aktif,
-          label: etiket,
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: () => onSec(sira),
-            child: Center(
-              child: Transform.translate(
-                offset: const Offset(0, -kAltMenuIkonKaldir),
-                child: cocuk,
-              ),
-            ),
+  }) => Expanded(
+    child: Semantics(
+      button: true,
+      selected: aktif,
+      label: etiket,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => onSec(sira),
+        child: Center(
+          child: Transform.translate(
+            offset: const Offset(0, -kAltMenuIkonKaldir),
+            child: cocuk,
           ),
         ),
-      );
+      ),
+    ),
+  );
 
   /// Tek menu ogesi.
   ///
@@ -317,11 +335,11 @@ class AltMenu extends ConsumerWidget {
   ///	renginde bir daire oldugu icin siyah seritte YAMA gibi duruyordu.
   ///	Fotografsiz kullanici artik diger sekmelerle AYNI dilde bir ikon gorur.
   Widget _profil() => _hucre(
-        sira: 5,
-        etiket: 'Profil',
-        aktif: secili == 5,
-        cocuk: _ProfilIkonu(secili: secili == 5),
-      );
+    sira: 5,
+    etiket: 'Profil',
+    aktif: secili == 5,
+    cocuk: _ProfilIkonu(secili: secili == 5),
+  );
 
   /// ⚠️⚠️⚠️ TURU 96n — LOGO **OLDUGU GIBI** cizilir (kullanici emri, IKI KEZ
   ///	tekrarlandi: *"sana verdigim logoyu aynen koy, daire yapma"* ve
@@ -344,81 +362,83 @@ class AltMenu extends ConsumerWidget {
   /// ⚠️ **DAVRANIS: ANASAYFA.** Dokununca hicbir sey yapmayan bir dugme bu
   ///    projede "olu ozellik" sinifidir.
   Widget _logo(BuildContext context) => Semantics(
-        button: true,
-        // ⚠️ Etiket ARTIK 'Menü' (davranis degisti); 'Anasayfa' demek ekran
-        //    okuyucu kullanicisina YANLIS bilgi olurdu.
-        label: 'Menü',
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          // ⚠️⚠️ TURU 96n — DAVRANIS: **HIZMET MENUSU** (kullanici emri: *"alt
-          //	menudeki logo tiklandiginda menu gelecek, anasayfada sol ustteki
-          //	hamburgere tikladigin gibi"*). Onceden `onSec(0)` ile anasayfaya
-          //	gidiyordu.
-          // ⚠️ Sheet acma kodu BURAYA KOPYALANMADI: `hizmetMenusuAc` TEK
-          //    KAYNAK (`sosyal/hizmet_menusu.dart`) — hamburger dugmesi de
-          //    ayni fonksiyonu cagirir.
-          onTap: () => hizmetMenusuAc(context),
-          // ⚠️⚠️ TURU 96n — LOGO **5 dp KUCUK BIR DAIREYE DOLDURULUR**
-          //    (kullanici emri: *"logodan 5px daha kucuk daire icine logoyu
-          //    doldur"*). Yani daire 52-5 = 47 dp ve gorsel daireyi TAM
-          //    doldurur (`cover`) — ic dolgu YOK.
-          //
-          // ⚠️⚠️⚠️ **TIRTIKLI KENAR (kullanici: "cevresinde tirtiklar
-          //	olusuyor") — SEBEBI OLCEK.** Dosya 512x512; cubukta 47 dp =
-          //	**123 piksel** cizilir, yani **4.2 KAT** kucultme. Flutter
-          //	varsayilan olarak gorseli TAM COZUNURLUKTE cozer ve cizim
-          //	aninda `FilterQuality.low` (bilineer, mipmap YOK) ile
-          //	kuculturr; bu oranda bilineer ornekleme logonun ince ic
-          //	halkalarinda **aliasing** uretir ve kenarlar tirtikli gorunur.
-          //
-          //	IKI KATMANLI COZUM (ikisi de gerekli):
-          //	1. `cacheWidth/Height` — gorsel **HEDEF PIKSEL BOYUNDA
-          //	   COZULUR**; kucultmeyi cizici degil KOD COZUCU yapar (dogru
-          //	   filtre + daha az RAM). Turu 91'in `memCacheWidth` dersinin
-          //	   asset karsiligi.
-          //	2. `filterQuality: medium` — kalan olcekleme icin bilineer
-          //	   yerine daha iyi filtre.
-          // ⚠️ `devicePixelRatio` ILE CARPILIR; carpilmazsa gorsel bu kez
-          //    BULANIK cizilir (turu 91'de birebir bu tuzak yasandi).
-          // ⚠️⚠️⚠️ **KIRPMA (ClipOval) KULLANILMAZ — "TIRTIKLI KENAR"IN SEBEBI
-          //	OYDU.** Kullanici iki kez *"logonun cevresinde tirtiklar
-          //	olusuyor"* dedi. Olculdu: `ClipOval` ile kenarda **0 gecis
-          //	pikseli** vardi, yani hicbir yumusatma yok — merdiven basamagi.
-          //	Uygulama **Impeller (OpenGLES)** ile calisiyor ve kirpma yolunun
-          //	kenar yumusatmasi bu boyutta gorunur sekilde kaba.
-          //
-          //	COZUM: daire KIRPILARAK degil **SEKIL OLARAK CIZILIR**
-          //	(`BoxShape.circle` + `DecorationImage`). Boylece gorsel bir
-          //	daire geometrisine SHADER olarak doldurulur ve kenar
-          //	yumusatmasini GPU'nun kendi daire cizimi yapar.
-          // ⚠️ YAPMA: buraya tekrar `ClipOval`/`ClipRRect` koyma.
-          //
-          // ⚠️ `ResizeImage` = olcek kalitesi: dosya 512x512, cizim 47 dp
-          //    (~123 px) — 4 kat kucultmede kod cozucu yeniden orneklemezse
-          //    ince halkalar aliasing yapar. `devicePixelRatio` ILE carpilir,
-          //    yoksa bu kez BULANIK cizilir (turu 91 tuzagi).
-          child: Builder(builder: (context) {
-            const cap = kAltMenuLogoCap;
-            final px = (cap * MediaQuery.devicePixelRatioOf(context)).round();
-            return Container(
-              width: cap,
-              height: cap,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                image: DecorationImage(
-                  image: ResizeImage(
-                    const AssetImage('assets/icon/logo.png'),
-                    width: px,
-                    height: px,
-                  ),
-                  fit: BoxFit.cover,
-                  filterQuality: FilterQuality.medium,
+    button: true,
+    // ⚠️ Etiket ARTIK 'Menü' (davranis degisti); 'Anasayfa' demek ekran
+    //    okuyucu kullanicisina YANLIS bilgi olurdu.
+    label: 'Menü',
+    child: GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      // ⚠️⚠️ TURU 96n — DAVRANIS: **HIZMET MENUSU** (kullanici emri: *"alt
+      //	menudeki logo tiklandiginda menu gelecek, anasayfada sol ustteki
+      //	hamburgere tikladigin gibi"*). Onceden `onSec(0)` ile anasayfaya
+      //	gidiyordu.
+      // ⚠️ Sheet acma kodu BURAYA KOPYALANMADI: `hizmetMenusuAc` TEK
+      //    KAYNAK (`sosyal/hizmet_menusu.dart`) — hamburger dugmesi de
+      //    ayni fonksiyonu cagirir.
+      onTap: () => hizmetMenusuAc(context),
+      // ⚠️⚠️ TURU 96n — LOGO **5 dp KUCUK BIR DAIREYE DOLDURULUR**
+      //    (kullanici emri: *"logodan 5px daha kucuk daire icine logoyu
+      //    doldur"*). Yani daire 52-5 = 47 dp ve gorsel daireyi TAM
+      //    doldurur (`cover`) — ic dolgu YOK.
+      //
+      // ⚠️⚠️⚠️ **TIRTIKLI KENAR (kullanici: "cevresinde tirtiklar
+      //	olusuyor") — SEBEBI OLCEK.** Dosya 512x512; cubukta 47 dp =
+      //	**123 piksel** cizilir, yani **4.2 KAT** kucultme. Flutter
+      //	varsayilan olarak gorseli TAM COZUNURLUKTE cozer ve cizim
+      //	aninda `FilterQuality.low` (bilineer, mipmap YOK) ile
+      //	kuculturr; bu oranda bilineer ornekleme logonun ince ic
+      //	halkalarinda **aliasing** uretir ve kenarlar tirtikli gorunur.
+      //
+      //	IKI KATMANLI COZUM (ikisi de gerekli):
+      //	1. `cacheWidth/Height` — gorsel **HEDEF PIKSEL BOYUNDA
+      //	   COZULUR**; kucultmeyi cizici degil KOD COZUCU yapar (dogru
+      //	   filtre + daha az RAM). Turu 91'in `memCacheWidth` dersinin
+      //	   asset karsiligi.
+      //	2. `filterQuality: medium` — kalan olcekleme icin bilineer
+      //	   yerine daha iyi filtre.
+      // ⚠️ `devicePixelRatio` ILE CARPILIR; carpilmazsa gorsel bu kez
+      //    BULANIK cizilir (turu 91'de birebir bu tuzak yasandi).
+      // ⚠️⚠️⚠️ **KIRPMA (ClipOval) KULLANILMAZ — "TIRTIKLI KENAR"IN SEBEBI
+      //	OYDU.** Kullanici iki kez *"logonun cevresinde tirtiklar
+      //	olusuyor"* dedi. Olculdu: `ClipOval` ile kenarda **0 gecis
+      //	pikseli** vardi, yani hicbir yumusatma yok — merdiven basamagi.
+      //	Uygulama **Impeller (OpenGLES)** ile calisiyor ve kirpma yolunun
+      //	kenar yumusatmasi bu boyutta gorunur sekilde kaba.
+      //
+      //	COZUM: daire KIRPILARAK degil **SEKIL OLARAK CIZILIR**
+      //	(`BoxShape.circle` + `DecorationImage`). Boylece gorsel bir
+      //	daire geometrisine SHADER olarak doldurulur ve kenar
+      //	yumusatmasini GPU'nun kendi daire cizimi yapar.
+      // ⚠️ YAPMA: buraya tekrar `ClipOval`/`ClipRRect` koyma.
+      //
+      // ⚠️ `ResizeImage` = olcek kalitesi: dosya 512x512, cizim 47 dp
+      //    (~123 px) — 4 kat kucultmede kod cozucu yeniden orneklemezse
+      //    ince halkalar aliasing yapar. `devicePixelRatio` ILE carpilir,
+      //    yoksa bu kez BULANIK cizilir (turu 91 tuzagi).
+      child: Builder(
+        builder: (context) {
+          const cap = kAltMenuLogoCap;
+          final px = (cap * MediaQuery.devicePixelRatioOf(context)).round();
+          return Container(
+            width: cap,
+            height: cap,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              image: DecorationImage(
+                image: ResizeImage(
+                  const AssetImage('assets/icon/logo.png'),
+                  width: px,
+                  height: px,
                 ),
+                fit: BoxFit.cover,
+                filterQuality: FilterQuality.medium,
               ),
-            );
-          }),
-        ),
-      );
+            ),
+          );
+        },
+      ),
+    ),
+  );
 }
 
 // ⚠️⚠️ TURU 96l — ASAGIDAKI IKI SINIF `home_screen.dart`tan **TASINDI**,
@@ -440,7 +460,8 @@ class _ProfilIkonu extends ConsumerWidget {
     final p = ref.watch(myProfileProvider).valueOrNull;
     final mediaId = p?['avatar_media_id'] as String?;
     final url = (p?['avatar_url'] ?? '').toString();
-    final fotografVar = (mediaId != null && mediaId.isNotEmpty) || url.isNotEmpty;
+    final fotografVar =
+        (mediaId != null && mediaId.isNotEmpty) || url.isNotEmpty;
 
     // ⚠️⚠️⚠️ TURU 96n — FOTOGRAF YOKSA **DUZ DAIRE** (kullanici emri: *"sagdaki
     //	profil ikon olmayacak, oraya profil resmi gelecek, yoksa hafif gri

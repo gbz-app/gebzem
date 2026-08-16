@@ -320,6 +320,9 @@ class Gonderi {
     this.anket,
     this.paylasimSayisi = 0,
     this.repostSayisi = 0,
+    this.sponsorlu = false,
+    this.sponsorAlan = '',
+    this.sponsorCta = '',
   });
 
   /// ⚠️⚠️ TURU 98b — PAYLASIM ve REPOST SAYACI **SUNUCUDA YOK**.
@@ -329,6 +332,18 @@ class Gonderi {
   /// ⚠️ Sunucu bu alanlari donmeye baslarsa `fromJson`a eklenmeli.
   final int paylasimSayisi;
   final int repostSayisi;
+
+  /// ⚠️⚠️ TURU 98i — SPONSORLU GONDERI (kullanici emri: *"sponsorlu
+  ///	paylasim da var, bizimkinde de gorunmeli"*).
+  ///
+  /// ⚠️ **SUNUCUDA REKLAM ALTYAPISI YOK** (turu 78 karari: reklamlar
+  ///	tablosu ACILMADI, cunku icerigini girecek yol yok). Bu alanlar
+  ///	JSONDAN OKUNMAZ — yalniz demo verisinde doludur, gercek akista
+  ///	DAIMA false/bos gelir ve hicbir gonderi "Sponsorlu" gorunmez.
+  /// ⚠️ YAPMA: bunlari fromJson'a baglamadan once sunucu tarafini yaz.
+  final bool sponsorlu;
+  final String sponsorAlan;
+  final String sponsorCta;
 
   final String id;
   final String yazarId;

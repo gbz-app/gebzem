@@ -134,7 +134,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   /// ⚠️ YAPMA: buraya tam sayfa izin kapisi geri koyma — kullanici ACIKCA
   ///    ayri izin sayfasi ISTEMEDIGINI soyledi.
 
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -217,12 +216,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   ///    guvenligi kapisi `aktifSekme`ye bakiyor (bkz. `IndexedStack` serhi).
   /// ⚠️ YAPMA: menu govdesini buraya geri kopyalama.
   Widget _altMenu() => AltMenu(
-        secili: _index,
-        onSec: (sira) => setState(() {
-          _index = sira;
-          aktifSekme.value = sira;
-        }),
-      );
+    secili: _index,
+    onSec: (sira) => setState(() {
+      _index = sira;
+      aktifSekme.value = sira;
+    }),
+  );
 }
 
 /// Alt menu ikonu + sag-ust kirmizi sayac.
@@ -455,10 +454,12 @@ class _ProfileTab extends ConsumerWidget {
           leading: const Icon(LucideIcons.tag),
           title: const Text('İlanlarım'),
           trailing: const Icon(LucideIcons.chevronRight, size: 18),
-          onTap: () => Navigator.of(
-            context,
-          ).push(MaterialPageRoute(builder: (_) =>
-                  const IlanListesiEkrani(benim: true, baslik: 'İlanlarım'))),
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) =>
+                  const IlanListesiEkrani(benim: true, baslik: 'İlanlarım'),
+            ),
+          ),
         ),
         // ⚠️⚠️ TURU 91 — PROFILDE TAKIP GIRISLERI (kullanici emri:
         //    *"profilde DIYETIM ve DUGUNUM olsun, HIZMETLERIM olsun,
@@ -473,16 +474,23 @@ class _ProfileTab extends ConsumerWidget {
           title: const Text('Taleplerim'),
           subtitle: const Text('Düğün · hizmet teklif istekleri'),
           trailing: const Icon(LucideIcons.chevronRight, size: 18),
-          onTap: () => Navigator.of(context).push(MaterialPageRoute(
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(
               builder: (_) => const IlanListesiEkrani(
-                  tur: 'talep', benim: true, baslik: 'Taleplerim'))),
+                tur: 'talep',
+                benim: true,
+                baslik: 'Taleplerim',
+              ),
+            ),
+          ),
         ),
         ListTile(
           leading: const Icon(LucideIcons.salad),
           title: const Text('Diyetim'),
           trailing: const Icon(LucideIcons.chevronRight, size: 18),
-          onTap: () => Navigator.of(context)
-              .push(MaterialPageRoute(builder: (_) => const DiyetimEkrani())),
+          onTap: () => Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (_) => const DiyetimEkrani())),
         ),
         // ⚠️ Basvurularim: turu 90'da YALNIZ ilan listesinin AppBar'indan
         //    ulasilabiliyordu; profil ikinci ve daha kesfedilebilir giris.
@@ -490,8 +498,11 @@ class _ProfileTab extends ConsumerWidget {
           leading: const Icon(LucideIcons.briefcase),
           title: const Text('Başvurularım'),
           trailing: const Icon(LucideIcons.chevronRight, size: 18),
-          onTap: () => Navigator.of(context).push(MaterialPageRoute(
-              builder: (_) => const BasvurularimEkrani(tur: 'is'))),
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => const BasvurularimEkrani(tur: 'is'),
+            ),
+          ),
         ),
         // ⚠️ ISLETME'ye ozel girisler.
         if ((profile.valueOrNull?['hesap_turu'] ?? '') == 'isletme') ...[
@@ -500,16 +511,24 @@ class _ProfileTab extends ConsumerWidget {
             title: const Text('Gelen talepler'),
             subtitle: const Text('Teklif verebileceğin istekler'),
             trailing: const Icon(LucideIcons.chevronRight, size: 18),
-            onTap: () => Navigator.of(context).push(MaterialPageRoute(
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
                 builder: (_) => const IlanListesiEkrani(
-                    tur: 'talep', baslik: 'Gelen Talepler'))),
+                  tur: 'talep',
+                  baslik: 'Gelen Talepler',
+                ),
+              ),
+            ),
           ),
           ListTile(
             leading: const Icon(LucideIcons.handCoins),
             title: const Text('Tekliflerim'),
             trailing: const Icon(LucideIcons.chevronRight, size: 18),
-            onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => const BasvurularimEkrani(tur: 'talep'))),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const BasvurularimEkrani(tur: 'talep'),
+              ),
+            ),
           ),
           // ⚠️ YALNIZ DIYETISYEN: baska bir isletme icin "Danışanlarım"
           //    BOS bir ekran olurdu (sunucu yalniz diyetisyene veri doner).
@@ -518,8 +537,9 @@ class _ProfileTab extends ConsumerWidget {
               leading: const Icon(LucideIcons.users),
               title: const Text('Danışanlarım'),
               trailing: const Icon(LucideIcons.chevronRight, size: 18),
-              onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => const DanisanlarimEkrani())),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const DanisanlarimEkrani()),
+              ),
             ),
         ],
         ListTile(

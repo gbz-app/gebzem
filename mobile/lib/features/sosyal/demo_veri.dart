@@ -57,6 +57,9 @@ Gonderi _g({
   int goruntulenme = 0,
   int paylasim = 0,
   int repost = 0,
+  bool sponsorlu = false,
+  String sponsorAlan = '',
+  String sponsorCta = '',
   int saatOnce = 1,
   String yazar = 'Ayşe Demir',
   String kullaniciAdi = 'aysedemir',
@@ -85,6 +88,9 @@ Gonderi _g({
   anket: anket,
   paylasimSayisi: paylasim,
   repostSayisi: repost,
+  sponsorlu: sponsorlu,
+  sponsorAlan: sponsorAlan,
+  sponsorCta: sponsorCta,
 );
 
 /// Akista gosterilecek demo gonderiler — **her icerik turunden bir ornek**.
@@ -94,7 +100,7 @@ List<Gonderi> demoGonderiler() => [
   _g(
     id: 'foto',
     tur: 'foto',
-    metin: 'Gebze sahilinde gün batımı 🌇 — bugün hava harikaydı.',
+    metin: 'Gebze sahilinde gün batımı — bugün hava harikaydı.',
     medya: const ['demo-foto-1'],
     turler: const ['image'],
     begeni: 1243,
@@ -108,7 +114,7 @@ List<Gonderi> demoGonderiler() => [
   _g(
     id: 'galeri',
     tur: 'foto',
-    metin: 'Hafta sonu kahvaltı turu ☕',
+    metin: 'Hafta sonu kahvaltı turu',
     medya: const ['demo-g-1', 'demo-g-2', 'demo-g-3'],
     turler: const ['image', 'image', 'image'],
     begeni: 312,
@@ -124,7 +130,7 @@ List<Gonderi> demoGonderiler() => [
   _g(
     id: 'video',
     tur: 'video',
-    metin: 'Yeni dükkânın açılışı! 🎉',
+    metin: 'Yeni dükkânın açılışı!',
     medya: const ['demo-video-1'],
     turler: const ['video'],
     begeni: 1200,
@@ -140,7 +146,7 @@ List<Gonderi> demoGonderiler() => [
   _g(
     id: 'ses',
     tur: 'foto',
-    metin: 'Kısa bir ses notu 🎧',
+    metin: 'Kısa bir ses notu',
     medya: const ['demo-ses-1'],
     turler: const ['audio'],
     begeni: 86,
@@ -189,11 +195,28 @@ List<Gonderi> demoGonderiler() => [
       ],
     ),
   ),
-  // 7) SADECE YAZI
+  // 7) SPONSORLU (kullanici emri: *"sponsorlu paylasim da gorunmeli"*)
+  //
+  // ⚠️ SUNUCUDA REKLAM ALTYAPISI YOK — bu kart YALNIZ demoda cizilir.
+  _g(
+    id: 'sponsor',
+    tur: 'foto',
+    metin: 'Slatra — Redemption koleksiyonu şimdi satışta.',
+    medya: const ['demo-sponsor-1'],
+    turler: const ['image'],
+    begeni: 4,
+    saatOnce: 3,
+    yazar: 'slatra.official',
+    kullaniciAdi: 'slatraofficial',
+    sponsorlu: true,
+    sponsorAlan: 'slatra.com.tr',
+    sponsorCta: 'Şimdi Sipariş Ver',
+  ),
+  // 8) SADECE YAZI
   _g(
     id: 'yazi',
     tur: 'yazi',
-    metin: 'Bugün Gebze’de trafik çok rahat. Sabah çıkanlar şanslı 🙂',
+    metin: 'Bugün Gebze’de trafik çok rahat. Sabah çıkanlar şanslı',
     begeni: 23,
     yorum: 3,
     goruntulenme: 210,

@@ -1,9 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../home/home_screen.dart' show myProfileProvider;
+import 'demo_veri.dart' show kDemoAkis;
+import 'demo_yorum.dart';
 import 'gonderi_karti.dart';
 import 'profil_sayfasi.dart';
 import 'sosyal_servisi.dart';
@@ -115,7 +118,31 @@ class _GonderiDetayState extends ConsumerState<GonderiDetay> {
         .toString();
     final g = _g;
     return Scaffold(
-      appBar: AppBar(title: const Text('Gönderi')),
+      // ⚠️⚠️⚠️ TURU 98i — THREADS DUZENI (kullanici ekran goruntusu):
+      //	baslik **Yazışma**, altinda goruntulenme sayisi; sagda bildirim
+      //	ve ••• dugmeleri.
+      // ⚠️ Goruntulenme YALNIZ demoda yazilir; gercek gonderide sunucudan
+      //    gelen goruntulenme alani kullanilir ve 0 ise HIC yazilmaz
+      //    (uydurma sayi YOK).
+      appBar: AppBar(
+        centerTitle: true,
+        title: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Yazışma', style: TextStyle(fontSize: 17)),
+            if ((g?.goruntulenme ?? 0) > 0)
+              Text(
+                '${sayiBicimle(g!.goruntulenme)} görüntüleme',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withValues(alpha: 0.55),
+                ),
+              ),
+          ],
+        ),
+      ),
       body: _yukleniyor
           ? const Center(child: CircularProgressIndicator())
           : g == null
@@ -140,6 +167,7 @@ class _GonderiDetayState extends ConsumerState<GonderiDetay> {
                   key: ValueKey(g.id),
                   gonderi: g,
                   benimId: benimId,
+                  detayda: true,
                   profileGit: (uid) => Navigator.of(context).push(
                     MaterialPageRoute(
                       builder: (_) => ProfilSayfasi(userId: uid),
@@ -148,6 +176,64 @@ class _GonderiDetayState extends ConsumerState<GonderiDetay> {
                   // Silinince bu sayfada kalacak bir sey yok.
                   onSilindi: () => Navigator.of(context).pop(),
                 ),
+                // ⚠️⚠️ TURU 98i — YORUM BOLUMU (Threads duzeni, kullanici
+                //	ekran goruntusu): ayrac satiri + threadli yorumlar.
+                // ⚠️ YALNIZ DEMODA: gercek yorum hatti YorumlarSayfasinda
+                //    duruyor ve DEGISMEDI.
+                if (kDemoAkis) ...[
+                  Divider(
+                    height: 1,
+                    thickness: 0.5,
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withValues(alpha: 0.08),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
+                    child: Row(
+                      children: [
+                        const Text(
+                          'Başlıca',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const Icon(LucideIcons.chevronDown, size: 16),
+                        const Spacer(),
+                        Text(
+                          'Hareketi gör',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurface.withValues(alpha: 0.55),
+                          ),
+                        ),
+                        Icon(
+                          LucideIcons.chevronRight,
+                          size: 16,
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withValues(alpha: 0.55),
+                        ),
+                      ],
+                    ),
+                  ),
+                  for (final y in demoYorumlar(g.id)) ...[
+                    Divider(
+                      height: 1,
+                      thickness: 0.5,
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withValues(alpha: 0.06),
+                    ),
+                    DemoYorumSatiri(y: y, cizgi: y.yanitlar.isNotEmpty),
+                    for (final alt in y.yanitlar)
+                      DemoYorumSatiri(y: alt, girinti: 30),
+                  ],
+                  const SizedBox(height: 24),
+                ],
               ],
             ),
     );

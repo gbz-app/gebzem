@@ -243,6 +243,11 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
   }
 
   Future<void> _dahaGetir() async {
+    // ⚠️⚠️ TURU 98i — DEMODA SAYFALAMA YOK.
+    //	Demo listesi `_yenile` icinde kuruluyordu ama `_dahaGetir` sunucudan
+    //	cekmeye devam ediyordu: kullanici asagi kaydirinca demo kartlarin
+    //	ALTINA GERCEK gonderiler ekleniyordu (emulatorde gorundu).
+    if (kDemoAkis) return;
     if (_yukleniyor || !_dahaVar || _liste.isEmpty) return;
     setState(() => _yukleniyor = true);
     try {
@@ -336,6 +341,20 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
   ///	**SINIRSIZ** genislik verir; sinirsiz kisitta `Align` hizalayacak
   ///	fazla alan BULAMAZ. Ortalamak icin alt sinir (`minWidth`) SART.
   /// ⚠️ YAPMA: `Center`/`Align` ile "cozdum" sayma; `LayoutBuilder`i kaldirma.
+  /// ⚠️ TURU 98g — SERIT ILE ILK GONDERI ARASINDA NEFES (kullanici:
+  ///    *"profili cok yaklastirmissin story alanina"*). Secici AppBara
+  ///    tasininca aradaki bosluk da gitmisti.
+  Widget _serit() => Padding(
+    // ⚠️ Serit kendi 4 dp dikey dolgusunu tasir; 4 + 5 = **9 dp**.
+    // ⚠️ GORUNEN bosluk 9 dp: serit kendi 4 dp dikey dolgusunu VE izlenmis
+    //    halkanin 2 dp kenarligi icin 4 dp pay tasir (toplam 8); ustune 1.
+    // ⚠️⚠️ OLCUT: seridin EN ALT GORUNEN ogesi daire DEGIL, canli/oda
+    //	ROZETI (daireden ~4 dp asagi tasar). Boslugu daireye gore ayarlamak
+    //	gozle 5 dp gosteriyordu; rozet olcut alininca 9 dp olur.
+    padding: const EdgeInsets.only(bottom: 16),
+    child: StorySeridi(key: _storyKey),
+  );
+
   Widget _bolmeSecici() => Padding(
     padding: EdgeInsets.zero,
     child: LayoutBuilder(
@@ -713,7 +732,7 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
         //    ⚠️ YAPMA: bos/hata dallarindan bu satiri kaldirma.
         physics: const AlwaysScrollableScrollPhysics(),
         children: [
-          StorySeridi(key: _storyKey),
+          _serit(),
           const SizedBox(height: 120),
           Center(child: Text(_hata!)),
           const SizedBox(height: 12),
@@ -752,7 +771,7 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
       return ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         children: [
-          StorySeridi(key: _storyKey),
+          _serit(),
           const SizedBox(height: 120),
           const Center(child: CircularProgressIndicator()),
         ],
@@ -770,7 +789,7 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
         //    ⚠️ YAPMA: bos/hata dallarindan bu satiri kaldirma.
         physics: const AlwaysScrollableScrollPhysics(),
         children: [
-          StorySeridi(key: _storyKey),
+          _serit(),
           const SizedBox(height: 100),
           const Icon(LucideIcons.images, size: 54, color: Colors.grey),
           const SizedBox(height: 14),
@@ -810,7 +829,7 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
       itemBuilder: (_, i) {
         // ⚠️ TURU 80: 0 = hikaye seridi, 1 = BOLME SECICI (kullanici emri:
         //    "hikaye dairesinin ALTINA"). Ikisi de akisla BIRLIKTE kayar.
-        if (i == 0) return StorySeridi(key: _storyKey);
+        if (i == 0) return _serit();
         var idx = i - 1;
         if (_kesfet) {
           if (idx == 0) return _kesfetSeridi();

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
-import 'package:permission_handler/permission_handler.dart' show openAppSettings;
+import 'package:permission_handler/permission_handler.dart'
+    show openAppSettings;
 
 import '../../core/tercihler.dart';
 // ⚠️ TURU 89 — izin dizisi TEK KAYNAK (bkz. o dosyanin serhi).
@@ -64,12 +65,33 @@ class AyarlarEkrani extends ConsumerWidget {
           //    Secim `haritaStiliProvider`da; harita `style:` parametresini
           //    CALISMA ANINDA guncelliyor (yeniden kurulmuyor).
           const _Baslik('HARİTA'),
-          _haritaSecenek(context, ref, harita, 'sistem', LucideIcons.smartphone,
-              'Sistem', 'Uygulama temasına uyar'),
-          _haritaSecenek(context, ref, harita, 'gri', LucideIcons.map,
-              'Açık gri', 'Sade, düşük renkli gündüz görünümü'),
-          _haritaSecenek(context, ref, harita, 'gece', LucideIcons.moonStar,
-              'Gece', 'Koyu harita'),
+          _haritaSecenek(
+            context,
+            ref,
+            harita,
+            'sistem',
+            LucideIcons.smartphone,
+            'Sistem',
+            'Uygulama temasına uyar',
+          ),
+          _haritaSecenek(
+            context,
+            ref,
+            harita,
+            'gri',
+            LucideIcons.map,
+            'Açık gri',
+            'Sade, düşük renkli gündüz görünümü',
+          ),
+          _haritaSecenek(
+            context,
+            ref,
+            harita,
+            'gece',
+            LucideIcons.moonStar,
+            'Gece',
+            'Koyu harita',
+          ),
           const Divider(height: 32),
           // ⚠️⚠️⚠️ TURU 89 — IZIN KURTARMA YOLU **ZORUNLU**.
           //
@@ -137,7 +159,10 @@ class AyarlarEkrani extends ConsumerWidget {
       title: Text(baslik),
       subtitle: Text(altBaslik),
       trailing: secili
-          ? Icon(LucideIcons.check, color: Theme.of(context).colorScheme.primary)
+          ? Icon(
+              LucideIcons.check,
+              color: Theme.of(context).colorScheme.primary,
+            )
           : null,
       onTap: () => ref.read(haritaStiliProvider.notifier).ayarla(deger),
     );
@@ -160,7 +185,10 @@ class AyarlarEkrani extends ConsumerWidget {
       // ⚠️ Secili durum IKI isaretle: tik ikonu + kalin baslik degil, tik +
       //    vurgulu renk. Tek isaret renk korlugunde ayirt edilemezdi.
       trailing: secili
-          ? Icon(LucideIcons.check, color: Theme.of(context).colorScheme.primary)
+          ? Icon(
+              LucideIcons.check,
+              color: Theme.of(context).colorScheme.primary,
+            )
           : null,
       onTap: () => ref.read(temaProvider.notifier).ayarla(deger),
     );

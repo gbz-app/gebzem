@@ -19,6 +19,8 @@ import '../medya/tam_ekran_video.dart';
 import 'gorunurluk.dart';
 import '../isletme/isletme_kart.dart' show kYuzeyGri, kYanBosluk;
 import 'demo_veri.dart';
+import 'demo_yorum.dart';
+import 'gonderi_detay.dart';
 import 'medya_olcu.dart';
 import 'medya_video.dart';
 import 'paylas_sheet.dart';
@@ -56,12 +58,17 @@ class GonderiKarti extends ConsumerStatefulWidget {
     required this.gonderi,
     required this.benimId,
     this.onSilindi,
+    this.detayda = false,
     this.profileGit,
   });
 
   final Gonderi gonderi;
   final String benimId;
   final VoidCallback? onSilindi;
+
+  /// ⚠️ TURU 98i — kart DETAY ekraninda cizilirken akistaki tek yanit
+  ///    TEKRARLANMAZ (yorumlarin tamami zaten altta listeleniyor).
+  final bool detayda;
   final void Function(String userId)? profileGit;
 
   @override
@@ -123,6 +130,14 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
       ),
     );
   }
+
+  /// ⚠️ TURU 98i — akista gosterilecek TEK demo yaniti (yoksa null).
+  late final DemoYorum? _akisYaniti =
+      // ⚠️ `demoKimlik` SART: kapi olmadan sahte yanit GERCEK
+      //    gonderilerin altinda da ciziliyordu (emulatorde gorundu).
+      kDemoAkis && _demo && !g.sponsorlu && !widget.detayda
+      ? demoAkisYaniti(g.id)
+      : null;
 
   Future<void> _begeniCevir({bool yalnizBegen = false}) async {
     if (_mesgul) return;
@@ -192,7 +207,17 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
   }
 
   Future<void> _yorumlariAc() async {
-    if (_demo) return _demoUyar();
+    // ⚠️⚠️ TURU 98i — DEMODA yorum dokunusu **GONDERI DETAYINI** acar
+    //	(kullanici: *"gonderiye tikladigimda gonderi detayini boyle
+    //	istiyorum"*). Gercek akista `YorumlarSayfasi` acilmaya devam
+    //	eder — o hat DEGISMEDI.
+    if (_demo) {
+      if (widget.detayda) return;
+      await Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => GonderiDetay(gonderi: g)));
+      return;
+    }
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => YorumlarSayfasi(gonderi: g, benimId: widget.benimId),
@@ -632,13 +657,18 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
                           ),
                           const SizedBox(width: 6),
                           Text(
-                            [
-                              gonderiZamani(g.createdAt),
-                              // ⚠️ TURU 76: duzenlenmis gonderi GORUNUR isaretlenir.
-                              if (g.duzenlendi) 'düzenlendi',
-                            ].join(' · '),
+                            g.sponsorlu
+                                ? 'Sponsorlu'
+                                : [
+                                    gonderiZamani(g.createdAt),
+                                    // ⚠️ TURU 76: duzenlenmis gonderi GORUNUR isaretlenir.
+                                    if (g.duzenlendi) 'düzenlendi',
+                                  ].join(' · '),
                             style: TextStyle(
                               fontSize: 12,
+                              fontWeight: g.sponsorlu
+                                  ? FontWeight.w600
+                                  : FontWeight.w400,
                               color: Theme.of(
                                 context,
                               ).colorScheme.onSurface.withValues(alpha: 0.55),
@@ -652,8 +682,7 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
                     if (g.konumVar)
                       GestureDetector(
                         behavior: HitTestBehavior.opaque,
-                        onTap: () =>
-                            KonumServisi.haritadaAc(g.enlem, g.boylam),
+                        onTap: () => KonumServisi.haritadaAc(g.enlem, g.boylam),
                         child: Padding(
                           padding: const EdgeInsets.only(top: 3, bottom: 3),
                           child: Row(
@@ -709,7 +738,6 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
         //    sabittir (kullanici emri).
         const SizedBox(height: kIcBosluk),
 
-
         // ---- SES (medyadan ONCE kontrol edilir — ses bir galeri DEGILDIR)
         //
         // ⚠️⚠️ TURU 83 — GONDERIDE SES (kullanici emri: "gonderide ses olmasi
@@ -744,6 +772,63 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
         // ---- MEDYA
         else if (g.mediaIds.isNotEmpty)
           _medya(),
+
+        // ---- SPONSORLU BAGLANTI KARTI (alan adi + eylem cagrisi)
+        //
+        // ⚠️ TURU 98i — Threads sponsorlu gonderisinde medyanin ALTINDA
+        //    alan adi ve bir dugme satiri var; kullanici bunu istedi.
+        // ⚠️ Tiklama YOK: gercek reklam altyapisi (hedef URL, tiklama
+        //    sayaci, gizlilik metni) YOK; sahte bir baglanti acmak
+        //    kullaniciya YALAN olurdu.
+        if (g.sponsorlu)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              kKartYanDolgu,
+              8,
+              kKartYanDolgu,
+              4,
+            ),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: kYuzeyGri(context),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          g.sponsorAlan,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: tema.colorScheme.onSurface.withValues(
+                              alpha: 0.55,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          g.sponsorCta,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    LucideIcons.chevronRight,
+                    size: 20,
+                    color: tema.colorScheme.onSurface.withValues(alpha: 0.4),
+                  ),
+                ],
+              ),
+            ),
+          ),
 
         // ---- ANKET
         //
@@ -783,7 +868,8 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
         //    dokunma alani. "Secili" farki YALNIZ RENKTEN gelir (Lucide'da dolu
         //    kalp yok — bkz. asagidaki serh), boyut DEGISMEZ.
         // ⚠️ YAPMA: buraya farkli bir dugme tipi (IconButton/TextButton) karistirma.
-        // ⚠️ YAPMA: `Icons.favorite` (Material) koyma — ikon seti karisir.
+        // ⚠️ TURU 98h — `Icons.favorite` YALNIZ "begenildi" halinde kullanilir
+        //    (Lucide dolu kalp icermiyor, olculdu); baska yerde ikon seti KARISTIRMA.
         // ⚠️⚠️⚠️ TURU 98c — **TASMA OLCULDU VE YAPISAL OLARAK KAPATILDI.**
         //
         //	Turu 98b'de bes eylemin DORDU sayi tasimaya basladi (begeni ·
@@ -820,7 +906,15 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         _eylem(
-                          ikon: LucideIcons.heart,
+                          // ⚠️⚠️⚠️ TURU 98h — BEGENILINCE **DOLU KIRMIZI
+                          //	KALP** (kullanici emri).
+                          // ⚠️ Lucide 3.1.14te DOLU KALP YOK (heart ·
+                          //	heartCrack · heartPlus · heartX ... hepsi
+                          //	CIZGI). YALNIZ bu durumda Material
+                          //	`Icons.favorite` kullanilir; bos hali Lucide.
+                          // ⚠️ "Ikon seti karistirma" kurali BILEREK ve
+                          //	TEK NOKTADA esnetildi.
+                          ikon: g.begendim ? Icons.favorite : LucideIcons.heart,
                           sayi: g.begeniSayisi,
                           renk: g.begendim ? const Color(0xFFFF3B5C) : null,
                           vurgu: g.begendim,
@@ -856,7 +950,9 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
                           onTap: () => _sohbeteGonder(context),
                         ),
                         _eylem(
-                          ikon: LucideIcons.repeat2,
+                          // ⚠️ TURU 98h — kullanici emri: **alinti yap**
+                          //    ( -> ).
+                          ikon: LucideIcons.redo2,
                           sayi: g.repostSayisi,
                           onTap: () => _sohbeteGonder(context),
                           ipucu: "Yeniden paylaş",
@@ -917,6 +1013,19 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
               style: TextStyle(fontSize: 12, color: Colors.grey),
             ),
           ),
+        // ---- AKISTA TEK YANIT (Threads deseni)
+        //
+        // ⚠️⚠️ TURU 98i — kullanici: *"anasayfada da bazen yorumlari
+        //	gosteriyor"*. Gonderinin ALTINDA bir yanit ve sola dogru bir
+        //	THREAD CIZGISI cizilir.
+        // ⚠️ YALNIZ DEMODA (`demoAkisYaniti` null doner degilse): gercek
+        //	akista sunucu boyle bir alan DONDURMUYOR, dolayisiyla hicbir
+        //	kartta cizilmez.
+        // ⚠️ Detay ekraniyla AYNI bilesen kullanilir (`DemoYorumSatiri`);
+        //    ikinci bir kopya yazilsaydi drift ederdi.
+        if (_akisYaniti != null)
+          DemoYorumSatiri(y: _akisYaniti, yanitlariGoster: false),
+
         // ⚠️⚠️ TURU 98b — KART SONU ILE AYRAC ARASI **12** (kullanici:
         //	*"ilk gonderinin sonu ile profil ismi bitisik olmus"*).
         //	Ayracin ALTINDA da nefes var (asagida): 8 + ayrac + 12 =
@@ -1377,8 +1486,13 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
   ///    duser: guvenli varsayilan, sessiz bozulma yok).
   static double _optikBoy(IconData ikon) {
     if (ikon == LucideIcons.heart) return 26;
+    // ⚠️ TURU 98h — DOLU kalp (Material) cizgili kalpten daha "dolgun"
+    //    gorunur; 26 yerine 24 ile ayni optik agirliga oturur.
+    if (ikon == Icons.favorite) return 24;
     if (ikon == LucideIcons.messageCircle) return 23;
-    if (ikon == LucideIcons.send) return 24;
+    // ⚠️ TURU 98h — PAYLAS 24 -> **23** (kullanici: *"paylas digerlerine
+    //    gore bir tik buyuk, o da esit olsun"*).
+    if (ikon == LucideIcons.send) return 23;
     if (ikon == LucideIcons.bookmark) return 24;
     if (ikon == LucideIcons.trendingUp) return 24;
     return 23;
@@ -1479,16 +1593,45 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
               //    `Flexible` bu Row'da (mainAxisSize.min, dis Row'un esnek
               //    OLMAYAN cocugu) sinirsiz kisit alir ve HICBIR SEY YAPMAZ.
               ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 46),
-                child: Text(
-                  sayiBicimle(sayi),
-                  maxLines: 1,
-                  softWrap: false,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: c,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
+                // ⚠️ TURU 98h — yazi 13 -> 15 olunca tavan da buyudu
+                //    (46 -> 54); tasma korumasini `FittedBox` yapiyor.
+                constraints: const BoxConstraints(maxWidth: 54),
+                // ⚠️⚠️⚠️ TURU 98h — SAYI DEGISINCE **YUKARI KAYARAK**
+                //	degisir ve begenildiyse **KIRMIZI** olur (kullanici
+                //	emri: *"yanindaki sayi yukari efekt olacak, sayi
+                //	artisi yazida kirmizi olacak"*).
+                //
+                // ⚠️ `ValueKey(sayi)`: anahtar degismezse `AnimatedSwitcher`
+                //	HICBIR SEY oynatmaz — eski/yeni ayni widget sayilir.
+                // ⚠️ Cikan eski sayi YUKARI, gelen yeni sayi ASAGIDAN
+                //	gelir; ikisi de ayni yonde akar (sayac hissi).
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 220),
+                  switchInCurve: Curves.easeOut,
+                  switchOutCurve: Curves.easeIn,
+                  transitionBuilder: (cocuk, an) => ClipRect(
+                    child: SlideTransition(
+                      position: Tween<Offset>(
+                        begin: const Offset(0, 0.6),
+                        end: Offset.zero,
+                      ).animate(an),
+                      child: FadeTransition(opacity: an, child: cocuk),
+                    ),
+                  ),
+                  child: Text(
+                    sayiBicimle(sayi),
+                    key: ValueKey<int>(sayi),
+                    maxLines: 1,
+                    softWrap: false,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: c,
+                      // ⚠️ TURU 98h — kullanici: *"yazilar ikonlarla AYNI
+                      //    boyutta olsun"*. Ikon murekkebi ~23 dp; 15 punto
+                      //    metnin gorunen yuksekligi buna oturur.
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ),

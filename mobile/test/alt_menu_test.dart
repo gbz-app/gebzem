@@ -78,9 +78,20 @@ Finder get _cubukBulucu =>
     find.byWidgetPredicate((w) => w is SizedBox && w.height == kAltMenuBoy);
 
 /// Alt menunun zemin kutusu (ColoredBox) — rengi olcmek icin.
+///
+/// ⚠️⚠️ TURU 98h — ARTIK IKI `ColoredBox` VAR: cubugun kendi siyah zemini
+///	(`ClipRRect` ICINDE) ve koselerdeki beyazligi kapatan uygulama-zemini
+///	kutusu (`ClipRRect` DISINDA). Ayirt etmeden `widget<ColoredBox>`
+///	cagirmak *"Bad state: Too many elements"* ile PATLIYORDU.
+/// ⚠️ Olcut CUBUGUN zemini: `ClipRRect`in ICINDEKI kutu.
 Color _zeminRengi(WidgetTester t) {
   final kutu = t.widget<ColoredBox>(
-    find.descendant(of: find.byType(AltMenu), matching: find.byType(ColoredBox)),
+    find
+        .descendant(
+          of: find.byType(ClipRRect),
+          matching: find.byType(ColoredBox),
+        )
+        .first,
   );
   return kutu.color;
 }
