@@ -97,15 +97,14 @@ class SosyalServisi {
     String? metin,
     bool? yorumKapali,
     bool konumKaldir = false,
-  }) =>
-      _api.patch(
-        '/posts/$id',
-        data: {
-          if (metin != null) 'metin': metin,
-          if (yorumKapali != null) 'yorum_kapali': yorumKapali,
-          if (konumKaldir) ...{'konum': '', 'enlem': 0, 'boylam': 0},
-        },
-      );
+  }) => _api.patch(
+    '/posts/$id',
+    data: {
+      if (metin != null) 'metin': metin,
+      if (yorumKapali != null) 'yorum_kapali': yorumKapali,
+      if (konumKaldir) ...{'konum': '', 'enlem': 0, 'boylam': 0},
+    },
+  );
 
   /// TURU 76 — YAZARA OZEL istatistik. Sunucu baskasina 404 doner.
   Future<Map<String, int>> istatistik(String id) async {

@@ -77,10 +77,8 @@ const double _kYayginOran = 0.8;
 /// ⚠️ YAPMA: tavani sabit dp yapma (turu 80: ayni gonderi 360x640'ta ekranin
 ///    %65'ini, 800x1280'de %107'sini kapliyordu).
 /// ⚠️ YAPMA: tavani yalniz ekran yuzdesine baglama (yukaridaki tablo).
-double medyaTavani(BuildContext c, double kolonGenislik) => math.min(
-  kolonGenislik / _kYayginOran,
-  MediaQuery.sizeOf(c).height * 0.60,
-);
+double medyaTavani(BuildContext c, double kolonGenislik) =>
+    math.min(kolonGenislik / _kYayginOran, MediaQuery.sizeOf(c).height * 0.60);
 
 /// Kose yaricapi (Threads gorunumu: belirgin yuvarlak kose).
 const double kMedyaYaricap = 18;

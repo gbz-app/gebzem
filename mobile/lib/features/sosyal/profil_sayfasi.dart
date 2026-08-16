@@ -686,11 +686,7 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
             ),
           ),
         ),
-        Divider(
-          height: 1,
-          thickness: 0.5,
-          color: renk.withValues(alpha: 0.08),
-        ),
+        Divider(height: 1, thickness: 0.5, color: renk.withValues(alpha: 0.08)),
       ],
     );
   }
@@ -710,63 +706,63 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
       itemBuilder: (_, i) {
         final g = liste[i];
         return GestureDetector(
-        onTap: () => Navigator.of(
-          context,
-        ).push(MaterialPageRoute(builder: (_) => GonderiDetay(gonderi: g))),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            if (g.mediaIds.isNotEmpty)
-              // ⚠️⚠️⚠️ TURU 83 — **SEVK ENGELI DUZELTMESI** (denetim bulgusu).
-              //
-              //    Eskiden burada `MedyaGorsel(mediaId: g.mediaIds.first)`
-              //    vardi ve TUR KONTROLU YAPMIYORDU. Yeni "Videolar" sekmesi
-              //    TANIMI GEREGI yalniz `kind(0)=='video'` gonderileri
-              //    listeledigi icin O SEKMEDEKI HER HUCRE bir VIDEO id'sini
-              //    goruntu bileseni gonderiyordu:
-              //      · thumb uretilmedigi icin (`kucukResim:` repodaki 17
-              //        `yukle()` cagrisinin HICBIRINDE gecmiyor) ham `url`e
-              //        dusuyor -> **mp4'un TAMAMI indiriliyor**,
-              //      · ardindan goruntu cozucu patliyor -> **KIRIK GORSEL**.
-              //    Yani sekme hem bozuk goruyor hem kullanicinin mobil
-              //    verisini yakiyordu.
-              //
-              // ⚠️ `KapakGorseli` TAM BU IS ICIN yazilmis TEK KAYNAK:
-              //    ILK FOTOGRAFI secer, yalniz-video gonderide `null` doner
-              //    ve INDIRME YAPMADAN video yer tutucusu cizer.
-              // ⚠️ YAPMA: buraya `MedyaGorsel(... mediaIds.first ...)` geri koyma.
-              KapakGorseli(mediaIds: g.mediaIds, mediaKinds: g.mediaKinds)
-            else
-              Container(
-                color: const Color(0xFF1A1A24),
-                padding: const EdgeInsets.all(8),
-                alignment: Alignment.center,
-                child: Text(
-                  g.metin,
-                  maxLines: 5,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 11, color: Colors.white70),
+          onTap: () => Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (_) => GonderiDetay(gonderi: g))),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              if (g.mediaIds.isNotEmpty)
+                // ⚠️⚠️⚠️ TURU 83 — **SEVK ENGELI DUZELTMESI** (denetim bulgusu).
+                //
+                //    Eskiden burada `MedyaGorsel(mediaId: g.mediaIds.first)`
+                //    vardi ve TUR KONTROLU YAPMIYORDU. Yeni "Videolar" sekmesi
+                //    TANIMI GEREGI yalniz `kind(0)=='video'` gonderileri
+                //    listeledigi icin O SEKMEDEKI HER HUCRE bir VIDEO id'sini
+                //    goruntu bileseni gonderiyordu:
+                //      · thumb uretilmedigi icin (`kucukResim:` repodaki 17
+                //        `yukle()` cagrisinin HICBIRINDE gecmiyor) ham `url`e
+                //        dusuyor -> **mp4'un TAMAMI indiriliyor**,
+                //      · ardindan goruntu cozucu patliyor -> **KIRIK GORSEL**.
+                //    Yani sekme hem bozuk goruyor hem kullanicinin mobil
+                //    verisini yakiyordu.
+                //
+                // ⚠️ `KapakGorseli` TAM BU IS ICIN yazilmis TEK KAYNAK:
+                //    ILK FOTOGRAFI secer, yalniz-video gonderide `null` doner
+                //    ve INDIRME YAPMADAN video yer tutucusu cizer.
+                // ⚠️ YAPMA: buraya `MedyaGorsel(... mediaIds.first ...)` geri koyma.
+                KapakGorseli(mediaIds: g.mediaIds, mediaKinds: g.mediaKinds)
+              else
+                Container(
+                  color: const Color(0xFF1A1A24),
+                  padding: const EdgeInsets.all(8),
+                  alignment: Alignment.center,
+                  child: Text(
+                    g.metin,
+                    maxLines: 5,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 11, color: Colors.white70),
+                  ),
                 ),
-              ),
-            // ⚠️⚠️ TURU 76 — ROZET ARTIK **ILK MEDYANIN TURUNDEN** (gonderi
-            //    seviyesindeki `videoMu`dan DEGIL). Karma galeri geldiginde
-            //    `tur='foto'` olan ama ILK OGESI VIDEO olan gonderiler
-            //    oynatma rozeti ALMIYORDU — kapak donuk bir kare gibi duruyordu.
-            // ⚠️ `else if` ZORUNLU: iki rozet de `right:5, top:5` konumunda;
-            //    ikisi birden cizilirse UST USTE BINER (okunmaz simge yigini).
-            if (g.kind(0) == 'video')
-              const Positioned(
-                right: 5,
-                top: 5,
-                child: Icon(LucideIcons.play, size: 15, color: Colors.white),
-              )
-            else if (g.mediaIds.length > 1)
-              const Positioned(
-                right: 5,
-                top: 5,
-                child: Icon(LucideIcons.copy, size: 14, color: Colors.white),
-              ),
+              // ⚠️⚠️ TURU 76 — ROZET ARTIK **ILK MEDYANIN TURUNDEN** (gonderi
+              //    seviyesindeki `videoMu`dan DEGIL). Karma galeri geldiginde
+              //    `tur='foto'` olan ama ILK OGESI VIDEO olan gonderiler
+              //    oynatma rozeti ALMIYORDU — kapak donuk bir kare gibi duruyordu.
+              // ⚠️ `else if` ZORUNLU: iki rozet de `right:5, top:5` konumunda;
+              //    ikisi birden cizilirse UST USTE BINER (okunmaz simge yigini).
+              if (g.kind(0) == 'video')
+                const Positioned(
+                  right: 5,
+                  top: 5,
+                  child: Icon(LucideIcons.play, size: 15, color: Colors.white),
+                )
+              else if (g.mediaIds.length > 1)
+                const Positioned(
+                  right: 5,
+                  top: 5,
+                  child: Icon(LucideIcons.copy, size: 14, color: Colors.white),
+                ),
             ],
           ),
         );
@@ -1036,10 +1032,14 @@ class _IsletmeSeridiState extends ConsumerState<IsletmeSeridi> {
     final mesajci = ScaffoldMessenger.of(context);
     try {
       await svc.bagIste(diyetisyenID: widget.userId);
-      mesajci.showSnackBar(const SnackBar(
-        content: Text('Bağlantı isteği gönderildi. Diyetisyen onaylayınca '
-            '"Diyetim" ekranında görünecek.'),
-      ));
+      mesajci.showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Bağlantı isteği gönderildi. Diyetisyen onaylayınca '
+            '"Diyetim" ekranında görünecek.',
+          ),
+        ),
+      );
     } catch (e) {
       // ⚠️ SUNUCUNUN mesaji gosterilir ("zaten bağlısınız" gibi durumlari
       //    jenerik bir metne cevirmek kullaniciyi tekrar tekrar denemeye

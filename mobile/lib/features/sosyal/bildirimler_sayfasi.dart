@@ -277,15 +277,17 @@ class _BildirimlerSayfasiState extends ConsumerState<BildirimlerSayfasi> {
     if (hedefTur == 'ilan' && hedefId.isNotEmpty) {
       if (tur == 'talep_yeni' || tur == 'teklif_secildi') {
         // Aliciya TALEP gosterilir (teklif verecek / secildigini gorecek).
-        Navigator.of(context).push(MaterialPageRoute(
-          builder: (_) => IlanDetayId(ilanId: hedefId),
-        ));
+        Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => IlanDetayId(ilanId: hedefId)));
         return;
       }
       Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => BasvuranlarEkrani(
-              ilanID: hedefId, teklifModu: tur == 'teklif_geldi'),
+            ilanID: hedefId,
+            teklifModu: tur == 'teklif_geldi',
+          ),
         ),
       );
       return;
@@ -293,11 +295,13 @@ class _BildirimlerSayfasiState extends ConsumerState<BildirimlerSayfasi> {
     // ⚠️ DIYET: alici DANISAN ise kendi ekrani, DIYETISYEN ise danisan
     //    listesi. Tur bunu ayirt eder (`diyet_liste` daima danisana gider).
     if (hedefTur == 'diyet') {
-      Navigator.of(context).push(MaterialPageRoute(
-        builder: (_) => tur == 'diyet_liste'
-            ? const DiyetimEkrani()
-            : const DanisanlarimEkrani(),
-      ));
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => tur == 'diyet_liste'
+              ? const DiyetimEkrani()
+              : const DanisanlarimEkrani(),
+        ),
+      );
       return;
     }
     // ⚠️ Gonderi hedefine gitmek icin gonderiyi TEK BASINA cekebilmeliyiz;
@@ -342,12 +346,12 @@ class _BildirimlerSayfasiState extends ConsumerState<BildirimlerSayfasi> {
             ? const Center(child: CircularProgressIndicator())
             : _hata != null
             ? ListView(
-                  // TURU 83 - AlwaysScrollableScrollPhysics ZORUNLU:
-                  // icerigi ekrandan KISA olan bos/hata dallarinda Android in
-                  // varsayilan ClampingScrollPhysics i overscroll uretmez ve
-                  // asagi-cek-yenile HIC tetiklenmez -> kullanicinin kurtarma
-                  // yolu KALMAZ. (Ayni sinif ayni commit te profil icin
-                  // duzeltilmis, UC kardes ekranda atlanmisti - denetim buldu.)
+                // TURU 83 - AlwaysScrollableScrollPhysics ZORUNLU:
+                // icerigi ekrandan KISA olan bos/hata dallarinda Android in
+                // varsayilan ClampingScrollPhysics i overscroll uretmez ve
+                // asagi-cek-yenile HIC tetiklenmez -> kullanicinin kurtarma
+                // yolu KALMAZ. (Ayni sinif ayni commit te profil icin
+                // duzeltilmis, UC kardes ekranda atlanmisti - denetim buldu.)
                 physics: const AlwaysScrollableScrollPhysics(),
                 children: [
                   const SizedBox(height: 120),
@@ -363,12 +367,12 @@ class _BildirimlerSayfasiState extends ConsumerState<BildirimlerSayfasi> {
               )
             : _liste.isEmpty
             ? ListView(
-                  // TURU 83 - AlwaysScrollableScrollPhysics ZORUNLU:
-                  // icerigi ekrandan KISA olan bos/hata dallarinda Android in
-                  // varsayilan ClampingScrollPhysics i overscroll uretmez ve
-                  // asagi-cek-yenile HIC tetiklenmez -> kullanicinin kurtarma
-                  // yolu KALMAZ. (Ayni sinif ayni commit te profil icin
-                  // duzeltilmis, UC kardes ekranda atlanmisti - denetim buldu.)
+                // TURU 83 - AlwaysScrollableScrollPhysics ZORUNLU:
+                // icerigi ekrandan KISA olan bos/hata dallarinda Android in
+                // varsayilan ClampingScrollPhysics i overscroll uretmez ve
+                // asagi-cek-yenile HIC tetiklenmez -> kullanicinin kurtarma
+                // yolu KALMAZ. (Ayni sinif ayni commit te profil icin
+                // duzeltilmis, UC kardes ekranda atlanmisti - denetim buldu.)
                 physics: const AlwaysScrollableScrollPhysics(),
                 children: const [
                   SizedBox(height: 140),

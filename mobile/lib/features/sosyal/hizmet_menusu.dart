@@ -18,8 +18,7 @@ import '../isletme/isletme_servisi.dart' show isletmeServisiProvider;
 //	emri: *"kartlarin genisliklerini diyorum, yemekteki gibi; renk ve yazi
 //	tipleri de oyle olsun"*). Olcu/renk/yazi sabitleri BURADAN alinir,
 //	KOPYALANMAZ — iki ekran birlikte doner.
-import '../isletme/isletme_kart.dart'
-    show kYanBosluk, kYaricap, kYuzeyGri;
+import '../isletme/isletme_kart.dart' show kYanBosluk, kYaricap, kYuzeyGri;
 import '../isletme/isletme_listesi.dart' show kKesifKutu, kIzgaraAralik;
 
 /// ⚠️⚠️ TURU 76b/77 — ANASAYFA SOL UST MENU.
@@ -57,6 +56,7 @@ final _menuSlaytProvider = FutureProvider<List<Slayt>>((ref) async {
   final d = await ref.read(isletmeServisiProvider).kesif('');
   return d.slaytlar;
 });
+
 class HizmetMenusu extends ConsumerWidget {
   const HizmetMenusu({super.key});
 
@@ -120,14 +120,16 @@ class HizmetMenusu extends ConsumerWidget {
       //      birebir ayni kalibi; 'is' turu turu 90'da `ilan.Turler`e eklendi)
       //    · Oteller     -> `IsletmeListesiEkrani(kategori: 'otel')`
       //      ('Yemek'/'Sağlık' kartlariyla ayni kalip)
-      _Bolum('İş İlanları', [
-        const Color(0xFF0EA5A5),
-        const Color(0xFF0B5F63),
-      ], (c) => const IlanListesiEkrani(tur: 'is', baslik: 'İş İlanları')),
-      _Bolum('Otel', [
-        const Color(0xFF6C7BFF),
-        const Color(0xFF2A3390),
-      ], (c) => const IsletmeListesiEkrani(kategori: 'otel', baslik: 'Oteller')),
+      _Bolum(
+        'İş İlanları',
+        [const Color(0xFF0EA5A5), const Color(0xFF0B5F63)],
+        (c) => const IlanListesiEkrani(tur: 'is', baslik: 'İş İlanları'),
+      ),
+      _Bolum(
+        'Otel',
+        [const Color(0xFF6C7BFF), const Color(0xFF2A3390)],
+        (c) => const IsletmeListesiEkrani(kategori: 'otel', baslik: 'Oteller'),
+      ),
       _Bolum('İşletmeler', [
         const Color(0xFFFFB03A),
         const Color(0xFFFF7A45),
@@ -141,32 +143,37 @@ class HizmetMenusu extends ConsumerWidget {
       //	veritabaninda tek bir `kafe` kategorisi var ve kafe ile restoran
       //	onun altinda. Ayri anahtar acmak, isletmelerin o alani YENIDEN
       //	doldurmasini gerektirirdi (turu 92'nin alt-kategori gerekcesi).
-      _Bolum('Restoran', [
-        const Color(0xFFFF3B5C),
-        const Color(0xFF8B1E3A),
-      ], (c) => const IsletmeListesiEkrani(kategori: 'kafe', baslik: 'Restoran')),
+      _Bolum(
+        'Restoran',
+        [const Color(0xFFFF3B5C), const Color(0xFF8B1E3A)],
+        (c) => const IsletmeListesiEkrani(kategori: 'kafe', baslik: 'Restoran'),
+      ),
       _Bolum('Cafe', [
         const Color(0xFFC98A5B),
         const Color(0xFF7A4A22),
       ], (c) => const IsletmeListesiEkrani(kategori: 'kafe', baslik: 'Kafe')),
-      _Bolum('Alışveriş', [
-        const Color(0xFF7A5CFF),
-        const Color(0xFF3A2A8A),
-      ], (c) => const IsletmeListesiEkrani(kategori: 'market', baslik: 'Alışveriş')),
+      _Bolum(
+        'Alışveriş',
+        [const Color(0xFF7A5CFF), const Color(0xFF3A2A8A)],
+        (c) =>
+            const IsletmeListesiEkrani(kategori: 'market', baslik: 'Alışveriş'),
+      ),
       // ⚠️ TURU 80 (kullanici emri: "bu alanda kategoriler eğitim ve sağlık ekle").
       //    Iki anahtar ZATEN sistemde: `isletmeKategorileri` (istemci) ve
       //    `isletme/handler.go` (sunucu) 'egitim'/'saglik' taniyor; ayrica
       //    `vitrin/handler.go` `isletmeDikeyleri` haritasinda da VARLAR, yani
       //    inis sayfasinin ust slider'i DOGRU calisir.
       //    ⚠️ MIGRATION GEREKMEZ: `isletmeler.kategori` sutununda CHECK YOK.
-      _Bolum('Eğitim', [
-        const Color(0xFFEC4FA0),
-        const Color(0xFF7B1E6A),
-      ], (c) => const IsletmeListesiEkrani(kategori: 'egitim', baslik: 'Eğitim')),
-      _Bolum('Sağlık', [
-        const Color(0xFF17C3CE),
-        const Color(0xFF0A5B78),
-      ], (c) => const IsletmeListesiEkrani(kategori: 'saglik', baslik: 'Sağlık')),
+      _Bolum(
+        'Eğitim',
+        [const Color(0xFFEC4FA0), const Color(0xFF7B1E6A)],
+        (c) => const IsletmeListesiEkrani(kategori: 'egitim', baslik: 'Eğitim'),
+      ),
+      _Bolum(
+        'Sağlık',
+        [const Color(0xFF17C3CE), const Color(0xFF0A5B78)],
+        (c) => const IsletmeListesiEkrani(kategori: 'saglik', baslik: 'Sağlık'),
+      ),
       // ⚠️⚠️⚠️ TURU 80 — KANALLAR **BURAYA TASINDI**.
       //    Kullanici anasayfadaki "Akış | Kanallar" secicisini kaldirmami
       //    istedi; ama o secici KANALLARIN **TEK GIRIS NOKTASIYDI**
@@ -188,9 +195,7 @@ class HizmetMenusu extends ConsumerWidget {
         .where((b) => b.ad == 'Yakınımda')
         .cast<_Bolum?>()
         .firstWhere((_) => true, orElse: () => null);
-    final kategoriler =
-        bolumler.where((b) => b.ad != 'Yakınımda').toList();
-
+    final kategoriler = bolumler.where((b) => b.ad != 'Yakınımda').toList();
 
     // ⚠️⚠️⚠️ TURU 96t — **SIRALAMA KULLANICI TARAFINDAN VERILDI**:
     //	*"Yemek Restorant Cafe Alışveriş Hizmet İlan Düğün Eğitim Sağlık
@@ -204,8 +209,16 @@ class HizmetMenusu extends ConsumerWidget {
     //    KORUYARAK bunlarin ARDINA dizilir — yeni bir kart eklendiginde
     //    sessizce kaybolmaz, sona eklenir.
     const sira = [
-      'Yemek', 'Restoran', 'Cafe', 'Alışveriş', 'Hizmet',
-      'İlan', 'Düğün', 'Eğitim', 'Sağlık', 'Otel',
+      'Yemek',
+      'Restoran',
+      'Cafe',
+      'Alışveriş',
+      'Hizmet',
+      'İlan',
+      'Düğün',
+      'Eğitim',
+      'Sağlık',
+      'Otel',
     ];
     final yerler = {
       for (var i = 0; i < kategoriler.length; i++) kategoriler[i].ad: i,
@@ -256,68 +269,83 @@ class HizmetMenusu extends ConsumerWidget {
       //    O ekranin KENDI `Scaffold`i YOK (ana sekme olarak yaziImis),
       //    bu yuzden route'a alinirken `Scaffold` ile SARILIR — aksi halde
       //    zeminsiz ve baslıksiz acilirdi.
-      _Bolum('Sosyal', [
-        const Color(0xFF7A5CFF),
-        const Color(0xFF3A2A8A),
-      ], (c) => Scaffold(
-            appBar: AppBar(title: const Text('Sosyal')),
-            body: const KesfetEkrani(),
-          )),
-      _Bolum('Nöbetçi Eczane', [
-        const Color(0xFF20C997),
-        const Color(0xFF0B7A5A),
-      ], (c) => const IsletmeListesiEkrani(
-          kategori: 'eczane', baslik: 'Eczaneler')),
+      _Bolum(
+        'Sosyal',
+        [const Color(0xFF7A5CFF), const Color(0xFF3A2A8A)],
+        (c) => Scaffold(
+          appBar: AppBar(title: const Text('Sosyal')),
+          body: const KesfetEkrani(),
+        ),
+      ),
+      _Bolum(
+        'Nöbetçi Eczane',
+        [const Color(0xFF20C997), const Color(0xFF0B7A5A)],
+        (c) =>
+            const IsletmeListesiEkrani(kategori: 'eczane', baslik: 'Eczaneler'),
+      ),
       // ⚠️⚠️ TURU 96y — SIRA **GEREKLILIGE GORE** (kullanici emri:
       //	*"olmasi gereken gerekliligie gore sirala"*). Ilk dokuz kisayol
       //	izgarada gorunur; gerisi 'Tümü' listesinden ulasilir.
       //	Taksi ve akaryakit acil ihtiyactir; DURAK ise verisi olmayan
       //	(kayitli isletme arayan) bir kisayol oldugu icin onlarin ARDINDA.
-      _Bolum('Taksi', [
-        const Color(0xFFFFC531),
-        const Color(0xFFB88600),
-      ], (c) => const IsletmeListesiEkrani(
-          kategori: 'hizmet', baslik: 'Taksi', ara: 'taksi')),
-      _Bolum('Akaryakıt', [
-        const Color(0xFFFF7A45),
-        const Color(0xFFB33A12),
-      ], (c) => const IsletmeListesiEkrani(
-          kategori: 'oto', baslik: 'Akaryakıt & Oto')),
-      _Bolum('Durak', [
-        const Color(0xFF6C7BFF),
-        const Color(0xFF2A3390),
-      ], (c) => const IsletmeListesiEkrani(
-          kategori: 'hizmet', baslik: 'Durak', ara: 'durak')),
+      _Bolum(
+        'Taksi',
+        [const Color(0xFFFFC531), const Color(0xFFB88600)],
+        (c) => const IsletmeListesiEkrani(
+          kategori: 'hizmet',
+          baslik: 'Taksi',
+          ara: 'taksi',
+        ),
+      ),
+      _Bolum(
+        'Akaryakıt',
+        [const Color(0xFFFF7A45), const Color(0xFFB33A12)],
+        (c) => const IsletmeListesiEkrani(
+          kategori: 'oto',
+          baslik: 'Akaryakıt & Oto',
+        ),
+      ),
+      _Bolum(
+        'Durak',
+        [const Color(0xFF6C7BFF), const Color(0xFF2A3390)],
+        (c) => const IsletmeListesiEkrani(
+          kategori: 'hizmet',
+          baslik: 'Durak',
+          ara: 'durak',
+        ),
+      ),
       // ⚠️⚠️ TURU 96x — BES YENI KISAYOL (kullanici: *"ekle bir seyler
       //	daha"*). Hepsi **ZATEN VAR OLAN** isletme kategorileridir
       //	(`isletmeKategorileri`): yeni ekran, yeni uc, yeni migration YOK.
       // ⚠️ YAPMA: buraya karsiligi olmayan bir baslik ekleme — kart
       //    gercek bir ekrana gitmiyorsa EKLENMEZ (turu 76b dersi).
-      _Bolum('Kuaför', [
-        const Color(0xFFEC4FA0),
-        const Color(0xFF7B1E6A),
-      ], (c) => const IsletmeListesiEkrani(
-          kategori: 'kuafor', baslik: 'Kuaför')),
-      _Bolum('Güzellik', [
-        const Color(0xFFFF6B9D),
-        const Color(0xFFB03060),
-      ], (c) => const IsletmeListesiEkrani(
-          kategori: 'guzellik', baslik: 'Güzellik Merkezi')),
-      _Bolum('Oto Servis', [
-        const Color(0xFF6C7BFF),
-        const Color(0xFF2A3390),
-      ], (c) => const IsletmeListesiEkrani(
-          kategori: 'oto', baslik: 'Oto & Servis')),
+      _Bolum(
+        'Kuaför',
+        [const Color(0xFFEC4FA0), const Color(0xFF7B1E6A)],
+        (c) => const IsletmeListesiEkrani(kategori: 'kuafor', baslik: 'Kuaför'),
+      ),
+      _Bolum(
+        'Güzellik',
+        [const Color(0xFFFF6B9D), const Color(0xFFB03060)],
+        (c) => const IsletmeListesiEkrani(
+          kategori: 'guzellik',
+          baslik: 'Güzellik Merkezi',
+        ),
+      ),
+      _Bolum(
+        'Oto Servis',
+        [const Color(0xFF6C7BFF), const Color(0xFF2A3390)],
+        (c) =>
+            const IsletmeListesiEkrani(kategori: 'oto', baslik: 'Oto & Servis'),
+      ),
       _Bolum('Emlak', [
         const Color(0xFF17C3CE),
         const Color(0xFF0A5B78),
-      ], (c) => const IsletmeListesiEkrani(
-          kategori: 'emlak', baslik: 'Emlak')),
+      ], (c) => const IsletmeListesiEkrani(kategori: 'emlak', baslik: 'Emlak')),
       _Bolum('Spor', [
         const Color(0xFF2BB673),
         const Color(0xFF0E7A52),
-      ], (c) => const IsletmeListesiEkrani(
-          kategori: 'spor', baslik: 'Spor')),
+      ], (c) => const IsletmeListesiEkrani(kategori: 'spor', baslik: 'Spor')),
     ];
     // ⚠️ Hizli erisim listesi BURADA kurulur: `yakinimda` nullable ve
     //    Dart bunu closure icinde daraltmiyor (analiz hatasi verdi).
@@ -349,8 +377,7 @@ class HizmetMenusu extends ConsumerWidget {
     // ⚠️ Yukseklik TAVANI (0.82) KALDIRILDI: sheet ZATEN ekranin %95'i
     //    (`FractionallySizedBox`, turu 96o). Ikinci tavan icerigi sikistirip
     //    altta olu bosluk birakiyordu.
-    final etiketAlani =
-        MediaQuery.textScalerOf(context).scale(14) * 1.15 * 2;
+    final etiketAlani = MediaQuery.textScalerOf(context).scale(14) * 1.15 * 2;
     final hucreBoy = kKesifKutu + 5 + etiketAlani;
     return SafeArea(
       child: CustomScrollView(
@@ -379,7 +406,9 @@ class HizmetMenusu extends ConsumerWidget {
                       Text(
                         'Gebzem',
                         style: TextStyle(
-                            fontSize: 20, fontWeight: FontWeight.w800),
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                       SizedBox(height: 2),
                       Text(
@@ -441,7 +470,7 @@ class HizmetMenusu extends ConsumerWidget {
                       //    genisde basik gorunurdu.
                       final en =
                           (bc.maxWidth - kYanBosluk * 2 - kIzgaraAralik * 4) /
-                              5;
+                          5;
                       final kutu = en * 0.878;
                       final satirBoy = kutu + 5 + etiketAlani;
                       // ⚠️ 9 kisayol + 'Tümü' = 10 hucre (2 x 5).
@@ -454,13 +483,13 @@ class HizmetMenusu extends ConsumerWidget {
                       ];
                       return GridView.builder(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: kYanBosluk),
+                          horizontal: kYanBosluk,
+                        ),
                         // ⚠️ Kendi kaydirmasi YOK: sayfanin tamami zaten
                         //    `CustomScrollView` icinde kayiyor (turu 96v).
                         physics: const NeverScrollableScrollPhysics(),
                         shrinkWrap: true,
-                        gridDelegate:
-                            SliverGridDelegateWithFixedCrossAxisCount(
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: 5,
                           crossAxisSpacing: kIzgaraAralik,
                           mainAxisSpacing: kIzgaraAralik,
@@ -520,24 +549,23 @@ class HizmetMenusu extends ConsumerWidget {
   ///    tanimi yazilsaydi yeni bir kart eklendiginde biri guncellenip oteki
   ///    geride kalirdi (bu projede "ayni kuralin iki kopyasi drift eder"
   ///    sinifi ALTI kez sahaya cikti).
-  _Bolum _tumuBolumu(List<_Bolum> hepsi) => _Bolum(
-        'Tümü',
-        [const Color(0xFF8E8E93), const Color(0xFF4A4A4F)],
-        (c) => _TumuEkrani(bolumler: hepsi),
-      );
+  _Bolum _tumuBolumu(List<_Bolum> hepsi) => _Bolum('Tümü', [
+    const Color(0xFF8E8E93),
+    const Color(0xFF4A4A4F),
+  ], (c) => _TumuEkrani(bolumler: hepsi));
 
   /// Kart etiketi — kategori ekranindaki kesif kartiyla AYNI yazi (14/1.15/w600).
   Widget _etiket(String ad) => Text(
-        ad,
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-        textAlign: TextAlign.center,
-        style: const TextStyle(
-          fontSize: 14,
-          height: 1.15,
-          fontWeight: FontWeight.w600,
-        ),
-      );
+    ad,
+    maxLines: 2,
+    overflow: TextOverflow.ellipsis,
+    textAlign: TextAlign.center,
+    style: const TextStyle(
+      fontSize: 14,
+      height: 1.15,
+      fontWeight: FontWeight.w600,
+    ),
+  );
 
   /// Menunun ust slider'i — kategori ekraniyla **AYNI BILESEN**.
   ///
@@ -572,8 +600,11 @@ class HizmetMenusu extends ConsumerWidget {
   ///    Turu 91 performans maddesi.
   /// ⚠️ [kutuBoy] verilmezse izgara olcusu (`kKesifKutu`). Hizli erisim
   ///    kartlari bunun **%80**'ini kullanir (turu 96w kullanici emri).
-  Widget _kart(BuildContext context, _Bolum b, {double? kutuBoy}) =>
-      RepaintBoundary(
+  Widget _kart(
+    BuildContext context,
+    _Bolum b, {
+    double? kutuBoy,
+  }) => RepaintBoundary(
     child: GestureDetector(
       onTap: () => _ac(context, b),
       // ⚠️ `opaque`: kutunun ALTINDAKI bosluga (yazi ile kutu arasi) dokunmak
@@ -593,8 +624,9 @@ class HizmetMenusu extends ConsumerWidget {
             child: DecoratedBox(
               decoration: BoxDecoration(
                 color: kYuzeyGri(context),
-                borderRadius:
-                    BorderRadius.circular(kYaricap(kutuBoy ?? kKesifKutu)),
+                borderRadius: BorderRadius.circular(
+                  kYaricap(kutuBoy ?? kKesifKutu),
+                ),
               ),
             ),
           ),
@@ -665,37 +697,36 @@ class _TumuEkrani extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(title: const Text('Tümü')),
-        body: ListView.separated(
-          itemCount: bolumler.length,
-          separatorBuilder: (_, __) => const Divider(height: 1),
-          itemBuilder: (_, i) {
-            final b = bolumler[i];
-            return ListTile(
-              // ⚠️ Renk NOKTASI: menudeki kart renginin ta kendisi.
-              leading: Container(
-                width: 12,
-                height: 12,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: LinearGradient(colors: b.renkler),
-                ),
-              ),
-              title: Text(
-                b.ad,
-                style: const TextStyle(
-                    fontSize: 15, fontWeight: FontWeight.w600),
-              ),
-              trailing: const Icon(LucideIcons.chevronRight, size: 18),
-              // ⚠️ Bu ekran bir ROUTE (sheet DEGIL): once pop etmeye gerek yok,
-              //    hedef ekran bunun USTUNE push edilir ve geri tusu buraya
-              //    doner.
-              onTap: () => Navigator.of(context)
-                  .push(MaterialPageRoute(builder: b.ac)),
-            );
-          },
-        ),
-      );
+    appBar: AppBar(title: const Text('Tümü')),
+    body: ListView.separated(
+      itemCount: bolumler.length,
+      separatorBuilder: (_, __) => const Divider(height: 1),
+      itemBuilder: (_, i) {
+        final b = bolumler[i];
+        return ListTile(
+          // ⚠️ Renk NOKTASI: menudeki kart renginin ta kendisi.
+          leading: Container(
+            width: 12,
+            height: 12,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: LinearGradient(colors: b.renkler),
+            ),
+          ),
+          title: Text(
+            b.ad,
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+          ),
+          trailing: const Icon(LucideIcons.chevronRight, size: 18),
+          // ⚠️ Bu ekran bir ROUTE (sheet DEGIL): once pop etmeye gerek yok,
+          //    hedef ekran bunun USTUNE push edilir ve geri tusu buraya
+          //    doner.
+          onTap: () =>
+              Navigator.of(context).push(MaterialPageRoute(builder: b.ac)),
+        );
+      },
+    ),
+  );
 }
 
 /// Anasayfa AppBar'inin sol ustundeki hamburger dugmesi.
@@ -723,18 +754,16 @@ class _TumuEkrani extends StatelessWidget {
 /// ⚠️ Iki panel ayrisirsa kullanici farki ANINDA gorur; olculer degisecekse
 ///    IKISI BIRLIKTE degisir.
 Future<void> hizmetMenusuAc(BuildContext context) => showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: false,
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
-      ),
-      builder: (_) => const FractionallySizedBox(
-        heightFactor: 0.95,
-        child: HizmetMenusu(),
-      ),
-    );
+  context: context,
+  isScrollControlled: true,
+  showDragHandle: false,
+  backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+  shape: const RoundedRectangleBorder(
+    borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+  ),
+  builder: (_) =>
+      const FractionallySizedBox(heightFactor: 0.95, child: HizmetMenusu()),
+);
 
 /// ⚠️ IKI CIZGI (kullanici emri: "2 tane 2 satir cizgi hamburger tarzi").
 ///    Lucide'in `menu` ikonu UC cizgidir; bu yuzden ikon KULLANILMADI, iki

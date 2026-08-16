@@ -31,6 +31,19 @@ const bool kDemoAkis = true;
 
 const _kBenimId = 'demo-ben';
 
+/// ⚠️⚠️⚠️ TURU 98c — **DEMO ICERIGI SUNUCUYA GITMEZ.**
+///
+///	Demo gonderi/hikaye kimlikleri (`demo-...`) sunucuda YOKTUR. Kapi
+///	olmasaydi begeni `POST /posts/demo-foto/like` -> gecersiz UUID -> hata
+///	-> kalp geri seker + "Beğeni gönderilemedi" uyarisi; yorum/istatistik/
+///	profil sayfalari da BOS ya da HATALI acilirdi. Kullanici tasarima
+///	bakarken bunlari **GERCEK HATA** sanardi.
+///
+/// ⚠️ `kDemoAkis` false iken DAIMA false doner — yayinda hicbir etkisi yok.
+/// ⚠️ Olcut ONEK: demo uretecinin verdigi TUM kimlikler `demo-` ile baslar
+///    (gonderi · yazar · hikaye). Gercek kimlikler UUID'dir, bu oneki ALAMAZ.
+bool demoKimlik(String id) => kDemoAkis && id.startsWith('demo-');
+
 Gonderi _g({
   required String id,
   required String tur,
@@ -47,184 +60,182 @@ Gonderi _g({
   int saatOnce = 1,
   String yazar = 'Ayşe Demir',
   String kullaniciAdi = 'aysedemir',
-}) =>
-    Gonderi(
-      id: id,
-      yazarId: 'demo-$id',
-      tur: tur,
-      metin: metin,
-      mediaIds: medya,
-      mediaKinds: turler,
-      duzenlendi: false,
-      konum: konum,
-      begeniSayisi: begeni,
-      yorumSayisi: yorum,
-      goruntulenme: goruntulenme,
-      yorumKapali: false,
-      createdAt: DateTime.now()
-          .subtract(Duration(hours: saatOnce))
-          .toIso8601String(),
-      yazarAd: yazar,
-      yazarUsername: kullaniciAdi,
-      yazarAvatar: '',
-      yazarAvatarMediaId: null,
-      begendim: false,
-      kaydettim: false,
-      anket: anket,
-      paylasimSayisi: paylasim,
-      repostSayisi: repost,
-    );
+}) => Gonderi(
+  id: id,
+  yazarId: 'demo-$id',
+  tur: tur,
+  metin: metin,
+  mediaIds: medya,
+  mediaKinds: turler,
+  duzenlendi: false,
+  konum: konum,
+  begeniSayisi: begeni,
+  yorumSayisi: yorum,
+  goruntulenme: goruntulenme,
+  yorumKapali: false,
+  createdAt: DateTime.now()
+      .subtract(Duration(hours: saatOnce))
+      .toIso8601String(),
+  yazarAd: yazar,
+  yazarUsername: kullaniciAdi,
+  yazarAvatar: '',
+  yazarAvatarMediaId: null,
+  begendim: false,
+  kaydettim: false,
+  anket: anket,
+  paylasimSayisi: paylasim,
+  repostSayisi: repost,
+);
 
 /// Akista gosterilecek demo gonderiler — **her icerik turunden bir ornek**.
 List<Gonderi> demoGonderiler() => [
-      // 1) TEK FOTOGRAF + yuksek sayilar (kullanici: *"bazı gönderilerde
-      //    1.2 bin beğeni yorum paylaşım olsun"*).
-      _g(
-        id: 'foto',
-        tur: 'foto',
-        metin: 'Gebze sahilinde gün batımı 🌇 — bugün hava harikaydı.',
-        medya: const ['demo-foto-1'],
-        turler: const ['image'],
-        begeni: 1243,
-        yorum: 1200,
-        paylasim: 1200,
-        repost: 340,
-        goruntulenme: 18400,
-        saatOnce: 2,
-      ),
-      // 2) GALERI (3 medya) — yandaki medyanin sarkmasi burada gorunur.
-      _g(
-        id: 'galeri',
-        tur: 'foto',
-        metin: 'Hafta sonu kahvaltı turu ☕',
-        medya: const ['demo-g-1', 'demo-g-2', 'demo-g-3'],
-        turler: const ['image', 'image', 'image'],
-        begeni: 312,
-        yorum: 47,
-        paylasim: 18,
-        repost: 7,
-        goruntulenme: 5200,
-        saatOnce: 5,
-        yazar: 'Mehmet Kaya',
-        kullaniciAdi: 'mehmetkaya',
-      ),
-      // 3) VIDEO
-      _g(
-        id: 'video',
-        tur: 'video',
-        metin: 'Yeni dükkânın açılışı! 🎉',
-        medya: const ['demo-video-1'],
-        turler: const ['video'],
-        begeni: 1200,
-        yorum: 208,
-        paylasim: 96,
-        repost: 1200,
-        goruntulenme: 32100,
-        saatOnce: 7,
-        yazar: 'Kuaför Serkan',
-        kullaniciAdi: 'kuaforserkan',
-      ),
-      // 4) SES (audio) — ses kartinin akista nasil durdugu.
-      _g(
-        id: 'ses',
-        tur: 'foto',
-        metin: 'Kısa bir ses notu 🎧',
-        medya: const ['demo-ses-1'],
-        turler: const ['audio'],
-        begeni: 86,
-        yorum: 12,
-        goruntulenme: 940,
-        saatOnce: 9,
-        yazar: 'Zeynep Ak',
-        kullaniciAdi: 'zeynepak',
-      ),
-      // 5) KONUM
-      _g(
-        id: 'konum',
-        tur: 'yazi',
-        metin: 'Buradayız, bekleriz!',
-        konum: 'Gebze, Kocaeli',
-        begeni: 54,
-        yorum: 6,
-        goruntulenme: 610,
-        saatOnce: 11,
-        yazar: 'Gebze Kebap Salonu',
-        kullaniciAdi: 'gebzekebap',
-      ),
-      // 6) ANKET
-      _g(
-        id: 'anket',
-        tur: 'yazi',
-        metin: 'Akşam nereye gidelim?',
-        begeni: 1200,
-        yorum: 340,
-        goruntulenme: 12800,
-        saatOnce: 14,
-        yazar: 'Usta Döner & Pide',
-        kullaniciAdi: 'ustadoner',
-        anket: const Anket(
-          id: 1,
-          soru: 'Akşam nereye gidelim?',
-          olusturanId: _kBenimId,
-          coklu: false,
-          kapali: false,
-          seq: 1,
-          toplamOy: 184,
-          secenekler: [
-            AnketSecenek(id: 1, metin: 'Sahil', oy: 96, benim: false),
-            AnketSecenek(id: 2, metin: 'Merkez', oy: 58, benim: false),
-            AnketSecenek(id: 3, metin: 'Ev', oy: 30, benim: false),
-          ],
-        ),
-      ),
-      // 7) SADECE YAZI
-      _g(
-        id: 'yazi',
-        tur: 'yazi',
-        metin:
-            'Bugün Gebze’de trafik çok rahat. Sabah çıkanlar şanslı 🙂',
-        begeni: 23,
-        yorum: 3,
-        goruntulenme: 210,
-        saatOnce: 16,
-        yazar: 'Ali Yıldız',
-        kullaniciAdi: 'aliyildiz',
-      ),
-    ];
+  // 1) TEK FOTOGRAF + yuksek sayilar (kullanici: *"bazı gönderilerde
+  //    1.2 bin beğeni yorum paylaşım olsun"*).
+  _g(
+    id: 'foto',
+    tur: 'foto',
+    metin: 'Gebze sahilinde gün batımı 🌇 — bugün hava harikaydı.',
+    medya: const ['demo-foto-1'],
+    turler: const ['image'],
+    begeni: 1243,
+    yorum: 1200,
+    paylasim: 1200,
+    repost: 340,
+    goruntulenme: 18400,
+    saatOnce: 2,
+  ),
+  // 2) GALERI (3 medya) — yandaki medyanin sarkmasi burada gorunur.
+  _g(
+    id: 'galeri',
+    tur: 'foto',
+    metin: 'Hafta sonu kahvaltı turu ☕',
+    medya: const ['demo-g-1', 'demo-g-2', 'demo-g-3'],
+    turler: const ['image', 'image', 'image'],
+    begeni: 312,
+    yorum: 47,
+    paylasim: 18,
+    repost: 7,
+    goruntulenme: 5200,
+    saatOnce: 5,
+    yazar: 'Mehmet Kaya',
+    kullaniciAdi: 'mehmetkaya',
+  ),
+  // 3) VIDEO
+  _g(
+    id: 'video',
+    tur: 'video',
+    metin: 'Yeni dükkânın açılışı! 🎉',
+    medya: const ['demo-video-1'],
+    turler: const ['video'],
+    begeni: 1200,
+    yorum: 208,
+    paylasim: 96,
+    repost: 1200,
+    goruntulenme: 32100,
+    saatOnce: 7,
+    yazar: 'Kuaför Serkan',
+    kullaniciAdi: 'kuaforserkan',
+  ),
+  // 4) SES (audio) — ses kartinin akista nasil durdugu.
+  _g(
+    id: 'ses',
+    tur: 'foto',
+    metin: 'Kısa bir ses notu 🎧',
+    medya: const ['demo-ses-1'],
+    turler: const ['audio'],
+    begeni: 86,
+    yorum: 12,
+    goruntulenme: 940,
+    saatOnce: 9,
+    yazar: 'Zeynep Ak',
+    kullaniciAdi: 'zeynepak',
+  ),
+  // 5) KONUM
+  _g(
+    id: 'konum',
+    tur: 'yazi',
+    metin: 'Buradayız, bekleriz!',
+    konum: 'Gebze, Kocaeli',
+    begeni: 54,
+    yorum: 6,
+    goruntulenme: 610,
+    saatOnce: 11,
+    yazar: 'Gebze Kebap Salonu',
+    kullaniciAdi: 'gebzekebap',
+  ),
+  // 6) ANKET
+  _g(
+    id: 'anket',
+    tur: 'yazi',
+    metin: 'Akşam nereye gidelim?',
+    begeni: 1200,
+    yorum: 340,
+    goruntulenme: 12800,
+    saatOnce: 14,
+    yazar: 'Usta Döner & Pide',
+    kullaniciAdi: 'ustadoner',
+    anket: const Anket(
+      id: 1,
+      soru: 'Akşam nereye gidelim?',
+      olusturanId: _kBenimId,
+      coklu: false,
+      kapali: false,
+      seq: 1,
+      toplamOy: 184,
+      secenekler: [
+        AnketSecenek(id: 1, metin: 'Sahil', oy: 96, benim: false),
+        AnketSecenek(id: 2, metin: 'Merkez', oy: 58, benim: false),
+        AnketSecenek(id: 3, metin: 'Ev', oy: 30, benim: false),
+      ],
+    ),
+  ),
+  // 7) SADECE YAZI
+  _g(
+    id: 'yazi',
+    tur: 'yazi',
+    metin: 'Bugün Gebze’de trafik çok rahat. Sabah çıkanlar şanslı 🙂',
+    begeni: 23,
+    yorum: 3,
+    goruntulenme: 210,
+    saatOnce: 16,
+    yazar: 'Ali Yıldız',
+    kullaniciAdi: 'aliyildiz',
+  ),
+];
 
 /// Hikaye seridi demosu — biri **hikaye atmis**, biri **canli yayinda**.
 ///
 /// ⚠️ `canli` alani `StoryKullanici`de YOKTUR; canli rozeti demo icin
 ///    kullanici adindan turetilir (bkz. `story_seridi` demo dali).
 List<StoryKullanici> demoStoryler() => [
-      StoryKullanici(
-        userId: 'demo-s1',
-        ad: 'Elif',
-        kullaniciAdi: 'elif',
-        avatarMediaId: null,
-        adet: 2,
-        hepsiIzlendi: false,
-        benim: false,
-      ),
-      StoryKullanici(
-        userId: 'demo-canli',
-        ad: 'Burak',
-        kullaniciAdi: 'burak',
-        avatarMediaId: null,
-        adet: 1,
-        hepsiIzlendi: false,
-        benim: false,
-      ),
-      StoryKullanici(
-        userId: 'demo-s2',
-        ad: 'Deniz',
-        kullaniciAdi: 'deniz',
-        avatarMediaId: null,
-        adet: 1,
-        hepsiIzlendi: true,
-        benim: false,
-      ),
-    ];
+  StoryKullanici(
+    userId: 'demo-s1',
+    ad: 'Elif',
+    kullaniciAdi: 'elif',
+    avatarMediaId: null,
+    adet: 2,
+    hepsiIzlendi: false,
+    benim: false,
+  ),
+  StoryKullanici(
+    userId: 'demo-canli',
+    ad: 'Burak',
+    kullaniciAdi: 'burak',
+    avatarMediaId: null,
+    adet: 1,
+    hepsiIzlendi: false,
+    benim: false,
+  ),
+  StoryKullanici(
+    userId: 'demo-s2',
+    ad: 'Deniz',
+    kullaniciAdi: 'deniz',
+    avatarMediaId: null,
+    adet: 1,
+    hepsiIzlendi: true,
+    benim: false,
+  ),
+];
 
 /// ⚠️⚠️ TURU 98b — SERITTEKI **YAYIN DURUMU** (kullanici emri: *"canli
 ///	yayin KIRMIZI, sesli oda MOR olsun, ikon koy"*).

@@ -103,6 +103,19 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
     return (o.isFinite && o > 0) ? o : 0.8;
   }
 
+  /// ⚠️ TURU 98c — tasarim demosu: bu kart sunucuda YOK (bkz. demo_veri).
+  bool get _demo => demoKimlik(g.yazarId);
+
+  /// Demo icerikte ag cagrisi yerine DURUST bir bilgi verilir.
+  void _demoUyar() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        duration: Duration(seconds: 2),
+        content: Text('Bu bir tasarım demosu — gerçek içerik değil'),
+      ),
+    );
+  }
+
   Future<void> _begeniCevir({bool yalnizBegen = false}) async {
     if (_mesgul) return;
     if (yalnizBegen && g.begendim) {
@@ -118,6 +131,8 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
     });
     if (g.begendim) _kalpAnimasyonu();
     unawaited(HapticFeedback.lightImpact());
+    // ⚠️ DEMO: iyimser guncelleme EKRANDA KALIR, sunucuya GIDILMEZ.
+    if (_demo) return;
     _mesgul = true;
     try {
       final s = ref.read(sosyalServisiProvider);
@@ -158,6 +173,7 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
   Future<void> _kaydetCevir() async {
     final eski = g.kaydettim;
     setState(() => g.kaydettim = !eski);
+    if (_demo) return; // ⚠️ TURU 98c — demo icerik sunucuya gitmez.
     try {
       final s = ref.read(sosyalServisiProvider);
       eski ? await s.kaydetKaldir(g.id) : await s.kaydet(g.id);
@@ -168,6 +184,7 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
   }
 
   Future<void> _yorumlariAc() async {
+    if (_demo) return _demoUyar();
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => YorumlarSayfasi(gonderi: g, benimId: widget.benimId),
@@ -182,6 +199,7 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
   }
 
   Future<void> _menu() async {
+    if (_demo) return _demoUyar();
     final benim = g.yazarId == widget.benimId;
     final secim = await showModalBottomSheet<String>(
       context: context,
@@ -414,6 +432,7 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
   /// TURU 76 — yazara ozel istatistik sayfasi (kullanici emri: "istatistik olmali,
   /// goruntulenme sayisi vs").
   Future<void> _istatistik() async {
+    if (_demo) return _demoUyar();
     Map<String, int>? veri;
     String? hata;
     try {
@@ -544,7 +563,8 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
             horizontal: kBaslikYanDolgu,
           ),
           leading: GestureDetector(
-            onTap: () => widget.profileGit?.call(g.yazarId),
+            onTap: () =>
+                _demo ? _demoUyar() : widget.profileGit?.call(g.yazarId),
             child: Avatar(
               ad: g.yazarAd,
               mediaId: g.yazarAvatarMediaId,
@@ -561,7 +581,8 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
           //    `Flexible` DEGIL cunku her zaman TAM gorunmeli.
           // ⚠️ YAPMA: `@kullaniciadi`ni geri ekleme.
           title: GestureDetector(
-            onTap: () => widget.profileGit?.call(g.yazarId),
+            onTap: () =>
+                _demo ? _demoUyar() : widget.profileGit?.call(g.yazarId),
             child: Row(
               children: [
                 Flexible(
@@ -1480,13 +1501,19 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
 
   /// ⚠️ TURU 76: eskiden YALNIZCA panoya kopyalayip "sohbete yapistirin" diyordu.
   ///    Artik gercek paylasim sayfasi (coklu sohbet secimi + kopyala) aciliyor.
-  Future<void> _sohbeteGonder(BuildContext context) =>
+  Future<void> _sohbeteGonder(BuildContext context) async {
+    if (_demo) return _demoUyar();
+    return _sohbeteGonderAsil(context);
+  }
+
+  Future<void> _sohbeteGonderAsil(BuildContext context) =>
       paylasSheetAc(context, ref, baglanti: 'https://gebzem.app/p/${g.id}');
 
   /// TURU 76 — begeni sayisina dokununca BEGENENLER listesi (Instagram deseni).
   /// ⚠️ Servis ucu (`begenenler`) turu 75'ten beri VARDI ama HICBIR EKRAN
   ///    CAGIRMIYORDU — olu kod. Kullaniciya gorunur hale getirildi.
   Future<void> _begenenler() async {
+    if (_demo) return _demoUyar();
     if (g.begeniSayisi == 0) return;
     List<Map<String, dynamic>>? liste;
     try {

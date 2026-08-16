@@ -655,15 +655,15 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
     }
     if (_hata != null && _liste.isEmpty) {
       return ListView(
-      // ⚠️⚠️ TURU 77b — AlwaysScrollableScrollPhysics ZORUNLU (denetim bulgusu).
-      //    Icerik ekrani DOLDURMAYINCA Android varsayilani
-      //    (ClampingScrollPhysics) kullanici kaydirmasini KABUL ETMEZ ->
-      //    sarmalayici RefreshIndicator TETIKLENMEZ. Ustelik AkisEkrani
-      //    IndexedStack icinde CANLI kaldigi icin sekme degistirip donmek de
-      //    yeniden yuklemiyordu: YENI kullanici uygulamayi OLDURMEDEN akisini
-      //    TAZELEYEMIYORDU (bos akis = tam da yeni kullanicinin durumu).
-      //    ⚠️ YAPMA: bos/hata dallarindan bu satiri kaldirma.
-      physics: const AlwaysScrollableScrollPhysics(),
+        // ⚠️⚠️ TURU 77b — AlwaysScrollableScrollPhysics ZORUNLU (denetim bulgusu).
+        //    Icerik ekrani DOLDURMAYINCA Android varsayilani
+        //    (ClampingScrollPhysics) kullanici kaydirmasini KABUL ETMEZ ->
+        //    sarmalayici RefreshIndicator TETIKLENMEZ. Ustelik AkisEkrani
+        //    IndexedStack icinde CANLI kaldigi icin sekme degistirip donmek de
+        //    yeniden yuklemiyordu: YENI kullanici uygulamayi OLDURMEDEN akisini
+        //    TAZELEYEMIYORDU (bos akis = tam da yeni kullanicinin durumu).
+        //    ⚠️ YAPMA: bos/hata dallarindan bu satiri kaldirma.
+        physics: const AlwaysScrollableScrollPhysics(),
         children: [
           StorySeridi(key: _storyKey),
           _bolmeSecici(),
@@ -714,15 +714,15 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
     }
     if (_liste.isEmpty) {
       return ListView(
-      // ⚠️⚠️ TURU 77b — AlwaysScrollableScrollPhysics ZORUNLU (denetim bulgusu).
-      //    Icerik ekrani DOLDURMAYINCA Android varsayilani
-      //    (ClampingScrollPhysics) kullanici kaydirmasini KABUL ETMEZ ->
-      //    sarmalayici RefreshIndicator TETIKLENMEZ. Ustelik AkisEkrani
-      //    IndexedStack icinde CANLI kaldigi icin sekme degistirip donmek de
-      //    yeniden yuklemiyordu: YENI kullanici uygulamayi OLDURMEDEN akisini
-      //    TAZELEYEMIYORDU (bos akis = tam da yeni kullanicinin durumu).
-      //    ⚠️ YAPMA: bos/hata dallarindan bu satiri kaldirma.
-      physics: const AlwaysScrollableScrollPhysics(),
+        // ⚠️⚠️ TURU 77b — AlwaysScrollableScrollPhysics ZORUNLU (denetim bulgusu).
+        //    Icerik ekrani DOLDURMAYINCA Android varsayilani
+        //    (ClampingScrollPhysics) kullanici kaydirmasini KABUL ETMEZ ->
+        //    sarmalayici RefreshIndicator TETIKLENMEZ. Ustelik AkisEkrani
+        //    IndexedStack icinde CANLI kaldigi icin sekme degistirip donmek de
+        //    yeniden yuklemiyordu: YENI kullanici uygulamayi OLDURMEDEN akisini
+        //    TAZELEYEMIYORDU (bos akis = tam da yeni kullanicinin durumu).
+        //    ⚠️ YAPMA: bos/hata dallarindan bu satiri kaldirma.
+        physics: const AlwaysScrollableScrollPhysics(),
         children: [
           StorySeridi(key: _storyKey),
           _bolmeSecici(),

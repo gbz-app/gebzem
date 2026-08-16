@@ -68,59 +68,92 @@ Future<void> olusturMenusuAc(
     builder: (c) => SafeArea(
       child: SingleChildScrollView(
         child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Padding(
-            padding: EdgeInsets.fromLTRB(20, 0, 20, 6),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'Oluştur',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 0, 20, 6),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Oluştur',
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+                ),
               ),
             ),
-          ),
-          _madde(c, LucideIcons.imagePlus, 'Gönderi', 'Fotoğraf, video, anket',
-              () => const GonderiOlustur(), sonrasinda: sonrasinda),
-          _madde(c, LucideIcons.clapperboard, 'Reels', 'Dikey kısa video',
-              () => const GonderiOlustur(reels: true), sonrasinda: sonrasinda),
-          // ⚠️ HIKAYE: editor bir DOSYA bekliyor ve secici mantigi
-          //    `story_seridi.dart`ta (izin + boyut tavani + yukleme ilerlemesi).
-          //    O mantigi BURAYA KOPYALAMAK ikinci bir kopya olurdu; bunun
-          //    yerine kullanici anasayfadaki "Hikâyen" halkasina yonlendirilir.
-          //    ⚠️ YAPMA: secici/yukleme kodunu buraya kopyalama.
-          _madde(c, LucideIcons.circlePlus, 'Hikâye',
-              'Anasayfada "Hikâyen" halkasından', null,
-              ipucu: 'Anasayfadaki "Hikâyen" halkasına dokun'),
-          _madde(c, LucideIcons.radio, 'Canlı yayın', 'Hemen yayına başla',
-              () => const LiveStartScreen()),
-          // ⚠️ SESLI ODA: olusturma akisi `rooms_tab.dart` icinde private
-          //    (`_odaAc`) ve oda kurulumu ses birimi/mesgulluk kapilariyla
-          //    ic ice. Disari cikarmak o kapilari ikinci kez yazmak demekti.
-          _madde(c, LucideIcons.audioLines, 'Sesli oda',
-              'Canlı sekmesinden aç', null,
-              ipucu: 'Canlı sekmesi > Odalar > "+"'),
-          // ⚠️⚠️ TURU 90c — GRUP KURULUNCA SOHBETE GIDILIR.
-          //    `GrupOlusturEkrani` `pop(chatId)` ile kurulan grubun kimligini
-          //    donduruyor; menu onu ATIYORDU. Sonuc: kullanici grubu kuruyor,
-          //    ekran kapaniyor ve **hicbir yere gitmiyordu** — grubu bulmak
-          //    icin Mesaj sekmesine gidip listede aramasi gerekiyordu.
-          //    Bu, turu 90b'nin GONDERI icin duzelttigi "donen id atiliyor"
-          //    hatasinin GRUP kopyasiydi.
-          _madde(c, LucideIcons.users, 'Grup', 'Yeni grup sohbeti',
-              () => const GrupOlusturEkrani(), sonrasinda: (chatId) {
-            if (chatId == null || chatId.isEmpty) return;
-            // ⚠️ `call_screen.dart:286-290` ile BIREBIR AYNI desen (kanitli):
-            //    kok context alinir, `mounted` kontrol edilir, `GoRouter.of`
-            //    ile push edilir. Ciplak `Navigator` KULLANILMAZ — sohbet
-            //    rotasi GoRouter'da tanimli.
-            final ctx = rootNavigatorKey.currentContext;
-            if (ctx != null && ctx.mounted) {
-              GoRouter.of(ctx).push('/chat/$chatId');
-            }
-          }),
-          const SizedBox(height: 8),
-        ],
+            _madde(
+              c,
+              LucideIcons.imagePlus,
+              'Gönderi',
+              'Fotoğraf, video, anket',
+              () => const GonderiOlustur(),
+              sonrasinda: sonrasinda,
+            ),
+            _madde(
+              c,
+              LucideIcons.clapperboard,
+              'Reels',
+              'Dikey kısa video',
+              () => const GonderiOlustur(reels: true),
+              sonrasinda: sonrasinda,
+            ),
+            // ⚠️ HIKAYE: editor bir DOSYA bekliyor ve secici mantigi
+            //    `story_seridi.dart`ta (izin + boyut tavani + yukleme ilerlemesi).
+            //    O mantigi BURAYA KOPYALAMAK ikinci bir kopya olurdu; bunun
+            //    yerine kullanici anasayfadaki "Hikâyen" halkasina yonlendirilir.
+            //    ⚠️ YAPMA: secici/yukleme kodunu buraya kopyalama.
+            _madde(
+              c,
+              LucideIcons.circlePlus,
+              'Hikâye',
+              'Anasayfada "Hikâyen" halkasından',
+              null,
+              ipucu: 'Anasayfadaki "Hikâyen" halkasına dokun',
+            ),
+            _madde(
+              c,
+              LucideIcons.radio,
+              'Canlı yayın',
+              'Hemen yayına başla',
+              () => const LiveStartScreen(),
+            ),
+            // ⚠️ SESLI ODA: olusturma akisi `rooms_tab.dart` icinde private
+            //    (`_odaAc`) ve oda kurulumu ses birimi/mesgulluk kapilariyla
+            //    ic ice. Disari cikarmak o kapilari ikinci kez yazmak demekti.
+            _madde(
+              c,
+              LucideIcons.audioLines,
+              'Sesli oda',
+              'Canlı sekmesinden aç',
+              null,
+              ipucu: 'Canlı sekmesi > Odalar > "+"',
+            ),
+            // ⚠️⚠️ TURU 90c — GRUP KURULUNCA SOHBETE GIDILIR.
+            //    `GrupOlusturEkrani` `pop(chatId)` ile kurulan grubun kimligini
+            //    donduruyor; menu onu ATIYORDU. Sonuc: kullanici grubu kuruyor,
+            //    ekran kapaniyor ve **hicbir yere gitmiyordu** — grubu bulmak
+            //    icin Mesaj sekmesine gidip listede aramasi gerekiyordu.
+            //    Bu, turu 90b'nin GONDERI icin duzelttigi "donen id atiliyor"
+            //    hatasinin GRUP kopyasiydi.
+            _madde(
+              c,
+              LucideIcons.users,
+              'Grup',
+              'Yeni grup sohbeti',
+              () => const GrupOlusturEkrani(),
+              sonrasinda: (chatId) {
+                if (chatId == null || chatId.isEmpty) return;
+                // ⚠️ `call_screen.dart:286-290` ile BIREBIR AYNI desen (kanitli):
+                //    kok context alinir, `mounted` kontrol edilir, `GoRouter.of`
+                //    ile push edilir. Ciplak `Navigator` KULLANILMAZ — sohbet
+                //    rotasi GoRouter'da tanimli.
+                final ctx = rootNavigatorKey.currentContext;
+                if (ctx != null && ctx.mounted) {
+                  GoRouter.of(ctx).push('/chat/$chatId');
+                }
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
         ),
       ),
     ),
@@ -141,31 +174,30 @@ Widget _madde(
   Widget Function()? ekran, {
   String? ipucu,
   void Function(String? id)? sonrasinda,
-}) =>
-    ListTile(
-      dense: true,
-      visualDensity: VisualDensity.compact,
-      leading: Icon(ikon, size: 21),
-      title: Text(baslik, style: const TextStyle(fontWeight: FontWeight.w600)),
-      subtitle: Text(altBaslik, style: const TextStyle(fontSize: 12)),
-      onTap: () async {
-        final nav = Navigator.of(c);
-        final mesajci = ScaffoldMessenger.of(c);
-        nav.pop();
-        if (ekran == null) {
-          mesajci.showSnackBar(SnackBar(content: Text(ipucu ?? baslik)));
-          return;
-        }
-        // ⚠️ SONUC BEKLENIR ve GERI VERILIR: `GonderiOlustur` paylasilan
-        //    gonderinin id'sini `pop(...)` ile dondurur; akis onu kullanip
-        //    kendini tazeler. `await` atlanirsa kullanici paylasip donuyor
-        //    ve gonderisini AKISTA GOREMIYOR (turu 90b bulgusu).
-        final id = await nav.push<String>(
-          MaterialPageRoute(builder: (_) => ekran()),
-        );
-        sonrasinda?.call(id);
-      },
+}) => ListTile(
+  dense: true,
+  visualDensity: VisualDensity.compact,
+  leading: Icon(ikon, size: 21),
+  title: Text(baslik, style: const TextStyle(fontWeight: FontWeight.w600)),
+  subtitle: Text(altBaslik, style: const TextStyle(fontSize: 12)),
+  onTap: () async {
+    final nav = Navigator.of(c);
+    final mesajci = ScaffoldMessenger.of(c);
+    nav.pop();
+    if (ekran == null) {
+      mesajci.showSnackBar(SnackBar(content: Text(ipucu ?? baslik)));
+      return;
+    }
+    // ⚠️ SONUC BEKLENIR ve GERI VERILIR: `GonderiOlustur` paylasilan
+    //    gonderinin id'sini `pop(...)` ile dondurur; akis onu kullanip
+    //    kendini tazeler. `await` atlanirsa kullanici paylasip donuyor
+    //    ve gonderisini AKISTA GOREMIYOR (turu 90b bulgusu).
+    final id = await nav.push<String>(
+      MaterialPageRoute(builder: (_) => ekran()),
     );
+    sonrasinda?.call(id);
+  },
+);
 
 // ⚠️⚠️⚠️ TURU 90c — `OlusturFab` SINIFI **SILINDI**.
 //

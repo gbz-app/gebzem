@@ -80,7 +80,9 @@ class _StoryEditorState extends State<StoryEditor> {
   Future<void> _yaziEkle() async {
     if (_katmanlar.length >= _katmanTavani) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('En fazla $_katmanTavani yazı eklenebilir')),
+        const SnackBar(
+          content: Text('En fazla $_katmanTavani yazı eklenebilir'),
+        ),
       );
       return;
     }
@@ -211,137 +213,137 @@ class _StoryEditorState extends State<StoryEditor> {
       // ⚠️ YAPMA: bu sarmali kaldirma.
       body: SizedBox.expand(
         child: Stack(
-            children: [
-              // ⚠️⚠️ TUVAL **SABIT 9:16** ve medya + katmanlar AYNI dikdortgene
-              //    cizilir (bkz. story_katman.dart `StoryTuvali` serhi).
-              //    Onceki surumde ikisi de EKRANIN TAMAMINA gore konumlaniyordu;
-              //    medya `contain` oldugu icin fotografin kapladigi dikey oran
-              //    ekran en-boyuna gore degisiyor ve ayni hikaye baska telefonda
-              //    fotografa gore ~%19 kaymis cikiyordu.
-              Positioned.fill(
-                child: StoryTuvali(
-                  yap: (c, tuval) => Stack(
-                    children: [
-                      Positioned.fill(child: _zemin()),
-                      // ---- METIN KATMANLARI (surukle + dokun-duzenle)
-                      for (var i = 0; i < _katmanlar.length; i++)
-                        _suruklenebilir(i, tuval),
-                    ],
-                  ),
-                ),
-              ),
-
-              // ---- UST CUBUK
-              SafeArea(
-                child: Row(
+          children: [
+            // ⚠️⚠️ TUVAL **SABIT 9:16** ve medya + katmanlar AYNI dikdortgene
+            //    cizilir (bkz. story_katman.dart `StoryTuvali` serhi).
+            //    Onceki surumde ikisi de EKRANIN TAMAMINA gore konumlaniyordu;
+            //    medya `contain` oldugu icin fotografin kapladigi dikey oran
+            //    ekran en-boyuna gore degisiyor ve ayni hikaye baska telefonda
+            //    fotografa gore ~%19 kaymis cikiyordu.
+            Positioned.fill(
+              child: StoryTuvali(
+                yap: (c, tuval) => Stack(
                   children: [
-                    IconButton(
-                      icon: const Icon(LucideIcons.x, color: Colors.white),
-                      onPressed: () => Navigator.of(context).pop(),
-                    ),
-                    const Spacer(),
-                    _ustDugme(LucideIcons.type, 'Yazı ekle', _yaziEkle),
-                    if (_k != null)
-                      _ustDugme(
-                        LucideIcons.palette,
-                        'Renk',
-                        () => setState(
-                          () => _panel = _panel == 'renk' ? 'yok' : 'renk',
-                        ),
-                      ),
-                    if (_k != null)
-                      _ustDugme(
-                        LucideIcons.caseSensitive,
-                        'Yazı tipi',
-                        () => setState(
-                          () => _panel = _panel == 'font' ? 'yok' : 'font',
-                        ),
-                      ),
-                    if (_k != null)
-                      _ustDugme(LucideIcons.alignCenter, 'Hizala', () {
-                        setState(() {
-                          final k = _k!;
-                          k.hiza = k.hiza == 'orta'
-                              ? 'sol'
-                              : k.hiza == 'sol'
-                              ? 'sag'
-                              : 'orta';
-                        });
-                      }),
-                    if (_k != null)
-                      // ⚠️ IPUCU DUZELTILDI: eskiden "Arka plan" yaziyordu ama
-                      //    yaptigi is METNIN OKUNABILIRLIK KUTUSU. Hikaye
-                      //    ZEMININI arayan kullanici birebir "Arka plan" yazan
-                      //    dugmeye basip alakasiz bir kutu efekti aliyordu.
-                      _ustDugme(LucideIcons.square, 'Okunabilirlik kutusu', () {
-                        setState(() {
-                          final k = _k!;
-                          k.kutu = k.kutu == 'yok'
-                              ? 'seffaf'
-                              : k.kutu == 'seffaf'
-                              ? 'dolu'
-                              : 'yok';
-                        });
-                      }),
+                    Positioned.fill(child: _zemin()),
+                    // ---- METIN KATMANLARI (surukle + dokun-duzenle)
+                    for (var i = 0; i < _katmanlar.length; i++)
+                      _suruklenebilir(i, tuval),
                   ],
                 ),
               ),
+            ),
 
-              // ---- ALT PANELLER
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 0,
-                child: SafeArea(
-                  top: false,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (_panel == 'renk' && _k != null) _renkPaleti(),
-                      if (_panel == 'font' && _k != null) _fontSecici(),
-                      // ⚠️⚠️ SEVK ENGELIYDI (turu 77b): kosul `_panel == 'yok'`
-                      //    idi. Ama `_yaziEkle()` basarili bitince `_panel`e
-                      //    'yazi' yaziliyor ve metin hikayesinde o cagri
-                      //    `initState` post-frame'de OTOMATIK kosuyor. Sonuc:
-                      //    kullanici "Renkli zemin üzerine yaz"i secip yaziyi
-                      //    yazdiginda ZEMIN SERIDI HIC CIZILMIYORDU — zemin
-                      //    'mor'da kilitli kaliyordu. (Tersine, ilk diyalogu
-                      //    IPTAL edince gorunuyordu: davranis TAM TERSI.)
-                      //    Artik yalnizca RENK/FONT panelleri onu gizler.
-                      //    ⚠️ YAPMA: kosulu tekrar `_panel == 'yok'` yapma.
-                      if (widget.metinHikayesi &&
-                          _panel != 'renk' &&
-                          _panel != 'font')
-                        _zeminSecici(),
-                      if (_k != null) _boyutKaydiraci(),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
-                        child: Row(
-                          children: [
-                            if (_k != null)
-                              _altDugme(
-                                LucideIcons.trash2,
-                                'Sil',
-                                () => setState(() {
-                                  _katmanlar.removeAt(_secili);
-                                  _secili = -1;
-                                  _panel = 'yok';
-                                }),
-                              ),
-                            const Spacer(),
-                            FilledButton.icon(
-                              onPressed: _bitir,
-                              icon: const Icon(LucideIcons.check, size: 18),
-                              label: const Text('Paylaş'),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+            // ---- UST CUBUK
+            SafeArea(
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(LucideIcons.x, color: Colors.white),
+                    onPressed: () => Navigator.of(context).pop(),
                   ),
+                  const Spacer(),
+                  _ustDugme(LucideIcons.type, 'Yazı ekle', _yaziEkle),
+                  if (_k != null)
+                    _ustDugme(
+                      LucideIcons.palette,
+                      'Renk',
+                      () => setState(
+                        () => _panel = _panel == 'renk' ? 'yok' : 'renk',
+                      ),
+                    ),
+                  if (_k != null)
+                    _ustDugme(
+                      LucideIcons.caseSensitive,
+                      'Yazı tipi',
+                      () => setState(
+                        () => _panel = _panel == 'font' ? 'yok' : 'font',
+                      ),
+                    ),
+                  if (_k != null)
+                    _ustDugme(LucideIcons.alignCenter, 'Hizala', () {
+                      setState(() {
+                        final k = _k!;
+                        k.hiza = k.hiza == 'orta'
+                            ? 'sol'
+                            : k.hiza == 'sol'
+                            ? 'sag'
+                            : 'orta';
+                      });
+                    }),
+                  if (_k != null)
+                    // ⚠️ IPUCU DUZELTILDI: eskiden "Arka plan" yaziyordu ama
+                    //    yaptigi is METNIN OKUNABILIRLIK KUTUSU. Hikaye
+                    //    ZEMININI arayan kullanici birebir "Arka plan" yazan
+                    //    dugmeye basip alakasiz bir kutu efekti aliyordu.
+                    _ustDugme(LucideIcons.square, 'Okunabilirlik kutusu', () {
+                      setState(() {
+                        final k = _k!;
+                        k.kutu = k.kutu == 'yok'
+                            ? 'seffaf'
+                            : k.kutu == 'seffaf'
+                            ? 'dolu'
+                            : 'yok';
+                      });
+                    }),
+                ],
+              ),
+            ),
+
+            // ---- ALT PANELLER
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: SafeArea(
+                top: false,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_panel == 'renk' && _k != null) _renkPaleti(),
+                    if (_panel == 'font' && _k != null) _fontSecici(),
+                    // ⚠️⚠️ SEVK ENGELIYDI (turu 77b): kosul `_panel == 'yok'`
+                    //    idi. Ama `_yaziEkle()` basarili bitince `_panel`e
+                    //    'yazi' yaziliyor ve metin hikayesinde o cagri
+                    //    `initState` post-frame'de OTOMATIK kosuyor. Sonuc:
+                    //    kullanici "Renkli zemin üzerine yaz"i secip yaziyi
+                    //    yazdiginda ZEMIN SERIDI HIC CIZILMIYORDU — zemin
+                    //    'mor'da kilitli kaliyordu. (Tersine, ilk diyalogu
+                    //    IPTAL edince gorunuyordu: davranis TAM TERSI.)
+                    //    Artik yalnizca RENK/FONT panelleri onu gizler.
+                    //    ⚠️ YAPMA: kosulu tekrar `_panel == 'yok'` yapma.
+                    if (widget.metinHikayesi &&
+                        _panel != 'renk' &&
+                        _panel != 'font')
+                      _zeminSecici(),
+                    if (_k != null) _boyutKaydiraci(),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
+                      child: Row(
+                        children: [
+                          if (_k != null)
+                            _altDugme(
+                              LucideIcons.trash2,
+                              'Sil',
+                              () => setState(() {
+                                _katmanlar.removeAt(_secili);
+                                _secili = -1;
+                                _panel = 'yok';
+                              }),
+                            ),
+                          const Spacer(),
+                          FilledButton.icon(
+                            onPressed: _bitir,
+                            icon: const Icon(LucideIcons.check, size: 18),
+                            label: const Text('Paylaş'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
+            ),
+          ],
         ),
       ),
     );

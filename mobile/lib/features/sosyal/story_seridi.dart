@@ -92,9 +92,7 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi>
   /// omrunden BAGIMSIZDIR, mesaj her halukarda gorunur.
   /// ⚠️ YAPMA: buray... `ScaffoldMessenger.of(context)`e dondurme.
   void _uyar(String m) {
-    rootMessengerKey.currentState?.showSnackBar(
-      SnackBar(content: Text(m)),
-    );
+    rootMessengerKey.currentState?.showSnackBar(SnackBar(content: Text(m)));
   }
 
   /// Hikaye paylas: medya sec -> **EDITOR** -> yukle -> POST /stories.
@@ -289,6 +287,11 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi>
   }
 
   Future<void> _ac(StoryKullanici k) async {
+    // ⚠️ TURU 98c — demo hikayesi sunucuda YOK; izleyici bos acilirdi.
+    if (demoKimlik(k.userId)) {
+      _uyar('Bu bir tasarım demosu — gerçek içerik değil');
+      return;
+    }
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => StoryIzleyici(
@@ -467,8 +470,8 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi>
     final renk = durum == 'canli'
         ? const Color(0xFFFF3B30)
         : durum == 'oda'
-            ? const Color(0xFF8B3FFF)
-            : null;
+        ? const Color(0xFF8B3FFF)
+        : null;
     // ⚠️⚠️⚠️ TURU 98c — YAYIN/ODA OGESI **KAPSUL** (kullanici referans gorseli).
     if (yayin != null && renk != null) return _yayinKapsulu(k, yayin, renk);
     return _kutu(
@@ -482,8 +485,7 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi>
               halka: durum == null && !k.hepsiIzlendi,
               gri: durum == null && k.hepsiIzlendi,
               duzRenk: renk,
-              child:
-                  Avatar(ad: k.ad, mediaId: k.avatarMediaId, cap: kHalkaCap),
+              child: Avatar(ad: k.ad, mediaId: k.avatarMediaId, cap: kHalkaCap),
             ),
           ),
           if (durum != null)
@@ -493,8 +495,10 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi>
               bottom: -6,
               child: Center(
                 child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: renk,
                     borderRadius: BorderRadius.circular(8),
@@ -641,8 +645,7 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi>
             bottom: -6,
             child: Center(
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
                   color: renk,
                   borderRadius: BorderRadius.circular(8),
@@ -683,7 +686,8 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi>
   Widget _benimAvatar(String ad, Map<String, dynamic>? profil) {
     final mediaId = profil?['avatar_media_id'] as String?;
     final url = (profil?['avatar_url'] ?? '').toString();
-    final fotografVar = (mediaId != null && mediaId.isNotEmpty) || url.isNotEmpty;
+    final fotografVar =
+        (mediaId != null && mediaId.isNotEmpty) || url.isNotEmpty;
     if (!fotografVar) {
       return Container(
         width: kHalkaCap,
@@ -730,10 +734,7 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi>
     // ⚠️ YAPMA: bu Column'u kaldirip cocugu dogrudan verme.
     child: Semantics(
       label: etiket,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [child],
-      ),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [child]),
     ),
   );
 

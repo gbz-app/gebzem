@@ -59,6 +59,7 @@ class _SecilenMedya {
       : video
       ? 'video'
       : 'image';
+
   /// ⚠️⚠️⚠️ SES MIME'I **`audio/mp4`** — `audio/m4a` DEGIL.
   ///
   ///    Ilk yazimda `audio/m4a` yazilmisti ve sunucu bunu REDDEDIYOR
@@ -100,8 +101,18 @@ class _GonderiOlusturState extends ConsumerState<GonderiOlustur> {
   /// "12 Ağustos 19:30"
   String _zamanMetni(DateTime d) {
     const aylar = [
-      'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
-      'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık',
+      'Ocak',
+      'Şubat',
+      'Mart',
+      'Nisan',
+      'Mayıs',
+      'Haziran',
+      'Temmuz',
+      'Ağustos',
+      'Eylül',
+      'Ekim',
+      'Kasım',
+      'Aralık',
     ];
     final s = d.hour.toString().padLeft(2, '0');
     final dk = d.minute.toString().padLeft(2, '0');
@@ -150,6 +161,7 @@ class _GonderiOlusturState extends ConsumerState<GonderiOlustur> {
     }
     setState(() => _yayinAt = secilen);
   }
+
   bool _yukleniyor = false;
 
   /// ⚠️⚠️ TURU 90 — GONDERI KONUMU (kullanici emri).
@@ -664,129 +676,132 @@ class _GonderiOlusturState extends ConsumerState<GonderiOlustur> {
               child: AbsorbPointer(
                 absorbing: _yukleniyor,
                 child: ListView(
-            padding: const EdgeInsets.all(14),
-            children: [
-              TextField(
-                controller: _metin,
-                minLines: 3,
-                maxLines: 10,
-                maxLength: 2000,
-                decoration: InputDecoration(
-                  hintText: _reelsMi
-                      ? 'Reels açıklaması...'
-                      : 'Neler oluyor? Bir şeyler yaz...',
-                  border: const OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              if (_medya.isNotEmpty) _onizleme(),
-              const SizedBox(height: 12),
-              // ⚠️⚠️ TURU 82b — EKLER SATIRI (kullanici emri: *"yeni gonderide
-              //    anket, ses, harita vb seyler olsun"*).
-              //
-              //    Iki `OutlinedButton.icon` (Fotograf | Video) yerine TEK
-              //    kaydirilabilir serit: yeni ek turu geldiginde satir
-              //    TASMAZ. Etiketler ikonun ALTINDA -> her ek AYNI genislikte
-              //    ve serit duzenli gorunuyor ("daha profesyonel" istegi).
-              // ⚠️ KAYDIRILABILIR olmasi ZORUNLU: bes ek + 360dp ekran +
-              //    yazi olcegi 1.3'te sabit bir `Row` RenderFlex seridi
-              //    cikarirdi (turu 82'de olculen sinif).
-              _eklerSeridi(),
-              // ⚠️ TURU 83 — SECILEN ANKET GORUNUR OLMALI. Gorunmeseydi
-              //    kullanici anketi ekledigini UNUTUR ya da eklendigine emin
-              //    olamazdi ("ekledim mi?" belirsizligi bu projede defalarca
-              //    "iki kez gonderdim" hatasina yol acti).
-              if (_anket != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 10),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.primary.withValues(alpha: 0.45),
+                  padding: const EdgeInsets.all(14),
+                  children: [
+                    TextField(
+                      controller: _metin,
+                      minLines: 3,
+                      maxLines: 10,
+                      maxLength: 2000,
+                      decoration: InputDecoration(
+                        hintText: _reelsMi
+                            ? 'Reels açıklaması...'
+                            : 'Neler oluyor? Bir şeyler yaz...',
+                        border: const OutlineInputBorder(),
                       ),
                     ),
-                    child: Row(
-                      children: [
-                        const Icon(LucideIcons.chartNoAxesColumn, size: 18),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                    const SizedBox(height: 12),
+                    if (_medya.isNotEmpty) _onizleme(),
+                    const SizedBox(height: 12),
+                    // ⚠️⚠️ TURU 82b — EKLER SATIRI (kullanici emri: *"yeni gonderide
+                    //    anket, ses, harita vb seyler olsun"*).
+                    //
+                    //    Iki `OutlinedButton.icon` (Fotograf | Video) yerine TEK
+                    //    kaydirilabilir serit: yeni ek turu geldiginde satir
+                    //    TASMAZ. Etiketler ikonun ALTINDA -> her ek AYNI genislikte
+                    //    ve serit duzenli gorunuyor ("daha profesyonel" istegi).
+                    // ⚠️ KAYDIRILABILIR olmasi ZORUNLU: bes ek + 360dp ekran +
+                    //    yazi olcegi 1.3'te sabit bir `Row` RenderFlex seridi
+                    //    cikarirdi (turu 82'de olculen sinif).
+                    _eklerSeridi(),
+                    // ⚠️ TURU 83 — SECILEN ANKET GORUNUR OLMALI. Gorunmeseydi
+                    //    kullanici anketi ekledigini UNUTUR ya da eklendigine emin
+                    //    olamazdi ("ekledim mi?" belirsizligi bu projede defalarca
+                    //    "iki kez gonderdim" hatasina yol acti).
+                    if (_anket != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 10),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.primary.withValues(alpha: 0.45),
+                            ),
+                          ),
+                          child: Row(
                             children: [
-                              Text(
-                                _anket!.soru,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
+                              const Icon(
+                                LucideIcons.chartNoAxesColumn,
+                                size: 18,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      _anket!.soru,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    Text(
+                                      '${_anket!.secenekler.length} seçenek'
+                                      '${_anket!.coklu ? ' · çoklu seçim' : ''}',
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                              Text(
-                                '${_anket!.secenekler.length} seçenek'
-                                '${_anket!.coklu ? ' · çoklu seçim' : ''}',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey,
-                                ),
+                              IconButton(
+                                tooltip: 'Anketi kaldır',
+                                icon: const Icon(LucideIcons.x, size: 18),
+                                onPressed: _yukleniyor
+                                    ? null
+                                    : () => setState(() => _anket = null),
                               ),
                             ],
                           ),
                         ),
-                        IconButton(
-                          tooltip: 'Anketi kaldır',
-                          icon: const Icon(LucideIcons.x, size: 18),
-                          onPressed: _yukleniyor
-                              ? null
-                              : () => setState(() => _anket = null),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              const SizedBox(height: 8),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                value: _yorumKapali,
-                onChanged: _yukleniyor
-                    ? null
-                    : (v) => setState(() => _yorumKapali = v),
-                title: const Text('Yorumları kapat'),
-                secondary: const Icon(LucideIcons.messageCircleOff),
-              ),
-              // ⚠️⚠️ TURU 81 — ILERI TARIHLI PAYLASIM (kullanici emri).
-              //    Zamanlanan gonderi yayin anina kadar HICBIR yuzeyde
-              //    gorunmez; YALNIZ yazarin kendi profilinde (etiketli) durur.
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(LucideIcons.clock),
-                title: Text(
-                  _yayinAt == null ? 'Hemen paylaş' : 'Zamanlandı',
-                ),
-                subtitle: Text(
-                  _yayinAt == null
-                      ? 'İstersen ileri bir tarihe zamanlayabilirsin'
-                      : _zamanMetni(_yayinAt!),
-                ),
-                trailing: _yayinAt == null
-                    ? TextButton(
-                        onPressed: _yukleniyor ? null : _zamanSec,
-                        child: const Text('Zamanla'),
-                      )
-                    : IconButton(
-                        tooltip: 'Zamanlamayı kaldır',
-                        icon: const Icon(LucideIcons.x, size: 18),
-                        onPressed: _yukleniyor
-                            ? null
-                            : () => setState(() => _yayinAt = null),
                       ),
-              ),
+                    const SizedBox(height: 8),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      value: _yorumKapali,
+                      onChanged: _yukleniyor
+                          ? null
+                          : (v) => setState(() => _yorumKapali = v),
+                      title: const Text('Yorumları kapat'),
+                      secondary: const Icon(LucideIcons.messageCircleOff),
+                    ),
+                    // ⚠️⚠️ TURU 81 — ILERI TARIHLI PAYLASIM (kullanici emri).
+                    //    Zamanlanan gonderi yayin anina kadar HICBIR yuzeyde
+                    //    gorunmez; YALNIZ yazarin kendi profilinde (etiketli) durur.
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(LucideIcons.clock),
+                      title: Text(
+                        _yayinAt == null ? 'Hemen paylaş' : 'Zamanlandı',
+                      ),
+                      subtitle: Text(
+                        _yayinAt == null
+                            ? 'İstersen ileri bir tarihe zamanlayabilirsin'
+                            : _zamanMetni(_yayinAt!),
+                      ),
+                      trailing: _yayinAt == null
+                          ? TextButton(
+                              onPressed: _yukleniyor ? null : _zamanSec,
+                              child: const Text('Zamanla'),
+                            )
+                          : IconButton(
+                              tooltip: 'Zamanlamayı kaldır',
+                              icon: const Icon(LucideIcons.x, size: 18),
+                              onPressed: _yukleniyor
+                                  ? null
+                                  : () => setState(() => _yayinAt = null),
+                            ),
+                    ),
                     // ⚠️ ILERLEME + IPTAL BLOGU BURADAN CIKARILDI —
                     //    `AbsorbPointer` icindeydi ve "İptal" dugmesi dokunus
                     //    ALMIYORDU (bkz. `_ilerlemeBlogu` serhi).
@@ -923,8 +938,11 @@ class _GonderiOlusturState extends ConsumerState<GonderiOlustur> {
           ),
           if (!_reelsMi) ...[
             ek(LucideIcons.mic, 'Ses', _yukleniyor ? null : _sesEkle),
-            ek(LucideIcons.chartNoAxesColumn, 'Anket',
-                _yukleniyor ? null : _anketEkle),
+            ek(
+              LucideIcons.chartNoAxesColumn,
+              'Anket',
+              _yukleniyor ? null : _anketEkle,
+            ),
             // ⚠️⚠️ TURU 90 — KONUM ARTIK GERCEK (kullanici emri: 'normal
             //    paylasimda konum paylasamiyoruz, bunu eklememissin').
             //    Migration 044 `posts`a konum_ad/enlem/boylam ekledi.
