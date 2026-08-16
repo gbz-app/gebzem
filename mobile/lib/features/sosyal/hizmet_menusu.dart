@@ -10,6 +10,7 @@ import '../isletme/urun_ekranlari.dart' show AiDanismaEkrani;
 import '../isletme/urun_servisi.dart' show aiDurumProvider;
 import '../diyet/diyet_ekranlari.dart';
 import '../talep/talep_ekranlari.dart';
+import 'kesfet_ekrani.dart';
 import '../isletme/kategori_slider.dart';
 import '../isletme/isletme_servisi.dart' show isletmeServisiProvider;
 // ⚠️⚠️⚠️ TURU 96s — MENU KARTLARI **KATEGORI EKRANIYLA AYNI DILDE** (kullanici
@@ -177,11 +178,7 @@ class HizmetMenusu extends ConsumerWidget {
         const Color(0xFF4A6CF7),
         const Color(0xFF1B2A6B),
       ], (c) => const KanallarSayfasi()),
-      if (aiAcik)
-        _Bolum('Yapay zekâ', [
-          const Color(0xFF00C2A8),
-          const Color(0xFF00695C),
-        ], (c) => const AiDanismaEkrani()),
+      // ⚠️ TURU 96v — 'Yapay zekâ' karti HIZLI ERISIME tasindi (GebzemAI).
     ];
 
     // ⚠️ TURU 90 — "Yakınımda" listeden AYRILIR: ustte tek basina cizilir.
@@ -244,6 +241,27 @@ class HizmetMenusu extends ConsumerWidget {
     //	olmamasidir; kullanici da neyin arandigini kutuda GORUR.
     // ⚠️ YAPMA: bu kartlara sahte/gomulu liste yazma.
     final hizli = <_Bolum>[
+      // ⚠️⚠️ TURU 96v — **GebzemAI ve Sosyal EN BASTA** (kullanici emri).
+      // ⚠️ GebzemAI yalniz sunucuda AI ACIKSA cizilir (`aiAcik`): kapaliyken
+      //    kart basildiginda 503 alinirdi — bu projede 'olu ozellik' sinifi.
+      //    Ayni sebeple kategoriler izgarasindaki 'Yapay zekâ' karti
+      //    KALDIRILDI: iki yerde ayni giris gereksiz tekrar.
+      if (aiAcik)
+        _Bolum('GebzemAI', [
+          const Color(0xFF00C2A8),
+          const Color(0xFF00695C),
+        ], (c) => const AiDanismaEkrani()),
+      // ⚠️ 'Sosyal' = KESFET ekrani (profil arama + gonderi izgarasi).
+      //    O ekranin KENDI `Scaffold`i YOK (ana sekme olarak yaziImis),
+      //    bu yuzden route'a alinirken `Scaffold` ile SARILIR — aksi halde
+      //    zeminsiz ve baslıksiz acilirdi.
+      _Bolum('Sosyal', [
+        const Color(0xFF7A5CFF),
+        const Color(0xFF3A2A8A),
+      ], (c) => Scaffold(
+            appBar: AppBar(title: const Text('Sosyal')),
+            body: const KesfetEkrani(),
+          )),
       _Bolum('Nöbetçi Eczane', [
         const Color(0xFF20C997),
         const Color(0xFF0B7A5A),
@@ -270,129 +288,108 @@ class HizmetMenusu extends ConsumerWidget {
     //    Koleksiyon-if ile tek seferde null-guvenli hale getirilir.
     final hizliTumu = <_Bolum>[if (yakinimda != null) yakinimda, ...hizli];
 
+    // ⚠️⚠️⚠️ TURU 96v — **SAYFANIN TAMAMI BIRLIKTE KAYAR** (kullanici emri:
+    //	*"asagi inerken sadece kategoriler iniyor; komple asagi inmesi
+    //	gerekiyor, slider dahil"*).
+    //
+    //	Onceki yapida govde bir `Column`du ve YALNIZ izgara `Flexible` icinde
+    //	kaydiriliyordu; baslik, slider ve hizli erisim EKRANA CIVILIYDI.
+    //	Artik hepsi ayni `CustomScrollView`in sliver'lari.
+    // ⚠️ `SingleChildScrollView` + `shrinkWrap` SECILMEDI: o kurulum TUM
+    //    kartlari HER KAREDE layout ettirir (turu 91 performans dersi).
+    //    `SliverGrid` tembel kalir.
+    // ⚠️ Yukseklik TAVANI (0.82) KALDIRILDI: sheet ZATEN ekranin %95'i
+    //    (`FractionallySizedBox`, turu 96o). Ikinci tavan icerigi sikistirip
+    //    altta olu bosluk birakiyordu.
+    final etiketAlani =
+        MediaQuery.textScalerOf(context).scale(14) * 1.15 * 2;
+    final hucreBoy = kKesifKutu + 5 + etiketAlani;
     return SafeArea(
-      child: ConstrainedBox(
-        // ⚠️ Yukseklik TAVANI: 12 kart kucuk telefonda sheet'i ekran disina
-        //    taşırırdı. Icerik daha uzunsa `GridView` kaydirilir.
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(context).size.height * 0.82,
-        ),
-        child: Padding(
-          // ⚠️⚠️⚠️ TURU 96t — **YATAY DOLGU BURADAN KALKTI** (kullanici:
-          //	*"slider ilk basliginda solda bosluk oluyor"*).
-          //
-          //	`KategoriSlider` yan boslugu KENDI `viewportFraction`indan
-          //	uretir ve bunun icin **TAM EKRAN GENISLIGINDE** cizilmek
-          //	zorundadir (kategori ekraninda da oyle: orada slider
-          //	`Padding`in DISINDA duruyor ve serhinde *"burayi Padding ile
-          //	sarma — kart 16 yerine ~35 dp'ye kayar"* yaziyor).
-          //	Menude slider dis dolgunun ICINDEYDI, yani bosluk iki kez
-          //	uygulaniyordu.
-          // ⚠️ Cozum: dis dolgu YALNIZ DIKEY; yatay dolguyu artik her
-          //    cocuk kendi tasiyor (`_yan`). Slider ise tasimaz.
-          padding: const EdgeInsets.only(top: 10, bottom: 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.withValues(alpha: 0.4),
-                    borderRadius: BorderRadius.circular(2),
+      child: CustomScrollView(
+        slivers: [
+          SliverToBoxAdapter(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 10),
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.withValues(alpha: 0.4),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: kYanBosluk),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Gebzem',
-                      style:
-                          TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
-                    ),
-                    SizedBox(height: 2),
-                    Text(
-                      'Şehrindeki her şey',
-                      style: TextStyle(fontSize: 13, color: Colors.grey),
-                    ),
-                  ],
+                const SizedBox(height: 16),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: kYanBosluk),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Gebzem',
+                        style: TextStyle(
+                            fontSize: 20, fontWeight: FontWeight.w800),
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        'Şehrindeki her şey',
+                        style: TextStyle(fontSize: 13, color: Colors.grey),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              // ⚠️⚠️⚠️ TURU 96q — BASLIGIN ALTINA **SLIDER** (kullanici emri:
-              //	*"Gebzem sehrindeki her sey altina slider ekle"*).
-              //
-              // ⚠️⚠️ **ILK DENEME `VitrinSlider` IDI — EKRANDA HICBIR SEY
-              //	CIKMADI.** Sebep olculdu: o slider ONAYLI isletme +
-              //	YAKLASAN etkinlik gosterir, ikisi de bugun BOS; bos olunca
-              //	`SizedBox.shrink()` donuyor. Yani kod "calisiyordu" ama
-              //	kullanici acisindan ozellik YOKTU (bu projenin en sik hata
-              //	sinifi).
-              //
-              //	COZUM: kategori ekraninin **ZATEN DOLU** olan slider'i
-              //	(`KategoriSlider` + `/isletme-kesif` slaytlari). Metinler
-              //	SUNUCUDAN gelir (turu 92 kurali: istemciye sabit yazilmaz).
-              // ⚠️ Bos donerse yine hicbir sey cizilmez — ama varsayilan set
-              //    sunucuda TANIMLI oldugu icin pratikte hep dolu.
-              _slider(ref),
-              const SizedBox(height: 14),
-              // ⚠️⚠️⚠️ TURU 91 — DUZEN **IZGARAYA DONDU** (kullanici emri:
-              //    *"kategoriler ALT ALTA yapmissin ama SOLDAN SAGA 5 tane
-              //    ALTA DOGRU kart olacakti, ESKI HALININ KUCUK HALI
-              //    olacakti — duzelt"*).
-              //
-              //    Turu 90'da kullanici "5 tane alt alta" demis, ben TEK
-              //    SUTUN yapmistim. Turu 91'de netlestirdi: kartlar SOLDAN
-              //    SAGA aksin, ASAGI dogru ~5 SATIR olsun ve eski (turu 76b)
-              //    kartlarin KUCULTULMUS hali olsun.
-              //
-              // ⚠️ "Yakınımda" USTTE AYRI ve KATEGORILER basligi KALIR —
-              //    onlar turu 90'da acikca istenmisti ve degismedi.
-              //
-              // ═══════ OLCU (hesaplanmis, tahmin degil) ═══════
-              //    3 sutun · yatay bosluk 10 · dis dolgu 2x16
-              //    hucre genisligi 360dp'de (360-32-20)/3 = 102.7
-              //                    414dp'de (414-32-20)/3 = 120.7
-              //    `childAspectRatio: 0.82` -> yukseklik 125.2 / 147.2
-              //    16 kart = 6 satir; kaydirilarak tamami gorunur.
-              // ⚠️ Kart ESKI TASARIMIN KUCUGU: kare gradyan kutu (yaricap 18)
-              //    + ALTINDA yazi — turu 76b'nin "IKON YOK, yazi kartin
-              //    ALTINDA" kurali BOYLECE GERI GELDI (tek sutunda yazi
-              //    icerideydi cunku alt alta yazi satiri iki katina cikariyordu).
-              // ⚠️⚠️⚠️ TURU 96r — HIZLI ERISIM KARTLARI **IZGARA KARTLARIYLA
-              //	AYNI TASARIMDA** (kullanici emri: *"Yakınımda vs alttaki
-              //	kart tarzinda olacak"*).
-              //
-              //	Onceden bunlar "yazi KUTUNUN ICINDE" bir seritti; asagidaki
-              //	kategoriler ise "gradyan kutu + ALTINDA yazi" (turu 76b
-              //	kurali). Iki farkli dil yan yana duruyordu.
-              //	Artik ucu de **`_kart`** ile cizilir — TEK KAYNAK.
-              //
-              // ⚠️ YUKSEKLIK IZGARADAN TURETILIR (elle sayi yazilmaz):
-              //    4 sutunlu izgaranin hucre yuksekligi ne ise bu satir da
-              //    odur. Boylece izgara olculeri degistiginde bu satir
-              //    KENDILIGINDEN uyar ve iki blok ayrisamaz.
-              if (hizliTumu.isNotEmpty) ...[
-                // ⚠️⚠️⚠️ TURU 96u — HIZLI ERISIM **TEK SATIR + YATAY
-                //	KAYDIRMA** (kullanici emri: *"yakinimda vb bunlar tek
-                //	satir olarak scroll sol sag olacak, birde ustune baslik
-                //	olsun"*).
-                //
-                //	Onceki hal `Wrap`ti: besinci kart ALT SATIRA gecip
-                //	yaninda kocaman bir bosluk birakiyordu. Yatay listede
-                //	kart sayisi arttikca duzen BOZULMAZ, sadece kaydirilir.
+                const SizedBox(height: 12),
+                // ⚠️ Slider `Padding`in DISINDA: yan boslugu KENDI
+                //    `viewportFraction`indan uretir (turu 96t).
+                _slider(ref),
+                const SizedBox(height: 14),
+                if (hizliTumu.isNotEmpty) ...[
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: kYanBosluk),
+                    child: Text(
+                      'HIZLI ERİŞİM',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.grey,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  // ⚠️ TEK SATIR + YATAY KAYDIRMA (turu 96u). Kart genisligi
+                  //    izgarayla AYNI: ekranda dort kart, besincisi SARKAR.
+                  LayoutBuilder(
+                    builder: (c, bc) {
+                      final en =
+                          (bc.maxWidth - kYanBosluk * 2 - kIzgaraAralik * 3) /
+                              4;
+                      return SizedBox(
+                        height: hucreBoy,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          // ⚠️ Yan bosluk LISTENIN DOLGUSUNDA: disariya
+                          //    `Padding` konsaydi kartlar kaydirirken 16 dp
+                          //    once KESILIRDI.
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: kYanBosluk),
+                          itemCount: hizliTumu.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(width: kIzgaraAralik),
+                          itemBuilder: (_, i) => SizedBox(
+                              width: en, child: _kart(context, hizliTumu[i])),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+                const SizedBox(height: 18),
                 const Padding(
                   padding: EdgeInsets.symmetric(horizontal: kYanBosluk),
                   child: Text(
-                    'HIZLI ERİŞİM',
-                    // ⚠️ 'KATEGORİLER' basligiyla BIREBIR ayni stil (harf
-                    //    araligi YOK — turu 96s kullanici emri).
+                    'KATEGORİLER',
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
@@ -401,110 +398,44 @@ class HizmetMenusu extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(height: 10),
-                LayoutBuilder(
-                  builder: (c, bc) {
-                    // GENISLIK KATEGORI EKRANIYLA AYNI FORMUL (kullanici:
-                    // "kartlarin genisliklerini diyorum, yemekteki gibi"):
-                    // once aralik konur, kalan yer DORDE bolunur. Ucuncu
-                    // karttan sonrasi BOS kalir; boylece bu satirin kartlari
-                    // alttaki izgarayla BIREBIR ayni genislikte olur.
-                    // ⚠️ Kart genisligi IZGARAYLA AYNI: ekranda dort kart
-                    //    gorunur, besincisi kenardan SARKAR ve boylece
-                    //    kaydirilabilir oldugu KENDILIGINDEN belli olur.
-                    final en =
-                        (bc.maxWidth - kYanBosluk * 2 - kIzgaraAralik * 3) / 4;
-                    // ⚠️ `yakinimda` tipi `_Bolum?`; blok ZATEN `!= null`
-                    //    kapisinin icinde ama Dart bunu closure icinde
-                    //    daraltmaz — yerel bir degiskene alinir.
-                    final tumu = hizliTumu;
-                    return SizedBox(
-                      // ⚠️ Yukseklik kartin KENDI formulunden (kutu + 5 +
-                      //    iki satirlik etiket) — izgarayla ayni.
-                      height: kKesifKutu +
-                          5 +
-                          MediaQuery.textScalerOf(context).scale(14) *
-                              1.15 *
-                              2,
-                      child: ListView.separated(
-                        scrollDirection: Axis.horizontal,
-                        // ⚠️ Yan bosluk LISTENIN DOLGUSUNDA: disariya
-                        //    `Padding` konsaydi kaydirirken kartlar 16 dp
-                        //    once KESILIRDI (kenardan cikip gitmezlerdi).
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: kYanBosluk),
-                        itemCount: tumu.length,
-                        separatorBuilder: (_, __) =>
-                            const SizedBox(width: kIzgaraAralik),
-                        itemBuilder: (_, i) =>
-                            SizedBox(width: en, child: _kart(context, tumu[i])),
-                      ),
-                    );
-                  },
-                ),
               ],
-              const SizedBox(height: 18),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: kYanBosluk),
-                child: Text(
-                'KATEGORİLER',
-                // TURU 96s - HARF ARALIGI YASAK (kullanici emri: "Kategoriler
-                // yazisi vb ozel bosluk ASLA kullanma; ornegin Ahmet'te a ile
-                // h arasinda ozel bosluk olmasin"). Yazi tipinin KENDI
-                // aralligi kullanilir.
-                // YAPMA: bu dosyaya tekrar harf araligi ekleme.
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.grey,
-                ),
-                ),
-              ),
-              const SizedBox(height: 10),
-              Flexible(
-                // ⚠️ TURU 91 PERFORMANS — `shrinkWrap: true` KALDIRILDI.
-                //    `Flexible` zaten SINIRLI yukseklik veriyor; `shrinkWrap`
-                //    ise TUM cocuklari HER KAREDE layout ettiriyordu
-                //    (16 kart x her cizim). Kullanicinin "bir tik kasiyor"
-                //    tarifine katkida bulunan noktalardan biri.
-                // ⚠️⚠️⚠️ TURU 96q — **4 SUTUN, KARTLAR ~%30 KUCUK** (kullanici
-                //	emri: *"kategoriler altindaki kartlar 4 tane olacak, sol
-                //	sag yukseklik buyukluk %30 daha az olacak"*).
-                //
-                // ═══ OLCU (hesaplanmis) — 411 dp ekran, dis dolgu 2x16 ═══
-                //	ESKI 3 sutun: (411-32-2x10)/3 = **119.7** genislik,
-                //	              0.82 orani -> **146.0** yukseklik
-                //	YENI 4 sutun: (411-32-3x8)/4  = **88.8**  genislik  (-26%)
-                //	              0.86 orani  -> **103.2** yukseklik (-29%)
-                //	Alan olarak kart **~%48** kucuk; kullanicinin istedigi
-                //	"%30 daha az" kenar olcusunde birebir tutuyor.
-                // ⚠️ Etiket iki satira sarabildigi icin oran 0.82'de degil
-                //    **0.86**'da: daha dar hucrede yazi daha kolay sariyor ve
-                //    0.82 (daha uzun kart) gereksiz bosluk birakiyordu.
-                child: GridView.builder(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: kYanBosluk),
-                  gridDelegate:
-                      SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 4,
-                    crossAxisSpacing: kIzgaraAralik,
-                    mainAxisSpacing: kIzgaraAralik,
-                    // ORAN DEGIL SABIT YUKSEKLIK: kart = gri kutu (78) + 5
-                    // bosluk + iki satirlik etiket alani. Kategori
-                    // ekranindaki kesif izgarasinin BIREBIR ayni olcusu.
-                    mainAxisExtent: kKesifKutu +
-                        5 +
-                        MediaQuery.textScalerOf(context).scale(14) * 1.15 * 2,
-                  ),
-                  itemCount: kategoriler.length,
-                  itemBuilder: (_, i) => _kart(context, kategoriler[i]),
-                ),
-              ),
-            ],
+            ),
           ),
-        ),
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: kYanBosluk),
+            sliver: SliverGrid(
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 4,
+                crossAxisSpacing: kIzgaraAralik,
+                mainAxisSpacing: kIzgaraAralik,
+                // ⚠️ Oran DEGIL sabit yukseklik: kart = gri kutu + 5 + iki
+                //    satirlik etiket (kategori ekraniyla birebir).
+                mainAxisExtent: hucreBoy,
+              ),
+              delegate: SliverChildBuilderDelegate(
+                (_, i) => _kart(context, kategoriler[i]),
+                childCount: kategoriler.length,
+              ),
+            ),
+          ),
+          const SliverToBoxAdapter(child: SizedBox(height: 20)),
+        ],
       ),
     );
   }
+
+  /// Kart etiketi — kategori ekranindaki kesif kartiyla AYNI yazi (14/1.15/w600).
+  Widget _etiket(String ad) => Text(
+        ad,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        textAlign: TextAlign.center,
+        style: const TextStyle(
+          fontSize: 14,
+          height: 1.15,
+          fontWeight: FontWeight.w600,
+        ),
+      );
 
   /// Menunun ust slider'i — kategori ekraniyla **AYNI BILESEN**.
   ///
@@ -619,26 +550,27 @@ class HizmetMenusu extends ConsumerWidget {
           SizedBox(
             height: MediaQuery.textScalerOf(context).scale(14) * 1.15 * 2,
             child: Center(
+              // ⚠️⚠️⚠️ TURU 96v — COK KELIMELI AD **IKI SATIRA SARAR**
+              //	(kullanici emri: *"Nöbetçi Eczane — 'eczane' altta olsun,
+              //	yemekteki gibi"*). Kategori ekranindaki kesif kartlari da
+              //	boyle davranir ('Yeni Restourant').
+              // ⚠️ Kucultme (FittedBox) YALNIZ **BOSLUKSUZ** adlara
+              //    uygulanir: 'Organizasyon' saracak yer bulamadigi icin
+              //    kelimenin ORTASINDAN bolunuyordu ('Organizasyo/n').
               // TURU 96s - UZUN TEK KELIME KELIMENIN ORTASINDAN BOLUNMESIN.
               // 'Organizasyon' 86 dp'lik hucreye tek satirda sigmiyor ve
               // Flutter onu 'Organizasyo / n' diye BOLUYORDU (bosluksuz
               // kelimede sarma noktasi yok). FittedBox yalniz SIGMAYAN
               // etiketi bir tik kucultur; sigan etiketler 14 dp kalir.
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text(
-                b.ad,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                // ⚠️ Kesif kartiyla AYNI yazi: 14 / 1.15 / w600.
-                style: const TextStyle(
-                  fontSize: 14,
-                  height: 1.15,
-                  fontWeight: FontWeight.w600,
-                ),
-                ),
-              ),
+              // ⚠️⚠️ **BOSLUKLU AD FittedBox'A HIC GIRMEZ.** `FittedBox`
+              //    cocuguna SINIRSIZ genislik verir; icindeki `Text` bu yuzden
+              //    SARAMAZ. Bosluklu adin iki satira sarabilmesi icin hucrenin
+              //    SINIRLI genisligini gormesi sart.
+              // ⚠️ YAPMA: iki dali tek `FittedBox`ta `fit` degistirerek
+              //    birlestirme (`BoxFit.none` sarma degil TASMA verir).
+              child: b.ad.contains(' ')
+                  ? _etiket(b.ad)
+                  : FittedBox(fit: BoxFit.scaleDown, child: _etiket(b.ad)),
             ),
           ),
         ],
