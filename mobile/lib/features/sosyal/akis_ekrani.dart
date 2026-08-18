@@ -9,6 +9,8 @@ import "../../core/yenile.dart";
 import '../home/home_screen.dart' show myProfileProvider, aktifSekme;
 // ⚠️ TURU 98e — ust cubuk ikonlari alt menuyle AYNI olcude (TEK KAYNAK).
 import '../home/alt_menu.dart' show kAltMenuIkonBoy;
+// ⚠️ TURU 98m — sayfa kenar payi TEK KAYNAK (kategori ekraniyla ayni).
+import '../isletme/isletme_kart.dart' show kYanBosluk;
 import 'demo_veri.dart';
 import 'bildirim_sayaci.dart';
 import 'bildirimler_sayfasi.dart';
@@ -607,7 +609,13 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
         // ⚠️ FAB **KALDIRILDI** (asagida): ayni islevin iki dugmesi
         //    olsaydi kullanici hangisinin ne yaptigini bilemezdi ve turu
         //    90bdeki "iki FAB ust uste" hatasinin kardesi dogardi.
-        leadingWidth: 46,
+        // ⚠️⚠️ TURU 98m — SOL KENAR HIZASI (kullanici: *"hizalamada sorun
+        //	var, + cok solda, gorsel ile begen ikonu ayni hizada degil"*).
+        //	Ikon KUTUNUN ORTASINA cizilir; glyph sol kenari `kYanBosluk`ta
+        //	olsun diye kutu = 2*16 + ikon.
+        // ⚠️ OLCULDU: `squarePlus` glyphi 26 lik kutusunun icinde ~2.3 dp
+        //    iceride basliyor; kutu 58 iken sol kenar 18.3 cikiyordu.
+        leadingWidth: kYanBosluk * 2 + kAltMenuIkonBoy - 5,
         leading: IconButton(
           // ⚠️⚠️ TURU 98e — IKON BOYU **ALT MENUYLE AYNI** (kullanici emri:
           //	*"sol ustteki + ve bildirim ikonlari alt menudeki ikonlar
@@ -679,26 +687,36 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
           //    ⚠️ YAPMA: bu dugmeyi geri ekleme.
           // TURU 76: okunmamis rozeti. Sayac WS 'bildirim.yeni' olayinda yerel
           // olarak artar, sayfaya girilince sifirlanir.
-          BildirimRozeti(
-            child: IconButton(
-              // ⚠️ TURU 98e — alt menuyle AYNI olcu (yukaridaki serh).
-              iconSize: kAltMenuIkonBoy,
-              // ⚠️ TURU 96z — ikon **bildirim (bell)** (kullanici emri:
-              //    *"en sagdaki ise push icon olacak"*). Onceki
-              //    `trendingUp` bildirimle ilgisi olmayan bir grafik
-              //    okuydu; dugmenin ISLEVI zaten bildirimlerdi.
-              icon: const Icon(LucideIcons.bell),
-              tooltip: 'Bildirimler',
-              onPressed: () async {
-                ref.read(bildirimSayaciProvider.notifier).sifirla();
-                await Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const BildirimlerSayfasi()),
-                );
-                // Sayfada 'okundu' isaretlendi; sunucuyla hizala.
-                if (context.mounted) {
-                  unawaited(ref.read(bildirimSayaciProvider.notifier).tazele());
-                }
-              },
+          // ⚠️ TURU 98m — sag kenar hizasi: IconButton kutusu 48, ikon 26,
+          //    yani glyph sagdan 11 dp iceride; 5 dp daha eklenince 16 olur.
+          Padding(
+            // ⚠️ OLCULDU: 5 dp ile sag kenar 18.3 cikiyordu -> 3.
+            padding: const EdgeInsets.only(right: 3),
+            child: BildirimRozeti(
+              child: IconButton(
+                // ⚠️ TURU 98e — alt menuyle AYNI olcu (yukaridaki serh).
+                iconSize: kAltMenuIkonBoy,
+                // ⚠️ TURU 96z — ikon **bildirim (bell)** (kullanici emri:
+                //    *"en sagdaki ise push icon olacak"*). Onceki
+                //    `trendingUp` bildirimle ilgisi olmayan bir grafik
+                //    okuydu; dugmenin ISLEVI zaten bildirimlerdi.
+                icon: const Icon(LucideIcons.bell),
+                tooltip: 'Bildirimler',
+                onPressed: () async {
+                  ref.read(bildirimSayaciProvider.notifier).sifirla();
+                  await Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const BildirimlerSayfasi(),
+                    ),
+                  );
+                  // Sayfada 'okundu' isaretlendi; sunucuyla hizala.
+                  if (context.mounted) {
+                    unawaited(
+                      ref.read(bildirimSayaciProvider.notifier).tazele(),
+                    );
+                  }
+                },
+              ),
             ),
           ),
         ],

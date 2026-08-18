@@ -904,7 +904,13 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
         //    birlikte iki esnek cocuk demek olurdu.
         // ⚠️ YAPMA: `FittedBox`i kaldirip sabit butce hesabina donme.
         Padding(
-          padding: const EdgeInsets.fromLTRB(6, 2, 6, 0),
+          // ⚠️⚠️ TURU 98m — CUBUK KENARLARI **MEDYAYLA AYNI HIZADA**
+          //	(kullanici: "gorsel ile begen ikonu ayni hizada degil").
+          //	_eylem kendi 5 dp yatay dolgusunu tasir: 11+5 = 16 (medya
+          //	kenari). Sagda kaydet glyphi kutusundan 6 dp iceride: 10+6 = 16.
+          // ⚠️ OLCULDU (emulator): sol 10 -> 16.0 ✓ · sag dolgu ARTINCA ikon
+          //    ICERI kacar: 10 iken 19.8, 14 iken 24.0 idi -> 6 ile 16.
+          padding: const EdgeInsets.fromLTRB(10, 2, 6, 0),
           child: Row(
             children: [
               Expanded(
