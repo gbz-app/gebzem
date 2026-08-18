@@ -17,6 +17,14 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- 📐 **YAZI OLCEGI KARARI (17 Agu): `docs/yazi-olcegi.md`** — 6 kademe
+  (20/17/15/14/13/11). 11 ajanlik arastirma + 3 mercekli denetim sonucu.
+  ⚠️ **UYGULAMA ARAYUZ BITINCE** (kullanici karari); AMA **yeni yazilan her
+     kod bu olcege gore yazilir**.
+  ⚠️ Denetim BUGUNE AIT 6 hata buldu (sayac tavani sabit dp · FittedBox yazi
+     olcegini geri aliyor · kompakt kart 1.3'te tasiyor · kategori basligi yan
+     dugmelere biniyor · zaman damgasinda overflow yok · 11 altinda 8 nokta).
+     Hepsi belgede olculmus haliyle yazili.
 - **KALDIGIMIZ YER (16 Agu 20:11): TURU 98e-98i YAYINLANDI** — android
   **31960110991** + ios **31960112573** (**142a630**), R2 apk=121992523
   (md5 168c36fb) ipa=31636527 (md5 679375ff) index=12167 (md5 5e9313fc)

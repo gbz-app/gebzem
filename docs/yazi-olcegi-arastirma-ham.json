@@ -1,0 +1,611 @@
+{
+  "summary": "Gebzem icin Threads/Instagram tarzi tek bir yazi olcegi (type scale) belirle",
+  "agentCount": 11,
+  "logs": [
+    "Envanter: 334 kayit, 25 farkli boyut",
+    "Denetim: 31 bulgu"
+  ],
+  "result": {
+    "oneri": {
+      "olcek": [
+        {
+          "ad": "ekranBasligi",
+          "boyut": 20,
+          "kalinlik": "w700",
+          "satirYuksekligi": 1.25,
+          "kullanim": "Ekranin/sayfanin TEK kimlik basligi: AppBar basligi, kategori ekrani header'i, profil ad basligi, grup adi, 'Gebzem'. Ekran basina EN FAZLA BIR tane. ASLA ellipsis yok — tasarsa FittedBox(scaleDown) ile kuculur (turu 98c dersi)."
+        },
+        {
+          "ad": "baslik",
+          "boyut": 17,
+          "kalinlik": "w600 (kimlik) · w700 (bolum/sheet/sayi)",
+          "satirYuksekligi": 1.3,
+          "kullanim": "Gonderi/yorum yazar adi ve akis kartinin kimlik satiri (w600 — KULLANICI EMRI, korunuyor) · bolum basliklari ('Mutfaklar', 'Isletmeler (N)', 'KATEGORILER') · sheet/panel basliklari ('Paylas', 'Filtreleme', 'Konumun', 'Gonderi istatistikleri') · buyuk sayi vurgusu (profil sayaci, istatistik kutusu, fiyat) w700."
+        },
+        {
+          "ad": "govde",
+          "boyut": 15,
+          "kalinlik": "w400 (metin) · w600 (sayac/buton/liste adi)",
+          "satirYuksekligi": 1.4,
+          "kullanim": "Uygulamanin ANA OKUMA metni: gonderi aciklamasi (KULLANICI EMRI, korunuyor), mesaj balonu metni, AI sonuc metni · etkilesim sayaclari w600 (ikon murekkebiyle esit — KULLANICI EMRI, korunuyor) · birincil buton yazisi ('Listele', 'Bu konumu sec', 'Geri ara') · liste kartinda isletme adi w600 · ListTile title (tema bodyLarge)."
+        },
+        {
+          "ad": "etiket",
+          "boyut": 14,
+          "kalinlik": "w600 (etiket) · w400 (sikisik govde)",
+          "satirYuksekligi": 1.4,
+          "kullanim": "Izgara/kart alti etiket: kategori karti, kesif izgarasi hucresi, hizli erisim karti (14/w600 — KULLANICI EMRI, korunuyor; 2 satir butcesi zorunlu) · filtre panelindeki secenek cipleri w600 · yogun listede ikincil govde: yorum metni, bildirim govdesi, anket secenegi w400 (tema bodyMedium)."
+        },
+        {
+          "ad": "meta",
+          "boyut": 13,
+          "kalinlik": "w400 (bilgi) · w600 (cip/durum)",
+          "satirYuksekligi": 1.4,
+          "kullanim": "BILGI TASIYAN AMA CUMLE OLMAYAN her ikincil satir: zaman damgasi, gonderi meta satiri ('2 sa · duzenlendi'), kart meta satiri (puan · sure · min. tutar · Acik), ilce/adres, konum cipi, tum suzgec/bolum/hizli cipleri (w600), yardim ve ipucu metinleri, arama gecmisi alt satiri, sheet alt basliklari (tema bodySmall/labelMedium)."
+        },
+        {
+          "ad": "rozet",
+          "boyut": 11,
+          "kalinlik": "w700",
+          "satirYuksekligi": 1.45,
+          "kullanim": "MUTLAK TABAN — yalniz gorsel/kapsul UZERINDE duran mikro hap: 'CANLI'/'ODA' etiketi, izleyici sayisi, galeri sayaci/video suresi hapi, kampanya rozeti, harita bilgi hapi, 'Tukendi'/'Kaldirildi'. Cumle ICERMEZ, en fazla 2 kelime. 11'in ALTINA INILMEZ (Apple mutlak minimumu = iOS Caption2)."
+        }
+      ],
+      "esleme": [
+        {
+          "bugun": "8.5 (story_seridi 'CANLI'/'ODA' rozeti)",
+          "yeni": "rozet (11/w700)",
+          "etkilenenYerler": "story_seridi.dart:595. EN RISKLI TEK DEGISIKLIK: kapsulun altindaki hap %29 buyur. 8.5 hem Apple'in 11pt mutlak minimumunun hem Material labelSmall'un ALTINDA — erisilebilirlik hatasi, duzeltilmesi zorunlu. Kapsul genisligi hapa gore YENIDEN OLCULMELI (360 dp x 1.3)."
+        },
+        {
+          "bugun": "9 (story_seridi izleyici sayisi)",
+          "yeni": "rozet (11/w700)",
+          "etkilenenYerler": "story_seridi.dart:555. Ayni kapsul; sag ust sayi hapi. Sayi degistikce zipllamamasi icin FontFeature.tabularFigures ZORUNLU."
+        },
+        {
+          "bugun": "10 (demo_yorum 'Gonderi sahibi' rozeti)",
+          "yeni": "rozet (11/w700)",
+          "etkilenenYerler": "demo_yorum.dart:248. Rol zaten rozet, yalniz punto tabana cikiyor."
+        },
+        {
+          "bugun": "11 — ROL AYRIMI VAR",
+          "yeni": "rozet (11) kalir YALNIZ gorsel uzeri hap ise; geri kalan meta (13)",
+          "etkilenenYerler": "KALIR (11): gonderi_karti:1460 (galeri/video hapi), urun_ekranlari:189/194 ('Tukendi'/'Kaldirildi'). 13'E CIKAR: bildirimler:433 (zaman), yorumlar:313/336/374 (zaman, 'N begeni', 'Yanitla'), reels:408 (sag kenar etiket), profil_sayfasi:450/745/856 (sayac etiketi, izgara onizleme, kategori cipi), gonderi_karti:563 (istatistik etiketi), gonderi_olustur:910 (arac cubugu etiketi), chats_screen:292, chat_screen:630/1366, grup_olustur:233. Bu grup bugun rozet olmadigi halde rozet puntosunda ve TR'de okunmuyor."
+        },
+        {
+          "bugun": "11 (bolum basligi kucuk-caps, letterSpacing'li)",
+          "yeni": "meta (13/w600) + letterSpacing SILINIR + toUpperCase KALDIRILIR",
+          "etkilenenYerler": "isletme_duzenle.dart:435 ('CALISMA SAATLERI', ls:1) ve 482 ('KONUM', ls:0.6) — iki kardes ls degeri zaten TUTARSIZ; urun_ekranlari:147; grup_bilgi.dart:252 ('UYELER', ls:1). letterSpacing kullanici emriyle YASAK. toUpperCase Turkce'de 'i'->'I' bozar ve metni ~%12 genisletir."
+        },
+        {
+          "bugun": "11.5 — ROL AYRIMI VAR",
+          "yeni": "rozet (11) ise gorsel uzeri; degilse meta (13)",
+          "etkilenenYerler": "ROZET (11): isletme_kart:415 (kampanya rozeti, kapak uzeri), yakinimda:850 (harita bilgi hapi). META (13): yakinimda:597 (kategori · ilce · adres), isletme_duzenle:826 (yardim metni), anket.dart:437/519 ('Anket · coklu secim', 'N oy')."
+        },
+        {
+          "bugun": "12 (EN YAYGIN DEGER — 22 kullanim sosyal + onlarca digeri)",
+          "yeni": "meta (13)",
+          "etkilenenYerler": "gonderi_karti:679/716/817/1029/1379, gonderi_detay:137, demo_yorum:229, olustur_menusu:182, story_izleyici:412, profil_sayfasi:318/336, chats_screen:148/262/470/485/494, chat_screen:621/906/1046/1068, konum_secici:418, harita_pin:154, isletme_kart (izgara dalindaki `boy`), urun_ekranlari:351/753/809/1114, yakinimda:577/617, medya_video:497/512, iban_paneli:130, anket:531. TOPLU DEGISIM: metin ~%8 genisler; 360 dp x 1.3'te gonderi karti meta satiri ve kart meta satiri (puan · sure · min. tutar) YENIDEN OLCULMELI — ikisi de zaten FittedBox/Wrap korumali."
+        },
+        {
+          "bugun": "12.5",
+          "yeni": "meta (13)",
+          "etkilenenYerler": "chat_screen:1169 (arama kaydi alt satiri), 1474 (yapisal balon alt satiri), isletme_duzenle:495 (konum durum metni — dizindeki TEK 12.5)."
+        },
+        {
+          "bugun": "13",
+          "yeni": "meta (13) — DEGISMEZ",
+          "etkilenenYerler": "Olcegin en genis tabani; isletme kategori ekranindaki TUM cip seridi (isletme_listesi:2028/2085/2205), kart meta satiri (isletme_kart:559/591/602/609/619), alt kategori serit etiketi (1823) ve olcum stili (1704) ZATEN 13. Tek duzeltme: 1704'teki TextPainter w700 iken cizen kardesi w600 — olcum stili cizim stiliyle AYNI yapilir, tasma payi FittedBox'a birakilir."
+        },
+        {
+          "bugun": "13.5 (anket secenek metni)",
+          "yeni": "etiket (14)",
+          "etkilenenYerler": "anket.dart:492. Secenek bir CUMLEDIR, meta degil; sikisik govde kademesine cikar. w700/w400 kosullu kalinlik korunur."
+        },
+        {
+          "bugun": "14",
+          "yeni": "etiket (14) — DEGISMEZ",
+          "etkilenenYerler": "KULLANICI EMRI: kategori/hizli erisim kartlarinin alt yazisi 14/w600 (hizmet_menusu:564, isletme_listesi:1600) ve filtre secenek cipleri (isletme_filtre:443) AYNEN KALIR. Ayrica yorumlar:318 (yorum govdesi), bildirimler:430, gonderi_detay:207, isletme_listesi:2307 (izgara kart adi), yakinimda:563, harita_pin:145."
+        },
+        {
+          "bugun": "14.5",
+          "yeni": "govde (15)",
+          "etkilenenYerler": "chat_screen:1201 ('Geri ara' butonu) ve 1466 (yapisal balon basligi — konum/kisi/IBAN/etkinlik). Ikisi de birincil eylem/kimlik; buton dili 15/w600'e hizalanir."
+        },
+        {
+          "bugun": "15",
+          "yeni": "govde (15) — DEGISMEZ",
+          "etkilenenYerler": "KULLANICI EMRI: gonderi aciklamasi (gonderi_karti:730) ve etkilesim sayaclari (1648, w600) AYNEN KALIR. Ayrica demo_yorum:213/258, gonderi_detay:198, hizmet_menusu:718, isletme_listesi:1250 (arama input), anket:447, urun_ekranlari:1432."
+        },
+        {
+          "bugun": "15.5",
+          "yeni": "govde (15)",
+          "etkilenenYerler": "chat_screen:1358 (ANA MESAJ METNI) ve 1153 (arama kaydi basligi). Yarim puntolar olcegin disinda; mesaj metni akis metniyle AYNI okuma kademesine oturur."
+        },
+        {
+          "bugun": "16 — ROL AYRIMI VAR (olcekten CIKARILIYOR)",
+          "yeni": "sheet/panel basligi -> baslik (17/w700); ad ve birincil buton -> govde (15/w600)",
+          "etkilenenYerler": "17'YE CIKAR: gonderi_karti:1699 ('Begenenler'), gonderi_olustur:261 ('Ses kaydi'), paylas_sheet:125 ('Paylas'), story_izleyici:247, story_editor:139, moderasyon_sheet:115/177, gonderi_menusu:242/281 (menu maddesi). 15'E INER: isletme_kart:229 (liste kartinda isletme adi — kullanicinin turu 96g'deki 'kart basliklari 1px kucuk' emri AYNI YONDE surdurulur), isletme_filtre:502/522 ('Listele'/'Temizle'), harita_pin:180 ('Bu konumu sec'), konum_secici:411 (ListTile title). GEREKCE: bugun sheet basliklari 16 ile 17 arasinda gidip geliyor ('Begenenler' 16 vs 'Gonderi istatistikleri' 17) — ayni rolun iki puntosu kaldirilir."
+        },
+        {
+          "bugun": "17",
+          "yeni": "baslik (17) — DEGISMEZ",
+          "etkilenenYerler": "KULLANICI EMRI: gonderi_karti:663 (yazar adi 17/w600) AYNEN KALIR. Ayrica akis_ekrani:459/468 (bolme secici; gorunmez olcu kopyasi ile gorunen kopya BIRLIKTE), gonderi_karti:365/499, gonderi_detay:132, olustur_menusu:79, story_izleyici:448, profil_sayfasi:446 (sayac degeri), isletme_listesi:848/2350, isletme_filtre:355/396, konum_secici:367, chat_screen:613. NOT: isletme_filtre/konum_secici'deki w800 -> w700'e iner (tek vurgulu kalinlik)."
+        },
+        {
+          "bugun": "18",
+          "yeni": "ekranBasligi (20)",
+          "etkilenenYerler": "gonderi_olustur:653 ('Yeni gonderi'/'Yeni Reels'), isletme_listesi:1091 (kategori ekrani header'i). RISK: 'Dugun / Organizasyon' gibi uzun TR basliklar 360 dp x 1.3'te tasabilir -> header'a FittedBox(scaleDown) ZORUNLU, ellipsis DEGIL (baslik kesilmez)."
+        },
+        {
+          "bugun": "19",
+          "yeni": "profil ad basligi -> ekranBasligi (20); istatistik sayisi -> baslik (17/w700)",
+          "etkilenenYerler": "profil_basligi:178 (ad, ekranin kimligi -> 20), gonderi_karti:559 (istatistik kutusundaki buyuk sayi -> 17 + tabularFigures)."
+        },
+        {
+          "bugun": "20",
+          "yeni": "ekranBasligi (20) — DEGISMEZ",
+          "etkilenenYerler": "hizmet_menusu:409 ('Gebzem'; w800 -> w700), grup_bilgi:226 (grup adi)."
+        },
+        {
+          "bugun": "fontSize YOK (tema varsayilanina dusen ~50 blok)",
+          "yeni": "theme.dart textTheme'i olcekten kurulur: titleLarge 20 · titleMedium 17 · titleSmall 15 · bodyLarge 15 · bodyMedium 14 · bodySmall 13 · labelLarge 15 · labelMedium 13 · labelSmall 11",
+          "etkilenenYerler": "Bugun GORUNMEZ ucuncu grup: bos/hata metinleri (kesfet, kaydedilenler, takip_listesi, reels, favorilerim, urun_ekranlari), dialog dugmeleri ('Sil'/'Cik'/'Kaldir'), ListTile title/subtitle'lar, ve KALINLIK verip boyut vermeyen 6 nokta (olustur_menusu:181, profil_sayfasi:361, gonderi_olustur:742/1017, reels:310, story_izleyici:402 — ad/baslik rolunde olduklari halde bugun 14'e dusuyorlar, artik 15'e oturur). TEK DOSYA degisikligiyle ~50 cagri yeri hizalanir. DIKKAT: bodyLarge 16 -> 15 tum uygulamayi (auth, ayarlar, randevu) etkiler."
+        },
+        {
+          "bugun": "12 / 13 DEGISKEN (`boy = kompakt ? 12.0 : 13.0`)",
+          "yeni": "meta (13) — TEK DEGER",
+          "etkilenenYerler": "isletme_kart.dart:438 + 451/462/559. Ayni widget bugun liste dalinda 13, izgara dalinda 12 ciziyor. Degisken KALDIRILIR; izgara meta satiri dar oldugu icin punto dusurmek yerine maxLines/Wrap ile cozulur (punto dusurmek son caredir)."
+        },
+        {
+          "bugun": "26 (story_editor buyuk 'A' · beklemede_katmani avatar harfi)",
+          "yeni": "MUAF — olcege girmez",
+          "etkilenenYerler": "story_editor:470 ve 461 (kucuk 'A') bir OLCEK GOSTERGESIDIR, metin degil; beklemede_katmani:91 avatar dairesindeki bas harf DEKORATIF grafiktir. Ikisi de ikon davranisi gosterir, tokenlara baglanmaz — muhafiz beyaz listesine yazilir."
+        },
+        {
+          "bugun": "28 dinamik (story_katman: k.boyut * olcek, kaydirac 12-72, 6 font varyanti)",
+          "yeni": "MUAF — KULLANICI ICERIGI",
+          "etkilenenYerler": "story_katman.dart:110-155. Punto kullanicinin kendi sectigi degerdir (arayuz tipografisi degil, tuval icerigi). Muhafiz beyaz listesine yazilir; w200/w300 ince agirliklar burada MESRU (kullanici secimi), arayuzde YASAK."
+        }
+      ],
+      "gerekce": "SORUN: bugun 14+ farkli punto var ve bunlarin cogu AYNI ISI yapiyor — 11-12-13-14-15 bandinda BES deger ayni ikincil metin icin, 16-17-18-19-20 bandinda BES deger ayni baslik icin kullaniliyor. Ayrica gorunmez bir ucuncu grup daha var: ~50 blok hic fontSize vermeyip temaya dusuyor ve kardeslerinden sessizce ayrisiyor (gonderi_karti'nda yazar adi 17/w600 iken reels'te ve story'de ayni rol 14'e dusuyor). Ayni rolun iki dosyada iki puntosu olmasi (yorum govdesi: gercek listede 14, demo listede 15) bir tasarim karari degil, birikmis drift.\n\nCOZUM — 6 KADEME (tavan 7): 20 / 17 / 15 / 14 / 13 / 11. Kademeler arasi fark PUNTOYLA DEGIL, once KALINLIK sonra RENK ile buyutulur (Apple'in Headline-Body deseni: ayni punto, farkli agirlik; Threads'in kullanici adi-gonderi metni deseni de bu). Yeni punto icat etmek yasaktir; sigmayan metin icin sira: (1) satir sayisini artir, (2) alani genislet, (3) metni kisalt, (4) ancak sonra punto dusur.\n\nKULLANICI EMIRLERI DEGISTIRILMEDI, OLCEGIN OMURGASI YAPILDI: 17 (ad) · 15 (aciklama + sayac) · 14/w600 (kategori karti) dordu de tokenlarin taniminin ta kendisi. Yani olcek disaridan dayatilmadi, kullanicinin zaten onayladigi akis kartindan TURETILDI; geri kalan yuzeyler ona hizalandi. Tek yon degisikligi 16 puntosunun kaldirilmasi: sheet basliklari bugun 16 ile 17 arasinda gidip geliyor ve isletme kart adi 16 iken akis kart adi 17 — ayni rol, iki deger. Baslik rolu 17'de toplandi, isletme kart adi 15/w600'e indi (kullanicinin \"kart basliklari 1px kucuk\" emriyle AYNI YONDE).\n\nBIR KADEME BILINCLI OLARAK OLDURULDU: bugunun en yaygin degeri olan 12 (tek basina 22 kullanim) meta kademesine (13) tasindi. Gerekce Turkce: TR arayuz dizeleri Ingilizce muadilinden %20-50 uzun ve kisa etiketlerde %100'e cikiyor; 12'de hem okunmuyor hem zaten tasiyor — punto dusurerek sigdirmak bu dilde calismiyor. Ayni sebeple 8.5/9/10 gibi Apple'in 11pt mutlak minimumunun ALTINDAKI degerler tabana cekildi (bunlar erisilebilirlik hatasiydi, tasarim tercihi degil).\n\nSATIR YUKSEKLIGI ORANDAN TURETILIR (govde 1.40, baslik 1.25) ve 1.2'nin ALTINA INILMEZ: Turkce'de g/s/c alt cikintilariyla G/I ust isaretleri ardisik satirlarda CAKISIR — Latin-Ingilizce'de olmayan bir sorundur. letterSpacing HICBIR TOKENDA YAZILMAZ (kullanici emri); kendi TextTheme'imizi kurdugumuz icin M3'un tracking degerleri de zaten devreye girmez, ayrica bugunku uc letterSpacing kullanimi (0.6 / 1 / 1) silinir. Sayilarda FontFeature.tabularFigures ZORUNLU (sayac 99->100 olurken satir zipllamasin).\n\nMUAFLAR GEREKCESIYLE YAZILI: story_katman'in dinamik 12-72 ailesi KULLANICI ICERIGIDIR (arayuz degil); story_editor'un 13/26 'A' cifti bir olcek gostergesidir; beklemede_katmani'nin 26'lik avatar harfi dekoratif grafiktir. Ucu de muhafiz beyaz listesine gerekcesiyle yazilir — aksi halde bir sonraki tur bunlari \"drift\" sanip tokenlara baglar ve ozelligi bozar.",
+      "uygulamaPlani": [
+        "ADIM 1 — TEK KAYNAK: `mobile/lib/core/yazi.dart` olustur. Alti kademe TextStyle uretici olarak yazilir (`Yazi.ekranBasligi`, `.baslik`, `.govde`, `.etiket`, `.meta`, `.rozet`), her biri opsiyonel `kalinlik` ve `renk` alir; `letterSpacing` HICBIRINDE YAZILMAZ; sayi tasiyan varyantlar `FontFeature.tabularFigures()` icerir. Dosyanin basina serh: 'punto degistirmek ISTENIYORSA yalniz burasi degisir; cagri yerlerine ham fontSize YAZILMAZ'. Bu adim hicbir ekrani degistirmez (henuz kimse import etmiyor) — tek basina derlenir ve push edilir.",
+        "ADIM 2 — TEMA: `mobile/lib/core/theme.dart` icindeki `_tema()`ya `textTheme` eklenir ve TOKENLARDAN kurulur (titleLarge 20 · titleMedium 17 · titleSmall 15 · bodyLarge 15 · bodyMedium 14 · bodySmall 13 · labelLarge 15 · labelMedium 13 · labelSmall 11). Bu TEK dosya degisikligi, bugun fontSize vermeyen ~50 blogu (bos/hata metinleri, dialog dugmeleri, ListTile title/subtitle, kalinlik verip boyut vermeyen 6 nokta) hizalar. DIKKAT: `bodyLarge` 16 -> 15 tum uygulamayi etkiler (auth, ayarlar, randevu, kanal) — bu adimdan sonra o ekranlar da 360 dp x 1.3'te gezilir.",
+        "ADIM 3 — MUHAFIZ: `mobile/test/yazi_olcegi_test.dart`. (a) `lib/` altindaki her `fontSize:` gecisini tarar ve yalniz beyaz listedekilere izin verir (story_katman dinamik ailesi · story_editor 13/26 'A' cifti · beklemede_katmani 26 avatar harfi · yazi.dart'in kendisi); (b) tokenlarin puntolarinin {20,17,15,14,13,11} kumesine esit oldugunu ve HICBIRINDE letterSpacing OLMADIGINI dogrular. Yorum satirlarindaki `fontSize` gecisleri (isletme_listesi:1693, isletme_kart:507) YANLIS ALARM URETMESIN diye kaynak once YORUMLARDAN TEMIZLENIR (turu 83/86/89 tuzagi). Test yazildiktan sonra BOZULARAK kirmiziya dusuruldugu KANITLANIR: (i) rastgele bir dosyaya `fontSize: 12` eklenir, (ii) bir tokena letterSpacing yazilir.",
+        "ADIM 4 — AKIS KARTI (`features/sosyal/gonderi_karti.dart` + `akis_ekrani.dart` + `demo_yorum.dart`): kullanici emirleri (17 ad · 15 aciklama · 15 sayac) TOKEN olarak yeniden yazilir — deger DEGISMEZ, kaynak degisir. 12'ler -> meta(13), 11 istatistik etiketi -> meta(13), 11 medya hapi -> rozet(11), 19 istatistik sayisi -> baslik(17)+tabularFigures, 16 'Begenenler' -> baslik(17). Bolme secicideki GORUNMEZ olcu kopyasi (akis_ekrani:459) ile gorunen kopya (468) AYNI adimda ve AYNI tokenla degisir — ayrisirlarsa sekme genisligi bozulur. RISK: meta satiri 12->13 ile ~%8 genisler; satirdaki `FittedBox(scaleDown)` korumasi (turu 98c) YERINDE BIRAKILIR.",
+        "ADIM 5 — SOSYAL GERI KALANI (`yorumlar_sayfasi` · `bildirimler_sayfasi` · `profil_sayfasi` · `profil_basligi` · `reels_sayfasi` · `story_izleyici` · `story_seridi` · `gonderi_detay` · `gonderi_olustur` · `gonderi_menusu` · `olustur_menusu` · `paylas_sheet` · `hizmet_menusu` · `medya_video`): ayni rolun ayrisan kopyalari BIRLESTIRILIR — yorum yazar adi 13/15 -> baslik(17/w600) yerine govde(15/w600), yorum govdesi 14/15 -> etiket(14), yorum zamani 11/12 -> meta(13). story_seridi'nin 8.5/9 rozetleri rozet(11)'e cikar; kapsul genisligi ve iki kisilik dizilim YENIDEN OLCULUR (bu turun EN RISKLI degisikligi — tek basina push edilip emulatorde bakilir). profil_basligi 19 -> ekranBasligi(20). hizmet_menusu 20/w800 -> ekranBasligi(20/w700), kategori karti 14/w600 DOKUNULMAZ.",
+        "ADIM 6 — ISLETME/KATEGORI (`isletme_listesi` · `isletme_kart` · `isletme_filtre` · `konum_secici` · `harita_pin` · `yakinimda_ekrani` · `favorilerim_ekrani` · `isletme_duzenle` · `urun_ekranlari`): header 18 -> ekranBasligi(20) + FittedBox(scaleDown) (ellipsis DEGIL — baslik kesilmez); kart adi 16 -> govde(15/w600); butonlar 16 -> govde(15/w600); panel basliklari 17/w800 -> baslik(17/w700); `boy = kompakt ? 12.0 : 13.0` degiskeni KALDIRILIR -> meta(13); alt kategori seridindeki TextPainter olcum stili (1704) cizen kardesiyle (1823) AYNI tokena baglanir; 11'lik kucuk-caps bolum basliklari -> meta(13/w600), letterSpacing ve toUpperCase SILINIR; 11.5 ve 12.5 tekil degerleri olcege oturur.",
+        "ADIM 7 — SOHBET/ARAMA (`features/chats/*` + `features/calls/*`): 15.5 mesaj metni -> govde(15); 14.5 'Geri ara' ve yapisal balon basligi -> govde(15); 13.5 anket secenegi -> etiket(14); 12/12.5 meta ailesi -> meta(13); 11 balon saati ve avatar-alti adlar -> meta(13); grup adi 20 -> ekranBasligi(20); 'UYELER' letterSpacing SILINIR. beklemede_katmani'ndaki 26'lik avatar harfi ve 13'luk durum rozeti MUAF/rozet olarak isaretlenir. Arama ekranlari ses/PiP mantigi TASIYAN dosyalar oldugu icin bu adimda YALNIZ TextStyle satirlarina dokunulur — baska hicbir satir degismez.",
+        "ADIM 8 — OLCUM TURU (kod degisikligi yok): emulatorde 360 dp genislik ve yazi olcegi 1.0 / 1.3 ile TUM ekranlar gezilir. Oncelikli bes nokta: (a) story_seridi kapsulu (8.5 -> 11), (b) gonderi karti meta + etkilesim satiri (12 -> 13), (c) kategori ekrani header'i uzun TR basligla ('Dugun / Organizasyon'), (d) isletme kart meta satiri (puan · sure · min. tutar · Acik), (e) filtre paneli butonlari ('Listele'/'Temizle'). Prova GERCEK TR verisiyle yapilir, lorem ipsum ile DEGIL. Tasma cikarsa punto DUSURULMEZ; once maxLines artirilir, sonra dolgu azaltilir, en son FittedBox(scaleDown) eklenir. Ardindan `flutter analyze` (0/0) + `flutter test` (yeni muhafiz dahil) + commit/push."
+      ]
+    },
+    "bulgular": [
+      {
+        "sorun": "Kategori ekrani basligi 18 -> 20 BINDIRMEYI %50 ARTIRIR, onerilen FittedBox caresi bu cagri yerinde YAPISAL OLARAK ETKISIZDIR. Baslik bir `Stack` icinde `Center` ile ciziliyor; sol konum dugmesi (`ConstrainedBox maxWidth: ekran*0.32` = 115.2 dp) ve sag kalp (44 dp) AYRI `Align` katmanlaridir, yani basligi ITMEZLER — UZERINE BINERLER. Header ic genisligi = 360 - (16-1.6) - (16-10-0.8) = 340.4 dp; carpismasiz baslik genisligi = 340.4 - 2*115.2 = 110.0 dp. Pakelenmis GoogleSans-700.ttf'ten olculdu (upem 1000): \"Guzellik Merkezi\" = 7.879 em, \"Akaryakit & Oto\" = 7.611 em. -> 18 pt: 141.8 dp (BUGUN yanda 15.9 dp bindiriyor) · 20 pt: 157.6 dp (23.8 dp/yan) · 20 pt x 1.3 = 26 pt: 204.9 dp (47.4 dp/yan; baslik solda \"Konum sec\" yazisinin 40 dp'sinin UZERINE oturur). `Center` cocuguna `loose(340.4)` verir; `FittedBox(scaleDown)` ancak cocuk 340.4'u ASINCA kuculur, yani ~2.16 yazi olceginden ONCE HIC DEVREYE GIRMEZ. Bindirme bir RenderFlex tasmasi olmadigi icin sari-siyah serit de CIKMAZ — `flutter analyze` ve emulator tasma uyarisi bunu GORMEZ.",
+        "nerede": "mobile/lib/features/isletme/isletme_listesi.dart:1081-1094 (Stack+Center, fontSize 18) · :1144-1147 (konum dugmesi 0.32 tavani) · :152-158 (kHeaderPay/kNavOptik/kKalpOptik) · oneri: esleme \"18\" satiri + uygulamaPlani ADIM 6",
+        "oneri": "Ya baslik 18'de KALSIN, ya da once yerlesim duzeltilsin: basligi `Center` yerine `Positioned(left: 115.2 + 8, right: 44 + 8)` ile REZERVLI bir kutuya al; FittedBox ancak O kutuya baglandiginda is gorur. Kabul olcutu \"tasma yok\" degil, \"baslik sol/sag dugmelerin dokunma kutusuna GIRMIYOR\" olmali."
+      },
+      {
+        "sorun": "Etkilesim cubugundaki `FittedBox(scaleDown)` OLCUSUZ BIR PUNTO DUSURMEDIR ve onerinin kendi 11 pt \"MUTLAK TABAN\" kuralini bugun bile ihlal ediyor; ADIM 8 bunu resmi care ilan ederek kurumsallastiriyor. Olcum (360 dp): `Expanded` genisligi = 360 - 10 (sol dolgu) - 6 (sag dolgu) - 36 (kaydet ikonu) = 308 dp. Her `_eylem` tabani 5+26+5 = 36 dp; sayili olanlara +6 + metin. Sayac 15/w600, GoogleSans-600'den \"1,3 bin\" = 2.977 em -> 44.7 dp, \"999\" = 1.713 em -> 25.7 dp. YAZARIN KENDI GONDERISI (5 eylem, 5 sayac) ve sayaclar 1000+ ise icerik = 5*36 + 5*(6+44.7) = 433.5 dp -> olcek 308/433.5 = 0.711 -> sayac 15 pt yerine 10.7 pt, ikon 26 dp yerine 18.5 dp cizilir. Yazi olcegi 1.3'te (sayac 54 tavanina dayandigi icin) icerik 480 dp -> olcek 0.642 -> ikon 16.7 dp. Yani erisilebilirlik ayarini acan kullanicida bu satir HIC BUYUMEZ, sadece IKONLAR KUCULUR: FittedBox olcegi tam olarak textScaler'i geri aliyor.",
+        "nerede": "mobile/lib/features/sosyal/gonderi_karti.dart:916-994 (Expanded+FittedBox, :919) · :1547-1558 (_eylem dolgu/ikon kutusu) · :1649 (sayac fontSize 15) · oneri: gerekce (\"11'in ALTINA INILMEZ\") + uygulamaPlani ADIM 8 (\"en son FittedBox(scaleDown) eklenir\")",
+        "oneri": "ADIM 8'in siralamasindan `FittedBox`i CIKAR ya da ona bir ALT SINIR ver (or. `minScale` mantigi: olcek 0.85'in altina inecekse bunun yerine sayac gizlensin/kisaltilsin). Aksi halde \"11 pt taban\" bir kural degil, yalnizca kod okurken dogru gorunen bir cumledir."
+      },
+      {
+        "sorun": "Sayac genislik tavani `BoxConstraints(maxWidth: 54)` SABIT dp'dir, yazi olceginden HABERSIZDIR; kod serhi \"tasma korumasini FittedBox yapiyor\" diyor ama `FittedBox` cocugunu SINIRSIZ kisitla olcer ve ICERIDEKI `ConstrainedBox`i ETKILEMEZ. Sonuc: \"1,3 bin\" w600 = 2.977 em -> 15 pt'de 44.7 dp (tavan altinda), ama yazi olcegi 54/(2.977*15) = **1.209**'u gectigi anda 54 dp'yi asar ve sayac ellipsis'e duser: 1.3'te 58.1 dp -> ekranda \"1,3 b...\", 2.0'da 89.4 dp -> \"1,3...\". Yani en cok begeni alan gonderilerde sayi zaten OKUNAMIYOR ve oneri bu satiri \"15 — DEGISMEZ\" diye gecerek dokunmuyor.",
+        "nerede": "mobile/lib/features/sosyal/gonderi_karti.dart:1615 (`maxWidth: 54`) ve :1612-1614 serhi · sayac stili :1644-1651 · oneri: esleme \"15\" satiri",
+        "oneri": "Tavani yazi olceginden turet: `MediaQuery.textScalerOf(context).scale(54)` (ya da metin genisligini `TextPainter` ile olcup tavani ondan uret — isletme_listesi.dart:1687-1710 bu deseni zaten dogru uyguluyor). Turu 82'nin sabit-butce dersi burada TEKRARLANMIS durumda."
+      },
+      {
+        "sorun": "Izgara (kompakt) isletme kartinin dikey butcesi `childAspectRatio: 0.86` ile SABITLENMIS ve textScaler'dan TURETILMIYOR; kompakt meta puntosunu 12 -> 13 yapmak kalan payi yiyor. Olcum (360 dp): hucre genisligi = (360 - 32 - 12)/2 = 158 dp, hucre yuksekligi = 158/0.86 = 183.72 dp. Sabit tuketim: kapak 16:9 = 88.88 + 7 + ad satiri (14 pt, acik `height` YOK -> GoogleSans satir carpani 1.252 = 17.53) + 2 = 115.4 -> Wrap'e kalan 68.3 dp. Yazi olcegi 1.3'te ad satiri 22.79'a cikar ve meta satirlari 3 satira sarar: BUGUN (12 pt) 3*19.53+6 = 64.6 -> toplam 185.3 (**1.6 dp tasma, zaten var**); ONERIYLE (13 pt) 3*21.16+6 = 69.5 -> toplam 190.2 (**6.5 dp tasma, 4 kat**). Yazi olcegi 2.0'da bugun bile ~60 dp tasiyor. `_izgaraKarti` bir `Column`dur, hicbir cocugu `Expanded`/`Flexible` degil, yani sonuc dogrudan sari-siyah RenderFlex seridi. (Tasma puan+teslimat+min tutar+mesafe DORDU birden doluyken olusur.)",
+        "nerede": "mobile/lib/features/isletme/isletme_listesi.dart:971 (childAspectRatio 0.86) · :2267-2322 (_izgaraKarti Column) · mobile/lib/features/isletme/isletme_kart.dart:438 (`boy = kompakt ? 12.0 : 13.0`) ve :493-500 (Wrap) · oneri: esleme \"12 / 13 DEGISKEN\" satiri",
+        "oneri": "Onerinin \"punto dusurmek yerine maxLines/Wrap ile cozulur\" cumlesi bu vakayi COZMEZ — `Wrap` ZATEN var ve sorun YATAY degil DIKEY. `childAspectRatio` birakilip `mainAxisExtent` textScaler'dan turetilmeli; proje bu deseni zaten iki yerde dogru yaziyor (hizmet_menusu.dart:380 ve isletme_listesi.dart:1590: `MediaQuery.textScalerOf(context).scale(14)*1.15*2`)."
+      },
+      {
+        "sorun": "Oneri story_seridi'ni ARTIK VAR OLMAYAN bir widget uzerinden denetliyor: \"kapsul\", \"iki kisilik dizilim\", \"kapsulun altindaki hap\" turu 98k'da KULLANICI EMRIYLE KALDIRILDI (dosyada acik yasak: \"YAPMA: kapsul/ikinci avatar geri getirme\"). Bugun oge duz bir dairedir ve rozetler `Stack(clipBehavior: Clip.none)` icinde `Positioned`dir. Dolayisiyla ADIM 5'in \"kapsul genisligi ve iki kisilik dizilim YENIDEN OLCULUR\" gorevi bos is, GERCEK RISK ise olculmemis kaliyor: serit yuksekligi `kHalkaCap + 13 + kDikey*2` = 65+13+8 = **86 dp SABIT** ve textScaler'dan TURETILMIYOR (kod serhi tam da bu formulun daha once IKI KEZ tastigini anlatiyor). rozet token'i (11/w700/height 1.45) uygulanirsa 'CANLI' hapi = 4 (dolgu) + 4 (kenarlik) + 11*1.45 = **23.95 dp** olur (bugun 8.5*1.1 ile 18.0 dp): +33%. `bottom: -6` ile 65 dp'lik avatarin alt 18 dp'sini orter; yazi olcegi 1.3'te hap 28.7 dp, 2.0'da 39.9 dp (avatarin %61'i) ve serit 86 dp'yi astigi icin `ListView` kirpar. Genislikte de: 'CANLI' w700 = 3.052 em -> 11 pt'de hap 62.6 dp; `Positioned(left:0,right:0)` Stack genisligini 78 dp'ye sabitledigi icin yazi olcegi 2.0'da hap 96 dp isteyip metni SATIR KIRAR (\"CANL/I\").",
+        "nerede": "mobile/lib/features/sosyal/story_seridi.dart:505-513 (kapsul kaldirildi, yasak serhi) · :352 (`height: kHalkaCap + 13 + kDikey*2`) · :555-558 (izleyici 9/height 1.1) · :595-598 ('CANLI' 8.5/height 1.1) · oneri: esleme \"8.5\"/\"9\" satirlari + ADIM 5",
+        "oneri": "8.5 -> 11 karari (erisilebilirlik) DOGRU ama olculecek boyut KAPSUL GENISLIGI degil SERIT YUKSEKLIGI. `kHalkaCap + 13 + kDikey*2` formulune rozet yuksekligi `MediaQuery.textScalerOf(context).scale(11)*<satirYuksekligi> + 8` olarak EKLENMELI; ayrica rozet token'inin height'i bu iki cagri yerinde 1.1'de birakilmali (asagidaki bulguya bak)."
+      },
+      {
+        "sorun": "rozet token'inin `satirYuksekligi: 1.45` degeri, tablonun \"KALIR / DEGISMEZ\" dedigi cagri yerlerini SESSIZCE degistiriyor. Uc noktada bugun ACIKCA `height: 1.1` yaziyor (story_seridi:558 ve :598) ve bir noktada kalinlik `w400` (gonderi_karti:1452 `_rozet`, galeri/video hapi). Token uygulanirsa: satir kutusu +32% (11*1.1 = 12.1 -> 11*1.45 = 15.95, hap yuksekligi 18.1 -> 21.95) ve galeri hapi w400 -> w700 KALINLASIR. Ayrica 1.45, projenin kendi yazi tipi metrigiyle celisiyor: GoogleSans'in dogal satir carpani (asc 966, desc -286, gap 0) **1.252**'dir; 1.45 bir hap icinde %16 olu dikey bosluk demektir.",
+        "nerede": "mobile/lib/features/sosyal/story_seridi.dart:558, :598 · mobile/lib/features/sosyal/gonderi_karti.dart:1452-1462 (`_rozet`, fontSize 11, kalinlik yok) · oneri: olcek[\"rozet\"] + esleme \"11 — ROL AYRIMI VAR\" satiri",
+        "oneri": "rozet icin satirYuksekligi 1.45 -> 1.15-1.20 (hap zaten dikey dolgu tasiyor) ve kalinlik ZORUNLU degil OPSIYONEL olsun; \"DEGISMEZ\" yazan her satir icin degisen sey punto DEGIL ama kutu boyu/kalinlik oldugu tabloda ACIKCA yazilmali."
+      },
+      {
+        "sorun": "Esleme tablosu EKSIK ve ADIM 3'un beyaz-listeli muhafizi ilk kosuda KIRMIZI verir. `lib/` altinda gercek dagilim: 8.5(1) 9(2) 10(5) 11(40) 11.5(10) 12(83) 12.5(5) 13(52) 13.5(1) 14(20) 14.5(4) 15(24) 15.5(2) 16(46) 17(20) 18(6) 19(5) 20(5) 21(1) 22(2) 24(2) 26(7) 28(1) 30(3) 40(1) 44(1) 96(1) 140(1) = 363 cagri yeri. Oneride **21, 22, 24, 30, 40, 44, 96, 140 icin HIC SATIR YOK** (12 cagri yeri) ve bunlarin cogu tam da onerinin MUAF ilan ettigi sinif (emoji/glif/geri sayim): live_widgets.dart:177 (emoji 96), live_start_screen.dart:276 (geri sayim 140), incoming_call_overlay.dart:486 (avatar harfi 44), diyet_ekranlari.dart:219 (40), live_gift_sheet.dart:95 (hediye emojisi 30), call_screen.dart:1252 (30), onboarding_ekrani.dart:400 (30), kayit_akisi.dart:384 (24), call_screen.dart:438 (24), active_call_banner.dart:354 (22), ilan_ekranlari.dart:712 (22), etkinlik_ekranlari.dart:635 (21). Ayrica \"10\" satiri BES cagri yerinden YALNIZ BIRINI (demo_yorum:248) kapsiyor; kullanicinin denetlenmesini istedigi ALT MENU tam da unutulanlardan (alt_menu.dart:556, rozet sayaci fontSize 10) — digerleri live_tab.dart:180 ve active_call_banner.dart:280/285. \"11\" satiri 40 cagri yerinin ~15'ini, \"16\" satiri 46 cagri yerinin ~12'sini listeliyor.",
+        "nerede": "Sayim: `grep -rhoE \"fontSize:\\s*[0-9.]+\" mobile/lib --include=*.dart | sort -g | uniq -c` · oneri: esleme dizisi + uygulamaPlani ADIM 3",
+        "oneri": "Muhafizi yazmadan ONCE envanteri tam cikar; MUAF beyaz listesi story_katman/story_editor/beklemede_katmani ile SINIRLI birakilamaz — yukaridaki 12 cagri yerinin her biri icin \"muaf mi, hangi tokena gidiyor mu\" karari GEREKCESIYLE tabloya yazilmali. Aksi halde ADIM 3 ya kirmizi kalir ya da beyaz liste sisip muhafizi anlamsizlastirir."
+      },
+      {
+        "sorun": "ADIM 2 bir \"hizalama\" degil, tema slotlarinin CogunU BUYUTEN bir degisiklik ve oneri bunlardan yalniz BIRINI risk olarak isaretliyor. Material 3 varsayilanlariyla karsilastirma: bodySmall 12 -> **13** (+%8), labelMedium 12 -> **13** (+%8), labelLarge 14 -> **15** (+%7, bu slot TUM `TextButton`/`ElevatedButton`/`FilledButton`/`OutlinedButton` etiketlerini ve `AlertDialog` eylem satirlarini besler), titleMedium 16 -> **17** (+%6), titleSmall 14 -> **15** (+%7); yalniz bodyLarge 16 -> 15 KUCULUYOR ve oneride SADECE o \"DIKKAT\" ile isaretlenmis. Yani \"fontSize vermeyen ~50 blok\" hizalanmiyor, cogunlukla BUYUYOR — ve bu bloklarin hangi ekranlarda oldugu tabloda tek tek yazili DEGIL, dolayisiyla 360 dp'de nerede tastigi da bilinmiyor.",
+        "nerede": "mobile/lib/core/theme.dart:70-120 (`_tema()` bugun `textTheme` HIC TANIMLAMIYOR — dogrulandi) · oneri: esleme \"fontSize YOK\" satiri + uygulamaPlani ADIM 2",
+        "oneri": "ADIM 2'yi \"hizalama\" diye degil \"tema capinda buyutme\" diye yaz ve BUYUYEN bes slotu tek tek risk listesine koy. En azindan `labelLarge`i 14'te birak (buton etiketi zaten `govde` tokeniyla acikca verilebiliyor); boylece tum uygulamanin buton dili adim adim degil, bilerek degisir."
+      },
+      {
+        "sorun": "letterSpacing envanteri yanlis ve kuralin harfiyen uygulanmasi OTP GIRISINI BOZAR. Oneri \"bugunku uc letterSpacing kullanimi (0.6 / 1 / 1) silinir\" diyor; `lib/` altinda **13** kullanim var. Ikisi FONKSIYONEL: kayit_akisi.dart:385 (`letterSpacing: 8`) ve otp_screen.dart:96 (`fontSize: 28, letterSpacing: 12`) — alti haneli dogrulama kodunu haneler halinde ayiran alanlar; \"letterSpacing HICBIR YERDE YAZILMAZ\" kurali bunlara uygulanirsa kod alani bitisik rakam yigini olur. Haritada olmayan digerleri: ayarlar_ekrani.dart:215 (1.1), ilan_ekranlari.dart:1339 (1), talep_ekranlari.dart:125 (1.1) ve story_katman.dart:113/121/138/150 (kullanici icerigi, muaf olmali).",
+        "nerede": "`grep -rn letterSpacing mobile/lib --include=*.dart` = 13 sonuc · oneri: gerekce (\"bugunku uc letterSpacing kullanimi\") + esleme \"11 (bolum basligi kucuk-caps)\" satiri + ADIM 3 muhafizi",
+        "oneri": "Kurali \"TOKENLARDA letterSpacing yazilmaz\" olarak DARALT (zaten oneride boyle formule edilmis, ama gerekce metni ve ADIM 6 \"letterSpacing ve toUpperCase SILINIR\" diye genel konusuyor). OTP alanlarini ve story_katman'i muhafizin beyaz listesine GEREKCESIYLE yaz."
+      },
+      {
+        "sorun": "Gonderi karti baslik satirinda zaman damgasi `Row`un ESNEK OLMAYAN cocugu ve ne `maxLines` ne `overflow` tasiyor; 12 -> 13 tasma esigini %8 ONE CEKIYOR. Olcum (360 dp): baslik dolgusu 16 sol / 8 sag -> Row 336; avatar 38 + ara 10 + `IconButton` 40 -> `Expanded` kolon = 248 dp; ad ile zaman arasinda 6 dp -> zaman icin tavan 242 dp. GoogleSans-400'den \"12 Agu · duzenlendi\" = 8.613 em. Tasma esigi 242/8.613 = **28.1 pt** -> bugun (12 pt) yazi olcegi 2.34'te, oneriyle (13 pt) **2.16**'da RenderFlex tasmasi. Uygulamada global bir textScaler clamp'i YOK (main.dart / router.dart / core/ altinda `MediaQuery(textScaler:)` override'i bulunamadi), yani iOS erisilebilirlik boylari bu esigi asabilir. Tasmadan once de kayip var: yazi olcegi 2.0'da yazar adina kalan genislik 12 pt'de 35.3 dp iken 13 pt'de **18.0 dp**'ye iner — ad tek glif + \"...\" olur, yani gonderinin kimi paylastigi OKUNAMAZ.",
+        "nerede": "mobile/lib/features/sosyal/gonderi_karti.dart:669-686 (Text(zaman), fontSize 12, Flexible YOK) · :36-42 (kBaslikYanDolgu/kBaslikAra/kAvatarCap) · oneri: esleme \"12\" satiri + ADIM 4",
+        "oneri": "12 -> 13'e cikmadan once zaman damgasini `Flexible(fit: FlexFit.loose)` + `maxLines: 1` + `ellipsis` yap; ya da adin `Flexible`ina `flex` payi ver. Aksi halde bu satir icin \"koruma zaten var\" diyen ADIM 4 cumlesi gecersiz."
+      },
+      {
+        "sorun": "ADIM 4'un \"satirdaki `FittedBox(scaleDown)` korumasi (turu 98c) YERINDE BIRAKILIR\" cumlesi YANLIS SATIRA atif yapiyor ve boylece meta satiri KORUMASIZ oldugu halde korumalu saniliyor. Turu 98c'nin `FittedBox`i gonderi_karti.dart:919'dadir ve YALNIZ ETKILESIM CUBUGUNU kapsar; 12 -> 13'e cikacak meta satirlarinin (yazar adi yanindaki zaman :679, konum cipi :716, istatistik aciklamasi :535) hicbiri o agacin icinde DEGIL. Ayni sekilde \"kart meta satiri ... zaten FittedBox/Wrap korumali\" iddiasi yarim dogru: isletme_kart.dart'taki iki satir gercekten `Wrap` (bilgiSatiri :611, vitrinSatiri :493) ama `Wrap` YATAY korur, DIKEY korumaz — ve yukaridaki izgara bulgusu tam olarak DIKEY tasmadir.",
+        "nerede": "mobile/lib/features/sosyal/gonderi_karti.dart:919 (FittedBox'in gercek kapsami) vs :679/:716/:535 (korumasiz meta satirlari) · mobile/lib/features/isletme/isletme_kart.dart:493, :611 (Wrap) · oneri: esleme \"12\" satiri + ADIM 4",
+        "oneri": "Koruma iddialarini widget agaci uzerinden dogrula ve tabloda \"hangi koruma, hangi eksende\" diye yaz. Bu turdeki her \"zaten korumali\" cumlesi bir denetim adimini ATLATTIGI icin en pahali hata sinifidir."
+      },
+      {
+        "sorun": "ADIM 8'in kabul testi yazi olcegi **2.0'i tamamen disarida birakiyor** (\"360 dp genislik ve yazi olcegi 1.0 / 1.3 ile\") oysa onerinin gerekcesinin TAMAMI erisilebilirlik (Apple 11 pt minimumu, \"8.5/9/10 erisilebilirlik hatasiydi\"). Uygulamada global textScaler clamp'i olmadigi icin 2.0 (Android) ve daha ustu (iOS AX boylari) gercekten ulasilabilir durumda. Yukaridaki bulgulardan en az ucu (izgara karti dikey tasmasi, gonderi karti zaman damgasi, story seridi rozeti) tam olarak 1.3 ustunde patliyor; 1.0/1.3'te gezen bir prova bunlarin hicbirini goremez ve tur \"olculdu, temiz\" diye kapanir.",
+        "nerede": "oneri: uygulamaPlani ADIM 8 · dogrulama: mobile/lib/main.dart, router.dart, core/ altinda `MediaQuery(textScaler:)` / `TextScaler.` override'i YOK",
+        "oneri": "ADIM 8'e 2.0 kademesini EKLE (en azindan akis karti, izgara karti, story seridi, kategori header'i, alt menu rozeti icin). Alternatif olarak uygulamaya bilincli bir tavan koy (`TextScaler.linear(...).clamp(maxScaleFactor: 1.6)` gibi) — ama o zaman bu karar GEREKCESIYLE yazilmali, sessizce test dis birakilmamali."
+      },
+      {
+        "sorun": "ADIM 8'in (c) maddesi HIC RENDER EDILMEYECEK bir dizeyle prova yaptiriyor: \"'Dugun / Organizasyon' gibi uzun TR basliklar\". Boyle bir baslik yok — kullanici emriyle ikiye AYRILDILAR ('Dugun' ve 'Organizasyon' ayri kartlar) ve ikisi de `IsletmeListesiEkrani(baslik:)` degerine gitmiyor. Gercekte header'a gecen en uzun basliklar \"Guzellik Merkezi\" (w700, 7.879 em) ve \"Akaryakit & Oto\" (7.611 em); \"Organizasyon\" (6.646 em) bir kart etiketidir, header degil. Ayni sekilde esleme \"12\" satirindaki \"kart meta satiri (puan · sure · min. tutar)\" tarifi yalniz IZGARA (kompakt) dalinda tamdir; liste dalinda ayni satir farkli bir fonksiyondan (bilgiSatiri: Acik/kapanis · En uygun N TL · ilce) gelir ve ZATEN 13'tur.",
+        "nerede": "mobile/lib/features/sosyal/hizmet_menusu.dart:87 (kullanici emri: ayir), :93 ('Dugun'), :97 ('Organizasyon') · baslik listesi :116-348 · mobile/lib/features/isletme/isletme_kart.dart:433 (vitrinSatiri) vs :565 (bilgiSatiri) · oneri: esleme \"18\" ve \"12\" satirlari + ADIM 8(c)/(d)",
+        "oneri": "Prova dizelerini kaynaktan al: header icin \"Guzellik Merkezi\" ve \"Akaryakit & Oto\", kart etiketi icin \"Organizasyon\" ve \"Nobetci Eczane\". Ayrica ADIM 8(d)'yi iki dala ayir (liste kartinin `bilgiSatiri`si ve izgara kartinin `vitrinSatiri`si) — bunlar farkli fonksiyonlar, farkli puntolar ve farkli dikey butceler."
+      },
+      {
+        "sorun": "Iki kucuk dogrulama hatasi (tabloya guveni dusuruyor, tek baslarina sevk engeli degil): (1) profil_sayfasi.dart:450 aslinda `fontSize: 12`, oneri onu \"11\" satirinda \"sayac etiketi\" diye listeliyor — varis noktasi (13) ayni oldugu icin zararsiz, ama o satirin gerekcesi (\"bugun rozet olmadigi halde rozet puntosunda\") bu cagri yeri icin GECERSIZ. (2) Esleme \"13\" satiri alt kategori seridi icin \"tasma payi FittedBox'a birakilir\" diyor; o seritte FittedBox YOK ve olmasi da gerekmiyor — yukseklik `TextPainter.height`ten OLCULEREK turetiliyor (dosya serhi formulle hesaplamanin daha once emulatorde BOTTOM OVERFLOW verdigini yaziyor). Olcum stilini w700 -> w600'e cekmek BUGUN guvenli (cizim kalinligi turu 96'dan beri sabit w600), ama gerekce olarak var olmayan bir FittedBox'a yaslanmak ileride biri cizim kalinligini yeniden secime baglarsa sessiz tasma acar.",
+        "nerede": "mobile/lib/features/sosyal/profil_sayfasi.dart:450 · mobile/lib/features/isletme/isletme_listesi.dart:1687-1710 (TextPainter olcumu, w700) ve :1817-1830 (cizim, w600 SABIT) · oneri: esleme \"11\" ve \"13\" satirlari",
+        "oneri": "(1) 450'yi \"12\" satirina tasi. (2) \"tasma payi FittedBox'a birakilir\" cumlesini sil; yerine \"olcum stili cizim stiliyle esitlenir cunku cizim kalinligi turu 96'dan beri SABIT w600'dur; kalinlik yeniden secime baglanirsa olcum de w700'e DONMELIDIR\" yaz."
+      },
+      {
+        "sorun": "ARAMA EKRANI ROLU OLCEKTE HIC YOK. Tam ekran arama kimligi 22/24/26/30/44 puntolarinda yasiyor; onerinin tavani 20 ve `esleme` tablosunda bu bes degerin HICBIRI icin satir yok. ADIM 7 'features/calls/* TextStyle satirlarina dokunulur' diyor ama dokunulacak hedef token tanimlanmamis. ADIM 3 muhafizi beyaz liste disi her `fontSize`i reddettigi icin bu noktalar zorunlu olarak 20'ye (ekranBasligi) inecek: arayan adi 24 -> 20 ve avatar harfi 44 -> 20 demek, tam ekran arama kimliginin gorsel hiyerarsisinin cokmesi demektir.",
+        "nerede": "mobile/lib/features/calls/call_screen.dart:438 (arayan adi 24/w600), :1252 (avatar harfi 30) · incoming_call_overlay.dart:486 (avatar harfi 44), :323 ve :494 (26) · active_call_banner.dart:354 (22)",
+        "oneri": "Ya yedinci bir kademe (`ekranKimligi`, ~26-28) tanimlanip avatar harfleri MUAF listesine alinsin, ya da `calls` dizini bilincli bir muafiyet olarak gerekcesiyle yazilsin. Su haliyle 'kademe sayisi 6, tavan 7' iddiasi bu rolu kapsamiyor."
+      },
+      {
+        "sorun": "MUAF LISTESI ASIMETRIK: ayni rolun uc ornekinden yalnizca biri muaf. Oneri beklemede_katmani'ndaki 26'lik avatar bas harfini 'dekoratif grafiktir, muhafiz beyaz listesine yazilir' diye muaf ediyor; ama BIREBIR AYNI rol olan call_screen'deki 30 ve incoming_call_overlay'deki 44 avatar harfleri ne muaf listesinde ne de esleme tablosunda. Gerekce ('avatar dairesindeki bas harf dekoratiftir') ucune de esit uygulanmali; uygulanmazsa muhafiz ikisini kirmizi dusurur.",
+        "nerede": "mobile/lib/features/calls/beklemede_katmani.dart:91 (26, MUAF) vs call_screen.dart:1252 (30, muaf DEGIL) vs incoming_call_overlay.dart:486 (44, muaf DEGIL)",
+        "oneri": "Muaf gerekcesini role bagla ('avatar dairesi bas harfi'), tek satira degil; ucunu birlikte beyaz listeye yaz."
+      },
+      {
+        "sorun": "KULLANICI EMRI OLAN 140'LIK GERI SAYIM RAKAMI MUAF LISTESINDE YOK. CLAUDE.md turu 16: 'geri sayim daire KALDIRILDI -> tam ortada 140px rakam'. ADIM 3 muhafizi beyaz listeye yalniz story_katman, story_editor 13/26 'A' cifti, beklemede_katmani 26 ve yazi.dart'i aliyor; bu satir listede olmadigi icin muhafiz ILK KOSUDA kirmizi duser ve planin dayattigi tek cozum (tokena baglamak) 140 -> 20 demek olur, yani kullanici emrini bozar.",
+        "nerede": "mobile/lib/features/live/live_start_screen.dart:276 (fontSize: 140, w900)",
+        "oneri": "Beyaz listeye gerekcesiyle ekle: 'geri sayim rakami tam ekran gostergedir, arayuz tipografisi degil (turu 16 kullanici emri)'."
+      },
+      {
+        "sorun": "EMOJI GLIF BOYUTLARI MUAF EDILMEMIS. Uc nokta metin degil EMOJI cizdiriyor; oneri story_editor'un 'A' harfini 'ikon davranisi gosterir' diye muaf ederken ayni siniftaki emoji gliflerini gormemis. CLAUDE.md hediye emojilerinin bilincli birakildigini (backend katalogundan geldigini) ayrica yaziyor — yani bunlar tokenlara BAGLANAMAZ.",
+        "nerede": "mobile/lib/features/live/live_widgets.dart:177 (fontSize: 96, hediye animasyonu emojisi), :231 (26) · live_gift_sheet.dart:95 (fontSize: 30, katalog emojisi)",
+        "oneri": "Emoji glif boyutlarini muaf listesine ayri bir madde olarak yaz; aksi halde muhafiz uc noktada kirmizi duser."
+      },
+      {
+        "sorun": "'10' PUNTOSUNUN 5 KULLANIMINDAN YALNIZ 1'I ESLENMIS. Esleme tablosundaki '10' satiri sadece demo_yorum:248'i sayiyor. Kapsanmayan dorttten biri uygulamanin EN GORUNUR rozeti: alt menudeki okunmamis sayaci ('99+'). Bu rozet 10 -> 11'e cikarsa %10 buyur; alt menu yuksekligi CLAUDE.md turu 96p'de `min(15,(66-52)/2)` ile TURETILMIS ve dar bir butcedir. Oneri bu olcum riskini hic anmiyor, ADIM 8'in oncelikli bes noktasinda da yok.",
+        "nerede": "mobile/lib/features/home/alt_menu.dart:556 (okunmamis rozeti 10/w700) · active_call_banner.dart:280 ve :285 · live_tab.dart:180",
+        "oneri": "Bu dortunu esleme tablosuna ekle ve alt_menu rozetini ADIM 8'in olcum listesine (a-e) alti madde olarak koy."
+      },
+      {
+        "sorun": "PLAN, KENDI MUHAFIZIYLA CELISIYOR: kapsam ~%50. ADIM 3 muhafizi `lib/` altindaki HER `fontSize` gecisini tariyor; ama ADIM 4-7 yalniz sosyal, isletme, chats ve calls'un TextStyle satirlarini kapsiyor. Hicbir adimda adi gecmeyen 11 modulde 148 `fontSize` var (auth 20 · live 32 · kanal 20 · ilan 18 · randevu 12 · etkinlik 11 · talep 10 · diyet 9 · rooms 9 · home 5 · vitrin 2); calls'un 33'u da eslenmemis. Toplam 363'un 181'i (%50) plansiz. Yani ADIM 1-8 eksiksiz uygulansa bile `flutter test` KIRMIZI kalir.",
+        "nerede": "mobile/lib/features/{auth,live,kanal,ilan,randevu,etkinlik,talep,diyet,rooms,home,vitrin}/ — 148 kullanim; mobile/lib/features/calls/ — 33 kullanim",
+        "oneri": "Ya muhafizin kapsamini bu tur dokunulan dizinlerle sinirla (ve 'tek kaynak' iddiasini kismi diye yaz), ya da eksik 11 modul icin ADIM 9-10 tanimla. Ucuncu yol yok."
+      },
+      {
+        "sorun": "'16 KALDIRILIYOR' KARARI 46 KULLANIMIN YALNIZ 13'UNU SAYIYOR. Geriye 33 kullanim kaliyor ve bunlarin 9'u auth ekranlarindaki input/govde metni. Kritik nokta: bu dosyalar `fontSize: 16` degerini ACIKCA yaziyor, yani ADIM 2'nin tema degisikligi (bodyLarge 16 -> 15) onlara ULASMAZ. Sonuc: auth 16'da kalir, uygulamanin geri kalani 15'e iner — onerinin ortadan kaldirmayi vaat ettigi driftin YENISI dogar ve 'TEK DOSYA degisikligiyle ~50 cagri yeri hizalanir' iddiasi bu dosyalar icin gecersizdir.",
+        "nerede": "kayit_akisi.dart:358,409,415,425,486 · login_screen.dart:88,101 · auth_stil.dart:139 · onboarding_ekrani.dart:285 · ayrica talep(5) live(7) diyet(4) calls(3) kanal/etkinlik/ilan/rooms/vitrin(1'er)",
+        "oneri": "16 kaldiriliyorsa 46 kullanimin TAMAMI icin hedef token yaz; ozellikle auth'taki 9 acik yazimi ADIM 2 ile ayni turda temizle, yoksa tema degisimi yarim kalir."
+      },
+      {
+        "sorun": "BOS-DURUM / HATA METNI ROLU IKI MEKANIZMAYLA YONETILIYOR VE ONERI BUNU BIRLESTIRMIYOR. ADIM 2 'bos/hata metinleri temaya duser' diyor; ama esdeger iki ekrandan biri gercekten fontSize VERMIYOR (temaya duser -> 15 olur), digeri ACIKCA 16 yaziyor ve esleme tablosunda yok (-> 16'da kalir). Ayni rol, ayni uygulama, iki punto: tam da onerinin kapatmayi hedefledigi drift.",
+        "nerede": "calls_tab.dart:36 (fontSize YOK, temaya duser) vs live_tab.dart:143 (fontSize: 16) vs rooms_tab.dart:217 (fontSize: 16)",
+        "oneri": "Bos-durum/hata metnini ayri bir rol olarak ADIM 2'de degil esleme tablosunda tanimla (govde 15 onerilir) ve fontSize yazan iki noktayi acikca esle."
+      },
+      {
+        "sorun": "letterSpacing SAYIMI YANLIS: gerekce 'bugunku uc letterSpacing kullanimi (0.6/1/1) silinir' diyor, gercekte 13 kullanim var (story_katman'in 4'u haric 9'u arayuz). Sayilmayan uc nokta ayni kucuk-caps bolum basligi rolunde ve kullanici emri 'letterSpacing YASAK' bunlarda uygulanmadan kalir. Ayrica iki kullanim ISLEVSELDIR (OTP'de 6 hane arasi bosluk) ve hicbir muaf notu yok — 'letterSpacing HICBIR YERDE' iddiasi kodla celisir; ADIM 3 muhafizi yalniz tokenlarda aradigi icin test bunu YAKALAMAZ (yalanci yesil).",
+        "nerede": "SAYILMAYAN: ayarlar_ekrani.dart:215 (1.1) · talep_ekranlari.dart:125 (1.1) · ilan_ekranlari.dart:1339 (1). ISLEVSEL: otp_screen.dart:96 (12) · kayit_akisi.dart:385 (8)",
+        "oneri": "Gerekcedeki sayiyi 3 -> 9 duzelt, uc yeni noktayi esleme tablosuna ekle, OTP'nin iki letterSpacing'ini 'hane ayirici, tipografi degil' gerekcesiyle muaf yaz."
+      },
+      {
+        "sorun": "story_seridi ROZETLERINDE KALINLIK DUSUSU HESABA KATILMAMIS. Oneri bu degisiklige 'EN RISKLI TEK DEGISIKLIK' diyip yalniz punto artisini (%29) olcuyor; ama kaynakta iki rozet de w800 ve onerilen `rozet` tokeni w700. Yani ayni anda punto +%29 ve agirlik -1 kademe degisiyor. Kapsul icinde renkli zemin uzerine beyaz mikro metinde agirlik dususu okunabilirligi punto artisinin bir kismini geri alir; net etki oneride hesaplanmamis.",
+        "nerede": "mobile/lib/features/sosyal/story_seridi.dart:555 (9/w800, izleyici sayisi) ve :595 (8.5/w800, 'CANLI'/'ODA')",
+        "oneri": "`rozet` tokenine w800 varyanti ekle ya da bu iki noktanin w800 kaldigini esleme satirinda acikca yaz; ADIM 5'teki emulator provasinda punto ve agirligi ayri ayri degerlendir."
+      },
+      {
+        "sorun": "TOKEN'LAR `height` TASIYOR AMA CAGRI YERINDE OVERRIDE YOLU YOK -> KULLANICI EMRI OLAN KATEGORI KARTI TASAR. ADIM 1 token uretecinin YALNIZ `kalinlik` ve `renk` aldigini yaziyor; `satirYuksekligi` token tanimina GOMULU (etiket = 1.4). Oysa kategori/hizli erisim karti bugun 14 punto + **height 1.15** ile ciziliyor ve kutusu bu degerden TURETILIYOR: `MediaQuery.textScalerOf(context).scale(14) * 1.15 * 2`. Token'a baglanirsa metin 14*1.4*2 = **39.2 dp** olur, kutu 32.2 dp kalir -> **7.0 dp tasma**; yazi olcegi 1.3'te 50.96 vs 41.86 -> **9.1 dp tasma**. Yani onerinin 'kategori karti 14/w600 DEGISMEZ / DOKUNULMAZ' iddiasi FIILEN YANLIS: punto ayni kalsa da satir yuksekligi degistigi icin kullanicinin onayladigi kart bozulur.",
+        "nerede": "mobile/lib/features/isletme/isletme_listesi.dart:1590 (kutu) + :1600 (14/1.15/w600) · mobile/lib/features/sosyal/hizmet_menusu.dart:380 ve :642 (kutu) + :558 (`_etiket`, 14/1.15/w600) · oneri: ADIM 1 + olcek[etiket].satirYuksekligi=1.4",
+        "oneri": "Ya token uretecine opsiyonel `satirYuksekligi` parametresi ekle (o zaman ADIM 1'in 'yalniz kalinlik ve renk' cumlesi duzeltilmeli), ya da `etiket` tokenini 1.15'te tanimlayip UC kutu formulunu de token'dan turet (`Yazi.etiket.height`). Aksi halde kutu formulu ile token sessizce ayrisir."
+      },
+      {
+        "sorun": "'KULLANICI EMIRLERI KORUNDU' IDDIASI PUNTOYU KORUYOR, SATIR YUKSEKLIGINI KORUMUYOR. ADIM 4 acikca 'deger DEGISMEZ, kaynak degisir' diyor; ama gonderi kartindaki yazar adi bugun 17/w600 + **height 1.15**, oneride `baslik` tokeninin satirYuksekligi **1.3**. Ad satirinin kutusu 17*1.15 = 19.55 -> 17*1.3 = **22.1 dp** (+%13) buyur; ayni Row'daki meta 12(~1.2 varsayilan, 14.4 dp) -> 13*1.4 = 18.2 dp olunca kimlik satiri toplamda ~%13-26 uzar ve turu 98d'de ince ayar yapilan kart dikeyi kayar. Ayni sinif alt kategori seridinde de var: cizim 13/**1.15**/w600 ve serit yuksekligi bu stilden TextPainter ile TURETILIYOR -> token (1.4) ile serit ~%22 uzar.",
+        "nerede": "mobile/lib/features/sosyal/gonderi_karti.dart:~663-666 (ad 17/w600/height 1.15) · mobile/lib/features/isletme/isletme_listesi.dart:1704 (TextPainter olcum stili 13/1.15) ve :1823 (cizim 13/1.15/w600)",
+        "oneri": "Onerideki 'DEGISMEZ' satirlarini 'punto degismez, satir yuksekligi degisir' diye duzelt ve etkilenen her yeri (kart dikeyi, serit yuksekligi) ADIM 8 olcum listesine ekle; ya da bu noktalarda mevcut 1.15'i token uzerinden korunabilir yap."
+      },
+      {
+        "sorun": "ISLETME KART ADI 16 -> 15 DEGISIKLIGI, VAR OLAN BIR KULLANICI EMRINI IKINCI KEZ UYGULUYOR. Kodun kendi serhi: '16 -> 17 -> **16** (kullanici emri, turu 96g: \"isletme kartlarinin basliklari 1px kucuk\")'. Yani emir ZATEN uygulanmis, tek seferlik bir duzeltme. Onerinin 'kullanicinin 1px kucuk emriyle AYNI YONDE surdurulur' gerekcesi, tamamlanmis bir emri tekrar tekrar uygulanabilir bir kural gibi okuyor. Ayrica oneri kalinligi da dusuruyor (bugun **w700**, hedef govde 15/**w600**) ve bu ikinci degisiklik icin HIC gerekce yok. Onerinin 'isletme kart adi 16 iken akis kart adi 17 — ayni rol, iki deger, drift' teshisi de yanlis: bu fark kullanicinin IKI AYRI emriyle (turu 98d akis karti 'bir tik daha buyuk' 16->17; turu 96g isletme karti '1px kucuk' 17->16) BILEREK acilmis.",
+        "nerede": "mobile/lib/features/isletme/isletme_kart.dart:225-231 (serh + fontSize 16/w700) · oneri: esleme['16'] ve ADIM 6",
+        "oneri": "16/w700'u DEGISMEZ birak (kullanici emri) ve `baslik` kademesine 16 icin ayri bir varyant tanimlamak yerine bu tek noktayi gerekcesiyle muafiyet listesine yaz. Kucultme gerekiyorsa once kullaniciya sor — 96g emri tuketilmis durumda."
+      },
+      {
+        "sorun": "letterSpacing YASAGI EKSIK UYGULANMIS VE MUHAFIZ ONU YAPISAL OLARAK YAKALAYAMIYOR. Oneri gerekce bolumunde 'bugunku UC letterSpacing kullanimi (0.6 / 1 / 1) silinir' diyor (esleme'de dort yer sayiyor). Gercekte lib/ altinda arayuz metnine uygulanmis DOKUZ nokta var. Haritada HIC gecmeyenler: ayarlar_ekrani.dart:215 (11.5/w800/ls 1.1) · talep_ekranlari.dart:125 (11.5/w800/ls 1.1) · ilan_ekranlari.dart:1339 (ls 1) · kayit_akisi.dart:385 (ls 8) · otp_screen.dart:96 (ls 12). Ustelik ADIM 3 muhafizi letterSpacing'i YALNIZ 'tokenlarin hicbirinde letterSpacing olmadigini' dogruluyor — cagri yerlerine yazilan letterSpacing muhafizdan GECER. Yani yasak ne bugun temizleniyor ne de yarin korunuyor.",
+        "nerede": "mobile/lib/features/home/ayarlar_ekrani.dart:215 · mobile/lib/features/talep/talep_ekranlari.dart:125 · mobile/lib/features/ilan/ilan_ekranlari.dart:1339 · mobile/lib/features/auth/kayit_akisi.dart:385 · mobile/lib/features/auth/otp_screen.dart:96 · oneri: ADIM 3 (b) maddesi",
+        "oneri": "Muhafizi lib/ GENELINDE `letterSpacing` tarayacak sekilde yaz (yorumlardan temizleyerek); OTP/kayit kod kutusundaki rakam araligi mesru ise beyaz listeye GEREKCESIYLE koy. ayarlar/talep/ilan'daki uc kucuk-caps basligi esleme tablosuna ekle."
+      },
+      {
+        "sorun": "MUHAFIZ (ADIM 3) ILE UYGULAMA ADIMLARI (4-7) UYUMSUZ — PLAN SIRALI OLARAK CALISTIRILAMAZ. lib/ altinda toplam **362** `fontSize:` gecisi var. ADIM 4-7 yalniz sosyal (86) + isletme (54) + chats (37) + calls (33) = **210** tanesini kapsiyor. Hicbir adimda ele ALINMAYAN dizinler: live (32) · kanal (20) · auth (20) · ilan (18) · randevu (12) · etkinlik (11) · talep (10) · diyet (9) · rooms (9) · home (5) · medya (4) · vitrin (2) = **152 cagri yeri (%42)**. ADIM 3'un beyaz listesi yalniz dort istisna tanimliyor (story_katman · story_editor 13/26 · beklemede_katmani 26 · yazi.dart). Sonuc: muhafiz yazildigi anda (ADIM 3) 152 noktadan kirmizi duser ve ADIM 8'e gelindiginde HALA kirmizidir; 'yazildiktan sonra bozularak kanitlanir' adimi da anlamsizlasir (zaten kirmizi).",
+        "nerede": "oneri: ADIM 3 (a) maddesi vs ADIM 4-7 dosya listeleri · olculen dizin dagilimi yukarida",
+        "oneri": "Ya muhafizi 'yalniz migrate edilmis dosyalar' kapsaminda calistir (dosya beyaz listesi, her adimda genisler), ya da 152 noktayi kapsayan bir ADIM ekle. Muhafiz her halukarda uygulama adimlarindan SONRAYA alinmali."
+      },
+      {
+        "sorun": "'11'IN ALTINA INILMEZ / ERISILEBILIRLIK' HEDEFI EKSIK KAPSANMIS. Oneri 11 altindaki degerlerden yalniz UCUNU haritaliyor (story_seridi:555 -> 9, :595 -> 8.5, demo_yorum:248 -> 10). Gercekte SEKIZ nokta var; kapsam disi kalan besi: active_call_banner.dart:280 ve :285 (10) · mini_izgara.dart:193 (9) · alt_menu.dart:556 (10 — okunmamis rozet sayaci) · live_tab.dart:180 (10). Ayrica 11.5'lerden ses_notu_balon.dart:230 ve :238 esleme tablosunda YOK (medya dizini hicbir adimda gecmiyor). Yani 'bunlar erisilebilirlik hatasiydi' gerekcesi uygulanan kapsamla tutarsiz — ayni hata bes yerde daha kalir.",
+        "nerede": "mobile/lib/features/calls/active_call_banner.dart:280,285 · mobile/lib/features/calls/mini_izgara.dart:193 · mobile/lib/features/home/alt_menu.dart:556 · mobile/lib/features/live/live_tab.dart:180 · mobile/lib/features/medya/ses_notu_balon.dart:230,238",
+        "oneri": "Bu noktalari esleme tablosuna ekle. alt_menu:556 icin DIKKAT: rozet kapsulu `minWidth 17` + dikey dolgu 1 ile kurulu ve `test/alt_menu_test.dart` bu cubugun olculerini kilitliyor — 10 -> 11 + height 1.45 kapsul yuksekligini ~15 -> ~18 dp yapar; once o testte olc."
+      },
+      {
+        "sorun": "EKRAN BASLIGI TOKENI, BIR KULLANICI SIKAYETININ DUZELTMESINI SESSIZCE GERI ALIYOR. Kategori ekrani header'i bugun `height: 1.0` + `leadingDistribution: TextLeadingDistribution.even` ile ciziliyor ve serhi bunun sebebini yaziyor: kullanici 'alt kismi kisa kaliyor' demis, glif dikey dengelensin diye eklenmis. Oneride `ekranBasligi` tokeni satirYuksekligi **1.25** tasiyor, `leadingDistribution` HIC tasimiyor ve token ureteci bu iki alani parametre olarak KABUL ETMIYOR (yalniz kalinlik + renk). Token'a baglanan header'da glif yeniden yukari kayik oturur — kullanicinin bildirdigi ve duzeltilen sikayet geri gelir. Ayni stilin ikinci kopyasi 1166'da.",
+        "nerede": "mobile/lib/features/isletme/isletme_listesi.dart:1088-1095 (ve ikinci kopya :1166) · oneri: olcek[ekranBasligi] + ADIM 1 + ADIM 6",
+        "oneri": "`ekranBasligi` tokenine `leadingDistribution: even` yaz ve dikey denge gereken basliklar icin height'i parametrelestir; ya da bu header'i gerekcesiyle muafiyet listesine al."
+      }
+    ],
+    "envanterOzet": [
+      {
+        "yuzey": "sosyal-akis (mobile/lib/features/sosyal/ — 27 dosya)",
+        "ozet": "TOPLAM 118 TextStyle bloku: 86'si ACIK fontSize veriyor, 32'si VERMIYOR (tema varsayilanina duser). Yorum satirlarinda fontSize YOK — 86'sinin hepsi gercek kod (paranteze duyarli tarama ile dogrulandi). ACIK boyutlar 14 farkli deger: 8.5 · 9 · 10 · 11 · 12 · 13 · 14 · 15 · 16 · 17 · 18 · 19 · 20 · 26 — arti story_katman'da DINAMIK bir aile (k.boyut*olcek; varsayilan 28, kaydirac 12-72, 6 font varyanti). Dagilim: 12 (22 kez, acik ara farkla en yaygin — meta/zaman/ikincil metin dili) · 13 (13) · 11 (10) · 17 (9 — baslik/ad dili) · 15 (7) · 16 (7) · 14 (4) · 19 (2) · 8.5/9/10/18/20/26 (1'er). Olcek bir SISTEM DEGIL, birikmis: 11-12-13-14-15 bandinda BES ayri deger neredeyse ayni is icin kullaniliyor (yorum metni 14 vs gonderi metni 15 vs demo yorum metni 15; meta 11 vs 12 vs 13). Baslik tarafinda da 16/17/18/19/20 bes ayri deger var (sheet basliklari 16-17 arasi gidip geliyor: 'Beğenenler' 16, 'Gönderi istatistikleri' 17, 'Oluştur' 17, 'Paylaş' 16). En kucuk iki deger (8.5 ve 9) yalniz story_seridi rozetlerinde; 26 yalniz story_editor boyut kaydiracinin buyuk 'A' simgesinde (metin degil ikon islevi). fontSize VERMEYEN 32 blogun cogu bos/hata durum metinleri (14 kayit) ve dialog dugmeleri — bunlar tema bodyMedium'una duser, yani olcek turu 81'in acik/koyu temasina bagli ve envanterde GORUNMEZ bir ucuncu grup olusturur; ayrica 6 tanesi (olustur_menusu 181, profil_sayfasi 361, gonderi_olustur 742/1017, reels 310, story_izleyici 402) KALINLIK verip boyut vermiyor — yani ad/baslik rolunde olmalarina ragmen boyutlari temadan geliyor ve kardeslerinden (gonderi_karti 663 = 17/w600) sessizce ayrisiyor."
+      },
+      {
+        "yuzey": "isletme-kategori (mobile/lib/features/isletme/)",
+        "ozet": "TOPLAM 69 KAYIT = 53 acik `fontSize` + 16 tema varsayilanina dusen `TextStyle` (fontSize verilmemis). Iki `fontSize` gecisi YORUM icindeydi ve SAYILMADI: isletme_listesi.dart:1693 ve isletme_kart.dart:507.\n\nON DISTINCT BOYUT VAR: 11 · 11.5 · 12 · 12.5 · 13 · 14 · 15 · 16 · 17 · 18 (+ tema varsayilanlari 14 bodyMedium / 16 bodyLarge, ikisi de bu kumede zaten var).\n\nASIL KATEGORI EKRANI (isletme_listesi + isletme_kart + isletme_filtre + konum_secici) SEKIZ boyut kullanir: 11.5 · 12 · 13 · 14 · 15 · 16 · 17 · 18.\n\nMERDIVEN (kategori ekrani, buyukten kucuge):\n· 18/w700 — ekran basligi (header, TEK yer)\n· 17/w700 — bolum basliklari (\"Mutfaklar\", \"İşletmeler (N)\", filtre bolum basliklari) ve 17/w800 — modal panel basliklari (\"Filtreleme\", \"Konumun\")\n· 16/w700 — LISTE kartinda isletme adi + panel dugmeleri (\"Listele\", \"Temizle\", \"Bu konumu seç\")\n· 15/w700 — header konum dugmesi · 15/w500 — arama input (\"Ne Aramıştın?\")\n· 14/w700 — IZGARA kartinda isletme adi · 14/w600 — kesif izgarasi hucre etiketi + filtre paneli secenek cipleri\n· 13/w600 — TUM cip seridi (Filtre · bolum cipi · hizli cip) + alt kategori serit etiketi + kart meta satiri (puan/sure/min. tutar/Açık) — BU EKRANIN EN YOGUN KULLANILAN BOYUTU (13 kayit)\n· 12 — izgara (kompakt) kart meta satiri (`boy` degiskeni: liste 13 / izgara 12) + koordinat alt yazisi\n· 11.5/w700 — kampanya rozetleri (kapak uzeri)\n\nDIKKAT EDILECEKLER:\n1) `isletme_kart.dart` 451/462/559 satirlarinda boyut SABIT DEGIL: `final boy = kompakt ? 12.0 : 13.0` (438. satir). Ayni widget liste dalinda 13, izgara dalinda 12 cizer.\n2) `isletme_listesi.dart:1704` GERCEK BIR YAZI DEGIL: alt kategori seridinin yuksekligini olcen `TextPainter` stili (13/1.15/w700). Ciziimi yapan kardes stil 1823'te ve **w600** — kalinliklar UYUSMUYOR (olcum kasten daha genis stille yapiliyor, serh bunu aciklıyor).\n3) `kategori_slider.dart` icinde HIC `Text`/`TextStyle` YOK — salt gorsel slider, envantere girmez.\n4) `isletme_servisi.dart` ve `urun_servisi.dart` salt veri katmani, yazi tasimaz.\n5) 16 kayit tema varsayilanina duser (cogu `Colors.grey` bos/hata mesaji): Material 3 `bodyMedium`=14, `ListTile.title` `bodyLarge`=16, `TextButton` `labelLarge`=14. `core/theme.dart` icinde `textTheme` OVERRIDE EDILMEMIS (yalniz `fontFamily: 'Google Sans'`), yani bu varsayilanlar gecerli.\n6) Ayni rol farkli dosyalarda farkli boyutta: bos/hata mesaji kategori ekraninda 14 (varsayilan) iken `yakinimda_ekrani.dart:485` ayni rolu 13 ile ciziyor."
+      },
+      {
+        "yuzey": "sohbet-arama (mobile/lib/features/chats/ + mobile/lib/features/calls/)",
+        "ozet": "96 kayit: 71'i ACIK `fontSize` (chats 37 + calls 34 — biri kosullu oldugu icin iki deger olarak sayildi), 25'i `TextStyle`/`textTheme` ile cizilen ama fontSize VERMEYEN (tema varsayilanina dusen) nokta; bunlar `boyut: 0` ile isaretlendi ve rol metninde \"TEMA VARSAYILANI\" yazar. Yorum satirlarinda fontSize gecen HIC kayit yok (dogrulandi), yani sayimin tamami gercek kod.\n\nACIK BOYUTLAR — 20 farkli deger: 9 · 10 · 11 · 11.5 · 12 · 12.5 · 13 · 13.5 · 14 · 14.5 · 15 · 15.5 · 16 · 17 · 20 · 22 · 24 · 26 · 30 · 44.\n\nBunlarin 4'u METIN DEGIL DEKORATIF AVATAR HARFI (22 · 30 · 44 ve beklemede_katmani'ndaki 26); onlar cikarilinca gercek yazi olcegi yine de **17 farkli deger**: 9, 10, 11, 11.5, 12, 12.5, 13, 13.5, 14, 14.5, 15, 15.5, 16, 17, 20, 24, 26.\n\nDagilim (en yogun): 12 -> 12 kayit (meta/rozet/sayac icin fiili standart) · 11 -> 7 · 13 -> 7 · 15 -> 6 · 16 -> 5 · 14 -> 5 · 17 -> 3.\n\nYARIM PUAN KUMELENMESI dikkat cekici: 11.5 / 12.5 / 13.5 / 14.5 / 15.5 yalnizca chat_screen.dart ve anket.dart'ta var (mesaj balonu ailesi). Yani balon ic tipografisi 0.5'lik bir alt-olcek kullanirken, ayni yuzeydeki liste/arama ekranlari tam sayilarda kaliyor — ayni rol icin IKI farkli olcek yasiyor. Ornek celiski: mesaj govdesi 15.5 iken arama ekrani bildirim govdesi 15, anket sorusu 15; alt satir/meta rolu ayni yuzeyde 11 · 11.5 · 12 · 12.5 · 13 olarak BES farkli sekilde yaziliyor.\n\nROL BAZLI TABLO:\n· ANA BASLIK: 17 (sohbet AppBar) · 20 (grup adi) · 24 (arama ekrani) · 26 (gelen arama) — dort ayri ekranda dort ayri deger.\n· BOLUM BASLIGI: 11/w700 (ÜYELER) · 12/w600 (Sık görüştüklerin) · 16/w700 (sheet basliklari) · tema titleMedium/titleLarge (anket, IBAN, kisi ekle sheet'leri) — sheet basliklari BIRBIRINDEN FARKLI (16 sabit vs titleMedium vs titleLarge).\n· GOVDE: 15.5 (mesaj metni) · 15 (bildirim/anket sorusu) · 14 (konum hatasi) · 13 (engelleme aciklamasi) · tema varsayilani (bos durum metinleri).\n· META/ZAMAN: 9 · 10 · 11 · 11.5 · 12 · 12.5 · 13.\n· DUGME: 12 (Bitir) · 13 (yapisal balon eylemi, Ses gelmiyor) · 14/12 kosullu (gelen arama eylemleri) · 14.5 (Geri ara) · 15 (Yok say / Katıl) · 16 (Devam et) · + 6 adet tema varsayilani (Aramayı bitir, Kapat, Geri Ara, Sil, Ayrıl, ListTile'lar) — dugme olcegi HIC standartlasmamis.\n· SAYI/SAYAC: 10 (yuzen pencere sure) · 11 (+N rozeti) · 12 (okunmamis rozeti) · 12.5 (anket oyu) · 14 (bant suresi) · 15 (arama suresi) · tema varsayilani ({N} kişi).\n\nEN KUCUK GERCEK METIN 9dp (mini_izgara.dart:193, PiP kutu etiketi) — erisilebilirlik acisindan sinirin altinda; 10dp'lik iki kayit (active_call_banner yuzen pencere) da ayni sinifta."
+      },
+      {
+        "yuzey": "giris-profil-ayar (mobile/lib/features/auth/ + mobile/lib/features/home/)",
+        "ozet": "Bu yuzeyde 14 FARKLI yazi boyutu var: 30 · 28 · 26 · 24 · 22 · 16 · 15 · 14.5 · 14 · 13 · 12.5 · 12 · 11.5 · 10. Bunlarin 25'i kodda ACIKCA `fontSize` ile yazili (auth 20 + home 5), geri kalani tema varsayilanina duser. Onemli bulgular: (1) EKRAN BASLIGI ucе ayrilmis — onboarding 30, auth_stil/kayit_akisi 26, AppBar titleLarge 22, permissions headlineSmall 24; ayni rol icin DORT boyut. (2) BASLIK ALTI ACIKLAMA da ayrilmis — auth_stil 14.5, kayit_akisi 14.5, onboarding 15, permissions varsayilan 14. (3) KUCUK/META katmani BES kademeye dagilmis: 13 (izin altyazisi, profil telefonu, kapak yer tutucu) · 12.5 (kayit gizlilik notu) · 12 (ayarlar dipnotu, bodySmall) · 11.5 (ayarlar bolum basligi) · 10 (alt menu rozeti). 12.5 ve 11.5 yalnizca BIRER yerde kullaniliyor — olcekten kopuk tek kullanimlik degerler. (4) INPUT metni her yerde 16 ve DUGME etiketi de 16/w700 — bu iki rol ayni boyutta. (5) auth_stil.dart TEK KAYNAK olmasina ragmen kayit_akisi.dart kendi `_baslik`/`_alan` kopyasini tutuyor ve 26/14.5/16 degerlerini BIREBIR tekrarliyor (drift riski, CLAUDE.md'nin \"ayni kuralin iki kopyasi drift eder\" uyarisi). (6) EK NOT: ayarlar_ekrani.dart:215 `letterSpacing: 1.1` iceriyor — CLAUDE.md'de harf araligi ACIKCA YASAK (turu 96u kullanici emri)."
+      }
+    ]
+  },
+  "workflowProgress": [
+    {
+      "type": "workflow_phase",
+      "index": 1,
+      "title": "Envanter"
+    },
+    {
+      "type": "workflow_phase",
+      "index": 2,
+      "title": "Referans"
+    },
+    {
+      "type": "workflow_phase",
+      "index": 3,
+      "title": "Oneri"
+    },
+    {
+      "type": "workflow_phase",
+      "index": 4,
+      "title": "Denetim"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 1,
+      "label": "envanter:sosyal-akis",
+      "phaseIndex": 1,
+      "phaseTitle": "Envanter",
+      "agentId": "a6b3874ae638e27e5",
+      "model": "claude-opus-5[1m]",
+      "state": "done",
+      "startedAt": 1787081456115,
+      "queuedAt": 1787081445794,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "sosyal-akis (mobile/lib/features/sosyal/ — 27 dosya)",
+      "promptPreview": "Gebzem Flutter projesindeyiz (Windows, repo koku c:/Users/gebze/OneDrive/Desktop/gbz-a3).\nGOREV: \"sosyal-akis\" yuzeyindeki TUM yazi boyutlarini cikar.\nDizin(ler): mobile/lib/features/sosyal/\n\nYONTEM:\n- `grep -rn \"fontSize\" mobile/lib/features/sosyal/` ile basla; ayrica `style: TextStyle(` iceren ama fontSize VERMEYEN\n  yerleri de not et (tema varsayilanina duser — bunlar da envanterin parcasi).\n- …",
+      "lastProgressAt": 1787081843846,
+      "tokens": 268764,
+      "toolCalls": 33,
+      "durationMs": 387444,
+      "resultPreview": "{\"yuzey\":\"sosyal-akis (mobile/lib/features/sosyal/ — 27 dosya)\",\"ozet\":\"TOPLAM 118 TextStyle bloku: 86'si ACIK fontSize veriyor, 32'si VERMIYOR (tema varsayilanina duser). Yorum satirlarinda fontSize YOK — 86'sinin hepsi gercek kod (paranteze duyarli tarama ile dogrulandi). ACIK boyutlar 14 farkli deger: 8.5 · 9 · 10 · 11 · 12 · 13 · 14 · 15 · 16 · 17 · 18 · 19 · 20 · 26 — arti story_katman'da DIN…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 2,
+      "label": "envanter:isletme-kategori",
+      "phaseIndex": 1,
+      "phaseTitle": "Envanter",
+      "agentId": "ae17f052a826b7a9d",
+      "model": "claude-opus-5[1m]",
+      "state": "done",
+      "startedAt": 1787081452436,
+      "queuedAt": 1787081445795,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "isletme-kategori (mobile/lib/features/isletme/)",
+      "promptPreview": "Gebzem Flutter projesindeyiz (Windows, repo koku c:/Users/gebze/OneDrive/Desktop/gbz-a3).\nGOREV: \"isletme-kategori\" yuzeyindeki TUM yazi boyutlarini cikar.\nDizin(ler): mobile/lib/features/isletme/\n\nYONTEM:\n- `grep -rn \"fontSize\" mobile/lib/features/isletme/` ile basla; ayrica `style: TextStyle(` iceren ama fontSize VERMEYEN\n  yerleri de not et (tema varsayilanina duser — bunlar da envanterin parca…",
+      "lastProgressAt": 1787081754756,
+      "tokens": 259013,
+      "toolCalls": 24,
+      "durationMs": 302317,
+      "resultPreview": "{\"yuzey\":\"isletme-kategori (mobile/lib/features/isletme/)\",\"ozet\":\"TOPLAM 69 KAYIT = 53 acik `fontSize` + 16 tema varsayilanina dusen `TextStyle` (fontSize verilmemis). Iki `fontSize` gecisi YORUM icindeydi ve SAYILMADI: isletme_listesi.dart:1693 ve isletme_kart.dart:507.\\n\\nON DISTINCT BOYUT VAR: 11 · 11.5 · 12 · 12.5 · 13 · 14 · 15 · 16 · 17 · 18 (+ tema varsayilanlari 14 bodyMedium / 16 bodyLar…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 3,
+      "label": "envanter:sohbet-arama",
+      "phaseIndex": 1,
+      "phaseTitle": "Envanter",
+      "agentId": "a331e530e45f42754",
+      "model": "claude-opus-5[1m]",
+      "state": "done",
+      "startedAt": 1787081460099,
+      "queuedAt": 1787081445795,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "sohbet-arama (mobile/lib/features/chats/ + mobile/lib/featu…",
+      "promptPreview": "Gebzem Flutter projesindeyiz (Windows, repo koku c:/Users/gebze/OneDrive/Desktop/gbz-a3).\nGOREV: \"sohbet-arama\" yuzeyindeki TUM yazi boyutlarini cikar.\nDizin(ler): mobile/lib/features/chats/ mobile/lib/features/calls/\n\nYONTEM:\n- `grep -rn \"fontSize\" mobile/lib/features/chats/ mobile/lib/features/calls/` ile basla; ayrica `style: TextStyle(` iceren ama fontSize VERMEYEN\n  yerleri de not et (tema va…",
+      "lastProgressAt": 1787081749874,
+      "tokens": 257130,
+      "toolCalls": 20,
+      "durationMs": 289774,
+      "resultPreview": "{\"yuzey\":\"sohbet-arama (mobile/lib/features/chats/ + mobile/lib/features/calls/)\",\"kayitlar\":[{\"dosya\":\"mobile/lib/features/chats/chats_screen.dart\",\"satir\":148,\"boyut\":12,\"kalinlik\":\"varsayilan\",\"rol\":\"rozet — sohbet listesi filtre ChoiceChip etiketi (labelStyle)\"},{\"dosya\":\"mobile/lib/features/chats/chats_screen.dart\",\"satir\":262,\"boyut\":12,\"kalinlik\":\"w600\",\"rol\":\"baslik — 'Sık görüştüklerin' b…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 4,
+      "label": "envanter:giris-profil-ayar",
+      "phaseIndex": 1,
+      "phaseTitle": "Envanter",
+      "agentId": "a709b99340116efac",
+      "model": "claude-opus-5[1m]",
+      "state": "done",
+      "startedAt": 1787081463988,
+      "queuedAt": 1787081445795,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "giris-profil-ayar (mobile/lib/features/auth/ + mobile/lib/f…",
+      "promptPreview": "Gebzem Flutter projesindeyiz (Windows, repo koku c:/Users/gebze/OneDrive/Desktop/gbz-a3).\nGOREV: \"giris-profil-ayar\" yuzeyindeki TUM yazi boyutlarini cikar.\nDizin(ler): mobile/lib/features/auth/ mobile/lib/features/home/\n\nYONTEM:\n- `grep -rn \"fontSize\" mobile/lib/features/auth/ mobile/lib/features/home/` ile basla; ayrica `style: TextStyle(` iceren ama fontSize VERMEYEN\n  yerleri de not et (tema v…",
+      "lastProgressAt": 1787081688060,
+      "tokens": 259114,
+      "toolCalls": 22,
+      "durationMs": 224072,
+      "resultPreview": "{\"yuzey\":\"giris-profil-ayar (mobile/lib/features/auth/ + mobile/lib/features/home/)\",\"ozet\":\"Bu yuzeyde 14 FARKLI yazi boyutu var: 30 · 28 · 26 · 24 · 22 · 16 · 15 · 14.5 · 14 · 13 · 12.5 · 12 · 11.5 · 10. Bunlarin 25'i kodda ACIKCA `fontSize` ile yazili (auth 20 + home 5), geri kalani tema varsayilanina duser. Onemli bulgular: (1) EKRAN BASLIGI ucе ayrilmis — onboarding 30, auth_stil/kayit_akisi …"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 5,
+      "label": "referans:threads-instagram",
+      "phaseIndex": 2,
+      "phaseTitle": "Referans",
+      "agentId": "a8109fae2d4879118",
+      "model": "claude-opus-5[1m]",
+      "state": "done",
+      "startedAt": 1787081850462,
+      "queuedAt": 1787081846316,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "BIRINCIL (olculmus/turetilmis, Threads web CSS taramasi): s…",
+      "promptPreview": "Threads ve Instagram mobil uygulamalarinin TIPOGRAFI OLCEGINI arastir (web aramasi yap).\nOzellikle: akis gonderisinde kullanici adi, gonderi metni, zaman/meta, etkilesim sayaci,\nyorum metni, ekran basligi hangi punto ve kalinlikta. Olculmus/analiz edilmis kaynaklari\ntercih et (tasarim sistemi yazilari, teardown analizleri, ekran goruntusu olcumleri).\nKaynaklarin URL/adini KAYNAK alaninda ver; uydu…",
+      "lastProgressAt": 1787082132133,
+      "tokens": 248004,
+      "toolCalls": 28,
+      "durationMs": 278468,
+      "resultPreview": "{\"kaynak\":\"BIRINCIL (olculmus/turetilmis, Threads web CSS taramasi): shadcn.io — \\\"Threads Design System for React — system-ui 15px, full-pill chrome, 18 components\\\" https://www.shadcn.io/design/threads (tipografi tablosu + 19 renk tokeni + radius olcegi). DESTEKLEYICI (gercek CSS analizi, Ahmad Shadeed): \\\"CSS Findings From The Threads App\\\" https://ishadeed.com/article/threads-app-css/ ve Part …"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 6,
+      "label": "referans:platform-kurallari",
+      "phaseIndex": 2,
+      "phaseTitle": "Referans",
+      "agentId": "a05acfa632d7d7b0b",
+      "model": "claude-opus-5[1m]",
+      "state": "done",
+      "startedAt": 1787081849843,
+      "queuedAt": 1787081846316,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "RESMI KAYNAKLAR (dogrudan cekildi, ikincil blog kullanilmad…",
+      "promptPreview": "iOS Human Interface Guidelines (Dynamic Type) ve Material 3 type scale RESMI degerlerini cikar.\nBody/Title/Label rollerinin punto ve agirliklarini, minimum okunabilir punto tavsiyesini ve\nerisilebilirlik (yazi olcegi 200%) kurallarini ozetle. Web aramasi yap, kaynak ver.",
+      "lastProgressAt": 1787082122328,
+      "tokens": 250069,
+      "toolCalls": 23,
+      "durationMs": 268664,
+      "resultPreview": "{\"kaynak\":\"RESMI KAYNAKLAR (dogrudan cekildi, ikincil blog kullanilmadi): (1) Apple HIG \\\"Typography\\\" — https://developer.apple.com/design/human-interface-guidelines/typography ; sayfa JS ile ciziliyor, tablolar resmi veri ucundan alindi: https://developer.apple.com/tutorials/data/design/human-interface-guidelines/typography.json (bolum: \\\"Specifications > iOS, iPadOS Dynamic Type sizes > Large (…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 7,
+      "label": "referans:turkce-ve-yogun-arayuz",
+      "phaseIndex": 2,
+      "phaseTitle": "Referans",
+      "agentId": "a1ed3dd460e299801",
+      "model": "claude-opus-5[1m]",
+      "state": "done",
+      "startedAt": 1787081849766,
+      "queuedAt": 1787081846316,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "ÖLÇÜLEN/DOĞRULANAN KAYNAKLAR (hepsi bu oturumda çekildi): 1…",
+      "promptPreview": "Turkce metin + yogun listeli mobil arayuzlerde (e-ticaret/yemek/isletme listeleri) hangi punto\nolceginin kullanildigini arastir (Yemeksepeti, Getir, Trendyol gibi TR uygulamalarinin analizleri).\nTurkce kelimelerin Ingilizceden ~%15-20 uzun oldugu bilinen bir gercek — bunun punto/ellipsis\nkararlarina etkisini de yaz. Web aramasi yap, kaynak ver.",
+      "lastProgressAt": 1787082200291,
+      "tokens": 250422,
+      "toolCalls": 27,
+      "durationMs": 350525,
+      "resultPreview": "{\"kaynak\":\"ÖLÇÜLEN/DOĞRULANAN KAYNAKLAR (hepsi bu oturumda çekildi):\\n\\n1. **Trendyol Baklava — TEK açık kaynak TR tasarım sistemi.** Token dosyası doğrudan okundu: `--bl-font-size-xs:10px · s:12 · m:14 · l:16 · xl:20 · 2xl:24 · 3xl:28 · 4xl:32`; stiller: Title-1 20, Title-2 16, Title-3 14, Title-4 12, Body-1 16, Body-2 14, Body-3 12, Caption 10. Satır yüksekliği kuralı **punto + 2/4/8 px** (`calc…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 8,
+      "label": "oneri",
+      "phaseIndex": 3,
+      "phaseTitle": "Oneri",
+      "agentId": "a0963e74fdd2b21e0",
+      "model": "claude-opus-5[1m]",
+      "state": "done",
+      "startedAt": 1787082205049,
+      "queuedAt": 1787082202280,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "SORUN: bugun 14+ farkli punto var ve bunlarin cogu AYNI ISI…",
+      "promptPreview": "Gebzem icin TEK BIR YAZI OLCEGI oner.\n\nGIRDI 1 — bugunku envanter (kod tabanindan cikarildi):\n[\n {\n  \"yuzey\": \"sosyal-akis (mobile/lib/features/sosyal/ — 27 dosya)\",\n  \"ozet\": \"TOPLAM 118 TextStyle bloku: 86'si ACIK fontSize veriyor, 32'si VERMIYOR (tema varsayilanina duser). Yorum satirlarinda fontSize YOK — 86'sinin hepsi gercek kod (paranteze duyarli tarama ile dogrulandi). ACIK boyutlar 14 far…",
+      "lastProgressAt": 1787082486674,
+      "tokens": 269632,
+      "toolCalls": 4,
+      "durationMs": 281625,
+      "resultPreview": "{\"olcek\":[{\"ad\":\"ekranBasligi\",\"boyut\":20,\"kalinlik\":\"w700\",\"satirYuksekligi\":1.25,\"kullanim\":\"Ekranin/sayfanin TEK kimlik basligi: AppBar basligi, kategori ekrani header'i, profil ad basligi, grup adi, 'Gebzem'. Ekran basina EN FAZLA BIR tane. ASLA ellipsis yok — tasarsa FittedBox(scaleDown) ile kuculur (turu 98c dersi).\"},{\"ad\":\"baslik\",\"boyut\":17,\"kalinlik\":\"w600 (kimlik) · w700 (bolum/sheet/sa…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 9,
+      "label": "denetim:1",
+      "phaseIndex": 4,
+      "phaseTitle": "Denetim",
+      "agentId": "ad67003da903835c8",
+      "model": "claude-opus-5[1m]",
+      "state": "done",
+      "startedAt": 1787082493078,
+      "queuedAt": 1787082489856,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "Asagidaki YAZI OLCEGI ONERISINI ADVERSARYAL denetle. Amacin onu CURUTMEK.\nMercek: TASMA: 360 dp genislikte ve yazi olcegi 1.0 / 1.3 / 2.0 degerlerinde bu olcek TASAR MI? En riskli satirlari (akis etkilesim cubugu, kategori kart etiketleri, alt menu, AppBar secici) TEK TEK hesapla. Gerekirse `mobile/` altinda ilgili dosyalari OKU ve gercek karakter sayilariyla kaba genislik hesabi yap.\n\nONERI:\n{\n \"…",
+      "lastProgressAt": 1787083393352,
+      "tokens": 320937,
+      "toolCalls": 49,
+      "durationMs": 900274,
+      "resultPreview": "{\"saglam\":false,\"bulgular\":[{\"sorun\":\"Kategori ekrani basligi 18 -> 20 BINDIRMEYI %50 ARTIRIR, onerilen FittedBox caresi bu cagri yerinde YAPISAL OLARAK ETKISIZDIR. Baslik bir `Stack` icinde `Center` ile ciziliyor; sol konum dugmesi (`ConstrainedBox maxWidth: ekran*0.32` = 115.2 dp) ve sag kalp (44 dp) AYRI `Align` katmanlaridir, yani basligi ITMEZLER — UZERINE BINERLER. Header ic genisligi = 360 …"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 10,
+      "label": "denetim:2",
+      "phaseIndex": 4,
+      "phaseTitle": "Denetim",
+      "agentId": "ab4c1ce50bbf4cb0c",
+      "model": "claude-opus-5[1m]",
+      "state": "done",
+      "startedAt": 1787082493889,
+      "queuedAt": 1787082489856,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "Asagidaki YAZI OLCEGI ONERISINI ADVERSARYAL denetle. Amacin onu CURUTMEK.\nMercek: TUTARLILIK: onerilen kademe sayisi ve rolleri, kod tabanindaki GERCEK ihtiyaclari kapsiyor mu? Kapsanmayan bir rol var mi (ornegin sohbet balonu, arama ekrani, hata mesaji, bos-durum metni)? Eksikleri say.\n\nONERI:\n{\n \"olcek\": [\n  {\n   \"ad\": \"ekranBasligi\",\n   \"boyut\": 20,\n   \"kalinlik\": \"w700\",\n   \"satirYuksekligi\": …",
+      "lastProgressAt": 1787082769348,
+      "tokens": 247188,
+      "toolCalls": 14,
+      "durationMs": 272784,
+      "resultPreview": "{\"bulgular\":[{\"sorun\":\"ARAMA EKRANI ROLU OLCEKTE HIC YOK. Tam ekran arama kimligi 22/24/26/30/44 puntolarinda yasiyor; onerinin tavani 20 ve `esleme` tablosunda bu bes degerin HICBIRI icin satir yok. ADIM 7 'features/calls/* TextStyle satirlarina dokunulur' diyor ama dokunulacak hedef token tanimlanmamis. ADIM 3 muhafizi beyaz liste disi her `fontSize`i reddettigi icin bu noktalar zorunlu olarak 2…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 11,
+      "label": "denetim:3",
+      "phaseIndex": 4,
+      "phaseTitle": "Denetim",
+      "agentId": "aab12e9d86eb7dbdd",
+      "model": "claude-opus-5[1m]",
+      "state": "done",
+      "startedAt": 1787082493545,
+      "queuedAt": 1787082489856,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "Asagidaki YAZI OLCEGI ONERISINI ADVERSARYAL denetle. Amacin onu CURUTMEK.\nMercek: KULLANICI EMIRLERI: kullanicinin acik emirleri (ad 17, aciklama 15, sayac 15, kategori 14/w600, letterSpacing YASAK) oneride KORUNMUS mu? Ihlal varsa gerekce YETERLI mi?\n\nONERI:\n{\n \"olcek\": [\n  {\n   \"ad\": \"ekranBasligi\",\n   \"boyut\": 20,\n   \"kalinlik\": \"w700\",\n   \"satirYuksekligi\": 1.25,\n   \"kullanim\": \"Ekranin/sayfan…",
+      "lastProgressAt": 1787082797842,
+      "tokens": 249678,
+      "toolCalls": 13,
+      "durationMs": 301278,
+      "resultPreview": "{\"bulgular\":[{\"sorun\":\"TOKEN'LAR `height` TASIYOR AMA CAGRI YERINDE OVERRIDE YOLU YOK -> KULLANICI EMRI OLAN KATEGORI KARTI TASAR. ADIM 1 token uretecinin YALNIZ `kalinlik` ve `renk` aldigini yaziyor; `satirYuksekligi` token tanimina GOMULU (etiket = 1.4). Oysa kategori/hizli erisim karti bugun 14 punto + **height 1.15** ile ciziliyor ve kutusu bu degerden TURETILIYOR: `MediaQuery.textScalerOf(con…"
+    }
+  ],
+  "totalTokens": 2879951,
+  "totalToolCalls": 257
+}
