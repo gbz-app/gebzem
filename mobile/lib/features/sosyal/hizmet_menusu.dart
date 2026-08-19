@@ -386,18 +386,25 @@ class HizmetMenusu extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const SizedBox(height: 10),
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.withValues(alpha: 0.4),
-                      borderRadius: BorderRadius.circular(2),
+                // ⚠️ TURU 106 — SHEET TUTAMACI KALDIRILDI: tam ekran bir
+                //    sayfada "asagi cekip kapat" diye bir jest YOK;
+                //    tutamac olmayan bir davranisi vaat ediyordu.
+                const SizedBox(height: 8),
+                // ---- GERI
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: kYanBosluk - 8,
+                  ),
+                  child: Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: IconButton(
+                      tooltip: 'Geri',
+                      icon: const Icon(LucideIcons.arrowLeft),
+                      onPressed: () => Navigator.of(context).maybePop(),
                     ),
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 4),
                 const Padding(
                   padding: EdgeInsets.symmetric(horizontal: kYanBosluk),
                   child: Column(
@@ -581,16 +588,14 @@ class HizmetMenusu extends ConsumerWidget {
     );
   }
 
-  /// Sheet'i kapatip hedef ekrani acar.
+  /// Hedef ekrani acar.
   ///
-  /// ⚠️⚠️ `Navigator.of(context)` **POP'TAN ONCE** yakalanir. Pop'tan sonra
-  ///    okunursa sheet'in context'i OLU olur ve ekran HIC ACILMAZ
-  ///    (turu 59b/75b'nin "yanlis route" sinifi).
-  void _ac(BuildContext context, _Bolum b) {
-    final nav = Navigator.of(context);
-    nav.pop();
-    nav.push(MaterialPageRoute(builder: b.ac));
-  }
+  /// ⚠️⚠️ TURU 106 — **MENU ARTIK POP EDILMEZ.** Sheet doneminde once
+  ///	`pop` sonra `push` yapiliyordu; hedef ekrandan geri donen
+  ///	kullanici menuyu bulamiyor, tek "geri" ile akisa dusuyordu.
+  /// ⚠️ YAPMA: buraya tekrar `nav.pop()` ekleme.
+  void _ac(BuildContext context, _Bolum b) =>
+      Navigator.of(context).push(MaterialPageRoute(builder: b.ac));
 
   /// Kategori KARTI — izgara hucresi (kullanici emri: "eski halinin kucuk hali").
   ///
@@ -753,17 +758,40 @@ class _TumuEkrani extends StatelessWidget {
 ///    ALANIN %95'i olur (turu 96b'de olculdu: %89,6).
 /// ⚠️ Iki panel ayrisirsa kullanici farki ANINDA gorur; olculer degisecekse
 ///    IKISI BIRLIKTE degisir.
-Future<void> hizmetMenusuAc(BuildContext context) => showModalBottomSheet<void>(
-  context: context,
-  isScrollControlled: true,
-  showDragHandle: false,
-  backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-  shape: const RoundedRectangleBorder(
-    borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
-  ),
-  builder: (_) =>
-      const FractionallySizedBox(heightFactor: 0.95, child: HizmetMenusu()),
-);
+/// ⚠️⚠️⚠️ TURU 106 — MENU **TAM EKRAN** (kullanici emri: *"alttaki logoya
+///	tikladigim menu tam ekran olacak, birde geri gelirken sikinti
+///	yapiyor o ekran"*).
+///
+/// ═══════════ GERI DONUS NEDEN BOZUKTU ═══════════
+///
+/// Menu bir **alttan sayfa** (`showModalBottomSheet`) idi ve bir karta
+/// dokununca `_ac` once sheet'i **POP** edip sonra hedef ekrani PUSH
+/// ediyordu. Sonuc:
+///   · kapanma animasyonu ile acilma animasyonu UST USTE biniyor,
+///   · hedef ekrandan GERI donuldugunde menu ARTIK YOK — kullanici bir
+///     anda akista buluyordu kendini. "Geri" bir adim degil IKI adim
+///     geri gitmis gibi davraniyordu.
+///
+/// Artik menu NORMAL BIR ROUTE: kart `push` eder, geri tusu KATEGORIDEN
+/// MENUYE, bir daha basinca akisa doner. Yigin ekranda gorunenle ayni.
+/// ⚠️ YAPMA: bunu tekrar `showModalBottomSheet`e cevirme.
+Future<void> hizmetMenusuAc(BuildContext context) =>
+    Navigator.of(context).push<void>(
+      MaterialPageRoute(builder: (_) => const HizmetMenusuSayfasi()),
+    );
+
+/// Menunun tam ekran kabugu.
+///
+/// ⚠️ AppBar'da BASLIK YOK: govdenin kendi basligi ("Gebzem · Şehrindeki
+///    her şey") zaten var; ikisi birden ayni metni iki kez yazardi.
+class HizmetMenusuSayfasi extends StatelessWidget {
+  const HizmetMenusuSayfasi({super.key});
+
+  @override
+  Widget build(BuildContext context) => const Scaffold(
+    body: HizmetMenusu(),
+  );
+}
 
 /// ⚠️ IKI CIZGI (kullanici emri: "2 tane 2 satir cizgi hamburger tarzi").
 ///    Lucide'in `menu` ikonu UC cizgidir; bu yuzden ikon KULLANILMADI, iki
