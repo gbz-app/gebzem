@@ -11,6 +11,9 @@ import "../../core/yenile.dart";
 import '../../core/api.dart';
 import '../../router.dart' show rootMessengerKey;
 import '../home/home_screen.dart' show myProfileProvider;
+// ⚠️ TURU 114 — kart dili kategori ekraniyla ORTAK (sabitler IMPORT edilir).
+import '../isletme/isletme_kart.dart' show kYanBosluk, kYaricapBuyuk, kYuzeyGri;
+import '../randevu/randevu_servisi.dart' show kAyAdlari;
 import '../medya/medya_gorsel.dart';
 import '../vitrin/vitrin_slider.dart';
 import '../medya/medya_kapisi.dart';
@@ -279,133 +282,201 @@ class _EtkinlikListesiEkraniState extends ConsumerState<EtkinlikListesiEkrani> {
     ),
   );
 
-  Widget _kart(Etkinlik e) => Card(
-    margin: const EdgeInsets.fromLTRB(12, 6, 12, 0),
-    clipBehavior: Clip.antiAlias,
-    child: InkWell(
-      onTap: () async {
-        final degisti = await Navigator.of(context).push<bool>(
-          MaterialPageRoute(builder: (_) => EtkinlikDetayEkrani(etkinlik: e)),
-        );
-        if (!mounted) return;
-        // ⚠️ Silme/katilim degistiyse listeyi SUNUCUDAN tazele; salt setState
-        //    bayat nesneyi yeniden cizerdi.
-        if (degisti == true) { _yukle(); } else { setState(() {}); }
-      },
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+  /// ⚠️⚠️⚠️ TURU 114 — ETKINLIK KARTI **"YEMEK" KART DILINDE** (kullanici
+  ///	emirleri: *"etkinlikler daha modern ve detayli olsun"* + *"hepsi
+  ///	yemek mantiginda olsun"*).
+  ///
+  /// Degisenler:
+  ///  · `Card` (golge + kendi kenar payi) KALDIRILDI -> kategori
+  ///    ekranindaki gibi `kYanBosluk` yan payi + `ClipRRect(kYaricapBuyuk)`.
+  ///  · Kapak **HER ZAMAN** cizilir: medya yoksa `kYuzeyGri` yuzey. Eskiden
+  ///    medyasiz etkinlik kapaksiz cikiyor ve liste "delik deşik" duruyordu.
+  ///  · Kapagin uzerine **TARIH ROZETI** (gun + ay). Etkinligin en onemli
+  ///    bilgisi tarihtir ve metin satirinda kayboluyordu.
+  ///  · `Colors.grey` -> temadan (`onSurface` alfa). `Colors.grey` acik
+  ///    temada zeminle **2.40:1** kontrast veriyordu (turu 113 denetiminde
+  ///    olculdu; 12 px metin icin 4.5:1 gerekiyor).
+  ///  · Alt satir `Flexible` ile korunuyor: kategori adi uzun + yazi olcegi
+  ///    1.3 iken eski `Row` TASIYORDU.
+  Widget _kart(Etkinlik e) {
+    final tema = Theme.of(context);
+    final soluk = tema.colorScheme.onSurface.withValues(alpha: 0.62);
+    final yer = [
+      e.konum,
+      e.ilce,
+      e.il,
+    ].where((s) => s.isNotEmpty).join(', ');
+
+    Widget meta(IconData ikon, String metin) => Padding(
+      padding: const EdgeInsets.only(top: 3),
+      child: Row(
         children: [
-          if (e.mediaIds.isNotEmpty)
-            AspectRatio(
-              aspectRatio: 16 / 9,
-              // ⚠️ TEK KAYNAK (bkz. KapakGorseli serhi): ilk FOTOGRAF secilir.
-              child: KapakGorseli(
-                mediaIds: e.mediaIds,
-                mediaKinds: e.mediaKinds,
-                kucuk: false,
-              ),
-            ),
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  e.baslik,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    const Icon(
-                      LucideIcons.calendar,
-                      size: 14,
-                      color: Colors.grey,
-                    ),
-                    const SizedBox(width: 5),
-                    Expanded(
-                      child: Text(
-                        etkinlikZamani(e.baslangic),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                if (e.konum.isNotEmpty || e.ilce.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 3),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          LucideIcons.mapPin,
-                          size: 14,
-                          color: Colors.grey,
-                        ),
-                        const SizedBox(width: 5),
-                        Expanded(
-                          child: Text(
-                            [
-                              e.konum,
-                              e.ilce,
-                              e.il,
-                            ].where((s) => s.isNotEmpty).join(', '),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Chip(
-                      label: Text(
-                        e.kategoriAd,
-                        style: const TextStyle(fontSize: 11),
-                      ),
-                      visualDensity: VisualDensity.compact,
-                      padding: EdgeInsets.zero,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      e.fiyatMetni,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const Spacer(),
-                    const Icon(LucideIcons.users, size: 14, color: Colors.grey),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${e.katilanSayisi}'
-                      '${e.kontenjan > 0 ? "/${e.kontenjan}" : ""}',
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
-                    ),
-                  ],
-                ),
-              ],
+          Icon(ikon, size: 14, color: soluk),
+          const SizedBox(width: 5),
+          Expanded(
+            child: Text(
+              metin,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 12, color: soluk),
             ),
           ),
         ],
       ),
-    ),
-  );
+    );
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(kYanBosluk, 0, kYanBosluk, 16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(kYaricapBuyuk),
+        onTap: () async {
+          final degisti = await Navigator.of(context).push<bool>(
+            MaterialPageRoute(builder: (_) => EtkinlikDetayEkrani(etkinlik: e)),
+          );
+          if (!mounted) return;
+          // ⚠️ Silme/katilim degistiyse listeyi SUNUCUDAN tazele; salt
+          //    `setState` bayat nesneyi yeniden cizerdi.
+          if (degisti == true) {
+            _yukle();
+          } else {
+            setState(() {});
+          }
+        },
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(kYaricapBuyuk),
+              child: AspectRatio(
+                aspectRatio: 16 / 9,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    if (e.mediaIds.isNotEmpty)
+                      // ⚠️ TEK KAYNAK (bkz. `KapakGorseli` serhi): ilk
+                      //    FOTOGRAF secilir; yalniz-video etkinlikte INDIRME
+                      //    YAPMADAN yer tutucu cizer.
+                      KapakGorseli(
+                        mediaIds: e.mediaIds,
+                        mediaKinds: e.mediaKinds,
+                        kucuk: false,
+                      )
+                    else
+                      ColoredBox(color: kYuzeyGri(context)),
+                    // ---- TARIH ROZETI
+                    // ⚠️ `Etkinlik.baslangic` **NULLABLE** (sunucudan bozuk
+                    //    tarih gelirse `tryParse` null doner). Rozet yalniz
+                    //    tarih VARSA cizilir — aksi halde "null Oca" gibi
+                    //    bir sey yazmak yerine HIC cizmemek dogru.
+                    if (e.baslangic != null)
+                    Positioned(
+                      left: 10,
+                      top: 10,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 9,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          // ⚠️ Kapak fotografi HER RENKTE olabilir; rozet
+                          //    KOYU zemin + BEYAZ yazi ile her kapakta
+                          //    okunur kalir (temaya baglanamaz).
+                          color: Colors.black.withValues(alpha: 0.62),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              '${e.baslangic!.day}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                                height: 1.05,
+                              ),
+                            ),
+                            Text(
+                              kAyAdlari[e.baslangic!.month - 1]
+                                  .substring(0, 3),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w700,
+                                height: 1.2,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 9),
+            Text(
+              e.baslik,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 3),
+            meta(LucideIcons.calendar, etkinlikZamani(e.baslangic)),
+            if (yer.isNotEmpty) meta(LucideIcons.mapPin, yer),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                // ⚠️ `Flexible`: kategori adi uzun + yazi olcegi 1.3 iken
+                //    eski `Row` TASIYORDU (dort ciplak cocuk + `Spacer`).
+                Flexible(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 9,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: tema.colorScheme.onSurface.withValues(alpha: 0.07),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      e.kategoriAd,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    e.fiyatMetni,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                Icon(LucideIcons.users, size: 14, color: soluk),
+                const SizedBox(width: 4),
+                Text(
+                  '${e.katilanSayisi}'
+                  '${e.kontenjan > 0 ? "/${e.kontenjan}" : ""}',
+                  style: TextStyle(fontSize: 12, color: soluk),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 /// Etkinlik detayi + KATILIM.
