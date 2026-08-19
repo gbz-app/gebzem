@@ -198,7 +198,13 @@ class HizmetMenusu extends ConsumerWidget {
       //    ozelligi TAMAMEN ULASILAMAZ kalirdi; bu projede ALTI kez yasanan
       //    "olu ozellik" sinifi.
       //    ⚠️ YAPMA: bu karti kaldirma — kanallara baska giris YOK.
-      _Bolum('Kanallar', [
+      // ⚠️ TURU 114 (denetim) — kart adi "Kanallar" -> **"Topluluklar"**:
+      //    mesajlar ekranindaki yeni girisler "Topluluk" diyor, actiklari
+      //    ekranlar "Kanal" diyordu. Ayni sey icin IKI AD kullanmak
+      //    kullaniciya IKI FARKLI OZELLIK varmis gibi gelirdi.
+      // ⚠️ Yalniz GORUNEN metin degisti; sinif/uc/tablo adlari (,
+      //    , ) DOKUNULMADI.
+      _Bolum('Topluluklar', [
         const Color(0xFF4A6CF7),
         const Color(0xFF1B2A6B),
       ], (c) => const KanallarSayfasi()),

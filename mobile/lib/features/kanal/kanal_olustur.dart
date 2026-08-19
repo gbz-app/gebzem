@@ -70,12 +70,12 @@ class _KanalOlusturState extends ConsumerState<KanalOlustur> {
   Future<void> _olustur() async {
     final ad = _ad.text.trim();
     if (ad.length < 2) {
-      _uyar('Kanal adı en az 2 karakter olmalı');
+      _uyar('Topluluk adı en az 2 karakter olmalı');
       return;
     }
     final adres = _adres.text.trim().toLowerCase();
     if (adres.isNotEmpty && !RegExp(r'^[a-z0-9_]{3,24}$').hasMatch(adres)) {
-      _uyar('Kanal adresi 3-24 karakter olmalı (a-z, 0-9, _)');
+      _uyar('Topluluk adresi 3-24 karakter olmalı (a-z, 0-9, _)');
       return;
     }
     setState(() => _calisiyor = true);
@@ -103,7 +103,7 @@ class _KanalOlusturState extends ConsumerState<KanalOlustur> {
       setState(() => _calisiyor = false);
       // ⚠️ Sunucunun kendi metni GOSTERILIR ("bu kanal adresi alınmış" gibi) —
       //    genel "hata oluştu" demek kullaniciyi cozumden uzaklastirir.
-      String m = 'Kanal oluşturulamadı';
+      String m = 'Topluluk oluşturulamadı';
       if (e is DioException && e.response?.data is Map) {
         final s = (e.response!.data as Map)['error'];
         if (s is String && s.isNotEmpty) m = s;
@@ -116,7 +116,7 @@ class _KanalOlusturState extends ConsumerState<KanalOlustur> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Kanal aç'),
+        title: const Text('Topluluk aç'),
         actions: [
           TextButton(
             onPressed: _calisiyor ? null : _olustur,
@@ -170,7 +170,7 @@ class _KanalOlusturState extends ConsumerState<KanalOlustur> {
               maxLength: 60,
               onChanged: (_) => setState(() {}),
               decoration: const InputDecoration(
-                labelText: 'Kanal adı',
+                labelText: 'Topluluk adı',
                 border: OutlineInputBorder(),
                 counterText: '',
               ),
@@ -185,7 +185,7 @@ class _KanalOlusturState extends ConsumerState<KanalOlustur> {
                 FilteringTextInputFormatter.allow(RegExp(r'[a-z0-9_]')),
               ],
               decoration: const InputDecoration(
-                labelText: 'Kanal adresi (isteğe bağlı)',
+                labelText: 'Topluluk adresi (isteğe bağlı)',
                 prefixText: '@',
                 helperText: 'Paylaşılabilir bağlantı: gebzem.app/k/adres',
                 border: OutlineInputBorder(),
@@ -213,7 +213,7 @@ class _KanalOlusturState extends ConsumerState<KanalOlustur> {
                     SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        'Kanal tek yönlüdür: yalnızca sen ve yetkililer gönderi '
+                        'Topluluk tek yönlüdür: yalnızca sen ve yetkililer gönderi '
                         'paylaşabilir. Aboneler okur ve beğenir, yanıt yazamaz.',
                         style: TextStyle(fontSize: 12),
                       ),

@@ -115,8 +115,8 @@ class _KanalEkraniState extends ConsumerState<KanalEkrani> {
       setState(() {
         _yukleniyor = false;
         _hata = e.toString().contains('404')
-            ? 'Kanal bulunamadı'
-            : 'Kanal açılamadı';
+            ? 'Topluluk bulunamadı'
+            : 'Topluluk açılamadı';
       });
     }
   }
@@ -390,7 +390,7 @@ class _KanalEkraniState extends ConsumerState<KanalEkrani> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(_hata ?? 'Kanal açılamadı'),
+                  Text(_hata ?? 'Topluluk açılamadı'),
                   const SizedBox(height: 10),
                   OutlinedButton(
                     onPressed: _yukle,
@@ -824,7 +824,7 @@ class _KanalEkraniState extends ConsumerState<KanalEkrani> {
                   maxLines: 5,
                   maxLength: 4000,
                   decoration: const InputDecoration(
-                    hintText: 'Kanala gönderi yaz...',
+                    hintText: 'Topluluğa gönderi yaz...',
                     counterText: '',
                     isDense: true,
                     border: OutlineInputBorder(),
