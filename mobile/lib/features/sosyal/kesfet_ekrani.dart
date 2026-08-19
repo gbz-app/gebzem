@@ -8,6 +8,8 @@ import "../../core/yenile.dart";
 
 import '../../core/api.dart';
 import '../medya/medya_gorsel.dart';
+import '../ilan/ilan_ekranlari.dart' show IlanDetayEkrani;
+import '../ilan/ilan_servisi.dart' show Ilan;
 import 'gonderi_detay.dart';
 import 'profil_sayfasi.dart';
 import 'sosyal_servisi.dart';
@@ -46,8 +48,10 @@ class _KesfetEkraniState extends ConsumerState<KesfetEkrani>
   /// Bayat yanit kapisi — bkz. sinif serhi.
   int _istekNo = 0;
 
-  List<Map<String, dynamic>>? _sonuclar;
-  bool _araniyor = false;
+  // ⚠️ TURU 115 — `_sonuclar` SILINDI: sonuclar artik SEKME BASINA
+  //    `_sonuc` haritasinda tutuluyor.
+  // ⚠️ TURU 115 —  SILINDI: yukleme durumu artik SEKME BASINA
+  //    ().
 
   final List<Gonderi> _izgara = [];
   bool _izgaraYukleniyor = true;
@@ -55,6 +59,39 @@ class _KesfetEkraniState extends ConsumerState<KesfetEkrani>
 
   @override
   bool get wantKeepAlive => true;
+
+  /// ⚠️⚠️⚠️ TURU 115 — **TIKTOK TARZI ARAMA** (kullanici emri: *"arama kismi
+  ///	icin sana TIKTOK TARZI olsun dedim yapmadin"* + daha once *"arama
+  ///	ekrani kategorilerle olsun: kullanici, isletme, ses, konum"*).
+  ///
+  /// Arama yapilinca sonuclar SEKMELERE ayrilir. Her sekme AYRI bir ucu
+  /// cagirir ve sonucu KENDI listesinde tutar:
+  ///
+  ///	· Kullanıcılar -> GET /users/search?q=
+  ///	· İşletmeler   -> GET /isletmeler?q=
+  ///	· İlanlar      -> GET /ilanlar?q=
+  ///	· Gönderiler   -> GET /ara?q=            (turu 115'te YAZILDI)
+  ///	· Ses          -> GET /ara?q=&tur=ses
+  ///	· Yer          -> GET /ara?q=&tur=konum
+  ///
+  /// ⚠️⚠️ SEKME BASINA **TEMBEL**: yalnizca ACILAN sekme istek atar. Altisini
+  ///	birden cagirmak tek harfte ALTI ag istegi demekti (debounce 320 ms
+  ///	olsa bile). `_sonuc` haritasi hangi sekmenin YUKLENDIGINI tutar.
+  /// ⚠️ Arama metni degisince TUM sekme onbellegi temizlenir — aksi halde
+  ///    kullanici yeni kelime yazip eski sekmeye gecince ESKI sonucu gorurdu.
+  static const _sekmeler = <({String etiket, String tur})>[
+    (etiket: 'Kullanıcılar', tur: 'kullanici'),
+    (etiket: 'İşletmeler', tur: 'isletme'),
+    (etiket: 'Gönderiler', tur: 'gonderi'),
+    (etiket: 'İlanlar', tur: 'ilan'),
+    (etiket: 'Ses', tur: 'ses'),
+    (etiket: 'Yer', tur: 'konum'),
+  ];
+
+  /// tur -> sonuc listesi (`null` = henuz yuklenmedi).
+  final Map<String, List<dynamic>?> _sonuc = {};
+  final Set<String> _yukleniyorTur = {};
+  int _sekme = 0;
 
   @override
   void initState() {
@@ -98,35 +135,72 @@ class _KesfetEkraniState extends ConsumerState<KesfetEkrani>
     final metin = q.trim();
     if (metin.isEmpty) {
       setState(() {
-        _sonuclar = null;
-        _araniyor = false;
+        _sonuc.clear();
       });
       return;
     }
-    setState(() => _araniyor = true);
     _gecikme = Timer(const Duration(milliseconds: 320), () => _ara(metin));
   }
 
+  /// Arama metni degisti: TUM sekme onbellegi bosalir, AKTIF sekme yuklenir.
   Future<void> _ara(String q) async {
+    _sonuc.clear();
+    _yukleniyorTur.clear();
+    if (!mounted) return;
+    await _sekmeYukle(_sekmeler[_sekme].tur, q);
+  }
+
+  /// ⚠️ BAYAT YANIT KAPISI (`_istekNo`): istek ucarken kullanici yazmaya devam
+  ///    etmis olabilir; eski yanit yeniyi EZMEMELI. Turu 96'dan beri var,
+  ///    cok-sekmeli yapida da KORUNDU.
+  Future<void> _sekmeYukle(String tur, String q) async {
+    if (q.isEmpty || _sonuc.containsKey(tur) || _yukleniyorTur.contains(tur)) {
+      return;
+    }
     final jeton = ++_istekNo;
+    setState(() => _yukleniyorTur.add(tur));
     try {
-      final r = await ref
-          .read(apiProvider)
-          .get('/users/search', queryParameters: {'q': q});
-      // ⚠️ BAYAT YANIT KAPISI: bu istek gecerken kullanici yazmaya devam etmis
-      //    olabilir; eski yanit yeniyi EZMEMELI.
+      final api = ref.read(apiProvider);
+      final List<dynamic> l;
+      switch (tur) {
+        case 'kullanici':
+          final r = await api.get(
+            '/users/search',
+            queryParameters: {'q': q},
+          );
+          l = (r.data as List?) ?? [];
+        case 'isletme':
+          final r = await api.get(
+            '/isletmeler',
+            queryParameters: {'q': q},
+          );
+          l = ((r.data as Map)['isletmeler'] as List?) ?? [];
+        case 'ilan':
+          final r = await api.get('/ilanlar', queryParameters: {'q': q});
+          l = ((r.data as Map)['ilanlar'] as List?) ?? [];
+        default:
+          // gonderi · ses · konum -> tek uc, `tur` parametresiyle
+          final r = await api.get(
+            '/ara',
+            queryParameters: {
+              'q': q,
+              if (tur != 'gonderi') 'tur': tur,
+            },
+          );
+          l = ((r.data as Map)['posts'] as List?) ?? [];
+      }
       if (!mounted || jeton != _istekNo) return;
       setState(() {
-        _sonuclar = ((r.data as List?) ?? [])
-            .map((e) => (e as Map).cast<String, dynamic>())
-            .toList();
-        _araniyor = false;
+        _sonuc[tur] = l;
+        _yukleniyorTur.remove(tur);
       });
     } catch (_) {
-      if (!mounted || jeton != _istekNo) return;
+      if (!mounted) return;
+      // ⚠️ Hata da ONBELLEKLENIR (bos liste): aksi halde her cizimde istek
+      //    tekrar atilir ve ekran spinner'da donerdi.
       setState(() {
-        _sonuclar = [];
-        _araniyor = false;
+        _sonuc[tur] = const [];
+        _yukleniyorTur.remove(tur);
       });
     }
   }
@@ -178,40 +252,200 @@ class _KesfetEkraniState extends ConsumerState<KesfetEkrani>
               ),
             ),
           ),
-          Expanded(child: aramaModu ? _sonucListesi() : _kesfetIzgarasi()),
+          if (aramaModu) _sekmeSeridi(),
+          Expanded(child: aramaModu ? _sonucGovde() : _kesfetIzgarasi()),
         ],
       ),
     );
   }
 
-  Widget _sonucListesi() {
-    if (_araniyor && _sonuclar == null) {
+  /// Sekme seridi — TikTok'un sonuc sekmeleri.
+  ///
+  /// ⚠️ `TabBar` KULLANILMADI: `TabController` sekme sayisi degismedigi
+  ///    surece dogru calisir ama burada sekme sayisi SABIT ve secim zaten
+  ///    `_sekme` alaninda; ayrica `TabBar` kendi kaydirma fizigini getirir.
+  ///    Yatay `ListView` + cip daha az hareketli parca.
+  Widget _sekmeSeridi() => SizedBox(
+    height: 42,
+    child: ListView.builder(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      itemCount: _sekmeler.length,
+      itemBuilder: (_, i) {
+        final secili = i == _sekme;
+        final scheme = Theme.of(context).colorScheme;
+        return Padding(
+          padding: const EdgeInsets.only(right: 8),
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () {
+              setState(() => _sekme = i);
+              // ⚠️ TEMBEL: sekmeye GECILDIGINDE yuklenir.
+              unawaited(
+                _sekmeYukle(_sekmeler[i].tur, _kutu.text.trim()),
+              );
+            },
+            child: Container(
+              alignment: Alignment.center,
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              decoration: BoxDecoration(
+                color: secili
+                    ? scheme.primary
+                    : scheme.onSurface.withValues(alpha: 0.07),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                _sekmeler[i].etiket,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: secili ? scheme.onPrimary : scheme.onSurface,
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    ),
+  );
+
+  Widget _sonucGovde() {
+    final tur = _sekmeler[_sekme].tur;
+    final l = _sonuc[tur];
+    if (l == null || _yukleniyorTur.contains(tur)) {
       return const Center(child: CircularProgressIndicator());
     }
-    final l = _sonuclar ?? const [];
     if (l.isEmpty) {
-      return const Center(
-        child: Text('Sonuç yok', style: TextStyle(color: Colors.grey)),
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Text(
+            'Sonuç yok',
+            style: TextStyle(
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.6),
+            ),
+          ),
+        ),
       );
     }
     return ListView.builder(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       itemCount: l.length,
       itemBuilder: (_, i) {
-        final u = l[i];
-        final ad = (u['name'] ?? '').toString();
-        return ListTile(
-          leading: Avatar(
-            ad: ad,
-            mediaId: u['avatar_media_id'] as String?,
-            avatarUrl: (u['avatar_url'] ?? '').toString(),
-            cap: 44,
-          ),
-          title: Text(ad),
-          subtitle: Text('@${(u['username'] ?? '').toString()}'),
-          onTap: () => _profileGit((u['id'] ?? '').toString()),
-        );
+        final m = (l[i] as Map).cast<String, dynamic>();
+        return switch (tur) {
+          'kullanici' => _kullaniciSatiri(m),
+          'isletme' => _isletmeSatiri(m),
+          'ilan' => _ilanSatiri(m),
+          _ => _gonderiSatiri(m),
+        };
       },
+    );
+  }
+
+  Widget _kullaniciSatiri(Map<String, dynamic> u) {
+    final ad = (u['name'] ?? '').toString();
+    return ListTile(
+      leading: Avatar(
+        ad: ad,
+        mediaId: u['avatar_media_id'] as String?,
+        avatarUrl: (u['avatar_url'] ?? '').toString(),
+        cap: 44,
+      ),
+      title: Text(ad),
+      subtitle: Text('@${(u['username'] ?? '').toString()}'),
+      onTap: () => _profileGit((u['id'] ?? '').toString()),
+    );
+  }
+
+  /// ⚠️ Isletme sonucu da PROFILE gider: isletme bu projede bir KULLANICIDIR
+  ///    (`users.hesap_turu='isletme'`), ayri bir detay ekrani YOK.
+  Widget _isletmeSatiri(Map<String, dynamic> i) {
+    final ad = (i['name'] ?? '').toString();
+    final alt = [
+      (i['kategori_ad'] ?? '').toString(),
+      [
+        (i['ilce'] ?? '').toString(),
+        (i['il'] ?? '').toString(),
+      ].where((x) => x.isNotEmpty).join(', '),
+    ].where((x) => x.isNotEmpty).join(' · ');
+    return ListTile(
+      leading: Avatar(
+        ad: ad,
+        mediaId: i['avatar_media_id'] as String?,
+        avatarUrl: (i['avatar_url'] ?? '').toString(),
+        cap: 44,
+      ),
+      title: Text(ad),
+      subtitle: alt.isEmpty ? null : Text(alt),
+      trailing: i['dogrulandi'] == true
+          ? Icon(
+              LucideIcons.badgeCheck,
+              size: 17,
+              color: Theme.of(context).colorScheme.primary,
+            )
+          : null,
+      onTap: () => _profileGit((i['id'] ?? '').toString()),
+    );
+  }
+
+  Widget _ilanSatiri(Map<String, dynamic> m) {
+    final i = Ilan.fromJson(m);
+    return ListTile(
+      leading: SizedBox(
+        width: 52,
+        height: 52,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: KapakGorseli(
+            mediaIds: i.mediaIds,
+            mediaKinds: i.mediaKinds,
+            width: 52,
+          ),
+        ),
+      ),
+      title: Text(i.baslik, maxLines: 2, overflow: TextOverflow.ellipsis),
+      subtitle: Text(i.fiyatEtiketi),
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => IlanDetayEkrani(ilan: i)),
+      ),
+    );
+  }
+
+  /// ⚠️ Gonderi sonucu DETAYA gider (izgara hucresi degil liste satiri):
+  ///    arama sonucunda metin baglami onemli, kare kapak tek basina hangi
+  ///    gonderi oldugunu anlatmiyor.
+  Widget _gonderiSatiri(Map<String, dynamic> m) {
+    final g = Gonderi.json(m);
+    final metin = g.metin.trim();
+    final alt = [
+      g.yazarAd,
+      if (g.konum.isNotEmpty) g.konum,
+    ].join(' · ');
+    return ListTile(
+      leading: SizedBox(
+        width: 52,
+        height: 52,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: KapakGorseli(
+            mediaIds: g.mediaIds,
+            mediaKinds: g.mediaKinds,
+            width: 52,
+          ),
+        ),
+      ),
+      title: Text(
+        metin.isEmpty ? '(yazısız gönderi)' : metin,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+      ),
+      subtitle: Text(alt, maxLines: 1, overflow: TextOverflow.ellipsis),
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => GonderiDetay(gonderi: g)),
+      ),
     );
   }
 
