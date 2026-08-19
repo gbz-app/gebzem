@@ -7464,3 +7464,50 @@ Sunucuda yok: İlgilenmiyorum · Sessize al · Kısıtla + **tüm reklam maddele
 Kapsülde ayraç halkası yalnız öndeki dairede → solda 4 dp / sağda 2 dp
 **asimetri**; yalnız arkadakinde → ayraç öndekinin altında kalıp **görünmüyor**.
 Kullanıcı sonunda tek profil istedi, konu kapandı.
+
+---
+
+## Oturum — Turu 99–101 (19 Ağustos 2026, 08:46) — YANIT (THREAD) MİMARİSİ · YAYINLANDI
+
+**Yayın:** android **32219654943** + ios **32219657383** (`bef947e`) ·
+apk=122189811 (1949150a) · ipa=31654546 (f2d9dd4d) · index=11843 (7417d4aa) ·
+surum.json (5d6e8477) · **CDN dördü de birebir** · debug imza YOK ·
+**backend değişmedi**. Adres: https://indir.gebzem.app/index.html?v=20260819-0846
+
+### ✅ Yeni dosyalar
+`thread_cizgi.dart` · `yorum_satiri.dart` (YorumGorunum/YorumSatiri/YorumGrubu/
+YanitlariGosterSatiri) · `gonderi_hareketleri.dart` · `yorum_paneli.dart` ·
+`gonderi_menusu.dart`
+
+### 🧠 Ajanların çıkardığı KURAL (docs değil, serhlerde yazılı)
+- **Kıvrım = "burada gizli içerik var"; düz = "devam ekranda".** Kıvrım bir
+  sonlandırıcıdır, süs değil → açık modda ve akışta ASLA kıvrım yok.
+- **Çizgi koşulludur**: yalnız `yanitlar.isNotEmpty` iken çizilir ve alt ucu
+  daima bir NESNEYE (avatar merkezi) değer. Havada biten çizgi yasak.
+- **Girinti tek kademe**: sunucu yanıtın yanıtını köke katlıyor
+  (`etkilesim.go`), 2. kademe girinti olmayan bir hiyerarşiyi iddia eder.
+- **Yanıt bizde gönderi değil, yorumdur** — `post_comments` ayrı tablo;
+  yoruma kaydet/alıntı/istatistik/permalink BAĞLANAMAZ.
+- Çizgi **avatar sütununda** yaşar (bilgi: "bu KİŞİ şuna cevap veriyor"),
+  metin sütununda değil.
+- Çizgi **salt göstergedir**; kontrol daima ucundaki satırdır (2 dp çizgi
+  dokunma hedefi olamaz).
+
+### 🐞 Bu turda düzeltilenler
+- `arcToPoint` aynı iki nokta + yarıçap için **iki yay** üretiyor; `clockwise`
+  bir denemede dışbükey ("ters"), ötekinde diyagonal çizdi → kontrol noktası
+  köşenin kendisi olan **quadratic Bézier**. ⚠️ YAPMA: arcToPoint'e dönme.
+- Çizgi satırın İÇİNDE çiziliyordu → kıvrım boşlukta kalıyordu; **grubun
+  oluğuna** taşındı.
+- "Yanıtları gizle"ye çizgi çekmek anlamsızdı → açıkken satır kalkıyor.
+- Yorum satırının **iki ayrı gövdesi** (demo/gerçek) tek bileşende birleşti.
+
+### ⏳ Sıradaki tur (denetim bulguları)
+1. Açık moddaki çizgi son yanıtın **avatar merkezinde** bitmeli — bugün
+   `bottom: 0` ile içeriğin altına iniyor (medyalı yanıtta ~200 dp sarkma).
+2. `kYanitSatirBoy` **40 → 44** (Material/Apple dokunma minimumu).
+3. Yorumdaki işlevsiz ikonlar (repost/paylaş/yanıt) tam opak çiziliyor ve
+   dokunulunca hiçbir şey yapmıyor → `Opacity(0.45)` + dürüst uyarı.
+4. `yazarMi` istemcide türetilmeli (`yorum.yazarId == gonderi.yazarId`);
+   bugün yalnız demo bayrağından geliyor, gerçek yorumda hiç çizilmiyor.
+5. Yorum beğenisi sunucuya yazılmıyor (`comment_likes` tablosu var, uç yok).
