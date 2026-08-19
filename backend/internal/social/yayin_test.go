@@ -47,7 +47,12 @@ var istisnalar = map[string]string{
 
 func TestGonderiSorgularindaYayinYuklemi(t *testing.T) {
 	var kaynak strings.Builder
-	for _, f := range []string{"handler.go", "etkilesim.go"} {
+	// ⚠️⚠️ TURU 114 — `mahalle.go` da TARANIR. Zamanlanmis gonderi yuklemi
+	//    (`yayin_at IS NULL OR yayin_at <= now()`) yeni sorguda eksik
+	//    kalsaydi, ileri tarihe zamanlanmis bir gonderi **Mahalle
+	//    bolmesinden SIZARDI** — bu muhafizin var olma sebebi tam olarak
+	//    "6 sorguya ekleyip 7.'yi atlama" hatasidir.
+	for _, f := range []string{"handler.go", "etkilesim.go", "mahalle.go"} {
 		b, err := os.ReadFile(f)
 		if err != nil {
 			t.Fatalf("%s okunamadi: %v", f, err)
@@ -136,7 +141,7 @@ func TestGonderiSorgularindaYayinYuklemi(t *testing.T) {
 		}
 	}
 
-	if sayac < 6 {
+	if sayac < 7 {
 		t.Fatalf("beklenenden az gonderi sorgusu bulundu (%d) — ayristirma "+
 			"bozulmus olabilir; test YANLIS NEGATIF veriyor olabilir", sayac)
 	}

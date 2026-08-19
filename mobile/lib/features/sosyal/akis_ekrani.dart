@@ -166,9 +166,24 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
       if (kDemoAkis) {
         if (!mounted) return;
         setState(() {
+          // ⚠️⚠️⚠️ TURU 114 — **MAHALLE DEMODA DA KENDINI ANLATIR** (denetim
+          //	bulgusu). Demo dali bolme dagitiminin USTUNDE oldugu icin
+          //	Mahalle sekmesi de AYNI sekiz demo gonderiyi gosteriyordu:
+          //	konum HIC istenmiyor, bolme digerlerinden AYIRT EDILEMIYOR ve
+          //	ozellik pratikte **hic gorunmuyordu**.
+          //
+          // ⚠️ Cozum SAHTE VERI EKLEMEK DEGIL: mahallenin tanimi "konumlu
+          //    gonderiler" oldugu icin demo listesi de o olcute gore
+          //    SUZULUYOR. Boylece bolmenin ne yaptigi ekranda GORUNUYOR ve
+          //    hicbir uydurma sayi/kart cizilmiyor.
+          final demo = demoGonderiler();
           _listeler[bolme]
             ..clear()
-            ..addAll(demoGonderiler());
+            ..addAll(
+              bolme == 2
+                  ? demo.where((g) => g.enlem != 0 || g.boylam != 0)
+                  : demo,
+            );
           _bolmeYuklendi[bolme] = true;
           _yukleniyor = false;
           _ilkYukleme = false;
@@ -822,12 +837,27 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
           const SizedBox(height: 14),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 40),
+            // ⚠️⚠️ TURU 114 — METIN **UC DALLI** (denetim bulgusu). Iki dalliyken
+            //	Mahalle bos donunce kullaniciya *"birilerini takip et"*
+            //	deniyordu; oysa mahalle akisinda takip iliskisi HIC sorulmaz.
+            //	YANLIS TAVSIYE, bos ekrandan daha kotudur: kullanici sorunu
+            //	cozmek icin ise yaramayacak bir sey yapardi.
             child: Text(
-              _bolme == 1
-                  ? 'Keşfedilecek gönderi bulunamadı.\nBiraz sonra tekrar bak.'
-                  : 'Henüz gönderi yok.\nİlk paylaşımı sen yap ya da birilerini takip et.',
+              switch (_bolme) {
+                2 =>
+                  'Çevrende konum paylaşan gönderi yok.\n'
+                      'Yakınındaki gönderiler burada görünür.',
+                1 => 'Keşfedilecek gönderi bulunamadı.\nBiraz sonra tekrar bak.',
+                _ =>
+                  'Henüz gönderi yok.\n'
+                      'İlk paylaşımı sen yap ya da birilerini takip et.',
+              },
               textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.grey),
+              style: TextStyle(
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.6),
+              ),
             ),
           ),
         ],

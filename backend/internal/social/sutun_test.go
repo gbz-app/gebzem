@@ -39,7 +39,15 @@ var beklenenSutunlar = []string{
 
 func TestGonderiSorgulariScanIleUyumlu(t *testing.T) {
 	kaynak := ""
-	for _, f := range []string{"handler.go", "etkilesim.go"} {
+	// ⚠️⚠️⚠️ TURU 114 — **MUHAFIZ KORDU** (denetimde yakalandi).
+	//
+	//	Yeni gonderi sorgulari BASKA DOSYALARA yazilabiliyor; bu liste
+	//	yalniz iki dosyayi taradigi icin `mahalle.go`daki sorgu HIC
+	//	olculmuyordu. SELECT/Scan ayrisirsa `satirlariOku` her satiri
+	//	SESSIZCE atlar ve **Mahalle bolmesi BOMBOS** gorunurdu — turu 76
+	//	"Kaydedilenler BOMBOS" hatasinin birebir tekrari.
+	// ⚠️ YAPMA: yeni bir gonderi sorgusu yazip bu listeye eklemeyi atlama.
+	for _, f := range []string{"handler.go", "etkilesim.go", "mahalle.go"} {
 		b, err := os.ReadFile(f)
 		if err != nil {
 			t.Fatalf("%s okunamadi: %v", f, err)
@@ -90,9 +98,10 @@ func TestGonderiSorgulariScanIleUyumlu(t *testing.T) {
 	}
 	// ⚠️ Sorgu sayisi DUSERSE de haber ver: biri sorguyu silmis ya da bicimini
 	//    degistirmis olabilir (bu test onu bir daha goremezdi = sessiz korluk).
-	if bulunan < 7 {
-		t.Errorf("yalniz %d gonderi sorgusu tarandi; en az 7 bekleniyordu "+
-			"(Akis x2, Kesfet, UserPosts, Detay, Reels, Kaydedilenler)", bulunan)
+	if bulunan < 8 {
+		t.Errorf("yalniz %d gonderi sorgusu tarandi; en az 8 bekleniyordu "+
+			"(Akis x2, Kesfet, UserPosts, Detay, Reels, Kaydedilenler, Mahalle)",
+			bulunan)
 	}
 }
 
