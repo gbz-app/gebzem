@@ -33,6 +33,11 @@ import (
 // ⚠️ `$1` her cagiran sorguda `me` OLMAK ZORUNDA (`engel.Yuklem("$1",...)`
 //	zaten ayni parametreyi kullaniyor). Oturumsuz cagride bos dize gelir ve
 //	EXISTS dogal olarak false doner.
+// ⚠️⚠️ `::text` CAST'I **KULLANILAMAZ** (canli sunucuda olculdu):
+//	`engel.Yuklem` ayni $1'i `blocks.blocker_id` (uuid) ile karsilastirdigi
+//	icin Postgres parametreyi UUID olarak cikarsiyor; `::text = $1` yazmak
+//	*"operator does not exist: uuid = text"* verir ve **TUM ISLETME LISTESI
+//	500 doner** (uctan uca kontrolde 14 madde birden dustu).
 // ⚠️ SQL ICINE `--` YORUMU YAZMA: muhafizin ayristiricisi sutunlari virgulle
 //	boluyor ve virgul iceren bir yorum sutun SAYILIYOR (yeni sutun eklerken
 //	bu tuzaga dusuldu, test KIRMIZI dustu).
@@ -53,7 +58,7 @@ const isletmeSutunlari = `
 		i.puan, i.puan_sayisi, i.kampanyalar,
 		i.enlem, i.boylam,
 		EXISTS(SELECT 1 FROM isletme_favoriler f2
-		        WHERE f2.user_id::text = $1 AND f2.isletme_id = u.id),
+		        WHERE f2.user_id = $1 AND f2.isletme_id = u.id),
 		u.created_at`
 
 // isletmeSatiri — bir satiri okur ve istemci sozlesmesine cevirir.
