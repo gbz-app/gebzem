@@ -119,6 +119,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   static const _ara = 1;
   static const _reels = 2;
 
+  /// ⚠️ TURU 108 — profil sekmesi artik KENDI ust duzenini ciziyor
+  ///    (seffaf header), bu yuzden dis AppBar muafiyetine girdi.
+  static const _profil = 5;
+
   /// TURU 89 — IZIN EKRANI KALDIRILDI, IZINLER ONBOARDINGTE ALINIYOR.
   ///
   ///	Kullanici emri: *"sana onboardingde izin al demistim, o izin ekrani
@@ -158,7 +162,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       //    kaplar hem Instagram deseninden sapar); reels tam ekran video.
       // ⚠️ AppBar'i olmayan sekmeler KENDI `SafeArea`sini koymak ZORUNDA
       //    (yoksa icerik durum cubugunun ALTINA girer).
-      appBar: (_index == _akis || _index == _ara || _index == _reels)
+      appBar:
+          (_index == _akis ||
+              _index == _ara ||
+              _index == _reels ||
+              _index == _profil)
           ? null
           // ⚠️⚠️ TURU 76b — AppBar'DAKI "+" KALDIRILDI (kullanici bulgusu:
           //    "grup olusturma nerede?").
@@ -206,7 +214,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           _index == _reels ? const ReelsSayfasi() : const SizedBox.shrink(),
           const _MesajSekmesi(), // sohbetler + CAGRI GECMISI segmenti
           const _CanliSekmesi(), // canli yayinlar + SESLI ODALAR segmenti
-          const _ProfileTab(),
+          // ⚠️⚠️⚠️ TURU 108 — **DOGRUDAN PROFIL** (kullanici emri: *"profile
+          //	tikladigimda direk profil gelmeli"*). Eskiden bu sekme AYARLAR
+          //	listesiydi; kendi profiline ulasmak IKI dokunustu.
+          const _ProfilSekmesi(),
         ],
       ),
       // ⚠️⚠️⚠️ TURU 96g — ALT MENU **YENIDEN KURULDU** (kullanici emri:
@@ -368,6 +379,43 @@ final myProfileProvider = FutureProvider<Map<String, dynamic>>((ref) async {
 ///	referanstaki "Password & Security" / "Language" / "Help Center" gibi
 ///	satirlar **EKLENMEDI** — karsiliklari YOK. Sifre degistirme yalnizca
 ///	"Şifremi unuttum" akisiyla, dil TR sabit, destek ekrani ise hic yok.
+/// Alt menunun profil sekmesi — KENDI profilimi acar.
+///
+/// ⚠️⚠️ `id.isEmpty` KAPISI ZORUNLU: `myProfileProvider` ASENKRON, ama
+///	`IndexedStack` cocuklarini SENKRON kurar. Bos dize gecilseydi sunucu
+///	404 doner ve sekme "Kullanıcı bulunamadı" ile acilirdi.
+class _ProfilSekmesi extends ConsumerWidget {
+  const _ProfilSekmesi();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final id = (ref.watch(myProfileProvider).valueOrNull?['id'] ?? '')
+        .toString();
+    if (id.isEmpty) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    return ProfilSayfasi(userId: id, sekmeModu: true);
+  }
+}
+
+/// ⚠️⚠️⚠️ TURU 108 — **HESABIM** (eski profil sekmesi listesi).
+///
+///	Profil sekmesi artik gercek profili aciyor; bu liste ULASILAMAZ
+///	KALMADI: profilin AppBar'indaki dis carktan acilir. Icindeki 15
+///	satirin (isletme hesabi · randevular · basvurular · diyet · bildirim
+///	· takip istekleri · engellenenler · ayarlar · cikis) BASKA girisi
+///	YOK.
+/// ⚠️ YAPMA: dis carki kaldirma.
+class HesabimEkrani extends ConsumerWidget {
+  const HesabimEkrani({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => Scaffold(
+    appBar: AppBar(title: const Text('Hesabım')),
+    body: const _ProfileTab(),
+  );
+}
+
 class _ProfileTab extends ConsumerWidget {
   const _ProfileTab();
 
@@ -499,33 +547,13 @@ class _ProfileTab extends ConsumerWidget {
         AyarBolumu(
           baslik: 'İçeriğim',
           satirlar: [
-            AyarSatiri(
-              ikon: LucideIcons.tag,
-              baslik: 'İlanlarım',
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) =>
-                      const IlanListesiEkrani(benim: true, baslik: 'İlanlarım'),
-                ),
-              ),
-            ),
+            // ⚠️ TURU 108 — 'İlanlarım' ve 'Taleplerim' PROFIL SEKMELERINE
+            //    tasindi. Iki giris birakmak KACINILMAZ olarak drift eder
+            //    (turu 76b dersi).
             // ⚠️⚠️ TURU 91 — "Düğünüm/Hizmetlerim" TEK GIRISTE birlesti: ikisi
             //    de `tur='talep'` ilanlaridir ve ayri iki ekran ayni listenin
             //    iki kopyasi olurdu.
-            AyarSatiri(
-              ikon: LucideIcons.clipboardList,
-              baslik: 'Taleplerim',
-              altBaslik: 'Düğün · hizmet teklif istekleri',
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => const IlanListesiEkrani(
-                    tur: 'talep',
-                    benim: true,
-                    baslik: 'Taleplerim',
-                  ),
-                ),
-              ),
-            ),
+
             AyarSatiri(
               ikon: LucideIcons.briefcase,
               baslik: 'Başvurularım',

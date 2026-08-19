@@ -7,9 +7,16 @@ import 'package:permission_handler/permission_handler.dart'
 import '../../core/tercihler.dart';
 // ⚠️ TURU 89 — izin dizisi TEK KAYNAK (bkz. o dosyanin serhi).
 import '../auth/permissions_screen.dart' show izinleriTopluIste;
-import '../sosyal/sosyal_servisi.dart' show sosyalServisiProvider;
+import '../sosyal/sosyal_servisi.dart' show Profil, sosyalServisiProvider;
 import 'ayar_bilesenleri.dart';
 import 'home_screen.dart' show myProfileProvider;
+
+/// ⚠️ Gizlilik durumu `/users/{id}/profile`den okunur (bkz. `build`
+///    icindeki serh). `autoDispose` DEGIL: Ayarlar acilip kapandikca
+///    tekrar tekrar istek atmasin.
+final _gizlilikProfiliProvider = FutureProvider.family<Profil, String>(
+  (ref, id) => ref.read(sosyalServisiProvider).profil(id),
+);
 
 /// ⚠️⚠️⚠️ TURU 81 — AYARLAR. Uygulamada BUGUNE KADAR HIC ayarlar ekrani yoktu.
 ///
@@ -46,7 +53,29 @@ class _AyarlarEkraniState extends ConsumerState<AyarlarEkrani> {
   Widget build(BuildContext context) {
     final mod = ref.watch(temaProvider);
     final harita = ref.watch(haritaStiliProvider);
-    final profil = ref.watch(myProfileProvider).valueOrNull;
+    // ⚠️⚠️⚠️ TURU 108 (DENETIM) — **GIZLILIK `/users/me`DEN OKUNAMAZ.**
+    //
+    //	`GET /users/me` yaniti (`internal/users/handler.go` `userResp`)
+    //	`gizli_hesap` alanini **HIC DONDURMUYOR** — SELECT'te de yok.
+    //	Ilk yazimda `profil['gizli']` okunuyordu; deger DAIMA `null`,
+    //	yani anahtar DAIMA "Kapali" gorunuyor ve dokunus DAIMA
+    //	`gizlilikAyarla(true)` gonderiyordu: **hesap gizli yapilabiliyor
+    //	ama BIR DAHA KAPATILAMIYORDU** (profildeki anahtar da bu turda
+    //	kaldirilmisti — geri donus yolu KALMAMISTI).
+    //
+    // ⚠️ **COZUM SUNUCUYU DEGISTIRMEDI:** ayni bilgi
+    //    `GET /users/{id}/profile` yanitinda ZATEN var (`Profil.gizli`,
+    //    `sosyal_servisi.dart`) ve profil ekrani onu okuyor. Ayarlar da
+    //    ayni kaynagi kullanir — iki ekran ayni sayfada kalir.
+    // ⚠️ YAPMA: burayi tekrar `myProfileProvider`a baglama.
+    final benimId = (ref
+                .watch(myProfileProvider)
+                .valueOrNull?['id'] ??
+            '')
+        .toString();
+    final gizlilik = benimId.isEmpty
+        ? const AsyncValue<Profil>.loading()
+        : ref.watch(_gizlilikProfiliProvider(benimId));
     return Scaffold(
       appBar: AppBar(title: const Text('Ayarlar')),
       body: ListView(
@@ -64,13 +93,15 @@ class _AyarlarEkraniState extends ConsumerState<AyarlarEkrani> {
           //    birakma (ayni kuralin iki kopyasi drift eder).
           // ⚠️ Profil henuz gelmediyse bolum CIZILMEZ: varsayilan `false`
           //    gostermek "hesabin acik" YALANI olurdu.
-          if (profil != null)
-            AyarBolumu(
-              baslik: 'Gizlilik',
-              satirlar: [
-                _gizliHesap(profil),
-              ],
-            ),
+          // ⚠️ Profil henuz gelmediyse ya da hata verdiyse bolum CIZILMEZ:
+          //    varsayilan "Kapali" gostermek "hesabin acik" YALANI olurdu.
+          AyarBolumu(
+            baslik: 'Gizlilik',
+            satirlar: [
+              if (gizlilik.valueOrNull != null)
+                _gizliHesap(gizlilik.value!),
+            ],
+          ),
           AyarBolumu(
             baslik: 'Görünüm',
             satirlar: [
@@ -170,7 +201,10 @@ class _AyarlarEkraniState extends ConsumerState<AyarlarEkrani> {
           Padding(
             padding: const EdgeInsets.fromLTRB(4, 18, 4, 0),
             child: Text(
-              'Bu ayarlar bu cihazda saklanır; hesabına bağlı değildir.',
+              // ⚠️ TURU 108 — metin duzeltildi: **gizlilik bir SUNUCU
+              //    ayaridir** (`PATCH /users/me/privacy`), cihazda degil.
+              //    Eski metin onu da kapsiyor gorunuyordu.
+              'Görünüm, harita ve izin ayarları bu cihazda saklanır.',
               style: TextStyle(
                 fontSize: 12,
                 color: Theme.of(
@@ -190,8 +224,8 @@ class _AyarlarEkraniState extends ConsumerState<AyarlarEkrani> {
   ///    metniyle ("Açık"/"Kapalı") ve dokunusla cevrilir. Ayri bir
   ///    `Switch` bileseni eklemek gruplu kart dilini bozardi.
   /// ⚠️ Durum RENKLE degil METINLE anlatilir (renk korlugu).
-  Widget _gizliHesap(Map<String, dynamic> profil) {
-    final gizli = profil['gizli'] == true;
+  Widget _gizliHesap(Profil p) {
+    final gizli = p.gizli;
     return AyarSatiri(
       ikon: gizli ? LucideIcons.lock : LucideIcons.lockOpen,
       baslik: 'Gizli hesap',
@@ -209,7 +243,7 @@ class _AyarlarEkraniState extends ConsumerState<AyarlarEkrani> {
       // ⚠️ Profil TAMAMEN tazelenir: gizliden ACIGA gecerken sunucu
       //    BEKLEYEN TUM istekleri otomatik onaylar ve takipci sayisi
       //    DEGISIR — yerel yamalama yanlis sayi gosterirdi.
-      ref.invalidate(myProfileProvider);
+      ref.invalidate(_gizlilikProfiliProvider);
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

@@ -23,6 +23,10 @@ import 'gonderi_karti.dart' show sayiBicimle;
 import '../medya/tam_ekran_gorsel.dart';
 import 'gonderi_detay.dart';
 import 'profil_basligi.dart';
+import '../home/ayar_bilesenleri.dart';
+import '../home/home_screen.dart' show HesabimEkrani, myProfileProvider;
+import '../ilan/ilan_ekranlari.dart' show IlanDetayEkrani;
+import '../ilan/ilan_servisi.dart';
 import 'sosyal_servisi.dart';
 import 'kaydedilenler_sayfasi.dart';
 import 'takip_listesi.dart';
@@ -35,9 +39,100 @@ import 'takip_listesi.dart';
 /// ⚠️ ENGELLEME BURADAN DA YAPILIR: App Store 1.2 engellemeyi kullanici uretimi
 ///    icerigin GORULDUGU her yerde erisilebilir kilmayi bekliyor; sohbete girmek
 ///    zorunda birakmak kabul edilmez.
+/// ⚠️⚠️⚠️ TURU 108 — PROFIL SEKMELERI (kullanici emri: *"profilde gonderi,
+///	ses, video, reels, verilen ilan, dolap yani 2.el ilanlar gorunmeli;
+///	ilanlarim, taleplerim burada olsun"*).
+///
+/// ⚠️⚠️ **ENUM, `int` DEGIL.** Eski hal duz bir indeksti (0/1/2) ve anlami
+///	UC AYRI yerde kodluydu: suzgec · bos metin · serit. Uc girisken sekiz
+///	girise cikinca bu, CLAUDE.md'de kayitli **"6'ya ekle, 7.'yi unut"**
+///	sinifidir (turu 76'da "Kaydedilenler"i BOMBOS birakan hata). Enum,
+///	`switch`te eksik dal birakilirsa DERLEYICIYI patlatir.
+/// ⚠️ Ayrica kosullu sekmeler (`_benimMi`) `int` indekslerini KAYDIRIRDI:
+///    birinde 5 = Ilanlarim, otekinde 5 = baska bir sey.
+enum _Sekme { tumu, foto, video, reels, ses, ilan, dolap, talep }
+
+extension _SekmeBilgi on _Sekme {
+  String get etiket => switch (this) {
+    _Sekme.tumu => 'Gönderiler',
+    _Sekme.foto => 'Fotoğraf',
+    _Sekme.video => 'Video',
+    _Sekme.reels => 'Reels',
+    _Sekme.ses => 'Ses',
+    _Sekme.ilan => 'İlanlarım',
+    _Sekme.dolap => 'Dolap',
+    _Sekme.talep => 'Taleplerim',
+  };
+
+  IconData get ikon => switch (this) {
+    _Sekme.tumu => LucideIcons.layoutGrid,
+    _Sekme.foto => LucideIcons.image,
+    _Sekme.video => LucideIcons.video,
+    _Sekme.reels => LucideIcons.clapperboard,
+    _Sekme.ses => LucideIcons.audioLines,
+    _Sekme.ilan => LucideIcons.tag,
+    _Sekme.dolap => LucideIcons.shirt,
+    _Sekme.talep => LucideIcons.clipboardList,
+  };
+
+  String get bosMetin => switch (this) {
+    _Sekme.tumu => 'Henüz gönderi yok',
+    _Sekme.foto => 'Henüz fotoğraf yok',
+    _Sekme.video => 'Henüz video yok',
+    _Sekme.reels => 'Henüz reels yok',
+    _Sekme.ses => 'Henüz ses paylaşımı yok',
+    _Sekme.ilan => 'Henüz ilan vermedin',
+    _Sekme.dolap => 'Dolabında ürün yok',
+    _Sekme.talep => 'Henüz talebin yok',
+  };
+
+  /// Sunucu `?tur=` degeri (gonderi sekmeleri icin).
+  ///
+  /// ⚠️ **SES ICIN AYRI TUR YOK**: `posts.tur` CHECK'i (migration 021)
+  ///    yalniz `foto|video|reels|yazi` kabul eder. Ses gonderisi
+  ///    `tur='foto'` + `media_kinds[0]=='audio'`tir; bu yuzden Ses de
+  ///    Fotograf da AYNI sayfayi ceker, ayrim ISTEMCIDE yapilir.
+  /// ⚠️ Reels ISTEMCIDE ayirt EDILEMEZ (medya turu yine `video`) — sunucu
+  ///    suzgeci ZORUNLU.
+  String? get sunucuTuru => switch (this) {
+    _Sekme.foto || _Sekme.ses => 'foto',
+    _Sekme.video => 'video',
+    _Sekme.reels => 'reels',
+    _ => null,
+  };
+
+  /// ⚠️ Ilan tabanli sekmeler YALNIZ kendi profilimde: `/ilanlar` ucunda
+  ///    `?user_id=` YOKTUR (yalniz `benim=1`), yani baskasinin ilanlarini
+  ///    listeleyecek bir yol YOK. Menude HIC gosterilmez.
+  bool get ilanMi =>
+      this == _Sekme.ilan || this == _Sekme.dolap || this == _Sekme.talep;
+
+  /// Ilan turu (`/ilanlar?tur=`).
+  String get ilanTuru => switch (this) {
+    _Sekme.dolap => 'ikinci_el',
+    _Sekme.talep => 'talep',
+    _ => '',
+  };
+}
+
 class ProfilSayfasi extends ConsumerStatefulWidget {
-  const ProfilSayfasi({super.key, required this.userId});
+  const ProfilSayfasi({
+    super.key,
+    required this.userId,
+    this.sekmeModu = false,
+  });
   final String userId;
+
+  /// ⚠️⚠️ TURU 108 — ALT MENUNUN PROFIL SEKMESI (kullanici emri: *"profile
+  ///	tikladigimda DIREK PROFIL gelmeli"*). Eskiden o sekme AYARLAR
+  ///	listesini aciyordu; kendi profiline ulasmak IKI dokunustu.
+  ///
+  /// Sekme modunda:
+  ///   · geri oku YOK (sekmenin altinda bir yigin yok),
+  ///   · AppBar'da **dis carkla** hesap/ayarlar listesine gecilir,
+  ///   · sekmeye her donuste liste TAZELENIR (`IndexedStack` cocugu CANLI
+  ///     tutar; `initState` bir kez kosar ve yeni gonderi GORUNMEZDI).
+  final bool sekmeModu;
 
   @override
   ConsumerState<ProfilSayfasi> createState() => _ProfilSayfasiState();
@@ -45,7 +140,18 @@ class ProfilSayfasi extends ConsumerStatefulWidget {
 
 class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
   Profil? _p;
-  List<Gonderi> _gonderiler = [];
+
+  /// ⚠️⚠️ SEKME BASINA ONBELLEK. Sunucu profil gonderilerini **LIMIT 30**
+  ///	ile donduruyor ve sayfalama YOK; tek listeyi istemcide suzmek uc
+  ///	sekmede "durust sinir" iken sekiz sekmede YALAN olurdu (30
+  ///	fotografi olan hesabin videosu HIC gorunmezdi).
+  /// ⚠️ Her sekme ILK secildiginde kendi istegini atar; sonraki secimlerde
+  ///    AG ISTEGI YOK. Asagi-cek TUM onbellegi temizler.
+  final Map<_Sekme, List<Gonderi>> _gonderiOnbellek = {};
+  final Map<_Sekme, List<Ilan>> _ilanOnbellek = {};
+  final Set<_Sekme> _sekmeYukleniyor = {};
+  final Map<_Sekme, String> _sekmeHata = {};
+  _Sekme _sekme = _Sekme.tumu;
   bool _yukleniyor = true;
   bool _takipMesgul = false;
 
@@ -88,7 +194,13 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
       if (!mounted) return;
       setState(() {
         _p = p;
-        _gonderiler = g;
+        // ⚠️ Asagi-cek TUM sekme onbellegini temizler: yalniz aktif
+        //    sekmeyi tazelemek digerlerini BAYAT birakirdi.
+        _gonderiOnbellek
+          ..clear()
+          ..[_Sekme.tumu] = g;
+        _ilanOnbellek.clear();
+        _sekmeHata.clear();
         _yukleniyor = false;
       });
     } catch (e) {
@@ -130,7 +242,11 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
           if (onayli) p.takipciSayisi = eskiSayi + 1;
         });
         // Gizli hesabi yeni takip ettiysek gonderiler ARTIK gorulebilir.
-        if (onayli && _gonderiler.isEmpty) unawaited(_yukle());
+        // ⚠️ Onbellek: gizli hesabi yeni takip ettiysek gonderiler ARTIK
+        //    gorulebilir; TUM sekmeler bayat oldugu icin bastan yuklenir.
+        if (onayli && (_gonderiOnbellek[_Sekme.tumu] ?? const []).isEmpty) {
+          unawaited(_yukle());
+        }
       }
     } catch (_) {
       if (!mounted) return;
@@ -261,9 +377,34 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
     }
 
     return Scaffold(
+      // ⚠️⚠️⚠️ TURU 108 — **SEFFAF HEADER** (kullanici emri).
+      //
+      // ⚠️ `extendBodyBehindAppBar` TEK BASINA YETMEZ: Scaffold o modda
+      //    govdeye `padding.top = max(durumCubugu, appBarBoyu)` verir ve
+      //    `ListView` (padding: null) bunu OTOMATIK uygular -> kapak ~90 dp
+      //    ASAGI ITILIR, tepede bos serit kalir. Bu yuzden asagida
+      //    `padding` ACIKCA veriliyor. Hata SESSIZ: analyze temiz, uygulama
+      //    cokmez, yalniz EKRANDA gorunur.
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        // ⚠️ Sekme modunda geri oku YOK: altinda bir yigin yok.
+        automaticallyImplyLeading: !widget.sekmeModu,
         title: Text(p.username.isEmpty ? p.ad : '@${p.username}'),
         actions: [
+          // ⚠️⚠️ HESABIM GIRISI — eski profil sekmesindeki 15 satirin (isletme
+          //    hesabi · randevular · basvurular · bildirim · engellenenler ·
+          //    ayarlar · cikis) BASKA girisi YOK. ⚠️ YAPMA: bunu kaldirma.
+          if (widget.sekmeModu && _benimMi)
+            IconButton(
+              tooltip: 'Hesabım',
+              icon: const Icon(LucideIcons.settings),
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const HesabimEkrani()),
+              ),
+            ),
           IconButton(icon: const Icon(LucideIcons.ellipsis), onPressed: _menu),
         ],
       ),
@@ -277,6 +418,12 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
           //    yenileme yolu FIILEN YOKTU. Turu 77b'de akis icin duzeltilen
           //    sinifin aynisi.
           physics: const AlwaysScrollableScrollPhysics(),
+          // ⚠️ Bkz. `extendBodyBehindAppBar` serhi: padding ACIKCA verilmezse
+          //    `BoxScrollView` MediaQuery dikey dolgusunu otomatik uygular ve
+          //    kapak AppBar'in ARKASINA GECMEZ.
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.paddingOf(context).bottom,
+          ),
           children: [
             // ⚠️⚠️ TURU 78 — KAPAK + LOGO/AVATAR + ONAYLI ROZET.
             //    Ust `SizedBox(height: 16)` KALDIRILDI: kapak AppBar'a YAPISIK
@@ -373,13 +520,45 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
               // ⚠️ TURU 82b — INSTAGRAM TARZI SEKME SERIDI (kullanici emri:
               //    *"profilde gonderi, fotograf, video vb alan olsun Instagram
               //    gibi, hepsi bir yerde, tikladiginda ona gecsin"*).
-              _sekmeSeridi(),
-              if (_sekmeliListe.isEmpty)
+              _sekmeSecici(),
+              // ⚠️ Sekme basina UC AYRI DURUM: yukleniyor · hata · bos.
+              //    Eskiden yalniz "bos" vardi; sekme sayisi sekize cikinca
+              //    yuklenen bir sekme kullaniciya "ozellik yok" gibi gorunurdu.
+              if (_sekmeYukleniyor.contains(_sekme))
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 60),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else if (_sekmeHata[_sekme] != null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 50),
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _sekmeHata[_sekme]!,
+                          style: const TextStyle(color: Colors.grey),
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            _sekmeHata.remove(_sekme);
+                            unawaited(_sekmeYukle(_sekme));
+                          },
+                          child: const Text('Tekrar dene'),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              else if (_sekme.ilanMi)
+                _ilanListesi()
+              else if (_sekmeliListe.isEmpty)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 60),
                   child: Center(
                     child: Text(
-                      _bosMetin,
+                      _sekme.bosMetin,
                       style: const TextStyle(color: Colors.grey),
                     ),
                   ),
@@ -582,96 +761,220 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
     }
   }
 
-  /// ⚠️⚠️ TURU 82b — PROFIL SEKMELERI (Instagram deseni).
+  /// Aktif sekmenin gonderi listesi.
   ///
-  /// 0 = Tümü · 1 = Fotoğraf · 2 = Video
-  ///
-  /// ⚠️ SUZGEC **ISTEMCIDE**, yeni bir uc ACILMADI: profil gonderileri zaten
-  ///    TEK istekte geliyor ve `media_kinds` (turu 76) her medyanin turunu
-  ///    TASIYOR. Sunucuya `?tur=` eklemek (a) sayfalama imlecini tur basina
-  ///    ayirmayi, (b) `sutun_test.go` ailesine yeni bir sorgu daha eklemeyi
-  ///    gerektirirdi — kazanci olmayan iki risk.
-  /// ⚠️ Sekme degisimi AG ISTEGI ATMAZ; liste bellekte suzulur.
-  int _sekme = 0;
-
-  /// Aktif sekmenin listesi. ⚠️ `kind(0)` ILK medyanin turudur — izgara zaten
-  /// ilk medyayi kapak olarak ciziyor (turu 76 karari), yani suzgec kullanicinin
-  /// GORDUGU seyle birebir ortusur.
+  /// ⚠️⚠️ **BEYAZ LISTE, KARA LISTE DEGIL** (turu 108 denetim bulgusu):
+  ///	eski kod fotograf sekmesini `kind(0) != 'video'` ile suzuyordu, yani
+  ///	*"video degilse fotograftir"* varsayiyordu. Ses gonderisinin `kind(0)`
+  ///	degeri **`audio`** — bu yuzden **ses gonderileri FOTOGRAF sekmesinde
+  ///	gorunuyordu**. Artik `== 'image'`.
   List<Gonderi> get _sekmeliListe {
-    if (_sekme == 1) {
-      return _gonderiler
-          .where((g) => g.mediaIds.isNotEmpty && g.kind(0) != 'video')
-          .toList();
-    }
-    if (_sekme == 2) {
-      return _gonderiler.where((g) => g.kind(0) == 'video').toList();
-    }
-    return _gonderiler;
+    final ham = _gonderiOnbellek[_sekme] ?? const <Gonderi>[];
+    return switch (_sekme) {
+      _Sekme.foto =>
+        ham.where((g) => g.mediaIds.isNotEmpty && g.kind(0) == 'image').toList(),
+      _Sekme.ses => ham.where((g) => g.sesliMi).toList(),
+      _ => ham,
+    };
   }
 
-  String get _bosMetin => switch (_sekme) {
-    1 => 'Henüz fotoğraf yok',
-    2 => 'Henüz video yok',
-    _ => 'Henüz gönderi yok',
-  };
+  /// Menude gosterilecek sekmeler.
+  ///
+  /// ⚠️ Ilan tabanli sekmeler YALNIZ kendi profilimde: `/ilanlar` ucu
+  ///    `?user_id=` KABUL ETMIYOR (yalniz `benim=1`). Baskasinin profilinde
+  ///    menude HIC gorunmezler — "yakinda" YAZILMAZ (turu 76b'de denendi,
+  ///    turu 77'de geri alindi: `hizmet_menusu.dart` serhi).
+  List<_Sekme> get _sekmeler => [
+    for (final x in _Sekme.values)
+      if (!x.ilanMi || _benimMi) x,
+  ];
 
-  Widget _sekmeSeridi() {
-    final renk = Theme.of(context).colorScheme.onSurface;
-    Widget sekme(int deger, IconData ikon, String etiket) {
-      final secili = _sekme == deger;
-      return Expanded(
+  /// Secili sekmenin verisini ceker (yalniz ILK secimde).
+  ///
+  /// ⚠️ `_sekmeYukleniyor` yeniden-girme kapisi: sekmeye hizli hizli
+  ///    dokunmak ayni istegi tekrar tekrar atardi.
+  Future<void> _sekmeYukle(_Sekme x) async {
+    if (_sekmeYukleniyor.contains(x)) return;
+    if (_gonderiOnbellek.containsKey(x) || _ilanOnbellek.containsKey(x)) return;
+    setState(() {
+      _sekmeYukleniyor.add(x);
+      _sekmeHata.remove(x);
+    });
+    try {
+      if (x.ilanMi) {
+        final l = await ref
+            .read(ilanServisiProvider)
+            .liste(tur: x.ilanTuru, benim: true);
+        if (!mounted) return;
+        setState(() => _ilanOnbellek[x] = l);
+      } else {
+        final l = await ref
+            .read(sosyalServisiProvider)
+            .kullaniciGonderileri(widget.userId, tur: x.sunucuTuru);
+        if (!mounted) return;
+        setState(() => _gonderiOnbellek[x] = l);
+      }
+    } catch (_) {
+      if (!mounted) return;
+      // ⚠️ Sekme basina AYRI hata: bir sekmenin ag hatasi digerinin dolu
+      //    listesini silmemeli (turu 80b dersi).
+      setState(() => _sekmeHata[x] = 'Yüklenemedi');
+    } finally {
+      if (mounted) setState(() => _sekmeYukleniyor.remove(x));
+    }
+  }
+
+  /// ⚠️⚠️⚠️ TURU 108 — **GORUNUM SECICI** (kullanici emri: *"soldaki ikona
+  ///	tikladigimda 'Gonderi' yazsin, tikladigim menude 'Fotograf' yaninda
+  ///	OK ikonu olsun, asagi dogru video/reels secenekleri olsun"*).
+  ///
+  /// ═══════════ NEDEN SERIT DEGIL, ACILIR MENU ═══════════
+  ///
+  /// Sekme sayisi UCTEN SEKIZE cikti. Olculdu (360 dp, yazi olcegi 1.3):
+  ///   · etiketli yatay serit -> **723 dp**, ekranin iki katindan uzun;
+  ///     gorunmeyenler tam da bu turda eklenenler olurdu,
+  ///   · yalniz-ikon serit -> hucre **45 dp**, Material 48 dp dokunma
+  ///     minimumunun ALTINDA; ustelik "Ilanlarim" ile "Taleplerim" ikonla
+  ///     ayirt edilemez,
+  ///   · tek acilir menu -> **148 dp**, 212 dp pay. SECILDI.
+  /// ⚠️ YAPMA: buraya yatay serit geri koyma ya da ikisini birden cizme.
+  Widget _sekmeSecici() {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
+      child: Align(
+        alignment: AlignmentDirectional.centerStart,
         child: Semantics(
           button: true,
-          selected: secili,
-          label: etiket,
+          label: 'Görünüm: ${_sekme.etiket}',
           child: InkWell(
-            onTap: () => setState(() => _sekme = deger),
+            onTap: _sekmeSec,
+            borderRadius: BorderRadius.circular(10),
             child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 11),
-              child: Icon(
-                ikon,
-                size: 21,
-                // ⚠️ Aktif/pasif AYRIMI IKI ISARETLE (renk + alttaki cizgi) —
-                //    tek isaret renk korlugunde ayirt edilemez (turu 80 karari).
-                color: secili ? renk : renk.withValues(alpha: 0.38),
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(_sekme.ikon, size: 20),
+                  const SizedBox(width: 6),
+                  Text(
+                    _sekme.etiket,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(width: 2),
+                  Icon(
+                    LucideIcons.chevronDown,
+                    size: 16,
+                    color: scheme.onSurface.withValues(alpha: 0.55),
+                  ),
+                ],
               ),
             ),
           ),
         ),
-      );
-    }
+      ),
+    );
+  }
 
-    return Column(
-      children: [
-        Row(
-          children: [
-            sekme(0, LucideIcons.layoutGrid, 'Tümü'),
-            sekme(1, LucideIcons.image, 'Fotoğraflar'),
-            sekme(2, LucideIcons.video, 'Videolar'),
-          ],
-        ),
-        // Aktif sekmenin altindaki ince gosterge (Instagram deseni).
-        // ⚠️ `AnimatedAlign` YERLESIMI DEGISTIRMEZ (yukseklik sabit 2dp),
-        //    yalnizca yatay konumu kaydirir -> "ziplama" olusmaz.
-        SizedBox(
-          height: 2,
-          child: LayoutBuilder(
-            builder: (_, k) => Stack(
-              children: [
-                AnimatedPositioned(
-                  duration: const Duration(milliseconds: 180),
-                  curve: Curves.easeOut,
-                  left: k.maxWidth / 3 * _sekme,
-                  width: k.maxWidth / 3,
-                  top: 0,
-                  bottom: 0,
-                  child: Container(color: renk),
-                ),
-              ],
-            ),
+  /// Alttan acilan secim menusu.
+  ///
+  /// ⚠️ `AyarBolumu` / `AyarSatiri` KULLANILIR (ayarlar ekraniyla TEK KAYNAK):
+  ///    `AyarSatiri` secili satirda chevron YERINE **tik** cizer — kullanicinin
+  ///    istedigi *"yaninda ok ikonu"* birebir budur.
+  /// ⚠️ `AyarBolumu` bos `satirlar` ile HICBIR SEY cizmez, yani `_benimMi`
+  ///    kapisi bedava gelir.
+  Future<void> _sekmeSec() async {
+    final secim = await showModalBottomSheet<_Sekme>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (c) => SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AyarBolumu(
+                baslik: 'Gönderiler',
+                satirlar: [
+                  for (final x in _sekmeler)
+                    if (!x.ilanMi) _menuSatiri(c, x),
+                ],
+              ),
+              AyarBolumu(
+                baslik: 'İlanlarım',
+                satirlar: [
+                  for (final x in _sekmeler)
+                    if (x.ilanMi) _menuSatiri(c, x),
+                ],
+              ),
+            ],
           ),
         ),
-        Divider(height: 1, thickness: 0.5, color: renk.withValues(alpha: 0.08)),
+      ),
+    );
+    if (secim == null || !mounted) return;
+    setState(() => _sekme = secim);
+    unawaited(_sekmeYukle(secim));
+  }
+
+  /// ⚠️ `Semantics(selected:)` ELLE eklenir: `AyarSatiri` yalnizca GORSEL tik
+  ///    ciziyor; eski serit bu bilgiyi tasiyordu ve kaybedilmemeli (TalkBack
+  ///    hangi maddenin secili oldugunu soylemelidir).
+  Widget _menuSatiri(BuildContext c, _Sekme x) => Semantics(
+    selected: _sekme == x,
+    child: AyarSatiri(
+      ikon: x.ikon,
+      baslik: x.etiket,
+      secili: _sekme == x,
+      onTap: () => Navigator.pop(c, x),
+    ),
+  );
+
+  /// Ilan tabanli sekmelerin listesi (Ilanlarim · Dolap · Taleplerim).
+  ///
+  /// ⚠️ Izgara DEGIL LISTE: ilanin kapagi cogu zaman yok (is ilani) ve
+  ///    baslik + fiyat kare bir hucreye sigmaz.
+  /// ⚠️ Detaya gidip donunce liste TAZELENMEZ (onbellek): kullanici ilanini
+  ///    silmisse asagi-cek ile yenilenir. Sayfayi her donuste yeniden cekmek
+  ///    sekme onbelleginin amacini bozardi.
+  Widget _ilanListesi() {
+    final l = _ilanOnbellek[_sekme] ?? const <Ilan>[];
+    if (l.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 60),
+        child: Center(
+          child: Text(
+            _sekme.bosMetin,
+            style: const TextStyle(color: Colors.grey),
+          ),
+        ),
+      );
+    }
+    return Column(
+      children: [
+        for (final i in l)
+          ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+            title: Text(
+              i.baslik,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            subtitle: Text(i.fiyatEtiketi),
+            trailing: const Icon(LucideIcons.chevronRight, size: 18),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => IlanDetayEkrani(ilan: i)),
+            ),
+          ),
       ],
     );
   }
