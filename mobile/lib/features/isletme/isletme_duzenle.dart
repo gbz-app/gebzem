@@ -76,6 +76,28 @@ class _IsletmeDuzenleEkraniState extends ConsumerState<IsletmeDuzenleEkrani> {
   bool _konumAliniyor = false;
   bool _zatenIsletme = false;
 
+  /// ⚠️⚠️⚠️ TURU 114 — **ADIM ADIM ISLETME HESABI** (kullanici emri:
+  ///	*"isletme hesabi olusturma step step olsun"*).
+  ///
+  /// ⚠️⚠️ SIHIRBAZ **YALNIZ YENI HESAPTA** (`!_zatenIsletme`). Mevcut
+  ///	isletme bilgisini duzenleyen biri tek bir alani degistirmek icin
+  ///	uc adim gezmek zorunda kalmamali; orada TEK SAYFA form DOGRU
+  ///	davranistir. Ayni ekranin iki modu var, ikinci bir ekran YAZILMADI
+  ///	(iki kopya kacinilmaz olarak drift eder).
+  ///
+  /// ⚠️⚠️ **VERI TEK ISTEKTE GIDER**: adimlar yalnizca GORUNUMU boluyor;
+  ///	sunucu `PUT /users/me/isletme` ile hepsini birlikte aliyor. Adim
+  ///	basina kaydetseydik yarim kalan akista isletme kaydi EKSIK olusur
+  ///	ve kullanici "hesabim bozuk" derdi.
+  /// ⚠️ Yeni bir adim eklerken `_adimSayisi` ve `_adimGovde` BIRLIKTE
+  ///    guncellenir.
+  int _adim = 0;
+  static const _adimSayisi = 3;
+  static const _adimAdlari = ['Temel bilgiler', 'Adres & konum', 'Çalışma saatleri'];
+
+  /// Sihirbaz modunda miyiz?
+  bool get _sihirbaz => !_zatenIsletme;
+
   @override
   void initState() {
     super.initState();
@@ -352,16 +374,111 @@ class _IsletmeDuzenleEkraniState extends ConsumerState<IsletmeDuzenleEkrani> {
     return Scaffold(
       appBar: AppBar(
         title: Text(_zatenIsletme ? 'İşletme bilgileri' : 'İşletme hesabı'),
+        // ⚠️ Sihirbazda ilerleme cubugu: kullanici KAC ADIM kaldigini
+        //    gorsun (turu 91 talep sihirbaziyla ayni dil).
+        bottom: _sihirbaz
+            ? PreferredSize(
+                preferredSize: const Size.fromHeight(4),
+                child: LinearProgressIndicator(
+                  value: (_adim + 1) / _adimSayisi,
+                ),
+              )
+            : null,
         actions: [
-          TextButton(
-            onPressed: _kaydediliyor ? null : _kaydet,
-            child: const Text('Kaydet'),
+          // ⚠️ Sihirbazda ust "Kaydet" YOK: kullanici ikinci adimdayken
+          //    kaydetmesin — form YARIM giderdi ve kayit TEK istektir.
+          if (!_sihirbaz)
+            TextButton(
+              onPressed: _kaydediliyor ? null : _kaydet,
+              child: const Text('Kaydet'),
+            ),
+        ],
+      ),
+      bottomNavigationBar: _sihirbaz ? _adimCubugu() : null,
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: _sihirbaz ? _adimGovde() : _tumGovde(),
+      ),
+    );
+  }
+
+  /// Sihirbazin ALT CUBUGU — geri / devam / bitir.
+  Widget _adimCubugu() => SafeArea(
+    child: Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+      child: Row(
+        children: [
+          if (_adim > 0)
+            TextButton(
+              onPressed: _kaydediliyor
+                  ? null
+                  : () => setState(() => _adim--),
+              child: const Text('Geri'),
+            ),
+          const Spacer(),
+          Text(
+            '${_adim + 1}/$_adimSayisi · ${_adimAdlari[_adim]}',
+            style: TextStyle(
+              fontSize: 12,
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.6),
+            ),
+          ),
+          const SizedBox(width: 12),
+          FilledButton(
+            onPressed: _kaydediliyor
+                ? null
+                : () {
+                    if (_adim < _adimSayisi - 1) {
+                      setState(() => _adim++);
+                    } else {
+                      _kaydet();
+                    }
+                  },
+            child: _kaydediliyor
+                ? const SizedBox(
+                    height: 18,
+                    width: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Text(
+                    _adim < _adimSayisi - 1
+                        ? 'Devam'
+                        : 'İşletme hesabını aç',
+                  ),
           ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
+    ),
+  );
+
+  /// ⚠️ Adim govdeleri TEK KAYNAKTAN (`_tumGovde` parcalari) uretilir:
+  ///    alanlarin ikinci bir kopyasi yazilsaydi biri guncellenip oteki
+  ///    geride kalirdi.
+  List<Widget> _adimGovde() => switch (_adim) {
+    0 => _bolumTemel(),
+    1 => _bolumAdres(),
+    _ => _bolumSaatler(),
+  };
+
+  List<Widget> _tumGovde() => [
+    ..._bolumTemel(),
+    const SizedBox(height: 20),
+    ..._bolumAdres(),
+    const SizedBox(height: 20),
+    ..._bolumSaatler(),
+    const SizedBox(height: 24),
+    if (_zatenIsletme)
+      OutlinedButton.icon(
+        onPressed: _kisiselYap,
+        icon: const Icon(LucideIcons.userRound, size: 18),
+        label: const Text('Kişisel hesaba dön'),
+      ),
+    const SizedBox(height: 30),
+  ];
+
+  List<Widget> _bolumTemel() => [
           // ⚠️⚠️ TURU 78 — KAPAK VE LOGO **BURADAN DUZENLENMEZ**, yalnizca
           //    yonlendirilir. Gerekce yapisal:
           //      · Kapak ve avatar `users` tablosunda; bu ekran
@@ -385,17 +502,22 @@ class _IsletmeDuzenleEkraniState extends ConsumerState<IsletmeDuzenleEkrani> {
               MaterialPageRoute(builder: (_) => const ProfilDuzenleEkrani()),
             ),
           ),
-          const Divider(height: 20),
-          if (!_zatenIsletme)
-            const Padding(
-              padding: EdgeInsets.only(bottom: 14),
-              child: Text(
-                'İşletme hesabına geçtiğinde profilinde kategori, adres, telefon '
-                've çalışma saatlerin görünür; müşterilerin sana kolayca ulaşır.',
-                style: TextStyle(color: Colors.grey, fontSize: 13),
-              ),
-            ),
-          DropdownButtonFormField<String>(
+    const Divider(height: 20),
+    if (!_zatenIsletme)
+      Padding(
+        padding: const EdgeInsets.only(bottom: 14),
+        child: Text(
+          'İşletme hesabına geçtiğinde profilinde kategori, adres, telefon '
+          've çalışma saatlerin görünür; müşterilerin sana kolayca ulaşır.',
+          style: TextStyle(
+            fontSize: 13,
+            color: Theme.of(
+              context,
+            ).colorScheme.onSurface.withValues(alpha: 0.6),
+          ),
+        ),
+      ),
+    DropdownButtonFormField<String>(
             initialValue: _kategori,
             decoration: const InputDecoration(
               labelText: 'Kategori',
@@ -407,51 +529,44 @@ class _IsletmeDuzenleEkraniState extends ConsumerState<IsletmeDuzenleEkrani> {
             ],
             onChanged: (v) => setState(() => _kategori = v ?? 'diger'),
           ),
-          const SizedBox(height: 12),
-          _alan(_adres, 'Adres', LucideIcons.mapPin, satir: 2),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(child: _alan(_il, 'İl', LucideIcons.building2)),
-              const SizedBox(width: 10),
-              Expanded(child: _alan(_ilce, 'İlçe', LucideIcons.map)),
-            ],
-          ),
-          const SizedBox(height: 12),
-          _alan(
-            _telefon,
-            'Telefon',
-            LucideIcons.phone,
-            tip: TextInputType.phone,
-          ),
-          const SizedBox(height: 12),
-          _alan(_web, 'Web sitesi', LucideIcons.globe, tip: TextInputType.url),
-          const SizedBox(height: 20),
-          _konumBolumu(),
-          const SizedBox(height: 20),
-          const Text(
-            'ÇALIŞMA SAATLERİ',
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              // ⚠️ TURU 113 — `letterSpacing` KALDIRILDI (kullanici emri).
-              color: Colors.grey,
-            ),
-          ),
-          const SizedBox(height: 6),
-          for (final c in _calisma) _gunSatiri(c),
-          const SizedBox(height: 24),
-          if (_zatenIsletme)
-            OutlinedButton.icon(
-              onPressed: _kisiselYap,
-              icon: const Icon(LucideIcons.userRound, size: 18),
-              label: const Text('Kişisel hesaba dön'),
-            ),
-          const SizedBox(height: 30),
-        ],
+    const SizedBox(height: 12),
+    _alan(
+      _telefon,
+      'Telefon',
+      LucideIcons.phone,
+      tip: TextInputType.phone,
+    ),
+    const SizedBox(height: 12),
+    _alan(_web, 'Web sitesi', LucideIcons.globe, tip: TextInputType.url),
+  ];
+
+  List<Widget> _bolumAdres() => [
+    _alan(_adres, 'Adres', LucideIcons.mapPin, satir: 2),
+    const SizedBox(height: 12),
+    Row(
+      children: [
+        Expanded(child: _alan(_il, 'İl', LucideIcons.building2)),
+        const SizedBox(width: 10),
+        Expanded(child: _alan(_ilce, 'İlçe', LucideIcons.map)),
+      ],
+    ),
+    const SizedBox(height: 20),
+    _konumBolumu(),
+  ];
+
+  List<Widget> _bolumSaatler() => [
+    Text(
+      'ÇALIŞMA SAATLERİ',
+      style: TextStyle(
+        fontSize: 11,
+        fontWeight: FontWeight.w700,
+        // ⚠️ TURU 113 — `letterSpacing` KALDIRILDI (kullanici emri).
+        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
       ),
-    );
-  }
+    ),
+    const SizedBox(height: 6),
+    for (final c in _calisma) _gunSatiri(c),
+  ];
 
   /// ⚠️⚠️⚠️ TURU 85 — KONUM BOLUMU. **"Yakinimda"nin ON KOSULU.**
   ///
