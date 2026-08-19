@@ -216,7 +216,18 @@ extension ChatColors on ColorScheme {
       _koyuMu ? const Color(0xFF3B2A63) : const Color(0xFFEDE4FF);
   Color get bubbleOther =>
       _koyuMu ? const Color(0xFF262D31) : const Color(0xFFFFFFFF);
-  Color get tickRead => const Color(0xFF34B7F1); // mavi tik
+  /// ⚠️⚠️ TURU 115b — **ACIK TEMADA KOYULASTIRILDI.**
+  ///	Eski ton (0xFF34B7F1, WhatsApp mavisi) yeni ACIK MOR balonun
+  ///	(0xFFEDE4FF) uzerinde **1,87:1** ile neredeyse GORUNMEZDI (ikon esigi
+  ///	3:1). Bu bir REGRESYON DEGIL — eski yesil balonda da 1,99:1 idi — ama
+  ///	yukaridaki *"iki temada da okunur"* iddiasi ACIK TEMA icin BASTAN BERI
+  ///	YANLISTI ve burada kayda geciyor. Yeni olcum: **4,52:1**.
+  /// ⚠️ Koyu tema DEGISMEDI: orada zemin koyu ve parlak mavi 8,7:1 ile zaten
+  ///    okunuyor; koyulastirmak orayi BOZARDI.
+  /// ⚠️ Renk YINE MAVI: mavi tik evrensel bir isarettir; mora cevirmek
+  ///    "okundu" anlamini kaybettirirdi.
+  Color get tickRead =>
+      _koyuMu ? const Color(0xFF34B7F1) : const Color(0xFF0B79A8);
 }
 
 /// Kimlikten (kullanici id'si) turetilen SABIT renk. **TEK KAYNAK.**

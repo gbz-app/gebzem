@@ -205,7 +205,7 @@ Future<bool> isletmeFiltreAc(BuildContext context, IsletmeFiltre f) async {
     isScrollControlled: true,
     backgroundColor: Theme.of(context).scaffoldBackgroundColor,
     shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
     builder: (c) => FractionallySizedBox(
       // ⚠️ Kullanici emri: EKRANIN **%95**'i.

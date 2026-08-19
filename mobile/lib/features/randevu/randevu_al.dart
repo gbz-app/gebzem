@@ -274,7 +274,12 @@ class _RandevuAlEkraniState extends ConsumerState<RandevuAlEkrani> {
                     kGunKisa[g.weekday - 1],
                     style: TextStyle(
                       fontSize: 11,
-                      color: secili ? Colors.white70 : Colors.grey,
+                      // ⚠️ TURU 115b — `white70` idi: secili cipin zemini
+                      //    `primary` ve 11 px yazida kontrast 4,20:1 olculdu
+                      //    (esik 4,5). `onPrimary` beyaz -> 7,9:1.
+                      color: secili
+                          ? Theme.of(context).colorScheme.onPrimary
+                          : Colors.grey,
                     ),
                   ),
                   const SizedBox(height: 2),

@@ -954,7 +954,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
       context: context,
       backgroundColor: const Color(0xFF1E282E),
       shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(18))),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (_) => SafeArea(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           if (_c.camOn)

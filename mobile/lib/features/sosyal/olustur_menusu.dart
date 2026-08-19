@@ -219,14 +219,23 @@ Widget _kart(
           children: [
             Icon(ikon, size: 25, color: scheme.primary),
             const SizedBox(height: 9),
-            Text(
-              baslik,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: scheme.onSurface,
+            // ⚠️⚠️ TURU 115b — `FittedBox` OLCUMLE EKLENDI. 360 dp ekranda
+            //	kart ic alani **86,7 dp**; "Gönderi" yazi olcegi 2.0'da
+            //	**102,1 dp** istiyor -> ellipsis ile "Gönd…" oluyordu.
+            //	`scaleDown` yalniz GEREKTIGINDE kucultur (olcek 1.0'da 1.0,
+            //	2.0'da ~%85), yani kirpma YAPISAL OLARAK imkansiz.
+            // ⚠️ Bu, turu 98c'de etkilesim satirinda kanitlanmis desenin
+            //    aynisi. ⚠️ YAPMA: `FittedBox`i kaldirip sabit boya donme.
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                baslik,
+                maxLines: 1,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: scheme.onSurface,
+                ),
               ),
             ),
           ],

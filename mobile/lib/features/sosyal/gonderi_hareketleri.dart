@@ -167,7 +167,7 @@ class _GonderiHareketleriState extends State<GonderiHareketleri> {
       showDragHandle: true,
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (c) => SafeArea(
         top: false,

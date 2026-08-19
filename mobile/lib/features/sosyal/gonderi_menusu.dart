@@ -63,7 +63,7 @@ Future<MenuSecim?> gonderiMenusuAc(
     //    (turu 90b'de "Olustur" sheet'inde birebir bu yasandi).
     isScrollControlled: true,
     shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
     builder: (c) => SafeArea(
       top: false,

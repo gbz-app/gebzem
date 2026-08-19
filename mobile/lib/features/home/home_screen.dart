@@ -348,10 +348,13 @@ class _HapSecici extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Container(
-      height: 40,
+      // ⚠️ TURU 115b — 40 -> 44: dokunma alani olculdu (40 dp), Apple tavsiyesi
+      //    44. Yazi olcegi 2.0'da 14 px yazinin satir yuksekligi 39,2 dp;
+      //    44'te de sigar.
+      height: 44,
       decoration: BoxDecoration(
         color: scheme.onSurface.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(22),
       ),
       child: Stack(
         children: [
@@ -368,7 +371,7 @@ class _HapSecici extends StatelessWidget {
                 margin: const EdgeInsets.all(3),
                 decoration: BoxDecoration(
                   color: scheme.primary,
-                  borderRadius: BorderRadius.circular(17),
+                  borderRadius: BorderRadius.circular(19),
                 ),
               ),
             ),

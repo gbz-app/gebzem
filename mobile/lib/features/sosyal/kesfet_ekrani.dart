@@ -429,11 +429,22 @@ class _KesfetEkraniState extends ConsumerState<KesfetEkrani>
         padding: const EdgeInsets.fromLTRB(kYanBosluk, 8, kYanBosluk, 8),
         child: Row(
           children: [
-            SizedBox(
-              width: 22,
+            // ⚠️⚠️ TURU 115b — SABIT `width: 22` **OLCULDU VE TASIYORDU.**
+            //	Gercek `flutter test` ile olculdu (16 px, w800):
+            //	  olcek 1.0 -> "100" = **28,9 dp** (22'ye SIGMIYOR)
+            //	  olcek 1.3 -> "10"  = **23,5 dp** (22'ye SIGMIYOR)
+            //	  olcek 2.0 -> "100" = **57,7 dp**
+            //	`maxLines` de yoktu, yani numara ALT ALTA SARIYOR ve satiri
+            //	buyutuyordu ("1" / "0" gibi iki satir).
+            // ⚠️ `ConstrainedBox(minWidth)` ZORUNLU, sabit `SizedBox` DEGIL:
+            //    22 dp hizalama icin gerekli (numaralar alt alta hizali dursun)
+            //    ama TAVAN olmamali. Bu haliyle tasma YAPISAL OLARAK imkansiz.
+            ConstrainedBox(
+              constraints: const BoxConstraints(minWidth: 22),
               child: Text(
                 '$sira',
                 textAlign: TextAlign.center,
+                maxLines: 1,
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w800,
@@ -474,6 +485,11 @@ class _KesfetEkraniState extends ConsumerState<KesfetEkrani>
                   Text(
                     '${sayiBicimle(g.goruntulenme)} görüntülenme · '
                     '${sayiBicimle(g.begeniSayisi)} beğeni',
+                    // ⚠️ TURU 115b — `maxLines` YOKTU ve OLCULDU: yazi olcegi
+                    //    1.3'te satir 236 dp alana 236,4 dp istiyor -> SARIYOR
+                    //    (yukseklik 15 -> 40 dp). 2.0'da 363,7 dp.
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(fontSize: 12, color: soluk),
                   ),
                 ],

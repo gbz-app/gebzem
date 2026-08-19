@@ -477,9 +477,31 @@ class _SesNotuBalonState extends ConsumerState<SesNotuBalon> {
     // ⚠️ YAPMA: tek sabit renge donme; zemin temaya bagliyken on plan
     //    sabit kalamaz.
     final koyu = Theme.of(context).brightness == Brightness.dark;
-    final aktifRenk = widget.benimMi
-        ? (koyu ? const Color(0xFF7FE9A8) : const Color(0xFF0B7C4B))
-        : (koyu ? const Color(0xFFC0A8FF) : const Color(0xFF7C4DFF));
+    //
+    // ⚠️⚠️⚠️ TURU 115b - **YUKARIDAKI OLCUMLER BAYAT, RENKLER YESILDI.**
+    //	Bu iki ton (`#7FE9A8` / `#0B7C4B`) o zamanki **YESIL** balona gore
+    //	secilmisti. Balon turu 115b'de MOR oldu (`ChatColors.bubbleMine`) ve
+    //	sonuc su hale geldi: kendi ses notunda **MOR balonun icinde YESIL
+    //	dalga formu ve YESIL "1.5x" yazisi**; karsi tarafin balonu ise mor.
+    //	Ayni ekranda iki balon IKI FARKLI RENK AILESINDEYDI ve kullanicinin
+    //	*"yesil renk yapma artik"* emriyle dogrudan celisiyordu.
+    //	⚠️ Ustelik acik temada kontrast **4.29:1**'e dusmustu (11,5 px
+    //	   "1.5x" yazisi icin 4.5 esiginin ALTI).
+    //
+    //	YENI OLCUM:
+    //	  acik  #5B21B6 -> #EDE4FF uzerinde **7.06:1** · #FFFFFF **8.49:1**
+    //	  koyu  #C0A8FF -> #3B2A63 uzerinde **6.28:1** · #262D31 **8.11:1**
+    //
+    // ⚠️⚠️ `benimMi` AYRIMI KALDIRILDI: iki balon da artik MOR ailede
+    //    ve konusanin kim oldugu BALONUN KENDI ZEMININDEN belli (bubbleMine
+    //    vs bubbleOther). Dalga formunu ayrica ayirmak ikinci bir renk
+    //    kodu demekti ve o kod yesil olarak geride kalmisti.
+    // ⚠️ YAPMA: yesil tonlari geri getirme.
+    // ⚠️ YAPMA: tek SABIT renge donme; zemin temaya bagliyken on plan
+    //    sabit kalamaz (bu satirin ustundeki serhin asil dersi budur).
+    final aktifRenk = koyu
+        ? const Color(0xFFC0A8FF)
+        : const Color(0xFF5B21B6);
 
     return SizedBox(
       width: 230,
