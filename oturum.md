@@ -7643,3 +7643,52 @@ onaylı.
 - Backend deploy + health ok + **375/375 uçtan uca**; `/ara` ve yeni `yakinimda`
   alanları canlıda tek tek doğrulandı (400/200 kapıları dahil).
 - ⚠️ Adres: https://indir.gebzem.app/index.html?v=20260819-1832
+
+---
+
+## Oturum — 19 Ağustos 2026 (turu 115b + 115c): ARAYÜZ MODERNLEŞTİRME + YEŞİLİN SONU
+
+**Kullanıcının emirleri (bu oturum):**
+> *"söylediklerimi lütfen yap atlama geçiştirme bitir build al temiz"*
+> *"YEŞİL RENK YAPMA ARTIK allah rızası için genel tasarıma uy"*
+> *"konumdaki pinler daire şeklinde yap border açık renkler kullan"*
+> *"soldaki yukarı sol + tıkladığında çıkan pencereyi modernleştir"*
+> *"chat bölümünü daha profesyonel modern bir görünüme getir"*
+> *"arayüzü daha düzgün yap step step derinlemesine düşün yavaş yavaş"*
+
+### Yapıldı (oldu)
+- **"+" penceresi yeniden tasarlandı** — 3 büyük kart + 3 satır
+- **Sohbet modernleşti** — ataç hapın içinde, gönder dolu daire, başlık, liste satırı, "+" sheet'i
+- **Marka rengi mor** — `primary` artık logonun tam rengi; mesaj balonu, ses notu dalga formu,
+  puan yıldızı, sohbet ikonları, alttan açılan paneller
+- **Harita pinleri daire** (`harita_daire_pin.dart`, önbellekli `BitmapDescriptor`)
+- **Profilde yatay sekme şeridi** (Instagram/Twitter) — açılır menü kalktı
+- **Aramada sekmeler** (Kişiler · Yerler · İşletmeler · İlanlar · Ses) + **Trendler**
+- **İndir sayfasında saat artık sunucudan yazılıyor** (6 turluk şikâyetin kök çözümü)
+- **E2E artıkları temizlendi** — 244 test hesabı silindi, 32 gerçek hesap duruyor
+
+### Denendi / öğrenildi (olmadı → düzeltildi)
+- **`CrossAxisAlignment.stretch` kaydırma içinde SONSUZ yükseklik veriyor** → "+" penceresi
+  BOMBOŞ açılıyordu. `IntrinsicHeight` ile kapatıldı. (turu 98i'nin aynısı)
+- **`isScrollControlled` TEK BAŞINA YETMEZ** — mesajlar "+" sheet'i 320×568/2.0'da 149 px taştı.
+  Kardeş dosya iki parçayı da taşıyordu; buraya yalnız biri kopyalanmıştı.
+- **`ListTile.trailing` sabit 56 dp tavan dayatır** (SDK kaynağı) — `mainAxisSize.max` taşıyordu.
+- **`ColorScheme.fromSeed` tohumu SOLUKLAŞTIRIYOR** — FAB ile seçili hap iki farklı mor gibiydi.
+- **Zemin rengini değiştirince ön plan renklerini de aramak gerekiyor** — ses notu dalga formu
+  yeşil kaldı çünkü başka dosyadaydı.
+- **`dart format lib/` 100 dosyaya dokundu** — sadece bu turda değişenler tutuldu, gerisi geri alındı.
+- **`harita_pin.dart` üzerine OKUMADAN yazdım** ve mevcut ekranı sildim → `git checkout` ile geri
+  alındı, yeni kod ayrı dosyaya kondu. **Var olan dosyayı okumadan üstüne yazma.**
+
+### Kararlar
+- **Yeşil kalan yerler bilinçli**: "Açık/Kapalı" göstergesi ve onay/red ikonları DURUM işareti
+  (trafik ışığı), marka aksanı değil.
+- **Menüdeki boş gri kutular kullanıcının kendi emri** ("ikon YOK, kart altında yazı") — dokunulmadı.
+- **Yakınımda ekranına dokunulmadı** — kullanıcı yeni referans göndereceğini söyledi.
+- **`TRUNCATE users` yapılmadı** — kullanıcının 16 Ağu emri "profiller kalsın".
+
+### Devir notu
+- Yayınlandı: android 32280884494 · ios 32280900129 · commit **4956cc0**
+- Adres: **https://indir.gebzem.app/index.html?v=20260819-2033**
+- Canlıda 382/382 uçtan uca · analyze 0/0 · test 40/40 · go temiz
+- **Bekleyen:** kullanıcının Yakınımda için göndereceği arayüz görseli

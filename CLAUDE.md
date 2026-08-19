@@ -17,6 +17,109 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (19 Agu 20:33): TURU 115 + 115b + 115c YAYINLANDI** —
+  android **32280884494** + ios **32280900129** (**4956cc0**), R2
+  apk=122633515 (md5 0f889c34) ipa=31738738 (md5 73fb63f8) index=16043
+  (md5 4f36c454) **surum.json=48 (md5 1747374c)**, purge OK,
+  **CDN DORDU DE BIREBIR**, debug imza YOK, `HARITA=true` iki logda da,
+  harita anahtari **IKI ARTIFACT'TE DE** enjekte (APK manifest UTF-16 +
+  iOS `MapsApiKey`), iOS min **16.0**, **IKI ARTIFACT'TE DE turu 115c kodu
+  VAR** (dizeler UTF-16 arandi: "Zamanlandı" · "Sık görüştüklerin").
+  **BACKEND DEPLOY** (4956cc0) + health ok.
+  ✅ **CANLIDA 382/382 UCTAN UCA** · flutter analyze **0/0** ·
+     flutter test **40/40** · go build+vet+test temiz (9 paket).
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260819-2033
+
+- 🧹 **19 Agu — E2E ARTIKLARI TEMIZLENDI (gercek hesaplara DOKUNULMADI).**
+  Uctan uca aracini defalarca kosturdugum icin canli DB'de **244 `E2E`
+  onekli hesap** ve 147 sahte isletme birikmisti; kullanici uygulamayi
+  acsa kategori listesinde ve Yakinimda'da bunlari gorurdu.
+  ⚠️ `TRUNCATE users` **YAPILMADI**: kullanicinin 16 Agu emri *"profiller
+     kalsin"*. Yalniz `name LIKE 'E2E%'` hesaplari ve onlara bagli TUM
+     kayitlar (52 tablo, FK zincirine gore siralanmis) silindi.
+  ⚠️ Sutun adlari **FK KATALOGUNDAN OKUNDU, TAHMIN EDILMEDI** — ilk
+     denemede `post_comments.user_id` varsayilmisti; gercek ad `author_id`.
+  ✅ SONUC: **32 gercek hesap** duruyor; icerik tam da kullanicinin test
+     ettigi hale dondu (isletme 14 · ilan 3 · etkinlik 2 · randevu 17).
+  📌 Bu yuzden `tools/tohum.js` KOSULMADI — kosulsaydi mevcut 14 isletmenin
+     USTUNE kopya eklerdi.
+
+- ⚠️⚠️⚠️ **TURU 115c — INDIR SAYFASI: SAAT ARTIK SUNUCUDAN YAZILIYOR.**
+  Kullanici **ALTI TURDUR** *"saati goremiyorum"* diyor; sunucu tarafi ALTI
+  KEZ DE dogru cikti (bu turda da olculdu: `text/html` + `no-store` +
+  `cf-cache-status: DYNAMIC` + saat **7 yerde** + `surum.json` gomulu
+  surumle BIREBIR). Kalan tek aciklama TARAYICI/WEBVIEW ONBELLEGI.
+  ⚠️⚠️ **Onceki IKI nobetci bu durumu yalniz HABER VERIYORDU** (kirmizi
+     serit) — kullanicidan hala bir DOKUNUS bekliyordu.
+     ARTIK: `surum.json` `no-store` ile cekilip **GORUNEN SAATIN KENDISI**
+     (+ sayfa basligi) onunla degistiriliyor. Govde onbellekten gelse bile
+     kullanicinin OKUDUGU saat DOGRU olur.
+  🛡️ Uretici muhafizi IKI YENI KONTROL (`id="surumsaat"` + `d.saat`) —
+     **IKISI DE BOZULARAK KANITLANDI**.
+     ⚠️ Ilk bozma denemesi UYGULANMAMISTI (regex tutmadi) ve test YESIL
+        kaldi; "uygulanmadiysa PATLA" kapisiyla tekrarlandi (turu 93b dersi).
+  ⚠️ `<meta http-equiv="Cache-Control">` de eklendi (sunucu basligini soyan
+     uygulama-ici tarayicilara karsi EK katman, YERINE gecmez).
+
+- ⚠️⚠️⚠️ **TURU 115c — BUILD ALINDI, IPTAL EDILDI, YENIDEN ALINDI.**
+  Ilk build (`183c2e6`) tetiklendikten SONRA kosulan denetim **IKI SEVK
+  ENGELI** buldu; build iptal edilip kod duzeltildi.
+  *"Build ALMAK yayinlamak DEGILDIR"* dersinin **YEDINCI** dogrulanmasi.
+  · **"+" penceresi (mesajlar) TASIYORDU**: `isScrollControlled` vardi ama
+    `SingleChildScrollView` YOKTU. 320x568 · olcek 2.0 -> **149 px tasma**,
+    son madde EKRAN DISINDA. **Turu 114'un birebir tekrari**: o bayrak
+    yalnizca TAVANI kaldirir, icerigi KAYDIRILABILIR YAPMAZ. Kardes
+    `olustur_menusu.dart` IKI parcayi da tasiyordu — **ASIMETRININ KENDISI
+    HATAYDI.**
+  · **Sohbet listesi sag sutunu TASIYORDU**: SDK kaynagindan dogrulandi —
+    `ListTile` `trailing`e **SABIT 56 dp TAVAN** dayatir. `mainAxisSize.max`
+    ile olcek 1.8'de 6,0 / 2.0'da 11,8 dp tasma. Ustelik turu 115b'de
+    ekledigim `Visibility(maintainSize)` tasmayi **HER SATIRA** yaymisti.
+
+- ⚠️⚠️ **TURU 115b/c — ACIK TEMADA GORUNMEYEN UC YER** (hepsi emulatorde
+  gorundu, hicbiri `flutter analyze`in yakalayabilecegi sinif degil):
+  · sohbet arama kutusu `fillColor: 0xFF232326` -> **SIMSIYAH** (ekranin
+    en ustundeki bilesen)
+  · "Sık görüştüklerin" isimleri `Colors.white70` -> **1,09:1** (fiilen
+    gorunmuyordu), basligi `0xFF9A9AA0` -> 2,51:1
+  · ses notu dalga formu **YESIL** kalmisti (balon mora donmustu) ->
+    mor balonun icinde yesil dalga + acik temada 4,29:1
+  ⚠️ **DERS: bir zemin rengini degistirirken, o zemine gore secilmis ON
+     PLAN renklerini de ARA** — zemin `ChatColors`ta TEK yerdeydi, ona gore
+     ayarlanmis renkler BASKA DOSYADAYDI.
+  ⚠️ **DERS 2: bir dosyada bir sabit rengi duzeltmek o dosyanin
+     TEMIZLENDIGI anlamina GELMEZ** (`chats_screen`de biri duzeltildi,
+     otekisi ATLANDI).
+
+- 📌 **TURU 115b — MARKA RENGI: `primary` ARTIK LOGONUN TAM RENGI.**
+  `ColorScheme.fromSeed` tohumu tonal palete ceviriyor ve cikan `primary`
+  logodan belirgin DAHA SOLUKTU (~#65558F). Ayni ekranda FAB (canli mor)
+  ile secili sekme hapi (soluk mor) **IKI FARKLI MOR** gibi duruyordu.
+  Acik temada `primary = morLogo (#6C2BD9)`, `onPrimary` beyaz (7,9:1).
+  ⚠️⚠️ **KOYU TEMA DEGISTIRILMEDI**: M3'te koyu temanin `primary`si ACIK
+     ton olmali (uzerine KOYU yazi gelir); #6C2BD9 yazilsaydi koyu zeminde
+     koyu mor dugme cikar ve yazi OKUNMAZDI.
+  ⚠️ Mesaj balonu da mor: acik `#EDE4FF` (15,5:1), koyu `#3B2A63` (9,8:1).
+  ⚠️ **YESIL KALAN YERLER BILINCLI**: "Açık/Kapalı" gostergesi ve onay/red
+     ikonlari DURUM isaretidir (trafik isigi), marka aksani DEGIL. Mora
+     cevirmek "acik" ile "kapali"yi ayirt edilemez yapardi.
+
+- 🛡️ **TURU 115c — IKI YENI MUHAFIZ:**
+  · `internal/isletme/sutun_test.go` -> **`TestYakinimdaSelectVeScanHizali`**.
+    `Yakinimda` repodaki EN YENI ve EN BUYUK isletme sorgusu (18 sutun) ve
+    **KORUMASIZDI**; turu 115'te bes sutun eklendi, hicbir muhafiz gormedi.
+    ✅ **BOZULARAK KANITLANDI** (17≠18 -> KIRMIZI).
+    ⚠️ Kardeslerinden farki: SIRA olculmuyor — gerekce dosyada YAZILI.
+  · `tools/uctan_uca.js` **375 -> 382**: `/ara` ucunun kapsami **SIFIRDI**
+    (uc turu 115'te yazildi, istemcinin BES arama sekmesinden DORDU ona
+    bagli). ✅ Yeni kontrol **GERCEK BIR SEY YAKALADI**: `tur=konum`
+    kirmizi dustu ve **SUNUCU HAKLIYDI** (yuklem `enlem<>0 OR boylam<>0`,
+    yani "Yerler" = koordinati OLAN gonderi). Test duzeltildi, urun DEGIL.
+
+- ⏳ **BEKLEYEN (kullanici soyledi, HENUZ GELMEDI):** *"sana yakinda icin
+  arayuz atiyorum"* — Yakinimda ekrani icin referans gorsel bekleniyor.
+  Bu turda o ekrana **BILEREK DOKUNULMADI** (daire pin disinda).
+
 - 📐 **YAZI OLCEGI KARARI (17 Agu): `docs/yazi-olcegi.md`** — 6 kademe
   (20/17/15/14/13/11). 11 ajanlik arastirma + 3 mercekli denetim sonucu.
   ⚠️ **UYGULAMA ARAYUZ BITINCE** (kullanici karari); AMA **yeni yazilan her
