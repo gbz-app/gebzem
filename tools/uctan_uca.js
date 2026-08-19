@@ -3053,6 +3053,79 @@ const kontrol = (ad, gecti, ek = '') => {
       koordVar,
       'adet=' + kliste.length + ' ilk=' +
       (kliste[0] ? kliste[0].enlem + ',' + kliste[0].boylam : '-'));
+
+    // ══════════════════════════════════════════════════════════════════
+    // TURU 114 — "MAHALLE" AKISI (akistaki ucuncu bolme)
+    // ══════════════════════════════════════════════════════════════════
+    //
+    // ⚠️ Bu blok MEKANSAL SUZGECI GERCEKTEN OLCER: yakina bir gonderi, uzaga
+    //    bir gonderi atilir ve YALNIZ yakindakinin dondugu dogrulanir. Yalniz
+    //    "200 dondu mu" bakmak, yuklem BOZUK olsa bile yesil kalirdi
+    //    (turu 93b dersi: "dolu alan, IS GOREN alan demek DEGILDIR").
+    const MLAT = 40.8028, MLNG = 29.4300;
+
+    const yakinG = await j('/posts', {
+      token: Z.token, yontem: 'POST',
+      govde: { tur: 'yazi', metin: 'mahalle testi YAKIN', enlem: MLAT, boylam: MLNG },
+    });
+    kontrol('TURU 114: konumlu gonderi olusturulabiliyor',
+      yakinG.kod === 201, 'HTTP ' + yakinG.kod);
+
+    // ⚠️ ~55 km kuzey: 15 km VARSAYILAN yaricapin acikca disinda ama sunucu
+    //    TAVANININ (100 km) ICINDE. Tavanin USTUNE cikilsaydi asagidaki
+    //    "genis yaricap" kontrolu YAPISAL OLARAK gecemezdi (ilk yazimda
+    //    1.1 derece = ~122 km secilmisti ve test HAKLI OLARAK kirmizi dustu).
+    const uzakG = await j('/posts', {
+      token: Z.token, yontem: 'POST',
+      govde: {
+        tur: 'yazi', metin: 'mahalle testi UZAK',
+        enlem: MLAT + 0.5, boylam: MLNG,
+      },
+    });
+
+    const mah = await j('/mahalle?lat=' + MLAT + '&lng=' + MLNG, { token: Z.token });
+    const mPosts = ((mah.d || {}).posts) || [];
+    const mIds = mPosts.map((p) => p.id);
+    kontrol('TURU 114: /mahalle YAKINDAKI gonderiyi donduruyor',
+      mah.kod === 200 && mIds.includes((yakinG.d || {}).id),
+      'HTTP ' + mah.kod + ' adet=' + mPosts.length);
+
+    // ⚠️ ASIL KANIT: kaba kutu + Haversine GERCEKTEN eliyor mu?
+    kontrol('TURU 114: /mahalle UZAKTAKI gonderiyi ELIYOR (mekansal suzgec calisiyor)',
+      !mIds.includes((uzakG.d || {}).id),
+      'uzak id listede mi=' + mIds.includes((uzakG.d || {}).id));
+
+    // ⚠️ Yaricap BUYUTULUNCE uzak gonderi GELMELI — yoksa suzgec "her seyi
+    //    eliyor" olabilirdi ve ustteki kontrol YANLIS SEBEPTEN gecerdi.
+    const mahGenis = await j('/mahalle?lat=' + MLAT + '&lng=' + MLNG + '&km=100',
+      { token: Z.token });
+    const mgIds = (((mahGenis.d || {}).posts) || []).map((p) => p.id);
+    kontrol('TURU 114: km buyutulunce UZAK gonderi de geliyor (elemenin sebebi MESAFE)',
+      mahGenis.kod === 200 && mgIds.includes((uzakG.d || {}).id),
+      'HTTP ' + mahGenis.kod + ' adet=' + mgIds.length);
+
+    // ⚠️ KONUMSUZ gonderi mahallede HIC gorunmemeli (enlem=0 AND boylam=0).
+    const konumsuz = await j('/posts', {
+      token: Z.token, yontem: 'POST',
+      govde: { tur: 'yazi', metin: 'mahalle testi KONUMSUZ' },
+    });
+    const mah2 = await j('/mahalle?lat=' + MLAT + '&lng=' + MLNG + '&km=100',
+      { token: Z.token });
+    const m2Ids = (((mah2.d || {}).posts) || []).map((p) => p.id);
+    kontrol('TURU 114: KONUMSUZ gonderi mahallede GORUNMEZ',
+      !m2Ids.includes((konumsuz.d || {}).id),
+      'konumsuz id listede mi=' + m2Ids.includes((konumsuz.d || {}).id));
+
+    // ⚠️ Koordinatsiz istek 400 — koordinatsiz bir "mahalle" tanimsizdir.
+    const mahBos = await j('/mahalle', { token: Z.token });
+    kontrol('TURU 114: /mahalle konumsuz istekte 400',
+      mahBos.kod === 400, 'HTTP ' + mahBos.kod);
+
+    // ⚠️⚠️ `NaN` SESSIZ BOS LISTE URETMEMELI: `ParseFloat("NaN")` HATA
+    //    DONDURMEZ ve NaN her karsilastirmadan false ile gecer. 400 bekleriz.
+    const mahNaN = await j('/mahalle?lat=NaN&lng=29.4', { token: Z.token });
+    kontrol('TURU 114: /mahalle NaN koordinati 400 ile REDDEDER',
+      mahNaN.kod === 400, 'HTTP ' + mahNaN.kod);
   }
 
   // ---------- OZET
