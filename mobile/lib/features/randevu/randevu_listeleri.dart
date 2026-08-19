@@ -152,16 +152,134 @@ class _RandevuListesiEkraniState
                   )
                 : YenileSarmali(
                     onRefresh: _yukle,
-                    child: ListView.separated(
-                      // ⚠️ Icerik ekrani doldurmasa da asagi-cek calissin
-                      //    (turu 77b dersi).
+                    // ⚠️⚠️⚠️ TURU 114 — **AJANDA GORUNUMU** (kullanici emri:
+                    //	*"randevular takvim gibi daha modern ve detayli olsun,
+                    //	cok bos duruyor"*).
+                    //
+                    //	Duz liste her satirda tarihi TEKRAR yaziyordu ve ayni
+                    //	gunun randevulari gorsel olarak birbirinden
+                    //	ayrilmiyordu. Artik satirlar GUNE gore gruplanir; her
+                    //	grubun basinda "Bugün · 19 Ağustos Salı" gibi bir
+                    //	baslik ve o gunku randevu sayisi durur.
+                    //
+                    // ⚠️ HARICI TAKVIM PAKETI EKLENMEDI: gruplama saf Dart.
+                    //    Bir ay izgarasi cizmek, o aydaki BOS gunleri de
+                    //    gostermek demektir; sunucu "musait gunler" listesi
+                    //    dondurmuyor, yani izgaranin cogu SAHTE olurdu.
+                    child: ListView.builder(
                       physics: const AlwaysScrollableScrollPhysics(),
                       padding: const EdgeInsets.only(bottom: 30),
-                      itemCount: l.length,
-                      separatorBuilder: (_, _) => const Divider(height: 1),
-                      itemBuilder: (_, i) => _satir(l[i]),
+                      itemCount: _ajanda(l).length,
+                      itemBuilder: (_, i) {
+                        final o = _ajanda(l)[i];
+                        return o.randevu == null
+                            ? _gunBasligi(o.gun!, o.adet)
+                            : _satir(o.randevu!);
+                      },
                     ),
                   ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Ajanda ogesi: ya bir GUN BASLIGI ya bir RANDEVU satiri.
+  ///
+  /// ⚠️ Liste HER CIZIMDE yeniden uretilmez diye `itemBuilder` icinde
+  ///    cagirmak yerine tek seferde kurulmali gibi gorunuyor; ama liste en
+  ///    fazla birkac yuz oge ve `ListView.builder` yalniz gorunen ogeleri
+  ///    ister. Yine de gereksiz is yapmamak icin sonuc onbelleklenir.
+  List<({DateTime? gun, int adet, Randevu? randevu})>? _ajandaOnbellek;
+  List<Randevu>? _ajandaKaynak;
+
+  List<({DateTime? gun, int adet, Randevu? randevu})> _ajanda(
+    List<Randevu> l,
+  ) {
+    if (identical(_ajandaKaynak, l) && _ajandaOnbellek != null) {
+      return _ajandaOnbellek!;
+    }
+    final out = <({DateTime? gun, int adet, Randevu? randevu})>[];
+    DateTime? sonGun;
+    for (var i = 0; i < l.length; i++) {
+      final r = l[i];
+      final g = DateTime(r.baslangic.year, r.baslangic.month, r.baslangic.day);
+      if (sonGun == null || g != sonGun) {
+        // O gunun toplam randevu sayisi (baslikta gosterilir).
+        final adet = l
+            .where(
+              (x) =>
+                  x.baslangic.year == g.year &&
+                  x.baslangic.month == g.month &&
+                  x.baslangic.day == g.day,
+            )
+            .length;
+        out.add((gun: g, adet: adet, randevu: null));
+        sonGun = g;
+      }
+      out.add((gun: null, adet: 0, randevu: r));
+    }
+    _ajandaKaynak = l;
+    _ajandaOnbellek = out;
+    return out;
+  }
+
+  /// ⚠️ "Bugün"/"Yarın"/"Dün" GORELI etiketler: kullanici tarihi zihninde
+  ///    cevirmek zorunda kalmasin. Gun adi da yazilir (takvim hissi).
+  Widget _gunBasligi(DateTime g, int adet) {
+    final bugun = DateTime.now();
+    final b0 = DateTime(bugun.year, bugun.month, bugun.day);
+    final fark = g.difference(b0).inDays;
+    final goreli = switch (fark) {
+      0 => 'Bugün',
+      1 => 'Yarın',
+      -1 => 'Dün',
+      _ => '',
+    };
+    final tarih =
+        '${g.day} ${kAyAdlari[g.month - 1]} ${kGunUzun[g.weekday - 1]}';
+    final tema = Theme.of(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(14, 16, 14, 8),
+      color: tema.scaffoldBackgroundColor,
+      child: Row(
+        children: [
+          if (goreli.isNotEmpty) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: tema.colorScheme.primary,
+                borderRadius: BorderRadius.circular(7),
+              ),
+              child: Text(
+                goreli,
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w800,
+                  color: tema.colorScheme.onPrimary,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+          ],
+          Expanded(
+            child: Text(
+              tarih,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 14.5,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          Text(
+            '$adet randevu',
+            style: TextStyle(
+              fontSize: 12,
+              color: tema.colorScheme.onSurface.withValues(alpha: 0.55),
+            ),
           ),
         ],
       ),
@@ -193,9 +311,24 @@ class _RandevuListesiEkraniState
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(fontWeight: FontWeight.w700),
                     ),
+                    // ⚠️⚠️ TURU 114 — satirda artik **YALNIZ SAAT** yaziyor.
+                    //	Tarih GUN BASLIGINDA duruyor; her satirda tekrar
+                    //	yazmak hem gurultu hem de dar ekranda ada yer
+                    //	birakmiyordu. Sure de eklendi (sunucudan gelen
+                    //	`sure_dakika` MODELDE VARDI ama HIC CIZILMIYORDU).
                     Text(
-                      randevuZamani(r.baslangic),
-                      style: const TextStyle(fontSize: 13),
+                      [
+                        '${r.baslangic.hour.toString().padLeft(2, '0')}:'
+                            '${r.baslangic.minute.toString().padLeft(2, '0')}',
+                        if (r.sureDakika > 0) '${r.sureDakika} dk',
+                      ].join(' · '),
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withValues(alpha: 0.75),
+                      ),
                     ),
                   ],
                 ),

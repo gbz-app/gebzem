@@ -571,6 +571,61 @@ class _BasvurularimState extends ConsumerState<BasvurularimEkrani> {
     }
   }
 
+  /// Durum dagilimi — YALNIZ dolu kovalar cizilir.
+  ///
+  /// ⚠️ Etiket ve renk TEK KAYNAKTAN (`b.durumEtiketi` / `basvuruRengi`);
+  ///    ikinci bir esleme yazmak "ayni kuralin iki kopyasi" olurdu ve
+  ///    rozetlerle serit KACINILMAZ olarak ayrisirdi.
+  /// ⚠️ SIRA SABIT: her acilista kovalarin yeri degismesin.
+  Widget _ozetSeridi(List<Basvuru> l) {
+    final sayim = <String, int>{};
+    final etiket = <String, String>{};
+    for (final b in l) {
+      sayim[b.durum] = (sayim[b.durum] ?? 0) + 1;
+      etiket[b.durum] = b.durumEtiketi;
+    }
+    const sira = [
+      'bekliyor',
+      'goruldu',
+      'olumlu',
+      'secildi',
+      'olumsuz',
+      'elendi',
+      'geri_cekildi',
+    ];
+    // ⚠️ Beklenmeyen bir durum degeri gelirse SESSIZCE KAYBOLMASIN: sirada
+    //    olmayanlar sona eklenir.
+    final dolu = <String>[
+      ...sira.where(sayim.containsKey),
+      ...sayim.keys.where((d) => !sira.contains(d)),
+    ];
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          for (final d in dolu)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: basvuruRengi(d).withValues(alpha: 0.13),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                '${etiket[d] ?? d} · ${sayim[d]}',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                  color: basvuruRengi(d),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _geriCek(Basvuru b) async {
     final mesajci = ScaffoldMessenger.of(context);
     final onay = await showDialog<bool>(
@@ -615,10 +670,20 @@ class _BasvurularimState extends ConsumerState<BasvurularimEkrani> {
                         'Henüz bir işe başvurmadın', 'Yenile', _yukle)
                     : ListView.separated(
                         physics: const AlwaysScrollableScrollPhysics(),
-                        itemCount: l.length,
-                        separatorBuilder: (_, _) => const Divider(height: 1),
-                        itemBuilder: (c, i) {
-                          final b = l[i];
+                        // ⚠️⚠️ TURU 114 — ILK OGE **DURUM OZETI** (kullanici
+                        //	emri: *"basvurular ... daha modern ve detayli
+                        //	olsun, cok bos duruyor"*).
+                        //
+                        //	Sayilar YUKLENEN LISTEDEN turetilir: sunucuya ek
+                        //	istek YOK ve uydurma rakam YOK. Liste bossa bu
+                        //	dala hic girilmiyor, yani "0 başvuru" gibi
+                        //	anlamsiz bir serit CIKMAZ.
+                        itemCount: l.length + 1,
+                        separatorBuilder: (_, i) =>
+                            i == 0 ? const SizedBox.shrink() : const Divider(height: 1),
+                        itemBuilder: (c, idx) {
+                          if (idx == 0) return _ozetSeridi(l);
+                          final b = l[idx - 1];
                           return ListTile(
                             // ⚠️⚠️ TURU 113 (denetim) — **ILANA DONUS YOLU.**
                             //	`IlanDetayId` tam bu is icin yazilmisti ama
