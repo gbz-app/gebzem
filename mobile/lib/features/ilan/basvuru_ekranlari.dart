@@ -19,6 +19,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/api.dart';
+import '../../core/denetleyici_sahibi.dart';
 
 import '../medya/medya_gorsel.dart';
 import '../sosyal/profil_sayfasi.dart';
@@ -45,7 +46,10 @@ String _tl(int kurus) {
     if (i > 0 && (tam.length - i) % 3 == 0) buf.write('.');
     buf.write(tam[i]);
   }
-  return '${buf.toString()} ₺';
+  return '${buf.toString()} TL';
+  // ⚠️ TURU 110 — **`TL`, `₺` DEGIL.** `Ilan.fiyatMetni` serhi: `₺`
+  //    glifi bazi Android fontlarinda EKSIK ve yerine TOFU cizilir;
+  //    iki deger ayni kartta yan yana gorunuyor.
 }
 
 /// ⚠️⚠️⚠️ TURU 93b — **"85.000" YAZAN ISLETME 85 ₺ TEKLIF VERIYORDU**
@@ -153,7 +157,23 @@ Future<bool> basvurSheet(BuildContext context, WidgetRef ref, String ilanID,
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
-    builder: (c) => StatefulBuilder(
+    // ⚠️⚠️⚠️ TURU 110 — **TURU 96i KIRMIZI EKRANI BU DOSYADA HALA VARDI.**
+    //
+    //	Govdenin altinda `await showModalBottomSheet(...)` biter bitmez
+    //	`not.dispose()` + `fiyat.dispose()` cagriliyordu. `showDialog`/
+    //	`showModalBottomSheet` future'i **`pop` aninda** cozulur; route'un
+    //	CIKIS ANIMASYONU (~150-250 ms) surerken alt agac CIZILMEYE DEVAM
+    //	EDER ve `EditableText` denetleyiciye dokunur ->
+    //	*"A TextEditingController was used after being disposed"* ->
+    //	`build` istisnasi -> `ErrorWidget` **EKRANIN TAMAMINI** kirmizi
+    //	boyar.
+    // ⚠️⚠️ Turu 96i ALTI yeri duzeltip `DenetleyiciSahibi` TEK KAYNAGINI
+    //	yazmisti; `grep -rln denetleyici_sahibi` bes dosya donduruyor ve
+    //	BU DOSYA LISTEDE YOKTU — yani duzeltme burayi ATLAMIS.
+    // ⚠️ YAPMA: `await`ten sonra tekrar `dispose()` cagirma.
+    builder: (c) => DenetleyiciSahibi(
+      denetleyiciler: [not, fiyat],
+      child: StatefulBuilder(
       builder: (c, yenile) {
         rota ??= ModalRoute.of(c);
         return Padding(
@@ -258,9 +278,10 @@ Future<bool> basvurSheet(BuildContext context, WidgetRef ref, String ilanID,
         );
       },
     ),
+    ),
   );
-  not.dispose();
-  fiyat.dispose();
+  // ⚠️ `dispose` YOK: denetleyiciler `DenetleyiciSahibi` ile SHEET'IN
+  //    KENDI agacinda yasar ve route GERCEKTEN sokuldugunde birakilir.
   return basarili;
 }
 
@@ -345,8 +366,10 @@ class _BasvuranlarState extends ConsumerState<BasvuranlarEkrani> {
           .basvuruDurum(widget.ilanID, b.id, yeni);
       await _yukle();
     } catch (e) {
-      mesajci.showSnackBar(
-          const SnackBar(content: Text('Güncellenemedi')));
+      // ⚠️ TURU 110 — sunucunun ACIKLAYICI hatasi ("işletme hesabına
+      //    geçmelisin" gibi) jenerik metne cevriliyordu; kullanici sebebi
+      //    ogrenemeden tekrar tekrar deniyordu (turu 93b dersi).
+      mesajci.showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
     }
   }
 
@@ -570,7 +593,7 @@ class _BasvurularimState extends ConsumerState<BasvurularimEkrani> {
       await ref.read(ilanServisiProvider).basvuruGeriCek(b.ilanID);
       await _yukle();
     } catch (e) {
-      mesajci.showSnackBar(const SnackBar(content: Text('Geri çekilemedi')));
+      mesajci.showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
     }
   }
 

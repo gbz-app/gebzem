@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/gbz-app/gebzem/backend/internal/auth"
+	"github.com/gbz-app/gebzem/backend/internal/engel"
 	"github.com/gbz-app/gebzem/backend/internal/kimlik"
 	"github.com/go-chi/chi/v5"
 )
@@ -94,25 +95,32 @@ func (h *Handler) FavoriCikar(w http.ResponseWriter, r *http.Request) {
 //	engellemis olabilir.
 func (h *Handler) Favorilerim(w http.ResponseWriter, r *http.Request) {
 	me := auth.UserID(r.Context())
+	// ⚠️⚠️⚠️ TURU 110 — **BU LISTE CANLIDA BOSTU (sevk engeli).**
+	//
+	//	Sorgu kendi sutun listesini ELLE yaziyordu ve **20 sutun**
+	//	donduruyordu; `favoriSatir` -> `isletmeSatiri` ise **23 hedefe**
+	//	Scan ediyor. Eksik uclu: `i.enlem`, `i.boylam`, `u.created_at`.
+	//	Ikisi `27b8540`da, ucuncusu `afa5a51`de `isletmeSutunlari`na
+	//	eklendi — bu sorgu IKI KEZ de guncellenmedi.
+	//
+	//	Sonuc: pgx *"number of field descriptions must equal number of
+	//	destinations"* doner, `favoriSatir` hata verir ve asagidaki
+	//	`continue` **HER SATIRI SESSIZCE ATLAR** -> "Favorilerim" DAIMA
+	//	BOS. `go build`, `go vet` ve `sutun_test.go` UCU DE YESILDI
+	//	(muhafiz yalniz `Detay`/`Liste`/`Urun` sorgularini kapsiyor).
+	//
+	// ⚠️ FIX: sorgu artik **`isletmeSutunlari` TEK KAYNAGINI** kullanir —
+	//    yeni bir sutun eklendiginde bu liste de otomatik dogru kalir.
+	// ⚠️ Elle yazilmis `NOT EXISTS blocks` de `engel.Yuklem`e devredildi
+	//    (ayni sinifin kucuk kardesi: kuralin iki kopyasi drift eder).
+	// ⚠️ YAPMA: buraya tekrar elle sutun listesi yazma.
 	rows, err := h.db.Query(r.Context(), `
-		SELECT u.id, u.name, COALESCE(u.username,''), u.avatar_url, u.avatar_media_id,
-		       i.kategori, i.il, i.ilce, i.adres, u.onayli, u.kapak_media_id,
-		       i.calisma,
-		       (SELECT min(p.fiyat_kurus) FROM isletme_urunleri p
-		         WHERE p.isletme_id = u.id AND p.durum = 'yayinda'
-		           AND p.fiyat_kurus > 0),
-		       (SELECT count(*) FROM isletme_urunleri p
-		         WHERE p.isletme_id = u.id AND p.durum <> 'kaldirildi'),
-		       i.min_tutar_kurus, i.teslimat_dk_min, i.teslimat_dk_max,
-		       i.puan, i.puan_sayisi, i.kampanyalar
+		SELECT `+isletmeSutunlari+`
 		  FROM isletme_favoriler f
 		  JOIN users u      ON u.id = f.isletme_id
 		  JOIN isletmeler i ON i.user_id = u.id
-		 WHERE f.user_id = $1
-		   AND u.hesap_turu='isletme'
-		   AND NOT EXISTS (SELECT 1 FROM blocks b
-		                    WHERE (b.blocker_id=$1 AND b.blocked_id=u.id)
-		                       OR (b.blocker_id=u.id AND b.blocked_id=$1))
+		 WHERE f.user_id = $1 AND u.hesap_turu='isletme'
+		   `+engel.Yuklem("$1", "u.id")+`
 		 ORDER BY f.created_at DESC
 		 LIMIT 100`, me)
 	if err != nil {
