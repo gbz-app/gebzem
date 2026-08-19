@@ -775,6 +775,69 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
                 ],
               ),
             ),
+            // ⚠️⚠️⚠️ TURU 114 — **SAHIBI SATIRI** (kullanici emri: *"ilanda
+            //	... isletme/kisi kart bilgileri olsun"*).
+            //
+            //	Kullanici bir ilana bakarken *"kim satiyor"* sorusunun
+            //	cevabini ancak DETAYA girerek gorebiliyordu. Isletme mi
+            //	kisi mi oldugu ise HIC gorunmuyordu.
+            // ⚠️ "İşletme" rozeti SUNUCUDAN gelen `sahibi_hesap_turu`
+            //    alanindan cizilir; TAHMIN EDILMEZ. Eski sunucu bu alani
+            //    dondurmezse rozet HIC cizilmez (yanlis rozet,
+            //    rozetsizlikten kotudur).
+            // ⚠️ Satirin KENDI dokunma hedefi YOK: kart zaten tek bir
+            //    `GestureDetector` ve ic ice dokunma alanlari kullanicinin
+            //    "nereye bastim" sorusunu bulandirirdi.
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Avatar(
+                  ad: i.sahibiAd,
+                  mediaId: i.sahibiAvatarMediaId,
+                  cap: 22,
+                ),
+                const SizedBox(width: 7),
+                Flexible(
+                  child: Text(
+                    i.sahibiAd,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                if (i.sahibiOnayli) ...[
+                  const SizedBox(width: 4),
+                  Icon(
+                    LucideIcons.badgeCheck,
+                    size: 14,
+                    color: kVurgu(context),
+                  ),
+                ],
+                if (i.sahibiIsletme) ...[
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 7,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: scheme.onSurface.withValues(alpha: 0.07),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Text(
+                      'İşletme',
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ],
         ),
       ),

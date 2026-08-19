@@ -309,6 +309,8 @@ class Ilan {
     required this.sahibiId,
     required this.sahibiAd,
     required this.sahibiAvatarMediaId,
+    this.sahibiIsletme = false,
+    this.sahibiOnayli = false,
     required this.tur,
     required this.kategori,
     required this.baslik,
@@ -331,6 +333,13 @@ class Ilan {
   final String sahibiId;
   final String sahibiAd;
   final String? sahibiAvatarMediaId;
+
+  /// ⚠️ TURU 114 — ilan sahibinin ISLETME hesabi olup olmadigi. Kartta
+  ///    "İşletme" rozeti bu alandan cizilir; TAHMIN EDILMEZ.
+  /// ⚠️ Varsayilan `false`: eski sunucu bu alani dondurmezse rozet HIC
+  ///    cizilmez (yanlis rozet, rozetsizlikten kotudur).
+  final bool sahibiIsletme;
+  final bool sahibiOnayli;
   final String tur;
 
   // ⚠️⚠️ TURU 78 — DUZENLEME sonrasi SESSIZ TAZELEME bu alanlari GUNCELLER.
@@ -410,6 +419,8 @@ class Ilan {
     sahibiId: (m['sahibi_id'] ?? '').toString(),
     sahibiAd: (m['sahibi_ad'] ?? '').toString(),
     sahibiAvatarMediaId: m['sahibi_avatar_media_id'] as String?,
+    sahibiIsletme: (m['sahibi_hesap_turu'] ?? '').toString() == 'isletme',
+    sahibiOnayli: m['sahibi_onayli'] == true,
     tur: (m['tur'] ?? '').toString(),
     kategori: (m['kategori'] ?? '').toString(),
     baslik: (m['baslik'] ?? '').toString(),

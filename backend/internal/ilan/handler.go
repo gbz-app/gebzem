@@ -410,6 +410,7 @@ func turGecerli(t string) bool {
 // ⚠️ YAPMA: sutunlari sorgulara elle kopyalama.
 const sutunlar = `
 		i.id, i.sahibi_id, u.name, COALESCE(u.username,''), u.avatar_media_id,
+		COALESCE(u.hesap_turu, 'kisisel'), u.onayli,
 		i.tur, i.kategori, i.baslik, i.aciklama,
 		i.fiyat_kurus, i.para_birimi, i.fiyat_gizli,
 		i.il, i.ilce, i.media_ids, i.ozellikler, i.durum,
@@ -453,6 +454,10 @@ func (h *Handler) satirlariOku(rows pgx.Rows) []map[string]any {
 	for rows.Next() {
 		var id, sahibi, ad, kullanici, tur, kategori, baslik, aciklama string
 		var paraBirimi, il, ilce, durum string
+		// ⚠️ TURU 114 — ilan kartinda SAHIBI KIMLIGI gosteriliyor (kullanici
+		//    emri: "ilanda ... isletme/kisi kart bilgileri olsun").
+		var hesapTuru string
+		var sahibiOnayli bool
 		var avatar *string
 		var ozellikler []byte
 		var medya, medyaKind []string
@@ -465,6 +470,7 @@ func (h *Handler) satirlariOku(rows pgx.Rows) []map[string]any {
 		//    VERMEZ; satir SESSIZCE atlanir ve liste BOMBOS doner.
 		//    Bu hizalama `sutun_test.go` ile OTOMATIK dogrulanir.
 		if rows.Scan(&id, &sahibi, &ad, &kullanici, &avatar,
+			&hesapTuru, &sahibiOnayli,
 			&tur, &kategori, &baslik, &aciklama,
 			&fiyat, &paraBirimi, &fiyatGizli,
 			&il, &ilce, &medya, &ozellikler, &durum,
@@ -477,6 +483,9 @@ func (h *Handler) satirlariOku(rows pgx.Rows) []map[string]any {
 		out = append(out, map[string]any{
 			"id": id, "sahibi_id": sahibi, "sahibi_ad": ad,
 			"sahibi_username": kullanici, "sahibi_avatar_media_id": avatar,
+			// ⚠️ UCU BIRLIKTE: SELECT + Scan + yanit haritasi. Biri atlanirsa
+			//    alan istemciye HIC ULASMAZ (turu 78 `Profile()` dersi).
+			"sahibi_hesap_turu": hesapTuru, "sahibi_onayli": sahibiOnayli,
 			"tur": tur, "kategori": kategori,
 			"baslik": baslik, "aciklama": aciklama,
 			"fiyat_kurus": fiyat, "para_birimi": paraBirimi,
