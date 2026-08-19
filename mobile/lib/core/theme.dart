@@ -1,8 +1,22 @@
 import 'package:flutter/material.dart';
 
-// Gebzem marka rengi (yesil aksan) + logo moru (mor gradient FAB / vurgular)
-const _seed = Color(0xFF128C7E); // WhatsApp yesiline yakin, kendi tonumuz
 const morLogo = Color(0xFF6C2BD9); // logodaki mor
+
+// ⚠️⚠️⚠️ TURU 115 — **MARKA RENGI ARTIK LOGONUN MORU** (kullanici emri:
+//	*"arayuz icin ozen, YESIL RENK YAPMA ARTIK, genel tasarima uy"*).
+//
+//	Eski tohum WhatsApp yesiline yakin bir tondu (`0xFF128C7E`) ve
+//	`colorScheme.primary` her yerde ONDAN turedigi icin secili cipler,
+//	dugmeler, baglantilar ve gostergeler YESIL cikiyordu — oysa logo,
+//	alt menu halkasi ve hikaye halkasi MOR. Uygulama kendi markasiyla
+//	celisiyordu.
+//
+// ⚠️ Tek satirlik degisiklik AMA genis etkili: renkler tek tek elle
+//    yazilmadigi icin (`colorScheme` uzerinden) TUM ekranlar birlikte
+//    donuyor. Elle boyanmis noktalar bu degisiklikten ETKILENMEZ —
+//    onlar zaten ayri ayri gozden geciriliyor.
+// ⚠️ YAPMA: tohumu tekrar yesile dondurme.
+const _seed = morLogo; // logodaki mor — marka rengi
 const morLogoAcik = Color(0xFF9D5CE9);
 // Logo mor gradient'i (FAB + vurgu daireleri)
 const morGradient = LinearGradient(

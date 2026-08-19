@@ -192,7 +192,6 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
   ProfilSekmesi _sekme = ProfilSekmesi.tumu;
 
   /// Menunun capalanacagi dugme.
-  final _seciciAnahtar = GlobalKey();
   bool _yukleniyor = true;
   bool _takipMesgul = false;
 
@@ -208,6 +207,10 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
   /// ⚠️ `initState`te kurulur, `build` icinde DEGIL: her cizimde yeni bir
   ///    controller olusturmak kaydirma konumunu SIFIRLAR (turu 76b dersi).
   late final PageController _sayfaCtrl;
+
+  /// ⚠️ Sekme seridini secili sekmeye kaydirmak icin.
+  final _seritCtrl = ScrollController();
+  final _seciliSekmeAnahtar = GlobalKey();
 
   @override
   void initState() {
@@ -227,6 +230,7 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
   @override
   void dispose() {
     _sayfaCtrl.dispose();
+    _seritCtrl.dispose();
     super.dispose();
   }
 
@@ -595,7 +599,7 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
               // ⚠️ TURU 82b — INSTAGRAM TARZI SEKME SERIDI (kullanici emri:
               //    *"profilde gonderi, fotograf, video vb alan olsun Instagram
               //    gibi, hepsi bir yerde, tikladiginda ona gecsin"*).
-              _sekmeSecici(),
+              _sekmeSeridi(),
               // ⚠️⚠️⚠️ TURU 114 — **SEKMELER ARASI YATAY KAYDIRMA** (kullanici
               //	emri: *"profilde gonderi fotograf video sol sag kaydirmali
               //	olsun"*).
@@ -995,112 +999,112 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
     }
     return _izgara();
   }
-  Widget _sekmeSecici() {
+  /// ⚠️⚠️⚠️ TURU 115 — **INSTAGRAM/TWITTER TARZI SEKME SERIDI** (kullanici
+  ///	emri: *"profilde gonderi fotograf INSTAGRAM VE TWITTER GIBI SOLDAN
+  ///	SAGA DOGRU MENU tarzi olsun"*).
+  ///
+  /// ⚠️⚠️ **ACILIR MENU KALDIRILDI.** Turu 108-109'da sekme secimi bir
+  ///	`showMenu` idi: kullanici hangi sekmelerin VAR OLDUGUNU ancak menuyu
+  ///	acinca goruyordu. Instagram ve Twitter'da sekmeler EKRANDA DURUR ve
+  ///	yatay kayar. Kullanici bunu UC KEZ soyledi.
+  ///
+  /// ⚠️ Secili sekmenin ALTINDA CIZGI (Twitter deseni) — ayrim yalniz renkle
+  ///    yapilsaydi renk korlugunde ayirt edilemezdi (turu 80 karari).
+  /// ⚠️ Kalinlik SABIT (w700): secimle degisseydi etiket genisligi degisir ve
+  ///    serit her dokunusta OYNARDI (turu 97c'de akis secicisinde olculdu).
+  /// ⚠️ Secili sekme GORUS ALANINA KAYDIRILIR (`ensureVisible`): 10 sekme
+  ///    var, sagdakiler ekran disinda kaliyor ve kullanici hangisinde
+  ///    oldugunu goremezdi.
+  /// Secili sekmeyi GORUS ALANINA getirir.
+  ///
+  /// ⚠️ `addPostFrameCallback` ZORUNLU: secim `setState` ile yeni yazildi,
+  ///    hedefin `RenderBox`i BU KAREDE henuz olusmadi.
+  /// ⚠️ `hasClients` kapisi: serit henuz cizilmemis olabilir.
+  void _seridiKaydir() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final c = _seciliSekmeAnahtar.currentContext;
+      if (!mounted || c == null || !_seritCtrl.hasClients) return;
+      Scrollable.ensureVisible(
+        c,
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOut,
+        alignment: 0.5,
+      );
+    });
+  }
+
+  Widget _sekmeSeridi() {
     final scheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
-      child: Align(
-        alignment: AlignmentDirectional.centerStart,
-        key: _seciciAnahtar,
-        child: Semantics(
-          button: true,
-          label: 'Görünüm: ${_sekme.etiket}',
-          child: InkWell(
-            onTap: _sekmeSec,
-            borderRadius: BorderRadius.circular(10),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(_sekme.ikon, size: 20),
-                  const SizedBox(width: 6),
-                  Text(
-                    _sekme.etiket,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
+    final l = _sekmeler;
+    return SizedBox(
+      height: 46,
+      child: ListView.builder(
+        controller: _seritCtrl,
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        itemCount: l.length,
+        itemBuilder: (_, i) {
+          final x = l[i];
+          final secili = x == _sekme;
+          return Semantics(
+            button: true,
+            selected: secili,
+            label: x.etiket,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => _sekmeyeGec(x),
+              child: Container(
+                key: secili ? _seciliSekmeAnahtar : null,
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          x.ikon,
+                          size: 17,
+                          color: secili
+                              ? scheme.onSurface
+                              : scheme.onSurface.withValues(alpha: 0.45),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          x.etiket,
+                          style: TextStyle(
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w700,
+                            color: secili
+                                ? scheme.onSurface
+                                : scheme.onSurface.withValues(alpha: 0.45),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(width: 2),
-                  Icon(
-                    LucideIcons.chevronDown,
-                    size: 16,
-                    color: scheme.onSurface.withValues(alpha: 0.55),
-                  ),
-                ],
+                    const SizedBox(height: 6),
+                    // ⚠️ Cizgi SECILI OLMASA DA yer kaplar (saydam): aksi
+                    //    halde secim degisince satir 2 dp ziplardi.
+                    Container(
+                      height: 2.5,
+                      width: 26,
+                      decoration: BoxDecoration(
+                        color: secili ? scheme.onSurface : Colors.transparent,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
   }
 
-  /// ⚠️⚠️⚠️ TURU 109 — **ASAGI DOGRU ACILAN MENU** (kullanici emri:
-  ///	*"tikladigim menu ... asagi dogru video reels secenekleri olsun"*).
-  ///
-  /// ⚠️ Turu 108'de bu bir ALTTAN SAYFA () idi;
-  ///    kullanici *"eski halindeki gibi yapmaliydin, boyle degil"* dedi.
-  ///    Menu artik dugmenin ALTINA capalanir ve ASAGI acilir.
-  /// ⚠️ Konum dugmenin indan TURETILIR (sabit sayi YOK); ekranin
-  ///    dibine yakinken Flutter menuyu kendiliginden yukari kaydirir.
-  /// ⚠️ Secili satirda **TIK** cizilir (kullanicinin istedigi "ok ikonu").
-  Future<void> _sekmeSec() async {
-    final kutu = context.findRenderObject() as RenderBox?;
-    final dugme = _seciciAnahtar.currentContext?.findRenderObject() as RenderBox?;
-    if (kutu == null || dugme == null) return;
-    final sol = dugme.localToGlobal(Offset.zero, ancestor: kutu);
-    final scheme = Theme.of(context).colorScheme;
-    final secim = await showMenu<ProfilSekmesi>(
-      context: context,
-      // ⚠️ Dugmenin ALT kenarindan basla: menu asagi dogru acilsin.
-      position: RelativeRect.fromLTRB(
-        sol.dx,
-        sol.dy + dugme.size.height,
-        kutu.size.width - sol.dx - dugme.size.width,
-        0,
-      ),
-      color: Theme.of(context).scaffoldBackgroundColor,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-        side: BorderSide(color: scheme.onSurface.withValues(alpha: 0.10)),
-      ),
-      items: [
-        for (final x in _sekmeler) ...[
-          // ⚠️ Gonderi sekmeleriyle ilan sekmeleri arasinda AYRAC: ikisi
-          //    farkli kaynaktan besleniyor (gonderi ucu vs. ilan ucu).
-          if (x == ProfilSekmesi.ilan)
-            const PopupMenuDivider(height: 9),
-          PopupMenuItem<ProfilSekmesi>(
-            value: x,
-            height: 46,
-            child: Row(
-              children: [
-                Icon(x.ikon, size: 19),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    x.etiket,
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: _sekme == x
-                          ? FontWeight.w700
-                          : FontWeight.w500,
-                    ),
-                  ),
-                ),
-                if (_sekme == x)
-                  Icon(LucideIcons.check, size: 17, color: scheme.primary),
-              ],
-            ),
-          ),
-        ],
-      ],
-    );
-    if (secim == null || !mounted) return;
-    _sekmeyeGec(secim);
-  }
+  // ⚠️ TURU 115 — `_sekmeSec` (acilir menu) SILINDI: yerini EKRANDA DURAN
+  //    yatay sekme seridi aldi (Instagram/Twitter deseni). Kullanici acilir
+  //    menuyu UC KEZ reddetti.
 
   /// Sekme degistirmenin TEK KAPISI (menuden secim + yatay kaydirma).
   ///
@@ -1121,6 +1125,7 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
         curve: Curves.easeOutCubic,
       );
     }
+    _seridiKaydir();
   }
   /// Ilan tabanli sekmelerin listesi (Ilanlarim · Dolap · Taleplerim).
   ///

@@ -4,12 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import "../../core/yenile.dart";
 
 import '../../core/api.dart';
 import '../medya/medya_gorsel.dart';
 import '../ilan/ilan_ekranlari.dart' show IlanDetayEkrani;
 import '../ilan/ilan_servisi.dart' show Ilan;
+import 'gonderi_karti.dart' show sayiBicimle;
 import 'gonderi_detay.dart';
 import 'profil_sayfasi.dart';
 import 'sosyal_servisi.dart';
@@ -79,13 +79,19 @@ class _KesfetEkraniState extends ConsumerState<KesfetEkrani>
   ///	olsa bile). `_sonuc` haritasi hangi sekmenin YUKLENDIGINI tutar.
   /// ⚠️ Arama metni degisince TUM sekme onbellegi temizlenir — aksi halde
   ///    kullanici yeni kelime yazip eski sekmeye gecince ESKI sonucu gorurdu.
+  /// ⚠️⚠️⚠️ TURU 115 — SIRA VE ADLAR **KULLANICIDAN** (TikTok/Instagram
+  ///	deseni): *"arama inputunun ALTINDA Kişiler, Yerler diye sekmeler"*.
+  ///
+  /// ⚠️ **KIŞILER ILK SIRADA**: arama kutusuna yazan kisi once INSAN arar.
+  /// ⚠️ "Gönderiler" sekmesi KALDIRILDI (kullanici: *"neden altina
+  ///    gönderiler ekledin"*). Gonderi metni aramasi kayboImadi — "Yerler"
+  ///    ve "Ses" sekmeleri ayni `/ara` ucunu kullaniyor.
   static const _sekmeler = <({String etiket, String tur})>[
-    (etiket: 'Kullanıcılar', tur: 'kullanici'),
+    (etiket: 'Kişiler', tur: 'kullanici'),
+    (etiket: 'Yerler', tur: 'konum'),
     (etiket: 'İşletmeler', tur: 'isletme'),
-    (etiket: 'Gönderiler', tur: 'gonderi'),
     (etiket: 'İlanlar', tur: 'ilan'),
     (etiket: 'Ses', tur: 'ses'),
-    (etiket: 'Yer', tur: 'konum'),
   ];
 
   /// tur -> sonuc listesi (`null` = henuz yuklenmedi).
@@ -252,8 +258,15 @@ class _KesfetEkraniState extends ConsumerState<KesfetEkrani>
               ),
             ),
           ),
-          if (aramaModu) _sekmeSeridi(),
-          Expanded(child: aramaModu ? _sonucGovde() : _kesfetIzgarasi()),
+          // ⚠️⚠️⚠️ TURU 115 — **SEKMELER ARAMA YAZILMADAN DA GORUNUR**
+          //	(kullanici: *"aramanin ALTINDA Kişiler İşletmeler sekmeler
+          //	olsun, oradaki menu yok"*).
+          //
+          //	Ilk yazimda serit YALNIZ metin girilince ciziliyordu; kullanici
+          //	arama ekranini acinca hicbir sekme GORMUYOR ve ozelligin
+          //	yapilmadigini saniyordu. TikTok'ta da sekmeler ekranda durur.
+          _sekmeSeridi(),
+          Expanded(child: aramaModu ? _sonucGovde() : _aramaOncesi()),
         ],
       ),
     );
@@ -308,6 +321,141 @@ class _KesfetEkraniState extends ConsumerState<KesfetEkrani>
       },
     ),
   );
+
+  /// ⚠️⚠️⚠️ TURU 115 — ARAMA YAZILMADAN ONCE: **TRENDLER** (kullanici:
+  ///	*"aranan kisiler gorunmeli sirayla, alta dogru TRENDLER olmali"*).
+  ///
+  /// ⚠️⚠️ **TREND UYDURULMADI.** Sunucuda "populer" diye bir uc YOK; ama
+  ///	`/kesfet` her gonderiyle birlikte GERCEK sayilari donduruyor
+  ///	(`begeni_sayisi` · `yorum_sayisi` · `goruntulenme`). Liste bu
+  ///	sayilarin toplamina gore siralaniyor — yani "trend" GERCEK
+  ///	etkilesimden turuyor, rastgele ya da sahte degil.
+  /// ⚠️ Sayilar EKRANDA da yazili: kullanici neye gore siralandigini
+  ///    gorebilsin (gizli bir olcut "neden bu ustte" sorusunu doguruyor).
+  /// ⚠️ Yeni bir uc ACILMADI: `/kesfet` zaten cagriliyordu.
+  Widget _aramaOncesi() {
+    // ⚠️ UC DURUM: yukleniyor · hata (TEKRAR DENE ile) · veri. Yalniz
+    //    `_izgara.isEmpty` bakilsaydi istek PATLADIGINDA ekran SONSUZA KADAR
+    //    spinner'da donerdi ve kurtarma yolu olmazdi.
+    if (_izgaraYukleniyor && _izgara.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_izgaraHata != null && _izgara.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              _izgaraHata!,
+              style: TextStyle(
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.6),
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: () {
+                setState(() {
+                  _izgaraYukleniyor = true;
+                  _izgaraHata = null;
+                });
+                unawaited(_izgaraYukle());
+              },
+              child: const Text('Tekrar dene'),
+            ),
+          ],
+        ),
+      );
+    }
+    if (_izgara.isEmpty) {
+      return Center(
+        child: Text(
+          'Henüz gösterilecek bir şey yok',
+          style: TextStyle(
+            color: Theme.of(
+              context,
+            ).colorScheme.onSurface.withValues(alpha: 0.6),
+          ),
+        ),
+      );
+    }
+    final l = [..._izgara]..sort((a, b) {
+      final pa = a.begeniSayisi + a.yorumSayisi + a.goruntulenme;
+      final pb = b.begeniSayisi + b.yorumSayisi + b.goruntulenme;
+      return pb.compareTo(pa);
+    });
+    return ListView.builder(
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+      itemCount: l.length + 1,
+      itemBuilder: (_, i) {
+        if (i == 0) {
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
+            child: Row(
+              children: [
+                const Icon(LucideIcons.trendingUp, size: 17),
+                const SizedBox(width: 7),
+                Text(
+                  'TRENDLER',
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w800,
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withValues(alpha: 0.6),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+        return _trendSatiri(l[i - 1], i);
+      },
+    );
+  }
+
+  Widget _trendSatiri(Gonderi g, int sira) {
+    final soluk = Theme.of(context).colorScheme.onSurface.withValues(
+      alpha: 0.6,
+    );
+    final metin = g.metin.trim();
+    return ListTile(
+      leading: SizedBox(
+        width: 52,
+        height: 52,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: KapakGorseli(
+            mediaIds: g.mediaIds,
+            mediaKinds: g.mediaKinds,
+            width: 52,
+          ),
+        ),
+      ),
+      title: Text(
+        metin.isEmpty ? g.yazarAd : metin,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+      ),
+      subtitle: Text(
+        '${sayiBicimle(g.begeniSayisi)} beğeni · '
+        '${sayiBicimle(g.yorumSayisi)} yorum',
+        style: TextStyle(fontSize: 12, color: soluk),
+      ),
+      trailing: Text(
+        '$sira',
+        style: TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.w800,
+          color: soluk,
+        ),
+      ),
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => GonderiDetay(gonderi: g)),
+      ),
+    );
+  }
 
   Widget _sonucGovde() {
     final tur = _sekmeler[_sekme].tur;
@@ -449,120 +597,7 @@ class _KesfetEkraniState extends ConsumerState<KesfetEkrani>
     );
   }
 
-  Widget _kesfetIzgarasi() {
-    if (_izgaraYukleniyor) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    if (_izgaraHata != null) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(_izgaraHata!, style: const TextStyle(color: Colors.grey)),
-            const SizedBox(height: 10),
-            TextButton(
-              onPressed: () {
-                setState(() => _izgaraYukleniyor = true);
-                _izgaraYukle();
-              },
-              child: const Text('Tekrar dene'),
-            ),
-          ],
-        ),
-      );
-    }
-    if (_izgara.isEmpty) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(28),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(LucideIcons.compass, size: 52, color: Colors.grey),
-              SizedBox(height: 12),
-              Text(
-                'Keşfedilecek gönderi yok.\nYukarıdan kişi arayabilirsin.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-    return YenileSarmali(
-      onRefresh: _izgaraYukle,
-      child: GridView.builder(
-        padding: const EdgeInsets.all(1),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 3,
-          mainAxisSpacing: 2,
-          crossAxisSpacing: 2,
-        ),
-        itemCount: _izgara.length,
-        itemBuilder: (_, i) {
-          final g = _izgara[i];
-          // ⚠️ IZGARADA VIDEO OYNATILMAZ — 30 karelik bir gride 30 oynatici
-          //    kurmak cihazi kilitler. Kapak gorseli + video rozeti cizilir.
-          //    (`MedyaGorsel` video medyasi icin sunucunun urettigi poster'i
-          //    kullanir; yoksa koyu zemin doner.)
-          final videoMu = g.kind(0) == 'video';
-          return GestureDetector(
-            onTap: () => Navigator.of(context).push(
-              // ⚠️ `gonderi` NESNESI verilir (id DEGIL): detay ekrani boylece
-              //    ekstra REST atmadan ANINDA cizer ve ayni model paylasildigi
-              //    icin begeni/kaydetme degisiklikleri izgaraya da yansir.
-              MaterialPageRoute(builder: (_) => GonderiDetay(gonderi: g)),
-            ),
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                ColoredBox(
-                  color: const Color(0xFF15151F),
-                  child: g.mediaIds.isEmpty
-                      ? const SizedBox.shrink()
-                      // ⚠️ `kucuk: true` ZORUNLU — 3 sutunlu izgarada tam
-                      //    cozunurlukte 30 gorsel indirmek kullanicinin mobil
-                      //    verisini yakar (profil izgarasi da boyle yapiyor).
-                      // ⚠️⚠️ TURU 83 — `KapakGorseli` (denetim bulgusu, ayni
-                      //    kok neden profil izgarasinda SEVK ENGELIYDI):
-                      //    `mediaIds.first` TUR KONTROLSUZDU; ilk medyasi
-                      //    VIDEO olan bir gonderide thumb bulunmadigi icin
-                      //    ham `url`e dusuluyor ve **mp4'un TAMAMI indirilip**
-                      //    ardindan KIRIK GORSEL ciziliyordu.
-                      //    `KapakGorseli` ILK FOTOGRAFI secer; yalniz-video
-                      //    gonderide indirme YAPMADAN yer tutucu cizer.
-                      : KapakGorseli(
-                          mediaIds: g.mediaIds,
-                          mediaKinds: g.mediaKinds,
-                          fit: BoxFit.cover,
-                        ),
-                ),
-                if (videoMu)
-                  const Positioned(
-                    top: 5,
-                    right: 5,
-                    child: Icon(
-                      LucideIcons.play,
-                      size: 15,
-                      color: Colors.white,
-                    ),
-                  )
-                else if (g.mediaIds.length > 1)
-                  const Positioned(
-                    top: 5,
-                    right: 5,
-                    child: Icon(
-                      LucideIcons.copy,
-                      size: 15,
-                      color: Colors.white,
-                    ),
-                  ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
+  // ⚠️ TURU 115 — `_kesfetIzgarasi` SILINDI: arama oncesi ekran artik
+  //    TRENDLER listesi (kullanici emri). Izgara verisi (`_izgara`) AYNEN
+  //    duruyor ve trend siralamasinin kaynagi o.
 }

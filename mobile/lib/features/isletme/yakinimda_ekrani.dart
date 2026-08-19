@@ -29,6 +29,7 @@
 /// ⚠️ YAPMA: anahtari koda/pubspec'e/Info.plist'e SABIT yazma (repo PUBLIC).
 library;
 
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart' show Factory;
@@ -49,6 +50,7 @@ import '../medya/medya_gorsel.dart';
 import '../sosyal/profil_sayfasi.dart';
 // ⚠️ TURU 115 — kart/olcu sabitleri kategori ekraniyla ORTAK.
 import 'isletme_kart.dart' show kYanBosluk, kYaricap, kYuzeyGri;
+import 'harita_daire_pin.dart';
 import 'isletme_servisi.dart';
 
 /// Uber tarzi acik-gri harita paleti.
@@ -1081,6 +1083,30 @@ class _HaritaAlani extends StatefulWidget {
 class _HaritaAlaniState extends State<_HaritaAlani> {
   GoogleMapController? _harita;
 
+  /// ⚠️ TURU 115 — daire pin (bkz. `harita_pin.dart`).
+  BitmapDescriptor? _pin;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // ⚠️ `MediaQuery` BURADA okunur, `initState`te DEGIL: orada
+    //    `devicePixelRatio` henuz erisilebilir degil.
+    unawaited(_pinUret());
+  }
+
+  Future<void> _pinUret() async {
+    final tema = Theme.of(context).colorScheme;
+    final d = await daireIsaret(
+      ic: tema.primary,
+      // ⚠️ Kenar ACIK: harita zemini her renkte olabilir (yol beyaz, park
+      //    yesil, su mavi); acik halka pini her zeminde ayirir.
+      kenar: Colors.white,
+      pikselOrani: MediaQuery.devicePixelRatioOf(context),
+    );
+    if (!mounted) return;
+    setState(() => _pin = d);
+  }
+
   ({double enlem, double boylam})? get merkez => widget.merkez;
   List<IsletmeOzet> get isletmeler => widget.isletmeler;
   void Function(IsletmeOzet)? get acildi => widget.acildi;
@@ -1170,6 +1196,15 @@ class _HaritaAlaniState extends State<_HaritaAlani> {
                       Marker(
                         markerId: MarkerId(i.id),
                         position: LatLng(i.enlem, i.boylam),
+                        // ⚠️⚠️ TURU 115 — **DAIRE PIN** (kullanici emri:
+                        //    *"pinler daire seklinde, border acik renk"*).
+                        //    `_pin` null iken varsayilan damla cizilir:
+                        //    uretim asenkron ve ilk karede hazir olmayabilir.
+                        icon: _pin ?? BitmapDescriptor.defaultMarker,
+                        // ⚠️ Daire ORTASINDAN capalanir; damla ucundan
+                        //    capalaniyordu ve daire konumun ~12 dp ustunde
+                        //    duruyordu.
+                        anchor: const Offset(0.5, 0.5),
                         // ⚠️⚠️ TURU 85b — BALONA DOKUNMA ISLETMEYI ACAR.
                         //    Eskiden `onTap` VERILMEMISTI: kullanici pine
                         //    dokunup adi goruyor, sonra balona basiyor ve
