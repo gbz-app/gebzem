@@ -203,6 +203,12 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
   bool _benimMi = false;
   String? _hata;
 
+  /// ⚠️⚠️ TURU 115 — sekmeler arasi GERCEK sayfali kaydirma.
+  ///
+  /// ⚠️ `initState`te kurulur, `build` icinde DEGIL: her cizimde yeni bir
+  ///    controller olusturmak kaydirma konumunu SIFIRLAR (turu 76b dersi).
+  late final PageController _sayfaCtrl;
+
   @override
   void initState() {
     super.initState();
@@ -210,7 +216,18 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
     //    `_sekmeYukle` ile gelir (asagidaki cagri).
     final b = widget.baslangicSekmesi;
     if (b != null) _sekme = b;
+    // ⚠️ `_sekmeler` `_benimMi`ye bagli ve o daha yuklenmedi; baslangic
+    //    sayfasi TAM LISTEDEN hesaplanir (`ProfilSekmesi.values`).
+    _sayfaCtrl = PageController(
+      initialPage: ProfilSekmesi.values.indexOf(_sekme).clamp(0, 9),
+    );
     _yukle();
+  }
+
+  @override
+  void dispose() {
+    _sayfaCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _yukle() async {
@@ -599,57 +616,35 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
               // ⚠️ `HitTestBehavior.opaque`: bos/hata durumlarinda cizilen
               //    alan da jesti ALIR (aksi halde tam o durumda kaydirma
               //    calismazdi — kullanici "bazen oluyor" derdi).
-              GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onHorizontalDragEnd: _sekmeKaydir,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-              // ⚠️ Sekme basina UC AYRI DURUM: yukleniyor · hata · bos.
-              //    Eskiden yalniz "bos" vardi; sekme sayisi sekize cikinca
-              //    yuklenen bir sekme kullaniciya "ozellik yok" gibi gorunurdu.
-              if (_sekmeYukleniyor.contains(_sekme))
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 60),
-                  child: Center(child: CircularProgressIndicator()),
-                )
-              else if (_sekmeHata[_sekme] != null)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 50),
-                  child: Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          _sekmeHata[_sekme]!,
-                          style: const TextStyle(color: Colors.grey),
-                        ),
-                        TextButton(
-                          onPressed: () {
-                            _sekmeHata.remove(_sekme);
-                            unawaited(_sekmeYukle(_sekme));
-                          },
-                          child: const Text('Tekrar dene'),
-                        ),
-                      ],
-                    ),
-                  ),
-                )
-              else if (_sekme.ilanMi)
-                _ilanListesi()
-              else if (_sekmeliListe.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 60),
-                  child: Center(
-                    child: Text(
-                      _sekme.bosMetin,
-                      style: const TextStyle(color: Colors.grey),
-                    ),
-                  ),
-                )
-              else
-                _izgara(),
-                  ],
+              // ⚠️⚠️⚠️ TURU 115 — **GERCEK SAYFALI KAYDIRMA** (kullanici:
+              //	*"profilde gonderi fotograf scroll SOL SAG gibi olacak dedim,
+              //	onu da yapmadin"*).
+              //
+              //	Turu 114 yalnizca bir JEST eklemisti (`onHorizontalDragEnd`):
+              //	icerik parmakla KAYMIYOR, aninda degisiyordu. Artik `PageView`
+              //	var — icerik parmagi TAKIP EDER ve yaslanir.
+              //
+              // ⚠️⚠️ SABIT YUKSEKLIK ZORUNLU: `PageView` cocuklarina SINIRSIZ
+              //	yukseklik VERILEMEZ ve bu blok dis `ListView`in cocugu.
+              //	Yukseklik EKRANDAN turetilir (sabit px DEGIL, yazi olcegi
+              //	buyudugunde de oranli kalir).
+              // ⚠️ `PageView` komsu sayfayi ONCEDEN KURMAZ
+              //    (`allowImplicitScrolling` varsayilan false), yani on
+              //    sekmenin izgarasi AYNI ANDA medya cozmez (turu 76b dersi).
+              SizedBox(
+                height: MediaQuery.sizeOf(context).height * 0.62,
+                child: PageView.builder(
+                  controller: _sayfaCtrl,
+                  itemCount: _sekmeler.length,
+                  // ⚠️ Secici ile sayfa SENKRON: kaydirinca ustteki etiket de
+                  //    degisir ve gerekiyorsa veri CEKILIR.
+                  onPageChanged: (i) {
+                    final x = _sekmeler[i];
+                    if (x == _sekme) return;
+                    setState(() => _sekme = x);
+                    unawaited(_sekmeYukle(x));
+                  },
+                  itemBuilder: (_, i) => _sekmeSayfasi(_sekmeler[i]),
                 ),
               ),
             ],
@@ -943,42 +938,63 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
     }
   }
 
-  /// ⚠️⚠️⚠️ TURU 108 — **GORUNUM SECICI** (kullanici emri: *"soldaki ikona
-  ///	tikladigimda 'Gonderi' yazsin, tikladigim menude 'Fotograf' yaninda
-  ///	OK ikonu olsun, asagi dogru video/reels secenekleri olsun"*).
-  ///
-  /// ═══════════ NEDEN SERIT DEGIL, ACILIR MENU ═══════════
-  ///
-  /// Sekme sayisi UCTEN SEKIZE cikti. Olculdu (360 dp, yazi olcegi 1.3):
-  ///   · etiketli yatay serit -> **723 dp**, ekranin iki katindan uzun;
-  ///     gorunmeyenler tam da bu turda eklenenler olurdu,
-  ///   · yalniz-ikon serit -> hucre **45 dp**, Material 48 dp dokunma
-  ///     minimumunun ALTINDA; ustelik "Ilanlarim" ile "Taleplerim" ikonla
-  ///     ayirt edilemez,
-  ///   · tek acilir menu -> **148 dp**, 212 dp pay. SECILDI.
-  /// ⚠️ YAPMA: buraya yatay serit geri koyma ya da ikisini birden cizme.
-  /// ⚠️⚠️ TURU 114 — YATAY SURUKLEMEYLE SEKME DEGISTIRME.
-  ///
-  /// ⚠️ HIZ ESIGI (`120 px/sn`) ZORUNLU: esiksiz birakilirsa dikey
-  ///	kaydirma sirasindaki en ufak yatay sapma sekmeyi degistirir ve
-  ///	kullanici "kendiliginden atliyor" der.
-  /// ⚠️ Uc ve son sekmede SESSIZCE durur (dongusel DEGIL): dongu, listenin
-  ///    nerede bittigini gizler ve kullanici kac sekme oldugunu anlayamaz.
-  /// ⚠️ Yeni sekme daha once yuklenmediyse `_sekmeyeGec` onu getirir —
-  ///    menuden secmekle AYNI yol (ikinci bir yukleme mantigi YAZILMAZ).
-  void _sekmeKaydir(DragEndDetails d) {
-    final hiz = d.primaryVelocity ?? 0;
-    if (hiz.abs() < 120) return;
-    final liste = _sekmeler;
-    final i = liste.indexOf(_sekme);
-    if (i < 0) return;
-    // ⚠️ Sola surukleme (negatif hiz) SONRAKI sekmeye gider — sayfa
-    //    cevirme yonuyle ayni.
-    final hedef = hiz < 0 ? i + 1 : i - 1;
-    if (hedef < 0 || hedef >= liste.length) return;
-    _sekmeyeGec(liste[hedef]);
-  }
+  // ⚠️ TURU 115 — `_sekmeKaydir` SILINDI: yerini GERCEK `PageView` aldi;
+  //    jest artik sayfayi PARMAKLA tasiyor, aninda atlamiyor.
 
+  /// Tek bir sekmenin sayfasi (`PageView` cocugu).
+  ///
+  /// ⚠️ Her sayfa KENDI dikey kaydirmasina sahiptir: dis liste basligi
+  ///    kaydirir, ic liste icerigi. `PageStorageKey` ile her sekmenin
+  ///    kaydirma konumu KORUNUR.
+  /// ⚠️ Yukleme/hata/bos dallari SAYFANIN KENDISINDE: eskiden `_sekme`ye
+  ///    bakiyorlardi ve `PageView`de komsu sayfa da cizildigi icin YANLIS
+  ///    sayfada spinner gorunurdu.
+  Widget _sekmeSayfasi(ProfilSekmesi x) => ListView(
+    key: PageStorageKey<String>('sekme-${x.name}'),
+    padding: EdgeInsets.zero,
+    children: [_sekmeIcerigi(x)],
+  );
+
+  Widget _sekmeIcerigi(ProfilSekmesi x) {
+    final soluk = Theme.of(context).colorScheme.onSurface.withValues(
+      alpha: 0.6,
+    );
+    if (_sekmeYukleniyor.contains(x)) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 60),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (_sekmeHata[x] != null) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 50),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(_sekmeHata[x]!, style: TextStyle(color: soluk)),
+              TextButton(
+                onPressed: () {
+                  _sekmeHata.remove(x);
+                  unawaited(_sekmeYukle(x));
+                },
+                child: const Text('Tekrar dene'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    if (x.ilanMi) return _ilanListesi();
+    final l = _gonderiOnbellek[x] ?? const <Gonderi>[];
+    if (l.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 60),
+        child: Center(child: Text(x.bosMetin, style: TextStyle(color: soluk))),
+      );
+    }
+    return _izgara();
+  }
   Widget _sekmeSecici() {
     final scheme = Theme.of(context).colorScheme;
     return Padding(
@@ -1095,6 +1111,16 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
     if (x == _sekme) return;
     setState(() => _sekme = x);
     unawaited(_sekmeYukle(x));
+    // ⚠️ TURU 115 — menuden secim SAYFAYI da tasir; aksi halde etiket
+    //    degisir ama icerik ESKI sayfada kalirdi.
+    final i = _sekmeler.indexOf(x);
+    if (i >= 0 && _sayfaCtrl.hasClients) {
+      _sayfaCtrl.animateToPage(
+        i,
+        duration: const Duration(milliseconds: 260),
+        curve: Curves.easeOutCubic,
+      );
+    }
   }
   /// Ilan tabanli sekmelerin listesi (Ilanlarim · Dolap · Taleplerim).
   ///
