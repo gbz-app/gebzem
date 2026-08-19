@@ -67,7 +67,17 @@ Widget _kur({
 /// ⚠️ TURU 96o — LOGO BULUCU. Logo artik bir `Image` WIDGET'I DEGIL: daire
 /// `BoxShape.circle` olarak cizilir ve gorsel `DecorationImage` ile
 /// doldurulur. Bu yuzden `find.byType(Image)` HICBIR SEY bulmaz.
+/// ⚠️⚠️ TURU 112 — logo artik IKI KUTU: disda **gradient halka**
+///	(turuncu-mor, kullanici emri), icinde gorsel. Geometri testleri
+///	DIS kutuyu, gorsel testleri IC kutuyu olcer.
 Finder get _logoBulucu => find.byWidgetPredicate((w) =>
+    w is Container &&
+    w.decoration is BoxDecoration &&
+    (w.decoration as BoxDecoration).gradient != null &&
+    (w.decoration as BoxDecoration).shape == BoxShape.circle);
+
+/// Gorseli tasiyan IC daire.
+Finder get _logoGorselBulucu => find.byWidgetPredicate((w) =>
     w is Container &&
     w.decoration is BoxDecoration &&
     (w.decoration as BoxDecoration).image != null);
@@ -184,7 +194,7 @@ void main() {
     await t.pumpWidget(_kur(secili: 0));
     await t.pump();
 
-    final gorsel = _logoBulucu;
+    final gorsel = _logoGorselBulucu;
     // ⚠️⚠️⚠️ **KIRPMA YASAK, DAIRE SERBEST.** Kullanici once *"daire yapma"*
     //	dedi, sonra *"logodan 5px kucuk daire icine doldur"* dedi — yani
     //	istenmeyen sey DAIRE DEGIL, **`ClipOval` ile KIRPMAK**ti: kirpma
@@ -207,8 +217,15 @@ void main() {
         reason: 'gorsel daireyi TAM doldurmali (bosluk/ic dolgu yok)');
 
     final boyut = t.getSize(gorsel);
-    expect(boyut.width, kAltMenuLogoCap);
-    expect(boyut.height, kAltMenuLogoCap);
+    expect(boyut.width, kAltMenuLogoIcCap);
+    expect(boyut.height, kAltMenuLogoIcCap);
+
+    // ⚠️⚠️ DIS HALKA: turuncu-mor GRADIENT ve DIS CAP `kAltMenuLogoCap`
+      //    olmak ZORUNDA — halka disariya eklenirse logo cubuktan tasar.
+    final dis = t.widget<Container>(_logoBulucu).decoration as BoxDecoration;
+    expect(dis.gradient, isNotNull, reason: 'halka GRADIENT olmali');
+    expect(t.getSize(_logoBulucu).width, kAltMenuLogoCap,
+        reason: 'dis cap DEGISMEMELI (kaldirma hesabi buna bagli)');
     expect(kAltMenuLogoCap, greaterThan(kAltMenuIkonBoy),
         reason: 'logo ikonlardan BUYUK olmali');
   });

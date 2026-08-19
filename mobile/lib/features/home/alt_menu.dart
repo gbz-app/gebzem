@@ -31,7 +31,23 @@ const double kAltMenuIkonBoy = 26;
 /// ⚠️⚠️ ORTADAKI LOGO DAIRESI. Kullanici *"daire 5px daha buyut, logoyu da o
 ///	oranda buyut"* dedi (logo daireyi TAM doldurdugu icin ikisi birlikte
 ///	buyur): 47 -> **52**.
-const double kAltMenuLogoCap = 52;
+/// ⚠️⚠️ TURU 112 — kullanici *"mevcut logo 2px daha buyut"* dedi: 52 -> **54**.
+/// ⚠️ Kaldirma payi bu sayidan TURETILIYOR (`(kAltMenuBoy - cap) / 2`), yani
+///    buyutunce logo cubugun icinde 1 dp daha az yukari kalkar — tasma
+///    yapisal olarak yine imkansiz.
+const double kAltMenuLogoCap = 54;
+
+/// ⚠️⚠️ TURU 112 — GRADIENT HALKANIN KALINLIGI.
+///
+/// ⚠️ Halka DISARIYA eklenmez, ICERIDEN alinir: dis cap
+///    `kAltMenuLogoCap` OLARAK KALIR. Buyuseydi turu 96p'nin
+///    `min(15, (kAltMenuBoy - cap) / 2)` kaldirma hesabi degisir ve logo
+///    cubuktan TASARDI — tasan kisim hit-test ALMAZ (turu 98c) ve kor
+///    dokunuslar ALTTAKI akisa duserdi.
+const double kAltMenuLogoHalka = 2;
+
+/// Gorselin cizildigi IC daire.
+const double kAltMenuLogoIcCap = kAltMenuLogoCap - kAltMenuLogoHalka * 2;
 
 /// ⚠️⚠️⚠️ TURU 96n — LOGONUN IKI YANINDAKI **NEFES PAYI** (kullanici:
 ///	*"ikonlar ortadaki menuye cok yaklasmis"*). Yer tutucu hucrenin
@@ -428,19 +444,50 @@ class AltMenu extends ConsumerWidget {
         builder: (context) {
           const cap = kAltMenuLogoCap;
           final px = (cap * MediaQuery.devicePixelRatioOf(context)).round();
+          // ⚠️⚠️⚠️ TURU 112 — **TURUNCU-MORUMSU GRADIENT HALKA** (kullanici
+          //	emri: *"alt menuyu turuncu morumsu daire yap ... o daireyi
+          //	boyle istedigim tarzda gradient bir renk olarak yap"*).
+          //
+          // ⚠️⚠️ HALKA **DISARIYA** eklenmez, ICERIDEN alinir: dis cap
+          //	`kAltMenuLogoCap` OLARAK KALIR. Cap buyuseydi turu 96p'nin
+          //	`min(15, (66 - cap) / 2)` kaldirma hesabi degisir ve logo
+          //	cubuktan TASARDI (turu 98c: tasan kisim hit-test ALMAZ ve
+          //	kor dokunuslar ALTTAKI akisa duserdi).
+          // ⚠️ Renkler SABIT (tema-bagimsiz): alt menu zemini de sabit
+          //    siyah; temadan boyanirsa acik temada halka kaybolur
+          //    (turu 96m dersi).
+          const halka = kAltMenuLogoHalka;
           return Container(
             width: cap,
             height: cap,
-            decoration: BoxDecoration(
+            padding: const EdgeInsets.all(halka),
+            decoration: const BoxDecoration(
               shape: BoxShape.circle,
-              image: DecorationImage(
-                image: ResizeImage(
-                  const AssetImage('assets/icon/logo.png'),
-                  width: px,
-                  height: px,
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFFFF9A3C), // turuncu
+                  Color(0xFFFF5E7A), // pembe gecis
+                  Color(0xFF8B3FFF), // mor
+                ],
+              ),
+            ),
+            // ⚠️ `Container` (DecoratedBox DEGIL): muhafiz
+            //    (`alt_menu_test.dart`) gorseli tasiyan kutuyu
+            //    `Container` + `BoxDecoration.image` ile buluyor.
+            child: Container(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                image: DecorationImage(
+                  image: ResizeImage(
+                    const AssetImage('assets/icon/logo.png'),
+                    width: px,
+                    height: px,
+                  ),
+                  fit: BoxFit.cover,
+                  filterQuality: FilterQuality.medium,
                 ),
-                fit: BoxFit.cover,
-                filterQuality: FilterQuality.medium,
               ),
             ),
           );

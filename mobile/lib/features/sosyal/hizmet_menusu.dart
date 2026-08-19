@@ -7,7 +7,7 @@ import '../kanal/kanallar_sekmesi.dart' show KanallarSayfasi;
 import '../ilan/ilan_ekranlari.dart';
 import '../isletme/isletme_listesi.dart';
 import '../isletme/yakinimda_ekrani.dart';
-import '../isletme/urun_ekranlari.dart' show AiDanismaEkrani;
+import '../ai/gebzem_ai.dart';
 import '../isletme/urun_servisi.dart' show aiDurumProvider;
 import '../diyet/diyet_ekranlari.dart';
 import '../talep/talep_ekranlari.dart';
@@ -264,7 +264,7 @@ class HizmetMenusu extends ConsumerWidget {
         _Bolum('GebzemAI', [
           const Color(0xFF00C2A8),
           const Color(0xFF00695C),
-        ], (c) => const AiDanismaEkrani()),
+        ], (c) => const GebzemAiEkrani()),
       // ⚠️ 'Sosyal' = KESFET ekrani (profil arama + gonderi izgarasi).
       //    O ekranin KENDI `Scaffold`i YOK (ana sekme olarak yaziImis),
       //    bu yuzden route'a alinirken `Scaffold` ile SARILIR — aksi halde
@@ -386,25 +386,14 @@ class HizmetMenusu extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // ⚠️ TURU 106 — SHEET TUTAMACI KALDIRILDI: tam ekran bir
-                //    sayfada "asagi cekip kapat" diye bir jest YOK;
-                //    tutamac olmayan bir davranisi vaat ediyordu.
-                const SizedBox(height: 8),
-                // ---- GERI
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: kYanBosluk - 8,
-                  ),
-                  child: Align(
-                    alignment: AlignmentDirectional.centerStart,
-                    child: IconButton(
-                      tooltip: 'Geri',
-                      icon: const Icon(LucideIcons.arrowLeft),
-                      onPressed: () => Navigator.of(context).maybePop(),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 4),
+                // ⚠️⚠️⚠️ TURU 112 — **GERI OKU KALDIRILDI** (kullanici emri:
+                //	*"acilan pencerede geri tusu ... olmasin"*).
+                //
+                // ⚠️ Kapanma yolu KAYBOLMADI: sayfa normal bir route ve
+                //    sistemin geri jesti/tusu calisir. Ayrica bir karta
+                //    dokunmak hedef ekrani ustune acar.
+                // ⚠️ YAPMA: geri okunu geri koyma.
+                const SizedBox(height: 14),
                 const Padding(
                   padding: EdgeInsets.symmetric(horizontal: kYanBosluk),
                   child: Column(
@@ -417,11 +406,8 @@ class HizmetMenusu extends ConsumerWidget {
                           fontWeight: FontWeight.w800,
                         ),
                       ),
-                      SizedBox(height: 2),
-                      Text(
-                        'Şehrindeki her şey',
-                        style: TextStyle(fontSize: 13, color: Colors.grey),
-                      ),
+                      // ⚠️ TURU 112 — alt aciklama KALDIRILDI (kullanici
+                      //    emri). Baslik tek basina yeterli.
                     ],
                   ),
                 ),

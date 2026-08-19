@@ -200,10 +200,25 @@ class AiServisi {
   }
 
   /// Fotograftan sorun tespiti.
-  Future<String> danisma({required String mediaId, String metin = ''}) async {
+  /// ⚠️⚠️ TURU 111 — SOHBET: fotograf ARTIK ZORUNLU DEGIL ve [gecmis]
+  ///	ile BAGLAM tasinir. Sunucu gecmisi SAKLAMAZ; her istekte ekrandaki
+  ///	konusma gonderilir (tablo yok -> "sohbetlerim" gibi olmayan bir
+  ///	ozellik vaat edilmiyor).
+  /// ⚠️ Sunucu son 12 mesaji alir ve her birini kirpar (token maliyeti).
+  Future<String> danisma({
+    String mediaId = '',
+    String metin = '',
+    List<({String rol, String metin})> gecmis = const [],
+  }) async {
     final r = await _api.post(
       '/ai/danisma',
-      data: {'media_id': mediaId, 'metin': metin},
+      data: {
+        'media_id': mediaId,
+        'metin': metin,
+        'gecmis': [
+          for (final m in gecmis) {'rol': m.rol, 'metin': m.metin},
+        ],
+      },
       options: _aiSecenek,
     );
     return (r.data['sonuc'] ?? '').toString();

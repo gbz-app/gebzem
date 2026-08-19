@@ -328,6 +328,38 @@ class _ReelsSayfasiState extends ConsumerState<ReelsSayfasi> {
     ],
   );
 
+  /// Kaydetme — iyimser guncelleme + geri alma.
+  ///
+  /// ⚠️ Yeniden-girme kilidi: cift dokunus iki istek atar ve ikinci yanit
+  ///    birincinin sonucunu EZER.
+  bool _kaydetMesgul = false;
+
+  Future<void> _kaydetCevir(Gonderi g) async {
+    if (_kaydetMesgul) return;
+    _kaydetMesgul = true;
+    final eski = g.kaydettim;
+    setState(() => g.kaydettim = !eski);
+    try {
+      final s = ref.read(sosyalServisiProvider);
+      eski ? await s.kaydetKaldir(g.id) : await s.kaydet(g.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          duration: const Duration(seconds: 2),
+          content: Text(eski ? 'Kaydedilenlerden çıkarıldı' : 'Kaydedildi'),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => g.kaydettim = eski);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Kaydedilemedi')),
+      );
+    } finally {
+      _kaydetMesgul = false;
+    }
+  }
+
   Widget _sagKolon(Gonderi g, String benimId) => Column(
     mainAxisSize: MainAxisSize.min,
     children: [
@@ -362,6 +394,22 @@ class _ReelsSayfasiState extends ConsumerState<ReelsSayfasi> {
           etiket: sayiBicimle(g.goruntulenme),
           onTap: null,
         ),
+      // ⚠️⚠️⚠️ TURU 112 — **KAYDET EKLENDI** (kullanici: *"reelste kaydet
+      //	yok sagdaki ikonlarda"*).
+      //
+      //	Uc (`POST/DELETE /posts/{id}/save`) ve "Kaydedilenler" ekrani
+      //	ZATEN VARDI; eksik olan YALNIZCA bu giristi. Reels tam ekran
+      //	oldugu icin kullanici bir videoyu kaydetmek istediginde akisa
+      //	donmek zorunda kaliyordu.
+      // ⚠️ IYIMSER GUNCELLEME + GERI ALMA: istek patlarsa bayrak eski
+      //    haline doner (akis kartiyla ayni desen) — yalan bir "kaydedildi"
+      //    durumu birakmak, listede gorunmeyen bir kayit demektir.
+      _eylem(
+        ikon: g.kaydettim ? Icons.bookmark : LucideIcons.bookmark,
+        renk: Colors.white,
+        etiket: '',
+        onTap: () => _kaydetCevir(g),
+      ),
       _eylem(
         ikon: LucideIcons.link,
         renk: Colors.white,

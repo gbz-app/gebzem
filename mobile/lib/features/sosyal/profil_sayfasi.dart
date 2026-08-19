@@ -26,6 +26,7 @@ import 'profil_basligi.dart';
 import '../home/home_screen.dart' show HesabimEkrani, myProfileProvider;
 import '../ilan/ilan_ekranlari.dart' show IlanDetayEkrani;
 import '../ilan/ilan_servisi.dart';
+import '../talep/talep_servisi.dart' show dugunKategorileri;
 import 'sosyal_servisi.dart';
 import 'kaydedilenler_sayfasi.dart';
 import 'takip_listesi.dart';
@@ -49,7 +50,18 @@ import 'takip_listesi.dart';
 ///	`switch`te eksik dal birakilirsa DERLEYICIYI patlatir.
 /// ⚠️ Ayrica kosullu sekmeler (`_benimMi`) `int` indekslerini KAYDIRIRDI:
 ///    birinde 5 = Ilanlarim, otekinde 5 = baska bir sey.
-enum _Sekme { tumu, foto, video, reels, ses, ilan, dolap, talep }
+enum _Sekme {
+  tumu,
+  foto,
+  video,
+  reels,
+  ses,
+  ilan,
+  dolap,
+  hizmet,
+  talep,
+  dugun,
+}
 
 extension _SekmeBilgi on _Sekme {
   String get etiket => switch (this) {
@@ -60,7 +72,9 @@ extension _SekmeBilgi on _Sekme {
     _Sekme.ses => 'Ses',
     _Sekme.ilan => 'İlanlarım',
     _Sekme.dolap => 'Dolap',
+    _Sekme.hizmet => 'Hizmetlerim',
     _Sekme.talep => 'Taleplerim',
+    _Sekme.dugun => 'Düğünüm',
   };
 
   IconData get ikon => switch (this) {
@@ -71,7 +85,9 @@ extension _SekmeBilgi on _Sekme {
     _Sekme.ses => LucideIcons.audioLines,
     _Sekme.ilan => LucideIcons.tag,
     _Sekme.dolap => LucideIcons.shirt,
+    _Sekme.hizmet => LucideIcons.wrench,
     _Sekme.talep => LucideIcons.clipboardList,
+    _Sekme.dugun => LucideIcons.heartHandshake,
   };
 
   String get bosMetin => switch (this) {
@@ -82,7 +98,9 @@ extension _SekmeBilgi on _Sekme {
     _Sekme.ses => 'Henüz ses paylaşımı yok',
     _Sekme.ilan => 'Henüz ilan vermedin',
     _Sekme.dolap => 'Dolabında ürün yok',
+    _Sekme.hizmet => 'Henüz hizmet ilanın yok',
     _Sekme.talep => 'Henüz talebin yok',
+    _Sekme.dugun => 'Henüz düğün talebin yok',
   };
 
   /// Sunucu `?tur=` degeri (gonderi sekmeleri icin).
@@ -104,12 +122,20 @@ extension _SekmeBilgi on _Sekme {
   ///    `?user_id=` YOKTUR (yalniz `benim=1`), yani baskasinin ilanlarini
   ///    listeleyecek bir yol YOK. Menude HIC gosterilmez.
   bool get ilanMi =>
-      this == _Sekme.ilan || this == _Sekme.dolap || this == _Sekme.talep;
+      this == _Sekme.ilan ||
+      this == _Sekme.dolap ||
+      this == _Sekme.hizmet ||
+      this == _Sekme.talep ||
+      this == _Sekme.dugun;
 
   /// Ilan turu (`/ilanlar?tur=`).
   String get ilanTuru => switch (this) {
     _Sekme.dolap => 'ikinci_el',
-    _Sekme.talep => 'talep',
+    _Sekme.hizmet => 'hizmet',
+    // ⚠️ Dugun AYRI BIR TUR DEGIL: sunucuda dugun talepleri de
+    //    `tur='talep'`tir, yalniz KATEGORILERI farklidir. Ayrim asagida
+    //    (`_dugunMu`) sunucunun agacindan gelen bayrakla yapilir.
+    _Sekme.talep || _Sekme.dugun => 'talep',
     _ => '',
   };
 }
@@ -786,6 +812,13 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
   ///    `?user_id=` KABUL ETMIYOR (yalniz `benim=1`). Baskasinin profilinde
   ///    menude HIC gorunmezler — "yakinda" YAZILMAZ (turu 76b'de denendi,
   ///    turu 77'de geri alindi: `hizmet_menusu.dart` serhi).
+  /// Dugun dali — **`talep_servisi.dart` TEK KAYNAGINDAN**.
+  ///
+  /// ⚠️ Ayni kume "Teklif iste" ekraninda da dallari ayirmak icin
+  ///    kullaniliyor (`talep_ekranlari.dart`). Ikinci bir kopya yazmak
+  ///    kacinilmaz olarak drift ederdi.
+  /// ⚠️ Sunucuda hepsi `tur=talep`tir; dal ayrimi bir SUNUM tercihidir
+  ///    (bkz. o dosyanin serhi) — bu yuzden istemcide durmasi bilincli.
   List<_Sekme> get _sekmeler => [
     for (final x in _Sekme.values)
       if (!x.ilanMi || _benimMi) x,
@@ -804,9 +837,26 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
     });
     try {
       if (x.ilanMi) {
-        final l = await ref
+        var l = await ref
             .read(ilanServisiProvider)
             .liste(tur: x.ilanTuru, benim: true);
+        // ⚠️⚠️ **DUGUN ILE HIZMET TALEBI AYNI TURDEDIR** (sunucu:
+        //	`tur='talep'`), ayrim KATEGORIDEDIR. `/ilanlar` suzgeci TEK
+        //	ESITLIK kabul ettigi icin dokuz dugun kategorisi tek istekle
+        //	suzulemez; ayrim ISTEMCIDE, sunucunun AGACINDAN gelen
+        //	`dugun` bayragiyla yapilir.
+        // ⚠️ Kategori listesi Dart'a YAZILMAZ (turu 77): yeni bir dugun
+        //    kategorisi eklendiginde eski surumler onu sessizce hizmet
+        //    dalina dusururdu.
+        if (x == _Sekme.dugun || x == _Sekme.talep) {
+          l = l
+              .where(
+                (i) => x == _Sekme.dugun
+                    ? dugunKategorileri.contains(i.kategori)
+                    : !dugunKategorileri.contains(i.kategori),
+              )
+              .toList();
+        }
         if (!mounted) return;
         setState(() => _ilanOnbellek[x] = l);
       } else {

@@ -419,14 +419,18 @@ type gorselURL struct {
 //
 //	almak (ve onun gecis surumleriyle ugrasmak) bu projede gereksiz risk.
 //	`net/http` yeterli.
+//
+// ⚠️ TURU 111 — `gecmis` EKLENDI. Diger cagiranlar `nil` gecer; davranis
+//
+//	DEGISMEZ (sistem + tek kullanici mesaji).
 func (h *Handler) sor(ctx context.Context, sistem string,
-	parcalar []icerikParca) (string, error) {
+	parcalar []icerikParca, gecmis []map[string]any) (string, error) {
+	mesajlar := []map[string]any{{"role": "system", "content": sistem}}
+	mesajlar = append(mesajlar, gecmis...)
+	mesajlar = append(mesajlar, map[string]any{"role": "user", "content": parcalar})
 	govde := map[string]any{
-		"model": modelMetin,
-		"messages": []map[string]any{
-			{"role": "system", "content": sistem},
-			{"role": "user", "content": parcalar},
-		},
+		"model":      modelMetin,
+		"messages":   mesajlar,
 		"max_tokens": 900,
 	}
 	ham, _ := json.Marshal(govde)
@@ -489,6 +493,59 @@ func (h *Handler) gorselAdresi(ctx context.Context, mediaID, sahipID string) (st
 type aiReq struct {
 	MediaID string `json:"media_id"`
 	Metin   string `json:"metin"`
+
+	// ⚠️⚠️⚠️ TURU 111 — **SOHBET GECMISI** (kullanici emri: *"gebzemai
+	//	arayuzu Claude/Gemini gibi olsun"*).
+	//
+	//	Bir sohbet arayuzunun tek gercek gereksinimi BAGLAMDIR: ikinci
+	//	soruda modelin birinci soruyu bilmesi gerekir. Aksi halde ekran
+	//	sohbet gibi gorunur ama her mesaj SIFIRDAN cevaplanir — arayuzun
+	//	vaat ettigi seyi yapmayan bir ekran olurdu.
+	//
+	// ⚠️ Gecmis SUNUCUDA SAKLANMAZ: tablo yok, istemci her istekte kendi
+	//    ekranindakini gonderir. Boylece migration GEREKMEZ ve "sohbetlerim"
+	//    gibi olmayan bir ozellik vaat edilmez.
+	// ⚠️ TAVAN: son `gecmisTavani` mesaj alinir ve her biri `metinTavani`
+	//    ile kirpilir — istemci 500 mesaj gonderip faturayi sisiremesin.
+	Gecmis []aiMesaj `json:"gecmis"`
+}
+
+// aiMesaj — sohbet gecmisindeki tek satir.
+//
+// ⚠️ `Rol` BEYAZ LISTEDEN gecer: istemcinin 'system' gondermesi, sunucunun
+//
+//	kendi sistem talimatini EZMESINE (prompt injection) yol acardi.
+type aiMesaj struct {
+	Rol   string `json:"rol"`
+	Metin string `json:"metin"`
+}
+
+// ⚠️ Kac gecmis mesaj tasinir. 12 = ~6 tur; token maliyeti dogrudan
+//
+//	faturaya yansidigi icin SINIRSIZ olamaz.
+const gecmisTavani = 12
+
+// gecmisMesajlari — istemci gecmisini OpenAI bicimine cevirir.
+//
+// ⚠️ Rol beyaz listesi: yalniz `user` ve `assistant`. Taninmayan rol
+//
+//	SESSIZCE ATILIR (400 donmek eski istemcileri kirar).
+func gecmisMesajlari(g []aiMesaj) []map[string]any {
+	if len(g) > gecmisTavani {
+		g = g[len(g)-gecmisTavani:]
+	}
+	out := []map[string]any{}
+	for _, m := range g {
+		if m.Rol != "user" && m.Rol != "assistant" {
+			continue
+		}
+		t := metniKirp(m.Metin)
+		if t == "" {
+			continue
+		}
+		out = append(out, map[string]any{"role": m.Rol, "content": t})
+	}
+	return out
 }
 
 // ⚠️⚠️ TURU 78 — GIRDI SINIRI. `req.Metin` HICBIR YERDE sinirlanmiyordu
@@ -564,7 +621,7 @@ func (h *Handler) Menu(w http.ResponseWriter, r *http.Request) {
 
 	sonuc, err := h.sor(r.Context(),
 		"Sen bir restoran menüsü düzenleyicisisin. Yalnızca geçerli JSON dönersin.",
-		parcalar)
+		parcalar, nil)
 	if err != nil {
 		h.kaydet(r.Context(), istekID, req.Metin, err.Error(), "hata")
 		hata(w, 502, "Yapay zekâ şu anda yanıt veremedi")
@@ -638,7 +695,7 @@ func (h *Handler) UrunMetni(w http.ResponseWriter, r *http.Request) {
 	}
 	sonuc, err := h.sor(r.Context(),
 		"Sen bir e-ticaret metin yazarısın. Kısa, dürüst ve Türkçe yazarsın.",
-		parcalar)
+		parcalar, nil)
 	if err != nil {
 		h.kaydet(r.Context(), istekID, req.Metin, err.Error(), "hata")
 		hata(w, 502, "Yapay zekâ şu anda yanıt veremedi")
@@ -664,33 +721,42 @@ func (h *Handler) Danisma(w http.ResponseWriter, r *http.Request) {
 	json.NewDecoder(r.Body).Decode(&req)
 	// TURU 78: girdi tavani (bkz. metinTavani serhi).
 	req.Metin = metniKirp(req.Metin)
-	if req.MediaID == "" {
-		hata(w, 400, "fotoğraf gerekli")
+	// ⚠️⚠️⚠️ TURU 111 — **FOTOGRAF ARTIK ZORUNLU DEGIL.**
+	//
+	//	Ekran bir SOHBETE cevrildi (kullanici emri: *"Claude/Gemini gibi"*)
+	//	ve sohbetin cogu mesaji fotografsizdir. Eski hal her istekte
+	//	`400 "fotoğraf gerekli"` donduruyordu, yani yazi yazip gondermek
+	//	YAPISAL OLARAK imkansizdi.
+	// ⚠️ En az BIRI olmali: fotograf ya da metin. Ikisi de bossa istek
+	//    bosuna kota yakardi.
+	if req.MediaID == "" && req.Metin == "" {
+		hata(w, 400, "bir soru yaz ya da fotoğraf ekle")
 		return
 	}
-	u, err := h.gorselAdresi(r.Context(), req.MediaID, auth.UserID(r.Context()))
-	if err != nil {
-		hata(w, 400, "görsel okunamadı")
-		return
-	}
-	parcalar := []icerikParca{
-		{
+	parcalar := []icerikParca{}
+	if req.MediaID != "" {
+		u, err := h.gorselAdresi(r.Context(), req.MediaID, auth.UserID(r.Context()))
+		if err != nil {
+			hata(w, 400, "görsel okunamadı")
+			return
+		}
+		parcalar = append(parcalar, icerikParca{
 			Tip: "text",
 			Metin: "Bu fotoğraftaki sorunu tespit et ve ne yapılması gerektiğini " +
 				"maddeler hâlinde, sade Türkçe ile anlat. Emin olmadığın yerde " +
 				"açıkça 'emin değilim' de ve bir uzmana danışılmasını öner.",
-		},
-		{Tip: "image_url", Gorsel: &gorselURL{URL: u}},
+		}, icerikParca{Tip: "image_url", Gorsel: &gorselURL{URL: u}})
 	}
 	if req.Metin != "" {
 		parcalar = append(parcalar, icerikParca{
-			Tip: "text", Metin: "Ek bilgi: " + req.Metin,
+			Tip:   "text",
+			Metin: req.Metin,
 		})
 	}
 	sonuc, err := h.sor(r.Context(),
 		"Sen pratik bir teknik danışmansın. Sağlık ve hukuk konularında tavsiye "+
 			"VERMEZSİN, uzmana yönlendirirsin. Kısa ve maddeli yazarsın.",
-		parcalar)
+		parcalar, gecmisMesajlari(req.Gecmis))
 	if err != nil {
 		h.kaydet(r.Context(), istekID, req.Metin, err.Error(), "hata")
 		hata(w, 502, "Yapay zekâ şu anda yanıt veremedi")
@@ -776,7 +842,7 @@ func (h *Handler) Kalori(w http.ResponseWriter, r *http.Request) {
 	sonuc, err := h.sor(r.Context(),
 		"Sen bir besin değeri tahmin aracısın. Yalnızca geçerli JSON dönersin. "+
 			"Tıbbi tavsiye VERMEZSİN, diyet önerisi YAPMAZSIN.",
-		parcalar)
+		parcalar, nil)
 	if err != nil {
 		h.kaydet(r.Context(), istekID, req.Metin, err.Error(), "hata")
 		hata(w, 502, "Yapay zekâ şu anda yanıt veremedi")
