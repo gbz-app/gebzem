@@ -403,10 +403,40 @@ class _IsletmeDuzenleEkraniState extends ConsumerState<IsletmeDuzenleEkrani> {
   }
 
   /// Sihirbazin ALT CUBUGU — geri / devam / bitir.
+  ///
+  /// ⚠️⚠️⚠️ TURU 114 (denetim) — **ADIM ADI KENDI SATIRINDA.**
+  ///
+  ///	Ilk yazimda "Geri" + "1/3 · Temel bilgiler" + "İşletme hesabını aç"
+  ///	TEK BIR `Row`daydi. 360 dp / yazi olcegi 1.3'te olculdu:
+  ///	dugmenin sag kenari **441.9 dp**, ekran 360 dp — dugmenin yalnizca
+  ///	**121 dp**'si gorunuyordu, yani *"İşletme hesabını aç"* dugmesi
+  ///	EKRANIN DISINDA kaliyordu. `Spacer` sifira duser ve `Row` tasar.
+  ///
+  /// ⚠️ Adim adi **USTTE, KENDI SATIRINDA**; dugme satirinda yalnizca iki
+  ///    dugme var ve etiket `FittedBox` ile kucultuluyor. Tasma artik
+  ///    YAPISAL OLARAK imkansiz.
+  /// ⚠️ YAPMA: adim adini tekrar dugme satirina koyma.
   Widget _adimCubugu() => SafeArea(
     child: Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            '${_adim + 1}/$_adimSayisi · ${_adimAdlari[_adim]}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.6),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Row(
         children: [
           if (_adim > 0)
             TextButton(
@@ -416,16 +446,6 @@ class _IsletmeDuzenleEkraniState extends ConsumerState<IsletmeDuzenleEkrani> {
               child: const Text('Geri'),
             ),
           const Spacer(),
-          Text(
-            '${_adim + 1}/$_adimSayisi · ${_adimAdlari[_adim]}',
-            style: TextStyle(
-              fontSize: 12,
-              color: Theme.of(
-                context,
-              ).colorScheme.onSurface.withValues(alpha: 0.6),
-            ),
-          ),
-          const SizedBox(width: 12),
           FilledButton(
             onPressed: _kaydediliyor
                 ? null
@@ -442,11 +462,16 @@ class _IsletmeDuzenleEkraniState extends ConsumerState<IsletmeDuzenleEkrani> {
                     width: 18,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : Text(
-                    _adim < _adimSayisi - 1
-                        ? 'Devam'
-                        : 'İşletme hesabını aç',
+                : FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      _adim < _adimSayisi - 1
+                          ? 'Devam'
+                          : 'İşletme hesabını aç',
+                    ),
                   ),
+          ),
+        ],
           ),
         ],
       ),
