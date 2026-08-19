@@ -239,7 +239,7 @@ class _AnketPanelState extends State<_AnketPanel> {
           children: [
             Row(
               children: [
-                const Icon(LucideIcons.chartBar, size: 20),
+                const Icon(LucideIcons.vote, size: 20),
                 const SizedBox(width: 8),
                 Text('Anket', style: Theme.of(context).textTheme.titleMedium),
               ],
@@ -333,6 +333,7 @@ class AnketBalon extends ConsumerStatefulWidget {
     required this.anket,
     required this.benimMi,
     this.enGenis = 280,
+    this.soruGoster = true,
   });
 
   /// ⚠️⚠️ TURU 104 — **GORUNUM VARYANTI (mantik DEGISMEZ).**
@@ -347,6 +348,15 @@ class AnketBalon extends ConsumerStatefulWidget {
   ///	GENISLIK ister (`double.infinity`).
   /// ⚠️ YAPMA: akis icin ayri bir `AnketKarti` yazma.
   final double enGenis;
+
+  /// ⚠️⚠️ TURU 104 — **SORU IKI KEZ YAZILMASIN.**
+  ///
+  ///	Akista anket sorusu cogu zaman gonderinin METNIDIR (Threads/X de
+  ///	boyle kullanilir). Ikisi de cizilince ayni cumle ust uste iki kez
+  ///	gorunuyordu (emulatorde olculdu). Kart, sorunun gonderi metniyle
+  ///	ayni olup olmadigini BILEMEZ; karari cagiran verir.
+  /// ⚠️ Sohbette DAIMA true (balonun ustunde metin yok).
+  final bool soruGoster;
 
   final Anket anket;
 
@@ -480,11 +490,16 @@ class _AnketBalonState extends ConsumerState<AnketBalon> {
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-            Text(
-              _a.soru,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-            ),
+            if (widget.soruGoster) ...[
+              const SizedBox(height: 8),
+              Text(
+                _a.soru,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
             const SizedBox(height: 10),
             for (final s in _a.secenekler) ...[
               _secenek(s, scheme),
@@ -548,7 +563,10 @@ class _AnketBalonState extends ConsumerState<AnketBalon> {
     final yuzde = (oran * 100).round();
     final secili = s.benim;
     return GestureDetector(
-      onTap: () => _oyVer(s),
+      // ⚠️ Kapali ankette dokunus OLU: `_oyVer` zaten `_a.kapali`
+      //    kapisiyla donuyor ama dokunma dalgasi (ripple) cizilince
+      //    kullanici "oy verdim" saniyordu.
+      onTap: _a.kapali ? null : () => _oyVer(s),
       behavior: HitTestBehavior.opaque,
       child: SizedBox(
         height: 46,
@@ -578,7 +596,7 @@ class _AnketBalonState extends ConsumerState<AnketBalon> {
                   duration: const Duration(milliseconds: 320),
                   curve: Curves.easeOutCubic,
                   builder: (_, v, _) => FractionallySizedBox(
-                    alignment: Alignment.centerLeft,
+                    alignment: AlignmentDirectional.centerStart,
                     widthFactor: v,
                     child: ColoredBox(
                       color: scheme.primary.withValues(
@@ -595,8 +613,18 @@ class _AnketBalonState extends ConsumerState<AnketBalon> {
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: Row(
                   children: [
+                    // ⚠️⚠️ **SECIM TURU SEKILDEN ANLASILIR**: tek secimlik
+                    //    DAIRE, coklu secimlik KARE (sistem genelindeki
+                    //    radyo/onay kutusu dili). Baslikta yazan
+                    //    "coklu secim" tek basina yeterli degil.
                     Icon(
-                      secili ? LucideIcons.circleCheckBig : LucideIcons.circle,
+                      _a.coklu
+                          ? (secili
+                                ? LucideIcons.squareCheck
+                                : LucideIcons.square)
+                          : (secili
+                                ? LucideIcons.circleCheckBig
+                                : LucideIcons.circle),
                       size: 18,
                       color: secili
                           ? scheme.primary
@@ -616,17 +644,25 @@ class _AnketBalonState extends ConsumerState<AnketBalon> {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    Text(
-                      '%$yuzde',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: secili
-                            ? scheme.primary
-                            : scheme.onSurface.withValues(alpha: 0.65),
+                    // ⚠️⚠️ **HIC OY YOKKEN "%0" YAZILMAZ**: sifir bir sonuc
+                    //    DEGILDIR, sonucun HENUZ OLMADIGI anlamina gelir.
+                    //    Oy oncesi satirlar dogal olarak duz secim
+                    //    dugmesine duser.
+                    if (_a.toplamOy > 0) ...[
+                      const SizedBox(width: 8),
+                      Text(
+                        '%$yuzde',
+                        // ⚠️ **KONTRAST OLCULDU**: eski hal secili satirda
+                        //    `primary` kullaniyordu ve acik temada 3.94:1
+                        //    cikiyordu (esik 4.5). Secili durum ZATEN
+                        //    kalinlik + cerceve + dolgu ile anlatiliyor;
+                        //    yuzde metni her durumda `onSurface`.
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ),

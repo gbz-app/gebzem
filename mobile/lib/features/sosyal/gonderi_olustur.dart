@@ -726,10 +726,8 @@ class _GonderiOlusturState extends ConsumerState<GonderiOlustur> {
                           ),
                           child: Row(
                             children: [
-                              const Icon(
-                                LucideIcons.chartNoAxesColumn,
-                                size: 18,
-                              ),
+                              // ⚠️ TURU 105 — anket ikonu her yerde `vote`.
+                              const Icon(LucideIcons.vote, size: 18),
                               const SizedBox(width: 10),
                               Expanded(
                                 child: Column(
@@ -939,7 +937,7 @@ class _GonderiOlusturState extends ConsumerState<GonderiOlustur> {
           if (!_reelsMi) ...[
             ek(LucideIcons.mic, 'Ses', _yukleniyor ? null : _sesEkle),
             ek(
-              LucideIcons.chartNoAxesColumn,
+              LucideIcons.vote,
               'Anket',
               _yukleniyor ? null : _anketEkle,
             ),

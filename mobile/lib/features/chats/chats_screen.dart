@@ -346,7 +346,7 @@ class _ChatTile extends ConsumerWidget {
       case 'etkinlik':
         return LucideIcons.calendarDays;
       case 'poll':
-        return LucideIcons.chartBar;
+        return LucideIcons.vote;
       case 'system':
         final k = AramaKaydi.coz(chat.lastMessage);
         if (k == null) return null;

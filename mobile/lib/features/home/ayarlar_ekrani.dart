@@ -7,6 +7,7 @@ import 'package:permission_handler/permission_handler.dart'
 import '../../core/tercihler.dart';
 // ⚠️ TURU 89 — izin dizisi TEK KAYNAK (bkz. o dosyanin serhi).
 import '../auth/permissions_screen.dart' show izinleriTopluIste;
+import 'ayar_bilesenleri.dart';
 
 /// ⚠️⚠️⚠️ TURU 81 — AYARLAR. Uygulamada BUGUNE KADAR HIC ayarlar ekrani yoktu.
 ///
@@ -20,6 +21,13 @@ import '../auth/permissions_screen.dart' show izinleriTopluIste;
 ///    ZATEN var.
 /// ⚠️ Secim ANINDA uygulanir (kaydet dugmesi YOK) — tema degisikligi geri
 ///    donusu kolay ve sonucu aninda gorunur bir tercihtir.
+///
+/// ⚠️⚠️ TURU 105 — GORUNUM, Profil sekmesiyle **AYNI BILESENLERDEN** kuruldu
+///	(`AyarBolumu` / `AyarSatiri`). Iki ekran ayri ayri stillenirse
+///	kacinilmaz olarak drift eder.
+/// ⚠️ Eski `_Baslik` bileseninde **`letterSpacing: 1.1`** vardi — kullanici
+///    emriyle harf araligi YASAK; bolum basliklari artik ortak bilesenden
+///    gelir ve harf araligi kullanmaz.
 class AyarlarEkrani extends ConsumerWidget {
   const AyarlarEkrani({super.key});
 
@@ -30,69 +38,70 @@ class AyarlarEkrani extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Ayarlar')),
       body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
         children: [
-          const _Baslik('GÖRÜNÜM'),
-          _secenek(
-            context,
-            ref,
-            mod,
-            ThemeMode.system,
-            LucideIcons.smartphone,
-            'Sistem',
-            'Telefonun ayarını izler',
+          AyarBolumu(
+            baslik: 'Görünüm',
+            satirlar: [
+              _tema(
+                ref,
+                mod,
+                ThemeMode.system,
+                LucideIcons.smartphone,
+                'Sistem',
+                'Telefonun ayarını izler',
+              ),
+              _tema(
+                ref,
+                mod,
+                ThemeMode.light,
+                LucideIcons.sun,
+                'Açık',
+                'Beyaz tema',
+              ),
+              _tema(
+                ref,
+                mod,
+                ThemeMode.dark,
+                LucideIcons.moon,
+                'Koyu',
+                'Siyah tema',
+              ),
+            ],
           ),
-          _secenek(
-            context,
-            ref,
-            mod,
-            ThemeMode.light,
-            LucideIcons.sun,
-            'Açık',
-            'Beyaz tema',
-          ),
-          _secenek(
-            context,
-            ref,
-            mod,
-            ThemeMode.dark,
-            LucideIcons.moon,
-            'Koyu',
-            'Siyah tema',
-          ),
-          const Divider(height: 32),
           // ⚠️⚠️ TURU 89 — HARITA RENGI (kullanici emri: *"ayarlardan harita
           //    rengi ayarlanmali, GECE ve UBER'in gri beyaz tarzi"*).
           //    Secim `haritaStiliProvider`da; harita `style:` parametresini
           //    CALISMA ANINDA guncelliyor (yeniden kurulmuyor).
-          const _Baslik('HARİTA'),
-          _haritaSecenek(
-            context,
-            ref,
-            harita,
-            'sistem',
-            LucideIcons.smartphone,
-            'Sistem',
-            'Uygulama temasına uyar',
+          AyarBolumu(
+            baslik: 'Harita',
+            satirlar: [
+              _harita(
+                ref,
+                harita,
+                'sistem',
+                LucideIcons.smartphone,
+                'Sistem',
+                'Uygulama temasına uyar',
+              ),
+              _harita(
+                ref,
+                harita,
+                'gri',
+                LucideIcons.map,
+                'Açık gri',
+                'Sade, düşük renkli gündüz görünümü',
+              ),
+              _harita(
+                ref,
+                harita,
+                'gece',
+                LucideIcons.moonStar,
+                'Gece',
+                'Koyu harita',
+              ),
+            ],
           ),
-          _haritaSecenek(
-            context,
-            ref,
-            harita,
-            'gri',
-            LucideIcons.map,
-            'Açık gri',
-            'Sade, düşük renkli gündüz görünümü',
-          ),
-          _haritaSecenek(
-            context,
-            ref,
-            harita,
-            'gece',
-            LucideIcons.moonStar,
-            'Gece',
-            'Koyu harita',
-          ),
-          const Divider(height: 32),
           // ⚠️⚠️⚠️ TURU 89 — IZIN KURTARMA YOLU **ZORUNLU**.
           //
           //	Bu tur, ayri izin ekranini (`PermissionsScreen` + kayit 4. adim)
@@ -102,37 +111,41 @@ class AyarlarEkrani extends ConsumerWidget {
           //	Bu giris OLMASAYDI: izinleri reddeden kullanicinin uygulamayi
           //	SILIP YENIDEN KURMAKTAN baska donus yolu KALMAZDI.
           // ⚠️ YAPMA: bu girisi kaldirma.
-          const _Baslik('İZİNLER'),
-          ListTile(
-            leading: const Icon(LucideIcons.shieldCheck),
-            title: const Text('İzinleri yeniden iste'),
-            subtitle: const Text(
-              'Mikrofon, kamera, bildirim ve kilit ekranı arama izni',
-            ),
-            onTap: () async {
-              await izinleriTopluIste();
-              if (!context.mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('İzin ayarları güncellendi')),
-              );
-            },
+          AyarBolumu(
+            baslik: 'İzinler',
+            satirlar: [
+              AyarSatiri(
+                ikon: LucideIcons.shieldCheck,
+                baslik: 'İzinleri yeniden iste',
+                altBaslik: 'Mikrofon, kamera, bildirim, kilit ekranı',
+                onTap: () async {
+                  await izinleriTopluIste();
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('İzin ayarları güncellendi')),
+                  );
+                },
+              ),
+              AyarSatiri(
+                ikon: LucideIcons.settings,
+                baslik: 'Telefon ayarlarını aç',
+                altBaslik: 'Kalıcı reddedilen izinler yalnızca buradan verilir',
+                // ⚠️ "Bir daha sorma" denmis bir izin `request()` ile ASLA geri
+                //    alinamaz; tek yol sistem ayarlaridir.
+                onTap: openAppSettings,
+              ),
+            ],
           ),
-          ListTile(
-            leading: const Icon(LucideIcons.settings),
-            title: const Text('Telefon ayarlarını aç'),
-            subtitle: const Text(
-              'Kalıcı olarak reddettiğin izinler yalnızca buradan verilebilir',
-            ),
-            // ⚠️ "Bir daha sorma" denmis bir izin `request()` ile ASLA geri
-            //    alinamaz; tek yol sistem ayarlaridir.
-            onTap: () => openAppSettings(),
-          ),
-          const Divider(height: 32),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(4, 18, 4, 0),
             child: Text(
               'Bu ayarlar bu cihazda saklanır; hesabına bağlı değildir.',
-              style: TextStyle(fontSize: 12, color: Colors.grey),
+              style: TextStyle(
+                fontSize: 12,
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.5),
+              ),
             ),
           ),
         ],
@@ -140,81 +153,41 @@ class AyarlarEkrani extends ConsumerWidget {
     );
   }
 
-  /// Harita stili secenegi — tema `_secenek`inin ikizi.
+  /// Tema secenegi.
   ///
-  /// ⚠️ Ayri bir yardimci: tema `ThemeMode`, harita `String` tutuyor. Tek
-  ///    jenerik yardimci yazmak iki tercihin tipini gevsetirdi.
-  Widget _haritaSecenek(
-    BuildContext context,
-    WidgetRef ref,
-    String mevcut,
-    String deger,
-    IconData ikon,
-    String baslik,
-    String altBaslik,
-  ) {
-    final secili = mevcut == deger;
-    return ListTile(
-      leading: Icon(ikon),
-      title: Text(baslik),
-      subtitle: Text(altBaslik),
-      trailing: secili
-          ? Icon(
-              LucideIcons.check,
-              color: Theme.of(context).colorScheme.primary,
-            )
-          : null,
-      onTap: () => ref.read(haritaStiliProvider.notifier).ayarla(deger),
-    );
-  }
-
-  Widget _secenek(
-    BuildContext context,
+  /// ⚠️ Secili durum IKI isaretle anlatilir: tik ikonu + vurgulu renk. Tek
+  ///    isaret (yalniz renk) renk korlugunde ayirt edilemezdi.
+  Widget _tema(
     WidgetRef ref,
     ThemeMode mevcut,
     ThemeMode deger,
     IconData ikon,
     String baslik,
     String altBaslik,
-  ) {
-    final secili = mevcut == deger;
-    return ListTile(
-      leading: Icon(ikon),
-      title: Text(baslik),
-      subtitle: Text(altBaslik),
-      // ⚠️ Secili durum IKI isaretle: tik ikonu + kalin baslik degil, tik +
-      //    vurgulu renk. Tek isaret renk korlugunde ayirt edilemezdi.
-      trailing: secili
-          ? Icon(
-              LucideIcons.check,
-              color: Theme.of(context).colorScheme.primary,
-            )
-          : null,
-      onTap: () => ref.read(temaProvider.notifier).ayarla(deger),
-    );
-  }
-}
+  ) => AyarSatiri(
+    ikon: ikon,
+    baslik: baslik,
+    altBaslik: altBaslik,
+    secili: mevcut == deger,
+    onTap: () => ref.read(temaProvider.notifier).ayarla(deger),
+  );
 
-/// Bolum basligi (GÖRÜNÜM / HARİTA ...).
-///
-/// ⚠️ Iki bolum ayni bicimi kullaniyor; elle kopyalansaydi biri degistiginde
-///    oteki geride kalirdi.
-class _Baslik extends StatelessWidget {
-  const _Baslik(this.metin);
-
-  final String metin;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
-    child: Text(
-      metin,
-      style: const TextStyle(
-        fontSize: 11.5,
-        fontWeight: FontWeight.w800,
-        letterSpacing: 1.1,
-        color: Colors.grey,
-      ),
-    ),
+  /// Harita stili secenegi — tema `_tema`sinin ikizi.
+  ///
+  /// ⚠️ Ayri bir yardimci: tema `ThemeMode`, harita `String` tutuyor. Tek
+  ///    jenerik yardimci yazmak iki tercihin tipini gevsetirdi.
+  Widget _harita(
+    WidgetRef ref,
+    String mevcut,
+    String deger,
+    IconData ikon,
+    String baslik,
+    String altBaslik,
+  ) => AyarSatiri(
+    ikon: ikon,
+    baslik: baslik,
+    altBaslik: altBaslik,
+    secili: mevcut == deger,
+    onTap: () => ref.read(haritaStiliProvider.notifier).ayarla(deger),
   );
 }

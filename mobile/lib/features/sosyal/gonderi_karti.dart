@@ -155,6 +155,30 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
           yol: 'akis',
         );
 
+  /// Demo gonderisinde etkilesimi KESER ve durustce uyarir.
+  ///
+  /// ⚠️ `AbsorbPointer` dokunusu cocuktan alir; disaridaki
+  ///    `GestureDetector` onu yakalayip uyariyi gosterir. Ters sirada
+  ///    (Absorb disarida) uyari da calismazdi.
+  Widget _demoSar(Widget cocuk) => _demo
+      ? GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: _demoUyar,
+          child: AbsorbPointer(child: cocuk),
+        )
+      : cocuk;
+
+  /// Konum bu gonderide **ICERIK** mi (medya/ses/anket yok) yoksa META mi.
+  /// ⚠️ Koordinat SINIRI: bozuk bir kayit (enlem 999) kartin haritasini
+  ///    anlamsiz bir noktaya goturur; boyle bir gonderide konum META
+  ///    olarak (kucuk cip) kalir.
+  bool get _konumIcerik =>
+      g.konumVar &&
+      g.mediaIds.isEmpty &&
+      g.anket == null &&
+      g.enlem.abs() <= 90 &&
+      g.boylam.abs() <= 180;
+
   Future<void> _begeniCevir({bool yalnizBegen = false}) async {
     if (_mesgul) return;
     if (yalnizBegen && g.begendim) {
@@ -403,7 +427,9 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
                     //    yol YOKTU; yanlislikla ev konumunu paylasan kullanicinin
                     //    tek caresi HALA gonderiyi silmekti (begeni/yorum/
                     //    goruntulenme ile birlikte).
-                    if (g.konumVar)
+                    // ⚠️ TURU 104 — konum KART olarak cizildiginde bu cip
+                    //    CIZILMEZ: ayni bilgi ust uste iki kez gorunuyordu.
+                    if (g.konumVar && !_konumIcerik)
                       SwitchListTile(
                         contentPadding: EdgeInsets.zero,
                         value: konumSil,
@@ -785,7 +811,16 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
               kKartYanDolgu,
               8,
             ),
-            child: SesNotuBalon(
+            // ⚠️⚠️⚠️ TURU 105 (DENETIM) — **DEMO KAPISI.**
+            //
+            //	Demo ses kimligi (`demo-ses-1`) sunucuda YOK; oynata
+            //	basilinca `adres()` 404 doner, `catch (_)` YUTAR ve
+            //	HICBIR SEY OLMAZ. Kullanici tasarim demosuna bakarken
+            //	bunu GERCEK HATA sanar (projede kayitli sinif).
+            // ⚠️ Kapi CAGRI YERINDE: `SesNotuBalon` paylasilan bir
+            //    bilesendir ve "demo" kavramini BILMEMELIDIR.
+            child: _demoSar(
+              SesNotuBalon(
               mediaId: g.mediaIds.first,
               // ⚠️ Sure/dalga gonderi hattinda TASINMIYOR (mesajdaki gibi ayri
               //    sutunlar yok). Balon ikisi de bos/0 iken sureyi oynaticidan
@@ -795,7 +830,8 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
               benimMi: g.yazarId == widget.benimId,
               // ⚠️ TURU 104 — akista Instagram tarzi kart (tam genislik,
               //    temadan renk, dokununca ileri sarma).
-              akista: true,
+                akista: true,
+              ),
             ),
           )
         // ---- MEDYA
@@ -876,7 +912,7 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
         //	  · ICERIK — "iste buradayim" -> BU KART
         // ⚠️ Olcut: medya/ses/anket YOKSA konum ICERIKTIR. Aksi halde kart,
         //    fotografin altina ikinci bir govde ekleyip karti sisirirdi.
-        if (g.konumVar && g.mediaIds.isEmpty && g.anket == null)
+        if (_konumIcerik)
           KonumKarti(baslik: g.konum, enlem: g.enlem, boylam: g.boylam),
         if (g.anket != null)
           Padding(
@@ -886,12 +922,22 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
               kKartYanDolgu,
               8,
             ),
-            child: AnketBalon(
-              anket: g.anket!,
-              benimMi: g.yazarId == widget.benimId,
+            // ⚠️⚠️⚠️ TURU 105 (DENETIM) — **DEMO KAPISI.**
+            //
+            //	Demo anketin kimligi `1`; secenege dokunmak GERCEK
+            //	`POST /polls/1/vote` istegini atiyordu. Yani tasarim
+            //	demosu SUNUCUYA YAZMAYA calisiyordu — `demoKimlik()`
+            //	kapisinin (turu 98c) atlandigi tek yuzey burasiydi.
+            child: _demoSar(
+              AnketBalon(
+                anket: g.anket!,
+                benimMi: g.yazarId == widget.benimId,
               // ⚠️ TURU 104 — akis karti TAM GENISLIK; sohbet balonundaki
               //    280 dp siniri burada kartin ortasinda dar bir ada birakiyordu.
-              enGenis: double.infinity,
+                enGenis: double.infinity,
+                // ⚠️ Soru gonderi metniyle AYNIYSA kart onu TEKRAR yazmaz.
+                soruGoster: g.metin.trim() != g.anket!.soru.trim(),
+              ),
             ),
           ),
 

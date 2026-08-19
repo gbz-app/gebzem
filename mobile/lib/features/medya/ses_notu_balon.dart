@@ -312,9 +312,20 @@ class _SesNotuBalonState extends ConsumerState<SesNotuBalon> {
                 Row(
                   children: [
                     Text(
-                      _sure(_caliyor || _konum > Duration.zero
-                          ? _konum
-                          : toplam),
+                      // ⚠️⚠️ **SURE BILINMIYORSA "00:00" YAZILMAZ.**
+                      //	Gonderi hattinda sure sunucudan GELMEZ ve
+                      //	oynaticidan ancak CALINCA ogrenilir. Oynatilmamis
+                      //	kartta "00:00" yazmak "bu ses sifir saniye" der —
+                      //	yani YANLIS BILGI; kullanici da bunu bozuk sanar.
+                      //	"--:--" bilinmedigini DURUSTCE soyler.
+                      // ⚠️ Sureyi onceden ogrenmek icin her karta kaynak
+                      //    yuklemek gerekirdi: akista onlarca ses = onlarca
+                      //    bosa indirme.
+                      toplam == Duration.zero && !_caliyor
+                          ? '--:--'
+                          : _sure(_caliyor || _konum > Duration.zero
+                              ? _konum
+                              : toplam),
                       style: TextStyle(
                         fontSize: 12.5,
                         fontWeight: FontWeight.w600,
@@ -403,7 +414,10 @@ class _SesNotuBalonState extends ConsumerState<SesNotuBalon> {
             child: DecoratedBox(
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(3),
-                color: scheme.onSurface.withValues(alpha: 0.12),
+                // ⚠️ Zemin **0.12 -> 0.30**: olculdu, eski deger ~1.2:1
+                //    kontrast veriyordu ve seridin NEREYE kadar gittigi
+                //    (yani sesin uzunlugu) gorunmuyordu.
+                color: scheme.onSurface.withValues(alpha: 0.30),
               ),
             ),
           ),

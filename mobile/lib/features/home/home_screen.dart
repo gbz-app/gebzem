@@ -23,6 +23,7 @@ import '../sosyal/profil_sayfasi.dart';
 import '../sosyal/reels_sayfasi.dart';
 import '../sosyal/takip_listesi.dart';
 import 'alt_menu.dart';
+import 'ayar_bilesenleri.dart';
 import 'ayarlar_ekrani.dart';
 import '../diyet/diyet_ekranlari.dart';
 import '../diyet/danisan_ekranlari.dart';
@@ -341,271 +342,311 @@ final myProfileProvider = FutureProvider<Map<String, dynamic>>((ref) async {
   return (res.data as Map).cast<String, dynamic>();
 });
 
-/// Faz 1 profil sekmesi: bilgiler + cikis (tam duzenleme Faz 2'de)
+/// ⚠️⚠️⚠️ TURU 105 — **PROFIL / AYARLAR SEKMESI** (kullanici emri + referans
+///	ekran goruntusu: *"profil ayarlarini boyle yap; profile tikladiginda
+///	profile gitsin"*).
+///
+/// ═══════════ ESKI HAL VE NEDEN DEGISTI ═══════════
+///
+/// Sekme, ortada dev bir avatar ve altinda **yirmiden fazla `ListTile`**dan
+/// olusan DUZ bir listeydi: "Profili düzenle" ile "Çıkış yap" arasinda hicbir
+/// gruplama yoktu, hepsi ayni agirlikta ve ayni gorunumdeydi. Kullanici
+/// aradigi ayari tarayarak buluyordu.
+///
+/// Yeni duzen (referans): ustte **dokunulabilir profil karti**, altinda
+/// **gruplanmis kartlar** (Hesap · Icerigim · Etkilesim · Tercihler · Hesabim).
+///
+/// ⚠️⚠️ **PROFIL KARTI PROFILE GIDER** (kullanici emri). Eski halde ustteki
+///	avatar SALT DEKORATIFTI; kendi profiline gitmek icin listede ayri bir
+///	satir aramak gerekiyordu. O satir ("Gönderilerim ve profilim") artik
+///	KALDIRILDI — ayni hedefe iki giris, ikisinin de kesfedilmesini
+///	zorlastiriyordu.
+/// ⚠️ YAPMA: profil kartinin `onTap`ini kaldirma.
+///
+/// ⚠️⚠️ **HICBIR SATIR ULASILAMAZ BIR EKRANA GITMEZ.** Bu projede "arayuz var,
+///	veri/ekran yok" hatasi ALTI kez sahaya cikti; bu yuzden buraya
+///	referanstaki "Password & Security" / "Language" / "Help Center" gibi
+///	satirlar **EKLENMEDI** — karsiliklari YOK. Sifre degistirme yalnizca
+///	"Şifremi unuttum" akisiyla, dil TR sabit, destek ekrani ise hic yok.
 class _ProfileTab extends ConsumerWidget {
   const _ProfileTab();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profile = ref.watch(myProfileProvider);
+    final p = profile.valueOrNull;
+    final isletme = (p?['hesap_turu'] ?? '') == 'isletme';
     final scheme = Theme.of(context).colorScheme;
 
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
       children: [
-        const SizedBox(height: 16),
-        // TURU 74: gerçek profil fotoğrafı (varsa R2'den imzalı adresle).
-        Center(
-          child: Avatar(
-            ad: (profile.valueOrNull?['name'] as String?) ?? '',
-            mediaId: profile.valueOrNull?['avatar_media_id'] as String?,
-            avatarUrl: (profile.valueOrNull?['avatar_url'] as String?) ?? '',
-            cap: 96,
-          ),
-        ),
-        const SizedBox(height: 12),
-        profile.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (_, _) => const SizedBox.shrink(),
-          data: (p) => Column(
-            children: [
-              Text(
-                p['name'] as String? ?? '',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              Text(
-                '@${p['username'] ?? ''}',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: scheme.primary,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                p['phone'] as String? ?? '',
-                style: TextStyle(color: scheme.outline, fontSize: 13),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 24),
-        ListTile(
-          leading: const Icon(LucideIcons.circleUser),
-          title: const Text('Profili düzenle'),
-          subtitle: const Text('Ad, fotoğraf, hakkımda'),
-          trailing: const Icon(LucideIcons.chevronRight, size: 18),
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const ProfilDuzenleEkrani()),
-          ),
-        ),
-        // ⚠️ TURU 74 — ENGELLENENLER. App Store 1.2 (UGC) engellemeyi şart koşuyor;
-        //    engellemek kadar engeli GÖREBİLMEK ve KALDIRABİLMEK de gerekli
-        //    (sohbet ekranına girmeden).
-        // ⚠️ TURU 75 — KENDI SOSYAL PROFILIM. Kullanici kendi gonderilerini,
-        //    takipci/takip sayilarini ve gizlilik ayarini BURADAN gorur.
-        ListTile(
-          leading: const Icon(LucideIcons.grid3x3),
-          title: const Text('Gönderilerim ve profilim'),
-          subtitle: const Text('Takipçiler, takip edilenler, paylaşımlar'),
-          trailing: const Icon(LucideIcons.chevronRight, size: 18),
+        // ═══════════ PROFIL KARTI ═══════════
+        ProfilKarti(
           onTap: () {
-            final id = (profile.valueOrNull?['id'] ?? '').toString();
+            final id = (p?['id'] ?? '').toString();
             if (id.isEmpty) return;
             Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => ProfilSayfasi(userId: id)),
             );
           },
-        ),
-        // ⚠️⚠️ TURU 77 — ISLETME HESABI GIRISI (kullanici emri: "normal ve
-        //    isletme profilleri olacak"). Bu projede "kod var ama hicbir
-        //    dugmeye bagli degil" hatasi BES kez yasandi; giris noktasi
-        //    ozelligin YAZILDIGI turda eklendi.
-        ListTile(
-          leading: const Icon(LucideIcons.store),
-          title: Text(
-            (profile.valueOrNull?['hesap_turu'] ?? '') == 'isletme'
-                ? 'İşletme bilgilerim'
-                : 'İşletme hesabı',
-          ),
-          subtitle: const Text('Kategori, adres, çalışma saatleri, menü'),
-          trailing: const Icon(LucideIcons.chevronRight, size: 18),
-          onTap: () async {
-            await Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const IsletmeDuzenleEkrani()),
-            );
-            ref.invalidate(myProfileProvider);
-          },
-        ),
-        // ⚠️⚠️ TURU 80 — RANDEVULARIM (MUSTERI tarafi). Bu giris OLMASAYDI
-        //    kullanici aldigi randevuyu bir daha GOREMEZ ve IPTAL EDEMEZDI —
-        //    projede ALTI kez yasanan "yazan yol var, okuyan yol yok" sinifi.
-        ListTile(
-          leading: const Icon(LucideIcons.calendarCheck),
-          title: const Text('Randevularım'),
-          subtitle: const Text('Rezervasyon ve randevu taleplerin'),
-          trailing: const Icon(LucideIcons.chevronRight, size: 18),
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const RandevuListesiEkrani()),
-          ),
-        ),
-        // ⚠️ ISLETME tarafi: gelen kutusu + ayarlar. YALNIZ isletme hesabinda
-        //    cizilir — kisisel hesapta ulasilamaz bir ekran olurdu.
-        if ((profile.valueOrNull?['hesap_turu'] ?? '') == 'isletme')
-          ListTile(
-            leading: const Icon(LucideIcons.calendarClock),
-            title: const Text('Randevu ayarları'),
-            subtitle: const Text('Gelen talepler, saat aralığı, kapasite'),
-            trailing: const Icon(LucideIcons.chevronRight, size: 18),
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const RandevuAyarEkrani()),
-            ),
-          ),
-        // ⚠️ ILANLARIM: ilan verme akisinin ikinci giris noktasi (birincisi
-        //    hamburger menudeki "Ilanlar" karti).
-        ListTile(
-          leading: const Icon(LucideIcons.tag),
-          title: const Text('İlanlarım'),
-          trailing: const Icon(LucideIcons.chevronRight, size: 18),
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) =>
-                  const IlanListesiEkrani(benim: true, baslik: 'İlanlarım'),
-            ),
+          cocuk: Row(
+            children: [
+              // ⚠️ TURU 74 — gercek profil fotografi (varsa R2'den imzali
+              //    adresle); yoksa `Avatar` harf yedegine duser.
+              Avatar(
+                ad: (p?['name'] as String?) ?? '',
+                mediaId: p?['avatar_media_id'] as String?,
+                avatarUrl: (p?['avatar_url'] as String?) ?? '',
+                cap: 56,
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: profile.when(
+                  loading: () => const Text('...'),
+                  error: (_, _) => const Text('Profil yüklenemedi'),
+                  data: (v) => Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        v['name'] as String? ?? '',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '@${v['username'] ?? ''}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          color: scheme.onSurface.withValues(alpha: 0.55),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Icon(
+                LucideIcons.chevronRight,
+                size: 20,
+                color: scheme.onSurface.withValues(alpha: 0.35),
+              ),
+            ],
           ),
         ),
-        // ⚠️⚠️ TURU 91 — PROFILDE TAKIP GIRISLERI (kullanici emri:
-        //    *"profilde DIYETIM ve DUGUNUM olsun, HIZMETLERIM olsun,
-        //    oradan takip edebilsin"*).
-        //
-        // ⚠️ "Düğünüm/Hizmetlerim" TEK GIRISTE birlesti: ikisi de
-        //    `tur='talep'` ilanlaridir ve AYRI iki ekran ayni listenin iki
-        //    kopyasi olurdu. Baslik "Taleplerim" — kullanicinin dugun VE
-        //    hizmet taleplerinin ikisini de kapsar.
-        ListTile(
-          leading: const Icon(LucideIcons.clipboardList),
-          title: const Text('Taleplerim'),
-          subtitle: const Text('Düğün · hizmet teklif istekleri'),
-          trailing: const Icon(LucideIcons.chevronRight, size: 18),
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => const IlanListesiEkrani(
-                tur: 'talep',
-                benim: true,
-                baslik: 'Taleplerim',
+
+        // ═══════════ HESAP ═══════════
+        AyarBolumu(
+          baslik: 'Hesap',
+          satirlar: [
+            AyarSatiri(
+              ikon: LucideIcons.circleUser,
+              baslik: 'Profili düzenle',
+              altBaslik: 'Ad, fotoğraf, hakkımda',
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const ProfilDuzenleEkrani()),
               ),
             ),
-          ),
-        ),
-        ListTile(
-          leading: const Icon(LucideIcons.salad),
-          title: const Text('Diyetim'),
-          trailing: const Icon(LucideIcons.chevronRight, size: 18),
-          onTap: () => Navigator.of(
-            context,
-          ).push(MaterialPageRoute(builder: (_) => const DiyetimEkrani())),
-        ),
-        // ⚠️ Basvurularim: turu 90'da YALNIZ ilan listesinin AppBar'indan
-        //    ulasilabiliyordu; profil ikinci ve daha kesfedilebilir giris.
-        ListTile(
-          leading: const Icon(LucideIcons.briefcase),
-          title: const Text('Başvurularım'),
-          trailing: const Icon(LucideIcons.chevronRight, size: 18),
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => const BasvurularimEkrani(tur: 'is'),
+            // ⚠️⚠️ TURU 77 — ISLETME HESABI GIRISI. Bu projede "kod var ama
+            //    hicbir dugmeye bagli degil" hatasi BES kez yasandi.
+            AyarSatiri(
+              ikon: LucideIcons.store,
+              baslik: isletme ? 'İşletme bilgilerim' : 'İşletme hesabı',
+              altBaslik: 'Kategori, adres, çalışma saatleri, menü',
+              onTap: () async {
+                await Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const IsletmeDuzenleEkrani(),
+                  ),
+                );
+                ref.invalidate(myProfileProvider);
+              },
             ),
-          ),
-        ),
-        // ⚠️ ISLETME'ye ozel girisler.
-        if ((profile.valueOrNull?['hesap_turu'] ?? '') == 'isletme') ...[
-          ListTile(
-            leading: const Icon(LucideIcons.megaphone),
-            title: const Text('Gelen talepler'),
-            subtitle: const Text('Teklif verebileceğin istekler'),
-            trailing: const Icon(LucideIcons.chevronRight, size: 18),
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => const IlanListesiEkrani(
-                  tur: 'talep',
-                  baslik: 'Gelen Talepler',
+            // ⚠️⚠️ TURU 80 — RANDEVULARIM (MUSTERI tarafi). Bu giris
+            //    OLMASAYDI kullanici aldigi randevuyu bir daha GOREMEZ ve
+            //    IPTAL EDEMEZDI.
+            AyarSatiri(
+              ikon: LucideIcons.calendarCheck,
+              baslik: 'Randevularım',
+              altBaslik: 'Rezervasyon ve randevu taleplerin',
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const RandevuListesiEkrani(),
                 ),
               ),
             ),
-          ),
-          ListTile(
-            leading: const Icon(LucideIcons.handCoins),
-            title: const Text('Tekliflerim'),
-            trailing: const Icon(LucideIcons.chevronRight, size: 18),
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => const BasvurularimEkrani(tur: 'talep'),
+            // ⚠️ YALNIZ isletme hesabinda: kisisel hesapta ulasilamaz bir
+            //    ekran olurdu.
+            if (isletme)
+              AyarSatiri(
+                ikon: LucideIcons.calendarClock,
+                baslik: 'Randevu ayarları',
+                altBaslik: 'Gelen talepler, saat aralığı, kapasite',
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const RandevuAyarEkrani()),
+                ),
               ),
-            ),
-          ),
-          // ⚠️ YALNIZ DIYETISYEN: baska bir isletme icin "Danışanlarım"
-          //    BOS bir ekran olurdu (sunucu yalniz diyetisyene veri doner).
-          if ((profile.valueOrNull?['isletme_kategori'] ?? '') == 'diyetisyen')
-            ListTile(
-              leading: const Icon(LucideIcons.users),
-              title: const Text('Danışanlarım'),
-              trailing: const Icon(LucideIcons.chevronRight, size: 18),
+          ],
+        ),
+
+        // ═══════════ ICERIGIM ═══════════
+        AyarBolumu(
+          baslik: 'İçeriğim',
+          satirlar: [
+            AyarSatiri(
+              ikon: LucideIcons.tag,
+              baslik: 'İlanlarım',
               onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const DanisanlarimEkrani()),
+                MaterialPageRoute(
+                  builder: (_) =>
+                      const IlanListesiEkrani(benim: true, baslik: 'İlanlarım'),
+                ),
               ),
             ),
-        ],
-        ListTile(
-          leading: const Icon(LucideIcons.bell),
-          title: const Text('Bildirimler'),
-          trailing: const Icon(LucideIcons.chevronRight, size: 18),
-          onTap: () => Navigator.of(
-            context,
-          ).push(MaterialPageRoute(builder: (_) => const BildirimlerSayfasi())),
+            // ⚠️⚠️ TURU 91 — "Düğünüm/Hizmetlerim" TEK GIRISTE birlesti: ikisi
+            //    de `tur='talep'` ilanlaridir ve ayri iki ekran ayni listenin
+            //    iki kopyasi olurdu.
+            AyarSatiri(
+              ikon: LucideIcons.clipboardList,
+              baslik: 'Taleplerim',
+              altBaslik: 'Düğün · hizmet teklif istekleri',
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const IlanListesiEkrani(
+                    tur: 'talep',
+                    benim: true,
+                    baslik: 'Taleplerim',
+                  ),
+                ),
+              ),
+            ),
+            AyarSatiri(
+              ikon: LucideIcons.briefcase,
+              baslik: 'Başvurularım',
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const BasvurularimEkrani(tur: 'is'),
+                ),
+              ),
+            ),
+            AyarSatiri(
+              ikon: LucideIcons.salad,
+              baslik: 'Diyetim',
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const DiyetimEkrani()),
+              ),
+            ),
+            if (isletme) ...[
+              AyarSatiri(
+                ikon: LucideIcons.megaphone,
+                baslik: 'Gelen talepler',
+                altBaslik: 'Teklif verebileceğin istekler',
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const IlanListesiEkrani(
+                      tur: 'talep',
+                      baslik: 'Gelen Talepler',
+                    ),
+                  ),
+                ),
+              ),
+              AyarSatiri(
+                ikon: LucideIcons.handCoins,
+                baslik: 'Tekliflerim',
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const BasvurularimEkrani(tur: 'talep'),
+                  ),
+                ),
+              ),
+              // ⚠️ YALNIZ DIYETISYEN: baska bir isletme icin "Danışanlarım"
+              //    BOS bir ekran olurdu (sunucu yalniz diyetisyene veri doner).
+              if ((p?['isletme_kategori'] ?? '') == 'diyetisyen')
+                AyarSatiri(
+                  ikon: LucideIcons.users,
+                  baslik: 'Danışanlarım',
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const DanisanlarimEkrani(),
+                    ),
+                  ),
+                ),
+            ],
+          ],
         ),
-        ListTile(
-          leading: const Icon(LucideIcons.userRoundCheck),
-          title: const Text('Takip istekleri'),
-          subtitle: const Text('Gizli hesapsan onay bekleyenler'),
-          trailing: const Icon(LucideIcons.chevronRight, size: 18),
-          onTap: () => Navigator.of(
-            context,
-          ).push(MaterialPageRoute(builder: (_) => const TakipIstekleri())),
+
+        // ═══════════ ETKILESIM ═══════════
+        AyarBolumu(
+          baslik: 'Etkileşim',
+          satirlar: [
+            AyarSatiri(
+              ikon: LucideIcons.bell,
+              baslik: 'Bildirimler',
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const BildirimlerSayfasi()),
+              ),
+            ),
+            AyarSatiri(
+              ikon: LucideIcons.userRoundCheck,
+              baslik: 'Takip istekleri',
+              altBaslik: 'Gizli hesapsan onay bekleyenler',
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const TakipIstekleri()),
+              ),
+            ),
+            // ⚠️ TURU 74 — ENGELLENENLER. App Store 1.2 (UGC) engellemeyi sart
+            //    kosuyor; engellemek kadar engeli GOREBILMEK ve KALDIRABILMEK
+            //    de gerekli. ⚠️ YAPMA: bu girisi kaldirma.
+            AyarSatiri(
+              ikon: LucideIcons.ban,
+              baslik: 'Engellenen kişiler',
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const EngellenenlerEkrani()),
+              ),
+            ),
+          ],
         ),
-        ListTile(
-          leading: const Icon(LucideIcons.ban),
-          title: const Text('Engellenen kişiler'),
-          trailing: const Icon(LucideIcons.chevronRight, size: 18),
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const EngellenenlerEkrani()),
-          ),
+
+        // ═══════════ TERCIHLER ═══════════
+        AyarBolumu(
+          baslik: 'Tercihler',
+          satirlar: [
+            AyarSatiri(
+              ikon: LucideIcons.settings,
+              baslik: 'Ayarlar',
+              altBaslik: 'Tema, harita rengi, izinler',
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const AyarlarEkrani()),
+              ),
+            ),
+            // ⚠️ Jeton satiri TIKLANMAZ (`onTap` yok): satin alma/harcama
+            //    ekrani YOK. Dokunulup hicbir sey yapmayan bir satir, olmayan
+            //    bir ozelligi VAR gibi gosterirdi.
+            AyarSatiri(
+              ikon: LucideIcons.coins,
+              baslik: 'Jeton bakiyem',
+              deger: p == null ? '...' : '${p['coin_balance'] ?? 0}',
+            ),
+          ],
         ),
-        ListTile(
-          leading: const Icon(LucideIcons.coins),
-          title: const Text('Jeton bakiyem'),
-          subtitle: Text(
-            profile.valueOrNull != null
-                ? '${profile.valueOrNull!['coin_balance'] ?? 0} jeton'
-                : '...',
-          ),
-        ),
-        const Divider(),
-        // ⚠️⚠️ TURU 81 — AYARLAR (kullanici emri: "ayarlardan beyaz temayi da
-        //    secelim"). Uygulamada BUGUNE KADAR HIC ayarlar ekrani yoktu.
-        ListTile(
-          leading: const Icon(LucideIcons.settings),
-          title: const Text('Ayarlar'),
-          trailing: const Icon(LucideIcons.chevronRight, size: 18),
-          onTap: () => Navigator.of(
-            context,
-          ).push(MaterialPageRoute(builder: (_) => const AyarlarEkrani())),
-        ),
-        const Divider(),
-        ListTile(
-          leading: Icon(LucideIcons.logOut, color: scheme.error),
-          title: Text('Çıkış yap', style: TextStyle(color: scheme.error)),
-          onTap: () => ref.read(authProvider.notifier).logout(),
+
+        // ═══════════ HESABIM ═══════════
+        AyarBolumu(
+          baslik: 'Hesabım',
+          satirlar: [
+            AyarSatiri(
+              ikon: LucideIcons.logOut,
+              baslik: 'Çıkış yap',
+              tehlikeli: true,
+              onTap: () => ref.read(authProvider.notifier).logout(),
+            ),
+          ],
         ),
       ],
     );
