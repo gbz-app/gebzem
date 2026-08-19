@@ -712,7 +712,23 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
                             g.sponsorlu
                                 ? 'Sponsorlu'
                                 : [
-                                    gonderiZamani(g.createdAt),
+                                    // ⚠️⚠️ TURU 115c — ILERI TARIHLI
+                                    //	GONDERIDE zaman yerine
+                                    //	"Zamanlandı" yazar.
+                                    //	`posts.yayin_at` turu 81den beri
+                                    //	sunucuda ve HER satirda donuyordu;
+                                    //	istemci onu HIC okumadigi icin
+                                    //	ozellik YARIM BAGLIYDI — yazar
+                                    //	zamanladigi gonderisini AYIRT
+                                    //	EDEMIYORDU.
+                                    // ⚠️ Rozet YALNIZ GELECEK tarihte
+                                    //    cizilir (`zamanlanmis`);
+                                    //    yayinlanmis gonderide
+                                    //    "Zamanlandı" YALAN olurdu.
+                                    if (g.zamanlanmis)
+                                      'Zamanlandı'
+                                    else
+                                      gonderiZamani(g.createdAt),
                                     // ⚠️ TURU 76: duzenlenmis gonderi GORUNUR isaretlenir.
                                     if (g.duzenlendi) 'düzenlendi',
                                   ].join(' · '),

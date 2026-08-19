@@ -860,7 +860,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                             if (_medyaAcik)
                               IconButton(
                                 tooltip: 'Ekle',
-                                visualDensity: VisualDensity.compact,
+                                // ⚠️ TURU 115c — visualDensity.compact hedefi
+                                //    **40x40 dp**ye dusuruyordu (olculdu).
+                                //    Klavye acikken ekranin EN ALTINDAKI
+                                //    dugme; Apple 44, Material 48 der.
+                                constraints: const BoxConstraints(
+                                  minWidth: 44,
+                                  minHeight: 44,
+                                ),
+                                padding: EdgeInsets.zero,
                                 icon: const Icon(
                                   LucideIcons.paperclip,
                                   size: 20,

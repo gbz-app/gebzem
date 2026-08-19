@@ -355,6 +355,7 @@ class Gonderi {
     this.sponsorlu = false,
     this.sponsorAlan = '',
     this.sponsorCta = '',
+    this.yayinAt,
   });
 
   /// ⚠️⚠️ TURU 98b — PAYLASIM ve REPOST SAYACI **SUNUCUDA YOK**.
@@ -407,6 +408,23 @@ class Gonderi {
 
   /// Sunucudaki `duzenlendi_at != NULL`. Kart "· düzenlendi" etiketi cizer.
   bool duzenlendi;
+
+  /// ⚠️⚠️ TURU 115c — **ILERI TARIHLI PAYLASIM ZAMANI** (`posts.yayin_at`).
+  ///
+  /// ⚠️ Bu alan turu 81'de sunucuya eklendi ve HER gonderi satirinda
+  ///    donduruluyor; `social/handler.go` serhi *"alan donmeden istemci rozeti
+  ///    cizemez"* diyor. Ama istemci onu **HIC OKUMUYORDU** — yani ozellik
+  ///    yarim bagliydi: yazar ileri tarihe zamanladigi gonderisini profilinde
+  ///    normal gonderilerden AYIRT EDEMIYORDU.
+  ///    ("sutun var, okuyan yol yok" sinifinin bu projedeki ONUNCU tekrari.)
+  /// ⚠️ Gecmis bir tarih ROZET URETMEZ: yayinlanmis gonderide "Zamanlandı"
+  ///    yazmak YALAN olurdu (`zamanlanmis` bunu kontrol eder).
+  final DateTime? yayinAt;
+
+  /// Gonderi HENUZ YAYINLANMADI mi? (yalniz YAZARA gorunur — sunucu zaten
+  /// baskasina yayinlanmamis gonderi DONDURMUYOR.)
+  bool get zamanlanmis =>
+      yayinAt != null && yayinAt!.isAfter(DateTime.now().toUtc());
 
   /// TURU 90 - GONDERI KONUMU. Bos ad + 0 koordinat = KONUM YOK.
   ///
@@ -520,6 +538,10 @@ class Gonderi {
     yazarAvatarMediaId: m['yazar_avatar_media_id'] as String?,
     begendim: m['begendim'] == true,
     kaydettim: m['kaydettim'] == true,
+    // ⚠️ TURU 115c — `yayin_at`: sunucu ISO 8601 UTC gonderiyor. Ayristirma
+    //    BASARISIZ olursa `null` (rozet cizilmez) — bozuk bir damga yuzunden
+    //    kart cizimi PATLAMAMALI.
+    yayinAt: DateTime.tryParse((m['yayin_at'] ?? '').toString())?.toUtc(),
     // ⚠️ TURU 83 — GONDERI ANKETI. Sunucu `anket` alanini YALNIZ anketli
     //    gonderilerde gonderir (bkz. `social.satirlariOku`).
     anket: m['anket'] is Map

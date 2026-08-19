@@ -3147,6 +3147,64 @@ const kontrol = (ad, gecti, ek = '') => {
       mahNaN.kod === 400, 'HTTP ' + mahNaN.kod);
   }
 
+  // ==================== TURU 115: /ara (ARAMA UCU) ====================
+  //
+  // ⚠️⚠️ BU UCUN KAPSAMI **SIFIRDI** (denetim bulgusu). Uc turu 115'te
+  //	yazildi, istemcinin BES ARAMA SEKMESINDEN DORDU ona bagli, ama 375
+  //	kontrolun HICBIRI ona bakmiyordu.
+  //	Bu projede turu 113 ve 114'te SQL hatalarini YALNIZ canli e2e yakaladi
+  //	(`go build`+`go vet`+birim testler UCU DE TEMIZ geciyordu) — yani
+  //	kapsamsiz bir uc, sessizce 500 donebilecek bir uctur.
+  {
+    const araG = await j('/posts', {
+      token: Z.token, yontem: 'POST',
+      govde: { tur: 'yazi', metin: 'ara testi zurafali kelime', konum: 'Gebze Merkez' },
+    });
+    const araId = (araG.d || {}).id;
+
+    const a1 = await j('/ara?q=zurafali', { token: Z.token });
+    const a1Ids = (((a1.d || {}).posts) || []).map((x) => x.id);
+    kontrol('TURU 115: /ara metin aramasi calisiyor',
+      a1.kod === 200 && a1Ids.includes(araId),
+      'HTTP ' + a1.kod + ' adet=' + a1Ids.length);
+
+    // ⚠️ ASIL KANIT: yuklem KELIME BAZLI **AND** mi? Iki kelime de gecmeli.
+    //    Turu 93b'de ayni sinif yasandi: iki terim TEK BITISIK ALT DIZE
+    //    araniyordu ve liste KALICI bosaliyordu.
+    const a2 = await j('/ara?q=zurafali%20kelime', { token: Z.token });
+    kontrol('TURU 115: /ara COK KELIMELI arama (AND) calisiyor',
+      a2.kod === 200 && (((a2.d || {}).posts) || []).map((x) => x.id).includes(araId),
+      'HTTP ' + a2.kod);
+
+    // ⚠️ TERS YON: kelimelerden BIRI eslesmiyorsa sonuc BOS olmali (OR degil AND).
+    const a3 = await j('/ara?q=zurafali%20kangurulu', { token: Z.token });
+    kontrol('TURU 115: /ara AND yuklemi — eslesmeyen kelime sonucu ELER',
+      a3.kod === 200 && !(((a3.d || {}).posts) || []).map((x) => x.id).includes(araId),
+      'HTTP ' + a3.kod);
+
+    // ⚠️ KONUM ADI da aranabilir olmali (istemcideki "Yerler" sekmesi buna bagli).
+    const a4 = await j('/ara?q=Merkez&tur=konum', { token: Z.token });
+    kontrol('TURU 115: /ara?tur=konum konum adinda ariyor',
+      a4.kod === 200 && (((a4.d || {}).posts) || []).map((x) => x.id).includes(araId),
+      'HTTP ' + a4.kod);
+
+    // ⚠️ TEK HARF reddedilmeli: `ILIKE '%a%'` TUM tabloyu tarardi.
+    const a5 = await j('/ara?q=a', { token: Z.token });
+    kontrol('TURU 115: /ara tek karakterli sorguyu 400 ile REDDEDER',
+      a5.kod === 400, 'HTTP ' + a5.kod);
+
+    // ⚠️ BILINMEYEN `tur` reddedilmeli (beyaz liste); sessizce yok saymak
+    //    kullaniciya BOS liste gosterip sebebini gizlerdi.
+    const a6 = await j('/ara?q=zurafali&tur=zurafa', { token: Z.token });
+    kontrol('TURU 115: /ara gecersiz turu 400 ile REDDEDER',
+      a6.kod === 400, 'HTTP ' + a6.kod);
+
+    // ⚠️ Content-Type — turu 96i dersi: dogru govde, YANLIS baslik = istemci
+    //    ayristiramaz ve hatayi YUTAR.
+    kontrol('TURU 115: /ara yaniti application/json BASLIGI tasiyor',
+      String(a1.tur || '').includes('application/json'), 'tur=' + a1.tur);
+  }
+
   // ---------- OZET
   const kalan = sonuclar.filter((s) => !s.gecti);
   console.log('\n==================================');

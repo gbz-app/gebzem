@@ -72,10 +72,26 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (c) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+        // ⚠️⚠️⚠️ TURU 115c — `SingleChildScrollView` **SEVK ENGELIYDI**
+        //	(gercek `showModalBottomSheet` ile OLCULDU):
+        //	  360x640 · olcek 2.0 -> **34 px TASMA**
+        //	  320x568 · olcek 1.8 -> **59 px**
+        //	  320x568 · olcek 2.0 -> **149 px**, son madde
+        //	  ("Toplulukları keşfet") **EKRAN DISINDA** = ULASILAMAZ.
+        //
+        // ⚠️⚠️ **TURU 114'UN BIREBIR TEKRARIYDI.** O turda olculup
+        //	`isScrollControlled: true` eklenmisti — ama o bayrak yalnizca
+        //	**TAVANI KALDIRIR**, icerigi KAYDIRILABILIR YAPMAZ. Kardes
+        //	`olustur_menusu.dart` iki parcayi da (bayrak + kaydirma)
+        //	tasiyordu; bu dosyaya YALNIZ BIRI kopyalanmisti.
+        //	**ASIMETRININ KENDISI HATAYDI.**
+        // ⚠️ YAPMA: bu sarmali kaldirma; `isScrollControlled`i tek basina
+        //    yeterli sayma.
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
             const Padding(
               padding: EdgeInsets.fromLTRB(20, 0, 20, 10),
               child: Text(
@@ -133,7 +149,8 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
               'kesfet',
             ),
             const SizedBox(height: 10),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -389,13 +406,17 @@ class _SikGorusulenSerit extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 2, 16, 4),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 2, 16, 4),
             child: Text(
               'Sık görüştüklerin',
+              // ⚠️ TURU 115c — SABIT  idi: acik temada 2,51:1
+              //    (esik 4,5). Serit zemini yok, sayfa zemini uzerinde.
               style: TextStyle(
                 fontSize: 12,
-                color: Color(0xFF9A9AA0),
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.6),
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -433,9 +454,19 @@ class _SikGorusulenSerit extends StatelessWidget {
                           ad,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          // ⚠️⚠️ TURU 115c — SABIT `Colors.white70` idi ve
+                          //	seridin ARKASINDA ZEMIN YOK (sayfa `#F2F2F5`)
+                          //	-> acik temada kontrast **1,09:1**: isimler
+                          //	FIILEN GORUNMUYORDU. Mesajlar ekraninin EN
+                          //	USTUNDEKI serit.
+                          // ⚠️ Ayni dosyadaki `fillColor: 0xFF232326` turu
+                          //    115b'de duzeltilmisti; bu ATLANMISTI — koyu
+                          //    tema sabitleri dosyada TEK TEK aranmali.
+                          style: TextStyle(
                             fontSize: 11,
-                            color: Colors.white70,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurface.withValues(alpha: 0.75),
                           ),
                         ),
                       ],
@@ -648,7 +679,21 @@ class _ChatTile extends ConsumerWidget {
           );
         },
       ),
+      // ⚠️⚠️⚠️ TURU 115c — `mainAxisSize.min` **ZORUNLU** (SDK kaynagindan
+      //	dogrulandi: `material/list_tile.dart` `trailing`e **SABIT 56 dp
+      //	TAVAN** dayatir — `maxHeight: (isDense ? 48.0 : 56.0) + ...`).
+      //	`mainAxisSize.max` ile Column TAM 56 dp olur ve icerik daha uzunsa
+      //	TASAR. Olculen icerik = `29,42 * olcek + 9`:
+      //	  olcek 1.5 -> 53,1 dp (pay 2,9)
+      //	  olcek 1.8 -> 62,0 dp -> **6,0 dp TASMA**
+      //	  olcek 2.0 -> 67,8 dp -> **11,8 dp TASMA**
+      // ⚠️⚠️ Bu tur AGIRLASTIRDI: asagidaki `Visibility(maintainSize)` rozeti
+      //	OKUNMUS satirlarda da yer kaplatiyor, yani tasma artik yalniz
+      //	okunmamis satirlarda degil **HER SATIRDA** olusuyordu.
+      // ⚠️ YAPMA: `min`i kaldirma. ⚠️ YAPMA: `Visibility`yi `if/else`e
+      //    dondurme (o zaman saat satirdan satira 2-3 dp kayar).
       trailing: Column(
+        mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
@@ -874,10 +919,14 @@ Widget _yeniMadde(
             height: 38,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: scheme.primary.withValues(alpha: 0.12),
+              // ⚠️ TURU 115c — `primary@0.12` + mor ikon idi; kardes
+              //    `olustur_menusu._satir` notr gri kullaniyordu ve iki panel
+              //    yan yana FARKLI dilde duruyordu. Serh "AYNI olculer" diyor
+              //    ama RENK icin yanlis izlenim veriyordu.
+              color: scheme.onSurface.withValues(alpha: 0.06),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(ikon, size: 19, color: scheme.primary),
+            child: Icon(ikon, size: 19, color: scheme.onSurface),
           ),
           const SizedBox(width: 13),
           Expanded(

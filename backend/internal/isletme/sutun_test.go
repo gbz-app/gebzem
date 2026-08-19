@@ -549,3 +549,78 @@ func yorumsuzKaynak(t *testing.T, dosya string) string {
 	}
 	return strings.Join(temiz, "\n")
 }
+
+// ⚠️⚠️⚠️ TURU 115c — `Yakinimda()` MUHAFIZI (denetim bulgusu).
+//
+// Bu sorgu repodaki EN YENI ve EN BUYUK isletme sorgusu (18 sutun) ve
+// **KORUMASIZDI**: yukaridaki testler yalniz `Detay`, `Liste` ve `Urun`
+// govdelerini olcuyor. Turu 115'te bu sorguya BES sutun eklendi
+// (`kapak_media_id`, `puan`, `puan_sayisi`, `min_tutar_kurus`, `kampanyalar`)
+// ve hicbir muhafiz o degisikligi GORMEDI.
+//
+// ⚠️⚠️ NEDEN ONEMLI: `Yakinimda` govdesi de kardesleri gibi
+//
+//	if err := rows.Scan(...); err != nil { continue }
+//
+// deseniyle yaziliyor. SELECT ile Scan sayisi ayrisirsa Postgres hata doner,
+// `continue` her satiri ATLAR ve **"Yakınımda" listesi IZSIZ BOSALIR** —
+// derleme temiz, log sessiz, `flutter analyze` temiz. Bu sinif bu projede
+// turu 76'da "Kaydedilenler"i BOMBOS birakmisti.
+//
+// ⚠️ Kardeslerinden FARKI: burada SIRA olculmuyor. Gerekce durust olsun diye
+//    yazili — `Yakinimda`nin Scan degiskenleri sutun adlarindan cok farkli
+//    ve tam bir istisna haritasi yazmak, bugun olmayan bir hatayi onlemek
+//    icin buyuk ve kirilgan bir tablo demekti. SAYI kontrolu, sessiz satir
+//    atlama sinifini (asil risk) ZATEN kapatir.
+// ⚠️ YAPMA: bu testi silme. `Yakinimda`ya sutun eklerken SELECT + Scan
+//    IKISINI BIRLIKTE guncelle.
+func TestYakinimdaSelectVeScanHizali(t *testing.T) {
+	govde := govdeAlDosya(t, "yakinimda.go", "func (h *Handler) Yakinimda(")
+
+	ham := regexp.MustCompile(`(?s)SELECT\s+(.*?)\s+FROM`).FindStringSubmatch(govde)
+	if ham == nil {
+		t.Fatal("Yakinimda icinde SELECT ... FROM bulunamadi — yazim " +
+			"degistiyse BU DESENI DE guncelle")
+	}
+	var sutunlar []string
+	derinlik, son := 0, 0
+	g := ham[1]
+	for i, c := range g {
+		switch c {
+		case '(':
+			derinlik++
+		case ')':
+			derinlik--
+		case ',':
+			if derinlik == 0 {
+				sutunlar = append(sutunlar, strings.TrimSpace(g[son:i]))
+				son = i + 1
+			}
+		}
+	}
+	sutunlar = append(sutunlar, strings.TrimSpace(g[son:]))
+
+	scan := regexp.MustCompile(`(?s)rows\.Scan\((.*?)\)\s*;?\s*\w*\s*!=\s*nil`).
+		FindStringSubmatch(govde)
+	if scan == nil {
+		t.Fatal("Yakinimda icinde rows.Scan(...) bulunamadi")
+	}
+	var hedefler []string
+	for _, p := range strings.Split(scan[1], ",") {
+		p = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(p), "&"))
+		if p != "" {
+			hedefler = append(hedefler, p)
+		}
+	}
+	if len(sutunlar) != len(hedefler) {
+		t.Fatalf(
+			"SELECT %d sutun donduruyor ama Scan %d alan bekliyor — "+
+				"HER SATIR SESSIZCE ATLANIR (\"Yakınımda\" BOMBOS gorunur)."+
+				"\nSELECT: %v",
+			len(sutunlar), len(hedefler), sutunlar)
+	}
+	if len(sutunlar) < 12 {
+		t.Fatalf("SELECT beklenenden kisa (%d) — ayristirma bozulmus olabilir",
+			len(sutunlar))
+	}
+}

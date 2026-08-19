@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -1036,8 +1037,16 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
   Widget _sekmeSeridi() {
     final scheme = Theme.of(context).colorScheme;
     final l = _sekmeler;
+    // ⚠️⚠️ TURU 115c — YUKSEKLIK **OLCEKTEN TURETILIR**, sabit 46 DEGIL.
+    //	Olculdu: icerik = max(ikon 17, etiket) + 6 + 2,5 ->
+    //	  olcek 1.0 = 26,5 · 1.5 = 35,5 · 1.8 = 41,5 · **2.0 = 44,5**
+    //	yani 46 dp tavaninda pay yalnizca **1,5 dp** kaliyordu ve 2.1de
+    //	TASACAKTI (iOS erisilebilirlik olcekleri 2.0i asabilir).
+    // ⚠️ Taban 46 KORUNUR (kullanicinin gordugu olcu); yalniz gerektiginde
+    //    buyur. ⚠️ YAPMA: sabit sayiya geri donme.
+    final olcek = MediaQuery.textScalerOf(context);
     return SizedBox(
-      height: 46,
+      height: math.max(46.0, olcek.scale(14.5) * 1.252 + 25.5),
       child: ListView.builder(
         controller: _seritCtrl,
         scrollDirection: Axis.horizontal,
