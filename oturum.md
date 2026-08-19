@@ -7593,3 +7593,17 @@ YanitlariGosterSatiri) · `gonderi_hareketleri.dart` · `yorum_paneli.dart` ·
 - Profilde `PageView` **kullanılmadı** (farklı yükseklikler + tüm sekmeleri canlı
   tutması); jest + hız eşiği tercih edildi.
 - Randevuda **ay ızgarası çizilmedi** — sunucu "müsait günler" döndürmüyor.
+
+### Yayın (19 Ağustos 17:27)
+- android **32262794755** + ios **32262799196** (`c0e1bca`)
+- R2: apk 122568143 (580dcb70) · ipa 31718718 (627ef9b6) · index 14914 (c6e99595)
+  · surum.json 48 (ea37d99c) — **CDN dördü de birebir**, purge OK
+- Backend `40bac75` deploy + health ok + **canlıda 375/375 uçtan uca**
+- Şema değişmedi → **DB truncate edilmedi**, hesaplar duruyor
+- ⚠️ Adres: https://indir.gebzem.app/index.html?v=20260819-1727
+
+### Denetimin en değerli bulgusu
+Turu 113'ün commit mesajı "FAB kaldırıldı" diyordu ama `live_tab.dart`ta o commit
+**yalnızca 3 satır eklemiş, 1 satır silmişti** (boş durum metni). FAB olduğu gibi
+duruyordu. **Ders: bir değişikliğin yapıldığını commit mesajından değil gövdeden
+doğrula.**

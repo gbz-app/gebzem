@@ -25,6 +25,43 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
      olcegini geri aliyor · kompakt kart 1.3'te tasiyor · kategori basligi yan
      dugmelere biniyor · zaman damgasinda overflow yok · 11 altinda 8 nokta).
      Hepsi belgede olculmus haliyle yazili.
+- **KALDIGIMIZ YER (19 Agu 17:27): TURU 114 YAYINLANDI** — android
+  **32262794755** + ios **32262799196** (**c0e1bca**), R2 apk=122568143
+  (md5 580dcb70) ipa=31718718 (md5 627ef9b6) index=14914 (md5 c6e99595)
+  **surum.json=48 (md5 ea37d99c)**, purge OK, **CDN DORDU DE BIREBIR**,
+  debug imza YOK, `HARITA=true` iki logda da dogrulandi, iki artifact'te de
+  turu 114 dizeleri VAR (Mahalle · Topluluk oluştur · Düğün & Organizasyon ·
+  İşletme hesabını aç).
+  ✅ **BACKEND DEPLOY** (40bac75) + health ok + **CANLIDA 375/375 UCTAN UCA**.
+  `flutter analyze` **0 hata 0 uyari** · `flutter test` **40/40** ·
+  go build+vet+test temiz.
+  ⚠️ **SEMA DEGISMEDI -> DB TRUNCATE EDILMEDI** (hesaplar/isletmeler duruyor).
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260819-1727
+- ⚠️⚠️⚠️ **TURU 114 DENETIMI (38 ajan: 6 mercek + her bulguya AYRI curutucu) —
+  32 ham bulgu, 19 ONAY, 13 CURUTULDU. EN AGIRI:**
+  · **TURU 113'UN "FAB KALDIRILDI" IDDIASI GOVDEDE YAPILMAMISTI.** O commit
+    `live_tab.dart`ta yalnizca 3 satir ekleyip 1 satir silmis (bos durum
+    metni); "Yayın başlat" FAB'i OLDUGU GIBI duruyordu ve kullanicinin 5.
+    maddesi YARIM kalmisti. **DERS: bir degisikligin yapildigini COMMIT
+    MESAJINDAN DEGIL, GOVDEDEN dogrula.**
+  · **Mesajlar "+" sheet'i tasiyordu** (`isScrollControlled` yok): 360x640'ta
+    olcek 1.5'te **94 px**, son madde ekran disinda ve `tester.tap` ISKALIYOR.
+    411x896 test cihazinda TASMIYOR. (Turu 90b'de `olustur_menusu.dart`ta
+    olculup duzeltilen hatanin aynisi; bu sheet dersi almamisti.)
+  · **Olusturulan topluluk KAYBOLUYORDU**: `KanalOlustur` id donduruyor ama
+    atiliyordu; kanallar AYRI `channels` tablosunda ve `ListChats` yalniz
+    `chats`ten okuyor -> topluluk mesaj listesinde YAPISAL OLARAK gorunemez.
+    Kullanici tekrar tekrar deniyor, her deneme GERCEK kanal aciyor, 10.
+    denemede kota hatasi -> arkada 10 YETIM topluluk.
+  · Mahalle'de konum reddedilince **izin IKI KEZ soruluyordu**
+    (`_bolmeYukle` iki turlu, durma olcutu `_bolmeYuklendi` isaretlenmiyordu).
+  · Talep izgarasi 411 dp/olcek 1.5'te **21.36 dp**, sihirbaz alt cubugu
+    360 dp/olcek 1.3'te dugmenin **yalnizca 121 dp'si goruntudeydi**.
+  · Basvuru ozet seridi acik temada **~1.9:1** (amber yazi/zemin ayni renkti).
+  · Sihirbazda geri tusu ekrani KAPATIYORDU (adim adim degil) -> `PopScope`.
+  · Demoda liste sonundaki yukleme gostergesi **sonsuza kadar donuyordu**.
+  · Terminoloji iki dildeydi ("Topluluk" menude, "Kanal" ekranlarda) -> 18
+    gorunen dize cevrildi; sinif/uc/tablo adlari DOKUNULMADI.
 - ⚠️⚠️⚠️ **TURU 114 — AKIS SECICISI GERI GELDI: `Arkadaş · Keşfet · Mahalle`.**
   Turu 113 seciciyi kullanicinin ONCEKI emriyle kaldirmisti; kullanici bu turda
   GERI istedi ve ucuncu ogeye YENI BIR ANLAM verdi.
