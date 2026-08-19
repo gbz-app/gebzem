@@ -678,6 +678,16 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
           GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
+            // ⚠️⚠️ TURU 115 — **`padding` ACIKCA VERILIR.**
+            //
+            //	`BoxScrollView` `padding` verilmediginde `MediaQuery`nin
+            //	dolgusunu KENDILIGINDEN uygular. Alt sayfa durum cubugunun
+            //	altina kadar acilabildigi icin bu dolgu ~48 dp cikiyor ve
+            //	"KATEGORİLER" basligi ile izgara arasinda KOCAMAN BIR BOSLUK
+            //	olusuyordu (emulatorde gorundu).
+            // ⚠️ Ayni sinif turu 108'de profil kapaginda yasandi
+            //    (`extendBodyBehindAppBar` + `BoxScrollView`).
+            padding: EdgeInsets.zero,
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 4,
               crossAxisSpacing: 12,
