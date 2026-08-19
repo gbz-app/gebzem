@@ -1,23 +1,34 @@
 library;
 
-import 'package:flutter/material.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'yorum_satiri.dart';
 
-import '../isletme/isletme_kart.dart' show kYuzeyGri, kYanBosluk;
-import 'gonderi_karti.dart' show sayiBicimle;
-
-/// ⚠️⚠️⚠️ TURU 98i — **MOCKUP YORUMLAR** (kullanici emri + Threads ekran
-///	goruntuleri: *"gonderiye tikladigimda boyle istiyorum gonderi
-///	detayini, yorum mekanizmalari da boyle olmali, mockup yorumlar ekle,
-///	gonderi sahibi begenisi / gonderi sahibi yorumu gibi"*).
+/// ⚠️⚠️⚠️ TURU 102 — **DEMO YANIT ICERIGI** (kullanici emri: *"ona gore
+///	gonderiler paylas dedim sana, boyle anlasilmaz ki"*).
+///
+/// Kullanicinin gonderdigi UC Threads ekran goruntusu UC AYRI durumu
+/// gosteriyordu ve turu 101'de bunlarin yalnizca BIRI ekranda goruluyordu:
+///
+///	(1) akista gonderinin ALTINDA **YAZI** yaniti, duz dikey cizgiyle bagli
+///	(2) ayni yer, ama yanit **GORSEL** tasiyor
+///	(3) detayda kok yorum + kivrimli cizgi + "Yanıtları göster"
+///
+/// ⚠️⚠️ **TURU 101'IN OLCULEN KUSURU:** `demoAkisYaniti` yaniti
+///	`gonderiId.length % 2` ile dagitiyordu; sonuc: **uc gonderi de AYNI
+///	yorumu** gosteriyordu (foto·galeri·yazi -> hepsi `l.first`), gorselli
+///	ve videolu yanit akista **HIC CIKMIYORDU**. Ustelik `demoYorumlar`
+///	parametresini KULLANMIYOR, her gonderinin detayinda AYNI ALTI yorumu
+///	aciyordu. Yani mimari dogruydu ama EKRANDA GORUNMUYORDU.
+///
+/// **YENI KURAL: dagitim ACIK MATRISTIR** (`switch`), tesaduf degil. Bir
+/// gonderinin hangi yaniti gosterecegi ve detayinda hangi yorumlarin
+/// bulunacagi burada TEK TEK yazilidir.
 ///
 /// ⚠️ **BU BIR GORUNUM DEMOSUDUR.** Sunucudaki gercek yorum hatti
 ///	(`post_comments` + `YorumlarSayfasi`) DEGISMEDI; bu dosya yalnizca
 ///	`kDemoAkis` acikken cizilir.
 /// ⚠️ Gercek ozellik yazilirken sunucunun donmesi gerekenler: yorumun
-///	`onayli` (mavi tik) bayragi · `sahibi` (gonderi sahibi mi) ·
-///	repost/paylas sayaclari · "yanitlari goster" icin ALT YANIT SAYISI.
-///	Bugun bunlarin HICBIRI donmuyor.
+///	`onayli` bayragi · ALT YANIT LISTESI · yorum medyasi · yazarin
+///	begenisi · repost/paylas sayaclari. Bugun bunlarin HICBIRI donmuyor.
 class DemoYorum {
   const DemoYorum({
     required this.ad,
@@ -25,13 +36,12 @@ class DemoYorum {
     required this.zaman,
     required this.metin,
     this.onayli = false,
-    this.sahibi = false,
     this.begeni = 0,
     this.yorum = 0,
     this.repost = 0,
     this.paylas = 0,
     this.begendim = false,
-    this.yanitAdedi = 0,
+    this.sahipBegendi = false,
     this.yanitlar = const [],
     this.medya = const [],
     this.medyaTur = const [],
@@ -45,32 +55,44 @@ class DemoYorum {
   /// Mavi tik.
   final bool onayli;
 
-  /// ⚠️ Gonderi SAHIBININ yorumu — Threads bunu ayrica isaretler; kullanici
-  ///    *"gonderi sahibi yorumu gibi"* diyerek bunu istedi.
-  final bool sahibi;
-
   final int begeni;
   final int yorum;
   final int repost;
   final int paylas;
 
-  /// ⚠️ Gonderi SAHIBI bu yorumu begendi mi (Threads: "Yazar begendi").
+  /// **BEN** begendim (kalp dolu baslar).
   final bool begendim;
 
-  /// "Yanıtları göster" satiri icin.
-  final int yanitAdedi;
+  /// ⚠️⚠️ **GONDERI SAHIBI** bu yaniti begendi (Threads: kucuk kirmizi kalp +
+  ///	yazarin minik avatari). Turu 101'de bu alan YOKTU ve cevirici
+  ///	`sahipBegendi: d.begendim` yaziyordu — ikisi FARKLI SEYDIR; "ben
+  ///	begendim" ile "yazar begendi" ayni kaynaktan beslenince rozet
+  ///	kullanicinin kendi dokunusuyla belirir gorunuyordu.
+  final bool sahipBegendi;
 
   final List<DemoYorum> yanitlar;
 
-  /// ⚠️ TURU 101 — YORUMDA MEDYA (kullanici referansi: Threads yorumlarinda
-  ///    fotograf/video var). Kimlikler `demo-` onekli oldugu icin gri yer
-  ///    tutucu cizilir; sahte fotograf uretilmez.
+  /// ⚠️ Yorumda medya. Kimlikler `demo-` onekli oldugu icin gri yer tutucu
+  ///    cizilir; sahte fotograf uretilmez.
   final List<String> medya;
+
+  /// `image` | `video` — ⚠️ **OKUNMASI ZORUNLU**: turu 101'de bu alan
+  /// tasiniyordu ama hicbir yerde okunmuyordu ve videolu yorum
+  /// `MedyaGorsel`e dusup KIRIK GORSEL ciziyordu (turu 83b dersinin
+  /// tekrari). `YorumSatiri` artik tur kontrolu yapar.
   final List<String> medyaTur;
 }
 
-/// Demo yorumlari — gonderi kimligine gore.
-List<DemoYorum> demoYorumlar(String gonderiId) => const [
+// ---------------------------------------------------------------------------
+// ⚠️ GONDERI BASINA AYRI YORUM SETI. Ayni ad + ayni metin IKI gonderide
+//    tekrarlanmaz: tekrar, listenin "kopyala-yapistir" gorunmesine yol acar
+//    ve kullanici mimariyi degil TEKRARI fark eder.
+// ⚠️ Her listenin **0. ogesi** akista gosterilecek yanittir (bkz.
+//    `demoAkisYaniti`); sirayi degistirirsen akistaki yanit da degisir.
+// ---------------------------------------------------------------------------
+
+/// `foto` — Ayşe Demir'in sahil fotografi. **Akista YAZI yaniti** (durum 1).
+const List<DemoYorum> _foto = [
   DemoYorum(
     ad: 'Mehmet Kaya',
     kullaniciAdi: 'mehmetkaya',
@@ -78,11 +100,10 @@ List<DemoYorum> demoYorumlar(String gonderiId) => const [
     onayli: true,
     metin: 'Bu manzara için Gebze’ye gelmeye değer.',
     begeni: 825,
-    yorum: 49,
+    yorum: 2,
     repost: 3,
     paylas: 20,
-    begendim: true,
-    yanitAdedi: 2,
+    sahipBegendi: true,
     yanitlar: [
       DemoYorum(
         ad: 'Zeynep Ak',
@@ -91,30 +112,33 @@ List<DemoYorum> demoYorumlar(String gonderiId) => const [
         metin: 'Aynen, akşamüstü çok güzel oluyor.',
         begeni: 31,
       ),
+      DemoYorum(
+        ad: 'Ayşe Demir',
+        kullaniciAdi: 'aysedemir',
+        zaman: '2dk',
+        metin: 'Saat yedi buçuk gibi gidin, en güzel o vakit.',
+        begeni: 18,
+      ),
     ],
   ),
-  // ⚠️ TURU 101 — GORSELLI YORUM (Threads referansi).
   DemoYorum(
     ad: 'Selma Duman',
-    kullaniciAdi: 'selma.dman',
+    kullaniciAdi: 'selmaduman',
     zaman: '23s',
     metin: 'Çok güzelmiş, biz de geçen hafta oradaydık.',
     begeni: 870,
-    yorum: 28,
+    yorum: 1,
     repost: 2,
     begendim: true,
-    medya: ['demo-yorum-1'],
+    medya: ['demo-yorum-foto-1'],
     medyaTur: ['image'],
-    yanitAdedi: 3,
     yanitlar: [
       DemoYorum(
         ad: 'Ayşe Demir',
         kullaniciAdi: 'aysedemir',
         zaman: '20s',
-        sahibi: true,
         metin: 'Çok iyi olmuş!',
         begeni: 36,
-        yorum: 1,
       ),
     ],
   ),
@@ -122,22 +146,18 @@ List<DemoYorum> demoYorumlar(String gonderiId) => const [
     ad: 'Ayşe Demir',
     kullaniciAdi: 'aysedemir',
     zaman: '5dk',
-    sahibi: true,
     metin: 'Teşekkürler! Sahil yolunun sonundan çektim.',
     begeni: 96,
-    yorum: 4,
     paylas: 2,
   ),
-  // ⚠️ VIDEOLU YORUM
   DemoYorum(
     ad: 'Enes Varol',
-    kullaniciAdi: 'eenesvarol',
+    kullaniciAdi: 'enesvarol',
     zaman: '2g',
-    metin: 'Hayat detaylarla güzel',
+    metin: 'Aynı yerden dün akşam.',
     begeni: 194,
-    yorum: 3,
-    begendim: true,
-    medya: ['demo-yorum-2'],
+    sahipBegendi: true,
+    medya: ['demo-yorum-foto-2'],
     medyaTur: ['video'],
   ),
   DemoYorum(
@@ -147,240 +167,366 @@ List<DemoYorum> demoYorumlar(String gonderiId) => const [
     metin: 'Hangi saatte gittin? Kalabalık mıydı?',
     begeni: 9,
     yorum: 1,
+    yanitlar: [
+      DemoYorum(
+        ad: 'Ayşe Demir',
+        kullaniciAdi: 'aysedemir',
+        zaman: '10dk',
+        metin: 'Yedi buçuk gibiydi, sakindi.',
+        begeni: 6,
+      ),
+    ],
   ),
   DemoYorum(
     ad: 'Gebze Kebap Salonu',
     kullaniciAdi: 'gebzekebap',
     zaman: '20dk',
-    metin: 'Dönüşte bekleriz',
+    metin: 'Dönüşte bekleriz.',
     begeni: 4,
   ),
 ];
 
-/// Akista gosterilecek TEK yanit (Threads: gonderinin altinda bir yanit
-/// gorunur ve sola dogru bir baglanti cizgisi ceker).
-DemoYorum? demoAkisYaniti(String gonderiId) {
-  final l = demoYorumlar(gonderiId);
-  // ⚠️ Her gonderide degil: kullanici *"anasayfada BAZEN yorumlari
-  //    gosteriyor"* dedi. Kimligin uzunluguna gore basit bir dagitim.
-  if (gonderiId.length % 2 == 1) return null;
-  return l.first;
-}
+/// `galeri` — Mehmet Kaya'nin kahvalti turu. **Akista GORSELLI yanit**
+/// (kullanicinin 2. ekran goruntusu: *"burada yorum yerine resim
+/// gosterilmis"*).
+const List<DemoYorum> _galeri = [
+  DemoYorum(
+    ad: 'Buse Aydın',
+    kullaniciAdi: 'buseaydin',
+    zaman: '35dk',
+    metin: 'Serpme kahvaltı buradaydı sanırım.',
+    begeni: 412,
+    yorum: 2,
+    repost: 4,
+    sahipBegendi: true,
+    medya: ['demo-yorum-galeri-1'],
+    medyaTur: ['image'],
+    yanitlar: [
+      DemoYorum(
+        ad: 'Mehmet Kaya',
+        kullaniciAdi: 'mehmetkaya',
+        zaman: '30dk',
+        metin: 'Evet, tam orası.',
+        begeni: 21,
+      ),
+      DemoYorum(
+        ad: 'Kerem Şahin',
+        kullaniciAdi: 'keremsahin',
+        zaman: '28dk',
+        metin: 'Kişi başı ne tuttu?',
+        begeni: 7,
+      ),
+    ],
+  ),
+  DemoYorum(
+    ad: 'Mehmet Kaya',
+    kullaniciAdi: 'mehmetkaya',
+    zaman: '1sa',
+    metin: 'Üç mekân gezdik, en iyisi sonuncusuydu.',
+    begeni: 88,
+    paylas: 3,
+  ),
+  DemoYorum(
+    ad: 'Hakan Er',
+    kullaniciAdi: 'hakaner',
+    zaman: '52dk',
+    onayli: true,
+    metin: 'Gebze’de kahvaltı işi ciddi.',
+    begeni: 233,
+    begendim: true,
+  ),
+  DemoYorum(
+    ad: 'Nazlı Toprak',
+    kullaniciAdi: 'naztoprak',
+    zaman: '44dk',
+    metin: 'Adresi paylaşır mısın?',
+    begeni: 12,
+    yorum: 1,
+    yanitlar: [
+      DemoYorum(
+        ad: 'Mehmet Kaya',
+        kullaniciAdi: 'mehmetkaya',
+        zaman: '40dk',
+        metin: 'Mesajdan attım.',
+        begeni: 5,
+      ),
+    ],
+  ),
+];
 
-/// ⚠️⚠️ TURU 98i — THREADS TARZI YORUM SATIRI. Detay ekrani ve akistaki
-///	tek-yanit blogu AYNI govdeyi kullanir (iki kopya drift ederdi).
-class DemoYorumSatiri extends StatefulWidget {
-  const DemoYorumSatiri({
-    super.key,
-    required this.y,
-    this.cizgi = false,
-    this.girinti = 0,
-    this.yanitlariGoster = true,
+/// `video` — Kuaför Serkan'in acilisi. **Akista VIDEOLU yanit.**
+const List<DemoYorum> _video = [
+  DemoYorum(
+    ad: 'Onur Baş',
+    kullaniciAdi: 'onurbas',
+    zaman: '3sa',
+    metin: 'Açılıştan bir kare daha.',
+    begeni: 176,
+    yorum: 1,
+    sahipBegendi: true,
+    medya: ['demo-yorum-video-1'],
+    medyaTur: ['video'],
+    yanitlar: [
+      DemoYorum(
+        ad: 'Kuaför Serkan',
+        kullaniciAdi: 'kuaforserkan',
+        zaman: '2sa',
+        metin: 'Eline sağlık!',
+        begeni: 12,
+      ),
+    ],
+  ),
+  DemoYorum(
+    ad: 'Derya Kılıç',
+    kullaniciAdi: 'deryakilic',
+    zaman: '4sa',
+    onayli: true,
+    metin: 'Hayırlı olsun, çok şık olmuş.',
+    begeni: 512,
+    yorum: 2,
+    repost: 6,
+    yanitlar: [
+      DemoYorum(
+        ad: 'Kuaför Serkan',
+        kullaniciAdi: 'kuaforserkan',
+        zaman: '3sa',
+        metin: 'Teşekkür ederim.',
+        begeni: 9,
+      ),
+      DemoYorum(
+        ad: 'Sinem Ateş',
+        kullaniciAdi: 'sinemates',
+        zaman: '3sa',
+        metin: 'Randevu alınıyor mu?',
+        begeni: 4,
+      ),
+    ],
+  ),
+  DemoYorum(
+    ad: 'Kuaför Serkan',
+    kullaniciAdi: 'kuaforserkan',
+    zaman: '5sa',
+    metin: 'Gelen herkese teşekkürler.',
+    begeni: 143,
+  ),
+  DemoYorum(
+    ad: 'Murat Genç',
+    kullaniciAdi: 'muratgenc',
+    zaman: '2sa',
+    metin: 'Fiyat listesi var mı?',
+    begeni: 18,
+  ),
+];
+
+/// `konum` — Gebze Kebap Salonu. **Akista KISA YAZI yaniti.**
+const List<DemoYorum> _konum = [
+  DemoYorum(
+    ad: 'Sinem Ateş',
+    kullaniciAdi: 'sinemates',
+    zaman: '18dk',
+    metin: 'Akşam geliyoruz.',
+    begeni: 7,
+  ),
+  DemoYorum(
+    ad: 'Murat Genç',
+    kullaniciAdi: 'muratgenc',
+    zaman: '25dk',
+    metin: 'Park yeri var mı?',
+    begeni: 5,
+    yorum: 1,
+    yanitlar: [
+      DemoYorum(
+        ad: 'Gebze Kebap Salonu',
+        kullaniciAdi: 'gebzekebap',
+        zaman: '22dk',
+        metin: 'Arka sokakta yer bulabilirsiniz.',
+        begeni: 3,
+      ),
+    ],
+  ),
+];
+
+/// `anket` — Usta Döner & Pide.
+const List<DemoYorum> _anket = [
+  DemoYorum(
+    ad: 'Nazlı Toprak',
+    kullaniciAdi: 'naztoprak',
+    zaman: '2sa',
+    metin: 'Sahil dedim ama merkez de olur.',
+    begeni: 64,
+  ),
+  DemoYorum(
+    ad: 'Kerem Şahin',
+    kullaniciAdi: 'keremsahin',
+    zaman: '3sa',
+    metin: 'Havaya bakmak lazım.',
+    begeni: 21,
+  ),
+  DemoYorum(
+    ad: 'Usta Döner & Pide',
+    kullaniciAdi: 'ustadoner',
+    zaman: '1sa',
+    metin: 'Oy verenlere teşekkürler, sonuç akşam belli olacak.',
+    begeni: 15,
+  ),
+];
+
+/// `ses` — Zeynep Ak'in ses notu.
+const List<DemoYorum> _ses = [
+  DemoYorum(
+    ad: 'Ali Yıldız',
+    kullaniciAdi: 'aliyildiz',
+    zaman: '1sa',
+    metin: 'Sesin çok net gelmiş.',
+    begeni: 11,
+  ),
+  DemoYorum(
+    ad: 'Zeynep Ak',
+    kullaniciAdi: 'zeynepak',
+    zaman: '50dk',
+    metin: 'Telefonla kaydettim, hiç uğraşmadım.',
+    begeni: 4,
+  ),
+];
+
+/// `yazi` — Ali Yıldız'in trafik notu.
+const List<DemoYorum> _yazi = [
+  DemoYorum(
+    ad: 'Hakan Er',
+    kullaniciAdi: 'hakaner',
+    zaman: '40dk',
+    onayli: true,
+    metin: 'Sabah yedide çıkanlar bilir.',
+    begeni: 33,
+  ),
+  DemoYorum(
+    ad: 'Buse Aydın',
+    kullaniciAdi: 'buseaydin',
+    zaman: '1sa',
+    metin: 'Bugün gerçekten rahattı.',
+    begeni: 12,
+  ),
+  DemoYorum(
+    ad: 'Ali Yıldız',
+    kullaniciAdi: 'aliyildiz',
+    zaman: '30dk',
+    metin: 'Akşam ne olacak bakalım.',
+    begeni: 5,
+  ),
+];
+
+/// Gonderi detayinda gosterilecek yorumlar — **her gonderi icin AYRI liste.**
+///
+/// ⚠️ Turu 101'de bu fonksiyon `gonderiId` parametresini HIC KULLANMIYORDU;
+///    kullanici hangi gonderiye girerse girsin AYNI alti yorumu goruyordu.
+List<DemoYorum> demoYorumlar(String gonderiId) => switch (gonderiId) {
+  'foto' => _foto,
+  'galeri' => _galeri,
+  'video' => _video,
+  'konum' => _konum,
+  'anket' => _anket,
+  'ses' => _ses,
+  'yazi' => _yazi,
+  _ => const [],
+};
+
+/// Akista gonderinin ALTINDA gosterilecek TEK yanit (Threads deseni).
+///
+/// ⚠️⚠️ **ACIK MATRIS.** Kullanici *"anasayfada BAZEN yorumlari gosteriyor"*
+///	dedi: sekiz gonderiden **dordu** yanit tasir ve ucu FARKLI TURDEDIR —
+///	yazi · gorsel · video · kisa yazi. Boylece kullanici mimarinin uc
+///	halini de tek ekranda gorur.
+/// ⚠️ Sponsorlu gonderi ve gercek gonderiler cagri yerinde ZATEN eleniyor
+///    (`gonderi_karti.dart` `_akisYaniti` kapisi).
+DemoYorum? demoAkisYaniti(String gonderiId) => switch (gonderiId) {
+  'foto' => _foto[0], // YAZI yaniti (kullanicinin 1. ekran goruntusu)
+  'galeri' => _galeri[0], // GORSELLI yanit (2. ekran goruntusu)
+  'video' => _video[0], // VIDEOLU yanit
+  'konum' => _konum[0], // kisa yazi
+  _ => null,
+};
+
+// ---------------------------------------------------------------------------
+// ⚠️⚠️⚠️ TURU 102 — **TEK CEVIRICI** (DemoYorum -> YorumGorunum).
+//
+//	Denetim bulgusu: ayni cevrim UC yerde (gonderi_detay · yorum_paneli ·
+//	gonderi_karti) AYRI AYRI yaziliydi ve UCU DE ayni iki hatayi
+//	tasiyordu: `yazarMi: d.sahibi` (bayraktan) ve `sahipBegendi: d.begendim`
+//	(anlam kaymasi). Uc kopya kacinilmaz olarak drift eder — bu projede
+//	kayitli en sik hata sinifi. Artik TEK KAYNAK.
+// ---------------------------------------------------------------------------
+
+/// ⚠️⚠️ **`yazarMi` BAYRAKTAN DEGIL, KARSILASTIRMADAN TURER.**
+///
+///	Turu 101'de `DemoYorum.sahibi` diye elle isaretlenen bir alan vardi;
+///	gercek veride boyle bir alan YOK ve olmayacak da — gercek yorumda
+///	"gonderi sahibi mi" bilgisi ancak `yorum.kullaniciAdi ==
+///	gonderi.yazarUsername` karsilastirmasindan cikar. Demo da ayni yoldan
+///	gecsin ki mekanizma GERCEK VERIDE de calistigi ISPATLANMIS olsun.
+YorumGorunum demoYorumGorunumu(
+  DemoYorum d, {
+  required String gonderiId,
+  required String yazarKullaniciAdi,
+  String yol = '0',
+}) => YorumGorunum(
+  // ⚠️ Kimlik YOLDAN uretilir (`0`, `0.1`, ...): ad+zaman birlesimi iki
+  //    yorumda ayni olabilir ve `AnimatedSwitcher`/liste anahtarlari carpisir.
+  id: 'demo-$gonderiId-$yol',
+  ad: d.ad,
+  kullaniciAdi: d.kullaniciAdi,
+  zaman: d.zaman,
+  metin: d.metin,
+  onayli: d.onayli,
+  yazarMi: d.kullaniciAdi == yazarKullaniciAdi,
+  sahipBegendi: d.sahipBegendi,
+  begeni: d.begeni,
+  yorum: d.yorum,
+  repost: d.repost,
+  paylas: d.paylas,
+  begendim: d.begendim,
+  medya: d.medya,
+  medyaTur: d.medyaTur,
+  yanitlar: [
+    for (var i = 0; i < d.yanitlar.length; i++)
+      demoYorumGorunumu(
+        d.yanitlar[i],
+        gonderiId: gonderiId,
+        yazarKullaniciAdi: yazarKullaniciAdi,
+        yol: '$yol.$i',
+      ),
+  ],
+);
+
+/// Detay ve panel icin hazir liste.
+///
+/// ⚠️⚠️ **SIRALAMA KARARLI OLMAK ZORUNDA.** Dart'in `List.sort`u kararsizdir
+///	(introsort): esit begenili iki yorum her `setState`te YER DEGISTIREBILIR
+///	ve kullanici listeyi "titriyor" olarak gorur. Bu yuzden siralama
+///	`(anahtar, ozgunIndeks)` ikilisi uzerinden yapilir.
+/// ⚠️ Yazarin kendi yanitlari BASA alinir (Threads deseni: gonderi sahibinin
+///    cevabi konusmanin baglamidir).
+List<YorumGorunum> demoYorumGorunumleri(
+  String gonderiId,
+  String yazarKullaniciAdi, {
+  bool begeniyeGore = true,
+}) {
+  final ham = demoYorumlar(gonderiId);
+  final l = [
+    for (var i = 0; i < ham.length; i++)
+      demoYorumGorunumu(
+        ham[i],
+        gonderiId: gonderiId,
+        yazarKullaniciAdi: yazarKullaniciAdi,
+        yol: '$i',
+      ),
+  ];
+  if (!begeniyeGore) return l;
+  final indeks = {for (var i = 0; i < l.length; i++) l[i].id: i};
+  l.sort((a, b) {
+    if (a.yazarMi != b.yazarMi) return a.yazarMi ? -1 : 1;
+    final f = b.begeni.compareTo(a.begeni);
+    if (f != 0) return f;
+    return indeks[a.id]!.compareTo(indeks[b.id]!);
   });
-
-  final DemoYorum y;
-
-  /// Sol tarafta THREAD CIZGISI (alttaki yanitlara baglanir).
-  final bool cizgi;
-  final double girinti;
-  final bool yanitlariGoster;
-
-  @override
-  State<DemoYorumSatiri> createState() => _DemoYorumSatiriState();
-}
-
-class _DemoYorumSatiriState extends State<DemoYorumSatiri> {
-  late bool _begendim = widget.y.begendim;
-  late int _begeni = widget.y.begeni;
-
-  static const double _avatar = 34;
-
-  @override
-  Widget build(BuildContext context) {
-    final y = widget.y;
-    final tema = Theme.of(context);
-    final soluk = tema.colorScheme.onSurface.withValues(alpha: 0.55);
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        kYanBosluk + widget.girinti,
-        10,
-        kYanBosluk,
-        4,
-      ),
-      // ⚠️⚠️⚠️ TURU 98i — `IntrinsicHeight` ZORUNLU (emulatorde COKME).
-      //
-      //	Thread cizgisi avatarin ALTINDA `Expanded` ile uzuyor; ama o
-      //	Column, `Row(crossAxisAlignment: start)` icinde **SINIRSIZ**
-      //	yukseklik kisiti aliyordu. Sinirsiz kisitta `Expanded` dagitacak
-      //	alan bulamaz: *"RenderBox was not laid out"* -> ardindan
-      //	"child.hasSize is not true" -> **DETAY EKRANI TAMAMEN BOS** cikti.
-      // ⚠️ `IntrinsicHeight` satirin dogal yuksekligini olcup cocuklara
-      //    SIKI kisit verir; cizgi de o yuksekligi doldurur.
-      // ⚠️ YAPMA: `IntrinsicHeight`i kaldirip `Expanded`i birakma.
-      child: IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ---- AVATAR + thread cizgisi
-            Column(
-              children: [
-                Container(
-                  width: _avatar,
-                  height: _avatar,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: kYuzeyGri(context),
-                  ),
-                ),
-                if (widget.cizgi)
-                  Expanded(
-                    child: Container(
-                      width: 2,
-                      margin: const EdgeInsets.only(top: 6),
-                      color: tema.colorScheme.onSurface.withValues(alpha: 0.12),
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Flexible(
-                        child: Text(
-                          y.ad,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                      if (y.onayli) ...[
-                        const SizedBox(width: 4),
-                        const Icon(
-                          LucideIcons.badgeCheck,
-                          size: 14,
-                          color: Color(0xFF1D9BF0),
-                        ),
-                      ],
-                      const SizedBox(width: 6),
-                      Text(
-                        y.zaman,
-                        style: TextStyle(fontSize: 12, color: soluk),
-                      ),
-                      // ⚠️ GONDERI SAHIBI rozeti (kullanici emri).
-                      if (y.sahibi) ...[
-                        const SizedBox(width: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 1,
-                          ),
-                          decoration: BoxDecoration(
-                            color: tema.colorScheme.primary.withValues(
-                              alpha: 0.12,
-                            ),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            'Gönderi sahibi',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                              color: tema.colorScheme.primary,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                  const SizedBox(height: 3),
-                  Text(y.metin, style: const TextStyle(fontSize: 15)),
-                  const SizedBox(height: 6),
-                  // ---- ETKILESIM (akis kartiyla AYNI dil, daha kucuk)
-                  Row(
-                    children: [
-                      _minEylem(
-                        ikon: _begendim ? Icons.favorite : LucideIcons.heart,
-                        sayi: _begeni,
-                        renk: _begendim ? const Color(0xFFFF3B5C) : null,
-                        onTap: () => setState(() {
-                          _begendim = !_begendim;
-                          _begeni += _begendim ? 1 : -1;
-                        }),
-                      ),
-                      _minEylem(ikon: LucideIcons.messageCircle, sayi: y.yorum),
-                      _minEylem(ikon: LucideIcons.redo2, sayi: y.repost),
-                      _minEylem(ikon: LucideIcons.send, sayi: y.paylas),
-                    ],
-                  ),
-                  if (widget.yanitlariGoster && y.yanitAdedi > 0)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 2, bottom: 4),
-                      child: Text(
-                        'Yanıtları göster',
-                        style: TextStyle(fontSize: 13, color: soluk),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// ⚠️ Kart cubugunun KUCUK kardesi: ayni ikon dili, 20 px.
-  Widget _minEylem({
-    required IconData ikon,
-    int sayi = 0,
-    Color? renk,
-    VoidCallback? onTap,
-  }) {
-    final c = renk ?? Theme.of(context).iconTheme.color;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 5),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(ikon, size: 19, color: c),
-            if (sayi > 0) ...[
-              const SizedBox(width: 5),
-              // ⚠️ Sayi degisince YUKARI kayar (kart cubuguyla ayni efekt).
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 220),
-                transitionBuilder: (cocuk, an) => ClipRect(
-                  child: SlideTransition(
-                    position: Tween<Offset>(
-                      begin: const Offset(0, 0.6),
-                      end: Offset.zero,
-                    ).animate(an),
-                    child: FadeTransition(opacity: an, child: cocuk),
-                  ),
-                ),
-                child: Text(
-                  sayiBicimle(sayi),
-                  key: ValueKey<int>(sayi),
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: c,
-                  ),
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
+  return l;
 }

@@ -15,16 +15,11 @@ import 'package:flutter/material.dart';
 /// ⚠️ Yukseklik EBEVEYNDEN gelir (`Expanded` + `IntrinsicHeight`); buraya
 ///    sabit yukseklik verilirse yazi olcegi 1.3'te cizgi avatardan kopar.
 class ThreadCizgi extends CustomPainter {
-  const ThreadCizgi({
-    required this.kivrimli,
-    required this.renk,
-    this.altPay = 0,
-  });
+  const ThreadCizgi({required this.kivrimli, required this.renk});
 
-  /// ⚠️ TURU 99b — kivrimin biteceği nokta kutunun DIBINDEN bu kadar YUKARIDA.
-  ///    "Yanıtları göster" satirinin YARISI verilir; boylece cizgi tam o
-  ///    satirdaki avatarin MERKEZINE deger.
-  final double altPay;
+  // ⚠️ Turu 102: `altPay` KALDIRILDI. Kivrimin bitis noktasi artik cizim
+  //    kutusunun KENDI yuksekligiyle veriliyor (`YorumGrubu._segment`);
+  //    iki ayri yerde ayni hesabi tutmak drift uretiyordu.
 
   /// Dalin SON ogesi mi — kivrim yalniz burada cizilir, ara halkalarda
   /// cizgi DUZ devam eder.
@@ -40,7 +35,7 @@ class ThreadCizgi extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     // ⚠️ Merkez KUTUDAN turetilir (avatar genisligi verilir) — sabit sayi YOK.
     final cx = size.width / 2;
-    final h = size.height - altPay;
+    final h = size.height;
     final p = Path()..moveTo(cx, 0);
     if (kivrimli && h > yaricap) {
       // ⚠️⚠️⚠️ **QUADRATIC BEZIER — `arcToPoint` DEGIL.**
@@ -77,7 +72,7 @@ class ThreadCizgi extends CustomPainter {
 
   @override
   bool shouldRepaint(ThreadCizgi eski) =>
-      eski.kivrimli != kivrimli || eski.renk != renk || eski.altPay != altPay;
+      eski.kivrimli != kivrimli || eski.renk != renk;
 }
 
 /// Cizgi rengi — TEK KAYNAK (acik/koyu temada ayri alfa).

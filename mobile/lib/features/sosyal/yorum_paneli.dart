@@ -4,7 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../isletme/isletme_kart.dart' show kYanBosluk;
-import 'demo_veri.dart' show kDemoAkis;
+import 'dart:async';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'demo_veri.dart' show kDemoAkis, demoKimlik;
 import 'demo_yorum.dart';
 import 'gonderi_karti.dart' show sayiBicimle, gonderiZamani;
 import 'sosyal_servisi.dart';
@@ -25,21 +28,48 @@ import 'yorum_satiri.dart';
 ///	    YOK — bugun `begendim` DAIMA false),
 ///	  · alt yanit SAYISI, · siralama parametresi, · alinti sayaci.
 /// ⚠️ YAPMA: `kDemoAkis` kapaliyken buraya sahte yorum cizme.
-class YorumPaneli extends StatefulWidget {
+class YorumPaneli extends ConsumerStatefulWidget {
   const YorumPaneli({super.key, required this.gonderi, required this.benimId});
 
   final Gonderi gonderi;
   final String benimId;
 
   @override
-  State<YorumPaneli> createState() => _YorumPaneliState();
+  ConsumerState<YorumPaneli> createState() => _YorumPaneliState();
 }
 
-class _YorumPaneliState extends State<YorumPaneli> {
+class _YorumPaneliState extends ConsumerState<YorumPaneli> {
   final Set<String> _acik = <String>{};
+
+  /// ⚠️ TURU 102 — GERCEK gonderide gercek yorumlar. Panel Reels'ten aciliyor
+  ///    ve Reels **gercek** videolari listeliyor; turu 101'de burada
+  ///    `kDemoAkis` genel bayragina bakiliyordu, yani GERCEK bir videonun
+  ///    altinda DEMO yorumlari cizilebiliyordu.
+  List<YorumGorunum>? _gercek;
 
   /// 'alakali' · 'yakin'
   String _sirala = 'alakali';
+
+  @override
+  void initState() {
+    super.initState();
+    if (!demoKimlik(widget.gonderi.id)) unawaited(_cek());
+  }
+
+  Future<void> _cek() async {
+    try {
+      final l = await ref.read(sosyalServisiProvider).yorumlar(widget.gonderi.id);
+      if (!mounted) return;
+      setState(
+        () => _gercek = yorumAgaci(
+          l,
+          yazarKullaniciAdi: widget.gonderi.yazarUsername,
+        ),
+      );
+    } catch (_) {
+      if (mounted) setState(() => _gercek = const []);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -260,32 +290,14 @@ class _YorumPaneliState extends State<YorumPaneli> {
     ],
   );
 
-  List<YorumGorunum> _yorumlar() {
-    if (!kDemoAkis) return const [];
-    final l = demoYorumlar(widget.gonderi.id).map(_cevir).toList();
-    if (_sirala == 'alakali') {
-      l.sort((a, b) => b.begeni.compareTo(a.begeni));
-    }
-    return l;
-  }
-
-  YorumGorunum _cevir(DemoYorum d) => YorumGorunum(
-    id: d.kullaniciAdi + d.zaman,
-    ad: d.ad,
-    kullaniciAdi: d.kullaniciAdi,
-    zaman: d.zaman,
-    metin: d.metin,
-    onayli: d.onayli,
-    yazarMi: d.sahibi,
-    sahipBegendi: d.begendim,
-    begeni: d.begeni,
-    yorum: d.yorum,
-    repost: d.repost,
-    paylas: d.paylas,
-    yanitlar: d.yanitlar.map(_cevir).toList(),
-    medya: d.medya,
-    medyaTur: d.medyaTur,
-  );
+  /// ⚠️ Cevrim + siralama TEK KAYNAKTAN (`demoYorumGorunumleri`).
+  List<YorumGorunum> _yorumlar() => demoKimlik(widget.gonderi.id)
+      ? demoYorumGorunumleri(
+          widget.gonderi.id,
+          widget.gonderi.yazarUsername,
+          begeniyeGore: _sirala == 'alakali',
+        )
+      : (_gercek ?? const []);
 
   Future<void> _siralaSec() async {
     final s = await showModalBottomSheet<String>(

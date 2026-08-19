@@ -443,15 +443,12 @@ class _ReelsSayfasiState extends ConsumerState<ReelsSayfasi> {
           ],
         ),
       ),
-      if (g.metin.isNotEmpty) ...[
-        const SizedBox(height: 8),
-        Text(
-          g.metin,
-          maxLines: 3,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(color: Colors.white, fontSize: 13),
-        ),
-      ],
+      // ⚠️⚠️ TURU 102 — BURADA **ACIKLAMA CIZILMEZ.**
+      //	Turu 100'de X duzenine gecerken aciklama `_altBlok` icine
+      //	`_aciklama(g)` olarak tasindi ama BURADAKI eski kopya
+      //	SILINMEMISTI: aciklama ekranda **IKI KEZ** yaziliyordu
+      //	(emulatorde gorundu: "snanan / snanan").
+      // ⚠️ YAPMA: buraya tekrar `g.metin` koyma; tek yer `_aciklama`.
     ],
   );
 }

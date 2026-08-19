@@ -4,8 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../isletme/isletme_kart.dart' show kYuzeyGri, kYanBosluk;
-import 'gonderi_karti.dart' show sayiBicimle, kBaslikAra;
+import 'gonderi_karti.dart' show sayiBicimle, kBaslikAra, gonderiZamani;
 import '../medya/medya_gorsel.dart';
+import 'sosyal_servisi.dart' show Yorum;
 import 'thread_cizgi.dart';
 
 /// ⚠️⚠️⚠️ TURU 99 — YORUM SATIRININ **TEK GORUNUM MODELI**.
@@ -71,7 +72,10 @@ const double kYorumGirinti = kYorumAvatar + kBaslikAra;
 
 /// "Yanıtları göster" satirindaki avatarin capi ve satir yuksekligi.
 const double kYanitAvatar = 22;
-const double kYanitSatirBoy = 40;
+/// ⚠️ **44** — Material/Apple dokunma minimumu. Turu 101'de 40 idi.
+/// ⚠️ Kivrimin bitis noktasi bu sayinin YARISIDIR; degistirirsen cizgi de
+///    otomatik uyar (sabit sayi yok).
+const double kYanitSatirBoy = 44;
 
 /// ⚠️⚠️⚠️ TURU 99b — **YANIT GRUBU** (kok yorum + "Yanıtları göster" + acilan
 ///	yanitlar). Kullanici: *"o ok nereye gidiyor? profil yok"* — HAKLIYDI.
@@ -105,62 +109,90 @@ class YorumGrubu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final yanitVar = kok.yanitlar.isNotEmpty;
-    // ⚠️⚠️⚠️ TURU 101 — ACIKKEN "Yanıtları göster" SATIRI KALKAR.
-    //
-    //	Kullanici: *"bizde yanitlari gizleye cizgi cekmissin, mantiksiz bir
-    //	cizgi"* — HAKLIYDI. Threads'te cizgi bir HEDEFE (gizli yanitlarin
-    //	avatarina) isaret eder; yanitlar ACILINCA o hedef ortadan kalkar,
-    //	cizgi de kivrilmadan yanitlarin yaninda DUZ iner.
-    // ⚠️ Kapatma yolu: satir kalkinca yanitlar acik KALIR (Threads de
-    //    boyle davranir — acilan yanit gizlenmez).
-    final rozetVar = yanitVar && !acik;
-    final govde = Column(
+    // ⚠️ Cizgi KOSULLUDUR: yanit yoksa cizilmez (havada biten cizgi yasak).
+    if (kok.yanitlar.isEmpty) {
+      return YorumSatiri(y: kok, onDokun: () => onDokun?.call(kok));
+    }
+    final renk = threadCizgiRengi(context);
+    final son = kok.yanitlar.length - 1;
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        YorumSatiri(y: kok, onDokun: () => onDokun?.call(kok)),
-        if (yanitVar) ...[
-          if (acik)
-            for (final alt in kok.yanitlar)
-              YorumSatiri(
-                y: alt,
-                derinlik: 1,
-                onDokun: () => onDokun?.call(alt),
-              ),
-          if (rozetVar)
-            YanitlariGosterSatiri(
-              adet: kok.yanitlar.length,
-              onTap: onYanitlariGoster,
-            ),
-        ],
-      ],
-    );
-    if (!yanitVar) return govde;
-
-    return Stack(
-      children: [
-        // ---- OLUK: tek parca baglanti cizgisi
-        Positioned(
-          left: kYanBosluk,
-          top: _cizgiBasi,
-          bottom: 0,
-          width: kYorumAvatar,
-          child: CustomPaint(
-            painter: ThreadCizgi(
-              // ⚠️ Kivrim YALNIZ rozet varken; acikken cizgi duz iner.
-              kivrimli: rozetVar,
-              renk: threadCizgiRengi(context),
-              altPay: rozetVar ? kYanitSatirBoy / 2 : 0,
-            ),
-          ),
+        // ---- KOK: cizgi avatarin ALTINDAN baslar, satir sonuna kadar iner
+        _segment(
+          renk: renk,
+          bas: _cizgiBasi,
+          cocuk: YorumSatiri(y: kok, onDokun: () => onDokun?.call(kok)),
         ),
-        govde,
+        // ⚠️⚠️⚠️ ACIKKEN "Yanıtları göster" SATIRI KALKAR ve cizgi DUZ iner.
+        //
+        //	Kullanici: *"bizde yanitlari gizleye cizgi cekmissin, mantiksiz
+        //	bir cizgi"* — HAKLIYDI. Kivrim bir SONLANDIRICIDIR: "burada
+        //	GIZLI icerik var" der. Yanitlar acilinca gizli icerik kalmaz.
+        if (acik)
+          ...[
+            for (var i = 0; i <= son; i++)
+              _segment(
+                renk: renk,
+                // ⚠️⚠️ SON yanitta cizgi o satirin AVATAR MERKEZINDE biter.
+                //	Turu 101'de tek katman + `bottom: 0` kullaniliyordu ve
+                //	cizgi son yanitin ICERIGININ altina iniyordu; medyali
+                //	bir yanitta ~200 dp bosluga sarkiyordu.
+                boy: i == son ? _yanitOrtasi : null,
+                cocuk: YorumSatiri(
+                  y: kok.yanitlar[i],
+                  derinlik: 1,
+                  onDokun: () => onDokun?.call(kok.yanitlar[i]),
+                ),
+              ),
+          ]
+        else
+          _segment(
+            renk: renk,
+            kivrimli: true,
+            boy: kYanitSatirBoy / 2,
+            cocuk: YanitlariGosterSatiri(onTap: onYanitlariGoster),
+          ),
       ],
     );
   }
 
+  /// Bir satiri, SOLUNDA cizgi parcasi olan bir yigina sarar.
+  ///
+  /// ⚠️⚠️ **CIZGI NEDEN TEK KATMAN DEGIL, PARCALI:** acik moddaki cizginin
+  ///	SON YANITIN AVATAR MERKEZINDE bitmesi gerekir (kural: cizginin ucu
+  ///	daima bir NESNEYE deger). Tek katmanda bu ancak son satirin yuksekligi
+  ///	OLCULEREK yapilabilir; o yukseklik yanitin medyasina ve metin
+  ///	uzunluguna gore degisir. Parcali cizimde her satir KENDI payini cizer,
+  ///	son satir yalnizca avatar merkezine kadar iner ve hesap SABIT olur.
+  /// ⚠️ Parcalar bitisiktir; ekranda TEK bir cizgi gorunur.
+  Widget _segment({
+    required Color renk,
+    required Widget cocuk,
+    double bas = 0,
+    double? boy,
+    bool kivrimli = false,
+  }) => Stack(
+    children: [
+      Positioned(
+        left: kYanBosluk,
+        top: bas,
+        bottom: boy == null ? 0 : null,
+        height: boy,
+        width: kYorumAvatar,
+        child: CustomPaint(
+          painter: ThreadCizgi(kivrimli: kivrimli, renk: renk),
+        ),
+      ),
+      cocuk,
+    ],
+  );
+
   /// Kok satirin ust dolgusu (10) + avatar (34) + 6 dp nefes.
   static const double _cizgiBasi = 10 + kYorumAvatar + 6;
+
+  /// Yanit satirinin ust dolgusu (10) + kucuk avatarin yarisi.
+  static const double _yanitOrtasi = 10 + kYorumAvatarAlt / 2;
 }
 
 /// Threads tarzi yorum satiri.
@@ -214,7 +246,7 @@ class _YorumSatiriState extends State<YorumSatiri> {
               width: kYorumAvatar,
               child: Align(
                 alignment: Alignment.topCenter,
-                child: MiniAvatar(cap: cap),
+                child: MiniAvatar(cap: cap, mediaId: y.avatarMediaId),
               ),
             ),
             const SizedBox(width: kBaslikAra),
@@ -231,23 +263,55 @@ class _YorumSatiriState extends State<YorumSatiri> {
                   //    yaricapi kartla ayni dilde (14).
                   if (y.medya.isNotEmpty) ...[
                     const SizedBox(height: 8),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(14),
-                      child: AspectRatio(
-                        aspectRatio: 0.86,
-                        child: MedyaGorsel(
-                          mediaId: y.medya.first,
-                          kucuk: true,
-                          fit: BoxFit.cover,
-                        ),
-                      ),
-                    ),
+                    _medya(y),
                   ],
                   const SizedBox(height: 6),
                   _eylemler(),
                 ],
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// ⚠️⚠️⚠️ TURU 102 — YORUM MEDYASINDA **TUR KONTROLU** (turu 83b dersinin
+  ///	tekrari): `medyaTur` alani turu 101'de modelde TASINIYOR ama HICBIR
+  ///	YERDE OKUNMUYORDU; videolu yorum dogrudan `MedyaGorsel`e dusuyor ve
+  ///	**KIRIK GORSEL** ciziyordu. Video artik yer tutucu + OYNAT rozetiyle
+  ///	cizilir.
+  /// ⚠️ En-boy **16:11** (yatay): serhi 16:11 diyordu ama govdede 0.86
+  ///    (DIKEY) yaziliydi; dikey kutu akistaki yaniti gonderiden daha uzun
+  ///    gosteriyordu.
+  Widget _medya(YorumGorunum y) {
+    final videoMu =
+        y.medyaTur.isNotEmpty && y.medyaTur.first.startsWith('video');
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(14),
+      child: AspectRatio(
+        aspectRatio: 16 / 11,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            MedyaGorsel(mediaId: y.medya.first, kucuk: true, fit: BoxFit.cover),
+            if (videoMu)
+              const Center(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Color(0x66000000),
+                  ),
+                  child: Padding(
+                    padding: EdgeInsets.all(10),
+                    child: Icon(
+                      Icons.play_arrow_rounded,
+                      size: 26,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
       ),
@@ -317,6 +381,13 @@ class _YorumSatiriState extends State<YorumSatiri> {
     ],
   );
 
+  /// ⚠️⚠️ **ISLEVI OLMAYAN IKON TAM OPAK CIZILMEZ** (turu 102 kurali).
+  ///	Yanit · repost · paylas ucunun de sunucuda karsiligi YOK
+  ///	(`post_comments` altina yanit yazan uc yok; repost/alinti diye bir
+  ///	sey yok). Turu 101'de ucu de tam opak ciziliyor ve dokununca HICBIR
+  ///	SEY olmuyordu — kullanici bunu KIRIK sanardi.
+  /// ⚠️ Begeni de bugun YALNIZ EKRANDA artiyor (`comment_likes` tablosu var,
+  ///    INSERT/DELETE ucu YOK) ama etkilesim gercek oldugu icin opak kalir.
   Widget _eylemler() => Row(
     children: [
       _min(
@@ -328,10 +399,32 @@ class _YorumSatiriState extends State<YorumSatiri> {
           _begeni += _begendim ? 1 : -1;
         }),
       ),
-      _min(ikon: LucideIcons.messageCircle, sayi: widget.y.yorum),
-      _min(ikon: LucideIcons.redo2, sayi: widget.y.repost),
-      _min(ikon: LucideIcons.send, sayi: widget.y.paylas),
+      _min(
+        ikon: LucideIcons.messageCircle,
+        sayi: widget.y.yorum,
+        pasif: true,
+        onTap: () => _yok('Yanıt yazma'),
+      ),
+      _min(
+        ikon: LucideIcons.redo2,
+        sayi: widget.y.repost,
+        pasif: true,
+        onTap: () => _yok('Yeniden paylaşma'),
+      ),
+      _min(
+        ikon: LucideIcons.send,
+        sayi: widget.y.paylas,
+        pasif: true,
+        onTap: () => _yok('Yorumu paylaşma'),
+      ),
     ],
+  );
+
+  void _yok(String ne) => ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      duration: const Duration(seconds: 2),
+      content: Text('$ne özelliği henüz yok'),
+    ),
   );
 
   Widget _min({
@@ -339,8 +432,10 @@ class _YorumSatiriState extends State<YorumSatiri> {
     int sayi = 0,
     Color? renk,
     VoidCallback? onTap,
+    bool pasif = false,
   }) {
-    final c = renk ?? Theme.of(context).iconTheme.color;
+    final temel = renk ?? Theme.of(context).iconTheme.color;
+    final c = pasif ? temel?.withValues(alpha: 0.45) : temel;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
@@ -384,18 +479,36 @@ class _YorumSatiriState extends State<YorumSatiri> {
 /// ⚠️ Serit kuralinin aynisi: fotografsiz avatar **HARF DEGIL DUZ GRI DAIRE**
 ///    (kullanici emri, turu 98d).
 class MiniAvatar extends StatelessWidget {
-  const MiniAvatar({super.key, required this.cap});
+  const MiniAvatar({super.key, required this.cap, this.mediaId});
   final double cap;
 
+  /// ⚠️ TURU 102 — gercek profil fotografi. Turu 101'de `YorumGorunum`
+  ///    `avatarMediaId` tasiyordu ama HICBIR YERDE OKUNMUYORDU; gercek
+  ///    hatta baglaninca herkes duz gri daire olarak cizilirdi ve cizginin
+  ///    gerekcesi ("bu KISI suna cevap veriyor") cokerdi.
+  /// ⚠️ Demoda `null` gecer -> duz gri (kullanici emri: harf YOK).
+  final String? mediaId;
+
   @override
-  Widget build(BuildContext context) => Container(
-    width: cap,
-    height: cap,
-    decoration: BoxDecoration(
-      shape: BoxShape.circle,
-      color: kYuzeyGri(context),
-    ),
-  );
+  Widget build(BuildContext context) {
+    final gri = Container(
+      width: cap,
+      height: cap,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: kYuzeyGri(context),
+      ),
+    );
+    final id = mediaId ?? '';
+    if (id.isEmpty) return gri;
+    return ClipOval(
+      child: SizedBox(
+        width: cap,
+        height: cap,
+        child: MedyaGorsel(mediaId: id, kucuk: true, fit: BoxFit.cover),
+      ),
+    );
+  }
 }
 
 /// ⚠️⚠️⚠️ TURU 99b — **"YANITLARI GOSTER" SATIRI** — referans gorseldeki hali:
@@ -411,13 +524,11 @@ class MiniAvatar extends StatelessWidget {
 /// ⚠️ Satir yuksekligi `kYanitSatirBoy` SABIT — `YorumGrubu` kivrimin bitis
 ///    noktasini bu sayidan hesapliyor; degistirirsen ikisi birlikte degisir.
 class YanitlariGosterSatiri extends StatelessWidget {
-  const YanitlariGosterSatiri({
-    super.key,
-    required this.adet,
-    required this.onTap,
-  });
+  // ⚠️ Turu 101'deki `adet` parametresi KALDIRILDI: cagri yerinde
+  //    dolduruluyor ama govdede HIC okunmuyordu (olu parametre). Threads de
+  //    bu satirda sayi yazmaz.
+  const YanitlariGosterSatiri({super.key, required this.onTap});
 
-  final int adet;
   final VoidCallback onTap;
 
   @override
@@ -461,10 +572,11 @@ class YanitlariGosterSatiri extends StatelessWidget {
                           ),
                         ),
                         child: Center(
-                          child: AnimatedRotation(
-                            turns: 0,
-                            duration: const Duration(milliseconds: 180),
-                            child: Icon(
+                          // ⚠️ Turu 101'de burada `AnimatedRotation(turns: 0)`
+                          //    vardi; deger hic degismedigi icin OLU
+                          //    animasyondu (satir zaten acilinca kalkiyor).
+                          child: Builder(
+                            builder: (_) => Icon(
                               LucideIcons.chevronDown,
                               size: 9,
                               color: Theme.of(context).scaffoldBackgroundColor,
@@ -491,4 +603,60 @@ class YanitlariGosterSatiri extends StatelessWidget {
       ),
     );
   }
+}
+
+
+// ---------------------------------------------------------------------------
+// ⚠️⚠️⚠️ TURU 102 — **GERCEK YORUM -> GORUNUM MODELI.**
+//
+//	Denetim bulgusu (sevk engeli): detay ekraninin TUM yorum bolumu bir
+//	`if (kDemoAkis)` blogunun icindeydi. Demo kapatildigi gun ekranin alt
+//	yarisi **SESSIZCE BOSALACAKTI** — bu projede kayitli en pahali hata
+//	sinifi ("arayuz var, veri yok"in tersi: veri var, arayuz kayboluyor).
+//
+//	Artik ayni gorunum modeli GERCEK `Yorum` listesinden de uretilebiliyor;
+//	boylece thread mimarisi demo icin yazilmis bir vitrin olmaktan cikip
+//	gercek hatta da CALISAN bir bilesen oluyor.
+// ---------------------------------------------------------------------------
+
+/// Duz yorum listesini **TEK SEVIYE** agaca cevirir.
+///
+/// ⚠️ Sunucu `parent_id` donduruyor ama agaci DUZLESTIRIYOR (yanitin yaniti
+///    da koke baglanir — `internal/social/etkilesim.go`). Bu yuzden istemci
+///    de TEK KADEME girinti cizer; ikinci kademe cizmek OLMAYAN bir
+///    hiyerarsiyi iddia etmek olurdu.
+/// ⚠️ **Sunucuda OLMAYAN alanlar UYDURULMAZ**: `onayli` (mavi tik),
+///	`sahipBegendi` (yazarin begenisi), `repost`, `paylas` alanlari
+///	GERCEK veride DAIMA bos/false gecer — rozet cizilmez, sayi yazilmaz.
+/// ⚠️ `yazarMi` demo ile AYNI yoldan (kullanici adi karsilastirmasi) turer.
+List<YorumGorunum> yorumAgaci(
+  List<Yorum> ham, {
+  required String yazarKullaniciAdi,
+}) {
+  final kokler = <YorumGorunum>[];
+  final yanitlar = <int, List<Yorum>>{};
+  for (final y in ham) {
+    if (y.parentId != null) {
+      (yanitlar[y.parentId!] ??= <Yorum>[]).add(y);
+    }
+  }
+  YorumGorunum cevir(Yorum y, List<YorumGorunum> alt) => YorumGorunum(
+    id: 'y-${y.id}',
+    ad: y.yazarAd.isEmpty ? y.yazarUsername : y.yazarAd,
+    kullaniciAdi: y.yazarUsername,
+    zaman: gonderiZamani(y.createdAt),
+    metin: y.metin,
+    avatarMediaId: y.yazarAvatarMediaId,
+    yazarMi: y.yazarUsername == yazarKullaniciAdi,
+    begeni: y.begeniSayisi,
+    begendim: y.begendim,
+    yanitlar: alt,
+  );
+  for (final y in ham) {
+    if (y.parentId != null) continue;
+    kokler.add(
+      cevir(y, [for (final a in yanitlar[y.id] ?? const <Yorum>[]) cevir(a, const [])]),
+    );
+  }
+  return kokler;
 }

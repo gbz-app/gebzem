@@ -134,35 +134,25 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
     );
   }
 
-  /// ⚠️ TURU 98i — akista gosterilecek TEK demo yaniti (yoksa null).
-  /// Akis yanitindaki cizginin ALT payi: yanit satirinin ust dolgusu (10) +
-  /// avatarin yarisi (17) kadar yukarida biter.
-  static const double kYanitCizgiAlt = 0;
-
-  late final YorumGorunum? _akisYanitGorunum = _akisYaniti == null
-      ? null
-      : YorumGorunum(
-          id: 'akis-yanit',
-          ad: _akisYaniti.ad,
-          kullaniciAdi: _akisYaniti.kullaniciAdi,
-          zaman: _akisYaniti.zaman,
-          metin: _akisYaniti.metin,
-          onayli: _akisYaniti.onayli,
-          sahipBegendi: _akisYaniti.begendim,
-          begeni: _akisYaniti.begeni,
-          yorum: _akisYaniti.yorum,
-          repost: _akisYaniti.repost,
-          paylas: _akisYaniti.paylas,
-          medya: _akisYaniti.medya,
-          medyaTur: _akisYaniti.medyaTur,
-        );
-
+  /// ⚠️ Akista gosterilecek TEK demo yaniti (yoksa null).
   late final DemoYorum? _akisYaniti =
       // ⚠️ `demoKimlik` SART: kapi olmadan sahte yanit GERCEK
       //    gonderilerin altinda da ciziliyordu (emulatorde gorundu).
       kDemoAkis && _demo && !g.sponsorlu && !widget.detayda
       ? demoAkisYaniti(g.id)
       : null;
+
+  /// ⚠️ Cevrim detay/panel ile AYNI fonksiyondan (`demoYorumGorunumu`) gecer;
+  ///    turu 101'de burada UCUNCU bir elle-cevrim vardi ve `sahipBegendi`yi
+  ///    "ben begendim" alanindan besliyordu.
+  late final YorumGorunum? _akisYanitGorunum = _akisYaniti == null
+      ? null
+      : demoYorumGorunumu(
+          _akisYaniti,
+          gonderiId: g.id,
+          yazarKullaniciAdi: g.yazarUsername,
+          yol: 'akis',
+        );
 
   Future<void> _begeniCevir({bool yalnizBegen = false}) async {
     if (_mesgul) return;
@@ -1073,10 +1063,19 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
         if (_akisYaniti != null)
           Stack(
             children: [
+              // ⚠️⚠️ GEOMETRI **HEDEFTEN** TURER (turu 102 kurali):
+              //	cizgi yanit avatarinin MERKEZINDEN gecer ve TAM O
+              //	MERKEZDE biter. Turu 101'de sol dolgu gonderi avatarina
+              //	(38 dp) gore hesaplaniyordu; cizgi merkezi 35, yanit
+              //	avatarinin merkezi 33 idi -> **2 dp saga kacik**.
+              // ⚠️ Yukseklik `bottom` ile verilemez: yigin yuksekligi yanit
+              //	satirinin (medyaya gore degisen) boyudur; `bottom: 0`
+              //	cizgiyi ICERIGIN ALTINA indirirdi. `height` ile avatar
+              //	merkezinde durdurulur: ust dolgu (10) + capin yarisi.
               Positioned(
-                left: kBaslikYanDolgu + (kAvatarCap - kYorumAvatar) / 2,
+                left: kYanBosluk,
                 top: 0,
-                bottom: kYanitCizgiAlt,
+                height: 10 + kYorumAvatar / 2,
                 width: kYorumAvatar,
                 child: CustomPaint(
                   painter: ThreadCizgi(

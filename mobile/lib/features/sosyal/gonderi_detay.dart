@@ -47,6 +47,15 @@ class _GonderiDetayState extends ConsumerState<GonderiDetay> {
 
   /// Inline acilmis yanit kumeleri (Threads yeni sayfa ACMAZ).
   final Set<String> _acikYanitlar = <String>{};
+
+  /// ⚠️⚠️⚠️ TURU 102 — **GERCEK YORUMLAR** (demo kapaliyken).
+  ///
+  ///	Denetim bulgusu (sevk engeli): turu 101'de yorum bolumunun TAMAMI
+  ///	`if (kDemoAkis)` icindeydi; demo kapatildigi gun bu ekranin alt yarisi
+  ///	SESSIZCE bosalacakti. Artik ayni gorunum bileseni gercek hattan da
+  ///	beslenir.
+  /// ⚠️ null = henuz yuklenmedi (spinner), bos liste = yanit yok.
+  List<YorumGorunum>? _gercek;
   bool _yukleniyor = false;
   String? _hata;
 
@@ -66,6 +75,9 @@ class _GonderiDetayState extends ConsumerState<GonderiDetay> {
       // ⚠️ SESSIZ tazeleme: spinner YOK, hata ekrani YOK — elimizde zaten
       //    cizilecek gonderi var; ag hatasi kullaniciya BOS EKRAN gostermemeli.
       unawaited(_sessizTazele());
+      // ⚠️ Demo acikken gercek yorum CEKILMEZ (istek bosa gider ve demo
+      //    kartlarin altina gercek yanit karisirdi — turu 98i dersi).
+      if (!kDemoAkis) unawaited(_yorumlariCek(_g!));
     }
   }
 
@@ -110,6 +122,7 @@ class _GonderiDetayState extends ConsumerState<GonderiDetay> {
         _g = g;
         _yukleniyor = false;
       });
+      if (!kDemoAkis) unawaited(_yorumlariCek(g));
     } catch (e) {
       if (!mounted) return;
       final s = e.toString();
@@ -130,30 +143,39 @@ class _GonderiDetayState extends ConsumerState<GonderiDetay> {
   /// ⚠️ "Başlıca" = en cok begeni · "Yakınlarda" = en yeni. Sunucuda
   ///    siralama parametresi YOK; gercek hat baglandiginda uc bir
   ///    `?sirala=` almali, yoksa bu secici GORSEL kalir.
-  List<YorumGorunum> _siraliYorumlar(String gonderiId) {
-    final l = demoYorumlar(gonderiId).map(_cevir).toList();
-    if (_sirala == 'baslica') {
-      l.sort((a, b) => b.begeni.compareTo(a.begeni));
+  /// ⚠️ Demo yorumlarini gorunum modeline cevirir ve secili siralamaya dizer.
+  ///
+  /// ⚠️ "Başlıca" = yazar once + en cok begeni · "Yakınlarda" = liste sirasi
+  ///    (en yeni). Sunucuda siralama parametresi YOK; gercek hat
+  ///    baglandiginda uc bir `?sirala=` almali, yoksa bu secici GORSEL kalir.
+  /// ⚠️⚠️ Cevrim TEK KAYNAKTAN (`demoYorumGorunumleri`): turu 101'de ayni
+  ///	cevrim UC yerde ayri yaziliydi ve ucu de `yazarMi`yi bayraktan,
+  ///	`sahipBegendi`yi YANLIS alandan besliyordu.
+  /// Gercek yorumlari ceker (yalniz demo KAPALIYKEN cagrilir).
+  ///
+  /// ⚠️ Hata SESSIZ degildir: bos liste yerine `_gercek = []` yazilir ve
+  ///    ekranda "yanıt yok" gorunur; kullanici tazelemek icin geri/ileri
+  ///    gidebilir. Ayri bir hata metni yazmak yerine gonderi hattinin kendi
+  ///    hata dilini bozmuyoruz.
+  Future<void> _yorumlariCek(Gonderi g) async {
+    try {
+      final l = await ref.read(sosyalServisiProvider).yorumlar(g.id);
+      if (!mounted) return;
+      setState(
+        () => _gercek = yorumAgaci(l, yazarKullaniciAdi: g.yazarUsername),
+      );
+    } catch (_) {
+      if (mounted) setState(() => _gercek = const []);
     }
-    return l;
   }
 
-  YorumGorunum _cevir(DemoYorum d) => YorumGorunum(
-    id: d.kullaniciAdi + d.zaman,
-    ad: d.ad,
-    kullaniciAdi: d.kullaniciAdi,
-    zaman: d.zaman,
-    metin: d.metin,
-    onayli: d.onayli,
-    yazarMi: d.sahibi,
-    sahipBegendi: d.begendim,
-    begeni: d.begeni,
-    yorum: d.yorum,
-    repost: d.repost,
-    paylas: d.paylas,
-    yanitlar: d.yanitlar.map(_cevir).toList(),
-    medya: d.medya,
-    medyaTur: d.medyaTur,
+  /// ⚠️ Parametre `Gonderi` (kimlik DEGIL): `yazarMi` karsilastirmasi icin
+  ///    gonderinin yazar kullanici adi da gerekiyor ve `widget.gonderi`
+  ///    NULL olabilir (ekran yalniz kimlikle de acilabiliyor).
+  List<YorumGorunum> _siraliYorumlar(Gonderi g) => demoYorumGorunumleri(
+    g.id,
+    g.yazarUsername,
+    begeniyeGore: _sirala == 'baslica',
   );
 
   Future<void> _siralaSec() async {
@@ -434,7 +456,7 @@ class _GonderiDetayState extends ConsumerState<GonderiDetay> {
                       ],
                     ),
                   ),
-                  for (final y in _siraliYorumlar(g.id)) ...[
+                  for (final y in _siraliYorumlar(g)) ...[
                     Divider(
                       height: 1,
                       thickness: 0.5,
@@ -453,6 +475,52 @@ class _GonderiDetayState extends ConsumerState<GonderiDetay> {
                       }),
                     ),
                   ],
+                  const SizedBox(height: 24),
+                ],
+                // ---- GERCEK YORUMLAR (demo KAPALIYKEN)
+                //
+                // ⚠️ Konu etiketi · siralama · "Hareketi gör" burada CIZILMEZ:
+                //    ucunun de sunucuda karsiligi YOK. Cizilen tek sey gercekten
+                //    veri donduren yorum agacidir.
+                if (!kDemoAkis) ...[
+                  Divider(
+                    height: 1,
+                    thickness: 0.5,
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withValues(alpha: 0.08),
+                  ),
+                  if (_gercek == null)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 40),
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  else if (_gercek!.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 40),
+                      child: Center(
+                        child: Text(
+                          'Henüz yanıt yok',
+                          style: TextStyle(
+                            fontSize: 15,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurface.withValues(alpha: 0.55),
+                          ),
+                        ),
+                      ),
+                    )
+                  else
+                    for (final y in _gercek!)
+                      YorumGrubu(
+                        kok: y,
+                        acik: _acikYanitlar.contains(y.id),
+                        onYanitlariGoster: () => setState(() {
+                          _acikYanitlar.contains(y.id)
+                              ? _acikYanitlar.remove(y.id)
+                              : _acikYanitlar.add(y.id);
+                        }),
+                      ),
                   const SizedBox(height: 24),
                 ],
               ],
