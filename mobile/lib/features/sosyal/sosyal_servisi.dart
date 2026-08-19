@@ -154,6 +154,38 @@ class SosyalServisi {
         .toList();
   }
 
+  /// ⚠️⚠️⚠️ TURU 114 — "MAHALLE" BOLMESI (kullanici emri: akistaki secici
+  ///	**Arkadaş · Keşfet · Mahalle**).
+  ///
+  /// `GET /mahalle?lat&lng&km` — kullanicinin cevresindeki KONUMLU gonderiler.
+  /// Yanit `{km, posts}`; `posts` bicimi `/feed` ile BIREBIR ayni oldugu icin
+  /// ayni `Gonderi.json` ayristirmasi kullanilir.
+  ///
+  /// ⚠️ Sunucu KONUM ZORUNLU tutar (400 "konum gerekli"): koordinatsiz bir
+  ///    "mahalle" tanimsizdir. Cagiran taraf konumu ONCE almali; izin yoksa
+  ///    kullaniciya DURUSTCE sebebini yazmali (bkz. `akis_ekrani` serhi).
+  /// ⚠️ Yeni tablo/migration ACILMADI: `posts.enlem/boylam` 044'ten beri var.
+  Future<List<Gonderi>> mahalleAkisi({
+    required double enlem,
+    required double boylam,
+    double? km,
+    String? before,
+  }) async {
+    final r = await _api.get(
+      '/mahalle',
+      queryParameters: {
+        'lat': enlem,
+        'lng': boylam,
+        if (km != null) 'km': km,
+        if (before != null) 'before': before,
+      },
+    );
+    final m = (r.data as Map).cast<String, dynamic>();
+    return ((m['posts'] as List?) ?? [])
+        .map((e) => Gonderi.json((e as Map).cast<String, dynamic>()))
+        .toList();
+  }
+
   /// Tek gonderi (bildirimden / derin baglantidan acilir).
   Future<Gonderi> gonderiGetir(String id) async {
     final r = await _api.get('/posts/$id');

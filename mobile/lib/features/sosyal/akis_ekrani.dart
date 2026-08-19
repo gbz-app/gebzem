@@ -11,6 +11,9 @@ import '../home/home_screen.dart' show myProfileProvider;
 import '../home/alt_menu.dart' show kAltMenuIkonBoy;
 // ⚠️ TURU 98m — sayfa kenar payi TEK KAYNAK (kategori ekraniyla ayni).
 import '../isletme/isletme_kart.dart' show kYanBosluk;
+// ⚠️ TURU 114 — "Mahalle" bolmesi konum ZORUNLU (sunucu koordinatsiz istegi
+//    400 ile reddeder). Konum tek kaynaktan alinir.
+import '../medya/konum_servisi.dart' show KonumServisi;
 import 'demo_veri.dart';
 import 'bildirim_sayaci.dart';
 import 'bildirimler_sayfasi.dart';
@@ -58,8 +61,9 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
   ///
   /// ⚠️ YAPMA: bunlari tekrar tek `bool`a indirgeme; bolmeye ozgu HER durum
   ///    listeye tasinmali (liste ve kaydirma konumu zaten oyle).
-  final List<bool> _dahaVarlar = [true, true];
-  final List<bool> _kesfetler = [false, false];
+  // ⚠️ TURU 114 — diziler UC elemanli (0 Arkadaş · 1 Keşfet · 2 Mahalle).
+  final List<bool> _dahaVarlar = [true, true, true];
+  final List<bool> _kesfetler = [false, false, false];
 
   bool get _dahaVar => _dahaVarlar[_bolme];
   bool get _kesfet => _kesfetler[_bolme];
@@ -76,11 +80,18 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
   ///    ozellik" sinifi). Kanallar sol ust hamburger menuye TASINDI
   ///    (`hizmet_menusu.dart` -> `KanallarSayfasi`).
   ///    ⚠️ YAPMA: buraya kanal bolmesini geri ekleme; iki giris DRIFT eder.
-  /// ⚠️ TURU 113 — secici kaldirildi, bolme DAIMA 0 (bkz. asagidaki serh).
-  ///    `final` YAPILMADI ki bolme geri istendiginde tek satirla
-  ///    yazilabilir olsun; analyzer uyarisi `// ignore` ile degil,
-  ///    degeri gercekten degistirebilen bir yol olmadigi icin bilincli.
-  // ignore: prefer_final_fields
+  /// ⚠️⚠️⚠️ TURU 114 — **SECICI GERI GELDI, UCUNCU BOLME "MAHALLE"**
+  ///	(kullanici emri: *"anasayfada ustte Arkadas Keşfet Mahalle
+  ///	kaldirmissin dikkat et"*). Turu 113 seciciyi kaldirmisti; kullanici
+  ///	geri istedi ve ucuncu ogeye YENI BIR ANLAM verdi.
+  ///
+  /// 0 = Arkadaş (`/feed`) · 1 = Keşfet (`/kesfet`) · 2 = Mahalle (`/mahalle`)
+  ///
+  /// ⚠️⚠️ ESKI HALDE ucuncu oge ("Canlı Yayın") bir AKIS BOLMESI DEGIL, alt
+  ///	menuye giden bir KISAYOLDU ve o yuzden diziler IKI elemanliydi.
+  ///	Mahalle GERCEK bir bolme oldugu icin `_listeler`, `_dahaVarlar`,
+  ///	`_kesfetler`, `_bolmeYuklendi`, `_bolmeKaydirma` **UC elemana**
+  ///	cikarildi. ⚠️ YAPMA: dorduncu bolme eklerken bu bes diziyi unutma.
   int _bolme = 0;
 
   /// ⚠️⚠️ HER BOLMENIN **KENDI LISTESI** var — bolme degisince liste SWAP
@@ -95,9 +106,14 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
   ///    oynar, mobil veri harcar ve iOS'ta ses oturumunu tutardi (turu 64/65/73
   ///    aramalari tam bu yuzden sagirlasti).
   /// ⚠️ YAPMA: iki bolmeyi `IndexedStack`e koyma.
-  final List<List<Gonderi>> _listeler = [<Gonderi>[], <Gonderi>[]];
-  final List<bool> _bolmeYuklendi = [false, false];
-  // ⚠️ TURU 113 — `_bolmeKaydirma` SILINDI: tek okuyucusu `_bolmeDegistir`di.
+  final List<List<Gonderi>> _listeler = [<Gonderi>[], <Gonderi>[], <Gonderi>[]];
+  final List<bool> _bolmeYuklendi = [false, false, false];
+  final List<double> _bolmeKaydirma = [0, 0, 0];
+
+  /// ⚠️⚠️ TURU 114 — MAHALLE bolmesinin konumu. BIR KEZ alinir ve bolme
+  ///	acik kaldigi surece yeniden sorulmaz (her sayfalamada GPS uyandirmak
+  ///	pil yakar). Asagi-cek konumu TAZELER.
+  ({double enlem, double boylam})? _mahalleKonum;
 
   /// ⚠️ TURU 76b — hikaye seridine erisim: akis YENILENINCE serit de
   ///    yenilenmeli (yeni hikaye paylasan biri aninda gorunsun).
@@ -163,7 +179,30 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
       //    `ref.read` StateError firlatir ve is SESSIZCE iptal olur).
       final svc = ref.read(sosyalServisiProvider);
       final List<Gonderi> gelen;
-      if (bolme == 1) {
+      if (bolme == 2) {
+        // ⚠️⚠️⚠️ TURU 114 — MAHALLE: **KONUM ZORUNLU.**
+        //
+        //	Sunucu koordinatsiz istegi 400 ile reddeder ("konum gerekli") —
+        //	koordinatsiz bir "mahalle" tanimsizdir. Izin verilmemisse
+        //	kullaniciya JENERIK "Akış yüklenemedi" YAZILMAZ; sebep ACIKCA
+        //	soylenir, yoksa kullanici hatayi ag sorunu sanar ve izin
+        //	ekranina HIC gitmez.
+        // ⚠️ Konum BIR KEZ alinir; asagi-cek onu tazeler (`_elleYenile`).
+        final k = _mahalleKonum ?? await KonumServisi.konumAl();
+        if (!mounted) return;
+        if (k == null) {
+          setState(() {
+            _yukleniyor = false;
+            _ilkYukleme = false;
+            if (bolme == _bolme) {
+              _hata = 'Mahalle akışı için konum izni gerekiyor';
+            }
+          });
+          return;
+        }
+        _mahalleKonum = k;
+        gelen = await svc.mahalleAkisi(enlem: k.enlem, boylam: k.boylam);
+      } else if (bolme == 1) {
         gelen = await svc.kesfetAkisi();
       } else {
         final s = await svc.akis();
@@ -246,6 +285,12 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
       if (!mounted) return;
     }
     if (!mounted) return;
+    // ⚠️⚠️ TURU 114 — asagi-cek MAHALLE'de **KONUMU DA TAZELER.** Konum
+    //	`_yenile` icinde bir kez alinip saklaniyor (her sayfalamada GPS
+    //	uyandirmak pil yakar); kullanici baska bir semte gidip asagi
+    //	cektiginde ESKI koordinatla ayni listeyi gorurdu. Ayrica konum izni
+    //	SONRADAN verilmisse tekrar denemenin TEK yolu budur.
+    if (_bolme == 2) _mahalleKonum = null;
     await _yenile();
   }
 
@@ -262,9 +307,22 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
       final svc = ref.read(sosyalServisiProvider);
       final bolme = _bolme;
       final imlec = _liste.last.createdAt;
-      final gelen = bolme == 1
-          ? await svc.kesfetAkisi(before: imlec)
-          : (await svc.akis(before: imlec)).gonderiler;
+      // ⚠️ Mahalle sayfalamasi KONUM ZATEN ALINMISKEN yapilir; `_mahalleKonum`
+      //    null ise (ilk yukleme basarisiz) sayfalama denenmez.
+      final k = _mahalleKonum;
+      if (bolme == 2 && k == null) {
+        setState(() => _yukleniyor = false);
+        return;
+      }
+      final gelen = switch (bolme) {
+        2 => await svc.mahalleAkisi(
+          enlem: k!.enlem,
+          boylam: k.boylam,
+          before: imlec,
+        ),
+        1 => await svc.kesfetAkisi(before: imlec),
+        _ => (await svc.akis(before: imlec)).gonderiler,
+      };
       // ⚠️ AYNI SIZINTI (bkz. `_yenile` serhi): erken donus `_yukleniyor`u
       //    temizlemezse akis KALICI kilitlenir.
       if (!mounted) return;
@@ -362,25 +420,151 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
     child: StorySeridi(key: _storyKey),
   );
 
-  // ⚠️⚠️⚠️ TURU 113 — **AKIS BOLME SECICISI KALDIRILDI** (kullanici emri:
-  //	*"akis kisminda Arkadaslar-Kesfet-Canli Yayin secicisi olmasin"*).
-  //
-  // ⚠️⚠️ HICBIR HEDEF ULASILAMAZ KALMADI (grep ile dogrulandi):
-  //	· **Kesfet** alt menudeki "Ara" sekmesinin ta kendisidir
-  //	  (`KesfetEkrani`, `home_screen` sekme 1),
-  //	· **Canli Yayin** alt menudeki "Canli" sekmesidir (sekme 4).
-  //	Secici zaten o iki sekmeye giden bir KISAYOLDU; kaldirilmasi
-  //	icerik kaybi DEGIL, tekrarin kaldirilmasidir.
-  //
-  // ⚠️ Birlikte SILINEN bes metot: `_bolmeSecici` · `_bolmeYazisi` ·
-  //    `_bolmeLinki` · `_bolmeOgesi` · `_bolmeDegistir` · `_bolmeYukle`.
-  //    Yalniz secici cagrisi kaldirilsaydi hepsi OLU KOD olarak kalir ve
-  //    `flutter analyze` sifir-uyari tabanini bozardi.
-  // ⚠️ `_bolme` ARTIK DAIMA 0 — iki elemanli diziler (`_listeler`,
-  //    `_dahaVarlar`, `_kesfetler`, `_bolmeYuklendi`) BILEREK duruyor:
-  //    ileride bolme geri istenirse yapi hazir ve bugun hicbir maliyeti yok.
-  // ⚠️ YAPMA: seciciyi geri eklerken `_bolme = 1` yolunu yeniden yazmadan
-  //    yalniz gorunumu koyma (o dallarin yukleme mantigi da silindi).
+  /// ⚠️⚠️⚠️ TURU 114 — **AKIS BOLME SECICISI: Arkadaş · Keşfet · Mahalle.**
+  ///
+  ///	Turu 113'te kullanicinin *"secici olmasin"* emriyle KALDIRILMISTI;
+  ///	kullanici bu turda GERI istedi ve ucuncu ogeye YENI BIR AD verdi:
+  ///	*"anasayfada ustte Arkadas Keşfet Mahalle kaldirmissin dikkat et"*.
+  ///
+  /// ⚠️⚠️ UCUNCU OGE ARTIK **GERCEK BIR BOLME** (eskiden "Canlı Yayın" idi ve
+  ///	yalnizca alt menudeki Canli sekmesine giden bir KISAYOLDU). Bu yuzden
+  ///	`_bolmeLinki` yardimcisi GERI GETIRILMEDI — uc oge de ayni
+  ///	`_bolmeYazisi` govdesinden ciziliyor.
+  ///
+  /// ⚠️ **APPBAR ORTASINDA** duruyor, listenin ICINDE degil (turu 98f karari):
+  ///	`gorunurluk.dart` gozcusu viewport'un TAMAMINI olcuyor; secici listenin
+  ///	icinde olsaydi baslik arkasinda kalan kismi da "gorunur" sayilir ve
+  ///	otomatik video oynatmanin `>=0.6` kapisi olcusunu SASIRIRDI.
+  Widget _bolmeSecici() => LayoutBuilder(
+    // ⚠️⚠️ ORTALAMA `Align` ILE OLMAZ (turu 98f'de olculdu):
+    //	`SingleChildScrollView` cocuguna kaydirma ekseninde SINIRSIZ genislik
+    //	verir. Dogrusu `ConstrainedBox(minWidth: alan)` +
+    //	`MainAxisAlignment.center`.
+    builder: (context, kisit) => SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      // ⚠️ Normal olcekte icerik siyor; kullanici bu sarmali HIC fark etmez.
+      //    Asiri yazi olceginde TASMA yerine KAYDIRMA olur.
+      physics: const ClampingScrollPhysics(),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(minWidth: kisit.maxWidth),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _bolmeYazisi(0, 'Arkadaş'),
+            _bolmeYazisi(1, 'Keşfet'),
+            // ⚠️ MAHALLE = konuma gore gonderiler (`GET /mahalle`). Yeni tablo
+            //    ACILMADI: `posts.enlem/boylam` migration 044'ten beri var.
+            _bolmeYazisi(2, 'Mahalle'),
+          ],
+        ),
+      ),
+    ),
+  );
+
+  /// Bir akis bolmesi (secilebilir).
+  Widget _bolmeYazisi(int deger, String metin) =>
+      _bolmeOgesi(metin, _bolme == deger, () => _bolmeDegistir(deger));
+
+  /// Secicinin TEK govdesi.
+  ///
+  /// ⚠️⚠️ **SECILI HAL BOYUT DEGISTIRMEZ** (kullanici emri: *"gecislerde
+  ///	buyume kuculme patlama olmasin"*). Kutu genisligini DAIMA w800 olan
+  ///	GORUNMEZ bir kopya belirler; ustteki gercek yazi onun icinde cizilir.
+  ///	Kalinlik da SABIT (w700) — turu 97c'de kullanici IKINCI kez *"gecis
+  ///	yaparken oynuyor"* dedi ve ayrim yalniz RENGE dusuruldu.
+  /// ⚠️ YAPMA: kalinligi tekrar secime bagli yapma.
+  Widget _bolmeOgesi(String metin, bool secili, VoidCallback onTap) {
+    final renk = Theme.of(context).colorScheme.onSurface;
+    return Semantics(
+      button: true,
+      selected: secili,
+      label: metin,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Padding(
+          // ⚠️ Dikey 12 + yazi ~17 + 12 = ~41 dp; yatay 10 ile birlikte
+          //    dokunma hedefi rahatca 44 dp'yi asar.
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+          child: Stack(
+            // ⚠️ `centerLeft` ZORUNLU: ortalama kullanilsaydi secili olmayan
+            //    (daha soluk) yazi gorunmez kutunun ICINDE saga kayardi.
+            alignment: Alignment.centerLeft,
+            children: [
+              Opacity(
+                opacity: 0,
+                child: Text(
+                  metin,
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              Text(
+                metin,
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                  color: secili ? renk : renk.withValues(alpha: 0.45),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _bolmeDegistir(int yeni) {
+    if (yeni == _bolme) return;
+    // ⚠️ Mevcut bolmenin kaydirma konumu SAKLANIR — geri donunce kullanici
+    //    kaldigi yerde olsun (liste zaten bellekte).
+    if (_kaydirma.hasClients) _bolmeKaydirma[_bolme] = _kaydirma.offset;
+    setState(() {
+      _bolme = yeni;
+      _hata = null;
+    });
+    // ⚠️ DAHA ONCE YUKLENDIYSE AG ISTEGI ATMA.
+    if (!_bolmeYuklendi[yeni]) {
+      // ⚠️⚠️ TURU 80b — YUTULAN YENILEME (denetim: YUKSEK).
+      //
+      //	`_yenile()`nin ILK SATIRI `if (_yukleniyor) return;`. Onceki bolmenin
+      //	istegi HALA UCARKEN bolme degistirilirse bu cagri SESSIZCE dusuyordu;
+      //	`_bolmeYuklendi[yeni]` false kaldigi icin de bir daha DENEYEN HICBIR
+      //	YOL yoktu. Sonuc: bolme KALICI BOS.
+      unawaited(_bolmeYukle(yeni));
+      return;
+    }
+    // ⚠️ Kaydirma geri yuklemesi bir sonraki KAREDE yapilir: liste bu karede
+    //    henuz yeniden olculmedi, `jumpTo` `maxScrollExtent`i asardi.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_kaydirma.hasClients) return;
+      final hedef = _bolmeKaydirma[yeni].clamp(
+        0.0,
+        _kaydirma.position.maxScrollExtent,
+      );
+      _kaydirma.jumpTo(hedef);
+    });
+  }
+
+  /// Bir bolmeyi yukler; ucusta baska bir istek varsa BITMESINI bekler.
+  ///
+  /// ⚠️ Sinirli deneme: **IKI TUR x 10 x 150 ms = en fazla ~3 sn**. Sonsuz
+  ///    dongu YOK; tukenirse asagi-cek yolu ACIK kalir.
+  /// ⚠️ Her turda `mounted` + bolme kimligi dogrulanir.
+  Future<void> _bolmeYukle(int hedef) async {
+    for (var tur = 0; tur < 2; tur++) {
+      for (var i = 0; i < 10 && _yukleniyor; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 150));
+        if (!mounted || _bolme != hedef) return;
+      }
+      if (!mounted || _bolme != hedef || _bolmeYuklendi[hedef]) return;
+      await _yenile();
+      if (!mounted || _bolme != hedef || _bolmeYuklendi[hedef]) return;
+    }
+  }
 
   void _profileGit(String userId) {
     Navigator.of(
@@ -493,8 +677,10 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
         //    alana sigmazsa kayar, TASMAZ.
         // ⚠️ TURU 98f — `titleSpacing: 0`: varsayilan 16+16 dp bosluk
         //    "Canlı Yayın"in son harfini KIRPIYORDU (ekranda olculdu).
-        // ⚠️ TURU 113 — secici kaldirildi; AppBar artik BASLIKSIZ
-        //    ("+" solda, bildirim sagda). `titleSpacing` de gereksizlesti.
+        // ⚠️ TURU 98f — `titleSpacing: 0`: varsayilan 16+16 dp bosluk en
+        //    sagdaki etiketin son harfini KIRPIYORDU (ekranda olculdu).
+        titleSpacing: 0,
+        title: _bolmeSecici(),
         // ⚠️⚠️ TURU 96z — **ORTADAKI LOGO KALDIRILDI** (kullanici emri:
         //	*"ortadaki logoyu kaldir"*). Logo artik ALT MENUNUN ortasinda
         //	duruyor ve menuyu aciyor; AppBarda ikinci bir kopyasi

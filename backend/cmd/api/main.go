@@ -249,6 +249,10 @@ func main() {
 		r.Get("/posts/{id}/istatistik", socialH.Istatistik) // turu 76: yazara ozel
 		r.Get("/feed", socialH.Akis)
 		r.Get("/kesfet", socialH.Kesfet) // turu 76: arama sekmesi izgarasi
+		// ⚠️ TURU 114 — akistaki ucuncu bolme ("Mahalle"): konuma gore gonderi.
+		//    `/feed`e bayrak olarak EKLENMEDI (o ucun yanitindaki `kesfet`
+		//    bayragi baska bir anlam tasiyor) — gerekce `mahalle.go` serhinde.
+		r.Get("/mahalle", socialH.Mahalle)
 		// TURU 77 — ISLETME PROFILLERI
 		r.Put("/users/me/isletme", isletmeH.Kaydet)
 		r.Delete("/users/me/isletme", isletmeH.KisiselYap)

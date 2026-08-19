@@ -104,6 +104,9 @@ func TestYeniUclarCozuluyor(t *testing.T) {
 		// --- sosyal
 		{"POST", "/posts", "/posts"},
 		{"GET", "/feed", "/feed"},
+		// ⚠️ TURU 114 — akistaki ucuncu bolme. STATIK yol; `/posts/{id}` gibi
+		//    parametreli desenlerle cakismadigi burada dogrulanir.
+		{"GET", "/mahalle", "/mahalle"},
 		{"GET", "/reels", "/reels"},
 		{"GET", "/posts/" + uid, "/posts/{id}"},
 		{"POST", "/posts/" + uid + "/like", "/posts/{id}/like"},
