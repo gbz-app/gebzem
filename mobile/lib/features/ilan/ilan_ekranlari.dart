@@ -1592,10 +1592,27 @@ class _IlanVerEkraniState extends ConsumerState<IlanVerEkrani> {
   }
 
   Future<void> _kaydet() async {
+    // ⚠️ TURU 113 (denetim) — eksik olan TURDUR, "kategori" degil: mesaj
+    //    kullaniciyi YANLIS alana bakmaya yonlendiriyordu.
     if (_tur.isEmpty) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Kategori seç')));
+      ).showSnackBar(const SnackBar(content: Text('İlan türü seç')));
+      return;
+    }
+    // ⚠️⚠️⚠️ TURU 113 (denetim, YUKSEK) — **TALEPTE KATEGORI ZORUNLU.**
+    //
+    //	Talep, sunucuda kategoriye gore ISLETMELERE FAN-OUT edilir
+    //	(`talepHedefKategori[kategori]`). Kategori bossa harita eslesmez ve
+    //	**hicbir isletmeye bildirim GITMEZ**: talep olusur, kullanici
+    //	bekler, kimse teklif vermez ve sebebini ASLA ogrenemez.
+    // ⚠️ Kapi yalniz `talep` icin: normal ilanda kategori opsiyoneldir.
+    if (_tur == 'talep' && _kategori.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Hangi hizmeti istediğini seç — talebin ilgili işletmelere ancak böyle ulaşır'),
+        ),
+      );
       return;
     }
     if (_baslik.text.trim().isEmpty) {
