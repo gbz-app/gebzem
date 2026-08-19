@@ -11,7 +11,7 @@ import '../ai/gebzem_ai.dart';
 import '../isletme/urun_servisi.dart' show aiDurumProvider;
 import '../diyet/diyet_ekranlari.dart';
 import '../talep/talep_ekranlari.dart';
-import 'kesfet_ekrani.dart';
+import '../home/home_screen.dart' show aktifSekme;
 import '../isletme/kategori_slider.dart';
 import '../isletme/isletme_servisi.dart' show isletmeServisiProvider;
 // ⚠️⚠️⚠️ TURU 96s — MENU KARTLARI **KATEGORI EKRANIYLA AYNI DILDE** (kullanici
@@ -287,17 +287,29 @@ class HizmetMenusu extends ConsumerWidget {
           const Color(0xFF00C2A8),
           const Color(0xFF00695C),
         ], (c) => const GebzemAiEkrani()),
-      // ⚠️ 'Sosyal' = KESFET ekrani (profil arama + gonderi izgarasi).
-      //    O ekranin KENDI `Scaffold`i YOK (ana sekme olarak yaziImis),
-      //    bu yuzden route'a alinirken `Scaffold` ile SARILIR — aksi halde
-      //    zeminsiz ve baslıksiz acilirdi.
-      _Bolum(
+      // ⚠️⚠️⚠️ TURU 115 — **'Sosyal' ARTIK ANASAYFAYI ACIYOR** (kullanici:
+      //	*"alttaki Sosyal'a tikladigimda ANASAYFA GELMIYOR, ARAMAYA
+      //	gidiyor"*).
+      //
+      //	Kart `KesfetEkrani`i (arama + kesfet izgarasi) aciyordu. "Sosyal"
+      //	kelimesi kullanicinin zihninde AKIS demek; arama zaten alt menude
+      //	kendi sekmesi. Yani kart hem YANLIS yere gidiyor hem de var olan
+      //	bir sekmenin IKINCI KOPYASIYDI.
+      //
+      // ⚠️ Yeni ekran ACILMADI: `aktifSekme.value = 0` yazilip menu route'u
+      //    kapatiliyor — `isletme_listesi.dart`taki KANITLI desenin aynisi.
+      // ⚠️ SIRA ONEMLI: ONCE sekme yazilir, SONRA route kapatilir. Ters
+      //    sirada `HomeScreen` eski sekmesiyle bir kare cizer ve goz
+      //    "yanlis sekmeye dondu" diye okur.
+      // ⚠️ `popUntil(isFirst)`: menu tam ekran bir route ve ustunde baska
+      //    route'lar acilmis olabilir.
+      _Bolum.eylem(
         'Sosyal',
         [const Color(0xFF7A5CFF), const Color(0xFF3A2A8A)],
-        (c) => Scaffold(
-          appBar: AppBar(title: const Text('Sosyal')),
-          body: const KesfetEkrani(),
-        ),
+        (c) {
+          aktifSekme.value = 0;
+          Navigator.of(c).popUntil((r) => r.isFirst);
+        },
       ),
       _Bolum(
         'Nöbetçi Eczane',
@@ -602,8 +614,15 @@ class HizmetMenusu extends ConsumerWidget {
   ///	`pop` sonra `push` yapiliyordu; hedef ekrandan geri donen
   ///	kullanici menuyu bulamiyor, tek "geri" ile akisa dusuyordu.
   /// ⚠️ YAPMA: buraya tekrar `nav.pop()` ekleme.
-  void _ac(BuildContext context, _Bolum b) =>
-      Navigator.of(context).push(MaterialPageRoute(builder: b.ac));
+  void _ac(BuildContext context, _Bolum b) {
+    // ⚠️ TURU 115 — bolum ya EKRAN acar ya da bir EYLEM calistirir.
+    final eylem = b.eylem;
+    if (eylem != null) {
+      eylem(context);
+      return;
+    }
+    Navigator.of(context).push(MaterialPageRoute(builder: b.ac!));
+  }
 
   /// Kategori KARTI — izgara hucresi (kullanici emri: "eski halinin kucuk hali").
   ///
@@ -684,13 +703,23 @@ class HizmetMenusu extends ConsumerWidget {
 }
 
 class _Bolum {
-  _Bolum(this.ad, this.renkler, this.ac);
+  _Bolum(this.ad, this.renkler, this.ac) : eylem = null;
+
+  /// ⚠️⚠️ TURU 115 — EKRAN ACMAYAN bolum (ornek: 'Sosyal' bir ALT MENU
+  ///	SEKMESINE doner). Ayri bir kart bileseni YAZILMADI: gorunum ayni
+  ///	kalmali, degisen yalnizca DOKUNUS DAVRANISI.
+  /// ⚠️ Ikisinden TAM BIRI dolu olur; `_ac` bunu okur.
+  _Bolum.eylem(this.ad, this.renkler, this.eylem) : ac = null;
+
   final String ad;
   final List<Color> renkler;
 
   /// ⚠️ HER BOLUM GERCEK BIR EKRANA GIDER. `null` (yakında) DESTEGI YOK —
-  ///    ekran yoksa kart EKLENMEZ.
-  final Widget Function(BuildContext) ac;
+  ///    ekran yoksa kart EKLENMEZ. (`eylem` dolu olan bolumlerde `null`.)
+  final Widget Function(BuildContext)? ac;
+
+  /// Ekran acmak yerine cagrilacak is (sekme degistirme gibi).
+  final void Function(BuildContext)? eylem;
 }
 
 /// ⚠️⚠️⚠️ TURU 96w — **"Tümü" LISTESI** (kullanici emri: *"tikladiginda liste
@@ -734,8 +763,17 @@ class _TumuEkrani extends StatelessWidget {
           // ⚠️ Bu ekran bir ROUTE (sheet DEGIL): once pop etmeye gerek yok,
           //    hedef ekran bunun USTUNE push edilir ve geri tusu buraya
           //    doner.
-          onTap: () =>
-              Navigator.of(context).push(MaterialPageRoute(builder: b.ac)),
+          // ⚠️ TURU 115 — eylem tipli bolumler (or. Sosyal) burada da
+          //    DOGRU davranmali; iki cagri yeri ayrisirsa "Tümü" listesinden
+          //    dokunmak patlar ( null).
+          onTap: () {
+            final eylem = b.eylem;
+            if (eylem != null) {
+              eylem(context);
+              return;
+            }
+            Navigator.of(context).push(MaterialPageRoute(builder: b.ac!));
+          },
         );
       },
     ),
