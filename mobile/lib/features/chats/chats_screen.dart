@@ -13,6 +13,8 @@ import '../auth/auth_provider.dart';
 import '../medya/medya_gorsel.dart';
 import 'arama_kaydi.dart';
 import 'chats_provider.dart';
+import '../kanal/kanal_olustur.dart' show KanalOlustur;
+import '../kanal/kanallar_sekmesi.dart' show KanallarSayfasi;
 import 'grup_olustur.dart';
 import 'models.dart';
 
@@ -61,6 +63,35 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
               subtitle: const Text('Birden fazla kişiyle mesajlaş'),
               onTap: () => Navigator.pop(c, 'grup'),
             ),
+            // ⚠️⚠️⚠️ TURU 114 — **TOPLULUK** (kullanici emri: *"mesajlar
+            //	kisminda topluluk yok, topluluk olusturma ekle"*).
+            //
+            // ⚠️⚠️ YENI TABLO/TIP **ACILMADI**: topluluk = **KANAL**
+            //	(`chats.type='channel'`). Yasak testi ("ayni kavram + ayni
+            //	gorunurluk + ayni aktorler") tutuyor — ikisi de *"bir kisi
+            //	yazar, cok kisi okur"* iliskisidir ve `internal/kanal`
+            //	paketi (olustur · abone ol · gonderi · kesfet) turu 75'ten
+            //	beri CANLI. Ikinci bir kavram acmak, ayni mantigin ikinci
+            //	kopyasi olurdu ve KACINILMAZ olarak drift ederdi.
+            //
+            // ⚠️⚠️ ASIL SORUN KESFEDILEBILIRLIKTI: kanal olusturmanin TEK
+            //	girisi menu > Kanallar > "+" idi; kullanici mesajlar
+            //	ekraninda arayip bulamiyordu. Yeni giris o ekrani acar —
+            //	IKINCI BIR AKIS YAZILMADI.
+            ListTile(
+              leading: const Icon(LucideIcons.radio),
+              title: const Text('Topluluk oluştur'),
+              subtitle: const Text(
+                'Sen yazarsın, üyeler okur ve yorumlar',
+              ),
+              onTap: () => Navigator.pop(c, 'topluluk'),
+            ),
+            ListTile(
+              leading: const Icon(LucideIcons.compass),
+              title: const Text('Toplulukları keşfet'),
+              subtitle: const Text('Var olan topluluklara katıl'),
+              onTap: () => Navigator.pop(c, 'kesfet'),
+            ),
           ],
         ),
       ),
@@ -68,6 +99,19 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
     if (!context.mounted || secim == null) return;
     if (secim == 'sohbet') {
       context.push('/search');
+      return;
+    }
+    // ⚠️ TURU 114 — topluluk dallari: ikisi de MEVCUT kanal ekranlarini acar.
+    if (secim == 'topluluk') {
+      await Navigator.of(context).push<String>(
+        MaterialPageRoute(builder: (_) => const KanalOlustur()),
+      );
+      return;
+    }
+    if (secim == 'kesfet') {
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute(builder: (_) => const KanallarSayfasi()),
+      );
       return;
     }
     final chatId = await Navigator.of(context).push<String>(
