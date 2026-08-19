@@ -2257,6 +2257,25 @@ const kontrol = (ad, gecti, ek = '') => {
       ilan.kod === 201, 'HTTP ' + ilan.kod);
     const ilanID = (ilan.d || {}).id;
 
+    // ⚠️⚠️ TURU 114 — ILAN LISTESI **SAHIBININ HESAP TURUNU** DONDURMELI.
+    //
+    //	Kart uzerindeki "İşletme" rozeti bu alandan cizilir. Sunucu
+    //	dondurmezse rozet SESSIZCE kaybolur: istemci patlamaz, log dusmez,
+    //	`flutter analyze` temiz gecer — kullanici yalnizca "kim satiyor
+    //	yazmiyor" der. Turu 78'de `Profile()` kapak/onayli alanlarini yanit
+    //	haritasina koymayi atlamis ve hata TAM BOYLE gorunmustu.
+    // ⚠️ `sutun_test.go` SELECT/Scan/yanit UCLUSUNU olcer ama ucu birden
+    //    silinirse yesil kalir; bu kontrol UCTAN UCA bakar.
+    const ilanListe = await j('/ilanlar?tur=is', { token: B.token });
+    const ilanlar = ((ilanListe.d || {}).ilanlar) || [];
+    const bizim = ilanlar.find((x) => x.id === ilanID);
+    kontrol('TURU 114: ilan listesi sahibi_hesap_turu ve sahibi_onayli donduruyor',
+      !!bizim && typeof bizim.sahibi_hesap_turu === 'string' &&
+        bizim.sahibi_hesap_turu !== '' &&
+        typeof bizim.sahibi_onayli === 'boolean',
+      'tur=' + (bizim || {}).sahibi_hesap_turu +
+      ' onayli=' + (bizim || {}).sahibi_onayli);
+
     // --- Basvuru
     const bas = await j('/ilanlar/' + ilanID + '/basvuru', {
       yontem: 'POST', token: B.token, govde: { not: 'Ilgileniyorum' },
