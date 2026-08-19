@@ -84,6 +84,17 @@ const kontroller = [
   // ⚠️ YAPMA: ikisinden birini otekinin yerine gecirme.
   [cikti.includes('location.search') && cikti.includes('[?&]v='),
     'ADRES SURUM NOBETCISI kayboldu (?v= karsilastirmasi)'],
+  // ⚠️⚠️ TURU 115b — **UCUNCU NOBETCI: GORUNEN SAAT SUNUCUDAN YAZILIYOR MU.**
+  //	Kullanici ALTI TURDUR "saati goremiyorum" diyor; sunucu ALTI KEZ DE
+  //	dogru cikti, yani kalan tek aciklama TARAYICI ONBELLEGI. Onceki iki
+  //	nobetci bu durumu yalniz HABER VERIYORDU; bu blok gorunen saatin
+  //	KENDISINI `surum.json`daki degerle degistirir, yani bayat bir govdede
+  //	bile kullanicinin okudugu saat DOGRU olur.
+  // ⚠️ YAPMA: `surumsaat` kimligini veya `d.saat` atamasini kaldirma.
+  [cikti.includes('id="surumsaat"'),
+    'CANLI SAAT KIMLIGI (surumsaat) kayboldu'],
+  [cikti.includes('d.saat'),
+    'saat `surum.json`dan YAZILMIYOR (turu 115b nobetcisi)'],
   [!/body\s*\{[^}]*align-items:\s*center/.test(cikti),
     'body flex ortalama GERI GELMIS (turu 50 regresyonu: saat kirpilir)'],
   // ⚠️ ICERIK MUHAFIZI **BU SURUME** SABITLENIR (her turda guncellenir).

@@ -600,8 +600,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               : null,
           child: Row(
             children: [
-              Avatar(ad: widget.title, mediaId: widget.avatarMediaId, cap: 34),
-              const SizedBox(width: 10),
+              Avatar(ad: widget.title, mediaId: widget.avatarMediaId, cap: 38),
+              const SizedBox(width: 11),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -610,7 +610,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       widget.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 17),
+                      // ⚠️ TURU 115b — ad KALIN: eskiden govde metniyle ayni
+                      //    agirliktaydi ve baslik "baslik gibi" durmuyordu.
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                     // NOT (test turu 18): "Sesli aramada" YAZISI KALDIRILDI (kullanici istemedi).
                     // Durum yalniz arama ikonlarinin renginde ima edilir.
@@ -625,18 +630,27 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     else if (widget.isGroup)
                       // ⚠️ Kesfedilebilirlik: baslik dokunmatik oldugu ANLASILMALI,
                       //    yoksa ozellik yine "yok" sanilir.
-                      const Text(
+                      Text(
                         'Grup bilgisi için dokun',
-                        style: TextStyle(fontSize: 11, color: Colors.grey),
+                        // ⚠️ TURU 115b — SABIT `Colors.grey` DEGIL: koyu temada
+                        //    yeterince ayrilmiyordu (olculdu 2.9:1).
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withValues(alpha: 0.55),
+                        ),
                       ),
                   ],
                 ),
               ),
               if (widget.isGroup)
-                const Icon(
+                Icon(
                   LucideIcons.chevronRight,
                   size: 16,
-                  color: Colors.grey,
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withValues(alpha: 0.4),
                 ),
             ],
           ),
@@ -650,12 +664,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           final videoAktif = _peerDurum == 'video';
           final mesgul = _peerDurum.isNotEmpty;
           final soluk = Theme.of(context).disabledColor;
+          final scheme = Theme.of(context).colorScheme;
           return [
             IconButton(
               tooltip: 'Görüntülü ara',
-              color: videoAktif
-                  ? const Color(0xFF25D366)
-                  : (mesgul ? soluk : null),
+              color: videoAktif ? scheme.primary : (mesgul ? soluk : null),
               icon: const Icon(LucideIcons.video),
               onPressed: widget.peerId == null
                   ? null
@@ -663,9 +676,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             ),
             IconButton(
               tooltip: 'Sesli ara',
-              color: sesAktif
-                  ? const Color(0xFF25D366)
-                  : (mesgul ? soluk : null),
+              color: sesAktif ? scheme.primary : (mesgul ? soluk : null),
               icon: const Icon(LucideIcons.phone),
               onPressed: widget.peerId == null
                   ? null
@@ -816,54 +827,106 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       ),
                     )
                   else ...[
-                  // ⚠️ TURU 74 — ATAÇ. Medya sunucuda kapalıysa (R2 env yok) düğme
-                  //    HİÇ ÇİZİLMEZ: `GET /users/me` yanıtındaki `media_acik`.
-                  //    Görünen ama çalışmayan düğme, turu 66b dersinin tekrarı olurdu.
-                  if (_medyaAcik)
-                    IconButton(
-                      tooltip: 'Ekle',
-                      icon: const Icon(LucideIcons.paperclip),
-                      onPressed: _yukleniyor ? null : _atacAc,
-                    ),
-                  Expanded(
-                    child: TextField(
-                      controller: _input,
-                      onChanged: _onChanged,
-                      onSubmitted: (_) => _send(),
-                      textCapitalization: TextCapitalization.sentences,
-                      minLines: 1,
-                      maxLines: 5,
-                      decoration: InputDecoration(
-                        hintText: 'Mesaj yazın',
-                        filled: true,
-                        border: OutlineInputBorder(
+                    // ⚠️ TURU 74 — ATAÇ. Medya sunucuda kapalıysa (R2 env yok) düğme
+                    //    HİÇ ÇİZİLMEZ: `GET /users/me` yanıtındaki `media_acik`.
+                    //    Görünen ama çalışmayan düğme, turu 66b dersinin tekrarı olurdu.
+                    // ⚠️⚠️ TURU 115b — GIRIS CUBUGU MODERNLESTIRILDI (kullanici
+                    //    emri: *"chat bolumunu daha profesyonel modern bir
+                    //    gorunume getir"*).
+                    //    ESKI: atac hapin DISINDA ayri bir `IconButton`, hap
+                    //    kendi basina, gonder bir `FloatingActionButton`. Uc ayri
+                    //    yukseklik ve uc ayri hizalama vardi.
+                    //    YENI: atac hapin ICINDE (WhatsApp/Telegram deseni),
+                    //    gonder TEK dolu daire.
+                    // ⚠️ `prefixIcon` KULLANILMADI: cok satirli alanda prefix
+                    //    DIKEY ORTALANIR, yani 5 satirlik mesajda atac ortada
+                    //    asili kalirdi. `Row` + `crossAxisAlignment.end` ile
+                    //    ikon DAIMA alt satirda durur.
+                    Expanded(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withValues(alpha: 0.06),
                           borderRadius: BorderRadius.circular(24),
-                          borderSide: BorderSide.none,
                         ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 10,
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            // ⚠️ TURU 74 — ATAC. Medya sunucuda kapaliysa (R2 env
+                            //    yok) dugme HIC CIZILMEZ: `GET /users/me`
+                            //    yanitindaki `media_acik`. Gorunen ama
+                            //    calismayan dugme turu 66b dersinin tekrari olurdu.
+                            if (_medyaAcik)
+                              IconButton(
+                                tooltip: 'Ekle',
+                                visualDensity: VisualDensity.compact,
+                                icon: const Icon(
+                                  LucideIcons.paperclip,
+                                  size: 20,
+                                ),
+                                onPressed: _yukleniyor ? null : _atacAc,
+                              ),
+                            Expanded(
+                              child: TextField(
+                                controller: _input,
+                                onChanged: _onChanged,
+                                onSubmitted: (_) => _send(),
+                                textCapitalization:
+                                    TextCapitalization.sentences,
+                                minLines: 1,
+                                maxLines: 5,
+                                decoration: InputDecoration(
+                                  hintText: 'Mesaj yazın',
+                                  border: InputBorder.none,
+                                  isDense: true,
+                                  contentPadding: EdgeInsets.fromLTRB(
+                                    _medyaAcik ? 0 : 16,
+                                    12,
+                                    12,
+                                    12,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                        // Faz 2: atas (medya) butonu buraya
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  // ⚠️ TURU 74 — metin BOŞKEN mikrofon, DOLUYKEN gönder (WhatsApp).
-                  //    Ses notu kaydı arama/oda/yayın sırasında ENGELLİ; kapı
-                  //    `SesNotuKaydedici._basla` içinde. Ölçülmüş gerekçe:
-                  //    turu 64 `!pri`, turu 65 `didActivate` gelmiyor, turu 62-C rota.
-                  if (_medyaAcik && _input.text.trim().isEmpty)
-                    SesNotuKaydedici(
-                      key: _sesKey,
-                      onKayit: _sesNotuGonder,
-                      onDurum: (k) => setState(() => _sesKayitta = k),
-                    )
-                  else
-                    FloatingActionButton.small(
-                      onPressed: _sending ? null : _send,
-                      child: const Icon(LucideIcons.send),
-                    ),
+                    const SizedBox(width: 8),
+                    // ⚠️ TURU 74 — metin BOŞKEN mikrofon, DOLUYKEN gönder (WhatsApp).
+                    //    Ses notu kaydı arama/oda/yayın sırasında ENGELLİ; kapı
+                    //    `SesNotuKaydedici._basla` içinde. Ölçülmüş gerekçe:
+                    //    turu 64 `!pri`, turu 65 `didActivate` gelmiyor, turu 62-C rota.
+                    if (_medyaAcik && _input.text.trim().isEmpty)
+                      SesNotuKaydedici(
+                        key: _sesKey,
+                        onKayit: _sesNotuGonder,
+                        onDurum: (k) => setState(() => _sesKayitta = k),
+                      )
+                    else
+                      // ⚠️ `FloatingActionButton` DEGIL: FAB'in kendi 6 dp
+                      //    golgesi ve 40 dp sabit olcusu var; giris hapiyla
+                      //    hizalanmiyordu. Duz daire hapla AYNI dikey eksende.
+                      // ⚠️ Dokunma alani 44 dp (Apple/Material tavsiyesi) —
+                      //    ikon 20 dp ama kutu buyuk.
+                      Material(
+                        color: Theme.of(context).colorScheme.primary,
+                        shape: const CircleBorder(),
+                        child: InkWell(
+                          customBorder: const CircleBorder(),
+                          onTap: _sending ? null : _send,
+                          child: SizedBox(
+                            width: 44,
+                            height: 44,
+                            child: Icon(
+                              LucideIcons.send,
+                              size: 20,
+                              color: Theme.of(context).colorScheme.onPrimary,
+                            ),
+                          ),
+                        ),
+                      ),
                   ],
                 ],
               ),
@@ -921,12 +984,13 @@ class _AktifAramaBalonu extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final ctrl = ref.watch(activeCallProvider);
     if (ctrl.arama == null || !ctrl.minimized) return const SizedBox.shrink();
+    final scheme = Theme.of(context).colorScheme;
     return Align(
       alignment: Alignment.center,
       child: Padding(
         padding: const EdgeInsets.only(top: 8, bottom: 4),
         child: Material(
-          color: const Color(0xFF075E54),
+          color: scheme.primary,
           borderRadius: BorderRadius.circular(16),
           child: InkWell(
             borderRadius: BorderRadius.circular(16),
@@ -936,11 +1000,7 @@ class _AktifAramaBalonu extends ConsumerWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(
-                    LucideIcons.phone,
-                    size: 16,
-                    color: Color(0xFF25D366),
-                  ),
+                  Icon(LucideIcons.phone, size: 16, color: scheme.onPrimary),
                   const SizedBox(width: 10),
                   Flexible(
                     child: Column(
@@ -997,31 +1057,34 @@ class _CallLogChip extends StatelessWidget {
     if (onAra == null) return;
     showModalBottomSheet(
       context: context,
-      builder: (c) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 8),
-            ListTile(
-              leading: const Icon(LucideIcons.phone, color: Color(0xFF25D366)),
-              title: const Text('Sesli ara'),
-              onTap: () {
-                Navigator.of(c).pop();
-                onAra!(false);
-              },
-            ),
-            ListTile(
-              leading: const Icon(LucideIcons.video, color: Color(0xFF25D366)),
-              title: const Text('Görüntülü ara'),
-              onTap: () {
-                Navigator.of(c).pop();
-                onAra!(true);
-              },
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
+      builder: (c) {
+        final scheme = Theme.of(c).colorScheme;
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 8),
+              ListTile(
+                leading: Icon(LucideIcons.phone, color: scheme.primary),
+                title: const Text('Sesli ara'),
+                onTap: () {
+                  Navigator.of(c).pop();
+                  onAra!(false);
+                },
+              ),
+              ListTile(
+                leading: Icon(LucideIcons.video, color: scheme.primary),
+                title: const Text('Görüntülü ara'),
+                onTap: () {
+                  Navigator.of(c).pop();
+                  onAra!(true);
+                },
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -1063,7 +1126,7 @@ class _CallLogChip extends StatelessWidget {
           avatar: Icon(
             LucideIcons.video,
             size: 15,
-            color: bitti ? scheme.outline : const Color(0xFF25D366),
+            color: bitti ? scheme.outline : scheme.primary,
           ),
           label: Text('$metin · $saat', style: const TextStyle(fontSize: 12)),
           visualDensity: VisualDensity.compact,
@@ -1509,8 +1572,7 @@ class _YapisalBalon extends ConsumerWidget {
       ikon: LucideIcons.mapPin,
       renk: const Color(0xFFEF5350),
       baslik: 'Konum',
-      alt:
-          '${k.enlem.toStringAsFixed(4)}, ${k.boylam.toStringAsFixed(4)}',
+      alt: '${k.enlem.toStringAsFixed(4)}, ${k.boylam.toStringAsFixed(4)}',
       eylem: 'Haritada aç',
       onEylem: () => KonumServisi.haritadaAc(k.enlem, k.boylam),
     );

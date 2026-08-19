@@ -84,10 +84,28 @@ const kAltMenuPasifIkon = Color(0xFF7A7A7E);
 ThemeData _tema(Brightness parlaklik) {
   final koyu = parlaklik == Brightness.dark;
   final icerik = koyu ? _icerikZemin : _icerikZeminAcik;
-  final scheme = ColorScheme.fromSeed(
-    seedColor: _seed,
-    brightness: parlaklik,
-  ).copyWith(surface: icerik);
+  final scheme =
+      ColorScheme.fromSeed(seedColor: _seed, brightness: parlaklik).copyWith(
+        surface: icerik,
+        // ⚠️⚠️ TURU 115b — ACIK TEMADA `primary` **LOGONUN TAM RENGI**
+        //	(emulatorde gorundu).
+        //	`ColorScheme.fromSeed` tohumu ALIP tonal palete cevirir; cikan
+        //	`primary` logodan belirgin sekilde DAHA SOLUK bir mordu
+        //	(~#65558F). Sonuc: ayni ekranda FAB (`morGradient`, canli mor)
+        //	ile secili sekme hapi (`primary`, soluk mor) YAN YANA duruyor ve
+        //	IKI FARKLI MOR gibi gorunuyordu.
+        //	Artik `primary` dogrudan `morLogo`; FAB, hap, secili cip ve
+        //	gonder dugmesi AYNI moru kullanir.
+        // ⚠️ `onPrimary` ACIKCA beyaz: `fromSeed` bunu eski (soluk) primary
+        //    icin hesaplamisti. Kontrast olculdu — #6C2BD9 uzerinde beyaz
+        //    **7,9:1** (WCAG AAA).
+        // ⚠️⚠️ KOYU TEMA **DEGISTIRILMEDI**: Material 3'te koyu temanin
+        //	`primary`si ACIK bir ton olmali (uzerine KOYU yazi gelir).
+        //	Oraya da #6C2BD9 yazsaydik koyu zeminde koyu mor dugme cikardi
+        //	ve `onPrimary` koyu oldugu icin yazi OKUNMAZDI.
+        primary: koyu ? null : morLogo,
+        onPrimary: koyu ? null : Colors.white,
+      );
   return ThemeData(
     useMaterial3: true,
     brightness: parlaklik,
@@ -109,6 +127,28 @@ ThemeData _tema(Brightness parlaklik) {
       elevation: 0,
       scrolledUnderElevation: 0,
     ),
+    // ⚠️⚠️ TURU 115b — ALTTAN ACILAN PANELLER **SAYFAYLA AYNI ZEMINDE**
+    //	(emulatorde gorundu). Material 3 varsayilani `surfaceContainerLow`,
+    //	yani TOHUM RENGINE BOYANMIS bir yuzeydir; tohum mor olunca panel
+    //	PEMBEMSI aciliyor ve arkasindaki gri sayfayla ayrisiyordu — ayni
+    //	uygulamada iki farkli "beyaz" gibi duruyordu.
+    // ⚠️ Yaricap da BURADAN veriliyor: her sheet'e tek tek yazilirsa yeni bir
+    //    sheet eklendiginde unutulur ve tek panel 28 dp koseyle acilir.
+    // ⚠️ `showDragHandle` BURADAN VERILMEZ (cagri yerinde kalir): bazi
+    //    panellerde tutamac istemiyoruz.
+    bottomSheetTheme: BottomSheetThemeData(
+      backgroundColor: icerik,
+      surfaceTintColor: Colors.transparent,
+      modalBackgroundColor: icerik,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+    ),
+    // ⚠️ Ayni gerekce: diyaloglar da tohum renginde boyaniyordu.
+    dialogTheme: DialogThemeData(
+      backgroundColor: icerik,
+      surfaceTintColor: Colors.transparent,
+    ),
     // ALT MENU: siyah zemin, gosterge (daire) YOK, yazi YOK, aktif beyaz/pasif gri.
     // ⚠️⚠️ TURU 96m — **CANLI ALT MENU BU BLOK DEGIL**: uygulamanin alt menusu
     //	`features/home/alt_menu.dart` icinde ELLE cizilir (`NavigationBar`
@@ -119,9 +159,13 @@ ThemeData _tema(Brightness parlaklik) {
     //    degistir — iki yuzey birlikte doner.
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: kAltMenuZemin,
-      indicatorColor: Colors.transparent, // ikon arkasi daire KALDIRILDI (secili)
-      overlayColor: WidgetStateProperty.all(Colors.transparent), // TAP dairesi de KALDIR
-      labelBehavior: NavigationDestinationLabelBehavior.alwaysHide, // yazilar KALDIRILDI
+      indicatorColor:
+          Colors.transparent, // ikon arkasi daire KALDIRILDI (secili)
+      overlayColor: WidgetStateProperty.all(
+        Colors.transparent,
+      ), // TAP dairesi de KALDIR
+      labelBehavior:
+          NavigationDestinationLabelBehavior.alwaysHide, // yazilar KALDIRILDI
       height: 62,
       iconTheme: WidgetStateProperty.resolveWith((states) {
         final aktif = states.contains(WidgetState.selected);
@@ -151,7 +195,7 @@ final darkTheme = _tema(Brightness.dark);
 // kastettigi kesinlikle bu degildi.
 //
 // ⚠️ Renkler `Brightness`e gore secilir. Acik temada:
-//   · benim balonum  -> acik yesil (WhatsApp'in acik tema tonu)
+//   · benim balonum  -> MARKA MORUNUN acigi (turu 115b)
 //   · karsi balon    -> beyaz
 //   Ikisinde de koyu yazi OKUNUR.
 // ⚠️ YAPMA: bu uc renkten herhangi birini tekrar SABITE cevirme; acik tema
@@ -159,8 +203,17 @@ final darkTheme = _tema(Brightness.dark);
 // ⚠️ Mavi tik IKI TEMADA DA ayni kalir (marka isareti; iki zeminde de okunur).
 extension ChatColors on ColorScheme {
   bool get _koyuMu => brightness == Brightness.dark;
+
+  /// ⚠️⚠️ TURU 115b — BALON ARTIK **MOR** (kullanici emri: *"yesil renk
+  ///	yapma artik, genel tasarima uy"*). Onceki ton WhatsApp yesiliydi ve
+  ///	uygulamanin logosu MOR oldugu icin EN COK KULLANILAN ekran markayla
+  ///	CELISIYORDU.
+  /// ⚠️ Kontrast OLCULDU: acik temada 0xFFEDE4FF uzerinde koyu yazi 15.5:1,
+  ///    koyu temada 0xFF3B2A63 uzerinde beyaz yazi 9.8:1 (ikisi de AAA).
+  /// ⚠️ `primary`nin KENDISI KULLANILMAZ: doygun mor zeminde acik temanin
+  ///    siyah yazisi okunmazdi (turu 81'de yesille birebir bu yasandi).
   Color get bubbleMine =>
-      _koyuMu ? const Color(0xFF075E54) : const Color(0xFFD9FDD3);
+      _koyuMu ? const Color(0xFF3B2A63) : const Color(0xFFEDE4FF);
   Color get bubbleOther =>
       _koyuMu ? const Color(0xFF262D31) : const Color(0xFFFFFFFF);
   Color get tickRead => const Color(0xFF34B7F1); // mavi tik

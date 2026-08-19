@@ -299,16 +299,20 @@ class _MesajSekmesiState extends State<_MesajSekmesi> {
   @override
   Widget build(BuildContext context) => Column(
     children: [
+      // ⚠️⚠️ TURU 115b — `SegmentedButton` YERINE **HAP SECICI**.
+      //	M3 `SegmentedButton` her segmentin cevresine kenarlik ve aralarina
+      //	dikey ayrac cizer; ekranin en ustunde, arama kutusunun hemen
+      //	uzerinde iki cerceveli kutu "form alani" gibi duruyordu.
+      //	Yeni hal: tek bir hap, secili taraf dolu. Uygulamadaki diger
+      //	seciciler (`akis_ekrani` bolme secici) de bu dilde.
+      // ⚠️ Genislik TAM EKRAN: iki segment esit paylasir (`Expanded`),
+      //    yani etiket uzunlugu degisse de kutu OYNAMAZ.
       Padding(
-        padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
-        child: SegmentedButton<int>(
-          segments: const [
-            ButtonSegment(value: 0, label: Text('Sohbetler')),
-            ButtonSegment(value: 1, label: Text('Aramalar')),
-          ],
-          selected: {_alt},
-          showSelectedIcon: false,
-          onSelectionChanged: (s) => setState(() => _alt = s.first),
+        padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
+        child: _HapSecici(
+          etiketler: const ['Sohbetler', 'Aramalar'],
+          secili: _alt,
+          onSec: (i) => setState(() => _alt = i),
         ),
       ),
       // ⚠️ IndexedStack: sekme degistirince ChatsScreen'in WS dinleyicisi ve
@@ -321,6 +325,81 @@ class _MesajSekmesiState extends State<_MesajSekmesi> {
       ),
     ],
   );
+}
+
+/// Iki secenekli hap secici.
+///
+/// ⚠️ Secili tarafin kutusu `AnimatedAlign` ile KAYAR: aninda yer degistiren
+///    bir dolgu, hangi tarafa gecildigini gozle takip ettirmez.
+/// ⚠️ Kalinlik IKI TARAFTA DA w600: secimle degisseydi etiket genisligi
+///    degisir ve kayan kutu etiketin altindan kayardi (turu 97c olcumu).
+class _HapSecici extends StatelessWidget {
+  const _HapSecici({
+    required this.etiketler,
+    required this.secili,
+    required this.onSec,
+  });
+
+  final List<String> etiketler;
+  final int secili;
+  final void Function(int) onSec;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      height: 40,
+      decoration: BoxDecoration(
+        color: scheme.onSurface.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Stack(
+        children: [
+          AnimatedAlign(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+            alignment: secili == 0
+                ? Alignment.centerLeft
+                : Alignment.centerRight,
+            child: FractionallySizedBox(
+              widthFactor: 1 / etiketler.length,
+              heightFactor: 1,
+              child: Container(
+                margin: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  color: scheme.primary,
+                  borderRadius: BorderRadius.circular(17),
+                ),
+              ),
+            ),
+          ),
+          Row(
+            children: [
+              for (var i = 0; i < etiketler.length; i++)
+                Expanded(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => onSec(i),
+                    child: Center(
+                      child: Text(
+                        etiketler[i],
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: i == secili
+                              ? scheme.onPrimary
+                              : scheme.onSurface.withValues(alpha: 0.6),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 /// ⚠️ TURU 76 — CANLI SEKMESI: canli yayinlar + SESLI ODALAR.
@@ -565,9 +644,7 @@ class _ProfileTab extends ConsumerWidget {
               baslik: 'Randevularım',
               altBaslik: 'Rezervasyon ve randevu taleplerin',
               onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => const RandevuListesiEkrani(),
-                ),
+                MaterialPageRoute(builder: (_) => const RandevuListesiEkrani()),
               ),
             ),
             // ⚠️ YALNIZ isletme hesabinda: kisisel hesapta ulasilamaz bir
@@ -604,7 +681,6 @@ class _ProfileTab extends ConsumerWidget {
             //    gosterir ve kullanicinin istedigi AYRIM kaybolurdu.
             // ⚠️ `benimId` bos olamaz: bu liste `myProfileProvider` yuklendikten
             //    sonra ciziliyor (ust taraftaki `ProfilKarti` de ona bagli).
-
             AyarSatiri(
               ikon: LucideIcons.clipboardList,
               baslik: 'İlanlarım',
@@ -642,9 +718,9 @@ class _ProfileTab extends ConsumerWidget {
             AyarSatiri(
               ikon: LucideIcons.salad,
               baslik: 'Diyetim',
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const DiyetimEkrani()),
-              ),
+              onTap: () => Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => const DiyetimEkrani())),
             ),
             if (isletme) ...[
               AyarSatiri(
@@ -700,9 +776,9 @@ class _ProfileTab extends ConsumerWidget {
               ikon: LucideIcons.userRoundCheck,
               baslik: 'Takip istekleri',
               altBaslik: 'Gizli hesapsan onay bekleyenler',
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const TakipIstekleri()),
-              ),
+              onTap: () => Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => const TakipIstekleri())),
             ),
             // ⚠️ TURU 74 — ENGELLENENLER. App Store 1.2 (UGC) engellemeyi sart
             //    kosuyor; engellemek kadar engeli GOREBILMEK ve KALDIRABILMEK
@@ -725,9 +801,9 @@ class _ProfileTab extends ConsumerWidget {
               ikon: LucideIcons.settings,
               baslik: 'Ayarlar',
               altBaslik: 'Tema, harita rengi, izinler',
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const AyarlarEkrani()),
-              ),
+              onTap: () => Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => const AyarlarEkrani())),
             ),
             // ⚠️ Jeton satiri TIKLANMAZ (`onTap` yok): satin alma/harcama
             //    ekrani YOK. Dokunulup hicbir sey yapmayan bir satir, olmayan

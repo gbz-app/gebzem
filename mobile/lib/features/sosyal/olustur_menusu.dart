@@ -14,6 +14,13 @@
 ///    (ozelligin VARLIGINI ogrenmenin tek yolu — turu 76b serhi) YERINDE
 ///    duruyor. Bu menu onlara EK bir kestirmedir, YERINE gecmez.
 ///
+/// ⚠️⚠️ TURU 115b — MENU MODERNLESTIRILDI (kullanici: "cikan pencereyi
+///	modernlestir"). UST SIRADA UC BUYUK KART (Gönderi · Reels · Canlı),
+///	altta uc satir. Kartlara SABIT YUKSEKLIK VERILMEDI: Row+Expanded+
+///	mainAxisSize.min ile en uzun kart belirler; sabit yukseklik yazi
+///	olcegi 1.5/2.0da TASARDI (turu 98c dersi). Ikon kutusu marka renginin
+///	acigi — alti farkli renk "renk cumbusu" olurdu.
+///
 /// ⚠️ YUKSEKLIK: alti madde x ~52dp + baslik = ~360dp. `mainAxisSize.min`
 ///    ile sheet icerigi kadar yer kaplar — kullanicinin "yukseklik fazla
 ///    olmasin" istegi BOYLE karsilanir.
@@ -55,86 +62,116 @@ Future<void> olusturMenusuAc(
     context: context,
     // ⚠️⚠️ TURU 90b — `isScrollControlled` **ZORUNLU** (olculdu).
     //    Verilmediginde Flutter tavani `ekranYuksekligi * 9/16`; ustune
-    //    `showDragHandle` 48dp yiyor. Icerik 371dp, 360x640'ta butce 312dp
-    //    -> **VARSAYILAN yazi olceginde bile** son madde ("Grup") KIRPILIYOR
-    //    ve release'te sessizce ekran disina boyaniyordu.
+    //    `showDragHandle` 48dp yiyor. 360x640'ta son madde ("Grup")
+    //    **VARSAYILAN yazi olceginde bile** KIRPILIYORDU.
     //    ⚠️ Test cihazi 414x896 oldugu icin hata ORADA GORUNMUYORDU
     //       (turu 70b'nin birebir tekrari).
-    // ⚠️ Kullanicinin "yukseklik fazla olmasin" istegi BOZULMAZ:
-    //    `mainAxisSize.min` duruyor, sheet yine icerik boyunda acilir;
-    //    `isScrollControlled` yalnizca TAVANI kaldirir, yuksekligi ZORLAMAZ.
+    // ⚠️ Bayrak yalnizca TAVANI kaldirir, yuksekligi ZORLAMAZ:
+    //    `mainAxisSize.min` duruyor, sheet yine icerik boyunda acilir.
     isScrollControlled: true,
     showDragHandle: true,
+    // ⚠️ Kose yaricapi ACIKCA veriliyor: uygulama genelinde 20 dp kullaniliyor,
+    //    Material 3 varsayilani (28) burada daha "sisman" duruyordu.
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
     builder: (c) => SafeArea(
       child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Padding(
-              padding: EdgeInsets.fromLTRB(20, 0, 20, 6),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'Oluştur',
-                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+              padding: EdgeInsets.fromLTRB(20, 0, 20, 14),
+              child: Text(
+                'Oluştur',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              // ⚠️⚠️ TURU 115b — `IntrinsicHeight` ZORUNLU (emulatorde
+              //	OLCULDU, EKRAN BOMBOS ACILIYORDU).
+              //	Ilk yazimda yalnizca `crossAxisAlignment.stretch` vardi:
+              //	`Row` bir `SingleChildScrollView` icinde oldugu icin dikey
+              //	kisiti SINIRSIZ, `stretch` de cocuklara o sinirsiz
+              //	yuksekligi dayatiyor ->
+              //	  *BoxConstraints forces an infinite height* ->
+              //	  *RenderBox was not laid out* -> **SHEET HIC CIZILMIYOR**
+              //	(perde kararıyor, icerik gorunmuyor).
+              //	`IntrinsicHeight` yuksekligi EN UZUN KARTTAN turetir; sabit
+              //	yukseklik verilmedigi icin yazi olcegi 1.5/2.0'da da tasmaz.
+              // ⚠️ YAPMA: `IntrinsicHeight`i kaldirma; kartlara sabit
+              //    `height` verme (turu 98c tasma dersi).
+              // ⚠️ Bu, turu 98i'deki `DemoYorumSatiri` hatasinin BIREBIR
+              //    aynisi (`Expanded` + sinirsiz yukseklik).
+              child: IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(
+                      child: _kart(
+                        c,
+                        LucideIcons.imagePlus,
+                        'Gönderi',
+                        () => const GonderiOlustur(),
+                        sonrasinda: sonrasinda,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _kart(
+                        c,
+                        LucideIcons.clapperboard,
+                        'Reels',
+                        () => const GonderiOlustur(reels: true),
+                        sonrasinda: sonrasinda,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _kart(
+                        c,
+                        LucideIcons.radio,
+                        'Canlı',
+                        () => const LiveStartScreen(),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
-            _madde(
-              c,
-              LucideIcons.imagePlus,
-              'Gönderi',
-              'Fotoğraf, video, anket',
-              () => const GonderiOlustur(),
-              sonrasinda: sonrasinda,
-            ),
-            _madde(
-              c,
-              LucideIcons.clapperboard,
-              'Reels',
-              'Dikey kısa video',
-              () => const GonderiOlustur(reels: true),
-              sonrasinda: sonrasinda,
-            ),
+            const SizedBox(height: 16),
             // ⚠️ HIKAYE: editor bir DOSYA bekliyor ve secici mantigi
-            //    `story_seridi.dart`ta (izin + boyut tavani + yukleme ilerlemesi).
-            //    O mantigi BURAYA KOPYALAMAK ikinci bir kopya olurdu; bunun
-            //    yerine kullanici anasayfadaki "Hikâyen" halkasina yonlendirilir.
+            //    `story_seridi.dart`ta (izin + boyut tavani + yukleme
+            //    ilerlemesi). O mantigi BURAYA KOPYALAMAK ikinci bir kopya
+            //    olurdu; kullanici "Hikâyen" halkasina yonlendirilir.
             //    ⚠️ YAPMA: secici/yukleme kodunu buraya kopyalama.
-            _madde(
+            _satir(
               c,
               LucideIcons.circlePlus,
               'Hikâye',
-              'Anasayfada "Hikâyen" halkasından',
+              'Anasayfadaki "Hikâyen" halkasından',
               null,
               ipucu: 'Anasayfadaki "Hikâyen" halkasına dokun',
-            ),
-            _madde(
-              c,
-              LucideIcons.radio,
-              'Canlı yayın',
-              'Hemen yayına başla',
-              () => const LiveStartScreen(),
             ),
             // ⚠️ SESLI ODA: olusturma akisi `rooms_tab.dart` icinde private
             //    (`_odaAc`) ve oda kurulumu ses birimi/mesgulluk kapilariyla
             //    ic ice. Disari cikarmak o kapilari ikinci kez yazmak demekti.
-            _madde(
+            _satir(
               c,
               LucideIcons.audioLines,
               'Sesli oda',
-              'Canlı sekmesinden aç',
+              'Canlı sekmesi > Odalar > "+"',
               null,
               ipucu: 'Canlı sekmesi > Odalar > "+"',
             ),
             // ⚠️⚠️ TURU 90c — GRUP KURULUNCA SOHBETE GIDILIR.
-            //    `GrupOlusturEkrani` `pop(chatId)` ile kurulan grubun kimligini
-            //    donduruyor; menu onu ATIYORDU. Sonuc: kullanici grubu kuruyor,
-            //    ekran kapaniyor ve **hicbir yere gitmiyordu** — grubu bulmak
-            //    icin Mesaj sekmesine gidip listede aramasi gerekiyordu.
-            //    Bu, turu 90b'nin GONDERI icin duzelttigi "donen id atiliyor"
-            //    hatasinin GRUP kopyasiydi.
-            _madde(
+            //    `GrupOlusturEkrani` `pop(chatId)` donduruyor; menu onu
+            //    ATIYORDU: kullanici grubu kuruyor ve **hicbir yere
+            //    gitmiyordu**. Turu 90b'nin GONDERI icin duzelttigi "donen id
+            //    atiliyor" hatasinin GRUP kopyasiydi.
+            _satir(
               c,
               LucideIcons.users,
               'Grup',
@@ -142,8 +179,8 @@ Future<void> olusturMenusuAc(
               () => const GrupOlusturEkrani(),
               sonrasinda: (chatId) {
                 if (chatId == null || chatId.isEmpty) return;
-                // ⚠️ `call_screen.dart:286-290` ile BIREBIR AYNI desen (kanitli):
-                //    kok context alinir, `mounted` kontrol edilir, `GoRouter.of`
+                // ⚠️ `call_screen.dart:286-290` ile BIREBIR AYNI desen:
+                //    kok context alinir, `mounted` kontrol edilir, `GoRouter`
                 //    ile push edilir. Ciplak `Navigator` KULLANILMAZ — sohbet
                 //    rotasi GoRouter'da tanimli.
                 final ctx = rootNavigatorKey.currentContext;
@@ -152,7 +189,7 @@ Future<void> olusturMenusuAc(
                 }
               },
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
           ],
         ),
       ),
@@ -160,13 +197,53 @@ Future<void> olusturMenusuAc(
   );
 }
 
-/// Menu maddesi.
+/// Ust siradaki buyuk kart.
+Widget _kart(
+  BuildContext c,
+  IconData ikon,
+  String baslik,
+  Widget Function() ekran, {
+  void Function(String? id)? sonrasinda,
+}) {
+  final scheme = Theme.of(c).colorScheme;
+  return Material(
+    color: scheme.primary.withValues(alpha: 0.10),
+    borderRadius: BorderRadius.circular(16),
+    child: InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: () => _ac(c, ekran, sonrasinda: sonrasinda),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(ikon, size: 25, color: scheme.primary),
+            const SizedBox(height: 9),
+            Text(
+              baslik,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: scheme.onSurface,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+/// Alt bolumdeki satir.
 ///
-/// ⚠️ `ekran` NULL ise madde bir EKRAN ACMAZ, yalnizca NEREDE oldugunu
+/// ⚠️ [ekran] NULL ise satir bir EKRAN ACMAZ, yalnizca NEREDE oldugunu
 ///    soyler. Bu, "dugme var ama hicbir sey yapmiyor" sinifindan (bu projede
 ///    alti kez yasandi) KACINMANIN durust yoludur: kullanici yine de yolu
-///    ogrenir.
-Widget _madde(
+///    ogrenir. O satirlarda ok (chevron) CIZILMEZ — ok "seni bir yere
+///    goturecegim" demektir ve goturmuyoruz.
+Widget _satir(
   BuildContext c,
   IconData ikon,
   String baslik,
@@ -174,30 +251,82 @@ Widget _madde(
   Widget Function()? ekran, {
   String? ipucu,
   void Function(String? id)? sonrasinda,
-}) => ListTile(
-  dense: true,
-  visualDensity: VisualDensity.compact,
-  leading: Icon(ikon, size: 21),
-  title: Text(baslik, style: const TextStyle(fontWeight: FontWeight.w600)),
-  subtitle: Text(altBaslik, style: const TextStyle(fontSize: 12)),
-  onTap: () async {
-    final nav = Navigator.of(c);
-    final mesajci = ScaffoldMessenger.of(c);
-    nav.pop();
-    if (ekran == null) {
-      mesajci.showSnackBar(SnackBar(content: Text(ipucu ?? baslik)));
-      return;
-    }
-    // ⚠️ SONUC BEKLENIR ve GERI VERILIR: `GonderiOlustur` paylasilan
-    //    gonderinin id'sini `pop(...)` ile dondurur; akis onu kullanip
-    //    kendini tazeler. `await` atlanirsa kullanici paylasip donuyor
-    //    ve gonderisini AKISTA GOREMIYOR (turu 90b bulgusu).
-    final id = await nav.push<String>(
-      MaterialPageRoute(builder: (_) => ekran()),
-    );
-    sonrasinda?.call(id);
-  },
-);
+}) {
+  final scheme = Theme.of(c).colorScheme;
+  final soluk = scheme.onSurface.withValues(alpha: 0.6);
+  return InkWell(
+    onTap: () async {
+      final nav = Navigator.of(c);
+      final mesajci = ScaffoldMessenger.of(c);
+      nav.pop();
+      if (ekran == null) {
+        mesajci.showSnackBar(SnackBar(content: Text(ipucu ?? baslik)));
+        return;
+      }
+      final id = await nav.push<String>(
+        MaterialPageRoute(builder: (_) => ekran()),
+      );
+      sonrasinda?.call(id);
+    },
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 11),
+      child: Row(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: scheme.onSurface.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(ikon, size: 19, color: scheme.onSurface),
+          ),
+          const SizedBox(width: 13),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  baslik,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(altBaslik, style: TextStyle(fontSize: 12, color: soluk)),
+              ],
+            ),
+          ),
+          if (ekran != null)
+            Icon(
+              LucideIcons.chevronRight,
+              size: 18,
+              color: scheme.onSurface.withValues(alpha: 0.35),
+            ),
+        ],
+      ),
+    ),
+  );
+}
+
+/// Kartlarin ortak acma yolu (satirla AYNI sozlesme).
+Future<void> _ac(
+  BuildContext c,
+  Widget Function() ekran, {
+  void Function(String? id)? sonrasinda,
+}) async {
+  final nav = Navigator.of(c);
+  nav.pop();
+  // ⚠️ SONUC BEKLENIR ve GERI VERILIR: `GonderiOlustur` paylasilan gonderinin
+  //    id'sini `pop(...)` ile dondurur; akis onu kullanip kendini tazeler.
+  //    `await` atlanirsa kullanici paylasip donuyor ve gonderisini AKISTA
+  //    GOREMIYOR (turu 90b bulgusu).
+  final id = await nav.push<String>(MaterialPageRoute(builder: (_) => ekran()));
+  sonrasinda?.call(id);
+}
 
 // ⚠️⚠️⚠️ TURU 90c — `OlusturFab` SINIFI **SILINDI**.
 //

@@ -109,7 +109,10 @@ class ProfilBasligi extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [c.withValues(alpha: .85), c.withValues(alpha: .30)],
+          // ⚠️ TURU 115b — DOYGUNLUK DUSURULDU (.85 -> .50). Kimlik rengi
+          //    ekranin ustunde MARKA MORUYLA yarisir hale gelmisti (mavi bir
+          //    kapak + mor dugmeler). Kimlik ayrimi KORUNUR, baskinligi biter.
+          colors: [c.withValues(alpha: .50), c.withValues(alpha: .16)],
         ),
       ),
     );

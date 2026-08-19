@@ -4,11 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-
 import '../../core/api.dart';
 import '../medya/medya_gorsel.dart';
 import '../ilan/ilan_ekranlari.dart' show IlanDetayEkrani;
 import '../ilan/ilan_servisi.dart' show Ilan;
+import '../isletme/isletme_kart.dart' show kYanBosluk;
 import 'gonderi_karti.dart' show sayiBicimle;
 import 'gonderi_detay.dart';
 import 'profil_sayfasi.dart';
@@ -170,16 +170,10 @@ class _KesfetEkraniState extends ConsumerState<KesfetEkrani>
       final List<dynamic> l;
       switch (tur) {
         case 'kullanici':
-          final r = await api.get(
-            '/users/search',
-            queryParameters: {'q': q},
-          );
+          final r = await api.get('/users/search', queryParameters: {'q': q});
           l = (r.data as List?) ?? [];
         case 'isletme':
-          final r = await api.get(
-            '/isletmeler',
-            queryParameters: {'q': q},
-          );
+          final r = await api.get('/isletmeler', queryParameters: {'q': q});
           l = ((r.data as Map)['isletmeler'] as List?) ?? [];
         case 'ilan':
           final r = await api.get('/ilanlar', queryParameters: {'q': q});
@@ -188,10 +182,7 @@ class _KesfetEkraniState extends ConsumerState<KesfetEkrani>
           // gonderi · ses · konum -> tek uc, `tur` parametresiyle
           final r = await api.get(
             '/ara',
-            queryParameters: {
-              'q': q,
-              if (tur != 'gonderi') 'tur': tur,
-            },
+            queryParameters: {'q': q, if (tur != 'gonderi') 'tur': tur},
           );
           l = ((r.data as Map)['posts'] as List?) ?? [];
       }
@@ -294,9 +285,7 @@ class _KesfetEkraniState extends ConsumerState<KesfetEkrani>
             onTap: () {
               setState(() => _sekme = i);
               // ⚠️ TEMBEL: sekmeye GECILDIGINDE yuklenir.
-              unawaited(
-                _sekmeYukle(_sekmeler[i].tur, _kutu.text.trim()),
-              );
+              unawaited(_sekmeYukle(_sekmeler[i].tur, _kutu.text.trim()));
             },
             child: Container(
               alignment: Alignment.center,
@@ -380,11 +369,12 @@ class _KesfetEkraniState extends ConsumerState<KesfetEkrani>
         ),
       );
     }
-    final l = [..._izgara]..sort((a, b) {
-      final pa = a.begeniSayisi + a.yorumSayisi + a.goruntulenme;
-      final pb = b.begeniSayisi + b.yorumSayisi + b.goruntulenme;
-      return pb.compareTo(pa);
-    });
+    final l = [..._izgara]
+      ..sort((a, b) {
+        final pa = a.begeniSayisi + a.yorumSayisi + a.goruntulenme;
+        final pb = b.begeniSayisi + b.yorumSayisi + b.goruntulenme;
+        return pb.compareTo(pa);
+      });
     return ListView.builder(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       itemCount: l.length + 1,
@@ -415,44 +405,82 @@ class _KesfetEkraniState extends ConsumerState<KesfetEkrani>
     );
   }
 
+  /// ⚠️⚠️ TURU 115b — SIRA NUMARASI **SOLDA**, GORUNTULENME **YAZILI**.
+  ///
+  /// ⚠️⚠️ EMULATORDE OLCULDU: "0 beğeni · 0 yorum" olan gonderi
+  ///	"1 beğeni · 1 yorum" olanin USTUNDE cikiyordu. Sebep: siralama
+  ///	`goruntulenme`yi de sayiyor ama o sayi EKRANDA YAZMIYORDU.
+  ///	Kullanici siralamayi BOZUK sanardi. **Siralamayi belirleyen her sayi
+  ///	gorunur olmak zorundadir.**
+  /// ⚠️ Sira numarasi SOLA alindi (TikTok/Instagram trend deseni): sagda
+  ///    iken goz once baslıga, sonra sagdaki rakama gidiyordu; sira bir
+  ///    listede SOLDAN okunur.
+  /// ⚠️ Ilk uc sira MARKA RENGINDE — ama fark yalniz renkle degil KONUMLA
+  ///    da veriliyor (renk korlugu).
   Widget _trendSatiri(Gonderi g, int sira) {
-    final soluk = Theme.of(context).colorScheme.onSurface.withValues(
-      alpha: 0.6,
-    );
+    final scheme = Theme.of(context).colorScheme;
+    final soluk = scheme.onSurface.withValues(alpha: 0.6);
     final metin = g.metin.trim();
-    return ListTile(
-      leading: SizedBox(
-        width: 52,
-        height: 52,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(10),
-          child: KapakGorseli(
-            mediaIds: g.mediaIds,
-            mediaKinds: g.mediaKinds,
-            width: 52,
-          ),
+    return InkWell(
+      onTap: () => Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => GonderiDetay(gonderi: g))),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(kYanBosluk, 8, kYanBosluk, 8),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 22,
+              child: Text(
+                '$sira',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: sira <= 3 ? scheme.primary : soluk,
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: SizedBox(
+                width: 48,
+                height: 48,
+                child: KapakGorseli(
+                  mediaIds: g.mediaIds,
+                  mediaKinds: g.mediaKinds,
+                  width: 48,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    metin.isEmpty ? g.yazarAd : metin,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w600,
+                      height: 1.25,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    '${sayiBicimle(g.goruntulenme)} görüntülenme · '
+                    '${sayiBicimle(g.begeniSayisi)} beğeni',
+                    style: TextStyle(fontSize: 12, color: soluk),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
-      ),
-      title: Text(
-        metin.isEmpty ? g.yazarAd : metin,
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-      ),
-      subtitle: Text(
-        '${sayiBicimle(g.begeniSayisi)} beğeni · '
-        '${sayiBicimle(g.yorumSayisi)} yorum',
-        style: TextStyle(fontSize: 12, color: soluk),
-      ),
-      trailing: Text(
-        '$sira',
-        style: TextStyle(
-          fontSize: 15,
-          fontWeight: FontWeight.w800,
-          color: soluk,
-        ),
-      ),
-      onTap: () => Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => GonderiDetay(gonderi: g)),
       ),
     );
   }
@@ -556,9 +584,9 @@ class _KesfetEkraniState extends ConsumerState<KesfetEkrani>
       ),
       title: Text(i.baslik, maxLines: 2, overflow: TextOverflow.ellipsis),
       subtitle: Text(i.fiyatEtiketi),
-      onTap: () => Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => IlanDetayEkrani(ilan: i)),
-      ),
+      onTap: () => Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => IlanDetayEkrani(ilan: i))),
     );
   }
 
@@ -568,10 +596,7 @@ class _KesfetEkraniState extends ConsumerState<KesfetEkrani>
   Widget _gonderiSatiri(Map<String, dynamic> m) {
     final g = Gonderi.json(m);
     final metin = g.metin.trim();
-    final alt = [
-      g.yazarAd,
-      if (g.konum.isNotEmpty) g.konum,
-    ].join(' · ');
+    final alt = [g.yazarAd, if (g.konum.isNotEmpty) g.konum].join(' · ');
     return ListTile(
       leading: SizedBox(
         width: 52,
@@ -591,9 +616,9 @@ class _KesfetEkraniState extends ConsumerState<KesfetEkrani>
         overflow: TextOverflow.ellipsis,
       ),
       subtitle: Text(alt, maxLines: 1, overflow: TextOverflow.ellipsis),
-      onTap: () => Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => GonderiDetay(gonderi: g)),
-      ),
+      onTap: () => Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => GonderiDetay(gonderi: g))),
     );
   }
 

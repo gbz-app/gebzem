@@ -58,10 +58,9 @@ const double kKalpOlcu = 28;
 /// ⚠️⚠️ **EKRANDAKI TEK GRI.** Slider zemini, kapak yer tutucusu ve 60x60
 ///    kartlar AYNI tonu kullanir (kullanici emri: *"ayni grilikte olsun"*).
 /// ⚠️ YAPMA: bu ekranlarda elle `0xFFE7E7EA` gibi bir gri yazma.
-Color kYuzeyGri(BuildContext c) =>
-    Theme.of(c).brightness == Brightness.dark
-        ? const Color(0xFF2A2A2E)
-        : const Color(0xFFE7E7EA);
+Color kYuzeyGri(BuildContext c) => Theme.of(c).brightness == Brightness.dark
+    ? const Color(0xFF2A2A2E)
+    : const Color(0xFFE7E7EA);
 
 /// ⚠️⚠️⚠️ TURU 96 — **KOSE YARICAPI: TEK MANTIK.**
 ///
@@ -115,8 +114,18 @@ final double kYaricapBuyuk = kYaricap(1000);
 ///
 /// ⚠️ Koyu temada siyah GORUNMEZ olurdu -> orada beyaz.
 /// ⚠️ TEK KAYNAK: bu ekranlarda vurgu gereken HER yer bunu cagirir.
-///    `colorScheme.primary` yazilirsa yesil GERI GELIR.
-/// ⚠️ YAPMA: bu ekranlarda `colorScheme.primary`/`secondary` kullanma.
+///
+/// ⚠️⚠️ TURU 115b — **YASAGIN GEREKCESI DEGISTI, YASAK DARALDI.**
+///	Yukaridaki "`colorScheme.primary` yazilirsa YESIL geri gelir" hukmu
+///	artik GECERSIZ: tema tohumu turu 115b'de logodaki MORA cevrildi
+///	(`core/theme.dart`), yani `primary` = marka moru.
+///	Bu fonksiyon YINE DE DURUYOR cunku kullanici bu ekranlarin
+///	siyah/beyaz aksanini GORUP ONAYLADI (turu 93: *"filtrelerde YESIL
+///	YOK"*) — degistirmek onaylanmis bir gorunumu bozmak olurdu.
+/// ⚠️ TEK ISTISNA: **PUAN** (yildiz + sayi) `primary` kullanir. `kVurgu`
+///    acik temada SIYAH doner ve puan normal metinden AYIRT EDILEMEZDI;
+///    puan bir vurgudur, govde metni degil.
+/// ⚠️ YAPMA: bu ekranlarda BASKA yerlerde `primary`/`secondary` kullanma.
 Color kVurgu(BuildContext c) => Theme.of(c).brightness == Brightness.dark
     ? Colors.white
     : const Color(0xFF1A1A1A);
@@ -173,8 +182,7 @@ class _IsletmeKartiState extends ConsumerState<IsletmeKarti> {
         : (o.avatarMediaId ?? '');
     // ⚠️ Kapak genisligi ACIKCA verilir: yoksa gorsel 2048px'e kadar decode
     //    edilir (turu 91 performans dersi, ~9 MB gecici RAM/kart).
-    final kartGenislik =
-        MediaQuery.sizeOf(context).width - kYanBosluk * 2;
+    final kartGenislik = MediaQuery.sizeOf(context).width - kYanBosluk * 2;
     return Padding(
       // ⚠️ Kartlar arasi bosluk, ad-gorsel boslugunun ~3.5 kati: goz hangi
       //    ismin hangi gorsele ait oldugunu ancak boyle ayirir.
@@ -182,9 +190,9 @@ class _IsletmeKartiState extends ConsumerState<IsletmeKarti> {
       child: GestureDetector(
         // ⚠️ **DALGA YOK** (kullanici emri: "tikladiginda titreme olmasin").
         behavior: HitTestBehavior.opaque,
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => ProfilSayfasi(userId: o.id)),
-        ),
+        onTap: () => Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => ProfilSayfasi(userId: o.id))),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -234,8 +242,11 @@ class _IsletmeKartiState extends ConsumerState<IsletmeKarti> {
                 if (o.dogrulandi)
                   const Padding(
                     padding: EdgeInsets.only(left: 5),
-                    child: Icon(LucideIcons.badgeCheck,
-                        size: 16, color: kOnayliRengi),
+                    child: Icon(
+                      LucideIcons.badgeCheck,
+                      size: 16,
+                      color: kOnayliRengi,
+                    ),
                   ),
               ],
             ),
@@ -431,51 +442,81 @@ Widget kampanyaRozetleri(IsletmeOzet o) {
 ///    OPSIYONEL). NULL iken "★ 0" ya da "0 dk" YANLIS BILGI olurdu.
 /// ⚠️⚠️ `puan` bir DEGERLENDIRME SISTEMINDEN gelmiyor — editoryal bir sayi.
 Widget vitrinSatiri(BuildContext c, IsletmeOzet o, {required bool kompakt}) {
-  final soluk =
-      Theme.of(c).textTheme.bodyMedium?.color?.withValues(alpha: 0.62);
+  final soluk = Theme.of(
+    c,
+  ).textTheme.bodyMedium?.color?.withValues(alpha: 0.62);
   // ⚠️ 13 -> 14 -> **13** (kullanici emri, turu 96g: "baslik altindaki
   //    bilgileri 1px kucuk"). Kompakt (izgara) dali 12ye iner.
   final boy = kompakt ? 12.0 : 13.0;
   final p = <Widget>[];
 
   if (o.puan != null) {
-    p.add(Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // ⚠️ Yildiz da AYNI kalinlikta (satirdaki tek ince ikon kalmasin).
-        kalinIkon(LucideIcons.star, olcu: 14, renk: const Color(0xFF16A34A)),
-        const SizedBox(width: 3),
-        Text(
-          o.puan!.toStringAsFixed(1).replaceAll('.', ','),
-          style: TextStyle(
-            fontSize: boy,
-            fontWeight: FontWeight.w700,
-            color: const Color(0xFF16A34A),
+    p.add(
+      Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // ⚠️ Yildiz da AYNI kalinlikta (satirdaki tek ince ikon kalmasin).
+          // ⚠️⚠️ TURU 115b — PUAN ARTIK **MARKA RENGINDE** (kullanici emri:
+          //	*"yesil renk yapma artik, genel tasarima uy"*). Onceki ton
+          //	Yemeksepeti yesiliydi (0xFF16A34A) ve uygulamanin logosu MOR.
+          // ⚠️ "Açık/Kapalı" gostergesi YESIL KALDI (asagida): orasi bir DURUM
+          //    isareti (trafik isigi semantigi), marka aksani DEGIL. Onu da
+          //    mora cevirmek "acik" ile "kapali"yi ayirt edilemez yapardi.
+          kalinIkon(
+            LucideIcons.star,
+            olcu: 14,
+            renk: Theme.of(c).colorScheme.primary,
           ),
-        ),
-        if (!kompakt && o.puanSayisi > 0) ...[
           const SizedBox(width: 3),
-          // ⚠️ Oy sayisi da `w600` — satirdaki TEK ince parca kalsaydi
-          //    "(320)" digerlerinin yaninda soluk bir kaza gibi gorunurdu.
-          Text('(${o.puanSayisi})',
+          Text(
+            o.puan!.toStringAsFixed(1).replaceAll('.', ','),
+            style: TextStyle(
+              fontSize: boy,
+              fontWeight: FontWeight.w700,
+              color: Theme.of(c).colorScheme.primary,
+            ),
+          ),
+          if (!kompakt && o.puanSayisi > 0) ...[
+            const SizedBox(width: 3),
+            // ⚠️ Oy sayisi da `w600` — satirdaki TEK ince parca kalsaydi
+            //    "(320)" digerlerinin yaninda soluk bir kaza gibi gorunurdu.
+            Text(
+              '(${o.puanSayisi})',
               style: TextStyle(
-                  fontSize: boy, color: soluk, fontWeight: kMetaKalinlik)),
+                fontSize: boy,
+                color: soluk,
+                fontWeight: kMetaKalinlik,
+              ),
+            ),
+          ],
         ],
-      ],
-    ));
+      ),
+    );
   }
   // ⚠️ TESLIMAT SURESI — saat ikonu (kullanici emri: "bunlara modern
   //    ikonlar ekle"). Ikon metnin ANLAMINI tasir; yalnizca "25-35 dk"
   //    yazmak tarama sirasinda sayiyi neyle karistiracagini belirsiz birakir.
   if (o.teslimatDkMin != null && o.teslimatDkMax != null) {
-    p.add(_ikonluMetin(LucideIcons.clock, '${o.teslimatDkMin}-${o.teslimatDkMax} dk',
-        boy, soluk));
+    p.add(
+      _ikonluMetin(
+        LucideIcons.clock,
+        '${o.teslimatDkMin}-${o.teslimatDkMax} dk',
+        boy,
+        soluk,
+      ),
+    );
   }
   // ⚠️ MIN. TUTAR — cuzdan ikonu. **"₺" YERINE "TL"** (kullanici emri):
   //    bazi Android yazi tiplerinde ₺ glifi eksik ve tofu (kutu) cizilir.
   if (o.minTutarKurus != null && o.minTutarKurus! > 0) {
-    p.add(_ikonluMetin(LucideIcons.wallet,
-        'Min. ${(o.minTutarKurus! / 100).round()} TL', boy, soluk));
+    p.add(
+      _ikonluMetin(
+        LucideIcons.wallet,
+        'Min. ${(o.minTutarKurus! / 100).round()} TL',
+        boy,
+        soluk,
+      ),
+    );
   }
   // ⚠️⚠️ MESAFE — "1,2 km" / "300 m" (kullanici emri).
   //
@@ -528,42 +569,50 @@ const FontWeight kMetaKalinlik = FontWeight.w600;
 ///	kuralin iki kopyasi" sinifi ALTI kez sahaya cikti).
 /// ⚠️ `yayilma` BUYUTULURSE glif BULANIKLASIR (golge, kenar yumusatmali bir
 ///    kopyadir). 0.4 olculdu: cizgi belirginlesiyor, keskinlik bozulmuyor.
-Widget kalinIkon(IconData ikon,
-        {required double olcu, required Color? renk, double yayilma = 0.4}) =>
-    Icon(
-      ikon,
-      size: olcu,
-      color: renk,
-      shadows: renk == null
-          ? null
-          : [
-              for (final d in [
-                Offset(yayilma, 0),
-                Offset(-yayilma, 0),
-                Offset(0, yayilma),
-                Offset(0, -yayilma),
-              ])
-                Shadow(color: renk, offset: d),
-            ],
-    );
+Widget kalinIkon(
+  IconData ikon, {
+  required double olcu,
+  required Color? renk,
+  double yayilma = 0.4,
+}) => Icon(
+  ikon,
+  size: olcu,
+  color: renk,
+  shadows: renk == null
+      ? null
+      : [
+          for (final d in [
+            Offset(yayilma, 0),
+            Offset(-yayilma, 0),
+            Offset(0, yayilma),
+            Offset(0, -yayilma),
+          ])
+            Shadow(color: renk, offset: d),
+        ],
+);
 
-Widget _ikonluMetin(IconData ikon, String metin, double boy, Color? renk) => Row(
+Widget _ikonluMetin(IconData ikon, String metin, double boy, Color? renk) =>
+    Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         // ⚠️ TURU 96j — ikon da metinle BIRLIKTE kalinlasti (kullanici emri:
         //    *"25-35 gibi bunlarin IKONLARINI kalinlastirmamissin"*).
         kalinIkon(ikon, olcu: 14, renk: renk),
         const SizedBox(width: 4),
-        Text(metin,
-            style: TextStyle(
-                fontSize: boy, color: renk, fontWeight: kMetaKalinlik)),
+        Text(
+          metin,
+          style: TextStyle(
+            fontSize: boy,
+            color: renk,
+            fontWeight: kMetaKalinlik,
+          ),
+        ),
       ],
     );
 
 /// **Açık/Kapalı · En uygun XX ₺ · İlçe** — hepsi gercek alanlardan turer.
 Widget bilgiSatiri(BuildContext c, IsletmeOzet o) {
-  final soluk =
-      Theme.of(c).textTheme.bodyMedium?.color?.withValues(alpha: 0.6);
+  final soluk = Theme.of(c).textTheme.bodyMedium?.color?.withValues(alpha: 0.6);
   final acik = isletmeAcikMi(o.calisma);
   final kapanis = _bugunKapanis(o.calisma);
   final parcalar = <Widget>[];
@@ -571,35 +620,41 @@ Widget bilgiSatiri(BuildContext c, IsletmeOzet o) {
   // ⚠️ `null` = calisma saati TANIMSIZ -> hicbir sey yazilmaz. "Kapalı"
   //    yazmak, saatini girmemis isletmeyi HAKSIZ yere kapali gosterirdi.
   if (acik != null) {
-    parcalar.add(Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 7,
-          height: 7,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: acik ? const Color(0xFF16A34A) : const Color(0xFF9CA3AF),
+    parcalar.add(
+      Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 7,
+            height: 7,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: acik ? const Color(0xFF16A34A) : const Color(0xFF9CA3AF),
+            ),
           ),
-        ),
-        const SizedBox(width: 5),
-        Text(
-          acik
-              ? (kapanis.isEmpty ? 'Açık' : 'Açık · $kapanis\'a kadar')
-              : 'Kapalı',
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: acik ? const Color(0xFF16A34A) : soluk,
+          const SizedBox(width: 5),
+          Text(
+            acik
+                ? (kapanis.isEmpty ? 'Açık' : 'Açık · $kapanis\'a kadar')
+                : 'Kapalı',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: acik ? const Color(0xFF16A34A) : soluk,
+            ),
           ),
-        ),
-      ],
-    ));
+        ],
+      ),
+    );
   }
   final f = o.minFiyatKurus;
   if (f != null && f > 0) {
-    parcalar.add(Text('En uygun ${(f / 100).round()} ₺',
-        style: TextStyle(fontSize: 13, color: soluk)));
+    parcalar.add(
+      Text(
+        'En uygun ${(f / 100).round()} ₺',
+        style: TextStyle(fontSize: 13, color: soluk),
+      ),
+    );
   }
   // ⚠️ TEK SATIRDA KALSIN diye yalniz ILCE: kategori zaten ekranin basligi.
   final yer = o.ilce.isNotEmpty

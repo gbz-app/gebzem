@@ -5,7 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#0b0714">
 <meta http-equiv="Cache-Control" content="no-cache">
-<title>Gebzem {{SAAT}} — indir</title>
+<!-- ⚠️ TURU 115b — META ONBELLEK YASAGI. Sunucu basligi ZATEN
+       `no-cache, no-store, must-revalidate` (olculdu) ama bazi uygulama-ici
+       tarayicilar (WhatsApp/Instagram webview) araya girip govdeyi kendi
+       onbelleginde tutabiliyor. Meta, o katmana da ayni seyi soyler.
+       ⚠️ Sunucu basliginin YERINE GECMEZ, ona EK. -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <title>Gebzem {{SAAT}} — indir</title>
 <link rel="icon" href="https://indir.gebzem.app/app-icon.png">
 <style>
   * { box-sizing: border-box; margin: 0; }
@@ -102,7 +110,7 @@
        Ayni sayi iki uctan da okunabilsin. -->
   <span class="saatbar">
     <span class="etiket">BU SAYFADAKİ SÜRÜMÜN SAATİ</span>
-    <span class="deger">{{SAAT}}</span>
+    <span class="deger" id="surumsaat">{{SAAT}}</span>
     <!-- ⚠️ CANLI SAAT: kullanici "saati goremiyorum" dedi ve sunucu tarafi
          DOGRUYDU (no-cache basliklari + cubuk en ustte). Geriye kalan tek
          aciklama TARAYICI ONBELLEGINDEN bayat sayfa gormesiydi; bunu
@@ -239,7 +247,32 @@ dinleyici · Canlı yayın 4 kişi (yayıncı dahil) + sınırsız izleyici.</di
     fetch('/surum.json?t=' + Date.now(), { cache: 'no-store' })
       .then(function (r) { return r.json(); })
       .then(function (d) {
-        if (!d || !d.v || d.v === buSurum) return;
+        if (!d || !d.v) return;
+
+        /* ⚠️⚠️⚠️ TURU 115b — **BUYUK SAAT ARTIK SUNUCUDAN YAZILIR.**
+           Kullanici ALTI TURDUR *"indir sitesinde saati goremiyorum"* diyor ve
+           sunucu tarafi ALTI KEZ DE dogru cikti (bu turda da olculdu:
+           `text/html` + `no-store` + `cf-cache-status: DYNAMIC` + saat 7
+           yerde + `surum.json` gomulu surumle BIREBIR).
+           Geriye kalan tek aciklama TARAYICI/WEBVIEW ONBELLEGI: kullanici ESKI
+           BIR GOVDEYE bakiyor ve orada ESKI saat yaziyor.
+           Simdiye kadarki cozumler o durumu yalniz **HABER VERIYORDU** (kirmizi
+           serit) — kullanicidan hala bir dokunus bekliyordu.
+           ARTIK: `surum.json` `no-store` ile cekiliyor ve **gorunen saatin
+           KENDISI** onunla degistiriliyor. Yani govde onbellekten gelse bile
+           kullanicinin OKUDUGU saat DOGRU olur.
+           ⚠️ Yalniz `d.saat` doluysa yazilir (bos deger saati SILERDI).
+           ⚠️ Kirmizi serit KALDIRILMADI: saat duzelse de kullanicinin ESKI bir
+              APK baglantisina basmasi ihtimali surer. */
+        if (d.saat) {
+          var g = document.getElementById('surumsaat');
+          if (g && g.textContent !== d.saat) {
+            g.textContent = d.saat;
+            document.title = 'Gebzem ' + d.saat + ' — indir';
+          }
+        }
+
+        if (d.v === buSurum) return;
         var s = document.getElementById('bayat');
         if (!s) return;
         s.style.display = 'block';

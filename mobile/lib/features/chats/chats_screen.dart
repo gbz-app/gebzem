@@ -64,21 +64,38 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
       //    duzeltilmis ve orada `isScrollControlled` "ZORUNLU" diye
       //    isaretlenmisti; bu sheet o dersi ALMAMISTI.
       isScrollControlled: true,
+      // ⚠️⚠️ TURU 115b — MODERNLESTIRME (kullanici emri: *"chat bolumunu daha
+      //    profesyonel modern bir gorunume getir"*). Tutamac + baslik +
+      //    ikonlarin renkli kutulari; `olustur_menusu.dart` ile AYNI DIL —
+      //    iki sheet ayni uygulamada farkli gorunuyordu.
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (c) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            ListTile(
-              leading: const Icon(LucideIcons.messageCirclePlus),
-              title: const Text('Yeni sohbet'),
-              subtitle: const Text('Bir kişiyle mesajlaş'),
-              onTap: () => Navigator.pop(c, 'sohbet'),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 0, 20, 10),
+              child: Text(
+                'Yeni',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+              ),
             ),
-            ListTile(
-              leading: const Icon(LucideIcons.users),
-              title: const Text('Yeni grup'),
-              subtitle: const Text('Birden fazla kişiyle mesajlaş'),
-              onTap: () => Navigator.pop(c, 'grup'),
+            _yeniMadde(
+              c,
+              LucideIcons.messageCirclePlus,
+              'Yeni sohbet',
+              'Bir kişiyle mesajlaş',
+              'sohbet',
+            ),
+            _yeniMadde(
+              c,
+              LucideIcons.users,
+              'Yeni grup',
+              'Birden fazla kişiyle mesajlaş',
+              'grup',
             ),
             // ⚠️⚠️⚠️ TURU 114 — **TOPLULUK** (kullanici emri: *"mesajlar
             //	kisminda topluluk yok, topluluk olusturma ekle"*).
@@ -95,24 +112,27 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
             //	girisi menu > Kanallar > "+" idi; kullanici mesajlar
             //	ekraninda arayip bulamiyordu. Yeni giris o ekrani acar —
             //	IKINCI BIR AKIS YAZILMADI.
-            ListTile(
-              leading: const Icon(LucideIcons.radio),
-              title: const Text('Topluluk oluştur'),
+            _yeniMadde(
+              c,
+              LucideIcons.radio,
+              'Topluluk oluştur',
               // ⚠️⚠️ TURU 114 (denetim) — **"ve yorumlar" KALDIRILDI.**
               //	`channel_posts` (022) yalniz `begeni_sayisi` ve
               //	`goruntulenme` tutuyor; YORUM TABLOSU YOK ve `internal/
               //	kanal/handler.go` yorum ucu ACMIYOR. Var olmayan bir
               //	ozelligi vaat etmek, projedeki "ozellik var gorunup
               //	fiilen yok" sinifinin ta kendisi.
-              subtitle: const Text('Sen yazarsın, üyeler okur'),
-              onTap: () => Navigator.pop(c, 'topluluk'),
+              'Sen yazarsın, üyeler okur',
+              'topluluk',
             ),
-            ListTile(
-              leading: const Icon(LucideIcons.compass),
-              title: const Text('Toplulukları keşfet'),
-              subtitle: const Text('Var olan topluluklara katıl'),
-              onTap: () => Navigator.pop(c, 'kesfet'),
+            _yeniMadde(
+              c,
+              LucideIcons.compass,
+              'Toplulukları keşfet',
+              'Var olan topluluklara katıl',
+              'kesfet',
             ),
+            const SizedBox(height: 10),
           ],
         ),
       ),
@@ -137,9 +157,9 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
       // ⚠️ Turu 90b'nin *"menu DONEN ID'yi ATIYORDU"* dersinin tekrari.
       // ⚠️ Kardes cagri yeri (`kanallar_sekmesi.dart`) ZATEN boyle yapiyor;
       //    asimetrinin kendisi hataydi.
-      final id = await Navigator.of(context).push<String>(
-        MaterialPageRoute(builder: (_) => const KanalOlustur()),
-      );
+      final id = await Navigator.of(
+        context,
+      ).push<String>(MaterialPageRoute(builder: (_) => const KanalOlustur()));
       if (id != null && context.mounted) {
         await Navigator.of(context).push<void>(
           MaterialPageRoute(
@@ -150,13 +170,14 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
       return;
     }
     if (secim == 'kesfet') {
-      await Navigator.of(context).push<void>(
-        MaterialPageRoute(builder: (_) => const KanallarSayfasi()),
-      );
+      await Navigator.of(
+        context,
+      ).push<void>(MaterialPageRoute(builder: (_) => const KanallarSayfasi()));
       return;
     }
     final chatId = await Navigator.of(context).push<String>(
-        MaterialPageRoute(builder: (_) => const GrupOlusturEkrani()));
+      MaterialPageRoute(builder: (_) => const GrupOlusturEkrani()),
+    );
     if (chatId != null && context.mounted) {
       context.push('/chat/$chatId', extra: {'title': 'Grup'});
     }
@@ -185,96 +206,114 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
     final chats = ref.watch(chatsProvider);
 
     return Scaffold(
-      body: Column(children: [
-        // ARAMA INPUT'u (Gebzem altinda — kullanici istegi): sohbet basligina gore filtreler
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
-          child: TextField(
-            controller: _aramaCtrl,
-            onChanged: (v) => setState(() => _arama = v.trim().toLowerCase()),
-            decoration: InputDecoration(
-              isDense: true,
-              hintText: 'Sohbet ara',
-              prefixIcon: const Icon(LucideIcons.search, size: 20),
-              suffixIcon: _arama.isEmpty
-                  ? null
-                  : IconButton(
-                      icon: const Icon(LucideIcons.x, size: 18),
-                      onPressed: () {
-                        _aramaCtrl.clear();
-                        setState(() => _arama = '');
-                      },
-                    ),
-              filled: true,
-              fillColor: const Color(0xFF232326),
-              contentPadding: const EdgeInsets.symmetric(vertical: 10),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(24),
-                borderSide: BorderSide.none,
+      body: Column(
+        children: [
+          // ARAMA INPUT'u (Gebzem altinda — kullanici istegi): sohbet basligina gore filtreler
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
+            child: TextField(
+              controller: _aramaCtrl,
+              onChanged: (v) => setState(() => _arama = v.trim().toLowerCase()),
+              decoration: InputDecoration(
+                isDense: true,
+                hintText: 'Sohbet ara',
+                prefixIcon: const Icon(LucideIcons.search, size: 20),
+                suffixIcon: _arama.isEmpty
+                    ? null
+                    : IconButton(
+                        icon: const Icon(LucideIcons.x, size: 18),
+                        onPressed: () {
+                          _aramaCtrl.clear();
+                          setState(() => _arama = '');
+                        },
+                      ),
+                filled: true,
+                // ⚠️⚠️ TURU 115b — SABIT `0xFF232326` KALDIRILDI (emulatorde
+                //	GORULDU): koyu tema icin yazilmis bu renk, turu 81'de acik
+                //	tema eklendikten sonra da duruyordu. Sonuc: acik temada
+                //	**SIMSIYAH bir arama kutusu** ve neredeyse okunmayan
+                //	yer tutucu yazi. Ekranin en ustundeki bilesendi, yani
+                //	uygulama acildigi anda goze carpiyordu.
+                // ⚠️ Bu, tema iskeletinin serhinde yazan "~500 sabit renk
+                //    noktasi" borcunun EN GORUNUR ornegiydi.
+                fillColor: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.06),
+                contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(24),
+                  borderSide: BorderSide.none,
+                ),
               ),
             ),
           ),
-        ),
-        // FILTRE CIPLERI — arama kutusunun ALTINDA (WhatsApp deseni).
-        SizedBox(
-          height: 38,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            children: [
-              for (final f in _Filtre.values)
-                Padding(
-                  padding: const EdgeInsets.only(right: 6),
-                  child: ChoiceChip(
-                    label: Text(_filtreAdi(f, chats.valueOrNull)),
-                    selected: _filtre == f,
-                    onSelected: (_) => setState(() => _filtre = f),
-                    visualDensity: VisualDensity.compact,
-                    labelStyle: const TextStyle(fontSize: 12),
+          // FILTRE CIPLERI — arama kutusunun ALTINDA (WhatsApp deseni).
+          SizedBox(
+            height: 38,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              children: [
+                for (final f in _Filtre.values)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: ChoiceChip(
+                      label: Text(_filtreAdi(f, chats.valueOrNull)),
+                      selected: _filtre == f,
+                      onSelected: (_) => setState(() => _filtre = f),
+                      visualDensity: VisualDensity.compact,
+                      labelStyle: const TextStyle(fontSize: 12),
+                    ),
                   ),
-                ),
-            ],
-          ),
-        ),
-        Expanded(
-          child: chats.when(
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (e, _) => _ErrorRetry(
-              message: apiErrorMessage(e),
-              onRetry: () => ref.read(chatsProvider.notifier).load(),
+              ],
             ),
-            data: (list) {
-              // ⚠️⚠️ TURU 76 — FILTRE (kullanici emri: "tümü / okunmamış vs").
-              //    TAMAMEN ISTEMCI TARAFINDA: sunucu zaten `unread`, `type` ve
-              //    `archived` donduruyor, yani YENI UC GEREKMEZ. Liste kullanicinin
-              //    TUM sohbetleri oldugu icin sayfalama da gerekmiyor.
-              // ⚠️ Arsiv AYRI bir filtre: digerlerinde arsivlenmisler GIZLI kalir,
-              //    yoksa "arsivle" hicbir ise yaramaz.
-              var visible = switch (_filtre) {
-                _Filtre.okunmamis =>
-                  list.where((c) => !c.archived && c.unread > 0).toList(),
-                _Filtre.gruplar =>
-                  list.where((c) => !c.archived && c.type == 'group').toList(),
-                _Filtre.arsiv => list.where((c) => c.archived).toList(),
-                _ => list.where((c) => !c.archived).toList(),
-              };
-              if (_arama.isNotEmpty) {
-                visible = visible
-                    .where((c) => c.title.toLowerCase().contains(_arama))
-                    .toList();
-              }
-              // SIK GORUSULEN kisiler (test turu 7): arama YOKKEN, arama input'unun altinda
-              // en son gorusulen 1:1 kisiler yatay profil seridi (WhatsApp/Telegram deseni).
-              // ⚠️ Serit YALNIZ "Tümü" filtresinde: okunmamis/gruplar/arsiv
-              //    goruntusunde tum kisileri gostermek FILTREYI ANLAMSIZ kilar.
-              final sik = (_arama.isEmpty && _filtre == _Filtre.tumu)
-                  ? (list.where((c) => c.type == 'direct' && !c.archived).toList()
-                    ..sort((a, b) => (b.lastAt ?? DateTime(0))
-                        .compareTo(a.lastAt ?? DateTime(0))))
-                  : const <Chat>[];
-              if (visible.isEmpty && sik.isEmpty) {
-                return Center(
-                  child: Text(
+          ),
+          Expanded(
+            child: chats.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (e, _) => _ErrorRetry(
+                message: apiErrorMessage(e),
+                onRetry: () => ref.read(chatsProvider.notifier).load(),
+              ),
+              data: (list) {
+                // ⚠️⚠️ TURU 76 — FILTRE (kullanici emri: "tümü / okunmamış vs").
+                //    TAMAMEN ISTEMCI TARAFINDA: sunucu zaten `unread`, `type` ve
+                //    `archived` donduruyor, yani YENI UC GEREKMEZ. Liste kullanicinin
+                //    TUM sohbetleri oldugu icin sayfalama da gerekmiyor.
+                // ⚠️ Arsiv AYRI bir filtre: digerlerinde arsivlenmisler GIZLI kalir,
+                //    yoksa "arsivle" hicbir ise yaramaz.
+                var visible = switch (_filtre) {
+                  _Filtre.okunmamis =>
+                    list.where((c) => !c.archived && c.unread > 0).toList(),
+                  _Filtre.gruplar =>
+                    list
+                        .where((c) => !c.archived && c.type == 'group')
+                        .toList(),
+                  _Filtre.arsiv => list.where((c) => c.archived).toList(),
+                  _ => list.where((c) => !c.archived).toList(),
+                };
+                if (_arama.isNotEmpty) {
+                  visible = visible
+                      .where((c) => c.title.toLowerCase().contains(_arama))
+                      .toList();
+                }
+                // SIK GORUSULEN kisiler (test turu 7): arama YOKKEN, arama input'unun altinda
+                // en son gorusulen 1:1 kisiler yatay profil seridi (WhatsApp/Telegram deseni).
+                // ⚠️ Serit YALNIZ "Tümü" filtresinde: okunmamis/gruplar/arsiv
+                //    goruntusunde tum kisileri gostermek FILTREYI ANLAMSIZ kilar.
+                final sik = (_arama.isEmpty && _filtre == _Filtre.tumu)
+                    ? (list
+                          .where((c) => c.type == 'direct' && !c.archived)
+                          .toList()
+                        ..sort(
+                          (a, b) => (b.lastAt ?? DateTime(0)).compareTo(
+                            a.lastAt ?? DateTime(0),
+                          ),
+                        ))
+                    : const <Chat>[];
+                if (visible.isEmpty && sik.isEmpty) {
+                  return Center(
+                    child: Text(
                       _arama.isNotEmpty
                           ? 'Eşleşen sohbet yok'
                           : switch (_filtre) {
@@ -282,31 +321,41 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
                               _Filtre.gruplar =>
                                 'Henüz grubun yok.\nSağ alttan grup oluştur!',
                               _Filtre.arsiv => 'Arşivde sohbet yok',
-                              _ => 'Henüz sohbet yok.\nSağ alttan yeni sohbet başlat!',
+                              _ =>
+                                'Henüz sohbet yok.\nSağ alttan yeni sohbet başlat!',
                             },
-                      textAlign: TextAlign.center),
+                      textAlign: TextAlign.center,
+                    ),
+                  );
+                }
+                return YenileSarmali(
+                  onRefresh: () => ref.read(chatsProvider.notifier).load(),
+                  child: ListView(
+                    children: [
+                      if (sik.isNotEmpty)
+                        _SikGorusulenSerit(kisiler: sik.take(12).toList()),
+                      for (final c in visible) _ChatTile(chat: c),
+                    ],
+                  ),
                 );
-              }
-              return YenileSarmali(
-                onRefresh: () => ref.read(chatsProvider.notifier).load(),
-                child: ListView(
-                  children: [
-                    if (sik.isNotEmpty) _SikGorusulenSerit(kisiler: sik.take(12).toList()),
-                    for (final c in visible) _ChatTile(chat: c),
-                  ],
-                ),
-              );
-            },
+              },
+            ),
           ),
-        ),
-      ]),
+        ],
+      ),
       // FAB: mor-gradient DAIRE + (kalem yerine — kullanici istegi). FloatingActionButton
       // gradient desteklemez -> Container decoration + saydam FAB.
       floatingActionButton: Container(
         decoration: const BoxDecoration(
           shape: BoxShape.circle,
           gradient: morGradient,
-          boxShadow: [BoxShadow(color: Color(0x556C2BD9), blurRadius: 12, offset: Offset(0, 4))],
+          boxShadow: [
+            BoxShadow(
+              color: Color(0x556C2BD9),
+              blurRadius: 12,
+              offset: Offset(0, 4),
+            ),
+          ],
         ),
         child: FloatingActionButton(
           heroTag: 'fabYeniSohbet', // TURU 76: bkz. akis_ekrani hero serhi
@@ -342,9 +391,14 @@ class _SikGorusulenSerit extends StatelessWidget {
         children: [
           const Padding(
             padding: EdgeInsets.fromLTRB(16, 2, 16, 4),
-            child: Text('Sık görüştüklerin',
-                style: TextStyle(
-                    fontSize: 12, color: Color(0xFF9A9AA0), fontWeight: FontWeight.w600)),
+            child: Text(
+              'Sık görüştüklerin',
+              style: TextStyle(
+                fontSize: 12,
+                color: Color(0xFF9A9AA0),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
           Expanded(
             child: ListView.separated(
@@ -356,26 +410,36 @@ class _SikGorusulenSerit extends StatelessWidget {
                 final c = kisiler[i];
                 final ad = c.title.isNotEmpty ? c.title : 'Kişi';
                 return GestureDetector(
-                  onTap: () => context.push('/chat/${c.id}', extra: {
-                    'title': ad,
-                    'peer_id': c.peerId,
-                    'avatar_media_id': c.avatarMediaId,
-                  }),
+                  onTap: () => context.push(
+                    '/chat/${c.id}',
+                    extra: {
+                      'title': ad,
+                      'peer_id': c.peerId,
+                      'avatar_media_id': c.avatarMediaId,
+                    },
+                  ),
                   child: SizedBox(
                     width: 62,
-                    child: Column(children: [
-                      // ⚠️ TURU 76: ham CircleAvatar YERINE ortak `Avatar` —
-                      //    `users.avatar_url` sunucuda HIC yazilmiyor (kalici bos
-                      //    string), fotograf ancak `avatar_media_id` ile (imzali
-                      //    R2 adresi) gorunur. Bu serit uygulamanin en cok
-                      //    bakilan yeriydi ve DAIMA harf ciziyordu.
-                      Avatar(ad: ad, mediaId: c.avatarMediaId, cap: 48),
-                      const SizedBox(height: 4),
-                      Text(ad,
+                    child: Column(
+                      children: [
+                        // ⚠️ TURU 76: ham CircleAvatar YERINE ortak `Avatar` —
+                        //    `users.avatar_url` sunucuda HIC yazilmiyor (kalici bos
+                        //    string), fotograf ancak `avatar_media_id` ile (imzali
+                        //    R2 adresi) gorunur. Bu serit uygulamanin en cok
+                        //    bakilan yeriydi ve DAIMA harf ciziyordu.
+                        Avatar(ad: ad, mediaId: c.avatarMediaId, cap: 48),
+                        const SizedBox(height: 4),
+                        Text(
+                          ad,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 11, color: Colors.white70)),
-                    ]),
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Colors.white70,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 );
               },
@@ -396,7 +460,9 @@ class _ChatTile extends ConsumerWidget {
     if (t == null) return '';
     final local = t.toLocal();
     final now = DateTime.now();
-    if (local.year == now.year && local.month == now.month && local.day == now.day) {
+    if (local.year == now.year &&
+        local.month == now.month &&
+        local.day == now.day) {
       return DateFormat.Hm().format(local);
     }
     if (now.difference(local).inDays < 7) {
@@ -485,7 +551,9 @@ class _ChatTile extends ConsumerWidget {
       case 'poll':
         // ⚠️ Ankette `content` SORUDUR (yapisal veri degil), yani gostermek
         //    GUVENLI ve YARARLI — WhatsApp da soruyu gosterir.
-        return chat.lastMessage.isEmpty ? 'Anket' : 'Anket: ${chat.lastMessage}';
+        return chat.lastMessage.isEmpty
+            ? 'Anket'
+            : 'Anket: ${chat.lastMessage}';
       default:
         return chat.lastMessage;
     }
@@ -500,7 +568,15 @@ class _ChatTile extends ConsumerWidget {
     final bool? benimMi = (myId == null || chat.lastSenderId.isEmpty)
         ? null
         : chat.lastSenderId == myId;
+    // ⚠️⚠️ TURU 115b — SOHBET SATIRI MODERNLESTIRILDI (kullanici emri: *"chat
+    //    bolumunu daha profesyonel modern bir gorunume getir"*).
+    //    · dikey dolgu ACIKCA veriliyor (varsayilan `ListTile` 52 dp avatarla
+    //      birlikte satiri 72 dp'de sikistiriyordu; WhatsApp 76-80 dp)
+    //    · okunmamis rozeti sabit 18 dp yer tutucu yerine `Visibility` ile
+    //      YERINDE tutuluyor — yer tutucu `SizedBox` saat ile rozet arasinda
+    //      okunmus sohbetlerde 4 dp fazladan bosluk birakiyordu
     final satir = ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       // ⚠️ TURU 76: bkz. yukaridaki serh. Grup sohbetinin kendi `avatar_media_id`i
       //    henuz yok -> `Avatar` harf yedegine duser (dogru davranis).
       leading: Avatar(ad: chat.title, mediaId: chat.avatarMediaId, cap: 52),
@@ -516,81 +592,117 @@ class _ChatTile extends ConsumerWidget {
               chat.title.isNotEmpty ? chat.title : 'Sohbet',
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                  fontWeight: chat.unread > 0 ? FontWeight.bold : FontWeight.normal),
+                fontSize: 16,
+                fontWeight: chat.unread > 0 ? FontWeight.w700 : FontWeight.w500,
+              ),
             ),
           ),
         ],
       ),
-      subtitle: Builder(builder: (context) {
-        final ikon = _previewIkon();
-        final metin = Text(
-          _preview(benimMi),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-              fontWeight: chat.unread > 0 ? FontWeight.w600 : FontWeight.normal),
-        );
-        final onizleme = ikon == null
-            ? metin
-            : Row(children: [
-                Icon(ikon, size: 14, color: scheme.outline),
-                const SizedBox(width: 5),
-                Expanded(child: metin),
-              ]);
-        // ⚠️⚠️ TURU 78 — ILAN BASLIGI. Bu satir olmasaydi ilan mesajlasmasi
-        //    YARIM kalirdi: sohbet ilana bagli olur ama satici HANGI ILAN
-        //    oldugunu goremezdi — cozulmek istenen sorunun ta kendisi.
-        if (chat.ilanBaslik.isEmpty) return onizleme;
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              // ⚠️ Onek ZORUNLU: yalniz baslik yazsaydik kullanici bunu son
-              //    mesaj saniridi.
-              'İlan: ${chat.ilanBaslik}',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: scheme.primary,
-              ),
+      subtitle: Builder(
+        builder: (context) {
+          final ikon = _previewIkon();
+          final metin = Text(
+            _preview(benimMi),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 13.5,
+              fontWeight: chat.unread > 0 ? FontWeight.w600 : FontWeight.normal,
+              color: chat.unread > 0
+                  ? scheme.onSurface
+                  : scheme.onSurface.withValues(alpha: 0.6),
             ),
-            onizleme,
-          ],
-        );
-      }),
+          );
+          final onizleme = ikon == null
+              ? metin
+              : Row(
+                  children: [
+                    Icon(ikon, size: 14, color: scheme.outline),
+                    const SizedBox(width: 5),
+                    Expanded(child: metin),
+                  ],
+                );
+          // ⚠️⚠️ TURU 78 — ILAN BASLIGI. Bu satir olmasaydi ilan mesajlasmasi
+          //    YARIM kalirdi: sohbet ilana bagli olur ama satici HANGI ILAN
+          //    oldugunu goremezdi — cozulmek istenen sorunun ta kendisi.
+          if (chat.ilanBaslik.isEmpty) return onizleme;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                // ⚠️ Onek ZORUNLU: yalniz baslik yazsaydik kullanici bunu son
+                //    mesaj saniridi.
+                'İlan: ${chat.ilanBaslik}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: scheme.primary,
+                ),
+              ),
+              onizleme,
+            ],
+          );
+        },
+      ),
       trailing: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          Text(_timeLabel(chat.lastAt),
-              style: TextStyle(
-                  fontSize: 12,
-                  color: chat.unread > 0 ? scheme.primary : scheme.outline)),
-          const SizedBox(height: 4),
-          if (chat.unread > 0)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-              decoration:
-                  BoxDecoration(color: scheme.primary, borderRadius: BorderRadius.circular(12)),
-              child: Text('${chat.unread}',
-                  style: TextStyle(fontSize: 12, color: scheme.onPrimary)),
-            )
-          else
-            const SizedBox(height: 18),
+          Text(
+            _timeLabel(chat.lastAt),
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: chat.unread > 0 ? FontWeight.w700 : FontWeight.normal,
+              color: chat.unread > 0
+                  ? scheme.primary
+                  : scheme.onSurface.withValues(alpha: 0.5),
+            ),
+          ),
+          const SizedBox(height: 5),
+          // ⚠️ `Visibility` (maintainSize) — `if/else` + yer tutucu `SizedBox`
+          //    iki dalda FARKLI yukseklik uretiyordu ve okunmus satirlarda saat
+          //    2-3 dp yukari kayiyordu. Rozet gorunmez olsa da AYNI yeri kaplar.
+          Visibility(
+            visible: chat.unread > 0,
+            maintainSize: true,
+            maintainAnimation: true,
+            maintainState: true,
+            child: Container(
+              constraints: const BoxConstraints(minWidth: 20),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: scheme.primary,
+                borderRadius: BorderRadius.circular(11),
+              ),
+              child: Text(
+                chat.unread > 99 ? '99+' : '${chat.unread}',
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
+                  color: scheme.onPrimary,
+                ),
+              ),
+            ),
+          ),
         ],
       ),
-      onTap: () => context.push('/chat/${chat.id}', extra: {
-        'avatar_media_id': chat.avatarMediaId,
-        'title': chat.title.isNotEmpty ? chat.title : 'Sohbet',
-        'peer_id': chat.peerId,
-        // ⚠️ TURU 76b: grup mu — ACIKCA tasinir. `peerId == null`a bakmak
-        //    YANILTICI olurdu (cagiran kimligi bilmiyorsa 1:1 sohbet de grup
-        //    sanilir ve "Grup bilgisi" menusu yanlis yerde cikar).
-        'is_group': chat.type == 'group',
-      }),
+      onTap: () => context.push(
+        '/chat/${chat.id}',
+        extra: {
+          'avatar_media_id': chat.avatarMediaId,
+          'title': chat.title.isNotEmpty ? chat.title : 'Sohbet',
+          'peer_id': chat.peerId,
+          // ⚠️ TURU 76b: grup mu — ACIKCA tasinir. `peerId == null`a bakmak
+          //    YANILTICI olurdu (cagiran kimligi bilmiyorsa 1:1 sohbet de grup
+          //    sanilir ve "Grup bilgisi" menusu yanlis yerde cikar).
+          'is_group': chat.type == 'group',
+        },
+      ),
     );
 
     // ⚠️⚠️ TURU 76 — KAYDIRMA AKSIYONLARI (kullanici emri: "mesaj sol sag
@@ -632,7 +744,9 @@ class _ChatTile extends ConsumerWidget {
             onPressed: (_) => _ayar(context, ref, archived: !chat.archived),
             backgroundColor: const Color(0xFF6C2BD9),
             foregroundColor: Colors.white,
-            icon: chat.archived ? LucideIcons.archiveRestore : LucideIcons.archive,
+            icon: chat.archived
+                ? LucideIcons.archiveRestore
+                : LucideIcons.archive,
             label: chat.archived ? 'Geri al' : 'Arşivle',
           ),
           SlidableAction(
@@ -649,15 +763,25 @@ class _ChatTile extends ConsumerWidget {
   }
 
   /// Sabitle / arşivle / sessize al. ⚠️ Gonderilmeyen alan sunucuda DEGISMEZ.
-  Future<void> _ayar(BuildContext context, WidgetRef ref,
-      {bool? pinned, bool? archived, bool? muted}) async {
+  Future<void> _ayar(
+    BuildContext context,
+    WidgetRef ref, {
+    bool? pinned,
+    bool? archived,
+    bool? muted,
+  }) async {
     final mesajci = ScaffoldMessenger.of(context);
     try {
-      await ref.read(apiProvider).patch('/chats/${chat.id}', data: {
-        if (pinned != null) 'pinned': pinned,
-        if (archived != null) 'archived': archived,
-        if (muted != null) 'muted': muted,
-      });
+      await ref
+          .read(apiProvider)
+          .patch(
+            '/chats/${chat.id}',
+            data: {
+              if (pinned != null) 'pinned': pinned,
+              if (archived != null) 'archived': archived,
+              if (muted != null) 'muted': muted,
+            },
+          );
       await ref.read(chatsProvider.notifier).load();
     } catch (e) {
       mesajci.showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
@@ -675,15 +799,21 @@ class _ChatTile extends ConsumerWidget {
       builder: (c) => AlertDialog(
         title: const Text('Sohbet silinsin mi?'),
         content: const Text(
-            'Bu sohbet yalnızca sizden silinir. Karşı taraf mesajları görmeye '
-            'devam eder.'),
+          'Bu sohbet yalnızca sizden silinir. Karşı taraf mesajları görmeye '
+          'devam eder.',
+        ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(c, false),
-              child: const Text('Vazgeç')),
+            onPressed: () => Navigator.pop(c, false),
+            child: const Text('Vazgeç'),
+          ),
           TextButton(
-              onPressed: () => Navigator.pop(c, true),
-              child: const Text('Sil', style: TextStyle(color: Color(0xFFD32F2F)))),
+            onPressed: () => Navigator.pop(c, true),
+            child: const Text(
+              'Sil',
+              style: TextStyle(color: Color(0xFFD32F2F)),
+            ),
+          ),
         ],
       ),
     );
@@ -716,4 +846,70 @@ class _ErrorRetry extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Mesajlar ekranindaki "+" sheet'inin bir maddesi.
+///
+/// ⚠️ `olustur_menusu.dart`taki `_satir` ile AYNI olculer: iki sheet ayni
+///    uygulamada farkli gorunmemeli. Kod KOPYALANMADI cunku bu sheet bir
+///    DEGER dondurur (`Navigator.pop(c, kod)`), digeri ekran acar — sozlesme
+///    farkli. Ortaklastirmak icin ikisini de saran bir soyutlama gerekirdi ve
+///    o soyutlama iki cagri yerine deger etmezdi.
+Widget _yeniMadde(
+  BuildContext c,
+  IconData ikon,
+  String baslik,
+  String altBaslik,
+  String kod,
+) {
+  final scheme = Theme.of(c).colorScheme;
+  return InkWell(
+    onTap: () => Navigator.pop(c, kod),
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 11),
+      child: Row(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: scheme.primary.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(ikon, size: 19, color: scheme.primary),
+          ),
+          const SizedBox(width: 13),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  baslik,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  altBaslik,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: scheme.onSurface.withValues(alpha: 0.6),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Icon(
+            LucideIcons.chevronRight,
+            size: 18,
+            color: scheme.onSurface.withValues(alpha: 0.35),
+          ),
+        ],
+      ),
+    ),
+  );
 }
