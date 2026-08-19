@@ -7511,3 +7511,42 @@ YanitlariGosterSatiri) · `gonderi_hareketleri.dart` · `yorum_paneli.dart` ·
 4. `yazarMi` istemcide türetilmeli (`yorum.yazarId == gonderi.yazarId`);
    bugün yalnız demo bayrağından geliyor, gerçek yorumda hiç çizilmiyor.
 5. Yorum beğenisi sunucuya yazılmıyor (`comment_likes` tablosu var, uç yok).
+
+---
+
+## Oturum — 19 Ağustos 2026 (turu 99-113 yayını)
+
+### Yapılanlar
+- Kullanıcının 17 maddelik listesinden **1 · 2 · 3 · 4 · 5 · 7 · 17** bitirildi
+  (menü, akış seçici, hikâye halkası, Canlı sekmesi, Reels kaydet, alt menü logosu).
+- **GebzemAI sohbet arayüzü** (turu 111-112) + sunucuda `gecmis` alanı.
+- **Build öncesi kapsamlı denetim: 4 mercek, 20 onaylı bulgu düzeltildi**
+  (çökme/yaşam döngüsü · ölü özellik · yerleşim/taşma · demo sızıntısı+gizlilik).
+- Backend **5 turdur deploy edilmemişti** (sunucu turu 96i'de kalmış) — deploy edildi;
+  GebzemAI ve Favorilerim düzeltmesi ancak bununla sahaya çıktı.
+
+### Denenenler — oldu / olmadı
+- **OLMADI:** `favorim` için `f2.user_id::text = $1` — `engel.Yuklem` aynı `$1`i
+  `blocks.blocker_id` (uuid) ile karşılaştırdığı için Postgres parametreyi UUID
+  çıkarsıyor; **tüm /isletmeler 500** döndü. `go build`, `go vet`, `sutun_test.go`
+  üçü de yeşildi; hatayı YALNIZ canlı uçtan uca testi gördü (14 kontrol düştü).
+  Cast kaldırıldı → 367/367.
+- **OLMADI:** SQL içine `--` yorumu — `sutun_test.go` sütunları virgülle bölüyor,
+  virgüllü yorum SÜTUN sayıldı. Açıklama Go şerhine taşındı.
+- **OLDU:** demo şeridi artık sunucu cevabını önce alıyor; gerçek hikâye korunuyor.
+- **OLDU:** demodaki `benim: true` kaydı kaldırılınca paylaşma dairesi (siyah-mor
+  halka) ekranda görünür oldu — emülatörde piksel ölçümüyle doğrulandı
+  (sol uç 48,27,82 → sağ uç 106,50,192; dış çap kardeşleriyle birebir).
+
+### Kararlar
+- Şema değişmediği için **DB TRUNCATE EDİLMEDİ** — kullanıcının hesapları ve işletme
+  verisi korundu.
+- İndir sayfasında saat **yedi yere** çıkarıldı ve **ağ gerektirmeyen** ikinci bayat-sayfa
+  nöbetçisi eklendi (`?v=` ↔ gömülü sürüm). `surum.json` nöbetçisi bir `fetch` gerektiriyor
+  ve kısıtlı bir webview'da hiç tamamlanmayabiliyor.
+
+### Devir notları
+- Sıradaki maddeler: 6 (topluluk) · 8 (profilde yatay kaydırma) · 9'un kalanı
+  (ilan kartında konum/işletme bilgisi) · 10-16.
+- Denetimin **düzeltilmeyen** düşük öncelikli bulguları CLAUDE.md'de "DÜRÜST SINIRLAR"
+  başlığında yazılı (AI fotoğrafı yetim kalıyor, yorum beğenisi yalnız ekranda, vb.).

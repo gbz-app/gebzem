@@ -25,6 +25,91 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
      olcegini geri aliyor · kompakt kart 1.3'te tasiyor · kategori basligi yan
      dugmelere biniyor · zaman damgasinda overflow yok · 11 altinda 8 nokta).
      Hepsi belgede olculmus haliyle yazili.
+- **KALDIGIMIZ YER (19 Agu 14:47): TURU 99-113 YAYINLANDI** — android
+  **32248225046** + ios **32248227938** (**cc418fd**), R2 apk=122404307
+  (md5 355953f2) ipa=31700278 (md5 48a69b97) index=14423 (md5 432d6d61)
+  **surum.json=48 (md5 699a0cc5)**, purge OK, **CDN DORDU DE BIREBIR**,
+  debug imza YOK, `HARITA=true` iki logda da dogrulandi, iki artifact'te de
+  turu 113 dizeleri VAR (UTF-16 arandi).
+  ✅ **BACKEND DEPLOY** (cc418fd) + health ok + **CANLIDA 367/367 UCTAN UCA**.
+  `flutter analyze` **0 hata 0 uyari** · `flutter test` **40/40** ·
+  go build+vet+test temiz.
+  ⚠️ **SEMA DEGISMEDI -> DB TRUNCATE EDILMEDI** (hesaplar/isletmeler duruyor).
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260819-1447
+- ⚠️⚠️⚠️ **TURU 113 — UCTAN UCA TESTI SEVK ENGELI YAKALADI (yine).**
+  `favorim` icin eklenen `EXISTS(... f2.user_id::text = $1 ...)` **TUM
+  /isletmeler LISTESINI 500** yapiyordu: `engel.Yuklem` AYNI `$1`i
+  `blocks.blocker_id` (uuid) ile karsilastirdigi icin Postgres parametreyi
+  UUID cikarsiyor -> *"operator does not exist: uuid = text"*. `go build`,
+  `go vet` ve `sutun_test.go` UCU DE YESILDI; hatayi yalniz canli e2e gordu
+  (14 kontrol birden dustu). ⚠️ **DERS: paylasilan bir parametreye cast
+  eklemeden once o parametrenin BASKA hangi sutunla karsilastirildigina bak.**
+- ⚠️⚠️ **TURU 113 — `favorim` ARTIK HER LISTEDE DONER** (`isletmeSutunlari`).
+  Onceden yalniz `Favorilerim` donduruyordu; kategori ekraninda kalp DAIMA
+  BOS goruluyor ve favoriden cikarmak IMKANSIZDI (yerel durum "favori degil"
+  oldugu icin dokunus DELETE degil TEKRAR POST atiyordu).
+  ⚠️ **SQL ICINE `--` YORUMU YAZMA**: `sutun_test.go` sutunlari VIRGULLE
+     boluyor ve virgullu bir yorum SUTUN sayiliyor (muhafiz kirmizi dustu).
+- ⚠️⚠️⚠️ **TURU 113 — DEMO GONDERI KIMLIKLERI `demo-` ONEKI TASIMIYORDU.**
+  Yalniz `yazarId` onekliydi, yani **`demoKimlik(gonderi.id)` DAIMA false**:
+  en dogal yazim SESSIZCE FAIL-OPEN idi ve kapilarin calismasinin tek sebebi
+  tesadufen `yazarId` kullanmalariydi. Onek eklendi; `demo_yorum.dart`
+  matrisinin anahtarlari da (`demo-foto` ...) guncellendi.
+- ⚠️⚠️ **TURU 113 — SES NOTU, KART EKRANDAN GITTIKTEN SONRA CALMAYA
+  BASLIYORDU.** `adres()` await'i sonrasi canlilik kapisi yoktu; `dispose`
+  `_calanId != widget.mediaId` oldugu icin oynaticiyi durdurmuyor, ardindan
+  `play()` kosuyordu -> **ekranda oynatici yokken ses** ve durdurma yolu YOK.
+  Uc abonelik de dispose'tan SONRA kuruldugu icin HIC iptal edilmiyordu.
+  ⚠️ YAPMA: `if (!mounted) return;` kapisini kaldirma.
+- ⚠️⚠️ **TURU 113 — PROFILDE ASAGI-CEK ACIK SEKMEYI KALICI BOSALTIYORDU.**
+  `_yukle` tum sekme onbellegini temizliyor ama aktif sekmeyi YENIDEN
+  YUKLEMIYORDU: spinner yok, tekrar-dene yok, liste bos -> ekran **"Henüz
+  ilanın yok"** diyordu (kullanicinin KENDI verisi hakkinda yalan). Ayni yol
+  takip · engelle · profil duzenlemeden donusle de tetikleniyordu.
+- ⚠️⚠️ **TURU 113 — DEMO SERIDI GERCEK HIKAYEYI EZIYORDU.** `yukle()` demo
+  dalinda basta kisa devre yapiyordu; paylasilan gercek hikaye seritte HIC
+  gorunmuyor, kendi halkasina dokununca "tasarim demosu" uyarisi cikiyordu
+  ("paylastim sandim, gitmemis"). Artik sunucu cevabi ONCE alinir ve kendi
+  gercek hikayem demo kullanicilarin ONUNE konur.
+  ⚠️ Demoda `benim: true` kaydi KALDIRILDI ki **paylasma dairesi** (siyah-mor
+     halka, kullanici emri) ekranda gorunsun.
+- ⚠️⚠️ **TURU 113 — AYARLAR'DA TEK AG HATASI "Gizlilik" BOLUMUNU YOK
+  EDIYORDU.** `keepAlive` saglayicida `AsyncError` surec boyunca saklaniyor,
+  `valueOrNull` null kalinca satir cizilmiyor ve `AyarBolumu` bos listede
+  hicbir sey cizmedigi icin BASLIK DAHIL kayboluyordu (turu 78b
+  `aiDurumProvider` hatasinin birebir tekrari). FIX: `invalidateSelf`.
+- ⚠️ **TURU 113 — YERLESIM (olculdu):** sohbette anket basligi 360 dp'de
+  **29.9 dp** tasiyordu (`Spacer` + ciplak `Text`) · yorum eylem satirinda
+  tasma korumasi HIC yoktu (dort sayac "1,2 bin" olursa 100 dp; **demo
+  sayaclari bunu gizliyordu**) · koyu temada ses dalgasi 1.46:1 / 2.90:1 ile
+  GORUNMUYORDU · "Kaydedilenler" 13.5 dp, "Rezervasyon" 20 dp kirpiliyordu ·
+  "Anketi bitir" hedefi 20.3 dp idi (GERI ALINAMAZ eylem).
+- ⚠️ **TURU 113 — `letterSpacing` ALTI EKRANDAN KALDIRILDI** (kullanici emri;
+  izin verilenler dokunulmadi: OTP hane araligi ve hikaye metni).
+- 📌 **TURU 113 — INDIR SAYFASI: saat artik YEDI yerde** + **AG GEREKTIRMEYEN
+  ikinci nobetci**: adresteki `?v=` ile sayfaya gomulu surum karsilastirilir.
+  `surum.json` nobetcisi bir `fetch` gerektiriyor ve WhatsApp/Instagram ic
+  tarayicisinda HIC tamamlanmayabilir; yeni blok yalniz `location.search`
+  okur. ⚠️ Ikisi FARKLI arizalari yakalar, biri otekinin yerine KONMAZ.
+- 📌 **TURU 113 — MADDE MADDE (kullanicinin 17 maddelik listesi):**
+  · **1** menude geri oku + alt aciklama YOK · **2** uygulama acilinca menu
+    KENDILIGINDEN acilir (surec omurlu bayrak; geri tusu akisa doner) ·
+  · **3** akistaki "Arkadaslar · Kesfet · Canli Yayin" SECICISI KALDIRILDI
+    (ikisi de alt menude ZATEN var; ona bagli ALTI olu metot da silindi) ·
+  · **4** hikaye paylasma dairesi halkali + siyah-mor gradient, dis cap
+    kardesleriyle BIREBIR · **5** Canli sekmesinde "Yayin baslat" FAB YOK
+    (giris "+" menusunde DURUYOR) · **7** Reels'te kaydet eklendi ·
+  · **17** alt menu logosu turuncu-mor gradient halka, gorunen logo +2 dp
+    (dis cap 54 -> 58; ilk denemede halka ICERIDEN alinmis ve logo
+    KUCULMUSTU — plan yakaladi).
+  ⏳ **YAPILMAYANLAR (durust):** 6 (topluluk) · 8 (profilde yatay kaydirma) ·
+    10-11-12 (dugun/hizmet adim adim) · 13 (randevu takvimi) · 14 (isletme
+    hesabi adim adim) · 15-16 (etkinlik/kategori sablonlari).
+- ⏳ **DURUST SINIRLAR (turu 111-113):** GebzemAI'da **akan yazi yok**, sohbet
+  **kaydedilmiyor** (uygulama kapaninca gider), durdurma dugmesi yok ·
+  sohbete eklenen fotograf R2'de YETIM kalir (`gorselVazgec` karsiligi yok) ·
+  yorum begenisi YALNIZ ekranda artar (`comment_likes` var, uc YOK) ·
+  `Favorilerim` LIMIT 100, sayfalama yok · konum kartinda gercek harita yok.
 - **KALDIGIMIZ YER (16 Agu 20:11): TURU 98e-98i YAYINLANDI** — android
   **31960110991** + ios **31960112573** (**142a630**), R2 apk=121992523
   (md5 168c36fb) ipa=31636527 (md5 679375ff) index=12167 (md5 5e9313fc)
