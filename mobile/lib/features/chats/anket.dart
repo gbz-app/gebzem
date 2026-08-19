@@ -328,7 +328,25 @@ class _AnketPanelState extends State<_AnketPanel> {
 ///    (mevcut `send` deseni) 20 mesajlik bir istegi her dokunusta tetiklerdi.
 ///    Sunucu oy yanitinda ANKETIN TAM ANLIK GORUNTUSUNU donduruyor.
 class AnketBalon extends ConsumerStatefulWidget {
-  const AnketBalon({super.key, required this.anket, required this.benimMi});
+  const AnketBalon({
+    super.key,
+    required this.anket,
+    required this.benimMi,
+    this.enGenis = 280,
+  });
+
+  /// ⚠️⚠️ TURU 104 — **GORUNUM VARYANTI (mantik DEGISMEZ).**
+  ///
+  ///	Bu bilesen SOHBET ile AKISIN **TEK KAYNAGIDIR**: oylama, sayim,
+  ///	kapatma ve `yayinlaBirlestir` (WS sayimlarini kendi oyumu EZMEDEN
+  ///	birlestirme) hepsi burada. Akis icin ikinci bir anket bileseni
+  ///	yazmak, bu projede ALTI kez sahaya cikmis "iki kopya drift eder"
+  ///	hatasini davet ederdi.
+  ///	Bu yuzden akis yalnizca **GENISLIK** verir: sohbet balonu 280 dp ile
+  ///	sinirlidir (balon kartin tamamini kaplamamali), akis karti TAM
+  ///	GENISLIK ister (`double.infinity`).
+  /// ⚠️ YAPMA: akis icin ayri bir `AnketKarti` yazma.
+  final double enGenis;
 
   final Anket anket;
 
@@ -419,120 +437,202 @@ class _AnketBalonState extends ConsumerState<AnketBalon> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final oyVerdim = _a.secenekler.any((x) => x.benim);
     return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 280),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            children: [
-              Icon(LucideIcons.chartBar, size: 15, color: scheme.primary),
-              const SizedBox(width: 6),
-              Text(
-                _a.kapali
-                    ? 'Anket · bitti'
-                    : (_a.coklu ? 'Anket · çoklu seçim' : 'Anket'),
-                style: TextStyle(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w700,
-                  color: scheme.primary,
+      constraints: BoxConstraints(maxWidth: widget.enGenis),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          color: scheme.surfaceContainerHighest.withValues(alpha: 0.45),
+          border: Border.all(color: scheme.onSurface.withValues(alpha: 0.08)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // ---- BASLIK SATIRI
+            Row(
+              children: [
+                // ⚠️ TURU 104 — ikon `chartBar` -> **`vote`** (kullanici emri:
+                //    *"ikonu degistirelim"*). Cubuk grafigi bir ISTATISTIK
+                //    isaretidir; anket bir SECIMDIR. Ikonun `lucide_icons_flutter`
+                //    3.1.14'te VAR OLDUGU kaynaktan dogrulandi.
+                Icon(LucideIcons.vote, size: 16, color: scheme.primary),
+                const SizedBox(width: 6),
+                Text(
+                  _a.kapali
+                      ? 'Anket bitti'
+                      : (_a.coklu ? 'Anket · çoklu seçim' : 'Anket'),
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: scheme.primary,
+                  ),
                 ),
-              ),
+                const Spacer(),
+                Text(
+                  _a.toplamOy == 0 ? 'Henüz oy yok' : '${_a.toplamOy} oy',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: scheme.onSurface.withValues(alpha: 0.55),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _a.soru,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 10),
+            for (final s in _a.secenekler) ...[
+              _secenek(s, scheme),
+              const SizedBox(height: 8),
             ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            _a.soru,
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 8),
-          for (final s in _a.secenekler)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 6),
-              child: GestureDetector(
-                onTap: () => _oyVer(s),
-                behavior: HitTestBehavior.opaque,
-                child: Stack(
-                  children: [
-                    // ⚠️ ORAN CUBUGU secenegin ARKASINDA: ayri bir cubuk
-                    //    cizmek balonu iki katina cikarirdi.
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: LinearProgressIndicator(
-                        value: _a.oran(s),
-                        minHeight: 38,
-                        backgroundColor: scheme.onSurface.withValues(
-                          alpha: 0.07,
-                        ),
-                        valueColor: AlwaysStoppedAnimation(
-                          scheme.primary.withValues(alpha: 0.22),
+            // ---- ALT SATIR
+            SizedBox(
+              height: 26,
+              child: Row(
+                children: [
+                  Text(
+                    _a.kapali
+                        ? 'Oylama kapandı'
+                        : (oyVerdim ? 'Oyun kaydedildi' : 'Bir seçenek seç'),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: scheme.onSurface.withValues(alpha: 0.55),
+                    ),
+                  ),
+                  const Spacer(),
+                  // ⚠️ "Bitir" YALNIZ olusturana ve YALNIZ acik ankette. Sunucu
+                  //    da ayni kapiyi uyguluyor (403) — burasi ARAYUZ, yetki orada.
+                  if (!_a.kapali && widget.benimMi)
+                    TextButton(
+                      onPressed: _kapat,
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        visualDensity: VisualDensity.compact,
+                        minimumSize: const Size(0, 26),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: const Text(
+                        'Anketi bitir',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     ),
-                    Positioned.fill(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 10),
-                        child: Row(
-                          children: [
-                            Icon(
-                              s.benim
-                                  ? LucideIcons.circleCheck
-                                  : LucideIcons.circle,
-                              size: 16,
-                              color: s.benim ? scheme.primary : scheme.outline,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                s.metin,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: 13.5,
-                                  fontWeight: s.benim
-                                      ? FontWeight.w700
-                                      : FontWeight.w400,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              '${s.oy}',
-                              style: const TextStyle(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Tek secenek satiri.
+  ///
+  /// ⚠️⚠️ Dolgu cubugu **`LinearProgressIndicator` DEGIL**: o bilesen yeni
+  ///	degeri ANINDA uygular, yani oy verilince cubuk ZIPLAR.
+  ///	`TweenAnimationBuilder` ile 320 ms'de akar — kullanici kendi oyunun
+  ///	sonucu DEGISTIRDIGINI gorur.
+  /// ⚠️ Yuzde METIN olarak da yazilir: dolgu uzunlugu TEK BASINA bilgi
+  ///    tasimaz (renk korlugu / dusuk gorme).
+  /// ⚠️ Satir yuksekligi **SABIT 46 dp**: oy verince ikon ve yazi kalinligi
+  ///    degisiyor; esnek yukseklikte butun liste ZIPLARDI.
+  Widget _secenek(AnketSecenek s, ColorScheme scheme) {
+    final oran = _a.oran(s).clamp(0.0, 1.0);
+    final yuzde = (oran * 100).round();
+    final secili = s.benim;
+    return GestureDetector(
+      onTap: () => _oyVer(s),
+      behavior: HitTestBehavior.opaque,
+      child: SizedBox(
+        height: 46,
+        child: Stack(
+          children: [
+            // ---- ZEMIN
+            Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  color: scheme.onSurface.withValues(alpha: 0.05),
+                  border: Border.all(
+                    color: secili
+                        ? scheme.primary.withValues(alpha: 0.55)
+                        : Colors.transparent,
+                    width: 1.5,
+                  ),
+                ),
+              ),
+            ),
+            // ---- DOLGU (oran)
+            Positioned.fill(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween<double>(begin: 0, end: oran),
+                  duration: const Duration(milliseconds: 320),
+                  curve: Curves.easeOutCubic,
+                  builder: (_, v, _) => FractionallySizedBox(
+                    alignment: Alignment.centerLeft,
+                    widthFactor: v,
+                    child: ColoredBox(
+                      color: scheme.primary.withValues(
+                        alpha: secili ? 0.26 : 0.13,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            // ---- ICERIK
+            Positioned.fill(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Row(
+                  children: [
+                    Icon(
+                      secili ? LucideIcons.circleCheckBig : LucideIcons.circle,
+                      size: 18,
+                      color: secili
+                          ? scheme.primary
+                          : scheme.onSurface.withValues(alpha: 0.35),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        s.metin,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 14.5,
+                          fontWeight: secili
+                              ? FontWeight.w700
+                              : FontWeight.w500,
                         ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '%$yuzde',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: secili
+                            ? scheme.primary
+                            : scheme.onSurface.withValues(alpha: 0.65),
                       ),
                     ),
                   ],
                 ),
               ),
             ),
-          Row(
-            children: [
-              Text(
-                _a.toplamOy == 0 ? 'Henüz oy yok' : '${_a.toplamOy} oy',
-                style: TextStyle(fontSize: 11.5, color: scheme.outline),
-              ),
-              const Spacer(),
-              // ⚠️ "Bitir" YALNIZ olusturana ve YALNIZ acik ankette. Sunucu da
-              //    ayni kapiyi uyguluyor (403) — burasi ARAYUZ, yetki orada.
-              if (!_a.kapali && widget.benimMi)
-                TextButton(
-                  onPressed: _kapat,
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    visualDensity: VisualDensity.compact,
-                  ),
-                  child: const Text('Bitir', style: TextStyle(fontSize: 12)),
-                ),
-            ],
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

@@ -7,6 +7,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:video_player/video_player.dart';
 
+import 'demo_veri.dart' show demoKimlik;
 import '../medya/medya_kapisi.dart';
 import '../medya/medya_gorsel.dart';
 import '../medya/medya_servisi.dart';
@@ -227,7 +228,18 @@ class _MedyaVideoState extends ConsumerState<MedyaVideo>
     }
   }
 
+  /// ⚠️⚠️⚠️ TURU 104 — **DEMO VIDEOSU KURULMAZ.**
+  ///
+  ///	Demo kimlikleri (`demo-...`) sunucuda YOK; oynatici kurulmaya
+  ///	calisiyor, adres istegi patliyor ve kutuya **"Video açılamadı"** +
+  ///	uyari ikonu yaziliyordu. Tasarim demosuna bakan biri bunu GERCEK
+  ///	HATA sanar (kardes hata `MedyaGorsel`de de vardi).
+  /// ⚠️ Yer tutucu: duz gri kutu + OYNAT rozeti — icerigin VIDEO oldugunu
+  ///    anlatir ama sahte bir kare gostermez.
+  bool get _demoVideo => demoKimlik(widget.mediaId);
+
   Future<void> _kur() async {
+    if (_demoVideo) return;
     final nesil = ++_nesil;
     // ⚠️⚠️⚠️ TURU 75b (DENETIM BULGUSU) — KURULUM KAPISI.
     //    Eskiden kapi YALNIZ SES SEVIYESINE uygulaniyordu; oynatici KOSULSUZ
@@ -474,7 +486,24 @@ class _MedyaVideoState extends ConsumerState<MedyaVideo>
             ),
           // ⚠️ Tembel beklerken SPINNER GOSTERME — hicbir sey yuklenmiyor;
           //    donen cark kullaniciya "bekliyor" yalanini soylerdi.
-          if (!_hazir && !_hata && !_kilitli && !_tembel)
+          if (_demoVideo)
+            const Center(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Color(0x66000000),
+                ),
+                child: Padding(
+                  padding: EdgeInsets.all(12),
+                  child: Icon(
+                    Icons.play_arrow_rounded,
+                    size: 30,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+          if (!_demoVideo && !_hazir && !_hata && !_kilitli && !_tembel)
             const Center(
               child: SizedBox(
                 width: 26,
@@ -500,7 +529,7 @@ class _MedyaVideoState extends ConsumerState<MedyaVideo>
                 ),
               ),
             ),
-          if (_hata)
+          if (_hata && !_demoVideo)
             const Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,

@@ -24,6 +24,7 @@ import 'thread_cizgi.dart';
 import 'yorum_satiri.dart';
 import 'gonderi_detay.dart';
 import 'gonderi_menusu.dart';
+import 'konum_karti.dart';
 import 'medya_olcu.dart';
 import 'medya_video.dart';
 import 'paylas_sheet.dart';
@@ -792,6 +793,9 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
               sureMs: 0,
               dalga: '',
               benimMi: g.yazarId == widget.benimId,
+              // ⚠️ TURU 104 — akista Instagram tarzi kart (tam genislik,
+              //    temadan renk, dokununca ileri sarma).
+              akista: true,
             ),
           )
         // ---- MEDYA
@@ -864,6 +868,16 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
         // ⚠️ `benimMi` = anketi BEN mi olusturdum. Gonderi anketinde anketi
         //    olusturan DAIMA gonderinin yazaridir (sunucu `creator_id`yi
         //    `posts.author_id`den bagimsiz almaz — `Create` icinde `me`).
+        // ---- KONUM KARTI (gonderinin KENDISI bir konum paylasimi ise)
+        //
+        // ⚠️⚠️ TURU 104 — kullanici emri: *"birde konum paylasma ornegi
+        //	olsun"*. Konum iki AYRI seydir:
+        //	  · META  — "bu fotograf surada cekildi" -> baslik altindaki cip
+        //	  · ICERIK — "iste buradayim" -> BU KART
+        // ⚠️ Olcut: medya/ses/anket YOKSA konum ICERIKTIR. Aksi halde kart,
+        //    fotografin altina ikinci bir govde ekleyip karti sisirirdi.
+        if (g.konumVar && g.mediaIds.isEmpty && g.anket == null)
+          KonumKarti(baslik: g.konum, enlem: g.enlem, boylam: g.boylam),
         if (g.anket != null)
           Padding(
             padding: const EdgeInsets.fromLTRB(
@@ -875,6 +889,9 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
             child: AnketBalon(
               anket: g.anket!,
               benimMi: g.yazarId == widget.benimId,
+              // ⚠️ TURU 104 — akis karti TAM GENISLIK; sohbet balonundaki
+              //    280 dp siniri burada kartin ortasinda dar bir ada birakiyordu.
+              enGenis: double.infinity,
             ),
           ),
 

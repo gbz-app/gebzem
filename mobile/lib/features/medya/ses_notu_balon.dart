@@ -29,7 +29,19 @@ class SesNotuBalon extends ConsumerStatefulWidget {
     required this.sureMs,
     required this.dalga,
     required this.benimMi,
+    this.akista = false,
   });
+
+  /// ⚠️⚠️ TURU 104 — **GORUNUM VARYANTI (mantik DEGISMEZ).**
+  ///
+  ///	Kullanici emri: *"ses instagram tarzi olsun"*. Akis karti tam
+  ///	geniştir, temadan boyanir ve dokunarak ileri sarilir; sohbet balonu
+  ///	230 dp sabit genislikte ve SABIT renklerle kalir (balon zemini de
+  ///	sabittir — temadan boyanirsa acik temada kontrast coker, turu 81b).
+  /// ⚠️⚠️ **IKINCI BIR OYNATICI YAZMAK YASAK**: oynatma, tek-slot devralma
+  ///	ve `SesNotuKontrol` kaydi (gelen arama sesi susturabilsin diye)
+  ///	TEK govdededir. Bu bayrak yalnizca CIZIMI degistirir.
+  final bool akista;
 
   final String mediaId;
   final int sureMs;
@@ -197,9 +209,24 @@ class _SesNotuBalonState extends ConsumerState<SesNotuBalon> {
         '${(sn % 60).toString().padLeft(2, '0')}';
   }
 
+  /// ⚠️⚠️⚠️ TURU 104 — **ARANAN NOKTAYA ATLAMA (seek).**
+  ///
+  ///	Yalniz BU balon caliyorsa anlamlidir: oynatici PAYLASILAN statik bir
+  ///	nesnedir (`gebzem_sesnotu`), baska bir balon calarken buradan `seek`
+  ///	cagirmak ONUN konumunu degistirirdi.
+  /// ⚠️ Toplam sure bilinmiyorsa (henuz `onDurationChanged` gelmediyse) hicbir
+  ///    sey yapilmaz — 0 ms'e atlamak sesi basa sarardi.
+  Future<void> _atla(double oran, Duration toplam) async {
+    if (_calanId != widget.mediaId || toplam <= Duration.zero) return;
+    final hedef = Duration(
+      milliseconds: (toplam.inMilliseconds * oran.clamp(0.0, 1.0)).round(),
+    );
+    await _oynatici.seek(hedef);
+    if (mounted) setState(() => _konum = hedef);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final kovalar = _kovalar;
     // ⚠️ Once SUNUCUDAN gelen sure, yoksa OYNATICIDAN ogrenilen.
     final toplam = widget.sureMs > 0
         ? Duration(milliseconds: widget.sureMs)
@@ -208,60 +235,267 @@ class _SesNotuBalonState extends ConsumerState<SesNotuBalon> {
     final oran = toplamMs == 0
         ? 0.0
         : (_konum.inMilliseconds / toplamMs).clamp(0.0, 1.0);
-    final aktifRenk =
-        widget.benimMi ? const Color(0xFF0B7C4B) : const Color(0xFF7C4DFF);
+    return widget.akista
+        ? _akisKarti(context, toplam, oran)
+        : _sohbetBalonu(context, toplam, oran);
+  }
 
-    return SizedBox(
-      width: 230,
-      child: Row(children: [
-        IconButton(
-          padding: EdgeInsets.zero,
-          constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-          icon: Icon(_caliyor ? LucideIcons.pause : LucideIcons.play, size: 22),
-          onPressed: _oynatDurdur,
-        ),
-        Expanded(
-          child: SizedBox(
-            height: 28,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
+  // ═══════════════════════════════════════════════════════════════════════
+  // AKIS KARTI (Instagram tarzi)
+  //
+  // ⚠️⚠️ **BU BIR GORUNUM VARYANTIDIR, IKINCI BIR OYNATICI DEGIL.** Oynatma,
+  //	tek-slot devralma, `SesNotuKontrol` kaydi ve arama kapisi YUKARIDAKI
+  //	TEK govdededir. Akis icin ayri bir bilesen yazmak, gelen aramanin
+  //	gonderi sesini susturamamasi demekti (turu 73 defteri).
+  // ⚠️ Sohbet balonunun olculeri (230 dp genislik, 11.5 punto, sabit yesil/mor)
+  //    bir BALON icin secilmisti; akis karti tam genisliktir ve temadan boyanir.
+  // ═══════════════════════════════════════════════════════════════════════
+  Widget _akisKarti(BuildContext context, Duration toplam, double oran) {
+    final scheme = Theme.of(context).colorScheme;
+    final dalgaVar = widget.dalga.isNotEmpty;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 12, 14, 12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        color: scheme.surfaceContainerHighest.withValues(alpha: 0.45),
+        border: Border.all(color: scheme.onSurface.withValues(alpha: 0.08)),
+      ),
+      child: Row(
+        children: [
+          // ---- OYNAT / DURAKLAT
+          // ⚠️ 46 dp: Material dokunma minimumu 48'e komsu, kart yuksekligini
+          //    sismeden karsiliyor.
+          Semantics(
+            button: true,
+            label: _caliyor ? 'Duraklat' : 'Oynat',
+            child: InkWell(
+              onTap: _oynatDurdur,
+              customBorder: const CircleBorder(),
+              child: Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: scheme.primary,
+                ),
+                child: Icon(
+                  _caliyor ? LucideIcons.pause : LucideIcons.play,
+                  size: 20,
+                  color: scheme.onPrimary,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                for (var i = 0; i < kovalar.length; i++)
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 0.5),
+                // ---- ILERLEME
+                LayoutBuilder(
+                  builder: (_, k) => GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTapDown: (d) =>
+                        _atla(d.localPosition.dx / k.maxWidth, toplam),
+                    onHorizontalDragUpdate: (d) =>
+                        _atla(d.localPosition.dx / k.maxWidth, toplam),
+                    child: SizedBox(
+                      height: 26,
+                      child: dalgaVar
+                          ? _dalga(oran, scheme.primary)
+                          : _serit(oran, scheme),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Text(
+                      _sure(_caliyor || _konum > Duration.zero
+                          ? _konum
+                          : toplam),
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: scheme.onSurface.withValues(alpha: 0.65),
+                      ),
+                    ),
+                    const Spacer(),
+                    // ⚠️ HIZ her zaman gorunur (sohbette yalniz calarken):
+                    //    akis kartinda dugme kaybolup belirmesi satiri
+                    //    ziplatiyordu.
+                    GestureDetector(
+                      onTap: _hizDegistir,
+                      behavior: HitTestBehavior.opaque,
                       child: Container(
-                        // ⚠️ En az 3px: sessiz anlar tamamen kaybolmasın.
-                        height: 3 + kovalar[i] / 99 * 22,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 3,
+                        ),
                         decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(2),
-                          color: i / kovalar.length <= oran
-                              ? aktifRenk
-                              : aktifRenk.withValues(alpha: 0.28),
+                          borderRadius: BorderRadius.circular(20),
+                          color: scheme.onSurface.withValues(alpha: 0.07),
+                        ),
+                        child: Text(
+                          '${_hiz == 1.0 ? '1' : _hiz}x',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: scheme.onSurface.withValues(alpha: 0.75),
+                          ),
                         ),
                       ),
                     ),
-                  ),
+                  ],
+                ),
               ],
             ),
           ),
-        ),
-        const SizedBox(width: 6),
-        Text(_sure(_caliyor ? _konum : toplam),
-            style: const TextStyle(fontSize: 11.5)),
-        if (_caliyor || _hiz != 1.0)
-          GestureDetector(
-            onTap: _hizDegistir,
+        ],
+      ),
+    );
+  }
+
+  /// Dalga (yalniz `dalga` verisi VARSA — sohbet hatti).
+  Widget _dalga(double oran, Color renk) {
+    final kovalar = _kovalar;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        for (var i = 0; i < kovalar.length; i++)
+          Expanded(
             child: Padding(
-              padding: const EdgeInsets.only(left: 6),
-              child: Text('${_hiz == 1.0 ? '1' : _hiz.toString()}x',
-                  style: TextStyle(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w700,
-                      color: aktifRenk)),
+              padding: const EdgeInsets.symmetric(horizontal: 0.5),
+              child: Container(
+                height: 3 + kovalar[i] / 99 * 22,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(2),
+                  color: i / kovalar.length <= oran
+                      ? renk
+                      : renk.withValues(alpha: 0.28),
+                ),
+              ),
             ),
           ),
-      ]),
+      ],
+    );
+  }
+
+  /// ⚠️⚠️⚠️ **DALGA VERISI YOKKEN SERIT CIZILIR, SAHTE DALGA DEGIL.**
+  ///
+  ///	Gonderi hattinda ses dalgasi TASINMIYOR (`posts` tablosunda boyle bir
+  ///	sutun yok; sohbette ayri sutunlar var). Eski kod bu durumda **30 adet
+  ///	ESIT YUKSEKLIKTE cubuk** ciziyordu — hicbir gercek kaydin dalgasi
+  ///	duz degildir, yani ekranda bir VERI VARMIS gibi duruyor ama o veri
+  ///	UYDURMA. Bu projede sahte veri cizmek yasak.
+  /// ⚠️ Serit ayrica DURUST: "burada bir ilerleme var" der, "ses su anda su
+  ///    kadar yuksekti" DEMEZ.
+  /// ⚠️ Gercek dalga icin gonderi olusturma akisi genligi kaydedip sunucuya
+  ///    yollamali (sohbette ZATEN oyle yapiliyor) ve `posts` bir sutun
+  ///    kazanmali. Yapilana kadar serit kalir.
+  Widget _serit(double oran, ColorScheme scheme) => Center(
+    child: SizedBox(
+      height: 6,
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(3),
+                color: scheme.onSurface.withValues(alpha: 0.12),
+              ),
+            ),
+          ),
+          Positioned.fill(
+            child: FractionallySizedBox(
+              alignment: Alignment.centerLeft,
+              widthFactor: oran,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(3),
+                  color: scheme.primary,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // SOHBET BALONU — turu 74'te sahada test edilmis hali. DOKUNULMADI.
+  // ⚠️ Renkler BILEREK sabit: balon zemini de sabittir (`ChatColors`), temadan
+  //    boyanirsa acik temada kontrast cokuyordu (turu 81b sevk engeli).
+  // ═══════════════════════════════════════════════════════════════════════
+  Widget _sohbetBalonu(BuildContext context, Duration toplam, double oran) {
+    final kovalar = _kovalar;
+    final aktifRenk = widget.benimMi
+        ? const Color(0xFF0B7C4B)
+        : const Color(0xFF7C4DFF);
+
+    return SizedBox(
+      width: 230,
+      child: Row(
+        children: [
+          IconButton(
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+            icon: Icon(
+              _caliyor ? LucideIcons.pause : LucideIcons.play,
+              size: 22,
+            ),
+            onPressed: _oynatDurdur,
+          ),
+          Expanded(
+            child: SizedBox(
+              height: 28,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  for (var i = 0; i < kovalar.length; i++)
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 0.5),
+                        child: Container(
+                          // ⚠️ En az 3px: sessiz anlar tamamen kaybolmasın.
+                          height: 3 + kovalar[i] / 99 * 22,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(2),
+                            color: i / kovalar.length <= oran
+                                ? aktifRenk
+                                : aktifRenk.withValues(alpha: 0.28),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            _sure(_caliyor ? _konum : toplam),
+            style: const TextStyle(fontSize: 11.5),
+          ),
+          if (_caliyor || _hiz != 1.0)
+            GestureDetector(
+              onTap: _hizDegistir,
+              child: Padding(
+                padding: const EdgeInsets.only(left: 6),
+                child: Text(
+                  '${_hiz == 1.0 ? '1' : _hiz}x',
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                    color: aktifRenk,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
