@@ -829,8 +829,12 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
                     ),
                     child: const Text(
                       'İşletme',
+                      // ⚠️ TURU 114 (denetim) — 10.5 -> **11**:
+                      //    `docs/yazi-olcegi.md` en kucuk kademeyi
+                      //    `rozet = 11` olarak tanimliyor ve "11'in ALTINA
+                      //    INILMEZ (Apple mutlak minimumu)" diyor.
                       style: TextStyle(
-                        fontSize: 10.5,
+                        fontSize: 11,
                         fontWeight: FontWeight.w700,
                       ),
                     ),

@@ -427,8 +427,16 @@ class _EtkinlikListesiEkraniState extends ConsumerState<EtkinlikListesiEkrani> {
             const SizedBox(height: 8),
             Row(
               children: [
-                // ⚠️ `Flexible`: kategori adi uzun + yazi olcegi 1.3 iken
-                //    eski `Row` TASIYORDU (dort ciplak cocuk + `Spacer`).
+                // ⚠️⚠️ TURU 114 (denetim) — cip ve fiyat **TEK BIR
+                //	`Flexible` icinde**. Ilk yazimda ikisi AYRI `Flexible`
+                //	idi ve yanlarinda `Spacer` vardi; Flutter bos alani
+                //	flex faktorlerine gore UCE bolduyor, yani `Spacer`
+                //	yalnizca 1/3'unu aliyor ve katilimci sayisi saga TAM
+                //	dayanmiyordu. Simdi bos alanin TAMAMI `Spacer`in.
+                Flexible(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
                 Flexible(
                   child: Container(
                     padding: const EdgeInsets.symmetric(
@@ -460,6 +468,9 @@ class _EtkinlikListesiEkraniState extends ConsumerState<EtkinlikListesiEkrani> {
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
                     ),
+                  ),
+                ),
+                    ],
                   ),
                 ),
                 const Spacer(),

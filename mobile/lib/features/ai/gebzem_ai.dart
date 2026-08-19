@@ -214,13 +214,19 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani> {
   }
 
   /// AI kapaliyken: yazac CIZILMEZ.
-  Widget _kapali() => const Center(
+  Widget _kapali() => Center(
     child: Padding(
-      padding: EdgeInsets.all(30),
+      padding: const EdgeInsets.all(30),
       child: Text(
         'Yapay zekâ şu anda kullanılamıyor.',
         textAlign: TextAlign.center,
-        style: TextStyle(color: Colors.grey),
+        // ⚠️ TURU 114 (denetim) — `Colors.grey` (#9E9E9E) acik tema zemininde
+        //    (#F2F2F5) **2.40:1**; 14 px normal metin icin esik 4.5:1.
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.onSurface.withValues(
+            alpha: 0.75,
+          ),
+        ),
       ),
     ),
   );

@@ -371,7 +371,23 @@ class _IsletmeDuzenleEkraniState extends ConsumerState<IsletmeDuzenleEkrani> {
         ),
       );
     }
-    return Scaffold(
+    // ⚠️⚠️⚠️ TURU 114 (denetim) — **SIHIRBAZDA GERI TUSU ADIM ADIM.**
+    //
+    //	`_adim` bir State alani; geri gitmenin TEK yolu alt cubuktaki
+    //	"Geri" dugmesiydi. Android donanim/jest geri tusu ve AppBar geri
+    //	oku route'un TAMAMINI pop ediyor: ikinci adimda geri basan
+    //	kullanici birinci adima DONMEK yerine ekrandan CIKIYOR ve
+    //	doldurdugu her sey KAYBOLUYORDU (veri tek istekte gittigi icin
+    //	hicbir sey kaydedilmemis oluyor).
+    // ⚠️ Yalniz SIHIRBAZ modunda: tek sayfa formda geri tusu dogal olarak
+    //    ekrani kapatmali.
+    return PopScope(
+      canPop: !_sihirbaz || _adim == 0,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        if (_sihirbaz && _adim > 0) setState(() => _adim--);
+      },
+      child: Scaffold(
       appBar: AppBar(
         title: Text(_zatenIsletme ? 'İşletme bilgileri' : 'İşletme hesabı'),
         // ⚠️ Sihirbazda ilerleme cubugu: kullanici KAC ADIM kaldigini
@@ -398,6 +414,7 @@ class _IsletmeDuzenleEkraniState extends ConsumerState<IsletmeDuzenleEkrani> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: _sihirbaz ? _adimGovde() : _tumGovde(),
+      ),
       ),
     );
   }
@@ -427,12 +444,14 @@ class _IsletmeDuzenleEkraniState extends ConsumerState<IsletmeDuzenleEkrani> {
             '${_adim + 1}/$_adimSayisi · ${_adimAdlari[_adim]}',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
+            // ⚠️ TURU 114 (denetim) — alfa 0.6 acik temada **4.35:1**;
+            //    12 px normal metin icin esik 4.5:1. 0.75'e cikarildi.
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
               color: Theme.of(
                 context,
-              ).colorScheme.onSurface.withValues(alpha: 0.6),
+              ).colorScheme.onSurface.withValues(alpha: 0.75),
             ),
           ),
           const SizedBox(height: 6),
@@ -534,11 +553,12 @@ class _IsletmeDuzenleEkraniState extends ConsumerState<IsletmeDuzenleEkrani> {
         child: Text(
           'İşletme hesabına geçtiğinde profilinde kategori, adres, telefon '
           've çalışma saatlerin görünür; müşterilerin sana kolayca ulaşır.',
+          // ⚠️ TURU 114 (denetim) — alfa 0.6 acik temada 4.35:1 (esik 4.5).
           style: TextStyle(
             fontSize: 13,
             color: Theme.of(
               context,
-            ).colorScheme.onSurface.withValues(alpha: 0.6),
+            ).colorScheme.onSurface.withValues(alpha: 0.75),
           ),
         ),
       ),
@@ -586,7 +606,8 @@ class _IsletmeDuzenleEkraniState extends ConsumerState<IsletmeDuzenleEkrani> {
         fontSize: 11,
         fontWeight: FontWeight.w700,
         // ⚠️ TURU 113 — `letterSpacing` KALDIRILDI (kullanici emri).
-        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+        // ⚠️ TURU 114 (denetim) — alfa 0.6 -> 0.75 (kontrast).
+        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.75),
       ),
     ),
     const SizedBox(height: 6),

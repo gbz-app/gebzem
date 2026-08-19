@@ -608,16 +608,29 @@ class _BasvurularimState extends ConsumerState<BasvurularimEkrani> {
           for (final d in dolu)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              // ⚠️⚠️ TURU 114 (denetim) — **YAZI RENGI DURUM RENGI DEGIL.**
+              //
+              //	Ilk yazimda hem zemin (alfa 0.13) hem YAZI ayni durum
+              //	rengiydi. Acik temada olculdu: en sik gorulen kova
+              //	'bekliyor' (amber #F39C12) yazi/zemin kontrasti **~1.9:1**
+              //	— 12.5 px normal metin icin esik 4.5:1. Yani seridin
+              //	okunmasi gereken kismi OKUNMUYORDU.
+              // ⚠️ Renk BILGI TASIMAYA DEVAM EDER (zemin + solda nokta
+              //    yerine zeminin kendisi); yazi ise temanin `onSurface`i
+              //    ile cizilir ve her temada okunur.
               decoration: BoxDecoration(
-                color: basvuruRengi(d).withValues(alpha: 0.13),
+                color: basvuruRengi(d).withValues(alpha: 0.16),
                 borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: basvuruRengi(d).withValues(alpha: 0.45),
+                ),
               ),
               child: Text(
                 '${etiket[d] ?? d} · ${sayim[d]}',
                 style: TextStyle(
                   fontSize: 12.5,
                   fontWeight: FontWeight.w700,
-                  color: basvuruRengi(d),
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
             ),

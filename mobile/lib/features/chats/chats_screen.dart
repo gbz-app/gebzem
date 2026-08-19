@@ -13,6 +13,7 @@ import '../auth/auth_provider.dart';
 import '../medya/medya_gorsel.dart';
 import 'arama_kaydi.dart';
 import 'chats_provider.dart';
+import '../kanal/kanal_ekrani.dart' show KanalEkrani;
 import '../kanal/kanal_olustur.dart' show KanalOlustur;
 import '../kanal/kanallar_sekmesi.dart' show KanallarSayfasi;
 import 'grup_olustur.dart';
@@ -47,6 +48,22 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
     final secim = await showModalBottomSheet<String>(
       context: context,
       showDragHandle: true,
+      // ⚠️⚠️⚠️ TURU 114 (denetim) — **`isScrollControlled` ZORUNLU.**
+      //
+      //	Sheet bu turda IKI maddeden DORDE cikti. Bayrak verilmediginde
+      //	Flutter tavani `ekran * 9/16` yapar; ustune `showDragHandle`
+      //	(~48 dp) ve `SafeArea` alt centigi biner.
+      //	OLCULDU (gercek `flutter test`, uygulamanin kendi temasi):
+      //	  360x640 · olcek 1.0 -> **24 px tasma**
+      //	  360x640 · olcek 1.3 -> **54 px**
+      //	  360x640 · olcek 1.5 -> **94 px**, son madde
+      //	  ("Toplulukları keşfet") EKRAN DISINDA ve `tester.tap` ISKALIYOR
+      //	  = ozellik ULASILAMAZ.
+      //	411x896 (test cihazi) TASMIYOR — bu yuzden sahada gorunmezdi.
+      // ⚠️ Ayni hata turu 90b'de `olustur_menusu.dart`ta OLCULUP
+      //    duzeltilmis ve orada `isScrollControlled` "ZORUNLU" diye
+      //    isaretlenmisti; bu sheet o dersi ALMAMISTI.
+      isScrollControlled: true,
       builder: (c) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -81,9 +98,13 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
             ListTile(
               leading: const Icon(LucideIcons.radio),
               title: const Text('Topluluk oluştur'),
-              subtitle: const Text(
-                'Sen yazarsın, üyeler okur ve yorumlar',
-              ),
+              // ⚠️⚠️ TURU 114 (denetim) — **"ve yorumlar" KALDIRILDI.**
+              //	`channel_posts` (022) yalniz `begeni_sayisi` ve
+              //	`goruntulenme` tutuyor; YORUM TABLOSU YOK ve `internal/
+              //	kanal/handler.go` yorum ucu ACMIYOR. Var olmayan bir
+              //	ozelligi vaat etmek, projedeki "ozellik var gorunup
+              //	fiilen yok" sinifinin ta kendisi.
+              subtitle: const Text('Sen yazarsın, üyeler okur'),
               onTap: () => Navigator.pop(c, 'topluluk'),
             ),
             ListTile(
@@ -103,9 +124,29 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
     }
     // ⚠️ TURU 114 — topluluk dallari: ikisi de MEVCUT kanal ekranlarini acar.
     if (secim == 'topluluk') {
-      await Navigator.of(context).push<String>(
+      // ⚠️⚠️⚠️ TURU 114 (denetim) — **DONEN ID OKUNUR.**
+      //
+      //	Ilk yazimda `await push<String>(...)` yazilip donen id ATILIYORDU.
+      //	Kanallar `chats` DEGIL, AYRI `channels` tablosunda yasiyor ve
+      //	`ListChats` yalniz `chats`ten okuyor — yani olusturulan topluluk
+      //	mesaj listesinde **YAPISAL OLARAK GORUNEMEZ**. Kullanici
+      //	degismemis listeye donuyor, olusturmanin basarisiz oldugunu
+      //	saniyor ve TEKRAR TEKRAR deniyordu; her deneme GERCEK bir kanal
+      //	aciyor ve 10. denemede *"en fazla 10 kanal acabilirsiniz"*
+      //	hatasi geliyor — arkada 10 YETIM topluluk kaliyordu.
+      // ⚠️ Turu 90b'nin *"menu DONEN ID'yi ATIYORDU"* dersinin tekrari.
+      // ⚠️ Kardes cagri yeri (`kanallar_sekmesi.dart`) ZATEN boyle yapiyor;
+      //    asimetrinin kendisi hataydi.
+      final id = await Navigator.of(context).push<String>(
         MaterialPageRoute(builder: (_) => const KanalOlustur()),
       );
+      if (id != null && context.mounted) {
+        await Navigator.of(context).push<void>(
+          MaterialPageRoute(
+            builder: (_) => KanalEkrani(kanalId: id, onIsim: 'Topluluk'),
+          ),
+        );
+      }
       return;
     }
     if (secim == 'kesfet') {

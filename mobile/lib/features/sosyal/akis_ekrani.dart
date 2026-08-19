@@ -217,7 +217,23 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
           setState(() {
             _yukleniyor = false;
             _ilkYukleme = false;
+            // ⚠️⚠️⚠️ TURU 114 (denetim) — **`_bolmeYuklendi` ISARETLENIR.**
+            //
+            //	`_bolmeYukle` IKI TURLU bir dongudur ve durma olcutu YALNIZ
+            //	`_bolmeYuklendi[hedef]`tir. Isaretlenmezse konum reddedilen
+            //	kullanicida `_yenile` IKINCI KEZ kosuyor ve
+            //	`KonumServisi.konumAl()` **IKINCI BIR IZIN DIYALOGU** ile
+            //	arka arkaya soruyordu (Android ikinciyi sessizce dusurur —
+            //	turu 89'da tam bu yuzden READ_PHONE_STATE 36 tur alinamadi).
+            // ⚠️ Kullanici yine deneyebilir: asagi-cek `_mahalleKonum`u
+            //    sifirlar ve `_yenile`yi dogrudan cagirir.
+            _bolmeYuklendi[2] = true;
             if (bolme == _bolme) {
+              // ⚠️ Liste de TEMIZLENIR: hata govdesinin kapisi
+              //    `_hata != null && _liste.isEmpty`. Bayat bir liste
+              //    kalsaydi hata mesaji HIC cizilmez ve kullanici izni
+              //    reddettigini ogrenemezdi.
+              _listeler[2].clear();
               _hata = 'Mahalle akışı için konum izni gerekiyor';
             }
           });
@@ -509,7 +525,11 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
         child: Padding(
           // ⚠️ Dikey 12 + yazi ~17 + 12 = ~41 dp; yatay 10 ile birlikte
           //    dokunma hedefi rahatca 44 dp'yi asar.
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+          // ⚠️ TURU 114 (denetim) — yatay dolgu 10 -> 8: 360 dp'de baslik
+          //    alani 256 dp ve uc oge sinirda kaliyordu. Sarmal zaten
+          //    kaydiriyor (tasma imkansiz) ama 12 dp kazanmak ucunun de
+          //    NORMAL olcekte tam gorunmesini saglar.
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
           child: Stack(
             // ⚠️ `centerLeft` ZORUNLU: ortalama kullanilsaydi secili olmayan
             //    (daha soluk) yazi gorunmez kutunun ICINDE saga kayardi.

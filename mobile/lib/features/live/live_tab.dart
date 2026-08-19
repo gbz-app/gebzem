@@ -12,7 +12,6 @@ import '../calls/active_call_controller.dart';
 import '../calls/call_provider.dart';
 import '../medya/medya_gorsel.dart';
 import 'live_provider.dart';
-import 'live_start_screen.dart';
 import 'live_viewer_screen.dart';
 
 /// CANLI sekmesi — yayin kesfet listesi (TikTok/Insta deseni; davet yok)
@@ -204,16 +203,24 @@ class _LiveTabState extends ConsumerState<LiveTab> {
                 ),
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        heroTag: 'yayinBaslat',
-        onPressed: () {
-          if (_aramaVarMi()) return;
-          Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const LiveStartScreen()));
-        },
-        icon: const Icon(LucideIcons.radioTower),
-        label: const Text('Yayın başlat'),
-      ),
+      // ⚠️⚠️⚠️ TURU 114 (denetim) — **"YAYIN BASLAT" FAB'I ARTIK GERCEKTEN
+      //	KALDIRILDI** (kullanici emri 5: *"canli yayin alt menuden
+      //	tikladigimizda sadece canli yayin varsa gelsin, yayin baslat vb
+      //	seyler olmasin"*).
+      //
+      // ⚠️⚠️ TURU 113 COMMIT MESAJI BU ISI YAPTIGINI SOYLUYORDU AMA GOVDEDE
+      //	YAPILMAMISTI: o commit bu dosyada yalnizca **3 satir ekleyip 1
+      //	satir silmis** (bos durum metni), FAB oldugu gibi kalmisti.
+      //	Denetim yakaladi. **DERS: bir degisikligin yapildigini commit
+      //	mesajindan DEGIL, GOVDEDEN dogrula.**
+      //
+      // ⚠️ OZELLIK ULASILAMAZ KALMADI (grep ile dogrulandi):
+      //    `LiveStartScreen`in ikinci cagri yeri `olustur_menusu.dart`
+      //    ("+" > Canlı yayın) ve o DURUYOR.
+      // ⚠️ Mesgulluk kapisi da kaybolmadi: `LiveStartScreen` kendi
+      //    `initState`inde tasiyor; buradaki `_aramaVarMi()` ikinci bir
+      //    savunmaydi.
+      // ⚠️ YAPMA: buraya FAB geri ekleme.
     );
   }
 }
