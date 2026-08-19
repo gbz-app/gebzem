@@ -47,3 +47,11 @@ tools/indir/index.html
 tools/indir/gebzem.apk
 tools/indir/gebzem.ipa
 tools/indir/surum.json
+
+# ⚠️ TURU 114 — DENETIM AJANLARININ GECICI OLCUM TESTLERI.
+#    Yerlesim denetimleri gercek `flutter test` sondalariyla dp olcuyor
+#    (font metrikleri + `FontLoader`); o dosyalar TEK KULLANIMLIKTIR ve uc kez
+#    yanlislikla commit'e girdi. Desen DAR tutuldu: gercek muhafiz testleri
+#    (`alt_menu_test.dart`, `harita_stili_test.dart` ...) etkilenmez.
+mobile/test/_zz_*
+mobile/test/_olcum*
