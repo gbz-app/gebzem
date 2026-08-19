@@ -89,14 +89,21 @@ class HizmetMenusu extends ConsumerWidget {
       //	karta bakmak zorunda kalmasin.
       // ⚠️ Yeni EKRAN acilmadi: talep akisi zaten kategori agacini sunucudan
       //    cekip soruyor (turu 91).
+      // ⚠️⚠️ TURU 114 — Dugun/Organizasyon artik **DAL PARAMETRESIYLE** aciliyor
+      //	(kullanici emri: *"dugun kategorisi de yemek gibi olsun"* +
+      //	*"dugun de step step olsun"*). Ekran yemek duzeninde bir KATEGORI
+      //	IZGARASI cizer ve her hucre ADIM ADIM SIHIRBAZI acar.
+      // ⚠️ Organizasyon da `dugun` dalina gider: sunucudaki talep kategorileri
+      //    (`dugunKategorileri`) ikisini AYNI kumede tutuyor; ayri bir kume
+      //    acmak sunucu tarafinda karsiligi olmayan bir ayrim uydurmak olurdu.
       _Bolum('Düğün', [
         const Color(0xFFFF6B9D),
         const Color(0xFFC2185B),
-      ], (c) => const TalepAkisiEkrani()),
+      ], (c) => const TalepAkisiEkrani(dal: 'dugun')),
       _Bolum('Organizasyon', [
         const Color(0xFFFF9A6B),
         const Color(0xFFC24A18),
-      ], (c) => const TalepAkisiEkrani()),
+      ], (c) => const TalepAkisiEkrani(dal: 'dugun')),
       _Bolum('Diyet', [
         const Color(0xFF2BB673),
         const Color(0xFF0E7A52),
@@ -109,10 +116,20 @@ class HizmetMenusu extends ConsumerWidget {
         const Color(0xFF2BB673),
         const Color(0xFF12805A),
       ], (c) => const IlanListesiEkrani()),
+      // ⚠️⚠️⚠️ TURU 114 — "Hizmet" karti artik **HIZMET AL (adim adim)** ekranini
+      //	aciyor (kullanici emri: *"hizmetler hizmet al step step olsun"*).
+      //
+      //	Onceden `IlanListesiEkrani(tur: 'hizmet')` — yani yayinlanmis hizmet
+      //	ILANLARININ listesi — aciliyordu. Kullanicinin istedigi TERS YON:
+      //	hizmet ARAYAN kisi bir form doldurup isletmelerden teklif alsin.
+      //	O akis (`TalepSihirbaziEkrani`) ZATEN vardi ama yalnizca Dugun
+      //	kartindan ulasilabiliyordu — hizmet dali pratikte KESFEDILEMEZDI.
+      // ⚠️ Hizmet ILANLARI listesi ULASILAMAZ KALMADI: ayni ekranin sag ust
+      //    kosesindeki "Taleplerim" ve "İlan" karti o listeyi tasiyor.
       _Bolum('Hizmet', [
         const Color(0xFF3AA9FF),
         const Color(0xFF12547A),
-      ], (c) => const IlanListesiEkrani(tur: 'hizmet', baslik: 'Hizmetler')),
+      ], (c) => const TalepAkisiEkrani(dal: 'hizmet')),
       // ⚠️ TURU 90 — kullanici emri: *"is ilani ve OTELLER KATEGORILERDE
       //    olmali"*. Ikisi de MEVCUT ekranlara baglanir, yeni ekran YOK:
       //    · İş İlanları -> `IlanListesiEkrani(tur: 'is')` ('Hizmetler'in

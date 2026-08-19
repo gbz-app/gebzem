@@ -17,21 +17,87 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+// ⚠️ TURU 114 — "yemek" duzeninin olcu/renk sabitleri BURADAN gelir,
+//    KOPYALANMAZ (iki ekran birlikte doner).
+import '../isletme/isletme_kart.dart' show kYanBosluk, kYaricap, kYuzeyGri;
+import '../isletme/isletme_listesi.dart' show kInputBoy, kKesifKutu, kIzgaraAralik;
 import '../ilan/ilan_ekranlari.dart' show IlanDetayEkrani, IlanListesiEkrani;
 import '../ilan/ilan_servisi.dart';
 import 'talep_servisi.dart';
 
 // ═══════════════════ 1) DAL SECIMI + KATEGORI ═══════════════════
 
-class TalepAkisiEkrani extends ConsumerWidget {
-  const TalepAkisiEkrani({super.key});
+/// ⚠️⚠️⚠️ TURU 114 — TEKLIF/HIZMET AKISI **"YEMEK" DUZENINDE** (kullanici
+///	emirleri: *"dugun kategorisi de yemek gibi olsun"* · *"hizmetler hizmet
+///	al step step olsun"* · *"dugun de step step olsun"* · *"hepsi yemek
+///	mantiginda olsun"*).
+///
+/// ═══════════ NEDEN ISLETME LISTESI DEGIL ═══════════
+///
+/// "Yemek gibi" ilk bakista *"dugun isletmelerini listele"* demek gibi
+/// duruyor. **YAPILAMAZ VE YAPILMAMALI:** `isletme.Kategoriler` haritasinda
+/// `dugun` ya da `organizasyon` diye bir anahtar YOK (kaynaktan dogrulandi),
+/// yani boyle bir liste **HER ZAMAN BOS** donerdi. Bu, projede alti kez
+/// tekrarlanan *"ozellik var gorunup fiilen yok"* sinifinin yenisi olurdu.
+///
+/// Bunun yerine **GORSEL DIL** yemekten alindi (arama kutusu + "KATEGORİLER"
+/// basligi + 4 sutunlu gri kutu izgarasi + altinda yazi) ama izgaradaki
+/// hucreler **TALEP KATEGORILERI**dir ve dokununca **ADIM ADIM SIHIRBAZ**
+/// acilir. Boylece uc emir birden karsilanir ve tek bir sahte veri cizilmez.
+///
+/// ⚠️ Olcu/renk sabitleri `isletme_kart.dart` ve `isletme_listesi.dart`ten
+///    **IMPORT EDILIR**, kopyalanmaz — iki ekran birlikte doner.
+/// ⚠️ Kategori listesi SUNUCUDAN (`GET /ilan-kategoriler`); Dart'a sabit
+///    yazmak turu 77 kuralinin ihlali olurdu.
+class TalepAkisiEkrani extends ConsumerStatefulWidget {
+  const TalepAkisiEkrani({super.key, this.dal});
+
+  /// `'dugun'` · `'hizmet'` · `null` (ikisi de).
+  ///
+  /// ⚠️ Dal ayrimi ISTEMCIDE (bkz. `talep_servisi.dart` serhi): sunucuda
+  ///    hepsi ayni `tur='talep'`tir ve bu bir SUNUM tercihidir.
+  final String? dal;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<TalepAkisiEkrani> createState() => _TalepAkisiState();
+}
+
+class _TalepAkisiState extends ConsumerState<TalepAkisiEkrani> {
+  final _arama = TextEditingController();
+  String _q = '';
+
+  @override
+  void dispose() {
+    _arama.dispose();
+    super.dispose();
+  }
+
+  bool get _dugunDali => widget.dal == 'dugun';
+
+  /// ⚠️⚠️ TURKCE KUCULTME **ELLE** yapilir.
+  ///
+  ///	Dart'in `toLowerCase()`i `'İ'` (U+0130) icin `'i' + BIRLESIK NOKTA`
+  ///	uretir; yani kullanici *"is"* yazdiginda **"İş Yeri Temizliği"**
+  ///	kategorisi ESLESMEZDI (aranan `is`, uretilen `i̇s`). Ayni tuzak sunucu
+  ///	tarafinda da kayitli (turu 91: `strings.ToLower` "İSPANAK" aramasini
+  ///	bozuyordu) ve orada da ELLE cozuldu.
+  /// ⚠️ `I` -> `ı` ve `İ` -> `i` ONCE uygulanir, sonra kalanlar icin
+  ///    `toLowerCase()`.
+  static String _kucult(String s) =>
+      s.replaceAll('I', 'ı').replaceAll('İ', 'i').toLowerCase();
+
+  String get _baslik => switch (widget.dal) {
+    'dugun' => 'Düğün & Organizasyon',
+    'hizmet' => 'Hizmet al',
+    _ => 'Teklif iste',
+  };
+
+  @override
+  Widget build(BuildContext context) {
     final agac = ref.watch(ilanAgaciProvider);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Teklif iste'),
+        title: Text(_baslik),
         actions: [
           IconButton(
             tooltip: 'Taleplerim',
@@ -39,7 +105,10 @@ class TalepAkisiEkrani extends ConsumerWidget {
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute(
                 builder: (_) => const IlanListesiEkrani(
-                  tur: 'talep', benim: true, baslik: 'Taleplerim'),
+                  tur: 'talep',
+                  benim: true,
+                  baslik: 'Taleplerim',
+                ),
               ),
             ),
           ),
@@ -52,8 +121,8 @@ class TalepAkisiEkrani extends ConsumerWidget {
           final talep = turler.where((t) => t.anahtar == 'talep').firstOrNull;
           if (talep == null) {
             // ⚠️ DURUST HATA: sunucu `talep` turunu dondurmuyorsa ozellik
-            //    KULLANILAMAZ. Bos liste gostermek "hicbir kategori yok" gibi
-            //    YANLIS bir izlenim verirdi.
+            //    KULLANILAMAZ. Bos liste "hicbir kategori yok" gibi YANLIS
+            //    bir izlenim verirdi.
             return const Center(
               child: Padding(
                 padding: EdgeInsets.all(32),
@@ -65,38 +134,299 @@ class TalepAkisiEkrani extends ConsumerWidget {
               ),
             );
           }
-          final dugun = talep.kategoriler
-              .where((k) => dugunKategorileri.contains(k.anahtar))
-              .toList();
-          final hizmet = talep.kategoriler
-              .where((k) => !dugunKategorileri.contains(k.anahtar))
-              .toList();
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-            children: [
-              const Text(
-                'Ne için teklif istiyorsun?',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+          final hepsi = talep.kategoriler.where((k) {
+            if (widget.dal == 'dugun') {
+              return dugunKategorileri.contains(k.anahtar);
+            }
+            if (widget.dal == 'hizmet') {
+              return !dugunKategorileri.contains(k.anahtar);
+            }
+            return true;
+          }).toList();
+          // ⚠️ Arama ISTEMCIDE suzuyor: liste sunucudan TEK SEFERDE geliyor
+          //    ve ~15 kalem. Sunucuya `q` eklemek fazladan bir istek ve
+          //    fazladan bir uc demekti.
+          final q = _kucult(_q);
+          final gosterilen = q.isEmpty
+              ? hepsi
+              : hepsi.where((k) => _kucult(k.ad).contains(q)).toList();
+
+          return CustomScrollView(
+            // ⚠️ Bos listede de asagi-cek mumkun olsun (turu 83b dersi).
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              SliverToBoxAdapter(child: _acilis()),
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(
+                  kYanBosluk,
+                  0,
+                  kYanBosluk,
+                  10,
+                ),
+                sliver: SliverToBoxAdapter(child: _aramaKutusu()),
               ),
-              const SizedBox(height: 6),
-              const Text(
-                'Birkaç soruya cevap ver, ilgili işletmeler sana teklif '
-                'göndersin.',
-                style: TextStyle(fontSize: 13, color: Colors.grey),
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(kYanBosluk, 6, kYanBosluk, 8),
+                sliver: SliverToBoxAdapter(
+                  child: Text(
+                    'KATEGORİLER',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w800,
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withValues(alpha: 0.55),
+                    ),
+                  ),
+                ),
               ),
-              const SizedBox(height: 20),
-              if (dugun.isNotEmpty) ...[
-                _dalBasligi('DÜĞÜN & ORGANİZASYON'),
-                for (final k in dugun) _kategoriSatiri(context, talep, k),
-                const SizedBox(height: 18),
-              ],
-              if (hizmet.isNotEmpty) ...[
-                _dalBasligi('HİZMET'),
-                for (final k in hizmet) _kategoriSatiri(context, talep, k),
-              ],
+              if (gosterilen.isEmpty)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(kYanBosluk, 24, kYanBosluk, 24),
+                    child: Text(
+                      q.isEmpty
+                          ? 'Bu dalda kategori bulunamadı'
+                          : 'Aramanla eşleşen kategori yok',
+                      style: TextStyle(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withValues(alpha: 0.6),
+                      ),
+                    ),
+                  ),
+                )
+              else
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(
+                    kYanBosluk,
+                    0,
+                    kYanBosluk,
+                    28,
+                  ),
+                  sliver: SliverGrid(
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                          // ⚠️ 4 sutun: menudeki kategori izgarasiyla BIREBIR
+                          //    (turu 96q kullanici emri).
+                          crossAxisCount: 4,
+                          crossAxisSpacing: kIzgaraAralik,
+                          mainAxisSpacing: kIzgaraAralik,
+                          childAspectRatio: 0.78,
+                        ),
+                    delegate: SliverChildBuilderDelegate(
+                      (c, i) => _kategoriKarti(talep, gosterilen[i]),
+                      childCount: gosterilen.length,
+                    ),
+                  ),
+                ),
+              SliverToBoxAdapter(child: _nasilCalisir()),
             ],
           );
         },
+      ),
+    );
+  }
+
+  /// Ekranin en ustundeki tek cumlelik aciklama.
+  ///
+  /// ⚠️ Kullaniciya NE OLACAGINI soyler: kategoriye dokunmak bir FORM acar,
+  ///    form bittiginde talep ILGILI ISLETMELERE gider. Bu bilgi olmadan
+  ///    izgara "sadece bir liste" gibi gorunuyordu.
+  Widget _acilis() => Padding(
+    padding: const EdgeInsets.fromLTRB(kYanBosluk, 14, kYanBosluk, 12),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          _dugunDali
+              ? 'Düğün için ne lazım?'
+              : (widget.dal == 'hizmet'
+                    ? 'Hangi hizmeti almak istiyorsun?'
+                    : 'Ne için teklif istiyorsun?'),
+          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'Kategoriyi seç, birkaç soruya cevap ver — ilgili işletmeler sana '
+          'teklif göndersin.',
+          style: TextStyle(
+            fontSize: 13,
+            color: Theme.of(
+              context,
+            ).colorScheme.onSurface.withValues(alpha: 0.6),
+          ),
+        ),
+      ],
+    ),
+  );
+
+  /// ⚠️ Arama kutusu kategori ekranindakiyle AYNI olculerde (`kInputBoy`).
+  /// ⚠️⚠️ `suffixIcon`e KALAN GENISLIGIN TAMAMI verilir (turu 96o tuzagi):
+  ///	genislik ACIKCA verilmezse X inputun ORTASINDA cikar ve METNE YER
+  ///	KALMAZ. 44 dp = dokunma hedefi.
+  Widget _aramaKutusu() => SizedBox(
+    height: kInputBoy,
+    child: TextField(
+      controller: _arama,
+      textInputAction: TextInputAction.search,
+      onChanged: (v) => setState(() => _q = v.trim()),
+      decoration: InputDecoration(
+        hintText: 'Kategori ara',
+        prefixIcon: const Icon(LucideIcons.search, size: 19),
+        suffixIcon: _q.isEmpty
+            ? null
+            : SizedBox(
+                width: 44,
+                child: IconButton(
+                  tooltip: 'Temizle',
+                  icon: const Icon(LucideIcons.x, size: 18),
+                  onPressed: () {
+                    _arama.clear();
+                    setState(() => _q = '');
+                  },
+                ),
+              ),
+        filled: true,
+        fillColor: kYuzeyGri(context),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(kYaricap(kInputBoy)),
+          borderSide: BorderSide.none,
+        ),
+        contentPadding: EdgeInsets.zero,
+      ),
+    ),
+  );
+
+  /// Izgara hucresi — menudeki kategori kartiyla BIREBIR ayni dil.
+  ///
+  /// ⚠️ IKON YOK, HARF YOK: kutu bir YUZEYDIR, yazi ALTINDA (kullanici
+  ///    kategori ekraninda kutu icine konan HER SEYI uc kez kaldirtti).
+  Widget _kategoriKarti(IlanTuru talep, ({String anahtar, String ad}) k) =>
+      RepaintBoundary(
+        child: GestureDetector(
+          // ⚠️ `opaque`: kutu ile yazi arasindaki bosluga dokunmak da acar.
+          behavior: HitTestBehavior.opaque,
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => TalepSihirbaziEkrani(tur: talep, kategori: k),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // ⚠️ `AspectRatio` DEGIL sabit yukseklik: menudeki izgara da
+              //    `kKesifKutu` kullaniyor ve iki ekran yan yana ayni
+              //    gorunmeli.
+              SizedBox(
+                height: kKesifKutu,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: kYuzeyGri(context),
+                    borderRadius: BorderRadius.circular(kYaricap(kKesifKutu)),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 5),
+              // ⚠️⚠️ ETIKET ALANI **SABIT IKI SATIR**: icerige gore
+              //	degisseydi uzun adlar hucreyi uzatir ve izgaranin alt
+              //	siniri DALGALANIRDI (turu 96k'da olculen hata).
+              //	Yukseklik yazi olceginden TURETILIR.
+              SizedBox(
+                height: MediaQuery.textScalerOf(context).scale(14) * 1.15 * 2,
+                child: Center(
+                  child: Text(
+                    k.ad,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      height: 1.15,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+
+  /// UC ADIMLI aciklama — kullanicinin "step step" beklentisini KARSILAR.
+  ///
+  /// ⚠️ Burada SAHTE bir ilerleme cubugu YOK: bu bir ANLATIMDIR. Gercek
+  ///    adimlar sihirbazda ve sayilari SUNUCUDAN gelen alan sayisina bagli.
+  Widget _nasilCalisir() {
+    final soluk = Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6);
+    Widget adim(int no, String baslik, String metin) => Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 26,
+            height: 26,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primary,
+              shape: BoxShape.circle,
+            ),
+            child: Text(
+              '$no',
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onPrimary,
+                fontWeight: FontWeight.w800,
+                fontSize: 13,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  baslik,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14.5,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(metin, style: TextStyle(fontSize: 13, color: soluk)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(kYanBosluk, 4, kYanBosluk, 32),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'NASIL ÇALIŞIR',
+            style: TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w800,
+              color: soluk,
+            ),
+          ),
+          const SizedBox(height: 12),
+          adim(1, 'Kategoriyi seç', 'Yukarıdaki kutulardan birine dokun.'),
+          adim(
+            2,
+            'Soruları yanıtla',
+            'Adım adım ilerler; her adımda yalnızca birkaç soru var.',
+          ),
+          adim(
+            3,
+            'Teklifleri karşılaştır',
+            'İlgili işletmeler fiyat gönderir, sen seçersin.',
+          ),
+        ],
       ),
     );
   }
@@ -114,35 +444,6 @@ class TalepAkisiEkrani extends ConsumerWidget {
       ],
     ),
   );
-
-  Widget _dalBasligi(String s) => Padding(
-    padding: const EdgeInsets.only(bottom: 8),
-    child: Text(
-      s,
-      style: const TextStyle(
-        fontSize: 11.5,
-        fontWeight: FontWeight.w800,
-        // ⚠️ TURU 113 — `letterSpacing` KALDIRILDI (kullanici emri).
-        color: Colors.grey,
-      ),
-    ),
-  );
-
-  Widget _kategoriSatiri(
-    BuildContext context,
-    IlanTuru talep,
-    ({String anahtar, String ad}) k,
-  ) =>
-      ListTile(
-        contentPadding: EdgeInsets.zero,
-        title: Text(k.ad),
-        trailing: const Icon(LucideIcons.chevronRight, size: 18),
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => TalepSihirbaziEkrani(tur: talep, kategori: k),
-          ),
-        ),
-      );
 }
 
 // ═══════════════════ 2) ADIM ADIM SIHIRBAZ ═══════════════════
