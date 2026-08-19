@@ -7607,3 +7607,39 @@ Turu 113'ün commit mesajı "FAB kaldırıldı" diyordu ama `live_tab.dart`ta o 
 **yalnızca 3 satır eklemiş, 1 satır silmişti** (boş durum metni). FAB olduğu gibi
 duruyordu. **Ders: bir değişikliğin yapıldığını commit mesajından değil gövdeden
 doğrula.**
+
+---
+
+## Oturum — 19 Ağustos 2026 (turu 115: kullanıcının saydığı eksikler)
+
+Kullanıcı dört eksik saydı; dördü de gerçekti:
+1. **Arama TikTok tarzı değildi** — ekran yalnız `/users/search` çağırıyordu.
+   Sunucuda **gönderi metni araması hiç yoktu** (`grep "metin ILIKE"` = 0);
+   `GET /ara?q=&tur=` yazıldı (migration gerekmedi). Arama artık altı sekmeli.
+2. **Profilde sol-sağ scroll yoktu** — turu 114 sadece bir jest eklemişti;
+   içerik parmakla kaymıyordu. `PageView` ile gerçek sayfalı kaydırma.
+3. **Hizmet/Düğün Hesabım'da yoktu** — İlanlarım · Hizmetlerim · Düğünüm ·
+   Taleplerim "Başvurularım/Diyetim" ile aynı gruba eklendi (kısayol; liste
+   mantığı tek yerde kaldı).
+4. **"Sosyal" kartı aramaya gidiyordu** — artık anasayfa sekmesine dönüyor.
+
+Ayrıca:
+- **Yakınımda Yandex Navigator düzeninde**: tam ekran harita + `DraggableScrollableSheet`
+  (arama, hızlı çipler, filtreler, kategori ızgarası, dikey liste). Sunucu artık
+  `kapak_media_id · puan · puan_sayisi · min_tutar_kurus · kampanyalar` da döndürüyor —
+  filtre ölçütleri bu uçta hiç dönmüyordu.
+- **Bildirimler dolduruldu** (demo, `demoKimlik` kapısıyla).
+
+### Dürüst sınır
+Kullanıcı "akaryakıta fiyat aralıkları" istedi. **Akaryakıt fiyatı bu projede
+hiçbir yerde yok** (tablo/uç/alan). Uydurma aralık yanlış bilgi olurdu; onun
+yerine sunucunun gerçekten döndürdüğü ölçütler kondu: mesafe · puan · kampanya ·
+onaylı.
+
+### Yayın (19 Ağustos 18:32)
+- android **32269225449** + ios **32269228959** (`f0092ff`)
+- apk 122617131 (707a0690) · ipa 31731968 (402c8ec0) · index 14144 (b81bf392)
+  · surum.json (41855f0d) — CDN dördü de birebir
+- Backend deploy + health ok + **375/375 uçtan uca**; `/ara` ve yeni `yakinimda`
+  alanları canlıda tek tek doğrulandı (400/200 kapıları dahil).
+- ⚠️ Adres: https://indir.gebzem.app/index.html?v=20260819-1832
