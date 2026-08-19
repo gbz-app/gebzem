@@ -444,6 +444,18 @@ class HesabimEkrani extends ConsumerWidget {
   );
 }
 
+/// ⚠️ TURU 115 — profili ISTENEN SEKMEDE acar. TEK KAYNAK: dort kisayol da
+///    buradan gecer; her satira ayri `Navigator.push` yazilsaydi biri
+///    guncellenip otekiler geride kalirdi.
+void _profilSekmesi(BuildContext context, String id, ProfilSekmesi sekme) {
+  if (id.isEmpty) return;
+  Navigator.of(context).push(
+    MaterialPageRoute(
+      builder: (_) => ProfilSayfasi(userId: id, baslangicSekmesi: sekme),
+    ),
+  );
+}
+
 class _ProfileTab extends ConsumerWidget {
   const _ProfileTab();
 
@@ -452,6 +464,7 @@ class _ProfileTab extends ConsumerWidget {
     final profile = ref.watch(myProfileProvider);
     final p = profile.valueOrNull;
     final isletme = (p?['hesap_turu'] ?? '') == 'isletme';
+    final benimId = (p?['id'] ?? '').toString();
     final scheme = Theme.of(context).colorScheme;
 
     return ListView(
@@ -575,13 +588,48 @@ class _ProfileTab extends ConsumerWidget {
         AyarBolumu(
           baslik: 'İçeriğim',
           satirlar: [
-            // ⚠️ TURU 108 — 'İlanlarım' ve 'Taleplerim' PROFIL SEKMELERINE
-            //    tasindi. Iki giris birakmak KACINILMAZ olarak drift eder
-            //    (turu 76b dersi).
-            // ⚠️⚠️ TURU 91 — "Düğünüm/Hizmetlerim" TEK GIRISTE birlesti: ikisi
-            //    de `tur='talep'` ilanlaridir ve ayri iki ekran ayni listenin
-            //    iki kopyasi olurdu.
+            // ⚠️⚠️⚠️ TURU 115 — **HIZMETLERIM · DUGUNUM · ILANLARIM · TALEPLERIM
+            //	BURAYA GELDI** (kullanici: *"hizmet ve dugun profilde kastim;
+            //	ayarlarda BASVURULARIM DIYET ALANINDA olacak, o da yok"*).
+            //
+            //	Turu 108 bunlari profil SEKMELERINE tasimis ve *"iki giris
+            //	birakmak drift eder"* demisti. Kullanici o karari GERI ALDI.
+            //
+            // ⚠️⚠️ DRIFT RISKI YOK: bu satirlar **ikinci bir ekran acmiyor**,
+            //	profili `baslangicSekmesi` ile aciyor. Liste sorgusu, yukleme,
+            //	bos durum ve hata dallari TEK YERDE (`profil_sayfasi.dart`)
+            //	kaliyor; burasi yalnizca bir KISAYOL.
+            // ⚠️ `IlanListesiEkrani(benim: true)` KULLANILMADI: o ekran
+            //    `tur='talep'` olan HER seyi (dugun + hizmet) tek listede
+            //    gosterir ve kullanicinin istedigi AYRIM kaybolurdu.
+            // ⚠️ `benimId` bos olamaz: bu liste `myProfileProvider` yuklendikten
+            //    sonra ciziliyor (ust taraftaki `ProfilKarti` de ona bagli).
 
+            AyarSatiri(
+              ikon: LucideIcons.clipboardList,
+              baslik: 'İlanlarım',
+              onTap: () => _profilSekmesi(context, benimId, ProfilSekmesi.ilan),
+            ),
+            AyarSatiri(
+              ikon: LucideIcons.wrench,
+              baslik: 'Hizmetlerim',
+              onTap: () =>
+                  _profilSekmesi(context, benimId, ProfilSekmesi.hizmet),
+            ),
+            AyarSatiri(
+              ikon: LucideIcons.heart,
+              baslik: 'Düğünüm',
+              altBaslik: 'Düğün ve organizasyon taleplerin',
+              onTap: () =>
+                  _profilSekmesi(context, benimId, ProfilSekmesi.dugun),
+            ),
+            AyarSatiri(
+              ikon: LucideIcons.megaphone,
+              baslik: 'Taleplerim',
+              altBaslik: 'Hizmet ve diğer teklif istekleri',
+              onTap: () =>
+                  _profilSekmesi(context, benimId, ProfilSekmesi.talep),
+            ),
             AyarSatiri(
               ikon: LucideIcons.briefcase,
               baslik: 'Başvurularım',

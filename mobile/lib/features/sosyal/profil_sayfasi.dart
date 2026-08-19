@@ -49,7 +49,11 @@ import 'takip_listesi.dart';
 ///	`switch`te eksik dal birakilirsa DERLEYICIYI patlatir.
 /// ⚠️ Ayrica kosullu sekmeler (`_benimMi`) `int` indekslerini KAYDIRIRDI:
 ///    birinde 5 = Ilanlarim, otekinde 5 = baska bir sey.
-enum _Sekme {
+/// ⚠️⚠️ TURU 115 — enum **PUBLIC** (eski adi `_Sekme`): `HesabimEkrani`
+///	listesindeki "Hizmetlerim"/"Düğünüm"/"İlanlarım"/"Taleplerim"
+///	kisayollari profili DOGRUDAN o sekmede aciyor. Ikinci bir liste ekrani
+///	yazilmadigi icin liste/yukleme/bos-durum mantigi TEK YERDE kaliyor.
+enum ProfilSekmesi {
   tumu,
   foto,
   video,
@@ -62,44 +66,44 @@ enum _Sekme {
   dugun,
 }
 
-extension _SekmeBilgi on _Sekme {
+extension ProfilSekmesiBilgi on ProfilSekmesi {
   String get etiket => switch (this) {
-    _Sekme.tumu => 'Gönderiler',
-    _Sekme.foto => 'Fotoğraf',
-    _Sekme.video => 'Video',
-    _Sekme.reels => 'Reels',
-    _Sekme.ses => 'Ses',
-    _Sekme.ilan => 'İlanlarım',
-    _Sekme.dolap => 'Dolap',
-    _Sekme.hizmet => 'Hizmetlerim',
-    _Sekme.talep => 'Taleplerim',
-    _Sekme.dugun => 'Düğünüm',
+    ProfilSekmesi.tumu => 'Gönderiler',
+    ProfilSekmesi.foto => 'Fotoğraf',
+    ProfilSekmesi.video => 'Video',
+    ProfilSekmesi.reels => 'Reels',
+    ProfilSekmesi.ses => 'Ses',
+    ProfilSekmesi.ilan => 'İlanlarım',
+    ProfilSekmesi.dolap => 'Dolap',
+    ProfilSekmesi.hizmet => 'Hizmetlerim',
+    ProfilSekmesi.talep => 'Taleplerim',
+    ProfilSekmesi.dugun => 'Düğünüm',
   };
 
   IconData get ikon => switch (this) {
-    _Sekme.tumu => LucideIcons.layoutGrid,
-    _Sekme.foto => LucideIcons.image,
-    _Sekme.video => LucideIcons.video,
-    _Sekme.reels => LucideIcons.clapperboard,
-    _Sekme.ses => LucideIcons.audioLines,
-    _Sekme.ilan => LucideIcons.tag,
-    _Sekme.dolap => LucideIcons.shirt,
-    _Sekme.hizmet => LucideIcons.wrench,
-    _Sekme.talep => LucideIcons.clipboardList,
-    _Sekme.dugun => LucideIcons.heartHandshake,
+    ProfilSekmesi.tumu => LucideIcons.layoutGrid,
+    ProfilSekmesi.foto => LucideIcons.image,
+    ProfilSekmesi.video => LucideIcons.video,
+    ProfilSekmesi.reels => LucideIcons.clapperboard,
+    ProfilSekmesi.ses => LucideIcons.audioLines,
+    ProfilSekmesi.ilan => LucideIcons.tag,
+    ProfilSekmesi.dolap => LucideIcons.shirt,
+    ProfilSekmesi.hizmet => LucideIcons.wrench,
+    ProfilSekmesi.talep => LucideIcons.clipboardList,
+    ProfilSekmesi.dugun => LucideIcons.heartHandshake,
   };
 
   String get bosMetin => switch (this) {
-    _Sekme.tumu => 'Henüz gönderi yok',
-    _Sekme.foto => 'Henüz fotoğraf yok',
-    _Sekme.video => 'Henüz video yok',
-    _Sekme.reels => 'Henüz reels yok',
-    _Sekme.ses => 'Henüz ses paylaşımı yok',
-    _Sekme.ilan => 'Henüz ilan vermedin',
-    _Sekme.dolap => 'Dolabında ürün yok',
-    _Sekme.hizmet => 'Henüz hizmet ilanın yok',
-    _Sekme.talep => 'Henüz talebin yok',
-    _Sekme.dugun => 'Henüz düğün talebin yok',
+    ProfilSekmesi.tumu => 'Henüz gönderi yok',
+    ProfilSekmesi.foto => 'Henüz fotoğraf yok',
+    ProfilSekmesi.video => 'Henüz video yok',
+    ProfilSekmesi.reels => 'Henüz reels yok',
+    ProfilSekmesi.ses => 'Henüz ses paylaşımı yok',
+    ProfilSekmesi.ilan => 'Henüz ilan vermedin',
+    ProfilSekmesi.dolap => 'Dolabında ürün yok',
+    ProfilSekmesi.hizmet => 'Henüz hizmet ilanın yok',
+    ProfilSekmesi.talep => 'Henüz talebin yok',
+    ProfilSekmesi.dugun => 'Henüz düğün talebin yok',
   };
 
   /// Sunucu `?tur=` degeri (gonderi sekmeleri icin).
@@ -111,9 +115,9 @@ extension _SekmeBilgi on _Sekme {
   /// ⚠️ Reels ISTEMCIDE ayirt EDILEMEZ (medya turu yine `video`) — sunucu
   ///    suzgeci ZORUNLU.
   String? get sunucuTuru => switch (this) {
-    _Sekme.foto || _Sekme.ses => 'foto',
-    _Sekme.video => 'video',
-    _Sekme.reels => 'reels',
+    ProfilSekmesi.foto || ProfilSekmesi.ses => 'foto',
+    ProfilSekmesi.video => 'video',
+    ProfilSekmesi.reels => 'reels',
     _ => null,
   };
 
@@ -121,20 +125,20 @@ extension _SekmeBilgi on _Sekme {
   ///    `?user_id=` YOKTUR (yalniz `benim=1`), yani baskasinin ilanlarini
   ///    listeleyecek bir yol YOK. Menude HIC gosterilmez.
   bool get ilanMi =>
-      this == _Sekme.ilan ||
-      this == _Sekme.dolap ||
-      this == _Sekme.hizmet ||
-      this == _Sekme.talep ||
-      this == _Sekme.dugun;
+      this == ProfilSekmesi.ilan ||
+      this == ProfilSekmesi.dolap ||
+      this == ProfilSekmesi.hizmet ||
+      this == ProfilSekmesi.talep ||
+      this == ProfilSekmesi.dugun;
 
   /// Ilan turu (`/ilanlar?tur=`).
   String get ilanTuru => switch (this) {
-    _Sekme.dolap => 'ikinci_el',
-    _Sekme.hizmet => 'hizmet',
+    ProfilSekmesi.dolap => 'ikinci_el',
+    ProfilSekmesi.hizmet => 'hizmet',
     // ⚠️ Dugun AYRI BIR TUR DEGIL: sunucuda dugun talepleri de
     //    `tur='talep'`tir, yalniz KATEGORILERI farklidir. Ayrim asagida
     //    (`_dugunMu`) sunucunun agacindan gelen bayrakla yapilir.
-    _Sekme.talep || _Sekme.dugun => 'talep',
+    ProfilSekmesi.talep || ProfilSekmesi.dugun => 'talep',
     _ => '',
   };
 }
@@ -144,6 +148,7 @@ class ProfilSayfasi extends ConsumerStatefulWidget {
     super.key,
     required this.userId,
     this.sekmeModu = false,
+    this.baslangicSekmesi,
   });
   final String userId;
 
@@ -158,6 +163,15 @@ class ProfilSayfasi extends ConsumerStatefulWidget {
   ///     tutar; `initState` bir kez kosar ve yeni gonderi GORUNMEZDI).
   final bool sekmeModu;
 
+  /// ⚠️⚠️ TURU 115 — profil BELIRLI BIR SEKMEDE acilir (`Hesabım` >
+  ///	"Hizmetlerim" / "Düğünüm" / "İlanlarım" / "Taleplerim").
+  ///
+  /// ⚠️ Ikinci bir liste ekrani YAZILMADI: liste sorgusu, yukleme, bos
+  ///    durum ve hata dallari TEK YERDE (bu dosyada) kaliyor. Ayri bir
+  ///    ekran acilsaydi "ayni kuralin iki kopyasi drift eder" sinifi.
+  /// ⚠️ `null` = varsayilan (Gönderiler).
+  final ProfilSekmesi? baslangicSekmesi;
+
   @override
   ConsumerState<ProfilSayfasi> createState() => _ProfilSayfasiState();
 }
@@ -171,11 +185,11 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
   ///	fotografi olan hesabin videosu HIC gorunmezdi).
   /// ⚠️ Her sekme ILK secildiginde kendi istegini atar; sonraki secimlerde
   ///    AG ISTEGI YOK. Asagi-cek TUM onbellegi temizler.
-  final Map<_Sekme, List<Gonderi>> _gonderiOnbellek = {};
-  final Map<_Sekme, List<Ilan>> _ilanOnbellek = {};
-  final Set<_Sekme> _sekmeYukleniyor = {};
-  final Map<_Sekme, String> _sekmeHata = {};
-  _Sekme _sekme = _Sekme.tumu;
+  final Map<ProfilSekmesi, List<Gonderi>> _gonderiOnbellek = {};
+  final Map<ProfilSekmesi, List<Ilan>> _ilanOnbellek = {};
+  final Set<ProfilSekmesi> _sekmeYukleniyor = {};
+  final Map<ProfilSekmesi, String> _sekmeHata = {};
+  ProfilSekmesi _sekme = ProfilSekmesi.tumu;
 
   /// Menunun capalanacagi dugme.
   final _seciciAnahtar = GlobalKey();
@@ -192,6 +206,10 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
   @override
   void initState() {
     super.initState();
+    // ⚠️ TURU 115 — istenen sekme BASTAN secilir; verisi `_yukle`den sonra
+    //    `_sekmeYukle` ile gelir (asagidaki cagri).
+    final b = widget.baslangicSekmesi;
+    if (b != null) _sekme = b;
     _yukle();
   }
 
@@ -225,7 +243,7 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
         //    sekmeyi tazelemek digerlerini BAYAT birakirdi.
         _gonderiOnbellek
           ..clear()
-          ..[_Sekme.tumu] = g;
+          ..[ProfilSekmesi.tumu] = g;
         _ilanOnbellek.clear();
         _sekmeHata.clear();
         _yukleniyor = false;
@@ -242,7 +260,7 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
       //	tetikleniyordu; tek kurtarma baska sekmeye gecip geri gelmekti.
       // ⚠️ `tumu` HARIC: onu yukaridaki `kullaniciGonderileri` zaten yazdi.
       // ⚠️ YAPMA: bu satiri kaldirma.
-      if (_sekme != _Sekme.tumu) unawaited(_sekmeYukle(_sekme));
+      if (_sekme != ProfilSekmesi.tumu) unawaited(_sekmeYukle(_sekme));
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -284,7 +302,7 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
         // Gizli hesabi yeni takip ettiysek gonderiler ARTIK gorulebilir.
         // ⚠️ Onbellek: gizli hesabi yeni takip ettiysek gonderiler ARTIK
         //    gorulebilir; TUM sekmeler bayat oldugu icin bastan yuklenir.
-        if (onayli && (_gonderiOnbellek[_Sekme.tumu] ?? const []).isEmpty) {
+        if (onayli && (_gonderiOnbellek[ProfilSekmesi.tumu] ?? const []).isEmpty) {
           unawaited(_yukle());
         }
       }
@@ -848,9 +866,9 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
   List<Gonderi> get _sekmeliListe {
     final ham = _gonderiOnbellek[_sekme] ?? const <Gonderi>[];
     return switch (_sekme) {
-      _Sekme.foto =>
+      ProfilSekmesi.foto =>
         ham.where((g) => g.mediaIds.isNotEmpty && g.kind(0) == 'image').toList(),
-      _Sekme.ses => ham.where((g) => g.sesliMi).toList(),
+      ProfilSekmesi.ses => ham.where((g) => g.sesliMi).toList(),
       _ => ham,
     };
   }
@@ -868,8 +886,8 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
   ///    kacinilmaz olarak drift ederdi.
   /// ⚠️ Sunucuda hepsi `tur=talep`tir; dal ayrimi bir SUNUM tercihidir
   ///    (bkz. o dosyanin serhi) — bu yuzden istemcide durmasi bilincli.
-  List<_Sekme> get _sekmeler => [
-    for (final x in _Sekme.values)
+  List<ProfilSekmesi> get _sekmeler => [
+    for (final x in ProfilSekmesi.values)
       if (!x.ilanMi || _benimMi) x,
   ];
 
@@ -877,7 +895,7 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
   ///
   /// ⚠️ `_sekmeYukleniyor` yeniden-girme kapisi: sekmeye hizli hizli
   ///    dokunmak ayni istegi tekrar tekrar atardi.
-  Future<void> _sekmeYukle(_Sekme x) async {
+  Future<void> _sekmeYukle(ProfilSekmesi x) async {
     if (_sekmeYukleniyor.contains(x)) return;
     if (_gonderiOnbellek.containsKey(x) || _ilanOnbellek.containsKey(x)) return;
     setState(() {
@@ -897,10 +915,10 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
         // ⚠️ Kategori listesi Dart'a YAZILMAZ (turu 77): yeni bir dugun
         //    kategorisi eklendiginde eski surumler onu sessizce hizmet
         //    dalina dusururdu.
-        if (x == _Sekme.dugun || x == _Sekme.talep) {
+        if (x == ProfilSekmesi.dugun || x == ProfilSekmesi.talep) {
           l = l
               .where(
-                (i) => x == _Sekme.dugun
+                (i) => x == ProfilSekmesi.dugun
                     ? dugunKategorileri.contains(i.kategori)
                     : !dugunKategorileri.contains(i.kategori),
               )
@@ -1018,7 +1036,7 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
     if (kutu == null || dugme == null) return;
     final sol = dugme.localToGlobal(Offset.zero, ancestor: kutu);
     final scheme = Theme.of(context).colorScheme;
-    final secim = await showMenu<_Sekme>(
+    final secim = await showMenu<ProfilSekmesi>(
       context: context,
       // ⚠️ Dugmenin ALT kenarindan basla: menu asagi dogru acilsin.
       position: RelativeRect.fromLTRB(
@@ -1036,9 +1054,9 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
         for (final x in _sekmeler) ...[
           // ⚠️ Gonderi sekmeleriyle ilan sekmeleri arasinda AYRAC: ikisi
           //    farkli kaynaktan besleniyor (gonderi ucu vs. ilan ucu).
-          if (x == _Sekme.ilan)
+          if (x == ProfilSekmesi.ilan)
             const PopupMenuDivider(height: 9),
-          PopupMenuItem<_Sekme>(
+          PopupMenuItem<ProfilSekmesi>(
             value: x,
             height: 46,
             child: Row(
@@ -1073,7 +1091,7 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
   /// ⚠️ Iki cagri yeri ayri ayri `setState`+`_sekmeYukle` yazsaydi biri
   ///    guncellenip oteki geride kalirdi — bu projede ALTI kez yasanan
   ///    "ayni kuralin iki kopyasi drift eder" sinifi.
-  void _sekmeyeGec(_Sekme x) {
+  void _sekmeyeGec(ProfilSekmesi x) {
     if (x == _sekme) return;
     setState(() => _sekme = x);
     unawaited(_sekmeYukle(x));
