@@ -254,17 +254,17 @@ List<Gonderi> demoGonderiler() => [
 /// ⚠️ `canli` alani `StoryKullanici`de YOKTUR; canli rozeti demo icin
 ///    kullanici adindan turetilir (bkz. `story_seridi` demo dali).
 List<StoryKullanici> demoStoryler() => [
-  // ⚠️ TURU 98j — KENDI HIKAYEM DE VAR (kullanici: story eklenmis gibi
-  //    gorunsun): benim=true olunca serit o daireyi RENKLI halkayla cizer.
-  StoryKullanici(
-    userId: 'demo-ben',
-    ad: 'Sen',
-    kullaniciAdi: 'sen',
-    avatarMediaId: null,
-    adet: 1,
-    hepsiIzlendi: false,
-    benim: true,
-  ),
+  // ⚠️⚠️⚠️ TURU 113 — **DEMODA KENDI HIKAYEM YOK** (kullanici emri: *"story
+  //	paylasma dairesi ... border SIYAH MOR GRADIENT olacak"*).
+  //
+  //	Turu 98j burada `benim: true` bir kayit tutuyordu; o yuzden ilk daire
+  //	DAIMA "paylasilmis hikaye" halinde ciziliyor ve kullanicinin GORMEK
+  //	ISTEDIGI paylasma dairesi (siyah-mor halka) ekranda HIC cikmiyordu.
+  //	Kullanicinin kendi cumlesi *"paylasildiginda su anki gibi olsun"* —
+  //	yani varsayilan gorunum PAYLASMA halidir.
+  // ⚠️ Gercek hikaye paylasilirsa serit onu KORUR: `story_seridi.yukle()`
+  //    sunucu cevabini once alir ve kendi gercek hikayemi demonun ONUNE
+  //    koyar (o dosyadaki turu 113 serhi).
   StoryKullanici(
     userId: 'demo-s1',
     ad: 'Elif',
