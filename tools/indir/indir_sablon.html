@@ -74,6 +74,11 @@
     font-size: 11.5px; font-weight: 700; opacity: .75; margin-left: 6px;
     font-variant-numeric: tabular-nums;
   }
+  .kartsaat {
+    margin: 0 0 14px; font-size: 14px; font-weight: 700;
+    color: rgba(255,255,255,.72);
+  }
+  .kartsaat b { color: #d9c6ff; }
   .dosyasaat { font-size: 12.5px; color: rgba(255,255,255,.62); margin-top: 2px; }
   .dosyasaat b { color: #d9c6ff; }
   .adim {
@@ -108,6 +113,10 @@
     <img class="appicon" src="https://indir.gebzem.app/app-icon.png" alt="Gebzem">
     <h1>Gebzem</h1>
     <p class="sub">Mesajlaşma · Arama · Canlı Yayın</p>
+    <!-- TURU 113 — saat KARTIN ICINDE de yazar (7. yer). Kullanici ust
+         seritteki mor cubugu "goremiyorum" dedi; basligin hemen altindaki
+         satir goz taramasinda kacirilamaz. -->
+    <p class="kartsaat">Bu sürüm: <b>{{SAAT}}</b></p>
 
     <div class="yeni"><b>Bu sürümde — büyük güncelleme (senin yazdığın 10 eksiğin hepsi):</b>
 <br><br><b>1 · Alt menü yenilendi:</b> <b>Anasayfa · Ara · Reels · Mesaj · Canlı · Profil</b>.
@@ -191,6 +200,34 @@ dinleyici · Canlı yayın 4 kişi (yayıncı dahil) + sınırsız izleyici.</di
    ⚠️ YAPMA: bu blogu kaldirma. */
 (function () {
   var buSurum = '{{SURUM}}';
+
+  /* TURU 113 — ADRES SORGUSU KARSILASTIRMASI (AG GEREKTIRMEZ).
+     Kullanici ALTINCI KEZ "indir sitesinde saati goremiyorum" dedi ve sunucu
+     tarafi HER SEFERINDE dogru cikti. Kalan tek aciklama TARAYICI/WEBVIEW
+     ONBELLEGI. surum.json nobetcisi bunu yakalar AMA bir AG ISTEGI gerektirir:
+     WhatsApp/Instagram ic tarayicilari, cevrimdisi ilk cizim ya da fetch'i
+     kisitlayan bir webview'da o istek HIC tamamlanmaz ve serit CIKMAZ.
+     Oysa kullaniciya verilen adres DAIMA ?v=<surum> tasiyor: adresteki surum
+     ile sayfaya GOMULU surum farkliysa sayfa KESINLIKLE onbellekten geliyordur
+     ve bunu anlamak icin AG GEREKMEZ.
+     UYARI: ?v= YOKSA (ciplak adres) sessiz kalinir — yanlis alarm verilmez.
+     YAPMA: bu blogu surum.json nobetcisinin YERINE koyma; ikisi FARKLI
+     arizalari yakalar (bu: bayat GOVDE - oteki: eski baglantiyla acilmis
+     sayfa). Ikisi birlikte durur. */
+  try {
+    var m = /[?&]v=([^&#]+)/.exec(location.search);
+    if (m && decodeURIComponent(m[1]) !== buSurum) {
+      var u = document.getElementById('bayat');
+      if (u) {
+        u.style.display = 'block';
+        u.innerHTML = 'BU SAYFA TARAYICI ÖNBELLEĞİNDEN GELDİ (' + buSurum + ').<br>' +
+          'Açtığın adresteki sürüm: <b>' + decodeURIComponent(m[1]) + '</b> — ' +
+          '<a style="color:#fff" href="/index.html?v=' + encodeURIComponent(m[1]) +
+          '&r=' + Date.now() + '">SAYFAYI YENİLE</a>';
+      }
+    }
+  } catch (e) {}
+
   try {
     fetch('/surum.json?t=' + Date.now(), { cache: 'no-store' })
       .then(function (r) { return r.json(); })

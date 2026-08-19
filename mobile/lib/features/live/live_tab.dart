@@ -138,7 +138,9 @@ class _LiveTabState extends ConsumerState<LiveTab> {
                   Icon(LucideIcons.radioTower, size: 64, color: scheme.outline),
                   const SizedBox(height: 16),
                   Center(
-                      child: Text('Şu an canlı yayın yok\nİlk yayını sen başlat!',
+                      // ⚠️ TURU 113 — ikinci satir bir YAYIN CAGRISIYDI;
+                      //    kullanici bu sekmede yayin acma cagrisi istemiyor.
+                      child: Text('Şu an canlı yayın yok',
                           textAlign: TextAlign.center,
                           style: TextStyle(color: scheme.outline, fontSize: 16))),
                 ])

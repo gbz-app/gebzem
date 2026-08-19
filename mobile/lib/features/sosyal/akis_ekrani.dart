@@ -6,7 +6,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import "../../core/yenile.dart";
 
-import '../home/home_screen.dart' show myProfileProvider, aktifSekme;
+import '../home/home_screen.dart' show myProfileProvider;
 // ⚠️ TURU 98e — ust cubuk ikonlari alt menuyle AYNI olcude (TEK KAYNAK).
 import '../home/alt_menu.dart' show kAltMenuIkonBoy;
 // ⚠️ TURU 98m — sayfa kenar payi TEK KAYNAK (kategori ekraniyla ayni).
@@ -76,6 +76,11 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
   ///    ozellik" sinifi). Kanallar sol ust hamburger menuye TASINDI
   ///    (`hizmet_menusu.dart` -> `KanallarSayfasi`).
   ///    ⚠️ YAPMA: buraya kanal bolmesini geri ekleme; iki giris DRIFT eder.
+  /// ⚠️ TURU 113 — secici kaldirildi, bolme DAIMA 0 (bkz. asagidaki serh).
+  ///    `final` YAPILMADI ki bolme geri istendiginde tek satirla
+  ///    yazilabilir olsun; analyzer uyarisi `// ignore` ile degil,
+  ///    degeri gercekten degistirebilen bir yol olmadigi icin bilincli.
+  // ignore: prefer_final_fields
   int _bolme = 0;
 
   /// ⚠️⚠️ HER BOLMENIN **KENDI LISTESI** var — bolme degisince liste SWAP
@@ -92,7 +97,7 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
   /// ⚠️ YAPMA: iki bolmeyi `IndexedStack`e koyma.
   final List<List<Gonderi>> _listeler = [<Gonderi>[], <Gonderi>[]];
   final List<bool> _bolmeYuklendi = [false, false];
-  final List<double> _bolmeKaydirma = [0, 0];
+  // ⚠️ TURU 113 — `_bolmeKaydirma` SILINDI: tek okuyucusu `_bolmeDegistir`di.
 
   /// ⚠️ TURU 76b — hikaye seridine erisim: akis YENILENINCE serit de
   ///    yenilenmeli (yeni hikaye paylasan biri aninda gorunsun).
@@ -357,207 +362,25 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
     child: StorySeridi(key: _storyKey),
   );
 
-  Widget _bolmeSecici() => Padding(
-    padding: EdgeInsets.zero,
-    child: LayoutBuilder(
-      builder: (context, kisit) => SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        // ⚠️ Kaydirma cubugu YOK ve normal olcekte icerik zaten sigiyor, yani
-        //    kullanici bu sarmali HIC fark etmez; yalniz asiri olcekte devreye girer.
-        physics: const ClampingScrollPhysics(),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(minWidth: kisit.maxWidth),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // ⚠️ TURU 97 — 'Takip Ettiklerin' -> **'Arkadaşlar'** (kullanici emri).
-              _bolmeYazisi(0, 'Arkadaşlar'),
-              _bolmeYazisi(1, 'Keşfet'),
-              // ⚠️⚠️ 'Canlı Yayın' bir AKIS BOLMESI DEGIL, alt menudeki CANLI
-              //	sekmesine giden bir KISAYOLDUR (kullanici emri: *"kesfetin
-              //	sagina Canli Yayin olsun"*).
-              //
-              // ⚠️⚠️ UCUNCU BOLME OLARAK EKLENMEDI ve sebebi kullanicinin
-              //	kendi uyarisidir (*"yer degistirince patlamasin"*):
-              //	`_bolmeYuklendi` ve `_bolmeKaydirma` **IKI ELEMANLI** sabit
-              //	dizilerdir; `_bolme = 2` yazmak bu dizilerde RANGE ERROR
-              //	verirdi. Yayin listesi ZATEN `LiveTab`ta yasiyor — ikinci bir
-              //	kopya yazmak yerine oraya goturuluyor.
-              // ⚠️ YAPMA: buraya `_bolmeYazisi(2, ...)` yazma; once iki diziyi
-              //    ve `_bolmeYukle` dallarini uc elemana cikarman gerekir.
-              _bolmeLinki('Canlı Yayın', () => aktifSekme.value = 4),
-            ],
-          ),
-        ),
-      ),
-    ),
-  );
-
-  /// Bir akis bolmesi (secilebilir).
-  Widget _bolmeYazisi(int deger, String metin) =>
-      _bolmeOgesi(metin, _bolme == deger, () => _bolmeDegistir(deger));
-
-  /// ⚠️⚠️⚠️ TURU 97b — BASKA BIR SEKMEYE goturen oge (ornegin "Canlı Yayın").
-  ///
-  ///	⚠️ **AYRI BIR GOVDE YAZILMAZ.** Ilk yazimda bu ogenin kendi metodu
-  ///	vardi ve yazi tipi 20/w700 idi; kardesleri 17 oldugu icin ekranda
-  ///	BELIRGIN sekilde daha buyuk duruyordu (kullanici: *"yazi fontlari
-  ///	esit olsun"*). Artik ucu de AYNI govdeden ciziliyor.
-  /// ⚠️ `secili: false` SABIT: bu oge bir bolme degil, gecis baglantisidir.
-  Widget _bolmeLinki(String metin, VoidCallback git) =>
-      _bolmeOgesi(metin, false, git);
-
-  /// Secicinin TEK govdesi.
-  ///
-  /// ⚠️⚠️ **SECILI HAL BOYUT DEGISTIRMEZ** (kullanici emri: *"gecislerde
-  ///	buyume kuculme patlama olmasin"*). Kalinlik degisir ama kutu
-  ///	genisligini DAIMA w800 olan gorunmez kopya belirler (asagida).
-  Widget _bolmeOgesi(String metin, bool secili, VoidCallback onTap) {
-    return Semantics(
-      button: true,
-      selected: secili,
-      label: metin,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: Padding(
-          // ⚠️ Dikey 12 + yazi ~17 + 12 = ~41dp; yatay 10 ile birlikte
-          //    dokunma hedefi rahatca 44dp'yi asar.
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-          // ⚠️⚠️⚠️ TURU 82b — YERLESIM OYNAMASI KAPATILDI (kullanici emri:
-          //    *"Takip ettiklerin ve Kesfet'e tikladiginda OYNAMA oluyor,
-          //    buyume kuculme olmasin"*).
-          //
-          //    KOK NEDEN: `fontWeight` w500 <-> w800 arasinda degisiyordu ve
-          //    KALIN METIN DAHA GENISTIR. Secim degisince iki etiketin de
-          //    genisligi degisiyor, `Row` yeniden olculuyor ve YAZILAR YANA
-          //    KAYIYORDU (tiklamada "ziplama" hissi).
-          //
-          //    COZUM: her etiket bir `Stack` icinde cizilir; altta GORUNMEZ
-          //    (`Opacity(0)`) ama DAIMA **w800** olan bir kopya durur ve kutu
-          //    genisligini O belirler. Ustteki gercek yazi bu sabit kutunun
-          //    icinde ortalanir -> kalinlik degisse de **genislik DEGISMEZ**.
-          // ⚠️ YAPMA: kalinlik farkini kaldirip yalniz renge dusurme —
-          //    kullanici "yazi KALIN" istedi ve tek isaret renk korlugunde
-          //    ayirt edilemez (turu 80 karari).
-          // ⚠️ YAPMA: `AnimatedDefaultTextStyle` ile yumusatmaya calisma;
-          //    genislik yine degisir, oynama SURER.
-          child: Stack(
-            // ⚠️⚠️ `centerLeft` ZORUNLU, `center` DEGIL. Kutu genisligini
-            //    gorunmez w800 kopya belirliyor; ortalama kullanilsaydi
-            //    SECILI OLMAYAN (daha dar w500) yazi kutunun ICINDE saga
-            //    kayar ve kullanicinin turu 80'de acikca istedigi
-            //    *"yazi SOLDA olacak"* kurali bozulurdu.
-            alignment: Alignment.centerLeft,
-            children: [
-              Opacity(
-                opacity: 0,
-                child: Text(
-                  metin,
-                  style: const TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-              Text(
-                metin,
-                style: TextStyle(
-                  // ⚠️ TURU 82 — kullanici emri: +2px (15 -> 17).
-                  fontSize: 17,
-                  // ⚠️⚠️⚠️ TURU 97c — **KALINLIK ARTIK DEGISMIYOR** (kullanici
-                  //	IKINCI kez *"gecis yaparken oynuyor"* dedi).
-                  //
-                  //	Kutu genisligi gorunmez w800 kopyayla SABITLENMISTI, yani
-                  //	etiketler YER DEGISTIRMIYORDU (olculdu: Kesfet x=331,
-                  //	Canli Yayin x=524 - uc durumda da ayni). Ama kalinlik
-                  //	w500 <-> w800 arasinda degisince HARFLERIN KENDISI kutu
-                  //	icinde geniyor/daraliyor; goz bunu 'oynama' olarak
-                  //	okuyor. Tek kesin cozum kalinligi SABITLEMEK.
-                  //
-                  // ⚠️ Bu, turu 80'in *"yazi KALIN olsun"* tercihini
-                  //    GUNCELLER: ayrim artik yalniz RENKTEN (koyu <-> %45
-                  //    soluk). Instagram/Threads da boyle yapar.
-                  // ⚠️ YAPMA: kalinligi tekrar secime bagli yapma.
-                  fontWeight: FontWeight.w700,
-                  color: secili
-                      ? Theme.of(context).colorScheme.onSurface
-                      : Theme.of(
-                          context,
-                        ).colorScheme.onSurface.withValues(alpha: 0.45),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _bolmeDegistir(int yeni) {
-    if (yeni == _bolme) return;
-    // ⚠️ Mevcut bolmenin kaydirma konumu SAKLANIR — geri donunce kullanici
-    //    kaldigi yerde olsun (liste zaten bellekte).
-    if (_kaydirma.hasClients) _bolmeKaydirma[_bolme] = _kaydirma.offset;
-    setState(() {
-      _bolme = yeni;
-      _hata = null;
-    });
-    // ⚠️ DAHA ONCE YUKLENMEDIYSE getir; yuklendiyse AG ISTEGI ATMA.
-    if (!_bolmeYuklendi[yeni]) {
-      // ⚠️⚠️ TURU 80b — YUTULAN YENILEME (denetim: YUKSEK).
-      //
-      //	`_yenile()`nin ILK SATIRI `if (_yukleniyor) return;`. Onceki
-      //	bolmenin istegi HALA UCARKEN bolme degistirilirse bu cagri
-      //	SESSIZCE dusuyordu; `_bolmeYuklendi[yeni]` false kaldigi icin
-      //	de bir daha DENEYEN HICBIR YOL yoktu (`_kaydirmaDinle` bos
-      //	listede tetiklenmez, asagi-cek ise ancak kullanici bunu
-      //	kendiliginden denerse). Sonuc: Keşfet sekmesi KALICI BOS.
-      // ⚠️ Ucustaki istek bittiginde bayrak temizlenir; o ana kadar
-      //    bekleyip TEKRAR deniyoruz (yeniden giris kilidi `_yenile`de).
-      unawaited(_bolmeYukle(yeni));
-      return;
-    }
-    // ⚠️ Kaydirma geri yuklemesi bir sonraki KAREDE yapilir: liste bu karede
-    //    henuz yeniden olculmedi, `jumpTo` `maxScrollExtent`i asardi.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_kaydirma.hasClients) return;
-      final hedef = _bolmeKaydirma[yeni].clamp(
-        0.0,
-        _kaydirma.position.maxScrollExtent,
-      );
-      _kaydirma.jumpTo(hedef);
-    });
-  }
-
-  /// Bir bolmeyi yukler; ucusta baska bir istek varsa BITMESINI bekler.
-  ///
-  /// ⚠️ Sinirli deneme: **IKI TUR x 10 x 150ms = en fazla ~3sn** bekleme
-  ///    (artı her turda bir `_yenile` denemesi). Sonsuz dongu YOK.
-  /// ⚠️ Tukenirse KURTARMA YOLLARI ACIK KALIR — ikisi de govdede GERCEKTEN var:
-  ///    (1) yukleme dali KAYDIRILABILIR cizilir, yani asagi-cek mumkun;
-  ///    (2) asagi-cek `_elleYenile`ye baglidir, o da ucustaki istegin
-  ///        bitmesini BEKLER (dogrudan `_yenile` olsaydi `_yukleniyor`
-  ///        kapisinda sessizce yutulurdu — tam da gerektigi anda).
-  /// ⚠️ Her turda `mounted` + bolme kimligi dogrulanir: kullanici geri
-  ///    donduyse ISTEK ATILMAZ.
-  Future<void> _bolmeYukle(int hedef) async {
-    // ⚠️ IKI TUR: ilk turda ucustaki istegin bitmesini bekler ve dener; istek
-    //    o pencereden UZUN surerse `_yenile` yine yutulur (`_yukleniyor`
-    //    kapisi), bu yuzden IKINCI bir tur daha var. Sinirli (sonsuz dongu
-    //    YOK) — tukenirse kullanicinin asagi-cek yolu ACIKTIR (yukleme dali
-    //    kaydirilabilir cizilir).
-    for (var tur = 0; tur < 2; tur++) {
-      for (var i = 0; i < 10 && _yukleniyor; i++) {
-        await Future<void>.delayed(const Duration(milliseconds: 150));
-        if (!mounted || _bolme != hedef) return;
-      }
-      if (!mounted || _bolme != hedef || _bolmeYuklendi[hedef]) return;
-      await _yenile();
-      if (!mounted || _bolme != hedef || _bolmeYuklendi[hedef]) return;
-    }
-  }
+  // ⚠️⚠️⚠️ TURU 113 — **AKIS BOLME SECICISI KALDIRILDI** (kullanici emri:
+  //	*"akis kisminda Arkadaslar-Kesfet-Canli Yayin secicisi olmasin"*).
+  //
+  // ⚠️⚠️ HICBIR HEDEF ULASILAMAZ KALMADI (grep ile dogrulandi):
+  //	· **Kesfet** alt menudeki "Ara" sekmesinin ta kendisidir
+  //	  (`KesfetEkrani`, `home_screen` sekme 1),
+  //	· **Canli Yayin** alt menudeki "Canli" sekmesidir (sekme 4).
+  //	Secici zaten o iki sekmeye giden bir KISAYOLDU; kaldirilmasi
+  //	icerik kaybi DEGIL, tekrarin kaldirilmasidir.
+  //
+  // ⚠️ Birlikte SILINEN bes metot: `_bolmeSecici` · `_bolmeYazisi` ·
+  //    `_bolmeLinki` · `_bolmeOgesi` · `_bolmeDegistir` · `_bolmeYukle`.
+  //    Yalniz secici cagrisi kaldirilsaydi hepsi OLU KOD olarak kalir ve
+  //    `flutter analyze` sifir-uyari tabanini bozardi.
+  // ⚠️ `_bolme` ARTIK DAIMA 0 — iki elemanli diziler (`_listeler`,
+  //    `_dahaVarlar`, `_kesfetler`, `_bolmeYuklendi`) BILEREK duruyor:
+  //    ileride bolme geri istenirse yapi hazir ve bugun hicbir maliyeti yok.
+  // ⚠️ YAPMA: seciciyi geri eklerken `_bolme = 1` yolunu yeniden yazmadan
+  //    yalniz gorunumu koyma (o dallarin yukleme mantigi da silindi).
 
   void _profileGit(String userId) {
     Navigator.of(
@@ -670,8 +493,8 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
         //    alana sigmazsa kayar, TASMAZ.
         // ⚠️ TURU 98f — `titleSpacing: 0`: varsayilan 16+16 dp bosluk
         //    "Canlı Yayın"in son harfini KIRPIYORDU (ekranda olculdu).
-        titleSpacing: 0,
-        title: _bolmeSecici(),
+        // ⚠️ TURU 113 — secici kaldirildi; AppBar artik BASLIKSIZ
+        //    ("+" solda, bildirim sagda). `titleSpacing` de gereksizlesti.
         // ⚠️⚠️ TURU 96z — **ORTADAKI LOGO KALDIRILDI** (kullanici emri:
         //	*"ortadaki logoyu kaldir"*). Logo artik ALT MENUNUN ortasinda
         //	duruyor ve menuyu aciyor; AppBarda ikinci bir kopyasi

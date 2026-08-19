@@ -376,7 +376,10 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi>
       //	Kutu herkes icin `cap + 9(halka) + 9(aralik)` idi; bu dairede halka
       //	CIZILMEDIGI icin o 9 dp bos kaliyor ve komsusuyla arasi **13 dp**
       //	olcultuyordu (kardeslerinde 9). Halka yoksa pay da ayrilmaz.
-      genislik: benim == null ? kHalkaCap + kAralik : null,
+      // ⚠️ TURU 113 — genislik override'i KALDIRILDI: paylasma dairesi
+      //    artik halkali oldugu icin kutusu da kardesleriyle AYNI
+      //    (`kHalkaCap + 9 + kAralik`). Dar birakilsaydi ilk daire ile
+      //    ikincisi arasindaki bosluk 9 dp EKSIK kalirdi.
       etiket: 'Hikâyen',
       child: Stack(
         clipBehavior: Clip.none,
@@ -397,10 +400,23 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi>
             //	boylece GRI DISK her yerde `kHalkaCap`, DIS KUTU her yerde
             //	`kHalkaCap + 9` olur. 98fde disk 79ye cikarilmisti; o zaman
             //	bu daire kardeslerinin DISKINDEN buyuk gorunuyordu.
+            // ⚠️⚠️⚠️ TURU 113 — **PAYLASMA DAIRESI ARTIK HALKALI** (kullanici
+            //	emri: *"story paylasma dairesi, story paylasilan daire ve
+            //	border buyuklugunde olsun ... border siyah mor gradient
+            //	olacak"*).
+            //
+            // ⚠️ Eski halde `halka: false` idi ve kenarlik `transparent`
+            //    ciziliyordu: 4.5 dp'lik dolgu SAYDAM kaldigi icin gorunen
+            //    daire kardeslerinden **9 dp kucuk** duruyordu. Artik halka
+            //    GERCEKTEN cizilir, dis cap kardesleriyle BIREBIR ayni.
+            // ⚠️ Hikaye paylasildiktan sonra (`benim != null`) gorunum
+            //    DEGISMEZ — kullanici *"paylasildiginda su anki gibi olsun"*
+            //    dedi; o dal AYNEN duruyor.
             child: benim == null
                 ? _cember(
-                    halka: false,
+                    halka: true,
                     gri: false,
+                    gradyan: const [Color(0xFF14101C), Color(0xFF8B3FFF)],
                     child: _benimAvatar(ad, profil, kHalkaCap),
                   )
                 : _cember(
@@ -694,21 +710,29 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi>
 
   /// Halka: RENKLI (izlenmemis) / GRI (izlenmis) / YOK (hikaye yok).
   /// [duzRenk] verilirse halka GRADYAN degil O RENKTE cizilir (canli/oda).
+  /// ⚠️ [gradyan] verilmezse HIKAYE halkasi (mor-kirmizi-turuncu) cizilir.
+  ///    Paylasma dairesi kendi SIYAH-MOR gradyanini gecer (kullanici emri).
   Widget _cember({
     required bool halka,
     required bool gri,
     required Widget child,
     Color? duzRenk,
+    List<Color>? gradyan,
   }) => Container(
     padding: const EdgeInsets.all(2.5),
     decoration: BoxDecoration(
       shape: BoxShape.circle,
       color: duzRenk,
       gradient: halka
-          ? const LinearGradient(
+          ? LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [Color(0xFF8B3FFF), Color(0xFFFF3B5C), Color(0xFFFFB03A)],
+              colors: gradyan ??
+                  const [
+                    Color(0xFF8B3FFF),
+                    Color(0xFFFF3B5C),
+                    Color(0xFFFFB03A),
+                  ],
             )
           : null,
       border: (halka || duzRenk != null)

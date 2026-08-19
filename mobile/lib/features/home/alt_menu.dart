@@ -31,11 +31,24 @@ const double kAltMenuIkonBoy = 26;
 /// ⚠️⚠️ ORTADAKI LOGO DAIRESI. Kullanici *"daire 5px daha buyut, logoyu da o
 ///	oranda buyut"* dedi (logo daireyi TAM doldurdugu icin ikisi birlikte
 ///	buyur): 47 -> **52**.
-/// ⚠️⚠️ TURU 112 — kullanici *"mevcut logo 2px daha buyut"* dedi: 52 -> **54**.
+/// ⚠️⚠️⚠️ TURU 112b — **ILK UYGULAMA TERSTI (olculdu).**
+///
+///	Kullanici *"mevcut logo 2px daha buyut"* dedi. Ilk denemede DIS cap
+///	52 -> 54 yapildi ama iceriye 2 dp halka dolgusu kondu; sonuc: GORUNEN
+///	logo 52 -> **50 dp KUCULDU**. Daire buyudu, logo kuculdu — istenenin
+///	TAM TERSI.
+///
+///	Dogrusu: gorunen logo () 54 olmali, yani dis cap
+///	54 + 2*halka = **58**.
+/// ⚠️ Geometri elle dogrulandi: alttan tasma YOK (29 + 29 = 58 <= 66) ·
+///    360 dp'de hucre 45.3 dp (>= 40) · 411 dp'de logo-komsu boslugu 28.9
+///    (>= 16). Bedel: hit-test ALMAYAN ust serit 11 -> 13 dp.
+/// ⚠️ YAPMA: halkayi buyuterek "daha gradient" yapmaya calisma — gorunen
+///    logo yine kuculur; gerekirse CAP da birlikte buyutulur.
 /// ⚠️ Kaldirma payi bu sayidan TURETILIYOR (`(kAltMenuBoy - cap) / 2`), yani
 ///    buyutunce logo cubugun icinde 1 dp daha az yukari kalkar — tasma
 ///    yapisal olarak yine imkansiz.
-const double kAltMenuLogoCap = 54;
+const double kAltMenuLogoCap = 58;
 
 /// ⚠️⚠️ TURU 112 — GRADIENT HALKANIN KALINLIGI.
 ///

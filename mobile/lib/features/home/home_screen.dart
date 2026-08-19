@@ -19,6 +19,7 @@ import '../rooms/rooms_tab.dart';
 import '../sosyal/akis_ekrani.dart';
 import '../sosyal/bildirimler_sayfasi.dart';
 import '../sosyal/kesfet_ekrani.dart';
+import '../sosyal/hizmet_menusu.dart';
 import '../sosyal/profil_sayfasi.dart';
 import '../sosyal/reels_sayfasi.dart';
 import '../sosyal/takip_listesi.dart';
@@ -78,10 +79,33 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
   }
 
+  /// ⚠️⚠️⚠️ TURU 113 — **UYGULAMA ACILINCA MENU KENDILIGINDEN ACILIR**
+  ///	(kullanici emri: *"uygulama ilk acildiginda bu menu direkt
+  ///	acilsin"*).
+  ///
+  /// ⚠️ SUREC OMURLU bayrak (`static`), diske YAZILMAZ: kullanici her
+  ///    uygulama acilisinda menuyu gormek istiyor; kalici bir bayrak
+  ///    olsaydi yalnizca ILK KURULUMDA acilirdi.
+  /// ⚠️ Sekme degisiminde ya da `HomeScreen` yeniden kuruldugunda TEKRAR
+  ///    ACILMAZ — yoksa her giris/cikista menu yuzune carpardi.
+  static bool _menuAcildi = false;
+
   @override
   void initState() {
     super.initState();
     aktifSekme.addListener(_sekmeSenkron);
+    // ⚠️ `addPostFrameCallback` ZORUNLU: `initState` govdesinde
+    //    `Navigator.of(context)` cagirmak Flutter assertion atar
+    //    (agac henuz kurulmadi — turu 96i dersi).
+    // ⚠️ Menu HOME'UN USTUNE push edilir; geri tusu akisa doner,
+    //    GIRIS ekranina DEGIL (router yigini degismedigi icin yapisal
+    //    olarak imkansiz).
+    if (!_menuAcildi) {
+      _menuAcildi = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) hizmetMenusuAc(context);
+      });
+    }
   }
 
   @override

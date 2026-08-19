@@ -58,7 +58,11 @@ const kacKez = (m) =>
 
 const kontroller = [
   [!cikti.includes('{{'), 'DOLDURULMAMIS yer tutucu kaldi'],
-  [kacKez(saat) >= 5, `saat en az 5 yerde olmali (bulundu: ${kacKez(saat)})`],
+  // ⚠️ TURU 113 — saat artik YEDI yerde: baslik · mor serit · canli saat
+  //    satiri · KART ICI ("Bu sürüm:") · iPhone dugmesi · Android dugmesi ·
+  //    "Indirdigin dosyanin surumu". Tavan 5 -> 7.
+  [kacKez(saat) >= 7, `saat en az 7 yerde olmali (bulundu: ${kacKez(saat)})`],
+  [cikti.includes('class="kartsaat"'), 'KART ICI saat satiri kayboldu'],
   [cikti.includes(`?v=${surumEtiketi}`), 'apk surum sorgusu yazilmadi'],
   [cikti.includes('class="saatbar"'), 'saat cubugu KAYBOLDU'],
   [cikti.includes('id="ss"') && cikti.includes('setInterval'),
@@ -73,6 +77,13 @@ const kontroller = [
   [cikti.includes("id=\"bayat\"") && cikti.includes('surum.json') &&
     cikti.includes("cache: 'no-store'"),
     'BAYAT SAYFA NOBETCISI kayboldu (surum.json karsilastirmasi)'],
+  // ⚠️⚠️ TURU 113 — AG GEREKTIRMEYEN IKINCI NOBETCI: adresteki `?v=` ile
+  //    sayfaya gomulu surum karsilastirilir. `surum.json` nobetcisi bir
+  //    `fetch` gerektirir ve kisitli bir webview'da HIC tamamlanmayabilir;
+  //    bu blok yalnizca `location.search` okur, dolayisiyla DAIMA calisir.
+  // ⚠️ YAPMA: ikisinden birini otekinin yerine gecirme.
+  [cikti.includes('location.search') && cikti.includes('[?&]v='),
+    'ADRES SURUM NOBETCISI kayboldu (?v= karsilastirmasi)'],
   [!/body\s*\{[^}]*align-items:\s*center/.test(cikti),
     'body flex ortalama GERI GELMIS (turu 50 regresyonu: saat kirpilir)'],
   // ⚠️ ICERIK MUHAFIZI **BU SURUME** SABITLENIR (her turda guncellenir).
@@ -80,9 +91,9 @@ const kontroller = [
   //    uretilmesini ENGELLEMEK — yoksa kullaniciya BIR ONCEKI surumun
   //    notlari gosterilir ve "yeni ne var" yalan olur.
   // ⚠️ YAPMA: bu satiri silme; yeni turda ANAHTAR IFADEYI degistir.
-  [cikti.includes('PROFİL, İLAN ve MENÜ') &&
-      cikti.includes('Ayarlar &gt; Gizlilik'),
-    'turu 110 icerigi yazilmadi (YENI_ICERIK guncellenmemis)'],
+  [cikti.includes('GEBZEM AI') &&
+      cikti.includes('Canlı sekmesi'),
+    'turu 113 icerigi yazilmadi (YENI_ICERIK guncellenmemis)'],
   // ⚠️ YALNIZ GORUNEN metin taranir. HTML/CSS/JS YORUMLARINDAKI ⚠️ isaretleri
   //    kullaniciya cizilmez ve serhin okunurlugu icin BILINCLI olarak durur.
   [!/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(
