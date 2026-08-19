@@ -206,13 +206,30 @@ class _TalepAkisiState extends ConsumerState<TalepAkisiEkrani> {
                   ),
                   sliver: SliverGrid(
                     gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
+                        SliverGridDelegateWithFixedCrossAxisCount(
                           // ⚠️ 4 sutun: menudeki kategori izgarasiyla BIREBIR
                           //    (turu 96q kullanici emri).
                           crossAxisCount: 4,
                           crossAxisSpacing: kIzgaraAralik,
                           mainAxisSpacing: kIzgaraAralik,
-                          childAspectRatio: 0.78,
+                          // ⚠️⚠️⚠️ TURU 114 (denetim) — **ORAN DEGIL SABIT
+                          //	YUKSEKLIK.** Ilk yazimda `childAspectRatio: 0.78`
+                          //	vardi; hucre yuksekligi GENISLIKTEN turedigi icin
+                          //	yazi olcegi buyudugunde etiket alani BUYUYOR ama
+                          //	hucre BUYUMUYORDU.
+                          //	OLCULDU (gercek `flutter test` + font metrikleri):
+                          //	  411 dp · olcek 1.5 -> hucre 109.94 dp,
+                          //	  icerik 131.30 dp -> **21.36 dp TASMA**.
+                          //	Formul menudeki izgaranin AYNISI: gri kutu + 5 +
+                          //	IKI SATIRLIK etiket, etiket yazi olceginden
+                          //	TURETILIR. Boylece tasma YAPISAL OLARAK imkansiz.
+                          // ⚠️ YAPMA: `childAspectRatio`a geri donme.
+                          mainAxisExtent:
+                              kKesifKutu +
+                              5 +
+                              MediaQuery.textScalerOf(context).scale(14) *
+                                  1.15 *
+                                  2,
                         ),
                     delegate: SliverChildBuilderDelegate(
                       (c, i) => _kategoriKarti(talep, gosterilen[i]),
