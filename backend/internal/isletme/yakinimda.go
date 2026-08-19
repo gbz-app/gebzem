@@ -1,6 +1,7 @@
 package isletme
 
 import (
+	"encoding/json"
 	"log"
 	"math"
 	"net/http"
@@ -119,6 +120,8 @@ func (h *Handler) Yakinimda(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.db.Query(r.Context(), `
 		SELECT u.id, u.name, COALESCE(u.username,''), u.avatar_url,
 		       u.avatar_media_id, i.kategori, i.il, i.ilce, i.adres, u.onayli,
+		       u.kapak_media_id, i.puan, i.puan_sayisi, i.min_tutar_kurus,
+		       i.kampanyalar,
 		       i.enlem, i.boylam, `+mesafe+` AS km
 		  FROM isletmeler i JOIN users u ON u.id = i.user_id
 		 WHERE u.hesap_turu='isletme'
@@ -146,13 +149,25 @@ func (h *Handler) Yakinimda(w http.ResponseWriter, r *http.Request) {
 	out := []map[string]any{}
 	for rows.Next() {
 		var id, ad, kullanici, avatar, kat, il, ilce, adres string
-		var medya *string
+		var medya, kapak *string
 		var dogru bool
+		// ⚠️⚠️ TURU 115 — HARITA EKRANINDA **FILTRE** var (kullanici emri:
+		//	"yemege tikladiginda o kategorinin filtrelemeleri orada olsun").
+		//	Filtre olcutleri (puan · min. tutar · kampanya) bu ucta
+		//	DONMUYORDU, yani istemci hicbir sey suzemezdi. Kapak da eklendi:
+		//	Yandex tarzi alt sayfada kartlar kapakli cizilyor.
+		// ⚠️ Alan adlari `Liste` ucuyle BIREBIR (`IsletmeOzet.json` TEK
+		//    ayristirici) — ayrisirsa ayni kart iki ekranda farkli gorunur.
+		var puan *float64
+		var puanSayisi int
+		var minTutar *int64
+		var kampanyalar []byte
 		var enlem, boylam, uzaklik float64
 		// ⚠️ SCAN SIRASI SELECT SIRASIYLA BIREBIR. Uyusmazlik derleme hatasi
 		//    VERMEZ; satir SESSIZCE atlanir ve liste bosalir (turu 76 dersi).
 		if rows.Scan(&id, &ad, &kullanici, &avatar, &medya, &kat, &il, &ilce,
-			&adres, &dogru, &enlem, &boylam, &uzaklik) != nil {
+			&adres, &dogru, &kapak, &puan, &puanSayisi, &minTutar, &kampanyalar,
+			&enlem, &boylam, &uzaklik) != nil {
 			continue
 		}
 		out = append(out, map[string]any{
@@ -168,7 +183,13 @@ func (h *Handler) Yakinimda(w http.ResponseWriter, r *http.Request) {
 			// ⚠️ Bu, turu 78'de `Profile()`in kapak/onayli alanlarini yanit
 			//    haritasina koymamasiyla AYNI SINIF hata.
 			"dogrulandi": dogru,
-			"enlem":      enlem, "boylam": boylam,
+			// ⚠️ TURU 115 — filtre + kart icin (bkz. yukaridaki serh).
+			"kapak_media_id":  kapak,
+			"puan":            puan,
+			"puan_sayisi":     puanSayisi,
+			"min_tutar_kurus": minTutar,
+			"kampanyalar":     json.RawMessage(kampanyalar),
+			"enlem":           enlem, "boylam": boylam,
 			// ⚠️ Mesafe SUNUCUDA hesaplanip donuyor: istemcide tekrar
 			//    hesaplamak "ayni kuralin iki kopyasi" olurdu ve siralama ile
 			//    gosterilen deger AYRISABILIRDI.
