@@ -23,7 +23,6 @@ import 'gonderi_karti.dart' show sayiBicimle;
 import '../medya/tam_ekran_gorsel.dart';
 import 'gonderi_detay.dart';
 import 'profil_basligi.dart';
-import '../home/ayar_bilesenleri.dart';
 import '../home/home_screen.dart' show HesabimEkrani, myProfileProvider;
 import '../ilan/ilan_ekranlari.dart' show IlanDetayEkrani;
 import '../ilan/ilan_servisi.dart';
@@ -152,6 +151,9 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
   final Set<_Sekme> _sekmeYukleniyor = {};
   final Map<_Sekme, String> _sekmeHata = {};
   _Sekme _sekme = _Sekme.tumu;
+
+  /// Menunun capalanacagi dugme.
+  final _seciciAnahtar = GlobalKey();
   bool _yukleniyor = true;
   bool _takipMesgul = false;
 
@@ -844,6 +846,7 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
       child: Align(
         alignment: AlignmentDirectional.centerStart,
+        key: _seciciAnahtar,
         child: Semantics(
           button: true,
           label: 'Görünüm: ${_sekme.etiket}',
@@ -879,72 +882,75 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
     );
   }
 
-  /// Alttan acilan secim menusu.
+  /// ⚠️⚠️⚠️ TURU 109 — **ASAGI DOGRU ACILAN MENU** (kullanici emri:
+  ///	*"tikladigim menu ... asagi dogru video reels secenekleri olsun"*).
   ///
-  /// ⚠️ `AyarBolumu` / `AyarSatiri` KULLANILIR (ayarlar ekraniyla TEK KAYNAK):
-  ///    `AyarSatiri` secili satirda chevron YERINE **tik** cizer — kullanicinin
-  ///    istedigi *"yaninda ok ikonu"* birebir budur.
-  /// ⚠️ `AyarBolumu` bos `satirlar` ile HICBIR SEY cizmez, yani `_benimMi`
-  ///    kapisi bedava gelir.
+  /// ⚠️ Turu 108'de bu bir ALTTAN SAYFA () idi;
+  ///    kullanici *"eski halindeki gibi yapmaliydin, boyle degil"* dedi.
+  ///    Menu artik dugmenin ALTINA capalanir ve ASAGI acilir.
+  /// ⚠️ Konum dugmenin indan TURETILIR (sabit sayi YOK); ekranin
+  ///    dibine yakinken Flutter menuyu kendiliginden yukari kaydirir.
+  /// ⚠️ Secili satirda **TIK** cizilir (kullanicinin istedigi "ok ikonu").
   Future<void> _sekmeSec() async {
-    final secim = await showModalBottomSheet<_Sekme>(
+    final kutu = context.findRenderObject() as RenderBox?;
+    final dugme = _seciciAnahtar.currentContext?.findRenderObject() as RenderBox?;
+    if (kutu == null || dugme == null) return;
+    final sol = dugme.localToGlobal(Offset.zero, ancestor: kutu);
+    final scheme = Theme.of(context).colorScheme;
+    final secim = await showMenu<_Sekme>(
       context: context,
-      showDragHandle: true,
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      // ⚠️ Dugmenin ALT kenarindan basla: menu asagi dogru acilsin.
+      position: RelativeRect.fromLTRB(
+        sol.dx,
+        sol.dy + dugme.size.height,
+        kutu.size.width - sol.dx - dugme.size.width,
+        0,
       ),
-      builder: (c) => SafeArea(
-        top: false,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              AyarBolumu(
-                baslik: 'Gönderiler',
-                satirlar: [
-                  for (final x in _sekmeler)
-                    if (!x.ilanMi) _menuSatiri(c, x),
-                ],
-              ),
-              AyarBolumu(
-                baslik: 'İlanlarım',
-                satirlar: [
-                  for (final x in _sekmeler)
-                    if (x.ilanMi) _menuSatiri(c, x),
-                ],
-              ),
-            ],
+      color: Theme.of(context).scaffoldBackgroundColor,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: scheme.onSurface.withValues(alpha: 0.10)),
+      ),
+      items: [
+        for (final x in _sekmeler) ...[
+          // ⚠️ Gonderi sekmeleriyle ilan sekmeleri arasinda AYRAC: ikisi
+          //    farkli kaynaktan besleniyor (gonderi ucu vs. ilan ucu).
+          if (x == _Sekme.ilan)
+            const PopupMenuDivider(height: 9),
+          PopupMenuItem<_Sekme>(
+            value: x,
+            height: 46,
+            child: Row(
+              children: [
+                Icon(x.ikon, size: 19),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    x.etiket,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: _sekme == x
+                          ? FontWeight.w700
+                          : FontWeight.w500,
+                    ),
+                  ),
+                ),
+                if (_sekme == x)
+                  Icon(LucideIcons.check, size: 17, color: scheme.primary),
+              ],
+            ),
           ),
-        ),
-      ),
+        ],
+      ],
     );
     if (secim == null || !mounted) return;
     setState(() => _sekme = secim);
     unawaited(_sekmeYukle(secim));
   }
-
-  /// ⚠️ `Semantics(selected:)` ELLE eklenir: `AyarSatiri` yalnizca GORSEL tik
-  ///    ciziyor; eski serit bu bilgiyi tasiyordu ve kaybedilmemeli (TalkBack
-  ///    hangi maddenin secili oldugunu soylemelidir).
-  Widget _menuSatiri(BuildContext c, _Sekme x) => Semantics(
-    selected: _sekme == x,
-    child: AyarSatiri(
-      ikon: x.ikon,
-      baslik: x.etiket,
-      secili: _sekme == x,
-      onTap: () => Navigator.pop(c, x),
-    ),
-  );
-
   /// Ilan tabanli sekmelerin listesi (Ilanlarim · Dolap · Taleplerim).
   ///
   /// ⚠️ Izgara DEGIL LISTE: ilanin kapagi cogu zaman yok (is ilani) ve
   ///    baslik + fiyat kare bir hucreye sigmaz.
-  /// ⚠️ Detaya gidip donunce liste TAZELENMEZ (onbellek): kullanici ilanini
-  ///    silmisse asagi-cek ile yenilenir. Sayfayi her donuste yeniden cekmek
-  ///    sekme onbelleginin amacini bozardi.
   Widget _ilanListesi() {
     final l = _ilanOnbellek[_sekme] ?? const <Ilan>[];
     if (l.isEmpty) {
