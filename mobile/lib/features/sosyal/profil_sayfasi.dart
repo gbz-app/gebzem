@@ -561,6 +561,32 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
               //    *"profilde gonderi, fotograf, video vb alan olsun Instagram
               //    gibi, hepsi bir yerde, tikladiginda ona gecsin"*).
               _sekmeSecici(),
+              // ⚠️⚠️⚠️ TURU 114 — **SEKMELER ARASI YATAY KAYDIRMA** (kullanici
+              //	emri: *"profilde gonderi fotograf video sol sag kaydirmali
+              //	olsun"*).
+              //
+              // ⚠️⚠️ `PageView` **KULLANILMADI** ve bu bilincli bir karar:
+              //	sekme icerikleri (izgara / ilan listesi / bos durum) FARKLI
+              //	YUKSEKLIKTE ve hepsi DIS `ListView`in cocugu olarak akiyor.
+              //	`PageView` sayfalarina SINIRSIZ yukseklik verilemez; sabit
+              //	bir yukseklik vermek ya icerigi KIRPARDI ya da kisa
+              //	sekmelerde devasa bos alan birakirdi. Ustelik `PageView`
+              //	tum sekmeleri agacta CANLI tutar — on sekmenin izgarasi
+              //	aynı anda medya cozerdi (turu 76b ses/pil dersi).
+              //
+              //	Bunun yerine JEST yakalanir: yatay suruklemede bir onceki /
+              //	sonraki sekmeye gecilir. Dikey kaydirma ETKILENMEZ — jest
+              //	arenasinda yatay ve dikey tanıyıcılar AYRI eksenlerde
+              //	yarisir.
+              // ⚠️ `HitTestBehavior.opaque`: bos/hata durumlarinda cizilen
+              //    alan da jesti ALIR (aksi halde tam o durumda kaydirma
+              //    calismazdi — kullanici "bazen oluyor" derdi).
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onHorizontalDragEnd: _sekmeKaydir,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
               // ⚠️ Sekme basina UC AYRI DURUM: yukleniyor · hata · bos.
               //    Eskiden yalniz "bos" vardi; sekme sayisi sekize cikinca
               //    yuklenen bir sekme kullaniciya "ozellik yok" gibi gorunurdu.
@@ -605,6 +631,9 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
                 )
               else
                 _izgara(),
+                  ],
+                ),
+              ),
             ],
           ],
         ),
@@ -910,6 +939,28 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
   ///     ayirt edilemez,
   ///   · tek acilir menu -> **148 dp**, 212 dp pay. SECILDI.
   /// ⚠️ YAPMA: buraya yatay serit geri koyma ya da ikisini birden cizme.
+  /// ⚠️⚠️ TURU 114 — YATAY SURUKLEMEYLE SEKME DEGISTIRME.
+  ///
+  /// ⚠️ HIZ ESIGI (`120 px/sn`) ZORUNLU: esiksiz birakilirsa dikey
+  ///	kaydirma sirasindaki en ufak yatay sapma sekmeyi degistirir ve
+  ///	kullanici "kendiliginden atliyor" der.
+  /// ⚠️ Uc ve son sekmede SESSIZCE durur (dongusel DEGIL): dongu, listenin
+  ///    nerede bittigini gizler ve kullanici kac sekme oldugunu anlayamaz.
+  /// ⚠️ Yeni sekme daha once yuklenmediyse `_sekmeyeGec` onu getirir —
+  ///    menuden secmekle AYNI yol (ikinci bir yukleme mantigi YAZILMAZ).
+  void _sekmeKaydir(DragEndDetails d) {
+    final hiz = d.primaryVelocity ?? 0;
+    if (hiz.abs() < 120) return;
+    final liste = _sekmeler;
+    final i = liste.indexOf(_sekme);
+    if (i < 0) return;
+    // ⚠️ Sola surukleme (negatif hiz) SONRAKI sekmeye gider — sayfa
+    //    cevirme yonuyle ayni.
+    final hedef = hiz < 0 ? i + 1 : i - 1;
+    if (hedef < 0 || hedef >= liste.length) return;
+    _sekmeyeGec(liste[hedef]);
+  }
+
   Widget _sekmeSecici() {
     final scheme = Theme.of(context).colorScheme;
     return Padding(
@@ -1014,8 +1065,18 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
       ],
     );
     if (secim == null || !mounted) return;
-    setState(() => _sekme = secim);
-    unawaited(_sekmeYukle(secim));
+    _sekmeyeGec(secim);
+  }
+
+  /// Sekme degistirmenin TEK KAPISI (menuden secim + yatay kaydirma).
+  ///
+  /// ⚠️ Iki cagri yeri ayri ayri `setState`+`_sekmeYukle` yazsaydi biri
+  ///    guncellenip oteki geride kalirdi — bu projede ALTI kez yasanan
+  ///    "ayni kuralin iki kopyasi drift eder" sinifi.
+  void _sekmeyeGec(_Sekme x) {
+    if (x == _sekme) return;
+    setState(() => _sekme = x);
+    unawaited(_sekmeYukle(x));
   }
   /// Ilan tabanli sekmelerin listesi (Ilanlarim · Dolap · Taleplerim).
   ///
