@@ -7550,3 +7550,46 @@ YanitlariGosterSatiri) · `gonderi_hareketleri.dart` · `yorum_paneli.dart` ·
   (ilan kartında konum/işletme bilgisi) · 10-16.
 - Denetimin **düzeltilmeyen** düşük öncelikli bulguları CLAUDE.md'de "DÜRÜST SINIRLAR"
   başlığında yazılı (AI fotoğrafı yetim kalıyor, yorum beğenisi yalnız ekranda, vb.).
+
+---
+
+## Oturum — 19 Ağustos 2026 (turu 114: Mahalle + kalan 17 maddenin tamamı)
+
+### Kullanıcı emri
+> *"anasayfada üstte Arkadaş Keşfet Mahalle kaldırmışsın dikkat et"* +
+> *"hepsini bitirdikten sonra temiz build al kontrol edeyim"*
+
+### Yapılanlar
+- **Akış seçicisi geri geldi**: `Arkadaş · Keşfet · Mahalle`. Mahalle **gerçek bir
+  bölme** (`GET /mahalle`) — çevredeki konumlu gönderiler, 15 km.
+- Kalan maddelerin tamamı: 6 (topluluk) · 8 (profilde yatay kaydırma) ·
+  9 (ilan kartında sahibi) · 10-12 (düğün/hizmet yemek düzeni + adım adım) ·
+  13 (randevu ajandası + başvuru özeti) · 14 (işletme hesabı adım adım) ·
+  15-16 (etkinlik kartı + kategoriler).
+- İki keşif/denetim turu (11 + 6 ajan) koşuldu.
+
+### Denenenler — oldu / olmadı
+- **OLMADI:** `f2.user_id::text = $1` — `engel.Yuklem` aynı `$1`i `blocks.blocker_id`
+  (uuid) ile karşılaştırdığı için Postgres parametreyi UUID çıkarsıyor;
+  **tüm /isletmeler 500** döndü. `go build`/`go vet`/`sutun_test.go` üçü de yeşildi;
+  hatayı **yalnızca canlı uçtan uca** gördü (14 kontrol düştü).
+- **OLMADI:** etkinlik kartını değiştiren betik metot sonunu ilk `);` satırını
+  arayarak buluyordu; o dizge widget ağacının İÇİNDE de geçiyor ve dosya **bozuldu**.
+  `git checkout` ile geri alınıp sınır **parantez sayarak** bulundu.
+- **OLMADI:** talep ızgarasında `childAspectRatio` — hücre yüksekliği genişlikten
+  türediği için yazı ölçeği 1.5'te **21.36 dp taştı**. `mainAxisExtent` ile çözüldü.
+- **OLMADI:** sihirbaz alt çubuğunda "Geri + adım adı + uzun düğme" tek `Row`'daydı;
+  360 dp / ölçek 1.3'te düğmenin **yalnızca 121 dp'si görünüyordu**.
+- **OLDU:** `mahalle.go` `yakinimda.go` desenini birebir aldı (kaba kutu + Haversine,
+  `111*cos(enlem)` böleni). Uçtan uca mekânsal süzgeci **gerçekten ölçüyor**.
+- **OLDU:** muhafız kapsamı `mahalle.go`ya genişletildi ve **bozularak kanıtlandı**.
+
+### Kararlar
+- "Yemek gibi" düğün ekranı **işletme listesi değil**: `isletme.Kategoriler`de
+  `dugun` anahtarı yok, liste her zaman boş dönerdi. Görsel dil alındı, hücreler
+  talep kategorileri oldu.
+- Topluluk için **yeni tip açılmadı**: kanal (`chats.type='channel'`) zaten aynı
+  kavram. Sorun keşfedilebilirlikti.
+- Profilde `PageView` **kullanılmadı** (farklı yükseklikler + tüm sekmeleri canlı
+  tutması); jest + hız eşiği tercih edildi.
+- Randevuda **ay ızgarası çizilmedi** — sunucu "müsait günler" döndürmüyor.

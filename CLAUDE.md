@@ -25,6 +25,80 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
      olcegini geri aliyor · kompakt kart 1.3'te tasiyor · kategori basligi yan
      dugmelere biniyor · zaman damgasinda overflow yok · 11 altinda 8 nokta).
      Hepsi belgede olculmus haliyle yazili.
+- ⚠️⚠️⚠️ **TURU 114 — AKIS SECICISI GERI GELDI: `Arkadaş · Keşfet · Mahalle`.**
+  Turu 113 seciciyi kullanicinin ONCEKI emriyle kaldirmisti; kullanici bu turda
+  GERI istedi ve ucuncu ogeye YENI BIR ANLAM verdi.
+  ⚠️ **MAHALLE GERCEK BIR BOLME** (eskiden "Canlı Yayın" bir KISAYOLDU):
+     `GET /mahalle?lat&lng&km` — cevredeki KONUMLU gonderiler.
+  ⚠️ **YENI TABLO/MIGRATION YOK**: `posts.konum_ad/enlem/boylam` 044'ten beri
+     VAR ve ortak sutun sabitinde (`medyaTurleri`) zaten donuyor.
+  ⚠️ `/feed`E BAYRAK OLARAK EKLENMEDI: o ucun yanitindaki `kesfet` bayragi
+     "takip etmiyorsun" anlamini tasiyor; iki anlam ayni ucta karisirdi.
+  ⚠️⚠️ **BOYLAM BOLENI `111 * cos(enlem)`** — duz `111.0` kutuyu Gebze
+     enleminde **%24 DAR** yapar (turu 85b'de isletme tarafinda SAHAYA CIKTI).
+  ⚠️ Diziler IKI -> **UC** elemana cikarildi (`_listeler`, `_dahaVarlar`,
+     `_kesfetler`, `_bolmeYuklendi`, `_bolmeKaydirma`).
+  ⚠️ Konum BIR KEZ alinir; **asagi-cek TAZELER** (baska semte gidince ve izni
+     SONRADAN verince tekrar denemenin tek yolu).
+- ⚠️⚠️ **TURU 114 — UCTAN UCA MEKANSAL SUZGECI GERCEKTEN OLCUYOR** (375 kontrol):
+  yakina ve uzaga birer gonderi atilir; yalniz yakindaki doner, yaricap
+  buyutulunce uzak da gelir (elemenin sebebi MESAFE), konumsuz gonderi HIC
+  gorunmez, koordinatsiz istek 400, **NaN koordinat da 400**.
+  ⚠️ Ilk yazimda uzak gonderi ~122 km konmustu; sunucu tavani 100 km oldugu
+     icin "genis yaricap" kontrolu YAPISAL OLARAK gecemiyordu — test HAKLI
+     olarak kirmizi dustu ve mesafe 55 km'ye cekildi.
+- ⚠️⚠️⚠️ **TURU 114 — `favorim` EXISTS'INDE `::text` CAST'I TUM LISTEYI 500
+  YAPIYORDU.** `engel.Yuklem` ayni `$1`i `blocks.blocker_id` (uuid) ile
+  karsilastirdigi icin Postgres parametreyi UUID cikarsiyor ->
+  *"operator does not exist: uuid = text"*. `go build`, `go vet` ve
+  `sutun_test.go` UCU DE YESILDI; hatayi YALNIZ canli e2e gordu (14 kontrol
+  birden dustu). ⚠️ **DERS: paylasilan bir parametreye cast eklemeden once o
+  parametrenin BASKA hangi sutunla karsilastirildigina bak.**
+- 🛡️ **TURU 114 — MUHAFIZ KAPSAMI GENISLETILDI:** `social/sutun_test.go` ve
+  `yayin_test.go` yalniz `handler.go`+`etkilesim.go` tariyordu; `mahalle.go`
+  HIC olculmuyordu. **BOZULARAK KANITLANDI** (`yayindaOlan` cikarildi -> test
+  kirmizi: *"Mahalle icindeki gonderi sorgusunda ZAMANLANMIS GONDERI YUKLEMI
+  YOK"*). ⚠️ Yeni bir gonderi sorgusu yazarken bu iki listeye EKLE.
+- 📌 **TURU 114 — KULLANICININ 17 MADDESININ TAMAMI:**
+  · **10·11·12·16** Dugun ve Hizmet **"yemek" duzeninde + ADIM ADIM**.
+    ⚠️⚠️ "Yemek gibi" = *"dugun isletmelerini listele"* DEGIL: `isletme.
+       Kategoriler` haritasinda `dugun`/`organizasyon` anahtari YOK, boyle bir
+       liste **HER ZAMAN BOS** donerdi. GORSEL DIL alindi, hucreler TALEP
+       KATEGORILERI ve dokununca sihirbaz aciliyor.
+    ⚠️⚠️ **"Hizmet" karti YANLIS YONE gidiyordu** (`IlanListesiEkrani`):
+       kullanicinin istedigi TERS YON (hizmet ARAYAN form doldurur). O akis
+       vardi ama YALNIZCA Dugun kartindan ulasilabiliyordu.
+  · **13** randevular **AJANDA** (gun basliklari + saat + sure), basvurularda
+    **durum ozeti** (sayilar yuklenen listeden TURETILIR, ek istek YOK).
+    ⚠️ AY IZGARASI CIZILMEDI: sunucu "musait gunler" dondurmuyor, izgaranin
+       cogu SAHTE olurdu.
+  · **8** profilde sekmeler arasi **yatay kaydirma**. ⚠️ `PageView` DEGIL:
+    sekme icerikleri farkli yukseklikte ve `PageView` hepsini agacta CANLI
+    tutar (on sekmenin izgarasi ayni anda medya cozerdi). Jest + 120 px/sn
+    hiz esigi. Sekme degistirmenin **TEK KAPISI** `_sekmeyeGec`.
+  · **6** mesajlarda **topluluk** = **KANAL** (`chats.type=channel`); yeni
+    tip ACILMADI, sorun KESFEDILEBILIRLIKTI.
+  · **9** ilan kartinda **sahibi satiri** (avatar + ad + tik + "İşletme").
+    Sunucuda `u.hesap_turu`+`u.onayli`: SELECT + Scan + yanit haritasi UCU
+    BIRLIKTE; e2e canlida dogruluyor.
+  · **14** isletme hesabi **UC ADIM**. ⚠️ Sihirbaz YALNIZ yeni hesapta; veri
+    **TEK ISTEKTE** gider (adim basina kaydetseydik yarim hesap olusurdu).
+  · **15** etkinlik karti yemek dilinde + **tarih rozeti** (kapak her renkte
+    olabilir -> rozet koyu zemin/beyaz yazi, temaya baglanamaz).
+- ⚠️⚠️ **TURU 114 — DENETIMIN OLCTUGU UC TASMA (hepsi duzeltildi):**
+  · talep izgarasi `childAspectRatio: 0.78` ile 411 dp/olcek 1.5'te **21.36 dp**
+    tasiyordu -> `mainAxisExtent` yazi olceginden TURETILIYOR (menudeki formul).
+  · sihirbaz alt cubugu 360 dp/olcek 1.3'te dugmenin sag kenari **441.9 dp**
+    (ekran 360) — *"İşletme hesabını aç"* dugmesinin yalnizca **121 dp**'si
+    goruntudeydi. Adim adi KENDI SATIRINA alindi + `FittedBox`.
+  · demoda liste sonundaki yukleme gostergesi **sonsuza kadar donuyordu**
+    (`_dahaGetir` demoda hemen doner ama `_dahaVarlar` true kaliyordu).
+    Mahalle'de tek gonderi oldugu icin EKRANIN ORTASINDA gorunur oldu.
+- ⏳ **TURU 114 — DURUST SINIRLAR:** Mahalle yalniz KONUM PAYLASILMIS gonderileri
+  gosterir · `/mahalle` yanitindaki `km` istemcide OKUNMUYOR ("15 km icinde"
+  yazilmiyor) · `posts(enlem,boylam)` uzerinde INDEX YOK (bu olcekte sorun
+  degil) · randevuda ay izgarasi yok · demo ilanlarda "İşletme" rozeti CIKMAZ
+  (demo veri `sahibi_hesap_turu` tasimiyor).
 - **KALDIGIMIZ YER (19 Agu 14:47): TURU 99-113 YAYINLANDI** — android
   **32248225046** + ios **32248227938** (**cc418fd**), R2 apk=122404307
   (md5 355953f2) ipa=31700278 (md5 48a69b97) index=14423 (md5 432d6d61)
