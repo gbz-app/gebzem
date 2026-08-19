@@ -7,6 +7,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../home/home_screen.dart' show myProfileProvider;
 import 'demo_veri.dart' show kDemoAkis;
 import 'demo_yorum.dart';
+import 'gonderi_hareketleri.dart';
+import 'yorum_satiri.dart';
+import '../isletme/isletme_kart.dart' show kYanBosluk;
+import '../isletme/isletme_listesi.dart' show IsletmeListesiEkrani;
 import 'gonderi_karti.dart';
 import 'profil_sayfasi.dart';
 import 'sosyal_servisi.dart';
@@ -35,6 +39,14 @@ class GonderiDetay extends ConsumerStatefulWidget {
 
 class _GonderiDetayState extends ConsumerState<GonderiDetay> {
   Gonderi? _g;
+
+  /// ⚠️ TURU 99 — yanit siralamasi (Threads: "Başlıca" / "Yakınlarda").
+  ///    Bugun YALNIZ demo listesini yeniden siralar; sunucuda siralama
+  ///    parametresi YOK (`GET /posts/{id}/comments` tek duzen doner).
+  String _sirala = 'baslica';
+
+  /// Inline acilmis yanit kumeleri (Threads yeni sayfa ACMAZ).
+  final Set<String> _acikYanitlar = <String>{};
   bool _yukleniyor = false;
   String? _hata;
 
@@ -112,6 +124,159 @@ class _GonderiDetayState extends ConsumerState<GonderiDetay> {
     }
   }
 
+  /// ⚠️ TURU 99 — demo yorumlarini gorunum modeline cevirir ve secili
+  ///    siralamaya gore dizer.
+  ///
+  /// ⚠️ "Başlıca" = en cok begeni · "Yakınlarda" = en yeni. Sunucuda
+  ///    siralama parametresi YOK; gercek hat baglandiginda uc bir
+  ///    `?sirala=` almali, yoksa bu secici GORSEL kalir.
+  List<YorumGorunum> _siraliYorumlar(String gonderiId) {
+    final l = demoYorumlar(gonderiId).map(_cevir).toList();
+    if (_sirala == 'baslica') {
+      l.sort((a, b) => b.begeni.compareTo(a.begeni));
+    }
+    return l;
+  }
+
+  YorumGorunum _cevir(DemoYorum d) => YorumGorunum(
+    id: d.kullaniciAdi + d.zaman,
+    ad: d.ad,
+    kullaniciAdi: d.kullaniciAdi,
+    zaman: d.zaman,
+    metin: d.metin,
+    onayli: d.onayli,
+    yazarMi: d.sahibi,
+    sahipBegendi: d.begendim,
+    begeni: d.begeni,
+    yorum: d.yorum,
+    repost: d.repost,
+    paylas: d.paylas,
+    yanitlar: d.yanitlar.map(_cevir).toList(),
+    medya: d.medya,
+    medyaTur: d.medyaTur,
+  );
+
+  Future<void> _siralaSec() async {
+    final s = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (c) => SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final o in const [
+              ('baslica', 'Başlıca'),
+              ('yakin', 'Yakınlarda'),
+            ])
+              ListTile(
+                title: Text(o.$2, style: const TextStyle(fontSize: 16)),
+                trailing: _sirala == o.$1
+                    ? const Icon(LucideIcons.check, size: 18)
+                    : null,
+                onTap: () => Navigator.pop(c, o.$1),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (s != null && mounted) setState(() => _sirala = s);
+  }
+
+  /// ⚠️⚠️ KONU ETIKETI — **sunucuda karsiligi YOK** (bkz. cagri yerindeki
+  ///	serh). Dokunus GERCEK arama ekranini acar; sayi demo verisidir.
+  Widget _konuEtiketi(BuildContext context, Gonderi g) {
+    const konu = 'Gebze';
+    return InkWell(
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => const IsletmeListesiEkrani(ara: konu),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(kYanBosluk, 2, kYanBosluk, 10),
+        child: Row(
+          children: [
+            Icon(
+              LucideIcons.search,
+              size: 15,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              konu,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              '· 146 gönderi',
+              style: TextStyle(
+                fontSize: 14,
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.55),
+              ),
+            ),
+            const SizedBox(width: 2),
+            Icon(
+              LucideIcons.chevronRight,
+              size: 15,
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.55),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// ⚠️⚠️ TURU 99 — SABIT ALT YANIT KUTUSU (Threads).
+  ///    Demoda dokunus sunucuya GITMEZ; gercek hat baglandiginda
+  ///    `YorumlarSayfasi`daki gonderme yolu buraya tasinir.
+  Widget _yanitKutusu(BuildContext context, Gonderi g) => SafeArea(
+    top: false,
+    child: Padding(
+      padding: const EdgeInsets.fromLTRB(kYanBosluk, 6, kYanBosluk, 8),
+      child: Row(
+        children: [
+          Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.10),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              '${g.yazarUsername.isEmpty ? g.yazarAd : g.yazarUsername}\'e yanıt ver...',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 15,
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.45),
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
     final benimId = (ref.watch(myProfileProvider).valueOrNull?['id'] ?? '')
@@ -143,6 +308,7 @@ class _GonderiDetayState extends ConsumerState<GonderiDetay> {
           ],
         ),
       ),
+      bottomNavigationBar: g == null ? null : _yanitKutusu(context, g),
       body: _yukleniyor
           ? const Center(child: CircularProgressIndicator())
           : g == null
@@ -180,6 +346,16 @@ class _GonderiDetayState extends ConsumerState<GonderiDetay> {
                 //	ekran goruntusu): ayrac satiri + threadli yorumlar.
                 // ⚠️ YALNIZ DEMODA: gercek yorum hatti YorumlarSayfasinda
                 //    duruyor ve DEGISMEDI.
+                // ---- KONU ETIKETI ("Çayırova · 146 gönderi >")
+                //
+                // ⚠️⚠️⚠️ **SUNUCUDA KONU DIYE BIR SEY YOK**: tablo yok,
+                //	`posts.konu_id` yok, uc yok, sayac yok, arama yuklemi
+                //	yok (grep: sifir eslesme). Bu satir bir ALT SISTEMIN
+                //	vitrini; demo disinda cizilirse dokunulan ama BOS ekran
+                //	acan bir baglanti olur (turu 93b sinifi).
+                // ⚠️ Demoda bile dokunus GERCEK arama ekranini acar —
+                //    sahte sonuc uydurulmaz.
+                if (kDemoAkis) _konuEtiketi(context, g),
                 if (kDemoAkis) ...[
                   Divider(
                     height: 1,
@@ -192,35 +368,73 @@ class _GonderiDetayState extends ConsumerState<GonderiDetay> {
                     padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
                     child: Row(
                       children: [
-                        const Text(
-                          'Başlıca',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
+                        // ⚠️ TURU 99 — dokununca ACILIR MENU (Threads).
+                        InkWell(
+                          onTap: _siralaSec,
+                          borderRadius: BorderRadius.circular(8),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 4,
+                              horizontal: 2,
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  _sirala == 'baslica'
+                                      ? 'Başlıca'
+                                      : 'Yakınlarda',
+                                  style: const TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(width: 2),
+                                const Icon(LucideIcons.chevronDown, size: 16),
+                              ],
+                            ),
                           ),
                         ),
-                        const Icon(LucideIcons.chevronDown, size: 16),
                         const Spacer(),
-                        Text(
-                          'Hareketi gör',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.onSurface.withValues(alpha: 0.55),
+                        InkWell(
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => GonderiHareketleri(gonderi: g),
+                            ),
                           ),
-                        ),
-                        Icon(
-                          LucideIcons.chevronRight,
-                          size: 16,
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.onSurface.withValues(alpha: 0.55),
+                          borderRadius: BorderRadius.circular(8),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 4,
+                              horizontal: 2,
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  'Hareketi gör',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurface
+                                        .withValues(alpha: 0.55),
+                                  ),
+                                ),
+                                Icon(
+                                  LucideIcons.chevronRight,
+                                  size: 16,
+                                  color: Theme.of(context).colorScheme.onSurface
+                                      .withValues(alpha: 0.55),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
                       ],
                     ),
                   ),
-                  for (final y in demoYorumlar(g.id)) ...[
+                  for (final y in _siraliYorumlar(g.id)) ...[
                     Divider(
                       height: 1,
                       thickness: 0.5,
@@ -228,9 +442,16 @@ class _GonderiDetayState extends ConsumerState<GonderiDetay> {
                         context,
                       ).colorScheme.onSurface.withValues(alpha: 0.06),
                     ),
-                    DemoYorumSatiri(y: y, cizgi: y.yanitlar.isNotEmpty),
-                    for (final alt in y.yanitlar)
-                      DemoYorumSatiri(y: alt, girinti: 30),
+                    // ⚠️ TURU 99b — cizgi GRUBUN olugunda cizilir.
+                    YorumGrubu(
+                      kok: y,
+                      acik: _acikYanitlar.contains(y.id),
+                      onYanitlariGoster: () => setState(() {
+                        _acikYanitlar.contains(y.id)
+                            ? _acikYanitlar.remove(y.id)
+                            : _acikYanitlar.add(y.id);
+                      }),
+                    ),
                   ],
                   const SizedBox(height: 24),
                 ],

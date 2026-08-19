@@ -5,16 +5,15 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import '../chats/moderasyon_sheet.dart';
 import '../home/home_screen.dart' show myProfileProvider;
 import '../medya/medya_gorsel.dart';
 import '../medya/medya_kapisi.dart';
-import 'gonderi_karti.dart' show sayiBicimle;
+import 'gonderi_karti.dart' show sayiBicimle, gonderiZamani;
 import 'gonderi_olustur.dart';
 import 'medya_video.dart';
 import 'profil_sayfasi.dart';
 import 'sosyal_servisi.dart';
-import 'yorumlar_sayfasi.dart';
+import 'yorum_paneli.dart';
 
 /// ⚠️⚠️ TURU 75 — REELS (dikey kaydirmali kisa video akisi).
 ///
@@ -37,6 +36,8 @@ class ReelsSayfasi extends ConsumerStatefulWidget {
 }
 
 class _ReelsSayfasiState extends ConsumerState<ReelsSayfasi> {
+  /// ⚠️ TURU 100 — aciklamasi ACILMIS gonderiler (kimlik bazli).
+  final Set<String> _acikMetinler = <String>{};
   final _sayfa = PageController();
   final List<Gonderi> _liste = [];
   int _aktif = 0;
@@ -253,7 +254,14 @@ class _ReelsSayfasiState extends ConsumerState<ReelsSayfasi> {
           ),
         ),
 
-        // Alt bilgi + sag kolon
+        // ⚠️⚠️⚠️ TURU 100 — **X (TWITTER) VIDEO DUZENI** (kullanici emri:
+        //	*"reels'i twitterdaki mantik gibi yap; bizde olanlari al, sol
+        //	tarafta olacak, aciklama hepsi gorunmeyecek, tiklayinca acilacak,
+        //	yoruma basinca alttan gelecek thread mantigi"*).
+        //
+        // ⚠️ SAG DIKEY KOLON KALDIRILDI: X'te eylemler altta TEK SATIR
+        //    hap seklinde durur. Eski `_sagKolon` govdesi SILINMEDI ama
+        //    artik cagrilmiyor — geri istenirse tek satirla donulebilir.
         Positioned(
           left: 0,
           right: 0,
@@ -263,20 +271,14 @@ class _ReelsSayfasiState extends ConsumerState<ReelsSayfasi> {
               gradient: LinearGradient(
                 begin: Alignment.bottomCenter,
                 end: Alignment.topCenter,
-                colors: [Color(0xCC000000), Color(0x00000000)],
+                colors: [Color(0xE6000000), Color(0x00000000)],
               ),
             ),
             child: SafeArea(
               top: false,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(14, 40, 8, 12),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Expanded(child: _yazarBloku(g)),
-                    _sagKolon(g, benimId),
-                  ],
-                ),
+                padding: const EdgeInsets.fromLTRB(14, 48, 14, 10),
+                child: _altBlok(g, benimId),
               ),
             ),
           ),
@@ -284,6 +286,131 @@ class _ReelsSayfasiState extends ConsumerState<ReelsSayfasi> {
       ],
     );
   }
+
+  /// X duzeni: yazar satiri + "Takip et" · kisaltilmis aciklama · zaman ·
+  /// hap seklinde eylem satiri.
+  Widget _altBlok(Gonderi g, String benimId) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      _yazarBloku(g),
+      if (g.metin.isNotEmpty) ...[const SizedBox(height: 8), _aciklama(g)],
+      const SizedBox(height: 6),
+      Text(
+        gonderiZamani(g.createdAt),
+        style: const TextStyle(fontSize: 13, color: Color(0xB3FFFFFF)),
+      ),
+      const SizedBox(height: 10),
+      _haplar(g, benimId),
+    ],
+  );
+
+  /// ⚠️⚠️ ACIKLAMA **KISALTILMIS** (kullanici emri: *"hepsi gorunmeyecek,
+  ///	tiklayinca acilacak"*). Kapali halde 2 satir + ellipsis.
+  /// ⚠️ Durum GONDERI KIMLIGINE gore tutulur; sayfa degisince sifirlanmaz
+  ///    ve geri gelince acik kalir.
+  Widget _aciklama(Gonderi g) {
+    final acik = _acikMetinler.contains(g.id);
+    return GestureDetector(
+      onTap: () => setState(() {
+        acik ? _acikMetinler.remove(g.id) : _acikMetinler.add(g.id);
+      }),
+      child: AnimatedSize(
+        duration: const Duration(milliseconds: 180),
+        alignment: Alignment.topLeft,
+        child: Text(
+          g.metin,
+          maxLines: acik ? null : 2,
+          overflow: acik ? TextOverflow.visible : TextOverflow.ellipsis,
+          style: const TextStyle(
+            fontSize: 15,
+            height: 1.35,
+            color: Colors.white,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// X'teki hap dugmeler: yorum · yeniden paylas · begeni · kaydet · paylas.
+  Widget _haplar(Gonderi g, String benimId) => Row(
+    children: [
+      _hap(
+        ikon: LucideIcons.messageCircle,
+        sayi: g.yorumSayisi,
+        onTap: g.yorumKapali ? null : () => _yorumPaneli(g, benimId),
+      ),
+      const SizedBox(width: 8),
+      _hap(ikon: LucideIcons.redo2, sayi: g.repostSayisi, onTap: () {}),
+      const SizedBox(width: 8),
+      _hap(
+        ikon: g.begendim ? Icons.favorite : LucideIcons.heart,
+        sayi: g.begeniSayisi,
+        renk: g.begendim ? const Color(0xFFFF3B5C) : null,
+        onTap: () => _begeniCevir(g),
+      ),
+      const Spacer(),
+      _hap(ikon: LucideIcons.bookmark, onTap: () {}),
+      const SizedBox(width: 8),
+      _hap(ikon: LucideIcons.share, onTap: () {}),
+    ],
+  );
+
+  Widget _hap({
+    required IconData ikon,
+    int sayi = 0,
+    Color? renk,
+    VoidCallback? onTap,
+  }) => Material(
+    color: const Color(0x33FFFFFF),
+    borderRadius: BorderRadius.circular(22),
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(22),
+      child: Padding(
+        padding: EdgeInsets.symmetric(
+          horizontal: sayi > 0 ? 14 : 12,
+          vertical: 9,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(ikon, size: 20, color: renk ?? Colors.white),
+            if (sayi > 0) ...[
+              const SizedBox(width: 7),
+              Text(
+                sayiBicimle(sayi),
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: renk ?? Colors.white,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    ),
+  );
+
+  /// ⚠️⚠️⚠️ TURU 100 — YORUM PANELI **ALTTAN ACILIR** (kullanici emri:
+  ///	*"yoruma basinca alttan gelecek, thread mantigi da var"*).
+  ///
+  /// ⚠️ Video DURDURULMAZ: X'te de arkada oynamaya devam eder. Panel
+  ///    ekranin %85'ini kaplar, ustte tutamac + gonderi ozeti.
+  Future<void> _yorumPaneli(Gonderi g, String benimId) => showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+    showDragHandle: true,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+    ),
+    builder: (c) => FractionallySizedBox(
+      heightFactor: 0.85,
+      child: YorumPaneli(gonderi: g, benimId: benimId),
+    ),
+  );
 
   Widget _yazarBloku(Gonderi g) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
@@ -326,90 +453,5 @@ class _ReelsSayfasiState extends ConsumerState<ReelsSayfasi> {
         ),
       ],
     ],
-  );
-
-  Widget _sagKolon(Gonderi g, String benimId) => Column(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      _eylem(
-        ikon: LucideIcons.heart,
-        renk: g.begendim ? const Color(0xFFFF3B5C) : Colors.white,
-        etiket: sayiBicimle(g.begeniSayisi),
-        onTap: () => _begeniCevir(g),
-      ),
-      _eylem(
-        ikon: LucideIcons.messageCircle,
-        renk: Colors.white,
-        etiket: sayiBicimle(g.yorumSayisi),
-        onTap: g.yorumKapali
-            ? null
-            : () async {
-                await Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) =>
-                        YorumlarSayfasi(gonderi: g, benimId: benimId),
-                  ),
-                );
-                // ⚠️ TURU 75b: sayac PAYLASILAN model uzerinden guncellenir
-                //    (bkz. yorumlar_sayfasi serhi) — deger DONMEZ.
-                if (mounted) setState(() {});
-              },
-      ),
-      if (g.goruntulenme > 0)
-        _eylem(
-          ikon: LucideIcons.eye,
-          renk: Colors.white,
-          etiket: sayiBicimle(g.goruntulenme),
-          onTap: null,
-        ),
-      _eylem(
-        ikon: LucideIcons.link,
-        renk: Colors.white,
-        etiket: '',
-        onTap: () async {
-          await Clipboard.setData(
-            ClipboardData(text: 'https://gebzem.app/p/${g.id}'),
-          );
-          if (!mounted) return;
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('Bağlantı kopyalandı')));
-        },
-      ),
-      if (g.yazarId != benimId)
-        _eylem(
-          ikon: LucideIcons.flag,
-          renk: Colors.white,
-          etiket: '',
-          onTap: () =>
-              sikayetSheetAc(context, ref, hedefTur: 'reels', hedefId: g.id),
-        ),
-    ],
-  );
-
-  Widget _eylem({
-    required IconData ikon,
-    required Color renk,
-    required String etiket,
-    VoidCallback? onTap,
-  }) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
-    child: GestureDetector(
-      onTap: onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(ikon, color: onTap == null ? Colors.white38 : renk, size: 28),
-          if (etiket.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 3),
-              child: Text(
-                etiket,
-                style: const TextStyle(color: Colors.white, fontSize: 11),
-              ),
-            ),
-        ],
-      ),
-    ),
   );
 }

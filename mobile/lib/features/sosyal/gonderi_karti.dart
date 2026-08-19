@@ -20,6 +20,8 @@ import 'gorunurluk.dart';
 import '../isletme/isletme_kart.dart' show kYuzeyGri, kYanBosluk;
 import 'demo_veri.dart';
 import 'demo_yorum.dart';
+import 'thread_cizgi.dart';
+import 'yorum_satiri.dart';
 import 'gonderi_detay.dart';
 import 'gonderi_menusu.dart';
 import 'medya_olcu.dart';
@@ -133,6 +135,28 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
   }
 
   /// ⚠️ TURU 98i — akista gosterilecek TEK demo yaniti (yoksa null).
+  /// Akis yanitindaki cizginin ALT payi: yanit satirinin ust dolgusu (10) +
+  /// avatarin yarisi (17) kadar yukarida biter.
+  static const double kYanitCizgiAlt = 0;
+
+  late final YorumGorunum? _akisYanitGorunum = _akisYaniti == null
+      ? null
+      : YorumGorunum(
+          id: 'akis-yanit',
+          ad: _akisYaniti.ad,
+          kullaniciAdi: _akisYaniti.kullaniciAdi,
+          zaman: _akisYaniti.zaman,
+          metin: _akisYaniti.metin,
+          onayli: _akisYaniti.onayli,
+          sahipBegendi: _akisYaniti.begendim,
+          begeni: _akisYaniti.begeni,
+          yorum: _akisYaniti.yorum,
+          repost: _akisYaniti.repost,
+          paylas: _akisYaniti.paylas,
+          medya: _akisYaniti.medya,
+          medyaTur: _akisYaniti.medyaTur,
+        );
+
   late final DemoYorum? _akisYaniti =
       // ⚠️ `demoKimlik` SART: kapi olmadan sahte yanit GERCEK
       //    gonderilerin altinda da ciziliyordu (emulatorde gorundu).
@@ -1040,8 +1064,30 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
         //	kartta cizilmez.
         // ⚠️ Detay ekraniyla AYNI bilesen kullanilir (`DemoYorumSatiri`);
         //    ikinci bir kopya yazilsaydi drift ederdi.
+        // ⚠️⚠️⚠️ TURU 101 — AKISTAKI TEK YANIT **DUZ DIKEY CIZGIYLE**
+        //	baglanir (kullanici referansi: Threads akisinda gonderinin
+        //	altindaki yanit sola DUZ bir cizgiyle baglidir — KIVRIM YOK;
+        //	kivrim yalniz detaydaki "Yanıtları göster" hedefinde olur).
+        // ⚠️ Cizgi gonderi avatarinin ALTINDAN baslar ve yanit avatarinin
+        //    MERKEZINDE biter; iki ucu da avatar merkezine hizali.
         if (_akisYaniti != null)
-          DemoYorumSatiri(y: _akisYaniti, yanitlariGoster: false),
+          Stack(
+            children: [
+              Positioned(
+                left: kBaslikYanDolgu + (kAvatarCap - kYorumAvatar) / 2,
+                top: 0,
+                bottom: kYanitCizgiAlt,
+                width: kYorumAvatar,
+                child: CustomPaint(
+                  painter: ThreadCizgi(
+                    kivrimli: false,
+                    renk: threadCizgiRengi(context),
+                  ),
+                ),
+              ),
+              YorumSatiri(y: _akisYanitGorunum!),
+            ],
+          ),
 
         // ⚠️⚠️ TURU 98b — KART SONU ILE AYRAC ARASI **12** (kullanici:
         //	*"ilk gonderinin sonu ile profil ismi bitisik olmus"*).

@@ -33,6 +33,8 @@ class DemoYorum {
     this.begendim = false,
     this.yanitAdedi = 0,
     this.yanitlar = const [],
+    this.medya = const [],
+    this.medyaTur = const [],
   });
 
   final String ad;
@@ -59,6 +61,12 @@ class DemoYorum {
   final int yanitAdedi;
 
   final List<DemoYorum> yanitlar;
+
+  /// ⚠️ TURU 101 — YORUMDA MEDYA (kullanici referansi: Threads yorumlarinda
+  ///    fotograf/video var). Kimlikler `demo-` onekli oldugu icin gri yer
+  ///    tutucu cizilir; sahte fotograf uretilmez.
+  final List<String> medya;
+  final List<String> medyaTur;
 }
 
 /// Demo yorumlari — gonderi kimligine gore.
@@ -85,6 +93,31 @@ List<DemoYorum> demoYorumlar(String gonderiId) => const [
       ),
     ],
   ),
+  // ⚠️ TURU 101 — GORSELLI YORUM (Threads referansi).
+  DemoYorum(
+    ad: 'Selma Duman',
+    kullaniciAdi: 'selma.dman',
+    zaman: '23s',
+    metin: 'Çok güzelmiş, biz de geçen hafta oradaydık.',
+    begeni: 870,
+    yorum: 28,
+    repost: 2,
+    begendim: true,
+    medya: ['demo-yorum-1'],
+    medyaTur: ['image'],
+    yanitAdedi: 3,
+    yanitlar: [
+      DemoYorum(
+        ad: 'Ayşe Demir',
+        kullaniciAdi: 'aysedemir',
+        zaman: '20s',
+        sahibi: true,
+        metin: 'Çok iyi olmuş!',
+        begeni: 36,
+        yorum: 1,
+      ),
+    ],
+  ),
   DemoYorum(
     ad: 'Ayşe Demir',
     kullaniciAdi: 'aysedemir',
@@ -94,6 +127,18 @@ List<DemoYorum> demoYorumlar(String gonderiId) => const [
     begeni: 96,
     yorum: 4,
     paylas: 2,
+  ),
+  // ⚠️ VIDEOLU YORUM
+  DemoYorum(
+    ad: 'Enes Varol',
+    kullaniciAdi: 'eenesvarol',
+    zaman: '2g',
+    metin: 'Hayat detaylarla güzel',
+    begeni: 194,
+    yorum: 3,
+    begendim: true,
+    medya: ['demo-yorum-2'],
+    medyaTur: ['video'],
   ),
   DemoYorum(
     ad: 'Ali Yıldız',
@@ -107,7 +152,7 @@ List<DemoYorum> demoYorumlar(String gonderiId) => const [
     ad: 'Gebze Kebap Salonu',
     kullaniciAdi: 'gebzekebap',
     zaman: '20dk',
-    metin: 'Dönüşte bekleriz 🙂',
+    metin: 'Dönüşte bekleriz',
     begeni: 4,
   ),
 ];

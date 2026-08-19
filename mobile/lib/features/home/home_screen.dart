@@ -137,6 +137,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      // ⚠️⚠️⚠️ TURU 98n — ALT MENU KOSELERINDEKI **BEYAZ CENTIK** (kullanici
+      //	sahada IKINCI KEZ bildirdi).
+      //
+      //	Cubugun ust koseleri 20 dp yuvarlak; radius disindaki ucgenler
+      //	SAYDAMDIR ve ARKALARINDAKI **SCAFFOLD ZEMINI** gorunur. Reels
+      //	sekmesi KENDI Scaffoldunda siyah boyaniyor ama ALT MENU BU DIS
+      //	Scaffoldda yasiyor; dis zemin acik gri oldugu icin siyah sayfanin
+      //	uzerinde iki BEYAZ CENTIK cikiyordu.
+      // ⚠️ Govde zaten siyah boyandigi icin dis zemini de siyaha almak
+      //    EKRANDA BASKA HICBIR SEYI DEGISTIRMEZ; yalniz kose ucgenlerini
+      //    dogru renge oturtur.
+      // ⚠️ YAPMA: cozumu `AltMenu` icine sabit renk koyarak arama (98h oyle
+      //    yapildi ve acik ekranlarda da siyah/beyaz yanlisi uretti).
+      backgroundColor: _index == _reels ? Colors.black : null,
       // ⚠️ AKIS, ARA ve REELS KENDI ust duzenlerini cizer — ust AppBar OLMAZ.
       //    Akista bolme secici + bildirim ikonu kendi seridinde; ARA'da ustte
       //    zaten arama kutusu var ("Ara" baslikli bir cubuk hem gereksiz yer
