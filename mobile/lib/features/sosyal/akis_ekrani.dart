@@ -185,6 +185,14 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
                   : demo,
             );
           _bolmeYuklendi[bolme] = true;
+          // ⚠️⚠️ TURU 114 — **DEMODA SAYFALAMA YOK** (`_dahaGetir` ilk satirda
+          //	`kDemoAkis` ile doner). `_dahaVarlar` baslangicta `true` oldugu
+          //	icin listenin SONUNA "daha yukleniyor" gostergesi ciziliyor ve
+          //	SONSUZA KADAR DONUYORDU. Mahalle bolmesinde tek gonderi oldugu
+          //	icin gosterge EKRANDA gorunur hale geldi ve emulatorde yakalandi.
+          //	Arkadaş/Keşfet'te de vardi, yalnizca sekiz kartin altinda
+          //	kaldigi icin fark edilmemisti.
+          _dahaVarlar[bolme] = false;
           _yukleniyor = false;
           _ilkYukleme = false;
         });
