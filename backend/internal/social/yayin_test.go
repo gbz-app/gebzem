@@ -52,7 +52,7 @@ func TestGonderiSorgularindaYayinYuklemi(t *testing.T) {
 	//    kalsaydi, ileri tarihe zamanlanmis bir gonderi **Mahalle
 	//    bolmesinden SIZARDI** — bu muhafizin var olma sebebi tam olarak
 	//    "6 sorguya ekleyip 7.'yi atlama" hatasidir.
-	for _, f := range []string{"handler.go", "etkilesim.go", "mahalle.go"} {
+	for _, f := range []string{"handler.go", "etkilesim.go", "mahalle.go", "ara.go"} {
 		b, err := os.ReadFile(f)
 		if err != nil {
 			t.Fatalf("%s okunamadi: %v", f, err)

@@ -253,6 +253,8 @@ func main() {
 		//    `/feed`e bayrak olarak EKLENMEDI (o ucun yanitindaki `kesfet`
 		//    bayragi baska bir anlam tasiyor) — gerekce `mahalle.go` serhinde.
 		r.Get("/mahalle", socialH.Mahalle)
+		// ⚠️ TURU 115 — TikTok tarzi arama: gonderi metni + konum adi.
+		r.Get("/ara", socialH.Ara)
 		// TURU 77 — ISLETME PROFILLERI
 		r.Put("/users/me/isletme", isletmeH.Kaydet)
 		r.Delete("/users/me/isletme", isletmeH.KisiselYap)

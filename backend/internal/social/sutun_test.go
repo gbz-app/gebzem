@@ -47,7 +47,7 @@ func TestGonderiSorgulariScanIleUyumlu(t *testing.T) {
 	//	SESSIZCE atlar ve **Mahalle bolmesi BOMBOS** gorunurdu — turu 76
 	//	"Kaydedilenler BOMBOS" hatasinin birebir tekrari.
 	// ⚠️ YAPMA: yeni bir gonderi sorgusu yazip bu listeye eklemeyi atlama.
-	for _, f := range []string{"handler.go", "etkilesim.go", "mahalle.go"} {
+	for _, f := range []string{"handler.go", "etkilesim.go", "mahalle.go", "ara.go"} {
 		b, err := os.ReadFile(f)
 		if err != nil {
 			t.Fatalf("%s okunamadi: %v", f, err)

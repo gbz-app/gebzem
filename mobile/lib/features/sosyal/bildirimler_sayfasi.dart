@@ -14,6 +14,8 @@ import 'gonderi_karti.dart' show gonderiZamani;
 import '../randevu/randevu_listeleri.dart';
 import 'profil_sayfasi.dart';
 import 'sosyal_servisi.dart';
+import 'demo_bildirim.dart';
+import 'demo_veri.dart' show kDemoAkis, demoKimlik;
 import 'takip_listesi.dart';
 import '../ilan/basvuru_ekranlari.dart';
 import '../diyet/diyet_ekranlari.dart';
@@ -55,6 +57,23 @@ class _BildirimlerSayfasiState extends ConsumerState<BildirimlerSayfasi> {
       _yukleniyor = true;
       _hata = null;
     });
+    // ⚠️⚠️⚠️ TURU 115 — **TASARIM DEMOSU** (kullanici: *"bildirimler bos,
+    //	orayi doldur ki gorelim"*). Test veritabaninda hicbir begeni/yorum/
+    //	takip olmadigi icin ekran DAIMA bostu ve tasarimi degerlendirmek
+    //	imkansizdi.
+    // ⚠️ Sunucuya HIC istek atilmaz ve okundu isaretlemesi de YAPILMAZ:
+    //    ortada gercek bir bildirim yok, `bildirimleriOkudum()` cagirmak
+    //    sunucudaki GERCEK bildirimleri okunmus isaretlerdi.
+    // ⚠️ Rozet yine de sifirlanir — kullanici zili actiginda sayacin
+    //    kalmasi "okumadim" izlenimi verirdi.
+    if (kDemoAkis) {
+      setState(() {
+        _liste = demoBildirimler();
+        _yukleniyor = false;
+      });
+      ref.read(bildirimSayaciProvider.notifier).sifirla();
+      return;
+    }
     try {
       final s = ref.read(sosyalServisiProvider);
       final l = await s.bildirimler();
@@ -228,6 +247,20 @@ class _BildirimlerSayfasiState extends ConsumerState<BildirimlerSayfasi> {
   }
 
   void _git(Map<String, dynamic> b) {
+    // ⚠️⚠️ DEMO KAPISI: sahte bir bildirimden GERCEK bir profile/gonderiye
+    //    gidilmez. Kapi olmasaydi `demo-elif` profili acilir ve sunucu
+    //    404 dondugu icin kullanici **"Kullanıcı bulunamadı"** gorurdu —
+    //    tasarim demosuna bakan biri bunu GERCEK HATA sanardi (turu 113'te
+    //    ilan sahibinde ayni sey yasandi).
+    if (demoKimlik((b['aktor_id'] ?? '').toString())) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          duration: Duration(seconds: 2),
+          content: Text('Bu bir tasarım demosu — gerçek bildirim değil'),
+        ),
+      );
+      return;
+    }
     final tur = (b['tur'] ?? '').toString();
     final hedefTur = (b['hedef_tur'] ?? '').toString();
     final hedefId = (b['hedef_id'] ?? '').toString();
