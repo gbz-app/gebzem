@@ -470,17 +470,35 @@ class _AnketBalonState extends ConsumerState<AnketBalon> {
                 //    3.1.14'te VAR OLDUGU kaynaktan dogrulandi.
                 Icon(LucideIcons.vote, size: 16, color: scheme.primary),
                 const SizedBox(width: 6),
-                Text(
-                  _a.kapali
-                      ? 'Anket bitti'
-                      : (_a.coklu ? 'Anket · çoklu seçim' : 'Anket'),
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: scheme.primary,
+                // ⚠️⚠️⚠️ TURU 113 (denetim, SEVK ENGELI) — **BASLIK SATIRI
+                //	SOHBET BALONUNDA TASIYORDU.**
+                //
+                //	Iki `Text` de CIPLAKTI; `Spacer` esnek olmayan cocuklara
+                //	SINIRSIZ genislik verdirir, metin ne sarar ne kisalir ve
+                //	satir tasar. En kotu hal anketin ILK ACILDIGI an
+                //	("Anket · çoklu seçim" + "Henüz oy yok"):
+                //	  gereken 260.7 dp · balon ici 360 dp'de 230.8 dp
+                //	  -> **29.9 dp TASMA** (411 dp'de bile 10.7 dp).
+                //	Akis varyanti (`enGenis: infinity`) etkilenmiyordu, yani
+                //	hata YALNIZ sohbette gorunuyordu.
+                // ⚠️ `Expanded` + `ellipsis`: etiket kisalir, oy sayisi
+                //    DAIMA tam gorunur (asil bilgi odur).
+                // ⚠️ YAPMA: `Spacer` + ciplak `Text` ikilisine donme.
+                Expanded(
+                  child: Text(
+                    _a.kapali
+                        ? 'Anket bitti'
+                        : (_a.coklu ? 'Anket · çoklu seçim' : 'Anket'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: scheme.primary,
+                    ),
                   ),
                 ),
-                const Spacer(),
+                const SizedBox(width: 8),
                 Text(
                   _a.toplamOy == 0 ? 'Henüz oy yok' : '${_a.toplamOy} oy',
                   style: TextStyle(
@@ -525,11 +543,15 @@ class _AnketBalonState extends ConsumerState<AnketBalon> {
                   if (!_a.kapali && widget.benimMi)
                     TextButton(
                       onPressed: _kapat,
+                      // ⚠️⚠️ TURU 113 (denetim) — dokunma hedefi **20.3 dp**
+                      //	idi (`shrinkWrap` Material'in 48 dp'lik hedefini
+                      //	kapatiyor). "Anketi bitir" **GERI ALINAMAZ** bir
+                      //	eylem; kucuk hedefte yanlislikla basilmasi da,
+                      //	basamamak da kotu. Yukseklik 26 -> 44.
                       style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
                         visualDensity: VisualDensity.compact,
-                        minimumSize: const Size(0, 26),
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        minimumSize: const Size(0, 44),
                       ),
                       child: const Text(
                         'Anketi bitir',

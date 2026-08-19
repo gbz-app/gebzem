@@ -11,7 +11,6 @@ import "../../core/yenile.dart";
 import '../../core/api.dart';
 import '../chats/chats_provider.dart';
 import '../chats/moderasyon_sheet.dart';
-import '../home/home_screen.dart' show myProfileProvider;
 import '../home/profil_duzenle.dart';
 import '../isletme/isletme_duzenle.dart';
 import '../isletme/isletme_servisi.dart';
@@ -231,6 +230,19 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
         _sekmeHata.clear();
         _yukleniyor = false;
       });
+      // ⚠️⚠️⚠️ TURU 113 (denetim, YUKSEK) — **AKTIF SEKME YENIDEN YUKLENIR.**
+      //
+      //	Usttteki `clear()` TUM sekme onbellegini bosaltir ama `_sekmeYukle`
+      //	YALNIZ iki yerden cagriliyordu (menuden secim · "Tekrar dene").
+      //	Yani kullanici "İlanlarım"/"Videolar"/"Ses" sekmesindeyken
+      //	asagi-cekerse: spinner YOK (`_sekmeYukleniyor` bos), tekrar-dene
+      //	YOK (`_sekmeHata` temizlendi), liste BOS -> ekran **"Henüz ilanın
+      //	yok"** yaziyordu. Kullanicinin KENDI verisi hakkinda YALAN.
+      //	Ayni yol takip · engelle · profil duzenlemeden donusle de
+      //	tetikleniyordu; tek kurtarma baska sekmeye gecip geri gelmekti.
+      // ⚠️ `tumu` HARIC: onu yukaridaki `kullaniciGonderileri` zaten yazdi.
+      // ⚠️ YAPMA: bu satiri kaldirma.
+      if (_sekme != _Sekme.tumu) unawaited(_sekmeYukle(_sekme));
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -743,7 +755,15 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
             Expanded(
               child: OutlinedButton.icon(
                 icon: const Icon(LucideIcons.bookmark, size: 16),
-                label: const Text('Kaydedilenler'),
+                // ⚠️⚠️ TURU 113 (denetim) — **KIRPILIYORDU.** Gereken 115.7 dp,
+                //	alan 102.2 dp -> 13.5 dp kirpma; "Kaydedilenler" TEK
+                //	KELIME oldugu icin sarilamaz ve `Text` varsayilani
+                //	`clip` oldugu icin uc nokta bile cikmiyordu.
+                //	Ayni sinif yazi olceginde daha da agirlasiyordu.
+                label: const FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text('Kaydedilenler'),
+                ),
                 onPressed: () => Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (_) => const KaydedilenlerSayfasi(),
@@ -1286,8 +1306,15 @@ class _IsletmeSeridiState extends ConsumerState<IsletmeSeridi> {
                           ),
                         ),
                         icon: const Icon(LucideIcons.calendarPlus, size: 17),
-                        label: Text(
-                          i.rezervasyonMu ? 'Rezervasyon' : 'Randevu al',
+                        label: FittedBox(
+                          // ⚠️⚠️ TURU 113 (denetim) — "Rezervasyon" gereken
+                          //	110.2 dp, alan 90.2 dp: NORMAL olcekte bile
+                          //	20 dp tasiyordu (kardesi "Hizmetler" siyor,
+                          //	yani YALNIZ sagdaki dugme bozuktu).
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            i.rezervasyonMu ? 'Rezervasyon' : 'Randevu al',
+                          ),
                         ),
                       ),
                     ),

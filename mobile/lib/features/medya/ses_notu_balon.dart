@@ -83,6 +83,9 @@ class _SesNotuBalonState extends ConsumerState<SesNotuBalon> {
 
   @override
   void dispose() {
+    // ⚠️ TURU 113 (denetim) — statik isaretci temizlenir; aksi halde
+    //    dispose edilmis State ve tum alt agaci KALICI tutulur.
+    if (_aktifState == this) _aktifState = null;
     _konumSub?.cancel();
     _sureSub?.cancel();
     _bittiSub?.cancel();
@@ -145,6 +148,19 @@ class _SesNotuBalonState extends ConsumerState<SesNotuBalon> {
       }
       _aktifState = this;
       final d = await ref.read(medyaServisiProvider).adres(widget.mediaId);
+      // ⚠️⚠️⚠️ TURU 113 (denetim, YUKSEK) — **CANLILIK KAPISI ZORUNLU.**
+      //
+      //	`adres()` bir AG cagrisidir ve ustelik 6'li semafor kuyrugunda
+      //	bekler (turu 91 performans fix'i), yani pencere GENISTIR.
+      //	Kullanici oynat'a basip URL gelmeden geri donerse/karti listeden
+      //	kaydirirsa `dispose()` kosar ama `_calanId != widget.mediaId`
+      //	oldugu icin oynaticiyi DURDURMAZ; ardindan bu satirin altindaki
+      //	`play()` calisir ve **ekranda hicbir oynatici yokken ses caimaya
+      //	baslar** — durdurma yolu da kalmaz (yalniz gelen arama susturur).
+      //	Ayrica asagidaki uc abonelik `dispose`tan SONRA kurulacagi icin
+      //	HIC iptal edilmez: statik oynaticida kalici dinleyici birikir.
+      // ⚠️ YAPMA: bu kapiyi kaldirma.
+      if (!mounted) return;
       final url = d['url'] as String?;
       if (url == null) return;
 
@@ -445,9 +461,25 @@ class _SesNotuBalonState extends ConsumerState<SesNotuBalon> {
   // ═══════════════════════════════════════════════════════════════════════
   Widget _sohbetBalonu(BuildContext context, Duration toplam, double oran) {
     final kovalar = _kovalar;
+    // ⚠️⚠️⚠️ TURU 113 (denetim, YUKSEK) — **KOYU TEMADA DALGA VE HIZ
+    //	GORUNMUYORDU.**
+    //
+    //	Renkler "balon zemini de sabit" gerekcesiyle sabit birakilmisti; ama
+    //	o gerekce ZEMIN icindi. Bunlar ON PLAN (dalga dolgusu + "1.5x"),
+    //	ve balon zemini TEMAYA GORE DEGISIYOR (`ChatColors`). Olculen
+    //	kontrast:
+    //	  acik · benim  #D9FDD3 -> 4.74:1  ✓
+    //	  acik · karsi  #FFFFFF -> 4.81:1  ✓
+    //	  **koyu · benim #075E54 -> 1.46:1  ✗**
+    //	  **koyu · karsi #262D31 -> 2.90:1  ✗**
+    //	Varsayilan tema `ThemeMode.system` oldugu icin kullanicilarin buyuk
+    //	kismi bu daldadir.
+    // ⚠️ YAPMA: tek sabit renge donme; zemin temaya bagliyken on plan
+    //    sabit kalamaz.
+    final koyu = Theme.of(context).brightness == Brightness.dark;
     final aktifRenk = widget.benimMi
-        ? const Color(0xFF0B7C4B)
-        : const Color(0xFF7C4DFF);
+        ? (koyu ? const Color(0xFF7FE9A8) : const Color(0xFF0B7C4B))
+        : (koyu ? const Color(0xFFC0A8FF) : const Color(0xFF7C4DFF));
 
     return SizedBox(
       width: 230,
@@ -495,9 +527,14 @@ class _SesNotuBalonState extends ConsumerState<SesNotuBalon> {
           ),
           if (_caliyor || _hiz != 1.0)
             GestureDetector(
+              // ⚠️ TURU 113 (denetim) — `behavior` olmadan `Padding`in
+              //    bos alani dokunus ALMIYORDU (kardes akis karti
+              //    `opaque` kullaniyor).
+              behavior: HitTestBehavior.opaque,
               onTap: _hizDegistir,
               child: Padding(
-                padding: const EdgeInsets.only(left: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 6,
+                    vertical: 10),
                 child: Text(
                   '${_hiz == 1.0 ? '1' : _hiz}x',
                   style: TextStyle(

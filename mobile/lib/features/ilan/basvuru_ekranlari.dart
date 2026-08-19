@@ -24,6 +24,7 @@ import '../../core/denetleyici_sahibi.dart';
 import '../medya/medya_gorsel.dart';
 import '../sosyal/profil_sayfasi.dart';
 import 'ilan_servisi.dart';
+import 'ilan_ekranlari.dart' show IlanDetayId;
 
 /// Kullanicinin yazdigi tutari KURUSA cevirir.
 ///
@@ -619,6 +620,17 @@ class _BasvurularimState extends ConsumerState<BasvurularimEkrani> {
                         itemBuilder: (c, i) {
                           final b = l[i];
                           return ListTile(
+                            // ⚠️⚠️ TURU 113 (denetim) — **ILANA DONUS YOLU.**
+                            //	`IlanDetayId` tam bu is icin yazilmisti ama
+                            //	hicbir yerden cagrilmiyordu; `geri_cekildi`
+                            //	satirlarinda `trailing` de null oldugu icin o
+                            //	satirlar TAMAMEN ETKISIZDI — kullanicinin
+                            //	basvurdugu ilana donecek yolu YOKTU.
+                            onTap: () => Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => IlanDetayId(ilanId: b.ilanID),
+                              ),
+                            ),
                             title: Text(
                                 b.baslik.isEmpty ? 'İlan' : b.baslik,
                                 maxLines: 2,

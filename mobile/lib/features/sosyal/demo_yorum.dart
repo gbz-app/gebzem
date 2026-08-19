@@ -473,13 +473,15 @@ const List<DemoYorum> _yazi = [
 /// ⚠️ Turu 101'de bu fonksiyon `gonderiId` parametresini HIC KULLANMIYORDU;
 ///    kullanici hangi gonderiye girerse girsin AYNI alti yorumu goruyordu.
 List<DemoYorum> demoYorumlar(String gonderiId) => switch (gonderiId) {
-  'foto' => _foto,
-  'galeri' => _galeri,
-  'video' => _video,
-  'konum' => _konum,
-  'anket' => _anket,
-  'ses' => _ses,
-  'yazi' => _yazi,
+  // ⚠️ TURU 113 — anahtarlar `demo-` onekli (bkz. `demo_veri.dart` serhi:
+  //    demo gonderi kimligi artik onek tasiyor).
+  'demo-foto' => _foto,
+  'demo-galeri' => _galeri,
+  'demo-video' => _video,
+  'demo-konum' => _konum,
+  'demo-anket' => _anket,
+  'demo-ses' => _ses,
+  'demo-yazi' => _yazi,
   _ => const [],
 };
 

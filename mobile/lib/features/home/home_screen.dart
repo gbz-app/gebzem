@@ -100,10 +100,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     // ⚠️ Menu HOME'UN USTUNE push edilir; geri tusu akisa doner,
     //    GIRIS ekranina DEGIL (router yigini degismedigi icin yapisal
     //    olarak imkansiz).
+    // ⚠️ Bayrak KAREYE GIRINCE yazilir, ONCE degil: `mounted` false
+    //    olsaydi (ekran ayni karede sokulduyse) menu SUREC BOYUNCA bir
+    //    daha acilmazdi.
     if (!_menuAcildi) {
-      _menuAcildi = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) hizmetMenusuAc(context);
+        if (!mounted || _menuAcildi) return;
+        _menuAcildi = true;
+        hizmetMenusuAc(context);
       });
     }
   }

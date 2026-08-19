@@ -251,7 +251,7 @@ class _GrupBilgiEkraniState extends ConsumerState<GrupBilgiEkrani> {
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
-                      letterSpacing: 1,
+                      // ⚠️ TURU 113 — `letterSpacing` KALDIRILDI (kullanici emri).
                       color: Colors.grey,
                     ),
                   ),

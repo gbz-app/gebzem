@@ -67,18 +67,39 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi>
   }
 
   Future<void> yukle() async {
-    // ⚠️ TURU 98 — tasarim demosu (bkz. `demo_veri.dart`).
-    if (kDemoAkis) {
-      if (mounted) setState(() => _liste = demoStoryler());
-      return;
-    }
     try {
       final l = await ref.read(storyServisiProvider).serit();
-      if (mounted) setState(() => _liste = l);
+      if (!mounted) return;
+      // ⚠️⚠️⚠️ TURU 113 (denetim, YUKSEK) — **GERCEK HIKAYE DEMONUN ALTINDA
+      //	KAYBOLUYORDU.**
+      //
+      //	Onceden `kDemoAkis` dali fonksiyonun BASINDA kisa devre yapiyor ve
+      //	seridi TAMAMEN demo veriyle eziyordu. `_paylas()` sunucuya yazip
+      //	`await yukle()` cagirdigi icin kullanici *"Hikâyen paylaşıldı"*
+      //	mesajini goruyor, ama serit HIC degismiyordu; kendi halkasina
+      //	dokununca da *"tasarim demosu"* uyarisi cikiyordu. Bu, dosyanin
+      //	kendi serhinin onlemeye calistigi *"paylastim sandim, gitmemis"*
+      //	senaryosunun ta kendisiydi.
+      //
+      // ⚠️ COZUM: demo acikken de SUNUCU CEVABI once alinir; **kullanicinin
+      //    KENDI gercek hikayesi varsa o KORUNUR**, demo kullanicilari
+      //    yalnizca ARKASINA eklenir.
+      // ⚠️ YAPMA: demo dalini tekrar fonksiyonun basina alma.
+      if (kDemoAkis) {
+        final benim = l.where((k) => k.benim).toList();
+        final demo = demoStoryler().where((k) => !k.benim || benim.isEmpty);
+        setState(() => _liste = [...benim, ...demo]);
+        return;
+      }
+      setState(() => _liste = l);
     } catch (_) {
       // ⚠️ Sessiz: hikaye seridi akisi BLOKLAMAZ. Hata durumunda yalniz
       //    "Hikâyen" halkasi cizilir (asagidaki `_benimHalka`).
-      if (mounted) setState(() => _liste = const []);
+      // ⚠️ Demo acikken ag hatasinda da demo serit cizilir (tasarim
+      //    incelemesi ag olmadan da yapilabilsin).
+      if (mounted) {
+        setState(() => _liste = kDemoAkis ? demoStoryler() : const []);
+      }
     }
   }
 

@@ -122,7 +122,7 @@ class TalepAkisiEkrani extends ConsumerWidget {
       style: const TextStyle(
         fontSize: 11.5,
         fontWeight: FontWeight.w800,
-        letterSpacing: 1.1,
+        // ⚠️ TURU 113 — `letterSpacing` KALDIRILDI (kullanici emri).
         color: Colors.grey,
       ),
     ),

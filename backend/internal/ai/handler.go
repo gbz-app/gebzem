@@ -586,7 +586,7 @@ func (h *Handler) Menu(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req aiReq
-	json.NewDecoder(r.Body).Decode(&req)
+	json.NewDecoder(io.LimitReader(r.Body, aiGovdeTavani)).Decode(&req)
 	// TURU 78: girdi tavani (bkz. metinTavani serhi).
 	req.Metin = metniKirp(req.Metin)
 
@@ -607,6 +607,8 @@ func (h *Handler) Menu(w http.ResponseWriter, r *http.Request) {
 	if req.MediaID != "" {
 		u, err := h.gorselAdresi(r.Context(), req.MediaID, auth.UserID(r.Context()))
 		if err != nil {
+			// ⚠️ Kota iade (yukaridaki serh).
+			h.kaydet(r.Context(), istekID, "", "", "iptal")
 			hata(w, 400, "görsel okunamadı")
 			return
 		}
@@ -665,7 +667,7 @@ func (h *Handler) UrunMetni(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req aiReq
-	json.NewDecoder(r.Body).Decode(&req)
+	json.NewDecoder(io.LimitReader(r.Body, aiGovdeTavani)).Decode(&req)
 	// TURU 78: girdi tavani (bkz. metinTavani serhi).
 	req.Metin = metniKirp(req.Metin)
 	if req.MediaID == "" && strings.TrimSpace(req.Metin) == "" {
@@ -712,13 +714,26 @@ func (h *Handler) UrunMetni(w http.ResponseWriter, r *http.Request) {
 //
 //	tespit ile sinirliyor ve emin olmadigi yerde "uzmana danis" demesini
 //	istiyor. Yanlis bir tibbi/hukuki tavsiye gercek zarar dogurur.
+// ⚠️⚠️⚠️ TURU 113 (denetim) — **ISTEK GOVDESI TAVANI.**
+//
+//	Dort AI ucu da govdeyi CIPLAK `json.NewDecoder(r.Body)` ile okuyordu;
+//	ayni paketteki `gorsel.go` ise DOGRUSUNU yapiyordu (`io.LimitReader`).
+//	Asimetri gercekti: `Gechis` alani (turu 111) istemciden GELEN bir DIZI
+//	ve 12 mesaj / 2000 rune tavanlari decode'dan SONRA uygulaniyor, yani dev
+//	bir dizi once TAMAMEN belleğe aliniyordu. `http.Server`da
+//	`MaxBytesReader`/`ReadTimeout`, Caddy'de `request_body max_size` da YOK.
+//	cx33'te API + Postgres + LiveKit AYNI 8 GB'i paylasiyor; bir OOM-kill
+//	SUREN ARAMALARI da dusururdu.
+// ⚠️ 256 KB: 12 mesaj x 2000 rune (UTF-8'de en fazla ~4 bayt) ~96 KB;
+//    tavan bunun rahat ustunde ama savurgan degil.
+const aiGovdeTavani = 1 << 18
 func (h *Handler) Danisma(w http.ResponseWriter, r *http.Request) {
 	_, istekID, ok := h.kapi(w, r, "danisma")
 	if !ok {
 		return
 	}
 	var req aiReq
-	json.NewDecoder(r.Body).Decode(&req)
+	json.NewDecoder(io.LimitReader(r.Body, aiGovdeTavani)).Decode(&req)
 	// TURU 78: girdi tavani (bkz. metinTavani serhi).
 	req.Metin = metniKirp(req.Metin)
 	// ⚠️⚠️⚠️ TURU 111 — **FOTOGRAF ARTIK ZORUNLU DEGIL.**
@@ -730,6 +745,11 @@ func (h *Handler) Danisma(w http.ResponseWriter, r *http.Request) {
 	// ⚠️ En az BIRI olmali: fotograf ya da metin. Ikisi de bossa istek
 	//    bosuna kota yakardi.
 	if req.MediaID == "" && req.Metin == "" {
+		// ⚠️⚠️ TURU 113 (denetim) — **KOTA IADE EDILIR** (turu 79b dersinin
+		//	tekrari). `h.kapi` rezervasyonu ZATEN acti; iptal yazilmazsa sayim
+		//	`durum <> 'iptal'` oldugu icin bu satiri sayar ve OpenAI'ya HIC
+		//	gidilmemis, PARA HARCANMAMIS bir istek 24 saat hak yakar.
+		h.kaydet(r.Context(), istekID, "", "", "iptal")
 		hata(w, 400, "bir soru yaz ya da fotoğraf ekle")
 		return
 	}
@@ -806,7 +826,7 @@ func (h *Handler) Kalori(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req aiReq
-	json.NewDecoder(r.Body).Decode(&req)
+	json.NewDecoder(io.LimitReader(r.Body, aiGovdeTavani)).Decode(&req)
 	req.Metin = metniKirp(req.Metin)
 
 	parcalar := []icerikParca{{

@@ -14,8 +14,28 @@ import 'home_screen.dart' show myProfileProvider;
 /// ⚠️ Gizlilik durumu `/users/{id}/profile`den okunur (bkz. `build`
 ///    icindeki serh). `autoDispose` DEGIL: Ayarlar acilip kapandikca
 ///    tekrar tekrar istek atmasin.
+///
+/// ⚠️⚠️⚠️ TURU 113 (denetim, YUKSEK) — **HATA ONBELLEKLENMEZ.**
+///
+///	`keepAlive` bir saglayicida tek bir gecici ag hatasi `AsyncError`
+///	olarak SUREC BOYUNCA saklanir. Burada bedeli agirdi: `valueOrNull`
+///	null kalinca gizlilik satiri cizilmiyor, `AyarBolumu` bos listede
+///	hicbir sey cizmedigi icin **"Gizlilik" BOLUMU BASLIGIYLA BIRLIKTE
+///	SESSIZCE KAYBOLUYORDU** ve kurtarma yolu yoktu (tek `invalidate`
+///	BASARILI bir degistirmeden sonra kosuyor). Gizli hesap olunamayinca
+///	takip isteginin `bekliyor` dali, onay/red uclari ve "Takip istekleri"
+///	ekrani da toptan olu kalirdi.
+///	⚠️ Ayni hata turu 78b'de `aiDurumProvider` icin BIREBIR yasandi.
+/// ⚠️ YAPMA: `invalidateSelf` satirini kaldirma.
 final _gizlilikProfiliProvider = FutureProvider.family<Profil, String>(
-  (ref, id) => ref.read(sosyalServisiProvider).profil(id),
+  (ref, id) async {
+    try {
+      return await ref.read(sosyalServisiProvider).profil(id);
+    } catch (_) {
+      ref.invalidateSelf();
+      rethrow;
+    }
+  },
 );
 
 /// ⚠️⚠️⚠️ TURU 81 — AYARLAR. Uygulamada BUGUNE KADAR HIC ayarlar ekrani yoktu.
@@ -180,11 +200,29 @@ class _AyarlarEkraniState extends ConsumerState<AyarlarEkrani> {
                 ikon: LucideIcons.shieldCheck,
                 baslik: 'İzinleri yeniden iste',
                 altBaslik: 'Mikrofon, kamera, bildirim, kilit ekranı',
+                // ⚠️⚠️ TURU 113 (denetim) — **try/catch ZORUNLU.**
+                //	`izinleriTopluIste()` kendi icinde `try/finally`
+                //	kullaniyor, `catch` YOK: bir eklenti cagrisi firlatirsa
+                //	istisna buraya kadar geliyor, SnackBar HIC cizilmiyor ve
+                //	kullanici acisindan **dugmeye basildi, HICBIR SEY olmadi**.
+                //	Burasi CLAUDE.md'de *"⚠️ YAPMA: bu girisi kaldirma"* ile
+                //	korunan ZORUNLU izin kurtarma yolu (turu 89).
                 onTap: () async {
-                  await izinleriTopluIste();
+                  var tamam = true;
+                  try {
+                    await izinleriTopluIste();
+                  } catch (_) {
+                    tamam = false;
+                  }
                   if (!context.mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('İzin ayarları güncellendi')),
+                    SnackBar(
+                      content: Text(
+                        tamam
+                            ? 'İzin ekranları açıldı — verdiğin yanıtlar geçerli'
+                            : 'İzin ekranı açılamadı. Telefon ayarlarından Gebzem izinlerini kontrol et.',
+                      ),
+                    ),
                   );
                 },
               ),

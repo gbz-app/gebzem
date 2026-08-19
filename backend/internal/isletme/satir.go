@@ -21,6 +21,22 @@ import (
 //	Scan sirasi · `isletmeSatiri` yanit haritasi.
 //	(`sutun_test.go` ucunu de olcer ve bozulunca KIRMIZI duser.)
 //
+// ⚠️⚠️⚠️ TURU 113 (denetim, YUKSEK) — **`favorim` ARTIK HER LISTEDE DONER.**
+//
+//	Onceden bu bayrak YALNIZ `Favorilerim` yanitinda vardi (`favoriSatir`
+//	sabit `true` yaziyordu). `Liste` anahtari HIC dondurmuyor, istemci ise
+//	HER kartta okuyor -> yoksa `false`. Sonuc: kullanici kategori ekranindan
+//	favoriliyor (kayit GERCEKTEN olusuyor), geri donunce kalp YINE BOS ve
+//	favoriden cikarmak IMKANSIZ hale geliyordu — yerel durum "favori degil"
+//	oldugu icin dokunus DELETE degil TEKRAR POST atiyordu.
+//
+// ⚠️ `$1` her cagiran sorguda `me` OLMAK ZORUNDA (`engel.Yuklem("$1",...)`
+//	zaten ayni parametreyi kullaniyor). Oturumsuz cagride bos dize gelir ve
+//	EXISTS dogal olarak false doner.
+// ⚠️ SQL ICINE `--` YORUMU YAZMA: muhafizin ayristiricisi sutunlari virgulle
+//	boluyor ve virgul iceren bir yorum sutun SAYILIYOR (yeni sutun eklerken
+//	bu tuzaga dusuldu, test KIRMIZI dustu).
+//
 // ⚠️ `u.` ve `i.` takma adlari SABIT: cagiran sorgular `users u` ve
 //
 //	`isletmeler i` ile JOIN yapmak ZORUNDA.
@@ -36,6 +52,8 @@ const isletmeSutunlari = `
 		i.min_tutar_kurus, i.teslimat_dk_min, i.teslimat_dk_max,
 		i.puan, i.puan_sayisi, i.kampanyalar,
 		i.enlem, i.boylam,
+		EXISTS(SELECT 1 FROM isletme_favoriler f2
+		        WHERE f2.user_id::text = $1 AND f2.isletme_id = u.id),
 		u.created_at`
 
 // isletmeSatiri — bir satiri okur ve istemci sozlesmesine cevirir.
@@ -57,13 +75,14 @@ func isletmeSatiri(rows pgx.Rows) (map[string]any, error) {
 	var puanSayisi int
 	var kampanyalar []byte
 	var enlem, boylam float64
+	var favorim bool
 	var createdAt time.Time
 	if err := rows.Scan(&id, &ad, &kullanici, &avatar, &medya,
 		&kat, &il, &ilce, &adres, &dogru, &kapak,
 		&calisma, &minFiyat, &urunSayisi,
 		&minTutar, &teslimatMin, &teslimatMax,
 		&puan, &puanSayisi, &kampanyalar,
-		&enlem, &boylam, &createdAt); err != nil {
+		&enlem, &boylam, &favorim, &createdAt); err != nil {
 		return nil, err
 	}
 	return map[string]any{
@@ -83,6 +102,7 @@ func isletmeSatiri(rows pgx.Rows) (map[string]any, error) {
 		"kampanyalar":     json.RawMessage(kampanyalar),
 		"enlem":           enlem,
 		"boylam":          boylam,
+		"favorim":         favorim,
 		// ⚠️⚠️ TURU 96h — "Yeni Restourant" karti bunu bekliyordu.
 		//    Turu 96d'de yanitta KAYIT TARIHI YOKTU ve kart mecburen
 		//    "puani olmayan" isletmeleri gosteriyordu (durust ama YANLIS

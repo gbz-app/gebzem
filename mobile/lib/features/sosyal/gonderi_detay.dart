@@ -5,7 +5,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../home/home_screen.dart' show myProfileProvider;
-import 'demo_veri.dart' show kDemoAkis;
+import 'demo_veri.dart' show kDemoAkis, demoKimlik;
 import 'demo_yorum.dart';
 import 'gonderi_hareketleri.dart';
 import 'yorum_satiri.dart';
@@ -87,6 +87,13 @@ class _GonderiDetayState extends ConsumerState<GonderiDetay> {
   ///    PAYLASILIYOR (bu dosyanin ve kartin dayandigi desen). Yeni nesne
   ///    atasaydik detayda yapilan begeni, geri donuldugunde izgarada gorunmezdi.
   Future<void> _sessizTazele() async {
+    // ⚠️⚠️ TURU 113 (denetim) — **DEMO KAPISI.** Bir ALT SATIRDA (`initState`)
+    //    `if (!kDemoAkis)` kapisi vardi ama bu cagri kapisiz kalmisti; sahte
+    //    gonderiye dokununca `GET /posts/demo-foto` atiliyordu. Sunucu ucuz
+    //    404 donuyor ve `catch` yutuyor, yani gorunur zarar yoktu — ama
+    //    ASIMETRININ KENDISI hatadir (kardes `ilan_ekranlari.dart` ayni
+    //    fonksiyonda kapiyi ILK SATIRA koymus ve serhinde uyarmis).
+    if (demoKimlik(widget.gonderi?.id ?? '')) return;
     try {
       final taze = await ref
           .read(sosyalServisiProvider)

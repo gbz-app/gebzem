@@ -434,7 +434,7 @@ class _IsletmeDuzenleEkraniState extends ConsumerState<IsletmeDuzenleEkrani> {
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w700,
-              letterSpacing: 1,
+              // ⚠️ TURU 113 — `letterSpacing` KALDIRILDI (kullanici emri).
               color: Colors.grey,
             ),
           ),
@@ -481,7 +481,7 @@ class _IsletmeDuzenleEkraniState extends ConsumerState<IsletmeDuzenleEkrani> {
           style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w700,
-            letterSpacing: 0.6,
+            // ⚠️ TURU 113 — `letterSpacing` KALDIRILDI (kullanici emri).
           ),
         ),
         const SizedBox(height: 6),

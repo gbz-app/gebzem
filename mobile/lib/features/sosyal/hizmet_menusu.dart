@@ -19,7 +19,6 @@ import '../isletme/isletme_servisi.dart' show isletmeServisiProvider;
 //	tipleri de oyle olsun"*). Olcu/renk/yazi sabitleri BURADAN alinir,
 //	KOPYALANMAZ — iki ekran birlikte doner.
 import '../isletme/isletme_kart.dart' show kYanBosluk, kYaricap, kYuzeyGri;
-import '../isletme/isletme_listesi.dart' show kKesifKutu, kIzgaraAralik;
 
 /// ⚠️⚠️ TURU 76b/77 — ANASAYFA SOL UST MENU.
 ///

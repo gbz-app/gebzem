@@ -358,6 +358,8 @@ func TestListeSelectScanVeYanitHizali(t *testing.T) {
 	altSorgu := map[string]string{
 		"min(p.fiyat_kurus)": "minFiyat",
 		"count(*)":           "urunSayisi",
+		// ⚠️ TURU 113 — `favorim` bayragi (EXISTS alt sorgusu).
+		"isletme_favoriler": "favorim",
 	}
 	scanIstisna := map[string]string{
 		"u.name":                  "ad",
@@ -428,6 +430,7 @@ func TestListeSelectScanVeYanitHizali(t *testing.T) {
 	altAnahtar := map[string]string{
 		"min(p.fiyat_kurus)": "min_fiyat_kurus",
 		"count(*)":           "urun_sayisi",
+		"isletme_favoriler":  "favorim",
 	}
 	for _, s := range sutunlar {
 		anahtar, ok := istisna[s]

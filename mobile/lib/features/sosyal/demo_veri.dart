@@ -66,7 +66,18 @@ Gonderi _g({
   String yazar = 'Ayşe Demir',
   String kullaniciAdi = 'aysedemir',
 }) => Gonderi(
-  id: id,
+  // ⚠️⚠️⚠️ TURU 113 (denetim, YUKSEK) — **GONDERI KIMLIGI DE `demo-` ONEKLI.**
+  //
+  //	Onceden `id` CIPLAK yaziliyordu (`foto`, `galeri`, `ses`...) ve yalniz
+  //	`yazarId` onek tasiyordu. Bu dosyanin serhi ise *"TUM kimlikler
+  //	`demo-` ile baslar (gonderi · yazar · hikaye)"* diyordu — GONDERI
+  //	ICIN YANLISTI. Sonuc: `demoKimlik(gonderi.id)` her demo gonderide
+  //	**false** donuyordu; yani en dogal yazim SESSIZCE FAIL-OPEN idi.
+  //	Kapilarin bugun calismasinin tek sebebi tesadufen `yazarId`
+  //	kullanmalariydi (`gonderi_karti.dart`).
+  // ⚠️ Ikisi AYNI dizedir; ayirt edilmesi gereken bir yer YOK.
+  // ⚠️ `demo_yorum.dart` matrisinin anahtarlari da `demo-` onekli.
+  id: 'demo-$id',
   yazarId: 'demo-$id',
   tur: tur,
   metin: metin,

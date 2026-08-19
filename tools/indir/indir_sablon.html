@@ -97,6 +97,9 @@
   <div id="bayat" style="display:none;background:#c0392b;color:#fff;
        padding:14px 16px;font-size:15px;font-weight:700;text-align:center;
        line-height:1.5"></div>
+  <!-- TURU 113 — 7. saat: sayfanin EN ALTINDA da yazar. Kullanici ALTINCI
+       KEZ "saati goremiyorum" dedi; kart uzunsa ust seridi kacirabiliyor.
+       Ayni sayi iki uctan da okunabilsin. -->
   <span class="saatbar">
     <span class="etiket">BU SAYFADAKİ SÜRÜMÜN SAATİ</span>
     <span class="deger">{{SAAT}}</span>
@@ -166,6 +169,10 @@ dinleyici · Canlı yayın 4 kişi (yayıncı dahil) + sınırsız izleyici.</di
         <span><b>Giriş:</b> Her sürümde veritabanı sıfırlanır — <b>sıfırdan kayıt ol</b>.</span></p>
     </div>
   </div>
+  <p style="text-align:center;margin:16px auto 0;max-width:430px;
+            font-size:12.5px;color:rgba(255,255,255,.55)">
+    Bu sayfanın sürümü: <b style="color:#d9c6ff">{{SAAT}}</b>
+  </p>
 <script>
 /* CANLI SAAT (Turkiye, UTC+3). Saniye AKIYORSA sayfa su an cizilmistir ->
    ustteki surum saati de bayat DEGILDIR. Tek amaci bu; baska is yapmaz.

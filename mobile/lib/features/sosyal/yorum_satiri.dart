@@ -111,7 +111,11 @@ class YorumGrubu extends StatelessWidget {
   Widget build(BuildContext context) {
     // ⚠️ Cizgi KOSULLUDUR: yanit yoksa cizilmez (havada biten cizgi yasak).
     if (kok.yanitlar.isEmpty) {
-      return YorumSatiri(y: kok, onDokun: () => onDokun?.call(kok));
+      return YorumSatiri(
+        key: ValueKey(kok.id),
+        y: kok,
+        onDokun: () => onDokun?.call(kok),
+      );
     }
     final renk = threadCizgiRengi(context);
     final son = kok.yanitlar.length - 1;
@@ -122,7 +126,11 @@ class YorumGrubu extends StatelessWidget {
         _segment(
           renk: renk,
           bas: _cizgiBasi,
-          cocuk: YorumSatiri(y: kok, onDokun: () => onDokun?.call(kok)),
+          cocuk: YorumSatiri(
+            key: ValueKey(kok.id),
+            y: kok,
+            onDokun: () => onDokun?.call(kok),
+          ),
         ),
         // ⚠️⚠️⚠️ ACIKKEN "Yanıtları göster" SATIRI KALKAR ve cizgi DUZ iner.
         //
@@ -140,6 +148,7 @@ class YorumGrubu extends StatelessWidget {
                 //	bir yanitta ~200 dp bosluga sarkiyordu.
                 boy: i == son ? _yanitOrtasi : null,
                 cocuk: YorumSatiri(
+                  key: ValueKey(kok.yanitlar[i].id),
                   y: kok.yanitlar[i],
                   derinlik: 1,
                   onDokun: () => onDokun?.call(kok.yanitlar[i]),
@@ -222,6 +231,26 @@ class YorumSatiri extends StatefulWidget {
 class _YorumSatiriState extends State<YorumSatiri> {
   late bool _begendim = widget.y.begendim;
   late int _begeni = widget.y.begeni;
+
+  /// ⚠️⚠️⚠️ TURU 113 (denetim) — **KALP YANLIS YORUMA YAPISIYORDU.**
+  ///
+  ///	`_begendim`/`_begeni` `late` ile BIR KEZ kurulur. Siralama
+  ///	degistiginde ("Başlıca" <-> "Yakınlarda") liste GERCEKTEN yeniden
+  ///	siralaniyor; Flutter key'siz cocuklari **KONUMA gore** yeniden
+  ///	kullandigi icin ayni `State` yeni bir yoruma bagleniyor ve kirmizi
+  ///	kalp + sayac ESKI yorumdan kaliyordu.
+  ///	Cagri yerlerinde `ValueKey(y.id)` verildi; bu metot IKINCI KATMAN
+  ///	(key unutulan yeni bir cagri yerinde de veri tazelensin).
+  /// ⚠️ Kullanicinin O ANDA yaptigi dokunusu ezmemek icin yalniz KIMLIK
+  ///    degistiginde sifirlanir.
+  @override
+  void didUpdateWidget(covariant YorumSatiri eski) {
+    super.didUpdateWidget(eski);
+    if (eski.y.id != widget.y.id) {
+      _begendim = widget.y.begendim;
+      _begeni = widget.y.begeni;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -388,8 +417,24 @@ class _YorumSatiriState extends State<YorumSatiri> {
   ///	SEY olmuyordu — kullanici bunu KIRIK sanardi.
   /// ⚠️ Begeni de bugun YALNIZ EKRANDA artiyor (`comment_likes` tablosu var,
   ///    INSERT/DELETE ucu YOK) ama etkilesim gercek oldugu icin opak kalir.
-  Widget _eylemler() => Row(
-    children: [
+  /// ⚠️⚠️⚠️ TURU 113 (denetim, YUKSEK) — **TASMA KORUMASI EKLENDI.**
+  ///
+  ///	Kardesi `gonderi_karti._eylem` turu 98c'de `FittedBox(scaleDown)` ile
+  ///	korunmustu; BURADA hicbir koruma yoktu. Derinlik 1'de alan
+  ///	360 - 60 - 16 - 34 - 10 = **240 dp**; dort sayac da "1,2 bin" olursa
+  ///	gereken 292.8 dp (yazi olcegi 1.3'te **340 dp**) — yani **100 dp'ye
+  ///	varan tasma**. Derinlik 0'da bile normal olcekte 8.8 dp tasiyor.
+  ///
+  /// ⚠️⚠️ **DEMO VERISI BU HATAYI GIZLIYORDU**: demo sayaclar (825/2/3/20)
+  ///	203 dp tutuyor ve rahatca siyor. Hata ancak gercek hat baglanip
+  ///	sayilar buyuyunce cikardi — turu 93b'nin *"dolu alan, IS GOREN alan
+  ///	demek DEGILDIR"* dersinin aynisi.
+  /// ⚠️ YAPMA: `FittedBox`i kaldirip sabit butce hesabina donme.
+  Widget _eylemler() => FittedBox(
+    fit: BoxFit.scaleDown,
+    alignment: AlignmentDirectional.centerStart,
+    child: Row(
+      children: [
       _min(
         ikon: _begendim ? Icons.favorite : LucideIcons.heart,
         sayi: _begeni,
@@ -417,7 +462,8 @@ class _YorumSatiriState extends State<YorumSatiri> {
         pasif: true,
         onTap: () => _yok('Yorumu paylaşma'),
       ),
-    ],
+      ],
+    ),
   );
 
   void _yok(String ne) => ScaffoldMessenger.of(context).showSnackBar(
@@ -440,7 +486,10 @@ class _YorumSatiriState extends State<YorumSatiri> {
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 5),
+        // ⚠️ TURU 113 (denetim) — dikey dolgu 5 -> 12: hedef 29 dp idi,
+        //    kardesi `gonderi_karti._eylem` 44 dp kullaniyor. Ayni
+        //    uygulamada iki farkli olcut olmasin.
+        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 12),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [

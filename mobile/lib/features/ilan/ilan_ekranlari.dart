@@ -12,6 +12,7 @@ import '../../core/api.dart';
 import '../../router.dart' show rootMessengerKey;
 import '../home/home_screen.dart' show myProfileProvider;
 import '../medya/medya_gorsel.dart';
+import '../medya/tam_ekran_gorsel.dart';
 import '../medya/medya_kapisi.dart';
 import '../medya/medya_servisi.dart';
 import '../sosyal/gonderi_karti.dart' show gonderiZamani;
@@ -1144,9 +1145,27 @@ class _IlanDetayEkraniState extends ConsumerState<IlanDetayEkrani> {
                           dolgu: BoxFit.cover,
                         );
                       }
-                      return MedyaGorsel(
-                        mediaId: i.mediaIds[k],
-                        fit: BoxFit.cover,
+                      // ⚠️⚠️⚠️ TURU 113 — **GALERI ARTIK ACILIYOR** (kullanici:
+                      //	*"ilan galerisi acilmiyor"*). Fotograf 260 dp'lik
+                      //	seritte `cover` ciziliyor, yani dikey bir ilan
+                      //	fotografinin buyuk kismi KIRPIK; tam haline
+                      //	ulasmanin baska yolu YOKTU.
+                      // ⚠️ Demoda tam ekran ACILMAZ: demo medyasi sunucuda
+                      //    yok, tam ekran BOMBOS SIYAH kalirdi.
+                      return GestureDetector(
+                        onTap: _demo
+                            ? _demoUyar
+                            : () => Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => TamEkranGorsel(
+                                    mediaId: i.mediaIds[k],
+                                  ),
+                                ),
+                              ),
+                        child: MedyaGorsel(
+                          mediaId: i.mediaIds[k],
+                          fit: BoxFit.cover,
+                        ),
                       );
                     },
                   ),
@@ -1254,11 +1273,19 @@ class _IlanDetayEkraniState extends ConsumerState<IlanDetayEkrani> {
                   ),
                   title: Text(i.sahibiAd),
                   subtitle: const Text('İlan sahibi'),
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => ProfilSayfasi(userId: i.sahibiId),
-                    ),
-                  ),
+                  // ⚠️⚠️ TURU 113 (denetim) — **DEMO KAPISI.** Bu ekranin
+                  //    diger YEDI eylemi kapiliydi, yalniz bu `onTap`
+                  //    unutulmustu: ornek ilanin sahibine dokunmak
+                  //    `GET /users/demo-sahip-ev1/profile` atiyor ve profil
+                  //    **"Kullanıcı bulunamadı"** ile aciliyordu. Tasarim
+                  //    demosuna bakan biri bunu GERCEK HATA sanardi.
+                  onTap: _demo
+                      ? _demoUyar
+                      : () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => ProfilSayfasi(userId: i.sahibiId),
+                          ),
+                        ),
                 ),
                 const SizedBox(height: 12),
                 // ⚠️⚠️⚠️ TURU 90b — IS ILANINDA **BASVURU** YOLU.
@@ -1816,7 +1843,7 @@ class _IlanVerEkraniState extends ConsumerState<IlanVerEkrani> {
                   style: const TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
-                    letterSpacing: 1,
+                    // ⚠️ TURU 113 — `letterSpacing` KALDIRILDI (kullanici emri).
                     color: Colors.grey,
                   ),
                 ),
