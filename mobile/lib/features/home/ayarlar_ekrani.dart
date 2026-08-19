@@ -7,7 +7,9 @@ import 'package:permission_handler/permission_handler.dart'
 import '../../core/tercihler.dart';
 // ⚠️ TURU 89 — izin dizisi TEK KAYNAK (bkz. o dosyanin serhi).
 import '../auth/permissions_screen.dart' show izinleriTopluIste;
+import '../sosyal/sosyal_servisi.dart' show sosyalServisiProvider;
 import 'ayar_bilesenleri.dart';
+import 'home_screen.dart' show myProfileProvider;
 
 /// ⚠️⚠️⚠️ TURU 81 — AYARLAR. Uygulamada BUGUNE KADAR HIC ayarlar ekrani yoktu.
 ///
@@ -28,18 +30,47 @@ import 'ayar_bilesenleri.dart';
 /// ⚠️ Eski `_Baslik` bileseninde **`letterSpacing: 1.1`** vardi — kullanici
 ///    emriyle harf araligi YASAK; bolum basliklari artik ortak bilesenden
 ///    gelir ve harf araligi kullanmaz.
-class AyarlarEkrani extends ConsumerWidget {
+class AyarlarEkrani extends ConsumerStatefulWidget {
   const AyarlarEkrani({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AyarlarEkrani> createState() => _AyarlarEkraniState();
+}
+
+class _AyarlarEkraniState extends ConsumerState<AyarlarEkrani> {
+  /// ⚠️ Istek ucarken anahtar KILITLENIR: cift dokunus iki PATCH atar ve
+  ///    ikinci yanit birincinin sonucunu EZER.
+  bool _gizlilikMesgul = false;
+
+  @override
+  Widget build(BuildContext context) {
     final mod = ref.watch(temaProvider);
     final harita = ref.watch(haritaStiliProvider);
+    final profil = ref.watch(myProfileProvider).valueOrNull;
     return Scaffold(
       appBar: AppBar(title: const Text('Ayarlar')),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
         children: [
+          // ⚠️⚠️⚠️ TURU 107 — **GIZLI HESAP** (kullanici emri: *"profilde
+          //	gizli hesap alani orada olmamali, ayarlarda olacak"*).
+          //
+          // ⚠️⚠️ BU ANAHTARIN BIR GIRISI OLMAK ZORUNDA. Turu 75b denetimi
+          //	olctu: anahtar hicbir yerden cagrilmayinca hicbir kullanici
+          //	gizli hesap OLAMIYOR ve buna bagli HER SEY olu kaliyor —
+          //	takip isteginin "bekliyor" dali, FollowApprove/Reject uclari,
+          //	"Takip istekleri" ekrani, profil ve liste kilit dallari.
+          // ⚠️ YAPMA: bu satiri kaldirma; profile geri koyup burada da
+          //    birakma (ayni kuralin iki kopyasi drift eder).
+          // ⚠️ Profil henuz gelmediyse bolum CIZILMEZ: varsayilan `false`
+          //    gostermek "hesabin acik" YALANI olurdu.
+          if (profil != null)
+            AyarBolumu(
+              baslik: 'Gizlilik',
+              satirlar: [
+                _gizliHesap(profil),
+              ],
+            ),
           AyarBolumu(
             baslik: 'Görünüm',
             satirlar: [
@@ -151,6 +182,42 @@ class AyarlarEkrani extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  /// Gizli hesap anahtari.
+  ///
+  /// ⚠️ `AyarSatiri` bir SATIRDIR, anahtar degil: durum sagdaki DEGER
+  ///    metniyle ("Açık"/"Kapalı") ve dokunusla cevrilir. Ayri bir
+  ///    `Switch` bileseni eklemek gruplu kart dilini bozardi.
+  /// ⚠️ Durum RENKLE degil METINLE anlatilir (renk korlugu).
+  Widget _gizliHesap(Map<String, dynamic> profil) {
+    final gizli = profil['gizli'] == true;
+    return AyarSatiri(
+      ikon: gizli ? LucideIcons.lock : LucideIcons.lockOpen,
+      baslik: 'Gizli hesap',
+      altBaslik: 'Gönderilerini yalnızca onayladığın takipçiler görür',
+      deger: _gizlilikMesgul ? '...' : (gizli ? 'Açık' : 'Kapalı'),
+      onTap: _gizlilikMesgul ? null : () => _gizlilikCevir(!gizli),
+    );
+  }
+
+  Future<void> _gizlilikCevir(bool yeni) async {
+    setState(() => _gizlilikMesgul = true);
+    try {
+      await ref.read(sosyalServisiProvider).gizlilikAyarla(yeni);
+      if (!mounted) return;
+      // ⚠️ Profil TAMAMEN tazelenir: gizliden ACIGA gecerken sunucu
+      //    BEKLEYEN TUM istekleri otomatik onaylar ve takipci sayisi
+      //    DEGISIR — yerel yamalama yanlis sayi gosterirdi.
+      ref.invalidate(myProfileProvider);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Gizlilik ayarı değiştirilemedi')),
+      );
+    } finally {
+      if (mounted) setState(() => _gizlilikMesgul = false);
+    }
   }
 
   /// Tema secenegi.

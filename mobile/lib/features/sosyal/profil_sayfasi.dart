@@ -48,7 +48,7 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
   List<Gonderi> _gonderiler = [];
   bool _yukleniyor = true;
   bool _takipMesgul = false;
-  bool _gizlilikMesgul = false;
+
 
   /// ⚠️ Bu profil BENIM mi. myProfileProvider ASENKRON yuklenir; henuz gelmediyse
   ///    false olur ve o kisa anda yabanci dugmeleri cizilir — zararsiz, cunku
@@ -460,7 +460,7 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
     //    (Profil sekmesi -> "Gönderilerim ve profilim") ama hicbir "bu benim"
     //    kapisi yoktu: kendini takip etmeye calisinca sunucu 400 doner, kendini
     //    engelleme/sikayet ise anlamsiz.
-    if (_benimMi) return _kendiDugmelerim(p);
+    if (_benimMi) return _kendiDugmelerim();
 
     final takipli = p.takipEdiyorum;
     final bekliyor = p.istekBekliyor;
@@ -510,7 +510,9 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
   ///    takip isteklerinin 'bekliyor' dali, FollowApprove/FollowReject uclari,
   ///    "Takip istekleri" ekrani ve profil/liste ekranlarindaki kilit dallari.
   ///    (Denetim bunu ORTA seviye "olu ozellik" olarak yakaladi.)
-  Widget _kendiDugmelerim(Profil p) => Column(
+  // ⚠️ TURU 107 — parametre KALDIRILDI: gizli hesap anahtari Ayarlara
+  //    tasindi ve profil nesnesine burada ihtiyac kalmadi.
+  Widget _kendiDugmelerim() => Column(
     children: [
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -545,36 +547,19 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
           ],
         ),
       ),
-      SwitchListTile(
-        value: p.gizli,
-        secondary: const Icon(LucideIcons.lock),
-        title: const Text('Gizli hesap'),
-        subtitle: const Text(
-          'Gönderilerini yalnızca onayladığın takipçiler görür',
-        ),
-        onChanged: _gizlilikMesgul ? null : (v) => _gizlilikCevir(p, v),
-      ),
+      // ⚠️⚠️⚠️ TURU 107 — **GIZLI HESAP ANAHTARI AYARLARA TASINDI**
+      //	(kullanici emri: *"profilde gizli hesap alani orada olmamali,
+      //	ayarlarda olacak"*).
+      //
+      // ⚠️ Ozellik ULASILAMAZ KALMADI: yeni yeri `AyarlarEkrani` >
+      //    "Gizlilik" bolumu. O anahtarin BIR girisi olmak ZORUNDA —
+      //    yoksa hicbir kullanici gizli hesap olamaz ve takip isteginin
+      //    "bekliyor" dali, onay/red uclari, "Takip istekleri" ekrani ve
+      //    profil kilit dallari TOPTAN olu kalir (turu 75b bulgusu).
+      // ⚠️ YAPMA: iki yere birden koyma (ayni kuralin iki kopyasi).
     ],
   );
 
-  Future<void> _gizlilikCevir(Profil p, bool yeni) async {
-    setState(() => _gizlilikMesgul = true);
-    try {
-      await ref.read(sosyalServisiProvider).gizlilikAyarla(yeni);
-      if (!mounted) return;
-      // ⚠️ Profili TAMAMEN yenile: gizliden ACIGA gecerken sunucu BEKLEYEN TUM
-      //    istekleri otomatik onaylar ve takipci sayisi DEGISIR — yerel yamalama
-      //    yanlis sayi gosterirdi.
-      await _yukle();
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Gizlilik ayarı değiştirilemedi')),
-      );
-    } finally {
-      if (mounted) setState(() => _gizlilikMesgul = false);
-    }
-  }
 
   /// ⚠️ Sohbet acma AYNI yolu kullanir (POST /chats/direct) — `user_search_screen`
   ///    desenininin birebir esi. Ayri bir uc/servis YAZILMADI (drift eder).
