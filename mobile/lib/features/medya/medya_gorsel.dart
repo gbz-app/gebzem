@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../sosyal/demo_veri.dart' show demoKimlik;
 import 'medya_servisi.dart';
 
 /// ⚠️⚠️ TURU 74 — İMZALI MEDYA GÖRÜNTÜLEYİCİ.
@@ -93,7 +94,20 @@ class _MedyaGorselState extends ConsumerState<MedyaGorsel> {
     }
   }
 
+  /// ⚠️⚠️⚠️ TURU 104 — **DEMO MEDYASI AGA CIKMAZ.**
+  ///
+  ///	Denetim bulgusu: demo kimlikleri (`demo-...`) sunucuda YOK; istek
+  ///	404 donuyor, `_hata` true oluyor ve kutuya **KIRIK GORSEL ikonu**
+  ///	(`imageOff`) ciziliyordu. Kullanicinin istedigi *"gri icerikler"*
+  ///	yerine ekran BOZUK gorunuyordu — demoya bakan biri bunu GERCEK HATA
+  ///	sanar (bu projede kayitli bir hata sinifi).
+  /// ⚠️ Ayrica her akis cizimi ~10 BOSA ISTEK atiyordu.
+  /// ⚠️ Yer tutucu **BOS**: ikon/harf/desen YOK — demo icerigi gercek
+  ///    icerikle karistirilamasin.
+  bool get _demoMedya => demoKimlik(widget.mediaId);
+
   Future<void> _adresAl() async {
+    if (_demoMedya) return;
     final anahtar = '${widget.mediaId}:${widget.kucuk}';
     // ⚠️ TURU 74b: süresi geçmiş kayıtları ayıkla — global harita hiç
     //    tahliye edilmiyordu, uzun oturumda monoton büyüyordu.
@@ -125,7 +139,9 @@ class _MedyaGorselState extends ConsumerState<MedyaGorsel> {
   @override
   Widget build(BuildContext context) {
     Widget ic;
-    if (_hata) {
+    if (_demoMedya) {
+      ic = _kutu(const SizedBox.shrink());
+    } else if (_hata) {
       ic = _kutu(const Icon(LucideIcons.imageOff, size: 22, color: Colors.white54));
     } else if (_url == null) {
       ic = _kutu(const SizedBox(

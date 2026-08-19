@@ -45,6 +45,7 @@ class DemoYorum {
     this.yanitlar = const [],
     this.medya = const [],
     this.medyaTur = const [],
+    this.akista = false,
   });
 
   final String ad;
@@ -81,14 +82,24 @@ class DemoYorum {
   /// `MedyaGorsel`e dusup KIRIK GORSEL ciziyordu (turu 83b dersinin
   /// tekrari). `YorumSatiri` artik tur kontrolu yapar.
   final List<String> medyaTur;
+
+  /// ⚠️⚠️ **AKISTA gonderinin ALTINDA gosterilecek yanit BU MU.**
+  ///
+  ///	Turu 102'de secim listenin **0. ogesi** ile yapiliyordu; ama detay
+  ///	siralamasi "yazar once + begeni" oldugu icin listenin sirasi
+  ///	DEGISEBILIR ve akistaki yanit sessizce baskasi olurdu. Bayrak, iki
+  ///	kullanimi (akis secimi <-> detay sirasi) BIRBIRINDEN AYIRIR.
+  /// ⚠️ Her listede EN FAZLA BIR oge `true` olabilir (assert ile korunur).
+  final bool akista;
 }
 
 // ---------------------------------------------------------------------------
 // ⚠️ GONDERI BASINA AYRI YORUM SETI. Ayni ad + ayni metin IKI gonderide
 //    tekrarlanmaz: tekrar, listenin "kopyala-yapistir" gorunmesine yol acar
 //    ve kullanici mimariyi degil TEKRARI fark eder.
-// ⚠️ Her listenin **0. ogesi** akista gosterilecek yanittir (bkz.
-//    `demoAkisYaniti`); sirayi degistirirsen akistaki yanit da degisir.
+// ⚠️ Akista gosterilecek yanit `akista: true` ILE isaretlenir — SIRAYLA
+//    DEGIL. Detay siralamasi (yazar once + begeni) listeyi yeniden dizdigi
+//    icin indekse guvenmek akistaki yaniti sessizce degistirirdi.
 // ---------------------------------------------------------------------------
 
 /// `foto` — Ayşe Demir'in sahil fotografi. **Akista YAZI yaniti** (durum 1).
@@ -98,6 +109,7 @@ const List<DemoYorum> _foto = [
     kullaniciAdi: 'mehmetkaya',
     zaman: '6dk',
     onayli: true,
+    akista: true,
     metin: 'Bu manzara için Gebze’ye gelmeye değer.',
     begeni: 825,
     yorum: 2,
@@ -124,7 +136,7 @@ const List<DemoYorum> _foto = [
   DemoYorum(
     ad: 'Selma Duman',
     kullaniciAdi: 'selmaduman',
-    zaman: '23s',
+    zaman: '23sa',
     metin: 'Çok güzelmiş, biz de geçen hafta oradaydık.',
     begeni: 870,
     yorum: 1,
@@ -136,12 +148,16 @@ const List<DemoYorum> _foto = [
       DemoYorum(
         ad: 'Ayşe Demir',
         kullaniciAdi: 'aysedemir',
-        zaman: '20s',
+        zaman: '20sa',
         metin: 'Çok iyi olmuş!',
         begeni: 36,
       ),
     ],
   ),
+  // ⚠️⚠️ YAZARIN KENDI YORUMUNUN **YANITI OLMALI.** Siralama "yazar once"
+  //	oldugu icin bu satir DAIMA en ustte cizilir; yanitsiz birakilirsa
+  //	kivrimli cizgi ve "Yanıtları göster" ancak IKINCI satirda gorunur ve
+  //	ekrani acan kullanici mimariyi ILK BAKISTA goremez.
   DemoYorum(
     ad: 'Ayşe Demir',
     kullaniciAdi: 'aysedemir',
@@ -149,6 +165,16 @@ const List<DemoYorum> _foto = [
     metin: 'Teşekkürler! Sahil yolunun sonundan çektim.',
     begeni: 96,
     paylas: 2,
+    yorum: 1,
+    yanitlar: [
+      DemoYorum(
+        ad: 'Zeynep Ak',
+        kullaniciAdi: 'zeynepak',
+        zaman: '3dk',
+        metin: 'Ben de o saatte denerim.',
+        begeni: 7,
+      ),
+    ],
   ),
   DemoYorum(
     ad: 'Enes Varol',
@@ -194,7 +220,12 @@ const List<DemoYorum> _galeri = [
     ad: 'Buse Aydın',
     kullaniciAdi: 'buseaydin',
     zaman: '35dk',
-    metin: 'Serpme kahvaltı buradaydı sanırım.',
+    akista: true,
+    // ⚠️⚠️ **METIN YOK — BILEREK.** Kullanicinin 2. ekran goruntusundeki durum
+    //	*"yorum yerine RESIM gosterilmis"*. Metin de olsaydi bu kart 1. durumla
+    //	(yazi yaniti) ayni gorunur, iki durum ayirt edilemezdi.
+    // ⚠️ `YorumSatiri` bos metni destekler (metin blogu kosullu).
+    metin: '',
     begeni: 412,
     yorum: 2,
     repost: 4,
@@ -225,6 +256,16 @@ const List<DemoYorum> _galeri = [
     metin: 'Üç mekân gezdik, en iyisi sonuncusuydu.',
     begeni: 88,
     paylas: 3,
+    yorum: 1,
+    yanitlar: [
+      DemoYorum(
+        ad: 'Kerem Şahin',
+        kullaniciAdi: 'keremsahin',
+        zaman: '55dk',
+        metin: 'Sonuncunun adını yazar mısın?',
+        begeni: 6,
+      ),
+    ],
   ),
   DemoYorum(
     ad: 'Hakan Er',
@@ -260,6 +301,7 @@ const List<DemoYorum> _video = [
     ad: 'Onur Baş',
     kullaniciAdi: 'onurbas',
     zaman: '3sa',
+    akista: true,
     metin: 'Açılıştan bir kare daha.',
     begeni: 176,
     yorum: 1,
@@ -308,6 +350,16 @@ const List<DemoYorum> _video = [
     zaman: '5sa',
     metin: 'Gelen herkese teşekkürler.',
     begeni: 143,
+    yorum: 1,
+    yanitlar: [
+      DemoYorum(
+        ad: 'Sinem Ateş',
+        kullaniciAdi: 'sinemates',
+        zaman: '4sa',
+        metin: 'Cumartesi uğrayacağım.',
+        begeni: 8,
+      ),
+    ],
   ),
   DemoYorum(
     ad: 'Murat Genç',
@@ -324,6 +376,7 @@ const List<DemoYorum> _konum = [
     ad: 'Sinem Ateş',
     kullaniciAdi: 'sinemates',
     zaman: '18dk',
+    akista: true,
     metin: 'Akşam geliyoruz.',
     begeni: 7,
   ),
@@ -438,13 +491,17 @@ List<DemoYorum> demoYorumlar(String gonderiId) => switch (gonderiId) {
 ///	halini de tek ekranda gorur.
 /// ⚠️ Sponsorlu gonderi ve gercek gonderiler cagri yerinde ZATEN eleniyor
 ///    (`gonderi_karti.dart` `_akisYaniti` kapisi).
-DemoYorum? demoAkisYaniti(String gonderiId) => switch (gonderiId) {
-  'foto' => _foto[0], // YAZI yaniti (kullanicinin 1. ekran goruntusu)
-  'galeri' => _galeri[0], // GORSELLI yanit (2. ekran goruntusu)
-  'video' => _video[0], // VIDEOLU yanit
-  'konum' => _konum[0], // kisa yazi
-  _ => null,
-};
+DemoYorum? demoAkisYaniti(String gonderiId) {
+  final l = demoYorumlar(gonderiId);
+  assert(
+    l.where((d) => d.akista).length <= 1,
+    '$gonderiId: birden fazla akis yaniti isaretli',
+  );
+  for (final d in l) {
+    if (d.akista) return d;
+  }
+  return null;
+}
 
 // ---------------------------------------------------------------------------
 // ⚠️⚠️⚠️ TURU 102 — **TEK CEVIRICI** (DemoYorum -> YorumGorunum).

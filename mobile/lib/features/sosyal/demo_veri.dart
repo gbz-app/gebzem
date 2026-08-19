@@ -51,6 +51,8 @@ Gonderi _g({
   List<String> medya = const [],
   List<String> turler = const [],
   String konum = '',
+  double enlem = 0,
+  double boylam = 0,
   Anket? anket,
   int begeni = 0,
   int yorum = 0,
@@ -72,6 +74,8 @@ Gonderi _g({
   mediaKinds: turler,
   duzenlendi: false,
   konum: konum,
+  enlem: enlem,
+  boylam: boylam,
   begeniSayisi: begeni,
   yorumSayisi: yorum,
   goruntulenme: goruntulenme,
@@ -160,8 +164,16 @@ List<Gonderi> demoGonderiler() => [
   _g(
     id: 'konum',
     tur: 'yazi',
-    metin: 'Buradayız, bekleriz!',
+    metin: 'Buradayız, bekleriz! Akşam yedide masalar hazır.',
     konum: 'Gebze, Kocaeli',
+    // ⚠️⚠️ TURU 104 — **KOORDINAT ZORUNLU.** `Gonderi.konumVar` olcutu
+    //	`enlem != 0 || boylam != 0`; turu 98'de demo gonderisine yalniz
+    //	`konum` METNI verilmisti ve koordinat 0 kaldigi icin konum karti
+    //	**HIC CIZILMIYORDU** — yani "konum" demosu diye bir sey yoktu.
+    //	(Kullanici: *"birde konum paylasma ornegi olsun"* — HAKLIYDI.)
+    // ⚠️ Deger Gebze merkez; harita uygulamasi bu noktayi acar.
+    enlem: 40.8028,
+    boylam: 29.4307,
     begeni: 54,
     yorum: 6,
     goruntulenme: 610,

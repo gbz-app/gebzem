@@ -53,6 +53,17 @@ class _SesNotuBalonState extends ConsumerState<SesNotuBalon> {
   bool _mesgul = false;
 
   StreamSubscription<Duration>? _konumSub;
+
+  /// ⚠️⚠️⚠️ TURU 104 — **SURE OYNATICIDAN OGRENILIR.**
+  ///
+  ///	`gonderi_karti.dart` bu balonu `sureMs: 0, dalga: ''` ile cagiriyor
+  ///	(gonderi hattinda sure/dalga sutunu YOK) ve serhi *"balon sureyi
+  ///	oynaticidan ogrenir"* diyordu — **GOVDEDE OYLE BIR SATIR YOKTU.**
+  ///	Sonuc: akistaki her ses karti **00:00** yaziyor ve ilerleme cubugu
+  ///	HIC dolmuyordu (`oran` `sureMs == 0` dalinda daima 0.0).
+  /// ⚠️ Sohbette `sureMs` DOLU gelir; orada bu deger yalnizca yedektir.
+  Duration? _ogrenilenSure;
+  StreamSubscription<Duration>? _sureSub;
   StreamSubscription<void>? _bittiSub;
   bool _caliyor = false;
   Duration _konum = Duration.zero;
@@ -61,6 +72,7 @@ class _SesNotuBalonState extends ConsumerState<SesNotuBalon> {
   @override
   void dispose() {
     _konumSub?.cancel();
+    _sureSub?.cancel();
     _bittiSub?.cancel();
     if (_calanId == widget.mediaId) {
       _oynatici.stop();
@@ -80,6 +92,7 @@ class _SesNotuBalonState extends ConsumerState<SesNotuBalon> {
   static _SesNotuBalonState? _aktifState;
 
   void _devret() {
+    _sureSub?.cancel();
     _konumSub?.cancel();
     _konumSub = null;
     _bittiSub?.cancel();
@@ -138,6 +151,10 @@ class _SesNotuBalonState extends ConsumerState<SesNotuBalon> {
       _konumSub = _oynatici.onPositionChanged.listen((p) {
         if (mounted) setState(() => _konum = p);
       });
+      _sureSub?.cancel();
+      _sureSub = _oynatici.onDurationChanged.listen((d) {
+        if (mounted && d > Duration.zero) setState(() => _ogrenilenSure = d);
+      });
       _bittiSub?.cancel();
       _bittiSub = _oynatici.onPlayerComplete.listen((_) {
         if (mounted) {
@@ -183,10 +200,14 @@ class _SesNotuBalonState extends ConsumerState<SesNotuBalon> {
   @override
   Widget build(BuildContext context) {
     final kovalar = _kovalar;
-    final toplam = Duration(milliseconds: widget.sureMs);
-    final oran = widget.sureMs == 0
+    // ⚠️ Once SUNUCUDAN gelen sure, yoksa OYNATICIDAN ogrenilen.
+    final toplam = widget.sureMs > 0
+        ? Duration(milliseconds: widget.sureMs)
+        : (_ogrenilenSure ?? Duration.zero);
+    final toplamMs = toplam.inMilliseconds;
+    final oran = toplamMs == 0
         ? 0.0
-        : (_konum.inMilliseconds / widget.sureMs).clamp(0.0, 1.0);
+        : (_konum.inMilliseconds / toplamMs).clamp(0.0, 1.0);
     final aktifRenk =
         widget.benimMi ? const Color(0xFF0B7C4B) : const Color(0xFF7C4DFF);
 
