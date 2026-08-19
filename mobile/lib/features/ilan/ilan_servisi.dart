@@ -374,7 +374,33 @@ class Ilan {
       if (i > 0 && (tl.length - i) % 3 == 0) buf.write('.');
       buf.write(tl[i]);
     }
-    return '$buf ₺';
+    // ⚠️⚠️ **`TL`, `₺` DEGIL.** `isletme_kart.dart` serhi: bazi Android
+    //    fontlarinda `₺` glifi EKSIK ve yerine TOFU (bos kare) cizilir;
+    //    kullanici emriyle isletme kartinda `TL` yazilmisti. Ilan karti
+    //    ayni gorsel slotu kullaniyor — iki ekran iki farkli para
+    //    gosterimi kullanamaz.
+    return '$buf TL';
+  }
+
+  /// ⚠️⚠️⚠️ TURU 106 — **FIYAT TURE GORE ANLAM DEGISTIRIR.**
+  ///
+  ///	Sunucu serhi (`internal/ilan/handler.go`): `fiyat_kurus`
+  ///	  · `is`    -> **MAAS**
+  ///	  · `talep` -> **BUTCE**
+  ///	  · digerleri -> satis fiyati
+  ///	Ilan verme formu bunu ZATEN biliyor ("Maaş belirtme" / "Maaş
+  ///	(₺ / ay)") ama LISTE ve DETAY bilmiyordu: maasi girilmemis bir is
+  ///	ilaninda ekranin en buyuk yazisi **"Fiyat belirtilmemiş"** oluyordu.
+  ///	Ayni kuralin iki kopyasi, biri guncellenmis — bu projede kayitli
+  ///	en sik hata sinifi.
+  /// ⚠️ `fiyatMetni` TEK KAYNAK olarak KALIR; bu getter onu sarar.
+  String get fiyatEtiketi {
+    final bos = fiyatGizli || fiyatKurus <= 0;
+    return switch (tur) {
+      'is' => bos ? 'Maaş belirtilmemiş' : '$fiyatMetni / ay',
+      'talep' => bos ? 'Bütçe belirtilmemiş' : 'Bütçe: $fiyatMetni',
+      _ => fiyatMetni,
+    };
   }
 
   bool get yayindaMi => durum == 'yayinda';
@@ -418,3 +444,34 @@ final ilanAgaciProvider = FutureProvider<List<IlanTuru>>(
 );
 
 final ilanServisiProvider = Provider<IlanServisi>(IlanServisi.new);
+
+/// ⚠️⚠️⚠️ TURU 106 — **HAM ANAHTAR EKRANA CIZILMEZ.**
+///
+///	Detay ekrani `ozellikler` haritasini oldugu gibi doluyordu ve
+///	kullanici ekranda **`calisma_sekli`**, **`deneyim_yil`**, **`m2`**,
+///	**`km`** goruyordu. Etiket (`Çalışma şekli`), BIRIM (`km`, `m²`) ve
+///	SIRA sunucunun kategori agacinda ZATEN tanimli — istemci onlari
+///	okumuyordu.
+///
+/// ⚠️ SIRA **AGACTAN** gelir, `ozellikler`den DEGIL: `ozellikler` bir
+///    JSONB haritasidir ve anahtar sirasi GARANTI DEGILDIR (vasitada
+///    `km · yil · marka` gibi rastgele cikiyordu).
+/// ⚠️ Agac henuz gelmediyse **BOS liste** doner: ham anahtar basmaktansa
+///    hic basmamak dogru (yanlis bilgi > eksik bilgi).
+/// ⚠️ [enFazla] kart icin: yalnizca ilk N alan.
+List<({String ad, String deger})> ilanOzellikleri(
+  Ilan i,
+  List<IlanTuru>? agac, {
+  int? enFazla,
+}) {
+  final t = agac?.where((t) => t.anahtar == i.tur).firstOrNull;
+  if (t == null) return const [];
+  final out = <({String ad, String deger})>[];
+  for (final a in t.alanlar) {
+    final v = i.ozellikler[a.anahtar]?.toString().trim() ?? '';
+    if (v.isEmpty) continue;
+    out.add((ad: a.ad, deger: a.birim.isEmpty ? v : '$v ${a.birim}'));
+    if (enFazla != null && out.length >= enFazla) break;
+  }
+  return out;
+}

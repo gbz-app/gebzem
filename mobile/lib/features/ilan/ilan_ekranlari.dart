@@ -12,13 +12,35 @@ import '../../core/api.dart';
 import '../../router.dart' show rootMessengerKey;
 import '../home/home_screen.dart' show myProfileProvider;
 import '../medya/medya_gorsel.dart';
-import '../vitrin/vitrin_slider.dart';
 import '../medya/medya_kapisi.dart';
 import '../medya/medya_servisi.dart';
 import '../sosyal/gonderi_karti.dart' show gonderiZamani;
 import '../sosyal/medya_video.dart';
 import '../sosyal/profil_sayfasi.dart';
 import 'basvuru_ekranlari.dart';
+// ⚠️ TURU 106 — olculer KATEGORI EKRANINDAN import edilir, kopyalanmaz.
+import '../isletme/isletme_kart.dart'
+    show
+        kYanBosluk,
+        kYuzeyGri,
+        kYaricap,
+        kYaricapBuyuk,
+        kKartAralik,
+        kKartIcBosluk,
+        kVurgu;
+import '../isletme/isletme_listesi.dart'
+    show
+        kBosluk,
+        kBaslikBosluk,
+        kCipPay,
+        kKesifKutu,
+        kIzgaraAralik,
+        kAltKutu,
+        kAltIcBosluk,
+        kInputBoy,
+        kBaslikOptik;
+import '../sosyal/demo_veri.dart' show demoKimlik;
+import 'demo_ilan.dart';
 import 'ilan_servisi.dart';
 
 /// ⚠️⚠️ TURU 77 — ILAN LISTESI (sahibinden deseni).
@@ -61,6 +83,9 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
   late bool _benim = widget.benim;
   bool _favori = false;
 
+  /// Arama kutusunda TEMIZLE (X) cizilsin mi.
+  bool _aramaDolu = false;
+
   @override
   void initState() {
     super.initState();
@@ -89,7 +114,18 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
           );
       if (!mounted || jeton != _istekNo) return;
       setState(() {
-        _liste = l;
+        // ⚠️⚠️⚠️ TURU 106 — **ORNEK ILANLAR** (kullanici emri: *"is
+        //	ilanlari, normal ilanlar, ev, araba ornek sayfalar olsun"*).
+        //	Sunucudan gelen GERCEK ilanlarin ARDINA eklenir: gercek
+        //	icerik daima once gorunur.
+        // ⚠️ `kDemoAkis` kapaliyken `demoIlanlar` BOS liste doner.
+        _liste = [...l, ...demoIlanlar(
+          tur: _tur,
+          kategori: _kategori,
+          q: _arama.text,
+          benim: _benim,
+          favori: _favori,
+        )];
         _hata = null;
       });
     } catch (_) {
@@ -98,13 +134,33 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
     }
   }
 
+  /// ⚠️⚠️⚠️ TURU 106 — EKRAN **"YEMEK" KATEGORI DUZENINE** cevrildi (kullanici
+  ///	emri: *"alttaki ornegin ilan, is ilan, hepsi yemek mantiginda
+  ///	olacak"*).
+  ///
+  /// ═══════════ ESKI HAL VE OLCULEN SORUN ═══════════
+  ///
+  /// Govde bir `Column` idi: vitrin slider + arama + tur cipleri + kategori
+  /// cipleri SABIT yukseklik tutuyor, listeye `Expanded` ile KALAN veriliyordu.
+  /// Bu, turu 93b'de kategori ekraninda **SEVK ENGELI** olarak olculen
+  /// desenin ta kendisi: 360x800'de ustteki bloklar ~330 px yiyor ve listeye
+  /// bir kartin bile tamami sigmiyordu.
+  ///
+  /// Yeni duzen kategori ekraniyla BIREBIR: her sey `CustomScrollView`
+  /// slaytidir, yani ustteki bloklar KAYDIRILIP gider ve liste tam ekrani
+  /// kullanir.
+  ///
+  /// ⚠️ Bolum sirasi ve bosluklar kategori ekranindan **IMPORT EDILEN**
+  ///    sabitlerle kurulur (`kBosluk`, `kBaslikBosluk`, `kCipPay`,
+  ///    `kKesifKutu`, `kAltKutu`, `kAltHucre`, `kBaslikOptik`); kopyalanan
+  ///    sayi YOK.
+  /// ⚠️ YAPMA: burayi tekrar `Column` + `Expanded`e cevirme.
   @override
   Widget build(BuildContext context) {
     final agac = ref.watch(ilanAgaciProvider);
     final l = _liste;
-    final turBilgi = agac.valueOrNull
-        ?.where((t) => t.anahtar == _tur)
-        .firstOrNull;
+    final turler = agac.valueOrNull ?? const <IlanTuru>[];
+    final turBilgi = turler.where((t) => t.anahtar == _tur).firstOrNull;
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -117,55 +173,20 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
                     : 'İlanlar'),
         ),
         actions: [
-          IconButton(
-            tooltip: 'Favorilerim',
-            icon: Icon(
-              LucideIcons.heart,
-              color: _favori ? const Color(0xFFFF3B5C) : null,
-            ),
-            onPressed: () {
-              setState(() {
-                _favori = !_favori;
-                if (_favori) _benim = false;
-              });
-              _yukle();
-            },
-          ),
-          IconButton(
-            tooltip: 'İlanlarım',
-            icon: Icon(
-              LucideIcons.userRound,
-              color: _benim ? Theme.of(context).colorScheme.primary : null,
-            ),
-            onPressed: () {
-              setState(() {
-                _benim = !_benim;
-                if (_benim) _favori = false;
-              });
-              _yukle();
-            },
-          ),
           // ⚠️⚠️ TURU 90b — "BASVURULARIM" GIRISI.
           //
           // Ekrani yazmak YETMEZ; ona GIDEN yol yoksa ozellik yine olu
           // kalir. Kullanici basvurusunun durumunu (Olumlu/Olumsuz) ancak
           // buradan gorebilir ve geri cekme yolu da yalniz orada.
-          // ⚠️ YALNIZ IS ILANI listesinde cizilir: vasita/emlak listesinde
-          //    "Başvurularım" anlamsiz olurdu.
-          // ⚠️⚠️ TURU 90c — `_tur`, `widget.tur` DEGIL (denetim bulgusu).
-          //    `widget.tur` yalnizca ILK turdur ve SABITTIR; kullanici tur
-          //    cipine dokununca (satir ~280) degisen `_tur`dur. Kapi sabite
-          //    bagliyken: menuden "Ilanlar"a (tursuz) girip tur cipinden
-          //    "Is" secen kullanici, ekran IS ILANLARINI GOSTERDIGI HALDE
-          //    "Basvurularim" girisini HIC GORMUYORDU — yani ayni kuralin
-          //    iki kopyasi (kapi vs. icerik) DRIFT ETMISTI.
+          // ⚠️ YALNIZ IS ILANI / TALEP listesinde cizilir.
+          // ⚠️⚠️ TURU 90c — `_tur`, `widget.tur` DEGIL (denetim bulgusu):
+          //    `widget.tur` yalnizca ILK turdur ve SABITTIR.
           if (_tur == 'is' || _tur == 'talep')
             IconButton(
               tooltip: _tur == 'talep' ? 'Tekliflerim' : 'Başvurularım',
               icon: const Icon(LucideIcons.briefcase),
               onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                    builder: (_) => BasvurularimEkrani(tur: _tur)),
+                MaterialPageRoute(builder: (_) => BasvurularimEkrani(tur: _tur)),
               ),
             ),
         ],
@@ -181,187 +202,612 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
         icon: const Icon(LucideIcons.plus),
         label: const Text('İlan ver'),
       ),
-      body: Column(
-        children: [
-          // ---- UST VITRIN (organik: yaklasan etkinlikler). Bos ise CIZILMEZ.
-          Padding(
-            padding: const EdgeInsets.only(top: 6),
-            child: VitrinSlider(dikey: _tur.isEmpty ? 'ilan' : _tur),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-            child: TextField(
-              controller: _arama,
-              onChanged: (_) {
-                _gecikme?.cancel();
-                _gecikme = Timer(const Duration(milliseconds: 320), _yukle);
-              },
-              decoration: InputDecoration(
-                hintText: 'İlan ara',
-                prefixIcon: const Icon(LucideIcons.search, size: 19),
-                isDense: true,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(24),
-                ),
+      body: YenileSarmali(
+        onRefresh: _yukle,
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            const SliverToBoxAdapter(child: SizedBox(height: kBosluk - 6)),
+
+            // ── ARAMA ──
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: kYanBosluk),
+                child: _aramaKutusu(),
               ),
             ),
-          ),
-          // ---- TUR CIPLERI (agac SUNUCUDAN)
-          SizedBox(
-            height: 44,
-            child: agac.when(
-              loading: () => const SizedBox.shrink(),
-              error: (_, _) => const SizedBox.shrink(),
-              data: (turler) => ListView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 10),
-                children: [
-                  _cip('', 'Tümü', tur: true),
-                  for (final t in turler) _cip(t.anahtar, t.ad, tur: true),
-                ],
-              ),
-            ),
-          ),
-          // ---- SECILI TURUN KATEGORILERI
-          if (turBilgi != null && turBilgi.kategoriler.isNotEmpty)
-            SizedBox(
-              height: 40,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 10),
-                children: [
-                  _cip('', 'Hepsi'),
-                  for (final k in turBilgi.kategoriler) _cip(k.anahtar, k.ad),
-                ],
-              ),
-            ),
-          Expanded(
-            child: _hata != null
-                ? Center(
+            const SliverToBoxAdapter(child: SizedBox(height: kBosluk)),
+
+            // ⚠️⚠️⚠️ TURU 106 — **VITRIN SLIDER KALDIRILDI (olculdu).**
+            //
+            //	`VitrinSlider(dikey: _tur)` sunucuda `isletmeDikeyleri`ne
+            //	cozuluyor ve `emlak` ile `hizmet` bir ISLETME kategorisi
+            //	olarak ORADA DA VAR: ev ilani sayfasinda **emlakci
+            //	isletme kartlari**, is/vasita/ikinci el sayfalarinda ise
+            //	**yaklasan etkinlikler** ciziliyordu. Ucu de ilanla
+            //	ilgisiz.
+            // ⚠️⚠️ **DURUST SINIR:** yemekteki slider'in ilan karsiligi
+            //	YOKTUR. Sunucu "one cikan ilan secmek ADIL DEGIL" diye
+            //	bilincli olarak ilan slaytı URETMIYOR. Ilgisiz icerik
+            //	cizmektense hic cizmemek dogru.
+            // ⚠️ YAPMA: buraya `VitrinSlider` geri koyma.
+
+            // ── "KATEGORİLER" (tur izgarasi) ──
+            //
+            // ⚠️⚠️ Kategori ekranindaki "kesif izgarasi"nin ilan karsiligi.
+            //	Icerik SUNUCUDAN gelir (`/ilan-kategoriler`) — istemciye tur
+            //	sabiti yazmak turu 77 kuralinin ihlali olurdu.
+            // ⚠️ Agac gelmeden HICBIR SEY cizilmez: bos kutular "yukleniyor"
+            //    degil "bozuk" gibi gorunuyordu.
+            if (turler.isNotEmpty) ...[
+              const SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.only(left: kYanBosluk - kBaslikOptik),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
                     child: Text(
-                      _hata!,
-                      style: const TextStyle(color: Colors.grey),
-                    ),
-                  )
-                : l == null
-                ? const Center(child: CircularProgressIndicator())
-                : l.isEmpty
-                ? Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(30),
-                      child: Text(
-                        _favori
-                            ? 'Henüz favori ilanın yok.'
-                            : _benim
-                            ? 'Henüz ilan vermedin.'
-                            : 'Bu aramaya uygun ilan yok.',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(color: Colors.grey),
+                      'Kategoriler',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
-                  )
-                : YenileSarmali(
-                    onRefresh: _yukle,
-                    child: ListView.separated(
-                      padding: const EdgeInsets.only(bottom: 90),
-                      itemCount: l.length,
-                      separatorBuilder: (_, _) => const Divider(height: 1),
-                      itemBuilder: (_, i) => _satir(l[i]),
+                  ),
+                ),
+              ),
+              const SliverToBoxAdapter(child: SizedBox(height: kBaslikBosluk)),
+              SliverToBoxAdapter(child: _turIzgarasi(turler)),
+              const SliverToBoxAdapter(child: SizedBox(height: kBosluk)),
+            ],
+
+            // ── SECILI TURUN ALT KATEGORILERI (60x60 serit) ──
+            //
+            // ⚠️ Baslik YALNIZ serit varken cizilir: bos bir baslik, altinda
+            //    hicbir sey yokken tuhaf durur (kategori ekraniyla ayni kural).
+            if (turBilgi != null && turBilgi.kategoriler.isNotEmpty) ...[
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.only(
+                    left: kYanBosluk - kBaslikOptik,
+                  ),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      turBilgi.ad,
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
-          ),
-        ],
+                ),
+              ),
+              const SliverToBoxAdapter(child: SizedBox(height: kBaslikBosluk)),
+              SliverToBoxAdapter(child: _altKategoriSeridi(turBilgi)),
+              const SliverToBoxAdapter(
+                child: SizedBox(height: kBosluk - kCipPay),
+              ),
+            ],
+
+            // ── HIZLI SUZGECLER ──
+            //
+            // ⚠️⚠️ Favori/İlanlarım eskiden AppBar'da IKON dugmesiydi ve secili
+            //	olduklari YALNIZCA renkten anlasiliyordu (renk tek basina
+            //	bilgi tasimaz). Artik kategori ekranindaki gibi CIP.
+            SliverToBoxAdapter(child: _filtreSatiri()),
+            const SliverToBoxAdapter(child: SizedBox(height: kBosluk - kCipPay)),
+
+            // ── "İlanlar (N)" ──
+            if (l != null && l.isNotEmpty) ...[
+              SliverToBoxAdapter(child: _listeBasligi(l.length)),
+              const SliverToBoxAdapter(child: SizedBox(height: kBaslikBosluk)),
+            ],
+
+            if (_hata != null)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 40),
+                  child: Column(
+                    children: [
+                      Text(
+                        _hata!,
+                        style: const TextStyle(color: Colors.grey),
+                      ),
+                      TextButton(
+                        onPressed: _yukle,
+                        child: const Text('Tekrar dene'),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else if (l == null)
+              const SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 40),
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+              )
+            else if (l.isEmpty)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.all(30),
+                  child: Center(
+                    // ⚠️⚠️ TURU 106 — **DORDUNCU DAL: "filtre bosaltti".**
+                    //	Kategori/arama secili iken liste bosalirsa eski
+                    //	metin *"bu aramaya uygun ilan yok"* diyordu ve
+                    //	kullanici bosluğun SUZGECTEN geldigini anlamiyor,
+                    //	kurtarma yolunu bulamiyordu (yemek ekraninda bu
+                    //	dal ve "Filtreleri temizle" ZATEN var).
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _favori
+                              ? 'Henüz favori ilanın yok.'
+                              : _benim
+                              ? 'Henüz ilan vermedin.'
+                              : _suzgecVar
+                              ? 'Seçtiğin filtrelere uyan ilan bulunamadı.'
+                              : 'Bu aramaya uygun ilan yok.',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: Colors.grey),
+                        ),
+                        if (_suzgecVar)
+                          TextButton(
+                            onPressed: _filtreleriTemizle,
+                            child: const Text('Filtreleri temizle'),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              )
+            else
+              // ⚠️ `separated` DEGIL: kartlar arasi ayrim `kKartAralik`
+              //    boslugudur (kategori ekrani turu 93'te `Divider`i
+              //    kaldirdi; iki liste ayni dili konusmali).
+              SliverList.builder(
+                itemCount: l.length,
+                itemBuilder: (_, i) => _satir(l[i]),
+              ),
+            // ⚠️ FAB'in altinda kalan son kart icin pay (turu 90b dersi).
+            const SliverToBoxAdapter(child: SizedBox(height: 90)),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _cip(String anahtar, String ad, {bool tur = false}) {
-    final secili = tur ? _tur == anahtar : _kategori == anahtar;
+  /// Kategori ekranindaki arama kutusunun ikizi: yuvarlak, solda buyutec,
+  /// doluyken sagda TEMIZLE (X).
+  ///
+  /// ⚠️⚠️ `suffixIcon`e KALAN GENISLIGIN TAMAMI verilir (turu 96o tuzagi):
+  ///	genislik ACIKCA verilmezse X inputun ORTASINA oturur ve metne yer
+  ///	kalmadigi icin YAZI GORUNMEZ.
+  Widget _aramaKutusu() => TextField(
+    controller: _arama,
+    onChanged: _aramaDegisti,
+    textInputAction: TextInputAction.search,
+    onSubmitted: (_) => _yukle(),
+    decoration: InputDecoration(
+      hintText: 'İlan ara',
+      prefixIcon: const Icon(LucideIcons.search, size: 19),
+      isDense: true,
+      suffixIcon: _aramaDolu
+          ? SizedBox(
+              width: 44,
+              child: IconButton(
+                tooltip: 'Temizle',
+                icon: const Icon(LucideIcons.x, size: 18),
+                onPressed: _aramaTemizle,
+              ),
+            )
+          : null,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(kYaricap(kInputBoy)),
+      ),
+    ),
+  );
+
+  void _aramaDegisti(String metin) {
+    _gecikme?.cancel();
+    _gecikme = Timer(const Duration(milliseconds: 320), _yukle);
+    final dolu = metin.trim().isNotEmpty;
+    if (dolu != _aramaDolu) setState(() => _aramaDolu = dolu);
+  }
+
+  void _aramaTemizle() {
+    _gecikme?.cancel();
+    _arama.clear();
+    setState(() => _aramaDolu = false);
+    _yukle();
+  }
+
+  /// Tur izgarasi — kategori ekranindaki kesif kartlarinin ilan karsiligi.
+  ///
+  /// ⚠️ Kutu **`kYuzeyGri` + `kYaricap`** (kategori ekraniyla BIREBIR); ikon
+  ///    ve gradyan YOK (turu 96s kullanici karari).
+  /// ⚠️ Secili tur cerceveyle isaretlenir: yalnizca renk tonu degistirmek
+  ///    dusuk gorme kosullarinda ayirt edilemiyordu.
+  Widget _turIzgarasi(List<IlanTuru> turler) {
+    final scheme = Theme.of(context).colorScheme;
+    final etiket = MediaQuery.textScalerOf(context).scale(14) * 1.15 * 2;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 5),
-      child: ChoiceChip(
-        label: Text(ad, style: const TextStyle(fontSize: 12)),
-        selected: secili,
-        onSelected: (_) {
-          setState(() {
-            if (tur) {
-              _tur = anahtar;
-              // ⚠️ Tur degisince kategori SIFIRLANIR: eski turun kategorisi
-              //    yeni turde ANLAMSIZ ve sonuc her zaman BOS gelirdi.
-              _kategori = '';
-            } else {
-              _kategori = anahtar;
-            }
-          });
-          _yukle();
+      padding: const EdgeInsets.symmetric(horizontal: kYanBosluk),
+      child: GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        padding: EdgeInsets.zero,
+        itemCount: turler.length,
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 4,
+          mainAxisSpacing: kIzgaraAralik,
+          crossAxisSpacing: kIzgaraAralik,
+          mainAxisExtent: kKesifKutu + 5 + etiket,
+        ),
+        itemBuilder: (_, i) {
+          final t = turler[i];
+          final secili = _tur == t.anahtar;
+          return RepaintBoundary(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              // ⚠️ Ayni ture tekrar dokunmak secimi KALDIRIR ("Tümü"ye doner):
+              //    aksi halde kullanici tum ilanlara donmek icin ayri bir
+              //    dugme aramak zorunda kalirdi.
+              onTap: () => _turSec(secili ? '' : t.anahtar),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SizedBox(
+                    height: kKesifKutu,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: kYuzeyGri(context),
+                        borderRadius: BorderRadius.circular(
+                          kYaricap(kKesifKutu),
+                        ),
+                        border: Border.all(
+                          color: secili ? scheme.primary : Colors.transparent,
+                          width: 2,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    t.ad,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 14,
+                      height: 1.15,
+                      fontWeight: secili ? FontWeight.w800 : FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
         },
       ),
     );
   }
 
-  Widget _satir(Ilan i) => ListTile(
-    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-    leading: SizedBox(
-      width: 74,
-      height: 74,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(10),
-        child: i.mediaIds.isEmpty
-            ? Container(
-                color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                child: const Icon(LucideIcons.image, color: Colors.grey),
-              )
-            // ⚠️ TEK KAYNAK: ilk FOTOGRAFI secer; yalniz video varsa video yer
-            //    tutucusu cizer (video id'sini MedyaGorsel'e vermek KIRIK
-            //    GORSEL demekti — bkz. KapakGorseli serhi).
-            : KapakGorseli(
-                mediaIds: i.mediaIds,
-                mediaKinds: i.mediaKinds,
-              ),
-      ),
-    ),
-    title: Text(i.baslik, maxLines: 2, overflow: TextOverflow.ellipsis),
-    subtitle: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SizedBox(height: 3),
-        Text(
-          i.fiyatMetni,
-          style: TextStyle(
-            fontWeight: FontWeight.w700,
-            color: Theme.of(context).colorScheme.primary,
-          ),
-        ),
-        Text(
-          [
-            [i.ilce, i.il].where((s) => s.isNotEmpty).join(', '),
-            gonderiZamani(i.createdAt),
-          ].where((s) => s.isNotEmpty).join(' · '),
-          style: const TextStyle(fontSize: 11, color: Colors.grey),
-        ),
-        // ⚠️ SATILDI/KALDIRILDI rozeti YALNIZ "Ilanlarim" listesinde gorunur
-        //    (baska yerde zaten yayindakiler listeleniyor).
-        if (!i.yayindaMi)
-          Padding(
-            padding: const EdgeInsets.only(top: 3),
-            child: Text(
-              i.durum == 'satildi' ? 'Satıldı' : 'Kaldırıldı',
-              style: const TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: Colors.orange,
+  /// 60x60 alt kategori seridi (kategori ekranindaki "Mutfaklar" seridi).
+  ///
+  /// ⚠️ Yukseklik YAZI OLCEGINDEN turetilir (turu 93b): sabit yukseklik
+  ///    olcek 1.15'te tasiyordu.
+  Widget _altKategoriSeridi(IlanTuru t) {
+    final scheme = Theme.of(context).colorScheme;
+    final etiket = MediaQuery.textScalerOf(context).scale(11) * 1.15 * 2;
+    return SizedBox(
+      height: kAltKutu + 5 + etiket + kAltIcBosluk,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: kYanBosluk),
+        itemCount: t.kategoriler.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 10),
+        itemBuilder: (_, i) {
+          final k = t.kategoriler[i];
+          final secili = _kategori == k.anahtar;
+          return GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () {
+              setState(() => _kategori = secili ? '' : k.anahtar);
+              _yukle();
+            },
+            child: SizedBox(
+              width: kAltKutu,
+              child: Column(
+                // ⚠️⚠️ `stretch` ZORUNLU: `Column` varsayilanda cocuklari
+                //	YATAYDA ORTALAR ve gevsek genislik kisiti verir.
+                //	Cocugu OLMAYAN bir `DecoratedBox` gevsek kisitta
+                //	**SIFIR GENISLIK** olcer — kutular ekranda HIC
+                //	cizilmiyordu (emulatorde gorundu: yalniz etiketler
+                //	vardi, ustlerinde bos alan).
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SizedBox(
+                    height: kAltKutu,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: kYuzeyGri(context),
+                        borderRadius: BorderRadius.circular(kYaricap(kAltKutu)),
+                        border: Border.all(
+                          color: secili ? scheme.primary : Colors.transparent,
+                          width: 2,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    k.ad,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 11,
+                      height: 1.15,
+                      fontWeight: secili ? FontWeight.w800 : FontWeight.w500,
+                    ),
+                  ),
+                ],
               ),
             ),
-          ),
+          );
+        },
+      ),
+    );
+  }
+
+  /// Hizli suzgec cipleri.
+  Widget _filtreSatiri() => SizedBox(
+    height: 40,
+    child: ListView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: kYanBosluk - 3),
+      children: [
+        _suzgecCipi(
+          ad: 'Favorilerim',
+          ikon: LucideIcons.heart,
+          secili: _favori,
+          onTap: () {
+            setState(() {
+              _favori = !_favori;
+              if (_favori) _benim = false;
+            });
+            _yukle();
+          },
+        ),
+        _suzgecCipi(
+          ad: 'İlanlarım',
+          ikon: LucideIcons.userRound,
+          secili: _benim,
+          onTap: () {
+            setState(() {
+              _benim = !_benim;
+              if (_benim) _favori = false;
+            });
+            _yukle();
+          },
+        ),
       ],
     ),
-    onTap: () async {
-      await Navigator.of(
-        context,
-      ).push(MaterialPageRoute(builder: (_) => IlanDetayEkrani(ilan: i)));
-      if (mounted) setState(() {});
-    },
   );
+
+  Widget _suzgecCipi({
+    required String ad,
+    required IconData ikon,
+    required bool secili,
+    required VoidCallback onTap,
+  }) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 3, vertical: kCipPay),
+    child: FilterChip(
+      label: Text(ad, style: const TextStyle(fontSize: 13)),
+      avatar: Icon(ikon, size: 15),
+      selected: secili,
+      onSelected: (_) => onTap(),
+    ),
+  );
+
+  Widget _listeBasligi(int adet) => Padding(
+    padding: const EdgeInsets.only(left: kYanBosluk - kBaslikOptik),
+    child: Align(
+      alignment: Alignment.centerLeft,
+      child: Text(
+        'İlanlar ($adet)',
+        style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+      ),
+    ),
+  );
+
+  /// Suzgec secili mi (bos liste metnini belirler).
+  bool get _suzgecVar =>
+      _tur.isNotEmpty || _kategori.isNotEmpty || _arama.text.trim().isNotEmpty;
+
+  void _filtreleriTemizle() {
+    _gecikme?.cancel();
+    _arama.clear();
+    setState(() {
+      _tur = '';
+      _kategori = '';
+      _aramaDolu = false;
+    });
+    _yukle();
+  }
+
+  /// Tur secimi TEK KAPIDAN.
+  ///
+  /// ⚠️ Tur degisince kategori SIFIRLANIR: eski turun kategorisi yeni turde
+  ///    ANLAMSIZ ve sonuc her zaman BOS gelirdi (turu 92 dersi).
+  void _turSec(String anahtar) {
+    setState(() {
+      _tur = anahtar;
+      _kategori = '';
+    });
+    _yukle();
+  }
+
+  /// ⚠️⚠️⚠️ TURU 106 — ILAN KARTI **"YEMEK" KARTININ DILINDE** (kullanici
+  ///	emri: *"hepsi yemek mantiginda olacak"*).
+  ///
+  /// Eski hal 74x74 kucuk gorselli bir `ListTile` + `Divider` idi; kategori
+  /// ekraninin karti ise 16:9 kapak + kalin baslik + vurgulu deger + meta
+  /// satiri. Ayni uygulamada iki ayri liste dili konusuluyordu.
+  ///
+  /// ⚠️⚠️ **KAPAKSIZ ILANDA 16:9 KUTU CIZILMEZ.** Is ilanlarinin neredeyse
+  ///	hicbirinde fotograf yoktur; bos bir kapak ekranin yarisini yer ve
+  ///	"gorsel yuklenemedi" gibi okunur. Fotografsiz ilan KOMPAKT satira
+  ///	duser — icerigin olmadigi yerde kutu gostermiyoruz.
+  /// ⚠️ Olculer kategori kartindan IMPORT edilir (`kKartAralik`,
+  ///    `kKartIcBosluk`, `kYaricapBuyuk`, `kVurgu`); kopyalanan sayi YOK.
+  /// ⚠️ `Divider` KALDIRILDI: kartlar arasi ayrim `kKartAralik` boslugudur
+  ///    (kategori ekrani turu 93'te ayni karari verdi).
+  Widget _satir(Ilan i) {
+    final scheme = Theme.of(context).colorScheme;
+    final kapak = KapakGorseli.ilkGorsel(i.mediaIds, i.mediaKinds);
+    final genislik = MediaQuery.sizeOf(context).width - kYanBosluk * 2;
+    // ⚠️ Tipe ozel meta SUNUCU AGACINDAN (etiket + birim + SIRA); ham anahtar
+    //    ('calisma_sekli') EKRANA CIZILMEZ.
+    final ozet = ilanOzellikleri(
+      i,
+      ref.watch(ilanAgaciProvider).valueOrNull,
+      enFazla: 2,
+    );
+    return Padding(
+      padding: const EdgeInsets.only(
+        left: kYanBosluk,
+        right: kYanBosluk,
+        bottom: kKartAralik,
+      ),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => _detayAc(i),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (kapak != null) ...[
+              ClipRRect(
+                borderRadius: BorderRadius.circular(kYaricapBuyuk),
+                child: AspectRatio(
+                  aspectRatio: 16 / 9,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      KapakGorseli(
+                        mediaIds: i.mediaIds,
+                        mediaKinds: i.mediaKinds,
+                        // ⚠️ Decode genisligi ACIKCA verilir; yoksa 320 px'lik
+                        //    kucuk surum tam genislikte BULANIK cizilir.
+                        width: genislik,
+                      ),
+                      // ⚠️ Durum rozeti YALNIZ yayinda OLMAYAN ilanda: her
+                      //    kartta "yayinda" yazmak gurultudur.
+                      if (!i.yayindaMi)
+                        Positioned(
+                          left: kKartIcBosluk,
+                          bottom: kKartIcBosluk,
+                          child: _durumRozeti(i.durum),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 9),
+            ],
+            Text(
+              i.baslik,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              i.fiyatEtiketi,
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+                color: kVurgu(context),
+              ),
+            ),
+            const SizedBox(height: 4),
+            // ---- META
+            // ⚠️ Yemekteki puan · teslimat suresi · min. tutar KARSILIKSIZ:
+            //    ilanda boyle alanlar YOK ve uydurulmayacak. Yerlerine ilanin
+            //    GERCEKTEN sahip oldugu alanlar konuyor.
+            DefaultTextStyle(
+              style: TextStyle(
+                fontSize: 13,
+                color: scheme.onSurface.withValues(alpha: 0.55),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    LucideIcons.mapPin,
+                    size: 13,
+                    color: scheme.onSurface.withValues(alpha: 0.55),
+                  ),
+                  const SizedBox(width: 3),
+                  Flexible(
+                    child: Text(
+                      [
+                        i.ilce,
+                        i.il,
+                      ].where((x) => x.isNotEmpty).join(', '),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  for (final o in ozet) ...[
+                    const Text('  ·  '),
+                    Flexible(
+                      child: Text(
+                        o.deger,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _durumRozeti(String durum) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+    decoration: BoxDecoration(
+      color: const Color(0xCC000000),
+      borderRadius: BorderRadius.circular(8),
+    ),
+    child: Text(
+      switch (durum) {
+        'satildi' => 'Satıldı',
+        'kaldirildi' => 'Kaldırıldı',
+        _ => durum,
+      },
+      style: const TextStyle(
+        color: Colors.white,
+        fontSize: 12,
+        fontWeight: FontWeight.w700,
+      ),
+    ),
+  );
+
+  /// ⚠️ Detaydan donunce liste YENIDEN CIZILIR: kullanici orada favoriye
+  ///    ekleyip cikmis olabilir.
+  Future<void> _detayAc(Ilan i) async {
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => IlanDetayEkrani(ilan: i)));
+    if (mounted) setState(() {});
+  }
 }
 
 /// Ilan detayi + SATICIYA MESAJ.
@@ -397,7 +843,29 @@ class _IlanDetayEkraniState extends ConsumerState<IlanDetayEkrani> {
   ///    model listeyle PAYLASILDIGI icin detayda yapilan favori/durum
   ///    degisikligi geri donuldugunde LISTEDE GORUNMEZDI (turu 76 notu).
   /// ⚠️ Hata YUTULUR: sayac tazelemesi ekrani BOZMAMALI.
+  /// ⚠️⚠️⚠️ TURU 106 — **ORNEK ILAN KAPISI.**
+  ///
+  ///	`demo_ilan.dart` ornekleri `demo-` onekli kimlik tasir ve
+  ///	sunucuda KARSILIGI YOKTUR. Kapi olmasaydi: favori 404 verip kalp
+  ///	geri seker, "Satıcıya mesaj" HAM SUNUCU HATASINI ekrana basar,
+  ///	profil BOS acilir ve her ekran acilisinda bosa bir 404 istegi
+  ///	gider. Turu 98c'de akista birebir bu yasandi.
+  bool get _demo => demoKimlik(i.id);
+
+  /// ⚠️ Metin `gonderi_karti.dart` ile **BIREBIR AYNI**: ucuncu bir
+  ///    varyant yazmak kullaniciya iki farkli dil konusurdu.
+  void _demoUyar() => ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(
+      duration: Duration(seconds: 2),
+      content: Text('Bu bir tasarım demosu — gerçek içerik değil'),
+    ),
+  );
+
   Future<void> _sessizTazele() async {
+    // ⚠️ ILK SATIR: hata `catch (_)` ile YUTULDUGU icin kapi
+    //    unutulsaydi FARK EDILMEZDI — yalnizca her acilista bosa bir
+    //    404 giderdi.
+    if (_demo) return;
     try {
       final yeni = await ref.read(ilanServisiProvider).detay(i.id);
       if (!mounted) return;
@@ -437,6 +905,7 @@ class _IlanDetayEkraniState extends ConsumerState<IlanDetayEkrani> {
   }
 
   Future<void> _favoriCevir() async {
+    if (_demo) return _demoUyar();
     final eski = i.favorim;
     setState(() => i.favorim = !eski);
     try {
@@ -482,6 +951,7 @@ class _IlanDetayEkraniState extends ConsumerState<IlanDetayEkrani> {
   ///    yazmak cift-dokunma kilidinin ve mesaj mantiginin IKINCI KOPYASINI
   ///    dogururdu.
   Future<void> _teklifVer() async {
+    if (_demo) return _demoUyar();
     final ok = await basvurSheet(context, ref, i.id, i.baslik,
         teklifModu: true);
     if (ok && mounted) {
@@ -492,6 +962,7 @@ class _IlanDetayEkraniState extends ConsumerState<IlanDetayEkrani> {
   }
 
   Future<void> _basvur() async {
+    if (_demo) return _demoUyar();
     final ok = await basvurSheet(context, ref, i.id, i.baslik);
     if (ok && mounted) {
       setState(() => _basvurdum = true);
@@ -502,6 +973,7 @@ class _IlanDetayEkraniState extends ConsumerState<IlanDetayEkrani> {
   }
 
   Future<void> _saticiyaMesaj() async {
+    if (_demo) return _demoUyar();
     if (_mesajMesgul) return;
     _mesajMesgul = true;
     try {
@@ -527,6 +999,7 @@ class _IlanDetayEkraniState extends ConsumerState<IlanDetayEkrani> {
   /// ⚠️ TURU 78 — DUZENLEME. Ayri bir ekran YOK: "İlan ver" ekrani
   ///    `ilan:` parametresiyle DUZENLEME modunda acilir (tek kaynak).
   Future<void> _duzenle() async {
+    if (_demo) return _demoUyar();
     final degisti = await Navigator.of(
       context,
     ).push<bool>(MaterialPageRoute(builder: (_) => IlanVerEkrani(ilan: i)));
@@ -542,6 +1015,7 @@ class _IlanDetayEkraniState extends ConsumerState<IlanDetayEkrani> {
   }
 
   Future<void> _durumDegistir(String durum) async {
+    if (_demo) return _demoUyar();
     try {
       await ref.read(ilanServisiProvider).guncelle(i.id, {'durum': durum});
       if (!mounted) return;
@@ -707,7 +1181,7 @@ class _IlanDetayEkraniState extends ConsumerState<IlanDetayEkrani> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  i.fiyatMetni,
+                  i.fiyatEtiketi,
                   style: TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.w800,
@@ -734,9 +1208,15 @@ class _IlanDetayEkraniState extends ConsumerState<IlanDetayEkrani> {
                   style: const TextStyle(fontSize: 12, color: Colors.grey),
                 ),
                 // ---- TIPE OZEL OZELLIKLER
-                if (i.ozellikler.isNotEmpty) ...[
+                // ⚠️ TURU 106 — etiket/birim/SIRA sunucu agacindan
+                //    (`ilanOzellikleri`); ham anahtar CIZILMEZ.
+                if (ilanOzellikleri(i, ref.watch(ilanAgaciProvider).valueOrNull)
+                    .isNotEmpty) ...[
                   const Divider(height: 26),
-                  for (final e in i.ozellikler.entries)
+                  for (final e in ilanOzellikleri(
+                    i,
+                    ref.watch(ilanAgaciProvider).valueOrNull,
+                  ))
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 3),
                       child: Row(
@@ -744,13 +1224,13 @@ class _IlanDetayEkraniState extends ConsumerState<IlanDetayEkrani> {
                           SizedBox(
                             width: 130,
                             child: Text(
-                              e.key,
+                              e.ad,
                               style: const TextStyle(color: Colors.grey),
                             ),
                           ),
                           Expanded(
                             child: Text(
-                              '${e.value}',
+                              e.deger,
                               style: const TextStyle(
                                 fontWeight: FontWeight.w600,
                               ),

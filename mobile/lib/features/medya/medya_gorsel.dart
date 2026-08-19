@@ -263,6 +263,7 @@ class KapakGorseli extends StatelessWidget {
     super.key,
     required this.mediaIds,
     required this.mediaKinds,
+    this.width,
     this.fit = BoxFit.cover,
     this.kucuk = true,
   });
@@ -274,6 +275,12 @@ class KapakGorseli extends StatelessWidget {
   final List<String> mediaKinds;
   final BoxFit fit;
   final bool kucuk;
+
+  /// ⚠️⚠️ TURU 106 — **DECODE GENISLIGI.** Verilmezse `MedyaGorsel`
+  ///	`kucuk ? 320 : 1080` varsayar; 16:9 bir kart kapaginda 320 px
+  ///	BULANIK, 1080 px ise gereksiz RAM demektir. Yemek karti bunu
+  ///	acikca veriyor (serhi: yoksa 2048px decode, ~9 MB gecici RAM/kart).
+  final double? width;
 
   /// ⚠️ ILK **FOTOGRAF**I secer, ilk MEDYAYI degil. Tur bilinmiyorsa
   ///    (liste bos) ilk medya fotograf varsayilir.
@@ -289,7 +296,7 @@ class KapakGorseli extends StatelessWidget {
   Widget build(BuildContext context) {
     final id = ilkGorsel(mediaIds, mediaKinds);
     if (id != null) {
-      return MedyaGorsel(mediaId: id, kucuk: kucuk, fit: fit);
+      return MedyaGorsel(mediaId: id, kucuk: kucuk, fit: fit, width: width);
     }
     // Hic fotograf yok. Video VARSA durust bir video yer tutucusu; hicbir
     // medya yoksa notr kutu.
