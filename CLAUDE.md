@@ -17,6 +17,30 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (21 Agu 00:00): TURU 120 YAYINLANDI** — android
+  **32415748368** + ios **32415760198** (**1fdfb7c**), R2 apk=121469022
+  (md5 e2d49533) ipa=29563764 (md5 c98ad8fd) index=16388 (md5 b9d3976f)
+  **surum.json=48 (md5 001261e3)**, purge OK, **CDN DORDU DE BIREBIR**,
+  debug imza YOK (iki logda da 0), `HARITA=true` iki logda da, iOS
+  `MinimumOSVersion` + `MapsApiKey` ENJEKTE, iki artifactte de turu 120
+  dizeleri VAR (Biraz da senden · Kaç yaşındasın? · Tuttuğun takım ·
+  Kocaelispor · Gebzespor · Tanıtımı yeniden göster · Akse Digital).
+  ✅ **BACKEND DEPLOY** (36e7c77) + migration **049** canlida + health ok +
+  **CANLIDA 390/390 UCTAN UCA** (turu 120 kontrollerinin 8i de KOSTU ve
+  gercek degerlerle gecti: dogum_yili=1998 · ilgi tekrarsiz · takim ·
+  profil ucu · kismi PATCH koruyor · bos dizi temizler · sacma yil duser ·
+  tavan 12). `flutter analyze` **0/0** · `flutter test` **52/52** ·
+  go build+vet+test temiz.
+  ⚠️ **SEMA ADDITIVE (049 yalniz sutun ekliyor) -> DB TRUNCATE EDILMEDI**
+     (hesaplar ve profiller duruyor).
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260821-0000
+  ⚠️⚠️ **IPA'DA HAM ZIP ARAMASI YANLIS YONTEM** (bu turda ogrenildi):
+     kontrol dizesi *"Yakınımda"* bile YOK donuyordu. IPA icindeki
+     `App.framework/App` **DEFLATE** ile sikistirilmis; APK'da `libapp.so`
+     **Stored** oldugu icin ham arama ORADA calisiyor. Dogrulama IPA
+     **ACILARAK** yapilir. (Turu 90b'nin *"once BILINEN bir dizeyle
+     yontemi sina"* dersi tam da bunu yakaladi.)
+
 - ⚠️⚠️⚠️ **TURU 120 — KAYIT AVATARI SESSIZCE KAYBOLUYORDU (bu sinifin
   **ONUNCU** tekrari; ONCE OLCUM koyularak bulundu).**
   Emulatorde kayit tamamlandi, hesap acildi, profil goruldu — AVATAR YOKTU.
