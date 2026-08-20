@@ -566,6 +566,14 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
                   ),
                 ),
               ),
+            // ⚠️⚠️ TURU 120 — KAYITTA SORULAN ALANLAR BURADA GORUNUR
+            //	(yas · takim · ilgi alanlari).
+            //
+            // ⚠️ Bu satir olmadan kayit akisindaki "Biraz da senden" adimi
+            //    **OLU BIR FORM** olurdu: veri toplanir, sunucuya yazilir ve
+            //    HICBIR YERDE gorunmezdi. Bu projede "sutun/uc var ama onu
+            //    kullanan yol yok" sinifi DOKUZ kez sahaya cikti.
+            _profilEtiketleri(p),
             // TURU 77 — ISLETME BILGI SERIDI. Profil bir ISLETME hesabiysa
             // kategori/adres/telefon/calisma saatleri ve Urunler/Menu girisi
             // burada cizilir. Kisisel hesapta HIC cizilmez.
@@ -660,6 +668,83 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
   }
 
   /// Isletme profiliyse bilgi seridi; degilse HIC yer kaplamaz.
+
+  /// ⚠️⚠️⚠️ TURU 120 — PROFIL ETIKETLERI: **yas · takim · ilgi alanlari**.
+  ///
+  /// Kayit akisinin "Biraz da senden" adiminda toplanan veriyi GOSTEREN tek
+  /// yer burasi. Olmasaydi form OLU olurdu (bkz. cagri yerindeki serh).
+  ///
+  /// ⚠️ **HICBIRI ZORUNLU DEGIL**: ucu de bossa satir HIC cizilmez —
+  ///    "Yaş: belirtilmemiş" gibi bos alanlar profili kirletir.
+  /// ⚠️ Yas etiketi yalnizca sayi ("28"): gun/ay sorulmadigi icin
+  ///    "28 yaşında" demek ±1 yillik hatayi KESIN BILGI gibi sunardi
+  ///    (bkz. `Profil.yas` serhi).
+  /// ⚠️ Renkler TEMADAN: bu ekran acik/koyu temanin ikisinde de kullaniliyor;
+  ///    sabit renk koyu temada okunmaz olurdu (turu 81b kontrast dersi).
+  /// ⚠️ `Wrap` — `Row` DEGIL: 12 ilgi alani tek satira sigmaz ve `Row`
+  ///    RenderFlex tasma seridi cizerdi.
+  Widget _profilEtiketleri(Profil p) {
+    final yas = p.yas;
+    final takim = p.takim.trim();
+    if (yas == null && takim.isEmpty && p.ilgiAlanlari.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final scheme = Theme.of(context).colorScheme;
+    Widget etiket(String metin, IconData ikon, {bool vurgulu = false}) =>
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+          decoration: BoxDecoration(
+            color: vurgulu
+                ? scheme.primary.withValues(alpha: 0.10)
+                : scheme.onSurface.withValues(alpha: 0.05),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: vurgulu
+                  ? scheme.primary.withValues(alpha: 0.28)
+                  : scheme.onSurface.withValues(alpha: 0.10),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                ikon,
+                size: 13,
+                color: vurgulu
+                    ? scheme.primary
+                    : scheme.onSurface.withValues(alpha: 0.65),
+              ),
+              const SizedBox(width: 5),
+              Text(
+                metin,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: vurgulu
+                      ? scheme.primary
+                      : scheme.onSurface.withValues(alpha: 0.85),
+                ),
+              ),
+            ],
+          ),
+        );
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+      child: Wrap(
+        alignment: WrapAlignment.center,
+        spacing: 7,
+        runSpacing: 7,
+        children: [
+          if (yas != null) etiket('$yas', LucideIcons.cake, vurgulu: true),
+          if (takim.isNotEmpty)
+            etiket(takim, LucideIcons.volleyball, vurgulu: true),
+          for (final i in p.ilgiAlanlari) etiket(i, LucideIcons.tag),
+        ],
+      ),
+    );
+  }
+
   Widget _isletmeSeridi(Profil p) =>
       IsletmeSeridi(userId: p.id, ad: p.ad, benimMi: _benimMi);
 

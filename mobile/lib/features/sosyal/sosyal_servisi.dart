@@ -611,6 +611,9 @@ class Profil {
     required this.engelledim,
     this.kapakMediaId,
     this.onayli = false,
+    this.dogumYili,
+    this.ilgiAlanlari = const <String>[],
+    this.takim = '',
   });
 
   final String id;
@@ -630,6 +633,29 @@ class Profil {
   final bool onayli;
   final bool gizli;
   final String baglanti;
+
+  /// ⚠️⚠️ TURU 120 — KAYIT AKISINDA SORULAN PROFIL ALANLARI.
+  ///
+  /// ⚠️ Sunucu **DOGUM YILI** dondurur, yas DEGIL: yas her yil degisir ve
+  ///    onbelleklenmis bir profil, yil doneminde YANLIS yas gosterirdi.
+  ///    Yas istemcide [yas] getter'inda TURETILIR.
+  /// ⚠️ `null` = BELIRTMEDI; o durumda satir HIC cizilmez. `0` yazmak
+  ///    olmayan veriyi varmis gibi gostermek olurdu (proje kurali).
+  final int? dogumYili;
+  final List<String> ilgiAlanlari;
+  final String takim;
+
+  /// ⚠️ DURUST SINIR: gun/ay sorulmadigi icin sonuc **±1 yil** hatalidir
+  ///    (dogum gunu gecti mi bilinmiyor). Bu yuzden arayuzde "28 yaşında"
+  ///    degil, yalnizca "28" gosterilir.
+  /// ⚠️ Sacma degerler (bozuk kayit) ELENIR: 5'ten kucuk / 120'den buyuk bir
+  ///    yas cizmek, kullaniciya gorunur bir hata olurdu.
+  int? get yas {
+    final y = dogumYili;
+    if (y == null) return null;
+    final d = DateTime.now().year - y;
+    return (d < 5 || d > 120) ? null : d;
+  }
   int takipciSayisi;
   final int takipSayisi;
   final int gonderiSayisi;
@@ -654,6 +680,15 @@ class Profil {
       onayli: m['onayli'] == true,
       gizli: m['gizli_hesap'] == true,
       baglanti: (m['baglanti'] ?? '').toString(),
+      // ⚠️ TURU 120 — anahtarlar sunucu yanitiyla BIREBIR: `dogum_yili` ·
+      //    `ilgi_alanlari` · `takim` (bkz. `internal/users/takip.go`).
+      dogumYili: (m['dogum_yili'] as num?)?.toInt(),
+      // ⚠️ `List<String>`e ACIKCA cevrilir: ham `List<dynamic>` atanirsa ilk
+      //    okumada TypeError firlar ve profil BOS acilir.
+      ilgiAlanlari: ((m['ilgi_alanlari'] as List?) ?? const [])
+          .map((e) => e.toString())
+          .toList(),
+      takim: (m['takim'] ?? '').toString(),
       takipciSayisi: (m['takipci_sayisi'] as num?)?.toInt() ?? 0,
       takipSayisi: (m['takip_sayisi'] as num?)?.toInt() ?? 0,
       gonderiSayisi: (m['gonderi_sayisi'] as num?)?.toInt() ?? 0,

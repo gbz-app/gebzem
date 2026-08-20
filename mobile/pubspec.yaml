@@ -255,13 +255,33 @@ flutter:
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
 
-# UYGULAMA IKONU (dart run flutter_launcher_icons)
-# Kaynak: assets/icon/kaynak.jpg (kullanici tasarimi, mor kivrimli logo)
-# tool/ikon_uret.dart once kirpilmis icon.png + adaptive-fg.png uretir.
+# ⚠️⚠️⚠️ TURU 120 — UYGULAMA IKONU **YENI LOGODAN** URETILIYOR (kullanici
+#	emri: *"uygulama logosu telefondan, onu da yeni uygulama logosu ile
+#	degistir"*).
+#
+# Kaynak artik `assets/icon/logo.png` (uygulama ici logoyla AYNI DOSYA) —
+# eski `kaynak.jpg` KULLANILMIYOR; iki farkli marka gorseli tasiyorduk.
+# Uretim:  dart run tool/ikon_uret.dart   ->   dart run flutter_launcher_icons
+# ⚠️ `ikon_uret.dart` FAIL-CLOSED: kaynak daire degilse / ok ayristirilamazsa
+#    HICBIR DOSYA YAZMAZ (bkz. o dosyanin serhi).
 flutter_launcher_icons:
   android: true
   ios: true
   image_path: "assets/icon/icon.png"
   remove_alpha_ios: true
-  adaptive_icon_background: "#000000"
+  # ⚠️ `icon.png` ZATEN %100 opak (dairenin ic teget karesi), yani bu renk
+  #    pratikte kullanilmaz. Yine de ACIKCA yazilir: verilmezse
+  #    `remove_alpha_ios` saydam pikselleri **BEYAZLA** doldurur ve ileride
+  #    kaynak degisirse ikonun kenarlarinda beyaz halka cikardi.
+  background_color_ios: "#6C2BD9"
+  # ⚠️⚠️ ARKA KATMAN ARTIK **GORSEL** (duz renk degil): logonun kendi mor
+  #	gradyani. Duz `#000000` iken launcher maskesi ne olursa olsun
+  #	gradyanli daire SIYAH bir kare icinde "cikartma" gibi duruyordu.
+  adaptive_icon_background: "assets/icon/icon-adaptive-bg.png"
   adaptive_icon_foreground: "assets/icon/icon-adaptive-fg.png"
+  # ⚠️⚠️⚠️ **0 ZORUNLU.** Varsayilan 16, `mipmap-anydpi-v26/ic_launcher.xml`
+  #	icine `<inset android:inset="16%">` yaziyordu ve bu, bizim ZATEN
+  #	hesapladigimiz guvenli-bolge oraninin (%40) USTUNE ikinci bir
+  #	kucultme uyguluyordu: ok kanvasin %40 x 0.68 = **%27**'sine dusuyor,
+  #	ana ekranda minicik gorunuyordu. (18 Tem'den beri sessizce boyleydi.)
+  adaptive_icon_foreground_inset: 0

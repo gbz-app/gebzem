@@ -11,6 +11,8 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/jackc/pgx/v5"
 	"golang.org/x/crypto/bcrypt"
+
+	"github.com/gbz-app/gebzem/backend/internal/profil"
 )
 
 // ⚠️⚠️⚠️ TURU 84 — ADIMLI KAYIT: **TELEFON -> OTP -> KISISEL BILGILER**.
@@ -226,6 +228,22 @@ type kayitTamamlaReq struct {
 	Name     string `json:"name"`
 	Username string `json:"username"`
 	Password string `json:"password"`
+
+	// ⚠️⚠️ TURU 120 — KAYIT AKISININ "SENI TANIYALIM" ADIMI (kullanici emri:
+	//	*"kayitta stepte KAC YASINDASIN 28 27 yukari asagi secenek, ILGI
+	//	ALANLARI, TUTTUGU TAKIM vb seyleri de sor"*).
+	//
+	// ⚠️ UCU DE **OPSIYONEL**: adim atlanabilir. Zorunlu yapmak kayit
+	//    hunisini kirar ve bu alanlar hicbir is kuralini beslemiyor.
+	// ⚠️ `DogumYili` **ISARETCI**: "gonderilmedi" (nil) ile "0 gonderildi"
+	//    ayirt edilebilsin. Duz `int` olsaydi alani hic gondermeyen eski bir
+	//    istemci 0 gonderiyor sayilir ve `TemizDogumYili` onu duserdi —
+	//    sonuc ayni olurdu ama niyet KAYBOLURDU.
+	// ⚠️ Dogrulama BURADA YAZILMAZ: `internal/profil` TEK KAYNAK
+	//    (`PATCH /users/me` de ayni kurallari kullanir).
+	DogumYili    *int     `json:"dogum_yili"`
+	IlgiAlanlari []string `json:"ilgi_alanlari"`
+	Takim        string   `json:"takim"`
 }
 
 // POST /auth/kayit/tamamla — hesabi OLUSTUR, oturum jetonu ver.
@@ -329,15 +347,25 @@ func (h *Handler) KayitTamamla(w http.ResponseWriter, r *http.Request) {
 	//    Boylece yeniden deneme CALISIR ama VERI EZILMEZ.
 	// ⚠️ YAPMA: `WHERE users.verified = false` kapisini kaldirma.
 	// ⚠️ YAPMA: 0 satir durumunu 500'e cevirme (flaky agda kayit tamamlanamaz).
+	// ⚠️⚠️ TURU 120 — profil alanlari `internal/profil` ile normalize edilir.
+	//	`TemizIlgi` **ASLA nil DONMEZ**: `users.ilgi_alanlari` NOT NULL ve
+	//	pgx `nil` dilimi SQL NULL'a cevirir -> `23502` -> HER KAYIT 500.
+	//	(Turu 75b'de `posts.media_ids` uzerinde birebir bu yasandi.)
+	ilgi := profil.TemizIlgi(req.IlgiAlanlari)
+	takim := profil.TemizTakim(req.Takim)
+	dogumYili := profil.TemizDogumYili(req.DogumYili)
+
 	var userID string
 	err = h.db.QueryRow(r.Context(), `
-		INSERT INTO users (phone, password_hash, name, username, verified)
-		VALUES ($1,$2,$3,$4,true)
+		INSERT INTO users (phone, password_hash, name, username, verified,
+		                   dogum_yili, ilgi_alanlari, takim)
+		VALUES ($1,$2,$3,$4,true,$5,$6,$7)
 		ON CONFLICT (phone) DO UPDATE
-		   SET password_hash=$2, name=$3, username=$4, verified=true
+		   SET password_hash=$2, name=$3, username=$4, verified=true,
+		       dogum_yili=$5, ilgi_alanlari=$6, takim=$7
 		 WHERE users.verified = false
 		RETURNING id`,
-		phone, string(hash), name, uname).Scan(&userID)
+		phone, string(hash), name, uname, dogumYili, ilgi, takim).Scan(&userID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		// Tamamlanmis hesap: yalniz oturum ver, HICBIR ALANI DEGISTIRME.
 		if e2 := h.db.QueryRow(r.Context(),

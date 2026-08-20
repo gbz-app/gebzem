@@ -188,10 +188,19 @@ class _Imza extends StatelessWidget {
   @override
   Widget build(BuildContext context) => const Text(
     'Akse Digital',
+    // ⚠️ Sistem yazi olcegi UYGULANMAZ: 23 dp x 2.0 = 46 dp olur, imza iki
+    //    satira sarar ve marka ekrani her cihazda FARKLI gorunurdu. Bu bir
+    //    okunabilirlik metni degil, LOGO ile ayni siniftan bir marka ogesi.
+    textScaler: TextScaler.noScaling,
     // ⚠️ "hafif gri ... hafif saydam" (kullanici): beyazin %55'i. Tam beyaz
     //    bir imza, marka logosuyla dikkat yarisina girerdi.
+    // ⚠️⚠️ TURU 120 — **13 -> 23** (kullanici emri: *"giristeki Akseyi
+    //	10 pixel daha buyut"*). Olcu SABIT dp'dir, `textScaler`a BAGLI
+    //	DEGIL: bu katman `MaterialApp` `builder`inda yasiyor ve sistem yazi
+    //	olcegi 2.0'da 46 dp'ye cikip iki satira sarardi. Marka imzasi her
+    //	cihazda AYNI durmali.
     style: TextStyle(
-      fontSize: 13,
+      fontSize: 23,
       fontWeight: FontWeight.w500,
       color: Color(0x8CFFFFFF),
     ),

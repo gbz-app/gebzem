@@ -98,6 +98,32 @@ class _OnboardingEkraniState extends ConsumerState<OnboardingEkrani> {
       gorsel: _Gorsel.mesajKartlari,
       izin: _OnboardIzin.bildirim,
     ),
+    // ⚠️⚠️⚠️ TURU 120 — **KONUM SAYFASI** (kullanici emri: *"konumla ilgili,
+    //	YAKINIMDA ile ilgili onboardinge ekle"*).
+    //
+    // ⚠️ NEDEN BURADA (4. SIRA): konum diyalogu sistem AYARLARINI ACMAZ,
+    //    yani sirasi serbest. Ama TAM EKRAN BILDIRIMDEN ONCE olmak ZORUNDA —
+    //    o sayfa Ayarlar'a sicrar ve Activity duraklar; sonrasina konulan
+    //    her izin diyalogu GOSTERILMEZDI (turu 56 dersi).
+    // ⚠️ `Permission.locationWhenInUse` — `konum_servisi.dart` ile AYNI izin.
+    //    `location` (her zaman) ISTENMEZ: uygulama arka planda konum
+    //    kullanmiyor ve "her zaman" istemek magaza incelemesinde gerekce
+    //    ister, ustelik kullanicilarin reddetme orani cok yuksektir.
+    _Sayfa(
+      baslik: 'Yakınındakileri',
+      vurgu: 'keşfet',
+      alt:
+          'Çevrendeki işletmeleri, mahallendeki paylaşımları ve en yakın '
+          'nöbetçi eczaneyi görebilmen için konum izni gerekiyor. '
+          'Konumun yalnızca uygulamayı kullanırken okunur.',
+      ikonlar: [
+        LucideIcons.mapPin,
+        LucideIcons.compass,
+        LucideIcons.store,
+      ],
+      gorsel: _Gorsel.konumHarita,
+      izin: _OnboardIzin.konum,
+    ),
     // ⚠️ TAM EKRAN BILDIRIM EN SON: sistem AYARLAR ekranini acar ve Activity
     //    duraklar. Ortada olsaydi sonraki izin diyalogu GOSTERILMEZDI
     //    (turu 56'da tam bu yuzden READ_PHONE_STATE 36 tur boyunca hic
@@ -161,6 +187,10 @@ class _OnboardingEkraniState extends ConsumerState<OnboardingEkrani> {
             await Permission.microphone.request();
           case _OnboardIzin.kamera:
             await Permission.camera.request();
+          case _OnboardIzin.konum:
+            // ⚠️ TURU 120 —  ile AYNI izin;
+            //    iki izin katmani tutmak kacinilmaz olarak DRIFT eder.
+            await Permission.locationWhenInUse.request();
           case _OnboardIzin.tamEkran:
             // ⚠️ `bildirimIste: false` — POST_NOTIFICATIONS bir onceki
             //    sayfada ZATEN istendi. Tekrar istemek turu 87'de belgelenen
@@ -186,7 +216,9 @@ class _OnboardingEkraniState extends ConsumerState<OnboardingEkrani> {
       await _bitir();
     } else {
       await _ctrl.nextPage(
-        duration: const Duration(milliseconds: 260),
+        // ⚠️ TURU 120 — 260 -> 200 ms (kullanici: *"biraz hizli gecis
+        //    yapsin"*). Altina inmek gecisi "atlama" gibi gosteriyor.
+        duration: const Duration(milliseconds: 200),
         curve: Curves.easeOutCubic,
       );
     }
@@ -350,7 +382,7 @@ class _Sayfa {
 ///    o izin SISTEM AYARLAR EKRANINI acar ve Activity duraklar. Ortada
 ///    istenirse `PageView` durumu bozulur ve ardindan gelen izin diyalogu
 ///    GOSTERILMEZ (turu 56 dersi: "ayar ekranina sicrama EN SON").
-enum _OnboardIzin { bildirim, mikrofon, kamera, tamEkran }
+enum _OnboardIzin { bildirim, mikrofon, kamera, konum, tamEkran }
 
 class _SayfaGorunumu extends StatelessWidget {
   const _SayfaGorunumu({required this.s});
@@ -463,6 +495,7 @@ class _SayfaGorunumu extends StatelessWidget {
     _Gorsel.isletmeKartlari => const _KartAkisi(tur: _AkisTuru.isletme),
     _Gorsel.mesajKartlari => const _KartAkisi(tur: _AkisTuru.mesaj),
     _Gorsel.aiTelefon => const _Telefon(tur: _TelefonTuru.ai),
+    _Gorsel.konumHarita => const _KonumHarita(),
     _Gorsel.aramaTelefon => const _Telefon(tur: _TelefonTuru.arama),
   };
 
@@ -472,7 +505,7 @@ class _SayfaGorunumu extends StatelessWidget {
 }
 
 /// Sayfanin ust %60'inda oynayan gorsel.
-enum _Gorsel { isletmeKartlari, aiTelefon, mesajKartlari, aramaTelefon }
+enum _Gorsel { isletmeKartlari, aiTelefon, mesajKartlari, konumHarita, aramaTelefon }
 
 enum _AkisTuru { isletme, mesaj }
 
@@ -507,11 +540,14 @@ class _KartAkisi extends StatefulWidget {
 
 class _KartAkisiState extends State<_KartAkisi>
     with SingleTickerProviderStateMixin {
-  // ⚠️ 14 sn: kartlar OKUNABILECEK kadar yavas aksin. Hizli akan bir serit
+  // ⚠️ Kartlar OKUNABILECEK kadar yavas aksin: cok hizli akan bir serit
   //    "yukleniyor" gibi degil "bozuk" gibi gorunuyor.
+  // ⚠️ TURU 120 — 14 -> **11 sn** (kullanici: *"biraz hizli gecis yapsin"*).
+  //    Alt sinir denendi: 8 sn'de alt satirdaki kartin ikinci satiri
+  //    okunamiyor.
   late final AnimationController _c = AnimationController(
     vsync: this,
-    duration: const Duration(seconds: 14),
+    duration: const Duration(seconds: 11),
   )..repeat();
 
   @override
@@ -543,7 +579,9 @@ class _KartAkisiState extends State<_KartAkisi>
   @override
   Widget build(BuildContext context) {
     final veri = widget.tur == _AkisTuru.isletme ? _isletmeler : _mesajlar;
-    const kartBoy = 78.0;
+    // ⚠️ TURU 120 — 78 -> 84: ikon karesi 48'e cikinca kartin dikey nefesi
+    //    (48 + 2x18) daraliyordu ve yazi kutuya YAPISIK duruyordu.
+    const kartBoy = 84.0;
     const ara = 12.0;
     final tekBoy = veri.length * (kartBoy + ara);
 
@@ -596,26 +634,40 @@ class _KartAkisiState extends State<_KartAkisi>
     );
   }
 
+  /// ⚠️⚠️ TURU 120 — KART **MODERNLESTIRILDI** (kullanici emri: *"kartlar
+  ///	olsun daha modern bir hale getir"*).
+  ///
+  /// Degisenler ve GEREKCELERI:
+  ///   · yaricap 18 -> **22**, golge 14/0x0F -> **20/0x14** ve daha asagi
+  ///     kayik: kart zeminden AYRILIYOR, "duz liste satiri" gibi durmuyor.
+  ///   · ikon karesi 46 -> **48**, yaricap 14 -> **16** (kare/yaricap orani
+  ///     kartinkiyle hizali; farkli oranlar goze "hizasiz" geliyordu).
+  ///   · chevron artik **DAIRE ICINDE**, soluk lavanta zeminde: tek basina
+  ///     duran gri bir ok, kartin sag kenarinda "yarim kalmis" duruyordu.
+  ///   · kenarlik 0x14 -> **0x0F**: golge guclendigi icin cerceve
+  ///     yumusatildi, aksi halde kart "cift cerceveli" gorunuyordu.
+  /// ⚠️ Icerik DEGISMEDI: kartlar hala uygulamanin GERCEK kategorileri.
+  ///    Sahte isletme adi/puan/mesafe EKLENMEDI (proje kurali).
   Widget _kart(IconData ikon, String ad, String alt, double boy) => Container(
     height: boy,
     padding: const EdgeInsets.symmetric(horizontal: 14),
     decoration: BoxDecoration(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(18),
-      border: Border.all(color: const Color(0x14000000)),
+      borderRadius: BorderRadius.circular(22),
+      border: Border.all(color: const Color(0x0F000000)),
       boxShadow: const [
         BoxShadow(
-          color: Color(0x0F000000),
-          blurRadius: 14,
-          offset: Offset(0, 4),
+          color: Color(0x14000000),
+          blurRadius: 20,
+          offset: Offset(0, 8),
         ),
       ],
     ),
     child: Row(
       children: [
         Container(
-          width: 46,
-          height: 46,
+          width: 48,
+          height: 48,
           alignment: Alignment.center,
           decoration: BoxDecoration(
             gradient: const LinearGradient(
@@ -623,7 +675,16 @@ class _KartAkisiState extends State<_KartAkisi>
               end: Alignment.bottomRight,
               colors: [Color(0xFF8B3FFF), Color(0xFF6C2BD9)],
             ),
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(16),
+            // ⚠️ Ikon karesinin KENDI golgesi: kartin uzerinde "duruyor"
+            //    hissi verir; duz bir kare yapistirilmis gibi gorunuyordu.
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x386C2BD9),
+                blurRadius: 12,
+                offset: Offset(0, 5),
+              ),
+            ],
           ),
           child: Icon(ikon, size: 22, color: Colors.white),
         ),
@@ -635,8 +696,10 @@ class _KartAkisiState extends State<_KartAkisi>
             children: [
               Text(
                 ad,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                  fontSize: 15.5,
+                  fontSize: 16,
                   fontWeight: FontWeight.w700,
                   color: _kOnboardYazi,
                 ),
@@ -651,10 +714,19 @@ class _KartAkisiState extends State<_KartAkisi>
             ],
           ),
         ),
-        const Icon(
-          LucideIcons.chevronRight,
-          size: 18,
-          color: Color(0x40000000),
+        Container(
+          width: 28,
+          height: 28,
+          alignment: Alignment.center,
+          decoration: const BoxDecoration(
+            color: Color(0xFFF3EFFC),
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(
+            LucideIcons.chevronRight,
+            size: 16,
+            color: Color(0xFF6C2BD9),
+          ),
         ),
       ],
     ),
@@ -686,9 +758,12 @@ class _Telefon extends StatefulWidget {
 
 class _TelefonState extends State<_Telefon>
     with SingleTickerProviderStateMixin {
+  // ⚠️ TURU 120 — 7 -> **5 sn** (kullanici: *"biraz hizli gecis yapsin"*).
+  //    Sahne artik IKI soru-cevap tasiyor; 7 sn'de tekrar beklemek uzun
+  //    geliyordu, 4 sn'nin altinda yanit metni OKUNMADAN kayboluyor.
   late final AnimationController _c = AnimationController(
     vsync: this,
-    duration: const Duration(seconds: 7),
+    duration: const Duration(seconds: 5),
   )..repeat();
 
   @override
@@ -706,16 +781,53 @@ class _TelefonState extends State<_Telefon>
   }
 
   @override
-  Widget build(BuildContext context) => Center(
-    child: AnimatedBuilder(
-      animation: _c,
-      // ⚠️ Sabit ORAN (9:19.5 = iPhone): ust alan yuksekligi cihazdan cihaza
-      //    degisse de cerceve ORANINI KORUR, yani hicbir ekranda ezilmez.
-      builder: (_, _) => FractionallySizedBox(
-        heightFactor: 0.94,
-        child: AspectRatio(aspectRatio: 9 / 19.5, child: _cerceve()),
-      ),
-    ),
+  /// ⚠️⚠️⚠️ TURU 120 — TELEFON **BUYUTULDU** (kullanici emri: *"AI sohbet
+  ///	cektigini DAHA BUYUT"*).
+  ///
+  /// ═══════════ NEDEN `FractionallySizedBox(0.94)` YETMEDI ═══════════
+  /// Cerceve, ust alanin YUKSEKLIGINE gore olculuyordu ve 9:19.5 oran
+  /// zorunlulugu yuzunden GENISLIGI cok dar kaliyordu (360 dp'lik bir
+  /// telefonda ~190 dp). Yani ekranin buyuk kismi BOSTU ama mockup kucuk
+  /// duruyordu.
+  ///
+  /// ═══════════ YENI OLCUM ═══════════
+  ///   1. once alanin **%114'u** kadar yukseklik denenir (bilincli tasma:
+  ///      cihazin alt kismi metnin arkasina girer — "cepten cikan telefon"
+  ///      gorunumu, modern onboardinglerin standart dili),
+  ///   2. genislik alanin **%60'ini** gecemez (dar ekranda cerceve yanlardan
+  ///      tasip kirpilmasin),
+  ///   3. tasma tavani alanin **%120'si** (kucuk/kisa ekranlarda cihazin
+  ///      yarisi kesilmesin).
+  /// ⚠️ `ClipRect` + `OverflowBox` ZORUNLU: kutu SINIRLI yukseklik veriyor,
+  ///    tasan cocuk `RenderFlex overflowed` sari-siyah seridi cizdirirdi
+  ///    (turu 118'de `_KartAkisi`nda birebir bu yasandi). Tasma KASITLI.
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (_, kisit) {
+      var boy = kisit.maxHeight * 1.14;
+      var en = boy * 9 / 19.5;
+      final enTavan = kisit.maxWidth * 0.60;
+      if (en > enTavan) {
+        en = enTavan;
+        boy = en * 19.5 / 9;
+      }
+      final boyTavan = kisit.maxHeight * 1.20;
+      if (boy > boyTavan) {
+        boy = boyTavan;
+        en = boy * 9 / 19.5;
+      }
+      return ClipRect(
+        child: OverflowBox(
+          maxHeight: double.infinity,
+          alignment: Alignment.topCenter,
+          child: AnimatedBuilder(
+            animation: _c,
+            builder: (_, _) =>
+                SizedBox(width: en, height: boy, child: _cerceve()),
+          ),
+        ),
+      );
+    },
   );
 
   Widget _cerceve() => Container(
@@ -761,10 +873,26 @@ class _TelefonState extends State<_Telefon>
   );
 
   // ═══════════ AI SOHBETI ═══════════
+  /// ⚠️⚠️ TURU 120 — SAHNE **IKI SORU-CEVABA** cikarildi (kullanici emri:
+  ///	*"yazi balonlarini daha DINAMIK yap, biraz hizli gecis yapsin"*).
+  ///
+  /// Tek soru-cevap 7 saniyeye yayilinca sahnenin yarisi HAREKETSIZ geciyor
+  /// ve mockup "donmus" gorunuyordu. Simdi sure 5 sn ve icinde IKI tur var:
+  ///
+  ///	soru1 -> yaziyor -> yanit1 -> soru2 -> yaziyor -> yanit2 -> kisa bekle
+  ///
+  /// ⚠️ "Yaziyor" balonu YANIT GELINCE kaybolur (`* (1 - _oran(...))`):
+  ///    ikisi ayni anda gorunse sohbet "iki cevap veriyor" gibi olurdu.
+  /// ⚠️ Metinler KISA: uzun metin cerceveyi tasirir ve mockup bozuk gorunur.
+  /// ⚠️ Sorular UYGULAMANIN GERCEK islerine dair (mekan onerisi, nobetci
+  ///    eczane) — uydurma bir yetenek vaat edilmiyor.
   Widget _aiSahnesi() {
-    final soru = _oran(0.10, 0.24);
-    final yaziyor = _oran(0.30, 0.36) * (1 - _oran(0.46, 0.52));
-    final yanit = _oran(0.52, 0.66);
+    final soru1 = _oran(0.04, 0.12);
+    final yaziyor1 = _oran(0.15, 0.20) * (1 - _oran(0.26, 0.30));
+    final yanit1 = _oran(0.30, 0.40);
+    final soru2 = _oran(0.50, 0.58);
+    final yaziyor2 = _oran(0.61, 0.66) * (1 - _oran(0.70, 0.74));
+    final yanit2 = _oran(0.74, 0.84);
     return Padding(
       padding: const EdgeInsets.fromLTRB(10, 4, 10, 10),
       child: Column(
@@ -773,8 +901,8 @@ class _TelefonState extends State<_Telefon>
           Row(
             children: [
               Container(
-                width: 22,
-                height: 22,
+                width: 24,
+                height: 24,
                 alignment: Alignment.center,
                 decoration: const BoxDecoration(
                   shape: BoxShape.circle,
@@ -784,7 +912,7 @@ class _TelefonState extends State<_Telefon>
                 ),
                 child: const Icon(
                   LucideIcons.sparkles,
-                  size: 12,
+                  size: 13,
                   color: Colors.white,
                 ),
               ),
@@ -792,68 +920,106 @@ class _TelefonState extends State<_Telefon>
               const Text(
                 'GebzemAI',
                 style: TextStyle(
-                  fontSize: 12.5,
+                  fontSize: 13,
                   fontWeight: FontWeight.w700,
                   color: _kOnboardYazi,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
           _balon(
             metin: 'Gebze’de hafta sonu\nne yapılır?',
             benim: true,
-            gorunur: soru,
+            gorunur: soru1,
           ),
-          const SizedBox(height: 9),
-          if (yaziyor > 0.02 && yanit < 0.02)
-            Opacity(opacity: yaziyor.clamp(0, 1), child: _yaziyorBalonu()),
-          if (yanit > 0.02)
+          const SizedBox(height: 8),
+          if (yaziyor1 > 0.02 && yanit1 < 0.02)
+            Opacity(opacity: yaziyor1.clamp(0, 1), child: _yaziyorBalonu()),
+          if (yanit1 > 0.02)
             _balon(
-              metin:
-                  'Eskihisar’da sahil yürüyüşü,\nakşam merkezde kahve —\n'
-                  'listeyi çıkarayım mı?',
+              metin: 'Eskihisar’da sahil yürüyüşü,\nakşam merkezde kahve.',
               benim: false,
-              gorunur: yanit,
+              gorunur: yanit1,
+            ),
+          if (soru2 > 0.02) ...[
+            const SizedBox(height: 8),
+            _balon(
+              metin: 'Nöbetçi eczane?',
+              benim: true,
+              gorunur: soru2,
+            ),
+          ],
+          const SizedBox(height: 8),
+          if (yaziyor2 > 0.02 && yanit2 < 0.02)
+            Opacity(opacity: yaziyor2.clamp(0, 1), child: _yaziyorBalonu()),
+          if (yanit2 > 0.02)
+            _balon(
+              metin: 'En yakını 1,2 km —\nharitada göstereyim mi?',
+              benim: false,
+              gorunur: yanit2,
             ),
         ],
       ),
     );
   }
 
-  /// ⚠️ Balon ASAGIDAN yukari kayarak gelir + solar: aninda beliren bir balon
-  ///    "hata" gibi gorunuyordu.
+  /// ⚠️ Balon ASAGIDAN yukari kayarak + **HAFIF BUYUYEREK** gelir: aninda
+  ///    beliren bir balon "hata" gibi gorunuyordu.
+  /// ⚠️⚠️ TURU 120 — `easeOutBack` (kucuk bir tasma/geri yaylanma) eklendi:
+  ///	kullanici *"balonlari daha DINAMIK yap"* dedi. `easeOutCubic` duz ve
+  ///	"kurumsal" duruyordu.
+  ///	⚠️ Olcek 0.92'den baslar, 1.0'i **hafifce asar** (easeOutBack) ve
+  ///	   oturur. Daha buyuk bir tasma balonu "ziplatiyor" ve ucuz
+  ///	   gosteriyordu.
+  /// ⚠️ `Opacity` icin AYRI egri (`easeOut`) kullanilir: `easeOutBack` 1'i
+  ///    astigi icin opaklik 1'in uzerine cikar ve **assertion** atardi.
   Widget _balon({
     required String metin,
     required bool benim,
     required double gorunur,
   }) {
-    final o = Curves.easeOutCubic.transform(gorunur.clamp(0, 1));
+    final t = gorunur.clamp(0.0, 1.0);
+    final hareket = Curves.easeOutBack.transform(t);
+    final solma = Curves.easeOut.transform(t);
     return Align(
       alignment: benim ? Alignment.centerRight : Alignment.centerLeft,
       child: Transform.translate(
-        offset: Offset(0, (1 - o) * 14),
-        child: Opacity(
-          opacity: o,
-          child: Container(
-            constraints: const BoxConstraints(maxWidth: 152),
-            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
-            decoration: BoxDecoration(
-              color: benim ? const Color(0xFF6C2BD9) : Colors.white,
-              borderRadius: BorderRadius.only(
-                topLeft: const Radius.circular(14),
-                topRight: const Radius.circular(14),
-                bottomLeft: Radius.circular(benim ? 14 : 4),
-                bottomRight: Radius.circular(benim ? 4 : 14),
+        offset: Offset(0, (1 - hareket) * 16),
+        child: Transform.scale(
+          scale: 0.92 + 0.08 * hareket,
+          alignment: benim ? Alignment.centerRight : Alignment.centerLeft,
+          child: Opacity(
+            opacity: solma,
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 168),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: benim ? const Color(0xFF6C2BD9) : Colors.white,
+                borderRadius: BorderRadius.only(
+                  topLeft: const Radius.circular(15),
+                  topRight: const Radius.circular(15),
+                  bottomLeft: Radius.circular(benim ? 15 : 4),
+                  bottomRight: Radius.circular(benim ? 4 : 15),
+                ),
+                border: benim
+                    ? null
+                    : Border.all(color: const Color(0x14000000)),
+                boxShadow: [
+                  BoxShadow(
+                    color: benim ? const Color(0x336C2BD9) : const Color(0x0F000000),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
-              border: benim ? null : Border.all(color: const Color(0x14000000)),
-            ),
-            child: Text(
-              metin,
-              style: TextStyle(
-                fontSize: 11.5,
-                height: 1.35,
-                color: benim ? Colors.white : _kOnboardYazi,
+              child: Text(
+                metin,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  height: 1.35,
+                  color: benim ? Colors.white : _kOnboardYazi,
+                ),
               ),
             ),
           ),
@@ -1045,4 +1211,341 @@ class _TelefonState extends State<_Telefon>
     ),
     child: Icon(ikon, size: 15, color: Colors.white),
   );
+}
+
+/// ⚠️⚠️⚠️ TURU 120 — **KONUM / YAKINIMDA SAHNESI** (kullanici emri: *"konumla
+///	ilgili, YAKINIMDA ile ilgili onboardinge ekle"*).
+///
+/// Stilize bir harita: ortada nabiz atan konum halkasi, cevresinde SIRAYLA
+/// dusen kategori pinleri ve altta yukari kayan "Yakınımda" karti.
+///
+/// ⚠️⚠️ **GERCEK HARITA CIZILMEZ.** `google_maps_flutter` burada kullanilsaydi:
+///	  · onboarding, izin HENUZ ISTENMEDEN once konum servisine dokunurdu,
+///	  · harita SDK'si acilista agirlik yapardi (kullanicinin gordugu ilk
+///	    ekran),
+///	  · anahtarsiz derlemede (`HARITA` bayragi kapali) BOS GRI KUTU cikardi
+///	    — turu 87'de tam bu yasandi.
+///	Bu bir TANITIM gorseli; harita gibi gorunmesi yeterli, harita OLMASI
+///	gerekmiyor.
+///
+/// ⚠️⚠️ **UYDURMA VERI YOK:** pinlerde isletme adi, puan ya da mesafe YAZMAZ.
+///	Yalnizca uygulamanin GERCEK kategori ikonlari (Yemek · Eczane · Kafe)
+///	gosterilir. Sahte bir "4,8 puan · 350 m" yazmak, kullaniciya urunun
+///	yapmadigi bir seyi vaat etmek olurdu (proje kurali).
+class _KonumHarita extends StatefulWidget {
+  const _KonumHarita();
+
+  @override
+  State<_KonumHarita> createState() => _KonumHaritaState();
+}
+
+class _KonumHaritaState extends State<_KonumHarita>
+    with SingleTickerProviderStateMixin {
+  // ⚠️ 6 sn: pinlerin sirayla dusmesi + kartin gelmesi + kisa bir bekleme.
+  //    Daha kisasi pinleri "firlatiyor" gibi gosteriyordu.
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 6),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  double _oran(double bas, double son) {
+    final t = _c.value;
+    if (t <= bas) return 0;
+    if (t >= son) return 1;
+    return (t - bas) / (son - bas);
+  }
+
+  /// Pin konumlari — kutunun ORANI olarak (sabit dp DEGIL): kutu her cihazda
+  /// farkli boyda ve sabit ofsetler kucuk ekranda kenardan tasardi.
+  static const _pinler = <(double, double, IconData, String)>[
+    (0.24, 0.30, LucideIcons.utensils, 'Yemek'),
+    (0.76, 0.24, LucideIcons.pill, 'Eczane'),
+    (0.70, 0.62, LucideIcons.coffee, 'Kafe'),
+  ];
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (_, kisit) {
+      final en = kisit.maxWidth;
+      final boy = kisit.maxHeight;
+      return AnimatedBuilder(
+        animation: _c,
+        builder: (_, _) {
+          // Nabiz 0..1 arasi gidip gelir (iki tam dongu / tur).
+          final nabiz = 0.5 + 0.5 * math.sin(_c.value * math.pi * 4);
+          return Stack(
+            children: [
+              // ── ZEMIN: stilize yol agi ──
+              const Positioned.fill(child: CustomPaint(painter: _HaritaZemini())),
+              // ── PINLER ──
+              for (var i = 0; i < _pinler.length; i++) _pin(i, en, boy),
+              // ── KONUMUM: nabiz halkasi + nokta ──
+              Positioned(
+                left: en * 0.46 - 60,
+                top: boy * 0.46 - 60,
+                width: 120,
+                height: 120,
+                child: IgnorePointer(
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      // ⚠️ Halka BUYURKEN SOLAR: sabit opaklikta buyuyen bir
+                      //    daire "yukleniyor" degil "hata" gibi duruyordu.
+                      Container(
+                        width: 44 + 62 * nabiz,
+                        height: 44 + 62 * nabiz,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: morLogo.withValues(alpha: 0.10 * (1 - nabiz)),
+                          border: Border.all(
+                            color: morLogo.withValues(alpha: 0.35 * (1 - nabiz)),
+                            width: 1.5,
+                          ),
+                        ),
+                      ),
+                      Container(
+                        width: 20,
+                        height: 20,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: morLogo,
+                          border: Border.all(color: Colors.white, width: 3),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Color(0x556C2BD9),
+                              blurRadius: 12,
+                              offset: Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              // ── ALTTA "Yakınımda" KARTI ──
+              _altKart(),
+            ],
+          );
+        },
+      );
+    },
+  );
+
+  /// ⚠️ Pinler SIRAYLA duser (`i * 0.06` gecikme): hepsi ayni anda belirseydi
+  ///    hareket "yanip sonme" gibi gorunurdu.
+  /// ⚠️ `easeOutBack` — pin yere degip hafifce yaylanir; duz bir egri
+  ///    "yapistirilmis" duruyordu.
+  Widget _pin(int i, double en, double boy) {
+    final (x, y, ikon, ad) = _pinler[i];
+    final bas = 0.10 + i * 0.06;
+    final t = _oran(bas, bas + 0.14);
+    if (t <= 0) return const SizedBox.shrink();
+    final h = Curves.easeOutBack.transform(t.clamp(0.0, 1.0));
+    return Positioned(
+      left: en * x - 44,
+      top: boy * y - 30,
+      width: 88,
+      child: Opacity(
+        opacity: Curves.easeOut.transform(t.clamp(0.0, 1.0)),
+        child: Transform.translate(
+          offset: Offset(0, (1 - h) * -26),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(0x0F000000)),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x1A000000),
+                      blurRadius: 14,
+                      offset: Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(ikon, size: 14, color: morLogo),
+                    const SizedBox(width: 6),
+                    Text(
+                      ad,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: _kOnboardYazi,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Pin ucu — kartin haritadaki NOKTAYA baglandigini gosterir.
+              Container(width: 2, height: 12, color: const Color(0x33000000)),
+              Container(
+                width: 7,
+                height: 7,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Color(0x66000000),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _altKart() {
+    final t = _oran(0.40, 0.54);
+    if (t <= 0) return const SizedBox.shrink();
+    final h = Curves.easeOutCubic.transform(t.clamp(0.0, 1.0));
+    return Positioned(
+      left: 28,
+      right: 28,
+      bottom: 6,
+      child: Opacity(
+        opacity: h,
+        child: Transform.translate(
+          offset: Offset(0, (1 - h) * 30),
+          child: Container(
+            height: 62,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0x0F000000)),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x1F000000),
+                  blurRadius: 22,
+                  offset: Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Color(0xFF8B3FFF), Color(0xFF6C2BD9)],
+                    ),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Icon(
+                    LucideIcons.mapPin,
+                    size: 19,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Yakınımda',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: _kOnboardYazi,
+                        ),
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        'Çevrendeki işletmeler',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 12.5, color: _kOnboardAltYazi),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  width: 28,
+                  height: 28,
+                  alignment: Alignment.center,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFF3EFFC),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    LucideIcons.chevronRight,
+                    size: 16,
+                    color: Color(0xFF6C2BD9),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Stilize harita zemini: yumusak zemin + birkac "yol" seridi.
+///
+/// ⚠️ Gercek bir harita karosu DEGIL (bkz. `_KonumHarita` serhi). Amac,
+///    pinlerin bosluga degil bir ZEMINE oturdugu hissini vermek.
+/// ⚠️ `shouldRepaint` false: cizer durumsuz. Ust katmandaki nabiz zaten
+///    `AnimatedBuilder` icinde yeniden cizilir.
+class _HaritaZemini extends CustomPainter {
+  const _HaritaZemini();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cerceve = RRect.fromRectAndRadius(
+      Rect.fromLTWH(16, 8, size.width - 32, size.height - 16),
+      const Radius.circular(26),
+    );
+    canvas.drawRRect(cerceve, Paint()..color = const Color(0xFFF6F4FB));
+    canvas.save();
+    canvas.clipRRect(cerceve);
+    final yol = Paint()
+      ..color = const Color(0xFFE7E2F4)
+      ..strokeWidth = 13
+      ..strokeCap = StrokeCap.round;
+    // Capraz ve dikey birkac serit — sehir izlenimi icin yeterli.
+    canvas.drawLine(
+      Offset(-20, size.height * 0.30),
+      Offset(size.width + 20, size.height * 0.22),
+      yol,
+    );
+    canvas.drawLine(
+      Offset(-20, size.height * 0.72),
+      Offset(size.width + 20, size.height * 0.80),
+      yol,
+    );
+    canvas.drawLine(
+      Offset(size.width * 0.34, -20),
+      Offset(size.width * 0.22, size.height + 20),
+      yol,
+    );
+    canvas.drawLine(
+      Offset(size.width * 0.82, -20),
+      Offset(size.width * 0.92, size.height + 20),
+      yol,
+    );
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

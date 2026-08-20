@@ -78,6 +78,20 @@ class Tercihler {
   Future<void> onboardingGorulduYaz() async {
     await _p?.setBool(_kOnboarding, true);
   }
+
+  /// ⚠️⚠️ TURU 120 — TANITIMI YENIDEN GOSTER (kullanici emri: *"kullanici
+  ///	girisine bir SIFIRLAMA butonu koy ... onboarding bitince bir daha
+  ///	cikmiyor"*).
+  ///
+  /// ⚠️ `setBool(false)` DEGIL **`remove`**: anahtar hic yazilmamis hale
+  ///    doner, yani TEMIZ KURULUMLA BIREBIR ayni durum olusur. `false`
+  ///    yazmak ayni sonucu verirdi ama iki farkli "gosterilmeli" temsili
+  ///    (anahtar yok / anahtar false) dogar ve `onboardingGoruldu`
+  ///    okuyucusunun iki dali test edilmemis kalirdi.
+  /// ⚠️ Yalnizca CIHAZ tercihini siler — hesaba, oturuma, sunucuya DOKUNMAZ.
+  Future<void> onboardingSifirla() async {
+    await _p?.remove(_kOnboarding);
+  }
 }
 
 /// ⚠️ Acilista BIR KEZ kurulur ve `main()` icinde `await` edilir.

@@ -13,6 +13,7 @@ import (
 	"github.com/gbz-app/gebzem/backend/internal/auth"
 	"github.com/gbz-app/gebzem/backend/internal/bildirim"
 	"github.com/gbz-app/gebzem/backend/internal/engel"
+	"github.com/gbz-app/gebzem/backend/internal/profil"
 )
 
 type Handler struct {
@@ -65,6 +66,25 @@ type userResp struct {
 	// ⚠️ Yalniz KENDI profilinde doner (`Profile()` yanitina EKLENMEDI):
 	//    baskasinin kategorisi zaten `/isletmeler/{id}` ucundan geliyor.
 	IsletmeKategori string `json:"isletme_kategori"`
+
+	// ⚠️⚠️ TURU 120 — YAS · ILGI ALANLARI · TAKIM (kayit akisinin 4. adimi).
+	//
+	// ⚠️ **`dogum_yili` DONER, `yas` DEGIL.** Yas her yil degisir; sunucu
+	//    dogum yilini saklar, YASI ISTEMCI TURETIR (`simdikiYil - dogum_yili`).
+	//    Sunucu yas dondurseydi, istemci onbellekledigi bir profili yil
+	//    donduginde YANLIS gosterirdi.
+	// ⚠️ `omitempty` DEGIL, ISARETCI: `null` = "belirtmedi" anlamini TASIR ve
+	//    istemci o durumda satiri hic cizmez. `omitempty` ile 0 ve "yok"
+	//    ayirt edilemezdi.
+	DogumYili *int `json:"dogum_yili"`
+	// ⚠️ **ASLA `null` DONMEZ** (sutun NOT NULL DEFAULT '{}'): istemci
+	//    `List<String>` olarak okur ve null bir deger cozumlemeyi patlatirdi.
+	IlgiAlanlari []string `json:"ilgi_alanlari"`
+	// ⚠️ Bos dize = "belirtmedi". Ayri bir nobetci degeri (`'yok'`) SECILMEDI:
+	//    o zaman "Yok" secen kullanici ile hic secmeyen ayirt edilemezdi ama
+	//    ikisi de ekranda AYNI sekilde (satir yok) gorunurdu — yani ayrim
+	//    hicbir ise yaramazdi.
+	Takim string `json:"takim"`
 }
 
 // GET /users/me — kendi profilim (jeton bakiyesi dahil)
@@ -75,13 +95,15 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 		SELECT u.id, u.phone, COALESCE(u.username,''), u.name, u.about,
 		       u.avatar_url, u.avatar_media_id, u.coin_balance, u.hesap_turu,
 		       u.kapak_media_id, u.onayli, u.last_seen,
-		       COALESCE(i.kategori,'')
+		       COALESCE(i.kategori,''),
+		       u.dogum_yili, u.ilgi_alanlari, u.takim
 		  FROM users u
 		  LEFT JOIN isletmeler i ON i.user_id = u.id
 		 WHERE u.id=$1`, userID).
 		Scan(&u.ID, &u.Phone, &u.Username, &u.Name, &u.About, &u.AvatarURL, &u.AvatarMediaID,
 			&u.CoinBalance, &u.HesapTuru, &u.KapakMediaID, &u.Onayli, &u.LastSeen,
-			&u.IsletmeKategori)
+			&u.IsletmeKategori,
+			&u.DogumYili, &u.IlgiAlanlari, &u.Takim)
 	if err != nil {
 		writeErr(w, http.StatusNotFound, "kullanıcı bulunamadı")
 		return
@@ -235,6 +257,17 @@ func (h *Handler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 		//    ile AYIRT EDILEMEZ (ikisi de nil) — bu yuzden nobetci ZORUNLU.
 		//    ⚠️ YAPMA: kapagi da COALESCE desenine cevirme.
 		KapakMediaID *string `json:"kapak_media_id"`
+
+		// ⚠️⚠️ TURU 120 — UCU DE ISARETCI: "alan GELMEDI" (nil, dokunma) ile
+		//	"alan BOSALTILDI" ayrimi. Duz tiplerle yazilsaydi, yalnizca
+		//	adini degistiren bir istek yas/ilgi/takim alanlarini SIFIRA
+		//	EZERDI — turu 85b'de `isletme_duzenle`de birebir bu yasandi
+		//	("adres/il/ilce SESSIZCE bosa cekiliyordu").
+		// ⚠️ `ilgi_alanlari: []` = TEMIZLE (gecerli bir istek), `yok` =
+		//    dokunma. `*[]string` bu ikisini ayirt eden TEK yazim.
+		DogumYili    *int      `json:"dogum_yili"`
+		IlgiAlanlari *[]string `json:"ilgi_alanlari"`
+		Takim        *string   `json:"takim"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeErr(w, http.StatusBadRequest, "geçersiz istek")
@@ -264,6 +297,17 @@ func (h *Handler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	// ⚠️⚠️ TURU 120 — `any` KUTUSU ZORUNLU: pgx'e `*[]string` gecmek yerine
+	//	"nil ya da `[]string`" gonderiyoruz. `nil` -> SQL NULL -> COALESCE
+	//	eski degeri KORUR; bos dilim -> bos `text[]` -> alan TEMIZLENIR.
+	//	⚠️ `TemizIlgi` bos dilimde de **nil DONMEZ** (sutun NOT NULL).
+	var ilgiArg, takimArg any
+	if req.IlgiAlanlari != nil {
+		ilgiArg = profil.TemizIlgi(*req.IlgiAlanlari)
+	}
+	if req.Takim != nil {
+		takimArg = profil.TemizTakim(*req.Takim)
+	}
 	_, err := h.db.Exec(r.Context(), `
 		UPDATE users SET
 			name = COALESCE($1, name),
@@ -274,8 +318,13 @@ func (h *Handler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 			kapak_media_id = CASE
 			  WHEN $5::text IS NULL THEN kapak_media_id
 			  WHEN $5::text = ''    THEN NULL
-			  ELSE $5::uuid END
-		WHERE id=$4`, req.Name, req.About, req.AvatarMediaID, userID, req.KapakMediaID)
+			  ELSE $5::uuid END,
+			-- TURU 120 — NULL = "alan gelmedi, DOKUNMA" (bkz. istek serhi).
+			dogum_yili    = COALESCE($6::int,    dogum_yili),
+			ilgi_alanlari = COALESCE($7::text[], ilgi_alanlari),
+			takim         = COALESCE($8::text,   takim)
+		WHERE id=$4`, req.Name, req.About, req.AvatarMediaID, userID, req.KapakMediaID,
+		profil.TemizDogumYili(req.DogumYili), ilgiArg, takimArg)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "güncellenemedi")
 		return

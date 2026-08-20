@@ -1,27 +1,31 @@
 /// ⚠️⚠️⚠️ TURU 84 — ADIMLI KAYIT EKRANI.
 ///
 /// Kullanici emri: *"kayit sayfasi da step step: ilk telefon, sonra otp, sonra
-/// kisisel bilgiler seklinde olacak; izinleri step sayfasinda alalim, video ses
-/// icin aciklama yapalim ki kullanicilar anlasin"*.
+/// kisisel bilgiler seklinde olacak"*.
 ///
-/// ═══════════ UC ADIM ═══════════
+/// ═══════════ BES ADIM (turu 120) ═══════════
 ///   0 · TELEFON        -> `/auth/kayit/telefon`  (hesap OLUSTURULMAZ)
 ///   1 · KOD            -> `/auth/kayit/dogrula`  (kayit jetonu alinir)
-///   2 · KISISEL BILGI  -> `/auth/kayit/tamamla`  (hesap olusur, OTURUM ACILIR)
+///   2 · KISISEL BILGI  -> yalniz DOGRULANIR
+///   3 · SENI TANIYALIM -> yas · ilgi alanlari · takim   (turu 120, OPSIYONEL)
+///   4 · FOTOGRAF       -> `/auth/kayit/tamamla` (hesap olusur, OTURUM ACILIR)
 ///
-/// ⚠️⚠️⚠️ TURU 89 — **IZIN ADIMI KALDIRILDI.** Kullanici emri: *"sana
-///    onboardingde izin al demistim; o izin ekrani icin AYRI SAYFAYI KALDIR,
-///    onboardingte SIRAYLA GECERKEN izin alinsin"*.
-///    Izinler artik `onboarding_ekrani.dart`ta aliniyor — her sayfa kendi
-///    iznini istiyor ve aciklamasi da o sayfanin metninde.
-///    Kurtarma yolu: **Ayarlar > IZINLER** (onboarding bayragi kalici
-///    oldugu icin reddeden kullanicinin baska donus yolu kalmazdi).
-///    ⚠️ YAPMA: buraya 4. adim olarak izin ekrani geri koyma.
+/// ⚠️⚠️ HESAP **SON ADIMDA** kurulur: yas/ilgi/takim ve fotograf tek istekte
+///	gider. Adim basina kaydetseydik, akisi ortada birakan kullanici yarim
+///	bir hesap birakirdi (turu 114'te isletme sihirbazinda alinan ayni karar).
+///
+/// ⚠️⚠️⚠️ TURU 89 — **IZIN ADIMI KALDIRILDI.** Izinler artik
+///    `onboarding_ekrani.dart`ta aliniyor — her sayfa kendi iznini istiyor.
+///    Kurtarma yolu: **Ayarlar > IZINLER**.
+///    ⚠️ YAPMA: buraya izin ekrani geri koyma.
 ///
 /// ═══════════ TASARIM ═══════════
 /// Onboarding ile AYNI dil: **beyaz zemin · yazilar SOLDA · baslik + kisa
 /// aciklama**. Renkler SABIT (temadan alinmaz) — zemin sabit beyaz oldugu icin
 /// koyu temada beyaz-uzeri-beyaz yazi cikardi (turu 81b kontrast dersi).
+/// ⚠️⚠️ TURU 120 — ALAN BICIMLERI **`auth_stil.dart`TAN** gelir (telefon on
+///	eki, sifre daireleri, olculer, hata satiri). Bu dosyada IKINCI bir
+///	`InputDecoration` govdesi YAZILMAZ.
 library;
 
 import 'dart:io';
@@ -42,10 +46,21 @@ import '../medya/medya_kapisi.dart';
 import '../medya/medya_servisi.dart';
 import 'auth_provider.dart';
 import 'auth_stil.dart';
+import 'profil_secenekleri.dart';
 
-const Color _yazi = Color(0xFF14141A);
-const Color _altYazi = Color(0xFF6B6B76);
-const Color _cizgi = Color(0xFFE3E3EA);
+const Color _yazi = authYazi;
+const Color _altYazi = authAltYazi;
+const Color _cizgi = authCizgi;
+
+/// Kirpma dairesinin capi.
+const double _kKirpCap = 250;
+
+/// Toplam adim sayisi (ilerleme cubugu + son adim karari BURADAN turer).
+///
+/// ⚠️ TEK SABIT: turu 119'da `List.generate(4, ...)` ve `i == 3` ayri ayri
+///    yaziliydi; adim eklerken ikisinden birini unutmak ilerleme cubugunu
+///    sessizce bozardi.
+const int _kAdimSayisi = 5;
 
 class KayitAkisi extends ConsumerStatefulWidget {
   const KayitAkisi({super.key});
@@ -55,35 +70,45 @@ class KayitAkisi extends ConsumerStatefulWidget {
 }
 
 class _KayitAkisiState extends ConsumerState<KayitAkisi> {
-  // ⚠️⚠️ TURU 119 — **DORT ADIM** (kullanici emri: *"kayit esnasinda step
-  //	step olsun, PROFIL FOTOGRAFI EKLEME olsun, KIRPMA olsun, ortada
-  //	resmi surukleyelim, istedigimiz gibi resmi ayarlayabilelim"*).
-  //	0 telefon · 1 kod · 2 bilgiler · **3 fotograf**
   int _adim = 0;
 
   /// Secilen ham fotograf (kirpilmamis).
   File? _fotoHam;
 
+  /// ⚠️⚠️ TURU 120 — SECILEN FOTOGRAFIN EN-BOY ORANI (genislik/yukseklik).
+  ///	Kirpma sinirlari BUNDAN turetilir; bilinmeden `boundaryMargin`
+  ///	dogru hesaplanamaz (bkz. `_kirpAlani` serhi).
+  double? _fotoOran;
+
   /// ⚠️ Kirpma alanini YAKALAMAK icin. `RepaintBoundary` + `toImage()`
   ///    ile daire viewport oldugu gibi goruntulenir — yani kullanicinin
   ///    EKRANDA GORDUGU kare ne ise yuklenen o olur.
-  ///    Alternatif (matrisi elle cozup `image` paketiyle kirpmak) ayni
-  ///    sonucu IKINCI bir hesapla uretirdi ve ikisi kacinilmaz olarak
-  ///    ayrisirdi ("gordugum kirpim bu degil").
   final _kirpAnahtar = GlobalKey();
 
   /// Surukleme/yakinlastirma durumu.
   final _kirpKontrol = TransformationController();
   bool _mesgul = false;
 
-  final _telefon = TextEditingController(text: '+90');
+  /// ⚠️ TURU 120 — denetleyici YALNIZ HANELERI tutar; `+90` on eki
+  ///    `AuthTelefonAlani` icinde cizilir ve SILINEMEZ.
+  final _haneler = TextEditingController();
   final _kod = TextEditingController();
   final _ad = TextEditingController();
   final _kullaniciAdi = TextEditingController();
   final _sifre = TextEditingController();
-  bool _sifreGizli = true;
 
-  /// ⚠️ Adim 2'de alinir, adim 3'te kullanilir. 15 dk gecerli.
+  /// Numara eksik/gecersizken alanin ALTINA konan aciklama.
+  String? _telefonNotu;
+
+  // ── TURU 120: "Seni tanıyalım" adimi ──
+  /// ⚠️ `null` = BELIRTMEDI. Tekerlegin ilk ogesi bilerek bos ("—"):
+  ///    varsayilan bir yasla baslasaydik, tekerlege HIC dokunmayan kullanici
+  ///    icin o deger sunucuya gercekmis gibi giderdi.
+  int? _yas;
+  final Set<String> _ilgiler = <String>{};
+  String _takim = '';
+
+  /// ⚠️ Adim 2'de alinir, adim 4'te kullanilir. 15 dk gecerli.
   String _kayitJetonu = '';
 
   /// Sunucuda TUKETILEN OTP. Geri donup ayni kodu tekrar gondermeyi engeller
@@ -93,7 +118,7 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
   @override
   void dispose() {
     _kirpKontrol.dispose();
-    _telefon.dispose();
+    _haneler.dispose();
     _kod.dispose();
     _ad.dispose();
     _kullaniciAdi.dispose();
@@ -107,14 +132,20 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
 
   // ------------------------------------------------------------ ADIM 0
   Future<void> _telefonGonder() async {
-    final tel = _telefon.text.trim();
-    if (tel.length < 10) {
-      _uyar('Telefon numaranı yaz');
+    if (!authTelefonTam(_haneler.text)) {
+      setState(
+        () => _telefonNotu = 'Numaranı eksiksiz yaz — 5 ile başlayan 10 hane.',
+      );
       return;
     }
-    setState(() => _mesgul = true);
+    setState(() {
+      _mesgul = true;
+      _telefonNotu = null;
+    });
     try {
-      final devOtp = await ref.read(authProvider.notifier).kayitTelefon(tel);
+      final devOtp = await ref
+          .read(authProvider.notifier)
+          .kayitTelefon(authTamNumara(_haneler.text));
       if (!mounted) return;
       // ⚠️ Test modunda kod yanitta doner ve otomatik dolar (mevcut OTP
       //    ekraniyla AYNI kolaylik). Gercek SMS'te alan BOS kalir.
@@ -136,15 +167,12 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
     }
     // ⚠️⚠️ TURU 85c — ELIMDE GECERLI JETON VARSA SUNUCUYA CIKMA (denetim).
     //
-    //	`consumeOTP` kodu **TUKETIR** (tek kullanimlik). Kullanici adim 2'ye
-    //	gecip GERI okuyla adim 1'e donerse kod kutusu HALA DOLUDUR ve
-    //	"Doğrula"ya basmak DETERMINISTIK olarak 400 dondururdu
-    //	("Kod hatalı ya da süresi dolmuş") — ustelik `catch` dali calisip
-    //	elindeki **GECERLI** kayit jetonunu da kullanilamaz hale getirirdi
-    //	(kullanici kodu yeniden isteyip bastan baslamak zorunda kalirdi).
-    // ⚠️ Ayni kod + elde jeton = zaten dogrulanmis demektir; ileri gec.
-    // ⚠️ YAPMA: bu kisa devreyi kaldirma ya da kod karsilastirmasini atlama
-    //    (farkli bir kod girildiyse GERCEKTEN sunucuya cikmali).
+    //	`consumeOTP` kodu **TUKETIR** (tek kullanimlik). Kullanici ileri
+    //	gidip GERI okuyla adim 1'e donerse kod kutusu HALA DOLUDUR ve
+    //	"Doğrula"ya basmak DETERMINISTIK olarak 400 dondururdu; ustelik
+    //	`catch` dali elindeki **GECERLI** kayit jetonunu da kullanilamaz
+    //	hale getirirdi.
+    // ⚠️ YAPMA: bu kisa devreyi kaldirma ya da kod karsilastirmasini atlama.
     if (_kayitJetonu.isNotEmpty && kod == _dogrulananKod) {
       setState(() => _adim = 2);
       return;
@@ -153,7 +181,7 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
     try {
       final jeton = await ref
           .read(authProvider.notifier)
-          .kayitDogrula(_telefon.text.trim(), kod);
+          .kayitDogrula(authTamNumara(_haneler.text), kod);
       if (!mounted) return;
       if (jeton.isEmpty) {
         _uyar('Doğrulama tamamlanamadı, tekrar dene');
@@ -161,8 +189,6 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
       }
       setState(() {
         _kayitJetonu = jeton;
-        // ⚠️ Hangi kodun TUKETILDIGI kaydedilir — geri donulup ayni kodla
-        //    ilerlenirse sunucuya cikilmaz (bkz. metodun basindaki kapi).
         _dogrulananKod = kod;
         _adim = 2;
       });
@@ -174,12 +200,9 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
   }
 
   // ------------------------------------------------------------ ADIM 2
-  /// ⚠️⚠️ TURU 119 — DOGRULAMA **HESAP KURMADAN AYRILDI**.
-  ///	Artik 2. adim yalnizca alanlari dogrular ve 3. adima (fotograf)
-  ///	gecer; hesap 3. adimda kurulur.
-  ///	⚠️ Dogrulama BURADA da kalir (`_hesabiKur` icinde TEKRAR edilir):
-  ///	   kullanici 3. adimda geri donup alani BOSALTIP tekrar ilerlerse
-  ///	   sunucuya bos ad gitmesin. Iki kapi da UCUZ ve ikisi de gerekli.
+  /// ⚠️ Dogrulama TEK YERDE (`_bilgilerGecerli`) — `_hesabiKur` icinde TEKRAR
+  ///    edilir: kullanici son adimdan geri donup alani BOSALTIP tekrar
+  ///    ilerlerse sunucuya bos ad gitmesin. Iki kapi da UCUZ ve ikisi de gerekli.
   void _bilgileriDogrula() {
     if (!_bilgilerGecerli()) return;
     setState(() => _adim = 3);
@@ -189,7 +212,7 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
     final ad = _ad.text.trim();
     final kadi = _kullaniciAdi.text.trim().toLowerCase();
     if (ad.isEmpty) {
-      _uyar('Adını yaz');
+      _uyar('Adını ve soyadını yaz');
       return false;
     }
     if (kadi.length < 3) {
@@ -203,8 +226,7 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
     return true;
   }
 
-  /// ⚠️ Dogrulama TEK YERDE (`_bilgilerGecerli`): burada TEKRAR edilmesi
-  ///    kopya olurdu ve ikisi kacinilmaz olarak ayrisirdi.
+  /// ⚠️ Hesap SON adimda kurulur; yas/ilgi/takim + fotograf ayni akista gider.
   Future<void> _hesabiKur() async {
     if (!_bilgilerGecerli()) return;
     final ad = _ad.text.trim();
@@ -218,22 +240,24 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
             name: ad,
             username: kadi,
             password: _sifre.text,
+            // ⚠️⚠️ YAS DEGIL **DOGUM YILI** gonderilir: yas her yil degisir,
+            //	dogum yili sabittir. Sunucu da dogum yilini saklar
+            //	(`049_profil_ilgi.sql` serhi).
+            // ⚠️ DURUST SINIR: gun/ay sorulmadigi icin yas ±1 yil hatalidir.
+            dogumYili: _yas == null ? null : DateTime.now().year - _yas!,
+            ilgiAlanlari: _ilgiler.toList(),
+            // ⚠️ "Takım tutmuyorum" BOS gider — sunucuda "belirtmedi" ile ayni.
+            takim: _takim == kTakimYok ? '' : _takim,
           );
       if (!mounted) return;
       // ⚠️⚠️⚠️ TURU 119 — PROFIL FOTOGRAFI **HESAPTAN SONRA** yuklenir.
-      //
       //	SIRA ZORUNLU: yukleme `POST /media/presign` ile baslar ve o uc
       //	OTURUM ISTER. Hesap kurulmadan once denenirse 401 doner.
-      //
-      // ⚠️⚠️ **FOTOGRAF HATASI KAYDI BOZMAZ.** Hesap ZATEN kuruldu ve
-      //	oturum acildi; burada firlatilan bir istisna disaridaki `catch`e
-      //	duser ve kullaniciya "kayit basarisiz" gibi gorunurdu — oysa
-      //	hesabi VAR. Bu yuzden kendi `try`i icinde ve sessiz.
-      //	Kullanici fotografini profil ekranindan her zaman degistirebilir.
+      // ⚠️⚠️ **FOTOGRAF HATASI KAYDI BOZMAZ**: hesap ZATEN kuruldu ve oturum
+      //	acildi; burada firlatilan bir istisna disaridaki `catch`e duser ve
+      //	kullaniciya "kayit basarisiz" gibi gorunurdu — oysa hesabi VAR.
       await _avatariYukle();
       if (!mounted) return;
-      // ⚠️ TURU 89 — izin adimi KALKTI: hesap kurulur kurulmaz ana ekrana.
-      //    Izinler onboardingte ZATEN alindi (uygulamanin ilk acilisinda).
       _bitir();
     } catch (e) {
       if (mounted) _uyar(apiErrorMessage(e));
@@ -249,52 +273,12 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
 
   @override
   Widget build(BuildContext context) {
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      // ⚠️⚠️ TURU 85b — DURUM CUBUGU IKONLARI **KOYU** (denetim bulgusu).
-      //    Zemin sabit beyaz yapildi ama durum cubugu stili TEMADAN geliyordu:
-      //    koyu temada (ve Android'in `values-night/styles.xml` yolunda)
-      //    ikonlar BEYAZ kaliyor ve beyaz zeminde **saat/pil/sinyal
-      //    GORUNMUYORDU**. `AnnotatedRegion` bu ekran icin stili ZORLAR ve
-      //    ekrandan cikilinca otomatik geri alinir.
-      // ⚠️ `statusBarIconBrightness` ANDROID, `statusBarBrightness` iOS icin —
-      //    ikisi BIRLIKTE yazilir ve iOS'ta anlam TERSTIR (`light` = acik
-      //    ZEMIN = koyu ikon).
-      // ⚠️ YAPMA: bu sarmali kaldirma; zemin beyaz kaldigi surece gerekli.
-      value: const SystemUiOverlayStyle(
-        statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.dark,
-        statusBarBrightness: Brightness.light,
-      ),
-      // ⚠️⚠️⚠️ TURU 85b — EKRAN **ACIK TEMAYA SARILIYOR** (kok cozum).
-      //
-      //	Zemin sabit beyaz yapilinca ekran temanin geri kalanindan KOPTU:
-      //	koyu temadaki kullanicida imlec rengi, secim vurgusu, `TextField`
-      //	etiketleri, `helperText`, hata rengi ve dugme yazisi HALA KOYU
-      //	temadan geliyordu -> beyaz zeminde BEYAZ imlec/yazi = GORUNMEZ.
-      //	Bes metin alanini TEK TEK boyamak yerine tum alt agac `lightTheme`
-      //	ile sariliyor; boylece bugun eklenmemis bir bilesen bile yarin
-      //	DOGRU renkle cizilir (turu 81b'nin "~500 sabit renk noktasi"
-      //	dersinin yapisal cevabi).
-      // ⚠️ YAPMA: bunu kaldirip tek tek `cursorColor` yazmaya donme; yeni
-      //    eklenen her alan sessizce gorunmez olur.
-      // ⚠️⚠️ TURU 85c — DONANIM GERI TUSU KAPISI (denetim bulgusu).
-      //
-      //	`_ustCubuk` serhi *"IZIN ADIMINDA GERI YOK"* diyordu ama govdede
-      //	uygulanan TEK sey ARAYUZ OKUNUN CIZILMEMESIYDI. Android donanim
-      //	geri tusu (ve iOS kenar cekmesi) route'u yine de pop ediyor:
-      //	kullanici 4. adimdan cikiyor, `izinSorulduIsaretle()` HIC kosmuyor
-      //	ve `HomeScreen` kapisi izin ekranini YENIDEN aciyordu — yani turu
-      //	85b'de kapatilan "ayni ekran arka arkaya iki kez" hatasi bu yoldan
-      //	geri geliyordu.
-      // ⚠️ Geri tusu AKISI TERK ETMEZ; "Şimdilik geç" ile AYNI yolu kosar
-      //    (isaretle + ana ekrana git), yani kullanici mahsur da kalmaz.
-      // ⚠️ Yalniz 4. adimda kilitlenir; 1-3. adimlarda geri normal calisir.
-      child: Theme(
-        data: lightTheme,
-        child: Scaffold(
-        // ⚠️ Zemin SABIT BEYAZ — onboarding ile ayni dil (kullanici emri).
-        backgroundColor: Colors.white,
-        body: SafeArea(
+    // ⚠️ `AuthSayfa` TEK KAYNAK: durum cubugu ikonlarini KOYU yapar
+    //    (beyaz zeminde saat/pil gorunsun — turu 85b) ve ekrani `lightTheme`
+    //    ile sarar (koyu temada beyaz zemine beyaz imlec cizilmesin).
+    // ⚠️ YAPMA: bu sarmali kaldirip renkleri tek tek yazma.
+    return AuthSayfa(
+      child: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -307,14 +291,13 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
                   0 => _adimTelefon(),
                   1 => _adimKod(),
                   2 => _adimBilgiler(),
+                  3 => _adimHakkinda(),
                   _ => _adimFotograf(),
                 },
               ),
             ),
             _altDugme(),
           ],
-          ),
-          ),
         ),
       ),
     );
@@ -325,37 +308,32 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
     height: 48,
     child: Row(
       children: [
-        // ⚠️ IZIN ADIMINDA GERI YOK: hesap ZATEN kuruldu, geri donmek
-        //    kullaniciyi doldurulmus ama artik gecersiz bir forma dondururdu.
-        if (_adim > 0)
-          IconButton(
-            icon: const Icon(LucideIcons.arrowLeft, color: _yazi),
-            onPressed: _mesgul ? null : () => setState(() => _adim -= 1),
-          )
-        else if (_adim == 0)
-          IconButton(
-            icon: const Icon(LucideIcons.arrowLeft, color: _yazi),
-            onPressed: _mesgul ? null : () => context.go('/login'),
-          ),
+        IconButton(
+          icon: const Icon(LucideIcons.arrowLeft, color: _yazi),
+          onPressed: _mesgul
+              ? null
+              : () => _adim == 0
+                    ? context.go('/login')
+                    : setState(() => _adim -= 1),
+        ),
       ],
     ),
   );
 
-  /// Uc adimlik ince ilerleme cubugu.
+  /// Ince ilerleme cubugu.
   ///
-  /// ⚠️ Yuzde YAZISI YOK: adim adimlarin kendisi zaten gorunuyor ve yuzde
+  /// ⚠️ Yuzde YAZISI YOK: adimlarin kendisi zaten gorunuyor ve yuzde
   ///    kullaniciya bir sey katmiyor (gorsel gurultu).
   Widget _ilerlemeCubugu() => Padding(
     padding: const EdgeInsets.symmetric(horizontal: 28),
     child: Row(
-      // ⚠️ TURU 119 — 3 -> **4** adim (fotograf adimi eklendi).
-      children: List.generate(4, (i) {
+      children: List.generate(_kAdimSayisi, (i) {
         final dolu = i <= _adim;
         return Expanded(
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 220),
             height: 3,
-            margin: EdgeInsets.only(right: i == 3 ? 0 : 6),
+            margin: EdgeInsets.only(right: i == _kAdimSayisi - 1 ? 0 : 6),
             decoration: BoxDecoration(
               color: dolu ? morLogo : _cizgi,
               borderRadius: BorderRadius.circular(2),
@@ -366,40 +344,10 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
     ),
   );
 
-  /// Baslik + KISA aciklama — onboarding ile ayni dil.
-  Widget _baslik(String b, String aciklama) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text(
-        b,
-        textAlign: TextAlign.left,
-        style: const TextStyle(
-          fontSize: 26,
-          height: 1.2,
-          fontWeight: FontWeight.w800,
-          color: _yazi,
-        ),
-      ),
-      const SizedBox(height: 8),
-      Text(
-        aciklama,
-        textAlign: TextAlign.left,
-        style: const TextStyle(fontSize: 14.5, height: 1.5, color: _altYazi),
-      ),
-      const SizedBox(height: 26),
-    ],
-  );
-
-  /// ⚠️⚠️ TURU 119 — ALAN BICIMI **`auth_stil.authAlan`A DEVREDILDI.**
-  ///
-  ///	Burada AYRI bir kopya vardi (cerceveli `OutlineInputBorder`) ve
-  ///	kullanici alt-cizgili yeni bicimi isteyince GIRIS ekrani degisti,
-  ///	KAYIT ekrani ESKI HALINDE KALDI — iki ekran yan yana farkli
-  ///	gorunuyordu. `auth_stil.dart`in varlik sebebi TAM BUDUR
-  ///	(*"ayni kuralin iki kopyasi DRIFT EDER"*).
-  /// ⚠️ YAPMA: buraya tekrar bir `InputDecoration` govdesi yazma.
-  InputDecoration _alan(String etiket, {String? ipucu, Widget? sonek}) =>
-      authAlan(etiket, ipucu: ipucu, sonek: sonek);
+  /// ⚠️ TURU 120 — baslik da `auth_stil.authBaslik`a DEVREDILDI. Burada ayri
+  ///    bir kopya vardi ve giris ekranindaki olculer buyutulunce kayit ESKI
+  ///    olculerde kaldi (`auth_stil.dart`in varlik sebebi).
+  Widget _baslik(String b, String aciklama) => authBaslik(b, aciklama);
 
   // ------------------------------------------------------------ ADIM GOVDELERI
   Widget _adimTelefon() => Column(
@@ -409,13 +357,14 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
         'Telefon numaran',
         'Numaranı doğrulayalım. Sana 6 haneli bir kod göndereceğiz.',
       ),
-      TextField(
-        controller: _telefon,
-        keyboardType: TextInputType.phone,
-        style: const TextStyle(color: _yazi, fontSize: 16),
-        decoration: _alan('Telefon', ipucu: '+905xxxxxxxxx'),
+      AuthTelefonAlani(
+        controller: _haneler,
+        not: _telefonNotu,
+        textInputAction: TextInputAction.done,
+        onChanged: (_) => setState(() => _telefonNotu = null),
+        onSubmitted: (_) => _telefonGonder(),
       ),
-      const SizedBox(height: 14),
+      const SizedBox(height: 16),
       const Text(
         'Numaran kimseyle paylaşılmaz; yalnızca hesabını doğrulamak ve '
         'seni tanıdıklarının bulabilmesi için kullanılır.',
@@ -429,20 +378,23 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
     children: [
       _baslik(
         'Kodu gir',
-        '${_telefon.text.trim()} numarasına gönderdiğimiz 6 haneli kodu yaz.',
+        '${authTamNumara(_haneler.text)} numarasına gönderdiğimiz '
+            '6 haneli kodu yaz.',
       ),
       TextField(
         controller: _kod,
         keyboardType: TextInputType.number,
         maxLength: 6,
         inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+        // ⚠️ `letterSpacing` BURADA MESRU: CLAUDE.md yasaginin BELGELI
+        //    istisnasi (OTP hane araligi). Rakamlar tek tek okunmali.
         style: const TextStyle(
           color: _yazi,
-          fontSize: 24,
-          letterSpacing: 8,
+          fontSize: 26,
+          letterSpacing: 9,
           fontWeight: FontWeight.w700,
         ),
-        decoration: _alan('6 haneli kod').copyWith(counterText: ''),
+        decoration: authAlan('6 haneli kod').copyWith(counterText: ''),
       ),
       const SizedBox(height: 6),
       TextButton(
@@ -463,39 +415,217 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
       TextField(
         controller: _ad,
         textCapitalization: TextCapitalization.words,
-        style: const TextStyle(color: _yazi, fontSize: 16),
-        decoration: _alan('Adın Soyadın'),
+        textInputAction: TextInputAction.next,
+        style: authDegerStili(),
+        decoration: authAlan('Adın soyadın', ipucu: 'Örn. Ahmet Yılmaz'),
       ),
-      const SizedBox(height: 14),
+      const SizedBox(height: 18),
       TextField(
         controller: _kullaniciAdi,
-        style: const TextStyle(color: _yazi, fontSize: 16),
+        textInputAction: TextInputAction.next,
+        style: authDegerStili(),
         inputFormatters: [
           FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9_]')),
         ],
-        decoration: _alan('Kullanıcı adı', ipucu: 'ornek_kullanici'),
+        decoration: authAlan('Kullanıcı adı', ipucu: 'ornek_kullanici'),
       ),
-      const SizedBox(height: 14),
-      TextField(
+      const SizedBox(height: 18),
+      AuthSifreAlani(
         controller: _sifre,
-        obscureText: _sifreGizli,
-        style: const TextStyle(color: _yazi, fontSize: 16),
-        decoration: _alan(
-          'Şifre',
-          ipucu: 'En az 6 karakter',
-          sonek: IconButton(
-            icon: Icon(
-              _sifreGizli ? LucideIcons.eye : LucideIcons.eyeOff,
-              color: _altYazi,
-              size: 20,
-            ),
-            onPressed: () => setState(() => _sifreGizli = !_sifreGizli),
-          ),
-        ),
+        ipucu: 'En az 6 karakter',
+        textInputAction: TextInputAction.done,
       ),
     ],
   );
 
+  // ------------------------------------------------------------ ADIM 3
+  /// ⚠️⚠️⚠️ TURU 120 — **YAS · ILGI ALANLARI · TAKIM** (kullanici emri:
+  ///	*"kayitta stepte KAC YASINDASIN 28 27 yukari asagi secenek, ILGI
+  ///	ALANLARI, TUTTUGU TAKIM vb seyleri de sor"*).
+  ///
+  /// ⚠️⚠️ **UCU DE OPSIYONEL.** Zorunlu yapmak kayit hunisini kirar ve bu
+  ///	alanlar hicbir is kuralini beslemiyor. Kullanici hicbirine dokunmadan
+  ///	"Devam" diyebilir; o durumda sunucuya HIC alan gitmez.
+  /// ⚠️ Veriyi GERCEKTEN saklayan bir yer var: `users.dogum_yili`,
+  ///    `users.ilgi_alanlari`, `users.takim` (migration 049) ve profil ucu
+  ///    ucunu de donduruyor. Bu form OLU DEGIL.
+  Widget _adimHakkinda() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _baslik(
+        'Biraz da senden',
+        'İstersen doldur — profilinde görünür, dilediğin zaman '
+            'değiştirebilirsin.',
+      ),
+      _bolumBasligi('Kaç yaşındasın?'),
+      const SizedBox(height: 10),
+      _yasSecici(),
+      const SizedBox(height: 26),
+      _bolumBasligi('İlgi alanların'),
+      const SizedBox(height: 4),
+      Text(
+        _ilgiler.isEmpty
+            ? 'En fazla $kEnFazlaIlgi tane seçebilirsin.'
+            : '${_ilgiler.length}/$kEnFazlaIlgi seçildi',
+        style: const TextStyle(fontSize: 12.5, color: _altYazi),
+      ),
+      const SizedBox(height: 12),
+      Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          for (final (ikon, ad) in kIlgiAlanlari)
+            _cip(
+              etiket: ad,
+              ikon: ikon,
+              secili: _ilgiler.contains(ad),
+              basildi: () => setState(() {
+                if (_ilgiler.contains(ad)) {
+                  _ilgiler.remove(ad);
+                } else if (_ilgiler.length < kEnFazlaIlgi) {
+                  _ilgiler.add(ad);
+                } else {
+                  // ⚠️ SESSIZ DUSURME YOK: tavana takilan dokunusun neden
+                  //    ise yaramadigini SOYLE. Sessiz kalsaydi kullanici
+                  //    "dokunma calismiyor" sanardi.
+                  _uyar('En fazla $kEnFazlaIlgi ilgi alanı seçebilirsin');
+                }
+              }),
+            ),
+        ],
+      ),
+      const SizedBox(height: 26),
+      _bolumBasligi('Tuttuğun takım'),
+      const SizedBox(height: 12),
+      Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          for (final t in kTakimlar)
+            _cip(
+              etiket: t,
+              secili: _takim == t,
+              // ⚠️ Ikinci dokunus SECIMI KALDIRIR: yanlislikla secen
+              //    kullanicinin geri donus yolu olmaliydi.
+              basildi: () => setState(() => _takim = _takim == t ? '' : t),
+            ),
+        ],
+      ),
+    ],
+  );
+
+  Widget _bolumBasligi(String b) => Text(
+    b,
+    style: const TextStyle(
+      fontSize: 16,
+      fontWeight: FontWeight.w700,
+      color: _yazi,
+    ),
+  );
+
+  /// Secim cipi (ilgi alani / takim).
+  ///
+  /// ⚠️ Dokunma hedefi en az 40 dp yuksekliginde: Material 48 diyor, `Wrap`
+  ///    icinde 48 cok seyrek duruyordu; 40 sinirdaki uzlasma ve dikey aralik
+  ///    (runSpacing 8) ile efektif hedef 48'e ulasiyor.
+  Widget _cip({
+    required String etiket,
+    required bool secili,
+    required VoidCallback basildi,
+    IconData? ikon,
+  }) => Material(
+    color: secili ? morLogo : Colors.white,
+    // ⚠️ Yaricap KUTU degil HAP: cipler, alt cizgili alanlarla ayni "duz"
+    //    dile ait degil; secilebilir etiketlerin standart bicimi hap.
+    borderRadius: BorderRadius.circular(22),
+    child: InkWell(
+      onTap: basildi,
+      borderRadius: BorderRadius.circular(22),
+      child: Container(
+        height: 40,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: secili ? morLogo : _cizgi, width: 1.4),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (ikon != null) ...[
+              Icon(ikon, size: 16, color: secili ? Colors.white : _altYazi),
+              const SizedBox(width: 7),
+            ],
+            Text(
+              etiket,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: secili ? Colors.white : _yazi,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+
+  /// ⚠️⚠️ YAS TEKERLEGI (kullanici emri: *"28 27 YUKARI ASAGI secenek"*).
+  ///
+  /// ⚠️ `ListWheelScrollView` SDK'nin kendi bileseni — yeni paket YOK.
+  /// ⚠️⚠️ **ILK OGE BOS ("—") ve VARSAYILAN ODUR.** Bir yasla baslasaydik,
+  ///	tekerlege HIC DOKUNMAYAN kullanici icin o deger sunucuya GERCEKMIS
+  ///	gibi giderdi — projenin *"olmayan veriyi varmis gibi gosterme"*
+  ///	kuralinin ihlali. Bos secenek "belirtmedim" demektir ve `_yas` null
+  ///	kalir.
+  /// ⚠️ `FixedExtentScrollPhysics` ZORUNLU: olmadan tekerlek ogeye
+  ///    OTURMAZ ve iki yas arasinda asili kalir.
+  Widget _yasSecici() => SizedBox(
+    height: 150,
+    child: Stack(
+      alignment: Alignment.center,
+      children: [
+        // Secim bandi — hangi ogenin secili oldugunu GORSEL olarak soyler.
+        // ⚠️ `IgnorePointer`: bandin uzerine gelen dokunuslar tekerlege
+        //    gecmeli, yoksa tam ortadan kaydirma calismaz.
+        IgnorePointer(
+          child: Container(
+            height: 46,
+            decoration: BoxDecoration(
+              color: morLogo.withValues(alpha: 0.07),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: morLogo.withValues(alpha: 0.35)),
+            ),
+          ),
+        ),
+        ListWheelScrollView.useDelegate(
+          itemExtent: 46,
+          diameterRatio: 1.7,
+          perspective: 0.0025,
+          physics: const FixedExtentScrollPhysics(),
+          onSelectedItemChanged: (i) =>
+              setState(() => _yas = i == 0 ? null : kEnKucukYas + i - 1),
+          childDelegate: ListWheelChildBuilderDelegate(
+            childCount: kEnBuyukYas - kEnKucukYas + 2,
+            builder: (_, i) {
+              final bos = i == 0;
+              final deger = kEnKucukYas + i - 1;
+              final secili = bos ? _yas == null : _yas == deger;
+              return Center(
+                child: Text(
+                  bos ? '—' : '$deger',
+                  style: TextStyle(
+                    fontSize: secili ? 26 : 20,
+                    fontWeight: secili ? FontWeight.w800 : FontWeight.w500,
+                    color: secili ? morLogo : _altYazi,
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    ),
+  );
 
   /// Kirpilmis fotografi yukler ve profile baglar. **En iyi caba.**
   ///
@@ -509,111 +639,56 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
       if (kirpik == null) return;
       final hazir = await MedyaServisi.gorseliHazirla(kirpik);
       if (hazir == null) return;
-      final id = await ref.read(medyaServisiProvider).yukle(
-        dosya: hazir,
-        kind: 'avatar',
-        mime: 'image/jpeg',
-      );
-      await ref.read(apiProvider).patch(
-        '/users/me',
-        data: {'avatar_media_id': id},
-      );
+      final id = await ref
+          .read(medyaServisiProvider)
+          .yukle(dosya: hazir, kind: 'avatar', mime: 'image/jpeg');
+      await ref
+          .read(apiProvider)
+          .patch('/users/me', data: {'avatar_media_id': id});
     } catch (_) {
       // ⚠️ SESSIZ: hesap kuruldu, fotograf en iyi cabadir (bkz. cagri yeri).
     }
   }
 
-  // ------------------------------------------------------------ ADIM 3
-  /// ⚠️⚠️⚠️ TURU 119 — **PROFIL FOTOGRAFI + KIRPMA** (kullanici emri:
-  ///	*"profil fotografi ekleme olsun, KIRPMA olsun, ortada resmi surukleme,
-  ///	istedigimiz gibi resmi ayarlayabilelim"*).
-  ///
-  /// ⚠️⚠️ **KIRPMA `InteractiveViewer` ILE**: surukleme (pan) ve iki parmakla
-  ///	yakinlastirma (scale) hazir gelir. Elle `GestureDetector` + `Matrix4`
-  ///	yazmak ayni davranisi ikinci kez uretmek olurdu ve sinir durumlari
-  ///	(cift parmak, hizli fling, olcek siniri) elde kalirdi.
-  /// ⚠️ `clipBehavior: none` + disaridan `ClipOval`: kirpma DAIRE olmali,
-  ///    `InteractiveViewer`in kendi dikdortgen kirpmasi degil.
-  /// ⚠️ `boundaryMargin` GENIS: dar birakilirsa gorsel dairenin kenarina
-  ///    yapisir ve kullanici yuzu ortalayamaz.
+  // ------------------------------------------------------------ ADIM 4
   Widget _adimFotograf() => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       _baslik(
         'Profil fotoğrafın',
-        'İstersen şimdi ekle — sürükleyip yakınlaştırarak ayarlayabilirsin.',
+        'İstersen şimdi ekle — sürükleyip yakınlaştırarak çerçeveye '
+            'oturtabilirsin.',
       ),
       Center(
         child: Column(
           children: [
-            // ── DAIRE KIRPMA ALANI ──
-            SizedBox(
-              width: 240,
-              height: 240,
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  ClipOval(
-                    child: SizedBox(
-                      width: 240,
-                      height: 240,
-                      child: _fotoHam == null
-                          ? _fotoBos()
-                          : RepaintBoundary(
-                              key: _kirpAnahtar,
-                              child: InteractiveViewer(
-                                transformationController: _kirpKontrol,
-                                clipBehavior: Clip.none,
-                                minScale: 1,
-                                maxScale: 4,
-                                boundaryMargin: const EdgeInsets.all(120),
-                                child: Image.file(
-                                  _fotoHam!,
-                                  width: 240,
-                                  height: 240,
-                                  fit: BoxFit.cover,
-                                ),
-                              ),
-                            ),
-                    ),
-                  ),
-                  // ⚠️ Halka `IgnorePointer`: dokunuslar ALTTAKI
-                  //    `InteractiveViewer`a gecmeli, yoksa surukleme calismaz.
-                  IgnorePointer(
-                    child: Container(
-                      width: 240,
-                      height: 240,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: _cizgi, width: 2),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+            _kirpAlani(),
+            const SizedBox(height: 14),
+            Text(
+              _fotoHam == null
+                  ? 'Henüz fotoğraf seçmedin. Bu adımı boş da geçebilirsin.'
+                  : 'Sürükle · iki parmakla yakınlaştır',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 12.5, color: _altYazi),
             ),
-            const SizedBox(height: 18),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              alignment: WrapAlignment.center,
               children: [
                 _fotoDugme(
                   ikon: LucideIcons.imageUp,
                   etiket: _fotoHam == null ? 'Fotoğraf seç' : 'Değiştir',
                   basildi: _mesgul ? null : _fotoSec,
                 ),
-                if (_fotoHam != null) ...[
-                  const SizedBox(width: 10),
+                if (_fotoHam != null)
                   _fotoDugme(
                     ikon: LucideIcons.rotateCcw,
                     etiket: 'Sıfırla',
-                    // ⚠️ Kirpma matrisini basa alir; fotografi KALDIRMAZ.
-                    basildi: _mesgul
-                        ? null
-                        : () => setState(
-                            () => _kirpKontrol.value = Matrix4.identity(),
-                          ),
+                    // ⚠️ Kirpma cercevesini basa alir; fotografi KALDIRMAZ.
+                    basildi: _mesgul ? null : _kirpmayiOrtala,
                   ),
-                ],
               ],
             ),
           ],
@@ -622,10 +697,116 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
     ],
   );
 
+  /// ⚠️⚠️⚠️ TURU 120 — **KIRPMA ARTIK BOSLUK BIRAKMIYOR** (kullanici:
+  ///	*"fotograf sectikten sonra ekranda yerlestirmede KESTI"*).
+  ///
+  /// ═══════════ TURU 119'DAKI HATA ═══════════
+  /// Cocuk `Image.file(width: 240, height: 240, fit: cover)` idi. `cover`
+  /// **LAYOUT ANINDA** kirpar: `InteractiveViewer`in cocugu ZATEN 240x240'lik
+  /// KIRPILMIS bir kareydi. Suruklemek gorselin daha fazlasini GOSTERMIYOR,
+  /// o kirpilmis kareyi kaydiriyordu -> daire kenarinda **BOS/BEYAZ alan**.
+  /// Ustelik `boundaryMargin: EdgeInsets.all(120)` bu bosluga kadar
+  /// suruklemeye ACIKCA izin veriyordu.
+  ///
+  /// ═══════════ DOGRUSU ═══════════
+  ///   · `constrained: false` -> cocuk KENDI boyutunu alir,
+  ///   · cocuk, dairenin `cover` olcusunde: dikey fotoda `250 x 250/oran`,
+  ///   · `boundaryMargin: EdgeInsets.zero` -> viewport DAIMA cocugun icinde
+  ///     kalir, yani **daire HER ZAMAN doludur** (yapisal garanti),
+  ///   · baslangic donusumu gorseli ORTALAR (`constrained:false` cocugu sol
+  ///     ust koseye koyar; ortalanmazsa fotografin kosesi gorunurdu).
+  /// ⚠️ Olcek buyudukce `boundaryRect` de olceklenir, yani yakinlastirinca
+  ///    surukleme alani KENDILIGINDEN genisler — ek hesap gerekmez.
+  /// ⚠️ YAPMA: `constrained`i true'ya, cocugu sabit 250x250 `cover`a ya da
+  ///    `boundaryMargin`i sifirdan buyuge dondurme; ucu de boslugu geri getirir.
+  Widget _kirpAlani() {
+    final oran = _fotoOran;
+    final (cocukEn, cocukBoy) = oran == null
+        ? (_kKirpCap, _kKirpCap)
+        : (oran >= 1 ? _kKirpCap * oran : _kKirpCap,
+           oran >= 1 ? _kKirpCap : _kKirpCap / oran);
+    return SizedBox(
+      width: _kKirpCap,
+      height: _kKirpCap,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          ClipOval(
+            child: SizedBox(
+              width: _kKirpCap,
+              height: _kKirpCap,
+              child: _fotoHam == null
+                  ? _fotoBos()
+                  // ⚠️ `RepaintBoundary` VIEWPORT'U sarar (cocugu DEGIL):
+                  //    `toImage()` sinirin KENDI boyutunu (250x250) yakalar,
+                  //    yani kullanicinin gordugu kare ne ise o kaydedilir.
+                  : RepaintBoundary(
+                      key: _kirpAnahtar,
+                      child: InteractiveViewer(
+                        transformationController: _kirpKontrol,
+                        constrained: false,
+                        clipBehavior: Clip.none,
+                        minScale: 1,
+                        maxScale: 4,
+                        boundaryMargin: EdgeInsets.zero,
+                        child: SizedBox(
+                          width: cocukEn,
+                          height: cocukBoy,
+                          child: Image.file(_fotoHam!, fit: BoxFit.cover),
+                        ),
+                      ),
+                    ),
+            ),
+          ),
+          // ⚠️⚠️ TURU 120 — **YERLESTIRME IZGARASI** (kullanici emri: *"beyaz
+          //	hafif GORUNMEZ CIZGILER olsun, daire icinde oynasin"*).
+          //	Ucte-bir cizgileri: yuzu ortalamak icin gozle referans verir.
+          // ⚠️ `IgnorePointer`: dokunuslar ALTTAKI `InteractiveViewer`a
+          //    gecmeli, yoksa surukleme HIC calismaz.
+          // ⚠️ `RepaintBoundary`in **DISINDA**: icinde olsaydi izgara
+          //    YUKLENEN FOTOGRAFA da cizilirdi.
+          if (_fotoHam != null)
+            IgnorePointer(
+              child: ClipOval(
+                child: CustomPaint(
+                  size: const Size(_kKirpCap, _kKirpCap),
+                  painter: _IzgaraCizer(),
+                ),
+              ),
+            ),
+          IgnorePointer(
+            child: Container(
+              width: _kKirpCap,
+              height: _kKirpCap,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: _fotoHam == null ? _cizgi : Colors.white,
+                  width: 3,
+                ),
+                // ⚠️ Golge YALNIZ fotograf varken: bos dairede golge, gri
+                //    yer tutucuyu "kutu" gibi gosteriyordu.
+                boxShadow: _fotoHam == null
+                    ? null
+                    : const [
+                        BoxShadow(
+                          color: Color(0x22000000),
+                          blurRadius: 18,
+                          offset: Offset(0, 6),
+                        ),
+                      ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _fotoBos() => ColoredBox(
     color: const Color(0xFFF2F2F5),
     child: Center(
-      child: Icon(LucideIcons.userRound, size: 74, color: _altYazi),
+      child: Icon(LucideIcons.userRound, size: 78, color: _altYazi),
     ),
   );
 
@@ -646,6 +827,24 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
     ),
   );
 
+  /// Gorseli daire icinde ORTALAR.
+  ///
+  /// ⚠️ `constrained: false` cocugu sol UST koseye yerlestirir; bu donusum
+  ///    olmadan kullanici fotografin sol ust kosesini gorurdu.
+  void _kirpmayiOrtala() {
+    final oran = _fotoOran;
+    if (oran == null) {
+      _kirpKontrol.value = Matrix4.identity();
+      return;
+    }
+    final en = oran >= 1 ? _kKirpCap * oran : _kKirpCap;
+    final boy = oran >= 1 ? _kKirpCap : _kKirpCap / oran;
+    setState(() {
+      _kirpKontrol.value = Matrix4.identity()
+        ..translateByDouble(-(en - _kKirpCap) / 2, -(boy - _kKirpCap) / 2, 0, 1);
+    });
+  }
+
   Future<void> _fotoSec() async {
     // ⚠️⚠️ `MedyaKapisi` KAPILARI ZORUNLU: arama/oda/yayin sirasinda galeri
     //    acmak donanimi cakistirir. `grup_olustur.dart` ile BIREBIR ayni
@@ -665,17 +864,44 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
       MedyaKapisi.pickerAcik = false;
     }
     if (x == null || !mounted) return;
+    final dosya = File(x.path);
+    // ⚠️⚠️ ORAN, kirpma sinirlarinin ON KOSULU. `ImageDescriptor.encoded`
+    //	yalnizca BASLIGI okur; tam decode 4000x3000 bir fotograf icin
+    //	~48 MB gecici RAM demekti (turu 81 dersi).
+    final oran = await _oraniOku(dosya);
+    if (!mounted) return;
     setState(() {
-      _fotoHam = File(x!.path);
-      // ⚠️ Yeni fotografta kirpma SIFIRLANIR: onceki resmin yakinlastirmasi
-      //    yeni resimde anlamsiz bir cerceve birakirdi.
-      _kirpKontrol.value = Matrix4.identity();
+      _fotoHam = dosya;
+      _fotoOran = oran;
     });
+    // ⚠️ Yeni fotografta cerceve ORTALANIR: onceki resmin konumu yeni
+    //    resimde anlamsiz bir kadraj birakirdi.
+    _kirpmayiOrtala();
+  }
+
+  /// Gorselin en-boy oranini (genislik/yukseklik) BASLIKTAN okur.
+  ///
+  /// ⚠️ Hata halinde `null`: kirpma alani o zaman kare varsayar ve surukleme
+  ///    kapali kalir — fotograf yine YUKLENIR, ozellik olmez.
+  Future<double?> _oraniOku(File f) async {
+    try {
+      final tampon = await ui.ImmutableBuffer.fromUint8List(
+        await f.readAsBytes(),
+      );
+      final tanim = await ui.ImageDescriptor.encoded(tampon);
+      final en = tanim.width, boy = tanim.height;
+      tanim.dispose();
+      tampon.dispose();
+      if (en <= 0 || boy <= 0) return null;
+      return en / boy;
+    } catch (_) {
+      return null;
+    }
   }
 
   /// Daire viewport'u PNG olarak yakalar.
   ///
-  /// ⚠️ `pixelRatio: 2.5` -> 240 dp * 2.5 = **600 px**. Avatar icin fazlasiyla
+  /// ⚠️ `pixelRatio: 2.5` -> 250 dp * 2.5 = **625 px**. Avatar icin fazlasiyla
   ///    yeterli; daha yuksegi dosyayi buyutur, dusugu profil ekraninda
   ///    bulaniklastirir.
   /// ⚠️ Hata halinde `null` doner ve KAYIT YINE TAMAMLANIR — fotograf
@@ -706,58 +932,38 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
     final (etiket, is_) = switch (_adim) {
       0 => ('Kodu gönder', _telefonGonder),
       1 => ('Doğrula', _koduDogrula),
-      // ⚠️ TURU 119 — 2. adim artik hesabi KURMAZ, fotograf adimina
-      //    gecer; hesap 3. adimda kurulur.
       2 => ('Devam', _bilgileriDogrula),
+      3 => ('Devam', () => setState(() => _adim = 4)),
       _ => ('Hesabı oluştur', _hesabiKur),
     };
     return Padding(
       padding: const EdgeInsets.fromLTRB(28, 8, 28, 18),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          SizedBox(
-            width: double.infinity,
-            height: 52,
-            child: FilledButton(
-              onPressed: _mesgul ? null : is_,
-              style: FilledButton.styleFrom(
-                backgroundColor: morLogo,
-                // ⚠️⚠️ TURU 85b — BEYAZ ZORUNLU: verilmezse koyu temada yazi
-                //    `colorScheme.onPrimary`den (KOYU) gelir ve mor dugmede
-                //    ~1.9:1 kontrastla OKUNAMAZ. Bu ekranin zemini SABIT
-                //    beyaz oldugu icin renkler de temadan BAGIMSIZ olmali.
-                foregroundColor: Colors.white,
-                // ⚠️ Devre disi (mesgul) halde de temanin gri tonu beyaz
-                //    zeminde kaybolabiliyordu -> acikca soluk mor.
-                disabledBackgroundColor: morLogo.withValues(alpha: 0.45),
-                disabledForegroundColor: Colors.white,
-                // ⚠️ TURU 119 — radius KALDIRILDI (kullanici emri;
-                //    `auth_stil.authAnaDugme` ile ayni dil).
-                shape: const RoundedRectangleBorder(
-                  borderRadius: BorderRadius.zero,
-                ),
-              ),
-              child: _mesgul
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : Text(
-                      etiket,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-            ),
-          ),
-        ],
-      ),
+      child: authAnaDugme(etiket: etiket, basildi: is_, mesgul: _mesgul),
     );
   }
+}
+
+/// ⚠️ TURU 120 — KIRPMA IZGARASI: ucte-bir cizgileri, cok soluk beyaz
+///    (kullanici: *"beyaz hafif GORUNMEZ cizgiler"*).
+///
+/// ⚠️ Renk beyaz + %22 alfa: koyu bir fotografta gorunur, acik bir fotografta
+///    zar zor secilir — amac ZATEN referans vermek, dikkat cekmek degil.
+/// ⚠️ `shouldRepaint` **false**: cizer durumsuzdur, her karede yeniden
+///    boyanmasi gereksiz is olurdu.
+class _IzgaraCizer extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final firca = Paint()
+      ..color = const Color(0x38FFFFFF)
+      ..strokeWidth = 1;
+    for (var i = 1; i < 3; i++) {
+      final x = size.width * i / 3;
+      final y = size.height * i / 3;
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), firca);
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), firca);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

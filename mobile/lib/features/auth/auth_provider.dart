@@ -91,6 +91,15 @@ class AuthNotifier extends StateNotifier<String?> {
     required String name,
     required String username,
     required String password,
+    // ⚠️⚠️ TURU 120 — "Biraz da senden" adimi (yas · ilgi alanlari · takim).
+    //	UCU DE OPSIYONEL; adim atlanirsa hicbiri gonderilmez.
+    // ⚠️ `dogumYili` gonderilir, YAS DEGIL: yas her yil degisir, dogum yili
+    //    sabittir (sunucu serhi: `049_profil_ilgi.sql`).
+    // ⚠️ Alanlar YALNIZCA DOLUYSA govdeye konur: `null` gondermek ile hic
+    //    gondermemek sunucuda AYNI seye cozulur ama govde gereksiz sismesin.
+    int? dogumYili,
+    List<String>? ilgiAlanlari,
+    String? takim,
   }) async {
     final res = await _ref.read(apiProvider).post(
       '/auth/kayit/tamamla',
@@ -99,6 +108,10 @@ class AuthNotifier extends StateNotifier<String?> {
         'name': name,
         'username': username,
         'password': password,
+        if (dogumYili != null) 'dogum_yili': dogumYili,
+        if (ilgiAlanlari != null && ilgiAlanlari.isNotEmpty)
+          'ilgi_alanlari': ilgiAlanlari,
+        if (takim != null && takim.isNotEmpty) 'takim': takim,
       },
     );
     await _saveSession(res.data);

@@ -325,10 +325,12 @@ func (h *Handler) Profile(w http.ResponseWriter, r *http.Request) {
 	err := h.db.QueryRow(r.Context(), `
 		SELECT id, COALESCE(username,''), name, about, avatar_url, avatar_media_id,
 		       kapak_media_id, onayli,
+		       dogum_yili, ilgi_alanlari, takim,
 		       gizli_hesap, takipci_sayisi, takip_sayisi, gonderi_sayisi, baglanti
 		  FROM users WHERE id=$1 AND verified=true`, hedef).
 		Scan(&u.ID, &u.Username, &u.Name, &u.About, &u.AvatarURL, &u.AvatarMediaID,
 			&u.KapakMediaID, &u.Onayli,
+			&u.DogumYili, &u.IlgiAlanlari, &u.Takim,
 			&gizli, &takipci, &takip, &gonderi, &baglanti)
 	if err == pgx.ErrNoRows {
 		writeErr(w, http.StatusNotFound, "kullanıcı bulunamadı")
@@ -375,6 +377,10 @@ func (h *Handler) Profile(w http.ResponseWriter, r *http.Request) {
 		"id": u.ID, "username": u.Username, "name": u.Name, "about": u.About,
 		"avatar_url": u.AvatarURL, "avatar_media_id": u.AvatarMediaID,
 		"kapak_media_id": u.KapakMediaID, "onayli": u.Onayli,
+		// ⚠️ TURU 120 — SELECT + Scan + BU HARITA UCU BIRLIKTE degisir;
+		//    `profil_yanit_test.go` bunu otomatik dogruluyor.
+		"dogum_yili": u.DogumYili, "ilgi_alanlari": u.IlgiAlanlari,
+		"takim": u.Takim,
 		"gizli_hesap": gizli, "baglanti": baglanti,
 		"takipci_sayisi": takipci, "takip_sayisi": takip, "gonderi_sayisi": gonderi,
 		"iliski": d,

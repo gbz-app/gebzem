@@ -1,0 +1,43 @@
+-- ⚠️⚠️⚠️ TURU 120 — PROFIL: YAS · ILGI ALANLARI · TUTTUGU TAKIM
+--
+-- Kullanici emri: *"kayitta stepte KAC YASINDASIN (28, 27 yukari asagi
+-- secenek), ILGI ALANLARI, TUTTUGU TAKIM vb seyleri de sor"*.
+--
+-- ═══════════ NEDEN `dogum_yili`, `yas` DEGIL ═══════════
+--
+-- Yas HER YIL DEGISIR. `yas INT` yazsaydik kayit sirasinda 28 diyen kisi bir
+-- yil sonra hala 28 gorunurdu ve duzeltmenin TEK yolu kullanicinin profilini
+-- elle guncellemesi olurdu. `dogum_yili` SABITTIR; yas her okumada
+-- `simdikiYil - dogum_yili` ile TURETILIR.
+-- ⚠️ TAM DOGUM TARIHI ISTENMEDI: kullanici yalnizca yas sordu, gun/ay
+--    toplamak gereksiz kisisel veridir (KVKK: veri minimizasyonu).
+--    ⚠️ DURUST SINIR: bu modelde yas ±1 yil hatalidir (dogum gunu gecti mi
+--       bilinmiyor). Kullaniciya "28" gosterilir, "28 yasinda 4 aylik" degil.
+--
+-- ═══════════ NEDEN AYRI TABLO DEGIL ═══════════
+--
+-- Ucu de KULLANICIYA AIT, TEK DEGERLI (ya da kucuk sabit dizi) ve HER profil
+-- okumasinda gerekiyor. Ayri bir `user_ilgi` tablosu her profil sorgusuna bir
+-- JOIN daha eklerdi; kazanci YOK.
+--
+-- ⚠️ `ilgi_alanlari` **NOT NULL DEFAULT '{}'**: NULL ile bos dizi ayrimi
+--    hicbir sey anlatmiyor ve NULL, istemcide `List<String>` taramasini
+--    PATLATIRDI (turu 76 `media_kinds` dersi: `array_agg` NULL uretirse satir
+--    SESSIZCE atlanir).
+--    ⚠️ Go tarafinda da `nil` dilim SQL NULL'a cevrilir ve NOT NULL sutunda
+--       `23502` verir (turu 75b sevk engeli) — yazan kod `[]string{}` garanti
+--       eder.
+--
+-- ⚠️ `takim` **TEXT, CHECK YOK**: turu 89 dersi — `tur`/`durum` alanlarina
+--    CHECK koymak IKI KEZ sevk engeli uretti (yeni deger eklemek migration
+--    gerektiriyor). Gecerlilik Go tarafinda (uzunluk tavani) uygulanir.
+--
+-- ⚠️ UCU DE **OPSIYONEL**: kayit akisinda bu adim atlanabilir. Zorunlu
+--    yapmak kayit hunisini kirar ve bu alanlar hicbir is kuralini beslemiyor.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS dogum_yili INT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS ilgi_alanlari TEXT[] NOT NULL DEFAULT '{}';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS takim TEXT NOT NULL DEFAULT '';
+
+-- ⚠️ Makul aralik kontrolu SUTUN SEVIYESINDE degil GO'da: burada bir CHECK
+--    olsaydi 2026'da gecerli olan tavan 2040'ta kendiliginden yanlis olurdu
+--    (sabit yil yazmak zorundayiz). Go `time.Now().Year()`den turetiyor.
