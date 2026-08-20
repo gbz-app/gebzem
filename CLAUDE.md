@@ -16,6 +16,30 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    ([ ]→[x]) HER ADIMDAN SONRA güncellenip push'lanır; aşağıdaki ŞU AN DEVAM EDEN İŞ bloğu da
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
+9. ⛔⛔⛔ **ARAYÜZ BİTMEDEN BACKEND'E GİRME** (21 Ağu emri — İKİNCİ ihlal).
+   Kullanıcı: *"ben sana sadece HIZLI BİR ŞEKİLDE ARAYÜZ DEĞİŞİKLİĞİ
+   yapmamız gerekiyor diyorum, sen beni dinlemiyorsun... bize SAATLER
+   kaybettiriyorsun. Bundan sonra ARAYÜZ BİTMEDEN ASLA BACKEND'E GİRME."*
+
+   **Arayüz turunda YASAK:** migration yazmak · `backend/` altında dosya
+   değiştirmek · sunucuya deploy · `tools/uctan_uca.js` koşturmak ·
+   muhafız testi yazıp bozarak kanıtlamak · piksel ölçüm betiği ·
+   `oturum.md`/`CLAUDE.md` güncellemek.
+   **Yapılacak:** kodu değiştir -> `flutter run` -> ekran görüntüsü -> "bak" de.
+
+   ⚠️⚠️ **SUNUCUDA KARŞILIĞI OLMAYAN BİR FORM İSTENİRSE** (ör. *"kayıtta
+   yaş, ilgi alanları, takım sor"*): arayüzü YAP, değeri EKRANDA TUT,
+   sunucuya GÖNDERME ve bekleyen işi aşağıdaki listeye YAZ. Kullanıcı
+   "arayüz bitti" deyince ya da build turunda TEK SEFERDE bağla.
+   ⚠️ *"Ölü form olmasın"* diye migration AÇMA. O endişe doğru ama
+      kullanıcının kararı **SIRALAMADIR**; ölü kalma riski LİSTEYE
+      yazılarak kapatılır, sırayı bozarak değil.
+
+   📌 **İHLAL KAYDI:** 15 Ağu (turu 96m) muhafız testi + bozma kanıtı ->
+      *"emülatörü hızlı arayüz için yaptık, 1 saat oldu"*. 21 Ağu (turu 120)
+      migration 049 + `internal/profil` + deploy + 390 e2e -> *"saatler
+      kaybettiriyorsun"*. **Üçüncüsü olmayacak.**
+
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
 - **KALDIGIMIZ YER (21 Agu 00:00): TURU 120 YAYINLANDI** — android
   **32415748368** + ios **32415760198** (**1fdfb7c**), R2 apk=121469022
