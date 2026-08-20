@@ -116,11 +116,7 @@ class _OnboardingEkraniState extends ConsumerState<OnboardingEkrani> {
           'Çevrendeki işletmeleri, mahallendeki paylaşımları ve en yakın '
           'nöbetçi eczaneyi görebilmen için konum izni gerekiyor. '
           'Konumun yalnızca uygulamayı kullanırken okunur.',
-      ikonlar: [
-        LucideIcons.mapPin,
-        LucideIcons.compass,
-        LucideIcons.store,
-      ],
+      ikonlar: [LucideIcons.mapPin, LucideIcons.compass, LucideIcons.store],
       gorsel: _Gorsel.konumHarita,
       izin: _OnboardIzin.konum,
     ),
@@ -521,7 +517,13 @@ class _SayfaGorunumu extends StatelessWidget {
 }
 
 /// Sayfanin ust %60'inda oynayan gorsel.
-enum _Gorsel { isletmeKartlari, aiTelefon, mesajKartlari, konumHarita, aramaTelefon }
+enum _Gorsel {
+  isletmeKartlari,
+  aiTelefon,
+  mesajKartlari,
+  konumHarita,
+  aramaTelefon,
+}
 
 enum _AkisTuru { isletme, mesaj }
 
@@ -617,33 +619,46 @@ class _KartAkisiState extends State<_KartAkisi>
         blendMode: BlendMode.dstIn,
         child: AnimatedBuilder(
           animation: _c,
+          // ⚠️⚠️⚠️ TURU 120 — LISTE **`child:` ILE BIR KEZ** KURULUR
+          //	(EMULATORDE OLCULDU: `app_time_stats avg=500 ms`, yani ~2 FPS;
+          //	sonunda **ANR** — *"Input dispatching timed out ... waited
+          //	5026 ms for KeyEvent"*).
+          //
+          //	ONCEKI HALI listeyi `builder` GOVDESINDE kuruyordu: 14 kart x
+          //	(golge + gradyan + ikon + iki metin) **HER KAREDE** yeniden
+          //	insa ediliyordu. Golgeler `saveLayer` acar; 60 fps'te bu tek
+          //	basina ana is parcacigini doyuruyor.
+          //	`child` parametresi ile agac **BIR KEZ** kurulur ve her karede
+          //	yalnizca `Transform.translate` ofseti degisir.
+          // ⚠️ YAPMA: karti tekrar `builder` govdesine tasima.
+          //
           // ⚠️⚠️ `OverflowBox` ZORUNLU: liste sonsuz dongu icin IKI KEZ
           //	ciziliyor, yani `Column` ust alandan (kutu yuksekligi) DAHA
           //	UZUN. Ebeveyn SINIRLI yukseklik verdigi icin Flutter
           //	"RenderFlex overflowed by 664 pixels" atiyor ve ekrana
           //	SARI-SIYAH serit ciziyordu — oysa tasma KASITLI, zaten
           //	ustteki `ClipRect` kirpiyor.
-          //	`OverflowBox` cocuga SINIRSIZ yukseklik verir.
           // ⚠️ `alignment: topCenter`: liste USTTEN baslasin, yoksa
           //    `Transform` ofseti yanlis referanstan hesaplanir.
-          builder: (_, _) => OverflowBox(
+          child: OverflowBox(
             maxHeight: double.infinity,
             alignment: Alignment.topCenter,
-            child: Transform.translate(
-              offset: Offset(0, -_c.value * tekBoy),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // ⚠️ Liste IKI KEZ: sonsuz dongu icin (bkz. sinif serhi).
-                  for (var tekrar = 0; tekrar < 2; tekrar++)
-                    for (final v in veri)
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(28, 0, 28, ara),
-                        child: _kart(v.$1, v.$2, v.$3, kartBoy),
-                      ),
-                ],
-              ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // ⚠️ Liste IKI KEZ: sonsuz dongu icin (bkz. sinif serhi).
+                for (var tekrar = 0; tekrar < 2; tekrar++)
+                  for (final v in veri)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(28, 0, 28, ara),
+                      child: _kart(v.$1, v.$2, v.$3, kartBoy),
+                    ),
+              ],
             ),
+          ),
+          builder: (_, cocuk) => Transform.translate(
+            offset: Offset(0, -_c.value * tekBoy),
+            child: cocuk,
           ),
         ),
       ),
@@ -832,15 +847,16 @@ class _TelefonState extends State<_Telefon>
         boy = boyTavan;
         en = boy * 9 / 19.5;
       }
+      // ⚠️⚠️ TURU 120 — CERCEVE **ANIMASYONUN DISINDA** kurulur (performans;
+      //	`_KartAkisi`daki ANR ile ayni sinif). Cerceve dekorasyonu, golgesi
+      //	ve dynamic island'i her karede yeniden insa etmek gereksizdi;
+      //	degisen TEK sey sohbet icerigi ve o da `_cerceve()` icinde kendi
+      //	`AnimatedBuilder`ina alindi.
       return ClipRect(
         child: OverflowBox(
           maxHeight: double.infinity,
           alignment: Alignment.topCenter,
-          child: AnimatedBuilder(
-            animation: _c,
-            builder: (_, _) =>
-                SizedBox(width: en, height: boy, child: _cerceve()),
-          ),
+          child: SizedBox(width: en, height: boy, child: _cerceve()),
         ),
       );
     },
@@ -877,10 +893,15 @@ class _TelefonState extends State<_Telefon>
                 ),
               ),
             ),
+            // ⚠️ Yalnizca SAHNE animasyona bagli: cerceve/island yukarida
+            //    BIR KEZ kuruldu (bkz. `build` serhi).
             Expanded(
-              child: widget.tur == _TelefonTuru.ai
-                  ? _aiSahnesi()
-                  : _aramaSahnesi(),
+              child: AnimatedBuilder(
+                animation: _c,
+                builder: (_, _) => widget.tur == _TelefonTuru.ai
+                    ? _aiSahnesi()
+                    : _aramaSahnesi(),
+              ),
             ),
           ],
         ),
@@ -960,11 +981,7 @@ class _TelefonState extends State<_Telefon>
             ),
           if (soru2 > 0.02) ...[
             const SizedBox(height: 8),
-            _balon(
-              metin: 'Nöbetçi eczane?',
-              benim: true,
-              gorunur: soru2,
-            ),
+            _balon(metin: 'Nöbetçi eczane?', benim: true, gorunur: soru2),
           ],
           const SizedBox(height: 8),
           if (yaziyor2 > 0.02 && yanit2 < 0.02)
@@ -1023,7 +1040,9 @@ class _TelefonState extends State<_Telefon>
                     : Border.all(color: const Color(0x14000000)),
                 boxShadow: [
                   BoxShadow(
-                    color: benim ? const Color(0x336C2BD9) : const Color(0x0F000000),
+                    color: benim
+                        ? const Color(0x336C2BD9)
+                        : const Color(0x0F000000),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),
@@ -1290,66 +1309,81 @@ class _KonumHaritaState extends State<_KonumHarita>
     builder: (_, kisit) {
       final en = kisit.maxWidth;
       final boy = kisit.maxHeight;
-      return AnimatedBuilder(
-        animation: _c,
-        builder: (_, _) {
-          // Nabiz 0..1 arasi gidip gelir (iki tam dongu / tur).
-          final nabiz = 0.5 + 0.5 * math.sin(_c.value * math.pi * 4);
-          return Stack(
-            children: [
-              // ── ZEMIN: stilize yol agi ──
-              const Positioned.fill(child: CustomPaint(painter: _HaritaZemini())),
-              // ── PINLER ──
-              for (var i = 0; i < _pinler.length; i++) _pin(i, en, boy),
-              // ── KONUMUM: nabiz halkasi + nokta ──
-              Positioned(
-                left: en * 0.46 - 60,
-                top: boy * 0.46 - 60,
-                width: 120,
-                height: 120,
-                child: IgnorePointer(
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      // ⚠️ Halka BUYURKEN SOLAR: sabit opaklikta buyuyen bir
-                      //    daire "yukleniyor" degil "hata" gibi duruyordu.
-                      Container(
-                        width: 44 + 62 * nabiz,
-                        height: 44 + 62 * nabiz,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: morLogo.withValues(alpha: 0.10 * (1 - nabiz)),
-                          border: Border.all(
-                            color: morLogo.withValues(alpha: 0.35 * (1 - nabiz)),
-                            width: 1.5,
-                          ),
-                        ),
-                      ),
-                      Container(
-                        width: 20,
-                        height: 20,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: morLogo,
-                          border: Border.all(color: Colors.white, width: 3),
-                          boxShadow: const [
-                            BoxShadow(
-                              color: Color(0x556C2BD9),
-                              blurRadius: 12,
-                              offset: Offset(0, 4),
+      return Stack(
+        children: [
+          // ⚠️⚠️ TURU 120 — ZEMIN **ANIMASYONUN DISINDA**: yol agi hic
+          //	degismiyor, her karede yeniden cizmek gereksiz is
+          //	(`_KartAkisi`daki ANR ile ayni sinif).
+          const Positioned.fill(child: CustomPaint(painter: _HaritaZemini())),
+          Positioned.fill(
+            child: AnimatedBuilder(
+              animation: _c,
+              builder: (_, _) {
+                // Nabiz 0..1 arasi gidip gelir (iki tam dongu / tur).
+                final nabiz = 0.5 + 0.5 * math.sin(_c.value * math.pi * 4);
+                return Stack(
+                  children: [
+                    // ── PINLER ──
+                    for (var i = 0; i < _pinler.length; i++) _pin(i, en, boy),
+                    // ── KONUMUM: nabiz halkasi + nokta ──
+                    Positioned(
+                      left: en * 0.46 - 60,
+                      top: boy * 0.46 - 60,
+                      width: 120,
+                      height: 120,
+                      child: IgnorePointer(
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            // ⚠️ Halka BUYURKEN SOLAR: sabit opaklikta buyuyen bir
+                            //    daire "yukleniyor" degil "hata" gibi duruyordu.
+                            Container(
+                              width: 44 + 62 * nabiz,
+                              height: 44 + 62 * nabiz,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: morLogo.withValues(
+                                  alpha: 0.10 * (1 - nabiz),
+                                ),
+                                border: Border.all(
+                                  color: morLogo.withValues(
+                                    alpha: 0.35 * (1 - nabiz),
+                                  ),
+                                  width: 1.5,
+                                ),
+                              ),
+                            ),
+                            Container(
+                              width: 20,
+                              height: 20,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: morLogo,
+                                border: Border.all(
+                                  color: Colors.white,
+                                  width: 3,
+                                ),
+                                boxShadow: const [
+                                  BoxShadow(
+                                    color: Color(0x556C2BD9),
+                                    blurRadius: 12,
+                                    offset: Offset(0, 4),
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
                         ),
                       ),
-                    ],
-                  ),
-                ),
-              ),
-              // ── ALTTA "Yakınımda" KARTI ──
-              _altKart(),
-            ],
-          );
-        },
+                    ),
+                    // ── ALTTA "Yakınımda" KARTI ──
+                    _altKart(),
+                  ],
+                );
+              },
+            ),
+          ),
+        ],
       );
     },
   );
@@ -1376,7 +1410,10 @@ class _KonumHaritaState extends State<_KonumHarita>
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 7,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(14),
@@ -1488,7 +1525,10 @@ class _KonumHaritaState extends State<_KonumHarita>
                         'Çevrendeki işletmeler',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(fontSize: 12.5, color: _kOnboardAltYazi),
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          color: _kOnboardAltYazi,
+                        ),
                       ),
                     ],
                   ),

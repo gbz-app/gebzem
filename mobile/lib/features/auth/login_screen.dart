@@ -163,7 +163,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       hataliMi: _hatali,
                       not: _telefonNotu,
                       textInputAction: TextInputAction.next,
-                      onChanged: (_) => setState(_temizle),
+                      // ⚠️ `setState(_temizle)` YAZMA: `_temizle` KENDISI
+                      //    `setState` cagiriyor; ic ice `setState` her tusta
+                      //    GEREKSIZ ikinci bir yeniden kurulum yapardi.
+                      onChanged: (_) => _temizle(),
                     ),
                     const SizedBox(height: 18),
                     AuthSifreAlani(

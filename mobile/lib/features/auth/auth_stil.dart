@@ -208,7 +208,11 @@ Widget authNot(String mesaj, {bool hata = true}) {
     child: Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(hata ? LucideIcons.circleAlert : LucideIcons.info, size: 14, color: renk),
+        Icon(
+          hata ? LucideIcons.circleAlert : LucideIcons.info,
+          size: 14,
+          color: renk,
+        ),
         const SizedBox(width: 6),
         Expanded(
           child: Text(
@@ -277,7 +281,7 @@ bool authTelefonTam(String haneler) {
 ///       hane `9` oldugu icin alan ANINDA kirmiziya doner ve aciklama cikar,
 ///       yani hata SESSIZ DEGIL. Akilli on-ek soyma yazilmadi: `5` ile
 ///       baslayan gecerli bir numarayi da bozma riski var.
-class AuthTelefonAlani extends StatelessWidget {
+class AuthTelefonAlani extends StatefulWidget {
   const AuthTelefonAlani({
     super.key,
     required this.controller,
@@ -306,25 +310,76 @@ class AuthTelefonAlani extends StatelessWidget {
   final TextInputAction? textInputAction;
 
   @override
+  State<AuthTelefonAlani> createState() => _AuthTelefonAlaniState();
+}
+
+/// ⚠️⚠️⚠️ TURU 120 — ALAN **KENDI DENETLEYICISINI DINLER** (`StatelessWidget`
+///	DEGIL).
+///
+/// ═══════════ ILK YAZIMDAKI HATA ═══════════
+/// Bicim hatasi (`5 ile baslamali`) `build` icinde `controller.text`ten
+/// hesaplaniyordu ama widget DURUMSUZDU: satirin yeniden cizilmesi
+/// **EBEVEYNIN `setState` CAGIRMASINA** bagliydi.
+///   · Kayit ekrani her tusta kosulsuz `setState` cagirdigi icin ORADA
+///     calisiyordu (emulatorde goruldu),
+///   · giris ekraninda `_temizle()` **yalnizca temizlenecek bir sey varsa**
+///     `setState` cagiriyor -> temiz bir formda ILK tusta hicbir sey
+///     yeniden cizilmiyor ve **hata SATIRI HIC GORUNMUYORDU**.
+///
+/// ⚠️ Yani ozellik, cagiranin dogru `onChanged` yazmasina bagliydi — bu
+///    projede DOKUZ kez sahaya cikan "olu ozellik" sinifinin ta kendisi.
+///    Artik alan KENDI durumundan sorumlu; cagiranin hicbir sey yapmasi
+///    gerekmiyor.
+/// ⚠️ `didUpdateWidget` ZORUNLU: cagiran denetleyiciyi degistirirse
+///    dinleyici ESKI nesnede kalir ve alan bir daha guncellenmezdi.
+class _AuthTelefonAlaniState extends State<AuthTelefonAlani> {
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_degisti);
+  }
+
+  @override
+  void didUpdateWidget(AuthTelefonAlani eski) {
+    super.didUpdateWidget(eski);
+    if (!identical(eski.controller, widget.controller)) {
+      eski.controller.removeListener(_degisti);
+      widget.controller.addListener(_degisti);
+    }
+  }
+
+  @override
+  void dispose() {
+    // ⚠️ Denetleyici CAGIRANA ait — yalniz dinleyici kaldirilir, `dispose`
+    //    EDILMEZ (eden taraf onu hala kullaniyor olabilir).
+    widget.controller.removeListener(_degisti);
+    super.dispose();
+  }
+
+  void _degisti() {
+    if (mounted) setState(() {});
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final bicimHatasi = authTelefonHatasi(controller.text);
-    final kirmizi = hataliMi || bicimHatasi != null;
+    final bicimHatasi = authTelefonHatasi(widget.controller.text);
+    final kirmizi = widget.hataliMi || bicimHatasi != null;
     final stil = authDegerStili(hatali: kirmizi);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         TextField(
-          controller: controller,
+          controller: widget.controller,
           keyboardType: TextInputType.phone,
-          textInputAction: textInputAction,
+          textInputAction: widget.textInputAction,
           style: stil,
           inputFormatters: [
             FilteringTextInputFormatter.digitsOnly,
             LengthLimitingTextInputFormatter(authTelefonHane),
           ],
-          onChanged: onChanged,
-          onSubmitted: onSubmitted,
-          decoration: authAlan(etiket, hataliMi: kirmizi).copyWith(
+          onChanged: widget.onChanged,
+          onSubmitted: widget.onSubmitted,
+          decoration: authAlan(widget.etiket, hataliMi: kirmizi).copyWith(
             // ⚠️ IKI BOSLUK: kullanici *"arasinda biraz bosluk"* dedi. Tek
             //    bosluk `+90532...` gibi bitisik okunuyordu.
             prefixText: '$authUlkeKodu  ',
@@ -335,7 +390,8 @@ class AuthTelefonAlani extends StatelessWidget {
             hintText: '5xx xxx xx xx',
           ),
         ),
-        if ((bicimHatasi ?? not) != null) authNot((bicimHatasi ?? not)!),
+        if ((bicimHatasi ?? widget.not) != null)
+          authNot((bicimHatasi ?? widget.not)!),
       ],
     );
   }
@@ -452,7 +508,10 @@ Widget authAnaDugme({
         ? const SizedBox(
             width: 20,
             height: 20,
-            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: Colors.white,
+            ),
           )
         : Text(
             etiket,
