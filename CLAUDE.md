@@ -17,6 +17,162 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- ⚠️⚠️⚠️ **TURU 120 — KAYIT AVATARI SESSIZCE KAYBOLUYORDU (bu sinifin
+  **ONUNCU** tekrari; ONCE OLCUM koyularak bulundu).**
+  Emulatorde kayit tamamlandi, hesap acildi, profil goruldu — AVATAR YOKTU.
+  Sunucuda `avatar_media_id` BOS, `media_assets`te yeni satir YOK: yani
+  `POST /media/presign` **HIC CAGRILMAMIS**. Uc adim da `return`le sessizce
+  cikiyor, disarida tek `catch (_) {}` vardi — HANGI adimda kirildigini
+  soyleyen HICBIR IZ yoktu.
+  ✅ `_avatarHatasi()` (debugPrint + **GERCEK Sentry olayi**) eklendi ve kok
+     neden TEK SATIRDA cikti:
+     *"Bad state: Cannot use \"ref\" after the widget was disposed."*
+  **KOK NEDEN:** `kayitTamamla` OTURUM ACAR; oturum degisince router yeniden
+  cozer ve ekranin `ConsumerState`i SOKULUR. Sonraki `ref.read(...)`
+  `StateError` firlatir, `catch` yutar, fotograf kaybolur.
+  ⚠️ **FIX (uc katman):** (a) `medyaServisi`/`api`/`auth` ILK await`ten ONCE
+     yakalanir — is artik `ref`e degil parametreye bagli, ekran gitse bile
+     TAMAMLANIR; (b) **kirpilmis kare de hesaptan ONCE** yakalanir
+     (`toImage()` CANLI bir `RenderRepaintBoundary` ister); (c) yukleme
+     oncesindeki `if (!mounted) return;` KALDIRILDI — o kapi tam bu
+     senaryoda fotografi atardi.
+  ⚠️ Sikistirma artik **EN IYI CABA**: `gorseliHazirla` null donerse PNG ham
+     yuklenir (`image/png` beyaz listede VAR; yakalanan kare Flutter uretimi
+     oldugu icin **EXIF/GPS TASIMAZ**, temizlige gerek yok).
+  ⚠️ **DERS (turu 50/56/60/63/64 ortak koku):** *"bu patlarsa TELEMETRIDE
+     gorur muyum? Cevap hayirsa ONCE olcumu koy."*
+
+- ⚠️⚠️⚠️ **TURU 120 — ONBOARDING ANIMASYONLARI UYGULAMAYI DONDURUYORDU (ANR).**
+  Emulatorde olculdu: `app_time_stats avg=500 ms` (~2 FPS), ardindan
+  *"ANR in app.gebzem — Input dispatching timed out ... waited 5026 ms for
+  KeyEvent"*. **Dart istisnasi YOKTU**, hata tamamen sessizdi.
+  KOK NEDEN: uc animasyon da agaci `AnimatedBuilder`in **GOVDESINDE**
+  kuruyordu — `_KartAkisi` 14 karti (golge + gradyan + ikon + iki metin)
+  HER KAREDE yeniden insa ediyordu; golge `saveLayer` acar.
+  FIX: degismeyen agac **`child:`** ile BIR KEZ kurulur, builder yalnizca
+  `Transform.translate` / sahne icerigi / pin katmanini yeniler.
+  ✅ **OLCULDU: 500 ms -> 88 ms** (kare sayisi 2-3 -> 10-14).
+  ⚠️ YAPMA: bu agaclari tekrar `builder` govdesine tasima.
+
+- ⚠️⚠️ **TURU 120 — `AuthTelefonAlani` DURUMSUZDU, HATA GIRISTE HIC
+  GORUNMUYORDU.** Bicim hatasi (`5 ile baslamali`) `build`de
+  `controller.text`ten hesaplaniyordu ama widget `StatelessWidget`ti:
+  yeniden cizim **EBEVEYNIN `setState`ine** bagliydi.
+  · kayit ekrani her tusta KOSULSUZ `setState` cagirdigi icin ORADA
+    calisiyordu (emulatorde goruldu),
+  · giriste `_temizle()` **yalnizca temizlenecek bir sey varsa** `setState`
+    cagiriyor -> temiz formda ILK tusta hicbir sey cizilmiyor ve hata satiri
+    **HIC GORUNMUYORDU**.
+  FIX: `StatefulWidget` + `controller.addListener` (`didUpdateWidget`te
+  denetleyici degisimi; `dispose`ta YALNIZ dinleyici kaldirilir —
+  denetleyici CAGIRANA ait).
+
+- 📞 **TURU 120 — `+90` ARTIK METNIN PARCASI DEGIL** (kullanici emri:
+  *"+90 SILINMESIN"*). Denetleyici YALNIZ 10 haneyi tutar; on ek
+  `prefixText` ile CIZILIR ve silinmesi YAPISAL OLARAK imkansiz.
+  ⚠️⚠️ **`floatingLabelBehavior: always` ZORUNLU** (SDK kaynagindan
+     dogrulandi, `input_decorator.dart`): `labelShouldWithdraw =
+     _labelShouldWithdraw || behavior == always` ve `_AffixText` opakligi
+     `labelIsFloating ? 1.0 : 0.0`. Aksi halde **alan bos ve odaksizken
+     `+90` GORUNMEZDI**.
+  ⚠️ Sunucuya giden numara **YALNIZ `authTamNumara()`** ile uretilir;
+     `authNumaraGoster()` SADECE ekran icindir (boslukla gruplar).
+  ⚠️ BILINEN SINIR: kullanici basina `90` da yapistirirsa ilk 10 hane alinir
+     ve alan ANINDA kirmiziya doner (hata SESSIZ DEGIL).
+
+- ⚠️⚠️ **TURU 120 — `hintStyle` TABAN STILI MIRAS ALIR (emulatorde goruldu).**
+  Sifre alani gizliyken `letterSpacing: 5` kullaniyor (daireler ayri
+  okunsun) ve o deger IPUCUNA siziyordu: ekranda
+  **"E n  a z  6  k a r a k t e r"** yaziyordu. Flutter `hintStyle`i
+  `TextField.style` UZERINE **merge** eder; verilmeyen alan TABANDAN gelir.
+  FIX: `authAlan` `hintStyle`inda `letterSpacing: 0` ACIKCA.
+  ⚠️ `obscuringCharacter: ●` + aralik, `letterSpacing` yasaginin **OTP ile
+     ayni sinifta** bilincli istisnasi (kullanici emri).
+
+- ⚠️⚠️⚠️ **TURU 120 — FOTOGRAF KIRPMA "KESIYORDU" (kullanici bildirdi).**
+  Turu 119`da cocuk `Image.file(240,240, fit: cover)` idi; `cover` **LAYOUT
+  ANINDA** kirpar, yani `InteractiveViewer`in cocugu ZATEN kirpilmis bir
+  kareydi. Suruklemek gorselin daha fazlasini GOSTERMIYOR, o kareyi
+  kaydiriyordu -> daire kenarinda **BOS ALAN**. Ustelik
+  `boundaryMargin: all(120)` buna ACIKCA izin veriyordu.
+  FIX: `constrained: false` + cocuk **cover OLCUSUNDE** + `boundaryMargin`
+  **ZERO** -> daire HER ZAMAN dolu (yapisal garanti). Baslangic donusumu
+  gorseli ORTALAR (`constrained:false` cocugu sol ust koseye koyar).
+  + ucte-bir IZGARA cizgileri **`RepaintBoundary`in DISINDA** (icinde
+    olsaydi YUKLENEN fotografa da cizilirdi).
+
+- 🎂 **TURU 120 — KAYIT 5 ADIM: "Biraz da senden" (yas · ilgi · takim).**
+  migration **049**: `users.dogum_yili` · `ilgi_alanlari TEXT[]` · `takim`.
+  ⚠️⚠️ **YAS DEGIL DOGUM YILI**: yas her yil degisir ve onbelleklenmis bir
+     profil yil doneminde YANLIS gosterirdi. Yasi ISTEMCI turetir.
+     ⚠️ DURUST SINIR: gun/ay sorulmadigi icin yas **±1 yil** hatalidir —
+        arayuzde "28 yasinda" DEGIL sadece "28" yazilir.
+  ⚠️⚠️ `ilgi_alanlari` **NOT NULL DEFAULT `{}`** ve `profil.TemizIlgi`
+     **ASLA nil DONMEZ**: nil dilim SQL NULL`a cevrilir ve NOT NULL sutunda
+     `23502` verir — turu 75b`de `posts.media_ids` uzerinde YASANMIS bir
+     sevk engeli ("HER yazi gonderisi 500 donuyordu").
+  ⚠️⚠️ **`internal/profil` TEK DOGRULAMA KAYNAGI**: ayni kurallar hem
+     `/auth/kayit/tamamla` hem `PATCH /users/me` icin gecerli. `users`
+     paketi ZATEN `auth`u import ediyor; yardimcilari oraya koymak
+     **IMPORT DONGUSU** olurdu.
+  ⚠️ `PATCH /users/me`de ucu de **ISARETCI**: "alan gelmedi" ile "bosaltildi"
+     ayrimi. Duz tiplerle yazilsaydi yalniz adini degistiren bir istek
+     yas/ilgi/takimi SIFIRA EZERDI (turu 85b `isletme_duzenle` sinifi).
+  ⚠️ Yas tekerleginin **ILK OGESI BOS ("—") ve VARSAYILAN ODUR**: bir yasla
+     baslasaydik, tekerlege HIC dokunmayan kullanicida o deger sunucuya
+     GERCEKMIS gibi giderdi.
+  ⚠️ Ilgi/takim listeleri **ISTEMCIDE** (turu 77 kurali BURADA GECERLI
+     DEGIL: bu alanlar hicbir sorguyu/yetkiyi/siralamayi beslemiyor).
+     Sunucu beyaz listeye BAKMAZ, yalniz uzunluk/adet tavani uygular.
+  ✅ Veri **PROFILDE GORUNUYOR** (`_profilEtiketleri`) — yoksa form OLU
+     olurdu (bu projede o sinif DOKUZ kez sahaya cikti).
+
+- 🎨 **TURU 120 — UYGULAMA IKONU YENI LOGODAN** (`tool/ikon_uret.dart`
+  yeniden yazildi, **FAIL-CLOSED**: dort kapinin biri dusse HICBIR DOSYA
+  YAZILMAZ).
+  · Kaynak artik `assets/icon/logo.png` — uygulama ici logoyla **AYNI
+    DOSYA**; onceden `kaynak.jpg`ten uretiliyordu ve iki farkli marka
+    gorseli tasiniyordu.
+  · `icon.png` = dairenin **IC TEGET KARESI** (kenar = cap/√2): koseden
+    koseye gradyan, **%100 opak**. Daireyi oldugu gibi koymak iOS squircle
+    maskesi icinde "cikartma" gorunumu verirdi.
+  · Ok, **satir bazli zemin renginden EN KUCUK KARELER** ile ayristirildi
+    (gradyan dikey; sabit "beyaza yakin" esigi alt uctaki lavantada yanlis
+    pozitif verirdi). Olculdu: **bg satir ici en buyuk sapma = 1**.
+  · adaptive **arka katman artik GORSEL** (saf gradyan), on katman yalniz
+    ok, kanvasin **%40**`i.
+  ⚠️⚠️ **`adaptive_icon_foreground_inset: 0` ZORUNLU** — varsayilan 16 idi
+     ve `ic_launcher.xml`e `<inset 16%>` yaziyordu; ok kanvasin
+     %40 x 0.68 = **%27**`sine dusuyordu. **18 TEM`DEN BERI SESSIZCE BOYLEYDI.**
+  🛡️ `test/ikon_varlik_test.dart` (4 kontrol) — inset 0 hem pubspec`te hem
+     URETILEN XML`de; **BOZULARAK KANITLANDI**.
+  ⚠️ `flutter_launcher_icons` sonrasi pbxproj
+     `GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS` bozulmasi `git checkout` ile
+     geri alinir (arac hatasi).
+
+- 🛡️ **TURU 120 — ACILIS KATMANI EMULATORDE DOGRULANAMADI, TESTLE OLCULDU.**
+  Android 12+ kendi acilis ekranini (**siyah zemin + ORTADA UYGULAMA IKONU**)
+  uygulamanin ILK KARESINE kadar tutar; debug derlemede `am start -W`
+  **14,5 sn** olctu. Iki katman birbirine COK BENZIYOR (siyah + ortada logo),
+  yani ekran goruntusu HANGISININ cizildigini **KANITLAMAZ** — "Akse Digital
+  yok" diye bakip KOD HATASI sanmak cok kolaydi.
+  ⚠️ **DERS:** yanlis yuzeyi olcme; katmani DOGRUDAN kuran testle olc
+     (`test/acilis_test.dart`: metin VAR · 23 px · `TextScaler.noScaling` ·
+     logo varligi `kAcilisLogo` ile AYNI · katman SOLUYOR).
+
+- 📌 **TURU 120 — KUCUK AMA GORUNUR:** acilis imzasi 13 -> **23 px**
+  (`textScaler.noScaling` — marka ogesi her cihazda AYNI durmali) ·
+  giriste kucuk **"Tanıtımı yeniden göster"** (`onboardingSifirla` —
+  `setBool(false)` DEGIL **`remove`**, temiz kurulumla birebir ayni durum) ·
+  baslik 26->28 / aciklama 14.5->16.5 / etiket 13.5->15.5 / deger 16->20 ·
+  onboarding gorsel alani %60 -> **%66** (yazi ile noktalar arasinda
+  ekranin ~%17`si BOS kaliyordu, 1080x2400`de olculdu) · onboarding "Devam"
+  dugmesi **radius 0** (giris/kayit turu 119`da duz koseye gecmisti, burasi
+  ATLANMISTI — asimetrinin kendisi hataydi).
+
+- 📌 **MIGRATION NUMARALARI (guncel):** 049 = `users.dogum_yili` +
+  `ilgi_alanlari` + `takim`. Sonraki **050**`den.
+
 - **KALDIGIMIZ YER (20 Agu 18:21): TURU 118+119 YAYINLANDI** — android
   **32384092303** + ios **32384110047** (**b9e3e13**), R2 apk=121335022
   (md5 fa423c46) ipa=30301875 (md5 8812d6cb) index=15615 (md5 559cc41f)
