@@ -45,18 +45,23 @@ const double kAltMenuIkonBoy = 26;
 ///    (>= 16). Bedel: hit-test ALMAYAN ust serit 11 -> 13 dp.
 /// ⚠️ YAPMA: halkayi buyuterek "daha gradient" yapmaya calisma — gorunen
 ///    logo yine kuculur; gerekirse CAP da birlikte buyutulur.
-/// ⚠️ Kaldirma payi bu sayidan TURETILIYOR (`(kAltMenuBoy - cap) / 2`), yani
-///    buyutunce logo cubugun icinde 1 dp daha az yukari kalkar — tasma
-///    yapisal olarak yine imkansiz.
+/// ⚠️⚠️ TURU 116 — **BU SERH DUZELTILDI.** Eskiden *"kaldirma payi bu
+///	sayidan TURETILIYOR ... tasma yapisal olarak imkansiz"* diyordu.
+///	GOVDEDE OYLE BIR TURETME YOK: `kAltMenuLogoKaldir` duz bir sabittir
+///	(`kAltMenuIkonKaldir + 12` = **17 dp**). `min(...)` govdede turu
+///	96z'de SILINDI; `dart:math` bu dosyaya import bile EDILMIYOR.
+///	Ust tasma **KASITLIDIR** (13 dp) ve sinirini `alt_menu_test.dart`
+///	cizer — serh degil, TEST.
 const double kAltMenuLogoCap = 58;
 
 /// ⚠️⚠️ TURU 112 — GRADIENT HALKANIN KALINLIGI.
 ///
 /// ⚠️ Halka DISARIYA eklenmez, ICERIDEN alinir: dis cap
-///    `kAltMenuLogoCap` OLARAK KALIR. Buyuseydi turu 96p'nin
-///    `min(15, (kAltMenuBoy - cap) / 2)` kaldirma hesabi degisir ve logo
-///    cubuktan TASARDI — tasan kisim hit-test ALMAZ (turu 98c) ve kor
-///    dokunuslar ALTTAKI akisa duserdi.
+///    `kAltMenuLogoCap` OLARAK KALIR. Buyuseydi logo cubuktan DAHA COK
+///    tasardi — tasan kisim hit-test ALMAZ (turu 98c) ve kor dokunuslar
+///    ALTTAKI akisa duserdi.
+///    ⚠️ TURU 116: burada eskiden `min(15, (kAltMenuBoy - cap) / 2)`
+///       yaziyordu; o hesap govdede YOK (bkz. `kAltMenuLogoKaldir`).
 const double kAltMenuLogoHalka = 2;
 
 /// Gorselin cizildigi IC daire.
@@ -87,9 +92,12 @@ const double kAltMenuLogoBosluk = 30;
 ///
 ///	**KARAR: cubuk 66 dp ve YUVARLAK KOSELI kalir; logo DISARI TASMAZ.**
 ///	Bu, kaldirmayi geometrik olarak sinirlar:
-///	  `(kAltMenuBoy - kAltMenuLogoCap) / 2` = (66 - 52) / 2 = **7 dp**
-///	Deger `min` ile TURETILIR — logo ya da cubuk boyu degisirse kendiliginden
-///	uyar ve **kirpilma/tasma YAPISAL OLARAK imkansiz** olur.
+///	  `(kAltMenuBoy - kAltMenuLogoCap) / 2` = (66 - 58) / 2 = **4 dp**
+///	⚠️⚠️ TURU 116 — burada eskiden *"(66 - 52) / 2 = 7 dp"* ve *"deger
+///	   `min` ile TURETILIR ... tasma YAPISAL OLARAK imkansiz"* yaziyordu.
+///	   IKISI DE YANLIS: cap turu 112'de 52 -> **58** oldu ve `min(...)`
+///	   govdeden turu 96z'de SILINDI. Bugun kaldirma SABIT 17 dp, yani
+///	   tasma imkansiz DEGIL — **KASITLI** (asagi bak).
 /// ⚠️ Daha fazla kaldirma isteniyorsa tek yol logoyu KUCULTMEK ya da cubugu
 ///    UZATMAK; ikisi de kullaniciya sorulmadan yapilmaz.
 /// ⚠️⚠️⚠️ TURU 96z — kullanici *"ortadaki logoyu 10px yukari kaldir"* dedi.
@@ -100,9 +108,12 @@ const double kAltMenuLogoBosluk = 30;
 ///	SAYDAM BIR SERIT olarak eklenmisti ve kullanici bunu *"kesit gibi bir
 ///	alan"* diye bildirdi. Bu kez cubuk 66 dp ve YUVARLAK KOSELI kalir;
 ///	logo yalnizca `ClipRRect`in DISINDA cizilerek yukari TASAR.
-/// ⚠️ Bedeli: tasan ~10 dp GORUNUR ama TIKLANMAZ (Flutter ebeveyn kutusunun
-///    disini hit-test etmez). Logonun kalan ~42 dp'si dokunma hedefi olarak
-///    fazlasiyla yeterli (Material asgari 48 dp'ye yakin).
+/// ⚠️ Bedeli: tasan kisim GORUNUR ama TIKLANMAZ (Flutter ebeveyn kutusunun
+///    disini hit-test etmez).
+///    OLCUM (turu 116, sabitlerden turetildi — elle sayi YAZILMADI):
+///      kaldirma 17 dp · tasmasiz tavan 4 dp -> **ust tasma 13 dp**
+///      cubuk icinde kalan **45 dp** (dokunma hedefi; Material 48'e yakin)
+///    ⚠️ Eski serh "tasan ~10 / kalan ~42" diyordu — cap 52 iken dogruydu.
 const double kAltMenuLogoKaldir = kAltMenuIkonKaldir + 12;
 
 /// Alt menu — **3 sol · LOGO · 3 sag**.
@@ -234,7 +245,7 @@ class AltMenu extends ConsumerWidget {
                       //
                       // ⚠️⚠️⚠️ TURU 98c — YER TUTUCU **ARTIK DOKUNMA HEDEFI**
                       //	(emulatorde OLCULDU, gercek hata):
-                      //	logonun cubuktan tasan ~10 dp'lik ust seridi Flutter
+                      //	logonun cubuktan tasan ust seridi (13 dp) Flutter
                       //	tarafindan hit-test EDILMEZ (ebeveyn kutusunun disi) ve
                       //	dokunus **ALTTAKI AKISA** duser. Kor bir dokunusta
                       //	gonderinin "Paylaş" sayfasi acildi — yani logonun ust
@@ -406,7 +417,8 @@ class AltMenu extends ConsumerWidget {
   ///
   /// ⚠️⚠️ **KENAR DOLGUSU SIFIR OLMAK ZORUNDA.** Asagidaki cizim
   ///	`BoxDecoration(shape: circle)` + `BoxFit.cover` kullaniyor: kare
-  ///	gorsel 52 dp kutuya oturur ve DAIRESEL kirpilir. Kaynaktaki daire
+  ///	gorsel `kAltMenuLogoIcCap` (54 dp) kutuya oturur ve DAIRESEL
+  ///	kirpilir. Kaynaktaki daire
   ///	kanvasa ic-teget DEGILSE (kenarda saydam dolgu varsa) ekranda
   ///	logonun cevresinde **BOSLUK HALKASI** olusur ve logo kardeslerinden
   ///	KUCUK gorunur. `tool/logo_uret.dart` bu dolguyu OLCER ve sifir
@@ -431,14 +443,19 @@ class AltMenu extends ConsumerWidget {
       //    KAYNAK (`sosyal/hizmet_menusu.dart`) — hamburger dugmesi de
       //    ayni fonksiyonu cagirir.
       onTap: () => hizmetMenusuAc(context),
-      // ⚠️⚠️ TURU 96n — LOGO **5 dp KUCUK BIR DAIREYE DOLDURULUR**
-      //    (kullanici emri: *"logodan 5px daha kucuk daire icine logoyu
-      //    doldur"*). Yani daire 52-5 = 47 dp ve gorsel daireyi TAM
-      //    doldurur (`cover`) — ic dolgu YOK.
+      // ⚠️⚠️ TURU 96n — logo bir DAIREYE DOLDURULUR (kullanici emri:
+      //    *"logodan 5px daha kucuk daire icine logoyu doldur"*); gorsel
+      //    daireyi TAM doldurur (`cover`) — ic dolgu YOK.
+      // ⚠️ TURU 116: eski serh "daire 52-5 = **47 dp**" diyordu. Bugunku
+      //    gercek: dis cap `kAltMenuLogoCap` = 58, halka 2 dp ICERIDEN
+      //    alindigi icin gorselin kutusu `kAltMenuLogoIcCap` = **54 dp**.
+      //    ⚠️ Sayiyi tekrar ELLE yazma — SABITIN ADINI yaz, yoksa bir
+      //       sonraki olcu degisiminde yine bayatlar.
       //
-      // ⚠️⚠️⚠️ **TIRTIKLI KENAR (kullanici: "cevresinde tirtiklar
-      //	olusuyor") — SEBEBI OLCEK.** Dosya 512x512; cubukta 47 dp =
-      //	**123 piksel** cizilir, yani **4.2 KAT** kucultme. Flutter
+      // ⚠️⚠️ **TIRTIKLI KENAR (kullanici: "cevresinde tirtiklar
+      //	olusuyor")** — dosya 512x512, gorsel `kAltMenuLogoIcCap` (54 dp)
+      //	kutuya cizilir; dpr 3'te **162 px**, yani ~**3,2 kat** kucultme
+      //	(dpr 2'de 108 px / 4,7 kat). Flutter
       //	varsayilan olarak gorseli TAM COZUNURLUKTE cozer ve cizim
       //	aninda `FilterQuality.low` (bilineer, mipmap YOK) ile
       //	kuculturr; bu oranda bilineer ornekleme logonun ince ic
@@ -453,36 +470,56 @@ class AltMenu extends ConsumerWidget {
       //	   yerine daha iyi filtre.
       // ⚠️ `devicePixelRatio` ILE CARPILIR; carpilmazsa gorsel bu kez
       //    BULANIK cizilir (turu 91'de birebir bu tuzak yasandi).
-      // ⚠️⚠️⚠️ **KIRPMA (ClipOval) KULLANILMAZ — "TIRTIKLI KENAR"IN SEBEBI
-      //	OYDU.** Kullanici iki kez *"logonun cevresinde tirtiklar
-      //	olusuyor"* dedi. Olculdu: `ClipOval` ile kenarda **0 gecis
-      //	pikseli** vardi, yani hicbir yumusatma yok — merdiven basamagi.
-      //	Uygulama **Impeller (OpenGLES)** ile calisiyor ve kirpma yolunun
-      //	kenar yumusatmasi bu boyutta gorunur sekilde kaba.
+      // ⚠️⚠️⚠️ TURU 116 — **BU BLOKTAKI TEORI YANLISTI, DUZELTILDI.**
+      //	Eskiden *"daire KIRPILARAK degil SEKIL OLARAK cizilir; kenar
+      //	yumusatmasini GPU'nun kendi daire cizimi yapar"* deniyordu.
+      //	**Flutter SDK kaynagi bunu CURUTUYOR:**
+      //	  `box_decoration.dart` -> `Path()..addOval(rect)`
+      //	  `decoration_image.dart` -> `canvas.clipPath(..., AA)`
+      //	Yani `BoxShape.circle` + `DecorationImage` ile `ClipOval`
+      //	**AYNI ILKELI** ve ayni anti-alias yolunu kullanir. Ortada bir
+      //	"shader dolgusu" YOK.
       //
-      //	COZUM: daire KIRPILARAK degil **SEKIL OLARAK CIZILIR**
-      //	(`BoxShape.circle` + `DecorationImage`). Boylece gorsel bir
-      //	daire geometrisine SHADER olarak doldurulur ve kenar
-      //	yumusatmasini GPU'nun kendi daire cizimi yapar.
-      // ⚠️ YAPMA: buraya tekrar `ClipOval`/`ClipRRect` koyma.
+      //	⚠️⚠️ "TIRTIK"IN GERCEK KOK NEDENI **EMULATOR OLCEGI**: CLAUDE.md
+      //	turu 96n dort ayri denemeyi (cacheWidth+medium ·
+      //	antiAliasWithSaveLayer · kirpmayi kaldirma · Skia ile derleme)
+      //	**piksel piksel AYNI** buldu ve kullanici telefonda tirtik
+      //	OLMADIGINI dogruladi.
+      // ⚠️ `ClipOval` YINE DE KULLANILMAZ — ama sebebi anti-alias degil:
+      //    fazladan bir katman + hit-test yuzeyi eklemesi. Mevcut yazim
+      //    ayni sonucu tek kutuda verir.
       //
-      // ⚠️ `ResizeImage` = olcek kalitesi: dosya 512x512, cizim 47 dp
-      //    (~123 px) — 4 kat kucultmede kod cozucu yeniden orneklemezse
-      //    ince halkalar aliasing yapar. `devicePixelRatio` ILE carpilir,
+      // ⚠️ `ResizeImage` = olcek kalitesi: dosya 512x512, cizim
+      //    `kAltMenuLogoIcCap` (54 dp) — kod cozucu yeniden orneklemezse
+      //    ince kenarlar aliasing yapar. `devicePixelRatio` ILE carpilir,
       //    yoksa bu kez BULANIK cizilir (turu 91 tuzagi).
       child: Builder(
         builder: (context) {
           const cap = kAltMenuLogoCap;
-          final px = (cap * MediaQuery.devicePixelRatioOf(context)).round();
+          // ⚠️⚠️ TURU 116 — COZUNURLUK **IC** CAPTAN TURETILIR.
+          //	Gorseli tasiyan ic `Container` (asagida) ebeveynin
+          //	`padding: all(kAltMenuLogoHalka)` payi yuzunden
+          //	`kAltMenuLogoIcCap` (54 dp) kisiti alir — DIS cap (58) degil.
+          //	`px` dis captan turetiliyordu: dpr 3'te 174 px cozulup
+          //	162 px'e ciziliyordu (piksel olarak ~%15 fazla is).
+          //	Kok: turu 112 halkayi ICERIDEN alip ic kutuyu ekledi, bu
+          //	satira dokunmadi — artik koddu.
+          // ⚠️ Yon GUVENLIYDI (fazla ornekleme, bulaniklik DEGIL); yine de
+          //    dogrusu ic cap. ⚠️ `kAltMenuLogoIcCap` bu satirdan ONCE
+          //    govdede HICBIR YERDEN okunmuyordu (yalniz testte).
+          final px =
+              (kAltMenuLogoIcCap * MediaQuery.devicePixelRatioOf(context))
+                  .round();
           // ⚠️⚠️⚠️ TURU 112 — **TURUNCU-MORUMSU GRADIENT HALKA** (kullanici
           //	emri: *"alt menuyu turuncu morumsu daire yap ... o daireyi
           //	boyle istedigim tarzda gradient bir renk olarak yap"*).
           //
           // ⚠️⚠️ HALKA **DISARIYA** eklenmez, ICERIDEN alinir: dis cap
-          //	`kAltMenuLogoCap` OLARAK KALIR. Cap buyuseydi turu 96p'nin
-          //	`min(15, (66 - cap) / 2)` kaldirma hesabi degisir ve logo
-          //	cubuktan TASARDI (turu 98c: tasan kisim hit-test ALMAZ ve
-          //	kor dokunuslar ALTTAKI akisa duserdi).
+          //	`kAltMenuLogoCap` OLARAK KALIR. Cap buyuseydi logo cubuktan
+          //	DAHA COK tasardi (turu 98c: tasan kisim hit-test ALMAZ ve kor
+          //	dokunuslar ALTTAKI akisa duserdi).
+          //	⚠️ TURU 116: burada eskiden `min(15, (66 - cap) / 2)` yaziyordu;
+          //	   o hesap govdede YOK (turu 96z'de silindi). Kaldirma SABIT.
           // ⚠️ Renkler SABIT (tema-bagimsiz): alt menu zemini de sabit
           //    siyah; temadan boyanirsa acik temada halka kaybolur
           //    (turu 96m dersi).

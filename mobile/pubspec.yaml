@@ -184,10 +184,31 @@ flutter:
   # To add assets to your application, add an assets section, like this:
   assets:
     - assets/sounds/
-    # TURU 83 - HEADER LOGOSU (kullanici emri: "logo header ortada olacak").
-    # Gosterilen dosya: assets/icon/logo.png
-    # Logoyu degistirmek icin YALNIZ o dosyayi degistir - KOD DOKUNULMAZ.
-    - assets/icon/
+    # ⚠️⚠️ TURU 116 — UYGULAMA ICI LOGO: alt menunun ortasindaki daire
+    #    (`lib/features/home/alt_menu.dart` -> `_logo`).
+    #    Degistirmek icin: `dart run tool/logo_uret.dart <kaynak>`
+    #    (arac kenar dolgusunu OLCER ve sozlesme bozuksa dosyayi YAZMAZ).
+    #    Muhafiz: `test/logo_varlik_test.dart`.
+    #    ⚠️ Bu, uygulama IKONU DEGILDIR (o `tool/ikon_uret.dart` +
+    #       `flutter_launcher_icons`, asagida).
+    #    ⚠️ Eski serh "TURU 83 - HEADER LOGOSU" diyordu; logo turu 98f'de
+    #       header'dan CIKARILDI (bkz. `akis_ekrani.dart`).
+    #
+    # ⚠️⚠️⚠️ **KLASOR DEGIL TEK DOSYA** (turu 116 denetimi, OLCULDU).
+    #    Eski hali `- assets/icon/` idi; Flutter o klasordeki HER dosyayi
+    #    pakete gomer. Klasorde dort tane DERLEME-ZAMANI girdisi daha var
+    #    (`icon.png` 631.844 + `icon-adaptive-fg.png` 403.131 +
+    #    `web-512.png` 217.332 + `kaynak.jpg` 81.082 = **1.333.389 B**)
+    #    ve bunlarin HICBIRI calisma aninda okunmuyor:
+    #    `lib/` genelinde tek `AssetImage` -> `assets/icon/logo.png`.
+    #    Sevk edilen APK'da bu dosyalar **`Stored` (%0 sikistirma)** ile
+    #    duruyordu, yani maliyet ham boyutun TAMAMI: APK'nin ~%1,1'i,
+    #    **IPA'nin ~%4,2'si**.
+    #    ⚠️ RISK YOK: `flutter_launcher_icons` ve `tool/*.dart` bu
+    #       dosyalari `dart:io File` ile DISKTEN okur, pakete bakmaz.
+    #    ⚠️ YAPMA: tekrar `- assets/icon/` yapma; yeni bir varlik
+    #       gerekiyorsa DOSYA OLARAK ekle.
+    - assets/icon/logo.png
 
   # TEST TURU 58 — UYGULAMA YAZI TIPI: GOOGLE SANS (kullanici istegi).
   # NOT: Google Sans uzun sure yalniz Google urunlerine ozeldi; ARTIK Google Fonts'ta

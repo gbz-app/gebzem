@@ -535,7 +535,7 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
      (turu 96m'de olculdu). Gorsel daireyi TAM DOLDURUR (`cover`).
   ⚠️ Alt menude `etiket` parametresi **A11Y ICIN DURUYOR** (gorunur yazi yok);
      "kullanilmiyor" diye silme.
-  🛡️ `mobile/test/alt_menu_test.dart` — 9 kontrol, **BES BICIMDE bozularak
+  🛡️ `mobile/test/alt_menu_test.dart` — **15 kontrol**, **DOKUZ BICIMDE bozularak
      KANITLANDI**. ⚠️ Silme.
 - **ONCEKI (14 Agu 01:07): TURU 96i YAYINLANDI** — android
   **31748701025** + ios **31748703520** (**c2d6282**), R2 apk=121959483

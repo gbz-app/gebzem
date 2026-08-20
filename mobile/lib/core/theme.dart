@@ -1,6 +1,15 @@
 import 'package:flutter/material.dart';
 
-const morLogo = Color(0xFF6C2BD9); // logodaki mor
+// ⚠️ TURU 116 — ADI 'morLogo' AMA **LOGODAN ALINMIS DEGIL.**
+//    Bu ton 20 Tem'de dogdu; kullanicinin verdigi `logo2.png` 20 Agu'da
+//    geldi. Olculdu: logodaki en yakin piksel #5C32EC (mesafe ~26).
+//    Tema HSL 262/70/51, logo ~253/84/69 — logo ~9 derece daha MAVI ve
+//    ~18 puan daha ACIK. Ayni AILEDEN ama AYNI RENK DEGIL.
+// ⚠️⚠️ YAPMA: 'logoya uysun' diye bu rengi logonun tonuna cekme.
+//    Olculdu: orta ton #7552F2 alinirsa beyaz yazi kontrasti
+//    **7,03:1 -> 4,95:1**e duser ve `onPrimary` SABIT beyaz oldugu icin
+//    AAA KAYBEDILIR. Istenirse AYRI ve OLCUMLU bir tur isi + kullanici karari.
+const morLogo = Color(0xFF6C2BD9); // marka moru
 
 // ⚠️⚠️⚠️ TURU 115 — **MARKA RENGI ARTIK LOGONUN MORU** (kullanici emri:
 //	*"arayuz icin ozen, YESIL RENK YAPMA ARTIK, genel tasarima uy"*).
