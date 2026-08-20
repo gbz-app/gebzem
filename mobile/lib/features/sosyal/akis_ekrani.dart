@@ -698,15 +698,18 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
         // ⚠️ `centerTitle: true` BURADA ACIKCA veriliyor: `theme.dart`taki
         //    `appBarTheme` genelinde `centerTitle: false` (baslik SOLDA) —
         //    tema degeri EZILMEZSE logo sola yapisir.
-        // ⚠️ OLCU: AppBar govdesi 56dp. Logo **32dp** — ustte/altta 12'ser dp
-        //    nefes birakir, hamburger (sol) ve bildirim (sag) dugmeleriyle
-        //    cakismaz. Daha buyugu (40+) cubugu doldurup sikisik gosteriyordu.
-        // ⚠️ `ClipRRect` 8dp: logo KARE bir ikon; koseleri yumusatilmadan
-        //    cubukta sert duruyor.
-        // ⚠️ `errorBuilder` ZORUNLU: logo dosyasi degistirilirken bozuk/eksik
-        //    kalirsa AppBar KIRMIZI HATA KUTUSU cizerdi.
-        // ⚠️ LOGOYU DEGISTIRMEK ICIN YALNIZ `assets/icon/logo.png` degisir —
-        //    bu koda DOKUNMAYA GEREK YOK.
+        // ⚠️⚠️⚠️ **BU SERH BAYATTI — LOGO ARTIK BURADA CIZILMIYOR** (turu
+        //	116 denetimi). Turu 98f'de bolme secicisi (Arkadaş · Keşfet ·
+        //	Mahalle) AppBar ORTASINA tasindi ve logoyu oradan CIKARDI; serh
+        //	ise 32 dp olcusunu, `ClipRRect` 8 dp'yi ve `errorBuilder`i
+        //	anlatmaya DEVAM ediyordu.
+        //	`grep "Image.asset|AssetImage" akis_ekrani.dart` -> **SIFIR**.
+        //	Bu, bu projenin en sik hata sinifi: *serhin anlattigi kod
+        //	GOVDEDE YOK*. Yanlis yonlendirmesin diye kayda geciyor.
+        // ⚠️ Uygulama ici logo BUGUN **TEK YERDE** cizilir:
+        //    `features/home/alt_menu.dart` (alt menunun ortasindaki daire).
+        //    Logoyu degistirmek icin `assets/icon/logo.png` degisir
+        //    (`dart run tool/logo_uret.dart <kaynak>`); koda DOKUNULMAZ.
         centerTitle: true,
         // ⚠️⚠️⚠️ TURU 98f — SECICI **APPBAR ORTASINA** TASINDI (kullanici
         //	emri: *"Arkadaslar · Kesfet · Canli Yayin bunlari header

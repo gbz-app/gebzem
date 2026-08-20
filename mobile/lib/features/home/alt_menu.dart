@@ -390,10 +390,27 @@ class AltMenu extends ConsumerWidget {
   ///	`ClipOval` icine konmustu. Kullanici *"logonun koseleri sikintili"*
   ///	dedi ve HAKLIYDI — daireye kirpmak, gorselin KENDI kose sanatini
   ///	kesiyordu.
-  /// ⚠️ Zaten GEREKSIZDI (olculdu): `assets/icon/logo.png` **512x512 RGBA**,
-  ///    piksellerinin **%7.8'i saydam** ve kose yuvarlatmasi gorselin
-  ///    **%23'u** — yani dosya ZATEN yuvarlatilmis koseli ve siyah seritte
-  ///    sert kare kenar OLUSTURMAZ. Kirpmak sorunu cozmuyor, URETIYORDU.
+  /// ⚠️ Zaten GEREKSIZDI (o gunku dosya olculmustu): logo yuvarlatilmis
+  ///    koseliydi ve siyah seritte sert kare kenar OLUSTURMUYORDU.
+  ///    Kirpmak sorunu cozmuyor, URETIYORDU.
+  ///
+  /// ⚠️⚠️ TURU 116 — **LOGO DEGISTI, YUKARIDAKI OLCUM BAYATLADI.**
+  ///	Kullanici yeni bir logo verdi (`logo2.png`, 1600x1600) ve
+  ///	`assets/icon/logo.png` ondan uretildi (`tool/logo_uret.dart`).
+  ///	YENI OLCUM (araç bastı, tahmin degil):
+  ///	  · 512x512 **RGBA** (alfa KORUNDU)
+  ///	  · saydam piksel **%21.3** — mukemmel ic-teget dairenin teorik
+  ///	    degeri %21.46, yani gorsel bir **TAM DAIRE**
+  ///	  · kenar dolgusu **sol=0 ust=0 sag=0 alt=0**
+  ///	  · orta satirda opak genislik **512/512 px**
+  ///
+  /// ⚠️⚠️ **KENAR DOLGUSU SIFIR OLMAK ZORUNDA.** Asagidaki cizim
+  ///	`BoxDecoration(shape: circle)` + `BoxFit.cover` kullaniyor: kare
+  ///	gorsel 52 dp kutuya oturur ve DAIRESEL kirpilir. Kaynaktaki daire
+  ///	kanvasa ic-teget DEGILSE (kenarda saydam dolgu varsa) ekranda
+  ///	logonun cevresinde **BOSLUK HALKASI** olusur ve logo kardeslerinden
+  ///	KUCUK gorunur. `tool/logo_uret.dart` bu dolguyu OLCER ve sifir
+  ///	degilse UYARIR — logo degistirilirken o uyariya bak.
   ///
   /// ⚠️ Logo dosyasi TEK KAYNAK: `assets/icon/logo.png`. Gorunum degisecekse
   ///    **DOSYA** degisir, buraya sekil kodu yazilmaz.
