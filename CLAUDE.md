@@ -17,6 +17,99 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (20 Agu 14:29): TURU 116 YAYINLANDI (YENI LOGO)** —
+  android **32362818658** + ios **32362833143** (**acffd73**), R2
+  apk=121169134 (md5 c2cbf981) ipa=30282405 (md5 35f54828) index=15553
+  (md5 82dd1025) **surum.json=48 (md5 35062ce5)**, purge OK,
+  **CDN DORDU DE BIREBIR**, debug imza YOK, `HARITA=true` iki logda da,
+  iOS min **16.0**, `MapsApiKey` enjekte, IPA'da turu 116 dizeleri VAR.
+  ⚠️ **BACKEND DEGISMEDI** -> deploy YOK, **DB TRUNCATE EDILMEDI**.
+  ✅ flutter analyze **0/0** · flutter test **44/44** (40 -> 44).
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260820-1429
+
+- 🎨 **TURU 116 — UYGULAMA ICI LOGO DEGISTI** (kullanici verdi: `logo2.png`,
+  1600x1600 RGBA, mor gradyanli TAM DAIRE + beyaz gonder oku).
+  Eski `logo.png` renkli bir **Threads yer tutucusuydu** ve mor markayla
+  celisiyordu. Logo **TEK YERDE** cizilir: `alt_menu.dart` -> `_logo`.
+  ⚠️ **KOD DEGISMEDI** — yalnizca DOSYA.
+  📌 **YENI ARAC `mobile/tool/logo_uret.dart`** (⚠️ `ikon_uret.dart` ILE
+     KARISTIRMA: o UYGULAMA IKONU, bu UYGULAMA ICI LOGO).
+  ⚠️⚠️ **SOZLESME: DAIRE KANVASA IC TEGET OLMALI.** Cizim
+     `BoxShape.circle` + `BoxFit.cover`; kaynakta saydam kenar dolgusu
+     varsa `cover` onu da cizer, arkadaki GRADIENT HALKA gorunur ->
+     halka KALIN, isaret KUCUK (turu 96m: *"logonun koseleri sikintili"*).
+  ✅ OLCULDU: 512x512 RGBA · kenar dolgusu **0/0/0/0** · saydam **%21.3**
+     (ic-teget dairenin teorigi %21.46) · orta satirda **512/512 px opak**
+     · dpr 4'te gereken 232 px -> 512 YETERLI · 329 KB -> **199 KB**.
+
+- ⚠️⚠️⚠️ **TURU 116b — YAZDIGIM ARAC FAIL-OPEN'DI (41 ajanlik denetim).**
+  `logo_uret.dart` kenar boslugunu bulunca UYARIYOR ama `exitCode` SET
+  ETMIYOR, `return` YOK -> **BOZUK LOGOYU YINE DE YAZIYOR**, surec 0 ile
+  bitiyordu. Kardes dallar `exitCode = 1; return;` yapiyordu —
+  **ASIMETRININ KENDISI HATAYDI** (bir tur once `isScrollControlled` ile
+  birebir ayni sinif yasandi).
+  ⚠️⚠️ IKINCI KUSUR: kapi **HICBIR SEY OLCEMIYORDU** — `image` paketi
+     `numChannels <= 3` icin `pixel.a`yi **literal 255** dondurur ve
+     `decodeImage` bicimi KOKLADIGI icin bir JPEG sessizce kabul edilir;
+     dolgu DAIMA 0 cikardi. Ayrica yuvarlatilmis KARE de "dolgu 0" verir.
+  FIX: fail-closed (alfa yoksa / dolgu > %1 / saydam oran %21.46 disinda
+  -> HATA, **DOSYA YAZILMAZ**). ✅ Bozularak kanitlandi: iyi dosyanin MD5'i
+  iki bozma denemesinde de DEGISMEDI.
+
+- 🛡️ **TURU 116b — `mobile/test/logo_varlik_test.dart`** (4 kontrol).
+  ⚠️⚠️ NEDEN AYRI: `alt_menu_test.dart` bir **YERLESIM** muhafizi —
+     `shape`/`fit`/54-58 dp olcer, yani WIDGET AGACINA bakar, **DOSYANIN
+     ICERIGINE BAKMAZ**. 8 px saydam dolgulu bozuk bir `logo.png` o
+     testlerin **HEPSINI GECER** (denetim olcup gosterdi).
+  ✅ **DORT BICIMDE bozularak KANITLANDI**: dolgu · kare · alfasiz · 256px.
+  ⚠️⚠️ Ilk bozma denemesi UYGULANMAMISTI ve test yesil kalmisti: betik
+     `/tmp/...` kullaniyordu, **Dart (Windows ikilisi) Git Bash'in `/tmp`
+     yolunu COZEMEZ**. MD5 karsilastirmasi yakaladi (turu 93b dersi).
+  ⚠️ DURUST SINIR: `.github/workflows/*.yml` icinde `flutter test` YOK —
+     muhafiz CI'da KOSMAZ; degeri surum rutinindeki elle `flutter test`.
+
+- 📦 **TURU 116b — 1,27 MiB OLU VARLIK PAKETTEN CIKTI** (olculdu).
+  `pubspec.yaml` `- assets/icon/` ile KLASORU toptan gomuyordu; calisma
+  aninda okunan TEK dosya `logo.png`. Digerleri DERLEME-ZAMANI girdisi
+  (`icon.png` 631.844 + `icon-adaptive-fg.png` 403.131 + `web-512.png`
+  217.332 + `kaynak.jpg` 81.082) ve APK'da **`Stored` (%0 sikistirma)**
+  ile duruyorlardi -> maliyet ham boyutun TAMAMI.
+  ✅ SONUC: **APK -1,40 MB · IPA -1,39 MB** (artifactten dogrulandi:
+     dordu de pakette YOK, `logo.png` MD5 yerelle BIREBIR).
+  ⚠️ RISK YOK: `flutter_launcher_icons` ve `tool/*.dart` bu dosyalari
+     `dart:io File` ile DISKTEN okur. ⚠️ YAPMA: tekrar `- assets/icon/`.
+
+- ⚠️⚠️ **TURU 116b — `alt_menu.dart` SERHLERI GOVDEYLE CELISIYORDU (10 blok).**
+  · *"kaldirma `min(15,...)` ile TURETILIR, tasma YAPISAL OLARAK imkansiz"*
+    -> `min` govdede YOK (turu 96z SILDI), `dart:math` import bile EDILMEMIS.
+    Kaldirma SABIT **17 dp**, ust tasma **KASITLI 13 dp**.
+  · *"66 eksi 52 boluu 2 = 7 dp"* -> cap 112de **58**, dogrusu **4 dp**
+  · *"tasan ~10 / kalan ~42"* -> **13 / 45** · *"daire 47 dp"* -> **54 dp**
+  · *"47 dp = 123 px, 4.2 kat"* -> dpr 3'te **162 px, ~3,2 kat**
+  · ⚠️⚠️ **SDK ILE CURUTULEN TEORI**: *"daire SEKIL olarak cizilir,
+    yumusatmayi GPU'nun daire cizimi yapar"* — `box_decoration.dart`
+    `Path()..addOval` + `decoration_image.dart` `canvas.clipPath(...,AA)`:
+    `BoxShape.circle` ile `ClipOval` **AYNI ILKELI** kullanir. Tirtigin
+    kok nedeni CLAUDE.md turu 96n'de zaten yaziliydi: **EMULATOR OLCEGI**.
+    ⚠️ `ClipOval` yine kullanilmaz — sebebi anti-alias DEGIL, fazladan
+       katman + hit-test yuzeyi.
+  ⚠️ Sayilar artik ELLE degil **SABITIN ADIYLA** yaziliyor.
+
+- ⏳ **TURU 116 — YAPILMADI (bilincli, KULLANICI KARARI BEKLIYOR):**
+  · **UYGULAMA IKONU DEGISMEDI** — ana ekranda hala eski "kivrim" marka,
+    uygulama icinde "gonder oku". Kullanici "logo" dedi; bu projede "logo"
+    = `assets/icon/logo.png` ve "ayni boyut" = 512x512. Ikon AYRI bir
+    varlik ve disa donuk bir marka degisikligi olurdu.
+    ⚠️ Denetim notu: turu 116 tutarsizligi YARATMADI, **AZALTTI** (onceki
+       logo cok renkli bir Threads yer tutucusuydu, renk ailesi bile ortak
+       degildi). Istenirse `ikon_uret.dart` kaynagi `logo2.png` yapilir +
+       `remove_alpha_ios` icin `background_color_ios` ACIKCA yazilmali.
+  · **Android adaptive ikon icerigi %45'te** (ORTA, 18 Tem'den beri):
+    `ic_launcher.xml` `android:inset="16%"` (arac VARSAYILANI) x
+    `ikon_uret.dart` %66 = %45 -> mark kardeslerinden kucuk gorunuyor.
+    Duzeltmesi `adaptive_icon_foreground_inset: 0` + yeniden uretim.
+  · **TURUNCU-MOR HALKA** kullanicinin turu 112 emri — dokunulmadi.
+
 - **KALDIGIMIZ YER (19 Agu 20:33): TURU 115 + 115b + 115c YAYINLANDI** —
   android **32280884494** + ios **32280900129** (**4956cc0**), R2
   apk=122633515 (md5 0f889c34) ipa=31738738 (md5 73fb63f8) index=16043

@@ -7692,3 +7692,42 @@ onaylı.
 - Adres: **https://indir.gebzem.app/index.html?v=20260819-2033**
 - Canlıda 382/382 uçtan uca · analyze 0/0 · test 40/40 · go temiz
 - **Bekleyen:** kullanıcının Yakınımda için göndereceği arayüz görseli
+
+---
+
+## Oturum — 20 Ağustos 2026 (turu 116): YENİ LOGO
+
+**Kullanıcının emri:**
+> *"sana bir logo vereceğim mevcut logomuzun aynı boyutunda bunu koy dikkatli bir şekilde
+> ... klasörün içinde logo2 diye ... bittikten sonra temiz al"*
+
+### Yapıldı (oldu)
+- `mobile/assets/icon/logo.png` → `logo2.png`'den üretildi (512×512, alfa korundu)
+- Yeni araç `mobile/tool/logo_uret.dart` — **fail-closed**, kenar boşluğunu ölçer
+- Yeni muhafız `mobile/test/logo_varlik_test.dart` — 4 kontrol, **dört biçimde bozularak kanıtlandı**
+- `pubspec` varlık listesi daraltıldı → **APK −1,40 MB · IPA −1,39 MB**
+- `alt_menu.dart`'ta gövdeyle çelişen **10 yorum bloğu** düzeltildi
+- `ResizeImage` çözünürlüğü iç captan türetiliyor (`kAltMenuLogoIcCap` canlandı)
+
+### Denendi / öğrenildi (olmadı → düzeltildi)
+- **Kendi yazdığım araç fail-open'dı**: uyarıyor ama bozuk dosyayı yine de yazıyordu.
+  Kardeş dallar `exitCode = 1; return;` yapıyordu — asimetrinin kendisi hataydı.
+- **Aracın alfa kapısı hiçbir şey ölçemiyordu**: `image` paketi alfasız görselde `a`yı
+  literal 255 döndürür; JPEG sessizce kabul edilir → dolgu daima 0.
+- **İlk bozma kanıtı uygulanmamıştı ve test yeşil kalmıştı**: betik `/tmp/...` kullanıyordu,
+  Dart (Windows ikilisi) Git Bash'in `/tmp`ini çözemez. MD5 karşılaştırması yakaladı.
+- **`BoxShape.circle` "shader ile çizer" teorisi SDK ile çürütüldü** — `ClipOval` ile aynı
+  ilkeli kullanıyor. Tırtığın kökü zaten emülatör ölçeğiydi (turu 96n).
+- **`akis_ekrani.dart` hâlâ logonun orada çizildiğini anlatıyordu** — turu 98f'de çıkarılmış.
+
+### Kararlar
+- **Uygulama ikonu değiştirilmedi**: kullanıcı "logo" dedi; projede "logo" = `logo.png`.
+  Denetim de teyit etti: turu 116 tutarsızlığı yaratmadı, azalttı.
+- **Turuncu-mor halka korundu** — kullanıcının turu 112'deki doğrudan emri.
+- **Menüdeki boş gri kutular korundu** — kullanıcının "ikon yok" emri.
+
+### Devir notu
+- Yayınlandı: android 32362818658 · ios 32362833143 · commit **acffd73**
+- Adres: **https://indir.gebzem.app/index.html?v=20260820-1429**
+- analyze 0/0 · test 44/44 · CDN dördü de birebir · backend değişmedi
+- **Bekleyen:** (1) uygulama ikonu da logo2'den üretilsin mi, (2) Yakınımda arayüz görseli
