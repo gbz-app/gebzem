@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 
+import '../../core/theme.dart';
+
 // ⚠️ TURU 97 — 'bizim gri' TEK KAYNAK (kart yuzeyiyle ayni renk).
 import '../isletme/isletme_kart.dart' show kYuzeyGri;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -748,12 +750,10 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi>
           ? LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: gradyan ??
-                  const [
-                    Color(0xFF8B3FFF),
-                    Color(0xFFFF3B5C),
-                    Color(0xFFFFB03A),
-                  ],
+              // ⚠️ TURU 117 — renkler `core/theme.dart` icindeki
+              //    `kHikayeHalkaGradient` sabitinden gelir (TEK KAYNAK);
+              //    alt menudeki logo halkasi da AYNI sabiti okur.
+              colors: gradyan ?? kHikayeHalkaGradient,
             )
           : null,
       border: (halka || duzRenk != null)

@@ -11,6 +11,28 @@ import 'package:flutter/material.dart';
 //    AAA KAYBEDILIR. Istenirse AYRI ve OLCUMLU bir tur isi + kullanici karari.
 const morLogo = Color(0xFF6C2BD9); // marka moru
 
+/// ⚠️⚠️ TURU 117 — **HIKAYE HALKASI GRADYANI (TEK KAYNAK).**
+///
+/// Kullanici emri: *"border rengini logo icin oradaki turuncu kirmizimsi,
+/// STORYDEKI bizim story gradient yap"*.
+///
+/// Bu uc renk `story_seridi.dart`ta ic ice yazilmisti ve alt menudeki logo
+/// halkasi AYRI bir uclu (turuncu-pembe-mor) kullaniyordu — yani ayni
+/// ekranda IKI FARKLI "marka gradyani" vardi. Artik ikisi de BURADAN
+/// okur.
+/// ⚠️ SIRA ONEMLI: `topLeft -> bottomRight` yoninde **mor -> kirmizi ->
+///    turuncu**. Ters cevrilirse hikaye seridi ile logo birbirinin AYNASI
+///    olur ve yan yana durduklarinda uyumsuz gorunur.
+/// ⚠️ Renkler TEMADAN BAGIMSIZ SABIT: alt menu zemini sabit siyah ve
+///    hikaye halkasi iki temada da ayni cizilir (turu 96m dersi).
+/// ⚠️ YAPMA: bu listeyi cagri yerlerine tekrar kopyalama — iki kopya
+///    kacinilmaz olarak DRIFT eder (bu projede alti kez yasandi).
+const kHikayeHalkaGradient = <Color>[
+  Color(0xFF8B3FFF), // mor
+  Color(0xFFFF3B5C), // kirmizi
+  Color(0xFFFFB03A), // turuncu
+];
+
 // ⚠️⚠️⚠️ TURU 115 — **MARKA RENGI ARTIK LOGONUN MORU** (kullanici emri:
 //	*"arayuz icin ozen, YESIL RENK YAPMA ARTIK, genel tasarima uy"*).
 //

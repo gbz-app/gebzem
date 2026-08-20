@@ -4,7 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/theme.dart'
-    show kAltMenuZemin, kAltMenuAktifIkon, kAltMenuPasifIkon;
+    show
+        kAltMenuZemin,
+        kAltMenuAktifIkon,
+        kAltMenuPasifIkon,
+        kHikayeHalkaGradient;
 import '../chats/chats_provider.dart';
 import '../medya/medya_gorsel.dart';
 import '../sosyal/hizmet_menusu.dart' show hizmetMenusuAc;
@@ -510,7 +514,7 @@ class AltMenu extends ConsumerWidget {
           final px =
               (kAltMenuLogoIcCap * MediaQuery.devicePixelRatioOf(context))
                   .round();
-          // ⚠️⚠️⚠️ TURU 112 — **TURUNCU-MORUMSU GRADIENT HALKA** (kullanici
+          // ⚠️⚠️⚠️ TURU 112/117 — **GRADIENT HALKA** (kullanici
           //	emri: *"alt menuyu turuncu morumsu daire yap ... o daireyi
           //	boyle istedigim tarzda gradient bir renk olarak yap"*).
           //
@@ -533,11 +537,15 @@ class AltMenu extends ConsumerWidget {
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [
-                  Color(0xFFFF9A3C), // turuncu
-                  Color(0xFFFF5E7A), // pembe gecis
-                  Color(0xFF8B3FFF), // mor
-                ],
+                // ⚠️⚠️ TURU 117 — RENKLER **HIKAYE HALKASIYLA AYNI**
+                //	(kullanici emri: *"border rengini logo icin oradaki
+                //	turuncu kirmizimsi, STORYDEKI bizim story gradient
+                //	yap"*). Onceden burada AYRI bir uclu vardi (turuncu
+                //	#FF9A3C -> pembe #FF5E7A -> mor #8B3FFF), yani ayni
+                //	ekranda IKI FARKLI "marka gradyani" duruyordu.
+                // ⚠️ TEK KAYNAK: `core/theme.dart`.
+                //    ⚠️ YAPMA: renkleri buraya tekrar ELLE yazma.
+                colors: kHikayeHalkaGradient,
               ),
             ),
             // ⚠️ `Container` (DecoratedBox DEGIL): muhafiz
