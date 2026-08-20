@@ -27,6 +27,22 @@ const morLogo = Color(0xFF6C2BD9); // marka moru
 ///    hikaye halkasi iki temada da ayni cizilir (turu 96m dersi).
 /// ⚠️ YAPMA: bu listeyi cagri yerlerine tekrar kopyalama — iki kopya
 ///    kacinilmaz olarak DRIFT eder (bu projede alti kez yasandi).
+/// ⚠️⚠️⚠️ TURU 119b — **HIKAYE PAYLASMA DAIRESININ GRADYANI** (siyah -> mor).
+///
+/// Kullanici emri: *"alttaki logonun cevresi halen TURUNCU; ben sana
+/// STORY EKLEMEDEKI bizim MOR gradient rengin aynisini yap dedim"*.
+///
+/// ⚠️⚠️ **IKI FARKLI HIKAYE GRADYANI VAR, KARISTIRILMAMALI:**
+///	· `kHikayePaylasGradient` (BU) — kendi "Hikâyen" dairesi, SIYAH->MOR
+///	· `kHikayeHalkaGradient`  — BASKASININ izlenmemis hikayesi,
+///	  mor->kirmizi->turuncu
+///	Turu 117de logo halkasina YANLIS OLAN (turuncu iceren) verilmisti.
+/// ⚠️ YAPMA: ikisini birbirinin yerine kullanma.
+const kHikayePaylasGradient = <Color>[
+  Color(0xFF14101C), // siyah
+  Color(0xFF8B3FFF), // mor
+];
+
 const kHikayeHalkaGradient = <Color>[
   Color(0xFF8B3FFF), // mor
   Color(0xFFFF3B5C), // kirmizi

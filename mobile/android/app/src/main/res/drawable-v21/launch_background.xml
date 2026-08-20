@@ -1,12 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Modify this file to customize your launch splash screen -->
+<!-- TURU 119 - SIYAH acilis karesi.
+     ⚠️ BU DOSYA API 21+ CIHAZLARDA `drawable/launch_background.xml`i EZER,
+        yani GERCEKTE CALISAN dosya BUDUR. Yalniz digerini duzeltmek hicbir
+        modern cihazda etki etmezdi.
+     ⚠️ `?android:colorBackground` YERINE ACIK RENK: tema niteligi cihazin
+        koyu/acik moduna gore degisir; acilis zemini Flutter katmaniyla
+        BIREBIR ayni olmak zorunda, yoksa gecis "yanip soner". -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:drawable="?android:colorBackground" />
-
-    <!-- You can insert your own image assets here -->
-    <!-- <item>
-        <bitmap
-            android:gravity="center"
-            android:src="@mipmap/launch_image" />
-    </item> -->
+    <item android:drawable="@color/acilisZemin" />
 </layer-list>

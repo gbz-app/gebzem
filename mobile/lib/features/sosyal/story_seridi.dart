@@ -439,7 +439,9 @@ class StorySeridiDurumu extends ConsumerState<StorySeridi>
                 ? _cember(
                     halka: true,
                     gri: false,
-                    gradyan: const [Color(0xFF14101C), Color(0xFF8B3FFF)],
+                    // ⚠️ TURU 119b — TEK KAYNAK (`core/theme.dart`);
+                    //    alt menudeki logo halkasi da AYNI sabiti okur.
+                    gradyan: kHikayePaylasGradient,
                     child: _benimAvatar(ad, profil, kHalkaCap),
                   )
                 : _cember(

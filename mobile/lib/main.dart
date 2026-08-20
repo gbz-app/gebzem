@@ -20,6 +20,7 @@ import 'core/storage.dart';
 import 'core/tercihler.dart';
 import 'core/theme.dart';
 import 'core/ws.dart';
+import 'features/auth/acilis_ekrani.dart';
 import 'features/calls/active_call_banner.dart';
 import 'features/calls/active_call_controller.dart';
 import 'features/calls/call_provider.dart';
@@ -638,8 +639,19 @@ class _GebzemAppState extends ConsumerState<GebzemApp> with WidgetsBindingObserv
             //    DUGME DEGIL, yalnizca odak birakan bir dinleyicidir.
             excludeFromSemantics: true,
             onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
-            child: IncomingCallOverlay(
-                child: AktifAramaBanner(child: child ?? const SizedBox.shrink())),
+            // ⚠️⚠️ TURU 119 — ACILIS KATMANI **EN DISTA** (gelen arama
+            //	katmaninin da USTUNDE). Gerekce: acilisin ilk 1 saniyesinde
+            //	gelen bir arama ekranini yarim gostermek yerine, marka
+            //	ekrani solduktan SONRA tam haliyle gostermek daha dogru.
+            //	Katman zaten `IgnorePointer` (dokunuslari yutmaz) ve solunca
+            //	agactan cikar.
+            child: AcilisKatmani(
+              child: IncomingCallOverlay(
+                child: AktifAramaBanner(
+                  child: child ?? const SizedBox.shrink(),
+                ),
+              ),
+            ),
           ),
         );
       },

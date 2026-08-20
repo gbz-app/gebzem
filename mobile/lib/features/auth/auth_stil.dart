@@ -32,6 +32,10 @@ const Color authYazi = Color(0xFF14141A);
 /// Ikincil yazi: aciklama, etiket, ipucu.
 const Color authAltYazi = Color(0xFF6B6B76);
 
+/// ⚠️ TURU 119 — HATA RENGI (kullanici emri: *"sifre hatali olunca input
+///    KIRMIZI olsun"*). Beyaz zeminde 4,5:1 uzeri okunur bir kirmizi.
+const Color authHata = Color(0xFFD92D20);
+
 /// Alan cercevesi (odaklanmamis hal).
 const Color authCizgi = Color(0xFFE3E3EA);
 
@@ -88,22 +92,66 @@ Widget authBaslik(String baslik, String aciklama) => Column(
   ],
 );
 
-/// Metin alani bicimi.
-InputDecoration authAlan(String etiket, {String? ipucu, Widget? sonek}) =>
-    InputDecoration(
-      labelText: etiket,
-      hintText: ipucu,
-      suffixIcon: sonek,
-      labelStyle: const TextStyle(color: authAltYazi),
-      hintStyle: TextStyle(color: authAltYazi.withValues(alpha: 0.6)),
-      enabledBorder: const OutlineInputBorder(
-        borderSide: BorderSide(color: authCizgi),
-      ),
-      focusedBorder: const OutlineInputBorder(
-        borderSide: BorderSide(color: morLogo, width: 1.6),
-      ),
-      border: const OutlineInputBorder(),
-    );
+/// ⚠️⚠️⚠️ TURU 119 — METIN ALANI **YALNIZ ALT CIZGI** (kullanici emri:
+///	*"input ALT CIZGI olsun, sol sag ust cizgi DEGIL; alt cizgi de 2px
+///	olsun; TELEFON NUMARASI yazisi USTTE, altta telefon numarasi
+///	yazilsin, aynisi sifrede; sifre hatali olunca input KIRMIZI olsun"*).
+///
+/// ⚠️⚠️ **`UnderlineInputBorder` + `alwaysUse` ETIKETI TEK BASINA YETMEZ.**
+///	Material'in varsayilan davranisi: etiket alan BOSKEN icerideki
+///	yer tutucunun yerinde durur, YAZILINCA yukari kucuIur. Kullanici
+///	etiketin **DAIMA USTTE** durmasini istedi (yazi girilmemis olsa bile),
+///	bu yuzden `floatingLabelBehavior: always`.
+///	⚠️ Bu ayni zamanda ipucu (`hintText`) ile etiketin UST USTE
+///	   binmesini de onler — `always` olmadan ikisi ayni yerde cizilir.
+///
+/// ⚠️ Alt cizgi **2 px** (kullanici olcusu). Odakta MARKA MORU, hatada
+///    KIRMIZI; kalinlik UC HALDE DE 2 px kalir — degisseydi alanin ic
+///    yuksekligi oynar ve yazi 1 px ZIPLARDI.
+/// ⚠️ [hataliMi] bir `errorText` DEGIL: kullanici yalnizca "input kirmizi
+///    olsun" dedi, alanin altina ikinci bir hata satiri istemedi (mesaj
+///    zaten SnackBar'da gosteriliyor). `errorText` verilseydi alanin
+///    yuksekligi de degisir ve form ziplardi.
+/// ⚠️ YAPMA: `OutlineInputBorder`a geri donme.
+InputDecoration authAlan(
+  String etiket, {
+  String? ipucu,
+  Widget? sonek,
+  bool hataliMi = false,
+}) {
+  UnderlineInputBorder cizgi(Color renk) => UnderlineInputBorder(
+    borderSide: BorderSide(color: renk, width: 2),
+  );
+  final normal = hataliMi ? authHata : authCizgi;
+  final odak = hataliMi ? authHata : morLogo;
+  return InputDecoration(
+    labelText: etiket,
+    hintText: ipucu,
+    suffixIcon: sonek,
+    // ⚠️ Etiket DAIMA USTTE (bkz. serh).
+    floatingLabelBehavior: FloatingLabelBehavior.always,
+    labelStyle: TextStyle(
+      color: hataliMi ? authHata : authAltYazi,
+      fontSize: 13.5,
+      fontWeight: FontWeight.w600,
+    ),
+    floatingLabelStyle: TextStyle(
+      color: hataliMi ? authHata : authAltYazi,
+      fontSize: 13.5,
+      fontWeight: FontWeight.w600,
+    ),
+    hintStyle: TextStyle(color: authAltYazi.withValues(alpha: 0.45)),
+    // ⚠️ Yan dolgu SIFIR: alt cizgili alanda ic dolgu, yaziyi cizginin
+    //    baslangicindan iceri kaydirir ve hizalama bozulur.
+    contentPadding: const EdgeInsets.only(top: 10, bottom: 10),
+    enabledBorder: cizgi(normal),
+    focusedBorder: cizgi(odak),
+    errorBorder: cizgi(authHata),
+    focusedErrorBorder: cizgi(authHata),
+    disabledBorder: cizgi(authCizgi),
+    border: cizgi(normal),
+  );
+}
 
 /// Tam genislikte mor ana dugme.
 ///
@@ -126,7 +174,14 @@ Widget authAnaDugme({
       foregroundColor: Colors.white,
       disabledBackgroundColor: morLogo.withValues(alpha: 0.45),
       disabledForegroundColor: Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
+      // ⚠️⚠️ TURU 119 — **RADIUS KALDIRILDI** (kullanici emri: *"giris yap
+      //	vs butonlari radus kaldir"*). Onceden 26 dp (tam hap).
+      //	Duz kose, yeni ALT CIZGILI alanlarla ayni "duz/minimal" dili
+      //	konusuyor; hap dugme o dilin yaninda yumusak kaliyordu.
+      // ⚠️ `RoundedRectangleBorder` KALDIRILMADI, yaricapi SIFIRLANDI:
+      //    tamamen kaldirilirsa `FilledButton` TEMA yaricapina duser
+      //    (Material 3: tam hap) ve degisiklik SESSIZCE geri alinir.
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
     ),
     child: mesgul
         ? const SizedBox(

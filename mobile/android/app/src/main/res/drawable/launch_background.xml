@@ -1,12 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Modify this file to customize your launch splash screen -->
+<!-- TURU 119 - SIYAH acilis karesi (kullanici emri: "Instagram/WhatsApp gibi
+     siyah ekran gelsin"). Onceden `@android:color/white` idi: surec
+     baslarken BEYAZ bir kare, hemen ardindan Flutter'in SIYAH acilis
+     katmani geliyordu — acilis yanip soner gibi gorunuyordu.
+     GORSEL KONULMADI: logo Flutter katmaninda ciziliyor; burada da bir
+     bitmap olsaydi iki logo arasinda konum/olcek farki "zipla" olarak
+     gorunurdu. -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:drawable="@android:color/white" />
-
-    <!-- You can insert your own image assets here -->
-    <!-- <item>
-        <bitmap
-            android:gravity="center"
-            android:src="@mipmap/launch_image" />
-    </item> -->
+    <item android:drawable="@color/acilisZemin" />
 </layer-list>

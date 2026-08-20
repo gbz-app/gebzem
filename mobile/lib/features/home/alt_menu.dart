@@ -8,7 +8,7 @@ import '../../core/theme.dart'
         kAltMenuZemin,
         kAltMenuAktifIkon,
         kAltMenuPasifIkon,
-        kHikayeHalkaGradient;
+        kHikayePaylasGradient;
 import '../chats/chats_provider.dart';
 import '../medya/medya_gorsel.dart';
 import '../sosyal/hizmet_menusu.dart' show hizmetMenusuAc;
@@ -537,7 +537,15 @@ class AltMenu extends ConsumerWidget {
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                // ⚠️⚠️ TURU 117 — RENKLER **HIKAYE HALKASIYLA AYNI**
+                // ⚠️⚠️⚠️ TURU 119b — **HIKAYE PAYLASMA DAIRESIYLE AYNI**
+                //	(kullanici emri: *"alttaki logonun cevresi halen
+                //	TURUNCU; ben sana STORY EKLEMEDEKI bizim MOR
+                //	gradient rengin aynisini yap dedim"*).
+                //	⚠️ Turu 117de YANLIS gradyan verilmisti
+                //	   (`kHikayeHalkaGradient` = mor->kirmizi->TURUNCU).
+                //	   Dogrusu `kHikayePaylasGradient` = SIYAH->MOR,
+                //	   yani seritteki kendi "Hikâyen" dairesinin halkasi.
+                // ⚠️ ESKI (turu 117) NOT:
                 //	(kullanici emri: *"border rengini logo icin oradaki
                 //	turuncu kirmizimsi, STORYDEKI bizim story gradient
                 //	yap"*). Onceden burada AYRI bir uclu vardi (turuncu
@@ -545,7 +553,7 @@ class AltMenu extends ConsumerWidget {
                 //	ekranda IKI FARKLI "marka gradyani" duruyordu.
                 // ⚠️ TEK KAYNAK: `core/theme.dart`.
                 //    ⚠️ YAPMA: renkleri buraya tekrar ELLE yazma.
-                colors: kHikayeHalkaGradient,
+                colors: kHikayePaylasGradient,
               ),
             ),
             // ⚠️ `Container` (DecoratedBox DEGIL): muhafiz

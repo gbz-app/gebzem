@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- TURU 119 - acilis (splash) zemini. Flutter tarafindaki `AcilisKatmani`
+     ile AYNI renk olmak ZORUNDA: farkli olsalardi surec baslarken bir ton,
+     ilk kareden sonra baska bir ton gorunur ve acilis "yanip sonerdi". -->
+<resources>
+    <color name="acilisZemin">#0B0B0F</color>
+</resources>

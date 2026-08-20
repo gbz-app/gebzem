@@ -38,6 +38,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool _loading = false;
   bool _hidePassword = true;
 
+  /// ⚠️⚠️ TURU 119 — GIRIS REDDEDILDIGINDE ALANLAR **KIRMIZI** olur
+  ///	(kullanici emri: *"sifre hatali olunca input kirmizi olsun"*).
+  ///
+  /// ⚠️ Sunucu "telefon veya sifre hatali" der; HANGISININ yanlis
+  ///	oldugunu SOYLEMEZ (bilincli — bir numaranin kayitli olup olmadigini
+  ///	sizdirmamak icin). Bu yuzden IKI alan birden kirmizi olur; yalniz
+  ///	sifreyi kirmizi yapmak, sunucunun SOYLEMEDIGI bir sey iddia etmek
+  ///	olurdu.
+  /// ⚠️ Kullanici YAZMAYA BASLAYINCA temizlenir (`_temizle`): kirmizi
+  ///    kalirsa duzeltilmis bir alan hala hatali gorunur.
+  bool _hatali = false;
+
+  void _temizle() {
+    if (_hatali) setState(() => _hatali = false);
+  }
+
   @override
   void dispose() {
     _phone.dispose();
@@ -53,6 +69,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       // yonlendirmeyi router'in redirect'i yapar
     } catch (e) {
       if (mounted) {
+        setState(() => _hatali = true);
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
       }
@@ -86,9 +103,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         controller: _phone,
                         keyboardType: TextInputType.phone,
                         style: const TextStyle(color: authYazi, fontSize: 16),
+                        onChanged: (_) => _temizle(),
                         decoration: authAlan(
                           'Telefon numarası',
                           ipucu: '+905xxxxxxxxx',
+                          hataliMi: _hatali,
                         ),
                         validator: (v) => (v == null || v.trim().length < 12)
                             ? 'Geçerli numara girin'
@@ -99,8 +118,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         controller: _password,
                         obscureText: _hidePassword,
                         style: const TextStyle(color: authYazi, fontSize: 16),
+                        onChanged: (_) => _temizle(),
                         decoration: authAlan(
                           'Şifre',
+                          hataliMi: _hatali,
                           sonek: IconButton(
                             icon: Icon(
                               _hidePassword
