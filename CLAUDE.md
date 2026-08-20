@@ -17,6 +17,76 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (20 Agu 15:16): TURU 117 YAYINLANDI** — android
+  **32366701529** + ios **32366715201** (**8fe3f9a**), R2 apk=121169858
+  (md5 27864787) ipa=30294476 (md5 cfac1974) index=15834 (md5 b3b43223)
+  **surum.json=48 (md5 a455f267)**, purge OK, **CDN DORDU DE BIREBIR**,
+  debug imza YOK, iOS min **16.0**, `MapsApiKey` enjekte, IPA da turu 117
+  dizeleri VAR (Her gün sıfırlanır. · Bugünlük hakkın doldu · Bir şey sor…),
+  `logo.png` MD5 yerelle BIREBIR, olu varliklar HALA pakette DEGIL.
+  ⚠️ **BACKEND DEGISMEDI** -> deploy YOK, **DB TRUNCATE EDILMEDI**.
+  ✅ flutter analyze **0/0** · flutter test **44/44**.
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260820-1516
+
+- 🎨 **TURU 117 — LOGO HALKASI = HIKAYE GRADYANI (TEK KAYNAK).**
+  Kullanici emri: *"border rengini logo icin STORYDEKI bizim story
+  gradient yap"*. Alt menu halkasi AYRI bir uclu kullaniyordu (turuncu
+  `#FF9A3C` -> pembe `#FF5E7A` -> mor `#8B3FFF`); hikaye seridi BASKA bir
+  uclu (mor -> kirmizi `#FF3B5C` -> turuncu `#FFB03A`). Yani ayni ekranda
+  **IKI FARKLI marka gradyani** duruyordu. Ikisi de artik
+  `core/theme.dart` -> **`kHikayeHalkaGradient`** okur.
+  ⚠️ SIRA ONEMLI (topLeft -> bottomRight): ters cevrilirse logo, hikaye
+     seridinin AYNASI olur ve yan yana uyumsuz gorunur.
+  ⚠️ YAPMA: renkleri cagri yerlerine kopyalama — zaten TAM BU yuzden
+     ayrismislardi.
+
+- 🔍 **TURU 117 — "LOGO UZERINDE SAYDAM CIZGI" ARANDI, YOK.**
+  Kullanici *"VARSA kaldir"* dedi; oldugunu VARSAYIP bir sey silmek yerine
+  UC YONTEMLE olculdu:
+  · kaynak PNG: daire icinde alfa YALNIZ **254 ve 255** (%0,4 fark,
+    gorunmez) ve 254ler satir profilinde DAGINIK -> bant DEGIL, PNG
+    kodlayici yuvarlamasi
+  · cihazda **8x buyutme**: yuzeyde kesinti YOK
+  · piksel taramasi (logo merkezinden dikey): 12den buyuk her sicrama TEK
+    TEK aciklandi (beyaz ok girisi/cikisi, halka, siyah cubuk) —
+    **aciklanamayan gecis YOK**
+  📌 Muhtemel sebep ONCEKI halkaydi: sol ustte TURUNCU basliyordu ve mor
+     logonun kenarinda cizgi gibi okunuyordu.
+  ⚠️ DERS: "varsa kaldir" denen bir sey once **OLCULUR**; olmayan bir seyi
+     "duzeltmek" gercek bir seyi bozar.
+
+- 📱 **TURU 117 — GEBZEMAI EKRANI YENIDEN KURULDU.**
+  · geri tusu **`arrowLeft`** (gonder `arrowUp`un sola cevrilmisi).
+    ⚠️ Varsayilan `BackButton` KULLANILMADI: platforma gore degisir
+       (Android ok / iOS chevron) ve "gonder gibi" olmazdi.
+  · baslik ORTADA, **20 px** (22den 2 kucuk), **w700**.
+    ⚠️ `centerTitle: true` ACIKCA veriliyor — tema geneli `false`.
+  · **GIRIS ALANI TEK KUTU**: ustte yazi, ALTINDA eylem satiri (solda
+    `imageUp`, sagda gonder).
+    ⚠️⚠️ `prefixIcon`/`suffixIcon` KULLANILMADI: metinle AYNI SATIRDA
+       durur ve cok satirli girdide DIKEY ORTALANIR — 5 satirlik soruda
+       ikonlar ortada asili kalirdi. Kullanici ACIKCA *"yazi YUKARIDA,
+       ikonlar ALTINDA"* dedi.
+    ⚠️ `TextField` KENDI cercevesini cizmez (`InputBorder.none`) — yoksa
+       CIFT cerceve olurdu.
+    ⚠️ Kenarlik ODAKTA marka rengine doner; **kalinlik 1.5te SABIT** —
+       1 -> 2 gecisi kutunun IC olcusunu degistirir ve yazi 1 px ZIPLARDI.
+    ⚠️ `FocusNode` dinleyicisi `dispose`ta KALDIRILIR + node birakilir.
+  · **KALAN HAK KARTI**: 17 px w800 sayi + ilerleme cubugu + "Her gün
+    sıfırlanır." Hak bitince kart `scheme.error` rengine doner.
+    ⚠️ Eskiden %45 saydam 12,5 px gri bir satirdi — ekrandaki EN ONEMLI
+       sayi EN SILIK ogeydi.
+    ⚠️ Sayi UYDURULMAZ: `ai` null ise kart HIC cizilmez.
+  ⚠️⚠️ `Expanded`/`Spacer` KULLANILMADI: govde `ListView`, dikey kisit
+     SINIRSIZ -> *"BoxConstraints forces an infinite height"* ve ekran
+     BOMBOS acilirdi (turu 115bde olustur menusunde birebir yasandi).
+
+- ⚠️⚠️ **TURU 117 — CRLF TUZAGI (turu 89un tekrari).** `gebzem_ai.dart`
+  **CRLF** satir sonu kullaniyor; LF ile birlestirilmis arama dizeleri
+  ESLESMEDI ve betik "YOK" dedi. **Bu repoda dosyalar KARISIK** (bazi LF,
+  bazi CRLF) — metin degistiren her betik satir sonunu **DOSYADAN
+  ALGILAMALI**.
+
 - **KALDIGIMIZ YER (20 Agu 14:29): TURU 116 YAYINLANDI (YENI LOGO)** —
   android **32362818658** + ios **32362833143** (**acffd73**), R2
   apk=121169134 (md5 c2cbf981) ipa=30282405 (md5 35f54828) index=15553
