@@ -28,9 +28,11 @@
 ///	`InputDecoration` govdesi YAZILMAZ.
 library;
 
+import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -39,6 +41,7 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 
 import '../../core/api.dart';
 import '../../core/theme.dart';
@@ -231,10 +234,41 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
     if (!_bilgilerGecerli()) return;
     final ad = _ad.text.trim();
     final kadi = _kullaniciAdi.text.trim().toLowerCase();
+
+    // ⚠️⚠️⚠️ TURU 120b — SERVISLER **TUM `await`LERDEN ONCE** YAKALANIR.
+    //
+    // ═══════════ SAHADA OLCULEN HATA ═══════════
+    //	Emulatorde kayit tamamlandi, hesap acildi, profil goruldu — ama
+    //	AVATAR YOKTU. Eklenen olcum sebebi TEK SATIRDA soyledi:
+    //	  `KAYIT AVATAR HATASI: yukleme/baglama:
+    //	   Bad state: Cannot use "ref" after the widget was disposed.`
+    //
+    //	`kayitTamamla` OTURUM ACAR; oturum degisince router yeniden cozer ve
+    //	bu ekranin `ConsumerState`i SOKULUR. Ondan SONRA cagrilan
+    //	`ref.read(...)` **StateError** firlatir, disaridaki `catch` yutar ve
+    //	fotograf SESSIZCE kaybolur.
+    //
+    // ⚠️ Bu, projede DOKUZ kez sahaya cikan sinifin ONUNCU tekrari
+    //    (turu 67 arama ekrani · turu 77b hikaye · turu 78b ilan/etkinlik).
+    //    Duzeltmesi HER SEFERINDE ayni: **servisi await'ten once yakala.**
+    // ⚠️ YAPMA: `ref.read`i tekrar await'lerin altina tasima.
+    final medya = ref.read(medyaServisiProvider);
+    final api = ref.read(apiProvider);
+    final auth = ref.read(authProvider.notifier);
+
     setState(() => _mesgul = true);
+
+    // ⚠️⚠️ KIRPILMIS KARE DE **HESAPTAN ONCE** yakalanir: `toImage()` CANLI
+    //	bir `RenderRepaintBoundary` ister. Hesap kurulduktan sonra ekran
+    //	sokulmus olabilir ve yakalama sessizce `null` donerdi.
+    //	⚠️ Yukleme yine SONRA yapilir — `presign` OTURUM ister.
+    final kirpik = await _kirpilaniYakala();
+    if (_fotoHam != null && kirpik == null) {
+      _avatarHatasi('kirpma yakalanamadi (RepaintBoundary)');
+    }
+
     try {
-      await ref
-          .read(authProvider.notifier)
+      await auth
           .kayitTamamla(
             jeton: _kayitJetonu,
             name: ad,
@@ -249,15 +283,17 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
             // ⚠️ "Takım tutmuyorum" BOS gider — sunucuda "belirtmedi" ile ayni.
             takim: _takim == kTakimYok ? '' : _takim,
           );
-      if (!mounted) return;
       // ⚠️⚠️⚠️ TURU 119 — PROFIL FOTOGRAFI **HESAPTAN SONRA** yuklenir.
       //	SIRA ZORUNLU: yukleme `POST /media/presign` ile baslar ve o uc
       //	OTURUM ISTER. Hesap kurulmadan once denenirse 401 doner.
       // ⚠️⚠️ **FOTOGRAF HATASI KAYDI BOZMAZ**: hesap ZATEN kuruldu ve oturum
       //	acildi; burada firlatilan bir istisna disaridaki `catch`e duser ve
       //	kullaniciya "kayit basarisiz" gibi gorunurdu — oysa hesabi VAR.
-      await _avatariYukle();
-      if (!mounted) return;
+      // ⚠️⚠️ BURADA `if (!mounted) return;` **YOK** (bilincli): oturum
+      //	acildigi anda bu ekran sokulmus olabilir ve o kapi fotografi
+      //	SESSIZCE atardi. Is artik `ref`e degil, yukarida yakalanan
+      //	servislere bagli — ekran gitse bile TAMAMLANIR.
+      await _avatariYukle(kirpik, medya, api);
       _bitir();
     } catch (e) {
       if (mounted) _uyar(apiErrorMessage(e));
@@ -378,7 +414,9 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
     children: [
       _baslik(
         'Kodu gir',
-        '${authTamNumara(_haneler.text)} numarasına gönderdiğimiz '
+        // ⚠️ GORUNUM bicimi (`+90 555 999 88 77`) — sunucuya giden numara
+        //    DEGIL. Sunucuya yalniz `authTamNumara` ile gidilir.
+        '${authNumaraGoster(_haneler.text)} numarasına gönderdiğimiz '
             '6 haneli kodu yaz.',
       ),
       TextField(
@@ -460,6 +498,25 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
       _bolumBasligi('Kaç yaşındasın?'),
       const SizedBox(height: 10),
       _yasSecici(),
+      // ⚠️⚠️ TURU 120 — YONERGE SATIRI (emulatorde goruldu). Tekerlek
+      //	varsayilan olarak BOS ("—") acildigi icin ekran, kullaniciya
+      //	kaydirilabilir bir secici oldugunu SOYLEMIYORDU; bos bir kutu
+      //	gibi duruyordu ve adim atlanabilir sanilirdi.
+      // ⚠️ Secim yapilinca metin ONAYA doner: "28 yaşındasın" — kullanici
+      //    ne sectigini rakama bakmadan da dogrular.
+      const SizedBox(height: 6),
+      Center(
+        child: Text(
+          _yas == null
+              ? 'Yaşını seçmek için listeyi yukarı kaydır'
+              : '$_yas yaşındasın',
+          style: TextStyle(
+            fontSize: 12.5,
+            color: _yas == null ? _altYazi : morLogo,
+            fontWeight: _yas == null ? FontWeight.w400 : FontWeight.w600,
+          ),
+        ),
+      ),
       const SizedBox(height: 26),
       _bolumBasligi('İlgi alanların'),
       const SizedBox(height: 4),
@@ -632,22 +689,65 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
   /// ⚠️ `gorseliHazirla` ZORUNLU: EXIF (KONUM) temizligi yapar; sunucu
   ///    GPS bulursa **422** doner (grup/kanal avatarlariyla ayni yol).
   /// ⚠️ Fotograf secilmediyse hicbir sey yapilmaz — adim OPSIYONEL.
-  Future<void> _avatariYukle() async {
-    if (_fotoHam == null) return;
+  Future<void> _avatariYukle(
+    File? kirpik,
+    MedyaServisi medya,
+    Dio api,
+  ) async {
+    if (_fotoHam == null || kirpik == null) return;
+    // ⚠️⚠️⚠️ TURU 120b — **HATA ARTIK OLCULUYOR** (sahada yakalandi).
+    //
+    //	Ilk yazimda uc adim da `return`le SESSIZCE cikiyordu ve disarida tek
+    //	bir `catch (_) {}` vardi. Emulatorde kayit tamamlandi, profil acildi
+    //	ve **avatar YOKTU**; sunucuda `avatar_media_id` bos, `media_assets`te
+    //	yeni satir yok — yani zincir daha ILK adimda kirilmis ama HANGISINDE
+    //	oldugunu soyleyen HICBIR IZ yoktu.
+    //
+    // ⚠️ CLAUDE.md dersi (turu 50/56/60/63/64'un ortak koku): *"yeni bir hata
+    //    yolu yazarken sor — bu patlarsa TELEMETRIDE gorur muyum? Cevap
+    //    hayirsa ONCE olcumu koy."*
+    // ⚠️ Kullaniciya HALA hicbir sey gosterilmez (adim opsiyonel, hesap
+    //    kuruldu); olcum yalniz Sentry'e gider.
     try {
-      final kirpik = await _kirpilaniYakala();
-      if (kirpik == null) return;
+      // ⚠️⚠️⚠️ TURU 120b — SIKISTIRMA **EN IYI CABA**, ZORUNLU DEGIL.
+      //
+      //	SAHADA OLCULDU: kayit tamamlandi, hesap acildi, ama sunucuda
+      //	`avatar_media_id` BOS ve `media_assets`te yeni satir YOK — yani
+      //	`POST /media/presign` HIC CAGRILMAMIS. Zincir `yukle`den ONCE
+      //	kirilmis; kalan iki aday `_kirpilaniYakala` ve `gorseliHazirla`.
+      //
+      // ⚠️ `gorseliHazirla` null donerse ESKIDEN fotograf SESSIZCE
+      //    KAYBOLUYORDU. Artik PNG **oldugu gibi** yuklenir:
+      //	  · yakalanan kare Flutter'in URETTIGI bir goruntudur, yani
+      //	    **EXIF/GPS TASIMAZ** — `gorseliHazirla`nin varlik sebebi olan
+      //	    gizlilik temizligi burada ZATEN GEREKSIZ (galeriden gelen ham
+      //	    fotograf icin gerekli, bizim kirpimimiz icin degil),
+      //	  · olcu ZATEN 625 px (250 dp x 2.5) — kucultmeye gerek yok,
+      //	  · `image/png` sunucu beyaz listesinde VAR (`media/sniff.go`).
+      // ⚠️ Sikistirma CALISIRSA yine tercih edilir: JPEG dosyasi belirgin
+      //    kucuk ve avatar cok sik indiriliyor.
       final hazir = await MedyaServisi.gorseliHazirla(kirpik);
-      if (hazir == null) return;
-      final id = await ref
-          .read(medyaServisiProvider)
-          .yukle(dosya: hazir, kind: 'avatar', mime: 'image/jpeg');
-      await ref
-          .read(apiProvider)
-          .patch('/users/me', data: {'avatar_media_id': id});
-    } catch (_) {
-      // ⚠️ SESSIZ: hesap kuruldu, fotograf en iyi cabadir (bkz. cagri yeri).
+      if (hazir == null) {
+        _avatarHatasi('sikistirma null dondu — PNG ham yukleniyor');
+      }
+      final id = await medya.yukle(
+            dosya: hazir ?? kirpik,
+            kind: 'avatar',
+            mime: hazir == null ? 'image/png' : 'image/jpeg',
+          );
+      await api.patch('/users/me', data: {'avatar_media_id': id});
+    } catch (e) {
+      _avatarHatasi('yukleme/baglama: $e');
     }
+  }
+
+  /// ⚠️ GERCEK Sentry olayi — `debugPrint`/breadcrumb DEGIL. Breadcrumb
+  ///    ancak baska bir olayla birlikte yuklenir; tek basina olan sessiz bir
+  ///    hata TELEMETRIDE HIC GORUNMEZ (turu 50'de kamera hatasi tam bu yuzden
+  ///    20 tur boyunca fark edilmedi).
+  void _avatarHatasi(String neden) {
+    debugPrint('KAYIT AVATAR HATASI: $neden');
+    unawaited(Sentry.captureMessage('kayit avatari yuklenemedi: $neden'));
   }
 
   // ------------------------------------------------------------ ADIM 4

@@ -177,6 +177,14 @@ InputDecoration authAlan(
       //    basladiginda yazi tipi "buyuyor" gibi gorunurdu.
       fontSize: authDegerBoy,
       fontWeight: FontWeight.w400,
+      // ⚠️⚠️ TURU 120 — `letterSpacing: 0` ZORUNLU (EMULATORDE GORULDU).
+      //	Flutter `hintStyle`i **`TextField.style` UZERINE MERGE EDER**;
+      //	verilmeyen alanlar TABANDAN gelir. Sifre alani gizliyken
+      //	`letterSpacing: 5` kullaniyor (daireler ayri okunsun diye) ve o
+      //	deger IPUCUNA DA siziyordu: ekranda **"E n  a z  6  k a r a k t e r"**
+      //	yaziyordu.
+      // ⚠️ YAPMA: bu satiri kaldirma; aralik kullanan her alanda ipucu bozulur.
+      letterSpacing: 0,
     ),
     // ⚠️ Yan dolgu SIFIR: alt cizgili alanda ic dolgu, yaziyi cizginin
     //    baslangicindan iceri kaydirir ve hizalama bozulur.
@@ -238,6 +246,20 @@ const int authTelefonHane = 10;
 /// ⚠️ TEK KAYNAK: giris, kayit ve kod dogrulama AYNI numarayi uretmek
 ///    ZORUNDA. Uc yerde `'+90' + text` yazilsaydi biri `trim()` unuturdu.
 String authTamNumara(String haneler) => '$authUlkeKodu${haneler.trim()}';
+
+/// Numarayi EKRANDA gostermek icin bicimlendirir: `+90 532 123 45 67`.
+///
+/// ⚠️⚠️ **`authTamNumara` ILE KARISTIRMA.** Bu yalniz GORUNUM icindir;
+///	sunucuya BOSLUKLU numara gonderilirse dogrulama basarisiz olur.
+///	Sunucuya giden TEK yol `authTamNumara`dir.
+/// ⚠️ 10 hane degilse OLDUGU GIBI dondurulur: yarim yazilmis bir numarayi
+///    zorla gruplamak ("+90 55 " gibi) kullaniciya bozuk gorunurdu.
+String authNumaraGoster(String haneler) {
+  final h = haneler.trim();
+  if (h.length != authTelefonHane) return authTamNumara(h);
+  return '$authUlkeKodu ${h.substring(0, 3)} ${h.substring(3, 6)} '
+      '${h.substring(6, 8)} ${h.substring(8)}';
+}
 
 /// Yazarken gosterilecek hata — yoksa `null`.
 ///
