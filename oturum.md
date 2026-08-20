@@ -7731,3 +7731,31 @@ onaylı.
 - Adres: **https://indir.gebzem.app/index.html?v=20260820-1429**
 - analyze 0/0 · test 44/44 · CDN dördü de birebir · backend değişmedi
 - **Bekleyen:** (1) uygulama ikonu da logo2'den üretilsin mi, (2) Yakınımda arayüz görseli
+
+---
+
+## Oturum — 20 Ağustos 2026 (turu 117): HALKA + GEBZEMAI
+
+**Kullanıcının emirleri:** logo border'ı story gradienti olsun · logodaki saydam çizgiyi
+kaldır (varsa) · GebzemAI: geri tuşu gönder gibi, başlık ortada/kalın/2px küçük, ikonlar
+input'un içinde altta, yazı üstte, border güzelleşsin, karşılama modern olsun, kalan hak
+altta anlaşılır olsun.
+
+### Yapıldı (oldu)
+- Logo halkası = hikâye gradienti; ikisi `kHikayeHalkaGradient` tek kaynağından okuyor
+- GebzemAI: geri oku, ortalı başlık, tek parça giriş kutusu, odakta renklenen border,
+  ikonlu öneriler, kalan hak kartı (sayı + çubuk + bitince kırmızı)
+
+### Denendi / öğrenildi
+- **"Saydam çizgi" YOKTU** — üç yöntemle ölçüldü (kaynak alfa · 8× büyütme · piksel
+  taraması). Varsayıp silmek yerine ölçmek doğru karardı; muhtemel sebep eski turuncu halka.
+- **`prefixIcon`/`suffixIcon` kullanılamazdı**: çok satırlı girdide dikey ortalanır,
+  kullanıcının istediği "yazı üstte ikonlar altta" düzenini veremez.
+- **CRLF tuzağı tekrar**: `gebzem_ai.dart` CRLF; `\n` ile kurulmuş arama dizeleri eşleşmedi.
+  Betikler artık satır sonunu dosyadan algılıyor.
+
+### Devir notu
+- Yayınlandı: android 32366701529 · ios 32366715201 · commit **8fe3f9a**
+- Adres: **https://indir.gebzem.app/index.html?v=20260820-1516**
+- analyze 0/0 · test 44/44 · CDN dördü de birebir · backend değişmedi
+- **Bekleyen:** (1) uygulama ikonu logo2'den üretilsin mi, (2) Yakınımda arayüz görseli
