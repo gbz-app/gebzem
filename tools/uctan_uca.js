@@ -1851,6 +1851,11 @@ const kontrol = (ad, gecti, ek = '') => {
       govde: {
         kayit_jetonu: jeton, name: 'E2E Adimli',
         username: kadi, password: 'gizli123',
+        // TURU 120 — kayit akisinin "Biraz da senden" adimi.
+        // ⚠️ YAS DEGIL DOGUM YILI: yas her yil degisir.
+        dogum_yili: new Date().getFullYear() - 28,
+        ilgi_alanlari: ['Futbol', 'Kahve', 'futbol', '  '],
+        takim: 'Kocaelispor',
       },
     });
     kontrol('TURU 84: adim 3 hesap olustu', a3.kod === 200, 'HTTP ' + a3.kod);
@@ -1869,6 +1874,93 @@ const kontrol = (ad, gecti, ek = '') => {
     });
     kontrol('TURU 84: KAYITLI numara ile kayit baslatilamaz (409)',
       tekrarKayit.kod === 409, 'HTTP ' + tekrarKayit.kod);
+
+    // ---------- TURU 120: YAS · ILGI ALANLARI · TAKIM ----------
+    // ⚠️ Bu blok, kayit akisinin "Biraz da senden" adiminin OLU OLMADIGINI
+    //    dogrular: alanlar sunucuya gidiyor, SAKLANIYOR ve GERI DONUYOR.
+    //    Bu projede "sutun/uc var ama onu kullanan yol yok" sinifi DOKUZ
+    //    kez sahaya cikti.
+    if (a3.kod === 200 && a3.d && a3.d.token) {
+      const jt = a3.d.token;
+      const me = await j('/users/me', { token: jt });
+      const buYil = new Date().getFullYear();
+      kontrol('TURU 120: /users/me DOGUM YILI donduruyor',
+        me.kod === 200 && me.d && me.d.dogum_yili === buYil - 28,
+        'dogum_yili=' + (me.d && me.d.dogum_yili));
+
+      // ⚠️ TemizIlgi: bosluk ATILIR, harf duyarsiz TEKRAR elenir.
+      //    Gonderilen ['Futbol','Kahve','futbol','  '] -> ['Futbol','Kahve'].
+      const ilgi = (me.d && me.d.ilgi_alanlari) || [];
+      kontrol('TURU 120: ILGI ALANLARI tekrarsiz + bosluksuz saklandi',
+        Array.isArray(ilgi) && ilgi.length === 2 && ilgi[0] === 'Futbol' &&
+        ilgi[1] === 'Kahve', 'ilgi=' + JSON.stringify(ilgi));
+
+      kontrol('TURU 120: TAKIM saklandi',
+        me.d && me.d.takim === 'Kocaelispor', 'takim=' + (me.d && me.d.takim));
+
+      // ⚠️⚠️ PROFIL UCU (herkese acik) DA dondurmeli: yalniz /users/me
+      //    donseydi ozellik BASKA HIC KIMSEDE gorunmezdi — turu 78`de
+      //    kapak + onayli rozeti tam boyle kaybolmustu (SELECT + Scan
+      //    vardi, YANIT HARITASINDA anahtar YOKTU).
+      const uid = a3.d.user_id || (a3.d.user && a3.d.user.id);
+      const pr = await j('/users/' + uid + '/profile', { token: A.token });
+      kontrol('TURU 120: PROFIL ucu yas/ilgi/takim donduruyor',
+        pr.kod === 200 && pr.d && pr.d.dogum_yili === buYil - 28 &&
+        pr.d.takim === 'Kocaelispor' &&
+        Array.isArray(pr.d.ilgi_alanlari) && pr.d.ilgi_alanlari.length === 2,
+        'HTTP ' + pr.kod + ' d=' + JSON.stringify(pr.d && {
+          y: pr.d.dogum_yili, t: pr.d.takim, i: pr.d.ilgi_alanlari,
+        }));
+
+      // ⚠️⚠️ SADECE ADI DEGISTIREN BIR PATCH, yas/ilgi/takim alanlarini
+      //    EZMEMELI. Turu 85b`de `isletme_duzenle` tam bunu yapiyordu:
+      //    adres/il/ilce SESSIZCE bosa cekiliyordu.
+      await j('/users/me', {
+        yontem: 'PATCH', token: jt, govde: { name: 'E2E Adimli 2' },
+      });
+      const me2 = await j('/users/me', { token: jt });
+      kontrol('TURU 120: kismi PATCH yas/ilgi/takim ALANLARINI KORUR',
+        me2.kod === 200 && me2.d && me2.d.dogum_yili === buYil - 28 &&
+        me2.d.takim === 'Kocaelispor' &&
+        (me2.d.ilgi_alanlari || []).length === 2,
+        'y=' + (me2.d && me2.d.dogum_yili) + ' t=' + (me2.d && me2.d.takim) +
+        ' i=' + JSON.stringify(me2.d && me2.d.ilgi_alanlari));
+
+      // ⚠️ Bos dizi = TEMIZLE (dokunma DEGIL). `*[]string` bu iki durumu
+      //    ayirmak icin secildi.
+      await j('/users/me', {
+        yontem: 'PATCH', token: jt, govde: { ilgi_alanlari: [], takim: '' },
+      });
+      const me3 = await j('/users/me', { token: jt });
+      kontrol('TURU 120: bos dizi ILGI ALANLARINI TEMIZLER',
+        me3.kod === 200 && me3.d && (me3.d.ilgi_alanlari || []).length === 0 &&
+        me3.d.takim === '',
+        'i=' + JSON.stringify(me3.d && me3.d.ilgi_alanlari) +
+        ' t=' + (me3.d && me3.d.takim));
+
+      // ⚠️ MAKUL ARALIK DISI dogum yili SESSIZCE DUSURULUR (400 DEGIL):
+      //    alan opsiyonel ve istemci secicisi araligi zaten kisitliyor;
+      //    reddetmek kullaniciyi kayit akisinda MAHSUR birakirdi.
+      await j('/users/me', {
+        yontem: 'PATCH', token: jt, govde: { dogum_yili: 1800 },
+      });
+      const me4 = await j('/users/me', { token: jt });
+      kontrol('TURU 120: SACMA dogum yili (1800) SESSIZCE DUSURULUR',
+        me4.kod === 200 && me4.d && me4.d.dogum_yili === buYil - 28,
+        'dogum_yili=' + (me4.d && me4.d.dogum_yili));
+
+      // ⚠️ TAVAN: sunucu en fazla 12 ilgi alani saklar. Tavansiz birakmak
+      //    profile 10 KB metin yazdirmaya izin verirdi.
+      const cok = [];
+      for (let i = 0; i < 30; i++) cok.push('ilgi' + i);
+      await j('/users/me', {
+        yontem: 'PATCH', token: jt, govde: { ilgi_alanlari: cok },
+      });
+      const me5 = await j('/users/me', { token: jt });
+      kontrol('TURU 120: ILGI ALANI TAVANI 12 (30 gonderildi)',
+        me5.kod === 200 && me5.d && (me5.d.ilgi_alanlari || []).length === 12,
+        'adet=' + ((me5.d && me5.d.ilgi_alanlari) || []).length);
+    }
   }
 
   // ================= TURU 85: YAKINIMDA + YENI KATEGORILER ==============

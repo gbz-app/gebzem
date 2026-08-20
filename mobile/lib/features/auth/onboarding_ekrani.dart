@@ -317,8 +317,14 @@ class _OnboardingEkraniState extends ConsumerState<OnboardingEkrani> {
                     //    ekran temanin geri kalanindan KOPUKTUR; renkler de
                     //    sabit olmak ZORUNDA (turu 81b dersi).
                     foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(26),
+                    // ⚠️⚠️ TURU 120 — RADIUS **SIFIR** (emulatorde goruldu).
+                    //	Giris ve kayit ekranlarindaki ana dugmeler turu
+                    //	119'da duz koseye cevrildi; onboarding ATLANMISTI ve
+                    //	ayni akista arka arkaya gelen iki dugme (Devam ->
+                    //	Giris yap) FARKLI dilde konusuyordu.
+                    //	⚠️ Asimetrinin kendisi hataydi (turu 90b dersi).
+                    shape: const RoundedRectangleBorder(
+                      borderRadius: BorderRadius.zero,
                     ),
                   ),
                   child: Text(
@@ -409,7 +415,17 @@ class _SayfaGorunumu extends StatelessWidget {
         physics: const AlwaysScrollableScrollPhysics(),
         child: ConstrainedBox(
           constraints: BoxConstraints(minHeight: kisit.maxHeight),
-          child: _icerik(scheme, kisit.maxHeight * 0.6),
+          // ⚠️⚠️ TURU 120 — 0.60 -> **0.66** (EMULATORDE OLCULDU).
+          //	Kullanicinin olcusu %60 idi ve o oran turu 118'de dogruydu;
+          //	ama bu turda kartlar 78 -> 84 dp'ye, telefon %14 buyudu ve
+          //	yazi blogu ile alt gostergeler arasinda **ekranin ~%17'si
+          //	kadar BOS ALAN** kaldi (1080x2400'de olculdu: yazi 1400 px'de
+          //	bitiyor, noktalar 1740 px'de basliyor).
+          //	%66 ile bosluk ~%8'e iner ve sayfa "yarim kalmis" gorunmez.
+          // ⚠️ `Expanded` ile bosluk PAYLASTIRILAMAZ: govde bir
+          //    `SingleChildScrollView` cocugu, yani dikey kisit SINIRSIZ ve
+          //    `Expanded` orada **assertion** atar.
+          child: _icerik(scheme, kisit.maxHeight * 0.66),
         ),
       ),
     );
