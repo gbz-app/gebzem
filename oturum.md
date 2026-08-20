@@ -7796,3 +7796,49 @@ story ekleme dairesinin siyah-mor gradienti.
 - Adres: **https://indir.gebzem.app/index.html?v=20260820-1821**
 - analyze 0/0 · test 44/44 · CDN dördü de birebir · backend değişmedi
 - **Bekleyen:** (1) uygulama ikonu logo2'den üretilsin mi, (2) Yakınımda arayüz görseli
+
+---
+
+## Oturum — 20 Ağustos 2026 (turu 120): GİRİŞ/KAYIT · YAŞ-İLGİ-TAKIM · YENİ İKON
+
+**Kullanıcının emirleri (13 madde):** açılıştaki Akse +10px · girişe küçük
+sıfırlama butonu (onboarding tekrar) · onboarding daha modern, AI telefonu
+büyüsün, balonlar dinamik, geçişler hızlı, kartlar modern · konum/Yakınımda
+sayfası ekle · "Tekrar hoş geldin" açıklaması profesyonel, ikisi +2px ·
+alan etiketleri +2px, değerler +4px · +90 silinmesin, aralıkla aynı puntoda ·
+5 ile başlamazsa yazı+çizgi kırmızı + kısa açıklama · numara/şifre hatasında
+açıklama · şifre daireleri büyük ve aralıklı · aynı mantık kayıt ekranında ·
+fotoğraf yerleştirmede kesmesin, soluk beyaz çizgiler, daha profesyonel ·
+kayıtta yaş (28/27 yukarı aşağı), ilgi alanları, tuttuğu takım · uygulama
+logosu yeni logodan.
+
+### Yapıldı (oldu)
+- `auth_stil.dart` TEK KAYNAK genişletildi: `AuthTelefonAlani` (+90 prefix,
+  5 kontrolü), `AuthSifreAlani` (● + aralık), `authNot`, ölçü sabitleri.
+- Kayıt **5 adım**: telefon · kod · bilgiler · **Biraz da senden** · fotoğraf.
+- migration **049**: `users.dogum_yili` · `ilgi_alanlari` · `takim`.
+  `internal/profil` tek doğrulama kaynağı (auth + users ondan besleniyor).
+- Profilde etiketler: yaş · takım · ilgi alanları.
+- Onboarding: kartlar modernleşti, telefon %14 büyüdü, iki soru-cevap,
+  yeni `_KonumHarita` sayfası, görsel alanı %60 → %66, Devam radius 0.
+- Uygulama ikonu `logo.png`den üretiliyor (`tool/ikon_uret.dart` yeniden
+  yazıldı, fail-closed), adaptive arka plan artık gradyan GÖRSELİ.
+
+### Denendi / öğrenildi (olmadı → düzeltildi)
+- **ANR**: animasyonlar her karede tüm ağacı kuruyordu (kare 500ms → 88ms).
+  `AnimatedBuilder(child:)` ile değişmeyen ağaç bir kez kurulur.
+- **`AuthTelefonAlani` durumsuzdu**: hata satırı ebeveynin `setState`ine
+  bağlıydı; giriş ekranında hiç görünmüyordu → StatefulWidget + listener.
+- **Profil fotoğrafı sessizce kayboluyordu**: `ref.read` ekran dispose
+  olduktan sonra çağrılıyordu. ÖNCE ÖLÇÜM koyuldu, kök neden tek satırda
+  çıktı. Servisler artık await'ten önce yakalanıyor (bu sınıfın 10. tekrarı).
+- **Şifre ipucu aralıklı çıkıyordu**: `hintStyle` taban stili miras alıyor.
+- **Açılış katmanı emülatörde doğrulanamadı**: Android 12+ sistem açılış
+  ekranı (siyah + ortada ikon) bizimkine çok benziyor ve debug'da 14,5 sn
+  sürüyor → `test/acilis_test.dart` ile ölçüldü.
+- Kırpmada `BoxFit.cover` layout anında kırpıyordu → `constrained: false`.
+
+### Devir notu
+- Backend deploy **36e7c77** · migration 049 canlı · **390/390 uçtan uca**
+- analyze 0/0 · test 52/52 · go build+vet+test temiz
+- ⚠️ Şema additive → **DB TRUNCATE EDİLMEDİ**, hesaplar duruyor
