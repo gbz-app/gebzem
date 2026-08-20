@@ -7759,3 +7759,40 @@ altta anlaşılır olsun.
 - Adres: **https://indir.gebzem.app/index.html?v=20260820-1516**
 - analyze 0/0 · test 44/44 · CDN dördü de birebir · backend değişmedi
 - **Bekleyen:** (1) uygulama ikonu logo2'den üretilsin mi, (2) Yakınımda arayüz görseli
+
+---
+
+## Oturum — 20 Ağustos 2026 (turu 118 + 119): ONBOARDING ANİMASYONU · AÇILIŞ · GİRİŞ/KAYIT
+
+**Kullanıcının emirleri:** onboarding'de %60 alanda kartlar aşağıdan yukarı aksın · diğer
+sayfada şık iPhone'da AI soru-cevap · Yakınımda'yı da koy · giriş inputu alt çizgi 2px,
+etiket üstte, hatada kırmızı, düğmelerde radius yok · kayıt step step + profil fotoğrafı
+kırpmalı · Instagram gibi siyah açılış ekranı, "Akse Digital" altta · logo halkası
+story ekleme dairesinin siyah-mor gradienti.
+
+### Yapıldı (oldu)
+- `_KartAkisi` (sonsuz akan kartlar) + `_Telefon` (AI sohbeti / gelen arama mockup)
+- `AcilisKatmani` — siyah splash, logo, "Akse Digital"; Android+iOS native zemin de siyah
+- `auth_stil.authAlan` → alt çizgi 2px, etiket daima üstte, hata kırmızısı
+- Girişte hatalı denemede iki alan da kırmızı, yazınca temizleniyor
+- Kayıt 4 adım; 3. adım profil fotoğrafı (InteractiveViewer + RepaintBoundary yakalama)
+- `kayit_akisi._alan()` kendi kopyasını bırakıp `authAlan`a devredildi
+- Logo halkası `kHikayePaylasGradient` (siyah→mor)
+
+### Denendi / öğrenildi (olmadı → düzeltildi)
+- **`OverflowBox` olmadan kart akışı taşma şeridi çiziyordu** — liste iki kez çizildiği
+  için Column kutudan uzun; taşma kasıtlı, `ClipRect` kırpıyor.
+- **Splash yazısı monospace + sarı altçizgi çıktı** — katman `Scaffold` dışında,
+  `DefaultTextStyle` yok. `Material` sarmalı gerekti.
+- **Splash logosu görünmüyordu** — sayaç, Android kendi splash'ini gösterirken başlıyordu.
+  `precacheImage` ile görsel çözülene kadar bekletildi.
+- **`drawable-v21/launch_background.xml` gerçekte çalışan dosya** — sadece `drawable/`i
+  düzeltmek hiçbir modern cihazda etki etmiyordu.
+- **Logo halkasına yanlış gradient verilmişti** (turu 117) — iki ayrı hikâye gradienti var.
+- **CRLF tuzağı üçüncü kez** — betikler artık satır sonunu dosyadan algılıyor.
+
+### Devir notu
+- Yayınlandı: android 32384092303 · ios 32384110047 · commit **b9e3e13**
+- Adres: **https://indir.gebzem.app/index.html?v=20260820-1821**
+- analyze 0/0 · test 44/44 · CDN dördü de birebir · backend değişmedi
+- **Bekleyen:** (1) uygulama ikonu logo2'den üretilsin mi, (2) Yakınımda arayüz görseli

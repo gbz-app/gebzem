@@ -17,6 +17,106 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
    senkron tutulur. Amaç: pencere kapansa bile tam kalınan yerden devam edilebilmesi.
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (20 Agu 18:21): TURU 118+119 YAYINLANDI** — android
+  **32384092303** + ios **32384110047** (**b9e3e13**), R2 apk=121335022
+  (md5 fa423c46) ipa=30301875 (md5 8812d6cb) index=15615 (md5 559cc41f)
+  **surum.json=48 (md5 382ad2bc)**, purge OK, **CDN DORDU DE BIREBIR**,
+  debug imza YOK, `HARITA=true` iki logda da, iOS min **16.0**,
+  `MapsApiKey` enjekte, `acilisZemin` kaynagi APK`de VAR.
+  ⚠️ **BACKEND DEGISMEDI** -> deploy YOK, **DB TRUNCATE EDILMEDI**.
+  ✅ flutter analyze **0/0** · flutter test **44/44**.
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260820-1821
+
+- 🎬 **TURU 118 — ONBOARDING ANIMASYONLU** (kullanici emri: *"ekran
+  yuksekliginden %60 alanda ornegin yemek alanindaki firmalar KART
+  seklinde ASAGIDAN YUKARI gelsin ... diger onboardingde CEKIN IPHONE
+  olsun, yapay zekaya soru soruyoruz o da cevapliyor"*).
+  · `_KartAkisi` — kategoriler asagidan yukari akar, kenarlarda `ShaderMask`
+    ile solma. ⚠️⚠️ Liste **IKI KEZ** cizilir: tek kopyayla dongu sonunda
+    liste bir anda asagi ZIPLARDI.
+  · `_Telefon` — dynamic island`li cerceve; AI sahnesi (soru -> "yaziyor"
+    -> yanit) ve kilit ekraninda gelen arama sahnesi. Tek
+    `AnimationController`, her parca kendi araligini `_oran()` ile okur.
+  ⚠️⚠️ **`OverflowBox` ZORUNLU** (emulatorde gorundu): liste iki kez
+     cizildigi icin `Column` kutudan UZUN; ebeveyn SINIRLI yukseklik
+     verdiginden Flutter *"RenderFlex overflowed by 664 pixels"* atip
+     SARI-SIYAH serit ciziyordu. Tasma KASITLI, `ClipRect` zaten kirpiyor.
+  ⚠️ Alan yuksekligi EKRANDAN turetilir (`maxHeight * 0.6`), sabit dp DEGIL.
+  ⚠️ Kartlarda **UYDURMA VERI YOK**: uygulamanin GERCEK kategorileri.
+
+- 🌑 **TURU 119 — ACILIS (SPLASH) EKRANI** `features/auth/acilis_ekrani.dart`
+  Siyah zemin · logo ortadan 30 dp yukarida · "Akse Digital" altta ortada
+  100 dp yukarida, hafif gri/saydam.
+  ⚠️ Bir ROUTE DEGIL, `MaterialApp.router` `builder`inda KATMAN: route
+     olsaydi yonlendirme mantigina (oturum/onboarding) karismasi gerekirdi.
+  ⚠️⚠️ **EMULATORDE IKI HATA GORULDU:**
+     · **Yazi MONOSPACE + SARI ALT CIZGI cikti** — katman
+       `Navigator`/`Scaffold` DISINDA yasiyor, orada `DefaultTextStyle`
+       YOK ve Flutter metni HATA BICIMIYLE cizer. FIX: `Material` sarmali.
+       ⚠️ YAPMA: `Material`i kaldirip yalniz `ColoredBox` birakma.
+     · **LOGO GORUNMUYORDU** — sayac `addPostFrameCallback` ile basliyordu;
+       ama Flutter ILK KAREYI **Android kendi acilis ekranini HALA
+       gosterirken** cizer, yani sure katman GORUNMEDEN akiyordu.
+       FIX: `precacheImage` -> gorsel COZULUR, **sonra** sayac baslar.
+       ⚠️ `catchError` ile: gorsel yuklenemezse bile sayac baslar, katman
+          KILITLENEMEZ.
+  ⚠️⚠️ Android`de **GERCEKTE CALISAN DOSYA `drawable-v21/`** — API 21+`de
+     `drawable/`i EZER. Yalniz digerini duzeltmek hicbir modern cihazda
+     etki etmezdi. `values/colors_acilis.xml` -> `acilisZemin #0B0B0F`;
+     Flutter katmaniyla BIREBIR ayni renk olmak ZORUNDA, yoksa acilis
+     "yanip soner". iOS `LaunchScreen.storyboard` zemini de siyah.
+
+- 📝 **TURU 119 — KIMLIK EKRANLARI: ALT CIZGILI ALAN** (`auth_stil.dart`)
+  `UnderlineInputBorder` **2 px** · etiket **DAIMA USTTE**
+  (`floatingLabelBehavior: always`) · odakta MOR, hatada KIRMIZI.
+  ⚠️ `always` OLMADAN etiket bos alanda ipucuyla UST USTE binerdi.
+  ⚠️ Kalinlik UC HALDE DE 2 px: degisseydi alanin ic yuksekligi oynar ve
+     yazi 1 px ZIPLARDI.
+  ⚠️ `errorText` KULLANILMADI: kullanici yalniz "input kirmizi olsun" dedi;
+     ayrica alan yuksekligi degisip form ziplardi (mesaj SnackBar`da).
+  ⚠️⚠️ **IKI ALAN BIRDEN kirmizi olur**: sunucu "telefon veya sifre hatali"
+     der, HANGISI oldugunu SOYLEMEZ (numaranin kayitli olup olmadigini
+     sizdirmamak icin). Yalniz sifreyi kirmizi yapmak sunucunun SOYLEMEDIGI
+     bir sey iddia etmek olurdu. Yazmaya baslayinca temizlenir.
+  📌 Dugmelerde **radius 0**. ⚠️ `RoundedRectangleBorder` KALDIRILMADI,
+     yaricapi SIFIRLANDI: kaldirilirsa `FilledButton` TEMA yaricapina duser
+     (M3: tam hap) ve degisiklik SESSIZCE geri alinir.
+  ⚠️⚠️ `kayit_akisi.dart` KENDI `_alan()` kopyasini tasiyordu; giris
+     degisince kayit ESKI HALINDE KALDI. `authAlan`a devredildi —
+     `auth_stil.dart`in varlik sebebi TAM BUDUR.
+
+- 📷 **TURU 119 — KAYIT DORT ADIM + PROFIL FOTOGRAFI (KIRPMALI)**
+  0 telefon · 1 kod · 2 bilgiler · **3 fotograf**. Ilerleme cubugu 3 -> 4.
+  ⚠️ Kirpma `InteractiveViewer`: surukleme + iki parmakla yakinlastirma
+     hazir gelir; elle `Matrix4` yazmak sinir durumlarini (fling, olcek
+     siniri) elde birakirdi. `clipBehavior: none` + `ClipOval` -> DAIRE.
+  ⚠️⚠️ Sonuc `RepaintBoundary.toImage()` ile YAKALANIR: kullanicinin
+     EKRANDA GORDUGU kare ne ise yuklenen O olur. Matrisi elle cozup ikinci
+     bir hesapla kirpmak "gordugum kirpim bu degil" uretirdi.
+  ⚠️ Halka `IgnorePointer`: dokunuslar ALTTAKI `InteractiveViewer`a gecmeli,
+     yoksa surukleme HIC calismaz.
+  ⚠️⚠️ **SIRA ZORUNLU: fotograf HESAPTAN SONRA yuklenir** — `presign`
+     OTURUM ister, once denenirse 401 doner.
+  ⚠️⚠️ **FOTOGRAF HATASI KAYDI BOZMAZ**: hesap ZATEN kuruldu; istisna
+     disaridaki `catch`e duserse kullanici "kayit basarisiz" sanardi.
+  ⚠️ `gorseliHazirla` (EXIF/GPS temizligi — sunucu GPS bulursa 422) +
+     `MedyaKapisi` kapilari (arama/oda/yayinda galeri acmak cakisir).
+
+- 🎨 **TURU 119b — LOGO HALKASI IKI KEZ DUZELTILDI.**
+  Turu 117`de halkaya `kHikayeHalkaGradient` (mor->kirmizi->**TURUNCU**)
+  verilmisti; kullanici *"halen turuncu"* dedi ve HAKLIYDI.
+  ⚠️⚠️ **IKI FARKLI HIKAYE GRADYANI VAR, KARISTIRMA:**
+     · `kHikayePaylasGradient` — kendi "Hikâyen" dairesi, **SIYAH -> MOR**
+     · `kHikayeHalkaGradient`  — BASKASININ hikayesi, mor->kirmizi->turuncu
+     Logo halkasi BIRINCISINI kullanir; ikisi de `core/theme.dart`ta.
+  ✅ **OLCULEREK dogrulandi** (gecici widget testi CIZILEN gradyani okudu):
+     `[#14101C, #8B3FFF]`. Eski turuncu/pembe sabitler repoda KALMADI.
+
+- ⚠️⚠️ **TURU 119 — CRLF TUZAGI (turu 89/117`nin ucuncu tekrari).**
+  `gebzem_ai.dart` ve `kayit_akisi.dart` **CRLF**; LF ile birlestirilmis
+  arama dizeleri ESLESMEDI. **Bu repoda dosyalar KARISIK** — metin
+  degistiren her betik satir sonunu **DOSYADAN ALGILAMALI**.
+
 - **KALDIGIMIZ YER (20 Agu 15:16): TURU 117 YAYINLANDI** — android
   **32366701529** + ios **32366715201** (**8fe3f9a**), R2 apk=121169858
   (md5 27864787) ipa=30294476 (md5 cfac1974) index=15834 (md5 b3b43223)
