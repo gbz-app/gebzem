@@ -766,17 +766,16 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
           i.baslik,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+          style: kKucukKartAdStili,
         ),
         const SizedBox(height: 2),
         Text(
           i.fiyatEtiketi,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-            color: kVurgu(context),
+          style: kKucukKartBilgiStili(
+            kVurgu(context),
+            kalinlik: FontWeight.w700,
           ),
         ),
       ],
@@ -861,6 +860,7 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
       ref.watch(ilanAgaciProvider).valueOrNull,
       enFazla: 2,
     );
+    final konumVar = i.ilce.isNotEmpty || i.il.isNotEmpty;
     return Padding(
       padding: const EdgeInsets.only(
         left: kYanBosluk,
@@ -919,6 +919,7 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
             ),
             const SizedBox(height: 4),
             // ---- META
+            // (konum var mi? ayrac karari buna bagli)
             // ⚠️ Yemekteki puan · teslimat suresi · min. tutar KARSILIKSIZ:
             //    ilanda boyle alanlar YOK ve uydurulmayacak. Yerlerine ilanin
             //    GERCEKTEN sahip oldugu alanlar konuyor.
@@ -929,27 +930,35 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
               ),
               child: Row(
                 children: [
-                  Icon(
-                    LucideIcons.mapPin,
-                    size: 13,
-                    color: scheme.onSurface.withValues(alpha: 0.55),
-                  ),
-                  const SizedBox(width: 3),
-                  Flexible(
-                    child: Text(
-                      [
-                        i.ilce,
-                        i.il,
-                      ].where((x) => x.isNotEmpty).join(', '),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                  // Konum YOKSA ne ikon ne bosluk cizilir. Onceden ikon
+                  // KOSULSUZ ciziliyordu; ilce/il bos olan ilanda ekranda
+                  // YANINDA HICBIR SEY OLMAYAN bir pin duruyordu (E2E
+                  // Araba kartinda emulatorde gorundu).
+                  if (konumVar) ...[
+                    Icon(
+                      LucideIcons.mapPin,
+                      size: 13,
+                      color: scheme.onSurface.withValues(alpha: 0.55),
                     ),
-                  ),
-                  for (final o in ozet) ...[
-                    const Text('  ·  '),
+                    const SizedBox(width: 3),
                     Flexible(
                       child: Text(
-                        o.deger,
+                        [
+                          i.ilce,
+                          i.il,
+                        ].where((x) => x.isNotEmpty).join(', '),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                  // Ayrac YALNIZ ONCESINDE BIR SEY VARSA cizilir; konumsuz
+                  // ilanda satir " · Garson" diye baslardi.
+                  for (var oi = 0; oi < ozet.length; oi++) ...[
+                    if (konumVar || oi > 0) const Text('  ·  '),
+                    Flexible(
+                      child: Text(
+                        ozet[oi].deger,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),

@@ -701,15 +701,43 @@ class KabukGorunumSecici extends StatelessWidget {
 /// ⚠️ `childAspectRatio` KULLANILMAZ: oran genislige baglidir, metin ise
 ///    DEGILDIR; ikisini tek sayiya sikistirmak her ekran genisliginde ya
 ///    bosluk ya kirpma uretir.
+/// ⚠️⚠️ SATIR YUKSEKLIGI **ACIKCA** verilir (`height:`), FONT METRIGINE
+///	BIRAKILMAZ. Ilk yazimda carpanlar tahminle (1.25/1.30) secilmisti ve
+///	emulatorde **"BOTTOM OVERFLOWED BY 3.9 PIXELS"** cikti: uygulamanin
+///	fontu Roboto degil ve kendi satir araligi daha genis. Artik hem kart
+///	hem olcu AYNI carpani kullaniyor, yani hesap TAHMIN degil SOZLESME.
+/// ⚠️ YAPMA: kartta `height:` vermeden bu olcuyu kullanma.
+const double kKucukKartAdBoy = 14;
+const double kKucukKartBilgiBoy = 12;
+const double kKucukKartSatir = 1.30;
+
+/// Kucuk kartin AD satiri stili (izgara hucresiyle TEK KAYNAK).
+const TextStyle kKucukKartAdStili = TextStyle(
+  fontSize: kKucukKartAdBoy,
+  fontWeight: FontWeight.w700,
+  height: kKucukKartSatir,
+);
+
+/// Kucuk kartin BILGI satiri stili. Renk cagirana birakilir (ilanda vurgu,
+/// etkinlikte soluk gri) — YALNIZ olcu ortaktir.
+TextStyle kKucukKartBilgiStili(Color renk, {FontWeight? kalinlik}) => TextStyle(
+  fontSize: kKucukKartBilgiBoy,
+  height: kKucukKartSatir,
+  fontWeight: kalinlik,
+  color: renk,
+);
+
 SliverGridDelegate kabukIzgaraOlcu(BuildContext c, {int bilgiSatiri = 1}) {
   final en = (MediaQuery.sizeOf(c).width - kYanBosluk * 2 - kIzgaraAralik) / 2;
   final olcek = MediaQuery.textScalerOf(c);
-  final ad = olcek.scale(14) * 1.25;
-  final bilgi = olcek.scale(12) * 1.3 * bilgiSatiri;
+  final ad = olcek.scale(kKucukKartAdBoy) * kKucukKartSatir;
+  final bilgi = olcek.scale(kKucukKartBilgiBoy) * kKucukKartSatir * bilgiSatiri;
+  // ⚠️ 1 dp PAY: `TextPainter` satir yuksekligini YUKARI yuvarlar. Paysiz
+  //    hesap yarim pikselde bile sari-siyah tasma seridi cizdirir.
   return SliverGridDelegateWithFixedCrossAxisCount(
     crossAxisCount: 2,
     crossAxisSpacing: kIzgaraAralik,
     mainAxisSpacing: 20,
-    mainAxisExtent: en * 9 / 16 + 7 + ad + 2 + bilgi,
+    mainAxisExtent: en * 9 / 16 + 7 + ad + 2 + bilgi + 1,
   );
 }

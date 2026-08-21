@@ -442,19 +442,15 @@ class _EtkinlikListesiEkraniState extends ConsumerState<EtkinlikListesiEkrani> {
           e.baslik,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+          style: kKucukKartAdStili,
         ),
         const SizedBox(height: 2),
         Text(
           etkinlikZamani(e.baslangic),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            fontSize: 12,
-            color: Theme.of(context)
-                .colorScheme
-                .onSurface
-                .withValues(alpha: 0.62),
+          style: kKucukKartBilgiStili(
+            Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.62),
           ),
         ),
       ],
