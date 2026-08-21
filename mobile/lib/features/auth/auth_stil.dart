@@ -86,7 +86,14 @@ class AuthSayfa extends StatelessWidget {
 /// ⚠️ TURU 120 — kullanici emri: *"Tekrar hos geldin altindaki aciklamayi daha
 ///    profesyonel yap, IKISINI DE 2px daha buyuk yap"* -> 26 -> **28**,
 ///    14.5 -> **16.5**.
-Widget authBaslik(String baslik, String aciklama) => Column(
+/// ⚠️ TURU 126 — [aciklama] ARTIK OPSIYONEL. Referans tasarimda basligin
+///    altinda aciklama YOK; baslik ile giris alani DOGRUDAN komsu
+///    (kullanici: *"buyuk yazinin altina telefon olacak"*). Verilmezse
+///    aciklama satiri VE onun altindaki 9 dp bosluk CIZILMEZ — bos bir
+///    `Text('')` birakmak, gorunmez ama yer kaplayan bir satir olurdu.
+/// ⚠️ Parametre POZISYONEL-OPSIYONEL: mevcut dort cagri yeri
+///    (kayit akisi · sifre unuttum · OTP · kayit) DEGISMEDEN calisir.
+Widget authBaslik(String baslik, [String? aciklama]) => Column(
   crossAxisAlignment: CrossAxisAlignment.start,
   children: [
     Text(
@@ -99,12 +106,18 @@ Widget authBaslik(String baslik, String aciklama) => Column(
         color: authYazi,
       ),
     ),
-    const SizedBox(height: 9),
-    Text(
-      aciklama,
-      textAlign: TextAlign.left,
-      style: const TextStyle(fontSize: 16.5, height: 1.45, color: authAltYazi),
-    ),
+    if (aciklama != null) ...[
+      const SizedBox(height: 9),
+      Text(
+        aciklama,
+        textAlign: TextAlign.left,
+        style: const TextStyle(
+          fontSize: 16.5,
+          height: 1.45,
+          color: authAltYazi,
+        ),
+      ),
+    ],
     const SizedBox(height: 28),
   ],
 );
@@ -115,11 +128,18 @@ Widget authBaslik(String baslik, String aciklama) => Column(
 ///    baslamazsa kirmizi olsun HEM YAZI HEM CIZGI"*). Turu 119'da yalnizca
 ///    cizgi ve etiket kirmiziya donuyordu; kullanicinin yazdigi rakamlar
 ///    siyah kaliyordu ve hatanin NEREDE oldugu belirsizdi.
-TextStyle authDegerStili({bool hatali = false}) => TextStyle(
+TextStyle authDegerStili({bool hatali = false, double? boy}) => TextStyle(
   color: hatali ? authHata : authYazi,
-  fontSize: authDegerBoy,
+  fontSize: boy ?? authDegerBoy,
   fontWeight: FontWeight.w500,
 );
+
+/// ⚠️⚠️ TURU 126 — SADE MODDAKI DEGER BOYU (kullanici referansi).
+///
+/// Referans tasarimda giris metni sayfadaki EN BUYUK ikinci ogedir (baslik
+/// 28, deger 24); alt cizgi ve etiket olmadigi icin BOYUT tek hiyerarsi
+/// isaretidir. `authDegerBoy` (20) sade modda kucuk kaliyordu.
+const double authSadeDegerBoy = 24.0;
 
 /// ⚠️⚠️⚠️ TURU 119 — METIN ALANI **YALNIZ ALT CIZGI** (kullanici emri:
 ///	*"input ALT CIZGI olsun, sol sag ust cizgi DEGIL; alt cizgi de 2px
@@ -148,11 +168,31 @@ TextStyle authDegerStili({bool hatali = false}) => TextStyle(
 ///    degistirir ve form ZIPLARDI. Aciklama satiri AYRI bir bilesenle
 ///    (`authNot`) alanin ALTINA konur.
 /// ⚠️ YAPMA: `OutlineInputBorder`a geri donme.
+/// ⚠️⚠️⚠️ TURU 126 — **[sade] MODU** (kullanici referansi: buyuk baslik,
+///	altinda CIZGISIZ ve ORTALANMIS giris, altta hap dugme).
+///
+/// Sade modda: hicbir kenarlik YOK · etiket YOK · ipucu ve deger ORTALI ·
+/// deger 24 px. Alan bir "kutu" degil, sayfanin govde METNI gibi durur.
+///
+/// ⚠️⚠️ **ETIKET SADE MODDA CIZILMEZ ama BILGI KAYBOLMAZ**: `labelText`
+///	kaldirilinca alanin ne istedigini soyleyen tek sey IPUCU kalir, bu
+///	yuzden cagiran taraf sade modda ipucunu ZORUNLU verir
+///	("5xx xxx xx xx" / "Şifren"). Ipucusuz sade alan, kullanicinin BOS
+///	bir satira bakip ne yazacagini bilememesi demektir.
+/// ⚠️⚠️ **`floatingLabelBehavior: always` SADE MODDA DA KALIR.** Etiket yok
+///	ama `prefixText` (`+90`) VAR ve SDK kaynagi (`input_decorator.dart`)
+///	`_AffixText` opakligini `labelIsFloating ? 1.0 : 0.0` ile hesaplar:
+///	bayrak dusurulseydi alan bos ve odaksizken **`+90` GORUNMEZDI**
+///	(turu 120'de olculen hata). ⚠️ YAPMA: sade dalda bu bayragi kaldirma.
+/// ⚠️ Hata sade modda RENKLE anlatilir (deger + on ek kirmizi olur) —
+///    cizgi olmadigi icin baska tasiyici yok; aciklama satiri `authNot`
+///    zaten alanin ALTINDA duruyor.
 InputDecoration authAlan(
   String etiket, {
   String? ipucu,
   Widget? sonek,
   bool hataliMi = false,
+  bool sade = false,
 }) {
   UnderlineInputBorder cizgi(Color renk) =>
       UnderlineInputBorder(borderSide: BorderSide(color: renk, width: 2));
@@ -163,6 +203,39 @@ InputDecoration authAlan(
     fontSize: authEtiketBoy,
     fontWeight: FontWeight.w600,
   );
+  if (sade) {
+    return InputDecoration(
+      hintText: ipucu,
+      suffixIcon: sonek,
+      floatingLabelBehavior: FloatingLabelBehavior.always,
+      hintStyle: TextStyle(
+        color: authAltYazi.withValues(alpha: 0.38),
+        fontSize: authSadeDegerBoy,
+        fontWeight: FontWeight.w400,
+        // ⚠️ TURU 120 dersi: `hintStyle` taban stili MERGE eder; sifre alani
+        //    gizliyken `letterSpacing: 5` kullaniyor ve ipucuna SIZIYORDU.
+        letterSpacing: 0,
+      ),
+      // ⚠️⚠️⚠️ TURU 126b — **DIKEY DOLGU ACIKCA VERILIR (denetim bulgusu).**
+      //	Ilk yazimda `contentPadding: zero` + `isDense: true` vardi ve
+      //	IKI SORUN birden uretiyordu:
+      //	  (a) telefon alaninin dokunma yuksekligi **36 dp** kaliyordu —
+      //	      Material tavani 48; alt cizgi olmadigi icin kullanicinin
+      //	      nereye dokunacagini soyleyen GORSEL bir sinir da yok,
+      //	  (b) sifre alani `suffixIcon` (goz) yuzunden **48 dp** cikiyordu:
+      //	      ust uste duran iki alan FARKLI YUKSEKLIKTEYDI ve aradaki
+      //	      bosluk esit gorunmuyordu.
+      // ⚠️ 12 dp: 24 px'lik deger satiriyla birlikte ~48 dp verir, yani
+      //    sonekli sifre alaniyla AYNI. Degistirirsen IKISINI birlikte olc.
+      contentPadding: const EdgeInsets.symmetric(vertical: 12),
+      border: InputBorder.none,
+      enabledBorder: InputBorder.none,
+      focusedBorder: InputBorder.none,
+      errorBorder: InputBorder.none,
+      focusedErrorBorder: InputBorder.none,
+      disabledBorder: InputBorder.none,
+    );
+  }
   return InputDecoration(
     labelText: etiket,
     hintText: ipucu,
@@ -313,6 +386,7 @@ class AuthTelefonAlani extends StatefulWidget {
     this.onChanged,
     this.onSubmitted,
     this.textInputAction,
+    this.sade = false,
   });
 
   final TextEditingController controller;
@@ -330,6 +404,9 @@ class AuthTelefonAlani extends StatefulWidget {
   final ValueChanged<String>? onChanged;
   final ValueChanged<String>? onSubmitted;
   final TextInputAction? textInputAction;
+
+  /// Cizgisiz + ortali + 24 px gorunum (bkz. `authAlan` sade serhi).
+  final bool sade;
 
   @override
   State<AuthTelefonAlani> createState() => _AuthTelefonAlaniState();
@@ -386,32 +463,65 @@ class _AuthTelefonAlaniState extends State<AuthTelefonAlani> {
   Widget build(BuildContext context) {
     final bicimHatasi = authTelefonHatasi(widget.controller.text);
     final kirmizi = widget.hataliMi || bicimHatasi != null;
-    final stil = authDegerStili(hatali: kirmizi);
+    final stil = authDegerStili(
+      hatali: kirmizi,
+      boy: widget.sade ? authSadeDegerBoy : null,
+    );
+    // ⚠️⚠️ TURU 126b — **SADE MODDA ERISILEBILIRLIK ADI ACIKCA VERILIR**
+    //	(denetim bulgusu). Sade dalda `labelText` CIZILMIYOR; alanin adini
+    //	tasiyan tek sey `hintText` ve o da **alan dolunca kayboluyor** —
+    //	TalkBack numarayi duzeltmek isteyen kullaniciya alani ISIMSIZ okurdu.
+    // ⚠️ Cizgili dalda GEREKSIZ: `labelText` zaten hem cizilir hem okunur.
+    final alan = Semantics(
+      label: widget.sade ? widget.etiket : null,
+      textField: true,
+      child: TextField(
+        controller: widget.controller,
+        keyboardType: TextInputType.phone,
+        textInputAction: widget.textInputAction,
+        style: stil,
+        // ⚠️⚠️⚠️ TURU 126 — **TELEFON SADE MODDA DA SOLA DAYALI. OLCULDU.**
+        //	Ilk yazimda `textAlign: center` denendi ve EMULATORDE BOZUK
+        //	CIKTI: `+90` SOL UCTA kaldi, haneler ORTADA — numara ikiye
+        //	bolunmus gorunuyordu.
+        //	KOK NEDEN: `InputDecorator` on eki ve girisi bir satirda YAN
+        //	YANA dizer; giris kalan alani `Expanded` gibi alir ve
+        //	`textAlign` YALNIZ O ALANIN icinde hizalar. Yani on ek
+        //	ORTALAMAYA KATILMAZ — hicbir `textAlign` degeri `+90` ile
+        //	haneleri tek blok yapamaz.
+        // ⚠️ Sola dayali olmasi ayrica DAHA TUTARLI: baslik da sol dayali,
+        //    alan onun tam altinda ve ayni x'ten basliyor.
+        // ⚠️ YAPMA: burada `textAlign.center` deneme; ortalamak isteniyorsa
+        //    `prefixText` BIRAKILIP kendi `Row`u kurmak gerekir ve o zaman
+        //    bos alanda genislik cokup ipucu kaybolur (`IntrinsicWidth`
+        //    `hintText`i OLCMEZ, yalniz mevcut metni olcer).
+        inputFormatters: [
+          FilteringTextInputFormatter.digitsOnly,
+          LengthLimitingTextInputFormatter(authTelefonHane),
+        ],
+        onChanged: widget.onChanged,
+        onSubmitted: widget.onSubmitted,
+        decoration:
+            authAlan(
+              widget.etiket,
+              hataliMi: kirmizi,
+              sade: widget.sade,
+            ).copyWith(
+              // ⚠️ IKI BOSLUK: kullanici *"arasinda biraz bosluk"* dedi. Tek
+              //    bosluk `+90532...` gibi bitisik okunuyordu.
+              prefixText: '$authUlkeKodu  ',
+              // ⚠️ On ek DEGERLE AYNI STILDE (kullanici: *"ayni font size
+              //    ile"*) ve hatada O DA kirmizi olur — numara tek bir butun
+              //    olarak okunmali.
+              prefixStyle: stil,
+              hintText: '5xx xxx xx xx',
+            ),
+      ),
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        TextField(
-          controller: widget.controller,
-          keyboardType: TextInputType.phone,
-          textInputAction: widget.textInputAction,
-          style: stil,
-          inputFormatters: [
-            FilteringTextInputFormatter.digitsOnly,
-            LengthLimitingTextInputFormatter(authTelefonHane),
-          ],
-          onChanged: widget.onChanged,
-          onSubmitted: widget.onSubmitted,
-          decoration: authAlan(widget.etiket, hataliMi: kirmizi).copyWith(
-            // ⚠️ IKI BOSLUK: kullanici *"arasinda biraz bosluk"* dedi. Tek
-            //    bosluk `+90532...` gibi bitisik okunuyordu.
-            prefixText: '$authUlkeKodu  ',
-            // ⚠️ On ek DEGERLE AYNI STILDE (kullanici: *"ayni font size
-            //    ile"*) ve hatada O DA kirmizi olur — numara tek bir butun
-            //    olarak okunmali.
-            prefixStyle: stil,
-            hintText: '5xx xxx xx xx',
-          ),
-        ),
+        alan,
         if ((bicimHatasi ?? widget.not) != null)
           authNot((bicimHatasi ?? widget.not)!),
       ],
@@ -447,6 +557,7 @@ class AuthSifreAlani extends StatefulWidget {
     this.onChanged,
     this.onSubmitted,
     this.textInputAction,
+    this.sade = false,
   });
 
   final TextEditingController controller;
@@ -457,6 +568,9 @@ class AuthSifreAlani extends StatefulWidget {
   final ValueChanged<String>? onSubmitted;
   final TextInputAction? textInputAction;
 
+  /// Cizgisiz + ortali + 24 px gorunum (bkz. `authAlan` sade serhi).
+  final bool sade;
+
   @override
   State<AuthSifreAlani> createState() => _AuthSifreAlaniState();
 }
@@ -466,7 +580,8 @@ class _AuthSifreAlaniState extends State<AuthSifreAlani> {
 
   @override
   Widget build(BuildContext context) {
-    final temel = authDegerStili(hatali: widget.hataliMi);
+    final tabanBoy = widget.sade ? authSadeDegerBoy : authDegerBoy;
+    final temel = authDegerStili(hatali: widget.hataliMi, boy: tabanBoy);
     return TextField(
       controller: widget.controller,
       obscureText: _gizli,
@@ -474,15 +589,19 @@ class _AuthSifreAlaniState extends State<AuthSifreAlani> {
       textInputAction: widget.textInputAction,
       onChanged: widget.onChanged,
       onSubmitted: widget.onSubmitted,
+      // ⚠️ TURU 126 — SIFRE DE SOLA DAYALI: kardes telefon alani (on ek
+      //    yuzunden) ortalanamiyor; ikisi farkli hizada olsaydi ust uste
+      //    duran iki satir birbirinden KACIK gorunurdu.
       style: _gizli
           // ⚠️ Gizliyken daireler 3 px daha buyuk ve 5 px aralikli
           //    (kullanici olcusu: *"daireler daha buyuk, biraz bosluk"*).
-          ? temel.copyWith(fontSize: authDegerBoy + 3, letterSpacing: 5)
+          ? temel.copyWith(fontSize: tabanBoy + 3, letterSpacing: 5)
           : temel,
       decoration: authAlan(
         widget.etiket,
         ipucu: widget.ipucu,
         hataliMi: widget.hataliMi,
+        sade: widget.sade,
         sonek: IconButton(
           icon: Icon(
             _gizli ? LucideIcons.eye : LucideIcons.eyeOff,
@@ -503,41 +622,83 @@ class _AuthSifreAlaniState extends State<AuthSifreAlani> {
 ///    kontrast cikar (turu 85b denetim bulgusu).
 /// ⚠️ Devre disi renkleri de acikca verilir; temanin gri tonu beyaz zeminde
 ///    kayboluyordu.
+/// ⚠️⚠️⚠️ TURU 126 — **[hap] KULLANICI REFERANSIYLA GELDI** ve turu 119'un
+///	*"butonlari radus kaldir"* emriyle CELISIYOR gibi gorunur; celiski
+///	YOKTUR cunku iki emir FARKLI EKRANLAR icindir:
+///	  · turu 119 emri **alt cizgili "duz/minimal" dil** icin verildi ve
+///	    kayit akisi HALA o dili konusuyor -> orada `hap: false` KALIR,
+///	  · turu 126 referansi YALNIZ giris ekranini kapsiyor
+///	    (*"tekrar hosgeldin sayfasini boyle yap"*).
+/// ⚠️⚠️ **BU YUZDEN BAYRAK, GLOBAL DEGISIKLIK DEGIL.** `authAnaDugme` bes
+///	ekran tarafindan cagriliyor (giris · kayit akisi · sifre unuttum ·
+///	OTP · kayit); varsayilani degistirmek DORDUNU habersizce degistirirdi.
+///	⚠️ YAPMA: varsayilani `true` yapma.
+///
+/// ⚠️ GLOW `BoxShadow` ile ve dugmenin ARKASINDAN gelir: `FilledButton`
+///    golge rengini `shadowColor`dan alir ama Material 3 `elevation`i
+///    varsayilan 0 tutar ve tint mantigi araya girer — sonuc referanstaki
+///    yumusak renkli parilti DEGIL, sert bir gri golge olurdu.
+/// ⚠️ Sarmalayicinin yaricapi dugmeyle **BIREBIR AYNI** olmak zorunda:
+///    farkli olsaydi parilti kose diplerinde kalin, kenarlarda ince cikardi.
 Widget authAnaDugme({
   required String etiket,
   required VoidCallback? basildi,
   required bool mesgul,
-}) => SizedBox(
-  width: double.infinity,
-  height: 52,
-  child: FilledButton(
-    onPressed: mesgul ? null : basildi,
-    style: FilledButton.styleFrom(
-      backgroundColor: morLogo,
-      foregroundColor: Colors.white,
-      disabledBackgroundColor: morLogo.withValues(alpha: 0.45),
-      disabledForegroundColor: Colors.white,
-      // ⚠️⚠️ TURU 119 — **RADIUS KALDIRILDI** (kullanici emri: *"giris yap
-      //	vs butonlari radus kaldir"*). Onceden 26 dp (tam hap).
-      //	Duz kose, yeni ALT CIZGILI alanlarla ayni "duz/minimal" dili
-      //	konusuyor; hap dugme o dilin yaninda yumusak kaliyordu.
-      // ⚠️ `RoundedRectangleBorder` KALDIRILMADI, yaricapi SIFIRLANDI:
-      //    tamamen kaldirilirsa `FilledButton` TEMA yaricapina duser
-      //    (Material 3: tam hap) ve degisiklik SESSIZCE geri alinir.
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-    ),
-    child: mesgul
-        ? const SizedBox(
-            width: 20,
-            height: 20,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: Colors.white,
+  bool hap = false,
+}) {
+  final yaricap = BorderRadius.circular(hap ? 28 : 0);
+  final dugme = SizedBox(
+    width: double.infinity,
+    height: hap ? 56 : 52,
+    child: FilledButton(
+      onPressed: mesgul ? null : basildi,
+      style: FilledButton.styleFrom(
+        backgroundColor: morLogo,
+        foregroundColor: Colors.white,
+        disabledBackgroundColor: morLogo.withValues(alpha: 0.45),
+        disabledForegroundColor: Colors.white,
+        // ⚠️⚠️ TURU 119 — **RADIUS KALDIRILDI** (kullanici emri: *"giris yap
+        //	vs butonlari radus kaldir"*). Onceden 26 dp (tam hap).
+        //	Duz kose, ALT CIZGILI alanlarla ayni "duz/minimal" dili
+        //	konusuyor; hap dugme o dilin yaninda yumusak kaliyordu.
+        // ⚠️ `RoundedRectangleBorder` KALDIRILMADI, yaricapi SIFIRLANDI:
+        //    tamamen kaldirilirsa `FilledButton` TEMA yaricapina duser
+        //    (Material 3: tam hap) ve degisiklik SESSIZCE geri alinir.
+        shape: RoundedRectangleBorder(borderRadius: yaricap),
+      ),
+      child: mesgul
+          ? const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Colors.white,
+              ),
+            )
+          : Text(
+              etiket,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
             ),
-          )
-        : Text(
-            etiket,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-          ),
-  ),
-);
+    ),
+  );
+  // ⚠️⚠️ TURU 126b — **MESGULKEN PARILTI CIZILMEZ (denetim bulgusu).**
+  //	`BoxDecoration` golgeyi dugmenin ALTINI da boyayacak sekilde cizer
+  //	(kirpmaz); devre disi zemin `%45 alfali` oldugu icin yukleme
+  //	sirasinda parilti **DUGMENIN ICINDEN** gorunuyordu — spinner mor bir
+  //	bulutun icinde kaliyordu.
+  if (!hap || mesgul) return dugme;
+  return DecoratedBox(
+    decoration: BoxDecoration(
+      borderRadius: yaricap,
+      boxShadow: [
+        BoxShadow(
+          color: morLogo.withValues(alpha: 0.42),
+          blurRadius: 26,
+          spreadRadius: -6,
+          offset: const Offset(0, 10),
+        ),
+      ],
+    ),
+    child: dugme,
+  );
+}

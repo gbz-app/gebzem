@@ -150,40 +150,54 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // ⚠️ TURU 120 — aciklama "profesyonel"lestirildi (kullanici
-                    //    emri). Onceki: *"Numaran ve şifrenle giriş yap."* —
-                    //    ekranin ne oldugunu TEKRARLIYORDU. Yenisi ne
-                    //    olacagini soyluyor.
-                    authBaslik(
-                      'Tekrar hoş geldin',
-                      'Numaranı ve şifreni gir, kaldığın yerden devam et.',
-                    ),
+                    // ⚠️⚠️ TURU 126 — **ACIKLAMA SATIRI KALDIRILDI**
+                    //	(kullanici referansi + emri: *"buyuk yazinin altina
+                    //	telefon olacak"*). Referans tasarimda baslik ile
+                    //	giris alani DOGRUDAN komsu; aradaki aciklama o
+                    //	komsulugu bozuyordu.
+                    // ⚠️ Bilgi KAYBOLMADI: eski aciklama (*"Numaranı ve
+                    //    şifreni gir"*) ekranin ne oldugunu TEKRARLIYORDU;
+                    //    alanlarin kendi ipuclari ("5xx xxx xx xx" · "Şifren")
+                    //    ayni seyi DURDUGU YERDE soyluyor.
+                    authBaslik('Tekrar hoş geldin'),
                     AuthTelefonAlani(
                       controller: _haneler,
                       hataliMi: _hatali,
                       not: _telefonNotu,
                       textInputAction: TextInputAction.next,
+                      sade: true,
                       // ⚠️ `setState(_temizle)` YAZMA: `_temizle` KENDISI
                       //    `setState` cagiriyor; ic ice `setState` her tusta
                       //    GEREKSIZ ikinci bir yeniden kurulum yapardi.
                       onChanged: (_) => _temizle(),
                     ),
-                    const SizedBox(height: 18),
+                    // ⚠️ TURU 126 — 18 -> 26: cizgi kalkinca iki alani
+                    //    ayiran TEK sey BOSLUK. 18 dp'de 24 px'lik iki satir
+                    //    tek bir blok gibi okunuyordu.
+                    const SizedBox(height: 26),
                     AuthSifreAlani(
                       controller: _password,
                       hataliMi: _hatali,
+                      // ⚠️ SADE MODDA IPUCU ZORUNLU: etiket ("Şifre")
+                      //    cizilmiyor, alanin ne istedigini soyleyen tek sey
+                      //    bu. Ipucusuz sade alan = bos bir satir.
+                      ipucu: 'Şifren',
                       textInputAction: TextInputAction.done,
+                      sade: true,
                       onChanged: (_) => _temizle(),
                       onSubmitted: (_) => _submit(),
                     ),
                     if (_hataNotu != null) authNot(_hataNotu!),
+                    // ⚠️ TURU 126 — SOLA DAYALI: alanlar da (on ek yuzunden)
+                    //    sola dayali; ortalansaydi sayfanin tek "kacik"
+                    //    ogesi bu satir olurdu.
                     Align(
                       alignment: Alignment.centerLeft,
                       child: TextButton(
                         onPressed: () => context.push('/forgot'),
                         style: TextButton.styleFrom(
                           foregroundColor: authAltYazi,
-                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
                         ),
                         child: const Text('Şifremi unuttum'),
                       ),
@@ -194,15 +208,30 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ),
             // ⚠️ Ana dugme ALTTA SABIT (kayit akisiyla ayni): klavye acikken
             //    de erisilir ve iki ekranda ayni yerde durur.
+            // ⚠️⚠️ TURU 126b — **UST DOLGU 8 -> 22 (denetim bulgusu).**
+            //	`authAnaDugme(hap: true)` pariltisinin dikey tasmasi
+            //	`blur(26) - spread(6) = 20 dp`; 8 dp'de parilti kaydirma
+            //	alaninin son ogesiyle (Şifremi unuttum / hata satiri) UST
+            //	USTE biniyordu.
+            // ⚠️ YAPMA: dugme blogunu `SingleChildScrollView` ICINE tasima —
+            //    `Viewport` `Clip.hardEdge` ile kirpar ve parilti kenarlardan
+            //    KESILIR.
             Padding(
-              padding: const EdgeInsets.fromLTRB(28, 8, 28, 10),
+              padding: const EdgeInsets.fromLTRB(28, 22, 28, 10),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  // ⚠️⚠️ TURU 126 — **HAP + PARILTI YALNIZ BU EKRANDA**
+                  //	(kullanici referansi). `hap` varsayilani `false`;
+                  //	kayit akisi · sifre unuttum · OTP HALA duz kose
+                  //	kullanir (turu 119 emri o ekranlar icin GECERLI).
+                  // ⚠️ YAPMA: `authAnaDugme` varsayilanini `true` yapip
+                  //    "hepsi ayni olsun" deme — dort ekran habersiz degisir.
                   authAnaDugme(
                     etiket: 'Giriş yap',
                     basildi: _submit,
                     mesgul: _loading,
+                    hap: true,
                   ),
                   TextButton(
                     onPressed: _loading ? null : () => context.push('/register'),
