@@ -56,6 +56,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   /// Numara eksik/gecersizken alanin ALTINA konan aciklama.
   String? _telefonNotu;
 
+  /// ⚠️⚠️⚠️ TURU 126 — **SIFRE ALANI BASTA GIZLI** (kullanici emri:
+  ///	*"hizli bir sekilde sifreyi de kaldir"*).
+  ///
+  /// ⚠️⚠️ **TAMAMEN KALDIRILAMAZ**: sunucunun `/auth/login` ucu telefon VE
+  ///	sifreyi ZORUNLU tutuyor; sifresiz giris yapisal olarak imkansiz
+  ///	(oturum jetonu ureten uc noktanin ucu de `bcrypt` karsilastirmasi
+  ///	yapiyor). Alan silinseydi HIC KIMSE giris yapamazdi.
+  ///	Bu yuzden EKRANDAN gizlendi, AKISTAN degil: acilista referanstaki
+  ///	gibi TEK ALAN gorunur, numara tamamlaninca sifre belirir.
+  /// ⚠️⚠️ **BIR KEZ GORUNDUKTEN SONRA GIZLENMEZ** (`_sifreGorundu` yalniz
+  ///	false -> true doner): kullanici numarayi duzeltmek icin tek hane
+  ///	silseydi alan kaybolur ve YAZDIGI SIFRE de giderdi.
+  bool _sifreGorundu = false;
+
   void _temizle() {
     if (_hatali || _hataNotu != null || _telefonNotu != null) {
       setState(() {
@@ -159,7 +173,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     //    şifreni gir"*) ekranin ne oldugunu TEKRARLIYORDU;
                     //    alanlarin kendi ipuclari ("5xx xxx xx xx" · "Şifren")
                     //    ayni seyi DURDUGU YERDE soyluyor.
-                    authBaslik('Tekrar hoş geldin'),
+                    // ⚠️ TURU 126 — baslik *"Tekrar hoş geldin"* DEGIL
+                    //    **"Telefon Numarası"** (kullanici emri). Referans
+                    //    tasarimda baslik bir KARSILAMA degil, altindaki
+                    //    alanin ADIDIR ("Enter your email").
+                    authBaslik('Telefon Numarası'),
                     AuthTelefonAlani(
                       controller: _haneler,
                       hataliMi: _hatali,
@@ -169,75 +187,85 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       // ⚠️ `setState(_temizle)` YAZMA: `_temizle` KENDISI
                       //    `setState` cagiriyor; ic ice `setState` her tusta
                       //    GEREKSIZ ikinci bir yeniden kurulum yapardi.
-                      onChanged: (_) => _temizle(),
+                      onChanged: (_) {
+                        _temizle();
+                        // ⚠️ Kapi TEK YONLU (bkz. `_sifreGorundu` serhi).
+                        if (!_sifreGorundu && authTelefonTam(_haneler.text)) {
+                          setState(() => _sifreGorundu = true);
+                        }
+                      },
                     ),
-                    // ⚠️ TURU 126 — 18 -> 26: cizgi kalkinca iki alani
-                    //    ayiran TEK sey BOSLUK. 18 dp'de 24 px'lik iki satir
-                    //    tek bir blok gibi okunuyordu.
-                    const SizedBox(height: 26),
-                    AuthSifreAlani(
-                      controller: _password,
-                      hataliMi: _hatali,
-                      // ⚠️ SADE MODDA IPUCU ZORUNLU: etiket ("Şifre")
-                      //    cizilmiyor, alanin ne istedigini soyleyen tek sey
-                      //    bu. Ipucusuz sade alan = bos bir satir.
-                      ipucu: 'Şifren',
-                      textInputAction: TextInputAction.done,
-                      sade: true,
-                      onChanged: (_) => _temizle(),
-                      onSubmitted: (_) => _submit(),
-                    ),
-                    if (_hataNotu != null) authNot(_hataNotu!),
-                    // ⚠️ TURU 126 — SOLA DAYALI: alanlar da (on ek yuzunden)
-                    //    sola dayali; ortalansaydi sayfanin tek "kacik"
-                    //    ogesi bu satir olurdu.
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: TextButton(
-                        onPressed: () => context.push('/forgot'),
-                        style: TextButton.styleFrom(
-                          foregroundColor: authAltYazi,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
-                        child: const Text('Şifremi unuttum'),
+                    // ⚠️ TURU 126 — sifre bloku YALNIZ numara tamamlaninca.
+                    //    "Şifremi unuttum" de onunla BIRLIKTE gelir: sifre
+                    //    alani gorunmeden sifre sifirlama teklif etmek
+                    //    anlamsizdi.
+                    if (_sifreGorundu) ...[
+                      // ⚠️ TURU 126 — 18 -> 26: cizgi kalkinca iki alani
+                      //    ayiran TEK sey BOSLUK. 18 dp'de 24 px'lik iki
+                      //    satir tek bir blok gibi okunuyordu.
+                      const SizedBox(height: 26),
+                      AuthSifreAlani(
+                        controller: _password,
+                        hataliMi: _hatali,
+                        // ⚠️ SADE MODDA IPUCU ZORUNLU: etiket ("Şifre")
+                        //    cizilmiyor, alanin ne istedigini soyleyen tek
+                        //    sey bu. Ipucusuz sade alan = bos bir satir.
+                        ipucu: 'Şifren',
+                        textInputAction: TextInputAction.done,
+                        sade: true,
+                        onChanged: (_) => _temizle(),
+                        onSubmitted: (_) => _submit(),
                       ),
-                    ),
+                      if (_hataNotu != null) authNot(_hataNotu!),
+                      // ⚠️ TURU 126 — SOLA DAYALI: alanlar da (on ek
+                      //    yuzunden) sola dayali; ortalansaydi sayfanin tek
+                      //    "kacik" ogesi bu satir olurdu.
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton(
+                          onPressed: () => context.push('/forgot'),
+                          style: TextButton.styleFrom(
+                            foregroundColor: authAltYazi,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                          child: const Text('Şifremi unuttum'),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
             ),
             // ⚠️ Ana dugme ALTTA SABIT (kayit akisiyla ayni): klavye acikken
             //    de erisilir ve iki ekranda ayni yerde durur.
-            // ⚠️⚠️ TURU 126b — **UST DOLGU 8 -> 22 (denetim bulgusu).**
-            //	`authAnaDugme(hap: true)` pariltisinin dikey tasmasi
-            //	`blur(26) - spread(6) = 20 dp`; 8 dp'de parilti kaydirma
-            //	alaninin son ogesiyle (Şifremi unuttum / hata satiri) UST
-            //	USTE biniyordu.
-            // ⚠️ YAPMA: dugme blogunu `SingleChildScrollView` ICINE tasima —
-            //    `Viewport` `Clip.hardEdge` ile kirpar ve parilti kenarlardan
-            //    KESILIR.
             Padding(
-              padding: const EdgeInsets.fromLTRB(28, 22, 28, 10),
+              padding: const EdgeInsets.fromLTRB(28, 8, 28, 10),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // ⚠️⚠️ TURU 126 — **HAP + PARILTI YALNIZ BU EKRANDA**
-                  //	(kullanici referansi). `hap` varsayilani `false`;
-                  //	kayit akisi · sifre unuttum · OTP HALA duz kose
-                  //	kullanir (turu 119 emri o ekranlar icin GECERLI).
-                  // ⚠️ YAPMA: `authAnaDugme` varsayilanini `true` yapip
-                  //    "hepsi ayni olsun" deme — dort ekran habersiz degisir.
+                  // ⚠️⚠️ TURU 126 — **DUZ KOSE, GOLGESIZ** (kullanici emri:
+                  //	*"butondaki radüs gölge vs olmasın"*). Bir onceki
+                  //	adimda referans gorseline gore `hap: true` denenmisti,
+                  //	kullanici GERI ALDI.
+                  // ⚠️ `hap` bayragi `auth_stil.dart`ta DURUYOR ama artik
+                  //    HICBIR YERDEN cagrilmiyor; boylece turu 119'un
+                  //    *"butonlari radus kaldir"* emri TUM kimlik
+                  //    ekranlarinda yine gecerli.
                   authAnaDugme(
                     etiket: 'Giriş yap',
                     basildi: _submit,
                     mesgul: _loading,
-                    hap: true,
                   ),
-                  TextButton(
-                    onPressed: _loading ? null : () => context.push('/register'),
-                    style: TextButton.styleFrom(foregroundColor: authAltYazi),
-                    child: const Text('Hesabın yok mu? Kayıt ol'),
-                  ),
+                  // ⚠️⚠️⚠️ TURU 126 — **"Hesabın yok mu? Kayıt ol" KALDIRILDI**
+                  //	(kullanici emri).
+                  // ⚠️⚠️ **BEKLEYEN IS:** bu, kayit akisina giden TEK yoldu
+                  //	(`grep "'/register'"` -> yalniz burasiydi). Kaldirilmasiyla
+                  //	`kayit_akisi.dart` ULASILAMAZ hale geldi: yeni kullanici
+                  //	hesap ACAMAZ. Rota (`/register`) router'da DURUYOR,
+                  //	yalnizca ITME yok — girisi nereye koyacagimiz
+                  //	soylenince tek satirla geri baglanir.
+                  // ⚠️ YAPMA: bunu "olu kod" sanip `/register` rotasini
+                  //    router'dan silme.
                   // ⚠️ KUCUK ve SOLUK: kullanici *"yazi olarak KUCUK"* dedi.
                   //    Ana eylemlerle gorsel olarak yarismamali.
                   TextButton(
