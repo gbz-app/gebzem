@@ -55,6 +55,7 @@ class IlanListesiEkrani extends ConsumerStatefulWidget {
     this.tur = '',
     this.baslik = '',
     this.benim = false,
+    this.favori = false,
   });
 
   final String tur;
@@ -65,6 +66,10 @@ class IlanListesiEkrani extends ConsumerStatefulWidget {
   ///    listeleyen ekran aciliyordu; ustelik sunucu `durum='yayinda'` suzdugu
   ///    icin kullanici KENDI 'satildi' ilanini HIC goremiyordu.
   final bool benim;
+
+  /// ⚠️ TURU 124 — header`daki **KALP** bu bayragi acar (Yemek ekraninin
+  ///    header kalbiyle ayni is).
+  final bool favori;
 
   @override
   ConsumerState<IlanListesiEkrani> createState() => _IlanListesiEkraniState();
@@ -130,7 +135,7 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
   /// Buyuk kart (liste) / kucuk kart (izgara).
   bool _izgara = false;
   late bool _benim = widget.benim;
-  bool _favori = false;
+  late bool _favori = widget.favori;
 
   /// Arama kutusunda TEMIZLE (X) cizilsin mi.
   bool _aramaDolu = false;
@@ -966,7 +971,8 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
   List<Ilan>? _sirala(List<Ilan>? l) {
     if (l == null || _sira == _IlanSira.yeni) return l;
     final k = [...l];
-    int fiyat(Ilan i) => (i.fiyatGizli || i.fiyatKurus <= 0) ? -1 : i.fiyatKurus;
+    int fiyat(Ilan i) =>
+        (i.fiyatGizli || i.fiyatKurus <= 0) ? -1 : i.fiyatKurus;
     k.sort((a, b) {
       final fa = fiyat(a), fb = fiyat(b);
       if (fa < 0 && fb < 0) return 0;
@@ -984,7 +990,7 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
       _ilce.isNotEmpty ||
       _minKurus != null ||
       _maksKurus != null ||
-      _favori ||
+      _favori != widget.favori ||
       _benim != widget.benim;
 
   /// ⚠️ ACILIS DEGERLERINE doner, sifira DEGIL: aksi halde baslik ile
@@ -998,7 +1004,7 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
       _ilce = '';
       _minKurus = null;
       _maksKurus = null;
-      _favori = false;
+      _favori = widget.favori;
       _benim = widget.benim;
       _aramaDolu = false;
     });
@@ -1713,28 +1719,84 @@ class _IlanDetayEkraniState extends ConsumerState<IlanDetayEkrani> {
                   Text(i.aciklama, style: const TextStyle(fontSize: 15)),
                 ],
                 const Divider(height: 26),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Avatar(
-                    ad: i.sahibiAd,
-                    mediaId: i.sahibiAvatarMediaId,
-                    cap: 42,
+                // ⚠️⚠️ TURU 124 — **SAHIBI PROFIL KARTI** (kullanici emri:
+                //	*"kim ilan verdiyse profil kartlarını da koy"*).
+                //
+                //	Onceki hal duz bir `ListTile` idi: aciklamanin altinda
+                //	kaybolan bir satir. Sahibinden/letgo gibi ilan
+                //	uygulamalarinda satici KARTI ayri bir yuzeydir —
+                //	alici once "kim satiyor" sorusuna bakar.
+                // ⚠️ Rozet SUNUCUDAN gelen `sahibiHesapTuru`/`sahibiOnayli`
+                //	alanlarindan cizilir, TAHMIN EDILMEZ (turu 114 kurali).
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: kYuzeyGri(context),
+                    borderRadius: BorderRadius.circular(kYaricapBuyuk),
                   ),
-                  title: Text(i.sahibiAd),
-                  subtitle: const Text('İlan sahibi'),
-                  // ⚠️⚠️ TURU 113 (denetim) — **DEMO KAPISI.** Bu ekranin
-                  //    diger YEDI eylemi kapiliydi, yalniz bu `onTap`
-                  //    unutulmustu: ornek ilanin sahibine dokunmak
-                  //    `GET /users/demo-sahip-ev1/profile` atiyor ve profil
-                  //    **"Kullanıcı bulunamadı"** ile aciliyordu. Tasarim
-                  //    demosuna bakan biri bunu GERCEK HATA sanardi.
-                  onTap: _demo
-                      ? _demoUyar
-                      : () => Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => ProfilSayfasi(userId: i.sahibiId),
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 4,
+                    ),
+                    leading: Avatar(
+                      ad: i.sahibiAd,
+                      mediaId: i.sahibiAvatarMediaId,
+                      cap: 46,
+                    ),
+                    title: Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            i.sahibiAd,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ),
+                        if (i.sahibiOnayli)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 4),
+                            child: Icon(
+                              LucideIcons.badgeCheck,
+                              size: 15,
+                              color: kVurgu(context),
+                            ),
+                          ),
+                      ],
+                    ),
+                    subtitle: Text(
+                      i.sahibiIsletme ? 'İşletme' : 'İlan sahibi',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withValues(alpha: 0.62),
+                      ),
+                    ),
+                    trailing: Icon(
+                      LucideIcons.chevronRight,
+                      size: 18,
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withValues(alpha: 0.35),
+                    ),
+                    // ⚠️⚠️ TURU 113 (denetim) — **DEMO KAPISI.** Bu ekranin
+                    //    diger YEDI eylemi kapiliydi, yalniz bu `onTap`
+                    //    unutulmustu: ornek ilanin sahibine dokunmak
+                    //    `GET /users/demo-sahip-ev1/profile` atiyor ve profil
+                    //    **"Kullanıcı bulunamadı"** ile aciliyordu. Tasarim
+                    //    demosuna bakan biri bunu GERCEK HATA sanardi.
+                    onTap: _demo
+                        ? _demoUyar
+                        : () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => ProfilSayfasi(userId: i.sahibiId),
+                            ),
+                          ),
+                  ),
                 ),
                 const SizedBox(height: 12),
                 // ⚠️⚠️⚠️ TURU 90b — IS ILANINDA **BASVURU** YOLU.
@@ -2674,7 +2736,6 @@ class _IlanDetayIdState extends ConsumerState<IlanDetayId> {
   }
 }
 
-
 /// ⚠️ TURU 122 — ILAN SIRALAMASI.
 ///
 /// ⚠️ `yeni` = SUNUCUNUN kendi sirasi (`created_at DESC`); istemci ona
@@ -2683,7 +2744,7 @@ class _IlanDetayIdState extends ConsumerState<IlanDetayId> {
 enum _IlanSira { yeni, ucuz, pahali }
 
 String _siraAdi(_IlanSira s) => switch (s) {
-      _IlanSira.yeni => 'Yeniden eskiye',
-      _IlanSira.ucuz => 'Ucuzdan pahalıya',
-      _IlanSira.pahali => 'Pahalıdan ucuza',
-    };
+  _IlanSira.yeni => 'Yeniden eskiye',
+  _IlanSira.ucuz => 'Ucuzdan pahalıya',
+  _IlanSira.pahali => 'Pahalıdan ucuza',
+};

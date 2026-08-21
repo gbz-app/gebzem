@@ -30,6 +30,7 @@
 library;
 
 import 'dart:async';
+import '../../core/theme.dart' show morLogo;
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart' show Factory;
@@ -46,7 +47,6 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 // ⚠️ TURU 89 — harita rengi tercihi (Ayarlar > Harita).
 import '../../core/tercihler.dart';
 import '../medya/konum_servisi.dart';
-import '../medya/medya_gorsel.dart';
 import '../sosyal/profil_sayfasi.dart';
 // ⚠️ TURU 115 — kart/olcu sabitleri kategori ekraniyla ORTAK.
 import 'isletme_kart.dart' show kYanBosluk, kYaricap, kYuzeyGri;
@@ -517,19 +517,51 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
                 ),
               ),
             ),
+            // ⚠️⚠️ TURU 124 — **SIRA DEGISTI** (kullanici emri: *"Tümü,
+            //	Yemek vs ve altındaki 2km vs bunlar mekân/adres aramanın
+            //	ÜSTÜNDE, arada boşlukla olsun"*).
+            _hizliCipler(),
+            const SizedBox(height: 6),
+            _filtreSatiri(),
+            // ⚠️ Cipler ile arama arasi NEFES (kullanici: *"arada boşluk
+            //    bir şekilde olsun"*).
+            const SizedBox(height: 14),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: kYanBosluk),
               child: _aramaKutusu(),
             ),
-            const SizedBox(height: 10),
-            _hizliCipler(),
-            const SizedBox(height: 6),
-            _filtreSatiri(),
-            const Divider(height: 20),
-            _kategoriIzgarasi(),
-            const Divider(height: 20),
-            _listeBasligi(),
-            _dikeyListe(),
+            // TURU 124 — HATA SATIRI. Alt liste kaldirilinca hatayi gosteren
+            // tek yer de gitmisti: konum reddedilirse harita bos kaliyor ve
+            // kullanici SEBEBINI hicbir yerde goremiyordu.
+            if (_hata != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(kYanBosluk, 12, kYanBosluk, 0),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        _hata!,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Theme.of(context)
+                              .colorScheme
+                              .onSurface
+                              .withValues(alpha: 0.62),
+                        ),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () => _yukle(konumuTazele: true),
+                      child: const Text('Tekrar dene'),
+                    ),
+                  ],
+                ),
+              ),
+            // ⚠️⚠️ TURU 124 — **KATEGORI IZGARASI ve "Yakınımdakiler"
+            //	LISTESI KALDIRILDI** (kullanici emri: *"yakınımdaki
+            //	kategorileri ve yakınımdakiler alanını kaldır"*).
+            //	Ekranin isi HARITA; alt sayfa yalniz arama + suzgec.
+            //	Kategoriye gore gezinme ZATEN hamburger menude.
             const SizedBox(height: 24),
           ],
         ),
@@ -649,171 +681,6 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
     );
   }
 
-  /// Tam kategori izgarasi (Yandex'in "Kategoriler" sekmesi).
-  ///
-  /// ⚠️ Menudeki kategori izgarasiyla AYNI dil: gri kutu + altinda yazi,
-  ///    IKON YOK (kullanici kategori ekraninda kutu icine konan her seyi uc
-  ///    kez kaldirtti).
-  /// ⚠️ Yukseklik yazi olceginden TURETILIR — sabit oran verseydik olcek
-  ///    1.5'te tasardi (turu 114'te talep izgarasinda olculdu).
-  Widget _kategoriIzgarasi() {
-    final anahtarlar = isletmeKategorileri.keys.toList();
-    final hucre = 64.0 +
-        5 +
-        MediaQuery.textScalerOf(context).scale(13) * 1.15 * 2;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: kYanBosluk),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'KATEGORİLER',
-            style: TextStyle(
-              fontSize: 11.5,
-              fontWeight: FontWeight.w800,
-              color: Theme.of(
-                context,
-              ).colorScheme.onSurface.withValues(alpha: 0.6),
-            ),
-          ),
-          const SizedBox(height: 10),
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            // ⚠️⚠️ TURU 115 — **`padding` ACIKCA VERILIR.**
-            //
-            //	`BoxScrollView` `padding` verilmediginde `MediaQuery`nin
-            //	dolgusunu KENDILIGINDEN uygular. Alt sayfa durum cubugunun
-            //	altina kadar acilabildigi icin bu dolgu ~48 dp cikiyor ve
-            //	"KATEGORİLER" basligi ile izgara arasinda KOCAMAN BIR BOSLUK
-            //	olusuyordu (emulatorde gorundu).
-            // ⚠️ Ayni sinif turu 108'de profil kapaginda yasandi
-            //    (`extendBodyBehindAppBar` + `BoxScrollView`).
-            padding: EdgeInsets.zero,
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 4,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              mainAxisExtent: hucre,
-            ),
-            itemCount: anahtarlar.length,
-            itemBuilder: (_, i) {
-              final k = anahtarlar[i];
-              final secili = _kategori == k;
-              return GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () => _kategoriSec(secili ? '' : k),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    SizedBox(
-                      height: 64,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: secili
-                              ? Theme.of(
-                                  context,
-                                ).colorScheme.primary.withValues(alpha: 0.16)
-                              : kYuzeyGri(context),
-                          borderRadius: BorderRadius.circular(kYaricap(64)),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 5),
-                    Expanded(
-                      child: Center(
-                        child: Text(
-                          isletmeKategorileri[k]!,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 13,
-                            height: 1.15,
-                            fontWeight: secili
-                                ? FontWeight.w800
-                                : FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _listeBasligi() {
-    final n = _gorunen.length;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(kYanBosluk, 0, kYanBosluk, 8),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              _kategori.isEmpty
-                  ? 'YAKINIMDAKİLER'
-                  : (isletmeKategorileri[_kategori] ?? '').toUpperCase(),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 11.5,
-                fontWeight: FontWeight.w800,
-                color: Theme.of(
-                  context,
-                ).colorScheme.onSurface.withValues(alpha: 0.6),
-              ),
-            ),
-          ),
-          Text(
-            '$n yer',
-            style: TextStyle(
-              fontSize: 12,
-              color: Theme.of(
-                context,
-              ).colorScheme.onSurface.withValues(alpha: 0.6),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// ⚠️ Alt sayfa ZATEN kaydirilabilir; ic liste `shrinkWrap` + kendi
-  ///    kaydirmasi KAPALI olmak zorunda (ic ice iki kaydirma jest
-  ///    catismasi uretir).
-  Widget _dikeyListe() {
-    if (_yukleniyor && _liste.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 40),
-        child: Center(child: CircularProgressIndicator()),
-      );
-    }
-    if (_hata != null) {
-      return _bilgi(LucideIcons.mapPinOff, _hata!, dugme: 'Tekrar dene');
-    }
-    final l = _gorunen;
-    if (l.isEmpty) {
-      return _bilgi(
-        LucideIcons.store,
-        _suzgecVar
-            ? 'Bu filtrelerle yer bulunamadı.'
-            : 'Yakınında işletme bulunamadı.',
-      );
-    }
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      padding: EdgeInsets.zero,
-      itemCount: l.length,
-      itemBuilder: (_, i) => _kart(l[i]),
-    );
-  }
-
   /// ⚠️ Kategori degisince suzgecler KALIR ama liste SUNUCUDAN yeniden
   ///    cekilir (kategori sunucu tarafinda suzuluyor).
   void _kategoriSec(String k) {
@@ -823,17 +690,25 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
   }
   /// Haritanin uzerinde yuzen iki dugme (geri · konumuma don).
   ///
-  /// ⚠️ Kategori ekranindaki (`isletme_listesi.dart`) yuzen ikonlarla AYNI
-  ///    dil: dairesel, opak zemin, golgeli — harita her renkte olabilir.
+  /// ⚠️⚠️ TURU 124 — **SIYAH HAFIF SAYDAM DAIRE, GOLGE YOK** (kullanici
+  ///	emri: *"geri ve konum arkasındaki dairede siyah hafif saydam olacak,
+  ///	gölge olmasın"*).
+  ///
+  /// ⚠️ Zemin TEMADAN DEGIL SABIT: altta harita var ve harita her renkte
+  ///	olabilir; `colorScheme.surface` acik temada BEYAZ daire cizip acik
+  ///	zeminli haritada KAYBOLUYORDU.
+  /// ⚠️ Ikon BEYAZ olmak ZORUNDA: siyah daire uzerinde tema rengi (acik
+  ///    temada siyah) okunmazdi.
+  /// ⚠️ `elevation: 0` — golge kaldirildi.
   Widget _ustDugmeler() {
     final ust = MediaQuery.paddingOf(context).top + 8;
     Widget d(IconData ikon, String ipucu, VoidCallback bas) => Material(
-      color: Theme.of(context).colorScheme.surface,
+      color: Colors.black.withValues(alpha: 0.45),
       shape: const CircleBorder(),
-      elevation: 3,
+      elevation: 0,
       child: IconButton(
         tooltip: ipucu,
-        icon: Icon(ikon, size: 20),
+        icon: Icon(ikon, size: 20, color: Colors.white),
         onPressed: bas,
       ),
     );
@@ -865,41 +740,6 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
   // ⚠️ Yalniz cagri kaldirilsaydi ikisi de OLU KOD olarak kalir ve
   //    sifir-uyari tabanini bozardi.
 
-  /// ⚠️ Alt seritte kullanilir; SERIT YUKSEKLIGINE SIGMALI (ekranin ~%30'u).
-  ///    Eski hali dikey listede yasadigi icin 50px dikey dolgu tasiyordu ve
-  ///    yeni duzende **RenderFlex tasmasi** uretirdi.
-  Widget _bilgi(IconData ikon, String metin, {String? dugme}) => Center(
-    child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 8),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(ikon, size: 26, color: Colors.grey),
-          const SizedBox(height: 8),
-          Flexible(
-            child: Text(
-              metin,
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: Colors.grey, fontSize: 13),
-            ),
-          ),
-          if (dugme != null) ...[
-            const SizedBox(height: 6),
-            OutlinedButton(
-              onPressed: _yukle,
-              style: OutlinedButton.styleFrom(
-                visualDensity: VisualDensity.compact,
-              ),
-              child: Text(dugme),
-            ),
-          ],
-        ],
-      ),
-    ),
-  );
-
   Widget _cip(String etiket, bool secili, VoidCallback onTap) => Padding(
     padding: const EdgeInsets.only(right: 8),
     child: ChoiceChip(
@@ -909,123 +749,6 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
     ),
   );
 
-  /// ⚠️⚠️ TURU 88 — KART **YATAY SERIT** icin yeniden yazildi.
-  ///
-  ///	Kullanici emri: *"isletmeler sol sag scroll olacak · sol sag radius
-  ///	10px"*. Eski hali dikey listeye ait bir `ListTile` idi ve yatay
-  ///	seritte SINIRSIZ genislik isteyip **RenderFlex tasmasi** uretirdi.
-  /// ⚠️ Genislik SABIT (238): yatay `ListView` cocuklarina genislik
-  ///    DAYATMAZ; her kart kendi olcusunu vermek ZORUNDA.
-  /// ⚠️ Yukseklik VERILMEZ — serit (`Expanded`) ne veriyorsa o kullanilir;
-  ///    sabit yukseklik kucuk ekranda tasardi.
-  /// ⚠️ Radius 10 (kullanici emri) + kartlar arasi 10px bosluk.
-  Widget _kart(IsletmeOzet i) => Padding(
-    padding: const EdgeInsets.only(right: 10),
-    child: SizedBox(
-      width: 238,
-      child: Material(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(10),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => ProfilSayfasi(userId: i.id)),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(10),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  children: [
-                    Avatar(
-                      ad: i.ad,
-                      mediaId: i.avatarMediaId,
-                      avatarUrl: i.avatarUrl,
-                      cap: 38,
-                    ),
-                    const SizedBox(width: 9),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Row(
-                            children: [
-                              Flexible(
-                                child: Text(
-                                  i.ad,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                              ),
-                              if (i.dogrulandi) ...[
-                                const SizedBox(width: 3),
-                                const Icon(LucideIcons.badgeCheck,
-                                    size: 13, color: Color(0xFF3AA9FF)),
-                              ],
-                            ],
-                          ),
-                          Text(
-                            i.mesafeMetni,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF3AA9FF),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 7),
-                Flexible(
-                  child: Text(
-                    [
-                      isletmeKategoriAdi(i.kategori),
-                      if (i.ilce.isNotEmpty) i.ilce,
-                      if (i.adres.isNotEmpty) i.adres,
-                    ].join(' · '),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 11.5, color: Colors.grey),
-                  ),
-                ),
-                const Spacer(),
-                // ⚠️ "Yol tarifi" TELEFONUN KENDI harita uygulamasini acar
-                //    (`KonumServisi.haritadaAc`) — uygulama ici harita
-                //    gerekmez ve yol tarifi orada zaten calisir (turu 81).
-                InkWell(
-                  onTap: () => KonumServisi.haritadaAc(i.enlem, i.boylam),
-                  borderRadius: BorderRadius.circular(6),
-                  child: const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 3),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(LucideIcons.navigation, size: 13,
-                            color: Color(0xFF3AA9FF)),
-                        SizedBox(width: 5),
-                        Text('Yol tarifi',
-                            style: TextStyle(
-                                fontSize: 12, color: Color(0xFF3AA9FF))),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    ),
-  );
 }
 
 /// ⚠️⚠️ HARITA ALANI — su an **YER TUTUCU** (bkz. dosya basindaki serh).
@@ -1086,6 +809,9 @@ class _HaritaAlaniState extends State<_HaritaAlani> {
   /// ⚠️ TURU 115 — daire pin (bkz. `harita_pin.dart`).
   BitmapDescriptor? _pin;
 
+  /// ⚠️ TURU 124 — KENDI konum isaretimiz (Google`in mavi noktasi yerine).
+  BitmapDescriptor? _benPin;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -1096,15 +822,27 @@ class _HaritaAlaniState extends State<_HaritaAlani> {
 
   Future<void> _pinUret() async {
     final tema = Theme.of(context).colorScheme;
+    final oran = MediaQuery.devicePixelRatioOf(context);
     final d = await daireIsaret(
       ic: tema.primary,
       // ⚠️ Kenar ACIK: harita zemini her renkte olabilir (yol beyaz, park
       //    yesil, su mavi); acik halka pini her zeminde ayirir.
       kenar: Colors.white,
-      pikselOrani: MediaQuery.devicePixelRatioOf(context),
+      pikselOrani: oran,
+    );
+    // ⚠️ TURU 124 — KENDI konum isaretimiz. Google`in MAVI noktasi
+    //    kapatildi; bu MOR (marka rengi) ve isletme pinleriyle ayni
+    //    bilesenden uretilir (tek kaynak).
+    final b = await daireIsaret(
+      ic: morLogo,
+      kenar: Colors.white,
+      pikselOrani: oran,
     );
     if (!mounted) return;
-    setState(() => _pin = d);
+    setState(() {
+      _pin = d;
+      _benPin = b;
+    });
   }
 
   ({double enlem, double boylam})? get merkez => widget.merkez;
@@ -1160,10 +898,19 @@ class _HaritaAlaniState extends State<_HaritaAlani> {
                 onMapCreated: (c) => _harita = c,
                 // ⚠️ NORMAL GOOGLE HARITASI (bkz. `_haritaStili` serhi).
                 style: widget.stil,
-                myLocationEnabled: true,
-                // ⚠️ TURU 86 — "konumuma don" dugmesi ACILDI: harita artik
-                //    surukleniyor, dolayisiyla geri donme yolu SART.
-                myLocationButtonEnabled: true,
+                // ⚠️⚠️ TURU 124 — **GOOGLE`IN MAVI KONUM NOKTASI KAPATILDI**
+                //	(kullanici emri: *"konum mavi değil bizim kullandığımız
+                //	mor olsun"*).
+                //
+                //	O nokta PLATFORM tarafindan cizilir ve rengi
+                //	DEGISTIRILEMEZ; tek yol kapatip KENDI isaretimizi
+                //	koymaktir (asagidaki `konum-ben` marker`i, `_benPin`
+                //	ile MOR).
+                myLocationEnabled: false,
+                // ⚠️ Google`in kendi konum dugmesi de MAVI ve sag altta
+                //    duruyordu; bizim "konumuma dön" dugmemiz ZATEN ust
+                //    barda (`_ustDugmeler`). Iki dugme = iki farkli dil.
+                myLocationButtonEnabled: false,
                 // ⚠️⚠️⚠️ TURU 86 — HARITA JESTLERI **ACILDI** (kullanici emri).
                 //
                 //	Turu 85'te bunlarin hepsi `false` idi ve gerekce olarak
@@ -1191,6 +938,22 @@ class _HaritaAlaniState extends State<_HaritaAlani> {
                   ),
                 },
                 markers: {
+                  // ⚠️⚠️ TURU 124 — KENDI KONUMUMUZ (mor). Google`in mavi
+                  //	noktasi kapatildigi icin bu marker olmazsa kullanici
+                  //	haritada NEREDE oldugunu goremezdi.
+                  // ⚠️ Isaret hazir degilse (uretim asenkron) marker HIC
+                  //    cizilmez: varsayilan KIRMIZI damla, "benim konumum"
+                  //    icin yanlis bir dil olurdu.
+                  if (merkez != null && _benPin != null)
+                    Marker(
+                      markerId: const MarkerId('konum-ben'),
+                      position: LatLng(merkez!.enlem, merkez!.boylam),
+                      icon: _benPin!,
+                      anchor: const Offset(0.5, 0.5),
+                      // ⚠️ Isletme pinlerinin ALTINDA kalmasin diye degil,
+                      //    USTUNDE olsun diye yuksek zIndex.
+                      zIndex: 2,
+                    ),
                   for (final i in isletmeler)
                     if (i.enlem != 0 || i.boylam != 0)
                       Marker(

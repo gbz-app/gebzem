@@ -292,11 +292,20 @@ class HizmetMenusu extends ConsumerWidget {
           Navigator.of(c).popUntil((r) => r.isFirst);
         },
       ),
+      // ⚠️⚠️ TURU 124 — **HIZLI ERISIM KARTLARI ARTIK HARITAYA GIDIYOR**
+      //	(kullanici emri: *"hızlı erişimde GebzemAI ve Sosyal haricinde
+      //	diğer kartlara tıkladığımızda Yakınımdaki haritaya gidecek"*).
+      //
+      //	Bu kartlarin ortak yani ACIL/ANLIK ihtiyac olmalari: eczane,
+      //	taksi, akaryakit, durak. Bunlarda kullanicinin sorusu "hangileri
+      //	var" DEGIL **"en yakini nerede"** — yani cevabi HARITA verir,
+      //	liste degil.
+      // ⚠️ `YakinimdaEkrani` `kategori` parametresini ZATEN aliyor
+      //    (turu 92) — yeni ekran/uc GEREKMEDI.
       _Bolum(
         'Nöbetçi Eczane',
         [const Color(0xFF20C997), const Color(0xFF0B7A5A)],
-        (c) =>
-            const IsletmeListesiEkrani(kategori: 'eczane', baslik: 'Eczaneler'),
+        (c) => const YakinimdaEkrani(kategori: 'eczane'),
       ),
       // ⚠️⚠️ TURU 96y — SIRA **GEREKLILIGE GORE** (kullanici emri:
       //	*"olmasi gereken gerekliligie gore sirala"*). Ilk dokuz kisayol
@@ -306,28 +315,17 @@ class HizmetMenusu extends ConsumerWidget {
       _Bolum(
         'Taksi',
         [const Color(0xFFFFC531), const Color(0xFFB88600)],
-        (c) => const IsletmeListesiEkrani(
-          kategori: 'hizmet',
-          baslik: 'Taksi',
-          ara: 'taksi',
-        ),
+        (c) => const YakinimdaEkrani(kategori: 'hizmet'),
       ),
       _Bolum(
         'Akaryakıt',
         [const Color(0xFFFF7A45), const Color(0xFFB33A12)],
-        (c) => const IsletmeListesiEkrani(
-          kategori: 'oto',
-          baslik: 'Akaryakıt & Oto',
-        ),
+        (c) => const YakinimdaEkrani(kategori: 'oto'),
       ),
       _Bolum(
         'Durak',
         [const Color(0xFF6C7BFF), const Color(0xFF2A3390)],
-        (c) => const IsletmeListesiEkrani(
-          kategori: 'hizmet',
-          baslik: 'Durak',
-          ara: 'durak',
-        ),
+        (c) => const YakinimdaEkrani(kategori: 'hizmet'),
       ),
       // ⚠️⚠️ TURU 96x — BES YENI KISAYOL (kullanici: *"ekle bir seyler
       //	daha"*). Hepsi **ZATEN VAR OLAN** isletme kategorileridir
@@ -337,30 +335,26 @@ class HizmetMenusu extends ConsumerWidget {
       _Bolum(
         'Kuaför',
         [const Color(0xFFEC4FA0), const Color(0xFF7B1E6A)],
-        (c) => const IsletmeListesiEkrani(kategori: 'kuafor', baslik: 'Kuaför'),
+        (c) => const YakinimdaEkrani(kategori: 'kuafor'),
       ),
       _Bolum(
         'Güzellik',
         [const Color(0xFFFF6B9D), const Color(0xFFB03060)],
-        (c) => const IsletmeListesiEkrani(
-          kategori: 'guzellik',
-          baslik: 'Güzellik Merkezi',
-        ),
+        (c) => const YakinimdaEkrani(kategori: 'guzellik'),
       ),
       _Bolum(
         'Oto Servis',
         [const Color(0xFF6C7BFF), const Color(0xFF2A3390)],
-        (c) =>
-            const IsletmeListesiEkrani(kategori: 'oto', baslik: 'Oto & Servis'),
+        (c) => const YakinimdaEkrani(kategori: 'oto'),
       ),
       _Bolum('Emlak', [
         const Color(0xFF17C3CE),
         const Color(0xFF0A5B78),
-      ], (c) => const IsletmeListesiEkrani(kategori: 'emlak', baslik: 'Emlak')),
+      ], (c) => const YakinimdaEkrani(kategori: 'emlak')),
       _Bolum('Spor', [
         const Color(0xFF2BB673),
         const Color(0xFF0E7A52),
-      ], (c) => const IsletmeListesiEkrani(kategori: 'spor', baslik: 'Spor')),
+      ], (c) => const YakinimdaEkrani(kategori: 'spor')),
     ];
     // ⚠️ Hizli erisim listesi BURADA kurulur: `yakinimda` nullable ve
     //    Dart bunu closure icinde daraltmiyor (analiz hatasi verdi).
