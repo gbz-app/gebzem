@@ -219,10 +219,13 @@ class _BildirimlerSayfasiState extends ConsumerState<BildirimlerSayfasi> {
         // ⚠️ SESSIZ DUSMEK YASAK (projenin 3. hata sinifi): sunucuya YENI bir
         //    bildirim turu eklendiginde istemci onu genel metne dusurur ve kimse
         //    fark etmez. Olcum birak — arama basina degil, TUR basina bir kez.
-        if (_bilinmeyenTurler.add((b['tur'] ?? '').toString())) {
-          unawaited(
-            Sentry.captureMessage('bilinmeyen bildirim turu: ${b['tur']}'),
-          );
+        // TURU 121 — DIYET bildirimleri BEKLENEN bir bosluktur: ozellik
+        // kullanici emriyle istemciden KALDIRILDI, sunucu (henuz) gonderiyor
+        // olabilir. Sentry'ye "bilinmeyen tur" yazmak YANLIS ALARM olurdu.
+        const kaldirilan = {'diyet_istek', 'diyet_liste', 'diyet_onay'};
+        final tur = (b['tur'] ?? '').toString();
+        if (!kaldirilan.contains(tur) && _bilinmeyenTurler.add(tur)) {
+          unawaited(Sentry.captureMessage('bilinmeyen bildirim turu: $tur'));
         }
         return (
           ikon: LucideIcons.bell,

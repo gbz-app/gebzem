@@ -77,8 +77,11 @@ class _AkisEkraniState extends ConsumerState<AkisEkrani>
   /// ⚠️⚠️ KANALLAR NEREYE GITTI: eski secici KANALLARIN **TEK GIRIS
   ///    NOKTASIYDI**. Kaldirip yerine bir sey koymamak kanal ozelligini
   ///    TAMAMEN ULASILAMAZ birakirdi (bu projede ALTI kez yasanan "olu
-  ///    ozellik" sinifi). Kanallar sol ust hamburger menuye TASINDI
-  ///    (`hizmet_menusu.dart` -> `KanallarSayfasi`).
+  ///    ozellik" sinifi).
+  /// ⚠️⚠️ TURU 121 — GIRIS **DEGISTI**: kullanici emriyle menuden
+  ///	"Topluluklar" karti KALDIRILDI. Kanallara artik **Mesajlar
+  ///	ekranindaki "+" menusundeki "Toplulukları keşfet"** girisinden
+  ///	ulasiliyor. Serhin eski hali hala hamburger menuyu tarif ediyordu.
   ///    ⚠️ YAPMA: buraya kanal bolmesini geri ekleme; iki giris DRIFT eder.
   /// ⚠️⚠️⚠️ TURU 114 — **SECICI GERI GELDI, UCUNCU BOLME "MAHALLE"**
   ///	(kullanici emri: *"anasayfada ustte Arkadas Keşfet Mahalle

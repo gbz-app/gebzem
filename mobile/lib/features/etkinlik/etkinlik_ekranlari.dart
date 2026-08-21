@@ -211,7 +211,11 @@ class _EtkinlikListesiEkraniState extends ConsumerState<EtkinlikListesiEkrani> {
                 _yukle();
               }),
               KabukCip('Geçmiş', LucideIcons.history, _gecmis, () {
-                setState(() => _gecmis = true);
+                // ⚠️ TURU 121c — Gecmis`te "Bugün / Bu hafta sonu" cipleri
+                //    CIZILMIYOR ama `_zaman` dolu kalirsa SUZMEYE DEVAM
+                //    EDIYORDU: kullanici gormedigi bir suzgec yuzunden bos
+                //    liste goruyor ve kapatacak dugmeyi BULAMIYORDU.
+                setState(() { _gecmis = true; _zaman = ''; });
                 _yukle();
               }),
             ]),
@@ -349,20 +353,53 @@ class _EtkinlikListesiEkraniState extends ConsumerState<EtkinlikListesiEkrani> {
     );
   }
 
-  /// Bir suzgec acik mi? ("Filtreleri temizle" dugmesi buna bagli.)
+  /// Detay ekranini acar ve donuste listeyi UZLASTIRIR.
   ///
-  /// Arama metni DAHIL DEGIL: o zaten arama kutusunda GORUNUR ve temizleme
-  /// yolu (X) orada duruyor. Cipler ise liste bosalinca ekranin gorunen
-  /// kismindan kaymis olabilir.
-  bool get _suzgecVar =>
-      _kategori.isNotEmpty || _zaman.isNotEmpty || _ucretsiz || _gecmis;
+  /// ⚠️⚠️ TURU 121c — **TEK KAYNAK**: buyuk kart ve kucuk kart AYNI yolu
+  ///	kullanir. Kucuk kart eklenirken ciplak bir `push` yazilmisti; oradan
+  ///	silinen etkinlik listede KALIYORDU (buyuk kart bunu zaten cozmustu).
+  /// ⚠️ Silme/katilim degistiyse liste SUNUCUDAN tazelenir; salt `setState`
+  ///    bayat nesneyi yeniden cizerdi.
+  Future<void> _detayAc(Etkinlik e) async {
+    final degisti = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => EtkinlikDetayEkrani(etkinlik: e)),
+    );
+    if (!mounted) return;
+    if (degisti == true) {
+      _yukle();
+    } else {
+      setState(() {});
+    }
+  }
 
+  /// Bir suzgec acik mi? ("Filtreleri temizle" dugmesi ve bos-liste metni
+  /// buna bagli.)
+  ///
+  /// ⚠️⚠️ TURU 121c — **`_gecmis` BURAYA GIRMEZ: o bir SEKME, suzgec DEGIL.**
+  ///	Girdigi surumde iki hata birden vardi: (a) `Gecmis` seciliyken liste
+  ///	bossa `_suzgecVar` DAIMA true oluyordu ve *"Geçmiş etkinlik yok."*
+  ///	dali **ULASILAMAZ OLU KOD** haline geliyordu; (b) "Filtreleri temizle"
+  ///	kullaniciyi HABERSIZCE `Yaklasan` sekmesine atiyordu.
+  /// ⚠️⚠️ `_arama` ve `_benim` DAHIL: ikisi de listeyi bosaltabilir ve
+  ///	disarida BIRAKILIRSA ekran *"Yaklaşan etkinlik yok, ilk etkinliği sen
+  ///	oluştur"* diye YALAN soyler, ustelik kurtarma dugmesi de cizilmez.
+  ///	Ilan ekrani aramayi ZATEN sayiyordu — asimetrinin kendisi hataydi.
+  bool get _suzgecVar =>
+      _kategori.isNotEmpty ||
+      _zaman.isNotEmpty ||
+      _ucretsiz ||
+      _benim ||
+      _arama.text.trim().isNotEmpty;
+
+  /// ⚠️ `_gecmis` SIFIRLANMAZ (sekme secimi kullanicinin bilincli karari).
   void _filtreleriTemizle() {
+    _gecikme?.cancel();
+    _arama.clear();
     setState(() {
       _kategori = '';
       _zaman = '';
       _ucretsiz = false;
-      _gecmis = false;
+      _benim = false;
     });
     _yukle();
   }
@@ -374,9 +411,10 @@ class _EtkinlikListesiEkraniState extends ConsumerState<EtkinlikListesiEkrani> {
   /// yarim genislikte okunmuyorlardi.
   Widget _izgaraKarti(Etkinlik e) => InkWell(
     borderRadius: BorderRadius.circular(kYaricapBuyuk),
-    onTap: () => Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => EtkinlikDetayEkrani(etkinlik: e)),
-    ),
+    // ⚠️ Detay donusu BUYUK KARTLA AYNI YOLDAN: ayri bir `push` yazilirsa
+    //    silme/duzenleme sonrasi liste tazelenmez ve kart BAYAT kalir
+    //    (kardes yol bunu ZATEN cozmustu — asimetrinin kendisi hataydi).
+    onTap: () => _detayAc(e),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -516,19 +554,7 @@ class _EtkinlikListesiEkraniState extends ConsumerState<EtkinlikListesiEkrani> {
       padding: const EdgeInsets.fromLTRB(kYanBosluk, 0, kYanBosluk, 16),
       child: InkWell(
         borderRadius: BorderRadius.circular(kYaricapBuyuk),
-        onTap: () async {
-          final degisti = await Navigator.of(context).push<bool>(
-            MaterialPageRoute(builder: (_) => EtkinlikDetayEkrani(etkinlik: e)),
-          );
-          if (!mounted) return;
-          // ⚠️ Silme/katilim degistiyse listeyi SUNUCUDAN tazele; salt
-          //    `setState` bayat nesneyi yeniden cizerdi.
-          if (degisti == true) {
-            _yukle();
-          } else {
-            setState(() {});
-          }
-        },
+        onTap: () => _detayAc(e),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

@@ -42,15 +42,12 @@ import 'isletme_kart.dart'
     show kYanBosluk, kYaricap, kYuzeyGri, kVurgu, kalinIkon;
 import 'isletme_listesi.dart'
     show
-        kAltIcBosluk,
-        kAltKutu,
         kBaslikBosluk,
         kBaslikOptik,
         kBosluk,
         kHeaderPay,
         kInputBoy,
         kIzgaraAralik,
-        kKesifKutu,
         kSegBoy,
         kSegDolgu,
         kSegHucre,
@@ -62,17 +59,15 @@ import 'isletme_listesi.dart'
 ///
 /// ⚠️ Tema vurgusu KULLANILMAZ: Yemek ekraninda da notr; renkli bir baslik
 ///    kartlarla yarisirdi.
-Color kabukYazi(BuildContext c) =>
-    Theme.of(c).brightness == Brightness.dark
-        ? Colors.white
-        : const Color(0xFF1A1A1A);
+Color kabukYazi(BuildContext c) => Theme.of(c).brightness == Brightness.dark
+    ? Colors.white
+    : const Color(0xFF1A1A1A);
 
 /// Notr kenarlik — arama kutusu, cipler ve secici kutusu AYNI dili konusur.
 BorderSide kabukKenar(BuildContext c) => BorderSide(
-  color: (Theme.of(c).brightness == Brightness.dark
-          ? Colors.white
-          : Colors.black)
-      .withValues(alpha: 0.14),
+  color:
+      (Theme.of(c).brightness == Brightness.dark ? Colors.white : Colors.black)
+          .withValues(alpha: 0.14),
 );
 
 // ═══════════════════════ SAYFA KABUGU ═══════════════════════
@@ -163,9 +158,14 @@ class KategoriKabugu extends StatelessWidget {
 
   /// 44 dp header — Yemek ekranindaki `_header()` ile AYNI olculer.
   ///
-  /// ⚠️ Yan dolgular OPTIK TELAFILI: ikon glifi kendi kutusunda bosluk
-  ///    (side bearing) tasir; duz 16 dp verilirse header alttaki arama
-  ///    kutusundan ~4 dp SAGA KAYIK gorunur (Yemek ekraninda olculdu).
+  /// ⚠️ Yan dolgudan `kHeaderPay` DUSULUR: ikonun DOKUNMA KUTUSU gorunen
+  ///    glifden genistir, cikarilmazsa header alttaki arama kutusundan
+  ///    iceride durur.
+  /// ⚠️⚠️ DURUST SINIR (turu 121c denetimi): bu **glif side-bearing**
+  ///	telafisi DEGILDIR — ikona ozel bir duzeltme uygulanmiyor, tek bir
+  ///	sabit dusuluyor. Ikonlar arasi ~1 px`lik kalan sapma KABUL EDILMIS
+  ///	durumdur. Serhin onceki hali "OPTIK TELAFILI" diyordu ve govdede
+  ///	boyle bir hesap YOKTU.
   Widget _header(BuildContext context) => Padding(
     padding: EdgeInsets.only(
       left: kYanBosluk - kHeaderPay,
@@ -370,164 +370,29 @@ Widget kabukBolumBasligi(BuildContext c, String baslik, {Widget? sag}) =>
       ),
     );
 
-// ═══════════════════════ KUTU IZGARASI (4 sutun) ═══════════════════════
-
-/// Yemek ekranindaki kesif izgarasinin AYNISI: ici bos gri kutu + altinda ad.
-///
-/// ⚠️⚠️ **IKON YOK, GORSEL YOK** (kullanici emri, turu 76b): *"ikon YOK,
-///	kart altinda yazi sadece"*. Kutular bilerek bos — icerik gorseli
-///	geldiginde buraya konur.
-/// ⚠️ `childAspectRatio` DEGIL **`mainAxisExtent`**: oran verilseydi yazi
-///	olcegi 1.5'te hucre tasar ve sari-siyah serit cizilirdi (turu 114'te
-///	talep izgarasinda olculdu: 411 dp / olcek 1.5'te **21.36 dp tasma**).
-///	Yukseklik yazi olceginden TURETILIR.
-class KabukKutuIzgara extends StatelessWidget {
-  const KabukKutuIzgara({
-    super.key,
-    required this.ogeler,
-    required this.secili,
-    required this.onSec,
-  });
-
-  /// (anahtar, gorunen ad)
-  final List<(String, String)> ogeler;
-  final String secili;
-  final ValueChanged<String> onSec;
-
-  @override
-  Widget build(BuildContext context) {
-    final olcek = MediaQuery.textScalerOf(context);
-    final boy = kKesifKutu + 5 + olcek.scale(14) * 1.15 * 2;
-    return SliverPadding(
-      padding: EdgeInsets.symmetric(horizontal: kYanBosluk),
-      sliver: SliverGrid(
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 4,
-          crossAxisSpacing: kIzgaraAralik,
-          mainAxisSpacing: kIzgaraAralik,
-          mainAxisExtent: boy,
-        ),
-        delegate: SliverChildBuilderDelegate((_, i) {
-          final (anahtar, ad) = ogeler[i];
-          final s = anahtar == secili;
-          return GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: () => onSec(anahtar),
-            child: Column(
-              children: [
-                Container(
-                  width: kKesifKutu,
-                  height: kKesifKutu,
-                  decoration: BoxDecoration(
-                    color: kYuzeyGri(context),
-                    borderRadius: BorderRadius.circular(kYaricap(kKesifKutu)),
-                    // ⚠️ SECILI HAL **KENARLIK** (kullanici emri): zemin
-                    //    boyansaydi izgara "renk salatasi" olurdu.
-                    border: s
-                        ? Border.all(color: kVurgu(context), width: 1.6)
-                        : null,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                Expanded(
-                  child: Text(
-                    ad,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 14,
-                      height: 1.15,
-                      fontWeight: s ? FontWeight.w800 : FontWeight.w600,
-                      color: s ? kVurgu(context) : kabukYazi(context),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          );
-        }, childCount: ogeler.length),
-      ),
-    );
-  }
-}
-
-// ═══════════════════════ YATAY KUTU SERIDI (70 dp) ═══════════════════════
-
-/// Yemek ekranindaki "Mutfaklar" seridinin AYNISI.
-///
-/// ⚠️ Serit yuksekligi `kAltHucre` (kutu + yazi) — sabit dp DEGIL, yazi
-///    olcegiyle buyusun diye `Expanded` ile alt yazi esnetilir.
-class KabukKutuSerit extends StatelessWidget {
-  const KabukKutuSerit({
-    super.key,
-    required this.ogeler,
-    required this.secili,
-    required this.onSec,
-  });
-
-  final List<(String, String)> ogeler;
-  final String secili;
-  final ValueChanged<String> onSec;
-
-  @override
-  Widget build(BuildContext context) {
-    final olcek = MediaQuery.textScalerOf(context);
-    final boy = kAltKutu + 5 + olcek.scale(13) * 1.15 * 2;
-    return SizedBox(
-      height: boy,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        padding: EdgeInsets.symmetric(horizontal: kYanBosluk - kAltIcBosluk),
-        itemCount: ogeler.length,
-        itemBuilder: (_, i) {
-          final (anahtar, ad) = ogeler[i];
-          final s = anahtar == secili;
-          return Padding(
-            padding: EdgeInsets.symmetric(horizontal: kAltIcBosluk),
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => onSec(anahtar),
-              child: SizedBox(
-                width: kAltKutu,
-                child: Column(
-                  children: [
-                    Container(
-                      width: kAltKutu,
-                      height: kAltKutu,
-                      decoration: BoxDecoration(
-                        color: kYuzeyGri(context),
-                        borderRadius: BorderRadius.circular(kYaricap(kAltKutu)),
-                        border: s
-                            ? Border.all(color: kVurgu(context), width: 1.6)
-                            : null,
-                      ),
-                    ),
-                    const SizedBox(height: 5),
-                    Expanded(
-                      child: Text(
-                        ad,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 13,
-                          height: 1.15,
-                          fontWeight: FontWeight.w600,
-                          color: s ? kVurgu(context) : kabukYazi(context),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
+// ⚠️⚠️ TURU 121c — **KUTU IZGARASI / KUTU SERIDI KABUGA ALINMADI** (durust sinir).
+//
+//	Ilk yazimda `KabukKutuIzgara` ve `KabukKutuSerit` buraya kondu ama
+//	HICBIR YERDEN CAGRILMADI: uc ekran (ilan tur izgarasi, ilan alt kategori
+//	seridi, talep kategori izgarasi) kendi govdesini tasimaya devam etti.
+//	Olu bir "tek kaynak" drift`i ONLEMEZ — yalnizca serhi YALANCI yapar,
+//	bu yuzden iki sinif SILINDI.
+//
+// ⚠️ Neden ortaklastirilmadi: uc cagri yeri YAPISAL OLARAK farkli —
+//	· ilan tur izgarasi ve alt kategori seridi birer **BOX** widget
+//	  (`SliverToBoxAdapter` icinde), kabuk surumu ise **SLIVER** idi;
+//	· hucre icerikleri ayni degil (talep`te aciklama satiri var);
+//	· uc yerin yazi olculeri de ayni degil.
+//	Hepsini tek bilesene zorlamak parametre sismesi uretirdi.
+//
+// ⚠️⚠️ ASIL DRIFT RISKI KAPATILDI: **SAYILAR** zaten TEK KAYNAKTA —
+//	`kKesifKutu` · `kAltKutu` · `kIzgaraAralik` · `kYaricap` · `kYuzeyGri`
+//	· `kVurgu` hepsi `isletme_listesi.dart` / `isletme_kart.dart`tan
+//	IMPORT ediliyor. Turu 121c denetimi kenarlik (2 dp `primary` -> 1.6 dp
+//	`kVurgu`) ve yazi (11/w500-w800 -> 13/w600) sapmalarini yakalayip
+//	REFERANSA hizaladi.
+// ⚠️ YAPMA: buraya kullanilmayan bir "ortak" bilesen geri koyma; gercekten
+//	ortaklastiracaksan UC cagri yerini de AYNI commit`te devret.
 
 // ═══════════════════════ CIP SERIDI (32 dp) ═══════════════════════
 
@@ -558,35 +423,47 @@ Widget kabukCipSeridi(BuildContext c, List<KabukCip> cipler) => SizedBox(
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: cip.basildi,
-          child: Container(
-            height: 32,
-            padding: const EdgeInsets.symmetric(horizontal: 11),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(kYaricap(32)),
-              border: Border.fromBorderSide(
-                cip.secili
-                    ? BorderSide(color: vurgu, width: 1.4)
-                    : kabukKenar(c),
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                kalinIkon(
-                  cip.ikon,
-                  olcu: 13,
-                  renk: cip.secili ? vurgu : kabukYazi(c),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  cip.ad,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: cip.secili ? vurgu : kabukYazi(c),
+          // TURU 121c — Center ZORUNLU (referanstaki _hizliCip ile birebir):
+          // ListView cocuguna DIKEYDE TIGHT kisit verir, yani Container
+          // height:32 yazsa bile 40 dp cizilirdi. Cipler Yemek ekranindan
+          // 8 dp KALIN duruyordu (turu 96da olculerek duzeltilmis hatanin
+          // birebir tekrari). Dokunma alani 40 dp KALIR: GestureDetector
+          // Center in DISINDA.
+          child: Center(
+            child: Container(
+              height: 32,
+              padding: const EdgeInsets.symmetric(horizontal: 11),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(kYaricap(32)),
+                // ⚠️ KALINLIK SABIT 1.4: secilince 1.0 -> 1.4 degisseydi cip
+                //    her iki yandan 0.4 dp genisler ve SAGINDAKI TUM cipler
+                //    kayardi (yazi kalinligi icin ZATEN yazili olan kural).
+                border: Border.fromBorderSide(
+                  BorderSide(
+                    color: cip.secili ? vurgu : kabukKenar(c).color,
+                    width: 1.4,
                   ),
                 ),
-              ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  kalinIkon(
+                    cip.ikon,
+                    olcu: 13,
+                    renk: cip.secili ? vurgu : kabukYazi(c),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    cip.ad,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: cip.secili ? vurgu : kabukYazi(c),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

@@ -260,18 +260,39 @@ List<Ilan> get _hepsi => [
 /// ⚠️ `benim`/`favori` acikken ORNEK GOSTERILMEZ: ornekler kullanicinin
 ///    kendi ilani DEGILDIR ve favorilerinde de degildir; gosterilseydi
 ///    "benim ilanim" yalani soylenmis olurdu.
+/// ⚠️⚠️ TURU 121c — **SUNUCUYA GIDEN HER SUZGEC BURAYA DA GECER.**
+///
+///	Turu 121`de `ilce` / `minKurus` / `maksKurus` suzgecleri eklendi ama
+///	YALNIZ sunucuya gonderildi; bu fonksiyonun imzasi degismedi ve ornekler
+///	SUZULMEDEN listeye ekleniyordu. `kDemoAkis` acik oldugu icin listedeki
+///	ilanlarin cogu ornektir: kullanici "1.000 TL alti" secince cip dogru
+///	yaziyor ama **985.000 TL`lik ornek daire listede KALIYORDU** — turun
+///	manset ozelligi BOZUK gorunuyordu. Ustelik liste hic bosalmadigi icin
+///	ayni turda eklenen "Filtreleri temizle" dali da HIC cizilmiyordu.
+/// ⚠️ Bu, dosyanin USTUNDEKI serhin ("suzgecler SUNUCUDAKIYLE AYNI mantikta
+///    uygulanir") ihlaliydi — serh vardi, govde uymuyordu.
 List<Ilan> demoIlanlar({
   required String tur,
   required String kategori,
   required String q,
   required bool benim,
   required bool favori,
+  String ilce = '',
+  int? minKurus,
+  int? maksKurus,
 }) {
   if (!kDemoAkis || benim || favori) return const [];
   final ara = q.trim().toLowerCase();
   return _hepsi.where((i) {
     if (tur.isNotEmpty && i.tur != tur) return false;
     if (kategori.isNotEmpty && i.kategori != kategori) return false;
+    if (ilce.isNotEmpty && i.ilce != ilce) return false;
+    // ⚠️ Fiyati GIZLI ilan fiyat suzgecinden ETKILENMEZ — sunucudaki
+    //    `i.fiyat_gizli OR (...)` yukleminin birebir karsiligi.
+    if (!i.fiyatGizli) {
+      if (minKurus != null && i.fiyatKurus < minKurus) return false;
+      if (maksKurus != null && i.fiyatKurus > maksKurus) return false;
+    }
     if (ara.isEmpty) return true;
     return i.baslik.toLowerCase().contains(ara) ||
         i.aciklama.toLowerCase().contains(ara);
