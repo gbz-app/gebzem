@@ -7842,3 +7842,64 @@ logosu yeni logodan.
 - Backend deploy **36e7c77** · migration 049 canlı · **390/390 uçtan uca**
 - analyze 0/0 · test 52/52 · go build+vet+test temiz
 - ⚠️ Şema additive → **DB TRUNCATE EDİLMEDİ**, hesaplar duruyor
+
+---
+
+## Oturum: 21 Ağustos 2026 — TURU 121 (SADECE ARAYÜZ)
+
+⚠️ **KURAL 9 YÜRÜRLÜKTE**: bu tur boyunca `backend/` klasörüne, migration'a,
+deploy'a, uçtan uca aracına ve muhafız testlerine **DOKUNULMADI**.
+
+### Yapılanlar
+- **Ortak kabuk `features/isletme/kategori_kabuk.dart`.** Yemek ekranı referans
+  alındı; İlan, Etkinlik, Düğün/Hizmet (talep) ekranları aynı kabuğa geçti:
+  aynı başlık, arama kutusu, kutu ızgarası, filtre çipleri, boşluklar.
+  ⚠️ Ölçüler **kopyalanmıyor**, `isletme_listesi.dart` / `isletme_kart.dart`
+  sabitlerinden **import ediliyor** — biri değişince hepsi birlikte döner.
+- **Menüden İşletmeler · Topluluklar · Diyet kaldırıldı** (kullanıcı emri),
+  diyetle ilgili giriş noktaları da temizlendi. Topluluklara Mesajlar "+"
+  menüsünden ulaşılmaya devam ediliyor (menüde ikinci kapı kalmadı).
+- **Kategoriye özel filtreler** (kullanıcı: *"ilan filtresi ile yemek aynı
+  değildir"*): İlanda **Fiyat aralığı** (alt panel: en az / en çok) +
+  **Şehrimde**; Etkinlikte **Ücretsiz** + Bugün / Bu hafta sonu.
+  ⚠️ Fiyat parametreleri (`min_kurus`/`maks_kurus`) sunucuda **ZATEN VARDI**,
+     istemci hiç kullanmıyordu — yeni uç açılmadı.
+- **Büyük kart / küçük kart seçicisi** (`KabukGorunumSecici`) İlan ve
+  Etkinlikte. ⚠️ Yemek'teki ÜÇÜNCÜ segment (harita) buraya KONMADI: bu iki
+  ekranda harita görünümü yok, çalışmayan segment koyulmaz.
+
+### Denendi / öğrenildi (olmadı → düzeltildi)
+- ⚠️⚠️ **IZGARA HÜCRESİ 3.9 px TAŞIYORDU** (emülatörde sarı-siyah şerit).
+  `kabukIzgaraOlcu` satır yüksekliği çarpanlarını **TAHMİN** ediyordu
+  (1.25/1.30); uygulamanın fontu Roboto değil ve satır aralığı daha geniş.
+  FIX: kart metinlerine `height:` **AÇIKÇA** verildi ve ölçü aynı sabiti
+  okuyor (`kKucukKartAdStili` / `kKucukKartBilgiStili` / `kKucukKartSatir`)
+  + 1 dp pay (`TextPainter` yukarı yuvarlar). Ölçek **1.0 ve 1.3'te**
+  emülatörde doğrulandı. ⚠️ YAPMA: kartta `height:` vermeden bu ölçüyü
+  kullanma.
+- ⚠️ **Yemek'in `childAspectRatio: 0.86` oranı kopyalanmıştı ve YANLIŞTI**:
+  orada ad altında İKİ satır var, ilan/etkinlikte BİR. Hücrenin altında
+  ~58 dp boşluk kalıyor, ızgara "kopuk" görünüyordu. Yükseklik artık
+  **içerikten** türetiliyor.
+- ⚠️⚠️ **Etkinlikte boş liste YALAN SÖYLÜYORDU**: bir filtre listeyi
+  boşalttığında ekran *"Yaklaşan etkinlik yok, İLK ETKİNLİĞİ SEN OLUŞTUR"*
+  diyordu — oysa etkinlik VARDI, "Ücretsiz" çipi elemişti. DÖRDÜNCÜ DAL
+  eklendi + **Filtreleri temizle**. (Turu 93b/106 ile aynı sınıf.)
+- ⚠️ **İlanda `_suzgecVar` yeni filtreleri saymıyordu** → fiyat aralığı
+  yüzünden boşalan listede temizleme düğmesi ÇIKMIYOR, kullanıcıda GÖRÜNMEZ
+  bir süzgeç takılı kalıyordu.
+- ⚠️ **Etkinlikte ağ hatasında "Tekrar dene" YOKTU** (Yemek ve İlan'da zaten
+  vardı) — asimetrinin kendisi hataydı; ekran ölü kalıyordu.
+- ⚠️ Konumu olmayan ilanda **yanında hiçbir şey yazmayan boş bir pin**
+  çiziliyordu; ayrıca ayraç yüzünden satır " · Garson" diye başlayabiliyordu.
+- ⚠️ **Emülatör yerel backend'e (10.0.2.2) bakıyordu** ve "İşletmeler
+  alınamadı" çıkıyordu — kod hatası sanıldı, `flutter run`a
+  `--dart-define=API_URL=https://api.gebzem.app` verilmemişti.
+  ⚠️ DERS: arayüz turunda emülatörü **daima canlı API ile** başlat.
+- Kabuk geçişinden kalan ölü kod temizlendi (`_aramaKutusu` ×2, `_cip`,
+  `_zamanCipi`, `_aramaTemizle`, iki `yenile.dart` importu, iki `show` adı)
+  → `flutter analyze` **0 hata 0 uyarı**.
+
+### Devir notu
+- **Backend DEĞİŞMEDİ** → deploy YOK, **DB TRUNCATE EDİLMEDİ** (hesaplar durur)
+- `flutter analyze` **0/0** · `flutter test` **52/52**
