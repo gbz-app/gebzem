@@ -26,6 +26,8 @@ import '../ilan/ilan_ekranlari.dart' show IlanDetayEkrani, IlanListesiEkrani;
 import '../ilan/ilan_servisi.dart';
 // ⚠️ TURU 121 — kategori ekranlarinin ORTAK KABUGU (Yemek referansi).
 import '../isletme/kategori_kabuk.dart';
+import '../isletme/kategori_slider.dart';
+import '../isletme/isletme_servisi.dart' show isletmeServisiProvider;
 import 'talep_servisi.dart';
 
 // ═══════════════════ 1) DAL SECIMI + KATEGORI ═══════════════════
@@ -78,6 +80,9 @@ class _TalepAkisiState extends ConsumerState<TalepAkisiEkrani> {
   ///	oldugu icin bu ekran ailenin disinda duruyordu.
   /// ⚠️ Sag ustteki "Taleplerim" girisi KALDIRILMADI: teklif akisinin
   ///    tum gecmisi orada (kapanmis talepler dahil).
+  /// ⚠️ TURU 123 — slider slaytlari (Yemek ekraniyla AYNI uc).
+  List<Slayt> _slaytlar = const [];
+
   List<Ilan>? _talepler;
   String? _talepHata;
 
@@ -90,6 +95,18 @@ class _TalepAkisiState extends ConsumerState<TalepAkisiEkrani> {
   void initState() {
     super.initState();
     _talepleriYukle();
+    _slaytlariYukle();
+  }
+
+  /// ⚠️ AYRI ve SESSIZ: slider ekranin ASIL isi degil.
+  Future<void> _slaytlariYukle() async {
+    try {
+      final d = await ref.read(isletmeServisiProvider).kesif('hizmet');
+      if (!mounted) return;
+      setState(() => _slaytlar = d.slaytlar);
+    } catch (_) {
+      // sessiz: slider cizilmez
+    }
   }
 
   /// ⚠️ Hata SESSIZ DEGIL: liste yerine "Tekrar dene" cizilir (Yemek ve
@@ -126,8 +143,6 @@ class _TalepAkisiState extends ConsumerState<TalepAkisiEkrani> {
     _arama.dispose();
     super.dispose();
   }
-
-  bool get _dugunDali => widget.dal == 'dugun';
 
   /// ⚠️⚠️ TURKCE KUCULTME **ELLE** yapilir.
   ///
@@ -232,7 +247,11 @@ class _TalepAkisiState extends ConsumerState<TalepAkisiEkrani> {
               : hepsi.where((k) => _kucult(k.ad).contains(q)).toList();
 
           return [
-              SliverToBoxAdapter(child: _acilis()),
+              // ⚠️⚠️ TURU 123 — **"Hangi hizmeti almak istiyorsun?" BASLIK
+              //	BLOGU KALDIRILDI.** Yemek ve Ilan ekranlarinda boyle bir
+              //	blok YOK; yalniz burada vardi ve ekrani ailenin disinda
+              //	gosteriyordu (kullanici emri: *"yemegin AYNISI"*).
+              //
               // ⚠️ TURU 121 — arama kutusu KABUKTAN (Yemek ile birebir):
               //    48 dp, notr kenarlik, kalinlastirilmis arama ikonu,
               //    dolu iken temizle (X) dairesi.
@@ -252,13 +271,19 @@ class _TalepAkisiState extends ConsumerState<TalepAkisiEkrani> {
                   ),
                 ),
               ),
+              // ── SLIDER (Yemek ile AYNI yer, AYNI bilesen) ──
+              if (_slaytlar.isNotEmpty) ...[
+                SliverToBoxAdapter(
+                  child: KategoriSlider(slaytlar: _slaytlar),
+                ),
+                const SliverToBoxAdapter(child: SizedBox(height: kBosluk)),
+              ],
               // ⚠️ Bolum basligi da kabuktan: Yemek ekranindaki
               //    "Mutfaklar" ile AYNI olcu (17/w700 + optik telafi).
               //    Onceki hal 11.5/w800 GRI bir etiketti ve ayni menuden
               //    acilan iki ekran farkli dilde konusuyordu.
-              SliverToBoxAdapter(
-                child: kabukBolumBasligi(context, 'Kategoriler'),
-              ),
+              // ⚠️ TURU 123 — "Kategoriler" basligi KALDIRILDI (Yemek`te
+              //    kutu izgarasinin ustunde baslik YOK).
               if (gosterilen.isEmpty)
                 SliverToBoxAdapter(
                   child: Padding(
@@ -303,12 +328,16 @@ class _TalepAkisiState extends ConsumerState<TalepAkisiEkrani> {
                           //	IKI SATIRLIK etiket, etiket yazi olceginden
                           //	TURETILIR. Boylece tasma YAPISAL OLARAK imkansiz.
                           // ⚠️ YAPMA: `childAspectRatio`a geri donme.
+                          // +1 dp pay: TextPainter satir yuksekligini YUKARI
+                          // yuvarlar; paysiz hesap 0.1 px tasma seridi
+                          // cizdiriyordu (etkinlikte olculdu).
                           mainAxisExtent:
                               kKesifKutu +
                               5 +
                               MediaQuery.textScalerOf(context).scale(14) *
                                   1.15 *
-                                  2,
+                                  2 +
+                              1,
                         ),
                     delegate: SliverChildBuilderDelegate(
                       (c, i) => _kategoriKarti(talep, gosterilen[i]),
@@ -316,7 +345,9 @@ class _TalepAkisiState extends ConsumerState<TalepAkisiEkrani> {
                     ),
                   ),
                 ),
-              SliverToBoxAdapter(child: _nasilCalisir()),
+              // ⚠️ TURU 123 — "NASIL ÇALIŞIR" blogu KALDIRILDI: Yemek ve
+              //    Ilan ekranlarinda YOK. Akis zaten kendini anlatiyor
+              //    (karta dokun -> adim adim form).
 
               // ══════════ TALEPLERIM (Yemek/Ilan ile AYNI iskelet) ══════════
               //
@@ -509,39 +540,6 @@ class _TalepAkisiState extends ConsumerState<TalepAkisiEkrani> {
     );
   }
 
-  /// Ekranin en ustundeki tek cumlelik aciklama.
-  ///
-  /// ⚠️ Kullaniciya NE OLACAGINI soyler: kategoriye dokunmak bir FORM acar,
-  ///    form bittiginde talep ILGILI ISLETMELERE gider. Bu bilgi olmadan
-  ///    izgara "sadece bir liste" gibi gorunuyordu.
-  Widget _acilis() => Padding(
-    padding: const EdgeInsets.fromLTRB(kYanBosluk, 14, kYanBosluk, 12),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          _dugunDali
-              ? 'Düğün için ne lazım?'
-              : (widget.dal == 'hizmet'
-                    ? 'Hangi hizmeti almak istiyorsun?'
-                    : 'Ne için teklif istiyorsun?'),
-          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          'Kategoriyi seç, birkaç soruya cevap ver — ilgili işletmeler sana '
-          'teklif göndersin.',
-          style: TextStyle(
-            fontSize: 13,
-            color: Theme.of(
-              context,
-            ).colorScheme.onSurface.withValues(alpha: 0.6),
-          ),
-        ),
-      ],
-    ),
-  );
-
   /// Izgara hucresi — menudeki kategori kartiyla BIREBIR ayni dil.
   ///
   /// ⚠️ IKON YOK, HARF YOK: kutu bir YUZEYDIR, yazi ALTINDA (kullanici
@@ -596,84 +594,6 @@ class _TalepAkisiState extends ConsumerState<TalepAkisiEkrani> {
           ),
         ),
       );
-
-  /// UC ADIMLI aciklama — kullanicinin "step step" beklentisini KARSILAR.
-  ///
-  /// ⚠️ Burada SAHTE bir ilerleme cubugu YOK: bu bir ANLATIMDIR. Gercek
-  ///    adimlar sihirbazda ve sayilari SUNUCUDAN gelen alan sayisina bagli.
-  Widget _nasilCalisir() {
-    final soluk = Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6);
-    Widget adim(int no, String baslik, String metin) => Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 26,
-            height: 26,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary,
-              shape: BoxShape.circle,
-            ),
-            child: Text(
-              '$no',
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.onPrimary,
-                fontWeight: FontWeight.w800,
-                fontSize: 13,
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  baslik,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 14.5,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(metin, style: TextStyle(fontSize: 13, color: soluk)),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(kYanBosluk, 4, kYanBosluk, 32),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'NASIL ÇALIŞIR',
-            style: TextStyle(
-              fontSize: 11.5,
-              fontWeight: FontWeight.w800,
-              color: soluk,
-            ),
-          ),
-          const SizedBox(height: 12),
-          adim(1, 'Kategoriyi seç', 'Yukarıdaki kutulardan birine dokun.'),
-          adim(
-            2,
-            'Soruları yanıtla',
-            'Adım adım ilerler; her adımda yalnızca birkaç soru var.',
-          ),
-          adim(
-            3,
-            'Teklifleri karşılaştır',
-            'İlgili işletmeler fiyat gönderir, sen seçersin.',
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _hataGovde(BuildContext context, WidgetRef ref) => Center(
     child: Column(

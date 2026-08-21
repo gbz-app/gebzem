@@ -13,8 +13,10 @@ import '../home/home_screen.dart' show myProfileProvider;
 // ⚠️ TURU 114 — kart dili kategori ekraniyla ORTAK (sabitler IMPORT edilir).
 // ⚠️ TURU 121 — kategori ekranlarinin ORTAK KABUGU (Yemek referansi).
 import '../isletme/kategori_kabuk.dart';
-import '../isletme/isletme_kart.dart' show kYanBosluk, kYaricapBuyuk, kYuzeyGri;
-import '../isletme/isletme_listesi.dart' show kBosluk;
+import '../isletme/isletme_kart.dart'
+    show kYanBosluk, kYaricapBuyuk, kYuzeyGri, kYaricap, kVurgu;
+import '../isletme/isletme_listesi.dart'
+    show kBosluk, kCipPay, kIzgaraAralik, kKesifKutu;
 import '../randevu/randevu_servisi.dart' show kAyAdlari;
 import '../medya/medya_gorsel.dart';
 import '../vitrin/vitrin_slider.dart';
@@ -201,9 +203,25 @@ class _EtkinlikListesiEkraniState extends ConsumerState<EtkinlikListesiEkrani> {
             child: VitrinSlider(dikey: 'etkinlik'),
           ),
           kabukBosluk(),
-          // ⚠️ "Yaklaşan / Geçmiş" artik CIP SERIDI (kabuk dili).
-          //    `SegmentedButton` Material varsayilani, bu ekranda TEK
-          //    basina duruyordu ve kategori ekranlarinin diline yabanciydi.
+
+          // ── KATEGORI KUTULARI (Yemek`teki kesif izgarasinin YERI) ──
+          //
+          // ⚠️⚠️ TURU 123 — kategoriler CIP degil **KUTU** (kullanici emri:
+          //	*"butun kategoriler YEMEGIN AYNISI olacak"*).
+          //	Onceki serh *"bu ekranda kategori GORSELI yok, kutu bos
+          //	kalirdi"* diyordu — ama Yemek, Ilan ve Hizmet ekranlarinda da
+          //	kutular BOS (gri) ve altlarinda yazi var; ayni dil.
+          SliverToBoxAdapter(child: _kategoriIzgarasi()),
+          kabukBosluk(),
+
+          // ── TEK CIP SERIDI (Yemek`te de TEK serit vardir) ──
+          //
+          // ⚠️⚠️ TURU 123 — onceden **UC AYRI SERIT** vardi (Yaklasan/Gecmis,
+          //	Bugun/Hafta sonu, kategoriler) ve ekran hicbir kardesine
+          //	benzemiyordu. Kategoriler kutulara tasindi, kalan zaman ve
+          //	ucret suzgecleri TEK seritte toplandi.
+          // ⚠️ "Bugün"/"Bu hafta sonu" YALNIZ Yaklasan`da: gecmis
+          //    etkinliklerde mantiksal olarak BOS sonuc uretirdi.
           SliverToBoxAdapter(
             child: kabukCipSeridi(context, [
               KabukCip('Yaklaşan', LucideIcons.calendarClock, !_gecmis, () {
@@ -211,48 +229,24 @@ class _EtkinlikListesiEkraniState extends ConsumerState<EtkinlikListesiEkrani> {
                 _yukle();
               }),
               KabukCip('Geçmiş', LucideIcons.history, _gecmis, () {
-                // ⚠️ TURU 121c — Gecmis`te "Bugün / Bu hafta sonu" cipleri
-                //    CIZILMIYOR ama `_zaman` dolu kalirsa SUZMEYE DEVAM
-                //    EDIYORDU: kullanici gormedigi bir suzgec yuzunden bos
-                //    liste goruyor ve kapatacak dugmeyi BULAMIYORDU.
+                // ⚠️ TURU 121c — Gecmis`te zaman cipleri CIZILMIYOR ama
+                //    `_zaman` dolu kalirsa SUZMEYE DEVAM EDIYORDU.
                 setState(() { _gecmis = true; _zaman = ''; });
                 _yukle();
               }),
-            ]),
-          ),
-          // ⚠️ TURU 121 — iki cip seridi arasi nefes: yapisik durduklarinda
-          //    tek bir sarmis serit gibi okunuyordu (emulatorde goruldu).
-          kabukBosluk(6),
-          // ---- ZAMAN HIZLI KARTLARI (turu 78b: `bas_min`/`bas_maks` CANLI)
-          // ⚠️ YALNIZ "Yaklaşan" sekmesinde: gecmis etkinliklerde "Bugün"
-          //    suzgeci mantiksal olarak BOS sonuc uretirdi.
-          if (!_gecmis)
-            SliverToBoxAdapter(
-              child: kabukCipSeridi(context, [
+              if (!_gecmis) ...[
                 KabukCip('Bugün', LucideIcons.calendarDays,
                     _zaman == 'bugun', () => _zamanSec('bugun')),
                 KabukCip('Bu hafta sonu', LucideIcons.calendarRange,
                     _zaman == 'haftasonu', () => _zamanSec('haftasonu')),
-              ]),
-            ),
-          kabukBosluk(kBosluk - 4),
-          // ⚠️ Kategori seridi de KUTU DILINDE degil CIP dilinde: bu ekranda
-          //    kategori GORSELI yok, kutu bos kalirdi.
-          SliverToBoxAdapter(
-            child: kabukCipSeridi(context, [
-              KabukCip('Tümü', LucideIcons.layoutGrid, _kategori.isEmpty,
-                  () => _kategoriSec('')),
-              // ⚠️ ETKINLIGE OZEL: ucretsiz etkinlikler. Suzgec ISTEMCIDE
-              //    (sunucuda ucret parametresi YOK) — liste tek istekte
-              //    geliyor ve sayfalama yok, yani durust bir suzgec.
+              ],
+              // ⚠️ ETKINLIGE OZEL: suzgec ISTEMCIDE (sunucuda ucret
+              //    parametresi YOK) — liste tek istekte geliyor, durust.
               KabukCip('Ücretsiz', LucideIcons.ticket, _ucretsiz,
                   () => setState(() => _ucretsiz = !_ucretsiz)),
-              for (final e in etkinlikKategorileri.entries)
-                KabukCip(e.value, LucideIcons.tag, _kategori == e.key,
-                    () => _kategoriSec(e.key)),
             ]),
           ),
-          kabukBosluk(kBosluk - 4),
+          kabukBosluk(kBosluk - kCipPay),
           // ⚠️ Liste basligi Yemek ekranindaki ile AYNI (17/w700 + sayi) ve
           //    saginda BUYUK/KUCUK KART secicisi.
           if (l != null && l.isNotEmpty)
@@ -402,6 +396,77 @@ class _EtkinlikListesiEkraniState extends ConsumerState<EtkinlikListesiEkrani> {
       _benim = false;
     });
     _yukle();
+  }
+
+  /// Kategori kutulari — Yemek/Ilan/Hizmet ekranlariyla AYNI olculer
+  /// (`kKesifKutu` · `kIzgaraAralik` · `kYaricap` · `kVurgu` 1.6 dp · 13/w600).
+  ///
+  /// ⚠️ Ayni kutuya tekrar dokunmak secimi KALDIRIR ("Tümü"ye doner):
+  ///    aksi halde kullanici tum etkinliklere donmek icin ayri bir dugme
+  ///    aramak zorunda kalirdi (Ilan ekranindaki kural).
+  Widget _kategoriIzgarasi() {
+    // Iki satirlik ad + 1 dp pay: TextPainter satir yuksekligini YUKARI
+    // yuvarlar ve paysiz hesap 0.1 px tasma seridi cizdiriyordu
+    // (emulatorde "Eğitim & Atölye" ve "Yemek & İçecek" adlarinda goruldu).
+    final etiket = MediaQuery.textScalerOf(context).scale(13) * 1.15 * 2 + 1;
+    final ogeler = etkinlikKategorileri.entries.toList();
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: kYanBosluk),
+      child: GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        padding: EdgeInsets.zero,
+        itemCount: ogeler.length,
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 4,
+          mainAxisSpacing: kIzgaraAralik,
+          crossAxisSpacing: kIzgaraAralik,
+          mainAxisExtent: kKesifKutu + 5 + etiket,
+        ),
+        itemBuilder: (_, i) {
+          final e = ogeler[i];
+          final secili = _kategori == e.key;
+          return RepaintBoundary(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => _kategoriSec(secili ? '' : e.key),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SizedBox(
+                    height: kKesifKutu,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: kYuzeyGri(context),
+                        borderRadius: BorderRadius.circular(
+                          kYaricap(kKesifKutu),
+                        ),
+                        border: Border.all(
+                          color: secili ? kVurgu(context) : Colors.transparent,
+                          width: 1.6,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    e.value,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      height: 1.15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
   }
 
   /// ⚠️⚠️ TURU 121c — **KUCUK KART** (izgara gorunumu).

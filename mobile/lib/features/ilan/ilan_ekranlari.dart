@@ -22,6 +22,7 @@ import 'basvuru_ekranlari.dart';
 // ⚠️ TURU 106 — olculer KATEGORI EKRANINDAN import edilir, kopyalanmaz.
 // ⚠️ TURU 121 — kategori ekranlarinin ORTAK KABUGU (Yemek referansi).
 import '../isletme/kategori_kabuk.dart';
+import '../isletme/kategori_slider.dart';
 import '../isletme/isletme_kart.dart'
     show
         kYanBosluk,
@@ -84,6 +85,22 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
   //	yani sunucudaki yetenek OLU duruyordu.
   String _ilce = '';
 
+  /// ⚠️⚠️ TURU 123 — **SLIDER GERI GELDI** (kullanici emri: *"butun
+  ///	kategoriler AYNI OLACAK"* — bes kez soylendi).
+  ///
+  ///	Turu 106 slideri KALDIRMISTI ve gerekcesi HAKLIYDI: o zaman
+  ///	`VitrinSlider(dikey: _tur)` kullaniliyordu; sunucu `emlak`/`hizmet`
+  ///	icin ISLETME kartlari, digerleri icin ETKINLIK donduruyor — ucu de
+  ///	ilanla ilgisiz.
+  /// ⚠️⚠️ **COZUM BASKA BIR SLIDER**: Yemek ekraninin kullandigi
+  ///	`KategoriSlider` + `/isletme-kesif` ucu. O uc KATEGORIYE OZEL METIN
+  ///	slaytlari donduruyor (`altkategori.go` -> `kategoriSlider` /
+  ///	`sliderVarsayilan`) ve ilanla ILGILI. Yani ilgisiz icerik sorunu
+  ///	YOK, ekran da artik Yemek ile ayni.
+  /// ⚠️ Slayt YOKSA slider HIC CIZILMEZ (Yemek ekranindaki kural).
+  /// ⚠️ Hata SESSIZ: slider ekranin ASIL isi degil, liste ondan bagimsiz.
+  List<Slayt> _slaytlar = const [];
+
   /// ⚠️⚠️ TURU 122 — **SIRALAMA** (Yemek ekranindaki "Sıralama" cipinin
   ///	ilan karsiligi; kullanici emri: *"filtreleme o kategoriye gore,
   ///	yemektekinin AYNISI ama MANTIGI degisecek"*).
@@ -122,6 +139,8 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
   void initState() {
     super.initState();
     _yukle();
+    // TURU 123 — slider (Yemek ekraniyla AYNI yer/bilesen).
+    _slaytlariYukle();
     // ⚠️ TURU 121c — "Şehrimde" cipi icin ilce; ogrenilemezse cip cizilmez.
     //    Liste yuklemesini BEKLETMEZ (ayri ve sessiz).
     _ilceyiOgren();
@@ -255,7 +274,24 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
         ),
         const SliverToBoxAdapter(child: SizedBox(height: kBosluk)),
 
-        // ⚠️⚠️⚠️ TURU 106 — **VITRIN SLIDER KALDIRILDI (olculdu).**
+        // ── SLIDER (Yemek ekraniyla AYNI yer, AYNI bilesen) ──
+        //
+        // ⚠️⚠️ TURU 123 — **GERI GELDI** (kullanici emri: *"butun
+        //	kategoriler YEMEGIN AYNISI olacak"*).
+        //	Turu 106 slideri KALDIRMISTI ve gerekcesi HAKLIYDI: o zaman
+        //	`VitrinSlider(dikey: _tur)` kullaniliyordu ve sunucu emlak icin
+        //	ISLETME, digerleri icin ETKINLIK donduruyordu — ilanla ilgisiz.
+        // ⚠️⚠️ **BILESEN DEGISTI**: artik Yemek ekraninin kullandigi
+        //	`KategoriSlider` + `/isletme-kesif`. O uc KATEGORIYE OZEL METIN
+        //	slaytlari doner (`altkategori.go`), yani icerik ILGILI.
+        // ⚠️ Slayt yoksa HIC cizilmez (Yemek`teki kural).
+        // ⚠️ Dolgu YOK: slider yan boslugunu `viewportFraction`dan uretir.
+        if (_slaytlar.isNotEmpty) ...[
+          SliverToBoxAdapter(child: KategoriSlider(slaytlar: _slaytlar)),
+          const SliverToBoxAdapter(child: SizedBox(height: kBosluk)),
+        ],
+
+        // (turu 106 serhi -> `_slaytlar` alanina tasindi)
         //
         //	`VitrinSlider(dikey: _tur)` sunucuda `isletmeDikeyleri`ne
         //	cozuluyor ve `emlak` ile `hizmet` bir ISLETME kategorisi
@@ -276,20 +312,11 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
         //	sabiti yazmak turu 77 kuralinin ihlali olurdu.
         // ⚠️ Agac gelmeden HICBIR SEY cizilmez: bos kutular "yukleniyor"
         //    degil "bozuk" gibi gorunuyordu.
+        // ⚠️⚠️ TURU 123 — **"Kategoriler" BASLIGI KALDIRILDI.** Yemek
+        //	ekraninda kesif izgarasinin USTUNDE baslik YOKTUR: slider`dan
+        //	sonra dogrudan kutular gelir. Baslik bu ekrani ailenin disinda
+        //	gosteriyordu.
         if (turler.isNotEmpty) ...[
-          const SliverToBoxAdapter(
-            child: Padding(
-              padding: EdgeInsets.only(left: kYanBosluk - kBaslikOptik),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'Kategoriler',
-                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
-                ),
-              ),
-            ),
-          ),
-          const SliverToBoxAdapter(child: SizedBox(height: kBaslikBosluk)),
           SliverToBoxAdapter(child: _turIzgarasi(turler)),
           const SliverToBoxAdapter(child: SizedBox(height: kBosluk)),
         ],
@@ -468,7 +495,7 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
   /// ⚠️ Secili tur cerceveyle isaretlenir: yalnizca renk tonu degistirmek
   ///    dusuk gorme kosullarinda ayirt edilemiyordu.
   Widget _turIzgarasi(List<IlanTuru> turler) {
-    final etiket = MediaQuery.textScalerOf(context).scale(14) * 1.15 * 2;
+    final etiket = MediaQuery.textScalerOf(context).scale(14) * 1.15 * 2 + 1;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: kYanBosluk),
       child: GridView.builder(
@@ -545,7 +572,7 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
   Widget _altKategoriSeridi(IlanTuru t) {
     // ⚠️ Yazi 11 -> 13 oldugu icin bu tureme de 13`ten hesaplanir; aksi
     //    halde serit yuksekligi eksik kalir ve iki satirlik ad KIRPILIR.
-    final etiket = MediaQuery.textScalerOf(context).scale(13) * 1.15 * 2;
+    final etiket = MediaQuery.textScalerOf(context).scale(13) * 1.15 * 2 + 1;
     return SizedBox(
       height: kAltKutu + 5 + etiket + kAltIcBosluk,
       child: ListView.separated(
@@ -681,6 +708,20 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
     );
     if (secim == null || !mounted) return;
     setState(() => _sira = secim);
+  }
+
+  /// Slider slaytlari — Yemek ekraniyla AYNI uc (`/isletme-kesif`).
+  ///
+  /// ⚠️ AYRI cagri: liste yuklemesini BEKLETMEZ, hatasi listeyi ETKILEMEZ.
+  /// ⚠️ Hata SESSIZ: slider ekranin ASIL isi degil. Kurtarma asagi-cek.
+  Future<void> _slaytlariYukle() async {
+    try {
+      final d = await ref.read(isletmeServisiProvider).kesif('ilan');
+      if (!mounted) return;
+      setState(() => _slaytlar = d.slaytlar);
+    } catch (_) {
+      // sessiz: slider cizilmez
+    }
   }
 
   Widget _filtreSatiri() => kabukCipSeridi(context, [
