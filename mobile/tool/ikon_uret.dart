@@ -91,8 +91,6 @@ void main() {
   }
 
   final n = kaynak.width;
-  final merkez = (n - 1) / 2.0;
-  final yaricap = n / 2.0;
 
   // ── KAPI 2: gorsel gercekten bir DAIRE mi ──
   // ⚠️ Kirpim gecerliligi buna BAGLI: ic teget karesi ancak sekil daire ise

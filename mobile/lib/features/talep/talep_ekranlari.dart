@@ -21,7 +21,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 //    KOPYALANMAZ (iki ekran birlikte doner).
 import '../isletme/isletme_kart.dart' show kYanBosluk, kYaricap, kYuzeyGri;
 import '../isletme/isletme_listesi.dart'
-    show kBosluk, kInputBoy, kKesifKutu, kIzgaraAralik;
+    show kBosluk, kKesifKutu, kIzgaraAralik;
 import '../ilan/ilan_ekranlari.dart' show IlanDetayEkrani, IlanListesiEkrani;
 import '../ilan/ilan_servisi.dart';
 // ⚠️ TURU 121 — kategori ekranlarinin ORTAK KABUGU (Yemek referansi).
@@ -296,43 +296,6 @@ class _TalepAkisiState extends ConsumerState<TalepAkisiEkrani> {
           ),
         ),
       ],
-    ),
-  );
-
-  /// ⚠️ Arama kutusu kategori ekranindakiyle AYNI olculerde (`kInputBoy`).
-  /// ⚠️⚠️ `suffixIcon`e KALAN GENISLIGIN TAMAMI verilir (turu 96o tuzagi):
-  ///	genislik ACIKCA verilmezse X inputun ORTASINDA cikar ve METNE YER
-  ///	KALMAZ. 44 dp = dokunma hedefi.
-  Widget _aramaKutusu() => SizedBox(
-    height: kInputBoy,
-    child: TextField(
-      controller: _arama,
-      textInputAction: TextInputAction.search,
-      onChanged: (v) => setState(() => _q = v.trim()),
-      decoration: InputDecoration(
-        hintText: 'Kategori ara',
-        prefixIcon: const Icon(LucideIcons.search, size: 19),
-        suffixIcon: _q.isEmpty
-            ? null
-            : SizedBox(
-                width: 44,
-                child: IconButton(
-                  tooltip: 'Temizle',
-                  icon: const Icon(LucideIcons.x, size: 18),
-                  onPressed: () {
-                    _arama.clear();
-                    setState(() => _q = '');
-                  },
-                ),
-              ),
-        filled: true,
-        fillColor: kYuzeyGri(context),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(kYaricap(kInputBoy)),
-          borderSide: BorderSide.none,
-        ),
-        contentPadding: EdgeInsets.zero,
-      ),
     ),
   );
 

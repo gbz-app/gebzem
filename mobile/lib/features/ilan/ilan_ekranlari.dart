@@ -2,15 +2,16 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import "../../core/yenile.dart";
 
 import '../../core/api.dart';
 import '../../router.dart' show rootMessengerKey;
 import '../home/home_screen.dart' show myProfileProvider;
+import '../isletme/isletme_servisi.dart' show isletmeServisiProvider;
 import '../medya/medya_gorsel.dart';
 import '../medya/tam_ekran_gorsel.dart';
 import '../medya/medya_kapisi.dart';
@@ -40,7 +41,6 @@ import '../isletme/isletme_listesi.dart'
         kIzgaraAralik,
         kAltKutu,
         kAltIcBosluk,
-        kInputBoy,
         kBaslikOptik;
 import '../sosyal/demo_veri.dart' show demoKimlik;
 import 'demo_ilan.dart';
@@ -79,10 +79,26 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
   String? _hata;
   late String _tur = widget.tur;
   String _kategori = '';
-  // ⚠️ Il suzgeci ILK SURUMDE arayuzden AYARLANMIYOR (arama kutusu + tur +
-  //    kategori yeterli); uc ZATEN destekliyor, ekran eklendiginde buraya
-  //    yazilir. Sabit birakip 'ozellik var' izlenimi vermiyoruz.
-  final String _il = '';
+  // ⚠️⚠️ TURU 121c — IL SUZGECI ARTIK ARAYUZDEN AYARLANIYOR (kullanici:
+  //	*"filtreler mantiken o kategoriye gore olmali"*). Uc bunu ZATEN
+  //	destekliyordu (`GET /ilanlar?il=`) ama ekran SABIT '' gonderiyordu —
+  //	yani sunucudaki yetenek OLU duruyordu.
+  String _ilce = '';
+
+  /// Kullanicinin kendi ilcesi — "Şehrimde" cipi bununla cizilir.
+  /// ⚠️⚠️ Ogrenilemezse cip **HIC CIZILMEZ** (Yemek ekranindaki desen):
+  ///	bos bir "Şehrimde" cipi dokununca hicbir sey suzmezdi.
+  String _benimIlce = '';
+
+  /// ⚠️⚠️ FIYAT ARALIGI — `minKurus`/`maksKurus` uc tarafinda ZATEN vardi
+  //	ve HIC kullanilmiyordu. Ilan ekraninin en dogal suzgeci budur;
+  //	Yemek`in "min. tutar / puan / teslimat" cipleri BURADA ANLAMSIZ
+  //	olurdu (ilanin puani ya da teslimat suresi YOK).
+  int? _minKurus;
+  int? _maksKurus;
+
+  /// Buyuk kart (liste) / kucuk kart (izgara).
+  bool _izgara = false;
   late bool _benim = widget.benim;
   bool _favori = false;
 
@@ -93,6 +109,9 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
   void initState() {
     super.initState();
     _yukle();
+    // ⚠️ TURU 121c — "Şehrimde" cipi icin ilce; ogrenilemezse cip cizilmez.
+    //    Liste yuklemesini BEKLETMEZ (ayri ve sessiz).
+    _ilceyiOgren();
   }
 
   @override
@@ -110,7 +129,9 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
           .liste(
             tur: _tur,
             kategori: _kategori,
-            il: _il,
+            ilce: _ilce,
+            minKurus: _minKurus,
+            maksKurus: _maksKurus,
             q: _arama.text.trim(),
             benim: _benim,
             favori: _favori,
@@ -363,59 +384,38 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
               // ⚠️ `separated` DEGIL: kartlar arasi ayrim `kKartAralik`
               //    boslugudur (kategori ekrani turu 93'te `Divider`i
               //    kaldirdi; iki liste ayni dili konusmali).
-              SliverList.builder(
-                itemCount: l.length,
-                itemBuilder: (_, i) => _satir(l[i]),
-              ),
+              // ⚠️ TURU 121c — BUYUK kart (liste) / KUCUK kart (izgara).
+              if (_izgara)
+                SliverPadding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: kYanBosluk,
+                  ),
+                  sliver: SliverGrid(
+                    // Hucre yuksekligi ICERIKTEN turetilir (kapak + ad +
+                    // fiyat satiri); bkz. kabukIzgaraOlcu serhi.
+                    gridDelegate: kabukIzgaraOlcu(context),
+                    delegate: SliverChildBuilderDelegate(
+                      (_, i) => _izgaraKarti(l[i]),
+                      childCount: l.length,
+                    ),
+                  ),
+                )
+              else
+                SliverList.builder(
+                  itemCount: l.length,
+                  itemBuilder: (_, i) => _satir(l[i]),
+                ),
             // ⚠️ FAB'in altinda kalan son kart icin pay (turu 90b dersi).
             const SliverToBoxAdapter(child: SizedBox(height: 90)),
       ],
     );
   }
 
-  /// Kategori ekranindaki arama kutusunun ikizi: yuvarlak, solda buyutec,
-  /// doluyken sagda TEMIZLE (X).
-  ///
-  /// ⚠️⚠️ `suffixIcon`e KALAN GENISLIGIN TAMAMI verilir (turu 96o tuzagi):
-  ///	genislik ACIKCA verilmezse X inputun ORTASINA oturur ve metne yer
-  ///	kalmadigi icin YAZI GORUNMEZ.
-  Widget _aramaKutusu() => TextField(
-    controller: _arama,
-    onChanged: _aramaDegisti,
-    textInputAction: TextInputAction.search,
-    onSubmitted: (_) => _yukle(),
-    decoration: InputDecoration(
-      hintText: 'İlan ara',
-      prefixIcon: const Icon(LucideIcons.search, size: 19),
-      isDense: true,
-      suffixIcon: _aramaDolu
-          ? SizedBox(
-              width: 44,
-              child: IconButton(
-                tooltip: 'Temizle',
-                icon: const Icon(LucideIcons.x, size: 18),
-                onPressed: _aramaTemizle,
-              ),
-            )
-          : null,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(kYaricap(kInputBoy)),
-      ),
-    ),
-  );
-
   void _aramaDegisti(String metin) {
     _gecikme?.cancel();
     _gecikme = Timer(const Duration(milliseconds: 320), _yukle);
     final dolu = metin.trim().isNotEmpty;
     if (dolu != _aramaDolu) setState(() => _aramaDolu = dolu);
-  }
-
-  void _aramaTemizle() {
-    _gecikme?.cancel();
-    _arama.clear();
-    setState(() => _aramaDolu = false);
-    _yukle();
   }
 
   /// Tur izgarasi — kategori ekranindaki kesif kartlarinin ilan karsiligi.
@@ -565,7 +565,54 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
   ///	cipler ise 32 dp, `kYaricap(32)` ve **kenarlik** ile secili — yani
   ///	ayni menuden acilan iki ekran farkli cip dili konusuyordu.
   /// ⚠️ YAPMA: buraya `FilterChip`/`ChoiceChip` geri koyma.
+  /// ⚠️⚠️⚠️ TURU 121c — CIPLER **ILANA OZEL** (kullanici emri: *"filtreler
+  ///	mantiken o kategoriye gore olmali; ilan filtresi ile yemek ayni
+  ///	degildir"*).
+  ///
+  /// Yemek`teki cipler (Puan · Teslimat · Min. tutar · Gece Kuşu) BURADA
+  /// ANLAMSIZ: ilanin puani, teslimat suresi ya da calisma saati YOKTUR.
+  /// Ilanin dogal suzgecleri **FIYAT** ve **SEHIR**tir; ikisi de uc
+  /// tarafinda ZATEN vardi (`min`/`maks`/`il`) ve kullanilmiyordu.
+  ///
+  /// ⚠️ UYDURMA CIP YOK: sunucunun desteklemedigi hicbir suzgec cizilmez.
+  /// Kullanicinin ilcesini ogrenir ("Şehrimde" cipi icin).
+  ///
+  /// ⚠️ Yemek ekranindaki KANITLI desenin aynisi: kendi isletme kaydindan
+  ///    okunur. Ogrenilemezse SESSIZ kalinir ve cip cizilmez — bos bir
+  ///    suzgec dugmesi gostermek "ozellik var" yalani olurdu.
+  Future<void> _ilceyiOgren() async {
+    try {
+      final prof = await ref.read(myProfileProvider.future);
+      final id = (prof['id'] ?? '').toString();
+      if (id.isEmpty || !mounted) return;
+      final i = await ref.read(isletmeServisiProvider).detay(id);
+      if (mounted && i != null && i.ilce.isNotEmpty) {
+        setState(() => _benimIlce = i.ilce);
+      }
+    } catch (_) {
+      // sessiz: cip cizilmez
+    }
+  }
+
   Widget _filtreSatiri() => kabukCipSeridi(context, [
+    // ⚠️ Deger secilince cip METNI degerin KENDISINI yazar — kullanici
+    //    hangi araligin acik oldugunu paneli acmadan gorur.
+    KabukCip(
+      _fiyatEtiketi(),
+      LucideIcons.wallet,
+      _minKurus != null || _maksKurus != null,
+      _fiyatPaneliAc,
+    ),
+    if (_benimIlce.isNotEmpty)
+      KabukCip(
+        _benimIlce,
+        LucideIcons.mapPin,
+        _ilce.isNotEmpty,
+        () {
+          setState(() => _ilce = _ilce.isEmpty ? _benimIlce : '');
+          _yukle();
+        },
+      ),
     KabukCip('Favorilerim', LucideIcons.heart, _favori, () {
       setState(() {
         _favori = !_favori;
@@ -582,21 +629,185 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
     }),
   ]);
 
+  String _fiyatEtiketi() {
+    String tl(int k) => (k ~/ 100).toString();
+    if (_minKurus != null && _maksKurus != null) {
+      return '${tl(_minKurus!)} - ${tl(_maksKurus!)} ₺';
+    }
+    if (_minKurus != null) return '${tl(_minKurus!)} ₺ üstü';
+    if (_maksKurus != null) return '${tl(_maksKurus!)} ₺ altı';
+    return 'Fiyat';
+  }
 
-  Widget _listeBasligi(int adet) => Padding(
-    padding: const EdgeInsets.only(left: kYanBosluk - kBaslikOptik),
-    child: Align(
-      alignment: Alignment.centerLeft,
-      child: Text(
-        'İlanlar ($adet)',
-        style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+  /// Fiyat araligi paneli.
+  ///
+  /// ⚠️ `isScrollControlled` + `SingleChildScrollView` **IKISI BIRDEN**:
+  ///    ilki yalnizca TAVANI kaldirir, icerigi kaydirilabilir YAPMAZ
+  ///    (turu 114/115c`de iki kez sevk engeli oldu).
+  Future<void> _fiyatPaneliAc() async {
+    final minC = TextEditingController(
+      text: _minKurus == null ? '' : (_minKurus! ~/ 100).toString(),
+    );
+    final maksC = TextEditingController(
+      text: _maksKurus == null ? '' : (_maksKurus! ~/ 100).toString(),
+    );
+    final sonuc = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (c) => Padding(
+        padding: EdgeInsets.only(
+          left: kYanBosluk,
+          right: kYanBosluk,
+          top: 18,
+          bottom: MediaQuery.viewInsetsOf(c).bottom + 18,
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Fiyat aralığı',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: minC,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                      ],
+                      decoration: const InputDecoration(
+                        labelText: 'En az (₺)',
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextField(
+                      controller: maksC,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                      ],
+                      decoration: const InputDecoration(
+                        labelText: 'En çok (₺)',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(c).pop(false),
+                    child: const Text('Temizle'),
+                  ),
+                  const Spacer(),
+                  FilledButton(
+                    onPressed: () => Navigator.of(c).pop(true),
+                    child: const Text('Uygula'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
+    );
+    // ⚠️⚠️ Metin `await`ten HEMEN SONRA, SENKRON okunur ve denetleyiciler
+    //	PANELIN KENDI agacinda yasadigi icin burada dispose EDILMEZ
+    //	(turu 96i: erken dispose TAM EKRAN KIRMIZI veriyordu).
+    if (sonuc == null) return;
+    final mn = int.tryParse(minC.text.trim());
+    final mx = int.tryParse(maksC.text.trim());
+    setState(() {
+      _minKurus = sonuc && mn != null ? mn * 100 : null;
+      _maksKurus = sonuc && mx != null ? mx * 100 : null;
+    });
+    _yukle();
+  }
+
+
+  /// ⚠️⚠️ TURU 121c — **KUCUK KART** (izgara gorunumu).
+  ///
+  /// Yemek`teki `_izgaraKarti` ile AYNI iskelet: 16:9 kapak -> ad -> tek
+  /// satir meta. Fark ICERIK: ilanda puan/teslimat YOK, onun yerine
+  /// **fiyat** ve **konum** var.
+  /// ⚠️ Kapaksiz ilanda gri yuzey cizilir; kapak kutusu ATLANMAZ, yoksa
+  ///    izgara hucreleri farkli yukseklikte olur ve satirlar kayardi.
+  Widget _izgaraKarti(Ilan i) => InkWell(
+    borderRadius: BorderRadius.circular(kYaricapBuyuk),
+    onTap: () => Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => IlanDetayEkrani(ilan: i)),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(kYaricapBuyuk),
+          child: AspectRatio(
+            aspectRatio: 16 / 9,
+            child: i.mediaIds.isEmpty
+                ? ColoredBox(color: kYuzeyGri(context))
+                : KapakGorseli(
+                    mediaIds: i.mediaIds,
+                    mediaKinds: i.mediaKinds,
+                    kucuk: true,
+                  ),
+          ),
+        ),
+        const SizedBox(height: 7),
+        Text(
+          i.baslik,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          i.fiyatEtiketi,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: kVurgu(context),
+          ),
+        ),
+      ],
+    ),
+  );
+
+  /// ⚠️ TURU 121c — basligin SAGINDA buyuk/kucuk kart secicisi
+  ///    (Yemek ekranindaki duzenin aynisi).
+  Widget _listeBasligi(int adet) => kabukBolumBasligi(
+    context,
+    'İlanlar ($adet)',
+    sag: KabukGorunumSecici(
+      izgara: _izgara,
+      onSec: (v) => setState(() => _izgara = v),
     ),
   );
 
   /// Suzgec secili mi (bos liste metnini belirler).
+  /// TURU 121c — fiyat araligi ve ilce de SUZGECTIR.
+  ///
+  /// Bunlar listeye dahil edilmezse, fiyat araligi yuzunden bosalan bir
+  /// listede ekran "Bu aramaya uygun ilan yok" der ve **"Filtreleri temizle"
+  /// dugmesini CIZMEZ: kullanicida GORUNMEZ bir suzgec takili kalir ve
+  /// kurtarma yolu kalmaz (turu 93b`de `_altSecili` ile birebir yasandi).
   bool get _suzgecVar =>
-      _tur.isNotEmpty || _kategori.isNotEmpty || _arama.text.trim().isNotEmpty;
+      _tur.isNotEmpty ||
+      _kategori.isNotEmpty ||
+      _arama.text.trim().isNotEmpty ||
+      _ilce.isNotEmpty ||
+      _minKurus != null ||
+      _maksKurus != null;
 
   void _filtreleriTemizle() {
     _gecikme?.cancel();
@@ -604,6 +815,9 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
     setState(() {
       _tur = '';
       _kategori = '';
+      _ilce = '';
+      _minKurus = null;
+      _maksKurus = null;
       _aramaDolu = false;
     });
     _yukle();

@@ -50,7 +50,13 @@ import 'isletme_listesi.dart'
         kHeaderPay,
         kInputBoy,
         kIzgaraAralik,
-        kKesifKutu;
+        kKesifKutu,
+        kSegBoy,
+        kSegDolgu,
+        kSegHucre,
+        kSegHucreBoy,
+        kSegIkon,
+        kSegYukari;
 
 /// Notr yazi rengi — header ikonlari ve baslik.
 ///
@@ -592,3 +598,118 @@ Widget kabukCipSeridi(BuildContext c, List<KabukCip> cipler) => SizedBox(
 /// Sliver arasi standart bosluk.
 SliverToBoxAdapter kabukBosluk([double h = kBosluk]) =>
     SliverToBoxAdapter(child: SizedBox(height: h));
+
+// ═══════════════════════ GORUNUM SECICI (buyuk / kucuk kart) ═══════════════
+
+/// ⚠️⚠️⚠️ TURU 121b — **BUYUK / KUCUK KART SECICISI** (kullanici emri:
+///	*"kartlar buyuk ve kucuk kartlar gibi"*).
+///
+/// Yemek ekranindaki `_gorunumSecici`nin ORTAK hali. Fark: orada UC segment
+/// var (liste · kart · **harita**); burada IKI — cunku ilan ve etkinlik
+/// ekranlarinda harita gorunumu YOK.
+/// ⚠️⚠️ **CALISMAYAN SEGMENT KOYULMAZ**: ucuncusunu "tutarlilik olsun" diye
+///	eklemek, dokununca hicbir sey yapmayan bir dugme demekti — bu projede
+///	"arayuz soz veriyor, karsiligi yok" sinifi.
+///
+/// ⚠️ Segment kutusu (kenarlik + dolgu) ZORUNLU: turu 96j'de kaldirildi,
+///    kullanici REDDETTI (*"hepsi BIR SEYIN ICINDE border olacak, aktif ikon
+///    ARKA RENGI olacak"*). Aktif segment dolu gri zeminle isaretlenir.
+/// ⚠️ Ilk ikon `listFilter` — kullanici SECIMI (turu 96j), cikarim degil.
+class KabukGorunumSecici extends StatelessWidget {
+  const KabukGorunumSecici({
+    super.key,
+    required this.izgara,
+    required this.onSec,
+  });
+
+  final bool izgara;
+  final ValueChanged<bool> onSec;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget segment(IconData ikon, String ipucu, bool aktif, VoidCallback ac) =>
+        Semantics(
+          button: true,
+          selected: aktif,
+          label: ipucu,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: ac,
+            child: SizedBox(
+              width: kSegHucre,
+              height: kSegHucreBoy,
+              child: Center(
+                child: Container(
+                  width: kSegHucre,
+                  height: kSegBoy,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: aktif ? kYuzeyGri(context) : Colors.transparent,
+                    borderRadius: BorderRadius.circular(kYaricap(kSegBoy)),
+                  ),
+                  child: Icon(ikon, size: kSegIkon, color: kabukYazi(context)),
+                ),
+              ),
+            ),
+          ),
+        );
+    return Transform.translate(
+      // ⚠️ Baslik ile optik hiza: kutu, 17 px basligin taban cizgisinden
+      //    2 dp asagi kaliyordu (Yemek ekraninda olculdu).
+      offset: const Offset(0, -kSegYukari),
+      child: Container(
+        padding: const EdgeInsets.all(kSegDolgu),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(
+            kYaricap(kSegHucreBoy + kSegDolgu * 2),
+          ),
+          border: Border.fromBorderSide(kabukKenar(context)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            segment(
+              LucideIcons.listFilter,
+              'Büyük kartlar',
+              !izgara,
+              () => onSec(false),
+            ),
+            segment(
+              LucideIcons.layoutGrid,
+              'Küçük kartlar',
+              izgara,
+              () => onSec(true),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// ⚠️⚠️ TURU 121c — **KUCUK KART IZGARASININ HUCRE YUKSEKLIGI**.
+///
+/// Yemek ekrani `childAspectRatio: 0.86` kullaniyor ve orada DOGRU: kartin
+/// altinda ad + **IKI** bilgi satiri var. Ilan ve etkinlik kartlarinda BIR
+/// bilgi satiri var; ayni orani kopyalayinca hucrenin altinda **~58 dp bos
+/// alan** kaliyor ve izgara "kopuk" gorunuyordu (emulatorde olculdu).
+///
+/// Bu yuzden yukseklik ORANDAN degil **ICERIKTEN** turetilir:
+///   kapak (16:9) + 7 + ad satiri + 2 + bilgi satirlari
+/// ⚠️ Metin yuksekligi `textScaler` ile olceklenir — sabit dp yazilsaydi yazi
+///    olcegi 1.3'te ad kirpilirdi (turu 114'te talep izgarasinda YASANDI).
+/// ⚠️ `childAspectRatio` KULLANILMAZ: oran genislige baglidir, metin ise
+///    DEGILDIR; ikisini tek sayiya sikistirmak her ekran genisliginde ya
+///    bosluk ya kirpma uretir.
+SliverGridDelegate kabukIzgaraOlcu(BuildContext c, {int bilgiSatiri = 1}) {
+  final en = (MediaQuery.sizeOf(c).width - kYanBosluk * 2 - kIzgaraAralik) / 2;
+  final olcek = MediaQuery.textScalerOf(c);
+  final ad = olcek.scale(14) * 1.25;
+  final bilgi = olcek.scale(12) * 1.3 * bilgiSatiri;
+  return SliverGridDelegateWithFixedCrossAxisCount(
+    crossAxisCount: 2,
+    crossAxisSpacing: kIzgaraAralik,
+    mainAxisSpacing: 20,
+    mainAxisExtent: en * 9 / 16 + 7 + ad + 2 + bilgi,
+  );
+}

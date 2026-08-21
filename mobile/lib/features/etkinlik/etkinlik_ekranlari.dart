@@ -6,7 +6,6 @@ import '../../core/denetleyici_sahibi.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import "../../core/yenile.dart";
 
 import '../../core/api.dart';
 import '../../router.dart' show rootMessengerKey;
@@ -44,6 +43,17 @@ class _EtkinlikListesiEkraniState extends ConsumerState<EtkinlikListesiEkrani> {
   int _istekNo = 0;
 
   List<Etkinlik>? _liste;
+
+  /// ⚠️ TURU 121c — buyuk kart (liste) / kucuk kart (izgara).
+  bool _izgara = false;
+
+  /// ⚠️⚠️ TURU 121c — **UCRETSIZ** suzgeci (kullanici: *"filtreler
+  ///	mantiken o kategoriye gore olmali"*). Yemek`teki "Min. tutar" /
+  ///	"Teslimat" cipleri etkinlikte ANLAMSIZ; etkinligin dogal
+  ///	suzgecleri ZAMAN, KATEGORI ve UCRET`tir.
+  /// ⚠️ Sunucuda ucret suzgeci YOK -> **ISTEMCIDE** suzuluyor. Bu durust:
+  ///    liste zaten tek istekte geliyor ve sayfalama yok.
+  bool _ucretsiz = false;
   String? _hata;
   String _kategori = '';
   bool _gecmis = false;
@@ -123,7 +133,16 @@ class _EtkinlikListesiEkraniState extends ConsumerState<EtkinlikListesiEkrani> {
 
   @override
   Widget build(BuildContext context) {
-    final l = _liste;
+    // ⚠️⚠️ TURU 121c — "Ücretsiz" cipi GERCEKTEN SUZUYOR.
+    //	Cipi cizip listeye uygulamamak, bu projede DOKUZ kez sahaya cikan
+    //	"olu ozellik" sinifi olurdu: kullanici dokunur, sayi degismez ve
+    //	suzgecin bozuk oldugunu sanir.
+    // ⚠️ Suzme ISTEMCIDE: sunucuda ucret parametresi YOK ve liste tek
+    //    istekte, sayfalamasiz geliyor — yani sayilar tutarli kalir.
+    final ham = _liste;
+    final l = (ham == null || !_ucretsiz)
+        ? ham
+        : ham.where((e) => e.ucretsiz || e.fiyatKurus <= 0).toList();
     // ⚠️⚠️ TURU 121 — **AppBar + Column KALDIRILDI**, Yemek ekranindaki
     //	kabuk kullaniliyor: 44 dp sabit header · `AltMenu` ·
     //	`CustomScrollView` (kullanici emri: *"diger tum kategoriler AYNI
@@ -219,16 +238,29 @@ class _EtkinlikListesiEkraniState extends ConsumerState<EtkinlikListesiEkrani> {
             child: kabukCipSeridi(context, [
               KabukCip('Tümü', LucideIcons.layoutGrid, _kategori.isEmpty,
                   () => _kategoriSec('')),
+              // ⚠️ ETKINLIGE OZEL: ucretsiz etkinlikler. Suzgec ISTEMCIDE
+              //    (sunucuda ucret parametresi YOK) — liste tek istekte
+              //    geliyor ve sayfalama yok, yani durust bir suzgec.
+              KabukCip('Ücretsiz', LucideIcons.ticket, _ucretsiz,
+                  () => setState(() => _ucretsiz = !_ucretsiz)),
               for (final e in etkinlikKategorileri.entries)
                 KabukCip(e.value, LucideIcons.tag, _kategori == e.key,
                     () => _kategoriSec(e.key)),
             ]),
           ),
           kabukBosluk(kBosluk - 4),
-          // ⚠️ Liste basligi Yemek ekranindaki ile AYNI (17/w700 + sayi).
+          // ⚠️ Liste basligi Yemek ekranindaki ile AYNI (17/w700 + sayi) ve
+          //    saginda BUYUK/KUCUK KART secicisi.
           if (l != null && l.isNotEmpty)
             SliverToBoxAdapter(
-              child: kabukBolumBasligi(context, 'Etkinlikler (${l.length})'),
+              child: kabukBolumBasligi(
+                context,
+                'Etkinlikler (${l.length})',
+                sag: KabukGorunumSecici(
+                  izgara: _izgara,
+                  onSec: (v) => setState(() => _izgara = v),
+                ),
+              ),
             ),
           if (_hata != null)
             SliverToBoxAdapter(
@@ -253,12 +285,43 @@ class _EtkinlikListesiEkraniState extends ConsumerState<EtkinlikListesiEkrani> {
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.all(30),
-                child: Text(
-                  _gecmis
-                      ? 'Geçmiş etkinlik yok.'
-                      : 'Yaklaşan etkinlik yok.\nİlk etkinliği sen oluştur!',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.grey),
+                // TURU 121c — DORDUNCU DAL: "suzgec bosaltti".
+                // Onceki metin bir suzgec acikken de "Yaklasan etkinlik yok,
+                // ILK ETKINLIGI SEN OLUSTUR" diyordu; oysa etkinlik VARDI,
+                // yalnizca (ornegin) "Ucretsiz" cipi hepsini elemisti. Bu,
+                // kullaniciya YANLIS BILGI vermekti ve kurtarma yolu da
+                // yoktu (turu 93b/106 ile ayni sinif).
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _suzgecVar
+                          ? 'Seçtiğin filtrelere uyan etkinlik bulunamadı.'
+                          : _gecmis
+                          ? 'Geçmiş etkinlik yok.'
+                          : 'Yaklaşan etkinlik yok.\nİlk etkinliği sen oluştur!',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.grey),
+                    ),
+                    if (_suzgecVar)
+                      TextButton(
+                        onPressed: _filtreleriTemizle,
+                        child: const Text('Filtreleri temizle'),
+                      ),
+                  ],
+                ),
+              ),
+            )
+          else if (_izgara)
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: kYanBosluk),
+              sliver: SliverGrid(
+                // Hucre yuksekligi ICERIKTEN turetilir (kapak + ad + tek
+                // bilgi satiri); bkz. kabukIzgaraOlcu serhi.
+                gridDelegate: kabukIzgaraOlcu(context),
+                delegate: SliverChildBuilderDelegate(
+                  (_, i) => _izgaraKarti(l[i]),
+                  childCount: l.length,
                 ),
               ),
             )
@@ -274,6 +337,118 @@ class _EtkinlikListesiEkraniState extends ConsumerState<EtkinlikListesiEkrani> {
     );
   }
 
+  /// Bir suzgec acik mi? ("Filtreleri temizle" dugmesi buna bagli.)
+  ///
+  /// Arama metni DAHIL DEGIL: o zaten arama kutusunda GORUNUR ve temizleme
+  /// yolu (X) orada duruyor. Cipler ise liste bosalinca ekranin gorunen
+  /// kismindan kaymis olabilir.
+  bool get _suzgecVar =>
+      _kategori.isNotEmpty || _zaman.isNotEmpty || _ucretsiz || _gecmis;
+
+  void _filtreleriTemizle() {
+    setState(() {
+      _kategori = '';
+      _zaman = '';
+      _ucretsiz = false;
+      _gecmis = false;
+    });
+    _yukle();
+  }
+
+  /// ⚠️⚠️ TURU 121c — **KUCUK KART** (izgara gorunumu).
+  ///
+  /// Buyuk kartla AYNI iskelet, DAHA AZ satir: kapak + tarih rozeti -> ad
+  /// -> tek satir zaman. Katilimci sayaci ve kategori cipi DUSURULDU —
+  /// yarim genislikte okunmuyorlardi.
+  Widget _izgaraKarti(Etkinlik e) => InkWell(
+    borderRadius: BorderRadius.circular(kYaricapBuyuk),
+    onTap: () => Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => EtkinlikDetayEkrani(etkinlik: e)),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(kYaricapBuyuk),
+          child: AspectRatio(
+            aspectRatio: 16 / 9,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                e.mediaIds.isEmpty
+                    ? ColoredBox(color: kYuzeyGri(context))
+                    : KapakGorseli(
+                        mediaIds: e.mediaIds,
+                        mediaKinds: e.mediaKinds,
+                        kucuk: true,
+                      ),
+                // ⚠️ Tarih rozeti KUCUK KARTTA DA kalir: etkinligin en
+                //    onemli bilgisi tarihtir.
+                if (e.baslangic != null)
+                  Positioned(
+                    left: 8,
+                    top: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 7,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.62),
+                        borderRadius: BorderRadius.circular(9),
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '${e.baslangic!.toLocal().day}',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                            ),
+                          ),
+                          Text(
+                            kAyAdlari[e.baslangic!.toLocal().month - 1]
+                                .substring(0, 3),
+                            style: const TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 7),
+        Text(
+          e.baslik,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          etkinlikZamani(e.baslangic),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: 12,
+            color: Theme.of(context)
+                .colorScheme
+                .onSurface
+                .withValues(alpha: 0.62),
+          ),
+        ),
+      ],
+    ),
+  );
+
   /// ⚠️ TEK SECIM: ikincisine basmak oncekini kapatir (iki tarih araligi
   ///    kesistiginde bos sonuc uretip "etkinlik yok" sanisina dusururdu).
   void _zamanSec(String anahtar) {
@@ -285,34 +460,6 @@ class _EtkinlikListesiEkraniState extends ConsumerState<EtkinlikListesiEkrani> {
     setState(() => _kategori = anahtar);
     _yukle();
   }
-
-  /// Zaman hizli karti. ⚠️ TEK SECIM: ikincisine basmak oncekini kapatir
-  ///    (isletme rehberindeki hizli kartlarla AYNI davranis — iki tarih araligi
-  ///    kesistiginde bos sonuc uretip "etkinlik yok" sanisina dusururdu).
-  Widget _zamanCipi(String anahtar, String ad, IconData ikon) => Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 2),
-    child: FilterChip(
-      avatar: Icon(ikon, size: 15),
-      label: Text(ad),
-      selected: _zaman == anahtar,
-      onSelected: (secili) {
-        setState(() => _zaman = secili ? anahtar : '');
-        _yukle();
-      },
-    ),
-  );
-
-  Widget _cip(String anahtar, String ad) => Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 6),
-    child: ChoiceChip(
-      label: Text(ad),
-      selected: _kategori == anahtar,
-      onSelected: (_) {
-        setState(() => _kategori = anahtar);
-        _yukle();
-      },
-    ),
-  );
 
   /// ⚠️⚠️⚠️ TURU 114 — ETKINLIK KARTI **"YEMEK" KART DILINDE** (kullanici
   ///	emirleri: *"etkinlikler daha modern ve detayli olsun"* + *"hepsi
