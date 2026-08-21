@@ -272,6 +272,28 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
   //    verirdi ve "burasi degisebilir" yanilgisi surerdi.
   late final String _kategori = widget.kategori;
 
+  /// ⚠️⚠️ TURU 121d — **ALT KATEGORI SERIDININ BASLIGI KATEGORIYE GORE.**
+  ///
+  ///	Baslik SABIT `"Mutfaklar"` yaziliydi. Kullanici emri gercekten
+  ///	*"sol uste MUTFAKLAR yazsin"* idi ama o emir **YEMEK** ekrani icin
+  ///	verilmisti; bu ekran **17 KATEGORIYE** hizmet ediyor. Sonuc:
+  ///	Egitim`de "Dershane · Kurs · Dil" seridinin ustunde de
+  ///	**"Mutfaklar"** yaziyordu (emulatorde goruldu).
+  /// ⚠️ Sunucu bu basligi DONDURMUYOR (`/isletme-kesif` yalniz alt kategori
+  ///	listesi verir) ve bu tur arayuz turu oldugu icin uca dokunulmadi.
+  ///	Baslik istemcide turetiliyor — turu 77 kurali BURADA GECERLI DEGIL:
+  ///	bu yalniz bir GORUNEN ETIKET, hicbir sorguyu/yetkiyi beslemiyor.
+  /// ⚠️ Haritada OLMAYAN kategori notr **"Türler"**e duser: uydurma bir
+  ///	baslik yazmaktansa notr olani dogrudur.
+  String get _altBaslik => switch (_kategori) {
+        'yemek' || 'kafe' => 'Mutfaklar',
+        'saglik' || 'guzellik' || 'diyetisyen' => 'Bölümler',
+        'egitim' => 'Alanlar',
+        'kuafor' || 'oto' || 'hizmet' => 'Hizmetler',
+        'market' || 'giyim' || 'teknoloji' || 'eczane' => 'Reyonlar',
+        _ => 'Türler',
+      };
+
   /// ⚠️⚠️ TURU 78 — HIZLI KARTLAR ("Şehrimde" / "Onaylı").
   ///
   /// Kullanici emri: "altta kucuk kartlar mesela yemekte yakinimda favoriler
@@ -833,18 +855,18 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                     //    basligi, altinda hicbir sey yokken tuhaf durur
                     //    (her kategoride alt kategori tanimli degil).
                     if (_altKategoriler.isNotEmpty) ...[
-                      const SliverToBoxAdapter(
+                      SliverToBoxAdapter(
                         child: Padding(
                           // ⚠️ Baslik metninin GLIF ICI boslugu telafi edilir
                           //    (bkz. `kBaslikOptik`): kutular 16'da hizaliyken
                           //    yazi 17.1'de basliyordu.
-                          padding: EdgeInsets.only(
+                          padding: const EdgeInsets.only(
                               left: kYanBosluk - kBaslikOptik),
                           child: Align(
                             alignment: Alignment.centerLeft,
                             child: Text(
-                              'Mutfaklar',
-                              style: TextStyle(
+                              _altBaslik,
+                              style: const TextStyle(
                                   fontSize: 17, fontWeight: FontWeight.w700),
                             ),
                           ),
