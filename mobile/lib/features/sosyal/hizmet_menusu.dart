@@ -3,13 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../etkinlik/etkinlik_ekranlari.dart';
-import '../kanal/kanallar_sekmesi.dart' show KanallarSayfasi;
 import '../ilan/ilan_ekranlari.dart';
 import '../isletme/isletme_listesi.dart';
 import '../isletme/yakinimda_ekrani.dart';
 import '../ai/gebzem_ai.dart';
 import '../isletme/urun_servisi.dart' show aiDurumProvider;
-import '../diyet/diyet_ekranlari.dart';
 import '../talep/talep_ekranlari.dart';
 import '../home/home_screen.dart' show aktifSekme;
 import '../isletme/kategori_slider.dart';
@@ -104,10 +102,6 @@ class HizmetMenusu extends ConsumerWidget {
         const Color(0xFFFF9A6B),
         const Color(0xFFC24A18),
       ], (c) => const TalepAkisiEkrani(dal: 'dugun')),
-      _Bolum('Diyet', [
-        const Color(0xFF2BB673),
-        const Color(0xFF0E7A52),
-      ], (c) => const DiyetimEkrani()),
       _Bolum('Etkinlikler', [
         const Color(0xFF8B3FFF),
         const Color(0xFF5A1EBE),
@@ -146,10 +140,6 @@ class HizmetMenusu extends ConsumerWidget {
         [const Color(0xFF6C7BFF), const Color(0xFF2A3390)],
         (c) => const IsletmeListesiEkrani(kategori: 'otel', baslik: 'Oteller'),
       ),
-      _Bolum('İşletmeler', [
-        const Color(0xFFFFB03A),
-        const Color(0xFFFF7A45),
-      ], (c) => const IsletmeListesiEkrani()),
       _Bolum('Yemek', [
         const Color(0xFFFF7A45),
         const Color(0xFFFF3B5C),
@@ -190,24 +180,6 @@ class HizmetMenusu extends ConsumerWidget {
         [const Color(0xFF17C3CE), const Color(0xFF0A5B78)],
         (c) => const IsletmeListesiEkrani(kategori: 'saglik', baslik: 'Sağlık'),
       ),
-      // ⚠️⚠️⚠️ TURU 80 — KANALLAR **BURAYA TASINDI**.
-      //    Kullanici anasayfadaki "Akış | Kanallar" secicisini kaldirmami
-      //    istedi; ama o secici KANALLARIN **TEK GIRIS NOKTASIYDI**
-      //    (`kanallar_sekmesi.dart` yalnizca `akis_ekrani.dart`tan import
-      //    ediliyordu — grep ile dogrulandi). Yeni bir ev VERILMESEYDI kanal
-      //    ozelligi TAMAMEN ULASILAMAZ kalirdi; bu projede ALTI kez yasanan
-      //    "olu ozellik" sinifi.
-      //    ⚠️ YAPMA: bu karti kaldirma — kanallara baska giris YOK.
-      // ⚠️ TURU 114 (denetim) — kart adi "Kanallar" -> **"Topluluklar"**:
-      //    mesajlar ekranindaki yeni girisler "Topluluk" diyor, actiklari
-      //    ekranlar "Kanal" diyordu. Ayni sey icin IKI AD kullanmak
-      //    kullaniciya IKI FARKLI OZELLIK varmis gibi gelirdi.
-      // ⚠️ Yalniz GORUNEN metin degisti; sinif/uc/tablo adlari (,
-      //    , ) DOKUNULMADI.
-      _Bolum('Topluluklar', [
-        const Color(0xFF4A6CF7),
-        const Color(0xFF1B2A6B),
-      ], (c) => const KanallarSayfasi()),
       // ⚠️ TURU 96v — 'Yapay zekâ' karti HIZLI ERISIME tasindi (GebzemAI).
     ];
 
@@ -226,10 +198,19 @@ class HizmetMenusu extends ConsumerWidget {
     // ⚠️ Siralama LISTENIN KENDISINDE degil BURADA yapilir: kart tanimlari
     //    (renk, hedef ekran, gerekce serhleri) yillardir o sirada duruyor
     //    ve tasinsalardi serhler kartlardan KOPARDI.
-    // ⚠️ Listede OLMAYAN kartlar (Organizasyon, Diyet, Etkinlikler, İş
-    //    İlanları, İşletmeler, Kanallar, Yapay zekâ) tanim sirasini
-    //    KORUYARAK bunlarin ARDINA dizilir — yeni bir kart eklendiginde
-    //    sessizce kaybolmaz, sona eklenir.
+
+    // ⚠️ TURU 121 — Listede OLMAYAN kartlar (Organizasyon, Etkinlikler,
+    //    İş İlanları) tanim sirasini KORUYARAK bunlarin ARDINA dizilir;
+    //    yeni bir kart eklendiginde sessizce kaybolmaz, sona eklenir.
+    // ⚠️ TURU 121 — "İşletmeler", "Topluluklar" ve "Diyet" kartlari
+    //    KULLANICI EMRIYLE KALDIRILDI.
+    //    · Topluluklar: kanallara giris KAYBOLMADI — Mesajlar ekranindaki
+    //      "+" menusunde "Toplulukları keşfet" girisi VAR
+    //      (`chats_screen.dart` -> `KanallarSayfasi`). Grep ile dogrulandi.
+    //    · İşletmeler: parametresiz `IsletmeListesiEkrani()` (tum
+    //      kategoriler) girisi kaldi. Sinif ULASILABILIR (gonderi
+    //      detayindan `ara:` ile aciliyor) ama menuden "hepsine gozat"
+    //      yolu YOK — kullanici karari.
     const sira = [
       'Yemek',
       'Restoran',

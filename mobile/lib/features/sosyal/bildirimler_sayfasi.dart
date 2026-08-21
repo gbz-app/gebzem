@@ -18,8 +18,6 @@ import 'demo_bildirim.dart';
 import 'demo_veri.dart' show kDemoAkis, demoKimlik;
 import 'takip_listesi.dart';
 import '../ilan/basvuru_ekranlari.dart';
-import '../diyet/diyet_ekranlari.dart';
-import '../diyet/danisan_ekranlari.dart';
 import '../ilan/ilan_ekranlari.dart' show IlanDetayId;
 
 /// ⚠️⚠️ TURU 75 — BILDIRIMLER.
@@ -217,18 +215,6 @@ class _BildirimlerSayfasiState extends ConsumerState<BildirimlerSayfasi> {
           renk: const Color(0xFF2BB673),
           metin: '$ad teklifini seçti',
         );
-      case 'diyet_istek':
-        return (
-          ikon: LucideIcons.userRoundPlus,
-          renk: const Color(0xFF0E7A52),
-          metin: '$ad diyet bağlantısı istedi',
-        );
-      case 'diyet_liste':
-        return (
-          ikon: LucideIcons.clipboardList,
-          renk: const Color(0xFF0E7A52),
-          metin: '$ad sana diyet listesi gönderdi',
-        );
       default:
         // ⚠️ SESSIZ DUSMEK YASAK (projenin 3. hata sinifi): sunucuya YENI bir
         //    bildirim turu eklendiginde istemci onu genel metne dusurur ve kimse
@@ -321,18 +307,6 @@ class _BildirimlerSayfasiState extends ConsumerState<BildirimlerSayfasi> {
             ilanID: hedefId,
             teklifModu: tur == 'teklif_geldi',
           ),
-        ),
-      );
-      return;
-    }
-    // ⚠️ DIYET: alici DANISAN ise kendi ekrani, DIYETISYEN ise danisan
-    //    listesi. Tur bunu ayirt eder (`diyet_liste` daima danisana gider).
-    if (hedefTur == 'diyet') {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => tur == 'diyet_liste'
-              ? const DiyetimEkrani()
-              : const DanisanlarimEkrani(),
         ),
       );
       return;

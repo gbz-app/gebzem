@@ -20,6 +20,8 @@ import '../sosyal/medya_video.dart';
 import '../sosyal/profil_sayfasi.dart';
 import 'basvuru_ekranlari.dart';
 // ⚠️ TURU 106 — olculer KATEGORI EKRANINDAN import edilir, kopyalanmaz.
+// ⚠️ TURU 121 — kategori ekranlarinin ORTAK KABUGU (Yemek referansi).
+import '../isletme/kategori_kabuk.dart';
 import '../isletme/isletme_kart.dart'
     show
         kYanBosluk,
@@ -162,37 +164,29 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
     final l = _liste;
     final turler = agac.valueOrNull ?? const <IlanTuru>[];
     final turBilgi = turler.where((t) => t.anahtar == _tur).firstOrNull;
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          widget.baslik.isNotEmpty
-              ? widget.baslik
-              : (_benim
-                    ? 'İlanlarım'
-                    : _favori
-                    ? 'Favorilerim'
-                    : 'İlanlar'),
-        ),
-        actions: [
-          // ⚠️⚠️ TURU 90b — "BASVURULARIM" GIRISI.
-          //
-          // Ekrani yazmak YETMEZ; ona GIDEN yol yoksa ozellik yine olu
-          // kalir. Kullanici basvurusunun durumunu (Olumlu/Olumsuz) ancak
-          // buradan gorebilir ve geri cekme yolu da yalniz orada.
-          // ⚠️ YALNIZ IS ILANI / TALEP listesinde cizilir.
-          // ⚠️⚠️ TURU 90c — `_tur`, `widget.tur` DEGIL (denetim bulgusu):
-          //    `widget.tur` yalnizca ILK turdur ve SABITTIR.
-          if (_tur == 'is' || _tur == 'talep')
-            IconButton(
-              tooltip: _tur == 'talep' ? 'Tekliflerim' : 'Başvurularım',
-              icon: const Icon(LucideIcons.briefcase),
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => BasvurularimEkrani(tur: _tur)),
-              ),
-            ),
-        ],
+    // ⚠️⚠️ TURU 121 — **AppBar KALDIRILDI**, Yemek ekranindaki kabuk:
+    //	44 dp sabit header + `AltMenu` (kullanici emri: *"diger tum
+    //	kategoriler AYNI MANTIKTA olacak"*). Govdenin geri kalani ZATEN
+    //	kategori dilindeydi (17/w700 basliklar, kutu izgarasi, cipler).
+    // ⚠️ "Başvurularım/Tekliflerim" girisi KORUNDU (turu 90b: ekrani
+    //    yazmak yetmez, ONA GIDEN YOL olmali) — artik header`in saginda.
+    return KategoriKabugu(
+      baslik: widget.baslik.isNotEmpty
+          ? widget.baslik
+          : (_benim
+                ? 'İlanlarım'
+                : _favori
+                ? 'Favorilerim'
+                : 'İlanlar'),
+      sagIkon: (_tur == 'is' || _tur == 'talep')
+          ? LucideIcons.briefcase
+          : null,
+      sagIpucu: _tur == 'talep' ? 'Tekliflerim' : 'Başvurularım',
+      sagBasildi: () => Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => BasvurularimEkrani(tur: _tur)),
       ),
-      floatingActionButton: FloatingActionButton.extended(
+      onYenile: _yukle,
+      altDugme: FloatingActionButton.extended(
         heroTag: 'fabIlanVer',
         onPressed: () async {
           final id = await Navigator.of(context).push<String>(
@@ -203,18 +197,19 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
         icon: const Icon(LucideIcons.plus),
         label: const Text('İlan ver'),
       ),
-      body: YenileSarmali(
-        onRefresh: _yukle,
-        child: CustomScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          slivers: [
+      slivers: [
             const SliverToBoxAdapter(child: SizedBox(height: kBosluk - 6)),
 
-            // ── ARAMA ──
+            // ── ARAMA ── (kabuktan: Yemek ile BIREBIR)
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: kYanBosluk),
-                child: _aramaKutusu(),
+                child: kabukArama(
+                  context: context,
+                  controller: _arama,
+                  ipucu: 'Ne Aramıştın?',
+                  onChanged: _aramaDegisti,
+                ),
               ),
             ),
             const SliverToBoxAdapter(child: SizedBox(height: kBosluk)),
@@ -374,9 +369,7 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
               ),
             // ⚠️ FAB'in altinda kalan son kart icin pay (turu 90b dersi).
             const SliverToBoxAdapter(child: SizedBox(height: 90)),
-          ],
-        ),
-      ),
+      ],
     );
   }
 

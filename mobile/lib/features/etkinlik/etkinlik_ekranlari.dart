@@ -12,7 +12,10 @@ import '../../core/api.dart';
 import '../../router.dart' show rootMessengerKey;
 import '../home/home_screen.dart' show myProfileProvider;
 // ⚠️ TURU 114 — kart dili kategori ekraniyla ORTAK (sabitler IMPORT edilir).
+// ⚠️ TURU 121 — kategori ekranlarinin ORTAK KABUGU (Yemek referansi).
+import '../isletme/kategori_kabuk.dart';
 import '../isletme/isletme_kart.dart' show kYanBosluk, kYaricapBuyuk, kYuzeyGri;
+import '../isletme/isletme_listesi.dart' show kBosluk;
 import '../randevu/randevu_servisi.dart' show kAyAdlari;
 import '../medya/medya_gorsel.dart';
 import '../vitrin/vitrin_slider.dart';
@@ -121,21 +124,24 @@ class _EtkinlikListesiEkraniState extends ConsumerState<EtkinlikListesiEkrani> {
   @override
   Widget build(BuildContext context) {
     final l = _liste;
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Etkinlikler'),
-        actions: [
-          IconButton(
-            tooltip: _benim ? 'Tüm etkinlikler' : 'Benim etkinliklerim',
-            icon: Icon(_benim ? LucideIcons.users : LucideIcons.userRound),
-            onPressed: () {
-              setState(() => _benim = !_benim);
-              _yukle();
-            },
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
+    // ⚠️⚠️ TURU 121 — **AppBar + Column KALDIRILDI**, Yemek ekranindaki
+    //	kabuk kullaniliyor: 44 dp sabit header · `AltMenu` ·
+    //	`CustomScrollView` (kullanici emri: *"diger tum kategoriler AYNI
+    //	MANTIKTA olacak"*).
+    // ⚠️⚠️ `Column` + `Expanded` YAPISI BILEREK BIRAKILDI: slider + arama +
+    //	segment + iki cip seridi SABIT dikey butce yiyordu ve 360x640`ta
+    //	listeye cok az yer kaliyordu — turu 93b`de kategori ekraninda
+    //	OLCULEN sinifin aynisi. Artik hepsi LISTENIN PARCASI (sliver).
+    return KategoriKabugu(
+      baslik: 'Etkinlikler',
+      sagIkon: _benim ? LucideIcons.users : LucideIcons.userRound,
+      sagIpucu: _benim ? 'Tüm etkinlikler' : 'Benim etkinliklerim',
+      sagBasildi: () {
+        setState(() => _benim = !_benim);
+        _yukle();
+      },
+      onYenile: _yukle,
+      altDugme: FloatingActionButton.extended(
         heroTag: 'fabEtkinlikOlustur',
         onPressed: () async {
           final id = await Navigator.of(context).push<String>(
@@ -146,112 +152,138 @@ class _EtkinlikListesiEkraniState extends ConsumerState<EtkinlikListesiEkrani> {
         icon: const Icon(LucideIcons.plus),
         label: const Text('Etkinlik oluştur'),
       ),
-      body: Column(
-        children: [
-          // ---- UST VITRIN (yaklasan etkinlikler). Bos ise CIZILMEZ.
-          const Padding(
-            padding: EdgeInsets.only(top: 6),
-            child: VitrinSlider(dikey: 'etkinlik'),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-            child: TextField(
-              controller: _arama,
-              onChanged: (_) {
-                _gecikme?.cancel();
-                _gecikme = Timer(const Duration(milliseconds: 320), _yukle);
-              },
-              decoration: InputDecoration(
-                hintText: 'Etkinlik ara',
-                prefixIcon: const Icon(LucideIcons.search, size: 19),
-                isDense: true,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(24),
-                ),
+      slivers: [
+          kabukBosluk(kBosluk - 10),
+          // ⚠️ Arama KABUKTAN (Yemek ile birebir): 48 dp, notr kenarlik,
+          //    kalinlastirilmis ikon, dolu iken temizle (X) dairesi.
+          //    Onceki hal radius 24`lu, X`siz, 12 dp yan dolgulu AYRI bir
+          //    kutuydu.
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: kYanBosluk),
+            sliver: SliverToBoxAdapter(
+              child: kabukArama(
+                context: context,
+                controller: _arama,
+                ipucu: 'Ne Aramıştın?',
+                onChanged: (_) {
+                  setState(() {});
+                  _gecikme?.cancel();
+                  _gecikme = Timer(
+                    const Duration(milliseconds: 320),
+                    _yukle,
+                  );
+                },
               ),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: SegmentedButton<bool>(
-              segments: const [
-                ButtonSegment(value: false, label: Text('Yaklaşan')),
-                ButtonSegment(value: true, label: Text('Geçmiş')),
-              ],
-              selected: {_gecmis},
-              showSelectedIcon: false,
-              onSelectionChanged: (s) {
-                setState(() => _gecmis = s.first);
-                _yukle();
-              },
-            ),
+          kabukBosluk(),
+          // ---- UST VITRIN (yaklasan etkinlikler). Bos ise CIZILMEZ.
+          const SliverToBoxAdapter(
+            child: VitrinSlider(dikey: 'etkinlik'),
           ),
-          // ---- ZAMAN HIZLI KARTLARI (turu 78b: `bas_min`/`bas_maks` artik CANLI)
+          kabukBosluk(),
+          // ⚠️ "Yaklaşan / Geçmiş" artik CIP SERIDI (kabuk dili).
+          //    `SegmentedButton` Material varsayilani, bu ekranda TEK
+          //    basina duruyordu ve kategori ekranlarinin diline yabanciydi.
+          SliverToBoxAdapter(
+            child: kabukCipSeridi(context, [
+              KabukCip('Yaklaşan', LucideIcons.calendarClock, !_gecmis, () {
+                setState(() => _gecmis = false);
+                _yukle();
+              }),
+              KabukCip('Geçmiş', LucideIcons.history, _gecmis, () {
+                setState(() => _gecmis = true);
+                _yukle();
+              }),
+            ]),
+          ),
+          // ⚠️ TURU 121 — iki cip seridi arasi nefes: yapisik durduklarinda
+          //    tek bir sarmis serit gibi okunuyordu (emulatorde goruldu).
+          kabukBosluk(6),
+          // ---- ZAMAN HIZLI KARTLARI (turu 78b: `bas_min`/`bas_maks` CANLI)
           // ⚠️ YALNIZ "Yaklaşan" sekmesinde: gecmis etkinliklerde "Bugün"
           //    suzgeci mantiksal olarak BOS sonuc uretirdi.
           if (!_gecmis)
-            SizedBox(
-              height: 40,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 10),
-                children: [
-                  _zamanCipi('bugun', 'Bugün', LucideIcons.calendarDays),
-                  _zamanCipi(
-                    'haftasonu',
-                    'Bu hafta sonu',
-                    LucideIcons.calendarRange,
+            SliverToBoxAdapter(
+              child: kabukCipSeridi(context, [
+                KabukCip('Bugün', LucideIcons.calendarDays,
+                    _zaman == 'bugun', () => _zamanSec('bugun')),
+                KabukCip('Bu hafta sonu', LucideIcons.calendarRange,
+                    _zaman == 'haftasonu', () => _zamanSec('haftasonu')),
+              ]),
+            ),
+          kabukBosluk(kBosluk - 4),
+          // ⚠️ Kategori seridi de KUTU DILINDE degil CIP dilinde: bu ekranda
+          //    kategori GORSELI yok, kutu bos kalirdi.
+          SliverToBoxAdapter(
+            child: kabukCipSeridi(context, [
+              KabukCip('Tümü', LucideIcons.layoutGrid, _kategori.isEmpty,
+                  () => _kategoriSec('')),
+              for (final e in etkinlikKategorileri.entries)
+                KabukCip(e.value, LucideIcons.tag, _kategori == e.key,
+                    () => _kategoriSec(e.key)),
+            ]),
+          ),
+          kabukBosluk(kBosluk - 4),
+          // ⚠️ Liste basligi Yemek ekranindaki ile AYNI (17/w700 + sayi).
+          if (l != null && l.isNotEmpty)
+            SliverToBoxAdapter(
+              child: kabukBolumBasligi(context, 'Etkinlikler (${l.length})'),
+            ),
+          if (_hata != null)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 40),
+                child: Center(
+                  child: Text(
+                    _hata!,
+                    style: const TextStyle(color: Colors.grey),
                   ),
-                ],
+                ),
               ),
+            )
+          else if (l == null)
+            const SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 48),
+                child: Center(child: CircularProgressIndicator()),
+              ),
+            )
+          else if (l.isEmpty)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.all(30),
+                child: Text(
+                  _gecmis
+                      ? 'Geçmiş etkinlik yok.'
+                      : 'Yaklaşan etkinlik yok.\nİlk etkinliği sen oluştur!',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.grey),
+                ),
+              ),
+            )
+          else
+            SliverList.builder(
+              itemCount: l.length,
+              itemBuilder: (_, i) => _kart(l[i]),
             ),
-          SizedBox(
-            height: 44,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              children: [
-                _cip('', 'Tümü'),
-                for (final e in etkinlikKategorileri.entries)
-                  _cip(e.key, e.value),
-              ],
-            ),
-          ),
-          Expanded(
-            child: _hata != null
-                ? Center(
-                    child: Text(
-                      _hata!,
-                      style: const TextStyle(color: Colors.grey),
-                    ),
-                  )
-                : l == null
-                ? const Center(child: CircularProgressIndicator())
-                : l.isEmpty
-                ? Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(30),
-                      child: Text(
-                        _gecmis
-                            ? 'Geçmiş etkinlik yok.'
-                            : 'Yaklaşan etkinlik yok.\nİlk etkinliği sen oluştur!',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(color: Colors.grey),
-                      ),
-                    ),
-                  )
-                : YenileSarmali(
-                    onRefresh: _yukle,
-                    child: ListView.builder(
-                      padding: const EdgeInsets.only(bottom: 90),
-                      itemCount: l.length,
-                      itemBuilder: (_, i) => _kart(l[i]),
-                    ),
-                  ),
-          ),
-        ],
-      ),
+          // ⚠️ FAB payi: son kartin "Etkinlik oluştur" dugmesinin altinda
+          //    kalmasini onler (turu 90b dersi).
+          kabukBosluk(90),
+      ],
     );
+  }
+
+  /// ⚠️ TEK SECIM: ikincisine basmak oncekini kapatir (iki tarih araligi
+  ///    kesistiginde bos sonuc uretip "etkinlik yok" sanisina dusururdu).
+  void _zamanSec(String anahtar) {
+    setState(() => _zaman = _zaman == anahtar ? '' : anahtar);
+    _yukle();
+  }
+
+  void _kategoriSec(String anahtar) {
+    setState(() => _kategori = anahtar);
+    _yukle();
   }
 
   /// Zaman hizli karti. ⚠️ TEK SECIM: ikincisine basmak oncekini kapatir

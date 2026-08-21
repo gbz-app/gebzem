@@ -20,9 +20,12 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 // ⚠️ TURU 114 — "yemek" duzeninin olcu/renk sabitleri BURADAN gelir,
 //    KOPYALANMAZ (iki ekran birlikte doner).
 import '../isletme/isletme_kart.dart' show kYanBosluk, kYaricap, kYuzeyGri;
-import '../isletme/isletme_listesi.dart' show kInputBoy, kKesifKutu, kIzgaraAralik;
+import '../isletme/isletme_listesi.dart'
+    show kBosluk, kInputBoy, kKesifKutu, kIzgaraAralik;
 import '../ilan/ilan_ekranlari.dart' show IlanDetayEkrani, IlanListesiEkrani;
 import '../ilan/ilan_servisi.dart';
+// ⚠️ TURU 121 — kategori ekranlarinin ORTAK KABUGU (Yemek referansi).
+import '../isletme/kategori_kabuk.dart';
 import 'talep_servisi.dart';
 
 // ═══════════════════ 1) DAL SECIMI + KATEGORI ═══════════════════
@@ -95,46 +98,66 @@ class _TalepAkisiState extends ConsumerState<TalepAkisiEkrani> {
   @override
   Widget build(BuildContext context) {
     final agac = ref.watch(ilanAgaciProvider);
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(_baslik),
-        actions: [
-          IconButton(
-            tooltip: 'Taleplerim',
-            icon: const Icon(LucideIcons.clipboardList),
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => const IlanListesiEkrani(
-                  tur: 'talep',
-                  benim: true,
-                  baslik: 'Taleplerim',
-                ),
-              ),
-            ),
+    // ⚠️⚠️ TURU 121 — **AppBar KALDIRILDI**, Yemek ekranindaki 44 dp
+    //	sabit header + `AltMenu` kabugu kullaniliyor (kullanici emri:
+    //	*"diger tum kategoriler AYNI MANTIKTA olacak"*).
+    // ⚠️ Sag ust "Taleplerim" girisi KORUNDU: teklif akisinin tek
+    //    donus yolu orasi.
+    return KategoriKabugu(
+      baslik: _baslik,
+      sagIkon: LucideIcons.clipboardList,
+      sagIpucu: 'Taleplerim',
+      sagBasildi: () => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => const IlanListesiEkrani(
+            tur: 'talep',
+            benim: true,
+            baslik: 'Taleplerim',
+          ),
+        ),
+      ),
+      slivers: agac.when(
+        loading: () => const [
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: Center(child: CircularProgressIndicator()),
           ),
         ],
-      ),
-      body: agac.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => _hataGovde(context, ref),
+        error: (e, _) => [
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: _hataGovde(context, ref),
+          ),
+        ],
         data: (turler) {
           final talep = turler.where((t) => t.anahtar == 'talep').firstOrNull;
           if (talep == null) {
             // ⚠️ DURUST HATA: sunucu `talep` turunu dondurmuyorsa ozellik
             //    KULLANILAMAZ. Bos liste "hicbir kategori yok" gibi YANLIS
             //    bir izlenim verirdi.
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.all(32),
-                child: Text(
-                  'Teklif isteği şu anda kullanılamıyor.\n'
-                  'Uygulamayı güncellemen gerekebilir.',
-                  textAlign: TextAlign.center,
+            return const [
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: Padding(
+                  padding: EdgeInsets.all(32),
+                  child: Text(
+                    'Teklif isteği şu anda kullanılamıyor.\n'
+                    'Uygulamayı güncellemen gerekebilir.',
+                    textAlign: TextAlign.center,
+                  ),
                 ),
               ),
-            );
+            ];
           }
           final hepsi = talep.kategoriler.where((k) {
+            // ⚠️⚠️ TURU 121 — **DIYET KATEGORISI ELENIR** (kullanici emri:
+            //	*"diyet ile ilgili ne varsa kaldir"*).
+            //	Sunucu `/ilan-kategoriler` yanitinda `diyet_program` hala
+            //	donuyor; istemci onu CIZMEZ. Sunucudan silmek BACKEND isi ve
+            //	arayuz turunda yapilmaz (kural 9) — liste geldiginde
+            //	suzuluyor.
+            // ⚠️ Sunucu kaldirilirsa bu satir ZARARSIZ kalir (eslesme olmaz).
+            if (k.anahtar == 'diyet_program') return false;
             if (widget.dal == 'dugun') {
               return dugunKategorileri.contains(k.anahtar);
             }
@@ -151,34 +174,33 @@ class _TalepAkisiState extends ConsumerState<TalepAkisiEkrani> {
               ? hepsi
               : hepsi.where((k) => _kucult(k.ad).contains(q)).toList();
 
-          return CustomScrollView(
-            // ⚠️ Bos listede de asagi-cek mumkun olsun (turu 83b dersi).
-            physics: const AlwaysScrollableScrollPhysics(),
-            slivers: [
+          return [
               SliverToBoxAdapter(child: _acilis()),
+              // ⚠️ TURU 121 — arama kutusu KABUKTAN (Yemek ile birebir):
+              //    48 dp, notr kenarlik, kalinlastirilmis arama ikonu,
+              //    dolu iken temizle (X) dairesi.
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(
                   kYanBosluk,
                   0,
                   kYanBosluk,
-                  10,
+                  kBosluk,
                 ),
-                sliver: SliverToBoxAdapter(child: _aramaKutusu()),
-              ),
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(kYanBosluk, 6, kYanBosluk, 8),
                 sliver: SliverToBoxAdapter(
-                  child: Text(
-                    'KATEGORİLER',
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w800,
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.onSurface.withValues(alpha: 0.55),
-                    ),
+                  child: kabukArama(
+                    context: context,
+                    controller: _arama,
+                    ipucu: 'Ne Aramıştın?',
+                    onChanged: (v) => setState(() => _q = v.trim()),
                   ),
                 ),
+              ),
+              // ⚠️ Bolum basligi da kabuktan: Yemek ekranindaki
+              //    "Mutfaklar" ile AYNI olcu (17/w700 + optik telafi).
+              //    Onceki hal 11.5/w800 GRI bir etiketti ve ayni menuden
+              //    acilan iki ekran farkli dilde konusuyordu.
+              SliverToBoxAdapter(
+                child: kabukBolumBasligi(context, 'Kategoriler'),
               ),
               if (gosterilen.isEmpty)
                 SliverToBoxAdapter(
@@ -238,8 +260,7 @@ class _TalepAkisiState extends ConsumerState<TalepAkisiEkrani> {
                   ),
                 ),
               SliverToBoxAdapter(child: _nasilCalisir()),
-            ],
-          );
+          ];
         },
       ),
     );

@@ -26,8 +26,6 @@ import '../sosyal/takip_listesi.dart';
 import 'alt_menu.dart';
 import 'ayar_bilesenleri.dart';
 import 'ayarlar_ekrani.dart';
-import '../diyet/diyet_ekranlari.dart';
-import '../diyet/danisan_ekranlari.dart';
 import '../ilan/basvuru_ekranlari.dart';
 
 /// Ana kabuk: 5 sekmeli alt menu (ozellik-listesi.md'deki yapi)
@@ -718,13 +716,6 @@ class _ProfileTab extends ConsumerWidget {
                 ),
               ),
             ),
-            AyarSatiri(
-              ikon: LucideIcons.salad,
-              baslik: 'Diyetim',
-              onTap: () => Navigator.of(
-                context,
-              ).push(MaterialPageRoute(builder: (_) => const DiyetimEkrani())),
-            ),
             if (isletme) ...[
               AyarSatiri(
                 ikon: LucideIcons.megaphone,
@@ -748,18 +739,6 @@ class _ProfileTab extends ConsumerWidget {
                   ),
                 ),
               ),
-              // ⚠️ YALNIZ DIYETISYEN: baska bir isletme icin "Danışanlarım"
-              //    BOS bir ekran olurdu (sunucu yalniz diyetisyene veri doner).
-              if ((p?['isletme_kategori'] ?? '') == 'diyetisyen')
-                AyarSatiri(
-                  ikon: LucideIcons.users,
-                  baslik: 'Danışanlarım',
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const DanisanlarimEkrani(),
-                    ),
-                  ),
-                ),
             ],
           ],
         ),
