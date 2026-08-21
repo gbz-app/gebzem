@@ -558,54 +558,30 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
   }
 
   /// Hizli suzgec cipleri.
-  Widget _filtreSatiri() => SizedBox(
-    height: 40,
-    child: ListView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: kYanBosluk - 3),
-      children: [
-        _suzgecCipi(
-          ad: 'Favorilerim',
-          ikon: LucideIcons.heart,
-          secili: _favori,
-          onTap: () {
-            setState(() {
-              _favori = !_favori;
-              if (_favori) _benim = false;
-            });
-            _yukle();
-          },
-        ),
-        _suzgecCipi(
-          ad: 'İlanlarım',
-          ikon: LucideIcons.userRound,
-          secili: _benim,
-          onTap: () {
-            setState(() {
-              _benim = !_benim;
-              if (_benim) _favori = false;
-            });
-            _yukle();
-          },
-        ),
-      ],
-    ),
-  );
+  /// ⚠️⚠️ TURU 121 — CIPLER **KABUKTAN** (Yemek ile birebir).
+  ///
+  ///	Onceki hal Material `FilterChip` idi: yuksekligi, yaricapi, secili
+  ///	zemini ve ikon rengi TEMA VARSAYILANINDAN geliyordu. Yemek ekranindaki
+  ///	cipler ise 32 dp, `kYaricap(32)` ve **kenarlik** ile secili — yani
+  ///	ayni menuden acilan iki ekran farkli cip dili konusuyordu.
+  /// ⚠️ YAPMA: buraya `FilterChip`/`ChoiceChip` geri koyma.
+  Widget _filtreSatiri() => kabukCipSeridi(context, [
+    KabukCip('Favorilerim', LucideIcons.heart, _favori, () {
+      setState(() {
+        _favori = !_favori;
+        if (_favori) _benim = false;
+      });
+      _yukle();
+    }),
+    KabukCip('İlanlarım', LucideIcons.userRound, _benim, () {
+      setState(() {
+        _benim = !_benim;
+        if (_benim) _favori = false;
+      });
+      _yukle();
+    }),
+  ]);
 
-  Widget _suzgecCipi({
-    required String ad,
-    required IconData ikon,
-    required bool secili,
-    required VoidCallback onTap,
-  }) => Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 3, vertical: kCipPay),
-    child: FilterChip(
-      label: Text(ad, style: const TextStyle(fontSize: 13)),
-      avatar: Icon(ikon, size: 15),
-      selected: secili,
-      onSelected: (_) => onTap(),
-    ),
-  );
 
   Widget _listeBasligi(int adet) => Padding(
     padding: const EdgeInsets.only(left: kYanBosluk - kBaslikOptik),
