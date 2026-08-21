@@ -41,6 +41,46 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
       kaybettiriyorsun"*. **Üçüncüsü olmayacak.**
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (21 Agu 12:36): TURU 122 YAYINLANDI — SADECE iOS**
+  (kullanici emri: *"sadece iosa cikart android gerekli degil"*).
+  ios **32467883403** (**820d72d**), R2 ipa=29543078 (md5 3b9785e9)
+  index=16444 (md5 93d9393f) **surum.json=48 (md5 43fb97fb)**, purge OK,
+  **CDN UCU DE BIREBIR**, debug imza YOK, `HARITA=true` logda, IPA de turu
+  122 dizeleri VAR (Taleplerim ( · Anlaşıldı · Pahalıdan ucuza · Ucuzdan
+  pahalıya · Henüz talebin yok.).
+  ⚠️ **APK ALINMADI** — R2 deki `gebzem.apk` turu 121 (11:32) surumunde KALDI.
+  ⚠️ **BACKEND DEGISMEDI** -> deploy YOK, DB TRUNCATE EDILMEDI.
+  ✅ analyze **0/0** · test **52/52**.
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260821-1236
+
+- 🧩 **TURU 122 — HIZMET EKRANI DA AYNI ISKELETE GECTI.**
+  Kullanici: *"butun kategoriler AYNI OLACAK ayni mantik, ILAN VE HIZMETLER
+  AYNI DEGIL; hizmetlerde hizmet karti koyarsin tiklayinca STEP STEP olur"*.
+  Kategori kartlari + sihirbaz ZATEN vardi; eksik olan ekranin GERI KALANIYDI
+  (ne cip ne liste). Eklendi: **cip seridi** (Tümü · Açık · Anlaşıldı) +
+  **Taleplerim (N)** + talep listesi + asagi-cek + hata dalinda Tekrar dene.
+  ⚠️ Cip degerleri SUNUCUNUN `ilanlar.durum` kumesinden (`yayinda`/`satildi`);
+     UYDURMA durum YOK. Suzgec ISTEMCIDE: uc `durum` parametresi ALMIYOR ve
+     liste tek istekte geliyor (60 tavani, sayfalama yok) — durust.
+  ⚠️ Bos durum IKI DALLI: suzgec bosalttiysa sebebini soyler + Filtreleri
+     temizle; hic talep yoksa OGRETICI metin ("yukaridaki kartlardan birine
+     dokun").
+  ⚠️ Sag ustteki "Taleplerim" girisi KALDIRILMADI (kapanmis talepler orada).
+
+- 🔀 **TURU 122 — ILANA SIRALAMA** (Yemekteki "Sıralama" cipinin ILAN
+  karsiligi): Yeniden eskiye · Ucuzdan pahaliya · Pahalidan ucuza.
+  ⚠️⚠️ Yemekteki Puan / Teslimat suresi / Min. tutar ilanda **KARSILIKSIZ**
+     (o alanlar ilanda YOK) — uydurulmadi. Ilanin olculebilir tek alani FIYAT.
+  ⚠️⚠️ **SUNUCUDA SIRALAMA PARAMETRESI YOK** (`/ilanlar` sabit
+     `ORDER BY i.created_at DESC`) -> siralama **ISTEMCIDE**. Durust cunku
+     liste TEK ISTEKTE geliyor: siralanan kume kullanicinin gordugu kumenin
+     TAMAMI.
+  ⚠️⚠️ **FIYATI GIZLI/BELIRSIZ ILANLAR DAIMA SONA.** Aksi halde "ucuzdan
+     pahaliya" listesi 0 TL gorunenlerle baslar ve "en ucuzlar" gibi okunurdu
+     — kullaniciya YANLIS BILGI.
+  ⚠️ Kopya liste uzerinde siralanir: gelen liste yerinde degistirilseydi
+     siralamayi kapatmak eski sirayi GERI GETIREMEZDI.
+
 - **KALDIGIMIZ YER (21 Agu 11:32): TURU 121 YAYINLANDI** — android
   **32462458270** + ios **32462461406** (**7c7afdc**), R2 apk=121287562
   (md5 5c17c0fa) ipa=29536904 (md5 6ce92718) index=17250 (md5 1fd67ebf)
