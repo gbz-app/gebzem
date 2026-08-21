@@ -87,7 +87,35 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     super.dispose();
   }
 
+  /// ⚠️⚠️⚠️ TURU 126 — **SIFRE ILK GORUNUMDE YOK, DUGMEYLE GELIR**
+  ///	(kullanici emri: *"sifre vb seyleri kaldir"*).
+  ///
+  /// ⚠️⚠️ Alan **SILINEMEZ**: `/auth/login` telefon VE sifreyi zorunlu
+  ///	tutuyor (`bcrypt.CompareHashAndPassword`), sifresiz oturum jetonu
+  ///	ureten HICBIR uc yok. Silinseydi kimse giris YAPAMAZDI.
+  /// ⚠️ Bu yuzden ekran iki asamali: once numara, "Giriş yap"a basilinca
+  ///    sifre BELIRIR ve dugme ayni kalir. Kullanici ikinci dokunusta
+  ///    gercekten giris yapar.
+  /// ⚠️ Kapi TEK YONLU: bir kez acilinca kapanmaz — numarayi duzeltmek icin
+  ///    tek hane silen kullanicinin yazdigi sifre kaybolmasin.
   Future<void> _submit() async {
+    if (!_sifreGorundu) {
+      if (!authTelefonTam(_haneler.text)) {
+        setState(() {
+          _telefonNotu = 'Numaranı eksiksiz yaz — 5 ile başlayan 10 hane.';
+        });
+        return;
+      }
+      setState(() {
+        _telefonNotu = null;
+        _sifreGorundu = true;
+      });
+      return;
+    }
+    return _girisYap();
+  }
+
+  Future<void> _girisYap() async {
     // ⚠️⚠️ TURU 120 — DOGRULAMA `Form`DAN ALINDI, ELLE YAPILIYOR.
     //	Alanlar artik paylasilan `AuthTelefonAlani`/`AuthSifreAlani`
     //	bilesenleri ve ikisi de `TextField` (FORM ALANI DEGIL). Eski
@@ -177,6 +205,28 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     //    **"Telefon Numarası"** (kullanici emri). Referans
                     //    tasarimda baslik bir KARSILAMA degil, altindaki
                     //    alanin ADIDIR ("Enter your email").
+                    // ⚠️⚠️ TURU 126 — BASLIGIN **USTUNDE** ince ust satir
+                    //	(kullanici emri: *"2 tik ince ... daha profesyonel
+                    //	olsun kisa"*).
+                    // ⚠️⚠️ **METIN "sana bir sifre gonderecegiz" DEGIL.**
+                    //	Kullanicinin onerdigi cumle buydu ama uygulama sifre
+                    //	GONDERMIYOR: `/auth/login` mevcut sifreyi `bcrypt`
+                    //	ile karsilastirir, hicbir uc kullaniciya sifre/kod
+                    //	yollamaz (yollayan tek uc `/auth/forgot` ve o SIFRE
+                    //	SIFIRLAMA akisidir). Olmayan bir vaadi ekrana yazmak,
+                    //	kullanicinin SMS beklemesine ve gelmeyince "uygulama
+                    //	bozuk" demesine yol acardi.
+                    // ⚠️ BEKLEYEN: "kod ile giris" istenirse iki yeni uc
+                    //    gerekir; arayuz turu oldugu icin acilmadi.
+                    Text(
+                      'Numaranı gir, kaldığın yerden devam et.',
+                      style: TextStyle(
+                        fontSize: 14,
+                        height: 1.35,
+                        color: authAltYazi.withValues(alpha: 0.85),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
                     authBaslik('Telefon Numarası'),
                     AuthTelefonAlani(
                       controller: _haneler,
@@ -187,13 +237,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       // ⚠️ `setState(_temizle)` YAZMA: `_temizle` KENDISI
                       //    `setState` cagiriyor; ic ice `setState` her tusta
                       //    GEREKSIZ ikinci bir yeniden kurulum yapardi.
-                      onChanged: (_) {
-                        _temizle();
-                        // ⚠️ Kapi TEK YONLU (bkz. `_sifreGorundu` serhi).
-                        if (!_sifreGorundu && authTelefonTam(_haneler.text)) {
-                          setState(() => _sifreGorundu = true);
-                        }
-                      },
+                      onChanged: (_) => _temizle(),
                     ),
                     // ⚠️ TURU 126 — sifre bloku YALNIZ numara tamamlaninca.
                     //    "Şifremi unuttum" de onunla BIRLIKTE gelir: sifre
