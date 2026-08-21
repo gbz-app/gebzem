@@ -496,27 +496,31 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
             'değiştirebilirsin.',
       ),
       _bolumBasligi('Kaç yaşındasın?'),
-      const SizedBox(height: 10),
-      _yasSecici(),
       // ⚠️⚠️ TURU 120 — YONERGE SATIRI (emulatorde goruldu). Tekerlek
       //	varsayilan olarak BOS ("—") acildigi icin ekran, kullaniciya
       //	kaydirilabilir bir secici oldugunu SOYLEMIYORDU; bos bir kutu
       //	gibi duruyordu ve adim atlanabilir sanilirdi.
       // ⚠️ Secim yapilinca metin ONAYA doner: "28 yaşındasın" — kullanici
       //    ne sectigini rakama bakmadan da dogrular.
-      const SizedBox(height: 6),
-      Center(
-        child: Text(
-          _yas == null
-              ? 'Yaşını seçmek için listeyi yukarı kaydır'
-              : '$_yas yaşındasın',
-          style: TextStyle(
-            fontSize: 12.5,
-            color: _yas == null ? _altYazi : morLogo,
-            fontWeight: _yas == null ? FontWeight.w400 : FontWeight.w600,
-          ),
+      // ⚠️⚠️ TURU 126 — SATIR TEKERLEGIN **USTUNE** ALINDI (emulatorde
+      //	goruldu). Altta dururken kullanici once BOS bir kutu goruyor ve
+      //	ne yapacagini ancak asagi bakinca ogreniyordu; ustte, kutuya
+      //	bakmadan ONCE okunur.
+      // ⚠️ Ayrica **SOLA DAYALI**: kardes iki alt yazi ("En fazla 12 tane
+      //    seçebilirsin.") sola dayali; ortada duran TEK satir buydu.
+      const SizedBox(height: 4),
+      Text(
+        _yas == null
+            ? 'Listeyi kaydırıp yaşını seç — istersen boş bırak.'
+            : '$_yas yaşındasın',
+        style: TextStyle(
+          fontSize: 12.5,
+          color: _yas == null ? _altYazi : morLogo,
+          fontWeight: _yas == null ? FontWeight.w400 : FontWeight.w600,
         ),
       ),
+      const SizedBox(height: 8),
+      _yasSecici(),
       const SizedBox(height: 26),
       _bolumBasligi('İlgi alanların'),
       const SizedBox(height: 4),
@@ -554,6 +558,11 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
       const SizedBox(height: 26),
       _bolumBasligi('Tuttuğun takım'),
       const SizedBox(height: 12),
+      // ⚠️ TURU 126 — **TAKIM CIPLERINDE IKON YOK, BU BILINCLI.** Ilgi
+      //    alanlari SOYUT kavramlardir (ikon "Yürüyüş" ile "Bisiklet"i
+      //    ayirmaya yardim eder); takimlar OZEL ADDIR ve ikon hicbir sey
+      //    eklemez — yedi cipe ayni kalkan ikonunu koymak gorsel gurultudur.
+      // ⚠️ YAPMA: "ilgi alanlarinda var, burada yok" diye jenerik ikon ekleme.
       Wrap(
         spacing: 8,
         runSpacing: 8,
@@ -636,8 +645,17 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
   ///	kalir.
   /// ⚠️ `FixedExtentScrollPhysics` ZORUNLU: olmadan tekerlek ogeye
   ///    OTURMAZ ve iki yas arasinda asili kalir.
+  ///
+  /// ⚠️⚠️ TURU 126 — **YUKSEKLIK 150 -> 126** (emulatorde olculdu).
+  ///	Tekerlek acilista ILK ogededir ("—"), yani secim bandinin USTUNDE
+  ///	gosterilecek oge YOKTUR: 150 dp'de bandin ustunde **52 dp OLU ALAN**
+  ///	kaliyordu ve ekran "bos bir kutu" gibi duruyordu. 126'da bosluk
+  ///	40 dp'ye iner; alttaki komsu yas (46 dp) HALA TAM gorunur, yani
+  ///	kaydirilabilirlik ipucu KAYBOLMAZ.
+  /// ⚠️ 126'nin ALTINA INME: komsu oge kirpilir ve tekerlek tek satirlik
+  ///    bir kutuya benzer — duzeltmeye calistigimiz sorunun ta kendisi.
   Widget _yasSecici() => SizedBox(
-    height: 150,
+    height: 126,
     child: Stack(
       alignment: Alignment.center,
       children: [
@@ -654,6 +672,38 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
             ),
           ),
         ),
+        // ⚠️⚠️ TURU 126 — KAYDIRMA GOSTERGESI (yalniz secim yokken).
+        //	Ekran acilista "—" gosterdigi icin tekerlegin KAYDIGI hicbir
+        //	GORSEL isaretten anlasilmiyordu; yonerge satiri tek basina
+        //	tasiyordu. Iki chevron bandin sag ucunda o isareti verir.
+        // ⚠️ Secim yapilinca KAYBOLUR: isini gormustur, sonrasinda secili
+        //    rakamin yanindaki susleme dikkat dagitir.
+        // ⚠️ `IgnorePointer`: bandin kendisiyle ayni sebep — dokunus
+        //    tekerlege gecmeli.
+        if (_yas == null)
+          IgnorePointer(
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: Padding(
+                padding: const EdgeInsets.only(right: 14),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      LucideIcons.chevronUp,
+                      size: 15,
+                      color: morLogo.withValues(alpha: 0.55),
+                    ),
+                    Icon(
+                      LucideIcons.chevronDown,
+                      size: 15,
+                      color: morLogo.withValues(alpha: 0.55),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
         ListWheelScrollView.useDelegate(
           itemExtent: 46,
           diameterRatio: 1.7,
@@ -781,6 +831,7 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
                   ikon: LucideIcons.imageUp,
                   etiket: _fotoHam == null ? 'Fotoğraf seç' : 'Değiştir',
                   basildi: _mesgul ? null : _fotoSec,
+                  vurgulu: _fotoHam == null,
                 ),
                 if (_fotoHam != null)
                   _fotoDugme(
@@ -910,17 +961,30 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
     ),
   );
 
+  /// ⚠️⚠️ TURU 126 — **`vurgulu` (emulatorde goruldu).** Fotograf henuz
+  ///	secilmemisken "Fotoğraf seç" bu ekrandaki **TEK EYLEMDIR**, ama solgun
+  ///	gri kenarlikla (`_cizgi`) cizildigi icin bos daire ile alt yazinin
+  ///	arasinda kayboluyordu: adim, dokunulacak bir sey YOKMUS gibi
+  ///	duruyordu ve kullanici dogrudan "Hesabı oluştur"a gidiyordu.
+  /// ⚠️ Vurgu yalniz O DURUMDA: fotograf secildikten sonra "Değiştir" ve
+  ///    "Sıfırla" IKINCIL eylemlerdir; ikisini birden morlamak, asil isin
+  ///    (kirpmayi onaylayip devam etmek) onune gecerdi.
+  /// ⚠️ Radius YINE 0 (turu 119 kullanici emri) — degisen yalniz RENK.
   Widget _fotoDugme({
     required IconData ikon,
     required String etiket,
     required VoidCallback? basildi,
+    bool vurgulu = false,
   }) => OutlinedButton.icon(
     onPressed: basildi,
     icon: Icon(ikon, size: 17),
     label: Text(etiket),
     style: OutlinedButton.styleFrom(
-      foregroundColor: _yazi,
-      side: const BorderSide(color: _cizgi),
+      foregroundColor: vurgulu ? morLogo : _yazi,
+      side: BorderSide(
+        color: vurgulu ? morLogo : _cizgi,
+        width: vurgulu ? 1.5 : 1,
+      ),
       // ⚠️ TURU 119 — radius YOK (kullanici emri, ana dugmeyle ayni dil).
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
