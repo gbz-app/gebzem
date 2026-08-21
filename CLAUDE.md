@@ -41,6 +41,65 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
       kaybettiriyorsun"*. **Üçüncüsü olmayacak.**
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (21 Agu 13:24): TURU 123 YAYINLANDI — SADECE iOS.**
+  ios **32471646528** (**b475bac**), R2 ipa=29542814 (md5 827f2616)
+  index=16637 (md5 0477a095) surum.json=48 (md5 74a4561b), purge OK,
+  **CDN UCU DE BIREBIR**, debug imza YOK, HARITA=true, IPA de turu 123
+  dizeleri VAR (Eğitim & Atölye · İş & Networking · Sanat & Sergi).
+  ⚠️ **APK ALINMADI** (kullanici emri) — R2 deki apk turu 121 surumunde.
+  ⚠️ **BACKEND DEGISMEDI** -> deploy YOK, DB TRUNCATE EDILMEDI.
+  ✅ analyze **0/0** · test **52/52** · emulatorde tasma **0**.
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260821-1324
+
+- 🧩🧩 **TURU 123 — BUTUN KATEGORILER YEMEGIN BIREBIR AYNI SLOT LISTESINDE.**
+  Kullanici **BES KEZ** soyledi ve her seferinde eksik yapildi.
+  Yemek`in slot listesi (REFERANS):
+    header -> arama -> SLIDER -> (BASLIKSIZ) 4x2 KUTU IZGARASI ->
+    serit basligi + 60x60 SERIT -> **TEK** cip seridi -> "X (N)" +
+    gorunum secici -> liste
+  ⚠️⚠️ **"AYNI" DEMEK: Yemek`te OLMAYAN hicbir sey OLMAYACAK.** Onceki
+     turlarda yalniz EKLEME yapildi, KALDIRMA yapilmadi — hata buydu.
+
+  **ILAN**: slider GERI GELDI · "Kategoriler" bolum basligi KALDIRILDI.
+  ⚠️ Turu 106 slideri kaldirmisti ve GEREKCESI HAKLIYDI: o zaman
+     `VitrinSlider(dikey: _tur)` vardi ve sunucu emlak icin ISLETME,
+     digerleri icin ETKINLIK donduruyordu. **BILESEN DEGISTI**: artik
+     Yemek`in kullandigi `KategoriSlider` + `/isletme-kesif`
+     (kategoriye ozel METIN slaytlari) — icerik ILGILI.
+
+  **HIZMET / DUGUN / ORGANIZASYON**: "Hangi hizmeti almak istiyorsun?"
+  baslik blogu ve "NASIL CALISIR 1-2-3" blogu **KALDIRILDI** (Yemek`te YOK)
+  · "Kategoriler" basligi KALDIRILDI · SLIDER eklendi (aramanin ALTINA).
+  ⚠️ Kartlara dokununca SIHIRBAZ acilmasi AYNEN duruyor (kullanici emri:
+     *"hizmet karti koyarsin tiklayinca step step olur"*).
+
+  **ETKINLIK**: kategoriler CIP degil **KUTU IZGARASI** (Yemek`teki kesif
+  izgarasinin yeri) · **UC AYRI cip seridi -> TEK serit**.
+  ⚠️ Onceki serh *"bu ekranda kategori GORSELI yok, kutu bos kalirdi"*
+     diyordu — ama Yemek/Ilan/Hizmet`te de kutular GRI ve altlarinda yazi
+     var. Ayni dil. Serh GECERSIZDI.
+
+  ⚠️⚠️ **OLCULDU: 0.1 px TASMA.** Kutu adlari iki satira sigmayinca
+     ("Eğitim & Atölye", "Yemek & İçecek") sari-siyah serit cikiyordu.
+     `TextPainter` satir yuksekligini YUKARI yuvarlar -> **DORT izgaranin
+     dordune de +1 dp pay**. Emulatorde logcat tasma sayisi **0**.
+
+  📌 Menudeki TUM kategoriler tarandi: yalniz **DORT** ekran var —
+     `IsletmeListesiEkrani` (REFERANS: Yemek·Restoran·Cafe·Alisveris·
+     Egitim·Saglik·Otel·Kuafor·Guzellik·Emlak·Spor·Teknoloji·Eglence) ·
+     `IlanListesiEkrani` (Ilan·Is Ilanlari) · `TalepAkisiEkrani`
+     (Hizmet·Dugun·Organizasyon) · `EtkinlikListesiEkrani`. Dordu de hizali.
+     (`YakinimdaEkrani` harita ekrani — tasarimi BEKLENIYOR.
+     `GebzemAiEkrani` sohbet ekrani, kategori DEGIL.)
+
+- ⏳ **TURU 123 — BEKLEYEN (kullanici karari):** hizli erisim kartlari
+  (**Gece Kuşu · Yeni Restourant · 4+ · Şimşek**) ve **Teslimat / Min. tutar**
+  filtreleri YEMEGE OZEL ama TUM `IsletmeListesiEkrani` kategorilerinde
+  gorunuyor — Egitim/Otel/Saglik`ta ANLAMSIZ. Kartlarin yalniz ETIKETI degil
+  **ISLEVI** de yemege ozel (`isletme_filtre.dart`: `teslimatTavanDk`,
+  `minTutarTavanKurus`, `geceAcik`, `puansiz`) — kategoriye gore
+  kart/filtre kumesi gerekiyor. 📌 "Yeni Restourant" YAZIM HATASI (Restoran).
+
 - **KALDIGIMIZ YER (21 Agu 12:36): TURU 122 YAYINLANDI — SADECE iOS**
   (kullanici emri: *"sadece iosa cikart android gerekli degil"*).
   ios **32467883403** (**820d72d**), R2 ipa=29543078 (md5 3b9785e9)
