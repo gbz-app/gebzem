@@ -185,7 +185,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           children: [
             // ⚠️ Kayit akisiyla AYNI ust bosluk: iki ekran arasinda gecerken
             //    baslik ZIPLAMASIN.
-            const SizedBox(height: 48),
+            const SizedBox(height: 28),
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(28, 28, 28, 24),
@@ -219,15 +219,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     // ⚠️ BEKLEYEN: "kod ile giris" istenirse iki yeni uc
                     //    gerekir; arayuz turu oldugu icin acilmadi.
                     Text(
-                      'Numaranı gir, kaldığın yerden devam et.',
+                      // ⚠️ Turkce yazim: ozel ada gelen ek KESME ISARETIYLE
+                      //    ayrilir -> "Gebzem'e". Dart'ta tek tirnakli dize
+                      //    icinde kesme isareti tirnagi KAPATIR; bu yuzden
+                      //    dize CIFT TIRNAKLI.
+                      "Gebzem'e hoş geldin.",
                       style: TextStyle(
-                        fontSize: 14,
+                        fontSize: 20,
                         height: 1.35,
                         color: authAltYazi.withValues(alpha: 0.85),
                       ),
                     ),
                     const SizedBox(height: 8),
-                    authBaslik('Telefon Numarası'),
+                    authBaslik('Hadi başlayalım'),
                     AuthTelefonAlani(
                       controller: _haneler,
                       hataliMi: _hatali,
