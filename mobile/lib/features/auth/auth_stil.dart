@@ -60,10 +60,31 @@ const double authDegerBoy = 20.0; //  16   + 4
 /// ⚠️ Cikista eski stile donus `main.dart`taki uygulama geneli varsayilan
 ///    `AnnotatedRegion` sayesinde OTOMATIKTIR (turu 85c) — burada geri alma
 ///    kodu YAZMA, iki kopya drift eder.
+/// ⚠️⚠️⚠️ TURU 126 — [klavyeyeGoreKuculme] (kullanici emri: *"inputa
+///	tikladigimda animasyonlu kalip inmesin, takiliyor donma yapiyor;
+///	seri, tatli, hafif olsun"*).
+///
+/// `Scaffold`un varsayilan `resizeToAvoidBottomInset: true` davranisi,
+/// klavye acilirken GOVDENIN TAMAMINI kisaltir: `Expanded` daralir, icerik
+/// yukari kayar, alttaki dugme yukari firlar. Kucuk ekranda bu, her odak
+/// dokunusunda TUM SAYFANIN oynamasi demek — kullanicinin "kalip iniyor,
+/// takiliyor" dedigi sey budur.
+///
+/// `false` verildiginde ust icerik **HIC OYNAMAZ**; klavyenin ustunde
+/// durmasi gereken tek oge (ana dugme) kendi dolgusunu `viewInsets`ten
+/// alir ve Flutter o degeri klavye animasyonuyla KADEMELI gunceller —
+/// yani hareket serttten yumusaga doner.
+/// ⚠️ YAPMA: `false` verilen bir ekranda alt dugmeye `viewInsets` dolgusu
+///    koymayi unutma; yoksa dugme klavyenin ALTINDA kalir ve ULASILAMAZ olur.
 class AuthSayfa extends StatelessWidget {
-  const AuthSayfa({super.key, required this.child});
+  const AuthSayfa({
+    super.key,
+    required this.child,
+    this.klavyeyeGoreKuculme = true,
+  });
 
   final Widget child;
+  final bool klavyeyeGoreKuculme;
 
   @override
   Widget build(BuildContext context) {
@@ -75,7 +96,11 @@ class AuthSayfa extends StatelessWidget {
       ),
       child: Theme(
         data: lightTheme,
-        child: Scaffold(backgroundColor: Colors.white, body: child),
+        child: Scaffold(
+          backgroundColor: Colors.white,
+          resizeToAvoidBottomInset: klavyeyeGoreKuculme,
+          body: child,
+        ),
       ),
     );
   }
@@ -128,8 +153,14 @@ Widget authBaslik(String baslik, [String? aciklama]) => Column(
 ///    baslamazsa kirmizi olsun HEM YAZI HEM CIZGI"*). Turu 119'da yalnizca
 ///    cizgi ve etiket kirmiziya donuyordu; kullanicinin yazdigi rakamlar
 ///    siyah kaliyordu ve hatanin NEREDE oldugu belirsizdi.
-TextStyle authDegerStili({bool hatali = false, double? boy}) => TextStyle(
-  color: hatali ? authHata : authYazi,
+TextStyle authDegerStili({
+  bool hatali = false,
+  double? boy,
+  bool sade = false,
+}) => TextStyle(
+  color: hatali
+      ? authHata
+      : (sade ? authSadeDeger : authYazi),
   fontSize: boy ?? authDegerBoy,
   fontWeight: FontWeight.w500,
 );
@@ -139,7 +170,18 @@ TextStyle authDegerStili({bool hatali = false, double? boy}) => TextStyle(
 /// Referans tasarimda giris metni sayfadaki EN BUYUK ikinci ogedir (baslik
 /// 28, deger 24); alt cizgi ve etiket olmadigi icin BOYUT tek hiyerarsi
 /// isaretidir. `authDegerBoy` (20) sade modda kucuk kaliyordu.
-const double authSadeDegerBoy = 24.0;
+const double authSadeDegerBoy = 26.0;
+
+/// Sade moddaki IPUCU ve `+90` on eki — hafif gri.
+const Color authSadeSoluk = Color(0xFFB6B6BF);
+
+/// Sade moddaki DEGER — ipucundan **bir tik koyu**, ama siyah DEGIL.
+///
+/// ⚠️ Kullanici emri: *"hepsi hafif gri olsun, mevcut telefon girisi bir tik
+///    ustunde renk olsun"*. Deger `authYazi` (neredeyse siyah) kalsaydi
+///    ipucuyla arasindaki fark SERT olurdu; bu ton ikisini ayni aileye
+///    baglar ve okunurlugu korur (beyaz zeminde ~7:1).
+const Color authSadeDeger = Color(0xFF5A5A66);
 
 /// ⚠️⚠️⚠️ TURU 119 — METIN ALANI **YALNIZ ALT CIZGI** (kullanici emri:
 ///	*"input ALT CIZGI olsun, sol sag ust cizgi DEGIL; alt cizgi de 2px
@@ -208,8 +250,13 @@ InputDecoration authAlan(
       hintText: ipucu,
       suffixIcon: sonek,
       floatingLabelBehavior: FloatingLabelBehavior.always,
+      // ⚠️⚠️ TURU 126 — SADE MODDA **HER SEY GRI TONUNDA** (kullanici emri:
+      //	*"hepsi hafif gri olsun, mevcut telefon girisi bir tik ustunde
+      //	renk olsun"*). Ipucu ve `+90` ACIK gri; kullanicinin YAZDIGI
+      //	deger bir tik KOYU (bkz. `authSadeDeger`) — yani hiyerarsi
+      //	KOYULUKLA kurulur, siyah/gri karsitligiyla degil.
       hintStyle: TextStyle(
-        color: authAltYazi.withValues(alpha: 0.38),
+        color: authSadeSoluk,
         fontSize: authSadeDegerBoy,
         fontWeight: FontWeight.w400,
         // ⚠️ TURU 120 dersi: `hintStyle` taban stili MERGE eder; sifre alani
@@ -291,14 +338,14 @@ Widget authNot(String mesaj, {bool hata = true}) {
       children: [
         Icon(
           hata ? LucideIcons.circleAlert : LucideIcons.info,
-          size: 14,
+          size: 16,
           color: renk,
         ),
         const SizedBox(width: 6),
         Expanded(
           child: Text(
             mesaj,
-            style: TextStyle(fontSize: 12.5, height: 1.35, color: renk),
+            style: TextStyle(fontSize: 14.5, height: 1.35, color: renk),
           ),
         ),
       ],
@@ -466,7 +513,15 @@ class _AuthTelefonAlaniState extends State<AuthTelefonAlani> {
     final stil = authDegerStili(
       hatali: kirmizi,
       boy: widget.sade ? authSadeDegerBoy : null,
+      sade: widget.sade,
     );
+    // ⚠️ TURU 126 — sade modda `+90` **IPUCUYLA AYNI SOLUKLUKTA**: yazilan
+    //    haneler bir tik koyu kalir, on ek geride durur (kullanici emri:
+    //    *"hepsi hafif gri, mevcut telefon girisi bir tik ustunde renk"*).
+    // ⚠️ Hatada IKISI DE kirmizi olur — numara tek butun okunmali.
+    final onEkStili = widget.sade && !kirmizi
+        ? stil.copyWith(color: authSadeSoluk)
+        : stil;
     // ⚠️⚠️ TURU 126b — **SADE MODDA ERISILEBILIRLIK ADI ACIKCA VERILIR**
     //	(denetim bulgusu). Sade dalda `labelText` CIZILMIYOR; alanin adini
     //	tasiyan tek sey `hintText` ve o da **alan dolunca kayboluyor** —
@@ -509,12 +564,12 @@ class _AuthTelefonAlaniState extends State<AuthTelefonAlani> {
             ).copyWith(
               // ⚠️ IKI BOSLUK: kullanici *"arasinda biraz bosluk"* dedi. Tek
               //    bosluk `+90532...` gibi bitisik okunuyordu.
-              prefixText: '$authUlkeKodu  ',
+              prefixText: '$authUlkeKodu ',
               // ⚠️ On ek DEGERLE AYNI STILDE (kullanici: *"ayni font size
               //    ile"*) ve hatada O DA kirmizi olur — numara tek bir butun
               //    olarak okunmali.
-              prefixStyle: stil,
-              hintText: '5xx xxx xx xx',
+              prefixStyle: onEkStili,
+              hintText: '512 345 67 89',
             ),
       ),
     );
@@ -581,7 +636,11 @@ class _AuthSifreAlaniState extends State<AuthSifreAlani> {
   @override
   Widget build(BuildContext context) {
     final tabanBoy = widget.sade ? authSadeDegerBoy : authDegerBoy;
-    final temel = authDegerStili(hatali: widget.hataliMi, boy: tabanBoy);
+    final temel = authDegerStili(
+      hatali: widget.hataliMi,
+      boy: tabanBoy,
+      sade: widget.sade,
+    );
     return TextField(
       controller: widget.controller,
       obscureText: _gizli,

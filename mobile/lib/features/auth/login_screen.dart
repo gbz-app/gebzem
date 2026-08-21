@@ -13,6 +13,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/api.dart';
 import '../../core/tercihler.dart';
@@ -179,16 +180,51 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // ⚠️ TURU 126 — klavye acilinca UST ICERIK OYNAMAZ; yalniz alt
+    //    dugme `viewInsets` kadar yukari cikar (bkz. `AuthSayfa` serhi).
+    final klavye = MediaQuery.viewInsetsOf(context).bottom;
     return AuthSayfa(
+      klavyeyeGoreKuculme: false,
       child: SafeArea(
         child: Column(
           children: [
-            // ⚠️ Kayit akisiyla AYNI ust bosluk: iki ekran arasinda gecerken
-            //    baslik ZIPLAMASIN.
-            const SizedBox(height: 28),
+            // ⚠️⚠️⚠️ TURU 126 — **SOL USTTE GERI OKU** (kullanici emri).
+            //
+            // ⚠️⚠️ **`context.pop()` KULLANILAMAZ**: `/login` yigindaki TEK
+            //	sayfadir (`go` ile gelinir, `push` ile degil) ve GoRouter
+            //	bos yiginda `pop()` cagirilinca **GoError FIRLATIR** —
+            //	release'de de. Bu yuzden ok, gidilecek YER VARSA pop eder;
+            //	yoksa tanitima doner (`/onboarding`), yani HER ZAMAN bir
+            //	isi vardir. Islevsiz bir ok koymak, dokunup hicbir sey
+            //	olmadigini goren kullaniciya "uygulama takildi" dedirtirdi.
+            // ⚠️ Yukseklik 44: dokunma hedefi Material tavanina yakin ve
+            //    ustteki 28 dp'lik bosluk KALDIRILDI (ok o boslugu doldurur),
+            //    yani baslik asagi KAYMADI.
+            SizedBox(
+              height: 44,
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: IconButton(
+                  icon: const Icon(LucideIcons.arrowLeft, color: authYazi),
+                  onPressed: _loading
+                      ? null
+                      : () {
+                          if (_sifreGorundu) {
+                            // ⚠️ Ikinci asamadaysak once NUMARAYA don:
+                            //    kullanicinin bekledigi "geri" budur.
+                            setState(() => _sifreGorundu = false);
+                          } else if (context.canPop()) {
+                            context.pop();
+                          } else {
+                            context.go('/onboarding');
+                          }
+                        },
+                ),
+              ),
+            ),
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(28, 28, 28, 24),
+                padding: const EdgeInsets.fromLTRB(28, 12, 28, 24),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -219,11 +255,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     // ⚠️ BEKLEYEN: "kod ile giris" istenirse iki yeni uc
                     //    gerekir; arayuz turu oldugu icin acilmadi.
                     Text(
-                      // ⚠️ Turkce yazim: ozel ada gelen ek KESME ISARETIYLE
-                      //    ayrilir -> "Gebzem'e". Dart'ta tek tirnakli dize
-                      //    icinde kesme isareti tirnagi KAPATIR; bu yuzden
-                      //    dize CIFT TIRNAKLI.
-                      "Gebzem'e hoş geldin.",
+                      _sifreGorundu ? 'Neredeyse tamam' : 'Merhaba',
                       style: TextStyle(
                         fontSize: 20,
                         height: 1.35,
@@ -231,55 +263,41 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    authBaslik('Hadi başlayalım'),
-                    AuthTelefonAlani(
-                      controller: _haneler,
-                      hataliMi: _hatali,
-                      not: _telefonNotu,
-                      textInputAction: TextInputAction.next,
-                      sade: true,
-                      // ⚠️ `setState(_temizle)` YAZMA: `_temizle` KENDISI
-                      //    `setState` cagiriyor; ic ice `setState` her tusta
-                      //    GEREKSIZ ikinci bir yeniden kurulum yapardi.
-                      onChanged: (_) => _temizle(),
+                    authBaslik(
+                      _sifreGorundu ? 'Şifreni gir' : 'Hadi başlayalım',
                     ),
-                    // ⚠️ TURU 126 — sifre bloku YALNIZ numara tamamlaninca.
-                    //    "Şifremi unuttum" de onunla BIRLIKTE gelir: sifre
-                    //    alani gorunmeden sifre sifirlama teklif etmek
-                    //    anlamsizdi.
-                    if (_sifreGorundu) ...[
-                      // ⚠️ TURU 126 — 18 -> 26: cizgi kalkinca iki alani
-                      //    ayiran TEK sey BOSLUK. 18 dp'de 24 px'lik iki
-                      //    satir tek bir blok gibi okunuyordu.
-                      const SizedBox(height: 26),
+                    // ⚠️⚠️ TURU 126 — **IKI ASAMA, TEK EKRAN.** Sifre alani
+                    //	telefonun ALTINDA DEGIL, YERINE gelir (kullanici
+                    //	emri: *"sifre alanini kaldir"*). Boylece her asamada
+                    //	ekranda TEK alan durur.
+                    // ⚠️ Sifre SILINEMEZ: `/auth/login` telefon VE sifreyi
+                    //    zorunlu tutuyor, sifresiz oturum jetonu ureten uc
+                    //    YOK. Silinseydi kimse giris yapamazdi.
+                    if (_sifreGorundu)
                       AuthSifreAlani(
                         controller: _password,
                         hataliMi: _hatali,
-                        // ⚠️ SADE MODDA IPUCU ZORUNLU: etiket ("Şifre")
-                        //    cizilmiyor, alanin ne istedigini soyleyen tek
-                        //    sey bu. Ipucusuz sade alan = bos bir satir.
+                        // ⚠️ SADE MODDA IPUCU ZORUNLU: etiket cizilmiyor,
+                        //    alanin ne istedigini soyleyen tek sey bu.
                         ipucu: 'Şifren',
                         textInputAction: TextInputAction.done,
                         sade: true,
                         onChanged: (_) => _temizle(),
                         onSubmitted: (_) => _submit(),
+                      )
+                    else
+                      AuthTelefonAlani(
+                        controller: _haneler,
+                        hataliMi: _hatali,
+                        not: _telefonNotu,
+                        textInputAction: TextInputAction.next,
+                        sade: true,
+                        // ⚠️ `setState(_temizle)` YAZMA: `_temizle` KENDISI
+                        //    `setState` cagiriyor; ic ice `setState` her
+                        //    tusta GEREKSIZ ikinci bir kurulum yapardi.
+                        onChanged: (_) => _temizle(),
                       ),
-                      if (_hataNotu != null) authNot(_hataNotu!),
-                      // ⚠️ TURU 126 — SOLA DAYALI: alanlar da (on ek
-                      //    yuzunden) sola dayali; ortalansaydi sayfanin tek
-                      //    "kacik" ogesi bu satir olurdu.
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: TextButton(
-                          onPressed: () => context.push('/forgot'),
-                          style: TextButton.styleFrom(
-                            foregroundColor: authAltYazi,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                          ),
-                          child: const Text('Şifremi unuttum'),
-                        ),
-                      ),
-                    ],
+                    if (_hataNotu != null) authNot(_hataNotu!),
                   ],
                 ),
               ),
@@ -287,7 +305,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             // ⚠️ Ana dugme ALTTA SABIT (kayit akisiyla ayni): klavye acikken
             //    de erisilir ve iki ekranda ayni yerde durur.
             Padding(
-              padding: const EdgeInsets.fromLTRB(28, 8, 28, 10),
+              padding: EdgeInsets.fromLTRB(28, 8, 28, 10 + klavye),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
