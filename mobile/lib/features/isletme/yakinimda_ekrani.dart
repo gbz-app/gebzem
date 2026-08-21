@@ -49,7 +49,7 @@ import '../../core/tercihler.dart';
 import '../medya/konum_servisi.dart';
 import '../sosyal/profil_sayfasi.dart';
 // ⚠️ TURU 115 — kart/olcu sabitleri kategori ekraniyla ORTAK.
-import 'isletme_kart.dart' show kYanBosluk, kYaricap, kYuzeyGri;
+import 'isletme_kart.dart' show kYanBosluk, kYaricap, kYuzeyGri, kVurgu;
 import 'harita_daire_pin.dart';
 import 'isletme_servisi.dart';
 
@@ -466,6 +466,9 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
             ),
           ),
           _ustDugmeler(),
+          // ⚠️ SIRA: cipler alt sayfanin ALTINDA cizilir ki sayfa yukari
+          //    cekilince ciplerin USTUNU ortsun (Yandex/Google deseni).
+          _yuzenCipler(),
           _altSayfa(),
         ],
       ),
@@ -517,15 +520,11 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
                 ),
               ),
             ),
-            // ⚠️⚠️ TURU 124 — **SIRA DEGISTI** (kullanici emri: *"Tümü,
-            //	Yemek vs ve altındaki 2km vs bunlar mekân/adres aramanın
-            //	ÜSTÜNDE, arada boşlukla olsun"*).
-            _hizliCipler(),
-            const SizedBox(height: 6),
-            _filtreSatiri(),
-            // ⚠️ Cipler ile arama arasi NEFES (kullanici: *"arada boşluk
-            //    bir şekilde olsun"*).
-            const SizedBox(height: 14),
+            // ⚠️⚠️ TURU 125 — **CIPLER ALT SAYFADAN CIKARILDI** (kullanici
+            //	emri: *"arama üste olacak, filtrelemeler KARTIN ÜZERİNDE
+            //	olacak, kartın İÇİNDE değil, 10px üzerinde"*).
+            //	Artik `_yuzenCipler()` haritanin uzerinde, alt sayfanin
+            //	10 dp USTUNDE yuzuyor; burada YALNIZ arama var.
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: kYanBosluk),
               child: _aramaKutusu(),
@@ -562,7 +561,9 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
             //	kategorileri ve yakınımdakiler alanını kaldır"*).
             //	Ekranin isi HARITA; alt sayfa yalniz arama + suzgec.
             //	Kategoriye gore gezinme ZATEN hamburger menude.
-            const SizedBox(height: 24),
+            // ⚠️ TURU 125 — alttaki bosluk 24 -> 8 (kullanici: *"alttan
+            //    boşluk fazla"*). Alt sayfa zaten ekranin dibine oturuyor.
+            const SizedBox(height: 8),
           ],
         ),
       );
@@ -618,13 +619,17 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: kYanBosluk),
         children: [
-          _cip('Tümü', _kategori.isEmpty, () => _kategoriSec('')),
+          // ⚠️ TURU 125 — kategori ciplerine de IKON (kullanici emri).
+          //    Ikon KATEGORIYE gore; haritada tanidik simgeler.
+          _cip('Tümü', _kategori.isEmpty, () => _kategoriSec(''),
+              ikon: LucideIcons.layoutGrid),
           for (final k in hizli)
             if (isletmeKategorileri[k] != null)
               _cip(
                 isletmeKategorileri[k]!,
                 _kategori == k,
                 () => _kategoriSec(k),
+                ikon: _kategoriIkonu(k),
               ),
         ],
       ),
@@ -651,22 +656,26 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: kYanBosluk),
         children: [
+          // ⚠️ TURU 125 — her cipte IKON (kullanici emri).
           _cip('2 km içinde', _fKm == 2, () {
             setState(() => _fKm = _fKm == 2 ? 0 : 2);
-          }),
+          }, ikon: LucideIcons.footprints),
           _cip('5 km içinde', _fKm == 5, () {
             setState(() => _fKm = _fKm == 5 ? 0 : 5);
-          }),
-          _cip('4+ puan', _fPuan, () => setState(() => _fPuan = !_fPuan)),
+          }, ikon: LucideIcons.bike),
+          _cip('4+ puan', _fPuan, () => setState(() => _fPuan = !_fPuan),
+              ikon: LucideIcons.star),
           if (ticari)
             _cip(
               'Kampanyalı',
               _fKampanya,
               () => setState(() => _fKampanya = !_fKampanya),
+              ikon: LucideIcons.tag,
             ),
-          _cip('Onaylı', _fOnayli, () => setState(() => _fOnayli = !_fOnayli)),
+          _cip('Onaylı', _fOnayli, () => setState(() => _fOnayli = !_fOnayli),
+              ikon: LucideIcons.badgeCheck),
           if (_suzgecVar)
-            _cip('Temizle', false, () {
+            _cip('Temizle', false, ikon: LucideIcons.x, () {
               _arama.clear();
               setState(() {
                 _q = '';
@@ -740,15 +749,111 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
   // ⚠️ Yalniz cagri kaldirilsaydi ikisi de OLU KOD olarak kalir ve
   //    sifir-uyari tabanini bozardi.
 
-  Widget _cip(String etiket, bool secili, VoidCallback onTap) => Padding(
-    padding: const EdgeInsets.only(right: 8),
-    child: ChoiceChip(
-      label: Text(etiket),
-      selected: secili,
-      onSelected: (_) => onTap(),
-    ),
-  );
+  /// ⚠️⚠️ TURU 125 — **`ChoiceChip` KALDIRILDI** (kullanici emri:
+  ///	*"tıkladığında patlama oynama olmasın"* + *"filtreleme ve
+  ///	kategorilere ikon ekle"*).
+  ///
+  ///	Material `ChoiceChip` secilince SOLUNA BIR TIK KOYAR; cip o anda
+  ///	~24 dp genisler ve SAGINDAKI TUM cipler kayar — kullanicinin
+  ///	"patlama/oynama" dedigi sey buydu. Ayrica secim animasyonu
+  ///	olcek degistirir.
+  /// ⚠️ Yeni cip **SABIT OLCULU**: yaziyi w600, kenarligi 1.4 dp SABIT
+  ///    tutar; secili halde YALNIZ RENK degisir, GENISLIK DEGISMEZ.
+  /// ⚠️ Kategori ekranindaki `KabukCip` ile AYNI dil (32 dp, 13 px yazi,
+  ///    kalinlastirilmis ikon).
+  Widget _cip(
+    String etiket,
+    bool secili,
+    VoidCallback onTap, {
+    IconData? ikon,
+  }) {
+    final vurgu = kVurgu(context);
+    final notr = Theme.of(context).colorScheme.onSurface;
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Center(
+          child: Container(
+            height: 32,
+            padding: const EdgeInsets.symmetric(horizontal: 11),
+            decoration: BoxDecoration(
+              // ⚠️ Zemin OPAK: cipler HARITANIN UZERINDE yuzuyor.
+              color: Theme.of(context).scaffoldBackgroundColor,
+              borderRadius: BorderRadius.circular(kYaricap(32)),
+              border: Border.fromBorderSide(
+                BorderSide(
+                  color: secili ? vurgu : notr.withValues(alpha: 0.16),
+                  width: 1.4,
+                ),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (ikon != null) ...[
+                  Icon(ikon, size: 14, color: secili ? vurgu : notr),
+                  const SizedBox(width: 6),
+                ],
+                Text(
+                  etiket,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: secili ? vurgu : notr,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
+  /// ⚠️⚠️ TURU 125 — **YUZEN FILTRE KATMANI** (kullanici emri:
+  ///	*"filtrelemeler kartın ÜZERİNDE olacak, kartın İÇİNDE değil,
+  ///	10px üzerinde"*).
+  ///
+  /// ⚠️ Alt sayfanin kapali yuksekligi `initialChildSize` (0.28) ile
+  ///	hesaplanir; cipler onun **10 dp USTUNDE** durur.
+  /// ⚠️ `IgnorePointer` YOK: ciplere dokunulabilmeli. Ama katman yalniz
+  ///    kendi yuksekligini kaplar, geri kalan harita DOKUNULABILIR kalir.
+  /// Kategori ikonu — haritadaki cipler icin.
+  ///
+  /// ⚠️ Bilinmeyen kategori notr bir ikona duser: eksik anahtar yuzunden
+  ///    cip HIC cizilmemesindense notr simge dogrudur.
+  static IconData _kategoriIkonu(String k) => switch (k) {
+        'yemek' => LucideIcons.utensils,
+        'kafe' => LucideIcons.coffee,
+        'market' => LucideIcons.shoppingCart,
+        'eczane' => LucideIcons.pill,
+        'oto' => LucideIcons.car,
+        'saglik' => LucideIcons.stethoscope,
+        'kuafor' => LucideIcons.scissors,
+        'guzellik' => LucideIcons.sparkles,
+        'otel' => LucideIcons.bedDouble,
+        'egitim' => LucideIcons.graduationCap,
+        _ => LucideIcons.store,
+      };
+
+  Widget _yuzenCipler() {
+    final ekran = MediaQuery.sizeOf(context).height;
+    return Positioned(
+      left: 0,
+      right: 0,
+      bottom: ekran * 0.28 + 10,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _hizliCipler(),
+          const SizedBox(height: 6),
+          _filtreSatiri(),
+        ],
+      ),
+    );
+  }
 }
 
 /// ⚠️⚠️ HARITA ALANI — su an **YER TUTUCU** (bkz. dosya basindaki serh).

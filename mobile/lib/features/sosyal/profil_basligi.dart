@@ -42,7 +42,12 @@ const Color kOnayliRengi = Color(0xFF3AA9FF);
 /// ⚠️⚠️ TAVAN ZORUNLU KALIR: tablette saf oran ekranin yarisini yerdi. Gorsel
 ///    `BoxFit.cover` oldugu icin tavanda KIRPILIR, ESNEMEZ.
 /// ⚠️ `num.clamp` **num** dondurur (double DEGIL) — `math.min` kullanildi.
-const double kKapakKisaltma = 0.70; // %30 dusuruldu
+/// ⚠️⚠️ TURU 125 — 0.70 -> **0.92** (kullanici emri: *"arka kapak
+///	yüksekliği arttır"*, Instagram/Twitter profil kapagi gibi).
+///	390 dp genislikte: 153 dp -> **202 dp**.
+/// ⚠️ TAVAN (240) ve  DURUYOR: tablette kapak ekranin
+///    yarisini yemez, gorsel esnemez KIRPILIR.
+const double kKapakKisaltma = 0.92;
 double kapakYuksekligi(double genislik) =>
     math.min(genislik * 9 / 16, 240.0) * kKapakKisaltma;
 

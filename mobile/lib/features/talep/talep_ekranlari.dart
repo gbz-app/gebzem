@@ -20,7 +20,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 // ⚠️ TURU 114 — "yemek" duzeninin olcu/renk sabitleri BURADAN gelir,
 //    KOPYALANMAZ (iki ekran birlikte doner).
 import '../isletme/isletme_kart.dart'
-    show kYanBosluk, kYaricap, kYuzeyGri, kVurgu;
+    show kYanBosluk, kYaricap, kYuzeyGri, kVurgu, IsletmeKarti;
 import '../isletme/isletme_listesi.dart'
     show
         kBosluk,
@@ -34,7 +34,8 @@ import '../ilan/ilan_servisi.dart';
 // ⚠️ TURU 121 — kategori ekranlarinin ORTAK KABUGU (Yemek referansi).
 import '../isletme/kategori_kabuk.dart';
 import '../isletme/kategori_slider.dart';
-import '../isletme/isletme_servisi.dart' show isletmeServisiProvider;
+import '../isletme/isletme_servisi.dart'
+    show isletmeServisiProvider, IsletmeOzet;
 import 'talep_servisi.dart';
 
 // ═══════════════════ 1) DAL SECIMI + KATEGORI ═══════════════════
@@ -102,6 +103,18 @@ class _TalepAkisiState extends ConsumerState<TalepAkisiEkrani> {
   List<({String ad, String ara})> _altKategoriler = const [];
   String _altSecili = '';
 
+  /// ⚠️⚠️ TURU 125 — **HIZMET VERENLER** (kullanici emri: *"hizmetlerde
+  ///	ornek hizmet verenler yok, kartlar yok"*).
+  ///
+  ///	Ekran yalniz TALEP olusturmaya yariyordu; kullanici "kimler bu isi
+  ///	yapiyor" sorusunun cevabini hicbir yerde goremiyordu. Artik alt
+  ///	alan seridinin altinda GERCEK isletme kartlari var.
+  /// ⚠️ Kartlar Yemek ekranindakiyle **AYNI BILESEN** (`IsletmeKarti`):
+  ///    kapak + kalp + ad + puan satiri. Ikinci bir kart dili YOK.
+  /// ⚠️ Icerik SUNUCUDAN (`/isletmeler?kategori=hizmet`); alt alan secilince
+  ///    `q` ile daraltilir.
+  List<IsletmeOzet>? _verenler;
+
   /// ⚠️⚠️ TURKCE KUCULTME **ELLE** yapilir.
   ///
   ///	Dart'in `toLowerCase()`i `'İ'` (U+0130) icin `'i' + BIRLESIK NOKTA`
@@ -118,6 +131,7 @@ class _TalepAkisiState extends ConsumerState<TalepAkisiEkrani> {
   void initState() {
     super.initState();
     _slaytlariYukle();
+    _verenleriYukle();
   }
 
   /// Slider slaytlari + ALT ALAN seridi — Yemek ekraniyla AYNI uc.
@@ -135,6 +149,39 @@ class _TalepAkisiState extends ConsumerState<TalepAkisiEkrani> {
     } catch (_) {
       // sessiz: slider ve serit cizilmez
     }
+  }
+
+  /// Hizmet veren isletmeler. Alt alan secilince `q` ile daraltilir.
+  ///
+  /// ⚠️ AYRI ve SESSIZ: ekranin ASIL isi kategori kartlari (talep akisi);
+  ///    bu liste onun yaninda bir kesif alanidir.
+  /// ⚠️⚠️ **KATEGORI `hizmet` DEGIL, HIZMET SEKTORU KATEGORILERI.**
+  ///
+  ///	Ilk yazimda `kategori: 'hizmet'` gonderiliyordu ve bolum HER ZAMAN
+  ///	BOS geliyordu: canli veritabaninda o kategoride **TEK ISLETME YOK**
+  ///	(olculdu — otel 11 · kuafor 8 · diyetisyen 8 · eczane 6 · market 3 ·
+  ///	eglence 3 · saglik 2 · kafe 2 · yemek 2 · guzellik 2).
+  ///	`hizmet` bir TALEP dalidir; isletmeler kendi mesleklerine kayitli.
+  /// ⚠️ Bu yuzden hizmet SEKTORU kategorileri birlestirilir. Uc-dort kucuk
+  ///	istek: liste zaten 60 tavanli ve bu ekran sayfalama yapmiyor.
+  /// ⚠️ Bir istek patlarsa DIGERLERI YINE GOSTERILIR (hepsi ayri ayri
+  ///    yakalanir) — tek ag hatasi tum bolumu yok etmemeli.
+  static const _hizmetKategorileri = ['kuafor', 'guzellik', 'saglik', 'diyetisyen'];
+
+  Future<void> _verenleriYukle() async {
+    final s = ref.read(isletmeServisiProvider);
+    final hepsi = <IsletmeOzet>[];
+    for (final k in _hizmetKategorileri) {
+      try {
+        hepsi.addAll(await s.liste(kategori: k, q: _altSecili));
+      } catch (_) {
+        // sessiz: bu kategori atlanir, digerleri gosterilir
+      }
+    }
+    if (!mounted) return;
+    // ⚠️ Ayni isletme iki kategoride cikmaz ama gelecege karsi tekille.
+    final gorulen = <String>{};
+    setState(() => _verenler = hepsi.where((i) => gorulen.add(i.id)).toList());
   }
 
   String get _baslik => switch (widget.dal) {
@@ -347,6 +394,34 @@ class _TalepAkisiState extends ConsumerState<TalepAkisiEkrani> {
                 SliverToBoxAdapter(child: _altSerit()),
                 kabukBosluk(),
               ],
+              // ══════════ HIZMET VERENLER (Yemek karti ile AYNI) ══════════
+              //
+              // ⚠️⚠️ TURU 125 — kullanici emri: *"hizmetlerde örnek hizmet
+              //	verenler yok, kartlar yok"*. Ekran yalniz TALEP olusturmaya
+              //	yariyordu; "kimler bu isi yapiyor" sorusunun cevabi hicbir
+              //	yerde yoktu.
+              // ⚠️ Kartlar Yemek ekranindakiyle **AYNI BILESEN**
+              //    (`IsletmeKarti`): kapak + kalp + ad + puan satiri.
+              // ⚠️ Bos ise bolum HIC cizilmez (bos baslik gurultudur).
+              if ((_verenler ?? const []).isNotEmpty) ...[
+                SliverToBoxAdapter(
+                  child: kabukBolumBasligi(
+                    context,
+                    'Hizmet verenler (${_verenler!.length})',
+                  ),
+                ),
+                const SliverToBoxAdapter(
+                  child: SizedBox(height: kBaslikBosluk),
+                ),
+                SliverPadding(
+                  padding: const EdgeInsets.symmetric(horizontal: kYanBosluk),
+                  sliver: SliverList.builder(
+                    itemCount: _verenler!.length,
+                    itemBuilder: (_, i) => IsletmeKarti(o: _verenler![i]),
+                  ),
+                ),
+              ],
+
 
               // ⚠️ TURU 124 — "Taleplerim" BOLUMU KALDIRILDI (kullanici emri:
               //	*"taleplerim kaldir"*). Taleplere erisim KAYBOLMADI:
@@ -389,6 +464,10 @@ class _TalepAkisiState extends ConsumerState<TalepAkisiEkrani> {
                   _arama.text = _altSecili;
                   _q = _altSecili;
                 });
+                // ⚠️ Secim listeyi de daraltir: serit yalniz arama
+                //    kutusunu doldursaydi kartlar DEGISMEZDI ve secim
+                //    "calismiyor" gorunurdu.
+                _verenleriYukle();
               },
               child: SizedBox(
                 width: kAltKutu,

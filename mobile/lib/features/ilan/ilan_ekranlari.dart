@@ -31,7 +31,8 @@ import '../isletme/isletme_kart.dart'
         kYaricapBuyuk,
         kKartAralik,
         kKartIcBosluk,
-        kVurgu;
+        kVurgu,
+        IsletmeKapakKalbi;
 import '../isletme/isletme_listesi.dart'
     show
         kBosluk,
@@ -1038,6 +1039,29 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
   ///    `kKartIcBosluk`, `kYaricapBuyuk`, `kVurgu`); kopyalanan sayi YOK.
   /// ⚠️ `Divider` KALDIRILDI: kartlar arasi ayrim `kKartAralik` boslugudur
   ///    (kategori ekrani turu 93'te ayni karari verdi).
+  /// Kart uzerinden favori ac/kapa.
+  ///
+  /// ⚠️ IYIMSER: once EKRANDA cevrilir, sonra sunucuya gider. Ag yavassa
+  ///	kalp gec dolardi ve kullanici iki kez basardi.
+  /// ⚠️ Hata olursa GERI ALINIR — sessizce "favorilendi" gibi durmaz.
+  /// ⚠️ ORNEK (demo) ilanda sunucuya GIDILMEZ: id gercek degil, 404 doner.
+  Future<void> _favoriCevir(Ilan i) async {
+    final eski = i.favorim;
+    setState(() => i.favorim = !eski);
+    if (i.id.startsWith('demo-')) return;
+    try {
+      final s = ref.read(ilanServisiProvider);
+      if (eski) {
+        await s.favoriSil(i.id);
+      } else {
+        await s.favoriEkle(i.id);
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => i.favorim = eski);
+    }
+  }
+
   Widget _satir(Ilan i) {
     final scheme = Theme.of(context).colorScheme;
     final kapak = KapakGorseli.ilkGorsel(i.mediaIds, i.mediaKinds);
@@ -1076,6 +1100,25 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
                         // ⚠️ Decode genisligi ACIKCA verilir; yoksa 320 px'lik
                         //    kucuk surum tam genislikte BULANIK cizilir.
                         width: genislik,
+                      ),
+                      // ⚠️⚠️ TURU 125 — **KAPAK KALBI** (kullanici emri:
+                      //	*"ilanları yemekteki gibi kart tarzında,
+                      //	daha profesyonel yap"*).
+                      //	Yemek kartinda kapagin SAG USTUNDE favori kalbi
+                      //	var; ilanda YOKTU — favorilemek icin detaya
+                      //	girmek gerekiyordu (sahibinden`de kart uzerinde).
+                      // ⚠️ AYNI BILESEN (`IsletmeKapakKalbi`): iki liste
+                      //	ayni jesti ve ayni gorunumu paylasir.
+                      // ⚠️ Ornek (demo) ilanda kalp SUNUCUYA GITMEZ:
+                      //    `demoKimlik` kapisi (bu ekranin diger
+                      //    eylemlerinde de var).
+                      Positioned(
+                        right: kKartIcBosluk,
+                        top: kKartIcBosluk,
+                        child: IsletmeKapakKalbi(
+                          dolu: i.favorim,
+                          onTap: () => _favoriCevir(i),
+                        ),
                       ),
                       // ⚠️ Durum rozeti YALNIZ yayinda OLMAYAN ilanda: her
                       //    kartta "yayinda" yazmak gurultudur.

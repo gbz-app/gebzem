@@ -195,7 +195,6 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
   bool _yukleniyor = true;
   bool _takipMesgul = false;
 
-
   /// ⚠️ Bu profil BENIM mi. myProfileProvider ASENKRON yuklenir; henuz gelmediyse
   ///    false olur ve o kisa anda yabanci dugmeleri cizilir — zararsiz, cunku
   ///    build provider degisiminde yeniden kosar.
@@ -323,7 +322,8 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
         // Gizli hesabi yeni takip ettiysek gonderiler ARTIK gorulebilir.
         // ⚠️ Onbellek: gizli hesabi yeni takip ettiysek gonderiler ARTIK
         //    gorulebilir; TUM sekmeler bayat oldugu icin bastan yuklenir.
-        if (onayli && (_gonderiOnbellek[ProfilSekmesi.tumu] ?? const []).isEmpty) {
+        if (onayli &&
+            (_gonderiOnbellek[ProfilSekmesi.tumu] ?? const []).isEmpty) {
           unawaited(_yukle());
         }
       }
@@ -480,9 +480,9 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
             IconButton(
               tooltip: 'Hesabım',
               icon: const Icon(LucideIcons.settings),
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const HesabimEkrani()),
-              ),
+              onPressed: () => Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => const HesabimEkrani())),
             ),
           IconButton(icon: const Icon(LucideIcons.ellipsis), onPressed: _menu),
         ],
@@ -918,7 +918,6 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
     ],
   );
 
-
   /// ⚠️ Sohbet acma AYNI yolu kullanir (POST /chats/direct) — `user_search_screen`
   ///    desenininin birebir esi. Ayri bir uc/servis YAZILMADI (drift eder).
   Future<void> _sohbetAc(Profil p) async {
@@ -951,7 +950,9 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
     final ham = _gonderiOnbellek[_sekme] ?? const <Gonderi>[];
     return switch (_sekme) {
       ProfilSekmesi.foto =>
-        ham.where((g) => g.mediaIds.isNotEmpty && g.kind(0) == 'image').toList(),
+        ham
+            .where((g) => g.mediaIds.isNotEmpty && g.kind(0) == 'image')
+            .toList(),
       ProfilSekmesi.ses => ham.where((g) => g.sesliMi).toList(),
       _ => ham,
     };
@@ -1045,9 +1046,9 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
   );
 
   Widget _sekmeIcerigi(ProfilSekmesi x) {
-    final soluk = Theme.of(context).colorScheme.onSurface.withValues(
-      alpha: 0.6,
-    );
+    final soluk = Theme.of(
+      context,
+    ).colorScheme.onSurface.withValues(alpha: 0.6);
     if (_sekmeYukleniyor.contains(x)) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 60),
@@ -1079,11 +1080,14 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
     if (l.isEmpty) {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 60),
-        child: Center(child: Text(x.bosMetin, style: TextStyle(color: soluk))),
+        child: Center(
+          child: Text(x.bosMetin, style: TextStyle(color: soluk)),
+        ),
       );
     }
     return _izgara();
   }
+
   /// ⚠️⚠️⚠️ TURU 115 — **INSTAGRAM/TWITTER TARZI SEKME SERIDI** (kullanici
   ///	emri: *"profilde gonderi fotograf INSTAGRAM VE TWITTER GIBI SOLDAN
   ///	SAGA DOGRU MENU tarzi olsun"*).
@@ -1129,69 +1133,90 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
     // ⚠️ Taban 46 KORUNUR (kullanicinin gordugu olcu); yalniz gerektiginde
     //    buyur. ⚠️ YAPMA: sabit sayiya geri donme.
     final olcek = MediaQuery.textScalerOf(context);
-    return SizedBox(
-      height: math.max(46.0, olcek.scale(14.5) * 1.252 + 25.5),
-      child: ListView.builder(
-        controller: _seritCtrl,
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 10),
-        itemCount: l.length,
-        itemBuilder: (_, i) {
-          final x = l[i];
-          final secili = x == _sekme;
-          return Semantics(
-            button: true,
-            selected: secili,
-            label: x.etiket,
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => _sekmeyeGec(x),
-              child: Container(
-                key: secili ? _seciliSekmeAnahtar : null,
-                padding: const EdgeInsets.symmetric(horizontal: 10),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Row(
+    // ⚠️⚠️ TURU 125 — **SEKMELER AYIRICI CIZGININ USTUNDE** (kullanici
+    //	emri: *"profillerde gönderi vs bunlar çizginin üzerinde olacak,
+    //	instagram ve twitter gibi"*).
+    //
+    //	Onceden serit tek basinaydi: sekmeler ile altindaki icerik
+    //	arasinda hicbir ayrim yoktu ve secili sekmenin 26 dp`lik kisa
+    //	cizgisi havada duruyordu. Instagram/Twitter`da serit TAM
+    //	GENISLIKTE bir ayirici uzerinde oturur; secim gostergesi o
+    //	ayiricinin USTUNE biner.
+    // ⚠️ Ayirici `Divider` DEGIL `Container`: `Divider` kendi dikey
+    //    boslugunu ekler ve serit yuksekligi 16 dp buyurdu.
+    // ⚠️ Serit yuksekligi DEGISMEDI (46 taban + yazi olcegi); ayirici
+    //    ONUN ALTINA ek 1 dp olarak biner.
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          height: math.max(46.0, olcek.scale(14.5) * 1.252 + 25.5),
+          child: ListView.builder(
+            controller: _seritCtrl,
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            itemCount: l.length,
+            itemBuilder: (_, i) {
+              final x = l[i];
+              final secili = x == _sekme;
+              return Semantics(
+                button: true,
+                selected: secili,
+                label: x.etiket,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => _sekmeyeGec(x),
+                  child: Container(
+                    key: secili ? _seciliSekmeAnahtar : null,
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(
-                          x.ikon,
-                          size: 17,
-                          color: secili
-                              ? scheme.onSurface
-                              : scheme.onSurface.withValues(alpha: 0.45),
+                        Row(
+                          children: [
+                            Icon(
+                              x.ikon,
+                              size: 17,
+                              color: secili
+                                  ? scheme.onSurface
+                                  : scheme.onSurface.withValues(alpha: 0.45),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              x.etiket,
+                              style: TextStyle(
+                                fontSize: 14.5,
+                                fontWeight: FontWeight.w700,
+                                color: secili
+                                    ? scheme.onSurface
+                                    : scheme.onSurface.withValues(alpha: 0.45),
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 6),
-                        Text(
-                          x.etiket,
-                          style: TextStyle(
-                            fontSize: 14.5,
-                            fontWeight: FontWeight.w700,
+                        const SizedBox(height: 6),
+                        // ⚠️ Cizgi SECILI OLMASA DA yer kaplar (saydam): aksi
+                        //    halde secim degisince satir 2 dp ziplardi.
+                        Container(
+                          height: 2.5,
+                          width: 26,
+                          decoration: BoxDecoration(
                             color: secili
                                 ? scheme.onSurface
-                                : scheme.onSurface.withValues(alpha: 0.45),
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(2),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 6),
-                    // ⚠️ Cizgi SECILI OLMASA DA yer kaplar (saydam): aksi
-                    //    halde secim degisince satir 2 dp ziplardi.
-                    Container(
-                      height: 2.5,
-                      width: 26,
-                      decoration: BoxDecoration(
-                        color: secili ? scheme.onSurface : Colors.transparent,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
-            ),
-          );
-        },
-      ),
+              );
+            },
+          ),
+        ),
+        Container(height: 1, color: scheme.onSurface.withValues(alpha: 0.10)),
+      ],
     );
   }
 
@@ -1220,6 +1245,7 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
     }
     _seridiKaydir();
   }
+
   /// Ilan tabanli sekmelerin listesi (Ilanlarim · Dolap · Taleplerim).
   ///
   /// ⚠️ Izgara DEGIL LISTE: ilanin kapagi cogu zaman yok (is ilani) ve
@@ -1250,9 +1276,9 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
             ),
             subtitle: Text(i.fiyatEtiketi),
             trailing: const Icon(LucideIcons.chevronRight, size: 18),
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => IlanDetayEkrani(ilan: i)),
-            ),
+            onTap: () => Navigator.of(
+              context,
+            ).push(MaterialPageRoute(builder: (_) => IlanDetayEkrani(ilan: i))),
           ),
       ],
     );
@@ -1538,14 +1564,12 @@ class _IsletmeSeridiState extends ConsumerState<IsletmeSeridi> {
                   ],
                 ],
               ),
-
             ],
           ),
         ),
       ),
     );
   }
-
 
   Widget _satir(IconData ikon, String metin) => Padding(
     padding: const EdgeInsets.only(top: 6),
