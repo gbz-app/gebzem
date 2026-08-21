@@ -170,7 +170,7 @@ TextStyle authDegerStili({
 /// Referans tasarimda giris metni sayfadaki EN BUYUK ikinci ogedir (baslik
 /// 28, deger 24); alt cizgi ve etiket olmadigi icin BOYUT tek hiyerarsi
 /// isaretidir. `authDegerBoy` (20) sade modda kucuk kaliyordu.
-const double authSadeDegerBoy = 26.0;
+const double authSadeDegerBoy = 28.0;
 
 /// Sade moddaki IPUCU ve `+90` on eki — hafif gri.
 const Color authSadeSoluk = Color(0xFFB6B6BF);
@@ -519,7 +519,13 @@ class _AuthTelefonAlaniState extends State<AuthTelefonAlani> {
     //    haneler bir tik koyu kalir, on ek geride durur (kullanici emri:
     //    *"hepsi hafif gri, mevcut telefon girisi bir tik ustunde renk"*).
     // ⚠️ Hatada IKISI DE kirmizi olur — numara tek butun okunmali.
-    final onEkStili = widget.sade && !kirmizi
+    // ⚠️⚠️ TURU 126 — **ON EK, DEGER GIRILINCE KOYULASIR** (kullanici emri:
+    //	*"telefon yazdigimda +90 da siyahlassin"*). Alan BOSKEN `+90`
+    //	ipucuyla ayni soluklukta durur (ikisi birlikte tek bir "yer tutucu"
+    //	gibi okunur); kullanici yazmaya baslayinca numara TEK BUTUN olur ve
+    //	on ek de degerin rengine gecer.
+    // ⚠️ Hatada zaten IKISI DE kirmizi.
+    final onEkStili = widget.sade && !kirmizi && widget.controller.text.isEmpty
         ? stil.copyWith(color: authSadeSoluk)
         : stil;
     // ⚠️⚠️ TURU 126b — **SADE MODDA ERISILEBILIRLIK ADI ACIKCA VERILIR**

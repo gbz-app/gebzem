@@ -200,25 +200,55 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             // ⚠️ Yukseklik 44: dokunma hedefi Material tavanina yakin ve
             //    ustteki 28 dp'lik bosluk KALDIRILDI (ok o boslugu doldurur),
             //    yani baslik asagi KAYMADI.
+            // ⚠️ TURU 126 — OK **BASLIKLA AYNI HIZADA** (kullanici emri:
+            //	*"ok disarida kalmis, ayni hizaya koy"*). `IconButton`
+            //	varsayilan 48 dp kutuda ikonu ORTALAR, yani 24 dp ikon sola
+            //	12 dp uzakta cizilir ve govde dolgusundan (28) **16 dp DAHA
+            //	SOLDA** kalirdi. Dolgu sifirlanip disaridan 16 verilerek
+            //	ikonun GORSEL sol kenari 28'e oturuyor.
+            // ⚠️ Dokunma hedegi 44x44 KORUNUYOR (`constraints`).
             SizedBox(
               height: 44,
               child: Align(
                 alignment: Alignment.centerLeft,
-                child: IconButton(
-                  icon: const Icon(LucideIcons.arrowLeft, color: authYazi),
-                  onPressed: _loading
-                      ? null
-                      : () {
-                          if (_sifreGorundu) {
-                            // ⚠️ Ikinci asamadaysak once NUMARAYA don:
-                            //    kullanicinin bekledigi "geri" budur.
-                            setState(() => _sifreGorundu = false);
-                          } else if (context.canPop()) {
-                            context.pop();
-                          } else {
-                            context.go('/onboarding');
-                          }
-                        },
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 16),
+                  child: IconButton(
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(
+                      minWidth: 44,
+                      minHeight: 44,
+                    ),
+                    // ⚠️⚠️ **`strokeWidth` YOKTUR**: `lucide_icons_flutter`
+                    //	ikonlari bir FONT olarak sunar (glif), SVG DEGIL.
+                    //	Kalinlik, ayni renkte ±0.4 px kaydirilmis DORT GOLGE
+                    //	ile simule edilir (turu 93'te kurulan desen;
+                    //	`isletme_listesi.dart` arama ikonu ayni yontemi
+                    //	kullaniyor). `Icon`a `strokeWidth` yazarsan DERLENMEZ.
+                    icon: const Icon(
+                      LucideIcons.arrowLeft,
+                      color: authYazi,
+                      shadows: [
+                        Shadow(color: authYazi, offset: Offset(0.4, 0)),
+                        Shadow(color: authYazi, offset: Offset(-0.4, 0)),
+                        Shadow(color: authYazi, offset: Offset(0, 0.4)),
+                        Shadow(color: authYazi, offset: Offset(0, -0.4)),
+                      ],
+                    ),
+                    onPressed: _loading
+                        ? null
+                        : () {
+                            if (_sifreGorundu) {
+                              // ⚠️ Ikinci asamadaysak once NUMARAYA don:
+                              //    kullanicinin bekledigi "geri" budur.
+                              setState(() => _sifreGorundu = false);
+                            } else if (context.canPop()) {
+                              context.pop();
+                            } else {
+                              context.go('/onboarding');
+                            }
+                          },
+                  ),
                 ),
               ),
             ),
@@ -255,7 +285,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     // ⚠️ BEKLEYEN: "kod ile giris" istenirse iki yeni uc
                     //    gerekir; arayuz turu oldugu icin acilmadi.
                     Text(
-                      _sifreGorundu ? 'Neredeyse tamam' : 'Merhaba',
+                      _sifreGorundu
+                          ? 'Neredeyse tamam'
+                          : 'Seni görmek ne güzel',
                       style: TextStyle(
                         fontSize: 20,
                         height: 1.35,
