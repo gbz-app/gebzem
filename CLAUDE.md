@@ -41,6 +41,120 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
       kaybettiriyorsun"*. **Üçüncüsü olmayacak.**
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (21 Agu 11:32): TURU 121 YAYINLANDI** — android
+  **32462458270** + ios **32462461406** (**7c7afdc**), R2 apk=121287562
+  (md5 5c17c0fa) ipa=29536904 (md5 6ce92718) index=17250 (md5 1fd67ebf)
+  **surum.json=48 (md5 cf9c4c74)**, purge OK, **CDN DORDU DE BIREBIR**,
+  debug imza YOK, `HARITA=true` iki logda da, iki artifactte de turu 121
+  dizeleri VAR (Fiyat aralığı · En az (TL) · TL üstü · Ücretsiz · Büyük/Küçük
+  kartlar · Filtreleri temizle · Alanlar · Bölümler · Reyonlar).
+  ⚠️ **BACKEND DEGISMEDI** -> deploy YOK, **DB TRUNCATE EDILMEDI** (hesaplar durur).
+  ✅ `flutter analyze` **0/0** · `flutter test` **52/52**.
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260821-1132
+
+- 🎨 **TURU 121 — TUM KATEGORILER TEK KABUKTA** (kullanici emri: *"yemek
+  kategorisini REFERANS yaptik, diger tum kategoriler AYNI MANTIKTA olacak,
+  sadece icerik farkli"*). Yeni `features/isletme/kategori_kabuk.dart`:
+  `KategoriKabugu` (44 dp header + AltMenu + CustomScrollView) · `kabukArama`
+  · `kabukBolumBasligi` · `KabukCip`/`kabukCipSeridi` · `KabukGorunumSecici`
+  · `kabukIzgaraOlcu` · `kabukBosluk`. Ilan, Etkinlik, Dugun/Hizmet (talep)
+  bu kabuga gecti.
+  ⚠️ **OLCULER KOPYALANMAZ, IMPORT EDILIR** (`isletme_listesi.dart` /
+     `isletme_kart.dart`) — biri degisince hepsi birlikte doner.
+  ⚠️ Menuden **Isletmeler · Topluluklar · Diyet** KALDIRILDI (kullanici emri).
+     Topluluklara giris Mesajlar "+" menusunde DURUYOR. Diyet TAKIBI istemcide
+     TAMAMEN yok; `diyetisyen` ISLETME KATEGORISI kaldi (o bir meslek).
+
+- ⚠️⚠️⚠️ **TURU 121d — YAYIN ONCESI DENETIM 37 GERCEK HATA BULDU** (52 ajan,
+  6 mercek + her bulguya AYRI curutucu; 46 ham -> 37 ONAY, 9 CURUTULDU).
+  Build ALINMISTI ve YAYINLANMADI; duzeltilip YENIDEN alindi. *"Build ALMAK
+  yayinlamak DEGILDIR"* dersinin **SEKIZINCI** dogrulanmasi. En agirlari:
+  · ⚠️⚠️ **FIYAT/ILCE SUZGECI ORNEK ILANLARA HIC UYGULANMIYORDU.**
+    `kDemoAkis` acik oldugu icin listedeki ilanlarin cogu ornek;
+    "1.000 TL alti" cipi acikken **985.000 TL luk ornek daire listede
+    KALIYORDU** -> turun MANSET ozelligi BOZUK gorunecekti. Ustelik liste hic
+    bosalmadigi icin ayni turda eklenen "Filtreleri temizle" dali da HIC
+    cizilmiyordu.
+    ⚠️ `demo_ilan.dart` serhi ZATEN *"suzgecler SUNUCUDAKIYLE AYNI
+       mantikta uygulanir"* diyordu — serh vardi, GOVDE UYMUYORDU.
+    ⚠️⚠️ **KURAL: `_yukle` icinde sunucuya giden HER suzgec AYNI cagride
+       demo dalina da gecer**, yoksa her yeni suzgec demo uzerinde SESSIZCE
+       olur.
+    ✅ **OLCULDU: 22 ilan -> 3** (kalan uc "Fiyat belirtilmemiş" =
+       sunucudaki `fiyat_gizli` yukleminin birebir karsiligi).
+  · ⚠️⚠️ **ILAN KUTU IZGARASI/SERIDI REFERANSTAN DRIFT ETMISTI**: kenarlik
+    **2 dp `scheme.primary`** (referans 1.6 dp `kVurgu`), yazi
+    **11/w500-w800** (referans 13/w600). Ayni ekranda kutular MOR, cipler
+    SIYAH kenarlikliydi.
+    ⚠️ `kVurgu` serhi (`isletme_kart.dart`) bu ekranlarda `primary`
+       kullanmayi ACIKCA yasakliyor.
+    ⚠️ Kalinlik SABIT olmali: w500<->w800 metni genisletir ve serit KAYAR.
+  · ⚠️⚠️ **ETKINLIKTE `_gecmis` SUZGEC SAYILIYORDU** — o bir SEKME.
+    Sonuc: *"Geçmiş etkinlik yok."* dali **ULASILAMAZ OLU KOD**, "Filtreleri
+    temizle" kullaniciyi HABERSIZCE Yaklasan sekmesine atiyordu. Ayrica
+    `_arama` ve `_benim` GORUNMEZ SUZGECTI. Gecmis e gecerken `_zaman`
+    SIFIRLANIR (cizilmeyen bir cip ASLA suzmemeli).
+  · **KABUKTAKI `KabukKutuIzgara`/`KabukKutuSerit` HICBIR YERDEN
+    CAGRILMIYORDU** -> SILINDI. ⚠️ Olu bir "tek kaynak" drift i ONLEMEZ,
+    yalnizca serhi YALANCI yapar. Gerekce dosyada YAZILI (uc cagri yeri
+    yapisal olarak farkli: box vs sliver).
+  · **`kabukCipSeridi` de `Center` YOKTU** -> cipler 32 degil **40 dp**
+    ciziliyordu (turu 96 da olculerek duzeltilen hatanin tekrari). `ListView`
+    cocuguna DIKEYDE TIGHT kisit verir; dokunma alani 40 dp KALIR.
+  · **Fiyat paneli dugmeleri jest cubugunun ALTINDA**: `viewInsets` YALNIZ
+    klavyeyi olcer. `SafeArea(top: false)` eklendi.
+    ⚠️ `showModalBottomSheet(useSafeArea: true)` COZMEZ — SDK da o bayrak
+       `SafeArea(bottom: false)` uretir.
+  · **ILAN bos-liste sirasi**: `_favori`/`_benim` dallari ONDEYDI ->
+    *"Henüz favori ilanın yok"* YALANI. `_suzgecVar` artik **ACILIS TURUNE
+    GORE** (`_tur != widget.tur`): "İş İlanları" ekraninda kullanici hicbir
+    sey secmeden "filtrelere uyan ilan yok" yaziyordu.
+  · Kucuk karttan silinen kayit listede kaliyordu -> `_detayAc` TEK KAYNAK.
+  · `ilanAgaciProvider` hatasi SUREC BOYU onbellekleniyordu (keepAlive) ->
+    "Tekrar dene" (kardes Talep ekraninda ZATEN vardi).
+
+- ⚠️⚠️ **TURU 121d — "MUTFAKLAR" BASLIGI 17 KATEGORIDE DE SABITTI.**
+  Egitim ekraninda *"Dershane · Kurs · Dil"* seridinin USTUNDE de
+  **"Mutfaklar"** yaziyordu (emulatorde goruldu). Kullanici emri YEMEK
+  ekrani icin verilmisti; bu ekran 17 kategoriye hizmet ediyor.
+  FIX: `_altBaslik` — yemek/kafe **Mutfaklar** · saglik/guzellik/diyetisyen
+  **Bölümler** · egitim **Alanlar** · kuafor/oto/hizmet **Hizmetler** ·
+  market/giyim/teknoloji/eczane **Reyonlar** · digerleri notr **Türler**.
+  ⚠️ Sunucu bu basligi DONDURMUYOR ve bu tur ARAYUZ TURU oldugu icin uca
+     dokunulmadi. Turu 77 kurali BURADA GECERLI DEGIL: yalnizca GORUNEN bir
+     etiket, hicbir sorguyu/yetkiyi/siralamayi beslemiyor.
+
+- ⚠️⚠️ **TURU 121 — IZGARA HUCRE YUKSEKLIGI ORANDAN DEGIL ICERIKTEN.**
+  Yemek teki `childAspectRatio: 0.86` kopyalanmisti ama orada ad altinda
+  **IKI** bilgi satiri var, ilan/etkinlikte **BIR** -> hucrenin altinda
+  **~58 dp BOSLUK** kaliyordu. `kabukIzgaraOlcu` icerikten turetiyor.
+  ⚠️⚠️ ILK YAZIMDA CARPANLAR TAHMINDI (1.25/1.30) ve emulatorde
+     **"BOTTOM OVERFLOWED BY 3.9 PIXELS"** cikti: uygulamanin fontu Roboto
+     DEGIL. Artik hem kart hem olcu AYNI sabiti okuyor
+     (`kKucukKartAdStili` / `kKucukKartBilgiStili` / `kKucukKartSatir`)
+     + **1 dp pay** (`TextPainter` yukari yuvarlar). Olcek **1.0 ve 1.3 te**
+     emulatorde dogrulandi.
+  ⚠️ YAPMA: kartta `height:` vermeden bu olcuyu kullanma.
+
+- ⚠️⚠️⚠️ **TURU 121 — ARTIFACT DIZE ARAMASINDA UCUNCU KODLAMA: LATIN-1.**
+  Dart AOT dizeleri UC bicimde saklar: saf ASCII -> UTF-8 · **Latin-1 e SIGAN
+  dize -> OneByteString (LATIN-1 baytlari)** · sigmayan -> UTF-16LE.
+  `Ücretsiz` · `TL üstü` · `Büyük kartlar` (tek Turkce harfi **ü**,
+  Latin-1 de VAR) ilk aramada **"YOK"** dondu ve build ESKI SANILDI.
+  `Yakınımda` (**ı** Latin-1 de YOK -> UTF-16) kontrol dizesi sayesinde
+  yakalandi.
+  ⚠️ Arama betigi UC KODLAMAYI DA denemeli (turu 90b nin UTF-16 dersinin
+     devami). ⚠️ Kontrol dizesi OLMADAN dogrulama yapma.
+
+- ⏳ **TURU 121 — BEKLEYEN (kullanici karari):** hizli erisim kartlari
+  (**Gece Kuşu · Yeni Restourant · 4+**) ve **Teslimat / Min. tutar**
+  filtreleri YEMEGE OZEL ama 17 kategoride de ayni gorunuyor —
+  Egitim/Otel/Saglik ta ANLAMSIZ. "Mutfaklar" basligiyla AYNI SINIF ama daha
+  buyuk: kartlarin yalniz ETIKETI degil **ISLEVI** de yemege ozel
+  (`isletme_filtre.dart`: `teslimatTavanDk`, `minTutarTavanKurus`,
+  `geceAcik`, `puansiz`). 📌 "Yeni Restourant" ayrica YAZIM HATASI
+  (Restoran).
+
 - **KALDIGIMIZ YER (21 Agu 00:00): TURU 120 YAYINLANDI** — android
   **32415748368** + ios **32415760198** (**1fdfb7c**), R2 apk=121469022
   (md5 e2d49533) ipa=29563764 (md5 c98ad8fd) index=16388 (md5 b9d3976f)
