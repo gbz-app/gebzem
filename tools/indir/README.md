@@ -45,3 +45,13 @@ Yayın sırası (CLAUDE.md dağıtım kontrol listesiyle aynı):
 
 ⚠️ `.env.infra` satır sonu **yorumları** içerir — değer okurken `\s+#.*`
 kesilmelidir, yoksa R2 imzası bozulur ve 403 alınır. (`r2put.js` bunu yapıyor.)
+
+## Bekleyen (turu 121d denetimi — kullanici karari)
+- **Hizli erisim kartlari YEMEGE OZEL ve 17 kategoride de ayni gorunuyor**:
+  "Gece Kuşu", "Yeni Restourant", "4+", ayrica "Teslimat" / "Min. tutar"
+  filtreleri. Egitim/Otel/Saglik ekranlarinda ANLAMSIZ.
+  ⚠️ Bu, alt kategori basligiyla (turu 121d'de duzeltildi) AYNI SINIF ama
+     daha buyuk: kartlarin yalniz ETIKETI degil ISLEVI de yemege ozel
+     (`isletme_filtre.dart` -> teslimatTavanDk, minTutarTavanKurus, geceAcik,
+     puansiz). Kategoriye gore kart/filtre kumesi gerekiyor.
+  📌 "Yeni Restourant" ayrica YAZIM HATASI (Restoran).
