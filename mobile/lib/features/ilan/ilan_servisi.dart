@@ -373,16 +373,10 @@ class Ilan {
   /// ⚠️ DEGISEBILIR: iyimser guncelleme (kalp) icin.
   bool favorim;
 
+  /// Bicimlendirme icin bkz. dosya sonundaki `binlikAyir`.
   String get fiyatMetni {
     if (fiyatGizli || fiyatKurus <= 0) return 'Fiyat belirtilmemiş';
-    // ⚠️ Binlik ayirici ELLE: `intl` NumberFormat icin yerel ayar yuklemesi
-    //    gerekiyor ve uygulama acilisina yuk bindiriyor.
-    final tl = (fiyatKurus ~/ 100).toString();
-    final buf = StringBuffer();
-    for (var i = 0; i < tl.length; i++) {
-      if (i > 0 && (tl.length - i) % 3 == 0) buf.write('.');
-      buf.write(tl[i]);
-    }
+    final buf = StringBuffer(binlikAyir(fiyatKurus ~/ 100));
     // ⚠️⚠️ **`TL`, `₺` DEGIL.** `isletme_kart.dart` serhi: bazi Android
     //    fontlarinda `₺` glifi EKSIK ve yerine TOFU (bos kare) cizilir;
     //    kullanici emriyle isletme kartinda `TL` yazilmisti. Ilan karti
@@ -485,4 +479,20 @@ List<({String ad, String deger})> ilanOzellikleri(
     if (enFazla != null && out.length >= enFazla) break;
   }
   return out;
+}
+/// Binlik ayrac (`1234567` -> `1.234.567`).
+///
+/// ⚠️ `intl` `NumberFormat` KULLANILMADI: yerel ayar yuklemesi gerektiriyor ve
+///    uygulama acilisina yuk bindiriyor.
+/// ⚠️⚠️ TURU 121c — bu yardimci CIKARILDI cunku fiyat suzgeci cipi ("20000 TL
+///    ustu") ayni bicimi ELLE yaziyordu: kartta `30.000 TL`, cipte `20000 ₺`.
+///    Ayni ekranda IKI FARKLI para gosterimi vardi.
+String binlikAyir(int sayi) {
+  final s = sayi.toString();
+  final buf = StringBuffer();
+  for (var i = 0; i < s.length; i++) {
+    if (i > 0 && (s.length - i) % 3 == 0) buf.write('.');
+    buf.write(s[i]);
+  }
+  return buf.toString();
 }

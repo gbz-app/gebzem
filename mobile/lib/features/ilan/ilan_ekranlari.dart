@@ -629,13 +629,17 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
     }),
   ]);
 
+  /// ⚠️ Para bicimi kartlarla AYNI olmali: binlik ayracli ve **TL**
+  ///    (bazi Android fontlarinda ₺ glifi EKSIK ve TOFU cizilir — bkz.
+  ///    `ilan_servisi.dart` `fiyatMetni` serhi). Onceden kartta
+  ///    "30.000 TL", cipte "20000 ₺" yaziyordu.
   String _fiyatEtiketi() {
-    String tl(int k) => (k ~/ 100).toString();
+    String tl(int k) => binlikAyir(k ~/ 100);
     if (_minKurus != null && _maksKurus != null) {
-      return '${tl(_minKurus!)} - ${tl(_maksKurus!)} ₺';
+      return '${tl(_minKurus!)} - ${tl(_maksKurus!)} TL';
     }
-    if (_minKurus != null) return '${tl(_minKurus!)} ₺ üstü';
-    if (_maksKurus != null) return '${tl(_maksKurus!)} ₺ altı';
+    if (_minKurus != null) return '${tl(_minKurus!)} TL üstü';
+    if (_maksKurus != null) return '${tl(_maksKurus!)} TL altı';
     return 'Fiyat';
   }
 
@@ -681,7 +685,7 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
                         FilteringTextInputFormatter.digitsOnly,
                       ],
                       decoration: const InputDecoration(
-                        labelText: 'En az (₺)',
+                        labelText: 'En az (TL)',
                       ),
                     ),
                   ),
@@ -694,7 +698,7 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
                         FilteringTextInputFormatter.digitsOnly,
                       ],
                       decoration: const InputDecoration(
-                        labelText: 'En çok (₺)',
+                        labelText: 'En çok (TL)',
                       ),
                     ),
                   ),
