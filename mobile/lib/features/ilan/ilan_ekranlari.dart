@@ -84,6 +84,20 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
   //	yani sunucudaki yetenek OLU duruyordu.
   String _ilce = '';
 
+  /// ⚠️⚠️ TURU 122 — **SIRALAMA** (Yemek ekranindaki "Sıralama" cipinin
+  ///	ilan karsiligi; kullanici emri: *"filtreleme o kategoriye gore,
+  ///	yemektekinin AYNISI ama MANTIGI degisecek"*).
+  ///
+  /// ⚠️ Yemekteki secenekler (Puan · Teslimat suresi · Min. tutar) ilanda
+  ///	KARSILIKSIZ — o alanlar ilanda YOK ve uydurulmayacak. Ilanin
+  ///	gercekten sahip oldugu tek olculebilir alan **FIYAT**.
+  /// ⚠️⚠️ SUNUCUDA SIRALAMA PARAMETRESI YOK (`/ilanlar` sabit
+  ///	`ORDER BY i.created_at DESC`) -> siralama **ISTEMCIDE**. Durust:
+  ///	liste TEK ISTEKTE geliyor (60 tavani, sayfalama yok), yani
+  ///	siralanan kume KULLANICININ GORDUGU kumenin TAMAMI.
+  /// ⚠️ `_IlanSira.yeni` sunucunun KENDI sirasidir; istemci ona DOKUNMAZ.
+  _IlanSira _sira = _IlanSira.yeni;
+
   /// Kullanicinin kendi ilcesi — "Şehrimde" cipi bununla cizilir.
   /// ⚠️⚠️ Ogrenilemezse cip **HIC CIZILMEZ** (Yemek ekranindaki desen):
   ///	bos bir "Şehrimde" cipi dokununca hicbir sey suzmezdi.
@@ -189,7 +203,8 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
   @override
   Widget build(BuildContext context) {
     final agac = ref.watch(ilanAgaciProvider);
-    final l = _liste;
+    // Siralama ISTEMCIDE uygulanir (sunucuda parametre yok) — bkz. _sirala.
+    final l = _sirala(_liste);
     final turler = agac.valueOrNull ?? const <IlanTuru>[];
     final turBilgi = turler.where((t) => t.anahtar == _tur).firstOrNull;
     // ⚠️⚠️ TURU 121 — **AppBar KALDIRILDI**, Yemek ekranindaki kabuk:
@@ -641,7 +656,42 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
     }
   }
 
+  /// Siralama secenekleri — alttan panel (Yemek ekranindaki desen).
+  Future<void> _siralamaPaneliAc() async {
+    final secim = await showModalBottomSheet<_IlanSira>(
+      context: context,
+      builder: (c) => SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            for (final o in _IlanSira.values)
+              ListTile(
+                title: Text(_siraAdi(o)),
+                trailing: o == _sira
+                    ? Icon(LucideIcons.check, size: 18, color: kVurgu(c))
+                    : null,
+                onTap: () => Navigator.of(c).pop(o),
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (secim == null || !mounted) return;
+    setState(() => _sira = secim);
+  }
+
   Widget _filtreSatiri() => kabukCipSeridi(context, [
+    // ⚠️ Cip METNI secili siralamayi yazar: kullanici hangi sirada
+    //    baktigini paneli acmadan gorur (Yemek ekranindaki kural).
+    KabukCip(
+      _sira == _IlanSira.yeni ? 'Sıralama' : _siraAdi(_sira),
+      LucideIcons.arrowUpDown,
+      _sira != _IlanSira.yeni,
+      _siralamaPaneliAc,
+    ),
     // ⚠️ Deger secilince cip METNI degerin KENDISINI yazar — kullanici
     //    hangi araligin acik oldugunu paneli acmadan gorur.
     KabukCip(
@@ -865,6 +915,27 @@ class _IlanListesiEkraniState extends ConsumerState<IlanListesiEkrani> {
   ///	Artik yalniz ACILISTAN SAPMA suzgec sayilir.
   /// ⚠️ `_favori`/`_benim` de dahil: ikisi de listeyi bosaltabilir ve
   ///	temizlemede sifirlanmazlarsa GORUNMEZ SUZGEC olarak kalirlar.
+  /// Siralamayi uygular.
+  ///
+  /// ⚠️⚠️ **FIYATI GIZLI/BELIRSIZ ILANLAR DAIMA SONA** gider. Aksi halde
+  ///	"Ucuzdan pahaliya"da fiyati 0 gorunen ilanlar EN BASA cikardi ve
+  ///	liste "en ucuzlar" gibi okunurdu — kullaniciya YANLIS BILGI.
+  /// ⚠️ Kopya liste uzerinde siralanir: gelen liste yerinde degistirilseydi
+  ///    siralamayi kapatmak eski sirayi GERI GETIREMEZDI.
+  List<Ilan>? _sirala(List<Ilan>? l) {
+    if (l == null || _sira == _IlanSira.yeni) return l;
+    final k = [...l];
+    int fiyat(Ilan i) => (i.fiyatGizli || i.fiyatKurus <= 0) ? -1 : i.fiyatKurus;
+    k.sort((a, b) {
+      final fa = fiyat(a), fb = fiyat(b);
+      if (fa < 0 && fb < 0) return 0;
+      if (fa < 0) return 1;
+      if (fb < 0) return -1;
+      return _sira == _IlanSira.ucuz ? fa.compareTo(fb) : fb.compareTo(fa);
+    });
+    return k;
+  }
+
   bool get _suzgecVar =>
       _tur != widget.tur ||
       _kategori.isNotEmpty ||
@@ -2561,3 +2632,17 @@ class _IlanDetayIdState extends ConsumerState<IlanDetayId> {
     );
   }
 }
+
+
+/// ⚠️ TURU 122 — ILAN SIRALAMASI.
+///
+/// ⚠️ `yeni` = SUNUCUNUN kendi sirasi (`created_at DESC`); istemci ona
+///    DOKUNMAZ. Digerleri istemcide uygulanir (sunucuda siralama
+///    parametresi YOK ve liste tek istekte geliyor).
+enum _IlanSira { yeni, ucuz, pahali }
+
+String _siraAdi(_IlanSira s) => switch (s) {
+      _IlanSira.yeni => 'Yeniden eskiye',
+      _IlanSira.ucuz => 'Ucuzdan pahalıya',
+      _IlanSira.pahali => 'Pahalıdan ucuza',
+    };

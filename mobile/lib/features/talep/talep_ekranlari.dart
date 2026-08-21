@@ -21,7 +21,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 //    KOPYALANMAZ (iki ekran birlikte doner).
 import '../isletme/isletme_kart.dart' show kYanBosluk, kYaricap, kYuzeyGri;
 import '../isletme/isletme_listesi.dart'
-    show kBosluk, kKesifKutu, kIzgaraAralik;
+    show kBosluk, kKesifKutu, kIzgaraAralik, kBaslikBosluk, kCipPay;
 import '../ilan/ilan_ekranlari.dart' show IlanDetayEkrani, IlanListesiEkrani;
 import '../ilan/ilan_servisi.dart';
 // ⚠️ TURU 121 — kategori ekranlarinin ORTAK KABUGU (Yemek referansi).
@@ -69,6 +69,58 @@ class _TalepAkisiState extends ConsumerState<TalepAkisiEkrani> {
   final _arama = TextEditingController();
   String _q = '';
 
+  /// ⚠️⚠️ TURU 122 — **TALEPLERIM ARTIK BU EKRANDA** (kullanici emri:
+  ///	*"butun kategoriler AYNI OLACAK ayni mantik"*).
+  ///
+  ///	Onceden ekran YALNIZ kategori kartlarindan ibaretti: ne liste ne
+  ///	filtre cipi vardi ve taleplerine ancak SAG USTTEKI ikondan
+  ///	ulasabiliyordun. Yemek ve Ilan ekranlarinda liste EKRANIN KENDISINDE
+  ///	oldugu icin bu ekran ailenin disinda duruyordu.
+  /// ⚠️ Sag ustteki "Taleplerim" girisi KALDIRILMADI: teklif akisinin
+  ///    tum gecmisi orada (kapanmis talepler dahil).
+  List<Ilan>? _talepler;
+  String? _talepHata;
+
+  /// Durum suzgeci: `''` = tumu · `yayinda` = acik · `satildi` = anlasildi.
+  /// ⚠️ Degerler SUNUCUNUN `ilanlar.durum` kumesinden; istemcide UYDURMA
+  ///    durum YOK.
+  String _durum = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _talepleriYukle();
+  }
+
+  /// ⚠️ Hata SESSIZ DEGIL: liste yerine "Tekrar dene" cizilir (Yemek ve
+  ///    Ilan ekranlarindaki desenin aynisi).
+  Future<void> _talepleriYukle() async {
+    try {
+      final l = await ref
+          .read(ilanServisiProvider)
+          .liste(tur: 'talep', benim: true);
+      if (!mounted) return;
+      setState(() {
+        _talepler = l;
+        _talepHata = null;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _talepHata = 'Talepler alınamadı');
+    }
+  }
+
+  /// ⚠️ Durum suzgeci ISTEMCIDE: sunucunun `/ilanlar` ucu `durum`
+  ///    parametresi ALMIYOR ve liste zaten TEK ISTEKTE (60 kayit tavani,
+  ///    sayfalama yok) geliyor — yani suzgec DURUST calisir.
+  List<Ilan>? get _suzulmusTalepler {
+    final l = _talepler;
+    if (l == null || _durum.isEmpty) return l;
+    return l.where((i) => i.durum == _durum).toList();
+  }
+
+  bool get _talepSuzgeci => _durum.isNotEmpty;
+
   @override
   void dispose() {
     _arama.dispose();
@@ -107,15 +159,20 @@ class _TalepAkisiState extends ConsumerState<TalepAkisiEkrani> {
       baslik: _baslik,
       sagIkon: LucideIcons.clipboardList,
       sagIpucu: 'Taleplerim',
-      sagBasildi: () => Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => const IlanListesiEkrani(
-            tur: 'talep',
-            benim: true,
-            baslik: 'Taleplerim',
+      sagBasildi: () async {
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => const IlanListesiEkrani(
+              tur: 'talep',
+              benim: true,
+              baslik: 'Taleplerim',
+            ),
           ),
-        ),
-      ),
+        );
+        // ⚠️ Donuste tazele: orada bir talep kaldirilmis/kapanmis olabilir.
+        if (mounted) await _talepleriYukle();
+      },
+      onYenile: _talepleriYukle,
       slivers: agac.when(
         loading: () => const [
           SliverFillRemaining(
@@ -260,8 +317,194 @@ class _TalepAkisiState extends ConsumerState<TalepAkisiEkrani> {
                   ),
                 ),
               SliverToBoxAdapter(child: _nasilCalisir()),
+
+              // ══════════ TALEPLERIM (Yemek/Ilan ile AYNI iskelet) ══════════
+              //
+              // ⚠️ Sira Yemek ekraniyla BIREBIR: **cip seridi -> bolum
+              //    basligi -> liste**.
+              // ⚠️ Hic talep YOKSA bu bolumun TAMAMI cizilmez: bos bir
+              //    "Taleplerim (0)" basligi ve altinda cip seridi, ekrani
+              //    kalabaliklastirir ve kullaniciya hicbir sey soylemez.
+              //    Ilk talep olusunca kendiliginden belirir.
+              if (_talepHata != null) ...[
+                kabukBosluk(),
+                SliverToBoxAdapter(
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _talepHata!,
+                          style: const TextStyle(color: Colors.grey),
+                        ),
+                        TextButton(
+                          onPressed: _talepleriYukle,
+                          child: const Text('Tekrar dene'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ] else if (_talepler != null) ...[
+                kabukBosluk(),
+                // ⚠️ Cipler kategori ekranindaki `_filtreSatiri` ile AYNI
+                //    bilesenden (`kabukCipSeridi`) — ayni dil, ayni olcu.
+                // ⚠️⚠️ Degerler SUNUCUNUN `ilanlar.durum` kumesinden
+                //    (`yayinda` / `satildi`); istemcide UYDURMA durum YOK.
+                SliverToBoxAdapter(
+                  child: kabukCipSeridi(context, [
+                    KabukCip('Tümü', LucideIcons.layoutGrid, _durum.isEmpty,
+                        () => setState(() => _durum = '')),
+                    KabukCip('Açık', LucideIcons.radio, _durum == 'yayinda',
+                        () => setState(
+                            () => _durum = _durum == 'yayinda' ? '' : 'yayinda')),
+                    KabukCip('Anlaşıldı', LucideIcons.handshake,
+                        _durum == 'satildi',
+                        () => setState(
+                            () => _durum = _durum == 'satildi' ? '' : 'satildi')),
+                  ]),
+                ),
+                const SliverToBoxAdapter(
+                  child: SizedBox(height: kBosluk - kCipPay),
+                ),
+                SliverToBoxAdapter(
+                  child: kabukBolumBasligi(
+                    context,
+                    'Taleplerim (${(_suzulmusTalepler ?? const []).length})',
+                  ),
+                ),
+                const SliverToBoxAdapter(
+                  child: SizedBox(height: kBaslikBosluk),
+                ),
+                if ((_suzulmusTalepler ?? const []).isEmpty)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Hic talep yoksa OGRETICI metin; suzgec
+                            // bosalttiysa SEBEBI soyleyen metin. Ikisini
+                            // ayirmamak kullaniciya yalan olurdu.
+                            Text(
+                              _talepSuzgeci
+                                  ? 'Seçtiğin filtreye uyan talep yok.'
+                                  : 'Henüz talebin yok.\nYukarıdaki kartlardan birine dokun.',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(color: Colors.grey),
+                            ),
+                            if (_talepSuzgeci)
+                              TextButton(
+                                onPressed: () => setState(() => _durum = ''),
+                                child: const Text('Filtreleri temizle'),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  )
+                else
+                  SliverList.builder(
+                    itemCount: (_suzulmusTalepler ?? const []).length,
+                    itemBuilder: (_, i) => _talepKarti(_suzulmusTalepler![i]),
+                  ),
+                kabukBosluk(90),
+              ],
           ];
         },
+      ),
+    );
+  }
+
+  /// Talep karti — Ilan buyuk kartiyla AYNI dil (ad -> durum -> meta).
+  ///
+  /// ⚠️ Kapak GORSELI YOK: talepte medya nadiren oluyor ve bos bir 16:9
+  ///	gri kutu listeyi gereksiz uzatirdi. Ilanda kapak VAR cunku orada
+  ///	fotograf kuraldir.
+  /// ⚠️ Teklif sayisi SUNUCUDAN gelmiyor -> **UYDURULMUYOR**. Kullanici
+  ///	kac teklif aldigini talebe dokununca goruyor.
+  Widget _talepKarti(Ilan i) {
+    final scheme = Theme.of(context).colorScheme;
+    final acik = i.durum == 'yayinda';
+    return InkWell(
+      onTap: () async {
+        await Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => IlanDetayEkrani(ilan: i)),
+        );
+        // ⚠️ Donuste tazele: talep orada kapatilmis/kaldirilmis olabilir.
+        if (mounted) await _talepleriYukle();
+      },
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(kYanBosluk, 12, kYanBosluk, 12),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    i.baslik,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      // ⚠️ Durum RENK + YAZI birlikte: renk TEK BASINA renk
+                      //    korlugu olana hicbir sey anlatmaz (turu 98b dersi).
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: (acik ? scheme.primary : scheme.onSurface)
+                              .withValues(alpha: 0.10),
+                          borderRadius: BorderRadius.circular(kYaricap(22)),
+                        ),
+                        child: Text(
+                          acik ? 'Açık' : 'Anlaşıldı',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: acik
+                                ? scheme.primary
+                                : scheme.onSurface.withValues(alpha: 0.62),
+                          ),
+                        ),
+                      ),
+                      if (i.ilce.isNotEmpty) ...[
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            i.ilce,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: scheme.onSurface.withValues(alpha: 0.55),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Icon(
+              LucideIcons.chevronRight,
+              size: 18,
+              color: scheme.onSurface.withValues(alpha: 0.35),
+            ),
+          ],
+        ),
       ),
     );
   }
