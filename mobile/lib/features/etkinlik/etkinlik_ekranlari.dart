@@ -267,9 +267,21 @@ class _EtkinlikListesiEkraniState extends ConsumerState<EtkinlikListesiEkrani> {
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 40),
                 child: Center(
-                  child: Text(
-                    _hata!,
-                    style: const TextStyle(color: Colors.grey),
+                  // Ag hatasinda KURTARMA YOLU: yalniz metin yazmak ekrani
+                  // olu birakiyordu (Yemek ve Ilan ekranlarinda bu dugme
+                  // ZATEN var - asimetrinin kendisi hataydi).
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        _hata!,
+                        style: const TextStyle(color: Colors.grey),
+                      ),
+                      TextButton(
+                        onPressed: _yukle,
+                        child: const Text('Tekrar dene'),
+                      ),
+                    ],
                   ),
                 ),
               ),
