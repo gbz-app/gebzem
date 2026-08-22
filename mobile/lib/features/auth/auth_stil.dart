@@ -244,7 +244,13 @@ InputDecoration authAlan(
   final sadeNormal = hataliMi
       ? authHata
       : (sadeKoyuCizgi ? authYazi : authCizgi);
-  final normal = hataliMi ? authHata : authCizgi;
+  // ⚠️⚠️ TURU 126 — **DOLU ALANIN CIZGISI SIYAH KALIR** (kullanici:
+  //	*"kullanici adinda bir sey yazdigimda alt cizgi siyah kalmiyor"*).
+  //	Once alan bos: acik gri. Odakta: MOR. Odak gidince, alan DOLUYSA
+  //	acik griye dusmek "burasi bos" izlenimi veriyordu; artik KOYU kalir.
+  // ⚠️ [sadeKoyuCizgi] hem SADE hem NORMAL modda bu isi gorur; cagiran
+  //    taraf `controller.text.isNotEmpty` gecer.
+  final normal = hataliMi ? authHata : (sadeKoyuCizgi ? authYazi : authCizgi);
   final odak = hataliMi ? authHata : morLogo;
   final etiketStili = TextStyle(
     color: hataliMi ? authHata : authAltYazi,

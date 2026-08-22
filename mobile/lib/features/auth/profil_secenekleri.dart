@@ -38,6 +38,9 @@ const int kEnFazlaIlgi = 12;
 const int kEnKucukYas = 13;
 const int kEnBuyukYas = 90;
 
+/// Yas tekerleginin ACILIS degeri (turu 126, kullanici emri).
+const int kVarsayilanYas = 20;
+
 /// ⚠️ Ikon + etiket: renk korlugunde ve hizli taramada ikon anlam TASIR
 ///    (turu 98b dersi: *"renk TEK BASINA hicbir sey anlatmaz"*).
 /// ⚠️ Etiket METNI sunucuya OLDUGU GIBI gider ve profilde OLDUGU GIBI

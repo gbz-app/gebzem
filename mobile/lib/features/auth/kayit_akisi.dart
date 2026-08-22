@@ -115,7 +115,18 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
   /// ⚠️ `null` = BELIRTMEDI. Tekerlegin ilk ogesi bilerek bos ("—"):
   ///    varsayilan bir yasla baslasaydik, tekerlege HIC dokunmayan kullanici
   ///    icin o deger sunucuya gercekmis gibi giderdi.
-  int? _yas;
+  /// ⚠️⚠️ TURU 126 — VARSAYILAN **20** (kullanici emri: *"yasta direk 20de
+  ///	baslasin"*). Artik `null` OLMAZ: tekerlek 20'de acilir ve kullanici
+  ///	degistirmeden gecerse 20 sunucuya gider.
+  /// ⚠️ Turu 120'nin "ilk oge BOS olsun" karari BILEREK geri alindi —
+  ///    gerekcesi `_yasSecici` icinde yazili.
+  int? _yas = kVarsayilanYas;
+
+  /// Tekerlegi 20'ye konumlandirir. `initialItem` olmadan liste BASINDA
+  /// (13) acilirdi.
+  final _yasKontrol = FixedExtentScrollController(
+    initialItem: kVarsayilanYas - kEnKucukYas,
+  );
   final Set<String> _ilgiler = <String>{};
   String _takim = '';
 
@@ -150,6 +161,7 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
     _kullaniciAdi.dispose();
     _sifre.dispose();
     _kodOdak.dispose();
+    _yasKontrol.dispose();
     super.dispose();
   }
 
@@ -567,15 +579,15 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
       // ⚠️ GORUNUM bicimi — sunucuya giden numara DEGIL.
       _baslik(authNumaraGoster(_haneler.text), 'Kodu gir'),
       _otpAlani(),
-      const SizedBox(height: 6),
-      TextButton(
-        onPressed: _mesgul ? null : _telefonGonder,
-        style: TextButton.styleFrom(
-          foregroundColor: morLogo,
-          padding: EdgeInsets.zero,
-        ),
-        child: const Text('Kod gelmedi mi? Tekrar gönder'),
-      ),
+      // ⚠️⚠️ TURU 126 — **"Kod gelmedi mi? Tekrar gönder" KALDIRILDI**
+      //	(kullanici emri).
+      // ⚠️⚠️ **BEKLEYEN IS:** bu, kodu YENIDEN ISTEMENIN TEK yoluydu. SMS
+      //	ulasmayan kullanici artik geri okuyla telefon adimina donup
+      //	"Devam"a basmak ZORUNDA — o yol calisir (`_telefonGonder` yeniden
+      //	kod gonderir) ama kullaniciya HICBIR YERDE soylenmiyor.
+      //	Gercek SMS'e gecildiginde bu bir SEVK ENGELI olur.
+      // ⚠️ YAPMA: `_telefonGonder`i "artik cagrilmiyor" sanip silme —
+      //    telefon adimi ve giris ekrani ONU kullaniyor.
     ],
   );
 
@@ -623,7 +635,13 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
         textCapitalization: TextCapitalization.words,
         textInputAction: TextInputAction.done,
         style: authDegerStili(),
-        decoration: authAlan('Adın soyadın', ipucu: 'Örn. Ahmet Yılmaz'),
+        onChanged: (_) => setState(() {}),
+        decoration: authAlan(
+          'Adın soyadın',
+          ipucu: 'Örn. Ahmet Yılmaz',
+          // ⚠️ Dolu alanin cizgisi SIYAH kalir (bkz. `authAlan` serhi).
+          sadeKoyuCizgi: _ad.text.isNotEmpty,
+        ),
       ),
     ],
   );
@@ -658,6 +676,8 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
         decoration: authAlan(
           'Kullanıcı adı',
           ipucu: 'ornek_kullanici',
+          // ⚠️ Dolu alanin cizgisi SIYAH kalir (bkz. `authAlan` serhi).
+          sadeKoyuCizgi: _kullaniciAdi.text.isNotEmpty,
         ).copyWith(suffixIcon: _kullaniciAdiGosterge()),
       ),
       const SizedBox(height: 10),
@@ -706,18 +726,10 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
       //	bakmadan ONCE okunur.
       // ⚠️ Ayrica **SOLA DAYALI**: kardes iki alt yazi ("En fazla 12 tane
       //    seçebilirsin.") sola dayali; ortada duran TEK satir buydu.
-      const SizedBox(height: 4),
-      Text(
-        _yas == null
-            ? 'Listeyi kaydırıp yaşını seç — istersen boş bırak.'
-            : '$_yas yaşındasın',
-        style: TextStyle(
-          fontSize: 12.5,
-          color: _yas == null ? _altYazi : morLogo,
-          fontWeight: _yas == null ? FontWeight.w400 : FontWeight.w600,
-        ),
-      ),
-      const SizedBox(height: 8),
+      // ⚠️⚠️ TURU 126 — **ONAY/YONERGE SATIRI KALDIRILDI** (kullanici emri:
+      //	*"20 yaşında yazmasın"*). Tekerlek artik BOS ("—") degil **20**`de
+      //	aciliyor: kaydirilabilir oldugu, ustunde ve altinda duran komsu
+      //	yaslardan ZATEN anlasiliyor — yonergenin varlik sebebi bos kutuydu.
       _yasSecici(),
     ],
   );
@@ -806,38 +818,12 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
             ),
         ],
       ),
-      const SizedBox(height: 26),
-      _bolumBasligi('Tuttuğun takım'),
-      const SizedBox(height: 12),
-      // ⚠️ TURU 126 — **TAKIM CIPLERINDE IKON YOK, BU BILINCLI.** Ilgi
-      //    alanlari SOYUT kavramlardir (ikon "Yürüyüş" ile "Bisiklet"i
-      //    ayirmaya yardim eder); takimlar OZEL ADDIR ve ikon hicbir sey
-      //    eklemez — yedi cipe ayni kalkan ikonunu koymak gorsel gurultudur.
-      // ⚠️ YAPMA: "ilgi alanlarinda var, burada yok" diye jenerik ikon ekleme.
-      Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          for (final t in kTakimlar)
-            _cip(
-              etiket: t,
-              secili: _takim == t,
-              // ⚠️ Ikinci dokunus SECIMI KALDIRIR: yanlislikla secen
-              //    kullanicinin geri donus yolu olmaliydi.
-              basildi: () => setState(() => _takim = _takim == t ? '' : t),
-            ),
-        ],
-      ),
+      // ⚠️⚠️ TURU 126 — **"Tuttuğun takım" KALDIRILDI** (kullanici emri).
+      //	`users.takim` sutunu (migration 049) ve `_takim` alani DURUYOR:
+      //	profil duzenlemede hala doldurulabiliyor, yani sutun OLU DEGIL —
+      //	yalnizca KAYIT AKISINDAN cikarildi.
+      // ⚠️ YAPMA: sutunu "kullanilmiyor" sanip migration ile dusurme.
     ],
-  );
-
-  Widget _bolumBasligi(String b) => Text(
-    b,
-    style: const TextStyle(
-      fontSize: 16,
-      fontWeight: FontWeight.w700,
-      color: _yazi,
-    ),
   );
 
   /// Secim cipi (ilgi alani / takim).
@@ -931,46 +917,21 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
         //    rakamin yanindaki susleme dikkat dagitir.
         // ⚠️ `IgnorePointer`: bandin kendisiyle ayni sebep — dokunus
         //    tekerlege gecmeli.
-        if (_yas == null)
-          IgnorePointer(
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: Padding(
-                padding: const EdgeInsets.only(right: 14),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      LucideIcons.chevronUp,
-                      size: 15,
-                      color: morLogo.withValues(alpha: 0.55),
-                    ),
-                    Icon(
-                      LucideIcons.chevronDown,
-                      size: 15,
-                      color: morLogo.withValues(alpha: 0.55),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
         ListWheelScrollView.useDelegate(
+          controller: _yasKontrol,
           itemExtent: 46,
           diameterRatio: 1.7,
           perspective: 0.0025,
           physics: const FixedExtentScrollPhysics(),
-          onSelectedItemChanged: (i) =>
-              setState(() => _yas = i == 0 ? null : kEnKucukYas + i - 1),
+          onSelectedItemChanged: (i) => setState(() => _yas = kEnKucukYas + i),
           childDelegate: ListWheelChildBuilderDelegate(
-            childCount: kEnBuyukYas - kEnKucukYas + 2,
+            childCount: kEnBuyukYas - kEnKucukYas + 1,
             builder: (_, i) {
-              final bos = i == 0;
-              final deger = kEnKucukYas + i - 1;
-              final secili = bos ? _yas == null : _yas == deger;
+              final deger = kEnKucukYas + i;
+              final secili = _yas == deger;
               return Center(
                 child: Text(
-                  bos ? '—' : '$deger',
+                  '$deger',
                   style: TextStyle(
                     fontSize: secili ? 26 : 20,
                     fontWeight: secili ? FontWeight.w800 : FontWeight.w500,
@@ -1053,8 +1014,9 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
     children: [
       _baslik(
         'Son adım',
-        'İstersen şimdi ekle — sürükleyip yakınlaştırarak çerçeveye '
-            'oturtabilirsin.',
+        // ⚠️ TURU 126 — METIN KISALDI (kullanici: *"yazilar cok uzun"*).
+        //    Surukle/yakinlastir yonergesi ZATEN dairenin ALTINDA yaziyor.
+        'Profil fotoğrafın',
       ),
       Center(
         child: Column(
@@ -1180,10 +1142,13 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
               height: _kKirpCap,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                border: Border.all(
-                  color: _fotoHam == null ? _cizgi : Colors.white,
-                  width: 3,
-                ),
+                // ⚠️⚠️ TURU 126 — **BOS DAIREDE KENARLIK YOK** (kullanici emri:
+                //	*"buyuk dairede border yok"*). Fotograf VARKEN beyaz halka
+                //	KALIR: kirpma sinirini gosteren tek isaret odur; kaldirsak
+                //	kullanici nereye kadar kirpildigini goremezdi.
+                border: _fotoHam == null
+                    ? null
+                    : Border.all(color: Colors.white, width: 3),
                 // ⚠️ Golge YALNIZ fotograf varken: bos dairede golge, gri
                 //    yer tutucuyu "kutu" gibi gosteriyordu.
                 boxShadow: _fotoHam == null
@@ -1206,7 +1171,10 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
   Widget _fotoBos() => ColoredBox(
     color: const Color(0xFFF2F2F5),
     child: Center(
-      child: Icon(LucideIcons.userRound, size: 78, color: _altYazi),
+      // ⚠️ TURU 126 — PROFIL ikonu DEGIL **RESIM** ikonu (kullanici emri).
+      //    Daire zaten profil oldugunu soyluyor; ikon YAPILACAK ISI
+      //    (fotograf secmeyi) anlatmali.
+      child: Icon(LucideIcons.image, size: 78, color: _altYazi),
     ),
   );
 
