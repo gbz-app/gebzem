@@ -329,7 +329,14 @@ InputDecoration authAlan(
       //	ve yazi 1 px ZIPLARDI (turu 119 sinifi). Renk hatada KIRMIZI.
       border: sadeCizgi(sadeNormal),
       enabledBorder: sadeCizgi(sadeNormal),
-      focusedBorder: sadeCizgi(sadeNormal),
+      // ⚠️⚠️ TURU 126 — **ODAKTA DAIMA SIYAH** (kullanici emri: *"bazi
+      //	inputlarin aktif alt cizgileri siyah yerine baska renk"*).
+      //	Onceden odak cizgisi `sadeNormal` idi; o da alan BOSKEN
+      //	`authCizgi` (acik gri) donduruyordu — yani BOS bir alana
+      //	dokundugunda cizgi HIC degismiyordu, kullanici alanin aktif
+      //	oldugunu goremiyordu.
+      // ⚠️ Hatali alan odakliyken de KIRMIZI kalir.
+      focusedBorder: sadeCizgi(hataliMi ? authHata : authYazi),
       errorBorder: sadeCizgi(authHata),
       focusedErrorBorder: sadeCizgi(authHata),
       disabledBorder: sadeCizgi(authCizgi),
@@ -948,17 +955,38 @@ class AuthSifreKurallari extends StatelessWidget {
       final renk = tamam
           ? const Color(0xFF129D5A)
           : (hataliMi ? authHata : authAltYazi);
+      // ⚠️ TURU 126 — **IKON + 2 px BUYUK** (kullanici emri). Ikon
+      //    kuralin durumunu TEK BAKISTA soyler: saglandiysa dolu tik,
+      //    degilse bos daire. Renk korlugunde de okunur (yesil/gri
+      //    ayrimi TEK BASINA yetmez).
       return Padding(
         padding: const EdgeInsets.only(top: 6),
-        child: Text(
-          metin,
-          style: TextStyle(
-            fontSize: 13,
-            height: 1.35,
-            color: renk,
-            // ⚠️ Saglanan kural BIR TIK kalin (w600) — kullanici emri.
-            fontWeight: tamam ? FontWeight.w600 : FontWeight.w400,
-          ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Icon(
+                tamam ? LucideIcons.circleCheck : LucideIcons.circle,
+                size: 15,
+                color: renk,
+              ),
+            ),
+            const SizedBox(width: 7),
+            Expanded(
+              child: Text(
+                metin,
+                style: TextStyle(
+                  // ⚠️ 13 -> 15 (kullanici emri: *"2 px daha buyut"*).
+                  fontSize: 15,
+                  height: 1.35,
+                  color: renk,
+                  // ⚠️ Saglanan kural BIR TIK kalin (w600) — kullanici emri.
+                  fontWeight: tamam ? FontWeight.w600 : FontWeight.w400,
+                ),
+              ),
+            ),
+          ],
         ),
       );
     }

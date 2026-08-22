@@ -502,7 +502,9 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
             //    hala son-adim kararini besliyor.
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(28, 28, 28, 24),
+                // ⚠️ TURU 126 — ust bosluk **17** (kullanici emri: butun
+                //    sayfalarda esit). Giris 17, kayit 28 idi.
+                padding: const EdgeInsets.fromLTRB(28, 17, 28, 24),
                 child: switch (_adim) {
                   0 => _adimTelefon(),
                   1 => _adimSifre(),
@@ -784,7 +786,8 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
         child: TextField(
           controller: _kullaniciAdi,
           textInputAction: TextInputAction.done,
-          style: authDegerStili(),
+          // ⚠️ Yazi boyu giris ekraniyla AYNI (bkz. ad alani serhi).
+          style: authDegerStili(boy: authSadeDegerBoy, sade: true),
           // ⚠️ Sunucu YALNIZ kucuk harf kabul ediyor.
           //    Onceki suzgec kabul edilmeyen harfi SESSIZCE SILIYORDU
           //    ("Ahmet" -> "hmet"); artik KARSILIGINA cevriliyor
@@ -797,6 +800,7 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
             'Kullanıcı adı',
             ipucu: 'ornek_kullanici',
             hataliMi: _kullaniciAdiHatasi != null,
+            sade: true,
             // ⚠️ Dolu alanin cizgisi SIYAH kalir (bkz. `authAlan` serhi).
             sadeKoyuCizgi: _kullaniciAdi.text.isNotEmpty,
             etiketiGizle: true,
@@ -874,45 +878,43 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
       // ⚠️ TURU 126 — "Belirtmek istemiyorum" KALDIRILDI (kullanici emri).
       //    Adim ZATEN opsiyonel: hicbirine dokunmadan "Devam" denebilir,
       //    yani ayri bir "belirtmek istemiyorum" secenegi GEREKSIZDI.
-      for (final c in const ['Kadın', 'Erkek']) ...[
-        _cinsiyetSecenegi(c),
-        const SizedBox(height: 10),
-      ],
+      // ⚠️ TURU 126 — **ILGI ALANLARI GIBI: YAZI GENISLIGINDE, YAN YANA**
+      //    (kullanici emri). Tam genislik dugmeler iki secenekli bir soru
+      //    icin gereginden agirdi.
+      Wrap(
+        spacing: 10,
+        runSpacing: 10,
+        children: [
+          for (final c in const ['Kadın', 'Erkek']) _cinsiyetSecenegi(c),
+        ],
+      ),
     ],
   );
 
-  /// ⚠️ TURU 126 — **1 px KENARLIKLI TAM GENISLIK DUGME** (kullanici emri:
-  ///    *"cinsiyet ama buton 1px border gibi"*). Secilince kenarlik ve yazi
-  ///    MARKA MORUNA doner; kalinlik 1 px KALIR — degisseydi dugme yuksekligi
-  ///    oynar ve alttakiler 1 px ZIPLARDI.
+  /// ⚠️⚠️ TURU 126 — **ILGI ALANI CIPIYLE AYNI BICIM** (kullanici emri:
+  ///	*"erkek kadin butonlari ilgi alanlari gibi yazinin genisligi kadar
+  ///	olmali, tiklandiginda siyah border, aktif degilse gri"*).
+  ///
+  ///	Onceki hal TAM GENISLIK `OutlinedButton` idi ve secilince MOR
+  ///	oluyordu. Iki secenekli bir soru icin gereginden agir duruyordu;
+  ///	ayrica ayni ekranin kardesi olan ilgi alanlari CIP bicimindeydi —
+  ///	ayni akista iki farkli secim dili vardi.
+  ///
+  /// ⚠️ SECILI HALI **SIYAH KENARLIK**, mor DEGIL: kullanici emri ve
+  ///    turu 126 boyunca kimlik ekranlarindan mor vurgular kaldirildi
+  ///    (odak cizgisi de siyaha cevrildi). Tek mor oge ANA DUGME.
+  /// ⚠️ Kenarlik kalinligi IKI HALDE DE 1.4: degisseydi cipin dis olcusu
+  ///    oynar ve yanindaki komsu 1 px KAYARDI.
+  /// ⚠️ Zemin secilince de BEYAZ kalir — dolu siyah bir hap, iki secenekli
+  ///    bir soruda "kapatilmis" gibi okunuyordu.
   Widget _cinsiyetSecenegi(String etiket) {
     final secili = _cinsiyet == etiket;
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton(
-        // ⚠️ Ikinci dokunus secimi KALDIRIR (kardes `_cip` ile ayni kural).
-        onPressed: () => setState(() => _cinsiyet = secili ? '' : etiket),
-        style: OutlinedButton.styleFrom(
-          alignment: Alignment.centerLeft,
-          foregroundColor: secili ? morLogo : _yazi,
-          side: BorderSide(color: secili ? morLogo : _cizgi),
-          // ⚠️ TURU 126 — YARICAP 12 (kullanici emri: *"seceneklerde radus
-          //    olacak"*). Ana dugme DUZ KOSE kalir (turu 119 emri): bunlar
-          //    SECIM ogesi, o EYLEM dugmesi.
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          // ⚠️ TURU 126 — yan dolgu 16 -> 10 (kullanici emri).
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 16),
-        ),
-        child: Text(
-          etiket,
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: secili ? FontWeight.w700 : FontWeight.w500,
-          ),
-        ),
-      ),
+    return _cip(
+      etiket: etiket,
+      secili: secili,
+      // ⚠️ Ikinci dokunus secimi KALDIRIR (kardes `_cip` ile ayni kural).
+      basildi: () => setState(() => _cinsiyet = secili ? '' : etiket),
+      seciliSiyah: true,
     );
   }
 
@@ -967,13 +969,17 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
   /// ⚠️ Dokunma hedefi en az 40 dp yuksekliginde: Material 48 diyor, `Wrap`
   ///    icinde 48 cok seyrek duruyordu; 40 sinirdaki uzlasma ve dikey aralik
   ///    (runSpacing 8) ile efektif hedef 48'e ulasiyor.
+  /// ⚠️ TURU 126 — : cinsiyet secenekleri secilince MOR
+  ///    degil SIYAH kenarlikli olur (kullanici emri) ve zemini BEYAZ
+  ///    kalir. Ilgi alanlari eski davranista (mor dolu) kalir.
   Widget _cip({
     required String etiket,
     required bool secili,
     required VoidCallback basildi,
     IconData? ikon,
+    bool seciliSiyah = false,
   }) => Material(
-    color: secili ? morLogo : Colors.white,
+    color: secili && !seciliSiyah ? morLogo : Colors.white,
     // ⚠️ Yaricap KUTU degil HAP: cipler, alt cizgili alanlarla ayni "duz"
     //    dile ait degil; secilebilir etiketlerin standart bicimi hap.
     borderRadius: BorderRadius.circular(22),
@@ -985,13 +991,20 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
         padding: const EdgeInsets.symmetric(horizontal: 14),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: secili ? morLogo : _cizgi, width: 1.4),
+          border: Border.all(
+            color: secili ? (seciliSiyah ? _yazi : morLogo) : _cizgi,
+            width: 1.4,
+          ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             if (ikon != null) ...[
-              Icon(ikon, size: 16, color: secili ? Colors.white : _altYazi),
+              Icon(
+                ikon,
+                size: 16,
+                color: secili && !seciliSiyah ? Colors.white : _altYazi,
+              ),
               const SizedBox(width: 7),
             ],
             Text(
@@ -999,7 +1012,7 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
-                color: secili ? Colors.white : _yazi,
+                color: secili && !seciliSiyah ? Colors.white : _yazi,
               ),
             ),
           ],
