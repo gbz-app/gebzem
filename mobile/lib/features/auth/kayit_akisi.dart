@@ -235,9 +235,15 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
   /// ⚠️ Dogrulama TEK YERDE (`_bilgilerGecerli`) — `_hesabiKur` icinde TEKRAR
   ///    edilir: kullanici son adimdan geri donup alani BOSALTIP tekrar
   ///    ilerlerse sunucuya bos ad gitmesin. Iki kapi da UCUZ ve ikisi de gerekli.
+  /// ⚠️⚠️⚠️ TURU 126 — **HEDEF 3 -> 4.** Akis 8 adima cikinca ISIM adimi
+  ///	3 oldu; bu metot hala `_adim = 3` yaziyordu, yani KENDI ADIMINA
+  ///	gidiyordu ve "Devam"a basmak EKRANI HIC DEGISTIRMIYORDU.
+  ///	Emulatorde goruldu: kullanici icin dugme SESSIZCE calismiyordu.
+  /// ⚠️ Adim ekleyip cikarirken bu SABIT SAYILARI tek tek gozden gecir —
+  ///    derleyici bunlari YAKALAMAZ.
   void _bilgileriDogrula() {
     if (!_bilgilerGecerli()) return;
-    setState(() => _adim = 3);
+    setState(() => _adim = 4); // -> YAS
   }
 
   bool _bilgilerGecerli() {
@@ -627,7 +633,9 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
         'Kaç yaşındasın?',
         'İstersen boş bırak — profilinde görünür, sonra değiştirebilirsin.',
       ),
-      _bolumBasligi('Kaç yaşındasın?'),
+      // ⚠️ TURU 126 — BOLUM BASLIGI KALDIRILDI: yas artik KENDI ADIMI ve
+      //    sayfa basligi ZATEN "Kaç yaşındasın?" — ayni cumle ust uste
+      //    IKI KEZ yaziyordu (emulatorde goruldu).
       // ⚠️⚠️ TURU 120 — YONERGE SATIRI (emulatorde goruldu). Tekerlek
       //	varsayilan olarak BOS ("—") acildigi icin ekran, kullaniciya
       //	kaydirilabilir bir secici oldugunu SOYLEMIYORDU; bos bir kutu
@@ -714,7 +722,7 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
         'İstersen doldur — profilinde görünür, dilediğin zaman '
             'değiştirebilirsin.',
       ),
-      _bolumBasligi('İlgi alanların'),
+      // ⚠️ TURU 126 — BOLUM BASLIGI KALDIRILDI (sayfa basligiyla ayni).
       const SizedBox(height: 4),
       Text(
         _ilgiler.isEmpty
