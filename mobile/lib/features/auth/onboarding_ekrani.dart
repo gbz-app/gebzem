@@ -147,7 +147,7 @@ class _OnboardingEkraniState extends ConsumerState<OnboardingEkrani> {
           'İkinci el eşyandan iş ilanına kadar her şeyi Gebze’de yayınla; '
           'aradığını mahallendekilerden bul.',
       ikonlar: [LucideIcons.tag, LucideIcons.store, LucideIcons.briefcase],
-      gorsel: _Gorsel.isletmeKartlari,
+      gorsel: _Gorsel.ilanKartlari,
     ),
     _Sayfa(
       baslik: 'Şehrinde ne var',
@@ -160,7 +160,7 @@ class _OnboardingEkraniState extends ConsumerState<OnboardingEkrani> {
         LucideIcons.ticket,
         LucideIcons.partyPopper,
       ],
-      gorsel: _Gorsel.konumHarita,
+      gorsel: _Gorsel.etkinlikKartlari,
     ),
   ];
 
@@ -533,6 +533,8 @@ class _SayfaGorunumu extends StatelessWidget {
     _Gorsel.aiTelefon => const _Telefon(tur: _TelefonTuru.ai),
     _Gorsel.konumHarita => const _KonumHarita(),
     _Gorsel.aramaTelefon => const _Telefon(tur: _TelefonTuru.arama),
+    _Gorsel.ilanKartlari => const _KartAkisi(tur: _AkisTuru.ilan),
+    _Gorsel.etkinlikKartlari => const _KartAkisi(tur: _AkisTuru.etkinlik),
   };
 
   // ⚠️ TURU 89 — `_kart()` (mor gradyanli ikon karti) SILINDI: kullanici
@@ -547,9 +549,15 @@ enum _Gorsel {
   mesajKartlari,
   konumHarita,
   aramaTelefon,
+  // ⚠️ TURU 126 — iki yeni tanitim sayfasi icin. Mevcut bir gorseli
+  //    yeniden kullanmak MUMKUNDU ama YANLIS olurdu: ilan sayfasinin
+  //    altinda "Yemek · Kafe · Kuafor" kartlari akiyordu (isletme
+  //    kategorileri), etkinlik sayfasi da konum haritasini TEKRARLIYORDU.
+  ilanKartlari,
+  etkinlikKartlari,
 }
 
-enum _AkisTuru { isletme, mesaj }
+enum _AkisTuru { isletme, mesaj, ilan, etkinlik }
 
 /// ⚠️⚠️⚠️ TURU 118 — **ASAGIDAN YUKARI AKAN KARTLAR** (kullanici emri:
 ///	*"ornegin yemek alanindaki firmalar KART seklinde ASAGIDAN YUKARI
@@ -618,9 +626,37 @@ class _KartAkisiState extends State<_KartAkisi>
     (LucideIcons.mapPin, 'Mahalle', 'Çevrendeki paylaşımlar'),
   ];
 
+  /// ⚠️⚠️ **UYDURMA KATEGORI YOK.** Dordu de `demo_ilan.dart`teki gercek
+  ///	`tur` degerleri (`vasita` · `emlak` · `is` · `ikinci_el`); son iki
+  ///	kart da ilan ekranindaki GERCEK ciplerdir (Favorilerim · İlanlarım).
+  static const _ilanlar = <(IconData, String, String)>[
+    (LucideIcons.car, 'Vasıta', 'Otomobil · Motosiklet'),
+    (LucideIcons.building2, 'Emlak', 'Satılık · Kiralık'),
+    (LucideIcons.briefcase, 'İş İlanları', 'Gebze’de iş fırsatları'),
+    (LucideIcons.tag, 'İkinci El', 'Eşya · Elektronik'),
+    (LucideIcons.heart, 'Favorilerim', 'Kaydettiğin ilanlar'),
+    (LucideIcons.store, 'İlanlarım', 'Kendi ilanların'),
+  ];
+
+  /// ⚠️⚠️ Altisi da `etkinlik_servisi.dart` -> `etkinlikKategorileri`
+  ///	haritasindan; adlar BIREBIR ayni (sunucudaki liste ile hizali).
+  static const _etkinlikler = <(IconData, String, String)>[
+    (LucideIcons.music, 'Konser', 'Canlı müzik'),
+    (LucideIcons.dumbbell, 'Spor', 'Maç · Turnuva'),
+    (LucideIcons.graduationCap, 'Eğitim & Atölye', 'Kurs · Workshop'),
+    (LucideIcons.palette, 'Sanat & Sergi', 'Sergi · Tiyatro'),
+    (LucideIcons.partyPopper, 'Festival', 'Şehir festivalleri'),
+    (LucideIcons.users, 'İş & Networking', 'Buluşma · Topluluk'),
+  ];
+
   @override
   Widget build(BuildContext context) {
-    final veri = widget.tur == _AkisTuru.isletme ? _isletmeler : _mesajlar;
+    final veri = switch (widget.tur) {
+      _AkisTuru.isletme => _isletmeler,
+      _AkisTuru.mesaj => _mesajlar,
+      _AkisTuru.ilan => _ilanlar,
+      _AkisTuru.etkinlik => _etkinlikler,
+    };
     // ⚠️ TURU 120 — 78 -> 84: ikon karesi 48'e cikinca kartin dikey nefesi
     //    (48 + 2x18) daraliyordu ve yazi kutuya YAPISIK duruyordu.
     const kartBoy = 84.0;
