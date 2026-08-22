@@ -959,8 +959,21 @@ class _TelefonState extends State<_Telefon>
       //	ve dynamic island'i her karede yeniden insa etmek gereksizdi;
       //	degisen TEK sey sohbet icerigi ve o da `_cerceve()` icinde kendi
       //	`AnimatedBuilder`ina alindi.
+      // ⚠️⚠️⚠️ TURU 126 — **`minWidth: 0` ZORUNLU (emulatorde olculdu).**
+      //
+      //	Ebeveyn `SizedBox(width: double.infinity)` genislikte **TIGHT**
+      //	kisit verir. `OverflowBox` `minWidth`/`maxWidth` verilmediginde
+      //	o kisiti OLDUGU GIBI asagi gecirir, yani icteki
+      //	`SizedBox(width: en)` **YOK SAYILIR** ve cerceve DAIMA tam
+      //	genislikte cizilir. Hesaplanan `en` yalnizca `boy`u besliyordu.
+      //	Sonuc: "telefonu %20 daralt" emri UYGULANSA DA ekranda hicbir sey
+      //	degismiyordu — 0.60 -> 0.48 degisikligi OLU KODDU.
+      // ⚠️ `minWidth: 0` kisiti GEVSETIR; `alignment: topCenter` ortalar.
+      // ⚠️ YAPMA: `minWidth`i kaldirma.
       return ClipRect(
         child: OverflowBox(
+          minWidth: 0,
+          maxWidth: double.infinity,
           maxHeight: double.infinity,
           alignment: Alignment.topCenter,
           child: SizedBox(width: en, height: boy, child: _cerceve()),
