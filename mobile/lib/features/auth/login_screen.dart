@@ -230,8 +230,39 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (mounted) context.go('/onboarding');
   }
 
+  /// ⚠️⚠️⚠️ TURU 126 — **GERI ICIN TEK KAYNAK** (kardes `kayit_akisi` ile
+  ///	ayni desen). Ekrandaki ok ikinci asamadan NUMARAYA donuyordu ama
+  ///	SISTEM GERI TUSU dogrudan route`u pop ediyor, yani kullanici sifre
+  ///	asamasindayken geri jesti yapinca **numarayi da kaybedip**
+  ///	onboarding`e dusuyordu. Iki geri yolu ayni davranmali.
+  void _geri() {
+    if (_sifreGorundu) {
+      // ⚠️ Ikinci asamadaysak once NUMARAYA don: kullanicinin bekledigi
+      //    "geri" budur.
+      setState(() => _sifreGorundu = false);
+      return;
+    }
+    if (context.canPop()) {
+      context.pop();
+      return;
+    }
+    context.go('/onboarding');
+  }
+
   @override
   Widget build(BuildContext context) {
+    // ⚠️⚠️ Sistem geri jesti de `_geri`den gecer (bkz. serh).
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (bittiMi, _) {
+        if (bittiMi || _loading) return;
+        _geri();
+      },
+      child: _govde(),
+    );
+  }
+
+  Widget _govde() {
     // ⚠️⚠️⚠️ TURU 126 — **`viewInsets` BURADA OKUNMAZ** (kullanici:
     //	*"bos bir yere tikladigimda tus takimi kapanirken ekranda donma
     //	yapiyor"*).
@@ -297,19 +328,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         Shadow(color: authYazi, offset: Offset(0, -0.4)),
                       ],
                     ),
-                    onPressed: _loading
-                        ? null
-                        : () {
-                            if (_sifreGorundu) {
-                              // ⚠️ Ikinci asamadaysak once NUMARAYA don:
-                              //    kullanicinin bekledigi "geri" budur.
-                              setState(() => _sifreGorundu = false);
-                            } else if (context.canPop()) {
-                              context.pop();
-                            } else {
-                              context.go('/onboarding');
-                            }
-                          },
+                    onPressed: _loading ? null : _geri,
                   ),
                 ),
               ),

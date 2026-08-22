@@ -416,6 +416,24 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
     // ⚠️ YAPMA: bu sarmali kaldirip renkleri tek tek yazma.
     // ⚠️ TURU 126 — klavye acilinca UST ICERIK OYNAMAZ (bkz. `AuthSayfa`
     //    serhi); yalniz alt dugme `viewInsets` kadar yukari cikar.
+    // ⚠️⚠️ **`PopScope` `AuthSayfa`NIN DISINDA** olmali: icine konsaydi
+    //    yalniz o alt agaci kapsardi ve route seviyesindeki pop`u
+    //    engelleyemezdi.
+    // ⚠️ `canPop: false` + `onPopInvokedWithResult`: Android`in tahmini
+    //    geri jesti de (predictive back) bu kapidan gecer.
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (bittiMi, _) {
+        // ⚠️ `bittiMi` true ise pop ZATEN gerceklesti (baska bir sey izin
+        //    verdi) — ikinci kez gezinmek yigini bozar.
+        if (bittiMi || _mesgul) return;
+        _geri();
+      },
+      child: _govde(),
+    );
+  }
+
+  Widget _govde() {
     return AuthSayfa(
       klavyeyeGoreKuculme: false,
       child: SafeArea(
@@ -474,11 +492,7 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
                 Shadow(color: _yazi, offset: Offset(0, -0.4)),
               ],
             ),
-            onPressed: _mesgul
-                ? null
-                : () => _adim == 0 || (_giristenGeldi && _adim == 1)
-                      ? context.go('/login')
-                      : setState(() => _adim -= 1),
+            onPressed: _mesgul ? null : _geri,
           ),
         ),
       ],
@@ -491,6 +505,32 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
   // ⚠️ Adim govdeleri ve alt dugme `switch (_adim)` ile eslesiyor; SON adim
   //    ikisinde de VARSAYILAN dal (`_ =>`). Yani yeni adim eklerken
   //    guncellenecek yer IKI switch'tir, bir sayac degil.
+
+  /// ⚠️⚠️⚠️ TURU 126 — **GERI ICIN TEK KAYNAK.**
+  ///
+  ///	Emulatorde olculdu: ekrandaki ok bir ADIM geri gidiyordu ama
+  ///	**SISTEM GERI TUSU/JESTI butun `/register` route`unu POP
+  ///	EDIYORDU**. Kullanici ad adiminda geri jesti yapinca giris
+  ///	ekranina dusuyor ve TELEFON · SIFRE · AD · KULLANICI ADI · YAS ile
+  ///	birlikte **TUKETILMIS OTP JETONUNU** da kaybediyordu; kod sunucuda
+  ///	zaten harcandigi icin bastan yeni kod istemek zorundaydi.
+  ///	Iki geri yolu BIRBIRINDEN TAMAMEN FARKLI davraniyordu: gorunen ok
+  ///	nazik, sistem jesti YIKICI. **Asimetrinin kendisi hataydi.**
+  ///
+  /// ⚠️ Turu 114`te AYNI SINIF isletme sihirbazinda yasandi ve cozumu de
+  ///    ayniydi (`PopScope`); bu ekran o dersi ALMAMISTI.
+  /// ⚠️ YAPMA: `PopScope`u kaldirma ya da `canPop: true` yapma.
+  void _geri() {
+    if (_adim == 0 || (_giristenGeldi && _adim == 1)) {
+      // ⚠️ `go` (push DEGIL): giristen gelindiginde yigin zaten
+      //    login -> register; `pop` da calisirdi ama telefon adimindan
+      //    (yigin BOSKEN, dogrudan /register acildiginda) cikis yolu
+      //    kalmazdi.
+      context.go('/login');
+      return;
+    }
+    setState(() => _adim -= 1);
+  }
 
   Widget _baslik(String ust, String baslik) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
