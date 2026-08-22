@@ -71,15 +71,27 @@ class KayitAkisi extends ConsumerStatefulWidget {
 class _KayitAkisiState extends ConsumerState<KayitAkisi> {
   int _adim = 0;
 
+  /// ⚠️ Giris ekranindan gelindi mi? Oyleyse TELEFON adimi (0) atlanir ve
+  ///    geri oku o adima DEGIL, giris ekranina doner (kullanici: *"geride
+  ///    numaran ne ve sifre belirleme alani var, kaldir"*).
+  bool _giristenGeldi = false;
+
   @override
   void initState() {
     super.initState();
-    // ⚠️ Giristen gelindiyse numara ve kod HAZIR: dogrudan KOD adimi.
+    // ⚠️⚠️⚠️ TURU 126 — **SIFRE ADIMINDAN BASLAR, KODDAN DEGIL (SEVK ENGELI).**
+    //	Ilk yazimda `_adim = 2` (KOD) yaziliyordu ve **SIFRE ADIMI TAMAMEN
+    //	ATLANIYORDU**: `_sifre` bos kaliyor, son adimda
+    //	`/auth/kayit/tamamla` sifresiz gidiyor ve sunucu **400** donuyordu.
+    //	Yani giris ekranindan gelen HER kayit basarisiz olurdu.
+    // ⚠️ Numara giriste ZATEN alindi ve OTP ZATEN gonderildi; atlanan adim
+    //    yalnizca TELEFON (0) olmali.
     final t = widget.telefon;
     if (t != null && t.isNotEmpty) {
       _haneler.text = t;
       if (widget.devOtp != null) _kod.text = widget.devOtp!;
-      _adim = 2; // -> KOD
+      _adim = 1; // -> SIFRE (telefon atlandi, kod bir sonraki adim)
+      _giristenGeldi = true;
     }
   }
 
@@ -426,7 +438,7 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
             ),
             onPressed: _mesgul
                 ? null
-                : () => _adim == 0
+                : () => _adim == 0 || (_giristenGeldi && _adim == 1)
                       ? context.go('/login')
                       : setState(() => _adim -= 1),
           ),
@@ -743,7 +755,7 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
   Widget _adimCinsiyet() => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      _baslik('İstersen boş bırak', 'Cinsiyetin'),
+      _baslik('Paylaşmak istersen', 'Cinsiyetin'),
       for (final c in const ['Kadın', 'Erkek', 'Belirtmek istemiyorum']) ...[
         _cinsiyetSecenegi(c),
         const SizedBox(height: 10),
@@ -899,13 +911,19 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
         // Secim bandi — hangi ogenin secili oldugunu GORSEL olarak soyler.
         // ⚠️ `IgnorePointer`: bandin uzerine gelen dokunuslar tekerlege
         //    gecmeli, yoksa tam ortadan kaydirma calismaz.
+        // ⚠️⚠️ TURU 126 — **MOR ZEMIN VE YARICAP KALDIRILDI** (kullanici emri:
+        //	*"kac yasindaki secildiginde mor arka plan radusu kaldir"*).
+        //	Geriye yalniz UST/ALT ince cizgi kaldi — iOS tekerleginin dili.
+        //	Secili rakam ZATEN mor, 26 px ve w800; bandin ayrica boyanmasina
+        //	gerek yoktu.
         IgnorePointer(
           child: Container(
             height: 46,
-            decoration: BoxDecoration(
-              color: morLogo.withValues(alpha: 0.07),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: morLogo.withValues(alpha: 0.35)),
+            decoration: const BoxDecoration(
+              border: Border(
+                top: BorderSide(color: _cizgi),
+                bottom: BorderSide(color: _cizgi),
+              ),
             ),
           ),
         ),
@@ -1013,11 +1031,20 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       _baslik(
-        'Son adım',
+        'Neredeyse bitti',
         // ⚠️ TURU 126 — METIN KISALDI (kullanici: *"yazilar cok uzun"*).
         //    Surukle/yakinlastir yonergesi ZATEN dairenin ALTINDA yaziyor.
         'Profil fotoğrafın',
       ),
+      // ⚠️⚠️ TURU 126 — **DAIRE BASLIK ILE DUGME ARASINDA DIKEY ORTALI**
+      //	(kullanici emri: *"o alani ortala, profil fotograf yazi ve buton
+      //	arasinda"*). Onceden basligin hemen ALTINA yapisiyor, altta buyuk
+      //	bir bosluk kaliyordu.
+      // ⚠️ `Expanded` DEGIL: govde bir `SingleChildScrollView` icinde ve
+      //    orada dikey kisit SINIRSIZ — `Expanded` "BoxConstraints forces an
+      //    infinite height" ile PATLARDI (turu 117'de olculdu).
+      //    Bunun yerine ekran yuksekliginden turetilen bir bosluk konuyor.
+      SizedBox(height: MediaQuery.sizeOf(context).height * 0.06),
       Center(
         child: Column(
           children: [
@@ -1168,15 +1195,10 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
     );
   }
 
-  Widget _fotoBos() => ColoredBox(
-    color: const Color(0xFFF2F2F5),
-    child: Center(
-      // ⚠️ TURU 126 — PROFIL ikonu DEGIL **RESIM** ikonu (kullanici emri).
-      //    Daire zaten profil oldugunu soyluyor; ikon YAPILACAK ISI
-      //    (fotograf secmeyi) anlatmali.
-      child: Icon(LucideIcons.image, size: 78, color: _altYazi),
-    ),
-  );
+  /// ⚠️ TURU 126 — **IKON KALDIRILDI** (kullanici emri: *"profil resmi
+  ///    icindeki dairenin ikonunu kaldir"*). Daire artik duz gri bir yer
+  ///    tutucu; ne yapilacagini ALTINDAKI "Fotoğraf seç" dugmesi soyluyor.
+  Widget _fotoBos() => const ColoredBox(color: Color(0xFFF2F2F5));
 
   /// ⚠️⚠️ TURU 126 — **`vurgulu` (emulatorde goruldu).** Fotograf henuz
   ///	secilmemisken "Fotoğraf seç" bu ekrandaki **TEK EYLEMDIR**, ama solgun

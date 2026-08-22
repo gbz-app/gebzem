@@ -415,6 +415,28 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    // ⚠️⚠️ TURU 126 — DUGMENIN USTUNDE **KISA NUMARA NOTU**
+                    //	(kullanici emri: *"butonun ustune kisa prof bir
+                    //	aciklama yaz istedigimiz telefon numarasi ile
+                    //	ilgili"*).
+                    // ⚠️ Metin YALNIZ birinci asamada (numara sorulurken)
+                    //    cizilir; sifre asamasinda numarayla ilgisi kalmaz.
+                    // ⚠️ *"Kod göndereceğiz"* DEMEZ: numara KAYITLIYSA kod
+                    //    gitmez, sifre sorulur (bkz. `_submit` serhi). Vaat
+                    //    edilen sey ancak GERCEKLESEN sey olmali.
+                    if (!_sifreGorundu) ...[
+                      const Text(
+                        'Numaran kimseyle paylaşılmaz; yalnızca hesabını '
+                        'doğrulamak için kullanılır.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          height: 1.4,
+                          color: authAltYazi,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                    ],
                     // ⚠️⚠️ TURU 126 — **DUZ KOSE, GOLGESIZ** (kullanici emri:
                     //	*"butondaki radüs gölge vs olmasın"*). Bir onceki
                     //	adimda referans gorseline gore `hap: true` denenmisti,
