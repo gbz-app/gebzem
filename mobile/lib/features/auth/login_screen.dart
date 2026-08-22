@@ -401,7 +401,28 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     //	soylenince tek satirla geri baglanir.
                     // ⚠️ YAPMA: bunu "olu kod" sanip `/register` rotasini
                     //    router'dan silme.
-                    // ⚠️ KUCUK ve SOLUK: kullanici *"yazi olarak KUCUK"* dedi.
+                    // ⚠️⚠️⚠️ TURU 126 — **"Kayıt ol" GERI KONDU.**
+                  //	Onceki adimda kullanici emriyle kaldirilmisti; ayni
+                  //	turda kayit akisi 8 adima cikarilinca o akisa giden
+                  //	TEK yol kapali kaldi — ne kullanici test edebiliyor
+                  //	ne de yeni biri hesap acabiliyordu.
+                  // ⚠️ Gorsel agirlik DUSUK tutuldu (12.5 px, %75 saydam):
+                  //    ana eylemle yarismasin diye "Tanıtımı yeniden göster"
+                  //    ile AYNI dilde.
+                  TextButton(
+                    onPressed: _loading ? null : () => context.push('/register'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: authAltYazi,
+                      minimumSize: const Size(0, 34),
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: const Text(
+                      'Hesabın yok mu? Kayıt ol',
+                      style: TextStyle(fontSize: 13.5),
+                    ),
+                  ),
+                  // ⚠️ KUCUK ve SOLUK: kullanici *"yazi olarak KUCUK"* dedi.
                     //    Ana eylemlerle gorsel olarak yarismamali.
                     TextButton(
                       onPressed: _loading ? null : _tanitimiSifirla,
