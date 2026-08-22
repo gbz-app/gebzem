@@ -436,7 +436,8 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
       //    ("Kod gelmedi mi? Tekrar gönder" bu turda ekranda YOK).
       // ⚠️ Kod alani da bosaltilir: dolu kalsaydi kullanici eski kodu
       //    tekrar gonderir ve sunucu yine reddederdi.
-      final jetonBitti = mesaj.contains('oturum') ||
+      final jetonBitti =
+          mesaj.contains('oturum') ||
           mesaj.contains('süre') ||
           mesaj.contains('geçersiz') ||
           mesaj.contains('yeniden');
@@ -447,7 +448,9 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
           _kod.text = '';
           _adim = 0; // -> TELEFON (yeni kod istemenin tek yolu)
         });
-        _uyar('Doğrulama süresi doldu. Numaranı tekrar gir, yeni kod gönderelim.');
+        _uyar(
+          'Doğrulama süresi doldu. Numaranı tekrar gir, yeni kod gönderelim.',
+        );
         return;
       }
       _uyar(mesaj);
@@ -633,23 +636,26 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
   ///    istisnasi (OTP hane araligi): okunan sey harf degil, tek tek
   ///    dogrulanan RAKAM.
   /// ⚠️ Cizgi DOLUYKEN siyah kalir (kardes alanlarla ayni kural).
-  Widget _otpAlani() => TextField(
-    controller: _kod,
-    focusNode: _kodOdak,
-    keyboardType: TextInputType.number,
-    maxLength: 6,
-    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-    onChanged: (_) => setState(() {}),
-    onSubmitted: (_) => _koduDogrula(),
-    style: authDegerStili(
-      boy: authSadeDegerBoy,
-    ).copyWith(fontWeight: FontWeight.w700, letterSpacing: 10),
-    decoration: authAlan(
-      'Kod',
-      ipucu: '000000',
-      etiketiGizle: true,
-      sadeKoyuCizgi: _kod.text.isNotEmpty,
-    ).copyWith(counterText: ''),
+  Widget _otpAlani() => authErisimAlani(
+    etiket: 'Doğrulama kodu',
+    child: TextField(
+      controller: _kod,
+      focusNode: _kodOdak,
+      keyboardType: TextInputType.number,
+      maxLength: 6,
+      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+      onChanged: (_) => setState(() {}),
+      onSubmitted: (_) => _koduDogrula(),
+      style: authDegerStili(
+        boy: authSadeDegerBoy,
+      ).copyWith(fontWeight: FontWeight.w700, letterSpacing: 10),
+      decoration: authAlan(
+        'Kod',
+        ipucu: '000000',
+        etiketiGizle: true,
+        sadeKoyuCizgi: _kod.text.isNotEmpty,
+      ).copyWith(counterText: ''),
+    ),
   );
 
   Widget _adimKod() => Column(
@@ -729,25 +735,28 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       _baslik('Seni tanıyalım', 'Adın ne?'),
-      TextField(
-        controller: _ad,
-        textCapitalization: TextCapitalization.words,
-        textInputAction: TextInputAction.done,
-        style: authDegerStili(),
-        onChanged: (_) => setState(() => _adHatasi = null),
-        decoration: authAlan(
-          // ⚠️ TURU 126 — ETIKET CIZILMEZ (kullanici emri: *"Adin soyadini da
-          //    kaldir"*); ipucu "Ad Soyad" alanin ne istedigini soyluyor.
-          'Adın soyadın',
-          ipucu: 'Ad Soyad',
-          hataliMi: _adHatasi != null,
-          // ⚠️ Dolu alanin cizgisi SIYAH kalir (bkz. `authAlan` serhi).
-          sadeKoyuCizgi: _ad.text.isNotEmpty,
-          // ⚠️⚠️ `copyWith(labelText: null)` DEGIL: Flutter'da `copyWith`
-          //	null gecilen alani DEGISTIRMEZ, mevcut degeri KORUR — yani
-          //	etiket EKRANDA KALIYORDU (emulatorde goruldu, kullanici UC KEZ
-          //	soyledi). Etiketi gercekten silen tek yol bu parametre.
-          etiketiGizle: true,
+      authErisimAlani(
+        etiket: 'Adın soyadın',
+        child: TextField(
+          controller: _ad,
+          textCapitalization: TextCapitalization.words,
+          textInputAction: TextInputAction.done,
+          style: authDegerStili(),
+          onChanged: (_) => setState(() => _adHatasi = null),
+          decoration: authAlan(
+            // ⚠️ TURU 126 — ETIKET CIZILMEZ (kullanici emri: *"Adin soyadini da
+            //    kaldir"*); ipucu "Ad Soyad" alanin ne istedigini soyluyor.
+            'Adın soyadın',
+            ipucu: 'Ad Soyad',
+            hataliMi: _adHatasi != null,
+            // ⚠️ Dolu alanin cizgisi SIYAH kalir (bkz. `authAlan` serhi).
+            sadeKoyuCizgi: _ad.text.isNotEmpty,
+            // ⚠️⚠️ `copyWith(labelText: null)` DEGIL: Flutter'da `copyWith`
+            //	null gecilen alani DEGISTIRMEZ, mevcut degeri KORUR — yani
+            //	etiket EKRANDA KALIYORDU (emulatorde goruldu, kullanici UC KEZ
+            //	soyledi). Etiketi gercekten silen tek yol bu parametre.
+            etiketiGizle: true,
+          ),
         ),
       ),
       if (_adHatasi != null) authNot(_adHatasi!),
@@ -770,26 +779,29 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       _baslik('Sana nasıl ulaşsınlar', 'Kullanıcı adın'),
-      TextField(
-        controller: _kullaniciAdi,
-        textInputAction: TextInputAction.done,
-        style: authDegerStili(),
-        // ⚠️ Sunucu YALNIZ kucuk harf kabul ediyor.
-        //    Onceki suzgec kabul edilmeyen harfi SESSIZCE SILIYORDU
-        //    ("Ahmet" -> "hmet"); artik KARSILIGINA cevriliyor
-        //    (bkz. AuthKullaniciAdiBicimlendirici).
-        inputFormatters: const [AuthKullaniciAdiBicimlendirici()],
-        onChanged: (_) => setState(() => _kullaniciAdiHatasi = null),
-        decoration: authAlan(
-          // ⚠️ TURU 126 — ETIKET CIZILMEZ (kullanici emri); ipucu ve
-          //    altindaki kural satiri alanin ne istedigini soyluyor.
-          'Kullanıcı adı',
-          ipucu: 'ornek_kullanici',
-          hataliMi: _kullaniciAdiHatasi != null,
-          // ⚠️ Dolu alanin cizgisi SIYAH kalir (bkz. `authAlan` serhi).
-          sadeKoyuCizgi: _kullaniciAdi.text.isNotEmpty,
-          etiketiGizle: true,
-        ).copyWith(suffixIcon: _kullaniciAdiGosterge()),
+      authErisimAlani(
+        etiket: 'Kullanıcı adı',
+        child: TextField(
+          controller: _kullaniciAdi,
+          textInputAction: TextInputAction.done,
+          style: authDegerStili(),
+          // ⚠️ Sunucu YALNIZ kucuk harf kabul ediyor.
+          //    Onceki suzgec kabul edilmeyen harfi SESSIZCE SILIYORDU
+          //    ("Ahmet" -> "hmet"); artik KARSILIGINA cevriliyor
+          //    (bkz. AuthKullaniciAdiBicimlendirici).
+          inputFormatters: const [AuthKullaniciAdiBicimlendirici()],
+          onChanged: (_) => setState(() => _kullaniciAdiHatasi = null),
+          decoration: authAlan(
+            // ⚠️ TURU 126 — ETIKET CIZILMEZ (kullanici emri); ipucu ve
+            //    altindaki kural satiri alanin ne istedigini soyluyor.
+            'Kullanıcı adı',
+            ipucu: 'ornek_kullanici',
+            hataliMi: _kullaniciAdiHatasi != null,
+            // ⚠️ Dolu alanin cizgisi SIYAH kalir (bkz. `authAlan` serhi).
+            sadeKoyuCizgi: _kullaniciAdi.text.isNotEmpty,
+            etiketiGizle: true,
+          ).copyWith(suffixIcon: _kullaniciAdiGosterge()),
+        ),
       ),
       if (_kullaniciAdiHatasi != null)
         authNot(_kullaniciAdiHatasi!)

@@ -236,6 +236,22 @@ const Color authSadeDeger = Color(0xFF5A5A66);
 /// ⚠️ Hata sade modda RENKLE anlatilir (deger + on ek kirmizi olur) —
 ///    cizgi olmadigi icin baska tasiyici yok; aciklama satiri `authNot`
 ///    zaten alanin ALTINDA duruyor.
+/// ⚠️⚠️⚠️ TURU 126 — **ETIKETI GIZLENEN ALAN ICIN ERISILEBILIRLIK SARMALI.**
+///
+///	`etiketiGizle: true` verilen alanlarda `labelText` CIZILMEZ; alanin
+///	adini tasiyan tek sey `hintText`tir ve o da **alan dolunca
+///	kaybolur**. Yani TalkBack/VoiceOver, yazdigini duzeltmek isteyen
+///	kullaniciya alani **ISIMSIZ** okur.
+/// ⚠️ Ayni sinif `AuthTelefonAlani`in sade dalinda ZATEN duzeltilmisti;
+///    `authAlan`in etiketi gizlenen UC cagri yeri (ad · kullanici adi ·
+///    kod) ATLANMISTI — asimetrinin kendisi hataydi.
+/// ⚠️⚠️ **YAN KAZANC:** `etiket` argumani artik OLU DEGIL. Olu bir
+///	arguman yalnizca yer kaplamiyordu; IPA dize dogrulamasinda da
+///	**YANLIS POZITIF** uretiyordu ("Adın soyadın ikilide HALA VAR" —
+///	cizilmedigi halde). Simdi hem cizim hem dogrulama durust.
+/// ⚠️ YAPMA: etiketi gizlerken bu sarmali atlamak.
+Widget authErisimAlani({required String etiket, required Widget child}) =>
+    Semantics(label: etiket, textField: true, child: child);
 InputDecoration authAlan(
   String etiket, {
   String? ipucu,
@@ -256,6 +272,7 @@ InputDecoration authAlan(
   UnderlineInputBorder sadeCizgi(Color renk) =>
       UnderlineInputBorder(borderSide: BorderSide(color: renk, width: 1));
   // ⚠️ Alan DOLUYKEN cizgi koyulasir; bos ve hatasizken acik gri kalir.
+  // ⚠️ Sade dalda odak cizgisi ZATEN `sadeNormal` (mor degil).
   final sadeNormal = hataliMi
       ? authHata
       : (sadeKoyuCizgi ? authYazi : authCizgi);
@@ -266,7 +283,12 @@ InputDecoration authAlan(
   // ⚠️ [sadeKoyuCizgi] hem SADE hem NORMAL modda bu isi gorur; cagiran
   //    taraf `controller.text.isNotEmpty` gecer.
   final normal = hataliMi ? authHata : (sadeKoyuCizgi ? authYazi : authCizgi);
-  final odak = hataliMi ? authHata : morLogo;
+  // ⚠️⚠️ TURU 126 — **ODAKTA MOR DEGIL SIYAH** (kullanici emri:
+  //	*"inputlarda aktif olunca mor oluyor, siyah olacak hepsine"*).
+  //	Kimlik ekranlarinin dili siyah-beyaz; tek mor oge ANA DUGME.
+  //	Odak cizgisi de mor olunca ekranda IKI mor vurgu cikiyordu.
+  // ⚠️ HATA DALI DEGISMEDI: odakli da olsa hatali alan KIRMIZI kalir.
+  final odak = hataliMi ? authHata : authYazi;
   final etiketStili = TextStyle(
     color: hataliMi ? authHata : authAltYazi,
     fontSize: authEtiketBoy,

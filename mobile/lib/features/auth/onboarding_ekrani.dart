@@ -1056,26 +1056,11 @@ class _TelefonState extends State<_Telefon>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ⚠️ TURU 126 — **"GebzemAI" YAZISI KALDIRILDI** (kullanici
-          //    emri). Ikon KALDI: yazi olmadan da sohbetin karsi tarafinin
-          //    kim oldugunu tek basina o soyluyor.
-          Container(
-            width: 24,
-            height: 24,
-            alignment: Alignment.center,
-            decoration: const BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
-                colors: [Color(0xFF8B3FFF), Color(0xFF6C2BD9)],
-              ),
-            ),
-            child: const Icon(
-              LucideIcons.sparkles,
-              size: 13,
-              color: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 12),
+          // ⚠️ TURU 126 — **"GebzemAI" YAZISI VE IKONU KALDIRILDI**
+          //    (kullanici emri, iki adimda). Sahne artik dogrudan
+          //    sohbetle basliyor; sayfanin basligi zaten kimin
+          //    cevapladigini soyluyor.
+          const SizedBox(height: 6),
           _balon(
             metin: 'Gebze’de hafta sonu\nne yapılır?',
             benim: true,
@@ -1097,12 +1082,10 @@ class _TelefonState extends State<_Telefon>
           const SizedBox(height: 8),
           if (yaziyor2 > 0.02 && yanit2 < 0.02)
             Opacity(opacity: yaziyor2.clamp(0, 1), child: _yaziyorBalonu()),
-          if (yanit2 > 0.02)
-            _balon(
-              metin: 'En yakını 1,2 km —\nharitada göstereyim mi?',
-              benim: false,
-              gorunur: yanit2,
-            ),
+          // ⚠️ TURU 126 — ECZANE YANITI **KART** (kullanici emri:
+          //    *"eczanede kartli bir cevap versin"*). Duz balon yerine
+          //    uygulamanin gercek sonuc karti dili: ikon + ad + mesafe.
+          if (yanit2 > 0.02) _eczaneKarti(yanit2),
         ],
       ),
     );
@@ -1118,6 +1101,73 @@ class _TelefonState extends State<_Telefon>
   ///	   gosteriyordu.
   /// ⚠️ `Opacity` icin AYRI egri (`easeOut`) kullanilir: `easeOutBack` 1'i
   ///    astigi icin opaklik 1'in uzerine cikar ve **assertion** atardi.
+  /// ⚠️⚠️ TURU 126 — **ECZANE YANITI DUZ BALON DEGIL KART** (kullanici
+  ///	emri). GebzemAI gercekte de boyle yanit verir: bir yer sorusuna
+  ///	duz metin degil, dokunulabilir bir SONUC KARTI doner.
+  /// ⚠️ Icerik UYDURMA DEGIL: nobetci eczane uygulamanin GERCEK bir
+  ///    ozelligi (hizli erisim kartlarinda ve isletme kategorilerinde
+  ///    var). Mesafe bir MOCKUP degeri ve sahne bir tanitim.
+  /// ⚠️ GOLGE YOK (kullanici emri, balonlarla ayni kural) — kart zeminden
+  ///    ince bir kenarlikla ayrilir.
+  Widget _eczaneKarti(double gorunur) => Opacity(
+    opacity: gorunur.clamp(0, 1),
+    child: Transform.translate(
+      offset: Offset(0, 8 * (1 - gorunur.clamp(0, 1))),
+      child: Container(
+        padding: const EdgeInsets.all(9),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(13),
+          border: Border.all(color: const Color(0x14000000)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 30,
+              height: 30,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: const Color(0xFF6C2BD9),
+                borderRadius: BorderRadius.circular(9),
+              ),
+              child: const Icon(
+                LucideIcons.pill,
+                size: 16,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(width: 9),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Nöbetçi eczane',
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      color: _kOnboardYazi,
+                    ),
+                  ),
+                  SizedBox(height: 1),
+                  Text(
+                    '1,2 km · açık',
+                    style: TextStyle(fontSize: 11.5, color: _kOnboardAltYazi),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(
+              LucideIcons.chevronRight,
+              size: 15,
+              color: Color(0xFF8B3FFF),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
   Widget _balon({
     required String metin,
     required bool benim,
