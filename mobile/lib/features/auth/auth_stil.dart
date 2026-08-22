@@ -235,6 +235,12 @@ InputDecoration authAlan(
   bool hataliMi = false,
   bool sade = false,
   bool sadeKoyuCizgi = false,
+  /// ⚠️⚠️ TURU 126 — **ETIKETI GIZLE** (kullanici emri: ad ve kullanici
+  ///	adi alanlarinda ustteki kucuk etiket cizilmeyecek).
+  ///	`copyWith(labelText: null)` ISE YARAMAZ: Flutter`da `copyWith`
+  ///	null gecilen alani DEGISTIRMEZ, mevcut degeri KORUR — etiket
+  ///	ekranda kalmisti (emulatorde goruldu).
+  bool etiketiGizle = false,
 }) {
   UnderlineInputBorder cizgi(Color renk) =>
       UnderlineInputBorder(borderSide: BorderSide(color: renk, width: 2));
@@ -299,7 +305,7 @@ InputDecoration authAlan(
     );
   }
   return InputDecoration(
-    labelText: etiket,
+    labelText: etiketiGizle ? null : etiket,
     hintText: ipucu,
     suffixIcon: sonek,
     // ⚠️ Etiket DAIMA USTTE (bkz. serh) — ayrica `prefixText`i gorunur kilar.
@@ -790,7 +796,16 @@ class _AuthSifreAlaniState extends State<AuthSifreAlani> {
           //    *"ufak yaptigimiz daireyi bir tik buyut, HEPSI oyle olsun"*).
           //    Taban her iki modda da tek kaynaktan geldigi icin giris ve
           //    kayit ekranlari ARTIK AYNI daireyi cizer.
-          ? temel.copyWith(fontSize: tabanBoy + 2, letterSpacing: 3)
+          // ⚠️⚠️ TURU 126 — DAIRELER **SIYAH** ve mevcuttan **%25 KUCUK**
+          //    (kullanici emri). Renk `authYazi`: sade modda deger rengi
+          //    gri (`authSadeDeger`) ama daireler SEMBOL, metin degil —
+          //    gri cizilince "pasif alan" gibi duruyordu.
+          //    Boy: `(tabanBoy + 2) * 0.75`; aralik da ORANLI (3 -> 2.25).
+          ? temel.copyWith(
+              color: widget.hataliMi ? authHata : authYazi,
+              fontSize: (tabanBoy + 2) * 0.75,
+              letterSpacing: 2.25,
+            )
           : temel,
       decoration: authAlan(
         widget.etiket,

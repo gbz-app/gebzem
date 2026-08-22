@@ -529,96 +529,35 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
     ],
   );
 
-  /// ⚠️⚠️⚠️ TURU 126 — **OTP: 3 ALT CIZGI · TIRE · 3 ALT CIZGI**
-  ///	(kullanici emri). Haneler GORSEL olarak cizilir; gercek giris
-  ///	ALTTA duran, metni SAYDAM bir `TextField`tir.
+  /// ⚠️⚠️⚠️ TURU 126 — **KOD ALANI TELEFON ALANIYLA AYNI DILDE**
+  ///	(kullanici emri: *"dogrulama kodu telefon inputu gibi olacak,
+  ///	sadece arasinda bosluk olacak"*).
   ///
-  /// ⚠️⚠️ **GORUNMEZ ALAN `Opacity(0)` DEGIL**: `Opacity` widget'i
-  ///	yine de YER KAPLAR ve dokunuslari yutardi. Bunun yerine metin
-  ///	ve imlec SAYDAM, dekorasyon YOK — alan tam olarak hanelerin
-  ///	uzerinde durur, klavye normal acilir, secim/yapistirma calisir.
-  /// ⚠️ Cizim `_kod` denetleyicisini DINLER (`ValueListenableBuilder`);
-  ///    ebeveynin `setState` cagirmasina bagli olsaydi haneler yazarken
-  ///    guncellenmezdi (turu 120'de `AuthTelefonAlani`da yasanan sinif).
-  Widget _otpAlani() {
-    const hane = 44.0;
-    const yukseklik = 58.0;
-    return GestureDetector(
-      // ⚠️ Hanelerin herhangi bir yerine dokunmak alani odaklar.
-      behavior: HitTestBehavior.opaque,
-      onTap: _kodOdak.requestFocus,
-      child: SizedBox(
-        height: yukseklik,
-        child: Stack(
-          children: [
-            ValueListenableBuilder<TextEditingValue>(
-              valueListenable: _kod,
-              builder: (_, deger, _) {
-                final kod = deger.text;
-                Widget kutu(int i) {
-                  final dolu = i < kod.length;
-                  return SizedBox(
-                    width: hane,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          dolu ? kod[i] : '',
-                          style: const TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.w700,
-                            color: _yazi,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Container(height: 2, color: dolu ? _yazi : _cizgi),
-                      ],
-                    ),
-                  );
-                }
-
-                return Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    kutu(0),
-                    kutu(1),
-                    kutu(2),
-                    // ⚠️ TURU 126 — TIRE YERINE **BOSLUK** (kullanici emri:
-                    //    *"arada - olmasin, normal telefon inputu gibi sadece
-                    //    arada bosluk olsun"*).
-                    const SizedBox(width: 22),
-                    kutu(3),
-                    kutu(4),
-                    kutu(5),
-                  ],
-                );
-              },
-            ),
-            // ⚠️ Gercek giris: metin ve imlec SAYDAM (bkz. serh).
-            Positioned.fill(
-              child: TextField(
-                controller: _kod,
-                focusNode: _kodOdak,
-                keyboardType: TextInputType.number,
-                maxLength: 6,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                cursorColor: Colors.transparent,
-                style: const TextStyle(color: Colors.transparent),
-                decoration: const InputDecoration(
-                  border: InputBorder.none,
-                  enabledBorder: InputBorder.none,
-                  focusedBorder: InputBorder.none,
-                  counterText: '',
-                  contentPadding: EdgeInsets.zero,
-                ),
-                onSubmitted: (_) => _koduDogrula(),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  ///	Onceki hal ALTI AYRI KUTUYDU (her hanenin altinda ayri cizgi,
+  ///	aralarinda tire); ekranin geri kalaniyla ayni dili konusmuyordu.
+  ///	Artik TEK alan: tek alt cizgi, haneler `letterSpacing` ile ayrik.
+  /// ⚠️ `letterSpacing` BURADA MESRU — CLAUDE.md yasaginin BELGELI
+  ///    istisnasi (OTP hane araligi): okunan sey harf degil, tek tek
+  ///    dogrulanan RAKAM.
+  /// ⚠️ Cizgi DOLUYKEN siyah kalir (kardes alanlarla ayni kural).
+  Widget _otpAlani() => TextField(
+    controller: _kod,
+    focusNode: _kodOdak,
+    keyboardType: TextInputType.number,
+    maxLength: 6,
+    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+    onChanged: (_) => setState(() {}),
+    onSubmitted: (_) => _koduDogrula(),
+    style: authDegerStili(
+      boy: authSadeDegerBoy,
+    ).copyWith(fontWeight: FontWeight.w700, letterSpacing: 10),
+    decoration: authAlan(
+      'Kod',
+      ipucu: '000000',
+      etiketiGizle: true,
+      sadeKoyuCizgi: _kod.text.isNotEmpty,
+    ).copyWith(counterText: ''),
+  );
 
   Widget _adimKod() => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
@@ -752,7 +691,8 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
           hataliMi: _kullaniciAdiHatasi != null,
           // ⚠️ Dolu alanin cizgisi SIYAH kalir (bkz. `authAlan` serhi).
           sadeKoyuCizgi: _kullaniciAdi.text.isNotEmpty,
-        ).copyWith(labelText: null, suffixIcon: _kullaniciAdiGosterge()),
+          etiketiGizle: true,
+        ).copyWith(suffixIcon: _kullaniciAdiGosterge()),
       ),
       if (_kullaniciAdiHatasi != null)
         authNot(_kullaniciAdiHatasi!)
@@ -853,7 +793,8 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          // ⚠️ TURU 126 — yan dolgu 16 -> 10 (kullanici emri).
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 16),
         ),
         child: Text(
           etiket,
@@ -1294,9 +1235,10 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
       //	degistiriyor — ilk eylem hala bir tik belirgin.
       foregroundColor: _yazi,
       side: BorderSide(color: _yazi, width: vurgulu ? 1.5 : 1),
-      // ⚠️ TURU 119 — radius YOK (kullanici emri, ana dugmeyle ayni dil).
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      // ⚠️ TURU 126 — **TAM YARICAP (HAP)** (kullanici emri). Turu 119'un
+      //    "radius kaldir" emri ANA DUGME icindi; bu ikincil bir eylem.
+      shape: const StadiumBorder(),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
     ),
   );
 

@@ -84,16 +84,25 @@ class _OnboardingEkraniState extends ConsumerState<OnboardingEkrani> {
       gorsel: _Gorsel.aiTelefon,
       izin: _OnboardIzin.kamera,
     ),
+    // ⚠️⚠️ TURU 126 — SAYFA **HIZMET DILINE** cevrildi (kullanici emri:
+    //	*"gelen aramayi kacirma onboardingi kaldir, onun yerine
+    //	hizmetlerle ilgili bir sey yap"*).
+    // ⚠️⚠️ **IZIN AYNEN KALDI** (`bildirim`): metin degisti, istenen izin
+    //	DEGISMEDI. Bildirim izni olmadan mesaj/arama/teklif bildirimi HIC
+    //	gelmez; sayfayi izinsiz birakmak o izni istenmeyen tek yer
+    //	(Ayarlar > IZINLER) haline getirirdi.
+    // ⚠️ Metin ARTIK YALNIZ ARAMADAN bahsetmiyor ama BILDIRIMDEN
+    //    bahsediyor — istenen izinle SOYLENEN sey ortusuyor.
     _Sayfa(
-      baslik: 'Gelen aramayı',
-      vurgu: 'kaçırma',
+      baslik: 'Teklifler ve mesajlar',
+      vurgu: 'anında',
       alt:
-          'Mesaj ve aramaları görebilmen için bildirim izni gerekiyor. '
-          'İzin vermezsen telefonun çalmaz.',
+          'Hizmet talebine gelen teklifleri, randevu onaylarını ve '
+          'mesajları anında görebilmen için bildirim izni gerekiyor.',
       ikonlar: [
         LucideIcons.bell,
         LucideIcons.messageCircle,
-        LucideIcons.phoneIncoming,
+        LucideIcons.handshake,
       ],
       gorsel: _Gorsel.mesajKartlari,
       izin: _OnboardIzin.bildirim,
@@ -120,23 +129,38 @@ class _OnboardingEkraniState extends ConsumerState<OnboardingEkrani> {
       gorsel: _Gorsel.konumHarita,
       izin: _OnboardIzin.konum,
     ),
-    // ⚠️ TAM EKRAN BILDIRIM EN SON: sistem AYARLAR ekranini acar ve Activity
-    //    duraklar. Ortada olsaydi sonraki izin diyalogu GOSTERILMEZDI
-    //    (turu 56'da tam bu yuzden READ_PHONE_STATE 36 tur boyunca hic
-    //    alinamadi).
+    // ⚠️⚠️⚠️ TURU 126 — **TAM EKRAN BILDIRIM SAYFASI KALDIRILDI**
+    //	(kullanici emri: *"telefon kilitliyken arama yerine ILANLARLA ve
+    //	ETKINLIKLER ile ilgili onboarding ekle"*).
+    //
+    // ⚠️⚠️ **BEKLEYEN IS — GERCEK BEDELI VAR:** o izin, telefon KILITLIYKEN
+    //	gelen arama ekraninin acilmasini sagliyordu (turu 89: izin
+    //	alinmadiginda ekran HIC ACILMIYORDU). Artik onboardingde
+    //	ISTENMIYOR; kalan tek yol **Ayarlar > IZINLER**. Kullanici oraya
+    //	gitmezse kilitli telefonda arama ekrani ACILMAZ.
+    // ⚠️ YAPMA: bu iki yeni sayfaya izin BAGLAMA — ikisi de TANITIM
+    //    sayfasidir, istenecek bir izinleri yok.
     _Sayfa(
-      baslik: 'Telefon kilitliyken',
-      vurgu: 'arama ekranı',
+      baslik: 'Alım satım',
+      vurgu: 'komşunla',
       alt:
-          'Telefonun kilitliyken gelen aramanın ekranda açılabilmesi için '
-          'son bir izin. Bir sonraki adımda ayarlar açılabilir.',
+          'İkinci el eşyandan iş ilanına kadar her şeyi Gebze’de yayınla; '
+          'aradığını mahallendekilerden bul.',
+      ikonlar: [LucideIcons.tag, LucideIcons.store, LucideIcons.briefcase],
+      gorsel: _Gorsel.isletmeKartlari,
+    ),
+    _Sayfa(
+      baslik: 'Şehrinde ne var',
+      vurgu: 'kaçırma',
+      alt:
+          'Konserler, atölyeler, maçlar ve mahalle etkinlikleri tek yerde. '
+          'İlgini çekeni takvimine ekle.',
       ikonlar: [
-        LucideIcons.smartphone,
-        LucideIcons.bellRing,
-        LucideIcons.circleCheck,
+        LucideIcons.calendarDays,
+        LucideIcons.ticket,
+        LucideIcons.partyPopper,
       ],
-      gorsel: _Gorsel.aramaTelefon,
-      izin: _OnboardIzin.tamEkran,
+      gorsel: _Gorsel.konumHarita,
     ),
   ];
 
