@@ -944,18 +944,31 @@ class _TelefonState extends State<_Telefon>
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (_, kisit) {
-      var boy = kisit.maxHeight * 1.14;
-      var en = boy * 9 / 19.5;
-      // ⚠️ TURU 126 — genislik tavani: 0.60 -> 0.48 (%20 daralt) ->
-      //    0.552 (%15 genislet) -> **0.635** (bir %15 daha; kullanici
-      //    0.552 i hala dar buldu). Oran (9:19.5) hicbir adimda
-      //    DEGISMEDI, yalniz tavan oynadi.
-      final enTavan = kisit.maxWidth * 0.635;
-      if (en > enTavan) {
-        en = enTavan;
-        boy = en * 19.5 / 9;
-      }
-      final boyTavan = kisit.maxHeight * 1.20;
+      // ⚠️⚠️⚠️ TURU 126 — **GENISLIK ARTIK BIRINCIL OLCU** (kullanici
+      //	emri: *"telefonu genisletsene artik"* — ucuncu kez).
+      //
+      //	KOK NEDEN (emulatorde hesaplandi): eski formul genisligi
+      //	YUKSEKLIKTEN turetiyordu (`en = maxHeight * 1.14 * 9/19.5`
+      //	= maxHeight * 0.526) ve `enTavan` yalnizca bir TAVANDI.
+      //	393x462 dp lik alanda dogal genislik **243 dp** cikiyor;
+      //	tavan 0.552 iken 217 dp ile BAGLAYICIYDI ama 0.635 e
+      //	cikarilinca **249,6 > 243** oldu ve tavan BAGLAYICI OLMAKTAN
+      //	CIKTI. Yani o noktadan sonra tavani ne kadar buyutursem
+      //	buyuteyim genislik **243 dp de SABIT kaliyordu** — kullanici
+      //	hakli olarak "genislemiyor" dedi.
+      //
+      // ⚠️ FIX: genislik DOGRUDAN alan genisliginden turetilir, yukseklik
+      //    ondan gelir. Boylece sayiyi buyutmek DAIMA gorunur bir fark
+      //    yaratir.
+      // ⚠️ Yukseklik tavani 1.20 -> **1.45**: telefon artik daha genis
+      //    oldugu icin orandan gelen boy da uzun; eski tavan devreye
+      //    girip genisligi GERI KUCULTURDU (ayni tuzagin aynasi).
+      //    Alttan tasma KASITLI ("cepten cikan telefon") ve `ClipRect`
+      //    zaten kirpiyor.
+      // ⚠️ YAPMA: genisligi tekrar yukseklikten turetme.
+      var en = kisit.maxWidth * 0.72;
+      var boy = en * 19.5 / 9;
+      final boyTavan = kisit.maxHeight * 1.45;
       if (boy > boyTavan) {
         boy = boyTavan;
         en = boy * 9 / 19.5;
