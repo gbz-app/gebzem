@@ -58,6 +58,18 @@
     box-shadow: 0 12px 36px rgba(139,63,255,.42), 0 0 0 1px rgba(255,255,255,.10);
   }
   h1 { font-size: 30px; letter-spacing: -.6px; margin-bottom: 4px; }
+  /* ⚠️⚠️⚠️ TURU 126 — **SEKIZINCI SAAT: SAYFANIN EN BUYUK IKINCI YAZISI.**
+     Kullanici YEDINCI KEZ "saati goremiyorum" dedi ve sunucu tarafi YEDI
+     KEZ DE dogru cikti (olculdu: text/html + no-store + DYNAMIC + saat 7
+     yerde + surum.json gomulu surumle BIREBIR + ciplak alan 302 -> ayni
+     govde). Saatin BULUNDUGU yer degil, GOZE CARPMADIGI acikti: yedi
+     yerin hepsi ya kucuk (11.5-13 px) ya da sayfanin ucunda.
+     Artik logo ve "Gebzem" basliginin HEMEN ALTINDA, 22 px kalin ve mor.
+     ⚠️ YAPMA: bu satiri kucultme ya da kartin asagisina tasima. */
+  .busaat {
+    font-size: 22px; font-weight: 800; color: #c9a8ff; margin-bottom: 6px;
+    font-variant-numeric: tabular-nums; letter-spacing: -.2px;
+  }
   .sub { color: rgba(255,255,255,.55); font-size: 14px; margin-bottom: 16px; }
   .yeni {
     text-align: left; font-size: 13px; line-height: 1.65; color: rgba(255,255,255,.72);
@@ -110,7 +122,7 @@
        Ayni sayi iki uctan da okunabilsin. -->
   <span class="saatbar">
     <span class="etiket">BU SAYFADAKİ SÜRÜMÜN SAATİ</span>
-    <span class="deger" id="surumsaat">{{SAAT}}</span>
+    <span class="deger saatyaz" id="surumsaat">{{SAAT}}</span>
     <!-- ⚠️ CANLI SAAT: kullanici "saati goremiyorum" dedi ve sunucu tarafi
          DOGRUYDU (no-cache basliklari + cubuk en ustte). Geriye kalan tek
          aciklama TARAYICI ONBELLEGINDEN bayat sayfa gormesiydi; bunu
@@ -123,11 +135,12 @@
   <div class="card">
     <img class="appicon" src="https://indir.gebzem.app/app-icon.png" alt="Gebzem">
     <h1>Gebzem</h1>
+    <p class="busaat saatyaz">{{SAAT}}</p>
     <p class="sub">Mesajlaşma · Arama · Canlı Yayın</p>
     <!-- TURU 113 — saat KARTIN ICINDE de yazar (7. yer). Kullanici ust
          seritteki mor cubugu "goremiyorum" dedi; basligin hemen altindaki
          satir goz taramasinda kacirilamaz. -->
-    <p class="kartsaat">Bu sürüm: <b>{{SAAT}}</b></p>
+    <p class="kartsaat">Bu sürüm: <b class="saatyaz">{{SAAT}}</b></p>
 
     <div class="yeni"><b>Bu sürümde — büyük güncelleme (senin yazdığın 10 eksiğin hepsi):</b>
 <br><br><b>1 · Alt menü yenilendi:</b> <b>Anasayfa · Ara · Reels · Mesaj · Canlı · Profil</b>.
@@ -160,13 +173,13 @@ dinleyici · Canlı yayın 4 kişi (yayıncı dahil) + sınırsız izleyici.</di
 
     <a class="btn ios" href="itms-services://?action=download-manifest&amp;url=https://indir.gebzem.app/manifest.plist">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M17.05 12.54c-.03-2.6 2.12-3.85 2.22-3.91-1.21-1.77-3.09-2.01-3.76-2.04-1.6-.16-3.12.94-3.93.94-.81 0-2.06-.92-3.39-.89-1.74.03-3.35 1.01-4.25 2.57-1.81 3.14-.46 7.79 1.3 10.34.86 1.25 1.89 2.65 3.24 2.6 1.3-.05 1.79-.84 3.36-.84 1.57 0 2.01.84 3.39.81 1.4-.02 2.29-1.27 3.15-2.53.99-1.45 1.4-2.85 1.42-2.92-.03-.01-2.72-1.04-2.75-4.13zM14.46 4.9c.72-.87 1.2-2.08 1.07-3.29-1.03.04-2.28.69-3.02 1.56-.66.77-1.24 2-1.09 3.18 1.15.09 2.33-.58 3.04-1.45z"/></svg>
-      iPhone'a Kur <span class="btnsaat">{{SAAT}}</span>
+      iPhone'a Kur <span class="btnsaat saatyaz">{{SAAT}}</span>
     </a>
     <a class="btn and" href="https://indir.gebzem.app/gebzem.apk?v={{SURUM}}">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M17.6 9.48l1.84-3.18a.38.38 0 00-.66-.38l-1.86 3.22a11.1 11.1 0 00-9.84 0L5.22 5.92a.38.38 0 00-.66.38L6.4 9.48A10.86 10.86 0 001 18h22a10.86 10.86 0 00-5.4-8.52zM7 15.25a1.25 1.25 0 111.25-1.25A1.25 1.25 0 017 15.25zm10 0a1.25 1.25 0 111.25-1.25A1.25 1.25 0 0117 15.25z"/></svg>
-      Android'e İndir (APK) <span class="btnsaat">{{SAAT}}</span>
+      Android'e İndir (APK) <span class="btnsaat saatyaz">{{SAAT}}</span>
     </a>
-    <p class="dosyasaat">İndirdiğin dosyanın sürümü: <b>{{SAAT}}</b></p>
+    <p class="dosyasaat">İndirdiğin dosyanın sürümü: <b class="saatyaz">{{SAAT}}</b></p>
 
     <div class="adim">
       <p><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v5M12 16h.01"/></svg>
@@ -179,7 +192,7 @@ dinleyici · Canlı yayın 4 kişi (yayıncı dahil) + sınırsız izleyici.</di
   </div>
   <p style="text-align:center;margin:16px auto 0;max-width:430px;
             font-size:12.5px;color:rgba(255,255,255,.55)">
-    Bu sayfanın sürümü: <b style="color:#d9c6ff">{{SAAT}}</b>
+    Bu sayfanın sürümü: <b class="saatyaz" style="color:#d9c6ff">{{SAAT}}</b>
   </p>
 <script>
 /* CANLI SAAT (Turkiye, UTC+3). Saniye AKIYORSA sayfa su an cizilmistir ->
@@ -264,12 +277,18 @@ dinleyici · Canlı yayın 4 kişi (yayıncı dahil) + sınırsız izleyici.</di
            ⚠️ Yalniz `d.saat` doluysa yazilir (bos deger saati SILERDI).
            ⚠️ Kirmizi serit KALDIRILMADI: saat duzelse de kullanicinin ESKI bir
               APK baglantisina basmasi ihtimali surer. */
+        /* ⚠️⚠️ TURU 126 — ARTIK **BUTUN** SAATLER YAZILIR.
+           Onceden yalniz ust serit (#surumsaat) guncelleniyordu; govde
+           onbellekten gelirse sayfada ALTI ESKI + BIR YENI saat oluyordu.
+           Iki farkli saat, hic saat gostermemekten DAHA KOTU: kullanici
+           hangisine inanacagini bilemez.
+           ⚠️ YAPMA: `.saatyaz` sinifini bir saat ogesinden dusurme. */
         if (d.saat) {
-          var g = document.getElementById('surumsaat');
-          if (g && g.textContent !== d.saat) {
-            g.textContent = d.saat;
-            document.title = 'Gebzem ' + d.saat + ' — indir';
+          var hepsi = document.querySelectorAll('.saatyaz');
+          for (var i = 0; i < hepsi.length; i++) {
+            if (hepsi[i].textContent !== d.saat) hepsi[i].textContent = d.saat;
           }
+          document.title = 'Gebzem ' + d.saat + ' — indir';
         }
 
         if (d.v === buSurum) return;
