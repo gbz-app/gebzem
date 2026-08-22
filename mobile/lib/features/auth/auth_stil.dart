@@ -340,15 +340,39 @@ InputDecoration authAlan(
 ///    anlatmaz (turu 98b dersi), ikon anlamı TASIR.
 Widget authNot(String mesaj, {bool hata = true}) {
   final renk = hata ? authHata : authAltYazi;
+  // ⚠️⚠️ TURU 126 — **IKON, ILK METIN SATIRININ ORTASINA HIZALI**
+  //	(kullanici emri: *"alertteki ikon ile yazi ayni hizada olmali"*).
+  //	`CrossAxisAlignment.start` ikonu satirin EN USTUNE yapistiriyordu;
+  //	16 dp ikon, 19.6 dp'lik satirin (14.5 x 1.35) ustunde asili duruyor
+  //	ve yaziyla hizasiz gorunuyordu.
+  // ⚠️ `center` KULLANILAMAZ: iki satirlik mesajda ikon ORTAYA duser ve
+  //    ilk satirdan kopar. Dolgu ile ILK SATIRIN ortasina indiriliyor.
+  const boy = 16.0;
+  const satir = 14.5 * 1.35;
   return Padding(
     padding: const EdgeInsets.only(top: 9),
     child: Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(
-          hata ? LucideIcons.circleAlert : LucideIcons.info,
-          size: 16,
-          color: renk,
+        Padding(
+          padding: const EdgeInsets.only(top: (satir - boy) / 2),
+          child: Icon(
+            hata ? LucideIcons.circleAlert : LucideIcons.info,
+            size: boy,
+            color: renk,
+            // ⚠️ **`strokeWidth` YOKTUR**: lucide ikonlari FONT olarak
+            //    sunulur (glif), SVG DEGIL. Kalinlik ayni renkte ±0.4 px
+            //    kaydirilmis DORT GOLGE ile simule edilir (turu 93 deseni).
+            shadows: [
+              for (final d in const [
+                Offset(0.4, 0),
+                Offset(-0.4, 0),
+                Offset(0, 0.4),
+                Offset(0, -0.4),
+              ])
+                Shadow(color: renk, offset: d),
+            ],
+          ),
         ),
         const SizedBox(width: 6),
         Expanded(

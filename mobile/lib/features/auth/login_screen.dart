@@ -6,8 +6,14 @@
 ///
 /// ⚠️ Ortak parcalar **KOPYALANMADI**, `auth_stil.dart` TEK KAYNAGINDAN
 ///    geliyor (bkz. o dosyanin serhi: iki kopya kacinilmaz olarak drift eder).
-/// ⚠️ HICBIR ISLEV KALDIRILMADI: telefon, sifre (goster/gizle), "Şifremi
-///    unuttum", "Kayıt ol" ve hata mesajlari AYNEN duruyor.
+/// ⚠️⚠️ TURU 126 — **BU SERH GUNCELLENDI.** Eskiden *"hicbir islev
+///	kaldirilmadi"* diyordu; artik DOGRU DEGIL:
+///	  · "Şifremi unuttum" EKRANDAN KALKTI (kullanici emri) -> sifresini
+///	    unutan kullanicinin kurtarma yolu YOK,
+///	  · "Hesabın yok mu? Kayıt ol" EKRANDAN KALKTI -> kayit akisina giden
+///	    ITME kalmadi, yeni kullanici hesap ACAMAZ.
+///	Iki rota da router'da DURUYOR; yalniz girisleri yok.
+/// ⚠️ BEKLEYEN: ikisinin nereye konacagi kullanici karari.
 library;
 
 import 'package:flutter/material.dart';
@@ -124,8 +130,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     //	true** donerdi ve dogrulama SESSIZCE devre disi kalirdi.
     // ⚠️ YAPMA: bilesenleri `TextFormField`a cevirmeden `Form` dogrulamasina
     //    geri donme.
+    // ⚠️⚠️⚠️ TURU 126 — **NUMARA BOZUKSA BIRINCI ASAMAYA DONULUR.**
+    //	Ilk yazimda burada yalniz `_telefonNotu` set ediliyordu; ama ikinci
+    //	asamada `AuthTelefonAlani` CIZILMIYOR (yerine sifre alani geliyor),
+    //	yani not HICBIR YERDE gorunmuyordu: dugmeye basan kullanici icin
+    //	ekran SESSIZCE hicbir sey yapmiyordu.
     if (!authTelefonTam(_haneler.text)) {
       setState(() {
+        _sifreGorundu = false;
         _telefonNotu = 'Numaranı eksiksiz yaz — 5 ile başlayan 10 hane.';
       });
       return;
@@ -150,9 +162,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           _hatali = true;
           // ⚠️ Sunucunun mesaji SnackBar'da AYRICA gosterilir; alan altindaki
           //    satir NE YAPILACAGINI soyler (mesaj degil, YONLENDIRME).
-          _hataNotu =
-              'Numara ya da şifre hatalı. Numaranı kontrol et; '
-              'şifreni unuttuysan aşağıdan sıfırlayabilirsin.';
+          // ⚠️⚠️ TURU 126 — **'aşağıdan sıfırlayabilirsin' KALDIRILDI.**
+          //	O cumle 'Şifremi unuttum' baglantisini isaret ediyordu;
+          //	baglanti bu turda ekrandan KALKTI, yani metin OLMAYAN bir
+          //	yolu tarif ediyordu.
+          // ⚠️ BEKLEYEN: sifre sifirlama girisi geri konunca cumle de geri gelmeli.
+          _hataNotu = 'Numara ya da şifre hatalı. İkisini de kontrol et.';
         });
         ScaffoldMessenger.of(
           context,
