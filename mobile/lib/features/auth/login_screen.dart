@@ -346,9 +346,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     //	bozuk" demesine yol acardi.
                     // ⚠️ BEKLEYEN: "kod ile giris" istenirse iki yeni uc
                     //    gerekir; arayuz turu oldugu icin acilmadi.
+                    // ⚠️⚠️ TURU 126 — ASAMA 2 DE **HANGI NUMARA** OLDUGUNU
+                    //	SOYLER (emulatorde goruldu). Numara asama 1 ekraninda
+                    //	kaliyor ve asama 2 acilinca EKRANDA HICBIR IZI
+                    //	kalmiyordu: yanlis numara yazan kullanici sifresini
+                    //	yanlis saniyor, kontrol etmek icin geri donmek
+                    //	zorunda kaliyordu. WhatsApp/Instagram da numarayi
+                    //	bu adimda gosterir.
+                    // ⚠️ Bicimlendirme  ile — SUNUCUYA
+                    //    GIDEN numara DEGIL, yalniz gorunum.
                     Text(
                       _sifreGorundu
-                          ? 'Neredeyse tamam'
+                          ? '${authNumaraGoster(_haneler.text)} için'
                           : 'Seni görmek ne güzel',
                       style: TextStyle(
                         fontSize: 20,

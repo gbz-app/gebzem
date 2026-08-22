@@ -650,7 +650,12 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
           hataliMi: _adHatasi != null,
           // ⚠️ Dolu alanin cizgisi SIYAH kalir (bkz. `authAlan` serhi).
           sadeKoyuCizgi: _ad.text.isNotEmpty,
-        ).copyWith(labelText: null),
+          // ⚠️⚠️ `copyWith(labelText: null)` DEGIL: Flutter'da `copyWith`
+          //	null gecilen alani DEGISTIRMEZ, mevcut degeri KORUR — yani
+          //	etiket EKRANDA KALIYORDU (emulatorde goruldu, kullanici UC KEZ
+          //	soyledi). Etiketi gercekten silen tek yol bu parametre.
+          etiketiGizle: true,
+        ),
       ),
       if (_adHatasi != null) authNot(_adHatasi!),
     ],
