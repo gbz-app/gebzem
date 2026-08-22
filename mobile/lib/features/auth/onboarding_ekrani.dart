@@ -946,10 +946,11 @@ class _TelefonState extends State<_Telefon>
     builder: (_, kisit) {
       var boy = kisit.maxHeight * 1.14;
       var en = boy * 9 / 19.5;
-      // ⚠️ TURU 126 — telefon once %20 daraltildi (0.60 -> 0.48), sonra
-      //    kullanici *"%15 genislet"* dedi: 0.48 x 1.15 = **0.552**.
-      //    Oran (9:19.5) hicbir adimda DEGISMEDI, yalniz tavan oynadi.
-      final enTavan = kisit.maxWidth * 0.552;
+      // ⚠️ TURU 126 — genislik tavani: 0.60 -> 0.48 (%20 daralt) ->
+      //    0.552 (%15 genislet) -> **0.635** (bir %15 daha; kullanici
+      //    0.552 i hala dar buldu). Oran (9:19.5) hicbir adimda
+      //    DEGISMEDI, yalniz tavan oynadi.
+      final enTavan = kisit.maxWidth * 0.635;
       if (en > enTavan) {
         en = enTavan;
         boy = en * 19.5 / 9;
@@ -1118,7 +1119,7 @@ class _TelefonState extends State<_Telefon>
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(13),
-          border: Border.all(color: const Color(0x14000000)),
+          // ⚠️ TURU 126 — kenarlik YOK (balonlarla ayni kural).
         ),
         child: Row(
           children: [
@@ -1196,12 +1197,10 @@ class _TelefonState extends State<_Telefon>
                   bottomLeft: Radius.circular(benim ? 15 : 4),
                   bottomRight: Radius.circular(benim ? 4 : 15),
                 ),
-                border: benim
-                    ? null
-                    : Border.all(color: const Color(0x14000000)),
-                // ⚠️ TURU 126 — **BALON GOLGESI KALDIRILDI** (kullanici
-                //    emri). Kenarlik DURUYOR: beyaz balonun beyaz zeminden
-                //    ayrilmasini golge DEGIL o cizgi sagliyordu.
+                // ⚠️⚠️ TURU 126 — **GOLGE DE KENARLIK DA KALDIRILDI**
+                //    (kullanici emri: "border golgeler olmasin"). Beyaz
+                //    balon, telefon zemini (#F7F6FB) uzerinde kendi
+                //    beyaziyla ayrisiyor — cizgiye gerek yok.
               ),
               child: Text(
                 metin,
@@ -1228,7 +1227,7 @@ class _TelefonState extends State<_Telefon>
         bottomLeft: Radius.circular(4),
         bottomRight: Radius.circular(14),
       ),
-      border: Border.all(color: const Color(0x14000000)),
+      // ⚠️ TURU 126 — kenarlik YOK (kullanici emri).
     ),
     child: Row(
       mainAxisSize: MainAxisSize.min,
