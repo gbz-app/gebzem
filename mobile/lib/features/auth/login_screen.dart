@@ -180,9 +180,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // ⚠️ TURU 126 — klavye acilinca UST ICERIK OYNAMAZ; yalniz alt
-    //    dugme `viewInsets` kadar yukari cikar (bkz. `AuthSayfa` serhi).
-    final klavye = MediaQuery.viewInsetsOf(context).bottom;
+    // ⚠️⚠️⚠️ TURU 126 — **`viewInsets` BURADA OKUNMAZ** (kullanici:
+    //	*"bos bir yere tikladigimda tus takimi kapanirken ekranda donma
+    //	yapiyor"*).
+    //
+    //	`MediaQuery.viewInsetsOf(context)` bu `build`i klavyeye ABONE eder
+    //	ve klavye acilip kapanirken deger HER KAREDE degisir — yani ~15-20
+    //	kare boyunca **TUM SAYFA** yeniden kuruluyordu: baslik, 28 px'lik
+    //	metinler, `AuthTelefonAlani` (kendi dinleyicisi olan bir
+    //	`StatefulWidget`), `authNot`... Kapanma animasyonundaki takilmanin
+    //	sebebi buydu.
+    // ⚠️ Deger artik YALNIZ alt dugme blogundaki `Builder` icinde okunuyor;
+    //    aboneligi o kucuk alt agac tasir, ust icerik HIC yeniden cizilmez.
+    // ⚠️ YAPMA: `viewInsets`i tekrar `build`in basina tasima.
     return AuthSayfa(
       klavyeyeGoreKuculme: false,
       child: SafeArea(
@@ -254,7 +264,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ),
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(28, 12, 28, 24),
+                padding: const EdgeInsets.fromLTRB(28, 17, 28, 24),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -295,8 +305,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ),
                     ),
                     const SizedBox(height: 8),
+                    // ⚠️ TURU 126 — baslik-alan araligi 28 -> 23 (kullanici:
+                    //    *"numara 5 px daha yukarida"*). Parametre PAYLASILAN
+                    //    `authBaslik`in varsayilanini DEGISTIRMEZ: kayit akisi
+                    //    28'de kalir.
                     authBaslik(
                       _sifreGorundu ? 'Şifreni gir' : 'Hadi başlayalım',
+                      null,
+                      23,
                     ),
                     // ⚠️⚠️ TURU 126 — **IKI ASAMA, TEK EKRAN.** Sifre alani
                     //	telefonun ALTINDA DEGIL, YERINE gelir (kullanici
@@ -336,50 +352,57 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ),
             // ⚠️ Ana dugme ALTTA SABIT (kayit akisiyla ayni): klavye acikken
             //    de erisilir ve iki ekranda ayni yerde durur.
-            Padding(
-              padding: EdgeInsets.fromLTRB(28, 8, 28, 10 + klavye),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // ⚠️⚠️ TURU 126 — **DUZ KOSE, GOLGESIZ** (kullanici emri:
-                  //	*"butondaki radüs gölge vs olmasın"*). Bir onceki
-                  //	adimda referans gorseline gore `hap: true` denenmisti,
-                  //	kullanici GERI ALDI.
-                  // ⚠️ `hap` bayragi `auth_stil.dart`ta DURUYOR ama artik
-                  //    HICBIR YERDEN cagrilmiyor; boylece turu 119'un
-                  //    *"butonlari radus kaldir"* emri TUM kimlik
-                  //    ekranlarinda yine gecerli.
-                  authAnaDugme(
-                    etiket: 'Giriş yap',
-                    basildi: _submit,
-                    mesgul: _loading,
-                  ),
-                  // ⚠️⚠️⚠️ TURU 126 — **"Hesabın yok mu? Kayıt ol" KALDIRILDI**
-                  //	(kullanici emri).
-                  // ⚠️⚠️ **BEKLEYEN IS:** bu, kayit akisina giden TEK yoldu
-                  //	(`grep "'/register'"` -> yalniz burasiydi). Kaldirilmasiyla
-                  //	`kayit_akisi.dart` ULASILAMAZ hale geldi: yeni kullanici
-                  //	hesap ACAMAZ. Rota (`/register`) router'da DURUYOR,
-                  //	yalnizca ITME yok — girisi nereye koyacagimiz
-                  //	soylenince tek satirla geri baglanir.
-                  // ⚠️ YAPMA: bunu "olu kod" sanip `/register` rotasini
-                  //    router'dan silme.
-                  // ⚠️ KUCUK ve SOLUK: kullanici *"yazi olarak KUCUK"* dedi.
-                  //    Ana eylemlerle gorsel olarak yarismamali.
-                  TextButton(
-                    onPressed: _loading ? null : _tanitimiSifirla,
-                    style: TextButton.styleFrom(
-                      foregroundColor: authAltYazi.withValues(alpha: 0.75),
-                      minimumSize: const Size(0, 34),
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            Builder(
+              builder: (context) => Padding(
+                padding: EdgeInsets.fromLTRB(
+                  28,
+                  8,
+                  28,
+                  10 + MediaQuery.viewInsetsOf(context).bottom,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // ⚠️⚠️ TURU 126 — **DUZ KOSE, GOLGESIZ** (kullanici emri:
+                    //	*"butondaki radüs gölge vs olmasın"*). Bir onceki
+                    //	adimda referans gorseline gore `hap: true` denenmisti,
+                    //	kullanici GERI ALDI.
+                    // ⚠️ `hap` bayragi `auth_stil.dart`ta DURUYOR ama artik
+                    //    HICBIR YERDEN cagrilmiyor; boylece turu 119'un
+                    //    *"butonlari radus kaldir"* emri TUM kimlik
+                    //    ekranlarinda yine gecerli.
+                    authAnaDugme(
+                      etiket: 'Giriş yap',
+                      basildi: _submit,
+                      mesgul: _loading,
                     ),
-                    child: const Text(
-                      'Tanıtımı yeniden göster',
-                      style: TextStyle(fontSize: 12.5),
+                    // ⚠️⚠️⚠️ TURU 126 — **"Hesabın yok mu? Kayıt ol" KALDIRILDI**
+                    //	(kullanici emri).
+                    // ⚠️⚠️ **BEKLEYEN IS:** bu, kayit akisina giden TEK yoldu
+                    //	(`grep "'/register'"` -> yalniz burasiydi). Kaldirilmasiyla
+                    //	`kayit_akisi.dart` ULASILAMAZ hale geldi: yeni kullanici
+                    //	hesap ACAMAZ. Rota (`/register`) router'da DURUYOR,
+                    //	yalnizca ITME yok — girisi nereye koyacagimiz
+                    //	soylenince tek satirla geri baglanir.
+                    // ⚠️ YAPMA: bunu "olu kod" sanip `/register` rotasini
+                    //    router'dan silme.
+                    // ⚠️ KUCUK ve SOLUK: kullanici *"yazi olarak KUCUK"* dedi.
+                    //    Ana eylemlerle gorsel olarak yarismamali.
+                    TextButton(
+                      onPressed: _loading ? null : _tanitimiSifirla,
+                      style: TextButton.styleFrom(
+                        foregroundColor: authAltYazi.withValues(alpha: 0.75),
+                        minimumSize: const Size(0, 34),
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: const Text(
+                        'Tanıtımı yeniden göster',
+                        style: TextStyle(fontSize: 12.5),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ],

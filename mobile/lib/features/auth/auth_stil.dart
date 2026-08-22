@@ -118,34 +118,35 @@ class AuthSayfa extends StatelessWidget {
 ///    `Text('')` birakmak, gorunmez ama yer kaplayan bir satir olurdu.
 /// ⚠️ Parametre POZISYONEL-OPSIYONEL: mevcut dort cagri yeri
 ///    (kayit akisi · sifre unuttum · OTP · kayit) DEGISMEDEN calisir.
-Widget authBaslik(String baslik, [String? aciklama]) => Column(
-  crossAxisAlignment: CrossAxisAlignment.start,
-  children: [
-    Text(
-      baslik,
-      textAlign: TextAlign.left,
-      style: const TextStyle(
-        fontSize: 28,
-        height: 1.2,
-        fontWeight: FontWeight.w800,
-        color: authYazi,
-      ),
-    ),
-    if (aciklama != null) ...[
-      const SizedBox(height: 9),
-      Text(
-        aciklama,
-        textAlign: TextAlign.left,
-        style: const TextStyle(
-          fontSize: 16.5,
-          height: 1.45,
-          color: authAltYazi,
+Widget authBaslik(String baslik, [String? aciklama, double altBosluk = 28]) =>
+    Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          baslik,
+          textAlign: TextAlign.left,
+          style: const TextStyle(
+            fontSize: 28,
+            height: 1.2,
+            fontWeight: FontWeight.w800,
+            color: authYazi,
+          ),
         ),
-      ),
-    ],
-    const SizedBox(height: 28),
-  ],
-);
+        if (aciklama != null) ...[
+          const SizedBox(height: 9),
+          Text(
+            aciklama,
+            textAlign: TextAlign.left,
+            style: const TextStyle(
+              fontSize: 16.5,
+              height: 1.45,
+              color: authAltYazi,
+            ),
+          ),
+        ],
+        SizedBox(height: altBosluk),
+      ],
+    );
 
 /// Alan icindeki DEGERIN stili (etiketin altindaki asil yazi).
 ///
@@ -158,9 +159,7 @@ TextStyle authDegerStili({
   double? boy,
   bool sade = false,
 }) => TextStyle(
-  color: hatali
-      ? authHata
-      : (sade ? authSadeDeger : authYazi),
+  color: hatali ? authHata : (sade ? authSadeDeger : authYazi),
   fontSize: boy ?? authDegerBoy,
   fontWeight: FontWeight.w500,
 );
@@ -170,7 +169,7 @@ TextStyle authDegerStili({
 /// Referans tasarimda giris metni sayfadaki EN BUYUK ikinci ogedir (baslik
 /// 28, deger 24); alt cizgi ve etiket olmadigi icin BOYUT tek hiyerarsi
 /// isaretidir. `authDegerBoy` (20) sade modda kucuk kaliyordu.
-const double authSadeDegerBoy = 28.0;
+const double authSadeDegerBoy = 30.0;
 
 /// Sade moddaki IPUCU ve `+90` on eki — hafif gri.
 const Color authSadeSoluk = Color(0xFFB6B6BF);
@@ -235,9 +234,16 @@ InputDecoration authAlan(
   Widget? sonek,
   bool hataliMi = false,
   bool sade = false,
+  bool sadeKoyuCizgi = false,
 }) {
   UnderlineInputBorder cizgi(Color renk) =>
       UnderlineInputBorder(borderSide: BorderSide(color: renk, width: 2));
+  UnderlineInputBorder sadeCizgi(Color renk) =>
+      UnderlineInputBorder(borderSide: BorderSide(color: renk, width: 1));
+  // ⚠️ Alan DOLUYKEN cizgi koyulasir; bos ve hatasizken acik gri kalir.
+  final sadeNormal = hataliMi
+      ? authHata
+      : (sadeKoyuCizgi ? authYazi : authCizgi);
   final normal = hataliMi ? authHata : authCizgi;
   final odak = hataliMi ? authHata : morLogo;
   final etiketStili = TextStyle(
@@ -275,12 +281,15 @@ InputDecoration authAlan(
       // ⚠️ 12 dp: 24 px'lik deger satiriyla birlikte ~48 dp verir, yani
       //    sonekli sifre alaniyla AYNI. Degistirirsen IKISINI birlikte olc.
       contentPadding: const EdgeInsets.symmetric(vertical: 12),
-      border: InputBorder.none,
-      enabledBorder: InputBorder.none,
-      focusedBorder: InputBorder.none,
-      errorBorder: InputBorder.none,
-      focusedErrorBorder: InputBorder.none,
-      disabledBorder: InputBorder.none,
+      // ⚠️⚠️ TURU 126 — SADE ALANDA **1 PX ALT CIZGI** (kullanici emri).
+      //	Kalinlik UC HALDE DE 1 px: degisseydi alanin ic yuksekligi oynar
+      //	ve yazi 1 px ZIPLARDI (turu 119 sinifi). Renk hatada KIRMIZI.
+      border: sadeCizgi(sadeNormal),
+      enabledBorder: sadeCizgi(sadeNormal),
+      focusedBorder: sadeCizgi(sadeNormal),
+      errorBorder: sadeCizgi(authHata),
+      focusedErrorBorder: sadeCizgi(authHata),
+      disabledBorder: sadeCizgi(authCizgi),
     );
   }
   return InputDecoration(
@@ -365,7 +374,18 @@ const int authTelefonHane = 10;
 ///
 /// ⚠️ TEK KAYNAK: giris, kayit ve kod dogrulama AYNI numarayi uretmek
 ///    ZORUNDA. Uc yerde `'+90' + text` yazilsaydi biri `trim()` unuturdu.
-String authTamNumara(String haneler) => '$authUlkeKodu${haneler.trim()}';
+/// ⚠️⚠️⚠️ TURU 126 — **DENETLEYICI ARTIK BOSLUKLU METIN TUTUYOR**
+///	(`512 345 67 89`, kullanici emri). Numarayi okuyan HER yardimci
+///	once HANELERI SUZER; sunucuya bosluklu numara giderse `users.phone`
+///	ile eslesmez ve giris SESSIZCE basarisiz olur.
+/// ⚠️ YAPMA: cagiran taraflarda `controller.text`i dogrudan sunucuya verme.
+String authHaneler(String metin) => metin.replaceAll(RegExp(r'\D'), '');
+
+/// Denetleyicideki HANELERDEN sunucuya gidecek tam numarayi uretir.
+///
+/// ⚠️ TEK KAYNAK: giris, kayit ve kod dogrulama AYNI numarayi uretmek
+///    ZORUNDA.
+String authTamNumara(String haneler) => '$authUlkeKodu${authHaneler(haneler)}';
 
 /// Numarayi EKRANDA gostermek icin bicimlendirir: `+90 532 123 45 67`.
 ///
@@ -375,7 +395,7 @@ String authTamNumara(String haneler) => '$authUlkeKodu${haneler.trim()}';
 /// ⚠️ 10 hane degilse OLDUGU GIBI dondurulur: yarim yazilmis bir numarayi
 ///    zorla gruplamak ("+90 55 " gibi) kullaniciya bozuk gorunurdu.
 String authNumaraGoster(String haneler) {
-  final h = haneler.trim();
+  final h = authHaneler(haneler);
   if (h.length != authTelefonHane) return authTamNumara(h);
   return '$authUlkeKodu ${h.substring(0, 3)} ${h.substring(3, 6)} '
       '${h.substring(6, 8)} ${h.substring(8)}';
@@ -389,7 +409,7 @@ String authNumaraGoster(String haneler) {
 ///    yanlissa aninda uyarilir, cunku o hatanin duzelmesi mumkun degildir:
 ///    `0` ile baslayan numara ne kadar yazilirsa yazilsin gecerli olmaz.
 String? authTelefonHatasi(String haneler) {
-  final h = haneler.trim();
+  final h = authHaneler(haneler);
   if (h.isEmpty) return null;
   if (!h.startsWith('5')) {
     return 'Numara 5 ile başlamalı — alan kodu olmadan yaz (örnek: 532 123 45 67).';
@@ -399,8 +419,66 @@ String? authTelefonHatasi(String haneler) {
 
 /// Gonderilebilir mi (10 hane ve 5 ile basliyor).
 bool authTelefonTam(String haneler) {
-  final h = haneler.trim();
+  final h = authHaneler(haneler);
   return h.length == authTelefonHane && h.startsWith('5');
+}
+
+/// ⚠️⚠️⚠️ TURU 126 — **NUMARAYI YAZARKEN GRUPLAR**: `512 345 67 89`.
+///
+/// ⚠️⚠️ **IMLEC KONUMU -1 GELEBILIR** (secim bildirilmemis). Onu
+///	`clamp(0, ...)` ile 0 saymak imleci metnin BASINA tasir ve bir
+///	SONRAKI tus BASA eklenir — haneler birbirinin ustune biner.
+///	-1 ya da sonda ise imlec metnin SONUNA konur: telefon alaninda
+///	yazim daima sondan ilerler, en guvenli varsayilan budur.
+/// ⚠️ Tavan BURADA uygulanir (10 hane);
+///    `LengthLimitingTextInputFormatter` KULLANILAMAZ — o KARAKTER sayar
+///    ve bosluklarla 13'e cikan metni erken keserdi.
+class AuthTelefonBicimlendirici extends TextInputFormatter {
+  const AuthTelefonBicimlendirici();
+
+  static String grupla(String h) {
+    final p = <String>[];
+    if (h.isNotEmpty) p.add(h.substring(0, h.length < 3 ? h.length : 3));
+    if (h.length > 3) p.add(h.substring(3, h.length < 6 ? h.length : 6));
+    if (h.length > 6) p.add(h.substring(6, h.length < 8 ? h.length : 8));
+    if (h.length > 8) p.add(h.substring(8));
+    return p.join(' ');
+  }
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue eski,
+    TextEditingValue yeni,
+  ) {
+    final h = authHaneler(yeni.text);
+    final kirpik = h.length > authTelefonHane
+        ? h.substring(0, authTelefonHane)
+        : h;
+    final metin = grupla(kirpik);
+    final off = yeni.selection.baseOffset;
+    if (off < 0 || off >= yeni.text.length) {
+      return TextEditingValue(
+        text: metin,
+        selection: TextSelection.collapsed(offset: metin.length),
+      );
+    }
+    // Imlecten ONCEKI hane sayisi -> yeni metinde ayni hane sayisina
+    // denk gelen konum.
+    final oncekiHane = authHaneler(yeni.text.substring(0, off)).length;
+    var konum = metin.length;
+    var sayac = 0;
+    for (var i = 0; i < metin.length; i++) {
+      if (sayac >= oncekiHane) {
+        konum = i;
+        break;
+      }
+      if (metin[i] != ' ') sayac++;
+    }
+    return TextEditingValue(
+      text: metin,
+      selection: TextSelection.collapsed(offset: konum),
+    );
+  }
 }
 
 /// ⚠️⚠️⚠️ TURU 120 — TELEFON ALANI (kullanici emri: *"+90 SILINMESIN;
@@ -510,10 +588,15 @@ class _AuthTelefonAlaniState extends State<AuthTelefonAlani> {
   Widget build(BuildContext context) {
     final bicimHatasi = authTelefonHatasi(widget.controller.text);
     final kirmizi = widget.hataliMi || bicimHatasi != null;
+    // ⚠️⚠️ TURU 126 — **DOLUYKEN TAM SIYAH** (kullanici emri: *"numara
+    //	yazdigimizda numara tam siyah olmali"*). Bos alanda ipucuyla ayni
+    //	soluklukta durur; ilk hane girilir girilmez deger `authYazi`ye
+    //	gecer ve `+90` da onunla birlikte koyulasir — numara TEK BUTUN.
+    final dolu = widget.controller.text.isNotEmpty;
     final stil = authDegerStili(
       hatali: kirmizi,
       boy: widget.sade ? authSadeDegerBoy : null,
-      sade: widget.sade,
+      sade: widget.sade && !dolu,
     );
     // ⚠️ TURU 126 — sade modda `+90` **IPUCUYLA AYNI SOLUKLUKTA**: yazilan
     //    haneler bir tik koyu kalir, on ek geride durur (kullanici emri:
@@ -525,7 +608,7 @@ class _AuthTelefonAlaniState extends State<AuthTelefonAlani> {
     //	gibi okunur); kullanici yazmaya baslayinca numara TEK BUTUN olur ve
     //	on ek de degerin rengine gecer.
     // ⚠️ Hatada zaten IKISI DE kirmizi.
-    final onEkStili = widget.sade && !kirmizi && widget.controller.text.isEmpty
+    final onEkStili = widget.sade && !kirmizi && !dolu
         ? stil.copyWith(color: authSadeSoluk)
         : stil;
     // ⚠️⚠️ TURU 126b — **SADE MODDA ERISILEBILIRLIK ADI ACIKCA VERILIR**
@@ -556,10 +639,8 @@ class _AuthTelefonAlaniState extends State<AuthTelefonAlani> {
         //    `prefixText` BIRAKILIP kendi `Row`u kurmak gerekir ve o zaman
         //    bos alanda genislik cokup ipucu kaybolur (`IntrinsicWidth`
         //    `hintText`i OLCMEZ, yalniz mevcut metni olcer).
-        inputFormatters: [
-          FilteringTextInputFormatter.digitsOnly,
-          LengthLimitingTextInputFormatter(authTelefonHane),
-        ],
+        // ⚠️ Tavan BICIMLENDIRICIDE (bkz. serhi).
+        inputFormatters: const [AuthTelefonBicimlendirici()],
         onChanged: widget.onChanged,
         onSubmitted: widget.onSubmitted,
         decoration:
@@ -567,6 +648,9 @@ class _AuthTelefonAlaniState extends State<AuthTelefonAlani> {
               widget.etiket,
               hataliMi: kirmizi,
               sade: widget.sade,
+              // ⚠️ Cizgi de doluyken koyulasir (kullanici: *"numara
+              //    yazarken alt cizgi gri kaliyor"*).
+              sadeKoyuCizgi: dolu,
             ).copyWith(
               // ⚠️ IKI BOSLUK: kullanici *"arasinda biraz bosluk"* dedi. Tek
               //    bosluk `+90532...` gibi bitisik okunuyordu.
