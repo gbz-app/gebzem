@@ -96,8 +96,12 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       if (auth == null) return null; // oturum kontrol ediliyor (splash aninda)
       final loggedIn = auth.isNotEmpty;
-      final onAuthPage = ['/login', '/register', '/otp', '/forgot']
-          .contains(state.matchedLocation);
+      final onAuthPage = [
+        '/login',
+        '/register',
+        '/otp',
+        '/forgot',
+      ].contains(state.matchedLocation);
       if (!loggedIn && !onAuthPage) return '/login';
       // ⚠️⚠️⚠️ TURU 84 — `/register` **ISTISNA**: adimli kayit akisi hesabi
       //    3. adimda olusturur (yani OTURUM ACILIR) ve ardindan 4. adimda
@@ -132,7 +136,18 @@ final routerProvider = Provider<GoRouter>((ref) {
       // SILINMEDI: sifre sifirlama akisi /otp mantigini paylasiyor ve
       // yayindaki eski surumler o yollari kullaniyor.
       // YAPMA: /register i tekrar RegisterScreen e baglama.
-      GoRoute(path: '/register', builder: (_, _) => const KayitAkisi()),
+      GoRoute(
+        path: '/register',
+        builder: (_, state) {
+          // ⚠️ Giris ekrani numarayi ve kodu `extra` ile tasir (bkz.
+          //    `KayitAkisi` serhi). Dogrudan gelinirse ikisi de null.
+          final extra = (state.extra as Map?) ?? {};
+          return KayitAkisi(
+            telefon: extra['telefon'] as String?,
+            devOtp: extra['otp'] as String?,
+          );
+        },
+      ),
       GoRoute(
         path: '/otp',
         builder: (_, state) {

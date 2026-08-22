@@ -774,7 +774,13 @@ class _AuthSifreAlaniState extends State<AuthSifreAlani> {
           //	Artik tabanin **%60**`i, aralik da ayni oranda (5 -> 3).
           // ⚠️ Aralik ORANLI kucultuldu: sabit 5 kalsaydi kucuk daireler
           //    birbirinden KOPUK, tek tek yuzen noktalar gibi gorunurdu.
-          ? temel.copyWith(fontSize: tabanBoy * 0.6, letterSpacing: 3)
+          // ⚠️⚠️ TURU 126 — **YALNIZ ARALIK DARALDI, BOY DEGIL** (kullanici:
+          //	*"sifre yazi boyutunu neden dusurdun, DAIRE icin dedim"*).
+          //	Ilk denemede `tabanBoy * 0.6` yazilmisti; kayit akisinda taban
+          //	20 px oldugu icin daireler **12 px**e dusuyordu — okunamayacak
+          //	kadar kucuk. Artik daire YAZIYLA AYNI BOYDA (eskiden +3 ile
+          //	ondan BUYUKTU) ve aralik 5 -> 3.
+          ? temel.copyWith(letterSpacing: 3)
           : temel,
       decoration: authAlan(
         widget.etiket,

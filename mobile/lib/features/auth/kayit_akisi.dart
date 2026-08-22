@@ -79,8 +79,16 @@ const double _kKirpCap = 250;
 ///    kod ekrani 2. adimda yalnizca onu SORAR.
 const int _kAdimSayisi = 8;
 
+/// ⚠️⚠️ TURU 126 — [telefon] ve [devOtp] GIRIS EKRANINDAN gelir: orada
+///	numara zaten yazildi ve `/auth/kayit/telefon` ZATEN cagrildi (kod
+///	yola cikti). Ikisi de verilirse akis **KOD adiminda** baslar —
+///	kullaniciya numarayi IKINCI KEZ yazdirmak ve ikinci bir SMS
+///	gondermek olurdu.
 class KayitAkisi extends ConsumerStatefulWidget {
-  const KayitAkisi({super.key});
+  const KayitAkisi({super.key, this.telefon, this.devOtp});
+
+  final String? telefon;
+  final String? devOtp;
 
   @override
   ConsumerState<KayitAkisi> createState() => _KayitAkisiState();
@@ -88,6 +96,18 @@ class KayitAkisi extends ConsumerStatefulWidget {
 
 class _KayitAkisiState extends ConsumerState<KayitAkisi> {
   int _adim = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    // ⚠️ Giristen gelindiyse numara ve kod HAZIR: dogrudan KOD adimi.
+    final t = widget.telefon;
+    if (t != null && t.isNotEmpty) {
+      _haneler.text = t;
+      if (widget.devOtp != null) _kod.text = widget.devOtp!;
+      _adim = 2; // -> KOD
+    }
+  }
 
   /// Secilen ham fotograf (kirpilmamis).
   File? _fotoHam;

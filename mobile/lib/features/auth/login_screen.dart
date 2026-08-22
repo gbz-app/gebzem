@@ -16,6 +16,7 @@
 /// ⚠️ BEKLEYEN: ikisinin nereye konacagi kullanici karari.
 library;
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -105,22 +106,58 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   ///    gercekten giris yapar.
   /// ⚠️ Kapi TEK YONLU: bir kez acilinca kapanmaz — numarayi duzeltmek icin
   ///    tek hane silen kullanicinin yazdigi sifre kaybolmasin.
+  /// ⚠️⚠️⚠️ TURU 126 — **GIRIS VE KAYIT TEK KAPI** (kullanici emri:
+  ///	*"telefon kayitli degilse kayit otpden sonra ad soyad vb devam
+  ///	edecek"*). Kullanici artik "giris mi kayit mi" secmiyor: numarayi
+  ///	yazar, gerisini uygulama karar verir.
+  ///
+  /// ⚠️⚠️ **"BU NUMARA KAYITLI MI" DIYE SORAN AYRI BIR UC YOK.**
+  ///	`/auth/kayit/telefon` bu isi ZATEN yapiyor:
+  ///	  · **409** -> numara KAYITLI (OTP GONDERMEZ) -> sifre asamasi,
+  ///	  · **200** -> numara YENI ve OTP GONDERILDI -> kayit akisi.
+  ///	Yani tek istekle hem kontrol hem kod gonderimi yapiliyor; ikinci
+  ///	bir uc acmak ARAYUZ TURUNDA yasak (CLAUDE.md kural 9) ve gereksiz.
+  /// ⚠️ Numaranin kayitli olup olmadigi ZATEN sizdiriliyordu (o ucun 409
+  ///    metni acikca soyluyor); bu degisiklik yeni bir sizinti ACMIYOR.
   Future<void> _submit() async {
-    if (!_sifreGorundu) {
-      if (!authTelefonTam(_haneler.text)) {
-        setState(() {
-          _telefonNotu = 'Numaranı eksiksiz yaz — 5 ile başlayan 10 hane.';
-        });
-        return;
-      }
+    if (_sifreGorundu) return _girisYap();
+    if (!authTelefonTam(_haneler.text)) {
       setState(() {
-        _telefonNotu = null;
-        _sifreGorundu = true;
+        _telefonNotu = 'Numaranı eksiksiz yaz — 5 ile başlayan 10 hane.';
       });
       return;
     }
-    return _girisYap();
+    setState(() {
+      _loading = true;
+      _telefonNotu = null;
+    });
+    try {
+      final devOtp = await ref
+          .read(authProvider.notifier)
+          .kayitTelefon(authTamNumara(_haneler.text));
+      // 200 -> numara YENI, kod gonderildi: kayit akisina DEVRET.
+      if (!mounted) return;
+      context.push(
+        '/register',
+        extra: {'telefon': _haneler.text, 'otp': devOtp},
+      );
+    } on DioException catch (e) {
+      if (!mounted) return;
+      if (e.response?.statusCode == 409) {
+        // 409 -> numara KAYITLI: sifre asamasina gec.
+        setState(() => _sifreGorundu = true);
+        return;
+      }
+      _hataGoster(apiErrorMessage(e));
+    } catch (e) {
+      if (mounted) _hataGoster(apiErrorMessage(e));
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
+
+  void _hataGoster(String m) =>
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
 
   Future<void> _girisYap() async {
     // ⚠️⚠️ TURU 120 — DOGRULAMA `Form`DAN ALINDI, ELLE YAPILIYOR.
@@ -402,27 +439,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     // ⚠️ YAPMA: bunu "olu kod" sanip `/register` rotasini
                     //    router'dan silme.
                     // ⚠️⚠️⚠️ TURU 126 — **"Kayıt ol" GERI KONDU.**
-                  //	Onceki adimda kullanici emriyle kaldirilmisti; ayni
-                  //	turda kayit akisi 8 adima cikarilinca o akisa giden
-                  //	TEK yol kapali kaldi — ne kullanici test edebiliyor
-                  //	ne de yeni biri hesap acabiliyordu.
-                  // ⚠️ Gorsel agirlik DUSUK tutuldu (12.5 px, %75 saydam):
-                  //    ana eylemle yarismasin diye "Tanıtımı yeniden göster"
-                  //    ile AYNI dilde.
-                  TextButton(
-                    onPressed: _loading ? null : () => context.push('/register'),
-                    style: TextButton.styleFrom(
-                      foregroundColor: authAltYazi,
-                      minimumSize: const Size(0, 34),
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    child: const Text(
-                      'Hesabın yok mu? Kayıt ol',
-                      style: TextStyle(fontSize: 13.5),
-                    ),
-                  ),
-                  // ⚠️ KUCUK ve SOLUK: kullanici *"yazi olarak KUCUK"* dedi.
+                    //	Onceki adimda kullanici emriyle kaldirilmisti; ayni
+                    //	turda kayit akisi 8 adima cikarilinca o akisa giden
+                    //	TEK yol kapali kaldi — ne kullanici test edebiliyor
+                    //	ne de yeni biri hesap acabiliyordu.
+                    // ⚠️ Gorsel agirlik DUSUK tutuldu (12.5 px, %75 saydam):
+                    //    ana eylemle yarismasin diye "Tanıtımı yeniden göster"
+                    //    ile AYNI dilde.
+                    // ⚠️⚠️ TURU 126 — **"Kayıt ol" ARTIK GEREKSIZ** (kullanici
+                    //	emri). Numara kayitli DEGILSE "Giriş yap" kullaniciyi
+                    //	ZATEN kayit akisina goturuyor (bkz. `_submit`), yani
+                    //	ayri bir giris tutmak ayni ise IKI kapi acardi.
+                    // ⚠️ Rota (`/register`) DURUYOR ve `_submit` icinden
+                    //    push ediliyor — "olu kod" sanip silme.
+                    // ⚠️ KUCUK ve SOLUK: kullanici *"yazi olarak KUCUK"* dedi.
                     //    Ana eylemlerle gorsel olarak yarismamali.
                     TextButton(
                       onPressed: _loading ? null : _tanitimiSifirla,
