@@ -756,7 +756,10 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       _baslik('Paylaşmak istersen', 'Cinsiyetin'),
-      for (final c in const ['Kadın', 'Erkek', 'Belirtmek istemiyorum']) ...[
+      // ⚠️ TURU 126 — "Belirtmek istemiyorum" KALDIRILDI (kullanici emri).
+      //    Adim ZATEN opsiyonel: hicbirine dokunmadan "Devam" denebilir,
+      //    yani ayri bir "belirtmek istemiyorum" secenegi GEREKSIZDI.
+      for (final c in const ['Kadın', 'Erkek']) ...[
         _cinsiyetSecenegi(c),
         const SizedBox(height: 10),
       ],
