@@ -743,7 +743,10 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
           controller: _ad,
           textCapitalization: TextCapitalization.words,
           textInputAction: TextInputAction.done,
-          style: authDegerStili(),
+          // ⚠️⚠️ TURU 126 — **YAZI BOYU GIRIS EKRANIYLA AYNI** (kullanici
+          //	emri). Kayit alanlari 20 px, giristeki telefon alani 30 px
+          //	kullaniyordu; ayni akisin ardisik ekranlarinda yazi KUCULUYORDU.
+          style: authDegerStili(boy: authSadeDegerBoy, sade: true),
           onChanged: (_) => setState(() => _adHatasi = null),
           decoration: authAlan(
             // ⚠️ TURU 126 — ETIKET CIZILMEZ (kullanici emri: *"Adin soyadini da
@@ -751,6 +754,9 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
             'Adın soyadın',
             ipucu: 'Ad Soyad',
             hataliMi: _adHatasi != null,
+            // ⚠️  yalniz yazi boyu icin degil: cizgi kalinligi
+            //    ve ic dolgu da o dalin olcusu.
+            sade: true,
             // ⚠️ Dolu alanin cizgisi SIYAH kalir (bkz. `authAlan` serhi).
             sadeKoyuCizgi: _ad.text.isNotEmpty,
             // ⚠️⚠️ `copyWith(labelText: null)` DEGIL: Flutter'da `copyWith`
