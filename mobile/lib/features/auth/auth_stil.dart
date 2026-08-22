@@ -786,22 +786,101 @@ class _AuthSifreAlaniState extends State<AuthSifreAlani> {
           //	20 px oldugu icin daireler **12 px**e dusuyordu — okunamayacak
           //	kadar kucuk. Artik daire YAZIYLA AYNI BOYDA (eskiden +3 ile
           //	ondan BUYUKTU) ve aralik 5 -> 3.
-          ? temel.copyWith(letterSpacing: 3)
+          // ⚠️ TURU 126 — daire yaziyla ayni boyda + **2 px** (kullanici:
+          //    *"ufak yaptigimiz daireyi bir tik buyut, HEPSI oyle olsun"*).
+          //    Taban her iki modda da tek kaynaktan geldigi icin giris ve
+          //    kayit ekranlari ARTIK AYNI daireyi cizer.
+          ? temel.copyWith(fontSize: tabanBoy + 2, letterSpacing: 3)
           : temel,
       decoration: authAlan(
         widget.etiket,
         ipucu: widget.ipucu,
         hataliMi: widget.hataliMi,
         sade: widget.sade,
-        sonek: IconButton(
-          icon: Icon(
-            _gizli ? LucideIcons.eye : LucideIcons.eyeOff,
-            size: 20,
-            color: authAltYazi,
-          ),
+        // ⚠️⚠️ TURU 126 — **GOZ IKONU YERINE "Göster / Gizle" YAZISI**
+        //	(kullanici emri). Ikon iki durumu da ayni sekilde okutuyordu:
+        //	`eye` mi "sifre gorunur" mu demek yoksa "goster" mi — belirsizdi.
+        //	Yazi EYLEMI soyler.
+        // ⚠️ `TextButton` dokunma alanini kucultuyor (`shrinkWrap`) ama
+        //    yatay dolgu 12 kaliyor: sonek alani daralinca metin sarardi.
+        sonek: TextButton(
           onPressed: () => setState(() => _gizli = !_gizli),
+          style: TextButton.styleFrom(
+            foregroundColor: authAltYazi,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            minimumSize: Size.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          child: Text(
+            _gizli ? 'Göster' : 'Gizle',
+            style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600),
+          ),
         ),
       ),
+    );
+  }
+}
+
+/// ⚠️⚠️⚠️ TURU 126 — **SIFRE KURALLARI SATIRI** (kullanici emri: *"en az 6
+///	haneli, buyuk kucuk harf — sifre inputun ALTINA, ayni renkte gri;
+///	her yapilanda YESIL olsun, bir tik kalinlassin"*).
+///
+/// ⚠️⚠️ **BUYUK/KUCUK HARF SARTI SUNUCUDA YOK**: `/auth/kayit/tamamla`
+///	yalnizca **en az 6 karakter** dayatiyor. Bu satir istemciyi sunucudan
+///	KATI yapar — sorun degil (daha guclu sifre uretir) ama bir gun sunucu
+///	kurali degisirse BURASI da guncellenmeli.
+/// ⚠️ Kurallar UYGULANIR da: `_sifreyiDogrula` ikisini de arar. Yalnizca
+///    GOSTERGE olsaydi yesil tik gorup "Devam"da takilan kullanici,
+///    ekranin ne dediginden bagimsiz olarak neyin eksik oldugunu bilemezdi.
+class AuthSifreKurallari extends StatelessWidget {
+  const AuthSifreKurallari({
+    super.key,
+    required this.sifre,
+    this.hataliMi = false,
+  });
+
+  final String sifre;
+
+  /// "Devam"a basildi ve sifre gecersiz — kurallar KIRMIZI vurgulanir.
+  final bool hataliMi;
+
+  static bool uzunlukTamam(String s) => s.length >= 6;
+  static bool harfTamam(String s) =>
+      RegExp(r'[a-zçğıöşü]').hasMatch(s) && RegExp(r'[A-ZÇĞİÖŞÜ]').hasMatch(s);
+
+  /// ⚠️ TEK KAYNAK: cagiran taraf kendi kontrolunu YAZMAZ.
+  static bool gecerli(String s) => uzunlukTamam(s) && harfTamam(s);
+
+  @override
+  Widget build(BuildContext context) {
+    Widget satir(String metin, bool tamam) {
+      // ⚠️ Renk UC HALLI: notr gri · saglandi YESIL · "Devam"a basildi ve
+      //    eksik KIRMIZI. Sadece gri/yesil olsaydi hatanin NEREDE oldugu
+      //    yalnizca "yesil OLMAYAN" satirdan cikarilirdi.
+      final renk = tamam
+          ? const Color(0xFF129D5A)
+          : (hataliMi ? authHata : authAltYazi);
+      return Padding(
+        padding: const EdgeInsets.only(top: 6),
+        child: Text(
+          metin,
+          style: TextStyle(
+            fontSize: 13,
+            height: 1.35,
+            color: renk,
+            // ⚠️ Saglanan kural BIR TIK kalin (w600) — kullanici emri.
+            fontWeight: tamam ? FontWeight.w600 : FontWeight.w400,
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        satir('En az 6 karakter', uzunlukTamam(sifre)),
+        satir('Büyük ve küçük harf içersin', harfTamam(sifre)),
+      ],
     );
   }
 }

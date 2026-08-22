@@ -424,16 +424,37 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     // ⚠️ *"Kod göndereceğiz"* DEMEZ: numara KAYITLIYSA kod
                     //    gitmez, sifre sorulur (bkz. `_submit` serhi). Vaat
                     //    edilen sey ancak GERCEKLESEN sey olmali.
+                    // ⚠️ TURU 126 — IKON + **SOLA DAYALI** + 13.5 px (kullanici
+                    //    emri). Ortali dururken sayfadaki tek ortali oge oydu;
+                    //    ikon satiri bir "not" olarak isaretliyor.
                     if (!_sifreGorundu) ...[
-                      const Text(
-                        'Numaran kimseyle paylaşılmaz; yalnızca hesabını '
-                        'doğrulamak için kullanılır.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          height: 1.4,
-                          color: authAltYazi,
-                        ),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // ⚠️ Ikon ILK SATIRIN ortasina hizali (satir
+                          //    13.5 x 1.4 = 18.9; ikon 16) — `authNot` ile
+                          //    ayni yontem.
+                          const Padding(
+                            padding: EdgeInsets.only(top: 1.45),
+                            child: Icon(
+                              LucideIcons.shieldCheck,
+                              size: 16,
+                              color: authAltYazi,
+                            ),
+                          ),
+                          const SizedBox(width: 7),
+                          const Expanded(
+                            child: Text(
+                              'Numaran kimseyle paylaşılmaz.\n'
+                              'Yalnızca hesabını doğrulamak için kullanılır.',
+                              style: TextStyle(
+                                fontSize: 13.5,
+                                height: 1.4,
+                                color: authAltYazi,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 14),
                     ],

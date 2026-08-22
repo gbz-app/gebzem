@@ -76,6 +76,15 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
   ///    numaran ne ve sifre belirleme alani var, kaldir"*).
   bool _giristenGeldi = false;
 
+  /// "Devam"a basildi ve sifre kurallara uymuyor — kurallar KIRMIZI yanar.
+  bool _sifreHatali = false;
+
+  /// Ad/soyad alaninin ALTINA konan hata (SnackBar DEGIL — kullanici emri).
+  String? _adHatasi;
+
+  /// Kullanici adi alaninin ALTINA konan hata.
+  String? _kullaniciAdiHatasi;
+
   @override
   void initState() {
     super.initState();
@@ -259,20 +268,49 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
   ///	Emulatorde goruldu: kullanici icin dugme SESSIZCE calismiyordu.
   /// ⚠️ Adim ekleyip cikarirken bu SABIT SAYILARI tek tek gozden gecir —
   ///    derleyici bunlari YAKALAMAZ.
+  /// ⚠️⚠️ TURU 126 — **SOYAD DA ZORUNLU** (kullanici emri: *"soyad yazmazsa
+  ///	altta alert ciksin"*). Olcut: bosluktan sonra en az 2 harf.
+  /// ⚠️ Sunucu YALNIZ "bos olmasin" diyor; bu kural ISTEMCIDE DAHA KATI.
+  ///    Katilik bilincli: profilde tek isim goruntuyu bozuyor ve kullanici
+  ///    sonradan duzeltmiyor.
+  /// ⚠️ Mesaj SnackBar DEGIL alanin ALTINDA (kullanici emri) — SnackBar
+  ///    4 saniyede kayboluyor ve hangi alani isaret ettigi belirsiz kaliyor.
   void _adiDogrula() {
-    if (_ad.text.trim().isEmpty) {
-      _uyar('Adını ve soyadını yaz');
+    final ad = _ad.text.trim();
+    if (ad.isEmpty) {
+      setState(() => _adHatasi = 'Adını ve soyadını yaz.');
       return;
     }
-    setState(() => _adim = 4); // -> KULLANICI ADI
+    final parcalar = ad.split(RegExp(r'\s+')).where((p) => p.length >= 2);
+    if (parcalar.length < 2) {
+      setState(() => _adHatasi = 'Soyadını da yaz — örneğin "Ahmet Yılmaz".');
+      return;
+    }
+    setState(() {
+      _adHatasi = null;
+      _adim = 4; // -> KULLANICI ADI
+    });
   }
 
+  /// ⚠️ Mesaj SnackBar DEGIL alanin ALTINDA (kullanici emri: *"az karakter
+  ///    yazinca bunda da alert versin"*).
   void _kullaniciAdiniDogrula() {
-    if (!_kullaniciAdiBicimi(_kullaniciAdi.text)) {
-      _uyar('Kullanıcı adı 3-20 karakter olmalı (a-z, 0-9, _)');
+    final k = _kullaniciAdi.text;
+    if (k.length < 3) {
+      setState(() => _kullaniciAdiHatasi = 'En az 3 karakter yaz.');
       return;
     }
-    setState(() => _adim = 5); // -> YAS
+    if (!_kullaniciAdiBicimi(k)) {
+      setState(
+        () => _kullaniciAdiHatasi =
+            'En fazla 20 karakter · yalnızca küçük harf, rakam ve alt çizgi.',
+      );
+      return;
+    }
+    setState(() {
+      _kullaniciAdiHatasi = null;
+      _adim = 5; // -> YAS
+    });
   }
 
   bool _bilgilerGecerli() {
@@ -545,13 +583,10 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
                     kutu(0),
                     kutu(1),
                     kutu(2),
-                    // ⚠️ Tire hanelerle AYNI dikey hizada: alt cizgiler
-                    //    2 px oldugu icin tire de o cizginin ustune
-                    //    denk gelmeli, yoksa havada asili durur.
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                      child: Container(width: 14, height: 2, color: _cizgi),
-                    ),
+                    // ⚠️ TURU 126 — TIRE YERINE **BOSLUK** (kullanici emri:
+                    //    *"arada - olmasin, normal telefon inputu gibi sadece
+                    //    arada bosluk olsun"*).
+                    const SizedBox(width: 22),
                     kutu(3),
                     kutu(4),
                     kutu(5),
@@ -589,7 +624,13 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       // ⚠️ GORUNUM bicimi — sunucuya giden numara DEGIL.
-      _baslik(authNumaraGoster(_haneler.text), 'Kodu gir'),
+      // ⚠️ TURU 126 — ust satir numarayi TEK BASINA degil, NE OLDUGUYLA
+      //    birlikte soyler (kullanici: *"daha profesyonel, bir tik daha
+      //    fazlasi bir yazi olsun"*).
+      _baslik(
+        '${authNumaraGoster(_haneler.text)} numarasına gönderdik',
+        'Doğrulama kodun',
+      ),
       _otpAlani(),
       // ⚠️⚠️ TURU 126 — **"Kod gelmedi mi? Tekrar gönder" KALDIRILDI**
       //	(kullanici emri).
@@ -613,18 +654,32 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       _baslik('Güvenlik için', 'Bir şifre belirle'),
+      // ⚠️ TURU 126 — SADE MOD: "Şifre" etiketi CIZILMEZ (kullanici emri) ve
+      //    daireler GIRIS EKRANIYLA AYNI olur (ikisi de ayni tabani okur).
       AuthSifreAlani(
         controller: _sifre,
-        ipucu: 'En az 6 karakter',
+        ipucu: 'Şifren',
+        sade: true,
+        hataliMi: _sifreHatali,
         textInputAction: TextInputAction.done,
+        onChanged: (_) => setState(() => _sifreHatali = false),
         onSubmitted: (_) => _sifreyiDogrula(),
       ),
+      // ⚠️ Kurallar alanin ALTINDA ve DURUMA gore renklenir (bkz.
+      //    `AuthSifreKurallari` serhi).
+      AuthSifreKurallari(sifre: _sifre.text, hataliMi: _sifreHatali),
     ],
   );
 
   void _sifreyiDogrula() {
-    if (_sifre.text.length < 6) {
-      _uyar('Şifre en az 6 karakter olmalı');
+    // ⚠️⚠️ Kural TEK KAYNAKTAN (`AuthSifreKurallari.gecerli`): ekranda
+    //	GOSTERILEN kurallarla DOGRULANAN kurallar ayri yazilsaydi biri
+    //	degisince oteki geride kalir ve kullanici tumu yesilken "Devam"da
+    //	takilirdi.
+    // ⚠️ SnackBar YOK: eksik kural ZATEN ekranda, alanin altinda kirmiziya
+    //    doner — ustune bir de kaybolan bir mesaj koymak gurultu olurdu.
+    if (!AuthSifreKurallari.gecerli(_sifre.text)) {
+      setState(() => _sifreHatali = true);
       return;
     }
     setState(() => _adim = 2); // -> KOD
@@ -647,14 +702,18 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
         textCapitalization: TextCapitalization.words,
         textInputAction: TextInputAction.done,
         style: authDegerStili(),
-        onChanged: (_) => setState(() {}),
+        onChanged: (_) => setState(() => _adHatasi = null),
         decoration: authAlan(
+          // ⚠️ TURU 126 — ETIKET CIZILMEZ (kullanici emri: *"Adin soyadini da
+          //    kaldir"*); ipucu "Ad Soyad" alanin ne istedigini soyluyor.
           'Adın soyadın',
-          ipucu: 'Örn. Ahmet Yılmaz',
+          ipucu: 'Ad Soyad',
+          hataliMi: _adHatasi != null,
           // ⚠️ Dolu alanin cizgisi SIYAH kalir (bkz. `authAlan` serhi).
           sadeKoyuCizgi: _ad.text.isNotEmpty,
-        ),
+        ).copyWith(labelText: null),
       ),
+      if (_adHatasi != null) authNot(_adHatasi!),
     ],
   );
 
@@ -684,19 +743,26 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
         inputFormatters: [
           FilteringTextInputFormatter.allow(RegExp(r'[a-z0-9_]')),
         ],
-        onChanged: (_) => setState(() {}),
+        onChanged: (_) => setState(() => _kullaniciAdiHatasi = null),
         decoration: authAlan(
+          // ⚠️ TURU 126 — ETIKET CIZILMEZ (kullanici emri); ipucu ve
+          //    altindaki kural satiri alanin ne istedigini soyluyor.
           'Kullanıcı adı',
           ipucu: 'ornek_kullanici',
+          hataliMi: _kullaniciAdiHatasi != null,
           // ⚠️ Dolu alanin cizgisi SIYAH kalir (bkz. `authAlan` serhi).
           sadeKoyuCizgi: _kullaniciAdi.text.isNotEmpty,
-        ).copyWith(suffixIcon: _kullaniciAdiGosterge()),
+        ).copyWith(labelText: null, suffixIcon: _kullaniciAdiGosterge()),
       ),
-      const SizedBox(height: 10),
-      const Text(
-        '3-20 karakter · küçük harf, rakam ve alt çizgi',
-        style: TextStyle(fontSize: 13, color: _altYazi),
-      ),
+      if (_kullaniciAdiHatasi != null)
+        authNot(_kullaniciAdiHatasi!)
+      else ...[
+        const SizedBox(height: 10),
+        const Text(
+          '3-20 karakter · küçük harf, rakam ve alt çizgi',
+          style: TextStyle(fontSize: 13, color: _altYazi),
+        ),
+      ],
     ],
   );
 
@@ -781,7 +847,12 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
           alignment: Alignment.centerLeft,
           foregroundColor: secili ? morLogo : _yazi,
           side: BorderSide(color: secili ? morLogo : _cizgi),
-          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+          // ⚠️ TURU 126 — YARICAP 12 (kullanici emri: *"seceneklerde radus
+          //    olacak"*). Ana dugme DUZ KOSE kalir (turu 119 emri): bunlar
+          //    SECIM ogesi, o EYLEM dugmesi.
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         ),
         child: Text(
@@ -1178,18 +1249,13 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
                 //	kullanici nereye kadar kirpildigini goremezdi.
                 border: _fotoHam == null
                     ? null
-                    : Border.all(color: Colors.white, width: 3),
-                // ⚠️ Golge YALNIZ fotograf varken: bos dairede golge, gri
-                //    yer tutucuyu "kutu" gibi gosteriyordu.
-                boxShadow: _fotoHam == null
-                    ? null
-                    : const [
-                        BoxShadow(
-                          color: Color(0x22000000),
-                          blurRadius: 18,
-                          offset: Offset(0, 6),
-                        ),
-                      ],
+                    // ⚠️⚠️ TURU 126 — **FOTOGRAF VARKEN DE KENARLIK/GOLGE YOK**
+                    //	(kullanici emri: *"profil fotograf gelince etrafinda
+                    //	blur vs golge border olmayacak"*).
+                    // ⚠️ Kirpma sinirini artik YALNIZCA dairenin KENDISI
+                    //    gosteriyor (`ClipOval`); halka gorsel bir susleme
+                    //    olarak duruyordu, yapisal bir isaret degil.
+                    : null,
               ),
             ),
           ),
@@ -1222,11 +1288,12 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
     icon: Icon(ikon, size: 17),
     label: Text(etiket),
     style: OutlinedButton.styleFrom(
-      foregroundColor: vurgulu ? morLogo : _yazi,
-      side: BorderSide(
-        color: vurgulu ? morLogo : _cizgi,
-        width: vurgulu ? 1.5 : 1,
-      ),
+      // ⚠️⚠️ TURU 126 — **SIYAH** (kullanici emri: *"fotograf sec siyah olacak,
+      //	border ikon vs hepsi"*). Onceki turda `vurgulu` ile MOR yapilmisti;
+      //	kullanici GERI ALDI. `vurgulu` bayragi artik yalnizca KALINLIGI
+      //	degistiriyor — ilk eylem hala bir tik belirgin.
+      foregroundColor: _yazi,
+      side: BorderSide(color: _yazi, width: vurgulu ? 1.5 : 1),
       // ⚠️ TURU 119 — radius YOK (kullanici emri, ana dugmeyle ayni dil).
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
