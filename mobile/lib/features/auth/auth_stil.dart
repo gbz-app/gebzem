@@ -768,6 +768,38 @@ class AuthSifreAlani extends StatefulWidget {
 class _AuthSifreAlaniState extends State<AuthSifreAlani> {
   bool _gizli = true;
 
+  /// ⚠️⚠️ TURU 126 — **DENETLEYICI DINLENIR** (turu 120 `AuthTelefonAlani`
+  ///	dersinin birebir aynisi). Alan dolu mu bos mu sorusu `build` icinde
+  ///	okunuyor; dinleyici olmadan yeniden cizim EBEVEYNIN `setState`ine
+  ///	bagli kalirdi ve giris ekraninda `_temizle()` yalnizca temizlenecek
+  ///	bir sey varsa `setState` cagirdigi icin **ILK TUSTA cizgi
+  ///	koyulasmazdi**.
+  /// ⚠️ `dispose`ta YALNIZ dinleyici kaldirilir — denetleyici CAGIRANA ait.
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_degisti);
+  }
+
+  @override
+  void didUpdateWidget(AuthSifreAlani eski) {
+    super.didUpdateWidget(eski);
+    if (eski.controller != widget.controller) {
+      eski.controller.removeListener(_degisti);
+      widget.controller.addListener(_degisti);
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_degisti);
+    super.dispose();
+  }
+
+  void _degisti() {
+    if (mounted) setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
     final tabanBoy = widget.sade ? authSadeDegerBoy : authDegerBoy;
@@ -821,6 +853,16 @@ class _AuthSifreAlaniState extends State<AuthSifreAlani> {
         ipucu: widget.ipucu,
         hataliMi: widget.hataliMi,
         sade: widget.sade,
+        // ⚠️⚠️ TURU 126 — **DOLU SIFRENIN CIZGISI DE KOYULASIR** (denetim
+        //	bulgusu). Kardes telefon alani bunu ZATEN yapiyordu; sifre
+        //	alani atlandigi icin cizgi HICBIR durumda degismiyordu:
+        //	bos, dolu ve odakli hallerin ucu de `authCizgi` (#E3E3EA) —
+        //	beyaz zeminde **1,2:1**, yani fiilen GORUNMEZ. Kullanici
+        //	sifresini yazdiginda alanin tepki verdigine dair TEK GORSEL
+        //	isaret bu cizgidir.
+        // ⚠️ ASIMETRININ KENDISI HATAYDI: ayni ekranda ust uste gelen iki
+        //    alandan biri koyulasip oteki kalmiyordu.
+        sadeKoyuCizgi: widget.controller.text.isNotEmpty,
         // ⚠️⚠️ TURU 126 — **GOZ IKONU YERINE "Göster / Gizle" YAZISI**
         //	(kullanici emri). Ikon iki durumu da ayni sekilde okutuyordu:
         //	`eye` mi "sifre gorunur" mu demek yoksa "goster" mi — belirsizdi.

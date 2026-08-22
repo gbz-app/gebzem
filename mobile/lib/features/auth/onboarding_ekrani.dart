@@ -85,12 +85,16 @@ class _OnboardingEkraniState extends ConsumerState<OnboardingEkrani> {
     // ⚠️ Metin izni de SOYLUYOR: istenmeyen bir izin diyalogu cikarsa
     //    kullanici "neden kamera istiyor" der. Son cumle tam bunu kapatir.
     _Sayfa(
-      baslik: 'Aklına takılanı',
-      vurgu: 'GebzemAI’ye sor',
+      // ⚠️ TURU 126 — baslik ve aciklama KISALDI (kullanici: *"cok uzun,
+      //    daha profesyonel guzel olsun"*). Baslik iki satirdan TEK satira
+      //    indi; aciklama uc cumleden IKIYE.
+      // ⚠️ Kamera izni cumlesi KALDI ama tek kelimeye indi: bu sayfa kamera
+      //    iznini istiyor ve sebebini SOYLEMEDEN diyalog acmak olmaz.
+      baslik: 'Sor, Gebzem',
+      vurgu: 'cevaplasın',
       alt:
-          'Nöbetçi eczane, hafta sonu programı, ne yesem — Gebze’ye dair '
-          'sorularını yanıtlar. Görüntülü görüşme ve hikâye için de kamera '
-          'izni gerekiyor; kamera yalnızca sen açtığında çalışır.',
+          'Nöbetçi eczane, hafta sonu programı, akşam nerede yenir — '
+          'Gebze’ye dair her şeyi bilir. Görüntülü görüşme için kamera izni.',
       ikonlar: [
         LucideIcons.sparkles,
         LucideIcons.messageCircle,
@@ -942,9 +946,10 @@ class _TelefonState extends State<_Telefon>
     builder: (_, kisit) {
       var boy = kisit.maxHeight * 1.14;
       var en = boy * 9 / 19.5;
-      // ⚠️ TURU 126 — telefon **%20 DARALDI** (kullanici emri):
-      //    0.60 -> 0.48. Oran (9:19.5) DEGISMEDI, yalniz tavan dustu.
-      final enTavan = kisit.maxWidth * 0.48;
+      // ⚠️ TURU 126 — telefon once %20 daraltildi (0.60 -> 0.48), sonra
+      //    kullanici *"%15 genislet"* dedi: 0.48 x 1.15 = **0.552**.
+      //    Oran (9:19.5) hicbir adimda DEGISMEDI, yalniz tavan oynadi.
+      final enTavan = kisit.maxWidth * 0.552;
       if (en > enTavan) {
         en = enTavan;
         boy = en * 19.5 / 9;
