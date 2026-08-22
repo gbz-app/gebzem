@@ -58,32 +58,6 @@ const Color _cizgi = authCizgi;
 /// Kirpma dairesinin capi.
 const double _kKirpCap = 250;
 
-/// Toplam adim sayisi (ilerleme cubugu + son adim karari BURADAN turer).
-///
-/// ⚠️ TEK SABIT: turu 119'da `List.generate(4, ...)` ve `i == 3` ayri ayri
-///    yaziliydi; adim eklerken ikisinden birini unutmak ilerleme cubugunu
-///    sessizce bozardi.
-/// ⚠️⚠️⚠️ TURU 126 — **AKIS 5 -> 8 ADIM** (kullanici emri: *"sifreden
-///	sonra otp istesin, sonra isim, sonra yas, sonra cinsiyet, sonra
-///	ilgi alanlari, sonra profil fotografi"*).
-///
-///	0 telefon · 1 sifre · 2 kod · 3 isim · 4 yas · 5 cinsiyet
-///	6 ilgi alanlari · 7 fotograf
-///
-/// ⚠️⚠️ **SUNUCU SIRASI FARKLI VE DEGISMEDI**: `/auth/kayit/telefon`
-///	(OTP gonderir) -> `/auth/kayit/dogrula` (kod -> kayit jetonu) ->
-///	`/auth/kayit/tamamla` (ad + kullanici adi + sifre -> hesap).
-///	SIFRE ekranda 1. adimda alinir ama sunucuya EN SONDA gider —
-///	aradaki fark yalnizca GORUNUM sirasidir.
-/// ⚠️ OTP telefon adiminda GONDERILIR (sifre yazilirken SMS yolda olur);
-///    kod ekrani 2. adimda yalnizca onu SORAR.
-const int _kAdimSayisi = 8;
-
-/// ⚠️⚠️ TURU 126 — [telefon] ve [devOtp] GIRIS EKRANINDAN gelir: orada
-///	numara zaten yazildi ve `/auth/kayit/telefon` ZATEN cagrildi (kod
-///	yola cikti). Ikisi de verilirse akis **KOD adiminda** baslar —
-///	kullaniciya numarayi IKINCI KEZ yazdirmak ve ikinci bir SMS
-///	gondermek olurdu.
 class KayitAkisi extends ConsumerStatefulWidget {
   const KayitAkisi({super.key, this.telefon, this.devOtp});
 
@@ -261,9 +235,20 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
   ///	Emulatorde goruldu: kullanici icin dugme SESSIZCE calismiyordu.
   /// ⚠️ Adim ekleyip cikarirken bu SABIT SAYILARI tek tek gozden gecir —
   ///    derleyici bunlari YAKALAMAZ.
-  void _bilgileriDogrula() {
-    if (!_bilgilerGecerli()) return;
-    setState(() => _adim = 4); // -> YAS
+  void _adiDogrula() {
+    if (_ad.text.trim().isEmpty) {
+      _uyar('Adını ve soyadını yaz');
+      return;
+    }
+    setState(() => _adim = 4); // -> KULLANICI ADI
+  }
+
+  void _kullaniciAdiniDogrula() {
+    if (!_kullaniciAdiBicimi(_kullaniciAdi.text)) {
+      _uyar('Kullanıcı adı 3-20 karakter olmalı (a-z, 0-9, _)');
+      return;
+    }
+    setState(() => _adim = 5); // -> YAS
   }
 
   bool _bilgilerGecerli() {
@@ -376,7 +361,9 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _ustCubuk(),
-            _ilerlemeCubugu(),
+            // ⚠️ TURU 126 — **STEP CIZGILERI KALDIRILDI** (kullanici emri).
+            //    `_ilerlemeCubugu` ve `_kAdimSayisi` DURUYOR: adim sayisi
+            //    hala son-adim kararini besliyor.
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(28, 28, 28, 24),
@@ -385,9 +372,10 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
                   1 => _adimSifre(),
                   2 => _adimKod(),
                   3 => _adimIsim(),
-                  4 => _adimYas(),
-                  5 => _adimCinsiyet(),
-                  6 => _adimIlgi(),
+                  4 => _adimKullaniciAdi(),
+                  5 => _adimYas(),
+                  6 => _adimCinsiyet(),
+                  7 => _adimIlgi(),
                   _ => _adimFotograf(),
                 },
               ),
@@ -404,55 +392,65 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
     height: 48,
     child: Row(
       children: [
-        IconButton(
-          icon: const Icon(LucideIcons.arrowLeft, color: _yazi),
-          onPressed: _mesgul
-              ? null
-              : () => _adim == 0
-                    ? context.go('/login')
-                    : setState(() => _adim -= 1),
+        // ⚠️⚠️ TURU 126 — OK **BASLIKLA AYNI HIZADA** (kullanici emri).
+        //	`IconButton` varsayilan 48 dp kutuda ikonu ORTALAR: 24 dp ikon
+        //	sola 12 dp uzakta cizilir ve govde dolgusundan (28) 16 dp DAHA
+        //	SOLDA kalir. Dolgu sifirlanip disaridan 16 verildi.
+        // ⚠️ Kalinlik: `strokeWidth` YOKTUR (lucide FONT) — dort golge.
+        Padding(
+          padding: const EdgeInsets.only(left: 16),
+          child: IconButton(
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+            icon: const Icon(
+              LucideIcons.arrowLeft,
+              color: _yazi,
+              shadows: [
+                Shadow(color: _yazi, offset: Offset(0.4, 0)),
+                Shadow(color: _yazi, offset: Offset(-0.4, 0)),
+                Shadow(color: _yazi, offset: Offset(0, 0.4)),
+                Shadow(color: _yazi, offset: Offset(0, -0.4)),
+              ],
+            ),
+            onPressed: _mesgul
+                ? null
+                : () => _adim == 0
+                      ? context.go('/login')
+                      : setState(() => _adim -= 1),
+          ),
         ),
       ],
     ),
   );
 
-  /// Ince ilerleme cubugu.
-  ///
-  /// ⚠️ Yuzde YAZISI YOK: adimlarin kendisi zaten gorunuyor ve yuzde
-  ///    kullaniciya bir sey katmiyor (gorsel gurultu).
-  Widget _ilerlemeCubugu() => Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 28),
-    child: Row(
-      children: List.generate(_kAdimSayisi, (i) {
-        final dolu = i <= _adim;
-        return Expanded(
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 220),
-            height: 3,
-            margin: EdgeInsets.only(right: i == _kAdimSayisi - 1 ? 0 : 6),
-            decoration: BoxDecoration(
-              color: dolu ? morLogo : _cizgi,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-        );
-      }),
-    ),
-  );
+  // ⚠️⚠️ TURU 126 — **ILERLEME CUBUGU SILINDI** (kullanici emri:
+  //	*"step cizgilerini de kaldir"*). Onunla birlikte `_kAdimSayisi` de
+  //	kaldirildi: cubuk gidince o sabiti okuyan HICBIR YER kalmadi.
+  // ⚠️ Adim govdeleri ve alt dugme `switch (_adim)` ile eslesiyor; SON adim
+  //    ikisinde de VARSAYILAN dal (`_ =>`). Yani yeni adim eklerken
+  //    guncellenecek yer IKI switch'tir, bir sayac degil.
 
-  /// ⚠️ TURU 120 — baslik da `auth_stil.authBaslik`a DEVREDILDI. Burada ayri
-  ///    bir kopya vardi ve giris ekranindaki olculer buyutulunce kayit ESKI
-  ///    olculerde kaldi (`auth_stil.dart`in varlik sebebi).
-  Widget _baslik(String b, String aciklama) => authBaslik(b, aciklama);
+  Widget _baslik(String ust, String baslik) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        ust,
+        style: TextStyle(
+          fontSize: 20,
+          height: 1.35,
+          color: _altYazi.withValues(alpha: 0.85),
+        ),
+      ),
+      const SizedBox(height: 8),
+      authBaslik(baslik, null, 23),
+    ],
+  );
 
   // ------------------------------------------------------------ ADIM GOVDELERI
   Widget _adimTelefon() => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      _baslik(
-        'Telefon numaran',
-        'Numaranı doğrulayalım. Sana 6 haneli bir kod göndereceğiz.',
-      ),
+      _baslik('Başlayalım', 'Numaran ne?'),
       AuthTelefonAlani(
         controller: _haneler,
         not: _telefonNotu,
@@ -566,13 +564,8 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
   Widget _adimKod() => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      _baslik(
-        'Kodu gir',
-        // ⚠️ GORUNUM bicimi (`+90 555 999 88 77`) — sunucuya giden numara
-        //    DEGIL. Sunucuya yalniz `authTamNumara` ile gidilir.
-        '${authNumaraGoster(_haneler.text)} numarasına gönderdiğimiz '
-            '6 haneli kodu yaz.',
-      ),
+      // ⚠️ GORUNUM bicimi — sunucuya giden numara DEGIL.
+      _baslik(authNumaraGoster(_haneler.text), 'Kodu gir'),
       _otpAlani(),
       const SizedBox(height: 6),
       TextButton(
@@ -595,7 +588,7 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
   Widget _adimSifre() => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      _baslik('Bir şifre belirle', 'Hesabına bu şifreyle gireceksin.'),
+      _baslik('Güvenlik için', 'Bir şifre belirle'),
       AuthSifreAlani(
         controller: _sifre,
         ipucu: 'En az 6 karakter',
@@ -624,35 +617,80 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
   Widget _adimIsim() => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      _baslik('Adın ne?', 'Bu bilgiler profilinde görünecek.'),
+      _baslik('Seni tanıyalım', 'Adın ne?'),
       TextField(
         controller: _ad,
         textCapitalization: TextCapitalization.words,
-        textInputAction: TextInputAction.next,
-        style: authDegerStili(),
-        decoration: authAlan('Adın soyadın', ipucu: 'Örn. Ahmet Yılmaz'),
-      ),
-      const SizedBox(height: 18),
-      TextField(
-        controller: _kullaniciAdi,
         textInputAction: TextInputAction.done,
         style: authDegerStili(),
-        inputFormatters: [
-          FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9_]')),
-        ],
-        decoration: authAlan('Kullanıcı adı', ipucu: 'ornek_kullanici'),
+        decoration: authAlan('Adın soyadın', ipucu: 'Örn. Ahmet Yılmaz'),
       ),
     ],
   );
 
   // ------------------------------------------------------------ ADIM 4
+  /// ⚠️⚠️⚠️ **YESIL TIK "MUSAIT" DEMEK DEGIL, "BICIM DOGRU" DEMEK.**
+  ///	Kullanici emri: *"en saginda yesilde daire icinde olsun ya da kirmizi
+  ///	carp"*. Ancak sunucuda **"bu kullanici adi musait mi"** diye soran bir
+  ///	uc YOK: `/users/search` OTURUM ISTER (kayitta oturum yoktur) ve
+  ///	cakisma ancak son adimda `/auth/kayit/tamamla` **409** ile ogrenilir.
+  /// ⚠️⚠️ Bu yuzden gosterge YALNIZCA BICIMI olcer — sunucunun DAYATTIGI
+  ///	kuralin birebir aynisi. Musaitlik IDDIA ETMEZ; etseydi kullanici
+  ///	yesil tik gorup son adimda 409 yiyecek ve uygulamanin YALAN
+  ///	soyledigini dusunecekti.
+  /// ⚠️ BEKLEYEN: gercek musaitlik icin OTURUMSUZ bir kontrol ucu gerekir
+  ///    (arayuz turu oldugu icin acilmadi).
+  Widget _adimKullaniciAdi() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _baslik('Sana nasıl ulaşsınlar', 'Kullanıcı adın'),
+      TextField(
+        controller: _kullaniciAdi,
+        textInputAction: TextInputAction.done,
+        style: authDegerStili(),
+        // ⚠️ Sunucu YALNIZ kucuk harf kabul ediyor (`^[a-z0-9_]{3,20}$`);
+        //    buyuk harfe izin verilseydi kullanici yazabilir ama son adimda
+        //    400 yerdi.
+        inputFormatters: [
+          FilteringTextInputFormatter.allow(RegExp(r'[a-z0-9_]')),
+        ],
+        onChanged: (_) => setState(() {}),
+        decoration: authAlan(
+          'Kullanıcı adı',
+          ipucu: 'ornek_kullanici',
+        ).copyWith(suffixIcon: _kullaniciAdiGosterge()),
+      ),
+      const SizedBox(height: 10),
+      const Text(
+        '3-20 karakter · küçük harf, rakam ve alt çizgi',
+        style: TextStyle(fontSize: 13, color: _altYazi),
+      ),
+    ],
+  );
+
+  /// ⚠️ Bos iken HICBIR SEY cizilmez: taze bir alani kirmiziya boyamak
+  ///    "bir sey yanlis yaptim" hissi verir (turu 120 dersi).
+  Widget? _kullaniciAdiGosterge() {
+    final k = _kullaniciAdi.text;
+    if (k.isEmpty) return null;
+    final gecerli = _kullaniciAdiBicimi(k);
+    return Icon(
+      gecerli ? LucideIcons.circleCheck : LucideIcons.circleX,
+      size: 22,
+      color: gecerli ? const Color(0xFF129D5A) : authHata,
+    );
+  }
+
+  /// ⚠️ Sunucunun kurali BIREBIR (`kayit_adimli.go`): `^[a-z0-9_]{3,20}$`.
+  ///    Gevsetilirse kullanici yesil tik gorur, son adimda 400 yer.
+  bool _kullaniciAdiBicimi(String k) =>
+      RegExp(r'^[a-z0-9_]{3,20}$').hasMatch(k);
+
+  // ------------------------------------------------------------ ADIM 4
   Widget _adimYas() => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      _baslik(
-        'Kaç yaşındasın?',
-        'İstersen boş bırak — profilinde görünür, sonra değiştirebilirsin.',
-      ),
+      _baslik('Biraz da senden', 'Kaç yaşındasın?'),
       // ⚠️ TURU 126 — BOLUM BASLIGI KALDIRILDI: yas artik KENDI ADIMI ve
       //    sayfa basligi ZATEN "Kaç yaşındasın?" — ayni cumle ust uste
       //    IKI KEZ yaziyordu (emulatorde goruldu).
@@ -693,10 +731,7 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
   Widget _adimCinsiyet() => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      _baslik(
-        'Cinsiyetin',
-        'İstersen boş bırak. Profilinde göstermek zorunda değilsin.',
-      ),
+      _baslik('İstersen boş bırak', 'Cinsiyetin'),
       for (final c in const ['Kadın', 'Erkek', 'Belirtmek istemiyorum']) ...[
         _cinsiyetSecenegi(c),
         const SizedBox(height: 10),
@@ -737,11 +772,7 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
   Widget _adimIlgi() => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      _baslik(
-        'İlgi alanların',
-        'İstersen doldur — profilinde görünür, dilediğin zaman '
-            'değiştirebilirsin.',
-      ),
+      _baslik('Neleri seversin', 'İlgi alanların'),
       // ⚠️ TURU 126 — BOLUM BASLIGI KALDIRILDI (sayfa basligiyla ayni).
       const SizedBox(height: 4),
       Text(
@@ -1021,7 +1052,7 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       _baslik(
-        'Profil fotoğrafın',
+        'Son adım',
         'İstersen şimdi ekle — sürükleyip yakınlaştırarak çerçeveye '
             'oturtabilirsin.',
       ),
@@ -1320,10 +1351,11 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
       0 => ('Devam', _telefonGonder),
       1 => ('Devam', _sifreyiDogrula),
       2 => ('Doğrula', _koduDogrula),
-      3 => ('Devam', _bilgileriDogrula),
-      4 => ('Devam', () => setState(() => _adim = 5)),
+      3 => ('Devam', _adiDogrula),
+      4 => ('Devam', _kullaniciAdiniDogrula),
       5 => ('Devam', () => setState(() => _adim = 6)),
       6 => ('Devam', () => setState(() => _adim = 7)),
+      7 => ('Devam', () => setState(() => _adim = 8)),
       _ => ('Hesabı oluştur', _hesabiKur),
     };
     return Padding(
