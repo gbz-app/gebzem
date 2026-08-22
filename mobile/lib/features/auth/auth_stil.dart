@@ -768,7 +768,13 @@ class _AuthSifreAlaniState extends State<AuthSifreAlani> {
       style: _gizli
           // ⚠️ Gizliyken daireler 3 px daha buyuk ve 5 px aralikli
           //    (kullanici olcusu: *"daireler daha buyuk, biraz bosluk"*).
-          ? temel.copyWith(fontSize: tabanBoy + 3, letterSpacing: 5)
+          // ⚠️⚠️ TURU 126 — **DAIRELER %40 KUCULDU** (kullanici emri).
+          //	Onceden `tabanBoy + 3` (sade modda 33 px) ve 5 px aralikti;
+          //	sade alanda 30 px yaziyla birlikte satir COK IRI duruyordu.
+          //	Artik tabanin **%60**`i, aralik da ayni oranda (5 -> 3).
+          // ⚠️ Aralik ORANLI kucultuldu: sabit 5 kalsaydi kucuk daireler
+          //    birbirinden KOPUK, tek tek yuzen noktalar gibi gorunurdu.
+          ? temel.copyWith(fontSize: tabanBoy * 0.6, letterSpacing: 3)
           : temel,
       decoration: authAlan(
         widget.etiket,

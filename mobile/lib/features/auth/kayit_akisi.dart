@@ -63,7 +63,21 @@ const double _kKirpCap = 250;
 /// ⚠️ TEK SABIT: turu 119'da `List.generate(4, ...)` ve `i == 3` ayri ayri
 ///    yaziliydi; adim eklerken ikisinden birini unutmak ilerleme cubugunu
 ///    sessizce bozardi.
-const int _kAdimSayisi = 5;
+/// ⚠️⚠️⚠️ TURU 126 — **AKIS 5 -> 8 ADIM** (kullanici emri: *"sifreden
+///	sonra otp istesin, sonra isim, sonra yas, sonra cinsiyet, sonra
+///	ilgi alanlari, sonra profil fotografi"*).
+///
+///	0 telefon · 1 sifre · 2 kod · 3 isim · 4 yas · 5 cinsiyet
+///	6 ilgi alanlari · 7 fotograf
+///
+/// ⚠️⚠️ **SUNUCU SIRASI FARKLI VE DEGISMEDI**: `/auth/kayit/telefon`
+///	(OTP gonderir) -> `/auth/kayit/dogrula` (kod -> kayit jetonu) ->
+///	`/auth/kayit/tamamla` (ad + kullanici adi + sifre -> hesap).
+///	SIFRE ekranda 1. adimda alinir ama sunucuya EN SONDA gider —
+///	aradaki fark yalnizca GORUNUM sirasidir.
+/// ⚠️ OTP telefon adiminda GONDERILIR (sifre yazilirken SMS yolda olur);
+///    kod ekrani 2. adimda yalnizca onu SORAR.
+const int _kAdimSayisi = 8;
 
 class KayitAkisi extends ConsumerStatefulWidget {
   const KayitAkisi({super.key});
@@ -111,6 +125,21 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
   final Set<String> _ilgiler = <String>{};
   String _takim = '';
 
+  /// ⚠️⚠️⚠️ TURU 126 — **CINSIYET SUNUCUDA YOK** (kullanici emri:
+  ///	*"sonra cinsiyet"*). `users` tablosunda cinsiyet sutunu YOKTUR
+  ///	(migration 049 yalniz `dogum_yili` · `ilgi_alanlari` · `takim`
+  ///	ekledi) ve `/auth/kayit/tamamla` boyle bir alan KABUL ETMEZ.
+  /// ⚠️⚠️ CLAUDE.md kural 9: *"sunucuda karsiligi olmayan bir form
+  ///	istenirse arayuzu YAP, degeri EKRANDA TUT, sunucuya GONDERME ve
+  ///	bekleyen isi LISTEYE YAZ"*. Deger burada tutulur, **HICBIR yere
+  ///	gonderilmez**; migration arayuz bitince acilir.
+  /// ⚠️ YAPMA: bunun icin arayuz turunda migration acma.
+  String _cinsiyet = '';
+
+  /// OTP kutusunun odagi — 6 hane GORSEL olarak cizilir, gercek giris
+  /// gorunmez bir `TextField`tir (bkz. `_otpAlani`).
+  final _kodOdak = FocusNode();
+
   /// ⚠️ Adim 2'de alinir, adim 4'te kullanilir. 15 dk gecerli.
   String _kayitJetonu = '';
 
@@ -126,12 +155,12 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
     _ad.dispose();
     _kullaniciAdi.dispose();
     _sifre.dispose();
+    _kodOdak.dispose();
     super.dispose();
   }
 
-  void _uyar(String m) => ScaffoldMessenger.of(
-    context,
-  ).showSnackBar(SnackBar(content: Text(m)));
+  void _uyar(String m) =>
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
 
   // ------------------------------------------------------------ ADIM 0
   Future<void> _telefonGonder() async {
@@ -153,7 +182,7 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
       // ⚠️ Test modunda kod yanitta doner ve otomatik dolar (mevcut OTP
       //    ekraniyla AYNI kolaylik). Gercek SMS'te alan BOS kalir.
       if (devOtp != null) _kod.text = devOtp;
-      setState(() => _adim = 1);
+      setState(() => _adim = 1); // -> SIFRE
     } catch (e) {
       if (mounted) _uyar(apiErrorMessage(e));
     } finally {
@@ -177,7 +206,7 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
     //	hale getirirdi.
     // ⚠️ YAPMA: bu kisa devreyi kaldirma ya da kod karsilastirmasini atlama.
     if (_kayitJetonu.isNotEmpty && kod == _dogrulananKod) {
-      setState(() => _adim = 2);
+      setState(() => _adim = 3); // -> ISIM
       return;
     }
     setState(() => _mesgul = true);
@@ -193,7 +222,7 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
       setState(() {
         _kayitJetonu = jeton;
         _dogrulananKod = kod;
-        _adim = 2;
+        _adim = 3; // -> ISIM
       });
     } catch (e) {
       if (mounted) _uyar(apiErrorMessage(e));
@@ -268,21 +297,20 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
     }
 
     try {
-      await auth
-          .kayitTamamla(
-            jeton: _kayitJetonu,
-            name: ad,
-            username: kadi,
-            password: _sifre.text,
-            // ⚠️⚠️ YAS DEGIL **DOGUM YILI** gonderilir: yas her yil degisir,
-            //	dogum yili sabittir. Sunucu da dogum yilini saklar
-            //	(`049_profil_ilgi.sql` serhi).
-            // ⚠️ DURUST SINIR: gun/ay sorulmadigi icin yas ±1 yil hatalidir.
-            dogumYili: _yas == null ? null : DateTime.now().year - _yas!,
-            ilgiAlanlari: _ilgiler.toList(),
-            // ⚠️ "Takım tutmuyorum" BOS gider — sunucuda "belirtmedi" ile ayni.
-            takim: _takim == kTakimYok ? '' : _takim,
-          );
+      await auth.kayitTamamla(
+        jeton: _kayitJetonu,
+        name: ad,
+        username: kadi,
+        password: _sifre.text,
+        // ⚠️⚠️ YAS DEGIL **DOGUM YILI** gonderilir: yas her yil degisir,
+        //	dogum yili sabittir. Sunucu da dogum yilini saklar
+        //	(`049_profil_ilgi.sql` serhi).
+        // ⚠️ DURUST SINIR: gun/ay sorulmadigi icin yas ±1 yil hatalidir.
+        dogumYili: _yas == null ? null : DateTime.now().year - _yas!,
+        ilgiAlanlari: _ilgiler.toList(),
+        // ⚠️ "Takım tutmuyorum" BOS gider — sunucuda "belirtmedi" ile ayni.
+        takim: _takim == kTakimYok ? '' : _takim,
+      );
       // ⚠️⚠️⚠️ TURU 119 — PROFIL FOTOGRAFI **HESAPTAN SONRA** yuklenir.
       //	SIRA ZORUNLU: yukleme `POST /media/presign` ile baslar ve o uc
       //	OTURUM ISTER. Hesap kurulmadan once denenirse 401 doner.
@@ -313,7 +341,10 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
     //    (beyaz zeminde saat/pil gorunsun — turu 85b) ve ekrani `lightTheme`
     //    ile sarar (koyu temada beyaz zemine beyaz imlec cizilmesin).
     // ⚠️ YAPMA: bu sarmali kaldirip renkleri tek tek yazma.
+    // ⚠️ TURU 126 — klavye acilinca UST ICERIK OYNAMAZ (bkz. `AuthSayfa`
+    //    serhi); yalniz alt dugme `viewInsets` kadar yukari cikar.
     return AuthSayfa(
+      klavyeyeGoreKuculme: false,
       child: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -325,9 +356,12 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
                 padding: const EdgeInsets.fromLTRB(28, 28, 28, 24),
                 child: switch (_adim) {
                   0 => _adimTelefon(),
-                  1 => _adimKod(),
-                  2 => _adimBilgiler(),
-                  3 => _adimHakkinda(),
+                  1 => _adimSifre(),
+                  2 => _adimKod(),
+                  3 => _adimIsim(),
+                  4 => _adimYas(),
+                  5 => _adimCinsiyet(),
+                  6 => _adimIlgi(),
                   _ => _adimFotograf(),
                 },
               ),
@@ -409,6 +443,100 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
     ],
   );
 
+  /// ⚠️⚠️⚠️ TURU 126 — **OTP: 3 ALT CIZGI · TIRE · 3 ALT CIZGI**
+  ///	(kullanici emri). Haneler GORSEL olarak cizilir; gercek giris
+  ///	ALTTA duran, metni SAYDAM bir `TextField`tir.
+  ///
+  /// ⚠️⚠️ **GORUNMEZ ALAN `Opacity(0)` DEGIL**: `Opacity` widget'i
+  ///	yine de YER KAPLAR ve dokunuslari yutardi. Bunun yerine metin
+  ///	ve imlec SAYDAM, dekorasyon YOK — alan tam olarak hanelerin
+  ///	uzerinde durur, klavye normal acilir, secim/yapistirma calisir.
+  /// ⚠️ Cizim `_kod` denetleyicisini DINLER (`ValueListenableBuilder`);
+  ///    ebeveynin `setState` cagirmasina bagli olsaydi haneler yazarken
+  ///    guncellenmezdi (turu 120'de `AuthTelefonAlani`da yasanan sinif).
+  Widget _otpAlani() {
+    const hane = 44.0;
+    const yukseklik = 58.0;
+    return GestureDetector(
+      // ⚠️ Hanelerin herhangi bir yerine dokunmak alani odaklar.
+      behavior: HitTestBehavior.opaque,
+      onTap: _kodOdak.requestFocus,
+      child: SizedBox(
+        height: yukseklik,
+        child: Stack(
+          children: [
+            ValueListenableBuilder<TextEditingValue>(
+              valueListenable: _kod,
+              builder: (_, deger, _) {
+                final kod = deger.text;
+                Widget kutu(int i) {
+                  final dolu = i < kod.length;
+                  return SizedBox(
+                    width: hane,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          dolu ? kod[i] : '',
+                          style: const TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.w700,
+                            color: _yazi,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Container(height: 2, color: dolu ? _yazi : _cizgi),
+                      ],
+                    ),
+                  );
+                }
+
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    kutu(0),
+                    kutu(1),
+                    kutu(2),
+                    // ⚠️ Tire hanelerle AYNI dikey hizada: alt cizgiler
+                    //    2 px oldugu icin tire de o cizginin ustune
+                    //    denk gelmeli, yoksa havada asili durur.
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      child: Container(width: 14, height: 2, color: _cizgi),
+                    ),
+                    kutu(3),
+                    kutu(4),
+                    kutu(5),
+                  ],
+                );
+              },
+            ),
+            // ⚠️ Gercek giris: metin ve imlec SAYDAM (bkz. serh).
+            Positioned.fill(
+              child: TextField(
+                controller: _kod,
+                focusNode: _kodOdak,
+                keyboardType: TextInputType.number,
+                maxLength: 6,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                cursorColor: Colors.transparent,
+                style: const TextStyle(color: Colors.transparent),
+                decoration: const InputDecoration(
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  counterText: '',
+                  contentPadding: EdgeInsets.zero,
+                ),
+                onSubmitted: (_) => _koduDogrula(),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _adimKod() => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
@@ -419,21 +547,7 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
         '${authNumaraGoster(_haneler.text)} numarasına gönderdiğimiz '
             '6 haneli kodu yaz.',
       ),
-      TextField(
-        controller: _kod,
-        keyboardType: TextInputType.number,
-        maxLength: 6,
-        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-        // ⚠️ `letterSpacing` BURADA MESRU: CLAUDE.md yasaginin BELGELI
-        //    istisnasi (OTP hane araligi). Rakamlar tek tek okunmali.
-        style: const TextStyle(
-          color: _yazi,
-          fontSize: 26,
-          letterSpacing: 9,
-          fontWeight: FontWeight.w700,
-        ),
-        decoration: authAlan('6 haneli kod').copyWith(counterText: ''),
-      ),
+      _otpAlani(),
       const SizedBox(height: 6),
       TextButton(
         onPressed: _mesgul ? null : _telefonGonder,
@@ -446,10 +560,45 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
     ],
   );
 
-  Widget _adimBilgiler() => Column(
+  // ------------------------------------------------------------ ADIM 1
+  /// ⚠️⚠️ TURU 126 — **SIFRE, OTP'DEN ONCE** (kullanici emri: *"sifreden
+  ///	sonra otp istesin"*). Ekranda burada alinir; SUNUCUYA EN SONDA
+  ///	(`/auth/kayit/tamamla`) gider — sunucu sirasi DEGISMEDI.
+  /// ⚠️ OTP bir onceki adimda ZATEN gonderildi; kullanici sifreyi yazarken
+  ///    SMS yolda olur.
+  Widget _adimSifre() => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      _baslik('Seni tanıyalım', 'Bu bilgiler profilinde görünecek.'),
+      _baslik('Bir şifre belirle', 'Hesabına bu şifreyle gireceksin.'),
+      AuthSifreAlani(
+        controller: _sifre,
+        ipucu: 'En az 6 karakter',
+        textInputAction: TextInputAction.done,
+        onSubmitted: (_) => _sifreyiDogrula(),
+      ),
+    ],
+  );
+
+  void _sifreyiDogrula() {
+    if (_sifre.text.length < 6) {
+      _uyar('Şifre en az 6 karakter olmalı');
+      return;
+    }
+    setState(() => _adim = 2); // -> KOD
+  }
+
+  // ------------------------------------------------------------ ADIM 3
+  /// ⚠️⚠️ **KULLANICI ADI DA BURADA** (kullanici yalniz *"isim"* dedi).
+  ///	Sunucu `/auth/kayit/tamamla` kullanici adini **ZORUNLU** tutuyor
+  ///	(3-20 karakter, `^[a-z0-9_]+$`); kaldirilsaydi kayit HIC
+  ///	tamamlanamazdi. Adi otomatik turetmek de secilmedi: cakisma
+  ///	**409** doner ve kullanici SEBEBINI goremeden takilirdi.
+  /// ⚠️ BEKLEYEN: kullanici adini isimden otomatik uretmek istenirse
+  ///    sunucuda "musait mi" ucu + cakismada son ek mantigi gerekir.
+  Widget _adimIsim() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _baslik('Adın ne?', 'Bu bilgiler profilinde görünecek.'),
       TextField(
         controller: _ad,
         textCapitalization: TextCapitalization.words,
@@ -460,40 +609,23 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
       const SizedBox(height: 18),
       TextField(
         controller: _kullaniciAdi,
-        textInputAction: TextInputAction.next,
+        textInputAction: TextInputAction.done,
         style: authDegerStili(),
         inputFormatters: [
           FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9_]')),
         ],
         decoration: authAlan('Kullanıcı adı', ipucu: 'ornek_kullanici'),
       ),
-      const SizedBox(height: 18),
-      AuthSifreAlani(
-        controller: _sifre,
-        ipucu: 'En az 6 karakter',
-        textInputAction: TextInputAction.done,
-      ),
     ],
   );
 
-  // ------------------------------------------------------------ ADIM 3
-  /// ⚠️⚠️⚠️ TURU 120 — **YAS · ILGI ALANLARI · TAKIM** (kullanici emri:
-  ///	*"kayitta stepte KAC YASINDASIN 28 27 yukari asagi secenek, ILGI
-  ///	ALANLARI, TUTTUGU TAKIM vb seyleri de sor"*).
-  ///
-  /// ⚠️⚠️ **UCU DE OPSIYONEL.** Zorunlu yapmak kayit hunisini kirar ve bu
-  ///	alanlar hicbir is kuralini beslemiyor. Kullanici hicbirine dokunmadan
-  ///	"Devam" diyebilir; o durumda sunucuya HIC alan gitmez.
-  /// ⚠️ Veriyi GERCEKTEN saklayan bir yer var: `users.dogum_yili`,
-  ///    `users.ilgi_alanlari`, `users.takim` (migration 049) ve profil ucu
-  ///    ucunu de donduruyor. Bu form OLU DEGIL.
-  Widget _adimHakkinda() => Column(
+  // ------------------------------------------------------------ ADIM 4
+  Widget _adimYas() => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       _baslik(
-        'Biraz da senden',
-        'İstersen doldur — profilinde görünür, dilediğin zaman '
-            'değiştirebilirsin.',
+        'Kaç yaşındasın?',
+        'İstersen boş bırak — profilinde görünür, sonra değiştirebilirsin.',
       ),
       _bolumBasligi('Kaç yaşındasın?'),
       // ⚠️⚠️ TURU 120 — YONERGE SATIRI (emulatorde goruldu). Tekerlek
@@ -521,7 +653,67 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
       ),
       const SizedBox(height: 8),
       _yasSecici(),
-      const SizedBox(height: 26),
+    ],
+  );
+
+  // ------------------------------------------------------------ ADIM 5
+  /// ⚠️⚠️⚠️ **CINSIYET SUNUCUYA GONDERILMIYOR** — sutun YOK (bkz.
+  ///	`_cinsiyet` serhi). Deger yalnizca EKRANDA tutulur.
+  /// ⚠️ Secenekler `profil_secenekleri.dart`ta DEGIL burada: sunucuda
+  ///    karsiligi olmadigi icin paylasilan bir sabit gibi durmasi,
+  ///    ileride "bu zaten var" yanilgisi yaratirdi.
+  Widget _adimCinsiyet() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _baslik(
+        'Cinsiyetin',
+        'İstersen boş bırak. Profilinde göstermek zorunda değilsin.',
+      ),
+      for (final c in const ['Kadın', 'Erkek', 'Belirtmek istemiyorum']) ...[
+        _cinsiyetSecenegi(c),
+        const SizedBox(height: 10),
+      ],
+    ],
+  );
+
+  /// ⚠️ TURU 126 — **1 px KENARLIKLI TAM GENISLIK DUGME** (kullanici emri:
+  ///    *"cinsiyet ama buton 1px border gibi"*). Secilince kenarlik ve yazi
+  ///    MARKA MORUNA doner; kalinlik 1 px KALIR — degisseydi dugme yuksekligi
+  ///    oynar ve alttakiler 1 px ZIPLARDI.
+  Widget _cinsiyetSecenegi(String etiket) {
+    final secili = _cinsiyet == etiket;
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton(
+        // ⚠️ Ikinci dokunus secimi KALDIRIR (kardes `_cip` ile ayni kural).
+        onPressed: () => setState(() => _cinsiyet = secili ? '' : etiket),
+        style: OutlinedButton.styleFrom(
+          alignment: Alignment.centerLeft,
+          foregroundColor: secili ? morLogo : _yazi,
+          side: BorderSide(color: secili ? morLogo : _cizgi),
+          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        ),
+        child: Text(
+          etiket,
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: secili ? FontWeight.w700 : FontWeight.w500,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ------------------------------------------------------------ ADIM 6
+  Widget _adimIlgi() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _baslik(
+        'İlgi alanların',
+        'İstersen doldur — profilinde görünür, dilediğin zaman '
+            'değiştirebilirsin.',
+      ),
       _bolumBasligi('İlgi alanların'),
       const SizedBox(height: 4),
       Text(
@@ -739,11 +931,7 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
   /// ⚠️ `gorseliHazirla` ZORUNLU: EXIF (KONUM) temizligi yapar; sunucu
   ///    GPS bulursa **422** doner (grup/kanal avatarlariyla ayni yol).
   /// ⚠️ Fotograf secilmediyse hicbir sey yapilmaz — adim OPSIYONEL.
-  Future<void> _avatariYukle(
-    File? kirpik,
-    MedyaServisi medya,
-    Dio api,
-  ) async {
+  Future<void> _avatariYukle(File? kirpik, MedyaServisi medya, Dio api) async {
     if (_fotoHam == null || kirpik == null) return;
     // ⚠️⚠️⚠️ TURU 120b — **HATA ARTIK OLCULUYOR** (sahada yakalandi).
     //
@@ -781,10 +969,10 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
         _avatarHatasi('sikistirma null dondu — PNG ham yukleniyor');
       }
       final id = await medya.yukle(
-            dosya: hazir ?? kirpik,
-            kind: 'avatar',
-            mime: hazir == null ? 'image/png' : 'image/jpeg',
-          );
+        dosya: hazir ?? kirpik,
+        kind: 'avatar',
+        mime: hazir == null ? 'image/png' : 'image/jpeg',
+      );
       await api.patch('/users/me', data: {'avatar_media_id': id});
     } catch (e) {
       _avatarHatasi('yukleme/baglama: $e');
@@ -874,8 +1062,10 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
     final oran = _fotoOran;
     final (cocukEn, cocukBoy) = oran == null
         ? (_kKirpCap, _kKirpCap)
-        : (oran >= 1 ? _kKirpCap * oran : _kKirpCap,
-           oran >= 1 ? _kKirpCap : _kKirpCap / oran);
+        : (
+            oran >= 1 ? _kKirpCap * oran : _kKirpCap,
+            oran >= 1 ? _kKirpCap : _kKirpCap / oran,
+          );
     return SizedBox(
       width: _kKirpCap,
       height: _kKirpCap,
@@ -1005,7 +1195,12 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
     final boy = oran >= 1 ? _kKirpCap : _kKirpCap / oran;
     setState(() {
       _kirpKontrol.value = Matrix4.identity()
-        ..translateByDouble(-(en - _kKirpCap) / 2, -(boy - _kKirpCap) / 2, 0, 1);
+        ..translateByDouble(
+          -(en - _kKirpCap) / 2,
+          -(boy - _kKirpCap) / 2,
+          0,
+          1,
+        );
     });
   }
 
@@ -1094,14 +1289,24 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
   // ------------------------------------------------------------ ALT DUGME
   Widget _altDugme() {
     final (etiket, is_) = switch (_adim) {
-      0 => ('Kodu gönder', _telefonGonder),
-      1 => ('Doğrula', _koduDogrula),
-      2 => ('Devam', _bilgileriDogrula),
-      3 => ('Devam', () => setState(() => _adim = 4)),
+      0 => ('Devam', _telefonGonder),
+      1 => ('Devam', _sifreyiDogrula),
+      2 => ('Doğrula', _koduDogrula),
+      3 => ('Devam', _bilgileriDogrula),
+      4 => ('Devam', () => setState(() => _adim = 5)),
+      5 => ('Devam', () => setState(() => _adim = 6)),
+      6 => ('Devam', () => setState(() => _adim = 7)),
       _ => ('Hesabı oluştur', _hesabiKur),
     };
     return Padding(
-      padding: const EdgeInsets.fromLTRB(28, 8, 28, 18),
+      // ⚠️ `viewInsets` YALNIZ BURADA okunur: `build`in basinda okunsaydi
+      //    klavye animasyonunun HER KARESINDE tum sayfa yeniden kurulurdu.
+      padding: EdgeInsets.fromLTRB(
+        28,
+        8,
+        28,
+        18 + MediaQuery.viewInsetsOf(context).bottom,
+      ),
       child: authAnaDugme(etiket: etiket, basildi: is_, mesgul: _mesgul),
     );
   }
