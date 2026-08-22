@@ -172,7 +172,15 @@ TextStyle authDegerStili({
 const double authSadeDegerBoy = 30.0;
 
 /// Sade moddaki IPUCU ve `+90` on eki — hafif gri.
-const Color authSadeSoluk = Color(0xFFB6B6BF);
+/// ⚠️⚠️ TURU 126 — **KONTRAST DUZELTMESI: `#B6B6BF` -> `#8A8A96`.**
+///	Denetimde olculdu: eski deger beyaz zeminde **2,01:1** idi ve bu
+///	renk giris ekraninin ACILIS halinde `+90` on ekini ve numara
+///	ipucunu (`512 345 67 89`) ciziyor — yani ekrandaki **TEK** alanin
+///	ne istedigini soyleyen ogeler gun isiginda okunmuyordu.
+///	Yeni deger **4,54:1** (WCAG AA esigi 4,5:1).
+/// ⚠️ Hala DEGERDEN (`authSadeDeger`, 7,0:1) acik: hiyerarsi korunuyor,
+///    yazilan numara ipucundan belirgin daha koyu.
+const Color authSadeSoluk = Color(0xFF8A8A96);
 
 /// Sade moddaki DEGER — ipucundan **bir tik koyu**, ama siyah DEGIL.
 ///
@@ -235,6 +243,7 @@ InputDecoration authAlan(
   bool hataliMi = false,
   bool sade = false,
   bool sadeKoyuCizgi = false,
+
   /// ⚠️⚠️ TURU 126 — **ETIKETI GIZLE** (kullanici emri: ad ve kullanici
   ///	adi alanlarinda ustteki kucuk etiket cizilmeyecek).
   ///	`copyWith(labelText: null)` ISE YARAMAZ: Flutter`da `copyWith`
@@ -986,4 +995,65 @@ Widget authAnaDugme({
     ),
     child: dugme,
   );
+}
+
+/// ⚠️⚠️⚠️ TURU 126 — **KULLANICI ADI: HARF YUTMAK YERINE CEVIR.**
+///
+///	Onceki hal `FilteringTextInputFormatter.allow(RegExp(r"[a-z0-9_]"))`
+///	idi ve bu, kullanicinin yazdigi harfleri **SESSIZCE SILIYORDU**:
+///	"Ahmet" yazan biri ekranda "hmet" goruyor, "Yılmaz" yazan "ylmaz"
+///	goruyordu. Klavyeye basiyorsun, ekranda hicbir sey olmuyor — bu
+///	"tus calismiyor" gibi okunur.
+///
+/// ⚠️ Sunucu kurali DEGISMEDI (`^[a-z0-9_]{3,20}$`); degisen tek sey,
+///    kabul edilmeyen bir karakteri ATMAK yerine KARSILIGINA cevirmek.
+/// ⚠️ Turkce esleme ELLE: `toLowerCase` "I" harfini "i"ye cevirir ama
+///    "İ" icin BIRLESIK NOKTA uretir ve o da suzgecten duser. Ayrica
+///    "ı" -> "i" esleme ancak burada dogru yapilabilir.
+/// ⚠️ Bosluk ve nokta **ALT CIZGIYE** cevrilir: ad-soyad yapistiran
+///    kullanicinin niyeti kelimeleri AYIRMAKTIR, silmek degil.
+/// ⚠️ Karsiligi olmayan karakter (emoji, noktalama) YINE atilir — o
+///    gercekten kullanici adi olamaz.
+class AuthKullaniciAdiBicimlendirici extends TextInputFormatter {
+  const AuthKullaniciAdiBicimlendirici();
+
+  static const _harita = <String, String>{
+    'ç': 'c',
+    'Ç': 'c',
+    'ğ': 'g',
+    'Ğ': 'g',
+    'ı': 'i',
+    'I': 'i',
+    'İ': 'i',
+    'ö': 'o',
+    'Ö': 'o',
+    'ş': 's',
+    'Ş': 's',
+    'ü': 'u',
+    'Ü': 'u',
+    ' ': '_',
+    '.': '_',
+    '-': '_',
+  };
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue eski,
+    TextEditingValue yeni,
+  ) {
+    final b = StringBuffer();
+    for (final k in yeni.text.split('')) {
+      final c = _harita[k] ?? k.toLowerCase();
+      if (RegExp(r'^[a-z0-9_]$').hasMatch(c)) b.write(c);
+    }
+    final metin = b.toString();
+    if (metin == yeni.text) return yeni;
+    // ⚠️ Imlec SONA konur. Ortadan yazma nadir ve metin uzunlugu
+    //    degistigi icin eski ofseti korumak imleci YANLIS yere atardi
+    //    (turu 126 telefon bicimlendiricisinde olculen sinif).
+    return TextEditingValue(
+      text: metin,
+      selection: TextSelection.collapsed(offset: metin.length),
+    );
+  }
 }

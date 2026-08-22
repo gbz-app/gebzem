@@ -397,7 +397,60 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
       await _avatariYukle(kirpik, medya, api);
       _bitir();
     } catch (e) {
-      if (mounted) _uyar(apiErrorMessage(e));
+      if (!mounted) return;
+      final mesaj = apiErrorMessage(e);
+      // ⚠️⚠️⚠️ TURU 126 — **KULLANICI ADI CAKISMASI ADIM 4`E GERI GOTURUR.**
+      //
+      //	Sunucuda "bu kullanici adi musait mi" diye soran bir uc YOK
+      //	(`/users/search` OTURUM ister, kayitta oturum yoktur), yani
+      //	cakisma ancak SON ADIMDA `/auth/kayit/tamamla` **409** ile
+      //	ogreniliyor. Onceden bu, FOTOGRAF ekraninda bir SnackBar olarak
+      //	gorunuyordu: kullanici hangi alanin sorunlu oldugunu ekranda
+      //	GOREMIYOR ve duzeltmek icin DORT adim geri gitmesi gerekiyordu.
+      //	Ustelik "Hesabı oluştur"a tekrar basmak AYNI hatayi veriyordu,
+      //	yani kullanici KAPALI BIR DONGUYE giriyordu.
+      // ⚠️ Olcut SUNUCUNUN METNI: 409`un tek sebebi kullanici adidir
+      //    (telefon cakismasi adim 0`da, kod adim 2`de eleniyor).
+      // ⚠️ Hata alanin ALTINA yazilir; SnackBar da gosterilir cunku adim
+      //    degisirken kullanicinin gozu ekranin ustundedir.
+      if (mesaj.contains('kullanıcı adı')) {
+        setState(() {
+          _kullaniciAdiHatasi = mesaj;
+          _adim = 4; // -> KULLANICI ADI
+        });
+        _uyar(mesaj);
+        return;
+      }
+      // ⚠️⚠️⚠️ TURU 126 — **KAYIT JETONU SURESI DOLDUYSA KURTAR.**
+      //
+      //	Jeton 15 dk yasiyor. Kullanici kayit ortasinda oyalanirsa
+      //	(fotograf secmek, uygulamadan cikip donmek) son adimda jeton
+      //	GECERSIZ olur. Denetim burada bir **KISIR DONGU** buldu:
+      //	"Doğrula"ya donmek ise yaramiyordu cunku kod adiminin kisa
+      //	devresi (`_kayitJetonu.isNotEmpty && kod == _dogrulananKod`)
+      //	SURESI DOLMUS jetonu hala gecerli sayip sessizce ILERI
+      //	atliyordu. Kullanici hesabini ACAMIYOR ve cikis yolu YOK.
+      //
+      // ⚠️ FIX: jeton ve dogrulanan kod TEMIZLENIR ve akis **TELEFON**
+      //    adimina doner — yeni kod istemenin TEK yolu odur
+      //    ("Kod gelmedi mi? Tekrar gönder" bu turda ekranda YOK).
+      // ⚠️ Kod alani da bosaltilir: dolu kalsaydi kullanici eski kodu
+      //    tekrar gonderir ve sunucu yine reddederdi.
+      final jetonBitti = mesaj.contains('oturum') ||
+          mesaj.contains('süre') ||
+          mesaj.contains('geçersiz') ||
+          mesaj.contains('yeniden');
+      if (jetonBitti) {
+        setState(() {
+          _kayitJetonu = '';
+          _dogrulananKod = '';
+          _kod.text = '';
+          _adim = 0; // -> TELEFON (yeni kod istemenin tek yolu)
+        });
+        _uyar('Doğrulama süresi doldu. Numaranı tekrar gir, yeni kod gönderelim.');
+        return;
+      }
+      _uyar(mesaj);
     } finally {
       if (mounted) setState(() => _mesgul = false);
     }
@@ -721,12 +774,11 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
         controller: _kullaniciAdi,
         textInputAction: TextInputAction.done,
         style: authDegerStili(),
-        // ⚠️ Sunucu YALNIZ kucuk harf kabul ediyor (`^[a-z0-9_]{3,20}$`);
-        //    buyuk harfe izin verilseydi kullanici yazabilir ama son adimda
-        //    400 yerdi.
-        inputFormatters: [
-          FilteringTextInputFormatter.allow(RegExp(r'[a-z0-9_]')),
-        ],
+        // ⚠️ Sunucu YALNIZ kucuk harf kabul ediyor.
+        //    Onceki suzgec kabul edilmeyen harfi SESSIZCE SILIYORDU
+        //    ("Ahmet" -> "hmet"); artik KARSILIGINA cevriliyor
+        //    (bkz. AuthKullaniciAdiBicimlendirici).
+        inputFormatters: const [AuthKullaniciAdiBicimlendirici()],
         onChanged: (_) => setState(() => _kullaniciAdiHatasi = null),
         decoration: authAlan(
           // ⚠️ TURU 126 — ETIKET CIZILMEZ (kullanici emri); ipucu ve
@@ -963,66 +1015,98 @@ class _KayitAkisiState extends ConsumerState<KayitAkisi> {
   ///	kaydirilabilirlik ipucu KAYBOLMAZ.
   /// ⚠️ 126'nin ALTINA INME: komsu oge kirpilir ve tekerlek tek satirlik
   ///    bir kutuya benzer — duzeltmeye calistigimiz sorunun ta kendisi.
-  Widget _yasSecici() => SizedBox(
-    height: 126,
-    child: Stack(
-      alignment: Alignment.center,
-      children: [
-        // Secim bandi — hangi ogenin secili oldugunu GORSEL olarak soyler.
-        // ⚠️ `IgnorePointer`: bandin uzerine gelen dokunuslar tekerlege
-        //    gecmeli, yoksa tam ortadan kaydirma calismaz.
-        // ⚠️⚠️ TURU 126 — **MOR ZEMIN VE YARICAP KALDIRILDI** (kullanici emri:
-        //	*"kac yasindaki secildiginde mor arka plan radusu kaldir"*).
-        //	Geriye yalniz UST/ALT ince cizgi kaldi — iOS tekerleginin dili.
-        //	Secili rakam ZATEN mor, 26 px ve w800; bandin ayrica boyanmasina
-        //	gerek yoktu.
-        IgnorePointer(
-          child: Container(
-            height: 46,
-            decoration: const BoxDecoration(
-              border: Border(
-                top: BorderSide(color: _cizgi),
-                bottom: BorderSide(color: _cizgi),
+  /// ⚠️⚠️⚠️ TURU 126 — **TEKERLEK `_yas`IN TUREVI OLMAK ZORUNDA.**
+  ///
+  ///	DENETIMDE BULUNDU VE AMPIRIK OLARAK DOGRULANDI: kullanici 34`u
+  ///	secip "Devam" der, sonra GERI DONERSE tekerlek **20** gosterirken
+  ///	`_yas` **34**`te kaliyordu. Yani ekranda yazan sayi ile sunucuya
+  ///	giden sayi FARKLIYDI; ustelik donuste HICBIR rakam secili (mor /
+  ///	26 px / w800) cizilmedigi icin ekran BOZUK de gorunuyordu.
+  ///
+  ///	KOK NEDEN: govde bir `switch (_adim)` — adim 6`ya gecince
+  ///	`ListWheelScrollView` agactan SOKULUYOR ve kaydirma konumu yok
+  ///	oluyor. Geri dönüldügünde YENI bir Scrollable kuruluyor ve
+  ///	`initialPixels = itemExtent * initialItem` ile **20**`den
+  ///	basliyor. `onSelectedItemChanged` YALNIZ kaydirma bildiriminde
+  ///	teliklenir, ilk yerlesimde CAGRILMAZ -> uzlasma da olmuyor.
+  ///	`PageStorage` kurtarmiyor: agacta `PageStorageKey` YOK.
+  ///
+  /// ⚠️ FIX: her cizimde tekerlek MODELE esitlenir. Boylece iki bagimsiz
+  ///    dogruluk kaynagi kalmaz — TEK KAYNAK `_yas`.
+  /// ⚠️ `addPostFrameCallback` ZORUNLU: `build` sirasinda `jumpToItem`
+  ///    cagirmak "setState during build" atar; ayrica denetleyici o an
+  ///    henuz `hasClients` degildir.
+  /// ⚠️ `selectedItem != hedef` kapisi ZORUNLU: kosulsuz `jumpToItem`
+  ///    kullanici tekerlegi cevirirken onu HER KAREDE geri ceker.
+  /// ⚠️ YAPMA: `initialItem`i tek dogruluk kaynagi sanma.
+  Widget _yasSecici() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _adim != 5 || !_yasKontrol.hasClients) return;
+      final hedef = (_yas ?? kVarsayilanYas) - kEnKucukYas;
+      if (_yasKontrol.selectedItem != hedef) _yasKontrol.jumpToItem(hedef);
+    });
+    return SizedBox(
+      height: 126,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          // Secim bandi — hangi ogenin secili oldugunu GORSEL olarak soyler.
+          // ⚠️ `IgnorePointer`: bandin uzerine gelen dokunuslar tekerlege
+          //    gecmeli, yoksa tam ortadan kaydirma calismaz.
+          // ⚠️⚠️ TURU 126 — **MOR ZEMIN VE YARICAP KALDIRILDI** (kullanici emri:
+          //	*"kac yasindaki secildiginde mor arka plan radusu kaldir"*).
+          //	Geriye yalniz UST/ALT ince cizgi kaldi — iOS tekerleginin dili.
+          //	Secili rakam ZATEN mor, 26 px ve w800; bandin ayrica boyanmasina
+          //	gerek yoktu.
+          IgnorePointer(
+            child: Container(
+              height: 46,
+              decoration: const BoxDecoration(
+                border: Border(
+                  top: BorderSide(color: _cizgi),
+                  bottom: BorderSide(color: _cizgi),
+                ),
               ),
             ),
           ),
-        ),
-        // ⚠️⚠️ TURU 126 — KAYDIRMA GOSTERGESI (yalniz secim yokken).
-        //	Ekran acilista "—" gosterdigi icin tekerlegin KAYDIGI hicbir
-        //	GORSEL isaretten anlasilmiyordu; yonerge satiri tek basina
-        //	tasiyordu. Iki chevron bandin sag ucunda o isareti verir.
-        // ⚠️ Secim yapilinca KAYBOLUR: isini gormustur, sonrasinda secili
-        //    rakamin yanindaki susleme dikkat dagitir.
-        // ⚠️ `IgnorePointer`: bandin kendisiyle ayni sebep — dokunus
-        //    tekerlege gecmeli.
-        ListWheelScrollView.useDelegate(
-          controller: _yasKontrol,
-          itemExtent: 46,
-          diameterRatio: 1.7,
-          perspective: 0.0025,
-          physics: const FixedExtentScrollPhysics(),
-          onSelectedItemChanged: (i) => setState(() => _yas = kEnKucukYas + i),
-          childDelegate: ListWheelChildBuilderDelegate(
-            childCount: kEnBuyukYas - kEnKucukYas + 1,
-            builder: (_, i) {
-              final deger = kEnKucukYas + i;
-              final secili = _yas == deger;
-              return Center(
-                child: Text(
-                  '$deger',
-                  style: TextStyle(
-                    fontSize: secili ? 26 : 20,
-                    fontWeight: secili ? FontWeight.w800 : FontWeight.w500,
-                    color: secili ? morLogo : _altYazi,
+          // ⚠️⚠️ TURU 126 — KAYDIRMA GOSTERGESI (yalniz secim yokken).
+          //	Ekran acilista "—" gosterdigi icin tekerlegin KAYDIGI hicbir
+          //	GORSEL isaretten anlasilmiyordu; yonerge satiri tek basina
+          //	tasiyordu. Iki chevron bandin sag ucunda o isareti verir.
+          // ⚠️ Secim yapilinca KAYBOLUR: isini gormustur, sonrasinda secili
+          //    rakamin yanindaki susleme dikkat dagitir.
+          // ⚠️ `IgnorePointer`: bandin kendisiyle ayni sebep — dokunus
+          //    tekerlege gecmeli.
+          ListWheelScrollView.useDelegate(
+            controller: _yasKontrol,
+            itemExtent: 46,
+            diameterRatio: 1.7,
+            perspective: 0.0025,
+            physics: const FixedExtentScrollPhysics(),
+            onSelectedItemChanged: (i) =>
+                setState(() => _yas = kEnKucukYas + i),
+            childDelegate: ListWheelChildBuilderDelegate(
+              childCount: kEnBuyukYas - kEnKucukYas + 1,
+              builder: (_, i) {
+                final deger = kEnKucukYas + i;
+                final secili = _yas == deger;
+                return Center(
+                  child: Text(
+                    '$deger',
+                    style: TextStyle(
+                      fontSize: secili ? 26 : 20,
+                      fontWeight: secili ? FontWeight.w800 : FontWeight.w500,
+                      color: secili ? morLogo : _altYazi,
+                    ),
                   ),
-                ),
-              );
-            },
+                );
+              },
+            ),
           ),
-        ),
-      ],
-    ),
-  );
+        ],
+      ),
+    );
+  }
 
   /// Kirpilmis fotografi yukler ve profile baglar. **En iyi caba.**
   ///

@@ -74,13 +74,28 @@ class _OnboardingEkraniState extends ConsumerState<OnboardingEkrani> {
       gorsel: _Gorsel.isletmeKartlari,
       izin: _OnboardIzin.mikrofon,
     ),
+    // ⚠️⚠️ TURU 126 — SAYFA **GEBZEMAI DILINE** cevrildi (kullanici emri:
+    //	*"goruntulu aramada kameran yerine GebzemAI ile ilgili bir seyler
+    //	yaz"*). Sayfanin gorseli ZATEN AI sohbetiydi (`aiTelefon`) — metin
+    //	kameradan bahsederken ekranda yapay zeka sohbeti akiyordu, yani
+    //	YAZIYLA RESIM CELISIYORDU.
+    // ⚠️⚠️ **IZIN AYNEN KALDI** (`kamera`): metin degisti, istenen izin
+    //	DEGISMEDI. Kamera izni goruntulu arama ve hikaye icin ZORUNLU ve
+    //	bu, onboardingde istendigi TEK yer.
+    // ⚠️ Metin izni de SOYLUYOR: istenmeyen bir izin diyalogu cikarsa
+    //    kullanici "neden kamera istiyor" der. Son cumle tam bunu kapatir.
     _Sayfa(
-      baslik: 'Görüntülü aramada',
-      vurgu: 'kameran',
+      baslik: 'Aklına takılanı',
+      vurgu: 'GebzemAI’ye sor',
       alt:
-          'Görüntülü görüşme ve hikâye paylaşımı için kamera izni. '
-          'Kamerayı yalnızca sen açtığında çalışır.',
-      ikonlar: [LucideIcons.video, LucideIcons.camera, LucideIcons.images],
+          'Nöbetçi eczane, hafta sonu programı, ne yesem — Gebze’ye dair '
+          'sorularını yanıtlar. Görüntülü görüşme ve hikâye için de kamera '
+          'izni gerekiyor; kamera yalnızca sen açtığında çalışır.',
+      ikonlar: [
+        LucideIcons.sparkles,
+        LucideIcons.messageCircle,
+        LucideIcons.video,
+      ],
       gorsel: _Gorsel.aiTelefon,
       izin: _OnboardIzin.kamera,
     ),
@@ -170,10 +185,40 @@ class _OnboardingEkraniState extends ConsumerState<OnboardingEkrani> {
     super.dispose();
   }
 
+  /// ⚠️⚠️⚠️ TURU 126 — **TAM EKRAN BILDIRIM + PIL MUAFIYETI BURADA.**
+  ///
+  ///	Bu iki izin, kaldirilan "Telefon kilitliyken arama ekrani"
+  ///	sayfasina bagliydi ve sayfayla birlikte **HIC ISTENMEZ**
+  ///	olmustu (denetimde yakalandi). Bedeli somut: tam ekran bildirim
+  ///	izni olmadan telefon KILITLIYKEN gelen arama ekrani ACILMAZ
+  ///	(turu 89) ve pil muafiyeti olmadan Android sureci dondurur.
+  ///
+  /// ⚠️⚠️ **AKISIN EN SONUNDA** istenir — turu 56/89 kurali: bu cagri
+  ///	sistem AYARLAR ekranini acar ve Activity duraklar; ORTADA
+  ///	olsaydi sonraki izin diyalogu HIC GOSTERILMEZDI.
+  /// ⚠️ Kendi SAYFASI YOK (kullanici o sayfayi kaldirdi) — kullaniciya
+  ///    bir sey ANLATMADIGIMIZ icin ekstra bir vaatte de bulunmuyoruz;
+  ///    reddedilirse akis AYNEN devam eder.
+  /// ⚠️ `bildirimIste: false`: POST_NOTIFICATIONS teklifler sayfasinda
+  ///    ZATEN istendi. Tekrar istemek turu 87 carpismasini uretir
+  ///    (READ_PHONE_STATE sessizce `denied`).
+  Future<void> _sonIzinler() async {
+    try {
+      await CallKitService.izinleriIste(bildirimIste: false);
+    } catch (_) {}
+    if (!Platform.isAndroid) return;
+    try {
+      if (!await Permission.ignoreBatteryOptimizations.isGranted) {
+        await Permission.ignoreBatteryOptimizations.request();
+      }
+    } catch (_) {}
+  }
+
   Future<void> _bitir() async {
     // ⚠️ Bayrak ONCE yazilir, sonra yonlendirilir: ters sirada olsaydi
     //    yonlendirme sirasinda uygulama oldurulurse onboarding TEKRAR cikardi.
     await tercihler.onboardingGorulduYaz();
+    await _sonIzinler();
     // ⚠️ TURU 89 — izin akisinin KOSTUGU isaretlenir; `HomeScreen` kapisi
     //    ayni oturumda izin ekranini bir daha ACMAZ (o ekran zaten silindi
     //    ama bayrak kapiyi da susturur).
@@ -897,7 +942,9 @@ class _TelefonState extends State<_Telefon>
     builder: (_, kisit) {
       var boy = kisit.maxHeight * 1.14;
       var en = boy * 9 / 19.5;
-      final enTavan = kisit.maxWidth * 0.60;
+      // ⚠️ TURU 126 — telefon **%20 DARALDI** (kullanici emri):
+      //    0.60 -> 0.48. Oran (9:19.5) DEGISMEDI, yalniz tavan dustu.
+      final enTavan = kisit.maxWidth * 0.48;
       if (en > enTavan) {
         en = enTavan;
         boy = en * 19.5 / 9;
@@ -927,13 +974,9 @@ class _TelefonState extends State<_Telefon>
     decoration: BoxDecoration(
       color: const Color(0xFF14101C),
       borderRadius: BorderRadius.circular(38),
-      boxShadow: const [
-        BoxShadow(
-          color: Color(0x33000000),
-          blurRadius: 26,
-          offset: Offset(0, 10),
-        ),
-      ],
+      // ⚠️ TURU 126 — GOLGE KALDIRILDI (kullanici emri: *"oradaki
+      //    balonlarin golgesini kaldir"*). Cerceve golgesi de ayni
+      //    dildeydi; biri kalsa oteki tek basina yamali gorunurdu.
     ),
     child: ClipRRect(
       borderRadius: BorderRadius.circular(31),
@@ -995,34 +1038,24 @@ class _TelefonState extends State<_Telefon>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                width: 24,
-                height: 24,
-                alignment: Alignment.center,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: LinearGradient(
-                    colors: [Color(0xFF8B3FFF), Color(0xFF6C2BD9)],
-                  ),
-                ),
-                child: const Icon(
-                  LucideIcons.sparkles,
-                  size: 13,
-                  color: Colors.white,
-                ),
+          // ⚠️ TURU 126 — **"GebzemAI" YAZISI KALDIRILDI** (kullanici
+          //    emri). Ikon KALDI: yazi olmadan da sohbetin karsi tarafinin
+          //    kim oldugunu tek basina o soyluyor.
+          Container(
+            width: 24,
+            height: 24,
+            alignment: Alignment.center,
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: LinearGradient(
+                colors: [Color(0xFF8B3FFF), Color(0xFF6C2BD9)],
               ),
-              const SizedBox(width: 7),
-              const Text(
-                'GebzemAI',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: _kOnboardYazi,
-                ),
-              ),
-            ],
+            ),
+            child: const Icon(
+              LucideIcons.sparkles,
+              size: 13,
+              color: Colors.white,
+            ),
           ),
           const SizedBox(height: 12),
           _balon(
@@ -1098,15 +1131,9 @@ class _TelefonState extends State<_Telefon>
                 border: benim
                     ? null
                     : Border.all(color: const Color(0x14000000)),
-                boxShadow: [
-                  BoxShadow(
-                    color: benim
-                        ? const Color(0x336C2BD9)
-                        : const Color(0x0F000000),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
+                // ⚠️ TURU 126 — **BALON GOLGESI KALDIRILDI** (kullanici
+                //    emri). Kenarlik DURUYOR: beyaz balonun beyaz zeminden
+                //    ayrilmasini golge DEGIL o cizgi sagliyordu.
               ),
               child: Text(
                 metin,
