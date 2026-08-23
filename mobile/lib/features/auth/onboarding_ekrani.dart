@@ -385,25 +385,10 @@ class _BosTelefon extends StatelessWidget {
     ),
     child: ClipRRect(
       borderRadius: BorderRadius.circular(31),
-      child: ColoredBox(
-        color: _kEkran,
-        child: Column(
-          children: [
-            // ── DYNAMIC ISLAND ──
-            Padding(
-              padding: const EdgeInsets.only(top: 9),
-              child: Container(
-                width: 62,
-                height: 17,
-                decoration: BoxDecoration(
-                  color: _kCerceve,
-                  borderRadius: BorderRadius.circular(9),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+      // ⚠️ TURU 127 — **DYNAMIC ISLAND (ses celtigi) KALDIRILDI**
+      //    (kullanici emri: *"telefondaki ses celtigini kaldir"*).
+      //    Cerceve artik TAMAMEN bos: yalniz koyu kenar + acik ekran.
+      child: const ColoredBox(color: _kEkran, child: SizedBox.expand()),
     ),
   );
 }
