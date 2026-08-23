@@ -857,7 +857,11 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani> {
           child: Icon(
             LucideIcons.arrowUp,
             size: 22,
-            color: Colors.white.withValues(alpha: hazir ? 1.0 : 0.3),
+            // ⚠️ TURU 127 — pasif opaklik 0.3 -> **0.55** (kullanici:
+            //    *"gonder oku beyaz degil"*). Bos girdide dugme PASIF
+            //    oldugu icin soluk ciziliyordu ve ok gri gorunuyordu.
+            //    Ayrim KORUNUYOR (aktif 1.0) ama ok artik BEYAZ okunuyor.
+            color: Colors.white.withValues(alpha: hazir ? 1.0 : 0.55),
           ),
         ),
       ),
