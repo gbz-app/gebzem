@@ -310,10 +310,16 @@ class _SayfaGorunumu extends StatelessWidget {
                   maxWidth: double.infinity,
                   maxHeight: double.infinity,
                   alignment: Alignment.bottomCenter,
-                  child: SizedBox(
-                    width: en,
-                    height: boy,
-                    child: const _BosTelefon(),
+                  // ⚠️ TURU 127 — cerceve **%20 GOMULU** (kullanici emri:
+                  //    *"telefonlar gomulu olsun %20 kadar asagi"*).
+                  //    `ClipRect` tasan kismi kirpar; tasma KASITLI.
+                  child: Transform.translate(
+                    offset: Offset(0, boy * 0.20),
+                    child: SizedBox(
+                      width: en,
+                      height: boy,
+                      child: const _BosTelefon(),
+                    ),
                   ),
                 ),
               ),
