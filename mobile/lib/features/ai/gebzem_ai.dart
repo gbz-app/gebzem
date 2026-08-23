@@ -10,6 +10,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/api.dart';
 import '../../core/theme.dart' show morLogo;
+import '../home/home_screen.dart' show myProfileProvider;
 import '../../router.dart' show rootMessengerKey;
 import '../isletme/isletme_kart.dart' show kYanBosluk, kYaricap;
 import '../isletme/urun_servisi.dart';
@@ -48,11 +49,16 @@ import '../medya/medya_servisi.dart';
 ///
 /// ⚠️ AI kapaliyken (`/ai/durum`) ekran yazaci CIZMEZ — dugmeye basip 503
 ///    almak bu projede kayitli "olu ozellik" sinifi.
-/// ⚠️ TURU 127 — GebzemAI ekraninin KOYU MOR gradyani (kullanici emri).
-///    Uc durak: ustte neredeyse siyah, ortada koyu mor, altta mor.
-const Color _kAiZeminUst = Color(0xFF0B0714);
-const Color _kAiZeminOrta = Color(0xFF17102B);
-const Color _kAiZeminAlt = Color(0xFF2A1A56);
+/// ⚠️⚠️ TURU 127 — GebzemAI zemin gradyani (kullanici emri + verdigi
+///	ekran goruntusu).
+///
+///	⚠️ **MOR YALNIZ ALTTA.** Ilk yazimda orta durak %55`teydi ve mor
+///	ekranin YARISINDAN itibaren basliyordu; referansta ust bolge
+///	neredeyse TAMAMEN siyah, renk yalnizca alt ucta acilir.
+///	Duraklar %0 / **%68** / %100 ve orta durak da KOYU.
+const Color _kAiZeminUst = Color(0xFF050308);
+const Color _kAiZeminOrta = Color(0xFF0D0A18);
+const Color _kAiZeminAlt = Color(0xFF2E1B63);
 
 class GebzemAiEkrani extends ConsumerStatefulWidget {
   const GebzemAiEkrani({super.key});
@@ -223,7 +229,7 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani> {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [_kAiZeminUst, _kAiZeminOrta, _kAiZeminAlt],
-            stops: [0.0, 0.55, 1.0],
+            stops: [0.0, 0.68, 1.0],
           ),
         ),
         child: Scaffold(
@@ -354,36 +360,35 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani> {
     //	Ustte rozet, altta kart YOK — bos ekranin tamami TEK bir davet.
     // ⚠️ `Center` + `Column(min)`: govde `Expanded` icinde, dikey kisit
     //    SINIRLI — `ListView` gerekmiyor ve kaydirma cubugu cikmiyor.
+    // ⚠️⚠️ TURU 127 — **ISIMLE SELAMLAMA** (kullanici emri: *"isim
+    //	kullan, ornegin Yavuz sana hangi konuda yardimci olabilirim"*).
+    // ⚠️ Ad SUNUCUDAN gelir (`myProfileProvider`), UYDURULMAZ. Profil
+    //    henuz gelmediyse ya da ad bossa isimsiz surum cizilir —
+    //    "Merhaba null" gibi bir sey EKRANA CIKAMAZ.
+    // ⚠️ Yalniz ILK KELIME kullanilir: "Ahmet Yılmaz, sana hangi konuda"
+    //    iki satiri asar ve samimi degil resmi durur.
+    final tamAd = (ref.watch(myProfileProvider).valueOrNull?['name'] ?? '')
+        .toString()
+        .trim();
+    final ad = tamAd.isEmpty ? '' : tamAd.split(RegExp(r'\s+')).first;
+    final selam = ad.isEmpty
+        ? 'Sana hangi konuda yardımcı olabilirim?'
+        : '$ad, sana hangi konuda yardımcı olabilirim?';
+
+    // ⚠️ TURU 127 — **IKON KALDIRILDI** (kullanici emri). Ekranin
+    //    ortasinda yalnizca soru duruyor.
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // ⚠️ Yildiz: Gemini`de cok renkli, bizde MARKA MORU gradyani —
-            //    baska bir urunun renk kimligini kopyalamak dogru olmaz.
-            ShaderMask(
-              shaderCallback: (r) => const LinearGradient(
-                colors: [Color(0xFFB388FF), Color(0xFF8B3FFF)],
-              ).createShader(r),
-              child: const Icon(
-                LucideIcons.sparkles,
-                size: 46,
-                color: Colors.white,
-              ),
-            ),
-            const SizedBox(height: 18),
-            const Text(
-              'Hangi konuda yardımcı olabilirim?',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 27,
-                height: 1.25,
-                fontWeight: FontWeight.w400,
-                color: Colors.white,
-              ),
-            ),
-          ],
+        child: Text(
+          selam,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontSize: 27,
+            height: 1.3,
+            fontWeight: FontWeight.w400,
+            color: Colors.white,
+          ),
         ),
       ),
     );
@@ -630,88 +635,119 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani> {
   /// ⚠️ Kenarlik ODAKTA marka rengine doner (`_odak`): kullanici emri
   ///    *"input borderi guzellestir"*. Sabit gri bir cerceve, yaziyor
   ///    olup olmadigini HIC belli etmiyordu.
-  /// ⚠️⚠️⚠️ TURU 127 — **TEK SATIR HAP GIRIS (GEMINI DUZENI).**
+  /// ⚠️⚠️⚠️ TURU 127 — **IKI SATIRLI, KENARLIKSIZ GIRIS (GEMINI DUZENI).**
   ///
-  ///	Kullanici emri: Gemini arayuzunun birebir benzeri. Orada giris
-  ///	tek satirlik bir HAP: solda `+`, ortada ipucu, sagda gonder.
+  ///	Kullanici emri: *"border kullanmissin ama onda border yok; input
+  ///	2 satir, yani yukarida yazi alani, altta + ve gonder; gonder ikonu
+  ///	BEYAZ, arkada daire YOK; solunda mikrofon var; GebzemAI`a sorun
+  ///	yazsin"*.
   ///
-  /// ⚠️⚠️ TURU 117`nin "yazi USTTE, ikonlar ALTTA" karari BILEREK geri
-  ///	alindi (o da kullanici emriydi). Gerekcesi hala GECERLI: cok
-  ///	satirli girdide `prefixIcon`/`suffixIcon` DIKEY ORTALANIR. Bu
-  ///	yuzden ikonlar `prefixIcon` DEGIL, `Row`un DOGRUDAN cocugu ve
-  ///	`crossAxisAlignment: end` ile ALTA yaslanir — girdi buyudukce
-  ///	ikonlar hap`in ALT KENARINDA kalir, ortada asili kalmaz.
-  /// ⚠️ Yaricap 24 -> **28** (hap dili) ve dis kenarlik ODAKTA marka
-  ///    rengine doner; kalinlik IKI HALDE DE 1.5 (yazi ziplamasin).
+  /// ⚠️ **KENARLIK YOK** — kutu koyu zeminden yalnizca DOLGUSUYLA ayrilir
+  ///    (beyazin %7`si). Odakta dolgu bir tik acilir; kenarlik EKLENMEZ,
+  ///    cunku eklenip cikarilmasi kutunun ic olcusunu degistirir ve yazi
+  ///    1 px ZIPLAR.
+  /// ⚠️⚠️ Ikonlar `prefixIcon`/`suffixIcon` DEGIL, AYRI BIR SATIRDA
+  ///	(turu 117 dersi): o alanlar metinle ayni satirda durur ve cok
+  ///	satirli girdide DIKEY ORTALANIR — 5 satirlik soruda ikonlar
+  ///	ortada asili kalirdi.
   Widget _girisKutusu(ColorScheme scheme) {
     final odakli = _odak.hasFocus;
     return AnimatedContainer(
       duration: const Duration(milliseconds: 160),
       curve: Curves.easeOut,
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(
-          color: odakli
-              ? scheme.primary.withValues(alpha: 0.85)
-              : Colors.white.withValues(alpha: 0.14),
-          width: 1.5,
-        ),
+        color: Colors.white.withValues(alpha: odakli ? 0.10 : 0.07),
+        borderRadius: BorderRadius.circular(26),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // ⚠️ TURU 127 — `+` (kullanici emri). Islev DEGISMEDI: galeriden
-          //    fotograf secer; `tooltip` bunu soyler.
-          IconButton(
-            tooltip: 'Fotoğraf ekle',
-            visualDensity: VisualDensity.compact,
-            constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-            icon: Icon(
-              LucideIcons.plus,
-              size: 23,
-              color: _calisiyor
-                  ? Colors.white.withValues(alpha: 0.3)
-                  : Colors.white.withValues(alpha: 0.75),
-            ),
-            onPressed: _calisiyor ? null : _gorselSec,
-          ),
-          Expanded(
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => _odak.requestFocus(),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                child: TextField(
-                  controller: _yazac,
-                  focusNode: _odak,
-                  minLines: 1,
-                  maxLines: 5,
-                  textInputAction: TextInputAction.newline,
-                  keyboardType: TextInputType.multiline,
-                  onChanged: (_) => setState(() {}),
-                  style: const TextStyle(fontSize: 16, color: Colors.white),
-                  decoration: InputDecoration(
-                    hintText: 'GebzemAI’ye sorun',
-                    hintStyle: TextStyle(
-                      fontSize: 16,
-                      color: Colors.white.withValues(alpha: 0.45),
-                    ),
-                    isDense: true,
-                    // ⚠️ Kenarliklar HAP`in kendisinde; `TextField` KENDI
-                    //    cercevesini cizmez, yoksa CIFT cerceve olurdu.
-                    border: InputBorder.none,
-                    enabledBorder: InputBorder.none,
-                    focusedBorder: InputBorder.none,
-                    contentPadding: EdgeInsets.zero,
+          // ── YAZI (USTTE) ──
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => _odak.requestFocus(),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(18, 14, 18, 2),
+              child: TextField(
+                controller: _yazac,
+                focusNode: _odak,
+                minLines: 1,
+                maxLines: 5,
+                textInputAction: TextInputAction.newline,
+                keyboardType: TextInputType.multiline,
+                onChanged: (_) => setState(() {}),
+                style: const TextStyle(fontSize: 16, color: Colors.white),
+                decoration: InputDecoration(
+                  hintText: 'GebzemAI’a sorun',
+                  hintStyle: TextStyle(
+                    fontSize: 16,
+                    color: Colors.white.withValues(alpha: 0.45),
                   ),
+                  isDense: true,
+                  // ⚠️ Kutu kendi zeminini ciziyor; `TextField` KENDI
+                  //    cercevesini cizmez, yoksa CIFT cerceve olurdu.
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  contentPadding: EdgeInsets.zero,
                 ),
               ),
             ),
           ),
-          // ⚠️ Gonder dugmesi bos girdide PASIF: bos istek kota yakardi.
-          _gonderDugmesi(scheme),
+          // ── EYLEM SATIRI (ALTTA) ──
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
+            child: Row(
+              children: [
+                // ⚠️ `+` — islev fotograf secmek; `tooltip` bunu soyler.
+                IconButton(
+                  tooltip: 'Fotoğraf ekle',
+                  visualDensity: VisualDensity.compact,
+                  constraints: const BoxConstraints(
+                    minWidth: 40,
+                    minHeight: 40,
+                  ),
+                  icon: Icon(
+                    LucideIcons.plus,
+                    size: 23,
+                    color: _calisiyor
+                        ? Colors.white.withValues(alpha: 0.3)
+                        : Colors.white.withValues(alpha: 0.8),
+                  ),
+                  onPressed: _calisiyor ? null : _gorselSec,
+                ),
+                const Spacer(),
+                // ⚠️⚠️ **MIKROFON: SESLI SORU HENUZ YOK.** Ikon kullanici
+                //	emriyle cizildi ama sesten metne ceviren bir yol
+                //	(ne istemcide ne sunucuda) YOK. Bu yuzden dokunus
+                //	DURUSTCE "yakinda" der — sessizce hicbir sey yapan
+                //	bir dugme "bozuk" diye okunur.
+                // ⚠️ YAPMA: bu bildirimi kaldirip dugmeyi ISLEVSIZ birakma.
+                IconButton(
+                  tooltip: 'Sesli soru',
+                  visualDensity: VisualDensity.compact,
+                  constraints: const BoxConstraints(
+                    minWidth: 40,
+                    minHeight: 40,
+                  ),
+                  icon: Icon(
+                    LucideIcons.mic,
+                    size: 21,
+                    color: Colors.white.withValues(alpha: 0.8),
+                  ),
+                  onPressed: () => rootMessengerKey.currentState
+                    ?..hideCurrentSnackBar()
+                    ..showSnackBar(
+                      const SnackBar(
+                        content: Text('Sesli soru yakında eklenecek.'),
+                      ),
+                    ),
+                ),
+                // ⚠️ Gonder bos girdide PASIF: bos istek kota yakardi.
+                _gonderDugmesi(scheme),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -806,24 +842,22 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani> {
     return Semantics(
       button: true,
       label: 'Gönder',
+      // ⚠️⚠️ TURU 127 — **ARKADA DAIRE YOK, IKON BEYAZ** (kullanici emri).
+      //	Onceden dolu mor bir daireydi; referans arayuzde gonder ciplak
+      //	bir ikon. Dokunma alani 44 dp KALIYOR (Material tavani) —
+      //	daire gitti, HEDEF GITMEDI.
+      // ⚠️ Pasif hal SOLUK BEYAZ: renk degil OPAKLIK degisir, boylece
+      //    ikonun yeri/olcusu sabit kalir.
       child: InkWell(
         onTap: hazir ? _gonder : null,
         customBorder: const CircleBorder(),
-        child: Container(
+        child: SizedBox(
           width: 44,
           height: 44,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: hazir
-                ? scheme.primary
-                : scheme.onSurface.withValues(alpha: 0.12),
-          ),
           child: Icon(
             LucideIcons.arrowUp,
-            size: 20,
-            color: hazir
-                ? scheme.onPrimary
-                : scheme.onSurface.withValues(alpha: 0.45),
+            size: 22,
+            color: Colors.white.withValues(alpha: hazir ? 1.0 : 0.3),
           ),
         ),
       ),
