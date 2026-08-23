@@ -311,30 +311,8 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani> {
         // ── MARKA ROZETI ──
         // ⚠️ Gradyan `kHikayeHalkaGradient` DEGIL marka moru: bu bir
         //    HIKAYE halkasi degil, urun rozeti.
-        Center(
-          child: Container(
-            width: 64,
-            height: 64,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  scheme.primary,
-                  scheme.primary.withValues(alpha: 0.65),
-                ],
-              ),
-            ),
-            child: Icon(
-              LucideIcons.sparkles,
-              size: 30,
-              color: scheme.onPrimary,
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
+        // ⚠️ TURU 127 — **MARKA ROZETI (gradyanli daire) KALDIRILDI**
+        //    (kullanici emri). Ekran artik dogrudan selamlamayla basliyor.
         const Text(
           'Merhaba, ben GebzemAI',
           textAlign: TextAlign.center,
@@ -351,36 +329,14 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani> {
         ),
         // ⚠️ Oneri kartlari kalkinca IKI ARDISIK bosluk kalmisti (26+18);
         //    tek bir 26 ya indirildi.
-        const SizedBox(height: 26),
-        // ── KALAN HAK KARTI ──
-        // ⚠️⚠️ Kullanici emri: *"kalan hak vb altta daha guzel anlasilir
-        //	sekilde olsun"*. Eskiden %45 saydam 12,5 px gri bir satirdi —
-        //	yani ekrandaki EN ONEMLI sayi EN SILIK ogeydi.
-        // ⚠️ Sayi UYDURULMAZ: `ai.kalan`/`ai.kota` sunucudan gelir; `ai`
-        //    null ise kart HIC cizilmez (yer tutucu sayi YAZILMAZ).
-        if (ai != null) _kalanHakKarti(ai, scheme),
-        const SizedBox(height: 12),
-        // ⚠️ DURUST SINIR EKRANDA YAZILI (bkz. sinif serhi).
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              LucideIcons.info,
-              size: 13,
-              color: scheme.onSurface.withValues(alpha: 0.4),
-            ),
-            const SizedBox(width: 6),
-            Flexible(
-              child: Text(
-                'Sohbet kaydedilmez; ekrandan çıkınca konuşma biter.',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: scheme.onSurface.withValues(alpha: 0.45),
-                ),
-              ),
-            ),
-          ],
-        ),
+        // ⚠️⚠️ TURU 127 — **KALAN HAK KARTI KALDIRILDI** (kullanici emri).
+        //	Kota SUNUCUDA duruyor ve asilinca uc 429 doner; ekranda bir
+        //	sayac gostermek ZORUNLU degildi. Hak bitince kullanici
+        //	zaten uyari mesajini gorur.
+        // ⚠️ `_kalanHakKarti` govdesi DURUYOR (cagrilmiyor): kota
+        //    gorunurlugu geri istenirse tek satirla geri gelir.
+        // ⚠️ "Sohbet kaydedilmez" satiri BURADAN ALINDI ve GIRIS
+        //    ALANININ USTUNE tasindi (kullanici emri).
       ],
     );
   }
@@ -565,6 +521,56 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani> {
           // ⚠️ Odak: kutuya dokunmak yazi alanini odaklar (`GestureDetector`
           //    + `requestFocus`) — yoksa kullanici kutunun bos yerine
           //    dokununca hicbir sey olmuyordu.
+          // ⚠️⚠️ TURU 127 — **DURUST SINIR SATIRI GIRISIN 10 px USTUNDE**
+          //	(kullanici emri). Onceden karsilama ekraninin ICINDEYDI ve
+          //	sohbet basladiginda EKRANDAN KAYBOLUYORDU — oysa "sohbet
+          //	kaydedilmez" bilgisi tam da KONUSURKEN gerekli.
+          // ⚠️ Ikon 1 tik kalin (dort golgeyle simule) ve yazi 12 -> 14
+          //    (kullanici emri).
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  LucideIcons.info,
+                  size: 15,
+                  color: scheme.onSurface.withValues(alpha: 0.45),
+                  // ⚠️ Lucide ikonlari FONT (glif) — `strokeWidth` YOKTUR.
+                  //    Kalinlik ayni renkte ±0.4 px dort golgeyle simule
+                  //    edilir (turu 93 deseni).
+                  shadows: [
+                    Shadow(
+                      color: scheme.onSurface.withValues(alpha: 0.45),
+                      offset: const Offset(0.4, 0),
+                    ),
+                    Shadow(
+                      color: scheme.onSurface.withValues(alpha: 0.45),
+                      offset: const Offset(-0.4, 0),
+                    ),
+                    Shadow(
+                      color: scheme.onSurface.withValues(alpha: 0.45),
+                      offset: const Offset(0, 0.4),
+                    ),
+                    Shadow(
+                      color: scheme.onSurface.withValues(alpha: 0.45),
+                      offset: const Offset(0, -0.4),
+                    ),
+                  ],
+                ),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    'Sohbet kaydedilmez; ekrandan çıkınca konuşma biter.',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: scheme.onSurface.withValues(alpha: 0.45),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
           _girisKutusu(scheme),
         ],
       ),
@@ -628,10 +634,10 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani> {
             padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
             child: Row(
               children: [
-                // ⚠️ TURU 117 — ikon `imagePlus` -> **`imageUp`**
-                //    (kullanici: *"daha guzel icon yap"*). `imageUp`
-                //    "gorsel YUKLE" anlamini tasir; `imagePlus` daha cok
-                //    "galeriye ekle" gibi okunuyordu.
+                // ⚠️ TURU 127 — ikon `imageUp` -> **`plus`** (kullanici
+                //    emri: *"fotograf ikonu yerine + ikonu koy, sadece +"*).
+                // ⚠️ Islev DEGISMEDI: hala galeriden fotograf secer;
+                //    `tooltip` ve erisilebilirlik etiketi bunu soyler.
                 IconButton(
                   tooltip: 'Fotoğraf ekle',
                   visualDensity: VisualDensity.compact,
@@ -640,8 +646,8 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani> {
                     minHeight: 40,
                   ),
                   icon: Icon(
-                    LucideIcons.imageUp,
-                    size: 21,
+                    LucideIcons.plus,
+                    size: 23,
                     color: _calisiyor
                         ? scheme.onSurface.withValues(alpha: 0.3)
                         : scheme.onSurface.withValues(alpha: 0.7),
@@ -665,6 +671,9 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani> {
   ///    doluyken cizilir — yer tutucu sayi UYDURULMAZ.
   /// ⚠️ Ilerleme cubugu ORAN gosterir; kota 0 olursa sifira bolme olmasin
   ///    diye `kota > 0` kapisi var.
+  // ⚠️ TURU 127 — kart artik CIZILMIYOR (kullanici emri) ama govdesi
+  //    DURUYOR: kota gorunurlugu geri istenirse tek satirla geri gelir.
+  // ignore: unused_element
   Widget _kalanHakKarti(AiDurum ai, ColorScheme scheme) {
     final oran = ai.kota > 0 ? (ai.kalan / ai.kota).clamp(0.0, 1.0) : 0.0;
     // ⚠️ Hak BITTIGINDE renk uyarici olur: kullanici neden yanit
