@@ -631,6 +631,46 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
     _gonder();
   }
 
+  /// ⚠️⚠️⚠️ TURU 127 — **YANITTAKI `**` ISARETLERI EKRANDA HAM CIKIYORDU**
+  ///	(emulatorde goruldu: *"1. **Doğa Yürüyüşü**: Yakın bir park..."*).
+  ///
+  ///	Model Markdown uretiyor, biz duz metin ciziyorduk. Kullanicinin
+  ///	OKUDUGU seyin ortasinda yildizlar duruyordu — yanit "bozuk"
+  ///	gorunuyordu.
+  ///
+  /// ⚠️⚠️ **HARICI MARKDOWN PAKETI EKLENMEDI** (bilincli): tam bir
+  ///	Markdown cizici baslik/liste/kod/baglanti/tablo getirir, her biri
+  ///	ayri bir yerlesim riski ve `SelectableText`in secilebilirligini
+  ///	bozar. Sahada gorulen TEK sorun `**kalin**` idi; yalniz o cozuldu.
+  ///
+  /// ⚠️ Tek satirlik ayristirici, ESLESMEYEN `**` icin GUVENLI: son acik
+  ///    isaret kapanmazsa metin OLDUGU GIBI birakilir (yildiz DAHIL).
+  ///    Aksi halde yarim bir isaret cumlenin geri kalanini yutardi.
+  /// ⚠️ `*tek yildiz*` (italik) DOKUNULMADI: Turkce metinde carpim/vurgu
+  ///    olarak da gecebiliyor ve yanlis pozitif uretirdi.
+  static final _kalinDesen = RegExp(r'\*\*(.+?)\*\*', dotAll: true);
+
+  List<TextSpan> _kalinParcalar(String metin) {
+    final parcalar = <TextSpan>[];
+    var son = 0;
+    for (final e in _kalinDesen.allMatches(metin)) {
+      if (e.start > son) {
+        parcalar.add(TextSpan(text: metin.substring(son, e.start)));
+      }
+      parcalar.add(
+        TextSpan(
+          text: e.group(1),
+          style: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+      );
+      son = e.end;
+    }
+    if (son < metin.length) {
+      parcalar.add(TextSpan(text: metin.substring(son)));
+    }
+    return parcalar;
+  }
+
   /// ⚠️⚠️ TURU 127 — **KOPYALAMA IKONU** (kullanici emri: *"benim
   ///	gonderdigimde ve cevapta kopyalama ikonu yok, onu ekle"*).
   ///
@@ -658,7 +698,11 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
           color: Colors.white.withValues(alpha: 0.45),
         ),
         onPressed: () {
-          Clipboard.setData(ClipboardData(text: metin));
+          // ⚠️ Panoya EKRANDA GORUNEN metin gider: `**` isaretleri
+          //    ekranda cizilmiyorsa kopyalanan metinde de olmamali.
+          Clipboard.setData(
+            ClipboardData(text: metin.replaceAll(_kalinDesen, r'$1')),
+          );
           rootMessengerKey.currentState
             ?..hideCurrentSnackBar()
             ..showSnackBar(const SnackBar(content: Text('Kopyalandı')));
@@ -725,8 +769,8 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
           //	kullanici cevap gelince onu goruyordu.
           // ⚠️ Kimin yazdigi KONUMDAN belli: kullanici mesaji SAGDA
           //    baloncukta, yanit SOLDA tam genislikte.
-          SelectableText(
-            m.metin,
+          SelectableText.rich(
+            TextSpan(children: _kalinParcalar(m.metin)),
             // ⚠️ TURU 127 — 15 -> 17 (kullanici emri).
             style: const TextStyle(fontSize: 17, height: 1.42),
           ),
