@@ -19,6 +19,34 @@ import '../medya/medya_kapisi.dart';
 import '../medya/ses_notu_kaydedici.dart';
 import '../medya/medya_servisi.dart';
 
+/// ⚠️⚠️⚠️ TURU 127 — **DONEN ORNEK SORULAR** (kullanici emri: *"hangi
+///	konuda yardimci olabilirim 30 px altina Gebze'nin en iyi kebapcisi ya
+///	da hava durumu gibi Gebze ile ilgili 10 tane baslik olsun, boyle
+///	yazilsin ekrana sonra silinip yenisi yazilsin, tikladiginda onu
+///	arasin, en basinda trending-up ikonu olsun"*).
+///
+/// ⚠️⚠️ **BUNLAR "TREND" DEGIL, ORNEK SORULARDIR.** Sunucuda ne arama
+///	sayaci ne populerlik verisi VAR; `trendingUp` ikonu yalnizca GORSEL
+///	bir isarettir ve ekranda "trend", "populer", "en cok aranan" gibi bir
+///	IDDIA YAZILMAZ. Yazsaydik uydurma veri olurdu.
+///
+/// ⚠️ Metinler KISA tutuldu (<= ~30 karakter): daktilo efekti sirasinda
+///    satir buyudugu icin uzun bir baslik 360 dp genislikte tasardi.
+/// ⚠️ Hepsi GEBZE'ye ozel ve uygulamanin GERCEK alanlarindan (isletme,
+///    etkinlik, hizmet) — AI bunlari yanitlayabilir.
+const _kOneriler = <String>[
+  'Gebze\'nin en iyi kebapçısı',
+  'Bugün hava nasıl olacak?',
+  'Akşam nereye gidebilirim?',
+  'Yakınımdaki nöbetçi eczane',
+  'Hafta sonu ne yapılır?',
+  'Çocukla gidilecek yerler',
+  'İyi bir kuaför önerir misin?',
+  'Gebze\'de kahvaltı nerede?',
+  'Bu hafta hangi etkinlik var?',
+  'Ev taşımak için nakliyeci',
+];
+
 /// ⚠️⚠️⚠️ TURU 111 — **GEBZEMAI SOHBET EKRANI** (kullanici emri: *"gebzemai
 ///	daha profesyonel, Claude/Gemini gibi bir arayuz istiyorum"*).
 ///
@@ -556,9 +584,12 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
     // ⚠️ TURU 127 — **IKON KALDIRILDI** (kullanici emri). Ekranin
     //    ortasinda yalnizca soru duruyor.
     return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32),
-        child: Text.rich(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Text.rich(
           TextSpan(
             style: govdeStil,
             children: ad.isEmpty
@@ -573,10 +604,31 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
                     ),
                   ],
           ),
-          textAlign: TextAlign.center,
-        ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+          // ⚠️ 30 px: kullanici emri (*"hangi konuda yardimci olabilirim
+          //    30 px altina"*).
+          const SizedBox(height: 30),
+          _OneriDongusu(
+            oneriler: _kOneriler,
+            onSec: _oneriSecildi,
+          ),
+        ],
       ),
     );
+  }
+
+  /// ⚠️⚠️ Oneri secilince soru KUTUYA yazilir ve ANINDA gonderilir.
+  ///    Yalniz kutuya yazip birakmak, kullanicinin bir de gonder`e
+  ///    basmasini gerektirirdi — dokunusun ANLAMI "bunu sor"du.
+  /// ⚠️ `_calisiyor` kapisi: yanit beklenirken ikinci soru gonderilemez
+  ///    (`_gonder` zaten reddeder, ama burada da erken donup kutuyu
+  ///    bosuna doldurmayalim).
+  void _oneriSecildi(String soru) {
+    if (_calisiyor) return;
+    _yazac.text = soru;
+    _gonder();
   }
 
   /// ⚠️⚠️ TURU 127 — **KOPYALAMA IKONU** (kullanici emri: *"benim
@@ -1421,6 +1473,148 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
             //    oldugu icin soluk ciziliyordu ve ok gri gorunuyordu.
             //    Ayrim KORUNUYOR (aktif 1.0) ama ok artik BEYAZ okunuyor.
             color: Colors.white.withValues(alpha: hazir ? 1.0 : 0.55),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// ⚠️⚠️⚠️ TURU 127 — **DAKTILO DONGUSU** (yaz -> bekle -> sil -> sonraki).
+///
+/// ⚠️⚠️ **`Timer.periodic` DEGIL, ZINCIRLI `Timer`:** her adimin suresi
+///	FARKLI (yazma 45 ms, silme 22 ms, dolu bekleme 1500 ms, bos
+///	bekleme 320 ms). Tek bir periyotla bunlari uretmek icin sayac
+///	tutmak gerekirdi ve hiz her fazda ayni kalirdi — silme yazmayla
+///	ayni hizda olunca efekt "geri sariyor" gibi durur.
+///
+/// ⚠️ Silme yazmadan HIZLI: gercek daktilo hissi boyledir; esit hizda
+///    dongu iki kat uzun surer ve kullanici sikilir.
+///
+/// ⚠️⚠️ **`substring` KARAKTER DEGIL KOD BIRIMI SAYAR.** Turkce harfler
+///	(`ç`, `ı`, `ğ`) BMP icinde ve tek kod birimi — bu listede sorun
+///	YOK. Ama listeye emoji ya da BMP disi bir isaret eklenirse
+///	`substring` VEKIL CIFTI ORTASINDAN keser ve ekranda bozuk karakter
+///	cikar. ⚠️ YAPMA: bu listeye emoji ekleme (zaten arayuzde emoji
+///	yasak).
+///
+/// ⚠️ `dispose`ta zamanlayici IPTAL edilir; edilmezse ekran kapandiktan
+///    sonra `setState` cagrilir ve konsola hata duser.
+/// ⚠️ Metin BOSKEN bile satir yuksekligi SABIT (`SizedBox(height:)`):
+///    aksi halde her dongu basinda karsilama yazisi ASAGI YUKARI ZIPLARDI.
+class _OneriDongusu extends StatefulWidget {
+  const _OneriDongusu({required this.oneriler, required this.onSec});
+
+  final List<String> oneriler;
+  final void Function(String) onSec;
+
+  @override
+  State<_OneriDongusu> createState() => _OneriDongusuState();
+}
+
+class _OneriDongusuState extends State<_OneriDongusu> {
+  static const _yazmaHizi = Duration(milliseconds: 45);
+  static const _silmeHizi = Duration(milliseconds: 22);
+  static const _doluBekleme = Duration(milliseconds: 1500);
+  static const _bosBekleme = Duration(milliseconds: 320);
+
+  Timer? _zaman;
+  int _sira = 0;
+  int _harf = 0;
+  bool _siliyor = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _adim();
+  }
+
+  @override
+  void dispose() {
+    _zaman?.cancel();
+    super.dispose();
+  }
+
+  String get _tam => widget.oneriler[_sira];
+  String get _gorunen => _tam.substring(0, _harf);
+
+  void _adim() {
+    Duration sonraki;
+    if (_siliyor) {
+      if (_harf > 0) {
+        _harf--;
+        sonraki = _silmeHizi;
+      } else {
+        _siliyor = false;
+        _sira = (_sira + 1) % widget.oneriler.length;
+        sonraki = _bosBekleme;
+      }
+    } else {
+      if (_harf < _tam.length) {
+        _harf++;
+        sonraki = _harf < _tam.length ? _yazmaHizi : _doluBekleme;
+      } else {
+        _siliyor = true;
+        sonraki = _silmeHizi;
+      }
+    }
+    if (mounted) setState(() {});
+    _zaman = Timer(sonraki, _adim);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final beyaz = Colors.white;
+    return Semantics(
+      button: true,
+      // ⚠️ Ekran okuyucuya YAZILMAKTA OLAN yarim metin degil, TAM soru
+      //    okunur; yarim metin duyulunca anlamsiz olurdu.
+      label: 'Örnek soru: ${_tam}',
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        // ⚠️ TAM metin gonderilir, ekrandaki YARIM metin degil.
+        onTap: () => widget.onSec(_tam),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 6),
+          child: SizedBox(
+            // ⚠️ Sabit yukseklik: metin bosalinca satir cokmesin.
+            height: 26,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  LucideIcons.trendingUp,
+                  size: 17,
+                  color: beyaz.withValues(alpha: 0.55),
+                ),
+                const SizedBox(width: 8),
+                // ⚠️ `Flexible` ZORUNLU: daktilo metni buyurken satir
+                //    dar ekranda tasardi.
+                Flexible(
+                  child: Text(
+                    _gorunen,
+                    maxLines: 1,
+                    overflow: TextOverflow.clip,
+                    softWrap: false,
+                    style: TextStyle(
+                      fontSize: 15.5,
+                      fontWeight: FontWeight.w500,
+                      color: beyaz.withValues(alpha: 0.72),
+                    ),
+                  ),
+                ),
+                // ⚠️ Imlec: daktilo hissini tamamlar. Yanip SONMEZ —
+                //    sonen bir imlec ikinci bir zamanlayici ister ve
+                //    hicbir sey kazandirmaz.
+                Container(
+                  width: 1.5,
+                  height: 16,
+                  margin: const EdgeInsets.only(left: 2),
+                  color: beyaz.withValues(alpha: 0.45),
+                ),
+              ],
+            ),
           ),
         ),
       ),
