@@ -1,12 +1,16 @@
 library;
 
 import 'dart:io';
+import 'dart:async';
+import 'dart:ui' show FontFeature;
+import 'package:path_provider/path_provider.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:record/record.dart';
 
 import '../../core/api.dart';
 import '../../core/theme.dart' show morLogo;
@@ -229,152 +233,171 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
     //	giris kutusu, yaziyor gostergesi) TEK TEK boyanmak zorunda
     //	kalmaz.
     // ⚠️ YAPMA: sarmali kaldirip renkleri cagri yerlerine yazma.
-    return Theme(
-      data: ThemeData.dark(useMaterial3: true).copyWith(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: morLogo,
-          brightness: Brightness.dark,
-        ).copyWith(surface: _kAiZeminUst),
-        scaffoldBackgroundColor: Colors.transparent,
-      ),
-      // ⚠️⚠️⚠️ TURU 127 — **DUZ GRADYAN DEGIL, YUMUSAK MOR PARLAMALAR.**
-      //
-      //	Kullanici emri: *"yukaridan asagi degil, boyle dalgali; renkler
-      //	karissin; siyah-mor birlesmeleri cok sert, daha yumusak olsun;
-      //	dalgalansin"*.
-      //
-      //	ONCEKI HAL: tek `LinearGradient`, uc durak. Duraklar arasi gecis
-      //	YATAY BIR BANT uretiyordu — ekranin belli bir yuksekliginde
-      //	cizgi gibi bir sinir goruluyordu ("cok sert" denen sey buydu).
-      //
-      //	YENI: siyah taban + UZERINE IKI **RadialGradient** parlama.
-      //	Radyal sonum dogasi geregi kenari OLMAYAN bir gecistir; iki
-      //	parlama ust uste binince renkler KARISIR ve sinir kalmaz.
-      // ⚠️ Iki parlama **AYRI FAZDA** hareket eder (biri `_dalga`, oteki
-      //    `1 - _dalga`): ayni fazda olsalardi tek bir sisen leke gibi
-      //    durur, "dalga" hissi olusmazdi.
-      // ⚠️ Merkezler ekranin ALT KENARININ ALTINDA (y > 1): parlamanin
-      //    yalniz UST YAYI gorunur — dalga tepesi dili budur.
-      // ⚠️ Genlik kucuk (x ekseninde ±0.18): kullanici "cok hafif" dedi.
-      // ⚠️⚠️ `cocuk` PARAMETRESI ZORUNLU: agac `builder` govdesinde
-      //	kurulsaydi Scaffold ve TUM ekran HER KAREDE yeniden insa
-      //	edilirdi (turu 120 ANR dersi: 500 ms/kare).
-      child: AnimatedBuilder(
-        animation: _dalga,
-        builder: (_, cocuk) {
-          final t = _dalga.value;
-          return DecoratedBox(
-            decoration: const BoxDecoration(color: _kAiZeminUst),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: RadialGradient(
-                  center: Alignment(-0.55 + t * 0.18, 1.25),
-                  radius: 1.15,
-                  colors: [
-                    _kAiParlakMor.withValues(alpha: 0.55),
-                    _kAiParlakMor.withValues(alpha: 0.22),
-                    Colors.transparent,
-                  ],
-                  // ⚠️ Ara durak (0.45) sonumu YAVASLATIR; iki duraklı
-                  //    radyalde gecis hala fark ediliyordu.
-                  stops: const [0.0, 0.45, 1.0],
-                ),
-              ),
+    // ⚠️⚠️ TURU 127 — **SISTEM GERI JESTI DE ONAY ISTER.** `PopScope`
+    //	olmasaydi ekrandaki ok nazik davranir, jest sohbeti SESSIZCE
+    //	goturuurdu (turu 126`da kayit akisinda birebir bu yasandi).
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (bittiMi, _) async {
+        if (bittiMi) return;
+        if (!await _cikisOnayi()) return;
+        if (mounted && context.mounted) Navigator.of(context).pop();
+      },
+      child: Theme(
+        data: ThemeData.dark(useMaterial3: true).copyWith(
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: morLogo,
+            brightness: Brightness.dark,
+          ).copyWith(surface: _kAiZeminUst),
+          scaffoldBackgroundColor: Colors.transparent,
+        ),
+        // ⚠️⚠️⚠️ TURU 127 — **DUZ GRADYAN DEGIL, YUMUSAK MOR PARLAMALAR.**
+        //
+        //	Kullanici emri: *"yukaridan asagi degil, boyle dalgali; renkler
+        //	karissin; siyah-mor birlesmeleri cok sert, daha yumusak olsun;
+        //	dalgalansin"*.
+        //
+        //	ONCEKI HAL: tek `LinearGradient`, uc durak. Duraklar arasi gecis
+        //	YATAY BIR BANT uretiyordu — ekranin belli bir yuksekliginde
+        //	cizgi gibi bir sinir goruluyordu ("cok sert" denen sey buydu).
+        //
+        //	YENI: siyah taban + UZERINE IKI **RadialGradient** parlama.
+        //	Radyal sonum dogasi geregi kenari OLMAYAN bir gecistir; iki
+        //	parlama ust uste binince renkler KARISIR ve sinir kalmaz.
+        // ⚠️ Iki parlama **AYRI FAZDA** hareket eder (biri `_dalga`, oteki
+        //    `1 - _dalga`): ayni fazda olsalardi tek bir sisen leke gibi
+        //    durur, "dalga" hissi olusmazdi.
+        // ⚠️ Merkezler ekranin ALT KENARININ ALTINDA (y > 1): parlamanin
+        //    yalniz UST YAYI gorunur — dalga tepesi dili budur.
+        // ⚠️ Genlik kucuk (x ekseninde ±0.18): kullanici "cok hafif" dedi.
+        // ⚠️⚠️ `cocuk` PARAMETRESI ZORUNLU: agac `builder` govdesinde
+        //	kurulsaydi Scaffold ve TUM ekran HER KAREDE yeniden insa
+        //	edilirdi (turu 120 ANR dersi: 500 ms/kare).
+        child: AnimatedBuilder(
+          animation: _dalga,
+          builder: (_, cocuk) {
+            final t = _dalga.value;
+            return DecoratedBox(
+              decoration: const BoxDecoration(color: _kAiZeminUst),
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: RadialGradient(
-                    center: Alignment(0.6 - t * 0.18, 1.1),
-                    radius: 0.95,
+                    center: Alignment(-0.55 + t * 0.18, 1.25),
+                    radius: 1.15,
                     colors: [
-                      _kAiKoyuMor.withValues(alpha: 0.6),
-                      _kAiKoyuMor.withValues(alpha: 0.25),
+                      _kAiParlakMor.withValues(alpha: 0.55),
+                      _kAiParlakMor.withValues(alpha: 0.22),
                       Colors.transparent,
                     ],
-                    stops: const [0.0, 0.5, 1.0],
+                    // ⚠️ Ara durak (0.45) sonumu YAVASLATIR; iki duraklı
+                    //    radyalde gecis hala fark ediliyordu.
+                    stops: const [0.0, 0.45, 1.0],
                   ),
                 ),
-                child: cocuk,
-              ),
-            ),
-          );
-        },
-        child: Scaffold(
-          backgroundColor: Colors.transparent,
-          appBar: AppBar(
-            backgroundColor: Colors.transparent,
-            elevation: 0,
-            scrolledUnderElevation: 0,
-            foregroundColor: Colors.white,
-            // ⚠️⚠️ TURU 117 — GERI TUSU **GONDER IKONUNUN AYNASI** (kullanici
-            //	emri: *"geri tusu oradaki gonder gibi olacak sola dogru"*).
-            //	Gonder dugmesi `LucideIcons.arrowUp`; geri onun 90 derece
-            //	sola cevrilmisi = `arrowLeft`. Boylece ekranin iki ucundaki
-            //	iki ok AYNI cizim dilinde olur.
-            // ⚠️ Varsayilan `BackButton` KULLANILMIYOR: o platforma gore
-            //    degisir (Android ok, iOS chevron) ve "gonder gibi" olmaz.
-            // ⚠️ `Navigator.maybePop`: bu ekran kok route ise patlamasin.
-            leading: IconButton(
-              tooltip: 'Geri',
-              icon: const Icon(LucideIcons.arrowLeft),
-              onPressed: () => Navigator.of(context).maybePop(),
-            ),
-            // ⚠️⚠️ TURU 117 — BASLIK **ORTADA**, bir tik KALIN, 2 px KUCUK
-            //	(kullanici emri: *"gebzemai ortada bir tik kalin ve 2px yazi
-            //	tipi kucuk"*).
-            //	Tema `appBarTheme` genelinde `centerTitle: false` — burada
-            //	ACIKCA eziliyor, yoksa baslik sola yapisir.
-            //	Olcu: `titleLarge` 22 px -> **20 px**, agirlik w600 -> **w700**.
-            centerTitle: true,
-            title: const Text(
-              'GebzemAI',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
-            ),
-            actions: [
-              // ⚠️⚠️ TURU 127 — dugme artik **HER ZAMAN CIZILIYOR**
-              //	(kullanici: *"en saga yeni sohbet iconu kaldirmissin"*).
-              //	Kosul `_mesajlar.isNotEmpty` idi: bos sohbette dugme HIC
-              //	cizilmiyordu ve kullanici onu KALDIRILMIS saniyordu.
-              // ⚠️ Bos sohbette **PASIF** (soluk): temizlenecek bir sey yok.
-              //    Gorunur ama etkisiz olmasi, hic olmamasindan durust —
-              //    dugmenin nerede oldugu ogrenilebiliyor.
-              if (acik)
-                IconButton(
-                  tooltip: 'Yeni sohbet',
-                  // ⚠️ TURU 127 — `squarePen` -> **`penLine`** (kullanici:
-                  //    *"daha basit bir icon"*). `plus` DENENDI ve
-                  //    BIRAKILDI: giris alanindaki fotograf `+` ile BIREBIR
-                  //    ayni cizimdi, iki farkli is ayni ikonla anlatiliyordu.
-                  // ⚠️ TURU 127 — kullanici emri: `messageCirclePlus`.
-                  icon: const Icon(LucideIcons.messageCirclePlus),
-                  onPressed: (_calisiyor || _mesajlar.isEmpty)
-                      ? null
-                      : _yeniSohbetSor,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: RadialGradient(
+                      center: Alignment(0.6 - t * 0.18, 1.1),
+                      radius: 0.95,
+                      colors: [
+                        _kAiKoyuMor.withValues(alpha: 0.6),
+                        _kAiKoyuMor.withValues(alpha: 0.25),
+                        Colors.transparent,
+                      ],
+                      stops: const [0.0, 0.5, 1.0],
+                    ),
+                  ),
+                  child: cocuk,
                 ),
-            ],
-          ),
-          body: Column(
-            children: [
-              Expanded(
-                child: !acik
-                    ? _kapali()
-                    : _mesajlar.isEmpty
-                    ? _karsilama(ai)
-                    : ListView.builder(
-                        controller: _kaydirma,
-                        padding: const EdgeInsets.fromLTRB(
-                          kYanBosluk,
-                          12,
-                          kYanBosluk,
-                          12,
-                        ),
-                        itemCount: _mesajlar.length + (_calisiyor ? 1 : 0),
-                        itemBuilder: (_, i) => i < _mesajlar.length
-                            ? _balon(_mesajlar[i], scheme)
-                            : _yaziyor(scheme),
-                      ),
               ),
-              if (acik) _yazacAlani(scheme),
-            ],
+            );
+          },
+          child: Scaffold(
+            backgroundColor: Colors.transparent,
+            appBar: AppBar(
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              scrolledUnderElevation: 0,
+              foregroundColor: Colors.white,
+              // ⚠️⚠️ TURU 117 — GERI TUSU **GONDER IKONUNUN AYNASI** (kullanici
+              //	emri: *"geri tusu oradaki gonder gibi olacak sola dogru"*).
+              //	Gonder dugmesi `LucideIcons.arrowUp`; geri onun 90 derece
+              //	sola cevrilmisi = `arrowLeft`. Boylece ekranin iki ucundaki
+              //	iki ok AYNI cizim dilinde olur.
+              // ⚠️ Varsayilan `BackButton` KULLANILMIYOR: o platforma gore
+              //    degisir (Android ok, iOS chevron) ve "gonder gibi" olmaz.
+              // ⚠️ `Navigator.maybePop`: bu ekran kok route ise patlamasin.
+              leading: IconButton(
+                tooltip: 'Geri',
+                icon: const Icon(LucideIcons.arrowLeft),
+                // ⚠️ TURU 127 — ok da sistem geri jesti de AYNI kapidan
+                //    gecer (`_cikisOnayi`); asimetri olsaydi biri onay
+                //    sorar oteki sohbeti SESSIZCE goturuurdu.
+                onPressed: () async {
+                  if (!await _cikisOnayi()) return;
+                  if (mounted && context.mounted) {
+                    Navigator.of(context).maybePop();
+                  }
+                },
+              ),
+              // ⚠️⚠️ TURU 117 — BASLIK **ORTADA**, bir tik KALIN, 2 px KUCUK
+              //	(kullanici emri: *"gebzemai ortada bir tik kalin ve 2px yazi
+              //	tipi kucuk"*).
+              //	Tema `appBarTheme` genelinde `centerTitle: false` — burada
+              //	ACIKCA eziliyor, yoksa baslik sola yapisir.
+              //	Olcu: `titleLarge` 22 px -> **20 px**, agirlik w600 -> **w700**.
+              centerTitle: true,
+              title: const Text(
+                'GebzemAI',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+              ),
+              actions: [
+                // ⚠️⚠️ TURU 127 — dugme artik **HER ZAMAN CIZILIYOR**
+                //	(kullanici: *"en saga yeni sohbet iconu kaldirmissin"*).
+                //	Kosul `_mesajlar.isNotEmpty` idi: bos sohbette dugme HIC
+                //	cizilmiyordu ve kullanici onu KALDIRILMIS saniyordu.
+                // ⚠️ Bos sohbette **PASIF** (soluk): temizlenecek bir sey yok.
+                //    Gorunur ama etkisiz olmasi, hic olmamasindan durust —
+                //    dugmenin nerede oldugu ogrenilebiliyor.
+                if (acik)
+                  IconButton(
+                    tooltip: 'Yeni sohbet',
+                    // ⚠️ TURU 127 — `squarePen` -> **`penLine`** (kullanici:
+                    //    *"daha basit bir icon"*). `plus` DENENDI ve
+                    //    BIRAKILDI: giris alanindaki fotograf `+` ile BIREBIR
+                    //    ayni cizimdi, iki farkli is ayni ikonla anlatiliyordu.
+                    // ⚠️ TURU 127 — kullanici emri: `messageCirclePlus`.
+                    icon: const Icon(LucideIcons.messageCirclePlus),
+                    onPressed: (_calisiyor || _mesajlar.isEmpty)
+                        ? null
+                        : _yeniSohbetSor,
+                  ),
+              ],
+            ),
+            body: Column(
+              children: [
+                Expanded(
+                  child: !acik
+                      ? _kapali()
+                      : _mesajlar.isEmpty
+                      ? _karsilama(ai)
+                      : ListView.builder(
+                          controller: _kaydirma,
+                          padding: const EdgeInsets.fromLTRB(
+                            kYanBosluk,
+                            12,
+                            kYanBosluk,
+                            12,
+                          ),
+                          itemCount: _mesajlar.length + (_calisiyor ? 1 : 0),
+                          itemBuilder: (_, i) => i < _mesajlar.length
+                              ? _balon(_mesajlar[i], scheme)
+                              : _yaziyor(scheme),
+                        ),
+                ),
+                if (acik) _yazacAlani(scheme),
+              ],
+            ),
           ),
         ),
       ),
@@ -553,42 +576,209 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
 
   /// ⚠️ Bu bir BEKLEME gostergesidir, akan metin DEGIL (sunucu tek parca
   ///    donduruyor). Yaniltmamak icin yaninda "yazıyor" yazar.
-  /// ⚠️⚠️ TURU 127 — **YENI SOHBET ONAY ISTER** (kullanici emri:
-  ///	*"alert versin, yeni sohbetin acilacagi ve eskisinin gidecegine
-  ///	dair"*).
+  /// ⚠️⚠️ TURU 127 — **ALTTAN CIKAN ONAY PANELI** (kullanici emri:
+  ///	*"alerti daha profesyonel bir arayuze cevir, alttan ciksin popup
+  ///	tarzi"*).
   ///
   /// ⚠️ Onay GERCEKTEN gerekli: sohbet **HICBIR YERDE SAKLANMIYOR**
   ///    (sunucuda tablo yok). Temizlenen konusma GERI GETIRILEMEZ —
   ///    geri alinamayan bir eylem onaysiz calismamali.
   /// ⚠️ Metin ne olacagini ACIKCA soyler; "Emin misin?" gibi bos bir
   ///    soru kullaniciya NE KAYBEDECEGINI anlatmaz.
+  /// ⚠️⚠️ `isScrollControlled: true` + `SingleChildScrollView` IKISI DE
+  ///	ZORUNLU (turu 115c dersi): ilki yalnizca YUKSEKLIK TAVANINI
+  ///	kaldirir, icerigi KAYDIRILABILIR YAPMAZ. Yazi olcegi 2.0`da
+  ///	panel tasar ve son dugme EKRAN DISINDA kalirdi.
+  /// ⚠️ `useSafeArea: true` YETMEZ — SDK`da o bayrak
+  ///    `SafeArea(bottom: false)` uretir; alt guvenli alan ELLE eklendi.
   Future<void> _yeniSohbetSor() async {
-    final onay = await showDialog<bool>(
+    final onay = await showModalBottomSheet<bool>(
       context: context,
-      builder: (c) => AlertDialog(
-        title: const Text('Yeni sohbet'),
-        content: const Text(
-          'Yeni bir sohbet başlayacak ve bu konuşma silinecek. '
-          'Sohbetler kaydedilmediği için geri getirilemez.',
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF15121F),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (c) => SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 10, 24, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // ── TUTAMAC ──
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 18),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.25),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const Text(
+                  'Yeni sohbet',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Bu konuşma silinecek. Sohbetler kaydedilmediği için '
+                  'geri getirilemez.',
+                  style: TextStyle(
+                    fontSize: 15,
+                    height: 1.4,
+                    color: Colors.white.withValues(alpha: 0.6),
+                  ),
+                ),
+                const SizedBox(height: 22),
+                FilledButton(
+                  onPressed: () => Navigator.of(c).pop(true),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: morLogo,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size.fromHeight(50),
+                  ),
+                  child: const Text('Yeni sohbet başlat'),
+                ),
+                const SizedBox(height: 6),
+                TextButton(
+                  onPressed: () => Navigator.of(c).pop(false),
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.white.withValues(alpha: 0.7),
+                    minimumSize: const Size.fromHeight(46),
+                  ),
+                  child: const Text('Vazgeç'),
+                ),
+              ],
+            ),
+          ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(c).pop(false),
-            child: const Text('Vazgeç'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(c).pop(true),
-            child: const Text('Yeni sohbet'),
-          ),
-        ],
       ),
     );
-    // ⚠️ `mounted` kapisi ZORUNLU: diyalog acikken ekran sokulmus olabilir.
+    // ⚠️ `mounted` kapisi ZORUNLU: panel acikken ekran sokulmus olabilir.
     if (onay != true || !mounted) return;
     setState(() {
       _mesajlar.clear();
       _eklenen = null;
     });
+  }
+
+  /// ⚠️⚠️⚠️ TURU 127 — **GERI TUSU: SOHBET ACIKSA ONAY ISTER**
+  ///	(kullanici emri: *"sohbet aktifse geri dedigimizde de alert ver,
+  ///	sohbet kapanacagina dair"*).
+  ///
+  /// ⚠️ Sebep GERCEK: sohbet hicbir yerde saklanmiyor, ekrandan cikinca
+  ///    KAYBOLUYOR. Yanlislikla basilan bir geri, konusmanin tamamini
+  ///    goturur.
+  /// ⚠️ Bos sohbette SORULMAZ: kaybedilecek bir sey yok ve her cikista
+  ///    onay istemek gereksiz surtunmedir.
+  Future<bool> _cikisOnayi() async {
+    if (_mesajlar.isEmpty) return true;
+    final onay = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF15121F),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (c) => SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 10, 24, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 18),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.25),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const Text(
+                  'Sohbetten çık',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Bu konuşma kapanacak ve kaydedilmediği için geri '
+                  'getirilemez.',
+                  style: TextStyle(
+                    fontSize: 15,
+                    height: 1.4,
+                    color: Colors.white.withValues(alpha: 0.6),
+                  ),
+                ),
+                const SizedBox(height: 22),
+                FilledButton(
+                  onPressed: () => Navigator.of(c).pop(true),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: morLogo,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size.fromHeight(50),
+                  ),
+                  child: const Text('Çık'),
+                ),
+                const SizedBox(height: 6),
+                TextButton(
+                  onPressed: () => Navigator.of(c).pop(false),
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.white.withValues(alpha: 0.7),
+                    minimumSize: const Size.fromHeight(46),
+                  ),
+                  child: const Text('Sohbete dön'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    return onay == true;
+  }
+
+  /// ⚠️⚠️⚠️ TURU 127 — **ALTTAN CIKAN SES KAYIT PANELI** (kullanici emri:
+  ///	*"ses tikladigimizda ses ekrani da alttan ciksin, cop kutusu, ses
+  ///	kaydetmeyi de ayarla"*).
+  ///
+  /// ⚠️⚠️ **DURUST SINIR — PANELDE DE YAZILI:** kayit GERCEKTEN aliniyor
+  ///	(sohbetteki ses notuyla AYNI altyapi) ama **GONDERILEMIYOR**:
+  ///	sunucuda sesi metne ceviren bir uc YOK (`/ai/danisma` yalniz
+  ///	metin + gorsel alir). Panel kaydi alir, sureyi gosterir ve
+  ///	"henuz gonderilemiyor" der; dosya HICBIR YERE yuklenmez.
+  /// ⚠️ CLAUDE.md kural 9: karsiligi olmayan bir form istenirse arayuz
+  ///    YAPILIR, deger EKRANDA TUTULUR, sunucuya GONDERILMEZ ve bekleyen
+  ///    is listeye yazilir. **BEKLEYEN: `/ai/ses` ucu + STT.**
+  /// ⚠️ YAPMA: kaydi `/ai/danisma`ya gorsel gibi gondermeye calisma —
+  ///    uc `kind` beyaz listesinde ses YOK, 400 doner.
+  Future<void> _sesPaneliAc() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF15121F),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (c) => const _SesPaneli(),
+    );
   }
 
   /// ⚠️⚠️ TURU 127 — **YUKLENIYOR: UC DAIRE** (kullanici emri: *"o
@@ -871,13 +1061,7 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
                     size: 21,
                     color: Colors.white.withValues(alpha: 0.8),
                   ),
-                  onPressed: () => rootMessengerKey.currentState
-                    ?..hideCurrentSnackBar()
-                    ..showSnackBar(
-                      const SnackBar(
-                        content: Text('Sesli soru yakında eklenecek.'),
-                      ),
-                    ),
+                  onPressed: _calisiyor ? null : _sesPaneliAc,
                 ),
                 // ⚠️ Gonder bos girdide PASIF: bos istek kota yakardi.
                 _gonderDugmesi(scheme),
@@ -1003,4 +1187,190 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
       ),
     );
   }
+}
+
+/// ⚠️⚠️⚠️ TURU 127 — **SES KAYIT PANELI** (kullanici emri).
+///
+/// ⚠️⚠️ **DURUST SINIR — PANELDE DE YAZILI:** kayit GERCEKTEN aliniyor
+///	ama **GONDERILEMIYOR** — sunucuda sesi metne ceviren bir uc YOK.
+///	Panel sureyi ve canli seviyeyi gosterir, kaydi durdurur ve dosyayi
+///	SILER. Hicbir yere yuklenmez, hicbir sey vaat edilmez.
+///	**BEKLEYEN IS: `/ai/ses` ucu + konusma-metin (STT).**
+///
+/// ⚠️ Mikrofon izni `MedyaKapisi` uzerinden istenir; arama/oda surerken
+///    kayit ACILMAZ (ses donanimi cakisir — turu 73 dersi).
+/// ⚠️ `dispose`ta kayit MUTLAKA durdurulur: panel kapanirken kayit
+///    surerse mikrofon ARKA PLANDA acik kalir (gizlilik).
+class _SesPaneli extends ConsumerStatefulWidget {
+  const _SesPaneli();
+
+  @override
+  ConsumerState<_SesPaneli> createState() => _SesPaneliState();
+}
+
+class _SesPaneliState extends ConsumerState<_SesPaneli> {
+  final _kaydedici = AudioRecorder();
+  StreamSubscription<Amplitude>? _genlikSub;
+  Timer? _sayac;
+  bool _kayitta = false;
+  int _ms = 0;
+  double _seviye = 0;
+  String? _yol;
+
+  @override
+  void initState() {
+    super.initState();
+    // ⚠️ Kare sonrasina ertelenir: `initState` govdesinde `ref` okumak
+    //    Riverpod`da assertion atar (turu 96i dersi).
+    WidgetsBinding.instance.addPostFrameCallback((_) => _basla());
+  }
+
+  @override
+  void dispose() {
+    _sayac?.cancel();
+    _genlikSub?.cancel();
+    // ⚠️ Panel kapanirken kayit surerse mikrofon ACIK KALIR — durdur.
+    _kaydedici.stop().catchError((_) => null).whenComplete(_kaydedici.dispose);
+    super.dispose();
+  }
+
+  Future<void> _basla() async {
+    // ⚠️ Arama/oda surerken kayit ACILMAZ: ses donanimi cakisir.
+    if (!MedyaKapisi.donanimSerbest(ref)) {
+      if (mounted) Navigator.of(context).pop();
+      return;
+    }
+    try {
+      if (!await _kaydedici.hasPermission()) {
+        if (mounted) Navigator.of(context).pop();
+        return;
+      }
+      final dizin = await getTemporaryDirectory();
+      final yol =
+          '${dizin.path}/ai_ses_${DateTime.now().millisecondsSinceEpoch}.m4a';
+      await _kaydedici.start(
+        const RecordConfig(encoder: AudioEncoder.aacLc),
+        path: yol,
+      );
+      _yol = yol;
+      _genlikSub = _kaydedici
+          .onAmplitudeChanged(const Duration(milliseconds: 120))
+          .listen((a) {
+            if (!mounted) return;
+            // ⚠️ dBFS (-60..0) -> 0..1
+            final v = ((a.current + 60) / 60).clamp(0.0, 1.0);
+            setState(() => _seviye = v);
+          });
+      _sayac = Timer.periodic(const Duration(milliseconds: 100), (_) {
+        if (!mounted) return;
+        setState(() => _ms += 100);
+      });
+      if (mounted) setState(() => _kayitta = true);
+    } catch (_) {
+      if (mounted) Navigator.of(context).pop();
+    }
+  }
+
+  /// ⚠️ Kayit HER DURUMDA silinir: gonderilecek bir yer YOK, dosyayi
+  ///    diskte birakmak sessiz bir sizinti olurdu.
+  Future<void> _bitir() async {
+    _sayac?.cancel();
+    _genlikSub?.cancel();
+    try {
+      await _kaydedici.stop();
+    } catch (_) {}
+    final y = _yol;
+    if (y != null) {
+      try {
+        final f = File(y);
+        if (f.existsSync()) await f.delete();
+      } catch (_) {}
+    }
+    if (mounted) Navigator.of(context).pop();
+  }
+
+  String get _sure {
+    final sn = _ms ~/ 1000;
+    return '${(sn ~/ 60).toString().padLeft(2, '0')}:'
+        '${(sn % 60).toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context) => SafeArea(
+    top: false,
+    child: SingleChildScrollView(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 10, 24, 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 20),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.25),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            // ── CANLI SEVIYE HALKASI ──
+            // ⚠️ Halka GERCEK genlikle buyur: sahte bir animasyon
+            //    "kaydediyor" izlenimi verip aslinda olcmuyor olurdu.
+            SizedBox(
+              height: 96,
+              child: Center(
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 120),
+                  width: 60 + _seviye * 34,
+                  height: 60 + _seviye * 34,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: morLogo.withValues(alpha: 0.18 + _seviye * 0.3),
+                  ),
+                  child: const Icon(
+                    LucideIcons.mic,
+                    size: 26,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              _kayitta ? _sure : '…',
+              style: const TextStyle(
+                fontSize: 26,
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+                fontFeatures: [FontFeature.tabularFigures()],
+              ),
+            ),
+            const SizedBox(height: 10),
+            // ⚠️⚠️ DURUST SINIR EKRANDA: kayit gonderilemiyor.
+            Text(
+              'Sesli soru henüz gönderilemiyor. Kayıt cihazından silinir.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13.5,
+                height: 1.4,
+                color: Colors.white.withValues(alpha: 0.5),
+              ),
+            ),
+            const SizedBox(height: 20),
+            // ── COP KUTUSU ──
+            FilledButton.icon(
+              onPressed: _bitir,
+              style: FilledButton.styleFrom(
+                backgroundColor: Colors.white.withValues(alpha: 0.10),
+                foregroundColor: Colors.white,
+                minimumSize: const Size.fromHeight(50),
+              ),
+              icon: const Icon(LucideIcons.trash2, size: 19),
+              label: const Text('Kaydı sil ve kapat'),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }
