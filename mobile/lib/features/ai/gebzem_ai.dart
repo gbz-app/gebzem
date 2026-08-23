@@ -242,12 +242,28 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
         if (mounted && context.mounted) Navigator.of(context).pop();
       },
       child: Theme(
+        // ⚠️⚠️⚠️ TURU 127 — **YAZI TIPI KAYBOLMUSTU** (kullanici sordu:
+        //	*"yazi tipi bizim uygulamanin yazi tipi Google Sans degil mi,
+        //	degisik geldi"*). HAKLIYDI: ekran `ThemeData.dark()` ile
+        //	sariliyordu ve o tema **SIFIRDAN kuruluyor** — uygulamanin
+        //	`fontFamily: Google Sans` ayari TASINMIYOR, sistem fontuna
+        //	(Roboto) dusuyordu.
+        //	⚠️ `copyWith` ile SARMALIN KENDISINE eklendi.
+        //	⚠️ YAPMA: `fontFamily`yi cagri yerlerine tek tek yazma —
+        //	   `theme.dart` serhi "kod genelinde BASKA yerde yazili degil"
+        //	   diyor ve bu tek kaynagi bozardi.
         data: ThemeData.dark(useMaterial3: true).copyWith(
           colorScheme: ColorScheme.fromSeed(
             seedColor: morLogo,
             brightness: Brightness.dark,
           ).copyWith(surface: _kAiZeminUst),
           scaffoldBackgroundColor: Colors.transparent,
+          textTheme: ThemeData.dark(useMaterial3: true).textTheme.apply(
+            fontFamily: 'Google Sans',
+          ),
+          primaryTextTheme: ThemeData.dark(useMaterial3: true)
+              .primaryTextTheme
+              .apply(fontFamily: 'Google Sans'),
         ),
         // ⚠️⚠️⚠️ TURU 127 — **DUZ GRADYAN DEGIL, YUMUSAK MOR PARLAMALAR.**
         //
@@ -381,9 +397,11 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
                       ? _karsilama(ai)
                       : ListView.builder(
                           controller: _kaydirma,
+                          // ⚠️ TURU 127 — ust bosluk 12 -> **17** (kullanici:
+                          //    header ile mesajlarin arasi 5 px artsin).
                           padding: const EdgeInsets.fromLTRB(
                             kYanBosluk,
-                            12,
+                            17,
                             kYanBosluk,
                             12,
                           ),
@@ -467,28 +485,77 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
         .toString()
         .trim();
     final ad = tamAd.isEmpty ? '' : tamAd.split(RegExp(r'\s+')).first;
-    final selam = ad.isEmpty
-        ? 'Sana hangi konuda yardımcı olabilirim?'
-        : '$ad, sana hangi konuda yardımcı olabilirim?';
+    // ⚠️⚠️ TURU 127 — **ISIM CUMLENIN GERISINDEN BIR TIK KALIN**
+    //	(kullanici emri: *"oradaki ... ismi 1 tik daha kalinlastir"*).
+    //	Isim w700, cumlenin geri kalani w600.
+    // ⚠️ Kalinlik `Text.rich` ile PARCA BAZINDA veriliyor; tum cumleyi
+    //    w700 yapmak istegin TERSI olurdu (isim one cikmaz, hepsi kalin
+    //    olur). ⚠️ `letterSpacing` KULLANILMADI (kullanici yasagi).
+    const govdeStil = TextStyle(
+      fontSize: 27,
+      height: 1.3,
+      fontWeight: FontWeight.w600,
+      color: Colors.white,
+    );
 
     // ⚠️ TURU 127 — **IKON KALDIRILDI** (kullanici emri). Ekranin
     //    ortasinda yalnizca soru duruyor.
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 32),
-        child: Text(
-          selam,
-          textAlign: TextAlign.center,
-          // ⚠️ TURU 127 — w400 -> **w500** (kullanici: *"ekrandaki yaziyi
-          //    1 tik kalinlastir"*). w600 fazla resmi durdu.
-          style: const TextStyle(
-            fontSize: 27,
-            height: 1.3,
-            // ⚠️ TURU 127 — w500 -> **w600** (kullanici: 1 tik daha kalin).
-            fontWeight: FontWeight.w600,
-            color: Colors.white,
+        child: Text.rich(
+          TextSpan(
+            style: govdeStil,
+            children: ad.isEmpty
+                ? const [TextSpan(text: 'Sana hangi konuda yardımcı olabilirim?')]
+                : [
+                    TextSpan(
+                      text: ad,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    const TextSpan(
+                      text: ', sana hangi konuda yardımcı olabilirim?',
+                    ),
+                  ],
           ),
+          textAlign: TextAlign.center,
         ),
+      ),
+    );
+  }
+
+  /// ⚠️⚠️ TURU 127 — **KOPYALAMA IKONU** (kullanici emri: *"benim
+  ///	gonderdigimde ve cevapta kopyalama ikonu yok, onu ekle"*).
+  ///
+  ///	Onceki turda "Kopyala" YAZILI dugmesi kaldirilmisti; islev
+  ///	`SelectableText` uzerinde duruyordu ama **KESFEDILEBILIR
+  ///	DEGILDI** — uzun basmayi denemeyen kullanici icin ozellik YOK
+  ///	hukmundeydi. Artik yazisiz, kucuk bir ikon.
+  ///
+  /// ⚠️ TEK KAYNAK: iki cagri yeri de bunu kullanir. Iki ayri kopya
+  ///    kacinilmaz olarak drift ederdi (bu projede alti kez yasandi).
+  Widget _kopyaDugmesi(String metin) {
+    return SizedBox(
+      width: 30,
+      height: 30,
+      child: IconButton(
+        tooltip: 'Kopyala',
+        padding: EdgeInsets.zero,
+        // ⚠️ `IconButton` varsayilani 48 dp kare bir kutu dayatir; bu
+        //    kadar kucuk bir ikonun ustunde o kutu balonu SISIRIYORDU.
+        constraints: const BoxConstraints(),
+        visualDensity: VisualDensity.compact,
+        icon: Icon(
+          LucideIcons.copy,
+          size: 15,
+          color: Colors.white.withValues(alpha: 0.45),
+        ),
+        onPressed: () {
+          Clipboard.setData(ClipboardData(text: metin));
+          rootMessengerKey.currentState
+            ?..hideCurrentSnackBar()
+            ..showSnackBar(const SnackBar(content: Text('Kopyalandı')));
+        },
       ),
     );
   }
@@ -530,7 +597,10 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
                   // ⚠️ TURU 127 — **`SelectableText`** (kullanici emri:
                   //    *"bizim attigimiz mesajlarda kopyalayabilmesi
                   //    gerekiyor"*). Duz `Text` uzun basmayi HIC almiyordu.
-                  SelectableText(m.metin, style: const TextStyle(fontSize: 15)),
+                  SelectableText(m.metin, style: const TextStyle(fontSize: 17)),
+                // ⚠️ Ikon balonun ICINDE, saga dayali: disarida olsaydi
+                //    baloncugun hizasini bozardi.
+                if (m.metin.isNotEmpty) _kopyaDugmesi(m.metin),
               ],
             ),
           ),
@@ -550,13 +620,14 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
           //    baloncukta, yanit SOLDA tam genislikte.
           SelectableText(
             m.metin,
-            style: const TextStyle(fontSize: 15, height: 1.42),
+            // ⚠️ TURU 127 — 15 -> 17 (kullanici emri).
+            style: const TextStyle(fontSize: 17, height: 1.42),
           ),
-          // ⚠️⚠️ TURU 127 — **"Kopyala" DUGMESI KALDIRILDI** (kullanici
-          //	emri). Yanit zaten `SelectableText`: uzun basip secmek ve
-          //	sistemin KENDI kopyala menusunu kullanmak MUMKUN — islev
-          //	kaybolmadi, yalnizca her yanitin altindaki tekrar eden
-          //	dugme gitti.
+          // ⚠️ Yanitta ikon SOLA dayali (yanit da sola dayali).
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: _kopyaDugmesi(m.metin),
+          ),
         ],
       ),
     );
@@ -564,95 +635,169 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
 
   /// ⚠️ Bu bir BEKLEME gostergesidir, akan metin DEGIL (sunucu tek parca
   ///    donduruyor). Yaniltmamak icin yaninda "yazıyor" yazar.
-  /// ⚠️⚠️ TURU 127 — **ALTTAN CIKAN ONAY PANELI** (kullanici emri:
-  ///	*"alerti daha profesyonel bir arayuze cevir, alttan ciksin popup
-  ///	tarzi"*).
+  /// ⚠️⚠️⚠️ TURU 127 — **ONAY PANELI: TEK KAYNAK, KULLANICININ VERDIGI
+  ///	TASARIM.** (Kullanici bir ekran goruntusu yolladi.)
   ///
-  /// ⚠️ Onay GERCEKTEN gerekli: sohbet **HICBIR YERDE SAKLANMIYOR**
-  ///    (sunucuda tablo yok). Temizlenen konusma GERI GETIRILEMEZ —
-  ///    geri alinamayan bir eylem onaysiz calismamali.
-  /// ⚠️ Metin ne olacagini ACIKCA soyler; "Emin misin?" gibi bos bir
-  ///    soru kullaniciya NE KAYBEDECEGINI anlatmaz.
+  ///	Duzen: **baslik SOLDA + sag ustte X** · ince AYRAC · aciklama ·
+  ///	altta **YAN YANA iki hap dugme** (sol gri "Vazgeç", sag beyaz
+  ///	dolgulu eylem).
+  ///
+  /// ⚠️⚠️ **IKI PANEL DE BURADAN CIZILIR.** Onceki surumde "Yeni sohbet"
+  ///	ve "Sohbetten cik" panelleri AYRI AYRI yazilmisti (~90 satir
+  ///	KOPYA); biri degisince oteki geride kalirdi. Bu projede o sinif
+  ///	alti kez yasandi.
+  ///
+  /// ⚠️ Eylem dugmesi **BEYAZ**, mor DEGIL: panel zemini koyu mor
+  ///    tonlarinda ve mor dolgulu dugme zeminden ayrilmiyordu
+  ///    (kullanicinin verdigi tasarimda da beyaz).
   /// ⚠️⚠️ `isScrollControlled: true` + `SingleChildScrollView` IKISI DE
   ///	ZORUNLU (turu 115c dersi): ilki yalnizca YUKSEKLIK TAVANINI
   ///	kaldirir, icerigi KAYDIRILABILIR YAPMAZ. Yazi olcegi 2.0`da
-  ///	panel tasar ve son dugme EKRAN DISINDA kalirdi.
+  ///	panel tasar ve dugmeler EKRAN DISINDA kalirdi.
   /// ⚠️ `useSafeArea: true` YETMEZ — SDK`da o bayrak
   ///    `SafeArea(bottom: false)` uretir; alt guvenli alan ELLE eklendi.
-  Future<void> _yeniSohbetSor() async {
+  /// ⚠️ X ve "Vazgeç" AYNI sonucu doner (`false`); ikisi de kullanicinin
+  ///    "hayir" demesinin mesru yollari.
+  Future<bool> _onayPaneli({
+    required String baslik,
+    required String aciklama,
+    required String eylem,
+  }) async {
     final onay = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       backgroundColor: const Color(0xFF15121F),
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
       builder: (c) => SafeArea(
         top: false,
         child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 10, 24, 20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // ── TUTAMAC ──
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    margin: const EdgeInsets.only(bottom: 18),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.25),
-                      borderRadius: BorderRadius.circular(2),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // ── BASLIK + X ──
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 20, 12, 16),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        baslik,
+                        style: const TextStyle(
+                          fontSize: 19,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
                     ),
-                  ),
+                    IconButton(
+                      // ⚠️ Kapatma X`i "hayir" demektir -> `false`.
+                      onPressed: () => Navigator.of(c).pop(false),
+                      icon: Icon(
+                        LucideIcons.x,
+                        size: 20,
+                        color: Colors.white.withValues(alpha: 0.7),
+                      ),
+                    ),
+                  ],
                 ),
-                const Text(
-                  'Yeni sohbet',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Bu konuşma silinecek. Sohbetler kaydedilmediği için '
-                  'geri getirilemez.',
+              ),
+              // ── AYRAC ──
+              Divider(
+                height: 1,
+                thickness: 1,
+                color: Colors.white.withValues(alpha: 0.10),
+              ),
+              // ── ACIKLAMA ──
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 18, 24, 22),
+                child: Text(
+                  aciklama,
                   style: TextStyle(
                     fontSize: 15,
-                    height: 1.4,
-                    color: Colors.white.withValues(alpha: 0.6),
+                    height: 1.45,
+                    color: Colors.white.withValues(alpha: 0.62),
                   ),
                 ),
-                const SizedBox(height: 22),
-                FilledButton(
-                  onPressed: () => Navigator.of(c).pop(true),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: morLogo,
-                    foregroundColor: Colors.white,
-                    minimumSize: const Size.fromHeight(50),
-                  ),
-                  child: const Text('Yeni sohbet başlat'),
+              ),
+              // ── DUGMELER (YAN YANA) ──
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 22),
+                child: Row(
+                  children: [
+                    // ⚠️ `Expanded` ZORUNLU: dugme metinleri farkli
+                    //    uzunlukta ve sabit genislik verilseydi uzun
+                    //    eylem adi ("Yeni sohbet başlat") tasardi.
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.of(c).pop(false),
+                        style: TextButton.styleFrom(
+                          backgroundColor: Colors.white.withValues(
+                            alpha: 0.10,
+                          ),
+                          foregroundColor: Colors.white,
+                          minimumSize: const Size.fromHeight(50),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(25),
+                          ),
+                        ),
+                        child: const Text(
+                          'Vazgeç',
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: FilledButton(
+                        onPressed: () => Navigator.of(c).pop(true),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          // ⚠️ Beyaz zeminde SIYAH yazi (21:1) — beyaz
+                          //    ustune beyaz okunmazdi.
+                          foregroundColor: Colors.black,
+                          minimumSize: const Size.fromHeight(50),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(25),
+                          ),
+                        ),
+                        child: Text(
+                          eylem,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 6),
-                TextButton(
-                  onPressed: () => Navigator.of(c).pop(false),
-                  style: TextButton.styleFrom(
-                    foregroundColor: Colors.white.withValues(alpha: 0.7),
-                    minimumSize: const Size.fromHeight(46),
-                  ),
-                  child: const Text('Vazgeç'),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
     );
+    return onay == true;
+  }
+
+  /// ⚠️ Onay GERCEKTEN gerekli: sohbet **HICBIR YERDE SAKLANMIYOR**
+  ///    (sunucuda tablo yok). Temizlenen konusma GERI GETIRILEMEZ —
+  ///    geri alinamayan bir eylem onaysiz calismamali.
+  /// ⚠️ Metin ne olacagini ACIKCA soyler; "Emin misin?" gibi bos bir
+  ///    soru kullaniciya NE KAYBEDECEGINI anlatmaz.
+  Future<void> _yeniSohbetSor() async {
+    final onay = await _onayPaneli(
+      baslik: 'Yeni sohbet',
+      aciklama: 'Bu konuşma silinecek. Sohbetler kaydedilmediği için '
+          'geri getirilemez.',
+      eylem: 'Başlat',
+    );
     // ⚠️ `mounted` kapisi ZORUNLU: panel acikken ekran sokulmus olabilir.
-    if (onay != true || !mounted) return;
+    if (!onay || !mounted) return;
     setState(() {
       _mesajlar.clear();
       _eklenen = null;
@@ -670,77 +815,12 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
   ///    onay istemek gereksiz surtunmedir.
   Future<bool> _cikisOnayi() async {
     if (_mesajlar.isEmpty) return true;
-    final onay = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: const Color(0xFF15121F),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (c) => SafeArea(
-        top: false,
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 10, 24, 20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    margin: const EdgeInsets.only(bottom: 18),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.25),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                const Text(
-                  'Sohbetten çık',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Bu konuşma kapanacak ve kaydedilmediği için geri '
-                  'getirilemez.',
-                  style: TextStyle(
-                    fontSize: 15,
-                    height: 1.4,
-                    color: Colors.white.withValues(alpha: 0.6),
-                  ),
-                ),
-                const SizedBox(height: 22),
-                FilledButton(
-                  onPressed: () => Navigator.of(c).pop(true),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: morLogo,
-                    foregroundColor: Colors.white,
-                    minimumSize: const Size.fromHeight(50),
-                  ),
-                  child: const Text('Çık'),
-                ),
-                const SizedBox(height: 6),
-                TextButton(
-                  onPressed: () => Navigator.of(c).pop(false),
-                  style: TextButton.styleFrom(
-                    foregroundColor: Colors.white.withValues(alpha: 0.7),
-                    minimumSize: const Size.fromHeight(46),
-                  ),
-                  child: const Text('Sohbete dön'),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+    return _onayPaneli(
+      baslik: 'Sohbetten çık',
+      aciklama: 'Bu konuşma kapanacak ve kaydedilmediği için geri '
+          'getirilemez.',
+      eylem: 'Çık',
     );
-    return onay == true;
   }
 
   /// ⚠️⚠️⚠️ TURU 127 — **SES KAYDI SOHBETTEKI ARAYUZLE AYNI** (kullanici
@@ -1033,11 +1113,12 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
                 textInputAction: TextInputAction.newline,
                 keyboardType: TextInputType.multiline,
                 onChanged: (_) => setState(() {}),
-                style: const TextStyle(fontSize: 16, color: Colors.white),
+                // ⚠️ TURU 127 — 16 -> 18 (kullanici emri).
+                style: const TextStyle(fontSize: 18, color: Colors.white),
                 decoration: InputDecoration(
                   hintText: 'GebzemAI’a sorun',
                   hintStyle: TextStyle(
-                    fontSize: 16,
+                    fontSize: 18,
                     color: Colors.white.withValues(alpha: 0.45),
                   ),
                   isDense: true,
@@ -1066,7 +1147,8 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
                   ),
                   icon: Icon(
                     LucideIcons.plus,
-                    size: 23,
+                    // ⚠️ TURU 127 — 23 -> 24 (kullanici emri).
+                    size: 24,
                     color: _calisiyor
                         ? Colors.white.withValues(alpha: 0.3)
                         : Colors.white.withValues(alpha: 0.8),
@@ -1202,7 +1284,8 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
           height: 44,
           child: Icon(
             LucideIcons.arrowUp,
-            size: 22,
+            // ⚠️ TURU 127 — 22 -> 24: mikrofona gore KUCUK kaliyordu.
+            size: 24,
             // ⚠️ TURU 127 — pasif opaklik 0.3 -> **0.55** (kullanici:
             //    *"gonder oku beyaz degil"*). Bos girdide dugme PASIF
             //    oldugu icin soluk ciziliyordu ve ok gri gorunuyordu.
