@@ -10,6 +10,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:record/record.dart';
 import 'package:vibration/vibration.dart';
 
+import '../../core/theme.dart' show kAiMorGradient;
 import '../../router.dart' show rootMessengerKey;
 import 'medya_kapisi.dart';
 import 'ses_notu_kontrol.dart';
@@ -402,7 +403,10 @@ class _SesNotuKaydediciState extends ConsumerState<SesNotuKaydedici> {
               child: Container(
                 width: 36,
                 height: 36,
-                margin: const EdgeInsets.only(right: 2),
+                // ⚠️ TURU 127 — sag bosluk 2 -> **8** (kullanici: *"ses dalgasi
+                //    sagda bosluk var ama solda X orada bosluk yok"*). Dalganin
+                //    SAGINDA zaten 8 dp vardi; serit ASIMETRIKTI.
+                margin: const EdgeInsets.only(right: 8),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: onRenk.withValues(alpha: 0.12),
@@ -446,7 +450,12 @@ class _SesNotuKaydediciState extends ConsumerState<SesNotuKaydedici> {
               width: 36,
               height: 36,
               decoration: BoxDecoration(
-                color: widget.koyu ? mor : Colors.white,
+                // ⚠️⚠️ TURU 127 — koyu surumde daire **DUZ MOR DEGIL, EKRANIN
+                //	GRADYANI** (kullanici emri: *"gonder ikonu arka plan
+                //	gradient mor, ana penceredeki asagidaki mor gradient ile
+                //	ayni olsun"*). Tek kaynak: `core/theme.dart`.
+                gradient: widget.koyu ? kAiMorGradient : null,
+                color: widget.koyu ? null : Colors.white,
                 shape: BoxShape.circle,
               ),
               child: Icon(

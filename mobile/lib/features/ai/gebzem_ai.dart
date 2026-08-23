@@ -10,7 +10,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/api.dart';
-import '../../core/theme.dart' show morLogo;
+import '../../core/theme.dart' show morLogo, kAiParlakMor, kAiKoyuMor;
 import '../home/home_screen.dart' show myProfileProvider;
 import '../../router.dart' show rootMessengerKey;
 import '../isletme/isletme_kart.dart' show kYanBosluk, kYaricap;
@@ -30,21 +30,28 @@ import '../medya/medya_servisi.dart';
 ///	bir isarettir ve ekranda "trend", "populer", "en cok aranan" gibi bir
 ///	IDDIA YAZILMAZ. Yazsaydik uydurma veri olurdu.
 ///
-/// ⚠️ Metinler KISA tutuldu (<= ~30 karakter): daktilo efekti sirasinda
+/// ⚠️⚠️ **ONUNDE DE "GEBZE" GECER** (kullanici emri: *"hepsinde Gebze
+///	yazsin, Gebze ile ilgili olsun"*). Sebep urun kararidir: bu bir
+///	SEHIR uygulamasi ve soru "hava nasil?" diye sorulursa modelin
+///	hangi sehri kastettigi BELIRSIZ kalir — soruyu sehirle baglamak
+///	yaniti da dogru yere baglar.
+///
+/// ⚠️ Metinler KISA tutuldu (<= 30 karakter): daktilo efekti sirasinda
 ///    satir buyudugu icin uzun bir baslik 360 dp genislikte tasardi.
-/// ⚠️ Hepsi GEBZE'ye ozel ve uygulamanin GERCEK alanlarindan (isletme,
-///    etkinlik, hizmet) — AI bunlari yanitlayabilir.
+///    "Gebze'de " on eki tek basina 9 karakter — kalan govde KISA olmali.
+/// ⚠️ Hepsi uygulamanin GERCEK alanlarindan (isletme, etkinlik, hizmet)
+///    seciliyor — AI bunlari yanitlayabilir.
 const _kOneriler = <String>[
   'Gebze\'nin en iyi kebapçısı',
-  'Bugün hava nasıl olacak?',
-  'Akşam nereye gidebilirim?',
-  'Yakınımdaki nöbetçi eczane',
-  'Hafta sonu ne yapılır?',
-  'Çocukla gidilecek yerler',
-  'İyi bir kuaför önerir misin?',
+  'Gebze\'de hava nasıl olacak?',
+  'Gebze\'de akşam nereye gidilir?',
+  'Gebze\'de nöbetçi eczane',
+  'Gebze\'de hafta sonu planı',
+  'Gebze\'de çocukla nereye?',
+  'Gebze\'de iyi bir kuaför',
   'Gebze\'de kahvaltı nerede?',
-  'Bu hafta hangi etkinlik var?',
-  'Ev taşımak için nakliyeci',
+  'Gebze\'de bu hafta etkinlik',
+  'Gebze\'de nakliyeci arıyorum',
 ];
 
 /// ⚠️⚠️⚠️ TURU 111 — **GEBZEMAI SOHBET EKRANI** (kullanici emri: *"gebzemai
@@ -90,11 +97,10 @@ const Color _kAiZeminUst = Color(0xFF050308);
 // ⚠️ TURU 127 — `_kAiZeminOrta`/`_kAiZeminAlt` SILINDI: duz gradyanin
 //    ara duraklariydi, radyal parlamalara gecince karsiliklari kalmadi.
 
-/// ⚠️ Alt parlamalarin renkleri. Ikisi FARKLI ton: tek renk iki kez
-///    kullanilsaydi ust uste binen bolge yalnizca KOYULASIR, RENK
-///    KARISMAZDI — kullanicinin istedigi "renkler karissin" buydu.
-const Color _kAiParlakMor = Color(0xFF7B3FE4);
-const Color _kAiKoyuMor = Color(0xFF3B1E7A);
+// ⚠️⚠️ TURU 127 — alt parlamalarin renkleri **`core/theme.dart`E TASINDI**
+//	(`kAiParlakMor` / `kAiKoyuMor` / `kAiMorGradient`): ses kayit seridi
+//	de ayni moru kullaniyor ve private sabitlere ULASAMIYORDU.
+// ⚠️ YAPMA: buraya tekrar yerel kopya yazma.
 
 class GebzemAiEkrani extends ConsumerStatefulWidget {
   const GebzemAiEkrani({super.key});
@@ -382,8 +388,8 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
                     center: Alignment(-0.55 + t * 0.18, 1.25),
                     radius: 1.15,
                     colors: [
-                      _kAiParlakMor.withValues(alpha: 0.55),
-                      _kAiParlakMor.withValues(alpha: 0.22),
+                      kAiParlakMor.withValues(alpha: 0.55),
+                      kAiParlakMor.withValues(alpha: 0.22),
                       Colors.transparent,
                     ],
                     // ⚠️ Ara durak (0.45) sonumu YAVASLATIR; iki duraklı
@@ -397,8 +403,8 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
                       center: Alignment(0.6 - t * 0.18, 1.1),
                       radius: 0.95,
                       colors: [
-                        _kAiKoyuMor.withValues(alpha: 0.6),
-                        _kAiKoyuMor.withValues(alpha: 0.25),
+                        kAiKoyuMor.withValues(alpha: 0.6),
+                        kAiKoyuMor.withValues(alpha: 0.25),
                         Colors.transparent,
                       ],
                       stops: const [0.0, 0.5, 1.0],

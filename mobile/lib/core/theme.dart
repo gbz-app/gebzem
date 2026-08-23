@@ -306,3 +306,28 @@ Color kimlikRengi(String id) {
   }
   return palet[h % palet.length];
 }
+
+/// ⚠️⚠️⚠️ TURU 127 — **GEBZEMAI MOR GRADYANI: TEK KAYNAK.**
+///
+///	Kullanici emri: *"gonder ikonu arka plan gradient mor, ana
+///	penceredeki asagidaki mor gradient ile ayni olsun"*.
+///
+///	Renkler onceden `gebzem_ai.dart` icinde **private** duruyordu;
+///	ses kayit seridi (`ses_notu_kaydedici.dart`) onlara ULASAMIYORDU.
+///	Kopyalansaydi kacinilmaz olarak drift ederdi (bu projede alti kez
+///	yasandi) — buraya tasindi.
+///
+/// ⚠️ Ikisi FARKLI ton olmak ZORUNDA: tek renk iki kez kullanilsaydi
+///    ust uste binen bolge yalnizca KOYULASIR, RENK KARISMAZDI —
+///    kullanicinin istedigi "renkler karissin" tam olarak budur.
+const Color kAiParlakMor = Color(0xFF7B3FE4);
+const Color kAiKoyuMor = Color(0xFF3B1E7A);
+
+/// ⚠️ Ekrandaki radyal parlamalar SOL-ALTTAN saga yukari acilir; daire
+///    de AYNI yonu izler (`bottomLeft` -> `topRight`), yoksa kucuk daire
+///    zeminin AYNASI gibi durur ve yan yana uyumsuz gorunur.
+const LinearGradient kAiMorGradient = LinearGradient(
+  begin: Alignment.bottomLeft,
+  end: Alignment.topRight,
+  colors: [kAiParlakMor, kAiKoyuMor],
+);
