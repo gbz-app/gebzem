@@ -104,6 +104,23 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
   final _odak = FocusNode();
   final _mesajlar = <_Mesaj>[];
   File? _eklenen;
+
+  /// ⚠️⚠️⚠️ TURU 127 — **GORSEL ARTIK SECILIR SECILMEZ HAZIRLANIR**
+  ///	(kullanici emri: *"resim eklenirken loading olsun ortada, resim
+  ///	eklenmeden hafif karanlik olsun, eklendiginde normal rengine
+  ///	donsun"*).
+  ///
+  ///	Onceden `gorseliHazirla` (EXIF/GPS temizligi + sikistirma)
+  ///	**GONDER ANINDA** kosuyordu: kullanici onizlemeyi hazir sanip
+  ///	gonderiyor, sonra saniyelerce bekliyordu. Artik is ONDE yapilir
+  ///	ve ekranda GORUNUR.
+  ///
+  /// ⚠️ Sunucu EXIF`te GPS bulursa **422** doner — temizlik atlanabilir
+  ///    bir adim DEGIL.
+  /// ⚠️ Hazirlik BASARISIZ olursa gorsel DUSURULUR ve kullaniciya
+  ///    soylenir; sessizce hazirlanmamis dosya gondermek 422 uretirdi.
+  File? _eklenenHazir;
+  bool _gorselHazirlaniyor = false;
   bool _calisiyor = false;
 
   @override
@@ -152,7 +169,41 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
       MedyaKapisi.pickerAcik = false;
     }
     if (x == null || !mounted) return;
-    setState(() => _eklenen = File(x!.path));
+    final dosya = File(x.path);
+    setState(() {
+      _eklenen = dosya;
+      _eklenenHazir = null;
+      _gorselHazirlaniyor = true;
+    });
+    File? hazir;
+    try {
+      hazir = await MedyaServisi.gorseliHazirla(dosya);
+    } catch (_) {
+      hazir = null;
+    }
+    // ⚠️ Canlilik kapisi: hazirlik surerken ekrandan cikilmis olabilir.
+    if (!mounted) return;
+    // ⚠️⚠️ **KIMLIK KAPISI:** kullanici bu arada gorseli SILMIS ya da
+    //	BASKA bir gorsel secmis olabilir. `_eklenen` degistiyse bu
+    //	sonuc BAYATTIR — yazilirsa ekrandaki gorselle GONDERILEN dosya
+    //	ayrisirdi.
+    if (_eklenen != dosya) return;
+    if (hazir == null) {
+      setState(() {
+        _eklenen = null;
+        _gorselHazirlaniyor = false;
+      });
+      rootMessengerKey.currentState
+        ?..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(content: Text('Görsel hazırlanamadı.')),
+        );
+      return;
+    }
+    setState(() {
+      _eklenenHazir = hazir;
+      _gorselHazirlaniyor = false;
+    });
   }
 
   Future<void> _gonder() async {
@@ -166,6 +217,9 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
     final aiSvc = ref.read(aiServisiProvider);
 
     final gorsel = _eklenen;
+    // ⚠️ Yukleme icin HAZIRLANMIS dosya kullanilir; `gorsel` yalniz
+    //    ekranda gosterilen ORIJINALDIR (balonda o cizilir).
+    final gorselHazir = _eklenenHazir;
     // ⚠️ Gecmis GONDERILEN MESAJDAN ONCEKI hali olmali: yeni mesaj `metin`
     //    alaniyla ayrica gidiyor, gecmise de eklenirse IKI KEZ gonderilirdi.
     final gecmis = [
@@ -178,17 +232,18 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
       _mesajlar.add(_Mesaj(benim: true, metin: metin, gorsel: gorsel));
       _yazac.clear();
       _eklenen = null;
+      _eklenenHazir = null;
       _calisiyor = true;
     });
     _dibeKaydir();
 
     try {
       var mediaId = '';
-      if (gorsel != null) {
-        final hazir = await MedyaServisi.gorseliHazirla(gorsel);
-        if (hazir == null) throw Exception('Görsel hazırlanamadı');
+      if (gorselHazir != null) {
+        // ⚠️ Hazirlik (EXIF temizligi) ARTIK BURADA DEGIL — secim
+        //    aninda yapildi ve ekranda gosterildi.
         mediaId = await medyaSvc.yukle(
-          dosya: hazir,
+          dosya: gorselHazir,
           kind: 'image',
           mime: 'image/jpeg',
         );
@@ -801,6 +856,7 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
     setState(() {
       _mesajlar.clear();
       _eklenen = null;
+      _eklenenHazir = null;
     });
   }
 
@@ -938,44 +994,10 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // ---- EKLENEN FOTOGRAF ONIZLEMESI
-          if (_eklenen != null)
-            Align(
-              alignment: AlignmentDirectional.centerStart,
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: Image.file(
-                        _eklenen!,
-                        width: 62,
-                        height: 62,
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                    // ⚠️ Kaldirma dugmesi 28 dp: turu 78b'de 17 dp olcusu
-                    //    "dokunulamiyor" diye duzeltilmisti.
-                    Positioned(
-                      right: -8,
-                      top: -8,
-                      child: IconButton(
-                        iconSize: 16,
-                        constraints: const BoxConstraints(
-                          minWidth: 28,
-                          minHeight: 28,
-                        ),
-                        padding: EdgeInsets.zero,
-                        icon: const Icon(LucideIcons.circleX),
-                        onPressed: () => setState(() => _eklenen = null),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+          // ⚠️⚠️ TURU 127 — onizleme kutunun **DISINDAN ICINE** tasindi
+          //	(kullanici emri: *"resim eklendiginde inputun EN USTUNE
+          //	eklenecek, yazi altindan devam edecek"*). Bkz.
+          //	`_eklenenOnizleme`.
           // ⚠️⚠️⚠️ TURU 117 — GIRIS ALANI YENIDEN KURULDU (kullanici emri:
           //	*"alttaki gorsel iconu daha guzel icon yap, BUNLAR INPUTUN
           //	ICINDE OLSUN, gonderde ikisi de inputun icinde ALTINDA
@@ -1061,6 +1083,105 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
     ),
   );
 
+  /// ⚠️⚠️⚠️ TURU 127 — **EKLENEN GORSEL GIRIS KUTUSUNUN ICINDE, EN USTTE**
+  ///	(kullanici emri: *"resim eklendiginde inputun en ustune
+  ///	eklenecek, yazi altindan devam edecek ... resim eklenirken
+  ///	loading olsun ortada, resim eklenmeden hafif karanlik olsun,
+  ///	eklendiginde normal rengine donsun, saginda beyaz daire icinde
+  ///	x olsun"*).
+  ///
+  ///	Onceden onizleme kutunun **DISINDA**, ustunde ayri bir satirda
+  ///	duruyordu; gorsel ile yazinin AYNI mesaja ait oldugu belli
+  ///	degildi.
+  ///
+  /// ⚠️ **KARANLIK ORTU + LOADING** yalniz `_gorselHazirlaniyor` iken:
+  ///    hazirlik (EXIF/GPS temizligi + sikistirma) buyuk fotograflarda
+  ///    saniyeler surer ve o sure boyunca ekranda HICBIR IZ YOKTU.
+  /// ⚠️ Ortu `Positioned.fill` + AYNI yaricapla kirpilir; kirpilmasaydi
+  ///    yuvarlak kosenin disinda kare bir golge kalirdi.
+  /// ⚠️ X **beyaz daire icinde SIYAH** (kullanici emri): gorsel her renkte
+  ///    olabilir, ciplak beyaz bir X acik bir fotografta KAYBOLURDU.
+  /// ⚠️ Dokunma alani 30 dp: turu 78b`de 17 dp olcusu "dokunulamiyor"
+  ///    diye duzeltilmisti.
+  Widget _eklenenOnizleme() {
+    const kose = 14.0;
+    return Align(
+      alignment: AlignmentDirectional.centerStart,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 14, 14, 2),
+        child: SizedBox(
+          width: 78,
+          height: 78,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(kose),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Image.file(_eklenen!, fit: BoxFit.cover),
+                    // ── HAZIRLANIRKEN: KARARTMA + ORTADA LOADING ──
+                    if (_gorselHazirlaniyor) ...[
+                      Positioned.fill(
+                        child: ColoredBox(
+                          color: Colors.black.withValues(alpha: 0.45),
+                        ),
+                      ),
+                      const Center(
+                        child: SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.2,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              // ── SIL (SAG UST) ──
+              Positioned(
+                right: -9,
+                top: -9,
+                child: GestureDetector(
+                  onTap: () => setState(() {
+                    _eklenen = null;
+                    _eklenenHazir = null;
+                    // ⚠️ Bayrak da DUSURULUR: hazirlik ucusta olabilir ve
+                    //    kimlik kapisi sonucu atacak; bayrak asili kalirsa
+                    //    gonder dugmesi KALICI KILITLENIRDI.
+                    _gorselHazirlaniyor = false;
+                  }),
+                  child: Container(
+                    width: 30,
+                    height: 30,
+                    alignment: Alignment.center,
+                    child: Container(
+                      width: 22,
+                      height: 22,
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        LucideIcons.x,
+                        size: 14,
+                        color: Colors.black,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   /// Tek parca giris kutusu: ustte yazi, altta eylem satiri.
   ///
   /// ⚠️ Kenarlik ODAKTA marka rengine doner (`_odak`): kullanici emri
@@ -1093,12 +1214,16 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // ── YAZI (USTTE) ──
+          // ── EKLENEN GORSEL (EN USTTE, KUTUNUN ICINDE) ──
+          if (_eklenen != null) _eklenenOnizleme(),
+          // ── YAZI ──
           GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTap: () => _odak.requestFocus(),
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(18, 14, 18, 2),
+              // ⚠️ Gorsel varken ust dolgu KUCULUR: onizleme zaten 14 dp
+              //    ustten bosluk birakiyor, ikisi ust uste 28 dp yapardi.
+              padding: EdgeInsets.fromLTRB(18, _eklenen != null ? 4 : 14, 18, 2),
               child: TextField(
                 controller: _yazac,
                 focusNode: _odak,
@@ -1266,7 +1391,12 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
 
   Widget _gonderDugmesi(ColorScheme scheme) {
     final hazir =
-        !_calisiyor && (_yazac.text.trim().isNotEmpty || _eklenen != null);
+        !_calisiyor &&
+        // ⚠️⚠️ Gorsel HAZIRLANIRKEN gonderilemez: hazir dosya henuz YOK
+        //	ve gonderilseydi gorsel SESSIZCE dusurulur, kullanici
+        //	ekledigi fotografin gittigini sanirdi.
+        !_gorselHazirlaniyor &&
+        (_yazac.text.trim().isNotEmpty || _eklenen != null);
     return Semantics(
       button: true,
       label: 'Gönder',
