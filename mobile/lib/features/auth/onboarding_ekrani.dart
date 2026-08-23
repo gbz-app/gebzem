@@ -294,6 +294,14 @@ class _SayfaGorunumu extends StatelessWidget {
                 height: ustBoy,
                 width: double.infinity,
                 child: Column(
+                  // ⚠️⚠️ TURU 127 — **ICERIK BLOGUN ALTINA HIZALI.**
+                  //	Blok iki satirlik SABIT yer kapliyor (hizalama icin);
+                  //	ust hizali olsaydi TEK SATIRLIK basliklarda altta bir
+                  //	satirlik BOSLUK kalir ve yazi ile telefon arasi ~43 px
+                  //	gorunurdu — kullanici "bosluk fazla" dedigi seydi.
+                  //	Artik kisa baslik ASAGI iner: bosluk USTE kayar,
+                  //	telefonla arasi HER SAYFADA 6 px kalir.
+                  mainAxisAlignment: MainAxisAlignment.end,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
@@ -321,8 +329,11 @@ class _SayfaGorunumu extends StatelessWidget {
                 ),
               ),
             ),
-            // ⚠️ TURU 127 — yazi-telefon araligi **%20 AZALDI** (22 -> 18).
-            const SizedBox(height: 18),
+            // ⚠️ TURU 127 — yazi-telefon araligi: 22 -> 18 (%20) -> **6**
+            //    (kullanici 18 i de fazla buldu). Sifir YAPILMADI: kalin
+            //    baslik ile cerceve YAPISIK durur ve metin cerceveye
+            //    degiyormus gibi okunurdu.
+            const SizedBox(height: 6),
             // ⚠️⚠️ `Expanded` + `bottomCenter`: cerceve KALAN alanin DIBINE
             //	oturur. `ClipRect` + `OverflowBox` ile alttan tasar — "cepten
             //	cikan telefon" dili ve tasma KASITLI.
