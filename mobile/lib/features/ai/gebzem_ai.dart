@@ -484,7 +484,8 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
           style: const TextStyle(
             fontSize: 27,
             height: 1.3,
-            fontWeight: FontWeight.w500,
+            // ⚠️ TURU 127 — w500 -> **w600** (kullanici: 1 tik daha kalin).
+            fontWeight: FontWeight.w600,
             color: Colors.white,
           ),
         ),
@@ -526,7 +527,10 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
                   if (m.metin.isNotEmpty) const SizedBox(height: 8),
                 ],
                 if (m.metin.isNotEmpty)
-                  Text(m.metin, style: const TextStyle(fontSize: 15)),
+                  // ⚠️ TURU 127 — **`SelectableText`** (kullanici emri:
+                  //    *"bizim attigimiz mesajlarda kopyalayabilmesi
+                  //    gerekiyor"*). Duz `Text` uzun basmayi HIC almiyordu.
+                  SelectableText(m.metin, style: const TextStyle(fontSize: 15)),
               ],
             ),
           ),
@@ -548,25 +552,11 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
             m.metin,
             style: const TextStyle(fontSize: 15, height: 1.42),
           ),
-          const SizedBox(height: 4),
-          // ⚠️ KOPYALA: uzun yanitlari elle secmek zor; tek dokunusla panoya.
-          Align(
-            alignment: AlignmentDirectional.centerStart,
-            child: TextButton.icon(
-              onPressed: () {
-                Clipboard.setData(ClipboardData(text: m.metin));
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(const SnackBar(content: Text('Kopyalandı')));
-              },
-              style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 6),
-                visualDensity: VisualDensity.compact,
-              ),
-              icon: const Icon(LucideIcons.copy, size: 14),
-              label: const Text('Kopyala', style: TextStyle(fontSize: 12.5)),
-            ),
-          ),
+          // ⚠️⚠️ TURU 127 — **"Kopyala" DUGMESI KALDIRILDI** (kullanici
+          //	emri). Yanit zaten `SelectableText`: uzun basip secmek ve
+          //	sistemin KENDI kopyala menusunu kullanmak MUMKUN — islev
+          //	kaybolmadi, yalnizca her yanitin altindaki tekrar eden
+          //	dugme gitti.
         ],
       ),
     );
@@ -979,6 +969,8 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
           if (_sesKayitta)
             SesNotuKaydedici(
               key: _sesAnahtar,
+              // ⚠️ TURU 127 — GebzemAI ekraninda KOYU serit (kullanici emri).
+              koyu: true,
               onKayit: _sesKaydiGeldi,
               onDurum: (k) => setState(() => _sesKayitta = k),
             )
@@ -1032,6 +1024,12 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
                 focusNode: _odak,
                 minLines: 1,
                 maxLines: 5,
+                // ⚠️⚠️ TURU 127 — **CUMLE BASI BUYUK HARF** (kullanici:
+                //	*"mesaja baslarken kucuk harfle basliyor, Gemini gibi
+                //	uygulamalarda buyuk"*). Sebep BIZDEYDI: Flutter`in
+                //	varsayilani `TextCapitalization.none` — klavyeye "cumle
+                //	basi buyut" ipucu HIC gonderilmiyordu.
+                textCapitalization: TextCapitalization.sentences,
                 textInputAction: TextInputAction.newline,
                 keyboardType: TextInputType.multiline,
                 onChanged: (_) => setState(() {}),
@@ -1085,6 +1083,8 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
                   height: 44,
                   child: SesNotuKaydedici(
                     key: _sesAnahtar,
+                    // ⚠️ TURU 127 — GebzemAI ekraninda KOYU serit (kullanici emri).
+                    koyu: true,
                     onKayit: _sesKaydiGeldi,
                     onDurum: (k) => setState(() => _sesKayitta = k),
                   ),

@@ -39,6 +39,7 @@ class SesNotuKaydedici extends ConsumerStatefulWidget {
     super.key,
     required this.onKayit,
     this.onDurum,
+    this.koyu = false,
   });
 
   /// (dosya, süreMs, dalgaFormu) — kaydedici GÖNDERMEZ, çağırana verir.
@@ -52,6 +53,16 @@ class SesNotuKaydedici extends ConsumerStatefulWidget {
   /// düğmesini GİZLEMESİ gerekiyor — aksi halde şerit dar bir Row hücresine
   /// sıkışırdı.
   final void Function(bool kayitta)? onDurum;
+
+  /// ⚠️⚠️ TURU 127 — **KOYU SERIT** (GebzemAI ekrani icin).
+  ///
+  ///	Kullanici emri: *"arka plan siyah olacak, cop kutusu yerine X
+  ///	isareti olsun arkasi daire, gonder ikonu saga dogru ok"*.
+  ///
+  /// ⚠️ Sohbet tarafi DEGISMEDI (`koyu: false`): orada serit MOR ve cop
+  ///    kutusu duruyor. Tek bilesen, IKI GORUNUM — ikinci bir kopya
+  ///    acmak kacinilmaz olarak drift ederdi.
+  final bool koyu;
 
   @override
   ConsumerState<SesNotuKaydedici> createState() => _SesNotuKaydediciState();
@@ -106,19 +117,22 @@ class _SesNotuKaydediciState extends ConsumerState<SesNotuKaydedici> {
 
     final izin = await Permission.microphone.request();
     if (izin != PermissionStatus.granted) {
-      rootMessengerKey.currentState?.showSnackBar(const SnackBar(
-          content: Text('Sesli mesaj için mikrofon izni gerekli')));
+      rootMessengerKey.currentState?.showSnackBar(
+        const SnackBar(content: Text('Sesli mesaj için mikrofon izni gerekli')),
+      );
       return;
     }
     // ⚠️ İzin diyaloğu açıkken arama gelmiş olabilir — İKİNCİ KAPI.
     if (!MedyaKapisi.donanimSerbest(ref)) return;
 
     final dizin = await getTemporaryDirectory();
-    final yol = '${dizin.path}/gz_ses_${DateTime.now().microsecondsSinceEpoch}.m4a';
+    final yol =
+        '${dizin.path}/gz_ses_${DateTime.now().microsecondsSinceEpoch}.m4a';
     try {
       await _kaydedici.start(
         const RecordConfig(
-          encoder: AudioEncoder.aacLc, // ⚠️ opus DEĞİL (Android 29+ ister, minSdk 24)
+          encoder: AudioEncoder
+              .aacLc, // ⚠️ opus DEĞİL (Android 29+ ister, minSdk 24)
           bitRate: 32000,
           sampleRate: 44100,
           numChannels: 1,
@@ -131,7 +145,8 @@ class _SesNotuKaydediciState extends ConsumerState<SesNotuKaydedici> {
       );
     } catch (e) {
       rootMessengerKey.currentState?.showSnackBar(
-          SnackBar(content: Text('Kayıt başlatılamadı: $e')));
+        SnackBar(content: Text('Kayıt başlatılamadı: $e')),
+      );
       return;
     }
 
@@ -154,9 +169,11 @@ class _SesNotuKaydediciState extends ConsumerState<SesNotuKaydedici> {
       await _durdur(gonder: false, taslak: true);
     });
 
-    unawaited(Vibration.hasVibrator().then((v) {
-      if (v == true) Vibration.vibrate(duration: 30);
-    }));
+    unawaited(
+      Vibration.hasVibrator().then((v) {
+        if (v == true) Vibration.vibrate(duration: 30);
+      }),
+    );
 
     _dalga.clear();
     _ms = 0;
@@ -171,30 +188,30 @@ class _SesNotuKaydediciState extends ConsumerState<SesNotuKaydedici> {
     _genlikSub = _kaydedici
         .onAmplitudeChanged(const Duration(milliseconds: 100))
         .listen((a) {
-      // dBFS (-160..0) -> 0..99
-      final n = ((a.current + 45) / 45 * 99).clamp(0, 99).toInt();
-      // ⚠️⚠️ TAVANA VURUNCA **KAYAN PENCERE** (denetim bulgusu). Eskiden
-      //    `if (_dalga.length < 600) add(n)` idi: 600 kova = 60 saniye, yani
-      //    60. saniyeden sonra liste BUYUMEYI DURDURUYOR, `shouldRepaint`
-      //    hicbir degisiklik gormuyor ve **canli dalga DONUYORDU** — sayac
-      //    akmaya devam ettigi icin kullanici "kayit bozuldu" sanardi
-      //    (kayit 10 dakikaya kadar surebiliyor).
-      // ⚠️ En eski kova atilir: dalga zaten SON kovalari gosteriyor, yani
-      //    atilan veri ekranda ZATEN gorunmuyordu. Sunucuya giden 60 kovalik
-      //    ozet de son pencereden turer — kayit uzadikca ozet SON kismi
-      //    temsil eder ki bu, donmus bir dalgadan durusttur.
-      _dalga.add(n);
-      if (_dalga.length > 600) _dalga.removeAt(0);
-      // ⚠️⚠️ TURU 81 — CANLI DALGA. Genlik turu 74'ten beri OKUNUYORDU ama
-      //    YALNIZCA sunucuya gönderilmek üzere biriktiriliyordu; kayıt
-      //    sırasında HİÇBİR ŞEY çizilmiyordu (kullanıcının tek geri bildirimi
-      //    mikrofon ikonunun yeşile dönmesiydi ve o da fark edilmiyordu).
-      //    Kullanıcı bu yüzden "ses paylaşma YOK" dedi — özellik vardı ama
-      //    GÖRÜNMÜYORDU.
-      // ⚠️ `setState` BURADA: sayaç zaten 100ms'de bir çiziyor, yani ek maliyet
-      //    yok; ayrı bir tik eklemek gereksiz kare üretirdi.
-      if (mounted) setState(() {});
-    });
+          // dBFS (-160..0) -> 0..99
+          final n = ((a.current + 45) / 45 * 99).clamp(0, 99).toInt();
+          // ⚠️⚠️ TAVANA VURUNCA **KAYAN PENCERE** (denetim bulgusu). Eskiden
+          //    `if (_dalga.length < 600) add(n)` idi: 600 kova = 60 saniye, yani
+          //    60. saniyeden sonra liste BUYUMEYI DURDURUYOR, `shouldRepaint`
+          //    hicbir degisiklik gormuyor ve **canli dalga DONUYORDU** — sayac
+          //    akmaya devam ettigi icin kullanici "kayit bozuldu" sanardi
+          //    (kayit 10 dakikaya kadar surebiliyor).
+          // ⚠️ En eski kova atilir: dalga zaten SON kovalari gosteriyor, yani
+          //    atilan veri ekranda ZATEN gorunmuyordu. Sunucuya giden 60 kovalik
+          //    ozet de son pencereden turer — kayit uzadikca ozet SON kismi
+          //    temsil eder ki bu, donmus bir dalgadan durusttur.
+          _dalga.add(n);
+          if (_dalga.length > 600) _dalga.removeAt(0);
+          // ⚠️⚠️ TURU 81 — CANLI DALGA. Genlik turu 74'ten beri OKUNUYORDU ama
+          //    YALNIZCA sunucuya gönderilmek üzere biriktiriliyordu; kayıt
+          //    sırasında HİÇBİR ŞEY çizilmiyordu (kullanıcının tek geri bildirimi
+          //    mikrofon ikonunun yeşile dönmesiydi ve o da fark edilmiyordu).
+          //    Kullanıcı bu yüzden "ses paylaşma YOK" dedi — özellik vardı ama
+          //    GÖRÜNMÜYORDU.
+          // ⚠️ `setState` BURADA: sayaç zaten 100ms'de bir çiziyor, yani ek maliyet
+          //    yok; ayrı bir tik eklemek gereksiz kare üretirdi.
+          if (mounted) setState(() {});
+        });
   }
 
   Future<void> _durdur({required bool gonder, bool taslak = false}) async {
@@ -221,10 +238,14 @@ class _SesNotuKaydediciState extends ConsumerState<SesNotuKaydedici> {
       }
       if (taslak && dosya != null && sure >= 1000 && mounted) {
         // ⚠️ Arama yüzünden kesildi: kayıt SİLİNMEZ, kullanıcıya sunulur.
-        rootMessengerKey.currentState?.showSnackBar(const SnackBar(
-          duration: Duration(seconds: 4),
-          content: Text('Görüşme başladı, kayıt durduruldu. Kaydınız taslakta.'),
-        ));
+        rootMessengerKey.currentState?.showSnackBar(
+          const SnackBar(
+            duration: Duration(seconds: 4),
+            content: Text(
+              'Görüşme başladı, kayıt durduruldu. Kaydınız taslakta.',
+            ),
+          ),
+        );
         widget.onKayit(dosya, sure, _dalgaMetni());
       }
       return;
@@ -234,9 +255,12 @@ class _SesNotuKaydediciState extends ConsumerState<SesNotuKaydedici> {
       try {
         await dosya.delete();
       } catch (_) {}
-      rootMessengerKey.currentState?.showSnackBar(const SnackBar(
+      rootMessengerKey.currentState?.showSnackBar(
+        const SnackBar(
           duration: Duration(seconds: 2),
-          content: Text('Sesli mesaj için basılı tutun')));
+          content: Text('Sesli mesaj için basılı tutun'),
+        ),
+      );
       return;
     }
     widget.onKayit(dosya, sure, _dalgaMetni());
@@ -264,13 +288,16 @@ class _SesNotuKaydediciState extends ConsumerState<SesNotuKaydedici> {
     _genlikSub?.cancel();
     SesNotuKontrol.kapat(_sahip);
     if (_kayitta) {
-      _kaydedici.stop().then((y) {
-        if (silinsin && y != null) {
-          try {
-            File(y).deleteSync();
-          } catch (_) {}
-        }
-      }).catchError((_) => null);
+      _kaydedici
+          .stop()
+          .then((y) {
+            if (silinsin && y != null) {
+              try {
+                File(y).deleteSync();
+              } catch (_) {}
+            }
+          })
+          .catchError((_) => null);
     }
   }
 
@@ -330,16 +357,16 @@ class _SesNotuKaydediciState extends ConsumerState<SesNotuKaydedici> {
   ///    bağdaşmıyor. Gerekirse önce şeridi mikrofonun ÜSTÜNDE ayrı bir katman
   ///    yap, düğmeyi ağaçta BIRAK.
   Widget _mikrofonDugmesi() => GestureDetector(
-        onTap: _basla,
-        child: Container(
-          // ⚠️ 44dp dokunma alanı (Material 48 / Apple 44). Turu 78b'de
-          //    17x17dp bir düğme yüzünden özellik fiilen ulaşılamazdı.
-          width: 44,
-          height: 44,
-          alignment: Alignment.center,
-          child: const Icon(LucideIcons.mic),
-        ),
-      );
+    onTap: _basla,
+    child: Container(
+      // ⚠️ 44dp dokunma alanı (Material 48 / Apple 44). Turu 78b'de
+      //    17x17dp bir düğme yüzünden özellik fiilen ulaşılamazdı.
+      width: 44,
+      height: 44,
+      alignment: Alignment.center,
+      child: const Icon(LucideIcons.mic),
+    ),
+  );
 
   /// Kayıt şeridi — giriş çubuğunun YERİNE geçer (Instagram deseni).
   ///
@@ -350,20 +377,49 @@ class _SesNotuKaydediciState extends ConsumerState<SesNotuKaydedici> {
   ///    duran bir sayaç aynı anda olamaz).
   Widget _kayitSeridi(BuildContext context) {
     final mor = Theme.of(context).colorScheme.primary;
+    // ⚠️⚠️ TURU 127 — **IKI GORUNUM, TEK BILESEN** (kullanici emri).
+    //	· sohbet (`koyu: false`): MOR serit, cop kutusu, beyaz daire
+    //	  icinde mor `send`
+    //	· GebzemAI (`koyu: true`): SIYAH serit, `X` (arkasi soluk daire),
+    //	  MOR daire icinde beyaz SAGA OK
+    // ⚠️ Renkler seride gore KISILDI: siyah zeminde beyazin tamami
+    //    "yanik" duruyordu; ikonlar %85, daireler %12 opaklikta.
+    final zemin = widget.koyu ? const Color(0xFF0E0B18) : mor;
+    final onRenk = Colors.white;
     return Container(
       height: 48,
       padding: const EdgeInsets.symmetric(horizontal: 6),
       decoration: BoxDecoration(
-        color: mor,
+        color: zemin,
         borderRadius: BorderRadius.circular(24),
       ),
       child: Row(
         children: [
-          IconButton(
-            tooltip: 'Kaydı sil',
-            icon: const Icon(LucideIcons.trash2, color: Colors.white, size: 20),
-            onPressed: () => _durdur(gonder: false),
-          ),
+          // ── IPTAL ──
+          if (widget.koyu)
+            GestureDetector(
+              onTap: () => _durdur(gonder: false),
+              child: Container(
+                width: 36,
+                height: 36,
+                margin: const EdgeInsets.only(right: 2),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: onRenk.withValues(alpha: 0.12),
+                ),
+                child: Icon(
+                  LucideIcons.x,
+                  size: 18,
+                  color: onRenk.withValues(alpha: 0.85),
+                ),
+              ),
+            )
+          else
+            IconButton(
+              tooltip: 'Kaydı sil',
+              icon: Icon(LucideIcons.trash2, color: onRenk, size: 20),
+              onPressed: () => _durdur(gonder: false),
+            ),
           Expanded(
             child: CustomPaint(
               painter: _DalgaCizer(_dalga),
@@ -373,27 +429,33 @@ class _SesNotuKaydediciState extends ConsumerState<SesNotuKaydedici> {
           const SizedBox(width: 8),
           Text(
             _sureMetni,
-            style: const TextStyle(
-              color: Colors.white,
+            style: TextStyle(
+              color: onRenk.withValues(alpha: widget.koyu ? 0.85 : 1.0),
               fontWeight: FontWeight.w700,
               fontSize: 13,
               // ⚠️ Sabit genişlikli rakam: sayaç ilerlerken dalga SAĞA SOLA
               //    OYNAMASIN (0:09 -> 0:10 geçişinde bir piksel kayardı).
-              fontFeatures: [FontFeature.tabularFigures()],
+              fontFeatures: const [FontFeature.tabularFigures()],
             ),
           ),
           const SizedBox(width: 6),
-          // ⚠️ GÖNDER: beyaz daire içinde mor ok (ekran görüntüsündeki gibi).
+          // ── GÖNDER ──
           GestureDetector(
             onTap: () => _durdur(gonder: true),
             child: Container(
               width: 36,
               height: 36,
-              decoration: const BoxDecoration(
-                color: Colors.white,
+              decoration: BoxDecoration(
+                color: widget.koyu ? mor : Colors.white,
                 shape: BoxShape.circle,
               ),
-              child: Icon(LucideIcons.send, size: 17, color: mor),
+              child: Icon(
+                // ⚠️ Koyu surumde SAGA OK (kullanici emri); sohbette
+                //    `send` kagit ucagi KALIYOR.
+                widget.koyu ? LucideIcons.arrowRight : LucideIcons.send,
+                size: widget.koyu ? 19 : 17,
+                color: widget.koyu ? Colors.white : mor,
+              ),
             ),
           ),
         ],
