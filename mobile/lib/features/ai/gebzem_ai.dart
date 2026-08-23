@@ -330,14 +330,22 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
             ),
             actions: [
-              if (acik && _mesajlar.isNotEmpty)
+              // ⚠️⚠️ TURU 127 — dugme artik **HER ZAMAN CIZILIYOR**
+              //	(kullanici: *"en saga yeni sohbet iconu kaldirmissin"*).
+              //	Kosul `_mesajlar.isNotEmpty` idi: bos sohbette dugme HIC
+              //	cizilmiyordu ve kullanici onu KALDIRILMIS saniyordu.
+              // ⚠️ Bos sohbette **PASIF** (soluk): temizlenecek bir sey yok.
+              //    Gorunur ama etkisiz olmasi, hic olmamasindan durust —
+              //    dugmenin nerede oldugu ogrenilebiliyor.
+              if (acik)
                 IconButton(
                   tooltip: 'Yeni sohbet',
-                  // ⚠️ TURU 127 — `squarePen` -> **`plus`** (kullanici: *"daha
-                  //    basit bir icon olsun"*). Kare+kalem cizimi kucuk
-                  //    olcude karisik duruyordu; "yeni sohbet" = artı.
-                  icon: const Icon(LucideIcons.plus),
-                  onPressed: _calisiyor
+                  // ⚠️ TURU 127 — `squarePen` -> **`penLine`** (kullanici:
+                  //    *"daha basit bir icon"*). `plus` DENENDI ve
+                  //    BIRAKILDI: giris alanindaki fotograf `+` ile BIREBIR
+                  //    ayni cizimdi, iki farkli is ayni ikonla anlatiliyordu.
+                  icon: const Icon(LucideIcons.penLine),
+                  onPressed: (_calisiyor || _mesajlar.isEmpty)
                       ? null
                       : () => setState(() {
                           _mesajlar.clear();
