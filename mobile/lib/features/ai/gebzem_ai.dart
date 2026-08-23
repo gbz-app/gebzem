@@ -2,15 +2,12 @@ library;
 
 import 'dart:io';
 import 'dart:async';
-import 'dart:ui' show FontFeature;
-import 'package:path_provider/path_provider.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
-import 'package:record/record.dart';
 
 import '../../core/api.dart';
 import '../../core/theme.dart' show morLogo;
@@ -19,6 +16,7 @@ import '../../router.dart' show rootMessengerKey;
 import '../isletme/isletme_kart.dart' show kYanBosluk, kYaricap;
 import '../isletme/urun_servisi.dart';
 import '../medya/medya_kapisi.dart';
+import '../medya/ses_notu_kaydedici.dart';
 import '../medya/medya_servisi.dart';
 
 /// ⚠️⚠️⚠️ TURU 111 — **GEBZEMAI SOHBET EKRANI** (kullanici emri: *"gebzemai
@@ -755,30 +753,51 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
     return onay == true;
   }
 
-  /// ⚠️⚠️⚠️ TURU 127 — **ALTTAN CIKAN SES KAYIT PANELI** (kullanici emri:
-  ///	*"ses tikladigimizda ses ekrani da alttan ciksin, cop kutusu, ses
-  ///	kaydetmeyi de ayarla"*).
+  /// ⚠️⚠️⚠️ TURU 127 — **SES KAYDI SOHBETTEKI ARAYUZLE AYNI** (kullanici
+  ///	emri: *"sosyalde ses kaydina basladigimiz gibi arayuz yapsana"*).
   ///
-  /// ⚠️⚠️ **DURUST SINIR — PANELDE DE YAZILI:** kayit GERCEKTEN aliniyor
-  ///	(sohbetteki ses notuyla AYNI altyapi) ama **GONDERILEMIYOR**:
-  ///	sunucuda sesi metne ceviren bir uc YOK (`/ai/danisma` yalniz
-  ///	metin + gorsel alir). Panel kaydi alir, sureyi gosterir ve
-  ///	"henuz gonderilemiyor" der; dosya HICBIR YERE yuklenmez.
-  /// ⚠️ CLAUDE.md kural 9: karsiligi olmayan bir form istenirse arayuz
-  ///    YAPILIR, deger EKRANDA TUTULUR, sunucuya GONDERILMEZ ve bekleyen
-  ///    is listeye yazilir. **BEKLEYEN: `/ai/ses` ucu + STT.**
+  ///	Alttan cikan panel KALDIRILDI. Artik mikrofona dokununca giris
+  ///	kutusunun **YERINE** mor kayit seridi geciyor:
+  ///	`[cop] ~~~canli dalga~~~ 0:07 [gonder]` — sohbetteki ses notuyla
+  ///	BIREBIR ayni bilesen (`SesNotuKaydedici`).
+  ///
+  /// ⚠️⚠️ **TASARIM KOPYALANMADI, BILESEN YENIDEN KULLANILDI.** Ikinci
+  ///	bir kopya kacinilmaz olarak DRIFT ederdi (bu projede alti kez
+  ///	yasandi); ustelik canli dalga cizeri ve genlik olcumu orada
+  ///	ZATEN dogrulanmis durumda.
+  ///
+  /// ⚠️⚠️ **DURUST SINIR:** kayit GERCEKTEN aliniyor ama
+  ///	**GONDERILEMIYOR** — sunucuda sesi metne ceviren uc YOK
+  ///	(`/ai/danisma` yalniz metin + gorsel alir). Gonder`e basilinca
+  ///	dosya SILINIR ve durustce "sesli soru henuz gonderilemiyor"
+  ///	denir. **BEKLEYEN IS: `/ai/ses` ucu + STT.**
   /// ⚠️ YAPMA: kaydi `/ai/danisma`ya gorsel gibi gondermeye calisma —
   ///    uc `kind` beyaz listesinde ses YOK, 400 doner.
-  Future<void> _sesPaneliAc() async {
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: const Color(0xFF15121F),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (c) => const _SesPaneli(),
-    );
+  ///
+  /// ⚠️⚠️ `GlobalKey` ZORUNLU: kaydedici kayit basladiginda AGACTA
+  ///	BASKA BIR KONUMA gecer (giris kutusunun icinden, kutunun
+  ///	YERINE). Anahtar olmasaydi element yeniden kullanilamaz, State
+  ///	SIFIRLANIR ve kayit ANINDA olurdu.
+  final _sesAnahtar = GlobalKey();
+
+  /// Kayit surerken giris kutusu CIZILMEZ.
+  bool _sesKayitta = false;
+
+  /// ⚠️ Kayit HER DURUMDA silinir: gonderilecek yer YOK, dosyayi diskte
+  ///    birakmak sessiz bir sizinti olurdu.
+  void _sesKaydiGeldi(File dosya, int sureMs, String dalga) {
+    try {
+      if (dosya.existsSync()) dosya.deleteSync();
+    } catch (_) {}
+    rootMessengerKey.currentState
+      ?..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Sesli soru henüz gönderilemiyor. Kayıt cihazından silindi.',
+          ),
+        ),
+      );
   }
 
   /// ⚠️⚠️ TURU 127 — **YUKLENIYOR: UC DAIRE** (kullanici emri: *"o
@@ -913,44 +932,58 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
           //	kaydedilmez" bilgisi tam da KONUSURKEN gerekli.
           // ⚠️ Ikon 1 tik kalin (dort golgeyle simule) ve yazi 12 -> 14
           //    (kullanici emri).
-          // ⚠️ TURU 127 — uyari **SOLA hizali**, **5 px daha yukarida**
-          //    (10 -> 15) ve yazi 1 tik buyuk (kullanici emri).
-          Padding(
-            padding: const EdgeInsets.fromLTRB(6, 0, 6, 15),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.start,
-              children: [
-                // ⚠️ TURU 127 — **KALINLASTIRMA KALDIRILDI** (kullanici:
-                //    *"icondaki kalinligi dusur"*). Dort golgeli simulasyon
-                //    koyu zeminde ikonu SISMIS gosteriyordu.
-                Icon(
-                  LucideIcons.info,
-                  size: 14,
-                  color: Colors.white.withValues(alpha: 0.45),
-                ),
-                const SizedBox(width: 6),
-                // ⚠️⚠️ TURU 127 — metin **TEK SATIRA** indirildi (kullanici:
-                //	*"yazi tek satirda olsun, alt satira gecmesin, daha
-                //	profesyonel"*). Eski metin 360 dp`de IKI SATIRA sariyordu.
-                // ⚠️ Bilgi KAYBOLMADI: "kaydedilmiyor" zaten "ekrandan
-                //    cikinca gider" demek — ikinci cumle onu TEKRARLIYORDU.
-                // ⚠️ `maxLines: 1` + `ellipsis`: cok buyuk yazi olceginde
-                //    sarmak yerine kirpilir, satir YUKSEKLIGI SABIT kalir.
-                Flexible(
-                  child: Text(
-                    'Bu sohbet kaydedilmiyor.',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 14.5,
-                      color: Colors.white.withValues(alpha: 0.45),
+          // ⚠️ Kayit surerken uyari CIZILMEZ: serit zaten tum satiri
+          //    kapliyor ve iki satir birden alt alta sikisirdi.
+          if (!_sesKayitta)
+            // ⚠️ TURU 127 — uyari **SOLA hizali**, **5 px daha yukarida**
+            //    (10 -> 15) ve yazi 1 tik buyuk (kullanici emri).
+            Padding(
+              padding: const EdgeInsets.fromLTRB(6, 0, 6, 15),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.start,
+                children: [
+                  // ⚠️ TURU 127 — **KALINLASTIRMA KALDIRILDI** (kullanici:
+                  //    *"icondaki kalinligi dusur"*). Dort golgeli simulasyon
+                  //    koyu zeminde ikonu SISMIS gosteriyordu.
+                  Icon(
+                    LucideIcons.info,
+                    size: 14,
+                    color: Colors.white.withValues(alpha: 0.45),
+                  ),
+                  const SizedBox(width: 6),
+                  // ⚠️⚠️ TURU 127 — metin **TEK SATIRA** indirildi (kullanici:
+                  //	*"yazi tek satirda olsun, alt satira gecmesin, daha
+                  //	profesyonel"*). Eski metin 360 dp`de IKI SATIRA sariyordu.
+                  // ⚠️ Bilgi KAYBOLMADI: "kaydedilmiyor" zaten "ekrandan
+                  //    cikinca gider" demek — ikinci cumle onu TEKRARLIYORDU.
+                  // ⚠️ `maxLines: 1` + `ellipsis`: cok buyuk yazi olceginde
+                  //    sarmak yerine kirpilir, satir YUKSEKLIGI SABIT kalir.
+                  Flexible(
+                    child: Text(
+                      'Bu sohbet kaydedilmiyor.',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 14.5,
+                        color: Colors.white.withValues(alpha: 0.45),
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          _girisKutusu(scheme),
+          // ⚠️⚠️ TURU 127 — kayit surerken giris kutusu yerine **SERIT**
+          //	(sohbetteki desen). Kaydedici AYNI `GlobalKey` ile burada
+          //	da cizilir; anahtar olmasaydi State SIFIRLANIR ve kayit
+          //	ANINDA olurdu.
+          if (_sesKayitta)
+            SesNotuKaydedici(
+              key: _sesAnahtar,
+              onKayit: _sesKaydiGeldi,
+              onDurum: (k) => setState(() => _sesKayitta = k),
+            )
+          else
+            _girisKutusu(scheme),
         ],
       ),
     ),
@@ -1043,25 +1076,18 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
                   onPressed: _calisiyor ? null : _gorselSec,
                 ),
                 const Spacer(),
-                // ⚠️⚠️ **MIKROFON: SESLI SORU HENUZ YOK.** Ikon kullanici
-                //	emriyle cizildi ama sesten metne ceviren bir yol
-                //	(ne istemcide ne sunucuda) YOK. Bu yuzden dokunus
-                //	DURUSTCE "yakinda" der — sessizce hicbir sey yapan
-                //	bir dugme "bozuk" diye okunur.
-                // ⚠️ YAPMA: bu bildirimi kaldirip dugmeyi ISLEVSIZ birakma.
-                IconButton(
-                  tooltip: 'Sesli soru',
-                  visualDensity: VisualDensity.compact,
-                  constraints: const BoxConstraints(
-                    minWidth: 40,
-                    minHeight: 40,
+                // ⚠️⚠️ TURU 127 — mikrofon artik `SesNotuKaydedici`nin
+                //	KENDI dugmesi. Kayit baslayinca ayni bilesen mor
+                //	SERIDE donusur ve giris kutusunun YERINE gecer
+                //	(bkz. `_sesKaydiGeldi` serhi).
+                SizedBox(
+                  width: 44,
+                  height: 44,
+                  child: SesNotuKaydedici(
+                    key: _sesAnahtar,
+                    onKayit: _sesKaydiGeldi,
+                    onDurum: (k) => setState(() => _sesKayitta = k),
                   ),
-                  icon: Icon(
-                    LucideIcons.mic,
-                    size: 21,
-                    color: Colors.white.withValues(alpha: 0.8),
-                  ),
-                  onPressed: _calisiyor ? null : _sesPaneliAc,
                 ),
                 // ⚠️ Gonder bos girdide PASIF: bos istek kota yakardi.
                 _gonderDugmesi(scheme),
@@ -1187,190 +1213,4 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
       ),
     );
   }
-}
-
-/// ⚠️⚠️⚠️ TURU 127 — **SES KAYIT PANELI** (kullanici emri).
-///
-/// ⚠️⚠️ **DURUST SINIR — PANELDE DE YAZILI:** kayit GERCEKTEN aliniyor
-///	ama **GONDERILEMIYOR** — sunucuda sesi metne ceviren bir uc YOK.
-///	Panel sureyi ve canli seviyeyi gosterir, kaydi durdurur ve dosyayi
-///	SILER. Hicbir yere yuklenmez, hicbir sey vaat edilmez.
-///	**BEKLEYEN IS: `/ai/ses` ucu + konusma-metin (STT).**
-///
-/// ⚠️ Mikrofon izni `MedyaKapisi` uzerinden istenir; arama/oda surerken
-///    kayit ACILMAZ (ses donanimi cakisir — turu 73 dersi).
-/// ⚠️ `dispose`ta kayit MUTLAKA durdurulur: panel kapanirken kayit
-///    surerse mikrofon ARKA PLANDA acik kalir (gizlilik).
-class _SesPaneli extends ConsumerStatefulWidget {
-  const _SesPaneli();
-
-  @override
-  ConsumerState<_SesPaneli> createState() => _SesPaneliState();
-}
-
-class _SesPaneliState extends ConsumerState<_SesPaneli> {
-  final _kaydedici = AudioRecorder();
-  StreamSubscription<Amplitude>? _genlikSub;
-  Timer? _sayac;
-  bool _kayitta = false;
-  int _ms = 0;
-  double _seviye = 0;
-  String? _yol;
-
-  @override
-  void initState() {
-    super.initState();
-    // ⚠️ Kare sonrasina ertelenir: `initState` govdesinde `ref` okumak
-    //    Riverpod`da assertion atar (turu 96i dersi).
-    WidgetsBinding.instance.addPostFrameCallback((_) => _basla());
-  }
-
-  @override
-  void dispose() {
-    _sayac?.cancel();
-    _genlikSub?.cancel();
-    // ⚠️ Panel kapanirken kayit surerse mikrofon ACIK KALIR — durdur.
-    _kaydedici.stop().catchError((_) => null).whenComplete(_kaydedici.dispose);
-    super.dispose();
-  }
-
-  Future<void> _basla() async {
-    // ⚠️ Arama/oda surerken kayit ACILMAZ: ses donanimi cakisir.
-    if (!MedyaKapisi.donanimSerbest(ref)) {
-      if (mounted) Navigator.of(context).pop();
-      return;
-    }
-    try {
-      if (!await _kaydedici.hasPermission()) {
-        if (mounted) Navigator.of(context).pop();
-        return;
-      }
-      final dizin = await getTemporaryDirectory();
-      final yol =
-          '${dizin.path}/ai_ses_${DateTime.now().millisecondsSinceEpoch}.m4a';
-      await _kaydedici.start(
-        const RecordConfig(encoder: AudioEncoder.aacLc),
-        path: yol,
-      );
-      _yol = yol;
-      _genlikSub = _kaydedici
-          .onAmplitudeChanged(const Duration(milliseconds: 120))
-          .listen((a) {
-            if (!mounted) return;
-            // ⚠️ dBFS (-60..0) -> 0..1
-            final v = ((a.current + 60) / 60).clamp(0.0, 1.0);
-            setState(() => _seviye = v);
-          });
-      _sayac = Timer.periodic(const Duration(milliseconds: 100), (_) {
-        if (!mounted) return;
-        setState(() => _ms += 100);
-      });
-      if (mounted) setState(() => _kayitta = true);
-    } catch (_) {
-      if (mounted) Navigator.of(context).pop();
-    }
-  }
-
-  /// ⚠️ Kayit HER DURUMDA silinir: gonderilecek bir yer YOK, dosyayi
-  ///    diskte birakmak sessiz bir sizinti olurdu.
-  Future<void> _bitir() async {
-    _sayac?.cancel();
-    _genlikSub?.cancel();
-    try {
-      await _kaydedici.stop();
-    } catch (_) {}
-    final y = _yol;
-    if (y != null) {
-      try {
-        final f = File(y);
-        if (f.existsSync()) await f.delete();
-      } catch (_) {}
-    }
-    if (mounted) Navigator.of(context).pop();
-  }
-
-  String get _sure {
-    final sn = _ms ~/ 1000;
-    return '${(sn ~/ 60).toString().padLeft(2, '0')}:'
-        '${(sn % 60).toString().padLeft(2, '0')}';
-  }
-
-  @override
-  Widget build(BuildContext context) => SafeArea(
-    top: false,
-    child: SingleChildScrollView(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(24, 10, 24, 20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 20),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.25),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            // ── CANLI SEVIYE HALKASI ──
-            // ⚠️ Halka GERCEK genlikle buyur: sahte bir animasyon
-            //    "kaydediyor" izlenimi verip aslinda olcmuyor olurdu.
-            SizedBox(
-              height: 96,
-              child: Center(
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 120),
-                  width: 60 + _seviye * 34,
-                  height: 60 + _seviye * 34,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: morLogo.withValues(alpha: 0.18 + _seviye * 0.3),
-                  ),
-                  child: const Icon(
-                    LucideIcons.mic,
-                    size: 26,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              _kayitta ? _sure : '…',
-              style: const TextStyle(
-                fontSize: 26,
-                fontWeight: FontWeight.w600,
-                color: Colors.white,
-                fontFeatures: [FontFeature.tabularFigures()],
-              ),
-            ),
-            const SizedBox(height: 10),
-            // ⚠️⚠️ DURUST SINIR EKRANDA: kayit gonderilemiyor.
-            Text(
-              'Sesli soru henüz gönderilemiyor. Kayıt cihazından silinir.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 13.5,
-                height: 1.4,
-                color: Colors.white.withValues(alpha: 0.5),
-              ),
-            ),
-            const SizedBox(height: 20),
-            // ── COP KUTUSU ──
-            FilledButton.icon(
-              onPressed: _bitir,
-              style: FilledButton.styleFrom(
-                backgroundColor: Colors.white.withValues(alpha: 0.10),
-                foregroundColor: Colors.white,
-                minimumSize: const Size.fromHeight(50),
-              ),
-              icon: const Icon(LucideIcons.trash2, size: 19),
-              label: const Text('Kaydı sil ve kapat'),
-            ),
-          ],
-        ),
-      ),
-    ),
-  );
 }
