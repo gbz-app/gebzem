@@ -194,7 +194,15 @@ class _OnboardingEkraniState extends ConsumerState<OnboardingEkrani> {
       value: SystemUiOverlayStyle.dark.copyWith(
         statusBarColor: Colors.transparent,
         systemNavigationBarColor: _kCerceve,
-        systemNavigationBarIconBrightness: Brightness.light,
+        // ⚠️⚠️ TURU 127 — **JEST CUBUGU GORUNMEZ** (kullanici emri:
+        //	*"telefonun altinda celtik cizgisi var, onu kaldir"*).
+        //	Cubuk KALDIRILAMAZ (sistem cizer) ama telefon cercevesiyle
+        //	AYNI RENGE burunur: koyu zemin + koyu cubuk = gorunmez.
+        // ⚠️ `systemNavigationBarContrastEnforced: false` ZORUNLU:
+        //    Android 10+ aksi halde cubugun arkasina YARI SAYDAM bir
+        //    katman koyar ve cizgi yine belli olur.
+        systemNavigationBarIconBrightness: Brightness.dark,
+        systemNavigationBarContrastEnforced: false,
       ),
       child: Scaffold(
         backgroundColor: _kOnboardZemin,
@@ -263,40 +271,58 @@ class _SayfaGorunumu extends StatelessWidget {
         //    dar ekranda bile yanlarda nefes kalir.
         final en = kisit.maxWidth * 0.78;
         final boy = en * 19.5 / 9;
+        // ⚠️⚠️ TURU 127 — **METIN BLOGU SABIT YUKSEKLIK** (kullanici emri:
+        //	*"hepsinde ayni esitlikte olsun, hepsi ayni hizada"*).
+        //
+        //	Basliklar farkli uzunlukta: "Yakınında ne varsa" TEK satir,
+        //	"Şehrinde ne var kaçırma" IKI satir. Blok icerikten
+        //	buyudugu icin telefon her sayfada BASKA bir yukseklikte
+        //	basliyordu ve sayfalar arasi gecis ZIPLIYORDU.
+        //	Artik blok DAIMA iki satirlik yer kaplar; tek satirlik
+        //	sayfada altta bosluk kalir ve telefon YERINDEN OYNAMAZ.
+        // ⚠️ Yukseklik yazi olceginden TURETILIR, sabit dp DEGIL:
+        //    olcek 1.3/2.0 da sabit sayi tasardi.
+        final olcek = MediaQuery.textScalerOf(context);
+        final ustBoy = olcek.scale(16) * 1.35 + 6 + olcek.scale(32) * 1.15 * 2;
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(28, 26, 28, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    s.ust,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      height: 1.35,
-                      color: _kOnboardAltYazi,
+              child: SizedBox(
+                height: ustBoy,
+                width: double.infinity,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      s.ust,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        height: 1.35,
+                        color: _kOnboardAltYazi,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 6),
-                  // ⚠️ Kalin satir **32 px** (kullanici: *"alttaki kalin yazi
-                  //    biraz daha fazla"*). Daha buyugu iki satiri asiyor ve
-                  //    cerceveyi asagi itiyor.
-                  Text(
-                    s.baslik,
-                    style: const TextStyle(
-                      fontSize: 32,
-                      height: 1.15,
-                      fontWeight: FontWeight.w800,
-                      color: _kOnboardYazi,
+                    const SizedBox(height: 6),
+                    // ⚠️ Kalin satir **32 px** (kullanici: *"alttaki kalin yazi
+                    //    biraz daha fazla"*). Daha buyugu iki satiri asiyor ve
+                    //    cerceveyi asagi itiyor.
+                    Text(
+                      s.baslik,
+                      style: const TextStyle(
+                        fontSize: 32,
+                        height: 1.15,
+                        fontWeight: FontWeight.w800,
+                        color: _kOnboardYazi,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-            const SizedBox(height: 22),
+            // ⚠️ TURU 127 — yazi-telefon araligi **%20 AZALDI** (22 -> 18).
+            const SizedBox(height: 18),
             // ⚠️⚠️ `Expanded` + `bottomCenter`: cerceve KALAN alanin DIBINE
             //	oturur. `ClipRect` + `OverflowBox` ile alttan tasar — "cepten
             //	cikan telefon" dili ve tasma KASITLI.
