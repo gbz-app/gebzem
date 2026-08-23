@@ -57,8 +57,14 @@ import '../medya/medya_servisi.dart';
 ///	neredeyse TAMAMEN siyah, renk yalnizca alt ucta acilir.
 ///	Duraklar %0 / **%68** / %100 ve orta durak da KOYU.
 const Color _kAiZeminUst = Color(0xFF050308);
-const Color _kAiZeminOrta = Color(0xFF0D0A18);
-const Color _kAiZeminAlt = Color(0xFF2E1B63);
+// ⚠️ TURU 127 — `_kAiZeminOrta`/`_kAiZeminAlt` SILINDI: duz gradyanin
+//    ara duraklariydi, radyal parlamalara gecince karsiliklari kalmadi.
+
+/// ⚠️ Alt parlamalarin renkleri. Ikisi FARKLI ton: tek renk iki kez
+///    kullanilsaydi ust uste binen bolge yalnizca KOYULASIR, RENK
+///    KARISMAZDI — kullanicinin istedigi "renkler karissin" buydu.
+const Color _kAiParlakMor = Color(0xFF7B3FE4);
+const Color _kAiKoyuMor = Color(0xFF3B1E7A);
 
 class GebzemAiEkrani extends ConsumerStatefulWidget {
   const GebzemAiEkrani({super.key});
@@ -231,32 +237,67 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
         ).copyWith(surface: _kAiZeminUst),
         scaffoldBackgroundColor: Colors.transparent,
       ),
+      // ⚠️⚠️⚠️ TURU 127 — **DUZ GRADYAN DEGIL, YUMUSAK MOR PARLAMALAR.**
+      //
+      //	Kullanici emri: *"yukaridan asagi degil, boyle dalgali; renkler
+      //	karissin; siyah-mor birlesmeleri cok sert, daha yumusak olsun;
+      //	dalgalansin"*.
+      //
+      //	ONCEKI HAL: tek `LinearGradient`, uc durak. Duraklar arasi gecis
+      //	YATAY BIR BANT uretiyordu — ekranin belli bir yuksekliginde
+      //	cizgi gibi bir sinir goruluyordu ("cok sert" denen sey buydu).
+      //
+      //	YENI: siyah taban + UZERINE IKI **RadialGradient** parlama.
+      //	Radyal sonum dogasi geregi kenari OLMAYAN bir gecistir; iki
+      //	parlama ust uste binince renkler KARISIR ve sinir kalmaz.
+      // ⚠️ Iki parlama **AYRI FAZDA** hareket eder (biri `_dalga`, oteki
+      //    `1 - _dalga`): ayni fazda olsalardi tek bir sisen leke gibi
+      //    durur, "dalga" hissi olusmazdi.
+      // ⚠️ Merkezler ekranin ALT KENARININ ALTINDA (y > 1): parlamanin
+      //    yalniz UST YAYI gorunur — dalga tepesi dili budur.
+      // ⚠️ Genlik kucuk (x ekseninde ±0.18): kullanici "cok hafif" dedi.
+      // ⚠️⚠️ `cocuk` PARAMETRESI ZORUNLU: agac `builder` govdesinde
+      //	kurulsaydi Scaffold ve TUM ekran HER KAREDE yeniden insa
+      //	edilirdi (turu 120 ANR dersi: 500 ms/kare).
       child: AnimatedBuilder(
         animation: _dalga,
-        builder: (_, cocuk) => Container(
-          // ⚠️ Gradyan: ustte neredeyse siyah, altta MOR.
-          // ⚠️⚠️ TURU 127 — **HAFIF DALGA** (kullanici emri: gradyan
-          //	hafif deniz dalgasi gibi oynasin, COK HAFIF).
-          //	Oynayan sey RENK DEGIL, orta duragin YERI: %68 ile %74
-          //	arasinda gidip geliyor. Renk oynatmak bandi "yanip sonuyor"
-          //	gibi gosterirdi; durak oynayinca mor sinir YAVASCA kabarip
-          //	iniyor — deniz dalgasi dili.
-          // ⚠️ Genlik **0.06 ile SINIRLI**: daha buyugu "nefes alan
-          //    ekran" olur ve okumayi bozar.
-          // ⚠️⚠️ `cocuk` PARAMETRESI ZORUNLU: agac `builder` govdesinde
-          //	kurulsaydi Scaffold ve TUM ekran HER KAREDE yeniden
-          //	insa edilirdi. Turu 120`de onboarding animasyonlari tam bu
-          //	yuzden **ANR** uretmisti (500 ms/kare).
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: const [_kAiZeminUst, _kAiZeminOrta, _kAiZeminAlt],
-              stops: [0.0, 0.68 + _dalga.value * 0.06, 1.0],
+        builder: (_, cocuk) {
+          final t = _dalga.value;
+          return DecoratedBox(
+            decoration: const BoxDecoration(color: _kAiZeminUst),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  center: Alignment(-0.55 + t * 0.18, 1.25),
+                  radius: 1.15,
+                  colors: [
+                    _kAiParlakMor.withValues(alpha: 0.55),
+                    _kAiParlakMor.withValues(alpha: 0.22),
+                    Colors.transparent,
+                  ],
+                  // ⚠️ Ara durak (0.45) sonumu YAVASLATIR; iki duraklı
+                  //    radyalde gecis hala fark ediliyordu.
+                  stops: const [0.0, 0.45, 1.0],
+                ),
+              ),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    center: Alignment(0.6 - t * 0.18, 1.1),
+                    radius: 0.95,
+                    colors: [
+                      _kAiKoyuMor.withValues(alpha: 0.6),
+                      _kAiKoyuMor.withValues(alpha: 0.25),
+                      Colors.transparent,
+                    ],
+                    stops: const [0.0, 0.5, 1.0],
+                  ),
+                ),
+                child: cocuk,
+              ),
             ),
-          ),
-          child: cocuk,
-        ),
+          );
+        },
         child: Scaffold(
           backgroundColor: Colors.transparent,
           appBar: AppBar(
@@ -646,39 +687,30 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
+                // ⚠️ TURU 127 — **KALINLASTIRMA KALDIRILDI** (kullanici:
+                //    *"icondaki kalinligi dusur"*). Dort golgeli simulasyon
+                //    koyu zeminde ikonu SISMIS gosteriyordu.
                 Icon(
                   LucideIcons.info,
-                  size: 15,
-                  color: scheme.onSurface.withValues(alpha: 0.45),
-                  // ⚠️ Lucide ikonlari FONT (glif) — `strokeWidth` YOKTUR.
-                  //    Kalinlik ayni renkte ±0.4 px dort golgeyle simule
-                  //    edilir (turu 93 deseni).
-                  shadows: [
-                    Shadow(
-                      color: scheme.onSurface.withValues(alpha: 0.45),
-                      offset: const Offset(0.4, 0),
-                    ),
-                    Shadow(
-                      color: scheme.onSurface.withValues(alpha: 0.45),
-                      offset: const Offset(-0.4, 0),
-                    ),
-                    Shadow(
-                      color: scheme.onSurface.withValues(alpha: 0.45),
-                      offset: const Offset(0, 0.4),
-                    ),
-                    Shadow(
-                      color: scheme.onSurface.withValues(alpha: 0.45),
-                      offset: const Offset(0, -0.4),
-                    ),
-                  ],
+                  size: 14,
+                  color: Colors.white.withValues(alpha: 0.45),
                 ),
                 const SizedBox(width: 6),
+                // ⚠️⚠️ TURU 127 — metin **TEK SATIRA** indirildi (kullanici:
+                //	*"yazi tek satirda olsun, alt satira gecmesin, daha
+                //	profesyonel"*). Eski metin 360 dp`de IKI SATIRA sariyordu.
+                // ⚠️ Bilgi KAYBOLMADI: "kaydedilmiyor" zaten "ekrandan
+                //    cikinca gider" demek — ikinci cumle onu TEKRARLIYORDU.
+                // ⚠️ `maxLines: 1` + `ellipsis`: cok buyuk yazi olceginde
+                //    sarmak yerine kirpilir, satir YUKSEKLIGI SABIT kalir.
                 Flexible(
                   child: Text(
-                    'Sohbet kaydedilmez; ekrandan çıkınca konuşma biter.',
+                    'Bu sohbet kaydedilmiyor.',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontSize: 14,
-                      color: scheme.onSurface.withValues(alpha: 0.45),
+                      fontSize: 13.5,
+                      color: Colors.white.withValues(alpha: 0.45),
                     ),
                   ),
                 ),
