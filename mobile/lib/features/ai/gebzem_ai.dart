@@ -344,13 +344,11 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
                   //    *"daha basit bir icon"*). `plus` DENENDI ve
                   //    BIRAKILDI: giris alanindaki fotograf `+` ile BIREBIR
                   //    ayni cizimdi, iki farkli is ayni ikonla anlatiliyordu.
-                  icon: const Icon(LucideIcons.penLine),
+                  // ⚠️ TURU 127 — kullanici emri: `messageCirclePlus`.
+                  icon: const Icon(LucideIcons.messageCirclePlus),
                   onPressed: (_calisiyor || _mesajlar.isEmpty)
                       ? null
-                      : () => setState(() {
-                          _mesajlar.clear();
-                          _eklenen = null;
-                        }),
+                      : _yeniSohbetSor,
                 ),
             ],
           ),
@@ -555,35 +553,75 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
 
   /// ⚠️ Bu bir BEKLEME gostergesidir, akan metin DEGIL (sunucu tek parca
   ///    donduruyor). Yaniltmamak icin yaninda "yazıyor" yazar.
-  /// ⚠️⚠️ TURU 127 — **"GebzemAI yazıyor…" YERINE IKI CUBUKLU BALON**
-  ///	(kullanici emri: *"bir balonun icinde cubuklar ileri geri gitsin,
-  ///	ust ve altta hamburger menu cubuklari gibi dusun"*).
+  /// ⚠️⚠️ TURU 127 — **YENI SOHBET ONAY ISTER** (kullanici emri:
+  ///	*"alert versin, yeni sohbetin acilacagi ve eskisinin gidecegine
+  ///	dair"*).
   ///
-  /// ⚠️ Ikon ve "GebzemAI" etiketi KALDIRILDI (kullanici emri): yanit
-  ///    zaten SOLDA hizali, kimin yazdigi konumdan belli.
-  /// ⚠️ Iki cubuk TERS FAZDA kayar (biri saga giderken oteki sola) —
-  ///    ayni yone gitselerdi "kayan blok" gibi durur, "yukleniyor"
-  ///    okunmazdi.
-  /// ⚠️ Cubuklar `ClipRRect` icinde: tasan uc balonun disina cikmaz.
+  /// ⚠️ Onay GERCEKTEN gerekli: sohbet **HICBIR YERDE SAKLANMIYOR**
+  ///    (sunucuda tablo yok). Temizlenen konusma GERI GETIRILEMEZ —
+  ///    geri alinamayan bir eylem onaysiz calismamali.
+  /// ⚠️ Metin ne olacagini ACIKCA soyler; "Emin misin?" gibi bos bir
+  ///    soru kullaniciya NE KAYBEDECEGINI anlatmaz.
+  Future<void> _yeniSohbetSor() async {
+    final onay = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Yeni sohbet'),
+        content: const Text(
+          'Yeni bir sohbet başlayacak ve bu konuşma silinecek. '
+          'Sohbetler kaydedilmediği için geri getirilemez.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(c).pop(false),
+            child: const Text('Vazgeç'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(c).pop(true),
+            child: const Text('Yeni sohbet'),
+          ),
+        ],
+      ),
+    );
+    // ⚠️ `mounted` kapisi ZORUNLU: diyalog acikken ekran sokulmus olabilir.
+    if (onay != true || !mounted) return;
+    setState(() {
+      _mesajlar.clear();
+      _eklenen = null;
+    });
+  }
+
+  /// ⚠️⚠️ TURU 127 — **YUKLENIYOR: UC DAIRE** (kullanici emri: *"o
+  ///	balonda cizgiler degil daireler olsun, 3 tane"*).
+  ///
+  ///	Once iki kayan CUBUK denendi; kullanici daire istedi. Klasik
+  ///	"yaziyor" dili zaten budur ve her sohbet uygulamasinda ayni.
+  ///
+  /// ⚠️ Ikon ve "GebzemAI" etiketi YOK: yanit zaten SOLDA hizali,
+  ///    kimin yazdigi konumdan belli.
+  /// ⚠️ Uc daire **FAZ KAYDIRMALI** yanar (0 · 1/3 · 2/3): ayni anda
+  ///    yanip sonselerdi tek bir nabiz gibi durur, "siraya giren
+  ///    harfler" hissi olusmazdi.
   Widget _yaziyor(ColorScheme scheme) => Padding(
     padding: const EdgeInsets.only(bottom: 18),
     child: Align(
       alignment: AlignmentDirectional.centerStart,
       child: Container(
-        width: 92,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
         decoration: BoxDecoration(
           color: Colors.white.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(18),
         ),
         child: AnimatedBuilder(
           animation: _dalga,
-          builder: (_, _) => Column(
+          builder: (_, _) => Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _cubuk(_dalga.value),
-              const SizedBox(height: 6),
-              _cubuk(1 - _dalga.value),
+              for (var i = 0; i < 3; i++)
+                Padding(
+                  padding: EdgeInsets.only(right: i == 2 ? 0 : 6),
+                  child: _nokta(i),
+                ),
             ],
           ),
         ),
@@ -591,34 +629,33 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
     ),
   );
 
-  /// Tek cubuk: `t` (0..1) ile SAGA-SOLA kayar.
+  /// Tek daire. `sira` fazi kaydirir.
   ///
-  /// ⚠️ Kayma `Alignment` ile yapilir, `Transform` ile DEGIL: hizalama
-  ///    kutunun ICINDE kalir ve tasma hesabi gerekmez.
-  Widget _cubuk(double t) => ClipRRect(
-    borderRadius: BorderRadius.circular(3),
-    child: SizedBox(
-      height: 5,
-      width: double.infinity,
-      child: Align(
-        // ⚠️ -1 (sol) .. +1 (sag)
-        alignment: Alignment(t * 2 - 1, 0),
-        child: Container(
-          width: 34,
-          height: 5,
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.55),
-            borderRadius: BorderRadius.circular(3),
-          ),
-        ),
+  /// ⚠️ `_dalga` `reverse: true` ile 0..1..0 gidip geliyor; faz kaymasi
+  ///    icin degeri `sira/3` kadar oteliyoruz ve `% 1.0` ile sariyoruz.
+  /// ⚠️ Opaklik tabani 0.28: sifira inseydi daire KAYBOLUR ve satir
+  ///    "eksik" gorunurdu.
+  Widget _nokta(int sira) {
+    final t = (_dalga.value + sira / 3) % 1.0;
+    // ⚠️ Ucgen dalga: 0 -> 1 -> 0 (tek yonlu artis "atlama" yapardi).
+    final p = t < 0.5 ? t * 2 : (1 - t) * 2;
+    return Container(
+      width: 8,
+      height: 8,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: Colors.white.withValues(alpha: 0.28 + p * 0.52),
       ),
-    ),
-  );
+    );
+  }
 
   Widget _yazacAlani(ColorScheme scheme) => SafeArea(
     top: false,
     child: Padding(
-      padding: const EdgeInsets.fromLTRB(kYanBosluk, 6, kYanBosluk, 8),
+      // ⚠️ TURU 127 — alt bosluk 8 -> **13** (kullanici: *"tus takimi
+      //    ile arasindaki boslugu 5 px arttir"*). Klavye acikken kutu
+      //    tuslara yapisik duruyordu.
+      padding: const EdgeInsets.fromLTRB(kYanBosluk, 6, kYanBosluk, 13),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
