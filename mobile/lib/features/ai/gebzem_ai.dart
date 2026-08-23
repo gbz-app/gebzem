@@ -333,7 +333,10 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
               if (acik && _mesajlar.isNotEmpty)
                 IconButton(
                   tooltip: 'Yeni sohbet',
-                  icon: const Icon(LucideIcons.squarePen),
+                  // ⚠️ TURU 127 — `squarePen` -> **`plus`** (kullanici: *"daha
+                  //    basit bir icon olsun"*). Kare+kalem cizimi kucuk
+                  //    olcude karisik duruyordu; "yeni sohbet" = artı.
+                  icon: const Icon(LucideIcons.plus),
                   onPressed: _calisiyor
                       ? null
                       : () => setState(() {
@@ -449,10 +452,12 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
         child: Text(
           selam,
           textAlign: TextAlign.center,
+          // ⚠️ TURU 127 — w400 -> **w500** (kullanici: *"ekrandaki yaziyi
+          //    1 tik kalinlastir"*). w600 fazla resmi durdu.
           style: const TextStyle(
             fontSize: 27,
             height: 1.3,
-            fontWeight: FontWeight.w400,
+            fontWeight: FontWeight.w500,
             color: Colors.white,
           ),
         ),
@@ -506,21 +511,12 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(LucideIcons.sparkles, size: 15, color: scheme.primary),
-              const SizedBox(width: 6),
-              Text(
-                'GebzemAI',
-                style: TextStyle(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w700,
-                  color: scheme.primary,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
+          // ⚠️⚠️ TURU 127 — **IKON + "GebzemAI" ETIKETI KALDIRILDI**
+          //	(kullanici emri). Ilk adimda yalniz "yaziyor" gostergesinden
+          //	kaldirilmisti; YANIT BALONUNDAKI kopya ATLANMISTI ve
+          //	kullanici cevap gelince onu goruyordu.
+          // ⚠️ Kimin yazdigi KONUMDAN belli: kullanici mesaji SAGDA
+          //    baloncukta, yanit SOLDA tam genislikte.
           SelectableText(
             m.metin,
             style: const TextStyle(fontSize: 15, height: 1.42),
@@ -682,10 +678,12 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
           //	kaydedilmez" bilgisi tam da KONUSURKEN gerekli.
           // ⚠️ Ikon 1 tik kalin (dort golgeyle simule) ve yazi 12 -> 14
           //    (kullanici emri).
+          // ⚠️ TURU 127 — uyari **SOLA hizali**, **5 px daha yukarida**
+          //    (10 -> 15) ve yazi 1 tik buyuk (kullanici emri).
           Padding(
-            padding: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.fromLTRB(6, 0, 6, 15),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisAlignment: MainAxisAlignment.start,
               children: [
                 // ⚠️ TURU 127 — **KALINLASTIRMA KALDIRILDI** (kullanici:
                 //    *"icondaki kalinligi dusur"*). Dort golgeli simulasyon
@@ -709,7 +707,7 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontSize: 13.5,
+                      fontSize: 14.5,
                       color: Colors.white.withValues(alpha: 0.45),
                     ),
                   ),
