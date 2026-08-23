@@ -75,7 +75,16 @@ class _Mesaj {
   final File? gorsel;
 }
 
-class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani> {
+class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
+    with TickerProviderStateMixin {
+  /// ⚠️ TURU 127 — HEM "yaziyor" cubuklarini HEM alt gradyanin hafif
+  ///    dalgasini besler. TEK denetleyici: iki ayri ticker acmak bu
+  ///    ekranda gereksiz.
+  late final AnimationController _dalga = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1400),
+  )..repeat(reverse: true);
+
   final _yazac = TextEditingController();
   final _kaydirma = ScrollController();
 
@@ -101,6 +110,7 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani> {
 
   @override
   void dispose() {
+    _dalga.dispose();
     _odak.removeListener(_odakDegisti);
     _odak.dispose();
     _yazac.dispose();
@@ -221,16 +231,31 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani> {
         ).copyWith(surface: _kAiZeminUst),
         scaffoldBackgroundColor: Colors.transparent,
       ),
-      child: Container(
-        // ⚠️ Gradyan: ustte neredeyse siyah, altta MOR. Gemini`nin
-        //    dili bu; renk marka morundan (`morLogo`) turetildi.
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [_kAiZeminUst, _kAiZeminOrta, _kAiZeminAlt],
-            stops: [0.0, 0.68, 1.0],
+      child: AnimatedBuilder(
+        animation: _dalga,
+        builder: (_, cocuk) => Container(
+          // ⚠️ Gradyan: ustte neredeyse siyah, altta MOR.
+          // ⚠️⚠️ TURU 127 — **HAFIF DALGA** (kullanici emri: gradyan
+          //	hafif deniz dalgasi gibi oynasin, COK HAFIF).
+          //	Oynayan sey RENK DEGIL, orta duragin YERI: %68 ile %74
+          //	arasinda gidip geliyor. Renk oynatmak bandi "yanip sonuyor"
+          //	gibi gosterirdi; durak oynayinca mor sinir YAVASCA kabarip
+          //	iniyor — deniz dalgasi dili.
+          // ⚠️ Genlik **0.06 ile SINIRLI**: daha buyugu "nefes alan
+          //    ekran" olur ve okumayi bozar.
+          // ⚠️⚠️ `cocuk` PARAMETRESI ZORUNLU: agac `builder` govdesinde
+          //	kurulsaydi Scaffold ve TUM ekran HER KAREDE yeniden
+          //	insa edilirdi. Turu 120`de onboarding animasyonlari tam bu
+          //	yuzden **ANR** uretmisti (500 ms/kare).
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: const [_kAiZeminUst, _kAiZeminOrta, _kAiZeminAlt],
+              stops: [0.0, 0.68 + _dalga.value * 0.06, 1.0],
+            ),
           ),
+          child: cocuk,
         ),
         child: Scaffold(
           backgroundColor: Colors.transparent,
@@ -485,27 +510,63 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani> {
 
   /// ⚠️ Bu bir BEKLEME gostergesidir, akan metin DEGIL (sunucu tek parca
   ///    donduruyor). Yaniltmamak icin yaninda "yazıyor" yazar.
+  /// ⚠️⚠️ TURU 127 — **"GebzemAI yazıyor…" YERINE IKI CUBUKLU BALON**
+  ///	(kullanici emri: *"bir balonun icinde cubuklar ileri geri gitsin,
+  ///	ust ve altta hamburger menu cubuklari gibi dusun"*).
+  ///
+  /// ⚠️ Ikon ve "GebzemAI" etiketi KALDIRILDI (kullanici emri): yanit
+  ///    zaten SOLDA hizali, kimin yazdigi konumdan belli.
+  /// ⚠️ Iki cubuk TERS FAZDA kayar (biri saga giderken oteki sola) —
+  ///    ayni yone gitselerdi "kayan blok" gibi durur, "yukleniyor"
+  ///    okunmazdi.
+  /// ⚠️ Cubuklar `ClipRRect` icinde: tasan uc balonun disina cikmaz.
   Widget _yaziyor(ColorScheme scheme) => Padding(
     padding: const EdgeInsets.only(bottom: 18),
-    child: Row(
-      children: [
-        SizedBox(
-          width: 14,
-          height: 14,
-          child: CircularProgressIndicator(
-            strokeWidth: 2,
-            color: scheme.primary,
+    child: Align(
+      alignment: AlignmentDirectional.centerStart,
+      child: Container(
+        width: 92,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: AnimatedBuilder(
+          animation: _dalga,
+          builder: (_, _) => Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _cubuk(_dalga.value),
+              const SizedBox(height: 6),
+              _cubuk(1 - _dalga.value),
+            ],
           ),
         ),
-        const SizedBox(width: 8),
-        Text(
-          'GebzemAI yazıyor…',
-          style: TextStyle(
-            fontSize: 13,
-            color: scheme.onSurface.withValues(alpha: 0.55),
+      ),
+    ),
+  );
+
+  /// Tek cubuk: `t` (0..1) ile SAGA-SOLA kayar.
+  ///
+  /// ⚠️ Kayma `Alignment` ile yapilir, `Transform` ile DEGIL: hizalama
+  ///    kutunun ICINDE kalir ve tasma hesabi gerekmez.
+  Widget _cubuk(double t) => ClipRRect(
+    borderRadius: BorderRadius.circular(3),
+    child: SizedBox(
+      height: 5,
+      width: double.infinity,
+      child: Align(
+        // ⚠️ -1 (sol) .. +1 (sag)
+        alignment: Alignment(t * 2 - 1, 0),
+        child: Container(
+          width: 34,
+          height: 5,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.55),
+            borderRadius: BorderRadius.circular(3),
           ),
         ),
-      ],
+      ),
     ),
   );
 
