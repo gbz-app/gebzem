@@ -265,9 +265,9 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani> {
         // ⚠️ TURU 114 (denetim) — `Colors.grey` (#9E9E9E) acik tema zemininde
         //    (#F2F2F5) **2.40:1**; 14 px normal metin icin esik 4.5:1.
         style: TextStyle(
-          color: Theme.of(context).colorScheme.onSurface.withValues(
-            alpha: 0.75,
-          ),
+          color: Theme.of(
+            context,
+          ).colorScheme.onSurface.withValues(alpha: 0.75),
         ),
       ),
     ),
@@ -279,14 +279,13 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani> {
   ///    oneri uretecek bir uc YOK, uydurma bir kisisellik iddia etmiyoruz.
   Widget _karsilama(AiDurum? ai) {
     final scheme = Theme.of(context).colorScheme;
-    // ⚠️ TURU 117 — her oneri kendi IKONUNU tasir. Kayit (record) tipi:
-    //    ayri bir sinif acmak bu dort satir icin agir olurdu.
-    const oneriler = <(String, IconData)>[
-      ('Gebze’de hafta sonu ne yapılır?', LucideIcons.mapPin),
-      ('Bu fotoğraftaki arıza ne olabilir?', LucideIcons.wrench),
-      ('Kısa bir ilan metni yaz', LucideIcons.penLine),
-      ('Ev taşırken nelere dikkat etmeliyim?', LucideIcons.truck),
-    ];
+    // ⚠️⚠️ TURU 127 — **ONERI KARTLARI KALDIRILDI** (kullanici emri:
+    //	*"bir sey sor ya da fotograf ekle altindaki Gebze hafta sonu ne
+    //	yapilabilir gibi seyleri kaldir"*).
+    // ⚠️ Kartlar SABIT metinlerdi; kullanicinin verisine gore oneri
+    //    ureten bir uc YOK ve olmadigi icin dordu de herkeste AYNIYDI.
+    //    Kaldirilmalariyla ekran "ne yazacagimi ben sectim" hissi
+    //    yerine BOS BIR SORU ALANI birakiyor — istenen buydu.
     // ⚠️⚠️⚠️ TURU 117 — KARSILAMA EKRANI YENIDEN KURULDU (kullanici emri:
     //	*"karsilama ekrani daha profesyonel olsun daha modern hale getir ...
     //	kalan hak vb altta daha guzel anlasilir sekilde olsun"*).
@@ -350,68 +349,9 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani> {
             color: scheme.onSurface.withValues(alpha: 0.55),
           ),
         ),
+        // ⚠️ Oneri kartlari kalkinca IKI ARDISIK bosluk kalmisti (26+18);
+        //    tek bir 26 ya indirildi.
         const SizedBox(height: 26),
-        // ── ONERILER ──
-        // ⚠️ Her onerinin KENDI IKONU var: dort ayni cerceve "liste" gibi
-        //    duruyordu, ikon onlari DOKUNULABILIR birer eylem yapiyor.
-        // ⚠️ Sagdaki ok da ayni isi yapar (bu bir yazi degil, bir dugme).
-        for (var i = 0; i < oneriler.length; i++)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: Material(
-              color: scheme.onSurface.withValues(alpha: 0.04),
-              borderRadius: BorderRadius.circular(16),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(16),
-                onTap: () {
-                  _yazac.text = oneriler[i].$1;
-                  _gonder();
-                },
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 13,
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 34,
-                        height: 34,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: scheme.primary.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(11),
-                        ),
-                        child: Icon(
-                          oneriler[i].$2,
-                          size: 17,
-                          color: scheme.primary,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          oneriler[i].$1,
-                          style: const TextStyle(
-                            fontSize: 14.5,
-                            fontWeight: FontWeight.w500,
-                            height: 1.3,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Icon(
-                        LucideIcons.arrowUpRight,
-                        size: 16,
-                        color: scheme.onSurface.withValues(alpha: 0.3),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        const SizedBox(height: 18),
         // ── KALAN HAK KARTI ──
         // ⚠️⚠️ Kullanici emri: *"kalan hak vb altta daha guzel anlasilir
         //	sekilde olsun"*. Eskiden %45 saydam 12,5 px gri bir satirdi —
@@ -517,9 +457,9 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani> {
             child: TextButton.icon(
               onPressed: () {
                 Clipboard.setData(ClipboardData(text: m.metin));
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Kopyalandı')),
-                );
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(const SnackBar(content: Text('Kopyalandı')));
               },
               style: TextButton.styleFrom(
                 padding: const EdgeInsets.symmetric(horizontal: 6),
@@ -543,7 +483,10 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani> {
         SizedBox(
           width: 14,
           height: 14,
-          child: CircularProgressIndicator(strokeWidth: 2, color: scheme.primary),
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: scheme.primary,
+          ),
         ),
         const SizedBox(width: 8),
         Text(
@@ -785,9 +728,7 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani> {
           ),
           const SizedBox(height: 7),
           Text(
-            bitti
-                ? 'Yarın sıfırlanır.'
-                : 'Her gün sıfırlanır.',
+            bitti ? 'Yarın sıfırlanır.' : 'Her gün sıfırlanır.',
             style: TextStyle(
               fontSize: 11.5,
               color: scheme.onSurface.withValues(alpha: 0.45),
@@ -819,7 +760,9 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani> {
           child: Icon(
             LucideIcons.arrowUp,
             size: 20,
-            color: hazir ? scheme.onPrimary : scheme.onSurface.withValues(alpha: 0.45),
+            color: hazir
+                ? scheme.onPrimary
+                : scheme.onSurface.withValues(alpha: 0.45),
           ),
         ),
       ),
