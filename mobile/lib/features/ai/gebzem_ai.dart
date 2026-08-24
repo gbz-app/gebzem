@@ -324,7 +324,11 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
     //	olmasaydi ekrandaki ok nazik davranir, jest sohbeti SESSIZCE
     //	goturuurdu (turu 126`da kayit akisinda birebir bu yasandi).
     return PopScope(
-      canPop: false,
+      // ⚠️⚠️ **BOS SOHBETTE KAPI ACIK** (denetim buldu): `canPop: false`
+      //	sabitken iOS kenar-cekme geri jesti bu ekranda TAMAMEN oluydu —
+      //	kaybedilecek hicbir sey olmasa bile. Artik yalniz sohbet DOLUYKEN
+      //	kapatilir; bos ekranda jest DOGAL calisir.
+      canPop: _mesajlar.isEmpty,
       onPopInvokedWithResult: (bittiMi, _) async {
         if (bittiMi) return;
         if (!await _cikisOnayi()) return;
@@ -429,7 +433,16 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
               //	iki ok AYNI cizim dilinde olur.
               // ⚠️ Varsayilan `BackButton` KULLANILMIYOR: o platforma gore
               //    degisir (Android ok, iOS chevron) ve "gonder gibi" olmaz.
-              // ⚠️ `Navigator.maybePop`: bu ekran kok route ise patlamasin.
+              // ⚠️⚠️⚠️ **`maybePop` KULLANILMAZ** (denetim widget testiyle
+              //	olctu). Ekran `PopScope(canPop: false)` ile sarili;
+              //	SDK`da (`navigator.dart` `maybePop`) `doNotPop` dalinda
+              //	rota POP EDILMEZ, bunun yerine
+              //	`route.onPopInvokedWithResult(false, null)` cagrilir —
+              //	yani BIZIM `PopScope` isleyicimiz TEKRAR kosar ve onay
+              //	paneli IKINCI KEZ acilirdi. Olculdu: "Çık"a bir kez
+              //	basan kullanicinin ekrani KAPANMIYOR, ikinci panel
+              //	acilyor ve orada "Vazgeç" derse ekran acik kaliyordu.
+              // ⚠️ YAPMA: `maybePop`a geri donme.
               leading: IconButton(
                 tooltip: 'Geri',
                 icon: const Icon(LucideIcons.arrowLeft),
@@ -439,7 +452,9 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
                 onPressed: () async {
                   if (!await _cikisOnayi()) return;
                   if (mounted && context.mounted) {
-                    Navigator.of(context).maybePop();
+                    // ⚠️ Onay ZATEN alindi; `pop` DOGRUDAN kapatir ve
+                    //    `PopScope` isleyicisini yeniden tetiklemez.
+                    Navigator.of(context).pop();
                   }
                 },
               ),
@@ -631,8 +646,16 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
   /// ⚠️ `_calisiyor` kapisi: yanit beklenirken ikinci soru gonderilemez
   ///    (`_gonder` zaten reddeder, ama burada da erken donup kutuyu
   ///    bosuna doldurmayalim).
+  /// ⚠️⚠️⚠️ **`_gorselHazirlaniyor` KAPISI DA ZORUNLU** (denetim buldu).
+  ///	Gonder DUGMESI o bayrakla kilitleniyor ama oneri satiri onu
+  ///	ATLIYORDU: kullanici bir fotograf ekleyip (hazirlik surerken)
+  ///	donen soruya dokununca `_gonder` kosuyor, `gorselHazir` HENUZ
+  ///	null oldugu icin fotograf SUNUCUYA HIC GITMIYOR — ama balonda
+  ///	GORUNUYOR. Kullanici fotografi sordugunu sanip alakasiz bir
+  ///	yanit aliyordu. Ustelik `_gonder` bayragi TEMIZLEMEDIGI icin
+  ///	gonder dugmesi ondan sonra KALICI kilitli kaliyordu.
   void _oneriSecildi(String soru) {
-    if (_calisiyor) return;
+    if (_calisiyor || _gorselHazirlaniyor) return;
     _yazac.text = soru;
     _gonder();
   }
@@ -706,8 +729,21 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
         onPressed: () {
           // ⚠️ Panoya EKRANDA GORUNEN metin gider: `**` isaretleri
           //    ekranda cizilmiyorsa kopyalanan metinde de olmamali.
+          // ⚠️⚠️⚠️ **`replaceAll` GRUP REFERANSI DESTEKLEMEZ** (denetim
+          //	bunu gercek `dart run` ile olctu). Dart`ta
+          //	`String.replaceAll(Pattern, String)` ikinci argumani DUZ
+          //	METIN sayar; `$1` bir yakalama grubu DEGILDIR — o davranis
+          //	JavaScript`e aittir. Onceki yazim panoya literal `$1`
+          //	yaziyordu: *"1. **Doğa Yürüyüşü**: ..."* -> *"1. $1: ..."*,
+          //	yani her kalin baslik KAYBOLUYORDU.
+          // ⚠️ YAPMA: `replaceAll`a geri donme.
           Clipboard.setData(
-            ClipboardData(text: metin.replaceAll(_kalinDesen, r'$1')),
+            ClipboardData(
+              text: metin.replaceAllMapped(
+                _kalinDesen,
+                (e) => e.group(1) ?? '',
+              ),
+            ),
           );
           rootMessengerKey.currentState
             ?..hideCurrentSnackBar()
@@ -959,6 +995,11 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
       _mesajlar.clear();
       _eklenen = null;
       _eklenenHazir = null;
+      // ⚠️⚠️ Bayrak da DUSURULUR (denetim buldu): hazirlik ucusta
+      //	olabilir; kimlik kapisi (`_eklenen != dosya`) sonucu atacak
+      //	ama bayragi TEMIZLEMEYECEK. Asili kalirsa gonder dugmesi
+      //	**KALICI** kilitlenir ve kurtarma yolu YOKTUR.
+      _gorselHazirlaniyor = false;
     });
   }
 
@@ -1086,6 +1127,23 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
     );
   }
 
+  /// ⚠️⚠️⚠️ **KLAVYE ACIKKEN TASMA** (denetim olctu: 360x640 dp, olcek
+  ///	1.3, fotograf ekli + 5 satirlik soru -> **43 dp tasma**; gonder
+  ///	okunun ve mikrofonun yarisi klavyenin ALTINDA kaliyor ve
+  ///	DOKUNULAMIYOR. Varsayilan olcekte bile 7 dp tasiyordu.)
+  ///
+  ///	Sebep: `Column(mainAxisSize.min)` icerigin ISTEDIGI yuksekligi
+  ///	alir; klavye acikken govdeye kalan alan o kadar OLMAYABILIR.
+  ///	Giris alani onizleme (78) + 5 satir yazi + eylem satiri (44)
+  ///	ile buyudukce kalan alani ASIYOR.
+  ///
+  /// ⚠️ COZUM: kutu **KAYDIRILABILIR** (`SingleChildScrollView`) ve
+  ///    tavani kalan alanin **%56**`si. Tavan olmadan `Column` yine
+  ///    sinirsiz buyur; kaydirma olmadan tavan TASMA seridi cizdirir —
+  ///    **IKISI DE ZORUNLU** (turu 115c dersinin ayni sinifi).
+  /// ⚠️ `reverse: true`: kutu tavana dayandiginda EN ALT (eylem satiri,
+  ///    yani gonder dugmesi) gorunur kalir. `false` olsaydi kaydirma
+  ///    ustte baslar ve gonder dugmesi gorunmezdi — tasmanin ta kendisi.
   Widget _yazacAlani(ColorScheme scheme) => SafeArea(
     top: false,
     child: Padding(
@@ -1093,7 +1151,13 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
       //    ile arasindaki boslugu 5 px arttir"*). Klavye acikken kutu
       //    tuslara yapisik duruyordu.
       padding: const EdgeInsets.fromLTRB(kYanBosluk, 6, kYanBosluk, 13),
-      child: Column(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * 0.56,
+        ),
+        child: SingleChildScrollView(
+          reverse: true,
+          child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           // ⚠️⚠️ TURU 127 — onizleme kutunun **DISINDAN ICINE** tasindi
@@ -1126,9 +1190,16 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
           //	kaydedilmez" bilgisi tam da KONUSURKEN gerekli.
           // ⚠️ Ikon 1 tik kalin (dort golgeyle simule) ve yazi 12 -> 14
           //    (kullanici emri).
-          // ⚠️ Kayit surerken uyari CIZILMEZ: serit zaten tum satiri
-          //    kapliyor ve iki satir birden alt alta sikisirdi.
-          if (!_sesKayitta)
+          // ⚠️⚠️⚠️ **DURUST SINIR KAYIT SIRASINDA GORUNUR** (denetim sevk
+          //	engeli olarak isaretledi). Onceden bu satir kayit
+          //	sirasinda GIZLENIYORDU: kullanici 40 saniye soru anlatip
+          //	gonder`e basiyor, ANCAK O ZAMAN "sesli soru henuz
+          //	gonderilemiyor" diyorduk. Sinir isin SONUNDA degil
+          //	BASINDA soylenmeli.
+          // ⚠️ Metin kayit sirasinda DEGISIR: satir hep ayni yerde
+          //    kalir, yalniz ne soyledigi degisir.
+          // ⚠️ **BEKLEYEN IS: `/ai/ses` ucu + STT.** O gelince bu dal
+          //    kaldirilir ve kayit gercekten gonderilir.
             // ⚠️ TURU 127 — uyari **SOLA hizali**, **5 px daha yukarida**
             //    (10 -> 15) ve yazi 1 tik buyuk (kullanici emri).
             Padding(
@@ -1154,7 +1225,9 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
                   //    sarmak yerine kirpilir, satir YUKSEKLIGI SABIT kalir.
                   Flexible(
                     child: Text(
-                      'Bu sohbet kaydedilmiyor.',
+                      _sesKayitta
+                          ? 'Sesli soru henüz gönderilemiyor.'
+                          : 'Bu sohbet kaydedilmiyor.',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -1181,6 +1254,8 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
           else
             _girisKutusu(scheme),
         ],
+          ),
+        ),
       ),
     ),
   );
@@ -1222,7 +1297,17 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    Image.file(_eklenen!, fit: BoxFit.cover),
+                    // ⚠️ `cacheWidth` ZORUNLU: 4000x3000 bir fotograf
+                    //    78 dp`lik kutu icin TAM COZUNURLUKTE cozulurdu
+                    //    (~48 MB gecici RAM). dpr ile carpilir, yoksa
+                    //    yuksek yogunluklu ekranda BULANIK cikar.
+                    Image.file(
+                      _eklenen!,
+                      fit: BoxFit.cover,
+                      cacheWidth:
+                          (78 * MediaQuery.devicePixelRatioOf(context))
+                              .round(),
+                    ),
                     // ── HAZIRLANIRKEN: KARARTMA + ORTADA LOADING ──
                     if (_gorselHazirlaniyor) ...[
                       Positioned.fill(
@@ -1628,7 +1713,11 @@ class _OneriDongusuState extends State<_OneriDongusu> {
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 6),
           child: SizedBox(
             // ⚠️ Sabit yukseklik: metin bosalinca satir cokmesin.
-            height: 26,
+            // ⚠️⚠️ **OLCEKTEN TURETILIR** (denetim buldu): sabit 26 dp,
+            //	yazi olcegi ~1.4 ustunde harfleri DIKEY TRASLIYORDU.
+            //	Imlec (16) ve ikon (17) da ayni kutuda — taban 26.
+            height: (MediaQuery.textScalerOf(context).scale(15.5) * 1.35)
+                .clamp(26.0, 60.0),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               mainAxisSize: MainAxisSize.min,

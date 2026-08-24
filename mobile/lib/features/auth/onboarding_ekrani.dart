@@ -141,6 +141,40 @@ class _OnboardingEkraniState extends ConsumerState<OnboardingEkrani> {
     );
   }
 
+  /// ⚠️⚠️ **PARMAKLA KAYDIRMA** (denetim widget testiyle olctu: ortu
+  ///	`PageView`i hit-test'ten DUSURUYOR, kaydirma TAMAMEN oluydu).
+  ///	Surukleme dogrudan `PageController`a devrediliyor.
+  /// ⚠️ Isaret TERS: parmagi SOLA suruklemek sonraki sayfaya gecer,
+  ///    yani ofset ARTAR.
+  /// ⚠️ `hasClients` kapisi: ilk karede controller henuz bir viewport'a
+  ///    bagli olmayabilir ve `position` okumak PATLAR.
+  void _suruklendi(DragUpdateDetails d) {
+    if (_bitiyor || !_ctrl.hasClients) return;
+    _ctrl.jumpTo(_ctrl.position.pixels - d.delta.dx);
+  }
+
+  /// ⚠️ Birakinca EN YAKIN sayfaya yaslanir; hizli bir fling ise yonune
+  ///    gore komsu sayfaya gecer (esik 300 px/sn).
+  /// ⚠️ Yaslanma sonrasi sayaci `onPageChanged` yeniden kurar; burada
+  ///    elle kurmak IKI zamanlayici uretirdi.
+  void _suruklemeBitti(DragEndDetails d) {
+    if (_bitiyor || !_ctrl.hasClients) return;
+    final hiz = d.velocity.pixelsPerSecond.dx;
+    final simdi = _ctrl.page ?? _sayfa.toDouble();
+    var hedef = simdi.round();
+    if (hiz < -300) {
+      hedef = simdi.floor() + 1;
+    } else if (hiz > 300) {
+      hedef = simdi.ceil() - 1;
+    }
+    hedef = hedef.clamp(0, _sayfalar.length - 1);
+    _ctrl.animateToPage(
+      hedef,
+      duration: const Duration(milliseconds: 240),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
   /// ⚠️⚠️ IZINLER **AKISIN SONUNDA, SIRAYLA** istenir (bkz. sinif serhi).
   ///	Her adim KENDI `try` blogunda: biri firlarsa sonrakiler ETKILENMEZ.
   Future<void> _izinleriIste() async {
@@ -201,7 +235,16 @@ class _OnboardingEkraniState extends ConsumerState<OnboardingEkrani> {
         // ⚠️ `systemNavigationBarContrastEnforced: false` ZORUNLU:
         //    Android 10+ aksi halde cubugun arkasina YARI SAYDAM bir
         //    katman koyar ve cizgi yine belli olur.
-        systemNavigationBarIconBrightness: Brightness.dark,
+        // ⚠️⚠️⚠️ **IKONLAR ACIK OLMAK ZORUNDA** (denetim buldu).
+        //	`Brightness.dark` = KOYU ikon; zemin de koyu (`_kCerceve`)
+        //	oldugu icin **3 TUSLU GEZINME** kullanan cihazlarda
+        //	Geri/Ana ekran/Son uygulamalar tuslari GORUNMEZ oluyordu
+        //	ve kullanici 30 saniye boyunca korlemesine basmak zorunda
+        //	kaliyordu.
+        //	Jest cubugu (2 tuslu/jest) yine gorunmez: o INCE BIR CIZGI
+        //	ve `light` ikon parlakligi onu etkilemez — kullanicinin
+        //	istegi korunur, tuslar da kaybolmaz.
+        systemNavigationBarIconBrightness: Brightness.light,
         systemNavigationBarContrastEnforced: false,
       ),
       child: Scaffold(
@@ -228,6 +271,23 @@ class _OnboardingEkraniState extends ConsumerState<OnboardingEkrani> {
               //	kaydirmaya devam eder.
               // ⚠️ `HitTestBehavior.opaque` ZORUNLU: seffaf alan dokunus
               //    ALMAZ ve tiklama PageView'a duserdi.
+              // ⚠️⚠️⚠️ **KAYDIRMA DA CALISMAK ZORUNDA** (denetim widget
+              //	testiyle olctu: ortu VARKEN fling sonrasi sayfa = 0,
+              //	ortu YOKKEN = 1). Tam ekran opaque bir
+              //	`GestureDetector` `PageView`i hit-test`ten DUSURUYOR;
+              //	ustelik parmak dokunma esigini asinca `onTap` da
+              //	geri cekiliyordu — yani kullanici ne kaydirabiliyor ne
+              //	dokunusla ilerleyebiliyor, 5 saniyelik otomatik gecisi
+              //	BEKLEMEK zorunda kaliyordu (6 sayfa = 30 sn).
+              //
+              // ⚠️ COZUM: yatay surukleme ortuye de baglandi ve DOGRUDAN
+              //    `PageController`a devrediliyor. Iki jest ayni
+              //    `GestureDetector`da oldugu icin arena onlari birbirine
+              //    karsi degil, DOGAL olarak ayirir (dokunus = tap,
+              //    surukleme = drag).
+              // ⚠️ YAPMA: `onTap`i kaldirip yalniz kaydirma birakma
+              //    (kullanici ACIKCA "sol sag Instagram gibi tiklayinca
+              //    gecsin" dedi).
               Positioned.fill(
                 child: Row(
                   children: [
@@ -235,12 +295,16 @@ class _OnboardingEkraniState extends ConsumerState<OnboardingEkrani> {
                       child: GestureDetector(
                         behavior: HitTestBehavior.opaque,
                         onTap: _geri,
+                        onHorizontalDragUpdate: _suruklendi,
+                        onHorizontalDragEnd: _suruklemeBitti,
                       ),
                     ),
                     Expanded(
                       child: GestureDetector(
                         behavior: HitTestBehavior.opaque,
                         onTap: _ileri,
+                        onHorizontalDragUpdate: _suruklendi,
+                        onHorizontalDragEnd: _suruklemeBitti,
                       ),
                     ),
                   ],
@@ -282,6 +346,18 @@ class _SayfaGorunumu extends StatelessWidget {
         //	sayfada altta bosluk kalir ve telefon YERINDEN OYNAMAZ.
         // ⚠️ Yukseklik yazi olceginden TURETILIR, sabit dp DEGIL:
         //    olcek 1.3/2.0 da sabit sayi tasardi.
+        // ⚠️⚠️⚠️ **SABIT YUKSEKLIK TASIYORDU** (denetim gercek Google Sans
+        //	fontuyla `TextPainter` ile olctu): formul basligin IKI SATIR
+        //	oldugunu VARSAYIYOR, ama 360 dp genislikte bazi basliklar UC
+        //	satira sariyor. Olcek 1.15`te 24.5 dp, olcek 2.0`da ALTI
+        //	sayfanin ALTISI birden 86-148 dp TASIYOR ve basligin son
+        //	satiri telefon cercevesinin ARKASINDA kaliyordu.
+        //
+        // ⚠️ COZUM: yukseklik artik bir **TABAN** (`minHeight`), TAVAN
+        //    DEGIL. Hizalama korunur (tek satirlik sayfalarda blok yine
+        //    iki satirlik yer kaplar, telefon YERINDEN OYNAMAZ) ama
+        //    uzun baslik gerektiginde blok BUYUR ve KIRPILMAZ.
+        // ⚠️ YAPMA: `SizedBox(height:)`e geri donme.
         final olcek = MediaQuery.textScalerOf(context);
         final ustBoy = olcek.scale(16) * 1.35 + 6 + olcek.scale(32) * 1.15 * 2;
 
@@ -290,9 +366,11 @@ class _SayfaGorunumu extends StatelessWidget {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(28, 26, 28, 0),
-              child: SizedBox(
-                height: ustBoy,
-                width: double.infinity,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: ustBoy,
+                  minWidth: double.infinity,
+                ),
                 child: Column(
                   // ⚠️⚠️ TURU 127 — **ICERIK BLOGUN ALTINA HIZALI.**
                   //	Blok iki satirlik SABIT yer kapliyor (hizalama icin);
