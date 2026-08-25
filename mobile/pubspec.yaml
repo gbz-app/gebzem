@@ -209,6 +209,11 @@ flutter:
     #    ⚠️ YAPMA: tekrar `- assets/icon/` yapma; yeni bir varlik
     #       gerekiyorsa DOSYA OLARAK ekle.
     - assets/icon/logo.png
+    # ⚠️⚠️ TURU 130 — VITRIN GORSELI (kullanici verdi: milli takim gol
+    #    sevinci). Menu sliderindaki skor kartinin arka plani.
+    #    ⚠️ KLASOR DEGIL TEK DOSYA (turu 116 dersi: klasor yazmak
+    #       derleme-zamani girdilerini de pakete gomer).
+    - assets/vitrin/re1.jpg
 
   # TEST TURU 58 — UYGULAMA YAZI TIPI: GOOGLE SANS (kullanici istegi).
   # NOT: Google Sans uzun sure yalniz Google urunlerine ozeldi; ARTIK Google Fonts'ta

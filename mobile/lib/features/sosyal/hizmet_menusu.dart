@@ -57,6 +57,19 @@ import '../isletme/isletme_kart.dart' show kYanBosluk, kYaricap;
 ///    `/isletme-kesif` ucunun **VARSAYILAN** (kategorisiz) slayt seti.
 /// ⚠️ `autoDispose` DEGIL: menu her acilista yeniden istek atmasin — slayt
 ///    metinleri sunucuda sabit ve nadiren degisir.
+/// ⚠️⚠️⚠️ TURU 130 — **TASARIM ONIZLEME BAYRAKLARI.**
+///
+///	Kullanici emri: *"simdilik yakinimdakilere sahte isimler yaz"* +
+///	*"diger slideri kaldir simdilik, nasil durduguna bakmak icin"*.
+///
+/// ⚠️⚠️⚠️ **IKISI DE YAYIN ONCESI `false` YAPILACAK.** Acikken ekranda
+///	GERCEK OLMAYAN veri gorunur: uydurma isletme adlari/mesafeler ve
+///	gercek bir maci temsil ETMEYEN bir skor.
+/// ⚠️ Kod SILINMEDI, bayrakla kapatiliyor (CLAUDE.md kurali): bayrak
+///    `false` olunca gercek davranis AYNEN geri gelir.
+const kYakinOnizleme = true;
+const kSkorOnizleme = true;
+
 final _menuSlaytProvider = FutureProvider<List<Slayt>>((ref) async {
   final d = await ref.read(isletmeServisiProvider).kesif('');
   return d.slaytlar;
@@ -662,6 +675,10 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu>
   ///    yerine hic yer kaplamamak: turu 93b'de kesif istegi patlayinca ekranin
   ///    tepesinde 350px bos gri kutu kalmasi bulgusuydu).
   Widget _slider(BuildContext context, WidgetRef ref) {
+    // ⚠️⚠️ TURU 130 — onizleme acikken SKOR KARTI cizilir; kapaninca
+    //	sunucudan gelen slaytlar AYNEN geri gelir (asagidaki kod
+    //	SILINMEDI).
+    if (kSkorOnizleme) return _skorKarti(context);
     final s = ref.watch(_menuSlaytProvider).valueOrNull ?? const [];
     if (s.isEmpty) return const SizedBox.shrink();
     return SizedBox(
@@ -671,6 +688,118 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu>
       child: KategoriSlider(slaytlar: s, yuzey: kAiKartYuzey(context)),
     );
   }
+
+  /// ⚠️ Kart yuksekligi slider ile AYNI (`KategoriSlider.yukseklik`):
+  ///    bayrak acilip kapandiginda sayfanin geri kalani YERINDEN
+  ///    OYNAMASIN.
+  /// ⚠️⚠️ Gorselin USTUNE koyu bir gecis (`LinearGradient`) konur:
+  ///	fotograf her tonda olabilir ve beyaz yazi acik bir zeminde
+  ///	OKUNMAZDI. Gecis ALTTAN yukari koyulasir — yazilar altta.
+  /// ⚠️ `BoxFit.cover` + `ClipRRect`: 1920x1080 gorsel karta kirpilarak
+  ///    oturur; `contain` olsaydi yanlarda siyah bant kalirdi.
+  Widget _skorKarti(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: kYanBosluk),
+    child: SizedBox(
+      height: KategoriSlider.yukseklik,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(kYaricap(1000)),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Image.asset('assets/vitrin/re1.jpg', fit: BoxFit.cover),
+            // ── OKUNURLUK GECISI ──
+            const DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Color(0x00000000),
+                    Color(0x66000000),
+                    Color(0xE6000000),
+                  ],
+                  stops: [0.25, 0.6, 1.0],
+                ),
+              ),
+            ),
+            // ── SKOR + CANLI ──
+            Positioned(
+              left: 16,
+              right: 16,
+              bottom: 14,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // ⚠️ `FittedBox` degil `maxLines: 1` + ellipsis: yazi
+                  //    olcegi 2.0`da skor KUCULMEMELI, gerekirse kirpilir.
+                  const Text(
+                    'Türkiye 1 - 0 Almanya',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 21,
+                      height: 1.2,
+                      fontWeight: FontWeight.w800,
+                      // ⚠️ Golge: fotografin acik bir bolgesine denk
+                      //    gelirse yazi yine okunur kalsin.
+                      shadows: [
+                        Shadow(blurRadius: 8, color: Color(0xCC000000)),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 7),
+                  // ── CANLI ROZETI ──
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 9,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE11D48),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // ⚠️ Renk TEK BASINA renk korlugu olana hicbir
+                            //    sey anlatmaz — yaninda YAZI da var
+                            //    (turu 98b dersi).
+                            Container(
+                              width: 6,
+                              height: 6,
+                              decoration: const BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            const Text(
+                              'CANLI',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 11.5,
+                                height: 1.2,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 
   /// Hedef ekrani acar.
   ///
@@ -724,6 +853,14 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu>
         : saat < 22
         ? 'İyi Akşamlar'
         : 'İyi Geceler';
+    // ⚠️⚠️ TURU 130 — selamlamanin SAGINDA ikon (kullanici emri: *"İyi
+    //	Geceler`in sagina ay ikonu koy"*).
+    // ⚠️ Ikon da SAATTEN turetilir: gunduz "İyi Günler"in yaninda ay
+    //    durmasi anlamsiz olurdu. Gece/aksam AY, sabah/oglen GUNES.
+    // ⚠️ Lucide bir FONT`tur (glif) — `strokeWidth` YOKTUR.
+    final selamIkon = (saat < 5 || saat >= 18)
+        ? LucideIcons.moon
+        : LucideIcons.sun;
     final onRenk = Theme.of(context).colorScheme.onSurface;
     return Padding(
       padding: const EdgeInsets.fromLTRB(kYanBosluk, 0, 6, 0),
@@ -743,17 +880,32 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu>
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  selam,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w500,
-                    // ⚠️ TURU 129 — 0.6 -> **0.78**: koyu zeminde 0.6
-                    //    okunmuyordu (emulatorde goruldu).
-                    color: onRenk.withValues(alpha: 0.78),
-                  ),
+                // ⚠️ `Row` + `Flexible`: uzun bir selamlama ikonu ekran
+                //    disina itmesin.
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        selam,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w500,
+                          // ⚠️ TURU 129 — 0.6 -> **0.78**: koyu zeminde
+                          //    0.6 okunmuyordu (emulatorde goruldu).
+                          color: onRenk.withValues(alpha: 0.78),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 5),
+                    Icon(
+                      selamIkon,
+                      size: 13,
+                      color: onRenk.withValues(alpha: 0.7),
+                    ),
+                  ],
                 ),
                 if (ad.isNotEmpty)
                   Text(
@@ -771,9 +923,30 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu>
           IconButton(
             tooltip: 'Ara',
             icon: const Icon(LucideIcons.search, size: 22),
+            // ⚠️⚠️⚠️ TURU 130 — **`Scaffold` SARMALI ZORUNLU** (kullanici:
+            //	*"aramaya tikladigimda ekran patliyor"* — HAKLIYDI).
+            //
+            //	`KesfetEkrani` `Scaffold` DONDURMEZ: `HomeScreen`de bir
+            //	SEKME olarak yasiyor ve Scaffold`u ORASI saglıyor. Tek
+            //	basina push edilince (a) `Material` bulunamadigi icin
+            //	`TextField` patliyor, (b) govdedeki `Column` SINIRSIZ
+            //	yukseklik kisiti aliyor.
+            // ⚠️ Ekranin KENDISI degistirilmedi: sekme olarak kullanimi
+            //    AYNEN duruyor, eksik olan kabuk BURADA veriliyor.
+            // ⚠️ Geri oku: ekranin kendi AppBar`i YOK (Instagram deseni,
+            //    ustte arama kutusu var) — cikis yolu SART.
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute<void>(
-                builder: (_) => const KesfetEkrani(),
+                builder: (_) => Scaffold(
+                  appBar: AppBar(
+                    leading: IconButton(
+                      icon: const Icon(LucideIcons.arrowLeft),
+                      onPressed: () => Navigator.of(context).maybePop(),
+                    ),
+                    title: const Text('Ara'),
+                  ),
+                  body: const KesfetEkrani(),
+                ),
               ),
             ),
           ),
@@ -886,6 +1059,10 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu>
     required bool yukleniyor,
     required bool konumVar,
   }) {
+    // ⚠️⚠️ TURU 130 — ONIZLEME acikken kartta UYDURMA isletme adi ve
+    //	mesafe yazar (bkz. `_kOnizlemeYakin`). Bayrak kapaninca gercek
+    //	olcume doner.
+    final onizleme = kYakinOnizleme ? _kOnizlemeYakin[b.ad] : null;
     final metin = _kmMetni(km);
     // ⚠️⚠️ **UC AYRI HAL, UC AYRI METIN** (denetim buldu: onceden hepsi
     //	"Konumu aç" diyordu ve konum ACIKKEN bile oyle kaliyordu).
@@ -894,7 +1071,9 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu>
     //	· konum var, kayit yok -> "Yakında yok" (DURUST: o kategoride
     //	  konumlu kayitli isletme YOK; canli veride market/oto boyle)
     // ⚠️ SAHTE MESAFE YAZILMAZ.
-    final altMetin = metin.isNotEmpty
+    final altMetin = onizleme != null
+        ? onizleme.mesafe
+        : metin.isNotEmpty
         ? metin
         : yukleniyor
         ? ''
@@ -950,7 +1129,9 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu>
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      b.ad,
+                      // ⚠️ Onizlemede UYDURMA isletme adi; normalde
+                      //    kartin kendi adi ("Eczane", "Bakkal"...).
+                      onizleme?.ad ?? b.ad,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
@@ -979,8 +1160,11 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu>
                         height: 1.2,
                         fontWeight: FontWeight.w600,
                         // ⚠️ TURU 129 — koyu zeminde 0.4/0.55 SILIKTI.
+                        // ⚠️ Onizlemede metin GERCEK mesafe gibi cizilir.
                         color: onRenk.withValues(
-                          alpha: metin.isEmpty ? 0.62 : 0.78,
+                          alpha: (metin.isEmpty && onizleme == null)
+                              ? 0.62
+                              : 0.78,
                         ),
                       ),
                     ),
@@ -1361,3 +1545,26 @@ final yakinMesafeProvider = FutureProvider.autoDispose<YakinSonuc>(
     return (konumVar: true, km: en);
   },
 );
+
+/// ⚠️⚠️⚠️ TURU 130 — **YAKINIMDA ONIZLEME VERISI** (kullanici emri:
+///	*"simdilik yakinimdakilere sahte isimler yaz, Gül Eczanesi 400 m
+///	gibi"*).
+///
+/// ⚠️⚠️⚠️ **BU VERI UYDURMADIR.** Ne bu isletmeler ne bu mesafeler
+///	gercektir; hicbiri sunucudan gelmez. Amac YALNIZCA kartin dolu
+///	halinin nasil durdugunu gormek.
+///
+/// ⚠️⚠️ **`kYakinOnizleme = false` YAPILINCA TAMAMEN DEVRE DISI KALIR**
+///	ve kartlar gercek olcume doner (izin varsa mesafe, yoksa
+///	"Konumu aç", kayit yoksa "Yakında yok").
+/// ⚠️ Karta dokunmak GERCEK ekrani acar — onizleme yalniz ETIKETI
+///    degistirir, hedefi DEGISTIRMEZ. Yani kullanici uydurma bir
+///    isletme sayfasina DUSMEZ.
+/// ⚠️ Anahtar kart ADIDIR (`_Bolum.ad`), kategori degil: Cami`nin
+///    kategorisi `diger` ve o kategoriye baska kartlar da baglanabilir.
+const _kOnizlemeYakin = <String, ({String ad, String mesafe})>{
+  'Eczane': (ad: 'Gül Eczanesi', mesafe: '400 m'),
+  'Bakkal': (ad: 'Şen Market', mesafe: '250 m'),
+  'Akaryakıt': (ad: 'Petrol Ofisi', mesafe: '1,2 km'),
+  'Cami': (ad: 'Merkez Camii', mesafe: '650 m'),
+};
