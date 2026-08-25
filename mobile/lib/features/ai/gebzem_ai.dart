@@ -628,9 +628,9 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
               textAlign: TextAlign.center,
             ),
           ),
-          // ⚠️ 30 px: kullanici emri (*"hangi konuda yardimci olabilirim
-          //    30 px altina"*).
-          const SizedBox(height: 30),
+          // ⚠️ TURU 128 — 30 -> **35** (kullanici: *"sana hangi konuda ile
+          //    arasini 5 px daha ac"*).
+          const SizedBox(height: 35),
           _OneriDongusu(
             oneriler: _kOneriler,
             onSec: _oneriSecildi,
@@ -1716,7 +1716,7 @@ class _OneriDongusuState extends State<_OneriDongusu> {
             // ⚠️⚠️ **OLCEKTEN TURETILIR** (denetim buldu): sabit 26 dp,
             //	yazi olcegi ~1.4 ustunde harfleri DIKEY TRASLIYORDU.
             //	Imlec (16) ve ikon (17) da ayni kutuda — taban 26.
-            height: (MediaQuery.textScalerOf(context).scale(15.5) * 1.35)
+            height: (MediaQuery.textScalerOf(context).scale(17.5) * 1.35)
                 .clamp(26.0, 60.0),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -1737,7 +1737,8 @@ class _OneriDongusuState extends State<_OneriDongusu> {
                     overflow: TextOverflow.clip,
                     softWrap: false,
                     style: TextStyle(
-                      fontSize: 15.5,
+                      // ⚠️ TURU 128 — 15.5 -> **17.5** (kullanici emri).
+                      fontSize: 17.5,
                       fontWeight: FontWeight.w500,
                       color: beyaz.withValues(alpha: 0.72),
                     ),

@@ -191,6 +191,38 @@ class HizmetMenusu extends ConsumerWidget {
         .firstWhere((_) => true, orElse: () => null);
     final kategoriler = bolumler.where((b) => b.ad != 'Yakınımda').toList();
 
+    // ⚠️⚠️⚠️ TURU 128 — **GebzemAI ve Sosyal KATEGORILERIN BASINDA**
+    //	(kullanici emri: *"hizli erisimdeki GebzemAI ve Sosyal`i
+    //	kategorilerin basina al"*).
+    //
+    //	Ikisi de bir ISLETME KATEGORISI DEGIL — biri yapay zeka ekrani,
+    //	oteki akis sekmesi. Ama kullanicinin zihninde menudeki "gidilecek
+    //	yerler" listesinin ilk iki maddesi bunlar; siralama urun karari.
+    //
+    // ⚠️⚠️ Bu iki giris asagidaki `hizli` listesinden CIKARILDI
+    //	(`_sehirRehberi`): iki yerde ayni kart, "hangisine bassam"
+    //	sorusu uretir ve turu 76b`de birebir bu yuzden ikinci FAB
+    //	kaldirilmisti.
+    // ⚠️ GebzemAI yalniz sunucuda AI ACIKSA cizilir (`aiAcik`):
+    //    kapaliyken kart basildiginda 503 alinirdi — "olu ozellik".
+    // ⚠️ SIRA: ONCE sekme yazilir, SONRA route kapatilir (turu 115).
+    //    Ters sirada `HomeScreen` eski sekmesiyle bir kare cizer.
+    kategoriler.insertAll(0, [
+      if (aiAcik)
+        _Bolum('GebzemAI', [
+          const Color(0xFF00C2A8),
+          const Color(0xFF00695C),
+        ], (c) => const GebzemAiEkrani()),
+      _Bolum.eylem(
+        'Sosyal',
+        [const Color(0xFF7A5CFF), const Color(0xFF3A2A8A)],
+        (c) {
+          aktifSekme.value = 0;
+          Navigator.of(c).popUntil((r) => r.isFirst);
+        },
+      ),
+    ]);
+
     // ⚠️⚠️⚠️ TURU 96t — **SIRALAMA KULLANICI TARAFINDAN VERILDI**:
     //	*"Yemek Restorant Cafe Alışveriş Hizmet İlan Düğün Eğitim Sağlık
     //	Otel diye daha güzel ve sıralı şekilde"*.
@@ -258,40 +290,12 @@ class HizmetMenusu extends ConsumerWidget {
     //	olmamasidir; kullanici da neyin arandigini kutuda GORUR.
     // ⚠️ YAPMA: bu kartlara sahte/gomulu liste yazma.
     final hizli = <_Bolum>[
-      // ⚠️⚠️ TURU 96v — **GebzemAI ve Sosyal EN BASTA** (kullanici emri).
-      // ⚠️ GebzemAI yalniz sunucuda AI ACIKSA cizilir (`aiAcik`): kapaliyken
-      //    kart basildiginda 503 alinirdi — bu projede 'olu ozellik' sinifi.
-      //    Ayni sebeple kategoriler izgarasindaki 'Yapay zekâ' karti
-      //    KALDIRILDI: iki yerde ayni giris gereksiz tekrar.
-      if (aiAcik)
-        _Bolum('GebzemAI', [
-          const Color(0xFF00C2A8),
-          const Color(0xFF00695C),
-        ], (c) => const GebzemAiEkrani()),
-      // ⚠️⚠️⚠️ TURU 115 — **'Sosyal' ARTIK ANASAYFAYI ACIYOR** (kullanici:
-      //	*"alttaki Sosyal'a tikladigimda ANASAYFA GELMIYOR, ARAMAYA
-      //	gidiyor"*).
-      //
-      //	Kart `KesfetEkrani`i (arama + kesfet izgarasi) aciyordu. "Sosyal"
-      //	kelimesi kullanicinin zihninde AKIS demek; arama zaten alt menude
-      //	kendi sekmesi. Yani kart hem YANLIS yere gidiyor hem de var olan
-      //	bir sekmenin IKINCI KOPYASIYDI.
-      //
-      // ⚠️ Yeni ekran ACILMADI: `aktifSekme.value = 0` yazilip menu route'u
-      //    kapatiliyor — `isletme_listesi.dart`taki KANITLI desenin aynisi.
-      // ⚠️ SIRA ONEMLI: ONCE sekme yazilir, SONRA route kapatilir. Ters
-      //    sirada `HomeScreen` eski sekmesiyle bir kare cizer ve goz
-      //    "yanlis sekmeye dondu" diye okur.
-      // ⚠️ `popUntil(isFirst)`: menu tam ekran bir route ve ustunde baska
-      //    route'lar acilmis olabilir.
-      _Bolum.eylem(
-        'Sosyal',
-        [const Color(0xFF7A5CFF), const Color(0xFF3A2A8A)],
-        (c) {
-          aktifSekme.value = 0;
-          Navigator.of(c).popUntil((r) => r.isFirst);
-        },
-      ),
+      // ⚠️⚠️ TURU 128 — **GebzemAI ve Sosyal BURADAN KALDIRILDI**,
+      //	kategorilerin BASINA tasindi (kullanici emri). Tanimlar
+      //	`kategoriler.insertAll(0, ...)` icinde.
+      // ⚠️ YAPMA: buraya geri ekleme — ayni giris iki yerde cizilirdi.
+      // ⚠️ TURU 115 gerekcesi (Sosyal AKISI acar, aramayi DEGIL) tanimla
+      //    birlikte `kategoriler.insertAll` blogunda korunuyor.
       // ⚠️⚠️ TURU 124 — **HIZLI ERISIM KARTLARI ARTIK HARITAYA GIDIYOR**
       //	(kullanici emri: *"hızlı erişimde GebzemAI ve Sosyal haricinde
       //	diğer kartlara tıkladığımızda Yakınımdaki haritaya gidecek"*).
@@ -359,18 +363,14 @@ class HizmetMenusu extends ConsumerWidget {
     // ⚠️ Hizli erisim listesi BURADA kurulur: `yakinimda` nullable ve
     //    Dart bunu closure icinde daraltmiyor (analiz hatasi verdi).
     //    Koleksiyon-if ile tek seferde null-guvenli hale getirilir.
-    // ⚠️⚠️ TURU 96w — SIRA: **GebzemAI · Sosyal · Yakınımda · ...**
-    //	(kullanici emri: *"yakinimda sosyalden sonra olacak"*).
-    //	`hizli` listesinin ilk iki ogesi GebzemAI ve Sosyal; Yakinimda
-    //	onlarin ARDINA eklenir, kalanlar (eczane/durak/taksi/akaryakit)
-    //	sirasini korur.
-    // ⚠️ AI kapaliyken `hizli` bir oge eksik baslar; bu yuzden konum SABIT
-    //    SAYIYLA degil, 'Sosyal'in indeksinden TURETILIR.
-    final sosyalNo = hizli.indexWhere((b) => b.ad == 'Sosyal');
+    // ⚠️⚠️ TURU 128 — GebzemAI/Sosyal kategorilere tasinince 'Sosyal`in
+    //	indeksinden turetme (turu 96w) GECERSIZ kaldi: liste artik
+    //	dogrudan **Yakınımda** ile basliyor.
+    // ⚠️ `yakinimda` nullable ve Dart bunu closure icinde daraltmiyor;
+    //    koleksiyon-if ile null-guvenli kurulur.
     final hizliTumu = <_Bolum>[
-      ...hizli.take(sosyalNo + 1),
       if (yakinimda != null) yakinimda,
-      ...hizli.skip(sosyalNo + 1),
+      ...hizli,
     ];
 
     // ⚠️⚠️⚠️ TURU 96v — **SAYFANIN TAMAMI BIRLIKTE KAYAR** (kullanici emri:
@@ -425,97 +425,70 @@ class HizmetMenusu extends ConsumerWidget {
                 //    `viewportFraction`indan uretir (turu 96t).
                 _slider(ref),
                 const SizedBox(height: 14),
+                // ⚠️⚠️⚠️ TURU 128 — **"YAKINIMDA" SERIDI** (kullanici emri:
+                //	*"Sehir Rehberi`nin ustune Yakinimda olsun, orada Eczane
+                //	Bakkal Akaryakit Cami gorunsun, kart seklinde ufak kart"*).
+                //
+                // ⚠️⚠️ **DURUST SINIR — POI VERISI YOK.** Bu dortu de
+                //	`isletmeler` tablosundan beslenir, yani YALNIZ KAYITLI
+                //	ISLETMEYI gosterir. Belediye/harita POI verisi projede
+                //	HICBIR YERDE tutulmuyor (turu 96t karari).
+                //	· Eczane   -> `eczane` kategorisi (VAR)
+                //	· Bakkal   -> `market` kategorisi (VAR; bakkal onun icinde)
+                //	· Akaryakıt-> `oto` kategorisi (VAR)
+                //	· Cami     -> **KARSILIGI OLAN KATEGORI YOK** -> `diger`.
+                //	  Kayitli bir cami yoksa liste BOS doner; bu bir hata
+                //	  DEGIL, verinin olmamasidir.
+                // ⚠️ YAPMA: bu kartlara gomulu/sahte liste yazma.
+                // ⚠️ YAPMA: "Nöbetçi Eczane" yazip eczane listesi acma —
+                //    nobet verisi YOK, kullanici kapali eczaneye giderdi.
+                _bolumBasligi('YAKINIMDA'),
+                const SizedBox(height: 10),
+                _ufakSerit(context, [
+                  _Bolum(
+                    'Eczane',
+                    [const Color(0xFF20C997), const Color(0xFF0B7A5A)],
+                    (c) => const YakinimdaEkrani(kategori: 'eczane'),
+                  ),
+                  _Bolum(
+                    'Bakkal',
+                    [const Color(0xFFFFC531), const Color(0xFFB88600)],
+                    (c) => const YakinimdaEkrani(kategori: 'market'),
+                  ),
+                  _Bolum(
+                    'Akaryakıt',
+                    [const Color(0xFFFF7A45), const Color(0xFFB33A12)],
+                    (c) => const YakinimdaEkrani(kategori: 'oto'),
+                  ),
+                  _Bolum(
+                    'Cami',
+                    [const Color(0xFF6C7BFF), const Color(0xFF2A3390)],
+                    (c) => const YakinimdaEkrani(kategori: 'diger'),
+                  ),
+                ]),
+                const SizedBox(height: 18),
                 if (hizliTumu.isNotEmpty) ...[
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: kYanBosluk),
-                    child: Text(
-                      'HIZLI ERİŞİM',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.grey,
-                      ),
-                    ),
-                  ),
+                  // ⚠️⚠️⚠️ TURU 128 — **"HIZLI ERİŞİM" -> "ŞEHİR REHBERİ"**
+                  //	ve **IKI SATIRLI SABIT IZGARA -> TEK SATIR YATAY
+                  //	KAYDIRMA** (kullanici emri).
+                  //
+                  // ⚠️⚠️ 'Tümü' karti KALDIRILMADI, serit SONUNA kondu:
+                  //	serit artik TUM kisayollari tasiyor (kaydirarak
+                  //	hepsine ulasilir) ama kategorilere giden tek liste
+                  //	girisi de KAYBOLMAMALI.
+                  // ⚠️ YAPMA: eski 2 x 5 izgaraya donme — kullanici tek
+                  //    satir istedi ve iki satir sayfanin yarisini yiyordu.
+                  _bolumBasligi('ŞEHİR REHBERİ'),
                   const SizedBox(height: 10),
-                  // ⚠️ TEK SATIR + YATAY KAYDIRMA (turu 96u). Kart genisligi
-                  //    izgarayla AYNI: ekranda dort kart, besincisi SARKAR.
-                  // ⚠️⚠️⚠️ TURU 96w — **IKI SATIR + YATAY KAYDIRMA** ve
-                  //	kartlar kategori kartlarindan **%20 KUCUK**
-                  //	(kullanici emri).
-                  //
-                  // ⚠️ `GridView` YATAY yonde: `crossAxisCount: 2` burada
-                  //    SUTUN degil **SATIR** sayisidir (cross ekseni dikey).
-                  //    Ogeler once ASAGI, sonra SAGA akar.
-                  // ⚠️ Kart genisligi izgara hucresinin **0.8 KATI**; kutu
-                  //    yuksekligi de ayni oranda. Etiket yazisi KUCULMEZ
-                  //    (14 dp) — okunurluk kartin suslemesinden onemli.
-                  // ⚠️⚠️⚠️ TURU 96y — **SABIT 2 x 5 = 10 HUCRE, KAYDIRMA YOK**
-                  //	(kullanici emri: *"sol sag 5 tane olacak, 2 satir
-                  //	olacak, 2. satirin sonunda 'hepsi' diyecek"*).
-                  //
-                  // ⚠️ Yatay kaydirmali izgara KALDIRILDI: orada ogeler
-                  //    once ASAGI sonra SAGA akiyordu, yani okuma sirasi
-                  //    sutun sutundu ve kullanici *"yerleri degistirme"*
-                  //    dedi. Dikey izgarada sira SOLDAN SAGA'dir.
-                  // ⚠️ Ilk **DOKUZ** kisayol cizilir, onuncu hucre 'Tümü';
-                  //    gerisi o listeden ulasilir (hicbiri KAYBOLMAZ).
-                  LayoutBuilder(
-                    builder: (c, bc) {
-                      // ⚠️⚠️ TURU 96x — SATIRDA **BES KART** (kullanici emri:
-                      //	*"5 satir yapsana, 4 tane olmus"*). Genislik
-                      //	dogrudan BESE bolunur; onceki hal 'dortlu izgaranin
-                      //	%80'i' idi ve ekranda yine DORT kart cikiyordu.
-                      // ⚠️ Kutu oraninin izgarayla AYNI kalmasi icin
-                      //    yukseklik genislikten TURETILIR (78/88.8 = 0.878);
-                      //    sabit yazilsaydi kartlar dar ekranda kare,
-                      //    genisde basik gorunurdu.
-                      final en =
-                          (bc.maxWidth - kYanBosluk * 2 - kIzgaraAralik * 4) /
-                          5;
-                      final kutu = en * 0.878;
-                      final satirBoy = kutu + 5 + etiketAlani;
-                      // ⚠️ 9 kisayol + 'Tümü' = 10 hucre (2 x 5).
-                      final gosterilen = [
-                        ...hizliTumu.take(9),
-                        // ⚠️ 'Tümü' listesi HEM hizli kisayollari HEM
-                        //    kategorileri icerir: izgaraya sigmayan hicbir
-                        //    giris ULASILAMAZ kalmasin.
-                        _tumuBolumu([...hizliTumu, ...kategoriler]),
-                      ];
-                      return GridView.builder(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: kYanBosluk,
-                        ),
-                        // ⚠️ Kendi kaydirmasi YOK: sayfanin tamami zaten
-                        //    `CustomScrollView` icinde kayiyor (turu 96v).
-                        physics: const NeverScrollableScrollPhysics(),
-                        shrinkWrap: true,
-                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 5,
-                          crossAxisSpacing: kIzgaraAralik,
-                          mainAxisSpacing: kIzgaraAralik,
-                          mainAxisExtent: satirBoy,
-                        ),
-                        itemCount: gosterilen.length,
-                        itemBuilder: (_, i) =>
-                            _kart(context, gosterilen[i], kutuBoy: kutu),
-                      );
-                    },
-                  ),
+                  _ufakSerit(context, [
+                    ...hizliTumu,
+                    // ⚠️ 'Tümü' listesi HEM kisayollari HEM kategorileri
+                    //    icerir: hicbir giris ULASILAMAZ kalmasin.
+                    _tumuBolumu([...hizliTumu, ...kategoriler]),
+                  ]),
                 ],
                 const SizedBox(height: 18),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: kYanBosluk),
-                  child: Text(
-                    'KATEGORİLER',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.grey,
-                    ),
-                  ),
-                ),
+                _bolumBasligi('KATEGORİLER'),
                 const SizedBox(height: 10),
               ],
             ),
@@ -607,6 +580,64 @@ class HizmetMenusu extends ConsumerWidget {
   ///    Turu 91 performans maddesi.
   /// ⚠️ [kutuBoy] verilmezse izgara olcusu (`kKesifKutu`). Hizli erisim
   ///    kartlari bunun **%80**'ini kullanir (turu 96w kullanici emri).
+  /// ⚠️ TURU 128 — bolum basliklari TEK KAYNAK. Uc yerde (YAKINIMDA /
+  ///    ŞEHİR REHBERİ / KATEGORİLER) ayni stil kopyalanmisti; biri
+  ///    degisince otekiler geride kalirdi.
+  /// ⚠️ `letterSpacing` KULLANILMAZ (kullanici yasagi, turu 96u).
+  Widget _bolumBasligi(String metin) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: kYanBosluk),
+    child: Text(
+      metin,
+      style: const TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.w700,
+        color: Colors.grey,
+      ),
+    ),
+  );
+
+  /// ⚠️⚠️⚠️ TURU 128 — **UFAK KART SERIDI** (tek satir, yatay kaydirma).
+  ///
+  ///	Kullanici emri: *"tek satir scroll olsun sol sag ... kart seklinde
+  ///	ufak kart"*. Hem YAKINIMDA hem ŞEHİR REHBERİ bunu kullanir.
+  ///
+  /// ⚠️⚠️ Kart genisligi **EKRANDAN TURETILIR** (dort bucuk kart sigar),
+  ///	sabit dp DEGIL: 360 dp`de sabit bir sayi ya cok genis ya cok dar
+  ///	dururdu. Yarim kartin sarkmasi KASITLI — serit kaydirilabildigini
+  ///	boyle soyler (nokta gostergesi ya da ok koymadan).
+  /// ⚠️ Kutu orani izgarayla AYNI (`0.878`): iki farkli oran ayni ekranda
+  ///    "bir yerde bozuk" hissi verirdi.
+  /// ⚠️ Yukseklik yazi olceginden TURETILIR (`etiketAlani`), sabit dp
+  ///    DEGIL: olcek 1.3/2.0`da iki satirlik etiket TASARDI.
+  /// ⚠️ `ListView` cocuguna DIKEYDE TIGHT kisit verir; bu yuzden serit
+  ///    `SizedBox` ile ACIK yukseklik alir (turu 121d dersi).
+  /// ⚠️ Yan dolgu `padding`ten gelir, ilk/son kartin DISINDA — kartlar
+  ///    kenara yapismaz ama kaydirma ekranin ucundan baslar.
+  Widget _ufakSerit(BuildContext context, List<_Bolum> ogeler) {
+    final etiketAlani = MediaQuery.textScalerOf(context).scale(14) * 1.15 * 2;
+    return LayoutBuilder(
+      builder: (c, bc) {
+        final en = (bc.maxWidth - kYanBosluk * 2 - kIzgaraAralik * 4) / 4.5;
+        final kutu = en * 0.878;
+        return SizedBox(
+          height: kutu + 5 + etiketAlani,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: kYanBosluk),
+            physics: const BouncingScrollPhysics(),
+            itemCount: ogeler.length,
+            separatorBuilder: (_, _) =>
+                const SizedBox(width: kIzgaraAralik),
+            itemBuilder: (_, i) => SizedBox(
+              width: en,
+              child: _kart(context, ogeler[i], kutuBoy: kutu),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _kart(
     BuildContext context,
     _Bolum b, {
