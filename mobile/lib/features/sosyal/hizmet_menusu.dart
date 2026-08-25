@@ -750,7 +750,9 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu>
                   style: TextStyle(
                     fontSize: 13.5,
                     fontWeight: FontWeight.w500,
-                    color: onRenk.withValues(alpha: 0.6),
+                    // ⚠️ TURU 129 — 0.6 -> **0.78**: koyu zeminde 0.6
+                    //    okunmuyordu (emulatorde goruldu).
+                    color: onRenk.withValues(alpha: 0.78),
                   ),
                 ),
                 if (ad.isNotEmpty)
@@ -976,7 +978,10 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu>
                         fontSize: 12.5,
                         height: 1.2,
                         fontWeight: FontWeight.w600,
-                        color: onRenk.withValues(alpha: metin.isEmpty ? 0.4 : 0.55),
+                        // ⚠️ TURU 129 — koyu zeminde 0.4/0.55 SILIKTI.
+                        color: onRenk.withValues(
+                          alpha: metin.isEmpty ? 0.62 : 0.78,
+                        ),
                       ),
                     ),
                   ],
