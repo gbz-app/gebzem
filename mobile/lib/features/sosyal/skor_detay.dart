@@ -429,7 +429,9 @@ class _Istatistik extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final mor = Theme.of(context).colorScheme.primary;
-    final gri = Colors.white.withValues(alpha: 0.18);
+    // ⚠️ TURU 131 — 0.18 koyu zeminde GORUNMUYORDU (emulatorde
+    //    goruldu: cubuklar cizilmis ama fark edilmiyordu).
+    final gri = Colors.white.withValues(alpha: 0.3);
     return Padding(
       padding: EdgeInsets.only(top: 6, bottom: sonuncu ? 2 : 10),
       child: Column(
@@ -477,9 +479,11 @@ class _Istatistik extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 5),
+          const SizedBox(height: 6),
+          // ⚠️ Cubuk 4 -> 7 px: 4 px koyu zeminde bir CIZGI gibi duruyordu,
+          //    orani anlatmiyordu.
           SizedBox(
-            height: 4,
+            height: 7,
             child: Row(
               children: [
                 Expanded(
@@ -487,7 +491,7 @@ class _Istatistik extends StatelessWidget {
                   child: DecoratedBox(
                     decoration: BoxDecoration(
                       color: mor,
-                      borderRadius: BorderRadius.circular(2),
+                      borderRadius: BorderRadius.circular(4),
                     ),
                   ),
                 ),
@@ -497,7 +501,7 @@ class _Istatistik extends StatelessWidget {
                   child: DecoratedBox(
                     decoration: BoxDecoration(
                       color: gri,
-                      borderRadius: BorderRadius.circular(2),
+                      borderRadius: BorderRadius.circular(4),
                     ),
                   ),
                 ),
