@@ -185,43 +185,11 @@ class HizmetMenusu extends ConsumerWidget {
 
     // ⚠️ TURU 90 — "Yakınımda" listeden AYRILIR: ustte tek basina cizilir.
     //    Listede de kalsaydi kullanici onu IKI KEZ gorurdu.
-    final yakinimda = bolumler
-        .where((b) => b.ad == 'Yakınımda')
-        .cast<_Bolum?>()
-        .firstWhere((_) => true, orElse: () => null);
+    // ⚠️⚠️ TURU 128 — artik ustte **YAKINIMDA SERIDI** var (Eczane/Bakkal/
+    //	Akaryakit/Cami), yani ayri bir "Yakınımda" KARTI da gereksiz kaldi.
+    //	Degisken KALDIRILDI; kart yalnizca kategoriler listesinden elenir.
     final kategoriler = bolumler.where((b) => b.ad != 'Yakınımda').toList();
 
-    // ⚠️⚠️⚠️ TURU 128 — **GebzemAI ve Sosyal KATEGORILERIN BASINDA**
-    //	(kullanici emri: *"hizli erisimdeki GebzemAI ve Sosyal`i
-    //	kategorilerin basina al"*).
-    //
-    //	Ikisi de bir ISLETME KATEGORISI DEGIL — biri yapay zeka ekrani,
-    //	oteki akis sekmesi. Ama kullanicinin zihninde menudeki "gidilecek
-    //	yerler" listesinin ilk iki maddesi bunlar; siralama urun karari.
-    //
-    // ⚠️⚠️ Bu iki giris asagidaki `hizli` listesinden CIKARILDI
-    //	(`_sehirRehberi`): iki yerde ayni kart, "hangisine bassam"
-    //	sorusu uretir ve turu 76b`de birebir bu yuzden ikinci FAB
-    //	kaldirilmisti.
-    // ⚠️ GebzemAI yalniz sunucuda AI ACIKSA cizilir (`aiAcik`):
-    //    kapaliyken kart basildiginda 503 alinirdi — "olu ozellik".
-    // ⚠️ SIRA: ONCE sekme yazilir, SONRA route kapatilir (turu 115).
-    //    Ters sirada `HomeScreen` eski sekmesiyle bir kare cizer.
-    kategoriler.insertAll(0, [
-      if (aiAcik)
-        _Bolum('GebzemAI', [
-          const Color(0xFF00C2A8),
-          const Color(0xFF00695C),
-        ], (c) => const GebzemAiEkrani()),
-      _Bolum.eylem(
-        'Sosyal',
-        [const Color(0xFF7A5CFF), const Color(0xFF3A2A8A)],
-        (c) {
-          aktifSekme.value = 0;
-          Navigator.of(c).popUntil((r) => r.isFirst);
-        },
-      ),
-    ]);
 
     // ⚠️⚠️⚠️ TURU 96t — **SIRALAMA KULLANICI TARAFINDAN VERILDI**:
     //	*"Yemek Restorant Cafe Alışveriş Hizmet İlan Düğün Eğitim Sağlık
@@ -264,6 +232,43 @@ class HizmetMenusu extends ConsumerWidget {
     }
 
     kategoriler.sort((a, b) => agirlik(a).compareTo(agirlik(b)));
+
+    // ⚠️⚠️ **EKLEME SIRALAMADAN SONRA** olmak ZORUNDA (emulatorde goruldu):
+    //	ustteki  bilmedigi adlara 1000+ verir, yani ONCE
+    //	eklenseydi GebzemAI ve Sosyal listenin **SONUNA** atilirdi —
+    //	nitekim ilk denemede oyle oldu.
+    // ⚠️ YAPMA: bu blogu un ustune tasima.
+    // ⚠️⚠️⚠️ TURU 128 — **GebzemAI ve Sosyal KATEGORILERIN BASINDA**
+    //	(kullanici emri: *"hizli erisimdeki GebzemAI ve Sosyal`i
+    //	kategorilerin basina al"*).
+    //
+    //	Ikisi de bir ISLETME KATEGORISI DEGIL — biri yapay zeka ekrani,
+    //	oteki akis sekmesi. Ama kullanicinin zihninde menudeki "gidilecek
+    //	yerler" listesinin ilk iki maddesi bunlar; siralama urun karari.
+    //
+    // ⚠️⚠️ Bu iki giris asagidaki `hizli` listesinden CIKARILDI
+    //	(`_sehirRehberi`): iki yerde ayni kart, "hangisine bassam"
+    //	sorusu uretir ve turu 76b`de birebir bu yuzden ikinci FAB
+    //	kaldirilmisti.
+    // ⚠️ GebzemAI yalniz sunucuda AI ACIKSA cizilir (`aiAcik`):
+    //    kapaliyken kart basildiginda 503 alinirdi — "olu ozellik".
+    // ⚠️ SIRA: ONCE sekme yazilir, SONRA route kapatilir (turu 115).
+    //    Ters sirada `HomeScreen` eski sekmesiyle bir kare cizer.
+    kategoriler.insertAll(0, [
+      if (aiAcik)
+        _Bolum('GebzemAI', [
+          const Color(0xFF00C2A8),
+          const Color(0xFF00695C),
+        ], (c) => const GebzemAiEkrani()),
+      _Bolum.eylem(
+        'Sosyal',
+        [const Color(0xFF7A5CFF), const Color(0xFF3A2A8A)],
+        (c) {
+          aktifSekme.value = 0;
+          Navigator.of(c).popUntil((r) => r.isFirst);
+        },
+      ),
+    ]);
 
     // ⚠️⚠️⚠️ TURU 96q — **HIZLI ERISIM SATIRI** (kullanici emri: *"Yakınımda...
     //	onun da sagina nobetci, cilingir vs ekle"*). Yakinimda kucultulup
@@ -360,18 +365,23 @@ class HizmetMenusu extends ConsumerWidget {
         const Color(0xFF0E7A52),
       ], (c) => const YakinimdaEkrani(kategori: 'spor')),
     ];
-    // ⚠️ Hizli erisim listesi BURADA kurulur: `yakinimda` nullable ve
-    //    Dart bunu closure icinde daraltmiyor (analiz hatasi verdi).
-    //    Koleksiyon-if ile tek seferde null-guvenli hale getirilir.
-    // ⚠️⚠️ TURU 128 — GebzemAI/Sosyal kategorilere tasinince 'Sosyal`in
-    //	indeksinden turetme (turu 96w) GECERSIZ kaldi: liste artik
-    //	dogrudan **Yakınımda** ile basliyor.
-    // ⚠️ `yakinimda` nullable ve Dart bunu closure icinde daraltmiyor;
-    //    koleksiyon-if ile null-guvenli kurulur.
-    final hizliTumu = <_Bolum>[
-      if (yakinimda != null) yakinimda,
-      ...hizli,
-    ];
+    // ⚠️⚠️ TURU 128 — GebzemAI/Sosyal kategorilere tasinince eski siralama
+    //	turetmesi (turu 96w: "Sosyal'in indeksinden") GECERSIZ kaldi.
+    //
+    // ⚠️⚠️⚠️ **YAKINIMDA SERIDIYLE TEKRAR EDENLER CIKARILDI** (emulatorde
+    //	goruldu): ustteki YAKINIMDA bolumu Eczane/Bakkal/Akaryakit/Cami
+    //	cizdigi icin ŞEHİR REHBERİ'nde duran **Yakınımda**, **Nöbetçi
+    //	Eczane** ve **Akaryakıt** kartlari AYNI EKRANI aciyordu. Ayni
+    //	sayfada ayni hedefe giden iki kart "hangisine bassam" sorusu
+    //	uretir — turu 76b'de ikinci FAB birebir bu yuzden kaldirilmisti.
+    // ⚠️ Eleme ADA gore yapilir: hedef ekran bir closure oldugu icin
+    //    karsilastirilamaz, ayrica ad kullanicinin GORDUGU seydir.
+    // ⚠️ `Oto Servis` KALDI: ayni kategoriye gitse de kullanicinin
+    //    aradigi sey farkli (servis vs benzin) ve adi ayirt edici.
+    const yakinimdaSeridi = {'Yakınımda', 'Nöbetçi Eczane', 'Akaryakıt'};
+    final hizliTumu = hizli
+        .where((b) => !yakinimdaSeridi.contains(b.ad))
+        .toList();
 
     // ⚠️⚠️⚠️ TURU 96v — **SAYFANIN TAMAMI BIRLIKTE KAYAR** (kullanici emri:
     //	*"asagi inerken sadece kategoriler iniyor; komple asagi inmesi
