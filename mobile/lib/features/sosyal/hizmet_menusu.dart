@@ -14,6 +14,7 @@ import '../home/home_screen.dart' show aktifSekme;
 import '../isletme/kategori_slider.dart';
 import '../medya/medya_gorsel.dart' show Avatar;
 import 'kesfet_ekrani.dart';
+import 'skor_detay.dart';
 import '../../core/theme.dart' show morLogo, kAiZemin, AiZemin, kAiKartYuzey;
 import '../home/home_screen.dart' show myProfileProvider;
 import 'package:permission_handler/permission_handler.dart';
@@ -699,9 +700,16 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu>
   ///    oturur; `contain` olsaydi yanlarda siyah bant kalirdi.
   Widget _skorKarti(BuildContext context) => Padding(
     padding: const EdgeInsets.symmetric(horizontal: kYanBosluk),
-    child: SizedBox(
-      height: KategoriSlider.yukseklik,
-      child: ClipRRect(
+    // ⚠️⚠️ TURU 131 — kart artik MAC DETAYINI aciyor (kullanici emri).
+    // ⚠️ `opaque`: gorselin her yerine dokunmak karti acar.
+    child: GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute<void>(builder: (_) => const SkorDetayEkrani()),
+      ),
+      child: SizedBox(
+        height: KategoriSlider.yukseklik,
+        child: ClipRRect(
         borderRadius: BorderRadius.circular(kYaricap(1000)),
         child: Stack(
           fit: StackFit.expand,
@@ -846,6 +854,7 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu>
               ),
             ),
           ],
+          ),
         ),
       ),
     ),
