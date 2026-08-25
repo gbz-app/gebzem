@@ -331,3 +331,89 @@ const LinearGradient kAiMorGradient = LinearGradient(
   end: Alignment.topRight,
   colors: [kAiParlakMor, kAiKoyuMor],
 );
+
+/// ⚠️⚠️ TURU 129 — GebzemAI zemini. `gebzem_ai.dart` icinde private
+///	duruyordu; MENU EKRANI da ayni zemini kullaniyor (kullanici emri:
+///	*"GebzemAI'daki arka plan mantiginin aynisini buraya yap"*).
+/// ⚠️ Kopyalanmadi, TASINDI: iki ekranin zemini birlikte donmeli.
+const Color kAiZemin = Color(0xFF050308);
+
+/// ⚠️⚠️⚠️ TURU 129 — **GEBZEMAI ZEMINI: TEK KAYNAK BILESEN.**
+///
+///	Siyah zemin + ALT UCTA iki radyal mor parlama. Kullanici emri
+///	(turu 127): *"yukaridan asagi degil boyle dalgali, renkler karissin,
+///	siyah ve mor birlesmeleri cok sert olmasin, dalgalansin"*.
+///
+/// ⚠️⚠️ **MOR YALNIZ ALTTA.** Duz (linear) bir gradyan denendi ve
+///	kullanici REDDETTI: ust bolge neredeyse tamamen siyah olmali, renk
+///	yalnizca alt ucta acilmali.
+/// ⚠️ Iki parlama FARKLI TONDA (`kAiParlakMor` / `kAiKoyuMor`): tek renk
+///    iki kez kullanilsaydi ust uste binen bolge yalnizca KOYULASIR,
+///    RENK KARISMAZDI — istenen "renkler karissin" tam olarak budur.
+/// ⚠️⚠️ `AnimatedBuilder`in **`child:`** parametresi ZORUNLU: govde
+///	icinde agac kurmak her karede tum ekrani yeniden insa eder ve
+///	turu 120'de olculen ANR'yi (500 ms/kare) geri getirir.
+class AiZemin extends StatelessWidget {
+  const AiZemin({super.key, required this.dalga, required this.child});
+
+  /// 0..1 arasi salinan animasyon (parlamalari yatayda hafifce kaydirir).
+  final Animation<double> dalga;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: dalga,
+    child: child,
+    builder: (_, cocuk) {
+      final t = dalga.value;
+      return DecoratedBox(
+        decoration: const BoxDecoration(color: kAiZemin),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: RadialGradient(
+              center: Alignment(-0.55 + t * 0.18, 1.25),
+              radius: 1.15,
+              colors: [
+                kAiParlakMor.withValues(alpha: 0.55),
+                kAiParlakMor.withValues(alpha: 0.22),
+                Colors.transparent,
+              ],
+              stops: const [0.0, 0.45, 1.0],
+            ),
+          ),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: RadialGradient(
+                center: Alignment(0.6 - t * 0.18, 1.1),
+                radius: 0.95,
+                colors: [
+                  kAiKoyuMor.withValues(alpha: 0.6),
+                  kAiKoyuMor.withValues(alpha: 0.25),
+                  Colors.transparent,
+                ],
+                stops: const [0.0, 0.5, 1.0],
+              ),
+            ),
+            child: cocuk,
+          ),
+        ),
+      );
+    },
+  );
+}
+
+/// ⚠️⚠️⚠️ TURU 129 — **MENU KART YUZEYI = GEBZEMAI`DAKI KENDI MESAJ
+///	BALONUM** (kullanici emri: *"kartlar vs sliderda rengi de ben
+///	GebzemAI`a mesaj attigimda benim mesaj balonu rengim olsun"*).
+///
+///	GebzemAI`da kullanici balonu `scheme.primary` uzerinde **%12
+///	opaklikta** cizilir; menu kartlari ve slider ayni formulu
+///	kullanir.
+///
+/// ⚠️ Renk SABIT DEGIL, `scheme.primary`den TURETILIR: marka moru
+///    degistiginde iki ekran BIRLIKTE doner. Sabit bir hex yazsaydik
+///    balonla kartlar ilk tema degisikliginde AYRISIRDI.
+/// ⚠️ Opaklik 0.12 GEBZEMAI ILE AYNI SAYI olmak zorunda; degistirirsen
+///    `gebzem_ai.dart` balonunu da degistir (yoksa iki ekran ayrisir).
+Color kAiKartYuzey(BuildContext c) =>
+    Theme.of(c).colorScheme.primary.withValues(alpha: 0.12);

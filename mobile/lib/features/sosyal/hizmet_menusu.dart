@@ -11,6 +11,10 @@ import '../isletme/urun_servisi.dart' show aiDurumProvider;
 import '../talep/talep_ekranlari.dart';
 import '../home/home_screen.dart' show aktifSekme;
 import '../isletme/kategori_slider.dart';
+import '../medya/medya_gorsel.dart' show Avatar;
+import 'kesfet_ekrani.dart';
+import '../../core/theme.dart' show morLogo, kAiZemin, AiZemin, kAiKartYuzey;
+import '../home/home_screen.dart' show myProfileProvider;
 import 'package:permission_handler/permission_handler.dart';
 
 import '../isletme/isletme_servisi.dart' show isletmeServisiProvider;
@@ -19,7 +23,7 @@ import '../medya/konum_servisi.dart';
 //	emri: *"kartlarin genisliklerini diyorum, yemekteki gibi; renk ve yazi
 //	tipleri de oyle olsun"*). Olcu/renk/yazi sabitleri BURADAN alinir,
 //	KOPYALANMAZ — iki ekran birlikte doner.
-import '../isletme/isletme_kart.dart' show kYanBosluk, kYaricap, kYuzeyGri;
+import '../isletme/isletme_kart.dart' show kYanBosluk, kYaricap;
 
 /// ⚠️⚠️ TURU 76b/77 — ANASAYFA SOL UST MENU.
 ///
@@ -57,11 +61,34 @@ final _menuSlaytProvider = FutureProvider<List<Slayt>>((ref) async {
   return d.slaytlar;
 });
 
-class HizmetMenusu extends ConsumerWidget {
+class HizmetMenusu extends ConsumerStatefulWidget {
   const HizmetMenusu({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HizmetMenusu> createState() => _HizmetMenusuState();
+}
+
+class _HizmetMenusuState extends ConsumerState<HizmetMenusu>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _dalga;
+
+  @override
+  void initState() {
+    super.initState();
+    _dalga = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 14),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _dalga.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final aiAcik = ref.watch(aiDurumProvider).valueOrNull?.acik ?? false;
 
     // ⚠️ Liste BURADA kuruluyor cunku AI karti KOSULLU (sunucuda kapaliysa
@@ -401,8 +428,43 @@ class HizmetMenusu extends ConsumerWidget {
     //    altta olu bosluk birakiyordu.
     final etiketAlani = MediaQuery.textScalerOf(context).scale(14) * 1.15 * 2;
     final hucreBoy = kKesifKutu + 5 + etiketAlani;
-    return SafeArea(
-      child: CustomScrollView(
+    // ⚠️⚠️⚠️ TURU 129 — **ZEMIN GEBZEMAI ILE BIREBIR** (kullanici emri:
+    //	*"arka plan rengini birebir aynisini yapmani istiyorum,
+    //	mantigini"*). Siyah + alt ucta iki radyal mor parlama; bilesen
+    //	`core/theme.dart` -> `AiZemin` (TEK KAYNAK, KOPYALANMADI —
+    //	kopya kacinilmaz olarak drift ederdi).
+    //
+    // ⚠️⚠️ **`Theme` SARMALI ZORUNLU.** Menu simdiye kadar ACIK temadaydi:
+    //	kart yuzeyi acik gri, yazilar SIYAH. Koyu zemine gecerken bunlar
+    //	oldugu gibi birakilsaydi yazilar OKUNMAZDI (turu 115b: sohbet
+    //	balonlari birebir ayni hatayla **1.23:1** olculmustu). Sarmal
+    //	`brightness: dark` verir ve `onSurface` KENDILIGINDEN beyaza
+    //	doner — alt bilesenler tek tek boyanmak zorunda kalmaz.
+    // ⚠️ `scaffoldBackgroundColor: transparent`: zemin `AiZemin`e ait,
+    //    ustune ikinci bir opak katman binmemeli.
+    // ⚠️ `fontFamily` ACIKCA veriliyor: `ThemeData.dark()` SIFIRDAN
+    //    kurulur ve uygulamanin Google Sans ayarini TASIMAZ (turu 127`de
+    //    GebzemAI ekraninda birebir bu yasandi, yazi tipi degismisti).
+    // ⚠️ YAPMA: sarmali kaldirip renkleri cagri yerlerine yazma.
+    return Theme(
+      data: ThemeData.dark(useMaterial3: true).copyWith(
+        colorScheme:
+            ColorScheme.fromSeed(
+              seedColor: morLogo,
+              brightness: Brightness.dark,
+            ).copyWith(surface: kAiZemin),
+        scaffoldBackgroundColor: Colors.transparent,
+        textTheme: ThemeData.dark(
+          useMaterial3: true,
+        ).textTheme.apply(fontFamily: 'Google Sans'),
+        primaryTextTheme: ThemeData.dark(
+          useMaterial3: true,
+        ).primaryTextTheme.apply(fontFamily: 'Google Sans'),
+      ),
+      child: AiZemin(
+        dalga: _dalga,
+        child: SafeArea(
+          child: CustomScrollView(
         slivers: [
           SliverToBoxAdapter(
             child: Column(
@@ -415,28 +477,17 @@ class HizmetMenusu extends ConsumerWidget {
                 //    sistemin geri jesti/tusu calisir. Ayrica bir karta
                 //    dokunmak hedef ekrani ustune acar.
                 // ⚠️ YAPMA: geri okunu geri koyma.
-                const SizedBox(height: 14),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: kYanBosluk),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Gebzem',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      // ⚠️ TURU 112 — alt aciklama KALDIRILDI (kullanici
-                      //    emri). Baslik tek basina yeterli.
-                    ],
-                  ),
-                ),
+                const SizedBox(height: 10),
+                // ⚠️⚠️⚠️ TURU 129 — **"Gebzem" BASLIGI KALDIRILDI**,
+                //	yerine KISISEL SELAMLAMA (kullanici emri: *"Gebzem
+                //	yazisini kaldir, oraya Iyi Geceler, altina kisinin
+                //	ismi, ismin solunda daire icinde profil fotografi,
+                //	en sagda arama ikonu"*).
+                _selamlama(context, ref),
                 const SizedBox(height: 12),
                 // ⚠️ Slider `Padding`in DISINDA: yan boslugu KENDI
                 //    `viewportFraction`indan uretir (turu 96t).
-                _slider(ref),
+                _slider(context, ref),
                 const SizedBox(height: 14),
                 // ⚠️⚠️⚠️ TURU 128 — **"YAKINIMDA" SERIDI** (kullanici emri:
                 //	*"Sehir Rehberi`nin ustune Yakinimda olsun, orada Eczane
@@ -479,13 +530,20 @@ class HizmetMenusu extends ConsumerWidget {
                     mesafeKategorisi: 'oto',
                     ikon: LucideIcons.fuel,
                   ),
-                  // ⚠️ Mesafe kategorisi BOS — gerekce `_Bolum` serhinde.
                   _Bolum(
                     'Cami',
                     [const Color(0xFF6C7BFF), const Color(0xFF2A3390)],
                     (c) => const YakinimdaEkrani(kategori: 'diger'),
-                    // ⚠️ Lucide`de cami glifi YOK; `landmark` en yakin
-                    //    notr karsilik (dini bir sembol uydurulmadi).
+                    // ⚠️⚠️ TURU 129 — kullanici **"hepsinde mesafe yaz"**
+                    //	dedi; Cami de mesafe kategorisi aldi.
+                    // ⚠️⚠️ **DURUST SINIR:** burada olculen sey EN YAKIN CAMI
+                    //	DEGIL, `diger` kategorisindeki en yakin kayitli
+                    //	isletmedir. Projede cami/POI verisi YOK ve
+                    //	`isletmeler` tablosunda cami diye bir kategori de
+                    //	yok. Kullaniciya soylendi; karar ONUN.
+                    mesafeKategorisi: 'diger',
+                    // ⚠️ Lucide'de cami glifi YOK; `landmark` en yakin notr
+                    //    karsilik (dini bir sembol uydurulmadi).
                     ikon: LucideIcons.landmark,
                   ),
                 ]),
@@ -534,7 +592,9 @@ class HizmetMenusu extends ConsumerWidget {
             ),
           ),
           const SliverToBoxAdapter(child: SizedBox(height: 20)),
-        ],
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -570,12 +630,14 @@ class HizmetMenusu extends ConsumerWidget {
   /// ⚠️ Veri gelmeden ya da bos donunce **HICBIR SEY cizilmez** (bos gri kutu
   ///    yerine hic yer kaplamamak: turu 93b'de kesif istegi patlayinca ekranin
   ///    tepesinde 350px bos gri kutu kalmasi bulgusuydu).
-  Widget _slider(WidgetRef ref) {
+  Widget _slider(BuildContext context, WidgetRef ref) {
     final s = ref.watch(_menuSlaytProvider).valueOrNull ?? const [];
     if (s.isEmpty) return const SizedBox.shrink();
     return SizedBox(
       height: KategoriSlider.yukseklik,
-      child: KategoriSlider(slaytlar: s),
+      // ⚠️ TURU 129 — slider zemini de kart yuzeyiyle AYNI (kullanici:
+      //    *"kartlar vs sliderda rengi de"*).
+      child: KategoriSlider(slaytlar: s, yuzey: kAiKartYuzey(context)),
     );
   }
 
@@ -603,6 +665,90 @@ class HizmetMenusu extends ConsumerWidget {
   ///    Turu 91 performans maddesi.
   /// ⚠️ [kutuBoy] verilmezse izgara olcusu (`kKesifKutu`). Hizli erisim
   ///    kartlari bunun **%80**'ini kullanir (turu 96w kullanici emri).
+  /// ⚠️⚠️⚠️ TURU 129 — **SELAMLAMA SATIRI** (menunun yeni basligi).
+  ///
+  ///	[profil dairesi]  İyi Geceler / Mikail        [arama]
+  ///
+  /// ⚠️⚠️ **SELAMLAMA SAATTEN TURETILIR, SABIT DEGIL.** "İyi Geceler"
+  ///	yazip birakmak gunun her saatinde ayni seyi soylerdi.
+  /// ⚠️ Ad SUNUCUDAN gelir (`myProfileProvider`), UYDURULMAZ. Profil
+  ///    henuz gelmediyse ya da ad bossa ikinci satir CIZILMEZ —
+  ///    "Merhaba null" EKRANA CIKAMAZ.
+  /// ⚠️ Yalniz ILK KELIME: "Ahmet Yılmaz" iki satiri asar.
+  /// ⚠️⚠️ Avatar `Avatar` bilesenidir (tek kaynak): fotograf yoksa
+  ///	HARF dairesine duser — menude ayri bir yer tutucu YAZILMADI.
+  /// ⚠️ Arama ikonu `KesfetEkrani`i acar; alt menudeki "Ara" sekmesiyle
+  ///    AYNI ekran, ikinci bir arama ekrani ACILMADI.
+  Widget _selamlama(BuildContext context, WidgetRef ref) {
+    final profil = ref.watch(myProfileProvider).valueOrNull;
+    final tamAd = (profil?['name'] ?? '').toString().trim();
+    final ad = tamAd.isEmpty ? '' : tamAd.split(RegExp(r'\s+')).first;
+    final saat = DateTime.now().hour;
+    final selam = saat < 5
+        ? 'İyi Geceler'
+        : saat < 12
+        ? 'Günaydın'
+        : saat < 18
+        ? 'İyi Günler'
+        : saat < 22
+        ? 'İyi Akşamlar'
+        : 'İyi Geceler';
+    final onRenk = Theme.of(context).colorScheme.onSurface;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(kYanBosluk, 0, 6, 0),
+      child: Row(
+        children: [
+          Avatar(
+            ad: tamAd,
+            mediaId: profil?['avatar_media_id'] as String?,
+            avatarUrl: (profil?['avatar_url'] ?? '').toString(),
+            cap: 42,
+          ),
+          const SizedBox(width: 11),
+          // ⚠️ `Expanded` ZORUNLU: uzun bir ad arama ikonunu ekran
+          //    disina iterdi.
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  selam,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w500,
+                    color: onRenk.withValues(alpha: 0.6),
+                  ),
+                ),
+                if (ad.isNotEmpty)
+                  Text(
+                    ad,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 19,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: 'Ara',
+            icon: const Icon(LucideIcons.search, size: 22),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const KesfetEkrani(),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   /// ⚠️ TURU 128 — bolum basliklari TEK KAYNAK. Uc yerde (YAKINIMDA /
   ///    ŞEHİR REHBERİ / KATEGORİLER) ayni stil kopyalanmisti; biri
   ///    degisince otekiler geride kalirdi.
@@ -637,14 +783,29 @@ class HizmetMenusu extends ConsumerWidget {
     WidgetRef ref,
     List<_Bolum> ogeler,
   ) {
-    final mesafeler = ref.watch(yakinMesafeProvider).valueOrNull ?? const {};
+    final sonuc = ref.watch(yakinMesafeProvider).valueOrNull;
     final olcek = MediaQuery.textScalerOf(context);
     // ⚠️ Yukseklik yazi olceginden TURETILIR: iki satir (ad + mesafe) +
     //    dolgu. Sabit dp olcek 1.3/2.0`da TASARDI.
     // ⚠️ Ikon dairesi 34 dp; iki satirlik yazi ondan kisa kalabilir,
     //    bu yuzden taban 34 + dikey dolgu (20).
-    final yazi = olcek.scale(14.5) * 1.25 + olcek.scale(12.5) * 1.25;
-    final boy = (yazi > 34 ? yazi : 34.0) + 20.0;
+    // ⚠️⚠️⚠️ **SATIR YUKSEKLIGI TAHMIN EDILMEZ, DAYATILIR.**
+    //
+    //	Once carpan 1.25, sonra 1.27 denendi ve IKISI DE TASTI (muhafiz
+    //	testi olctu: **2.7 px**). Sebep: `height:` verilmemis bir `Text`in
+    //	satir yuksekligi FONTUN metriginden gelir (ascent+descent+lineGap)
+    //	ve o sayi tahmin edilen carpanlardan BUYUK cikiyordu.
+    //
+    // ⚠️ COZUM: iki `Text` de **`height: 1.2`** tasiyor; butce de AYNI
+    //    sayidan turetiliyor. Artik olcu font degisse bile TUTAR —
+    //    bagimlilik YAPISAL OLARAK kesildi.
+    // ⚠️ +2 dp pay: `TextPainter` satir yuksekligini YUKARI yuvarlar
+    //    (turu 121 dersi).
+    // ⚠️ YAPMA: `Text`lerden `height`i kaldirma; kaldirirsan bu hesap
+    //    yeniden TAHMINE doner ve tasma geri gelir.
+    const kSatir = 1.2;
+    final yazi = olcek.scale(14.5) * kSatir + olcek.scale(12.5) * kSatir;
+    final boy = (yazi > 34 ? yazi : 34.0) + 22.0;
     return SizedBox(
       height: boy,
       child: ListView.separated(
@@ -657,8 +818,17 @@ class HizmetMenusu extends ConsumerWidget {
           final b = ogeler[i];
           final km = b.mesafeKategorisi.isEmpty
               ? 0.0
-              : (mesafeler[b.mesafeKategorisi] ?? 0.0);
-          return _yakinKart(context, b, km);
+              : (sonuc?.km[b.mesafeKategorisi] ?? 0.0);
+          return _yakinKart(
+            context,
+            b,
+            km,
+            // ⚠️ `sonuc == null` = HENUZ YUKLENIYOR. O anda "Yakında yok"
+            //    yazmak YANLIS olurdu; yukleme bitene kadar "Konumu aç"
+            //    dali da yaniltici. Ucuncu bir hal: bos birak.
+            yukleniyor: sonuc == null,
+            konumVar: sonuc?.konumVar ?? false,
+          );
         },
       ),
     );
@@ -676,13 +846,26 @@ class HizmetMenusu extends ConsumerWidget {
 
   /// ⚠️ Kart genisligi EKRANDAN turetilir: iki bucuk kart sigar, ucuncusu
   ///    SARKAR — serit boylece kaydirilabildigini soyler.
-  Widget _yakinKart(BuildContext context, _Bolum b, double km) {
+  Widget _yakinKart(
+    BuildContext context,
+    _Bolum b,
+    double km, {
+    required bool yukleniyor,
+    required bool konumVar,
+  }) {
     final metin = _kmMetni(km);
-    // ⚠️ Mesafe bilinmiyorsa SEBEP yazilir. Uc dal da ayni metne duser
-    //    ("Konumu aç") cunku kullanicinin yapacagi sey UCUNDE DE AYNI:
-    //    konumu acmak. Ayrintiyi (izin yok / kayit yok / ag) ayirmak
-    //    kartta yer kaplar ve karari degistirmez.
-    final altMetin = metin.isEmpty ? 'Konumu aç' : metin;
+    // ⚠️⚠️ **UC AYRI HAL, UC AYRI METIN** (denetim buldu: onceden hepsi
+    //	"Konumu aç" diyordu ve konum ACIKKEN bile oyle kaliyordu).
+    //	· yukleniyor       -> bos (yaniltici bir sey yazma)
+    //	· konum yok        -> "Konumu aç"  (kullanicinin yapacagi is bu)
+    //	· konum var, kayit yok -> "Yakında yok" (DURUST: o kategoride
+    //	  konumlu kayitli isletme YOK; canli veride market/oto boyle)
+    // ⚠️ SAHTE MESAFE YAZILMAZ.
+    final altMetin = metin.isNotEmpty
+        ? metin
+        : yukleniyor
+        ? ''
+        : (konumVar ? 'Yakında yok' : 'Konumu aç');
     // ⚠️⚠️ Yazi rengi TEMADAN: `kYuzeyGri` koyu temada KOYU bir yuzey
     //	doner ve sabit `Colors.black` orada OKUNMAZDI (turu 115b dersi:
     //	"bir zemin rengini degistirirken, o zemine gore secilmis ON PLAN
@@ -701,11 +884,12 @@ class HizmetMenusu extends ConsumerWidget {
               (MediaQuery.sizeOf(context).width -
                   kYanBosluk * 2 -
                   kIzgaraAralik * 2) /
-              2.35,
+              2.1,
           padding: const EdgeInsets.fromLTRB(11, 10, 11, 10),
           decoration: BoxDecoration(
-            // ⚠️ `kYuzeyGri` bir FONKSIYON: koyu temada koyu yuzey doner.
-            color: kYuzeyGri(context),
+            // ⚠️ TURU 129 — yuzey artik GebzemAI`daki kendi mesaj
+            //    balonumla AYNI (tek kaynak: `kAiKartYuzey`).
+            color: kAiKartYuzey(context),
             borderRadius: BorderRadius.circular(kYaricap(60)),
           ),
           child: Row(
@@ -738,6 +922,8 @@ class HizmetMenusu extends ConsumerWidget {
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         fontSize: 14.5,
+                        // ⚠️ `height` ACIKCA verilir (asagidaki serhe bak).
+                        height: 1.2,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -757,6 +943,7 @@ class HizmetMenusu extends ConsumerWidget {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: 12.5,
+                        height: 1.2,
                         fontWeight: FontWeight.w600,
                         color: onRenk.withValues(alpha: metin.isEmpty ? 0.4 : 0.55),
                       ),
@@ -835,7 +1022,7 @@ class HizmetMenusu extends ConsumerWidget {
             height: kutuBoy ?? kKesifKutu,
             child: DecoratedBox(
               decoration: BoxDecoration(
-                color: kYuzeyGri(context),
+                color: kAiKartYuzey(context),
                 borderRadius: BorderRadius.circular(
                   kYaricap(kutuBoy ?? kKesifKutu),
                 ),
@@ -1107,12 +1294,25 @@ class HamburgerDugmesi extends StatelessWidget {
 ///    (`IsletmeOzet.mesafeMetni` de ayni kurali uyguluyor.)
 /// ⚠️ `autoDispose`: menu kapaninca birakilir, bir sonraki acilista
 ///    TAZE olculur — kullanici baska bir semte gitmis olabilir.
-final yakinMesafeProvider = FutureProvider.autoDispose<Map<String, double>>(
+/// ⚠️⚠️⚠️ TURU 129 — **`konumVar` AYRI DONER** (denetim buldu).
+///
+///	Onceden yalniz `Map` donuyordu ve BOS harita IKI FARKLI seyi
+///	aniniyordu: (a) konum alinamadi, (b) konum alindi ama o
+///	kategoride yakinda KAYIT YOK. Kart ikisine de "Konumu aç"
+///	diyordu — konum ACIKKEN bile. Kullanici Ayarlar`a gidip konumun
+///	zaten acik oldugunu goruyor, geri donuyor, kart yine ayni seyi
+///	soyluyordu.
+/// ⚠️ Iki durum artik AYRI metin uretir ("Konumu aç" / "Yakında yok").
+typedef YakinSonuc = ({bool konumVar, Map<String, double> km});
+
+final yakinMesafeProvider = FutureProvider.autoDispose<YakinSonuc>(
   (ref) async {
     // ⚠️ `status` OKUR, `request` ETMEZ: ikincisi diyalog acardi.
-    if (!await Permission.locationWhenInUse.isGranted) return {};
+    if (!await Permission.locationWhenInUse.isGranted) {
+      return (konumVar: false, km: <String, double>{});
+    }
     final k = await KonumServisi.konumAl(sessiz: true);
-    if (k == null) return {};
+    if (k == null) return (konumVar: false, km: <String, double>{});
     final liste = await ref
         .read(isletmeServisiProvider)
         .yakinimda(enlem: k.enlem, boylam: k.boylam, km: 15);
@@ -1122,6 +1322,6 @@ final yakinMesafeProvider = FutureProvider.autoDispose<Map<String, double>>(
       //    yazilmaz.
       if (i.km > 0) en.putIfAbsent(i.kategori, () => i.km);
     }
-    return en;
+    return (konumVar: true, km: en);
   },
 );

@@ -398,9 +398,16 @@ void main() {
     await t.pump();
 
     await t.tap(_logoBulucu);
-    // ⚠️ `pumpAndSettle` ZORUNLU: sheet acilis animasyonu bitmeden test
-    //    biterse "timers pending" ile patlar (ilk yazimda oldu).
-    await t.pumpAndSettle();
+    // ⚠️⚠️⚠️ TURU 129 — **`pumpAndSettle` ARTIK KULLANILAMAZ.** Menu ekrani
+    //	GebzemAI ile ayni zemini kullaniyor (`AiZemin`) ve o zemin SONSUZ
+    //	tekrar eden bir `AnimationController` tasiyor; `pumpAndSettle`
+    //	"animasyon bitene kadar" bekledigi icin ZAMAN ASIMINA ugruyordu.
+    // ⚠️ Sabit sureli `pump` yeterli: sheet acilis animasyonu ~250 ms.
+    //    Serhin asil amaci ("acilis bitmeden test bitmesin") KORUNUYOR.
+    // ⚠️ YAPMA: `pumpAndSettle`a geri donme — zemin animasyonu ASLA
+    //    oturmaz, test yapisal olarak takilir.
+    await t.pump();
+    await t.pump(const Duration(milliseconds: 400));
 
     expect(secilenler, isEmpty,
         reason: 'logo bir SEKME DEGIL: dokunus onSec tetiklememeli');

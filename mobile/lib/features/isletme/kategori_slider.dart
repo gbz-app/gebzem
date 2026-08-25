@@ -21,9 +21,15 @@ import 'isletme_kart.dart' show kYanBosluk, kYaricap;
 typedef Slayt = ({String baslik, String alt});
 
 class KategoriSlider extends StatefulWidget {
-  const KategoriSlider({super.key, required this.slaytlar});
+  const KategoriSlider({super.key, required this.slaytlar, this.yuzey});
 
   final List<Slayt> slaytlar;
+
+  /// ⚠️⚠️ TURU 129 — SLAYT ZEMINI (menu ekrani GebzemAI'daki kendi mesaj
+  ///	balonunun rengini geciyor: `kAiKartYuzey`).
+  /// ⚠️ `null` ise KATEGORI EKRANINDAKI davranis AYNEN korunur (acik/koyu
+  ///    temaya gore gri) — mevcut cagri yerleri DEGISMEDI.
+  final Color? yuzey;
 
   /// ⚠️ Kullanicinin verdigi olcu. Sabit tutulur: `MediaQuery` ile oranlamak
   ///    kucuk telefonda metni sikistirir, buyukte gereksiz bosluk birakir.
@@ -158,7 +164,12 @@ class _KategoriSliderState extends State<KategoriSlider> {
     //    *"slider gri tonu 1 kat daha artik"*). Onceki `0xFFF1F1F3` beyaz
     //    zeminde neredeyse fark edilmiyordu.
     // ⚠️ TEK KAYNAK: kapak yer tutucusu ve 60x60 kartlarla AYNI gri.
-    final zemin = koyu ? const Color(0xFF2A2A2E) : const Color(0xFFE7E7EA);
+    // ⚠️⚠️ TURU 129 — `widget.yuzey` VERILIRSE o kullanilir (menu ekrani
+    //	GebzemAI'daki kendi mesaj balonunun rengini geciyor). Verilmezse
+    //	KATEGORI EKRANINDAKI davranis AYNEN korunur.
+    final zemin =
+        widget.yuzey ??
+        (koyu ? const Color(0xFF2A2A2E) : const Color(0xFFE7E7EA));
 
     return SizedBox(
       height: KategoriSlider.yukseklik,
