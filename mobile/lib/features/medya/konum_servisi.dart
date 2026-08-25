@@ -62,13 +62,27 @@ class KonumServisi {
 
   /// Konumu bir kez okur. Basarisizsa `null` doner ve KULLANICIYA SOYLER
   /// (sessizce basarisiz olmaz — bu projede "gonderdim sandim" defalarca yasandi).
-  static Future<({double enlem, double boylam})?> konumAl() async {
+  /// ⚠️⚠️⚠️ TURU 128 — **`sessiz` KIPI** (emulatorde goruldu: menuyu her
+  ///	acista "Konum alinamadi — acik alanda tekrar dene" seridi
+  ///	ciziliyordu).
+  ///
+  ///	Kullanicinin ISTEDIGI bir islemde (konum paylas, Yakinimda ekrani)
+  ///	uyari DOGRU: kisi bir sonuc bekliyor ve sessiz basarisizlik
+  ///	"gonderdim sandim" uretir. Ama menudeki mesafe rozetleri KULLANICI
+  ///	ISTEMEDEN, arka planda olculuyor — orada uyari SEBEPSIZ bir
+  ///	rahatsizliktir; ozellik zaten mesafeyi CIZMEYEREK kendini kapatiyor.
+  ///
+  /// ⚠️ Varsayilan `false`: mevcut cagri yerlerinin davranisi DEGISMEZ.
+  /// ⚠️ YAPMA: `sessiz`i kullanicinin baslattigi akislarda kullanma.
+  static Future<({double enlem, double boylam})?> konumAl({
+    bool sessiz = false,
+  }) async {
     // ⚠️ IZIN `permission_handler` ile isteniyor (geolocator'in kendi API'si
     //    DEGIL): kod tabaninin geri kalani o paketi kullaniyor ve iki izin
     //    katmani tutmak kacinilmaz olarak DRIFT ederdi.
     final izin = await Permission.locationWhenInUse.request();
     if (!izin.isGranted) {
-      _uyar(
+      if (!sessiz) _uyar(
         izin.isPermanentlyDenied
             ? 'Konum izni kapalı. Ayarlardan açabilirsin.'
             : 'Konum paylaşmak için konum izni gerekli',
@@ -80,7 +94,7 @@ class KonumServisi {
     //    kapaliysa `getCurrentPosition` ZAMAN ASIMINA UGRAR ve kullanici
     //    donmus bir ekran gorur. Once soruyoruz.
     if (!await Geolocator.isLocationServiceEnabled()) {
-      _uyar('Cihazın konum servisi kapalı');
+      if (!sessiz) _uyar('Cihazın konum servisi kapalı');
       return null;
     }
 
@@ -98,10 +112,10 @@ class KonumServisi {
       );
       return (enlem: p.latitude, boylam: p.longitude);
     } on TimeoutException {
-      _uyar('Konum alınamadı — açık alanda tekrar dene');
+      if (!sessiz) _uyar('Konum alınamadı — açık alanda tekrar dene');
       return null;
     } catch (e) {
-      _uyar('Konum alınamadı');
+      if (!sessiz) _uyar('Konum alınamadı');
       return null;
     }
   }

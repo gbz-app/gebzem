@@ -463,24 +463,30 @@ class HizmetMenusu extends ConsumerWidget {
                     [const Color(0xFF20C997), const Color(0xFF0B7A5A)],
                     (c) => const YakinimdaEkrani(kategori: 'eczane'),
                     mesafeKategorisi: 'eczane',
+                    ikon: LucideIcons.pill,
                   ),
                   _Bolum(
                     'Bakkal',
                     [const Color(0xFFFFC531), const Color(0xFFB88600)],
                     (c) => const YakinimdaEkrani(kategori: 'market'),
                     mesafeKategorisi: 'market',
+                    ikon: LucideIcons.shoppingBasket,
                   ),
                   _Bolum(
                     'Akaryakıt',
                     [const Color(0xFFFF7A45), const Color(0xFFB33A12)],
                     (c) => const YakinimdaEkrani(kategori: 'oto'),
                     mesafeKategorisi: 'oto',
+                    ikon: LucideIcons.fuel,
                   ),
                   // ⚠️ Mesafe kategorisi BOS — gerekce `_Bolum` serhinde.
                   _Bolum(
                     'Cami',
                     [const Color(0xFF6C7BFF), const Color(0xFF2A3390)],
                     (c) => const YakinimdaEkrani(kategori: 'diger'),
+                    // ⚠️ Lucide`de cami glifi YOK; `landmark` en yakin
+                    //    notr karsilik (dini bir sembol uydurulmadi).
+                    ikon: LucideIcons.landmark,
                   ),
                 ]),
                 const SizedBox(height: 18),
@@ -635,7 +641,10 @@ class HizmetMenusu extends ConsumerWidget {
     final olcek = MediaQuery.textScalerOf(context);
     // ⚠️ Yukseklik yazi olceginden TURETILIR: iki satir (ad + mesafe) +
     //    dolgu. Sabit dp olcek 1.3/2.0`da TASARDI.
-    final boy = olcek.scale(15) * 1.25 + olcek.scale(13) * 1.25 + 26;
+    // ⚠️ Ikon dairesi 34 dp; iki satirlik yazi ondan kisa kalabilir,
+    //    bu yuzden taban 34 + dikey dolgu (20).
+    final yazi = olcek.scale(14.5) * 1.25 + olcek.scale(12.5) * 1.25;
+    final boy = (yazi > 34 ? yazi : 34.0) + 20.0;
     return SizedBox(
       height: boy,
       child: ListView.separated(
@@ -674,76 +683,82 @@ class HizmetMenusu extends ConsumerWidget {
     //	"bir zemin rengini degistirirken, o zemine gore secilmis ON PLAN
     //	renklerini de ara").
     final onRenk = Theme.of(context).colorScheme.onSurface;
-    return LayoutBuilder(
-      builder: (c, bc) => RepaintBoundary(
-        child: GestureDetector(
-          onTap: () => _ac(context, b),
-          behavior: HitTestBehavior.opaque,
-          child: Container(
-            width:
-                (MediaQuery.sizeOf(context).width -
-                    kYanBosluk * 2 -
-                    kIzgaraAralik * 2) /
-                2.6,
-            padding: const EdgeInsets.symmetric(
-              horizontal: 13,
-              vertical: 11,
-            ),
-            decoration: BoxDecoration(
-              color: kYuzeyGri(context),
-              borderRadius: BorderRadius.circular(kYaricap(60)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  b.ad,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
+    // ⚠️ Ikon dairesi kartin KENDI renginden: dort kart yan yana durdugunda
+    //    ayirt edilebilir olsun. Zemin %14 opaklikta — ikonun kendisi tam
+    //    renkte, daire soluk.
+    final vurgu = b.renkler.first;
+    return RepaintBoundary(
+      child: GestureDetector(
+        onTap: () => _ac(context, b),
+        behavior: HitTestBehavior.opaque,
+        child: Container(
+          width:
+              (MediaQuery.sizeOf(context).width -
+                  kYanBosluk * 2 -
+                  kIzgaraAralik * 2) /
+              2.35,
+          padding: const EdgeInsets.fromLTRB(11, 10, 11, 10),
+          decoration: BoxDecoration(
+            // ⚠️ `kYuzeyGri` bir FONKSIYON: koyu temada koyu yuzey doner.
+            color: kYuzeyGri(context),
+            borderRadius: BorderRadius.circular(kYaricap(60)),
+          ),
+          child: Row(
+            children: [
+              // ── IKON ──
+              if (b.ikon != null) ...[
+                Container(
+                  width: 34,
+                  height: 34,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: vurgu.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(11),
                   ),
+                  child: Icon(b.ikon, size: 18, color: vurgu),
                 ),
-                // ⚠️ Mesafe YOKSA satir HIC cizilmez ama kart yuksekligi
-                //    DEGISMEZ (`SizedBox(height: boy)` disarida sabit) —
-                //    veri gelince serit ZIPLAMAZ.
-                if (metin.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          LucideIcons.navigation,
-                          size: 12,
-                          color: onRenk.withValues(alpha: 0.45),
-                        ),
-                        const SizedBox(width: 4),
-                        Flexible(
-                          child: Text(
-                            metin,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: onRenk.withValues(alpha: 0.55),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                const SizedBox(width: 9),
               ],
-            ),
+              // ⚠️ `Expanded` ZORUNLU: "Akaryakıt" gibi uzun bir ad sabit
+              //    genislikte TASARDI.
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      b.ad,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    // ⚠️ Mesafe YOKSA satir HIC cizilmez ama kart yuksekligi
+                    //    DEGISMEZ (serit disarida sabit yukseklikte) — veri
+                    //    gelince kartlar ZIPLAMAZ.
+                    if (metin.isNotEmpty)
+                      Text(
+                        metin,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: onRenk.withValues(alpha: 0.55),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
-
   /// ⚠️⚠️⚠️ TURU 128 — **UFAK KART SERIDI** (tek satir, yatay kaydirma).
   ///
   ///	Kullanici emri: *"tek satir scroll olsun sol sag ... kart seklinde
@@ -857,8 +872,13 @@ class HizmetMenusu extends ConsumerWidget {
 }
 
 class _Bolum {
-  _Bolum(this.ad, this.renkler, this.ac, {this.mesafeKategorisi = ''})
-    : eylem = null;
+  _Bolum(
+    this.ad,
+    this.renkler,
+    this.ac, {
+    this.mesafeKategorisi = '',
+    this.ikon,
+  }) : eylem = null;
 
   /// ⚠️⚠️ TURU 115 — EKRAN ACMAYAN bolum (ornek: 'Sosyal' bir ALT MENU
   ///	SEKMESINE doner). Ayri bir kart bileseni YAZILMADI: gorunum ayni
@@ -866,7 +886,8 @@ class _Bolum {
   /// ⚠️ Ikisinden TAM BIRI dolu olur; `_ac` bunu okur.
   _Bolum.eylem(this.ad, this.renkler, this.eylem)
     : ac = null,
-      mesafeKategorisi = '';
+      mesafeKategorisi = '',
+      ikon = null;
 
   final String ad;
   final List<Color> renkler;
@@ -887,6 +908,17 @@ class _Bolum {
   ///	olurduk. Projede cami/POI verisi YOK.
   /// ⚠️ YAPMA: buraya "yakinsa yakindir" diye `diger` yazma.
   final String mesafeKategorisi;
+
+  /// ⚠️⚠️ TURU 128 — YAKINIMDA kartinin ikonu (kullanici emri: *"ikon
+  ///	ekle ve biraz daha profesyonel yap"*).
+  ///
+  /// ⚠️ **YALNIZ YAKINIMDA SERIDINDE.** Kategori/Sehir Rehberi kartlari
+  ///    IKONSUZ kalir — kullanici turu 76b`de kart icine ikon koymayi
+  ///    ACIKCA reddetti (*"ikon YOK, kart altinda yazi sadece"*) ve o
+  ///    karar bu turda DEGISMEDI. Buradaki kart FARKLI bir bilesendir:
+  ///    yazi kutunun ICINDE ve altinda mesafe var.
+  /// ⚠️ Lucide bir FONT`tur (glif) — `strokeWidth` YOKTUR.
+  final IconData? ikon;
 }
 
 /// ⚠️⚠️⚠️ TURU 96w — **"Tümü" LISTESI** (kullanici emri: *"tikladiginda liste
@@ -1068,7 +1100,7 @@ final yakinMesafeProvider = FutureProvider.autoDispose<Map<String, double>>(
   (ref) async {
     // ⚠️ `status` OKUR, `request` ETMEZ: ikincisi diyalog acardi.
     if (!await Permission.locationWhenInUse.isGranted) return {};
-    final k = await KonumServisi.konumAl();
+    final k = await KonumServisi.konumAl(sessiz: true);
     if (k == null) return {};
     final liste = await ref
         .read(isletmeServisiProvider)
