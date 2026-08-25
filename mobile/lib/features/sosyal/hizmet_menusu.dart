@@ -678,6 +678,11 @@ class HizmetMenusu extends ConsumerWidget {
   ///    SARKAR — serit boylece kaydirilabildigini soyler.
   Widget _yakinKart(BuildContext context, _Bolum b, double km) {
     final metin = _kmMetni(km);
+    // ⚠️ Mesafe bilinmiyorsa SEBEP yazilir. Uc dal da ayni metne duser
+    //    ("Konumu aç") cunku kullanicinin yapacagi sey UCUNDE DE AYNI:
+    //    konumu acmak. Ayrintiyi (izin yok / kayit yok / ag) ayirmak
+    //    kartta yer kaplar ve karari degistirmez.
+    final altMetin = metin.isEmpty ? 'Konumu aç' : metin;
     // ⚠️⚠️ Yazi rengi TEMADAN: `kYuzeyGri` koyu temada KOYU bir yuzey
     //	doner ve sabit `Colors.black` orada OKUNMAZDI (turu 115b dersi:
     //	"bir zemin rengini degistirirken, o zemine gore secilmis ON PLAN
@@ -739,17 +744,23 @@ class HizmetMenusu extends ConsumerWidget {
                     // ⚠️ Mesafe YOKSA satir HIC cizilmez ama kart yuksekligi
                     //    DEGISMEZ (serit disarida sabit yukseklikte) — veri
                     //    gelince kartlar ZIPLAMAZ.
-                    if (metin.isNotEmpty)
-                      Text(
-                        metin,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w600,
-                          color: onRenk.withValues(alpha: 0.55),
-                        ),
+                    // ⚠️⚠️ TURU 128 — alt satir **DAIMA** cizilir (kullanici:
+                    //	*"altina mesafeleri de yazsana"*). Onceden mesafe
+                    //	bilinmiyorken satir HIC cizilmiyordu ve kartlar
+                    //	"yarim" duruyordu.
+                    // ⚠️ SAHTE MESAFE YAZILMAZ: bilinmiyorsa SEBEBI yazilir
+                    //    ("Konumu aç"). "0 m" ya da tahmini bir sayi
+                    //    kullaniciya YANLIS BILGI olurdu.
+                    Text(
+                      altMetin,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: onRenk.withValues(alpha: metin.isEmpty ? 0.4 : 0.55),
                       ),
+                    ),
                   ],
                 ),
               ),
