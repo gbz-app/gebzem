@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
@@ -446,7 +447,17 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu>
     //    kurulur ve uygulamanin Google Sans ayarini TASIMAZ (turu 127`de
     //    GebzemAI ekraninda birebir bu yasandi, yazi tipi degismisti).
     // ⚠️ YAPMA: sarmali kaldirip renkleri cagri yerlerine yazma.
-    return Theme(
+    // ⚠️⚠️ TURU 129 — **DURUM CUBUGU IKONLARI ACIK** (emulatorde
+    //	goruldu: siyah zemin + koyu ikon = saat/pil/sinyal GORUNMUYORDU).
+    // ⚠️ Cikista otomatik geri doner: AnnotatedRegion yaprak dugumdur,
+    //    ekran sokulunce ustteki deger yeniden gecerli olur (turu 85c).
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light.copyWith(
+        statusBarColor: Colors.transparent,
+        systemNavigationBarColor: kAiZemin,
+        systemNavigationBarIconBrightness: Brightness.light,
+      ),
+      child: Theme(
       data: ThemeData.dark(useMaterial3: true).copyWith(
         colorScheme:
             ColorScheme.fromSeed(
@@ -463,8 +474,26 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu>
       ),
       child: AiZemin(
         dalga: _dalga,
-        child: SafeArea(
-          child: CustomScrollView(
+        // ⚠️⚠️⚠️ TURU 129 — **`Material` SARMALI ZORUNLU** (emulatorde
+        //	goruldu: butun kart etiketleri — Eczane/Taksi/Sosyal/Yemek —
+        //	zeminle KAYNASIP OKUNMAZ olmustu).
+        //
+        //	Sebep: `DefaultTextStyle`i `Material` saglar. Bu ekran bir
+        //	`Scaffold`un ICINDE DEGIL (`Theme` > `AiZemin` > `SafeArea`),
+        //	dolayisiyla yazi rengi USTTEKI route`un ACIK TEMASINDAN
+        //	geliyordu: siyah yazi, siyah zemin.
+        //	`Theme` sarmali `onSurface`i beyaza cevirir ama renk BELIRTMEYEN
+        //	`Text`ler onu ancak bir `Material` uzerinden gorur.
+        //
+        // ⚠️ `MaterialType.transparency`: zemin `AiZemin`e ait; `canvas`
+        //    olsaydi opak bir katman gradyani KAPATIRDI.
+        // ⚠️ Turu 119`da acilis katmaninda BIREBIR ayni sinif yasanmisti
+        //    (orada metin monospace + sari altcizgiyle cizilmisti).
+        // ⚠️ YAPMA: bu sarmali kaldirma.
+        child: Material(
+          type: MaterialType.transparency,
+          child: SafeArea(
+            child: CustomScrollView(
         slivers: [
           SliverToBoxAdapter(
             child: Column(
@@ -592,9 +621,11 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu>
             ),
           ),
           const SliverToBoxAdapter(child: SizedBox(height: 20)),
-            ],
+              ],
+            ),
           ),
         ),
+      ),
       ),
     );
   }
