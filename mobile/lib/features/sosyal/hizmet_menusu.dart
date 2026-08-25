@@ -11,7 +11,10 @@ import '../isletme/urun_servisi.dart' show aiDurumProvider;
 import '../talep/talep_ekranlari.dart';
 import '../home/home_screen.dart' show aktifSekme;
 import '../isletme/kategori_slider.dart';
+import 'package:permission_handler/permission_handler.dart';
+
 import '../isletme/isletme_servisi.dart' show isletmeServisiProvider;
+import '../medya/konum_servisi.dart';
 // ⚠️⚠️⚠️ TURU 96s — MENU KARTLARI **KATEGORI EKRANIYLA AYNI DILDE** (kullanici
 //	emri: *"kartlarin genisliklerini diyorum, yemekteki gibi; renk ve yazi
 //	tipleri de oyle olsun"*). Olcu/renk/yazi sabitleri BURADAN alinir,
@@ -454,22 +457,26 @@ class HizmetMenusu extends ConsumerWidget {
                 //    nobet verisi YOK, kullanici kapali eczaneye giderdi.
                 _bolumBasligi('YAKINIMDA'),
                 const SizedBox(height: 10),
-                _ufakSerit(context, [
+                _yakinSerit(context, ref, [
                   _Bolum(
                     'Eczane',
                     [const Color(0xFF20C997), const Color(0xFF0B7A5A)],
                     (c) => const YakinimdaEkrani(kategori: 'eczane'),
+                    mesafeKategorisi: 'eczane',
                   ),
                   _Bolum(
                     'Bakkal',
                     [const Color(0xFFFFC531), const Color(0xFFB88600)],
                     (c) => const YakinimdaEkrani(kategori: 'market'),
+                    mesafeKategorisi: 'market',
                   ),
                   _Bolum(
                     'Akaryakıt',
                     [const Color(0xFFFF7A45), const Color(0xFFB33A12)],
                     (c) => const YakinimdaEkrani(kategori: 'oto'),
+                    mesafeKategorisi: 'oto',
                   ),
+                  // ⚠️ Mesafe kategorisi BOS — gerekce `_Bolum` serhinde.
                   _Bolum(
                     'Cami',
                     [const Color(0xFF6C7BFF), const Color(0xFF2A3390)],
@@ -606,6 +613,137 @@ class HizmetMenusu extends ConsumerWidget {
     ),
   );
 
+  /// ⚠️⚠️⚠️ TURU 128 — **YAKINIMDA SERIDI: ICINDE AD + MESAFE OLAN KART**
+  ///	(kullanici emri: *"yakinimdakiler kart tarzi olacak, icinde ismi
+  ///	ne kadar yakinda o sekilde yazacak"*).
+  ///
+  ///	SEHIR REHBERI seridinden FARKLI: orada kutu BOS ve yazi ALTINDA;
+  ///	burada yazi KUTUNUN ICINDE ve altinda mesafe var.
+  ///
+  /// ⚠️⚠️ Mesafe **GERCEK**: `yakinMesafeProvider` her kategorinin en
+  ///	yakin isletmesini sunucudan olcer. Izin yoksa / konum yoksa /
+  ///	o kategoride kayit yoksa **HICBIR SEY CIZILMEZ** — "0 m" ya da
+  ///	tahmini bir sayi YAZILMAZ (turu 128 `mesafeMetni` kurali).
+  /// ⚠️ Yukleme sirasinda da bos: bir yer tutucu ("... m") yaniltici
+  ///    olurdu; kart mesafe gelince BUYUMEZ cunku yukseklik SABIT.
+  Widget _yakinSerit(
+    BuildContext context,
+    WidgetRef ref,
+    List<_Bolum> ogeler,
+  ) {
+    final mesafeler = ref.watch(yakinMesafeProvider).valueOrNull ?? const {};
+    final olcek = MediaQuery.textScalerOf(context);
+    // ⚠️ Yukseklik yazi olceginden TURETILIR: iki satir (ad + mesafe) +
+    //    dolgu. Sabit dp olcek 1.3/2.0`da TASARDI.
+    final boy = olcek.scale(15) * 1.25 + olcek.scale(13) * 1.25 + 26;
+    return SizedBox(
+      height: boy,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: kYanBosluk),
+        physics: const BouncingScrollPhysics(),
+        itemCount: ogeler.length,
+        separatorBuilder: (_, _) => const SizedBox(width: kIzgaraAralik),
+        itemBuilder: (_, i) {
+          final b = ogeler[i];
+          final km = b.mesafeKategorisi.isEmpty
+              ? 0.0
+              : (mesafeler[b.mesafeKategorisi] ?? 0.0);
+          return _yakinKart(context, b, km);
+        },
+      ),
+    );
+  }
+
+  /// ⚠️ Mesafe bicimi `IsletmeOzet.mesafeMetni` ile AYNI kuraldan
+  ///    turetilir (1 km alti metre, ustu virgullu km) — iki yerde iki
+  ///    farkli bicim ayni uygulamada tutarsizlik olurdu.
+  /// ⚠️ `km <= 0` = BILINMIYOR -> bos.
+  static String _kmMetni(double km) => km <= 0
+      ? ''
+      : (km < 1
+            ? '${(km * 1000).round()} m'
+            : '${km.toStringAsFixed(1).replaceAll('.', ',')} km');
+
+  /// ⚠️ Kart genisligi EKRANDAN turetilir: iki bucuk kart sigar, ucuncusu
+  ///    SARKAR — serit boylece kaydirilabildigini soyler.
+  Widget _yakinKart(BuildContext context, _Bolum b, double km) {
+    final metin = _kmMetni(km);
+    // ⚠️⚠️ Yazi rengi TEMADAN: `kYuzeyGri` koyu temada KOYU bir yuzey
+    //	doner ve sabit `Colors.black` orada OKUNMAZDI (turu 115b dersi:
+    //	"bir zemin rengini degistirirken, o zemine gore secilmis ON PLAN
+    //	renklerini de ara").
+    final onRenk = Theme.of(context).colorScheme.onSurface;
+    return LayoutBuilder(
+      builder: (c, bc) => RepaintBoundary(
+        child: GestureDetector(
+          onTap: () => _ac(context, b),
+          behavior: HitTestBehavior.opaque,
+          child: Container(
+            width:
+                (MediaQuery.sizeOf(context).width -
+                    kYanBosluk * 2 -
+                    kIzgaraAralik * 2) /
+                2.6,
+            padding: const EdgeInsets.symmetric(
+              horizontal: 13,
+              vertical: 11,
+            ),
+            decoration: BoxDecoration(
+              color: kYuzeyGri(context),
+              borderRadius: BorderRadius.circular(kYaricap(60)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  b.ad,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                // ⚠️ Mesafe YOKSA satir HIC cizilmez ama kart yuksekligi
+                //    DEGISMEZ (`SizedBox(height: boy)` disarida sabit) —
+                //    veri gelince serit ZIPLAMAZ.
+                if (metin.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          LucideIcons.navigation,
+                          size: 12,
+                          color: onRenk.withValues(alpha: 0.45),
+                        ),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(
+                            metin,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: onRenk.withValues(alpha: 0.55),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   /// ⚠️⚠️⚠️ TURU 128 — **UFAK KART SERIDI** (tek satir, yatay kaydirma).
   ///
   ///	Kullanici emri: *"tek satir scroll olsun sol sag ... kart seklinde
@@ -719,13 +857,16 @@ class HizmetMenusu extends ConsumerWidget {
 }
 
 class _Bolum {
-  _Bolum(this.ad, this.renkler, this.ac) : eylem = null;
+  _Bolum(this.ad, this.renkler, this.ac, {this.mesafeKategorisi = ''})
+    : eylem = null;
 
   /// ⚠️⚠️ TURU 115 — EKRAN ACMAYAN bolum (ornek: 'Sosyal' bir ALT MENU
   ///	SEKMESINE doner). Ayri bir kart bileseni YAZILMADI: gorunum ayni
   ///	kalmali, degisen yalnizca DOKUNUS DAVRANISI.
   /// ⚠️ Ikisinden TAM BIRI dolu olur; `_ac` bunu okur.
-  _Bolum.eylem(this.ad, this.renkler, this.eylem) : ac = null;
+  _Bolum.eylem(this.ad, this.renkler, this.eylem)
+    : ac = null,
+      mesafeKategorisi = '';
 
   final String ad;
   final List<Color> renkler;
@@ -736,6 +877,16 @@ class _Bolum {
 
   /// Ekran acmak yerine cagrilacak is (sekme degistirme gibi).
   final void Function(BuildContext)? eylem;
+
+  /// ⚠️⚠️ TURU 128 — kartta **"ne kadar yakinda"** yazilacaksa hangi
+  ///	isletme kategorisinin olculecegi. BOS ise mesafe CIZILMEZ.
+  ///
+  /// ⚠️⚠️ **"Cami" BILEREK BOS.** O kart `diger` kategorisini aciyor ve
+  ///	o kategorideki en yakin kayit bir cami DEGIL, herhangi bir sey
+  ///	olabilir — mesafeyi yazsaydik kullaniciya YANLIS BILGI vermis
+  ///	olurduk. Projede cami/POI verisi YOK.
+  /// ⚠️ YAPMA: buraya "yakinsa yakindir" diye `diger` yazma.
+  final String mesafeKategorisi;
 }
 
 /// ⚠️⚠️⚠️ TURU 96w — **"Tümü" LISTESI** (kullanici emri: *"tikladiginda liste
@@ -889,3 +1040,45 @@ class HamburgerDugmesi extends StatelessWidget {
     ),
   );
 }
+
+/// ⚠️⚠️⚠️ TURU 128 — **YAKINIMDA KARTLARINDA GERCEK MESAFE** (kullanici
+///	emri: *"yakinimdakiler kart tarzi olacak, icinde ismi ne kadar
+///	yakinda o sekilde yazacak"*).
+///
+///	Her kategori icin **EN YAKIN** isletmenin mesafesini dondurur
+///	(`{kategori: km}`).
+///
+/// ⚠️⚠️ **TEK ISTEK, DORT KART.** Kategori basina ayri cagri (4 istek)
+///	yapilmadi: uc `kategori` bosken TUM yakindakileri **km ASC**
+///	sirali donduruyor, yani her kategorinin ILK gorulen kaydi zaten
+///	EN YAKINIDIR. Dort istek hem menu acilisini gecirir hem sunucuyu
+///	gereksiz yorardi (turu 17 N+1 dersi).
+///
+/// ⚠️⚠️ **IZIN ISTENMEZ, YALNIZCA SORULUR.** `KonumServisi.konumAl()`
+///	izin DIYALOGU acar; menuyu acar acmaz konum izni sormak sert bir
+///	surtunme olurdu. Izin ZATEN verilmisse konum alinir, verilmemisse
+///	mesafe HIC gosterilmez (kartlar yine calisir).
+///
+/// ⚠️ Hata/izinsiz/konumsuz durumda **BOS HARITA** doner ve kartta
+///    hicbir sey cizilmez — "0 m" ya da tahmini bir sayi YAZILMAZ.
+///    (`IsletmeOzet.mesafeMetni` de ayni kurali uyguluyor.)
+/// ⚠️ `autoDispose`: menu kapaninca birakilir, bir sonraki acilista
+///    TAZE olculur — kullanici baska bir semte gitmis olabilir.
+final yakinMesafeProvider = FutureProvider.autoDispose<Map<String, double>>(
+  (ref) async {
+    // ⚠️ `status` OKUR, `request` ETMEZ: ikincisi diyalog acardi.
+    if (!await Permission.locationWhenInUse.isGranted) return {};
+    final k = await KonumServisi.konumAl();
+    if (k == null) return {};
+    final liste = await ref
+        .read(isletmeServisiProvider)
+        .yakinimda(enlem: k.enlem, boylam: k.boylam, km: 15);
+    final en = <String, double>{};
+    for (final i in liste) {
+      // ⚠️ Liste km ASC sirali: ilk gorulen EN YAKINDIR, sonrakiler
+      //    yazilmaz.
+      if (i.km > 0) en.putIfAbsent(i.kategori, () => i.km);
+    }
+    return en;
+  },
+);
