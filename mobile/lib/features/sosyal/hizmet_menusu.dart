@@ -707,7 +707,14 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu>
           fit: StackFit.expand,
           children: [
             Image.asset('assets/vitrin/re1.jpg', fit: BoxFit.cover),
-            // ── OKUNURLUK GECISI ──
+            // ── OKUNURLUK KATMANI ──
+            // ⚠️⚠️ Yazi artik ORTADA (kullanici emri) ve fotografin
+            //	ORTASI en kalabalik/parlak bolge. Bu yuzden alttan
+            //	yukari gecis YETMEZ; ustune HAFIF BIR GENEL KARARTMA
+            //	konur. Ikisi birlikte: metin her fotograf tonunda okunur.
+            const DecoratedBox(
+              decoration: BoxDecoration(color: Color(0x59000000)),
+            ),
             const DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
@@ -715,84 +722,127 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu>
                   end: Alignment.bottomCenter,
                   colors: [
                     Color(0x00000000),
-                    Color(0x66000000),
-                    Color(0xE6000000),
+                    Color(0x4D000000),
+                    Color(0xB3000000),
                   ],
-                  stops: [0.25, 0.6, 1.0],
+                  stops: [0.3, 0.65, 1.0],
                 ),
               ),
             ),
-            // ── SKOR + CANLI ──
-            Positioned(
-              left: 16,
-              right: 16,
-              bottom: 14,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // ⚠️ `FittedBox` degil `maxLines: 1` + ellipsis: yazi
-                  //    olcegi 2.0`da skor KUCULMEMELI, gerekirse kirpilir.
-                  const Text(
-                    'Türkiye 1 - 0 Almanya',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 21,
-                      height: 1.2,
-                      fontWeight: FontWeight.w800,
-                      // ⚠️ Golge: fotografin acik bir bolgesine denk
-                      //    gelirse yazi yine okunur kalsin.
-                      shadows: [
-                        Shadow(blurRadius: 8, color: Color(0xCC000000)),
-                      ],
+            // ── SKOR BLOGU ──
+            // ⚠️⚠️ **ORTADA AMA HAFIF YUKARIDA** (kullanici emri).
+            //	`Alignment(0, -0.18)`: yatayda tam merkez, dikeyde
+            //	merkezin biraz USTU. Tam merkez olsaydi blok fotograftaki
+            //	oyuncularin yuzlerinin uzerine otururdu.
+            Align(
+              alignment: const Alignment(0, -0.18),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // ── CANLI ROZETI (SKORUN USTUNDE) ──
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 9,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE11D48),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // ⚠️ Renk TEK BASINA renk korlugu olana hicbir
+                          //    sey anlatmaz — yaninda YAZI da var
+                          //    (turu 98b dersi).
+                          Container(
+                            width: 6,
+                            height: 6,
+                            decoration: const BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          const Text(
+                            'CANLI',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              height: 1.2,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 7),
-                  // ── CANLI ROZETI ──
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 9,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFE11D48),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            // ⚠️ Renk TEK BASINA renk korlugu olana hicbir
-                            //    sey anlatmaz — yaninda YAZI da var
-                            //    (turu 98b dersi).
-                            Container(
-                              width: 6,
-                              height: 6,
-                              decoration: const BoxDecoration(
-                                color: Colors.white,
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            const Text(
-                              'CANLI',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 11.5,
-                                height: 1.2,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
+                    const SizedBox(height: 9),
+                    // ── SKOR ──
+                    // ⚠️ `maxLines: 1` + ellipsis: yazi olcegi 2.0`da
+                    //    skor KUCULMEZ, gerekirse kirpilir.
+                    const Text(
+                      'Türkiye 1 - 0 Almanya',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 22,
+                        height: 1.2,
+                        fontWeight: FontWeight.w800,
+                        // ⚠️ Golge: fotografin acik bir bolgesine denk
+                        //    gelirse yazi yine okunur kalsin.
+                        shadows: [
+                          Shadow(blurRadius: 10, color: Color(0xE6000000)),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    // ── GOL ATAN (TOP IKONU + AD + DAKIKA) ──
+                    // ⚠️⚠️ **DURUST SINIR:** bu satir da UYDURMADIR
+                    //	(bkz. `kSkorOnizleme` serhi) — gercek bir gol
+                    //	verisi YOK.
+                    // ⚠️ Lucide`de FUTBOL TOPU glifi YOK (kontrol edildi:
+                    //    yalniz `volleyball`, `goal`, `circleDot` var).
+                    //    `volleyball` en yakin TOP glifi ve 2B cizgi.
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          LucideIcons.volleyball,
+                          size: 15,
+                          color: Colors.white,
+                          shadows: [
+                            Shadow(blurRadius: 8, color: Color(0xCC000000)),
                           ],
                         ),
-                      ),
-                    ],
-                  ),
-                ],
+                        const SizedBox(width: 6),
+                        // ⚠️ `Flexible`: uzun bir oyuncu adi karti tasirdi.
+                        const Flexible(
+                          child: Text(
+                            'Arda Turan \'20',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 13.5,
+                              height: 1.2,
+                              fontWeight: FontWeight.w600,
+                              shadows: [
+                                Shadow(
+                                  blurRadius: 8,
+                                  color: Color(0xCC000000),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
