@@ -2,246 +2,149 @@
 <html lang="tr">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#0b0714">
-<meta http-equiv="Cache-Control" content="no-cache">
-<!-- ⚠️ TURU 115b — META ONBELLEK YASAGI. Sunucu basligi ZATEN
-       `no-cache, no-store, must-revalidate` (olculdu) ama bazi uygulama-ici
-       tarayicilar (WhatsApp/Instagram webview) araya girip govdeyi kendi
-       onbelleginde tutabiliyor. Meta, o katmana da ayni seyi soyler.
-       ⚠️ Sunucu basliginin YERINE GECMEZ, ona EK. -->
-  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-  <meta http-equiv="Pragma" content="no-cache">
-  <meta http-equiv="Expires" content="0">
-  <title>Gebzem {{SAAT}} — indir</title>
-<link rel="icon" href="https://indir.gebzem.app/app-icon.png">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0B0B0F">
+<!-- ⚠️ Sunucu basligini soyan uygulama-ici tarayicilara karsi EK katman.
+     Sunucu tarafindaki `no-store` YERINE GECMEZ, ona EKLENIR. -->
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<!-- ⚠️ Saat BASLIKTA da yazar: tarayici sekmesi, gecmis ve paylas menusu. -->
+<title>Gebzem {{SAAT}} — indir</title>
 <style>
-  * { box-sizing: border-box; margin: 0; }
-  /* ⚠️ display:flex + align-items:center KULLANMA — kart ekrandan uzun olunca ust kisim
-     erisilemez oluyordu (saat cubugu goremiyordu). Ust hizali + yatay ortalama. */
-  body {
-    min-height: 100dvh;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: #0b0714; color: #fff; padding: 16px 20px 40px;
-    background-image:
-      radial-gradient(600px 420px at 85% -10%, rgba(139,63,255,.28), transparent 65%),
-      radial-gradient(520px 380px at 0% 105%, rgba(90,30,190,.22), transparent 60%);
-  }
-  /* SURUM SAATI — sayfanin EN USTU, kartin DISINDA: hicbir kosulda kirpilmaz. */
-  .saatbar {
-    display: block; width: 100%; max-width: 430px; margin: 0 auto 14px;
-    padding: 15px 14px; border-radius: 18px; text-align: center;
-    background: linear-gradient(135deg, #8b3fff, #5a1ebe);
-    box-shadow: 0 10px 30px rgba(139,63,255,.45);
-  }
-  .saatbar .etiket {
-    display: block; font-size: 11.5px; font-weight: 800; letter-spacing: 1.2px;
-    color: rgba(255,255,255,.88); text-transform: uppercase; margin-bottom: 5px;
-  }
-  .saatbar .deger {
-    display: block; font-size: 27px; font-weight: 900; letter-spacing: -.4px; color: #fff;
-  }
-  .saatbar .canli {
-    display: block; margin-top: 6px; padding-top: 6px; font-size: 11.5px;
-    color: rgba(255,255,255,.80); border-top: 1px solid rgba(255,255,255,.22);
-  }
-  .saatbar .canli b { color: #fff; font-variant-numeric: tabular-nums; }
-  .card {
-    width: 100%; max-width: 430px; margin: 0 auto;
-    background: rgba(255,255,255,.045);
-    border: 1px solid rgba(255,255,255,.09);
-    border-radius: 26px; padding: 26px 24px; text-align: center;
-    box-shadow: 0 30px 80px rgba(0,0,0,.55);
-  }
-  .appicon {
-    width: 88px; height: 88px; border-radius: 22px; display: block; margin: 0 auto 14px;
-    box-shadow: 0 12px 36px rgba(139,63,255,.42), 0 0 0 1px rgba(255,255,255,.10);
-  }
-  h1 { font-size: 30px; letter-spacing: -.6px; margin-bottom: 4px; }
-  /* ⚠️⚠️⚠️ TURU 126 — **SEKIZINCI SAAT: SAYFANIN EN BUYUK IKINCI YAZISI.**
-     Kullanici YEDINCI KEZ "saati goremiyorum" dedi ve sunucu tarafi YEDI
-     KEZ DE dogru cikti (olculdu: text/html + no-store + DYNAMIC + saat 7
-     yerde + surum.json gomulu surumle BIREBIR + ciplak alan 302 -> ayni
-     govde). Saatin BULUNDUGU yer degil, GOZE CARPMADIGI acikti: yedi
-     yerin hepsi ya kucuk (11.5-13 px) ya da sayfanin ucunda.
-     Artik logo ve "Gebzem" basliginin HEMEN ALTINDA, 22 px kalin ve mor.
-     ⚠️ YAPMA: bu satiri kucultme ya da kartin asagisina tasima. */
-  .busaat {
-    font-size: 22px; font-weight: 800; color: #c9a8ff; margin-bottom: 6px;
-    font-variant-numeric: tabular-nums; letter-spacing: -.2px;
-  }
-  .sub { color: rgba(255,255,255,.55); font-size: 14px; margin-bottom: 16px; }
-  .yeni {
-    text-align: left; font-size: 13px; line-height: 1.65; color: rgba(255,255,255,.72);
-    background: rgba(0,0,0,.30); border: 1px solid rgba(255,255,255,.07);
-    border-radius: 14px; padding: 12px 14px; margin-bottom: 20px;
-  }
-  .yeni b { color: #fff; }
-  a.btn {
-    display: flex; align-items: center; justify-content: center; gap: 10px;
-    padding: 15px 16px; margin-bottom: 12px; border-radius: 15px; text-decoration: none;
-    font-weight: 700; font-size: 16px; transition: transform .1s, filter .15s;
-  }
-  a.btn:active { transform: scale(.97); filter: brightness(1.1); }
-  a.btn svg { flex: none; }
-  .ios { background: #fff; color: #14091f; }
-  .and {
-    background: linear-gradient(135deg, #8b3fff, #5a1ebe); color: #fff;
-    box-shadow: 0 8px 24px rgba(139,63,255,.35);
-  }
-  /* Saat, dugmenin ICINDE de yazar: kullanici karta bakarken de gorur. */
-  .btnsaat {
-    font-size: 11.5px; font-weight: 700; opacity: .75; margin-left: 6px;
-    font-variant-numeric: tabular-nums;
-  }
-  .kartsaat {
-    margin: 0 0 14px; font-size: 14px; font-weight: 700;
-    color: rgba(255,255,255,.72);
-  }
-  .kartsaat b { color: #d9c6ff; }
-  .dosyasaat { font-size: 12.5px; color: rgba(255,255,255,.62); margin-top: 2px; }
-  .dosyasaat b { color: #d9c6ff; }
-  .adim {
-    text-align: left; font-size: 12.5px; line-height: 1.7; color: rgba(255,255,255,.6);
-    margin-top: 18px; border-top: 1px solid rgba(255,255,255,.08); padding-top: 16px;
-  }
-  .adim b { color: rgba(255,255,255,.9); }
-  .adim p { margin-bottom: 8px; display: flex; gap: 8px; }
-  .adim svg { flex: none; margin-top: 2px; opacity: .8; }
+/* ⚠️⚠️⚠️ TURU 134 — SAYFA SIFIRDAN SADELESTIRILDI (kullanici emri:
+     *"aciklama yazma, indir sayfasini daha modern TEK SAYFA haline getir,
+     aciklama vb LOGO GEREK YOK, surum numarasi + saati + indirme linkleri
+     YETERLI"*).
+   KALDIRILANLAR: logo · "Bu surumde" notlari · ozellik listeleri · SSS ·
+   kurulum anlatimi · alt bilgi metinleri.
+   ⚠️⚠️ KALANLAR TESADUF DEGIL: surum etiketi, SAAT (kullanici YEDI TURDUR
+     "goremiyorum" dedi) ve iki indirme baglantisi. Nobetciler de KALDI —
+     onlar metin degil, sayfanin KENDINI DOGRULAMA mekanizmasi.
+   ⚠️ YAPMA: `body`ye `display:flex; align-items:center` koyma. Turu 50'de
+      olculdu: kart ekrandan uzun oldugunda UST TASMA KAYDIRILAMAZ ve saat
+      kirpilir. Ortalama `padding` + `margin:auto` ile yapilir. */
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;
+  padding:28px 20px 40px;
+  min-height:100vh;
+  background:#0B0B0F;
+  color:#F5F5F7;
+  font:400 16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,
+       "Helvetica Neue",Arial,sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+.sar{max-width:440px;margin:0 auto}
+
+/* --- BAYAT SAYFA SERIDI (nobetciler acar) --- */
+#bayat{
+  display:none;background:#C0392B;color:#fff;
+  padding:12px 14px;border-radius:14px;margin-bottom:18px;
+  font-size:14px;line-height:1.45;
+}
+#bayat a{color:#fff}
+
+/* --- SAAT: SAYFANIN ANA OGESI --- */
+.saatkutu{
+  background:linear-gradient(135deg,#7B3FE4 0%,#3B1E7A 100%);
+  border-radius:22px;padding:22px 20px;text-align:center;
+}
+.etiket{
+  margin:0;font-size:12px;font-weight:700;color:rgba(255,255,255,.72);
+  text-transform:uppercase;
+}
+.buyuksaat{
+  margin:6px 0 0;font-size:30px;font-weight:800;line-height:1.15;color:#fff;
+  word-break:break-word;
+}
+.surum{
+  margin:10px 0 0;font-size:13px;font-weight:600;
+  color:rgba(255,255,255,.78);font-variant-numeric:tabular-nums;
+}
+.canli{
+  margin:4px 0 0;font-size:12px;color:rgba(255,255,255,.6);
+  font-variant-numeric:tabular-nums;
+}
+
+/* --- INDIRME --- */
+.indir{margin-top:18px;display:grid;gap:10px}
+.btn{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:16px 18px;border-radius:16px;text-decoration:none;
+  font-size:16px;font-weight:700;
+  background:#17171C;color:#F5F5F7;border:1px solid #26262E;
+}
+.btn:active{background:#1F1F26}
+.btn .sag{font-size:12px;font-weight:600;color:#9A9AA5;text-align:right}
+.btn.ios{background:#F5F5F7;color:#0B0B0F;border-color:#F5F5F7}
+.btn.ios .sag{color:#5B5B66}
+
+.dip{
+  margin:16px 0 0;text-align:center;font-size:12px;color:#7A7A85;
+  font-variant-numeric:tabular-nums;
+}
 </style>
 </head>
 <body>
-  <!-- ⚠️ TURU 96i — BAYAT SAYFA SERIDI. Normalde GIZLI; yalnizca sayfanin
-       gomulu surumu sunucudaki `surum.json` ile UYUSMAZSA acilir. Sayfanin
-       EN USTUNDE ve kirmizi: kullanici "eski sayfaya bakiyorum"u kacirmasin. -->
-  <div id="bayat" style="display:none;background:#c0392b;color:#fff;
-       padding:14px 16px;font-size:15px;font-weight:700;text-align:center;
-       line-height:1.5"></div>
-  <!-- TURU 113 — 7. saat: sayfanin EN ALTINDA da yazar. Kullanici ALTINCI
-       KEZ "saati goremiyorum" dedi; kart uzunsa ust seridi kacirabiliyor.
-       Ayni sayi iki uctan da okunabilsin. -->
-  <span class="saatbar">
-    <span class="etiket">BU SAYFADAKİ SÜRÜMÜN SAATİ</span>
-    <span class="deger saatyaz" id="surumsaat">{{SAAT}}</span>
-    <!-- ⚠️ CANLI SAAT: kullanici "saati goremiyorum" dedi ve sunucu tarafi
-         DOGRUYDU (no-cache basliklari + cubuk en ustte). Geriye kalan tek
-         aciklama TARAYICI ONBELLEGINDEN bayat sayfa gormesiydi; bunu
-         KANITLAYAN tek sey akan bir saattir. Saniye ILERLIYORSA sayfa SU AN
-         cizilmistir, dolayisiyla ustteki surum saati de GUNCELDIR.
-         ⚠️ YAPMA: bu satiri kaldirma; JS calismazsa "—" gorunur (zararsiz). -->
-    <span class="canli">şu an <b id="ss">—</b> · sayfa yeni yüklendi</span>
-  </span>
+<div class="sar">
 
-  <div class="card">
-    <img class="appicon" src="https://indir.gebzem.app/app-icon.png" alt="Gebzem">
-    <h1>Gebzem</h1>
-    <p class="busaat saatyaz">{{SAAT}}</p>
-    <p class="sub">Mesajlaşma · Arama · Canlı Yayın</p>
-    <!-- TURU 113 — saat KARTIN ICINDE de yazar (7. yer). Kullanici ust
-         seritteki mor cubugu "goremiyorum" dedi; basligin hemen altindaki
-         satir goz taramasinda kacirilamaz. -->
-    <p class="kartsaat">Bu sürüm: <b class="saatyaz">{{SAAT}}</b></p>
+  <!-- ⚠️⚠️ BAYAT SAYFA SERIDI: sayfanin gomulu surumu, sunucudaki
+       `surum.json` ile ya da adresteki `?v=` ile UYUSMAZSA acilir.
+       ⚠️ YAPMA: bu dugumu silme — iki nobetci de onu yaziyor. -->
+  <div id="bayat"></div>
 
-    <div class="yeni"><b>Bu sürümde — büyük güncelleme (senin yazdığın 10 eksiğin hepsi):</b>
-<br><br><b>1 · Alt menü yenilendi:</b> <b>Anasayfa · Ara · Reels · Mesaj · Canlı · Profil</b>.
-"Ara" artık Instagram gibi <b>profil arama + keşfet ızgarası</b>. Çağrı geçmişi Mesaj
-sekmesine, sesli odalar Canlı sekmesine taşındı — hiçbiri kaldırılmadı.
-<br><br><b>2 · Gönderilerde çoklu medya:</b> aynı gönderide <b>fotoğraf ve video birlikte</b>
-(en fazla 10), sola-sağa kaydırılan galeri. Her medyanın türü ayrı biliniyor, video olan
-kapakta oynat rozeti çıkıyor.
-<br><br><b>3 · Gönderi düzenleme + istatistik:</b> paylaştığın gönderinin açıklamasını ve
-yorum ayarını değiştirebilirsin ("düzenlendi" etiketi görünür). Kendi gönderinde
-<b>görüntülenme · beğeni · yorum · kaydetme</b> sayıları.
-<br><br><b>4 · Instagram tarzı etkileşim:</b> "N beğenme" → <b>beğenenler listesi</b>,
-"yorumların tümünü gör", ve <b>gerçek paylaş</b> — gönderiyi doğrudan bir ya da birden
-fazla sohbete gönder (eskiden sadece bağlantı kopyalıyordu).
-<br><br><b>5 · Profil fotoğrafları artık her yerde:</b> arama ekranı, küçültülmüş arama
-şeridi, sesli oda katılımcıları ve canlı yayın başlığı. Kök neden çözüldü — fotoğraf
-artık kişinin kimliğinden çözülüyor.
-<br><br><b>6 · Mesajlar anlık:</b> uygulama arka plandan dönünce ya da bağlantı kopup
-gelince kaçan mesajlar <b>otomatik yakalanıyor</b>. Alt menüde <b>okunmamış rozeti</b>.
-Beğeni/yorum/takip bildirimleri artık <b>anlık</b> düşüyor.
-<br><br><b>7 · Sohbet listesi:</b> <b>tümü / okunmamış</b> filtresi, sola-sağa kaydırarak
-<b>arşivle / sil</b>, sabitleme ve <b>sessize alma</b> (sessiz sohbet artık gerçekten
-bildirim göndermiyor).
-<br><br><b>8 · Grup sohbeti:</b> grup oluştur, üye ekle/çıkar, grup fotoğrafı.
-<br><br><b>9 · Engelleme her yerde geçerli:</b> engellediğin kişi seni akışta, keşfette,
-profilde, aramada, listelerde <b>hiçbir yerde göremez</b>.
-<br><br><b>10 · Video sınırı 100 MB.</b>
-<br><br><b>Sınırlar:</b> Arama <b>birebir</b> · Sohbet odası 20 konuşmacı + sınırsız
-dinleyici · Canlı yayın 4 kişi (yayıncı dahil) + sınırsız izleyici.</div>
-
-    <a class="btn ios" href="itms-services://?action=download-manifest&amp;url=https://indir.gebzem.app/manifest.plist">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M17.05 12.54c-.03-2.6 2.12-3.85 2.22-3.91-1.21-1.77-3.09-2.01-3.76-2.04-1.6-.16-3.12.94-3.93.94-.81 0-2.06-.92-3.39-.89-1.74.03-3.35 1.01-4.25 2.57-1.81 3.14-.46 7.79 1.3 10.34.86 1.25 1.89 2.65 3.24 2.6 1.3-.05 1.79-.84 3.36-.84 1.57 0 2.01.84 3.39.81 1.4-.02 2.29-1.27 3.15-2.53.99-1.45 1.4-2.85 1.42-2.92-.03-.01-2.72-1.04-2.75-4.13zM14.46 4.9c.72-.87 1.2-2.08 1.07-3.29-1.03.04-2.28.69-3.02 1.56-.66.77-1.24 2-1.09 3.18 1.15.09 2.33-.58 3.04-1.45z"/></svg>
-      iPhone'a Kur <span class="btnsaat saatyaz">{{SAAT}}</span>
-    </a>
-    <a class="btn and" href="https://indir.gebzem.app/gebzem.apk?v={{SURUM}}">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M17.6 9.48l1.84-3.18a.38.38 0 00-.66-.38l-1.86 3.22a11.1 11.1 0 00-9.84 0L5.22 5.92a.38.38 0 00-.66.38L6.4 9.48A10.86 10.86 0 001 18h22a10.86 10.86 0 00-5.4-8.52zM7 15.25a1.25 1.25 0 111.25-1.25A1.25 1.25 0 017 15.25zm10 0a1.25 1.25 0 111.25-1.25A1.25 1.25 0 0117 15.25z"/></svg>
-      Android'e İndir (APK) <span class="btnsaat saatyaz">{{SAAT}}</span>
-    </a>
-    <p class="dosyasaat">İndirdiğin dosyanın sürümü: <b class="saatyaz">{{SAAT}}</b></p>
-
-    <div class="adim">
-      <p><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v5M12 16h.01"/></svg>
-        <span><b>iPhone:</b> Bu sayfayı <b>Safari</b> ile aç → "iPhone'a Kur" → çıkan uyarıda <b>Yükle</b>.</span></p>
-      <p><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
-        <span><b>Android:</b> APK'yı indir → aç → "bilinmeyen kaynaklara izin ver" uyarısını onayla.</span></p>
-      <p><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 109-9 9.75 9.75 0 00-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
-        <span><b>Giriş:</b> Her sürümde veritabanı sıfırlanır — <b>sıfırdan kayıt ol</b>.</span></p>
-    </div>
+  <div class="saatkutu">
+    <p class="etiket">BU SÜRÜM</p>
+    <!-- ⚠️⚠️ `.saatyaz` sinifi TASIYAN HER OGE `surum.json`dan gelen taze
+         saatle yeniden yazilir. Bir ogeden dusurulurse o oge bayat govdede
+         ESKI saati gostermeye devam eder ve sayfada IKI FARKLI saat olur —
+         hic saat gostermemekten DAHA KOTU (turu 126 dersi). -->
+    <p class="buyuksaat saatyaz" id="surumsaat">{{SAAT}}</p>
+    <p class="surum">{{SURUM}}</p>
+    <!-- ⚠️ CANLI SAAT: saniyesi akar. Sayfanin BAYAT OLMADIGINI kanitlayan
+         tek gorsel isaret — ⚠️ YAPMA: kaldirma. -->
+    <p class="canli">şu an <span id="ss">--:--:--</span></p>
   </div>
-  <p style="text-align:center;margin:16px auto 0;max-width:430px;
-            font-size:12.5px;color:rgba(255,255,255,.55)">
-    Bu sayfanın sürümü: <b class="saatyaz" style="color:#d9c6ff">{{SAAT}}</b>
-  </p>
+
+  <div class="indir">
+    <!-- ⚠️ iOS ad-hoc kurulum `itms-services://` ile manifest uzerinden. -->
+    <a class="btn ios" href="itms-services://?action=download-manifest&amp;url=https://indir.gebzem.app/manifest.plist">
+      <span>iPhone'a Kur</span>
+      <span class="sag saatyaz">{{SAAT}}</span>
+    </a>
+    <!-- ⚠️ `?v=` ZORUNLU: purge gecikse bile tarayici YENI dosyayi ceker. -->
+    <a class="btn" href="https://indir.gebzem.app/gebzem.apk?v={{SURUM}}">
+      <span>Android'e İndir</span>
+      <span class="sag saatyaz">{{SAAT}}</span>
+    </a>
+  </div>
+
+  <p class="dip">Gebzem · <span class="saatyaz">{{SAAT}}</span></p>
+</div>
+
 <script>
-/* CANLI SAAT (Turkiye, UTC+3). Saniye AKIYORSA sayfa su an cizilmistir ->
-   ustteki surum saati de bayat DEGILDIR. Tek amaci bu; baska is yapmaz.
-   ⚠️ Cihaz saat dilimi yanlis olabilir diye UTC+3 ELLE hesaplanir. */
-(function () {
-  var e = document.getElementById('ss');
-  if (!e) return;
-  function iki(n) { return n < 10 ? '0' + n : '' + n; }
-  function tik() {
-    var t = new Date(Date.now() + 3 * 3600 * 1000);
-    e.textContent = iki(t.getUTCHours()) + ':' + iki(t.getUTCMinutes()) + ':' +
-      iki(t.getUTCSeconds());
-  }
-  tik();
-  setInterval(tik, 1000);
-})();
-
-/* ⚠️⚠️⚠️ TURU 96i — BAYAT SAYFA NOBETCISI.
-   Kullanici BES TURDUR *"indir sitesinde saati goremiyorum"* diyor ve sunucu
-   tarafi HER SEFERINDE dogru cikiyor (text/html + no-store + DYNAMIC + saat
-   5 yerde + akan canli saat + ciplak alan adi bile ayni govdeyi veriyor).
-   Geriye kalan TEK aciklama: tarayici/webview ONBELLEGINDEN ESKI KOPYA.
-   O durumda sayfaya "saati yaz" demek ISE YARAMAZ — kullanici ZATEN eski
-   bir sayfaya bakiyor ve orada eski saat yaziyor.
-
-   COZUM: sayfa kendini SORGULAR. `surum.json` her yayinda yeniden yazilir;
-   sayfadaki gomulu surum ile sunucudaki surum FARKLIYSA buyuk kirmizi bir
-   serit cikar ve tek dokunusla TAZE adrese gecer.
-   ⚠️ `cache: 'no-store'` + `?t=` ZORUNLU: aksi halde nobetcinin KENDISI
-      onbellekten okunur ve hicbir sey olcmez.
-   ⚠️ Ag yoksa/hata olursa SESSIZ kalir (yanlis alarm vermez).
-   ⚠️ YAPMA: bu blogu kaldirma. */
 (function () {
   var buSurum = '{{SURUM}}';
 
-  /* TURU 113 — ADRES SORGUSU KARSILASTIRMASI (AG GEREKTIRMEZ).
-     Kullanici ALTINCI KEZ "indir sitesinde saati goremiyorum" dedi ve sunucu
-     tarafi HER SEFERINDE dogru cikti. Kalan tek aciklama TARAYICI/WEBVIEW
-     ONBELLEGI. surum.json nobetcisi bunu yakalar AMA bir AG ISTEGI gerektirir:
-     WhatsApp/Instagram ic tarayicilari, cevrimdisi ilk cizim ya da fetch'i
-     kisitlayan bir webview'da o istek HIC tamamlanmaz ve serit CIKMAZ.
-     Oysa kullaniciya verilen adres DAIMA ?v=<surum> tasiyor: adresteki surum
-     ile sayfaya GOMULU surum farkliysa sayfa KESINLIKLE onbellekten geliyordur
-     ve bunu anlamak icin AG GEREKMEZ.
-     UYARI: ?v= YOKSA (ciplak adres) sessiz kalinir — yanlis alarm verilmez.
-     YAPMA: bu blogu surum.json nobetcisinin YERINE koyma; ikisi FARKLI
-     arizalari yakalar (bu: bayat GOVDE - oteki: eski baglantiyla acilmis
-     sayfa). Ikisi birlikte durur. */
+  /* --- CANLI SAAT (UTC+3) --- */
+  function tik() {
+    var d = new Date(Date.now() + 3 * 3600 * 1000);
+    function p(n) { return (n < 10 ? '0' : '') + n; }
+    var e = document.getElementById('ss');
+    if (e) e.textContent = p(d.getUTCHours()) + ':' + p(d.getUTCMinutes()) +
+      ':' + p(d.getUTCSeconds());
+  }
+  tik();
+  setInterval(tik, 1000);
+
+  /* ⚠️⚠️ NOBETCI 1 — AG GEREKTIRMEZ: adresteki `?v=` ile sayfaya GOMULU
+     surum karsilastirilir. Bir webview `fetch`i hic tamamlamayabilir; bu
+     blok yalnizca `location.search` okudugu icin DAIMA calisir.
+     ⚠️ `?v=` YOKSA (ciplak adres) SESSIZ kalinir — yanlis alarm verilmez.
+     ⚠️ YAPMA: bunu Nobetci 2'nin YERINE koyma; ikisi FARKLI arizalari
+        yakalar (bu: eski baglantiyla acilmis sayfa · oteki: bayat GOVDE). */
   try {
     var m = /[?&]v=([^&#]+)/.exec(location.search);
     if (m && decodeURIComponent(m[1]) !== buSurum) {
@@ -250,39 +153,28 @@ dinleyici · Canlı yayın 4 kişi (yayıncı dahil) + sınırsız izleyici.</di
         u.style.display = 'block';
         u.innerHTML = 'BU SAYFA TARAYICI ÖNBELLEĞİNDEN GELDİ (' + buSurum + ').<br>' +
           'Açtığın adresteki sürüm: <b>' + decodeURIComponent(m[1]) + '</b> — ' +
-          '<a style="color:#fff" href="/index.html?v=' + encodeURIComponent(m[1]) +
+          '<a href="/index.html?v=' + encodeURIComponent(m[1]) +
           '&r=' + Date.now() + '">SAYFAYI YENİLE</a>';
       }
     }
   } catch (e) {}
 
+  /* ⚠️⚠️⚠️ NOBETCI 2 — **GORUNEN SAATI SUNUCUDAN YAZAR.**
+     Kullanici YEDI TURDUR "saati goremiyorum" dedi ve sunucu HER SEFERINDE
+     dogru cikti; geriye kalan tek aciklama TARAYICI/WEBVIEW ONBELLEGI.
+     Onceki cozumler durumu yalniz HABER VERIYORDU (kirmizi serit) —
+     kullanicidan hala bir DOKUNUS bekliyordu.
+     ARTIK: `surum.json` `no-store` ile cekilir ve GORUNEN SAATIN KENDISI
+     onunla degistirilir; govde onbellekten gelse bile kullanicinin OKUDUGU
+     saat DOGRU olur.
+     ⚠️ Yalniz `d.saat` doluysa yazilir (bos deger saati SILERDI).
+     ⚠️ Kirmizi serit KALDIRILMADI: saat duzelse de kullanicinin ESKI bir
+        APK baglantisina basmasi ihtimali surer. */
   try {
     fetch('/surum.json?t=' + Date.now(), { cache: 'no-store' })
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (!d || !d.v) return;
-
-        /* ⚠️⚠️⚠️ TURU 115b — **BUYUK SAAT ARTIK SUNUCUDAN YAZILIR.**
-           Kullanici ALTI TURDUR *"indir sitesinde saati goremiyorum"* diyor ve
-           sunucu tarafi ALTI KEZ DE dogru cikti (bu turda da olculdu:
-           `text/html` + `no-store` + `cf-cache-status: DYNAMIC` + saat 7
-           yerde + `surum.json` gomulu surumle BIREBIR).
-           Geriye kalan tek aciklama TARAYICI/WEBVIEW ONBELLEGI: kullanici ESKI
-           BIR GOVDEYE bakiyor ve orada ESKI saat yaziyor.
-           Simdiye kadarki cozumler o durumu yalniz **HABER VERIYORDU** (kirmizi
-           serit) — kullanicidan hala bir dokunus bekliyordu.
-           ARTIK: `surum.json` `no-store` ile cekiliyor ve **gorunen saatin
-           KENDISI** onunla degistiriliyor. Yani govde onbellekten gelse bile
-           kullanicinin OKUDUGU saat DOGRU olur.
-           ⚠️ Yalniz `d.saat` doluysa yazilir (bos deger saati SILERDI).
-           ⚠️ Kirmizi serit KALDIRILMADI: saat duzelse de kullanicinin ESKI bir
-              APK baglantisina basmasi ihtimali surer. */
-        /* ⚠️⚠️ TURU 126 — ARTIK **BUTUN** SAATLER YAZILIR.
-           Onceden yalniz ust serit (#surumsaat) guncelleniyordu; govde
-           onbellekten gelirse sayfada ALTI ESKI + BIR YENI saat oluyordu.
-           Iki farkli saat, hic saat gostermemekten DAHA KOTU: kullanici
-           hangisine inanacagini bilemez.
-           ⚠️ YAPMA: `.saatyaz` sinifini bir saat ogesinden dusurme. */
         if (d.saat) {
           var hepsi = document.querySelectorAll('.saatyaz');
           for (var i = 0; i < hepsi.length; i++) {
@@ -290,7 +182,6 @@ dinleyici · Canlı yayın 4 kişi (yayıncı dahil) + sınırsız izleyici.</di
           }
           document.title = 'Gebzem ' + d.saat + ' — indir';
         }
-
         if (d.v === buSurum) return;
         var s = document.getElementById('bayat');
         if (!s) return;

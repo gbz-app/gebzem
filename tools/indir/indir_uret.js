@@ -45,21 +45,19 @@ const surumEtiketi =
   `${now.getUTCFullYear()}${p2(now.getUTCMonth() + 1)}${p2(now.getUTCDate())}` +
   `-${p2(now.getUTCHours())}${p2(now.getUTCMinutes())}`;
 
-// ⚠️⚠️⚠️ TURU 134 — **METIN KISALTILDI** (kullanici emri, turu 133:
-//	*"birde yayinladigin sitede aciklama vb yazma dostum seri olsun"*).
+// ⚠️⚠️⚠️ TURU 134 — **SURUM NOTU BLOGU TAMAMEN KALDIRILDI** (kullanici emri:
+//	*"aciklama yazma, indir sayfasini daha modern TEK SAYFA haline getir,
+//	aciklama vb LOGO GEREK YOK, surum numarasi + saati + indirme linkleri
+//	YETERLI"*).
 //
-// ⚠️⚠️ AMA BOS BIRAKILMADI: blok turu **126**`da kalmisti ve 127-133
-//	yayinlari boyunca guncellenmedi — yani sayfa, o build`de OLMAYAN
-//	seyleri (kayit akisi, sifre daireleri, tanitim ekranlari) anlatiyordu.
-//	**BAYAT NOT, NOT OLMAMASINDAN KOTUDUR.** Kisa ama DOGRU yazilir.
-// ⚠️ Icerik muhafizindaki anahtar ifadeler bu blokla BIRLIKTE degisir.
-const YENI_ICERIK = `<div class="yeni"><b>Bu sürümde — PİYASA VE YAKINIMDA</b><br><br><b>PİYASA şeridi.</b> Menüde Yakınımda&#39;nın altında Dolar · Euro · Altın · Bitcoin. Karta dokununca alttan grafik açılıyor.<br><br><b>Grafikte parmağını gezdir.</b> İmleç dokunduğun yerde <b>kalıyor</b>; üstteki fiyat, yüzde ve tarih onunla birlikte değişiyor. <b>İki parmağını sağa sola aç</b> — seçtiğin aralık işaretleniyor, arkadaki renk yalnızca o aralıkta doluyor.<br><br><b>ÇEVİR.</b> Grafiğin altında Gram · Çeyrek · Yarım · Tam · Cumhuriyet · Kilo (dövizde 1 · 10 · 50 · 100 · 500 · 1.000). Seçtiğinin 1 / 2 / 5 / 10 katının karşılığı altta yazıyor ve <b>imlecin gösterdiği fiyattan</b> hesaplanıyor.<br><br><b>Yakınımda kartları.</b> Mesafe artık renkli ve okunur, ikonlar kalın, kartlar biraz daraldı.<br><br><b>ÖRNEK VERİ UYARISI:</b> kur, altın, bitcoin ve maç skoru <b>gerçek değildir</b> — tasarımı görmen için konuldu. <b>Bu sayıya bakıp işlem yapma.</b><br><br><b>Not:</b> Yalnızca arayüz, yalnızca iPhone. Sunucu değişmedi, hesaplar duruyor.</div>`;
-
-
+// ⚠️⚠️ Onceki hal bir tuzakti: blok turu **126**`da kalmis ve 127-133
+//	yayinlari boyunca guncellenmemisti, yani sayfa o build`de OLMAYAN
+//	seyleri anlatiyordu. Muhafiz da yalnizca "metin VAR MI" diye baktigi
+//	icin bunu YAKALAYAMIYORDU. Blok artik YOK; asagidaki muhafiz onun
+//	GERI GELMEDIGINI de olcuyor.
 let cikti = sablon
   .replace(/\{\{SAAT\}\}/g, saat)
-  .replace(/\{\{SURUM\}\}/g, surumEtiketi)
-  .replace(/<div class="yeni">[\s\S]*?<\/div>/, YENI_ICERIK);
+  .replace(/\{\{SURUM\}\}/g, surumEtiketi);
 
 // --- DOGRULAMA: sessizce yanlis sayfa uretmektense PATLA ---
 const kacKez = (m) =>
@@ -67,72 +65,67 @@ const kacKez = (m) =>
 
 const kontroller = [
   [!cikti.includes('{{'), 'DOLDURULMAMIS yer tutucu kaldi'],
-  // ⚠️ TURU 126 — saat artik SEKIZ yerde: baslik · mor serit · canli saat
-  //    satiri · **BASLIK ALTI (22 px, en gorunur olan)** · KART ICI
-  //    ("Bu sürüm:") · iPhone dugmesi · Android dugmesi · "Indirdigin
-  //    dosyanin surumu" · sayfa dibi. Tavan 7 -> 8.
-  [kacKez(saat) >= 8, `saat en az 8 yerde olmali (bulundu: ${kacKez(saat)})`],
-  [cikti.includes('class="kartsaat"'), 'KART ICI saat satiri kayboldu'],
-  // ⚠️⚠️ TURU 126 — EN GORUNUR SAAT. Kullanici YEDINCI KEZ "goremiyorum"
-  //    dedi; yedi yerin hepsi kucuk ya da sayfanin ucundaydi.
-  [cikti.includes('class="busaat saatyaz"'),
-    'BASLIK ALTI SAAT (busaat) kayboldu — sayfadaki EN GORUNUR saat'],
-  // ⚠️⚠️ Taze saat BUTUN saat ogelerine yazilmali. Yalniz ust seride
-  //    yazilirsa bayat bir govdede ALTI ESKI + BIR YENI saat gorunur;
-  //    iki farkli saat, hic saat gostermemekten DAHA KOTU.
-  [kacKez('saatyaz') >= 8,
+  // ⚠️⚠️⚠️ TURU 134 — SAYFA SADELESTI, SAAT SAYISI **8 -> 5**e dustu:
+  //	baslik · buyuk saat · iPhone dugmesi · Android dugmesi · dip satiri.
+  //	(Kaldirilan yerler kaldirilan METINLERIN icindeydi; saatin KENDISI
+  //	artik sayfanin ANA OGESI — 30 px, en ustte, mor kutunun icinde.)
+  // ⚠️ YAPMA: bu sayiyi dusurmeden bir saat ogesi silme.
+  [kacKez(saat) >= 5, `saat en az 5 yerde olmali (bulundu: ${kacKez(saat)})`],
+  // ⚠️⚠️ EN GORUNUR SAAT (30 px, mor kutu). Kullanici YEDI KEZ "goremiyorum"
+  //    dedi; artik sayfada ondan buyuk baska bir sey YOK.
+  [cikti.includes('class="buyuksaat saatyaz"'),
+    'BUYUK SAAT (buyuksaat) kayboldu — sayfadaki EN GORUNUR oge'],
+  // ⚠️⚠️ Taze saat BUTUN saat ogelerine yazilmali. Yalniz birine yazilirsa
+  //    bayat bir govdede DORT ESKI + BIR YENI saat gorunur; iki farkli saat,
+  //    hic saat gostermemekten DAHA KOTU.
+  [kacKez('saatyaz') >= 5,
     `saat ogelerinde .saatyaz sinifi eksik (bulundu: ${kacKez('saatyaz')})`],
   [cikti.includes("querySelectorAll('.saatyaz')"),
     'taze saat TEK YERE yaziliyor (turu 126: hepsine yazilmali)'],
   [cikti.includes(`?v=${surumEtiketi}`), 'apk surum sorgusu yazilmadi'],
-  [cikti.includes('class="saatbar"'), 'saat cubugu KAYBOLDU'],
+  // ⚠️ SURUM ETIKETI de GORUNUR olmali (kullanici emri: "surum numarasi").
+  [cikti.includes('class="surum"'), 'GORUNEN SURUM ETIKETI kayboldu'],
   [cikti.includes('id="ss"') && cikti.includes('setInterval'),
     'CANLI SAAT kayboldu (bayat-onbellek suphesini cozen tek sey)'],
-  // ⚠️⚠️⚠️ TURU 96i — BAYAT SAYFA NOBETCISI. Kullanici BES TURDUR "saati
-  //    goremiyorum" diyor ve sunucu HER SEFERINDE dogru cikiyor; geriye kalan
-  //    tek aciklama TARAYICI ONBELLEGI. Sayfaya "saat yaz" demek bu durumda
-  //    ISE YARAMAZ (kullanici zaten ESKI sayfaya bakiyor). Nobetci sayfanin
-  //    gomulu surumunu `surum.json` ile karsilastirir ve eskiyse KIRMIZI
-  //    SERIT + taze baglanti gosterir.
+  // ⚠️⚠️⚠️ NOBETCI 1 (ag GEREKTIRIR): sayfanin gomulu surumu `surum.json`
+  //    ile karsilastirilir; eskiyse KIRMIZI SERIT + taze baglanti.
   // ⚠️ YAPMA: bu kontrolu kaldirma.
-  [cikti.includes("id=\"bayat\"") && cikti.includes('surum.json') &&
+  [cikti.includes('id="bayat"') && cikti.includes('surum.json') &&
     cikti.includes("cache: 'no-store'"),
     'BAYAT SAYFA NOBETCISI kayboldu (surum.json karsilastirmasi)'],
-  // ⚠️⚠️ TURU 113 — AG GEREKTIRMEYEN IKINCI NOBETCI: adresteki `?v=` ile
-  //    sayfaya gomulu surum karsilastirilir. `surum.json` nobetcisi bir
-  //    `fetch` gerektirir ve kisitli bir webview'da HIC tamamlanmayabilir;
-  //    bu blok yalnizca `location.search` okur, dolayisiyla DAIMA calisir.
-  // ⚠️ YAPMA: ikisinden birini otekinin yerine gecirme.
+  // ⚠️⚠️ NOBETCI 2 (ag GEREKTIRMEZ): adresteki `?v=` ile gomulu surum.
+  //    Kisitli bir webview `fetch`i HIC tamamlamayabilir; bu blok yalnizca
+  //    `location.search` okur, dolayisiyla DAIMA calisir.
+  // ⚠️ YAPMA: ikisinden birini otekinin yerine gecirme — FARKLI arizalari
+  //    yakalarlar (bayat GOVDE vs eski BAGLANTIYLA acilmis sayfa).
   [cikti.includes('location.search') && cikti.includes('[?&]v='),
     'ADRES SURUM NOBETCISI kayboldu (?v= karsilastirmasi)'],
-  // ⚠️⚠️ TURU 115b — **UCUNCU NOBETCI: GORUNEN SAAT SUNUCUDAN YAZILIYOR MU.**
-  //	Kullanici ALTI TURDUR "saati goremiyorum" diyor; sunucu ALTI KEZ DE
-  //	dogru cikti, yani kalan tek aciklama TARAYICI ONBELLEGI. Onceki iki
-  //	nobetci bu durumu yalniz HABER VERIYORDU; bu blok gorunen saatin
-  //	KENDISINI `surum.json`daki degerle degistirir, yani bayat bir govdede
-  //	bile kullanicinin okudugu saat DOGRU olur.
-  // ⚠️ YAPMA: `surumsaat` kimligini veya `d.saat` atamasini kaldirma.
+  // ⚠️⚠️ NOBETCI 3: gorunen saatin KENDISI `surum.json`dan yazilir. Onceki
+  //    iki nobetci durumu yalniz HABER VERIYORDU; bu, bayat bir govdede bile
+  //    kullanicinin OKUDUGU saati DOGRU yapar.
   [cikti.includes('id="surumsaat"'),
     'CANLI SAAT KIMLIGI (surumsaat) kayboldu'],
   [cikti.includes('d.saat'),
     'saat `surum.json`dan YAZILMIYOR (turu 115b nobetcisi)'],
   [!/body\s*\{[^}]*align-items:\s*center/.test(cikti),
     'body flex ortalama GERI GELMIS (turu 50 regresyonu: saat kirpilir)'],
-  // ⚠️ ICERIK MUHAFIZI **BU SURUME** SABITLENIR (her turda guncellenir).
-  //    Amaci: sablon degistirilip `YENI_ICERIK` guncellenmeden sayfa
-  //    uretilmesini ENGELLEMEK — yoksa kullaniciya BIR ONCEKI surumun
-  //    notlari gosterilir ve "yeni ne var" yalan olur.
-  // ⚠️ YAPMA: bu satiri silme; yeni turda ANAHTAR IFADEYI degistir.
-  [cikti.includes('PİYASA VE YAKINIMDA') &&
-      cikti.includes('ÇEVİR') &&
-      cikti.includes('ÖRNEK VERİ UYARISI'),
-    'turu 134 icerigi yazilmadi (YENI_ICERIK guncellenmemis)'],
-  // ⚠️⚠️ TURU 134 — **ESKI BLOK SIZMASIN.** 127-133 yayinlari turu 126
-  //	metnini oldugu gibi tasidi; muhafiz yalnizca "126 metni VAR MI"
-  //	diye baktigi icin bunu YAKALAYAMADI. Artik eski metnin BULUNMAMASI
-  //	da zorunlu — ayni hata bir daha sessizce gecemez.
-  [!cikti.includes('GİRİŞ VE KAYIT BAŞTAN YAZILDI'),
-    'ESKI (turu 126) surum notu sayfada KALMIS'],
+  // ⚠️⚠️⚠️ TURU 134 — **SAYFA SADE KALMALI** (kullanici emri: *"aciklama
+  //	yazma ... surum numarasi saati ve indirme linkleri YETERLI"*).
+  //
+  //	Onceki muhafiz yalnizca "BU TURUN metni VAR MI" diye bakiyordu ve
+  //	tam bu yuzden 127-133 boyunca sayfada duran BAYAT turu-126 blogunu
+  //	YAKALAYAMADI. Artik olcut TERSINE cevrildi: aciklama blogu HIC
+  //	OLMAMALI. Bir daha sessizce bayat metin tasinamaz.
+  // ⚠️ YAPMA: sayfaya "Bu surumde" / ozellik listesi / SSS geri ekleme.
+  [!cikti.includes('class="yeni"'),
+    'ACIKLAMA BLOGU GERI GELMIS (kullanici emri: sayfa SADE)'],
+  [!cikti.includes('GİRİŞ VE KAYIT BAŞTAN YAZILDI') &&
+      !cikti.includes('Bu sürümde'),
+    'ESKI SURUM NOTU sayfada KALMIS'],
+  // ⚠️ Kullanici *"logo gerek yok"* dedi — sayfada gorsel ETIKETI olmamali.
+  //    (favicon `<link rel="icon">` DEGIL; o sekme ikonudur ve sayfada
+  //    cizilmez, bu yuzden olcut `<img` uzerinde.)
+  [!/<img\b/i.test(cikti), 'LOGO/GORSEL geri gelmis (kullanici emri: logo YOK)'],
   // ⚠️ YALNIZ GORUNEN metin taranir. HTML/CSS/JS YORUMLARINDAKI ⚠️ isaretleri
   //    kullaniciya cizilmez ve serhin okunurlugu icin BILINCLI olarak durur.
   [!/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(
