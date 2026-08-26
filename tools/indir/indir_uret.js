@@ -45,7 +45,16 @@ const surumEtiketi =
   `${now.getUTCFullYear()}${p2(now.getUTCMonth() + 1)}${p2(now.getUTCDate())}` +
   `-${p2(now.getUTCHours())}${p2(now.getUTCMinutes())}`;
 
-const YENI_ICERIK = `<div class="yeni"><b>Bu sürümde — GİRİŞ VE KAYIT BAŞTAN YAZILDI</b><br><br><b>1 · ARTIK &quot;GİRİŞ Mİ KAYIT MI&quot; SEÇMİYORSUN.</b> Numaranı yazıp &quot;Giriş yap&quot;a basıyorsun; numara kayıtlıysa şifre soruluyor, kayıtlı değilse kod gönderilip doğrudan kayda geçiliyor. &quot;Hesabın yok mu? Kayıt ol&quot; bağlantısı bu yüzden kalktı.<br><br><b>2 · GİRİŞ EKRANI.</b> Sol üstte geri oku, <b>Seni görmek ne güzel</b> / <b>Hadi başlayalım</b>, altında tek satır telefon: <code>+90 512 345 67 89</code>. Numara yazarken kendiliğinden gruplanıyor, yazdıkça hem numara hem <code>+90</code> koyulaşıyor, alt çizgi siyaha dönüyor. Düğmenin üstünde kısa bir not var.<br><br><b>3 · KAYIT DOKUZ ADIM.</b> Numara · şifre · kod · ad · kullanıcı adı · yaş · cinsiyet · ilgi alanları · fotoğraf. Her adımda üstte ince bir satır, altında kalın başlık. <b>Step çizgileri kaldırıldı.</b><br><br><b>4 · KOD EKRANI TELEFON ALANIYLA AYNI DİLDE.</b> Altı ayrı kutu ve aralarındaki tire kalktı; artık <b>tek alan, tek alt çizgi</b>, haneler yalnızca boşlukla ayrık.<br><br><b>5 · ETİKETLER KALKTI.</b> &quot;Adın soyadın&quot; ve &quot;Kullanıcı adı&quot; yazıları alanların üstünden kaldırıldı — başlık zaten ne istendiğini söylüyor. <b>Bu üç turdur yapılamıyordu:</b> kodda &quot;etiketi sil&quot; yazıyordu ama Flutter&#39;da o yazım etiketi <b>silmiyor, olduğu gibi bırakıyor</b>. Gerçekten silen bir yol yazıldı.<br><br><b>6 · ŞİFRE DAİRELERİ.</b> Siyah ve <b>%25 küçük</b> — giriş ve kayıt ekranında artık <b>birebir aynı</b> (ikisi tek kaynaktan okuyor). Göz ikonu yerine <b>Göster / Gizle</b> yazısı var, şifre kuralları alanın altında yazıyor ve karşılandıkça yeşile dönüyor.<br><br><b>7 · KULLANICI ADI AYRI SAYFADA</b> ve sağında yeşil daire içinde tik ya da kırmızı çarpı. <b>Dikkat:</b> bu işaret &quot;bu ad müsait&quot; demiyor, <b>&quot;biçim doğru&quot;</b> diyor — sunucuda müsaitlik soran bir uç yok, çakışma ancak kayıt tamamlanırken çıkıyor.<br><br><b>8 · YAŞ 20&#39;de açılıyor</b>, seçim bandının mor zemini ve yuvarlak köşesi kaldırıldı. Cinsiyette iki seçenek var, boş bırakılabiliyor; <b>Tuttuğun takım</b> kayıttan çıkarıldı. Fotoğraf adımında dairenin gölgesi/çerçevesi yok, düğme tam yuvarlak.<br><br><b>9 · TANITIM EKRANLARI DEĞİŞTİ.</b> &quot;Gelen aramayı kaçırma&quot; sayfası <b>&quot;Teklifler ve mesajlar anında&quot;</b> oldu (hizmet dili). &quot;Telefon kilitliyken arama ekranı&quot; sayfası kaldırıldı; yerine iki yeni sayfa geldi: <b>Alım satım komşunla</b> (ilanlar) ve <b>Şehrinde ne var</b> (etkinlikler). İkisinin de altında kendi kategorileri akıyor.<br><br><b>10 · KLAVYE ARTIK SAYFAYI OYNATMIYOR.</b> Her dokunuşta bütün sayfa zıplıyordu; sebep Flutter&#39;ın varsayılan davranışıydı (klavye açılırken gövdenin tamamı kısalıyor). Kapatıldı — üst içerik kıpırdamıyor, yalnızca düğme klavyeyle birlikte yumuşak çıkıyor.<br><br><b>Yakalanan hatalar:</b> (a) Giriş ekranından kayda geçince <b>şifre adımı tamamen atlanıyordu</b>, yani o kayıt son adımda sunucudan hata alırdı. (b) &quot;Adın ne?&quot; adımında <b>&quot;Devam&quot; hiçbir şey yapmıyordu</b> — adım sayısı artınca geçiş kendi adımına gidiyordu. (c) Yeni tanıtım sayfalarının altında <b>yanlış kartlar</b> akıyordu: ilan sayfasında restoran/kafe, etkinlik sayfasında bir önceki sayfanın haritası.<br><br><b>Bu sayfa hakkında:</b> Sürüm saati artık <b>sekiz yerde</b> yazıyor ve en görüneni logonun hemen altında. Sayfa açılırken saati sunucudan tazeliyor ve <b>hepsini birden</b> güncelliyor — daha önce yalnızca en üstteki güncelleniyordu, yani eski bir kopyada altı eski + bir yeni saat görünebiliyordu.<br><br><b>Dürüst sınırlar:</b> <b>Cinsiyet sunucuya gönderilmiyor</b> (veritabanında sütunu yok, ekranda tutuluyor). <b>&quot;Şifremi unuttum&quot; ve &quot;Kod gelmedi mi?&quot; ekranda yok</b> — gerçek SMS&#39;e geçilince ikisi de gerekecek. Kaldırılan tanıtım sayfası <b>tam ekran bildirim iznini</b> istiyordu; o izin telefon kilitliyken gelen arama ekranının açılmasını sağlıyor. Artık yalnızca <b>Ayarlar &gt; İzinler</b> üzerinden verilebiliyor.<br><br><b>Not:</b> <b>Yalnızca arayüz</b>, <b>yalnızca iPhone</b>. Sunucu değişmedi, hesaplar duruyor.</div>`;
+// ⚠️⚠️⚠️ TURU 134 — **METIN KISALTILDI** (kullanici emri, turu 133:
+//	*"birde yayinladigin sitede aciklama vb yazma dostum seri olsun"*).
+//
+// ⚠️⚠️ AMA BOS BIRAKILMADI: blok turu **126**`da kalmisti ve 127-133
+//	yayinlari boyunca guncellenmedi — yani sayfa, o build`de OLMAYAN
+//	seyleri (kayit akisi, sifre daireleri, tanitim ekranlari) anlatiyordu.
+//	**BAYAT NOT, NOT OLMAMASINDAN KOTUDUR.** Kisa ama DOGRU yazilir.
+// ⚠️ Icerik muhafizindaki anahtar ifadeler bu blokla BIRLIKTE degisir.
+const YENI_ICERIK = `<div class="yeni"><b>Bu sürümde — PİYASA VE YAKINIMDA</b><br><br><b>PİYASA şeridi.</b> Menüde Yakınımda&#39;nın altında Dolar · Euro · Altın · Bitcoin. Karta dokununca alttan grafik açılıyor.<br><br><b>Grafikte parmağını gezdir.</b> İmleç dokunduğun yerde <b>kalıyor</b>; üstteki fiyat, yüzde ve tarih onunla birlikte değişiyor. <b>İki parmağını sağa sola aç</b> — seçtiğin aralık işaretleniyor, arkadaki renk yalnızca o aralıkta doluyor.<br><br><b>ÇEVİR.</b> Grafiğin altında Gram · Çeyrek · Yarım · Tam · Cumhuriyet · Kilo (dövizde 1 · 10 · 50 · 100 · 500 · 1.000). Seçtiğinin 1 / 2 / 5 / 10 katının karşılığı altta yazıyor ve <b>imlecin gösterdiği fiyattan</b> hesaplanıyor.<br><br><b>Yakınımda kartları.</b> Mesafe artık renkli ve okunur, ikonlar kalın, kartlar biraz daraldı.<br><br><b>ÖRNEK VERİ UYARISI:</b> kur, altın, bitcoin ve maç skoru <b>gerçek değildir</b> — tasarımı görmen için konuldu. <b>Bu sayıya bakıp işlem yapma.</b><br><br><b>Not:</b> Yalnızca arayüz, yalnızca iPhone. Sunucu değişmedi, hesaplar duruyor.</div>`;
+
 
 let cikti = sablon
   .replace(/\{\{SAAT\}\}/g, saat)
@@ -114,10 +123,16 @@ const kontroller = [
   //    uretilmesini ENGELLEMEK — yoksa kullaniciya BIR ONCEKI surumun
   //    notlari gosterilir ve "yeni ne var" yalan olur.
   // ⚠️ YAPMA: bu satiri silme; yeni turda ANAHTAR IFADEYI degistir.
-  [cikti.includes('GİRİŞ VE KAYIT BAŞTAN YAZILDI') &&
-      cikti.includes('ETİKETLER KALKTI') &&
-      cikti.includes('TANITIM EKRANLARI DEĞİŞTİ'),
-    'turu 126c icerigi yazilmadi (YENI_ICERIK guncellenmemis)'],
+  [cikti.includes('PİYASA VE YAKINIMDA') &&
+      cikti.includes('ÇEVİR') &&
+      cikti.includes('ÖRNEK VERİ UYARISI'),
+    'turu 134 icerigi yazilmadi (YENI_ICERIK guncellenmemis)'],
+  // ⚠️⚠️ TURU 134 — **ESKI BLOK SIZMASIN.** 127-133 yayinlari turu 126
+  //	metnini oldugu gibi tasidi; muhafiz yalnizca "126 metni VAR MI"
+  //	diye baktigi icin bunu YAKALAYAMADI. Artik eski metnin BULUNMAMASI
+  //	da zorunlu — ayni hata bir daha sessizce gecemez.
+  [!cikti.includes('GİRİŞ VE KAYIT BAŞTAN YAZILDI'),
+    'ESKI (turu 126) surum notu sayfada KALMIS'],
   // ⚠️ YALNIZ GORUNEN metin taranir. HTML/CSS/JS YORUMLARINDAKI ⚠️ isaretleri
   //    kullaniciya cizilmez ve serhin okunurlugu icin BILINCLI olarak durur.
   [!/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(
