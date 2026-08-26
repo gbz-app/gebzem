@@ -59,22 +59,57 @@ class _KurKalem {
   ///	ceyrek scroll olsun secsin, 1 gram altin altinda 6500 turk lirasi,
   ///	12 bin turk lirasi 2 gram altin diye"*).
   ///
-  ///	`carpan` = 1 birimin KAC TANE temel birim ettigi. Ornek: ceyrek
-  ///	altin 1,75 gram -> carpan 1.75; 100 USD -> carpan 100.
-  /// ⚠️ Cevrim TEK KAYNAKTAN turetilir (`guncel * carpan * adet`): iki ayri
+  ///	· `ad`    = SECICI CIPINDE yazan serbest etiket ("Çeyrek", "50 USD")
+  ///	· `kisa`  = TABLODA sayinin yanina gelen ad ("Çeyrek", "USD")
+  ///	· `sayi`  = etiketteki ADET (Çeyrek -> 1 · "50 USD" -> 50)
+  ///	· `carpan`= 1 birimin KAC TEMEL BIRIM ettigi (çeyrek altin 1,75 gram)
+  ///
+  /// ⚠️⚠️ `sayi` ve `carpan` NEDEN AYRI: dovizde ikisi ayni (50 USD -> 50),
+  ///	ama altinda DEGIL — "Çeyrek"in adeti 1, carpani 1,75`tir. Tek alan
+  ///	kullanilsaydi tablo ya "1,75 Gram / 3,5 Gram" yazardi ya da fiyat
+  ///	YANLIS hesaplanirdi.
+  /// ⚠️ Cevrim TEK FORMULDEN turetilir (`guncel * carpan * kat`): iki ayri
   ///    tablo tutulsaydi biri degisince oteki geride kalirdi.
-  final List<({String ad, double carpan})> birimler;
+  final List<({String ad, String kisa, double sayi, double carpan})> birimler;
 
   double get guncel => seri.last;
 
-  /// ⚠️ Degisim SERIDEN hesaplanir, ayri bir alan DEGIL: elle yazilan bir
-  ///    yuzde seriyle celisebilirdi.
-  double get degisim {
-    if (seri.length < 2) return 0;
-    final ilk = seri.first;
-    if (ilk == 0) return 0;
-    return (seri.last - ilk) / ilk * 100;
-  }
+  /// ⚠️⚠️⚠️ Degisim, panelin **VARSAYILAN ARALIGINDAN** hesaplanir.
+  ///
+  ///	Onceden TUM seri (24 nokta) uzerinden hesaplaniyordu: serit karti
+  ///	*"+2,27% YESIL"* diyor, kart acilinca panel *"-0,09% KIRMIZI"*
+  ///	diyordu (emulatorde goruldu). Ayni sayinin iki ekranda ters isaretli
+  ///	cikmasi, PARA soz konusuyken en agir tutarsizlik turudur.
+  /// ⚠️ YAPMA: buraya tekrar `seri.first`/`seri.last` yazma; iki taraf da
+  ///    `_dilim()` TEK KAYNAGINDAN gecmeli.
+  double get degisim => _degisimHesapla(_dilim(seri, kVarsayilanAralik));
+}
+
+/// ⚠️ Panelin acilistaki araligi (0=1G · 1=1H · 2=1A · 3=1Y). Serit karti da
+///    BUNU kullanir; ayrisirlarsa yuzdeler celisir.
+const kVarsayilanAralik = 1;
+
+/// ⚠️⚠️ NOKTA SAYISI ARALIGA GORE **ELLE** verilir, oranla DEGIL.
+///
+///	Oranli hal (0.25/0.5/0.75/1.0) 1H icin **12 nokta** uretiyordu ama
+///	etiket kumesi 7 GUN ADI; sonuc: ayni grafikte IKI TANE "Paz" ve bant
+///	basligi *"Paz — Paz"* (denetim olctu). Imlec/bant disinda ayirt edici
+///	baska bilgi olmadigi icin kullanici hangi noktada oldugunu BILEMEZDI.
+///
+/// ⚠️ Sayilar etiket kumeleriyle BIREBIR: 1G 8 nokta (3`er saat) · 1H 7 gun
+///    · 1A 10 nokta (3`er gun) · 1Y 12 ay. `_etiket` ile BIRLIKTE degistir.
+const _kNoktaAdedi = [8, 7, 10, 12];
+
+/// ⚠️ Aralik dilimi TEK KAYNAK: hem `_KurKalem.degisim` hem panel buradan
+///    okur. Iki ayri kesme mantigi kacinilmaz olarak ayrisirdi.
+List<double> _dilim(List<double> tam, int aralik) {
+  final adet = _kNoktaAdedi[aralik.clamp(0, _kNoktaAdedi.length - 1)];
+  return tam.sublist(tam.length - math.min(adet, tam.length));
+}
+
+double _degisimHesapla(List<double> s) {
+  if (s.length < 2 || s.first == 0) return 0;
+  return (s.last - s.first) / s.first * 100;
 }
 
 /// ⚠️ Seriler 24 nokta: 1G/1H/1A/1Y dilimleri buradan KESILIR, ikinci bir
@@ -86,17 +121,38 @@ const _kKalemler = <_KurKalem>[
     simge: '₺',
     ikon: LucideIcons.dollarSign,
     seri: [
-      33.42, 33.51, 33.38, 33.60, 33.72, 33.55, 33.81, 33.94,
-      33.76, 34.02, 33.88, 34.10, 34.21, 34.05, 34.30, 34.12,
-      33.98, 34.24, 34.41, 34.19, 34.36, 34.08, 34.25, 34.18,
+      33.42,
+      33.51,
+      33.38,
+      33.60,
+      33.72,
+      33.55,
+      33.81,
+      33.94,
+      33.76,
+      34.02,
+      33.88,
+      34.10,
+      34.21,
+      34.05,
+      34.30,
+      34.12,
+      33.98,
+      34.24,
+      34.41,
+      34.19,
+      34.36,
+      34.08,
+      34.25,
+      34.18,
     ],
     birimler: [
-      (ad: '1 USD', carpan: 1),
-      (ad: '10 USD', carpan: 10),
-      (ad: '50 USD', carpan: 50),
-      (ad: '100 USD', carpan: 100),
-      (ad: '500 USD', carpan: 500),
-      (ad: '1.000 USD', carpan: 1000),
+      (ad: '1 USD', kisa: 'USD', sayi: 1, carpan: 1),
+      (ad: '10 USD', kisa: 'USD', sayi: 10, carpan: 10),
+      (ad: '50 USD', kisa: 'USD', sayi: 50, carpan: 50),
+      (ad: '100 USD', kisa: 'USD', sayi: 100, carpan: 100),
+      (ad: '500 USD', kisa: 'USD', sayi: 500, carpan: 500),
+      (ad: '1.000 USD', kisa: 'USD', sayi: 1000, carpan: 1000),
     ],
   ),
   _KurKalem(
@@ -105,17 +161,38 @@ const _kKalemler = <_KurKalem>[
     simge: '₺',
     ikon: LucideIcons.euro,
     seri: [
-      36.10, 36.32, 36.18, 36.45, 36.28, 36.61, 36.44, 36.72,
-      36.55, 36.88, 36.70, 37.01, 36.84, 37.15, 36.96, 37.22,
-      37.08, 37.31, 37.12, 36.94, 37.20, 37.35, 37.16, 37.04,
+      36.10,
+      36.32,
+      36.18,
+      36.45,
+      36.28,
+      36.61,
+      36.44,
+      36.72,
+      36.55,
+      36.88,
+      36.70,
+      37.01,
+      36.84,
+      37.15,
+      36.96,
+      37.22,
+      37.08,
+      37.31,
+      37.12,
+      36.94,
+      37.20,
+      37.35,
+      37.16,
+      37.04,
     ],
     birimler: [
-      (ad: '1 EUR', carpan: 1),
-      (ad: '10 EUR', carpan: 10),
-      (ad: '50 EUR', carpan: 50),
-      (ad: '100 EUR', carpan: 100),
-      (ad: '500 EUR', carpan: 500),
-      (ad: '1.000 EUR', carpan: 1000),
+      (ad: '1 EUR', kisa: 'EUR', sayi: 1, carpan: 1),
+      (ad: '10 EUR', kisa: 'EUR', sayi: 10, carpan: 10),
+      (ad: '50 EUR', kisa: 'EUR', sayi: 50, carpan: 50),
+      (ad: '100 EUR', kisa: 'EUR', sayi: 100, carpan: 100),
+      (ad: '500 EUR', kisa: 'EUR', sayi: 500, carpan: 500),
+      (ad: '1.000 EUR', kisa: 'EUR', sayi: 1000, carpan: 1000),
     ],
   ),
   _KurKalem(
@@ -124,19 +201,40 @@ const _kKalemler = <_KurKalem>[
     simge: '₺',
     ikon: LucideIcons.gem,
     seri: [
-      2880, 2905, 2892, 2934, 2918, 2961, 2947, 2988,
-      2970, 3012, 2995, 3034, 3018, 3001, 2978, 2996,
-      2964, 2982, 2951, 2969, 2938, 2957, 2929, 2947,
+      2880,
+      2905,
+      2892,
+      2934,
+      2918,
+      2961,
+      2947,
+      2988,
+      2970,
+      3012,
+      2995,
+      3034,
+      3018,
+      3001,
+      2978,
+      2996,
+      2964,
+      2982,
+      2951,
+      2969,
+      2938,
+      2957,
+      2929,
+      2947,
     ],
     // ⚠️ Carpanlar GERCEK altin standardindan: ceyrek 1,75 g · yarim 3,5 g
     //    · tam 7 g · cumhuriyet 7,216 g · kilo 1000 g. Yalniz FIYAT uydurma.
     birimler: [
-      (ad: '1 Gram', carpan: 1),
-      (ad: 'Çeyrek', carpan: 1.75),
-      (ad: 'Yarım', carpan: 3.5),
-      (ad: 'Tam', carpan: 7),
-      (ad: 'Cumhuriyet', carpan: 7.216),
-      (ad: 'Kilo', carpan: 1000),
+      (ad: 'Gram', kisa: 'Gram', sayi: 1, carpan: 1),
+      (ad: 'Çeyrek', kisa: 'Çeyrek', sayi: 1, carpan: 1.75),
+      (ad: 'Yarım', kisa: 'Yarım', sayi: 1, carpan: 3.5),
+      (ad: 'Tam', kisa: 'Tam', sayi: 1, carpan: 7),
+      (ad: 'Cumhuriyet', kisa: 'Cumhuriyet', sayi: 1, carpan: 7.216),
+      (ad: 'Kilo', kisa: 'Kilo', sayi: 1, carpan: 1000),
     ],
   ),
   _KurKalem(
@@ -145,15 +243,36 @@ const _kKalemler = <_KurKalem>[
     simge: r'$',
     ikon: LucideIcons.bitcoin,
     seri: [
-      62400, 63120, 62880, 64010, 63540, 64720, 64180, 65330,
-      64890, 66040, 65510, 66720, 66180, 67350, 66810, 67940,
-      67290, 68120, 67480, 66950, 67610, 68240, 67830, 67420,
+      62400,
+      63120,
+      62880,
+      64010,
+      63540,
+      64720,
+      64180,
+      65330,
+      64890,
+      66040,
+      65510,
+      66720,
+      66180,
+      67350,
+      66810,
+      67940,
+      67290,
+      68120,
+      67480,
+      66950,
+      67610,
+      68240,
+      67830,
+      67420,
     ],
     birimler: [
-      (ad: '1 BTC', carpan: 1),
-      (ad: '0,5 BTC', carpan: 0.5),
-      (ad: '0,1 BTC', carpan: 0.1),
-      (ad: '0,01 BTC', carpan: 0.01),
+      (ad: '1 BTC', kisa: 'BTC', sayi: 1, carpan: 1),
+      (ad: '0,5 BTC', kisa: 'BTC', sayi: 0.5, carpan: 0.5),
+      (ad: '0,1 BTC', kisa: 'BTC', sayi: 0.1, carpan: 0.1),
+      (ad: '0,01 BTC', kisa: 'BTC', sayi: 0.01, carpan: 0.01),
     ],
   ),
 ];
@@ -164,8 +283,8 @@ const _kKalemler = <_KurKalem>[
 ///	EKLENMEDI — tek bir bicimleyici icin yeni bagimlilik orantisiz.
 /// ⚠️ Ondalik basamak DEGERE gore: 10.000 TL`lik altinda kurus anlamsiz,
 ///    34,18 TL`lik dolarda ZORUNLU.
-String _sayi(double v) {
-  final basamak = v >= 1000 ? 0 : 2;
+String _sayi(double v, [int? basamakZorla]) {
+  final basamak = basamakZorla ?? (v >= 1000 ? 0 : 2);
   final s = v.toStringAsFixed(basamak);
   final parca = s.split('.');
   final tam = parca[0];
@@ -179,6 +298,11 @@ String _sayi(double v) {
 
 String _fiyat(double v, String simge) =>
     simge == r'$' ? '$simge${_sayi(v)}' : '${_sayi(v)} $simge';
+
+/// ⚠️ ADET bicimi fiyattan AYRI: 2 adet "2" yazilir, "2,00" DEGIL; ama
+///    0,5 BTC ondaligini KAYBETMEMELI. Bu yuzden tam sayida basamak 0.
+String _adet(double v) =>
+    v == v.roundToDouble() ? _sayi(v, 0) : _sayi(v, v < 0.1 ? 2 : 1);
 
 String _yuzde(double v) =>
     '${v >= 0 ? '+' : ''}${v.toStringAsFixed(2).replaceAll('.', ',')}%';
@@ -424,20 +548,37 @@ class _KurPaneliState extends State<_KurPaneli> {
     return tam.sublist(tam.length - adet);
   }
 
-  /// ⚠️ Gosterilen deger: imlec varsa O NOKTA, yoksa GUNCEL fiyat.
+  /// ⚠️ Gosterilen deger: bant varsa BANDIN SONU, imlec varsa O NOKTA,
+  ///    ikisi de yoksa aralik sonundaki (guncel) fiyat.
   double get _gosterilen {
     final s = _seri;
+    final b = _bant;
+    if (b != null) return s[b.son.clamp(0, s.length - 1)];
     final i = _secili;
-    if (i == null) return widget.kalem.guncel;
+    if (i == null) return s.last;
     return s[i.clamp(0, s.length - 1)];
   }
 
-  /// ⚠️ Degisim de secili noktaya gore: kullanici gecmise bakiyorsa yuzde de
-  ///    O ANA ait olmali, yoksa sayi ile yuzde CELISIR.
+  /// ⚠️⚠️⚠️ Degisim, EKRANDA GOSTERILEN kumeye gore hesaplanir.
+  ///
+  ///	· bant varsa  -> BANDIN BASI ile SONU arasindaki degisim
+  ///	· imlec varsa -> aralik basi ile O NOKTA arasindaki degisim
+  ///	· hicbiri yok -> aralik basi ile sonu
+  ///
+  /// ⚠️⚠️ **BANT DALI ATLANIRSA SAYI ILE YUZDE CELISIR** (denetim olctu):
+  ///	Bitcoin 1Y`de DUSEN son dort noktayi secince ekran "67.420 ₺" ve
+  ///	**"+8,04% ▲ YESIL"** diyordu — cunku yuzde hala TUM araligi
+  ///	olcuyordu. Ustelik ayni renk bandi vurgulamakta da kullaniliyor,
+  ///	yani dusen bir bant YESIL boyaniyordu. Para soz konusuyken bu, en
+  ///	agir tutarsizlik turudur.
+  /// ⚠️ YAPMA: bu dallardan birini kaldirip tek bir `s.first`e donme.
   double get _gosterilenDegisim {
     final s = _seri;
-    if (s.length < 2 || s.first == 0) return 0;
-    return (_gosterilen - s.first) / s.first * 100;
+    if (s.length < 2) return 0;
+    final b = _bant;
+    final bas = b == null ? s.first : s[b.bas.clamp(0, s.length - 1)];
+    if (bas == 0) return 0;
+    return (_gosterilen - bas) / bas * 100;
   }
 
   int _dxToIndis(double dx, double genislik, int adet) {
@@ -495,23 +636,41 @@ class _KurPaneliState extends State<_KurPaneli> {
   /// ⚠️⚠️ Etiketler ARALIGA gore uretilir. **UYDURMA** (bkz. dosya serhi):
   ///	`DateTime.now()` KULLANILMAZ — uydurma fiyatlara GERCEK bir zaman
   ///	damgasi vermek inandiriciligi haksiz yere artirirdi.
+  /// ⚠️⚠️ Etiketler **TEKRARSIZ** olmak ZORUNDA (denetim buldu): ayni
+  ///	grafikte iki "Paz" varken kullanici imlecin hangi noktada oldugunu
+  ///	anlayamazdi. Adimlar `_kNoktaAdedi` ile hizali — biri degisirse
+  ///	oteki de degismeli.
   String _etiket(int i, int adet) {
     final geri = adet - 1 - i;
     switch (_aralik) {
+      // 8 nokta x 3 saat = 24 saat, tekrarsiz.
       case 0:
-        final saat = (18 - geri) % 24;
+        final saat = (21 - geri * 3) % 24;
         return '${saat.toString().padLeft(2, '0')}:00';
+      // 7 nokta = 7 gun adi, tekrarsiz.
       case 1:
         const gunler = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
-        return gunler[gunler.length - 1 - geri % gunler.length];
+        return gunler[(gunler.length - 1 - geri).clamp(0, gunler.length - 1)];
+      // 10 nokta x 3 gun = 27 gun, tekrarsiz.
       case 2:
-        return '${(28 - geri).clamp(1, 31)} Ağu';
+        return '${(28 - geri * 3).clamp(1, 31)} Ağu';
+      // 12 nokta = 12 ay adi, tekrarsiz.
       default:
         const aylar = [
-          'Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz',
-          'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara',
+          'Oca',
+          'Şub',
+          'Mar',
+          'Nis',
+          'May',
+          'Haz',
+          'Tem',
+          'Ağu',
+          'Eyl',
+          'Eki',
+          'Kas',
+          'Ara',
         ];
-        return aylar[aylar.length - 1 - geri % aylar.length];
+        return aylar[(aylar.length - 1 - geri).clamp(0, aylar.length - 1)];
     }
   }
 
@@ -668,61 +827,98 @@ class _KurPaneliState extends State<_KurPaneli> {
               LayoutBuilder(
                 builder: (context, kisit) {
                   final g = kisit.maxWidth;
-                  return Listener(
-                    // ⚠️⚠️ Ham pointer: iki parmagin AYRI x`leri gerekiyor ve
-                    //	`GestureDetector` bunu VERMEZ.
-                    // ⚠️ `onPointerCancel` DE dinlenir: sistem jesti araya
-                    //    girerse parmak defterde ASILI kalirdi.
-                    onPointerDown: (e) {
-                      _parmaklar[e.pointer] = e.localPosition.dx;
-                      if (_parmaklar.length >= 2) {
-                        _ikiParmak(g);
-                      } else {
-                        _tekParmak(e.localPosition.dx, g);
-                      }
-                    },
-                    onPointerMove: (e) {
-                      _parmaklar[e.pointer] = e.localPosition.dx;
-                      if (_parmaklar.length >= 2) {
-                        _ikiParmak(g);
-                      } else {
-                        _tekParmak(e.localPosition.dx, g);
-                      }
-                    },
-                    onPointerUp: (e) => _parmaklar.remove(e.pointer),
-                    onPointerCancel: (e) => _parmaklar.remove(e.pointer),
-                    // ⚠️⚠️⚠️ **PARMAK KALKINCA SECIM SILINMEZ** (kullanici
-                    //	emri): Google Finance deseni — deger ekranda KALIR.
-                    child: SizedBox(
-                      height: 150,
-                      width: double.infinity,
-                      // ⚠️⚠️ TURU 134 — **ARALIK DEGISINCE HAFIF GECIS**
-                      //	(kullanici emri: *"gun ay degisirken chart
-                      //	animasyon ekle, cok hafif tatli"*).
-                      // ⚠️ `key` ZORUNLU: `TweenAnimationBuilder` yalnizca
-                      //    `tween` DEGISINCE animasyon baslatir; aralik
-                      //    degistiginde widget`i YENIDEN kurup 0`dan
-                      //    baslatmak gerekiyor.
-                      // ⚠️ 260 ms + `easeOutCubic`: "tatli" ama bekletmeyen
-                      //    sure.
-                      child: TweenAnimationBuilder<double>(
-                        key: ValueKey(_aralik),
-                        tween: Tween(begin: 0, end: 1),
-                        duration: const Duration(milliseconds: 260),
-                        curve: Curves.easeOutCubic,
-                        builder: (_, t, _) => CustomPaint(
-                          painter: _GrafikCizer(
-                            seri: seri,
-                            renk: renk,
-                            ilerleme: t,
-                            secili: _secili,
-                            bant: _bant,
-                            etiket: _secili == null
-                                ? null
-                                : _etiket(_secili!, seri.length),
-                            deger: _secili == null
-                                ? null
-                                : _fiyat(_gosterilen, k.simge),
+                  // ⚠️⚠️⚠️ **JEST ARENASI TALEBI ZORUNLU** (denetim buldu).
+                  //
+                  //	`Listener` bir RECOGNIZER DEGILDIR — arenaya girmez.
+                  //	Ustteki `SingleChildScrollView` ve
+                  //	`showModalBottomSheet`in surukle-kapat taniyicisi
+                  //	dikey/capraz bileseni KAZANIYOR; kullanici grafigi
+                  //	tararken panel kayiyor ya da sayfa asagi suruklenip
+                  //	KAPANMAYA basliyordu. (360x640`ta scroll, 390x844`te
+                  //	sheet surukleme — iki dalda da gercek.)
+                  //
+                  // ⚠️ Bos govdeli `GestureDetector` arenayi TALEP EDER ve
+                  //    kazanir; `Listener` ham olaylari ALMAYA DEVAM EDER.
+                  // ⚠️ Grafik alaninda panelin kaydirilamamasi KASITLI:
+                  //    Google Finance de grafik uzerinde sayfayi kaydirmaz.
+                  // ⚠️ YAPMA: bu sarmali kaldirma.
+                  return GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onHorizontalDragStart: (_) {},
+                    onHorizontalDragUpdate: (_) {},
+                    onVerticalDragStart: (_) {},
+                    onVerticalDragUpdate: (_) {},
+                    child: Listener(
+                      // ⚠️⚠️ Ham pointer: iki parmagin AYRI x`leri gerekiyor ve
+                      //	`GestureDetector` bunu VERMEZ.
+                      // ⚠️ `onPointerCancel` DE dinlenir: sistem jesti araya
+                      //    girerse parmak defterde ASILI kalirdi.
+                      onPointerDown: (e) {
+                        _parmaklar[e.pointer] = e.localPosition.dx;
+                        if (_parmaklar.length >= 2) {
+                          _ikiParmak(g);
+                        } else {
+                          _tekParmak(e.localPosition.dx, g);
+                        }
+                      },
+                      onPointerMove: (e) {
+                        _parmaklar[e.pointer] = e.localPosition.dx;
+                        if (_parmaklar.length >= 2) {
+                          _ikiParmak(g);
+                        } else {
+                          _tekParmak(e.localPosition.dx, g);
+                        }
+                      },
+                      onPointerUp: (e) => _parmaklar.remove(e.pointer),
+                      onPointerCancel: (e) => _parmaklar.remove(e.pointer),
+                      // ⚠️⚠️⚠️ **PARMAK KALKINCA SECIM SILINMEZ** (kullanici
+                      //	emri): Google Finance deseni — deger ekranda KALIR.
+                      child: SizedBox(
+                        height: 150,
+                        width: double.infinity,
+                        // ⚠️⚠️ TURU 134 — **ARALIK DEGISINCE HAFIF GECIS**
+                        //	(kullanici emri: *"gun ay degisirken chart
+                        //	animasyon ekle, cok hafif tatli"*).
+                        // ⚠️ `key` ZORUNLU: `TweenAnimationBuilder` yalnizca
+                        //    `tween` DEGISINCE animasyon baslatir; aralik
+                        //    degistiginde widget`i YENIDEN kurup 0`dan
+                        //    baslatmak gerekiyor.
+                        // ⚠️ 260 ms + `easeOutCubic`: "tatli" ama bekletmeyen
+                        //    sure.
+                        // ⚠️ `RepaintBoundary`: tarama sirasinda `setState`
+                        //    panelin TAMAMINI (cip seridi + cevrim tablosu)
+                        //    yeniden kuruyor; grafik en azindan komsularini
+                        //    yeniden BOYAMASIN.
+                        child: RepaintBoundary(
+                          child: TweenAnimationBuilder<double>(
+                            key: ValueKey(_aralik),
+                            tween: Tween(begin: 0, end: 1),
+                            duration: const Duration(milliseconds: 260),
+                            curve: Curves.easeOutCubic,
+                            builder: (_, t, _) => CustomPaint(
+                              painter: _GrafikCizer(
+                                seri: seri,
+                                renk: renk,
+                                ilerleme: t,
+                                // ⚠️⚠️ Yazi olcegi CIZERE tasinir: elle kurulan
+                                //	`TextPainter`in varsayilani
+                                //	`TextScaler.noScaling`dir, yani panelin
+                                //	geri kalani buyurken kullanicinin OKUMAK
+                                //	ICIN taradigi tek sayi 12 px`te SABIT
+                                //	kaliyordu (denetim buldu).
+                                // ⚠️ Tooltip kutusu simdi genisleyebilecegi
+                                //    icin cizerdeki `clamp` KAPISI SART.
+                                yaziOlcek: MediaQuery.textScalerOf(context),
+                                secili: _secili,
+                                bant: _bant,
+                                etiket: _secili == null
+                                    ? null
+                                    : _etiket(_secili!, seri.length),
+                                deger: _secili == null
+                                    ? null
+                                    : _fiyat(_gosterilen, k.simge),
+                              ),
+                            ),
                           ),
                         ),
                       ),
@@ -886,11 +1082,15 @@ class _CevrimState extends State<_Cevrim> {
                   padding: const EdgeInsets.symmetric(vertical: 9),
                   child: Row(
                     children: [
-                      // ⚠️ Sol taraf: "Çeyrek" / "2 × Çeyrek" — kat 1 ise
-                      //    birimin kendi adi ("1 Gram" zaten oyle yaziyor).
+                      // ⚠️⚠️ Sol taraf **ADETLE** yazilir: "2 Çeyrek",
+                      //	"100 USD". Onceden `'$kat × ${birim.ad}'` idi ve
+                      //	dovizde **"2 × 1 USD"** gibi okunmaz bir sey
+                      //	cikiyordu (emulatorde goruldu).
+                      // ⚠️ Adet `sayi * kat`; carpan DEGIL — altinda carpan
+                      //    gram cinsidir ("1,75 Çeyrek" yazardi).
                       Expanded(
                         child: Text(
-                          kat == 1 ? birim.ad : '$kat × ${birim.ad}',
+                          '${_adet(birim.sayi * kat)} ${birim.kisa}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
@@ -948,6 +1148,7 @@ class _GrafikCizer extends CustomPainter {
     required this.seri,
     required this.renk,
     required this.ilerleme,
+    required this.yaziOlcek,
     this.secili,
     this.bant,
     this.etiket,
@@ -956,6 +1157,10 @@ class _GrafikCizer extends CustomPainter {
 
   final List<double> seri;
   final Color renk;
+
+  /// ⚠️ Tooltip icin: elle kurulan `TextPainter` yazi olcegini KENDILIGINDEN
+  ///    UYGULAMAZ.
+  final TextScaler yaziOlcek;
 
   /// 0..1 — aralik degisiminde cizginin acilma animasyonu.
   final double ilerleme;
@@ -1022,6 +1227,9 @@ class _GrafikCizer extends CustomPainter {
             ..lineTo(noktalar[b.son].dx, size.height)
             ..lineTo(noktalar[b.bas].dx, size.height)
             ..close());
+    // ⚠️ Dolgu opakligi `ilerleme` ile carpilir: aksi halde animasyonun ILK
+    //    karesinde (tum noktalar ortada, duz cizgi) ekranin alt yarisi bir
+    //    anda DOLU GRADYAN BLOK olarak parliyordu (denetim buldu).
     canvas.drawPath(
       dolguYol,
       Paint()
@@ -1029,7 +1237,7 @@ class _GrafikCizer extends CustomPainter {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            renk.withValues(alpha: b == null ? 0.28 : 0.42),
+            renk.withValues(alpha: (b == null ? 0.28 : 0.42) * ilerleme),
             renk.withValues(alpha: 0.0),
           ],
         ).createShader(Offset.zero & size),
@@ -1108,6 +1316,7 @@ class _GrafikCizer extends CustomPainter {
       ),
       textDirection: TextDirection.ltr,
       textAlign: TextAlign.center,
+      textScaler: yaziOlcek,
     )..layout();
 
     const ic = 8.0;
@@ -1146,6 +1355,7 @@ class _GrafikCizer extends CustomPainter {
       eski.bant?.bas != bant?.bas ||
       eski.bant?.son != bant?.son ||
       eski.ilerleme != ilerleme ||
+      eski.yaziOlcek != yaziOlcek ||
       eski.etiket != etiket ||
       eski.deger != deger ||
       eski.seri.length != seri.length ||

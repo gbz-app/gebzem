@@ -1265,17 +1265,24 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
                       altMetin,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
+                      // ⚠️⚠️ TURU 134 — **MESAFE VURGU RENGINDE** (emulatorde
+                      //	goruldu: 0.78 opak gri, koyu zeminde adin
+                      //	yaninda SILIK kaliyordu ve kartin en degerli
+                      //	bilgisi en gorunmez ogeydi — turu 117`deki "AI
+                      //	kalan hakki" hatasinin ayni sinifi).
+                      // ⚠️⚠️ Renk YALNIZ GERCEK BIR MESAFEYE verilir.
+                      //	"Konumu aç" / "Yakında yok" bir DURUM metnidir,
+                      //	veri DEGIL; onlari da vurguya boyamak kullaniciya
+                      //	"burada bir olcu var" izlenimi verirdi.
                       style: TextStyle(
                         fontSize: 12.5,
                         height: 1.2,
-                        fontWeight: FontWeight.w600,
-                        // ⚠️ TURU 129 — koyu zeminde 0.4/0.55 SILIKTI.
-                        // ⚠️ Onizlemede metin GERCEK mesafe gibi cizilir.
-                        color: onRenk.withValues(
-                          alpha: (metin.isEmpty && onizleme == null)
-                              ? 0.62
-                              : 0.78,
-                        ),
+                        fontWeight: (metin.isNotEmpty || onizleme != null)
+                            ? FontWeight.w700
+                            : FontWeight.w600,
+                        color: (metin.isNotEmpty || onizleme != null)
+                            ? vurgu
+                            : onRenk.withValues(alpha: 0.62),
                       ),
                     ),
                   ],
