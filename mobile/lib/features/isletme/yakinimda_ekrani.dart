@@ -505,7 +505,13 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
     final alt = MediaQuery.paddingOf(context).bottom;
     // arama(48) + 10 + cip(40) + 12 + ayrac(1) + 12 + ulasim + 12
     final ulasim = o.scale(11.5) * 1.2 + 34 + 14;
-    return 48 + 10 + 40 + 12 + 1 + 12 + ulasim + 12 + alt;
+    // ⚠️⚠️ **HATA SATIRI DA SAYILIR** (emulatorde goruldu): konum
+    //	alinamayinca panele iki satirlik bir uyari + "Tekrar dene"
+    //	dugmesi giriyor ve panel UZUYOR. Hesaba katilmazsa ustte yuzen
+    //	filtre seridi panelin ALTINDA kalir (kayboldu sanilir).
+    // ⚠️ 48 dp: iki satirlik metin ile TextButton`un buyugu.
+    final hataBoy = _hata == null ? 0.0 : o.scale(13) * 1.35 * 2 + 6;
+    return 48 + 10 + 40 + 12 + 1 + 12 + ulasim + 12 + hataBoy + alt;
   }
 
   Widget _altPanel() {
