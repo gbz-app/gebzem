@@ -467,8 +467,21 @@ class _KurPaneliState extends State<_KurPaneli> {
       a = b;
       b = t;
     }
-    // ⚠️ En az iki nokta: tek noktali bir bant "aralik" degildir.
-    if (b - a < 1) b = math.min(a + 1, adet - 1);
+    // ⚠️⚠️ En az IKI nokta: tek noktali bir bant "aralik" degildir.
+    //	⚠️ Genisletme YONU onemli: iki parmak da SON noktadaysa `b = a + 1`
+    //	   tavana takilir ve `b == a` KALIR -> `yolYap(a, a)` dongusu hic
+    //	   donmez, dolgu SIFIR ALANLI cizilir ve kullanici bandi HIC
+    //	   goremez. O halde bandi SOLA dogru acariz.
+    if (b - a < 1) {
+      if (b < adet - 1) {
+        b = a + 1;
+      } else {
+        a = math.max(0, b - 1);
+      }
+    }
+    // ⚠️ Iki noktali seri (adet == 1 olamaz ama) emniyeti: hala esitse bant
+    //    kurulmaz — bozuk bir bant cizmektense hic cizmemek DURUST.
+    if (b <= a) return;
     if (_bant?.bas == a && _bant?.son == b) return;
     _titret();
     setState(() {
@@ -630,8 +643,12 @@ class _KurPaneliState extends State<_KurPaneli> {
               ),
               // ── SECILI ZAMAN ──
               // ⚠️ Yukseklik SABIT: imlec gelip gidince baslik blogu ZIPLARDI.
+              // ⚠️⚠️ Ama SABIT **dp** DEGIL — yazi olceginden TURETILIR:
+              //	12.5 px yazi olcek 2.0`da 30 px olur ve sabit 18 dp`lik
+              //	kutu TASARDI (sari-siyah serit). Kutu hep cizilir, icerigi
+              //	bos olabilir; boylece ziplama da tasma da imkansiz.
               SizedBox(
-                height: 18,
+                height: MediaQuery.textScalerOf(context).scale(12.5) * 1.2 + 3,
                 child: (_secili == null && _bant == null)
                     ? null
                     : Text(
@@ -884,15 +901,22 @@ class _CevrimState extends State<_Cevrim> {
                         ),
                       ),
                       const SizedBox(width: 10),
-                      Text(
-                        _fiyat(k.guncel * birim.carpan * kat, k.simge),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          height: 1.2,
-                          fontWeight: FontWeight.w700,
-                          color: beyaz,
+                      // ⚠️ `Flexible` ZORUNLU: esnek olmayan bir `Text`,
+                      //    "10 × Kilo" gibi buyuk bir karsilikta (29.470.000 ₺)
+                      //    ve yazi olcegi 2.0`da satiri TASIRIRDI. Sol taraf
+                      //    `Expanded` oldugu icin once BU metin yerini alir.
+                      Flexible(
+                        child: Text(
+                          _fiyat(k.guncel * birim.carpan * kat, k.simge),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.right,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            height: 1.2,
+                            fontWeight: FontWeight.w700,
+                            color: beyaz,
+                          ),
                         ),
                       ),
                     ],
@@ -1091,7 +1115,15 @@ class _GrafikCizer extends CustomPainter {
     final kutuY = tp.height + ic * 2;
     // ⚠️⚠️ Kutu YATAYDA KISITLANIR: imlec kenardayken tooltip grafigin DISINA
     //	tasar ve yarisi kirpilirdi.
-    final sol = (n.dx - kutuG / 2).clamp(0.0, size.width - kutuG);
+    // ⚠️⚠️⚠️ **`clamp` UST SINIRI ALT SINIRDAN KUCUKSE ArgumentError ATAR**
+    //	(Dart `num.clamp` kaynagi: `if (lower.compareTo(upper) > 0) throw`).
+    //	Kutu grafikten GENISSE `size.width - kutuG` NEGATIF olur ve cizer
+    //	PATLAR -> ekranda kirmizi hata kutusu. Bugun tooltip ~70 dp ve
+    //	`TextPainter` yazi olcegini UYGULAMAZ, ama bu kapi kaldirilirsa
+    //	metin uzadigi gun SESSIZ bir cokme olur.
+    final sol = kutuG >= size.width
+        ? 0.0
+        : (n.dx - kutuG / 2).clamp(0.0, size.width - kutuG);
     final kutu = Rect.fromLTWH(sol, 0, kutuG, kutuY);
     canvas.drawRRect(
       RRect.fromRectAndRadius(kutu, const Radius.circular(8)),
