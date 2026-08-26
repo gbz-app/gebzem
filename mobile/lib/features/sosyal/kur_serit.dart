@@ -138,7 +138,9 @@ const _kKalemler = <_KurKalem>[
       34.30,
       34.12,
       33.98,
-      34.24,
+      // ⚠️ Varsayilan aralik (1H = son 7 nokta) BURADAN baslar; degeri
+      //    degistirmek serit kartindaki YUZDENIN ISARETINI de degistirir.
+      33.92,
       34.41,
       34.19,
       34.36,
@@ -218,7 +220,8 @@ const _kKalemler = <_KurKalem>[
       2978,
       2996,
       2964,
-      2982,
+      // ⚠️ 1H penceresinin ilk noktasi (bkz. Dolar serisindeki serh).
+      2905,
       2951,
       2969,
       2938,
