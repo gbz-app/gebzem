@@ -452,6 +452,9 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
                 merkez: _konum,
                 isletmeler: _gorunen,
                 yukleniyor: _yukleniyor,
+                // ⚠️ TEK KAYNAK: panel yuksekligi neyse harita da onu
+                //    bilir; sabit bir sayi yazilsaydi ikisi AYRISIRDI.
+                altDolgu: _panelBoy(context),
                 // ⚠️⚠️ TURU 89 — STIL AYARDAN GELIR (kullanici emri).
                 //    Stil CALISMA ANINDA degistirilebilir: eklenti
                 //    `map_configuration.dart` stili DIFF'liyor ve
@@ -1080,8 +1083,24 @@ class _HaritaAlani extends StatefulWidget {
     required this.merkez,
     required this.isletmeler,
     required this.yukleniyor,
+    required this.altDolgu,
     this.acildi,
   });
+
+  /// ⚠️⚠️⚠️ TURU 132 — **HARITANIN ALT DOLGUSU** (denetim buldu).
+  ///
+  ///	Alt panel artik SABIT ve haritanin USTUNE oturuyor. `GoogleMap`e
+  ///	`padding` verilmezse harita kendini TAM EKRAN sanir:
+  ///	· konum isareti ekranin ORTASINA konur ama orasi panelin
+  ///	  hemen ustudur — kullanici kendi cevresini goremez,
+  ///	· "Konumuma dön" her basista kullaniciyi yine panelin DIBINE
+  ///	  yerlestirir,
+  ///	· 360x640`ta panelin ortettigi bant ~4-5 km`ye denk gelir ve
+  ///	  guneydeki isletmeler HIC gorunmez.
+  ///
+  /// ⚠️ `padding` yalnizca KAMERA hesabini kaydirir; harita yine tam
+  ///    ekran cizilir (panelin arkasindan gorunmeye devam eder).
+  final double altDolgu;
 
   // ⚠️ TURU 115 — `yukseklik` alani SILINDI: harita artik DAIMA tam ekran
   //    (Yandex duzeni). Opsiyonel birakmak "kullanilmayan parametre"
@@ -1194,6 +1213,8 @@ class _HaritaAlaniState extends State<_HaritaAlani> {
                   target: LatLng(merkez!.enlem, merkez!.boylam),
                   zoom: 13.5,
                 ),
+                // ⚠️ Alt panelin ortettigi bant (bkz. `altDolgu` serhi).
+                padding: EdgeInsets.only(bottom: widget.altDolgu),
                 // ⚠️ Controller SAKLANIR: konum degisince kamerayi tasiyan
                 //    TEK yol budur (bkz. sinif serhi).
                 onMapCreated: (c) => _harita = c,

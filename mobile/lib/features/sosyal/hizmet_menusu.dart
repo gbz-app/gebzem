@@ -535,7 +535,14 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
                 // ⚠️ YAPMA: bu kartlara gomulu/sahte liste yazma.
                 // ⚠️ YAPMA: "Nöbetçi Eczane" yazip eczane listesi acma —
                 //    nobet verisi YOK, kullanici kapali eczaneye giderdi.
-                _bolumBasligi('YAKINIMDA'),
+                // ⚠️⚠️ TURU 132 — onizleme acikken basliga **ORNEK** eki
+                //	(denetim buldu): kartlar uydurma isletme adi ve mesafe
+                //	yaziyor, dokununca da o isletmenin OLMADIGI gercek
+                //	listeye gidiyordu. Kullanici "400 m'de eczane var"
+                //	sanip yola cikabilirdi.
+                _bolumBasligi(
+                  kYakinOnizleme ? 'YAKINIMDA · ÖRNEK' : 'YAKINIMDA',
+                ),
                 const SizedBox(height: 10),
                 _yakinSerit(context, ref, [
                   _Bolum(
@@ -772,7 +779,15 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
                           ),
                           const SizedBox(width: 6),
                           const Text(
-                            'CANLI',
+                            'CANLI · ÖRNEK',
+                            // ⚠️⚠️ **DURUST SINIR ROZETIN ICINDE**
+                            //	(denetim buldu): kart `CANLI` diyerek
+                            //	uydurma bir MILLI MAC skoru gosteriyordu ve
+                            //	kullanici karta DOKUNMADAN bunun ornek
+                            //	oldugunu ogrenemiyordu. Ibare detay
+                            //	ekraninin DIBINDEYDI.
+                            // ⚠️ YAPMA: veri gercek olana kadar
+                            //    "· ÖRNEK" ekini kaldirma.
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 11,

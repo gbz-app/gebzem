@@ -123,13 +123,52 @@ class KurSeridi extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final olcek = MediaQuery.textScalerOf(context);
+    final onRenk = Theme.of(context).colorScheme.onSurface;
     // ⚠️ Yukseklik yazi olceginden TURETILIR (sabit dp DEGIL) ve `height`
     //    carpanlari `Text`lerde ACIKCA verilir — tahmine dayali butce
     //    turu 129'da 2.7 px tasmisti.
     const satir = 1.2;
     final yazi = olcek.scale(12) * satir + olcek.scale(14.5) * satir;
     final boy = (yazi > 34 ? yazi : 34.0) + 22.0;
-    return SizedBox(
+    // ⚠️⚠️⚠️ **SEVK ENGELI DUZELTMESI — UYARI SERITTE DE OLMAK ZORUNDA.**
+    //
+    //	Dosya serhi "hem seritte hem panelde soyleniyor" diyordu ama
+    //	GOVDEDE yalniz PANELDE vardi (denetim buldu; bu projenin en sik
+    //	hata sinifi: serhin anlattigi seyin govdede olmamasi).
+    //
+    //	Kullanicilarin cogu bir kur seridine DOKUNMAZ — degeri zaten
+    //	okur ve gecer. Yanlis kura bakip islem yapan kisi PARA KAYBEDER.
+    //	Uyari bu yuzden dokunmadan GORUNEN yerde.
+    // ⚠️ YAPMA: bu satiri kaldirma (veri GERCEK olana kadar).
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(kYanBosluk, 0, kYanBosluk, 6),
+          child: Row(
+            children: [
+              Icon(
+                LucideIcons.info,
+                size: 12,
+                color: onRenk.withValues(alpha: 0.5),
+              ),
+              const SizedBox(width: 5),
+              Expanded(
+                child: Text(
+                  'Örnek veri — canlı kur bağlantısı henüz yok',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    height: 1.2,
+                    color: onRenk.withValues(alpha: 0.5),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        SizedBox(
       height: boy,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
@@ -139,6 +178,8 @@ class KurSeridi extends StatelessWidget {
         separatorBuilder: (_, _) => const SizedBox(width: 8),
         itemBuilder: (_, i) => _KurKarti(kalem: _kKalemler[i]),
       ),
+        ),
+      ],
     );
   }
 }
@@ -159,8 +200,20 @@ class _KurKarti extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       onTap: () => kurPaneliAc(context, kalem),
       child: Container(
+        // ⚠️⚠️⚠️ **GENISLIK YAZI OLCEGINDEN DE TURETILIR** (denetim font
+        //	metriginden olctu: 360 dp`de **VARSAYILAN olcekte** dort
+        //	kalemin DORDUNDE DE fiyat kirpiliyordu — "34,1…", "2.94…").
+        //	Eski hal yalniz ekran genisligine bakiyordu; oysa ayni
+        //	dosyada DIKEY butce `textScalerOf` ile turetiliyordu —
+        //	**ASIMETRININ KENDISI HATAYDI**.
+        // ⚠️ Test cihazi 411 dp oldugu icin emulatorde GORUNMUYORDU
+        //    (turu 70b/98c dersinin tekrari: dar ekranda OLCMEDEN
+        //    "siğiyor" deme).
+        // ⚠️ Tavan 1.9: dar ekranda kart buyur ama ikiden fazla kart
+        //    ekrana sigmaz — serit yine kaydirilabilir oldugunu gosterir.
         width:
-            (MediaQuery.sizeOf(context).width - kYanBosluk * 2 - 8 * 2) / 2.2,
+            (MediaQuery.sizeOf(context).width - kYanBosluk * 2 - 8 * 2) /
+            (MediaQuery.textScalerOf(context).scale(1) > 1.3 ? 1.35 : 1.9),
         padding: const EdgeInsets.fromLTRB(11, 10, 11, 10),
         decoration: BoxDecoration(
           color: kAiKartYuzey(context),
@@ -221,18 +274,27 @@ class _KurKarti extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 6),
-                      Text(
+                      // ⚠️⚠️ `Flexible` ZORUNLU (denetim olctu): esnek
+                      //	olmayan bir yuzde metni, olcek 2.0`da fiyati
+                      //	SIFIR GENISLIGE dusuruyordu — ekranda yalniz
+                      //	ikon, ad ve devasa yuzde kaliyordu. Yani en cok
+                      //	yardima ihtiyaci olan kullanici ozelligin TEK
+                      //	islevsel verisini goremiyordu.
+                      Flexible(
+                        child: Text(
                         (arti ? "+" : "") +
                             kalem.degisim
                                 .toStringAsFixed(2)
                                 .replaceAll(".", ",") +
                             "%",
                         maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontSize: 11.5,
                           height: 1.2,
                           fontWeight: FontWeight.w700,
                           color: renk,
+                        ),
                         ),
                       ),
                     ],
