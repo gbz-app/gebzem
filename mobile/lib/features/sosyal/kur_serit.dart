@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import '../../core/theme.dart' show kAiKartYuzey;
+import '../../core/theme.dart' show kAiKartYuzey, kKoyuPanelZemin, kKoyuPanelSekli;
 import '../isletme/isletme_kart.dart' show kYanBosluk, kYaricap;
 
 /// ⚠️⚠️⚠️ TURU 132/134 — **DOVIZ / ALTIN / BITCOIN SERIDI + GRAFIK PANELI.**
@@ -290,8 +290,14 @@ String _sayi(double v, [int? basamakZorla]) {
   final basamak = basamakZorla ?? (v >= 1000 ? 0 : 2);
   final s = v.toStringAsFixed(basamak);
   final parca = s.split('.');
-  final tam = parca[0];
+  // ⚠️⚠️ ISARET ONCE AYRILIR: aksi halde '-' bir RAKAM gibi sayiliyor ve
+  //	binlik noktasi yanlis yere giriyordu — `_sayi(-999.99)` **'-.999,99'**
+  //	donduruyordu (denetim buldu). Bugun negatif deger cizilmiyor ama
+  //	bicimleyici genel amacli; ilk negatif kullanimda SESSIZ bir hata olurdu.
+  final eksi = parca[0].startsWith('-');
+  final tam = eksi ? parca[0].substring(1) : parca[0];
   final tampon = StringBuffer();
+  if (eksi) tampon.write('-');
   for (var i = 0; i < tam.length; i++) {
     if (i > 0 && (tam.length - i) % 3 == 0) tampon.write('.');
     tampon.write(tam[i]);
@@ -392,7 +398,13 @@ class _KurKarti extends StatelessWidget {
     final arti = kalem.degisim >= 0;
     // ⚠️ Yesil/kirmizi TEK BASINA renk korlugu olana hicbir sey anlatmaz —
     //    yaninda ISARET (+/-) de var (turu 98b dersi).
-    final renk = arti ? const Color(0xFF2BB673) : const Color(0xFFE11D48);
+    // ⚠️⚠️ Dusus rengi **#FF6B85** (eski #E11D48 DEGIL): koyu zeminde eskisi
+    //	kart 3,66:1 / panel 3,93:1 veriyordu — 4,5:1 esiginin ALTINDA, yani
+    //	**kayip, kazanctan daha zor okunuyordu.** Yeni ton 6,30 / 6,76 ile
+    //	yesilin 6,59 / 7,07 oranlarina simetrik.
+    // ⚠️ Renk TEK BASINA renk korlugu olana bir sey anlatmaz; yaninda ISARET
+    //    (+/-) ve TREND OKU var.
+    final renk = arti ? const Color(0xFF2BB673) : const Color(0xFFFF6B85);
     final onRenk = Theme.of(context).colorScheme.onSurface;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -405,7 +417,10 @@ class _KurKarti extends StatelessWidget {
         //    1.9 -> 2.05 (bolen buyudukce kart DARALIR).
         width:
             (MediaQuery.sizeOf(context).width - kYanBosluk * 2 - 8 * 2) /
-            (MediaQuery.textScalerOf(context).scale(1) > 1.3 ? 1.4 : 2.05),
+            // ⚠️ Esik **1.25** (1.3 DEGIL): AOSP'nin en buyuk standart yazi
+            //    adimi 1.30 ve `scale(1)` orada `1.2999999523` donebiliyor —
+            //    `> 1.3` o adimi DISARIDA birakiyordu. Tolerans asagi cekildi.
+            (MediaQuery.textScalerOf(context).scale(1) > 1.25 ? 1.4 : 2.05),
         padding: const EdgeInsets.fromLTRB(11, 10, 11, 10),
         decoration: BoxDecoration(
           color: kAiKartYuzey(context),
@@ -443,29 +458,39 @@ class _KurKarti extends StatelessWidget {
                   ),
                   // ⚠️ TURU 134 — ad ile deger arasi bosluk (kullanici emri).
                   const SizedBox(height: 3),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Flexible(
-                        child: Text(
+                  // ⚠️⚠️⚠️ **`FittedBox` ZORUNLU — IKI `Flexible` DEGIL.**
+                  //
+                  //	Onceki hal fiyati ve yuzdeyi IKISINI DE `Flexible`
+                  //	yapiyordu; `RenderFlex` esnek cocuklari esit flex ile
+                  //	boldugu icin her biri satirin YARISINDA sert tavana
+                  //	takiliyor ve **fiyat 360/375 dp'de VARSAYILAN yazi
+                  //	olceginde bile kirpiliyordu** (denetim olctu; bolen
+                  //	1.9 -> 2.05 daraltmasi paylari yemis).
+                  // ⚠️ `scaleDown`: sigan yerde olcek 1.0 kalir, sigmayinca
+                  //    ikisi BIRLIKTE kuculur — ellipsis YOK, para okunur
+                  //    kalir (turu 98c'nin etkilesim cubugu cozumu).
+                  // ⚠️ Kart boleni 2.05'te BIRAKILDI (kullanici emri:
+                  //    "kartlarin genisligini biraz azalt"); tasma artik
+                  //    genislige DEGIL olcege cozduruluyor.
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
                           _fiyat(kalem.guncel, kalem.simge),
                           maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                             fontSize: 14.5,
                             height: 1.2,
                             fontWeight: FontWeight.w700,
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 6),
-                      // ⚠️ `Flexible` ZORUNLU: esnek olmayan bir yuzde metni,
-                      //    olcek 2.0`da fiyati SIFIR GENISLIGE dusuruyordu.
-                      Flexible(
-                        child: Text(
+                        const SizedBox(width: 6),
+                        Text(
                           _yuzde(kalem.degisim),
                           maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontSize: 11.5,
                             height: 1.2,
@@ -473,8 +498,8 @@ class _KurKarti extends StatelessWidget {
                             color: renk,
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -497,10 +522,10 @@ Future<void> _kurPaneliAc(BuildContext context, _KurKalem kalem) =>
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: const Color(0xFF15121F),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
+      // ⚠️ Tema `bottomSheetTheme`i BILEREK ezilir (panel koyu AI yuzeyinin
+      //    uzerinde acilir); gerekce + tek kaynak: `theme.dart`.
+      backgroundColor: kKoyuPanelZemin,
+      shape: kKoyuPanelSekli,
       builder: (c) => _KurPaneli(kalem: kalem),
     );
 
@@ -514,7 +539,9 @@ class _KurPaneli extends StatefulWidget {
 }
 
 class _KurPaneliState extends State<_KurPaneli> {
-  int _aralik = 1;
+  /// ⚠️ Sabitin KENDISI kullanilir, elle `1` YAZILMAZ: sabit degisirse serit
+  ///    karti ile panel yine ayrisir (bu turda tam o yasandi).
+  int _aralik = kVarsayilanAralik;
   static const _araliklar = ['1G', '1H', '1A', '1Y'];
 
   /// ⚠️⚠️⚠️ TURU 134 — **IMLEC DOKUNUNCA ORADA KALIR** (kullanici emri:
@@ -544,12 +571,30 @@ class _KurPaneliState extends State<_KurPaneli> {
   ///    hareketi, onay/uyari degil.
   void _titret() => HapticFeedback.selectionClick();
 
-  List<double> get _seri {
-    final tam = widget.kalem.seri;
-    final oran = [0.25, 0.5, 0.75, 1.0][_aralik];
-    final adet = math.max(2, (tam.length * oran).round());
-    return tam.sublist(tam.length - adet);
-  }
+  /// ⚠️⚠️⚠️ **`_dilim()` TEK KAYNAGINDAN GECER — BURAYA IKINCI BIR KESME
+  ///	MANTIGI YAZMA.**
+  ///
+  ///	Turu 134c'de `_KurKalem.degisim` `_dilim()`e baglandi ama BU GETTER
+  ///	ESKI ORAN TABLOSUNDA (`[0.25,0.5,0.75,1.0]`) BIRAKILDI. Ustundeki
+  ///	serh "iki taraf da TEK KAYNAKTAN gecmeli" diyordu; GOVDE UYMUYORDU.
+  ///	Sonuc (yayin oncesi denetim OLCTU — dort kalemde de TERS ISARET):
+  ///	  Dolar   kart +0,77% YESIL  -> panel -0,09% KIRMIZI
+  ///	  Euro    kart -0,72% KIRMIZI -> panel +0,54% YESIL
+  ///	  Altin   kart +1,45% YESIL  -> panel -2,35% KIRMIZI
+  ///	  Bitcoin kart -1,03% KIRMIZI -> panel +1,87% YESIL
+  ///	Renk ve trend oku ayni `arti` degiskeninden geldigi icin ok da
+  ///	donuyordu. **Ayni sayinin iki ekranda ters isaretli cikmasi, PARA
+  ///	soz konusuyken en agir tutarsizlik turudur.**
+  ///
+  /// ⚠️⚠️ IKINCI ZARAR: `_etiket` nokta adedini `_kNoktaAdedi` ile hizali
+  ///	VARSAYIYOR. Panel farkli adet verince `clamp` cakiliyordu —
+  ///	1H'de 12 nokta icin **"Pzt" ALTI KEZ**, 1Y'de "Oca" ON UC KEZ.
+  ///	Bant basligi da "Pzt — Pzt" yazabiliyordu; yani "etiketler
+  ///	TEKRARSIZ olmak ZORUNDA" serhi de karsiliksizdi.
+  ///
+  /// 📌 DERS (bu projenin 1 NUMARALI hata sinifi, kendi duzeltmemde):
+  ///    bir serh "tek kaynak" diyorsa, o kaynagin CAGRI YERLERINI SAY.
+  List<double> get _seri => _dilim(widget.kalem.seri, _aralik);
 
   /// ⚠️ Gosterilen deger: bant varsa BANDIN SONU, imlec varsa O NOKTA,
   ///    ikisi de yoksa aralik sonundaki (guncel) fiyat.
@@ -683,7 +728,13 @@ class _KurPaneliState extends State<_KurPaneli> {
     final seri = _seri;
     final degisim = _gosterilenDegisim;
     final arti = degisim >= 0;
-    final renk = arti ? const Color(0xFF2BB673) : const Color(0xFFE11D48);
+    // ⚠️⚠️ Dusus rengi **#FF6B85** (eski #E11D48 DEGIL): koyu zeminde eskisi
+    //	kart 3,66:1 / panel 3,93:1 veriyordu — 4,5:1 esiginin ALTINDA, yani
+    //	**kayip, kazanctan daha zor okunuyordu.** Yeni ton 6,30 / 6,76 ile
+    //	yesilin 6,59 / 7,07 oranlarina simetrik.
+    // ⚠️ Renk TEK BASINA renk korlugu olana bir sey anlatmaz; yaninda ISARET
+    //    (+/-) ve TREND OKU var.
+    final renk = arti ? const Color(0xFF2BB673) : const Color(0xFFFF6B85);
     const beyaz = Colors.white;
     return SafeArea(
       top: false,
@@ -713,7 +764,10 @@ class _KurPaneliState extends State<_KurPaneli> {
                     height: 34,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      color: beyaz.withValues(alpha: 0.08),
+                      // ⚠️ Serit kartiyla AYNI kutu (tek kaynak): burada ayri
+                      //    bir opaklik yazilinca kutu seritte karttan KOYU,
+                      //    panelde karttan ACIK cikiyordu.
+                      color: kIkonKutusu(context),
                       borderRadius: BorderRadius.circular(11),
                     ),
                     child: KalinIkon(ikon: k.ikon, boy: 18, renk: renk),
@@ -762,16 +816,22 @@ class _KurPaneliState extends State<_KurPaneli> {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
+                  // ⚠️ `FittedBox`: 30 px fiyat, yazi olcegi 2.0'da 60 px olur
+                  //    ve 320/360 dp'de yuzde blogundan artan alana SIGMAZ ->
+                  //    ellipsis ile KESILIRDI. Para kesilmez, KUCULUR.
                   Flexible(
-                    child: Text(
-                      _fiyat(_gosterilen, k.simge),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 30,
-                        height: 1.15,
-                        fontWeight: FontWeight.w800,
-                        color: beyaz,
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        _fiyat(_gosterilen, k.simge),
+                        maxLines: 1,
+                        style: const TextStyle(
+                          fontSize: 30,
+                          height: 1.15,
+                          fontWeight: FontWeight.w800,
+                          color: beyaz,
+                        ),
                       ),
                     ),
                   ),
@@ -864,11 +924,21 @@ class _KurPaneliState extends State<_KurPaneli> {
                           _tekParmak(e.localPosition.dx, g);
                         }
                       },
+                      // ⚠️⚠️⚠️ **BANT VARKEN TEK PARMAK DALI KILITLI.**
+                      //
+                      //	Iki parmakla bant secip parmaklardan BIRINI
+                      //	kaldirmak (dogal hareket) `_parmaklar.length`i 1'e
+                      //	dusuruyor; kalan parmagin EN UFAK kipirdamasi
+                      //	`_tekParmak`i cagirip **`_bant = null`** yapiyordu.
+                      //	Yani turu 134'un manset jesti pratikte
+                      //	TAMAMLANAMIYORDU (denetim buldu).
+                      // ⚠️ Bant, YENI bir dokunusla (`onPointerDown` tek
+                      //    parmak dali) zaten temizleniyor — kilitlenme yok.
                       onPointerMove: (e) {
                         _parmaklar[e.pointer] = e.localPosition.dx;
                         if (_parmaklar.length >= 2) {
                           _ikiParmak(g);
-                        } else {
+                        } else if (_bant == null) {
                           _tekParmak(e.localPosition.dx, g);
                         }
                       },
@@ -1112,22 +1182,23 @@ class _CevrimState extends State<_Cevrim> {
                         ),
                       ),
                       const SizedBox(width: 10),
-                      // ⚠️ `Flexible` ZORUNLU: esnek olmayan bir `Text`,
-                      //    "10 × Kilo" gibi buyuk bir karsilikta (29.470.000 ₺)
-                      //    ve yazi olcegi 2.0`da satiri TASIRIRDI. Sol taraf
-                      //    `Expanded` oldugu icin once BU metin yerini alir.
-                      Flexible(
-                        child: Text(
-                          _fiyat(widget.fiyat * birim.carpan * kat, k.simge),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.right,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            height: 1.2,
-                            fontWeight: FontWeight.w700,
-                            color: beyaz,
-                          ),
+                      // ⚠️⚠️ **DEGER ESNEK DEGIL — SOL ETIKET ESNEK.**
+                      //	Ikisi de esnek olsaydi `RenderFlex` alani 50/50
+                      //	bolerdi ve olcek 2.0'da "10 × Kilo" karsiligi
+                      //	(29.470.000 ₺) KIRPILIRDI. Para kirpilmaz;
+                      //	kirpilacaksa SOL ETIKET kirpilir (`Expanded` +
+                      //	ellipsis), cunku onu kullanici zaten SECMISTIR.
+                      // ⚠️ `RenderFlex` esnek OLMAYAN cocugu once SINIRSIZ
+                      //    olctugu icin deger daima tam genisligini alir.
+                      Text(
+                        _fiyat(widget.fiyat * birim.carpan * kat, k.simge),
+                        maxLines: 1,
+                        textAlign: TextAlign.right,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          height: 1.2,
+                          fontWeight: FontWeight.w700,
+                          color: beyaz,
                         ),
                       ),
                     ],
@@ -1268,7 +1339,12 @@ class _GrafikCizer extends CustomPainter {
     canvas.drawPath(
       tamYol,
       Paint()
-        ..color = b == null ? renk : renk.withValues(alpha: 0.45)
+        // ⚠️⚠️ Bant disi cizgi NOTR GRIYE duser, kendi renginin saydamina
+        //	DEGIL: `renk.withValues(alpha:0.45)` panel zemininde 1,64:1
+        //	(kirmizi) / 2,34:1 (yesil) veriyordu — grafigin geri kalani
+        //	pratikte GORUNMEZ oluyordu. Beyaz %35 -> 3,21:1, hue sonukleserek
+        //	"secili alan one cikar" etkisi korunuyor ama sekil OKUNUYOR.
+        ..color = b == null ? renk : Colors.white.withValues(alpha: 0.35)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2.4
         ..strokeCap = StrokeCap.round

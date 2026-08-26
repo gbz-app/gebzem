@@ -10,7 +10,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/api.dart';
-import '../../core/theme.dart' show morLogo, AiZemin;
+import '../../core/theme.dart' show morLogo, AiZemin, kKoyuPanelZemin, kKoyuPanelSekli;
 import '../home/home_screen.dart' show myProfileProvider;
 import '../../router.dart' show rootMessengerKey;
 import '../isletme/isletme_kart.dart' show kYanBosluk, kYaricap;
@@ -229,9 +229,7 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
       });
       rootMessengerKey.currentState
         ?..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(content: Text('Görsel hazırlanamadı.')),
-        );
+        ..showSnackBar(const SnackBar(content: Text('Görsel hazırlanamadı.')));
       return;
     }
     setState(() {
@@ -351,12 +349,12 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
             brightness: Brightness.dark,
           ).copyWith(surface: _kAiZeminUst),
           scaffoldBackgroundColor: Colors.transparent,
-          textTheme: ThemeData.dark(useMaterial3: true).textTheme.apply(
-            fontFamily: 'Google Sans',
-          ),
-          primaryTextTheme: ThemeData.dark(useMaterial3: true)
-              .primaryTextTheme
-              .apply(fontFamily: 'Google Sans'),
+          textTheme: ThemeData.dark(
+            useMaterial3: true,
+          ).textTheme.apply(fontFamily: 'Google Sans'),
+          primaryTextTheme: ThemeData.dark(
+            useMaterial3: true,
+          ).primaryTextTheme.apply(fontFamily: 'Google Sans'),
         ),
         // ⚠️⚠️⚠️ TURU 127 — **DUZ GRADYAN DEGIL, YUMUSAK MOR PARLAMALAR.**
         //
@@ -574,30 +572,31 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 32),
             child: Text.rich(
-          TextSpan(
-            style: govdeStil,
-            children: ad.isEmpty
-                ? const [TextSpan(text: 'Sana hangi konuda yardımcı olabilirim?')]
-                : [
-                    TextSpan(
-                      text: ad,
-                      style: const TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                    const TextSpan(
-                      text: ', sana hangi konuda yardımcı olabilirim?',
-                    ),
-                  ],
-          ),
+              TextSpan(
+                style: govdeStil,
+                children: ad.isEmpty
+                    ? const [
+                        TextSpan(
+                          text: 'Sana hangi konuda yardımcı olabilirim?',
+                        ),
+                      ]
+                    : [
+                        TextSpan(
+                          text: ad,
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        const TextSpan(
+                          text: ', sana hangi konuda yardımcı olabilirim?',
+                        ),
+                      ],
+              ),
               textAlign: TextAlign.center,
             ),
           ),
           // ⚠️ TURU 128 — 30 -> **35** (kullanici: *"sana hangi konuda ile
           //    arasini 5 px daha ac"*).
           const SizedBox(height: 35),
-          _OneriDongusu(
-            oneriler: _kOneriler,
-            onSec: _oneriSecildi,
-          ),
+          _OneriDongusu(oneriler: _kOneriler, onSec: _oneriSecildi),
         ],
       ),
     );
@@ -822,10 +821,9 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
     final onay = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: const Color(0xFF15121F),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
+      // ⚠️ Tema `bottomSheetTheme`i BILEREK ezilir; tek kaynak `theme.dart`.
+      backgroundColor: kKoyuPanelZemin,
+      shape: kKoyuPanelSekli,
       builder: (c) => SafeArea(
         top: false,
         child: SingleChildScrollView(
@@ -890,9 +888,7 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
                       child: TextButton(
                         onPressed: () => Navigator.of(c).pop(false),
                         style: TextButton.styleFrom(
-                          backgroundColor: Colors.white.withValues(
-                            alpha: 0.10,
-                          ),
+                          backgroundColor: Colors.white.withValues(alpha: 0.10),
                           foregroundColor: Colors.white,
                           minimumSize: const Size.fromHeight(50),
                           shape: RoundedRectangleBorder(
@@ -923,9 +919,7 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
                           eylem,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w700,
-                          ),
+                          style: const TextStyle(fontWeight: FontWeight.w700),
                         ),
                       ),
                     ),
@@ -948,7 +942,8 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
   Future<void> _yeniSohbetSor() async {
     final onay = await _onayPaneli(
       baslik: 'Yeni sohbet',
-      aciklama: 'Bu konuşma silinecek. Sohbetler kaydedilmediği için '
+      aciklama:
+          'Bu konuşma silinecek. Sohbetler kaydedilmediği için '
           'geri getirilemez.',
       eylem: 'Başlat',
     );
@@ -979,7 +974,8 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
     if (_mesajlar.isEmpty) return true;
     return _onayPaneli(
       baslik: 'Sohbetten çık',
-      aciklama: 'Bu konuşma kapanacak ve kaydedilmediği için geri '
+      aciklama:
+          'Bu konuşma kapanacak ve kaydedilmediği için geri '
           'getirilemez.',
       eylem: 'Çık',
     );
@@ -1121,102 +1117,102 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
         child: SingleChildScrollView(
           reverse: true,
           child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // ⚠️⚠️ TURU 127 — onizleme kutunun **DISINDAN ICINE** tasindi
-          //	(kullanici emri: *"resim eklendiginde inputun EN USTUNE
-          //	eklenecek, yazi altindan devam edecek"*). Bkz.
-          //	`_eklenenOnizleme`.
-          // ⚠️⚠️⚠️ TURU 117 — GIRIS ALANI YENIDEN KURULDU (kullanici emri:
-          //	*"alttaki gorsel iconu daha guzel icon yap, BUNLAR INPUTUN
-          //	ICINDE OLSUN, gonderde ikisi de inputun icinde ALTINDA
-          //	olacak, YAZI YUKARIDA, input borderi guzellestir"*).
-          //
-          // ESKI HALI: [atac] [input] [gonder] — UC AYRI kutu yan yana,
-          // uc farkli yukseklik. Ikonlar inputun DISINDAYDI.
-          //
-          // YENI: **TEK BIR KUTU**. Icinde ustte yazi alani, ALTINDA
-          // eylem satiri (solda gorsel ekle, sagda gonder).
-          //
-          // ⚠️⚠️ NEDEN `prefixIcon`/`suffixIcon` DEGIL: ikisi de metinle
-          //	AYNI SATIRDA durur ve cok satirli girdide DIKEY ORTALANIR —
-          //	yani 5 satirlik soruda ikonlar ortada asili kalirdi.
-          //	Kullanici ACIKCA "yazi YUKARIDA, ikonlar ALTINDA" dedi.
-          // ⚠️ Kutu `Column(mainAxisSize.min)`: girdi buyudukce kutu da
-          //    buyur, ikonlar HEP en altta kalir.
-          // ⚠️ Odak: kutuya dokunmak yazi alanini odaklar (`GestureDetector`
-          //    + `requestFocus`) — yoksa kullanici kutunun bos yerine
-          //    dokununca hicbir sey olmuyordu.
-          // ⚠️⚠️ TURU 127 — **DURUST SINIR SATIRI GIRISIN 10 px USTUNDE**
-          //	(kullanici emri). Onceden karsilama ekraninin ICINDEYDI ve
-          //	sohbet basladiginda EKRANDAN KAYBOLUYORDU — oysa "sohbet
-          //	kaydedilmez" bilgisi tam da KONUSURKEN gerekli.
-          // ⚠️ Ikon 1 tik kalin (dort golgeyle simule) ve yazi 12 -> 14
-          //    (kullanici emri).
-          // ⚠️⚠️⚠️ **DURUST SINIR KAYIT SIRASINDA GORUNUR** (denetim sevk
-          //	engeli olarak isaretledi). Onceden bu satir kayit
-          //	sirasinda GIZLENIYORDU: kullanici 40 saniye soru anlatip
-          //	gonder`e basiyor, ANCAK O ZAMAN "sesli soru henuz
-          //	gonderilemiyor" diyorduk. Sinir isin SONUNDA degil
-          //	BASINDA soylenmeli.
-          // ⚠️ Metin kayit sirasinda DEGISIR: satir hep ayni yerde
-          //    kalir, yalniz ne soyledigi degisir.
-          // ⚠️ **BEKLEYEN IS: `/ai/ses` ucu + STT.** O gelince bu dal
-          //    kaldirilir ve kayit gercekten gonderilir.
-            // ⚠️ TURU 127 — uyari **SOLA hizali**, **5 px daha yukarida**
-            //    (10 -> 15) ve yazi 1 tik buyuk (kullanici emri).
-            Padding(
-              padding: const EdgeInsets.fromLTRB(6, 0, 6, 15),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.start,
-                children: [
-                  // ⚠️ TURU 127 — **KALINLASTIRMA KALDIRILDI** (kullanici:
-                  //    *"icondaki kalinligi dusur"*). Dort golgeli simulasyon
-                  //    koyu zeminde ikonu SISMIS gosteriyordu.
-                  Icon(
-                    LucideIcons.info,
-                    size: 14,
-                    color: Colors.white.withValues(alpha: 0.45),
-                  ),
-                  const SizedBox(width: 6),
-                  // ⚠️⚠️ TURU 127 — metin **TEK SATIRA** indirildi (kullanici:
-                  //	*"yazi tek satirda olsun, alt satira gecmesin, daha
-                  //	profesyonel"*). Eski metin 360 dp`de IKI SATIRA sariyordu.
-                  // ⚠️ Bilgi KAYBOLMADI: "kaydedilmiyor" zaten "ekrandan
-                  //    cikinca gider" demek — ikinci cumle onu TEKRARLIYORDU.
-                  // ⚠️ `maxLines: 1` + `ellipsis`: cok buyuk yazi olceginde
-                  //    sarmak yerine kirpilir, satir YUKSEKLIGI SABIT kalir.
-                  Flexible(
-                    child: Text(
-                      _sesKayitta
-                          ? 'Sesli soru henüz gönderilemiyor.'
-                          : 'Bu sohbet kaydedilmiyor.',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 14.5,
-                        color: Colors.white.withValues(alpha: 0.45),
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // ⚠️⚠️ TURU 127 — onizleme kutunun **DISINDAN ICINE** tasindi
+              //	(kullanici emri: *"resim eklendiginde inputun EN USTUNE
+              //	eklenecek, yazi altindan devam edecek"*). Bkz.
+              //	`_eklenenOnizleme`.
+              // ⚠️⚠️⚠️ TURU 117 — GIRIS ALANI YENIDEN KURULDU (kullanici emri:
+              //	*"alttaki gorsel iconu daha guzel icon yap, BUNLAR INPUTUN
+              //	ICINDE OLSUN, gonderde ikisi de inputun icinde ALTINDA
+              //	olacak, YAZI YUKARIDA, input borderi guzellestir"*).
+              //
+              // ESKI HALI: [atac] [input] [gonder] — UC AYRI kutu yan yana,
+              // uc farkli yukseklik. Ikonlar inputun DISINDAYDI.
+              //
+              // YENI: **TEK BIR KUTU**. Icinde ustte yazi alani, ALTINDA
+              // eylem satiri (solda gorsel ekle, sagda gonder).
+              //
+              // ⚠️⚠️ NEDEN `prefixIcon`/`suffixIcon` DEGIL: ikisi de metinle
+              //	AYNI SATIRDA durur ve cok satirli girdide DIKEY ORTALANIR —
+              //	yani 5 satirlik soruda ikonlar ortada asili kalirdi.
+              //	Kullanici ACIKCA "yazi YUKARIDA, ikonlar ALTINDA" dedi.
+              // ⚠️ Kutu `Column(mainAxisSize.min)`: girdi buyudukce kutu da
+              //    buyur, ikonlar HEP en altta kalir.
+              // ⚠️ Odak: kutuya dokunmak yazi alanini odaklar (`GestureDetector`
+              //    + `requestFocus`) — yoksa kullanici kutunun bos yerine
+              //    dokununca hicbir sey olmuyordu.
+              // ⚠️⚠️ TURU 127 — **DURUST SINIR SATIRI GIRISIN 10 px USTUNDE**
+              //	(kullanici emri). Onceden karsilama ekraninin ICINDEYDI ve
+              //	sohbet basladiginda EKRANDAN KAYBOLUYORDU — oysa "sohbet
+              //	kaydedilmez" bilgisi tam da KONUSURKEN gerekli.
+              // ⚠️ Ikon 1 tik kalin (dort golgeyle simule) ve yazi 12 -> 14
+              //    (kullanici emri).
+              // ⚠️⚠️⚠️ **DURUST SINIR KAYIT SIRASINDA GORUNUR** (denetim sevk
+              //	engeli olarak isaretledi). Onceden bu satir kayit
+              //	sirasinda GIZLENIYORDU: kullanici 40 saniye soru anlatip
+              //	gonder`e basiyor, ANCAK O ZAMAN "sesli soru henuz
+              //	gonderilemiyor" diyorduk. Sinir isin SONUNDA degil
+              //	BASINDA soylenmeli.
+              // ⚠️ Metin kayit sirasinda DEGISIR: satir hep ayni yerde
+              //    kalir, yalniz ne soyledigi degisir.
+              // ⚠️ **BEKLEYEN IS: `/ai/ses` ucu + STT.** O gelince bu dal
+              //    kaldirilir ve kayit gercekten gonderilir.
+              // ⚠️ TURU 127 — uyari **SOLA hizali**, **5 px daha yukarida**
+              //    (10 -> 15) ve yazi 1 tik buyuk (kullanici emri).
+              Padding(
+                padding: const EdgeInsets.fromLTRB(6, 0, 6, 15),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.start,
+                  children: [
+                    // ⚠️ TURU 127 — **KALINLASTIRMA KALDIRILDI** (kullanici:
+                    //    *"icondaki kalinligi dusur"*). Dort golgeli simulasyon
+                    //    koyu zeminde ikonu SISMIS gosteriyordu.
+                    Icon(
+                      LucideIcons.info,
+                      size: 14,
+                      color: Colors.white.withValues(alpha: 0.45),
+                    ),
+                    const SizedBox(width: 6),
+                    // ⚠️⚠️ TURU 127 — metin **TEK SATIRA** indirildi (kullanici:
+                    //	*"yazi tek satirda olsun, alt satira gecmesin, daha
+                    //	profesyonel"*). Eski metin 360 dp`de IKI SATIRA sariyordu.
+                    // ⚠️ Bilgi KAYBOLMADI: "kaydedilmiyor" zaten "ekrandan
+                    //    cikinca gider" demek — ikinci cumle onu TEKRARLIYORDU.
+                    // ⚠️ `maxLines: 1` + `ellipsis`: cok buyuk yazi olceginde
+                    //    sarmak yerine kirpilir, satir YUKSEKLIGI SABIT kalir.
+                    Flexible(
+                      child: Text(
+                        _sesKayitta
+                            ? 'Sesli soru henüz gönderilemiyor.'
+                            : 'Bu sohbet kaydedilmiyor.',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 14.5,
+                          color: Colors.white.withValues(alpha: 0.45),
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          // ⚠️⚠️ TURU 127 — kayit surerken giris kutusu yerine **SERIT**
-          //	(sohbetteki desen). Kaydedici AYNI `GlobalKey` ile burada
-          //	da cizilir; anahtar olmasaydi State SIFIRLANIR ve kayit
-          //	ANINDA olurdu.
-          if (_sesKayitta)
-            SesNotuKaydedici(
-              key: _sesAnahtar,
-              // ⚠️ TURU 127 — GebzemAI ekraninda KOYU serit (kullanici emri).
-              koyu: true,
-              onKayit: _sesKaydiGeldi,
-              onDurum: (k) => setState(() => _sesKayitta = k),
-            )
-          else
-            _girisKutusu(scheme),
-        ],
+              // ⚠️⚠️ TURU 127 — kayit surerken giris kutusu yerine **SERIT**
+              //	(sohbetteki desen). Kaydedici AYNI `GlobalKey` ile burada
+              //	da cizilir; anahtar olmasaydi State SIFIRLANIR ve kayit
+              //	ANINDA olurdu.
+              if (_sesKayitta)
+                SesNotuKaydedici(
+                  key: _sesAnahtar,
+                  // ⚠️ TURU 127 — GebzemAI ekraninda KOYU serit (kullanici emri).
+                  koyu: true,
+                  onKayit: _sesKaydiGeldi,
+                  onDurum: (k) => setState(() => _sesKayitta = k),
+                )
+              else
+                _girisKutusu(scheme),
+            ],
           ),
         ),
       ),
@@ -1267,9 +1263,8 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
                     Image.file(
                       _eklenen!,
                       fit: BoxFit.cover,
-                      cacheWidth:
-                          (78 * MediaQuery.devicePixelRatioOf(context))
-                              .round(),
+                      cacheWidth: (78 * MediaQuery.devicePixelRatioOf(context))
+                          .round(),
                     ),
                     // ── HAZIRLANIRKEN: KARARTMA + ORTADA LOADING ──
                     if (_gorselHazirlaniyor) ...[
@@ -1373,7 +1368,12 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
             child: Padding(
               // ⚠️ Gorsel varken ust dolgu KUCULUR: onizleme zaten 14 dp
               //    ustten bosluk birakiyor, ikisi ust uste 28 dp yapardi.
-              padding: EdgeInsets.fromLTRB(18, _eklenen != null ? 4 : 14, 18, 2),
+              padding: EdgeInsets.fromLTRB(
+                18,
+                _eklenen != null ? 4 : 14,
+                18,
+                2,
+              ),
               child: TextField(
                 controller: _yazac,
                 focusNode: _odak,
@@ -1679,8 +1679,10 @@ class _OneriDongusuState extends State<_OneriDongusu> {
             // ⚠️⚠️ **OLCEKTEN TURETILIR** (denetim buldu): sabit 26 dp,
             //	yazi olcegi ~1.4 ustunde harfleri DIKEY TRASLIYORDU.
             //	Imlec (16) ve ikon (17) da ayni kutuda — taban 26.
-            height: (MediaQuery.textScalerOf(context).scale(17.5) * 1.35)
-                .clamp(26.0, 60.0),
+            height: (MediaQuery.textScalerOf(context).scale(17.5) * 1.35).clamp(
+              26.0,
+              60.0,
+            ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               mainAxisSize: MainAxisSize.min,

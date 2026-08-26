@@ -97,7 +97,6 @@ class HizmetMenusu extends ConsumerStatefulWidget {
 //	(`AiZemin`); sureklı `repeat` eden bir controller hicbir seyi
 //	besliyor olmadigi halde her karede tick uretiyordu.
 class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
-
   @override
   Widget build(BuildContext context) {
     final aiAcik = ref.watch(aiDurumProvider).valueOrNull?.acik ?? false;
@@ -231,7 +230,6 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
     //	Degisken KALDIRILDI; kart yalnizca kategoriler listesinden elenir.
     final kategoriler = bolumler.where((b) => b.ad != 'Yakınımda').toList();
 
-
     // ⚠️⚠️⚠️ TURU 96t — **SIRALAMA KULLANICI TARAFINDAN VERILDI**:
     //	*"Yemek Restorant Cafe Alışveriş Hizmet İlan Düğün Eğitim Sağlık
     //	Otel diye daha güzel ve sıralı şekilde"*.
@@ -352,51 +350,44 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
       //	liste degil.
       // ⚠️ `YakinimdaEkrani` `kategori` parametresini ZATEN aliyor
       //    (turu 92) — yeni ekran/uc GEREKMEDI.
-      _Bolum(
-        'Nöbetçi Eczane',
-        [const Color(0xFF20C997), const Color(0xFF0B7A5A)],
-        (c) => const YakinimdaEkrani(kategori: 'eczane'),
-      ),
+      _Bolum('Nöbetçi Eczane', [
+        const Color(0xFF20C997),
+        const Color(0xFF0B7A5A),
+      ], (c) => const YakinimdaEkrani(kategori: 'eczane')),
       // ⚠️⚠️ TURU 96y — SIRA **GEREKLILIGE GORE** (kullanici emri:
       //	*"olmasi gereken gerekliligie gore sirala"*). Ilk dokuz kisayol
       //	izgarada gorunur; gerisi 'Tümü' listesinden ulasilir.
       //	Taksi ve akaryakit acil ihtiyactir; DURAK ise verisi olmayan
       //	(kayitli isletme arayan) bir kisayol oldugu icin onlarin ARDINDA.
-      _Bolum(
-        'Taksi',
-        [const Color(0xFFFFC531), const Color(0xFFB88600)],
-        (c) => const YakinimdaEkrani(kategori: 'hizmet'),
-      ),
-      _Bolum(
-        'Akaryakıt',
-        [const Color(0xFFFF7A45), const Color(0xFFB33A12)],
-        (c) => const YakinimdaEkrani(kategori: 'oto'),
-      ),
-      _Bolum(
-        'Durak',
-        [const Color(0xFF6C7BFF), const Color(0xFF2A3390)],
-        (c) => const YakinimdaEkrani(kategori: 'hizmet'),
-      ),
+      _Bolum('Taksi', [
+        const Color(0xFFFFC531),
+        const Color(0xFFB88600),
+      ], (c) => const YakinimdaEkrani(kategori: 'hizmet')),
+      _Bolum('Akaryakıt', [
+        const Color(0xFFFF7A45),
+        const Color(0xFFB33A12),
+      ], (c) => const YakinimdaEkrani(kategori: 'oto')),
+      _Bolum('Durak', [
+        const Color(0xFF6C7BFF),
+        const Color(0xFF2A3390),
+      ], (c) => const YakinimdaEkrani(kategori: 'hizmet')),
       // ⚠️⚠️ TURU 96x — BES YENI KISAYOL (kullanici: *"ekle bir seyler
       //	daha"*). Hepsi **ZATEN VAR OLAN** isletme kategorileridir
       //	(`isletmeKategorileri`): yeni ekran, yeni uc, yeni migration YOK.
       // ⚠️ YAPMA: buraya karsiligi olmayan bir baslik ekleme — kart
       //    gercek bir ekrana gitmiyorsa EKLENMEZ (turu 76b dersi).
-      _Bolum(
-        'Kuaför',
-        [const Color(0xFFEC4FA0), const Color(0xFF7B1E6A)],
-        (c) => const YakinimdaEkrani(kategori: 'kuafor'),
-      ),
-      _Bolum(
-        'Güzellik',
-        [const Color(0xFFFF6B9D), const Color(0xFFB03060)],
-        (c) => const YakinimdaEkrani(kategori: 'guzellik'),
-      ),
-      _Bolum(
-        'Oto Servis',
-        [const Color(0xFF6C7BFF), const Color(0xFF2A3390)],
-        (c) => const YakinimdaEkrani(kategori: 'oto'),
-      ),
+      _Bolum('Kuaför', [
+        const Color(0xFFEC4FA0),
+        const Color(0xFF7B1E6A),
+      ], (c) => const YakinimdaEkrani(kategori: 'kuafor')),
+      _Bolum('Güzellik', [
+        const Color(0xFFFF6B9D),
+        const Color(0xFFB03060),
+      ], (c) => const YakinimdaEkrani(kategori: 'guzellik')),
+      _Bolum('Oto Servis', [
+        const Color(0xFF6C7BFF),
+        const Color(0xFF2A3390),
+      ], (c) => const YakinimdaEkrani(kategori: 'oto')),
       _Bolum('Emlak', [
         const Color(0xFF17C3CE),
         const Color(0xFF0A5B78),
@@ -468,200 +459,203 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
         systemNavigationBarIconBrightness: Brightness.light,
       ),
       child: Theme(
-      data: ThemeData.dark(useMaterial3: true).copyWith(
-        colorScheme:
-            ColorScheme.fromSeed(
-              seedColor: morLogo,
-              brightness: Brightness.dark,
-            ).copyWith(surface: kAiZemin),
-        scaffoldBackgroundColor: Colors.transparent,
-        textTheme: ThemeData.dark(
-          useMaterial3: true,
-        ).textTheme.apply(fontFamily: 'Google Sans'),
-        primaryTextTheme: ThemeData.dark(
-          useMaterial3: true,
-        ).primaryTextTheme.apply(fontFamily: 'Google Sans'),
-      ),
-      child: AiZemin(
-        // ⚠️⚠️⚠️ TURU 129 — **`Material` SARMALI ZORUNLU** (emulatorde
-        //	goruldu: butun kart etiketleri — Eczane/Taksi/Sosyal/Yemek —
-        //	zeminle KAYNASIP OKUNMAZ olmustu).
-        //
-        //	Sebep: `DefaultTextStyle`i `Material` saglar. Bu ekran bir
-        //	`Scaffold`un ICINDE DEGIL (`Theme` > `AiZemin` > `SafeArea`),
-        //	dolayisiyla yazi rengi USTTEKI route`un ACIK TEMASINDAN
-        //	geliyordu: siyah yazi, siyah zemin.
-        //	`Theme` sarmali `onSurface`i beyaza cevirir ama renk BELIRTMEYEN
-        //	`Text`ler onu ancak bir `Material` uzerinden gorur.
-        //
-        // ⚠️ `MaterialType.transparency`: zemin `AiZemin`e ait; `canvas`
-        //    olsaydi opak bir katman gradyani KAPATIRDI.
-        // ⚠️ Turu 119`da acilis katmaninda BIREBIR ayni sinif yasanmisti
-        //    (orada metin monospace + sari altcizgiyle cizilmisti).
-        // ⚠️ YAPMA: bu sarmali kaldirma.
-        child: Material(
-          type: MaterialType.transparency,
-          child: SafeArea(
-            child: CustomScrollView(
-        slivers: [
-          SliverToBoxAdapter(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // ⚠️⚠️⚠️ TURU 112 — **GERI OKU KALDIRILDI** (kullanici emri:
-                //	*"acilan pencerede geri tusu ... olmasin"*).
-                //
-                // ⚠️ Kapanma yolu KAYBOLMADI: sayfa normal bir route ve
-                //    sistemin geri jesti/tusu calisir. Ayrica bir karta
-                //    dokunmak hedef ekrani ustune acar.
-                // ⚠️ YAPMA: geri okunu geri koyma.
-                const SizedBox(height: 10),
-                // ⚠️⚠️⚠️ TURU 129 — **"Gebzem" BASLIGI KALDIRILDI**,
-                //	yerine KISISEL SELAMLAMA (kullanici emri: *"Gebzem
-                //	yazisini kaldir, oraya Iyi Geceler, altina kisinin
-                //	ismi, ismin solunda daire icinde profil fotografi,
-                //	en sagda arama ikonu"*).
-                _selamlama(context, ref),
-                const SizedBox(height: 12),
-                // ⚠️ Slider `Padding`in DISINDA: yan boslugu KENDI
-                //    `viewportFraction`indan uretir (turu 96t).
-                _slider(context, ref),
-                const SizedBox(height: 14),
-                // ⚠️⚠️⚠️ TURU 128 — **"YAKINIMDA" SERIDI** (kullanici emri:
-                //	*"Sehir Rehberi`nin ustune Yakinimda olsun, orada Eczane
-                //	Bakkal Akaryakit Cami gorunsun, kart seklinde ufak kart"*).
-                //
-                // ⚠️⚠️ **DURUST SINIR — POI VERISI YOK.** Bu dortu de
-                //	`isletmeler` tablosundan beslenir, yani YALNIZ KAYITLI
-                //	ISLETMEYI gosterir. Belediye/harita POI verisi projede
-                //	HICBIR YERDE tutulmuyor (turu 96t karari).
-                //	· Eczane   -> `eczane` kategorisi (VAR)
-                //	· Bakkal   -> `market` kategorisi (VAR; bakkal onun icinde)
-                //	· Akaryakıt-> `oto` kategorisi (VAR)
-                //	· Cami     -> **KARSILIGI OLAN KATEGORI YOK** -> `diger`.
-                //	  Kayitli bir cami yoksa liste BOS doner; bu bir hata
-                //	  DEGIL, verinin olmamasidir.
-                // ⚠️ YAPMA: bu kartlara gomulu/sahte liste yazma.
-                // ⚠️ YAPMA: "Nöbetçi Eczane" yazip eczane listesi acma —
-                //    nobet verisi YOK, kullanici kapali eczaneye giderdi.
-                // ⚠️⚠️⚠️ TURU 134 — **"· ÖRNEK" EKI KALDIRILDI** (kullanici
-                //	emri: *"YAKINIMDA yanindaki ornegi sil"*).
-                //
-                //	Turu 132 denetimi bu eki, kartlar uydurma isletme adi
-                //	ve mesafe yazdigi icin koymustu. Kullanici gordu ve
-                //	KALDIRILMASINI istedi — karar ONUN.
-                // ⚠️⚠️ **UYARI YAPISAL OLARAK KAYBOLMADI:** `kYakinOnizleme`
-                //	bayragi DURUYOR ve yayindan once `false` YAPILACAK.
-                //	Ekranda ibare yokken bayragi ACIK birakmak, kullaniciya
-                //	uydurma veriyi UYARISIZ gostermek demektir.
-                _bolumBasligi('YAKINIMDA'),
-                const SizedBox(height: 10),
-                _yakinSerit(context, ref, [
-                  _Bolum(
-                    'Eczane',
-                    [const Color(0xFF20C997), const Color(0xFF0B7A5A)],
-                    (c) => const YakinimdaEkrani(kategori: 'eczane'),
-                    mesafeKategorisi: 'eczane',
-                    ikon: LucideIcons.pill,
+        data: ThemeData.dark(useMaterial3: true).copyWith(
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: morLogo,
+            brightness: Brightness.dark,
+          ).copyWith(surface: kAiZemin),
+          scaffoldBackgroundColor: Colors.transparent,
+          textTheme: ThemeData.dark(
+            useMaterial3: true,
+          ).textTheme.apply(fontFamily: 'Google Sans'),
+          primaryTextTheme: ThemeData.dark(
+            useMaterial3: true,
+          ).primaryTextTheme.apply(fontFamily: 'Google Sans'),
+        ),
+        child: AiZemin(
+          // ⚠️⚠️⚠️ TURU 129 — **`Material` SARMALI ZORUNLU** (emulatorde
+          //	goruldu: butun kart etiketleri — Eczane/Taksi/Sosyal/Yemek —
+          //	zeminle KAYNASIP OKUNMAZ olmustu).
+          //
+          //	Sebep: `DefaultTextStyle`i `Material` saglar. Bu ekran bir
+          //	`Scaffold`un ICINDE DEGIL (`Theme` > `AiZemin` > `SafeArea`),
+          //	dolayisiyla yazi rengi USTTEKI route`un ACIK TEMASINDAN
+          //	geliyordu: siyah yazi, siyah zemin.
+          //	`Theme` sarmali `onSurface`i beyaza cevirir ama renk BELIRTMEYEN
+          //	`Text`ler onu ancak bir `Material` uzerinden gorur.
+          //
+          // ⚠️ `MaterialType.transparency`: zemin `AiZemin`e ait; `canvas`
+          //    olsaydi opak bir katman gradyani KAPATIRDI.
+          // ⚠️ Turu 119`da acilis katmaninda BIREBIR ayni sinif yasanmisti
+          //    (orada metin monospace + sari altcizgiyle cizilmisti).
+          // ⚠️ YAPMA: bu sarmali kaldirma.
+          child: Material(
+            type: MaterialType.transparency,
+            child: SafeArea(
+              child: CustomScrollView(
+                slivers: [
+                  SliverToBoxAdapter(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // ⚠️⚠️⚠️ TURU 112 — **GERI OKU KALDIRILDI** (kullanici emri:
+                        //	*"acilan pencerede geri tusu ... olmasin"*).
+                        //
+                        // ⚠️ Kapanma yolu KAYBOLMADI: sayfa normal bir route ve
+                        //    sistemin geri jesti/tusu calisir. Ayrica bir karta
+                        //    dokunmak hedef ekrani ustune acar.
+                        // ⚠️ YAPMA: geri okunu geri koyma.
+                        const SizedBox(height: 10),
+                        // ⚠️⚠️⚠️ TURU 129 — **"Gebzem" BASLIGI KALDIRILDI**,
+                        //	yerine KISISEL SELAMLAMA (kullanici emri: *"Gebzem
+                        //	yazisini kaldir, oraya Iyi Geceler, altina kisinin
+                        //	ismi, ismin solunda daire icinde profil fotografi,
+                        //	en sagda arama ikonu"*).
+                        _selamlama(context, ref),
+                        const SizedBox(height: 12),
+                        // ⚠️ Slider `Padding`in DISINDA: yan boslugu KENDI
+                        //    `viewportFraction`indan uretir (turu 96t).
+                        _slider(context, ref),
+                        const SizedBox(height: 14),
+                        // ⚠️⚠️⚠️ TURU 128 — **"YAKINIMDA" SERIDI** (kullanici emri:
+                        //	*"Sehir Rehberi`nin ustune Yakinimda olsun, orada Eczane
+                        //	Bakkal Akaryakit Cami gorunsun, kart seklinde ufak kart"*).
+                        //
+                        // ⚠️⚠️ **DURUST SINIR — POI VERISI YOK.** Bu dortu de
+                        //	`isletmeler` tablosundan beslenir, yani YALNIZ KAYITLI
+                        //	ISLETMEYI gosterir. Belediye/harita POI verisi projede
+                        //	HICBIR YERDE tutulmuyor (turu 96t karari).
+                        //	· Eczane   -> `eczane` kategorisi (VAR)
+                        //	· Bakkal   -> `market` kategorisi (VAR; bakkal onun icinde)
+                        //	· Akaryakıt-> `oto` kategorisi (VAR)
+                        //	· Cami     -> **KARSILIGI OLAN KATEGORI YOK** -> `diger`.
+                        //	  Kayitli bir cami yoksa liste BOS doner; bu bir hata
+                        //	  DEGIL, verinin olmamasidir.
+                        // ⚠️ YAPMA: bu kartlara gomulu/sahte liste yazma.
+                        // ⚠️ YAPMA: "Nöbetçi Eczane" yazip eczane listesi acma —
+                        //    nobet verisi YOK, kullanici kapali eczaneye giderdi.
+                        // ⚠️⚠️⚠️ TURU 134 — **"· ÖRNEK" EKI KALDIRILDI** (kullanici
+                        //	emri: *"YAKINIMDA yanindaki ornegi sil"*).
+                        //
+                        //	Turu 132 denetimi bu eki, kartlar uydurma isletme adi
+                        //	ve mesafe yazdigi icin koymustu. Kullanici gordu ve
+                        //	KALDIRILMASINI istedi — karar ONUN.
+                        // ⚠️⚠️ **UYARI YAPISAL OLARAK KAYBOLMADI:** `kYakinOnizleme`
+                        //	bayragi DURUYOR ve yayindan once `false` YAPILACAK.
+                        //	Ekranda ibare yokken bayragi ACIK birakmak, kullaniciya
+                        //	uydurma veriyi UYARISIZ gostermek demektir.
+                        _bolumBasligi('YAKINIMDA'),
+                        const SizedBox(height: 10),
+                        _yakinSerit(context, ref, [
+                          _Bolum(
+                            'Eczane',
+                            [const Color(0xFF20C997), const Color(0xFF0B7A5A)],
+                            (c) => const YakinimdaEkrani(kategori: 'eczane'),
+                            mesafeKategorisi: 'eczane',
+                            ikon: LucideIcons.pill,
+                          ),
+                          _Bolum(
+                            'Bakkal',
+                            [const Color(0xFFFFC531), const Color(0xFFB88600)],
+                            (c) => const YakinimdaEkrani(kategori: 'market'),
+                            mesafeKategorisi: 'market',
+                            ikon: LucideIcons.shoppingBasket,
+                          ),
+                          _Bolum(
+                            'Akaryakıt',
+                            [const Color(0xFFFF7A45), const Color(0xFFB33A12)],
+                            (c) => const YakinimdaEkrani(kategori: 'oto'),
+                            mesafeKategorisi: 'oto',
+                            ikon: LucideIcons.fuel,
+                          ),
+                          _Bolum(
+                            'Cami',
+                            [const Color(0xFF6C7BFF), const Color(0xFF2A3390)],
+                            (c) => const YakinimdaEkrani(kategori: 'diger'),
+                            // ⚠️⚠️ TURU 129 — kullanici **"hepsinde mesafe yaz"**
+                            //	dedi; Cami de mesafe kategorisi aldi.
+                            // ⚠️⚠️ **DURUST SINIR:** burada olculen sey EN YAKIN CAMI
+                            //	DEGIL, `diger` kategorisindeki en yakin kayitli
+                            //	isletmedir. Projede cami/POI verisi YOK ve
+                            //	`isletmeler` tablosunda cami diye bir kategori de
+                            //	yok. Kullaniciya soylendi; karar ONUN.
+                            mesafeKategorisi: 'diger',
+                            // ⚠️ Lucide'de cami glifi YOK; `landmark` en yakin notr
+                            //    karsilik (dini bir sembol uydurulmadi).
+                            ikon: LucideIcons.landmark,
+                          ),
+                        ]),
+                        // ⚠️⚠️⚠️ TURU 132 — **KUR SERIDI** (kullanici emri:
+                        //	*"Yakinimda'nin altina dolar euro altin ve bitcoin
+                        //	ekle"*). Dolara dokununca alttan grafikli panel acilir.
+                        // ⚠️⚠️⚠️ **VERI UYDURMA** — `kur_serit.dart` dosya serhine BAK.
+                        //	**EKRANDA HICBIR UYARI IBARESI YOK**: turu 134'te
+                        //	kullanici emriyle kaldirildi. Tek koruma `kKurOnizleme`
+                        //	bayragidir ve **yayindan once `false` YAPILACAK.**
+                        // ⚠️ Bu serh onceden *"hem seritte hem panelde kullaniciya
+                        //    ACIKCA soyleniyor"* diyordu — o cumle GOVDEYLE
+                        //    CELISIYORDU ve yayin kararini verecek kisiyi yanlis
+                        //    guvene sokabilirdi (denetim buldu). Para soz konusu.
+                        // ⚠️⚠️ TURU 134 — serit artik **BASLIKLI** (kullanici emri:
+                        //	*"doviz kartlarina baslik at"*). Yanindaki iki serit
+                        //	(YAKINIMDA · ŞEHİR REHBERİ) baslikliydi; basliksiz kur
+                        //	seridi YAKINIMDA'nin devami gibi okunuyordu.
+                        if (kKurOnizleme) ...[
+                          const SizedBox(height: 18),
+                          _bolumBasligi('PİYASA'),
+                          const SizedBox(height: 10),
+                          const KurSeridi(),
+                        ],
+                        const SizedBox(height: 18),
+                        if (hizliTumu.isNotEmpty) ...[
+                          // ⚠️⚠️⚠️ TURU 128 — **"HIZLI ERİŞİM" -> "ŞEHİR REHBERİ"**
+                          //	ve **IKI SATIRLI SABIT IZGARA -> TEK SATIR YATAY
+                          //	KAYDIRMA** (kullanici emri).
+                          //
+                          // ⚠️⚠️ 'Tümü' karti KALDIRILMADI, serit SONUNA kondu:
+                          //	serit artik TUM kisayollari tasiyor (kaydirarak
+                          //	hepsine ulasilir) ama kategorilere giden tek liste
+                          //	girisi de KAYBOLMAMALI.
+                          // ⚠️ YAPMA: eski 2 x 5 izgaraya donme — kullanici tek
+                          //    satir istedi ve iki satir sayfanin yarisini yiyordu.
+                          _bolumBasligi('ŞEHİR REHBERİ'),
+                          const SizedBox(height: 10),
+                          _ufakSerit(context, [
+                            ...hizliTumu,
+                            // ⚠️ 'Tümü' listesi HEM kisayollari HEM kategorileri
+                            //    icerir: hicbir giris ULASILAMAZ kalmasin.
+                            _tumuBolumu([...hizliTumu, ...kategoriler]),
+                          ]),
+                        ],
+                        const SizedBox(height: 18),
+                        _bolumBasligi('KATEGORİLER'),
+                        const SizedBox(height: 10),
+                      ],
+                    ),
                   ),
-                  _Bolum(
-                    'Bakkal',
-                    [const Color(0xFFFFC531), const Color(0xFFB88600)],
-                    (c) => const YakinimdaEkrani(kategori: 'market'),
-                    mesafeKategorisi: 'market',
-                    ikon: LucideIcons.shoppingBasket,
+                  SliverPadding(
+                    padding: const EdgeInsets.symmetric(horizontal: kYanBosluk),
+                    sliver: SliverGrid(
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 4,
+                        crossAxisSpacing: kIzgaraAralik,
+                        mainAxisSpacing: kIzgaraAralik,
+                        // ⚠️ Oran DEGIL sabit yukseklik: kart = gri kutu + 5 + iki
+                        //    satirlik etiket (kategori ekraniyla birebir).
+                        mainAxisExtent: hucreBoy,
+                      ),
+                      delegate: SliverChildBuilderDelegate(
+                        (_, i) => _kart(context, kategoriler[i]),
+                        childCount: kategoriler.length,
+                      ),
+                    ),
                   ),
-                  _Bolum(
-                    'Akaryakıt',
-                    [const Color(0xFFFF7A45), const Color(0xFFB33A12)],
-                    (c) => const YakinimdaEkrani(kategori: 'oto'),
-                    mesafeKategorisi: 'oto',
-                    ikon: LucideIcons.fuel,
-                  ),
-                  _Bolum(
-                    'Cami',
-                    [const Color(0xFF6C7BFF), const Color(0xFF2A3390)],
-                    (c) => const YakinimdaEkrani(kategori: 'diger'),
-                    // ⚠️⚠️ TURU 129 — kullanici **"hepsinde mesafe yaz"**
-                    //	dedi; Cami de mesafe kategorisi aldi.
-                    // ⚠️⚠️ **DURUST SINIR:** burada olculen sey EN YAKIN CAMI
-                    //	DEGIL, `diger` kategorisindeki en yakin kayitli
-                    //	isletmedir. Projede cami/POI verisi YOK ve
-                    //	`isletmeler` tablosunda cami diye bir kategori de
-                    //	yok. Kullaniciya soylendi; karar ONUN.
-                    mesafeKategorisi: 'diger',
-                    // ⚠️ Lucide'de cami glifi YOK; `landmark` en yakin notr
-                    //    karsilik (dini bir sembol uydurulmadi).
-                    ikon: LucideIcons.landmark,
-                  ),
-                ]),
-                // ⚠️⚠️⚠️ TURU 132 — **KUR SERIDI** (kullanici emri:
-                //	*"Yakinimda'nin altina dolar euro altin ve bitcoin
-                //	ekle"*). Dolara dokununca alttan grafikli panel acilir.
-                // ⚠️⚠️ **VERI UYDURMA** — `kur_serit.dart` dosya serhine BAK.
-                //	Para soz konusu oldugu icin hem seritte hem panelde
-                //	kullaniciya ACIKCA soyleniyor; `kKurOnizleme` yayindan
-                //	once `false` YAPILMALI.
-                // ⚠️⚠️ TURU 134 — serit artik **BASLIKLI** (kullanici emri:
-                //	*"doviz kartlarina baslik at"*). Yanindaki iki serit
-                //	(YAKINIMDA · ŞEHİR REHBERİ) baslikliydi; basliksiz kur
-                //	seridi YAKINIMDA'nin devami gibi okunuyordu.
-                if (kKurOnizleme) ...[
-                  const SizedBox(height: 18),
-                  _bolumBasligi('PİYASA'),
-                  const SizedBox(height: 10),
-                  const KurSeridi(),
+                  const SliverToBoxAdapter(child: SizedBox(height: 20)),
                 ],
-                const SizedBox(height: 18),
-                if (hizliTumu.isNotEmpty) ...[
-                  // ⚠️⚠️⚠️ TURU 128 — **"HIZLI ERİŞİM" -> "ŞEHİR REHBERİ"**
-                  //	ve **IKI SATIRLI SABIT IZGARA -> TEK SATIR YATAY
-                  //	KAYDIRMA** (kullanici emri).
-                  //
-                  // ⚠️⚠️ 'Tümü' karti KALDIRILMADI, serit SONUNA kondu:
-                  //	serit artik TUM kisayollari tasiyor (kaydirarak
-                  //	hepsine ulasilir) ama kategorilere giden tek liste
-                  //	girisi de KAYBOLMAMALI.
-                  // ⚠️ YAPMA: eski 2 x 5 izgaraya donme — kullanici tek
-                  //    satir istedi ve iki satir sayfanin yarisini yiyordu.
-                  _bolumBasligi('ŞEHİR REHBERİ'),
-                  const SizedBox(height: 10),
-                  _ufakSerit(context, [
-                    ...hizliTumu,
-                    // ⚠️ 'Tümü' listesi HEM kisayollari HEM kategorileri
-                    //    icerir: hicbir giris ULASILAMAZ kalmasin.
-                    _tumuBolumu([...hizliTumu, ...kategoriler]),
-                  ]),
-                ],
-                const SizedBox(height: 18),
-                _bolumBasligi('KATEGORİLER'),
-                const SizedBox(height: 10),
-              ],
-            ),
-          ),
-          SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: kYanBosluk),
-            sliver: SliverGrid(
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 4,
-                crossAxisSpacing: kIzgaraAralik,
-                mainAxisSpacing: kIzgaraAralik,
-                // ⚠️ Oran DEGIL sabit yukseklik: kart = gri kutu + 5 + iki
-                //    satirlik etiket (kategori ekraniyla birebir).
-                mainAxisExtent: hucreBoy,
               ),
-              delegate: SliverChildBuilderDelegate(
-                (_, i) => _kart(context, kategoriler[i]),
-                childCount: kategoriler.length,
-              ),
-            ),
-          ),
-          const SliverToBoxAdapter(child: SizedBox(height: 20)),
-              ],
             ),
           ),
         ),
-      ),
       ),
     );
   }
@@ -726,164 +720,164 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
     // ⚠️ `opaque`: gorselin her yerine dokunmak karti acar.
     child: GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: () => Navigator.of(context).push(
-        MaterialPageRoute<void>(builder: (_) => const SkorDetayEkrani()),
-      ),
+      onTap: () => Navigator.of(
+        context,
+      ).push(MaterialPageRoute<void>(builder: (_) => const SkorDetayEkrani())),
       child: SizedBox(
         height: KategoriSlider.yukseklik,
         child: ClipRRect(
-        borderRadius: BorderRadius.circular(kYaricap(1000)),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            Image.asset('assets/vitrin/re1.jpg', fit: BoxFit.cover),
-            // ── OKUNURLUK KATMANI ──
-            // ⚠️⚠️ Yazi artik ORTADA (kullanici emri) ve fotografin
-            //	ORTASI en kalabalik/parlak bolge. Bu yuzden alttan
-            //	yukari gecis YETMEZ; ustune HAFIF BIR GENEL KARARTMA
-            //	konur. Ikisi birlikte: metin her fotograf tonunda okunur.
-            const DecoratedBox(
-              decoration: BoxDecoration(color: Color(0x59000000)),
-            ),
-            const DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Color(0x00000000),
-                    Color(0x4D000000),
-                    Color(0xB3000000),
-                  ],
-                  stops: [0.3, 0.65, 1.0],
+          borderRadius: BorderRadius.circular(kYaricap(1000)),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Image.asset('assets/vitrin/re1.jpg', fit: BoxFit.cover),
+              // ── OKUNURLUK KATMANI ──
+              // ⚠️⚠️ Yazi artik ORTADA (kullanici emri) ve fotografin
+              //	ORTASI en kalabalik/parlak bolge. Bu yuzden alttan
+              //	yukari gecis YETMEZ; ustune HAFIF BIR GENEL KARARTMA
+              //	konur. Ikisi birlikte: metin her fotograf tonunda okunur.
+              const DecoratedBox(
+                decoration: BoxDecoration(color: Color(0x59000000)),
+              ),
+              const DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Color(0x00000000),
+                      Color(0x4D000000),
+                      Color(0xB3000000),
+                    ],
+                    stops: [0.3, 0.65, 1.0],
+                  ),
                 ),
               ),
-            ),
-            // ── SKOR BLOGU ──
-            // ⚠️⚠️ **ORTADA AMA HAFIF YUKARIDA** (kullanici emri).
-            //	`Alignment(0, -0.18)`: yatayda tam merkez, dikeyde
-            //	merkezin biraz USTU. Tam merkez olsaydi blok fotograftaki
-            //	oyuncularin yuzlerinin uzerine otururdu.
-            Align(
-              alignment: const Alignment(0, -0.18),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // ── CANLI ROZETI (SKORUN USTUNDE) ──
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 9,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFE11D48),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          // ⚠️ Renk TEK BASINA renk korlugu olana hicbir
-                          //    sey anlatmaz — yaninda YAZI da var
-                          //    (turu 98b dersi).
-                          Container(
-                            width: 6,
-                            height: 6,
-                            decoration: const BoxDecoration(
-                              color: Colors.white,
-                              shape: BoxShape.circle,
+              // ── SKOR BLOGU ──
+              // ⚠️⚠️ **ORTADA AMA HAFIF YUKARIDA** (kullanici emri).
+              //	`Alignment(0, -0.18)`: yatayda tam merkez, dikeyde
+              //	merkezin biraz USTU. Tam merkez olsaydi blok fotograftaki
+              //	oyuncularin yuzlerinin uzerine otururdu.
+              Align(
+                alignment: const Alignment(0, -0.18),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // ── CANLI ROZETI (SKORUN USTUNDE) ──
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 9,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE11D48),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // ⚠️ Renk TEK BASINA renk korlugu olana hicbir
+                            //    sey anlatmaz — yaninda YAZI da var
+                            //    (turu 98b dersi).
+                            Container(
+                              width: 6,
+                              height: 6,
+                              decoration: const BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 6),
-                          const Text(
-                            'CANLI · ÖRNEK',
-                            // ⚠️⚠️ **DURUST SINIR ROZETIN ICINDE**
-                            //	(denetim buldu): kart `CANLI` diyerek
-                            //	uydurma bir MILLI MAC skoru gosteriyordu ve
-                            //	kullanici karta DOKUNMADAN bunun ornek
-                            //	oldugunu ogrenemiyordu. Ibare detay
-                            //	ekraninin DIBINDEYDI.
-                            // ⚠️ YAPMA: veri gercek olana kadar
-                            //    "· ÖRNEK" ekini kaldirma.
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 11,
-                              height: 1.2,
-                              fontWeight: FontWeight.w800,
+                            const SizedBox(width: 6),
+                            const Text(
+                              'CANLI · ÖRNEK',
+                              // ⚠️⚠️ **DURUST SINIR ROZETIN ICINDE**
+                              //	(denetim buldu): kart `CANLI` diyerek
+                              //	uydurma bir MILLI MAC skoru gosteriyordu ve
+                              //	kullanici karta DOKUNMADAN bunun ornek
+                              //	oldugunu ogrenemiyordu. Ibare detay
+                              //	ekraninin DIBINDEYDI.
+                              // ⚠️ YAPMA: veri gercek olana kadar
+                              //    "· ÖRNEK" ekini kaldirma.
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                height: 1.2,
+                                fontWeight: FontWeight.w800,
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 9),
-                    // ── SKOR ──
-                    // ⚠️ `maxLines: 1` + ellipsis: yazi olcegi 2.0`da
-                    //    skor KUCULMEZ, gerekirse kirpilir.
-                    const Text(
-                      'Türkiye 1 - 0 Almanya',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 22,
-                        height: 1.2,
-                        fontWeight: FontWeight.w800,
-                        // ⚠️ Golge: fotografin acik bir bolgesine denk
-                        //    gelirse yazi yine okunur kalsin.
-                        shadows: [
-                          Shadow(blurRadius: 10, color: Color(0xE6000000)),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    // ── GOL ATAN (TOP IKONU + AD + DAKIKA) ──
-                    // ⚠️⚠️ **DURUST SINIR:** bu satir da UYDURMADIR
-                    //	(bkz. `kSkorOnizleme` serhi) — gercek bir gol
-                    //	verisi YOK.
-                    // ⚠️ Lucide`de FUTBOL TOPU glifi YOK (kontrol edildi:
-                    //    yalniz `volleyball`, `goal`, `circleDot` var).
-                    //    `volleyball` en yakin TOP glifi ve 2B cizgi.
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          LucideIcons.volleyball,
-                          size: 15,
-                          color: Colors.white,
-                          shadows: [
-                            Shadow(blurRadius: 8, color: Color(0xCC000000)),
                           ],
                         ),
-                        const SizedBox(width: 6),
-                        // ⚠️ `Flexible`: uzun bir oyuncu adi karti tasirdi.
-                        const Flexible(
-                          child: Text(
-                            'Arda Turan \'20',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 13.5,
-                              height: 1.2,
-                              fontWeight: FontWeight.w600,
-                              shadows: [
-                                Shadow(
-                                  blurRadius: 8,
-                                  color: Color(0xCC000000),
-                                ),
-                              ],
+                      ),
+                      const SizedBox(height: 9),
+                      // ── SKOR ──
+                      // ⚠️ `maxLines: 1` + ellipsis: yazi olcegi 2.0`da
+                      //    skor KUCULMEZ, gerekirse kirpilir.
+                      const Text(
+                        'Türkiye 1 - 0 Almanya',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 22,
+                          height: 1.2,
+                          fontWeight: FontWeight.w800,
+                          // ⚠️ Golge: fotografin acik bir bolgesine denk
+                          //    gelirse yazi yine okunur kalsin.
+                          shadows: [
+                            Shadow(blurRadius: 10, color: Color(0xE6000000)),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      // ── GOL ATAN (TOP IKONU + AD + DAKIKA) ──
+                      // ⚠️⚠️ **DURUST SINIR:** bu satir da UYDURMADIR
+                      //	(bkz. `kSkorOnizleme` serhi) — gercek bir gol
+                      //	verisi YOK.
+                      // ⚠️ Lucide`de FUTBOL TOPU glifi YOK (kontrol edildi:
+                      //    yalniz `volleyball`, `goal`, `circleDot` var).
+                      //    `volleyball` en yakin TOP glifi ve 2B cizgi.
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            LucideIcons.volleyball,
+                            size: 15,
+                            color: Colors.white,
+                            shadows: [
+                              Shadow(blurRadius: 8, color: Color(0xCC000000)),
+                            ],
+                          ),
+                          const SizedBox(width: 6),
+                          // ⚠️ `Flexible`: uzun bir oyuncu adi karti tasirdi.
+                          const Flexible(
+                            child: Text(
+                              'Arda Turan \'20',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 13.5,
+                                height: 1.2,
+                                fontWeight: FontWeight.w600,
+                                shadows: [
+                                  Shadow(
+                                    blurRadius: 8,
+                                    color: Color(0xCC000000),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-                  ],
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
           ),
         ),
       ),
@@ -1073,11 +1067,7 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
   ///	tahmini bir sayi YAZILMAZ (turu 128 `mesafeMetni` kurali).
   /// ⚠️ Yukleme sirasinda da bos: bir yer tutucu ("... m") yaniltici
   ///    olurdu; kart mesafe gelince BUYUMEZ cunku yukseklik SABIT.
-  Widget _yakinSerit(
-    BuildContext context,
-    WidgetRef ref,
-    List<_Bolum> ogeler,
-  ) {
+  Widget _yakinSerit(BuildContext context, WidgetRef ref, List<_Bolum> ogeler) {
     final sonuc = ref.watch(yakinMesafeProvider).valueOrNull;
     final olcek = MediaQuery.textScalerOf(context);
     // ⚠️ Yukseklik yazi olceginden TURETILIR: iki satir (ad + mesafe) +
@@ -1187,13 +1177,17 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
         behavior: HitTestBehavior.opaque,
         child: Container(
           // ⚠️ TURU 134 — kullanici *"kartlarin genisligini biraz azalt"*
-          //    dedi: bolen 2.1 -> 2.25 (bolen buyudukce kart DARALIR ve
-          //    sarkan ucuncu kart daha cok gorunur).
+          //    dedi: bolen 2.1 -> **2.05** (bolen buyudukce kart DARALIR).
+          // ⚠️⚠️ ILK DENEMEDE 2.25 YAZILMISTI ve denetim olctu: 360/375 dp'de
+          //	ic alan 73,7 dp'ye dusuyor, DORT onizleme adinin DORDU DE
+          //	kirpiliyordu ("Gül Eczane…"). Emulator 411 dp oldugu icin
+          //	ORADA GORUNMUYORDU — turu 70b/98c dersinin tekrari.
+          //	2.05 kur kartlariyla da AYNI bolen (iki serit alt alta).
           width:
               (MediaQuery.sizeOf(context).width -
                   kYanBosluk * 2 -
                   kIzgaraAralik * 2) /
-              2.25,
+              2.05,
           padding: const EdgeInsets.fromLTRB(11, 10, 11, 10),
           decoration: BoxDecoration(
             // ⚠️ TURU 129 — yuzey artik GebzemAI`daki kendi mesaj
@@ -1294,6 +1288,7 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
       ),
     );
   }
+
   /// ⚠️⚠️⚠️ TURU 128 — **UFAK KART SERIDI** (tek satir, yatay kaydirma).
   ///
   ///	Kullanici emri: *"tek satir scroll olsun sol sag ... kart seklinde
@@ -1324,8 +1319,7 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
             padding: const EdgeInsets.symmetric(horizontal: kYanBosluk),
             physics: const BouncingScrollPhysics(),
             itemCount: ogeler.length,
-            separatorBuilder: (_, _) =>
-                const SizedBox(width: kIzgaraAralik),
+            separatorBuilder: (_, _) => const SizedBox(width: kIzgaraAralik),
             itemBuilder: (_, i) => SizedBox(
               width: en,
               child: _kart(context, ogeler[i], kutuBoy: kutu),
@@ -1555,10 +1549,9 @@ class _TumuEkrani extends StatelessWidget {
 /// Artik menu NORMAL BIR ROUTE: kart `push` eder, geri tusu KATEGORIDEN
 /// MENUYE, bir daha basinca akisa doner. Yigin ekranda gorunenle ayni.
 /// ⚠️ YAPMA: bunu tekrar `showModalBottomSheet`e cevirme.
-Future<void> hizmetMenusuAc(BuildContext context) =>
-    Navigator.of(context).push<void>(
-      MaterialPageRoute(builder: (_) => const HizmetMenusuSayfasi()),
-    );
+Future<void> hizmetMenusuAc(BuildContext context) => Navigator.of(
+  context,
+).push<void>(MaterialPageRoute(builder: (_) => const HizmetMenusuSayfasi()));
 
 /// Menunun tam ekran kabugu.
 ///
@@ -1568,9 +1561,7 @@ class HizmetMenusuSayfasi extends StatelessWidget {
   const HizmetMenusuSayfasi({super.key});
 
   @override
-  Widget build(BuildContext context) => const Scaffold(
-    body: HizmetMenusu(),
-  );
+  Widget build(BuildContext context) => const Scaffold(body: HizmetMenusu());
 }
 
 /// ⚠️ IKI CIZGI (kullanici emri: "2 tane 2 satir cizgi hamburger tarzi").
@@ -1642,26 +1633,24 @@ class HamburgerDugmesi extends StatelessWidget {
 /// ⚠️ Iki durum artik AYRI metin uretir ("Konumu aç" / "Yakında yok").
 typedef YakinSonuc = ({bool konumVar, Map<String, double> km});
 
-final yakinMesafeProvider = FutureProvider.autoDispose<YakinSonuc>(
-  (ref) async {
-    // ⚠️ `status` OKUR, `request` ETMEZ: ikincisi diyalog acardi.
-    if (!await Permission.locationWhenInUse.isGranted) {
-      return (konumVar: false, km: <String, double>{});
-    }
-    final k = await KonumServisi.konumAl(sessiz: true);
-    if (k == null) return (konumVar: false, km: <String, double>{});
-    final liste = await ref
-        .read(isletmeServisiProvider)
-        .yakinimda(enlem: k.enlem, boylam: k.boylam, km: 15);
-    final en = <String, double>{};
-    for (final i in liste) {
-      // ⚠️ Liste km ASC sirali: ilk gorulen EN YAKINDIR, sonrakiler
-      //    yazilmaz.
-      if (i.km > 0) en.putIfAbsent(i.kategori, () => i.km);
-    }
-    return (konumVar: true, km: en);
-  },
-);
+final yakinMesafeProvider = FutureProvider.autoDispose<YakinSonuc>((ref) async {
+  // ⚠️ `status` OKUR, `request` ETMEZ: ikincisi diyalog acardi.
+  if (!await Permission.locationWhenInUse.isGranted) {
+    return (konumVar: false, km: <String, double>{});
+  }
+  final k = await KonumServisi.konumAl(sessiz: true);
+  if (k == null) return (konumVar: false, km: <String, double>{});
+  final liste = await ref
+      .read(isletmeServisiProvider)
+      .yakinimda(enlem: k.enlem, boylam: k.boylam, km: 15);
+  final en = <String, double>{};
+  for (final i in liste) {
+    // ⚠️ Liste km ASC sirali: ilk gorulen EN YAKINDIR, sonrakiler
+    //    yazilmaz.
+    if (i.km > 0) en.putIfAbsent(i.kategori, () => i.km);
+  }
+  return (konumVar: true, km: en);
+});
 
 /// ⚠️⚠️⚠️ TURU 130 — **YAKINIMDA ONIZLEME VERISI** (kullanici emri:
 ///	*"simdilik yakinimdakilere sahte isimler yaz, Gül Eczanesi 400 m

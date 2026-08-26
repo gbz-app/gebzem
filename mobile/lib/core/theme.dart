@@ -131,8 +131,8 @@ const kAltMenuPasifIkon = Color(0xFF7A7A7E);
 ThemeData _tema(Brightness parlaklik) {
   final koyu = parlaklik == Brightness.dark;
   final icerik = koyu ? _icerikZemin : _icerikZeminAcik;
-  final scheme =
-      ColorScheme.fromSeed(seedColor: _seed, brightness: parlaklik).copyWith(
+  final scheme = ColorScheme.fromSeed(seedColor: _seed, brightness: parlaklik)
+      .copyWith(
         surface: icerik,
         // ⚠️⚠️ TURU 115b — ACIK TEMADA `primary` **LOGONUN TAM RENGI**
         //	(emulatorde gorundu).
@@ -263,6 +263,7 @@ extension ChatColors on ColorScheme {
       _koyuMu ? const Color(0xFF3B2A63) : const Color(0xFFEDE4FF);
   Color get bubbleOther =>
       _koyuMu ? const Color(0xFF262D31) : const Color(0xFFFFFFFF);
+
   /// ⚠️⚠️ TURU 115b — **ACIK TEMADA KOYULASTIRILDI.**
   ///	Eski ton (0xFF34B7F1, WhatsApp mavisi) yeni ACIK MOR balonun
   ///	(0xFFEDE4FF) uzerinde **1,87:1** ile neredeyse GORUNMEZDI (ikon esigi
@@ -338,6 +339,24 @@ const LinearGradient kAiMorGradient = LinearGradient(
 /// ⚠️ Kopyalanmadi, TASINDI: iki ekranin zemini birlikte donmeli.
 const Color kAiZemin = Color(0xFF050308);
 
+/// ⚠️⚠️⚠️ **AI DILINDEKI PANELLERIN ZEMINI — TEMA `bottomSheetTheme`INI
+///	BILEREK EZER.**
+///
+///	`bottomSheetTheme` yukarida ACIKCA "her sheet'e tek tek yazma" diyor ve
+///	o kural GENEL panellerde GECERLI. Ama GebzemAI ve PIYASA panelleri
+///	**koyu AI yuzeyinin uzerinde** aciliyor; tema rengiyle cizilseler acik
+///	temada BEYAZ bir panel koyu bir ekranin ustune binerdi.
+///
+/// ⚠️⚠️ EZME BILINCLI OLDUGU ICIN **TEK KAYNAKTAN** yapilir: onceden
+///	`0xFF15121F` + 28 dp cifti `gebzem_ai.dart` ve `kur_serit.dart`a AYRI
+///	AYRI yazilmisti (denetim buldu) — biri degisince oteki geride kalirdi.
+/// ⚠️ Bu panellerin ICINDEKI on plan renkleri de SABIT BEYAZ; zemini
+///    degistirirsen o beyazlari da ARA (turu 115b dersi).
+const Color kKoyuPanelZemin = Color(0xFF15121F);
+const RoundedRectangleBorder kKoyuPanelSekli = RoundedRectangleBorder(
+  borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+);
+
 /// ⚠️⚠️⚠️ TURU 129 — **GEBZEMAI ZEMINI: TEK KAYNAK BILESEN.**
 ///
 ///	Siyah zemin + ALT UCTA iki radyal mor parlama. Kullanici emri
@@ -374,11 +393,7 @@ class AiZemin extends StatelessWidget {
         gradient: RadialGradient(
           center: Alignment(-0.55, 1.25),
           radius: 1.15,
-          colors: [
-            Color(0x8C7B3FE4),
-            Color(0x387B3FE4),
-            Color(0x007B3FE4),
-          ],
+          colors: [Color(0x8C7B3FE4), Color(0x387B3FE4), Color(0x007B3FE4)],
           stops: [0.0, 0.45, 1.0],
         ),
       ),
@@ -387,11 +402,7 @@ class AiZemin extends StatelessWidget {
           gradient: RadialGradient(
             center: Alignment(0.6, 1.1),
             radius: 0.95,
-            colors: [
-              Color(0x993B1E7A),
-              Color(0x403B1E7A),
-              Color(0x003B1E7A),
-            ],
+            colors: [Color(0x993B1E7A), Color(0x403B1E7A), Color(0x003B1E7A)],
             stops: [0.0, 0.5, 1.0],
           ),
         ),
