@@ -127,7 +127,7 @@ class KurSeridi extends StatelessWidget {
     //    carpanlari `Text`lerde ACIKCA verilir — tahmine dayali butce
     //    turu 129'da 2.7 px tasmisti.
     const satir = 1.2;
-    final yazi = olcek.scale(13.5) * satir + olcek.scale(14.5) * satir;
+    final yazi = olcek.scale(12) * satir + olcek.scale(14.5) * satir;
     final boy = (yazi > 34 ? yazi : 34.0) + 22.0;
     return SizedBox(
       height: boy,
@@ -160,7 +160,7 @@ class _KurKarti extends StatelessWidget {
       onTap: () => kurPaneliAc(context, kalem),
       child: Container(
         width:
-            (MediaQuery.sizeOf(context).width - kYanBosluk * 2 - 8 * 2) / 2.5,
+            (MediaQuery.sizeOf(context).width - kYanBosluk * 2 - 8 * 2) / 2.2,
         padding: const EdgeInsets.fromLTRB(11, 10, 11, 10),
         decoration: BoxDecoration(
           color: kAiKartYuzey(context),
@@ -181,6 +181,11 @@ class _KurKarti extends StatelessWidget {
             const SizedBox(width: 8),
             // ⚠️ `Expanded` ZORUNLU: "2.947.000 ₺" gibi uzun bir deger sabit
             //    genislikte TASARDI.
+            // ⚠️⚠️ TURU 132 — **AD USTE, FIYAT+YUZDE ALTA** (emulatorde
+            //	goruldu: uclu tek satir — fiyat, yuzde ve ad yan yana —
+            //	dar kartta yuzdeyi kirpiyordu: "+0,...").
+            //	Yeni duzen YAKINIMDA kartiyla AYNI: ust satir ad, alt satir
+            //	deger.
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -188,56 +193,53 @@ class _KurKarti extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    kalem.fiyat,
+                    kalem.ad,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 14.5,
+                    style: TextStyle(
+                      fontSize: 12,
                       height: 1.2,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.w600,
+                      color: onRenk.withValues(alpha: 0.6),
                     ),
                   ),
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
-                        arti ? LucideIcons.trendingUp : LucideIcons.trendingDown,
-                        size: 11,
-                        color: renk,
-                      ),
-                      const SizedBox(width: 3),
+                      // ⚠️ `Flexible`: uzun bir fiyat yuzdeyi ekran disina
+                      //    itmesin.
                       Flexible(
                         child: Text(
-                          '${arti ? '+' : ''}${kalem.degisim.toStringAsFixed(2).replaceAll('.', ',')}%',
+                          kalem.fiyat,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 11.5,
+                          style: const TextStyle(
+                            fontSize: 14.5,
                             height: 1.2,
-                            fontWeight: FontWeight.w600,
-                            color: renk,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
                       ),
-                      const SizedBox(width: 5),
-                      Flexible(
-                        child: Text(
-                          kalem.ad,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 11.5,
-                            height: 1.2,
-                            color: onRenk.withValues(alpha: 0.55),
-                          ),
+                      const SizedBox(width: 6),
+                      Text(
+                        (arti ? "+" : "") +
+                            kalem.degisim
+                                .toStringAsFixed(2)
+                                .replaceAll(".", ",") +
+                            "%",
+                        maxLines: 1,
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          height: 1.2,
+                          fontWeight: FontWeight.w700,
+                          color: renk,
                         ),
                       ),
                     ],
                   ),
                 ],
               ),
-            ),
-          ],
+            ),          ],
         ),
       ),
     );
