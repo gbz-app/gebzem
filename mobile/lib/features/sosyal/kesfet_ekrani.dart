@@ -228,8 +228,15 @@ class _KesfetEkraniState extends ConsumerState<KesfetEkrani>
               focusNode: _odak,
               textInputAction: TextInputAction.search,
               onChanged: _degisti,
+              // ⚠️⚠️ TURU 133 — **BORDERSIZ + "Ne Aramıştın?"** (kullanici
+              //	emri). Cerceve KALDIRILDI: ustteki baslik ve altindaki
+              //	sekme ayraci zaten alani tanimliyor; ucuncu bir cerceve
+              //	ekrandan bir kutu daha calardi.
+              // ⚠️ `InputBorder.none` UC HALDE DE verilir (normal/odak/
+              //    hata): yalniz `border` verilseydi ODAKTA Material
+              //    varsayilan alt cizgiyi geri getirirdi.
               decoration: InputDecoration(
-                hintText: 'Ara (isim veya @kullanıcıadı)',
+                hintText: 'Ne Aramıştın?',
                 prefixIcon: const Icon(LucideIcons.search, size: 19),
                 suffixIcon: aramaModu
                     ? IconButton(
@@ -243,9 +250,9 @@ class _KesfetEkraniState extends ConsumerState<KesfetEkrani>
                     : null,
                 isDense: true,
                 contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(24),
-                ),
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
               ),
             ),
           ),
@@ -263,54 +270,108 @@ class _KesfetEkraniState extends ConsumerState<KesfetEkrani>
     );
   }
 
-  /// Sekme seridi — TikTok'un sonuc sekmeleri.
+  /// ⚠️⚠️⚠️ TURU 133 — **SEKMELER BUTON DEGIL, ALTI CIZGILI** (kullanici
+  ///	emri: *"altindaki kisiler vs bunlar cizginin uzerinde menu tarzi,
+  ///	buton degil, aktif olanin alti kalin olacak sekilde"*).
   ///
-  /// ⚠️ `TabBar` KULLANILMADI: `TabController` sekme sayisi degismedigi
-  ///    surece dogru calisir ama burada sekme sayisi SABIT ve secim zaten
-  ///    `_sekme` alaninda; ayrica `TabBar` kendi kaydirma fizigini getirir.
-  ///    Yatay `ListView` + cip daha az hareketli parca.
-  Widget _sekmeSeridi() => SizedBox(
-    height: 42,
-    child: ListView.builder(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      itemCount: _sekmeler.length,
-      itemBuilder: (_, i) {
-        final secili = i == _sekme;
-        final scheme = Theme.of(context).colorScheme;
-        return Padding(
-          padding: const EdgeInsets.only(right: 8),
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: () {
-              setState(() => _sekme = i);
-              // ⚠️ TEMBEL: sekmeye GECILDIGINDE yuklenir.
-              unawaited(_sekmeYukle(_sekmeler[i].tur, _kutu.text.trim()));
-            },
+  ///	ESKI HAL: dolu/bos hap dugmeler (`ChoiceChip` benzeri). Secili
+  ///	olan mor bir hapa donuyordu — "menu" degil "dugme grubu" gibi
+  ///	duruyordu.
+  ///
+  /// ⚠️⚠️ **SERIT BIR AYRAC CIZGISININ USTUNDE** (kullanici: *"cizginin
+  ///	uzerinde"*): ince cizgi TUM genislikte, aktif sekmenin altindaki
+  ///	KALIN cizgi onun UZERINE biner. Bu, sekmenin hangi bolume ait
+  ///	oldugunu gosteren standart dildir.
+  /// ⚠️ `TabBar` KULLANILMADI: sekme sayisi SABIT, secim zaten `_sekme`
+  ///    alaninda ve `TabBar` kendi kaydirma fizigini + controller
+  ///    yasam dongusunu getirirdi.
+  /// ⚠️ Alt cizgi genisligi YAZIYLA AYNI (`IntrinsicWidth` degil, kolon
+  ///    `min` genisligi): sabit bir genislik kisa/uzun etiketlerde
+  ///    ortasiz dururdu.
+  Widget _sekmeSeridi() {
+    final scheme = Theme.of(context).colorScheme;
+    return SizedBox(
+      height: 44,
+      child: Stack(
+        children: [
+          // ── AYRAC (SERIDIN ALTINDA, TUM GENISLIKTE) ──
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
             child: Container(
-              alignment: Alignment.center,
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              decoration: BoxDecoration(
-                color: secili
-                    ? scheme.primary
-                    : scheme.onSurface.withValues(alpha: 0.07),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                _sekmeler[i].etiket,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: secili ? scheme.onPrimary : scheme.onSurface,
-                ),
-              ),
+              height: 1,
+              color: scheme.onSurface.withValues(alpha: 0.12),
             ),
           ),
-        );
-      },
-    ),
-  );
-
+          ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            itemCount: _sekmeler.length,
+            itemBuilder: (_, i) {
+              final secili = i == _sekme;
+              return GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () {
+                  setState(() => _sekme = i);
+                  // ⚠️ TEMBEL: sekmeye GECILDIGINDE yuklenir.
+                  unawaited(
+                    _sekmeYukle(_sekmeler[i].tur, _kutu.text.trim()),
+                  );
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      Expanded(
+                        child: Center(
+                          child: Text(
+                            _sekmeler[i].etiket,
+                            maxLines: 1,
+                            style: TextStyle(
+                              fontSize: 14,
+                              height: 1.2,
+                              // ⚠️ Kalinlik SECIMLE degisir ama METIN
+                              //    GENISLIGI de degisir; alt cizgi
+                              //    kolonun genisligini izledigi icin
+                              //    ikisi BIRLIKTE hareket eder.
+                              fontWeight: secili
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
+                              color: secili
+                                  ? scheme.onSurface
+                                  : scheme.onSurface.withValues(
+                                      alpha: 0.55,
+                                    ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      // ── AKTIF SEKMENIN KALIN ALTI ──
+                      // ⚠️ Secili degilken de SIFIR YUKSEKLIKTE bir kutu
+                      //    cizilir: aksi halde secim degisince satir
+                      //    2 dp ZIPLARDI.
+                      Container(
+                        height: 2.5,
+                        decoration: BoxDecoration(
+                          color: secili
+                              ? scheme.onSurface
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
   /// ⚠️⚠️⚠️ TURU 115 — ARAMA YAZILMADAN ONCE: **TRENDLER** (kullanici:
   ///	*"aranan kisiler gorunmeli sirayla, alta dogru TRENDLER olmali"*).
   ///
@@ -546,8 +607,12 @@ class _KesfetEkraniState extends ConsumerState<KesfetEkrani>
         avatarUrl: (u['avatar_url'] ?? '').toString(),
         cap: 44,
       ),
-      title: Text(ad),
-      subtitle: Text('@${(u['username'] ?? '').toString()}'),
+      // ⚠️⚠️ TURU 133 — **YALNIZ ISIM** (kullanici emri: *"sonuclarda isim
+      //	olsun sadece isim, tarzi temiz"*). Kullanici adi satiri
+      //	KALDIRILDI.
+      // ⚠️ Arama YINE @kullaniciadi ile calisir (sunucu `/users/search`
+      //    ikisine de bakar) — yalnizca SONUC satiri sadelesti.
+      title: Text(ad, maxLines: 1, overflow: TextOverflow.ellipsis),
       onTap: () => _profileGit((u['id'] ?? '').toString()),
     );
   }
@@ -556,13 +621,9 @@ class _KesfetEkraniState extends ConsumerState<KesfetEkrani>
   ///    (`users.hesap_turu='isletme'`), ayri bir detay ekrani YOK.
   Widget _isletmeSatiri(Map<String, dynamic> i) {
     final ad = (i['name'] ?? '').toString();
-    final alt = [
-      (i['kategori_ad'] ?? '').toString(),
-      [
-        (i['ilce'] ?? '').toString(),
-        (i['il'] ?? '').toString(),
-      ].where((x) => x.isNotEmpty).join(', '),
-    ].where((x) => x.isNotEmpty).join(' · ');
+    // ⚠️ TURU 133 — kategori/il-ilce alt satiri KALDIRILDI (kullanici emri:
+    //    "sadece isim"). Bilgi kaybolmadi: kullanici satira dokununca
+    //    isletmenin PROFILINE gidiyor ve hepsi orada.
     return ListTile(
       leading: Avatar(
         ad: ad,
@@ -570,8 +631,8 @@ class _KesfetEkraniState extends ConsumerState<KesfetEkrani>
         avatarUrl: (i['avatar_url'] ?? '').toString(),
         cap: 44,
       ),
-      title: Text(ad),
-      subtitle: alt.isEmpty ? null : Text(alt),
+      // ⚠️ TURU 133 — yalniz isim (kullanici emri).
+      title: Text(ad, maxLines: 1, overflow: TextOverflow.ellipsis),
       trailing: i['dogrulandi'] == true
           ? Icon(
               LucideIcons.badgeCheck,

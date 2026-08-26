@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/theme.dart' show kAiZemin, kAiKartYuzey;
@@ -343,6 +344,63 @@ class _KurPaneliState extends State<_KurPaneli> {
   int _aralik = 1;
   static const _araliklar = ['1G', '1H', '1A', '1Y'];
 
+  /// ⚠️⚠️⚠️ TURU 133 — **DOKUNMALI IMLEC** (kullanici emri: *"anlik elimle
+  ///	charta gecis olsun, hangi gun hangi saat yukarida tooltip bir
+  ///	kutucukta yazsin, gecis yaparken telefon titresin"*).
+  ///
+  /// ⚠️ `null` = parmak grafikte DEGIL -> imlec ve tooltip cizilmez,
+  ///    son nokta isareti geri gelir.
+  int? _secili;
+
+  /// ⚠️⚠️ Titresim YALNIZ NOKTA DEGISINCE (kullanici emri: *"gecis
+  ///	yaparken titresin"*). Her `onPanUpdate`te titretmek saniyede
+  ///	onlarca kez titresim demekti — telefon vizildar ve kullanici
+  ///	ozelligi kapatmak ister.
+  /// ⚠️ `selectionClick` secilir, `mediumImpact` DEGIL: bu bir SECIM
+  ///    hareketi, bir onay/uyari degil (iOS`ta da dogru his).
+  void _noktaSec(int? i) {
+    if (i == _secili) return;
+    if (i != null) HapticFeedback.selectionClick();
+    setState(() => _secili = i);
+  }
+
+  /// ⚠️ Dokunulan x`ten EN YAKIN nokta. `round` ile: parmak iki nokta
+  ///    arasindaysa yakin olana atlar (Google Finance davranisi).
+  /// ⚠️ `clamp` ZORUNLU: parmak grafigin disina cikabilir ve indis
+  ///    tasar.
+  void _dokunma(double dx, double genislik, int adet) {
+    if (adet < 2 || genislik <= 0) return;
+    final oran = (dx / genislik).clamp(0.0, 1.0);
+    _noktaSec((oran * (adet - 1)).round());
+  }
+
+  /// ⚠️⚠️ Etiketler ARALIGA gore uretilir: 1G`de saat, 1H`de gun adi,
+  ///	1A`da gun sayisi, 1Y`da ay. Tek bir etiket kumesi kullanilsaydi
+  ///	"1Y" grafiginde saat yazardi.
+  /// ⚠️⚠️ **BU ETIKETLER DE UYDURMA** (bkz. dosya serhi): gercek bir
+  ///	zaman serisi YOK. Sabit bir baslangictan geriye dogru sayiliyor;
+  ///	`DateTime.now()` KULLANILMAZ cunku o, uydurma fiyatlara GERCEK
+  ///	bir zaman damgasi verip inandiriciligi artirirdi.
+  String _etiket(int i, int adet) {
+    final geri = adet - 1 - i;
+    switch (_aralik) {
+      case 0:
+        final saat = (18 - geri * 2) % 24;
+        return '${saat.toString().padLeft(2, '0')}:00';
+      case 1:
+        const gunler = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
+        return gunler[(gunler.length - 1 - geri % gunler.length)];
+      case 2:
+        return '${(28 - geri).clamp(1, 31)} Ağu';
+      default:
+        const aylar = [
+          'Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz',
+          'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara',
+        ];
+        return aylar[(aylar.length - 1 - geri % aylar.length)];
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final k = widget.kalem;
@@ -470,15 +528,58 @@ class _KurPaneliState extends State<_KurPaneli> {
               ),
               const SizedBox(height: 16),
               // ── GRAFIK ──
-              SizedBox(
-                height: 150,
-                width: double.infinity,
-                child: CustomPaint(
-                  painter: _GrafikCizer(
-                    seri: _seriAralik(k.seri, _aralik),
-                    renk: renk,
-                  ),
-                ),
+              // ⚠️⚠️ `LayoutBuilder`: dokunulan x`i noktaya cevirmek icin
+              //	GERCEK genislik gerekiyor; `MediaQuery` panelin
+              //	dolgusunu bilmez.
+              LayoutBuilder(
+                builder: (context, kisit) {
+                  final seri = _seriAralik(k.seri, _aralik);
+                  return GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    // ⚠️ `onTapDown` DA gerekli: kullanici surukleme
+                    //    yapmadan tek dokunusla da bir nokta secebilmeli.
+                    onTapDown: (d) => _dokunma(
+                      d.localPosition.dx,
+                      kisit.maxWidth,
+                      seri.length,
+                    ),
+                    onHorizontalDragStart: (d) => _dokunma(
+                      d.localPosition.dx,
+                      kisit.maxWidth,
+                      seri.length,
+                    ),
+                    onHorizontalDragUpdate: (d) => _dokunma(
+                      d.localPosition.dx,
+                      kisit.maxWidth,
+                      seri.length,
+                    ),
+                    // ⚠️⚠️ Parmak kalkinca imlec KALDIRILIR: birakilan bir
+                    //	tooltip ekranda "donmus" bir deger birakir ve
+                    //	kullanici onu guncel saniyabilir.
+                    onHorizontalDragEnd: (_) => _noktaSec(null),
+                    onHorizontalDragCancel: () => _noktaSec(null),
+                    onTapUp: (_) => _noktaSec(null),
+                    onTapCancel: () => _noktaSec(null),
+                    child: SizedBox(
+                      height: 150,
+                      width: double.infinity,
+                      child: CustomPaint(
+                        painter: _GrafikCizer(
+                          seri: seri,
+                          renk: renk,
+                          secili: _secili,
+                          // ⚠️ Tooltip metni CIZERE hazir verilir:
+                          //    cizer icinde bicimlemek onu veriye
+                          //    bagimli kilardi.
+                          etiket: _secili == null
+                              ? null
+                              : _etiket(_secili!, seri.length),
+                          deger: _secili == null ? null : k.fiyat,
+                        ),
+                      ),
+                    ),
+                  );
+                },
               ),
               const SizedBox(height: 12),
               // ── ARALIK SECICI ──
@@ -624,10 +725,21 @@ class _KurPaneliState extends State<_KurPaneli> {
 /// ⚠️ `shouldRepaint` SERIYI ve RENGI karsilastirir: aralik degisince
 ///    yeniden cizilmeli, aksi halde grafik DONAR.
 class _GrafikCizer extends CustomPainter {
-  const _GrafikCizer({required this.seri, required this.renk});
+  const _GrafikCizer({
+    required this.seri,
+    required this.renk,
+    this.secili,
+    this.etiket,
+    this.deger,
+  });
 
   final List<double> seri;
   final Color renk;
+
+  /// ⚠️ Parmagin bulundugu nokta; `null` ise imlec cizilmez.
+  final int? secili;
+  final String? etiket;
+  final String? deger;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -692,14 +804,85 @@ class _GrafikCizer extends CustomPainter {
     );
 
     // ── SON NOKTA ──
-    final son = noktalar.last;
-    canvas.drawCircle(son, 5, Paint()..color = renk.withValues(alpha: 0.28));
-    canvas.drawCircle(son, 2.8, Paint()..color = renk);
+    // ⚠️ Parmak grafikteyken son-nokta isareti CIZILMEZ: iki isaret ayni
+    //    anda "hangisi guncel" karisikligi yaratirdi.
+    if (secili == null) {
+      final son = noktalar.last;
+      canvas.drawCircle(
+        son,
+        5,
+        Paint()..color = renk.withValues(alpha: 0.28),
+      );
+      canvas.drawCircle(son, 2.8, Paint()..color = renk);
+      return;
+    }
+
+    // ══════════════ IMLEC + TOOLTIP ══════════════
+    // ⚠️ `clamp`: `secili` disaridan geliyor; seri kisaldiysa (aralik
+    //    degistiyse) eski indis TASABILIR.
+    final i = secili!.clamp(0, noktalar.length - 1);
+    final n = noktalar[i];
+
+    // ── DIKEY CIZGI ──
+    canvas.drawLine(
+      Offset(n.dx, 0),
+      Offset(n.dx, size.height),
+      Paint()
+        ..color = Colors.white.withValues(alpha: 0.28)
+        ..strokeWidth = 1,
+    );
+
+    // ── NOKTA ──
+    canvas.drawCircle(n, 7, Paint()..color = renk.withValues(alpha: 0.25));
+    canvas.drawCircle(n, 4.5, Paint()..color = Colors.white);
+    canvas.drawCircle(n, 3, Paint()..color = renk);
+
+    // ── TOOLTIP ──
+    if (etiket == null) return;
+    final yazi = deger == null ? etiket! : '$deger\n$etiket';
+    final tp = TextPainter(
+      text: TextSpan(
+        text: yazi,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 12,
+          height: 1.25,
+          fontWeight: FontWeight.w700,
+          fontFamily: 'Google Sans',
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+      textAlign: TextAlign.center,
+    )..layout();
+
+    const ic = 8.0;
+    final kutuG = tp.width + ic * 2;
+    final kutuY = tp.height + ic * 2;
+    // ⚠️⚠️ Kutu YATAYDA KISITLANIR (`clamp`): imlec kenardayken tooltip
+    //	grafigin DISINA tasar ve yarisi kirpilirdi.
+    final sol = (n.dx - kutuG / 2).clamp(0.0, size.width - kutuG);
+    // ⚠️ Kutu grafigin USTUNDE (kullanici emri: *"yukarida tooltip bir
+    //    kutucukta yazsin"*).
+    final kutu = Rect.fromLTWH(sol, 0, kutuG, kutuY);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(kutu, const Radius.circular(8)),
+      Paint()..color = const Color(0xF21A1626),
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(kutu, const Radius.circular(8)),
+      Paint()
+        ..color = renk.withValues(alpha: 0.45)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1,
+    );
+    tp.paint(canvas, Offset(sol + ic, ic));
   }
 
   @override
   bool shouldRepaint(_GrafikCizer eski) =>
       eski.renk != renk ||
+      eski.secili != secili ||
+      eski.etiket != etiket ||
       eski.seri.length != seri.length ||
       !_ayniSeri(eski.seri, seri);
 
