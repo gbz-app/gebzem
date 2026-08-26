@@ -382,7 +382,6 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
         //	edilirdi (turu 120 ANR dersi: 500 ms/kare).
         // TURU 132 - ZEMIN ARTIK AiZemin (TEK KAYNAK). Gerekce asagida.
         child: AiZemin(
-          dalga: _dalga,
           child: Scaffold(
             backgroundColor: Colors.transparent,
             appBar: AppBar(

@@ -84,24 +84,10 @@ class HizmetMenusu extends ConsumerStatefulWidget {
   ConsumerState<HizmetMenusu> createState() => _HizmetMenusuState();
 }
 
-class _HizmetMenusuState extends ConsumerState<HizmetMenusu>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _dalga;
-
-  @override
-  void initState() {
-    super.initState();
-    _dalga = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 14),
-    )..repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _dalga.dispose();
-    super.dispose();
-  }
+// ⚠️⚠️ TURU 132 — **ANIMASYON CONTROLLER`I KALDIRILDI.** Zemin artik STATIK
+//	(`AiZemin`); sureklı `repeat` eden bir controller hicbir seyi
+//	besliyor olmadigi halde her karede tick uretiyordu.
+class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
 
   @override
   Widget build(BuildContext context) {
@@ -488,7 +474,6 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu>
         ).primaryTextTheme.apply(fontFamily: 'Google Sans'),
       ),
       child: AiZemin(
-        dalga: _dalga,
         // ⚠️⚠️⚠️ TURU 129 — **`Material` SARMALI ZORUNLU** (emulatorde
         //	goruldu: butun kart etiketleri — Eczane/Taksi/Sosyal/Yemek —
         //	zeminle KAYNASIP OKUNMAZ olmustu).
