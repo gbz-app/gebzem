@@ -976,7 +976,7 @@ class _KurPaneliState extends State<_KurPaneli> {
               ),
               const SizedBox(height: 20),
               // ── CEVRIM ──
-              _Cevrim(kalem: k),
+              _Cevrim(kalem: k, fiyat: _gosterilen),
             ],
           ),
         ),
@@ -998,9 +998,17 @@ class _KurPaneliState extends State<_KurPaneli> {
 /// ⚠️ Karsiliklar TEK FORMULDEN turetilir (`guncel * carpan * kat`): elle
 ///    yazilmis bir tablo, fiyat degistiginde geride kalirdi.
 class _Cevrim extends StatefulWidget {
-  const _Cevrim({required this.kalem});
+  const _Cevrim({required this.kalem, required this.fiyat});
 
   final _KurKalem kalem;
+
+  /// ⚠️⚠️ Cevrim, panelin **GOSTERDIGI** fiyattan hesaplanir — `kalem.guncel`
+  ///	DEGIL. Imlec kalici oldugu icin baslikta "34,12 ₺" yazarken tablo
+  ///	34,18`den hesaplayinca ayni ekranda IKI FARKLI kur duruyordu
+  ///	(emulatorde goruldu).
+  /// ⚠️ Kazanc: kullanici gecmis bir gune dokunup "o gun 100 dolar kac
+  ///    TL`ydi" gorebiliyor.
+  final double fiyat;
 
   @override
   State<_Cevrim> createState() => _CevrimState();
@@ -1110,7 +1118,7 @@ class _CevrimState extends State<_Cevrim> {
                       //    `Expanded` oldugu icin once BU metin yerini alir.
                       Flexible(
                         child: Text(
-                          _fiyat(k.guncel * birim.carpan * kat, k.simge),
+                          _fiyat(widget.fiyat * birim.carpan * kat, k.simge),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           textAlign: TextAlign.right,
