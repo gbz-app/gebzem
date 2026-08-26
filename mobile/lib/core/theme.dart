@@ -361,44 +361,70 @@ class AiZemin extends StatelessWidget {
   final Widget child;
 
   @override
-  Widget build(BuildContext context) => AnimatedBuilder(
-    animation: dalga,
-    child: child,
-    builder: (_, cocuk) {
-      final t = dalga.value;
-      return DecoratedBox(
-        decoration: const BoxDecoration(color: kAiZemin),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: RadialGradient(
-              center: Alignment(-0.55 + t * 0.18, 1.25),
-              radius: 1.15,
-              colors: [
-                kAiParlakMor.withValues(alpha: 0.55),
-                kAiParlakMor.withValues(alpha: 0.22),
-                Colors.transparent,
-              ],
-              stops: const [0.0, 0.45, 1.0],
-            ),
-          ),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: RadialGradient(
-                center: Alignment(0.6 - t * 0.18, 1.1),
-                radius: 0.95,
-                colors: [
-                  kAiKoyuMor.withValues(alpha: 0.6),
-                  kAiKoyuMor.withValues(alpha: 0.25),
-                  Colors.transparent,
-                ],
-                stops: const [0.0, 0.5, 1.0],
-              ),
-            ),
-            child: cocuk,
+  Widget build(BuildContext context) => Stack(
+    children: [
+      // ── ZEMIN (ANIMASYONLU) ──
+      // ⚠️⚠️⚠️ **ANR DUZELTMESI** (emulatorde OLCULDU: kare suresi
+      //	**100-365 ms**, olmasi gereken 16 ms; Android *"Gebzem isn't
+      //	responding"* diyalogu cikardi — turu 120 ANR`inin AYNI SINIFI).
+      //
+      //	ESKI HAL: gradyan katmanlari icerigin EBEVEYNIYDI. `child:`
+      //	kullanildigi icin icerik yeniden INSA edilmiyordu ama ebeveyn
+      //	her karede yeniden BOYANDIGI icin **ALTINDAKI TUM AGAC da
+      //	yeniden boyaniyordu**: onlarca kart, gorseller, serit — hepsi,
+      //	saniyede 60 kez.
+      //
+      // ⚠️⚠️ COZUM IKI PARCALI:
+      //	1. Gradyan artik icerigin EBEVEYNI DEGIL, ARKASINDAKI KARDESI
+      //	   (`Positioned.fill`) — boyama zinciri KOPTU.
+      //	2. Icerik `RepaintBoundary` ile AYRI KATMANA alindi: zemin
+      //	   yeniden boyanirken icerik KENDI onbelleginden gelir.
+      // ⚠️ YAPMA: gradyani tekrar icerigin ebeveyni yapma.
+      // ⚠️ YAPMA: `RepaintBoundary`yi kaldirma.
+      Positioned.fill(
+        child: RepaintBoundary(
+          child: AnimatedBuilder(
+            animation: dalga,
+            builder: (_, _) {
+              final t = dalga.value;
+              return DecoratedBox(
+                decoration: const BoxDecoration(color: kAiZemin),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: RadialGradient(
+                      center: Alignment(-0.55 + t * 0.18, 1.25),
+                      radius: 1.15,
+                      colors: [
+                        kAiParlakMor.withValues(alpha: 0.55),
+                        kAiParlakMor.withValues(alpha: 0.22),
+                        Colors.transparent,
+                      ],
+                      stops: const [0.0, 0.45, 1.0],
+                    ),
+                  ),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: RadialGradient(
+                        center: Alignment(0.6 - t * 0.18, 1.1),
+                        radius: 0.95,
+                        colors: [
+                          kAiKoyuMor.withValues(alpha: 0.6),
+                          kAiKoyuMor.withValues(alpha: 0.25),
+                          Colors.transparent,
+                        ],
+                        stops: const [0.0, 0.5, 1.0],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
           ),
         ),
-      );
-    },
+      ),
+      // ── ICERIK (AYRI KATMAN) ──
+      RepaintBoundary(child: child),
+    ],
   );
 }
 

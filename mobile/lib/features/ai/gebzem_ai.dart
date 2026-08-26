@@ -10,7 +10,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/api.dart';
-import '../../core/theme.dart' show morLogo, kAiParlakMor, kAiKoyuMor;
+import '../../core/theme.dart' show morLogo, AiZemin;
 import '../home/home_screen.dart' show myProfileProvider;
 import '../../router.dart' show rootMessengerKey;
 import '../isletme/isletme_kart.dart' show kYanBosluk, kYaricap;
@@ -380,45 +380,9 @@ class _GebzemAiEkraniState extends ConsumerState<GebzemAiEkrani>
         // ⚠️⚠️ `cocuk` PARAMETRESI ZORUNLU: agac `builder` govdesinde
         //	kurulsaydi Scaffold ve TUM ekran HER KAREDE yeniden insa
         //	edilirdi (turu 120 ANR dersi: 500 ms/kare).
-        child: AnimatedBuilder(
-          animation: _dalga,
-          builder: (_, cocuk) {
-            final t = _dalga.value;
-            return DecoratedBox(
-              decoration: const BoxDecoration(color: _kAiZeminUst),
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: RadialGradient(
-                    center: Alignment(-0.55 + t * 0.18, 1.25),
-                    radius: 1.15,
-                    colors: [
-                      kAiParlakMor.withValues(alpha: 0.55),
-                      kAiParlakMor.withValues(alpha: 0.22),
-                      Colors.transparent,
-                    ],
-                    // ⚠️ Ara durak (0.45) sonumu YAVASLATIR; iki duraklı
-                    //    radyalde gecis hala fark ediliyordu.
-                    stops: const [0.0, 0.45, 1.0],
-                  ),
-                ),
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: RadialGradient(
-                      center: Alignment(0.6 - t * 0.18, 1.1),
-                      radius: 0.95,
-                      colors: [
-                        kAiKoyuMor.withValues(alpha: 0.6),
-                        kAiKoyuMor.withValues(alpha: 0.25),
-                        Colors.transparent,
-                      ],
-                      stops: const [0.0, 0.5, 1.0],
-                    ),
-                  ),
-                  child: cocuk,
-                ),
-              ),
-            );
-          },
+        // TURU 132 - ZEMIN ARTIK AiZemin (TEK KAYNAK). Gerekce asagida.
+        child: AiZemin(
+          dalga: _dalga,
           child: Scaffold(
             backgroundColor: Colors.transparent,
             appBar: AppBar(
