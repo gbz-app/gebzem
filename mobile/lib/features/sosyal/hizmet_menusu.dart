@@ -15,6 +15,7 @@ import '../isletme/kategori_slider.dart';
 import '../medya/medya_gorsel.dart' show Avatar;
 import 'kesfet_ekrani.dart';
 import 'skor_detay.dart';
+import 'kur_serit.dart';
 import '../../core/theme.dart' show morLogo, kAiZemin, AiZemin, kAiKartYuzey;
 import '../home/home_screen.dart' show myProfileProvider;
 import 'package:permission_handler/permission_handler.dart';
@@ -590,6 +591,17 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu>
                     ikon: LucideIcons.landmark,
                   ),
                 ]),
+                // ⚠️⚠️⚠️ TURU 132 — **KUR SERIDI** (kullanici emri:
+                //	*"Yakinimda'nin altina dolar euro altin ve bitcoin
+                //	ekle"*). Dolara dokununca alttan grafikli panel acilir.
+                // ⚠️⚠️ **VERI UYDURMA** — `kur_serit.dart` dosya serhine BAK.
+                //	Para soz konusu oldugu icin hem seritte hem panelde
+                //	kullaniciya ACIKCA soyleniyor; `kKurOnizleme` yayindan
+                //	once `false` YAPILMALI.
+                if (kKurOnizleme) ...[
+                  const SizedBox(height: 10),
+                  const KurSeridi(),
+                ],
                 const SizedBox(height: 18),
                 if (hizliTumu.isNotEmpty) ...[
                   // ⚠️⚠️⚠️ TURU 128 — **"HIZLI ERİŞİM" -> "ŞEHİR REHBERİ"**

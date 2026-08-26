@@ -40,6 +40,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+import 'yakinimda_arama.dart';
 
 // ⚠️ TURU 88 — YenileSarmali ARTIK KULLANILMIYOR: ekran dikey kaydirilmiyor
 //    (harita %70 + yatay kart seridi), asagi-cek jesti YOK. Yenileme
@@ -469,114 +472,293 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
           // ⚠️ SIRA: cipler alt sayfanin ALTINDA cizilir ki sayfa yukari
           //    cekilince ciplerin USTUNU ortsun (Yandex/Google deseni).
           _yuzenCipler(),
-          _altSayfa(),
+          _altPanel(),
         ],
       ),
     );
   }
 
-  /// ⚠️⚠️⚠️ TURU 115 — **ALT SAYFA** (Yandex Navigator duzeni).
+  /// ⚠️⚠️⚠️ TURU 132 — **ALT PANEL YENIDEN KURULDU** (kullanici emri).
   ///
-  /// Kapali halde: tutamac + arama kutusu + kategori cipleri (Yemek ·
-  /// Benzin · ATM ...). Yukari cekilince: **Kategoriler / Yakınımdakiler**
-  /// sekmeleri; Kategoriler 4 sutunlu izgara, digeri suzulmus liste.
+  ///	*"tumu yemek bunlar mekan ve adres aramanin altinda olacak, onun
+  ///	altinda hafif ince cizgi otobus tren taksi uber kartlari olsun,
+  ///	alttaki seyi yukari kaldirip cekme olmayacak"*
   ///
-  /// ⚠️⚠️ `DraggableScrollableSheet` KULLANILDI, `showModalBottomSheet` DEGIL:
-  ///	modal sheet haritayi PERDE ile kapatir ve kullanici haritayi
-  ///	kaydiramaz. Yandex'te harita her an canlidir.
-  /// ⚠️ `snap` + uc durak (0.28 · 0.55 · 0.92): serbest surukleme yerine
-  ///    yaslanma — parmak birakinca ara bir yukseklikte kalmaz.
-  /// ⚠️ Ic liste `controller`i ALMAK ZORUNDA: aksi halde sayfa yukari
-  ///    cekilmis haldeyken ic kaydirma sayfayi kapatir (klasik tuzak).
-  Widget _altSayfa() => DraggableScrollableSheet(
-    initialChildSize: 0.28,
-    minChildSize: 0.16,
-    maxChildSize: 0.92,
-    snap: true,
-    snapSizes: const [0.28, 0.55, 0.92],
-    builder: (context, kaydirma) {
-      final tema = Theme.of(context);
-      return DecoratedBox(
+  ///	DUZEN (yukaridan asagi):
+  ///	  · arama kutusu  -> dokununca POPUP acar (liste sayfada DEGIL)
+  ///	  · kategori cipleri (Tümü · Yemek · Oto ...) — sol/sag kaydirma
+  ///	  · ince ayrac cizgisi
+  ///	  · ulasim kartlari (Otobüs · Tren · Taksi · Uber)
+  ///
+  /// ⚠️⚠️ **`DraggableScrollableSheet` KALDIRILDI** (kullanici: *"yukari
+  ///	kaldirip cekme olmayacak"*). Panel artik SABIT yukseklikte ve
+  ///	ekranin dibine oturur.
+  ///	⚠️ Bunun bedeli: panel icine UZUN bir liste konamaz — zaten
+  ///	  konmuyor, arama sonuclari POPUP`ta gosteriliyor.
+  ///
+  /// ⚠️ Yukseklik SABIT dp DEGIL, yazi olceginden TURETILIR: olcek
+  ///    1.3/2.0`da sabit bir sayi icerigi KIRPARDI.
+  /// ⚠️ Alt guvenli alan (`MediaQuery.paddingOf.bottom`) EKLENIR: jest
+  ///    cubugu olan cihazlarda ulasim kartlari cubugun ALTINDA kalirdi.
+  double _panelBoy(BuildContext context) {
+    final o = MediaQuery.textScalerOf(context);
+    final alt = MediaQuery.paddingOf(context).bottom;
+    // arama(48) + 10 + cip(40) + 12 + ayrac(1) + 12 + ulasim + 12
+    final ulasim = o.scale(11.5) * 1.2 + 34 + 14;
+    return 48 + 10 + 40 + 12 + 1 + 12 + ulasim + 12 + alt;
+  }
+
+  Widget _altPanel() {
+    final tema = Theme.of(context);
+    final alt = MediaQuery.paddingOf(context).bottom;
+    return Positioned(
+      left: 0,
+      right: 0,
+      bottom: 0,
+      child: DecoratedBox(
         decoration: BoxDecoration(
           color: tema.scaffoldBackgroundColor,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(20),
+          ),
           boxShadow: const [
             BoxShadow(blurRadius: 18, color: Color(0x33000000)),
           ],
         ),
-        child: ListView(
-          controller: kaydirma,
-          padding: EdgeInsets.zero,
-          children: [
-            // ---- TUTAMAC
-            Center(
-              child: Container(
-                width: 38,
-                height: 4,
-                margin: const EdgeInsets.only(top: 8, bottom: 10),
-                decoration: BoxDecoration(
-                  color: tema.colorScheme.onSurface.withValues(alpha: 0.22),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            // ⚠️⚠️ TURU 125 — **CIPLER ALT SAYFADAN CIKARILDI** (kullanici
-            //	emri: *"arama üste olacak, filtrelemeler KARTIN ÜZERİNDE
-            //	olacak, kartın İÇİNDE değil, 10px üzerinde"*).
-            //	Artik `_yuzenCipler()` haritanin uzerinde, alt sayfanin
-            //	10 dp USTUNDE yuzuyor; burada YALNIZ arama var.
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: kYanBosluk),
-              child: _aramaKutusu(),
-            ),
-            // TURU 124 — HATA SATIRI. Alt liste kaldirilinca hatayi gosteren
-            // tek yer de gitmisti: konum reddedilirse harita bos kaliyor ve
-            // kullanici SEBEBINI hicbir yerde goremiyordu.
-            if (_hata != null)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(kYanBosluk, 12, kYanBosluk, 0),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        _hata!,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Theme.of(context)
-                              .colorScheme
-                              .onSurface
-                              .withValues(alpha: 0.62),
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(0, 12, 0, 12 + alt),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // ⚠️⚠️ TURU 124/132 — **HATA SATIRI PANELDE KALMAK ZORUNDA.**
+              //	Konum reddedilirse harita BOS kalir ve kullanici sebebini
+              //	baska hicbir yerde GOREMEZ. Turu 124'te alt liste
+              //	kaldirilinca bu satir da gitmisti ve ayni hata yasanmisti.
+              // ⚠️ YAPMA: bu blogu kaldirma.
+              if (_hata != null) ...[
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(kYanBosluk, 0, 8, 0),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          _hata!,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: tema.colorScheme.onSurface.withValues(
+                              alpha: 0.62,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                    TextButton(
-                      onPressed: () => _yukle(konumuTazele: true),
-                      child: const Text('Tekrar dene'),
-                    ),
-                  ],
+                      TextButton(
+                        onPressed: () => _yukle(konumuTazele: true),
+                        child: const Text('Tekrar dene'),
+                      ),
+                    ],
+                  ),
                 ),
+                const SizedBox(height: 6),
+              ],
+              // ── ARAMA (dokununca POPUP) ──
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: kYanBosluk,
+                ),
+                child: _aramaKutusu(),
               ),
-            // ⚠️⚠️ TURU 124 — **KATEGORI IZGARASI ve "Yakınımdakiler"
-            //	LISTESI KALDIRILDI** (kullanici emri: *"yakınımdaki
-            //	kategorileri ve yakınımdakiler alanını kaldır"*).
-            //	Ekranin isi HARITA; alt sayfa yalniz arama + suzgec.
-            //	Kategoriye gore gezinme ZATEN hamburger menude.
-            // ⚠️ TURU 125 — alttaki bosluk 24 -> 8 (kullanici: *"alttan
-            //    boşluk fazla"*). Alt sayfa zaten ekranin dibine oturuyor.
-            const SizedBox(height: 8),
-          ],
+              const SizedBox(height: 10),
+              // ── KATEGORILER ──
+              _hizliCipler(),
+              const SizedBox(height: 12),
+              // ── INCE AYRAC ──
+              // ⚠️ Kullanici emri: *"onun altinda hafif ince cizgi"*.
+              Divider(
+                height: 1,
+                thickness: 1,
+                color: tema.colorScheme.onSurface.withValues(alpha: 0.08),
+              ),
+              const SizedBox(height: 12),
+              // ── ULASIM ──
+              _ulasimKartlari(),
+            ],
+          ),
         ),
-      );
-    },
-  );
+      ),
+    );
+  }
 
+  /// ⚠️⚠️⚠️ **ULASIM KARTLARI** (kullanici emri: *"otobus tren taksi uber
+  ///	kartlari olsun"*).
+  ///
+  /// ⚠️⚠️ **DURUST SINIR — TOPLU TASIMA VERISI YOK.** Projede otobus hatti,
+  ///	sefer saati ya da tren tarifesi HICBIR YERDE tutulmuyor (resmi
+  ///	kaynak + ayri entegrasyon ister; CLAUDE.md turu 96t`de bilerek
+  ///	kapsam disi birakildi).
+  ///	· Otobüs / Tren -> veri YOK; karta dokununca DURUSTCE soylenir.
+  ///	· Taksi -> kayitli `hizmet` isletmelerini haritada gosterir
+  ///	  (arama kisayolu; turu 124 deseni).
+  ///	· Uber  -> cihazdaki UYGULAMAYI/siteyi acar (bizim verimiz degil).
+  /// ⚠️ YAPMA: bu kartlara gomulu/sahte sefer listesi yazma.
+  /// ⚠️⚠️⚠️ TURU 132 — **ARAMA PANELI** (kullanici emri: *"mekan ve adres
+  ///	araya tikladiginda popup acilacak, orada kartlar olacak"*).
+  ///
+  ///	Panelde: gercek arama alani + sonuc KARTLARI (isletme adi, mesafe,
+  ///	kategori). Sonuc secilince harita O ISLETMEYE odaklanir.
+  ///
+  /// ⚠️⚠️ `isScrollControlled` + `SingleChildScrollView` yerine BURADA
+  ///	**`DraggableScrollableSheet`** kullanildi: sonuc listesi UZUN
+  ///	olabilir ve sabit tavanli bir panel onu kirpardi.
+  /// ⚠️ `viewInsets.bottom` EKLENIR: klavye acilinca liste onun ALTINDA
+  ///    kalmasin (`useSafeArea` klavyeyi OLCMEZ).
+  /// ⚠️ Panel kapaninda arama metni KORUNUR — kullanici ne aradigini
+  ///    haritada da gorur.
+  Future<void> _aramaPaneliAc() async {
+    // ⚠️ Odak: kutu `readOnly`, klavye panelde acilir.
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (c) => AramaPaneli(
+        baslangic: _q,
+        liste: _liste,
+        onSec: (i) {
+          Navigator.of(c).pop();
+          // ⚠️ Ayni yol harita ignesiyle AYNI (`acildi`): iki ayri
+          //    acma yolu kacinilmaz olarak drift ederdi.
+          Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => ProfilSayfasi(userId: i.id),
+            ),
+          );
+        },
+        onDegis: (v) => setState(() => _q = v.trim()),
+      ),
+    );
+    // ⚠️ Panel kapaninca kutu metni guncellenir (panel kendi denetleyicisini
+    //    kullanir; iki denetleyici tutmak DRIFT uretirdi).
+    if (mounted) _arama.text = _q;
+  }
+
+  Widget _ulasimKartlari() {
+    final onRenk = Theme.of(context).colorScheme.onSurface;
+    Widget kart(IconData ikon, String ad, Color renk, VoidCallback bas) =>
+        Expanded(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: bas,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: renk.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(11),
+                  ),
+                  child: Icon(ikon, size: 17, color: renk),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  ad,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    height: 1.2,
+                    fontWeight: FontWeight.w600,
+                    color: onRenk.withValues(alpha: 0.8),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+    void veriYok(String ne) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(content: Text('$ne sefer bilgisi henüz bağlı değil')),
+        );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: kYanBosluk),
+      child: Row(
+        children: [
+          kart(
+            LucideIcons.busFront,
+            'Otobüs',
+            const Color(0xFF3AA9FF),
+            () => veriYok('Otobüs'),
+          ),
+          kart(
+            LucideIcons.trainFront,
+            'Tren',
+            const Color(0xFF8B3FFF),
+            () => veriYok('Tren'),
+          ),
+          // ⚠️ Taksi GERCEK bir sey yapar: kayitli `hizmet` isletmelerini
+          //    haritada gosterir (turu 124 deseni).
+          kart(
+            LucideIcons.carTaxiFront,
+            'Taksi',
+            const Color(0xFFFFC531),
+            () => _kategoriSec('hizmet'),
+          ),
+          kart(
+            LucideIcons.car,
+            'Uber',
+            const Color(0xFF2BB673),
+            _uberAc,
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// ⚠️ Uber BIZIM verimiz degil: cihazdaki uygulama varsa o, yoksa site.
+  /// ⚠️ `mode` ONEMLI: `externalApplication` uygulamayi tercih eder;
+  ///    varsayilan mod iOS`ta uygulama ici tarayicida acardi.
+  /// ⚠️ Acilamazsa SESSIZ KALINMAZ — kullaniciya soylenir.
+  Future<void> _uberAc() async {
+    final adres = Uri.parse('https://m.uber.com/');
+    var oldu = false;
+    try {
+      oldu = await launchUrl(adres, mode: LaunchMode.externalApplication);
+    } catch (_) {
+      oldu = false;
+    }
+    if (!oldu && mounted) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(content: Text('Uber açılamadı')),
+        );
+    }
+  }
   /// ⚠️ `suffixIcon`e KALAN GENISLIGIN TAMAMI verilir (turu 96o tuzagi):
   ///    genislik ACIKCA verilmezse X inputun ORTASINDA cikar ve metne yer
   ///    kalmaz.
+  /// ⚠️⚠️⚠️ TURU 132 — **ARAMA KUTUSU ARTIK POPUP ACIYOR** (kullanici
+  ///	emri: *"mekan ve adres araya tikladiginda popup acilacak, orada
+  ///	kartlar olacak"*).
+  ///
+  /// ⚠️⚠️ Kutu `readOnly` + `AbsorbPointer` DEGIL, `onTap` ile: alan
+  ///	odaklanmadan panel acilir, klavye ALT PANELDE acilmaz (panel
+  ///	sabit yukseklikte ve klavye onu EZERDI).
+  /// ⚠️ Metin yine gorunur (secilen arama kutuda kalir) — kullanici ne
+  ///    aradigini panel kapandiktan sonra da GORUR.
   Widget _aramaKutusu() => SizedBox(
     height: 48,
     child: TextField(
       controller: _arama,
+      readOnly: true,
+      onTap: _aramaPaneliAc,
       textInputAction: TextInputAction.search,
       onChanged: (v) => setState(() => _q = v.trim()),
       decoration: InputDecoration(
@@ -730,7 +912,8 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
         children: [
           d(LucideIcons.arrowLeft, 'Geri', () => Navigator.of(context).pop()),
           d(
-            LucideIcons.locateFixed,
+            // ⚠️ TURU 132 — `locateFixed` -> `navigation` (kullanici emri).
+            LucideIcons.navigation,
             'Konumuma dön',
             // ⚠️ Konum TAZELENIR (`konumuTazele: true`): kullanici baska
             //    semte gecmis olabilir ve eski koordinatla ayni listeyi
@@ -838,20 +1021,27 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
         _ => LucideIcons.store,
       };
 
+  /// ⚠️⚠️⚠️ TURU 132 — **FILTRE SERIDI PANELIN 10 dp USTUNDE YUZER**
+  ///	(kullanici emri: *"yemek dedigimde o alttaki kartin 10 px
+  ///	ustunde sol sag scroll filtreleme olacak — alttaki buyuk alanin
+  ///	ICINDE DEGIL, 10 px yukari"*).
+  ///
+  /// ⚠️⚠️ Kategori CIPLERI buradan CIKARILDI: onlar artik panelin
+  ///	ICINDE, aramanin altinda (ayni kullanici emri). Burada YALNIZ
+  ///	suzgecler var.
+  /// ⚠️ Yukseklik `_panelBoy` ile AYNI KAYNAKTAN gelir; panel yuksekligi
+  ///    degisirse serit kendiliginde onunla birlikte kayar. Sabit bir
+  ///    sayi yazilsaydi ikisi AYRISIR ve serit panelin altinda kalirdi.
+  /// ⚠️⚠️ **KATEGORI SECILI DEGILKEN CIZILMEZ**: "Tümü"de suzgec sunmak
+  ///	haritanin ustunu bosuna kaplardi ve kullanici emri de
+  ///	*"yemek dedigimde"* diyor.
   Widget _yuzenCipler() {
-    final ekran = MediaQuery.sizeOf(context).height;
+    if (_kategori.isEmpty) return const SizedBox.shrink();
     return Positioned(
       left: 0,
       right: 0,
-      bottom: ekran * 0.28 + 10,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _hizliCipler(),
-          const SizedBox(height: 6),
-          _filtreSatiri(),
-        ],
-      ),
+      bottom: _panelBoy(context) + 10,
+      child: _filtreSatiri(),
     );
   }
 }
