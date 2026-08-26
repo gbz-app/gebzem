@@ -70,6 +70,15 @@ import '../isletme/isletme_kart.dart' show kYanBosluk, kYaricap;
 /// ⚠️ Kod SILINMEDI, bayrakla kapatiliyor (CLAUDE.md kurali): bayrak
 ///    `false` olunca gercek davranis AYNEN geri gelir.
 const kYakinOnizleme = true;
+
+/// ⚠️⚠️ TURU 134 — YAKINIMDA kartinda **ad ile mesafe arasindaki bosluk**
+///	(kullanici emri: *"400m isim arasindaki boslugu biraz arttir"*).
+///
+/// ⚠️ **TEK KAYNAK OLMAK ZORUNDA:** bu sayi hem kartta (`SizedBox`) hem
+///	seridin YUKSEKLIK BUTCESINDE kullaniliyor. Ikisi ayrisirsa kart
+///	butceden uzun olur ve yazi olcegi 1.3`te serit TASAR (turu 129`da
+///	birebir bu yasandi, muhafiz 2.7 px olctu).
+const kYakinAdAra = 3.0;
 const kSkorOnizleme = true;
 
 final _menuSlaytProvider = FutureProvider<List<Slayt>>((ref) async {
@@ -535,14 +544,17 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
                 // ⚠️ YAPMA: bu kartlara gomulu/sahte liste yazma.
                 // ⚠️ YAPMA: "Nöbetçi Eczane" yazip eczane listesi acma —
                 //    nobet verisi YOK, kullanici kapali eczaneye giderdi.
-                // ⚠️⚠️ TURU 132 — onizleme acikken basliga **ORNEK** eki
-                //	(denetim buldu): kartlar uydurma isletme adi ve mesafe
-                //	yaziyor, dokununca da o isletmenin OLMADIGI gercek
-                //	listeye gidiyordu. Kullanici "400 m'de eczane var"
-                //	sanip yola cikabilirdi.
-                _bolumBasligi(
-                  kYakinOnizleme ? 'YAKINIMDA · ÖRNEK' : 'YAKINIMDA',
-                ),
+                // ⚠️⚠️⚠️ TURU 134 — **"· ÖRNEK" EKI KALDIRILDI** (kullanici
+                //	emri: *"YAKINIMDA yanindaki ornegi sil"*).
+                //
+                //	Turu 132 denetimi bu eki, kartlar uydurma isletme adi
+                //	ve mesafe yazdigi icin koymustu. Kullanici gordu ve
+                //	KALDIRILMASINI istedi — karar ONUN.
+                // ⚠️⚠️ **UYARI YAPISAL OLARAK KAYBOLMADI:** `kYakinOnizleme`
+                //	bayragi DURUYOR ve yayindan once `false` YAPILACAK.
+                //	Ekranda ibare yokken bayragi ACIK birakmak, kullaniciya
+                //	uydurma veriyi UYARISIZ gostermek demektir.
+                _bolumBasligi('YAKINIMDA'),
                 const SizedBox(height: 10),
                 _yakinSerit(context, ref, [
                   _Bolum(
@@ -590,7 +602,13 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
                 //	Para soz konusu oldugu icin hem seritte hem panelde
                 //	kullaniciya ACIKCA soyleniyor; `kKurOnizleme` yayindan
                 //	once `false` YAPILMALI.
+                // ⚠️⚠️ TURU 134 — serit artik **BASLIKLI** (kullanici emri:
+                //	*"doviz kartlarina baslik at"*). Yanindaki iki serit
+                //	(YAKINIMDA · ŞEHİR REHBERİ) baslikliydi; basliksiz kur
+                //	seridi YAKINIMDA'nin devami gibi okunuyordu.
                 if (kKurOnizleme) ...[
+                  const SizedBox(height: 18),
+                  _bolumBasligi('PİYASA'),
                   const SizedBox(height: 10),
                   const KurSeridi(),
                 ],
@@ -1080,8 +1098,13 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
     //    (turu 121 dersi).
     // ⚠️ YAPMA: `Text`lerden `height`i kaldirma; kaldirirsan bu hesap
     //    yeniden TAHMINE doner ve tasma geri gelir.
+    // ⚠️⚠️ TURU 134 — ad ile mesafe arasina **`kAdAra` (3 dp)** kondu
+    //	(kullanici emri: *"400m isim arasindaki boslugu biraz arttir, cok
+    //	yakinlar"*). Butce AYNI sabittan besleniyor — kartta 3, hesapta 0
+    //	yazilsaydi olcek 1.3`te tekrar TASARDI.
     const kSatir = 1.2;
-    final yazi = olcek.scale(14.5) * kSatir + olcek.scale(12.5) * kSatir;
+    final yazi =
+        olcek.scale(14.5) * kSatir + kYakinAdAra + olcek.scale(12.5) * kSatir;
     final boy = (yazi > 34 ? yazi : 34.0) + 22.0;
     return SizedBox(
       height: boy,
@@ -1163,11 +1186,14 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
         onTap: () => _ac(context, b),
         behavior: HitTestBehavior.opaque,
         child: Container(
+          // ⚠️ TURU 134 — kullanici *"kartlarin genisligini biraz azalt"*
+          //    dedi: bolen 2.1 -> 2.25 (bolen buyudukce kart DARALIR ve
+          //    sarkan ucuncu kart daha cok gorunur).
           width:
               (MediaQuery.sizeOf(context).width -
                   kYanBosluk * 2 -
                   kIzgaraAralik * 2) /
-              2.1,
+              2.25,
           padding: const EdgeInsets.fromLTRB(11, 10, 11, 10),
           decoration: BoxDecoration(
             // ⚠️ TURU 129 — yuzey artik GebzemAI`daki kendi mesaj
@@ -1184,10 +1210,20 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
                   height: 34,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: vurgu.withValues(alpha: 0.14),
+                    // ⚠️⚠️ TURU 134 — kutu artik **KART YUZEYINDEN BIR TIK
+                    //	KOYU** (kullanici emri). Eskiden kartin kendi
+                    //	vurgu rengiydi (%14) ve kart yuzeyinden DAHA ACIK
+                    //	kaliyordu — kutu "cukur" degil "tumsek" gibi
+                    //	duruyordu.
+                    // ⚠️ Koyulastirma SIYAH opaklikla yapilir; mor uzerine
+                    //    mor koymak onu ACARDI. Tek kaynak: `kIkonKutusu`.
+                    color: kIkonKutusu(context),
                     borderRadius: BorderRadius.circular(11),
                   ),
-                  child: Icon(b.ikon, size: 18, color: vurgu),
+                  // ⚠️ TURU 134 — kullanici *"ikonlar kalin"* dedi. Lucide
+                  //    bir FONT`tur, `strokeWidth` YOKTUR; kalinlik dort
+                  //    golgeyle simule edilir (`KalinIkon`, turu 93).
+                  child: KalinIkon(ikon: b.ikon!, boy: 18, renk: vurgu),
                 ),
                 const SizedBox(width: 9),
               ],
@@ -1212,6 +1248,9 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
                         fontWeight: FontWeight.w700,
                       ),
                     ),
+                    // ⚠️ TURU 134 — ad ile mesafe arasi (kullanici emri).
+                    //    Ayni sabit `_yakinSerit` butcesinde de var.
+                    const SizedBox(height: kYakinAdAra),
                     // ⚠️ Mesafe YOKSA satir HIC cizilmez ama kart yuksekligi
                     //    DEGISMEZ (serit disarida sabit yukseklikte) — veri
                     //    gelince kartlar ZIPLAMAZ.
