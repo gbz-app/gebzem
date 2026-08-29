@@ -1746,14 +1746,34 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
     //    boyu yazi tipinin ascent/descent metriklerine baglidir, carpimla
     //    birebir tutmaz. `layout()` sonrasi `height` ise `Text` widget'inin
     //    uretecegi DEGERIN TA KENDISIDIR (ayni painter).
+    // ⚠️⚠️⚠️ TURU 135 — **OLCUM STILI YAZI TIPINI DE TASIMALI** (emulatorde
+    //	goruldu: 360 dp + yazi olcegi 1.3 -> *"BOTTOM OVERFLOWED BY 20
+    //	PIXELS"*, yani TAM BIR SATIR).
+    //
+    //	Kok neden: olcum stili CIPLAK bir `TextStyle` idi ve `fontFamily`
+    //	TASIMIYORDU -> `TextPainter` platform varsayilanina (Roboto) duser.
+    //	Cizilen `Text` ise temadan **Google Sans** aliyor (tema `fontFamily`yi
+    //	TEK YERDE veriyor, bkz. `core/theme.dart`). Google Sans ayni puntoda
+    //	DAHA GENIS: "Lahmacun" Roboto'da tek satira sigiyor, Google Sans'ta
+    //	IKI satira sariyor -> olculen yukseklik bir satir EKSIK cikiyordu.
+    //	⚠️ Olcek 1.0'da gorunmuyordu (ad zaten tek satir); ilk kademelerde
+    //	   cikiyordu — turu 121'in *"uygulamanin fontu Roboto DEGIL"*
+    //	   dersinin AYNISI, bu kez olcum tarafinda.
+    //
+    // ⚠️ FIX **TEK KAYNAK**: `Text`in yaptigi seyin AYNISI yapilir —
+    //    ortamdaki `DefaultTextStyle` uzerine ayni farklar `merge` edilir.
+    //    Buraya elle `fontFamily: 'Google Sans'` YAZILMAZ: tema ailesi
+    //    degisirse olcum yine geride kalirdi.
+    // ⚠️ Kalinlik BILEREK w700 (cizim w600): kalin yazi DAHA GENIS, yani
+    //    olcum DAIMA guvenli tarafta kalir (bkz. yukaridaki serh).
+    final olcumStili = DefaultTextStyle.of(context).style.merge(
+          const TextStyle(
+              fontSize: 13, height: 1.15, fontWeight: FontWeight.w700),
+        );
     var enYuksek = 0.0;
     for (final a in _altKategoriler) {
       final tp = TextPainter(
-        text: TextSpan(
-          text: a.ad,
-          style: const TextStyle(
-              fontSize: 13, height: 1.15, fontWeight: FontWeight.w700),
-        ),
+        text: TextSpan(text: a.ad, style: olcumStili),
         textDirection: TextDirection.ltr,
         textScaler: olcek,
         maxLines: 2,
