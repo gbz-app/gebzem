@@ -8051,3 +8051,45 @@ yükseklik, orada kartların aynı cafe restoran vs olsun"*
   kaldırılanlar (Mekân ve adres ara · İşletmen mi var?) YOK
 - analyze 0/0 · test 52/52 · **backend değişmedi**
 - ⚠️ APK alınmadı — R2'deki apk 21 Ağustos sürümünde
+
+---
+
+## Oturum — 29 Ağustos 2026 (turu 138): HARİTA PANELİ SİYAH · İKONLU PİN · ZOOM
+
+**Kullanıcının emri (iki mesaj, 13 madde):** alt panelin arka planı siyah ·
+kategori border kaldır · ikonların arkasına raduslu daire (anasayfadaki
+kategori kart rengi) · yazıları 1px büyüt · filtreleri kaldır, Tümü'nün
+soluna koy · Tümü'yü de kaldır · popup kaldır, yerine %50 filtre paneli
+(yemekteki gibi) · alttaki kartları modernleştir ve genişlet · navigatorün
+altına harita için + ve − · pinlerde beyazlığı 1 tık incelt · gölgeyi kaldır ·
+renkler daha açık modern · pinin içine ikon koy.
+
+### Yapıldı (oldu)
+- Panel zemini **siyah** (`kAiZemin`), koyu tema + `Material` sarmalı.
+- Çipler: **kenarlık yok**, ikon raduslu daire içinde (`kAiKartYuzey`),
+  yazı **13 → 14**; seçili hâl kalınlık + vurgu rengiyle.
+- **"Tümü" ve %95 kategori popupu kaldırıldı**; seçili çipe tekrar dokunmak
+  kategoriyi bırakıyor (toggle).
+- **Yüzen süzgeç şeridi kaldırıldı**; şeridin başında **Filtre** düğmesi ve
+  **%50 yükseklikte filtre paneli** (Mesafe · Puan · Diğer + Listele/Temizle).
+- Kartlar **230 dp** genişlik, kapak **112 dp**.
+- Haritaya **+ / − zoom düğmeleri** (üst barın altında).
+- Pin: halka **3 → 2 dp**, **gölge kaldırıldı**, çap 26, iç renk marka
+  morunun açık varyantı, **içine kategori ikonu**.
+
+### Denendi / öğrenildi (olmadı → düzeltildi)
+- ⚠️⚠️ **`Builder` tek başına yetmedi** (turu 136 dersinin devamı): panel
+  çizerleri `context`i State'ten okuyordu ve koyu temayı hiç görmüyordu →
+  **siyah zeminde koyu gri yazı**. Altı metoda `BuildContext c` eklendi.
+- ⚠️⚠️ **`Container` `alignment` verilince en büyük boyutu alır** → filtre
+  çipleri tam genişlik kaplayıp alt alta diziliyordu. `alignment` kaldırılıp
+  `Row(mainAxisSize.min)` konuldu.
+- ⚠️⚠️⚠️ **SÜREÇ HATASI:** `_filtreSatiri`yi silen betik, şerh sınırlarını
+  yanlış bulup aradaki `_ustDugmeler` · `_kategoriSec` · `_kategoriIkonu` ·
+  `_cip` metotlarını da götürdü (turu 127'de birebir aynısı yaşanmıştı).
+  `flutter analyze` yakaladı; metotlar git HEAD'den geri kondu, oluşan iki
+  kopya tanım ayrı adımda temizlendi.
+  **DERS: bir metodu silerken sınırları şerh işaretiyle değil, ÖNCE ve
+  SONRAKİ ÜYE ADIYLA doğrula.**
+- Pin ikonu `TextPainter` ile çiziliyor; `fontFamily` **ve** `fontPackage`
+  birlikte verilmezse "tofu" (boş kare) çizilir.
