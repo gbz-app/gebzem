@@ -8093,3 +8093,14 @@ renkler daha açık modern · pinin içine ikon koy.
   SONRAKİ ÜYE ADIYLA doğrula.**
 - Pin ikonu `TextPainter` ile çiziliyor; `fontFamily` **ve** `fontPackage`
   birlikte verilmezse "tofu" (boş kare) çizilir.
+
+### Devir notu (turu 138)
+- Yayınlandı: ios **33273957218** · commit **032e567d** · **sadece iOS**
+- Adres: **https://indir.gebzem.app/index.html?v=20260829-2348**
+- CDN üçü de birebir (ipa 4298835f · index 6110f929 · surum 1eee2ac9)
+- iOS min 16.0 · MapsApiKey enjekte · IPA'da turu 138 dizeleri VAR
+  (Filtre · Mesafe · 10 km içinde · Listele · Yakınlaştır · Uzaklaştır),
+  "Mekân ve adres ara" YOK
+- analyze 0/0 · test 52/52 · **backend değişmedi**
+- ⚠️ APK alınmadı — R2'deki apk 21 Ağustos sürümünde
+- ⏳ Pin görünümü emülatörde doğrulanamadı (Maps karoları çizilmiyor)

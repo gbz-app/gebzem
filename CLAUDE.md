@@ -41,7 +41,67 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
       kaybettiriyorsun"*. **Üçüncüsü olmayacak.**
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (29 Agu 19:26): TURU 137 YAYINLANDI — SADECE iOS.**
+- **KALDIGIMIZ YER (29 Agu 23:48): TURU 138 YAYINLANDI — SADECE iOS.**
+  ios **33273957218** (**032e567d**), R2 ipa=29568389 (md5 4298835f)
+  index=7982 (md5 6110f929) surum.json=48 (md5 1eee2ac9), purge OK,
+  **CDN UCU DE BIREBIR**, iOS min **16.0**, `MapsApiKey` ENJEKTE.
+  IPA'da turu 138 dizeleri VAR (Filtre · Mesafe · 10 km içinde · Listele ·
+  Yakınlaştır · Uzaklaştır) ve "Mekân ve adres ara" YOK.
+  ⚠️ **APK ALINMADI** — R2'deki apk turu 121 surumunde (21 Agu).
+  ⚠️ **BACKEND DEGISMEDI** -> deploy YOK, DB TRUNCATE EDILMEDI, e2e KOSULMADI.
+  ✅ analyze **0/0** · test **52/52** · 411 dp x1.0 ve 360 dp x1.3/x2.0
+     emulatorde tasma **0**.
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260829-2348
+
+- 🖤 **TURU 138 — HARITA PANELI SIYAH + CIPLER YENIDEN** (kullanici emri).
+  · Zemin **`kAiZemin`** (menu/GebzemAI ile TEK KAYNAK).
+  · ⚠️⚠️⚠️ **`Builder` TEK BASINA YETMEDI** (turu 136 dersinin DEVAMI):
+    `_cip` · `_filtreDugmesi` · `_panelSeridi` · `_panelKarti` ·
+    `_kartDugmesi` · `_ulasimKartlari` `context`i STATE'ten okuyordu ve
+    koyu temayi HIC gormuyordu -> emulatorde **SIYAH ZEMINDE KOYU GRI YAZI**.
+    Alti metoda da `BuildContext c` parametresi eklendi.
+    ⚠️ **KURAL: bir alt agaci `Theme` ile sarmak yetmez — o agaci CIZEN
+       metotlar da `Theme`in ALTINDAKI context'i ALMALI.**
+  · Cipler: **kenarlik YOK** · ikon `kYaricap`li daire icinde · daire zemini
+    **`kAiKartYuzey`** (menudeki kategori kartinin TA KENDISI) · yazi 13->14.
+  · **"Tümü" cipi ve turu 137'nin %95 popupu KALDIRILDI**; secili cipe
+    TEKRAR dokunmak kategoriyi birakir (TEK yol, serhte yazili).
+  · **Yuzen suzgec seridi KALDIRILDI**; serit basinda **Filtre** dugmesi
+    (aktif suzgecte NOKTA) -> **%50 yukseklikte filtre paneli**
+    (Mesafe · Puan · Diğer + Listele/Temizle).
+    ⚠️⚠️ **`Container` `alignment` VERILINCE EN BUYUK BOYUTU ALIR** —
+       filtre cipleri TAM GENISLIK kaplayip alt alta diziliyordu
+       (emulatorde goruldu). `alignment` kaldirilip `Row(mainAxisSize.min)`.
+  · Serit kartlari 200 -> **230 dp**, kapak 100 -> **112 dp**.
+
+- 📍 **TURU 138 — PIN YENIDEN CIZILDI** (`harita_daire_pin.dart`):
+  halka **3 -> 2 dp** · **GOLGE KALDIRILDI** · cap 22 -> **26** (ikon icin) ·
+  ic renk marka morunun ACIK varyanti (`Color.lerp(morLogo, beyaz, 0.22)`,
+  sabit hex YOK) · **ICINE KATEGORI IKONU**.
+  ⚠️ Ikon bir FONT glifi: `TextPainter` + **`fontFamily` VE `fontPackage`
+     BIRLIKTE** verilmezse "tofu" (bos kare) cizilir.
+  ⚠️ Ikon SECILI KATEGORIDEN gelir; kategori degisince `didUpdateWidget`
+     ile YENIDEN URETILIR (uretim onbellekli).
+  ⚠️ Kendi konum isareti KOYU mor + `navigation` ikonu — isletme pinleriyle
+     ayni renk+ikon olsaydi kullanici kendini isletme sanardi.
+  ⏳ **DURUST SINIR: emulatorde Google Maps KAROLARI cizilmiyor** (Play
+     Services 400) — yeni pin gorunumu GERCEK CIHAZDA dogrulanmali.
+
+- ➕ **TURU 138 — HARITA ZOOM DUGMELERI** ust bardaki "konumuma dön"un
+  ALTINDA. ⚠️ Google'in `zoomControlsEnabled` dugmeleri KULLANILMADI (sag
+  altta cizilir, orasi panelin altinda kalir). ⚠️ Istek bir **SAYAC**
+  (`_zoom`): bayrak olsaydi ayni yone IKINCI dokunus "deger degismedi"
+  sayilip SESSIZCE yok sayilirdi.
+
+- ⚠️⚠️⚠️ **TURU 138 — SUREC HATASI (turu 127'nin BIREBIR TEKRARI).**
+  `_filtreSatiri`i silen betik serh sinirlarini yanlis buldu ve ARADAKI
+  `_ustDugmeler` · `_kategoriSec` · `_kategoriIkonu` · `_cip` metotlarini da
+  GOTURDU. `flutter analyze` yakaladi; metotlar git HEAD'den geri kondu,
+  olusan iki KOPYA tanim ayri adimda temizlendi.
+  ⚠️ **KURAL: bir metodu betikle silerken sinirlari SERH ISARETIYLE degil,
+     ONCEKI VE SONRAKI UYE ADIYLA dogrula; silmeden once kesiti YAZDIR.**
+
+- **ONCEKI (29 Agu 19:26): TURU 137 YAYINLANDI — SADECE iOS.**
   ios **33262397311** (**d21ab275**), R2 ipa=29562109 (md5 00d85398)
   index=7982 (md5 f8ef41f9) surum.json=48 (md5 51f6f5ca), purge OK,
   **CDN UCU DE BIREBIR**, iOS min **16.0**, `MapsApiKey` ENJEKTE.
