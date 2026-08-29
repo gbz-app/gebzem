@@ -41,8 +41,23 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
       kaybettiriyorsun"*. **Üçüncüsü olmayacak.**
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (29 Agu): TURU 136 YAYINLANDI — SADECE iOS.**
-  (yayin ayrintilari bu blogun sonunda "TURU 136 YAYIN" satirinda)
+- **KALDIGIMIZ YER (29 Agu 16:49): TURU 136 YAYINLANDI — SADECE iOS.**
+  ios **33255555906** (**7779204**), R2 ipa=29566036 (md5 e70347da)
+  index=7982 (md5 6ab92617) surum.json=48 (md5 ea6e8457), purge OK,
+  **CDN UCU DE BIREBIR**, iOS min **16.0**, `MapsApiKey` ENJEKTE,
+  `plugins.flutter.dev/google_maps` IPA'da VAR.
+  IPA'da turu 136 dizeleri VAR (Köşe Fırın · Bahar Market · Marmara Kuaför ·
+  Yıldız Eczanesi · Teknik Oto Servis · Örnek kayıt · "Bu bir örnek kayıt —
+  gerçek işletme değil.") ve turu 135'in CTA karti YOK (İşletmen mi var? ·
+  Ücretsiz ekle... · Bilgilerini, saatlerini...).
+  Turu 135 temizligi de duruyor: PİYASA ve "Türkiye 1 - 0 Almanya" YOK,
+  "Yeni Restoran" VAR.
+  ⚠️ **APK ALINMADI** — R2'deki apk turu 121 surumunde (21 Agu).
+     📌 Indir sayfasindaki Android dugmesi sayfanin saatini gosterdigi icin
+        APK'yi OLDUGUNDAN YENI gosteriyor.
+  ⚠️ **BACKEND DEGISMEDI** -> deploy YOK, DB TRUNCATE EDILMEDI, e2e KOSULMADI.
+  ✅ analyze **0 hata 0 uyari** · test **52/52** · emulatorde tasma **0**.
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260829-1649
 
 - 🏪 **TURU 136 — ISLETME KARTLARI FILTRENIN USTUNDE YATAY SERIT**
   (kullanici DUZELTMESI: *"yemege tikladigimda mesela ISLETMELER kart

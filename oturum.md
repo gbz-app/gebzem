@@ -7996,3 +7996,12 @@ diye bir *işletme hesabı* kısayolu konmuştu. Kullanıcı işletme HESABINI d
 - **Dosya satır sonları karışık**: `isletme_listesi.dart` CRLF,
   `yakinimda_ekrani.dart` LF. Metin değiştiren betikler satır sonunu
   dosyadan algılıyor (turu 89/117/119 tuzağı).
+
+### Devir notu (turu 136)
+- Yayınlandı: ios **33255555906** · commit **7779204** · **sadece iOS**
+- Adres: **https://indir.gebzem.app/index.html?v=20260829-1649**
+- CDN üçü de birebir (ipa e70347da · index 6ab92617 · surum ea6e8457)
+- iOS min 16.0 · MapsApiKey enjekte · IPA'da turu 136 dizeleri VAR,
+  turu 135'in CTA kartı YOK
+- analyze 0/0 · test 52/52 · **backend değişmedi** (deploy yok, e2e yok)
+- ⚠️ APK alınmadı — R2'deki apk 21 Ağustos sürümünde
