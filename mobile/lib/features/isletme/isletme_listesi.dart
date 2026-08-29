@@ -13,9 +13,6 @@ import '../medya/medya_gorsel.dart';
 import '../sosyal/profil_basligi.dart' show kOnayliRengi;
 import '../sosyal/profil_sayfasi.dart';
 import 'favorilerim_ekrani.dart';
-// ⚠️ TURU 135 — filtre ustundeki isletme kartinin actigi ekran (sihirbaz
-//    ya da duzenleme; karari o dosya verir).
-import 'isletme_duzenle.dart';
 import 'isletme_filtre.dart';
 import 'isletme_kart.dart';
 import '../home/alt_menu.dart';
@@ -154,6 +151,18 @@ const double kAltIcBosluk = (kAltHucre - kAltKutu) / 2; // = 6
 ///    Pay, dokunma alani ile GORSEL oge arasindaki farkin yarisidir.
 const double kHeaderPay = (44 - 24) / 2; // = 10
 const double kCipPay = (40 - 32) / 2; // = 4
+
+/// ⚠️⚠️ TURU 136 — FILTRE USTUNDEKI YATAY ISLETME SERIDI (bkz. `_isletmeSeridi`).
+///
+/// ⚠️ **TAVAN ZORUNLU:** serit LISTENIN AYNISINI tasir; sinir olmasaydi 60
+///    kart yan yana kurulur ve her biri bir kapak gorseli COZERDI (turu 91
+///    performans dersi: `memCacheWidth`siz bir kapak ~10 MB gecici RAM).
+/// ⚠️ Tamami zaten seridin ALTINDAKI listede — serit bir VITRIN, arsiv degil.
+const int kSeritTavan = 10;
+
+/// ⚠️ Kart eni; gercek deger ekranin %62'siyle SINIRLANIR (dar telefonda
+///    "yandaki kart" ipucu kaybolmasin).
+const double kSeritKartEn = 200;
 
 /// ⚠️ Header ikonlarinin GLIF ICI boslugu — ekrandan OLCULDU (bkz. header
 ///    dolgusu serhi). Ikon degisirse yeniden olc.
@@ -704,10 +713,10 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
     // ⚠️ HAM liste degil **SUZULMUS** liste cizilir (bkz. `_gosterilen`).
     final l = _gosterilen;
     // ⚠️⚠️ TURU 135 — kart **BIR KEZ** kurulur: hem cizilecek mi karari hem
-    //	ustundeki boslugun buyuklugu ona bagli (bkz. `_isletmeKarti`).
+    //	ustundeki boslugun buyuklugu ona bagli (bkz. `_isletmeSeridi`).
     //	Iki ayri yerde ayri ayri hesaplansaydi biri degisince oteki geride
     //	kalir ve bosluk 4 px kayardi.
-    final isletmeKarti = _isletmeKarti();
+    final isletmeSeridi = _isletmeSeridi();
     return Scaffold(
       // ⚠️⚠️⚠️ TURU 96l — **ALT MENU BU EKRANDA DA CIZILIR** (kullanici emri:
       //	*"alt menuyu getir, alt menu gorunmesi gerekiyor"*).
@@ -857,7 +866,7 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                     SliverToBoxAdapter(
                         child: SizedBox(
                             height: (_altKategoriler.isNotEmpty ||
-                                    isletmeKarti != null)
+                                    isletmeSeridi != null)
                                 ? kBosluk
                                 : kBosluk - kCipPay)),
 
@@ -898,7 +907,7 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                       //    yukaridaki ayni gerekce).
                       SliverToBoxAdapter(
                           child: SizedBox(
-                              height: isletmeKarti != null
+                              height: isletmeSeridi != null
                                   ? kBosluk
                                   : kBosluk - kCipPay)),
                     ],
@@ -906,8 +915,8 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                     // ── ISLETME KARTI (kullanici emri, turu 135) ──
                     // ⚠️ Kart FILTRE SERIDININ USTUNDE: kullanici *"filtrelemenin
                     //    uzerine kart ekle, isletme ile ilgili"* dedi.
-                    if (isletmeKarti != null) ...[
-                      SliverToBoxAdapter(child: isletmeKarti),
+                    if (isletmeSeridi != null) ...[
+                      SliverToBoxAdapter(child: isletmeSeridi),
                       // ⚠️ Kartin ALTINDA cip seridi var -> onun 4px ic payi
                       //    dusulur (ekranin dikey ritmi: gorunen bosluk 16).
                       const SliverToBoxAdapter(
@@ -1047,17 +1056,19 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
   ///    ekranda slider ve 60x60 serit KALICI olarak bos kalirdi ve
   ///    kullanicinin ekrani kapatmaktan baska yolu olmazdi.
   Future<void> _tazele() async {
-    // ⚠️⚠️⚠️ TURU 135 (denetim) — **PROFIL DE TAZELENIR.**
+    // ⚠️⚠️ TURU 135 (denetim) — **PROFIL DE TAZELENIR.**
     //
     //	`myProfileProvider` `keepAlive` ve govdesinde `invalidateSelf` YOK:
     //	`/users/me` BIR KEZ patlarsa (mobil ag, sunucu restarti, soguk
-    //	acilis) hata SUREC OMRU BOYUNCA onbellekte kalir ve
-    //	`valueOrNull` bir daha DOLMAZ. O durumda `_isletmeKarti()` null
-    //	doner, yani kart SEBEP SOYLEMEDEN kaybolur.
-    //	Bu ekranin belgelenmis kurtarma yolu ASAGI-CEK'tir; oysa `_tazele`
-    //	profile HIC dokunmuyordu -> tam gerektigi anda no-op oluyordu.
-    //	(Ayni sinif turu 78b'de `aiDurumProvider`, turu 113'te Ayarlar'daki
-    //	"Gizlilik" bolumu ile IKI KEZ sahaya cikti.)
+    //	acilis) hata SUREC OMRU BOYUNCA onbellekte kalir ve `valueOrNull`
+    //	bir daha DOLMAZ. Bu ekran profili "Şehrimde" suzgecinde ve kendi
+    //	isletmesini ayirt etmekte kullaniyor; asagi-cek o hatadan da
+    //	donebilmeli.
+    //	⚠️ Turu 136 notu: bu kapi turu 135'te FILTRE USTUNDEKI KART icin
+    //	   eklenmisti; o kart yerini isletme SERIDINE birakti ve serit
+    //	   profile bakmiyor. Kapi yine de KALIR — sebebi degisti, gecerliligi
+    //	   degil (ayni sinif turu 78b `aiDurumProvider` ve turu 113 Ayarlar >
+    //	   Gizlilik ile IKI KEZ sahaya cikti).
     // ⚠️ Saglayicinin KENDISI degistirilmedi: 15+ tuketicisi var ve hata
     //    dalinin semantigini degistirmek bu arayuz turunun kapsami disi.
     ref.invalidate(myProfileProvider);
@@ -1937,132 +1948,131 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
   /// SAGINDA yatay kayan SIK KULLANILANLAR.
   /// ⚠️ Solraki dugme KAYMAZ (`Row` + `Expanded`): kullanici filtreyi
   ///    ararken seridi kaydirmak zorunda kalmamali.
-  /// ⚠️⚠️⚠️ TURU 135 — **FILTRE SERIDININ USTUNDEKI ISLETME KARTI**
-  ///	(kullanici emri: *"filtrelemenin uzerine kart ekle, isletme ile
-  ///	ilgili"*).
+  /// ⚠️⚠️⚠️ TURU 136 — **FILTRE SERIDININ USTUNDE YATAY ISLETME SERIDI**
+  ///	(kullanici emri, DUZELTME: *"yemege tikladigimda mesela ISLETMELER
+  ///	kart seklinde filtrenin uzerinde cikmasi gerekiyordu, sol sag
+  ///	scroll"*).
   ///
-  /// ═══════════ NEDEN BU ICERIK ═══════════
+  /// ⚠️⚠️ **TURU 135'TE YANLIS ANLASILDI:** buraya "İşletmen mi var?" diye
+  ///	bir ISLETME HESABI kisayolu konmustu. Kullanici isletme HESABINI
+  ///	degil **ISLETMELERIN KENDISINI** kart olarak istiyormus. O kart
+  ///	KALDIRILDI; hesap girisi zaten Ayarlar > Isletme hesabi ve profil
+  ///	sayfasinda DURUYOR (ulasilamaz kalmadi).
   ///
-  ///	"Isletme ile ilgili" bir kart icin iki aday vardi:
-  ///	  (a) ONE CIKAN ISLETME — **YAPILMADI**: sunucuda "one cikan" diye bir
-  ///	      alan, sponsorluk ya da siralama olcutu YOK. Rastgele bir kaydi
-  ///	      "one cikan" diye gostermek, listenin geri kalanina bakan
-  ///	      kullaniciya YANLIS BILGI olurdu (bu projede uydurma veri kurali).
-  ///	  (b) **ISLETME HESABI KAPISI** — secilen bu: arkasindaki akis
-  ///	      (`IsletmeDuzenleEkrani`) GERCEK ve calisiyor.
+  /// ⚠️ VERI UYDURULMAZ: serit, listenin beslendigi AYNI kumeden
+  ///    (`_gosterilen`) beslenir — suzgecler seride de uygular ve kullanici
+  ///    seritte gordugu yeri listede de bulur. Ayri bir istek ATILMAZ.
+  /// ⚠️ Liste BOSSA serit HIC cizilmez (bos gri bir serit "yukleniyor" gibi
+  ///    okunurdu).
   ///
-  /// ⚠️⚠️ **EKRAN TEK, ETIKET IKI:** `IsletmeDuzenleEkrani` hesap isletme
-  ///	DEGILSE 3 adimli SIHIRBAZ, ISLETMEYSE duzenleme ekrani olarak acilir
-  ///	(bkz. o dosyadaki `_sihirbaz`). Kart da ayni ayrimi yapar; yoksa
-  ///	isletme sahibine *"isletmeni ekle"* denirdi.
+  /// ⚠️⚠️ **YUKSEKLIK TASMAYA KAPALI:** kapak `Expanded` icinde, metinler
+  ///	SABIT. Yazi olcegi 1.3/2.0'da metin buyur, KAPAK KUCULUR ve toplam
+  ///	boy DEGISMEZ — `Column` hicbir olcekte tasamaz. (Sabit kapak +
+  ///	esnek metin yazilsaydi 2.0'da sari-siyah serit cikardi; bu ekranda
+  ///	ayni sinif turu 121/123/135b'de UC KEZ olculdu.)
+  /// ⚠️ Boy yine de yazi olceginden TURETILIR ki olcek 1.0'da kapak 16:9 kalsin.
+  Widget? _isletmeSeridi() {
+    final l = _gosterilen;
+    if (l == null || l.isEmpty) return null;
+    // ⚠️ Serit bir VITRIN: ilk N kayit. Tamami zaten ALTTAKI listede.
+    //    Sinir olmasaydi 60 kart yan yana decode edilirdi (turu 91 dersi).
+    final ogeler = l.take(kSeritTavan).toList();
+    final olcek = MediaQuery.textScalerOf(context);
+    // ad (14 x 1.2) + 2 + vitrin satiri (12 x 1.2) + 7 (kapak-ad araligi)
+    final yaziBoy = olcek.scale(14) * 1.2 + 2 + olcek.scale(12) * 1.2 + 7;
+    // ⚠️ Kart eni EKRANDAN SINIRLANIR: 320 dp'lik bir telefonda sabit 200 dp
+    //    ekranin %63'unu yer ve "yandaki kart" ipucu kaybolurdu. `dart:math`
+    //    import edilmedi — tek karsilastirma icin gereksiz bagimlilik.
+    final tavan = MediaQuery.sizeOf(context).width * 0.62;
+    final en = kSeritKartEn < tavan ? kSeritKartEn : tavan;
+    return SizedBox(
+      height: en * 9 / 16 + yaziBoy,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        // ⚠️ Yan dolgu ekranin geri kalaniyla AYNI (`kYanBosluk`): serit
+        //    kaydirilmadan once ilk kart arama kutusuyla HIZALI durur.
+        padding: const EdgeInsets.symmetric(horizontal: kYanBosluk),
+        physics: const BouncingScrollPhysics(),
+        itemCount: ogeler.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 10),
+        itemBuilder: (_, i) => _seritKarti(ogeler[i], en),
+      ),
+    );
+  }
+
+  /// Seritteki tek kart — izgara kartinin DAR surumu.
   ///
-  /// ⚠️⚠️ **PROFIL BILINMIYORSA KART CIZILMEZ (`null`).** `hesap_turu`
-  ///	yuklenmeden cizilseydi kart, isletme sahibine bir kare boyunca
-  ///	"İşletmeni ekle" der ve sonra metin degisirdi. `myProfileProvider`
-  ///	`keepAlive` ve uygulama acilisinda ZATEN yukleniyor; pratikte kart
-  ///	ilk karede hazir.
-  /// ⚠️ Kart ustundeki boslugun buyuklugu de bu null karari degistigi icin
-  ///    `build` icinde TEK KEZ hesaplanip tasiniyor.
-  ///
-  /// ⚠️⚠️ **SABIT YUKSEKLIK YOK:** yukseklik icerikten gelir. Sabit bir boy
-  ///	verilseydi yazi olcegi 1.3-2.0'da ic metin tasar ve sari-siyah serit
-  ///	cikardi (bu ekranda turu 121/123'te iki kez olculdu).
-  /// ⚠️ Iki metin de `maxLines` + ellipsis: uzun bir cumle kartla degil
-  ///    KENDISIYLE sinirlanir.
-  Widget? _isletmeKarti() {
-    final p = ref.watch(myProfileProvider).valueOrNull;
-    if (p == null) return null;
-    final isletme = (p['hesap_turu'] ?? '').toString() == 'isletme';
-    final scheme = Theme.of(context).colorScheme;
-    // ⚠️ `kVurgu` TEK KAYNAK — bu ekranda `scheme.primary` KULLANILMAZ
-    //    (bkz. `isletme_kart.dart` serhi; turu 121d'de kutular MOR cikmisti).
-    final vurgu = kVurgu(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: kYanBosluk),
-      child: Material(
-        // ⚠️ Yuzey listedeki kartlarla/60x60 kutularla AYNI gri (tek kaynak).
-        color: kYuzeyGri(context),
-        borderRadius: BorderRadius.circular(kYaricap(64)),
-        // ⚠️ `clipBehavior`: dalga (`InkWell`) yuvarlak kosenin DISINA tasmasin.
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: () async {
-            await Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => const IsletmeDuzenleEkrani(),
+  /// ⚠️ Parcalar KOPYALANMADI, ORTAK: kapak yer tutucusu, kampanya rozetleri
+  ///    ve `vitrinSatiri` izgara kartiyla AYNI fonksiyonlardan gelir.
+  /// ⚠️ `width:` `MedyaGorsel`e ACIKCA verilir: yoksa 200 dp'lik bir kutu
+  ///    icin tam cozunurlukte decode edilir (turu 91 performans dersi).
+  Widget _seritKarti(IsletmeOzet o, double en) {
+    final gorselID = (o.kapakMediaId != null && o.kapakMediaId!.isNotEmpty)
+        ? o.kapakMediaId!
+        : (o.avatarMediaId ?? '');
+    return SizedBox(
+      width: en,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(kYaricapBuyuk),
+        // ⚠️ Hedef izgara/liste kartiyla AYNI: kullanici ayni yere iki
+        //    farkli yoldan girip farkli ekran gormemeli.
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => ProfilSayfasi(userId: o.id)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ⚠️ `Expanded`: yazi olcegi buyudukce KAPAK kuculur, kart
+            //    yuksekligi sabit kalir (bkz. `_isletmeSeridi` serhi).
+            Expanded(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(kYaricapBuyuk),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    gorselID.isEmpty
+                        ? _kapakYerTutucu(o)
+                        : MedyaGorsel(
+                            mediaId: gorselID,
+                            fit: BoxFit.cover,
+                            width: en,
+                          ),
+                    kampanyaRozetleri(o),
+                  ],
+                ),
               ),
-            );
-            // ⚠️ Donuste profil TAZELENIR: kullanici sihirbazi bitirdiyse
-            //    `hesap_turu` degisti ve kartin ETIKETI de degismeli.
-            //    (`IsletmeDuzenleEkrani` kendi kaydinda zaten invalidate
-            //    ediyor; burasi "vazgecip geri geldi" dalini da kapsar.)
-            if (mounted) ref.invalidate(myProfileProvider);
-          },
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-            child: Row(
+            ),
+            const SizedBox(height: 7),
+            Row(
               children: [
-                // ── IKON KUTUSU ──
-                // ⚠️ Boyut SABIT: ikon yazi olceginden BAGIMSIZ (bir ikon
-                //    okunabilirlik icin buyumek zorunda degil; buyuseydi
-                //    metne kalan genislik daralirdi).
-                Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    color: vurgu.withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(kYaricap(38)),
-                  ),
-                  child: Icon(LucideIcons.store, size: 19, color: vurgu),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        isletme ? 'İşletmeni yönet' : 'İşletmen mi var?',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 14.5,
-                          height: 1.2,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        isletme
-                            ? 'Bilgilerini, saatlerini ve menünü güncelle'
-                            : 'Ücretsiz ekle, müşterilerin seni burada bulsun',
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          height: 1.25,
-                          fontWeight: FontWeight.w500,
-                          // ⚠️ 0.75 — turu 114 denetiminde 0.6 acik temada
-                          //    **4.35:1** olculmustu (12 px icin esik 4.5:1).
-                          color: scheme.onSurface.withValues(alpha: 0.75),
-                        ),
-                      ),
-                    ],
+                Flexible(
+                  child: Text(
+                    o.ad,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      height: 1.2,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
-                const SizedBox(width: 8),
-                Icon(
-                  LucideIcons.chevronRight,
-                  size: 20,
-                  color: scheme.onSurface.withValues(alpha: 0.45),
-                ),
+                if (o.dogrulandi)
+                  const Padding(
+                    padding: EdgeInsets.only(left: 4),
+                    child: Icon(LucideIcons.badgeCheck,
+                        size: 13, color: kOnayliRengi),
+                  ),
               ],
             ),
-          ),
+            const SizedBox(height: 2),
+            vitrinSatiri(context, o, kompakt: true),
+          ],
         ),
       ),
     );
   }
+
 
   Widget _filtreSatiri() {
     return Padding(

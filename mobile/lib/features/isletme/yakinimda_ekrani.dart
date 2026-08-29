@@ -50,6 +50,10 @@ import 'yakinimda_arama.dart';
 // ⚠️ TURU 89 — harita rengi tercihi (Ayarlar > Harita).
 import '../../core/tercihler.dart';
 import '../medya/konum_servisi.dart';
+// ⚠️ TURU 136 — haritada secili isletme kartinin kapak gorseli ve onay
+//    rozeti; ikisi de kategori ekraniyla AYNI bilesenler (kopya YOK).
+import '../medya/medya_gorsel.dart' show MedyaGorsel;
+import '../sosyal/profil_basligi.dart' show kOnayliRengi;
 import '../sosyal/profil_sayfasi.dart';
 // ⚠️ TURU 115 — kart/olcu sabitleri kategori ekraniyla ORTAK.
 import 'isletme_kart.dart' show kYanBosluk, kYaricap, kYuzeyGri, kVurgu;
@@ -284,6 +288,11 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
   bool _fOnayli = false;    // onayli isletme
   double _fKm = 0;          // 0 = sinirsiz (sunucu yaricapi neyse o)
 
+  /// ⚠️⚠️ TURU 136 — HARITADA SECILI ISLETME (pine dokununca kart acilir).
+  /// ⚠️ Liste degisince (kategori/suzgec/yenileme) SIFIRLANIR: aksi halde
+  ///    artik haritada OLMAYAN bir isletmenin karti ekranda asili kalirdi.
+  IsletmeOzet? _secilen;
+
   /// ⚠️ TURKCE KUCULTME ELLE (Dart'in `toLowerCase()`i 'İ'yi bozar —
   ///    turu 114'te talep ekraninda ayni tuzak).
   static String _kucult(String x) =>
@@ -296,9 +305,140 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
   ///	eklemek ayri bir tur isi; 60 kayitta istemci suzgeci FARK EDILMEZ.
   /// ⚠️ Harita ve liste AYNI kumeyi gosterir — ayrisirsa kullanici
   ///    haritada gordugu pini listede bulamaz.
+  /// ⚠️⚠️⚠️ TURU 136 — **HARITADAKI ORNEK ISLETMELER** (kullanici emri:
+  ///	*"haritada mockup isletmeler koyup tikladigimda kart seklinde"*).
+  ///
+  ///	Canli veritabaninda koordinati OLAN isletme sayisi bir elin
+  ///	parmaklarini gecmiyor; harita bu yuzden BOS gorunuyor ve tasarim
+  ///	degerlendirilemiyordu. Bu kayitlar YALNIZCA tasarimi gostermek icin.
+  ///
+  /// ⚠️⚠️ **YAYIN ONCESI `false` YAPILACAK.** Acikken haritada GERCEK
+  ///	OLMAYAN isletmeler gorunur. (Kardesi `kYakinOnizleme`,
+  ///	`hizmet_menusu.dart`.)
+  /// ⚠️ Kimlikler **`demo-` onekli**: karta dokunmak profil ACMAZ, durustce
+  ///    "ornek kayit" der. Onek olmasaydi `ProfilSayfasi` 404 ile acilir ve
+  ///    kullanici uygulamayi bozuk sanardi (turu 113'te demo gonderi
+  ///    kimlikleri tam bu yuzden oneklendi).
+  /// ⚠️ Konum KULLANICININ KONUMUNA GORE turetilir: sabit Gebze koordinati
+  ///    yazilsaydi baska sehirdeki bir kullanici pinleri HIC goremezdi.
+  static const kHaritaOnizleme = true;
+
+  /// ⚠️ Derece cinsinden kaydirma: ~0.0009 derece enlem ≈ 100 m.
+  ///    Boylamda `cos(enlem)` uygulanmaz — bu kayitlar OLCUM DEGIL, YER
+  ///    TUTUCU; birkac on metrelik sapmanin gorsel bir karsiligi yok.
+  List<IsletmeOzet> _ornekIsletmeler(({double enlem, double boylam}) k) {
+    IsletmeOzet yap({
+      required String no,
+      required String ad,
+      required String kategori,
+      required String adres,
+      required double dEnlem,
+      required double dBoylam,
+      required double km,
+      double? puan,
+      int puanSayisi = 0,
+      bool onayli = false,
+      List<String> kampanyalar = const [],
+    }) {
+      final o = IsletmeOzet(
+        id: 'demo-harita-$no',
+        ad: ad,
+        kullaniciAdi: '',
+        avatarUrl: '',
+        avatarMediaId: null,
+        kategori: kategori,
+        il: 'Kocaeli',
+        ilce: 'Gebze',
+        adres: adres,
+        dogrulandi: onayli,
+        puan: puan,
+        puanSayisi: puanSayisi,
+        kampanyalar: kampanyalar,
+      );
+      // ⚠️ Bu ucu KURUCUDA yok (sunucu yanitindan sonra yazilir) — burada da
+      //    ayni sirayi izliyoruz.
+      o.enlem = k.enlem + dEnlem;
+      o.boylam = k.boylam + dBoylam;
+      o.km = km;
+      return o;
+    }
+
+    return [
+      yap(
+        no: '1',
+        ad: 'Köşe Fırın',
+        kategori: 'yemek',
+        adres: 'Hacı Halil Mah.',
+        dEnlem: 0.0022,
+        dBoylam: 0.0016,
+        km: 0.25,
+        puan: 4.6,
+        puanSayisi: 128,
+        onayli: true,
+        kampanyalar: const ['%20 indirim'],
+      ),
+      yap(
+        no: '2',
+        ad: 'Bahar Market',
+        kategori: 'market',
+        adres: 'Mustafapaşa Mah.',
+        dEnlem: -0.0018,
+        dBoylam: 0.0027,
+        km: 0.32,
+        puan: 4.8,
+        puanSayisi: 64,
+      ),
+      yap(
+        no: '3',
+        ad: 'Marmara Kuaför',
+        kategori: 'kuafor',
+        adres: 'İstasyon Cad.',
+        dEnlem: 0.0035,
+        dBoylam: -0.0029,
+        km: 0.48,
+        puan: 4.3,
+        puanSayisi: 41,
+      ),
+      yap(
+        no: '4',
+        ad: 'Yıldız Eczanesi',
+        kategori: 'eczane',
+        adres: 'Osman Yılmaz Mah.',
+        dEnlem: -0.0051,
+        dBoylam: -0.0014,
+        km: 0.7,
+        onayli: true,
+      ),
+      yap(
+        no: '5',
+        ad: 'Teknik Oto Servis',
+        kategori: 'oto',
+        adres: 'Sanayi Mah.',
+        dEnlem: 0.0074,
+        dBoylam: 0.0061,
+        km: 1.1,
+        puan: 4.1,
+        puanSayisi: 23,
+      ),
+    ];
+  }
+
+
   List<IsletmeOzet> get _gorunen {
     final q = _kucult(_q);
-    return _liste.where((i) {
+    // ⚠️⚠️ TURU 136 — ORNEK KAYITLAR **SUZGECLERIN ONUNE** eklenir, sonra
+    //	AYNI suzgecten gecer. Suzgecten MUAF tutulsalardi "4+ puan" ya da
+    //	"kampanyali" secildiginde gercek kayitlar elenir, ornekler ekranda
+    //	KALIRDI — suzgec bozuk sanilirdi (turu 121d'de demo ilanlarda
+    //	birebir bu yasandi: 985.000 TL'lik ornek daire "1.000 TL alti"
+    //	suzgecinde listede kaliyordu).
+    // ⚠️ Konum YOKSA ornek de YOK: koordinatlari kullanicinin konumundan
+    //    turetiliyor.
+    final k = _konum;
+    final kaynak = (kHaritaOnizleme && k != null)
+        ? [..._liste, ..._ornekIsletmeler(k)]
+        : _liste;
+    return kaynak.where((i) {
       if (q.isNotEmpty &&
           !_kucult(i.ad).contains(q) &&
           !_kucult(i.kategori).contains(q) &&
@@ -356,6 +496,11 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
     setState(() {
       _yukleniyor = true;
       _hata = null;
+      // ⚠️⚠️ TURU 136 — SECIM SIFIRLANIR. Yeni kume gelince eski isletme
+      //	haritada olmayabilir (kategori degisti, suzgec elendi, hata
+      //	dalinda liste BOSALDI) ve karti ekranda ASILI kalirdi: kullanici
+      //	haritada pinini goremedigi bir kaydin kartina bakiyor olurdu.
+      _secilen = null;
     });
     try {
       // ⚠️ Servis await'ten ONCE yakalanir (turu 78b dersi: disposed State'te
@@ -441,6 +586,12 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
   ///    alaninda kaydirma alir, ustteki harita serbest.
   @override
   Widget build(BuildContext context) {
+    // ⚠️ TURU 136 — kart BIR KEZ kurulur; `null` ise yigina HIC eklenmez
+    //    (bkz. `_secilenKart` serhindeki 0x0 yigin tuzagi).
+    // ⚠️ Cip seridi de kosullu (bkz. `_yuzenCipler` serhi): ikisi de yigina
+    //    YALNIZCA gercek bir `Positioned` olarak girer.
+    final cipler = _yuzenCipler();
+    final kart = _secilenKart();
     return Scaffold(
       // ⚠️ AppBar YOK: harita durum cubugunun ALTINA girer (Yandex boyle).
       //    Dugmeler `MediaQuery.paddingOf(context).top` ile guvenli alana
@@ -469,13 +620,27 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
                 acildi: (i) => Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => ProfilSayfasi(userId: i.id)),
                 ),
+                // ⚠️ TURU 136 — pine dokunus KART acar (bkz. `_secilenKart`).
+                secildi: (i) => setState(() => _secilen = i),
+                secimKapandi: () {
+                  if (_secilen != null) setState(() => _secilen = null);
+                },
             ),
           ),
           _ustDugmeler(),
           // ⚠️ SIRA: cipler alt sayfanin ALTINDA cizilir ki sayfa yukari
           //    cekilince ciplerin USTUNU ortsun (Yandex/Google deseni).
-          _yuzenCipler(),
+          if (cipler != null) cipler,
           _altPanel(),
+          // ⚠️ SIRA: kart EN SONDA — `Stack` son cocugu EN USTE cizer ve
+          //    hit-test'i TERS sirada yapar. Panelin ALTINDA kalsaydi hem
+          //    gorunmez hem tiklanamaz olurdu.
+          // ⚠️⚠️ **KOSULLU EKLENIR (`?? kart`) — bkz. `_secilenKart` serhi:**
+          //	secim yokken buraya 0x0 bir NON-POSITIONED cocuk konmasi
+          //	yigini 0x0'a dusuruyor ve EKRANIN TAMAMI beyaz kaliyordu
+          //	(emulatorde olculdu). Yigina yalnizca GERCEK bir `Positioned`
+          //	girer.
+          if (kart != null) kart,
         ],
       ),
     );
@@ -503,6 +668,176 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
   ///    1.3/2.0`da sabit bir sayi icerigi KIRPARDI.
   /// ⚠️ Alt guvenli alan (`MediaQuery.paddingOf.bottom`) EKLENIR: jest
   ///    cubugu olan cihazlarda ulasim kartlari cubugun ALTINDA kalirdi.
+  /// ⚠️⚠️⚠️ TURU 136 — **HARITADA SECILI ISLETME KARTI** (kullanici emri:
+  ///	*"haritada mockup isletmeler koyup TIKLADIGIMDA KART SEKLINDE"*).
+  ///
+  ///	Pine dokunulunca haritanin ustune, alt panelin HEMEN USTUNE cizilir.
+  ///	Icerik: kapak/avatar + ad + onay rozeti + puan · mesafe + adres.
+  ///
+  /// ⚠️ Konum SABIT DEGIL: `_panelBoy(context)` uzerinden hesaplanir — panel
+  ///    yazi olcegine gore uzuyor ve sabit bir sayi yazilsaydi kart panelin
+  ///    ALTINDA kalirdi (turu 132'de yuzen cip seridinde birebir bu yasandi).
+  /// ⚠️ Yukseklik SABIT DEGIL: icerikten gelir, iki metin de tek satir +
+  ///    ellipsis. Yazi olcegi 2.0'da kart uzar, TASMAZ.
+  /// ⚠️ ORNEK KAYITTA PROFIL ACILMAZ: `demo-` onekli kimligin arkasinda
+  ///    sunucuda satir YOK; `ProfilSayfasi` 404 gosterir ve kullanici
+  ///    uygulamayi bozuk sanardi. Durustce soyleniyor.
+  /// ⚠️⚠️⚠️ **`Widget?` DONER — `SizedBox.shrink()` DEGIL. EMULATORDE
+  ///	OLCULDU: ekranin TAMAMI BEYAZ kaliyordu.**
+  ///
+  ///	Ilk yazimda kart `Stack`in cocugu olarak KOSULSUZ ekleniyor, secim
+  ///	yokken `SizedBox.shrink()` donuyordu. Yigindaki DIGER cocuklarin
+  ///	HEPSI `Positioned`; `RenderStack` boyutunu **YALNIZCA
+  ///	POSITIONED OLMAYAN** cocuklarindan hesaplar. Tek non-positioned
+  ///	cocuk 0x0 olunca yigin **0x0**'a dustu ve harita, dugmeler, cipler,
+  ///	panel — hepsi CIZILMEDI.
+  ///	⚠️ Hata SESSIZDI: `flutter analyze` temiz, `flutter test` 52/52,
+  ///	   logcat'te TEK BIR istisna yok. Yalnizca ekrana bakinca gorunur;
+  ///	   bisect ile (karti yigindan cikarip yeniden derleyerek) bulundu.
+  ///
+  /// ⚠️ YAPMA: bu metodu tekrar `Widget` dondurup bos dalda
+  ///    `SizedBox.shrink()` verme. Cagri yerindeki `if (kart != null)`
+  ///    kapisi da KALMALI.
+  Widget? _secilenKart() {
+    final o = _secilen;
+    if (o == null) return null;
+    // ⚠️⚠️ **YAPISAL KAPI:** kart YALNIZ haritada PINI OLAN bir kayit icin
+    //	cizilir. Suzgecler (`4+ puan`, `kampanyali`, arama) yeniden
+    //	YUKLEME YAPMADAN kumeyi daraltiyor; o dallara tek tek "secimi
+    //	sifirla" yazmak yerine olcut BURADA, tek yerde. Aksi halde
+    //	kullanici pini kaybolmus bir isletmenin kartina bakardi.
+    // ⚠️ YAPMA: bu kontrolu kaldirip yalniz `_yukle` icindeki sifirlamaya
+    //    guvenme — suzgecler `_yukle` CAGIRMIYOR.
+    if (!_gorunen.any((i) => i.id == o.id)) return null;
+    final scheme = Theme.of(context).colorScheme;
+    final gorselID = (o.kapakMediaId != null && o.kapakMediaId!.isNotEmpty)
+        ? o.kapakMediaId!
+        : (o.avatarMediaId ?? '');
+    final ornek = o.id.startsWith('demo-');
+    final alt = [
+      if (o.puan != null) '${o.puan!.toStringAsFixed(1).replaceAll('.', ',')} ★',
+      if (o.mesafeMetni.isNotEmpty) o.mesafeMetni,
+      if (o.adres.isNotEmpty) o.adres,
+    ].join(' · ');
+    return Positioned(
+      left: kYanBosluk,
+      right: kYanBosluk,
+      // ⚠️ Panelin ustunde 12 dp nefes.
+      bottom: _panelBoy(context) + _cipSeridiBoy() + 12,
+      child: Material(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(kYaricap(96)),
+        clipBehavior: Clip.antiAlias,
+        // ⚠️ Golge: kart HARITANIN ustunde duruyor; golgesiz birakilirsa
+        //    acik zeminli haritada kenari kaybolur.
+        elevation: 6,
+        child: InkWell(
+          onTap: () {
+            if (ornek) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Bu bir örnek kayıt — gerçek işletme değil.'),
+                ),
+              );
+              return;
+            }
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => ProfilSayfasi(userId: o.id)),
+            );
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(10),
+            child: Row(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(kYaricap(64)),
+                  child: SizedBox(
+                    width: 64,
+                    height: 64,
+                    child: gorselID.isEmpty
+                        ? ColoredBox(color: kYuzeyGri(context))
+                        : MedyaGorsel(
+                            mediaId: gorselID,
+                            fit: BoxFit.cover,
+                            width: 64,
+                          ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              o.ad,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 15,
+                                height: 1.2,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          if (o.dogrulandi)
+                            const Padding(
+                              padding: EdgeInsets.only(left: 4),
+                              child: Icon(LucideIcons.badgeCheck,
+                                  size: 14, color: kOnayliRengi),
+                            ),
+                        ],
+                      ),
+                      if (alt.isNotEmpty) ...[
+                        const SizedBox(height: 3),
+                        Text(
+                          alt,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            height: 1.25,
+                            color: scheme.onSurface.withValues(alpha: 0.75),
+                          ),
+                        ),
+                      ],
+                      if (ornek) ...[
+                        const SizedBox(height: 3),
+                        // ⚠️ **DURUST SINIR KARTIN ICINDE**: kullanici karta
+                        //    DOKUNMADAN bunun ornek oldugunu gormeli
+                        //    (turu 131 dersi: ibare detay ekraninin dibindeydi).
+                        Text(
+                          'Örnek kayıt',
+                          style: TextStyle(
+                            fontSize: 11,
+                            height: 1.2,
+                            fontWeight: FontWeight.w700,
+                            color: scheme.onSurface.withValues(alpha: 0.55),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                // ⚠️ Kapatma: haritanin bos yerine dokunmak da kapatir
+                //    (`onTap`), bu gorunur ve KESIN olan yol.
+                IconButton(
+                  onPressed: () => setState(() => _secilen = null),
+                  icon: const Icon(LucideIcons.x, size: 18),
+                  tooltip: 'Kapat',
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+
   double _panelBoy(BuildContext context) {
     final o = MediaQuery.textScalerOf(context);
     final alt = MediaQuery.paddingOf(context).bottom;
@@ -1044,8 +1379,24 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
   /// ⚠️⚠️ **KATEGORI SECILI DEGILKEN CIZILMEZ**: "Tümü"de suzgec sunmak
   ///	haritanin ustunu bosuna kaplardi ve kullanici emri de
   ///	*"yemek dedigimde"* diyor.
-  Widget _yuzenCipler() {
-    if (_kategori.isEmpty) return const SizedBox.shrink();
+  /// ⚠️⚠️⚠️ TURU 136 — **`Widget?` DONER; ESKIDEN `SizedBox.shrink()` IDI VE
+  ///	KATEGORISIZ ACILISTA EKRANIN TAMAMINI BEYAZ BIRAKIYORDU.**
+  ///
+  ///	Yigindaki (`build` -> `Stack`) diger cocuklarin HEPSI `Positioned`.
+  ///	`RenderStack` boyutunu YALNIZCA positioned OLMAYAN cocuklarindan
+  ///	hesaplar; `_kategori` bos oldugunda buradan donen 0x0 cocuk TEK
+  ///	non-positioned cocuk oluyor ve yigin **0x0**'a dusuyordu — harita,
+  ///	dugmeler, panel HICBIRI cizilmiyordu.
+  ///
+  /// ⚠️⚠️ **BU YOL GERCEKTEN ULASILABILIR:** menudeki "Yakınımda" karti
+  ///	`const YakinimdaEkrani()` ile, yani **kategorisiz** aciyor
+  ///	(`hizmet_menusu.dart`). Yani hata turu 136'dan ONCE de vardi ve
+  ///	kullanicinin kendi menu girisini vuruyordu.
+  /// ⚠️ Emulatorde olculdu: kosullu hale getirilince ekran geri geliyor.
+  /// ⚠️ YAPMA: bu metodu tekrar `SizedBox.shrink()` dondurur hale getirme;
+  ///    cagri yerindeki `if (... != null)` kapisini da kaldirma.
+  Widget? _yuzenCipler() {
+    if (_kategori.isEmpty) return null;
     return Positioned(
       left: 0,
       right: 0,
@@ -1053,6 +1404,12 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
       child: _filtreSatiri(),
     );
   }
+
+  /// Yuzen cip seridinin kapladigi yukseklik (kart onun USTUNE konumlanir).
+  ///
+  /// ⚠️ Serit `_filtreSatiri()` -> yuksekligi 40 dp'lik cipler + 10 dp
+  ///    aciklik. Kategori yoksa serit CIZILMEZ, yer de kaplamaz.
+  double _cipSeridiBoy() => _kategori.isEmpty ? 0 : 40 + 10;
 }
 
 /// ⚠️⚠️ HARITA ALANI — su an **YER TUTUCU** (bkz. dosya basindaki serh).
@@ -1085,6 +1442,8 @@ class _HaritaAlani extends StatefulWidget {
     required this.yukleniyor,
     required this.altDolgu,
     this.acildi,
+    this.secildi,
+    this.secimKapandi,
   });
 
   /// ⚠️⚠️⚠️ TURU 132 — **HARITANIN ALT DOLGUSU** (denetim buldu).
@@ -1118,6 +1477,21 @@ class _HaritaAlani extends StatefulWidget {
   /// ⚠️ Gezinmeyi EKRAN yapar, bu bilesen DEGIL: `_HaritaAlani` saf gorunum
   ///    kalsin ki anahtarsiz yer tutucu daliyla ayni sozlesmeyi paylassin.
   final void Function(IsletmeOzet)? acildi;
+
+  /// ⚠️⚠️ TURU 136 — **PINE DOKUNUNCA KART** (kullanici emri: *"haritada
+  ///	mockup isletmeler koyup tikladigimda KART seklinde"*).
+  ///
+  ///	Turu 85b'de pinin dokunusu yalnizca BALONU (`InfoWindow`) aciyordu;
+  ///	balon ad + mesafeden fazlasini gosteremez (Google Maps balonu bizim
+  ///	widget'imiz DEGIL) ve kullanici kapak/puan/kampanya goremiyordu.
+  ///	Artik pine dokunus EKRANA haber verir, ekran da haritanin ustune
+  ///	GERCEK bir kart cizer.
+  /// ⚠️ Secim durumu EKRANDA tutulur, burada DEGIL: kart panelin ustunde,
+  ///    yani bu bilesenin DISINDA ciziliyor.
+  final void Function(IsletmeOzet)? secildi;
+
+  /// Haritanin bos bir yerine dokunulunca (secimi kapatmak icin).
+  final VoidCallback? secimKapandi;
 
   @override
   State<_HaritaAlani> createState() => _HaritaAlaniState();
@@ -1168,6 +1542,8 @@ class _HaritaAlaniState extends State<_HaritaAlani> {
   ({double enlem, double boylam})? get merkez => widget.merkez;
   List<IsletmeOzet> get isletmeler => widget.isletmeler;
   void Function(IsletmeOzet)? get acildi => widget.acildi;
+  // ⚠️ TURU 136 — kardesleriyle AYNI desen (pine dokunus -> ekranda kart).
+  void Function(IsletmeOzet)? get secildi => widget.secildi;
 
   @override
   void didUpdateWidget(covariant _HaritaAlani eski) {
@@ -1218,6 +1594,10 @@ class _HaritaAlaniState extends State<_HaritaAlani> {
                 // ⚠️ Controller SAKLANIR: konum degisince kamerayi tasiyan
                 //    TEK yol budur (bkz. sinif serhi).
                 onMapCreated: (c) => _harita = c,
+                // ⚠️ TURU 136 — haritanin BOS bir yerine dokunmak acik karti
+                //    kapatir (Google/Yandex deseni). Kart kendi ✕ dugmesini
+                //    de tasiyor; bu ikinci ve daha dogal yol.
+                onTap: (_) => widget.secimKapandi?.call(),
                 // ⚠️ NORMAL GOOGLE HARITASI (bkz. `_haritaStili` serhi).
                 style: widget.stil,
                 // ⚠️⚠️ TURU 124 — **GOOGLE`IN MAVI KONUM NOKTASI KAPATILDI**
@@ -1290,21 +1670,22 @@ class _HaritaAlaniState extends State<_HaritaAlani> {
                         //    capalaniyordu ve daire konumun ~12 dp ustunde
                         //    duruyordu.
                         anchor: const Offset(0.5, 0.5),
-                        // ⚠️⚠️ TURU 85b — BALONA DOKUNMA ISLETMEYI ACAR.
-                        //    Eskiden `onTap` VERILMEMISTI: kullanici pine
-                        //    dokunup adi goruyor, sonra balona basiyor ve
-                        //    **HICBIR SEY OLMUYORDU**. Harita fiilen
-                        //    DEKORATIFTI; isletmeye ulasmanin tek yolu alttaki
-                        //    karti listede BULMAKTI (60 kayda kadar).
-                        // ⚠️ `onTap` DEGIL `onInfoWindowTap`: pinin kendi
-                        //    dokunusu balonu acmali (ad + mesafe), gezinme
-                        //    ONAYLI eylem olmali — yanlislikla kaydirirken
-                        //    ekran degistirmesin.
-                        infoWindow: InfoWindow(
-                          title: i.ad,
-                          snippet: i.mesafeMetni,
-                          onTap: () => acildi?.call(i),
-                        ),
+                        // ⚠️⚠️⚠️ TURU 136 — **PINE DOKUNUS ARTIK KART ACAR.**
+                        //
+                        //	Turu 85b'de bu dokunus yalnizca `InfoWindow`
+                        //	aciyordu (ad + mesafe) ve balona basinca profile
+                        //	gidiliyordu. Balon Google Maps'in kendi cizimi;
+                        //	kapak gorseli, puan, kampanya rozeti GOSTEREMEZ.
+                        //	Kullanici (turu 136) acikca KART istedi.
+                        // ⚠️ `InfoWindow` KALDIRILDI: kart ayni bilgiyi
+                        //    fazlasiyla veriyor; ikisi birlikte cizilseydi
+                        //    pinin ustunde balon, altta kart olurdu.
+                        // ⚠️ **GEZINME HALA ONAYLI EYLEM:** pin dokunusu
+                        //    yalnizca karti ACAR; profile gitmek icin KARTA
+                        //    dokunmak gerekir. Kaydirirken yanlislikla pine
+                        //    degen kullanici ekran degistirmis olmaz
+                        //    (turu 85b'nin gerekcesi KORUNDU).
+                        onTap: () => secildi?.call(i),
                       ),
                 },
               )
