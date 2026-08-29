@@ -8005,3 +8005,40 @@ diye bir *işletme hesabı* kısayolu konmuştu. Kullanıcı işletme HESABINI d
   turu 135'in CTA kartı YOK
 - analyze 0/0 · test 52/52 · **backend değişmedi** (deploy yok, e2e yok)
 - ⚠️ APK alınmadı — R2'deki apk 21 Ağustos sürümünde
+
+---
+
+## Oturum — 29 Ağustos 2026 (turu 137): HARİTA PANELİ YENİDEN KURULDU
+
+**Kullanıcının emri:** *"alttaki yemek oto servis vs burada anasayfadaki
+kartların isimleri olacak, otel ... gibi · mesela otele tıkladığımda mockup
+veriler olacak ama şirket kartları direkt gelecek, en yakındaki ilk başta ve
+hepsi sol sağ scroll · yüksekliği biraz arttır, profil ve harita ikonu koy ·
+mekân aramayı kaldır · Tümü'ye tıkladığında popup açılsın, iOS popup %95
+yükseklik, orada kartların aynı cafe restoran vs olsun"*
+
+### Yapıldı (oldu)
+- **Mekân arama kaldırıldı** — kutu, `AramaPaneli` sayfası
+  (`yakinimda_arama.dart` silindi), `_arama`, `_q` ve yalnız onun kullandığı
+  `_kucult` yardımcısı da gitti.
+- **Kategori çipleri artık tüm işletme kategorileri** (`isletmeKategorileri`
+  tek kaynağından; `diger` elenir). Otel, Emlak, Spor, Teknoloji, Eğlence,
+  Kuaför, Güzellik, Eğitim, Giyim haritada ilk kez görünüyor.
+- **"Tümü" → %95 yükseklikte popup**, 4 sütunlu kategori kartları ızgarası;
+  seçili olan kenarlıklı. Kategoriyi bırakma yolu popuptaki "Tümü" kartı.
+- **Panelde yatay işletme şeridi** (yalnız kategori seçiliyken): kapak + ad +
+  onay tiki + "4,8 ★ · 250 m · Örnek" + **[Profil]** ve **[harita]** düğmeleri.
+  **En yakın ilk başta**; mesafesi bilinmeyen daima sonda.
+- **Örnek işletmeler artık her kategori için** (17 × 4 tablo, yalnız seçili
+  kategori üretilir). Önceden beş sabit kayıt vardı, "Otel"e basan boş
+  harita görüyordu.
+
+### Denendi / öğrenildi (olmadı → düzeltildi)
+- **0,8 px taşma**: şerit yüksekliği paysız hesaplanınca `RenderFlex
+  overflowed by 0.800 pixels` çıktı. Flutter satır kutusunu yukarı yuvarlar;
+  `fontSize * height` çarpımı tam vermiyor → `ceilToDouble() + 1`.
+- **Panel şişmesi**: şerit + ulaşım kartları birlikte 360x640'ta paneli
+  ~330 dp'ye çıkarıyor ve haritaya ~240 dp bırakıyordu → kategori seçiliyken
+  ulaşım kartları çizilmiyor.
+- Emülatörde GPS fix'i gelmediği için şerit ancak konum geçici olarak
+  sabitlenerek görülebildi (Google Maps karoları da emülatörde çizilmiyor).
