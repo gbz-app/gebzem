@@ -7903,3 +7903,53 @@ deploy'a, uçtan uca aracına ve muhafız testlerine **DOKUNULMADI**.
 ### Devir notu
 - **Backend DEĞİŞMEDİ** → deploy YOK, **DB TRUNCATE EDİLMEDİ** (hesaplar durur)
 - `flutter analyze` **0/0** · `flutter test` **52/52**
+
+---
+
+## Oturum — 29 Ağustos 2026 (turu 135): PİYASA + MAÇ KALDIRILDI · İŞLETME KARTI
+
+**Kullanıcının emri (aynen):** *"piyasa verilerini kaldıralım, gerek yok ·
+slider'daki maç olayını da kaldır, slider boş olsun, sol sağ scroll, 1-2
+tane daha ekle · filtrelemenin üzerine kart ekle, işletme ile ilgili ·
+iOS build al, temiz."*
+
+### Yapıldı (oldu)
+- **`kur_serit.dart` (1457 satır) SİLİNDİ** — menüdeki "PİYASA" bölümü
+  (dolar/euro/altın/bitcoin şeridi + grafik paneli). Her sayısı uydurmaydı.
+- **`skor_detay.dart` (573 satır) + maç kartı + `assets/vitrin/re1.jpg`
+  SİLİNDİ.** Slider artık 3 **boş** yer tutucu kart, sol-sağ kaydırılıyor.
+  Slayt sayısı sunucudan değil `kMenuSlaytAdedi`den geliyor (ağ hatasında
+  slider tamamen kaybolmasın diye).
+- **Filtre şeridinin üstüne işletme kartı** (`IsletmeListesiEkrani`):
+  hesap işletme değilse "İşletmen mi var?" (3 adımlı sihirbaz), işletmeyse
+  "İşletmeni yönet". Uydurma "öne çıkan işletme" **yapılmadı**.
+- İki "yayın öncesi kapatılacak" borcu (`kKurOnizleme`, `kSkorOnizleme`)
+  kökten kapandı. Kalan tek önizleme bayrağı: `kYakinOnizleme`.
+- "Yeni Restourant" → **"Yeni Restoran"** (121d'den beri bekleyen yazım hatası).
+
+### Denendi / öğrenildi (olmadı → düzeltildi)
+- **`kur_serit.dart` silinince menü DERLENMEDİ**: `kIkonKutusu` ve `KalinIkon`
+  o dosyada tanımlıydı, YAKINIMDA kartları kullanıyordu → `hizmet_menusu.dart`a
+  taşındı. *Bir dosyayı silmeden önce içindeki PUBLIC tanımları ara.*
+- **Menü slider'ı açık temada görünmüyordu (1.056:1)** — çizerler `build`in
+  kendi `context`ini alıyordu, ekranın koyu `Theme`i o context'in ALTINDAYDI.
+  Hata turu 129'dan beri latentti; fotoğraf kaldırılınca ortaya çıktı.
+  `Builder` + slider'a özel opaklık → **ölçüldü 1.446:1**, tema bağımsız.
+- **360 dp + ölçek 1.3'te "Mutfaklar" şeridi 20 px taşıyordu** — `TextPainter`
+  ölçümü `fontFamily` taşımıyordu (Roboto ölçüp Google Sans çiziyorduk).
+  Ölçüm artık `DefaultTextStyle`den türetiliyor.
+- **IPA'da bir dize "YOK" çıkması her zaman hata değil**: `Her gün sıfırlanır.`
+  yoktu çünkü `_kalanHakKarti` turu 127'de kullanıcı emriyle çağrı yerinden
+  çıkarılmış ve gövdesi bilerek bırakılmıştı → AOT budadı. `git log -S` ile
+  çözüldü.
+- **Denetim ajanları `mobile/test/` altına geçici test dosyaları yazdı** ve
+  `git add -A` onları commit'e soktu (0c3a81e); ayrı bir commit'le geri alındı.
+
+### Devir notu
+- Yayınlandı: ios **33249806065** · commit **44b04f3a** · sadece iOS
+- Adres: **https://indir.gebzem.app/index.html?v=20260829-1431**
+- CDN üçü de birebir · analyze 0/0 · test 52/52 · emülatörde taşma 0
+- **Backend değişmedi** → deploy yok, DB truncate yok, e2e koşulmadı
+- ⚠️ **APK alınmadı** — R2'deki apk turu 121 sürümünde; indir sayfasındaki
+  Android düğmesi sayfanın saatini gösterdiği için APK'yi olduğundan yeni
+  gösteriyor (kullanıcıya söylendi)

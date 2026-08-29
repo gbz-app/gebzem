@@ -41,7 +41,117 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
       kaybettiriyorsun"*. **Üçüncüsü olmayacak.**
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (21 Agu 13:24): TURU 123 YAYINLANDI — SADECE iOS.**
+- **KALDIGIMIZ YER (29 Agu 14:31): TURU 135 YAYINLANDI — SADECE iOS.**
+  ios **33249806065** (**44b04f3a**), R2 ipa=29561605 (md5 4705fbdb)
+  index=7982 (md5 50afeea1) surum.json=48 (md5 668ecf3f), purge OK,
+  **CDN UCU DE BIREBIR**, iOS min **16.0**, `MapsApiKey` ENJEKTE
+  (`GMSServices` + `plugins.flutter.dev/google_maps` iki ikilide de VAR),
+  IPA'da turu 135 dizeleri VAR (İşletmen mi var? · İşletmeni yönet ·
+  Ücretsiz ekle, müşterilerin seni burada bulsun · Yeni Restoran) ve
+  KALDIRILANLAR YOK (Türkiye 1 - 0 Almanya · Arda Turan · PİYASA ·
+  Bitcoin · Cumhuriyet · ÇEVİR · Yeni Restourant).
+  ⚠️ **APK ALINMADI** (kullanici emri: *"ios build al"*) — R2'deki apk
+     turu 121 surumunde. 📌 Indir sayfasindaki Android dugmesi sayfanin
+     saatini gosteriyor, yani APK'yi OLDUGUNDAN YENI gosteriyor.
+  ⚠️ **BACKEND DEGISMEDI** -> deploy YOK, DB TRUNCATE EDILMEDI, e2e KOSULMADI.
+  ✅ analyze **0 hata 0 uyari** · test **52/52** · emulatorde tasma **0**
+     (360 dp x olcek 1.0/1.3/2.0).
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260829-1431
+
+- 🧹 **TURU 135 — UYDURMA VERI TASIYAN IKI EKRAN SILINDI** (kullanici emri:
+  *"piyasa verilerini kaldiralim gerek yok · sliderdeki mac olayini da
+  kaldir, slider bos olsun, sol sag scroll, 1-2 tane daha ekle"*).
+  · `kur_serit.dart` (1457 satir) — dolar/euro/altin/bitcoin seridi + grafik
+    paneli. **Her sayisi uydurmaydi**; projede kur/emtia verisi ne tabloda
+    ne bir ucta ne de bir dis servis anahtarinda var.
+  · `skor_detay.dart` (573 satir) + menudeki mac karti + `assets/vitrin/re1.jpg`
+    (156.911 B, pubspec girdisiyle birlikte).
+  ✅ Boylece **"yayin oncesi `kKurOnizleme`/`kSkorOnizleme` false yapilacak"**
+     borclarinin IKISI DE kapandi. Kalan TEK onizleme bayragi
+     `kYakinOnizleme` (YAKINIMDA kartlarindaki uydurma isletme adi/mesafe).
+  ⚠️ `kIkonKutusu` + `KalinIkon` `kur_serit.dart`TA tanimliydi ve YAKINIMDA
+     kartlari onlari kullaniyor -> dosya silininde menu DERLENMEDI;
+     ikisi de `hizmet_menusu.dart`a tasindi.
+  ⚠️ **SLAYT SAYISI ARTIK SUNUCUDAN GELMIYOR** (`kMenuSlaytAdedi = 3`):
+     eski `_menuSlaytProvider` `/isletme-kesif` cagiriyordu ve istek
+     patlarsa slider **TAMAMEN KAYBOLUYORDU**. Icerigi olmayan bir yer
+     tutucu icin kabul edilemez. Turu 77 kurali burada gecerli DEGIL:
+     bu sayi hicbir sorguyu/yetkiyi/siralamayi beslemiyor.
+
+- 🏪 **TURU 135 — FILTRE SERIDININ USTUNE ISLETME KARTI** (`IsletmeListesiEkrani`;
+  kullanici emri: *"filtrelemenin uzerine kart ekle, isletme ile ilgili"*).
+  Hesap isletme DEGILSE **"İşletmen mi var?"** (3 adimli sihirbaz), isletmeyse
+  **"İşletmeni yönet"** — `IsletmeDuzenleEkrani`nin kendi `_sihirbaz` ayrimiyla
+  BIREBIR.
+  ⚠️ **"One cikan isletme" YAPILMADI**: sunucuda one cikarma/sponsorluk/
+     siralama olcutu YOK; rastgele bir kaydi oyle gostermek yanlis bilgi olurdu.
+  ⚠️ `hesap_turu` bilinmiyorsa kart CIZILMEZ (null) — yoksa isletme sahibine
+     bir kare boyunca "isletmeni ekle" denirdi. Kart ustundeki bosluk da bu
+     karara bagli oldugu icin `build`de TEK KEZ hesaplanip tasiniyor.
+  📌 **PARITE NOTU (denetimde soruldu, CURUTULDU):** kart yalniz bu ekranda;
+     Ilan/Etkinlik'te zaten `FloatingActionButton.extended` ("İlan ver" /
+     "Etkinlik oluştur") var, Talep ekraninda kullanici TALEP EDEN taraf.
+     Kapisi OLMAYAN tek ekran Isletme'ydi. Paylasilan slot listesinde tek
+     dp degismedi.
+
+- ⚠️⚠️⚠️ **TURU 135c — DENETIM (22 ajan, 6 mercek + her bulguya AYRI curutucu):
+  16 ham bulgu -> 2 ONAY, 14 CURUTULDU.** En agiri:
+  · **MENU SLIDERI ACIK TEMADA GORUNMUYORDU (1.056:1).**
+    `_slider`/`_kart`/`_yakinKart`/`_selamlama` `build`in KENDI `context`ini
+    aliyordu; ekranin koyu `Theme`i o `build`in DONDURDUGU agacta, yani
+    context'in **ALTINDA**. `Theme.of` yalniz ATA elemanlari gezer ->
+    `kAiKartYuzey(context)` UYGULAMANIN temasini cozuyordu.
+    Hata turu 129'dan beri LATENT'ti; turu 130-134 boyunca o slot OPAK bir
+    fotograftı (mac karti), turu 135 fotografi kaldirinca acik temada
+    200 dp'lik BOS blok kaldi -> turun MANSET EMRI olu dogacakti.
+    **FIX: `SafeArea` altina `Builder`** (dort cagri yeri birden duzeldi)
+    + slaytin ICI BOS oldugu icin opaklik YALNIZ sliderda 0.12 -> **0.20**
+    (`kSlaytAlfa`; `kAiKartYuzey`e `alfa` parametresi eklendi, varsayilan
+    DEGISMEDI — kartlarin 0.12'si GebzemAI balonuyla ayni kalmali).
+    ✅ **OLCULDU (ekran goruntusunun GERCEK pikselleri):** slayt `#2E2839`,
+       zemin `#050308`, **1.446:1** ve deger acik/koyu UYGULAMA temasinda
+       BIREBIR AYNI (tema bagimliligi yapisal olarak bitti).
+    ⚠️ YAPMA: `Builder`i kaldirip `build`in context'ini asagi gecirme.
+  · **`myProfileProvider` hatasi SUREC OMRU BOYUNCA onbellekleniyor** ->
+    isletme karti sebep soylemeden kayboluyordu; `_tazele` (asagi-cek)
+    profile HIC dokunmuyordu, yani tam gerektigi anda no-op oluyordu.
+    FIX: `_tazele` artik `ref.invalidate(myProfileProvider)` de yapiyor.
+    (Saglayicinin KENDISI degistirilmedi: 15+ tuketici, arayuz turu.)
+
+- ⚠️⚠️⚠️ **TURU 135b — `TextPainter` OLCUMU YAZI TIPINI TASIMIYORDU**
+  (emulatorde goruldu: 360 dp + olcek 1.3 -> *"BOTTOM OVERFLOWED BY 20
+  PIXELS"*, yani TAM BIR SATIR).
+  `_altKategoriSeridi` yukseklik olcumunu CIPLAK bir `TextStyle` ile
+  yapiyordu; `fontFamily` yoksa `TextPainter` platform varsayilanina
+  (**Roboto**) duser, cizilen `Text` ise temadan **Google Sans** alir.
+  Google Sans ayni puntoda DAHA GENIS: "Lahmacun" Roboto'da tek satira
+  siger, Google Sans'ta IKI satira sarar -> olcum BIR SATIR EKSIK cikardi.
+  Olcek 1.0'da gorunmuyordu. **Repodaki TEK `TextPainter` kullanimi burasi.**
+  FIX: olcum stili `Text`in yaptigi seyin AYNISI ile uretilir —
+  `DefaultTextStyle.of(context).style.merge(...)`. Elle `fontFamily`
+  YAZILMADI (tema ailesi degisirse olcum yine geride kalirdi).
+  ⚠️ **KURAL: `TextPainter` ile bir sey olcerken stili DAIMA ortamdaki
+     `DefaultTextStyle`den turet.** (Turu 121'in *"uygulamanin fontu
+     Roboto DEGIL"* dersinin OLCUM tarafindaki karsiligi.)
+
+- 📌 **TURU 135 — "Yeni Restourant" -> "Yeni Restoran"** (turu 121d'den beri
+  bekleyen yazim hatasi). Etiket YALNIZ ekranda; suzgec anahtari `f.puansiz`
+  oldugu icin sunucu sozlesmesine dokunulmadi.
+  ⏳ **HALA BEKLIYOR (kullanici karari):** hizli erisim kartlari (Gece Kuşu ·
+     Yeni Restoran · 4+ · Şimşek) ve Teslimat/Min. tutar filtreleri YEMEGE
+     OZEL ama TUM `IsletmeListesiEkrani` kategorilerinde gorunuyor.
+
+- 📌 **TURU 135 — ARTIFACT DOGRULAMASINDA "YOK" CIKAN DIZE HER ZAMAN HATA
+  DEGIL.** IPA'da `Her gün sıfırlanır.` / `Bugün kalan hakkın` arandi ve
+  YOK cikti; kaynakta ISE VARDI. Kok neden: `_kalanHakKarti` **turu 127'de
+  kullanici emriyle cagri yerinden cikarilmis**, govdesi
+  `// ignore: unused_element` ile BILEREK birakilmis -> Dart AOT onu
+  agactan budadi. Yani "YOK" dogru cevapti.
+  ⚠️ **DERS: bir dize eksik cikinca once `git log -S` ile CAGRI YERINI ara**;
+     ayni dosyadan cagrilan baska bir dize (`GebzemAI’a sorun`) VAR cikiyorsa
+     yontem saglamdir, eksik olan KODUN KENDISIDIR.
+
+- **ONCEKI (21 Agu 13:24): TURU 123 YAYINLANDI — SADECE iOS.**
   ios **32471646528** (**b475bac**), R2 ipa=29542814 (md5 827f2616)
   index=16637 (md5 0477a095) surum.json=48 (md5 74a4561b), purge OK,
   **CDN UCU DE BIREBIR**, debug imza YOK, HARITA=true, IPA de turu 123
@@ -5451,4 +5561,3 @@ WS olayları: message.new, receipt.read, typing
 - GitHub: gbz-app · Cloudflare: Gebzemapp@outlook.com (zone gebzem.app; R2: gebzem-media + gebzem-dist→indir.gebzem.app) · Google: gebzemapp@gmail.com (gcloud girişli; API çağrılarında `x-goog-user-project` başlığı şart) · Codemagic + Apple: yukarıda
 - Anahtarlar: `.env.infra` · gh CLI: `C:\Users\gebze\tools\gh\bin\gh.exe` (PATH'te yok) · gcloud: `C:\Users\gebze\AppData\Local\Google\Cloud SDK\google-cloud-sdk\bin\gcloud.cmd` · Firebase CLI (npm), Node 24, git 2.54, Flutter 3.44, Go 1.26
 - PowerShell tuzakları: git/gcloud çıktısı stderr'e gider (`2>&1` NativeCommandError yanıltır — kullanma); Dart 3.12'de `(_, __)` yerine `(_, _)`
-Dostum sen şimdi ben test yaparken detaylı bir şekilde ve dikkatli bir şekilde canlı yayın yap ve temiz bir bıild alt öncesin çok kapsamlı bug fix araştırması yap ve en son derinlemesine yap step step ve temiz build al indir sitesi ne r saat yazmıyor göremiyorum orada saatte yazdım buna arada
