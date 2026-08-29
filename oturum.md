@@ -8042,3 +8042,12 @@ yükseklik, orada kartların aynı cafe restoran vs olsun"*
   ulaşım kartları çizilmiyor.
 - Emülatörde GPS fix'i gelmediği için şerit ancak konum geçici olarak
   sabitlenerek görülebildi (Google Maps karoları da emülatörde çizilmiyor).
+
+### Devir notu (turu 137)
+- Yayınlandı: ios **33262397311** · commit **d21ab275** · **sadece iOS**
+- Adres: **https://indir.gebzem.app/index.html?v=20260829-1926**
+- CDN üçü de birebir (ipa 00d85398 · index f8ef41f9 · surum 51f6f5ca)
+- iOS min 16.0 · MapsApiKey enjekte · IPA'da turu 137 dizeleri VAR,
+  kaldırılanlar (Mekân ve adres ara · İşletmen mi var?) YOK
+- analyze 0/0 · test 52/52 · **backend değişmedi**
+- ⚠️ APK alınmadı — R2'deki apk 21 Ağustos sürümünde

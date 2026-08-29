@@ -41,7 +41,52 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
       kaybettiriyorsun"*. **Üçüncüsü olmayacak.**
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (29 Agu 16:49): TURU 136 YAYINLANDI — SADECE iOS.**
+- **KALDIGIMIZ YER (29 Agu 19:26): TURU 137 YAYINLANDI — SADECE iOS.**
+  ios **33262397311** (**d21ab275**), R2 ipa=29562109 (md5 00d85398)
+  index=7982 (md5 f8ef41f9) surum.json=48 (md5 51f6f5ca), purge OK,
+  **CDN UCU DE BIREBIR**, iOS min **16.0**, `MapsApiKey` ENJEKTE.
+  IPA'da turu 137 dizeleri VAR (Marmara Otel · Gebze Palas · Anadolu Sofrası ·
+  Form Spor Salonu · Bowling Merkezi · Otel & Konaklama · Kategoriler · Profil)
+  ve KALDIRILANLAR YOK (Mekân ve adres ara · İşletmen mi var? ·
+  Türkiye 1 - 0 Almanya).
+  ⚠️ **APK ALINMADI** — R2'deki apk turu 121 surumunde (21 Agu).
+  ⚠️ **BACKEND DEGISMEDI** -> deploy YOK, DB TRUNCATE EDILMEDI, e2e KOSULMADI.
+  ✅ analyze **0 hata 0 uyari** · test **52/52** · 411 dp x1.0 ve 360 dp
+     x1.3/x2.0 emulatorde tasma **0**.
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260829-1926
+
+- 🗺️ **TURU 137 — HARITA ALT PANELI YENIDEN KURULDU** (kullanici emri).
+  · **MEKAN ARAMA KALDIRILDI**: kutu + `AramaPaneli` (`yakinimda_arama.dart`
+    SILINDI) + `_arama` + `_q` + yalnizca onun kullandigi `_kucult`.
+  · **CIPLER = TUM ISLETME KATEGORILERI** (`isletmeKategorileri` TEK
+    KAYNAGINDAN, `diger` elenir). Otel · Emlak · Spor · Teknoloji · Eglence ·
+    Kuafor · Guzellik · Egitim · Giyim haritada ILK KEZ gorunuyor.
+    ⚠️ **"Etkinlik" KONMADI (DURUST SINIR)**: etkinlik bir ISLETME KATEGORISI
+       degil, `/yakinimda` onu tanimaz; cip konsaydi DAIMA BOS liste gelirdi.
+  · **"Tümü" -> POPUP, ekranin %95'i** (`isScrollControlled` +
+    `FractionallySizedBox(0.95)`; varsayilan sheet tavani 9/16 ve izgara
+    KIRPILIRDI — turu 90b/115c). Icinde 4 sutunlu kategori KARTLARI.
+    ⚠️ Kategoriyi birakma yolu KAYBOLMADI: popuptaki "Tümü" karti.
+  · **PANELDE YATAY ISLETME SERIDI** (yalniz kategori seciliyken):
+    kapak/kategori-ikonu + ad + onay tiki + "4,8 ★ · 250 m · Örnek" +
+    **[Profil]** ve **[harita]** dugmeleri. Harita dugmesi kamerayi o
+    isletmeye tasir (`_odak`) ve pin kartini acar.
+    ⚠️ **EN YAKIN ONCE**; mesafesi BILINMEYEN kayit DAIMA SONA (turu 122'de
+       ilan fiyatinda birebir ayni tuzak).
+    ⚠️ `kPanelSeritTavan = 12` — 60 kart yan yana kapak COZERDI (turu 91).
+    ⚠️⚠️ **SERIT VARKEN ULASIM KARTLARI CIZILMEZ**: ikisi birden 360x640'ta
+       paneli ~330 dp'ye cikariyor ve haritaya ~240 dp kaliyordu. Kategori
+       birakilinca ulasim geri gelir. ⚠️ YAPMA: ikisini ayni anda cizmeye
+       donme — once 360 dp'de OLC.
+  · **ORNEK ISLETMELER ARTIK HER KATEGORI ICIN** (17 x 4 tablo, YALNIZ
+    secili kategori uretilir). Onceden bes sabit kayit vardi ve "Otel"e
+    dokunan kullanici BOS harita goruyordu.
+  ⚠️⚠️ **OLCULEN TASMA: 0.8 px.** Serit yuksekligi paysiz hesaplaninca
+     *"RenderFlex overflowed by 0.800 pixels"* cikti — Flutter satir kutusunu
+     YUKARI yuvarlar, `fontSize * height` carpimi TAM vermez.
+     `ceilToDouble() + 1` payi eklendi (turu 121/123'un ayni dersi).
+
+- **ONCEKI (29 Agu 16:49): TURU 136 YAYINLANDI — SADECE iOS.**
   ios **33255555906** (**7779204**), R2 ipa=29566036 (md5 e70347da)
   index=7982 (md5 6ab92617) surum.json=48 (md5 ea6e8457), purge OK,
   **CDN UCU DE BIREBIR**, iOS min **16.0**, `MapsApiKey` ENJEKTE,
