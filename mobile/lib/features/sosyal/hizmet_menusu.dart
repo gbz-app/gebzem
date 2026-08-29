@@ -97,6 +97,16 @@ const kYakinAdAra = 3.0;
 ///    beslenir, sozlesme degistirmeden bir listeye baglanir.
 const kMenuSlaytAdedi = 3;
 
+/// ⚠️⚠️ TURU 135 — BOS SLAYTIN YUZEY OPAKLIGI (menu kartlarininki 0.12).
+///
+///	OLCULDU (denetim): 0.12 ile slayt `#1E1925`, zemin `#050308` ->
+///	**1.19:1**. Icinde ikon/yazi olmayan 200 dp'lik bir blok icin bu
+///	fiilen gorunmez demek. 0.20'de `#2E2839` -> **~1.45:1**.
+/// ⚠️ Kartlarin 0.12'sine DOKUNULMADI: onlarda etiket ve ikon var,
+///    ayrica o sayi GebzemAI mesaj balonuyla AYNI olmak zorunda
+///    (`core/theme.dart` serhi).
+const kSlaytAlfa = 0.20;
+
 /// ⚠️⚠️ TURU 134 — **IKON KUTUSU KART YUZEYINDEN BIR TIK KOYU** (kullanici
 ///	emri: *"ikonlarin arka plan rengi kart renginden 1 tik kapali
 ///	olsun"*).
@@ -545,7 +555,33 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
           child: Material(
             type: MaterialType.transparency,
             child: SafeArea(
-              child: CustomScrollView(
+              // ⚠️⚠️⚠️ TURU 135 — **`Builder` ZORUNLU** (denetimde OLCULDU).
+              //
+              //	`Theme.of` YALNIZCA ATA elemanlari gezer. Yukaridaki koyu
+              //	`Theme` bu `build`in DONDURDUGU agacta, yani `build`in
+              //	KENDI `context`i onun **USTUNDE** kaliyor. Alt cizerlere
+              //	(`_slider` · `_kart` · `_yakinKart` · `_selamlama`) o
+              //	context gecirildigi icin `Theme.of(...)` ekranin koyu
+              //	semasini DEGIL, **uygulamanin acik/koyu temasini**
+              //	cozuyordu.
+              //
+              //	OLCULDU (denetim, gecici widget testiyle cizilen renk
+              //	okundu): uygulama ACIK temadayken slayt yuzeyi
+              //	`#6C2BD9 @%12` -> `#110821`, zemin `#050308` ->
+              //	**kontrast 1.056:1**. Bu projenin kendi olcutu turu
+              //	115b'de 1,09:1 icin "fiilen gorunmuyordu" diyor. Yani
+              //	acik temadaki kullanici 200 dp'lik BOS bir alan gorur ve
+              //	turu 135'in emri ("slider bos olsun, sol sag scroll")
+              //	OLU DOGARDI. Koyu temada 1.194:1 ile fark edilmiyordu.
+              //	⚠️ Hata turu 129'dan beri LATENT'ti: o slot turu 130-134
+              //	   boyunca OPAK bir fotograftı (mac karti), yuzey rengi
+              //	   hic cizilmiyordu.
+              //
+              // ⚠️ YAPMA: `Builder`i kaldirip `build`in kendi `context`ini
+              //    asagi gecirme; yeni bir cizer eklerken de BU context'i
+              //    (govdedeki `context`) kullan.
+              child: Builder(
+                builder: (context) => CustomScrollView(
                 slivers: [
                   SliverToBoxAdapter(
                     child: Column(
@@ -696,7 +732,8 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
                     ),
                   ),
                   const SliverToBoxAdapter(child: SizedBox(height: 20)),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -754,11 +791,18 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
   ///    "burada bir istek var" sanmaya iterdi.
   Widget _slider(BuildContext context) => SizedBox(
     height: KategoriSlider.yukseklik,
-    // ⚠️ TURU 129 — slider zemini de kart yuzeyiyle AYNI (kullanici:
-    //    *"kartlar vs sliderda rengi de"*).
+    // ⚠️ TURU 129 — slider zemini kart yuzeyiyle AYNI FORMULDEN gelir
+    //    (kullanici: *"kartlar vs sliderda rengi de"*).
+    // ⚠️⚠️ TURU 135 — **YALNIZ OPAKLIK YUKSEK: 0.12 -> `kSlaytAlfa`.**
+    //	Kartlarda ikon + etiket var, yani kutu solgun olsa bile bolum
+    //	OKUNUYOR. Slaytin ICI ise TAMAMEN BOS (kullanici emri) — tek
+    //	gorsel isaret dolgunun kendisi. 0.12'de olculen kontrast
+    //	**1.19:1**, yani 200 dp'lik blok neredeyse gorunmuyordu.
+    // ⚠️ Renk yine `kAiKartYuzey`ten TURETILIR (tek kaynak): marka moru
+    //    degisirse slider da doner. ⚠️ YAPMA: buraya sabit hex yazma.
     child: KategoriSlider(
       slaytlar: _bosSlaytlar,
-      yuzey: kAiKartYuzey(context),
+      yuzey: kAiKartYuzey(context, alfa: kSlaytAlfa),
     ),
   );
 

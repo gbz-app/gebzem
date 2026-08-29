@@ -1047,6 +1047,20 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
   ///    ekranda slider ve 60x60 serit KALICI olarak bos kalirdi ve
   ///    kullanicinin ekrani kapatmaktan baska yolu olmazdi.
   Future<void> _tazele() async {
+    // ⚠️⚠️⚠️ TURU 135 (denetim) — **PROFIL DE TAZELENIR.**
+    //
+    //	`myProfileProvider` `keepAlive` ve govdesinde `invalidateSelf` YOK:
+    //	`/users/me` BIR KEZ patlarsa (mobil ag, sunucu restarti, soguk
+    //	acilis) hata SUREC OMRU BOYUNCA onbellekte kalir ve
+    //	`valueOrNull` bir daha DOLMAZ. O durumda `_isletmeKarti()` null
+    //	doner, yani kart SEBEP SOYLEMEDEN kaybolur.
+    //	Bu ekranin belgelenmis kurtarma yolu ASAGI-CEK'tir; oysa `_tazele`
+    //	profile HIC dokunmuyordu -> tam gerektigi anda no-op oluyordu.
+    //	(Ayni sinif turu 78b'de `aiDurumProvider`, turu 113'te Ayarlar'daki
+    //	"Gizlilik" bolumu ile IKI KEZ sahaya cikti.)
+    // ⚠️ Saglayicinin KENDISI degistirilmedi: 15+ tuketicisi var ve hata
+    //    dalinin semantigini degistirmek bu arayuz turunun kapsami disi.
+    ref.invalidate(myProfileProvider);
     await Future.wait([_kesfiYukle(), _yukle()]);
   }
 
@@ -1512,7 +1526,14 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
       // ⚠️ YAPMA: bu karti "min. tutar <= 150"e baglayip "Yeni" demek —
       //    etiketle yuklem AYRISIR ve kullanici yanlis bilgi alir.
       (
-        ad: 'Yeni Restourant',
+        // ⚠️ TURU 135 — YAZIM DUZELTMESI: "Restourant" -> **"Restoran"**
+        //    (turu 121d denetiminden beri bekleyen listede duruyordu).
+        //    Etiket YALNIZ ekranda gorunur; suzgec anahtari `f.puansiz`
+        //    oldugu icin sunucu sozlesmesine DOKUNMAZ.
+        // ⚠️ Kartin YEMEGE OZEL olmasi ayri bir konu ve HALA BEKLIYOR
+        //    (Egitim/Otel/Saglik ekranlarinda anlamsiz duruyor) — o karar
+        //    kullanicinin.
+        ad: 'Yeni Restoran',
         secili: f.puansiz,
         ac: () => _suzgecDegistir(() => f.puansiz = !f.puansiz),
       ),

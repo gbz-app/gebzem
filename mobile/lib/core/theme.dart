@@ -427,5 +427,14 @@ class AiZemin extends StatelessWidget {
 ///    balonla kartlar ilk tema degisikliginde AYRISIRDI.
 /// ⚠️ Opaklik 0.12 GEBZEMAI ILE AYNI SAYI olmak zorunda; degistirirsen
 ///    `gebzem_ai.dart` balonunu da degistir (yoksa iki ekran ayrisir).
-Color kAiKartYuzey(BuildContext c) =>
-    Theme.of(c).colorScheme.primary.withValues(alpha: 0.12);
+///
+/// ⚠️⚠️ TURU 135 — **`alfa` PARAMETRESI EKLENDI, VARSAYILAN DEGISMEDI.**
+///	Menudeki BOS slider (turu 135'te uydurma mac kartinin yerini aldi)
+///	icinde ikon/yazi TASIMAYAN 200 dp'lik bir bloktur; 0.12 ile
+///	olculen kontrast **1.19:1** kaliyor ve blok neredeyse gorunmuyor
+///	(kartlarda sorun degil, cunku onlarda etiket ve ikon var).
+/// ⚠️ Yeni bir sabit renk TURETILMEDI: formul TEK YERDE kalsin diye
+///    yalnizca opaklik disaridan verilebiliyor. ⚠️ YAPMA: cagri
+///    yerlerine `colorScheme.primary.withValues(...)` kopyalama.
+Color kAiKartYuzey(BuildContext c, {double alfa = 0.12}) =>
+    Theme.of(c).colorScheme.primary.withValues(alpha: alfa);
