@@ -13,6 +13,9 @@ import '../medya/medya_gorsel.dart';
 import '../sosyal/profil_basligi.dart' show kOnayliRengi;
 import '../sosyal/profil_sayfasi.dart';
 import 'favorilerim_ekrani.dart';
+// ⚠️ TURU 135 — filtre ustundeki isletme kartinin actigi ekran (sihirbaz
+//    ya da duzenleme; karari o dosya verir).
+import 'isletme_duzenle.dart';
 import 'isletme_filtre.dart';
 import 'isletme_kart.dart';
 import '../home/alt_menu.dart';
@@ -700,6 +703,11 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
   Widget build(BuildContext context) {
     // ⚠️ HAM liste degil **SUZULMUS** liste cizilir (bkz. `_gosterilen`).
     final l = _gosterilen;
+    // ⚠️⚠️ TURU 135 — kart **BIR KEZ** kurulur: hem cizilecek mi karari hem
+    //	ustundeki boslugun buyuklugu ona bagli (bkz. `_isletmeKarti`).
+    //	Iki ayri yerde ayri ayri hesaplansaydi biri degisince oteki geride
+    //	kalir ve bosluk 4 px kayardi.
+    final isletmeKarti = _isletmeKarti();
     return Scaffold(
       // ⚠️⚠️⚠️ TURU 96l — **ALT MENU BU EKRANDA DA CIZILIR** (kullanici emri:
       //	*"alt menuyu getir, alt menu gorunmesi gerekiyor"*).
@@ -841,10 +849,15 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                     // ⚠️ Alt kategori seridi VARSA tam bosluk; YOKSA hemen
                     //    altta cip seridi geliyor demektir ve onun kendi
                     //    4px payi DUSULUR (bkz. `kCipPay`).
+                    // ⚠️⚠️ TURU 135 — pay YALNIZ bir sonraki oge CIP SERIDIYSE
+                    //	dusulur. Isletme karti araya girdiginde SONRAKI oge
+                    //	KART olur ve kartin boyle bir ic payi YOKTUR; pay yine
+                    //	dusulseydi izgara ile kart arasi 16 yerine 12 dp kalirdi.
                     // ⚠️ YAPMA: buraya ikinci bir `SizedBox` ekleme.
                     SliverToBoxAdapter(
                         child: SizedBox(
-                            height: _altKategoriler.isNotEmpty
+                            height: (_altKategoriler.isNotEmpty ||
+                                    isletmeKarti != null)
                                 ? kBosluk
                                 : kBosluk - kCipPay)),
 
@@ -881,6 +894,22 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                       SliverToBoxAdapter(child: _altKategoriSeridi()),
                       // ⚠️ Cip seridinin USTUNDE 4px kendi payi var
                       //    (bkz. `kCipPay`): gorunen bosluk yine 16.
+                      // ⚠️ Araya isletme karti girdiyse pay DUSULMEZ (bkz.
+                      //    yukaridaki ayni gerekce).
+                      SliverToBoxAdapter(
+                          child: SizedBox(
+                              height: isletmeKarti != null
+                                  ? kBosluk
+                                  : kBosluk - kCipPay)),
+                    ],
+
+                    // ── ISLETME KARTI (kullanici emri, turu 135) ──
+                    // ⚠️ Kart FILTRE SERIDININ USTUNDE: kullanici *"filtrelemenin
+                    //    uzerine kart ekle, isletme ile ilgili"* dedi.
+                    if (isletmeKarti != null) ...[
+                      SliverToBoxAdapter(child: isletmeKarti),
+                      // ⚠️ Kartin ALTINDA cip seridi var -> onun 4px ic payi
+                      //    dusulur (ekranin dikey ritmi: gorunen bosluk 16).
                       const SliverToBoxAdapter(
                           child: SizedBox(height: kBosluk - kCipPay)),
                     ],
@@ -1867,6 +1896,133 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
   /// SAGINDA yatay kayan SIK KULLANILANLAR.
   /// ⚠️ Solraki dugme KAYMAZ (`Row` + `Expanded`): kullanici filtreyi
   ///    ararken seridi kaydirmak zorunda kalmamali.
+  /// ⚠️⚠️⚠️ TURU 135 — **FILTRE SERIDININ USTUNDEKI ISLETME KARTI**
+  ///	(kullanici emri: *"filtrelemenin uzerine kart ekle, isletme ile
+  ///	ilgili"*).
+  ///
+  /// ═══════════ NEDEN BU ICERIK ═══════════
+  ///
+  ///	"Isletme ile ilgili" bir kart icin iki aday vardi:
+  ///	  (a) ONE CIKAN ISLETME — **YAPILMADI**: sunucuda "one cikan" diye bir
+  ///	      alan, sponsorluk ya da siralama olcutu YOK. Rastgele bir kaydi
+  ///	      "one cikan" diye gostermek, listenin geri kalanina bakan
+  ///	      kullaniciya YANLIS BILGI olurdu (bu projede uydurma veri kurali).
+  ///	  (b) **ISLETME HESABI KAPISI** — secilen bu: arkasindaki akis
+  ///	      (`IsletmeDuzenleEkrani`) GERCEK ve calisiyor.
+  ///
+  /// ⚠️⚠️ **EKRAN TEK, ETIKET IKI:** `IsletmeDuzenleEkrani` hesap isletme
+  ///	DEGILSE 3 adimli SIHIRBAZ, ISLETMEYSE duzenleme ekrani olarak acilir
+  ///	(bkz. o dosyadaki `_sihirbaz`). Kart da ayni ayrimi yapar; yoksa
+  ///	isletme sahibine *"isletmeni ekle"* denirdi.
+  ///
+  /// ⚠️⚠️ **PROFIL BILINMIYORSA KART CIZILMEZ (`null`).** `hesap_turu`
+  ///	yuklenmeden cizilseydi kart, isletme sahibine bir kare boyunca
+  ///	"İşletmeni ekle" der ve sonra metin degisirdi. `myProfileProvider`
+  ///	`keepAlive` ve uygulama acilisinda ZATEN yukleniyor; pratikte kart
+  ///	ilk karede hazir.
+  /// ⚠️ Kart ustundeki boslugun buyuklugu de bu null karari degistigi icin
+  ///    `build` icinde TEK KEZ hesaplanip tasiniyor.
+  ///
+  /// ⚠️⚠️ **SABIT YUKSEKLIK YOK:** yukseklik icerikten gelir. Sabit bir boy
+  ///	verilseydi yazi olcegi 1.3-2.0'da ic metin tasar ve sari-siyah serit
+  ///	cikardi (bu ekranda turu 121/123'te iki kez olculdu).
+  /// ⚠️ Iki metin de `maxLines` + ellipsis: uzun bir cumle kartla degil
+  ///    KENDISIYLE sinirlanir.
+  Widget? _isletmeKarti() {
+    final p = ref.watch(myProfileProvider).valueOrNull;
+    if (p == null) return null;
+    final isletme = (p['hesap_turu'] ?? '').toString() == 'isletme';
+    final scheme = Theme.of(context).colorScheme;
+    // ⚠️ `kVurgu` TEK KAYNAK — bu ekranda `scheme.primary` KULLANILMAZ
+    //    (bkz. `isletme_kart.dart` serhi; turu 121d'de kutular MOR cikmisti).
+    final vurgu = kVurgu(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: kYanBosluk),
+      child: Material(
+        // ⚠️ Yuzey listedeki kartlarla/60x60 kutularla AYNI gri (tek kaynak).
+        color: kYuzeyGri(context),
+        borderRadius: BorderRadius.circular(kYaricap(64)),
+        // ⚠️ `clipBehavior`: dalga (`InkWell`) yuvarlak kosenin DISINA tasmasin.
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () async {
+            await Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const IsletmeDuzenleEkrani(),
+              ),
+            );
+            // ⚠️ Donuste profil TAZELENIR: kullanici sihirbazi bitirdiyse
+            //    `hesap_turu` degisti ve kartin ETIKETI de degismeli.
+            //    (`IsletmeDuzenleEkrani` kendi kaydinda zaten invalidate
+            //    ediyor; burasi "vazgecip geri geldi" dalini da kapsar.)
+            if (mounted) ref.invalidate(myProfileProvider);
+          },
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+            child: Row(
+              children: [
+                // ── IKON KUTUSU ──
+                // ⚠️ Boyut SABIT: ikon yazi olceginden BAGIMSIZ (bir ikon
+                //    okunabilirlik icin buyumek zorunda degil; buyuseydi
+                //    metne kalan genislik daralirdi).
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: vurgu.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(kYaricap(38)),
+                  ),
+                  child: Icon(LucideIcons.store, size: 19, color: vurgu),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        isletme ? 'İşletmeni yönet' : 'İşletmen mi var?',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 14.5,
+                          height: 1.2,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        isletme
+                            ? 'Bilgilerini, saatlerini ve menünü güncelle'
+                            : 'Ücretsiz ekle, müşterilerin seni burada bulsun',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          height: 1.25,
+                          fontWeight: FontWeight.w500,
+                          // ⚠️ 0.75 — turu 114 denetiminde 0.6 acik temada
+                          //    **4.35:1** olculmustu (12 px icin esik 4.5:1).
+                          color: scheme.onSurface.withValues(alpha: 0.75),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Icon(
+                  LucideIcons.chevronRight,
+                  size: 20,
+                  color: scheme.onSurface.withValues(alpha: 0.45),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _filtreSatiri() {
     return Padding(
       // ⚠️ TURU 93b — `12` idi -> `kYanBosluk` (dosya basindaki "elle yatay

@@ -343,13 +343,16 @@ const Color kAiZemin = Color(0xFF050308);
 ///	BILEREK EZER.**
 ///
 ///	`bottomSheetTheme` yukarida ACIKCA "her sheet'e tek tek yazma" diyor ve
-///	o kural GENEL panellerde GECERLI. Ama GebzemAI ve PIYASA panelleri
-///	**koyu AI yuzeyinin uzerinde** aciliyor; tema rengiyle cizilseler acik
-///	temada BEYAZ bir panel koyu bir ekranin ustune binerdi.
+///	o kural GENEL panellerde GECERLI. Ama GebzemAI paneli **koyu AI
+///	yuzeyinin uzerinde** aciliyor; tema rengiyle cizilseydi acik temada
+///	BEYAZ bir panel koyu bir ekranin ustune binerdi.
 ///
 /// ⚠️⚠️ EZME BILINCLI OLDUGU ICIN **TEK KAYNAKTAN** yapilir: onceden
-///	`0xFF15121F` + 28 dp cifti `gebzem_ai.dart` ve `kur_serit.dart`a AYRI
-///	AYRI yazilmisti (denetim buldu) — biri degisince oteki geride kalirdi.
+///	`0xFF15121F` + 28 dp cifti `gebzem_ai.dart` ve (turu 135'te silinen)
+///	`kur_serit.dart`a AYRI AYRI yazilmisti (denetim buldu) — biri
+///	degisince oteki geride kalirdi.
+/// ⚠️ BUGUN TEK CAGIRAN `gebzem_ai.dart`; sabit yine de BURADA KALIR —
+///    koyu yuzey uzerinde acilan bir sonraki panel ayni degeri KOPYALAMASIN.
 /// ⚠️ Bu panellerin ICINDEKI on plan renkleri de SABIT BEYAZ; zemini
 ///    degistirirsen o beyazlari da ARA (turu 115b dersi).
 const Color kKoyuPanelZemin = Color(0xFF15121F);

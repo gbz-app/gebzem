@@ -14,8 +14,6 @@ import '../home/home_screen.dart' show aktifSekme;
 import '../isletme/kategori_slider.dart';
 import '../medya/medya_gorsel.dart' show Avatar;
 import 'kesfet_ekrani.dart';
-import 'skor_detay.dart';
-import 'kur_serit.dart';
 import '../../core/theme.dart' show morLogo, kAiZemin, AiZemin, kAiKartYuzey;
 import '../home/home_screen.dart' show myProfileProvider;
 import 'package:permission_handler/permission_handler.dart';
@@ -55,20 +53,16 @@ import '../isletme/isletme_kart.dart' show kYanBosluk, kYaricap;
 ///    Tek satirlik Row 4. kartta
 ///    RenderFlex overflow verirdi (turu 60/62 dersi). Sheet KAYDIRILABILIR
 ///    (`isScrollControlled` + yukseklik tavani) — kucuk ekranda tasmasin.
-/// ⚠️ TURU 96q — MENUNUN SLIDER VERISI. Kategori ekraninin kullandigi
-///    `/isletme-kesif` ucunun **VARSAYILAN** (kategorisiz) slayt seti.
-/// ⚠️ `autoDispose` DEGIL: menu her acilista yeniden istek atmasin — slayt
-///    metinleri sunucuda sabit ve nadiren degisir.
-/// ⚠️⚠️⚠️ TURU 130 — **TASARIM ONIZLEME BAYRAKLARI.**
+/// ⚠️⚠️⚠️ TURU 130 — **TASARIM ONIZLEME BAYRAGI.**
 ///
-///	Kullanici emri: *"simdilik yakinimdakilere sahte isimler yaz"* +
-///	*"diger slideri kaldir simdilik, nasil durduguna bakmak icin"*.
+///	Kullanici emri: *"simdilik yakinimdakilere sahte isimler yaz"*.
 ///
-/// ⚠️⚠️⚠️ **IKISI DE YAYIN ONCESI `false` YAPILACAK.** Acikken ekranda
-///	GERCEK OLMAYAN veri gorunur: uydurma isletme adlari/mesafeler ve
-///	gercek bir maci temsil ETMEYEN bir skor.
+/// ⚠️⚠️⚠️ **YAYIN ONCESI `false` YAPILACAK.** Acikken ekranda GERCEK
+///	OLMAYAN veri gorunur: uydurma isletme adlari ve mesafeler.
 /// ⚠️ Kod SILINMEDI, bayrakla kapatiliyor (CLAUDE.md kurali): bayrak
 ///    `false` olunca gercek davranis AYNEN geri gelir.
+/// ⚠️⚠️ TURU 135 — kardes bayrak `kSkorOnizleme` ARTIK YOK: mac karti ve
+///	detay ekrani kullanici emriyle TAMAMEN KALDIRILDI (asagida).
 const kYakinOnizleme = true;
 
 /// ⚠️⚠️ TURU 134 — YAKINIMDA kartinda **ad ile mesafe arasindaki bosluk**
@@ -79,12 +73,71 @@ const kYakinOnizleme = true;
 ///	butceden uzun olur ve yazi olcegi 1.3`te serit TASAR (turu 129`da
 ///	birebir bu yasandi, muhafiz 2.7 px olctu).
 const kYakinAdAra = 3.0;
-const kSkorOnizleme = true;
 
-final _menuSlaytProvider = FutureProvider<List<Slayt>>((ref) async {
-  final d = await ref.read(isletmeServisiProvider).kesif('');
-  return d.slaytlar;
-});
+/// ⚠️⚠️⚠️ TURU 135 — **MENU SLIDERI BOS VE YEREL** (kullanici emri:
+///	*"slider'daki mac olayini da kaldir, slider bos olsun, sol sag
+///	scroll, 1-2 tane daha ekle"*).
+///
+///	Slaytlarin ICI ZATEN BOS cizilir (`kategori_slider.dart` -> `_slayt`:
+///	yalnizca yuvarlak yuzey; baslik/alt metin turu 95'te kaldirildi).
+///	Yani sunucudan gelen tek sey slayt **SAYISIYDI**.
+///
+/// ⚠️⚠️ **SAYI ARTIK SUNUCUDAN ALINMIYOR — SEBEBI DAYANIKLILIK:** eski
+///	`_menuSlaytProvider` `/isletme-kesif` cagiriyordu ve istek patlar ya
+///	da bos donerse `_slider` **`SizedBox.shrink()`** donuyordu, yani
+///	kullanicinin gordugu slider AG HATASINDA TAMAMEN KAYBOLUYORDU.
+///	Icerigi olmayan bir yer tutucu icin bu kabul edilemez; ustelik menu
+///	acilisinda gereksiz bir istek daha atiliyordu.
+/// ⚠️ Turu 77 kurali ("liste sunucudan gelir") BURADA GECERLI DEGIL: bu
+///    sayi hicbir sorguyu/yetkiyi/siralamayi beslemiyor, YALNIZCA kac
+///    bos kart cizilecegini soyluyor.
+/// ⚠️ **2'DEN KUCUK YAPMA:** `KategoriSlider` tek slaytta zamanlayiciyi
+///    KURMAZ ve komsu kart sarkmadigi icin kaydirilabildigi ANLASILMAZ.
+/// ⚠️ Gercek kampanya/reklam gorseli geldiginde: slaytlar yine buradan
+///    beslenir, sozlesme degistirmeden bir listeye baglanir.
+const kMenuSlaytAdedi = 3;
+
+/// ⚠️⚠️ TURU 134 — **IKON KUTUSU KART YUZEYINDEN BIR TIK KOYU** (kullanici
+///	emri: *"ikonlarin arka plan rengi kart renginden 1 tik kapali
+///	olsun"*).
+///
+/// ⚠️ Siyah uzerine opaklik: kart yuzeyi zaten yari saydam mor; uzerine
+///    yine mor koymak onu ACARDI, koyulastirmazdi.
+/// ⚠️⚠️ TURU 135 — bu iki yardimci **`kur_serit.dart`TA TANIMLIYDI** ve o
+///	dosya silinince menu DERLENMEZ oldu (YAKINIMDA kartlari ikisini de
+///	kullaniyor). Buraya tasindilar: tek cagiran BU dosya.
+/// ⚠️ Ucuncu bir ekran da kullanmaya baslarsa `core/`e tasi — cagri
+///    yerlerine KOPYALAMA.
+Color kIkonKutusu(BuildContext c) => Colors.black.withValues(alpha: 0.22);
+
+/// ⚠️ Lucide bir FONT`tur (glif), SVG DEGIL — `strokeWidth` YOKTUR.
+///    Kalinlik ayni renkte ±0.4 px kaydirilmis DORT GOLGE ile simule edilir
+///    (turu 93 teknigi). ⚠️ `Icon`a `strokeWidth` yazarsan DERLENMEZ.
+class KalinIkon extends StatelessWidget {
+  const KalinIkon({
+    super.key,
+    required this.ikon,
+    required this.boy,
+    required this.renk,
+  });
+
+  final IconData ikon;
+  final double boy;
+  final Color renk;
+
+  @override
+  Widget build(BuildContext context) => Icon(
+    ikon,
+    size: boy,
+    color: renk,
+    shadows: [
+      Shadow(color: renk, offset: const Offset(0.4, 0)),
+      Shadow(color: renk, offset: const Offset(-0.4, 0)),
+      Shadow(color: renk, offset: const Offset(0, 0.4)),
+      Shadow(color: renk, offset: const Offset(0, -0.4)),
+    ],
+  );
+}
 
 class HizmetMenusu extends ConsumerStatefulWidget {
   const HizmetMenusu({super.key});
@@ -515,7 +568,7 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
                         const SizedBox(height: 12),
                         // ⚠️ Slider `Padding`in DISINDA: yan boslugu KENDI
                         //    `viewportFraction`indan uretir (turu 96t).
-                        _slider(context, ref),
+                        _slider(context),
                         const SizedBox(height: 14),
                         // ⚠️⚠️⚠️ TURU 128 — **"YAKINIMDA" SERIDI** (kullanici emri:
                         //	*"Sehir Rehberi`nin ustune Yakinimda olsun, orada Eczane
@@ -585,27 +638,19 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
                             ikon: LucideIcons.landmark,
                           ),
                         ]),
-                        // ⚠️⚠️⚠️ TURU 132 — **KUR SERIDI** (kullanici emri:
-                        //	*"Yakinimda'nin altina dolar euro altin ve bitcoin
-                        //	ekle"*). Dolara dokununca alttan grafikli panel acilir.
-                        // ⚠️⚠️⚠️ **VERI UYDURMA** — `kur_serit.dart` dosya serhine BAK.
-                        //	**EKRANDA HICBIR UYARI IBARESI YOK**: turu 134'te
-                        //	kullanici emriyle kaldirildi. Tek koruma `kKurOnizleme`
-                        //	bayragidir ve **yayindan once `false` YAPILACAK.**
-                        // ⚠️ Bu serh onceden *"hem seritte hem panelde kullaniciya
-                        //    ACIKCA soyleniyor"* diyordu — o cumle GOVDEYLE
-                        //    CELISIYORDU ve yayin kararini verecek kisiyi yanlis
-                        //    guvene sokabilirdi (denetim buldu). Para soz konusu.
-                        // ⚠️⚠️ TURU 134 — serit artik **BASLIKLI** (kullanici emri:
-                        //	*"doviz kartlarina baslik at"*). Yanindaki iki serit
-                        //	(YAKINIMDA · ŞEHİR REHBERİ) baslikliydi; basliksiz kur
-                        //	seridi YAKINIMDA'nin devami gibi okunuyordu.
-                        if (kKurOnizleme) ...[
-                          const SizedBox(height: 18),
-                          _bolumBasligi('PİYASA'),
-                          const SizedBox(height: 10),
-                          const KurSeridi(),
-                        ],
+                        // ⚠️⚠️⚠️ TURU 135 — **"PİYASA" BOLUMU TAMAMEN KALDIRILDI**
+                        //	(kullanici emri: *"piyasa verilerini kaldiralim,
+                        //	gerek yok"*).
+                        //
+                        //	Turu 132-134'te burada dolar/euro/altin/bitcoin
+                        //	seridi ve dokununca acilan grafikli panel vardi;
+                        //	**HER SAYISI UYDURMAYDI** (projede kur/emtia verisi
+                        //	ne tabloda ne bir ucta ne de bir dis servis
+                        //	anahtarinda var). `kur_serit.dart` dosyasi da SILINDI.
+                        // ⚠️ YAPMA: gercek bir kur kaynagi (uc + anahtar +
+                        //    onbellek) baglanmadan buraya fiyat yazan hicbir
+                        //    bilesen koyma — yanlis kura bakip islem yapan
+                        //    kullanici PARA KAYBEDER.
                         const SizedBox(height: 18),
                         if (hizliTumu.isNotEmpty) ...[
                           // ⚠️⚠️⚠️ TURU 128 — **"HIZLI ERİŞİM" -> "ŞEHİR REHBERİ"**
@@ -686,202 +731,46 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
     ),
   );
 
-  /// Menunun ust slider'i — kategori ekraniyla **AYNI BILESEN**.
+  /// ⚠️⚠️⚠️ TURU 135 — MENUNUN UST SLIDERI: **BOS YER TUTUCU KARUSEL.**
   ///
-  /// ⚠️ Veri gelmeden ya da bos donunce **HICBIR SEY cizilmez** (bos gri kutu
-  ///    yerine hic yer kaplamamak: turu 93b'de kesif istegi patlayinca ekranin
-  ///    tepesinde 350px bos gri kutu kalmasi bulgusuydu).
-  Widget _slider(BuildContext context, WidgetRef ref) {
-    // ⚠️⚠️ TURU 130 — onizleme acikken SKOR KARTI cizilir; kapaninca
-    //	sunucudan gelen slaytlar AYNEN geri gelir (asagidaki kod
-    //	SILINMEDI).
-    if (kSkorOnizleme) return _skorKarti(context);
-    final s = ref.watch(_menuSlaytProvider).valueOrNull ?? const [];
-    if (s.isEmpty) return const SizedBox.shrink();
-    return SizedBox(
-      height: KategoriSlider.yukseklik,
-      // ⚠️ TURU 129 — slider zemini de kart yuzeyiyle AYNI (kullanici:
-      //    *"kartlar vs sliderda rengi de"*).
-      child: KategoriSlider(slaytlar: s, yuzey: kAiKartYuzey(context)),
-    );
-  }
-
-  /// ⚠️ Kart yuksekligi slider ile AYNI (`KategoriSlider.yukseklik`):
-  ///    bayrak acilip kapandiginda sayfanin geri kalani YERINDEN
-  ///    OYNAMASIN.
-  /// ⚠️⚠️ Gorselin USTUNE koyu bir gecis (`LinearGradient`) konur:
-  ///	fotograf her tonda olabilir ve beyaz yazi acik bir zeminde
-  ///	OKUNMAZDI. Gecis ALTTAN yukari koyulasir — yazilar altta.
-  /// ⚠️ `BoxFit.cover` + `ClipRRect`: 1920x1080 gorsel karta kirpilarak
-  ///    oturur; `contain` olsaydi yanlarda siyah bant kalirdi.
-  Widget _skorKarti(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(horizontal: kYanBosluk),
-    // ⚠️⚠️ TURU 131 — kart artik MAC DETAYINI aciyor (kullanici emri).
-    // ⚠️ `opaque`: gorselin her yerine dokunmak karti acar.
-    child: GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: () => Navigator.of(
-        context,
-      ).push(MaterialPageRoute<void>(builder: (_) => const SkorDetayEkrani())),
-      child: SizedBox(
-        height: KategoriSlider.yukseklik,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(kYaricap(1000)),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              Image.asset('assets/vitrin/re1.jpg', fit: BoxFit.cover),
-              // ── OKUNURLUK KATMANI ──
-              // ⚠️⚠️ Yazi artik ORTADA (kullanici emri) ve fotografin
-              //	ORTASI en kalabalik/parlak bolge. Bu yuzden alttan
-              //	yukari gecis YETMEZ; ustune HAFIF BIR GENEL KARARTMA
-              //	konur. Ikisi birlikte: metin her fotograf tonunda okunur.
-              const DecoratedBox(
-                decoration: BoxDecoration(color: Color(0x59000000)),
-              ),
-              const DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Color(0x00000000),
-                      Color(0x4D000000),
-                      Color(0xB3000000),
-                    ],
-                    stops: [0.3, 0.65, 1.0],
-                  ),
-                ),
-              ),
-              // ── SKOR BLOGU ──
-              // ⚠️⚠️ **ORTADA AMA HAFIF YUKARIDA** (kullanici emri).
-              //	`Alignment(0, -0.18)`: yatayda tam merkez, dikeyde
-              //	merkezin biraz USTU. Tam merkez olsaydi blok fotograftaki
-              //	oyuncularin yuzlerinin uzerine otururdu.
-              Align(
-                alignment: const Alignment(0, -0.18),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // ── CANLI ROZETI (SKORUN USTUNDE) ──
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 9,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFE11D48),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            // ⚠️ Renk TEK BASINA renk korlugu olana hicbir
-                            //    sey anlatmaz — yaninda YAZI da var
-                            //    (turu 98b dersi).
-                            Container(
-                              width: 6,
-                              height: 6,
-                              decoration: const BoxDecoration(
-                                color: Colors.white,
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            const Text(
-                              'CANLI · ÖRNEK',
-                              // ⚠️⚠️ **DURUST SINIR ROZETIN ICINDE**
-                              //	(denetim buldu): kart `CANLI` diyerek
-                              //	uydurma bir MILLI MAC skoru gosteriyordu ve
-                              //	kullanici karta DOKUNMADAN bunun ornek
-                              //	oldugunu ogrenemiyordu. Ibare detay
-                              //	ekraninin DIBINDEYDI.
-                              // ⚠️ YAPMA: veri gercek olana kadar
-                              //    "· ÖRNEK" ekini kaldirma.
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 11,
-                                height: 1.2,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 9),
-                      // ── SKOR ──
-                      // ⚠️ `maxLines: 1` + ellipsis: yazi olcegi 2.0`da
-                      //    skor KUCULMEZ, gerekirse kirpilir.
-                      const Text(
-                        'Türkiye 1 - 0 Almanya',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 22,
-                          height: 1.2,
-                          fontWeight: FontWeight.w800,
-                          // ⚠️ Golge: fotografin acik bir bolgesine denk
-                          //    gelirse yazi yine okunur kalsin.
-                          shadows: [
-                            Shadow(blurRadius: 10, color: Color(0xE6000000)),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      // ── GOL ATAN (TOP IKONU + AD + DAKIKA) ──
-                      // ⚠️⚠️ **DURUST SINIR:** bu satir da UYDURMADIR
-                      //	(bkz. `kSkorOnizleme` serhi) — gercek bir gol
-                      //	verisi YOK.
-                      // ⚠️ Lucide`de FUTBOL TOPU glifi YOK (kontrol edildi:
-                      //    yalniz `volleyball`, `goal`, `circleDot` var).
-                      //    `volleyball` en yakin TOP glifi ve 2B cizgi.
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            LucideIcons.volleyball,
-                            size: 15,
-                            color: Colors.white,
-                            shadows: [
-                              Shadow(blurRadius: 8, color: Color(0xCC000000)),
-                            ],
-                          ),
-                          const SizedBox(width: 6),
-                          // ⚠️ `Flexible`: uzun bir oyuncu adi karti tasirdi.
-                          const Flexible(
-                            child: Text(
-                              'Arda Turan \'20',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 13.5,
-                                height: 1.2,
-                                fontWeight: FontWeight.w600,
-                                shadows: [
-                                  Shadow(
-                                    blurRadius: 8,
-                                    color: Color(0xCC000000),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+  ///	Kullanici emri: *"slider'daki mac olayini da kaldir, slider bos
+  ///	olsun, sol sag scroll, 1-2 tane daha ekle"*.
+  ///
+  ///	Turu 130-134 boyunca burada `assets/vitrin/re1.jpg` uzerine yazilmis
+  ///	UYDURMA bir mac skoru ("Türkiye 1 - 0 Almanya", "Arda Turan '20")
+  ///	duruyordu ve dokununca ayni sekilde uydurma bir detay ekrani
+  ///	aciliyordu. **IKISI DE SILINDI** (`skor_detay.dart` dosyasi ve
+  ///	varligin kendisi dahil): projede mac verisi ne tabloda ne bir ucta
+  ///	VAR; kalmasi, yayin oncesi kapatilmayi bekleyen ikinci bir "sahte
+  ///	veri" borcuydu.
+  ///
+  /// ⚠️ Kategori ekranlariyla **AYNI BILESEN** (`KategoriSlider`): olcu,
+  ///    yaricap, komsu kartin sarkma miktari ve kaydirma fizigi TEK
+  ///    KAYNAKTAN gelir — kopyalanirsa drift eder.
+  /// ⚠️ Slaytlarin ICI BOS: bilesen zaten metin CIZMIYOR (turu 95), alanlar
+  ///    yalnizca `Slayt` sozlesmesini koruyor.
+  /// ⚠️ `WidgetRef` parametresi KALDIRILDI: slider artik sunucudan hicbir
+  ///    sey okumuyor (bkz. `kMenuSlaytAdedi`), duran bir parametre okuyucuyu
+  ///    "burada bir istek var" sanmaya iterdi.
+  Widget _slider(BuildContext context) => SizedBox(
+    height: KategoriSlider.yukseklik,
+    // ⚠️ TURU 129 — slider zemini de kart yuzeyiyle AYNI (kullanici:
+    //    *"kartlar vs sliderda rengi de"*).
+    child: KategoriSlider(
+      slaytlar: _bosSlaytlar,
+      yuzey: kAiKartYuzey(context),
     ),
+  );
+
+  /// ⚠️ **BIR KEZ** uretilir (`static final`): her `build`de yeni bir liste
+  ///    kurulsaydi `KategoriSlider.didUpdateWidget` uzunlugu ayni gorup
+  ///    islem yapmasa bile gereksiz cop uretirdik.
+  /// ⚠️ Adet `kMenuSlaytAdedi`den TURETILIR — elle uc satir yazilsaydi sabit
+  ///    degistiginde ikisi ayrisirdi (bu projede "ayni kuralin iki kopyasi
+  ///    drift eder" sinifi ALTI kez sahaya cikti).
+  static final List<Slayt> _bosSlaytlar = List<Slayt>.filled(
+    kMenuSlaytAdedi,
+    (baslik: '', alt: ''),
   );
 
   /// Hedef ekrani acar.

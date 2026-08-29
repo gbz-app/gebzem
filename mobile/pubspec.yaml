@@ -209,11 +209,12 @@ flutter:
     #    ⚠️ YAPMA: tekrar `- assets/icon/` yapma; yeni bir varlik
     #       gerekiyorsa DOSYA OLARAK ekle.
     - assets/icon/logo.png
-    # ⚠️⚠️ TURU 130 — VITRIN GORSELI (kullanici verdi: milli takim gol
-    #    sevinci). Menu sliderindaki skor kartinin arka plani.
-    #    ⚠️ KLASOR DEGIL TEK DOSYA (turu 116 dersi: klasor yazmak
-    #       derleme-zamani girdilerini de pakete gomer).
-    - assets/vitrin/re1.jpg
+    # ⚠️⚠️ TURU 135 — `assets/vitrin/re1.jpg` (156.911 B) **PAKETTEN CIKTI**:
+    #    tek okuyucusu menudeki uydurma mac karti ve onun detay ekraniydi,
+    #    ikisi de kullanici emriyle SILINDI. Varlik pakette birakilsaydi
+    #    hicbir yerden okunmayan 157 KB tasinirdi (turu 116b dersi: eldeki
+    #    sevk edilen dosyalar `Stored` ile duruyor, maliyet HAM boyut).
+    #    ⚠️ Dosyanin kendisi de silindi; gerekirse git gecmisinde.
 
   # TEST TURU 58 — UYGULAMA YAZI TIPI: GOOGLE SANS (kullanici istegi).
   # NOT: Google Sans uzun sure yalniz Google urunlerine ozeldi; ARTIK Google Fonts'ta
