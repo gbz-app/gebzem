@@ -28,7 +28,7 @@
 ///	*"haritadaki pinlerde BEYAZLIGI 1 TIK INCELT, arkadaki GOLGEYI KALDIR,
 ///	renkler daha ACIK MODERN olsun ve ICINE ICON koy"*
 ///
-///	· halka **3 -> 2 dp** (daha ince beyaz cerceve)
+///	· halka **3 -> 2 -> 1.5 dp** (kullanici IKI KEZ inceltti)
 ///	· **GOLGE KALDIRILDI** (`drawCircle` + `MaskFilter.blur` bloku SILINDI)
 ///	· ic renge **ikon** cizilir (`ikon` parametresi)
 ///	· cap 22 -> **26 dp**: ikonun okunabilmesi icin ic alan gerekiyordu.
@@ -64,16 +64,23 @@ Future<BitmapDescriptor> daireIsaret({
   required Color kenar,
   required double pikselOrani,
   IconData? ikon,
+  ui.Image? foto,
+  String fotoAnahtar = '',
 }) async {
+  // ⚠️⚠️ ONBELLEK ANAHTARI FOTOGRAFI DA ICERMEK ZORUNDA: kullanici profil
+  //	fotografini degistirdiginde ayni anahtar ESKI pini dondururdu.
+  //	`ui.Image`in kendisi anahtar olamaz (her cozumde yeni nesne) — cagiran
+  //	KARARLI bir kimlik verir (bkz. `fotoAnahtar`).
   final anahtar = '${ic.toARGB32()}|${kenar.toARGB32()}|$pikselOrani|'
-      '${ikon?.codePoint ?? 0}';
+      '${ikon?.codePoint ?? 0}|$fotoAnahtar';
   final hazir = _onbellek[anahtar];
   if (hazir != null) return hazir;
 
   // ⚠️ TURU 138 — cap 22 -> 26 (ikon icin ic alan), halka 3 -> 2 (kullanici
   //    emri), golge 3 -> 0 (kullanici emri).
   const cap = 26.0; // mantiksal (dp)
-  const halka = 2.0;
+  // ⚠️ TURU 139 — 2.0 -> 1.5 (kullanici: *"beyaz border 1 tik daha incelt"*).
+  const halka = 1.5;
   const tamDp = cap + halka * 2;
 
   final px = (tamDp * pikselOrani).ceilToDouble();
@@ -88,7 +95,33 @@ Future<BitmapDescriptor> daireIsaret({
   tuval.drawCircle(merkez, yaricap + halkaPx, Paint()..color = kenar);
   tuval.drawCircle(merkez, yaricap, Paint()..color = ic);
 
-  if (ikon != null) {
+  // ⚠️⚠️⚠️ TURU 139 — **KENDI KONUMDA PROFIL FOTOGRAFI** (kullanici emri:
+  //	*"bizim kendi navigasyonumuz yerine de resmimiz olsun, mevcut
+  //	profildeki resmi koy"*).
+  //
+  // ⚠️ `clipPath` ZORUNLU: fotograf KARE gelir, kirpilmazsa dairenin
+  //    disina tasar ve halkayi ORTER.
+  // ⚠️ `BoxFit.cover` mantigi ELLE: kaynagin KISA kenarindan kare bir
+  //    parca alinir. `drawImageRect`e tam gorseli verseydik dikdortgen
+  //    avatar EZILIRDI (yuz sikismis gorunur).
+  // ⚠️ Fotograf varsa IKON CIZILMEZ (asagidaki `ikon != null && foto == null`):
+  //    ikisi ust uste binerdi.
+  if (foto != null) {
+    tuval.save();
+    tuval.clipPath(Path()..addOval(Rect.fromCircle(center: merkez, radius: yaricap)));
+    final kisa = foto.width < foto.height ? foto.width : foto.height;
+    final kx = (foto.width - kisa) / 2;
+    final ky = (foto.height - kisa) / 2;
+    tuval.drawImageRect(
+      foto,
+      Rect.fromLTWH(kx.toDouble(), ky.toDouble(), kisa.toDouble(), kisa.toDouble()),
+      Rect.fromCircle(center: merkez, radius: yaricap),
+      Paint()..filterQuality = FilterQuality.medium,
+    );
+    tuval.restore();
+  }
+
+  if (ikon != null && foto == null) {
     // ⚠️ Ikon boyu capin ~%54'u: daha buyugu halkaya deger, daha kucugu
     //    okunmaz. Deger OLCULEREK secildi (26 dp pinde 14 dp glif).
     final boy = cap * 0.54 * pikselOrani;
