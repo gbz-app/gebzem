@@ -7953,3 +7953,46 @@ iOS build al, temiz."*
 - ⚠️ **APK alınmadı** — R2'deki apk turu 121 sürümünde; indir sayfasındaki
   Android düğmesi sayfanın saatini gösterdiği için APK'yi olduğundan yeni
   gösteriyor (kullanıcıya söylendi)
+
+---
+
+## Oturum — 29 Ağustos 2026 (turu 136): İŞLETME KARTLARI ŞERİDİ · HARİTADA ÖRNEK PİNLER
+
+**Kullanıcının düzeltmesi:** *"haritada mockup işletmeler koyup tıkladığımda
+kart şeklinde · yemeğe tıkladığımda mesela İŞLETMELER kart şeklinde filtrenin
+üzerinde çıkması gerekiyordu, sol sağ scroll"*
+
+⚠️ **Turu 135'te yanlış anlaşılmıştı**: filtrenin üstüne "İşletmen mi var?"
+diye bir *işletme hesabı* kısayolu konmuştu. Kullanıcı işletme HESABINI değil
+**işletmelerin KENDİSİNİ** kart olarak istiyormuş.
+
+### Yapıldı (oldu)
+- **Kategori ekranı**: filtre şeridinin üstünde **yatay işletme şeridi**
+  (kapak + kampanya rozetleri + ad + onay tiki + puan/süre/min. tutar/mesafe).
+  Sol-sağ kayıyor; karta dokunmak profili açıyor. Veri listeyle **aynı
+  kümeden** (`_gosterilen`) — ayrı istek yok, süzgeçler şeride de uygular.
+- **Harita**: `kHaritaOnizleme` ile beş **örnek işletme** (kullanıcının
+  konumuna göre yerleşir) + **pine dokununca kart** (`_secilenKart`).
+  Örnek kayıtlar `demo-` önekli; kart dokunuşunda profil açılmaz, kartın
+  içinde de "Örnek kayıt" yazar.
+- `InfoWindow` kaldırıldı; pin dokunuşu yalnızca kartı açıyor, profile
+  gitmek için **karta** dokunmak gerekiyor (turu 85b gerekçesi korundu).
+
+### Denendi / öğrenildi (olmadı → düzeltildi)
+- ⚠️⚠️⚠️ **EKRANIN TAMAMI BEYAZ KALDI (kendi regresyonum).** Kartı `Stack`e
+  koşulsuz eklemiştim; seçim yokken dönen `SizedBox.shrink()` **tek
+  non-positioned çocuk** olduğu için `RenderStack` yığını **0x0**'a
+  düşürdü — harita, düğmeler, çipler, panel hiçbiri çizilmedi.
+  **Hata sessizdi**: `analyze` temiz, `test` 52/52, logcat'te tek istisna
+  yok. **Bisect** ile bulundu (kartı yığından çıkarıp yeniden derleyerek).
+  FIX: `Widget?` + `if (kart != null)`.
+- ⚠️⚠️ **Aynı sınıftan ÖNCEDEN VAR OLAN bir mayın**: `_yuzenCipler()`
+  kategori boşken `SizedBox.shrink()` dönüyordu → kategorisiz açılışta
+  (menüdeki `const YakinimdaEkrani()`) ekran komple beyaz kalırdı. O da
+  `Widget?` yapıldı. (O giriş bugün menüde çizilmiyor, sahaya çıkmamıştı.)
+- **Emülatörde Google Maps karoları çizilmiyor** (Play Services
+  `AppCertManager 400`) ve GPS fix'i gelmiyor → pinlerin görünümü gerçek
+  cihazda doğrulanmalı. Kart ve veri katmanı ölçüldü (`görünen=5 örnek=5`).
+- **Dosya satır sonları karışık**: `isletme_listesi.dart` CRLF,
+  `yakinimda_ekrani.dart` LF. Metin değiştiren betikler satır sonunu
+  dosyadan algılıyor (turu 89/117/119 tuzağı).

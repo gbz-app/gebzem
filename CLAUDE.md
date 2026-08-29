@@ -41,7 +41,66 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
       kaybettiriyorsun"*. **Üçüncüsü olmayacak.**
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (29 Agu 14:31): TURU 135 YAYINLANDI — SADECE iOS.**
+- **KALDIGIMIZ YER (29 Agu): TURU 136 YAYINLANDI — SADECE iOS.**
+  (yayin ayrintilari bu blogun sonunda "TURU 136 YAYIN" satirinda)
+
+- 🏪 **TURU 136 — ISLETME KARTLARI FILTRENIN USTUNDE YATAY SERIT**
+  (kullanici DUZELTMESI: *"yemege tikladigimda mesela ISLETMELER kart
+  seklinde filtrenin uzerinde cikmasi gerekiyordu, sol sag scroll"*).
+  ⚠️⚠️ **TURU 135 YANLIS ANLAMISTI**: oraya "İşletmen mi var?" diye bir
+     ISLETME HESABI kisayolu konmustu. Kullanici hesabi degil
+     **ISLETMELERIN KENDISINI** kart olarak istiyormus. O kart KALDIRILDI
+     (hesap girisi Ayarlar ve profilde DURUYOR).
+  · `_isletmeSeridi` + `_seritKarti`: kapak + kampanya rozetleri + ad +
+    onay tiki + `vitrinSatiri(kompakt)`. Parcalar izgara kartiyla ORTAK.
+  · Veri **listenin beslendigi AYNI kumeden** (`_gosterilen`): ayri istek
+    YOK, suzgecler seride de uygular, seritte gorulen listede de bulunur.
+  · `kSeritTavan = 10` — sinirsiz olsaydi 60 kart yan yana kapak COZERDI.
+  · ⚠️ **TASMAYA KAPALI**: kapak `Expanded`, metinler SABIT -> yazi olcegi
+    buyudukce KAPAK kuculur, kart boyu DEGISMEZ. 360 dp x 1.0/1.3/2.0
+    emulatorde olculdu, tasma 0.
+
+- 🗺️ **TURU 136 — HARITADA ORNEK ISLETMELER + PINE DOKUNUNCA KART.**
+  · `kHaritaOnizleme` (⚠️ **YAYIN ONCESI `false`**) bes ornek isletme
+    uretir; koordinatlar **KULLANICININ KONUMUNA GORE** turetilir (sabit
+    Gebze koordinati yazilsaydi baska sehirdeki kullanici pin goremezdi).
+  · Kimlikler **`demo-` onekli**: karta dokunmak profil ACMAZ ("Bu bir
+    ornek kayit"), ayrica kartin ICINDE "Örnek kayıt" ibaresi VAR.
+  · Ornekler suzgeclerin ONUNE eklenip AYNI suzgecten gecer (turu 121d:
+    demo ilanlar suzgeci atlayip listede kaliyordu).
+  · `InfoWindow` KALDIRILDI; pin dokunusu yalnizca KARTI acar, profile
+    gitmek icin KARTA dokunmak gerekir (turu 85b'nin "gezinme ONAYLI eylem
+    olmali" gerekcesi KORUNDU).
+  · Kart yuzen cip seridinin USTUNE konumlanir; secim `_yukle`de sifirlanir
+    **ve** `_gorunen`de yoksa YAPISAL OLARAK cizilmez (suzgecler `_yukle`
+    cagirmiyor).
+
+- ⚠️⚠️⚠️ **TURU 136 — `Stack`E 0x0 NON-POSITIONED COCUK KOYMAK EKRANIN
+  TAMAMINI SILER (emulatorde olculdu, BISECT ile bulundu).**
+  Kart ilk yazimda yigina KOSULSUZ ekleniyor, secim yokken
+  `SizedBox.shrink()` donuyordu. `Yakinimda` yigininin diger cocuklarinin
+  HEPSI `Positioned`; **`RenderStack` boyutunu YALNIZCA positioned OLMAYAN
+  cocuklarindan hesaplar** -> tek 0x0 cocuk yigini **0x0**'a dusurdu ve
+  harita, dugmeler, cipler, panel HICBIRI cizilmedi.
+  ⚠️ **HATA SESSIZDI**: `flutter analyze` temiz, `flutter test` 52/52,
+     logcat'te TEK istisna yok. Yalnizca EKRANA BAKINCA gorunur.
+  FIX: `_secilenKart()` **`Widget?`** doner, yigina `if (kart != null)`
+  ile girer.
+  ⚠️⚠️ **AYNI SINIFTAN ONCEDEN VAR OLAN MAYIN DA KAPATILDI:**
+     `_yuzenCipler()` `_kategori` bosken `SizedBox.shrink()` donuyordu —
+     kategorisiz acilista (`const YakinimdaEkrani()`) ekran komple beyaz
+     kalirdi. O da `Widget?` yapildi. (O giris bugun menude cizilmiyor,
+     yani sahaya cikmamisti; mayin YERINDE duruyordu.)
+  ⚠️ **KURAL: bir `Stack`in cocuklarindan biri kosullu ise, bos dalda
+     `SizedBox.shrink()` DEGIL `null` don ve cagri yerinde `if (x != null)`
+     ile ekle** — hele diger cocuklarin hepsi `Positioned` ise.
+
+- ⏳ **TURU 136 — DURUST SINIR:** emulatorde Google Maps **KAROLARI
+  CIZILMIYOR** (Play Services `AppCertManager 400`) ve GPS fix'i gelmiyor;
+  pinlerin haritadaki gorunumu **GERCEK CIHAZDA** dogrulanmali. Kart ve
+  veri katmani olculdu (`gorunen=5 ornek=5` + kart ekran goruntusunde).
+
+- **ONCEKI (29 Agu 14:31): TURU 135 YAYINLANDI — SADECE iOS.**
   ios **33249806065** (**44b04f3a**), R2 ipa=29561605 (md5 4705fbdb)
   index=7982 (md5 50afeea1) surum.json=48 (md5 668ecf3f), purge OK,
   **CDN UCU DE BIREBIR**, iOS min **16.0**, `MapsApiKey` ENJEKTE
