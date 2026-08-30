@@ -37,6 +37,10 @@ library;
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+// ⚠️ TURU 140 — filtre ekraninin zemini menu/GebzemAI/harita paneliyle AYNI
+//    siyahi kullanir (TEK KAYNAK); marka moru zorla-koyu temanin tohumu.
+import '../../core/theme.dart' show kAiZemin, morLogo;
+
 import 'isletme_kart.dart' show kYaricap, kVurgu, kYuzeyGri, isletmeAcikMi, isletmeGeceAcikMi;
 import 'isletme_servisi.dart';
 
@@ -203,14 +207,53 @@ Future<bool> isletmeFiltreAc(BuildContext context, IsletmeFiltre f) async {
   final sonuc = await showModalBottomSheet<bool>(
     context: context,
     isScrollControlled: true,
-    backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+    // ⚠️⚠️⚠️ TURU 140 — **ZEMIN TAM SIYAH** (kullanici emri: *"filtreleme
+    //	ekrani arkasi TAM SIYAH, yaninda checkbox olsun"*).
+    //
+    //	Onceden `scaffoldBackgroundColor` idi: koyu temada #1C1C1E
+    //	("siyahin bir tik acigi"), acik temada #F2F2F5 (kirli beyaz) —
+    //	yani HICBIR temada tam siyah degildi.
+    // ⚠️ `Colors.black` DEGIL **`kAiZemin`**: menu · GebzemAI · harita
+    //    paneli hepsi o siyahi kullaniyor (TEK KAYNAK).
+    backgroundColor: kAiZemin,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
     builder: (c) => FractionallySizedBox(
       // ⚠️ Kullanici emri: EKRANIN **%95**'i.
       heightFactor: 0.95,
-      child: _FiltrePaneli(f: f),
+      // ⚠️⚠️⚠️ **ZORLA KOYU TEMA + `Builder`** — zemin kosulsuz siyah
+      //	oldugu icin ON PLAN da kosulsuz acik olmak ZORUNDA.
+      //
+      //	Panelin icinde temadan beslenen ON DOKUZ ayri renk var (yazi,
+      //	notr kenarlik, `kVurgu`, `kYuzeyGri`, ayrac, dugme yazisi...).
+      //	Yalnizca zemini siyaha boyasaydik ACIK temada siyah zemin uzerine
+      //	#1A1A1A yazi (~1,2:1) cikardi ve etiketlerin HEPSI GORUNMEZ
+      //	olurdu — turu 135c (1,056:1) ve turu 138 (siyah zeminde koyu gri
+      //	yazi) hatalarinin UCUNCU tekrari.
+      // ⚠️⚠️ **`Builder` ZORUNLU** (turu 136/138'de OLCULDU): `Theme.of`
+      //	yalniz ATA elemanlari gezer. `Theme` burada KURULUYOR, yani bu
+      //	metodun `context`i onun USTUNDE kalir; `_FiltrePaneli` dogrudan
+      //	cocuk olarak verilseydi kendi `build`inde UYGULAMANIN temasini
+      //	cozerdi ve degisiklik HICBIR ISE YARAMAZDI.
+      child: Theme(
+        data: ThemeData.dark(useMaterial3: true).copyWith(
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: morLogo,
+            brightness: Brightness.dark,
+          ).copyWith(surface: kAiZemin),
+          scaffoldBackgroundColor: kAiZemin,
+          textTheme: ThemeData.dark(useMaterial3: true)
+              .textTheme
+              .apply(fontFamily: 'Google Sans'),
+          // ⚠️ Uygulamanin "dokunma dairesi YOK" karari (turu 7 kullanici
+          //    emri) `ThemeData.dark()` ile SIFIRLANIYOR; acikca geri konur.
+          splashFactory: NoSplash.splashFactory,
+          splashColor: Colors.transparent,
+          highlightColor: Colors.transparent,
+        ),
+        child: Builder(builder: (_) => _FiltrePaneli(f: f)),
+      ),
     ),
   );
   return sonuc == true;
@@ -433,6 +476,43 @@ class _FiltrePaneliState extends State<_FiltrePaneli> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
+              // ⚠️⚠️⚠️ TURU 140 — **CHECKBOX** (kullanici emri: *"yaninda
+              //	checkbox olsun"*).
+              //
+              // ⚠️ Material `Checkbox` KULLANILMADI: kendi dokunma alanini
+              //    (48 dp) ve dolgusunu dayatir, cipin 46 dp'lik yuksekligini
+              //    TASIRIRDI. Bu, ayni gorunumu 18 dp'de veren duz bir kutu.
+              // ⚠️ Kutu `kYaricap(18)` ile yuvarlanir — clamp tabani 8, yani
+              //    bu boyutta 8 dp: ekranin geri kalaniyla ayni "squircle"
+              //    dili, tam kare degil.
+              // ⚠️⚠️ **TEK SECIMLI BOLUMLERDE DE KARE CIZILIR** (Siralama ·
+              //	Puan · Teslimat · Min. tutar). Anlamca orada bir RADYO
+              //	durur; kullanici ACIKCA checkbox istedi ve secim davranisi
+              //	DEGISMEDI (dokunus yine oncekiyle ayni isi yapiyor).
+              Container(
+                width: 18,
+                height: 18,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: secili ? vurgu : Colors.transparent,
+                  // ⚠️ `kYaricap` DEGIL: clamp tabani 8 ve 18 dp'lik
+                  //    kutuyu DAIREYE cevirip radio gibi gosteriyordu
+                  //    (emulatorde olculdu). 5 dp = kare-ish checkbox.
+                  borderRadius: BorderRadius.circular(5),
+                  border: Border.all(
+                    color: secili ? vurgu : notr,
+                    width: 1.4,
+                  ),
+                ),
+                child: secili
+                    ? Icon(LucideIcons.check,
+                        size: 12,
+                        // ⚠️ Tik, kutunun DOLGU rengiyle CAKISMAMALI:
+                        //    `vurgu` koyu temada BEYAZ oldugu icin tik SIYAH.
+                        color: Theme.of(context).colorScheme.surface)
+                    : null,
+              ),
+              const SizedBox(width: 9),
               if (ikon != null) ...[
                 Icon(ikon, size: 16, color: secili ? vurgu : yazi),
                 const SizedBox(width: 7),
@@ -473,7 +553,10 @@ class _FiltrePaneliState extends State<_FiltrePaneli> {
     final aktif = f.aktifSayi > 0;
     return Container(
       decoration: BoxDecoration(
-        color: Theme.of(context).scaffoldBackgroundColor,
+        // ⚠️⚠️ TURU 140 — sheet zemini (`isletmeFiltreAc`) ile AYNI SIYAH.
+        //	Burasi atlanirsa ekranin dibinde uyumsuz acik gri bir band
+        //	kalir; iki zemin AYRI yerlerde yaziliyor.
+        color: kAiZemin,
         border: Border(top: BorderSide(color: kYuzeyGri(context))),
       ),
       child: SafeArea(
@@ -512,12 +595,18 @@ class _FiltrePaneliState extends State<_FiltrePaneli> {
                       foregroundColor: vurgu,
                       side: BorderSide(
                           color: vurgu.withValues(alpha: aktif ? 1 : 0.25)),
+                      // ⚠️⚠️ TURU 140 — varsayilan 2 x 24 dp dolgu 360 dp
+                      //	ekranda "Temizle"yi IKI SATIRA sariyordu
+                      //	("Temizl / e" diye kirpildi, emulatorde goruldu).
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(kYaricap(52)),
                       ),
                     ),
                     onPressed: aktif ? () => setState(f.temizle) : null,
                     child: const Text('Temizle',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                             fontSize: 16, fontWeight: FontWeight.w700)),
                   ),

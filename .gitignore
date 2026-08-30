@@ -55,3 +55,11 @@ tools/indir/surum.json
 #    (`alt_menu_test.dart`, `harita_stili_test.dart` ...) etkilenmez.
 mobile/test/_zz_*
 mobile/test/_olcum*
+
+# TURU 140 — kullanicinin verdigi HAM marka/menu gorselleri (kaynak kopya).
+# Paketlenen surum `mobile/assets/marka/` altinda ve pubspec.yaml`da TEK TEK
+# yazili; burasi yalnizca yerel arsiv, repoda cift kopya tutulmaz.
+/menu/
+
+# Denetim/inceleme icin uretilen gecici diff dosyalari.
+*.diff
