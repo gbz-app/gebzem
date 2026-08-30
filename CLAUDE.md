@@ -360,6 +360,97 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
   cekirdegi (`??` semantigi) ayakta kaldi — **destekleyici delil yanlis
   olabilir, cekirdek iddiayi AYRICA dogrula.**
 
+- **KALDIGIMIZ YER (31 Agu 01:57): TURU 143 YAYINLANDI — SADECE iOS.**
+  ios **33340070569** (**fa9fa3e**), R2 ipa=29676621 (md5 878be22b)
+  index=7982 (md5 8a682250) surum.json=48 (md5 e109ee90),
+  purge OK, **CDN UCU DE BIREBIR**, iOS min **16.0**, `MapsApiKey` ENJEKTE.
+  IPA'da turu 143 dizeleri VAR (Benzinlik · Eczane) ve turu 142'nin
+  **"Benzin İstasyonu"** ile menudeki **"Alışveriş"** dizeleri YOK.
+  `assets/marka` altinda artik **UC logo** var (dort menu gorseli CIKTI).
+  ⚠️ **APK ALINMADI** — R2'deki apk turu 121 surumunde (21 Agu).
+  ⚠️ **BACKEND DEGISMEDI** -> deploy YOK, DB TRUNCATE EDILMEDI, e2e KOSULMADI.
+  ✅ analyze **0 hata 0 uyari** · test **52/52** · emulatorde 360 dp'de
+     tasma **0**.
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260831-0157
+
+- ⚠️⚠️⚠️ **TURU 143 — SEVK ENGELI: HARITAYI OYNATAN ASIL YOL `Scaffold`IN
+  KLAVYEYLE KUCULMESIYDI** (kullanici: *"aramaya tikladigimda arkada
+  haritada oynuyor"*).
+  Ilk teshisim `MediaQuery.padding` idi (`padding = viewPadding -
+  viewInsets`; klavye acilinca `padding.bottom` SIFIRA duser ve
+  `_panelBoy` ~34 dp kisalir). **DOGRUYDU AMA KUCUK OLANI**.
+  ⚠️⚠️ Arama sayfasi bir **`PopupRoute`** (`opaque = false`,
+     `maintainState = true`) — yani ALTTAKI Scaffold klavye acikken de
+     YERLESIME GIRIYOR. Varsayilan `resizeToAvoidBottomInset: true` govdeyi
+     klavye kadar (~300 dp) kisaltiyor; harita `Positioned.fill` oldugu
+     icin gorunur bolgenin merkezi **~150 dp** yukari kayiyor ve sayfa
+     kapaninca GERI ZIPLIYOR.
+  FIX: `Scaffold(resizeToAvoidBottomInset: false)` **+** `viewPaddingOf`
+  (ikisi AYRI yolu kapatiyor, ikisi de KALIR).
+  ⚠️ **GUVENLI**: bu route'ta odaklanabilir HICBIR girdi yok —
+     `_panelArama` turu 142'den beri bir `InkWell` DUGMESI; dosyadaki UC
+     `TextField` de AYRI sheet route'larinda ve klavyeyi kendileri
+     karsiliyor.
+  ⚠️ **DERS:** bir "harita/ekran kayiyor" sikayetinde ILK bakilacak yer
+     `Scaffold.resizeToAvoidBottomInset`; `MediaQuery` farklari IKINCIL.
+
+- 🔁 **TURU 143 — TURU 142'DE YANLIS ANLASILAN EMIR DUZELTILDI.**
+  Kullanici turu 142'de *"kategorileri kaldir, arama butonu tikladiginda
+  kategoriler popup acilsin"* demisti; ben CIP SERIDININ TAMAMINI
+  kaldirmistim. Kullanici: *"ben o KATEGORI KELIMESINI kaldir dedim, GERI
+  GETIR onlari"*. Serit panele geri kondu; kaldirilan yalniz seridin
+  basindaki **"Kategori" DUGMESI** (`_kategoriDugmesi`, govdesi
+  `// ignore: unused_element` ile DURUYOR). `_panelBoy`a `40 + 12` terimi
+  geri eklendi.
+
+- 🧾 **TURU 143 — KART VE MENU SADELESTI** (kullanici emri):
+  · isletme kartindaki **MARKA LOGOSU KALKTI** -> kategori ikonu.
+    ⚠️ `_ornekLogo` tablosu SILINMEDI: haritadaki **marka logolu pinler**
+       (`_markaPinUret`) hala onu okuyor.
+  · menu kalemlerinden **GORSEL KALKTI**; `_ornekVitrin` kayit tipinden
+    `gorsel` alani TAMAMEN cikarildi. Her kalem artik `kAiKartYuzey`
+    zeminli, `kYaricap` radusunde bir **KUTU** icinde [ad / fiyat]
+    (kullanici: *"telefon ve harita gibi bir kategori radus mantiginda bir
+    karenin icine al"*). Oge genisligi 128, aralik **14 -> 8**.
+  · Dort menu fotografi (`menu_*.png`, ~170 KB) artik okunmadigi icin
+    **pubspec'ten CIKARILDI** (turu 116b olu-varlik dersi). Dosyalar diskte
+    ve git'te DURUYOR.
+
+- 🎨 **TURU 143 — KISAYOL KARTLARI: IKONSUZ, %40 BUYUK, YENI ADLAR.**
+  41 -> **57** dp; ikonun tasidigi RENK KIMLIGI kartin KENDI zeminine
+  tasindi (`renk.withValues(alpha: 0.14)`), yazi **BEYAZ**.
+  Etiketler: *"Nöbetçi Eczane" -> **Eczane***, *"Benzin İstasyonu" ->
+  **Benzinlik*** (nobet verisi HALA YOK — kisa ad ustelik daha DURUST).
+  ⚠️⚠️ **KELIME ORTASINDAN BOLUNME** (denetim gercek fontla olctu): 360
+     dp'de karta 76, metne 64 dp kaliyor; "Benzinlik" olcek 1.3'te 74,9 dp
+     istiyor ve Flutter tek kelimeyi **ORTADAN BOLUYOR** — ekranda
+     *"Benzinli / k"* cikiyordu (olcek 2.0'da DORDU birden).
+     FIX: `maxLines: 1` + `softWrap: false` + **`FittedBox(scaleDown)`**.
+     ⚠️ Bedeli BILINIYOR (docs/yazi-olcegi.md): `FittedBox` yazi olceginin
+        bir kismini geri alir — kelimeyi bolmekten iyidir, bilincli secim.
+  ⚠️ `_kisayolBoy` **TEK KAYNAK** (`_panelBoy` de okur).
+  📌 Menudeki ŞEHİR REHBERİ seridinde **"Nöbetçi Eczane" DURUYOR** — orasi
+     BASKA bir ekran, kullanici oradan bahsetmedi.
+
+- 🗑️ **TURU 143 — MENUDEN "Alışveriş" KARTI KALDIRILDI** (kullanici emri).
+  ⚠️ Kart `kategori: 'market'` aciyordu; o kategori SUNUCUDA ve
+     `isletmeKategorileri`nde DURUYOR ve haritadaki cip seridinden
+     ("Market") hala ULASILABILIR — veri OLU KALMADI.
+
+- 📌 **TURU 143 — DENETIM (6 mercek + her bulguya AYRI curutucu, 33 ajan):
+  27 HAM BULGU -> 19 ONAY, 8 CURUTULDU.** SEVK ENGELI disinda duzeltilen
+  UC ORTA bulgu:
+  · `_panelBoy`da **`+ 8` HAYALET TERIM** — ikonlu surumdeki
+    `vertical: 4` dolgusunun kalintisiydi; dolgu bu turda kaldirilmis ama
+    formuldeki karsiligi BIRAKILMISTI (formul govdeden 8 dp UZUN).
+  · **`hataBoy` 6 dp KISA** (olculdu: gercek 54,0 dp @1.0-1.3 ve 80,0 @2.0;
+    formul 48,0 / 51,6 / 76,2) — blogun altindaki `SizedBox(height: 6)`
+    formulde YOKTU. Bu, turu 141'den beri duran bir ayrisma.
+  · `_panelArama` DUGMESININ yuksekligi artik `_aramaBoy` ILE AYNI
+    KAYNAKTAN (`SizedBox(height: _aramaBoy(c))`): turu 142'de kutu
+    `TextField`ken olculen formul, dugmeye cevrilince govdeden ~4 dp
+    ayrismisti ve yuzen serit 10 degil ~14 dp yukaridaydi.
+
 - **KALDIGIMIZ YER (31 Agu 00:13): TURU 142 YAYINLANDI — SADECE iOS.**
   ios **33335303325** (**dbce57d**), R2 ipa=29852395 (md5 f1231511)
   index=7982 (md5 d7f8225b) surum.json=48 (md5 f341c7c9),

@@ -8411,3 +8411,81 @@ koşulmadı** (kullanıcı hız istedi).
   false` ile birlikte çıkarılmalı.
 - Akaryakıt fiyatı / nöbetçi eczane / durak verisi hâlâ yok (kartlar dürüstçe
   söylüyor).
+
+---
+
+## Oturum — 31 Ağustos 2026 (turu 143): ÇİP ŞERİDİ GERİ · SADELEŞTİRME · HARİTA SABİT
+
+**Kullanıcının emri (tek mesaj + bir ek):** aramanın altındaki kategorileri
+kaldırmışsın, ben o *kategori kelimesini* kaldır dedim, geri getir · işletme
+kartındaki logoyu kaldır · menülerde resimleri kaldır · menüleri telefon ve
+harita gibi kategori radüs mantığında bir karenin içine al · menüleri
+yaklaştır, aralarındaki boşluğu azalt · "Nöbetçi Eczane" → **Eczane**,
+"Benzin İstasyonu" → **Benzinlik** · alttaki kartları **%40 büyüt**,
+ikonlarını kaldır · aramaya tıklayınca **arkada harita oynuyor, düzelt** ·
+açılan sayfada kategori kartlarının genişliğini azalt · (ek) **Alışveriş
+kategorisini kaldır**.
+
+### Yapıldı (oldu)
+- Çip şeridi panele **geri kondu**; kaldırılan yalnız başındaki "Kategori"
+  düğmesi (gövdesi duruyor).
+- Kart logosu kalktı; menü kalemleri **görselsiz** ve `kAiKartYuzey` zeminli
+  **kutu** içinde; aralık 14 → **8**; 4 ölü menü görseli pubspec'ten çıktı.
+- Kısayol kartları **ikonsuz**, 41 → **57** dp, renk kimliği kartın zeminine
+  taşındı, etiketler **Eczane** / **Benzinlik**.
+- Arama sayfasındaki kategori kutusu artık **kare** (hücreye yayılmıyor).
+- Menüden **Alışveriş** kartı kaldırıldı.
+
+### ⚠️⚠️⚠️ Denetim (6 mercek + her bulguya ayrı çürütücü, 33 ajan): 27 → 19 onay
+- **SEVK ENGELİ — manşet düzeltmem EKSİKTİ.** Haritayı oynatan asıl yol
+  `MediaQuery.padding` değil, **`Scaffold`ın klavyeyle küçülmesi**: arama
+  sayfası bir `PopupRoute` (`opaque=false`, `maintainState=true`), alttaki
+  Scaffold klavye açıkken de yerleşime giriyor ve varsayılan
+  `resizeToAvoidBottomInset: true` gövdeyi ~300 dp kısaltıyor → görünür
+  bölgenin merkezi **~150 dp** kayıyor. `viewPaddingOf` yalnızca ~34 dp'lik
+  ikinci yolu kapatıyordu. **İkisi de kaldı.**
+  ⚠️ **Ders:** "ekran/harita kayıyor" şikâyetinde İLK bakılacak yer
+  `Scaffold.resizeToAvoidBottomInset`.
+- **ORTA:** `_panelBoy`da `+ 8` **hayalet terim** (ikonlu sürümdeki
+  `vertical: 4` dolgusunun kalıntısı — bu turun regresyonu).
+- **ORTA:** `hataBoy` gövdeden **6 dp kısa** (ölçüldü: gerçek 54,0 vs formül
+  48,0) — bloğun altındaki `SizedBox(height: 6)` formülde yoktu.
+- **ORTA:** kısayol etiketi **kelime ortasından bölünüyordu** ("Benzinli / k",
+  ölçek 1.3; ölçek 2.0'da dördü birden) → `FittedBox(scaleDown)`.
+
+### Denendi / öğrenildi
+- ⚠️ `_panelArama` düğmeye çevrilince `_aramaBoy` formülü gövdeden ~4 dp
+  ayrışmıştı → gövde artık `SizedBox(height: _aramaBoy(c))` ile **aynı
+  kaynaktan**.
+- ⚠️ `dart format` bu dosyada **1121 satırlık** diff üretti; geri alındı —
+  yayın öncesi turda büyük biçim diff'i gerçek değişikliği gizler.
+- ⚠️ **CRLF tuzağı (turu 89/119'un dördüncü tekrarı):** `git checkout` dosyayı
+  CRLF ile geri yazdı ve LF varsayan betik eşleşmedi. Metin değiştiren her
+  betik satır sonunu **dosyadan algılamalı**.
+- ⚠️ Heredoc + JS şablon dizgesinde `\'` kaçışı `'`ye düşüyor; Dart tek
+  tırnak kaçışını `String.fromCharCode(92, 39)` ile üret.
+
+### Ölçüldü
+- `flutter analyze` **0 hata 0 uyarı** · `flutter test` **52/52**
+- Emülatör 360 dp → logcat'te **overflow 0**
+- IPA: "Benzinlik" ve "Eczane" VAR; "Benzin İstasyonu" ve "Alışveriş" YOK;
+  `assets/marka` altında **3 logo** (4 menü görseli çıktı)
+
+### Devir notu (turu 143)
+- Yayınlandı: ios **33340070569** · commit **fa9fa3e** · **sadece iOS**
+- Adres: **https://indir.gebzem.app/index.html?v=20260831-0157**
+- CDN üçü de birebir (ipa 878be22b · index 8a682250 · surum e109ee90)
+- **backend değişmedi** → deploy yok, DB truncate yok, e2e koşulmadı
+- ⚠️ APK alınmadı — R2'deki apk 21 Ağustos sürümünde
+
+### Bekleyenler (dürüst sınırlar)
+- ⏳ **Marka pinleri ve menü kutuları emülatörde görülemedi**: `adb emu geo fix`
+  verilmesine rağmen uygulamaya GPS fix'i gelmiyor, örnek kayıtlar konumdan
+  türetildiği için hiç çizilmedi. **Gerçek cihazda bakılacak.**
+- Menü öğesi 128 dp: ölçek 1.3+ değerinde uzun adlar ("Sıcak Çikolata")
+  ellipsis ile kırpılıyor (taşma yok).
+- Menüdeki ŞEHİR REHBERİ şeridinde **"Nöbetçi Eczane"** duruyor — orası başka
+  bir ekran, kullanıcı ondan bahsetmedi.
+- Akaryakıt fiyatı / nöbet verisi / durak verisi hâlâ yok (kartlar dürüstçe
+  söylüyor). Marka logoları yayın öncesi `kHaritaOnizleme = false` ile
+  birlikte paketten çıkarılmalı.
