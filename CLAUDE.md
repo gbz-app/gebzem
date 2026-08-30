@@ -41,6 +41,180 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
       kaybettiriyorsun"*. **Üçüncüsü olmayacak.**
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (30 Agu 16:46): TURU 140 YAYINLANDI — SADECE iOS.**
+  ios **33314669971** (**e79460f**), R2 ipa=29848559 (md5 f3136ab1)
+  index=7982 (md5 f1e74762) surum.json=48 (md5 4e5a5620),
+  purge OK, **CDN UCU DE BIREBIR**, iOS min **16.0**, `MapsApiKey` ENJEKTE.
+  IPA'da turu 140 dizeleri VAR (Kategori ara · Kategoriler · Filtreleme · eşleşen kategori yok) ve turu 139'un pin karti dizesi "Örnek kayıt" YOK; assets/marka altindaki YEDI marka gorseli de IPA'da BIREBIR).
+  ⚠️ **IPA 29.576.642 -> 29.848.559 (+271.917 B)** — bu fark eklenen marka
+     varliklarinin pakete GERCEKTEN girdiginin ilk kanitidir.
+  ⚠️ **APK ALINMADI** — R2'deki apk turu 121 surumunde (21 Agu).
+  ⚠️ **BACKEND DEGISMEDI** -> deploy YOK, DB TRUNCATE EDILMEDI, e2e KOSULMADI.
+  ✅ analyze **0/0** · test **52/52** · 360 dp x **1.0 / 1.3 / 2.0** -> tasma **0**
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260830-1646
+
+- 🍔 **TURU 140 — YEMEK ORNEKLERI GERCEK MARKALAR + MENU GORSELLERI.**
+  Kullanici emri: *"Yemek ornek olarak McDonald's, Burger King, Domino's
+  Pizza, Popeyes olsun, ben logolari klasore koyacagim"* + *"yemekte
+  isletmenin orada MENULER gorunsun, KARE resim alanlari kategori radus
+  mantiginda"*.
+  · `assets/marka/` — 3 logo + 4 McDonald's menu fotografi, **280 KB**.
+  · `_ornekLogo` (ad -> varlik yolu) · `_ornekMenu` (4 kare gorsel).
+  ⚠️⚠️ **POPEYES LOGOSU YOK** (kullanici klasore koymadi) — o kayit kategori
+     ikonuna duser, sahte logo URETILMEDI. Dosya gelince `_ornekLogo` +
+     pubspec'e BIRER satir.
+  ⚠️⚠️ **pubspec'te TEK TEK DOSYA** (`- assets/marka/` DEGIL): turu 116b'de
+     olculen 1,27 MiB olu varlik dersinin birebir tekrari olurdu.
+  ⚠️⚠️ **VARLIKLAR GIT'E EKLENMEZSE CI TEMIZ KLONDA BULAMAZ** — denetim bunu
+     SEVK ENGELI olarak yakaladi: dosyalar diskte vardi, `git status`ta
+     `??` idi. `git ls-files mobile/assets/marka | wc -l` = **7** ile
+     dogrulandi; IPA icinde de yedisi de BIREBIR bulundu.
+  ⚠️ **MARKA HAKKI (durust not):** bunlar tescilli markalar. Ekranda "Örnek"
+     etiketi ve profilde *"gerçek işletme değil"* uyarisi DURUYOR, ama bu
+     varliklar **YAYIN ONCESI** `kHaritaOnizleme = false` ile BIRLIKTE
+     paketten CIKARILMALI.
+  ⚠️ Logo `BoxFit.contain` — `cover` DEGIL: burgerking **500x545** (kare
+     DEGIL) ve `cover` onu ustten/alttan KIRPIYORDU (olculdu). Kare olan
+     ikisi `contain` ile de daireyi tam doldurur.
+  ⚠️ `cacheWidth` ZORUNLU: ham 720x720 logo 46 dp'lik kutu icin ~2,1 MB
+     gecici RAM demekti (turu 91 dersi).
+
+- 📞 **TURU 140 — KARTTA TELEFON DUGMESI** (kullanici emri: *"haritanin
+  soluna telefon ikonu koy"*), kart **300 -> 348 dp**.
+  ⚠️⚠️ **NUMARA LISTEDE YOK:** `IsletmeOzet`te `telefon` alani HIC yok ve
+     `/isletmeler/yakinimda` SELECT'i `i.telefon` sutununu SECMIYOR (sunucu
+     kaynagindan dogrulandi). Kart basina onceden cekmek seritte **12 EK
+     ISTEK** olurdu (turu 17 N+1). Bu yuzden numara YALNIZ dokunuldugunda
+     `GET /users/{id}/isletme` ile cozuluyor — o uc `telefon` donduruyor ve
+     HERHANGI bir kullanici kimligini kabul ediyor.
+  ⏳ **BEKLEYEN (sunucu isi):** `/yakinimda` yanitina `telefon` eklenirse ek
+     istek kalkar (SELECT + Scan + yanit haritasi UCU BIRLIKTE).
+  ⚠️ Ornek kayitta ARAMA YAPILMAZ (uydurma numara cevirmek yanlis birine
+     baglardi). Yeniden-girme kapisi (`_araMesgul`) VAR: cift dokunus iki
+     istek + iki cevirici acilisi uretirdi.
+
+- 🗑️ **TURU 140 — HARITA PIN KARTI (`_secilenKart`) VE TUM ZINCIRI SILINDI**
+  (kullanici emri: *"alttaki isletme kartlarina tikladiginda popup
+  cikariyor, onlari kaldir, gereksiz; filtrenin uzerinde popup cikiyor onu
+  kaldir"*).
+  Silinenler: `_secilenKart` · `_secilen` · `_yukle` sifirlamasi · yigin
+  cocugu · `acildi` (turu 136'dan beri OLU) · `secildi` · `secimKapandi` ·
+  `_cipSeridiBoy` · `GoogleMap.onTap` · `MedyaGorsel` importu.
+  ⚠️⚠️ **PIN DOKUNUSU OLU KALMADI:** `InfoWindow` turu 136'da kaldirilmisti,
+     geriye tek eylem karti acmakti. Artik pin dokunusu **KAMERAYI ODAKLAR**
+     (`_harita?.animateCamera`) — ekrana geri cagirim gerekmedi.
+  ⚠️⚠️ **SILME SINIRI YINE UYE ADIYLA DOGRULANMALI:** `_cipSeridiBoy` silme
+     araligi `_kategoriIkonu`a kadar alindi ve ARADAKI **`_kategoriSec`**
+     metodunu da GOTURDU. `flutter analyze` yakaladi, git HEAD'den geri
+     kondu. Turu 127/138'in **UCUNCU** tekrari.
+  ⚠️ `_haritadaGoster` BUDANDI (silinmedi): `_odak` KALDI — turu 139'un
+     *"karta dokununca navigator ona gitsin"* emri ona bagli.
+  ⚠️⚠️ `_odak` artik **NESIL SAYACI** tasir: yalniz koordinattan olussaydi
+     kullanici haritayi elle kaydirip AYNI karta tekrar dokundugunda deger
+     degismez ve kamera TASINMAZDI (turu 138'deki `_zoom` deseni).
+
+- 🧭 **TURU 140 — KATEGORI POPUPU ANASAYFA MENUSUYLE BIREBIR + ARAMA.**
+  Kullanici emri: *"haritada kategorilere tikladigimda YUKSEKLIKLERI
+  ANASAYFADAKI KATEGORILERIN YUKSEKLIKLERI ILE AYNI DEGIL ve IKONLARI
+  KALDIR, oradaki gibi yap"* + *"kategoriye tikladiginda orada ARAMA ALANI
+  olacak"*.
+  · kutu 64 -> **`kKesifKutu` (78)** · ara 6 -> **5** · etiket
+    `scale(12)*1.2*2` -> **`scale(14)*1.15*2`** · kutunun ICI **BOS**.
+  · Sabitler `isletme_listesi.dart`tan IMPORT edilir, kopyalanmaz.
+  · Arama Turkce duyarsiz (`_sadelestir`): `toLowerCase()` "İ" harfini
+    birlesik noktaya cevirir ve "İSTANBUL" -> "istanbul"u BULAMAZ.
+  ⚠️⚠️ **`_KategoriPopup` AYRI BIR `StatefulWidget` OLMAK ZORUNDA**:
+     `TextEditingController`in `dispose`i sheet'in KENDI agacinda olmali.
+     Disaridan dispose edilseydi route'un CIKIS ANIMASYONU sirasinda
+     *"used after being disposed"* -> **ErrorWidget EKRANI KIRMIZI** boyardi
+     (turu 96i, sahada yasandi).
+  ⚠️⚠️ Popup kardesleriyle **AYNI SIYAHA** alindi (`kAiZemin` + zorla koyu
+     tema + `Builder`) **VE `Material` sarmali** — `Theme` tek basina renk
+     BELIRTMEYEN `Text`leri beyaza cevirmez; sarmalsiz haliyle siyah
+     popupta kategori adlari SILIK GRI cikiyordu (emulatorde olculdu,
+     turu 129 dersi).
+
+- 🖤 **TURU 140 — FILTRE EKRANI TAM SIYAH + CHECKBOX** (kullanici emri).
+  `isletme_filtre.dart` -> `isletmeFiltreAc` (projedeki TEK gercek filtre
+  ekrani; basligi zaten "Filtreleme").
+  ⚠️⚠️ **IKI AYRI ZEMIN KAYNAGI VAR**: sheet `backgroundColor` VE
+     `_altDugme`nin kendi `BoxDecoration`i. Yalniz biri degistirilseydi
+     ekranin dibinde uyumsuz acik gri bir band kalirdi.
+  ⚠️⚠️ **ZORLA KOYU TEMA + `Builder` ZORUNLU**: panelde temadan beslenen ON
+     DOKUZ renk var; yalniz zemini siyaha boyasaydik ACIK temada siyah
+     zemine `#1A1A1A` yazi (**~1,2:1**) cikardi — turu 135c (1,056:1) ve
+     turu 138'in UCUNCU tekrari.
+  ⚠️ Checkbox `kYaricap` KULLANMAZ: clamp tabani **8** ve 18 dp'lik kutuyu
+     DAIREYE cevirip radio gibi gosteriyordu (emulatorde olculdu) -> 5 dp.
+  ⚠️ `ThemeData.dark()` uygulamanin **"dokunma dairesi YOK"** kararini
+     (turu 7 kullanici emri) SIFIRLIYOR — `splashFactory`/`splashColor`/
+     `highlightColor` ACIKCA geri konur. Ayni ekleme `_altPanel` ve
+     kategori popupunda da yapildi.
+  📌 "Temizle" dugmesi 360 dp'de **IKI SATIRA sariyordu** ("Temizl / e"):
+     `OutlinedButton`un varsayilan 2x24 dp dolgusu 106 dp'lik dugmeye
+     sigmiyordu -> dolgu 8 + `maxLines: 1`.
+
+- 🗺️ **TURU 140 — GOOGLE LOGOSU PANELIN ALTINA** (kullanici emri: *"Google
+  Maps yazisi gorunuyor, onu kartin altina al — kaldirmak yasak ama kartin
+  altina al"*).
+  ⚠️⚠️ **KOK NEDEN BIZDIK:** `GoogleMap.padding` hem KAMERAYI hem TUM harita
+     UI'ini (logo, pusula, konum dugmesi) "gorunur bolgenin" icine tasir
+     (paket kaynagi: Android `googleMap.setPadding`, iOS `_mapView.padding`).
+     `altDolgu` = panel boyu oldugu icin logo tam panelin UST KENARINA
+     oturuyordu.
+  ⚠️ **`EdgeInsets.zero` YAPILMADI** — turu 132'nin UC hatasini geri
+     getirirdi. Dolgu yalnizca **`kLogoPay` (30 dp)** kadar KISALTILDI.
+  ⚠️ Android/iOS logo olculeri birebir ayni DEGIL — **GERCEK CIHAZDA**
+     dogrulanmali.
+  ⚠️ **UYUM NOTU:** Google Maps Platform sartlari logoyu ortmeyi yasaklar.
+     Karar KULLANICININ; bilerek uygulandi.
+
+- 🔘 **TURU 140 — CIP SERIDI: ARALIK · SAG KENAR · AKTIF HAL.**
+  Kullanici emri: *"kategoriler sol sag scrollda SAGDA DIVIN DISINA
+  CIKIYOR onu duzelt, aralarini biraz ac, AKTIF OLANDA ikon arkasi BEYAZ,
+  ikon arka kare daire rengi olsun"*.
+  · aralik cipin `Padding`inden `separatorBuilder`a tasindi: 8 -> **14**
+    (cipte kalsaydi son ogeye de uygulanip sag nefesle CIFT SAYILIRDI)
+  · **`ShaderMask` ile SAG KENARA SOLMA** — ⚠️⚠️ OLCULDU: sag dolgu TEK
+    BASINA YETMEDI, cunku kaydirilabilir listede `padding.right` yalnizca
+    SON OGEDEN SONRA yer acar; kaydirirken ortadaki cipler viewport'un tam
+    kenarinda YARIDAN kesilmeye devam ediyordu.
+  · aktif cipte kutu **BEYAZ**, ikon **kutunun EKRANDA CIZILEN rengi**
+    (`Color.alphaBlend(kAiKartYuzey, kAiZemin)`).
+    ⚠️⚠️ Ciplak `colorScheme.primary` beyaz uzerinde **1,70:1** ile
+       GORUNMUYORDU (denetimde olculdu): panel zorla koyu tema kuruyor ve
+       oradaki `primary` M3 tone-80, yani ACIK lavanta.
+  · yazi kalinligi **SABIT w700** (secili w800/pasif w600 idi): kalinlik
+    degisimi metnin genisligini degistirir ve serit her secimde KAYARDI.
+
+- ⚠️⚠️⚠️ **TURU 140 — YUZEN FILTRE CIPINDE BEYAZ USTUNE BEYAZ (1,00:1).**
+  Turu 139'dan kalma: `_yuzenCip` secili dalda zemini `kVurgu` ile
+  dolduruyor ama yazi/ikonu **SABIT `Colors.white`** birakiyordu. `kVurgu`
+  KOYU temada `Colors.white` dondurur -> uygulama koyu temadayken secili
+  cip **TAMAMEN OKUNMAZ**.
+  FIX: on plan DOLGUDAN turetilir (`ThemeData.estimateBrightnessForColor`).
+  ⚠️ YAPMA: buraya sabit renk yazma.
+
+- ⚠️⚠️⚠️ **TURU 140 — GECICI OLCUM HACK'I KODDA KALMISTI (denetim yakaladi).**
+  Emulatorde GPS fix'i hic gelmedigi icin ornek kayitlari gorebilmek adina
+  `final k = _konum ?? (enlem: 40.8028, boylam: 29.4307);` konuldu ve
+  KALDIRILMASI UNUTULDU. Hemen ustundeki serh *"Konum YOKSA ornek de YOK"*
+  diyor, iki satir yukarisi *"sabit Gebze koordinati yazilsaydi baska
+  sehirdeki kullanici pinleri HIC goremezdi"* diyordu.
+  ETKI: konum izni reddeden Ankara'daki bir kullanici HARITASIZ bir ekranda
+  adresi "Gebze, Kocaeli" olan dort isletmeyi **"250 m"** mesafeyle gorurdu.
+  ⚠️ **KURAL: olcum icin konulan her gecici satir, commit ONCESI `grep` ile
+     ARANIR.** Bu turda `GECICI-OLCUM` isareti kullanildi ve nobetci
+     `grep -rn "GECICI-OLCUM" lib/` ile kosuldu.
+
+- 📌 **TURU 140 — DENETIM: 39 AJAN (6 mercek + her bulguya AYRI curutucu),
+  33 HAM BULGU -> 18 ONAY, 10 CURUTULDU.** Curutulenlerin cogu, denetim
+  kosarken ONLARI ZATEN DUZELTMIS oldugum icin curudu (curutuculer CANLI
+  dosyayi okuyor). ⚠️ Bir curutucu, bulgunun "ek kanit" diye sundugu
+  `flutter analyze` uyarisinin UYDURMA oldugunu gosterdi ama bulgunun
+  cekirdegi (`??` semantigi) ayakta kaldi — **destekleyici delil yanlis
+  olabilir, cekirdek iddiayi AYRICA dogrula.**
+
 - **KALDIGIMIZ YER (30 Agu 03:04): TURU 139 YAYINLANDI — SADECE iOS.**
   ios **33282108280** (**f6b2730**), R2 ipa=29576642 (md5 02025da7)
   index=7982 (md5 c5694820) surum.json=48 (md5 e52376f9),

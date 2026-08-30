@@ -8170,3 +8170,96 @@ yerine **profil fotoğrafımız** olsun.
 - ⏳ **Gerçek cihazda bakılacak:** harita renkleri, daire pinler ve konum
   pinindeki profil fotoğrafı emülatörde doğrulanamıyor (Maps karoları
   çizilmiyor, GPS fix'i gelmiyor, test hesabında avatar yok).
+
+---
+
+## Oturum — 30 Ağustos 2026 (turu 140): MARKA ÖRNEKLERİ · MENÜ GÖRSELLERİ · SİYAH FİLTRE EKRANI
+
+**Kullanıcının emri (dokuz mesaj):** filtreleme ekranı arkası tam siyah,
+yanında checkbox · yemek örnekleri McDonald's/Burger King/Domino's/Popeyes
+olsun (logoları klasöre koyacağım) · alttaki işletme kartlarına tıklayınca
+çıkan popup'ı kaldır · haritada kategorilerin yükseklikleri anasayfadaki
+gibi olsun ve ikonları kaldır · Google Maps yazısını kartın altına al
+(kaldırmak yasak) · kartları genişlet, haritanın soluna telefon ikonu koy,
+yemekte menüler kare resim alanları olarak görünsün · kategoriye tıklayınca
+arama alanı olsun · kategoriler sağda div'in dışına çıkıyor, aralarını aç,
+aktif olanda ikon arkası beyaz olsun.
+
+### Yapıldı (oldu)
+- **Marka örnekleri + menü görselleri**: `assets/marka/` (3 logo + 4 menü
+  fotoğrafı, 280 KB), pubspec'te **tek tek dosya**. Kart logosu `contain`
+  + `cacheWidth`.
+- **Pin kartı (`_secilenKart`) ve tüm zinciri silindi**; pin dokunuşu artık
+  kamerayı odaklıyor.
+- **Kategori popup'ı** anasayfa menüsüyle birebir (78 dp kutu, ikon yok) +
+  **arama alanı** (Türkçe duyarsız) + kardeşleriyle aynı siyah.
+- **Kart 300 → 348 dp**, sağda üç düğme (telefon · profil · harita), yemekte
+  **4 kare menü görseli**.
+- **Google logosu** panelin altına (`kLogoPay` 30 dp).
+- **Çip şeridi**: aralık 8 → 14, sağ kenara `ShaderMask` solma, aktif çipte
+  beyaz kutu + kutu renginde ikon, kalınlık sabit.
+- **Filtre ekranı** tam siyah + kare checkbox + "Temizle" tek satırda.
+
+### Denetim (39 ajan: 6 mercek + her bulguya ayrı çürütücü)
+**33 ham bulgu → 18 onay, 10 çürütüldü.** Düzeltilenler:
+- ⚠️⚠️ **Geçici ölçüm hack'i kodda kalmıştı** (`_konum ?? sabit Gebze`):
+  konum izni reddeden Ankara'daki bir kullanıcı, adresi "Gebze, Kocaeli"
+  olan dört işletmeyi "250 m" mesafeyle görürdü. Şerhin tam tersi.
+- ⚠️⚠️ **Yüzen filtre çipinde seçili hâl beyaz üstüne beyaz (1,00:1)** —
+  turu 139'dan kalma, uygulama koyu temadayken tamamen okunmaz.
+- ⚠️ Aktif kategori çipinde ikon beyaz kutuda **1,70:1** → kutunun ekranda
+  çizilen rengine çevrildi.
+- ⚠️ `_altSatirBoy` ile `_altSatir` koşulları ayrışıktı (kartın altında
+  ~31 dp boşluk).
+- ⚠️ Marka logosunda `cacheWidth` yoktu (~4 MB) ve `cover` Burger King'i
+  kırpıyordu (500x545, kare değil).
+- ⚠️ Aynı karta ikinci dokunuş kamerayı taşımıyordu → `_odak` nesil sayacı.
+- ⚠️ **Varlıklar git'te izlenmiyordu** — CI temiz klonda bulamazdı.
+
+### Denendi / öğrenildi
+- ⚠️⚠️ **Silme sınırı yine üye adıyla doğrulanmalı**: `_cipSeridiBoy` silme
+  aralığı `_kategoriIkonu`ya kadar alındı ve aradaki **`_kategoriSec`**
+  metodunu da götürdü. `flutter analyze` yakaladı, HEAD'den geri kondu.
+  Turu 127/138'in **üçüncü** tekrarı.
+- ⚠️⚠️ **Sağ dolgu tek başına yetmedi**: kaydırılabilir listede
+  `padding.right` yalnızca son öğeden sonra yer açar; kaydırırken çipler
+  yine viewport kenarında yarıdan kesiliyordu → `ShaderMask` solma.
+- ⚠️⚠️ **`Theme` tek başına `DefaultTextStyle`ı çevirmez**: siyah popup'ta
+  kategori adları silik gri çıktı, `Material` sarmalı gerekti (turu 129).
+- ⚠️ **İç içe yatay kaydırma**: menü kareleri `ListView` iken kartın alt
+  yarısındaki sürükleme dış şeridi kaydırmıyordu → `Row` (4 kare 242 dp,
+  içerik 328 dp — yapısal olarak sığıyor).
+- ⚠️ **`ThemeData.dark()` uygulamanın "dokunma dairesi yok" kararını
+  sıfırlıyor** — üç yerde açıkça geri kondu.
+- ⚠️ Bir çürütücü, bulgunun "ek kanıt" diye sunduğu `flutter analyze`
+  uyarısının **uydurma** olduğunu gösterdi; ama bulgunun çekirdeği ayakta
+  kaldı. **Destekleyici delil yanlış olabilir, çekirdek iddiayı ayrıca doğrula.**
+
+### Ölçüldü
+- **360 dp × yazı ölçeği 1.0 / 1.3 / 2.0 → taşma 0**
+- `flutter analyze` **0 hata 0 uyarı** · `flutter test` **52/52**
+- **IPA 29.576.642 → 29.848.559 (+271.917 B)** ve `assets/marka/` altındaki
+  **7 görselin 7'si de IPA'da birebir** — varlıkların pakete girdiğinin kanıtı
+
+### Devir notu (turu 140)
+- Yayınlandı: ios **33314669971** · commit **e79460f** · **sadece iOS**
+- Adres: **https://indir.gebzem.app/index.html?v=20260830-1646**
+- CDN üçü de birebir (ipa f3136ab1 · index f1e74762 · surum 4e5a5620)
+- iOS min 16.0 · MapsApiKey enjekte · turu 139'un "Örnek kayıt" dizesi YOK
+- **backend değişmedi** → deploy yok, DB truncate yok, e2e koşulmadı
+- ⚠️ APK alınmadı — R2'deki apk 21 Ağustos sürümünde
+
+### Bekleyenler (dürüst sınırlar)
+- **Popeyes logosu yok** — kullanıcı klasöre koymadı; o kayıt kategori
+  ikonuna düşüyor, sahte logo üretilmedi.
+- **Gerçek işletmede menü görseli yok**: `/yakinimda` ürün adı/görseli
+  döndürmüyor; kart başına `/users/{id}/urunler` 12 ek istek olurdu.
+- **Telefon numarası listede gelmiyor** — dokununca tek istekle çekiliyor.
+- **Marka hakkı**: tescilli logolar pakette; yayın öncesi
+  `kHaritaOnizleme = false` ile birlikte çıkarılmalı.
+- **Google logosunu örtmek** Maps Platform şartlarına aykırı — kullanıcının
+  kararı, bilerek uygulandı.
+- ⏳ **Gerçek cihazda bakılacak**: harita renkleri, daire pinler, konum
+  pinindeki profil fotoğrafı, Google logosunun yeni yeri ve kart logolarının
+  `contain` görünümü (emülatörde Maps karoları çizilmiyor, GPS fix'i
+  gelmiyor).
