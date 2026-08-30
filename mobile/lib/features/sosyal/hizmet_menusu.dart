@@ -1095,15 +1095,11 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
         : yukleniyor
         ? ''
         : (konumVar ? 'Yakında yok' : 'Konumu aç');
-    // ⚠️⚠️ Yazi rengi TEMADAN: `kYuzeyGri` koyu temada KOYU bir yuzey
-    //	doner ve sabit `Colors.black` orada OKUNMAZDI (turu 115b dersi:
-    //	"bir zemin rengini degistirirken, o zemine gore secilmis ON PLAN
-    //	renklerini de ara").
-    final onRenk = Theme.of(context).colorScheme.onSurface;
-    // ⚠️ Ikon dairesi kartin KENDI renginden: dort kart yan yana durdugunda
-    //    ayirt edilebilir olsun. Zemin %14 opaklikta — ikonun kendisi tam
-    //    renkte, daire soluk.
-    final vurgu = b.renkler.first;
+    // ⚠️⚠️ TURU 142 — kart artik SABIT BEYAZ yazi kullaniyor (kullanici
+    //	emri). Bu GUVENLI, cunku serit YALNIZ menude (`kAiZemin`, sabit
+    //	siyah) ciziliyor. ⚠️ Serit acik zeminli bir ekrana tasinirsa yazi
+    //	GORUNMEZ olur — o gun renk yine temadan turetilmeli (turu 115b).
+
     return RepaintBoundary(
       child: GestureDetector(
         onTap: () => _ac(context, b),
@@ -1130,30 +1126,11 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
           ),
           child: Row(
             children: [
-              // ── IKON ──
-              if (b.ikon != null) ...[
-                Container(
-                  width: 34,
-                  height: 34,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    // ⚠️⚠️ TURU 134 — kutu artik **KART YUZEYINDEN BIR TIK
-                    //	KOYU** (kullanici emri). Eskiden kartin kendi
-                    //	vurgu rengiydi (%14) ve kart yuzeyinden DAHA ACIK
-                    //	kaliyordu — kutu "cukur" degil "tumsek" gibi
-                    //	duruyordu.
-                    // ⚠️ Koyulastirma SIYAH opaklikla yapilir; mor uzerine
-                    //    mor koymak onu ACARDI. Tek kaynak: `kIkonKutusu`.
-                    color: kIkonKutusu(context),
-                    borderRadius: BorderRadius.circular(11),
-                  ),
-                  // ⚠️ TURU 134 — kullanici *"ikonlar kalin"* dedi. Lucide
-                  //    bir FONT`tur, `strokeWidth` YOKTUR; kalinlik dort
-                  //    golgeyle simule edilir (`KalinIkon`, turu 93).
-                  child: KalinIkon(ikon: b.ikon!, boy: 18, renk: vurgu),
-                ),
-                const SizedBox(width: 9),
-              ],
+              // ⚠️⚠️ TURU 142 — **IKON KALDIRILDI** (kullanici emri:
+              //	*"yakinimdaki ikonlari kaldir"*). Kart artik yalniz AD +
+              //	MESAFE tasiyor; `b.ikon` kaynak modelde DURUYOR (sehir
+              //	rehberi seridi ve baska cagri yerleri onu kullanabilir).
+
               // ⚠️ `Expanded` ZORUNLU: "Akaryakıt" gibi uzun bir ad sabit
               //    genislikte TASARDI.
               Expanded(
@@ -1207,9 +1184,13 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
                         fontWeight: (metin.isNotEmpty || onizleme != null)
                             ? FontWeight.w700
                             : FontWeight.w600,
+                        // ⚠️⚠️ TURU 142 — kullanici emri: *"alttaki renkleri
+                        //	de BEYAZ yap"*. Onceden kartin kendi vurgu
+                        //	rengiydi (turu 134); artik iki dal da beyaz,
+                        //	durum metni yalniz OPAKLIKLA ayrilir.
                         color: (metin.isNotEmpty || onizleme != null)
-                            ? vurgu
-                            : onRenk.withValues(alpha: 0.62),
+                            ? Colors.white
+                            : Colors.white.withValues(alpha: 0.62),
                       ),
                     ),
                   ],
