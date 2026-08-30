@@ -228,10 +228,11 @@ flutter:
     - assets/marka/mcdonalds.jpg
     - assets/marka/burgerking.png
     - assets/marka/dominos.png
-    - assets/marka/menu_bigmac.png
-    - assets/marka/menu_tavuk.png
-    - assets/marka/menu_cheeseburger.png
-    - assets/marka/menu_patates.png
+    # TURU 143 — dort McDonald's menu fotografi (menu_*.png, ~170 KB) artik
+    # KODDA HICBIR YERDEN OKUNMUYOR (kullanici: "menulerde resimleri kaldir")
+    # ve pakete girmemesi icin BURADAN CIKARILDI (turu 116b: olu varlik ham
+    # boyutunun TAMAMI kadar yer kaplar). Dosyalar assets/marka altinda ve
+    # git'te DURUYOR; geri istenirse asagiya birer satir yeter.
     # ⚠️⚠️ TURU 135 — `assets/vitrin/re1.jpg` (156.911 B) **PAKETTEN CIKTI**:
     #    tek okuyucusu menudeki uydurma mac karti ve onun detay ekraniydi,
     #    ikisi de kullanici emriyle SILINDI. Varlik pakette birakilsaydi

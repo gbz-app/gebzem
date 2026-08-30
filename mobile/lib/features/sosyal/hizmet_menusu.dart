@@ -44,7 +44,7 @@ import '../isletme/isletme_kart.dart' show kYanBosluk, kYaricap;
 ///      İlanlar     → IlanListesiEkrani (tum turler)
 ///      Hizmetler   → IlanListesiEkrani(tur: 'hizmet')
 ///      İşletmeler  → IsletmeListesiEkrani (tum kategoriler)
-///      Yemek/Restoran/Alışveriş → IsletmeListesiEkrani(kategori: ...)
+///      Yemek/Restoran/Cafe → IsletmeListesiEkrani(kategori: ...)
 ///      Yapay zekâ  → AiDanismaEkrani (YALNIZ sunucuda AI aciksa)
 ///    ⚠️ YAPMA: bir karti "yakında" haline geri dondurme; ekran yoksa karti
 ///       EKLEME.
@@ -261,12 +261,13 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
         const Color(0xFFC98A5B),
         const Color(0xFF7A4A22),
       ], (c) => const IsletmeListesiEkrani(kategori: 'kafe', baslik: 'Kafe')),
-      _Bolum(
-        'Alışveriş',
-        [const Color(0xFF7A5CFF), const Color(0xFF3A2A8A)],
-        (c) =>
-            const IsletmeListesiEkrani(kategori: 'market', baslik: 'Alışveriş'),
-      ),
+      // ⚠️⚠️ TURU 143 — **"Alışveriş" KARTI KALDIRILDI** (kullanici emri:
+      //	*"alisveris kategorisini kaldir"*). Kart `kategori: 'market'`
+      //	aciyordu; o kategori SUNUCUDA ve `isletmeKategorileri`nde
+      //	DURUYOR ve haritadaki cip seridinden ("Market") hala ULASILABILIR
+      //	— yani veri OLU KALMADI, yalnizca menudeki GIRIS kalkti.
+      // ⚠️ YAPMA: bunu "olu kategori" diye `isletmeKategorileri`den ya da
+      //    sunucudan silme; kayitli market isletmeleri var.
       // ⚠️ TURU 80 (kullanici emri: "bu alanda kategoriler eğitim ve sağlık ekle").
       //    Iki anahtar ZATEN sistemde: `isletmeKategorileri` (istemci) ve
       //    `isletme/handler.go` (sunucu) 'egitim'/'saglik' taniyor; ayrica
@@ -317,7 +318,7 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
       'Yemek',
       'Restoran',
       'Cafe',
-      'Alışveriş',
+      // ⚠️ TURU 143 — 'Alışveriş' CIKARILDI (kart da kaldirildi).
       'Hizmet',
       'İlan',
       'Düğün',
