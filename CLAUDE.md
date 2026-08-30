@@ -360,6 +360,79 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
   cekirdegi (`??` semantigi) ayakta kaldi — **destekleyici delil yanlis
   olabilir, cekirdek iddiayi AYRICA dogrula.**
 
+- **KALDIGIMIZ YER (31 Agu 00:13): TURU 142 YAYINLANDI — SADECE iOS.**
+  ios **33335303325** (**dbce57d**), R2 ipa=29852395 (md5 f1231511)
+  index=7982 (md5 d7f8225b) surum.json=48 (md5 f341c7c9),
+  purge OK, **CDN UCU DE BIREBIR**, iOS min **16.0**, `MapsApiKey` ENJEKTE.
+  IPA'da turu 142 dizeleri VAR (İşletme veya kategori ara · KATEGORİLER ·
+  GEÇMİŞ · İşletme ara) ve 7 marka gorseli `flutter_assets/assets/marka`
+  altinda DURUYOR.
+  ⚠️ **APK ALINMADI** — R2'deki apk turu 121 surumunde (21 Agu).
+  ⚠️ **BACKEND DEGISMEDI** -> deploy YOK, DB TRUNCATE EDILMEDI, e2e KOSULMADI.
+  ✅ analyze **0 hata 0 uyari** (38 info) · test **52/52** · emulatorde
+     360 dp'de tasma **0**.
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260831-0013
+
+- 🔎 **TURU 142 — KATEGORI CIP SERIDI KALKTI, GIRIS "ARAMA SAYFASI"NA GECTI.**
+  Kullanici emri: *"kategorileri kaldir, ARAMA BUTONU tikladiginda kategoriler
+  popup acilsin"* + *"kategori aramasi yerine NORMAL ARAMA olacak, altinda
+  KATEGORILER ve GECMIS yazacak"* + *"kategorilerde kartlar %20 kucult"*.
+  · `_panelArama` artik DUZENLENEBILIR KUTU DEGIL, **dugme**: uzerinde
+    secili kategori/arama metni, sagda temizleme (X).
+  · `_AramaSayfasi` (%95): ustte odaklanan normal `TextField` ->
+    **GEÇMİŞ** (oturum omurlu, en fazla 8, yazarken GIZLENIR) ->
+    **KATEGORİLER** (4 sutun, kutu `kKesifKutu` 78 -> **`kAramaKutu` 62**).
+  · Sonuc bir KAYIT: `('dal', anahtar)` ya da `('metin', q)`.
+  ⚠️⚠️ **BASLIKLARDA `toUpperCase()` KULLANILMADI** — Dart 'i' harfini 'I'ya
+     cevirir ve ekranda **"KATEGORILER"** cikiyordu (emulatorde goruldu).
+     Basliklar cagri yerinde BUYUK yazilir.
+  ⚠️ `_hizliCipler` **SILINMEDI**, `// ignore: unused_element` ile duruyor:
+     bu projede ayni sinif silme DORT kez komsu uyeyi de goturdu.
+
+- 🏷️ **TURU 142 — HARITADA MARKA LOGOLU PINLER** (kullanici emri: *"haritada
+  mesela yemek dedigimde IKONLAR DEGIL LOGOLAR gorunmeli, onlarin rengine
+  yakin"*).
+  · `_markaPinUret()`: `_ornekLogo`daki her varlik `ResizeImage` ile
+    26 dp'ye cozulur ve `daireIsaret(foto:, fotoAnahtar:)` ile pine cizilir.
+  · Ic dolgu **`_markaRenk`** (McDonald's #DA291C · Burger King #D62300 ·
+    Domino's #006491) — saydam PNG'de bu renk gorunur, logo cozulemezse pin
+    yine markanin renginde kalir.
+  ⚠️ **YALNIZ `demo-` KAYITLARDA**: marka adini tasiyan GERCEK bir isletmeye
+     logo basmak kullaniciya YANLIS BILGI olurdu.
+  ⚠️ Halka **BEYAZ KALDI** (`daireIsaret` sozlesmesi): harita zemini her
+     renkte olabilir, renkli halka acik zeminde kaybolurdu (turu 138).
+  ⚠️ FAIL-SAFE: bir logo cozulemezse o marka atlanir, kaydi normal pinle
+     cizilir; harita isaretsiz KALMAZ.
+  ⏳ **EMULATORDE DOGRULANAMADI**: `adb emu geo fix` verilmesine ragmen
+     uygulamaya GPS fix'i GELMIYOR, ornek kayitlar kullanicinin konumundan
+     turetildigi icin pinler HIC cizilmedi. **GERCEK CIHAZDA bakilacak.**
+
+- 📋 **TURU 142 — DIGER (kullanicinin tek mesajdaki maddeleri):**
+  · navigator ikonu **45° saga** (`Transform.rotate`; ikonun kendisi degil
+    CIZIMI donduruldu)
+  · kisayol kartlari **%20 buyuk** (34->41 · ikon 17->20 · yazi 11.5->13.5)
+  · karttan **PROFIL dugmesi kalkti** (profil zaten KART GOVDESINDEN acilir)
+  · menu ogeleri **YATAY KAYDIRILIR** (`ListView.separated`, 14 dp aralik,
+    gorselli 168 / gorselsiz 118 dp), ad+fiyat **12 -> 13**
+    ⚠️ Bedeli BILINIYOR: ic ice yatay kaydirma, kartin ALT yarisindaki
+       suruklemeyi ICTEKI listeye verir (turu 140'ta olculmustu). Kullanici
+       kaydirmayi ACIKCA istedi.
+  · **%70 liste popupunda perde %54 -> %18**: arkadaki harita GORUNUYOR
+    (kullanici: *"isletme listesi cikarken arkadaki harita gorunmesi
+    gerekiyor, siyahlasiyor"*) — emulatorde dogrulandi.
+  · panel ust dolgusu 12 -> 10 (yuzen serit ile aciklik esitlendi)
+
+- 🧹 **TURU 142 — MENUDEKI "YAKINIMDA" KARTLARI** (kullanici emri: *"yakinimdaki
+  ikonlari kaldir, alttaki renkleri de beyaz yap"*).
+  `hizmet_menusu.dart` `_yakinKart`: ikon dairesi (34 dp kutu + `KalinIkon`)
+  KALDIRILDI, alt satir (mesafe / "Konumu aç") **beyaz**; durum metni yalniz
+  OPAKLIKLA (%62) ayriliyor.
+  ⚠️ Renk artik TEMADAN gelmiyor. Bu GUVENLI, cunku serit YALNIZ menude
+     (`kAiZemin`, sabit siyah) ciziliyor. ⚠️ Serit acik zeminli bir ekrana
+     tasinirsa yazi GORUNMEZ olur — o gun renk yine temadan turetilmeli
+     (turu 115b dersi).
+  ⚠️ `b.ikon` modelde DURUYOR (sehir rehberi seridi onu kullaniyor).
+
 - **KALDIGIMIZ YER (30 Agu 03:04): TURU 139 YAYINLANDI — SADECE iOS.**
   ios **33282108280** (**f6b2730**), R2 ipa=29576642 (md5 02025da7)
   index=7982 (md5 c5694820) surum.json=48 (md5 e52376f9),

@@ -8349,3 +8349,65 @@ doldur.
 - ⏳ **Gerçek cihazda bakılacak**: %95 profil popup'ı (emülatörde gerçek
   işletme kaydı yok), harita renkleri/pinler, konum pinindeki profil
   fotoğrafı, Google logosunun yeri.
+
+---
+
+## Oturum — 31 Ağustos 2026 (turu 142): ARAMA SAYFASI · MARKA PİNLERİ · SCROLL
+
+**Kullanıcının emri (tek mesaj + iki ek):** navigatör ikonu 45° sağa · kısayol
+kartları %20 büyük · kategori çiplerini kaldır, arama butonu kategori popup'ını
+açsın · filtre şeridi ile panel arası 10 px · karttan profil ikonunu kaldır ·
+yemek menüleri sol-sağ scroll, araları açık, ad ve fiyat bir tık büyük · işletme
+listesi çıkarken arkadaki harita görünsün (siyahlaşıyor) · aramaya tıklayınca
+kategori sayfası gelsin, kartlar %20 küçük, kategori araması yerine **normal
+arama**, altında **Kategoriler** ve **Geçmiş** · haritada ikonlar değil
+**logolar**, renklerine yakın · menüdeki **Yakınımda kartlarından ikonları
+kaldır, alttaki renkleri beyaz yap**.
+Ayrıca: *"acil olarak arayüzü çıkartmamız gerekiyor"* → **bu tur denetim
+koşulmadı** (kullanıcı hız istedi).
+
+### Yapıldı (oldu)
+- `_AramaSayfasi` (%95): normal arama + **GEÇMİŞ** + **KATEGORİLER**,
+  kart kutusu 78 → **62** (%20 küçük). Sonuç `('dal', x)` veya `('metin', q)`.
+- Panel araması artık **düğme**; çip şeridi panelden kalktı (gövde duruyor).
+- **Marka logolu harita pinleri** + markanın rengine yakın iç dolgu.
+- Menü öğeleri yatay kaydırılır; ad/fiyat 12 → 13.
+- %70 liste popup'ının perdesi %54 → **%18** → arkadaki harita görünüyor.
+- Navigatör 45°, kısayol kartları %20 büyük, karttan profil düğmesi kalktı.
+- Menüdeki YAKINIMDA kartları: ikon yok, alt satır beyaz.
+
+### Denendi / öğrenildi
+- ⚠️⚠️ **`toUpperCase()` Türkçede yanlış**: "Kategoriler" → **"KATEGORILER"**
+  (noktasız I). Emülatörde görüldü; başlıklar artık çağrı yerinde büyük yazılıyor.
+- ⚠️ **Heredoc + JS template literal + `\'`**: Dart'taki `'McDonald\'s'`
+  kaçışı şablon dizgesinde `'`ye düşüyor ve arama eşleşmiyor. Çözüm: kaçış
+  karakterini `String.fromCharCode(92, 39)` ile üret, ya da çıpayı kesme
+  işareti içermeyen bir parçadan seç.
+- ⚠️ `_hizliCipler` silinmedi, `// ignore: unused_element` ile bırakıldı —
+  bu projede aynı sınıf silme **dört kez** komşu üyeyi de götürdü.
+
+### Ölçüldü
+- `flutter analyze` **0 hata 0 uyarı** (38 info: zIndex deprecated vb.)
+- `flutter test` **52/52**
+- Emülatör 360 dp → logcat'te **overflow 0**
+- IPA: turu 142 dizeleri VAR, 7 marka görseli `assets/marka` altında
+
+### Devir notu (turu 142)
+- Yayınlandı: ios **33335303325** · commit **dbce57d** · **sadece iOS**
+- Adres: **https://indir.gebzem.app/index.html?v=20260831-0013**
+- CDN üçü de birebir (ipa f1231511 · index d7f8225b · surum f341c7c9)
+- iOS min 16.0 · MapsApiKey enjekte
+- **backend değişmedi** → deploy yok, DB truncate yok, e2e koşulmadı
+- ⚠️ APK alınmadı — R2'deki apk 21 Ağustos sürümünde
+
+### Bekleyenler (dürüst sınırlar)
+- ⏳ **Marka pinleri emülatörde doğrulanamadı**: `adb emu geo fix` verilmesine
+  rağmen uygulamaya GPS fix'i gelmiyor, örnek kayıtlar kullanıcının konumundan
+  türetildiği için hiç pin çizilmedi. **Gerçek cihazda bakılacak.**
+- Menü şeridinde iç içe yatay kaydırma: kartın alt yarısındaki sürükleme içteki
+  listeye gidiyor (kullanıcı scroll'u açıkça istedi).
+- **Popeyes logosu yok**; gerçek işletmede menü/ürün görseli yok.
+- **Marka hakkı**: tescilli logolar pakette; yayın öncesi `kHaritaOnizleme =
+  false` ile birlikte çıkarılmalı.
+- Akaryakıt fiyatı / nöbetçi eczane / durak verisi hâlâ yok (kartlar dürüstçe
+  söylüyor).
