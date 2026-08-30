@@ -8104,3 +8104,69 @@ renkler daha açık modern · pinin içine ikon koy.
 - analyze 0/0 · test 52/52 · **backend değişmedi**
 - ⚠️ APK alınmadı — R2'deki apk 21 Ağustos sürümünde
 - ⏳ Pin görünümü emülatörde doğrulanamadı (Maps karoları çizilmiyor)
+
+---
+
+## Oturum — 30 Ağustos 2026 (turu 139): HARİTA YANDEX RENKLERİ · YENİ İŞLETME KARTI · PROFİL PİNİ
+
+**Kullanıcının emri (dört mesaj + bir ekran görüntüsü):** geri/navigator/+/−
+düğmelerinin yarıçapı kategori radüs mantığı, **%15 büyüt**, ikonlar 1 tık
+kalın · kartı yeniden kur (solda kategori dairesi, sağında isim, altında
+yıldız/mesafe, sağda profil ve harita ikonu radüslü daire içinde, **altında
+ürünler**), kartı genişlet · "Filtre" yerine **"Kategori"** koy, tıklayınca
+**%95 popup** · **filtreleri geri getir**, ana kartın 10 px üstüne, eskisi
+gibi · **harita renkleri verdiğim Yandex Navigator ekran görüntüsündeki gibi
+olsun** · alttaki işletme kartına dokununca **navigator ona gitsin** ·
+geri/navigator/+/− siyahını daha **az saydam** yap · haritadaki daire
+pinlerde beyaz kenarı **1 tık daha incelt** · kendi navigasyon işaretimiz
+yerine **profil fotoğrafımız** olsun.
+
+### Yapıldı (oldu)
+- **Harita stili** kullanıcının verdiği görselden türetildi (`_haritaNavigator`)
+  ve **varsayılan dal** oldu — açık/koyu temadan bağımsız. Ayarlar'daki
+  `gri`/`gece` seçenekleri duruyor.
+- Harita üstü dört düğme **tek kaynağa** alındı (`_haritaDugmesi`):
+  `kYaricap` radüs · 48→**55**, zoom 44→**51** · `KalinIkon` · siyah
+  **%45→%62**.
+- **Şerit kartı yeniden kuruldu**: kategori dairesi + ad + yıldız/mesafe +
+  profil/harita düğmeleri + **ürün şeridi**, genişlik 230→**300 dp**,
+  kapak görseli kaldırıldı. Kart gövdesi artık **haritaya odaklanıyor**.
+- **"Kategori" düğmesi + %95 popup** geldi; turu 138'in %50 filtre paneli
+  **silindi** (girişi devredildiği için ulaşılamaz kalırdı).
+- **Yüzen süzgeç şeridi geri geldi**, panelin 10 px üstünde; her çipin kendi
+  koyu hapı var (harita üstünde zeminsiz yazı okunmuyordu).
+- Pin halkası 2.0→**1.5 dp**; kendi konum pinine **profil fotoğrafı**
+  (ic daireye kırpılır; çözülemezse eski navigasyon ikonuna düşer).
+- Yedi kategori nötr `store` ikonuna düşüyordu → hepsine ayrı ikon.
+
+### Denendi / öğrenildi
+- ⚠️⚠️ **`sed -i` bu repoda tehlikeli**: bir yorum satırını düzeltmek için
+  kullanıldı; dosya UTF-8 bozulmadı ama **satır sonlarını da yeniden yazıyor**.
+  Bayt taramasıyla doğrulandı (çift-UTF8 yok). Bundan sonrası yine `node`.
+- ⚠️ Geçici ölçüm hilesi (`_konum ?? sabit koordinat`) emülatörde GPS fix'i
+  hiç gelmediği için kondu; **commit'ten önce kaldırıldı** ve grep ile
+  doğrulandı.
+- ⚠️ Şablon heredoc (`cat <<'EOF'`) uzun Dart bloklarında kırıldı → dosyalar
+  Write ile yazıldı, yamalar `node` betikleriyle uygulandı (EOL dosyadan
+  algılanıyor).
+- ⚠️⚠️ **İndir sayfası saati YİNE ölçüldü ve SUNUCU DOĞRU**: `text/html` +
+  `no-store` + `cf-cache-status: DYNAMIC`, saat **5 yerde**, en üstte
+  30 px `buyuksaat` ve `surum.json` ile birebir aynı. Kalan tek açıklama
+  eski bir kısayoldan girilmesi — adres her yayında `?v=` ile veriliyor.
+
+### Ölçüldü
+- **360 dp × yazı ölçeği 1.0 / 1.3 / 2.0 → taşma 0** (emülatör logcat).
+- `flutter analyze` **0 hata 0 uyarı** · `flutter test` **52/52**.
+- Harita stili muhafızı (`test/harita_stili_test.dart`) yeşil.
+
+### Devir notu (turu 139)
+- Yayınlandı: ios **33282108280** · commit **f6b2730** · **sadece iOS**
+- Adres: **https://indir.gebzem.app/index.html?v=20260830-0304**
+- CDN üçü de birebir (ipa 02025da7 · index c5694820 · surum e52376f9)
+- iOS min 16.0 · MapsApiKey enjekte · IPA'da turu 139 dizeleri VAR
+  (Kategori · Kategoriler · Haritada göster · Ev temizliği · Nakliyat · en uygun) ve turu 138'in "10 km içinde" dizesi YOK (build gercekten yeni)
+- **backend değişmedi** → deploy yok, DB truncate yok, e2e koşulmadı
+- ⚠️ APK alınmadı — R2'deki apk 21 Ağustos sürümünde
+- ⏳ **Gerçek cihazda bakılacak:** harita renkleri, daire pinler ve konum
+  pinindeki profil fotoğrafı emülatörde doğrulanamıyor (Maps karoları
+  çizilmiyor, GPS fix'i gelmiyor, test hesabında avatar yok).

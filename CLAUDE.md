@@ -41,6 +41,113 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
       kaybettiriyorsun"*. **Üçüncüsü olmayacak.**
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (30 Agu 03:04): TURU 139 YAYINLANDI — SADECE iOS.**
+  ios **33282108280** (**f6b2730**), R2 ipa=29576642 (md5 02025da7)
+  index=7982 (md5 c5694820) surum.json=48 (md5 e52376f9),
+  purge OK, **CDN UCU DE BIREBIR**, iOS min **16.0**, `MapsApiKey` ENJEKTE.
+  IPA'da turu 139 dizeleri VAR (Kategori · Kategoriler · Haritada göster · Ev temizliği · Nakliyat · en uygun) ve turu 138'in "10 km içinde" dizesi YOK (build gercekten yeni).
+  ⚠️ **APK ALINMADI** — R2'deki apk turu 121 surumunde (21 Agu).
+  ⚠️ **BACKEND DEGISMEDI** -> deploy YOK, DB TRUNCATE EDILMEDI, e2e KOSULMADI.
+  ✅ analyze **0/0** · test **52/52** · 360 dp x **1.0 / 1.3 / 2.0** -> tasma **0**
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260830-0304
+
+- 🗺️ **TURU 139 — HARITA RENKLERI KULLANICININ VERDIGI EKRAN GORUNTUSUNDEN.**
+  Kullanici bir **Yandex Navigator koyu tema** ekran goruntusu gonderip
+  *"harita rengini sana verdigim resimdeki gibi yap, harita renkler baska
+  renkler degil"* dedi. `_haritaNavigator` stili o gorselden turetildi ve
+  **VARSAYILAN dal** oldu (`haritaStiliSec`).
+  ⚠️⚠️ **ACIK/KOYU TEMADAN BAGIMSIZ**: kullanici TEK bir harita gorunumu
+     istedi, temaya gore renk degistirmesini DEGIL. Ayarlar > Harita'daki
+     `gri`/`gece` secenekleri DURUYOR (geri donus yolu kapanmadi).
+  ⚠️ `_haritaStili` (Google varsayilani + yalniz `poi.business` kapali)
+     artik hicbir daldan cagrilmiyor ama SILINMEDI — "sade Google haritasi"
+     bir daha istenirse tek satirla geri gelir (`// ignore: unused_element`).
+  ⚠️ Muhafiz (`test/harita_stili_test.dart`) YESIL: yeni stilde
+     `poi.business` disinda `visibility: off` YOK ve tum renkler gecerli
+     `#RRGGBB`. ⚠️ Gecersiz hex'i Google **SESSIZCE DUSURUR** — ilk yazimda
+     `#2e3category` ve 8 haneli `#44528097` yazilmisti, muhafiz yakaladi.
+
+- 🔘 **TURU 139 — HARITA USTU DUGMELERI TEK KAYNAKTAN** (`_haritaDugmesi`).
+  Kullanici emri: *"geri navigator + − bunlarin raduslerini KATEGORI RADUS
+  MANTIGINI yap, %15 BUYUT, ikonlari 1 TIK KALINLASTIR"* + *"bu siyahi biraz
+  daha KAPA, arkasi cok gorunuyor"*.
+  · `CircleBorder` **DEGIL** `kYaricap` (kategori kartlariyla ayni dil;
+    referans Yandex'te de dugmeler squircle)
+  · 48 -> **55**, zoom 44 -> **51** (%15)
+  · ikon **`KalinIkon`** — Lucide bir FONT'tur, `strokeWidth` YOKTUR;
+    kalinlik ayni renkte ±0.4 px **dort golge** ile simule edilir (turu 93)
+  · zemin siyah **%45 -> %62** (`kHaritaDugmeAlfa`)
+  ⚠️ Dort dugme de AYNI yardimciyi kullanir; ayri ayri yazilsaydi biri
+     degisince oteki geride kalirdi (bu ekranda ayni sinif IKI KEZ oldu).
+
+- 🪪 **TURU 139 — SERIT KARTI YENIDEN KURULDU** (kullanici tarifi birebir):
+  solda **kategori dairesi** (radüslü, `kAiKartYuzey`) · saginda **ad** ·
+  altinda **yildiz · mesafe** · sagda **profil + harita** ikonlari (radüslü
+  daire zemin) · en altta **URUNLER** · kart **230 -> 300 dp**.
+  ⚠️⚠️ **KAPAK GORSELI KALDIRILDI**: kullanicinin tarif ettigi duzende yok,
+     ustelik ornek kayitlarin (ve gercek kayitlarin cogunun) kapagi bos
+     oldugu icin serit BOS GRI KUTULARLA doluyordu.
+  ⚠️⚠️ **KART GOVDESI ARTIK HARITAYA ODAKLANIR** (kullanici emri: *"alttaki
+     isletme kartina dokununca navigator ona gitsin"*). Profil SAGDAKI
+     dugmeden acilir — iki eylem AYRI.
+  ⚠️⚠️ **DURUST SINIR — GERCEK KAYITTA URUN ADI YOK.** `/yakinimda` yaniti
+     yalniz `urunSayisi` + `minFiyatKurus` tasir; kart basina
+     `/users/{id}/urunler` cagirmak seritte **12 EK ISTEK** olurdu (turu
+     17'de kapatilan N+1). Bu yuzden: **ornek** kayitta (`demo-`) ornek urun
+     adlari · **gercek** kayitta sunucunun VERDIGI bilgi ("N ürün" · "en
+     uygun X TL") · ikisi de yoksa **ilce**.
+     ⚠️ YAPMA: gercek kayda uydurma urun adi yazma.
+  ⚠️ **YEDI KATEGORI notr `store` ikonuna dusuyordu** (giyim · diyetisyen ·
+     emlak · spor · teknoloji · eglence · hizmet). Kartin sol dairesi ARTIK
+     bu ikona dayandigi icin ayni ekranda yedi ayni daire cikiyordu —
+     hepsine ayri ikon verildi (popupta OLCULDU).
+
+- 🧭 **TURU 139 — "Filtre" -> "Kategori" + %95 POPUP; YUZEN FILTRE SERIDI GERI.**
+  Kullanici emri: *"filtre yerine KATEGORI koy, tikladiginda popup acilsin
+  %95 kategoriler olsun · filtreleri yine getir alttaki ana kartin ustune
+  10 px yukarda ESKISI GIBI"*.
+  ⚠️⚠️ Turu 138'in **%50'lik filtre paneli SILINDI** — girisi "Kategori"ye
+     devredildigi icin ULASILAMAZ kalirdi ve bu projede olu arayuz yasak.
+  ⚠️⚠️ Yuzen cip **PANELDEKI `_cip` OLAMAZ**: o cipin ZEMINI YOK (siyah
+     panelin ustunde duruyor). Yuzen serit HARITANIN ustunde ve harita her
+     renkte olabilir -> her cipin KENDI koyu hapi var, zemin ust bardaki
+     dugmelerle AYNI sabitten (`kHaritaDugmeAlfa`).
+  ⚠️ `_yuzenCipler` **`Widget?` DONER**: kategorisiz acilista
+     `SizedBox.shrink()` donmek yigini **0x0**'a dusurup EKRANIN TAMAMINI
+     beyaz birakiyordu (turu 136'da olculdu). Cagri yerindeki
+     `if (cipler != null)` kapisini KALDIRMA.
+
+- 📍 **TURU 139 — KENDI KONUM PININDE PROFIL FOTOGRAFI** (kullanici emri:
+  *"bizim kendi navigasyonumuz yerine de resmimiz olsun, mevcut profildeki
+  resmi koy"*) + beyaz halka **2.0 -> 1.5 dp**.
+  · `daireIsaret(foto:, fotoAnahtar:)` — fotograf **ic daireye kirpilir**
+    (`clipPath`), `BoxFit.cover` mantigi ELLE (kaynagin KISA kenarindan
+    kare parca) — tam gorseli vermek dikdortgen avatari EZERDI.
+  · `_avatariCoz` **`myProfileProvider.future`** kullanir, `valueOrNull`
+    DEGIL: `initState`te profil HENUZ yuklenmemis olur ve fotograf HIC
+    cizilmezdi (bu projede "olu ozellik" sinifinin en sik koku).
+  · `ResizeImage` + `thumb_url` + **8 sn zaman asimi**: pin 26 dp, ham
+    1600x1600 cozum ~10 MB gecici RAM demekti (turu 91 dersi).
+  ⚠️⚠️ **ONBELLEK ANAHTARI FOTOGRAFI DA ICERIR** (`fotoAnahtar` = media id):
+     `ui.Image` her cozumde YENI nesnedir, anahtar olamaz; olmasaydi
+     kullanici avatarini degistirince pin ESKI fotografta kalirdi.
+  ⚠️ Cozulemezse pin ESKI haline (mor daire + navigasyon ikonu) duser —
+     kullanici konumunu HER DURUMDA gorur.
+  ⚠️ **EMULATORDE DOGRULANAMADI**: test hesabinda avatar YOK ve emulatorde
+     GPS fix'i hic gelmiyor. Gercek cihazda bakilacak.
+
+- ⚠️⚠️ **TURU 139 — INDIR SAYFASI SAATI: SUNUCU YINE DOGRU CIKTI (YEDINCI KEZ).**
+  Kullanici *"indir sitesinde saat yazmiyor, goremiyorum"* dedi; canli sayfa
+  OLCULDU: `text/html` + `no-cache, no-store, must-revalidate` +
+  `cf-cache-status: DYNAMIC`, saat **5 yerde**, en ustte `buyuksaat`
+  (`id="surumsaat"`) ve `surum.json` ile BIREBIR ayni deger.
+  ⚠️ Yani govde onbellekten gelse bile kullanicinin OKUDUGU saat DOGRU olur
+     (turu 115c nobetcisi calisiyor). Kalan tek aciklama, kullanicinin
+     ana ekrana eklenmis ESKI bir kisayoldan girmesidir — bu yuzden adres
+     HER YAYINDA `?v=` ile verilir.
+  ⚠️ YAPMA: sayfaya sekizinci bir saat ogesi ekleme; sorun sunucu tarafinda
+     DEGIL.
+
 - **KALDIGIMIZ YER (29 Agu 23:48): TURU 138 YAYINLANDI — SADECE iOS.**
   ios **33273957218** (**032e567d**), R2 ipa=29568389 (md5 4298835f)
   index=7982 (md5 6110f929) surum.json=48 (md5 1eee2ac9), purge OK,
