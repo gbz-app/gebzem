@@ -41,6 +41,151 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
       kaybettiriyorsun"*. **Üçüncüsü olmayacak.**
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (30 Agu 18:41): TURU 141 YAYINLANDI — SADECE iOS.**
+  ios **33319539549** (**ed7840a**), R2 ipa=29847119 (md5 5f516b5e)
+  index=7982 (md5 c71a12e1) surum.json=48 (md5 a9620c27),
+  purge OK, **CDN UCU DE BIREBIR**, iOS min **16.0**, `MapsApiKey` ENJEKTE.
+  IPA'da turu 141 dizeleri VAR (Nöbetçi Eczane · Benzin İstasyonu · Motorin ·
+  Aile Odası · Ev Temizliği · "Durak bilgisi henüz bağlı değil.") ve turu
+  140'in kaldirilan `m.uber.com` dizesi YOK. `assets/marka` 7/7 pakette.
+  ⚠️ **APK ALINMADI** — R2'deki apk turu 121 surumunde (21 Agu).
+  ⚠️ **BACKEND DEGISMEDI** -> deploy YOK, DB TRUNCATE EDILMEDI, e2e KOSULMADI.
+  ✅ analyze **0/0** · test **52/52** · 360 dp x **1.0 / 1.3 / 2.0** -> tasma **0**
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260830-1841
+
+- 🌿 **TURU 141 — `_dal` (GORUNUM DALI) `_kategori`DEN AYRILDI.**
+  ⚠️⚠️ **SUNUCU BILINMEYEN KATEGORIYE 400 DONER** (`yakinimda.go:103`
+     *"geçersiz kategori"*). "Benzin İstasyonu" gibi sunucuda KARSILIGI
+     OLMAYAN bir kisayol icin ekranin GOSTERDIGI dal ile sunucuya GIDEN
+     kategori ayri tutulmak ZORUNDA:
+       `_dal = 'akaryakit'`  ->  `_kategori = 'oto'`
+  ⚠️ Esleme ICAT DEGIL: menudeki hizli erisim (`hizmet_menusu.dart`) ayni
+     eslemeyi ve ayni `LucideIcons.fuel` ikonunu IKI yerde zaten kullaniyor
+     (turu 124/128).
+  ⚠️⚠️ `_dal` **`widget.kategori` ile BASLATILIR** (`late String _dal =
+     widget.kategori`): menuden kategoriyle gelindiginde bos kalsaydi cip
+     seridi hicbir cipi secili gostermez, serit CIZILMEZ ve vitrin varyanti
+     SECILMEZDI — ekran kategoriyle acildiginda OLU gorunurdu.
+
+- 🪟 **TURU 141 — IKI YENI POPUP** (kullanici emri).
+  · **%95 PROFIL** — kart govdesine dokunus. `sekmeModu: true` (sheet'te
+    `canPop` true oldugu icin `AppBar` OTOMATIK geri oku cizerdi) +
+    `MediaQuery.removePadding(removeTop: true)` (`AppBar` `primary` oldugu
+    icin sheet tepesinde ~44-59 dp OLU BOSLUK birakiyordu) +
+    `enableDrag: false` (profil govdesindeki asagi-cek yenileme ile sheet'in
+    surukleme jesti AYNI arenada yarisir) + `ScaffoldMessenger` sarmali.
+  · **%70 LISTE** — cipe/kisayola dokunus. Ustte arama (ipucu SECILI
+    kategoriden), altinda filtre cipleri, altta DIKEY isletme kartlari.
+  ⚠️⚠️⚠️ **SEVK ENGELI (denetim yakaladi):** popup ONCEKI dalin
+     listesiyle aciliyor ve KENDINI ONARMIYORDU. `_dalCipi` `_yukle`yi
+     BASLATIR ama BEKLEMEZ; popup bir sonraki karede acilir ve ekranin
+     `setState`i AYRI route'taki o agaci YENIDEN CIZMEZ.
+     FIX: **`_listeNesli` (`ValueNotifier`) + `ValueListenableBuilder`**.
+     ⚠️ Sayac **UC DALDA DA** artar (basari · hata · konum-yok); ilk yazimda
+        yalniz basari dalindaydi ve serh "her sonucta" diyordu — bu projenin
+        en sik hata sinifi, bu turda KENDI kodumda tekrarlandi.
+     ⚠️ Popupun `setState`ini bir alanda SAKLAMA: sheet kapanirken OLU bir
+        `State`e `setState` cagirilabilir. `ValueListenableBuilder` dispose'ta
+        aboneligi KENDISI birakir.
+  ⚠️ `StatefulBuilder` DE KALIR: filtre/arama dokunusunu ANINDA yansitan
+     odur (nesil yalniz AG yanitinda artar).
+
+- 🔎 **TURU 141 — ARAMA ALANI (panel + popup) VE `_AramaAlani`.**
+  ⚠️⚠️ **SUZGEC ISTEMCIDE**: `/isletmeler/yakinimda` `q` parametresi
+     ALMIYOR (backend dogrulandi) ve liste TEK ISTEKTE (60 kayit) geliyor —
+     suzulen kume kullanicinin gordugu kumenin TAMAMI (turu 122 gerekcesi).
+  ⚠️⚠️ **AYRI `StatefulWidget` ZORUNLU**: ilk yazimda kutu `build` icinde
+     `TextEditingController(text: _q)` yaratiyordu. Uc hata birden:
+     (a) her karede YENI denetleyici, eskisi HIC dispose edilmez;
+     (b) IME bilesimi SIFIRLANIR (Turkce klavye bozulur);
+     (c) `key`i metin bos<->dolu ile degistirmek ILK HARFTE elemani yeniden
+         kurar ve **KLAVYE KAPANIR**.
+  ⚠️⚠️ **`suffixIconConstraints` ZORUNLU** (OLCULDU): verilmezse
+     `InputDecorator` `kMinInteractiveDimension` (48 dp) dayatir ve kutu
+     ILK HARFTE 43 -> 48 dp SICRAR; `_panelBoy` o sicramayi goremedigi icin
+     yuzen filtre seridi 7 dp kayardi.
+     ⚠️ Bedeli: X'in dokunma hedefi 36 dp (Material 48'in altinda) —
+        BILINCLI; temizlemenin ikinci yolu var ve panelin her harfte
+        ziplamasi daha kotu.
+  ⚠️ Ipucu **DEGER DEGIL**: kullanici *"inputun icinde cafe yazsin"* dedi;
+     deger yazilsaydi suzgec isletme adlarinda "Kafe" arar ve liste ANINDA
+     BOSALIRDI.
+
+- 🚕 **TURU 141 — DORT KISAYOL: Nöbetçi Eczane · Durak · Benzin İstasyonu ·
+  Taksi** (kullanici emri: *"cizginin altina 4 tane kart koy"*).
+  ⚠️⚠️ Kartlar artik **SERIT ILE BIRLIKTE** cizilir. Turu 137 bunu bilerek
+     yapmiyordu (ikisi birden 360x640'ta paneli ~330 dp'ye cikariyordu);
+     karar KULLANICININ. **OLCULDU: panel ekranin ~%57'si, haritaya ~%43.**
+  ⚠️⚠️ **DURUST SINIRLAR (turu 89/96t'de yazili, DEGISMEDI):**
+     · **Nobetci eczane NOBET VERISI YOK** — kart eczaneleri MESAFEYE gore
+       listeler.
+     · **DURAK verisi YOK** — kart durustce soyler, sahte liste CIZMEZ.
+     · **AKARYAKIT FIYATI HICBIR YERDE YOK** — kart `oto` kategorisini acar;
+       fiyatlar YALNIZ ornek kayitlarda ve "Örnek" etiketiyle.
+       ⚠️ Bu yuzden "Benzin İstasyonu" listesinde GERCEK oto servis
+          kayitlari da cikar (denetim bulgusu, kullaniciya bildirildi).
+     · **TAKSI** kayitli `hizmet` isletmelerini gosterir (temizlik/nakliyat
+       da o kategoride — durust sinir, kullaniciya bildirildi).
+  ⚠️ Kisayol `_dalSec` DEGIL `_kisayol` cagirir: zaten secili bir dalda
+     `_dalSec` SESSIZCE donerdi ve kullanici "dokundum, olmadi" derdi.
+
+- 🍔 **TURU 141 — VITRIN: GORSEL + AD + FIYAT** (`_ornekVitrin`).
+  · **yemek** gorselli (Big Mac 229 ₺ · McChicken 199 ₺ · Cheeseburger
+    259 ₺ · Patates 79 ₺)
+  · **akaryakit** (Benzin 44,15 ₺/lt · Motorin 45,80 · LPG 22,40) ·
+    **otel** (Tek/Cift/Aile Odası) · **hizmet** (Ev Temizliği 900 ₺ ...) —
+    hepsi GORSELSIZ.
+  ⚠️⚠️ **KAFE GORSELSIZ** (emulatorde goruldu): elimizdeki dort fotograf
+     McDonald's MENU gorselleri ve *"Filtre Kahve"*nin yaninda **PATATES**
+     cikiyordu. **Yanlis gorsel, gorselsizden KOTUDUR.**
+  ⚠️⚠️ **KALEMLER KAYITTAN KAYITA KAYDIRILIR** (denetim bulgusu): imza
+     `IsletmeOzet` almadan yazilmisti ve bir daldaki DORT ornek kart da AYNI
+     kalemleri gosteriyordu — **Burger King kartinin altinda "Big Mac"**.
+  ⚠️ `Row` + `Expanded`, ic ice yatay `ListView` DEGIL: kartin alt yarisindaki
+     surukleme ICTEKI listeye gider ve DIS serit kaymazdi (turu 140 dersi).
+  ⚠️ Ornek adlari KISALTILDI: gorselli ogede metne **95 dp** kaliyor
+     (olculdu); "Tavuk Burger Menü" ILK OLCEKTEN itibaren kirpiliyordu.
+
+- 📏 **TURU 141 — UC OLCU FORMULU OLCULEREK DUZELTILDI** (denetim, gecici
+  widget testleri):
+  · `_aramaBoy` gercek kutudan **2-7 dp KISA** idi.
+  · `hataBoy` **13 dp EKSIK** — serh *"48 dp: TextButton'un buyugu"* diyordu
+    ama formul yalniz METNI olcuyordu; `TextButton` Material'in 48 dp'lik
+    dokunma tabanini dayatiyor. -> `math.max(48.0, ...)`.
+  · `ulasim` **0,4-0,8 dp eksik** -> `_seritBoy`daki **+1 dp pay** dersi
+    buraya da uygulandi.
+  · `_altSatirBoy` paysizdi -> olcek **1.875 ustunde** metin dali baglayici
+    olup RenderFlex tasmasi uretirdi.
+  ⚠️ `_panelBoy` IKI yeri besliyor: haritanin `altDolgu`su ve yuzen filtre
+     seridinin konumu (`_panelBoy + 10`). Ayrisirsa IKISI DE bozulur.
+
+- ⚡ **TURU 141 — `_menuluKume` ARTIK O(1).** Govdesi `_gorunen.any(...)` idi;
+  `_gorunen` bir GETTER ve her okumada 60 kaydi bastan suzup DORT YENI
+  `IsletmeOzet` uretiyor. Kart basina cagrildigi icin dikey listede **O(n²)**
+  oluyordu. Olcut esdeger: `_menuluSerit && kHaritaOnizleme && _konum != null`.
+
+- 📣 **TURU 141 — SNACKBAR'LAR ARTIK `rootMessengerKey` ILE.**
+  `ScaffoldMessenger.of(context)` EKRANIN messenger'ini bulur ve SnackBar
+  acik %70/%95 popupun **ARKASINDA** cizilirdi — kullanici hicbir sey
+  gormezdi (telefon dugmesi ve "örnek kayıt" uyarilari dahil).
+
+- 🔘 **TURU 141 — KUCUK AMA GORUNUR:** sag ust navigator **DOLU** (Material
+  `Icons.navigation`; **Lucide bir CIZGI ikon setidir, dolu varyanti YOKTUR**
+  — kaynaktan dogrulandi, turu 98'deki "dolu kalp" karariyla ayni sinif) ·
+  yuzen filtre ciplerine **checkbox** + zemin **%62 -> %82** (`kYuzenCipAlfa`
+  AYRI sabit; `kHaritaDugmeAlfa` dort harita dugmesini besliyor ve serhi
+  tek-kaynak olmayi sart kosuyor) · popuptaki "Haritada göster" artik once
+  SHEET'I KAPATIR (yoksa kamera tasinir ama kullanici goremezdi) ·
+  `_popupBos` artik **yukleme** ve **hata** durumlarini AYIRT EDER.
+
+- ⚠️⚠️⚠️ **TURU 141 — SILME SINIRI IKI KEZ KOMSU UYEYI GOTURDU.**
+  `_cipSeridiBoy` silinirken **`_kategoriSec`**, `_ornekMenu` silinirken
+  **`_ornekVitrin`** de gitti. Ikisini de `flutter analyze` yakaladi ve HEAD
+  ile geri kondu. Turu 127/138/140'in **DORDUNCU ve BESINCI** tekrari.
+  ⚠️ **KURAL (tekrar): bir uyeyi betikle silerken araligin SONRAKI SINIRI
+     bir SONRAKI UYE OLMAK ZORUNDA — arada baska uye kalmadigini KESITI
+     YAZDIRARAK dogrula.**
+
 - **KALDIGIMIZ YER (30 Agu 16:46): TURU 140 YAYINLANDI — SADECE iOS.**
   ios **33314669971** (**e79460f**), R2 ipa=29848559 (md5 f3136ab1)
   index=7982 (md5 f1e74762) surum.json=48 (md5 4e5a5620),

@@ -8263,3 +8263,89 @@ aktif olanda ikon arkası beyaz olsun.
   pinindeki profil fotoğrafı, Google logosunun yeni yeri ve kart logolarının
   `contain` görünümü (emülatörde Maps karoları çizilmiyor, GPS fix'i
   gelmiyor).
+
+---
+
+## Oturum — 30 Ağustos 2026 (turu 141): İKİ POPUP · 4 KISAYOL · VİTRİN FİYATLARI
+
+**Kullanıcının emri (tek uzun mesaj, sekiz madde):** kart gövdesine
+tıklayınca %95 işletme profili popup'ı · çipe tıklayınca %70 liste popup'ı
+(üstte arama, altında filtreler, altta dikey kartlar) · çizginin altına 4
+kart (Nöbetçi Eczane · Durak · Benzin İstasyonu · Taksi) · benzin
+istasyonunda akaryakıt fiyatları, otelde odalar · yemek menüsünde resmin
+sağına ad, altına fiyat · kategori çiplerinin altına arama · filtre
+çiplerinin zeminini daha kapat + checkbox koy · sağ üstteki navigator'ı
+doldur.
+
+### Yapıldı (oldu)
+- **`_dal` kavramı**: görünüm dalı, sunucu kategorisinden ayrıldı
+  ('akaryakit' → sunucuya 'oto'; sunucu bilinmeyen kategoriye **400** döner).
+- **%95 profil popup'ı** ve **%70 liste popup'ı**.
+- **4 kısayol kartı**, şeritle **birlikte** çiziliyor.
+- **Vitrin**: görsel + ad + fiyat (yemek görselli; akaryakıt/otel/hizmet
+  görselsiz ad+fiyat).
+- **Panel araması** (istemci süzgeci) + popup araması, ipucu seçili
+  kategoriden.
+- Filtre çiplerine **checkbox**, zemin **%62 → %82**.
+- Sağ üst navigator **dolu** (Material; Lucide'de dolu varyant yok).
+
+### Denetim (5 mercek + her bulguya ayrı çürütücü, 31 ajan) — 26 ham bulgu
+- ⚠️⚠️⚠️ **SEVK ENGELİ:** %70 popup **önceki dalın listesiyle** açılıp
+  kendini onarmıyordu (`_yukle` beklenmiyor, ekranın `setState`i ayrı
+  route'u çizmiyor) → `_listeNesli` + `ValueListenableBuilder`.
+  ⚠️ Sayaç ilk yazımda **yalnız başarı dalında** artıyordu, şerh "her
+  sonuçta" diyordu — bu projenin en sık hata sınıfı, kendi kodumda tekrar.
+- ⚠️⚠️ **Vitrin kayıttan bağımsızdı**: bir daldaki dört örnek kart da aynı
+  kalemleri gösteriyordu (**Burger King'in altında "Big Mac"**).
+- ⚠️⚠️ **`suffixIconConstraints` şerhte vardı, gövdede yoktu** — kutu ilk
+  harfte 43→48 dp sıçrıyor, yüzen şerit 7 dp kayıyordu (ölçüldü).
+- ⚠️⚠️ **SnackBar'lar popup'ların arkasında** kalıyordu → `rootMessengerKey`.
+- ⚠️ `_menuluKume` kart başına `_gorunen`i baştan hesaplıyordu (**O(n²)**).
+- ⚠️ `hataBoy` 13 dp, `ulasim` 0,4-0,8 dp, `_altSatirBoy` payı eksikti.
+- ⚠️ `_popupBos` yükleme/hata durumunu ayırt etmiyordu.
+- ⚠️ Popup'taki "Haritada göster" sheet'i kapatmıyordu.
+
+### Denendi / öğrenildi
+- ⚠️⚠️⚠️ **Silme sınırı İKİ KEZ komşu üyeyi götürdü**: `_cipSeridiBoy`
+  silinirken **`_kategoriSec`**, `_ornekMenu` silinirken **`_ornekVitrin`**.
+  İkisini de `flutter analyze` yakaladı. Turu 127/138/140'ın **dördüncü ve
+  beşinci** tekrarı. **Kural: aralığın sonraki sınırı bir SONRAKİ ÜYE olmak
+  zorunda; kesiti yazdırarak doğrula.**
+- ⚠️⚠️ `build` içinde `TextEditingController` yaratmak üç hata birden
+  üretiyor (sızıntı · IME bozulması · ilk harfte klavye kapanması) →
+  `_AramaAlani` ayrı `StatefulWidget`.
+- ⚠️ **Yanlış görsel, görselsizden kötüdür**: kafede "Filtre Kahve"nin
+  yanında McDonald's patatesi çıkıyordu → kafe görselsiz.
+- ⚠️ Çürütücüler canlı dosyayı okuduğu için, denetim koşarken düzeltilen
+  bulgular "çürütüldü" görünüyor — **çürütme gerekçesini oku, sayıya bakma.**
+
+### Ölçüldü
+- **360 dp × yazı ölçeği 1.0 / 1.3 / 2.0 → taşma 0**
+- `flutter analyze` **0 hata 0 uyarı** · `flutter test` **52/52**
+- **Panel ekranın ~%57'si, haritaya ~%43 kalıyor** (kısayol kartları artık
+  şeritle birlikte çizildiği için; turu 137 bunu bilerek yapmıyordu, karar
+  kullanıcının).
+
+### Devir notu (turu 141)
+- Yayınlandı: ios **33319539549** · commit **ed7840a** · **sadece iOS**
+- Adres: **https://indir.gebzem.app/index.html?v=20260830-1841**
+- CDN üçü de birebir (ipa 5f516b5e · index c71a12e1 · surum a9620c27)
+- iOS min 16.0 · MapsApiKey enjekte · turu 140'ın `m.uber.com` dizesi YOK
+- **backend değişmedi** → deploy yok, DB truncate yok, e2e koşulmadı
+- ⚠️ APK alınmadı — R2'deki apk 21 Ağustos sürümünde
+
+### Bekleyenler (dürüst sınırlar)
+- **Akaryakıt fiyatı hiçbir yerde yok** — kart `oto` kategorisini açar, yani
+  listede **gerçek oto servis kayıtları da çıkar**; fiyatlar yalnız "Örnek"
+  kayıtlarda.
+- **Nöbetçi eczane nöbet verisi yok**, **durak verisi yok** (kart dürüstçe
+  söylüyor), **Taksi** `hizmet` kategorisini açıyor (temizlik/nakliyat da
+  orada).
+- **Popeyes logosu yok**; **gerçek işletmede menü/ürün görseli yok**
+  (`/yakinimda` ürün adı/fiyatı döndürmüyor); **telefon numarası** dokununca
+  ayrı istekle çekiliyor.
+- **Marka hakkı**: tescilli logolar pakette; yayın öncesi
+  `kHaritaOnizleme = false` ile birlikte çıkarılmalı.
+- ⏳ **Gerçek cihazda bakılacak**: %95 profil popup'ı (emülatörde gerçek
+  işletme kaydı yok), harita renkleri/pinler, konum pinindeki profil
+  fotoğrafı, Google logosunun yeri.
