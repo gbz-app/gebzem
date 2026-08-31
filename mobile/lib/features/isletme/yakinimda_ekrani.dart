@@ -127,7 +127,14 @@ const int kPanelSeritTavan = 12;
 ///
 /// ⚠️ Sabit: yatay seritte kartlar ekran genisligine gore degisirse komsu
 ///    kartin "sarkma" miktari cihazdan cihaza kayar ve serit hizasiz durur.
-const double kPanelKartEn = 348;
+const double kPanelKartEn = 372;
+
+/// Panelin ALT ic dolgusu — **TEK KAYNAK** (`_panelGovde` ve `_panelBoy`).
+///
+/// ⚠️⚠️ TURU 144 — iki yerde ayri ayri yaziliyken formulden DUSTU ve panel
+///	govdeden 12 dp kisa hesaplandi (olculdu). Sabit hale getirildi ki
+///	ayrisma bir daha mumkun olmasin.
+const double kPanelAltDolgu = 12;
 
 /// ⚠️⚠️ TURU 140 — **MENU KARESI** (kullanici emri: *"yemekte isletmenin
 /// orada menuler gorunsun, KARE resim alanlari kategori radus mantiginda"*).
@@ -487,6 +494,23 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
   ///    Kalici olmasi istenirse `core/tercihler.dart` (SharedPreferences)
   ///    kullanilir; bu tur HIZLI ARAYUZ turu oldugu icin ertelendi.
   final List<String> _gecmis = [];
+
+  /// Kategori basina son alinan liste — **GECIS YUMUSATICI**.
+  ///
+  /// ⚠️⚠️⚠️ TURU 144 — kullanici emri: *"haritada kategori secerken cok sert
+  ///	geciyor, bunu duzelt"*. Onceden her cip dokunusu `_yukle`yi
+  ///	baslatiyor, `_yukleniyor` true olunca serit AGACTAN KALKIYOR, panel
+  ///	kisaliyor, ag yaniti gelince tekrar UZUYORDU — ekran her secimde
+  ///	ZIPLIYORDU. Artik daha once gorulen bir kategoriye donuldugunde liste
+  ///	ANINDA cizilir ve tazeleme ARKA PLANDA yapilir.
+  /// ⚠️ Anahtar `_kategori` (sunucuya giden deger) + `_km`: yaricap
+  ///    degisince eski sonuc GECERSIZDIR.
+  /// ⚠️ Onbellek OTURUM OMURLU ve KUCUK (en fazla kategori sayisi kadar
+  ///    kayit x 60 ozet). Diske yazilmaz — bayat veri gostermek istemiyoruz,
+  ///    yalnizca AYNI OTURUMDAKI gecisi yumusatiyoruz.
+  final Map<String, List<IsletmeOzet>> _onbellek = {};
+
+  String get _onbellekAnahtari => '$_kategori|$_km';
 
   /// ⚠️⚠️⚠️ **LISTE NESLI — POPUPUN KENDINI YENILEMESI ICIN.**
   ///
@@ -908,10 +932,18 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
   Future<void> _yukle({bool konumuTazele = false}) async {
     if (!mounted) return;
     final nesil = ++_nesil;
+    // ⚠️⚠️ TURU 144 — **ONBELLEK VARSA SPINNER GOSTERILMEZ.** Liste aninda
+    //	cizilir, istek yine de atilir ve yanit gelince sessizce guncellenir.
+    //	Boylece ayni kategoriler arasinda gidip gelmek ZIPLAMA URETMEZ.
+    // ⚠️ `konumuTazele` (asagi-cek) onbellegi ATLAR: kullanici acikca
+    //    "yenile" diyor, ona bayat veri gostermek yanlis olurdu.
+    final hazir = konumuTazele ? null : _onbellek[_onbellekAnahtari];
     setState(() {
-      _yukleniyor = true;
+      _yukleniyor = hazir == null;
       _hata = null;
+      if (hazir != null) _liste = hazir;
     });
+    if (hazir != null) _listeNesli.value++;
     try {
       // ⚠️ Servis await'ten ONCE yakalanir (turu 78b dersi: disposed State'te
       //    `ref.read` StateError firlatir ve is SESSIZCE iptal olur).
@@ -923,6 +955,20 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
       //    GERCEK konumunu ciziyordu -> pin ile liste BIRBIRINI TUTMUYORDU.
       final k = (konumuTazele ? null : _konum) ?? await KonumServisi.konumAl();
       if (!mounted || nesil != _nesil) return;
+      // ⚠️⚠️⚠️ TURU 144 — **KONUM DEGISTIYSE ONBELLEK COPE.** Denetim
+      //	bulgusu: kullanici baska bir sehre gidip asagi cektiginde YALNIZ
+      //	o anki kategori tazeleniyordu; baska bir cipe dokununca onbellek
+      //	ISABET ediyor ve ESKI SEHRIN isletmeleri **eski mesafeleriyle**
+      //	("250 m") ANINDA ciziliyordu.
+      // ⚠️ Esik ~200 m: GPS gurultusu her tazelemede onbellegi bosaltmasin.
+      //    (0,002 derece ~ 222 m enlemde.)
+      final eski = _konum;
+      if (k != null &&
+          eski != null &&
+          ((k.enlem - eski.enlem).abs() > 0.002 ||
+              (k.boylam - eski.boylam).abs() > 0.002)) {
+        _onbellek.clear();
+      }
       if (k == null) {
         setState(() {
           _yukleniyor = false;
@@ -948,6 +994,7 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
         kategori: _kategori,
       );
       if (!mounted || nesil != _nesil) return;
+      _onbellek[_onbellekAnahtari] = l;
       setState(() {
         _konum = k;
         _liste = l;
@@ -1086,8 +1133,20 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
     // ⚠️ **BU HESAP GOVDEYLE BIREBIR OLMAK ZORUNDA**: harita dolgusu,
     //    yuzen cip seridi ve secili-isletme karti hep buradan konumlaniyor.
     //    Ayrisirsa kartlar panelin ALTINDA kalir (turu 132'de yasandi).
-    final seritVar = _dal.isNotEmpty && !_yukleniyor && _gorunen.isNotEmpty;
-    final serit = seritVar ? _seritBoy(context) + 12 : 0.0;
+    // ⚠️⚠️ TURU 144 — kosuldan `_dal.isNotEmpty` **VE** `!_yukleniyor`
+    //	CIKARILDI:
+    //	· `_dal` kosulu, kullanicinin *"hicbir sey aktif olmadiginda hep
+    //	  yakindakiler gorunecek"* emriyle gecersiz kaldi;
+    //	· `_yukleniyor` ise GERI KONDU (denetim bulgusu): onbellek
+    //	  ISKALADIGINDA `_liste` temizlenmedigi icin serit ve harita
+    //	  pinleri **ONCEKI KATEGORIYI** cizmeye devam ediyordu — cip
+    //	  "Kafe" seciliyken ekranda market kayitlari duruyordu.
+    //	  ⚠️ Bu, kullanicinin sikayet ettigi ziplamayi GERI GETIRMEZ:
+    //	     `_yukleniyor` artik YALNIZCA onbellek iskaladiginda true
+    //	     (bkz. `_yukle`), yani daha once gorulen bir kategoriye
+    //	     donuste serit HIC kaybolmaz.
+    final seritVar = !_yukleniyor && _gorunen.isNotEmpty;
+    final serit = seritVar ? _seritBoy(context) : 0.0;
     // ⚠️⚠️ TURU 143 — kisayol kartlari artik IKONSUZ ve %40 BUYUK; formul
     //	`_kisayolBoy` **TEK KAYNAGINA** devredildi (elle kopyalanan bir
     //	ikinci formul, kart degisince SESSIZCE geride kalirdi).
@@ -1122,17 +1181,30 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
     // ⚠️⚠️ TURU 143 — cip seridi (40 + 12) terimi **GERI GELDI** (kullanici
     //	emri). Govdedeki sira: 10 -> cip(40) -> 12 -> arama -> 12 -> ...
     //	Bu hesap govdeyle BIREBIR olmak ZORUNDA (bkz. ustteki serh).
+    // ⚠️ Govdedeki sira (TURU 144): 10 -> [hata] -> arama -> 12 -> cip(40)
+    //    -> 12 -> ulasim -> 12 -> [ayrac(1) + 12] -> [serit] -> 12 + alt.
+    // ⚠️⚠️ Ayrac SERITLE BIRLIKTE girer/cikar (govdede de oyle) — ayri ayri
+    //	yazilsalardi serit yokken formul 13 dp FAZLA verirdi.
+    final ayrac = seritVar ? 13.0 : 0.0;
+    // ⚠️⚠️⚠️ TURU 144 — **ALT DOLGU (`kPanelAltDolgu`) FORMULE GERI KONDU.**
+    //	Ilk yazimda dusmustu ve denetim OLCTU: gercek 600 / formul 588
+    //	(seritli), gercek 215 / formul 203 (seritsiz) — HER DURUMDA 12 dp.
+    //	Sonucu: yuzen filtre seridi `_panelBoy + 10` ile konumlandigi icin
+    //	panelin 10 dp USTUNDE degil, yuvarlak ust kenarinin **2 dp ICINDE**
+    //	duruyordu; ayrica `GoogleMap.padding` 12 dp eksik gidiyordu.
+    // ⚠️ Govdedeki `Padding(fromLTRB(0, 10, 0, kPanelAltDolgu + alt))` ile
+    //    **AYNI SABITTEN** besleniyor — ayrisma yapisal olarak imkansiz.
     return 10 +
-        40 +
-        12 +
         _aramaBoy(context) +
         12 +
-        serit +
-        1 +
+        40 +
         12 +
         ulasim +
         12 +
+        ayrac +
+        serit +
         hataBoy +
+        kPanelAltDolgu +
         alt;
   }
 
@@ -1209,7 +1281,7 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
           ],
         ),
         child: Padding(
-          padding: EdgeInsets.fromLTRB(0, 10, 0, 12 + alt),
+          padding: EdgeInsets.fromLTRB(0, 10, 0, kPanelAltDolgu + alt),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -1253,6 +1325,11 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
               // ⚠️ Aramaya ihtiyac dogarsa ust bardaki geri/konum dugmelerinin
               //    yanina eklenir; panele GERI KOYMA (panel yuksekligi zaten
               //    kategori kartlariyla doldu).
+              // ── ARAMA (kategori sayfasinin girisi de BURADA) ──
+              // ⚠️⚠️⚠️ TURU 144 — **ARAMA ARTIK CIPLERIN USTUNDE** (kullanici
+              //	emri: *"arama kategorilerin uzerinde olsun"*).
+              _panelArama(context),
+              const SizedBox(height: 12),
               // ── KATEGORİLER ──
               // ⚠️⚠️⚠️ TURU 143 — **ŞERİT GERİ GELDİ** (kullanici emri:
               //	*"aramanin altindaki kategorileri KALDIRMISSIN, ben o
@@ -1263,34 +1340,34 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
               //	dugme CIKARILDI (girisi arama dugmesinde DURUYOR).
               _hizliCipler(context),
               const SizedBox(height: 12),
-              // ── ARAMA (kategori sayfasinin girisi de BURADA) ──
-              // ⚠️⚠️ TURU 141 — kullanici emri: *"kategori yemek vs ALTINA
-              //	ARAMA YERI yap"*. Turu 137 bu kutuyu panelden CIKARMIS ve
-              //	*"panele GERI KOYMA"* diye serh birakmisti; o serh
-              //	kullanicinin yeni emriyle GECERSIZ kaldi ve gerekcesiyle
-              //	guncellendi (silinmedi).
-              // ⚠️ Suzgec ISTEMCIDE (`_gorunen`): sunucu `q` parametresi
-              //    ALMIYOR ve liste TEK ISTEKTE (60 kayit) geliyor.
-              _panelArama(context),
+              // ── KISAYOLLAR (Eczane · Durak · Benzinlik · Taksi) ──
+              // ⚠️⚠️⚠️ TURU 144 — **KISAYOLLAR YUKARI TASINDI** (kullanici
+              //	emri: *"eczane durak vs ... o yukarida olsun"*). Turu
+              //	141'de ayracin ALTINDA, isletme kartlarinin altindaydi.
+              _ulasimKartlari(context),
               const SizedBox(height: 12),
-              // ── ISLETME KARTLARI (kategori seciliyken) ──
-              // ⚠️⚠️⚠️ TURU 137 — kullanici emri: *"otele tikladigimda ...
-              //	sirket kartlari DIREKT gelecek"*. Serit `_panelSeridi`de
-              //	kuruluyor; `null` ise (Tümü / yukleniyor / bos) BURAYA
-              //	HICBIR SEY girmez ve panel de o kadar kisalir.
+              // ── INCE AYRAC ──
+              // ⚠️ Kullanici emri (turu 141): *"onun altinda hafif ince
+              //    cizgi"*.
+              // ⚠️⚠️ TURU 144 — **YALNIZ SERIT VARSA**: ayrac iki bolumu
+              //	AYIRMAK icin var. Serit yokken (konum yok / sonuc yok)
+              //	panelin dibinde ayracin ALTINDA bos bir siyah band
+              //	kaliyordu (emulatorde goruldu).
+              // ⚠️ `_panelBoy`daki karsiligi da AYNI kosula bagli.
               if (serit != null) ...[
-                serit,
+                Divider(
+                  height: 1,
+                  thickness: 1,
+                  color: tema.colorScheme.onSurface.withValues(alpha: 0.08),
+                ),
                 const SizedBox(height: 12),
               ],
-              // ── INCE AYRAC ──
-              // ⚠️ Kullanici emri: *"onun altinda hafif ince cizgi"*.
-              Divider(
-                height: 1,
-                thickness: 1,
-                color: tema.colorScheme.onSurface.withValues(alpha: 0.08),
-              ),
-              const SizedBox(height: 12),
-              // ── ULASIM ──
+              // ── ISLETME KARTLARI ──
+              // ⚠️⚠️⚠️ TURU 144 — serit artik **KATEGORI SECILI OLMASA DA**
+              //	cizilir (kullanici emri: *"hicbir sey aktif olmadiginda
+              //	HEP YAKINDAKILER gorunecek"*). Turu 137'nin *"Tümü'de
+              //	17 kategorinin karisimi anlamsiz"* gerekcesi kullanicinin
+              //	yeni karariyla GECERSIZ kaldi.
               // ⚠️⚠️⚠️ TURU 141 — **KISAYOL KARTLARI ARTIK HER ZAMAN
               //	CIZILIR** (kullanici emri: *"harita sayfasinda ISLETME
               //	KARTININ ALTINDA, cizginin altina 4 tane kart koy"* —
@@ -1301,7 +1378,7 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
               //	   genislikte OLCULDU ve devir notuna yazildi.
               //	⚠️ YAPMA: bu karari "duzeltme" diye geri alma — kullanici
               //	   dort karti ACIKCA seridin altinda istedi.
-              _ulasimKartlari(context),
+              if (serit != null) serit,
             ],
           ),
         ),
@@ -1330,6 +1407,14 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
   }
 
   void _dalCipi(String g) {
+    // ⚠️⚠️ TURU 144 — **"Yakınımda" CIPI TOGGLE DEGILDIR**: bos dal zaten
+    //	seciliyken ona tekrar dokunmak `_dalSec('')` -> yine bos demek
+    //	olurdu ve popup ACILIRDI. Bos dalda dokunus yalnizca listeyi acar.
+    if (g.isEmpty) {
+      if (_dal.isNotEmpty) _dalSec('');
+      unawaited(_listePopupAc());
+      return;
+    }
     if (_dal == g) {
       _dalSec('');
       return;
@@ -1723,29 +1808,31 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
   /// ⚠️⚠️ Ayri ayri hesaplansaydi biri degisince oteki geride kalir ve
   ///	panelin alti ya TASAR ya bos bir serit birakirdi (bu ekranda ayni
   ///	sinif turu 139'da yasandi).
-  /// ⚠️ Taban **57** = turu 142'deki 41 dp'lik ikon kutusunun **%40
-  ///    buyugu** (kullanici emri).
-  /// ⚠️⚠️ Etiket artik **TEK SATIR** (`FittedBox(scaleDown)`, bkz. govde),
-  ///	bu yuzden carpan 2 DEGIL 1. Bugun her yazi olceginde 57 kazaniyor;
-  ///	formul yine de duruyor ki punto buyutulurse kart KENDILIGINDEN
-  ///	uzasin (sabit sayi yazmak o gun sessizce tasma uretirdi).
+  /// ⚠️⚠️ TURU 144 — **ZEMIN KALKTI** (kullanici emri: *"eczane vs bunlarin
+  ///	arkasindaki renk, kategori gibi raduslu alan OLMASIN"*), yani artik
+  ///	bir "kart" degil bir ETIKET SATIRI. Yukseklik de ona gore dustu:
+  ///	taban **38** = tek satir metin + dokunma payi.
+  /// ⚠️ Etiket **TEK SATIR** (`FittedBox(scaleDown)`, bkz. govde), bu yuzden
+  ///    carpan 1. Formul duruyor ki punto buyutulurse satir KENDILIGINDEN
+  ///    uzasin (sabit sayi yazmak o gun sessizce tasma uretirdi).
   double _kisayolBoy(BuildContext c) {
     final o = MediaQuery.textScalerOf(c);
-    return math.max(57.0, (o.scale(13.5) * 1.2 + 16).ceilToDouble() + 1);
+    return math.max(38.0, (o.scale(13.5) * 1.2 + 12).ceilToDouble() + 1);
   }
 
   Widget _ulasimKartlari(BuildContext c) {
     final boy = _kisayolBoy(c);
-    // ⚠️⚠️⚠️ TURU 143 — **IKONLAR KALKTI, KARTLAR %40 BUYUDU** (kullanici
-    //	emri: *"alttaki kartlari %40 daha buyut, ikonlarini kaldir"*).
-    //	Ikonun tasidigi RENK KIMLIGI kaybolmasin diye kartin KENDI zemini
-    //	o renkten (%14) beslenir — ayni deger, yeni tasiyici.
-    // ⚠️ Yazi **BEYAZ**: bu serit YALNIZ panelde (`kAiZemin`, sabit siyah)
-    //    ciziliyor ve panel zorla koyu tema kuruyor. ⚠️ Serit acik zeminli
-    //    bir ekrana tasinirsa renk yine temadan turetilmeli (turu 115b).
+    // ⚠️⚠️⚠️ TURU 143/144 — ikonlar KALKTI (143), sonra **RENKLI RADUSLU
+    //	ZEMIN de KALKTI** (144, kullanici emri). Geriye yalniz ETIKET
+    //	kaliyor; renk kimligi artik YAZININ KENDISINDE tasiniyor — dort
+    //	kisayolu ayirt eden tek isaret o.
+    // ⚠️ Renkler `kAiZemin` (sabit siyah) uzerinde okunuyor: bu satir
+    //    YALNIZ panelde ciziliyor ve panel zorla koyu tema kuruyor.
+    //    ⚠️ Satir acik zeminli bir ekrana tasinirsa renkler yeniden
+    //       olculmeli (turu 115b dersi).
     Widget kart(String ad, Color renk, VoidCallback bas) => Expanded(
           child: Material(
-            color: renk.withValues(alpha: 0.14),
+            color: Colors.transparent,
             borderRadius: BorderRadius.circular(kYaricap(boy)),
             clipBehavior: Clip.antiAlias,
             child: InkWell(
@@ -1774,11 +1861,11 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
                         maxLines: 1,
                         softWrap: false,
                         textAlign: TextAlign.center,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 13.5,
                           height: 1.2,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                          color: renk,
                         ),
                       ),
                     ),
@@ -1802,8 +1889,10 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
           kart(
             'Durak',
             const Color(0xFF3AA9FF),
-            // ⚠️ DURAK VERISI YOK — sahte liste yerine DURUST mesaj.
-            () => _mesaj('Durak bilgisi henüz bağlı değil.'),
+            // ⚠️⚠️ TURU 144 — kullanici emri: *"birde DURAK ekle dostum,
+            //	otobus hatti vs saat SANA BIRAKIYORUM"*. Acilan sayfa
+            //	ORNEK hatlari gosterir ve bunu ACIKCA soyler.
+            () => unawaited(_durakPopupAc()),
           ),
           const SizedBox(width: 8),
           kart('Benzinlik', const Color(0xFFFFC531),
@@ -1811,6 +1900,135 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
           const SizedBox(width: 8),
           kart('Taksi', const Color(0xFFFF7A3C), () => _kisayol('hizmet')),
         ],
+      ),
+    );
+  }
+
+  /// ⚠️⚠️⚠️ TURU 144 — **DURAK SAYFASI** (kullanici emri: *"birde durak ekle
+  ///	dostum, otobus hatti vs saat sana birakiyorum"*).
+  ///
+  /// ⚠️⚠️ **GERCEK DURAK VERISI YOK VE UYDURULMADI.** Bu projede ne bir
+  ///	tablo, ne bir uc, ne de bir belediye/POI kaynagi var (turu 89/96t'de
+  ///	yazili durust sinir, DEGISMEDI). Sayfa bu yuzden:
+  ///	  · hat adlarini **jenerik** tutar ("Merkez – Sanayi"), GERCEK bir
+  ///	    Gebze hat numarasi YAZMAZ — yanlis numara, numarasizdan KOTUDUR;
+  ///	  · her satirda ve baslikta **"Örnek"** ibaresi tasir;
+  ///	  · en ustte gercek verinin bagli OLMADIGINI acikca soyler.
+  /// ⚠️ Sureler SABIT (5/12/24 dk): saatten turetilseydi ekranda "canli"
+  ///    gorunur ve kullanici GERCEK saniridi.
+  /// ⚠️ YAPMA: buraya gercek gorunumlu hat numarasi/saat yazma; veri
+  ///    baglanmadan "Örnek" ibaresini kaldirma.
+  Future<void> _durakPopupAc() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      backgroundColor: kAiZemin,
+      barrierColor: Colors.black.withValues(alpha: 0.18),
+      builder: (c) => FractionallySizedBox(
+        heightFactor: 0.70,
+        child: Theme(
+          data: _koyuTema(),
+          child: Material(
+            type: MaterialType.transparency,
+            child: Builder(
+              builder: (tc) {
+                final scheme = Theme.of(tc).colorScheme;
+                const hatlar = [
+                  (ad: 'Merkez – Sanayi', yon: 'Merkez yönü', dk: '5 dk'),
+                  (ad: 'İstasyon – Çayırova', yon: 'İstasyon yönü', dk: '12 dk'),
+                  (ad: 'Merkez – Üniversite', yon: 'Üniversite yönü', dk: '24 dk'),
+                ];
+                return SafeArea(
+                  top: false,
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(
+                        kYanBosluk, 0, kYanBosluk, 16),
+                    children: [
+                      const Text(
+                        'Durak',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      // ⚠️ DURUST SINIR EN USTTE: kullanici asagi inmeden
+                      //    bunun ornek oldugunu gormeli.
+                      Text(
+                        'Durak ve sefer verisi henüz bağlı değil. Aşağıdakiler '
+                        'yalnızca örnektir.',
+                        style: TextStyle(
+                          fontSize: 13,
+                          height: 1.35,
+                          color: scheme.onSurface.withValues(alpha: 0.62),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      for (final h in hatlar)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: kAiKartYuzey(tc),
+                              borderRadius: BorderRadius.circular(kYaricap(64)),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 12),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          h.ad,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            fontSize: 15,
+                                            height: 1.25,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          '${h.yon} · Örnek',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            height: 1.25,
+                                            color: scheme.onSurface
+                                                .withValues(alpha: 0.62),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Text(
+                                    h.dk,
+                                    style: const TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -1850,7 +2068,16 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
   /// ⚠️ Liste bossa ya da yukleme surerken serit HIC cizilmez (bos gri
   ///    kutular "yukleniyor" gibi okunurdu).
   Widget? _panelSeridi(BuildContext c) {
-    if (_dal.isEmpty || _yukleniyor) return null;
+    if (_yukleniyor) return null;
+    // ⚠️⚠️⚠️ TURU 144 — kosul `_panelBoy`daki `seritVar` ile **BIREBIR**
+    //	olmak ZORUNDA; ayrisirsa panel yuksekligi ile icerigi tutmaz ve
+    //	yuzen filtre seridi kayar (bu ekranda turu 132'de yasandi).
+    //	· `_dal.isEmpty` CIKTI: kullanici *"hicbir sey aktif olmadiginda
+    //	  hep yakindakiler gorunecek"* dedi.
+    //	· `_yukleniyor` KALDI ama artik YALNIZCA onbellek iskaladiginda
+    //	  true; onbellek isabetinde serit HIC kaybolmaz (bkz. `_yukle`).
+    //	  ⚠️ Kapi ZORUNLU: kaldirildiginda yeni kategori yuklenirken ekran
+    //	     ONCEKI kategorinin kayitlarini cizmeye devam ediyordu.
     final l = [..._gorunen]
       ..sort((a, b) {
         final ak = a.km <= 0 ? double.infinity : a.km;
@@ -1859,6 +2086,8 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
       });
     if (l.isEmpty) return null;
     final ogeler = l.take(kPanelSeritTavan).toList();
+    // ⚠️ Serit ARTIK KOLONUN SON OGESI (turu 144 sirasi): altinda 12 dp'lik
+    //    ayrac YOK, panelin kendi alt dolgusu var.
     return SizedBox(
       height: _seritBoy(c),
       child: ListView.separated(
@@ -1911,10 +2140,18 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
   ///	metin TASARDI.
   double _altSatirBoy(BuildContext c) {
     final o = MediaQuery.textScalerOf(c);
-    if (!_menuluKume) return o.scale(11) * 1.2 + 12;
+    // ⚠️⚠️⚠️ TURU 144 — **DAL AYRIMI KALKTI** (kullanici emri: *"alttaki
+    //	isletme kartlari mesela YEMEKTE YUKSEK ama HIZMETLERDE alcak;
+    //	yemekteki gibi HEPSI ESIT olsun"*). Onceden vitrinli dallarda
+    //	(yemek · kafe · akaryakit · otel · hizmet) alt satir `kMenuKare`
+    //	kadar, digerlerinde ~25 dp idi ve kartlar kategoriye gore
+    //	BOY DEGISTIRIYORDU.
+    // ⚠️ Urun cipleri (vitrini olmayan dallar) artik bu yuksekligin
+    //    ICINDE DIKEY ORTALANIR (bkz. `_urunSeridi`) — gerilmezler.
     // ad(13) + 2 + fiyat(13) — ikisi de `height: 1.2` — **artı kutunun
     // dikey ic dolgusu (2 × 6)**; dolgu sayilmazsa kutu metni KIRPARDI.
     final metin = o.scale(13) * 1.2 + 2 + o.scale(13) * 1.2 + 12;
+    // ⚠️ TURU 144 — ayni deger TUM dallarda dondurulur.
     // ⚠️ **+1 dp PAY**: olcek 1.875'in uzerinde metin dali BAGLAYICI olur
     //    (2.0'da 59,6 > 56) ve paysiz hesap RenderFlex tasmasi uretirdi.
     return math.max(kMenuKare, metin.ceilToDouble() + 1);
@@ -1939,8 +2176,8 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
   bool get _menuluKume =>
       _menuluSerit && kHaritaOnizleme && _konum != null;
 
-  /// ⚠️ Kosul `_altSatirBoy` ile BIREBIR: `_menuluKume` serit genelinde
-  ///    karar verir, `ornek` ise o KAYITTA vitrin olup olmadigini soyler.
+  /// ⚠️ TURU 144 — YUKSEKLIK ARTIK IKI DALDA DA AYNI (`_altSatirBoy`); bu
+  ///    kosul yalnizca ICERIGIN hangisi olacagini secer.
   Widget _altSatir(BuildContext c, IsletmeOzet o, bool ornek) =>
       _menuluKume && ornek ? _vitrinSeridi(c, o) : _urunSeridi(c, o);
 
@@ -2031,7 +2268,9 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         physics: const BouncingScrollPhysics(),
-        padding: EdgeInsets.zero,
+        // ⚠️ TURU 144 — dolgu kolondan BURAYA tasindi (bkz. `_panelKarti`):
+        //    serit artik kartin GERCEK kenarina kadar kayiyor.
+        padding: const EdgeInsets.symmetric(horizontal: 10),
         itemCount: kalemler.length,
         separatorBuilder: (_, _) => const SizedBox(width: 8),
         itemBuilder: (_, i) => SizedBox(width: ogeEn, child: oge(kalemler[i])),
@@ -2046,11 +2285,13 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
   ///	urunler.
   ///	turu 140 (kullanici emri: *"kartlari genislet, isletme kartlarinda
   ///	HARITANIN SOLUNA TELEFON IKONU koy, yemekte isletmenin orada
-  ///	MENULER gorunsun"*): kart **300 -> `kPanelKartEn` (348)**, sagda
-  ///	UC dugme (telefon · profil · harita) ve alt satirda MENU KARELERI.
+  ///	MENULER gorunsun"*): kart genisledi ve alt satirda MENU KALEMLERI.
+  ///	⚠️ GUNCEL DURUM: `kPanelKartEn` **372** (turu 144'te 348'den cikti)
+  ///	   ve sagda **IKI** dugme var — profil dugmesi turu 142'de kaldirildi
+  ///	   (profil KART GOVDESINDEN aciliyor).
   ///
-  /// ⚠️⚠️ **GENISLIK BUTCESI OLCULDU:** icerik = kart - 20 dolgu. Ust
-  ///	satirdaki SABIT ogeler: 46 (logo) + 10 + 8 + 3x36 + 2x6 = 184 dp.
+  /// ⚠️⚠️ **GENISLIK BUTCESI (turu 144'te guncellendi):** ust satirin
+  ///	dolgusu 2x10; SABIT ogeler 46 (logo) + 10 + 8 + 2x36 + 6 = 142 dp.
   ///	Kart 300'de kalsaydi ada+metaya 96 dp kalirdi ve "Domino's Pizza"
   ///	bile ellipsis'e girerdi; 348'de 144 dp kaliyor (turu 139'daki
   ///	138 dp'nin biraz USTU).
@@ -2093,13 +2334,21 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
           // ⚠️ Harita odagi ULASILAMAZ KALMADI: kartin SAGINDAKI harita
           //    dugmesi hala `_haritadaGoster` cagiriyor.
           onTap: () => _isletmeAc(o),
+          // ⚠️⚠️⚠️ TURU 144 — **YATAY DOLGU KOLONDAN CIKARILDI** (kullanici:
+          //	*"isletme kartindaki menu scroll SAGDA DIVINE TAKILIYOR,
+          //	takilmasin"*). Dolgu kolonun uzerindeyken alt serit kartin
+          //	IC kenarinda bitiyordu; ogeler oraya dayanip **duvara carpmis
+          //	gibi** duruyordu. Artik dolgu UST SATIRDA ve seridin KENDI
+          //	`padding`inde — serit kartin GERCEK kenarina kadar kayiyor.
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(10, 12, 10, 12),
+            padding: const EdgeInsets.fromLTRB(0, 12, 0, 12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Row(
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  child: Row(
                   children: [
                     _kartLogosu(c, o),
                     const SizedBox(width: 10),
@@ -2161,6 +2410,7 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
                       },
                     ),
                   ],
+                  ),
                 ),
                 const SizedBox(height: 10),
                 _altSatir(c, o, ornek),
@@ -2230,29 +2480,39 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         physics: const BouncingScrollPhysics(),
-        padding: EdgeInsets.zero,
+        // ⚠️ TURU 144 — dolgu kolondan BURAYA tasindi (bkz. `_panelKarti`).
+        padding: const EdgeInsets.symmetric(horizontal: 10),
         itemCount: etiketler.length,
         separatorBuilder: (_, _) => const SizedBox(width: 6),
-        itemBuilder: (_, i) => DecoratedBox(
+        // ⚠️⚠️ TURU 144 — `Center` ZORUNLU: `_altSatirBoy` artik TUM
+        //	dallarda ayni (yuksek) degeri donduruyor ve `ListView` cocuguna
+        //	DIKEYDE TIGHT kisit verir — sarmalsiz cipler 56+ dp'ye GERILIR
+        //	(turu 96/121d'de olculen ayni tuzak).
+        itemBuilder: (_, i) => Center(
+          child: DecoratedBox(
           decoration: BoxDecoration(
             color: scheme.onSurface.withValues(alpha: 0.07),
             borderRadius: BorderRadius.circular(kYaricap(28)),
           ),
+          // ⚠️⚠️⚠️ TURU 144 — **ICTEKI `Center` KALDIRILDI** (denetim
+          //	olctu: cip 56 dp'ye GERILIYORDU). Distaki `Center` `ListView`in
+          //	TIGHT kisitini LOOSE'a cevirir; ama `Center` loose-bounded
+          //	kisitta **EN BUYUGU** alir, yani icteki `Center` yuksekligi
+          //	yine 56'ya cikariyordu. Dikey olcu artik DOLGUDAN gelir.
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: Center(
-              child: Text(
-                etiketler[i],
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 11,
-                  height: 1.2,
-                  fontWeight: FontWeight.w600,
-                  color: scheme.onSurface.withValues(alpha: 0.82),
-                ),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            child: Text(
+              etiketler[i],
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 11,
+                height: 1.2,
+                fontWeight: FontWeight.w600,
+                color: scheme.onSurface.withValues(alpha: 0.82),
               ),
             ),
+          ),
           ),
         ),
       ),
@@ -2473,6 +2733,19 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
   ///	sayfasinin girisi `_panelArama` dugmesinde DURUYOR.
   Widget _hizliCipler(BuildContext c) {
     final ogeler = <Widget>[
+      // ⚠️⚠️⚠️ TURU 144 — **SERIDIN BASINDA "Yakınımda"** (kullanici emri:
+      //	*"kategorilerin basina Yakinimda olacak; hicbir sey aktif
+      //	olmadiginda hep yakindakiler gorunecek"*).
+      //	Bos anahtar = kategori suzgeci YOK; sunucu tum kategorileri
+      //	mesafeye gore dondurur. Kategoriyi BIRAKMANIN da en acik yolu
+      //	budur (eskiden yalniz "secili cipe tekrar dokun" vardi).
+      _cip(
+        c,
+        'Yakınımda',
+        _dal.isEmpty,
+        () => _dalCipi(''),
+        ikon: LucideIcons.locateFixed,
+      ),
       for (final g in _haritaKategorileri)
         _cip(
           c,
@@ -2658,7 +2931,7 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
       _dalSec(secim.$2);
       unawaited(_listePopupAc());
     } else {
-      setState(() => _q = secim.$2);
+      _metinAra(secim.$2);
       unawaited(_listePopupAc());
     }
   }
@@ -2894,6 +3167,27 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
   /// ⚠️ Ayni dal ikinci kez secilirse SESSIZCE doner — cagiranlar bunu
   ///    bilerek kullanir (`_dalCipi` toggle yapar, kisayol karti popupu
   ///    acar).
+  /// Serbest metinle arama — **KATEGORI SUZGECINI BIRAKIR**.
+  ///
+  /// ⚠️⚠️⚠️ TURU 144 — kullanici emri: *"bir sey aradigimda aramanin altta
+  ///	ornegin MARKET AKTIF KALIYOR, bu da olmasin"*. Kullanici metinle
+  ///	arama yaptiginda kategori suzgeci ACIK kalirsa sonuc kumesi
+  ///	SESSIZCE daralir: "kuafor" yazan ama Market cipi acik kalan kullanici
+  ///	BOS liste gorur ve sebebini anlamaz.
+  /// ⚠️ `_dalSec('')` KULLANILAMAZ: o metot `_q`yu SIFIRLIYOR (kategori
+  ///    secmek aramayi birakmali) — burada TAM TERSI gerekiyor.
+  void _metinAra(String q) {
+    final dalDegisti = _dal.isNotEmpty;
+    setState(() {
+      _q = q;
+      _dal = '';
+      _kategori = '';
+    });
+    // ⚠️ Kategori BIRAKILDIYSA sunucudan tum kategoriler yeniden istenir;
+    //    yoksa gereksiz bir istek atmayiz (suzgec ZATEN istemcide).
+    if (dalDegisti) _yukle();
+  }
+
   void _dalSec(String dal) {
     if (_dal == dal) return;
     setState(() {
@@ -2913,7 +3207,11 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
   static IconData _kategoriIkonu(String k) => switch (k) {
         'yemek' => LucideIcons.utensils,
         'kafe' => LucideIcons.coffee,
-        'market' => LucideIcons.shoppingCart,
+        // ⚠️ TURU 144 — kullanici emri: *"market ikonu SHOP ikonuyla
+        //    degistir"*. `store` ayni zamanda `_` yedegi; market disinda
+        //    haritada cizilen kategorilerin HEPSININ kendi ikonu var, yani
+        //    pratikte cakisma olmuyor.
+        'market' => LucideIcons.store,
         'eczane' => LucideIcons.pill,
         'oto' => LucideIcons.car,
         'saglik' => LucideIcons.stethoscope,
