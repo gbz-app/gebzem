@@ -748,10 +748,16 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
   //    olculen "olu varlik pakete giriyor" dersi). Dosyalar diskte ve
   //    git'te DURUYOR; geri istenirse birer satir.
   static const _ornekVitrin = <String, List<({String ad, String fiyat})>>{
+    // ⚠️ TURU 146 — kullanici *"2 satirli menu ismi yaz, birde UZUN yaz,
+    //    3 nokta nerede bitiriyor gorelim"* dedi: ikinci kalem IKI SATIR,
+    //    ucuncusu kasitli olarak UZUN (ellipsis'i gostersin).
     'yemek': [
       (ad: 'Big Mac', fiyat: '229 ₺'),
-      (ad: 'McChicken', fiyat: '199 ₺'),
-      (ad: 'Cheeseburger', fiyat: '259 ₺'),
+      (ad: 'McChicken Menü', fiyat: '199 ₺'),
+      (
+        ad: 'Acılı Cheeseburger Menü Patates ve İçecek',
+        fiyat: '259 ₺'
+      ),
       (ad: 'Patates', fiyat: '79 ₺'),
     ],
     'kafe': [
@@ -2145,7 +2151,6 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
   ///	bu formul IKI YERDE ayri ayri yaziliydi (`_seritBoy` ve `_urunSeridi`)
   ///	ve yalniz birini degistirmek ya tasma ya altta bos serit uretirdi.
   double _seritBoy(BuildContext c) {
-    final o = MediaQuery.textScalerOf(c);
     // ⚠️⚠️⚠️ TURU 145 — **AD ARTIK IKI SATIR** (kullanici emri: *"isletme
     //	kartlarini yukselt dedim, mesela yemekte 2 SATIRLI ISIM yap; 2
     //	satirli olsun, OLMASA BILE YUKSEKLIK DEGISMESIN"*).
@@ -2154,8 +2159,7 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
     //	kayita ZIPLAMAZ.
     // ⚠️ Sol daire 46 dp; iki satirlik ad + meta ondan uzun olabilir.
     //    Ikisinin BUYUGU alinir — `Row` zaten en uzun cocugu kadar olur.
-    final ust =
-        math.max(46.0, _kartAdBoy(c) + 2 + o.scale(12) * 1.25);
+    final ust = _kartUstBoy(c);
     final ham = 12 + ust + 10 + _altSatirBoy(c) + 12;
     // ⚠️⚠️ **+1 dp PAY ZORUNLU** — emulatorde OLCULDU: paysiz hesapta
     //	*"RenderFlex overflowed by 0.800 pixels"* cikti. Flutter satir
@@ -2173,6 +2177,18 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
   ///	geride kalir ve kart ya tasar ya bos bir band birakirdi.
   double _kartAdBoy(BuildContext c) =>
       MediaQuery.textScalerOf(c).scale(15) * 1.25 * 2;
+
+  /// Kartin UST SATIRININ (logo · ad+meta · dugmeler) yuksekligi —
+  /// **TEK KAYNAK** (`_seritBoy` ve kart govdesi ayni degeri okur).
+  ///
+  /// ⚠️ TURU 146 — ad + meta artik BIR GRUP olarak bu yukseklikte dikey
+  ///    ortalanir; boylece tek satirlik adda ad ile meta ARASINDA bosluk
+  ///    kalmaz ama kart boyu kayittan kayita DEGISMEZ.
+  /// ⚠️ Sol daire 46 dp; grup ondan uzun olabilir, BUYUGU alinir.
+  double _kartUstBoy(BuildContext c) => math.max(
+        46.0,
+        _kartAdBoy(c) + 2 + MediaQuery.textScalerOf(c).scale(12) * 1.25,
+      );
 
   /// Kartin ALT SATIRININ yuksekligi — **TEK KAYNAK**.
   ///
@@ -2196,7 +2212,8 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
     //    ICINDE DIKEY ORTALANIR (bkz. `_urunSeridi`) — gerilmezler.
     // ad(13) + 2 + fiyat(13) — ikisi de `height: 1.2` — **artı kutunun
     // dikey ic dolgusu (2 × 6)**; dolgu sayilmazsa kutu metni KIRPARDI.
-    final metin = o.scale(13) * 1.2 + 2 + o.scale(13) * 1.2 + 12;
+    // ⚠️ TURU 146 — ad artik IKI SATIR: carpan 2.
+    final metin = o.scale(13) * 1.2 * 2 + 2 + o.scale(13) * 1.2 + 12;
     // ⚠️ TURU 144 — ayni deger TUM dallarda dondurulur.
     // ⚠️⚠️ TURU 145 — taban `kMenuKare + 12`: kutunun ICINDE artik bos bir
     //	RESIM KARTI (`kMenuKare`) var ve dikey dolgu 2x6 onun DISINDA.
@@ -2298,9 +2315,12 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
               mainAxisAlignment: MainAxisAlignment.center,
               mainAxisSize: MainAxisSize.min,
               children: [
+                // ⚠️ TURU 146 — ad **IKI SATIR** (kullanici emri). Kutunun
+                //    yuksekligi `_altSatirBoy` ile SABIT oldugu icin iki
+                //    satirlik ad da tek satirlik ad da AYNI kutuda durur.
                 Text(
                   k.ad,
-                  maxLines: 1,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontSize: 13,
@@ -2427,17 +2447,23 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
                     _kartLogosu(c, o),
                     const SizedBox(width: 10),
                     Expanded(
-                      child: Column(
+                      // ⚠️⚠️⚠️ TURU 146 — **AD + META TEK GRUP, DIKEY
+                      //	ORTALI** (kullanici: *"McDonald's ve altinda 4.8
+                      //	arasinda BOSLUK olmus, onu duzelt"*).
+                      //	Turu 145'te ad alani SABIT iki satirdi ve TEK
+                      //	SATIRLIK adda altta bos bir satir kaliyor, meta
+                      //	ondan SONRA basliyordu. Artik sabit yukseklik
+                      //	GRUBUN kendisinde; grup ortalandigi icin ad ile
+                      //	meta arasinda bosluk KALMIYOR, kart boyu ise
+                      //	DEGISMIYOR (`_seritBoy` ile ayni kaynak).
+                      child: SizedBox(
+                        height: _kartUstBoy(c),
+                        child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.max,
                         children: [
-                          // ⚠️⚠️ TURU 145 — ad alani **SABIT IKI SATIR**
-                          //	(`_kartAdBoy`): tek satirlik ad da ayni yeri
-                          //	kaplar, serit kayittan kayita ZIPLAMAZ.
-                          //	Yukseklik `_seritBoy` ile AYNI KAYNAKTAN.
-                          SizedBox(
-                            height: _kartAdBoy(c),
-                            child: Row(
+                          Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Flexible(
@@ -2460,7 +2486,6 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
                                 ),
                             ],
                           ),
-                          ),
                           const SizedBox(height: 2),
                           Text(
                             meta,
@@ -2474,11 +2499,25 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
                           ),
                         ],
                       ),
+                      ),
                     ),
                     const SizedBox(width: 8),
                     // ── SAGDA UC EYLEM ──
                     // ⚠️ TURU 140 — telefon HARITANIN SOLUNA (kullanici emri);
                     //    sira: telefon · profil · harita.
+                    // ⚠️⚠️ TURU 146 — **YORUM DUGMESI** (kullanici emri:
+                    //	*"telefonun soluna yorum ikonu koy"*).
+                    // ⚠️ DURUST SINIR: bu ekranda yorum YAZMA/OKUMA yolu
+                    //	YOK; `/isletmeler/yakinimda` yorum dondurmuyor.
+                    //	Dugme isletmenin PROFILINI acar — yorumlar orada.
+                    //	⚠️ YAPMA: buraya sahte bir yorum sayisi yazma.
+                    _kartDugmesi(
+                      c,
+                      LucideIcons.messageCircle,
+                      'Yorumlar',
+                      () => _isletmeAc(o),
+                    ),
+                    const SizedBox(width: 6),
                     _kartDugmesi(c, LucideIcons.phone, 'Ara', () => _ara(o)),
                     const SizedBox(width: 6),
 
@@ -4472,7 +4511,9 @@ class _AramaSayfasiState extends State<_AramaSayfasi> {
             style: const TextStyle(fontSize: 15),
             decoration: InputDecoration(
               isDense: true,
-              hintText: 'İşletme veya kategori ara',
+              // ⚠️ TURU 146 — kullanici emri: *"ilk actigimizda orada
+              //    'İşletme ara' gibi yazi olsun inputta"*.
+              hintText: 'İşletme ara',
               prefixIcon: const Icon(LucideIcons.search, size: 18),
               prefixIconConstraints:
                   const BoxConstraints(minWidth: 42, minHeight: 38),
