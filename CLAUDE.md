@@ -360,6 +360,92 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
   cekirdegi (`??` semantigi) ayakta kaldi — **destekleyici delil yanlis
   olabilir, cekirdek iddiayi AYRICA dogrula.**
 
+- **KALDIGIMIZ YER (31 Agu 12:53): TURU 144 YAYINLANDI — SADECE iOS.**
+  ios **33378987279** (**816b0e2**), R2 ipa=29679150 (md5 06a293a6)
+  index=7982 (md5 6c94f8af) surum.json=48 (md5 04573949),
+  purge OK, **CDN UCU DE BIREBIR**, iOS min **16.0**, `MapsApiKey` ENJEKTE.
+  IPA'da turu 144 dizeleri VAR ("Durak ve sefer verisi henüz bağlı değil" ·
+  "Merkez – Sanayi" · Benzinlik · Yakınımda).
+  ⚠️ **APK ALINMADI** — R2'deki apk turu 121 surumunde (21 Agu).
+  ⚠️ **BACKEND DEGISMEDI** -> deploy YOK, DB TRUNCATE EDILMEDI, e2e KOSULMADI.
+  ✅ analyze **0 hata 0 uyari** · test **52/52** · emulatorde tasma **0**.
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260831-1253
+
+- 🔀 **TURU 144 — PANEL SIRASI DEGISTI + "Yakınımda" CIPI.**
+  Yeni sira: **arama -> cip seridi -> kisayollar -> [ayrac] -> isletme
+  kartlari** (kullanici: *"arama kategorilerin uzerinde olsun"* + *"eczane
+  durak vs ... o yukarida olsun"*).
+  · Cip seridinin BASINDA **"Yakınımda"** (bos anahtar): kategori suzgeci
+    YOK demek. Kullanici emri: *"hicbir sey aktif olmadiginda HEP
+    YAKINDAKILER gorunecek"*.
+    ⚠️ `_dalCipi('')` **TOGGLE DEGIL**: bos dal zaten seciliyken dokunus
+       yalnizca listeyi acar (toggle olsaydi `_dalSec('')` -> yine bos).
+  · `seritVar` kosulundan `_dal.isEmpty` CIKTI. Turu 137'nin *"Tümü'de
+    17 kategorinin karisimi anlamsiz"* gerekcesi kullanicinin yeni
+    karariyla GECERSIZ.
+  ⚠️⚠️ **AYRAC SERITLE BIRLIKTE girer/cikar**: serit yokken panelin dibinde
+     ayracin ALTINDA bos siyah band kaliyordu (emulatorde goruldu).
+
+- ⚡ **TURU 144 — KATEGORI GECISI: **KATEGORI BASINA ONBELLEK**.**
+  Kullanici: *"haritada kategori secerken cok sert geciyor"*. Kok neden:
+  her cip dokunusu `_yukleniyor = true` yapiyor, serit AGACTAN KALKIYOR,
+  panel kisalip ag yaniti gelince tekrar UZUYORDU.
+  · Yeni `_onbellek` (Map) + `_onbellekAnahtari` (`'$_kategori|$_km'`).
+    Onbellek varsa spinner GOSTERILMEZ, liste ANINDA cizilir, istek yine
+    atilir ve yanit sessizce guncellenir.
+  ⚠️⚠️ **`!_yukleniyor` KAPISI KALDI** (denetim bulgusu): ilk yazimda
+     kaldirilmisti ve onbellek ISKALADIGINDA serit + harita pinleri
+     **ONCEKI KATEGORIYI** cizmeye devam ediyordu — cip "Kafe" seciliyken
+     ekranda market kayitlari duruyordu. `_yukleniyor` artik YALNIZCA
+     onbellek iskaladiginda true, yani ziplama geri GELMEZ.
+  ⚠️⚠️ **KONUM DEGISINCE ONBELLEK COPE** (denetim bulgusu): baska sehre
+     gidip asagi ceken kullanici baska bir cipe dokununca ESKI SEHRIN
+     isletmelerini **eski mesafeleriyle** ("250 m") goruyordu.
+     Esik ~200 m (0,002 derece) — GPS gurultusu onbellegi bosaltmasin.
+
+- 🎨 **TURU 144 — KISAYOLLAR SADELESTI, KART OLCULERI ESITLENDI.**
+  · Kisayollarin renkli **raduslu zemini KALKTI** (kullanici emri); renk
+    kimligi artik YAZIDA. `_kisayolBoy` tabani 57 -> **38**.
+  · `_altSatirBoy` artik **TUM DALLARDA AYNI** (kullanici: *"yemekte yuksek
+    ama hizmetlerde alcak, hepsi esit olsun"*). Onceden vitrinli dallarda
+    `kMenuKare`, digerlerinde ~25 dp idi.
+    ⚠️⚠️ `_urunSeridi`ndeki **IC ICE IKI `Center`** cipi 56 dp'ye
+       GERIYORDU (olculdu): distaki `ListView`in TIGHT kisitini LOOSE'a
+       cevirir ama **`Center` loose-bounded kisitta EN BUYUGU ALIR**.
+       Icteki kaldirildi, dikey olcu DOLGUDAN geliyor.
+  · `kPanelKartEn` 348 -> **372**.
+  · **Kart ici menu seridi kartin GERCEK kenarina kadar kayiyor**
+    (kullanici: *"menu scroll sagda divine takiliyor"*): yatay dolgu
+    kolondan CIKARILDI, ust satir kendi `Padding`ini aldi, seritler kendi
+    `padding`ini kullaniyor.
+
+- 🚏 **TURU 144 — DURAK SAYFASI** (kullanici: *"birde durak ekle, otobus
+  hatti vs saat SANA BIRAKIYORUM"*). %70 sheet, UC ornek hat + sure.
+  ⚠️⚠️ **GERCEK DURAK/SEFER VERISI YOK VE UYDURULMADI**: hat adlari
+     JENERIK ("Merkez – Sanayi"), GERCEK bir Gebze hat numarasi YAZILMADI;
+     her satirda "Örnek", en ustte *"Durak ve sefer verisi henüz bağlı
+     değil"*. Sureler SABIT (5/12/24 dk) — saatten turetilseydi ekranda
+     "canli" gorunur ve kullanici GERCEK sanirdi.
+
+- 🔎 **TURU 144 — METINLE ARAMA KATEGORIYI BIRAKIR** (`_metinAra`).
+  Kullanici: *"bir sey aradigimda altta ornegin MARKET AKTIF KALIYOR"*.
+  ⚠️ `_dalSec('')` KULLANILAMAZ: o metot `_q`yu SIFIRLIYOR — burada TAM
+     TERSI gerekiyor.
+  📌 Market ikonu `shoppingCart` -> **`store`** (kullanici emri).
+
+- ⚠️⚠️⚠️ **TURU 144 — DENETIM (6 mercek + her bulguya AYRI curutucu, 34
+  ajan): 28 HAM BULGU -> 22 ONAY.** En agiri:
+  · **YUKSEK — `_panelBoy` govdeden 12 dp KISA**: panelin ALT DOLGUSU
+    formulden dusmustu. OLCULDU (gecici widget testi): gercek **600** /
+    formul **588** (seritli), gercek **215** / formul **203** (seritsiz).
+    Sonucu: yuzen filtre seridi panelin 10 dp USTUNDE degil, yuvarlak ust
+    kenarinin **2 dp ICINDE**; ayrica `GoogleMap.padding` 12 dp eksik.
+    FIX: **`kPanelAltDolgu` TEK KAYNAK** — govde ve formul ayni sabitten
+    besleniyor, ayrisma yapisal olarak imkansiz.
+  ⚠️ **DERS (bu turda UCUNCU kez):** panel sirasini degistiren her
+     duzenlemede `_panelBoy` formulunu govdeyle **TERIM TERIM** yeniden
+     yuru; en kolay dusen terim DIS `Padding`in kendisi.
+
 - **KALDIGIMIZ YER (31 Agu 01:57): TURU 143 YAYINLANDI — SADECE iOS.**
   ios **33340070569** (**fa9fa3e**), R2 ipa=29676621 (md5 878be22b)
   index=7982 (md5 8a682250) surum.json=48 (md5 e109ee90),

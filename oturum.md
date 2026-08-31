@@ -8489,3 +8489,62 @@ kategorisini kaldır**.
 - Akaryakıt fiyatı / nöbet verisi / durak verisi hâlâ yok (kartlar dürüstçe
   söylüyor). Marka logoları yayın öncesi `kHaritaOnizleme = false` ile
   birlikte paketten çıkarılmalı.
+
+---
+
+## Oturum — 31 Ağustos 2026 (turu 144): PANEL SIRASI · ÖNBELLEK · DURAK
+
+**Kullanıcının emri (tek dağınık mesaj):** haritada kategori seçerken çok sert
+geçiyor · arama kategorilerin üzerinde olsun · kategorilerin başına
+**Yakınımda** · hiçbir şey aktif olmadığında hep yakındakiler görünsün · durak
+ekle (otobüs hattı/saat bana bırakıldı) · market ikonu shop ikonu olsun ·
+işletme kartları tüm kategorilerde **eşit** yükseklikte olsun · kısayolların
+arkasındaki renkli radüslü alan olmasın, **yukarıda** olsun · aramada kategori
+aktif kalmasın · kartları biraz büyüt · kart içindeki menü scroll'u sağda
+**takılmasın** · (ek) **Alışveriş** kategorisini kaldır.
+
+### Yapıldı (oldu)
+- Panel sırası: **arama → çipler → kısayollar → [ayraç] → kartlar**.
+- Çip şeridinin başında **Yakınımda** (boş anahtar); kategori seçili olmasa da
+  yakındakiler çiziliyor.
+- **Kategori başına önbellek** → daha önce görülen kategoriye dönüşte liste
+  anında, panel zıplamıyor.
+- Kısayollar yukarı taşındı, renkli zemin kalktı (renk artık yazıda),
+  `_kisayolBoy` 57 → 38.
+- **Durak sayfası**: üç örnek hat + süre, en üstte "veri bağlı değil" uyarısı.
+- Market ikonu `store`; kart yükseklikleri eşit; `kPanelKartEn` 348 → 372;
+  kart içi menü şeridi kartın gerçek kenarına kadar kayıyor.
+- Metinle arama kategoriyi bırakıyor (`_metinAra`).
+
+### ⚠️⚠️⚠️ Denetim (6 mercek + her bulguya ayrı çürütücü, 34 ajan): 28 → 22 onay
+- **YÜKSEK — `_panelBoy` gövdeden 12 dp kısaydı** (panelin alt dolgusu formülden
+  düşmüştü). Ölçüldü: gerçek 600 / formül 588. Yüzen filtre şeridi panelin 10 dp
+  üstünde değil **2 dp içinde** duruyordu. → `kPanelAltDolgu` tek kaynak.
+- **ORTA — önbellek ıskaladığında şerit önceki kategoriyi çiziyordu** (`!_yukleniyor`
+  kapısını kaldırmıştım) → kapı geri kondu; önbellek isabetinde zaten false
+  olduğu için kullanıcının şikâyet ettiği zıplama geri gelmiyor.
+- **ORTA — konum değişince önbellek temizlenmiyordu**: başka şehirdeki kullanıcı
+  eski şehrin işletmelerini eski mesafeleriyle görüyordu → ~200 m eşik.
+- **ORTA — `_urunSeridi`nde iç içe iki `Center`** çipi 56 dp'ye geriyordu
+  (`Center` loose-bounded kısıtta **en büyüğü alır**).
+
+### Ölçüldü
+- `flutter analyze` **0 hata 0 uyarı** · `flutter test` **52/52**
+- Emülatör 360 dp → **overflow 0**; panel ile yüzen şerit arası düzeldi
+- IPA: turu 144 dizeleri var; "Benzin İstasyonu" ve "Alışveriş" yok
+
+### Devir notu (turu 144)
+- Yayınlandı: ios **33378987279** · commit **816b0e2** · **sadece iOS**
+- Adres: **https://indir.gebzem.app/index.html?v=20260831-1253**
+- CDN üçü de birebir (ipa 06a293a6 · index 6c94f8af · surum 04573949)
+- **backend değişmedi** → deploy yok, DB truncate yok, e2e koşulmadı
+- ⚠️ APK alınmadı — R2'deki apk 21 Ağustos sürümünde
+
+### Bekleyenler (dürüst sınırlar)
+- ⏳ **Emülatörde GPS fix'i gelmiyor**: örnek kayıtlar konumdan türediği için
+  marka pinleri, menü kutuları ve kart yükseklikleri **gerçek cihazda**
+  görülmeli.
+- Kullanıcının mesajı **"birde menüler…"** diye yarım kesildi — o madde
+  beklemede.
+- Gerçek durak/sefer, nöbetçi eczane ve akaryakıt fiyat verisi hâlâ yok.
+- Menüdeki ŞEHİR REHBERİ şeridinde "Nöbetçi Eczane" duruyor (başka ekran).
