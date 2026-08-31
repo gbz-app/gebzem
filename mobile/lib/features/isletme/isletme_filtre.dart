@@ -41,6 +41,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 //    siyahi kullanir (TEK KAYNAK); marka moru zorla-koyu temanin tohumu.
 import '../../core/theme.dart' show kAiZemin, morLogo;
 
+import '../sosyal/hizmet_menusu.dart' show KalinIkon;
 import 'isletme_kart.dart' show kYaricap, kVurgu, kYuzeyGri, isletmeAcikMi, isletmeGeceAcikMi;
 import 'isletme_servisi.dart';
 
@@ -505,11 +506,16 @@ class _FiltrePaneliState extends State<_FiltrePaneli> {
                   ),
                 ),
                 child: secili
-                    ? Icon(LucideIcons.check,
-                        size: 12,
+                    // ⚠️⚠️ TURU 145 — tik **1 TIK KALIN** (kullanici emri:
+                    //	*"checkboxta tik 1 tik kalinlastir"*). Lucide bir
+                    //	FONT'tur, `strokeWidth` YOKTUR; kalinlik ayni renkte
+                    //	dort golgeyle simule edilir (`KalinIkon`, turu 93).
+                    ? KalinIkon(
+                        ikon: LucideIcons.check,
+                        boy: 12,
                         // ⚠️ Tik, kutunun DOLGU rengiyle CAKISMAMALI:
                         //    `vurgu` koyu temada BEYAZ oldugu icin tik SIYAH.
-                        color: Theme.of(context).colorScheme.surface)
+                        renk: Theme.of(context).colorScheme.surface)
                     : null,
               ),
               const SizedBox(width: 9),
