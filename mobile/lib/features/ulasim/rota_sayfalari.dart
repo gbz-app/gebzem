@@ -17,6 +17,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/theme.dart' show kAiZemin, morLogo;
 import '../isletme/isletme_kart.dart' show kYanBosluk, kYaricap, kYuzeyGri;
+import 'adres_servisi.dart';
 import 'rota_bul.dart';
 import 'ulasim_sayfalari.dart' show hatRengi, hatRozeti;
 import 'ulasim_veri.dart';
@@ -27,11 +28,23 @@ class RotaNoktasi {
     required this.ad,
     required this.enlem,
     required this.boylam,
+    this.altAd = '',
   });
 
   final String ad;
+
+  /// ⚠️⚠️ TURU 151 - **ADRESIN IKINCI SATIRI** (kullanici emri:
+  ///	*"ben sectigim yerin ADRESI DE gorunmeli neredende ve
+  ///	nereyede"*). Haritadan isaretlenen nokta artik "Seçilen
+  ///	varış" degil, ters geocoding ile cozulmus gercek adresini
+  ///	tasir. Cozulemezse BOS kalir ve satir yalnizca [ad] gosterir.
+  final String altAd;
+
   final double enlem;
   final double boylam;
+
+  /// Ekranda gosterilecek TAM etiket (alt ad varsa iki satirin birlesimi).
+  String get tam => altAd.isEmpty ? ad : '$ad, $altAd';
 }
 
 ThemeData _koyuTema() => ThemeData.dark(useMaterial3: true).copyWith(
@@ -129,7 +142,27 @@ class _PlanlaGovdeState extends State<_PlanlaGovde> {
   ///    edilir (turu 96i: sheet kapanirken disaridan dispose edilen bir
   ///    denetleyici EKRANI KIRMIZI boyar).
   final _ara = TextEditingController();
-  List<Durak> _sonuc = const [];
+
+  /// ⚠️⚠️⚠️ TURU 151 - sonuclar artik **DURAK + ADRES KARISIK**
+  ///	(kullanici emri: *"durak adi arayi nereye gidiyorsundan
+  ///	KALDIR"* + *"sokak adi cadde"*). Duraklar silinmedi, AYNI
+  ///	kutuya alindi.
+  List<AdresSonucu> _sonuc = const [];
+
+  /// ⚠️⚠️ **GECIKTIRME (debounce) ZORUNLU:** adres aramasi cihaz
+  ///	geocoder'ina AG ISTEGI atiyor. Her tusa basista istek
+  ///	atilsaydi Android `Geocoder` bogulur ve "Service not
+  ///	Available" ile SESSIZCE bos donerdi.
+  Timer? _gecikme;
+
+  /// Ucustaki aramanin nesli - **BAYAT YANIT KAPISI**.
+  /// ⚠️⚠️ Adres cozumu saniyeler surebiliyor; kullanici bu arada
+  ///	yazmaya devam ederse ESKI sorgunun yaniti YENISININ
+  ///	uzerine yazardi (bu projede ayni sinif turu 85b/93b'de
+  ///	yasandi).
+  int _nesil = 0;
+  bool _araniyor = false;
+
   RotaNoktasi? _varis;
 
   @override
@@ -141,39 +174,45 @@ class _PlanlaGovdeState extends State<_PlanlaGovde> {
 
   @override
   void dispose() {
+    // ⚠️ Zamanlayici IPTAL edilmezse sheet kapandiktan sonra
+    //    `setState` cagirilir ve OLU bir `State`e dokunulur.
+    _gecikme?.cancel();
     _ara.dispose();
     super.dispose();
   }
 
-  Future<void> _aramaDegisti(String q) async {
+  void _aramaDegisti(String q) {
+    _gecikme?.cancel();
     final s = q.trim();
     if (s.length < 2) {
-      setState(() => _sonuc = const []);
+      setState(() {
+        _sonuc = const [];
+        _araniyor = false;
+      });
       return;
     }
-    final hepsi = await UlasimVeri.i.duraklar();
-    if (!mounted) return;
-    // ⚠️ Turkce duyarsiz: `toLowerCase()` "İ" harfini birlesik noktaya
-    //    cevirir ve "İSTASYON" -> "istasyon"u BULAMAZ.
-    final a = _sadelestir(s);
-    setState(() {
-      _sonuc = hepsi
-          .where((d) => _sadelestir(d.ad).contains(a))
-          .take(25)
-          .toList();
+    // ⚠️ 350 ms: Turkce bir cadde adini yazmak ~1-2 sn suruyor;
+    //    daha kisa esik her hecede istek uretirdi.
+    setState(() => _araniyor = true);
+    _gecikme = Timer(const Duration(milliseconds: 350), () {
+      unawaited(_aramayiKos(s));
     });
   }
 
-  static String _sadelestir(String s) => s
-      .replaceAll('İ', 'i')
-      .replaceAll('I', 'ı')
-      .toLowerCase()
-      .replaceAll('ı', 'i')
-      .replaceAll('ş', 's')
-      .replaceAll('ğ', 'g')
-      .replaceAll('ü', 'u')
-      .replaceAll('ö', 'o')
-      .replaceAll('ç', 'c');
+  Future<void> _aramayiKos(String s) async {
+    final nesil = ++_nesil;
+    final liste = await AdresServisi.i.ara(
+      s,
+      yakinEnlem: widget.baslangic?.enlem,
+      yakinBoylam: widget.baslangic?.boylam,
+    );
+    // ⚠️ BAYAT YANIT KAPISI: yalniz EN SON sorgu ekrana yazabilir.
+    if (!mounted || nesil != _nesil) return;
+    setState(() {
+      _sonuc = liste;
+      _araniyor = false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -199,6 +238,7 @@ class _PlanlaGovdeState extends State<_PlanlaGovde> {
                 renk: const Color(0xFF2BB673),
                 etiket: 'Nereden',
                 deger: bas?.ad ?? 'Konum bekleniyor',
+                alt: bas?.altAd ?? '',
                 dugme: 'Haritadan',
                 bas: () => widget.haritadanSec(true),
               ),
@@ -210,17 +250,21 @@ class _PlanlaGovdeState extends State<_PlanlaGovde> {
                 renk: const Color(0xFFFF5E5E),
                 etiket: 'Nereye',
                 deger: _varis?.ad ?? 'Seçilmedi',
+                alt: _varis?.altAd ?? '',
                 dugme: 'Haritadan',
                 bas: () => widget.haritadanSec(false),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: _ara,
-                onChanged: (v) => unawaited(_aramaDegisti(v)),
+                onChanged: _aramaDegisti,
                 style: const TextStyle(fontSize: 15),
                 decoration: InputDecoration(
                   isDense: true,
-                  hintText: 'Durak adı ara',
+                  // ⚠️⚠️ TURU 151 - kullanici emri: *"DURAK ADI ARAYI
+                  //	nereye gidiyorsundan KALDIR"*. Kutu artik
+                  //	adres/cadde DE ariyor; duraklar ayni listede.
+                  hintText: 'Adres, cadde ya da durak ara',
                   prefixIcon: const Icon(LucideIcons.search, size: 18),
                   prefixIconConstraints:
                       const BoxConstraints(minWidth: 42, minHeight: 38),
@@ -238,14 +282,34 @@ class _PlanlaGovdeState extends State<_PlanlaGovde> {
           ),
         ),
         Expanded(
-          child: _sonuc.isEmpty
+          // ⚠️⚠️ UC DAL: **araniyor** dali ZORUNLU. Adres cozumu
+          //	saniyeler surebiliyor; ara durum cizilmeseydi kullanici
+          //	"eslesme yok" gorup aramanin CALISMADIGINI sanardi.
+          child: _araniyor && _sonuc.isEmpty
+              ? const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: kYanBosluk),
+                  child: Row(children: [
+                    SizedBox(
+                      width: 15,
+                      height: 15,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                    SizedBox(width: 10),
+                    Text('Aranıyor…', style: TextStyle(fontSize: 13.5)),
+                  ]),
+                )
+              : _sonuc.isEmpty
               ? Padding(
                   padding: const EdgeInsets.symmetric(horizontal: kYanBosluk),
                   child: Text(
                     _ara.text.trim().length < 2
-                        ? 'Varış noktasını durak adıyla arayabilir ya da '
-                            'haritadan işaretleyebilirsin.'
-                        : 'Eşleşen durak yok.',
+                        ? 'Varış noktasını adres, cadde ya da durak adıyla '
+                            'arayabilir; istersen haritadan işaretleyebilirsin.'
+                        // ⚠️ DURUST SINIR: cihaz geocoder'i bir
+                        //    "autocomplete" DEGIL, tam(a yakin) adres
+                        //    ister. Kullaniciya bunu SOYLUYORUZ.
+                        : 'Sonuç yok. Cadde/mahalle adını daha açık yazmayı '
+                            'ya da haritadan işaretlemeyi dene.',
                     style: TextStyle(
                       fontSize: 13.5,
                       height: 1.4,
@@ -269,6 +333,7 @@ class _PlanlaGovdeState extends State<_PlanlaGovde> {
                           onTap: () {
                             final v = RotaNoktasi(
                               ad: d.ad,
+                              altAd: d.durak ? '' : d.altAd,
                               enlem: d.enlem,
                               boylam: d.boylam,
                             );
@@ -284,18 +349,47 @@ class _PlanlaGovdeState extends State<_PlanlaGovde> {
                                 horizontal: 12, vertical: 12),
                             child: Row(
                               children: [
-                                const Icon(LucideIcons.busFront,
-                                    size: 17, color: Color(0xFF3AA9FF)),
+                                // ⚠️ Ikon TURU soyler: otobus =
+                                //    durak, konum ignesi = adres.
+                                Icon(
+                                  d.durak
+                                      ? LucideIcons.busFront
+                                      : LucideIcons.mapPin,
+                                  size: 17,
+                                  color: d.durak
+                                      ? const Color(0xFF3AA9FF)
+                                      : const Color(0xFFFF5E5E),
+                                ),
                                 const SizedBox(width: 10),
                                 Expanded(
-                                  child: Text(
-                                    d.ad,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                    ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        d.ad,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          height: 1.25,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      if (d.altAd.isNotEmpty)
+                                        Text(
+                                          d.altAd,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            fontSize: 11.5,
+                                            height: 1.25,
+                                            color: scheme.onSurface
+                                                .withValues(alpha: 0.6),
+                                          ),
+                                        ),
+                                    ],
                                   ),
                                 ),
                               ],
@@ -342,6 +436,7 @@ class _PlanlaGovdeState extends State<_PlanlaGovde> {
     required Color renk,
     required String etiket,
     required String deger,
+    String alt = '',
     required String dugme,
     required VoidCallback bas,
   }) {
@@ -377,9 +472,25 @@ class _PlanlaGovdeState extends State<_PlanlaGovde> {
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         fontSize: 14,
+                        height: 1.25,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
+                    // TURU 151 - ADRESIN IKINCI SATIRI (kullanici emri:
+                    //   "sectigim yerin ADRESI DE gorunmeli"). Bos ise
+                    //   satir HIC cizilmez; bos bir satir birakmak
+                    //   kutuyu sebepsiz uzatirdi.
+                    if (alt.isNotEmpty)
+                      Text(
+                        alt,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          height: 1.25,
+                          color: scheme.onSurface.withValues(alpha: 0.6),
+                        ),
+                      ),
                   ],
                 ),
               ),

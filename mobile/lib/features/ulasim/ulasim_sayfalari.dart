@@ -235,6 +235,8 @@ Future<void> durakDetayAc(
   BuildContext context,
   Durak durak, {
   required void Function(Hat hat, int yon) guzergahSec,
+  double? mesafeM,
+  String? adres,
 }) async {
   final servis = UlasimVeri.bugunServis();
   final hatlar = await UlasimVeri.i.duraginHatlari(durak.id, servis);
@@ -261,12 +263,27 @@ Future<void> durakDetayAc(
           style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
         ),
         const SizedBox(height: 4),
+        // ⚠️⚠️ TURU 151 - **DURAK HAKKINDA BILGI** (kullanici emri:
+        //	*"hatlar gecen otobusler DURAK HAKKINDA BILGI
+        //	gorunmuyor"*): hat sayisi + gun turu + MESAFE + ADRES.
+        // ⚠️ Mesafe/adres OPSIYONEL: konum yoksa ya da ters
+        //    geocoding cozemezse o parca satira GIRMEZ - "bilinmiyor"
+        //    yazmak bos bir iddia olurdu.
         Text(
-          hatlar.isEmpty
-              ? 'Bugün bu duraktan sefer görünmüyor.'
-              : '${hatlar.length} hat · ${_servisAdi(servis)} saatleri',
+          [
+            hatlar.isEmpty
+                ? 'Bugün sefer görünmüyor'
+                : '${hatlar.length} hat',
+            '${_servisAdi(servis)} saatleri',
+            if (mesafeM != null)
+              mesafeM < 950
+                  ? '${mesafeM.round()} m'
+                  : '${(mesafeM / 1000).toStringAsFixed(1).replaceAll('.', ',')} km',
+            if (adres != null && adres.isNotEmpty) adres,
+          ].join(' · '),
           style: TextStyle(
             fontSize: 12.5,
+            height: 1.35,
             color: scheme.onSurface.withValues(alpha: 0.6),
           ),
         ),

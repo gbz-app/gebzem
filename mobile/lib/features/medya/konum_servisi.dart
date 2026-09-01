@@ -120,6 +120,34 @@ class KonumServisi {
     }
   }
 
+  /// ⚠️⚠️⚠️ TURU 151 — **SUREKLI KONUM AKISI** (rota takibi icin).
+  ///
+  /// Kullanici sorusu: *"telefonla yurudugumde ARKAMDAN SHAPE GIDECEK MI?"*
+  /// Cevap evet; kaynak bu akis.
+  ///
+  /// ⚠️⚠️ **`foregroundNotificationConfig` VERILMIYOR — BILINCLI.**
+  ///	Android 14+ o yapilandirmayla bir ONDEPLAN SERVISI baslatir ve
+  ///	manifest'te **`FOREGROUND_SERVICE_LOCATION` izni YOK** (kontrol
+  ///	edildi: yalnizca MICROPHONE / CAMERA / PHONE_CALL var). Izinsiz
+  ///	baslatmak `SecurityException` ile UYGULAMAYI COKERTIR.
+  ///	**DURUST SINIR:** takip bu yuzden UYGULAMA ACIKKEN calisir;
+  ///	telefon cebe girip ekran kapaninca Android akisi kisar.
+  ///	Arka plan takibi ayri bir izin + servis turu ister.
+  ///	⚠️ YAPMA: izni eklemeden `foregroundNotificationConfig` verme.
+  ///
+  /// ⚠️ `distanceFilter: 5` — yaya hizinda (~1,3 m/sn) ~4 saniyede bir olay.
+  ///    Daha kucuk deger GPS gurultusunu olaya cevirir ve pili yer;
+  ///    daha buyugu cizginin ilerlemesini goze carpacak kadar geciktirir.
+  /// ⚠️ `accuracy: high` — `best` GPS kilidi icin bekler ve sehir icinde
+  ///    ilk olayi 10+ saniye geciktirebilir.
+  static Stream<({double enlem, double boylam})> konumAkisi() =>
+      Geolocator.getPositionStream(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          distanceFilter: 5,
+        ),
+      ).map((p) => (enlem: p.latitude, boylam: p.longitude));
+
   /// "41.0082,28.9784" -> (41.0082, 28.9784). Bozuksa `null`.
   static ({double enlem, double boylam})? ayrist(String icerik) {
     final p = icerik.trim().split(',');
