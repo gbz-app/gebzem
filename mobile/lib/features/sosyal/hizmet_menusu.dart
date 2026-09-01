@@ -440,10 +440,16 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
         const Color(0xFFFF7A45),
         const Color(0xFFB33A12),
       ], (c) => const YakinimdaEkrani(kategori: 'oto')),
+      // ⚠️⚠️⚠️ TURU 150 - **DURAK MODU** (kullanici emri: *"girişte
+      //	ilk ekranda durak dedigimde alt kisimda bana EN YAKIN
+      //	DURAKLAR gorunmeli"*).
+      // ⚠️⚠️ ONCEDEN `kategori: hizmet` ACIYORDU - yani "Durak"a
+      //	dokunan kullanici TEMIZLIK/NAKLIYAT isletmelerini
+      //	goruyordu. Durust olmayan bu esleme BITTI.
       _Bolum('Durak', [
         const Color(0xFF6C7BFF),
         const Color(0xFF2A3390),
-      ], (c) => const YakinimdaEkrani(kategori: 'hizmet')),
+      ], (c) => const YakinimdaEkrani(durakla: true)),
       // ⚠️⚠️ TURU 96x — BES YENI KISAYOL (kullanici: *"ekle bir seyler
       //	daha"*). Hepsi **ZATEN VAR OLAN** isletme kategorileridir
       //	(`isletmeKategorileri`): yeni ekran, yeni uc, yeni migration YOK.
@@ -1077,7 +1083,7 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
                   height: 150,
                   width: double.infinity,
                   child: CustomPaint(
-                    painter: _ciziciCizer(seri: k.seri, renk: renk),
+                    painter: _CiziciCizer(seri: k.seri, renk: renk),
                   ),
                 ),
                 const SizedBox(height: 14),
@@ -1629,7 +1635,7 @@ class _TumuEkrani extends StatelessWidget {
     appBar: AppBar(title: const Text('Tümü')),
     body: ListView.separated(
       itemCount: bolumler.length,
-      separatorBuilder: (_, __) => const Divider(height: 1),
+      separatorBuilder: (_, _) => const Divider(height: 1),
       itemBuilder: (_, i) {
         final b = bolumler[i];
         return ListTile(
@@ -1842,8 +1848,8 @@ const _kOnizlemeYakin = <String, ({String ad, String mesafe})>{
 ///    turu; grafik ihtiyaci tek bir cizgi ve dolgudan ibaret.
 /// ⚠️ Seri ORNEKTIR (bkz. `_havaDovizKalemler` serhi); grafigin ALTINDA
 ///    kullaniciya ACIKCA soyleniyor.
-class _ciziciCizer extends CustomPainter {
-  const _ciziciCizer({required this.seri, required this.renk});
+class _CiziciCizer extends CustomPainter {
+  const _CiziciCizer({required this.seri, required this.renk});
 
   final List<double> seri;
   final Color renk;
@@ -1904,6 +1910,6 @@ class _ciziciCizer extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_ciziciCizer eski) =>
+  bool shouldRepaint(_CiziciCizer eski) =>
       eski.renk != renk || !identical(eski.seri, seri);
 }
