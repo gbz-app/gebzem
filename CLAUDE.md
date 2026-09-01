@@ -41,6 +41,108 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
       kaybettiriyorsun"*. **Üçüncüsü olmayacak.**
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (1 Eyl 21:19): TURU 150 YAYINLANDI — SADECE iOS.**
+  ios **33541630455** (**caebd7f**), R2 ipa=30100765 (md5 1f61c1a4)
+  index=7967 (md5 7d4ee90a) surum.json=45 (md5 b570b403),
+  purge OK, **CDN UCU DE BIREBIR**, iOS min **16.0**, `MapsApiKey` ENJEKTE.
+  IPA'da turu 150 dizeleri VAR (Yakındaki duraklar · Nereye gidiyorsun ·
+  Gebzem AI · Aktarmasız hat bulunamadı · Durak adı ara · Rotayı bul).
+  ⚠️ **APK ALINMADI** — R2'deki apk turu 121 surumunde (21 Agu).
+  ⚠️ **BACKEND DEGISMEDI** -> deploy YOK, DB TRUNCATE EDILMEDI, e2e KOSULMADI.
+  ✅ analyze **0 hata 0 uyari** · test **61/61** · 360 dp x **1.0 / 1.3 / 2.0**
+     emulatorde tasma **0**.
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260901-2119
+
+- 🚏 **TURU 150 — DURAK MODU** (kullanici emri: *"durak dedigimde alt kisimda
+  EN YAKIN DURAKLAR ayni yemek kartlari gibi gorunmeli, o duraktan gecenler
+  yaklasanlar; kartlarin ustunde NEREDEN / NEREYE iki buton olacak, sistem
+  uzaklasacak shape cizecek, o duraktaki 3 buton ust uste gelecek otobuslerin
+  numarasi gorunecek; ekranda duraklardan BASKA SEYLER GORUNMEMELI"*).
+  · `_durakModu` acikken panelde YALNIZ [Nereden]/[Nereye] + yatay durak
+    kartlari; cip seridi · arama · kisayollar · isletme seridi GIZLI ve
+    haritada **isletme pinleri CIZILMEZ**.
+  · Menudeki "Durak" girisi artik `YakinimdaEkrani(durakla: true)`.
+    ⚠️ ONCEDEN `kategori: 'hizmet'` ACIYORDU — "Durak"a dokunan kullanici
+       TEMIZLIK/NAKLIYAT isletmelerini goruyordu.
+  · **`_duragiSec` TEK KAYNAK**: pin dokunusu da kart dokunusu da ayni
+    yoldan gecer, serit secili karta KAYAR, kamera durak uzerine oturur.
+  ⚠️ **CIKIS YOLU ZORUNLU**: baslikta X (+ rota varken "Duraklar"). Mod cip
+     seridini/aramayi/kisayollari gizledigi icin cikis olmasa ekran
+     KILITLENMIS gibi gorunurdu.
+
+- 🧭 **TURU 150 — ROTA** (`features/ulasim/rota_bul.dart` +
+  `rota_sayfalari.dart`, IKISI DE YENI).
+  ⚠️⚠️ **GOOGLE'A ISTEK YOK**: hangi otobuse binilecegi, nerede inilecegi ve
+     kac dakika surdugu KENDI GTFS verimizden. Fatura YOK, cevrimdisi calisir.
+  ⚠️⚠️ **GECERLILIK SIRADAN DEGIL SEFER SUTUNUNDAN**: `stop_sequence` veride
+     YOK ve zaman siralamasi dongusel hatlarda yaniltiyor (olculdu: en kotu
+     grupta **%65,8 ters cift**). Dogru olcut: AYNI SEFERDE binis saati inis
+     saatinden ONCE mi?
+  ⚠️ **AKTARMA YOK (V1)**: olculdu, 800 m yurume yaricapiyla durak
+     ciftlerinin **%41'i** aktarmasiz cozuluyor. Aday yoksa ekran DURUSTCE
+     soyler, sahte rota URETMEZ.
+  ⚠️ **YURUME BACAKLARI KUS UCUSU** (durust sinir): projede yol tarifi
+     (routing) kaynagi YOK; ekranda "yaklasik" yazar.
+  · Haritada **IKI RENK**: yurume KESIK gri, otobus KALIN hat renginde.
+    ⚠️⚠️ `PatternItem.dash(n)` **Android'de PIKSEL, iOS'ta METRE**
+       (kaynaktan dogrulandi: `Convert.java` `new Dash(length)` vs
+       `FGMPolylineController.m` `kGMSLengthRhumb`). Sabit sayi yazilsaydi
+       iOS'ta kesikler **18 METRE** olur, sehir olceginde cizgi DUZ gorunur
+       ve yurume/otobus ayrimi SESSIZCE kaybolurdu. iOS'ta desen zoom'dan
+       turetilir (`onCameraIdle` ile guncellenir).
+  · Rota bulununca kamera dikdortgene SIGAR (`_sigdir`, **nesil sayacli** —
+    ayni rota tekrar secilirse deger degismez ve kamera TASINMAZDI).
+  · Kullanici emri: rota bulununca **alttaki durak kartlari GIDER**, yerini
+    rota ozeti alir.
+
+- 🤖 **TURU 150 — YAPAY ZEKA YORUM ALANI** (kullanici emri: *"tum
+  isletmelerde alttaki temizlik nakliyat MENU GOSTERIMI yerine YAPAY ZEKA
+  YORUM ALANI koy, hepsine oylesine bir yorum yaz, MOCKUP gibi dusun"*).
+  · `_aiYorum` (15 dal) + `_bosYorum` yedegi; kart basina KAYDIRILIR
+    (turu 141 dersi: imza `IsletmeOzet` almasaydi bir daldaki DORT kart da
+    AYNI yorumu gosterirdi).
+  · Fiyat ANLAMLI olan dallarda **vitrin KALIR** (yemek · kafe · akaryakit ·
+    otel — kullanici turu 143'te bunu ACIKCA istemisti).
+  · Yukseklik `_altSatirBoy` ILE AYNI; kartlar dallar arasi ESIT kalir.
+  ⚠️ **YALNIZ `demo-` KAYITLARDA**: gercek bir isletmenin altina uydurma bir
+     "yapay zeka yorumu" yazmak kullaniciya YANLIS BILGI olurdu.
+  ⚠️ Bunlar GERCEK BIR MODELIN CIKTISI DEGIL; yayin oncesi
+     `kHaritaOnizleme = false` ile ornek kayitlarla BIRLIKTE paketten cikar.
+
+- 🧹 **TURU 150 — YUZEN SUZGEC SERIDI KALDIRILDI** (kullanici emri: *"ilk
+  ekrandaki 5 km icinde vs ANA KARTIN USTUNDEKI yeri de KALDIR"*).
+  ⚠️ Kod SILINMEDI (`_yuzenCipler` / `_filtreSatiri` / `_yuzenCip`
+     `// ignore: unused_element` ile duruyor): bu dosyada ayni sinif silme
+     **BES kez** komsu uyeyi de goturdu (turu 127/138/140/141).
+  ⚠️ Suzgeclerin KENDISI OLU DEGIL: `isletmeFiltreAc` ekrani ve
+     `_fKm`/`_fPuan`/`_fKampanya`/`_fOnayli` DURUYOR.
+
+- ⚠️⚠️⚠️ **TURU 150 — EMULATORDE OLCULEN DORT TASMA:**
+  · **Durak karti 2.2 dp**: `Container.decoration` kenarligi DOLGUNUN DISINA
+    konur ve cocugun kisitindan **2 x 1.6 = 3.2 dp DUSER**; `_durakKartBoy`
+    bunu gormuyordu. FIX: **`foregroundDecoration`** — yerlesimi DEGISTIRMEZ
+    ve secili/secili-degil kartlar AYNI boyda kalir (yoksa serit her secimde
+    3.2 dp ZIPLARDI).
+  · **Isletme karti 1.5 dp**: `_kartUstBoy` **PAYSIZDI**, kardesi `_seritBoy`
+    ise +1 dp tasiyordu. **Asimetrinin kendisi hataydi** (turu 121/123/137/141
+    ile ayni sinif). FIX: `ceil + 2` (iki metin satiri + meta = UC yuvarlama).
+  · **Hat satirlari SABIT 22 dp** idi; yazi olcegi 2.0'da harfler UST ALT
+    KIRPILIYORDU -> **`_hatSatirBoy` TEK KAYNAK** (`_durakKartBoy` da okur).
+  · **Durak karti `kPanelKartEn` (372)** ile 360 dp ekranda tasip kartin EN
+    ONEMLI bilgisini (**"N dk"**) kirpiyordu -> genislik EKRANDAN turetiliyor
+    (44 dp pay: sonraki kart KENARDAN gorunur).
+
+- ⚠️⚠️ **TURU 150 — SESSIZ OLU ARAYUZ (emulatorde goruldu):** "Nereye"
+  dugmesi `if (_konum == null) return;` yuzunden HICBIR SEY YAPMIYORDU;
+  konum iznini reddeden kullanici sebebini de ogrenemiyordu. Konum artik
+  ZORUNLU DEGIL — baslangic haritadan ya da durak aramasindan da secilebilir;
+  konum yalnizca "Konumum" kisayolunu VARSAYILAN yapmak icin kullanilir.
+
+- ⚠️ **TURU 150 — GECICI OLCUM SATIRLARI** `GECICI-OLCUM` isaretiyle konuldu
+  (emulatorde GPS fix'i HIC gelmiyor, ornek kartlar ve durak modu baska turlu
+  gorulemiyor) ve commit oncesi `grep -rn "GECICI-OLCUM" lib/` **SIFIR**
+  dondurdu (turu 140 dersi: olcum icin konulan her gecici satir ARANIR).
+
 - **KALDIGIMIZ YER (30 Agu 18:41): TURU 141 YAYINLANDI — SADECE iOS.**
   ios **33319539549** (**ed7840a**), R2 ipa=29847119 (md5 5f516b5e)
   index=7982 (md5 c71a12e1) surum.json=48 (md5 a9620c27),
