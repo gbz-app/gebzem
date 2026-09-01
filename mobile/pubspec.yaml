@@ -184,6 +184,21 @@ flutter:
   # To add assets to your application, add an assets section, like this:
   assets:
     - assets/sounds/
+    # ⚠️⚠️⚠️ TURU 149 — **TOPLU TASIMA VERISI (GERCEK GTFS).**
+    #    Kaynak: KentKart Kocaeli GTFS akisi (kullanici verdi).
+    #    Uretici: `node tools/ulasim_uret.js` (ham GTFS `otos/` altinda,
+    #    git'e GIRMEZ — 100 MB'lik `stop_times.txt` iceriyor).
+    #    Toplam ~2,1 MB: 2032 durak · 105 hat · 202 guzergah ·
+    #    799.816 kalkis · 53 taksi duragi.
+    #    ⚠️ TEK TEK yaziliyor (`- assets/ulasim/` DEGIL): turu 116b'de
+    #       olculen "klasor toptan gomulur, olu varlik pakete girer"
+    #       dersinin geregi.
+    #    ⚠️ Saatler guncellenirse betik yeniden kosulur + yeni surum.
+    - assets/ulasim/duraklar.json
+    - assets/ulasim/hatlar.json
+    - assets/ulasim/sekiller.json
+    - assets/ulasim/seferler.json
+    - assets/ulasim/taksi.json
     # ⚠️⚠️ TURU 116 — UYGULAMA ICI LOGO: alt menunun ortasindaki daire
     #    (`lib/features/home/alt_menu.dart` -> `_logo`).
     #    Degistirmek icin: `dart run tool/logo_uret.dart <kaynak>`

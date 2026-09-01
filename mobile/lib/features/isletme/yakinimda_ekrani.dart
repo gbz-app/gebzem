@@ -67,6 +67,8 @@ import 'isletme_kart.dart' show kYanBosluk, kYaricap, kYuzeyGri, kVurgu;
 import 'isletme_listesi.dart' show kKesifKutu, kIzgaraAralik;
 import '../home/home_screen.dart' show myProfileProvider;
 import '../medya/medya_servisi.dart' show medyaServisiProvider;
+import '../ulasim/ulasim_sayfalari.dart' as ulasim;
+import '../ulasim/ulasim_veri.dart';
 import 'harita_daire_pin.dart';
 import 'isletme_servisi.dart';
 // ⚠️ TURU 140 — telefon numarasi LISTEDE gelmiyor; dokununca
@@ -516,28 +518,45 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
   ///    yalnizca AYNI OTURUMDAKI gecisi yumusatiyoruz.
   final Map<String, List<IsletmeOzet>> _onbellek = {};
 
-  /// Haritada cizilen ORNEK guzergahin indeksi (-1 = yok).
+  /// ⚠️⚠️⚠️ TURU 149 — **HARITADA GERCEK DURAK PINLERI.**
   ///
-  /// ⚠️ TURU 148 — durak sayfasindaki karttan secilir; haritada polyline
-  ///    olarak cizilir ve ust barda "Güzergahı kapat" dugmesi cikar.
-  int _guzergah = -1;
+  /// Bos ise durak katmani cizilmez. "Durak" kisayoluna dokununca
+  /// kullanicinin cevresindeki GERCEK duraklarla dolar (GTFS verisi).
+  /// ⚠️ Yaricap ve adet SINIRLI (`yakinDuraklar`): bolgede 2032 durak var
+  ///    ve hepsini haritaya koymak hem pin uretimini hem cizimi bogardi
+  ///    (turu 91'de olculen sinif).
+  List<Durak> _duraklar = const [];
 
-  /// Haritaya verilecek ORNEK guzergah cizgisi (`null` = cizme).
+  /// Haritada cizilen GERCEK guzergah (hat + yon secilince dolar).
+  ({List<({double enlem, double boylam})> noktalar, Color renk})? _hatCizgi;
+
+  /// Cizilen guzergahin ust barda gosterilecek adi ("563 · MERKEZ - SANAYI").
+  String _hatEtiketi = '';
+
+  /// ⚠️⚠️⚠️ TURU 149 — **"KONUMUMA DON" NESIL SAYACI.**
   ///
-  /// ⚠️ Konum YOKSA cizgi de YOK: noktalar kullanicinin konumundan
-  ///    turetiliyor (sabit koordinat yazilsaydi baska sehirdeki kullanici
-  ///    haritanin disinda bir cizgi "olusturmus" olurdu).
+  /// Denetimde OLCULDU: dugme yalnizca `_yukle(konumuTazele: true)`
+  /// cagiriyordu; kamerayi tasiyan tek yer ise `didUpdateWidget` icinde
+  /// `merkez`in BIT-BAZINDA degismesiydi. GPS ayni fix'i dondurdugunde
+  /// (kullanici yerinde duruyorsa NORMAL) **hicbir sey olmuyordu** —
+  /// kullanicinin *"navigator tikladigimda ortalansin"* sikayeti tam buydu.
+  /// ⚠️ Sayac deseni bu ekranda ZATEN var (`_odak`, `_zoom`): "deger
+  ///    degismedi" diye sessizce yok sayilan istekleri onler.
+  int _merkezNesli = 0;
+
+  /// Haritaya verilecek **GERCEK** guzergah cizgisi (`null` = cizme).
+  ///
+  /// ⚠️⚠️ TURU 149 — noktalar GTFS `shapes.txt`ten geliyor, yani hattin
+  ///	RESMI cizimidir ve **gercekten sokaklari takip eder**. Turu 148'deki
+  ///	konumdan turetilmis ORNEK cizgi KALDIRILDI.
   ({List<LatLng> noktalar, Color renk})? get _guzergahCizgisi {
-    final k = _konum;
-    if (_guzergah < 0 || _guzergah >= _ornekHatlar.length || k == null) {
-      return null;
-    }
-    final h = _ornekHatlar[_guzergah];
+    final c = _hatCizgi;
+    if (c == null || c.noktalar.isEmpty) return null;
     return (
       noktalar: [
-        for (final nk in h.yol) LatLng(k.enlem + nk.dEn, k.boylam + nk.dBoy),
+        for (final nk in c.noktalar) LatLng(nk.enlem, nk.boylam),
       ],
-      renk: Color(h.renk),
+      renk: c.renk,
     );
   }
 
@@ -845,88 +864,9 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
 
   /// ⚠️ Kaydirma (derece) ve mesafe TABLOSU: dorduncu kart en uzakta.
   ///    Boylamda `cos(enlem)` uygulanmaz — bunlar OLCUM DEGIL yer tutucu.
-  /// ⚠️⚠️⚠️ TURU 148 — **ORNEK OTOBUS HATLARI VE GUZERGAHLARI** (kullanici
-  ///	emri: *"haritada duraga tikladiginda yemek gibi KART olarak gelsin;
-  ///	orada duraktan gecen otobusler, onlarin GUZERGAHLARI haritada
-  ///	ornek — gercekte sokaktan gecen shape ciz"*).
-  ///
-  /// ⚠️⚠️⚠️ **GERCEK HAT/GUZERGAH VERISI YOK VE UYDURULMADI.** Bu projede
-  ///	ne durak tablosu, ne sefer ucu, ne de bir YOL TARIFI (routing)
-  ///	servisi var. Guzergah **GERCEK SOKAKLARI TAKIP ETMEZ**: asagidaki
-  ///	noktalar kullanicinin KONUMUNA GORE turetilmis ORNEK bir cizgidir.
-  ///	Gercek sokak hizasi ancak bir Directions/routing kaynagi
-  ///	baglandiginda mumkun olur.
-  /// ⚠️ Kullaniciya bu ACIKCA soyleniyor: kartlarda ve sayfanin basinda
-  ///    "Örnek" ibaresi var.
-  /// ⚠️ Noktalar SABIT ofsetlerdir (kullanicinin konumuna eklenir) ki
-  ///    hangi sehirde olursa olsun cizgi EKRANDA gorunsun — sabit Gebze
-  ///    koordinati yazilsaydi baska sehirdeki kullanici HIC goremezdi
-  ///    (turu 140'ta olculen ders).
-  /// ⚠️ Cizgi DUZ DEGIL: donusleri olan cok noktali bir dizi, yani
-  ///    ekranda bir yol gibi durur.
-  static const _ornekHatlar = <({
-    String ad,
-    String yon,
-    String dk,
-    int renk,
-    List<({double dEn, double dBoy})> yol,
-  })>[
-    (
-      ad: 'Merkez – Sanayi',
-      yon: 'Merkez yönü',
-      dk: '5 dk',
-      renk: 0xFF3AA9FF,
-      yol: [
-        (dEn: -0.0032, dBoy: -0.0041),
-        (dEn: -0.0018, dBoy: -0.0024),
-        (dEn: -0.0011, dBoy: -0.0009),
-        (dEn: -0.0004, dBoy: 0.0002),
-        (dEn: 0.0006, dBoy: 0.0008),
-        (dEn: 0.0019, dBoy: 0.0011),
-        (dEn: 0.0028, dBoy: 0.0023),
-        (dEn: 0.0041, dBoy: 0.0031),
-        (dEn: 0.0056, dBoy: 0.0030),
-        (dEn: 0.0068, dBoy: 0.0042),
-      ],
-    ),
-    (
-      ad: 'İstasyon – Çayırova',
-      yon: 'İstasyon yönü',
-      dk: '12 dk',
-      renk: 0xFF2BB673,
-      yol: [
-        (dEn: 0.0044, dBoy: -0.0052),
-        (dEn: 0.0030, dBoy: -0.0035),
-        (dEn: 0.0021, dBoy: -0.0018),
-        (dEn: 0.0008, dBoy: -0.0006),
-        (dEn: -0.0002, dBoy: 0.0004),
-        (dEn: -0.0013, dBoy: 0.0018),
-        (dEn: -0.0016, dBoy: 0.0034),
-        (dEn: -0.0027, dBoy: 0.0048),
-        (dEn: -0.0039, dBoy: 0.0057),
-        (dEn: -0.0055, dBoy: 0.0064),
-      ],
-    ),
-    (
-      ad: 'Merkez – Üniversite',
-      yon: 'Üniversite yönü',
-      dk: '24 dk',
-      renk: 0xFFFF7A3C,
-      yol: [
-        (dEn: -0.0048, dBoy: 0.0036),
-        (dEn: -0.0031, dBoy: 0.0028),
-        (dEn: -0.0017, dBoy: 0.0016),
-        (dEn: -0.0006, dBoy: 0.0005),
-        (dEn: 0.0005, dBoy: -0.0004),
-        (dEn: 0.0017, dBoy: -0.0016),
-        (dEn: 0.0031, dBoy: -0.0021),
-        (dEn: 0.0046, dBoy: -0.0033),
-        (dEn: 0.0058, dBoy: -0.0048),
-        (dEn: 0.0064, dBoy: -0.0066),
-      ],
-    ),
-  ];
-
+  // ⚠️ TURU 149 — turu 148'in ORNEK hat/guzergah tablosu SILINDI:
+  //	kullanici GERCEK GTFS verisini verdi (bkz. `features/ulasim/`).
+  //	Uydurma veri, gercegi varken tutulmaz.
   static const _ornekOfset = <({double dEn, double dBoy, double km})>[
     (dEn: 0.0022, dBoy: 0.0016, km: 0.25),
     (dEn: -0.0018, dBoy: 0.0027, km: 0.42),
@@ -1200,6 +1140,7 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
     // ⚠️ Cip seridi de KOSULLU (bkz. `_yuzenCipler` serhi): ikisi de yigina
     //    yalnizca GERCEK bir `Positioned` olarak girer.
     final cipler = _yuzenCipler();
+    final hatSerit = _hatSeridi();
     return Scaffold(
       // ⚠️⚠️⚠️ TURU 143 — **KLAVYE HARITAYI OYNATIYORDU** (kullanici emri:
       //	*"aramaya tikladigimda arkada haritada oynuyor, bunu duzelt
@@ -1229,8 +1170,11 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
                 // ⚠️ TEK KAYNAK: panel yuksekligi neyse harita da onu
                 //    bilir; sabit bir sayi yazilsaydi ikisi AYRISIRDI.
                 altDolgu: _panelBoy(context),
-                // ⚠️ TURU 148 — secili ORNEK guzergah (yoksa null).
+                // ⚠️ TURU 149 — secili GERCEK guzergah (yoksa null).
                 guzergah: _guzergahCizgisi,
+                duraklar: _duraklar,
+                durakSec: (d) => unawaited(_durakDetay(d)),
+                merkezNesli: _merkezNesli,
                 // ⚠️⚠️ TURU 89 — STIL AYARDAN GELIR (kullanici emri).
                 //    Stil CALISMA ANINDA degistirilebilir: eklenti
                 //    `map_configuration.dart` stili DIFF'liyor ve
@@ -1259,6 +1203,11 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
           //    (kullanici emri). Panelden SONRA cizilir ki panel yukari
           //    genislediginde serit onun ustunde kalsin.
           if (cipler != null) cipler,
+          // ⚠️⚠️ TURU 149 — cizili hat seridi. `Stack`e **null olarak
+          //	girmez**: bu ekranin diger cocuklari `Positioned` ve
+          //	0x0 non-positioned bir cocuk yigini 0x0'a dusurup EKRANIN
+          //	TAMAMINI siler (turu 136'da emulatorde OLCULDU).
+          if (hatSerit != null) hatSerit,
         ],
       ),
     );
@@ -1381,6 +1330,63 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
   ///    renk BELIRTMEYEN `Text`leri beyaza cevirmez (turu 129 dersi).
   /// ⚠️ Zemin `Colors.black` DEGIL `kAiZemin`: menu/GebzemAI ile AYNI siyah
   ///    (tek kaynak) — iki ekran arasinda ton farki olmasin.
+  /// ⚠️⚠️⚠️ TURU 149 — **CIZILI HAT SERIDI.**
+  ///
+  /// Haritada bir guzergah ciziliyken ust barda hattin adini ve kapatma
+  /// dugmesini gosterir.
+  /// ⚠️ Kapatma yolu ZORUNLU: cizgi kalici olsaydi kullanici onu haritadan
+  ///    kaldiramaz ve ekran "bozuk" gorunurdu (bu projede olu arayuz yasak).
+  Widget? _hatSeridi() {
+    if (_hatCizgi == null || _hatEtiketi.isEmpty) return null;
+    final renk = _hatCizgi!.renk;
+    return Positioned(
+      left: kYanBosluk,
+      right: kYanBosluk,
+      top: MediaQuery.paddingOf(context).top + 8 + kHaritaDugmeOlcu + 10,
+      child: Material(
+        color: Colors.black.withValues(alpha: kHaritaDugmeAlfa),
+        borderRadius: BorderRadius.circular(kYaricap(40)),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => setState(() {
+            _hatCizgi = null;
+            _hatEtiketi = '';
+          }),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Row(
+              children: [
+                Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: renk,
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    _hatEtiketi,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const Icon(LucideIcons.x, size: 16, color: Colors.white),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _altPanel() {
     // ⚠️ TURU 143 — `_panelBoy` ile AYNI KAYNAK olmak ZORUNDA (bkz. oradaki
     //    serh): ikisi ayrisirsa panel ile harita dolgusu birbirini tutmaz.
@@ -2060,10 +2066,10 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
             LucideIcons.busFront,
             'Durak',
             const Color(0xFF3AA9FF),
-            // ⚠️⚠️ TURU 144 — kullanici emri: *"birde DURAK ekle dostum,
-            //	otobus hatti vs saat SANA BIRAKIYORUM"*. Acilan sayfa
-            //	ORNEK hatlari gosterir ve bunu ACIKCA soyler.
-            () => unawaited(_durakPopupAc()),
+            // ⚠️⚠️⚠️ TURU 149 — artik **GERCEK GTFS VERISI** (kullanici
+            //	KentKart Kocaeli akisini verdi). Turu 144'teki ornek
+            //	hatlar KALDIRILDI.
+            () => unawaited(_durakAc()),
           ),
           const SizedBox(width: 8),
           // ⚠️ `LucideIcons.fuel` — menudeki hizli erisimle AYNI ikon
@@ -2071,8 +2077,12 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
           kart(LucideIcons.fuel, 'Benzinlik', const Color(0xFFFFC531),
               () => _kisayol('akaryakit')),
           const SizedBox(width: 8),
+          // ⚠️⚠️⚠️ TURU 149 — artik **GERCEK TAKSI DURAKLARI** (Kocaeli
+          //	Buyuksehir acik verisi, 53 durak). Turu 141'de bu kisayol
+          //	`hizmet` kategorisini aciyordu (temizlik/nakliyat da oradaydi);
+          //	o DURUST OLMAYAN esleme bitti.
           kart(LucideIcons.carTaxiFront, 'Taksi', const Color(0xFFFF7A3C),
-              () => _kisayol('hizmet')),
+              () => unawaited(_taksiAc())),
         ],
       ),
     );
@@ -2092,143 +2102,78 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
   ///    gorunur ve kullanici GERCEK saniridi.
   /// ⚠️ YAPMA: buraya gercek gorunumlu hat numarasi/saat yazma; veri
   ///    baglanmadan "Örnek" ibaresini kaldirma.
-  Future<void> _durakPopupAc() async {
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      backgroundColor: kAiZemin,
-      // ⚠️ TURU 142 dersi: arkadaki harita GORUNSUN.
-      barrierColor: Colors.black.withValues(alpha: 0.18),
-      builder: (c) => FractionallySizedBox(
-        heightFactor: 0.70,
-        child: Theme(
-          data: _koyuTema(),
-          child: Material(
-            type: MaterialType.transparency,
-            child: Builder(
-              builder: (tc) {
-                final scheme = Theme.of(tc).colorScheme;
-                return SafeArea(
-                  top: false,
-                  child: ListView(
-                    padding: const EdgeInsets.fromLTRB(
-                        kYanBosluk, 0, kYanBosluk, 16),
-                    children: [
-                      const Text(
-                        'Duraktan geçen hatlar',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      // ⚠️ DURUST SINIR EN USTTE (turu 144 karari).
-                      Text(
-                        'Durak ve sefer verisi henüz bağlı değil. Hatlar ve '
-                        'haritadaki güzergah yalnızca örnektir; gerçek '
-                        'sokak hizasını göstermez.',
-                        style: TextStyle(
-                          fontSize: 13,
-                          height: 1.35,
-                          color: scheme.onSurface.withValues(alpha: 0.62),
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      for (var i = 0; i < _ornekHatlar.length; i++)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: _hatKarti(tc, i, kapat: () {
-                            Navigator.of(c).maybePop();
-                          }),
-                        ),
-                    ],
-                  ),
-                );
-              },
-            ),
-          ),
-        ),
-      ),
+  /// ⚠️⚠️⚠️ TURU 149 — **DURAK AKISI (GERCEK VERI).**
+  ///
+  /// Kisayol -> yakindaki duraklar listesi -> durak detayi (gecen hatlar +
+  /// GERCEK kalkis saatleri) -> hat secilince haritada GERCEK guzergah.
+  /// ⚠️ Konum YOKSA hicbir sey yapilmaz ve sebep SOYLENIR: duraklar
+  ///    kullanicinin cevresinden secildigi icin konum olmadan liste
+  ///    anlamsiz olurdu.
+  Future<void> _durakAc() async {
+    final k = _konum;
+    if (k == null) {
+      _mesaj('Yakındaki durakları görebilmek için konum izni gerekiyor.');
+      return;
+    }
+    // Durak pinleri haritada gorunsun.
+    final yakin = await UlasimVeri.i.yakinDuraklar(k.enlem, k.boylam);
+    if (!mounted) return;
+    setState(() => _duraklar = yakin);
+    if (!mounted) return;
+    await ulasim.durakListesiAc(
+      context,
+      enlem: k.enlem,
+      boylam: k.boylam,
+      durakSec: (d) => unawaited(_durakDetay(d)),
     );
   }
 
-  /// ⚠️⚠️⚠️ TURU 148 — **HAT KARTI** (kullanici emri: *"duraga tikladiginda
-  ///	YEMEK GIBI KART olarak gelsin"*). Duzen isletme kartiyla AYNI dil:
-  ///	solda raduslu renk dairesi + ikon, saginda ad ve yon, sagda sure ve
-  ///	"Haritada göster" dugmesi.
-  /// ⚠️ Zemin `kYuzeyGri` — panel seridindeki isletme kartiyla TEK KAYNAK.
-  Widget _hatKarti(BuildContext c, int i, {required VoidCallback kapat}) {
-    final h = _ornekHatlar[i];
-    final renk = Color(h.renk);
-    final scheme = Theme.of(c).colorScheme;
-    return Material(
-      color: kYuzeyGri(c),
-      borderRadius: BorderRadius.circular(kYaricap(96)),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () {
-          setState(() => _guzergah = i);
-          kapat();
-        },
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(10, 12, 10, 12),
-          child: Row(
-            children: [
-              Container(
-                width: 46,
-                height: 46,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: renk.withValues(alpha: 0.16),
-                  borderRadius: BorderRadius.circular(kYaricap(46)),
-                ),
-                child: Icon(LucideIcons.busFront, size: 22, color: renk),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      h.ad,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        height: 1.25,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '${h.yon} · ${h.dk} · Örnek',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 12,
-                        height: 1.25,
-                        color: scheme.onSurface.withValues(alpha: 0.75),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              _kartDugmesi(
-                c,
-                LucideIcons.map,
-                'Güzergahı göster',
-                () {
-                  setState(() => _guzergah = i);
-                  kapat();
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
+  Future<void> _durakDetay(Durak d) async {
+    if (!mounted) return;
+    await ulasim.durakDetayAc(
+      context,
+      d,
+      guzergahSec: (hat, yon) => unawaited(_guzergahCiz(hat, yon)),
+    );
+  }
+
+  /// Secilen hattin GERCEK guzergahini haritaya cizer.
+  ///
+  /// ⚠️ Guzergah GTFS `shapes.txt`ten geliyor, yani **gercekten
+  ///    sokaklari takip eder** — duraklar arasi duz cizgi DEGIL.
+  Future<void> _guzergahCiz(Hat hat, int yon) async {
+    final nk = await UlasimVeri.i.guzergah(hat.id, yon);
+    if (!mounted) return;
+    if (nk.isEmpty) {
+      _mesaj('Bu hattın güzergah çizimi veride yok.');
+      return;
+    }
+    setState(() {
+      _hatCizgi = (noktalar: nk, renk: ulasim.hatRengi(hat));
+      _hatEtiketi = '${hat.kisaAd} · ${hat.yonBaslik[yon] ?? hat.uzunAd}';
+    });
+  }
+
+  Future<void> _taksiAc() async {
+    final k = _konum;
+    if (k == null) {
+      _mesaj('Yakındaki taksi duraklarını görebilmek için konum izni gerekiyor.');
+      return;
+    }
+    if (!mounted) return;
+    await ulasim.taksiListesiAc(
+      context,
+      enlem: k.enlem,
+      boylam: k.boylam,
+      haritadaGoster: (t) {
+        setState(() {
+          _odak = (
+            enlem: t.enlem,
+            boylam: t.boylam,
+            nesil: (_odak?.nesil ?? 0) + 1,
+          );
+        });
+      },
     );
   }
 
@@ -3660,10 +3605,17 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
             // ⚠️ TURU 142 — kullanici emri: *"navigasyon ikonu sag 45 derece
             //    olsun"*. Ikonun kendisi degil CIZIMI dondurulur.
             aci: math.pi / 4,
-            // ⚠️ Konum TAZELENIR (`konumuTazele: true`): kullanici baska
-            //    semte gecmis olabilir ve eski koordinatla ayni listeyi
-            //    gormek "calismiyor" izlenimi verir.
-            _yukleniyor ? () {} : () => _yukle(konumuTazele: true),
+            // ⚠️⚠️⚠️ TURU 149 — dugme artik **KAMERAYI DA TASIYOR.**
+            //	· `_merkezNesli` artar -> `didUpdateWidget` kamerayi
+            //	  koordinat AYNI OLSA BILE konuma ortalar (bkz. alan serhi),
+            //	· konum tazeleme YAN IS olarak kosar; kullanici agin
+            //	  donmesini BEKLEMEZ — kamera ANINDA gider.
+            // ⚠️ `_yukleniyor ? () {} : ...` KAPISI KALDIRILDI: dugme tam da
+            //    kullanicinin sabirsizlandigi anda OLU oluyordu.
+            () {
+              setState(() => _merkezNesli++);
+              if (!_yukleniyor) unawaited(_yukle(konumuTazele: true));
+            },
           ),
         ],
       ),
@@ -3815,7 +3767,25 @@ class _HaritaAlani extends StatefulWidget {
     this.avatarAdres,
     this.avatarAnahtar = '',
     this.guzergah,
+    this.duraklar = const [],
+    this.durakSec,
+    this.merkezNesli = 0,
   });
+
+  /// ⚠️⚠️ TURU 149 — "konumuma dön" istegi SAYACI.
+  ///
+  /// Deger her artisinda kamera `merkez`e ortalanir — koordinat DEGISMESE
+  /// BILE. Bayrak olsaydi ayni yone ikinci dokunus "deger degismedi" diye
+  /// SESSIZCE yok sayilirdi (turu 138'de `_zoom` icin olculen ders).
+  final int merkezNesli;
+
+  /// ⚠️⚠️ TURU 149 — **GERCEK OTOBUS DURAKLARI** (GTFS). Bos ise katman
+  ///	cizilmez. Adet SINIRLI geliyor (`yakinDuraklar`): bolgede 2032
+  ///	durak var ve hepsini pinlemek cizimi bogardi (turu 91 dersi).
+  final List<Durak> duraklar;
+
+  /// Durak pinine dokununca cagrilir (durak detayini acar).
+  final void Function(Durak)? durakSec;
 
   /// ⚠️⚠️⚠️ TURU 148 — **ORNEK OTOBUS GUZERGAHI** (kullanici emri).
   ///
@@ -3884,6 +3854,10 @@ class _HaritaAlaniState extends State<_HaritaAlani> {
   /// ⚠️ TURU 142 — marka adi -> logolu pin. Bos kalirsa kayit normal pine
   ///    duser (`_pin`), yani ozellik FAIL-SAFE'tir.
   final Map<String, BitmapDescriptor> _markaPin = {};
+
+  /// ⚠️ TURU 149 — otobus duragi pini (TEK bitmap, tum duraklar paylasir).
+  ///    Durak basina ayri bitmap uretmek 40 PNG kodlamasi demekti.
+  BitmapDescriptor? _durakPin;
 
   /// ⚠️ TURU 124 — KENDI konum isaretimiz (Google`in mavi noktasi yerine).
   BitmapDescriptor? _benPin;
@@ -4010,10 +3984,20 @@ class _HaritaAlaniState extends State<_HaritaAlani> {
       foto: foto,
       fotoAnahtar: foto == null ? '' : widget.avatarAnahtar,
     );
+    // ⚠️ TURU 149 — otobus duragi pini: mavi ic + beyaz halka + otobus
+    //    ikonu. Isletme pininden RENK ve IKONLA ayrilir; ayni renkte
+    //    olsaydi kullanici duragi isletme sanardi (turu 138 dersi).
+    final dp = await daireIsaret(
+      ic: const Color(0xFF3AA9FF),
+      kenar: Colors.white,
+      pikselOrani: oran,
+      ikon: LucideIcons.busFront,
+    );
     if (!mounted) return;
     setState(() {
       _pin = d;
       _benPin = b;
+      _durakPin = dp;
     });
   }
 
@@ -4059,6 +4043,20 @@ class _HaritaAlaniState extends State<_HaritaAlani> {
     }
     final y = widget.merkez;
     final e = eski.merkez;
+    // ⚠️⚠️⚠️ TURU 149 — **"KONUMUMA DON" DALI.** Sayac arttiysa koordinat
+    //	AYNI OLSA BILE kamera tasinir.
+    // ⚠️ `newLatLngZoom` kullanilir, `newLatLng` DEGIL: ikincisi mevcut
+    //	zoom'u KORUR ve kullanici z=8'e uzaklastiysa "konumuma dondum ama
+    //	hicbir sey gormuyorum" olur.
+    // ⚠️ `return` ZORUNLU: ayni karede `merkez` de degismis olabilir ve
+    //	iki `animateCamera` ust uste cagrilirsa ikincisi birincisini KESER
+    //	(turu 138'de olculdu).
+    if (widget.merkezNesli != eski.merkezNesli && y != null) {
+      _harita?.animateCamera(
+        CameraUpdate.newLatLngZoom(LatLng(y.enlem, y.boylam), 16),
+      );
+      return;
+    }
     if (y != null && (e == null || e.enlem != y.enlem || e.boylam != y.boylam)) {
       _harita?.animateCamera(
         CameraUpdate.newLatLng(LatLng(y.enlem, y.boylam)),
@@ -4202,6 +4200,18 @@ class _HaritaAlaniState extends State<_HaritaAlani> {
                       // ⚠️ Isletme pinlerinin ALTINDA kalmasin diye degil,
                       //    USTUNDE olsun diye yuksek zIndex.
                       zIndex: 2,
+                    ),
+                  // ⚠️⚠️ TURU 149 — **GERCEK OTOBUS DURAKLARI.** Isletme
+                  //	pinlerinden ONCE cizilir ki isletme pinleri ustte
+                  //	kalsin (kullanicinin asil aradigi onlar).
+                  for (final d in widget.duraklar)
+                    Marker(
+                      markerId: MarkerId('durak-${d.id}'),
+                      position: LatLng(d.enlem, d.boylam),
+                      icon: _durakPin ?? BitmapDescriptor.defaultMarker,
+                      anchor: const Offset(0.5, 0.5),
+                      zIndex: 1,
+                      onTap: () => widget.durakSec?.call(d),
                     ),
                   for (final i in isletmeler)
                     if (i.enlem != 0 || i.boylam != 0)

@@ -63,3 +63,12 @@ mobile/test/_olcum*
 
 # Denetim/inceleme icin uretilen gecici diff dosyalari.
 *.diff
+
+# ⚠️ TURU 149 — HAM GTFS AKISI (KentKart Kocaeli, kullanici verdi).
+#    `otos/otobus/stop_times.txt` TEK BASINA 100 MB; git'e girmesi
+#    klonlari sisirir ve GitHub'in 100 MB dosya sinirini zorlar.
+#    Uretilen KOMPAKT varliklar (`mobile/assets/ulasim/*.json`, ~2 MB)
+#    git'te DURUYOR — CI temiz klonda derleyebilsin diye (turu 140'ta
+#    marka varliklarinda yasanan SEVK ENGELININ dersi).
+#    Ham veriyi yeniden uretmek gerekirse: `node tools/ulasim_uret.js`
+/otos/
