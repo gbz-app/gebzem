@@ -599,6 +599,9 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
   ///	onu surekli geri ceker ve harita KULLANILAMAZ olur.
   bool _takipKamera = true;
 
+  /// Ard arda gelen konum akisi hatasi sayisi (saglikli veride sifirlanir).
+  int _akisHatasi = 0;
+
   /// Haritadan nokta secme kipi (`true` ise dokunus noktayi secer).
   bool _noktaSec = false;
   bool _noktaBaslangicIcin = false;
@@ -3216,15 +3219,48 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
       _takip = takip.TakipDurumu.basla;
       _takipKamera = true;
     });
+    _akisiBagla();
+  }
+
+  /// ⚠️⚠️⚠️ TURU 153 — **GECICI HATADA TAKIP BIRAKILMAZ.**
+  ///
+  ///	Onceki hal ilk hatada takibi KAPATIYOR ve ekrana
+  ///	*"Konum akışı kesildi"* yaziyordu (kullanici sahada gordu).
+  ///	Oysa GPS akisi tunelde/bina icinde GECICI olarak hata
+  ///	verebilir; kullanici yurumeye devam ederken takibin
+  ///	kendini kapatmasi ozelligi KULLANILAMAZ yapiyordu.
+  ///
+  /// ⚠️ **IZIN HATASI AYRI**: `KonumIzniYok` KALICI bir durumdur —
+  ///    orada tekrar denemek anlamsiz, kullaniciya SEBEBI soylenir.
+  /// ⚠️ Tekrar sayisi SINIRLI (3): sonsuz denemek pili bitirirdi.
+  void _akisiBagla() {
     _konumAkisi = KonumServisi.konumAkisi().listen(
-      _konumGeldi,
-      // ⚠️ Hata SESSIZ DEGIL: takip sessizce olurse kullanici
-      //    yurumeye devam eder ve cizginin neden ilerlemedigini
-      //    ANLAYAMAZ.
+      (k) {
+        _akisHatasi = 0; // saglikli veri geldi -> sayac sifirlanir
+        _konumGeldi(k);
+      },
       onError: (Object e) {
-        if (!mounted) return;
-        _mesaj('Konum akışı kesildi. Takip durduruldu.');
-        _takipDurdur();
+        if (!mounted || _takip == null) return;
+        if (e is KonumIzniYok) {
+          _mesaj('Takip için konum izni gerekiyor.');
+          _takipDurdur();
+          return;
+        }
+        _akisHatasi++;
+        if (_akisHatasi > 3) {
+          _mesaj('Konum sinyali alınamıyor. Takip durduruldu.');
+          _takipDurdur();
+          return;
+        }
+        // ⚠️ Aboneligi KAPATIP yeniden ac: hatali bir akis kendini
+        //    onarmaz, yeni bir dinleyici gerekir.
+        _konumAkisi?.cancel();
+        _konumAkisi = null;
+        Future.delayed(const Duration(seconds: 2), () {
+          if (mounted && _takip != null && _konumAkisi == null) {
+            _akisiBagla();
+          }
+        });
       },
     );
   }

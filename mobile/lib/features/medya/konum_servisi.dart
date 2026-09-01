@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
 import 'package:geocoding/geocoding.dart' show Geocoding;
@@ -7,6 +8,16 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../router.dart' show rootMessengerKey;
+
+/// Konum izni verilmediginde `konumAkisi` bunu firlatir.
+///
+/// ⚠️ Ayri bir tip: cagiran taraf "izin yok" ile "GPS sinyali kesildi"
+///    durumlarini AYIRT EDIP farkli mesaj gosterebilsin.
+class KonumIzniYok implements Exception {
+  const KonumIzniYok();
+  @override
+  String toString() => 'Konum izni verilmedi';
+}
 
 /// ⚠️⚠️⚠️ TURU 81 — KONUM PAYLASMA.
 ///
@@ -140,13 +151,52 @@ class KonumServisi {
   ///    daha buyugu cizginin ilerlemesini goze carpacak kadar geciktirir.
   /// ⚠️ `accuracy: high` — `best` GPS kilidi icin bekler ve sehir icinde
   ///    ilk olayi 10+ saniye geciktirebilir.
-  static Stream<({double enlem, double boylam})> konumAkisi() =>
-      Geolocator.getPositionStream(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-          distanceFilter: 5,
-        ),
-      ).map((p) => (enlem: p.latitude, boylam: p.longitude));
+  /// ⚠️⚠️⚠️ **IZIN BURADA ISTENIR** (turu 153 duzeltmesi).
+  ///	iOS tarafinda AKIS YOLUNDA HICBIR IZIN KAPISI YOK
+  ///	(`PositionStreamHandler.m` `onListenWithArguments` icinde
+  ///	kontrol yok; `hasPermission` kapilari yalnizca
+  ///	`getCurrentPosition` gibi metot cagrilari icin).
+  ///	Izinsiz `startUpdatingLocation` cagrilinca iOS
+  ///	`kCLErrorDenied` doner, eklenti bunu
+  ///	`PositionUpdateException`a cevirir ve kullanici
+  ///	**"Konum akışı kesildi"** gorur (sahada yasandi).
+  /// ⚠️ Cagiranin izni almis OLDUGUNU VARSAYMA — bu projenin klasik
+  ///    "serhin anlattigi kontrol govdede yok" sinifi.
+  ///
+  /// ⚠️ **PLATFORMA OZEL AYAR ZORUNLU**: duz `LocationSettings` yalnizca
+  ///    `accuracy` + `distanceFilter` gonderir; digerleri platform
+  ///    varsayilanina duser ve iOS'ta davranis belirsizlesir.
+  static Stream<({double enlem, double boylam})> konumAkisi() async* {
+    final izin = await Permission.locationWhenInUse.request();
+    if (!izin.isGranted) {
+      throw const KonumIzniYok();
+    }
+    yield* Geolocator.getPositionStream(locationSettings: _akisAyari())
+        .map((p) => (enlem: p.latitude, boylam: p.longitude));
+  }
+
+  static LocationSettings _akisAyari() {
+    if (Platform.isIOS) {
+      return AppleSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 5,
+        activityType: ActivityType.fitness,
+        // ⚠️ `true` olsaydi iOS akisi kendiliginden DURDURUR ve
+        //    kullanici "cizgi ilerlemiyor" derdi.
+        pauseLocationUpdatesAutomatically: false,
+        // ⚠️⚠️ **`false` KALMALI**: `UIBackgroundModes` icinde
+        //    `location` YOK; `true` verilirse iOS istisna atar.
+        allowBackgroundLocationUpdates: false,
+      );
+    }
+    return AndroidSettings(
+      accuracy: LocationAccuracy.high,
+      distanceFilter: 5,
+      intervalDuration: const Duration(seconds: 2),
+      // ⚠️⚠️ `foregroundNotificationConfig` VERILMEZ — manifest'te
+      //    `FOREGROUND_SERVICE_LOCATION` YOK ve Android 14+ cokerdi.
+    );
+  }
 
   /// "41.0082,28.9784" -> (41.0082, 28.9784). Bozuksa `null`.
   static ({double enlem, double boylam})? ayrist(String icerik) {
