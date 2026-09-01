@@ -3304,6 +3304,89 @@ const kontrol = (ad, gecti, ek = '') => {
       String(a1.tur || '').includes('application/json'), 'tur=' + a1.tur);
   }
 
+  // ---------- TURU 152: ADRES ARAMA (Places) + YAYA ROTASI (Routes)
+  //
+  // ⚠️⚠️ Bu uclar PARA HARCIYOR. Kontroller BILEREK azdir ve tek bir
+  //	gercek arama + tek bir gercek rota cagirir; gerisi KAPI
+  //	kontrolu (dogrulama/reddetme), yani Google'a HIC gitmez.
+  {
+    const d = await j('/yolbul/durum', { token: A.token });
+    kontrol('TURU 152: /yolbul/durum acik/kapali bildiriyor',
+      d.kod === 200 && typeof d.d.acik === 'boolean', 'HTTP ' + d.kod +
+      ' acik=' + (d.d && d.d.acik));
+
+    // ⚠️ Anahtar YOKSA (yerel/dev kurulum) kalan kontroller ATLANIR —
+    //    yoksa anahtarsiz bir ortamda e2e HAKSIZ YERE kirmizi duserdi.
+    if (d.d && d.d.acik) {
+      // ── ADRES ARAMA ──
+      const ad = await j('/yolbul/adres?q=' +
+        encodeURIComponent('1711. Sokak') + '&enlem=40.8028&boylam=29.4307',
+        { token: A.token });
+      kontrol('TURU 152: /yolbul/adres 200 + application/json',
+        ad.kod === 200 && jsonMu(ad), 'HTTP ' + ad.kod + ' tur=' + ad.tur);
+      const bulunan = (ad.d && ad.d.sonuclar) || [];
+      // ⚠️⚠️ ASIL OLCUM: cihaz geocoder'i bu sorguda YANLIS cadde
+      //	donduruyordu ("Şehit Erdem Demir Caddesi"). Google Places
+      //	ile SOKAK ADI birebir donmeli.
+      kontrol('TURU 152: adres aramasi TAM SOKAGI buluyor (1711)',
+        bulunan.some((x) => String(x.ad || '').includes('1711')),
+        bulunan.length ? bulunan[0].ad : 'sonuc yok');
+      kontrol('TURU 152: adres sonucu KOORDINAT tasiyor',
+        bulunan.length > 0 && bulunan[0].enlem !== 0 && bulunan[0].boylam !== 0,
+        bulunan.length ? bulunan[0].enlem + ',' + bulunan[0].boylam : '-');
+
+      // ── KISA SORGU: Google'a GITMEZ, bos doner ──
+      const k = await j('/yolbul/adres?q=a', { token: A.token });
+      kontrol('TURU 152: 1 karakterli sorgu Google\'a GITMEZ (bos doner)',
+        k.kod === 200 && Array.isArray(k.d.sonuclar) && k.d.sonuclar.length === 0,
+        'HTTP ' + k.kod);
+
+      // ── YAYA ROTASI ──
+      const y = await j('/yolbul/yaya', {
+        yontem: 'POST', token: A.token,
+        govde: { bas_enlem: 40.8028, bas_boylam: 29.4307,
+          var_enlem: 40.8104, var_boylam: 29.4271 },
+      });
+      kontrol('TURU 152: /yolbul/yaya 200 + application/json',
+        y.kod === 200 && jsonMu(y), 'HTTP ' + y.kod + ' tur=' + y.tur);
+      // ⚠️⚠️ ASIL OLCUM: cizgi SOKAKTAN gidiyor mu? Duz cizgi 2 nokta
+      //	olurdu; gercek yol agi ONLARCA nokta doner.
+      kontrol('TURU 152: yaya rotasi DUZ CIZGI DEGIL (>2 nokta)',
+        Array.isArray(y.d.noktalar) && y.d.noktalar.length > 2,
+        'nokta=' + ((y.d.noktalar || []).length));
+      kontrol('TURU 152: yaya rotasi ADIM TARIFI donduruyor',
+        Array.isArray(y.d.adimlar) && y.d.adimlar.length > 0,
+        'adim=' + ((y.d.adimlar || []).length));
+      // ⚠️ SOZLESME: Google, WALK rotalarinda bu uyarinin GOSTERILMESINI
+      //    zorunlu tutuyor. Uyari kaybolursa sozlesme ihlali olur.
+      kontrol('TURU 152: yaya yanitinda ZORUNLU BETA UYARISI var',
+        typeof y.d.uyari === 'string' && y.d.uyari.length > 10,
+        String(y.d.uyari || '').slice(0, 40));
+    }
+
+    // ── KAPILAR (Google'a GITMEZ) ──
+    const nan = await j('/yolbul/yaya', {
+      yontem: 'POST', token: A.token,
+      govde: { bas_enlem: 'NaN', bas_boylam: 29.4, var_enlem: 40.8, var_boylam: 29.4 },
+    });
+    kontrol('TURU 152: NaN koordinat 400 ile REDDEDILIR',
+      nan.kod === 400, 'HTTP ' + nan.kod);
+
+    const uzak = await j('/yolbul/yaya', {
+      yontem: 'POST', token: A.token,
+      govde: { bas_enlem: 40.80, bas_boylam: 29.43, var_enlem: 39.92, var_boylam: 32.85 },
+    });
+    kontrol('TURU 152: cok uzak nokta 400 (bosuna FATURALANMAZ)',
+      uzak.kod === 400, 'HTTP ' + uzak.kod);
+
+    const sifir = await j('/yolbul/yaya', {
+      yontem: 'POST', token: A.token,
+      govde: { bas_enlem: 0, bas_boylam: 0, var_enlem: 40.8, var_boylam: 29.4 },
+    });
+    kontrol('TURU 152: (0,0) koordinat REDDEDILIR (Gine Korfezi tuzagi)',
+      sifir.kod === 400, 'HTTP ' + sifir.kod);
+  }
+
   // ---------- OZET
   const kalan = sonuclar.filter((s) => !s.gecti);
   console.log('\n==================================');
