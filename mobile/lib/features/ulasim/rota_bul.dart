@@ -8,11 +8,17 @@
 ///	inilecegi ve kac dakika surdugu **kullanicinin verdigi GTFS
 ///	akisindan** hesaplaniyor. Fatura YOK, cevrimdisi calisir.
 ///
-/// ⚠️⚠️ **DURUST SINIR — YURUME BACAKLARI DUZ CIZGI.** Projede yol tarifi
-///	(routing) kaynagi YOK; "su sokaga gir" bilgisi elimizde degil.
-///	Yurume bacaklari bu yuzden **kus ucusu** cizilir ve ekranda
-///	"yaklasik" denir. Gercek sokak hizasi ancak bir Directions/OSRM
-///	kaynagi baglandiginda gelir.
+/// ⚠️⚠️ **TURU 152 — YURUME BACAKLARI ARTIK SOKAKTAN GIDIYOR.**
+///	Turu 150/151'de kus ucusu duz cizgiydi ve kullanici hakli olarak
+///	*"bizim yurume EVLERIN UZERINDEN gidiyor"* dedi. Artik sunucudaki
+///	Routes vekilinden (`/yolbul/yaya`) gercek yol agi cizgisi aliniyor.
+///	⚠️ Rota alinamazsa (ag yok / anahtar yok / cok uzak) **DUZ CIZGIYE
+///	   DUSULUR** — ozellik COKMEZ, yalnizca kabalasir.
+///	⚠️ DURUST SINIR: Gebze'de OSM yaya verisi fiilen yok (canli
+///	   olculdu: 9.647 yolda 99 kaldirim, 40 isaretli gecit). Rota
+///	   SOKAK AGINDAN gider; yaya gecidi garanti EDILMEZ. Google da
+///	   WALK modunu BETA ilan edip bu uyariyi gostermeyi ZORUNLU
+///	   tutuyor — metin sunucudan geliyor.
 ///
 /// ⚠️⚠️ **AKTARMA YOK (V1).** Olculdu: 800 m yurume yaricapiyla rastgele
 ///	200 durak ciftinin **%41'i** aktarmasiz cozuluyor, %59'u tek aktarma
@@ -23,6 +29,7 @@ library;
 
 import 'dart:math' as math;
 
+import 'adres_servisi.dart';
 import 'ulasim_veri.dart';
 
 /// Bir rota bacaginin turu.
@@ -65,6 +72,10 @@ class RotaAdayi {
     required this.hat,
   });
 
+  /// ⚠️ Liste DEGISTIRILEBILIR: yurume bacaklari sonuc uretildikten SONRA
+  ///    gercek yol agi cizgisiyle degistiriliyor
+  ///    (bkz. `_yurumeleriZenginlestir`). `const` bir listeyle
+  ///    kurulmadigi icin guvenli.
   final List<RotaBacagi> bacaklar;
 
   /// Gece yarisindan itibaren dakika (24'u asabilir).
@@ -239,6 +250,7 @@ Future<List<RotaAdayi>> rotaAra({
           final dilim = _guzergahDilimi(yol, o, d);
           final varis = inis + dDk;
 
+
           adaylar.add(RotaAdayi(
             hat: oh.hat,
             varisDakika: varis,
@@ -299,5 +311,57 @@ Future<List<RotaAdayi>> rotaAra({
     sonuc.add(a);
     if (sonuc.length >= adet) break;
   }
+
+  // ⚠️⚠️⚠️ **YURUME ROTALARI EN SONDA, YALNIZ KAZANAN ADAYLAR ICIN.**
+  //	Ilk yazimda cagri ic ice dongunun ICINDEYDI ve SUNUCU
+  //	LOGUNDA OLCULDU: **tek arama 90+ istek** uretiyordu. Her
+  //	istek Google Routes'ta FATURALANABILIR bir cagri; aylik
+  //	10.000 ucretsiz kota ~110 aramada biterdi.
+  //	Simdi yalniz DONULECEK adaylar zenginlestiriliyor:
+  //	en fazla `adet x 2` = **6 cagri**.
+  // ⚠️ Tumu PARALEL: ard arda beklenseydi sonuc ekrani 6 tur gecikirdi.
+  await _yurumeleriZenginlestir(
+      sonuc, baslangicEnlem, baslangicBoylam, varisEnlem, varisBoylam);
   return sonuc;
+}
+
+/// Kazanan adaylarin YURUME bacaklarini gercek yol agi cizgisiyle degistirir.
+///
+/// ⚠️ Rota alinamazsa bacak **DOKUNULMADAN** kalir (kus ucusu duz cizgi):
+///    ag yoksa ya da `GOOGLE_SERVIS_KEY` tanimli degilse ozellik COKMEZ,
+///    yalnizca kabalasir.
+/// ⚠️ `RotaBacagi` DEGISMEZ (immutable) oldugu icin bacak YERINDE
+///    degistirilemez; yeni bacak kurulup listeye YAZILIR.
+Future<void> _yurumeleriZenginlestir(
+  List<RotaAdayi> adaylar,
+  double basEnlem,
+  double basBoylam,
+  double varEnlem,
+  double varBoylam,
+) async {
+  final isler = <Future<void>>[];
+  for (final a in adaylar) {
+    for (var i = 0; i < a.bacaklar.length; i++) {
+      final b = a.bacaklar[i];
+      if (b.tur != BacakTuru.yuru || b.noktalar.length != 2) continue;
+      final bas = b.noktalar.first;
+      final var_ = b.noktalar.last;
+      final sira = i;
+      isler.add(() async {
+        final yol = await AdresServisi.i.yayaRotasi(
+            bas.enlem, bas.boylam, var_.enlem, var_.boylam);
+        if (yol == null || yol.length < 2) return;
+        a.bacaklar[sira] = RotaBacagi(
+          tur: b.tur,
+          noktalar: yol,
+          dakika: b.dakika,
+          baslik: b.baslik,
+          altBaslik: b.altBaslik,
+          hat: b.hat,
+          metre: b.metre,
+        );
+      }());
+    }
+  }
+  await Future.wait(isler);
 }

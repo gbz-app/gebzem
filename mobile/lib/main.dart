@@ -20,6 +20,7 @@ import 'core/storage.dart';
 import 'core/tercihler.dart';
 import 'core/theme.dart';
 import 'core/ws.dart';
+import 'features/ulasim/adres_servisi.dart';
 import 'features/auth/acilis_ekrani.dart';
 import 'features/calls/active_call_banner.dart';
 import 'features/calls/active_call_controller.dart';
@@ -174,6 +175,14 @@ class _GebzemAppState extends ConsumerState<GebzemApp> with WidgetsBindingObserv
     // (provider tembel — okunmazsa hic olusmaz, banner gelmez).
     ref.read(davetServisiProvider);
     _davetPushBaslat();
+    // ⚠️⚠️ TURU 152 — ADRES SERVISINE `Ref` BAGLANIR.
+    //	`AdresServisi` bir singleton (`ConsumerState` degil) ve
+    //	`apiProvider`a baska turlu ulasamiyor. BAGLANMAZSA sunucu
+    //	(Google Places) dali SESSIZCE atlanir ve arama cihaz
+    //	geocoder'ina duser — yani ozellik "calisiyor gibi"
+    //	gorunup KOTU sonuc verirdi. Bu projede "servis yazildi ama
+    //	CAGIRAN yol yazilmadi" sinifi DOKUZ kez sahaya cikti.
+    AdresServisi.i.baglaApi(() => ref.read(apiProvider));
   }
 
   /// Davet push yonlendirmesi: tepsideki davet bildirimine dokunuldu.

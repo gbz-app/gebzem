@@ -2,20 +2,31 @@
 /// *"rota olustururken arama yok yani SOKAK ADI CADDE"* + *"ben sectigim
 /// yerin ADRESI DE gorunmeli neredende ve nereyede"*).
 ///
-/// ⚠️⚠️ **API ANAHTARI YOK, PARA YOK.** Cozum cihazin KENDI geocoder'i:
-///	Android `Geocoder`, iOS `CLGeocoder` (`geocoding` 5.0.0 paketi, turu
-///	87'de isletme adreslerini pinlemek icin ZATEN eklenmisti). Google
-///	Places/Geocoding **web servisi KULLANILMIYOR**: bu repo PUBLIC ve o
-///	uclarin anahtari uygulama kimligiyle KISITLANAMIYOR (yalniz IP ile),
-///	yani ikiliye gomulen bir anahtar cikarilip baskasi tarafindan
-///	harcanabilirdi.
+/// ⚠️⚠️⚠️ **TURU 152 — ARKA UC GOOGLE PLACES OLDU (kullanici emri).**
 ///
-/// ⚠️⚠️ **DURUST SINIR — BU BIR "AUTOCOMPLETE" DEGIL.** Cihaz geocoder'i
-///	yazarken oneri vermez; TAM(A YAKIN) bir adres ister. "Atatürk Cad"
-///	yazan kullaniciya Google Places gibi anlik liste DUSMEZ. Bunun
-///	karsiliginda: bedava, anahtarsiz ve sunucu gerektirmiyor.
-///	Places'e gecilecekse bu dosyanin IMZASI degismeden arka ucu
-///	degistirilebilir (cagri yerleri ETKILENMEZ).
+///	Kullanici: *"ben 1711 sokak dedigimde GOOGLE ile arama yapip TAM
+///	SOKAK CADDEYI bulacak mi"*. Turu 151'de cihazin kendi geocoder'i
+///	kullaniliyordu ve **EMULATORDE OLCULDU: bulamiyordu** —
+///	"1711 sokak" -> *"Şehit Erdem Demir Caddesi No:49"* (YANLIS).
+///	Artik Google Places (New) kullaniliyor ve ayni sorgu
+///	*"1711. Sokak · Gaziler, 1711. Sk., 41400 Gebze/Kocaeli"* donuyor
+///	(canli sunucuda dogrulandi).
+///
+/// ⚠️⚠️ **ANAHTAR UYGULAMADA DEGIL — KENDI SUNUCUMUZ VEKIL.**
+///	Places bir WEB SERVISI ve Google bu grup icin yalniz **IP**
+///	kisitlamasi destekliyor (Maps SDK'daki paket/bundle kisiti YOK).
+///	Repo PUBLIC oldugu icin ikiliye gomulen anahtar cikarilip bizim
+///	faturamiza harcanirdi. Istemci `GET /yolbul/adres` cagirir;
+///	Google'i HIC gormez.
+///
+/// ⚠️ Bu dosyanin **IMZASI DEGISMEDI**: turu 151'deki serhte
+///    *"arka ucu degistirilebilir, cagri yerleri ETKILENMEZ"* yaziyordu
+///    ve aynen oyle oldu — `rota_sayfalari.dart` hic degismedi.
+///
+/// ⚠️⚠️ **CIHAZ GEOCODER'I SILINMEDI, YEDEK OLARAK DURUYOR**:
+///	sunucu/ag erisilemezse ya da `GOOGLE_SERVIS_KEY` yoksa (uc 503
+///	doner) arama yine calisir — yalnizca daha kaba sonucla. Ozelligin
+///	tamamen olmesindense kaba sonuc iyidir.
 ///
 /// ⚠️⚠️ **IKI AYRI UC GEREKIYOR** (kaynaktan dogrulandi, `geocoding` 5.0.0):
 ///	· `locationFromAddress` -> `Location` (enlem/boylam) ama **AD YOK**
@@ -28,6 +39,7 @@ library;
 
 import 'dart:async';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/widgets.dart' show Locale;
 import 'package:geocoding/geocoding.dart';
 
@@ -73,6 +85,27 @@ const Duration kGeocoderZamanAsimi = Duration(seconds: 6);
 class AdresServisi {
   AdresServisi._();
   static final AdresServisi i = AdresServisi._();
+
+  /// ⚠️⚠️ **API ISTEMCISI DISARIDAN BAGLANIR** (`main.dart` acilista
+  ///	bir kez). Servis bir singleton (`i`) ve `ConsumerState` degil;
+  ///	`apiProvider`a baska turlu ulasamiyor.
+  /// ⚠️ **Ref DEGIL FONKSIYON alinir**: `ConsumerState` icindeki `ref`
+  ///    bir `WidgetRef`tir, `Ref` DEGIL. Fonksiyon almak ikisini de
+  ///    kabul eder ve bu dosyayi Riverpod tiplerine baglamaz.
+  /// ⚠️ Bagli DEGILSE sunucu dali ATLANIR ve cihaz geocoder'ina
+  ///    dusulur — ozellik COKMEZ.
+  Dio Function()? _apiAl;
+  void baglaApi(Dio Function() al) => _apiAl = al;
+
+  Dio? get _api {
+    final f = _apiAl;
+    if (f == null) return null;
+    try {
+      return f();
+    } catch (_) {
+      return null;
+    }
+  }
 
   /// ⚠️⚠️⚠️ **KURUCUYA `locale` VERILMEZ — PAKET ONU SESSIZCE DUSURUYOR.**
   ///	Kaynaktan birebir dogrulandi (`geocoding-5.0.0/lib/geocoding.dart`):
@@ -150,7 +183,20 @@ class AdresServisi {
       // Durak tablosu okunamadi — adres dali yine denenir.
     }
 
-    // ── 2) ADRESLER (cihaz geocoder'i) ──
+    // ── 2) ADRESLER — ONCE SUNUCU (Google Places) ──
+    // ⚠️ Sunucu tek istekte hem AD hem ADRES hem KOORDINAT donuyor;
+    //    cihaz geocoder'inda bunun icin IKI tur gerekiyordu.
+    final sunucudan = await _sunucudanAra(q, yakinEnlem, yakinBoylam);
+    if (sunucudan != null) {
+      sonuc.addAll(sunucudan);
+      _aramaOnbellek[anahtar] = sonuc;
+      return sonuc;
+    }
+
+    // ── 3) YEDEK: CIHAZ GEOCODER'I ──
+    // ⚠️⚠️ Sunucuya ulasilamadiginda ozellik TAMAMEN olmesin diye
+    //	duruyor. Sonuc daha kaba (olculdu: "1711 sokak" yanlis cadde
+    //	donduruyor) ama hicbir sey gostermemekten iyidir.
     try {
       var yerler = await _konumlar('$q, Gebze, Kocaeli');
       if (yerler.isEmpty) yerler = await _konumlar(q);
@@ -178,6 +224,12 @@ class AdresServisi {
   ///
   /// ⚠️ Kullanici emri: *"ben sectigim yerin ADRESI DE gorunmeli"*. Haritadan
   ///    isaretlenen nokta artik "Seçilen varış" degil gercek adresiyle yazar.
+  /// ⚠️⚠️ **TERS YON SUNUCUYA TASINMADI — BILINCLI:** cihaz geocoder'i
+  ///	koordinattan adres uretmede IYI (olculdu: "İbrahim Ağa Caddesi
+  ///	No:35, Mustafa..."), UCRETSIZ ve CEVRIMDISI onbellekli.
+  ///	Zayif oldugu yon METINDEN koordinat bulmaktı; o taraf Google'a
+  ///	gecti. Ters yonu de Google'a vermek her harita dokunusunu
+  ///	FATURAYA cevirirdi.
   /// ⚠️ Cozulemezse **null** doner ve cagiran ESKI etiketi korur — ekranda
   ///    bos bir satir birakmak, kaba bir etiketten kotudur.
   Future<String?> coz(double enlem, double boylam) async {
@@ -209,6 +261,103 @@ class AdresServisi {
   String? onbellektenCoz(double enlem, double boylam) =>
       _cozOnbellek[
           '${enlem.toStringAsFixed(5)},${boylam.toStringAsFixed(5)}'];
+
+  /// Sunucudaki Places vekilinden arar.
+  ///
+  /// ⚠️ **`null` = "sunucu kullanilamadi"**, bos liste = "sunucu
+  ///    calisti ama sonuc yok". Ikisi ayri: birincide cihaz geocoder'ina
+  ///    DUSULUR, ikincide DUSULMEZ (Google bakti ve bulamadi; cihaz
+  ///    geocoder'i daha kotu bir tahmin uretirdi).
+  Future<List<AdresSonucu>?> _sunucudanAra(
+    String q,
+    double? enlem,
+    double? boylam,
+  ) async {
+    final api = _api;
+    if (api == null) return null;
+    try {
+      final y = await api.get<Map<String, dynamic>>(
+        '/yolbul/adres',
+        queryParameters: {
+          'q': q,
+          if (enlem != null) 'enlem': enlem,
+          if (boylam != null) 'boylam': boylam,
+        },
+      );
+      final ham = (y.data?['sonuclar'] as List?) ?? const [];
+      return [
+        for (final e in ham.whereType<Map>())
+          AdresSonucu(
+            ad: (e['ad'] ?? '').toString(),
+            altAd: (e['adres'] ?? '').toString(),
+            enlem: (e['enlem'] as num?)?.toDouble() ?? 0,
+            boylam: (e['boylam'] as num?)?.toDouble() ?? 0,
+            durak: false,
+          ),
+      ];
+    } catch (_) {
+      // ⚠️ 503 (anahtar yok) ya da ag hatasi -> cihaz geocoder'ina dus.
+      return null;
+    }
+  }
+
+  /// ⚠️⚠️⚠️ **TURU 152 — SOKAKTAN GIDEN YAYA ROTASI** (kullanici emri:
+  ///	*"shape guzel ciziyor ama bizim yurume EVLERIN UZERINDEN
+  ///	gidiyor, sokak cadde guzel cizmiyor"*).
+  ///
+  /// Sunucudaki Routes vekilini cagirir; **[null] = rota alinamadi** ve
+  /// cagiran taraf KUS UCUSU duz cizgiye duser (ozellik COKMEZ).
+  ///
+  /// ⚠️ **DURUST SINIR (Google'in kendi uyarisi):** WALK modu BETA ve
+  ///    *"might sometimes be missing clear sidewalks, pedestrian paths"*.
+  ///    Ustelik Gebze'de OSM yaya verisi fiilen yok (canli olculdu:
+  ///    9.647 yolda 99 kaldirim, 40 isaretli gecit). Yani rota SOKAK
+  ///    AGINDAN gider; "karsidan karsiya gecidi" garanti EDILMEZ.
+  ///    Sunucu bu uyari metnini yanitta donduruyor.
+  ///
+  /// ⚠️ Onbellek: ayni bacak her cizimde yeniden faturalanmasin.
+  Future<List<({double enlem, double boylam})>?> yayaRotasi(
+    double basEnlem,
+    double basBoylam,
+    double varEnlem,
+    double varBoylam,
+  ) async {
+    final api = _api;
+    if (api == null) return null;
+    final ck = '${basEnlem.toStringAsFixed(5)},${basBoylam.toStringAsFixed(5)}>${varEnlem.toStringAsFixed(5)},${varBoylam.toStringAsFixed(5)}';
+    final onbellek = _yayaOnbellek[ck];
+    if (onbellek != null) return onbellek;
+    try {
+      final y = await api.post<Map<String, dynamic>>(
+        '/yolbul/yaya',
+        data: {
+          'bas_enlem': basEnlem,
+          'bas_boylam': basBoylam,
+          'var_enlem': varEnlem,
+          'var_boylam': varBoylam,
+        },
+      );
+      final ham = (y.data?['noktalar'] as List?) ?? const [];
+      // ⚠️ IKI NOKTADAN AZ ise rota YOK sayilir: tek noktali bir
+      //    polyline cizilemez ve duz cizgi daha durust olur.
+      if (ham.length < 2) return null;
+      final nk = <({double enlem, double boylam})>[
+        for (final e in ham)
+          if (e is List && e.length >= 2)
+            (
+              enlem: (e[0] as num).toDouble(),
+              boylam: (e[1] as num).toDouble(),
+            ),
+      ];
+      if (nk.length < 2) return null;
+      _yayaOnbellek[ck] = nk;
+      return nk;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  final Map<String, List<({double enlem, double boylam})>> _yayaOnbellek = {};
 
   Future<List<Location>> _konumlar(String adres) async {
     try {
