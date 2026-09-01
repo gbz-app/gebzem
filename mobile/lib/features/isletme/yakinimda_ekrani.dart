@@ -747,6 +747,31 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
   //    yerden okunmuyor -> `pubspec.yaml`tan da CIKARILDI (turu 116b'de
   //    olculen "olu varlik pakete giriyor" dersi). Dosyalar diskte ve
   //    git'te DURUYOR; geri istenirse birer satir.
+  /// ⚠️⚠️⚠️ TURU 147 — **HIZMET DALLARINDA FIYAT YOK** (kullanici emri:
+  ///	*"hizmetler FIYATLA KOTU DURUR, onlar icin farkli bir seyler
+  ///	yapalim"*).
+  ///
+  /// Anahtar = DAL, deger = o daldaki HIZMET ADLARI. Kartin alt satirinda
+  /// fiyat yerine bu adlar kutu icinde cizilir (`_hizmetSeridi`).
+  /// ⚠️⚠️ **FIYAT BILEREK YOK**: bir doktorun/temizlikcinin ucreti ise
+  ///	gore degisir; sabit bir rakam yazmak kullaniciya YANLIS BILGI
+  ///	olurdu. Yemek/kafe/akaryakit/otel'de fiyat ANLAMLI oldugu icin
+  ///	orada DURUYOR (bkz. `_ornekVitrin`).
+  /// ⚠️ Bu adlar da ORNEKTIR ve YALNIZ `demo-` kayitlarda cizilir; gercek
+  ///    kayitta sunucunun verdigi bilgi gosterilir (`_urunSeridi`).
+  static const _ornekHizmet = <String, List<String>>{
+    'hizmet': ['Ev Temizliği', 'Nakliyat', 'Tesisat', 'Boya & Badana'],
+    'saglik': ['Muayene', 'Kontrol', 'Tahlil', 'Görüntüleme'],
+    'diyetisyen': ['Beslenme Danışmanlığı', 'Ölçüm', 'Takip Programı'],
+    'kuafor': ['Saç Kesim', 'Boya', 'Fön', 'Bakım'],
+    'guzellik': ['Cilt Bakımı', 'Manikür', 'Ağda', 'Masaj'],
+    'oto': ['Periyodik Bakım', 'Yağ Değişimi', 'Lastik', 'Kaporta'],
+    'egitim': ['Birebir Ders', 'Grup Dersi', 'Deneme Sınavı'],
+    'spor': ['Üyelik', 'Kişisel Antrenör', 'Grup Dersi'],
+    'teknoloji': ['Ekran Değişimi', 'Batarya', 'Yazılım', 'Veri Kurtarma'],
+    'emlak': ['Satılık', 'Kiralık', 'Değerleme', 'Danışmanlık'],
+  };
+
   static const _ornekVitrin = <String, List<({String ad, String fiyat})>>{
     // ⚠️ TURU 146 — kullanici *"2 satirli menu ismi yaz, birde UZUN yaz,
     //    3 nokta nerede bitiriyor gorelim"* dedi: ikinci kalem IKI SATIR,
@@ -782,7 +807,11 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
     //    birakiyorum, mantigi tam oturtursun"*): yakit/oda ile AYNI dil —
     //    ad + fiyat, gorsel YOK. Hizmetin gorseli olmaz; olan sey bir
     //    ISCILIK ucretidir.
-    'hizmet': [
+    // ⚠️ TURU 147 — `hizmet` dali BURADAN CIKTI: fiyat gosterimi
+    //    hizmetlerde kotu duruyordu (kullanici emri) -> `_ornekHizmet`.
+    //    Kayit SILINMEDI, adi degistirildi ki fiyat bicimi bir daha
+    //    gerekirse ornek olarak dursun (`_menuluSerit` onu OKUMAZ).
+    'hizmet_fiyatli_eski': [
       (ad: 'Ev Temizliği', fiyat: '900 ₺'),
       (ad: 'Nakliyat', fiyat: '2.500 ₺'),
       (ad: 'Tesisat', fiyat: '650 ₺'),
@@ -2228,7 +2257,11 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
   ///
   /// ⚠️ Serit TEK dal gosterir, yani karar serit genelinde AYNI olur ve
   ///    kart yukseklikleri tutarli kalir.
-  bool get _menuluSerit => _ornekVitrin.containsKey(_dal);
+  /// ⚠️ TURU 147 — alt satirda KUTU cizilen dallar: fiyatli vitrin
+  ///    (`_ornekVitrin`) **ya da** fiyatsiz hizmet (`_ornekHizmet`).
+  ///    Ikisi de ayni yukseklikte cizilir; kartlar dallar arasi ESIT kalir.
+  bool get _menuluSerit =>
+      _ornekVitrin.containsKey(_dal) || _ornekHizmet.containsKey(_dal);
 
   /// Bu seritte VITRIN ogeleri cizilecek MI (serit genelinde tek karar).
   ///
@@ -2244,8 +2277,67 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
 
   /// ⚠️ TURU 144 — YUKSEKLIK ARTIK IKI DALDA DA AYNI (`_altSatirBoy`); bu
   ///    kosul yalnizca ICERIGIN hangisi olacagini secer.
-  Widget _altSatir(BuildContext c, IsletmeOzet o, bool ornek) =>
-      _menuluKume && ornek ? _vitrinSeridi(c, o) : _urunSeridi(c, o);
+  Widget _altSatir(BuildContext c, IsletmeOzet o, bool ornek) {
+    if (!_menuluKume || !ornek) return _urunSeridi(c, o);
+    // ⚠️ TURU 147 — hizmet dallarinda FIYATSIZ kartlar (kullanici emri).
+    if (_ornekHizmet.containsKey(_dal)) return _hizmetSeridi(c, o);
+    return _vitrinSeridi(c, o);
+  }
+
+  /// ⚠️⚠️⚠️ TURU 147 — **HIZMET KARTLARI (FIYATSIZ)**.
+  ///
+  /// Yemek/kafe kartindaki [gorsel kutusu + ad + fiyat] duzeni hizmetlerde
+  /// KOTU duruyordu (kullanici emri). Burada kutunun ICINDE yalnizca
+  /// HIZMET ADI var; kutu olcusu ve radusu vitrinle AYNI, boylece kartlar
+  /// dallar arasi ESIT kalir (turu 144 karari).
+  /// ⚠️ Kalemler kayittan kayita KAYDIRILIR (turu 141 dersi): imza
+  ///    `IsletmeOzet` almadan yazilsaydi bir daldaki dort ornek kart da
+  ///    AYNI hizmetleri gosterirdi.
+  Widget _hizmetSeridi(BuildContext c, IsletmeOzet o) {
+    final tum = _ornekHizmet[_dal] ?? const <String>[];
+    if (tum.isEmpty) return SizedBox(height: _altSatirBoy(c));
+    final i0 = int.tryParse(o.id.split('-').last) ?? 0;
+    final kalemler = [
+      for (var i = 0; i < tum.length; i++) tum[(i0 + i) % tum.length],
+    ];
+    return SizedBox(
+      height: _altSatirBoy(c),
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        itemCount: kalemler.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        itemBuilder: (_, i) => DecoratedBox(
+          decoration: BoxDecoration(
+            color: kAiKartYuzey(c),
+            borderRadius: BorderRadius.circular(kYaricap(_altSatirBoy(c))),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            child: Center(
+              child: ConstrainedBox(
+                // ⚠️ Tavan: uzun bir hizmet adi ("Beslenme Danışmanlığı")
+                //    kartin tamamini kaplamasin; iki satira sarar.
+                constraints: const BoxConstraints(maxWidth: 140),
+                child: Text(
+                  kalemler[i],
+                  maxLines: 2,
+                  textAlign: TextAlign.center,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    height: 1.2,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
   /// ⚠️⚠️⚠️ TURU 141 — **VITRIN SERIDI: GORSEL + AD + FIYAT** (kullanici
   ///	emri: *"yemekte menu resminin SAGINA ISMI, ALTINA FIYATI yazsin,

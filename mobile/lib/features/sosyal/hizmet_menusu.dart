@@ -65,6 +65,15 @@ import '../isletme/isletme_kart.dart' show kYanBosluk, kYaricap;
 ///	detay ekrani kullanici emriyle TAMAMEN KALDIRILDI (asagida).
 const kYakinOnizleme = true;
 
+/// ⚠️⚠️⚠️ TURU 147 — HAVA DURUMU + DOVIZ seridi ONIZLEME bayragi.
+///
+/// **YAYIN ONCESI `false` YAPILACAK.** Bu projede ne hava ne kur verisi
+/// var (tablo yok, uc yok, dis servis anahtari yok); serit ORNEK degerler
+/// gosterir ve bunu ekranda "örnek" ibaresiyle SOYLER.
+/// ⚠️ Turu 135'te `kur_serit.dart` tam bu yuzden SILINMISTI; kullanici
+///    turu 147'de seridi ACIKCA geri istedi.
+const kHavaDovizOnizleme = true;
+
 /// ⚠️⚠️ TURU 134 — YAKINIMDA kartinda **ad ile mesafe arasindaki bosluk**
 ///	(kullanici emri: *"400m isim arasindaki boslugu biraz arttir"*).
 ///
@@ -856,6 +865,110 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
   ///	HARF dairesine duser — menude ayri bir yer tutucu YAZILMADI.
   /// ⚠️ Arama ikonu `KesfetEkrani`i acar; alt menudeki "Ara" sekmesiyle
   ///    AYNI ekran, ikinci bir arama ekrani ACILMADI.
+  /// ⚠️⚠️⚠️ TURU 147 — **HAVA DURUMU + DOVIZ SERIDI** (kullanici emri).
+  ///
+  /// ⚠️⚠️⚠️ **DEGERLER ORNEKTIR — GERCEK VERI YOK VE UYDURULMADI.**
+  ///	Bu projede ne hava ne kur verisi var: tabloda yok, sunucuda uc yok,
+  ///	bir dis servis anahtari yok. Turu 135'te `kur_serit.dart` **TAM BU
+  ///	YUZDEN SILINMISTI** (*"her sayisi uydurmaydi"*).
+  ///	Kullanici seridi ACIKCA geri istedi; bu yuzden:
+  ///	  · degerlerin yaninda **"örnek"** ibaresi DURUYOR,
+  ///	  · dokununca acilan sayfa verinin BAGLI OLMADIGINI soyluyor,
+  ///	  · `kHavaDovizOnizleme` bayragi YAYIN ONCESI `false` yapilacak.
+  /// ⚠️ YAPMA: "örnek" ibaresini kaldirma; sayilari "guncel" gibi sunma;
+  ///    saatten/gunden turetip CANLI gorunmesini saglama.
+  Widget _havaDoviz(BuildContext context) {
+    if (!kHavaDovizOnizleme) return const SizedBox.shrink();
+    final onRenk = Theme.of(context).colorScheme.onSurface;
+    Widget kalem(IconData ikon, String deger, Color renk) => Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(ikon, size: 13, color: renk),
+            const SizedBox(width: 3),
+            Text(
+              deger,
+              style: TextStyle(
+                fontSize: 12.5,
+                height: 1.15,
+                fontWeight: FontWeight.w700,
+                color: onRenk,
+              ),
+            ),
+          ],
+        );
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => _havaDovizAc(context),
+      child: Padding(
+        padding: const EdgeInsets.only(right: 2),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            kalem(LucideIcons.sun, '24°', const Color(0xFFFFC531)),
+            const SizedBox(height: 2),
+            kalem(LucideIcons.dollarSign, '43,20', const Color(0xFF2BB673)),
+            const SizedBox(height: 1),
+            // ⚠️ DURUST ISARET: bu iki sayi ORNEKTIR.
+            Text(
+              'örnek',
+              style: TextStyle(
+                fontSize: 9,
+                height: 1,
+                fontWeight: FontWeight.w600,
+                color: onRenk.withValues(alpha: 0.5),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Hava/doviz seridine dokununca acilan DURUST bilgi sayfasi.
+  ///
+  /// ⚠️ Turu 144'teki "Durak" sayfasiyla AYNI desen: veri baglanmadan once
+  ///    kullaniciya sayilarin ornek oldugunu ACIKCA soyler.
+  void _havaDovizAc(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: kAiZemin,
+      builder: (c) => Material(
+        type: MaterialType.transparency,
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(kYanBosluk, 20, kYanBosluk, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Hava durumu ve döviz',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Bu değerler henüz bir veri kaynağına bağlı değil; '
+                  'ekranda görünenler yalnızca örnektir.',
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    height: 1.4,
+                    color: Colors.white.withValues(alpha: 0.7),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _selamlama(BuildContext context, WidgetRef ref) {
     final profil = ref.watch(myProfileProvider).valueOrNull;
     final tamAd = (profil?['name'] ?? '').toString().trim();
@@ -937,6 +1050,9 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
               ],
             ),
           ),
+          // ⚠️⚠️⚠️ TURU 147 — **HAVA + DOVIZ** (kullanici emri: *"anasayfada
+          //	aramanin SOLUNA doviz ve hava durumu ekle"*).
+          _havaDoviz(context),
           IconButton(
             tooltip: 'Ara',
             icon: const Icon(LucideIcons.search, size: 22),
