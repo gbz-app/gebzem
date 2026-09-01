@@ -41,6 +41,103 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
       kaybettiriyorsun"*. **Üçüncüsü olmayacak.**
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (2 Eyl 01:30): TURU 154 YAYINLANDI — SADECE iOS.**
+  ios **33565389617** (**b82aac8**), R2 ipa=30147740 (md5 ebf88f27)
+  index=7967 (md5 71cf1e9d) surum.json=45 (md5 7cb7ef62),
+  purge OK, **CDN UCU DE BIREBIR**, iOS min **16.0**, `MapsApiKey` ENJEKTE,
+  `get-task-allow: false` (debug imza YOK), profil ad hoc.
+  IPA'da turu 154 dizeleri VAR (Burayı seç · Başlangıcı seç · Varışı seç ·
+  Adres alınıyor… · " dk kaldı" · Merkeze dön · Yol tarifi · Vazgeç) ve turu
+  153'un **"Haritaya dokunarak noktayı seç."** dizesi YOK.
+  ⚠️ Kontrol dizesi "Yakınımda" **utf16le** olarak bulundu — yontem dogru.
+  ⚠️ **APK ALINMADI** — R2'deki apk turu 121 surumunde (21 Agu).
+  ⚠️ **BACKEND DEGISMEDI** -> deploy YOK, DB TRUNCATE EDILMEDI, e2e KOSULMADI.
+  ✅ analyze **0 hata 0 uyari** · test **77/77** · emulatorde tasma **0**
+     (360 dp + buyutulmus yazi olcegi, dort adimin dordu de kaydirildi).
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260902-0130
+
+- 🧭 **TURU 154 — HARITA NOKTA SECICI** (kullanici emri: *"harita nokta
+  secerken ekranda bir PIN olsun, biraktigi yerin ustune ONAY ISARETI olsun,
+  BURASININ ADRESI YAZSIN"*).
+  ⚠️⚠️ **SABIT MERKEZ PIN** (Uber/Google "set location on map"): pin ekranin
+     ORTASINDA DURUR, kullanici HARITAYI kaydirir. Dokunulan yere pin
+     birakmak SECILMEDI — parmak dokundugu noktayi KAPATIR ve kullanici tam
+     nereye bastigini goremez.
+  ⚠️⚠️ **`Marker` DEGIL `Stack` katmani**: marker haritayla BIRLIKTE kayar,
+     oysa secici pinin EKRANDA SABIT kalmasi gerekiyor. `IgnorePointer`
+     ZORUNLU (pin dokunuslari yutarsa harita tam ortasindan kaydirilamaz) ve
+     pinin **UCU** merkeze oturur (ikon ortasi merkeze gelseydi 22 dp yanlis
+     nokta secilirdi).
+  ⚠️ Adres YALNIZ **kamera DURUNCA** cozulur (ters geocoding bir AG istegi;
+     her karede cagrilsaydi cihaz geocoder'i bogulur ve SESSIZCE bos donerdi)
+     + bayat yanit kapisi (`_noktaNesli`).
+  ⚠️ Onay karti UC HALDE de bir sey yazar: "Adres alınıyor…" / adres /
+     koordinat. Bos birakmak "burasi gecersiz" gibi gorunurdu.
+  ⚠️ Dokunus artik SECMEZ, kamerayi o noktaya TASIR; secimi **ONAY dugmesi**
+     yapar — kullanici neyi sectigini ONCE gorur.
+
+- 🧭 **TURU 154 — ADIM (STEP) EKRANI YENIDEN KURULDU** (kullanici emri:
+  *"sana rota baslat ve step gorsellerini de attim, ALAKASI YOK, arayuzu daha
+  MODERN hale getir diyorum yapmiyorsun"* + *"steplere tikladigimda hangi
+  stepleri SOL SAG yapinca harita o NOKTALARA gidiyor"*).
+  Duzen: kalan sure (ekranin en buyuk sayisi) + varis saati / **bacak bacak**
+  ilerleme cubugu + hat rozeti / **kaydirilabilir** adim karti (`PageView`) /
+  Bitir · (takip birakilmissa) Merkeze don.
+  ⚠️⚠️ Kaydirma haritayi o bacaga sigdirir ve **takip kamerasini BIRAKIR**:
+     birakilmasaydi bir sonraki GPS olayi kamerayi ANINDA kullanicinin
+     uzerine geri ceker ve kaydirma HICBIR ISE YARAMAZDI. Geri donus yolu
+     **"Merkeze dön"** (Mapbox deseni: `FOLLOWING`de dugme GONE).
+  ⚠️⚠️ **`_adimProgramatik` ZORUNLU**: `PageView.onPageChanged` kullanici
+     kaydirmasi ile programatik gecisi **AYIRT ETMEZ**. Bayrak olmasaydi takip
+     bir sonraki bacaga gectiginde kamera kullanicidan KOPAR ve "Merkeze dön"
+     dugmesi kendiliginden belirirdi.
+  ⚠️⚠️ **TAKIP ACIKKEN panelde "Nereden/Nereye" ve "Duraklar" CIZILMEZ**:
+     yururken adres degistirmek istenmez, rotayi dusuren dugme en kotu anda
+     basilabilir; ~74 dp haritaya kaliyor. **`_panelBoy` AYNI kosulu okur** —
+     ayrisirsa haritanin alt dolgusu ve yuzen serit kayar (UC KEZ yasandi).
+  ⚠️ `_kalanDakika` **ROTANIN TAMAMINDAN** kalani verir (aktif bacagin kalani
+     + sonrakilerin tamami); yalniz aktif bacak yazilsaydi kullanici "3 dk"
+     gorup 25 dakika sonra varirdi.
+  ⚠️ Bekleme bacaginda kamera TASINMAZ (polyline YOK) — sessizce yerinde
+     kalir, bu DOGRU davranis.
+
+- ⚠️⚠️⚠️ **TURU 154 — ILERLEME CUBUGUNDA UC SEY BILEREK KULLANILMADI.**
+  · **`LinearProgressIndicator` YOK**: Material 3'un yeni surumu cubugun
+    ucuna bir "stop indicator" noktasi ve dolu/bos arasina bosluk koyuyor;
+    dort minik dilimde bu suslemeler cubugu OKUNAMAZ yapardi.
+  · **`Stack`/`FractionallySizedBox` YOK**: oran 0 iken cocuk 0 genislige
+    duser ve `RenderStack` boyutunu YALNIZ positioned OLMAYAN cocuklarindan
+    hesapladigi icin dilim **0x0**'a coker (turu 136'da EKRANIN TAMAMINI
+    silen hata). Iki `Expanded` ile bu YAPISAL OLARAK imkansiz.
+  · **`CrossAxisAlignment.stretch` ZORUNLU**: cocuksuz `ColoredBox` gevsek
+    kisitta `constraints.smallest` alir, yuksekligi **0** olur ve cubuk HIC
+    gorunmezdi.
+  ⚠️ `flex` tam sayi olmak zorunda; 1000'lik olcek 0,1% cozunurluk verir ve
+     `if (p > 0)` / `if (p < 1000)` kapilari sayesinde flex ASLA 0 olmaz.
+
+- 🛡️ **TURU 154 — TAKIP ACIKKEN ROTAYI DUSUREN IKI YOL KAPATILDI.**
+  `_durakAc` ve `_rotaAra` `_rota`yi null yapiyor ama `_takip`e DOKUNMUYORDU.
+  `_takip != null && _rota == null` durumunda panel durak kartlarini cizerken
+  `_panelBoy` ADIM KARTI yuksekligini donduruyor olurdu ve GPS akisi SAHIPSIZ
+  surerdi. Ikisi de artik basta `_takipDurdur()` cagiriyor.
+  ⚠️ Bugun ikisi de pratikte ulasilamiyor (takipte o dugmeler cizilmiyor) —
+     kapi YAPISAL olsun diye kondu.
+
+- ⏳ **TURU 154 — DURUST SINIRLAR (kullaniciya soylendi):**
+  · **Yurume MESAFESI/SURESI hala kus ucusu tahmininden** geliyor; cizilen yol
+    GERCEK ama sayilar "yaklaşık" etiketiyle veriliyor. Gercek uzunlugu yazmak
+    bacak suresini, dolayisiyla **otobuse yetisme hesabini** da degistirir —
+    AYRI BIR TUR. ⚠️ Yalniz mesafeyi guncelleyip sureyi birakma: "4 dk · 340 m"
+    ic celiski olur.
+  · **Egim/donme (Yandex'teki "karsiya donen" gorunum) YAPILMADI**: kullanici
+    turu 150'de acikca **kus bakisi** demisti. Istenirse `tilt`/`bearing`.
+  · Google **Autocomplete en fazla 5 oneri** dondurur (parametresi YOK);
+    Google Maps'teki 7 satirlik liste o uygulamanin KENDI ic servisi.
+  · Gebze'de OSM yaya verisi fiilen YOK (canli olculdu: 9.647 yol, **99
+    kaldirim**, 40 isaretli gecit) — **hicbir motor** gecit-farkindalikli yaya
+    rotasi garanti edemez; Google WALK beta uyarisini gostermeyi ZORUNLU kilar.
+  · `rota_sayfalari.dart` bos-sonuc metnindeki *"cihaz geocoder'i"* serhi
+    **BAYAT** (artik Google Autocomplete) — sonraki turda duzeltilecek.
 - 🔑 **TURU 152 — GOOGLE PLACES + ROUTES BAGLANDI (kullanici onayiyla).**
   Kullanici: *"bizde google admin var zaten bunlari tokenleri, direk baglanip
   yapmadin mi?"* — **OLCULDU ve cevap ilginc cikti:** projede ACIK olan tek

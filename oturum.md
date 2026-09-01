@@ -8548,3 +8548,185 @@ aktif kalmasın · kartları biraz büyüt · kart içindeki menü scroll'u sağ
   beklemede.
 - Gerçek durak/sefer, nöbetçi eczane ve akaryakıt fiyat verisi hâlâ yok.
 - Menüdeki ŞEHİR REHBERİ şeridinde "Nöbetçi Eczane" duruyor (başka ekran).
+
+---
+
+## Oturum — 1-2 Eylül 2026 (turu 145-154): DURAK MODU · GOOGLE PLACES/ROUTES · STEP EKRANI
+
+> ⚠️ oturum.md turu **144**'te kalmisti; 145-154 arasi burada TEK kayitta
+> toplandi. 145-149 commit basliklarindan ozetlendi, 150-154 ayrintili.
+
+### 145-149 (ozet — commit basliklarindan)
+- **145** kisayollar kartli ikon + alta · 2 satirli isim · bos resim karti
+- **146** ad-meta boslugu · yorum dugmesi · 2 satirli menu adi
+- **147** anasayfada hava + doviz · hizmet dallarinda fiyatsiz kartlar
+- **148** hava/doviz seridi sol-sag + chart · durak kartlari + guzergah
+- **149** **GERCEK toplu tasima verisi (GTFS)** + navigator dugmesi duzeldi
+
+### ✅ Turu 150 — DURAK MODU (kullanicinin uzun emri)
+> *"alttan duraga tikladigimda ... en yakin duraklar ayni yemek kartlari gibi
+> gorunmeli, o duraktan gecenler yaklasanlar ... kartlarin ustunde NEREDEN
+> NEREYE diye iki buton olacak ... sistem uzaklasacak shape cizecek ... o
+> duraktaki 3 tane buton ust uste gelecek ... ben durak dedigimde ekranda
+> duraklardan baska sey gorunmemeli"*
+
+- `_durakModu`: cip seridi, arama ve kisayollar GIZLENIR; panelde
+  **Nereden/Nereye** + yatay **durak kartlari** (kart basina UC hat: rozet +
+  hedef + "N dk").
+- Isletme kartlarindaki temizlik/nakliyat menusu yerine **yapay zeka yorumu**;
+  yuzen "5 km icinde" seridi kaldirildi.
+
+**Olculen dort tasma (hepsi duzeltildi):**
+- Durak karti **2,2 px**: `Container.decoration` kenarligi dolgunun DISINA
+  konur ve cocugun kisitindan 2x1,6 dp DUSER -> `foregroundDecoration`
+  (ayrica secili/secili-degil kartlar artik AYNI yukseklikte).
+- Isletme karti **1,5 px**: `_kartUstBoy`da yuvarlama payi YOKTU, kardesi
+  `_seritBoy`da VARDI — **asimetrinin kendisi hataydi**.
+- Hat satirlari yazi olcegi 2.0'da kirpiliyordu: sabit 22 dp ->
+  `_hatSatirBoy` TEK KAYNAK.
+- `kPanelKartEn` (372) 360 dp ekranda tasip **"N dk"**i kirpiyordu -> genislik
+  EKRANDAN turetiliyor.
+
+### ✅ Turu 151 — DURAK BILGI PANELI · ADRES ARAMA · CANLI TAKIP
+- Durak bilgi paneli **ZATEN YAZILMISTI, ULASILAMIYORDU** (bu projenin en sik
+  hata sinifi).
+- `rota_takip.dart` (**saf Dart**, Flutter importu YOK -> birim testlenebilir):
+  polyline'a yapistirma, **metrik duzlemde** `cos(enlem)` duzeltmesi, arama
+  penceresiyle **monotonik ilerleme**, rota-disi kapisi.
+- `test/rota_takip_test.dart` **16 test**; muhafizlar **BOZULARAK kanitlandi**
+  (cos duzeltmesi · arama penceresi + `math.max` · bos bacak atlama · rota-disi
+  esigi · `kalanYol`un izdusumden baslamasi).
+- **"Nereye" dugmesi SESSIZCE OLUYDU**: `if (_konum == null) return;` vardi;
+  konum izni vermeyen kullanici hicbir sey olmadigini goruyordu. Kapi kalkti.
+
+### ✅ Turu 152 — GOOGLE PLACES + ROUTES (sunucu vekiliyle)
+> Kullanici: *"bizde google admin var zaten, bunlari direk baglamadin mi?"*
+> — HAKLIYDI: olculdu, **Places ve Routes HIC acilmamisti**.
+
+- Yeni uclar: `/yolbul/durum` · `/yolbul/adres` · `/yolbul/yer` · `/yolbul/yaya`.
+- ⚠️⚠️ **ANAHTAR UYGULAMAYA GIRMEZ**: repo PUBLIC ve web servislerinde
+  Google **yalnizca IP kisitlamasi** destekliyor (uygulama kisitlamasi SADECE
+  SDK'lar icin). Anahtar sunucuda, `docker-compose.yml`in `environment:`
+  blogunda (turu 75 dersi: yalniz `.env`e yazmak YETMEZ).
+- ⚠️ Sunucu **IPv6** ile cikiyor; kisitlama listesine v4 VE v6 girildi.
+- **MALIYET HATASI (sunucu logunda yakalandi): arama basina 90+ Google
+  cagrisi.** `yayaRotasi` aday dongusunun ICINDEYDI; siralama+tekillestirme
+  SONRASINA alindi -> **olculdu: 6 cagri**.
+- Uctan uca **391 -> 402**.
+
+### ✅ Turu 153 — ARAMA YENIDEN: TEXT SEARCH -> AUTOCOMPLETE
+- **Yanlis uc + yanlis fiyat iddiasi duzeltildi**: `searches:searchText`
+  TAMAMLANMIS sorgu icindir ve o alan maskesiyle **Text Search Pro**
+  ($32/1000) faturalanir. Yazarken oneri veren dogru uc **Autocomplete**;
+  koordinat **Place Details** (`location` -> Essentials) ile cozulur,
+  ikisi **oturum jetonuyla** eslestirilip TEK oturum sayilir.
+- ⚠️⚠️ **SEVK ENGELI: gecisin ISTEMCI YARISI HIC YAZILMAMISTI.** Sunucu
+  `yer_id` donduruyor, koordinat **0**; istemci hala `enlem/boylam` okuyordu
+  -> secilen her yer **(0,0) Gine Korfezi**. Faturalandirma kapali oldugu icin
+  maskeliydi. `yerId` + `yerCoz` + `_sec` yazildi; **cozulemezse secim KABUL
+  EDILMEZ** (turu 90b dersi).
+- ⚠️ `Geocoding({Locale? locale})` **locale'i SESSIZCE DUSURUYOR** (paket
+  kaynagindan dogrulandi) -> locale artik her cagriya veriliyor.
+- **Konum akisi**: `konumAkisi()` artik izni KENDISI istiyor (iOS'ta
+  `PositionStreamHandler.m` akis yolunda izin kapisi YOK; izinsiz
+  `startUpdatingLocation` -> `kCLErrorDenied` -> kullanici *"Konum akışı
+  kesildi"* goruyordu). Gecici hatada takip BIRAKILMIYOR (3 deneme,
+  artan aralik); **izin hatasi AYRI** (kalici — sebep soyleniyor).
+
+### ✅ Turu 154 — NOKTA SECICI + MODERN STEP EKRANI (kullanicinin 6 maddesi)
+
+**1) "yine capraz cizdi yurumeyi"** — KOK NEDEN: Google Cloud **deneme
+suresi bitmisti**, faturalandirma kapali -> Places/Routes 403 -> sunucu 502 ->
+istemci tasarim geregi duz cizgiye dusuyordu. Kullanici yukseltti; canlida
+dogrulandi: **38 nokta · 1018 m · 7 adim**. Istemci kodu ZATEN dogruydu.
+
+**2) "harita nokta secerken PIN olsun, ONAY ISARETI olsun, ADRESI YAZSIN"**
+- **SABIT MERKEZ PIN** (Uber/Google deseni): pin ekranin ORTASINDA durur,
+  kullanici HARITAYI kaydirir. Dokunulan yere pin birakmak SECILMEDI —
+  parmak dokundugu noktayi KAPATIR.
+- ⚠️ `Marker` DEGIL `Stack` katmani (marker haritayla birlikte kayar) +
+  `IgnorePointer` + pinin **UCU** merkeze oturur.
+- Adres YALNIZ kamera DURUNCA cozulur + bayat yanit kapisi.
+- Onay karti UC HALDE de dolu: "Adres alınıyor…" / adres / koordinat.
+
+**3) "aramada sacma seyler cikiyor, google maps gibi olmali"** — turu 153'un
+Autocomplete gecisi tamamlandi. **Cihazda dogrulandi**: `Mustafa pa` ->
+MUSTAFA PAŞA CAMİ (durak) · Mustafa Paşa Anadolu Lisesi **1,3 km · Mevlana,
+Erenler Caddesi** · Mustafa Paşa İlkokulu **191 m · Mustafapaşa, 712. Sokak**.
+
+**4) "konum akisi kesildi takip durduruldu diyor"** — turu 153'te kapatildi.
+
+**5+6) "step arayuzu modern olsun" + "sol sag yapinca harita o noktalara gitsin"**
+- `_adimKarti` **YENIDEN KURULDU**: kalan sure (ekranin en buyuk sayisi) +
+  varis saati / **bacak bacak** ilerleme cubugu + hat rozeti /
+  **kaydirilabilir** adim karti (`PageView`) / Bitir - Merkeze don.
+- Kaydirma haritayi o bacaga sigdirir ve **takip kamerasini BIRAKIR** (yoksa
+  bir sonraki GPS olayi kamerayi geri ceker ve kaydirma ISE YARAMAZDI);
+  geri donus **"Merkeze dön"** (Mapbox deseni: `FOLLOWING`de dugme GONE).
+- Takip ilerleyince kart da ilerler. ⚠️⚠️ `onPageChanged` kullanici
+  kaydirmasini programatik gecisten **AYIRT ETMEZ** -> `_adimProgramatik`.
+- **Takip acikken panelde "Nereden/Nereye" ve "Duraklar" CIZILMEZ**: yururken
+  adres degistirmek istenmez, rotayi dusuren dugme en kotu anda basilabilir;
+  ~74 dp haritaya kaliyor. `_panelBoy` AYNI kosulu okur.
+- `_kalanDakika` **ROTANIN TAMAMINDAN** kalani verir; yalniz aktif bacak
+  yazilsaydi kullanici "3 dk" gorup 25 dakika sonra varirdi.
+
+### ⚠️ Turu 154 — SECILMEYEN YOLLAR (serhte yazili)
+- **`LinearProgressIndicator` KULLANILMADI**: M3'un yeni surumu cubugun ucuna
+  "stop indicator" noktasi ve dolu/bos arasina bosluk koyuyor; dort minik
+  dilimde okunmaz olurdu.
+- **`Stack`/`FractionallySizedBox` DE KULLANILMADI**: oran 0'da cocuk 0
+  genislige duser ve `RenderStack` boyutunu YALNIZ positioned OLMAYAN
+  cocuklarindan hesapladigi icin dilim **0x0**'a coker (turu 136'da EKRANIN
+  TAMAMINI silen hata). Iki `Expanded` ile bu YAPISAL OLARAK imkansiz.
+- **`CrossAxisAlignment.stretch` ZORUNLU**: cocuksuz `ColoredBox` gevsek
+  kisitta `constraints.smallest` alir, yuksekligi **0** olurdu.
+- `_rotayaSigdir` -> `_noktalaraSigdir` **TEK KAYNAK** (iki kopya drift ederdi).
+- "Merkeze dön" `Flexible` + `FittedBox(scaleDown)`: olcek 2.0'da tasardi.
+
+### 🛡️ Turu 154 — YAPISAL KAPI (denetimde bulundu)
+`_durakAc` ve `_rotaAra` `_rota`yi null yapiyor ama `_takip`e DOKUNMUYORDU.
+`_takip != null && _rota == null` durumunda panel durak kartlarini cizerken
+`_panelBoy` ADIM KARTI yuksekligini donduruyor olurdu (harita alt dolgusu +
+yuzen serit KAYARDI — bu ekranda UC KEZ yasanan sinif) ve GPS akisi SAHIPSIZ
+surerdi. Ikisi de artik basta `_takipDurdur()` cagiriyor.
+
+### Ölçüldü (emülatör, gerçek rota: Konumum -> BEHRAM ÇOBANOĞLU PARKI)
+- 4 bacakli rota; **dort adimin dordu de kaydirildi**, logcat `OVERFLOWED` = **0**
+- 360 dp + buyutulmus yazi olceginde de tasma **0**
+- Bekleme bacaginda kamera tasinmiyor (polyline YOK) — dogru davranis
+- Otobus bacagina kaydirinca **"Merkeze dön" beliriyor**
+- "Bitir" -> rota ozeti + Nereden/Nereye geri geliyor
+- `flutter analyze` **0 hata 0 uyari** · `flutter test` **77/77**
+- ⚠️ `GECICI-OLCUM` satirlari commit ONCESI grep ile arandi -> **temiz**
+
+### ⏳ Dürüst sınırlar (turu 154)
+- **Yurume MESAFESI/SURESI hala kus ucusu tahmininden** geliyor; cizilen yol
+  GERCEK ama sayilar "yaklaşık" etiketiyle veriliyor. Gercek uzunlugu yazmak
+  bacak suresini, dolayisiyla **otobuse yetisme hesabini** da degistirir —
+  ayri bir tur.
+- **Egim/donme (Yandex'teki "karsiya donen" gorunum) YAPILMADI**: kullanici
+  turu 150'de acikca **kus bakisi** demisti. Istenirse `tilt`/`bearing` ile
+  eklenir.
+- Autocomplete **en fazla 5 oneri** dondurur (parametresi yok); Google
+  Maps'teki 7 satirlik liste o uygulamanin kendi ic servisi.
+- Gebze'de OSM yaya verisi fiilen yok (olculdu: 9.647 yol, 99 kaldirim,
+  40 isaretli gecit) — **hicbir motor** gecit-farkindalikli yaya rotasi
+  garanti edemez; Google WALK beta uyarisini gostermeyi ZORUNLU kiliyor.
+- `rota_sayfalari.dart` bos-sonuc metnindeki *"cihaz geocoder'i"* serhi
+  BAYAT (artik Google Autocomplete) — sonraki turda duzeltilecek.
+
+### Devir notu (turu 154)
+- Yayinlandi: ios **33565389617** · commit **b82aac8** · **sadece iOS**
+- Adres: **https://indir.gebzem.app/index.html?v=20260902-0130**
+- R2 ipa=30147740 (md5 ebf88f27) · index=7967 (md5 71cf1e9d) ·
+  surum.json=45 (md5 7cb7ef62) · purge OK · **CDN ucu de BIREBIR**
+- IPA dogrulandi: kontrol dizesi "Yakınımda" (utf16le) VAR; turu 154
+  dizeleri VAR (Burayı seç · Başlangıcı seç · Varışı seç · Adres alınıyor… ·
+  " dk kaldı" · Merkeze dön · Yol tarifi · Vazgeç); turu 153'un
+  **"Haritaya dokunarak noktayı seç."** dizesi YOK (build gercekten yeni).
+- `get-task-allow: false` (**debug imza YOK**) · profil ad hoc
+  (ProvisionedDevices) · `MapsApiKey` **ENJEKTE** (AIzaSy…, 42 karakter) ·
+  iOS min **16.0** (pbxproj'da uc yapilandirmada da).
+- **backend DEGISMEDI** -> deploy YOK, DB truncate YOK, e2e kosulmadi
+- ⚠️ APK alinmadi — R2'deki apk 21 Agustos surumunde
