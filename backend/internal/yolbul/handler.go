@@ -141,120 +141,6 @@ func (h *Handler) Durum(w http.ResponseWriter, _ *http.Request) {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// 1) ADRES ARAMA  —  GET /yolbul/adres?q=...&enlem=&boylam=
-// ═══════════════════════════════════════════════════════════════════
-
-type adresSonuc struct {
-	Ad     string  `json:"ad"`
-	Adres  string  `json:"adres"`
-	Enlem  float64 `json:"enlem"`
-	Boylam float64 `json:"boylam"`
-}
-
-// Adres — Places (New) `places:searchText`.
-//
-// ⚠️⚠️ **`searchText` SECILDI, `autocomplete` DEGIL.** Autocomplete oturum
-//
-//	jetonu (session token) yonetimi ister: jeton dogru tasinmazsa her tus
-//	AYRI faturalanir. `searchText` tek istek, tek fatura ve istemcide zaten
-//	350 ms geciktirme (debounce) var.
-//
-// ⚠️ **KONUM ONYARGISI**: `locationBias` verilir. Turkiye'de "1711. Sokak"
-//
-//	ya da "Atatürk Caddesi" her ilcede var; onyargi olmadan Google baska
-//	sehri dondurebilir.
-//
-// ⚠️ `languageCode: tr` + `regionCode: TR` — sonuclar Turkce ve Turkiye
-//
-//	agirlikli gelsin.
-func (h *Handler) Adres(w http.ResponseWriter, r *http.Request) {
-	if h.kapali(w) {
-		return
-	}
-	q := strings.TrimSpace(r.URL.Query().Get("q"))
-	if len([]rune(q)) < 2 {
-		yaz(w, http.StatusOK, map[string]any{"sonuclar": []adresSonuc{}})
-		return
-	}
-	// ⚠️ Uzun sorgu kesilir: hem Google'a hem onbellek anahtarina sinir.
-	if len(q) > 120 {
-		q = q[:120]
-	}
-	enlem, _ := strconv.ParseFloat(r.URL.Query().Get("enlem"), 64)
-	boylam, _ := strconv.ParseFloat(r.URL.Query().Get("boylam"), 64)
-
-	// ⚠️ Onbellek anahtarinda konum ~1 km'ye yuvarlanir (2 ondalik):
-	//    metrelik GPS oynamasi onbellegi isabetsiz yapmasin.
-	ck := fmt.Sprintf("yolbul:adres:%s|%.2f,%.2f", strings.ToLower(q), enlem, boylam)
-	if s, err := h.rdb.Get(r.Context(), ck).Result(); err == nil && s != "" {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = io.WriteString(w, s)
-		return
-	}
-
-	istek := map[string]any{
-		"textQuery":      q,
-		"languageCode":   "tr",
-		"regionCode":     "TR",
-		"maxResultCount": 8,
-	}
-	// ⚠️ Konum bilinmiyorsa onyargi GONDERILMEZ; (0,0) gondermek aramayi
-	//    Gine Korfezi'ne kaydirirdi (turu 90b'de aynen yasandi).
-	if enlem != 0 || boylam != 0 {
-		istek["locationBias"] = map[string]any{
-			"circle": map[string]any{
-				"center": map[string]any{"latitude": enlem, "longitude": boylam},
-				"radius": 30000.0,
-			},
-		}
-	}
-
-	var yanit struct {
-		Places []struct {
-			FormattedAddress string `json:"formattedAddress"`
-			DisplayName      struct {
-				Text string `json:"text"`
-			} `json:"displayName"`
-			Location struct {
-				Latitude  float64 `json:"latitude"`
-				Longitude float64 `json:"longitude"`
-			} `json:"location"`
-		} `json:"places"`
-	}
-	err := h.google(r.Context(),
-		"https://places.googleapis.com/v1/places:searchText",
-		"places.displayName,places.formattedAddress,places.location",
-		istek, &yanit)
-	if err != nil {
-		log.Printf("yolbul adres: %v", err)
-		yaz(w, http.StatusBadGateway, map[string]any{"error": "adres servisi yanıt vermedi"})
-		return
-	}
-
-	out := make([]adresSonuc, 0, len(yanit.Places))
-	for _, p := range yanit.Places {
-		ad := p.DisplayName.Text
-		if ad == "" {
-			ad = p.FormattedAddress
-		}
-		if ad == "" {
-			continue
-		}
-		out = append(out, adresSonuc{
-			Ad:     ad,
-			Adres:  p.FormattedAddress,
-			Enlem:  p.Location.Latitude,
-			Boylam: p.Location.Longitude,
-		})
-	}
-	govde, _ := json.Marshal(map[string]any{"sonuclar": out})
-	// ⚠️ Onbellek EN IYI CABA: Redis dusse bile yanit doner.
-	_ = h.rdb.Set(r.Context(), ck, string(govde), adresOmru).Err()
-	w.Header().Set("Content-Type", "application/json")
-	_, _ = w.Write(govde)
-}
-
-// ═══════════════════════════════════════════════════════════════════
 // 2) YAYA ROTASI  —  POST /yolbul/yaya
 // ═══════════════════════════════════════════════════════════════════
 
@@ -412,7 +298,11 @@ func (h *Handler) google(ctx context.Context, url, maske string, govde, hedef an
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Goog-Api-Key", anahtar())
-	req.Header.Set("X-Goog-FieldMask", maske)
+	// ⚠️ Autocomplete ucu FieldMask BASLIGINI DESTEKLEMIYOR; bos maske
+	//    verildiginde baslik HIC yazilmaz.
+	if maske != "" {
+		req.Header.Set("X-Goog-FieldMask", maske)
+	}
 
 	res, err := h.hc.Do(req)
 	if err != nil {
@@ -426,6 +316,35 @@ func (h *Handler) google(ctx context.Context, url, maske string, govde, hedef an
 	if res.StatusCode != http.StatusOK {
 		// ⚠️ Google'in hata govdesi LOGA yazilir ama ISTEMCIYE VERILMEZ:
 		//    icinde proje numarasi ve servis adlari geciyor.
+		return fmt.Errorf("google %d: %s", res.StatusCode, kirp(string(ham), 300))
+	}
+	return json.Unmarshal(ham, hedef)
+}
+
+// googleGet — Place Details gibi GET uclari icin.
+//
+// ⚠️ `google` POST yapiyor; Place Details GET ister. Ayni yardimciyi
+//
+//	zorlamak yerine ayri yazildi — govdesiz bir POST 400 verirdi.
+func (h *Handler) googleGet(ctx context.Context, url, maske string, hedef any) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("X-Goog-Api-Key", anahtar())
+	if maske != "" {
+		req.Header.Set("X-Goog-FieldMask", maske)
+	}
+	res, err := h.hc.Do(req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	ham, err := io.ReadAll(io.LimitReader(res.Body, 1<<20))
+	if err != nil {
+		return err
+	}
+	if res.StatusCode != http.StatusOK {
 		return fmt.Errorf("google %d: %s", res.StatusCode, kirp(string(ham), 300))
 	}
 	return json.Unmarshal(ham, hedef)

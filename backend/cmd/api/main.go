@@ -350,7 +350,11 @@ func main() {
 		// istemci /yolbul/durum ile sorar ve ozelligi HIC CIZMEZ).
 		// ⚠️ Korumali grupta: bu uclar PARA HARCIYOR, kimliksiz cagrilamaz.
 		r.Get("/yolbul/durum", yolbulH.Durum)
+		// ⚠️ TURU 153 — arama artik AUTOCOMPLETE (yazarken oneri); secim
+		// yapilinca koordinat AYRI ucta cozulur ki Place Details YALNIZ
+		// SECIM icin faturalansin (her harf icin degil).
 		r.Get("/yolbul/adres", yolbulH.Adres)
+		r.Get("/yolbul/yer", yolbulH.Yer)
 		r.Post("/yolbul/yaya", yolbulH.Yaya)
 
 		// TURU 77 — AI (OPENAI_API_KEY yoksa 503; istemci /ai/durum ile sorar)

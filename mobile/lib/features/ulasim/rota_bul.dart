@@ -350,6 +350,9 @@ Future<void> _yurumeleriZenginlestir(
       isler.add(() async {
         final yol = await AdresServisi.i.yayaRotasi(
             bas.enlem, bas.boylam, var_.enlem, var_.boylam);
+        // GECICI-OLCUM
+        // ignore: avoid_print
+        print('OLCUM yurume bacak=$sira sonuc=${yol?.length ?? -1}');
         if (yol == null || yol.length < 2) return;
         a.bacaklar[sira] = RotaBacagi(
           tur: b.tur,
