@@ -41,6 +41,115 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
       kaybettiriyorsun"*. **Üçüncüsü olmayacak.**
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- 🔑 **TURU 152 — GOOGLE PLACES + ROUTES BAGLANDI (kullanici onayiyla).**
+  Kullanici: *"bizde google admin var zaten bunlari tokenleri, direk baglanip
+  yapmadin mi?"* — **OLCULDU ve cevap ilginc cikti:** projede ACIK olan tek
+  Google servisi **Maps SDK (android + ios)** idi; `places.googleapis.com` ve
+  `routes.googleapis.com` **ACIK DEGILDI**, ustelik mevcut "Gebzem Maps mobil"
+  anahtarinin **API hedefi yalniz o iki Maps SDK**'ydi. Yani "token vardi" ama
+  o tokenin konusabilecegi servis YOKTU.
+  · Iki servis ACILDI (`gcloud services enable`).
+  · Yeni anahtar: **yalniz bu iki servise + YALNIZ sunucunun IPv4 VE IPv6
+    adresine** kisitli. `.env.infra` + sunucu `.env` + compose'ta; **REPOYA
+    GIRMEZ**.
+  ⚠️⚠️⚠️ **ANAHTAR ISTEMCIYE KONULMADI — YAPMA.** Places ve Routes birer
+     **WEB SERVISI** ve Google bu grup icin **yalniz IP kisitlamasi**
+     destekliyor (Maps SDK'daki paket/bundle kisiti YOK — resmi guvenlik
+     dokumanindan dogrulandi). Repo **PUBLIC** oldugu icin ikiliye gomulen
+     anahtar cikarilip BIZIM faturamiza harcanirdi.
+  ⚠️ **IPv6 TUZAGI (canlida yasandi):** anahtar once yalniz IPv4'e kisitlandi
+     ve sunucu **IPv6'dan** cikinca `API_KEY_IP_ADDRESS_BLOCKED` aldi. Iki
+     adres de izin listesinde OLMAK ZORUNDA.
+  📌 **YENI UCLAR** (korumali grupta — PARA HARCIYOR, kimliksiz cagrilamaz):
+     `GET /yolbul/durum` · `GET /yolbul/adres` · `POST /yolbul/yaya`
+  ⚠️ `docker-compose.yml`in **`environment:` blogu DA** guncellendi — turu
+     75'te R2 anahtarlari yalniz `.env`e yazilmis ve medya **SESSIZCE KAPALI**
+     kalmisti (`/health` "ok" donuyordu). Acilis logu: `yolbul: aktif`.
+
+- ⚠️⚠️⚠️ **TURU 152 — SUNUCU LOGUNDA OLCULEN MALIYET HATASI.**
+  `yayaRotasi` ic ice aday dongusunun **ICINDEYDI**: tek arama **90+ Google
+  istegi** uretiyordu (sunucu logunda sayildi). Aylik **10.000 ucretsiz** kota
+  ~110 aramada biterdi ve sonrasi **para**.
+  FIX: cagri **SONUC LISTESI HAZIR OLDUKTAN SONRA** ve yalniz **KAZANAN**
+  adaylar icin -> **90+ -> 6** (emulator + sunucu logu ile dogrulandi).
+  ⚠️ **DERS: ucretli bir dis servisi bir DONGU ICINDEN cagirirken, o dongunun
+     kac kez donduguni SAY.** Ekranda 3 sonuc gorunmesi 3 cagri yapildigi
+     anlamina GELMEZ.
+  ⚠️ YAPMA: `yayaRotasi`yi tekrar `rotaAra`nin ic dongusune tasima.
+
+- 📌 **TURU 152 — MALIYET KORUMALARI (ucu de KALIR):**
+  · **Redis onbellegi** (adres 7 gun, rota 1 gun) — ayni sorgu tekrar
+    FATURALANMAZ.
+  · **DAR FieldMask** — Routes'ta istenen alan kumesi SKU'yu belirliyor;
+    genis maske **Enterprise** katmanina atlatir. ⚠️ YAPMA: maskeye
+    `routes.travelAdvisory.tollInfo` gibi alan ekleme.
+  · **Kapilar** — NaN / (0,0) / 30 km ustu **ISTEK ATILMADAN** 400 doner.
+  ⚠️ `routingPreference` VERILMEZ: dokumanda *"only for DRIVE or
+     TWO_WHEELER"*; yaya modunda gonderilirse istek REDDEDILIR.
+  ⚠️ `searchText` kullanilir, `autocomplete` DEGIL: autocomplete oturum
+     jetonu ister ve jeton yanlis tasinirsa **her tus AYRI faturalanir**.
+
+- 🔎 **TURU 152 — ADRES ARAMASI ARTIK GERCEKTEN SOKAGI BULUYOR (olculdu).**
+  Turu 151'de cihazin kendi geocoder'i kullaniliyordu; **emulatorde olculdu:**
+  `"1711 sokak"` -> *"Şehit Erdem Demir Caddesi No:49"* (**YANLIS**),
+  `"adliye"` -> *"1209. Sokak"* (**YANLIS**).
+  Google Places ile ayni sorgu: **"1711. Sokak · Gaziler, 1711. Sk., 41400
+  Gebze/Kocaeli"** (hem sunucudan hem UYGULAMADAN dogrulandi).
+  ⚠️ **CIHAZ GEOCODER'I SILINMEDI, YEDEK**: sunucu/ag yoksa ya da anahtar
+     tanimsizsa (uc 503) arama yine calisir, yalnizca kabalasir.
+  ⚠️ **TERS GEOCODING (koordinat -> adres) BILEREK CIHAZDA KALDI**: o yonde
+     iyi (olculdu: *"İbrahim Ağa Caddesi No:35"*), UCRETSIZ ve onbellekli.
+     Google'a vermek **her harita dokunusunu faturaya** cevirirdi.
+
+- 🚶 **TURU 152 — YURUME BACAKLARI ARTIK SOKAKTAN GIDIYOR.**
+  Kullanici: *"shape guzel ciziyor ama bizim yurume EVLERIN UZERINDEN gidiyor,
+  sokak cadde guzel cizmiyor"*. Artik `/yolbul/yaya` gercek yol agi cizgisi
+  donduruyor (olculdu: **38 nokta**, 7 adim, *"Muammer Aksoy Cd. yonunde hafif
+  sola donun"*).
+  ⚠️ **Rota alinamazsa DUZ CIZGIYE DUSULUR** — ozellik COKMEZ, kabalasir.
+  ⚠️⚠️ **DURUST SINIR — YAYA GECIDI GARANTI EDILEMEZ.** Overpass ile CANLI
+     olculdu (1 Eyl 2026, Gebze): **9.647 yolda yalnizca 99 kaldirim, 40
+     isaretli gecit, `sidewalk=*` etiketli 1 yol.** Yani Gebze'de yaya verisi
+     FIILEN YOK ve **hicbir motor** (Google/Mapbox/OSRM/Valhalla) bunu
+     veremez; hepsi "sokak agindan en kisa yol" verir.
+  ⚠️ **SOZLESME GEREGI UYARI**: Google WALK'i **BETA** ilan ediyor ve
+     *"You must display this warning to the user"* diyor. Metin **sunucudan**
+     geliyor (`uyari` alani) ki tek yerden degistirilebilsin.
+     ⚠️ YAPMA: bu alani istemciden kaldirma.
+
+- 🛡️ **TURU 152 — UCTAN UCA 391 -> 402.** En degerli iki kontrol:
+  · *"adres aramasi TAM SOKAGI buluyor (1711)"* — cihaz geocoder'ine geri
+    dusulurse KIRMIZI duser.
+  · *"yaya rotasi DUZ CIZGI DEGIL (>2 nokta)"* — olculdu 38; vekil bozulup
+    duz cizgiye dusulurse KIRMIZI duser.
+  ⚠️ Kontroller Google'a **EN AZ** istek atacak sekilde kuruldu: tek gercek
+     arama + tek gercek rota; gerisi kapi kontrolu.
+  ⚠️ Anahtar yoksa (`/yolbul/durum` `acik=false`) gercek cagri yapan
+     kontroller **ATLANIR** — anahtarsiz kurulumda e2e haksiz yere kirmizi
+     dusmesin.
+
+- ⚠️⚠️ **TURU 152 — `AdresServisi` BIR SINGLETON: `Ref` DISARIDAN BAGLANIR.**
+  `main.dart` acilista `AdresServisi.i.baglaApi(() => ref.read(apiProvider))`
+  cagirir. **BAGLANMAZSA sunucu dali SESSIZCE atlanir** ve arama cihaz
+  geocoder'ina duser — yani ozellik "calisiyor gibi" gorunup KOTU sonuc
+  verirdi ("servis yazildi, CAGIRAN yol yazilmadi" sinifi bu projede **DOKUZ**
+  kez sahaya cikti).
+  ⚠️ **`Ref` DEGIL FONKSIYON alinir**: `ConsumerState`teki `ref` bir
+     **`WidgetRef`**, `Ref` DEGIL — dogrudan gecmek DERLENMEZ.
+
+- 📌 **TURU 152 — ANAHTAR ENVANTERI (gcloud ile okundu):**
+  · **Gebzem Maps mobil** — API hedefi: Maps SDK android+ios.
+    ⚠️ **UYGULAMA KISITI YOK** (paket adi / bundle ID tanimsiz). `.env.infra`
+       notu *"Kisit: yalniz Maps SDK"* diyor — o **API** kisiti, ki VAR.
+       Zarar harita kotasiyla sinirli ama **duzeltilmesi gerekiyor**.
+       ⏳ Duzeltme icin **release SHA-1** lazim ve keystore yalnizca GitHub
+          secrets'ta; yerelde YOK. Tek anahtar tek uygulama kisiti alabildigi
+          icin Android/iOS **AYRI anahtara bolunmeli** + CI enjeksiyonu
+          guncellenmeli. **KULLANICI ONAYLADI, HENUZ YAPILMADI.**
+  · **Gebzem sunucu Places Routes** — IP kisitli (v4+v6), yalniz places+routes.
+  · Firebase'in ureттigi uc anahtar (android/ios/browser) — Firebase
+    servisleriyle sinirli, DOKUNULMADI.
+
 - **KALDIGIMIZ YER (1 Eyl 21:19): TURU 150 YAYINLANDI — SADECE iOS.**
   ios **33541630455** (**caebd7f**), R2 ipa=30100765 (md5 1f61c1a4)
   index=7967 (md5 7d4ee90a) surum.json=45 (md5 b570b403),
