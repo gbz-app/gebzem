@@ -48,6 +48,10 @@ services:
       # ⚠️ Anahtar YOKKA da sorun yok: AI uclari 503 doner ve istemci
       #   `GET /ai/durum` ile sorup ozelligi HIC CIZMEZ.
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      # TURU 152 — Places + Routes vekili. ⚠️ .env'e yazmak TEK BASINA
+      #   YETMEZ: turu 75'te R2 anahtarlari .env'e yazilmis ama BU BLOK
+      #   guncellenmemis ve medya SESSIZCE KAPALI kalmisti.
+      GOOGLE_SERVIS_KEY: ${GOOGLE_SERVIS_KEY:-}
     volumes:
       - ./fcm-sa.json:/secrets/fcm-sa.json:ro
       - ./apns.p8:/secrets/apns.p8:ro

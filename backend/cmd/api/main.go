@@ -36,6 +36,7 @@ import (
 	"github.com/gbz-app/gebzem/backend/internal/udid"
 	"github.com/gbz-app/gebzem/backend/internal/users"
 	"github.com/gbz-app/gebzem/backend/internal/vitrin"
+	"github.com/gbz-app/gebzem/backend/internal/yolbul"
 )
 
 func main() {
@@ -132,6 +133,12 @@ func main() {
 		mediaH.AIGorseliKaydet, mediaH.AIGorselIzni, mediaH.Enabled,
 		mediaH.AIGorseliVazgec)
 	usersH.MedyaDurumu(mediaH.Enabled()) // istemci atac dugmesini buna gore gizler
+
+	// TURU 152 — adres arama (Places) + yaya rotasi (Routes) VEKILI.
+	// ⚠️ Anahtar YALNIZ sunucuda: bu iki uc birer WEB SERVISI ve anahtari
+	//    uygulama kimligiyle kisitlanamiyor (yalniz IP). Repo PUBLIC.
+	yolbulH := yolbul.NewHandler(rdb)
+	yolbul.LogDurum()
 	if mediaH.Enabled() {
 		mediaH.StartSweeper(ctx)
 	}
@@ -338,6 +345,13 @@ func main() {
 		r.Patch("/isletme/urunler/{id}", isletmeH.UrunGuncelle)
 		r.Delete("/isletme/urunler/{id}", isletmeH.UrunSil)
 		r.Get("/users/{id}/urunler", isletmeH.UrunListesi)
+
+		// TURU 152 — ADRES ARAMA + YAYA ROTASI (GOOGLE_SERVIS_KEY yoksa 503;
+		// istemci /yolbul/durum ile sorar ve ozelligi HIC CIZMEZ).
+		// ⚠️ Korumali grupta: bu uclar PARA HARCIYOR, kimliksiz cagrilamaz.
+		r.Get("/yolbul/durum", yolbulH.Durum)
+		r.Get("/yolbul/adres", yolbulH.Adres)
+		r.Post("/yolbul/yaya", yolbulH.Yaya)
 
 		// TURU 77 — AI (OPENAI_API_KEY yoksa 503; istemci /ai/durum ile sorar)
 		r.Get("/ai/durum", aiH.Durum)
