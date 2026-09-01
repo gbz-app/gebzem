@@ -611,6 +611,14 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
                         //	ismi, ismin solunda daire icinde profil fotografi,
                         //	en sagda arama ikonu"*).
                         _selamlama(context, ref),
+                        // ⚠️⚠️⚠️ TURU 148 — **HAVA + DOVIZ SERIDI: SOL-SAG
+                        //	KAYDIRILIR ve dokununca ALTTAN CHART ACILIR**
+                        //	(kullanici emri: *"hava durumu ve doviz SOL SAG
+                        //	olsun, bunlara tikladiginda CHARTLAR ACILACAK
+                        //	ALTTAN"*).
+                        //	Turu 147'de serit aramanin YANINDA dar bir
+                        //	kutucuktu; orada ne kaydirma ne chart sigardi.
+                        _havaDovizSeridi(context),
                         const SizedBox(height: 12),
                         // ⚠️ Slider `Padding`in DISINDA: yan boslugu KENDI
                         //    `viewportFraction`indan uretir (turu 96t).
@@ -877,88 +885,211 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
   ///	  · `kHavaDovizOnizleme` bayragi YAYIN ONCESI `false` yapilacak.
   /// ⚠️ YAPMA: "örnek" ibaresini kaldirma; sayilari "guncel" gibi sunma;
   ///    saatten/gunden turetip CANLI gorunmesini saglama.
-  Widget _havaDoviz(BuildContext context) {
+  /// ⚠️⚠️⚠️ **DEGERLER ORNEKTIR — GERCEK VERI YOK VE UYDURULMADI.**
+  ///	Bu projede ne hava ne kur verisi var: tabloda yok, sunucuda uc yok,
+  ///	bir dis servis anahtari yok. Turu 135'te `kur_serit.dart` **TAM BU
+  ///	YUZDEN SILINMISTI** (*"her sayisi uydurmaydi"*).
+  ///	Kullanici seridi ACIKCA geri istedi; bu yuzden her kartta ve chart
+  ///	sayfasinin basinda **"Örnek"** ibaresi DURUYOR ve
+  ///	`kHavaDovizOnizleme` bayragi YAYIN ONCESI `false` yapilacak.
+  /// ⚠️ YAPMA: "Örnek" ibaresini kaldirma; sayilari saatten/gunden
+  ///    turetip CANLI gorunmesini saglama.
+  static const _havaDovizKalemler = <({
+    IconData ikon,
+    String ad,
+    String deger,
+    String fark,
+    bool arti,
+    int renk,
+    List<double> seri,
+  })>[
+    (
+      ikon: LucideIcons.sun,
+      ad: 'Gebze',
+      deger: '24°',
+      fark: 'Parçalı bulutlu',
+      arti: true,
+      renk: 0xFFFFC531,
+      seri: [19, 20, 22, 23, 25, 26, 24, 23, 21, 20, 19, 18],
+    ),
+    (
+      ikon: LucideIcons.dollarSign,
+      ad: 'Dolar',
+      deger: '43,20',
+      fark: '%0,4',
+      arti: true,
+      renk: 0xFF2BB673,
+      seri: [42.1, 42.3, 42.2, 42.6, 42.8, 42.7, 43.0, 43.1, 42.9, 43.2],
+    ),
+    (
+      ikon: LucideIcons.euro,
+      ad: 'Euro',
+      deger: '47,05',
+      fark: '%0,2',
+      arti: false,
+      renk: 0xFF3AA9FF,
+      seri: [47.4, 47.3, 47.5, 47.2, 47.0, 47.1, 46.9, 47.0, 47.1, 47.05],
+    ),
+    (
+      ikon: LucideIcons.coins,
+      ad: 'Gram Altın',
+      deger: '3.410',
+      fark: '%0,9',
+      arti: true,
+      renk: 0xFFFF7A3C,
+      seri: [3320, 3345, 3330, 3360, 3375, 3355, 3390, 3400, 3385, 3410],
+    ),
+  ];
+
+  /// ⚠️⚠️⚠️ TURU 148 — **HAVA + DOVIZ SERIDI (SOL-SAG KAYDIRILIR).**
+  ///
+  /// ⚠️ Serit YALNIZ menude (`kAiZemin`, sabit siyah) ciziliyor ve menu
+  ///    zorla koyu tema kuruyor; renkler ona gore secildi.
+  Widget _havaDovizSeridi(BuildContext context) {
     if (!kHavaDovizOnizleme) return const SizedBox.shrink();
     final onRenk = Theme.of(context).colorScheme.onSurface;
-    Widget kalem(IconData ikon, String deger, Color renk) => Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(ikon, size: 13, color: renk),
-            const SizedBox(width: 3),
-            Text(
-              deger,
-              style: TextStyle(
-                fontSize: 12.5,
-                height: 1.15,
-                fontWeight: FontWeight.w700,
-                color: onRenk,
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: SizedBox(
+        // ⚠️ Yukseklik yazi olceginden TURETILIR: sabit dp olsaydi olcek
+        //    1.3/2.0'da kart TASARDI (turu 121d dersi).
+        height: (MediaQuery.textScalerOf(context).scale(13) * 1.25 * 2 + 30)
+            .ceilToDouble(),
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: kYanBosluk),
+          itemCount: _havaDovizKalemler.length,
+          separatorBuilder: (_, _) => const SizedBox(width: 8),
+          itemBuilder: (_, i) {
+            final k = _havaDovizKalemler[i];
+            final renk = Color(k.renk);
+            return Material(
+              color: kAiKartYuzey(context),
+              borderRadius: BorderRadius.circular(kYaricap(56)),
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: () => _havaDovizChart(context, i),
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(k.ikon, size: 16, color: renk),
+                      const SizedBox(width: 8),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            k.deger,
+                            style: TextStyle(
+                              fontSize: 13.5,
+                              height: 1.2,
+                              fontWeight: FontWeight.w800,
+                              color: onRenk,
+                            ),
+                          ),
+                          const SizedBox(height: 1),
+                          Text(
+                            // ⚠️ DURUST ISARET: her kartta "Örnek".
+                            '${k.ad} · Örnek',
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              height: 1.2,
+                              fontWeight: FontWeight.w600,
+                              color: onRenk.withValues(alpha: 0.55),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
               ),
-            ),
-          ],
-        );
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: () => _havaDovizAc(context),
-      child: Padding(
-        padding: const EdgeInsets.only(right: 2),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            kalem(LucideIcons.sun, '24°', const Color(0xFFFFC531)),
-            const SizedBox(height: 2),
-            kalem(LucideIcons.dollarSign, '43,20', const Color(0xFF2BB673)),
-            const SizedBox(height: 1),
-            // ⚠️ DURUST ISARET: bu iki sayi ORNEKTIR.
-            Text(
-              'örnek',
-              style: TextStyle(
-                fontSize: 9,
-                height: 1,
-                fontWeight: FontWeight.w600,
-                color: onRenk.withValues(alpha: 0.5),
-              ),
-            ),
-          ],
+            );
+          },
         ),
       ),
     );
   }
 
-  /// Hava/doviz seridine dokununca acilan DURUST bilgi sayfasi.
+  /// ⚠️⚠️⚠️ TURU 148 — **ALTTAN ACILAN CHART** (kullanici emri).
   ///
-  /// ⚠️ Turu 144'teki "Durak" sayfasiyla AYNI desen: veri baglanmadan once
-  ///    kullaniciya sayilarin ornek oldugunu ACIKCA soyler.
-  void _havaDovizAc(BuildContext context) {
+  /// Cizim `CustomPainter` ile yapilir; PAKET EKLENMEDI (turu 116b dersi:
+  /// her yeni paket derleme yuzeyine risk ekler ve bu bir arayuz turu).
+  void _havaDovizChart(BuildContext context, int i) {
+    final k = _havaDovizKalemler[i];
+    final renk = Color(k.renk);
     showModalBottomSheet<void>(
       context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
       backgroundColor: kAiZemin,
       builder: (c) => Material(
         type: MaterialType.transparency,
         child: SafeArea(
           top: false,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(kYanBosluk, 20, kYanBosluk, 24),
+            padding: const EdgeInsets.fromLTRB(kYanBosluk, 0, kYanBosluk, 24),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Hava durumu ve döviz',
+                Row(
+                  children: [
+                    Icon(k.ikon, size: 20, color: renk),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        k.ad,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      k.deger,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${k.arti ? "▲" : "▼"} ${k.fark}',
                   style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: k.arti
+                        ? const Color(0xFF2BB673)
+                        : const Color(0xFFFF5E5E),
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 16),
+                SizedBox(
+                  height: 150,
+                  width: double.infinity,
+                  child: CustomPaint(
+                    painter: _ciziciCizer(seri: k.seri, renk: renk),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                // ⚠️ DURUST SINIR: chart'in ALTINDA, kullanici grafigi
+                //    gordukten HEMEN SONRA okusun.
                 Text(
-                  'Bu değerler henüz bir veri kaynağına bağlı değil; '
-                  'ekranda görünenler yalnızca örnektir.',
+                  'Bu grafik ve değerler örnektir; henüz gerçek bir veri '
+                  'kaynağına bağlı değil.',
                   style: TextStyle(
-                    fontSize: 13.5,
+                    fontSize: 12.5,
                     height: 1.4,
-                    color: Colors.white.withValues(alpha: 0.7),
+                    color: Colors.white.withValues(alpha: 0.62),
                   ),
                 ),
               ],
@@ -1050,9 +1181,6 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
               ],
             ),
           ),
-          // ⚠️⚠️⚠️ TURU 147 — **HAVA + DOVIZ** (kullanici emri: *"anasayfada
-          //	aramanin SOLUNA doviz ve hava durumu ekle"*).
-          _havaDoviz(context),
           IconButton(
             tooltip: 'Ara',
             icon: const Icon(LucideIcons.search, size: 22),
@@ -1705,3 +1833,77 @@ const _kOnizlemeYakin = <String, ({String ad, String mesafe})>{
   'Akaryakıt': (ad: 'Petrol Ofisi', mesafe: '1,2 km'),
   'Cami': (ad: 'Merkez Camii', mesafe: '650 m'),
 };
+
+/// ⚠️⚠️⚠️ TURU 148 — **ORNEK CIZGI GRAFIGI** (kullanici emri: *"tikladiginda
+///	chartlar acilacak alttan"*).
+///
+/// ⚠️ Harici PAKET EKLENMEDI: `CustomPainter` ile ciziliyor. Turu 116b
+///    dersi — her yeni paket derleme yuzeyine risk ekler ve bu bir arayuz
+///    turu; grafik ihtiyaci tek bir cizgi ve dolgudan ibaret.
+/// ⚠️ Seri ORNEKTIR (bkz. `_havaDovizKalemler` serhi); grafigin ALTINDA
+///    kullaniciya ACIKCA soyleniyor.
+class _ciziciCizer extends CustomPainter {
+  const _ciziciCizer({required this.seri, required this.renk});
+
+  final List<double> seri;
+  final Color renk;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (seri.length < 2) return;
+    var enAz = seri.first;
+    var enCok = seri.first;
+    for (final d in seri) {
+      if (d < enAz) enAz = d;
+      if (d > enCok) enCok = d;
+    }
+    // ⚠️ Sifira bolme kapisi: duz bir seride `enCok - enAz == 0` olur.
+    final aralik = (enCok - enAz).abs() < 0.0001 ? 1.0 : enCok - enAz;
+    // ⚠️ Ust/alt 10 dp pay: cizgi kutunun kenarina yapismasin.
+    const pay = 10.0;
+    final h = size.height - pay * 2;
+    Offset nokta(int i) => Offset(
+          size.width * (i / (seri.length - 1)),
+          pay + h - ((seri[i] - enAz) / aralik) * h,
+        );
+
+    final yol = Path()..moveTo(nokta(0).dx, nokta(0).dy);
+    for (var i = 1; i < seri.length; i++) {
+      yol.lineTo(nokta(i).dx, nokta(i).dy);
+    }
+
+    // Dolgu (cizginin altinda solan bir alan).
+    final dolgu = Path.from(yol)
+      ..lineTo(size.width, size.height)
+      ..lineTo(0, size.height)
+      ..close();
+    canvas.drawPath(
+      dolgu,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [renk.withValues(alpha: 0.28), renk.withValues(alpha: 0.0)],
+        ).createShader(Offset.zero & size),
+    );
+
+    canvas.drawPath(
+      yol,
+      Paint()
+        ..color = renk
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.4
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round,
+    );
+
+    // Son nokta vurgusu.
+    final son = nokta(seri.length - 1);
+    canvas.drawCircle(son, 4.5, Paint()..color = renk);
+    canvas.drawCircle(son, 2.0, Paint()..color = kAiZemin);
+  }
+
+  @override
+  bool shouldRepaint(_ciziciCizer eski) =>
+      eski.renk != renk || !identical(eski.seri, seri);
+}

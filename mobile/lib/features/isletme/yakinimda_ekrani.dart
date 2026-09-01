@@ -516,6 +516,31 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
   ///    yalnizca AYNI OTURUMDAKI gecisi yumusatiyoruz.
   final Map<String, List<IsletmeOzet>> _onbellek = {};
 
+  /// Haritada cizilen ORNEK guzergahin indeksi (-1 = yok).
+  ///
+  /// ⚠️ TURU 148 — durak sayfasindaki karttan secilir; haritada polyline
+  ///    olarak cizilir ve ust barda "Güzergahı kapat" dugmesi cikar.
+  int _guzergah = -1;
+
+  /// Haritaya verilecek ORNEK guzergah cizgisi (`null` = cizme).
+  ///
+  /// ⚠️ Konum YOKSA cizgi de YOK: noktalar kullanicinin konumundan
+  ///    turetiliyor (sabit koordinat yazilsaydi baska sehirdeki kullanici
+  ///    haritanin disinda bir cizgi "olusturmus" olurdu).
+  ({List<LatLng> noktalar, Color renk})? get _guzergahCizgisi {
+    final k = _konum;
+    if (_guzergah < 0 || _guzergah >= _ornekHatlar.length || k == null) {
+      return null;
+    }
+    final h = _ornekHatlar[_guzergah];
+    return (
+      noktalar: [
+        for (final nk in h.yol) LatLng(k.enlem + nk.dEn, k.boylam + nk.dBoy),
+      ],
+      renk: Color(h.renk),
+    );
+  }
+
   String get _onbellekAnahtari => '$_kategori|$_km';
 
   /// ⚠️⚠️⚠️ **LISTE NESLI — POPUPUN KENDINI YENILEMESI ICIN.**
@@ -820,6 +845,88 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
 
   /// ⚠️ Kaydirma (derece) ve mesafe TABLOSU: dorduncu kart en uzakta.
   ///    Boylamda `cos(enlem)` uygulanmaz — bunlar OLCUM DEGIL yer tutucu.
+  /// ⚠️⚠️⚠️ TURU 148 — **ORNEK OTOBUS HATLARI VE GUZERGAHLARI** (kullanici
+  ///	emri: *"haritada duraga tikladiginda yemek gibi KART olarak gelsin;
+  ///	orada duraktan gecen otobusler, onlarin GUZERGAHLARI haritada
+  ///	ornek — gercekte sokaktan gecen shape ciz"*).
+  ///
+  /// ⚠️⚠️⚠️ **GERCEK HAT/GUZERGAH VERISI YOK VE UYDURULMADI.** Bu projede
+  ///	ne durak tablosu, ne sefer ucu, ne de bir YOL TARIFI (routing)
+  ///	servisi var. Guzergah **GERCEK SOKAKLARI TAKIP ETMEZ**: asagidaki
+  ///	noktalar kullanicinin KONUMUNA GORE turetilmis ORNEK bir cizgidir.
+  ///	Gercek sokak hizasi ancak bir Directions/routing kaynagi
+  ///	baglandiginda mumkun olur.
+  /// ⚠️ Kullaniciya bu ACIKCA soyleniyor: kartlarda ve sayfanin basinda
+  ///    "Örnek" ibaresi var.
+  /// ⚠️ Noktalar SABIT ofsetlerdir (kullanicinin konumuna eklenir) ki
+  ///    hangi sehirde olursa olsun cizgi EKRANDA gorunsun — sabit Gebze
+  ///    koordinati yazilsaydi baska sehirdeki kullanici HIC goremezdi
+  ///    (turu 140'ta olculen ders).
+  /// ⚠️ Cizgi DUZ DEGIL: donusleri olan cok noktali bir dizi, yani
+  ///    ekranda bir yol gibi durur.
+  static const _ornekHatlar = <({
+    String ad,
+    String yon,
+    String dk,
+    int renk,
+    List<({double dEn, double dBoy})> yol,
+  })>[
+    (
+      ad: 'Merkez – Sanayi',
+      yon: 'Merkez yönü',
+      dk: '5 dk',
+      renk: 0xFF3AA9FF,
+      yol: [
+        (dEn: -0.0032, dBoy: -0.0041),
+        (dEn: -0.0018, dBoy: -0.0024),
+        (dEn: -0.0011, dBoy: -0.0009),
+        (dEn: -0.0004, dBoy: 0.0002),
+        (dEn: 0.0006, dBoy: 0.0008),
+        (dEn: 0.0019, dBoy: 0.0011),
+        (dEn: 0.0028, dBoy: 0.0023),
+        (dEn: 0.0041, dBoy: 0.0031),
+        (dEn: 0.0056, dBoy: 0.0030),
+        (dEn: 0.0068, dBoy: 0.0042),
+      ],
+    ),
+    (
+      ad: 'İstasyon – Çayırova',
+      yon: 'İstasyon yönü',
+      dk: '12 dk',
+      renk: 0xFF2BB673,
+      yol: [
+        (dEn: 0.0044, dBoy: -0.0052),
+        (dEn: 0.0030, dBoy: -0.0035),
+        (dEn: 0.0021, dBoy: -0.0018),
+        (dEn: 0.0008, dBoy: -0.0006),
+        (dEn: -0.0002, dBoy: 0.0004),
+        (dEn: -0.0013, dBoy: 0.0018),
+        (dEn: -0.0016, dBoy: 0.0034),
+        (dEn: -0.0027, dBoy: 0.0048),
+        (dEn: -0.0039, dBoy: 0.0057),
+        (dEn: -0.0055, dBoy: 0.0064),
+      ],
+    ),
+    (
+      ad: 'Merkez – Üniversite',
+      yon: 'Üniversite yönü',
+      dk: '24 dk',
+      renk: 0xFFFF7A3C,
+      yol: [
+        (dEn: -0.0048, dBoy: 0.0036),
+        (dEn: -0.0031, dBoy: 0.0028),
+        (dEn: -0.0017, dBoy: 0.0016),
+        (dEn: -0.0006, dBoy: 0.0005),
+        (dEn: 0.0005, dBoy: -0.0004),
+        (dEn: 0.0017, dBoy: -0.0016),
+        (dEn: 0.0031, dBoy: -0.0021),
+        (dEn: 0.0046, dBoy: -0.0033),
+        (dEn: 0.0058, dBoy: -0.0048),
+        (dEn: 0.0064, dBoy: -0.0066),
+      ],
+    ),
+  ];
+
   static const _ornekOfset = <({double dEn, double dBoy, double km})>[
     (dEn: 0.0022, dBoy: 0.0016, km: 0.25),
     (dEn: -0.0018, dBoy: 0.0027, km: 0.42),
@@ -1122,6 +1229,8 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
                 // ⚠️ TEK KAYNAK: panel yuksekligi neyse harita da onu
                 //    bilir; sabit bir sayi yazilsaydi ikisi AYRISIRDI.
                 altDolgu: _panelBoy(context),
+                // ⚠️ TURU 148 — secili ORNEK guzergah (yoksa null).
+                guzergah: _guzergahCizgisi,
                 // ⚠️⚠️ TURU 89 — STIL AYARDAN GELIR (kullanici emri).
                 //    Stil CALISMA ANINDA degistirilebilir: eklenti
                 //    `map_configuration.dart` stili DIFF'liyor ve
@@ -1989,6 +2098,7 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
       isScrollControlled: true,
       showDragHandle: true,
       backgroundColor: kAiZemin,
+      // ⚠️ TURU 142 dersi: arkadaki harita GORUNSUN.
       barrierColor: Colors.black.withValues(alpha: 0.18),
       builder: (c) => FractionallySizedBox(
         heightFactor: 0.70,
@@ -1999,11 +2109,6 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
             child: Builder(
               builder: (tc) {
                 final scheme = Theme.of(tc).colorScheme;
-                const hatlar = [
-                  (ad: 'Merkez – Sanayi', yon: 'Merkez yönü', dk: '5 dk'),
-                  (ad: 'İstasyon – Çayırova', yon: 'İstasyon yönü', dk: '12 dk'),
-                  (ad: 'Merkez – Üniversite', yon: 'Üniversite yönü', dk: '24 dk'),
-                ];
                 return SafeArea(
                   top: false,
                   child: ListView(
@@ -2011,18 +2116,18 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
                         kYanBosluk, 0, kYanBosluk, 16),
                     children: [
                       const Text(
-                        'Durak',
+                        'Duraktan geçen hatlar',
                         style: TextStyle(
-                          fontSize: 20,
+                          fontSize: 18,
                           fontWeight: FontWeight.w800,
                         ),
                       ),
                       const SizedBox(height: 6),
-                      // ⚠️ DURUST SINIR EN USTTE: kullanici asagi inmeden
-                      //    bunun ornek oldugunu gormeli.
+                      // ⚠️ DURUST SINIR EN USTTE (turu 144 karari).
                       Text(
-                        'Durak ve sefer verisi henüz bağlı değil. Aşağıdakiler '
-                        'yalnızca örnektir.',
+                        'Durak ve sefer verisi henüz bağlı değil. Hatlar ve '
+                        'haritadaki güzergah yalnızca örnektir; gerçek '
+                        'sokak hizasını göstermez.',
                         style: TextStyle(
                           fontSize: 13,
                           height: 1.35,
@@ -2030,68 +2135,97 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
                         ),
                       ),
                       const SizedBox(height: 14),
-                      for (final h in hatlar)
+                      for (var i = 0; i < _ornekHatlar.length; i++)
                         Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              color: kAiKartYuzey(tc),
-                              borderRadius: BorderRadius.circular(kYaricap(64)),
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 12),
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Text(
-                                          h.ad,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
-                                            fontSize: 15,
-                                            height: 1.25,
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          '${h.yon} · Örnek',
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            height: 1.25,
-                                            color: scheme.onSurface
-                                                .withValues(alpha: 0.62),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Text(
-                                    h.dk,
-                                    style: const TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: _hatKarti(tc, i, kapat: () {
+                            Navigator.of(c).maybePop();
+                          }),
                         ),
                     ],
                   ),
                 );
               },
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// ⚠️⚠️⚠️ TURU 148 — **HAT KARTI** (kullanici emri: *"duraga tikladiginda
+  ///	YEMEK GIBI KART olarak gelsin"*). Duzen isletme kartiyla AYNI dil:
+  ///	solda raduslu renk dairesi + ikon, saginda ad ve yon, sagda sure ve
+  ///	"Haritada göster" dugmesi.
+  /// ⚠️ Zemin `kYuzeyGri` — panel seridindeki isletme kartiyla TEK KAYNAK.
+  Widget _hatKarti(BuildContext c, int i, {required VoidCallback kapat}) {
+    final h = _ornekHatlar[i];
+    final renk = Color(h.renk);
+    final scheme = Theme.of(c).colorScheme;
+    return Material(
+      color: kYuzeyGri(c),
+      borderRadius: BorderRadius.circular(kYaricap(96)),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () {
+          setState(() => _guzergah = i);
+          kapat();
+        },
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(10, 12, 10, 12),
+          child: Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: renk.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(kYaricap(46)),
+                ),
+                child: Icon(LucideIcons.busFront, size: 22, color: renk),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      h.ad,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        height: 1.25,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${h.yon} · ${h.dk} · Örnek',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        height: 1.25,
+                        color: scheme.onSurface.withValues(alpha: 0.75),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              _kartDugmesi(
+                c,
+                LucideIcons.map,
+                'Güzergahı göster',
+                () {
+                  setState(() => _guzergah = i);
+                  kapat();
+                },
+              ),
+            ],
           ),
         ),
       ),
@@ -3680,7 +3814,16 @@ class _HaritaAlani extends StatefulWidget {
     this.zoom = 0,
     this.avatarAdres,
     this.avatarAnahtar = '',
+    this.guzergah,
   });
+
+  /// ⚠️⚠️⚠️ TURU 148 — **ORNEK OTOBUS GUZERGAHI** (kullanici emri).
+  ///
+  /// `null` ise hicbir cizgi cizilmez. Nokta listesi EKRANIN kendisinden
+  /// degil, kullanicinin KONUMUNDAN turetilir (bkz. `_ornekHatlar`).
+  /// ⚠️ **GERCEK SOKAK HIZASI DEGILDIR** — projede yol tarifi (routing)
+  ///    kaynagi yok. Kullaniciya bu durak sayfasinda ACIKCA soyleniyor.
+  final ({List<LatLng> noktalar, Color renk})? guzergah;
 
   /// ⚠️⚠️⚠️ TURU 132 — **HARITANIN ALT DOLGUSU** (denetim buldu).
   ///
@@ -4023,6 +4166,26 @@ class _HaritaAlaniState extends State<_HaritaAlani> {
                     () => EagerGestureRecognizer(),
                   ),
                 },
+                // ⚠️⚠️ TURU 148 — ORNEK GUZERGAH CIZGISI. Bos kume verilir
+                //	(null DEGIL): eklenti `polylines` icin null kabul
+                //	etmiyor ve bos kume "cizgi yok" demektir.
+                // ⚠️ `geodesic: false`: noktalar zaten sik; buyuk daire
+                //    yayina cevirmek kisa parcalarda gorunur bir egrilik
+                //    uretmez ama hesabi bosuna agirlastirir.
+                polylines: widget.guzergah == null
+                    ? const <Polyline>{}
+                    : {
+                        Polyline(
+                          polylineId: const PolylineId('guzergah'),
+                          points: widget.guzergah!.noktalar,
+                          color: widget.guzergah!.renk,
+                          width: 6,
+                          startCap: Cap.roundCap,
+                          endCap: Cap.roundCap,
+                          jointType: JointType.round,
+                          geodesic: false,
+                        ),
+                      },
                 markers: {
                   // ⚠️⚠️ TURU 124 — KENDI KONUMUMUZ (mor). Google`in mavi
                   //	noktasi kapatildigi icin bu marker olmazsa kullanici
