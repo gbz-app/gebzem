@@ -3551,6 +3551,13 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
   /// ⚠️ Konum YOKSA girilmez ve sebep SOYLENIR: duraklar kullanicinin
   ///    cevresinden secildigi icin konumsuz mod anlamsiz olurdu.
   Future<void> _durakAc() async {
+    // ⚠️⚠️ TURU 154 - **ACIK TAKIP ONCE BIRAKILIR.** Bu metot
+    //	`_rota`yi null yapiyor; takip acik kalsaydi `_takip != null`
+    //	ama `_rota == null` olur, panel durak kartlarini cizerken
+    //	`_panelBoy` ADIM KARTI yuksekligini dondururdu (haritanin
+    //	alt dolgusu ve yuzen serit KAYARDI). Ustelik GPS akisi
+    //	sahipsiz surerdi.
+    if (_takip != null) _takipDurdur();
     final k = _konum;
     if (k == null) {
       _mesaj('Yakındaki durakları görebilmek için konum izni gerekiyor.');
@@ -4001,6 +4008,9 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
     // ⚠️ Iki uc da SECILMEDEN arama yapilmaz; kullanici zaten
     //    planlama sayfasinda ikisini de gorur (dugme orada PASIF).
     if (b == null || v == null) return;
+    // ⚠️ TURU 154 - rota DEGISIYOR; eski rotanin takibi surerse
+    //    yeni bacaklarla eski `_takip.bacak` indeksi uyusmaz.
+    if (_takip != null) _takipDurdur();
     setState(() => _rota = null);
     final adaylar = await rotaAra(
       baslangicEnlem: b.enlem,
