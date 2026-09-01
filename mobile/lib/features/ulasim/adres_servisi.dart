@@ -38,6 +38,7 @@
 library;
 
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:dio/dio.dart';
 import 'package:flutter/widgets.dart' show Locale;
@@ -53,7 +54,25 @@ class AdresSonucu {
     required this.enlem,
     required this.boylam,
     required this.durak,
+    this.yerId,
+    this.mesafeM,
   });
+
+  /// ⚠️⚠️⚠️ Google **place id**. DOLU ise **KOORDINAT HENUZ YOK**
+  ///	([enlem]/[boylam] **0**'dir) ve secim aninda [yerCoz] ile
+  ///	cozulmek ZORUNDADIR.
+  ///
+  ///	Sebep: Autocomplete koordinat DONDURMEZ. Koordinati her
+  ///	oneri icin cekmek, her harfte 5 Place Details cagrisi
+  ///	demekti; yalniz SECIM icin cekiliyor.
+  /// ⚠️ **YAPMA: `yerId` doluyken `enlem`/`boylam` ile cizim/rota yapma**
+  ///    — (0,0) Gine Korfezi'dir (bu projede turu 90b'de yasandi).
+  final String? yerId;
+
+  /// Kullanicinin konumuna uzaklik (metre). Yalnizca sunucuya konum
+  /// gonderildiyse dolar (Google `origin` olmadan `distanceMeters`
+  /// dondurmuyor).
+  final int? mesafeM;
 
   /// Birincil satir ("Atatürk Caddesi" ya da "İBRAHİMAĞA CADDESİ").
   final String ad;
@@ -149,6 +168,7 @@ class AdresServisi {
     String sorgu, {
     double? yakinEnlem,
     double? yakinBoylam,
+    String? oturum,
   }) async {
     final q = sorgu.trim();
     if (q.length < 2) return const [];
@@ -186,7 +206,7 @@ class AdresServisi {
     // ── 2) ADRESLER — ONCE SUNUCU (Google Places) ──
     // ⚠️ Sunucu tek istekte hem AD hem ADRES hem KOORDINAT donuyor;
     //    cihaz geocoder'inda bunun icin IKI tur gerekiyordu.
-    final sunucudan = await _sunucudanAra(q, yakinEnlem, yakinBoylam);
+    final sunucudan = await _sunucudanAra(q, yakinEnlem, yakinBoylam, oturum);
     if (sunucudan != null) {
       sonuc.addAll(sunucudan);
       _aramaOnbellek[anahtar] = sonuc;
@@ -253,6 +273,55 @@ class AdresServisi {
     }
   }
 
+  /// ⚠️⚠️⚠️ Secilen onerinin **KOORDINATINI** cozer (Place Details).
+  ///
+  /// `null` = cozulemedi. Cagiran taraf o secimi **KABUL ETMEMELI**:
+  /// koordinatsiz bir varis noktasi (0,0) demektir.
+  ///
+  /// ⚠️ [oturum] AYNI jeton olmali: Google, autocomplete isteklerini
+  ///    kapatan Details cagrisini o jetonla eslestirip TEK oturum
+  ///    sayiyor. Farkli/eksik jeton = her istek AYRI faturalanir.
+  Future<({double enlem, double boylam})?> yerCoz(
+    String yerId, {
+    String? oturum,
+  }) async {
+    final api = _api;
+    if (api == null || yerId.isEmpty) return null;
+    try {
+      final y = await api.get<Map<String, dynamic>>(
+        '/yolbul/yer',
+        queryParameters: {
+          'id': yerId,
+          if (oturum != null) 'oturum': oturum,
+        },
+      );
+      final en = (y.data?['enlem'] as num?)?.toDouble();
+      final boy = (y.data?['boylam'] as num?)?.toDouble();
+      if (en == null || boy == null) return null;
+      // ⚠️ (0,0) GECERSIZ sayilir — Gine Korfezi.
+      if (en == 0 && boy == 0) return null;
+      return (enlem: en, boylam: boy);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Yeni autocomplete **oturum jetonu** (UUID v4 bicimi).
+  ///
+  /// ⚠️⚠️ Kullanici yazmaya baslayinca URETILIR ve **SECIMDEN SONRA
+  ///	ATILIR**. Ayni jeton tekrar kullanilirsa Google oturumu
+  ///	GECERSIZ sayar ve *"the requests are charged as if no
+  ///	session token was provided"* — yani tum istekler oturumsuz
+  ///	fiyattan faturalanir.
+  /// ⚠️ Paket EKLENMEDI: tek bir UUID icin bagimlilik almak yerine
+  ///    `Random.secure` ile uretiliyor (bicim yeterli, kriptografik
+  ///    bir iddia tasimiyor).
+  static String yeniOturum() {
+    final r = math.Random.secure();
+    String h(int n) => List.generate(n, (_) => r.nextInt(16).toRadixString(16)).join();
+    return '${h(8)}-${h(4)}-4${h(3)}-${'89ab'[r.nextInt(4)]}${h(3)}-${h(12)}';
+  }
+
   /// Yalniz ONBELLEKTEN okur - **AG ISTEGI ATMAZ, BEKLETMEZ**.
   ///
   /// ⚠️ Sheet acilirken kullanilir: ters geocoding icin bir sayfayi
@@ -272,6 +341,7 @@ class AdresServisi {
     String q,
     double? enlem,
     double? boylam,
+    String? oturum,
   ) async {
     final api = _api;
     if (api == null) return null;
@@ -282,18 +352,27 @@ class AdresServisi {
           'q': q,
           if (enlem != null) 'enlem': enlem,
           if (boylam != null) 'boylam': boylam,
+          if (oturum != null) 'oturum': oturum,
         },
       );
       final ham = (y.data?['sonuclar'] as List?) ?? const [];
       return [
         for (final e in ham.whereType<Map>())
-          AdresSonucu(
-            ad: (e['ad'] ?? '').toString(),
-            altAd: (e['adres'] ?? '').toString(),
-            enlem: (e['enlem'] as num?)?.toDouble() ?? 0,
-            boylam: (e['boylam'] as num?)?.toDouble() ?? 0,
-            durak: false,
-          ),
+          // ⚠️⚠️ `yer_id` BOS olan satir ATLANIR: koordinati YOK ve
+          //	cozulemez — listede secilince hicbir sey yapmayan
+          //	OLU BIR SATIR olurdu.
+          if ((e['yer_id'] ?? '').toString().isNotEmpty)
+            AdresSonucu(
+              ad: (e['ad'] ?? '').toString(),
+              altAd: (e['adres'] ?? '').toString(),
+              // ⚠️ Koordinat BILEREK 0: Autocomplete dondurmuyor,
+              //    secimde `yerCoz` ile aliniyor.
+              enlem: 0,
+              boylam: 0,
+              durak: false,
+              yerId: (e['yer_id']).toString(),
+              mesafeM: (e['mesafe_m'] as num?)?.toInt(),
+            ),
       ];
     } catch (_) {
       // ⚠️ 503 (anahtar yok) ya da ag hatasi -> cihaz geocoder'ina dus.

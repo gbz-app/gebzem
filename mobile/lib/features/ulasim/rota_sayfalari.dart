@@ -161,6 +161,16 @@ class _PlanlaGovdeState extends State<_PlanlaGovde> {
   ///	uzerine yazardi (bu projede ayni sinif turu 85b/93b'de
   ///	yasandi).
   int _nesil = 0;
+
+  /// ⚠️⚠️ **AUTOCOMPLETE OTURUM JETONU.**
+  ///	Kullanici yazmaya baslayinca uretilir, **SECIMDEN SONRA
+  ///	ATILIR**. Google, autocomplete isteklerini kapatan Place
+  ///	Details cagrisini bu jetonla eslestirip TEK OTURUM sayar;
+  ///	jeton tasinmazsa **her istek AYRI faturalanir**.
+  String? _oturum;
+
+  /// Secilen onerinin koordinati cozulurken true (liste kilitlenir).
+  bool _cozuluyor = false;
   bool _araniyor = false;
 
   RotaNoktasi? _varis;
@@ -193,6 +203,8 @@ class _PlanlaGovdeState extends State<_PlanlaGovde> {
     }
     // ⚠️ 350 ms: Turkce bir cadde adini yazmak ~1-2 sn suruyor;
     //    daha kisa esik her hecede istek uretirdi.
+    // ⚠️ Jeton ILK tusla uretilir ve secime kadar AYNI kalir.
+    _oturum ??= AdresServisi.yeniOturum();
     setState(() => _araniyor = true);
     _gecikme = Timer(const Duration(milliseconds: 350), () {
       unawaited(_aramayiKos(s));
@@ -205,6 +217,7 @@ class _PlanlaGovdeState extends State<_PlanlaGovde> {
       s,
       yakinEnlem: widget.baslangic?.enlem,
       yakinBoylam: widget.baslangic?.boylam,
+      oturum: _oturum,
     );
     // ⚠️ BAYAT YANIT KAPISI: yalniz EN SON sorgu ekrana yazabilir.
     if (!mounted || nesil != _nesil) return;
@@ -212,6 +225,51 @@ class _PlanlaGovdeState extends State<_PlanlaGovde> {
       _sonuc = liste;
       _araniyor = false;
     });
+  }
+
+  /// ⚠️⚠️⚠️ Bir oneriyi secer — **KOORDINAT BURADA COZULUR.**
+  ///
+  ///	Autocomplete koordinat DONDURMEZ; sunucudan gelen
+  ///	onerilerin `enlem`/`boylam`i **0**'dir ve `yerId` tasirlar.
+  ///	Bu metot Place Details ile gercek koordinati alir.
+  ///
+  /// ⚠️⚠️ **COZULEMEZSE SECIM KABUL EDILMEZ.** Aksi halde varis noktasi
+  ///	(0,0) — **Gine Korfezi** — olur ve rota sessizce sacmalar
+  ///	(bu projede turu 90b'de aynen yasandi).
+  /// ⚠️ Duraklar `yerId` TASIMAZ: koordinatlari kendi verimizde zaten
+  ///    var, Google'a gitmeye gerek yok (ve fatura olusmaz).
+  Future<void> _sec(AdresSonucu d, RotaNoktasi? bas) async {
+    var enlem = d.enlem;
+    var boylam = d.boylam;
+    final yid = d.yerId;
+    if (yid != null && yid.isNotEmpty) {
+      setState(() => _cozuluyor = true);
+      final nk = await AdresServisi.i.yerCoz(yid, oturum: _oturum);
+      if (!mounted) return;
+      setState(() => _cozuluyor = false);
+      if (nk == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Bu yerin konumu alınamadı.')),
+        );
+        return;
+      }
+      enlem = nk.enlem;
+      boylam = nk.boylam;
+    }
+    // ⚠️ Jeton SECIMDEN SONRA ATILIR (bkz. `_oturum` serhi).
+    _oturum = null;
+    final v = RotaNoktasi(
+      ad: d.ad,
+      altAd: d.durak ? '' : d.altAd,
+      enlem: enlem,
+      boylam: boylam,
+    );
+    setState(() {
+      _varis = v;
+      _ara.text = d.ad;
+      _sonuc = const [];
+    });
+    if (bas != null) widget.rotaBul(bas, v);
   }
 
   @override
@@ -330,20 +388,7 @@ class _PlanlaGovdeState extends State<_PlanlaGovde> {
                         borderRadius: BorderRadius.circular(kYaricap(56)),
                         clipBehavior: Clip.antiAlias,
                         child: InkWell(
-                          onTap: () {
-                            final v = RotaNoktasi(
-                              ad: d.ad,
-                              altAd: d.durak ? '' : d.altAd,
-                              enlem: d.enlem,
-                              boylam: d.boylam,
-                            );
-                            setState(() {
-                              _varis = v;
-                              _ara.text = d.ad;
-                              _sonuc = const [];
-                            });
-                            if (bas != null) widget.rotaBul(bas, v);
-                          },
+                          onTap: _cozuluyor ? null : () => unawaited(_sec(d, bas)),
                           child: Padding(
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 12, vertical: 12),
@@ -379,7 +424,14 @@ class _PlanlaGovdeState extends State<_PlanlaGovde> {
                                       ),
                                       if (d.altAd.isNotEmpty)
                                         Text(
-                                          d.altAd,
+                                          // ⚠️ Mesafe sunucudan gelirse
+                                          //    eklenir; Google `origin`
+                                          //    olmadan dondurmuyor.
+                                          d.mesafeM == null
+                                              ? d.altAd
+                                              : d.mesafeM! < 950
+                                                  ? '${d.mesafeM} m · ${d.altAd}'
+                                                  : '${(d.mesafeM! / 1000).toStringAsFixed(1).replaceAll('.', ',')} km · ${d.altAd}',
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                           style: TextStyle(
