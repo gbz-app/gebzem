@@ -3118,10 +3118,8 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
   /// ⚠️ Konum YOKSA girilmez ve sebep SOYLENIR: duraklar kullanicinin
   ///    cevresinden secildigi icin konumsuz mod anlamsiz olurdu.
   Future<void> _durakAc() async {
-    // GECICI-OLCUM
-    final k = _konum ?? (enlem: 40.8028, boylam: 29.4307);
-    // ignore: unnecessary_null_comparison
-    if (false) {
+    final k = _konum;
+    if (k == null) {
       _mesaj('Yakındaki durakları görebilmek için konum izni gerekiyor.');
       return;
     }
@@ -5491,9 +5489,6 @@ class _HaritaAlaniState extends State<_HaritaAlani> {
           if (iz != null) noktalar = takip.kalanYol(b.noktalar, iz);
         }
         if (noktalar.length < 2) continue;
-        // GECICI-OLCUM
-        // ignore: avoid_print
-        print('OLCUM cizgi bacak=$i tur=${b.tur} nokta=${noktalar.length}');
 
         final otobus = b.tur == BacakTuru.otobus;
         final tamRenk = otobus
