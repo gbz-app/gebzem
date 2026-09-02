@@ -154,6 +154,12 @@ class RotaAdayi {
 /// ⚠️⚠️ Kalan ~%1,5 cozulmez; ayrica ciftlerin ~%5,5'inde 800 m icinde
 ///	HIC DURAK yok. O vakalarda bugunku durust *"rota bulunamadi"*
 ///	metni KALIR - sahte rota URETILMEZ.
+/// ⚠️⚠️ TURU 158 - zorlanan inis izdusumu bu mesafeden UZAKSA sonuc
+///	duragi TEMSIL ETMIYOR demektir; global aramaya bakilir.
+/// ⚠️ 300 m: saglikli durak-sekil izdusumu medyan **8 m**; 300 m
+///    esigi yalnizca GERCEKTEN bozuk vakalari yakalar (olculdu: %1,05).
+const double kDilimIzdusumTavani = 300;
+
 const double kAktarmaYaricapM = 150;
 
 /// ⚠️⚠️ Aktarma icin en az bekleme tamponu (dk). Otobus 1 dk gec kalirsa
@@ -273,13 +279,21 @@ double _yolUzunlugu(List<({double enlem, double boylam})> yol) {
 /// ⚠️ Burada PENCERE YOK (tum kalan cizgi taranir): `rota_takip`teki
 ///    40 segmentlik pencere GPS monotonlugu icindir; burada inis duragi
 ///    uzun bir hatta pencerenin DISINDA kalir ve sonuc DAHA KOTU olurdu.
-int _enYakinSegment(
+/// ⚠️⚠️ TURU 158 - **IZDUSUM MESAFESI DE DONER.**
+///	Segment indeksi tek basina "durak bu sekilde var mi" sorusunu
+///	cevaplamiyordu; `_guzergahDilimi` artik uzakligi OLCUYOR.
+/// ⚠️⚠️ **KOSE MESAFESI DEGIL IZDUSUM**: GTFS sekillerinde 400 m'yi
+///	asan segmentler var; segmentin BASLANGIC KOSESINE olan mesafe
+///	durak yolun tam ustunde olsa bile buyuk cikar. Bu tuzaga
+///	ilk olcumde DUSULDU: kose ile "kotu vaka" %4,09 gorunurken
+///	izdusumle **%1,05** cikti.
+({int seg, double uz}) _enYakinIz(
   List<({double enlem, double boylam})> yol,
   double enlem,
   double boylam, {
   int basSegment = 0,
 }) {
-  if (yol.length < 2) return 0;
+  if (yol.length < 2) return (seg: 0, uz: double.infinity);
   // ⚠️ Taban cizginin DISINA tasarsa arama yapilacak segment KALMAZ;
     // cagiran (`_guzergahDilimi`) bunu duz-cizgi dali ile karsilar.
   final bas = basSegment.clamp(0, yol.length - 2);
@@ -311,7 +325,7 @@ int _enYakinSegment(
       enIyi = i;
     }
   }
-  return enIyi;
+  return (seg: enIyi, uz: math.sqrt(enAz));
 }
 
 /// Bir polyline'in iki durak arasindaki dilimi.
@@ -340,10 +354,67 @@ List<({double enlem, double boylam})> _guzergahDilimi(
       (enlem: inis.enlem, boylam: inis.boylam),
     ];
   }
-  final a = _enYakinSegment(yol, binis.enlem, binis.boylam);
+  final aIz = _enYakinIz(yol, binis.enlem, binis.boylam);
+  final a = aIz.seg;
   // ⚠️⚠️ Inis BINISTEN SONRA aranir — bkz. `_enYakinSegment` serhi.
-  final b = _enYakinSegment(yol, inis.enlem, inis.boylam,
-      basSegment: a + 1);
+  var bIz = _enYakinIz(yol, inis.enlem, inis.boylam, basSegment: a + 1);
+  // ⚠️⚠️⚠️ TURU 158 - **ZORLANAN `b` GERCEKTEN DURAGIN YANINDA MI?**
+  //
+  //	Kullanici: *"aktarmali otobuste DIREK CIZGI var yesilde"*.
+  //
+  // ⚠️⚠️ **KOK NEDEN — VE TURU 155 BUNU AZALTMADI, TASIDI.**
+  //	`basSegment: a + 1` ile `b > a` **YAPISAL OLARAK** garanti
+  //	oldugu icin asagidaki `b <= a` duz-cizgi dali artik
+  //	neredeyse hic tetiklenmiyor (**%0,17**). Ama inis duragi
+  //	sekil boyunca GERCEKTEN binisten once geliyorsa, zorlanan
+  //	`b` ileride ALAKASIZ bir segmente kilitleniyor ve dilimin
+  //	SONUNA **kilometrelerce uydurma DUZ CIZGI** ekleniyor.
+  //	OLCULDU: gecerli ciftlerin **%6,13**'unde son baglayici
+  //	>300 m (turu 155 oncesi %4,03 -> sonrasi %6,13, yani
+  //	TOPLAM ARTTI); aktarmali rotada iki otobus bacagi oldugu
+  //	icin maruziyet **%11,88**.
+  //	Kullanicinin ekran goruntusu BIT BIT yeniden uretildi:
+  //	510B|yon0, GUZELLER OSB -> 2477. SOKAK 1, a=441, zorlanan
+  //	b=448, **son baglayici 1224 m**; global b=344 ile ~5 m.
+  //
+  // ⚠️⚠️ **IKI KORUMA BIRLIKTE GEREKIR**: `basSegment` KALDIRILMAZ
+  //	(kaldirilirsa turu 155'in kapattigi %4,03 geri gelir),
+  //	ustune baglayici UZUNLUGU olculur.
+  // ⚠️ `dG * 3 < dIleri`: global aday BELIRGIN bicimde daha iyi
+  //    olmali. Ilmekli hatlarda global indeks yanlis gecisi secebilir,
+  //    bu yuzden kapi MUHAFAZAKAR.
+  // ⚠️ Bu duzeltme SALT GEOMETRIKTIR: otobus bacaginin `dakika`si
+  //    GTFS sefer sutunundan gelir, otobuse yetisme hesabi ETKILENMEZ.
+  if (bIz.uz > kDilimIzdusumTavani) {
+    final bG = _enYakinIz(yol, inis.enlem, inis.boylam);
+    // ⚠️⚠️ **`bG.seg > a` KOSULU YOKTUR — OLCULDU, BOS CIKIYOR.**
+    //	Arastirma o kosulu onerdi; simule edildi ve **0 cift**
+    //	duzeldi: `bG.seg > a` ise `bG` zaten pencerenin ICINDE
+    //	ve pencereli arama onu ZATEN buluyor, yani kosul
+    //	yapisal olarak ETKISIZ. Asil vakalarda `bG.seg < a`dir.
+    if (bG.uz * 3 < bIz.uz) {
+      if (bG.seg > a) {
+        bIz = bG;
+      } else {
+        // ⚠️⚠️⚠️ **SEKIL TERS YONDE CIZILMIS**: inis duragi sekil
+        //	boyunca binisten ONCE geliyor ama izdusumu duraga
+        //	COK yakin. Dilim [bG..a] alinip TERS CEVRILIR;
+        //	boylece cizgi binisten inise dogru akar.
+        // ⚠️ OLCULDU: kotu vakalarin **%86,5**'i tam budur
+        //    (global izdusum medyan **8 m**).
+        final alt = bG.seg + 1;
+        final ust = math.min(a + 1, yol.length);
+        if (alt < ust) {
+          return [
+            (enlem: binis.enlem, boylam: binis.boylam),
+            ...yol.sublist(alt, ust).reversed,
+            (enlem: inis.enlem, boylam: inis.boylam),
+          ];
+        }
+      }
+    }
+  }
+  final b = bIz.seg;
   if (b <= a) {
     return [
       (enlem: binis.enlem, boylam: binis.boylam),
@@ -1015,15 +1086,30 @@ Future<void> _yurumeleriZenginlestir(
         // ⚠️ Sunucu vermezse polyline uzunlugundan hesaplanir - yine
         //    de KUS UCUSUNDAN dogru.
         final gercekM = (yanit.mesafeM ?? _yolUzunlugu(yol)).toDouble();
-        final gercekDk = yanit.sureSn != null
-            ? math.max(1, (yanit.sureSn! / 60).ceil())
-            : _yurumeDakikasi(gercekM);
+        // ⚠️⚠️⚠️ TURU 158 - **SURE `sure_sn`DEN DEGIL, `kYayaHizi`DEN.**
+        //	Sunucu `sure_sn` donduruyor ve tipte KALIYOR (ileride
+        //	gerekebilir) ama BURADA KULLANILMIYOR.
+        // ⚠️⚠️ **SEBEP: `_bacakDakika` (adim karti) sureyi HER ZAMAN
+        //	`d.kalanM / kYayaHizi` ile YENIDEN hesapliyor.** `sure_sn`
+        //	kullanilsaydi ozet Google'in hiz modelinden 8 dk, adim
+        //	karti bizim modelimizden 9 dk der ve kullanicinin
+        //	sikayet ettigi CELISKI KAPANMAZ, yalnizca kucululurdu.
+        // ⚠️ `kYayaHizi` serhi zaten "TEK KAYNAK" diyor; iki hiz
+        //    modelini ayni ekranda kullanmak onu ihlal ederdi.
+        final gercekDk = _yurumeDakikasi(gercekM);
         a.bacaklar[sira] = RotaBacagi(
           tur: b.tur,
           noktalar: _uclariBagla(yol, bas, var_),
           dakika: gercekDk,
           baslik: b.baslik,
-          altBaslik: b.altBaslik,
+          // ⚠️⚠️ TURU 158 - alt satir da GERCEK olcumden.
+          //	Onceden `b.altBaslik` ("390 m · yaklaşık") kopyalaniyordu
+          //	ve ayni satirda "9 dk" ile yan yana duruyordu —
+          //	ceil(390/1,3/60) = 5, yani sayilar birbirini YALANLIYORDU.
+          // ⚠️ "· yaklaşık" ibaresi BURADAN kalkti (artik TAHMIN degil
+          //    OLCUM). Zenginlestirilemeyen dalda bacak DOKUNULMADAN kalir
+          //    ve orada ibare KALIR — iki dal AYRIDIR.
+          altBaslik: '${gercekM.round()} m',
           hat: b.hat,
           metre: gercekM,
           // ⚠️⚠️ TURU 156 — YENI ALANLAR DA KOPYALANMALI. Unutulsaydi

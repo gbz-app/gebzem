@@ -3311,9 +3311,12 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
   ///	25 dakika sonra varirdi - ozelligin en yaniltici hali.
   int _kalanDakika(RotaAdayi a, takip.TakipDurumu d) {
     final i = d.bacak.clamp(0, a.bacaklar.length - 1);
-    final b = a.bacaklar[i];
-    final oran = _bacakOrani(b, d);
-    var dk = (b.dakika * (1 - oran)).ceil();
+    // ⚠️⚠️ TURU 158 - **AKTIF BACAK `_bacakDakika` ILE AYNI KAYNAKTAN.**
+    //	Onceden burasi `b.dakika * (1 - oran)` ile, ustteki buyuk
+    //	sayi ise `d.kalanM / kYayaHizi` ile hesaplaniyordu; ayni
+    //	kartta "9 dk kaldı" ile "Tüm rota: 23 dk" birbirini
+    //	tutmuyordu. Tek kaynak.
+    var dk = _bacakDakika(a, d);
     for (var j = i + 1; j < a.bacaklar.length; j++) {
       dk += a.bacaklar[j].dakika;
     }
