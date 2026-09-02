@@ -2,9 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:geolocator/geolocator.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../medya/konum_servisi.dart';
 import '../../core/api.dart';
 import "../../core/yenile.dart";
 
@@ -448,13 +449,11 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
       final son = await Geolocator.getLastKnownPosition();
       if (son != null) _konumuUygula(son.latitude, son.longitude);
       // 2) Taze olcum — gelince degeri tazeler.
-      final p = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.medium,
-          timeLimit: Duration(seconds: 8),
-        ),
-      );
-      _konumuUygula(p.latitude, p.longitude);
+      // ⚠️⚠️ TURU 158b - **TEK-UCUS KAPISINDAN** (bkz. `KonumServisi.fix`).
+      //	Dogrudan `getCurrentPosition` cagirmak, Yakinimda ekrani ayni
+      //	anda fix isterse iOSta iki istegi carpistiriyordu.
+      final f = await KonumServisi.fix();
+      if (f.konum != null) _konumuUygula(f.konum!.enlem, f.konum!.boylam);
     } catch (_) {
       // ⚠️ SESSIZ: konum alinamazsa yalnizca mesafe cizilmez.
     }
@@ -671,15 +670,12 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
           izin == LocationPermission.deniedForever) {
         return null;
       }
-      final p = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.medium,
-          // ⚠️ ZAMAN ASIMI ZORUNLU: kapali alanda GPS SONSUZA KADAR
-          //    bekleyebilir ve liste "yukleniyor"da kalirdi.
-          timeLimit: Duration(seconds: 8),
-        ),
-      );
-      return (p.latitude, p.longitude);
+      // ⚠️⚠️ TURU 158b — **TEK-UCUS KAPISINDAN** (bkz. `KonumServisi.fix`).
+      //	Zaman asimi da orada; kapali alanda GPS sonsuza kadar
+      //	bekleyemez.
+      final f = await KonumServisi.fix();
+      if (f.konum == null) return null;
+      return (f.konum!.enlem, f.konum!.boylam);
     } catch (_) {
       return null;
     }

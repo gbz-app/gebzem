@@ -1120,7 +1120,16 @@ Future<List<RotaAdayi>> _aktarmaliAra({
           ),
         RotaBacagi(
           tur: BacakTuru.bekle,
-          dakika: math.max(0, k.binis2 - k.hazir),
+          // ⚠️⚠️⚠️ TURU 158b - **TAMPON BEKLEMEYE EMANET** (denetim).
+          //
+          //	`kAktarmaTampon` (2 dk) hicbir bacaga yazilmiyordu:
+          //	bacaklarin toplami `toplamDakika`dan **2 dk EKSIK**
+          //	kaliyor ve ozet karti ile adim listesi birbirini
+          //	yalanliyordu. Tampon fiziksel olarak BEKLEMEDE gecen
+          //	suredir; oraya yazilmasi en dogru yer.
+          // ⚠️ Kalkis ve varis saatleri DEGISMEZ — tampon yalnizca
+          //    gorunen bekleme suresine dahil olur.
+          dakika: math.max(0, k.binis2 - (k.hazir - kAktarmaTampon)),
           noktalar: const [],
           // ⚠️ TURU 158b - imlec bunu TURETMEZ, OKUR.
           kalkisDakika: k.binis2,
@@ -1224,7 +1233,9 @@ void _seferleriYenidenSec(List<RotaAdayi> sonuc, int suAn) {
       if (b.tur == BacakTuru.bekle) {
         final ilk = bekleSay++ == 0;
         final kalkis = ilk ? sf1.binis : (binis2 ?? sf1.binis);
-        final oncesi = ilk ? enErken : sf1.inis + kAktarmaTampon + (s.yurDk ?? 0);
+        // ⚠️ TURU 158b - tampon BEKLEMEYE dahil (bkz. `_aktarmaliAra`
+        //    icindeki ayni serh); iki kopya DRIFT ETMESIN diye ayni formul.
+        final oncesi = ilk ? enErken : sf1.inis + (s.yurDk ?? 0);
         bacaklar[i] = RotaBacagi(
           tur: BacakTuru.bekle,
           noktalar: const [],
@@ -1339,7 +1350,20 @@ Future<void> _yurumeleriZenginlestir(List<RotaAdayi> adaylar) async {
         //	"9 dk · 677 m" diyordu (ekrandan olculen oran ~1,74).
         // ⚠️ Sunucu vermezse polyline uzunlugundan hesaplanir - yine
         //    de KUS UCUSUNDAN dogru.
-        final gercekM = (yanit.mesafeM ?? _yolUzunlugu(yol)).toDouble();
+        // ⚠️⚠️⚠️ TURU 158b - **OLCU, CIZILEN VE TAKIP EDILEN YOLUN
+        //	KENDISINDEN ALINIR** (yayin oncesi denetim; YUKSEK).
+        //
+        //	Onceki hal sunucunun `mesafe_m` degerini kullaniyordu; o deger
+        //	YALNIZ YOLA SNAP EDILMIS polyline'i olcer. Takip ekranindaki
+        //	her sayi (`d.kalanM`, `_bacakDakika`, `_bacakOrani`) ise
+        //	`_uclariBagla` ile GERCEK baslangic/varis noktalari EKLENMIS
+        //	polyline'i olcer. Sonuc: ozet "5 dk · 390 m" derken kullanici
+        //	TEK ADIM ATMADAN adim kartinda "6 dk · 445 m kaldi" goruyordu —
+        //	turun MANSET sikayetinin (ozet 5 / adim 9) kucultulmus hali.
+        // ⚠️ `mesafe_m` artik YEDEK bile degil: bagli yolun uzunlugu her
+        //    zaman hesaplanabilir ve TEK KAYNAK olmasi sarttir.
+        final bagli = _uclariBagla(yol, bas, var_);
+        final gercekM = _yolUzunlugu(bagli);
         // ⚠️⚠️⚠️ TURU 158 - **SURE `sure_sn`DEN DEGIL, `kYayaHizi`DEN.**
         //	Sunucu `sure_sn` donduruyor ve tipte KALIYOR (ileride
         //	gerekebilir) ama BURADA KULLANILMIYOR.
@@ -1353,7 +1377,8 @@ Future<void> _yurumeleriZenginlestir(List<RotaAdayi> adaylar) async {
         final gercekDk = _yurumeDakikasi(gercekM);
         a.bacaklar[sira] = RotaBacagi(
           tur: b.tur,
-          noktalar: _uclariBagla(yol, bas, var_),
+          // ⚠️ TURU 158b - olcu ile cizgi AYNI liste (tek kaynak).
+          noktalar: bagli,
           dakika: gercekDk,
           baslik: b.baslik,
           // ⚠️⚠️ TURU 158 - alt satir da GERCEK olcumden.
@@ -1363,7 +1388,10 @@ Future<void> _yurumeleriZenginlestir(List<RotaAdayi> adaylar) async {
           // ⚠️ "· yaklaşık" ibaresi BURADAN kalkti (artik TAHMIN degil
           //    OLCUM). Zenginlestirilemeyen dalda bacak DOKUNULMADAN kalir
           //    ve orada ibare KALIR — iki dal AYRIDIR.
-          altBaslik: '${gercekM.round()} m',
+          // ⚠️⚠️ TURU 158b - **HAM METRE DEGIL** (denetim): turu 155
+          //	"15240 m kaldı" hatasini duzeltmisti, turu 158 bu dalda
+          //	onu geri getirmisti. Bicim TEK KAYNAKTAN.
+          altBaslik: UlasimVeri.mesafeMetni(gercekM),
           hat: b.hat,
           metre: gercekM,
           // ⚠️⚠️ TURU 156 — YENI ALANLAR DA KOPYALANMALI. Unutulsaydi

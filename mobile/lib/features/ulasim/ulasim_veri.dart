@@ -582,6 +582,21 @@ class UlasimVeri {
     return t.hour * 60 + t.minute;
   }
 
+  /// ⚠️⚠️⚠️ TURU 155 - **MESAFE BICIMI TEK KAYNAK.**
+  ///
+  ///	Kullanicinin ekran goruntusunde **"15240 m kaldı"** yaziyordu:
+  ///	bicimleyici VARDI ama `private` oldugu icin adim karti onu
+  ///	KULLANAMIYOR, kendi ham ifadesini yaziyordu.
+  /// ⚠️⚠️ TURU 158b - ayni hata **GERI GELDI** (yayin oncesi denetim):
+  ///	`_yurumeleriZenginlestir` `altBaslik`i HAM METRE yaziyordu ve
+  ///	turu 158 o dali **ILK KEZ ULASILABILIR** yapmisti. Bicimleyici
+  ///	artik MANTIK katmaninda; `ulasim_sayfalari` onu yeniden disa
+  ///	acar, boylece Fluttera bagimli OLMAYAN `rota_bul` da cagirabilir.
+  /// ⚠️ YAPMA: cagri yerlerine ham metre bicimi yazma.
+  static String mesafeMetni(double m) => m < 950
+      ? '${m.round()} m'
+      : '${(m / 1000).toStringAsFixed(1).replaceAll('.', ',')} km';
+
   /// Dakikayi "HH:MM" olarak yazar (24'u asan degerleri sarar).
   static String saatMetni(int dakika) {
     final d = dakika % 1440;

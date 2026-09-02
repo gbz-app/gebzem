@@ -122,19 +122,43 @@ class KonumServisi {
         }
       }();
 
+  /// ⚠️⚠️ TURU 158b - **SEBEP DISARI ACILDI** (yayin oncesi denetim).
+  ///
+  ///	Turu 158 `_yukle`yi `sessiz: true` yapti (mukerrer SnackBar
+  ///	rota ekraninin USTUNDE cikiyordu). Ama panel seridi UC AYRI
+  ///	sebebin UCUNU DE *"konum izni gerekiyor"* diye yaziyordu:
+  ///	izin VERMIS ama cihazin konum servisi KAPALI olan kullanici
+  ///	uygulama ayarlarina gidip iznin ZATEN acik oldugunu goruyor,
+  ///	gercek sebebe goturen HICBIR ipucu bulamiyordu ("Tekrar dene"
+  ///	de ayni sessiz yolu tekrarladigi icin ekran KALICI olarak
+  ///	yanlis sebebi gosteriyordu).
+  ///	Ayrica turu 157de gosterilen EYLEME DONUK ipucu ("acik alanda
+  ///	tekrar dene") turu 158de KAYBOLMUSTU.
+  /// ⚠️ `konumAl` DEGISMEDI: bu, sebebi de isteyen cagri yerleri icin.
+  static Future<({({double enlem, double boylam})? konum, String hata})>
+      konumAlAyrintili({bool sessiz = false}) async {
+    final k = await konumAl(sessiz: sessiz, sebep: _sebep);
+    return (konum: k, hata: k == null ? (_sebep.value) : '');
+  }
+
+  /// ⚠️ `konumAlAyrintili`nin sebebi topladigi kutu (tek cagri boyunca).
+  static final _sebep = ValueNotifier<String>('');
+
   static Future<({double enlem, double boylam})?> konumAl({
     bool sessiz = false,
+    ValueNotifier<String>? sebep,
   }) async {
+    sebep?.value = '';
     // ⚠️ IZIN `permission_handler` ile isteniyor (geolocator'in kendi API'si
     //    DEGIL): kod tabaninin geri kalani o paketi kullaniyor ve iki izin
     //    katmani tutmak kacinilmaz olarak DRIFT ederdi.
     // ⚠️ TURU 157 - TEK KAPI (bkz. `konumIzni` serhi).
     if (!await konumIzni()) {
-      if (!sessiz) {
-        _uyar(await Permission.locationWhenInUse.isPermanentlyDenied
-            ? 'Konum izni kapalı. Ayarlardan açabilirsin.'
-            : 'Konum paylaşmak için konum izni gerekli');
-      }
+      final m = await Permission.locationWhenInUse.isPermanentlyDenied
+          ? 'Konum izni kapalı. Ayarlardan açabilirsin.'
+          : 'Konum paylaşmak için konum izni gerekli';
+      sebep?.value = m;
+      if (!sessiz) _uyar(m);
       return null;
     }
 
@@ -142,7 +166,9 @@ class KonumServisi {
     //    kapaliysa `getCurrentPosition` ZAMAN ASIMINA UGRAR ve kullanici
     //    donmus bir ekran gorur. Once soruyoruz.
     if (!await Geolocator.isLocationServiceEnabled()) {
-      if (!sessiz) _uyar('Cihazın konum servisi kapalı');
+      const m = 'Cihazın konum servisi kapalı. Ayarlardan aç.';
+      sebep?.value = m;
+      if (!sessiz) _uyar(m);
       return null;
     }
 
@@ -168,6 +194,30 @@ class KonumServisi {
     //	ise gurultulu cagiran HICBIR SEY gormezdi.
     // ⚠️ Izin ve servis kapilari paylasimin DISINDA kalir (ucuz ve
     //    cagri yerine ozel).
+    final sonuc = await fix();
+    if (sonuc.konum == null) {
+      sebep?.value = sonuc.hata;
+      if (!sessiz) _uyar(sonuc.hata);
+    }
+    return sonuc.konum;
+  }
+
+  /// ⚠️⚠️⚠️ TURU 158b - **TEK-UCUS KAPISI: PROJEDEKI TEK GIRIS.**
+  ///
+  ///	Yayin oncesi denetim: turu 158in tek-ucus korumasi YALNIZ
+  ///	`konumAl` icindeydi; `isletme_listesi` (IKI yerde) ve
+  ///	`konum_secici` `Geolocator.getCurrentPosition`i DOGRUDAN
+  ///	cagiriyordu. Yakinimda ekranina giris o kategori ekranindan
+  ///	yapiliyor: kullanici acilistaki 8 saniyelik olcum surerken
+  ///	haritaya dokununca IKINCI bir 12 saniyelik istek aciliyor ve
+  ///	iOSun TEK SLOTLU isleyicisi yuzunden **sikayet #1 AYNEN
+  ///	TEKRARLANIYORDU** — yani duzeltme sahada kapanmamisti.
+  /// ⚠️⚠️ YAPMA: `Geolocator.getCurrentPosition`i baska yerden
+  ///	cagirma. Yeni bir cagri yeri gerekirse BU kapidan gec.
+  /// ⚠️ Ucustaki istek PAYLASILIR: farkli zaman asimlariyla
+  ///    gelen cagrilar birinciyi bekler (iOSta zaten tek slot var).
+  static Future<({({double enlem, double boylam})? konum, String hata})>
+      fix() {
     final istek = _fixIsi ??= () async {
       try {
         // ⚠️ `medium` dogruluk YETERLI ve HIZLI; `best` GPS kilidi
@@ -195,9 +245,7 @@ class KonumServisi {
         _fixIsi = null;
       }
     }();
-    final sonuc = await istek;
-    if (sonuc.konum == null && !sessiz) _uyar(sonuc.hata);
-    return sonuc.konum;
+    return istek;
   }
 
   /// Ucusta olan TEK fix istegi (bkz. `konumAl` serhi).

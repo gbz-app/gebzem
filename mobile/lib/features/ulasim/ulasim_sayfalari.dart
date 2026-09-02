@@ -116,8 +116,10 @@ Widget hatRozeti(Hat h, {double boy = 26}) {
 ///	kendi ham `${m.round()} m` ifadesini yaziyordu.
 /// ⚠️ 950 m esigi: 950-999 arasi "1,0 km" yazmak yaniltici olurdu.
 /// ⚠️ Ondalik ayraci VIRGUL (Turkce).
-String mesafeMetni(double m) =>
-    m < 950 ? '${m.round()} m' : '${(m / 1000).toStringAsFixed(1).replaceAll('.', ',')} km';
+// ⚠️⚠️ TURU 158b - govde `UlasimVeri`ye TASINDI (mantik katmani).
+//	Burasi yalnizca yeniden disa acar: mevcut cagri yerleri (bu dosya,
+//	`rota_sayfalari`) DEGISMEDEN calisir ve iki KOPYA olusmaz.
+String mesafeMetni(double m) => UlasimVeri.mesafeMetni(m);
 
 // ═══════════════════════════════════════════════════════════════════════
 // 1) YAKINDAKI DURAKLAR

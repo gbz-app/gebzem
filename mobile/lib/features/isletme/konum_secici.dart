@@ -30,6 +30,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
+import '../medya/konum_servisi.dart';
 import '../../core/api.dart';
 import '../../core/denetleyici_sahibi.dart';
 import 'harita_pin.dart';
@@ -224,14 +225,16 @@ class _KonumPaneliState extends ConsumerState<_KonumPaneli> {
             const SnackBar(content: Text('Konum izni verilmedi.')));
         return;
       }
-      final p = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.medium,
-          timeLimit: Duration(seconds: 10),
-        ),
-      );
+      // ⚠️⚠️ TURU 158b — **TEK-UCUS KAPISINDAN** (bkz. `KonumServisi.fix`).
+      //	iOS'ta geolocator TEK SLOTLU sonuc isleyicisi tutar; es zamanli
+      //	ikinci istek birincinin blogunu EZER ve o future HIC tamamlanmaz.
+      final f = await KonumServisi.fix();
       if (!mounted) return;
-      await _kaydet(p.latitude, p.longitude);
+      if (f.konum == null) {
+        mesajci.showSnackBar(SnackBar(content: Text(f.hata)));
+        return;
+      }
+      await _kaydet(f.konum!.enlem, f.konum!.boylam);
     } catch (_) {
       mesajci.showSnackBar(
           const SnackBar(content: Text('Konum alınamadı. GPS açık mı?')));

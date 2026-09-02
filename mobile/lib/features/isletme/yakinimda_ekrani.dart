@@ -775,13 +775,18 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
   ///	Tek-bacak olcutuyle 1,2 km + 1,1 km = 2,3 km'lik bir rota
   ///	karti HIC gostermezdi ve emrin amaci kacardi.
   ///
-  /// ⚠️⚠️ **DURUST SINIR - ESIK GERCEKTE ~2,4-2,8 KM'DE TETIKLER.**
-  ///	`RotaBacagi.metre` KUS UCUSU tahminidir ve
-  ///	`_yurumeleriZenginlestir` gercek yol cizgisini yazarken bile
-  ///	`metre: b.metre` ile ESKI degeri kopyalar. Yani esik GEC
-  ///	tetikler (guvenli taraf: az yurumede taksi onerilmez).
-  ///	Gercek yol uzunluguna baglamak bacak suresini, dolayisiyla
-  ///	OTOBUSE YETISME hesabini da degistirir - AYRI TUR.
+  /// ⚠️⚠️ **TURU 158b - BU SERH ARTIK GECERSIZ, DUZELTILDI** (denetim).
+  ///	Eski hali *"esik ~2,4-2,8 km'de tetikler, cunku
+  ///	`_yurumeleriZenginlestir` `metre: b.metre` ile ESKI kus ucusu
+  ///	degerini kopyalar; gercek uzunluga baglamak AYRI TUR"* diyordu.
+  ///	Turu 158 tam da o iSI yapti: `metre` ve `dakika` artik
+  ///	**CIZILEN VE TAKIP EDILEN polyline'in** uzunlugundan geliyor.
+  ///	Yani esik artik GERCEK yurume mesafesiyle tetikleniyor.
+  /// ⚠️ Zenginlestirilemeyen bacak (ag yok / kota) hala kus ucusudur;
+  ///    o vakada esik yine GEC tetikler — guvenli taraf.
+  /// ⚠️ **DERS: bir serh bir isi "AYRI TUR" diye erteliyorsa, o is
+  ///    yapildiginda SERHI DE GUNCELLE** — yoksa serh gelecekteki
+  ///    okuyucuyu var olmayan bir borca yonlendirir.
   ///
   /// ⚠️⚠️ **TELEFON NUMARASI VERIDE YOK** (53/53 kayitta olculdu;
   ///	`TaksiDuragi` sinifinda alan bile yok). Bu yuzden kart
@@ -1600,8 +1605,15 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
       //	`rootMessengerKey` uzerinden SnackBar atmasi MUKERRERDI ve
       //	rota/durak ekraninin USTUNDE cikiyordu - kullanicinin
       //	*"surekli alttan hata aliyorum"* yakinmasinin ikinci yarisi.
-      final k = (konumuTazele ? null : _konum) ??
-          await KonumServisi.konumAl(sessiz: true);
+      // ⚠️⚠️ TURU 158b - **SEBEP DE ALINIR** (yayin oncesi denetim):
+      //	asagidaki `k == null` dali UC AYRI sebebin UCUNU DE
+      //	*"konum izni gerekiyor"* diye yaziyordu. Izin VERMIS ama
+      //	cihaz konum servisi KAPALI olan kullanici ayarlarda iznin
+      //	zaten acik oldugunu gorup CIKMAZ SOKAKTA kaliyordu.
+      final onceki = konumuTazele ? null : _konum;
+      final ayrinti =
+          onceki == null ? await KonumServisi.konumAlAyrintili(sessiz: true) : null;
+      final k = onceki ?? ayrinti?.konum;
       if (!mounted || nesil != _nesil) return;
       // ⚠️⚠️⚠️ TURU 144 — **KONUM DEGISTIYSE ONBELLEK COPE.** Denetim
       //	bulgusu: kullanici baska bir sehre gidip asagi cektiginde YALNIZ
@@ -1628,8 +1640,12 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
           //    ("Ayni kuralin iki kopyasi drift eder" — bu kez KENDI
           //     duzeltmemin kardes dalinda.)
           _liste = const [];
-          _hata = 'Konumun alınamadı. Yakındakileri görebilmek için '
-              'konum iznine ihtiyacımız var.';
+          // ⚠️⚠️ TURU 158b - SEBEP servisin kendisinden; sabit metin
+          //	YALNIZCA sebep bilinmiyorsa yazilir.
+          _hata = (ayrinti?.hata.isNotEmpty ?? false)
+              ? ayrinti!.hata
+              : 'Konumun alınamadı. Yakındakileri görebilmek için '
+                  'konum iznine ihtiyacımız var.';
         });
         // ⚠️ KONUM-YOK DALINDA DA artar (bkz. hata dali serhi).
         _listeNesli.value++;
@@ -1735,10 +1751,15 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
                 //	(Mapbox dokumani gerekcesi: *"loss of location
                 //	coordinate precision in cities with tall
                 //	buildings"*). Veri ZATEN elde.
-                // ⚠️⚠️ **`rotaDisi` KAPISI ZORUNLU**: `ilerlet` o dalda
-                //	izdusumu ONCEKI durumdan aynen tasiyor. Kapisiz
-                //	yapistirma, rotadan cikmis kullaniciyi BAYAT bir
-                //	noktada DONMUS gosterirdi — bosluktan DAHA KOTU.
+                // ⚠️⚠️ **`rotaDisi` KAPISI ZORUNLU.**
+                //	⚠️ TURU 158b - gerekce GUNCELLENDI (denetim): eski
+                //	  serh *"`ilerlet` o dalda izdusumu ONCEKI durumdan
+                //	  aynen tasiyor"* diyordu; turu 157 govdeyi degistirip
+                //	  GUNCEL izdusumu yazar hale getirmisti, yani serh
+                //	  bayatlamisti. Kapinin GERCEK gerekcesi: rotadan
+                //	  cikmis kullanicinin puckini cizgiye yapistirmak onu
+                //	  OLMADIGI bir yerde gosterir — kullanici sapmasini
+                //	  goremez ve "rotadan uzaktasin" uyarisi anlamsizlasir.
                 // ⚠️ `_konum`un KENDISI DEGISMEZ: yakin durak/isletme
                 //    sorgulari ve mesafeler ham GPSte kalir.
                 merkez: (_takip != null &&
@@ -2986,7 +3007,7 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
                       //	kelime, tum bos alani yutmasina gerek yok.
                       Flexible(
                         child: OutlinedButton(
-                          onPressed: _takipDurdur,
+                          onPressed: () => _takipDurdur(elle: true),
                           style: OutlinedButton.styleFrom(
                             padding:
                                 const EdgeInsets.symmetric(horizontal: 14),
@@ -3511,8 +3532,18 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
     final alt = bu && d.kalanM.isFinite
         ? (d.rotaDisi
             ? 'Rotadan uzaktasın — çizgiye dön'
+            // ⚠️⚠️ TURU 158b - **"· yaklaşık" ARTIK KOSULLU** (denetim).
+            //	Turu 158 zenginlestirilmis yurume bacaginda o ibareyi
+            //	`altBaslik`tan KALDIRDI (artik TAHMIN degil OLCUM) ama
+            //	adim karti onu HALA SABIT yaziyordu — yani turun kendi
+            //	serhiyle celisiyor ve olculmus bir sayiyi "yaklasik"
+            //	diye etiketliyordu.
+            // ⚠️ Olcut zenginlestirmenin KENDI olcutuyle AYNI: iki
+            //    noktali bacak = kus ucusu duz cizgi = hala TAHMIN.
             : b.tur == BacakTuru.yuru
-                ? '${ulasim.mesafeMetni(d.kalanM)} kaldı · yaklaşık'
+                ? (b.noktalar.length > 2
+                    ? '${ulasim.mesafeMetni(d.kalanM)} kaldı'
+                    : '${ulasim.mesafeMetni(d.kalanM)} kaldı · yaklaşık')
                 : '${ulasim.mesafeMetni(d.kalanM)} kaldı · ${b.altBaslik}')
         : switch (b.tur) {
             BacakTuru.bekle => b.hat == null
@@ -4921,9 +4952,24 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
   /// ⚠️⚠️ **AKIS IPTALI ZORUNLU**: birakilmazsa GPS acik kalir,
   ///	pil akar ve ekran kapandiktan sonra bile olay gelmeye
   ///	devam eder (`setState` OLU bir `State`e dokunur).
-  void _takipDurdur() {
+  /// Takibi durdurur.
+  ///
+  /// ⚠️⚠️⚠️ TURU 158b - **`elle` AYRIMI ZORUNLU** (yayin oncesi denetim).
+  ///
+  ///	`_sonBacak`, takip **BEKLENMEDIK** durdugunda (GPS izni kaybi,
+  ///	ust uste ag hatasi) gecilmis bacaklarin haritaya ANINDA tam
+  ///	renkle geri gelmesini onlemek icin var.
+  ///	Ama "Bitir" dugmesi ve "Vardin." dali da ayni yoldan gectigi
+  ///	icin navigasyon BITTIKTEN sonra da rotanin ilk yarisi haritada
+  ///	CIZILMIYORDU: ozet karti 7 bacakli tam rotayi vaat ederken
+  ///	harita ilk iki bacagi gostermiyor, binis duragi pini ise
+  ///	YERINDE duruyordu (pin var, ona giden cizgi YOK). Geri
+  ///	getirmenin tek yolu yeniden "Basla"ya basmakti.
+  /// ⚠️ `elle: true` -> rota TAM cizilir; `false` (varsayilan) ->
+  ///    gecilmis bacaklar silinmis KALIR.
+  void _takipDurdur({bool elle = false}) {
     // ⚠️ TURU 158 - silinmis bacaklar geri gelmesin (bkz. `_sonBacak`).
-    _sonBacak = _takip?.bacak;
+    _sonBacak = elle ? null : _takip?.bacak;
     _bekleTik?.cancel();
     _bekleTik = null;
     _konumAkisi?.cancel();
@@ -5027,7 +5073,8 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
     if (yeni.bacak != d.bacak) _adimSayfasinaGec(yeni.bacak);
     if (yeni.bitti) {
       _mesaj('Vardın.');
-      _takipDurdur();
+      // ⚠️ TURU 158b - rota TAMAMLANDI: harita tam rotayi gostersin.
+      _takipDurdur(elle: true);
     }
   }
 
@@ -5076,11 +5123,19 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
       baslangic: _rotaBas,
       varis: _rotaVaris,
       rotaBul: (b, v) {
-        setState(() {
-          _rotaBas = b;
-          _rotaVaris = v;
-        });
-        unawaited(_rotaAra());
+        // ⚠️⚠️⚠️ TURU 158b - **HEDEF ARAMA BASLARKEN EKRANA YAZILMAZ**
+        //	(yayin oncesi denetim; ORTA).
+        //
+        //	Onceden `_rotaBas`/`_rotaVaris` BURADA yaziliyordu. Turu
+        //	158 `_rotaAra`daki `_rota = null` satirini kaldirinca ikisi
+        //	AYRISTI: kullanici sonuc sheetini SECIM YAPMADAN kapatirsa
+        //	panelde YENI hedef ("Nereye: B") yaziyor ama ozet karti,
+        //	harita cizgisi, varis pini ve "Basla" dugmesi hala ESKI
+        //	rotayi (A) gosteriyordu — kullanici Bye gidecegini sanip
+        //	Aya yonlendiriliyordu.
+        // ⚠️⚠️ Hedef ve rota TEK GERCEGIN iki parcasi: ikisi de artik
+        //	YALNIZ `rotaSec` icinde, TEK `setState`te yazilir.
+        unawaited(_rotaAra(b, v));
       },
       haritadanSec: (baslangicIcin) {
         // ⚠️ Baslangic merkezi: varsa mevcut secim, yoksa kullanici
@@ -5232,10 +5287,12 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
   ///    akisa yeniden-girme kilidi.
   bool _rotaAriyor = false;
 
-  Future<void> _rotaAra() async {
+  Future<void> _rotaAra([RotaNoktasi? yeniBas, RotaNoktasi? yeniVaris]) async {
     if (_rotaAriyor) return;
-    final b = _rotaBas;
-    final v = _rotaVaris;
+    // ⚠️⚠️ TURU 158b - hedef EKRANA yazilmadan once ARAMADA kullanilir;
+    //	ekrana ancak rota secilirse (asagida) islenir.
+    final b = yeniBas ?? _rotaBas;
+    final v = yeniVaris ?? _rotaVaris;
     // ⚠️ Iki uc da SECILMEDEN arama yapilmaz; kullanici zaten
     //    planlama sayfasinda ikisini de gorur (dugme orada PASIF).
     if (b == null || v == null) return;
@@ -5293,6 +5350,9 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
           // ⚠️ TURU 158 - yeni rota: eski bacak indeksi GECERSIZ.
           _sonBacak = null;
           _takip = null;
+          // ⚠️⚠️ TURU 158b - hedef ve rota AYNI ANDA (bkz. `rotaBul`).
+          _rotaBas = b;
+          _rotaVaris = v;
           _rota = a;
           // ⚠️⚠️ Kullanici emri: *"rota bulununca alttaki durak kartlari
           //	GIDECEK"*. Kartlar rota ozetine yerini birakir.
