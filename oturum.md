@@ -9356,4 +9356,118 @@ SILINDI (`grep -rn "GECICI-OLCUM"` = 0).
 - **Kalan ~%1,5 rota cozulmez** + ciftlerin ~%5,5'inde 800 m icinde HIC
   durak yok; o vakalarda durust "rota bulunamadi" metni KALIR.
 
+
+### 🛡️ TURU 157 — YAYIN ONCESI DENETIM (44 ajan: 6 mercek + her bulguya AYRI curutucu)
+
+**36 HAM BULGU -> 16 ONAY (1 sevk engeli · 4 yuksek · 5 orta · 6 dusuk), 8 CURUTULDU.**
+Build ALINMISTI, **IPTAL EDILDI**, duzeltmeler yapilip YENIDEN alindi —
+*"Build ALMAK yayinlamak DEGILDIR"* dersinin **DOKUZUNCU** dogrulanmasi.
+
+#### ⚠️⚠️⚠️ SEVK ENGELI — ozet kartinin baslik satiri aktarmayla TASIYORDU
+OLCULDU (gercek Google Sans yuklu widget testi; kart ic genisligi 360 dp
+ekranda **304 dp**): tek rozetle 266,1 dp SIGIYOR; turu 157'nin ekledigi
+**ikinci rozet + ok** ile **320,9 dp** -> **+16,9 dp tasma**; olcek 1.3'te
+383,3 -> **+79,3**.
+⚠️⚠️ **KIRPAN SEY `RenderFlex` DEGIL** (o boyama `assert` blogunda, release'te
+SILINIR): kirpan `Material(clipBehavior: Clip.antiAlias)`. Sonuc: olcek 1.0'da
+**"Başla"nin 4,9 dp'si** kesiliyor, **olcek 1.3'te dugme TAMAMEN gorunmez**
+oluyordu — yani aktarmali rotayi BASLATAN TEK YOL kayboluyordu.
+⚠️ **411 dp test cihazinda SIGIYOR** — turu 70b/90b/98c dersi yine gecerli:
+*dar ekranda OLCMEDEN "sigiyor" deme.*
+FIX: `Spacer` KALDIRILDI, iki metin `Flexible` + `ellipsis`; rozetler ve dugme
+SABIT genislikte kalir (hat numarasi ve "Başla" kirpilamaz). Ayrica **"N
+aktarma"** etiketi eklendi — iki rozet + ok bunu IMA ediyordu, ima yetmez.
+
+#### YUKSEK (4)
+· **`_rotaOzetBoy` bacak satirini SABIT 15 dp sayiyordu.** OLCULDU: gercek
+  **20 / 25 / 37 dp** (panel `ThemeData.dark(useMaterial3: true)` zorluyor ve
+  satirdaki metinler `height` vermiyor -> M3 `bodyMedium` **1,43**).
+  `.take(4)` kalkinca 7 bacakli rotada ayrisma **35 / 70 / 154 dp**.
+  ⚠️ Ayni ifadedeki `ust` ve `taksi` terimleri `o.scale()` TASIYORDU —
+     **asimetrinin kendisi hataydi.**
+  IKI **CANLI** tuketici: (a) `GoogleMap.padding` eksik kaliyor, `_sigdir`
+  rotayi panelin ARKASINA uzanan dikdortgene sigdirdigi icin varis ucu panelin
+  ARKASINDA kaliyordu; (b) `_havaSigar` paneli OLDUGUNDAN KISA saniyor -> hava
+  dugmesi panelin ALTINDA kalabiliyor, **hem gorunmez hem DOKUNULAMAZ** —
+  kapinin ONLEMEK icin yazildigi zararin ta kendisi.
+  FIX: **`_ozetSatirBoy` TEK KAYNAK** + metinlere ACIK `height: 1.3` (aksi
+  halde formul TEMAYA baglanirdi).
+· **BOS SONUC EKRANI hala *"Aktarmalı rota henüz eklenmedi"* diyordu** — turun
+  MANSET OZELLIGININ var olmadigini kullaniciya ILAN ediyordu. Metin
+  *"Uygun rota bulunamadı / aktarmayla bile uygun bir sefer bulunamadı"* oldu.
+· ⚠️⚠️ **`_seferBul` uzunluk kapisi vaat ettigi korumayi SAGLAMIYOR.**
+  OLCULDU: kapi cift havuzunun **%0,12**'sini eliyor (eski serhteki sayi BUYDU
+  ve YANILTICIYDI) ama **kapidan GECENLERIN %2,6**'sini hicbir gercek sefer
+  saglamiyor; **secilen bacaklarin %4,4**'unde varis saati UYDURMA ve
+  **hatalarin TAMAMI varisi ERKEN** gosterdigi icin o rota siralamada HAKSIZ
+  YERE ONE gecer. Bacaklar cografi olarak GERCEK; yanlis olan yalnizca SAAT.
+  ⚠️ **KOK NEDEN VARLIK URETICISINDE**: `tools/ulasim_uret.js` kalkislari durak
+     basina AYRI siraliyor ve **sefer kimligini ATIYOR**.
+  Bu turda yalnizca SERH olculen gercekle degistirildi; kalici cozum
+  (`kalkislar` -> `[dakika, seferIndeksi]`) **AYRI TUR**.
+· **Varis tarafindaki `.take(7)` SAF ZARARDI** — gerekcesi KENDI ICINDE
+  curuktu (serh *"kucultmek ic dongu maliyetini DUSURMEZ"* diyordu, yani
+  kazanc olmadigini kendisi yaziyordu). OLCULDU (kaldirilinca): birinci sira
+  kotulesmesi **%22,8 -> %4,0**, bos ekran **9 -> 1**, maliyet p99
+  **203 -> 192 ms**. Yani **DAHA IYI ve DAHA UCUZ**.
+
+#### ORTA (5)
+· **Aktarma yurumesi `noktalar: const []` idi** -> haritada **0-150 m CIZGISIZ
+  BOSLUK** (turu 157'yi baslatan *"kopmalar"* sikayetinin YENI ORNEGI; ikinci
+  otobusun turkuaz olmasi boslugu daha gorunur yapiyordu) **ve** `ilerlet` bos
+  bacaklari atladigi icin *"Aktarma icin yuruyun"* adimi takipte **HIC AKTIF
+  OLMUYORDU**. Artik IKI GERCEK NOKTA; kota yeni **`aktarmaYurumesi`**
+  bayragiyla korunuyor (Routes cagrisi **6'da KALIR**).
+· **Aktarma hat cifti basina ILK BULUNANI kilitliyordu, EN ERKEN VARANI degil.**
+  Duraklar mesafeye gore sirali oldugu icin ilk bulunan EN YAKIN duraktir.
+  OLCULDU: sonuclarin **%38-43**'unde en ustteki rota AYNI iki hatti kullanan
+  daha erken varan bir yolculuktan **6-123 dakika** gec variyordu — kullanici
+  8 dakikalik aktarma cezasini BOSUNA odemis oluyordu. Artik en-erken secilir
+  ve pahali insa donguden CIKTI (maliyet DUSTU).
+· **Takipte bacak degisince izdusum ONCEKI bacaga aitti.** Turu 157 cizimi ve
+  puck'i o alanlara bagladigi icin sonuc GORUNUR oldu: aktarmadan sonra 2. hat
+  **0-175 m** kayik basliyor ve arasi binalarin ustunden DUZ cizgiyle
+  geciliyordu (turu 155'te *"BIZIMKI DIREK USTUNDE"* diye duzeltilen gorunumun
+  AYNISI); puck da ~100 m geride goruluyordu. `rotaDisi` dalinda ayrica BAYAT
+  nokta yayiliyordu.
+· **Toplam sure tavani YALNIZ aktarmali rotalara uygulaniyordu**: 151 dakikalik
+  aktarmali rota SESSIZCE atilirken **984 dakikalik (16 saat)** aktarmasiz bir
+  rota *"en iyi secenek"* diye BIRINCI sirada gosteriliyordu.
+· **`_rotaAra`da yeniden-girme kilidi yoktu** (ikinci dokunus IKI TAM ARAMA +
+  UST USTE IKI sheet acardi) **+ ic dongu hedef kesiti onbelleklendi**:
+  OLCULDU **9.804.508 -> 69.114** islem, **234,5 -> 42,4 ms**, uretilen aday
+  sayisi UC senaryoda da **BIREBIR AYNI** (hizlandirma, davranis degisikligi DEGIL).
+
+#### 📊 SON OLCUM (59 cift, hafta ici 12:00)
+| olcut | turu 156 | turu 157 ilk | turu 157 SON |
+|---|---|---|---|
+| kapsama | %39,5 | %96,6 | **%96,6** |
+| aktarma onerilen | — | 30 | **46** |
+| 15 km+ | %8 | 4/4 | **4/4** |
+| en uzun rota | — | (tavansiz) | **135 dk** (tavan 150) |
+| sure medyan | — | 22 ms | **4 ms** |
+| sure maks | — | 103 ms | **115 ms** |
+
+20 aktarmali rotanin yapisi ayrica dogrulandi: 7 bacak, iki AYRI hat, aktarma
+yurumesi IKI NOKTA ile CIZILEBILIR.
+
+#### 📌 CURUTULEN 8 (bir daha arastirilmasin)
+rota secim karti aktarmayi gizliyor · `_durakYukleniyor` carki olu (IKI ayri
+iddia) · en dar dilim kesik desenini kaybediyor · ozet kartindaki puntolar
+olcek disi · `_rotaTaksi` bayat kaliyor · `_durakAc`ta re-entrancy yok ·
+`_durakAc` istisnaya karsi korumasiz.
+
+#### ⚠️ SUREC DERSLERI (bu turda ogrenildi)
+· **Regex ile kod donusturmek Turkce dizeleri BOZDU**: `y` degiskenini
+  niteleyen desen `"yürü"` dizesini `"k.yürü"` yapti (`ü` ASCII sinif disinda
+  oldugu icin sinir kontrolu tuttu). `\p{L}` denemesi de JS dize kacisi
+  yuzunden calismadi. **Blok ELLE yazildi.**
+  ⚠️ **KURAL: kaynak kodda tanimlayici degistiren regex yazma — ozellikle
+     dosyada Turkce dizeler varken.**
+· **Bu dosyalar KARISIK satir sonu tasiyor** (ayni dosyada hem CRLF hem LF).
+  Yamalayici her cift icin ONCE CRLF sonra LF denemeli (turu 89/117/119'un
+  dorduncu tekrari).
+· **`dart format` KOSTURMA**: HEAD zaten format-temiz DEGIL; tek dosyayi
+  formatlamak **2769 satir** alakasiz gurultu uretiyor.
+
 ### 🚧 BUILD ALINMADI — KULLANICIYA SORULACAK (CLAUDE.md kural 0)
