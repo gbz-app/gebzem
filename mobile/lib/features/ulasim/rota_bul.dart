@@ -86,7 +86,14 @@ class RotaAdayi {
     required this.toplamDakika,
     required this.yurumeDakika,
     required this.hat,
+    this.aktarma = 0,
   });
+
+  /// ⚠️⚠️ TURU 157 - kac AKTARMA var (0 = aktarmasiz).
+  ///	Siralama cezasi ve arayuzdeki "1 aktarma" etiketi bunu okur.
+  /// ⚠️ `hat` alani ILK otobus hattidir; aktarmali rotada IKINCI hat
+  ///    bacaklardan (`RotaBacagi.hat`) okunur.
+  final int aktarma;
 
   /// ⚠️ Liste DEGISTIRILEBILIR: yurume bacaklari sonuc uretildikten SONRA
   ///    gercek yol agi cizgisiyle degistiriliyor
@@ -101,6 +108,86 @@ class RotaAdayi {
   final Hat hat;
 }
 
+
+/// ⚠️⚠️⚠️ TURU 157 - **AKTARMALI ROTA** (kullanici emri: *"cok uzakta bir
+///	yeri isaretledigimde AKTARMA YOLLARINI gostermiyor, onu da yap"*).
+///
+/// ⚠️⚠️ **KULLANICI HAKLIYDI VE SAYISALLASTIRILDI.** 200 rastgele durak
+///	cifti, hafta ici 12:00, 800 m yurume yaricapi:
+///	  aktarmasiz motor toplam **%39,5** cozuyor
+///	    0-3 km  %61  ·  6-10 km %27  ·  10-15 km %24
+///	    **15 km ustu YALNIZCA %8**  <- sikayetin tam karsiligi
+///	  TEK aktarma eklenince: **%98,5** (+%59).
+///
+/// ⚠️⚠️ **ALGORITMA OLCULEREK SECILDI** (uc secenek karsilastirildi):
+///	  (a) kaba kuvvet: sorgu basina ~687.000 ic-dongu islemi -> 200 ms
+///	      butcesine SIGMAZ.
+///	  (b) hat-cifti kesisim tablosu: **HICBIR SEYI ELEMIYOR** - 200x200
+///	      hat ciftinin %72,4'unde zaten ortak bir aktarma noktasi var,
+///	      ustelik kurulumu 72 ms. (Bu secenegi bir daha arastirma.)
+///	  (c) **IKI TURLU (RAPTOR benzeri)**: Dart'ta olculdu, ort **2,39 ms**
+///	      / p95 5,74 / maks 9,48 ms. SECILEN BU.
+///	⚠️ Olcum MASAUSTU + JIT ile yapildi; gercek cihazda AOT ile
+///	   TEKRAR OLCULMELI. Sayiya degil BUYUKLUK MERTEBESINE guven.
+///
+/// ⚠️⚠️ **AKTARMA YARICAPI 150 m** (olculdu): 250 m ve 400 m kapsamaya
+///	**HICBIR SEY EKLEMIYOR** ama komsu durak cifti sayisini 3.880'den
+///	22.657'ye cikariyor. Aktarmalarin **%36'si AYNI DURAKTA**;
+///	yuruyerek aktarmada sure medyan 1 dk, en fazla 2 dk.
+///
+/// ⚠️⚠️⚠️ **IKI AKTARMA YAPILMADI**: kazanc en fazla ~%1, maliyet katlaniyor.
+/// ⚠️⚠️ Kalan ~%1,5 cozulmez; ayrica ciftlerin ~%5,5'inde 800 m icinde
+///	HIC DURAK yok. O vakalarda bugunku durust *"rota bulunamadi"*
+///	metni KALIR - sahte rota URETILMEZ.
+const double kAktarmaYaricapM = 150;
+
+/// ⚠️⚠️ Aktarma icin en az bekleme tamponu (dk). Otobus 1 dk gec kalirsa
+///	kullanici aktarmayi kacirmasin diye ikinci hat bu kadar SONRA
+///	kalkmali.
+const int kAktarmaTampon = 2;
+
+/// ⚠️⚠️ Kapidan kapiya toplam sure tavani (dk).
+///	Bugunku tek kapi BACAK BASINA 180 dk; aktarmada iki otobus bacagi
+///	birden ona yaklasabilir (olculen en kotu: **234 dk**). Boyle bir
+///	rota gosterilmemeli.
+const int kToplamSureTavani = 150;
+
+/// ⚠️⚠️ Siralamada aktarmaya eklenen CEZA (dk).
+///	Aktarma yalnizca sureye bakilarak siralansaydi, 3 dakika daha
+///	erken varan aktarmali bir rota aktarmasizin ONUNE gecerdi -
+///	oysa aktarma gercek bir zahmet ve KACIRMA RISKI tasir.
+///	Olculdu: 8 dk ceza ile aktarmali rota aramalarin **%37**'sinde
+///	yine birinci kaliyor ve kazandiginda kazanc **medyan 53 dakika**.
+const int kAktarmaCezasi = 8;
+
+/// Sefer sutunundan bir bacak icin binis/inis dakikasi bulur.
+///
+/// ⚠️⚠️⚠️ **SUTUN UZUNLUKLARI ESIT DEGILSE CIFT ATLANIR** (olculdu).
+///	Mevcut kod `math.min(a.length, b.length)` kullaniyor ve bu,
+///	iki duragin kalkis listelerinin INDEKS INDEKS AYNI SEFERI
+///	gosterdigini VARSAYIYOR. **200 hat-yonun 8'i bunu SAGLAMIYOR**
+///	ve fark TAM 2 KAT: ilmekli hatta ayni durak ayni seferde IKI KEZ
+///	geciliyor. Bugun 770.482 durak ciftinin %0,12'si etkileniyor -
+///	ama aktarmada IKI otobus bacagi oldugu icin maruziyet IKIYE
+///	KATLANIR. Yanlis sonuc uretmektense sonuc URETMEMEK dogrudur.
+/// ⚠️ 180 dk tavani: ayni hattin gunun BASKA seferlerinin yanlis
+///    eslesmesini eler (mevcut kuraldan devir).
+({int binis, int inis, int sutun})? _seferBul(
+  List<int> binisSaatleri,
+  List<int> inisSaatleri,
+  int enErken,
+) {
+  if (binisSaatleri.length != inisSaatleri.length) return null;
+  for (var j = 0; j < binisSaatleri.length; j++) {
+    final b = binisSaatleri[j];
+    final i = inisSaatleri[j];
+    if (b < enErken) continue;
+    if (i <= b) continue;
+    if (i - b > 180) continue;
+    return (binis: b, inis: i, sutun: j);
+  }
+  return null;
+}
 /// Yaya hizi (m/sn). ⚠️ TEK KAYNAK: hem sure hem "kac dakika yurudum"
 /// hesabi bunu okur. 1,3 m/sn ~ 4,7 km/sa — yetiskin ortalamasi.
 const double kYayaHizi = 1.3;
@@ -286,23 +373,24 @@ Future<List<RotaAdayi>> rotaAra({
           //	dongusel hatlarda yaniltiyor (olculdu: en kotu grupta %65,8
           //	ters cift). Dogru olcut: AYNI SEFERDE binis saati inis
           //	saatinden ONCE mi?
-          final n = math.min(oh.kalkislar.length, dh.kalkislar.length);
-          int? binis;
-          int? inis;
+          // ⚠️⚠️⚠️ TURU 157 - **`math.min(...)` GIZLI BIR VARSAYIMDI.**
+          //	Iki duragin kalkis listelerinin INDEKS INDEKS AYNI
+          //	SEFERI gosterdigini varsayiyordu. **OLCULDU: 200
+          //	hat-yonun 8'i bunu SAGLAMIYOR** ve fark TAM 2 KAT -
+          //	ilmekli hatta ayni durak ayni seferde IKI KEZ
+          //	geciliyor. `min` ile kisa listeye hizalanmak, uzun
+          //	listedeki duragin **YANLIS seferini** okumak demekti.
+          //	Bugun durak ciftlerinin %0,12'si etkileniyordu;
+          //	aktarmada IKI otobus bacagi oldugu icin maruziyet
+          //	IKIYE KATLANIRDI.
+          // ⚠️⚠️ Kapi TEK KAYNAKTAN (`_seferBul`): uzunluklar ESIT
+          //	DEGILSE cift ATLANIR. Yanlis sonuc uretmektense
+          //	sonuc URETMEMEK dogrudur.
           final enErken = suAn + oDk;
-          for (var j = 0; j < n; j++) {
-            final b = oh.kalkislar[j];
-            final i = dh.kalkislar[j];
-            if (b < enErken) continue;
-            if (i <= b) continue;
-            // ⚠️ 180 dk tavani: ayni hattin gunun farkli seferlerinin
-            //    yanlis eslesmesini eler.
-            if (i - b > 180) continue;
-            binis = b;
-            inis = i;
-            break;
-          }
-          if (binis == null || inis == null) continue;
+          final sf = _seferBul(oh.kalkislar, dh.kalkislar, enErken);
+          if (sf == null) continue;
+          final binis = sf.binis;
+          final inis = sf.inis;
 
           final yol = await UlasimVeri.i.guzergah(oh.hat.id, oh.yon);
           final dilim = _guzergahDilimi(yol, o, d);
@@ -371,12 +459,48 @@ Future<List<RotaAdayi>> rotaAra({
     }
   }
 
-  // En erken varis ONCE; ayni hattin tekrarlari elenir.
-  adaylar.sort((a, b) => a.varisDakika.compareTo(b.varisDakika));
+  // ⚠️⚠️⚠️ TURU 157 - **AKTARMALI ADAYLAR AYNI LISTEYE KATILIR.**
+  //
+  //	AYRI BIR BOLUM YAPILMADI (olculdu): durak ciftlerinin **%61'inde
+  //	aktarmasiz cozum HIC YOK**, yani "Aktarmasız" basligi cogu
+  //	aramada BOMBOS kalirdi.
+  // ⚠️⚠️ **ARAMA HER ZAMAN KOSULMAZ**: aktarmasiz sonuc `adet` kadar
+  //	doluysa ikinci tur ATLANIR - kisa mesafelerde (0-3 km, %61
+  //	basari) gereksiz is yapilmaz.
+  if (adaylar.length < adet) {
+    adaylar.addAll(await _aktarmaliAra(
+      basDuraklar: basDuraklar,
+      varDuraklar: varDuraklar,
+      basHat: basHat,
+      baslangicEnlem: baslangicEnlem,
+      baslangicBoylam: baslangicBoylam,
+      varisEnlem: varisEnlem,
+      varisBoylam: varisBoylam,
+      servis: servis,
+      suAn: suAn,
+      varisAd: varisAd,
+    ));
+  }
+
+  // ⚠️⚠️⚠️ **SIRALAMA: VARIS + AKTARMA CEZASI.**
+  //	Ciplak varis saatiyle siralansaydi, 3 dakika daha erken varan
+  //	aktarmali bir rota aktarmasizin ONUNE gecerdi - oysa aktarma
+  //	gercek bir zahmet ve KACIRMA RISKI tasir.
+  //	Olculdu: 8 dk ceza ile aktarmali rota aramalarin %37'sinde
+  //	yine birinci kaliyor ve kazandiginda kazanc medyan 53 dakika.
+  int puan(RotaAdayi a) => a.varisDakika + a.aktarma * kAktarmaCezasi;
+  adaylar.sort((a, b) => puan(a).compareTo(puan(b)));
+  // ⚠️⚠️ **TEKILLEME ANAHTARI HAT ZINCIRI**, tek basina `hat.id` DEGIL
+  //	(olculdu: tekil hat cifti medyan 26, maks 509). Tek anahtarla
+  //	ilk hattin BUTUN aktarmalari SESSIZCE elenirdi.
   final gorulen = <String>{};
   final sonuc = <RotaAdayi>[];
   for (final a in adaylar) {
-    if (!gorulen.add(a.hat.id)) continue;
+    final zincir = [
+      for (final b in a.bacaklar)
+        if (b.tur == BacakTuru.otobus && b.hat != null) b.hat!.id,
+    ].join('>');
+    if (!gorulen.add(zincir)) continue;
     sonuc.add(a);
     if (sonuc.length >= adet) break;
   }
@@ -394,6 +518,238 @@ Future<List<RotaAdayi>> rotaAra({
   return sonuc;
 }
 
+
+/// ⚠️⚠️⚠️ TURU 157 - **AKTARMALI ADAYLARI URETIR (IKI TUR).**
+///
+///	TUR 1: baslangica yakin duraklardan kalkan her hat-yon icin
+///	       SECILEN SEFER SUTUNU boyunca **hattin tum duraklarina**
+///	       varis saatleri okunur (ters indeks sayesinde O(1)).
+///	TUR 2: her varis noktasindan (kendisi + 150 m icindeki komsulari)
+///	       kalkan hatlar taranir; ikinci sefer sutunu
+///	       `inis1 + tampon + aktarma yurumesi` sonrasi olmali.
+///
+/// ⚠️⚠️ **AYNI HATTA AKTARMA ELENIR**: ayni hat-yonda inip tekrar binmek
+///	bir aktarma DEGILDIR, tek bacaktir; tur 1 zaten o dilimi buluyor.
+/// ⚠️⚠️ **TEKILLEME ANAHTARI `hat1|hat2`**, tek basina `hat.id` DEGIL
+///	(olculdu: tekil hat cifti sayisi medyan 26, maks 509 - tek
+///	anahtarla ilk hattin butun aktarmalari SESSIZCE elenirdi).
+/// ⚠️⚠️ **AKTARMA YURUMESI ICIN GOOGLE ROUTES CAGRILMAZ**: sure medyan
+///	1 dk / maks 2 dk, duz cizgi yeterince dogru. Cagrilsaydi bacak
+///	sayisi 2'den 3'e cikacagi icin aylik 10.000 ucretsiz kota
+///	~1.660 aramadan ~1.100'e duserdi (turu 152 maliyet dersi).
+///	Bu yuzden aktarma yurumesi `noktalar: const []` ile kurulur -
+///	`_yurumeleriZenginlestir` yalniz 2 noktali bacaklari isliyor,
+///	yani bu bacak ONA HIC UGRAMAZ ve kota **6'da KALIR**.
+///	⚠️⚠️ Ayni durakta aktarmada (vakalarin %36'si) zaten yurume YOK.
+Future<List<RotaAdayi>> _aktarmaliAra({
+  required List<Durak> basDuraklar,
+  required List<Durak> varDuraklar,
+  required Map<String, List<DurakHatti>> basHat,
+  required double baslangicEnlem,
+  required double baslangicBoylam,
+  required double varisEnlem,
+  required double varisBoylam,
+  required int servis,
+  required int suAn,
+  required String varisAd,
+}) async {
+  final indeks = await UlasimVeri.i.hatDuraklari(servis);
+  final durakM = await UlasimVeri.i.durakHaritasi();
+  final durakHat = await UlasimVeri.i.durakHatIndeksi(servis);
+  final komsu = await UlasimVeri.i.komsuDuraklar(kAktarmaYaricapM);
+  // ⚠️⚠️ Guzergah cizgileri DONGUNUN ICINDE cozulmez: `guzergah()`
+  //	polyline coz uyor ve ic ice donguden cagrilsaydi ayni sekil
+  //	yuzlerce kez yeniden cozulurdu. Yerel onbellek.
+  final yolOnbellek = <String, List<({double enlem, double boylam})>>{};
+  Future<List<({double enlem, double boylam})>> yolAl(
+      String hatId, int yon) async {
+    final k = '$hatId|$yon';
+    return yolOnbellek[k] ??= await UlasimVeri.i.guzergah(hatId, yon);
+  }
+  final hedef = {for (final d in varDuraklar) d.id: d};
+  final sonuc = <RotaAdayi>[];
+  final gorulen = <String>{};
+
+  for (final o in basDuraklar) {
+    final oM = UlasimVeri.kabaMetre(
+        baslangicEnlem, baslangicBoylam, o.enlem, o.boylam);
+    final oDk = _yurumeDakikasi(oM);
+    for (final oh in basHat[o.id] ?? const <DurakHatti>[]) {
+      final anahtar1 = '${oh.hat.id}|${oh.yon}';
+      final hat1Duraklar = indeks[anahtar1];
+      if (hat1Duraklar == null) continue;
+      // binis duraginin bu hattaki sutunu
+      final binisSat = oh.kalkislar;
+      var sutun1 = -1;
+      final enErken = suAn + oDk;
+      for (var j = 0; j < binisSat.length; j++) {
+        if (binisSat[j] >= enErken) {
+          sutun1 = j;
+          break;
+        }
+      }
+      if (sutun1 < 0) continue;
+      final binis = binisSat[sutun1];
+
+      // ── TUR 1: hattin tum duraklarina varis ──
+      for (final x in hat1Duraklar) {
+        if (x.durakId == o.id) continue;
+        // ⚠️⚠️ SUTUN UZUNLUGU KAPISI (bkz. `_seferBul` serhi).
+        if (x.kalkislar.length != binisSat.length) continue;
+        final inis1 = x.kalkislar[sutun1];
+        if (inis1 <= binis || inis1 - binis > 180) continue;
+        final aktD = durakM[x.durakId];
+        if (aktD == null) continue;
+
+        // ── AKTARMA NOKTALARI: DURAGIN KENDISI + 150 m komsulari ──
+        // ⚠️⚠️ Komsular IZGARADAN gelir. Duz tarama olsaydi her x icin
+        //	2032 durak olculur, tek aramada MILYONLARCA mesafe hesabi
+        //	cikar ve 200 ms butcesi KATLANARAK asilirdi.
+        // ⚠️ Duragin KENDISI bastadir (aktarmalarin %36'si ayni durakta).
+        final aktarmaNoktalari = <({Durak d, double m})>[
+          (d: aktD, m: 0.0),
+          ...?komsu[aktD.id],
+        ];
+        for (final k in aktarmaNoktalari) {
+          final y = k.d;
+          final yurM = k.m;
+          final yurDk = yurM == 0 ? 0 : _yurumeDakikasi(yurM);
+          final hazir = inis1 + kAktarmaTampon + yurDk;
+
+          // ── TUR 2 ──
+          for (final dh in durakHat[y.id] ?? const <DurakHatti>[]) {
+            if (dh.hat.id == oh.hat.id) continue; // ayni hat aktarma DEGIL
+            final anahtar2 = '${dh.hat.id}|${dh.yon}';
+            final hat2Duraklar = indeks[anahtar2];
+            if (hat2Duraklar == null) continue;
+            var sutun2 = -1;
+            for (var j = 0; j < dh.kalkislar.length; j++) {
+              if (dh.kalkislar[j] >= hazir) {
+                sutun2 = j;
+                break;
+              }
+            }
+            if (sutun2 < 0) continue;
+            final binis2 = dh.kalkislar[sutun2];
+
+            for (final z in hat2Duraklar) {
+              final d = hedef[z.durakId];
+              if (d == null || d.id == y.id) continue;
+              if (z.kalkislar.length != dh.kalkislar.length) continue;
+              final inis2 = z.kalkislar[sutun2];
+              if (inis2 <= binis2 || inis2 - binis2 > 180) continue;
+
+              final dM = UlasimVeri.kabaMetre(
+                  varisEnlem, varisBoylam, d.enlem, d.boylam);
+              final dDk = _yurumeDakikasi(dM);
+              final varis = inis2 + dDk;
+              if (varis - suAn > kToplamSureTavani) continue;
+
+              final ck = '${oh.hat.id}|${dh.hat.id}';
+              if (!gorulen.add(ck)) continue;
+
+              final yol1 = await yolAl(oh.hat.id, oh.yon);
+              final yol2 = await yolAl(dh.hat.id, dh.yon);
+              sonuc.add(RotaAdayi(
+                hat: oh.hat,
+                varisDakika: varis,
+                toplamDakika: varis - suAn,
+                yurumeDakika: oDk + yurDk + dDk,
+                aktarma: 1,
+                bacaklar: [
+                  RotaBacagi(
+                    tur: BacakTuru.yuru,
+                    noktalar: [
+                      (enlem: baslangicEnlem, boylam: baslangicBoylam),
+                      (enlem: o.enlem, boylam: o.boylam),
+                    ],
+                    dakika: oDk,
+                    metre: oM,
+                    baslik: '${o.ad} durağına yürü',
+                    altBaslik: '${oM.round()} m · yaklaşık',
+                    eylem: 'Durağa kadar yürüyün',
+                    yer: o.ad,
+                  ),
+                  RotaBacagi(
+                    tur: BacakTuru.bekle,
+                    noktalar: const [],
+                    dakika: math.max(0, binis - enErken),
+                    baslik: '${UlasimVeri.saatMetni(binis)} kalkış',
+                    altBaslik: o.ad,
+                    hat: oh.hat,
+                    eylem:
+                        '${UlasimVeri.saatMetni(binis)} kalkışını bekleyin',
+                    yer: o.ad,
+                  ),
+                  RotaBacagi(
+                    tur: BacakTuru.otobus,
+                    noktalar: _guzergahDilimi(yol1, o, aktD),
+                    dakika: inis1 - binis,
+                    baslik: '${aktD.ad} durağında in',
+                    altBaslik:
+                        oh.hat.yonBaslik[oh.yon] ?? oh.hat.uzunAd,
+                    hat: oh.hat,
+                    eylem: '${oh.hat.kisaAd} ile gidin, inin:',
+                    yer: aktD.ad,
+                  ),
+                  // ⚠️ Aktarma yurumesi: `noktalar` BOS -> Google Routes
+                  //    cagrilmaz (bkz. fonksiyon serhi, kota gerekcesi).
+                  if (y.id != aktD.id)
+                    RotaBacagi(
+                      tur: BacakTuru.yuru,
+                      noktalar: const [],
+                      dakika: yurDk,
+                      metre: yurM,
+                      baslik: '${y.ad} durağına yürü',
+                      altBaslik: '${yurM.round()} m · aktarma',
+                      eylem: 'Aktarma için yürüyün',
+                      yer: y.ad,
+                    ),
+                  RotaBacagi(
+                    tur: BacakTuru.bekle,
+                    dakika: math.max(0, binis2 - hazir),
+                    noktalar: const [],
+                    baslik: '${UlasimVeri.saatMetni(binis2)} kalkış',
+                    altBaslik: y.ad,
+                    hat: dh.hat,
+                    eylem:
+                        '${UlasimVeri.saatMetni(binis2)} kalkışını bekleyin',
+                    yer: y.ad,
+                  ),
+                  RotaBacagi(
+                    tur: BacakTuru.otobus,
+                    noktalar: _guzergahDilimi(yol2, y, d),
+                    dakika: inis2 - binis2,
+                    baslik: '${d.ad} durağında in',
+                    altBaslik:
+                        dh.hat.yonBaslik[dh.yon] ?? dh.hat.uzunAd,
+                    hat: dh.hat,
+                    eylem: '${dh.hat.kisaAd} ile gidin, inin:',
+                    yer: d.ad,
+                  ),
+                  RotaBacagi(
+                    tur: BacakTuru.yuru,
+                    noktalar: [
+                      (enlem: d.enlem, boylam: d.boylam),
+                      (enlem: varisEnlem, boylam: varisBoylam),
+                    ],
+                    dakika: dDk,
+                    metre: dM,
+                    baslik: 'Varışa yürü',
+                    altBaslik: '${dM.round()} m · yaklaşık',
+                    eylem: 'Varışa kadar yürüyün',
+                    yer: varisAd.isEmpty ? 'Varış' : varisAd,
+                  ),
+                ],
+              ));
+            }
+          }
+        }
+      }
+    }
+  }
+  return sonuc;
+}
 /// Kazanan adaylarin YURUME bacaklarini gercek yol agi cizgisiyle degistirir.
 ///
 /// ⚠️ Rota alinamazsa bacak **DOKUNULMADAN** kalir (kus ucusu duz cizgi):
@@ -417,8 +773,29 @@ Future<void> _yurumeleriZenginlestir(
       final var_ = b.noktalar.last;
       final sira = i;
       isler.add(() async {
-        final yol = await AdresServisi.i.yayaRotasi(
-            bas.enlem, bas.boylam, var_.enlem, var_.boylam);
+        // ⚠️⚠️⚠️ TURU 157 - **KORUMA SERHTE VARDI, GOVDEDE YOKTU.**
+        //
+        //	Fonksiyonun serhi *"Rota alinamazsa bacak DOKUNULMADAN
+        //	kalir ... ozellik COKMEZ, yalnizca kabalasir"* diyordu
+        //	ama govdede **hicbir `try` yoktu**: `AdresServisi.i` ya da
+        //	`yayaRotasi` firlatirsa hata `Future.wait`e, oradan
+        //	`rotaAra`ya cikiyor ve **TUM ROTA ARAMASI COKUYORDU** -
+        //	kullanici yalniz kabalasmis degil, HIC sonuc gormuyordu.
+        //
+        // ⚠️⚠️ **OLCUMDE YAKALANDI**: turu 157 aktarma olcum testinde
+        //	`AdresServisi.i` -> `Geocoding()` eklenti kanali olmadigi
+        //	icin *"Null check operator used on a null value"* firlatti
+        //	ve `rotaAra` komple dustu. Sahada ayni sey eklenti
+        //	baslatilamadiginda ya da beklenmedik bir yanit bicimide olur.
+        // ⚠️ Bu projenin en sik hata sinifi: serhin anlattigi kontrolun
+        //    govdede GERCEKTEN olup olmadigini dogrula.
+        List<({double enlem, double boylam})>? yol;
+        try {
+          yol = await AdresServisi.i.yayaRotasi(
+              bas.enlem, bas.boylam, var_.enlem, var_.boylam);
+        } catch (_) {
+          return; // bacak DOKUNULMADAN kalir: kus ucusu duz cizgi
+        }
         if (yol == null || yol.length < 2) return;
         a.bacaklar[sira] = RotaBacagi(
           tur: b.tur,

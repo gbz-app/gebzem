@@ -324,6 +324,22 @@ const Color kOtobusRengi = Color(0xFF2FA85C);
 ///    yani harita ile cubuk arasinda bir celiski URETMEZ.
 const Color kBeklemeRengi = Color(0xFF8A90AC);
 
+/// ⚠️⚠️⚠️ TURU 157 - **IKINCI OTOBUS BACAGI AYRI RENK** (aktarma).
+///
+///	Aktarmali rotada IKI otobus bacagi var; ikisi de `kOtobusRengi`
+///	ile cizilseydi kullanici **nerede hat degistirdigini haritadan
+///	ANLAYAMAZDI**.
+///
+/// ⚠️⚠️ **HATTIN KENDI RENGI KULLANILMADI** - turu 156'nin gerekcesi
+///	AYNEN gecerli: Gebze GTFS renklerinin cogu birbirine yakin
+///	CAMGOBEGI tonlari, yani iki bacak da camgobegi cikip aktarma
+///	YINE ayirt edilemezdi. Sabit ve TUM rotalarda ayni olan bir
+///	ikinci renk daha ogrenilebilir: yesil = birinci otobus,
+///	turkuaz = ikinci.
+/// ⚠️ Koyu lacivert harita zemininde (#232a44) 5,2:1.
+/// ⚠️ Lila (yurume) ve arduvaz (bekleme) ile karismaz.
+const Color kOtobus2Rengi = Color(0xFF37B6C4);
+
 /// ⚠️⚠️⚠️ TURU 157 - **ADIM KARTI OLCU OLCEGI** (kullanici emri:
 ///	*"butonlar kucuklugu, baslik vs COK IYI BIR ARAYUZ...
 ///	yazilar vs gercekten PROFESYONEL bir arayuze donustur"*).
@@ -2369,7 +2385,10 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
         : 8 +
             20 +
             math.max(38.0, o.scale(13) * 1.3 + o.scale(12) * 1.3);
-    return (ust + 8 + 4 * 15 + 24 + taksi).ceilToDouble() + 1;
+    // ⚠️⚠️ TURU 157 - bacak sayisi ARTIK SABIT DEGIL (aktarmada 6-7).
+    //	Formul govdeyle ayni sayiyi okumak zorunda.
+    final bacak = _rotaBacakSayisi;
+    return (ust + 8 + bacak * 15 + 24 + taksi).ceilToDouble() + 1;
   }
 
   /// Takip acikken cizilen **ADIM KARTI**nin yuksekligi — TEK KAYNAK.
@@ -2414,11 +2433,18 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
     //	yukseklik metin sutunu ile ikon sutununun BUYUGU.
     final ikonSutun =
         kAdimIkonKutu + kAdimBoslukKucuk + o.scale(11) * 1.2;
+    // ⚠️⚠️ TURU 157 - **SATIR BASINA 1 dp PAY.** `TextPainter` her
+    //	satir kutusunu YUKARI yuvarlar; `fontSize * height` carpimi
+    //	TAM vermez. Metin sutununda **DORT satir** olabilir
+    //	(eylem + iki satirlik yer adi + alt), yani formulun sonundaki
+    //	tek 1 dp pay YETMEZ - `Expanded` NEGATIF alan alir ve
+    //	RenderFlex tasmasi cikar (turu 121/123/137/141 ayni ders).
     final metinSutun = o.scale(13) * 1.3 +
         kAdimBoslukKucuk +
         o.scale(17) * 1.3 * yerSatir +
         kAdimBoslukKucuk +
-        o.scale(13) * 1.3;
+        o.scale(13) * 1.3 +
+        (2 + yerSatir);
     final adim = math.max(ikonSutun, metinSutun);
     // ⚠️ Sondaki `ceil() + 1` payi KALIR: formul adim satirini
     //    1,4-1,7 dp EKSIK hesapliyor ve tasmayi YALNIZCA bu pay onluyor
@@ -3026,9 +3052,9 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
                 ],
                 // ⚠️ TURU 157 - UC RENK: otobus yesil · yurume lila ·
                 //    BEKLEME arduvaz (bkz. `kBeklemeRengi` serhi).
-                renk: [
-                  for (final b in a.bacaklar) _bacakRengi(b.tur),
-                ],
+                // ⚠️ TURU 157 - ikinci otobus bacagi TURKUAZ; cubuk
+                //    haritayla AYNI dili konusmali.
+                renk: _bacakRenkleri(a.bacaklar),
                 aktif: aktif,
                 aktifOran: _bacakOrani(a.bacaklar[aktif], d),
                 gorunen: _adimGorunen,
@@ -3056,11 +3082,41 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
   ///
   /// ⚠️ Ikisi ayrisirsa kullanici karttaki ikonu cubuktaki dilimle
   ///    ESLESTIREMEZ.
+  /// Rota ozetindeki bacak satiri sayisi - **formul ile govde TEK KAYNAK**.
+  int get _rotaBacakSayisi => _rota?.bacaklar.length ?? 4;
+
+  /// Otobus bacaklari (sira + hat) - ozet rozetleri icin.
+  List<(int, Hat)> _otobusBacaklari(RotaAdayi a) {
+    final c = <(int, Hat)>[];
+    for (final b in a.bacaklar) {
+      if (b.tur == BacakTuru.otobus && b.hat != null) {
+        c.add((c.length, b.hat!));
+      }
+    }
+    return c.isEmpty ? [(0, a.hat)] : c;
+  }
+
   Color _bacakRengi(BacakTuru t) => switch (t) {
         BacakTuru.otobus => kOtobusRengi,
         BacakTuru.bekle => kBeklemeRengi,
         BacakTuru.yuru => kYurumeRengi,
       };
+
+  /// Bacak renkleri - **ikinci otobus bacagi TURKUAZ** (aktarma).
+  ///
+  /// ⚠️⚠️ Cubuk, adim karti ikon kutusu ve HARITA ayni ayrimi
+  ///	yapmak zorunda; ayrisirsa kullanici karttaki ikonu
+  ///	haritadaki bacakla eslestiremez.
+  List<Color> _bacakRenkleri(List<RotaBacagi> bacaklar) {
+    var otobus = 0;
+    return [
+      for (final b in bacaklar)
+        if (b.tur == BacakTuru.otobus)
+          (otobus++ == 0 ? kOtobusRengi : kOtobus2Rengi)
+        else
+          _bacakRengi(b.tur),
+    ];
+  }
 
   /// ⚠️ ESKI DILIM CIZERI — `_CubukCizer` ile degistirildi (turu 156).
   ///    Govde SILINMEDI: bu dosyada ayni sinif silme BES kez komsu uyeyi
@@ -3214,9 +3270,9 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
     // ⚠️ TURU 156 — ikon kutusu HARITADAKI cizgiyle AYNI renkten: otobus
     //    yesil, yurume lila. Ayri renkler kullanilsaydi kullanici karttaki
     //    ikonu haritadaki bacakla ESLESTIREMEZDI.
-    // ⚠️ TURU 157 - artik cubukla da ORTAK (`_bacakRengi`); bekleme
-    //    kendi arduvaz rengini alir.
-    final renk = _bacakRengi(b.tur);
+    // ⚠️ TURU 157 - cubuk ve HARITA ile ORTAK; bekleme arduvaz,
+    //    ikinci otobus bacagi TURKUAZ.
+    final renk = _bacakRenkleri(a.bacaklar)[sira];
     final o = MediaQuery.textScalerOf(c);
     // ⚠️⚠️ Kalan mesafe YALNIZ AKTIF bacakta yazilir: `kalanM` diger
     //	bacaklara AIT DEGILDIR ve orada yazilsaydi duz bir YALAN
@@ -3451,7 +3507,25 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
                       ),
                     ),
                     const Spacer(),
-                    ulasim.hatRozeti(a.hat, boy: 24),
+                    // ⚠️⚠️⚠️ TURU 157 - **HER OTOBUS BACAGININ ROZETI.**
+                    //	Onceden yalniz `a.hat` (TEKIL) ciziliyordu;
+                    //	aktarmali rotada IKINCI hat ekranda HIC
+                    //	gorunmezdi. Rozetler artik BACAKLARDAN okunuyor
+                    //	(`RotaBacagi.hat` zaten dolu).
+                    // ⚠️ Aralarinda ok: kullanici hangi hattan hangisine
+                    //    gectigini TEK BAKISTA gormeli.
+                    for (final z in _otobusBacaklari(a)) ...[
+                      if (z.$1 > 0)
+                        Padding(
+                          padding:
+                              const EdgeInsets.symmetric(horizontal: 3),
+                          child: Icon(LucideIcons.arrowRight,
+                              size: 12,
+                              color: scheme.onSurface
+                                  .withValues(alpha: 0.5)),
+                        ),
+                      ulasim.hatRozeti(z.$2, boy: 24),
+                    ],
                     const SizedBox(width: 8),
                     // ⚠️⚠️⚠️ TURU 151 — **BAŞLA** (kullanici emri:
                     //	*"rota BASLATMA yok"*). Basilinca konum
@@ -3480,7 +3554,17 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
                   ],
                 ),
                 const SizedBox(height: 8),
-                for (final b in a.bacaklar.take(4))
+                // ⚠️⚠️⚠️ TURU 157 - **`.take(4)` KALDIRILDI.**
+                //	Aktarmali rota OLCULDU: bacak sayisi 6 (%36, ayni
+                //	durakta aktarma) ya da **7** (%64, yuruyerek),
+                //	yani TIPIK HAL YEDI bacaktir. `take(4)` ile son UC
+                //	bacak (aktarma yurumesi + 2. bekleme + 2. otobus)
+                //	SESSIZCE CIZILMIYORDU - kullanici aktarmayi kartta
+                //	HIC goremezdi.
+                // ⚠️⚠️ `_rotaOzetBoy` formulu de `4 * 15` ile SABITTI ve
+                //	birlikte guncellendi; ayrisirsa `_panelBoy` govdeden
+                //	kopar ve haritanin alt dolgusu kayar.
+                for (final b in a.bacaklar)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 3),
                     child: Row(
@@ -3492,9 +3576,11 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
                             BacakTuru.otobus => LucideIcons.busFront,
                           },
                           size: 13,
+                          // ⚠️ TURU 157 - BACAGIN KENDI hatti; `a.hat`
+                          //    aktarmali rotada IKINCI bacak icin YANLISTI.
                           color: b.tur == BacakTuru.otobus
-                              ? ulasim.hatRengi(a.hat)
-                              : kYurumeRengi,
+                              ? ulasim.hatRengi(b.hat ?? a.hat)
+                              : _bacakRengi(b.tur),
                         ),
                         const SizedBox(width: 8),
                         Expanded(
@@ -7076,7 +7162,15 @@ class _HaritaAlaniState extends State<_HaritaAlani> {
         // ⚠️ Hat kimligi KAYBOLMADI: rozet (`hatRozeti`) hala hattin
         //    KENDI rengini kullaniyor — kullanici hangi hat oldugunu
         //    oradan gorur.
-        final tamRenk = otobus ? kOtobusRengi : kYurumeRengi;
+        // ⚠️ TURU 157 - kacinci OTOBUS bacagi oldugunu say: ikincisi
+        //    ve sonrakiler turkuaz (bkz. `kOtobus2Rengi`).
+        var otobusSira = 0;
+        for (var j = 0; j < i; j++) {
+          if (r[j].tur == BacakTuru.otobus) otobusSira++;
+        }
+        final tamRenk = otobus
+            ? (otobusSira == 0 ? kOtobusRengi : kOtobus2Rengi)
+            : kYurumeRengi;
         // ── SONRAKI BACAKLAR: SOLUK ──
         // ⚠️ Alfa yerine ZEMINE KARISTIRMA: saydam bir cizgi
         //    altindaki harita etiketlerini gosterip okunmaz olur;

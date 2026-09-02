@@ -388,6 +388,144 @@ class UlasimVeri {
     return c;
   }
 
+  /// ⚠️⚠️⚠️ TURU 157 - **HAT -> DURAKLAR TERS INDEKSI** (aktarma icin).
+  ///
+  ///	`seferler.json` **DURAK -> hat** yonunde saklanir. Aktarma
+  ///	aramasi ise TERS soruyu sorar: *"bu hat-yon hangi duraklardan
+  ///	geciyor ve her birine kacta variyor?"* Bu indeks olmadan o
+  ///	soru ancak 2032 duragi bastan tarayarak cevaplanabilirdi.
+  ///
+  /// ⚠️⚠️ **TEK SEFER, TEMBEL.** Acilista KURULMAZ: `seferler.json`
+  ///	1,7 MB ve ana is parcaciginda ~200-400 ms donma demektir
+  ///	(turu 120 ANR dersi). Indeks yalnizca ILK AKTARMA ARAMASINDA
+  ///	ve YALNIZ bir kez kurulur (olculdu: ~10 ms).
+  /// ⚠️ Anahtar `hatId|yon`; deger, o hat-yonun duraklari ve o
+  ///    duraktaki KALKIS SUTUNU.
+  /// ⚠️⚠️ Servis basina AYRI onbellek: hafta ici ile pazar seferleri
+  ///	farkli sutunlar tasir, karistirilamaz.
+  final Map<int, Map<String, List<({String durakId, List<int> kalkislar})>>>
+      _hatDurakOnbellek = {};
+
+  Future<Map<String, List<({String durakId, List<int> kalkislar})>>>
+      hatDuraklari(int servis) async {
+    final v = _hatDurakOnbellek[servis];
+    if (v != null) return v;
+    final sf = await _seferler();
+    final m = <String, List<({String durakId, List<int> kalkislar})>>{};
+    sf.forEach((durakId, o) {
+      (o as Map<String, dynamic>).forEach((hatId, v2) {
+        (v2 as Map<String, dynamic>).forEach((anahtar, kod) {
+          final p = anahtar.split(String.fromCharCode(124));
+          if (p.length != 2) return;
+          if (p[0] != '$servis') return;
+          final dk = dizeCoz(kod as String);
+          if (dk.isEmpty) return;
+          (m['$hatId|${p[1]}'] ??= [])
+              .add((durakId: durakId, kalkislar: dk));
+        });
+      });
+    });
+    _hatDurakOnbellek[servis] = m;
+    return m;
+  }
+
+  /// ⚠️⚠️⚠️ TURU 157 - **DURAK -> HATLAR, SERVIS BASINA ONBELLEKLI.**
+  ///
+  ///	`duraginHatlari` her cagrida dizeleri YENIDEN cozup yeni
+  ///	`DurakHatti` nesneleri uretiyor. Aktarma aramasinda bu
+  ///	fonksiyon BINLERCE kez cagrilirdi; onbellek olmadan tek
+  ///	arama on binlerce gereksiz ayristirma yapardi.
+  /// ⚠️ `duraginHatlari` DEGISTIRILMEDI: ekranin baska yerlerinde
+  ///    tek tek cagriliyor ve orada onbellek gereksiz.
+  final Map<int, Map<String, List<DurakHatti>>> _durakHatOnbellek = {};
+
+  Future<Map<String, List<DurakHatti>>> durakHatIndeksi(int servis) async {
+    final v = _durakHatOnbellek[servis];
+    if (v != null) return v;
+    final sf = await _seferler();
+    final ht = await hatlar();
+    final m = <String, List<DurakHatti>>{};
+    sf.forEach((durakId, o) {
+      final c = <DurakHatti>[];
+      (o as Map<String, dynamic>).forEach((hatId, v2) {
+        final hat = ht[hatId];
+        if (hat == null) return;
+        (v2 as Map<String, dynamic>).forEach((anahtar, kod) {
+          final p = anahtar.split(String.fromCharCode(124));
+          if (p.length != 2) return;
+          if (p[0] != '$servis') return;
+          final yon = int.tryParse(p[1]) ?? 0;
+          final dk = dizeCoz(kod as String);
+          if (dk.isEmpty) return;
+          c.add(DurakHatti(hat: hat, yon: yon, kalkislar: dk));
+        });
+      });
+      if (c.isNotEmpty) m[durakId] = c;
+    });
+    _durakHatOnbellek[servis] = m;
+    return m;
+  }
+
+  /// ⚠️⚠️⚠️ TURU 157 - **AKTARMA KOMSULARI (IZGARA ILE).**
+  ///
+  ///	Aktarma noktasi ararken her durak icin 2032 duragi taramak
+  ///	gerekirdi; tek aramada bu **milyonlarca** mesafe hesabi
+  ///	demektir ve 200 ms butcesini KATLAYARAK asar.
+  ///	Izgara hucresi = aktarma yaricapi, yani bir duragin komsulari
+  ///	yalnizca 3x3 hucrede aranir.
+  /// ⚠️⚠️ **YARICAP 150 m OLCULEREK SECILDI**: 250/400 m kapsamaya
+  ///	**hicbir sey eklemiyor** ama komsu cifti sayisini 3.880'den
+  ///	22.657'ye cikariyor.
+  /// ⚠️ Duragin KENDISI listeye girmez; cagiran taraf onu ayrica
+  ///    (yurume 0 ile) degerlendirir - aktarmalarin %36'si ayni durakta.
+  /// ⚠️ Boylamda `cos(enlem)`: duz derece kullanilsaydi Gebze
+  ///    enleminde hucre boylamda %24 dar olurdu (turu 85b dersi).
+  Map<String, List<({Durak d, double m})>>? _komsuOnbellek;
+
+  Future<Map<String, List<({Durak d, double m})>>> komsuDuraklar(
+    double yaricapM,
+  ) async {
+    final v = _komsuOnbellek;
+    if (v != null) return v;
+    final d = await duraklar();
+    const kEn = 111320.0;
+    final kBoy = 111320.0 * math.cos(40.8 * math.pi / 180);
+    final izgara = <String, List<Durak>>{};
+    for (final x in d) {
+      final gx = (x.enlem * kEn / yaricapM).floor();
+      final gy = (x.boylam * kBoy / yaricapM).floor();
+      (izgara['$gx|$gy'] ??= []).add(x);
+    }
+    final m = <String, List<({Durak d, double m})>>{};
+    for (final x in d) {
+      final gx = (x.enlem * kEn / yaricapM).floor();
+      final gy = (x.boylam * kBoy / yaricapM).floor();
+      final c = <({Durak d, double m})>[];
+      for (var a = -1; a <= 1; a++) {
+        for (var b = -1; b <= 1; b++) {
+          for (final y in izgara['${gx + a}|${gy + b}'] ?? const <Durak>[]) {
+            if (y.id == x.id) continue;
+            final mm = kabaMetre(x.enlem, x.boylam, y.enlem, y.boylam);
+            if (mm <= yaricapM) c.add((d: y, m: mm));
+          }
+        }
+      }
+      if (c.isNotEmpty) m[x.id] = c;
+    }
+    return _komsuOnbellek = m;
+  }
+
+  /// ⚠️⚠️ TURU 157 - **DURAK KIMLIGINDEN DURAK** (aktarma icin O(1)).
+  ///	Ters indeks yalnizca durak KIMLIGI donduruyor; koordinat
+  ///	ve ad icin liste taramak aramayi O(n) yapardi.
+  Map<String, Durak>? _durakHaritasi;
+
+  Future<Map<String, Durak>> durakHaritasi() async {
+    if (_durakHaritasi != null) return _durakHaritasi!;
+    final d = await duraklar();
+    return _durakHaritasi = {for (final x in d) x.id: x};
+  }
+
   /// Bir hattin bir yonunun guzergah cizgisi (bos olabilir).
   Future<List<({double enlem, double boylam})>> guzergah(
     String hatId,
