@@ -9477,11 +9477,12 @@ index=7967 (md5 47f8714e) · surum.json=45 (md5 133b8c26) · purge OK ·
 **CDN ucu de BIREBIR** · get-task-allow **false** · profil ad hoc ·
 MapsApiKey ENJEKTE · iOS min **16.0** · surum 1.0.242.
 
-IPA dogrulamasi (uc kodlama da denendi, kontrol dizesi  VAR):
-· VAR:  ·  ·
-   ·  ·  ·
-   · (turu 156)  ·  · 
-· YOK (dogru):  · 
+IPA dogrulamasi (uc kodlama da denendi, kontrol dizesi `Yakınımda` VAR):
+· VAR: `Aktarma için yürüyün` (latin1) · `Uygun rota bulunamadı` (utf16le) ·
+  `aktarmayla bile uygun bir ` (utf16le) · ` aktarma` (utf8) ·
+  `Yakındaki taksi durağı` (utf16le) · `Hava durumu` (utf8) ·
+  (turu 156 KALDI) `rota-kilif-` · `Merkeze dön` · ` kaldı`
+· YOK (dogru): `Aktarmalı rota henüz eklenmedi` · `Aktarmasız hat bulunamadı`
 
 ⚠️ **BACKEND DEGISMEDI** -> deploy YOK · migration YOK · DB TRUNCATE YOK ·
    e2e KOSULMADI (arayuz/istemci turu, CLAUDE.md kural 9).
