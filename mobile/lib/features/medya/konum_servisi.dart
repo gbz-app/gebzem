@@ -146,27 +146,63 @@ class KonumServisi {
       return null;
     }
 
-    try {
-      // ⚠️ `medium` dogruluk YETERLI ve HIZLI: sohbette konum paylasmak icin
-      //    metre hassasiyeti gerekmiyor; `best` GPS kilidi bekler ve kapali
-      //    alanda 10+ saniye surebilir.
-      // ⚠️ ZAMAN ASIMI ZORUNLU: kilit alinamazsa istek SONSUZA KADAR asili
-      //    kalir ve kullanici "gonderilmiyor" der.
-      final p = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.medium,
-          timeLimit: Duration(seconds: 12),
-        ),
-      );
-      return (enlem: p.latitude, boylam: p.longitude);
-    } on TimeoutException {
-      if (!sessiz) _uyar('Konum alınamadı — açık alanda tekrar dene');
-      return null;
-    } catch (e) {
-      if (!sessiz) _uyar('Konum alınamadı');
-      return null;
-    }
+    // ⚠️⚠️⚠️ TURU 158 - **FIX ISTEGI DE TEKILLESTIRILIR.**
+    //
+    //	Kullanici: *"surekli alttan hata aliyorum, yeniden dene
+    //	yeniden dene gibi"*.
+    //
+    // ⚠️⚠️ **KOK NEDEN: ACILISTA IKI ES ZAMANLI `getCurrentPosition`.**
+    //	`initState` hem `_yukle()` hem (menuden Durak ile
+    //	gelindiginde) `_durakAc()` cagiriyor; ikisi de 12 saniyelik
+    //	birer fix istegi aciyor. iOS tarafinda geolocator TEK SLOTLU
+    //	bir sonuc isleyicisi tutuyor: ikinci istek birincinin
+    //	blogunu EZIYOR, birincinin future'i HIC tamamlanmiyor ve
+    //	12 sn sonra **"Konum alınamadı — açık alanda tekrar dene"**
+    //	ekranin ALTINDA cikiyor.
+    // ⚠️⚠️ `konumIzni` ZATEN bu deseni kullaniyordu (`_izinIsi`);
+    //	fix istegi kullanmiyordu - **asimetrinin kendisi hataydi.**
+    //
+    // ⚠️⚠️ **`sessiz` PAYLASILAN GOVDEYE GIRMEZ**: govde HIC `_uyar`
+    //	cagirmaz, yalnizca SEBEBI dondurur; uyariyi CAGRI YERI kendi
+    //	bayragina gore gosterir. Aksi halde ilk cagiran `sessiz: true`
+    //	ise gurultulu cagiran HICBIR SEY gormezdi.
+    // ⚠️ Izin ve servis kapilari paylasimin DISINDA kalir (ucuz ve
+    //    cagri yerine ozel).
+    final istek = _fixIsi ??= () async {
+      try {
+        // ⚠️ `medium` dogruluk YETERLI ve HIZLI; `best` GPS kilidi
+        //    bekler ve kapali alanda 10+ saniye surebilir.
+        // ⚠️ ZAMAN ASIMI ZORUNLU: kilit alinamazsa istek SONSUZA
+        //    KADAR asili kalir.
+        final p = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.medium,
+            timeLimit: Duration(seconds: 12),
+          ),
+        );
+        return (
+          konum: (enlem: p.latitude, boylam: p.longitude),
+          hata: '',
+        );
+      } on TimeoutException {
+        return (
+          konum: null,
+          hata: 'Konum alınamadı — açık alanda tekrar dene',
+        );
+      } catch (_) {
+        return (konum: null, hata: 'Konum alınamadı');
+      } finally {
+        _fixIsi = null;
+      }
+    }();
+    final sonuc = await istek;
+    if (sonuc.konum == null && !sessiz) _uyar(sonuc.hata);
+    return sonuc.konum;
   }
+
+  /// Ucusta olan TEK fix istegi (bkz. `konumAl` serhi).
+  static Future<
+      ({({double enlem, double boylam})? konum, String hata})>? _fixIsi;
 
   /// ⚠️⚠️⚠️ TURU 151 — **SUREKLI KONUM AKISI** (rota takibi icin).
   ///

@@ -241,6 +241,7 @@ class TakipDurumu {
     required this.bitti,
     this.izEnlem,
     this.izBoylam,
+    this.t = 0,
   });
 
   /// Su an hangi bacaktayiz (aday.bacaklar indeksi).
@@ -260,6 +261,23 @@ class TakipDurumu {
 
   final double? izEnlem;
   final double? izBoylam;
+
+  /// ⚠️⚠️⚠️ TURU 158 - **SEGMENT ICI ORAN (0..1), MONOTON.**
+  ///
+  ///	`segment` zaten monotondu ama `kalanM` HAM izdusumden
+  ///	geliyordu: segment ICINDE `t` geri gidince kalan mesafe
+  ///	**BUYUYOR**. Olculdu: GPS duzeltmelerinin **%19-39**'unda
+  ///	artis, otobus bacaginda **maks +57 m**.
+  ///	Yani ekranin EN BUYUK sayisi ("677 m kaldı") yururken
+  ///	BUYUYOR ve ilerleme imleci GERI kayiyordu - kullanicinin
+  ///	*"hareket ederken hareket etmiyor gibi"* tarifinin bir parcasi.
+  ///	Dosyanin KENDI serhi *"cizilen kalan yol geri UZAMAZ"* diyordu;
+  ///	govdede o koruma YOKTU.
+  /// ⚠️⚠️ Yalniz `kalanM`i kirpmak YETMEZ: `izEnlem/izBoylam` HAM
+  ///	kalirsa cizginin BASI geri oynamaya devam eder ve "sayi sabit,
+  ///	cizgi geri gidiyor" seklinde YENI bir tutarsizlik dogardi.
+  ///	Bu yuzden izdusum noktasi da MONOTON `t`den kurulur.
+  final double t;
 
   static const TakipDurumu basla = TakipDurumu(
     bacak: 0,
@@ -329,6 +347,8 @@ TakipDurumu ilerlet(
       //    ARKASINDA, yani rotadan cikmis kullanici HAM GPS'te kalir.
       izEnlem: iz.enlem,
       izBoylam: iz.boylam,
+      // ⚠️ Rota disinda ilerleme YAZILMAZ; oran ONCEKI degerde kalir.
+      t: onceki.t,
     );
   }
 
@@ -350,6 +370,7 @@ TakipDurumu ilerlet(
         bitti: true,
         izEnlem: iz.enlem,
         izBoylam: iz.boylam,
+        t: iz.t,
       );
     }
     // ⚠️⚠️⚠️ TURU 157 - **IZDUSUM DE YENI BACAGA TASINIR.**
@@ -382,17 +403,38 @@ TakipDurumu ilerlet(
       bitti: false,
       izEnlem: iz2?.enlem ?? yeniYol.first.enlem,
       izBoylam: iz2?.boylam ?? yeniYol.first.boylam,
+      // ⚠️ YENI bacak: oran sifirdan baslar (bkz. `t` serhi).
+      t: iz2?.t ?? 0,
     );
   }
 
+  // ⚠️⚠️⚠️ TURU 158 - **SEGMENT ICI ORAN DA MONOTON** (bkz. `t` serhi).
+  //	Ayni segmentte kalindiysa `t` geri GITMEZ; izdusum noktasi
+  //	ve kalan mesafe O NOKTADAN yeniden kurulur.
+  // ⚠️ Bacak ya da segment DEGISTIYSE `t` ham degerden baslar.
+  final ayniSeg = bacak == onceki.bacak && iz.segment == onceki.segment;
+  final tMono = ayniSeg ? math.max(onceki.t, iz.t) : iz.t;
+  final p0 = yol[iz.segment];
+  final p1 = yol[iz.segment + 1];
+  final monoIz = Izdusum(
+    segment: iz.segment,
+    t: tMono,
+    enlem: p0.enlem + (p1.enlem - p0.enlem) * tMono,
+    boylam: p0.boylam + (p1.boylam - p0.boylam) * tMono,
+    uzaklikM: iz.uzaklikM,
+  );
   return TakipDurumu(
     bacak: bacak,
     // ⚠️ MONOTON: segment geri GITMEZ.
     segment: math.max(basSeg, iz.segment),
-    kalanM: kalan,
+    // ⚠️⚠️ Kalan mesafe MONOTON noktadan olculur; ham `kalan`
+    //	yalnizca yukaridaki BACAK BITTI kapisinda kullanilir
+    //	(monoton degere baglanirsa bitis erken tetiklenebilir).
+    kalanM: kalanMetre(yol, monoIz),
     rotaDisi: false,
     bitti: false,
-    izEnlem: iz.enlem,
-    izBoylam: iz.boylam,
+    izEnlem: monoIz.enlem,
+    izBoylam: monoIz.boylam,
+    t: tMono,
   );
 }

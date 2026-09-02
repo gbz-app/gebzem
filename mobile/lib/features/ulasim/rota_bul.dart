@@ -94,6 +94,38 @@ class RotaBacagi {
 }
 
 /// Bir rota adayi (yuru -> bekle -> otobus -> yuru).
+/// ⚠️⚠️⚠️ TURU 158 - **SEFERI YENIDEN SECEBILMEK ICIN HAM VERI.**
+///
+///	Sefer secimi KUS UCUSU yurume tahminiyle yapiliyor
+///	(`enErken = suAn + oDk`). Yurume bacagi GERCEK yol agiyla
+///	zenginlestirildikten sonra sure buyuyebilir (olculdu: ~1,74x)
+///	ve kullanici o otobusu **KACIRIR**. Ekran "9 dk yuru" deyip
+///	15:16 kalkisini onerirse plan ACIKCA imkansizdir.
+///
+/// ⚠️⚠️ Kalkis listeleri ZATEN bellekte; yeniden secim TAMAMEN
+///	YERELDIR ve **EK AG ISTEGI URETMEZ** (turu 152 kota dersi:
+///	zenginlestirme aday dongusune tasinirsa tek arama 90+ istek).
+/// ⚠️ Aktarmali adayda ZINCIRLEME var: 1. bacagin binisi ilerleyince
+///    inis de ilerler ve 2. sefer gecersiz kalabilir - o zaman aday DUSER.
+class SeferKaydi {
+  const SeferKaydi({
+    required this.b1,
+    required this.i1,
+    this.yurDk,
+    this.b2,
+    this.i2,
+  });
+
+  /// 1. hattin BINIS ve INIS duraklarindaki kalkis sutunlari.
+  final List<int> b1;
+  final List<int> i1;
+
+  /// Aktarma yurumesi (dk) ve 2. hattin sutunlari — aktarmasizda null.
+  final int? yurDk;
+  final List<int>? b2;
+  final List<int>? i2;
+}
+
 class RotaAdayi {
   const RotaAdayi({
     required this.bacaklar,
@@ -102,7 +134,11 @@ class RotaAdayi {
     required this.yurumeDakika,
     required this.hat,
     this.aktarma = 0,
+    this.sefer,
   });
+
+  /// ⚠️ GORUNMEYEN ic veri (bkz. `SeferKaydi`). Arayuz OKUMAZ.
+  final SeferKaydi? sefer;
 
   /// ⚠️⚠️ TURU 157 - kac AKTARMA var (0 = aktarmasiz).
   ///	Siralama cezasi ve arayuzdeki "1 aktarma" etiketi bunu okur.
@@ -524,6 +560,7 @@ Future<List<RotaAdayi>> rotaAra({
 
 
           adaylar.add(RotaAdayi(
+            sefer: SeferKaydi(b1: oh.kalkislar, i1: dh.kalkislar),
             hat: oh.hat,
             varisDakika: varis,
             toplamDakika: varis - suAn,
@@ -659,6 +696,10 @@ Future<List<RotaAdayi>> rotaAra({
   // ⚠️ Tumu PARALEL: ard arda beklenseydi sonuc ekrani 6 tur gecikirdi.
   await _yurumeleriZenginlestir(
       sonuc, baslangicEnlem, baslangicBoylam, varisEnlem, varisBoylam);
+  // ⚠️⚠️⚠️ TURU 158 - yurume sureleri GERCEKLESTI; sefer secimi ESKI
+  //	tahmine dayaniyordu ve artik yetisilemeyecek bir kalkis
+  //	onerebilir. Yeniden secim TAMAMEN YEREL (bkz. serh).
+  _seferleriYenidenSec(sonuc, suAn);
   return sonuc;
 }
 
@@ -751,6 +792,8 @@ Future<List<RotaAdayi>> _aktarmaliAra({
     double dM,
     int dDk,
     int varis,
+    List<int> i1Kalkis,
+    List<int> i2Kalkis,
   })>{};
 
   // ⚠️⚠️⚠️ **AKTARMA TURUNDE DURAK SAYISI SINIRLI** (olculdu).
@@ -901,6 +944,8 @@ Future<List<RotaAdayi>> _aktarmaliAra({
                 dM: dM,
                 dDk: dDk,
                 varis: varis,
+                i1Kalkis: x.kalkislar,
+                i2Kalkis: z.kalkislar,
               );
             }
           }
@@ -914,6 +959,13 @@ Future<List<RotaAdayi>> _aktarmaliAra({
     final yol1 = await yolAl(k.oh.hat.id, k.oh.yon);
     final yol2 = await yolAl(k.dh.hat.id, k.dh.yon);
     sonuc.add(RotaAdayi(
+      sefer: SeferKaydi(
+        b1: k.oh.kalkislar,
+        i1: k.i1Kalkis,
+        yurDk: k.yurDk,
+        b2: k.dh.kalkislar,
+        i2: k.i2Kalkis,
+      ),
       hat: k.oh.hat,
       varisDakika: k.varis,
       toplamDakika: k.varis - suAn,
@@ -1019,6 +1071,123 @@ Future<List<RotaAdayi>> _aktarmaliAra({
     ));
   }
   return sonuc;
+}
+
+/// ⚠️⚠️⚠️ TURU 158 - **ZENGINLESTIRMEDEN SONRA SEFERI YENIDEN SEC.**
+///
+///	Sefer secimi KUS UCUSU yurume tahminiyle yapiliyor; gercek yol
+///	agiyla yurume **~1,74 kat** uzayabiliyor (ekrandan olculdu).
+///	Turu 158 yurume sayilarini gercege cevirdi, ama sefer secimi
+///	ESKI tahminde kaldigi icin ekran **"9 dk yuru" deyip fiziksel
+///	olarak yetisilemeyecek bir kalkis** onerebiliyordu: sessizce
+///	iyimser bir plan, ACIKCA imkansiz bir plana donusuyordu.
+///
+/// ⚠️⚠️ **TAMAMEN YEREL**: kalkis sutunlari zaten bellekte, EK AG ISTEGI
+///	YOK (turu 152 kota dersi).
+/// ⚠️⚠️ Aktarmalida ZINCIRLEME var: 1. bacagin binisi ilerleyince inis
+///	de ilerler ve 2. sefer gecersiz kalabilir -> aday DUSER.
+/// ⚠️⚠️ `kToplamSureTavani` YENIDEN uygulanir; yoksa varis kaymasiyla
+///	saatlerce suren bir rota birinci sirada kalabilir (turu 157).
+/// ⚠️ `RotaAdayi` alanlari `final`: yerinde guncellenemez, YENI nesne
+///    kurulup listeye yazilir. `bacaklar` listesi mutable oldugu icin
+///    bacaklar yerinde degistirilebilir.
+void _seferleriYenidenSec(List<RotaAdayi> sonuc, int suAn) {
+  final kalanlar = <RotaAdayi>[];
+  for (final a in sonuc) {
+    final s = a.sefer;
+    if (s == null) {
+      kalanlar.add(a);
+      continue;
+    }
+    final bacaklar = a.bacaklar;
+    // Bacak duzeni: [yuru, bekle, otobus, (yuru), (bekle), (otobus), yuru]
+    final ilkYuru = bacaklar.first;
+    final sonYuru = bacaklar.last;
+    if (ilkYuru.tur != BacakTuru.yuru || sonYuru.tur != BacakTuru.yuru) {
+      kalanlar.add(a);
+      continue;
+    }
+    final oDk = ilkYuru.dakika;
+    final dDk = sonYuru.dakika;
+    final enErken = suAn + oDk;
+    final sf1 = _seferBul(s.b1, s.i1, enErken);
+    // ⚠️⚠️ Yetisilemiyorsa aday DUSER: yanlis bir plani ekranda
+    //	birakmaktansa gostermemek dogrudur.
+    if (sf1 == null) continue;
+
+    int varis;
+    int? binis2;
+    int? inis2;
+    if (s.b2 != null && s.i2 != null) {
+      final hazir = sf1.inis + kAktarmaTampon + (s.yurDk ?? 0);
+      final sf2 = _seferBul(s.b2!, s.i2!, hazir);
+      if (sf2 == null) continue;
+      binis2 = sf2.binis;
+      inis2 = sf2.inis;
+      varis = sf2.inis + dDk;
+    } else {
+      varis = sf1.inis + dDk;
+    }
+    if (varis - suAn > kToplamSureTavani) continue;
+
+    // ── BACAKLARI YENI SAATLERLE GUNCELLE ──
+    var otobusSay = 0;
+    var bekleSay = 0;
+    for (var i = 0; i < bacaklar.length; i++) {
+      final b = bacaklar[i];
+      if (b.tur == BacakTuru.bekle) {
+        final ilk = bekleSay++ == 0;
+        final kalkis = ilk ? sf1.binis : (binis2 ?? sf1.binis);
+        final oncesi = ilk ? enErken : sf1.inis + kAktarmaTampon + (s.yurDk ?? 0);
+        bacaklar[i] = RotaBacagi(
+          tur: BacakTuru.bekle,
+          noktalar: const [],
+          dakika: math.max(0, kalkis - oncesi),
+          baslik: '${UlasimVeri.saatMetni(kalkis)} kalkış',
+          altBaslik: b.altBaslik,
+          hat: b.hat,
+          eylem: '${UlasimVeri.saatMetni(kalkis)} kalkışını bekleyin',
+          yer: b.yer,
+        );
+      } else if (b.tur == BacakTuru.otobus) {
+        final ilk = otobusSay++ == 0;
+        final dk = ilk
+            ? sf1.inis - sf1.binis
+            : (inis2 ?? sf1.inis) - (binis2 ?? sf1.binis);
+        bacaklar[i] = RotaBacagi(
+          tur: BacakTuru.otobus,
+          noktalar: b.noktalar,
+          dakika: math.max(1, dk),
+          baslik: b.baslik,
+          altBaslik: b.altBaslik,
+          hat: b.hat,
+          eylem: b.eylem,
+          yer: b.yer,
+        );
+      }
+    }
+
+    var yurume = 0;
+    for (final b in bacaklar) {
+      if (b.tur == BacakTuru.yuru) yurume += b.dakika;
+    }
+    kalanlar.add(RotaAdayi(
+      sefer: s,
+      hat: a.hat,
+      bacaklar: bacaklar,
+      varisDakika: varis,
+      toplamDakika: varis - suAn,
+      yurumeDakika: yurume,
+      aktarma: a.aktarma,
+    ));
+  }
+  // ⚠️ Varis saatleri degistigi icin siralama YENIDEN yapilir
+  //    (ayni ceza kurali).
+  kalanlar.sort((x, y) => (x.varisDakika + x.aktarma * kAktarmaCezasi)
+      .compareTo(y.varisDakika + y.aktarma * kAktarmaCezasi));
+  sonuc
+    ..clear()
+    ..addAll(kalanlar);
 }
 /// Kazanan adaylarin YURUME bacaklarini gercek yol agi cizgisiyle degistirir.
 ///

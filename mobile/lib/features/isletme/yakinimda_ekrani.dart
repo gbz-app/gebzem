@@ -1577,7 +1577,13 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
       //    kullanici baska bir semte gidip asagi cekse bile liste ESKI
       //    konuma gore geliyordu. Ustelik haritadaki mavi nokta cihazin
       //    GERCEK konumunu ciziyordu -> pin ile liste BIRBIRINI TUTMUYORDU.
-      final k = (konumuTazele ? null : _konum) ?? await KonumServisi.konumAl();
+      // ⚠️⚠️ TURU 158 - **`sessiz: true`**: sebep panel seridinde ZATEN
+      //	yaziliyor (asagidaki `_hata` dali). Servisin ayrica
+      //	`rootMessengerKey` uzerinden SnackBar atmasi MUKERRERDI ve
+      //	rota/durak ekraninin USTUNDE cikiyordu - kullanicinin
+      //	*"surekli alttan hata aliyorum"* yakinmasinin ikinci yarisi.
+      final k = (konumuTazele ? null : _konum) ??
+          await KonumServisi.konumAl(sessiz: true);
       if (!mounted || nesil != _nesil) return;
       // ⚠️⚠️⚠️ TURU 144 — **KONUM DEGISTIYSE ONBELLEK COPE.** Denetim
       //	bulgusu: kullanici baska bir sehre gidip asagi cektiginde YALNIZ
@@ -1759,6 +1765,9 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
                 dogrulukM: _dogrulukM,
                 kameraDurdu: _noktaSec ? _noktaMerkezDegisti : null,
                 takipBacak: _takip?.bacak,
+                // ⚠️ TURU 158 - "takip acik AMA kamera birakilmis".
+                kameraSerbest: _takip != null && !_takipKamera,
+                takipRotaDisi: _takip?.rotaDisi ?? false,
                 takipSegment: _takip?.segment,
                 takipEnlem: _takip?.izEnlem,
                 takipBoylam: _takip?.izBoylam,
@@ -5102,9 +5111,20 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
     // ⚠️ TURU 154 - rota DEGISIYOR; eski rotanin takibi surerse
     //    yeni bacaklarla eski `_takip.bacak` indeksi uyusmaz.
     if (_takip != null) _takipDurdur();
-    setState(() => _rota = null);
-    // ⚠️ Kilit ARAMAYI sarar; `finally` ile HER dalda birakilir
-    //    (istisna, erken donus, iptal).
+    // ⚠️⚠️⚠️ TURU 158 - **ROTA ONDEN SILINMEZ.**
+    //
+    //	Kullanici: *"rota iptalinden sonra ekran dondurme gidiyor"* +
+    //	*"shape siliniyor mu"*.
+    //	Onceden burada `setState(() => _rota = null)` vardi. Sonuc
+    //	sayfasi `showDragHandle`li bir modal sheet; kullanici
+    //	listeden secim YAPMADAN asagi kaydirip kapatirsa `_rota`
+    //	**null KALIYOR**: harita cizgisi ve ozet karti hicbir mesaj
+    //	olmadan KAYBOLUYOR ve geri getirme yolu YOK.
+    // ⚠️ Yeni rota ARTIK YALNIZ `rotaSec` icinde yazilir; kullanici
+    //    vazgecerse ELINDEKI rota YERINDE KALIR.
+    // ⚠️ `_takipDurdur()` YERINDE KALIR: yeni rota secilirse eski
+    //    bacak indeksleri gecersizdir.
+    // ⚠️ Kilit ARAMAYI sarar; `finally` ile HER dalda birakilir.
     _rotaAriyor = true;
     final List<RotaAdayi> adaylar;
     try {
@@ -5116,6 +5136,13 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
         varisEnlem: v.enlem,
         varisBoylam: v.boylam,
       );
+    } catch (_) {
+      // ⚠️⚠️ TURU 158 - **`catch` YOKTU**: arama patlarsa hicbir sheet
+      //	acilmiyor, hicbir mesaj cikmiyordu ve kullanici dugmenin
+      //	BOZUK oldugunu saniyordu.
+      _rotaAriyor = false;
+      if (mounted) _mesaj('Rota hesaplanamadı. Tekrar dene.');
+      return;
     } finally {
       _rotaAriyor = false;
     }
@@ -7004,6 +7031,8 @@ class _HaritaAlani extends StatefulWidget {
     this.sigdir,
     this.noktaSec,
     this.takipBacak,
+    this.kameraSerbest = false,
+    this.takipRotaDisi = false,
     this.takipSegment,
     this.takipEnlem,
     this.takipBoylam,
@@ -7053,6 +7082,28 @@ class _HaritaAlani extends StatefulWidget {
   ///	animasyonu degil **AYRI RENK** ile yapilir — Mapbox da ayni
   ///	seyi yapiyor (`inActiveRouteLegsColor`).
   final int? takipBacak;
+
+  /// ⚠️⚠️⚠️ TURU 158 - **KULLANICI HARITAYI ELLE KAYDIRDI MI?**
+  ///
+  ///	Kullanici: *"rota cizdikten sonra hareket ederken hareket
+  ///	etmiyor gibi"*.
+  /// ⚠️⚠️ Takip acikken `merkez` artik IZDUSUME bagli ve HER GPS
+  ///	duzeltmesinde degisiyor; kamerayi suren son dal ise
+  ///	`_takipKamera`yi **HIC OKUMUYORDU**. Sonuc: kullanici haritayi
+  ///	kaydirsa da kamera geri zipliyor, **"Merkeze dön" FIILEN
+  ///	ISLEVSIZ** ve adim kartini sag/sol kaydirma birkac saniye
+  ///	icinde kendini IPTAL ediyordu.
+  /// ⚠️ Kapi YALNIZ takip acikken devrededir: takipsiz ekranda
+  ///    `merkez = _konum` ve o dal ilk konum/asagi-cek icin GEREKLI.
+  final bool kameraSerbest;
+
+  /// ⚠️⚠️ TURU 158 - kullanici rotanin DISINDA mi?
+  ///	`rotaDisi` dalinda `segment` DONMUS ama izdusum GUNCEL;
+  ///	ikisini birlestirmek cizginin basindan geriye dogru DUZ BIR
+  ///	KIRIS cizdiriyordu (olculdu: medyan 230 m, maks 1454 m).
+  ///	Rotanin disindayken "kalan yol" iddiasi zaten gecersizdir;
+  ///	bacagin TAMAMI cizilir ve kullanici nereden donecegini gorur.
+  final bool takipRotaDisi;
 
   /// ⚠️⚠️ TURU 157 - takip motorunun BULDUGU segment.
   ///	Cizim kendi aramasini YAPMAZ; bkz. `kalanYolNoktadan`
@@ -7309,6 +7360,7 @@ class _HaritaAlaniState extends State<_HaritaAlani> {
         //	gordugu KOPMA buydu. Ayrinti: `kalanYolNoktadan`.
         if (aktif != null &&
             i == aktif &&
+            !widget.takipRotaDisi &&
             widget.takipSegment != null &&
             widget.takipEnlem != null &&
             widget.takipBoylam != null) {
@@ -7662,7 +7714,21 @@ class _HaritaAlaniState extends State<_HaritaAlani> {
       );
       return;
     }
-    if (y != null && (e == null || e.enlem != y.enlem || e.boylam != y.boylam)) {
+    // ⚠️⚠️⚠️ TURU 158 — **KAMERA SERBEST BIRAKILDIYSA MERKEZI IZLEME.**
+    //	Takip acikken `merkez` izdusume bagli ve HER GPS duzeltmesinde
+    //	degisiyor; bu dal `_takipKamera`yi HIC okumuyordu. Sonuc:
+    //	kullanici haritayi kaydirsa da kamera GERI ZIPLIYOR, "Merkeze
+    //	dön" FIILEN ISLEVSIZ kaliyor ve adim kartini sag/sol kaydirma
+    //	birkac saniye icinde kendini IPTAL ediyordu — kullanicinin
+    //	*"hareket ederken hareket etmiyor gibi"* tarifinin bir parcasi.
+    // ⚠️ Kapi YALNIZ takip acikken devrede (`kameraSerbest` = takip acik
+    //    VE kamera birakilmis); takipsiz ekranda bu dal ilk konum ve
+    //    asagi-cek icin GEREKLI.
+    // ⚠️ `merkezNesli` dali YUKARIDA ve DOKUNULMADI: "Konumuma dön"
+    //    oradan gecer, yani geri donus yolu KAPANMAZ.
+    if (!widget.kameraSerbest &&
+        y != null &&
+        (e == null || e.enlem != y.enlem || e.boylam != y.boylam)) {
       _harita?.animateCamera(
         CameraUpdate.newLatLng(LatLng(y.enlem, y.boylam)),
       );
