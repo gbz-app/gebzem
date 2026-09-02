@@ -6315,7 +6315,19 @@ class _HaritaAlaniState extends State<_HaritaAlani> {
   ///    kamera durunca guncellenir.
   List<PatternItem> _kesikDesen() {
     if (!Platform.isIOS) {
-      return [PatternItem.dash(18), PatternItem.gap(10)];
+      // ⚠️⚠️⚠️ TURU 155 — **ANDROID'DE DESENE DENSITY UYGULANMIYOR.**
+      //	Eklenti kaynagindan DOGRULANDI (`PolylineController.java`):
+      //	  · `setWidth(width * density)`   <- density UYGULANIYOR
+      //	  · `setPattern(pattern)`         <- density YOK
+      //	Yani 3x yogunluklu bir telefonda cizgi 5 dp -> 15 px dogru
+      //	cizilirken kesik 18 **FIZIKSEL PIKSEL** = **6 dp** oluyordu:
+      //	cizgiye gore UC KAT kisa, uzaktan neredeyse DUZ gorunuyor.
+      //	Kullanicinin "Yandex'teki gibi olsun" dedigi seyin bir
+      //	parcasi da buydu.
+      // ⚠️ Carpan `width` ile AYNI olcuye (dp) hizalar; boylece kesik
+      //    her yogunlukta cizgi kalinligiyla ayni oranda kalir.
+      final o = MediaQuery.devicePixelRatioOf(context);
+      return [PatternItem.dash(18 * o), PatternItem.gap(10 * o)];
     }
     // metre/piksel = 156543.03392 * cos(enlem) / 2^zoom
     final en = widget.merkez?.enlem ?? 40.8;
