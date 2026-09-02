@@ -1415,7 +1415,7 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
       //    kullanici baska bir semte gidip asagi cekse bile liste ESKI
       //    konuma gore geliyordu. Ustelik haritadaki mavi nokta cihazin
       //    GERCEK konumunu ciziyordu -> pin ile liste BIRBIRINI TUTMUYORDU.
-      final k = (konumuTazele ? null : _konum) ?? await KonumServisi.konumAl() ?? (enlem: 40.8028, boylam: 29.4307); // GECICI-OLCUM
+      final k = (konumuTazele ? null : _konum) ?? await KonumServisi.konumAl();
       if (!mounted || nesil != _nesil) return;
       // ⚠️⚠️⚠️ TURU 144 — **KONUM DEGISTIYSE ONBELLEK COPE.** Denetim
       //	bulgusu: kullanici baska bir sehre gidip asagi cektiginde YALNIZ
@@ -3874,8 +3874,8 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
     //	alt dolgusu ve yuzen serit KAYARDI). Ustelik GPS akisi
     //	sahipsiz surerdi.
     if (_takip != null) _takipDurdur();
-    final k = _konum ?? (enlem: 40.8028, boylam: 29.4307); // GECICI-OLCUM
-    if (false) { // ignore: dead_code
+    final k = _konum;
+    if (k == null) {
       _mesaj('Yakındaki durakları görebilmek için konum izni gerekiyor.');
       return;
     }
@@ -7390,8 +7390,10 @@ class _CubukCizer extends CustomPainter {
   static const double _ince = 6;
   static const double _imlecR = 5.5;
   static const double _ayrac = 4;
-  static const double _kesikDolu = 5;
-  static const double _kesikBos = 3.5;
+  // ⚠️ Cubuktaki kesikler HARITADAKI desenden BAGIMSIZ: cubuk ~300 dp,
+  //    harita metrelerce. Ayni sayilar kullanilsaydi cubuk NOKTA DIZISI olurdu.
+  static const double _kesikDolu = 10;
+  static const double _kesikBos = 5;
 
   @override
   void paint(Canvas tuval, Size boy) {
@@ -7466,7 +7468,15 @@ class _CubukCizer extends CustomPainter {
     for (var i = 0; i < _n; i++) {
       final en = yol * (agirlik[i] / _toplam);
       final k = (i == gorunen ? _kalin : _ince);
-      final boya = Paint()..color = soluk ? bosRenk : renk[i];
+      // ⚠️⚠️ EMULATORDE GORULDU: gecilmemis dilimler NOTR GRI ciziliyordu ve
+      //	cubuk bastan sona ayni renkte bir NOKTA DIZISI gibi duruyordu —
+      //	hangi bacagin yurume hangisinin otobus oldugu SECILEMIYORDU.
+      //	Referansta (Yandex) onde kalan kisim da BACAGIN KENDI RENGINDE,
+      //	yalnizca DAHA SOLUK. Imlec zaten nerede olundugunu soyluyor.
+      // ⚠️ Alfa yerine notr griye KARISTIRMA: saydam bir dilim altindaki kart
+      //    zeminini gosterip renk kaymasi yapardi.
+      final boya = Paint()
+        ..color = soluk ? (Color.lerp(renk[i], bosRenk, 0.45) ?? bosRenk) : renk[i];
       if (kesik[i]) {
         // ⚠️ Kesikler dilimin ICINDE uretilir; sinirda YARIM kalan bir
         //    kesik `clipRect` sayesinde dogru kirpilir.
