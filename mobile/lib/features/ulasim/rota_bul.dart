@@ -467,7 +467,25 @@ Future<List<RotaAdayi>> rotaAra({
   // ⚠️⚠️ **ARAMA HER ZAMAN KOSULMAZ**: aktarmasiz sonuc `adet` kadar
   //	doluysa ikinci tur ATLANIR - kisa mesafelerde (0-3 km, %61
   //	basari) gereksiz is yapilmaz.
-  if (adaylar.length < adet) {
+  //
+  // ⚠️⚠️⚠️ **OLCUT HAM LISTE DEGIL, TEKIL HAT SAYISI.**
+  //	Ilk yazimda kapi `adaylar.length < adet` idi ve `adaylar`
+  //	TEKILLESTIRILMEMIS ham listedir: 12 binis x 12 inis duragi
+  //	taranidigi icin **TEK BIR HAT** bile onlarca kayit uretir.
+  //	Yani ekranda YALNIZ BIR rota gorunecek olsa bile
+  //	`adaylar.length` 3'u rahatca astigi icin aktarma aramasi
+  //	**HIC KOSMUYORDU** - kullanici tek secenekle kalirken
+  //	aktarmayla cok daha hizli bir yol VARDI ve gosterilmiyordu.
+  // ⚠️⚠️ Tekilleme olcutu asagidaki `zincir` ile AYNI olmak zorunda;
+  //	ayrisirsa kapi yine yanlis sayar.
+  final tekilHat = <String>{};
+  for (final a in adaylar) {
+    tekilHat.add([
+      for (final b in a.bacaklar)
+        if (b.tur == BacakTuru.otobus && b.hat != null) b.hat!.id,
+    ].join('>'));
+  }
+  if (tekilHat.length < adet) {
     adaylar.addAll(await _aktarmaliAra(
       basDuraklar: basDuraklar,
       varDuraklar: varDuraklar,
@@ -566,11 +584,32 @@ Future<List<RotaAdayi>> _aktarmaliAra({
     final k = '$hatId|$yon';
     return yolOnbellek[k] ??= await UlasimVeri.i.guzergah(hatId, yon);
   }
-  final hedef = {for (final d in varDuraklar) d.id: d};
+  // ⚠️ Varis tarafi da SINIRLI (ayni gerekce). `hedef` bir Set-benzeri
+  //    arama tablosu oldugu icin kucultmek dogrudan ic dongu maliyetini
+  //    dusurmez ama URETILEN aday sayisini dusurur.
+  final hedef = {
+    for (final d in varDuraklar.take(7)) d.id: d,
+  };
   final sonuc = <RotaAdayi>[];
   final gorulen = <String>{};
 
-  for (final o in basDuraklar) {
+  // ⚠️⚠️⚠️ **AKTARMA TURUNDE DURAK SAYISI SINIRLI** (olculdu).
+  //
+  //	Aktarmasiz arama 12 binis x 12 inis duragi tariyor; aktarmada
+  //	her binis duragi ayrica **hattin TUM duraklarina** ve onlarin
+  //	komsularina aciliyor, yani maliyet dogrusal DEGIL.
+  //	OLCULDU: 12 durakla en kotu arama **171 ms** (masaustu, JIT) -
+  //	200 ms butcesinin sinirinda. Yavas bir telefonda ASILIRDI.
+  //
+  // ⚠️⚠️ EN YAKIN duraklar zaten EN IYI adaylar: `yakinDuraklar`
+  //	listeyi mesafeye gore SIRALI donduruyor ve 7. duraga kadar
+  //	inince yurume suresi cogu vakada rotayi ZATEN eliyor.
+  // ⚠️ Aktarmasiz arama 12 durakla KALIR - orada maliyet dusuk ve
+  //    kapsama daha degerli.
+  const kAktarmaDurakTavani = 7;
+  final basAktarma = basDuraklar.take(kAktarmaDurakTavani).toList();
+
+  for (final o in basAktarma) {
     final oM = UlasimVeri.kabaMetre(
         baslangicEnlem, baslangicBoylam, o.enlem, o.boylam);
     final oDk = _yurumeDakikasi(oM);
