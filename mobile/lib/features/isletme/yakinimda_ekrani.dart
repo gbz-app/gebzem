@@ -58,7 +58,8 @@ import '../../core/tercihler.dart';
 import '../medya/konum_servisi.dart';
 import '../medya/pusula_servisi.dart';
 import '../sosyal/profil_basligi.dart' show kOnayliRengi;
-import '../sosyal/hizmet_menusu.dart' show KalinIkon;
+import '../sosyal/hizmet_menusu.dart'
+    show KalinIkon, havaDovizChartAc, kHavaDovizOnizleme;
  import '../sosyal/profil_sayfasi.dart';
 // ⚠️ TURU 141 — SnackBar'lar acik %70/%95 popuplarin USTUNDE cizilmeli;
 //    ekranin messenger'i onlarin ARKASINDA kalir (bkz. `_mesaj`).
@@ -309,6 +310,64 @@ const Color kCizgiKilif = Color(0xFF0E1120);
 /// ⚠️ *"hafif kapali"* = doygun degil, MAT yesil. Parlak yesil
 ///    (`#3BD35F`) koyu haritada goz aliyordu.
 const Color kOtobusRengi = Color(0xFF2FA85C);
+
+/// ⚠️⚠️ TURU 157 - **BEKLEME KENDI RENGINI ALIR.**
+///
+///	Onceden bekleme bacagi ilerleme cubugunda YURUME ile BIREBIR
+///	ayni ciziliyordu (lila + kesik). Kullanicinin ekran
+///	goruntusunde bekleme **24 dakika**, yurume **1 dakika** idi ve
+///	ikisi ayni dilde gorundugu icin cubuk *"yolun ucte birini
+///	yuruyeceksin"* diyor gibiydi. Beklemek yurumek DEGILDIR.
+/// ⚠️ Notr arduvaz: yesil (otobus) ve lila (yurume) ile karismaz,
+///    koyu kart zemininde 4,4:1 ile okunur.
+/// ⚠️ Haritada karsiligi YOK (bekleme bacaginin polyline'i yok),
+///    yani harita ile cubuk arasinda bir celiski URETMEZ.
+const Color kBeklemeRengi = Color(0xFF8A90AC);
+
+/// ⚠️⚠️⚠️ TURU 157 - **ADIM KARTI OLCU OLCEGI** (kullanici emri:
+///	*"butonlar kucuklugu, baslik vs COK IYI BIR ARAYUZ...
+///	yazilar vs gercekten PROFESYONEL bir arayuze donustur"*).
+///
+/// ⚠️⚠️ **BUGUNKU KARTTA YEDI PUNTO VARDI** (17/16/12,5/12/11,5 +
+///	rozette 10 + dugmede 13). Projenin karari ALTI KADEME
+///	(`docs/yazi-olcegi.md`: 20/17/15/14/13/11) ve **12,5 ile 11,5
+///	o olcekte HIC YOK**. Kart artik yalniz o kademelerden besleniyor.
+///
+/// ⚠️⚠️⚠️ **`w800` EKRANDA HICBIR SEY YAPMIYORDU** (olculdu):
+///	`pubspec.yaml` Google Sans icin yalniz **400/500/600/700**
+///	yuzunu kaydediyor; Flutter w800'i sessizce **700**'e duşurur.
+///	Yani kalinlik hiyerarsisi diye yazilan sey FIILEN YOKTU.
+///	Hiyerarsi artik **PUNTO ve OPAKLIKLA** tasiniyor.
+///	⚠️ YAPMA: w800/w900 yazma - once fontu pubspec'e ekle.
+///
+/// ⚠️⚠️ **DIKEY BOSLUK OLCEGI: yalniz 4 / 12.** Onceden 1/2/6/8/10/12
+///	vardi; 1 ve 2 dp cogu cihazda tek pikselin altinda kalip
+///	GORUNMUYORDU, yani ritim diye bir sey yoktu.
+/// ⚠️⚠️ TURU 157 - durak adinin IKI SATIRA cikabilecegi yazi olcegi
+///	tavani. Ustunde tek satira duser; sebep `_adimIcerik` icinde
+///	OLCULEREK yazili (olcek 2.0'da panel 463 dp'ye cikiyor).
+/// ⚠️⚠️ **`_adimKartBoy` DE BU SABITI OKUR** - ayrisirsa formul
+///	govdeden kopar ve haritanin alt dolgusu ile yuzen serit kayar
+///	(bu ekranda ayni sinif UC KEZ yasandi).
+const double kAdimIkiSatirEsigi = 1.4;
+
+const double kAdimBoslukKucuk = 4;
+const double kAdimBoslukBuyuk = 12;
+
+/// ⚠️⚠️⚠️ TURU 157 - **DUGME YUKSEKLIGI 34 -> 48** (olculdu).
+///
+///	Gercek render kutusu UC OLCEKTE DE **148,0 x 34,0 dp** cikti:
+///	Material minimumunun (48) **%71**'i, Apple'in (44) **%77**'si.
+///	Sebep SDK kaynagindan: `ButtonStyleButton` govdeyi `_InputPadding`
+///	ile 48'e cikarmak ister ama `_RenderInputPadding._computeSize`
+///	sonda `constraints.constrain(...)` cagirir; disaridaki
+///	`SizedBox(height: 34)` DIKEYDE TIGHT kisit verdigi icin 48
+///	**34'e KIRPILIR** - yani `tapTargetSize: padded` FIILEN ETKISIZDI.
+/// ⚠️⚠️ Yazi olcegiyle BIRLIKTE buyur: sabit 48 birakilsaydi olcek
+///	2.0'da etiket kutuya sigmaz ve `FittedBox` onu tekrar
+///	kucultmeye baslardi (asagidaki tuzagin ta kendisi).
+double kAdimDugmeBoy(BuildContext c) =>
+    math.max(48.0, MediaQuery.textScalerOf(c).scale(13) * 1.3 + 22);
 
 const _haritaBayragi = String.fromEnvironment('HARITA');
 const haritaAnahtariVar =
@@ -688,7 +747,69 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
   ///   · panelde YALNIZ [Nereden]/[Nereye] + yatay DURAK KARTLARI,
   ///   · haritada YALNIZ durak pinleri (isletme pinleri CIZILMEZ),
   ///   · cip seridi · arama · kisayollar · isletme seridi GIZLI.
+  /// ⚠️⚠️⚠️ TURU 157 - **2 KM USTU YURUMEDE TAKSI ONERISI** (kullanici
+  ///	emri: *"2 km fazla yurume varsa TAKSI ISLETME KARTINI goster"*).
+  ///
+  /// ⚠️⚠️ **OLCUT TOPLAM YURUME, TEK BACAK DEGIL.** Rotada TANIM GEREGI
+  ///	IKI yurume bacagi var (baslangic->binis, inis->varis).
+  ///	Tek-bacak olcutuyle 1,2 km + 1,1 km = 2,3 km'lik bir rota
+  ///	karti HIC gostermezdi ve emrin amaci kacardi.
+  ///
+  /// ⚠️⚠️ **DURUST SINIR - ESIK GERCEKTE ~2,4-2,8 KM'DE TETIKLER.**
+  ///	`RotaBacagi.metre` KUS UCUSU tahminidir ve
+  ///	`_yurumeleriZenginlestir` gercek yol cizgisini yazarken bile
+  ///	`metre: b.metre` ile ESKI degeri kopyalar. Yani esik GEC
+  ///	tetikler (guvenli taraf: az yurumede taksi onerilmez).
+  ///	Gercek yol uzunluguna baglamak bacak suresini, dolayisiyla
+  ///	OTOBUSE YETISME hesabini da degistirir - AYRI TUR.
+  ///
+  /// ⚠️⚠️ **TELEFON NUMARASI VERIDE YOK** (53/53 kayitta olculdu;
+  ///	`TaksiDuragi` sinifinda alan bile yok). Bu yuzden kart
+  ///	*"Taksi cagir"* DEMEZ, "Yakındaki taksi durağı" der ve
+  ///	**"Ara" dugmesi CIZILMEZ**.
+  ({TaksiDuragi t, double m})? _rotaTaksi;
+
+  /// Esik: toplam yurume (kus ucusu) metre.
+  static const double kTaksiYurumeEsigi = 2000;
+
+  /// ⚠️⚠️ Taksi duragi bu mesafeden UZAKSA kart CIZILMEZ.
+  ///	`yakinTaksiler` (`yakinDuraklar`in aksine) **YARICAP ELEMIYOR**:
+  ///	53 kaydin hepsini mesafeleyip siralar ve en yakini 30 km
+  ///	otede olsa bile DONER. Kapisiz kullanmak "yakininda taksi
+  ///	var" YALANI uretirdi.
+  static const double kTaksiYaricapEsigi = 5000;
+
+  /// Rota secilince taksi onerisini hazirlar (ya da temizler).
+  Future<void> _taksiOner(RotaAdayi? a) async {
+    if (a == null) {
+      if (_rotaTaksi != null) setState(() => _rotaTaksi = null);
+      return;
+    }
+    final yurumeM = a.bacaklar
+        .where((b) => b.tur == BacakTuru.yuru)
+        .fold<double>(0, (t, b) => t + b.metre);
+    if (yurumeM < kTaksiYurumeEsigi) {
+      if (_rotaTaksi != null) setState(() => _rotaTaksi = null);
+      return;
+    }
+    // ⚠️ Baslangic noktasi: taksiye BURADAN binilecek.
+    final b0 = a.bacaklar.first;
+    if (b0.noktalar.isEmpty) return;
+    final p = b0.noktalar.first;
+    final liste =
+        await UlasimVeri.i.yakinTaksiler(p.enlem, p.boylam, adet: 1);
+    if (!mounted) return;
+    final en = liste.isEmpty ? null : liste.first;
+    setState(() => _rotaTaksi =
+        (en != null && en.m <= kTaksiYaricapEsigi) ? en : null);
+  }
+
   bool _durakModu = false;
+
+  /// ⚠️ TURU 157 - durak listesi HAZIRLANIYOR (konum bekleniyor).
+  ///    Bayrak olmadan ekran, konum kilidi boyunca SEBEPSIZ donmus
+  ///    gorunurdu.
+  bool _durakYukleniyor = false;
 
   /// Durak basina hat listesi (kart uzerinde "563 · 4 dk" icin).
   /// ⚠️ Onbelleklenir: 30 kart icin her cizimde yeniden cozmek 1,7 MB'lik
@@ -1537,7 +1658,30 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
         children: [
           Positioned.fill(
             child: _HaritaAlani(
-                merkez: _konum,
+                // ⚠️⚠️⚠️ TURU 157 - **PUCK CIZGIYE YAPISTIRILIR.**
+                //	Kullanicinin ekran goruntusunde puck ile cizginin
+                //	basi arasinda gorunur bir bosluk vardi. Sebep:
+                //	cizgi YOLA IZDUSUMDEN basliyor, puck ise HAM
+                //	GPSte birakiliyordu; aradaki mesafe kullanicinin
+                //	sapmasidir ve kod 60 metreye kadar hos goruyor
+                //	(`kRotaDisiM`) — zoom 17de **66 dp**.
+                // ⚠️⚠️ Google, Yandex ve Mapbox bunun TERSINI yapar:
+                //	cizgiyi degil **PUCKI** yola yapistirirlar
+                //	(Mapbox dokumani gerekcesi: *"loss of location
+                //	coordinate precision in cities with tall
+                //	buildings"*). Veri ZATEN elde.
+                // ⚠️⚠️ **`rotaDisi` KAPISI ZORUNLU**: `ilerlet` o dalda
+                //	izdusumu ONCEKI durumdan aynen tasiyor. Kapisiz
+                //	yapistirma, rotadan cikmis kullaniciyi BAYAT bir
+                //	noktada DONMUS gosterirdi — bosluktan DAHA KOTU.
+                // ⚠️ `_konum`un KENDISI DEGISMEZ: yakin durak/isletme
+                //    sorgulari ve mesafeler ham GPSte kalir.
+                merkez: (_takip != null &&
+                        !_takip!.rotaDisi &&
+                        _takip!.izEnlem != null &&
+                        _takip!.izBoylam != null)
+                    ? (enlem: _takip!.izEnlem!, boylam: _takip!.izBoylam!)
+                    : _konum,
                 // ⚠️⚠️ TURU 150 — DURAK MODUNDA isletme pinleri CIZILMEZ
                 //	(kullanici emri: *"durak dedigimde ekranda duraklardan
                 //	BASKA SEYLER GORUNMEMELI"*).
@@ -1574,6 +1718,7 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
                 dogrulukM: _dogrulukM,
                 kameraDurdu: _noktaSec ? _noktaMerkezDegisti : null,
                 takipBacak: _takip?.bacak,
+                takipSegment: _takip?.segment,
                 takipEnlem: _takip?.izEnlem,
                 takipBoylam: _takip?.izBoylam,
                 // ⚠️ Yalniz TAKIP ACIKKEN baglanir: durak modunda
@@ -2013,7 +2158,18 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
               else
                 SizedBox(
                   height: _durakKartBoy(context),
-                  child: _duraklar.isEmpty
+                  // ⚠️ TURU 157 - konum beklenirken cark; bos liste
+                  //    metni ("durak yok") o an bir YALAN olurdu.
+                  child: _durakYukleniyor
+                      ? const Center(
+                          child: SizedBox(
+                            width: 22,
+                            height: 22,
+                            child:
+                                CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        )
+                      : _duraklar.isEmpty
                       ? Center(
                           child: Text(
                             'Yakınında durak bulunamadı.',
@@ -2204,7 +2360,16 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
     // ⚠️ Ust satirin yuksekligi artik **BAŞLA dugmesiyle** (30 dp)
     //    metnin BUYUGU: dugme sabit, metin olcekle buyuyor.
     final ust = math.max(30.0, o.scale(17) * 1.1);
-    return (ust + 8 + 4 * 15 + 24).ceilToDouble() + 1;
+    // ⚠️⚠️ TURU 157 - taksi karti ozetin ALTINDA ve `_panelBoy`
+      //	bu degeri okuyor; kart cizilip formule girmezse panel
+      //	govdeden AYRISIR ve haritanin alt dolgusu kayar.
+    // ⚠️ Kart: 8 bosluk + 2x10 dolgu + max(38 ikon, iki satir metin).
+    final taksi = _rotaTaksi == null
+        ? 0.0
+        : 8 +
+            20 +
+            math.max(38.0, o.scale(13) * 1.3 + o.scale(12) * 1.3);
+    return (ust + 8 + 4 * 15 + 24 + taksi).ceilToDouble() + 1;
   }
 
   /// Takip acikken cizilen **ADIM KARTI**nin yuksekligi — TEK KAYNAK.
@@ -2231,20 +2396,43 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
   ///	ve yuzen serit KAYAR (bu ekranda UC KEZ yasandi).
   double _adimKartBoy(BuildContext c) {
     final o = MediaQuery.textScalerOf(c);
-    final ust1 = math.max(20.0, o.scale(17) * 1.15);
-    final ust2 = o.scale(12) * 1.25;
+    // ⚠️⚠️⚠️ TURU 157 - **FORMUL GOVDEYLE TERIM TERIM YURUNDU.**
+    //	Sira (yukaridan asagi), `_adimKarti` govdesiyle BIREBIR:
+    //	  dolgu 12 · ust1 · 4 · ust2 · 12 · cubuk 22 · 12 ·
+    //	  adim · 12 · dugme · dolgu 12
+    // ⚠️⚠️ Cubuk 20 -> **22**: rozet 22 dp'ye cikti ve `Row` en uzun
+    //	cocugunu alir.
+    final ust1 = math.max(20.0, o.scale(20) * 1.25);
+    final ust2 = o.scale(13) * 1.4;
     // ⚠️⚠️ TURU 156 — adim sayfasi UC satir oldu (eylem/yer/kalan) ve
     //	solunda `kAdimIkonKutu` var. Yukseklik IKISININ BUYUGU:
     //	kucuk olcekte kutu, buyuk olcekte metin baglayici olur.
-    final adim = math.max(
-      kAdimIkonKutu,
-      o.scale(12.5) * 1.25 +
-          2 +
-          o.scale(16) * 1.2 +
-          1 +
-          o.scale(11.5) * 1.2,
-    );
-    return (ust1 + 2 + ust2 + 8 + 20 + 10 + adim + 8 + 34 + 24)
+    // ⚠️⚠️ Yer adi satir sayisi `_adimIcerik` ile **AYNI ESIKTEN**
+    //	turetilir; sabit kopyalanmaz.
+    final yerSatir = o.scale(1) <= kAdimIkiSatirEsigi ? 2 : 1;
+    // ⚠️⚠️ Ikon SUTUNU artik sayaci da tasiyor (kutu + 4 + 11 punto);
+    //	yukseklik metin sutunu ile ikon sutununun BUYUGU.
+    final ikonSutun =
+        kAdimIkonKutu + kAdimBoslukKucuk + o.scale(11) * 1.2;
+    final metinSutun = o.scale(13) * 1.3 +
+        kAdimBoslukKucuk +
+        o.scale(17) * 1.3 * yerSatir +
+        kAdimBoslukKucuk +
+        o.scale(13) * 1.3;
+    final adim = math.max(ikonSutun, metinSutun);
+    // ⚠️ Sondaki `ceil() + 1` payi KALIR: formul adim satirini
+    //    1,4-1,7 dp EKSIK hesapliyor ve tasmayi YALNIZCA bu pay onluyor
+    //    (turu 121/123/137/141 ile ayni ders).
+    return (ust1 +
+            kAdimBoslukKucuk +
+            ust2 +
+            kAdimBoslukBuyuk +
+            22 +
+            kAdimBoslukBuyuk +
+            adim +
+            kAdimBoslukBuyuk +
+            kAdimDugmeBoy(c) +
+            24)
             .ceilToDouble() +
         1;
   }
@@ -2605,16 +2793,20 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
                     textAlign: TextAlign.center,
                     maxLines: 1,
                     style: TextStyle(
-                      fontSize: 17,
-                      height: 1.15,
-                      fontWeight: FontWeight.w800,
+                      // ⚠️ TURU 157 - ekranin EN BUYUK sayisi: 17 -> 20
+                      //    (`docs/yazi-olcegi.md` ust kademesi).
+                      fontSize: 20,
+                      height: 1.25,
+                      // ⚠️ w800 -> w700: Google Sans 800 yuzunu
+                      //    TASIMIYOR, Flutter zaten 700 ciziyordu.
+                      fontWeight: FontWeight.w700,
                       color: d.rotaDisi
                           ? const Color(0xFFFFC531)
                           : scheme.onSurface,
                     ),
                   ),
                 ),
-                const SizedBox(height: 2),
+                SizedBox(height: kAdimBoslukKucuk),
                 Text(
                   'Tüm rota: $kalanDk dk · '
                   '${UlasimVeri.saatMetni(a.varisDakika)}',
@@ -2622,16 +2814,16 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: 12,
-                    height: 1.25,
+                    fontSize: 13,
+                    height: 1.4,
                     fontWeight: FontWeight.w600,
                     color: scheme.onSurface.withValues(alpha: 0.60),
                   ),
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: kAdimBoslukBuyuk),
                 // == 2) BACAK BACAK ILERLEME CUBUGU ==
                 _ilerlemeCubugu(c, a, d, aktif),
-                const SizedBox(height: 10),
+                SizedBox(height: kAdimBoslukBuyuk),
                 // == 3) KAYDIRILABILIR ADIM KARTI ==
                 // ⚠️⚠️ Harita senkronu kaydirma BITINCE (`onPageChanged`)
                 //	yapilir; her karede tasinsaydi kamera parmakla
@@ -2644,28 +2836,39 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
                     itemBuilder: (_, i) => _adimIcerik(c, a, d, i, aktif),
                   ),
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: kAdimBoslukBuyuk),
                 // == 4) DUGMELER ==
+                // ⚠️⚠️⚠️ TURU 157 - **34 dp DOKUNMA HEDEFI OLCULDU VE
+                //	DUZELTILDI.** Gercek render kutusu UC OLCEKTE DE
+                //	148,0 x **34,0 dp** idi: Material minimumunun (48)
+                //	%71'i, Apple'in (44) %77'si. Ayrinti ve SDK kok
+                //	nedeni `kAdimDugmeBoy` serhinde.
+                // ⚠️⚠️ **HIYERARSI:** "Merkeze dön" bir DONUS yolu ve daha
+                //	sik kullanilir; "Bitir" GERI ALINAMAZ bir eylem.
+                //	Bu yuzden esnek alani ARTIK "Merkeze dön" aliyor,
+                //	"Bitir" ikincil ve dar kaliyor.
                 SizedBox(
-                  height: 34,
+                  height: kAdimDugmeBoy(c),
                   child: Row(
                     children: [
-                      Expanded(
+                      // ⚠️⚠️ `Expanded` DEGIL `Flexible`: "Bitir" kisa bir
+                      //	kelime, tum bos alani yutmasina gerek yok.
+                      Flexible(
                         child: OutlinedButton(
                           onPressed: _takipDurdur,
                           style: OutlinedButton.styleFrom(
                             padding:
-                                const EdgeInsets.symmetric(horizontal: 8),
+                                const EdgeInsets.symmetric(horizontal: 14),
                             shape: RoundedRectangleBorder(
-                              borderRadius:
-                                  BorderRadius.circular(kYaricap(34)),
+                              borderRadius: BorderRadius.circular(
+                                  kYaricap(kAdimDugmeBoy(c))),
                             ),
                           ),
                           child: const Text('Bitir',
-                              maxLines: 1, style: TextStyle(fontSize: 13)),
+                              maxLines: 1, style: TextStyle(fontSize: 14)),
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      SizedBox(width: kAdimBoslukKucuk * 2),
                       // ⚠️⚠️ **MERKEZE DON** yalniz takip BIRAKILMISKEN
                       //	cizilir (Mapbox deseni: `FOLLOWING`de dugme
                       //	GONE). Hep gorunse, zaten takip edilen kamera
@@ -2673,10 +2876,22 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
                       // ⚠️ `Flexible` + `FittedBox`: yazi olcegi 2.0'da
                       //    "Merkeze dön" + ikon 360 dp'lik ekranda
                       //    tasardi (turu 143 kisayol karti dersi).
+                      // ⚠️⚠️⚠️ TURU 157 - **`FittedBox` ARTIK DUGMEYI DEGIL
+                      //	YALNIZ ETIKETI sariyor.** Onceden TUM dugmeyi
+                      //	sariyordu ve OLCULDU: VARSAYILAN olcekte bile
+                      //	**0,708 kat** kuculuyor, yani etkin punto
+                      //	9,2 dp ve ikon 10,6 dp oluyordu; olcek 2.0'da
+                      //	ikon **6,8 dp**'ye duşuyordu.
+                      // ⚠️⚠️ Yani kullanici yaziyi BUYUTTUKCE dugme
+                      //	KUCULUYORDU - `docs/yazi-olcegi.md`in 2.
+                      //	maddesinde yazili hatanin birebir tekrari.
+                      //	9,2 dp ayrica ayni belgenin "11'in ALTINA
+                      //	INILMEZ" kuralini VARSAYILAN olcekte ihlal
+                      //	ediyordu.
+                      // ⚠️ Ikon boyu artik SABIT; yalniz metin kuculebilir.
                       if (!_takipKamera)
-                        Flexible(
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
+                        Expanded(
+                          child: Align(
                             alignment: Alignment.centerRight,
                             child: FilledButton.tonalIcon(
                               onPressed: () {
@@ -2697,11 +2912,22 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
                                 //    CELISIRDI.
                                 _adimSayfasinaGec(aktif);
                               },
+                              style: FilledButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 16),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(
+                                      kYaricap(kAdimDugmeBoy(c))),
+                                ),
+                              ),
                               icon: const Icon(LucideIcons.locateFixed,
-                                  size: 15),
-                              label: const Text('Merkeze dön',
-                                  maxLines: 1,
-                                  style: TextStyle(fontSize: 13)),
+                                  size: 18),
+                              label: const FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text('Merkeze dön',
+                                    maxLines: 1,
+                                    style: TextStyle(fontSize: 14)),
+                              ),
                             ),
                           ),
                         ),
@@ -2728,6 +2954,51 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
   ///	genislik 0 olur ve `RenderStack` boyutunu YALNIZ positioned
   ///	OLMAYAN cocuklarindan hesapladigi icin cubuk **0x0**'a
   ///	duserdi (turu 136'da ekranin tamamini silen hata).
+  /// ⚠️⚠️⚠️ TURU 157 - **DILIM GENISLIKLERI TEK KAYNAKTAN.**
+  ///
+  ///	Ham sure orani kullanildiginda dilimler OKUNMAZ oluyordu.
+  ///	OLCULDU (kullanicinin ekran goruntusundeki [1, 24, 38, 4]
+  ///	dagilimi, ~300 dp cubuk): **4 / 86 / 136 / 14 dp** — en dar
+  ///	dilim **3,6 dp**, yani tek bir kesik (10 dp) bile sigmiyor
+  ///	ve dilim ekranda bir NOKTA gibi duruyor.
+  ///	Aktarma gelince (6-7 bacak) daha da kotu: 197 rota / 1308
+  ///	dilim olculdu, dilimlerin **%32'si 9 dp altinda** (durak
+  ///	dairesi capi 9 dp — dilimi TAMAMEN ortuyor) ve **%46'si
+  ///	15 dp altinda** (kesik deseninin TEK cevrimi tamamlanamiyor,
+  ///	yani yurume/otobus ayrimi SESSIZCE kayboluyor).
+  ///
+  /// ⚠️⚠️ **COZUM: ESIT ile ORANTILI karisimi (0,45 / 0,55).**
+  ///	Iki dagilimin da toplami 1 oldugu icin karisimin toplami da
+  ///	**tam olarak 1**'dir — yinelemeli kirpma/normalize gerekmez,
+  ///	sinir durumu YOKTUR. En dar dilim en az `0,45/n` olur
+  ///	(4 bacakta %11,3 = ~34 dp; 7 bacakta %6,4 = ~19 dp).
+  ///	Siralama KORUNUR: uzun bacak hep daha genis kalir.
+  ///
+  /// ⚠️⚠️ **ESIT DILIM REDDEDILDI**: 1 dk yurume ile 38 dk otobus ayni
+  ///	genislikte olurdu ve imlec AYNI listeden beslendigi icin
+  ///	kullanici 1 dakikalik yurumede imlecin cubugun CEYREGINI
+  ///	gectigini gorurdu - bu duz bir YALAN olurdu.
+  /// ⚠️⚠️ **DURUST SINIR:** cubuk artik sureyle DOGRUSAL DEGIL.
+  ///	Kabul edildi cunku alternatifi 4 dp'lik okunmaz bir dilim.
+  ///	Gercek sure zaten cubugun HEMEN USTUNDE yaziyor.
+  ///
+  /// ⚠️⚠️⚠️ **AYNI LISTE HEM CIZIME HEM IMLECE GIDER.** `_CubukCizer`
+  ///	serhi bunu ZORUNLU kiliyor: ikisi ayri olcut kullanirsa
+  ///	imlec bacak sinirlarini YANLIS yerde gecer.
+  /// ⚠️ 1000'lik olcek + `math.max(1, ...)`: `flex` tam sayi olmak
+  ///    zorunda ve ASLA 0 olmamali (turu 154 dersi).
+  List<int> _cubukAgirlik(List<RotaBacagi> bacaklar) {
+    final n = bacaklar.length;
+    if (n == 0) return const [];
+    final ham = [for (final b in bacaklar) math.max(1, b.dakika).toDouble()];
+    final t = ham.fold<double>(0, (x, y) => x + y);
+    final esit = 1.0 / n;
+    return [
+      for (final h in ham)
+        math.max(1, ((0.45 * esit + 0.55 * (h / t)) * 1000).round()),
+    ];
+  }
+
   Widget _ilerlemeCubugu(
     BuildContext c,
     RotaAdayi a,
@@ -2736,7 +3007,9 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
   ) {
     final scheme = Theme.of(c).colorScheme;
     return SizedBox(
-      height: 20,
+      // ⚠️ TURU 157 - rozet 22 dp oldu; `Row` en uzun cocugunu alir ve
+      //    `_adimKartBoy` formulu de 22 sayiyor. Ayrisirsa panel kayar.
+      height: 22,
       child: Row(
         children: [
           Expanded(
@@ -2747,30 +3020,47 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
               //	olmasaydi cubuk 0 yukseklikte cizilirdi.
               size: Size.infinite,
               painter: _CubukCizer(
-                agirlik: [
-                  for (final b in a.bacaklar) math.max(1, b.dakika),
-                ],
+                agirlik: _cubukAgirlik(a.bacaklar),
                 kesik: [
                   for (final b in a.bacaklar) b.tur != BacakTuru.otobus,
                 ],
+                // ⚠️ TURU 157 - UC RENK: otobus yesil · yurume lila ·
+                //    BEKLEME arduvaz (bkz. `kBeklemeRengi` serhi).
                 renk: [
-                  for (final b in a.bacaklar)
-                    b.tur == BacakTuru.otobus ? kOtobusRengi : kYurumeRengi,
+                  for (final b in a.bacaklar) _bacakRengi(b.tur),
                 ],
                 aktif: aktif,
                 aktifOran: _bacakOrani(a.bacaklar[aktif], d),
                 gorunen: _adimGorunen,
                 bosRenk: scheme.onSurface.withValues(alpha: 0.16),
                 kilif: kCizgiKilif,
+                // ⚠️ TURU 157 - kartin GERCEK zemini (opak).
+                //    `_adimKarti` de ayni fonksiyonu kullaniyor.
+                zemin: kYuzeyGri(c),
               ),
             ),
           ),
           const SizedBox(width: 8),
-          ulasim.hatRozeti(a.hat, boy: 20),
+          // ⚠️⚠️ TURU 157 - rozet 20 -> **22**. Rozetin puntosu
+          //	`boy * 0.5` ile TURETILIYOR (`ulasim_sayfalari.dart`),
+          //	yani 20 dp rozet **10 punto** demekti - projenin
+          //	"11'in ALTINA inilmez" tabaninin altinda. Punto ELLE
+          //	yazilmaz, rozet buyutulerek duzeltilir.
+          ulasim.hatRozeti(a.hat, boy: 22),
         ],
       ),
     );
   }
+
+  /// Bacak turunun rengi - **TEK KAYNAK** (cubuk + adim karti ikon kutusu).
+  ///
+  /// ⚠️ Ikisi ayrisirsa kullanici karttaki ikonu cubuktaki dilimle
+  ///    ESLESTIREMEZ.
+  Color _bacakRengi(BacakTuru t) => switch (t) {
+        BacakTuru.otobus => kOtobusRengi,
+        BacakTuru.bekle => kBeklemeRengi,
+        BacakTuru.yuru => kYurumeRengi,
+      };
 
   /// ⚠️ ESKI DILIM CIZERI — `_CubukCizer` ile degistirildi (turu 156).
   ///    Govde SILINMEDI: bu dosyada ayni sinif silme BES kez komsu uyeyi
@@ -2921,11 +3211,13 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
     final scheme = Theme.of(c).colorScheme;
     final b = a.bacaklar[sira];
     final bu = sira == aktif;
-    final otobus = b.tur == BacakTuru.otobus;
     // ⚠️ TURU 156 — ikon kutusu HARITADAKI cizgiyle AYNI renkten: otobus
     //    yesil, yurume lila. Ayri renkler kullanilsaydi kullanici karttaki
     //    ikonu haritadaki bacakla ESLESTIREMEZDI.
-    final renk = otobus ? kOtobusRengi : kYurumeRengi;
+    // ⚠️ TURU 157 - artik cubukla da ORTAK (`_bacakRengi`); bekleme
+    //    kendi arduvaz rengini alir.
+    final renk = _bacakRengi(b.tur);
+    final o = MediaQuery.textScalerOf(c);
     // ⚠️⚠️ Kalan mesafe YALNIZ AKTIF bacakta yazilir: `kalanM` diger
     //	bacaklara AIT DEGILDIR ve orada yazilsaydi duz bir YALAN
     //	olurdu.
@@ -2936,13 +3228,39 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
     // ⚠️ EMULATORDE GORULDU (turu 151): "143 m kaldı · 143 m ·
     //    yaklaşık" - mesafe IKI KEZ yaziliyordu. Yurume bacaginin
     //    `altBaslik`i ZATEN mesafe tasiyor.
-    final alt = !bu || !d.kalanM.isFinite
-        ? '${b.dakika} dk · ${b.altBaslik}'
-        : d.rotaDisi
+    // ⚠️⚠️⚠️ TURU 157 - **BEKLEME KARTINDA DURAK ADI IKI KEZ YAZIYORDU.**
+    //
+    //	Ekran goruntusu: ikinci satir "NURSULTAN NAZARBAYEV CADDE…",
+    //	ucuncu satir "24 dk · NURSULTAN NAZARBAYEV CADDESI 1".
+    //	Sebep: bekleme bacagi kurulurken `altBaslik: o.ad` **VE**
+    //	`yer: o.ad` yaziliyor - ayni ad iki alanda.
+    //
+    // ⚠️⚠️ **VE BU RASTLANTI DEGIL, YAPISAL**: `ilerlet` bos bacaklari
+    //	(bekleme, polyline yok) HER ZAMAN atlar, yani `d.bacak`
+    //	HICBIR ZAMAN bekleme bacagini gostermez -> `bu` daima
+    //	**false** -> bekleme karti HER ZAMAN o tekrarli satiri
+    //	cizerdi. Yani bu, o kartin TEK davranisiydi.
+    //
+    // ⚠️⚠️ `rota_bul.dart`taki `altBaslik` DEGISTIRILMEDI: o alanin
+    //	IKI TUKETICISI DAHA var (rota ozet karti + rota detay
+    //	sheet'i) ve `RotaBacagi` serhi bunu acikca yasakliyor.
+    //	Duzeltme KART TARAFINDA yapildi.
+    // ⚠️ Bekleme satirinda artik HAT KIMLIGI var - kullanicinin o
+    //    ekranda gercekten ihtiyac duydugu bilgi ("hangi otobus?").
+    //    Bacak `hat` alanini ZATEN tasiyor (veri modeli degismedi).
+    // ⚠️ Otobus bacaginin ucuncu satirinda tekrar YOK - dokunulmadi.
+    final alt = bu && d.kalanM.isFinite
+        ? (d.rotaDisi
             ? 'Rotadan uzaktasın — çizgiye dön'
             : b.tur == BacakTuru.yuru
                 ? '${ulasim.mesafeMetni(d.kalanM)} kaldı · yaklaşık'
-                : '${ulasim.mesafeMetni(d.kalanM)} kaldı · ${b.altBaslik}';
+                : '${ulasim.mesafeMetni(d.kalanM)} kaldı · ${b.altBaslik}')
+        : switch (b.tur) {
+            BacakTuru.bekle => b.hat == null
+                ? '${b.dakika} dk bekleme'
+                : '${b.dakika} dk bekleme · ${b.hat!.kisaAd} hattı',
+            _ => '${b.dakika} dk · ${b.altBaslik}',
+          };
     // ⚠️⚠️⚠️ TURU 156 — **REFERANS DUZEN: IKON KUTUSU + EYLEM/YER.**
     //
     //	Kullanici: *"step adimini BOYLE yapmaliyiz"*. Referansta
@@ -2960,30 +3278,61 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
+        // ⚠️⚠️ TURU 157 - **"i/N" SAYACI IKON SUTUNUNA TASINDI.**
+        //	Onceden metnin SAGINDA duruyordu ve esnek DEGILDI:
+        //	olcege gore 16,8 / 21,9 / 33,7 dp + 6 dp bosluk,
+        //	yani durak adindan yer CALIYORDU. Ikon kutusunun
+        //	ALTINDA bos dikey alan zaten var (kutu 42 dp, metin
+        //	sutunu 60-82 dp) - sayac oraya konunca metne
+        //	**SIFIR** maliyeti kalir.
+        // ⚠️⚠️ KALDIRILMADI: `PageView` kaydirilabilir oldugu icin
+        //	kullanici kacinci adimda oldugunu KAYBETMEMELI
+        //	(turu 154'te bilerek acilan kapi).
+        SizedBox(
           width: kAdimIkonKutu,
-          height: kAdimIkonKutu,
-          margin: const EdgeInsets.only(right: 10),
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: bu ? renk : renk.withValues(alpha: 0.35),
-            borderRadius: BorderRadius.circular(kYaricap(kAdimIkonKutu)),
-          ),
-          child: Icon(
-            switch (b.tur) {
-              BacakTuru.yuru => LucideIcons.footprints,
-              BacakTuru.bekle => LucideIcons.clock,
-              BacakTuru.otobus => LucideIcons.busFront,
-            },
-            size: 20,
-            // ⚠️ On plan DOLGUDAN turetilir: acik yesil/lila zeminde
-            //    sabit beyaz yazi 1,x:1 ile OKUNMAZ olurdu (turu 140 dersi).
-            color: ThemeData.estimateBrightnessForColor(renk) ==
-                    Brightness.dark
-                ? Colors.white
-                : Colors.black,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: kAdimIkonKutu,
+                height: kAdimIkonKutu,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: bu ? renk : renk.withValues(alpha: 0.35),
+                  borderRadius:
+                      BorderRadius.circular(kYaricap(kAdimIkonKutu)),
+                ),
+                child: Icon(
+                  switch (b.tur) {
+                    BacakTuru.yuru => LucideIcons.footprints,
+                    BacakTuru.bekle => LucideIcons.clock,
+                    BacakTuru.otobus => LucideIcons.busFront,
+                  },
+                  size: 20,
+                  // ⚠️ On plan DOLGUDAN turetilir: acik yesil/lila
+                  //    zeminde sabit beyaz yazi 1,x:1 ile OKUNMAZ olurdu
+                  //    (turu 140 dersi).
+                  color: ThemeData.estimateBrightnessForColor(renk) ==
+                          Brightness.dark
+                      ? Colors.white
+                      : Colors.black,
+                ),
+              ),
+              SizedBox(height: kAdimBoslukKucuk),
+              Text(
+                '${sira + 1}/${a.bacaklar.length}',
+                maxLines: 1,
+                style: TextStyle(
+                  fontSize: 11,
+                  height: 1.2,
+                  fontWeight: FontWeight.w600,
+                  color: scheme.onSurface.withValues(alpha: 0.5),
+                ),
+              ),
+            ],
           ),
         ),
+        SizedBox(width: kAdimBoslukBuyuk),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -2997,36 +3346,56 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 12.5,
-                  height: 1.25,
+                  fontSize: 13,
+                  height: 1.3,
                   fontWeight: FontWeight.w600,
                   color: scheme.onSurface
                       .withValues(alpha: bu ? 0.70 : 0.40),
                 ),
               ),
-              const SizedBox(height: 2),
-              // ── ALT: BUYUK KALIN YER ADI ──
+              SizedBox(height: kAdimBoslukKucuk),
+              // ── ORTA: EN BUYUK OGE — YER ADI ──
+              // ⚠️⚠️⚠️ TURU 157 - **IKI SATIR, AMA KOSULLU** (olculdu:
+              //	2032 durak adi tek tek, Google Sans 17 ile).
+              //	Metin sutunu 360 dp ekranda yalniz ~229 dp.
+              //	TEK satirda KIRPILAN durak orani:
+              //	  olcek 1.0 -> **%12,5**  ·  1.3 -> %35,0  ·  2.0 -> %79,9
+              //	IKI satirda:
+              //	  olcek 1.0 -> **%0,4**   ·  1.3 -> %3,3   ·  2.0 -> %27,6
+              //	Yani varsayilan olcekte kirpilma **30 KAT** azaliyor.
+              //	Kullanicinin gordugu "NURSULTAN NAZARBAYEV CADDE…"
+              //	tam bu %12,5'in icindeydi.
+              // ⚠️⚠️ **KOSULSUZ ACILAMAZ** (olculdu): olcek 2.0'da 640 dp
+              //	ekranda panel 463 dp'ye cikiyor ve haritaya yalniz
+              //	177 dp (%28) kaliyor - kabul edilemez. Bu yuzden
+              //	esik **1.4**; ustunde tek satira duser.
+              // ⚠️⚠️ **DURUST SINIR:** buyuk yazi kullanan kisilerde durak
+              //	adlari KIRPILMAYA DEVAM EDECEK (olcek 2.0'da ~%67).
+              // ⚠️⚠️ `_adimKartBoy` AYNI esigi okur; ayrisirsa `_panelBoy`
+              //	govdeden kopar ve haritanin alt dolgusu kayar.
               Text(
                 b.yer.isEmpty ? b.altBaslik : b.yer,
-                maxLines: 1,
+                maxLines: o.scale(1) <= kAdimIkiSatirEsigi ? 2 : 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 16,
-                  height: 1.2,
-                  fontWeight: FontWeight.w800,
+                  fontSize: 17,
+                  height: 1.3,
+                  // ⚠️ w800 DEGIL: Google Sans o yuzu tasimiyor,
+                  //    Flutter sessizce 700'e duşuyordu (bkz. olcu serhi).
+                  fontWeight: FontWeight.w700,
                   color:
                       scheme.onSurface.withValues(alpha: bu ? 1 : 0.55),
                 ),
               ),
-              const SizedBox(height: 1),
+              SizedBox(height: kAdimBoslukKucuk),
               // ── EN ALT: KALAN / SURE ──
               Text(
                 alt,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 11.5,
-                  height: 1.2,
+                  fontSize: 13,
+                  height: 1.3,
                   color: bu && d.rotaDisi
                       ? const Color(0xFFFFC531)
                       : scheme.onSurface
@@ -3036,15 +3405,6 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
             ],
           ),
         ),
-        const SizedBox(width: 6),
-        Text(
-          '${sira + 1}/${a.bacaklar.length}',
-          style: TextStyle(
-            fontSize: 11.5,
-            fontWeight: FontWeight.w700,
-            color: scheme.onSurface.withValues(alpha: 0.5),
-          ),
-        ),
       ],
     );
   }
@@ -3052,9 +3412,13 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
   /// Rota bulununca kartlarin yerini alan OZET.
   Widget _rotaOzeti(BuildContext c, RotaAdayi a) {
     final scheme = Theme.of(c).colorScheme;
+    final tk = _rotaTaksi;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: kYanBosluk),
-      child: Material(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+      Material(
         color: kYuzeyGri(c),
         borderRadius: BorderRadius.circular(kYaricap(96)),
         clipBehavior: Clip.antiAlias,
@@ -3160,7 +3524,98 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
           ),
         ),
       ),
+          // ⚠️⚠️⚠️ TURU 157 - **UZUN YURUMEDE TAKSI ONERISI.**
+          //	Yeri BILEREK rota OZETI: karar ani orasidir ve
+          //	kullanici "Başla"ya basmadan alternatifi gormeli.
+          //	Adim ekrani YURURKEN bakilan ekrandir; oraya ikinci
+          //	bir kart koymak panelin haritaya biraktigi ~74 dp'lik
+          //	nefesi yerdi.
+          // ⚠️⚠️ `IsletmeKarti` KULLANILMADI: ctor zorunlu bir
+          //	`IsletmeOzet` istiyor (id · kullaniciAdi · avatar ·
+          //	kategori · dogrulandi) ve taksi verisinde bunlarin
+          //	HICBIRI yok; ustelik o kartin govde dokunusu
+          //	`ProfilSayfasi(userId:)` aciyor ve kalbi sunucuya
+          //	istek atiyor - uydurma bir id ile IKI OLU ARAYUZ olurdu.
+          if (tk != null) ...[
+            const SizedBox(height: 8),
+            Material(
+              color: kYuzeyGri(c),
+              borderRadius: BorderRadius.circular(kYaricap(80)),
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: () => unawaited(_taksiHaritada(tk.t)),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 38,
+                        height: 38,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFC531)
+                              .withValues(alpha: 0.16),
+                          borderRadius:
+                              BorderRadius.circular(kYaricap(38)),
+                        ),
+                        child: const Icon(LucideIcons.carTaxiFront,
+                            size: 19, color: Color(0xFFFFC531)),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // ⚠️⚠️ "Taksi cagir" DEMEZ: veride telefon
+                            //	numarasi YOK ve projede cagri
+                            //	altyapisi HIC yok.
+                            const Text(
+                              'Yakındaki taksi durağı',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 13,
+                                height: 1.3,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            Text(
+                              '${tk.t.ad} · ${ulasim.mesafeMetni(tk.m)}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 12,
+                                height: 1.3,
+                                color: scheme.onSurface
+                                    .withValues(alpha: 0.7),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(LucideIcons.map, size: 17),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
     );
+  }
+
+  /// Taksi duragini haritada gosterir (kart dokunusu).
+  Future<void> _taksiHaritada(TaksiDuragi t) async {
+    setState(() {
+      _odak = (
+        enlem: t.enlem,
+        boylam: t.boylam,
+        nesil: (_odak?.nesil ?? 0) + 1,
+      );
+    });
+    _mesaj('${t.ad} haritada gösteriliyor.');
   }
 
   /// Panelin govdesi — **koyu temanin ALTINDAKI** context ile cizilir.
@@ -3866,6 +4321,28 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
   ///
   /// ⚠️ Konum YOKSA girilmez ve sebep SOYLENIR: duraklar kullanicinin
   ///    cevresinden secildigi icin konumsuz mod anlamsiz olurdu.
+  /// ⚠️⚠️⚠️ TURU 157 - **KISAYOL ILK KAREDE OLUYORDU** (kullanici:
+  ///	*"anasayfada DURAGA TIKLADIGIMDA DURAKLAR GELMIYOR"*).
+  ///
+  ///	`initState -> addPostFrameCallback -> _durakAc()` **ILK
+  ///	KAREDE** kosuyor. O anda `_konum` HENUZ null: `_yukle()`
+  ///	ayni karede baslatildi ve GPS kilidi saniyeler suruyor.
+  ///	Metot da `if (k == null) { _mesaj(...); return; }` diyip
+  ///	CIKIYORDU -> mod HIC acilmiyor, ekranda isletme listesi
+  ///	kaliyor ve kullanici *"durak gelmiyor"* diyor.
+  ///	Kullanicinin *"IZINLERI VERDIGIMDE"* demesi de bunu
+  ///	dogruluyor: izin diyalogu ekrandayken ilk kare COKTAN gecmis.
+  ///
+  /// ⚠️⚠️ FIX UC KATMANLI:
+  ///	  1. Konum yoksa **BEKLENIR** (`KonumServisi.konumAl`),
+  ///	  2. yine yoksa **HARITA MERKEZI** kullanilir - kullanicinin
+  ///	     BAKTIGI yer anlamli bir merkezdir ve ozellik OLU KALMAZ,
+  ///	  3. hicbiri yoksa sebep SOYLENIR.
+  /// ⚠️⚠️ Bu, turu 150'de *"Nereye dugmesi `if (_konum == null) return;`
+  ///	yuzunden HICBIR SEY YAPMIYORDU"* hatasinin BIREBIR AYNISI.
+  ///	O gun `_rotaPlanla` duzeltildi, **`_durakAc` ATLANDI**.
+  /// ⚠️ `_durakYukleniyor` ZORUNLU: konum beklerken ekran sessizce
+  ///    donmus gorunmesin.
   Future<void> _durakAc() async {
     // ⚠️⚠️ TURU 154 - **ACIK TAKIP ONCE BIRAKILIR.** Bu metot
     //	`_rota`yi null yapiyor; takip acik kalsaydi `_takip != null`
@@ -3874,22 +4351,42 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
     //	alt dolgusu ve yuzen serit KAYARDI). Ustelik GPS akisi
     //	sahipsiz surerdi.
     if (_takip != null) _takipDurdur();
-    final k = _konum;
+    var k = _konum;
     if (k == null) {
+      // ── 1) KONUMU BEKLE ──
+      setState(() => _durakYukleniyor = true);
+      k = await KonumServisi.konumAl(sessiz: true);
+      if (!mounted) return;
+      if (k != null) _konum = k;
+    }
+    // ── 2) YINE YOKSA: SEBEBI SOYLE ──
+    // ⚠️⚠️ HARITA MERKEZI YEDEGI **BILEREK KONMADI**: kameranin
+    //	merkezi bu `State`te tutulmuyor (`_sonMerkez` ic harita
+    //	widget'ina ait) ve onu disari tasimak bu turda arayuz
+    //	disi bir degisiklik olurdu. Sabit bir Gebze koordinati
+    //	yazmak ise DAHA KOTU: ekran *"YAKINIMDAKI duraklar"*
+    //	diyip baska bir sehirdeki kullaniciya Gebze duraklarini
+    //	gosterirdi (turu 140'ta ayni sinif SAHAYA CIKTI).
+    if (k == null) {
+      if (mounted) setState(() => _durakYukleniyor = false);
       _mesaj('Yakındaki durakları görebilmek için konum izni gerekiyor.');
       return;
     }
-    final yakin = await UlasimVeri.i.yakinDuraklar(k.enlem, k.boylam,
+    // ⚠️ `k` yeniden atanabilen bir yerel oldugu icin `setState`
+    //    kapanisinda YUKSELTILEMEZ (promote); sabit kopya alinir.
+    final kn = k;
+    final yakin = await UlasimVeri.i.yakinDuraklar(kn.enlem, kn.boylam,
         adet: 25, yaricapM: 2000);
     if (!mounted) return;
     setState(() {
+      _durakYukleniyor = false;
       _durakModu = true;
       _duraklar = yakin;
       _seciliDurak = yakin.isEmpty ? null : yakin.first;
       _rotaBas = RotaNoktasi(
         ad: 'Konumum',
-        enlem: k.enlem,
-        boylam: k.boylam,
+        enlem: kn.enlem,
+        boylam: kn.boylam,
       );
       _rota = null;
       _hatCizgi = null;
@@ -3899,7 +4396,7 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
     // ⚠️⚠️ TURU 151 - "Konumum" satirinda da ADRES yazsin (kullanici
     //	emri: *"sectigim yerin adresi de gorunmeli NEREDENDE ve
     //	nereyede"*). Ad "Konumum" KALIR, adres alt satira gecer.
-    unawaited(_adresiYaz(k.enlem, k.boylam, true, koruAd: 'Konumum'));
+    unawaited(_adresiYaz(kn.enlem, kn.boylam, true, koruAd: 'Konumum'));
   }
 
   /// Kartlarda gosterilecek hat/saat bilgisini ONDEN cozer.
@@ -4182,6 +4679,7 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
     setState(() {
       _takip = null;
       _durakModu = false;
+      _durakYukleniyor = false;
       _duraklar = const [];
       _seciliDurak = null;
       _rota = null;
@@ -4384,6 +4882,9 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
         //    indeksleri baska bir rotaya aitti.
         _konumAkisi?.cancel();
         _konumAkisi = null;
+        // ⚠️ TURU 157 - taksi onerisi rota ile BIRLIKTE tazelenir;
+        //    eski rotanin onerisi yeni rotada asili kalmasin.
+        unawaited(_taksiOner(a));
         setState(() {
           _takip = null;
           _rota = a;
@@ -6057,9 +6558,51 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
           _haritaDugmesi(LucideIcons.minus, 'Uzaklaştır',
               () => setState(() => _zoom--),
               olcu: kHaritaZoomOlcu),
+          // ⚠️⚠️⚠️ TURU 157 - **"-" ALTINA HAVA DURUMU** (kullanici
+          //	emri: *"- altina SADECE hava durumunu koy"*).
+          //
+          // ⚠️⚠️ **DEGER ORNEKTIR VE DUGMEDE YAZMAZ.** Haritada
+          //	isaretsiz ciplak bir "24°" menudeki seritten DAHA
+          //	TEHLIKELI olurdu: harita katmani gibi okunur ve
+          //	kullanici CANLI YEREL hava sanardi. 51 dp'lik kare
+          //	kutuya "Örnek" ibaresi SIGMAZ; bu yuzden dugme
+          //	YALNIZ IKON, durustluk cumlesi acilan SHEET'te.
+          // ⚠️⚠️ `kHavaDovizOnizleme` kapisi ZORUNLU: bayrak yayin
+          //	oncesi false yapilinca dugme de anasayfadaki seritle
+          //	BIRLIKTE paketten cikmali.
+          if (kHavaDovizOnizleme && _havaSigar(context)) ...[
+            const SizedBox(height: 8),
+            _haritaDugmesi(LucideIcons.sun, 'Hava durumu',
+                () => havaDovizChartAc(context),
+                olcu: kHaritaZoomOlcu),
+          ],
         ],
       ),
     );
+  }
+
+  /// ⚠️⚠️⚠️ TURU 157 - **DUGME SUTUNU PANELE BINIYOR MU?**
+  ///
+  ///	Dugme sutunu `Positioned(top: ...)` ile UST-CAPALI ve
+  ///	yiginda `_altPanel()`ten ONCE ciziliyor - yani panel
+  ///	**USTTE**. OLCULDU: dorduncu dugmenin alt kenari 266 dp;
+  ///	360x640 ekranda VARSAYILAN modda panelin ust kenari 249 dp
+  ///	-> **17 dp ortusme**, ve o bolge hem gorunmez hem
+  ///	DOKUNULAMAZ olur. Jest gezinmeli cihazlarda ~41 dp.
+  ///
+  /// ⚠️⚠️ Kapi `_panelBoy` TABANLI: panel yuksekligi moda ve yazi
+  ///	olcegine gore degistigi icin SABIT bir esik YANLIS olurdu.
+  ///	Adim modunda kart buyudugu icin dugme kendiliginden kalkar.
+  /// ⚠️ Kaybolan dugme de kotu bir deneyimdir; dogru cozum sutunu
+  ///    kisaltmak DEGIL, sigmadiginda EN AZ ONEMLI ogeyi dusurmektir.
+  /// ⚠️⚠️ EMULATORDE DOGRULANACAK: dp hesaplari formulden turetildi
+  ///	(turu 70b/90b/98c dersi: dar ekranda olcmeden "sigiyor" deme).
+  bool _havaSigar(BuildContext c) {
+    final ekran = MediaQuery.sizeOf(c).height;
+    final ust = MediaQuery.paddingOf(c).top + 8 + kHaritaDugmeOlcu + 10;
+    // uc dugme + iki 8 dp aralik
+    final dip = ust + kHaritaZoomOlcu * 3 + 8 * 2;
+    return dip + 12 <= ekran - _panelBoy(c);
   }
 
   /// ⚠️ TURU 145 — [secili] artik **CIZIME ETKI ETMIYOR** (kullanici
@@ -6205,6 +6748,7 @@ class _HaritaAlani extends StatefulWidget {
     this.sigdir,
     this.noktaSec,
     this.takipBacak,
+    this.takipSegment,
     this.takipEnlem,
     this.takipBoylam,
     this.eldeKaydirdi,
@@ -6253,6 +6797,11 @@ class _HaritaAlani extends StatefulWidget {
   ///	animasyonu degil **AYRI RENK** ile yapilir — Mapbox da ayni
   ///	seyi yapiyor (`inActiveRouteLegsColor`).
   final int? takipBacak;
+
+  /// ⚠️⚠️ TURU 157 - takip motorunun BULDUGU segment.
+  ///	Cizim kendi aramasini YAPMAZ; bkz. `kalanYolNoktadan`
+  ///	serhi (kopmanin kok nedeni).
+  final int? takipSegment;
   final double? takipEnlem;
   final double? takipBoylam;
 
@@ -6496,16 +7045,23 @@ class _HaritaAlaniState extends State<_HaritaAlani> {
 
         var noktalar = b.noktalar;
         // ── ICINDE BULUNULAN BACAK: gecilen kismi KES ──
+        // ⚠️⚠️⚠️ TURU 157 - **BURADA IKINCI BIR ARAMA YAPILMAZ.**
+        //	Onceden `takip.yapistir(...)` ADSIZ cagriliyordu
+        //	(`basSegment: 0, pencere: 40`) ve 40. segmentten
+        //	sonra cizgi YANLIS yere kilitleniyordu — gercek
+        //	sekilde 877 m ila 4,5 km sapma OLCULDU. Kullanicinin
+        //	gordugu KOPMA buydu. Ayrinti: `kalanYolNoktadan`.
         if (aktif != null &&
             i == aktif &&
+            widget.takipSegment != null &&
             widget.takipEnlem != null &&
             widget.takipBoylam != null) {
-          final iz = takip.yapistir(
+          noktalar = takip.kalanYolNoktadan(
             b.noktalar,
+            widget.takipSegment!,
             widget.takipEnlem!,
             widget.takipBoylam!,
           );
-          if (iz != null) noktalar = takip.kalanYol(b.noktalar, iz);
         }
         if (noktalar.length < 2) continue;
 
@@ -7352,6 +7908,7 @@ class _CubukCizer extends CustomPainter {
     required this.gorunen,
     required this.bosRenk,
     required this.kilif,
+    required this.zemin,
   })  : _n = agirlik.length,
         _toplam = agirlik.fold<int>(0, (t, x) => t + x);
 
@@ -7381,6 +7938,29 @@ class _CubukCizer extends CustomPainter {
 
   final Color bosRenk;
   final Color kilif;
+
+  /// ⚠️⚠️⚠️ TURU 157 - **SOLUKLASTIRMA HEDEFI OPAK OLMAK ZORUNDA.**
+  ///
+  ///	Kullanici: *"step YESIL CIZGI var onu duzelt"*. Ekranda
+  ///	otobus dilimi **SOLUK/BEYAZIMSI** yesil cikiyordu.
+  ///
+  /// ⚠️⚠️ **KOK NEDEN OLCULDU:** karistirma hedefi `bosRenk` idi ve o
+  ///	`onSurface.withValues(alpha: 0.16)` - yani **%16 SAYDAM**
+  ///	bir beyaz. `Color.lerp` ALFAYI DA harmanlar:
+  ///	  alfa  : lerp(1.00, 0.16, 0.45) = **0,62**
+  ///	  renk  : yesil -> BEYAZA dogru %45
+  ///	Sonuc: %62 opak, beyaza calan yesil -> kart zemininde
+  ///	**acik/pastel** gorunuyor.
+  ///
+  /// ⚠️⚠️ Hemen ustundeki serh *"Alfa yerine notr griye KARISTIRMA:
+  ///	saydam bir dilim... renk kaymasi yapardi"* diyordu ama
+  ///	HEDEF RENGIN KENDISI SAYDAMDI - yani serhin anlattigi
+  ///	koruma govdede YOKTU (bu projenin en sik hata sinifi).
+  ///
+  /// ⚠️ `zemin` kartin GERCEK yuzey rengi (`kYuzeyGri`), tamamen opak.
+  ///    Karistirma artik alfaya DOKUNMAZ; renk yalnizca koyulasir.
+  /// ⚠️⚠️ YAPMA: buraya tekrar saydam bir renk gecme.
+  final Color zemin;
 
   final int _n;
   final int _toplam;
@@ -7438,8 +8018,15 @@ class _CubukCizer extends CustomPainter {
       final inis = !kesik[i] && kesik[i + 1];
       if (binis || inis) {
         final gecti = i < aktif;
-        tuval.drawCircle(Offset(x + _ayrac / 2, oy), 4.5,
-            Paint()..color = gecti ? renk[i] : bosRenk);
+        // ⚠️ Gecilmemis durak dairesi de OPAK: `bosRenk` saydam
+        //    oldugu icin altindaki kilif/dilim SIZIYORDU.
+        tuval.drawCircle(
+            Offset(x + _ayrac / 2, oy),
+            4.5,
+            Paint()
+              ..color = gecti
+                  ? renk[i]
+                  : (Color.lerp(renk[i], zemin, 0.55) ?? zemin));
         tuval.drawCircle(Offset(x + _ayrac / 2, oy), 2.2,
             Paint()..color = kilif);
       }
@@ -7475,8 +8062,13 @@ class _CubukCizer extends CustomPainter {
       //	yalnizca DAHA SOLUK. Imlec zaten nerede olundugunu soyluyor.
       // ⚠️ Alfa yerine notr griye KARISTIRMA: saydam bir dilim altindaki kart
       //    zeminini gosterip renk kaymasi yapardi.
+      // ⚠️ 0,55: soluk dilim hala BACAGIN RENGINDE okunur ama
+      //    gecilen kisimla karistirilmaz (olculdu: yesil #2FA85C ->
+      //    kart zemininde belirgin biçimde koyu yesil).
       final boya = Paint()
-        ..color = soluk ? (Color.lerp(renk[i], bosRenk, 0.45) ?? bosRenk) : renk[i];
+        ..color = soluk
+            ? (Color.lerp(renk[i], zemin, 0.55) ?? zemin)
+            : renk[i];
       if (kesik[i]) {
         // ⚠️ Kesikler dilimin ICINDE uretilir; sinirda YARIM kalan bir
         //    kesik `clipRect` sayesinde dogru kirpilir.
@@ -7520,6 +8112,7 @@ class _CubukCizer extends CustomPainter {
       e.aktifOran != aktifOran ||
       e.gorunen != gorunen ||
       e.bosRenk != bosRenk ||
+      e.zemin != zemin ||
       e.kilif != kilif ||
       !listEquals(e.agirlik, agirlik) ||
       !listEquals(e.kesik, kesik) ||

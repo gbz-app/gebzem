@@ -457,8 +457,28 @@ Future<void> _yurumeleriZenginlestir(
 ///	KISA BIR BAGLAYICI cizerler. Burada da uclar cizginin basina/
 ///	sonuna geri konuyor.
 ///
-/// ⚠️ **5 m esigi**: kullanici zaten yolun uzerindeyse snap mesafesi
-///    ~0'dir ve ayni noktayi IKI KEZ eklemek gereksiz bir dugum yaratir.
+/// ⚠️⚠️⚠️ TURU 157 - **ESIK 5 m -> 0,5 m** (kullanici sahada gordu:
+///	*"bazen boyle KOPMALAR yasanabiliyor, bu normal mi?"*).
+///
+///	**OLCULDU (kullanicinin ekran goruntusunden):** yurume bacagi
+///	"43 m" kalmisti ve ekranda ~913 px yer kapliyordu, yani
+///	**~21 piksel/metre**. Yurume cizgisinin ucu ile durak pini
+///	arasindaki bosluk ~83 px = **~4 metre**.
+///
+/// ⚠️⚠️ **KOK NEDEN: esigin KENDISI.** Google Routes ucu yola SNAP
+///	eder; durak yolun kenarindaysa snap mesafesi 5 m'nin ALTINDA
+///	kalir, kosul saglanmaz ve gercek uc EKLENMEZ. Cizgi duraga
+///	4 metre uzakta biter. Sehir olceginde (z13-15) bu 1-2 piksel
+///	olur ve GORUNMEZ; **navigasyon zoomunda (z19-20) 80+ piksel
+///	olur ve APACIK bir kopma gibi durur**.
+/// ⚠️⚠️ Yani esik SABIT METRE, gorulen bosluk ise ZOOM'A BAGLI —
+///	ikisi ayni birimde olmadigi icin 5 m "kucuk" sanilmisti.
+///
+/// ⚠️ 0,5 m: tek amaci AYNI noktayi iki kez eklememek. Ayni koordinat
+///    iki kez girse bile zarari YOK (`yapistir` sifir uzunluklu segmenti
+///    `l2 > 0` kapisiyla atliyor) - yani esik guvenli tarafta KUCUK olmali.
+/// ⚠️⚠️ YAPMA: esigi tekrar buyutme. "Gereksiz dugum" korkusu olculdu:
+///	en fazla IKI fazladan nokta, cizim maliyeti SIFIRA yakin.
 /// ⚠️ Otobus bacaginda bu GEREKMEZ: `_guzergahDilimi` binis ve inis
 ///    duraklarini ZATEN basa/sona koyuyor (bkz. o fonksiyon).
 List<({double enlem, double boylam})> _uclariBagla(
@@ -466,7 +486,7 @@ List<({double enlem, double boylam})> _uclariBagla(
   ({double enlem, double boylam}) bas,
   ({double enlem, double boylam}) varis,
 ) {
-  const esik = 5.0;
+  const esik = 0.5;
   final ilk = yol.first;
   final son = yol.last;
   return [

@@ -147,11 +147,51 @@ double metre(double aEn, double aBoy, double bEn, double bBoy) {
 List<({double enlem, double boylam})> kalanYol(
   List<({double enlem, double boylam})> yol,
   Izdusum iz,
+) =>
+    kalanYolNoktadan(yol, iz.segment, iz.enlem, iz.boylam);
+
+/// ⚠️⚠️⚠️ TURU 157 - **KOPMANIN KOKU BURADAYDI.**
+///
+///	Kullanici: *"bazen boyle KOPMALAR yasanabiliyor, bu normal mi?"*
+///	Cevap: **HAYIR.**
+///
+/// ⚠️⚠️ **KOK NEDEN: CIZIM ILE TAKIP AYNI SORUYU FARKLI SORUYORDU.**
+///	Haritayi cizen kod (`_cizgiler`) her karede `yapistir`i
+///	**ADSIZ** cagiriyordu, yani `basSegment: 0, pencere: 40`:
+///	"yolun BASINDAN itibaren 40 segment tara".
+///	Takip motoru (`ilerlet`) ise `basSegment: onceki.segment`
+///	geciyor: "EN SON BULUNDUGUN yerden itibaren tara".
+///
+///	**OLCULDU:** 202 GTFS guzergah seklinin nokta sayisi
+///	min 74 / medyan 314 / maks 924 — yani **HEPSI 40i ASIYOR**.
+///	40. segment gecilir gecilmez cizim kodu dogru segmenti
+///	ARAMA PENCERESINDE BULAMIYOR ve yanlis yere kilitleniyor.
+///	Gercek sekil 414301 (hat 430) uzerinde sapma:
+///	  segment  45 ->   877 m
+///	  segment 150 -> 3.145 m
+///	  segment 250 -> 4.581 m
+///	Ekranda **cizginin basi yanlis yerden basliyor** = KOPMA.
+///
+/// ⚠️⚠️ **FIX: IKINCI ARAMA YAPILMIYOR.** `TakipDurumu` ZATEN
+///	`segment` + `izEnlem` + `izBoylam` tasiyor - yani cizim icin
+///	gereken UC alanin ucu de ELDE. Cizim artik HESAPLAMIYOR,
+///	takip durumundan OKUYOR.
+/// ⚠️⚠️ YAPMA: cizim tarafina `pencere: yol.length` gibi bir kol
+///	koyup "coz". O pencere GPS **MONOTONLUGU** icin var;
+///	acilirsa ilmekli hatlarda cizgi GERIYE SICRAR (`yapistir`
+///	serhi bunu yaziyor).
+/// ⚠️⚠️ YAPMA: yeniden hesaplamayi birakip `takipSegment`i de
+///	gecirme - IKI dogruluk kaynagi kalirsa yine AYRISIRLAR.
+List<({double enlem, double boylam})> kalanYolNoktadan(
+  List<({double enlem, double boylam})> yol,
+  int segment,
+  double enlem,
+  double boylam,
 ) {
   if (yol.length < 2) return yol;
   return [
-    (enlem: iz.enlem, boylam: iz.boylam),
-    ...yol.sublist(math.min(iz.segment + 1, yol.length)),
+    (enlem: enlem, boylam: boylam),
+    ...yol.sublist(math.min(segment + 1, yol.length)),
   ];
 }
 

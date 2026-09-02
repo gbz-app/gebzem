@@ -1025,7 +1025,13 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
   ///
   /// Cizim `CustomPainter` ile yapilir; PAKET EKLENMEDI (turu 116b dersi:
   /// her yeni paket derleme yuzeyine risk ekler ve bu bir arayuz turu).
-  void _havaDovizChart(BuildContext context, int i) {
+  // ⚠️⚠️ TURU 157 - **`static` YAPILDI** ki haritadaki "hava durumu"
+  //	dugmesi de AYNI sheeti acabilsin. Govde zaten yalniz
+  //	`_havaDovizKalemler` (static) ve `_CiziciCizer` kullaniyor,
+  //	hicbir ornek uyesi YOK.
+  // ⚠️⚠️ YAPMA: cagri yerine IKINCI bir "24°" tablosu yazma; bu
+  //	projede kopyalanan sabit BES kez drift uretti.
+  static void _havaDovizChart(BuildContext context, int i) {
     final k = _havaDovizKalemler[i];
     final renk = Color(k.renk);
     showModalBottomSheet<void>(
@@ -1913,3 +1919,19 @@ class _CiziciCizer extends CustomPainter {
   bool shouldRepaint(_CiziciCizer eski) =>
       eski.renk != renk || !identical(eski.seri, seri);
 }
+
+/// ⚠️⚠️⚠️ TURU 157 - **HAVA/DOVIZ GRAFIGINE TEK GIRIS.**
+///
+///	Kullanici emri: *"- altina SADECE HAVA DURUMUNU koy"*.
+///	Haritadaki dugme bu fonksiyonu cagirir; anasayfadaki serit de
+///	ayni govdeyi kullanir. Ikinci bir kopya YOK.
+///
+/// ⚠️⚠️ **DEGERLER ORNEKTIR.** Projede hava tablosu, sunucu ucu ve dis
+///	servis anahtari YOK. Acilan sheet'in EN ALTINDAKI
+///	*"Bu grafik ve değerler örnektir"* cumlesi bu yuzden ZORUNLU
+///	ve kaldirilamaz.
+/// ⚠️⚠️ YAPMA: bunu `kHavaDovizOnizleme` kapisi OLMADAN cagirma -
+///	bayrak false olunca giris de kaybolmali.
+/// ⚠️ `i = 0` HAVA; 1-4 doviz/altin.
+void havaDovizChartAc(BuildContext context, {int kalem = 0}) =>
+    _HizmetMenusuState._havaDovizChart(context, kalem);

@@ -85,19 +85,56 @@ class KonumServisi {
   ///
   /// ⚠️ Varsayilan `false`: mevcut cagri yerlerinin davranisi DEGISMEZ.
   /// ⚠️ YAPMA: `sessiz`i kullanicinin baslattigi akislarda kullanma.
+  /// ⚠️⚠️⚠️ TURU 157 - **KONUM IZNI TEK KAPIDAN, SERI.**
+  ///
+  ///	Kullanici: *"1 kere ya da uygulamayi kullanirken IZINLERI
+  ///	VERDIGIMDE navigasyon sikintisi oluyor"*.
+  ///
+  /// ⚠️⚠️ **KOK NEDEN: ANDROID AYNI ANDA TEK IZIN DIYALOGU KABUL EDER.**
+  ///	Ikinci istek diyalog gostermeden **SENKRON BOS SONUCLA**
+  ///	duser ve `isGranted` **false** doner. Kod tabaninda UC ayri
+  ///	cagri yeri var (onboarding - `konumAl` - `konumAkisi`) ve
+  ///	bunlar yarisabiliyor:
+  ///	  · ekran acilisi `_yukle -> konumAl` (izin ister)
+  ///	  · kullanici "Basla" -> `konumAkisi` (izin ister)
+  ///	Ikincisi dusunce `KonumIzniYok` firlar ve takip daha
+  ///	**BASLAMADAN** *"Takip icin konum izni gerekiyor"* deyip
+  ///	kendini kapatir - kullanici izni AZ ONCE VERMIS OLSA BILE.
+  ///
+  /// ⚠️⚠️ Bu, turu 85c'de CallKit bildirim izni ile telefon izni
+  ///	arasinda yasanan carpismanin BIREBIR AYNISI. O turda ders
+  ///	CLAUDE.md'ye yazilmisti; burada TEKRARLANDI.
+  ///
+  /// ⚠️ Ucus halindeki istek PAYLASILIR: es zamanli cagiranlar AYNI
+  ///    `Future`u bekler, yani ikinci bir diyalog HIC acilmaz.
+  /// ⚠️ `finally` ile alan bosaltilir - sonraki (es zamanli OLMAYAN)
+  ///    cagri gerekirse yeniden sorabilsin. Zaten bekleyenler degeri alir.
+  /// ⚠️⚠️ YAPMA: `Permission.locationWhenInUse.request()`i cagri
+  ///	yerlerine geri dagitma.
+  static Future<bool>? _izinIsi;
+
+  static Future<bool> konumIzni() =>
+      _izinIsi ??= () async {
+        try {
+          return (await Permission.locationWhenInUse.request()).isGranted;
+        } finally {
+          _izinIsi = null;
+        }
+      }();
+
   static Future<({double enlem, double boylam})?> konumAl({
     bool sessiz = false,
   }) async {
     // ⚠️ IZIN `permission_handler` ile isteniyor (geolocator'in kendi API'si
     //    DEGIL): kod tabaninin geri kalani o paketi kullaniyor ve iki izin
     //    katmani tutmak kacinilmaz olarak DRIFT ederdi.
-    final izin = await Permission.locationWhenInUse.request();
-    if (!izin.isGranted) {
-      if (!sessiz) _uyar(
-        izin.isPermanentlyDenied
+    // ⚠️ TURU 157 - TEK KAPI (bkz. `konumIzni` serhi).
+    if (!await konumIzni()) {
+      if (!sessiz) {
+        _uyar(await Permission.locationWhenInUse.isPermanentlyDenied
             ? 'Konum izni kapalı. Ayarlardan açabilirsin.'
-            : 'Konum paylaşmak için konum izni gerekli',
-      );
+            : 'Konum paylaşmak için konum izni gerekli');
+      }
       return null;
     }
 
@@ -186,8 +223,11 @@ class KonumServisi {
         double dogrulukM,
         double? yon,
       })> konumAkisi() async* {
-    final izin = await Permission.locationWhenInUse.request();
-    if (!izin.isGranted) {
+    // ⚠️⚠️ TURU 157 - TEK KAPI. Onceden burasi DOGRUDAN
+    //	`request()` cagiriyordu ve ekran acilisindaki `konumAl`
+    //	ile yarisip **false** aliyordu; takip daha baslamadan
+    //	"izin gerekiyor" deyip kapaniyordu (bkz. `konumIzni`).
+    if (!await konumIzni()) {
       throw const KonumIzniYok();
     }
     yield* Geolocator.getPositionStream(locationSettings: _akisAyari())
