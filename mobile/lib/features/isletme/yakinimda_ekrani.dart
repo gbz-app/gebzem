@@ -227,6 +227,56 @@ const double kSeritSagNefes = 28;
 ///    ~20 `setState` demek ve kazanci gorunmez.
 const double kZoomEsigi = 0.15;
 
+/// ⚠️⚠️⚠️ TURU 156 — **ROTA CIZGISI OLCULERI VE RENKLERI.**
+///
+/// Kullanici emirleri (Yandex Navigator referansi):
+///	*"otobus shape YESIL olsun, hafif kapali ve hafif SIYAH BORDER
+///	olsun, yolu TAM KAVRASIN TASMASIN"* +
+///	*"yurume shape ARKASINDA RENK var, BORDERLAR var"*.
+///
+/// ⚠️⚠️ `Polyline.width` **`int`** ve birimi IKI PLATFORMDA DA dp:
+///	Android `PolylineController.setWidth(width * density)` (dp->px),
+///	iOS `polyline.strokeWidth = width` (GMSPolyline zaten NOKTA
+///	cinsinden calisir). Yani buradaki sayilar dp'dir.
+///
+/// ⚠️ Otobus 9 -> **7**: kullanici *"yolu tam kavrasin TASMASIN"*
+///    dedi. Kilifla birlikte toplam 7+2*1 = **9 dp**, yani eski ciplak
+///    cizgiyle AYNI dis olcu — ama artik icinde cerceve var.
+///	⚠️⚠️ Yol genisligi zoom ile DEGISIR, `Polyline.width` ise
+///	SABIT. "Tam kavramak" hicbir sabit degerde her zoom'da
+///	saglanamaz; 7 dp sehir zoom'unda (16-18) yola en yakin olcu.
+/// ⚠️⚠️ TURU 156 — **KESIKLER SIKLASTIRILDI** (kullanici: *"bu
+///	kesikler arasi HALEN COK BOSLUKLU"*).
+///
+/// Eski deger 18/10 idi. Referans gorselde (Yandex) dolu parca ile
+/// bosluk neredeyse ESIT, bosluk biraz daha KISA.
+/// ⚠️ Altta DUZ kilif oldugu icin bosluklar harita zeminini degil
+///    koyu kilifi gosterir; bu yuzden bosluk kucuk olabilir, cizgi yine
+///    de "kesik" okunur.
+const double kKesikDolu = 9;
+const double kKesikBos = 5;
+
+const int kYurumeEn = 5;
+const int kOtobusEn = 7;
+
+/// Kilifin HER IKI YANDAN tastigi miktar (dp).
+///
+/// ⚠️ 1 dp bilincli: kullanici *"HAFIF siyah border"* dedi. 2 dp
+///    denendiginde cizgi kalinlasip yolu asiyordu.
+const int kKilifPay = 1;
+
+/// Kilif rengi — harita zemininden (`#232a44`) belirgin KOYU.
+///
+/// ⚠️ Saf siyah DEGIL: koyu lacivert zeminde saf siyah bir cerceve
+///    "delik" gibi durur; zeminle ayni aileden koyu bir ton daha temiz.
+const Color kCizgiKilif = Color(0xFF0E1120);
+
+/// Otobus bacaginin rengi — **YESIL** (kullanici emri).
+///
+/// ⚠️ *"hafif kapali"* = doygun degil, MAT yesil. Parlak yesil
+///    (`#3BD35F`) koyu haritada goz aliyordu.
+const Color kOtobusRengi = Color(0xFF2FA85C);
+
 const _haritaBayragi = String.fromEnvironment('HARITA');
 const haritaAnahtariVar =
     _haritaBayragi == 'true' || _haritaBayragi == '1' || _haritaBayragi == 'yes';
@@ -2126,21 +2176,34 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
 
   /// Takip acikken cizilen **ADIM KARTI**nin yuksekligi — TEK KAYNAK.
   ///
-  /// ⚠️⚠️ TURU 154 - formul govdeyle TERIM TERIM yurundu:
-  ///	ust satir(17x1.15) + 8 + ilerleme cubugu(20) + 10
-  ///	+ adim sayfasi(15x1.25 x2 satir + 2 + 12x1.2) + 8
-  ///	+ dugme(34) + 2x12 dolgu.
+  /// ⚠️⚠️ TURU 156 - formul govdeyle TERIM TERIM yeniden yurundu
+  ///	(baslik TEK satirdan IKI satira cikti):
+  ///	  ust1 (17x1.15)  <- "8 dk · 630 m kaldı"
+  ///	  + 2
+  ///	  + ust2 (12x1.25) <- "Tüm rota: 31 dk · 09:05"
+  ///	  + 8
+  ///	  + ilerleme cubugu (20)
+  ///	  + 10
+  ///	  + adim sayfasi (15x1.25 x2 satir + 2 + 12x1.2)
+  ///	  + 8
+  ///	  + dugme (34)
+  ///	  + 2x12 dolgu
   ///
   /// ⚠️ Ust satirda `math.max(20, ...)`: dugme/rozet gibi SABIT
   ///    ogeler kucuk olcekte metnin altina dusmesin.
   /// ⚠️ Sondaki **+1 pay**: `TextPainter` satir kutusunu YUKARI
   ///    yuvarlar, `fontSize * height` carpimi TAM vermez (turu
   ///    121/123/137 ayni ders).
+  /// ⚠️⚠️ `_panelBoy` bu degeri OKUR; ayrisirsa haritanin alt dolgusu
+  ///	ve yuzen serit KAYAR (bu ekranda UC KEZ yasandi).
   double _adimKartBoy(BuildContext c) {
     final o = MediaQuery.textScalerOf(c);
-    final ust = math.max(20.0, o.scale(17) * 1.15);
+    final ust1 = math.max(20.0, o.scale(17) * 1.15);
+    final ust2 = o.scale(12) * 1.25;
     final adim = o.scale(15) * 1.25 * 2 + 2 + o.scale(12) * 1.2;
-    return (ust + 8 + 20 + 10 + adim + 8 + 34 + 24).ceilToDouble() + 1;
+    return (ust1 + 2 + ust2 + 8 + 20 + 10 + adim + 8 + 34 + 24)
+            .ceilToDouble() +
+        1;
   }
 
   /// Durak kartinin yuksekligi — **TEK KAYNAK** (`_panelBoy` de okur).
@@ -2452,45 +2515,62 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
           child: Padding(
             padding: const EdgeInsets.all(12),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              // ⚠️ TURU 156 — **`stretch`**: ust iki metin `textAlign`
+              //    ile ortalanabilsin diye TAM GENISLIK almalari gerekiyor.
+              //    `start` olsaydi metinler kendi genisliklerine buzulur ve
+              //    `textAlign: center` HICBIR SEY YAPMAZDI.
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               mainAxisSize: MainAxisSize.max,
               children: [
-                // == 1) KALAN SURE + VARIS SAATI ==
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        // ⚠️ Rota disindayken sure YAZILMAZ: deger
-                        //    DONMUS olur ve kullanici onu gecerli sanardi.
-                        d.rotaDisi
-                            ? 'Rotadan uzaktasın'
-                            : '$kalanDk dk kaldı',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 17,
-                          height: 1.15,
-                          fontWeight: FontWeight.w800,
-                          color: d.rotaDisi
-                              ? const Color(0xFFFFC531)
-                              : scheme.onSurface,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    // ⚠️ Varis saati IKINCIL ama SILINMEZ: kullanicinin
-                    //    asil sorusu "kacta varirim".
-                    Text(
-                      "${UlasimVeri.saatMetni(a.varisDakika)}'de",
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        height: 1.35,
-                        fontWeight: FontWeight.w700,
-                        color: scheme.onSurface.withValues(alpha: 0.68),
-                      ),
-                    ),
-                  ],
+                // == 1) BU ADIMIN KALANI (ORTALI) + TUM ROTA ==
+                //
+                // ⚠️⚠️⚠️ TURU 156 — **REFERANS DUZEN** (kullanici: *"step
+                //	adimini BOYLE yapmaliyiz"*, Yandex ekran goruntusu).
+                //	Referansta ust satir ORTALI ve **BU BACAGIN** kalani
+                //	("8 dk. · 630 m"), hemen altinda soluk ve ortali
+                //	**TUM ROTA** ("Tüm rota: 31 dk. · 09:05").
+                //
+                // ⚠️⚠️ Onceki hal SOLA dayali TEK satirdi ve yalniz TUM
+                //	ROTANIN kalanini yaziyordu; kullanici *"su anda kac
+                //	metrem kaldi"* sorusunun cevabini GOREMIYORDU.
+                //	Iki bilgi AYRI satirlarda: buyuk sayi SIMDIKI adim,
+                //	kucuk satir yolculugun tamami.
+                // ⚠️ Mesafe `ulasim.mesafeMetni` TEK KAYNAGINDAN (950 m
+                //    ustu km). Ham metre yazmak "15240 m" uretiyordu.
+                Text(
+                  // ⚠️ Rota disindayken sure/mesafe YAZILMAZ: degerler
+                  //    DONMUS olur ve kullanici onlari gecerli sanardi.
+                  d.rotaDisi
+                      ? 'Rotadan uzaktasın'
+                      : !d.kalanM.isFinite
+                          ? '$kalanDk dk kaldı'
+                          : '${_bacakDakika(a, d)} dk · '
+                              '${ulasim.mesafeMetni(d.kalanM)} kaldı',
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 17,
+                    height: 1.15,
+                    fontWeight: FontWeight.w800,
+                    color: d.rotaDisi
+                        ? const Color(0xFFFFC531)
+                        : scheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Tüm rota: $kalanDk dk · '
+                  '${UlasimVeri.saatMetni(a.varisDakika)}',
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    height: 1.25,
+                    fontWeight: FontWeight.w600,
+                    color: scheme.onSurface.withValues(alpha: 0.60),
+                  ),
                 ),
                 const SizedBox(height: 8),
                 // == 2) BACAK BACAK ILERLEME CUBUGU ==
@@ -2688,6 +2768,21 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
     final toplam = takip.yolUzunlugu(b.noktalar);
     if (toplam <= 0 || !d.kalanM.isFinite) return 0;
     return (1 - d.kalanM / toplam).clamp(0.0, 1.0);
+  }
+
+  /// ⚠️⚠️ TURU 156 — **ICINDE BULUNULAN BACAGIN** kalan dakikasi.
+  ///
+  ///	Referansta buyuk sayi TUM ROTA degil **SIMDIKI ADIM** icindir
+  ///	("8 dk. · 630 m" = duraga kadar yurume).
+  /// ⚠️ Yurume bacaginda mesafeden turetilir (yaya hizi TEK KAYNAK);
+  ///    otobus/bekleme bacaginda mesafe anlamsiz oldugu icin bacagin
+  ///    KENDI suresinin kalani (oranla) kullanilir.
+  int _bacakDakika(RotaAdayi a, takip.TakipDurumu d) {
+    final b = a.bacaklar[d.bacak.clamp(0, a.bacaklar.length - 1)];
+    if (b.tur == BacakTuru.yuru && d.kalanM.isFinite) {
+      return math.max(1, (d.kalanM / kYayaHizi / 60).ceil());
+    }
+    return math.max(1, (b.dakika * (1 - _bacakOrani(b, d))).ceil());
   }
 
   /// Rotanin TAMAMINDAN kalan dakika.
@@ -6262,29 +6357,75 @@ class _HaritaAlaniState extends State<_HaritaAlani> {
         if (noktalar.length < 2) continue;
 
         final otobus = b.tur == BacakTuru.otobus;
-        final tamRenk = otobus
-            ? (b.hat == null ? morLogo : ulasim.hatRengi(b.hat!))
-            : kYurumeRengi;
+        // ⚠️⚠️⚠️ TURU 156 — **OTOBUS CIZGISI ARTIK YESIL** (kullanici
+        //	emri: *"otobus shape YESIL olsun, HAFIF KAPALI ve hafif
+        //	SIYAH BORDER olsun, yolu TAM KAVRASIN TASMASIN"*).
+        // ⚠️⚠️ Onceden hattin KENDI rengi (`ulasim.hatRengi`)
+        //	kullaniliyordu (turu 150). Gebze GTFS renklerinin cogu
+        //	birbirine yakin CAMGOBEGI tonlari; koyu lacivert zeminde
+        //	hangi bacagin otobus oldugu ayirt edilemiyordu.
+        // ⚠️ Hat kimligi KAYBOLMADI: rozet (`hatRozeti`) hala hattin
+        //    KENDI rengini kullaniyor — kullanici hangi hat oldugunu
+        //    oradan gorur.
+        final tamRenk = otobus ? kOtobusRengi : kYurumeRengi;
         // ── SONRAKI BACAKLAR: SOLUK ──
         // ⚠️ Alfa yerine ZEMINE KARISTIRMA: saydam bir cizgi
         //    altindaki harita etiketlerini gosterip okunmaz olur;
         //    zemine karistirilmis opak renk temiz durur.
         final soluk = aktif != null && i > aktif;
+        final cizgi = [
+          for (final nk in noktalar) LatLng(nk.enlem, nk.boylam),
+        ];
+        final renk = soluk
+            ? (Color.lerp(tamRenk, kAiZemin, 0.55) ?? tamRenk)
+            : tamRenk;
+
+        // ══ KILIF (casing) — ALTTA, DAHA GENIS, KOYU ══
+        //
+        // ⚠️⚠️⚠️ Kullanici: *"yurume adim shape ARKASINDA RENK var,
+        //	BORDERLAR var"*. `google_maps_flutter`in `Polyline`
+        //	sinifinda **`strokeColor` YOKTUR** (paket kaynagindan
+        //	dogrulandi: yalniz `color`, `width`, `patterns`).
+        //	Cerceve ancak IKI POLYLINE ile yapilir: altta genis+koyu,
+        //	ustte dar+renkli.
+        //
+        // ⚠️⚠️ **KILIF DUZ, USTTEKI KESIK.** Boylece kesiklerin ARASI
+        //	koyu bant olarak gorunur — referans gorselde cizgi
+        //	"koyu bir bant uzerinde akiyor" gibi duruyor. Kilif da
+        //	kesik olsaydi aralar HARITA ZEMINI kalir ve "arkasinda
+        //	renk var" tarifi KARSILANMAZDI.
+        //
+        // ⚠️⚠️ **zIndex SIRASI KRITIK**: TUM kiliflar TUM cizgilerin
+        //	ALTINDA olmali. Bacaklar durakta birlestigi icin, bir
+        //	bacagin kilifi otekinin CIZGISINI ortebilirdi.
+        //	  kilif yurume 1 · kilif otobus 2 · cizgi yurume 3 ·
+        //	  cizgi otobus 4
         c.add(Polyline(
-          polylineId: PolylineId('rota-$i'),
-          points: [
-            for (final nk in noktalar) LatLng(nk.enlem, nk.boylam),
-          ],
+          polylineId: PolylineId('rota-kilif-$i'),
+          points: cizgi,
+          // ⚠️ Kilif da SOLUKLASIR; yoksa gecilmemis bacaklarin
+          //    kilifi one cikar ve hiyerarsi TERS donerdi.
           color: soluk
-              ? (Color.lerp(tamRenk, kAiZemin, 0.55) ?? tamRenk)
-              : tamRenk,
-          width: otobus ? 9 : 5,
-          patterns: otobus ? const [] : _kesikDesen(),
+              ? (Color.lerp(kCizgiKilif, kAiZemin, 0.45) ?? kCizgiKilif)
+              : kCizgiKilif,
+          width: otobus ? kOtobusEn + 2 * kKilifPay : kYurumeEn + 2 * kKilifPay,
           startCap: Cap.roundCap,
           endCap: Cap.roundCap,
           jointType: JointType.round,
           geodesic: false,
           zIndex: otobus ? 2 : 1,
+        ));
+        c.add(Polyline(
+          polylineId: PolylineId('rota-$i'),
+          points: cizgi,
+          color: renk,
+          width: otobus ? kOtobusEn : kYurumeEn,
+          patterns: otobus ? const [] : _kesikDesen(),
+          startCap: Cap.roundCap,
+          endCap: Cap.roundCap,
+          jointType: JointType.round,
+          geodesic: false,
+          zIndex: otobus ? 4 : 3,
         ));
       }
       return c;
@@ -6327,15 +6468,15 @@ class _HaritaAlaniState extends State<_HaritaAlani> {
       // ⚠️ Carpan `width` ile AYNI olcuye (dp) hizalar; boylece kesik
       //    her yogunlukta cizgi kalinligiyla ayni oranda kalir.
       final o = MediaQuery.devicePixelRatioOf(context);
-      return [PatternItem.dash(18 * o), PatternItem.gap(10 * o)];
+      return [PatternItem.dash(kKesikDolu * o), PatternItem.gap(kKesikBos * o)];
     }
     // metre/piksel = 156543.03392 * cos(enlem) / 2^zoom
     final en = widget.merkez?.enlem ?? 40.8;
     final mpp =
         156543.03392 * math.cos(en * math.pi / 180) / math.pow(2, _sonZoom);
     return [
-      PatternItem.dash(18 * mpp),
-      PatternItem.gap(10 * mpp),
+      PatternItem.dash(kKesikDolu * mpp),
+      PatternItem.gap(kKesikBos * mpp),
     ];
   }
 
