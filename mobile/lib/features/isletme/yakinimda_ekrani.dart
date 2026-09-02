@@ -55,6 +55,7 @@ import 'package:url_launcher/url_launcher.dart';
 // ⚠️ TURU 89 — harita rengi tercihi (Ayarlar > Harita).
 import '../../core/tercihler.dart';
 import '../medya/konum_servisi.dart';
+import '../medya/pusula_servisi.dart';
 import '../sosyal/profil_basligi.dart' show kOnayliRengi;
 import '../sosyal/hizmet_menusu.dart' show KalinIkon;
  import '../sosyal/profil_sayfasi.dart';
@@ -624,7 +625,31 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
   ///
   /// `null` ise takip KAPALI (rota yalnizca cizili duruyor).
   takip.TakipDurumu? _takip;
-  StreamSubscription<({double enlem, double boylam})>? _konumAkisi;
+  StreamSubscription<
+      ({
+        double enlem,
+        double boylam,
+        double dogrulukM,
+        double? yon,
+      })>? _konumAkisi;
+
+  /// ⚠️⚠️⚠️ TURU 155 — **PUSULA AKISI** (kullanici: *"telefonu
+  ///	oynattikca yonu gostersin"*).
+  ///
+  /// ⚠️ YALNIZ takip acikken dinlenir: pusulayi ekran boyunca acik
+  ///    tutmak sebepsiz pil harcar.
+  StreamSubscription<double>? _pusulaAkisi;
+
+  /// Konum isaretinin GOSTERECEGI yon (derece, 0 = kuzey).
+  ///
+  /// ⚠️⚠️ Kaynak SIRASI: (1) pusula — cihaz duruyorken de calisir,
+  ///	(2) GPS gidis yonu — YALNIZ hareket halinde gecerli.
+  ///	Ikisi de yoksa **`null`** kalir ve yon oku CIZILMEZ:
+  ///	yanlis bir yon gostermek hic gostermemekten KOTUDUR.
+  double? _yon;
+
+  /// Konum dogrulugu (metre) — beyaz halkanin yaricapi.
+  double? _dogrulukM;
 
   /// Kamera kullaniciyi TAKIP EDIYOR MU?
   ///
@@ -1211,6 +1236,8 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
     // ⚠️ TURU 151 — konum akisi birakilmazsa GPS ekran kapandiktan
     //    sonra da acik kalir.
     _konumAkisi?.cancel();
+    // ⚠️ TURU 155 — ayni sey pusula icin de gecerli.
+    _pusulaAkisi?.cancel();
     super.dispose();
   }
 
@@ -1459,6 +1486,9 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
                         })
                     : null,
                 merkezPin: _noktaSec,
+                // ⚠️ TURU 155 — konum isaretinin yonu ve dogrulugu.
+                yon: _yon,
+                dogrulukM: _dogrulukM,
                 kameraDurdu: _noktaSec ? _noktaMerkezDegisti : null,
                 takipBacak: _takip?.bacak,
                 takipEnlem: _takip?.izEnlem,
@@ -3706,6 +3736,7 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && _takip != null) _adimSayfasinaGec(0, ani: true);
     });
+    _pusulayiBagla();
     _akisiBagla();
   }
 
@@ -3724,7 +3755,12 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
     _konumAkisi = KonumServisi.konumAkisi().listen(
       (k) {
         _akisHatasi = 0; // saglikli veri geldi -> sayac sifirlanir
-        _konumGeldi(k);
+        // ⚠️ TURU 155 — GPS gidis yonu YALNIZ pusula yokken kullanilir
+        //    (bkz. `_yon` serhi). Pusula bir kez deger verdiyse ona
+        //    dokunulmaz, yoksa yurumeye baslayinca ok ZIPLARDI.
+        _dogrulukM = k.dogrulukM;
+        if (_pusulaVerdi == false && k.yon != null) _yon = k.yon;
+        _konumGeldi((enlem: k.enlem, boylam: k.boylam));
       },
       onError: (Object e) {
         if (!mounted || _takip == null) return;
@@ -3752,6 +3788,31 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
     );
   }
 
+  /// Pusula bir kez GERCEK deger verdi mi?
+  ///
+  /// ⚠️⚠️ Kaynak secimini bu bayrak yapar: pusula calisiyorsa GPS gidis
+  ///	yonu YOK SAYILIR. Ikisi karisik kullanilsaydi ok, kullanici
+  ///	yurumeye basladiginda iki farkli kaynak arasinda ZIPLARDI.
+  bool _pusulaVerdi = false;
+
+  /// ⚠️ Pusula akisini baglar. Kanal/sensor yoksa akis hicbir sey
+  ///    yaymaz (fail-soft) ve yon GPS gidis yonune duser; o da yoksa
+  ///    yon oku HIC cizilmez.
+  void _pusulayiBagla() {
+    _pusulaAkisi?.cancel();
+    _pusulaAkisi = PusulaServisi.i.akis().listen(
+      (d) {
+        if (!mounted) return;
+        setState(() {
+          _pusulaVerdi = true;
+          _yon = d;
+        });
+      },
+      // ⚠️ Hata SESSIZ: pusula bir KOLAYLIK, takip onsuz da calisir.
+      onError: (Object _) {},
+    );
+  }
+
   /// Takibi durdurur (kullanici "Bitir" ya da rota degisimi).
   ///
   /// ⚠️⚠️ **AKIS IPTALI ZORUNLU**: birakilmazsa GPS acik kalir,
@@ -3760,6 +3821,11 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
   void _takipDurdur() {
     _konumAkisi?.cancel();
     _konumAkisi = null;
+    // ⚠️ TURU 155 — pusula da birakilir; yoksa sensor takip bittikten
+    //    sonra da acik kalir ve pil yakar.
+    _pusulaAkisi?.cancel();
+    _pusulaAkisi = null;
+    _pusulaVerdi = false;
     if (!mounted) return;
     setState(() {
       _takip = null;
@@ -3864,6 +3930,9 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
     //    sonra da surer.
     _konumAkisi?.cancel();
     _konumAkisi = null;
+    _pusulaAkisi?.cancel();
+    _pusulaAkisi = null;
+    _pusulaVerdi = false;
     setState(() {
       _takip = null;
       _durakModu = false;
@@ -5893,7 +5962,24 @@ class _HaritaAlani extends StatefulWidget {
     this.eldeKaydirdi,
     this.merkezPin = false,
     this.kameraDurdu,
+    this.yon,
+    this.dogrulukM,
   });
+
+  /// ⚠️⚠️⚠️ TURU 155 — konum isaretinin YONU (derece, 0 = kuzey).
+  ///
+  ///	Kullanici emri: *"Konum yandextedki gibi daire yon oku olsun,
+  ///	telefonu oynattikca yonu gostersin"*.
+  /// ⚠️ `null` ise yon konisi CIZILMEZ — yanlis yon gostermek hic
+  ///    gostermemekten KOTUDUR.
+  final double? yon;
+
+  /// ⚠️⚠️⚠️ Konum dogrulugu (metre) — cevredeki hafif beyaz halka.
+  ///
+  ///	Kullanici emri: *"cevresinde hafif beyaz daire var bunun gibi
+  ///	olsun"*. Bu SUS DEGIL: halka buyudukce kullanici konumun
+  ///	belirsiz oldugunu anlar (Google/Yandex/Apple ayni dili kullanir).
+  final double? dogrulukM;
 
   /// ⚠️⚠️ TURU 154 — ekranin ORTASINDA sabit bir secim pini cizilir.
   ///	`Marker` DEGIL bir `Stack` katmani: marker haritayla
@@ -6041,6 +6127,9 @@ class _HaritaAlaniState extends State<_HaritaAlani> {
   ///	rota cizilse bile varis ucunda hicbir isaret yoktu.
   /// Kirmizi: Yandex referansinda varis noktasi kirmizi pin.
   BitmapDescriptor? _varisPin;
+
+  /// TURU 155 — yon konisi (donen AYRI marker).
+  BitmapDescriptor? _yonPin;
 
   /// ⚠️ TURU 124 — KENDI konum isaretimiz (Google`in mavi noktasi yerine).
   BitmapDescriptor? _benPin;
@@ -6345,12 +6434,15 @@ class _HaritaAlaniState extends State<_HaritaAlani> {
       pikselOrani: oran,
       ikon: LucideIcons.mapPin,
     );
+    // ⚠️ TURU 155 — yon konisi puck ile AYNI marka renginde.
+    final yp = await yonKonisi(renk: morLogo, pikselOrani: oran);
     if (!mounted) return;
     setState(() {
       _pin = d;
       _benPin = b;
       _durakPin = dp;
       _varisPin = vp;
+      _yonPin = yp;
     });
   }
 
@@ -6574,6 +6666,29 @@ class _HaritaAlaniState extends State<_HaritaAlani> {
                 //    yayina cevirmek kisa parcalarda gorunur bir egrilik
                 //    uretmez ama hesabi bosuna agirlastirir.
                 polylines: _cizgiler(),
+                // ⚠️⚠️⚠️ TURU 155 — **DOGRULUK HALKASI** (kullanici emri:
+                //	*"cevresinde hafif beyaz daire var bunun gibi olsun"*).
+                //
+                // ⚠️⚠️ `Circle.radius` **METRE** cinsindendir; yani halka
+                //	zoom degistikce dogru olceklenir ve GERCEK belirsizligi
+                //	gosterir. Sabit piksel bir daire cizmek yalnizca SUS
+                //	olurdu.
+                // ⚠️ 10 m taban: mukemmel GPS'te bile halka gorunsun,
+                //    yoksa isaret "cirilciplak" durur. 120 m tavan: kapali
+                //    alanda dogruluk 500 m'ye cikabiliyor ve o kadar buyuk
+                //    bir daire haritanin tamamini kaplar.
+                circles: {
+                  if (merkez != null && widget.dogrulukM != null)
+                    Circle(
+                      circleId: const CircleId('konum-dogruluk'),
+                      center: LatLng(merkez!.enlem, merkez!.boylam),
+                      radius: widget.dogrulukM!.clamp(10.0, 120.0),
+                      fillColor: Colors.white.withValues(alpha: 0.10),
+                      strokeColor: Colors.white.withValues(alpha: 0.28),
+                      strokeWidth: 1,
+                      zIndex: 0,
+                    ),
+                },
                 // ⚠️ TURU 150 — nokta secme kipinde haritaya dokunmak
                 //    baslangic/varis noktasini secer.
                 onTap: widget.noktaSec == null
@@ -6628,6 +6743,24 @@ class _HaritaAlaniState extends State<_HaritaAlani> {
                   // ⚠️ Isaret hazir degilse (uretim asenkron) marker HIC
                   //    cizilmez: varsayilan KIRMIZI damla, "benim konumum"
                   //    icin yanlis bir dil olurdu.
+                  // ⚠️⚠️⚠️ TURU 155 — **YON KONISI AYRI BIR MARKER.**
+                  //	Yon `Marker.rotation` ile veriliyor ve rotation
+                  //	MARKERIN TAMAMINI dondurur. Koni puck ile ayni
+                  //	bitmap'te olsaydi kullanici donunce **PROFIL
+                  //	FOTOGRAFI DA TERS DONERDI**. Alta donen koni,
+                  //	uste sabit fotograf.
+                  // ⚠️ `flat: true`: marker haritaya YATIK cizilir, harita
+                  //    dondurulurse koni de doner (ekrana sabit kalmaz).
+                  if (merkez != null && _yonPin != null && widget.yon != null)
+                    Marker(
+                      markerId: const MarkerId('konum-yon'),
+                      position: LatLng(merkez!.enlem, merkez!.boylam),
+                      icon: _yonPin!,
+                      anchor: const Offset(0.5, 0.5),
+                      rotation: widget.yon!,
+                      flat: true,
+                      zIndex: 1,
+                    ),
                   if (merkez != null && _benPin != null)
                     Marker(
                       markerId: const MarkerId('konum-ben'),

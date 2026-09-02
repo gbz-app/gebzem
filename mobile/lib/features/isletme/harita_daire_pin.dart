@@ -42,12 +42,90 @@
 ///    bulaniklastirir.
 library;
 
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 final Map<String, BitmapDescriptor> _onbellek = {};
+
+/// ⚠️⚠️⚠️ TURU 155 — **YON KONISI** (kullanici emri: *"Konum
+///	Yandex'teki gibi DAIRE + YON OKU olsun, telefonu oynattikca yonu
+///	gostersin, cevresinde hafif beyaz daire var bunun gibi olsun"*).
+///
+/// ⚠️⚠️ **AYRI BIR MARKER OLARAK CIZILIR, PUCK'IN ICINE DEGIL.**
+///	Sebep: yon `Marker.rotation` ile veriliyor ve rotation MARKERIN
+///	TAMAMINI dondurur. Koni puck ile ayni bitmap'te olsaydi,
+///	kullanici donduğunde **PROFIL FOTOGRAFI DA TERS DONERDI**.
+///	Iki marker: alta donen koni, uste sabit fotograf.
+///
+/// ⚠️⚠️ Bitmap MERKEZI puck'in merkezidir ve koni YUKARI (0°) bakar;
+///	`Marker(rotation: yon, anchor: Offset(0.5, 0.5))` bu merkez
+///	etrafinda dondurur. Koni bitmap'in kenarina cizilseydi donerken
+///	puck'tan KOPARDI.
+///
+/// ⚠️ `flat: true` ZORUNLU: marker haritaya YATIK cizilir ve harita
+///    dondurulurse (bearing) koni de doner. `false` olsaydi koni ekrana
+///    sabit kalir, harita donunce YANLIS yonu gosterirdi.
+/// ⚠️ Koni SAYDAM bir gradyan degil DUZ bir ucgendir: `dart:ui`
+///    gradyanlari her uretimde yeniden hesaplanir ve kazanci gorunmez.
+Future<BitmapDescriptor> yonKonisi({
+  required Color renk,
+  required double pikselOrani,
+}) async {
+  final anahtar = 'yon|${renk.toARGB32()}|$pikselOrani';
+  final hazir = _onbellek[anahtar];
+  if (hazir != null) return hazir;
+
+  // ⚠️ Tuval puck'tan (29 dp) BUYUK olmak zorunda: koni disarida.
+  const tamDp = 58.0;
+  const merkez = tamDp / 2;
+  // Koninin ic ve dis yaricapi (puck kenari ~14.5 dp).
+  const icR = 15.0;
+  const disR = 27.0;
+  // Koninin yarim acisi (radyan) — ~26°, Yandex'e yakin.
+  const yariAci = 0.45;
+
+  final px = (tamDp * pikselOrani).ceilToDouble();
+  final kayit = ui.PictureRecorder();
+  final tuval = Canvas(kayit);
+  tuval.scale(pikselOrani);
+
+  final yol = Path()
+    ..moveTo(merkez, merkez - disR)
+    ..lineTo(merkez + icR * math.sin(yariAci),
+        merkez - icR * math.cos(yariAci))
+    ..lineTo(merkez - icR * math.sin(yariAci),
+        merkez - icR * math.cos(yariAci))
+    ..close();
+
+  // Beyaz kontur: koni koyu zeminde de acik zeminde de gorunmeli.
+  tuval.drawPath(
+    yol,
+    Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.4
+      ..strokeJoin = StrokeJoin.round
+      ..isAntiAlias = true,
+  );
+  tuval.drawPath(
+    yol,
+    Paint()
+      ..color = renk
+      ..style = PaintingStyle.fill
+      ..isAntiAlias = true,
+  );
+
+  final resim = await kayit.endRecording().toImage(px.toInt(), px.toInt());
+  final bayt = await resim.toByteData(format: ui.ImageByteFormat.png);
+  resim.dispose();
+  final b = BitmapDescriptor.bytes(bayt!.buffer.asUint8List(),
+      width: tamDp, height: tamDp);
+  _onbellek[anahtar] = b;
+  return b;
+}
 
 /// Daire isaret uretir. [kenar] ACIK bir renk olmalidir.
 ///

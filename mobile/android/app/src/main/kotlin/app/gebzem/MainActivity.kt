@@ -35,6 +35,13 @@ class MainActivity : FlutterActivity() {
     private var alici: BroadcastReceiver? = null
     private var telefon: TelefonDurumu? = null // GSM arama dinleyicisi (test turu 20)
 
+    /// TURU 155 — pusula (cihazin baktigi yon). AYRI KANAL kullanir
+    /// (`gebzem/pusula`): `gebzem/pip` kanaline yeni bir `case` yazmak,
+    /// turu 65b'de yasanan "native case YANLIS kanala yazildi ve ozellik
+    /// SESSIZCE hic calismadi" hatasinin tekrari riskini tasirdi.
+    private var pusula: Pusula? = null
+    private var pusulaKanali: MethodChannel? = null
+
     companion object {
         private const val EYLEM = "app.gebzem.PIP_EYLEM"
         private const val ANAHTAR = "eylem"
@@ -45,6 +52,28 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         kanal = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "gebzem/pip")
+        // ── TURU 155: PUSULA KANALI ──
+        // ⚠️ Kanal adi Dart tarafiyla (`pusula_servisi.dart` ->
+        //    `kPusulaKanali`) BIREBIR ayni olmak zorunda; uyusmazlik
+        //    derleme zamani YAKALANMAZ, `MissingPluginException` olarak
+        //    calisma aninda cikar ve Dart tarafinda `catch` ile yutulur.
+        val pk = MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger, "gebzem/pusula")
+        pusulaKanali = pk
+        pk.setMethodCallHandler { call, result ->
+            when (call.method) {
+                "basla" -> {
+                    if (pusula == null) pusula = Pusula(this, pk)
+                    pusula?.basla()
+                    result.success(true)
+                }
+                "dur" -> {
+                    pusula?.dur()
+                    result.success(true)
+                }
+                else -> result.notImplemented()
+            }
+        }
         kanal?.setMethodCallHandler { call, result ->
             when (call.method) {
                 "setPipIzinli" -> {
@@ -192,6 +221,9 @@ class MainActivity : FlutterActivity() {
 
     override fun onDestroy() {
         telefon?.dur()
+        // TURU 155 — sensor birakilmazsa Activity oldukten sonra da pil yakar.
+        pusula?.dur()
+        pusula = null
         alici?.let { try { unregisterReceiver(it) } catch (_: Exception) {} }
         alici = null
         super.onDestroy()

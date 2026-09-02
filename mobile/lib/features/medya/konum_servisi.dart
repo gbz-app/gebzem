@@ -166,13 +166,37 @@ class KonumServisi {
   /// ⚠️ **PLATFORMA OZEL AYAR ZORUNLU**: duz `LocationSettings` yalnizca
   ///    `accuracy` + `distanceFilter` gonderir; digerleri platform
   ///    varsayilanina duser ve iOS'ta davranis belirsizlesir.
-  static Stream<({double enlem, double boylam})> konumAkisi() async* {
+  /// ⚠️⚠️ TURU 155 — akis artik **DOGRULUK** ve **GPS GIDIS YONU** de
+  ///	tasiyor (kullanici: konum isaretinin *"cevresinde hafif beyaz
+  ///	daire"* ve *"yon oku"*).
+  ///
+  /// ⚠️⚠️ `yon` **PUSULA DEGIL**: `Position.heading` GPS'in GIDIS
+  ///	yonudur (course over ground) ve cihaz DURUYORKEN GECERSIZDIR
+  ///	(Android 0.0, iOS negatif). Bu yuzden burada **`null` olarak**
+  ///	dondurulur ve asil kaynak `PusulaServisi`dir; bu yalnizca
+  ///	pusula yoksa devreye giren YEDEKTIR.
+  /// ⚠️ `heading` icin gecerlilik olcutu: negatif ya da tam 0.0 ise
+  ///    GUVENILMEZ sayilir. 0.0 gercekten kuzey olabilir ama Android
+  ///    `hasBearing()` false iken de 0.0 dondurdugu icin ikisi AYIRT
+  ///    EDILEMEZ — yanlis yon gostermektense hic gostermemek dogrudur.
+  static Stream<
+      ({
+        double enlem,
+        double boylam,
+        double dogrulukM,
+        double? yon,
+      })> konumAkisi() async* {
     final izin = await Permission.locationWhenInUse.request();
     if (!izin.isGranted) {
       throw const KonumIzniYok();
     }
     yield* Geolocator.getPositionStream(locationSettings: _akisAyari())
-        .map((p) => (enlem: p.latitude, boylam: p.longitude));
+        .map((p) => (
+              enlem: p.latitude,
+              boylam: p.longitude,
+              dogrulukM: p.accuracy,
+              yon: (p.heading > 0 && p.heading <= 360) ? p.heading : null,
+            ));
   }
 
   static LocationSettings _akisAyari() {

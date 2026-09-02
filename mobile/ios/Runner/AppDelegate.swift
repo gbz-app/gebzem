@@ -8,6 +8,7 @@ import AVKit                      // iOS sistem PiP (AVPictureInPictureControlle
 import WebRTC                     // WebRTC-SDK pod -> modul adi "WebRTC". Derleme riski burada;
                                   // patlarsa Podfile'a :modular_headers => true (bkz. Podfile notu).
 import GoogleMaps                 // TURU 85 - Yakinimda haritasi
+import CoreLocation               // TURU 155 - pusula (CLLocationManager heading)
 import flutter_callkit_incoming
 
 // KILIT EKRANINDA GELEN ARAMA (iOS) — CallKit + PushKit + WebRTC ses koprusu.
@@ -152,6 +153,23 @@ import flutter_callkit_incoming
     if #available(iOS 15.0, *) { GebzemPip.shared.kanal = pipCh }
     // TURU 64: hucresel arama gozcusu ayni kanali kullanir ('gsmDurum' -> pip_service).
     GebzemGsmGozcu.shared.kanal = pipCh
+
+    // ── TURU 155: PUSULA KANALI (AYRI) ──
+    // ⚠️ Kanal adi Dart tarafiyla (`pusula_servisi.dart` -> `kPusulaKanali`)
+    //    ve Android tarafiyla (`MainActivity.kt`) BIREBIR ayni olmak zorunda.
+    //    Turu 65b: bir native `case` YANLIS kanala yazilmisti ve ozellik
+    //    `MissingPluginException` `catch` ile yutuldugu icin HIC calismadi.
+    let pusulaCh = FlutterMethodChannel(
+      name: "gebzem/pusula",
+      binaryMessenger: engineBridge.pluginRegistry.registrar(forPlugin: "gebzem.pusula")!.messenger())
+    GebzemPusula.shared.kanal = pusulaCh
+    pusulaCh.setMethodCallHandler { call, result in
+      switch call.method {
+      case "basla": GebzemPusula.shared.baslat(); result(true)
+      case "dur":   GebzemPusula.shared.durdur(); result(true)
+      default:      result(FlutterMethodNotImplemented)
+      }
+    }
     pipCh.setMethodCallHandler { call, result in
       guard #available(iOS 15.0, *) else {
         // iOS<15: PiP yok
@@ -477,6 +495,57 @@ final class GebzemSesKurtar {
 //     `AVAudioSession.interruptionNotification` kullanma — Siri/alarm/bildirim de
 //     uretir; `.ended` kacarsa mikrofon KALICI kapali kalir (bugunku semptomun
 //     kod eliyle uretilmesi olur).
+/// ⚠️⚠️⚠️ TURU 155 — PUSULA (kullanici emri: "konum ... telefonu
+/// oynattikca yonu gostersin").
+///
+/// ⚠️⚠️ **-1 TUZAGI (arastirmada kaynaktan dogrulandi).** Apple:
+///	`trueHeading` icin *"you must start location services by calling
+///	startUpdatingLocation before initiating heading updates"*; konum
+///	guncellemesi calismiyorsa deger **-1** doner. `flutter_compass`
+///	paketi tam bu yuzden elendi: ne `startUpdatingLocation` cagiriyor
+///	ne de `magneticHeading` yedegi var, yani deger SESSIZCE -1'de
+///	kilitlenebiliyor.
+///	Burada YEDEK VAR: `trueHeading` negatifse `magneticHeading`
+///	kullanilir. (Manyetik/gercek kuzey farki Gebze'de ~5-6 derece —
+///	yaya navigasyonu icin onemsiz, hic ok olmamasindan IYI.)
+///
+/// ⚠️ Kanal WEAK OLAMAZ (`GebzemPip.kanal` ile ayni tuzak): zayif
+///    tutulursa dealloc olur ve "yon" geri bildirimi Dart'a HIC ULASMAZ.
+/// ⚠️ `headingFilter = 2` derece: her mikro titresimde olay gondermek
+///    kanali ve arayuzu bosuna mesgul eder; Dart tarafi ayrica yumusatiyor.
+final class GebzemPusula: NSObject, CLLocationManagerDelegate {
+  static let shared = GebzemPusula()
+  private let yonetici = CLLocationManager()
+  private var aktif = false
+  var kanal: FlutterMethodChannel?
+
+  func baslat() {
+    if aktif { return }
+    // ⚠️ Pusulasi olmayan cihaz (ya da simulator): sessizce hicbir sey
+    //    yapilmaz, Dart tarafi deger gelmeyince yon okunu CIZMEZ.
+    guard CLLocationManager.headingAvailable() else { return }
+    aktif = true
+    yonetici.delegate = self
+    yonetici.headingFilter = 2
+    yonetici.headingOrientation = .portrait
+    yonetici.startUpdatingHeading()
+  }
+
+  func durdur() {
+    if !aktif { return }
+    aktif = false
+    yonetici.stopUpdatingHeading()
+  }
+
+  func locationManager(_ m: CLLocationManager, didUpdateHeading h: CLHeading) {
+    // ⚠️ Bkz. -1 tuzagi: konum akisi yoksa `trueHeading` negatiftir.
+    var derece = h.trueHeading
+    if derece < 0 { derece = h.magneticHeading }
+    if derece < 0 { return }
+    kanal?.invokeMethod("yon", arguments: ["derece": derece])
+  }
+}
+
 final class GebzemGsmGozcu: NSObject, CXCallObserverDelegate {
   static let shared = GebzemGsmGozcu()
   private let gozcu = CXCallObserver()

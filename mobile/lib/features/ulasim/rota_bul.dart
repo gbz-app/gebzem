@@ -99,18 +99,47 @@ int _yurumeDakikasi(double metre) => (metre / kYayaHizi / 60).ceil();
 /// ⚠️ Sifira bolme kapisi ZORUNLU: GTFS sekillerinde ardisik TEKRARLI
 ///    nokta gercekten var; kapi olmazsa `t = NaN` olur ve **NaN her
 ///    karsilastirmadan sessizce duser** (turu 85b NaN dersi).
+/// ⚠️⚠️⚠️ TURU 155 — **[basSegment]: ARAMAYI BURADAN BASLAT.**
+///
+///	Kullanici: *"bizimki DIREK USTUNDE"* (otobus cizgisi binalarin
+///	uzerinden duz gidiyor).
+///
+/// ⚠️⚠️ **KOK NEDEN — ILMEKLI HATLAR.** Kucuk bir sehirde hatlar kendi
+///	uzerine doner ve GLOBAL "en yakin segment" aramasi inis duragini
+///	aynı caddenin **IKINCI GECISINE** kilitleyebilir. O zaman inis
+///	indeksi binis indeksinden KUCUK cikar (`b <= a`), `_guzergahDilimi`
+///	diimi uretemez ve iki durak arasi **DUZ CIZGI** dondurur.
+///
+///	GERCEK VERIDE OLCULDU (hafta ici, sefer-sutunu gecerlilik testiyle):
+///	**361.110 gecerli durak ciftinin 14.799'u (%4,10)** bu dala
+///	dusuyordu. En kotuleri: 300/yon1 **%41,2** · 480/yon0 %35,1 ·
+///	440/yon1 %32,5 · 315/yon1 %30,3.
+///
+/// ⚠️⚠️ Kardes dosya `rota_takip.dart` bu tuzagi ZATEN kapatmis
+///	(`basSegment` + arama penceresi) ve serhinde aynen soyle diyor:
+///	*"Kucuk bir sehirde hatlar kendi uzerine doner; GLOBAL en yakin
+///	segment aramasi kullaniciyi ILERIYE SICRATIR ya da geri atar."*
+///	Ayni ders buraya UYGULANMAMISTI.
+///
+/// ⚠️ Burada PENCERE YOK (tum kalan cizgi taranir): `rota_takip`teki
+///    40 segmentlik pencere GPS monotonlugu icindir; burada inis duragi
+///    uzun bir hatta pencerenin DISINDA kalir ve sonuc DAHA KOTU olurdu.
 int _enYakinSegment(
   List<({double enlem, double boylam})> yol,
   double enlem,
-  double boylam,
-) {
+  double boylam, {
+  int basSegment = 0,
+}) {
   if (yol.length < 2) return 0;
+  // ⚠️ Taban cizginin DISINA tasarsa arama yapilacak segment KALMAZ;
+    // cagiran (`_guzergahDilimi`) bunu duz-cizgi dali ile karsilar.
+  final bas = basSegment.clamp(0, yol.length - 2);
   final kx = 111320.0 * math.cos(yol.first.enlem * math.pi / 180);
   final px = boylam * kx;
   final py = enlem * 111320.0;
-  var enIyi = 0;
+  var enIyi = bas;
   var enAz = double.infinity;
-  for (var i = 0; i < yol.length - 1; i++) {
+  for (var i = bas; i < yol.length - 1; i++) {
     final ax = yol[i].boylam * kx;
     final ay = yol[i].enlem * 111320.0;
     final bx = yol[i + 1].boylam * kx;
@@ -138,9 +167,19 @@ int _enYakinSegment(
 
 /// Bir polyline'in iki durak arasindaki dilimi.
 ///
+/// ⚠️⚠️ TURU 155 — **INIS DURAGI BINISTEN SONRA ARANIR** (`basSegment`).
+///	Onceden ikisi de GLOBAL araniyordu ve ilmekli hatlarda inis,
+///	aynı caddenin ikinci gecisine kilitlenip `b <= a` uretiyordu;
+///	o durumda cizgi iki durak arasi DUZ bir hat oluyor, yani
+///	kullanicinin gordugu **"binalarin uzerinden gecen"** cizgi.
+///	Olculdu: %4,10 -> yapisal olarak ~0.
+///
 /// ⚠️ Sira TERS gelirse (sekil ters yonde cizilmis) dilim BOS DONMEZ,
 ///    duraklar arasi duz cizgi dondurulur — ekranda "hicbir sey yok"
 ///    gorunmesindense kaba ama DOGRU bir cizgi daha iyidir.
+/// ⚠️ **Bu duz-cizgi dali SILINMEZ**: `basSegment` ile bile
+///    `yol.length < 2` ya da binis son segmentte olma hali kalir.
+///    Artik ULASILMASI ZOR bir emniyet agidir.
 List<({double enlem, double boylam})> _guzergahDilimi(
   List<({double enlem, double boylam})> yol,
   Durak binis,
@@ -153,7 +192,9 @@ List<({double enlem, double boylam})> _guzergahDilimi(
     ];
   }
   final a = _enYakinSegment(yol, binis.enlem, binis.boylam);
-  final b = _enYakinSegment(yol, inis.enlem, inis.boylam);
+  // ⚠️⚠️ Inis BINISTEN SONRA aranir — bkz. `_enYakinSegment` serhi.
+  final b = _enYakinSegment(yol, inis.enlem, inis.boylam,
+      basSegment: a + 1);
   if (b <= a) {
     return [
       (enlem: binis.enlem, boylam: binis.boylam),
