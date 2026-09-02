@@ -610,18 +610,30 @@ Future<void> rotaSonucAc(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        // ⚠️⚠️⚠️ TURU 157 - **BU METIN TURUN MANSET
+                        //	OZELLIGINI INKAR EDIYORDU.**
+                        //	Eski hali: *"Aktarmasız hat bulunamadı ...
+                        //	Aktarmalı rota HENÜZ EKLENMEDİ."*
+                        //	Aktarma AYNI TURDA eklendi ve bu ekran
+                        //	ARTIK yalnizca aktarmayla DA cozulemeyen
+                        //	vakalarda cizilir - yani metin kullaniciya
+                        //	var olan bir ozelligin YOK oldugunu
+                        //	soyluyordu.
                         const Text(
-                          'Aktarmasız hat bulunamadı',
+                          'Uygun rota bulunamadı',
                           style: TextStyle(
                               fontSize: 18, fontWeight: FontWeight.w800),
                         ),
                         const SizedBox(height: 8),
                         // ⚠️ DURUST SINIR: bu bir HATA degil, gercek bir
-                        //    sonuc. Olculdu: 800 m yurume yaricapiyla
-                        //    sorgularin ~%41'i aktarmasiz cozuluyor.
+                        //    sonuc. Aktarmali arama ile kapsama OLCULDU:
+                        //    **%96,6** (aktarmasiz motor %39,5 idi).
+                        //    Kalan vakalarda ya 800 m icinde durak YOK
+                        //    (ciftlerin ~%5,5'i) ya da o saatte sefer YOK.
                         Text(
-                          'Bu iki nokta arasında tek otobüsle giden bir hat '
-                          'yok. Aktarmalı rota henüz eklenmedi.',
+                          'Bu iki nokta arasında aktarmayla bile uygun bir '
+                          'sefer bulunamadı. Farklı bir saat ya da varış '
+                          'noktası dene.',
                           style: TextStyle(
                             fontSize: 13.5,
                             height: 1.4,

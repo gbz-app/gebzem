@@ -320,8 +320,15 @@ TakipDurumu ilerlet(
       kalanM: onceki.kalanM,
       rotaDisi: true,
       bitti: false,
-      izEnlem: onceki.izEnlem,
-      izBoylam: onceki.izBoylam,
+      // ⚠️⚠️ TURU 157 - **GUNCEL izdusum yazilir, BAYAT olan degil.**
+      //	Onceden `onceki.izEnlem/izBoylam` tasiniyordu ve bayat
+      //	bir nokta durumlar boyunca YAYILABILIYORDU. Cizim artik
+      //	bu alanlari okudugu icin bayatlik dogrudan EKRANA
+      //	yansirdi.
+      // ⚠️ PUCK ETKILENMEZ: yapistirma `rotaDisi` kapisinin
+      //    ARKASINDA, yani rotadan cikmis kullanici HAM GPS'te kalir.
+      izEnlem: iz.enlem,
+      izBoylam: iz.boylam,
     );
   }
 
@@ -345,14 +352,36 @@ TakipDurumu ilerlet(
         izBoylam: iz.boylam,
       );
     }
+    // ⚠️⚠️⚠️ TURU 157 - **IZDUSUM DE YENI BACAGA TASINIR.**
+    //
+    //	Onceden `bacak` ve `segment` YENI bacaga gecerken
+    //	`izEnlem/izBoylam` ESKI bacagin izdusumu olarak
+    //	kaliyordu. Turu 157 cizimi ve puck'i bu UC alana
+    //	bagladigi icin sonuc GORUNUR oldu:
+    //	  · `kalanYolNoktadan` yeni bacagin ILK noktalarini
+    //	    siliyor ve cizgiyi ESKI noktadan basliyormus gibi
+    //	    cizyordu -> aktarmadan hemen sonra 2. otobus
+    //	    hattinin basi **0-175 m** kayiyor ve arasi DUZ bir
+    //	    dogruyla (binalarin ustunden) gecilmis gorunuyordu -
+    //	    turu 155'te *"BIZIMKI DIREK USTUNDE"* diye
+    //	    duzeltilen gorunumun AYNISI.
+    //	  · Puck da o eski noktaya yapistigi icin kullanici
+    //	    kendini ~100 m GERIDE goruyordu.
+    // ⚠️⚠️ Dosyanin KENDI kurali: `bacak`, `segment` ve `iz` UCU DE
+    //	AYNI bacaga ait olmali; iki dogruluk kaynagi kalirsa
+    //	AYRISIRLAR.
+    // ⚠️ `?? yeniYol.first` yapisal emniyet: `yapistir` null donse
+    //    bile cizgi HICBIR durumda kopmaz.
+    final yeniYol = bacakYollari[sonraki];
+    final iz2 = yapistir(yeniYol, enlem, boylam);
     return TakipDurumu(
       bacak: sonraki,
-      segment: 0,
-      kalanM: yolUzunlugu(bacakYollari[sonraki]),
+      segment: iz2?.segment ?? 0,
+      kalanM: yolUzunlugu(yeniYol),
       rotaDisi: false,
       bitti: false,
-      izEnlem: iz.enlem,
-      izBoylam: iz.boylam,
+      izEnlem: iz2?.enlem ?? yeniYol.first.enlem,
+      izBoylam: iz2?.boylam ?? yeniYol.first.boylam,
     );
   }
 

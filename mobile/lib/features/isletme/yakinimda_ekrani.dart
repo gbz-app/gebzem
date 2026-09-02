@@ -365,6 +365,10 @@ const Color kOtobus2Rengi = Color(0xFF37B6C4);
 /// ⚠️⚠️ **`_adimKartBoy` DE BU SABITI OKUR** - ayrisirsa formul
 ///	govdeden kopar ve haritanin alt dolgusu ile yuzen serit kayar
 ///	(bu ekranda ayni sinif UC KEZ yasandi).
+/// ⚠️ TURU 157 - rota ozetindeki bacak satirlari arasi bosluk.
+///    `_ozetSatirBoy` ve GOVDE ayni sabiti okur.
+const double kOzetSatirAra = 3;
+
 const double kAdimIkiSatirEsigi = 1.4;
 
 const double kAdimBoslukKucuk = 4;
@@ -2370,7 +2374,34 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
 
   /// Rota ozet kartinin yuksekligi — **TEK KAYNAK** (`_panelBoy` de okur).
   ///
-  /// Icerik: baslik satiri (17*1.1) + 8 + dort bacak satiri (15 dp) + 2x12.
+  /// ⚠️⚠️⚠️ TURU 157 - **BACAK SATIRI SABIT 15 dp SAYILIYORDU.**
+  ///
+  ///	Ayni ifadedeki `ust` ve `taksi` terimleri `o.scale()` TASIYOR,
+  ///	`bacak * 15` TASIMIYORDU - **asimetrinin kendisi hataydi**.
+  ///
+  /// ⚠️⚠️ **OLCULDU** (gercek panel temasi + Google Sans yuklu widget
+  ///	testi): panel `ThemeData.dark(useMaterial3: true)` zorluyor ve
+  ///	satirdaki iki `Text` `height:` VERMIYOR, yani M3 `bodyMedium`
+  ///	orani (**1,43**) uygulaniyor -> gercek satir yuksekligi
+  ///	**20,0 / 25,0 / 37,0 dp** (olcek 1.0 / 1.3 / 2.0).
+  ///	Formul 15 diyordu; **7 bacakli** (aktarmali) rotada toplam
+  ///	ayrisma **35 / 70 / 154 dp**.
+  ///
+  /// ⚠️⚠️ Hata turu 157'de DOGMADI (turu 156'da `4 * 15` ile ~12-20 dp
+  ///	aciklik vardi) ama `.take(4)` kaldirilinca **~1,75 kat**
+  ///	buyudu.
+  ///
+  /// ⚠️⚠️ **IKI CANLI TUKETICI** vardi:
+  ///	  (a) `GoogleMap.padding.bottom` o kadar EKSIK kaliyor ->
+  ///	      `_sigdir` rotayi panelin ARKASINA uzanan bir dikdortgene
+  ///	      sigdiriyor, varis ucu panelin ARKASINDA kaliyordu.
+  ///	  (b) `_havaSigar` paneli OLDUGUNDAN KISA saniyor -> hava
+  ///	      dugmesi (ve "-" dugmesinin bir kismi) panelin ALTINDA
+  ///	      kalabiliyordu: hem gorunmez hem DOKUNULAMAZ, yani
+  ///	      kapinin ONLEMEK icin yazildigi zararin ta kendisi.
+  ///	⚠️ Bu fix o bulguyu DA kapatir; ayri bir kusur degil.
+  ///
+  /// Icerik: baslik satiri (17*1.1) + 8 + bacak satirlari + taksi + 2x12.
   double _rotaOzetBoy(BuildContext c) {
     final o = MediaQuery.textScalerOf(c);
     // ⚠️ Ust satirin yuksekligi artik **BAŞLA dugmesiyle** (30 dp)
@@ -2388,7 +2419,24 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
     // ⚠️⚠️ TURU 157 - bacak sayisi ARTIK SABIT DEGIL (aktarmada 6-7).
     //	Formul govdeyle ayni sayiyi okumak zorunda.
     final bacak = _rotaBacakSayisi;
-    return (ust + 8 + bacak * 15 + 24 + taksi).ceilToDouble() + 1;
+    return (ust + 8 + bacak * _ozetSatirBoy(c) + 24 + taksi)
+            .ceilToDouble() +
+        1;
+  }
+
+  /// Rota ozetindeki TEK bacak satirinin yuksekligi — **TEK KAYNAK**.
+  ///
+  /// ⚠️⚠️ Govde ile formul AYNI `kOzetSatirAra` sabitinden beslenir;
+  ///	ayrisirsa `_panelBoy` govdeden kopar (bu ekranda UC KEZ yasandi).
+  /// ⚠️⚠️ Metinlere ACIK `height: 1.3` verildi: aksi halde deger M3
+  ///	`bodyMedium`un **1,43**'unden geliyordu ve formul TEMA
+  ///	DEGISIKLIGINDEN etkilenirdi.
+  /// ⚠️ `math.max(13, ...)`: `Icon(size: 13)` yazi olcegiyle
+  ///    BUYUMEZ (`applyTextScaling` varsayilani false); kucuk olcekte
+  ///    satirin tabani ikondur.
+  double _ozetSatirBoy(BuildContext c) {
+    final o = MediaQuery.textScalerOf(c);
+    return math.max(13.0, o.scale(12) * 1.3) + kOzetSatirAra + 1;
   }
 
   /// Takip acikken cizilen **ADIM KARTI**nin yuksekligi — TEK KAYNAK.
@@ -3486,27 +3534,62 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
+                // ⚠️⚠️⚠️ TURU 157 - **BU SATIR AKTARMAYLA TASIYORDU** (olculdu).
+                //
+                //	Kart ic genisligi 360 dp ekranda **304 dp**
+                //	(360 - 2x16 `kYanBosluk` - 2x12 dolgu). Aktarmali
+                //	rotada satirin GEREKSINIMI (varsayilan olcekte):
+                //	  "12:12'de varış" 17/w800  ~115 dp
+                //	  + 8 + "88 dk" 13          ~ 46 dp
+                //	  + rozet ~40 + ok 18 + rozet ~40
+                //	  + 8 + "Başla" dugmesi     ~ 76 dp
+                //	  ------------------------------------
+                //	  TOPLAM ~343 dp  >  304 dp  ->  **TASMA**
+                //	Onceden TEK rozet vardi (~285 dp) ve siginiyordu;
+                //	ikinci rozet + ok satiri tasirdi ve ekranda
+                //	SARI-SIYAH serit cikardi.
+                //
+                // ⚠️⚠️ `Spacer` KALDIRILDI: esnek alani metinler alir.
+                //	Rozetler ve dugme SABIT genislikte kalmali -
+                //	hat numarasi ve "Başla" kirpilamaz.
+                // ⚠️⚠️ `FittedBox(scaleDown)` DEGIL `ellipsis`: saat ve
+                //	sure IKI AYRI bilgi; kuculterek sigdirmak ikisini de
+                //	okunmaz yapardi. Dar ekranda "12:12'de varış" tam
+                //	kalir, "88 dk · 1 aktarma" kisalir.
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Text(
-                      '${UlasimVeri.saatMetni(a.varisDakika)}\'de varış',
-                      style: const TextStyle(
-                        fontSize: 17,
-                        height: 1.1,
-                        fontWeight: FontWeight.w800,
+                    Flexible(
+                      child: Text(
+                        '${UlasimVeri.saatMetni(a.varisDakika)}\'de varış',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 17,
+                          height: 1.1,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 8),
-                    Text(
-                      '${a.toplamDakika} dk',
-                      style: TextStyle(
-                        fontSize: 13,
-                        height: 1.3,
-                        color: scheme.onSurface.withValues(alpha: 0.65),
+                    Flexible(
+                      child: Text(
+                        // ⚠️ TURU 157 - **AKTARMA ACIKCA YAZILIR.** Iki
+                        //    rozet + ok bunu ima ediyor ama ima yetmez;
+                        //    kullanici rotayi aktarmasiz sanabilirdi.
+                        a.aktarma > 0
+                            ? '${a.toplamDakika} dk · ${a.aktarma} aktarma'
+                            : '${a.toplamDakika} dk',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 13,
+                          height: 1.3,
+                          color: scheme.onSurface.withValues(alpha: 0.65),
+                        ),
                       ),
                     ),
-                    const Spacer(),
+                    const SizedBox(width: 8),
                     // ⚠️⚠️⚠️ TURU 157 - **HER OTOBUS BACAGININ ROZETI.**
                     //	Onceden yalniz `a.hat` (TEKIL) ciziliyordu;
                     //	aktarmali rotada IKINCI hat ekranda HIC
@@ -3566,7 +3649,8 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
                 //	kopar ve haritanin alt dolgusu kayar.
                 for (final b in a.bacaklar)
                   Padding(
-                    padding: const EdgeInsets.only(bottom: 3),
+                    // ⚠️ TURU 157 - `_ozetSatirBoy` ile AYNI sabit.
+                    padding: const EdgeInsets.only(bottom: kOzetSatirAra),
                     child: Row(
                       children: [
                         Icon(
@@ -3590,6 +3674,10 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontSize: 12,
+                              // ⚠️⚠️ TURU 157 - ACIK `height`: verilmezse
+                              //    M3 `bodyMedium` 1,43 uygulanir ve
+                              //    `_ozetSatirBoy` formulu TEMAYA baglanir.
+                              height: 1.3,
                               color: scheme.onSurface.withValues(alpha: 0.85),
                             ),
                           ),
@@ -3598,6 +3686,7 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
                           '${b.dakika} dk',
                           style: TextStyle(
                             fontSize: 11.5,
+                            height: 1.3,
                             fontWeight: FontWeight.w700,
                             color: scheme.onSurface.withValues(alpha: 0.7),
                           ),
@@ -4961,7 +5050,18 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
   /// Rotayi arar ve sonucu gosterir.
   ///
   /// ⚠️ Hesap tamamen KENDI GTFS verimizle yapilir; Google'a istek YOK.
+  /// ⚠️⚠️⚠️ TURU 157 - **YENIDEN-GIRME KILIDI.**
+  ///
+  ///	Aktarma aramasi ANA IS PARCACIGINDA kosuyor ve kuyrukta
+  ///	gorunur bir donma uretebiliyor. Donma boyunca yeniden cizim
+  ///	olmadigi icin ozet karti HIT-TEST EDILEBILIR kalir; ikinci
+  ///	dokunus **IKI TAM ARAMA** ve **UST USTE IKI sheet** acardi.
+  /// ⚠️ CLAUDE.md 19 Tem kurali: kullanici-tetiklemeli her async
+  ///    akisa yeniden-girme kilidi.
+  bool _rotaAriyor = false;
+
   Future<void> _rotaAra() async {
+    if (_rotaAriyor) return;
     final b = _rotaBas;
     final v = _rotaVaris;
     // ⚠️ Iki uc da SECILMEDEN arama yapilmaz; kullanici zaten
@@ -4971,14 +5071,22 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
     //    yeni bacaklarla eski `_takip.bacak` indeksi uyusmaz.
     if (_takip != null) _takipDurdur();
     setState(() => _rota = null);
-    final adaylar = await rotaAra(
-      // ⚠️ TURU 156 — varis ADI adim kartinda gosteriliyor.
-      varisAd: v.ad,
-      baslangicEnlem: b.enlem,
-      baslangicBoylam: b.boylam,
-      varisEnlem: v.enlem,
-      varisBoylam: v.boylam,
-    );
+    // ⚠️ Kilit ARAMAYI sarar; `finally` ile HER dalda birakilir
+    //    (istisna, erken donus, iptal).
+    _rotaAriyor = true;
+    final List<RotaAdayi> adaylar;
+    try {
+      adaylar = await rotaAra(
+        // ⚠️ TURU 156 — varis ADI adim kartinda gosteriliyor.
+        varisAd: v.ad,
+        baslangicEnlem: b.enlem,
+        baslangicBoylam: b.boylam,
+        varisEnlem: v.enlem,
+        varisBoylam: v.boylam,
+      );
+    } finally {
+      _rotaAriyor = false;
+    }
     if (!mounted) return;
     await rotaSonucAc(
       context,
@@ -6708,7 +6816,17 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
     final ust = MediaQuery.paddingOf(c).top + 8 + kHaritaDugmeOlcu + 10;
     // uc dugme + iki 8 dp aralik
     final dip = ust + kHaritaZoomOlcu * 3 + 8 * 2;
-    return dip + 12 <= ekran - _panelBoy(c);
+    // ⚠️⚠️ **PAY 4 dp** (12 degil). HESAPLANDI: 360x640 ekranda
+    //	ust = 24 + 8 + 55 + 10 = 97; dip = 97 + 3x51 + 16 = **266 dp**.
+    //	Panel (varsayilan isletme kipi) ~365 dp, yani haritaya
+    //	~275 dp kaliyor. 12 dp pay ile kosul 278 <= 275 olup FALSE
+    //	donuyordu ve dugme kucuk telefonlarda **HIC CIZILMIYORDU** —
+    //	yani kullanicinin acikca istedigi ozellik OLU olurdu.
+    //	Cakismayi onlemek icin ihtiyac duyulan sey TEMAS ETMEMEK;
+    //	4 dp bunun icin yeterli ve ikisi de OPAK.
+    // ⚠️ Panel yuksekligi TAHMIN DEGIL, `_panelBoy`den okunur; yukaridaki
+    //    ~365 yalnizca bu serhin gerekcesidir. GERCEK CIHAZDA dogrulanacak.
+    return dip + 4 <= ekran - _panelBoy(c);
   }
 
   /// ⚠️ TURU 145 — [secili] artik **CIZIME ETKI ETMIYOR** (kullanici
