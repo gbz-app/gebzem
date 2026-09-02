@@ -652,7 +652,21 @@ class YakinimdaEkrani extends ConsumerStatefulWidget {
   ConsumerState<YakinimdaEkrani> createState() => _YakinimdaEkraniState();
 }
 
-class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
+/// ⚠️⚠️⚠️ TURU 159c - **YASAM DONGUSU GOZCUSU** (denetim bulgusu).
+///
+///	Ekranin arka plandan donusunde HICBIR SEY yeniden
+///	degerlendirilmiyordu. Uc somut sonuc:
+///	  · iOS arka planda konum akisini kesebilir; donuste akis
+///	    OLU kalir ve isaret bir daha HIC hareket etmez.
+///	  · "Bir Kez Izin Ver" arka plana gecisle DUSER; donuste
+///	    kullanici izni yeniden vermis olabilir ama kod bunu
+///	    ogrenmez.
+///	  · Kullanici Ayarlardan izni ACIP dondugunde ekran hala
+///	    "izin gerekiyor" der.
+/// ⚠️ Yalniz `resumed` dalinda calisir ve `_akisiBagla` kendi cift
+///    abonelik kapisini tasidigi icin GEREKMIYORSA hicbir sey yapmaz.
+class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani>
+    with WidgetsBindingObserver {
   ({double enlem, double boylam})? _konum;
   List<IsletmeOzet> _liste = [];
   bool _yukleniyor = true;
@@ -902,8 +916,11 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
   /// ⚠️⚠️⚠️ TURU 155 — **PUSULA AKISI** (kullanici: *"telefonu
   ///	oynattikca yonu gostersin"*).
   ///
-  /// ⚠️ YALNIZ takip acikken dinlenir: pusulayi ekran boyunca acik
-  ///    tutmak sebepsiz pil harcar.
+  /// ⚠️⚠️ TURU 159 — **EKRAN OMRU BOYUNCA** dinlenir. Turu 155'te
+  ///	*"YALNIZ takip acikken; ekran boyunca acik tutmak sebepsiz pil
+  ///	harcar"* yaziyordu ve o gun DOGRUYDU. Kullanici konum isaretinin
+  ///	her zaman canli olmasini istedigi icin karar degisti; pil bedeli
+  ///	BILINCLI kabul edildi ve `dispose` sensoru birakiyor.
   StreamSubscription<double>? _pusulaAkisi;
 
   /// Konum isaretinin GOSTERECEGI yon (derece, 0 = kuzey).
@@ -1506,12 +1523,17 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
     _pusulaAkisi?.cancel();
     // ⚠️ TURU 158 — bekleme sayaci da birakilir.
     _bekleTik?.cancel();
+    // ⚠️ TURU 159c — gozcu birakilmazsa cerceve OLU State'e
+    //    `didChangeAppLifecycleState` gondermeye devam eder.
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
   @override
   void initState() {
     super.initState();
+    // ⚠️ TURU 159c - yasam dongusu gozcusu (bkz. sinif serhi).
+    WidgetsBinding.instance.addObserver(this);
     _yukle();
     // ⚠️⚠️ TURU 150 - menuden "Durak" ile gelindiyse ekran DOGRUDAN
     //	durak modunda acilir.
@@ -4050,7 +4072,16 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
                         ),
                       ),
                       TextButton(
-                        onPressed: () => _yukle(konumuTazele: true),
+                        // ⚠️⚠️ TURU 159c — **KULLANICI ACIKCA YENIDEN DENIYOR**:
+                        //	izin bayragi burada BIRAKILIR, yoksa "bu oturumda
+                        //	zaten sorduk" kapisi (bkz. `KonumServisi._sorduk`)
+                        //	dugmeyi ETKISIZ yapardi — kullanici basar, hicbir
+                        //	sey olmaz. Bayragin TEK mesru sifirlama yeri burasi.
+                        onPressed: () {
+                          KonumServisi.izinSifirla();
+                          _akisiBagla();
+                          unawaited(_yukle(konumuTazele: true));
+                        },
                         child: const Text('Tekrar dene'),
                       ),
                     ],
@@ -4864,7 +4895,24 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
   /// ⚠️ Akis ZATEN aciksa yeniden acilmaz — cift abonelik iki kat
   ///    olay ve iki kat pil demektir.
   void _takipBaslat() {
-    if (_rota == null || _konumAkisi != null) return;
+    // ⚠️⚠️⚠️ TURU 159c - **BU MUHAFIZ TURU 159bde "BASLA"YI TAMAMEN
+    //	OLDURMUSTU** (yayin oncesi denetim, SEVK ENGELI).
+    //
+    //	Eski olcut `_konumAkisi != null` idi ve o gun DOGRUYDU:
+    //	akis YALNIZ takipte aciliyordu, yani "akis var" ile "takip
+    //	acik" AYNI SEYDI. Turu 159b akisi ekran omrune tasiyinca
+    //	bu esitlik BOZULDU: ekran acildiktan bir kare sonra
+    //	`_konumAkisi` DAIMA dolu -> muhafiz HER cagrida erken doner
+    //	-> `_takip` HICBIR ZAMAN atanmaz. Adim kartlari acilmaz,
+    //	ilerleme cubugu cizilmez, "Bitir" belirmez. Navigasyonun
+    //	TEK girisi (`onPressed: _takipBaslat`) sessizce olu kalir.
+    //
+    // ⚠️⚠️ **DERS: bir alanin OMRUNU degistirirken, o alani BASKA BIR
+    //	ANLAMDA okuyan her yeri TARA.** Burada `_konumAkisi` bir
+    //	kaynak sahipligi bayragiydi ve yeniden-girme kapisi olarak
+    //	kullaniliyordu; dogru olcut `_takip != null`.
+    // ⚠️ Cift abonelik korumasi `_akisiBagla` govdesinde DURUYOR.
+    if (_rota == null || _takip != null) return;
     setState(() {
       _takip = takip.TakipDurumu.basla;
       _takipKamera = true;
@@ -4919,6 +4967,11 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
         // ⚠️ TURU 155 — GPS gidis yonu YALNIZ pusula yokken kullanilir
         //    (bkz. `_yon` serhi). Pusula bir kez deger verdiyse ona
         //    dokunulmaz, yoksa yurumeye baslayinca ok ZIPLARDI.
+        // ⚠️⚠️ TURU 159c - bu ikisi `setState` DISINDA yaziliyordu ve
+        //	ekrana ancak BASKA bir yeniden cizim tetiklendiginde
+        //	yansiyordu. `_konumGeldi` artik kosulsuz `setState`
+        //	cagirdigi icin ayni karede yansirlar; sira ONEMLI
+        //	(once alanlar, sonra cizim).
         _dogrulukM = k.dogrulukM;
         if (_pusulaVerdi == false && k.yon != null) _yon = k.yon;
         _konumGeldi((enlem: k.enlem, boylam: k.boylam));
@@ -4933,7 +4986,18 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
           // ⚠️ Izin YOKSA mesaj yalniz TAKIP acikken gosterilir;
           //    haritada oylesine duran kullaniciyi uyarmak gurultu olur.
           if (_takip != null) _mesaj('Takip için konum izni gerekiyor.');
-          _takipDurdur();
+          // ⚠️⚠️⚠️ TURU 159c - **IZIN HATASINDA TEKRAR DENENMEZ**
+          //	(denetim, SEVK ENGELI). `KonumIzniYok` KALICI bir
+          //	durumdur; asagidaki 2 saniyelik yeniden baglanma
+          //	dongusune girerse `konumAkisi` her turda `konumIzni`
+          //	cagirir ve kullanici HICBIR SEY YAPMADAN saniyede bir
+          //	IZIN DIYALOGU gorur. Turu 159b hata dalini takip
+          //	kapaliyken de calisir yapinca bu yol ACILDI.
+          // ⚠️ `_konumAkisi` null yapilir ki "Tekrar dene" yolu
+          //    (kullanici ACIKCA isterse) yeniden baglayabilsin.
+          _konumAkisi?.cancel();
+          _konumAkisi = null;
+          if (_takip != null) _takipDurdur();
           return;
         }
         _akisHatasi++;
@@ -4942,6 +5006,10 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
             _mesaj('Konum sinyali alınamıyor. Takip durduruldu.');
             _takipDurdur();
           }
+          // ⚠️ TURU 159c - takip KAPALIYKEN de denemeyi birak;
+          //    aksi halde sinyalsiz bir yerde sonsuza kadar denenir.
+          _konumAkisi?.cancel();
+          _konumAkisi = null;
           return;
         }
         // ⚠️ Aboneligi KAPATIP yeniden ac: hatali bir akis kendini
@@ -5083,21 +5151,49 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
     _noktalaraSigdir(b.noktalar);
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState durum) {
+    if (durum != AppLifecycleState.resumed || !mounted) return;
+    // ⚠️⚠️ Akis arka planda kesilmis olabilir; `_akisiBagla` zaten
+    //	aciksa HICBIR SEY yapmaz (cift abonelik kapisi).
+    _akisiBagla();
+    _pusulayiBagla();
+  }
+
   /// Akistan yeni konum geldi.
+  ///
+  /// ⚠️⚠️⚠️ TURU 159c - **KONUM HER ZAMAN YAZILIR** (denetim, SEVK ENGELI).
+  ///
+  ///	Turu 159b akisi ekran omrune tasidi ama BU KAPI yerinde
+  ///	kaldi: `if (r == null || d == null) return;`. Sonuc: akis
+  ///	aciktı ama gelen olaylarin TAMAMI copе gidiyordu ve `_konum`
+  ///	yalnizca acilistaki TEK ATISLIK olcumde yaziliyordu.
+  ///	Kullanici 500 m yuruse bile puck CAKILI kaliyordu — yani
+  ///	sikayet 1 ve 2 FIILEN KAPANMAMISTI, yalnizca serhler
+  ///	"duzeltildi" diyordu (bu projenin en sik hata sinifi,
+  ///	bu kez TERSINDEN: serh dogru, govde eksik).
+  ///
+  /// ⚠️⚠️ **IKI KATMAN AYRILDI**: konum/dogruluk/yon HER ZAMAN yazilir;
+  ///	takip ilerletmesi, kamera ve adim karti YALNIZ takip acikken.
+  /// ⚠️ Kamera dali kapinin ALTINDA KALIR: kosulsuz olsaydi takip
+  ///    kapaliyken kullanici haritayi her kaydirdiginda kamera bir
+  ///    sonraki GPS olayinda uzerine geri ziplardi (turu 158in
+  ///    `kameraSerbest` karari dogrudan cignenirdi).
   void _konumGeldi(({double enlem, double boylam}) k) {
+    if (!mounted) return;
+    // ── HER ZAMAN: konum gostergesi canli kalir ──
+    setState(() => _konum = k);
     final r = _rota;
     final d = _takip;
-    if (!mounted || r == null || d == null) return;
+    // ── YALNIZ TAKIPTE: ilerleme, kamera, adim karti ──
+    if (r == null || d == null) return;
     final yeni = takip.ilerlet(
       d,
       [for (final b in r.bacaklar) b.noktalar],
       k.enlem,
       k.boylam,
     );
-    setState(() {
-      _takip = yeni;
-      _konum = k;
-    });
+    setState(() => _takip = yeni);
     // ⚠️ Kamera YALNIZ takip acikken tasinir; kullanici haritayi
     //    elle kaydirdiysa `_takipKamera` false olur ve kamera RAHAT
     //    birakilir (bkz. `_takipKamera` serhi).
@@ -5126,6 +5222,11 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
   void _durakKapat() {
     // ⚠️⚠️ TURU 159 - akis ve pusula KAPATILMAZ (bkz. `rotaSec` serhi).
     //	Durak modundan cikmak konum gostergesini oldurmemeli.
+    // ⚠️ TURU 159c - ama bekleme sayaci BIRAKILIR: `_takipDurdur`
+    //    bunu yapiyordu, bu kardes yol ATLAMISTI (teardownun ikinci
+    //    kopyasi — "ayni kuralin iki kopyasi drift eder").
+    _bekleTik?.cancel();
+    _bekleTik = null;
     // ⚠️ TURU 158 - nesil artar: ucustaki `_durakAc` sonucunu
     //    EKRANA YAZAMAZ (bkz. `_durakNesli` serhi).
     _durakNesli++;

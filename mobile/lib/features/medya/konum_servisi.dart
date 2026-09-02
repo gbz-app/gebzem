@@ -138,12 +138,39 @@ class KonumServisi {
   ///    "Ayarlardan ac" diyor (bkz. `konumAl`).
   /// ⚠️ `limited` (iOS 14+ kismi yetki) GECERLI sayilir — konum icin
   ///    pratikte `whileInUse` ile ayni.
+  /// ⚠️⚠️⚠️ TURU 159c - **BU OTURUMDA ZATEN SORDUK MU** (denetim).
+  ///
+  ///	iOSta "Bir Kez Izin Ver" yetkisi uygulama ARKA PLANA gidip
+  ///	donunce dusуer ve durum yeniden `notDetermined` olur. Yalnizca
+  ///	`status` bakmak YETMEZ: o an "sorulmamis" gorunur ve kod
+  ///	diyalogu YENIDEN acar. Kullanicinin sikayeti tam budur.
+  ///
+  /// ⚠️⚠️ **SONUC DEGIL, "SORDUK MU" SAKLANIR.** Sonucu onbelleklemek,
+  ///	kullanici Ayarlardan izni SONRADAN verirse yanlis (bayat)
+  ///	cevap dondururdu. Bayrak yalnizca *diyalogu bir kez actik*
+  ///	bilgisini tutar; GERCEK yetki her cagrida `status` ile
+  ///	TAZE okunur.
+  /// ⚠️⚠️ **AKIS TEKRAR DONGUSU BU KAPI OLMADAN DIYALOG SPAMI URETIR**:
+  ///	turu 159b `_akisiBagla` hata dalini takip kapaliyken de
+  ///	yeniden baglanacak sekilde acti; izin dusmusse her 2 saniyede
+  ///	bir yeni diyalog acilirdi (denetim bunu SEVK ENGELI olarak
+  ///	isaretledi).
+  /// ⚠️ `izinSifirla()` yalnizca kullanici ACIKCA yeniden denedigi
+  ///    yerlerden cagrilir ("Tekrar dene" dugmesi).
+  static bool _sorduk = false;
+
+  /// ⚠️ Kullanici ACIKCA yeniden deneyince bayragi birak.
+  static void izinSifirla() => _sorduk = false;
+
   static Future<bool> konumIzni() =>
       _izinIsi ??= () async {
         try {
           final durum = await Permission.locationWhenInUse.status;
           if (durum.isGranted || durum.isLimited) return true;
           if (durum.isPermanentlyDenied || durum.isRestricted) return false;
+          // ⚠️⚠️ Bu oturumda ZATEN sorduysak TEKRAR SORMA.
+          if (_sorduk) return false;
+          _sorduk = true;
           return (await Permission.locationWhenInUse.request()).isGranted;
         } finally {
           _izinIsi = null;
