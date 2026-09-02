@@ -9470,4 +9470,22 @@ olcek disi · `_rotaTaksi` bayat kaliyor · `_durakAc`ta re-entrancy yok ·
 · **`dart format` KOSTURMA**: HEAD zaten format-temiz DEGIL; tek dosyayi
   formatlamak **2769 satir** alakasiz gurultu uretiyor.
 
-### 🚧 BUILD ALINMADI — KULLANICIYA SORULACAK (CLAUDE.md kural 0)
+### ✅ TURU 157 YAYINLANDI (2 Eyl 14:13) — SADECE iOS
+
+ios **33622413864** (**e82e5e7**) · R2 ipa=30178205 (md5 6db8dabd) ·
+index=7967 (md5 47f8714e) · surum.json=45 (md5 133b8c26) · purge OK ·
+**CDN ucu de BIREBIR** · get-task-allow **false** · profil ad hoc ·
+MapsApiKey ENJEKTE · iOS min **16.0** · surum 1.0.242.
+
+IPA dogrulamasi (uc kodlama da denendi, kontrol dizesi  VAR):
+· VAR:  ·  ·
+   ·  ·  ·
+   · (turu 156)  ·  · 
+· YOK (dogru):  · 
+
+⚠️ **BACKEND DEGISMEDI** -> deploy YOK · migration YOK · DB TRUNCATE YOK ·
+   e2e KOSULMADI (arayuz/istemci turu, CLAUDE.md kural 9).
+⚠️ **APK ALINMADI** — R2deki apk turu 121 surumunde (21 Agu).
+
+⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260902-1413
+

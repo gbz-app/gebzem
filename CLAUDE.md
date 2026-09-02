@@ -41,6 +41,24 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
       kaybettiriyorsun"*. **Üçüncüsü olmayacak.**
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (2 Eyl 14:13): TURU 157 YAYINLANDI — SADECE iOS.**
+  ios **33622413864** (**e82e5e7**), R2 ipa=30178205 (md5 6db8dabd)
+  index=7967 (md5 47f8714e) surum.json=45 (md5 133b8c26),
+  purge OK, **CDN UCU DE BIREBIR**, `get-task-allow: false`, profil ad hoc,
+  `MapsApiKey` ENJEKTE, iOS min **16.0**.
+  IPAda turu 157 dizeleri VAR: `Aktarma için yürüyün` (latin1) ·
+  `Uygun rota bulunamadı` (utf16le) · `aktarmayla bile uygun bir ` (utf16le) ·
+  ` aktarma` (utf8) · `Yakındaki taksi durağı` (utf16le) · `Hava durumu` (utf8);
+  turu 156 dizeleri KALDI (`rota-kilif-` · `Merkeze dön` · ` kaldı`) ve
+  KALDIRILANLAR YOK (`Aktarmalı rota henüz eklenmedi` ·
+  `Aktarmasız hat bulunamadı`).
+  ⚠️ Kontrol dizesi `Yakınımda` (utf16le) VAR — yontem dogrulandi.
+  ⚠️⚠️ **BACKEND DEGISMEDI** -> deploy YOK, migration YOK, DB TRUNCATE
+     EDILMEDI, e2e KOSULMADI (arayuz/istemci turu, kural 9).
+  ⚠️ **APK ALINMADI** — R2deki apk turu 121 surumunde (21 Agu).
+  ✅ analyze **0 hata 0 uyari** · test **77/77** · emulatorde
+     (360 dp x yazi olcegi 1.3) tasma **0**.
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260902-1413
 - 🛡️ ⚠️⚠️⚠️ **TURU 157 — DENETIM: 44 AJAN, 36 HAM BULGU -> 16 ONAY,
   8 CURUTULDU.** Build ALINDI, **IPTAL EDILDI**, duzeltilip YENIDEN alindi —
   *"Build ALMAK yayinlamak DEGILDIR"* dersinin **DOKUZUNCU** dogrulanmasi.
