@@ -113,9 +113,37 @@ class KonumServisi {
   ///	yerlerine geri dagitma.
   static Future<bool>? _izinIsi;
 
+  /// ⚠️⚠️⚠️ TURU 159 - **"BIR KEZ IZIN VER" DIYALOGU TEKRAR TEKRAR
+  ///	CIKIYORDU** (kullanici sahada gordu: *"navigasyon tek seferlik
+  ///	izin verdigimde, uygulamayi KAPATMADAN yine ekranda izin
+  ///	geliyor"*).
+  ///
+  /// ⚠️⚠️ **KOK NEDEN: DURUM HIC SORULMUYORDU.** Govde her cagrida
+  ///	KOSULSUZ `request()` calistiriyordu. iOSta "Bir Kez Izin Ver"
+  ///	secildiginde yetki verilir ama GECICIDIR; ardindan gelen HER
+  ///	yeni istek diyalogu YENIDEN acar. Kullanici izni AZ ONCE
+  ///	vermis olsa bile ikinci, ucuncu kez soruluyordu.
+  ///
+  /// ⚠️⚠️ **IKINCI KOK NEDEN AYRI DOSYADAYDI**: `onboarding_ekrani.dart`
+  ///	bu kapiyi ATLAYIP dogrudan `request()` cagiriyordu — hemen
+  ///	ustundeki serh *"YAPMA: `request()`i cagri yerlerine geri
+  ///	dagitma"* dediği halde. Senaryo: onboardingde "Bir Kez" ->
+  ///	harita acilir -> `_yukle` -> `konumAl` -> IKINCI diyalog.
+  ///
+  /// ⚠️ Verilmis izinde `request()` CAGRILMAZ: iOSta gereksiz, Androidde
+  ///    de zararsiz ama anlamsiz.
+  /// ⚠️ KALICI RED (`permanentlyDenied`) ve `restricted` durumunda da
+  ///    istenmez: sistem zaten diyalog GOSTERMEZ, cagri sessizce false
+  ///    doner ve kullanici sebebini ogrenemezdi. Cagiran taraf ona gore
+  ///    "Ayarlardan ac" diyor (bkz. `konumAl`).
+  /// ⚠️ `limited` (iOS 14+ kismi yetki) GECERLI sayilir — konum icin
+  ///    pratikte `whileInUse` ile ayni.
   static Future<bool> konumIzni() =>
       _izinIsi ??= () async {
         try {
+          final durum = await Permission.locationWhenInUse.status;
+          if (durum.isGranted || durum.isLimited) return true;
+          if (durum.isPermanentlyDenied || durum.isRestricted) return false;
           return (await Permission.locationWhenInUse.request()).isGranted;
         } finally {
           _izinIsi = null;

@@ -1526,6 +1526,20 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
     }
     // ⚠️ TURU 139 — kendi konum pinindeki profil fotografi (kullanici emri).
     unawaited(_avatariCoz());
+    // ⚠️⚠️⚠️ TURU 159 — **KONUM VE PUSULA EKRAN ACILISINDA BAGLANIR.**
+    //
+    //	Kullanici: *"haritada herhangi bir harita alaninda kalsam dahi
+    //	navigasyon AKTIF olarak gorunmeli, anlik hareket degisimleri"*.
+    //	Onceden ikisi de YALNIZ `_takipBaslat` icinde aciliyordu, yani
+    //	"Basla"ya basilmadan konum isareti HIC guncellenmiyordu.
+    // ⚠️ `addPostFrameCallback`: `_akisiBagla` hata dalinda `_mesaj`
+    //    (SnackBar) cagirabiliyor; `initState` govdesinde
+    //    `ScaffoldMessenger.of` agac kurulmadan PATLAR (turu 96i sinifi).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _akisiBagla();
+      _pusulayiBagla();
+    });
   }
 
   /// ⚠️⚠️⚠️ TURU 85b — BAYAT-YANIT KAPISI (denetim bulgusu).
@@ -4885,7 +4899,20 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
   /// ⚠️ **IZIN HATASI AYRI**: `KonumIzniYok` KALICI bir durumdur —
   ///    orada tekrar denemek anlamsiz, kullaniciya SEBEBI soylenir.
   /// ⚠️ Tekrar sayisi SINIRLI (3): sonsuz denemek pili bitirirdi.
+  /// ⚠️⚠️⚠️ TURU 159 - **KONUM AKISI EKRAN OMRU BOYUNCA YASAR.**
+  ///
+  ///	Kullanici: *"haritada herhangi bir harita alaninda kalsam dahi
+  ///	navigasyon AKTIF olarak gorunmeli, anlik hareket degisimleri"*.
+  ///
+  /// ⚠️⚠️ **ONCEKI HAL YAPISAL OLARAK BUNU KARSILAMIYORDU**: akis YALNIZ
+  ///	`_takipBaslat` icinde aciliyordu, yani kullanici "Basla"ya
+  ///	basmadan konum isareti HIC guncellenmiyordu; ustelik DORT ayri
+  ///	yerde kapatiliyordu (`rotaSec`, `_takipDurdur`, `_durakKapat`,
+  ///	`dispose`) ve yalnizca `dispose` dogruydu.
+  /// ⚠️ Cift abonelik korumasi KALIR: akis ZATEN aciksa yeniden acilmaz.
+  /// ⚠️ `dispose` TEK kapatma yeri.
   void _akisiBagla() {
+    if (_konumAkisi != null) return;
     _konumAkisi = KonumServisi.konumAkisi().listen(
       (k) {
         _akisHatasi = 0; // saglikli veri geldi -> sayac sifirlanir
@@ -4897,16 +4924,24 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
         _konumGeldi((enlem: k.enlem, boylam: k.boylam));
       },
       onError: (Object e) {
-        if (!mounted || _takip == null) return;
+        // ⚠️⚠️ TURU 159 - kapi artik `_takip == null` degil `!mounted`:
+        //	akis takip KAPALIYKEN de yasadigi icin, hata dali da
+        //	orada calismak ZORUNDA. Eski kapi ile takipsiz bir hata
+        //	SESSIZCE yutulur ve akis bir daha ONARILMAZDI.
+        if (!mounted) return;
         if (e is KonumIzniYok) {
-          _mesaj('Takip için konum izni gerekiyor.');
+          // ⚠️ Izin YOKSA mesaj yalniz TAKIP acikken gosterilir;
+          //    haritada oylesine duran kullaniciyi uyarmak gurultu olur.
+          if (_takip != null) _mesaj('Takip için konum izni gerekiyor.');
           _takipDurdur();
           return;
         }
         _akisHatasi++;
         if (_akisHatasi > 3) {
-          _mesaj('Konum sinyali alınamıyor. Takip durduruldu.');
-          _takipDurdur();
+          if (_takip != null) {
+            _mesaj('Konum sinyali alınamıyor. Takip durduruldu.');
+            _takipDurdur();
+          }
           return;
         }
         // ⚠️ Aboneligi KAPATIP yeniden ac: hatali bir akis kendini
@@ -4914,9 +4949,9 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
         _konumAkisi?.cancel();
         _konumAkisi = null;
         Future.delayed(const Duration(seconds: 2), () {
-          if (mounted && _takip != null && _konumAkisi == null) {
-            _akisiBagla();
-          }
+          // ⚠️ TURU 159 - `_takip != null` sarti KALKTI: akis takip
+          //    kapaliyken de kendini onarmali.
+          if (mounted && _konumAkisi == null) _akisiBagla();
         });
       },
     );
@@ -4933,7 +4968,11 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
   ///    yaymaz (fail-soft) ve yon GPS gidis yonune duser; o da yoksa
   ///    yon oku HIC cizilmez.
   void _pusulayiBagla() {
-    _pusulaAkisi?.cancel();
+    // ⚠️⚠️ TURU 159 — **CIFT ABONELIK KAPISI** (`_akisiBagla` ile ayni desen).
+    //	Pusula artik ekran acilisinda baglaniyor; `_takipBaslat` de onu
+    //	cagirdigi icin eski `cancel()` + yeniden abone ol davranisi
+    //	aboneligi GEREKSIZ YERE yikip kuruyordu (arada yon kaybi).
+    if (_pusulaAkisi != null) return;
     _pusulaAkisi = PusulaServisi.i.akis().listen(
       (d) {
         if (!mounted) return;
@@ -4972,13 +5011,18 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
     _sonBacak = elle ? null : _takip?.bacak;
     _bekleTik?.cancel();
     _bekleTik = null;
-    _konumAkisi?.cancel();
-    _konumAkisi = null;
-    // ⚠️ TURU 155 — pusula da birakilir; yoksa sensor takip bittikten
-    //    sonra da acik kalir ve pil yakar.
-    _pusulaAkisi?.cancel();
-    _pusulaAkisi = null;
-    _pusulaVerdi = false;
+    // ⚠️⚠️⚠️ TURU 159 - **AKIS KAPATILMAZ** (bkz. `rotaSec` serhi).
+    //	"Bitir"e basan kullanici navigasyonu bitiriyor, KONUM
+    //	GOSTERGESINI degil. Eskiden burada akis olduruluyordu ve
+    //	isaret bir daha HIC hareket etmiyordu.
+    // ⚠️ Pil: akis ekran omru boyunca yasar, uygulama omru degil
+    //    (`dispose` kapatir). Google Maps de harita ekranindayken
+    //    konumu canli izler.
+    // ⚠️⚠️ TURU 159 — **PUSULA DA KAPATILMAZ.** Turu 155'in gerekcesi
+    //	(*"sensor takip bittikten sonra acik kalir ve pil yakar"*) o gun
+    //	dogruydu: pusula YALNIZ takipte aciliyordu. Artik ekran omru
+    //	boyunca yasiyor ve `dispose` birakiyor — kapatilsaydi "Bitir"den
+    //	sonra YON OKU donar, kullanicinin sikayeti yariya kadar surerdi.
     if (!mounted) return;
     setState(() {
       _takip = null;
@@ -5080,13 +5124,8 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
 
   /// Durak modundan cikar.
   void _durakKapat() {
-    // ⚠️ Takip acik kalirsa GPS akisi durak modundan CIKTIKTAN
-    //    sonra da surer.
-    _konumAkisi?.cancel();
-    _konumAkisi = null;
-    _pusulaAkisi?.cancel();
-    _pusulaAkisi = null;
-    _pusulaVerdi = false;
+    // ⚠️⚠️ TURU 159 - akis ve pusula KAPATILMAZ (bkz. `rotaSec` serhi).
+    //	Durak modundan cikmak konum gostergesini oldurmemeli.
     // ⚠️ TURU 158 - nesil artar: ucustaki `_durakAc` sonucunu
     //    EKRANA YAZAMAZ (bkz. `_durakNesli` serhi).
     _durakNesli++;
@@ -5339,10 +5378,16 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
       context,
       adaylar: adaylar,
       rotaSec: (a) {
-        // ⚠️ Yeni rota secildiginde eski takip GECERSIZ: bacak
-        //    indeksleri baska bir rotaya aitti.
-        _konumAkisi?.cancel();
-        _konumAkisi = null;
+        // ⚠️⚠️⚠️ TURU 159 - **KONUM AKISI ARTIK KAPATILMAZ.**
+        //
+        //	Kullanici: *"rota olusturduktan sonra ya da iptal
+        //	ettigimde HAREKET ETMIYOR, navigasyon hareket etmiyor"*.
+        //	Kok neden buydu: rota SECILIR SECILMEZ akis kapaniyor,
+        //	kullanici "Basla"ya basana kadar konum isareti DONUYORDU.
+        //	Eski gerekce ("yeni rota, eski takip gecersiz") DOGRU ama
+        //	cozum YANLIS yerdeydi: gecersiz olan TAKIP DURUMU,
+        //	konum akisi degil. Akis artik ekran omru boyunca yasar.
+        _takip = null;
         // ⚠️ TURU 157 - taksi onerisi rota ile BIRLIKTE tazelenir;
         //    eski rotanin onerisi yeni rotada asili kalmasin.
         unawaited(_taksiOner(a));
@@ -7200,17 +7245,59 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
 ///
 /// ⚠️ Ayri widget: `const` olabilmesi icin. Ic ice `Container` ile
 ///    yazilsaydi her karede yeniden kurulurdu.
+/// ⚠️⚠️⚠️ TURU 159 - **HARITA SECICI ISARETI** (kullanici emri:
+///	*"beyaz bir daire altinda cizgi olan bir isaretleme ikonu olsun,
+///	ornegin 30x30 daire 3px, altinda 2px cizgi 10px uzunlugunda"*).
+///
+/// ⚠️⚠️ **DAIRE ICI BOS, KENARLIK BEYAZ**: secilen nokta dairenin TAM
+///	MERKEZI ve altindaki cizginin UCU. Ici dolu olsaydi kullanici
+///	tam hangi noktayi sectigini GOREMEZDI (eski hal 8 dp dolu
+///	kirmizi noktaydi ve altindaki zemini tamamen kapatiyordu).
+///
+/// ⚠️⚠️ **KOYU KONTUR ZORUNLU**: harita zemini HER RENKTE olabilir
+///	(acik bina blogu, beyaz yol, kar). Saf beyaz bir isaret acik
+///	zeminde KAYBOLUR. Bu yuzden hem daireye hem cizgiye ince koyu
+///	golge/kontur veriliyor — turu 138deki "halka BEYAZ KALDI"
+///	kararinin ayni gerekcesi.
+///
+/// ⚠️ Olculer kullanicinin verdigi degerler: daire 30x30, kenarlik 3,
+///    cizgi 2x10. `const` sabitler yerine dogrudan yazildi cunku bu
+///    isaret TEK YERDE cizilir.
 class _MerkezNoktasi extends StatelessWidget {
   const _MerkezNoktasi();
 
   @override
-  Widget build(BuildContext context) => Container(
-        width: 8,
-        height: 8,
-        decoration: const BoxDecoration(
-          shape: BoxShape.circle,
-          color: Color(0xFFFF5E5E),
-        ),
+  Widget build(BuildContext context) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 3),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.35),
+                  blurRadius: 4,
+                ),
+              ],
+            ),
+          ),
+          Container(
+            width: 2,
+            height: 10,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.35),
+                  blurRadius: 3,
+                ),
+              ],
+            ),
+          ),
+        ],
       );
 }
 
@@ -8323,19 +8410,14 @@ class _HaritaAlaniState extends State<_HaritaAlani> {
               const IgnorePointer(
                 child: Center(
                   child: Padding(
-                    // Pinin UCU merkeze gelsin diye govde yukari kaydirilir.
-                    padding: EdgeInsets.only(bottom: 44),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(LucideIcons.mapPin,
-                            size: 44, color: Color(0xFFFF5E5E)),
-                        // Golge yerine kucuk bir nokta: kullanici tam
-                        // hangi noktanin secildigini gorur.
-                        SizedBox(height: 2),
-                        _MerkezNoktasi(),
-                      ],
-                    ),
+                    // ⚠️⚠️ TURU 159 - **SECILEN NOKTA CIZGININ UCU.**
+                    //	Isaret 40 dp yuksekliginde (30 daire + 10 cizgi);
+                    //	ortalanirsa merkeze DAIRENIN ORTASI gelir ve
+                    //	kullanici 20 dp yukaridaki bir noktayi secmis olur.
+                    //	Govde tam o kadar yukari kaydirilir ki cizginin
+                    //	ALT UCU ekran merkezine otursun.
+                    padding: EdgeInsets.only(bottom: 40),
+                    child: _MerkezNoktasi(),
                   ),
                 ),
               ),

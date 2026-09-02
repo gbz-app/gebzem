@@ -9,6 +9,7 @@ import 'package:permission_handler/permission_handler.dart';
 import '../../core/tercihler.dart';
 import '../calls/callkit_service.dart';
 import 'permissions_screen.dart' show izinSorulduIsaretle;
+import '../medya/konum_servisi.dart';
 
 /// ⚠️⚠️⚠️ TURU 127 — **ONBOARDING BASTAN YAZILDI (KULLANICI EMRI).**
 ///
@@ -191,7 +192,12 @@ class _OnboardingEkraniState extends ConsumerState<OnboardingEkrani> {
       // ⚠️ `locationWhenInUse`: uygulama kullanilirken. Arka plan konumu
       //    ISTENMEZ — magaza incelemesinde gerekce sorulur ve boyle bir
       //    ozelligimiz YOK.
-      await Permission.locationWhenInUse.request();
+      // ⚠️⚠️⚠️ TURU 159 - **TEK KAPIDAN** (`KonumServisi.konumIzni`).
+      //	Burasi dogrudan `request()` cagiriyordu ve `konum_servisi`
+      //	icindeki serh bunu ACIKCA yasakliyordu. Sonuc: onboardingde
+      //	"Bir Kez Izin Ver" secen kullaniciya harita acilir acilmaz
+      //	IKINCI bir diyalog cikiyordu (kullanici sahada gordu).
+      await KonumServisi.konumIzni();
     } catch (_) {}
     // ⚠️⚠️ EN SON: bu cagri sistem AYARLAR ekranini acar ve Activity duraklar.
     try {
