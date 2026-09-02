@@ -831,6 +831,27 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
   ///    gorunurdu.
   bool _durakYukleniyor = false;
 
+  /// ⚠️⚠️⚠️ TURU 158 - **DURAK MODU NESLI (bayatlik kapisi).**
+  ///
+  ///	Kullanici: *"rota iptalinden sonra EKRAN DONDURME gidiyor"* +
+  ///	*"surekli alttan hata aliyorum"*.
+  ///
+  /// ⚠️⚠️ **KOK NEDEN:** `_durakAc` konum icin **12 saniyeye kadar**
+  ///	bekliyor (`konumAl` `timeLimit: 12`). O sirada kullanici X ile
+  ///	cikarsa (`_durakKapat`) bayraklar temizleniyor, AMA ucustaki
+  ///	`_durakAc` sonradan tamamlanip:
+  ///	  · basari dalinda `_durakModu = true` yazarak ekrani
+  ///	    **KENDILIGINDEN GERI ACIYOR** (kullanici "dondu" diyor),
+  ///	  · hata dalinda *"konum izni gerekiyor"* seridini
+  ///	    **SEBEPSIZ YERE** gosteriyordu.
+  ///
+  /// ⚠️ Turu 157 denetiminde bu iddia "curuk" sayilmisti; curutme
+  ///    YALNIZ `_durakModu`nun await ONCESI acildigini gosteriyordu ve
+  ///    **IPTAL YOLUNU** hic degerlendirmemisti.
+  /// ⚠️⚠️ Sayac moddan CIKAN her yolda artar; `_durakAc` her await
+  ///	sonrasi kendi neslini dogrular.
+  int _durakNesli = 0;
+
   /// Durak basina hat listesi (kart uzerinde "563 · 4 dk" icin).
   /// ⚠️ Onbelleklenir: 30 kart icin her cizimde yeniden cozmek 1,7 MB'lik
   ///    tabloyu kart basina taramak demekti.
@@ -4526,6 +4547,8 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
     //	alt dolgusu ve yuzen serit KAYARDI). Ustelik GPS akisi
     //	sahipsiz surerdi.
     if (_takip != null) _takipDurdur();
+    // ⚠️ TURU 158 - bu cagrinin nesli (bkz. `_durakNesli` serhi).
+    final nesil = ++_durakNesli;
     var k = _konum;
     if (k == null) {
       // ── 1) KONUMU BEKLE ──
@@ -4543,7 +4566,7 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
         _durakYukleniyor = true;
       });
       k = await KonumServisi.konumAl(sessiz: true);
-      if (!mounted) return;
+      if (!mounted || nesil != _durakNesli) return;
       if (k != null) _konum = k;
     }
     // ── 2) YINE YOKSA: SEBEBI SOYLE ──
@@ -4555,6 +4578,9 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
     //	diyip baska bir sehirdeki kullaniciya Gebze duraklarini
     //	gosterirdi (turu 140'ta ayni sinif SAHAYA CIKTI).
     if (k == null) {
+      // ⚠️ TURU 158 - kullanici COKTAN cikmissa SUSMAK gerekir;
+      //    yoksa iptalden saniyeler sonra sebepsiz bir uyari cikardi.
+      if (nesil != _durakNesli) return;
       // ⚠️⚠️ Moddan da CIKILIR: konum gelmediyse durak modunda
       //	BOS bir panelde kilitli kalmak, hic girmemekten kotudur
       //	(cip seridi ve arama o modda GIZLI).
@@ -4572,7 +4598,7 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
     final kn = k;
     final yakin = await UlasimVeri.i.yakinDuraklar(kn.enlem, kn.boylam,
         adet: 25, yaricapM: 2000);
-    if (!mounted) return;
+    if (!mounted || nesil != _durakNesli) return;
     setState(() {
       _durakYukleniyor = false;
       _durakModu = true;
@@ -4871,6 +4897,9 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
     _pusulaAkisi?.cancel();
     _pusulaAkisi = null;
     _pusulaVerdi = false;
+    // ⚠️ TURU 158 - nesil artar: ucustaki `_durakAc` sonucunu
+    //    EKRANA YAZAMAZ (bkz. `_durakNesli` serhi).
+    _durakNesli++;
     setState(() {
       _takip = null;
       _durakModu = false;

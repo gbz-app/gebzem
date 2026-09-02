@@ -395,7 +395,29 @@ class AdresServisi {
   ///    Sunucu bu uyari metnini yanitta donduruyor.
   ///
   /// ⚠️ Onbellek: ayni bacak her cizimde yeniden faturalanmasin.
-  Future<List<({double enlem, double boylam})>?> yayaRotasi(
+  /// ⚠️⚠️⚠️ TURU 158 - **MESAFE VE SURE DE DONER.**
+  ///
+  ///	Kullanici sahada gordu: rota OZETI *"...duragina yuru **5 dk**"*
+  ///	derken adim ekrani AYNI BACAK icin *"**9 dk · 677 m** kaldi"*
+  ///	diyordu. Kullanici: *"hesaplamalar duzgun yapilmali, mesafe
+  ///	rota hesaplamalari"*.
+  ///
+  /// ⚠️⚠️ **KOK NEDEN:** bu fonksiyon sunucunun donen `mesafe_m` ve
+  ///	`sure_sn` alanlarini **ATIYORDU** (yalniz `noktalar` okunuyordu).
+  ///	Bacagin `dakika`/`metre`si KUS UCUSU tahmininde kaliyor, ama
+  ///	takip ekrani kalan mesafeyi GERCEK polyline'dan olcuyordu -
+  ///	yani ayni bacak icin ekranda IKI FARKLI sayi.
+  ///	Ekrandan olculdu: gercek/kus-ucusu orani **~1,74**.
+  /// ⚠️ Sunucu bu alanlari ZATEN donduruyor (`yolbul/handler.go`),
+  ///    yani duzeltme TAMAMEN ISTEMCIDE - backend'e dokunulmadi.
+  /// ⚠️ Alanlar gelmezse `null` kalir ve cagiran KUS UCUSU tahminini
+  ///    korur; ozellik eski davranisina duser, COKMEZ.
+  Future<
+      ({
+        List<({double enlem, double boylam})> noktalar,
+        int? mesafeM,
+        int? sureSn,
+      })?> yayaRotasi(
     double basEnlem,
     double basBoylam,
     double varEnlem,
@@ -429,14 +451,25 @@ class AdresServisi {
             ),
       ];
       if (nk.length < 2) return null;
-      _yayaOnbellek[ck] = nk;
-      return nk;
+      final sonuc = (
+        noktalar: nk,
+        mesafeM: (y.data?['mesafe_m'] as num?)?.round(),
+        sureSn: (y.data?['sure_sn'] as num?)?.round(),
+      );
+      _yayaOnbellek[ck] = sonuc;
+      return sonuc;
     } catch (_) {
       return null;
     }
   }
 
-  final Map<String, List<({double enlem, double boylam})>> _yayaOnbellek = {};
+  final Map<
+      String,
+      ({
+        List<({double enlem, double boylam})> noktalar,
+        int? mesafeM,
+        int? sureSn,
+      })> _yayaOnbellek = {};
 
   Future<List<Location>> _konumlar(String adres) async {
     try {

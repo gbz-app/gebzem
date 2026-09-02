@@ -230,6 +230,16 @@ const double kYayaHizi = 1.3;
 
 int _yurumeDakikasi(double metre) => (metre / kYayaHizi / 60).ceil();
 
+/// Bir polyline uzunlugu (metre) - sunucu `mesafe_m` vermezse yedek.
+double _yolUzunlugu(List<({double enlem, double boylam})> yol) {
+  var t = 0.0;
+  for (var i = 0; i < yol.length - 1; i++) {
+    t += UlasimVeri.kabaMetre(
+        yol[i].enlem, yol[i].boylam, yol[i + 1].enlem, yol[i + 1].boylam);
+  }
+  return t;
+}
+
 /// ⚠️ Bir noktanin polyline uzerindeki EN YAKIN segment indeksi.
 ///
 /// ⚠️⚠️ **METRIK DUZLEME GECILIR**: ham derece ile Gebze enleminde (40,8°)
@@ -984,22 +994,38 @@ Future<void> _yurumeleriZenginlestir(
         //	baslatilamadiginda ya da beklenmedik bir yanit bicimide olur.
         // ⚠️ Bu projenin en sik hata sinifi: serhin anlattigi kontrolun
         //    govdede GERCEKTEN olup olmadigini dogrula.
-        List<({double enlem, double boylam})>? yol;
+        ({
+          List<({double enlem, double boylam})> noktalar,
+          int? mesafeM,
+          int? sureSn,
+        })? yanit;
         try {
-          yol = await AdresServisi.i.yayaRotasi(
+          yanit = await AdresServisi.i.yayaRotasi(
               bas.enlem, bas.boylam, var_.enlem, var_.boylam);
         } catch (_) {
           return; // bacak DOKUNULMADAN kalir: kus ucusu duz cizgi
         }
-        if (yol == null || yol.length < 2) return;
+        if (yanit == null || yanit.noktalar.length < 2) return;
+        final yol = yanit.noktalar;
+        // ⚠️⚠️⚠️ TURU 158 - **MESAFE VE SURE DE GUNCELLENIR.**
+        //	Onceden yalniz `noktalar` degistiriliyor, `metre`/`dakika`
+        //	ise `b.metre`/`b.dakika` ile KUS UCUSU degerinden
+        //	kopyalaniyordu. Sonuc: ozet "5 dk" derken adim ekrani
+        //	"9 dk · 677 m" diyordu (ekrandan olculen oran ~1,74).
+        // ⚠️ Sunucu vermezse polyline uzunlugundan hesaplanir - yine
+        //    de KUS UCUSUNDAN dogru.
+        final gercekM = (yanit.mesafeM ?? _yolUzunlugu(yol)).toDouble();
+        final gercekDk = yanit.sureSn != null
+            ? math.max(1, (yanit.sureSn! / 60).ceil())
+            : _yurumeDakikasi(gercekM);
         a.bacaklar[sira] = RotaBacagi(
           tur: b.tur,
           noktalar: _uclariBagla(yol, bas, var_),
-          dakika: b.dakika,
+          dakika: gercekDk,
           baslik: b.baslik,
           altBaslik: b.altBaslik,
           hat: b.hat,
-          metre: b.metre,
+          metre: gercekM,
           // ⚠️⚠️ TURU 156 — YENI ALANLAR DA KOPYALANMALI. Unutulsaydi
           //	yaya rotasi ZENGINLESTIRILEN bacaklarda (yani tam da
           //	kullanicinin gordugu yurume adimlarinda) eylem/yer BOS
