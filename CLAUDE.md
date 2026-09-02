@@ -41,6 +41,193 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
       kaybettiriyorsun"*. **Üçüncüsü olmayacak.**
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (2 Eyl): TURU 157 KODU BITTI — BUILD ALINMADI.**
+  ⚠️ Kullaniciya SORULACAK (kural 0). analyze **0 hata 0 uyari** ·
+  test **77/77** · emulatorde (360 dp x 1.3) tasma **0**.
+  ⚠️⚠️ **BACKEND DEGISMEDI** -> deploy YOK, migration YOK, e2e YOK.
+
+- ⚠️⚠️⚠️ **TURU 157 — "KOPMA" NORMAL DEGILDI, KOKU CIZIM KODUYDU.**
+  Kullanici: *"bazen boyle KOPMALAR yasanabiliyor bu normal mi"*.
+  `_cizgiler` her karede `takip.yapistir(...)`i **ADSIZ** cagiriyordu, yani
+  `basSegment: 0, pencere: 40`. Kardes `ilerlet` ise `basSegment:
+  onceki.segment` geciyor. **OLCULDU: 202 GTFS sekli min 74 / medyan 314 /
+  maks 924 nokta — HEPSI 40'i asiyor.** 40. segment gecilince cizim dogru
+  segmenti arama penceresinde BULAMIYOR. Sekil 414301 (hat 430) sapmasi:
+  segment 45 -> **877 m**, 150 -> **3.145 m**, 250 -> **4.581 m**.
+  FIX: cizim IKINCI ARAMA YAPMAZ, `TakipDurumu`daki segment+izdusumu OKUR
+  (`kalanYolNoktadan`).
+  ⚠️⚠️ YAPMA: cizim tarafina `pencere: yol.length` kolu koyma — o
+     pencere GPS MONOTONLUGU icin; acilirsa ilmekli hatlarda cizgi GERIYE
+     SICRAR. YAPMA: iki dogruluk kaynagi birakma (yine ayrisirlar).
+
+- ⚠️⚠️ **TURU 157 — PUCK ARTIK CIZGIYE YAPISTIRILIYOR** (Google/Yandex/
+  Mapbox deseni). Ikinci bosluk buydu: cizgi izdusumden basliyor, puck HAM
+  GPS'te kaliyordu; fark 60 m'ye kadar hos goruluyor = zoom 17'de **66 dp**.
+  ⚠️⚠️ `rotaDisi` KAPISI ZORUNLU: o dalda `ilerlet` izdusumu ONCEKI
+     durumdan tasiyor; kapisiz yapistirma rotadan cikmis kullaniciyi BAYAT
+     bir noktada DONMUS gosterirdi — bosluktan DAHA KOTU.
+  ⚠️ `_konum`un KENDISI degismez (yakin durak sorgulari ham GPS'te).
+
+- ⚠️⚠️ **TURU 157 — IZIN YARISI: ANDROID AYNI ANDA TEK DIYALOG KABUL EDER.**
+  `locationWhenInUse.request()` UC yerden cagriliyordu (onboarding ·
+  `konumAl` · `konumAkisi`); ikinci istek diyalog gostermeden **SENKRON BOS
+  SONUCLA** duser ve `isGranted` **false** doner. Ekran acilisi ile "Başla"
+  yarisinca takip **daha baslamadan** *"konum izni gerekiyor"* deyip
+  kapaniyordu — kullanici izni AZ ONCE VERMIS OLSA BILE.
+  FIX: **`KonumServisi.konumIzni()` TEK KAPI** (ucustaki istek PAYLASILIR).
+  ⚠️ Turu 85c CallKit izin carpismasinin BIREBIR tekrari.
+  ⚠️ YAPMA: `request()`i cagri yerlerine geri dagitma.
+
+- ⚠️⚠️ **TURU 157 — DURAK KISAYOLU %100 OLUYDU** (*"anasayfada duraga
+  tikladigimda duraklar gelmiyor"*). `initState -> addPostFrameCallback ->
+  `_durakAc()` **ILK KAREDE** kosuyor; `_konum` HENUZ null ve metot mesaj
+  basip CIKIYORDU. Artik konumu BEKLIYOR (+cark).
+  ⚠️ Turu 150'deki *"Nereye dugmesi hicbir sey yapmiyordu"* hatasinin
+     AYNISI — o gun `_rotaPlanla` duzeltilmis, **`_durakAc` ATLANMISTI**.
+  ⚠️ Harita merkezi yedegi BILEREK konmadi; sabit Gebze koordinati
+     baska sehirdeki kullaniciya YANLIS liste gosterirdi (turu 140).
+
+- ⚠️⚠️⚠️ **TURU 157 — `w800` EKRANDA HICBIR SEY YAPMIYOR.**
+  `pubspec.yaml` Google Sans icin yalniz **400/500/600/700** yuzunu
+  kaydediyor; Flutter w800'i sessizce **700**'e duşurur. Yani "kalinlik
+  hiyerarsisi" diye yazilan sey FIILEN YOKTU.
+  ⚠️ YAPMA: w800/w900 yazma — once fontu pubspec'e ekle.
+
+- ⚠️⚠️⚠️ **TURU 157 — `SizedBox(height: N)` DOKUNMA HEDEFINI KIRPAR.**
+  Adim karti dugmelerinin gercek render kutusu UC OLCEKTE DE **148x34 dp**
+  cikti (Material 48'in %71'i). SDK koku: `ButtonStyleButton` govdeyi
+  `_InputPadding` ile 48'e cikarmak ister ama `_RenderInputPadding
+  ._computeSize` sonda `constraints.constrain(...)` cagirir; disaridaki
+  TIGHT dikey kisit 48'i **34'e KIRPAR** — `tapTargetSize: padded` FIILEN
+  ETKISIZ. Dugme boyu artik `kAdimDugmeBoy` (>=48, olcekle buyur).
+  ⚠️⚠️ **`FittedBox` DUGMENIN TAMAMINI SARMAMALI**: "Merkeze dön"
+     VARSAYILAN olcekte bile **0,708 kat** kuculup punto **9,2 dp** oluyordu
+     ve kullanici yaziyi BUYUTTUKCE dugme KUCULUYORDU. Yalniz ETIKETI sar.
+
+- ⚠️⚠️⚠️ **TURU 157 — `Color.lerp` ALFAYI DA KARISTIRIR.**
+  Ilerleme cubugundaki *"acik yesil"*in koku: soluklastirma hedefi
+  `onSurface.withValues(alpha: 0.16)` — yani **%16 SAYDAM**. Sonuc alfa
+  lerp(1.00, 0.16, 0.45) = **0,62** ve renk beyaza dogru %45 -> pastel.
+  Hemen ustundeki serh *"Alfa yerine notr griye KARISTIRMA"* diyordu ama
+  **HEDEF RENGIN KENDISI SAYDAMDI**.
+  ⚠️ YAPMA: `Color.lerp` hedefine saydam renk verme; OPAK zemin ver.
+
+- ⚠️⚠️ **TURU 157 — CUBUK DILIMLERI: ESIT/ORANTILI KARISIMI (0,45/0,55).**
+  Ham sure oraniyla [1,24,38,4] dagiliminda en dar dilim **3,6 dp** idi
+  (tek kesik bile sigmiyor). Karisimin toplami **tam 1** oldugu icin
+  yinelemeli kirpma ve sinir durumu YOK; siralama KORUNUR.
+  ⚠️⚠️ AYNI liste HEM cizime HEM IMLECE gider (`_CubukCizer` serhi).
+  ⚠️ DURUST SINIR: cubuk artik sureyle DOGRUSAL DEGIL; gercek sure
+     cubugun HEMEN USTUNDE yaziyor.
+  ⚠️ **BEKLEME kendi rengini aldi** (arduvaz): 24 dk bekleme 1 dk
+     yurumeyle BIREBIR ayni dilde ciziliyordu.
+
+- ⚠️⚠️ **TURU 157 — BEKLEME KARTINDA DURAK ADI IKI KEZ YAZIYORDU** ve bu
+  RASTLANTI DEGILDI: `ilerlet` bos bacaklari (bekleme) HER ZAMAN atladigi
+  icin `d.bacak` HICBIR ZAMAN bekleme bacagini gostermez -> `bu` daima
+  false -> bu, o kartin **TEK davranisiydi**. Ucuncu satir artik HAT KIMLIGI.
+  ⚠️ `rota_bul.dart`taki `altBaslik` DEGISTIRILMEDI (iki tuketicisi var).
+
+- 📏 **TURU 157 — DURAK ADI KOSULLU IKI SATIR** (esik yazi olcegi **1.4**).
+  OLCULDU (2032 ad, Google Sans 17, sutun ~229 dp): tek satirda kirpilan
+  oran **%12,5 / %35,0 / %79,9**; iki satirda **%0,4 / %3,3 / %27,6**.
+  ⚠️⚠️ KOSULSUZ ACILAMAZ: olcek 2.0'da 640 dp ekranda panel 463 dp'ye
+     cikip haritaya yalniz **177 dp (%28)** birakiyordu.
+  ⚠️ `_adimKartBoy` AYNI esigi okur (`kAdimIkiSatirEsigi`).
+  ⚠️ "i/N" sayaci metnin sagindan IKON SUTUNUNA tasindi (metne SIFIR
+     maliyet); KALDIRILMADI cunku `PageView` kaydirilabilir.
+
+- 🔀 ⚠️⚠️⚠️ **TURU 157 — AKTARMALI ROTA** (kullanici emri).
+  **OLCULDU (200 cift):** aktarmasiz motor **%39,5** cozuyordu ve mesafeyle
+  COKUYORDU — 0-3 km %61 · 6-10 km %27 · 10-15 km %24 · **15 km+ %8**.
+  **GERCEK KODDA OLCULDU (59 cift):** cozulen **%96,6** · 15 km+ **4/4** ·
+  sure medyan **9 ms** / ort 24 / p95 92 / **maks 103 ms** · yapi 7 bacak,
+  iki AYRI hat (440 -> 423), guzergah dilimleri 94 ve 318 nokta.
+  ⚠️ Olcum MASAUSTU + JIT. **Gercek cihazda AOT ile TEKRAR OLCULMELI.**
+  **ALGORITMA OLCULEREK SECILDI:** (a) kaba kuvvet ~687k islem/sorgu ->
+  200 ms butcesine SIGMAZ · (b) hat-cifti kesisimi **HICBIR SEY ELEMIYOR**
+  (hat ciftlerinin **%72,4**'unde zaten ortak aktarma noktasi var) —
+  ⚠️ **bu secenegi bir daha arastirma** · (c) IKI TURLU (RAPTOR benzeri).
+  **YENI INDEKSLER** (tembel, servis basina, acilista KURULMAZ):
+  `hatDuraklari` · `durakHatIndeksi` · `komsuDuraklar` (IZGARA, 150 m).
+  ⚠️ Yaricap **150 m OLCULDU**: 250/400 m kapsamaya HICBIR SEY
+     EKLEMIYOR ama komsu cifti 3.880 -> 22.657. Aktarmalarin **%36'si AYNI
+     DURAKTA**; yuruyerek aktarmada medyan 1 dk, maks 2 dk.
+  ⚠️⚠️ **KOTA KORUNDU**: aktarma yurumesi icin Google Routes CAGRILMAZ;
+     bacak `noktalar`i BOS oldugu icin `_yurumeleriZenginlestir` ona HIC
+     ugramaz -> kota **6'da KALIR** (turu 152).
+  ⚠️⚠️ Siralama: tek liste + **8 dk AKTARMA CEZASI**. Ayri bolum YOK —
+     ciftlerin **%61'inde aktarmasiz cozum HIC YOK**, "Aktarmasız" basligi
+     cogu aramada BOS kalirdi. Tekilleme anahtari **HAT ZINCIRI**
+     (`hat.id` tek basina ilk hattin BUTUN aktarmalarini SESSIZCE elerdi).
+  ⚠️ Toplam sure tavani **150 dk**; **IKI AKTARMA YAPILMADI** (kazanc
+     en fazla ~%1, maliyet katlaniyor).
+
+- ⚠️⚠️⚠️ **TURU 157 — SEFER SUTUNU `min(a.length, b.length)` GIZLI BIR
+  VARSAYIMDI.** Iki duragin kalkis listelerinin **INDEKS INDEKS ayni seferi**
+  gosterdigini varsayiyordu. **OLCULDU: 200 hat-yonun 8'i saglamiyor** ve
+  fark TAM 2 KAT (ilmekli hatta ayni durak ayni seferde IKI KEZ geciliyor).
+  Aktarmada IKI otobus bacagi oldugu icin maruziyet IKIYE KATLANIRDI.
+  Artik uzunluklar ESIT DEGILSE cift **ATLANIR** (`_seferBul` TEK KAYNAK).
+
+- ⚠️⚠️⚠️ **TURU 157 — `_yurumeleriZenginlestir` TRY/CATCH'SIZDI.**
+  Serhi *"ozellik COKMEZ, yalnizca kabalasir"* diyordu ama govdede koruma
+  YOKTU: `AdresServisi.i` firlatinca hata `Future.wait`e, oradan `rotaAra`ya
+  cikip **TUM ARAMAYI dusuruyordu** — kullanici kabalasmis degil **HIC**
+  sonuc gormuyordu. Olcum testinde yakalandi.
+  ⚠️ **DERS (kacinci kez): serhin anlattigi kontrolun GOVDEDE gercekten
+     olup olmadigini DOGRULA.**
+
+- 🎨 **TURU 157 — AKTARMA ARAYUZU:** `_rotaOzeti`deki **`.take(4)` KALDIRILDI**
+  (aktarmali rota **6 bacak %36 / 7 bacak %64**; son UC bacak SESSIZCE
+  cizilmiyordu) · ozet basliginda HER otobus bacaginin rozeti + ok ·
+  **IKINCI otobus bacagi TURKUAZ** (`#37B6C4`).
+  ⚠️⚠️ Hattin KENDI rengi kullanilmadi — turu 156 gerekcesi (GTFS
+     renkleri birbirine yakin camgobegi) AYNEN gecerli. Harita · cubuk ·
+     adim karti ikonu AYNI ayrimi yapar (`_bacakRenkleri` TEK KAYNAK).
+  ⚠️ `_rotaOzetBoy` bacak sayisindan TURETILIR (eskiden `4 * 15` SABIT).
+
+- 🌤️ **TURU 157 — HAVA DUGMESI ("-" altinda) + 🚕 TAKSI KARTI.**
+  ⚠️⚠️ Hava **ORNEK** ve deger DUGMEDE YAZMAZ: haritada isaretsiz ciplak
+     bir "24°" menudeki seritten DAHA TEHLIKELI (harita katmani gibi okunur).
+     51 dp kare kutuya "Örnek" SIGMAZ -> YALNIZ IKON, durustluk cumlesi
+     SHEET'te; `kHavaDovizOnizleme` kapisinda.
+  ⚠️⚠️ **CAKISMA KAPISI** (`_panelBoy` tabanli): dugme sutunu UST-CAPALI
+     ve panelin ALTINDA cizilir; dorduncu dugmenin alt kenari 266 dp,
+     360x640'ta panel ust kenari 249 dp -> **17 dp ortusme** (jest
+     gezinmede ~41 dp) ve orasi hem gorunmez hem DOKUNULAMAZ olurdu.
+  ⚠️⚠️ **TAKSIDE TELEFON NUMARASI VERIDE YOK** (53/53 olculdu) -> kart
+     *"Taksi cagir"* DEMEZ, **"Yakındaki taksi durağı"** der, "Ara" CIZILMEZ.
+  ⚠️ `yakinTaksiler` YARICAP ELEMIYOR -> **5 km kapisi ZORUNLU**, yoksa
+     "yakininda taksi var" YALANI uretir.
+  ⚠️ Olcut TOPLAM yurume (rotada TANIM GEREGI iki yurume bacagi var).
+  ⏳ DURUST SINIR: `metre` KUS UCUSU -> 2 km esigi gercekte ~2,4-2,8 km'de
+     tetikler (GEC, guvenli taraf).
+
+- ⚠️⚠️⚠️ **TURU 157 — SUREC: BU REPODA `dart format` KOSTURMA.**
+  Yamalardan sonra `dart format --line-length 80` kosuldu ve diff **3346
+  satira** cikti. OLCULDU: **HEAD ZATEN format-temiz DEGIL** (bozulmamis
+  HEAD dosyasi formatlaninca **2769 satir** degisiyor). Dosya `git checkout`
+  ile geri alinip yamalar formatlanmadan tekrar oynatildi -> diff **696/103**.
+  ⚠️ Tek dosyayi formatlamak incelenemez bir diff uretir.
+
+- ⏳ **TURU 157 — DURUST SINIRLAR (devir):**
+  · **Adim karti ve rota ozeti EMULATORDE GORULEMEDI** (o ekranlar GPS fix'i
+    ve secili rota istiyor; emulatore fix HIC gelmiyor). Tasma 0 olcumu
+    YALNIZCA ulasilabilen ekranlar icin gecerli.
+  · **Yurume ucu ile durak arasindaki boslugun KESIN koku KANITLANMADI.**
+    Geometri saglam olculdu (azami ~5 m). En guclu aciklama: veride
+    **20,3 m arayla AYNI ADLI IKI durak** var ve cevredeki 25 durak takipte
+    ekranda kalip binis duragiyla AYNI mavi pinle ciziliyor. Gercek cihazda
+    bosluk hala goruluyorsa sebep BASKA yerdedir.
+  · Aktarma suresi **masaustu + JIT**; cihazda AOT ile tekrar olculmeli.
+  · **Yurume mesafesi/suresi HALA kus ucusu**: sunucu `mesafe_m`/`sure_sn`
+    donduruyor, istemci yalniz `noktalar`i okuyup ATIYOR (turu 155'ten devir).
+  · Hava durumu GERCEK DEGIL (tablo/uc/anahtar YOK) — AYRI IS.
+  · **Menudeki "Taksi" kisayolu HALA `kategori: 'hizmet'` aciyor** (gercek
+    duraklari degil). Turu 150'de "Durak" icin duzeltilen ayni hata.
+  · Olcek 2.0'da durak adlarinin ~%67'si kirpilmaya DEVAM eder.
+  · Kalan ~%1,5 rota cozulmez; ciftlerin ~%5,5'inde 800 m icinde HIC durak yok.
 - **KALDIGIMIZ YER (2 Eyl 11:01): TURU 156 YAYINLANDI — SADECE iOS.**
   ios **33605554396** (**dd1bdf3**), R2 ipa=30154150 (md5 1dac6c94)
   index=7967 (md5 fd1aa734) surum.json=45 (md5 75eb2f45),
