@@ -4440,7 +4440,19 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
     var k = _konum;
     if (k == null) {
       // ── 1) KONUMU BEKLE ──
-      setState(() => _durakYukleniyor = true);
+      // ⚠️⚠️⚠️ **`_durakModu` DA BURADA ACILIR — YOKSA CARK HIC
+      //	CIZILMEZDI.** `_altPanel` durak panelini YALNIZCA
+      //	`if (_durakModu) return _durakPaneli(...)` dalindan
+      //	cagiriyor; carkin kendisi o panelin ICINDE. Yalniz
+      //	`_durakYukleniyor` yazilsaydi bayrak true olur ama onu
+      //	CIZEN agac hic kurulmaz, kullanici 12 saniyeye kadar
+      //	HICBIR geri bildirim gormeden isletme panelinde
+      //	beklerdi - yani "yukleniyor" gostergesi OLU OLURDU.
+      //	(Bu projenin klasik "bayrak var, cizen yol yok" sinifi.)
+      setState(() {
+        _durakModu = true;
+        _durakYukleniyor = true;
+      });
       k = await KonumServisi.konumAl(sessiz: true);
       if (!mounted) return;
       if (k != null) _konum = k;
@@ -4454,7 +4466,15 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
     //	diyip baska bir sehirdeki kullaniciya Gebze duraklarini
     //	gosterirdi (turu 140'ta ayni sinif SAHAYA CIKTI).
     if (k == null) {
-      if (mounted) setState(() => _durakYukleniyor = false);
+      // ⚠️⚠️ Moddan da CIKILIR: konum gelmediyse durak modunda
+      //	BOS bir panelde kilitli kalmak, hic girmemekten kotudur
+      //	(cip seridi ve arama o modda GIZLI).
+      if (mounted) {
+        setState(() {
+          _durakYukleniyor = false;
+          _durakModu = false;
+        });
+      }
       _mesaj('Yakındaki durakları görebilmek için konum izni gerekiyor.');
       return;
     }
