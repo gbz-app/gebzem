@@ -45,7 +45,23 @@ class RotaBacagi {
     required this.altBaslik,
     this.hat,
     this.metre = 0,
+    this.eylem = '',
+    this.yer = '',
   });
+
+  /// ⚠️⚠️ TURU 156 — **EYLEM ve YER AYRI** (kullanici emri: adim karti
+  ///	Yandex duzenine gecti; orada ust satir KUCUK eylem
+  ///	("Durağa kadar yürüyün"), alt satir BUYUK yer adi
+  ///	("Güzeller Osb Giriş 2")).
+  ///
+  /// ⚠️⚠️ `baslik`/`altBaslik` **DOKUNULMADI**: iki tuketicileri daha
+  ///	var (rota ozet karti ve rota detay sheet'i). Yeni ALAN eklemek
+  ///	onlari BOZMAZ; `baslik`i parcalamak bozardi.
+  /// ⚠️ `baslik`i METINDEN AYIRMAK (orn. " durağına yürü" ekini kesmek)
+  ///    REDDEDILDI: 4. bacagin basligi "Varışa yürü" — icinde yer adi YOK,
+  ///    ve durak adlarinda da o ek gecebilir.
+  final String eylem;
+  final String yer;
 
   final BacakTuru tur;
 
@@ -220,6 +236,7 @@ Future<List<RotaAdayi>> rotaAra({
   int adet = 3,
   double yaricapM = 800,
   DateTime? an,
+  String varisAd = '',
 }) async {
   final servis = UlasimVeri.bugunServis(an);
   final suAn = UlasimVeri.suAnDakika(an);
@@ -308,6 +325,8 @@ Future<List<RotaAdayi>> rotaAra({
                 metre: oM,
                 baslik: '${o.ad} durağına yürü',
                 altBaslik: '${oM.round()} m · yaklaşık',
+                eylem: 'Durağa kadar yürüyün',
+                yer: o.ad,
               ),
               RotaBacagi(
                 tur: BacakTuru.bekle,
@@ -316,6 +335,8 @@ Future<List<RotaAdayi>> rotaAra({
                 baslik: '${UlasimVeri.saatMetni(binis)} kalkış',
                 altBaslik: o.ad,
                 hat: oh.hat,
+                eylem: '${UlasimVeri.saatMetni(binis)} kalkışını bekleyin',
+                yer: o.ad,
               ),
               RotaBacagi(
                 tur: BacakTuru.otobus,
@@ -324,6 +345,8 @@ Future<List<RotaAdayi>> rotaAra({
                 baslik: '${d.ad} durağında in',
                 altBaslik: oh.hat.yonBaslik[oh.yon] ?? oh.hat.uzunAd,
                 hat: oh.hat,
+                eylem: '${oh.hat.kisaAd} ile gidin, inin:',
+                yer: d.ad,
               ),
               RotaBacagi(
                 tur: BacakTuru.yuru,
@@ -335,6 +358,11 @@ Future<List<RotaAdayi>> rotaAra({
                 metre: dM,
                 baslik: 'Varışa yürü',
                 altBaslik: '${dM.round()} m · yaklaşık',
+                eylem: 'Varışa kadar yürüyün',
+                // ⚠️ Varis adi CAGIRANDAN gelir (`rotaAra(varisAd:)`);
+                //    `rotaAra` yalniz KOORDINAT aliyordu, ad ekranda vardi
+                //    ama fonksiyona GECMIYORDU. Bos ise 'Varış' yazilir.
+                yer: varisAd.isEmpty ? 'Varış' : varisAd,
               ),
             ],
           ));
@@ -400,6 +428,12 @@ Future<void> _yurumeleriZenginlestir(
           altBaslik: b.altBaslik,
           hat: b.hat,
           metre: b.metre,
+          // ⚠️⚠️ TURU 156 — YENI ALANLAR DA KOPYALANMALI. Unutulsaydi
+          //	yaya rotasi ZENGINLESTIRILEN bacaklarda (yani tam da
+          //	kullanicinin gordugu yurume adimlarinda) eylem/yer BOS
+          //	kalir ve adim karti SESSIZCE bosalirdi.
+          eylem: b.eylem,
+          yer: b.yer,
         );
       }());
     }
