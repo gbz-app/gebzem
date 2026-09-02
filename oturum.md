@@ -8906,3 +8906,157 @@ kanal adı doğrulamasıdır (turu 65b dersi).
   dizelerinin parçası. ⚠️ Kısa Swift dizeleriyle doğrulama YAPMA.
 - **backend DEĞİŞMEDİ** → deploy YOK, DB truncate YOK, e2e koşulmadı
 - ⚠️ APK alınmadı — R2'deki apk 21 Ağustos sürümünde
+
+---
+
+## Oturum — 2 Eylül 2026 (turu 156): ÇİZGİ KILIFI · YEŞİL OTOBÜS · ADIM EKRANI
+
+Kullanıcı yeni bir Yandex Navigator ekran görüntüsü gönderdi ve dört şey
+istedi (üçü uygulandı, biri fizibilite sorusuydu). 5 ajanlık workflow koşuldu
+(4 mercek + sentez); **sentez kendi turu-156 kodumda iki gerçek kusur buldu**.
+
+### 1) "yürüme adım shape ARKASINDA RENK var, BORDERLAR var"
+⚠️⚠️ **`google_maps_flutter`in `Polyline` sınıfında `strokeColor` YOKTUR**
+(paket kaynağından: yalnız `color`, `width`, `patterns`). Çerçeve ancak
+**iki polyline** ile olur: altta geniş+koyu kılıf, üstte dar+renkli çizgi.
+- **Kılıf DÜZ, üstteki KESİK**: böylece kesiklerin arası koyu bant olarak
+  görünür (referanstaki "koyu bant üzerinde akan çizgi"). Kılıf da kesik
+  olsaydı aralar HARİTA ZEMİNİ kalır ve "arkasında renk var" tarifi
+  karşılanmazdı.
+- ⚠️⚠️ **zIndex sırası kritik**: TÜM kılıflar TÜM çizgilerin ALTINDA
+  (kılıf 1/2, çizgi 3/4). Bacaklar durakta birleştiği için bir bacağın
+  kılıfı ötekinin ÇİZGİSİNİ örtebilirdi.
+
+### 2) "bu kesikler arası HALEN ÇOK BOŞLUKLU"
+⚠️⚠️⚠️ **"SIKLAŞTIRDIM" YANILGISI (denetim yakaladı).** İlk denemem
+18/10 → 9/5 idi: periyot 28 dp'den 14 dp'ye indi, yani **sıklık iki kat**
+arttı — ama **iki sayı da yarıya bölündüğü için oran 1,80'de AYNEN KALDI**.
+Kullanıcının tarifi ise ŞEKİLLE ilgili: *"dolu parça ile boşluk neredeyse
+eşit"*. FIX: **8/6 = 1,33**; periyot 14 dp'de kalıyor, sıklık kazanımı
+kaybolmuyor.
+⚠️ **DERS: dash ve gap'i AYNI oranda bölmek oranı DEĞİŞTİRMEZ.**
+
+### 3) "otobüs shape YEŞİL, hafif kapalı, hafif SİYAH BORDER, yolu tam
+### kavrasın TAŞMASIN"
+- Renk: hattın kendi rengi → **`kOtobusRengi` #2FA85C** (mat yeşil).
+  ⚠️ Hat kimliği kaybolmadı: rozet hâlâ hattın KENDİ renginde. Gebze GTFS
+  renklerinin çoğu birbirine yakın camgöbeği; koyu zeminde hangi bacağın
+  otobüs olduğu ayırt edilemiyordu.
+- ⚠️⚠️ **AYAK İZİ KUSURU (denetim yakaladı):** kılıflı toplam genişlik
+  `taban + 2*kKilifPay` = 7+2 = **9 dp** idi — turu 150'deki KILIFSIZ ve
+  şikâyet edilen çizgi de 9 dp. Yani "yolu aşıyor" sorununun görsel ayak izi
+  **birebir geri gelmişti**. FIX: `kOtobusEn` 7 → **6** (toplam 8 dp).
+  ⚠️ Doğru kol `kKilifPay` DEĞİL: `Polyline.width` bir **`int`**, ara değer
+  yok — en ince kılıf +2 dp. Kılıfı 0 yapmak "border" isteğini iptal ederdi.
+  ⚠️ ÖLÇÜLDÜ: 12 m'lik yerel yol z16'da ~6,6 dp, z17'de ~13,3 dp; navigasyon
+  bandında 8 dp yolu kavrar, aşmaz.
+- ⏳ **DÜRÜST SINIR:** yol genişliği zoom'la DEĞİŞİR, `Polyline.width` SABİT.
+  "Tam kavramak" hiçbir sabit değerde her zoom'da sağlanamaz.
+
+### 4) "step adımını BÖYLE yapmalıyız" — adım ekranı referans düzene geçti
+- **Başlık ortalı İKİ satır**: büyük "5 dk · 373 m kaldı" (BU BACAĞIN kalanı)
+  + soluk "Tüm rota: 8 dk · 07:29". Önceden yalnız TÜM ROTANIN kalanı
+  yazıyordu; "şu an kaç metrem kaldı" görünmüyordu.
+  ⚠️⚠️ **`FittedBox(scaleDown)` ZORUNLU — ÖLÇÜLDÜ:** kart iç genişliği 360 dp
+  ekranda 304 dp; "7 dk · 620 m kaldı" yazı ölçeği 2.0'da ~306 dp ister →
+  TAŞAR. `Expanded` ortalamak için kalkınca ellipsis koruması da gitmişti.
+  `ellipsis` DEĞİL `scaleDown`: ekranın en önemli sayısı kırpılamaz.
+  ⚠️ `CrossAxisAlignment.stretch` zorunlu: `start` olsaydı metinler kendi
+  genişliklerine büzülür, `textAlign: center` HİÇBİR ŞEY YAPMAZDI.
+- **İlerleme çubuğu `CustomPainter`a geçti** (`_CubukCizer`): yürüme dilimleri
+  KESİK, otobüs DÜZ, bacak sınırlarında DURAK DAİRESİ, solda beyaz halkalı
+  KIRMIZI İMLEÇ, sonda hat rozeti.
+  ⚠️⚠️ Önceki `Row + Expanded + ColoredBox` yapısı imleç TAŞIYAMAZ: her dilim
+  kendi `Expanded` kutusuna hapsedilmiş, sınır geçemez.
+  ⚠️⚠️ **YENİ 0-BOYUT TUZAĞI (projede belgelenmemişti):** çocuksuz
+  `CustomPaint`in varsayılan `size`i **`Size.zero`** ve `Row`un dikey kısıtı
+  GEVŞEK gelir → çubuk 0 yüksekliğe düşer ve HİÇ çizilmez.
+  **`size: Size.infinite` ZORUNLU.** (turu 136'nın "çocuksuz `ColoredBox`
+  `constraints.smallest` alır" tuzağının başka bir widget'taki aynı sınıfı.)
+  ⚠️ İmleç: bacaklar ARASI konum SÜRE ile (dilimlerle AYNI ağırlık
+  listesinden), bacak İÇİ ilerleme MESAFE ile (`_bacakOrani`, GPS izdüşümü).
+  Ayrışırlarsa imleç bacak sınırlarını YANLIŞ yerde geçerdi.
+  ⚠️ `shouldRepaint` listeleri **`listEquals`** ile karşılaştırır: listeler her
+  `build`de sıfırdan üretiliyor, `!=` DAİMA true döner. (Turu 62'de tersi
+  yaşanmıştı: `_DalgaCizer` yerinde büyüyen aynı listeyi tuttuğu için
+  karşılaştırma daima false dönüyor ve canlı dalga HİÇ çizilmiyordu.)
+  ⚠️ Eski `_dilim`/`_eskiIlerlemeCubugu` SİLİNMEDİ (`ignore: unused_element`):
+  bu dosyada aynı sınıf silme BEŞ kez komşu üyeyi de götürdü.
+- **Adım satırı: radüslü KARE ikon kutusu + eylem/yer sırası DÜZELDİ.**
+  Bugüne kadar TERSTİ: üst satır büyük+kalın EYLEM, alt satır küçük.
+  Referansta üst KÜÇÜK eylem, alt BÜYÜK yer adı.
+  `RotaBacagi`ya `eylem` ve `yer` alanları eklendi; `baslik`/`altBaslik`
+  DOKUNULMADI (iki tüketicileri daha var — rota özet kartı ve detay sheet'i).
+  ⚠️ `_yurumeleriZenginlestir` yeni alanları da KOPYALIYOR — unutulsaydı tam
+  da kullanıcının gördüğü yürüme adımlarında eylem/yer BOŞ kalırdı.
+  ⚠️ `rotaAra`ya `varisAd` eklendi: varış ADI ekranda vardı ama fonksiyona
+  GEÇMİYORDU.
+- **Çubuk renkleri (emülatörde görüldü):** geçilmemiş dilimler nötr GRİ
+  çiziliyordu ve çubuk baştan sona bir NOKTA DİZİSİ gibi duruyordu — hangi
+  bacağın yürüme hangisinin otobüs olduğu seçilemiyordu. Referansta önde kalan
+  kısım da BACAĞIN KENDİ RENGİNDE, yalnızca daha soluk. FIX: %45 karıştırma.
+  ⚠️ Alfa DEĞİL karıştırma: saydam dilim altındaki kart zeminini gösterip renk
+  kayması yapardı.
+
+### ⏳ Dürüst sınırlar (kaynaktan doğrulandı, kod değişmedi)
+- **`startCap`/`endCap` iOS'ta HİÇBİR ŞEY YAPMIYOR**: pigeon mesajında cap
+  alanları HİÇ YOK; `jointType` gönderiliyor ama `FGMPolylineController.m`
+  gövdesinde uygulanmıyor. Android'de üçü de gerçek ve ZORUNLU (kılıfa
+  `buttCap` verilseydi üstteki çizginin yuvarlak ucu kılıfın DIŞINA taşardı;
+  `jointType` varsayılanı `mitered`dir, keskin dönüşlerde miter sivrisi
+  fırlardı). ⚠️ iOS'ta çalışmıyor diye SİLME.
+- Yürüme mesafe/süresi hâlâ kuş uçuşu tahmininden (turu 155'ten devrediyor).
+
+### 🔎 FİZİBİLİTE — kullanıcının sorduğu, HİÇBİRİ UYGULANMADI
+- **"Sokak/bina göster-gizle mümkün mü?"**
+  ⚠️⚠️ **`buildingsEnabled` Android'de SESSİZ NO-OP** (paket kaynağından
+  doğrulandı): `setBuildingsEnabled` yalnızca alanı saklıyor
+  (`GoogleMapController.java:829-831`), haritaya SADECE `onMapReady` içinde
+  bir kez uygulanıyor (:207). Kardeşi `setTrafficEnabled` ise `googleMap`i
+  çağırıyor (:826). Yani düğme iPhone'da çalışır, **Android'de hiçbir şey
+  yapmaz**; derleme temiz, log yok. Bu projenin en sık hata sınıfı.
+  Çift platform tek yol **stil JSON'u** — o da `harita_stili_test.dart`
+  muhafızıyla çakışıyor (`poi.business` dışında `visibility: off` yasak).
+  Yapılabilir ama muhafızın ikiye bölünmesi gerekiyor: kalıcı stiller SIKI
+  kalır, **kullanıcının açıp kapattığı** katman stilleri ayrı kurala girer.
+- **"3B görünüm aç/kapa"**: `CameraPosition.tilt` ile mümkün, canlı değişir.
+  ⚠️ Üst sınır ZOOM'A BAĞLI ve aşan değer SESSİZCE kırpılıyor. Ama bu turu
+  150'deki **"kuş bakışı"** kararını geri almak demek.
+- **Katman düğmesi (uydu/trafik)**: `mapType` ve `trafficEnabled` iki
+  platformda da canlı çalışıyor, muhafızla çakışmıyor, ucuz. ⚠️ Uyduya
+  geçilince özel stil Google tarafından yok sayılır (yalnız `normal` tipte
+  uygulanır) — hata değil, Google'ın davranışı.
+- **"Sağa güneş/hava durumu ikonu"**: konulabilir ama ⚠️ **veri GERÇEK DEĞİL**
+  — projede hiçbir hava servisi/ucu/anahtarı yok; `'24°'` koda gömülü sabit ve
+  kaynağın kendi şerhi *"DEĞERLER ÖRNEKTİR — GERÇEK VERİ YOK VE UYDURULMADI"*
+  diyor. Haritaya konursa "Örnek" etiketi ZORUNLU olur.
+- 📌 Yeni düğme maliyeti ucuz (`_haritaDugmesi` tek kaynak), ama ölçüldü:
+  dördüncü düğme 360×640'ta yakınımda panelinde ~9 dp payla SINIRDA.
+
+### Ölçüldü
+- Emülatör, gerçek rota (Konumum → Çoban Mustafa Paşa Cami):
+  "5 dk · 373 m kaldı" ortalı + "Tüm rota: 8 dk · 07:29" + kırmızı imleç +
+  yeşil DÜZ otobüs dilimi + iki durak dairesi + **407** rozeti + lila ikon
+  kutusu + "Durağa kadar yürüyün" / "BÜLBÜL CADDESİ 1" sırası DOĞRU.
+- logcat `OVERFLOWED` = **0**
+- `flutter analyze` **0 hata 0 uyarı** · `flutter test` **77/77**
+- ⚠️ `GECICI-OLCUM` satırları commit öncesi grep ile arandı → **temiz**
+- ⚠️ Harita karoları emülatörde çizilmiyor: **kılıf, kesik oranı ve yeşil
+  otobüs çizgisi GERÇEK CİHAZDA görülecek.**
+
+### Devir notu (turu 156)
+- Yayınlandı: ios **33605554396** · commit **dd1bdf3** · **sadece iOS**
+- Adres: **https://indir.gebzem.app/index.html?v=20260902-1101**
+- R2 ipa=30154150 (md5 1dac6c94) · index=7967 (md5 fd1aa734) ·
+  surum.json=45 (md5 75eb2f45) · purge OK · **CDN üçü de BİREBİR**
+- `get-task-allow: false` (debug imza YOK) · profil ad hoc · `MapsApiKey`
+  **ENJEKTE**
+- **IPA doğrulaması — turu 156 dizeleri VAR:** `rota-kilif-` ·
+  "Durağa kadar yürüyün" · "Varışa kadar yürüyün" · "Tüm rota: " ·
+  " kalkışını bekleyin" · " ile gidin, inin:"; turu 155 dizeleri
+  (`konum-yon`, `rota-varis`) hâlâ VAR; kontrol dizesi "Yakınımda" (utf16le) VAR.
+  ⚠️ İlk aramada " kalkışını bekleyin" YOK çıktı — **yöntem hatasıydı**
+  ("kalışını" yazmışım). Kontrol dizesiyle doğrulama olmasa build eski
+  sanılabilirdi.
+- **backend DEĞİŞMEDİ** → deploy YOK, DB truncate YOK, e2e koşulmadı
+- ⚠️ APK alınmadı — R2'deki apk 21 Ağustos sürümünde

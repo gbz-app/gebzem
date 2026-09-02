@@ -41,6 +41,134 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
       kaybettiriyorsun"*. **Üçüncüsü olmayacak.**
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (2 Eyl 11:01): TURU 156 YAYINLANDI — SADECE iOS.**
+  ios **33605554396** (**dd1bdf3**), R2 ipa=30154150 (md5 1dac6c94)
+  index=7967 (md5 fd1aa734) surum.json=45 (md5 75eb2f45),
+  purge OK, **CDN UCU DE BIREBIR**.
+  ⚠️ **BACKEND DEGISMEDI** -> deploy YOK, DB TRUNCATE EDILMEDI, e2e KOSULMADI.
+  ✅ analyze **0 hata 0 uyari** · test **77/77** · emulatorde tasma **0**.
+  ⚠️ **APK ALINMADI** — R2'deki apk turu 121 surumunde (21 Agu).
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260902-1101
+
+- 🎨 **TURU 156 — CIZGIYE KILIF (border)** (kullanici: *"yurume adim shape
+  ARKASINDA RENK var, BORDERLAR var"*).
+  ⚠️⚠️ **`Polyline`de `strokeColor` YOKTUR** (paket kaynagindan: yalniz
+     `color`, `width`, `patterns`). Cerceve ancak **IKI POLYLINE** ile olur:
+     altta genis+koyu kilif, ustte dar+renkli cizgi.
+  ⚠️⚠️ **KILIF DUZ, USTTEKI KESIK**: kesiklerin ARASI koyu bant olarak
+     gorunur. Kilif da kesik olsaydi aralar HARITA ZEMINI kalir ve
+     "arkasinda renk var" tarifi KARSILANMAZDI.
+  ⚠️⚠️ **zIndex SIRASI KRITIK**: TUM kiliflar TUM cizgilerin ALTINDA
+     (kilif 1/2, cizgi 3/4). Bacaklar durakta birlestigi icin bir bacagin
+     kilifi otekinin CIZGISINI ortebilirdi.
+
+- ⚠️⚠️⚠️ **TURU 156 — "SIKLASTIRDIM" YANILGISI (denetim yakaladi).**
+  Ilk deneme 18/10 -> 9/5: periyot 28 dp'den 14 dp'ye indi (**siklik iki
+  kat**) ama **IKI SAYI DA yariya bolundugu icin ORAN 1,80'de AYNEN KALDI**.
+  Kullanicinin sikayeti ise SEKILLE ilgiliydi (*"dolu ile bosluk neredeyse
+  esit"*). FIX: **8/6 = 1,33**, periyot 14 dp'de KALIR.
+  ⚠️ **DERS: dash ve gap'i AYNI ORANDA bolmek ORANI DEGISTIRMEZ.**
+
+- 🚌 **TURU 156 — OTOBUS CIZGISI YESIL + AYAK IZI KUSURU.**
+  Kullanici: *"otobus shape YESIL olsun, hafif kapali, hafif SIYAH BORDER,
+  yolu TAM KAVRASIN TASMASIN"*.
+  · Renk: hattin kendi rengi -> **`kOtobusRengi` #2FA85C** (mat yesil).
+    ⚠️ Hat kimligi KAYBOLMADI: rozet hala hattin KENDI renginde. Gebze GTFS
+       renklerinin cogu birbirine yakin camgobegi.
+  ⚠️⚠️ **AYAK IZI KUSURU (denetim yakaladi):** kilifli toplam genislik
+     `taban + 2*kKilifPay` = 7+2 = **9 dp** idi — turu 150'deki KILIFSIZ ve
+     SIKAYET EDILEN cizgi de 9 dp. Yani sorun GORSEL OLARAK geri gelmisti.
+     FIX: `kOtobusEn` 7 -> **6** (toplam 8 dp).
+  ⚠️ Dogru kol `kKilifPay` DEGIL: **`Polyline.width` bir `int`**, ara deger
+     YOK — en ince kilif +2 dp.
+  ⚠️ OLCULDU: 12 m'lik yerel yol z16'da ~6,6 dp, z17'de ~13,3 dp.
+  ⏳ **DURUST SINIR:** yol genisligi zoom'la DEGISIR, `width` SABIT —
+     "tam kavrama" hicbir sabit degerde her zoom'da saglanamaz.
+
+- 🧭 **TURU 156 — ADIM EKRANI REFERANS DUZENE GECTI** (kullanici: *"step
+  adimini BOYLE yapmaliyiz"*).
+  · **Baslik ortali IKI satir**: buyuk "5 dk · 373 m kaldı" (BU BACAGIN
+    kalani) + soluk "Tüm rota: 8 dk · 07:29".
+    ⚠️⚠️ **`FittedBox(scaleDown)` ZORUNLU — OLCULDU:** kart ic genisligi
+       360 dp ekranda **304 dp**; "7 dk · 620 m kaldı" yazi olcegi 2.0'da
+       **~306 dp** ister -> TASAR. `Expanded` ortalamak icin kalkinca
+       ellipsis korumasi da gitmisti. `ellipsis` DEGIL `scaleDown`:
+       ekranin EN ONEMLI sayisi kirpilamaz.
+    ⚠️ `CrossAxisAlignment.stretch` ZORUNLU: `start` olsaydi metinler kendi
+       genisliklerine buzulur ve `textAlign: center` HICBIR SEY YAPMAZDI.
+  · **Ilerleme cubugu `CustomPainter`a gecti** (`_CubukCizer`): yurume
+    KESIK, otobus DUZ, bacak sinirlarinda DURAK DAIRESI, solda beyaz halkali
+    KIRMIZI IMLEC, sonda hat rozeti.
+    ⚠️⚠️ Onceki `Row + Expanded + ColoredBox` yapisi imlec TASIYAMAZ: her
+       dilim kendi `Expanded` kutusuna hapsedilmis, sinir gecemez.
+    ⚠️⚠️⚠️ **YENI 0-BOYUT TUZAGI**: cocuksuz `CustomPaint`in varsayilan
+       `size`i **`Size.zero`** ve `Row`un dikey kisiti GEVSEK gelir -> cubuk
+       0 yukseklige duser ve **HIC CIZILMEZ**. **`size: Size.infinite`**
+       ZORUNLU. (turu 136'nin "cocuksuz `ColoredBox` `constraints.smallest`
+       alir" tuzaginin BASKA BIR WIDGET'taki ayni sinifi.)
+    ⚠️ Imlec: bacaklar ARASI konum **SURE** ile (dilimlerle AYNI agirlik
+       listesinden), bacak ICI ilerleme **MESAFE** ile (`_bacakOrani`).
+       Ayrisirlarsa imlec bacak sinirlarini YANLIS yerde gecerdi.
+    ⚠️ `shouldRepaint` listeleri **`listEquals`** ile karsilastirir: listeler
+       her `build`de sifirdan uretiliyor, `!=` DAIMA true doner. (Turu 62'de
+       TERSI yasandi: `_DalgaCizer` yerinde buyuyen ayni listeyi tuttugu icin
+       karsilastirma daima false donuyor ve canli dalga HIC cizilmiyordu.)
+    ⚠️ Eski `_dilim`/`_eskiIlerlemeCubugu` SILINMEDI (`unused_element`): bu
+       dosyada ayni sinif silme BES kez komsu uyeyi de goturdu.
+    ⚠️ Cubuktaki kesik olculeri (10/5) HARITADAKI desenden (8/6) **AYRI**
+       sabitler: cubuk ~300 dp, harita metrelerce. Ayni sayilar kullanilsaydi
+       cubuk NOKTA DIZISI olurdu (emulatorde goruldu).
+    ⚠️ Gecilmemis dilimler **BACAGIN KENDI RENGINDE** (notr griye %45
+       karistirilmis) cizilir; notr gri cizildiginde cubuk bastan sona ayni
+       renkte durup yurume/otobus ayrimi KAYBOLUYORDU.
+  · **Adim satiri: raduslu KARE ikon kutusu + eylem/yer sirasi DUZELDI.**
+    Bugune kadar TERSTI (ust satir buyuk EYLEM, alt satir kucuk). Referansta
+    ust KUCUK eylem, alt BUYUK yer adi.
+    `RotaBacagi`ya **`eylem`** ve **`yer`** eklendi; `baslik`/`altBaslik`
+    DOKUNULMADI (iki tuketicileri daha var).
+    ⚠️ `_yurumeleriZenginlestir` yeni alanlari da KOPYALIYOR — unutulsaydi
+       tam da kullanicinin gordugu yurume adimlarinda eylem/yer BOS kalirdi.
+    ⚠️ `rotaAra`ya `varisAd` eklendi: varis ADI ekranda vardi ama fonksiyona
+       GECMIYORDU.
+
+- ⚠️⚠️ **TURU 156 — `startCap`/`endCap` iOS'TA HICBIR SEY YAPMIYOR.**
+  Paket kaynagindan dogrulandi (google_maps_flutter_ios 2.18.4): pigeon
+  mesajinda **cap alanlari HIC YOK**; `jointType` gonderiliyor ama
+  `FGMPolylineController.m` govdesinde UYGULANMIYOR. Android'de ucu de
+  GERCEK ve **ZORUNLU** (kilifa `buttCap` verilseydi ustteki cizginin
+  yuvarlak ucu kilifin DISINA tasardi; `jointType` varsayilani `mitered`,
+  keskin donuslerde miter SIVRISI firlardi).
+  ⚠️ YAPMA: iOS'ta calismiyor diye bu satirlari silme.
+
+- 🔎 **TURU 156 — FIZIBILITE (kullanici sordu, HICBIRI UYGULANMADI):**
+  · **"Sokak/bina goster-gizle mumkun mu?"** ⚠️⚠️ **`buildingsEnabled`
+    ANDROID'DE SESSIZ NO-OP** (kaynaktan dogrulandi):
+    `GoogleMapController.java:829-831` yalnizca alani sakliyor, haritaya
+    SADECE `onMapReady`de bir kez uygulaniyor (:207); kardesi
+    `setTrafficEnabled` ise `googleMap`i cagiriyor (:826). Yani dugme
+    iPhone'da calisir, **Android'de HICBIR SEY YAPMAZ** — derleme temiz,
+    log yok. Cift platform tek yol **stil JSON'u**, o da
+    `harita_stili_test.dart` muhafiziyla CAKISIYOR. Yapilabilir ama muhafiz
+    IKIYE bolunmeli: kalici stiller SIKI kalir, **kullanicinin acip
+    kapattigi** katman stilleri ayri kurala girer.
+  · **3B/egim**: `CameraPosition.tilt` ile mumkun, canli degisir. ⚠️ Ust
+    sinir ZOOM'A BAGLI ve asan deger SESSIZCE kirpilir. Ama bu turu
+    150'deki **"kus bakisi"** kararini GERI ALMAK demek.
+  · **Katman dugmesi (uydu/trafik)**: `mapType` ve `trafficEnabled` iki
+    platformda da CANLI calisir, muhafizla CAKISMAZ, ucuz. ⚠️ Uyduya
+    gecilince ozel stil Google tarafindan YOK SAYILIR (yalniz `normal`).
+  · **Hava durumu ikonu**: konulabilir ama ⚠️ **VERI GERCEK DEGIL** —
+    projede hicbir hava servisi/ucu/anahtari YOK; `'24°'` koda gomulu sabit
+    ve kaynagin kendi serhi *"DEGERLER ORNEKTIR"* diyor. "Örnek" etiketi
+    ZORUNLU olur; gercek veri AYRI TUR.
+  📌 Yeni dugme maliyeti ucuz (`_haritaDugmesi` tek kaynak) ama OLCULDU:
+     dorduncu dugme 360x640'ta yakinimda panelinde ~9 dp payla SINIRDA.
+
+- ⏳ **TURU 156 — DURUST SINIRLAR:**
+  · Harita karolari emulatorde cizilmiyor: **kilif, kesik orani ve yesil
+    otobus cizgisi GERCEK CIHAZDA gorulecek.**
+  · Yurume mesafe/suresi HALA kus ucusu tahmininden (turu 155'ten devrediyor;
+    sunucu `mesafe_m`/`sure_sn` donduruyor, istemci ATIYOR).
 - **KALDIGIMIZ YER (2 Eyl 09:30): TURU 155 YAYINLANDI — SADECE iOS.**
   ios **33598386941** (**0b87b96**), R2 ipa=30150502 (md5 c2cc198a)
   index=7967 (md5 fb99fd50) surum.json=45 (md5 3b0ee958),
