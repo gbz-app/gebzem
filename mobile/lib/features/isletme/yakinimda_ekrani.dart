@@ -3344,7 +3344,7 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
     if (i < 0 || a.bacaklar[i].tur != BacakTuru.bekle) return aktif;
     final kalkis = _kalkisDakikasi(a, i);
     if (kalkis == null) return aktif;
-    return UlasimVeri.suAnDakika() < kalkis ? i : aktif;
+    return _suAnHizali(kalkis) < kalkis ? i : aktif;
   }
 
   /// Imlecin bulundugu bacaktaki ilerleme orani.
@@ -3354,21 +3354,42 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
     final b = a.bacaklar[i];
     final kalkis = _kalkisDakikasi(a, i);
     if (kalkis == null || b.dakika <= 0) return 0;
-    final gecen = UlasimVeri.suAnDakika() - (kalkis - b.dakika);
+    final gecen = _suAnHizali(kalkis) - (kalkis - b.dakika);
     return (gecen / b.dakika).clamp(0.0, 1.0);
   }
 
   /// [i] indeksli BEKLEME bacaginin kalkis dakikasi.
   ///
-  /// ⚠️⚠️ Metinden AYRISTIRILMAZ: varis dakikasindan, SONRAKI tum
-  ///	bacaklarin sureleri cikarilarak turetilir - yani tek kaynak
-  ///	`a.varisDakika`dir ve bicimlendirmeden BAGIMSIZDIR.
-  int? _kalkisDakikasi(RotaAdayi a, int i) {
-    var sonra = 0;
-    for (var j = i + 1; j < a.bacaklar.length; j++) {
-      sonra += a.bacaklar[j].dakika;
-    }
-    return a.varisDakika - sonra;
+  /// ⚠️⚠️⚠️ TURU 158b - **TURETILMEZ, BACAKTAN OKUNUR.**
+  ///
+  ///	Onceki hal `varisDakika`dan SONRAKI bacaklarin surelerini
+  ///	cikariyordu. Ama `kAktarmaTampon` (2 dk) HICBIR bacaga
+  ///	yazilmiyor; cebirsel olarak `varis - sonra = binis + tampon`,
+  ///	yani aktarmali rotanin ILK bekleme bacaginda kalkis **DAIMA
+  ///	tam 2 dakika GEC** cikiyordu. Sonuc: otobus KALKMISKEN imlec
+  ///	bekleme diliminde park ediyor ve bekleme 2 dakikadan kisaysa
+  ///	oran daima <= 0 kalip imlec **HIC KIPIRDAMIYOR** - yani turu
+  ///	158'in kapatmak icin acildigi arizanin ta kendisi.
+  /// ⚠️ Bacak `kalkisDakika`yi tasimiyorsa (eski/eksik veri) imlec
+  ///    o bacakta ILERLETILMEZ; UYDURMA bir kalkis turetmek, yanlis
+  ///    bir ilerleme cizmekten iyi degildir.
+  int? _kalkisDakikasi(RotaAdayi a, int i) => a.bacaklar[i].kalkisDakika;
+
+  /// ⚠️⚠️⚠️ TURU 158b - **DUVAR SAATINI KALKISIN TABANINA HIZALAR.**
+  ///
+  ///	GTFS gece yarisini asan seferi **24:xx+** olarak saklar
+  ///	(bu varlikta 16.167 kalkis >= 1440). `suAnDakika()` ise 0..1439
+  ///	dondurur. Saat 00:00'i vurdugunda 00:18 kalkisli bir sefer
+  ///	`kalkis = 1458` iken `simdi = 0` olur; ham karsilastirma imleci
+  ///	bekleme diliminin BASINA sicratir ve otobus yolculugunun
+  ///	TAMAMI boyunca orada dondurur (`_bekleTik` de ayni donmus kareyi
+  ///	30 saniyede bir yeniden cizer).
+  /// ⚠️ Kapi TEK YONLU ve DAR: yalniz kalkis 1440'i asmissa ve duvar
+  ///    saati ona gore 12 saatten fazla GERIDEYSE bir gun eklenir.
+  int _suAnHizali(int kalkis) {
+    var simdi = UlasimVeri.suAnDakika();
+    if (kalkis >= 1440 && kalkis - simdi > 720) simdi += 1440;
+    return simdi;
   }
 
   double _bacakOrani(RotaBacagi b, takip.TakipDurumu d) {
@@ -3407,6 +3428,28 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
     var dk = _bacakDakika(a, d);
     for (var j = i + 1; j < a.bacaklar.length; j++) {
       dk += a.bacaklar[j].dakika;
+    }
+    // ⚠️⚠️⚠️ TURU 158b - **ONCEKI BEKLEMELER TOPLAMA HIC GIRMIYORDU.**
+    //
+    //	`ilerlet` bos bacaklari HER ZAMAN atladigi icin `d.bacak`,
+    //	kullanici duraga varir varmaz OTOBUS bacagini gosterir; dongu
+    //	`i` ve SONRASINI topladigindan bekleme suresi HICBIR YERE
+    //	sayilmiyordu. Ekranda ayni satirin sol yarisi "20 dk", sag
+    //	yarisi "08:40" (yani 40 dk sonra) yaziyor ve kullanici otobuse
+    //	binene kadar sayi HIC DEGISMIYORDU - "hareket ederken hareket
+    //	etmiyor" sikayetinin SAYISAL karsiligi.
+    // ⚠️⚠️ Kalkis `kalkisDakika`dan OKUNUR (bkz. `_kalkisDakikasi`) ve
+    //	"simdi" AYNI tabana hizalanir; ikisi de tek kaynak oldugu icin
+    //	satirin iki yarisi YAPISAL OLARAK tutarli kalir.
+    // ⚠️ Yalniz HENUZ GELMEMIS kalkislar eklenir: gecmis bir bekleme
+    //    bacagi (otobuse binilmis) kalan sureye girmemeli.
+    for (var j = 0; j < i; j++) {
+      final b = a.bacaklar[j];
+      if (b.tur != BacakTuru.bekle) continue;
+      final kalkis = b.kalkisDakika;
+      if (kalkis == null) continue;
+      final kalan = kalkis - _suAnHizali(kalkis);
+      if (kalan > 0) dk += kalan;
     }
     // ⚠️ "0 dk kaldı" yazmak yerine en az 1: kullanici hala
     //    yuruyorsa sifir gormek "vardim mi?" sorusunu dogururdu.

@@ -48,6 +48,7 @@ class RotaBacagi {
     this.eylem = '',
     this.yer = '',
     this.aktarmaYurumesi = false,
+    this.kalkisDakika,
   });
 
   /// ⚠️⚠️⚠️ TURU 157 - **KOTA KAPISI.**
@@ -63,6 +64,26 @@ class RotaBacagi {
   ///	aktarmalarin %36'sinda HIC YOK - duz cizgi yeterince dogru.
   /// ⚠️ Varsayilan `false`: mevcut 20+ cagri yeri DOKUNULMADAN derlenir.
   final bool aktarmaYurumesi;
+
+  /// ⚠️⚠️⚠️ TURU 158b - **BEKLEME BACAGININ KALKIS DAKIKASI (MUTLAK).**
+  ///
+  ///	YAYIN ONCESI DENETIM (YUKSEK): imlec bu degeri `varisDakika`dan
+  ///	SONRAKI bacaklarin sureleri cikarilarak TURETIYORDU. Aktarmali
+  ///	rotada `kAktarmaTampon` (2 dk) HICBIR bacaga yazilmadigi icin
+  ///	turetilen deger **DAIMA tam 2 dakika GEC** cikiyordu:
+  ///	cebirsel olarak `varis - sonra = binis + tampon`.
+  ///	Sonuc: otobus KALKMISKEN imlec bekleme diliminde park ediyor,
+  ///	ve bekleme 2 dakikadan kisaysa oran DAIMA <= 0 -> imlec
+  ///	**HIC KIPIRDAMIYOR**. Yani turu 158'in kapatmak icin acildigi
+  ///	"beklemede imlec donuyor" sikayeti AKTARMALI rotalarda geri
+  ///	donmustu (son olcumde 59 ciftin 46'sinda aktarma oneriliyor).
+  ///
+  /// ⚠️⚠️ **TURETME YOK, TASINIYOR**: bacagin `baslik`/`eylem` metinleri
+  ///	ZATEN bu degerden uretiliyor, yani TEK KAYNAK olur ve drift
+  ///	yapisal olarak imkansizdir.
+  /// ⚠️⚠️ Deger **MUTLAK ve 1440'i ASABILIR** (GTFS 24:xx+ gece seferi);
+  ///	okuyan taraf "simdi"yi AYNI tabana normallestirmek ZORUNDADIR.
+  final int? kalkisDakika;
 
   /// ⚠️⚠️ TURU 156 — **EYLEM ve YER AYRI** (kullanici emri: adim karti
   ///	Yandex duzenine gecti; orada ust satir KUCUK eylem
@@ -195,6 +216,36 @@ class RotaAdayi {
 /// ⚠️ 300 m: saglikli durak-sekil izdusumu medyan **8 m**; 300 m
 ///    esigi yalnizca GERCEKTEN bozuk vakalari yakalar (olculdu: %1,05).
 const double kDilimIzdusumTavani = 300;
+
+/// ⚠️⚠️⚠️ TURU 158b - **TERS DILIM ICIN ARAMA PENCERESI ASGARISI.**
+///
+///	YAYIN ONCESI DENETIM (kendi turu 158 kodumda YUKSEK regresyon):
+///	`_enYakinIz` icindeki `basSegment.clamp(0, yol.length - 2)`,
+///	`a` sekilin SON segmentine dustugunde pencereyi **TEK SEGMENTE**
+///	indiriyor. O durumda donen `bIz.uz` bir BILGI degil, dejenere
+///	pencerenin ARTIGIDIR (ornek: 1592 m). Kapi aciliyor, `bG.seg <= a`
+///	zaten HER ZAMAN dogru oldugu icin TERS dal calisiyor ve
+///	**TUM GUZERGAH GERI CIZILIYOR**.
+/// ⚠️⚠️ OLCULDU (varlik verisi, 360.384 gecerli cift): `a == yol.length-2`
+///	olan **591** ciftin **591**'i de turu 157'de KISA duz cizgiydi;
+///	turu 158 onlari medyan **18.951 m** (maks **32.134 m**) ters
+///	cizgiye cevirmisti — 1 dakikalik bir bacakta **681 km/h**.
+///	Yani kullanicinin sikayet ettigi duz cizginin yerine DAHA BUYUK
+///	bir gorsel bozukluk geciyordu.
+/// ⚠️ 5 segment: dejenere (1-2 segmentlik) pencereleri eler, gercek
+///    "durak sekilde yok" vakalarini ETKILEMEZ.
+const int kDilimPencereAsgari = 5;
+
+/// ⚠️⚠️⚠️ TURU 158b - **TERS DILIM MAKULLUK TAVANI (kus ucusunun kati).**
+///
+///	Ikinci koruma: pencere yeterince genis olsa bile ters cevrilen
+///	dilim iki durak arasi kus ucusundan bu kattan UZUNSA, o dilim bir
+///	guzergah degil bir ARTIKTIR ve ATILIR (duz-cizgi emniyet agina
+///	dusulur).
+/// ⚠️⚠️ 5 kat OLCULEREK secildi: gercek geri-inis vakalarini (en kotusu
+///	oran **2,69**) KORUR, dejenere vakalarin TAMAMINI eler.
+/// ⚠️ Bu UCUNCU korumadir; `basSegment` ve izdusum kapisi KALDIRILMAZ.
+const double kDilimTersTavani = 5.0;
 
 const double kAktarmaYaricapM = 150;
 
@@ -429,7 +480,13 @@ List<({double enlem, double boylam})> _guzergahDilimi(
   //    bu yuzden kapi MUHAFAZAKAR.
   // ⚠️ Bu duzeltme SALT GEOMETRIKTIR: otobus bacaginin `dakika`si
   //    GTFS sefer sutunundan gelir, otobuse yetisme hesabi ETKILENMEZ.
-  if (bIz.uz > kDilimIzdusumTavani) {
+  // ⚠️⚠️⚠️ TURU 158b - **DEJENERE PENCEREDE `bIz.uz` KANIT DEGILDIR.**
+  //	Aranan segment sayisi `kDilimPencereAsgari`nin altindaysa donen
+  //	uzaklik pencerenin artigidir; kapi ACILMAZ ve akis asagidaki
+  //	duz-cizgi emniyet agina duser (turu 157 davranisi).
+  final pencereGenis =
+      (yol.length - 2) - (a + 1) + 1 >= kDilimPencereAsgari;
+  if (pencereGenis && bIz.uz > kDilimIzdusumTavani) {
     final bG = _enYakinIz(yol, inis.enlem, inis.boylam);
     // ⚠️⚠️ **`bG.seg > a` KOSULU YOKTUR — OLCULDU, BOS CIKIYOR.**
     //	Arastirma o kosulu onerdi; simule edildi ve **0 cift**
@@ -449,11 +506,27 @@ List<({double enlem, double boylam})> _guzergahDilimi(
         final alt = bG.seg + 1;
         final ust = math.min(a + 1, yol.length);
         if (alt < ust) {
-          return [
+          final ters = [
             (enlem: binis.enlem, boylam: binis.boylam),
             ...yol.sublist(alt, ust).reversed,
             (enlem: inis.enlem, boylam: inis.boylam),
           ];
+          // ⚠️⚠️⚠️ TURU 158b - **SONUC MAKUL MU?**
+          //	Ters dilim iki durak arasi kus ucusunun
+          //	`kDilimTersTavani` katindan uzunsa bu bir guzergah
+          //	DEGIL, artiktir (olculdu: 31 km'lik cizgiler).
+          //	Atilir ve duz-cizgi emniyet agina dusulur.
+          // ⚠️⚠️ Denetim dersi: turun KENDI olcumu yalniz IZDUSUM
+          //	MESAFESINI olcuyordu ve kapi acildiginda o deger
+          //	TANIM GEREGI iyilesiyor (1592 m -> 2 m); 31 km'lik
+          //	ters cizgi o metrikte "basari" gorunuyordu.
+          //	**Bir duzeltmeyi, duzeltmenin KENDI hedef metrigiyle
+          //	olcme — SONUCU olc.**
+          final kus = UlasimVeri.kabaMetre(
+              binis.enlem, binis.boylam, inis.enlem, inis.boylam);
+          if (kus <= 0 || _yolUzunlugu(ters) <= kus * kDilimTersTavani) {
+            return ters;
+          }
         }
       }
     }
@@ -591,6 +664,8 @@ Future<List<RotaAdayi>> rotaAra({
                 tur: BacakTuru.bekle,
                 noktalar: const [],
                 dakika: math.max(0, binis - (suAn + oDk)),
+                // ⚠️ TURU 158b - imlec bunu TURETMEZ, OKUR.
+                kalkisDakika: binis,
                 baslik: '${UlasimVeri.saatMetni(binis)} kalkış',
                 altBaslik: o.ad,
                 hat: oh.hat,
@@ -996,6 +1071,8 @@ Future<List<RotaAdayi>> _aktarmaliAra({
           tur: BacakTuru.bekle,
           noktalar: const [],
           dakika: math.max(0, k.binis - k.enErken),
+          // ⚠️ TURU 158b - imlec bunu TURETMEZ, OKUR.
+          kalkisDakika: k.binis,
           baslik: '${UlasimVeri.saatMetni(k.binis)} kalkış',
           altBaslik: k.o.ad,
           hat: k.oh.hat,
@@ -1045,6 +1122,8 @@ Future<List<RotaAdayi>> _aktarmaliAra({
           tur: BacakTuru.bekle,
           dakika: math.max(0, k.binis2 - k.hazir),
           noktalar: const [],
+          // ⚠️ TURU 158b - imlec bunu TURETMEZ, OKUR.
+          kalkisDakika: k.binis2,
           baslik: '${UlasimVeri.saatMetni(k.binis2)} kalkış',
           altBaslik: k.y.ad,
           hat: k.dh.hat,
@@ -1150,6 +1229,8 @@ void _seferleriYenidenSec(List<RotaAdayi> sonuc, int suAn) {
           tur: BacakTuru.bekle,
           noktalar: const [],
           dakika: math.max(0, kalkis - oncesi),
+          // ⚠️ TURU 158b - imlec bunu TURETMEZ, OKUR (yeniden secimde de).
+          kalkisDakika: kalkis,
           baslik: '${UlasimVeri.saatMetni(kalkis)} kalkış',
           altBaslik: b.altBaslik,
           hat: b.hat,

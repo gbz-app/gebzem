@@ -25,6 +25,7 @@ List<({double enlem, double boylam})> _duzYol() => const [
     ];
 
 void main() {
+  turu158bMuhafizlari();
   group('yapistir', () {
     test('nokta cizginin USTUNDEYSE uzaklik ~0 ve dogru segment', () {
       final iz = yapistir(_duzYol(), 40.8000, 29.4315)!;
@@ -193,5 +194,67 @@ void main() {
       final d = ilerlet(bitmis, bacaklar(), 40.8000, 29.4300);
       expect(d.bitti, isTrue);
     });
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// TURU 158b — YAYIN ONCESI DENETIMDE BULUNAN UC ARIZANIN MUHAFIZI.
+// Ucu de once BOZULARAK kirmiziya dusuruldu (bkz. oturum.md).
+// ═══════════════════════════════════════════════════════════════════
+void turu158bMuhafizlari() {
+  // duz, dogu-bati, ~11 m'lik segmentler
+  List<({double enlem, double boylam})> duzYol(int n) => [
+        for (var i = 0; i < n; i++) (enlem: 40.80, boylam: 29.40 + i * 0.0001),
+      ];
+
+  test('⚠️⚠️⚠️ ROTA DISI KALICI KILITLENMEZ (pencere ileri tasinir)', () {
+    final yol = duzYol(200);
+    // 0. segmentte basla
+    var d = ilerlet(TakipDurumu.basla, [yol], 40.80, 29.4000);
+    expect(d.rotaDisi, isFalse);
+    // Kullanici IKI GPS olayi arasinda 40 segmentten COK ilerledi
+    // (telefon cepte, akis kisildi). Eski govdede bu KALICI rotaDisi idi.
+    final ileriBoylam = 29.40 + 120 * 0.0001;
+    d = ilerlet(d, [yol], 40.80, ileriBoylam);
+    expect(d.rotaDisi, isFalse,
+        reason: 'global yeniden yakalama YAPILMADI -> kalici kilitlenme');
+    expect(d.segment, greaterThan(100));
+    // ve ilerlemeye DEVAM edebilmeli
+    final d2 = ilerlet(d, [yol], 40.80, 29.40 + 150 * 0.0001);
+    expect(d2.segment, greaterThan(d.segment));
+  });
+
+  test('⚠️⚠️ GERCEK GERI YURUME: mandal ust uste iki olcumde BIRAKILIR', () {
+    final yol = duzYol(50);
+    // segment 10'un ortasina git
+    var d = ilerlet(TakipDurumu.basla, [yol], 40.80, 29.40 + 10.5 * 0.0001);
+    final ileriKalan = d.kalanM;
+    // ayni segmentte ~6 m geri (GPS gurultusu): YUTULMALI
+    d = ilerlet(d, [yol], 40.80, 29.40 + 10.0 * 0.0001);
+    expect(d.kalanM, closeTo(ileriKalan, 0.01),
+        reason: 'tek gurultulu fix mandali BIRAKMAMALI');
+    // ust uste IKI kez ~30 m geri: mandal BIRAKILMALI
+    final geri = 29.40 + 7.0 * 0.0001;
+    d = ilerlet(d, [yol], 40.80, geri);
+    d = ilerlet(d, [yol], 40.80, geri);
+    expect(d.kalanM, greaterThan(ileriKalan + 10),
+        reason: 'gercek geri yurumede kalan mesafe TAKIP ETMELI');
+  });
+
+  test('⚠️⚠️ Monotonluk KORUNUR: TEK gurultulu geri fix kalan mesafeyi '
+      'BUYUTMEZ', () {
+    // ⚠️ Bu test ILK yazimda YANLIS kuruldu: gurultu (2,5 m) ileri adimdan
+    //    (8,4 m) KUCUKTU, yani ham izdusum zaten geri gitmiyordu ve test
+    //    monotonlugu KALDIRINCA DA YESIL KALIYORDU. Simdi gurultu adimdan
+    //    BUYUK secildi ve bozarak kirmiziya dusuruldu.
+    final yol = duzYol(60);
+    // segment 20'nin sonuna dogru ilerle
+    var d = ilerlet(TakipDurumu.basla, [yol], 40.80, 29.40 + 20.8 * 0.0001);
+    final ileriKalan = d.kalanM;
+    // TEK gurultulu fix: ~7 m geri (kGeriEsikM = 20'nin ALTINDA) -> YUTULMALI
+    d = ilerlet(d, [yol], 40.80, 29.40 + 20.0 * 0.0001);
+    expect(d.kalanM, lessThanOrEqualTo(ileriKalan + 0.01),
+        reason: 'tek gurultulu fix kalan mesafeyi BUYUTTU (monotonluk YOK)');
+    expect(d.t, closeTo(0.8, 0.01), reason: 'oran GERI GITTI');
   });
 }

@@ -88,20 +88,42 @@ class DurakHatti {
 
   /// Verilen dakikadan SONRAKI ilk [adet] kalkis (dakika cinsinden).
   ///
-  /// ⚠️ Gun sonuna gelindiyse listenin BASINA doner ve +1440 ekler; yani
-  ///    gece 23:50'de "ilk sefer 05:30" yerine "340 dk sonra" cikar ve
-  ///    ekranda saat olarak dogru gosterilir.
+  /// ⚠️⚠️⚠️ TURU 158b - **GECE HATLARI 00:00-04:00 ARASI GORUNMEZDI**
+  ///	(yayin oncesi denetim; YUKSEK).
+  ///
+  ///	GTFS gece yarisini asan seferi **24:xx+** olarak saklar; bu
+  ///	varlikta **16.167 kalkis >= 1440** ve bunlarin **16.158**'i
+  ///	24:00-05:00 arasi (OLCULDU). Duvar saati ise 0..1439.
+  ///	Eski govde `k >= suAnDakika` ile SIRALI listede ILERI dogru
+  ///	tariyordu: saat 00:05'te (`suAn = 5`) listenin BASINDAKI
+  ///	SABAH kalkislari (330 = 05:30) hemen esliyor ve `adet`
+  ///	dolduruluyordu; 24:30 (=1470) gece otobusu listenin SONUNDA
+  ///	oldugu icin **HIC GORULMUYORDU**. Ustelik gorulseydi bile
+  ///	`varis - suAn` farki 1440 dakika sisip `kToplamSureTavani`
+  ///	(150) kapisinda elenecekti.
+  ///	Sonuc: 00:00-01:30 arasi rota aramasi **TEK ADAY BILE**
+  ///	uretmiyor, 02:30'da uretilenlerin hicbiri gece otobusu degil.
+  ///
+  /// ⚠️⚠️ **COZUM: SIRALAMA "SIMDIDEN KAC DAKIKA SONRA" ILE YAPILIR.**
+  ///	Her kalkis `((k - suAn) mod 1440)` ile bekleme suresine
+  ///	cevrilir, EN KISA bekleyenler secilir ve geri donerken
+  ///	`suAn + bekleme` yazilir — yani donen deger yine MUTLAK
+  ///	dakikadir ve cagiranlarin aritmetigi DEGISMEZ.
+  /// ⚠️ Eski "gun sonunda basa don, +1440 ekle" davranisi KORUNUR:
+  ///    23:50'de (1430) ilk sefer 05:30 -> bekleme 340 -> 1770 doner.
+  /// ⚠️ `mod` iki kez sarilir: Dart'ta `%` negatif sol operandda
+  ///    negatif donebilir.
   List<int> sonrakiler(int suAnDakika, {int adet = 3}) {
-    final c = <int>[];
+    if (kalkislar.isEmpty) return const [];
+    final bekleme = <int>[];
     for (final k in kalkislar) {
-      if (k >= suAnDakika) {
-        c.add(k);
-        if (c.length >= adet) return c;
-      }
+      bekleme.add(((k - suAnDakika) % 1440 + 1440) % 1440);
     }
-    for (final k in kalkislar) {
+    bekleme.sort();
+    final c = <int>[];
+    for (final b in bekleme) {
+      c.add(suAnDakika + b);
       if (c.length >= adet) break;
-      c.add(k + 1440);
     }
     return c;
   }

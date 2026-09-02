@@ -220,6 +220,17 @@ double kalanMetre(
 ///	geri dondugunde kaldigi yerden devam etmeli.
 const double kRotaDisiM = 60;
 
+/// ⚠️⚠️⚠️ TURU 158b - **GERCEK GERI YURUME ESIGI (metre).**
+///
+///	Monoton `t` mandali GPS gurultusunu yutmali ama kullanicinin
+///	GERCEKTEN geri donmesini yutmamalidir. Ham izdusum monoton
+///	noktanin bu kadar ARKASINDA ve UST USTE IKI olcumde boyle
+///	kalirsa mandal BIRAKILIR.
+/// ⚠️ 20 m: tipik sehir ici GPS gurultusu tavani. Daha kucuk deger
+///    tek bir sicramada mandali birakir (kalan mesafe geri buyur);
+///    daha buyuk deger gercek geri donusu gec fark eder.
+const double kGeriEsikM = 20;
+
 /// Bir bacagin "tamamlandi" sayilacagi kalan mesafe.
 ///
 /// ⚠️ 25 m: GPS dogrulugundan BUYUK olmak zorunda, yoksa kullanici duraga
@@ -242,6 +253,7 @@ class TakipDurumu {
     this.izEnlem,
     this.izBoylam,
     this.t = 0,
+    this.geriSayac = 0,
   });
 
   /// Su an hangi bacaktayiz (aday.bacaklar indeksi).
@@ -278,6 +290,11 @@ class TakipDurumu {
   ///	cizgi geri gidiyor" seklinde YENI bir tutarsizlik dogardi.
   ///	Bu yuzden izdusum noktasi da MONOTON `t`den kurulur.
   final double t;
+
+  /// ⚠️⚠️ TURU 158b - ust uste kac olcumdur ham izdusum monoton
+  ///	noktanin `kGeriEsikM`den GERISINDE. 2'ye ulasinca mandal
+  ///	birakilir (bkz. `ilerlet` icindeki serh).
+  final int geriSayac;
 
   static const TakipDurumu basla = TakipDurumu(
     bacak: 0,
@@ -327,9 +344,42 @@ TakipDurumu ilerlet(
   }
 
   final yol = bacakYollari[bacak];
-  final basSeg = bacak == onceki.bacak ? onceki.segment : 0;
-  final iz = yapistir(yol, enlem, boylam, basSegment: basSeg);
+  var basSeg = bacak == onceki.bacak ? onceki.segment : 0;
+  var iz = yapistir(yol, enlem, boylam, basSegment: basSeg);
   if (iz == null) return onceki;
+
+  // ⚠️⚠️⚠️ TURU 158b - **ROTA DISI KALICI KILITLENIYORDU** (yayin oncesi
+  //	denetim; YUKSEK).
+  //
+  //	`yapistir` yalniz [basSeg, basSeg + 40) araligini tarar. Kullanici
+  //	iki GPS olayi arasinda 40 sekil noktasindan fazla ilerlerse
+  //	(telefon cepte, ekran kapaliyken Android akisi KISILIR - bu
+  //	`konum_servisi.dart` serhinde ZATEN yazili) izdusum o pencerenin
+  //	SONUNA yapisir, uzaklik `kRotaDisiM`yi asar ve `rotaDisi` dali
+  //	`segment: basSeg` dondurur. **BIR SONRAKI cagride taban AYNIDIR**
+  //	-> ayni pencere -> ayni uzak izdusum -> SONSUZA KADAR rotaDisi.
+  //	Kullanici cizginin TAM USTUNDE yurumeye devam etse, hatta yolun
+  //	SONUNA varsa bile durum degismez: `kalanM` donar, bacak HIC
+  //	tamamlanmaz, `bitti` HIC tetiklenmez ("Vardin." mesaji gelmez).
+  //	"Bitir" + "Basla" da ayni pencereye doner - KURTARMA YOLU YOKTU.
+  //
+  // ⚠️⚠️ **YALNIZ ILERI**: global yeniden yakalama sonucu ancak
+  //	`basSeg`ten SONRAYSA kabul edilir. Boylece monotonluk korunur ve
+  //	`yapistir` serhindeki *"pencereyi kaldirma"* yasagi IHLAL EDILMEZ
+  //	(o yasak ilmekli hatlarda cizginin GERI sicramasina karsidir).
+  // ⚠️ Kapi YALNIZ izdusum pencerenin SON segmentine yapismisken
+  //    calisir: normal rotaDisi (kullanici gercekten sapmis) vakasinda
+  //    pahali global arama YAPILMAZ.
+  if (iz.uzaklikM > kRotaDisiM && iz.segment >= basSeg + 40 - 1) {
+    final global = yapistir(yol, enlem, boylam,
+        basSegment: 0, pencere: yol.length);
+    if (global != null &&
+        global.uzaklikM <= kRotaDisiM &&
+        global.segment > basSeg) {
+      basSeg = global.segment;
+      iz = global;
+    }
+  }
 
   if (iz.uzaklikM > kRotaDisiM) {
     return TakipDurumu(
@@ -349,6 +399,8 @@ TakipDurumu ilerlet(
       izBoylam: iz.boylam,
       // ⚠️ Rota disinda ilerleme YAZILMAZ; oran ONCEKI degerde kalir.
       t: onceki.t,
+      // ⚠️ Sayac da TASINIR: rota disinda geri-yurume karari verilemez.
+      geriSayac: onceki.geriSayac,
     );
   }
 
@@ -413,7 +465,48 @@ TakipDurumu ilerlet(
   //	ve kalan mesafe O NOKTADAN yeniden kurulur.
   // ⚠️ Bacak ya da segment DEGISTIYSE `t` ham degerden baslar.
   final ayniSeg = bacak == onceki.bacak && iz.segment == onceki.segment;
-  final tMono = ayniSeg ? math.max(onceki.t, iz.t) : iz.t;
+  // ⚠️⚠️⚠️ TURU 158b - **MANDAL GPS GURULTUSUYLE SINIRLI** (denetim; ORTA).
+  //
+  //	Kosulsuz `math.max` kullanicinin GERCEKTEN geri yurumesini de
+  //	yutuyordu: duragi 30-40 m gecip donen kisi cizginin USTUNDE
+  //	oldugu icin `rotaDisi` TETIKLENMEZ, ama `t`, `kalanM` ve (turu
+  //	157'den beri cizgiye yapistirilan) PUCK **DONAR**. Kamera ham
+  //	GPS'i izledigi icin harita kayar, puck yerinde kalir: kullanici
+  //	yururken kendini hareketsiz gorur. Yani turu 157'de "geri
+  //	gidiyordu ama HAREKET EDIYORDU", turu 158 onu "HIC hareket
+  //	etmiyor"a cevirmisti - sikayetin ta kendisi.
+  // ⚠️ Tek gurultulu fix hala YUTULUR: birakma icin UST USTE IKI olcum
+  //    ve esigin asilmasi gerekir.
+  // ⚠️⚠️ **OLCUT SEGMENT ICI ORAN DEGIL, GPS ILE IZDUSUM ARASI MESAFEDIR.**
+  //	Ilk yazimda `(onceki.t - iz.t) * segmentUzunlugu` kullanildi ve
+  //	MUHAFIZ TESTI KIRMIZI DUSTU: kullanici bir segmentten FAZLA geri
+  //	giderse `yapistir` penceresi geriye BAKMADIGI icin izdusum
+  //	segmentin BASINA (t = 0) yapisir ve fark en fazla BIR SEGMENT
+  //	uzunlugu (~11 m) cikar - esige HIC ULASMAZ. Yani olcut, olcmesi
+  //	gereken seyi yapisal olarak olcemiyordu.
+  //	Dogru sinyal: kullanici cizginin USTUNDE (rotaDisi degil) ama
+  //	bizim ONCEKI izdusum noktamizdan UZAKTA.
+  final ileri = !ayniSeg || iz.t > onceki.t;
+  final geriM = (ileri || onceki.izEnlem == null || onceki.izBoylam == null)
+      ? 0.0
+      : metre(enlem, boylam, onceki.izEnlem!, onceki.izBoylam!);
+  final geriSayac = geriM > kGeriEsikM ? onceki.geriSayac + 1 : 0;
+  final birak = geriSayac >= 2;
+  // ⚠️⚠️ Mandal birakilinca **PENCERE DE GERI ACILIR**: aksi halde `t`
+  //	serbest kalir ama izdusum yine segment basinda kilitli kalirdi.
+  //	Global arama YALNIZ burada ve YALNIZ kullanici cizgiye YAKINSA
+  //	yapilir (ilmekli hatta yanlis gecise atlamasin diye `kRotaDisiM`).
+  if (birak) {
+    final geriIz = yapistir(yol, enlem, boylam,
+        basSegment: 0, pencere: yol.length);
+    if (geriIz != null &&
+        geriIz.uzaklikM <= kRotaDisiM &&
+        geriIz.segment < basSeg) {
+      basSeg = geriIz.segment;
+      iz = geriIz;
+    }
+  }
+  final tMono = (ayniSeg && !birak) ? math.max(onceki.t, iz.t) : iz.t;
   final p0 = yol[iz.segment];
   final p1 = yol[iz.segment + 1];
   final monoIz = Izdusum(
@@ -436,5 +529,6 @@ TakipDurumu ilerlet(
     izEnlem: monoIz.enlem,
     izBoylam: monoIz.boylam,
     t: tMono,
+    geriSayac: geriSayac,
   );
 }
