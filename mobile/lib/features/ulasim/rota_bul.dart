@@ -307,15 +307,48 @@ const int kAktarmaCezasi = 8;
   int enErken,
 ) {
   if (binisSaatleri.length != inisSaatleri.length) return null;
+  // ⚠️⚠️⚠️ TURU 159 - **GECE HATLARI GORUNMUYORDU** (denetim; YUKSEK).
+  //
+  //	GTFS gece yarisini asan seferi **24:xx+** olarak saklar. Bu
+  //	varlikta servis 1de **5.889 kalkis >= 1440**; 01:00-02:30 arasi
+  //	**3.177 gercek kalkis** var (G1/G2/G3/N4 gece hatlari dahil,
+  //	29 hat). `enErken` ise duvar saatinden turedigi icin 0..1439.
+  //	Eski govde ham `b < enErken` karsilastiriyordu: saat 01:00de
+  //	(`enErken` ~60) 24:30 kalkisi (1470) "1410 dakika sonra"
+  //	sayiliyor, sonra `varis - suAn > kToplamSureTavani` (150)
+  //	kapisinda ELENIYORDU -> **00:00-04:00 arasi TEK ADAY BILE yok.**
+  //
+  // ⚠️⚠️ **COZUM: "SIMDIDEN KAC DAKIKA SONRA" TABANI** (`sonrakiler`
+  //	ile AYNI desen, turu 158b). Her sutunun beklemesi
+  //	`((b - enErken) mod 1440)` ile bulunur, **EN KISA BEKLEYEN** secilir.
+  // ⚠️⚠️⚠️ **ILK ESLESME ARTIK YETMEZ**: kalkis listesi MUTLAK dakikaya
+  //	gore sirali, BEKLEMEYE gore DEGIL. "Ilk `b >= enErken`" almak,
+  //	gece yarisindan sonra listenin BASINDAKI SABAH kalkisini secer
+  //	ve gece otobusu HIC gorulmez. Bu yuzden TUM sutunlar taranir.
+  // ⚠️⚠️ Donen `binis`/`inis` **MUTLAK ve 1440i ASABILIR**; cagiran
+  //	tarafin aritmetigi (`varis - suAn`) ayni tabanda kalsin diye
+  //	bekleme `enErken`e EKLENEREK dondurulur.
+  // ⚠️ YAPMA: her `b`yi kosulsuz mod 1440 yapma — o zaman GECMIS bir
+  //    sefer "yarin" sayilip en yakin gibi secilir ve normal saatlerde
+  //    aday sayisi coker.
+  var enIyi = -1;
+  var enAzBek = 1 << 30;
+  var eB = 0;
+  var eI = 0;
   for (var j = 0; j < binisSaatleri.length; j++) {
     final b = binisSaatleri[j];
     final i = inisSaatleri[j];
-    if (b < enErken) continue;
     if (i <= b) continue;
     if (i - b > 180) continue;
-    return (binis: b, inis: i, sutun: j);
+    final bek = ((b - enErken) % 1440 + 1440) % 1440;
+    if (bek >= enAzBek) continue;
+    enAzBek = bek;
+    enIyi = j;
+    eB = enErken + bek;
+    eI = eB + (i - b);
   }
-  return null;
+  if (enIyi < 0) return null;
+  return (binis: eB, inis: eI, sutun: enIyi);
 }
 /// Yaya hizi (m/sn). ⚠️ TEK KAYNAK: hem sure hem "kac dakika yurudum"
 /// hesabi bunu okur. 1,3 m/sn ~ 4,7 km/sa — yetiskin ortalamasi.
@@ -906,21 +939,31 @@ Future<List<RotaAdayi>> _aktarmaliAra({
       final binisSat = oh.kalkislar;
       var sutun1 = -1;
       final enErken = suAn + oDk;
+      // ⚠️⚠️ TURU 159 - gece sarmasi (bkz. `_seferBul` serhi). Aktarmali
+      //	dal da AYNI tabani kullanmali; yoksa gece yarisindan sonra
+      //	aktarmali rota hic uretilmez (aktarmasiz duzelirken bu dal
+      //	geride kalirdi - "ayni kuralin iki kopyasi drift eder").
+      var bek1 = 1 << 30;
       for (var j = 0; j < binisSat.length; j++) {
-        if (binisSat[j] >= enErken) {
+        final b = ((binisSat[j] - enErken) % 1440 + 1440) % 1440;
+        if (b < bek1) {
+          bek1 = b;
           sutun1 = j;
-          break;
         }
       }
       if (sutun1 < 0) continue;
-      final binis = binisSat[sutun1];
+      // ⚠️ MUTLAK degere cevrilir; `inis1` ayni sutundan okundugu icin
+      //    aralarindaki fark (yolculuk suresi) DEGISMEZ.
+      final binis = enErken + bek1;
+      final kaydir = binis - binisSat[sutun1];
 
       // ── TUR 1: hattin tum duraklarina varis ──
       for (final x in hat1Duraklar) {
         if (x.durakId == o.id) continue;
         // ⚠️⚠️ SUTUN UZUNLUGU KAPISI (bkz. `_seferBul` serhi).
         if (x.kalkislar.length != binisSat.length) continue;
-        final inis1 = x.kalkislar[sutun1];
+        // ⚠️ TURU 159 - ayni gun kaymasi (bkz. `kaydir`).
+        final inis1 = x.kalkislar[sutun1] + kaydir;
         if (inis1 <= binis || inis1 - binis > 180) continue;
         final aktD = durakM[x.durakId];
         if (aktD == null) continue;
@@ -960,21 +1003,27 @@ Future<List<RotaAdayi>> _aktarmaliAra({
                 if (hedef.containsKey(q.durakId)) q,
             ];
             if (hedefliDuraklar.isEmpty) continue;
+            // ⚠️⚠️ TURU 159 - gece sarmasi (bkz. `_seferBul` serhi).
+            //	IKINCI otobus bacagi da AYNI tabani kullanmali.
             var sutun2 = -1;
+            var bek2 = 1 << 30;
             for (var j = 0; j < dh.kalkislar.length; j++) {
-              if (dh.kalkislar[j] >= hazir) {
+              final b = ((dh.kalkislar[j] - hazir) % 1440 + 1440) % 1440;
+              if (b < bek2) {
+                bek2 = b;
                 sutun2 = j;
-                break;
               }
             }
             if (sutun2 < 0) continue;
-            final binis2 = dh.kalkislar[sutun2];
+            final binis2 = hazir + bek2;
+            final kaydir2 = binis2 - dh.kalkislar[sutun2];
 
             for (final z in hedefliDuraklar) {
               final d = hedef[z.durakId];
               if (d == null || d.id == y.id) continue;
               if (z.kalkislar.length != dh.kalkislar.length) continue;
-              final inis2 = z.kalkislar[sutun2];
+              // ⚠️ TURU 159 - ayni gun kaymasi (bkz. `kaydir2`).
+              final inis2 = z.kalkislar[sutun2] + kaydir2;
               if (inis2 <= binis2 || inis2 - binis2 > 180) continue;
 
               final dM = UlasimVeri.kabaMetre(

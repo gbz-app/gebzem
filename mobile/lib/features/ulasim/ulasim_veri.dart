@@ -576,8 +576,32 @@ class UlasimVeri {
     return 1;
   }
 
+  /// ⚠️⚠️⚠️ GECICI-TEST — **SAHTE SAAT** (kullanici emri: *"ben tum hatlari
+  ///	test edecegim, tum hatlara da ekle saat"*).
+  ///
+  ///	Kullanici gece 01:00da test ediyor. Veride o saatte GERCEK kalkis
+  ///	VAR (01:00-02:30 arasi 3.177 kalkis, 29 hat) ve turu 159un gece
+  ///	sarma duzeltmesi onlari GORUNUR yapiyor — ama 105 hattin yalnizca
+  ///	29unda. Kalan 76 hatti da denemek icin saat GUNDUZE sabitlenir.
+  ///
+  /// ⚠️⚠️ **SAHTE SEFER VERISI URETILMEDI.** Varliga tek bir kalkis bile
+  ///	EKLENMEDI; yalnizca "simdi kacti" sorusunun cevabi degistirildi.
+  ///	Sahte kalkis eklemek, olmayan otobusleri gercekmis gibi gostermek
+  ///	olurdu (bu projede en pahali hata sinifi).
+  ///
+  /// ⚠️⚠️⚠️ **YAYIN ONCESI `null` YAPILACAK.** Nobetci:
+  ///	`grep -rn "GECICI-TEST" lib/`
+  ///	(turu 140 dersi: olcum icin konulan her gecici satir ARANIR;
+  ///	 o gun kalan bir satir Ankaradaki kullaniciya Gebze isletmelerini
+  ///	 "250 m" diye gostermisti.)
+  ///
+  /// ⚠️ Deger 12:00 (720): tum hatlarin sefer yaptigi saat.
+  static const int? kTestSaati = 720; // GECICI-TEST
+
   /// Gece yarisindan itibaren gecen dakika.
   static int suAnDakika([DateTime? an]) {
+    // ⚠️ GECICI-TEST kapisi — bkz. `kTestSaati` serhi.
+    if (an == null && kTestSaati != null) return kTestSaati!;
     final t = an ?? DateTime.now();
     return t.hour * 60 + t.minute;
   }
