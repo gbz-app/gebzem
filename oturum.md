@@ -9490,3 +9490,189 @@ IPA dogrulamasi (uc kodlama da denendi, kontrol dizesi `Yakınımda` VAR):
 
 ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260902-1413
 
+
+---
+
+## Oturum — 2 Eylül 2026 (Turu 158) — SAHADA GORULEN ALTI HATA
+
+Kullanici turu 157'yi GERCEK IPHONE'DA test etti, dort ekran goruntusu ve
+alti sikayet gonderdi. **Arayuz/istemci turu** (CLAUDE.md kural 9):
+`backend/` DEGISMEDI, migration YOK, deploy YOK, e2e YOK.
+
+### 🧭 Kullanicinin alti sikayeti
+1. *"surekli alttan hata aliyorum YENIDEN DENE yeniden dene gibi"*
+2. *"rota iptalinden sonra EKRAN DONDURME gidiyor"*
+3. *"aktarmali otobuste DIREK CIZGI var YESILDE"*
+4. *"hesaplamalar duzgun yapilmali MESAFE ROTA HESAPLAMALARI"*
+5. *"orada YURUME YERI YOK · mesafeyi COK UZATMISSIN · bazen 1 DURAK FAZLA
+   ASAGIDA birakiyorsun"*
+6. *"rota cizdikten sonra HAREKET EDERKEN HAREKET ETMIYOR gibi, birde SHAPE
+   SILINIYOR MU"*
+
+### 🔬 EKRAN GORUNTUSUNDEN CIKAN CELISKI (turun basligi)
+Ayni rota, ayni bacak:
+| ekran | ne diyor |
+|---|---|
+| rota OZETI (15:05) | *"FATİH SULTAN MEHMET CADDESİ durağına yürü **5 dk**"* |
+| ADIM ekrani (15:09) | *"**9 dk · 677 m** kaldı"* |
+
+Oran **~1,74**. Bu, turun en somut kanitiydi.
+
+### ⚠️⚠️⚠️ (3) YESIL DUZ CIZGI — KOK NEDEN VE UC OLCUM HATASI
+`_guzergahDilimi` dilimi KOSULSUZ `[binis, ...sublist(a+1, b+1), inis]`
+olarak kuruyor ve **SON BAGLAYICININ UZUNLUGUNU HIC OLCMUYOR**.
+⚠️⚠️ **Turu 155'in `basSegment: a + 1` duzeltmesi hatayi AZALTMADI, TASIDI:**
+`b > a` yapisal oldugu icin eski `b <= a` duz-cizgi dali artik neredeyse
+hic tetiklenmiyor; onun yerine dilimin SONUNA kilometrelerce uydurma duz
+cizgi ekleniyor. Ekranda tek duz cizgi degil, **makul gorunen bir guzergah
++ sonunda dev bir diagonal** cikiyor.
+
+**UC OLCUM ADIMI (ikisi YANLISTI, kayda deger):**
+1. Once "sekil eksik" sanildi -> **CURUDU**: 203 hat-yonun yalnizca **1**'inde
+   `yonSekil` girisi yok.
+2. Sonra baglayici KOSE mesafesiyle olculdu -> **%4,09** cikti ve arastirmanin
+   onerdigi fix simule edilince **0 cift** duzeldi.
+   ⚠️⚠️ Onerilen kosul `bG > a` **YAPISAL OLARAK BOSTU**: `bG > a` ise `bG`
+      zaten pencerenin ICINDE ve pencereli arama onu ZATEN buluyor.
+3. **IZDUSUM** ile olculunce tablo TERSINE dondu: kotu vaka **%1,05** ve
+   bunlarin **%86,5'i duzeltilebilir** (global izdusum medyan **8 m**).
+   ⚠️ **DERS: egri bir cizgiye uzakligi KOSEDEN olcme, IZDUSUMDEN olc.**
+      GTFS sekillerinde 400 m'yi asan segmentler var; durak yolun tam
+      ustunde olsa bile kose mesafesi buyuk cikar.
+
+**FIX:** `_enYakinIz` artik izdusum mesafesini de donduruyor. Zorlanan inis
+izdusumu 300 m'den uzaksa global aramaya bakilir; global belirgin daha iyiyse
+ve sekil TERS yondeyse dilim `[bG..a]` alinip **TERS CEVRILIR**.
+⚠️ `basSegment` KALDIRILMADI — iki koruma BIRLIKTE gerekir.
+📊 **OLCULDU (3438 kabul edilen cift):** izdusum >300 m **%0,99 -> %0,06**;
+   p99 **289 m -> 41 m**; maks **16.649 m -> 4.267 m**; 32 dilim ters cevrildi.
+
+### ⚠️⚠️⚠️ (4) HESAPLAR — VE KENDI YARIM FIX'IM ZARARLIYDI
+`yayaRotasi` sunucunun donen `mesafe_m`/`sure_sn` alanlarini **ATIYORDU**
+(yalniz `noktalar` okunuyordu). Sunucu bunlari ZATEN donduruyor
+(`yolbul/handler.go`) — duzeltme TAMAMEN ISTEMCIDE.
+
+⚠️⚠️ **AMA YARIM FIX ACIKCA IMKANSIZ BIR PLAN URETTI** (denetim yakaladi):
+yurume sayilari gerceklestikten sonra sefer secimi ESKI kus ucusu
+tahmininde kaldigi icin ekran *"9 dk yuru"* deyip **fiziksel olarak
+yetisilemeyecek** bir kalkis onerebiliyordu. Sessizce iyimser bir plan,
+ACIKCA imkansiz bir plana donusmustu.
+**FIX (uc parca):**
+· `altBaslik` da gercek olcumden (*"390 m · yaklaşık"* ile *"9 dk"* ayni
+  satirda birbirini yalanliyordu; ceil(390/1,3/60)=5).
+· `sure_sn` dali KULLANILMIYOR: `_bacakDakika` sureyi HER ZAMAN
+  `d.kalanM / kYayaHizi` ile yeniden hesapliyor; Google'in hiz modeli
+  kullanilsaydi ozet 8, adim 9 der ve celiski KAPANMAZDI. `kYayaHizi`
+  **TEK KAYNAK** kalir (alan tipte DURUYOR).
+· `_kalanDakika` aktif bacakta `_bacakDakika`ya baglandi.
+· **`_seferleriYenidenSec`**: `SeferKaydi` (kalkis sutunlari adayda tasinir)
+  ile zenginlestirmeden SONRA sefer YENIDEN secilir. **TAMAMEN YEREL, EK AG
+  ISTEGI YOK** (turu 152 kota dersi). Aktarmalida ZINCIRLEME ele alinir;
+  olmuyorsa aday DUSER. `kToplamSureTavani` yeniden uygulanir, liste
+  yeniden siralanir.
+📊 **OLCULDU (59 cift):** kapsama **%96,6 KORUNDU** · aktarma 46 · en uzun
+   135 dk · **YETISEMEZ 0** · **metre/dakika CELISKISI 0** · medyan 4 ms.
+
+### ⚠️⚠️ (1) SUREKLI HATA SERIDI — CIFT KONUM ISTEGI
+`initState` hem `_yukle()` hem (menuden Durak ile gelindiginde) `_durakAc()`
+ile **12 saniyelik IKI bagimsiz fix istegi** aciyordu. iOS tarafinda
+geolocator **TEK SLOTLU** bir sonuc isleyicisi tutuyor: ikinci istek
+birincinin blogunu EZIYOR, birincinin future'i HIC tamamlanmiyor ve 12 sn
+sonra *"Konum alınamadı — açık alanda tekrar dene"* ekranin ALTINDA cikiyor.
+⚠️⚠️ `konumIzni` ZATEN bu deseni kullaniyordu (`_izinIsi`); fix istegi
+   kullanmiyordu — **ASIMETRININ KENDISI HATAYDI.**
+**FIX:** `_fixIsi` tek-ucus onbellegi.
+⚠️ **`sessiz` PAYLASILAN GOVDEYE GIRMEZ**: govde yalniz SEBEBI dondurur,
+   uyariyi CAGRI YERI gosterir; yoksa ilk cagiran sessizse gurultulu
+   cagiran HICBIR SEY gormezdi.
++ `_yukle` artik `sessiz: true` — sebep panel seridinde ZATEN yaziliyordu,
+  SnackBar MUKERRERDI ve rota ekraninin USTUNDE cikiyordu.
+
+### ⚠️⚠️ (2) ROTA SESSIZCE SILINIYORDU
+· `_durakAc` konum icin 12 sn bekliyor; kullanici X ile ciktiktan sonra
+  ucustaki cagri tamamlanip `_durakModu = true` yazarak ekrani
+  **KENDILIGINDEN GERI ACIYORDU** (`_durakNesli` bayatlik kapisi eklendi).
+  ⚠️ Turu 157 denetiminde bu iddia "curuk" sayilmisti; curutme YALNIZ
+     `_durakModu`nun await ONCESI acildigini gosteriyor, **IPTAL YOLUNU**
+     hic degerlendirmiyordu.
+· `_rotaAra` ilk is olarak `_rota = null` yaziyordu; sonuc sayfasi
+  `showDragHandle`li bir sheet ve kullanici SECIM YAPMADAN kapatirsa `_rota`
+  null KALIYOR: harita cizgisi ve ozet karti **MESAJSIZ** kayboluyor, geri
+  getirme yolu YOK. Artik rota YALNIZ `rotaSec` icinde yazilir.
+· `catch` YOKTU: arama patlarsa ne sheet aciliyor ne mesaj cikiyordu.
+
+### ⚠️⚠️ (6) "HAREKET ETMIYOR" — DORT BAGIMSIZ KATKI
+1. **BEKLEMEDE IMLEC GERCEKTEN DONUYOR** (en gorunur mekanizma): bekleme
+   bacaginin `noktalar`i BOS, `ilerlet` onu ATLIYOR, imlec otobus diliminin
+   basinda `aktifOran = 0` ile park ediyor ve beklemenin TAMAMI boyunca
+   (ekran goruntusunde ~20 dk) kipirdamiyordu.
+   FIX: `_imlecBacak`/`_imlecOran` — bekleme **SAATLE** ilerler. Kalkis
+   dakikasi METINDEN AYRISTIRILMAZ, `varisDakika`dan turetilir.
+   ⚠️ Yarim kalirdi: ekran YALNIZ GPS olayinda yeniden ciziliyor, kullanici
+      durakta DURUYORKEN olay GELMEZ -> **30 sn'lik `_bekleTik`**.
+2. **KAMERA KAPISI YOKTU**: takip acikken `merkez` izdusume bagli ve her GPS
+   duzeltmesinde degisiyor; kamerayi suren son dal `_takipKamera`yi HIC
+   okumuyordu. Kullanici haritayi kaydirsa da kamera GERI ZIPLIYOR,
+   **"Merkeze dön" FIILEN ISLEVSIZ**. FIX: `kameraSerbest`.
+3. **KALAN MESAFE GERI BUYUYORDU**: `segment` monotondu ama `kalanM` HAM
+   izdusumden geliyordu; segment ICINDE `t` geri gidince ekranin EN BUYUK
+   sayisi yururken BUYUYOR ve imlec GERI kayiyordu. Dosyanin KENDI serhi
+   *"cizilen kalan yol geri UZAMAZ"* diyordu, govdede koruma YOKTU.
+   FIX: `TakipDurumu.t` (monoton oran); izdusum noktasi ve kalan mesafe
+   ONDAN kurulur. ⚠️ Yalniz `kalanM`i kirpmak YETMEZDI — cizginin BASI geri
+   oynamaya devam ederdi. ⚠️ BACAK BITTI kapisi HAM `kalan` ile KALDI.
+   📊 **BOZARAK KANITLANDI**: `tMono = iz.t` yapilinca 26 gercek guzergahta
+      5278 GPS duzeltmesinin 7'sinde artis (**maks +77,6 m**), test KIRMIZI;
+      duzeltmeyle **0**.
+4. **SILINMIS BACAKLAR GERI GELIYORDU**: takip yol ortasinda durunca
+   `takipBacak` null oluyor ve gecilmis her sey ANINDA tam renkle geri
+   geliyordu. FIX: `_sonBacak`.
++ **rota disinda cizgi geri kiris ciziyordu** (`rotaDisi`de segment DONMUS
+  ama izdusum GUNCEL) -> o dalda bacagin TAMAMI cizilir.
++ zoom dugmeleri takip kamerasini BIRAKMIYORDU (programatik olduklari icin
+  jest tetiklenmiyor) -> yakinlastirma birkac saniyede SESSIZCE geri
+  aliniyordu.
+
+### 📌 CURUTULEN 8 (bir daha arastirilmasin)
+`_enYakinSegment` izdusum noktalarinin atilmasi (gorsel sapma medyan 5 m) ·
+GTFS sekillerinin kaba olmasi (>400 m segmentlerin %94,8'i yoldan <=50 m) ·
+`yonSekil[1 - yon]` ters yon yedegi (202/202 kendi seklini buluyor) ·
+`_uclariBagla`ya ust sinir koymak (hata yonu TERS) · `rotaSec`te pusula
+sizintisi (ULASILAMAZ) · `_dogrulukM`/`_yon`un setState disinda olmasi ·
+`_durakAc`ta `finally` eksikligi · "Tekrar dene" dugmesinin kendi hatasini
+yeniden uretmesi (o dugme durak/rota modunda HIC cizilmiyor).
+
+### ⏳ DURUST SINIRLAR
+- **(5a) YURUME CIZGISININ YAPI ADASINI DOLANMASI KOD TARAFINDA COZULEMEZ.**
+  Polyline cozucu, istek ve cizim UCU DE dogru; dolanan geometri **Google
+  Routes'un KENDI ciktisi**. Kok neden VERI: Gebze'de 9.647 yolda **99
+  kaldirim, 40 isaretli gecit** (turu 152 canli olcumu). Kullanicinin
+  *"karsidan gecirip direk hedefe gitsin"* istegi **KARSILANAMAZ**.
+- **(5b) ELENMIS DAHA IYI BIR ADAY GERI GELEMEZ**: zenginlestirme kota
+  nedeniyle yalniz KAZANANLAR icin kosuyor; kus ucusuyla elenmis bir aday
+  gercekte daha iyi olabilir. Mevcut kota altinda KACINILMAZ. "1 durak fazla
+  asagida" sikayetinin kalan kismi budur.
+- **AKTARMA YURUMESI ZENGINLESTIRILMIYOR** (kota kapisi): erisim/varis
+  yurumeleri GERCEK, aktarma yurumesi KUS UCUSU — ayni kartta iki olcum
+  dili. En kotu eksik 2 dk, `kAktarmaTampon` da 2 dk; nominal olarak
+  ortuluyor ama tamponun KENDI amaci icin kalan pay SIFIR.
+  ⚠️ `kAktarmaYaricapM` ya da `kAktarmaTampon` degisirse bu hesap YENIDEN.
+- **ADIM 4 SIKAYET 3'U TAM KAPATMAZ**: kalan %0,06'da durak seklin uzerinde
+  gercekten YOK. O vakalarda "guzergah yaklasik" ibaresi henuz YOK.
+- **GERCEK BIR "DONMA" (freeze) ACIKLANAMADI.** Iki aday da "geri donme /
+  kaybolma"; ana is parcacigini kilitleyen bir donma BULUNAMADI. Sahada
+  tekrarlarsa ayri teshis gerekir (1,7 MB'lik `seferler.json`un ilk cozumu
+  ilk aktarma aramasinda ~200-400 ms donma yapabilir — OLCULMEDI).
+- **iOS TEK-SLOT MEKANIZMASI SAHADA DOGRULANMADI**: Dart tarafindaki cift
+  cagri KESIN (kod okundu), eklenti ic davranisi ajan okumasina dayaniyor.
+- **KAMERA/IMLEC DUZELTMELERI EKRAN GORUNTUSUYLE KANITLANAMAZ**: iki goruntu
+  ayni anin iki zoom'u. Kod duzeyinde kanitlandi, **gercek cihazda yururken**
+  dogrulanmali.
+- **ILERLEME IMLECI COZUNURLUGU** ~0,08 dp/m: 5 m'lik bir duzeltme 0,41 dp.
+  Birincil geri bildirim cubugun USTUNDEKI 20 puntoluk "N m kaldı" metnidir.
+
+### ✅ Dogrulama
+`flutter analyze` **0 hata 0 uyari** · `flutter test` **77/77** ·
+gecici olcum dosyalari SILINDI.
+
+### 🚧 BUILD ALINMADI — KULLANICIYA SORULACAK (CLAUDE.md kural 0)
