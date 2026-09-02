@@ -212,6 +212,20 @@ const double kCipAra = 14;
 ///    dayanir.
 const double kSeritSagNefes = 28;
 
+/// ⚠️⚠️ TURU 155 — iOS kesik deseninin yeniden hesaplanma esigi (zoom).
+///
+/// Desen iOS'ta **METRE** cinsindendir (paket kaynagindan dogrulandi:
+/// `FGMPolylineController.m` -> `GMSStyleSpans(..., kGMSLengthRhumb)`),
+/// yani ekranda sabit gorunmesi icin zoom degistikce yeniden hesaplanmak
+/// ZORUNDA. Android'de birim PIKSEL (`Convert.java` -> `new Dash(length)`)
+/// ve orada hicbir sey yapmak GEREKMEZ.
+///
+/// 0.15 zoom = ~%11 olcek hatasi — gozle secilemez. Onceki deger **0.4**
+/// (%32) idi ve kullanici farki SAHADA GORDU.
+/// ⚠️ Daha da kucultme: her 0.05'te yeniden cizim, sikistirma boyunca
+///    ~20 `setState` demek ve kazanci gorunmez.
+const double kZoomEsigi = 0.15;
+
 const _haritaBayragi = String.fromEnvironment('HARITA');
 const haritaAnahtariVar =
     _haritaBayragi == 'true' || _haritaBayragi == '1' || _haritaBayragi == 'yes';
@@ -371,6 +385,24 @@ const _haritaGece = '''
 ///	gecersiz bir hex gorunce O KURALI SESSIZCE ATAR — harita "biraz
 ///	yanlis" gorunur ve sebebi hicbir yerde yazmaz. (Ilk yazimda
 ///	`#2e3category` ve 8 haneli `#44528097` kalmisti; ikisi de duzeltildi.)
+///
+/// ⚠️⚠️⚠️ TURU 155 — **`landscape.natural` YESILDI, TUM ZEMINI
+///	BOYUYORDU** (kullanici sahada gordu: *"yaklastikca haritada boyle
+///	yesilimsi bir renk oluyor"* — ekran goruntusu gonderdi).
+///
+///	⚠️⚠️ KOK NEDEN: Google stil semasinda `landscape.natural`
+///	YALNIZ parklari degil, **YAPILASMAMIS HER ZEMINI** kapsar
+///	(`landscape.natural.landcover` + `landscape.natural.terrain`).
+///	Sehir olceginde ustunu `landscape.man_made` karolari ortuyordu ve
+///	hata GORUNMUYORDU; **yakinlastikca** man_made karolari seyrelince
+///	altindaki YESIL ortaya cikiyor ve ekran komple yesile donuyordu.
+///
+///	FIX: `landscape.natural` ZEMIN RENGINE cekildi ve
+///	`landscape.man_made` ACIKCA tanimlandi (varsayilana birakilirsa
+///	Google kendi rengini kullanir ve stil "biraz yanlis" gorunur).
+///	Yesil ARTIK YALNIZ `poi.park`ta — Yandex referansindaki gibi.
+/// ⚠️ YAPMA: `landscape` ya da `landscape.natural` altina yesil
+///    (`#26402f` gibi) bir renk geri koyma. Yesil YALNIZ `poi.park`.
 const _haritaNavigator = '''
 [
  {"elementType":"geometry","stylers":[{"color":"#232a44"}]},
@@ -386,7 +418,11 @@ const _haritaNavigator = '''
  {"featureType":"poi.park","elementType":"labels.text.fill","stylers":[{"color":"#8fbf9c"}]},
  {"featureType":"poi.medical","elementType":"geometry","stylers":[{"color":"#33304e"}]},
  {"featureType":"poi.school","elementType":"geometry","stylers":[{"color":"#2c3352"}]},
- {"featureType":"landscape.natural","elementType":"geometry","stylers":[{"color":"#26402f"}]},
+ {"featureType":"landscape","elementType":"geometry","stylers":[{"color":"#232a44"}]},
+ {"featureType":"landscape.natural","elementType":"geometry","stylers":[{"color":"#232a44"}]},
+ {"featureType":"landscape.natural.landcover","elementType":"geometry","stylers":[{"color":"#232a44"}]},
+ {"featureType":"landscape.natural.terrain","elementType":"geometry","stylers":[{"color":"#232a44"}]},
+ {"featureType":"landscape.man_made","elementType":"geometry","stylers":[{"color":"#262e4b"}]},
  {"featureType":"road","elementType":"geometry","stylers":[{"color":"#3e4c77"}]},
  {"featureType":"road","elementType":"geometry.stroke","stylers":[{"color":"#2b3355"}]},
  {"featureType":"road","elementType":"labels.text.fill","stylers":[{"color":"#b9c2dc"}]},
@@ -2661,6 +2697,10 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
     // ⚠️⚠️ Kalan mesafe YALNIZ AKTIF bacakta yazilir: `kalanM` diger
     //	bacaklara AIT DEGILDIR ve orada yazilsaydi duz bir YALAN
     //	olurdu.
+    // ⚠️⚠️ TURU 155 — mesafe `ulasim.mesafeMetni` ile bicimlenir.
+    //	Kullanicinin ekran goruntusunde **"15240 m kaldı"** yaziyordu;
+    //	15 kilometreyi metre cinsinden yazmak okunmaz. Bicimleyici
+    //	ZATEN vardi, yalnizca `private` oldugu icin kullanilamiyordu.
     // ⚠️ EMULATORDE GORULDU (turu 151): "143 m kaldı · 143 m ·
     //    yaklaşık" - mesafe IKI KEZ yaziliyordu. Yurume bacaginin
     //    `altBaslik`i ZATEN mesafe tasiyor.
@@ -2669,8 +2709,8 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
         : d.rotaDisi
             ? 'Rotadan uzaktasın — çizgiye dön'
             : b.tur == BacakTuru.yuru
-                ? '${d.kalanM.round()} m kaldı · yaklaşık'
-                : '${d.kalanM.round()} m kaldı · ${b.altBaslik}';
+                ? '${ulasim.mesafeMetni(d.kalanM)} kaldı · yaklaşık'
+                : '${ulasim.mesafeMetni(d.kalanM)} kaldı · ${b.altBaslik}';
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -5992,6 +6032,16 @@ class _HaritaAlaniState extends State<_HaritaAlani> {
   ///    Durak basina ayri bitmap uretmek 40 PNG kodlamasi demekti.
   BitmapDescriptor? _durakPin;
 
+  /// ⚠️⚠️⚠️ TURU 155 — **VARIS NOKTASI PINI** (kullanici: *"varis
+  ///	noktasinda DURAK GORUNMUYOR"*).
+  ///
+  /// ⚠️⚠️ KOK NEDEN: haritada cizilen duraklar `widget.duraklar`,
+  ///	yani **KULLANICININ CEVRESINDEKI** duraklar. Inilecek durak
+  ///	genelde kilometrelerce uzakta oldugu icin o listede DEGIL —
+  ///	rota cizilse bile varis ucunda hicbir isaret yoktu.
+  /// Kirmizi: Yandex referansinda varis noktasi kirmizi pin.
+  BitmapDescriptor? _varisPin;
+
   /// ⚠️ TURU 124 — KENDI konum isaretimiz (Google`in mavi noktasi yerine).
   BitmapDescriptor? _benPin;
 
@@ -6204,6 +6254,52 @@ class _HaritaAlaniState extends State<_HaritaAlani> {
   /// Son bilinen zoom (iOS kesik deseni icin).
   double _sonZoom = 13.5;
 
+  /// Rotanin iki ucundaki isaretler: BINIS duragi, INIS duragi, VARIS.
+  ///
+  /// ⚠️ Rota yokken BOS kume doner — `markers` bir `Set` oldugu icin
+  ///    bos yayma (`...`) tamamen zararsizdir.
+  /// ⚠️ zIndex 3: cevredeki durak pinlerinin (1) ve kendi konumumuzun
+  ///    (2) USTUNDE. Rotanin uclari en onemli iki noktadir.
+  /// ⚠️⚠️ Binis duragi cogu zaman `widget.duraklar` icinde de vardir;
+  ///	ayni koordinatta iki marker cizilir ama `markerId` FARKLI
+  ///	oldugu icin Set catismasi OLMAZ ve ustteki (zIndex 3) gorunur.
+  Iterable<Marker> _rotaUcIsaretleri() sync* {
+    final r = widget.rota;
+    if (r == null) return;
+    for (final b in r) {
+      if (b.tur != BacakTuru.otobus || b.noktalar.length < 2) continue;
+      final binis = b.noktalar.first;
+      final inis = b.noktalar.last;
+      yield Marker(
+        markerId: const MarkerId('rota-binis'),
+        position: LatLng(binis.enlem, binis.boylam),
+        icon: _durakPin ?? BitmapDescriptor.defaultMarker,
+        anchor: const Offset(0.5, 0.5),
+        zIndex: 3,
+      );
+      yield Marker(
+        markerId: const MarkerId('rota-inis'),
+        position: LatLng(inis.enlem, inis.boylam),
+        icon: _durakPin ?? BitmapDescriptor.defaultMarker,
+        anchor: const Offset(0.5, 0.5),
+        zIndex: 3,
+      );
+      break;
+    }
+    // ⚠️ VARIS: son bacagin SON noktasi. Ayri bir `varis` parametresi
+    //    tasimak ikinci bir kaynak olurdu; rota zaten oraya bitiyor.
+    final son = r.isEmpty ? null : r.last.noktalar;
+    if (son != null && son.isNotEmpty && _varisPin != null) {
+      yield Marker(
+        markerId: const MarkerId('rota-varis'),
+        position: LatLng(son.last.enlem, son.last.boylam),
+        icon: _varisPin!,
+        anchor: const Offset(0.5, 0.5),
+        zIndex: 4,
+      );
+    }
+  }
+
   Future<void> _pinUret() async {
     final oran = MediaQuery.devicePixelRatioOf(context);
     final d = await daireIsaret(
@@ -6242,11 +6338,19 @@ class _HaritaAlaniState extends State<_HaritaAlani> {
       pikselOrani: oran,
       ikon: LucideIcons.busFront,
     );
+    // ⚠️ TURU 155 — varis noktasi pini (kirmizi + konum ikonu).
+    final vp = await daireIsaret(
+      ic: const Color(0xFFFF4D4D),
+      kenar: Colors.white,
+      pikselOrani: oran,
+      ikon: LucideIcons.mapPin,
+    );
     if (!mounted) return;
     setState(() {
       _pin = d;
       _benPin = b;
       _durakPin = dp;
+      _varisPin = vp;
     });
   }
 
@@ -6475,7 +6579,31 @@ class _HaritaAlaniState extends State<_HaritaAlani> {
                 onTap: widget.noktaSec == null
                     ? null
                     : (p) => widget.noktaSec!(p.latitude, p.longitude),
-                onCameraMove: (p) => _sonMerkez = p.target,
+                // ⚠️⚠️⚠️ TURU 155 — **KESIK DESEN ZOOM SIRASINDA DA
+                //	GUNCELLENIR** (kullanici: *"Yandexte kesik cizgiler
+                //	yaklassam da uzaklassam da AYNI; bizimkinin de boyle
+                //	olmasi gerekiyor"*).
+                //
+                //	⚠️⚠️ KOK NEDEN: desen YALNIZ `onCameraIdle`de ve
+                //	yalniz **0.4 zoom** farkinda guncelleniyordu. 0.4 zoom
+                //	= **%32 olcek hatasi**; ustelik parmak ekrandayken HIC
+                //	guncellenmedigi icin kesikler yakinlastirirken UZUYOR,
+                //	parmak kalkinca ANIDEN yerine oturuyordu.
+                //
+                // ⚠️⚠️ `onCameraMove` zoom'u BEDAVA verir (`p.zoom`);
+                //	`onCameraIdle`daki `getZoomLevel()` ise ASENKRON bir
+                //	platform cagrisidir. Esik **0.15** (%11 hata) ve yalniz
+                //	iOS: tam bir sikistirmada ~6-7 yeniden cizim demek —
+                //	60 fps yeniden cizimin yaninda onemsiz.
+                // ⚠️ Android'de dash PIKSEL oldugu icin zaten zoom'dan
+                //    bagimsizdir; orada `setState` yapmak BOSA yeniden cizimdir.
+                onCameraMove: (p) {
+                  _sonMerkez = p.target;
+                  if (!Platform.isIOS) return;
+                  if ((p.zoom - _sonZoom).abs() > kZoomEsigi) {
+                    setState(() => _sonZoom = p.zoom);
+                  }
+                },
                 onCameraIdle: () async {
                   // ⚠️ Merkez YALNIZ kamera durunca bildirilir
                   //    (ters geocoding bir AG istegi).
@@ -6483,11 +6611,13 @@ class _HaritaAlaniState extends State<_HaritaAlani> {
                   if (mk != null) {
                     widget.kameraDurdu?.call(mk.latitude, mk.longitude);
                   }
-                  // ⚠️ iOS kesik deseni zoom'a bagli; kamera durunca
-                  //    guncellenir (her karede degil).
+                  // ⚠️ iOS kesik deseni zoom'a bagli. `onCameraMove`
+                  //    zaten izliyor; bu **EMNIYET AGI**: programatik
+                  //    kamera hareketlerinde (`animateCamera`) `onCameraMove`
+                  //    her zaman tetiklenmeyebilir.
                   final z = await _harita?.getZoomLevel();
                   if (!mounted || z == null) return;
-                  if ((z - _sonZoom).abs() > 0.4) {
+                  if ((z - _sonZoom).abs() > kZoomEsigi) {
                     setState(() => _sonZoom = z);
                   }
                 },
@@ -6520,6 +6650,18 @@ class _HaritaAlaniState extends State<_HaritaAlani> {
                       zIndex: 1,
                       onTap: () => widget.durakSec?.call(d),
                     ),
+                  // ⚠️⚠️⚠️ TURU 155 — **ROTANIN IKI UCU DA ISARETLENIR.**
+                  //	Kullanici: *"varis noktasinda DURAK GORUNMUYOR"*.
+                  //	`widget.duraklar` YALNIZ kullanicinin cevresindeki
+                  //	duraklardir; INILECEK durak kilometrelerce uzakta
+                  //	oldugu icin o listede DEGIL ve haritada hicbir isaret
+                  //	yoktu.
+                  //	⚠️⚠️ Duraklar ROTADAN turetilir: otobus bacaginin
+                  //	ILK noktasi BINIS, SON noktasi INIS duragidir
+                  //	(`_guzergahDilimi` ikisini basa/sona ACIKCA koyar).
+                  //	Ayri bir parametre tasimak iki kaynak yaratir ve
+                  //	kacinilmaz olarak DRIFT ederdi.
+                  ..._rotaUcIsaretleri(),
                   for (final i in isletmeler)
                     if (i.enlem != 0 || i.boylam != 0)
                       Marker(

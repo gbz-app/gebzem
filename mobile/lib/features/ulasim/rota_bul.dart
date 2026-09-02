@@ -353,7 +353,7 @@ Future<void> _yurumeleriZenginlestir(
         if (yol == null || yol.length < 2) return;
         a.bacaklar[sira] = RotaBacagi(
           tur: b.tur,
-          noktalar: yol,
+          noktalar: _uclariBagla(yol, bas, var_),
           dakika: b.dakika,
           baslik: b.baslik,
           altBaslik: b.altBaslik,
@@ -364,4 +364,44 @@ Future<void> _yurumeleriZenginlestir(
     }
   }
   await Future.wait(isler);
+}
+
+/// ⚠️⚠️⚠️ TURU 155 — **GERCEK UCLARI CIZGIYE GERI EKLER.**
+///
+///	Kullanici sahada gordu: *"rota cizdiginde mesela EVDEN DISARIYA
+///	shape cizmiyor"* + *"Yandex'te kesikler TAM YOLUN ICINDE, yurume
+///	biterken otobus duraginda bitiyor; BIZIMKI DIREK USTUNDE"*.
+///
+/// ⚠️⚠️ **KOK NEDEN: Google Routes uclari YOLA SNAP EDER.** Donen
+///	polyline kullanicinin GERCEK koordinatindan degil, ona en yakin
+///	YOL noktasindan baslar; duragin da tam ustunde bitmez. Aradaki
+///	boslukta HICBIR SEY cizilmedigi icin cizgi "evden cikmiyor" ve
+///	duraga "degmiyor" gorunuyordu.
+///
+///	Yandex ve Google Maps de ayni seyi yapar: gercek konumdan yola
+///	KISA BIR BAGLAYICI cizerler. Burada da uclar cizginin basina/
+///	sonuna geri konuyor.
+///
+/// ⚠️ **5 m esigi**: kullanici zaten yolun uzerindeyse snap mesafesi
+///    ~0'dir ve ayni noktayi IKI KEZ eklemek gereksiz bir dugum yaratir.
+/// ⚠️ Otobus bacaginda bu GEREKMEZ: `_guzergahDilimi` binis ve inis
+///    duraklarini ZATEN basa/sona koyuyor (bkz. o fonksiyon).
+List<({double enlem, double boylam})> _uclariBagla(
+  List<({double enlem, double boylam})> yol,
+  ({double enlem, double boylam}) bas,
+  ({double enlem, double boylam}) varis,
+) {
+  const esik = 5.0;
+  final ilk = yol.first;
+  final son = yol.last;
+  return [
+    if (UlasimVeri.kabaMetre(bas.enlem, bas.boylam, ilk.enlem, ilk.boylam) >
+        esik)
+      bas,
+    ...yol,
+    if (UlasimVeri.kabaMetre(
+            varis.enlem, varis.boylam, son.enlem, son.boylam) >
+        esik)
+      varis,
+  ];
 }

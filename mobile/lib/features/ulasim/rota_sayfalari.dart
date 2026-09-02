@@ -19,7 +19,7 @@ import '../../core/theme.dart' show kAiZemin, morLogo;
 import '../isletme/isletme_kart.dart' show kYanBosluk, kYaricap, kYuzeyGri;
 import 'adres_servisi.dart';
 import 'rota_bul.dart';
-import 'ulasim_sayfalari.dart' show hatRengi, hatRozeti;
+import 'ulasim_sayfalari.dart' show hatRengi, hatRozeti, mesafeMetni;
 import 'ulasim_veri.dart';
 
 /// Rota ekraninin sectigi bir NOKTA.
@@ -62,7 +62,16 @@ ThemeData _koyuTema() => ThemeData.dark(useMaterial3: true).copyWith(
     );
 
 /// Yurume bacaklarinin rengi — TEK KAYNAK (harita ve liste ayni okur).
-const Color kYurumeRengi = Color(0xFF9AA0A6);
+/// ⚠️⚠️ TURU 155 — **YURUME RENGI LILA** (kullanici emri: *"burada
+///	kesitler MOR tam yol icinde, aynisini istiyorum"* — referans
+///	Yandex Navigator koyu temasi, ekran goruntusu verildi).
+///
+/// Onceki deger notr gri (`#9AA0A6`) idi ve koyu lacivert harita zemininde
+/// (`#232a44`) yol seritlerinden (`#3e4c77`) ayirt edilemiyordu — kullanici
+/// yurume bacagini GOREMIYORDU.
+/// ⚠️ Renk hem haritadaki kesik cizgide hem panel ikonlarinda AYNI
+///    sabitten gelir; ayri yazilsalardi biri degisince oteki geride kalirdi.
+const Color kYurumeRengi = Color(0xFFA9AFF5);
 
 // ═══════════════════════════════════════════════════════════════════════
 // 1) NEREDEN / NEREYE SAYFASI
@@ -427,11 +436,14 @@ class _PlanlaGovdeState extends State<_PlanlaGovde> {
                                           // ⚠️ Mesafe sunucudan gelirse
                                           //    eklenir; Google `origin`
                                           //    olmadan dondurmuyor.
+                                          // ⚠️ TURU 155 — bicim
+                                          //    `ulasim.mesafeMetni` TEK
+                                          //    KAYNAGINDAN; burada ayri bir
+                                          //    kopya duruyordu ve ikisi
+                                          //    kacinilmaz olarak DRIFT ederdi.
                                           d.mesafeM == null
                                               ? d.altAd
-                                              : d.mesafeM! < 950
-                                                  ? '${d.mesafeM} m · ${d.altAd}'
-                                                  : '${(d.mesafeM! / 1000).toStringAsFixed(1).replaceAll('.', ',')} km · ${d.altAd}',
+                                              : '${mesafeMetni(d.mesafeM!.toDouble())} · ${d.altAd}',
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                           style: TextStyle(

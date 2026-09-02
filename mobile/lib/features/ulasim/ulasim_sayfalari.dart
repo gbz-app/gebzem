@@ -108,7 +108,15 @@ Widget hatRozeti(Hat h, {double boy = 26}) {
   );
 }
 
-String _mesafeMetni(double m) =>
+/// ⚠️⚠️ TURU 155 — **MESAFE BICIMI TEK KAYNAK** (`_` oneki KALDIRILDI).
+///
+///	Kullanicinin ekran goruntusunde adim kartinda **"15240 m kaldı"**
+///	yaziyordu: ham metre, binlik ayraci bile yok. Bu bicimleyici ZATEN
+///	vardi ama **private** oldugu icin adim karti onu KULLANAMIYOR,
+///	kendi ham `${m.round()} m` ifadesini yaziyordu.
+/// ⚠️ 950 m esigi: 950-999 arasi "1,0 km" yazmak yaniltici olurdu.
+/// ⚠️ Ondalik ayraci VIRGUL (Turkce).
+String mesafeMetni(double m) =>
     m < 950 ? '${m.round()} m' : '${(m / 1000).toStringAsFixed(1).replaceAll('.', ',')} km';
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -199,7 +207,7 @@ Future<void> durakListesiAc(
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              _mesafeMetni(UlasimVeri.kabaMetre(
+                              mesafeMetni(UlasimVeri.kabaMetre(
                                   enlem, boylam, d.enlem, d.boylam)),
                               style: TextStyle(
                                 fontSize: 12,
@@ -484,7 +492,7 @@ Future<void> taksiListesiAc(
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              '${x.t.ilce} · ${_mesafeMetni(x.m)}',
+                              '${x.t.ilce} · ${mesafeMetni(x.m)}',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
