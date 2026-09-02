@@ -852,6 +852,22 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
   ///	sonrasi kendi neslini dogrular.
   int _durakNesli = 0;
 
+  /// ⚠️⚠️ TURU 158 - takip DURDUGUNDA son bacak indeksi (bkz. cizim
+  ///	cagri yerindeki serh). Rota degisince sifirlanir.
+  int? _sonBacak;
+
+  /// ⚠️⚠️⚠️ TURU 158 - **BEKLERKEN EKRANI TIKLAYAN SAAT.**
+  ///
+  ///	Imlec bekleme bacaginda artik SAATLE ilerliyor, ama ekran
+  ///	YALNIZ GPS olayinda yeniden ciziliyordu. Kullanici durakta
+  ///	DURUYORKEN (`distanceFilter: 5`) olay GELMEZ, dolayisiyla
+  ///	imlec HESAPTA ilerler ama EKRANDA yine donardi - yani
+  ///	duzeltme yarim kalirdi.
+  /// ⚠️ 30 sn: bekleme dakikalarca surer, saniye cozunurlugu
+  ///    gereksiz; daha sik tiklamak bosuna yeniden cizim demektir.
+  /// ⚠️ YALNIZ takip acikken yasar; `_takipDurdur` iptal eder.
+  Timer? _bekleTik;
+
   /// Durak basina hat listesi (kart uzerinde "563 · 4 dk" icin).
   /// ⚠️ Onbelleklenir: 30 kart icin her cizimde yeniden cozmek 1,7 MB'lik
   ///    tabloyu kart basina taramak demekti.
@@ -1483,6 +1499,8 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
     _konumAkisi?.cancel();
     // ⚠️ TURU 155 — ayni sey pusula icin de gecerli.
     _pusulaAkisi?.cancel();
+    // ⚠️ TURU 158 — bekleme sayaci da birakilir.
+    _bekleTik?.cancel();
     super.dispose();
   }
 
@@ -1764,7 +1782,16 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
                 yon: _yon,
                 dogrulukM: _dogrulukM,
                 kameraDurdu: _noktaSec ? _noktaMerkezDegisti : null,
-                takipBacak: _takip?.bacak,
+                // ⚠️⚠️⚠️ TURU 158 - **TAKIP DURUNCA SILINMIS BACAKLAR GERI
+                //	GELMESIN.** Gecilen bacaklar hic cizilmiyor
+                //	(kullanici emri, DOGRU). Ama GPS izni kaybi ya da
+                //	ust uste ag hatasi ile takip YOL ORTASINDA durunca
+                //	`takipBacak` null oluyor ve silinmis her sey ANINDA
+                //	tam renkle geri geliyordu — kullanici HALA yururken.
+                //	Kullanicinin *"shape siliniyor mu"* sorusunun
+                //	ikinci yarisi.
+                // ⚠️ `_sonBacak` rota DEGISINCE sifirlanir.
+                takipBacak: _takip?.bacak ?? _sonBacak,
                 // ⚠️ TURU 158 - "takip acik AMA kamera birakilmis".
                 kameraSerbest: _takip != null && !_takipKamera,
                 takipRotaDisi: _takip?.rotaDisi ?? false,
@@ -3133,8 +3160,21 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
                 // ⚠️ TURU 157 - ikinci otobus bacagi TURKUAZ; cubuk
                 //    haritayla AYNI dili konusmali.
                 renk: _bacakRenkleri(a.bacaklar),
-                aktif: aktif,
-                aktifOran: _bacakOrani(a.bacaklar[aktif], d),
+                // ⚠️⚠️⚠️ TURU 158 - **BEKLEMEDE IMLEC SAATLE ILERLER.**
+                //
+                //	Bekleme bacaginin `noktalar`i BOS ve `ilerlet` iki
+                //	noktadan az bacaklari ATLIYOR. Imlec bekleme
+                //	dilimini ANINDA gecip otobus diliminin basinda
+                //	`aktifOran = 0` ile park ediyor ve beklemenin
+                //	TAMAMI boyunca (kullanicinin ekran goruntusunde
+                //	**~20 dakika**) GERCEKTEN DONUYORDU.
+                //	Kullanicinin *"hareket ederken hareket etmiyor
+                //	gibi"* tarifinin EN GORUNUR mekanizmasi budur;
+                //	imlec cozunurlugunden (~0,08 dp/m) cok daha buyuk.
+                // ⚠️ GPS ile olculemez (bekleme bir YER degil bir SURE),
+                //    bu yuzden olcut SAATTIR.
+                aktif: _imlecBacak(a, d, aktif),
+                aktifOran: _imlecOran(a, d, aktif),
                 gorunen: _adimGorunen,
                 bosRenk: scheme.onSurface.withValues(alpha: 0.16),
                 kilif: kCizgiKilif,
@@ -3292,6 +3332,45 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
   /// ⚠️ `toplam > 0` ve `kalanM` sonlu oldugu icin bolme NaN uretemez;
   ///    `clamp` NaN'i **1.0**'a cevirdigi icin (olculdu: `compareTo`
   ///    ile karsilastirir, NaN en buyuk sayilir) bu kapi ZORUNLU.
+  /// ⚠️⚠️ TURU 158 - imlecin GERCEKTEN durdugu bacak.
+  ///
+  ///	Takip motoru bos bacaklari atladigi icin `d.bacak` bekleme
+  ///	bacagini HICBIR ZAMAN gostermez. Ama kullanici gercekte
+  ///	orada BEKLIYOR; cubuk bunu gostermeli.
+  /// ⚠️ Yalniz aktif bacagin HEMEN ONCESINDEKI bekleme bacagina
+  ///    bakilir ve YALNIZ kalkis saati HENUZ GELMEDIYSE.
+  int _imlecBacak(RotaAdayi a, takip.TakipDurumu d, int aktif) {
+    final i = aktif - 1;
+    if (i < 0 || a.bacaklar[i].tur != BacakTuru.bekle) return aktif;
+    final kalkis = _kalkisDakikasi(a, i);
+    if (kalkis == null) return aktif;
+    return UlasimVeri.suAnDakika() < kalkis ? i : aktif;
+  }
+
+  /// Imlecin bulundugu bacaktaki ilerleme orani.
+  double _imlecOran(RotaAdayi a, takip.TakipDurumu d, int aktif) {
+    final i = _imlecBacak(a, d, aktif);
+    if (i == aktif) return _bacakOrani(a.bacaklar[aktif], d);
+    final b = a.bacaklar[i];
+    final kalkis = _kalkisDakikasi(a, i);
+    if (kalkis == null || b.dakika <= 0) return 0;
+    final gecen = UlasimVeri.suAnDakika() - (kalkis - b.dakika);
+    return (gecen / b.dakika).clamp(0.0, 1.0);
+  }
+
+  /// [i] indeksli BEKLEME bacaginin kalkis dakikasi.
+  ///
+  /// ⚠️⚠️ Metinden AYRISTIRILMAZ: varis dakikasindan, SONRAKI tum
+  ///	bacaklarin sureleri cikarilarak turetilir - yani tek kaynak
+  ///	`a.varisDakika`dir ve bicimlendirmeden BAGIMSIZDIR.
+  int? _kalkisDakikasi(RotaAdayi a, int i) {
+    var sonra = 0;
+    for (var j = i + 1; j < a.bacaklar.length; j++) {
+      sonra += a.bacaklar[j].dakika;
+    }
+    return a.varisDakika - sonra;
+  }
+
   double _bacakOrani(RotaBacagi b, takip.TakipDurumu d) {
     final toplam = takip.yolUzunlugu(b.noktalar);
     if (toplam <= 0 || !d.kalanM.isFinite) return 0;
@@ -4714,6 +4793,11 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
     });
     _pusulayiBagla();
     _akisiBagla();
+    _bekleTik?.cancel();
+    _bekleTik = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (!mounted || _takip == null) return;
+      setState(() {});
+    });
   }
 
   /// ⚠️⚠️⚠️ TURU 153 — **GECICI HATADA TAKIP BIRAKILMAZ.**
@@ -4795,6 +4879,10 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
   ///	pil akar ve ekran kapandiktan sonra bile olay gelmeye
   ///	devam eder (`setState` OLU bir `State`e dokunur).
   void _takipDurdur() {
+    // ⚠️ TURU 158 - silinmis bacaklar geri gelmesin (bkz. `_sonBacak`).
+    _sonBacak = _takip?.bacak;
+    _bekleTik?.cancel();
+    _bekleTik = null;
     _konumAkisi?.cancel();
     _konumAkisi = null;
     // ⚠️ TURU 155 — pusula da birakilir; yoksa sensor takip bittikten
@@ -5159,6 +5247,8 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
         //    eski rotanin onerisi yeni rotada asili kalmasin.
         unawaited(_taksiOner(a));
         setState(() {
+          // ⚠️ TURU 158 - yeni rota: eski bacak indeksi GECERSIZ.
+          _sonBacak = null;
           _takip = null;
           _rota = a;
           // ⚠️⚠️ Kullanici emri: *"rota bulununca alttaki durak kartlari
@@ -6824,13 +6914,23 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani> {
       right: kYanBosluk,
       child: Column(
         children: [
-          _haritaDugmesi(LucideIcons.plus, 'Yakınlaştır',
-              () => setState(() => _zoom++),
-              olcu: kHaritaZoomOlcu),
+          // ⚠️⚠️ TURU 158 - zoom dugmeleri PROGRAMATIK oldugu icin
+          //	"elle kaydirdi" jestini tetiklemiyordu; takip kamerasi
+          //	birakilmadigi icin yakinlastirma birkac saniyede
+          //	SESSIZCE geri aliniyordu.
+          _haritaDugmesi(LucideIcons.plus, 'Yakınlaştır', () {
+            setState(() {
+              _zoom++;
+              if (_takip != null) _takipKamera = false;
+            });
+          }, olcu: kHaritaZoomOlcu),
           const SizedBox(height: 8),
-          _haritaDugmesi(LucideIcons.minus, 'Uzaklaştır',
-              () => setState(() => _zoom--),
-              olcu: kHaritaZoomOlcu),
+          _haritaDugmesi(LucideIcons.minus, 'Uzaklaştır', () {
+            setState(() {
+              _zoom--;
+              if (_takip != null) _takipKamera = false;
+            });
+          }, olcu: kHaritaZoomOlcu),
           // ⚠️⚠️⚠️ TURU 157 - **"-" ALTINA HAVA DURUMU** (kullanici
           //	emri: *"- altina SADECE hava durumunu koy"*).
           //

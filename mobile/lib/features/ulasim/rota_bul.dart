@@ -373,6 +373,14 @@ double _yolUzunlugu(List<({double enlem, double boylam})> yol) {
 ///	kullanicinin gordugu **"binalarin uzerinden gecen"** cizgi.
 ///	Olculdu: %4,10 -> yapisal olarak ~0.
 ///
+/// ⚠️⚠️⚠️ TURU 158 — **BU SAYI YANILTICIYDI: `b <= a` SAYACINI olcuyor,
+///	CIZGININ DOGRULUGUNU degil.** `basSegment` `b > a`yi yapisal
+///	kildigi icin sayac dustu ama hata KUYRUGA TASINDI: zorlanan `b`
+///	alakasiz bir segmente kilitlenince dilimin SONUNA kilometrelerce
+///	uydurma duz cizgi ekleniyordu. Asagidaki izdusum kapisi (turu 158)
+///	tam bunu kapatir. Olculdu: inis izdusumu >300 m olan cift orani
+///	**%0,99 -> %0,06**, izdusum p99 **289 m -> 41 m**.
+///
 /// ⚠️ Sira TERS gelirse (sekil ters yonde cizilmis) dilim BOS DONMEZ,
 ///    duraklar arasi duz cizgi dondurulur — ekranda "hicbir sey yok"
 ///    gorunmesindense kaba ama DOGRU bir cizgi daha iyidir.
@@ -694,8 +702,7 @@ Future<List<RotaAdayi>> rotaAra({
   //	Simdi yalniz DONULECEK adaylar zenginlestiriliyor:
   //	en fazla `adet x 2` = **6 cagri**.
   // ⚠️ Tumu PARALEL: ard arda beklenseydi sonuc ekrani 6 tur gecikirdi.
-  await _yurumeleriZenginlestir(
-      sonuc, baslangicEnlem, baslangicBoylam, varisEnlem, varisBoylam);
+  await _yurumeleriZenginlestir(sonuc);
   // ⚠️⚠️⚠️ TURU 158 - yurume sureleri GERCEKLESTI; sefer secimi ESKI
   //	tahmine dayaniyordu ve artik yetisilemeyecek bir kalkis
   //	onerebilir. Yeniden secim TAMAMEN YEREL (bkz. serh).
@@ -1196,13 +1203,10 @@ void _seferleriYenidenSec(List<RotaAdayi> sonuc, int suAn) {
 ///    yalnizca kabalasir.
 /// ⚠️ `RotaBacagi` DEGISMEZ (immutable) oldugu icin bacak YERINDE
 ///    degistirilemez; yeni bacak kurulup listeye YAZILIR.
-Future<void> _yurumeleriZenginlestir(
-  List<RotaAdayi> adaylar,
-  double basEnlem,
-  double basBoylam,
-  double varEnlem,
-  double varBoylam,
-) async {
+// ⚠️ TURU 158 — ucler ARTIK PARAMETREDEN GELMIYOR: govde onlari
+//    `b.noktalar.first/.last`ten okuyor ve dort parametre SIFIR kez
+//    kullaniliyordu (olu parametre).
+Future<void> _yurumeleriZenginlestir(List<RotaAdayi> adaylar) async {
   final isler = <Future<void>>[];
   for (final a in adaylar) {
     for (var i = 0; i < a.bacaklar.length; i++) {
