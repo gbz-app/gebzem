@@ -8730,3 +8730,179 @@ surerdi. Ikisi de artik basta `_takipDurdur()` cagiriyor.
   iOS min **16.0** (pbxproj'da uc yapilandirmada da).
 - **backend DEGISMEDI** -> deploy YOK, DB truncate YOK, e2e kosulmadi
 - ⚠️ APK alinmadi — R2'deki apk 21 Agustos surumunde
+
+---
+
+## Oturum — 2 Eylül 2026 (turu 155): HARİTA RENGİ · SHAPE · KESİK DESEN · PUSULA
+
+Kullanıcı **Yandex Navigator ekran görüntüleriyle** altı madde bildirdi ve
+*"step step derinlemesine analiz et, düşün, planla ve araştır"* dedi.
+8 ajanlık workflow koşuldu (5 kod merceği + 2 araştırma + 1 sentez);
+bulguların her biri **bağımsız olarak doğrulandı** (aşağıda ölçümler).
+
+### 1) "yaklaştıkça haritada yeşilimsi bir renk oluyor"
+**KÖK NEDEN:** `_haritaNavigator` stilinde
+`{"featureType":"landscape.natural","color":"#26402f"}` (yeşil). Google stil
+şemasında `landscape.natural` yalnız parkları değil **yapılaşmamış her zemini**
+kapsar (`landcover` + `terrain` alt türleri rengi miras alır). Şehir ölçeğinde
+üstünü `landscape.man_made` karoları örtüyor ve hata **görünmüyordu**;
+yakınlaştıkça man_made seyrelince altındaki yeşil ekranı kaplıyordu.
+**FIX:** landscape / natural / landcover / terrain zemin rengine çekildi,
+`landscape.man_made` açıkça tanımlandı. Yeşil artık **yalnız `poi.park`**.
+Muhafız (`harita_stili_test.dart`) yeşil.
+
+### 2+5a) "rota çizdiğinde EVDEN DIŞARIYA shape çizmiyor"
+**KÖK NEDEN: Google Routes uçları YOLA SNAP EDER.** Dönen polyline
+kullanıcının gerçek koordinatından değil en yakın yol noktasından başlar,
+durağın da tam üstünde bitmez. O boşluklarda hiçbir şey çizilmediği için çizgi
+"evden çıkmıyor" ve durağa "değmiyor" görünüyordu.
+**FIX:** `_uclariBagla` — gerçek başlangıç/varış 5 m'den uzaksa çizginin
+başına/sonuna geri konur (Yandex ve Google Maps de böyle yapar).
+⚠️ Otobüs bacağında gerekmez: `_guzergahDilimi` durakları zaten başa/sona koyuyor.
+
+### 5b) "bizimki DİREK ÜSTÜNDE" (otobüs çizgisi binaların üzerinden)
+**KÖK NEDEN — İLMEKLİ HATLAR.** `_guzergahDilimi` biniş ve iniş duraklarının
+ikisini de **GLOBAL** arıyordu. Küçük şehirde hatlar kendi üzerine döner; iniş
+durağı aynı caddenin **ikinci geçişine** kilitlenince `b <= a` çıkıyor ve
+fonksiyon iki durak arası **DÜZ 2 NOKTALI çizgi** döndürüyordu.
+✅ **ÖN KOŞUL BAĞIMSIZ ÖLÇÜLDÜ:** 202 GTFS şeklinin **35'i (%17,3) ilmekli**
+   (≥30 nokta sonra kendine 60 m'den yakın dönüyor). Ajanın ölçümü
+   "361.110 durak çiftinin 14.799'u (%4,10) düz çizgiye düşüyor, en kötüsü
+   300/yön1 **%41,2**" diyor — ve **300'ün şekli (413000) benim ölçtüğüm
+   ilmekli listede DE VAR**.
+**FIX:** `_enYakinSegment`e `basSegment` eklendi; iniş durağı **binişten
+sonra** aranıyor → `b <= a` yapısal olarak imkânsız.
+⚠️ Kardeş dosya `rota_takip.dart` bu tuzağı ZATEN kapatmıştı ve şerhinde
+   aynen uyarıyordu; ders `rota_bul.dart`a uygulanmamıştı.
+⚠️ Düz-çizgi dalı silinmedi — artık ulaşılması zor bir emniyet ağı.
+
+### 3) "Yandex'te kesikler yaklaşsam da uzaklaşsam da AYNI"
+**İKİ AYRI KÖK NEDEN.**
+- **iOS:** desen YALNIZ `onCameraIdle`de ve yalnız **0.4 zoom** farkında
+  güncelleniyordu = **%32 ölçek hatası**; parmak ekrandayken hiç
+  güncellenmiyor, kalkınca aniden yerine oturuyordu.
+  FIX: `onCameraMove` zoom'u bedava veriyor (`p.zoom`); eşik
+  **`kZoomEsigi = 0.15`** (%11) ve yalnız iOS'ta `setState`.
+- **Android:** ⚠️⚠️ eklenti kaynağından doğrulandı (`PolylineController.java`):
+  `setWidth(width * density)` ama `setPattern(pattern)` **density'siz**.
+  3x telefonda çizgi 15 px doğru çizilirken kesik **18 fiziksel px = 6 dp**:
+  çizgiye göre **üç kat kısa**, uzaktan neredeyse düz.
+  FIX: dash/gap `devicePixelRatio` ile çarpılıyor.
+⚠️ Birim farkı paket kaynağından doğrulandı: Android `Convert.java` →
+   `new Dash(length)` = **PİKSEL**; iOS `FGMPolylineController.m` →
+   `GMSStyleSpans(..., kGMSLengthRhumb)` = **METRE**.
+
+### 5c) yürüme rengi
+Gri (`#9AA0A6`) → **lila (`#A9AFF5`)**: koyu lacivert zeminde (`#232a44`) yol
+şeritlerinden (`#3e4c77`) ayırt edilemiyordu.
+
+### 6) "varış noktasında DURAK GÖRÜNMÜYOR"
+**KÖK NEDEN:** haritadaki duraklar `widget.duraklar`, yani **kullanıcının
+çevresindeki** duraklar. İnilecek durak kilometrelerce uzakta olduğu için o
+listede DEĞİL — rota çizilse bile varış ucunda hiçbir işaret yoktu.
+**FIX:** `_rotaUcIsaretleri()` — biniş durağı, iniş durağı ve varış noktası.
+Duraklar **rotadan türetilir** (otobüs bacağının ilk/son noktası); ayrı bir
+parametre ikinci kaynak olur ve drift ederdi.
+
+### 4) "konum daire + yön oku, telefonu oynattıkça dönsün, çevresinde hafif
+### beyaz daire"
+**ÜÇ KATMAN, en alttaki belirleyici: yön verisi uygulamada HİÇ YOKTU.**
+- ⚠️⚠️ `geolocator.Position.heading` **pusula değil**, GPS *gidiş yönü*
+  (course over ground) ve cihaz **duruyorken geçersiz** (Android 0.0, iOS
+  negatif). Kullanıcının istediği şey GPS ile yapısal olarak karşılanamaz.
+- ⚠️ `flutter_compass` **elendi**: son sürümü ~2 yıl önce, 44 açık issue ve
+  bilinen *"Compass doesn't move on iPhone 12 or above"* sorunu — kullanıcı
+  iPhone'da test ediyor. Ayrıca iOS'ta `trueHeading` konum akışı yoksa
+  **sessizce -1** döner ve pakette `magneticHeading` yedeği YOK.
+- ⚠️ `flutter_rotation_sensor` 0.4.0 **elendi**: `intl ^0.20.3` istiyor,
+  Flutter SDK `flutter_localizations` üzerinden `intl 0.20.2`'ye sabitliyor →
+  `pub get` çözülemiyor (denendi, ölçüldü).
+**KARAR: projenin kendi kanal deseniyle yazıldı** (`GebzemPip`,
+`TelefonDurumu` idiomu) — üçüncü parti riski yok ve iOS'un -1 tuzağını
+kendimiz ele alıyoruz.
+- `gebzem/pusula` kanalı · Android `Pusula.kt` (TYPE_ROTATION_VECTOR, yoksa
+  GEOMAGNETIC; 100 ms kısma; olaylar ana iş parçacığında) · iOS
+  `GebzemPusula` (AppDelegate.swift **içinde** — pbxproj'a ayrı dosya eklemek
+  BOM tuzağı), `trueHeading` negatifse **`magneticHeading` yedeği**.
+- Dart `pusula_servisi.dart`: ⚠️⚠️ açılar **doğrudan ortalanamaz** (358 ile
+  0'ın 0.5 ortalaması **179** = tam ters yön) → sin/cos alanında filtre +
+  `atan2`; dairesel ölü bölge 1.5°.
+- **Yön konisi AYRI marker**: `Marker.rotation` markerin TAMAMINI döndürür;
+  koni puck ile aynı bitmap'te olsaydı kullanıcı döndüğünde **profil
+  fotoğrafı da ters dönerdi**. Alta dönen koni, üste sabit fotoğraf,
+  `flat: true`.
+- **Doğruluk halkası**: `Circle`, `radius` **metre** (zoom'la doğru
+  ölçekleniyor), 10–120 m kırpma.
+- **Kaynak sırası:** pusula → GPS gidiş yönü → hiçbiri ise **ok çizilmez**
+  (yanlış yön göstermek hiç göstermemekten kötüdür).
+
+### EK (kullanıcının ekran görüntüsünde görüldü)
+Adım kartında **"15240 m kaldı"** yazıyordu. Biçimleyici (`_mesafeMetni`)
+ZATEN vardı ama **private** olduğu için kullanılamıyordu → `mesafeMetni`
+olarak açıldı, üç çağrı yeri aynı kaynağa bağlandı (rota_sayfalari'ndaki km
+kopyası da kaldırıldı).
+
+### ✅ ÖLÇÜLDÜ — pusula zinciri emülatörde UÇTAN UCA kanıtlandı
+⚠️ Analiz ajanı *"emülatörde pusula yok, doğrulanamaz"* demişti; **ölçtüm ve
+yanlış çıktı**: AVD'de `android.sensor.rotation_vector` (0x5f726f76) VAR.
+`dumpsys sensorservice` çıktısı:
+```
+06:17:58 + 0x5f726f76 ... package=app.gebzem.Pusula samplingPeriod=66667us
+06:18:45 - 0x5f726f76 ... package=app.gebzem.Pusula
+```
+Yani Dart → `gebzem/pusula` kanalı → MainActivity → `Pusula.basla()` →
+SensorManager kaydı zinciri çalışıyor ve **"Bitir"e basılınca sensör
+bırakılıyor** (pil kapısı). ⚠️ Kanal adları uyuşmasaydı
+`MissingPluginException` olur ve kayıt hiç oluşmazdı — bu ölçüm aynı zamanda
+kanal adı doğrulamasıdır (turu 65b dersi).
+
+### Emülatörde ayrıca görüldü
+- Yürüme ikonları **lila**
+- Arama: `Coban` → **Çoban Mustafa Paşa Cami · 332 m · Hacıhalil, 1222/2.
+  Sokak** (yeni `mesafeMetni` biçimi)
+- Place Details (`yerCoz`) çalışıyor: varış alt başlığı doldu
+- Adım kartı: "12 dk kaldı / 06:28'de / 1/4 / 222 m kaldı · yaklaşık"
+- logcat `OVERFLOWED` = **0**
+- `flutter analyze` **0 hata 0 uyarı** · `flutter test` **77/77**
+- ⚠️ `GECICI-OLCUM` satırları commit öncesi grep ile arandı → **temiz**
+
+### ⏳ Dürüst sınırlar (turu 155)
+- **Harita karoları emülatörde çizilmiyor** (Play Services): yeşil zemin
+  düzeltmesi, kesik desen, yön konisi, doğruluk halkası ve varış/durak
+  işaretleri **gerçek cihazda** görülecek.
+- **Yürüme mesafesi/süresi hâlâ kuş uçuşu tahmininden.** `_uclariBagla`
+  çizgiyi gerçek uçlara bağladı ama sayı değişmedi; yani "2 dk · 143 m" ile
+  ekrandaki çizgi arasındaki iç çelişki bu turda **büyüdü**.
+  ⚠️ Sunucu `mesafe_m` ve `sure_sn` alanlarını ZATEN döndürüyor
+  (`handler.go` FieldMask'te var), istemci onları ATIYOR. Düzeltmek bacak
+  süresini, dolayısıyla **otobüse yetişme hesabını** değiştirir — ayrı tur.
+- **Kuzey ayrışması:** Android manyetik kuzey (deklinasyon uygulanmıyor),
+  iOS gerçek kuzey. Gebze'de fark ~5-6°. İki telefon yan yana konursa
+  ayrı gösterir; yaya navigasyonu için önemsiz kabul edildi.
+- **Yön konisinin görsel biçimi** (yarım açı ~26°, yarıçap 15/27 dp)
+  referans görselden piksel örneklemesiyle değil tahminle seçildi; gerçek
+  cihazda gözle ayarlanabilir.
+- `basSegment` düzeltmesinin etkisi offline veri analizine dayanıyor;
+  görsel olarak gerçek cihazda doğrulanmadı.
+
+### Devir notu (turu 155)
+- Yayınlandı: ios **33598386941** · commit **0b87b96** · **sadece iOS**
+- Adres: **https://indir.gebzem.app/index.html?v=20260902-0930**
+- R2 ipa=30150502 (md5 c2cc198a) · index=7967 (md5 fb99fd50) ·
+  surum.json=45 (md5 3b0ee958) · purge OK · **CDN üçü de BİREBİR**
+- `get-task-allow: false` (debug imza YOK) · profil ad hoc · `MapsApiKey`
+  **ENJEKTE** · `NSLocationWhenInUse` VAR
+- **IPA doğrulaması — turu 155 dizeleri VAR:** `landscape.man_made` ·
+  `landscape.natural.landcover` · `konum-yon` · `konum-dogruluk` ·
+  `rota-varis` · `rota-binis` · `rota-inis`; kontrol dizesi "Yakınımda"
+  (utf16le) VAR; turu 154 dizesi "Burayı seç" hâlâ VAR.
+- **iOS pusula ikilide:** `GebzemPusula` · `startUpdatingHeading` ·
+  `magneticHeading` (−1 yedeği) — Swift derlendi.
+  ⚠️⚠️ **YÖNTEM TUZAĞI (kayda değer):** `gebzem/pusula` kanal adı ikilide
+  **BULUNAMADI** ve bir an "kanal kurulmamış" sanıldı. Kontrol: **çalıştığı
+  KANITLI** ses kanalının registrar anahtarı `gebzem.audio` **de bulunamıyor**
+  (Swift ≤15 baytlık dizeleri komut akışına gömer). Yani eksiklik değil,
+  YÖNTEM SINIRI. Bulunanlar (`gebzem/audio hazırlık…`) uzun NSLog
+  dizelerinin parçası. ⚠️ Kısa Swift dizeleriyle doğrulama YAPMA.
+- **backend DEĞİŞMEDİ** → deploy YOK, DB truncate YOK, e2e koşulmadı
+- ⚠️ APK alınmadı — R2'deki apk 21 Ağustos sürümünde

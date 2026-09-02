@@ -41,6 +41,163 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
       kaybettiriyorsun"*. **Üçüncüsü olmayacak.**
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (2 Eyl 09:30): TURU 155 YAYINLANDI — SADECE iOS.**
+  ios **33598386941** (**0b87b96**), R2 ipa=30150502 (md5 c2cc198a)
+  index=7967 (md5 fb99fd50) surum.json=45 (md5 3b0ee958),
+  purge OK, **CDN UCU DE BIREBIR**, `get-task-allow: false`, profil ad hoc,
+  `MapsApiKey` ENJEKTE, `NSLocationWhenInUse` VAR.
+  IPA'da turu 155 dizeleri VAR: `landscape.man_made` ·
+  `landscape.natural.landcover` · `konum-yon` · `konum-dogruluk` ·
+  `rota-varis` · `rota-binis` · `rota-inis`; kontrol dizesi "Yakınımda"
+  (utf16le) VAR. iOS pusula ikilide: `GebzemPusula` · `startUpdatingHeading`
+  · `magneticHeading`.
+  ⚠️ **BACKEND DEGISMEDI** -> deploy YOK, DB TRUNCATE EDILMEDI, e2e KOSULMADI.
+  ✅ analyze **0 hata 0 uyari** · test **77/77** · emulatorde tasma **0**.
+  ⚠️ **APK ALINMADI** — R2'deki apk turu 121 surumunde (21 Agu).
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260902-0930
+
+- 🗺️ **TURU 155 — HARITA ZEMINI YESILDI** (kullanici: *"yaklastikca haritada
+  boyle yesilimsi bir renk oluyor"*, ekran goruntusu gonderdi).
+  ⚠️⚠️ **KOK NEDEN:** `landscape.natural` Google stil semasinda YALNIZ
+     parklari degil **YAPILASMAMIS HER ZEMINI** kapsar (`landcover` +
+     `terrain` alt turleri rengi MIRAS ALIR). Sehir olceginde ustunu
+     `landscape.man_made` karolari ortuyordu ve hata GORUNMUYORDU;
+     **yakinlastikca** man_made seyrelince altindaki yesil ekrani kapliyordu.
+  FIX: landscape/natural/landcover/terrain **zemin rengine** cekildi,
+  `landscape.man_made` ACIKCA tanimlandi.
+  ⚠️ **YESIL ARTIK YALNIZ `poi.park`** (Yandex referansinda da parklar yesil).
+     `#26402f` IPA'da hala var — o **park** rengi, zemin degil.
+  ⚠️ YAPMA: `landscape` ya da `landscape.natural` altina yesil renk koyma.
+
+- 📏 **TURU 155 — KESIK DESEN: IKI AYRI KOK NEDEN.**
+  Kullanici: *"Yandexte kesik cizgiler yaklassam da uzaklassam da AYNI"*.
+  · **iOS**: desen YALNIZ `onCameraIdle`de ve yalniz **0.4 zoom** farkinda
+    guncelleniyordu = **%32 olcek hatasi**; parmak ekrandayken HIC
+    guncellenmiyor, kalkinca ANIDEN yerine oturuyordu.
+    FIX: `onCameraMove` zoom'u BEDAVA verir (`p.zoom`); esik
+    **`kZoomEsigi = 0.15`** (%11) ve **YALNIZ iOS**'ta `setState`.
+  · **Android**: ⚠️⚠️ eklenti kaynagindan DOGRULANDI
+    (`PolylineController.java`): `setWidth(width * density)` ama
+    `setPattern(pattern)` **density'siz**. 3x telefonda cizgi 15 px dogru
+    cizilirken kesik **18 FIZIKSEL PIKSEL = 6 dp**: cizgiye gore UC KAT
+    kisa, uzaktan neredeyse DUZ. FIX: dash/gap `devicePixelRatio` ile carpilir.
+  ⚠️ Birim farki kaynaktan: Android `Convert.java` -> `new Dash(length)` =
+     **PIKSEL**; iOS `FGMPolylineController.m` -> `GMSStyleSpans(...,
+     kGMSLengthRhumb)` = **METRE**.
+
+- 🧭 **TURU 155 — YURUME SHAPE'I: GOOGLE UCLARI YOLA SNAP EDIYOR.**
+  Kullanici: *"rota cizdiginde mesela EVDEN DISARIYA shape cizmiyor"* +
+  *"Yandex'te kesikler TAM YOLUN ICINDE"*.
+  ⚠️⚠️ Donen polyline kullanicinin GERCEK koordinatindan degil ona en yakin
+     YOL noktasindan baslar, duragin da tam ustunde bitmez. O bosluklarda
+     hicbir sey cizilmedigi icin cizgi "evden cikmiyor", duraga "degmiyor".
+  FIX: **`_uclariBagla`** — gercek baslangic/varis 5 m'den uzaksa cizginin
+  basina/sonuna geri konur (Yandex ve Google Maps de boyle yapar).
+  ⚠️ Otobus bacaginda GEREKMEZ: `_guzergahDilimi` duraklari ZATEN basa/sona
+     koyuyor.
+  ⚠️ 5 m esigi ZORUNLU: Google zaten uca oturmussa ayni nokta IKI KEZ girer.
+
+- 🔁 **TURU 155 — ILMEKLI HATLARDA OTOBUS CIZGISI DUZ GIDIYORDU.**
+  Kullanici: *"bizimki DIREK USTUNDE"* (binalarin uzerinden).
+  ⚠️⚠️ **KOK NEDEN:** `_guzergahDilimi` binis VE inis duraklarinin ikisini de
+     **GLOBAL** ariyordu. Kucuk sehirde hatlar kendi uzerine doner; inis
+     duragi ayni caddenin **IKINCI GECISINE** kilitlenince `b <= a` cikiyor
+     ve fonksiyon iki durak arasi **DUZ 2 NOKTALI cizgi** donduruyordu.
+  ✅ **ON KOSUL BAGIMSIZ OLCULDU: 202 GTFS seklinin 35'i (%17,3) ILMEKLI**
+     (>=30 nokta sonra kendine 60 m'den yakin donuyor) — ve "en kotu" denen
+     **300** hattinin sekli (413000) o listede DE VAR.
+  FIX: `_enYakinSegment`e **`basSegment`**; inis duragi BINISTEN SONRA aranir
+  -> `b <= a` YAPISAL OLARAK imkansiz.
+  ⚠️⚠️ Kardes dosya `rota_takip.dart` bu tuzagi ZATEN kapatmisti ve serhinde
+     aynen uyariyordu; ders `rota_bul.dart`a UYGULANMAMISTI.
+  ⚠️ Duz-cizgi dali SILINMEDI — artik ULASILMASI ZOR bir emniyet agi.
+  ⚠️ **PENCERE YOK** (tum kalan cizgi taranir): `rota_takip`teki 40 segmentlik
+     pencere GPS monotonlugu icindir; burada inis duragi pencerenin DISINDA
+     kalir ve sonuc DAHA KOTU olurdu.
+
+- 🧭 **TURU 155 — KONUM ISARETI: PUSULA (KENDI KANALIMIZ).**
+  Kullanici: *"Konum yandextedki gibi DAIRE + YON OKU olsun, telefonu
+  oynattikca yonu gostersin, cevresinde hafif beyaz daire var"*.
+  ⚠️⚠️⚠️ **`geolocator.Position.heading` PUSULA DEGIL**: GPS *gidis yonu*
+     (course over ground) ve cihaz **DURUYORKEN GECERSIZ** (Android 0.0,
+     iOS negatif). Kullanicinin istedigi sey GPS ile YAPISAL OLARAK
+     karsilanamaz. ⚠️ Bunu bir daha `heading` ile cozmeye calisma.
+  ⚠️⚠️ **UC PAKET DE ELENDI (gerekceleriyle):**
+     · `flutter_compass`: son surum ~2 yil once, 44 acik issue, bilinen
+       ***"Compass doesn't move on iPhone 12 or above"*** — kullanici
+       iPhone'da test ediyor. iOS'ta `trueHeading` konum akisi yoksa
+       **SESSIZCE -1** doner, pakette `magneticHeading` yedegi YOK.
+     · `flutter_rotation_sensor` 0.4.0: `intl ^0.20.3` istiyor, Flutter SDK
+       `flutter_localizations` uzerinden `intl 0.20.2`'ye SABITLIYOR ->
+       **`pub get` COZULEMIYOR** (denendi).
+  **KARAR: projenin KENDI kanal deseniyle** (`GebzemPip`/`TelefonDurumu`
+  idiomu) — ucuncu parti riski YOK ve iOS'un -1 tuzagi KENDIMIZ ele alindi.
+  · `gebzem/pusula` kanali · Android `Pusula.kt` (TYPE_ROTATION_VECTOR, yoksa
+    GEOMAGNETIC; 100 ms kisma; olaylar **ANA IS PARCACIGINDA** — kanal
+    cagrisi baska parcacikta PATLAR) · iOS `GebzemPusula`
+    (**AppDelegate.swift ICINDE** — pbxproj'a ayri dosya eklemek BOM tuzagi),
+    `trueHeading` negatifse **`magneticHeading` yedegi**.
+  · Dart `pusula_servisi.dart`: ⚠️⚠️ acilar **DOGRUDAN ORTALANAMAZ** (358 ile
+    0'in 0.5 ortalamasi **179** = TAM TERS YON) -> sin/cos alaninda filtre +
+    `atan2`; DAIRESEL olu bolge 1.5°.
+  · **Kaynak sirasi:** pusula -> GPS gidis yonu -> hicbiri ise **OK CIZILMEZ**.
+    ⚠️ Pusula bir kez deger verdiyse GPS yonu YOK SAYILIR; karisik
+       kullanilsaydi yurumeye baslayinca ok ZIPLARDI.
+  ✅ **EMULATORDE UCTAN UCA KANITLANDI** (`dumpsys sensorservice`):
+     `06:17:58 + 0x5f726f76 ... package=app.gebzem.Pusula samplingPeriod=66667us`
+     `06:18:45 - 0x5f726f76 ... package=app.gebzem.Pusula`
+     Yani Dart -> kanal -> MainActivity -> SensorManager zinciri CALISIYOR ve
+     "Bitir"de sensor BIRAKILIYOR. Kanal adlari uyusmasaydi kayit HIC
+     olusmazdi — bu ayni zamanda kanal adi dogrulamasidir (turu 65b).
+     ⚠️ Analiz ajani *"emulatorde pusula yok"* demisti; OLCULDU ve YANLIS
+        cikti: AVD'de `android.sensor.rotation_vector` VAR.
+
+- 🎯 **TURU 155 — YON KONISI AYRI MARKER, PUCK'IN ICINDE DEGIL.**
+  ⚠️⚠️ `Marker.rotation` **MARKERIN TAMAMINI** dondurur. Koni puck ile ayni
+     bitmap'te olsaydi kullanici donunce **PROFIL FOTOGRAFI DA TERS DONERDI**.
+     Alta donen koni (`flat: true`), uste sabit fotograf.
+  ⚠️ Dogruluk halkasi `Circle`; `radius` **METRE** oldugu icin zoom'la dogru
+     olceklenir ve GERCEK belirsizligi gosterir (sabit piksel daire SUS olurdu).
+     10-120 m kirpma: mukemmel GPS'te de gorunsun, kapali alanda ekrani kaplamasin.
+
+- 📍 **TURU 155 — VARIS UCUNDA HICBIR ISARET YOKTU.**
+  Kullanici: *"varis noktasinda DURAK GORUNMUYOR"*.
+  ⚠️⚠️ **KOK NEDEN:** haritadaki duraklar `widget.duraklar`, yani
+     **KULLANICININ CEVRESINDEKI** duraklar. Inilecek durak kilometrelerce
+     uzakta oldugu icin o listede DEGIL.
+  FIX: `_rotaUcIsaretleri()` — binis duragi · inis duragi · varis noktasi.
+  ⚠️ Duraklar **ROTADAN TURETILIR** (otobus bacaginin ilk/son noktasi); ayri
+     bir parametre IKINCI KAYNAK olur ve DRIFT ederdi.
+
+- 📐 **TURU 155 — "15240 m kaldı" (kullanicinin ekran goruntusunde).**
+  Bicimleyici (`_mesafeMetni`) **ZATEN VARDI** ama `private` oldugu icin adim
+  karti onu KULLANAMIYOR, kendi ham `${m.round()} m` ifadesini yaziyordu.
+  `mesafeMetni` olarak acildi; UC cagri yeri ayni kaynaga baglandi
+  (`rota_sayfalari`daki km kopyasi da kaldirildi).
+
+- ⚠️⚠️ **TURU 155 — DOGRULAMA YONTEMI TUZAGI (kayda deger).**
+  IPA'da `gebzem/pusula` kanal adi **BULUNAMADI** ve bir an "kanal kurulmamis"
+  sanildi. **KONTROL:** calistigi KANITLI ses kanalinin registrar anahtari
+  `gebzem.audio` **DE bulunamiyor** (Swift <=15 baytlik dizeleri komut akisina
+  gomer). Bulunan `gebzem/audio` aslinda uzun bir **NSLog** dizesinin parcasi.
+  ⚠️ **KISA SWIFT DIZELERIYLE ARTIFACT DOGRULAMASI YAPMA** — sinif adi
+     (`GebzemPusula`) ve SDK simgeleri (`startUpdatingHeading`) kullan.
+
+- ⏳ **TURU 155 — DURUST SINIRLAR:**
+  · **Harita karolari emulatorde cizilmiyor** (Play Services): yesil zemin,
+    kesik desen, yon konisi, dogruluk halkasi ve varis/durak isaretleri
+    **GERCEK CIHAZDA** gorulecek.
+  · **Yurume mesafesi/suresi HALA kus ucusu tahmininden.** `_uclariBagla`
+    cizgiyi gercek uclara bagladi ama sayi degismedi; ic celiski bu turda
+    **BUYUDU**. ⚠️ Sunucu `mesafe_m` ve `sure_sn` alanlarini ZATEN donduruyor
+    (`handler.go` FieldMask'te var), **ISTEMCI ONLARI ATIYOR**
+    (`adres_servisi.dart` `yayaRotasi` yalniz `noktalar` okuyor). Duzeltmek
+    bacak suresini, dolayisiyla **otobuse yetisme hesabini** degistirir.
+  · **KUZEY AYRISMASI:** Android manyetik kuzey (deklinasyon UYGULANMIYOR),
+    iOS gercek kuzey. Gebze'de fark ~5-6°; yaya navigasyonu icin onemsiz
+    kabul edildi ama iki telefon yan yana konursa AYRI gosterir.
+  · Yon konisinin gorsel bicimi (yarim aci ~26°, yaricap 15/27 dp) referans
+    gorselden piksel ornekleme ile DEGIL tahminle secildi.
 - **KALDIGIMIZ YER (2 Eyl 01:30): TURU 154 YAYINLANDI — SADECE iOS.**
   ios **33565389617** (**b82aac8**), R2 ipa=30147740 (md5 ebf88f27)
   index=7967 (md5 71cf1e9d) surum.json=45 (md5 7cb7ef62),
