@@ -33,6 +33,17 @@ import 'adres_servisi.dart';
 import 'ulasim_veri.dart';
 
 /// Bir rota bacaginin turu.
+/// Adim metninde hattin nasil anilacagi.
+///
+/// ⚠️⚠️ **VAPURA "OTOBUS" DEME.** Veride 10 vapur, 3 tramvay ve 1
+///
+///	funikuler hatti var (bkz. [UlasimModu]). Metin mod-bagimsizdi,
+///	yani ekranda *"IZMIT ile gidin"* yaziyor ve kullanici bunun bir
+///	FERIBOT oldugunu HICBIR YERDEN anlayamiyordu.
+/// ⚠️ Otobuste metin DEGISMEZ (*"510B ile gidin"*); yalniz otobus
+///    OLMAYAN modlarda parantezle mod eklenir.
+String hatAnisi(Hat h) =>
+    h.mod == UlasimModu.otobus ? h.kisaAd : "${h.kisaAd} (${h.mod.ad})";
 enum BacakTuru { yuru, bekle, otobus }
 
 /// Rotanin tek bir bacagi.
@@ -1006,7 +1017,7 @@ Future<List<RotaAdayi>> rotaAra({
                 baslik: '${d.ad} durağında in',
                 altBaslik: oh.hat.yonBaslik[oh.yon] ?? oh.hat.uzunAd,
                 hat: oh.hat,
-                eylem: '${oh.hat.kisaAd} ile gidin, inin:',
+                eylem: '${hatAnisi(oh.hat)} ile gidin, inin:',
                 yer: d.ad,
               ),
               RotaBacagi(
@@ -1442,7 +1453,7 @@ Future<List<RotaAdayi>> _aktarmaliAra({
           baslik: '${k.aktD.ad} durağında in',
           altBaslik: k.oh.hat.yonBaslik[k.oh.yon] ?? k.oh.hat.uzunAd,
           hat: k.oh.hat,
-          eylem: '${k.oh.hat.kisaAd} ile gidin, inin:',
+          eylem: '${hatAnisi(k.oh.hat)} ile gidin, inin:',
           yer: k.aktD.ad,
         ),
         // ⚠️⚠️⚠️ TURU 157 - **IKI GERCEK NOKTA** (denetim bulgusu).
@@ -1502,7 +1513,7 @@ Future<List<RotaAdayi>> _aktarmaliAra({
           baslik: '${k.d.ad} durağında in',
           altBaslik: k.dh.hat.yonBaslik[k.dh.yon] ?? k.dh.hat.uzunAd,
           hat: k.dh.hat,
-          eylem: '${k.dh.hat.kisaAd} ile gidin, inin:',
+          eylem: '${hatAnisi(k.dh.hat)} ile gidin, inin:',
           yer: k.d.ad,
         ),
         RotaBacagi(

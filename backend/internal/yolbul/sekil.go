@@ -141,7 +141,7 @@ func (h *Handler) Sekil(w http.ResponseWriter, r *http.Request) {
 	//	degismezse duzeltme sahada HIC gorunmezdi (kullanicilar 25 gun
 	//	boyunca eski, ilmekli cizgiyi almaya devam ederdi).
 	// ⚠️ Birlestirme mantigi her degistiginde bu surum ARTIRILIR.
-	ck := "yolbul:sekil:v2:" + hex.EncodeToString(ozet[:16])
+	ck := "yolbul:sekil:v3:" + hex.EncodeToString(ozet[:16])
 	if h.rdb != nil {
 		if v, err := h.rdb.Get(r.Context(), ck).Result(); err == nil && v != "" {
 			yaz(w, http.StatusOK, sekilYanit{Kod: v, Oturtuldu: true})
@@ -226,7 +226,13 @@ func (h *Handler) sekliOturt(
 		}
 		kes := 0
 		if ilk > 0 {
-			kes = ortusmeKesim(parca)
+			var son [2]float64
+			var varSon bool
+			if len(cikti) > 0 {
+				son = cikti[len(cikti)-1]
+				varSon = true
+			}
+			kes = ortusmeKesim(parca, son, varSon)
 		}
 		// ⚠️⚠️ **DIKIS NOBETCISI** — kesim CALISMADIYSA sessizce gecmesin.
 		//
@@ -290,19 +296,75 @@ func (h *Handler) sekliOturt(
 //    ilk uygun noktaya dusulur; o da yoksa 0 donulur (eski davranis,
 //    yani fazladan cizgi — bozuk cizgiden iyidir, hicbir sey cizmemek
 //    ozelligi tamamen oldururdu).
-func ortusmeKesim(parca []snapNokta) int {
+// ⚠️⚠️⚠️ **INDEKS KESIMI BIRINCIL, GEOMETRI EMNIYET AGI.**
+//
+//	Turu 161 yalniz `originalIndex`e bakiyordu. OLCULDU (canli
+//	Google cagrisiyla, 15 dikis): indeks kesimi **13 dikiste tam
+//	0,0 m** tutturuyor — yani mekanizma DOGRU. Ama 2 dikiste iki
+//	parca AYNI girdi noktasini FARKLI yollara oturttu (kavsakta
+//	eslestirici belirsizligi) ve kiris 18,5 / 74,5 m cikti.
+//	O vakalarda turu 161in 100 mlik nobetcisi TUM sekli reddedip
+//	fail-open ile HAM cizgiye dusuruyordu — kullanicinin gordugu
+//	*"halen yoldan cikan shapeler var"* sikayetinin bir parcasi.
+//
+// ⚠️⚠️ Emniyet agi: indeks kesiminin kirisi tavani asiyorsa yeni
+//
+//	parcanin BAS BOLGESINDE onceki parcanin son noktasina EN YAKIN
+//	nokta aranir ve daha iyiyse o kullanilir.
+// ⚠️ Arama **`sekilAraPencere` ile SINIRLI**: serbest birakilsaydi
+//    ilmekli hatlarda (sekillerin %17,3u ilmekli) yolun ILERISINDEKI
+//    bir gecise kilitlenip guzergahin bir bolumunu TUMDEN atlardi —
+//    bugunku cift-cizimden DAHA KOTU bir hata.
+// ⚠️ Geriye dogru kesim YOK: donen indeks daima >= 1, yani yeni parca
+//    en az bir nokta KISALIR, uzamaz.
+const sekilAraPencere = 140
+
+func ortusmeKesim(parca []snapNokta, oncekiSon [2]float64, varOnceki bool) int {
 	sinir := sekilOrtusme - 1
+	kes := 0
 	for i, s := range parca {
 		if s.OriginalIndex != nil && *s.OriginalIndex == sinir {
-			return i + 1
+			kes = i + 1
+			break
 		}
 	}
-	for i, s := range parca {
-		if s.OriginalIndex != nil && *s.OriginalIndex >= sinir {
-			return i + 1
+	if kes == 0 {
+		for i, s := range parca {
+			if s.OriginalIndex != nil && *s.OriginalIndex >= sinir {
+				kes = i + 1
+				break
+			}
 		}
 	}
-	return 0
+	if !varOnceki {
+		return kes
+	}
+	kiris := math.MaxFloat64
+	if kes < len(parca) {
+		kiris = kabaMetre(oncekiSon[0], oncekiSon[1],
+			parca[kes].Location.Latitude, parca[kes].Location.Longitude)
+	}
+	if kiris <= sekilDikisTavani {
+		return kes
+	}
+	// EMNIYET AGI: bas bolgesinde en yakin noktayi ara.
+	enIyi, enAz := -1, kiris
+	ust := sekilAraPencere
+	if ust > len(parca) {
+		ust = len(parca)
+	}
+	for i := 1; i < ust; i++ {
+		d := kabaMetre(oncekiSon[0], oncekiSon[1],
+			parca[i].Location.Latitude, parca[i].Location.Longitude)
+		if d < enAz {
+			enAz = d
+			enIyi = i
+		}
+	}
+	if enIyi > 0 {
+		return enIyi + 1
+	}
+	return kes
 }
 
 // ⚠️⚠️⚠️ TURU 161 - **`originalIndex` OKUNMAK ZORUNDA.**

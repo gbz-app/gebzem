@@ -44,6 +44,64 @@ class Durak {
 }
 
 /// Bir otobus hatti.
+/// GTFS `route_type` — ULASIM MODU.
+///
+/// ⚠️⚠️⚠️ **VERIDE DORT MOD VAR, BIZ HEPSINI OTOBUS SANIYORDUK.**
+///
+///	Kullanici: *"halen yoldan cikan shapeler var"*. Sebeplerden biri
+///	buydu: `route_type` varlikta (`hatlar.json` -> `t`) TASINIYOR ama
+///	istemci onu HIC OKUMUYORDU.
+///	📊 OLCULDU (ham GTFS): tramvay **3** · otobus **404** ·
+///	**vapur/feribot 10** (IZMIT · GOLCUK · D.DERE · KARAMURSEL ·
+///	DERINCE · TUTUNCIFTLIK · HEREKE Iskele Hatlari) · funikuler **1**.
+///	Vapur sekilleri **2-7 nokta / 12-63 km**, yani korfezi gecen DUZ
+///	CIZGILER — ki bir feribot icin DOGRUDUR. Biz onlari otobus diye
+///	cizip **yola oturtmaya** calisiyorduk.
+enum UlasimModu {
+  tramvay(0),
+  metro(1),
+  tren(2),
+  otobus(3),
+  vapur(4),
+  teleferik(5),
+  funikuler(7),
+  bilinmiyor(-1);
+
+  const UlasimModu(this.kod);
+  final int kod;
+
+  static UlasimModu coz(Object? ham) {
+    final n = int.tryParse((ham ?? "").toString());
+    for (final m in UlasimModu.values) {
+      if (m.kod == n) return m;
+    }
+    // ⚠️ Bilinmeyen kod OTOBUS sayilmaz: yeni bir mod eklendiginde
+    //    onu sessizce otobus gibi cizmek YANLIS BILGI olurdu.
+    return UlasimModu.bilinmiyor;
+  }
+
+  /// Yola oturtma (snap-to-roads) bu mod icin ANLAMLI mi?
+  ///
+  /// ⚠️⚠️ Yalniz **OTOBUS**. Vapur denizde, funikuler/teleferik
+  ///
+  ///	kendi hattinda gider; onlari yola oturtmak cizgiyi BOZAR ve
+  ///	ayrica ucretli Roads cagrisini BOSA harcar. Tramvay cadde
+  ///	uzerinde gider ama kendi rayinda; en yakin yola oturtmak onu
+  ///	PARALEL bir serite kaydirabilir — bilerek DISARIDA.
+  bool get yolaOturur => this == UlasimModu.otobus;
+
+  String get ad => switch (this) {
+        UlasimModu.tramvay => "Tramvay",
+        UlasimModu.metro => "Metro",
+        UlasimModu.tren => "Tren",
+        UlasimModu.otobus => "Otobüs",
+        UlasimModu.vapur => "Vapur",
+        UlasimModu.teleferik => "Teleferik",
+        UlasimModu.funikuler => "Füniküler",
+        UlasimModu.bilinmiyor => "Hat",
+      };
+}
+
 class Hat {
   const Hat({
     required this.id,
@@ -52,6 +110,7 @@ class Hat {
     required this.renk,
     required this.yonBaslik,
     required this.yonSekil,
+    this.mod = UlasimModu.otobus,
   });
 
   final String id;
@@ -68,6 +127,12 @@ class Hat {
 
   /// yon (0/1) -> guzergah kimligi (`sekiller.json` anahtari).
   final Map<int, String> yonSekil;
+
+  /// GTFS `route_type` (bkz. [UlasimModu]).
+  ///
+  /// ⚠️ Varsayilan `otobus`: varlikta alan yoksa (eski surum) davranis
+  ///    bugunkuyle AYNI kalir.
+  final UlasimModu mod;
 }
 
 /// Bir duraktan gecen hattin BIR YONU + o yonun kalkis saatleri.
@@ -294,6 +359,7 @@ class UlasimVeri {
           kisaAd: (o['k'] ?? '') as String,
           uzunAd: (o['u'] ?? '') as String,
           renk: (o['r'] ?? '') as String,
+          mod: UlasimModu.coz(o['t']),
           yonBaslik: yb,
           yonSekil: ys,
         );
@@ -586,6 +652,14 @@ class UlasimVeri {
     // ⚠️⚠️ FAIL-OPEN: `sekliOturt` null donerse ORIJINAL cizilir.
     // ⚠️ Cagri `await` edilir: cizgi bir kez, DOGRU haliyle cizilsin.
     //    Once ham cizip sonra degistirmek gorunur bir "ziplama" olurdu.
+    // ⚠️⚠️⚠️ **VAPUR/FUNIKULER/TRAMVAY YOLA OTURTULMAZ.**
+    //
+    //	Vapur sekilleri korfezi gecen 2-7 noktali duz cizgilerdir; en
+    //	yakin YOLA oturtmak onlari sahil boyunca dolastirip **tamamen
+    //	yanlis** bir cizgi uretir. Ayrica her biri ucretli bir Roads
+    //	cagrisi yakardi.
+    // ⚠️ Kapi `UlasimModu.yolaOturur` TEK KAYNAGINDAN gelir.
+    if (!h.mod.yolaOturur) return polyCoz(kod);
     final onbellekli = _oturtulmus[sid];
     if (onbellekli != null) return polyCoz(onbellekli);
     final yeni = await _sekilOturtucu?.call(kod);
