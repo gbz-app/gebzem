@@ -667,6 +667,17 @@ class UlasimVeri {
       _oturtulmus[sid] = yeni;
       return polyCoz(yeni);
     }
+    // ⚠️⚠️ **BASARISIZLIK DA ONBELLEKLENIR.**
+    //
+    //	Eskiden yalniz BASARILI sonuc yaziliyordu. `guzergah()` aday
+    //	dongusunun ICINDEN cagrildigi icin fail-open donen bir sekil
+    //	TEK ARAMADA onlarca kez yeniden istenip her seferinde GERCEK
+    //	bir ag cagrisi yapiyordu — hem yavas hem (sunucuda) PARA.
+    //	HAM kod onbellege yazilinca ayni sekil o oturumda BIR KEZ denenir.
+    // ⚠️ Onbellek OTURUM OMURLU: uygulama yeniden acilinca tekrar denenir,
+    //    yani gecici bir ariza kalici hale GELMEZ (sunucu tarafinda da
+    //    basarisizlik yalniz 6 saat tutuluyor).
+    _oturtulmus[sid] = kod;
     return polyCoz(kod);
   }
 

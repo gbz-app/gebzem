@@ -1175,7 +1175,7 @@ Future<List<RotaAdayi>> rotaAra({
   // ⚠️⚠️⚠️ TURU 158 - yurume sureleri GERCEKLESTI; sefer secimi ESKI
   //	tahmine dayaniyordu ve artik yetisilemeyecek bir kalkis
   //	onerebilir. Yeniden secim TAMAMEN YEREL (bkz. serh).
-  _seferleriYenidenSec(sonuc, suAn);
+  _seferleriYenidenSec(sonuc, suAn, kapiKus);
   return sonuc;
 }
 
@@ -1609,7 +1609,7 @@ Future<List<RotaAdayi>> _aktarmaliAra({
 /// ⚠️ `RotaAdayi` alanlari `final`: yerinde guncellenemez, YENI nesne
 ///    kurulup listeye yazilir. `bacaklar` listesi mutable oldugu icin
 ///    bacaklar yerinde degistirilebilir.
-void _seferleriYenidenSec(List<RotaAdayi> sonuc, int suAn) {
+void _seferleriYenidenSec(List<RotaAdayi> sonuc, int suAn, double kusM) {
   final kalanlar = <RotaAdayi>[];
   for (final a in sonuc) {
     final s = a.sefer;
@@ -1646,7 +1646,23 @@ void _seferleriYenidenSec(List<RotaAdayi> sonuc, int suAn) {
     } else {
       varis = sf1.inis + dDk;
     }
-    if (varis - suAn > kToplamSureTavani) continue;
+    // ⚠️⚠️⚠️ **BAYAT SABIT TAVAN, TURU 162 FIXINI IPTAL EDIYORDU.**
+    //
+    //	Burada `varis - suAn > kToplamSureTavani` (duz 150) duruyordu;
+    //	yani zenginlestirmeden SONRA, `_butceyiAsiyor`un mesafeye gore
+    //	hesapladigi tavan SESSIZCE 150ye geri dusuyordu. Ovacik icin
+    //	kapidan kapiya 198 dk -> aday BURADA DUSUYORDU ve turu 162nin
+    //	duzeltmesi sahada HIC gorunmuyordu.
+    // ⚠️ Bir esigi TEK KAYNAGA alirken **tum cagri yerlerini GREPLE**;
+    //    bu kopya iki fonksiyon otede sessizce hayatta kalmisti.
+    if (_butceyiAsiyor(
+        suAn: suAn,
+        binis: sf1.binis,
+        varis: varis,
+        yuruDk: oDk,
+        kusM: kusM)) {
+      continue;
+    }
 
     // ── BACAKLARI YENI SAATLERLE GUNCELLE ──
     var otobusSay = 0;

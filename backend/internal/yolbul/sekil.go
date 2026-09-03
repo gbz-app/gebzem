@@ -144,6 +144,20 @@ func (h *Handler) Sekil(w http.ResponseWriter, r *http.Request) {
 	ck := "yolbul:sekil:v3:" + hex.EncodeToString(ozet[:16])
 	if h.rdb != nil {
 		if v, err := h.rdb.Get(r.Context(), ck).Result(); err == nil && v != "" {
+			// ⚠️⚠️⚠️ **BASARISIZLIK DA ONBELLEKLENIR.**
+			//
+			//	Eskiden yalniz BASARILI sonuc yaziliyordu; bir sekil
+			//	fail-open donduyse HER CIZIMDE yeniden **N GERCEK Roads
+			//	cagrisi** yapiliyordu. `guzergah()` aday dongusunun
+			//	ICINDEN cagrildigi icin tek aramada onlarca seri istek
+			//	demekti — hem yavas hem PARA.
+			// ⚠️ Basarisizlik `sekilHataOmru` kadar (kisa) tutulur:
+			//    gecici bir Roads arizasi 25 gun boyunca sekli ham
+			//    birakmasin.
+			if v == sekilBasarisiz {
+				yaz(w, http.StatusOK, sekilYanit{Kod: req.Kod, Oturtuldu: false})
+				return
+			}
 			yaz(w, http.StatusOK, sekilYanit{Kod: v, Oturtuldu: true})
 			return
 		}
@@ -155,6 +169,7 @@ func (h *Handler) Sekil(w http.ResponseWriter, r *http.Request) {
 	yeni, err := h.sekliOturt(ctx, noktalar)
 	if err != nil || len(yeni) < 2 {
 		// ⚠️ FAIL-OPEN: orijinal geri doner (bkz. dosya serhi).
+		h.basarisizYaz(ctx, ck)
 		yaz(w, http.StatusOK, sekilYanit{Kod: req.Kod, Oturtuldu: false})
 		return
 	}
@@ -164,8 +179,20 @@ func (h *Handler) Sekil(w http.ResponseWriter, r *http.Request) {
 	//	`sekilUzunlukTavani` katindan uzunsa sonuc ATILIR.
 	//	(Turu 158b'de `_guzergahDilimi` icin ogrenilen ders: bir
 	//	 duzeltmeyi kendi hedef metrigiyle degil SONUCUYLA olc.)
+	// ⚠️⚠️⚠️ **ALT SINIR DA GEREKLI — SEKIL COKMESI OLCULDU.**
+	//
+	//	Denetim canli sunucuda yakaladi: **54,62 km**lik bir hat snap
+	//	sonrasi **0,00 km**ye dustu, kapi YALNIZ UST SINIRI olctugu icin
+	//	`oturtuldu=true` dondu ve sonuc **25 GUN** onbelleklendi.
+	//	Kullanici o hattin cizgisini HIC goremezdi ve onbellek yuzunden
+	//	yeniden denenmezdi bile.
+	// ⚠️ Eslestirici yolun bir bolumunu bulamayip kisa bir parca
+	//    dondurebilir; yola oturmak cizgiyi KISALTMAZ, en fazla biraz
+	//    uzatir. 0,5 kati COK comert bir alt sinir.
 	eskiU, yeniU := yolUzunlugu(noktalar), yolUzunlugu(yeni)
-	if eskiU > 0 && yeniU > eskiU*sekilUzunlukTavani {
+	if eskiU > 0 &&
+		(yeniU > eskiU*sekilUzunlukTavani || yeniU < eskiU*sekilUzunlukTabani) {
+		h.basarisizYaz(ctx, ck)
 		yaz(w, http.StatusOK, sekilYanit{Kod: req.Kod, Oturtuldu: false})
 		return
 	}
@@ -203,6 +230,27 @@ const sekilUzunlukTavani = 1.5
 // ⚠️ YAPMA: bu degeri 600 m gibi "gercekci" bir sayiya cikarma —
 //    o zaman nobetci sessizce olur (turu 160 kapisiyla ayni tuzak).
 const sekilDikisTavani = 100.0
+
+// Yeni cizgi eskisinin bu katindan KISA ise eslestirme basarisiz sayilir.
+//
+// ⚠️⚠️ Yola oturtmak cizgiyi KISALTMAZ. 0,5 comert bir taban; denetimde
+//
+//	olculen cokme vakasi 54,62 km -> 0,00 km idi (oran 0,00).
+const sekilUzunlukTabani = 0.5
+
+// Basarisiz sonucun onbellek isareti ve omru.
+//
+// ⚠️ Omur KISA: gecici bir Roads arizasi sekli 25 gun ham birakmasin.
+const sekilBasarisiz = "yok"
+const sekilHataOmru = 6 * time.Hour
+
+// basarisizYaz — fail-open sonucunu onbellege isaretler.
+func (h *Handler) basarisizYaz(ctx context.Context, ck string) {
+	if h.rdb == nil {
+		return
+	}
+	_ = h.rdb.Set(ctx, ck, sekilBasarisiz, sekilHataOmru).Err()
+}
 
 // sekliOturt — noktalari parca parca Roads API'ye gonderir.
 //
