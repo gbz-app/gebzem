@@ -41,6 +41,68 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
       kaybettiriyorsun"*. **Üçüncüsü olmayacak.**
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (3 Eyl 14:30): TURU 163b YAYINLANDI — SADECE iOS.**
+  ios **33748924292** (**ab673a1**), R2 ipa=31141483 (md5 20a74a15),
+  purge OK, **CDN BIREBIR**, iOS min 16.0, MapsApiKey ENJEKTE, debug imza YOK.
+  ✅ **BACKEND DEPLOY** (ab673a1) + health ok.
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260903-1430
+
+- 🛡️ ⚠️⚠️⚠️ **TURU 163b — DENETIM: 89 AJAN, 76 HAM BULGU -> 45 AYAKTA,
+  UC SEVK ENGELI (11 kok-neden · 7 yuksek).** Build ALINMISTI, denetim
+  sonrasi YENIDEN alindi — *"Build ALMAK yayinlamak DEGILDIR"* dersinin
+  **ONUNCU** dogrulanmasi.
+
+- ⚠️⚠️⚠️ **(1) BAYAT SABIT TAVAN, TURU 162 FIXINI IPTAL EDIYORDU.**
+  `_seferleriYenidenSec` hala duz `varis - suAn > kToplamSureTavani`
+  (150) kullaniyordu. Yani zenginlestirmeden SONRA, mesafeye gore
+  hesaplanan tavan SESSIZCE 150ye geri dusuyordu. Ovacik icin kapidan
+  kapiya **198 dk** -> aday **BURADA** dusuyordu ve turu 162/163in
+  duzeltmesi sahada **HIC gorunmezdi**.
+  ⚠️ **DERS: bir esigi TEK KAYNAGA alirken TUM cagri yerlerini GREPLE.**
+     Bu kopya iki fonksiyon otede sessizce hayatta kalmisti.
+
+- ⚠️⚠️⚠️ **(2) SEKIL COKMESI 25 GUN ONBELLEKLENIYORDU.**
+  Denetim canli sunucuda olctu: **54,62 km**lik bir hat snap sonrasi
+  **0,00 km**ye dustu; makulluk kapisi **YALNIZ UST SINIRI** olctugu icin
+  `oturtuldu=true` dondu ve sonuc **25 GUN** onbelleklendi. Kullanici o
+  hattin cizgisini HIC goremez, yeniden denenmezdi bile.
+  **FIX:** `sekilUzunlukTabani` (0,5) alt siniri.
+  ⚠️ **DERS: bir "makulluk kapisi" tek yonlu olamaz** — yola oturtmak
+     cizgiyi uzatabilir de KISALTABILIR de.
+
+- ⚠️⚠️ **(3) BASARISIZLIK ONBELLEKLENMIYORDU -> HER CIZIMDE N GERCEK
+  ROADS CAGRISI.** `guzergah()` aday dongusunun ICINDEN cagrildigi icin
+  fail-open donen bir sekil TEK ARAMADA onlarca kez yeniden isteniyordu
+  (denetim: *"9-40 kat carpan"*, *"72 seri HTTP istegi"*).
+  **FIX:** sunucuda **6 saatlik** basarisizlik onbellegi + istemcide
+  oturum omurlu ham-kod onbellegi.
+  ⚠️ Bu ayni zamanda *"maliyet kullanici sayisiyla olcekleniyor"* bulgusunu
+     da kapatir — `sekil.go` serhi TERSINI iddia ediyordu.
+
+- 📌 **TURU 163b — DENETIMIN DOGRULADIGI / DUZELTTIGI ESKI NOTLAR:**
+  · Turu 161in *"SEFER GERCEK, bozuk olan yalniz SEKIL"* hukmu **CURUDU**:
+    olcum tam tersini gosterdi — sekil DOGRUYDU (o yuzden Cumakoyde
+    bitiyor), bozuk olan **SEFERDI**. Turu 162de zaten oyle duzeltildi.
+  · CLAUDE.mddeki *"KM58 165 dk"* YANLIS; olculen **179 dk** (tum hat) ve
+    kullanicinin bindigi bacak **160/169 dk**.
+  · KM58 yon-1 tarifesi **kaynakta bozuk**: sehir ici duraklar arasi
+    **7-13 SANIYE**, kirsal kisim sisirilmis. Ayni koridor ters yonde
+    **72 dk**. Yani varis saatleri yaklasiktir.
+  · **Feed genelinde 136/765 (hat,yon) ciftinde ortalama hiz < 15 km/h**
+    — ara durak saatleri buyuk olcude interpolasyon.
+
+- ⏳ **TURU 163b — HENUZ YAPILMADI (denetimden devreden):**
+  · **Parca ICINDEKI 489 adet >100 m bosluk**: Roads ~1 km arali ham
+    noktalar arasini INTERPOLE ETMIYOR, 900 me varan yol disi kirisler
+    kaliyor. Nobetci yalniz 643 DIKISE bakiyor.
+  · **SEKER SOKAK 2 (41989)** koordinati 8,45 km yanlis; 3 hatta bagli,
+    muhafiz yalnizca birini yakaladi.
+  · **Mukerrer adli duraklar**: 6 cift >300 m, biri 25,6 km apart
+    (kutu genislemesiyle YENI dogan belirsizlik).
+  · **1,04 milyon polyline noktasi/arama** (kazanan insa dongusu).
+  · **OSRM/Valhalla kendi sunucumuzda**: maliyet 0 USD ve 30 gunluk
+    onbellek sinirI KALKAR (denetim fizibil buldu — AYRI TUR).
+  · Vapur/tramvay ARAYUZDE hala otobus gibi ciziliyor.
 - **KALDIGIMIZ YER (3 Eyl 14:00): TURU 163 YAYINLANDI — SADECE iOS.**
   ios **33746325377** (**c1e0101**), R2 ipa=31142198 (md5 bc186cf9)
   index=7967 surum.json=45, purge OK, **CDN BIREBIR**, iOS min **16.0**,
