@@ -161,7 +161,7 @@ class Hat {
   /// yon (0/1) -> guzergah kimligi (`sekiller.json` anahtari).
   final Map<int, String> yonSekil;
 
-  /// Servis -> yon -> ILK DURAKTAN kalkis dakikalari.
+  /// Yon -> servis -> ILK DURAKTAN kalkis dakikalari.
   ///
   /// TURU165D **RESMI UYGULAMAYLA BIREBIR KARSILASTIRILABILSIN DIYE.**
   ///

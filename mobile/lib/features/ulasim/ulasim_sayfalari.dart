@@ -329,7 +329,23 @@ Future<void> durakDetayAc(
               dh: h,
               an: an,
               servis: servis,
-              sec: () {
+              // ⚠️⚠️⚠️ **DOKUNUS ARTIK HAT SAATLERINI ACAR.**
+              //
+              //	Kullanici emri: *"tikladigim hatlarin hareket saatleri
+              //	gorunsun"*. Eskiden satira dokunmak DOGRUDAN haritaya
+              //	gidiyordu ve bir hattin TUM saatlerini gormenin
+              //	HICBIR yolu yoktu.
+              // ⚠️ Guzergah cizimi kaybolmadi: acilan sayfanin altindaki
+              //    dugmeye tasindi (o sayfa `true` donerse cizilir).
+              sec: () async {
+                final haritada = await hatSaatleriAc(
+                  c,
+                  durak: durak,
+                  hat: h.hat,
+                  yon: h.yon,
+                  servis: servis,
+                );
+                if (haritada != true || !c.mounted) return;
                 Navigator.of(c).maybePop();
                 guzergahSec(h.hat, h.yon);
               },
@@ -614,4 +630,362 @@ Future<void> taksiListesiAc(
       ],
     );
   });
+}
+
+/// ⚠️⚠️⚠️ TURU 167 — **HAT SAATLERI SAYFASI** (kullanici emri: *"tikladigim
+///	hatlarin hareket saatleri gorunsun"*).
+///
+///	Resmi uygulamanin "Hareket Saatleri" ekraninin karsiligi. IKI liste
+///	AYRI AYRI ve ADIYLA gosterilir:
+///	  · **Bu duraktan gecis** — kullanicinin gunluk hayatta ihtiyaci olan
+///	  · **Ilk duraktan kalkis** — resmi uygulamanin gosterdigi sayi
+///	Ikisi FARKLI BUYUKLUK; ayni ekranda, adlari ve durak adlariyla
+///	birlikte durunca "saatler uymuyor" sorusu YAPISAL OLARAK biter.
+/// ⚠️ Tek bir saat HESAPLANMAZ, TAHMIN EDILMEZ: ikisi de GTFS'ten
+///    OKUNUR (dogrulandi: 114.192 grubun 114.173'u ham dosyayla BIREBIR,
+///    kalan 19'u fiziksel olabilirlik muhafizinin eledigi atamalar).
+/// ⚠️ Doner deger `true` ise CAGIRAN guzergahi haritada cizer — bu sheet
+///    haritayi kendisi cizemez (harita BASKA bir agacta yasiyor).
+Future<bool?> hatSaatleriAc(
+  BuildContext context, {
+  required Durak durak,
+  required Hat hat,
+  required int yon,
+  required int servis,
+}) =>
+    _sheet<bool>(
+      context,
+      (c) => _HatSaatleri(
+        durak: durak,
+        hat: hat,
+        ilkYon: yon,
+        ilkServis: servis,
+      ),
+      boy: 0.92,
+    );
+
+class _HatSaatleri extends StatefulWidget {
+  const _HatSaatleri({
+    required this.durak,
+    required this.hat,
+    required this.ilkYon,
+    required this.ilkServis,
+  });
+
+  final Durak durak;
+  final Hat hat;
+  final int ilkYon;
+  final int ilkServis;
+
+  @override
+  State<_HatSaatleri> createState() => _HatSaatleriDurumu();
+}
+
+class _HatSaatleriDurumu extends State<_HatSaatleri> {
+  late int _yon = widget.ilkYon;
+  late int _servis = widget.ilkServis;
+
+  List<int> _buDurak = const [];
+  bool _yukleniyor = true;
+
+  /// ⚠️ BAYAT YANIT KAPISI: kullanici hizlica yon/gun degistirirse onceki
+  ///    yukleme SONRA bitip YANLIS listeyi yazabilir (bu projede ayni
+  ///    sinif turu 141/144'te sahaya cikti).
+  int _nesil = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _yukle();
+  }
+
+  Future<void> _yukle() async {
+    final n = ++_nesil;
+    setState(() => _yukleniyor = true);
+    final liste = await UlasimVeri.i.duraginHatlari(widget.durak.id, _servis);
+    if (!mounted || n != _nesil) return;
+    List<int> bulunan = const [];
+    for (final d in liste) {
+      if (d.hat.id == widget.hat.id && d.yon == _yon) {
+        bulunan = d.kalkislar;
+        break;
+      }
+    }
+    setState(() {
+      _buDurak = bulunan;
+      _yukleniyor = false;
+    });
+  }
+
+  void _degistir({int? yon, int? servis}) {
+    if (yon != null && yon == _yon) return;
+    if (servis != null && servis == _servis) return;
+    setState(() {
+      if (yon != null) _yon = yon;
+      if (servis != null) _servis = servis;
+    });
+    _yukle();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final renk = hatRengi(widget.hat);
+    final an = UlasimVeri.suAnDakika();
+    // ⚠️ Vurgu (sonraki otobus) YALNIZ bugunun gun turunde anlamli;
+    //    pazar listesine hafta ici saatiyle "sonraki" isaretlemek YALAN olur.
+    final bugun = _servis == UlasimVeri.bugunServis();
+    final yonlar = widget.hat.yonBaslik.keys.toList()..sort();
+    final ilkKalkis = widget.hat.ilkKalkis[_yon]?[_servis] ?? const <int>[];
+    final ilkAd = widget.hat.ilkDurak[_yon] ?? '';
+
+    return Column(
+      children: [
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(kYanBosluk, 0, kYanBosluk, 8),
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  hatRozeti(widget.hat, boy: 32),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      widget.hat.yonBaslik[_yon] ?? widget.hat.uzunAd,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        height: 1.25,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              if (yonlar.length > 1) ...[
+                _seritler(
+                  context,
+                  [
+                    for (final y in yonlar)
+                      (
+                        etiket: y == 0 ? 'Gidiş' : 'Dönüş',
+                        secili: y == _yon,
+                        bas: () => _degistir(yon: y),
+                      ),
+                  ],
+                  renk,
+                ),
+                const SizedBox(height: 8),
+              ],
+              _seritler(
+                context,
+                [
+                  for (final s in const [1, 2, 3])
+                    (
+                      etiket: _servisAdi(s),
+                      secili: s == _servis,
+                      bas: () => _degistir(servis: s),
+                    ),
+                ],
+                renk,
+              ),
+              const SizedBox(height: 18),
+              if (_yukleniyor)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 28),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else ...[
+                _bolumBasligi(context, 'Bu duraktan geçiş', widget.durak.ad),
+                const SizedBox(height: 8),
+                _saatIzgarasi(
+                  context,
+                  _buDurak,
+                  an: an,
+                  bugun: bugun,
+                  renk: renk,
+                ),
+                const SizedBox(height: 22),
+                // ⚠️⚠️ Bu blok resmi uygulamayla KARSILASTIRMA icin var.
+                //    Durak adi ZORUNLU: resmi uygulama hatti BASKA bir
+                //    terminalden kaldiriyorsa fark KENDINI aciklasin
+                //    (552: bizde Fatih DH, resmide Gebze Mezarligi).
+                _bolumBasligi(
+                  context,
+                  'İlk duraktan kalkış',
+                  ilkAd.isEmpty ? 'hattın ilk durağı' : ilkAd,
+                ),
+                const SizedBox(height: 8),
+                _saatIzgarasi(
+                  context,
+                  ilkKalkis,
+                  an: an,
+                  bugun: bugun,
+                  renk: renk,
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  'Saatler Kocaeli Büyükşehir tarifesinden okunur, '
+                  'hesaplanmaz.',
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    height: 1.35,
+                    color: scheme.onSurface.withValues(alpha: 0.45),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(kYanBosluk, 4, kYanBosluk, 10),
+          child: SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: FilledButton.icon(
+              onPressed: () => Navigator.of(context).pop(true),
+              icon: const Icon(LucideIcons.map, size: 18),
+              label: const Text('Güzergâhı haritada göster'),
+              style: FilledButton.styleFrom(
+                backgroundColor: renk,
+                foregroundColor: _onPlan(renk),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(kYaricap(48)),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Dolgu renginden okunabilir on plan rengi.
+///
+/// ⚠️ Sabit beyaz YAZILMAZ: GTFS renkleri arasinda sari/bej hatlar var ve
+///    beyaz uzerine beyaz **1,00:1** eder (turu 140'ta olculen hata).
+Color _onPlan(Color dolgu) =>
+    ThemeData.estimateBrightnessForColor(dolgu) == Brightness.dark
+        ? Colors.white
+        : Colors.black;
+
+/// Bolum basligi + altinda kucuk aciklama (durak adi).
+Widget _bolumBasligi(BuildContext c, String ust, String alt) {
+  final scheme = Theme.of(c).colorScheme;
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        ust,
+        style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800),
+      ),
+      const SizedBox(height: 2),
+      Text(
+        alt,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontSize: 12,
+          height: 1.3,
+          color: scheme.onSurface.withValues(alpha: 0.55),
+        ),
+      ),
+    ],
+  );
+}
+
+/// Secim seridi (yon / gun turu).
+///
+/// ⚠️ `Wrap` kullanilir, `Row` DEGIL: uc gun etiketi buyuk yazi olceginde
+///    360 dp'de tek satira sigmiyor (turu 121/123 tasma dersi).
+Widget _seritler(
+  BuildContext c,
+  List<({String etiket, bool secili, VoidCallback bas})> ogeler,
+  Color renk,
+) {
+  final scheme = Theme.of(c).colorScheme;
+  return Wrap(
+    spacing: 8,
+    runSpacing: 8,
+    children: [
+      for (final o in ogeler)
+        Material(
+          color: o.secili ? renk : kYuzeyGri(c),
+          borderRadius: BorderRadius.circular(kYaricap(40)),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: o.bas,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              child: Text(
+                o.etiket,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: o.secili
+                      ? _onPlan(renk)
+                      : scheme.onSurface.withValues(alpha: 0.85),
+                ),
+              ),
+            ),
+          ),
+        ),
+    ],
+  );
+}
+
+/// Saat izgarasi. Gecmis saatler SOLUK, sonraki otobus VURGULU.
+Widget _saatIzgarasi(
+  BuildContext c,
+  List<int> saatler, {
+  required int an,
+  required bool bugun,
+  required Color renk,
+}) {
+  final scheme = Theme.of(c).colorScheme;
+  if (saatler.isEmpty) {
+    return Text(
+      'Bu yönde bu gün sefer görünmüyor.',
+      style: TextStyle(
+        fontSize: 13,
+        color: scheme.onSurface.withValues(alpha: 0.55),
+      ),
+    );
+  }
+  int? sonraki;
+  if (bugun) {
+    for (final s in saatler) {
+      if (s >= an) {
+        sonraki = s;
+        break;
+      }
+    }
+  }
+  return Wrap(
+    spacing: 6,
+    runSpacing: 6,
+    children: [
+      for (final s in saatler)
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+          decoration: BoxDecoration(
+            color: s == sonraki ? renk : kYuzeyGri(c),
+            borderRadius: BorderRadius.circular(kYaricap(40)),
+          ),
+          child: Text(
+            UlasimVeri.saatMetni(s),
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: s == sonraki ? FontWeight.w800 : FontWeight.w600,
+              color: s == sonraki
+                  ? _onPlan(renk)
+                  : scheme.onSurface
+                      .withValues(alpha: bugun && s < an ? 0.34 : 0.9),
+            ),
+          ),
+        ),
+    ],
+  );
 }
