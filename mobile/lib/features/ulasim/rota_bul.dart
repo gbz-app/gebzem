@@ -44,16 +44,6 @@ import 'ulasim_veri.dart';
 ///    OLMAYAN modlarda parantezle mod eklenir.
 String hatAnisi(Hat h) =>
     h.mod == UlasimModu.otobus ? h.kisaAd : "${h.kisaAd} (${h.mod.ad})";
-// GECICI-OLCUM (curutucu)
-int olcEnIyi = 0;
-int olcNokta = 0;
-int olcSegProj = 0;
-int olcDilim = 0;
-int olcInsaUs = 0;
-int olcK = 0;
-void olcSifirla(){olcEnIyi=0;olcNokta=0;olcSegProj=0;olcDilim=0;olcInsaUs=0;}
-// /GECICI-OLCUM
-
 enum BacakTuru { yuru, bekle, otobus }
 
 /// Rotanin tek bir bacagi.
@@ -587,7 +577,6 @@ double _yolUzunlugu(List<({double enlem, double boylam})> yol) {
   //	ofset medyan 5,6 m -> atan(5,7/5,6) = 45,5 derece.
   //	Izdusum eklendiginde aci vakalarin **%98,2**sinde 90 olur.
   var enT = 0.0;
-  olcSegProj += (yol.length - 1 - bas);
   for (var i = bas; i < yol.length - 1; i++) {
     final ax = yol[i].boylam * kx;
     final ay = yol[i].enlem * 111320.0;
@@ -754,17 +743,6 @@ List<({double enlem, double boylam})> _dilimKur({
 ///    `yol.length < 2` ya da binis son segmentte olma hali kalir.
 ///    Artik ULASILMASI ZOR bir emniyet agidir.
 List<({double enlem, double boylam})> _guzergahDilimi(
-  List<({double enlem, double boylam})> yol,
-  Durak binis,
-  Durak inis,
-) {
-  olcDilim++;
-  final r = _guzergahDilimiIc(yol, binis, inis);
-  olcNokta += r.length;
-  return r;
-}
-
-List<({double enlem, double boylam})> _guzergahDilimiIc(
   List<({double enlem, double boylam})> yol,
   Durak binis,
   Durak inis,
@@ -1482,14 +1460,7 @@ Future<List<RotaAdayi>> _aktarmaliAra({
   }
   // ⚠️⚠️ **KAZANANLARI SIMDI INSA ET.** `yolAl` hat|yon basina
   //	onbellekli oldugu icin bu dongu polyline'lari YENIDEN cozmez.
-  olcEnIyi = enIyi.length;
-  final olcSw = Stopwatch()..start();
-  var olcListe = enIyi.values.toList();
-  if (olcK > 0 && olcListe.length > olcK) {
-    olcListe.sort((a, b) => a.varis.compareTo(b.varis));
-    olcListe = olcListe.sublist(0, olcK);
-  }
-  for (final k in olcListe) {
+  for (final k in enIyi.values) {
     final yol1 = await yolAl(k.oh.hat.id, k.oh.yon);
     final yol2 = await yolAl(k.dh.hat.id, k.dh.yon);
     sonuc.add(RotaAdayi(
@@ -1617,8 +1588,6 @@ Future<List<RotaAdayi>> _aktarmaliAra({
       ],
     ));
   }
-  olcSw.stop();
-  olcInsaUs += olcSw.elapsedMicroseconds;
   return sonuc;
 }
 

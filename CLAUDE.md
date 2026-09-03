@@ -41,6 +41,53 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
       kaybettiriyorsun"*. **Üçüncüsü olmayacak.**
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (3 Eyl 14:00): TURU 163 YAYINLANDI — SADECE iOS.**
+  ios **33746325377** (**c1e0101**), R2 ipa=31142198 (md5 bc186cf9)
+  index=7967 surum.json=45, purge OK, **CDN BIREBIR**, iOS min **16.0**,
+  `MapsApiKey` ENJEKTE, `get-task-allow: false`.
+  IPA varliginda: **8.502 durak · 411 hat** · "Vapur" dizesi VAR.
+  ⚠️ **BACKEND DEGISMEDI** (cdae708 canlida).
+  ✅ analyze **0/0** · test **82/82**.
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260903-1400
+
+- 🎯 ⚠️⚠️⚠️ **TURU 163 — "OVACIK BULUNMUYOR / PELITLIDE 2 OTOBUS":
+  KOK NEDEN TEK SATIRDI (`adet: 12`).**
+  Kullanici: *"ovacik dedigimde rota bulunmuyor"* + *"pelitliyi aradim,
+  en yakinimdaki durakta 2 otobus yapiyor; bak yandex ALTTAKI DURAGA
+  gonderip TEK SEFERDE goturuyor"*.
+  `rotaAra` en yakin **12** duragi aliyordu.
+  📊 **OLCULDU** (kullanicinin konumu, 800 m yaricap): **24 durak** var;
+     kritik durak **GUZELLER OSB KAVSAGI 22. SIRADA** (692 m) ve **8 hat**
+     tasiyor (423 · 430 · 510 · 515 · 510B · 515B · KM58 · PS-G1).
+       Ovacik  : dogrudan rotalarin **1/1**i kayboluyordu -> "bulunamadi"
+       Pelitli : dogrudan rotalarin **2/2**si kayboluyordu -> 2 otobus
+  ⚠️⚠️ **SORUN MESAFE DEGIL SIRALAMA**: yakindaki duraklarin cogu AYNI
+     birkac hatti tasiyor; hat cesitliligi 12. siradan SONRA geliyor.
+     Yaricabi buyutmek COZMEZ — daha cok AYNI hattin duragini getirir.
+  **FIX — `_hatCesitliDuraklar`:** her (hat,yon) icin **EN YAKIN** durak
+  secilir (liste mesafe sirali oldugu icin ilk gorulen O hattin en
+  yakinidir). En yakin **8** durak KOSULSUZ kalir (aktarma komsu
+  duraklara bakiyor). Tavan durak sayisina degil **HAT CESITLILIGINE**
+  bakar -> aday sayisi durak degil HAT sayisiyla olceklenir.
+  📊 **300 rastgele cift:** dogrudan rota kapsamasi **%8,0 -> %21,0**
+     (2,6 kat) · **GERILEME 0** · sure medyan 0 ms, maks 4 -> 16 ms.
+  📊 **Kullanicinin iki vakasi (13:36):**
+     Ovacik  **0 -> 1** rota (KM58, Guzeller OSB 14:31 -> varis 16:54)
+     Pelitli **0 -> 2** rota (**423 TEK OTOBUSLE varis 14:52**) —
+     Yandexin yaptiginin AYNISI.
+
+- ⚠️⚠️ **TURU 163 — `kTestSaati` KAPATILDI (`null`).**
+  Gece testi icin konulan bayrak uygulamayi **12:00da sabitliyordu**;
+  kullanici 13:34te test ederken ekranda **12:32 varis** yaziyordu ve
+  "sonraki otobus" hesabi TAMAMEN yanlisti. Nobetci hala gecerli:
+  `grep -rn "GECICI-TEST" lib/`.
+
+- ⚠️ **TURU 163 — SUREC: ARKA PLANDA KOSAN DENETIM AJANLARI DEPOYA
+  YAZDI.** `.gotmp/bench/rss.dart` ve `mobile/test/zz_olcum_test.dart`
+  bir commite YANLISLIKLA girdi. Ikisi de silindi, `.gotmp/`
+  `.gitignore`a eklendi.
+  ⚠️ **DERS: ajan kosarken `git add -A` yapmadan once `git status`e BAK.**
+
 - **KALDIGIMIZ YER (3 Eyl): TURU 162 KODU BITTI, BACKEND DEPLOY (cdae708).**
 
 - 🗺️ ⚠️⚠️⚠️ **TURU 162 — TUM KOCAELI** (kullanici emri: *"butun izmit

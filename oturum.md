@@ -1,3 +1,39 @@
+# Oturum — Turu 163 (3 Eyl 2026, 14:00 YAYINLANDI)
+
+## Kullanici bildirimi
+
+*"ovacik dedigimde rota bulunmuyor"* · *"pelitliyi aradim, en yakinimdaki
+durakta 2 otobus yapiyor; bak yandex ALTTAKI DURAGA gonderip TEK SEFERDE
+goturuyor"*
+
+## Kok neden: TEK SATIR — `adet: 12`
+
+Motor en yakin 12 duragi aliyordu. Kullanicinin konumunda 800 m icinde
+**24 durak** var ve kritik durak (GUZELLER OSB KAVSAGI, 8 hat tasiyor)
+**22. sirada**. Ovacik icin 1/1, Pelitli icin 2/2 dogrudan rota
+kayboluyordu.
+
+**Sorun mesafe degil SIRALAMA.** Yaricabi buyutmek cozmezdi — daha cok
+AYNI hattin duragini getirirdi.
+
+## Yapilanlar
+
+| Is | Sonuc |
+|---|---|
+| Hat cesitliligine gore durak secimi | OLDU. Kapsama %8,0 -> %21,0, gerileme 0. |
+| Ovacik | OLDU. 0 -> 1 rota (KM58, 16:54). |
+| Pelitli tek otobus | OLDU. 0 -> 2 rota (423, 14:52). |
+| `kTestSaati` kapatildi | OLDU. Uygulama artik gercek saati kullaniyor. |
+
+## Kalici ders
+
+- ⚠️⚠️⚠️ **"En yakin N" bir KAPSAMA stratejisi DEGILDIR.** Yogun bolgede
+  en yakin N durak AYNI birkac hatti tasir; cesitlilik listenin
+  ILERISINDEDIR. Dogru olcut MESAFE degil **HAT CESITLILIGI**.
+- ⚠️ Gecici test bayraklari GERCEK ZAMANI bozar; kullanici gunduz test
+  etmeye baslayinca bayrak YARDIM degil ENGEL olur.
+
+---
 # Oturum — Turu 162 (3 Eyl 2026)
 
 ## Kullanici bildirimi (dort ekran goruntusu)
