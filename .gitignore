@@ -72,3 +72,4 @@ mobile/test/_olcum*
 #    marka varliklarinda yasanan SEVK ENGELININ dersi).
 #    Ham veriyi yeniden uretmek gerekirse: `node tools/ulasim_uret.js`
 /otos/
+.gotmp/
