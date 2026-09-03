@@ -44,6 +44,16 @@ import 'ulasim_veri.dart';
 ///    OLMAYAN modlarda parantezle mod eklenir.
 String hatAnisi(Hat h) =>
     h.mod == UlasimModu.otobus ? h.kisaAd : "${h.kisaAd} (${h.mod.ad})";
+// GECICI-OLCUM (curutucu)
+int olcEnIyi = 0;
+int olcNokta = 0;
+int olcSegProj = 0;
+int olcDilim = 0;
+int olcInsaUs = 0;
+int olcK = 0;
+void olcSifirla(){olcEnIyi=0;olcNokta=0;olcSegProj=0;olcDilim=0;olcInsaUs=0;}
+// /GECICI-OLCUM
+
 enum BacakTuru { yuru, bekle, otobus }
 
 /// Rotanin tek bir bacagi.
@@ -303,6 +313,54 @@ const int kToplamSureTavani = 150;
 ///    aramalarinda ertesi gunun ilk seferi "rota" diye cikardi.
 const int kBeklemeTavani = 180;
 
+/// Bir uctan alinacak EN COK durak sayisi.
+///
+/// ⚠️⚠️⚠️ **ESKI `adet: 12` KAPISI DOGRUDAN ROTALARI OLDURUYORDU.**
+///
+///	Kullanici sahada gordu: *"ovacik dedigimde rota bulunmuyor"* ve
+///	*"pelitliyi aradim, en yakinimdaki durakta 2 otobus yapiyor; bak
+///	yandex ALTTAKI DURAGA gonderip TEK SEFERDE goturuyor"*.
+///
+///	📊 OLCULDU (kullanicinin konumu, 800 m yaricap): **24 durak** var,
+///	motor yalniz en yakin **12**sini aliyordu. Kritik durak
+///	**GUZELLER OSB KAVSAGI 22. sirada** (692 m) ve **8 hat** tasiyor
+///	(423 · 430 · 510 · 515 · 510B · 515B · KM58 · PS-G1).
+///	  Ovacik  : dogrudan rotalarin **1/1**i kayboluyordu -> "bulunamadi"
+///	  Pelitli : dogrudan rotalarin **2/2**si kayboluyordu -> 2 otobus
+///	Yani sorun mesafe DEGIL, **SIRALAMA**: yakindaki duraklarin cogu
+///	AYNI birkac hatti tasiyor ve cesitlilik 12. siradan SONRA geliyor.
+const int kUcDurakTavani = 40;
+
+/// Yakin duraklardan **HER HATTIN EN YAKIN DURAGINI** secer.
+///
+/// ⚠️⚠️ **TAVAN DURAK SAYISINA DEGIL HAT CESITLILIGINE BAKAR.**
+///
+///	Liste mesafeye gore sirali geldigi icin bir (hat,yon) ilk kez
+///	goruldugunde o duragi ONUN EN YAKINIDIR. Boylece aday sayisi
+///	durak sayisiyla degil HAT sayisiyla olceklenir — hem daha az
+///	is, hem TAM kapsama.
+/// ⚠️ En yakin [koru] durak KOSULSUZ kalir: aktarma aramasi komsu
+///    duraklara da bakiyor ve cesitlilik suzgeci onlari elemesin.
+Future<List<Durak>> _hatCesitliDuraklar(
+  List<Durak> yakin,
+  int servis, {
+  int koru = 8,
+}) async {
+  final secili = <Durak>[];
+  final gorulen = <String>{};
+  for (var i = 0; i < yakin.length; i++) {
+    final d = yakin[i];
+    final hatlar = await UlasimVeri.i.duraginHatlari(d.id, servis);
+    var yeniVar = false;
+    for (final h in hatlar) {
+      if (gorulen.add("${h.hat.id}|${h.yon}")) yeniVar = true;
+    }
+    if (i < koru || yeniVar) secili.add(d);
+    if (secili.length >= kUcDurakTavani) break;
+  }
+  return secili;
+}
+
 /// Kus ucusu kilometre basina ek yolculuk butcesi (dk/km).
 ///
 /// ⚠️⚠️⚠️ **SABIT BIR TAVAN UZAK HEDEFLERI YAPISAL OLARAK ELER.**
@@ -529,6 +587,7 @@ double _yolUzunlugu(List<({double enlem, double boylam})> yol) {
   //	ofset medyan 5,6 m -> atan(5,7/5,6) = 45,5 derece.
   //	Izdusum eklendiginde aci vakalarin **%98,2**sinde 90 olur.
   var enT = 0.0;
+  olcSegProj += (yol.length - 1 - bas);
   for (var i = bas; i < yol.length - 1; i++) {
     final ax = yol[i].boylam * kx;
     final ay = yol[i].enlem * 111320.0;
@@ -695,6 +754,17 @@ List<({double enlem, double boylam})> _dilimKur({
 ///    `yol.length < 2` ya da binis son segmentte olma hali kalir.
 ///    Artik ULASILMASI ZOR bir emniyet agidir.
 List<({double enlem, double boylam})> _guzergahDilimi(
+  List<({double enlem, double boylam})> yol,
+  Durak binis,
+  Durak inis,
+) {
+  olcDilim++;
+  final r = _guzergahDilimiIc(yol, binis, inis);
+  olcNokta += r.length;
+  return r;
+}
+
+List<({double enlem, double boylam})> _guzergahDilimiIc(
   List<({double enlem, double boylam})> yol,
   Durak binis,
   Durak inis,
@@ -893,17 +963,25 @@ Future<List<RotaAdayi>> rotaAra({
   final kapiKus = UlasimVeri.kabaMetre(
       baslangicEnlem, baslangicBoylam, varisEnlem, varisBoylam);
 
-  final basDuraklar = await UlasimVeri.i.yakinDuraklar(
-    baslangicEnlem,
-    baslangicBoylam,
-    adet: 12,
-    yaricapM: yaricapM,
+  // ⚠️⚠️⚠️ TURU 162 - **HAT CESITLILIGI** (bkz. [_hatCesitliDuraklar]).
+  //	Eskiden buradaki `adet: 12` dogrudan rotalari OLDURUYORDU.
+  final basDuraklar = await _hatCesitliDuraklar(
+    await UlasimVeri.i.yakinDuraklar(
+      baslangicEnlem,
+      baslangicBoylam,
+      adet: kUcDurakTavani,
+      yaricapM: yaricapM,
+    ),
+    servis,
   );
-  final varDuraklar = await UlasimVeri.i.yakinDuraklar(
-    varisEnlem,
-    varisBoylam,
-    adet: 12,
-    yaricapM: yaricapM,
+  final varDuraklar = await _hatCesitliDuraklar(
+    await UlasimVeri.i.yakinDuraklar(
+      varisEnlem,
+      varisBoylam,
+      adet: kUcDurakTavani,
+      yaricapM: yaricapM,
+    ),
+    servis,
   );
   if (basDuraklar.isEmpty || varDuraklar.isEmpty) return const [];
 
@@ -1404,7 +1482,14 @@ Future<List<RotaAdayi>> _aktarmaliAra({
   }
   // ⚠️⚠️ **KAZANANLARI SIMDI INSA ET.** `yolAl` hat|yon basina
   //	onbellekli oldugu icin bu dongu polyline'lari YENIDEN cozmez.
-  for (final k in enIyi.values) {
+  olcEnIyi = enIyi.length;
+  final olcSw = Stopwatch()..start();
+  var olcListe = enIyi.values.toList();
+  if (olcK > 0 && olcListe.length > olcK) {
+    olcListe.sort((a, b) => a.varis.compareTo(b.varis));
+    olcListe = olcListe.sublist(0, olcK);
+  }
+  for (final k in olcListe) {
     final yol1 = await yolAl(k.oh.hat.id, k.oh.yon);
     final yol2 = await yolAl(k.dh.hat.id, k.dh.yon);
     sonuc.add(RotaAdayi(
@@ -1532,6 +1617,8 @@ Future<List<RotaAdayi>> _aktarmaliAra({
       ],
     ));
   }
+  olcSw.stop();
+  olcInsaUs += olcSw.elapsedMicroseconds;
   return sonuc;
 }
 

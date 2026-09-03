@@ -702,7 +702,7 @@ class UlasimVeri {
   ///	 "250 m" diye gostermisti.)
   ///
   /// ⚠️ Deger 12:00 (720): tum hatlarin sefer yaptigi saat.
-  static const int? kTestSaati = 720; // GECICI-TEST
+  static const int? kTestSaati = null; // GECICI-TEST (KAPALI)
 
   /// Gece yarisindan itibaren gecen dakika.
   static int suAnDakika([DateTime? an]) {
