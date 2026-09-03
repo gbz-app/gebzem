@@ -514,7 +514,19 @@ function tm30ToWgs(x, y) {
     // ⚠️ Ilk durak TEMSILI SEFERIN sira=1 duragidir; o duragin bu
     //    (hat,yon) icin kayitli kalkislari ZATEN ilk kalkislardir.
     //    Yani yeni veri URETILMIYOR, var olan veri DOGRU YERDEN okunuyor.
+    // ⚠️⚠️⚠️ **ILK DURAGIN ADI DA YAZILIR.**
+    //
+    //	Kullanici 552'de *"aynisi nasil olmuyor anlamiyorum"* dedi.
+    //	OLCULDU: resmi uygulama o hatti **GEBZE MEZARLIK**tan
+    //	kaldiriyor; bizim GTFS anlik goruntumuzde o durak **HIC YOK**
+    //	(8.502 duragin sifirinda) ve 99 seferin 99'u **FATIH DEVLET
+    //	HASTANESI 6**'dan kalkiyor. Yani hat, anlik goruntumuzden
+    //	SONRA yeniden duzenlenmis.
+    // ⚠️ Saatler UYDURMA DEGIL, ANLIK GORUNTU ESKI. Kalkis adi
+    //    yazilinca fark KENDINI ACIKLAR: kullanici "uygulama bozuk"
+    //    yerine "veri baska terminalden basliyor" gorur.
     const ilk = {};
+    const basAd = {};
     for (const yon of [0, 1]) {
       const dz = temsilDizi.get(`${rid}|${yon}`);
       if (!dz || !dz.length) continue;
@@ -528,10 +540,15 @@ function tm30ToWgs(x, y) {
         const srt = [...dk].sort((a, b) => a - b);
         cikti[anah.split("|")[0]] = dizeKodla(srt);
       }
-      if (Object.keys(cikti).length) ilk[yon] = cikti;
+      if (Object.keys(cikti).length) {
+        ilk[yon] = cikti;
+        const bd = durak.get(bas);
+        if (bd && bd.ad) basAd[yon] = bd.ad;
+      }
     }
     hOut[rid] = { k: h.kisa, u: h.uzun, r: h.renk, t: h.tur, y, s };
     if (Object.keys(ilk).length) hOut[rid].i = ilk;
+    if (Object.keys(basAd).length) hOut[rid].b = basAd;
   }
   fs.writeFileSync(HEDEF + 'hatlar.json', JSON.stringify({ v: 1, h: hOut }));
 

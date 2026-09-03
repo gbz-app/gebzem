@@ -103,6 +103,19 @@ enum UlasimModu {
 }
 
 /// `hatlar.json` -> `i` alanini cozer: {yon: {servis: "kodlu dizi"}}.
+/// `hatlar.json` -> `b` alanini cozer: {yon: "DURAK ADI"}.
+Map<int, String> _ilkDurakCoz(Object? ham) {
+  if (ham is! Map) return const {};
+  final o = <int, String>{};
+  for (final e in ham.entries) {
+    final yon = int.tryParse(e.key.toString());
+    final ad = e.value;
+    if (yon == null || ad is! String || ad.isEmpty) continue;
+    o[yon] = ad;
+  }
+  return o;
+}
+
 Map<int, Map<int, List<int>>> _ilkKalkisCoz(Object? ham) {
   if (ham is! Map) return const {};
   final o = <int, Map<int, List<int>>>{};
@@ -130,6 +143,7 @@ class Hat {
     required this.yonSekil,
     this.mod = UlasimModu.otobus,
     this.ilkKalkis = const {},
+    this.ilkDurak = const {},
   });
 
   final String id;
@@ -159,6 +173,18 @@ class Hat {
   /// ⚠️ Sayilar UYDURULMADI: hattin ilk duraginda ZATEN kayitli olan
   ///    kalkislar okunuyor (uretici `tools/ulasim_uret.js`).
   final Map<int, Map<int, List<int>>> ilkKalkis;
+
+  /// Yon -> hattin ILK duraginin adi ([ilkKalkis] saatleri BU duraga ait).
+  ///
+  /// ⚠️⚠️⚠️ **FARKI KENDINI ACIKLAYAN ETIKET.**
+  ///
+  ///	OLCULDU (552): resmi uygulama hattin **GEBZE MEZARLIK**tan
+  ///	kalktigini soyluyor; bizim anlik goruntumuzde o durak **HIC YOK**
+  ///	ve 99 seferin 99'u **FATIH DEVLET HASTANESI 6**'dan kalkiyor.
+  ///	Hat, anlik goruntumuzden SONRA yeniden duzenlenmis.
+  /// ⚠️ Adi yazmak farki ORTADAN KALDIRMAZ, ANLASILIR yapar: kullanici
+  ///    "uygulama bozuk" yerine "veri baska terminalden basliyor" gorur.
+  final Map<int, String> ilkDurak;
 
   /// GTFS `route_type` (bkz. [UlasimModu]).
   ///
@@ -393,6 +419,7 @@ class UlasimVeri {
           renk: (o['r'] ?? '') as String,
           mod: UlasimModu.coz(o['t']),
           ilkKalkis: _ilkKalkisCoz(o['i']),
+          ilkDurak: _ilkDurakCoz(o['b']),
           yonBaslik: yb,
           yonSekil: ys,
         );

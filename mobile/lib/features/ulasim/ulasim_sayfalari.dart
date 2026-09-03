@@ -371,7 +371,8 @@ class _HatSatiri extends StatelessWidget {
     // ⚠️ Yalniz SIRASI GELMEMIS ilk kalkislar; gecmis saatleri
     //    listelemek "otobus var" izlenimi verirdi.
     final tumIlk = dh.hat.ilkKalkis[dh.yon]?[servis] ?? const <int>[];
-    final ilkKalkis = tumIlk.where((x) => x >= an).take(3).toList();
+    final ilkKalkis = tumIlk.where((x) => x >= an).take(2).toList();
+    final ilkAd = dh.hat.ilkDurak[dh.yon] ?? '';
 
     return Material(
       color: kYuzeyGri(context),
@@ -433,18 +434,51 @@ class _HatSatiri extends StatelessWidget {
               // ⚠️ Etiket resmi uygulamanin kendi ifadesiyle AYNI
               //    ("ilk duraktan kalkis") — baska bir sozcuk secmek
               //    kullanicida yine "ayni sey mi?" sorusu birakirdi.
+              // ⚠️⚠️⚠️ **KALKIS DURAGININ ADI DA YAZILIR.**
+              //
+              //	Kullanici 552'de *"aynisi nasil olmuyor anlamiyorum"*
+              //	dedi. OLCULDU: resmi uygulama o hatti **GEBZE
+              //	MEZARLIK**tan kaldiriyor; bizim anlik goruntumuzde o
+              //	durak **HIC YOK** ve 99 seferin 99'u **FATIH DEVLET
+              //	HASTANESI 6**'dan kalkiyor -> hat, anlik goruntumuzden
+              //	SONRA yeniden duzenlenmis. Saatler UYDURMA DEGIL.
+              //	Adi yazinca fark KENDINI ACIKLIYOR.
+              // ⚠️⚠️ AD ESNEK, SAATLER SABIT: ad `Flexible`+ellipsis,
+              //    saatler kirpilmaz. Ters kurulsaydi uzun durak adi
+              //    satirin ASIL BILGISINI (saatleri) yerdi.
+              // ⚠️ Uc yerine IKI saat: sabit kisim 24 -> 16 karaktere
+              //    dusuyor ve ada ~27 karakter kaliyor (olculdu).
               if (ilkKalkis.isNotEmpty) ...[
                 const SizedBox(height: 6),
-                Text(
-                  'İlk duraktan kalkış: '
-                  '${ilkKalkis.map(UlasimVeri.saatMetni).join(' · ')}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
+                Builder(builder: (_) {
+                  final st = TextStyle(
                     fontSize: 11.5,
                     color: scheme.onSurface.withValues(alpha: 0.5),
-                  ),
-                ),
+                  );
+                  final saat =
+                      ilkKalkis.map(UlasimVeri.saatMetni).join(' · ');
+                  if (ilkAd.isEmpty) {
+                    return Text(
+                      'İlk duraktan kalkış: $saat',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: st,
+                    );
+                  }
+                  return Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          ilkAd,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: st,
+                        ),
+                      ),
+                      Text(' kalkış: $saat', style: st),
+                    ],
+                  );
+                }),
               ],
               if (sonraki.length > 1) ...[
                 const SizedBox(height: 8),
