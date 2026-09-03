@@ -495,7 +495,40 @@ const int kAktarmaCezasi = 8;
 /// hesabi bunu okur. 1,3 m/sn ~ 4,7 km/sa — yetiskin ortalamasi.
 const double kYayaHizi = 1.3;
 
-int _yurumeDakikasi(double metre) => (metre / kYayaHizi / 60).ceil();
+/// Kus ucusu -> GERCEK YOL carpani.
+///
+/// ⚠️⚠️⚠️ **KUS UCUSU SECIMI KAZANIYOR, GERCEK YOL SONRA CIKIYOR.**
+///
+///	Kullanici sahada gordu (Ovacik -> Gebze): uygulama KM58 ile
+///	**YUMRUKAYA**da indirip **24 dakika** yurutuyordu; Yandex ise
+///	aktarmayla **GEPOSB CAMI 1**de indirip **6 dk** yurutuyor.
+///
+///	📊 KOK NEDEN OLCULDU: aday secimi yurumeyi KUS UCUSU sayiyor
+///	(Yumrukaya 929 m -> **12 dk**), ama kazanan zenginlestirilince
+///	GERCEK yol cikiyor (**24 dk**). Yani secim 12 dakikalik bir
+///	yurumeye gore yapiliyor, kullanici 24 dakika yuruyor. Daha iyi
+///	aday (KM58>510B, varis **16:40**, yalniz **7 dk** yuru) secim
+///	anindaki HATALI olcum yuzunden GERIDE kaliyor ve zenginlestirme
+///	yalniz KAZANANLAR icin kostugu icin bir daha ONE GECEMIYOR
+///	(turu 157in "elenmis daha iyi aday geri gelemez" durust siniri).
+///
+/// ⚠️⚠️ **1,4: OLCULMUS DEGERIN ALTINDA, BILEREK.** Turu 158de
+///
+///	gercek/kus ucusu orani **1,74** olculmustu. 1,4 secildi cunku bu
+///	carpan SIRALAMAYI duzeltmek icin var, sureyi UYDURMAK icin degil;
+///	kazananin gercek suresi zaten Google Routes ile YENIDEN yazilir.
+/// ⚠️ YAPMA: 1,0a dondurme — o zaman uzun yurumeli adaylar yine
+///    haksiz yere one gecer. YAPMA: 2,0 gibi buyutme — kisa yurumeli
+///    mesru adaylar bu kez haksiz yere elenir.
+const double kYuruGercekCarpani = 1.4;
+
+/// Kus ucusu metreden GERCEKCI yurume dakikasi.
+///
+/// ⚠️ Zenginlestirme (Google Routes) kazanan bacaklarin suresini ZATEN
+///    gercek yol agiyla yeniden yaziyor; bu tahmin yalnizca SECIM ve
+///    zenginlestirilmeyen bacaklar (aktarma yurumesi) icin gecerlidir.
+int _yurumeDakikasi(double metre) =>
+    (metre * kYuruGercekCarpani / kYayaHizi / 60).ceil();
 
 /// Bir polyline uzunlugu (metre) - sunucu `mesafe_m` vermezse yedek.
 double _yolUzunlugu(List<({double enlem, double boylam})> yol) {
