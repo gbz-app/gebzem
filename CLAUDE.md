@@ -41,6 +41,48 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
       kaybettiriyorsun"*. **Üçüncüsü olmayacak.**
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (3 Eyl 16:02): TURU 164 YAYINLANDI — SADECE iOS.**
+  ios **33757380410** (**13b540b**), R2 ipa=31141473 (md5 c796a224),
+  purge OK, **CDN BIREBIR**, iOS min 16.0, MapsApiKey ENJEKTE, debug imza YOK.
+  ⚠️ **BACKEND DEGISMEDI** (ab673a1 canlida).
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260903-1602
+
+- 🚶 ⚠️⚠️⚠️ **TURU 164 — "SACMA BIR YERDE BIRAKIP YURUTUYOR":
+  YURUME SECIMDE KUS UCUSU, EKRANDA GERCEK YOL IDI.**
+  Kullanici (Ovacik -> Gebze): uygulama KM58 ile **YUMRUKAYA**da indirip
+  **24 dakika** yurutuyordu; Yandex aktarmayla **GEPOSB CAMI 1**de
+  indirip **6 dk** yurutuyor.
+  📊 **KOK NEDEN OLCULDU:** aday secimi yurumeyi KUS UCUSU sayiyor
+     (Yumrukaya **929 m -> 12 dk**), kazanan zenginlestirilince GERCEK
+     yol cikiyor (**24 dk**). Yani secim 12 dakikalik bir yurumeye gore
+     yapiliyor, kullanici 24 dakika yuruyor.
+  ⚠️⚠️ **DAHA IYI ADAY GERI GELEMIYOR**: zenginlestirme kota nedeniyle
+     yalniz KAZANANLAR icin kosuyor (turu 157 durust siniri). Olculdu:
+     `KM58>510B` varis **16:40** yalniz **7 dk** yuru; `KM58>426` varis
+     16:48, **GEPOSB CAMI 1** + 7 dk — Yandexin gosterdiginin AYNISI.
+     Ikisi de secim anindaki HATALI olcum yuzunden geride kaliyordu.
+  **FIX:** `kYuruGercekCarpani = 1,4` — kus ucusu tahmini SECIM
+  ASAMASINDA gerceklestirilir.
+  ⚠️ **1,4 olculen degerin (turu 158: 1,74) ALTINDA, BILEREK**: bu carpan
+     SIRALAMAYI duzeltmek icin var, sureyi UYDURMAK icin degil; kazananin
+     gercek suresi zaten Google Routes ile YENIDEN yaziliyor.
+  ⚠️ YAPMA: 1,0a dondurme (uzun yurumeli adaylar yine haksiz one gecer).
+     YAPMA: 2,0 gibi buyutme (kisa yurumeli mesru adaylar haksiz elenir).
+  📊 300 rastgele cift: kapsama **%21,0 DEGISMEDI**, **GERILEME 0**,
+     sure medyan 0 ms / maks 7 ms.
+
+- 📌 **TURU 164 — SEKIL SIKAYETI OLCULDU, BIZIM HATAMIZ CIKMADI:**
+  Kullanici *"shape nasil cizmissin, normalde duz gidiyor bizde sogani
+  donmus"* dedi. UC bagimsiz olcum:
+  · snap sonrasi cizginin HAM cizgiden sapmasi **medyan 13 m, en kotu
+    20,6 m** (18 sekil) -> yanlis paralel sokaga OTURMUYOR,
+  · 419un ham seklinde **ilmek YOK** (iki yon de),
+  · 419un **yon basina TEK sekli var** -> resmi uygulamayla AYNI veri.
+  Iki ekran goruntusu **FARKLI YONLERI** gosteriyor (y0 8,14 km / 154
+  nokta · y1 5,42 km / 80 nokta); tek yonlu sokaklarda gidis ve donus
+  farkli caddeleri kullanir.
+  ⚠️ **DERS: "cizgi yanlis" sikayetinde once SAPMAYI OLC** — uzunluk
+     metrigi paralel sokaga oturmayi GORMEZ, sapma metrigi GORUR.
 - **KALDIGIMIZ YER (3 Eyl 14:30): TURU 163b YAYINLANDI — SADECE iOS.**
   ios **33748924292** (**ab673a1**), R2 ipa=31141483 (md5 20a74a15),
   purge OK, **CDN BIREBIR**, iOS min 16.0, MapsApiKey ENJEKTE, debug imza YOK.
