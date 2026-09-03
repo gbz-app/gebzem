@@ -41,6 +41,76 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
       kaybettiriyorsun"*. **Üçüncüsü olmayacak.**
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (4 Eyl 00:16): TURU 165 YAYINLANDI — SADECE iOS.**
+  ios **33805922006** (**27a1e45**), R2 ipa=31165596 (md5 a110efd5),
+  purge OK, **CDN BIREBIR**, iOS min 16.0, MapsApiKey ENJEKTE, debug imza YOK.
+  IPAda **411/411 hat ILK KALKIS tasiyor**, "İlk duraktan kalkış" dizesi VAR.
+  ⚠️ **BACKEND DEGISMEDI** (ab673a1 canlida).
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260904-0016
+
+- 🕐 ⚠️⚠️⚠️ **TURU 165 — "SAATLER UYMUYOR": UC FARKLI BUYUKLUK
+  KARSILASTIRILIYORDU.**
+  Kullanici: *"saatler uymuyor, bazen 08:13 gibi saatler var"* ve
+  *"birebir ayni olsun, karsilastirma yaptiklarinda problem yasamayiz"*.
+
+  | kaynak | ne gosteriyor | ornek |
+  |---|---|---|
+  | resmi uygulama HAT sayfasi | **ilk duraktan kalkis** | 06:05 · 06:30 |
+  | resmi uygulama DURAK sayfasi | **CANLI arac** (plaka 41 BR 373) | "9 dk, 6 durak" |
+  | bizim durak sayfamiz | **o duraga varis** | 10:13 · 10:53 |
+
+  Ucu de kendi icinde DOGRU ama yan yana konunca "uymuyor" goruntusu
+  veriyordu.
+  **FIX:** `hatlar.json`a `i` alani (servis -> yon -> ilk kalkislar) +
+  durak sayfasinda **"İlk duraktan kalkış: …"** satiri — resmi uygulamanin
+  KENDI ifadesiyle AYNI sozcuk.
+  ⚠️ Ust satir (o duraga varis) DEGISMEDI: kullanicinin gercekten ihtiyaci
+     olan sey otobusun ONA ne zaman gelecegidir.
+  ⚠️ Sayilar UYDURULMADI: hattin ilk duraginda ZATEN kayitli kalkislar.
+
+- ⚠️⚠️ **TURU 165 — TEMSILI SEFER = EN COK DURAKLI SEFER.**
+  Uretici dosyada ILK gorulen seferi temsilci aliyordu; kisa donusler
+  (short-turn) yuzunden yanlis "ilk durak" secilebiliyordu. Bu duzeltme
+  fiziksel olabilirlik muhafizini da saglamlastirir.
+
+- 📊 **TURU 165 — CANLI RESMI SITEYLE DOGRULAMA:**
+  · **KM58** resmi `07:00 08:20 10:00 11:10 12:30 14:10 15:30 16:10 18:00`
+    bizde **BIREBIR AYNI** (9/10; tek sapma 18:15 vs 18:05) ✅
+  · **426** resmi 06:35 · bizde **06:35** ✅
+  · **419** resmi 06:05 · bizde **06:40** ❌
+  ⚠️⚠️ **419 SAPMASI BIZIM HATAMIZ DEGIL**: ham GTFSte 419un en erken
+     hafta ici seferi **06:40** ve 59 seferin HEPSI 33 duraklik (kisa
+     donus YOK). Yani elimizdeki tarife o hat icin resmi uygulamadan ESKI.
+  ⚠️⚠️⚠️ **VERIYI TAZELEME YOLU YOK** (denetim olctu, 3 Eyl):
+     `veri.kocaeli.bel.tr` API **502** · `kavisacikveri` **401** ·
+     `acikveri.kocaeli.bel.tr` TLS sertifikasi **9 aydir SURESI DOLMUS** ·
+     `ulasim.kocaeli.bel.tr` 443 **kapali** · `kocaeli-gtfs.zip` connection
+     reset. **GTFS-RT feedi HICBIR yerde listeli degil**; canli takip
+     yalniz e-komobilde ve API `service.kentkart.com` **403 Forbidden**.
+     ⚠️ Yani "otobus nerede" ozelligi KODLA COZULEMEZ — KentKarttan
+        RESMI IZIN gerekir.
+  ⚠️ `calendar_dates.txt` kaynakta **BOS** -> resmi tatil/bayram
+     istisnasi YOK; bayramda hafta ici tarifesi gosteririz.
+
+- 🧭 **TURU 165b — KONUM ISARETI STANDART NAVIGASYONA DONDU.**
+  Kullanici turu 139daki karari GERI ALDI: *"normal standart navigasyon
+  haline getir, bizim ikonu, cevresindeki beyaz dursun ve ok dursun"*.
+  ⚠️⚠️ Profil fotografi ayrica **GORUNUR BIR KUSUR** uretiyordu:
+     `_avatarGorseli` bir AG istegi ve pin ONCE navigasyon ikonuyla
+     ciziliyor, fotograf gelince YENIDEN uretilip yer degistiriyordu.
+     Kullanici tam bunu gordu: *"girerken halen navigasyon ikonu
+     gorunuyor, sonra profil resmi geliyor"*. Fotograf kalkinca o gecis
+     **YAPISAL OLARAK** ortadan kalkti (tek cizim, ag istegi YOK).
+  ⚠️ `_avatarGorseli` SILINMEDI (`ignore: unused_element`).
+  + Sheet ICERIGI 220 ms easeOutCubic ile beliriyor (kullanici:
+    *"hafif bir animasyonla girsin"*).
+
+- ⏳ **TURU 165 — SIRADAKI (kullanici ASKIYA ALDI):** rotadan sapinca
+  YURUME ROTASINI YENILEME. Bugun sapmada yalniz *"Rotadan uzaktasin"*
+  yaziyor, yeni rota HESAPLANMIYOR. Tasarim kararlastirildi: yalniz
+  YURUME bacaginda · 120 m + 15 sn esik · 30 sn debounce · yolculuk
+  basina en fazla 3-4 kez -> yolculuk basina **3-4 ek Routes cagrisi**
+  (tam yeniden arama 6 cagri ederdi).
 - **KALDIGIMIZ YER (3 Eyl 16:02): TURU 164 YAYINLANDI — SADECE iOS.**
   ios **33757380410** (**13b540b**), R2 ipa=31141473 (md5 c796a224),
   purge OK, **CDN BIREBIR**, iOS min 16.0, MapsApiKey ENJEKTE, debug imza YOK.
