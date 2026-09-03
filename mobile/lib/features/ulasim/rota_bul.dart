@@ -258,7 +258,89 @@ const int kAktarmaTampon = 2;
 ///	Bugunku tek kapi BACAK BASINA 180 dk; aktarmada iki otobus bacagi
 ///	birden ona yaklasabilir (olculen en kotu: **234 dk**). Boyle bir
 ///	rota gosterilmemeli.
+// ⚠️⚠️⚠️ TURU 162 - **TAVAN ARTIK YALNIZ YOLCULUGU OLCER, BEKLEMEYI DEGIL.**
+//
+//	Kullanici sahada gordu: *"ovacika gitmiyor"*. Kok nedenlerden biri
+//	bu tavandi: olcut `varis - suAn` idi, yani ILK OTOBUSU BEKLEME
+//	SURESINI DE iceriyordu. Ovacik gibi koy hatlarinda (KM58 gunde
+//	**5 sefer**) bekleme tek basina 2 saati bulur ve rota, YOLCULUGUN
+//	KENDISI makul olmasina ragmen eleniyordu.
+//
+//	📊 OLCULDU (kullanicinin 12:19 aramasi): KM58 ile Ovacik
+//	  bekleme  132 dk (14:31 kalkis)
+//	  yolculuk 147 dk (14:31 -> 16:58)
+//	  eski olcut: 279 > 150 -> **ELENDI**, ekranda hicbir sey yok
+//	  yeni olcut: yolculuk 147 <= 150 VE bekleme 132 <= 180 -> GOSTERILIR
+//
+// ⚠️⚠️ **IKISI AYRI HATADIR:** "yolculuk absurt uzun" ile "sonraki
+//
+//	otobus gec" ayni sey degildir. Turu 157nin kapattigi hata
+//	(**984 dakikalik** rota birinci sirada) YOLCULUK uzunlugu
+//	hatasiydi ve o kapi AYNEN duruyor.
+// ⚠️ Siralama `varisDakika` uzerinden oldugu icin gec varan bir
+//    rota DAIMA daha erken varanin ALTINDA cikar; tavani gevsetmek
+//    siralamayi BOZMAZ, yalnizca "hicbir sey bulunamadi" ekranini
+//    gercekten secenegin OLMADIGI durumla sinirlar.
 const int kToplamSureTavani = 150;
+
+/// Ilk otobusu beklemenin ust siniri (dk).
+///
+/// ⚠️⚠️ Koy hatlari gunde 3-5 sefer yapiyor; en buyuk mesru bosluk
+///
+///	~3 saat. 180 dk bunu kapsar ama "yarin sabah" onerilerini ENGELLER.
+/// ⚠️ YAPMA: bu degeri kaldirip beklemeyi sinirsiz birakma — gece
+///    aramalarinda ertesi gunun ilk seferi "rota" diye cikardi.
+const int kBeklemeTavani = 180;
+
+/// Kus ucusu kilometre basina ek yolculuk butcesi (dk/km).
+///
+/// ⚠️⚠️⚠️ **SABIT BIR TAVAN UZAK HEDEFLERI YAPISAL OLARAK ELER.**
+///
+///	`kToplamSureTavani` (150) SEHIR ICI mesafeler dusunulerek
+///	secilmisti. Kocaeli genelinde (turu 162) Gebze -> Ovacik 14,9 km,
+///	Gebze -> Kandira 50 km; boyle bir yolculuk 150 dakikaya SIGMAZ
+///	ve sabit tavan "uygun rota bulunamadi" der — oysa otobus VARDIR.
+///
+///	📊 OLCULDU: KM58 (en yavas gercek hat) 15 km kus ucusunu
+///	**143 dk** ride ile aliyor = **9,5 dk/km**. 12 dk/km bunu pay
+///	birakarak kapsar.
+/// ⚠️⚠️ **KURAL ASLA BUGUNKUNDEN SIKI OLAMAZ**: tavan
+///
+///	`clamp(kToplamSureTavani, kMutlakTavan)` ile kirpiliyor, yani
+///	kisa mesafede 150de KALIR. Turu 157nin kapattigi "984 dakikalik
+///	rota birinci sirada" hatasi bu yuzden GERI GELMEZ: o cift kisa
+///	mesafeliydi ve tavani hala 150.
+const int kKmBasinaDk = 12;
+
+/// Hicbir kosulda asilamayacak yolculuk tavani (dk).
+///
+/// ⚠️ 5 saat. Kocaelinin bir ucundan digerine otobusle gitmek gercekten
+///    bu kadar surer; ustu artik "rota" degil, veri hatasidir.
+const int kMutlakTavan = 300;
+
+/// Aday zaman butcesini asiyor mu?
+///
+/// ⚠️⚠️ **TEK KAYNAK**: hem aktarmasiz hem aktarmali dal bunu cagirir.
+///
+///	Turu 157te bu kapi YALNIZ aktarmali dalda vardi ve asimetri
+///	kullaniciya GORUNUYORDU (151 dklik aktarmali eleniyor, 984 dklik
+///	aktarmasiz birinci sirada). Ayni hataya bir daha dusmemek icin
+///	olcut TEK FONKSIYONDA.
+/// ⚠️ [binis] ILK otobusun kalkis dakikasi, [yuruDk] ona kadarki yuruyus.
+bool _butceyiAsiyor({
+  required int suAn,
+  required int binis,
+  required int varis,
+  required int yuruDk,
+  required double kusM,
+}) {
+  final bekleme = math.max(0, binis - suAn - yuruDk);
+  final yolculuk = (varis - suAn) - bekleme;
+  final tavan = ((kusM / 1000) * kKmBasinaDk)
+      .round()
+      .clamp(kToplamSureTavani, kMutlakTavan);
+  return yolculuk > tavan || bekleme > kBeklemeTavani;
+}
 
 /// ⚠️⚠️ Siralamada aktarmaya eklenen CEZA (dk).
 ///	Aktarma yalnizca sureye bakilarak siralansaydi, 3 dakika daha
@@ -793,6 +875,12 @@ Future<List<RotaAdayi>> rotaAra({
 }) async {
   final servis = UlasimVeri.bugunServis(an);
   final suAn = UlasimVeri.suAnDakika(an);
+  // Kapidan kapiya KUS UCUSU — zaman butcesi tavanini olcekler.
+  // ⚠️ Bu deger tek basina bir kapi DEGIL; `_butceyiAsiyor` icinde
+  //    `clamp(kToplamSureTavani, kMutlakTavan)` ile kirpilir, yani kisa
+  //    mesafede davranis bugunkuyle BIREBIR AYNI kalir.
+  final kapiKus = UlasimVeri.kabaMetre(
+      baslangicEnlem, baslangicBoylam, varisEnlem, varisBoylam);
 
   final basDuraklar = await UlasimVeri.i.yakinDuraklar(
     baslangicEnlem,
@@ -867,7 +955,14 @@ Future<List<RotaAdayi>> rotaAra({
           //	BIRINCI sirada gosteriliyordu.
           // ⚠️⚠️ Yan etki ISTENEN: tavan yuzunden tekil hat sayisi duser,
           //	dolayisiyla aktarma aramasi DAHA SIK kosar.
-          if (varis - suAn > kToplamSureTavani) continue;
+          if (_butceyiAsiyor(
+              suAn: suAn,
+              binis: binis,
+              varis: varis,
+              yuruDk: oDk,
+              kusM: kapiKus)) {
+            continue;
+          }
           final yol = await UlasimVeri.i.guzergah(oh.hat.id, oh.yon);
           final dilim = _guzergahDilimi(yol, o, d);
 
@@ -1052,6 +1147,12 @@ Future<List<RotaAdayi>> _aktarmaliAra({
   required int suAn,
   required String varisAd,
 }) async {
+  // Kapidan kapiya KUS UCUSU — zaman butcesi tavanini olcekler.
+  // ⚠️ Bu deger tek basina bir kapi DEGIL; `_butceyiAsiyor` icinde
+  //    `clamp(kToplamSureTavani, kMutlakTavan)` ile kirpilir, yani kisa
+  //    mesafede davranis bugunkuyle BIREBIR AYNI kalir.
+  final kapiKus = UlasimVeri.kabaMetre(
+      baslangicEnlem, baslangicBoylam, varisEnlem, varisBoylam);
   final indeks = await UlasimVeri.i.hatDuraklari(servis);
   final durakM = await UlasimVeri.i.durakHaritasi();
   final durakHat = await UlasimVeri.i.durakHatIndeksi(servis);
@@ -1229,7 +1330,14 @@ Future<List<RotaAdayi>> _aktarmaliAra({
                   varisEnlem, varisBoylam, d.enlem, d.boylam);
               final dDk = _yurumeDakikasi(dM);
               final varis = inis2 + dDk;
-              if (varis - suAn > kToplamSureTavani) continue;
+              if (_butceyiAsiyor(
+                  suAn: suAn,
+                  binis: binis,
+                  varis: varis,
+                  yuruDk: oDk,
+                  kusM: kapiKus)) {
+                continue;
+              }
 
               // ⚠️⚠️⚠️ TURU 157 - **HAT CIFTI BASINA EN ERKEN VARAN.**
               //

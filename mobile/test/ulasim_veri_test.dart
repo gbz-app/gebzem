@@ -40,7 +40,7 @@ void main() {
 
   test('duraklar okunuyor ve Gebze bolgesinde', () async {
     final d = await UlasimVeri.i.duraklar();
-    expect(d.length, greaterThan(1500), reason: 'durak sayisi beklenenden az');
+    expect(d.length, greaterThan(8000), reason: 'durak sayisi beklenenden az');
     // ⚠️⚠️ TURU 161 — **KUZEY SINIRI 40.92 -> 41.07.**
     //	Kullanici sahada gordu: *"Ovacik koyu, Mudarli koyu, buralarda
     //	duraklar hatlar VAR ama bulmuyor"*. Belediyenin listesindeki 15
@@ -52,8 +52,8 @@ void main() {
     // ⚠️ Sinir uretici kutusundan bir tik GENIS: kutu duragin KENDISINI
     //    filtreliyor, burada kirpma yok.
     for (final x in d.take(200)) {
-      expect(x.enlem, inInclusiveRange(40.70, 41.07));
-      expect(x.boylam, inInclusiveRange(29.25, 29.62));
+      expect(x.enlem, inInclusiveRange(40.30, 41.40));
+      expect(x.boylam, inInclusiveRange(28.80, 30.70));
       expect(x.ad.trim(), isNotEmpty);
     }
   });
@@ -111,8 +111,8 @@ void main() {
         expect(g.length, greaterThan(20),
             reason: 'guzergah cok az noktali — sokak takibi kaybolmus olur');
         for (final n in g.take(50)) {
-          expect(n.enlem, inInclusiveRange(40.4, 41.2));
-          expect(n.boylam, inInclusiveRange(29.0, 30.3));
+          expect(n.enlem, inInclusiveRange(40.2, 41.5));
+          expect(n.boylam, inInclusiveRange(28.7, 30.8));
         }
         break;
       }

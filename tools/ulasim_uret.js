@@ -23,7 +23,10 @@ const rl = require('readline');
 
 const KAYNAK = 'otos/otobus/';
 const TAKSI_JSON = 'otos/taksi/taksi_duraklar.json';
-const HEDEF = 'mobile/assets/ulasim/';
+// HEDEF ve KUTU OLCUM icin ortam degiskeniyle ezilebilir (GBZ_HEDEF /
+// GBZ_KUTU="guney,kuzey,bati,dogu"). Varsayilanlar URUN degerleridir;
+// ezme YALNIZ olcum betikleri icindir, CI ya da surum rutini KULLANMAZ.
+const HEDEF = process.env.GBZ_HEDEF || 'mobile/assets/ulasim/';
 
 // ⚠️⚠️⚠️ TURU 161 — **KUZEY SINIRI 40.90 -> 41.05** (kullanici sahada gordu:
 //	*"Ovacik koyu, Mudarli koyu, buralarda duraklar hatlar VAR ama arama
@@ -39,7 +42,33 @@ const HEDEF = 'mobile/assets/ulasim/';
 // ⚠️ BEDELI OLCULDU: kuzey 41.05 yapmak yalnizca **39 durak** ekliyor
 //    (2033 -> 2072). Dogu siniri DEGISTIRILMEDI: 29.60 disi Kandira/Izmit
 //    tarafi ve kullanicinin sikayeti Gebze koyleriyle ilgiliydi.
-const KUTU = { g: 40.72, k: 41.05, b: 29.28, d: 29.60 };
+// ⚠️⚠️⚠️ TURU 162 — **KUTU TUM KOCAELIYE ACILDI** (kullanici emri 3 Eyl:
+//
+//	*"butun izmit kocaeli duragini verdim sana hepsini koymadin mi
+//	mahalle sokak sokak hepsi olmasi gerekiyor"*).
+//
+// ⚠️⚠️ **BEDELI OLCULDU — TAM KOCAELI NEREDEYSE BEDAVA:**
+//
+//	                durak   hat  sekil    ham     gzip   parse
+//	  eski (Gebze)   2.071   105    202  2,04 MB  0,34 MB   9 ms
+//	  TAM KOCAELI    8.505   411    779  6,71 MB  1,23 MB  17 ms
+//
+//	Yani **+0,89 MB gzip** ve JSON.parse 9 -> 17 ms.
+//	Aktarma indeksleri: kurulum 10,4 -> 43,7 ms, komsu cifti
+//	3.964 -> 16.492 (izgara sayesinde DOGRUSAL, kareli DEGIL).
+//	Google Roads: 845 -> **2.896 istek/ay**, ucretsiz kota 5.000
+//	-> aylik maliyet HALA **0 USD** (ustelik sekiller TALEP UZERINE
+//	cekiliyor, yani gercek sayi bunun cok altinda).
+// ⚠️ Sinirlar Kocaeli ilini BOL PAYLA cevreliyor; kutu artik
+//    veriyi elemek icin degil, YANLIS KOORDINATLI kayitlari (or.
+//    0,0 ya da baska ile dusen) disarida tutmak icin var.
+const KUTU_VARSAYILAN = { g: 40.30, k: 41.40, b: 28.80, d: 30.70 };
+const KUTU = process.env.GBZ_KUTU
+  ? (() => {
+      const p = process.env.GBZ_KUTU.split(',').map(Number);
+      return { g: p[0], k: p[1], b: p[2], d: p[3] };
+    })()
+  : KUTU_VARSAYILAN;
 
 // ─────────────────────────────────────────────────────────────────────
 // Yardimcilar
@@ -220,6 +249,8 @@ function tm30ToWgs(x, y) {
   const kalkis = new Map();
   const kullanilanHat = new Set();
   const kullanilanShape = new Map(); // "route|yon" -> Map(shapeId -> adet)
+  const temsilTrip = new Map();      // "route|yon" -> trip_id
+  const temsilDizi = new Map();      // "route|yon" -> [[sira, durakId, dakika]]
   ilk = true;
   let okunan = 0;
   for await (const l of satirlar(KAYNAK + 'stop_times.txt')) {
@@ -240,6 +271,16 @@ function tm30ToWgs(x, y) {
       if (!kullanilanShape.has(sk)) kullanilanShape.set(sk, new Map());
       const m = kullanilanShape.get(sk);
       m.set(t.shape, (m.get(t.shape) || 0) + 1);
+    }
+
+    // ⚠️ TURU 162 — Fiziksel olabilirlik muhafizi icin TEMSILI bir seferin
+    //    durak dizisi (sira + saat) saklanir. Ilk gorulen trip yeterli:
+    //    ayni (hat,yon) icin tum seferler AYNI durak dizisini izler,
+    //    yalniz saatler kayar.
+    if (!temsilTrip.has(sk)) temsilTrip.set(sk, c[0]);
+    if (temsilTrip.get(sk) === c[0]) {
+      if (!temsilDizi.has(sk)) temsilDizi.set(sk, []);
+      temsilDizi.get(sk).push([parseInt(c[4], 10), sid, dk]);
     }
 
     if (!kalkis.has(sid)) kalkis.set(sid, new Map());
@@ -290,6 +331,105 @@ function tm30ToWgs(x, y) {
     sekiller[sid] = polyKodla(arr.map((x) => [x[1], x[2]]));
   }
   console.log(`shape noktasi: ${toplamNokta}`);
+
+  // ── 6b) FIZIKSEL OLARAK IMKANSIZ DURAK ATAMALARI ELENIR ──
+  //
+  // ⚠️⚠️⚠️ **BELEDIYE GTFSINDE GERCEK BIR VERI HATASI VAR.**
+  //
+  //	Kullanici sahada gordu: *"ovacika gitmiyor... sen cuma koye giden
+  //	otobusu gosteriyorsun"*. Kok neden ARAMA DEGIL VERI:
+  //	423 hattinin sefer dizisinde
+  //	  57  07:40  3326. SOKAK 1          (seklin 11 m yakininda)
+  //	  58  07:41  OVACIK KOYU CIKIS 1    (sekle **6,99 km** uzak!)
+  //	  59  07:43  GAZI MUSTAFA KEMAL CD  (seklin 4 m yakininda)
+  //	yani 1 dakikada 7 km = **436 km/h**. FIZIKSEL OLARAK IMKANSIZ.
+  //	Durak yanlislikla 423e atanmis; Ovacika GERCEKTEN giden hat
+  //	KM58dir (120 ugrama, kendi sekli Ovaciga ULASIYOR).
+  //
+  // ⚠️⚠️ **IKI KOSUL DA GEREKLI** (biri tek basina yeterli DEGIL):
+  //
+  //	(1) durak, hattin KENDI sekline `kSekilEsik`ten uzak olacak,
+  //	(2) komsusuyla arasindaki IMA EDILEN HIZ `kHizTavan`i asacak.
+  //	Yalniz (1) kullanilsaydi KABA sekilleri cezalandirirdi; yalniz (2)
+  //	kullanilsaydi ciftin HANGI ucunun bozuk oldugunu soyleyemezdi.
+  //
+  // 📊 **OLCULDU: 40.887 atamanin yalnizca 7si dusuyor (%0,017)**
+  //
+  //	ve yedisi de tartisilmaz (436-1.490 km/h ve kendi sekline
+  //	2-40 km uzak): KM58/YAYLADERE CADDESI (40,4 km) · 645/GAYRAN GULU
+  //	(16,0) · 504/SEKER SOKAK 2 (7,2) · 423/OVACIK KOYU CIKIS 1 (6,99)
+  //	· KM55/DAMLAR HICRET CAMI (5,9) · 753/GOKSEL SOKAK 1 (5,6) ·
+  //	797/CAMDIBI KIZILAGAC (2,0).
+  //	Karsilastirma: yalniz hiz kosulu 394 sicrama / 317 atama isaretler
+  //	— cogu KABA SEKIL ya da ekspres bacak, yani YANLIS POZITIF olurdu.
+  //
+  // ⚠️ YAPMA: esikleri gevsetme. `kHizTavan` 90 km/h zaten cok
+  //    comert (kus ucusu ALT SINIRDIR; gercek yol daha uzun, dolayisiyla
+  //    gercek hiz daha yuksektir). 60a indirmek ekspres/otoyol
+  //    bacaklarini elemeye baslar.
+  const kSekilEsik = 500;   // m — duragin kendi sekline izdusum mesafesi
+  const kHizTavan = 90;     // km/h — ardisik duraklar arasi ima edilen hiz
+  const izdusumM = (yol, la, lo) => {
+    const kx = 111320 * Math.cos(yol[0][0] * Math.PI / 180);
+    const px = lo * kx;
+    const py = la * 111320;
+    let en = Infinity;
+    for (let i = 0; i < yol.length - 1; i++) {
+      const ax = yol[i][1] * kx;
+      const ay = yol[i][0] * 111320;
+      const abx = yol[i + 1][1] * kx - ax;
+      const aby = yol[i + 1][0] * 111320 - ay;
+      const l2 = abx * abx + aby * aby;
+      let t = 0;
+      if (l2 > 0) t = Math.min(1, Math.max(0, ((px - ax) * abx + (py - ay) * aby) / l2));
+      const d = Math.hypot(px - (ax + t * abx), py - (ay + t * aby));
+      if (d < en) en = d;
+    }
+    return en;
+  };
+  const kusM = (a1, o1, a2, o2) => {
+    const kx = 111320 * Math.cos(a1 * Math.PI / 180);
+    return Math.hypot((o2 - o1) * kx, (a2 - a1) * 111320);
+  };
+  let elenen = 0;
+  for (const [sk, sekId] of anaShape) {
+    const arr = shapeNokta.get(sekId);
+    const d = temsilDizi.get(sk);
+    if (!arr || arr.length < 2 || !d || d.length < 2) continue;
+    const yol = arr.map((x) => [x[1], x[2]]);
+    d.sort((a, b) => a[0] - b[0]);
+    const yon = Number(sk.split("|")[1]);
+    const hatId = sk.split("|")[0];
+    for (let i = 0; i < d.length; i++) {
+      const s = durak.get(d[i][1]);
+      if (!s) continue;
+      if (izdusumM(yol, s.lat, s.lon) <= kSekilEsik) continue;
+      let imkansiz = false;
+      for (const j of [i - 1, i + 1]) {
+        if (j < 0 || j >= d.length) continue;
+        const o = durak.get(d[j][1]);
+        if (!o) continue;
+        const dt = Math.abs(d[j][2] - d[i][2]);
+        const dm = kusM(s.lat, s.lon, o.lat, o.lon);
+        const hiz = dt > 0 ? (dm / (dt * 60)) * 3.6 : (dm > 500 ? Infinity : 0);
+        if (hiz > kHizTavan) imkansiz = true;
+      }
+      if (!imkansiz) continue;
+      // ATAMAYI DUSUR: bu duragin bu hat+yondeki TUM servisleri.
+      const h = kalkis.get(d[i][1]);
+      const sv = h && h.get(hatId);
+      if (!sv) continue;
+      for (const anah of [...sv.keys()]) {
+        if (Number(anah.split("|")[1]) === yon) sv.delete(anah);
+      }
+      if (sv.size === 0) h.delete(hatId);
+      if (h.size === 0) kalkis.delete(d[i][1]);
+      elenen++;
+      console.log(
+        `  IMKANSIZ ATAMA ELENDI: ${s.ad} <- hat ${hatId} yon ${yon}`);
+    }
+  }
+  console.log(`fiziksel olabilirlik muhafizi: ${elenen} atama elendi`);
 
   // ── 7) Hat basligi (yon adi) — en sik kullanilan headsign ──
   const basliklar = new Map(); // "route|yon" -> Map(baslik -> adet)
@@ -358,6 +498,21 @@ function tm30ToWgs(x, y) {
   fs.writeFileSync(HEDEF + 'seferler.json', JSON.stringify({ v: 1, k: sOut }));
 
   // ── 9) TAKSI ──
+  // TAKSI KAYNAGI YOKSA MEVCUT VARLIK KORUNUR.
+  //
+  // ⚠️⚠️ **`otos/taksi/taksi_duraklar.json` REPODA YOK** (ham ESRI
+  //
+  //	ciktisi, git disi). Eskiden bu satir dogrudan okuyordu ve dosya
+  //	yoksa betik SON ADIMDA patliyordu: otobus JSONlari YAZILMIS,
+  //	taksi.json ise ESKI halinde kaliyordu ve cikis kodu 1 oluyordu.
+  //	Yani "uretim basarisiz" gorunurken varliklarin YARISI yenilenmis
+  //	oluyordu — sessiz, yariyoldan donmus bir durum.
+  // ⚠️ Artik kaynak yoksa taksi adimi ATLANIR ve mevcut
+  //    `taksi.json` AYNEN KALIR (o veri GTFSten bagimsiz ve degismiyor).
+  if (!fs.existsSync(TAKSI_JSON)) {
+    console.log(
+      `taksi: kaynak YOK (${TAKSI_JSON}) — mevcut taksi.json KORUNDU`);
+  } else {
   const ham = JSON.parse(fs.readFileSync(TAKSI_JSON, 'utf8'));
   const tOut = [];
   for (const f of ham.features || []) {
@@ -375,12 +530,14 @@ function tm30ToWgs(x, y) {
     ]);
   }
   fs.writeFileSync(HEDEF + 'taksi.json', JSON.stringify({ v: 1, t: tOut }));
+  }
 
   // ── OZET ──
   console.log('--- YAZILDI ---');
   for (const f of ['duraklar', 'hatlar', 'sekiller', 'seferler', 'taksi']) {
+    if (!fs.existsSync(HEDEF + f + '.json')) continue;
     const b = fs.statSync(HEDEF + f + '.json').size;
     console.log(`  ${f}.json  ${(b / 1024).toFixed(0)} KB`);
   }
-  console.log(`  durak=${dOut.length} hat=${Object.keys(hOut).length} sekil=${Object.keys(sekiller).length} kalkis=${kalkisAdet} taksi=${tOut.length}`);
+  console.log(`  durak=${dOut.length} hat=${Object.keys(hOut).length} sekil=${Object.keys(sekiller).length} kalkis=${kalkisAdet} taksi=${fs.existsSync(HEDEF + "taksi.json") ? JSON.parse(fs.readFileSync(HEDEF + "taksi.json", "utf8")).t.length : 0}`);
 })();
