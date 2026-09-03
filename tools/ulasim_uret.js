@@ -25,7 +25,21 @@ const KAYNAK = 'otos/otobus/';
 const TAKSI_JSON = 'otos/taksi/taksi_duraklar.json';
 const HEDEF = 'mobile/assets/ulasim/';
 
-const KUTU = { g: 40.72, k: 40.90, b: 29.28, d: 29.60 };
+// ⚠️⚠️⚠️ TURU 161 — **KUZEY SINIRI 40.90 -> 41.05** (kullanici sahada gordu:
+//	*"Ovacik koyu, Mudarli koyu, buralarda duraklar hatlar VAR ama arama
+//	rota yaptigimda BULMUYOR"*).
+//
+// ⚠️⚠️ KOK NEDEN OLCULDU: belediyenin kendi durak listesindeki 15 duragin
+//	**15'i de** varligimizda YOKTU. Ham GTFS'te HEPSI VAR ama enlemleri
+//	**40,911 - 41,011** arasinda, yani eski kuzey siniri **40,90**'in
+//	DISINDA kaliyordu. Yani arama hatasi degil, VERI EKSIKLIGI.
+//	Ornek: MUDARLI KOYU MERKEZ 41,01132 · OVACIK KOYU CAMI 40,96558 ·
+//	KADILLI MERKEZ 40,92804 · KADILI YOLU 40,91451.
+//
+// ⚠️ BEDELI OLCULDU: kuzey 41.05 yapmak yalnizca **39 durak** ekliyor
+//    (2033 -> 2072). Dogu siniri DEGISTIRILMEDI: 29.60 disi Kandira/Izmit
+//    tarafi ve kullanicinin sikayeti Gebze koyleriyle ilgiliydi.
+const KUTU = { g: 40.72, k: 41.05, b: 29.28, d: 29.60 };
 
 // ─────────────────────────────────────────────────────────────────────
 // Yardimcilar

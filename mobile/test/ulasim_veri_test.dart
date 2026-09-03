@@ -41,8 +41,18 @@ void main() {
   test('duraklar okunuyor ve Gebze bolgesinde', () async {
     final d = await UlasimVeri.i.duraklar();
     expect(d.length, greaterThan(1500), reason: 'durak sayisi beklenenden az');
+    // ⚠️⚠️ TURU 161 — **KUZEY SINIRI 40.92 -> 41.07.**
+    //	Kullanici sahada gordu: *"Ovacik koyu, Mudarli koyu, buralarda
+    //	duraklar hatlar VAR ama bulmuyor"*. Belediyenin listesindeki 15
+    //	duragin 15'i de varlikta YOKTU: ham GTFS'te varlar ama enlemleri
+    //	40,911-41,011, yani ureticinin eski kuzey siniri 40,90'in DISINDA.
+    //	`tools/ulasim_uret.js` kutusu 41.05'e cikarildi; bu muhafiz da
+    //	onunla BIRLIKTE guncellenmek ZORUNDA (yoksa kirmizi duser —
+    //	nitekim dustu ve degisikligi DOGRULADI).
+    // ⚠️ Sinir uretici kutusundan bir tik GENIS: kutu duragin KENDISINI
+    //    filtreliyor, burada kirpma yok.
     for (final x in d.take(200)) {
-      expect(x.enlem, inInclusiveRange(40.70, 40.92));
+      expect(x.enlem, inInclusiveRange(40.70, 41.07));
       expect(x.boylam, inInclusiveRange(29.25, 29.62));
       expect(x.ad.trim(), isNotEmpty);
     }
