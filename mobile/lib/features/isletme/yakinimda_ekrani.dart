@@ -198,6 +198,18 @@ const double kYuzenCipAlfa = 0.82;
 ///    merkezleme hatalarini geri getirir.
 /// ⚠️ Android ile iOS logo olculeri birebir ayni DEGIL — GERCEK CIHAZDA
 ///    dogrulanmali.
+// Rota uc pinlerinin tekillestirme mesafesi (metre).
+//
+// ⚠️⚠️ **Aktarmalarin %36si AYNI DURAKTA** (turu 157 olcumu): bir
+//
+//	bacagin inis duragi ile sonrakinin binis duragi ayni noktadir.
+//	Ikisi de cizilseydi pinler PIKSEL PIKSEL ust uste gelir ve
+//	kullanici tek bir pin gorurken sistem iki isaret tutardi.
+// ⚠️ 5 m: ayni duragin iki kaydi arasi en buyuk fark bu veride
+//    20,3 m (turu 157te olculen "ayni adli iki durak") ama onlar
+//    GERCEKTEN farkli duraklar. 5 m yalniz AYNI noktayi tekiller.
+const double kUcPinTekilM = 5;
+
 const double kLogoPay = 30;
 
 /// Cipler arasi bosluk (seridin `separatorBuilder`inda TEK KAYNAK).
@@ -7937,25 +7949,42 @@ class _HaritaAlaniState extends State<_HaritaAlani> {
   Iterable<Marker> _rotaUcIsaretleri() sync* {
     final r = widget.rota;
     if (r == null) return;
+    // ⚠️⚠️⚠️ TURU 161 - - **AKTARMALI ROTADA IKINCI BACAGIN DURAKLARI
+    //	ISARETSIZ KALIYORDU.**
+    //
+    //	Dongu ilk otobus bacagindan sonra `break` ediyordu ve kimlikler
+    //	SABITTI (`rota-binis` / `rota-inis`). Aktarmali rotada sonuclarin
+    //	**%64u 7 bacak** tasiyor; yani ikinci hattin binis ve inis
+    //	duraklari **%100 gorunmuyordu**. Turu 155 bu deligi AKTARMASIZ
+    //	rotalar icin kapatmisti (*"varis noktasinda durak gorunmuyor"*),
+    //	aktarmali hali ACIK kalmisti.
+    // ⚠️ `break` KALDIRMAK TEK BASINA YETMEZ: sabit kimlikle ikinci
+    //    bacak birincinin USTUNE yazardi (Set, kimlik tekil).
+    // ⚠️⚠️ Aktarmalarin **%36si AYNI DURAKTA** (turu 157 olcumu);
+    //	orada bir bacagin inisi ile sonrakinin binisi PIKSEL PIKSEL ust
+    //	uste gelir. `kUcPinTekilM` icindeki ikinci pin CIZILMEZ.
+    final konmus = <({double enlem, double boylam})>[];
+    var bi = 0;
     for (final b in r) {
       if (b.tur != BacakTuru.otobus || b.noktalar.length < 2) continue;
-      final binis = b.noktalar.first;
-      final inis = b.noktalar.last;
-      yield Marker(
-        markerId: const MarkerId('rota-binis'),
-        position: LatLng(binis.enlem, binis.boylam),
-        icon: _durakPin ?? BitmapDescriptor.defaultMarker,
-        anchor: const Offset(0.5, 0.5),
-        zIndex: 3,
-      );
-      yield Marker(
-        markerId: const MarkerId('rota-inis'),
-        position: LatLng(inis.enlem, inis.boylam),
-        icon: _durakPin ?? BitmapDescriptor.defaultMarker,
-        anchor: const Offset(0.5, 0.5),
-        zIndex: 3,
-      );
-      break;
+      for (final u in [
+        (ad: 'binis', n: b.noktalar.first),
+        (ad: 'inis', n: b.noktalar.last),
+      ]) {
+        final yakin = konmus.any((k) =>
+            UlasimVeri.kabaMetre(k.enlem, k.boylam, u.n.enlem, u.n.boylam) <
+            kUcPinTekilM);
+        if (yakin) continue;
+        konmus.add(u.n);
+        yield Marker(
+          markerId: MarkerId('rota-$u.ad-$bi'),
+          position: LatLng(u.n.enlem, u.n.boylam),
+          icon: _durakPin ?? BitmapDescriptor.defaultMarker,
+          anchor: const Offset(0.5, 0.5),
+          zIndex: 3,
+        );
+      }
+      bi++;
     }
     // ⚠️ VARIS: son bacagin SON noktasi. Ayri bir `varis` parametresi
     //    tasimak ikinci bir kaynak olurdu; rota zaten oraya bitiyor.
