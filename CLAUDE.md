@@ -41,6 +41,122 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
       kaybettiriyorsun"*. **Üçüncüsü olmayacak.**
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (3 Eyl): TURU 161 KODU BITTI, BACKEND DEPLOY (81afa68),
+  iOS BUILD ALINIYOR.**
+
+- 🧵 ⚠️⚠️⚠️ **TURU 161 — "FAZLADAN CIZGILER": KOK NEDEN TURU 160IN KENDI
+  BIRLESTIRME HATASIYDI.**
+  Kullanici sekiz ekran goruntusu: *"rotalarda fazladan cizdiler var alakasiz...
+  Bu fazladan cizgiler eski cizimlermi"*.
+  ⚠️ **CEVAP: HAYIR, ESKI CIZIM DEGIL.** `_cizgiler()` her `build`de SIFIRDAN
+     bir `Set` uretir, kimlikler deterministiktir ve `GoogleMap.polylines` tam
+     kume degisimi yapar -> bayat polyline BIRIKEMEZ. Fazladan cizgiler
+     **TEK polylinein nokta listesinin ICINDE**.
+  **KOK NEDEN:** `sekil.go` sekli 100erlik parcalara **10 nokta ORTUSMEYLE**
+  boluyor (`adim = 90`) ama birlestirme ortusmeyi ATMIYORDU.
+  📊 **OLCULDU (202 gercek sekil):** **643 dikis**; dikis basina medyan
+     **640 m** yol IKI KEZ cizilmis, aralarinda yolda karsiligi OLMAYAN bir
+     **geri sicrama kirisi** (medyan **591 m**, min **70 m**, maks **10,3 km**).
+     Toplam **521 km** (agin **%8,9**u). Sekil uzunlugu medyan **+%15,3**,
+     maks **+%47**. Ekranda kiris/yol oranina gore UC belirti: halka + icinden
+     DIAGONAL · IKIZ PARALEL cizgi · uzun INCE ILMEK.
+  ⚠️⚠️ **TURU 160IN 1 mLIK DEDUP KAPISI FIILEN OLUYDU: 643 dikisin 0inda
+     tetiklendi.** Kapi girdi ile cikti arasinda 1:1 nokta eslemesi
+     varsayiyordu; **`interpolate=true` o varsayimi YIKIYOR**.
+  ⚠️⚠️ **`sekilUzunlukTavani` (1,5) BU SINIFI GORMEZ**: 196 seklin **0**i
+     takildi (en kotu sisme %47). Toplam uzunluk olcen bir kapi, yolun bir
+     bolumunu IKI KEZ cizen bir hatayi YAPISAL OLARAK goremez — koruma degil
+     **KOR NOKTA** olarak calisti.
+  **FIX:** `originalIndex` OKUNUYOR ve ortusme **INDEKSLE** kesiliyor.
+  ⚠️⚠️ Alan **`*int` OLMAK ZORUNDA**: interpolasyonla eklenen noktalarda HIC
+     YOKTUR; duz `int` hepsini 0 yapar ve kesim her parcada 0a kilitlenir.
+  ⚠️⚠️ Kesim **`== sekilOrtusme-1`** ile yapilir, `>= sekilOrtusme` ILE DEGIL:
+     oyle alinirsa yerel 9 ile 10 arasindaki INTERPOLE noktalar da atilir ve
+     orada tek parcalik **duz bir kiris** kalir.
+  ⚠️ **ORTUSMEYI KALDIRMA** (`adim = sekilParca`): ortusme eslestiricinin
+     dikis baglamini korumasi icin ZORUNLU.
+  + **`sekilDikisTavani` (100 m) DIKIS NOBETCISI**: kesim calismazsa TUM
+    islem basarisiz sayilir ve fail-open ile ORIJINAL sekil doner. Turu 160in
+    hatasi tam da SESSIZ oldugu icin sahaya cikti.
+    ⚠️ YAPMA: bu esigi "gercekci" bir sayiya (600 m) cikarma — nobetci susar.
+  + **ONBELLEK ONEKI `v2`**: 25 gunluk onbellekteki BOZUK sekiller gecersiz;
+    onek degismeseydi duzeltme sahada 25 gun boyunca HIC gorunmezdi.
+    ⚠️ Birlestirme mantigi her degistiginde bu surum ARTIRILIR.
+  ✅ **CANLI SUNUCUDA GERCEK GOOGLE CAGRISIYLA DOGRULANDI** (kullanicinin
+     fotografladigi hatlar): 510B/y0 iki kez cizilen **1.908 m -> 0 m**,
+     426/y0 **752 m -> 0 m**, 430 **0 m**, 510/y1 **321 m -> 0 m**.
+     Uzunluk sismesi medyan **+%15,3 -> +%1,6**.
+
+- 📐 ⚠️⚠️⚠️ **TURU 161 — DURAKTAN YOLA 90 DERECELIK CIKIS.**
+  Kullanici (Yandex referansi): *"otobus duraklari icerden 90 derece dik
+  cikip devam etmiyor"*.
+  **KOK NEDEN:** `_enYakinIz` izdusum noktasini **ZATEN HESAPLIYORDU ama
+  DISARI CIKARMIYORDU**; `_guzergahDilimi` elinde yalniz segment indeksi
+  kaldigi icin duragi bir **SONRAKI KOSEYE** (`yol[a+1]`) bagliyordu -> cizgi
+  duraktan cikip yola EGIK giriyor ve kayarak karisiyordu.
+  📊 **OLCULDU (11.432 hat-yon x durak):** baglayici acisi medyan
+     **44,7 -> 90,0 derece** · dik (>=70) **%18,8 -> %99,2** · yola kayarak
+     giren (<30) **%28,6 -> %0,5**.
+  ⚠️ **MUKERRER NOKTA KAPISI ZORUNLU**: `t` `clamp(0,1)` ile kirpilinca q tam
+     bir KOSENIN uzerine duser (olculdu: **%4,9**) ve ayni nokta iki kez girer
+     ya da dilim bir adim GERI gider. `kUcEsikM` (0,5 m) TEK KAYNAK —
+     `_uclariBagla` da onu okur.
+  ⚠️⚠️ **TERS DILIMDE UCLAR TAKASLANMAZ**: ters cevrilen yalniz KOSE
+     SIRASIDIR; izdusumler kendi duraklarina bagli kalir. Her iki dalda da
+     **q_a BASTA, q_b SONDA**. Yardimciya "uclari takasla" parametresi KOYMA.
+  ⚠️ Izdusum **DERECE UZAYINDA** kurulur: `t` afin oldugu icin iki uzayda
+     AYNIDIR; metrikte kurup `kx` ile geri cevirmek yuvarlama kaymasi uretir.
+  ⏳ **DURUST SINIR:** dik cikisin boyu = izdusum mesafesi, **medyan 5,7 m**
+     (p25 3,3 m). z18de ~12,6 dp (cizgi 8 dp) — **SINIRDA**; **z19da net**.
+
+- ⚠️⚠️⚠️ **TURU 161 — UYDURMA BAGLAYICI: SEKIL DURAGI KAPSAMIYORSA O UC
+  ARTIK CIZILMEZ.**
+  Bu deligi **BU TURDA KOYLERI EKLERKEN KENDIM ACTIM**: `423`un GTFS sekli
+  **Ovacika HIC ULASMIYOR** (durak seklin en kuzey noktasindan **6.989 m**
+  uzakta) ama `stop_times` oraya **74 trip** ile gittigini soyluyor. Yani
+  SEFER GERCEK, bozuk olan yalniz SEKIL. Dilimin sonuna **7.001 m** uzunlugunda
+  uydurma bir baglayici ekleniyordu (y0da ise **19.264 m** duz cizgi).
+  ⚠️⚠️ **TURU 158 MUHAFIZI BUNU YAPISAL OLARAK YAKALAYAMAZ**: kurtarma sarti
+     `bG.uz * 3 < bIz.uz`; burada global izdusum de ayni degeri veriyor
+     (`6989*3 < 6989` FALSE) -> kurtarma dalina HIC girilmiyor.
+  ⚠️⚠️ **SEFER SILINMEZ, YALNIZ CIZGI KESILIR.** Cift elenirse Gebze merkez ->
+     Ovacik icin dogrudan rota KALMIYOR (KM58 165 dk ile 150 dk tavanina
+     takiliyor) ve turu 161de kullanicinin ACIKCA istedigi sey geri giderdi.
+  ⚠️⚠️ **KAPSAM SORUSU `b <= a` DALINDA GLOBAL, NORMAL DALDA PENCERELIDIR.**
+     `b <= a` dalinda pencereli olcu kullanilsaydi ILMEKLI hatlarda (sekillerin
+     %17,3u ilmekli) SIRADAN vakalarda tetiklenir ve cizgi yanlis yerde
+     kesilirdi. Normal dalda ise pencereli olcu DOGRUDUR: buyuk cikmasi
+     "seklin ILERI kismi bu duragi icermiyor" demektir. `min()` ile
+     yumusatmak OLCULDU: 2 km+ uydurma baglayici **%0,73te KALIYORDU**.
+  📊 **OLCULDU (1.187.752 GECERLI durak cifti — sefer sutunuyla filtreli):**
+     bas/son baglayici medyan **81 -> 8 m** · p95 **355 -> 32** · p99
+     **1.106 -> 165** · 2 km+ uydurma **%0,791 -> %0,183** (4,3 kat az).
+     Ornek: `315/y1 DOGA SOKAK 1 -> DUDAYEV PARKI` **16,99 km -> 0,05 km**.
+  ⚠️⚠️ **OLCUM YONTEMI DERSI:** ilk olcumum TUM (i,j) ciftlerini sayiyordu ve
+     %48,6 gibi anlamsiz bir oran veriyordu — ciftlerin YARISI GECERSIZ
+     (inis, binisten ONCE gelen durak). Gecerlilik `_seferBul` olcutuyle
+     (ayni sefer sutununda binis < inis) suzulmeli.
+  ⚠️ **"EN UZUN SEGMENT" YANLIS METRIKTIR**: ham GTFSin KENDI segmentleri
+     4 kmye kadar cikiyor. Uydurma baglayici **BAS/SON segmentle** olculur.
+
+- 📍 **TURU 161 — AKTARMALI ROTADA IKINCI BACAGIN DURAKLARI ISARETSIZDI.**
+  `_rotaUcIsaretleri` ilk otobus bacagindan sonra `break` ediyor ve marker
+  kimlikleri SABITTI. Aktarmali sonuclarin **%64u 7 bacak** tasiyor -> ikinci
+  hattin binis/inis duraklari **%100 gorunmuyordu**. Turu 155 bu deligi
+  AKTARMASIZ rotalar icin kapatmisti; aktarmali hali ACIK kalmisti.
+  ⚠️ `break` KALDIRMAK TEK BASINA YETMEZ: sabit kimlikle ikinci bacak
+     birincinin USTUNE yazardi (marker `Set`i kimlikle tekiller).
+  ⚠️ Aktarmalarin **%36si AYNI DURAKTA** -> `kUcPinTekilM` (5 m).
+
+- ⏳ **TURU 161 — DURUST SINIRLAR:**
+  · Kalan **%0,18** cift hala 2 km+ uydurma baglayici cizer (seklin ne ileri
+    ne geri kisminda durak var); o vakalar icin "guzergah yaklasik" ibaresi
+    HENUZ YOK (turu 158den devreden borc).
+  · Dik cikis **z18de sinirda** gorunur; Yandexteki netlik **z19dan itibaren**.
+  · `UlasimVeri.kTestSaati = 720` **HALA ACIK** (kullanici emri: gece test).
+    ⚠️ Gercek yayin oncesi KALDIRILACAK; nobetci `grep -rn "GECICI-TEST" lib/`.
+  · `tools/ulasim_uret.js` sefer kimligini ATIYOR -> `_seferBul` sutun
+    eslestirmesi bacaklarin **%4,4**unde saati uydurabiliyor (AYRI TUR).
 - **KALDIGIMIZ YER (2 Eyl): TURU 158 KODU BITTI — BUILD ALINMADI (kural 0).**
   Kullanici turu 157'yi gercek iPhone'da test etti, dort ekran goruntusu ve
   **alti sikayet** gonderdi. Arayuz/istemci turu: **BACKEND DEGISMEDI**,

@@ -1,3 +1,52 @@
+# Oturum — Turu 161 (3 Eyl 2026)
+
+## Kullanici bildirimi (8 ekran goruntusu)
+
+1. *"rotalarda fazladan cizdiler var alakasiz"* + *"Bu fazladan cizgiler eski cizimlermi"*
+2. *"otobus duraklari sana yandexte attigim gibi iceriden 90derece dik cikip devam etmiyor"*
+3. *"ovacik koyu mudarli koyu buralarda duraklar hatlar var ama arama rota yaptigimda bulmuyor"*
+
+## Yapilanlar (oldu/olmadi)
+
+| Is | Sonuc |
+|---|---|
+| (3) Koy duraklari — uretici kutusu 40.90 -> 41.05 | OLDU. 2032 -> 2071 durak, +1,2 KB gzip. Belediyenin listesindeki 15/15 durak eksikti; 14/14 seferli, 50 aktarma cifti var. |
+| (1) Fazladan cizgiler — dikis birlestirme | OLDU. Kok neden turu 160in KENDI birlestirmesi. Canli sunucuda 510B/426/430/510 uzerinde 0 m dogrulandi. |
+| (1b) Uydurma baglayici (sekil duragi kapsamiyor) | OLDU. 2 km+ %0,791 -> %0,183. |
+| (2) Durakta 90 derece dik cikis | OLDU. Aci medyan 44,7 -> 90,0 derece; dik oran %18,8 -> %99,2. |
+| Aktarmali rotada 2. bacagin durak pinleri | OLDU (yan bulgu — denetim yakaladi). |
+| "guzergah yaklasik" ibaresi | OLMADI — kalan %0,18 icin borc devrediyor. |
+
+## Denetim
+
+84 ajan (6 mercek + her bulguya AYRI curutucu). 26 ham bulgu -> **20 ayakta**.
+En agir uc bulgunun ucu de KOK-NEDEN cikti ve ucu de **benim kendi kodumdaydi**
+(turu 160 birlestirme, turu 161 koy eklemesinin actigi delik, turu 155ten
+devreden kose baglama).
+
+## Kalici dersler
+
+- ⚠️⚠️ **Toplam uzunluk olcen bir kapi, yolun bir bolumunu IKI KEZ cizen
+  hatayi YAPISAL OLARAK goremez.** `sekilUzunlukTavani` (1,5) 196 seklin
+  **0**ini eledi; en kotu sisme %47 idi. Kapi koruma degil KOR NOKTA idi.
+- ⚠️⚠️ **Bir esik yazarken "bu kapi kac kez tetiklenecek" diye SAY.**
+  Turu 160in 1 mlik dedup kapisi 643 dikisin **0**inda tetiklendi cunku
+  girdi/cikti 1:1 eslemesi varsayiyordu ve `interpolate=true` onu yikiyordu.
+- ⚠️⚠️ **Onbellekli bir ciktinin mantigi degisiyorsa ANAHTAR ONEKI de degisir.**
+  `yolbul:sekil:` -> `yolbul:sekil:v2:`; yoksa duzeltme 25 gun sahada gorunmezdi.
+- ⚠️⚠️ **Olcum yontemi:** ilk olcumum TUM (i,j) durak ciftlerini sayip %48,6
+  gibi anlamsiz bir oran verdi — yarisi GECERSIZ cift (inis binisten once).
+  Gecerlilik `_seferBul` olcutuyle suzuldukten sonra sayilar anlam kazandi.
+- ⚠️ **"En uzun segment" ham GTFSte yanlis metriktir** (kendi segmentleri
+  4 kmye kadar cikiyor). Uydurma baglayici BAS/SON segmentle olculur.
+
+## Devir notlari
+
+- Backend **81afa68** deploy edildi, health ok, `yolbul: aktif`.
+- iOS build `33732214686` tetiklendi.
+- `UlasimVeri.kTestSaati = 720` HALA ACIK (gece testi icin, kullanici emri).
+
+---
 # OTURUM GÜNLÜĞÜ — Gebzem Projesi
 
 > Her oturumda ne yaptık, ne denedik, ne oldu/olmadı. Zaman kazanmak için her oturum sonunda güncellenir. KURAL: Proje başladığında her adım git push'lanır.
