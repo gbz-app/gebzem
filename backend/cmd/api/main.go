@@ -356,6 +356,8 @@ func main() {
 		r.Get("/yolbul/adres", yolbulH.Adres)
 		r.Get("/yolbul/yer", yolbulH.Yer)
 		r.Post("/yolbul/yaya", yolbulH.Yaya)
+		// ⚠️ TURU 160 — guzergah seklini yola oturtur (bkz. yolbul/sekil.go).
+		r.Post("/yolbul/sekil", yolbulH.Sekil)
 
 		// TURU 77 — AI (OPENAI_API_KEY yoksa 503; istemci /ai/durum ile sorar)
 		r.Get("/ai/durum", aiH.Durum)

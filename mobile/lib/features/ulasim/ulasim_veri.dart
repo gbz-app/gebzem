@@ -222,6 +222,24 @@ class UlasimVeri {
   UlasimVeri._();
   static final UlasimVeri i = UlasimVeri._();
 
+  /// ⚠️⚠️ TURU 160 - yola oturtulmus sekiller (sekilId -> polyline).
+  ///	Bellekte, oturum omurlu. Diske YAZILMAZ: sunucu onbellegi
+  ///	25 gun (Googlein 30 gun siniri) ve cihazda kalici saklamak
+  ///	o siniri asardi.
+  final Map<String, String> _oturtulmus = {};
+
+  /// ⚠️⚠️⚠️ TURU 160 - **CAGIRAN DISARIDAN BAGLANIR** (`main.dart`).
+  ///	`UlasimVeri` saf veri katmani; `AdresServisi`i (dolayisiyla
+  ///	Dioyu ve Riverpodu) IMPORT ETMEZ. Bag kurulmazsa ozellik
+  ///	SESSIZCE atlanir ve ham sekil cizilir — `AdresServisi.baglaApi`
+  ///	ile ayni desen (turu 152: bag kurulmayinca ozellik "calisiyor
+  ///	gibi" gorunup kotu sonuc veriyordu; burada FAIL-OPEN ve
+  ///	gorunur degil ama ZARARSIZ: eski davranis).
+  Future<String?> Function(String kod)? _sekilOturtucu;
+
+  void baglaSekilOturtucu(Future<String?> Function(String kod) f) =>
+      _sekilOturtucu = f;
+
   List<Durak>? _duraklar;
   Map<String, Hat>? _hatlar;
   Map<String, String>? _sekilHam;
@@ -561,6 +579,20 @@ class UlasimVeri {
     final sk = await _sekiller();
     final kod = sk[sid];
     if (kod == null || kod.isEmpty) return const [];
+    // ⚠️⚠️⚠️ TURU 160 - **YOLA OTURTULMUS SEKIL** (bkz.
+    //	`AdresServisi.sekliOturt` serhi). Sonuc BELLEKTE onbelleklenir:
+    //	ayni hat bir oturumda birden fazla kez cizilir (rota ozeti,
+    //	harita, adim karti) ve her seferinde sunucuya gitmek gereksiz.
+    // ⚠️⚠️ FAIL-OPEN: `sekliOturt` null donerse ORIJINAL cizilir.
+    // ⚠️ Cagri `await` edilir: cizgi bir kez, DOGRU haliyle cizilsin.
+    //    Once ham cizip sonra degistirmek gorunur bir "ziplama" olurdu.
+    final onbellekli = _oturtulmus[sid];
+    if (onbellekli != null) return polyCoz(onbellekli);
+    final yeni = await _sekilOturtucu?.call(kod);
+    if (yeni != null && yeni.isNotEmpty) {
+      _oturtulmus[sid] = yeni;
+      return polyCoz(yeni);
+    }
     return polyCoz(kod);
   }
 

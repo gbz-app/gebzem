@@ -21,6 +21,7 @@ import 'core/tercihler.dart';
 import 'core/theme.dart';
 import 'core/ws.dart';
 import 'features/ulasim/adres_servisi.dart';
+import 'features/ulasim/ulasim_veri.dart';
 import 'features/auth/acilis_ekrani.dart';
 import 'features/calls/active_call_banner.dart';
 import 'features/calls/active_call_controller.dart';
@@ -183,6 +184,15 @@ class _GebzemAppState extends ConsumerState<GebzemApp> with WidgetsBindingObserv
     //	gorunup KOTU sonuc verirdi. Bu projede "servis yazildi ama
     //	CAGIRAN yol yazilmadi" sinifi DOKUZ kez sahaya cikti.
     AdresServisi.i.baglaApi(() => ref.read(apiProvider));
+    // ⚠️⚠️⚠️ TURU 160 — **GUZERGAH SEKLINI YOLA OTURTAN BAG.**
+    //	`UlasimVeri` saf veri katmani; `AdresServisi`i IMPORT ETMEZ
+    //	(Dio + Riverpod bagimliligi girer). Bag BURADA kurulur.
+    // ⚠️ BU SATIR UNUTULURSA ozellik SESSIZCE atlanir ve ham (kaba)
+    //    sekil cizilir — yani kullanicinin sikayet ettigi "kaldirimin
+    //    ustunden gecen cizgi" AYNEN kalir. Ustteki `baglaApi` serhi
+    //    ayni sinifi anlatiyor: bu projede "servis yazildi ama CAGIRAN
+    //    yol yazilmadi" DOKUZ kez sahaya cikti.
+    UlasimVeri.i.baglaSekilOturtucu(AdresServisi.i.sekliOturt);
   }
 
   /// Davet push yonlendirmesi: tepsideki davet bildirimine dokunuldu.

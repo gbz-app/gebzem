@@ -531,6 +531,48 @@ class AdresServisi {
   /// ⚠️⚠️ `toLowerCase()` TEK BASINA YETMEZ: Dart 'İ' harfini BIRLESIK
   ///	noktali 'i̇'ye cevirir ve "İSTASYON" -> "istasyon" aramasi
   ///	ESLESMEZ (turu 140'ta olculdu).
+  /// ⚠️⚠️⚠️ TURU 160 — **GUZERGAH SEKLINI YOLA OTURTUR** (snap to roads).
+  ///
+  ///	Kullanici: *"otobus rota shape KALDIRIMIN USTUNDE geciyor,
+  ///	koselerde kaldirim ustunden geciyor... Yandex'te U donusu
+  ///	MUKEMMEL, yolun ortasindan tasmadan gidiyor"*.
+  ///
+  /// ⚠️⚠️ **KOK NEDEN SEKLIN KABALIGI** (olculdu): belediyenin GTFS
+  ///	sekli iki durak arasini ortalama **6 NOKTA** ile ciziyor ve
+  ///	guzergahin **%34'u 200 m'den uzun DUZ parcalar** (en uzun tek
+  ///	segment 4.070 m). Yol kivrilinca cizgi koseyi KESIYOR: 15 m
+  ///	yaricapli virajda 53 m'lik kiris **23,4 m** sapma demek —
+  ///	z17'de cizginin yari genisligi 3,6 m, yani GOZLE GORULUR.
+  ///
+  /// ⚠️⚠️ **SONUC PAKETE GOMULMEZ, SUNUCUDAN GELIR.** Google sartlari
+  ///	donen yol koordinatlarini en fazla **30 gun** saklamaya izin
+  ///	veriyor ve "yollari dijitallestirmeyi" ACIKCA yasakliyor. Sunucu
+  ///	onbellegi 25 gun (bkz. `backend/internal/yolbul/sekil.go`).
+  ///	⚠️ YAPMA: bu ciktiyi `assets/ulasim/sekiller.json`a yazma.
+  ///
+  /// ⚠️⚠️ **FAIL-OPEN**: ag yoksa, sunucu kapaliysa ya da Google hata
+  ///	dondururse **ORIJINAL sekil** kullanilir. Ozellik COKMEZ,
+  ///	yalnizca kabalasir (`yayaRotasi` ile ayni ilke).
+  /// ⚠️ Maliyet: sunucu ICERIK OZETINE gore onbellekler, yani ayni hat
+  ///    kac kullanici isterse istesin Google'a BIR KEZ gider. Olculdu:
+  ///    202 sekil -> 845 istek; Roads ayda 5.000 cagri ucretsiz.
+  Future<String?> sekliOturt(String kod) async {
+    final api = _api;
+    if (api == null || kod.isEmpty) return null;
+    try {
+      final r = await api.post<Map<String, dynamic>>(
+        '/yolbul/sekil',
+        data: {'kod': kod},
+      );
+      final yeni = (r.data?['kod'] as String?) ?? '';
+      if (r.data?['oturtuldu'] == true && yeni.isNotEmpty) return yeni;
+    } catch (_) {
+      // ⚠️ Sessiz: cagiran ORIJINALI kullanmaya devam eder.
+    }
+    return null;
+  }
+
+  /// Turkce duyarsiz sadelestirme — **TEK KAYNAK**.
   static String sadelestir(String s) => s
       .replaceAll('İ', 'i')
       .replaceAll('I', 'ı')
