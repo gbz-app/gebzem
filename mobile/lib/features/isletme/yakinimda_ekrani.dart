@@ -7676,6 +7676,10 @@ class _HaritaAlaniState extends State<_HaritaAlani> {
   /// ⚠️ Zaman asimi VAR: yavas agda `_pinUret` suresiz asili kalirsa pin
   ///    HIC cizilmez ve harita isaretsiz kalirdi.
   /// ⚠️ Hata SESSIZ — cagiran null'i yedek dal olarak ele alir.
+  // ⚠️ Cagrilmiyor ama SILINMEDI (turu 165): profil fotografli pin geri
+  //    istenirse tek satirla doner. Bu dosyada ayni sinif silme BES kez
+  //    komsu uyeyi de goturdu (turu 127/138/140/141).
+  // ignore: unused_element
   Future<ui.Image?> _avatarGorseli(double oran) async {
     final adres = widget.avatarAdres;
     if (adres == null || adres.isEmpty) return null;
@@ -8013,21 +8017,27 @@ class _HaritaAlaniState extends State<_HaritaAlani> {
     // ⚠️ TURU 124 — KENDI konum isaretimiz. Google`in MAVI noktasi
     //    kapatildi; bu MOR (marka rengi) ve isletme pinleriyle ayni
     //    bilesenden uretilir (tek kaynak).
-    // ⚠️⚠️⚠️ TURU 139 — KENDI PINDE **PROFIL FOTOGRAFI** (kullanici emri:
-    //	*"bizim kendi navigasyonumuz yerine de resmimiz olsun, mevcut
-    //	profildeki resmi koy"*).
-    // ⚠️ Fotograf cozulemezse (adres yok / ag hatasi / zaman asimi)
-    //    `foto` null kalir ve pin ESKI haline (mor daire + navigasyon
-    //    ikonu) duser. Kullanici konumunu HER DURUMDA gorur.
-    final foto = await _avatarGorseli(oran);
-    if (!mounted) return;
+    // ⚠️⚠️⚠️ **PROFIL FOTOGRAFI KALDIRILDI — STANDART NAVIGASYON.**
+    //
+    //	Turu 139 kullanici emriyle kendi konum pinimize PROFIL
+    //	FOTOGRAFI koymustu. Kullanici bu turda karari GERI ALDI:
+    //	*"normal standart navigasyon haline getir, bizim ikonu,
+    //	cevresindeki beyaz dursun ve ok dursun"*.
+    //
+    // ⚠️⚠️ Fotograf ayni zamanda GORUNUR BIR KUSUR uretiyordu:
+    //	`_avatarGorseli` bir AG istegi (media -> imzali adres -> indir)
+    //	ve pin ONCE navigasyon ikonuyla ciziliyor, fotograf gelince
+    //	YENIDEN uretilip yer degistiriyordu. Kullanici tam bunu gordu:
+    //	*"girerken halen navigasyon ikonu gorunuyor, sonra profil
+    //	resmi geliyor"*. Fotograf kalkinca o gecis de YAPISAL OLARAK
+    //	ortadan kalkiyor (tek cizim, ag istegi YOK, aninda hazir).
+    // ⚠️ `_avatarGorseli` / `_avatariCoz` SILINMEDI: marka pinleri de
+    //    ayni `foto` yolunu kullaniyor ve ileride geri istenebilir.
     final b = await daireIsaret(
       ic: morLogo,
       kenar: Colors.white,
       pikselOrani: oran,
       ikon: LucideIcons.navigation,
-      foto: foto,
-      fotoAnahtar: foto == null ? '' : widget.avatarAnahtar,
     );
     // ⚠️ TURU 149 — otobus duragi pini: mavi ic + beyaz halka + otobus
     //    ikonu. Isletme pininden RENK ve IKONLA ayrilir; ayni renkte

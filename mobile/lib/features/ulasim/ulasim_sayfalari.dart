@@ -55,7 +55,31 @@ Future<T?> _sheet<T>(
           data: _koyuTema(),
           child: Material(
             type: MaterialType.transparency,
-            child: Builder(builder: (tc) => SafeArea(top: false, child: govde(tc))),
+            // ⚠️⚠️ TURU 165 - Sheet KAYARAK aciliyordu ama ICERIK sert giriyordu
+            //    (kullanici: *"hafif bir animasyonla girsin"*). Icerik
+            //    artik 220 msde belirip 12 dp yukari suzuluyor.
+            // ⚠️ `TweenAnimationBuilder` secildi: sheet kendi
+            //    `AnimationController`ini tasiyor, ikinci bir controller
+            //    kurmak `TickerProvider` ister ve bu yardimci
+            //    STATELESS bir fonksiyon.
+            // ⚠️ Deger 0dan baslar ama agac HER ZAMAN kurulur; opaklik
+            //    0 iken bile yerlesim yapilir, yani 0-boyut tuzagi YOK
+            //    (turu 136/156 dersi).
+            child: Builder(
+              builder: (tc) => TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0, end: 1),
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutCubic,
+                builder: (_, t, cocuk) => Opacity(
+                  opacity: t.clamp(0.0, 1.0),
+                  child: Transform.translate(
+                    offset: Offset(0, 12 * (1 - t)),
+                    child: cocuk,
+                  ),
+                ),
+                child: SafeArea(top: false, child: govde(tc)),
+              ),
+            ),
           ),
         ),
       ),
