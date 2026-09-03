@@ -136,7 +136,12 @@ func (h *Handler) Sekil(w http.ResponseWriter, r *http.Request) {
 	//	hem kimlikten bagimsiz hem de varlik yenilendiginde kendini
 	//	otomatik gecersiz kilar.
 	ozet := sha256.Sum256([]byte(req.Kod))
-	ck := "yolbul:sekil:" + hex.EncodeToString(ozet[:16])
+	// ⚠️⚠️ TURU 161 - **ONBELLEK SURUMU `v2`**: turu 160in birlestirme
+	//	hatasi 25 gunluk onbellege BOZUK sekiller yazdi. Anahtar oneki
+	//	degismezse duzeltme sahada HIC gorunmezdi (kullanicilar 25 gun
+	//	boyunca eski, ilmekli cizgiyi almaya devam ederdi).
+	// ⚠️ Birlestirme mantigi her degistiginde bu surum ARTIRILIR.
+	ck := "yolbul:sekil:v2:" + hex.EncodeToString(ozet[:16])
 	if h.rdb != nil {
 		if v, err := h.rdb.Get(r.Context(), ck).Result(); err == nil && v != "" {
 			yaz(w, http.StatusOK, sekilYanit{Kod: v, Oturtuldu: true})
@@ -176,7 +181,28 @@ func (h *Handler) Sekil(w http.ResponseWriter, r *http.Request) {
 //
 //	sayilir. 1,5: gercek bir yola oturmak cizgiyi biraz uzatir (koseler
 //	yuvarlanir, viraj icleri dolar) ama iki katina cikarmaz.
+//
+// ⚠️⚠️⚠️ TURU 161 - **BU KAPI CIFT-CIZIM SINIFINI YAKALAMAZ.**
+//
+//	Turu 160in birlestirme hatasi sekilleri medyan **+%15,3**, en kotu
+//	**+%47** sisirdi ve **196 seklin 0i** bu tavana takildi. Yani kapi
+//	bir koruma degil, KOR NOKTA olarak calisti. Toplam uzunluk olcen
+//	bir kapi, yolun bir bolumunu IKI KEZ cizen bir hatayi goremez.
+// ⚠️ Asil koruma `sekilDikisTavani` (dikis basina kiris); bu tavan
+//    yalnizca "eslestirici bambaska bir yola atladi" vakasi icindir.
 const sekilUzunlukTavani = 1.5
+
+// Iki parca arasindaki dikis kirisi icin ust sinir (metre).
+//
+// ⚠️⚠️ **OLCULDU:** dogru kesimde bu kiris ~0 m olur (kesim noktasi
+//
+//	onceki parcanin son noktasiyla AYNI yerdir). Turu 160in bozuk
+//	birlestirmesinde ise **min 70 m / medyan 591 m / maks 10,3 km**
+//	cikiyordu. 100 m esigi ikisinin ARASINDA guvenli bir yerde:
+//	mesru bir dikisi reddetmez, bozugu HER ZAMAN yakalar.
+// ⚠️ YAPMA: bu degeri 600 m gibi "gercekci" bir sayiya cikarma —
+//    o zaman nobetci sessizce olur (turu 160 kapisiyla ayni tuzak).
+const sekilDikisTavani = 100.0
 
 // sekliOturt — noktalari parca parca Roads API'ye gonderir.
 //
@@ -189,27 +215,40 @@ func (h *Handler) sekliOturt(
 ) ([][2]float64, error) {
 	var cikti [][2]float64
 	adim := sekilParca - sekilOrtusme
-	for bas := 0; bas < len(noktalar); bas += adim {
-		son := bas + sekilParca
+	for ilk := 0; ilk < len(noktalar); ilk += adim {
+		son := ilk + sekilParca
 		if son > len(noktalar) {
 			son = len(noktalar)
 		}
-		parca, err := h.snapParca(ctx, noktalar[bas:son])
+		parca, err := h.snapParca(ctx, noktalar[ilk:son])
 		if err != nil {
 			return nil, err
 		}
-		if len(cikti) == 0 {
-			cikti = parca
-		} else if len(parca) > 0 {
-			// ⚠️ Ortusen bolge iki kez cizilmesin: yeni parcanin ilk
-			//    noktasi eskinin sonuna cok yakinsa atlanir.
-			bas := 0
-			if len(cikti) > 0 &&
-				kabaMetre(cikti[len(cikti)-1][0], cikti[len(cikti)-1][1],
-					parca[0][0], parca[0][1]) < 1 {
-				bas = 1
+		kes := 0
+		if ilk > 0 {
+			kes = ortusmeKesim(parca)
+		}
+		// ⚠️⚠️ **DIKIS NOBETCISI** — kesim CALISMADIYSA sessizce gecmesin.
+		//
+		//	Turu 160in hatasi tam da SESSIZ oldugu icin sahaya cikti:
+		//	`sekilUzunlukTavani` (1,5) medyan +%15lik sismeyi gormedi,
+		//	log yoktu, olcum yoktu. Artik iki parca arasindaki kiris
+		//	`sekilDikisTavani`yi asarsa TUM islem basarisiz sayilir ve
+		//	fail-open ile ORIJINAL sekil doner.
+		// ⚠️ Bu bir hata degil KORUMA: kullanici bozuk cizgi yerine turu
+		//    159un kaba ama DOGRU cizgisini gorur.
+		if len(cikti) > 0 && kes < len(parca) {
+			k := kabaMetre(
+				cikti[len(cikti)-1][0], cikti[len(cikti)-1][1],
+				parca[kes].Location.Latitude, parca[kes].Location.Longitude)
+			if k > sekilDikisTavani {
+				return nil, fmt.Errorf("dikis kirisi %.0f m (tavan %.0f)",
+					k, sekilDikisTavani)
 			}
-			cikti = append(cikti, parca[bas:]...)
+		}
+		for _, s := range parca[kes:] {
+			cikti = append(cikti,
+				[2]float64{s.Location.Latitude, s.Location.Longitude})
 		}
 		if son == len(noktalar) {
 			break
@@ -218,18 +257,77 @@ func (h *Handler) sekliOturt(
 	return cikti, nil
 }
 
+// ortusmeKesim — yeni parcanin KACINCI noktasindan itibaren cizilecegi.
+//
+// ⚠️⚠️⚠️ TURU 161 - **FAZLADAN CIZGILERIN KOK NEDENI BURASIYDI.**
+//
+//	Kullanici: *"rotalarda FAZLADAN CIZGILER var, alakasiz"* — ekranda
+//	halka + icinden gecen DIAGONAL, ikiz paralel cizgi ve uzun ince
+//	ILMEK olarak goruluyordu.
+//
+// ⚠️⚠️ **OLCULDU (202 gercek sekil, 643 dikis):** her dikiste ortusen
+//	koridor IKI KEZ ciziliyordu (medyan **640 m**, maks **10,4 km**) ve
+//	parcalar arasinda yolda karsiligi OLMAYAN bir GERI SICRAMA KIRISI
+//	kaliyordu (medyan **591 m**, **en kucugu 70 m**). Toplamda agin
+//	**%8,9'u (521 km)** iki kez cizildi; sekil uzunlugu medyan **+%15,3**,
+//	en kotu **+%47** sisti.
+//
+// ⚠️⚠️ **TURU 160'IN MESAFE KAPISI FIILEN OLUYDU**: 1 m esigiyle yazilmisti
+//	ve **643 dikisin 0'inda** tetiklendi. Sebep: kapi girdi ile cikti
+//	arasinda 1:1 nokta eslemesi varsayiyordu, `interpolate=true` ise o
+//	varsayimi yikiyor. `sekilUzunlukTavani` (1,5) de yakalamiyordu —
+//	en kotu sisme %47, tavanin cok altinda.
+//
+// ⚠️⚠️ **KESIM `originalIndex` ILE YAPILIR, MESAFEYLE DEGIL.** Onceki
+//	parca girdi indeksi `ilk+sekilParca-1`e kadar cizdi; yeni parcada o
+//	nokta yerel indeks `sekilOrtusme-1`dir. Ondan SONRAKI ilk noktadan
+//	baslanir.
+// ⚠️⚠️ **`>= sekilOrtusme` ILE KESME**: o zaman yerel 9 ile 10 arasindaki
+//	INTERPOLE noktalar da atilir ve orada tek parcalik DUZ BIR KIRIS
+//	kalir (bu veride 400 m'yi asan segmentler var). Dogrusu `==` ile
+//	sinir noktasini bulup ONDAN SONRA baslamaktir.
+// ⚠️ Roads eslesmeyen noktayi DUSUREBILIR: tam esleme yoksa `>=` ile
+//    ilk uygun noktaya dusulur; o da yoksa 0 donulur (eski davranis,
+//    yani fazladan cizgi — bozuk cizgiden iyidir, hicbir sey cizmemek
+//    ozelligi tamamen oldururdu).
+func ortusmeKesim(parca []snapNokta) int {
+	sinir := sekilOrtusme - 1
+	for i, s := range parca {
+		if s.OriginalIndex != nil && *s.OriginalIndex == sinir {
+			return i + 1
+		}
+	}
+	for i, s := range parca {
+		if s.OriginalIndex != nil && *s.OriginalIndex >= sinir {
+			return i + 1
+		}
+	}
+	return 0
+}
+
+// ⚠️⚠️⚠️ TURU 161 - **`originalIndex` OKUNMAK ZORUNDA.**
+//
+//	Turu 160 yalnizca `location` ayristiriyordu ve parcalari MESAFEYE
+//	gore birlestirmeye calisiyordu. `interpolate=true` girdi ile cikti
+//	arasindaki 1:1 eslemeyi YIKTIGI icin o kapi FIILEN OLUYDU
+//	(olculdu: 643 dikisin **0**'inda tetiklendi).
+// ⚠️ Interpolasyonla EKLENEN noktalarda bu alan YOKTUR (Google dokumani);
+//    bu yuzden isaretci (`*int`) — `0` ile "yok" ayirt edilmek ZORUNDA.
+type snapNokta struct {
+	Location struct {
+		Latitude  float64 `json:"latitude"`
+		Longitude float64 `json:"longitude"`
+	} `json:"location"`
+	OriginalIndex *int `json:"originalIndex"`
+}
+
 type snapYanit struct {
-	SnappedPoints []struct {
-		Location struct {
-			Latitude  float64 `json:"latitude"`
-			Longitude float64 `json:"longitude"`
-		} `json:"location"`
-	} `json:"snappedPoints"`
+	SnappedPoints []snapNokta `json:"snappedPoints"`
 }
 
 func (h *Handler) snapParca(
 	ctx context.Context, p [][2]float64,
-) ([][2]float64, error) {
+) ([]snapNokta, error) {
 	if len(p) < 2 {
 		return nil, fmt.Errorf("parca cok kucuk")
 	}
@@ -268,14 +366,10 @@ func (h *Handler) snapParca(
 	if err := json.Unmarshal(ham, &y); err != nil {
 		return nil, err
 	}
-	out := make([][2]float64, 0, len(y.SnappedPoints))
-	for _, s := range y.SnappedPoints {
-		out = append(out, [2]float64{s.Location.Latitude, s.Location.Longitude})
-	}
-	if len(out) < 2 {
+	if len(y.SnappedPoints) < 2 {
 		return nil, fmt.Errorf("roads bos yanit")
 	}
-	return out, nil
+	return y.SnappedPoints, nil
 }
 
 func yolUzunlugu(p [][2]float64) float64 {

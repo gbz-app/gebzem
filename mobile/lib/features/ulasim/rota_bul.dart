@@ -407,13 +407,13 @@ double _yolUzunlugu(List<({double enlem, double boylam})> yol) {
 ///	durak yolun tam ustunde olsa bile buyuk cikar. Bu tuzaga
 ///	ilk olcumde DUSULDU: kose ile "kotu vaka" %4,09 gorunurken
 ///	izdusumle **%1,05** cikti.
-({int seg, double uz}) _enYakinIz(
+({int seg, double uz, double t}) _enYakinIz(
   List<({double enlem, double boylam})> yol,
   double enlem,
   double boylam, {
   int basSegment = 0,
 }) {
-  if (yol.length < 2) return (seg: 0, uz: double.infinity);
+  if (yol.length < 2) return (seg: 0, uz: double.infinity, t: 0);
   // ⚠️ Taban cizginin DISINA tasarsa arama yapilacak segment KALMAZ;
     // cagiran (`_guzergahDilimi`) bunu duz-cizgi dali ile karsilar.
   final bas = basSegment.clamp(0, yol.length - 2);
@@ -422,6 +422,20 @@ double _yolUzunlugu(List<({double enlem, double boylam})> yol) {
   final py = enlem * 111320.0;
   var enIyi = bas;
   var enAz = double.infinity;
+  // ⚠️⚠️⚠️ TURU 161 - **`t` ARTIK SAKLANIYOR** (dik baglayici icin).
+  //
+  //	Izdusum noktasi bu fonksiyonda ZATEN hesaplaniyordu (`qx`/`qy`)
+  //	ama disari CIKMIYORDU; `_guzergahDilimi` elinde yalniz segment
+  //	indeksi kaldigi icin duragi bir SONRAKI KOSEYE baglamak zorunda
+  //	kaliyordu. Kullanici bunu gordu: *"otobus duraklari icerden
+  //	90 derece dik cikip devam etmiyor"*.
+  // ⚠️⚠️ **OLCULDU (11.437 hat-yon x durak cifti):** baglayicinin yola
+  //	gore acisi ham GTFSte medyan **6,7 derece**; turu 160 sonrasi
+  //	medyan **46,5** ama dik gorunen (>=70) hala yalnizca **%20,3**.
+  //	Sebep geometrik: izdusum mesafesi medyan 5,7 m, koseye ileri
+  //	ofset medyan 5,6 m -> atan(5,7/5,6) = 45,5 derece.
+  //	Izdusum eklendiginde aci vakalarin **%98,2**sinde 90 olur.
+  var enT = 0.0;
   for (var i = bas; i < yol.length - 1; i++) {
     final ax = yol[i].boylam * kx;
     final ay = yol[i].enlem * 111320.0;
@@ -443,9 +457,125 @@ double _yolUzunlugu(List<({double enlem, double boylam})> yol) {
     if (d < enAz) {
       enAz = d;
       enIyi = i;
+      enT = t;
     }
   }
-  return (seg: enIyi, uz: math.sqrt(enAz));
+  return (seg: enIyi, uz: math.sqrt(enAz), t: enT);
+}
+
+/// Uc noktalarinin tekillestirme esigi (metre).
+///
+/// ⚠️ TEK KAYNAK: hem `_uclariBagla` hem `_dilimKur` bunu okur. Ayri
+///    sabit yazilirsa ikisi zamanla ayrisir (bu projenin ikinci en sik
+///    hata sinifi).
+const double kUcEsikM = 0.5;
+
+/// [seg] segmenti uzerinde [t] parametresindeki nokta.
+///
+/// ⚠️⚠️ Hesap **DERECE UZAYINDA** yapilir, metrik uzayda DEGIL.
+///
+///	`t` afin bir parametre oldugu icin iki uzayda AYNIDIR; metrik
+///	uzayda kurup `kx` ile geri cevirmek yalnizca yuvarlama kaymasi
+///	uretir.
+({double enlem, double boylam})? _izdusumNoktasi(
+  List<({double enlem, double boylam})> yol,
+  int seg,
+  double t,
+) {
+  if (seg < 0 || seg + 1 >= yol.length) return null;
+  final a = yol[seg];
+  final b = yol[seg + 1];
+  return (
+    enlem: a.enlem + t * (b.enlem - a.enlem),
+    boylam: a.boylam + t * (b.boylam - a.boylam),
+  );
+}
+
+/// Otobus bacagi dilimini kurar: `[binis, q_a, ...koseler, q_b, inis]`.
+///
+/// ⚠️⚠️⚠️ TURU 161 - **DIK BAGLAYICI TEK KAYNAK.**
+///
+///	Kullanici (Yandex referansiyla): *"otobus duraklari icerden
+///	90 derece dik cikip devam etmiyor"*. Eskiden dilim duragi bir
+///	SONRAKI KOSEYE (`yol[a+1]`) bagliyordu; cizgi duraktan cikip
+///	yola EGIK giriyor ve kayarak karisiyordu. Artik once duragin
+///	yola DIK AYAGI (`q_a`) konur.
+///
+/// ⚠️⚠️ **MUKERRER NOKTA KAPISI ZORUNLU**: `_enYakinIz` icinde `t`
+///
+///	`clamp(0,1)` ile kirpiliyor; vakalarin **%1,8**inde q tam bir
+///	KOSENIN uzerine duser ve ayni nokta iki kez girer (ya da dilim
+///	bir adim geri gider). Bu yuzden komsusuna `kUcEsikM`den yakin
+///	her nokta ATILIR. Turu 155in `_uclariBagla` esigiyle AYNI sinif.
+///
+/// ⚠️⚠️ **TERS DILIMDE UCLAR TAKASLANMAZ**: ters cevrilen yalniz KOSE
+///
+///	SIRASIDIR; izdusumler kendi duraklarina bagli kalir. Yani her iki
+///	dalda da **q_a BASTA, q_b SONDA**. Yardimciya "uclari takasla"
+///	parametresi KOYMA.
+///
+/// ⏳ **DURUST SINIR:** dik cikisin boyu = izdusum mesafesi, medyan
+///
+///	**5,7 m**. Gebze enleminde z18de ~12,6 dp; cizgi genisligi
+///	`kOtobusEn` 6 + kilif 2 = 8 dp. Yani z18de SINIRDA, **z19da
+///	net**. p25 = 3,3 m olan ciftlerde z18de fiilen gorunmez.
+List<({double enlem, double boylam})> _dilimKur({
+  required List<({double enlem, double boylam})> yol,
+  required Durak binis,
+  required Durak inis,
+  required int aSeg,
+  required double aT,
+  required int bSeg,
+  required double bT,
+  required double aUz,
+  required double bUz,
+  required Iterable<({double enlem, double boylam})> koseler,
+}) {
+  // ⚠️⚠️⚠️ TURU 161 - **SEKIL DURAGI KAPSAMIYORSA O UC CIZILMEZ.**
+  //
+  //	Turu 161 koy duraklarini varliga eklerken bir delik acti:
+  //	**423 hattinin GTFS sekli Ovacik Koyune HIC ULASMIYOR**
+  //	(durak seklin en kuzey noktasindan **6.989 m** uzakta) ama
+  //	`stop_times` 74 trip ile oraya gittigini soyluyor. Yani SEFER
+  //	GERCEK, bozuk olan yalniz SEKIL.
+  //	Eskiden dilimin sonuna **7.001 m uzunlugunda uydurma bir
+  //	baglayici** ekleniyordu -> haritada tam da kullanicinin
+  //	sikayet ettigi *"alakasiz, fazladan dev diagonal cizgi"*.
+  //
+  // ⚠️⚠️ **TURU 158 MUHAFIZI BUNU YAPISAL OLARAK YAKALAYAMAZ**:
+  //	kurtarma sarti `bG.uz * 3 < bIz.uz`; burada global izdusum de
+  //	ayni degeri veriyor (`6989*3 < 6989` FALSE) -> kurtarma dalina
+  //	HIC girilmiyor.
+  //
+  // ⚠️ **SEFER SILINMEZ, YALNIZ CIZGI KESILIR.** Cift elenirse Gebze
+  //    merkez -> Ovacik icin dogrudan rota KALMIYOR (KM58 165 dk ile
+  //    150 dk tavanina takiliyor) ve turu 161de kullanicinin ACIKCA
+  //    istedigi sey geri kaybedilirdi.
+  //
+  // 📊 OLCULDU: 11.440 (durak,hat,yon) uclusunun **8i** bu sinifta
+  //    (%0,07). En kotusu Ovacik degil: SEKER SOKAK 2 / hat 504 yon0
+  //    = **7.200 m**. Bu sinif turu 160ta da vardi.
+  final basVar = aUz <= kDilimIzdusumTavani;
+  final sonVar = bUz <= kDilimIzdusumTavani;
+  final ham = <({double enlem, double boylam})>[
+    if (basVar) (enlem: binis.enlem, boylam: binis.boylam),
+    ?_izdusumNoktasi(yol, aSeg, aT),
+    ...koseler,
+    ?_izdusumNoktasi(yol, bSeg, bT),
+    if (sonVar) (enlem: inis.enlem, boylam: inis.boylam),
+  ];
+  final cikti = <({double enlem, double boylam})>[];
+  for (final n in ham) {
+    if (cikti.isNotEmpty) {
+      final o = cikti.last;
+      if (UlasimVeri.kabaMetre(o.enlem, o.boylam, n.enlem, n.boylam) <=
+          kUcEsikM) {
+        continue;
+      }
+    }
+    cikti.add(n);
+  }
+  return cikti;
 }
 
 /// Bir polyline'in iki durak arasindaki dilimi.
@@ -485,6 +615,18 @@ List<({double enlem, double boylam})> _guzergahDilimi(
   final aIz = _enYakinIz(yol, binis.enlem, binis.boylam);
   final a = aIz.seg;
   // ⚠️⚠️ Inis BINISTEN SONRA aranir — bkz. `_enYakinSegment` serhi.
+  // ⚠️⚠️⚠️ TURU 161 - **KAPSAM SORUSU GLOBALDIR, PENCERELI DEGIL.**
+  //
+  //	"Sekil bu duragi kapsiyor mu?" sorusunun cevabi PENCERELI
+  //	aramadan OKUNAMAZ: ilmekli hatlarda (seklilerin **%17,3**u
+  //	ilmekli - turu 155 olcumu) durak sekil UZERINDE olsa bile
+  //	binisin ILERISINDE olmadigi icin pencereli mesafe buyuk cikar.
+  //	O deger kapsam kapisina baglansaydi SIRADAN ilmekli hatlarda
+  //	tetiklenir ve cizgi yanlis yerde kesilirdi.
+  // ⚠️ Ek maliyet YOK sayilir: `_guzergahDilimi` yalniz KAZANAN
+  //    adaylar icin cagriliyor (pahali insa turu 157de ic donguden
+  //    CIKARILDI).
+  final bIzG = _enYakinIz(yol, inis.enlem, inis.boylam);
   var bIz = _enYakinIz(yol, inis.enlem, inis.boylam, basSegment: a + 1);
   // ⚠️⚠️⚠️ TURU 158 - **ZORLANAN `b` GERCEKTEN DURAGIN YANINDA MI?**
   //
@@ -520,7 +662,7 @@ List<({double enlem, double boylam})> _guzergahDilimi(
   final pencereGenis =
       (yol.length - 2) - (a + 1) + 1 >= kDilimPencereAsgari;
   if (pencereGenis && bIz.uz > kDilimIzdusumTavani) {
-    final bG = _enYakinIz(yol, inis.enlem, inis.boylam);
+    final bG = bIzG;
     // ⚠️⚠️ **`bG.seg > a` KOSULU YOKTUR — OLCULDU, BOS CIKIYOR.**
     //	Arastirma o kosulu onerdi; simule edildi ve **0 cift**
     //	duzeldi: `bG.seg > a` ise `bG` zaten pencerenin ICINDE
@@ -539,11 +681,18 @@ List<({double enlem, double boylam})> _guzergahDilimi(
         final alt = bG.seg + 1;
         final ust = math.min(a + 1, yol.length);
         if (alt < ust) {
-          final ters = [
-            (enlem: binis.enlem, boylam: binis.boylam),
-            ...yol.sublist(alt, ust).reversed,
-            (enlem: inis.enlem, boylam: inis.boylam),
-          ];
+          final ters = _dilimKur(
+            yol: yol,
+            binis: binis,
+            inis: inis,
+            aSeg: a,
+            aT: aIz.t,
+            bSeg: bG.seg,
+            bT: bG.t,
+            aUz: aIz.uz,
+            bUz: bG.uz,
+            koseler: yol.sublist(alt, ust).reversed,
+          );
           // ⚠️⚠️⚠️ TURU 158b - **SONUC MAKUL MU?**
           //	Ters dilim iki durak arasi kus ucusunun
           //	`kDilimTersTavani` katindan uzunsa bu bir guzergah
@@ -566,16 +715,66 @@ List<({double enlem, double boylam})> _guzergahDilimi(
   }
   final b = bIz.seg;
   if (b <= a) {
+    // ⚠️⚠️⚠️ TURU 161 - **KAPSAM DISI UCTA DUZ CIZGI CIZME.**
+    //
+    //	Bu emniyet agi normalde ILMEKLI hatlar icindir ve iki durak
+    //	da sekil UZERINDE oldugu icin cizdigi duz cizgi KISADIR.
+    //	Ama sekil duragi hic kapsamiyorsa (423/Ovacik) ayni dal
+    //	hariteyi capraz kesen **19.264 m** uzunlugunda bir cizgi
+    //	uretiyordu. O vakada seklin KENDI kuyrugu cizilir: cizgi
+    //	gercek guzergahi izler ve seklin bittigi yerde DURUR.
+    if (bIzG.uz > kDilimIzdusumTavani && a + 1 < yol.length) {
+      return _dilimKur(
+        yol: yol,
+        binis: binis,
+        inis: inis,
+        aSeg: a,
+        aT: aIz.t,
+        bSeg: yol.length - 2,
+        bT: 1,
+        aUz: aIz.uz,
+        bUz: bIzG.uz,
+        koseler: yol.sublist(a + 1, yol.length),
+      );
+    }
+    if (aIz.uz > kDilimIzdusumTavani && bIzG.seg > 0) {
+      return _dilimKur(
+        yol: yol,
+        binis: binis,
+        inis: inis,
+        aSeg: 0,
+        aT: 0,
+        bSeg: bIzG.seg,
+        bT: bIzG.t,
+        aUz: aIz.uz,
+        bUz: bIzG.uz,
+        koseler: yol.sublist(0, math.min(bIzG.seg + 1, yol.length)),
+      );
+    }
     return [
       (enlem: binis.enlem, boylam: binis.boylam),
       (enlem: inis.enlem, boylam: inis.boylam),
     ];
   }
-  return [
-    (enlem: binis.enlem, boylam: binis.boylam),
-    ...yol.sublist(a + 1, math.min(b + 1, yol.length)),
-    (enlem: inis.enlem, boylam: inis.boylam),
-  ];
+  return _dilimKur(
+    yol: yol,
+    binis: binis,
+    inis: inis,
+    aSeg: a,
+    aT: aIz.t,
+    bSeg: b,
+    bT: bIz.t,
+    aUz: aIz.uz,
+    // ⚠️⚠️ Kapsam kapisi burada **PENCERELI** olcuyu okur, global degil.
+    //
+    //	`bIz` binisin ILERISINDEN aranir; bu dalda buyuk cikmasi
+    //	"seklin ILERI kismi bu duragi icermiyor" demektir ve o zaman
+    //	cizilecek baglayici UYDURMADIR. Global olcuyle yumusatmak
+    //	(min) olculdu: 2 km+ uydurma baglayici %0,73te KALIYORDU.
+    // ⚠️ Ters cevirme dali AYRI: orada bilerek `bG.uz` gecilir.
+    bUz: bIz.uz,
+    koseler: yol.sublist(a + 1, math.min(b + 1, yol.length)),
+  );
 }
 
 /// Aktarmasiz rota adaylari (en erken varis ONCE, en fazla [adet]).
@@ -1502,7 +1701,7 @@ List<({double enlem, double boylam})> _uclariBagla(
   ({double enlem, double boylam}) bas,
   ({double enlem, double boylam}) varis,
 ) {
-  const esik = 0.5;
+  const esik = kUcEsikM;
   final ilk = yol.first;
   final son = yol.last;
   return [
