@@ -1,3 +1,51 @@
+# Oturum — Turu 162 (3 Eyl 2026)
+
+## Kullanici bildirimi (dort ekran goruntusu)
+
+1. *"ovacika gitmiyor... yandexte var K ile basliyor direk oraya giden
+   otobusu gosteriyor ama sen CUMA KOYE giden otobusu gosteriyorsun"*
+2. *"butun izmit kocaeli duragini verdim sana hepsini koymadin mi mahalle
+   sokak sokak hepsi olmasi gerekiyor"*
+3. *"halen yoldan cikan shapeler var"*
+
+## Yapilanlar
+
+| Is | Sonuc |
+|---|---|
+| (2) Tum Kocaeli | OLDU. 2.071 -> **8.502 durak**, 105 -> **411 hat**, gzip +0,89 MB, Roads 2.896/ay (kota 5.000, maliyet 0 USD). |
+| (1) Ovacik — kok neden | OLDU. **Belediye GTFSinde veri hatasi**: 423e yanlislikla atanmis durak (436 km/h). Iki kosullu muhafiz 40.887 atamanin 7sini duşuruyor. |
+| (1) Ovacik — rota | OLDU. Sure tavani ikiye bolundu + mesafeye gore olcekleniyor -> KM58 artik BULUNUYOR (Guzeller OSB 14:31 -> Ovacik 16:54, Yandexle birebir). |
+| (3) Vapur/tramvay yola oturtuluyordu | OLDU. `UlasimModu` eklendi; yalniz otobus snap edilir. |
+| (3) Dikis nobetcisi haksiz reddediyordu | OLDU. Geometrik emniyet agi -> fail-open 2/30 -> **0/30**. |
+| Vapur/tramvay ARAYUZDE ayri renk/ikon | OLMADI — AYRI TUR. |
+
+## Kalici dersler
+
+- ⚠️⚠️⚠️ **Bir sikayetin kok nedenini VERIDE de ara.** *"Ovacika gitmiyor"un
+  cevabi kodda degil, belediyenin `stop_times` dosyasindaydi: 423 o duraga
+  1 dakikada 7 km giderek ulasiyor gorunuyordu (436 km/h).
+- ⚠️⚠️ **Fiziksel olabilirlik ucuz ve cok guclu bir muhafizdir.** Tek basina
+  hiz kosulu 394 sicrama isaretliyor (cogu yanlis pozitif); sekil izdusumu
+  ile BIRLIKTE yalnizca 7 gercek hata kaliyor.
+- ⚠️⚠️ **Bir tavan iki farkli seyi olcuyorsa boluneceklerdir.** `varis - suAn`
+  hem "yolculuk absurt uzun" hem "sonraki otobus gec" durumunu eliyordu;
+  ikincisi bir HATA DEGIL, koy hattinin dogasidir.
+- ⚠️⚠️ **Varlikta tasinan bir alani istemcinin OKUDUGUNU varsayma.**
+  `route_type` aylardir varliktaydi, istemci HIC okumuyordu; sonuc, korfezi
+  gecen feribot cizgisini otobus sanip yola oturtmaya calismakti.
+- ⚠️ **Bir nobetci yalniz "mekanizma calisti mi" sorusuna bakmali.** Turu
+  161in 100 mlik kiris nobetcisi sonucun "biraz kotu" gorunmesini de hata
+  sayip TUM sekli reddediyordu; dogru tasarim once GEOMETRIK EMNIYET AGI.
+
+## Devir notlari
+
+- Backend **cdae708** deploy edildi, health ok.
+- Onbellek oneki **v3**.
+- `tools/ulasim_uret.js` artik parametrik (`GBZ_HEDEF` / `GBZ_KUTU`,
+  YALNIZ olcum icin) ve taksi kaynagi yoksa o adimi ATLIYOR.
+- `kTestSaati = 720` hala acik (gece testi).
+
+---
 # Oturum — Turu 161 (3 Eyl 2026)
 
 ## Kullanici bildirimi (8 ekran goruntusu)

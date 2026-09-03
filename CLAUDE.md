@@ -41,6 +41,128 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
       kaybettiriyorsun"*. **Üçüncüsü olmayacak.**
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (3 Eyl): TURU 162 KODU BITTI, BACKEND DEPLOY (cdae708).**
+
+- 🗺️ ⚠️⚠️⚠️ **TURU 162 — TUM KOCAELI** (kullanici emri: *"butun izmit
+  kocaeli duragini verdim sana hepsini koymadin mi mahalle sokak sokak
+  hepsi olmasi gerekiyor"*). Kullanici HAKLIYDI: ham GTFS 8.511 durak /
+  418 hat tasiyor, biz **2.071 / 105** paketliyorduk (%75i disarida).
+  Dogu siniri 29,60 oldugu icin **Izmit · Korfez · Derince · Kandira**
+  TAMAMEN yoktu.
+  📊 **BEDELI OLCULDU — NEREDEYSE BEDAVA:**
+
+  | | durak | hat | sekil | gzip | JSON.parse | Roads/ay |
+  |---|---|---|---|---|---|---|
+  | eski | 2.071 | 105 | 202 | 0,34 MB | 9 ms | 845 |
+  | **yeni** | **8.502** | **411** | **779** | **1,23 MB** | **17 ms** | **2.896** |
+
+  Aktarma indeksi kurulumu **10,4 -> 43,7 ms**, komsu cifti
+  **3.964 -> 16.492** (izgara sayesinde DOGRUSAL, kareli DEGIL).
+  Roads ucretsiz kotasi 5.000 -> **aylik maliyet HALA 0 USD** (ustelik
+  sekiller TALEP UZERINE cekiliyor).
+  ⚠️ `KUTU` artik veri elemek icin DEGIL, yanlis koordinatli kayitlari
+     (0,0 / baska il) disarida tutmak icin var.
+
+- ⚠️⚠️⚠️ **TURU 162 — "OVACIKA GITMIYOR": BELEDIYE VERISINDE GERCEK HATA.**
+  Kullanici: *"yandexte var K ile basliyor direk oraya giden otobusu
+  gosteriyor ama sen CUMA KOYE giden otobusu gosteriyorsun"*.
+  **KOK NEDEN ARAMA DEGIL VERI.** 423 hattinin sefer dizisi:
+
+  | sira | saat | durak | sekle izdusum |
+  |---|---|---|---|
+  | 57 | 07:40 | 3326. SOKAK 1 | 11 m ✅ |
+  | 58 | 07:41 | **OVACIK KOYU CIKIS 1** | **6.990 m** ❌ |
+  | 59 | 07:43 | GAZI MUSTAFA KEMAL CD 5 | 4 m ✅ |
+
+  1 dakikada 7 km = **436 km/h**. FIZIKSEL OLARAK IMKANSIZ — durak
+  yanlislikla 423e atanmis. **423 Ovacika HIC GITMIYOR.**
+  Ovacika giden GERCEK hat **KM58** (ULASIM PARK, 120 ugrama, kendi
+  sekli Ovacika ULASIYOR) — Yandexteki "K ile baslayan" hat budur.
+  **FIX — URETICIDE IKI KOSULLU MUHAFIZ** (`tools/ulasim_uret.js`):
+  bir durak (hat,yon) atamasindan DUSER ancak **(1)** hattin KENDI
+  sekline **500 m**den uzaksa **VE (2)** komsusuyla ima edilen hiz
+  **90 km/h**i asiyorsa.
+  📊 **OLCULDU: 40.887 atamanin 7si (%0,017)** dusuyor, yedisi de
+     tartisilmaz (436-1.490 km/h): KM58/YAYLADERE (40,4 km) ·
+     645/GAYRAN GULU (16,0) · 504/SEKER SOKAK 2 (7,2) · **423/OVACIK
+     (6,99)** · KM55 (5,9) · 753 (5,6) · 797 (2,0).
+  ⚠️⚠️ **IKI KOSUL DA GEREKLI**: yalniz hiz kosulu **394 sicrama /
+     317 atama** isaretliyor ve cogu KABA SEKIL ya da ekspres bacak,
+     yani YANLIS POZITIF olurdu. Yalniz sekil kosulu ise ciftin HANGI
+     ucunun bozuk oldugunu SOYLEYEMEZ.
+  ⚠️ YAPMA: esikleri gevsetme. 90 km/h zaten cok comert — kus ucusu
+     ALT SINIRDIR, gercek yol daha uzundur.
+
+- ⏱️ ⚠️⚠️ **TURU 162 — SURE TAVANI IKIYE BOLUNDU + MESAFEYE GORE.**
+  Eski olcut `varis - suAn` idi, yani **ILK OTOBUSU BEKLEMEYI DE**
+  sayiyordu. Koy hatlarinda (KM58 gunde **5 sefer**) bekleme tek basina
+  2 saat -> rota, YOLCULUGUN KENDISI makul olmasina ragmen eleniyordu.
+  **YENI:** `yolculuk <= clamp(kus_km * 12, 150, 300)` **VE**
+  `bekleme <= 180`.
+  📊 Kullanicinin 12:19 aramasi: tavan **182 dk**, yolculuk 152,
+     bekleme 123 -> **KM58 Guzeller OSB 14:31 -> Ovacik 16:54**.
+     **Yandexin gosterdigiyle BIREBIR AYNI** (Yandex de KM58/Guzeller
+     OSB gosteriyordu). Yani rotamiz Yandexten KOTU degil — 12:19da
+     dogru cevap ZATEN 510B->423 aktarmasiyla 12:50 idi.
+  📊 300 rastgele cift: **gerileme 0**, kazanc +1, sure medyan 0 /
+     maks 4 ms.
+  ⚠️ Kural ASLA bugunkunden siki degil (clamp tabani 150) -> turu 157nin
+     "984 dakikalik rota birinci sirada" hatasi GERI GELMEZ.
+
+- 🚢 ⚠️⚠️⚠️ **TURU 162 — VERIDE DORT MOD VAR, HEPSINI OTOBUS SANIYORDUK.**
+  `route_type` ZATEN varlikta tasiniyordu (`hatlar.json` -> `t`) ama
+  istemci onu **HIC OKUMUYORDU**.
+  📊 tramvay **3** (T1/T2/T3 Akcaray) · otobus **404** · **vapur 10**
+     (IZMIT · GOLCUK · D.DERE · KARAMURSEL · DERINCE · TUTUNCIFTLIK ·
+     HEREKE Iskele Hatlari) · funikuler **1** (Derbent-Kuzuyayla).
+  Vapur sekilleri **2-7 nokta / 12-63 km**, yani korfezi gecen DUZ
+  CIZGILER — bir feribot icin DOGRU. Biz onlari otobus diye cizip
+  **yola oturtmaya** calisiyorduk; *"halen yoldan cikan shapeler var"*
+  sikayetinin bir parcasi buydu.
+  **FIX:** `UlasimModu` enum + `Hat.mod`; `guzergah()` yalniz
+  `yolaOturur` modlari snap eder; adim metni otobus DISINDAKI modlarda
+  modu YAZAR ("IZMIT (Vapur) ile gidin").
+  ⚠️ **TRAMVAY BILEREK DISARIDA**: cadde uzerinde ama KENDI RAYINDA
+     gider; en yakin yola oturtmak PARALEL serite kaydirabilir.
+  ⚠️ Bilinmeyen `route_type` OTOBUS SAYILMAZ (sessizce yanlis cizmek
+     yerine `bilinmiyor`).
+
+- 🧵 ⚠️⚠️ **TURU 162 — DIKIS KESIMINDE GEOMETRIK EMNIYET AGI.**
+  📊 CANLI OLCULDU (15 dikis, gercek Google cagrisi): turu 161in
+     `originalIndex` kesimi **13 dikiste TAM 0,0 m** tutturuyor —
+     mekanizma DOGRU. Ama 2 dikiste iki parca AYNI girdi noktasini
+     FARKLI yollara oturtuyor (kavsak belirsizligi) ve kiris 18,5 /
+     74,5 m cikiyor. Turu 161in 100 mlik nobetcisi o vakalarda **TUM
+     sekli reddedip HAM cizgiye dusuruyordu** (30 seklin 2si).
+  **FIX:** indeks kesimi BIRINCIL kalir; kiris tavani asarsa yeni
+  parcanin BAS BOLGESINDE (`sekilAraPencere` 140) en yakin nokta aranir.
+  📊 SONUC: fail-open **2/30 -> 0/30 (%100 basari)**, uzunluk sismesi
+     medyan **+%0,7** (maks +%2,5), segment medyani **40-90 m -> 8 m**.
+  ⚠️ **ARAMA PENCERESI ZORUNLU**: serbest birakilsaydi ilmekli hatlarda
+     (sekillerin %17,3u) yolun ILERISINDEKI gecise kilitlenip guzergahin
+     bir bolumunu TUMDEN atlardi — cift-cizimden DAHA KOTU.
+  ⚠️ Onbellek oneki **v2 -> v3** (birlestirme mantigi degisti).
+
+- ⚠️⚠️ **TURU 162 — OLCUM YONTEMI DERSLERI:**
+  · **Gecerli cifti suzmeden oran hesaplama**: ilk olcumum TUM (i,j)
+    durak ciftlerini sayip %48,6 gibi anlamsiz bir oran verdi —
+    yarisi GECERSIZ (inis, binisten ONCE gelen durak).
+  · **"En uzun segment" ham GTFSte yanlis metriktir** (kendi segmentleri
+    4 kmye kadar cikiyor); uydurma baglayici BAS/SON segmentle olculur.
+  · **Bir sikayetin kok nedenini VERIDE ara**: "Ovacika gitmiyor"un
+    cevabi kodda degil, belediyenin `stop_times` dosyasindaydi.
+
+- ⏳ **TURU 162 — DURUST SINIRLAR:**
+  · **Tramvay/vapur/funikuler ARAYUZDE HALA OTOBUS GIBI CIZILIYOR**
+    (yesil cizgi, otobus ikonu); yalniz adim METNI modu soyluyor.
+    Renk/ikon ayrimi AYRI TUR.
+  · **Marmaray/TCDD verisi YOK** — bu GTFS yalniz Kocaeli Buyuksehir
+    (KentKart) hatlarini iceriyor.
+  · `UlasimVeri.kTestSaati = 720` **HALA ACIK** (gece testi, kullanici
+    emri). Nobetci: `grep -rn "GECICI-TEST" lib/`.
+  · `otos/taksi/taksi_duraklar.json` repoda YOK; uretici artik o adimi
+    ATLIYOR ve mevcut `taksi.json` KORUNUYOR (eskiden son adimda
+    patlayip varliklarin yarisini yenilenmis birakiyordu).
 - **KALDIGIMIZ YER (3 Eyl): TURU 161 KODU BITTI, BACKEND DEPLOY (81afa68),
   iOS BUILD ALINIYOR.**
 
