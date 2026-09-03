@@ -304,6 +304,7 @@ Future<void> durakDetayAc(
             child: _HatSatiri(
               dh: h,
               an: an,
+              servis: servis,
               sec: () {
                 Navigator.of(c).maybePop();
                 guzergahSec(h.hat, h.yon);
@@ -322,11 +323,19 @@ String _servisAdi(int s) => switch (s) {
     };
 
 class _HatSatiri extends StatelessWidget {
-  const _HatSatiri({required this.dh, required this.an, required this.sec});
+  const _HatSatiri({
+    required this.dh,
+    required this.an,
+    required this.sec,
+    this.servis = 1,
+  });
 
   final DurakHatti dh;
   final int an;
   final VoidCallback sec;
+
+  /// GTFS servis kimligi (1 hafta ici · 2 cumartesi · 3 pazar).
+  final int servis;
 
   @override
   Widget build(BuildContext context) {
@@ -335,6 +344,10 @@ class _HatSatiri extends StatelessWidget {
     final ilk = sonraki.isEmpty ? null : sonraki.first;
     final kalan = ilk == null ? null : ilk - an;
     final baslik = dh.hat.yonBaslik[dh.yon] ?? dh.hat.uzunAd;
+    // ⚠️ Yalniz SIRASI GELMEMIS ilk kalkislar; gecmis saatleri
+    //    listelemek "otobus var" izlenimi verirdi.
+    final tumIlk = dh.hat.ilkKalkis[dh.yon]?[servis] ?? const <int>[];
+    final ilkKalkis = tumIlk.where((x) => x >= an).take(3).toList();
 
     return Material(
       color: kYuzeyGri(context),
@@ -382,6 +395,33 @@ class _HatSatiri extends StatelessWidget {
                     ),
                 ],
               ),
+              // ⚠️⚠️ **RESMI UYGULAMAYLA BIREBIR KARSILASTIRMA SATIRI.**
+              //
+              //	Kullanici: *"birebir ayni olsun, karsilastirma
+              //	yaptiklarinda problem yasamayiz"*. Resmi uygulamanin
+              //	hat sayfasi ACIKCA *"araclarin ILK DURAKTAN kalkis
+              //	saatleri"* diyor; ustteki buyuk sayi ise BU DURAGA
+              //	VARIS. Ikisi FARKLI BUYUKLUK oldugu icin kullanici
+              //	yan yana koyunca "saatler uymuyor" saniyordu.
+              // ⚠️ Ust satir DEGISMEDI: kullanicinin gercekten ihtiyac
+              //    duydugu sey otobusun ONA ne zaman gelecegidir.
+              //    Bu satir yalnizca KARSILASTIRMA icin eklendi.
+              // ⚠️ Etiket resmi uygulamanin kendi ifadesiyle AYNI
+              //    ("ilk duraktan kalkis") — baska bir sozcuk secmek
+              //    kullanicida yine "ayni sey mi?" sorusu birakirdi.
+              if (ilkKalkis.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(
+                  'İlk duraktan kalkış: '
+                  '${ilkKalkis.map(UlasimVeri.saatMetni).join(' · ')}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    color: scheme.onSurface.withValues(alpha: 0.5),
+                  ),
+                ),
+              ],
               if (sonraki.length > 1) ...[
                 const SizedBox(height: 8),
                 Text(

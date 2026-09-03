@@ -249,7 +249,17 @@ function tm30ToWgs(x, y) {
   const kalkis = new Map();
   const kullanilanHat = new Set();
   const kullanilanShape = new Map(); // "route|yon" -> Map(shapeId -> adet)
-  const temsilTrip = new Map();      // "route|yon" -> trip_id
+  // ⚠️⚠️⚠️ **TEMSILI SEFER = EN COK DURAKLI SEFER, ILK GORULEN DEGIL.**
+  //
+  //	Onceden dosyada ILK gorulen trip aliniyordu. Ama bir hattin
+  //	seferleri ayni uzunlukta DEGIL: KISA DONUSLER (short-turn) var.
+  //	Kisa bir sefer temsilci secilince o seferin ilk duragi hattin
+  //	GERCEK ilk duragi sanildi ve "ilk kalkis" saatleri KAYDI
+  //	(olculdu: 419 bizde **06:40**, resmi uygulamada **06:05**).
+  // ⚠️ Havuz `kTemsilAday` ile sinirli: tum seferlerin dizisini
+  //    saklamak 2,4 milyon satirlik dosyada BELLEGI patlatirdi.
+  const kTemsilAday = 6;
+  const temsilHavuz = new Map();     // "route|yon" -> Map(trip_id -> satirlar)
   const temsilDizi = new Map();      // "route|yon" -> [[sira, durakId, dakika]]
   ilk = true;
   let okunan = 0;
@@ -277,10 +287,12 @@ function tm30ToWgs(x, y) {
     //    durak dizisi (sira + saat) saklanir. Ilk gorulen trip yeterli:
     //    ayni (hat,yon) icin tum seferler AYNI durak dizisini izler,
     //    yalniz saatler kayar.
-    if (!temsilTrip.has(sk)) temsilTrip.set(sk, c[0]);
-    if (temsilTrip.get(sk) === c[0]) {
-      if (!temsilDizi.has(sk)) temsilDizi.set(sk, []);
-      temsilDizi.get(sk).push([parseInt(c[4], 10), sid, dk]);
+    if (!temsilHavuz.has(sk)) temsilHavuz.set(sk, new Map());
+    const hv = temsilHavuz.get(sk);
+    if (hv.has(c[0])) {
+      hv.get(c[0]).push([parseInt(c[4], 10), sid, dk]);
+    } else if (hv.size < kTemsilAday) {
+      hv.set(c[0], [[parseInt(c[4], 10), sid, dk]]);
     }
 
     if (!kalkis.has(sid)) kalkis.set(sid, new Map());
@@ -292,6 +304,16 @@ function tm30ToWgs(x, y) {
     sv.get(anahtar).push(dk);
   }
   console.log(`stop_times okunan: ${okunan} · kalkisi olan durak: ${kalkis.size} · hat: ${kullanilanHat.size}`);
+
+  // Havuzdaki EN COK DURAKLI seferi temsilci yap (bkz. serh).
+  for (const [sk, hv] of temsilHavuz) {
+    let enIyi = null;
+    for (const satirlar of hv.values()) {
+      if (!enIyi || satirlar.length > enIyi.length) enIyi = satirlar;
+    }
+    if (enIyi) temsilDizi.set(sk, enIyi);
+  }
+  temsilHavuz.clear();
 
   // ── 5) Her (hat,yon) icin EN COK KULLANILAN shape ──
   // ⚠️ Bir hatta birden fazla shape olabilir (sefer varyantlari). En cok
@@ -473,7 +495,43 @@ function tm30ToWgs(x, y) {
       const sh = anaShape.get(sk);
       if (sh) s[yon] = sh;
     }
+    // ⚠️⚠️⚠️ **ILK DURAKTAN KALKIS SAATLERI** (kullanici emri:
+    //
+    //	*"birebir ayni olsun, karsilastirma yaptiklarinda problem
+    //	yasamayiz"*). Resmi uygulamanin hat sayfasi ACIKCA soyluyor:
+    //	*"Asagidaki hareket saatleri, araclarin ILK DURAKTAN kalkis
+    //	saatleridir."* Bizim durak sayfamiz ise O DURAGA VARIS saatini
+    //	gosteriyordu — ikisi FARKLI BUYUKLUK ve kullanici yan yana
+    //	koyunca uyusmuyor gorunuyordu (bizde 10:13, onlarda 06:05).
+    //
+    // ⚠️⚠️ **HANGI SAYI DAHA DOGRU — OLCULDU:** ilk kalkislar canli
+    //
+    //	resmi siteyle karsilastirildi, KM58in 10 seferinin **9u BIREBIR**
+    //	(tek sapma 10 dk). Ara durak saatleri ise kaynakta buyuk olcude
+    //	INTERPOLASYON: 765 hat-yon ciftinin **136sinda** ortalama hiz
+    //	15 km/h altinda. Yani ilk kalkis GUVENILIR, ara saat YAKLASIK.
+    //
+    // ⚠️ Ilk durak TEMSILI SEFERIN sira=1 duragidir; o duragin bu
+    //    (hat,yon) icin kayitli kalkislari ZATEN ilk kalkislardir.
+    //    Yani yeni veri URETILMIYOR, var olan veri DOGRU YERDEN okunuyor.
+    const ilk = {};
+    for (const yon of [0, 1]) {
+      const dz = temsilDizi.get(`${rid}|${yon}`);
+      if (!dz || !dz.length) continue;
+      dz.sort((a, b) => a[0] - b[0]);
+      const bas = dz[0][1];
+      const sv = kalkis.get(bas) && kalkis.get(bas).get(rid);
+      if (!sv) continue;
+      const cikti = {};
+      for (const [anah, dk] of sv) {
+        if (Number(anah.split("|")[1]) !== yon) continue;
+        const srt = [...dk].sort((a, b) => a - b);
+        cikti[anah.split("|")[0]] = dizeKodla(srt);
+      }
+      if (Object.keys(cikti).length) ilk[yon] = cikti;
+    }
     hOut[rid] = { k: h.kisa, u: h.uzun, r: h.renk, t: h.tur, y, s };
+    if (Object.keys(ilk).length) hOut[rid].i = ilk;
   }
   fs.writeFileSync(HEDEF + 'hatlar.json', JSON.stringify({ v: 1, h: hOut }));
 

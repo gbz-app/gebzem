@@ -102,6 +102,24 @@ enum UlasimModu {
       };
 }
 
+/// `hatlar.json` -> `i` alanini cozer: {yon: {servis: "kodlu dizi"}}.
+Map<int, Map<int, List<int>>> _ilkKalkisCoz(Object? ham) {
+  if (ham is! Map) return const {};
+  final o = <int, Map<int, List<int>>>{};
+  for (final e in ham.entries) {
+    final yon = int.tryParse(e.key.toString());
+    if (yon == null || e.value is! Map) continue;
+    final ic = <int, List<int>>{};
+    for (final s in (e.value as Map).entries) {
+      final srv = int.tryParse(s.key.toString());
+      if (srv == null || s.value is! String) continue;
+      ic[srv] = dizeCoz(s.value as String);
+    }
+    if (ic.isNotEmpty) o[yon] = ic;
+  }
+  return o;
+}
+
 class Hat {
   const Hat({
     required this.id,
@@ -111,6 +129,7 @@ class Hat {
     required this.yonBaslik,
     required this.yonSekil,
     this.mod = UlasimModu.otobus,
+    this.ilkKalkis = const {},
   });
 
   final String id;
@@ -127,6 +146,19 @@ class Hat {
 
   /// yon (0/1) -> guzergah kimligi (`sekiller.json` anahtari).
   final Map<int, String> yonSekil;
+
+  /// Servis -> yon -> ILK DURAKTAN kalkis dakikalari.
+  ///
+  /// TURU165D **RESMI UYGULAMAYLA BIREBIR KARSILASTIRILABILSIN DIYE.**
+  ///
+  ///	Kullanici: *"birebir ayni olsun, karsilastirma yaptiklarinda
+  ///	problem yasamayiz"*. Resmi uygulamanin hat sayfasi ACIKCA
+  ///	*"araclarin ILK DURAKTAN kalkis saatleri"* diyor; bizim durak
+  ///	sayfamiz ise **o duraga varis** saatini gosteriyor. Ikisi
+  ///	FARKLI BUYUKLUK, yan yana konunca uyusmuyor gorunuyor.
+  /// ⚠️ Sayilar UYDURULMADI: hattin ilk duraginda ZATEN kayitli olan
+  ///    kalkislar okunuyor (uretici `tools/ulasim_uret.js`).
+  final Map<int, Map<int, List<int>>> ilkKalkis;
 
   /// GTFS `route_type` (bkz. [UlasimModu]).
   ///
@@ -360,6 +392,7 @@ class UlasimVeri {
           uzunAd: (o['u'] ?? '') as String,
           renk: (o['r'] ?? '') as String,
           mod: UlasimModu.coz(o['t']),
+          ilkKalkis: _ilkKalkisCoz(o['i']),
           yonBaslik: yb,
           yonSekil: ys,
         );
