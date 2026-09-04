@@ -161,4 +161,56 @@ void main() {
     expect(bulunan, greaterThan(0),
         reason: 'veri dosyasindaki kalkislardan HICBIRI ekranda yok');
   });
+
+  testWidgets('⚠️ DURAK KARTI: VARIS SAATI ekranda YAZIYOR', (tester) async {
+    tester.view.physicalSize = const Size(390 * 3, 844 * 3);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+
+    late ({Durak durak, DurakHatti dh}) o;
+    await tester.runAsync(() async {
+      o = await ornekBul();
+      await UlasimVeri.i.duraginHatlari(o.durak.id, 1);
+    });
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (c) => Center(
+              child: ElevatedButton(
+                onPressed: () => durakDetayAc(
+                  c,
+                  o.durak,
+                  guzergahSec: (_, __) {},
+                ),
+                child: const Text('ac'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('ac'));
+    for (var i = 0; i < 6; i++) {
+      await tester.pump(const Duration(milliseconds: 120));
+    }
+    expect(tester.takeException(), isNull);
+
+    // ⚠️⚠️ TURU 168 — kullanici ekran goruntusu: saat 09:17, kartta "7 dk",
+    //    altinda "Ilk duraktan kalkis: 09:20" -> *"09:20 ama 7 dakika var
+    //    diyor"*. Hesap DOGRUYDU ama BU DURAGA VARIS SAATI (09:24) ekranda
+    //    HICBIR YERDE YAZMIYORDU; kullanici geri sayimla BASKA bir
+    //    buyuklugun saatini karsilastiriyordu.
+    expect(
+      find.textContaining('Bu duraktan: '),
+      findsWidgets,
+      reason: 'bu duraga varis saatleri ADIYLA yazmiyor',
+    );
+    expect(
+      find.textContaining('kalkış: '),
+      findsWidgets,
+      reason: 'ilk duraktan kalkis satiri kayboldu',
+    );
+  });
 }

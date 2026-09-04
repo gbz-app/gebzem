@@ -419,23 +419,73 @@ class _HatSatiri extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 8),
+                  // ⚠️⚠️⚠️ **VARIS SAATI ARTIK GORUNUYOR (buyuk sayi).**
+                  //
+                  //	Kullanici ekran goruntusu gonderdi: saat 09:17,
+                  //	kartta "7 dk" ve altinda "Ilk duraktan kalkis:
+                  //	09:20" -> *"09:20 ama 7 dakika var diyor"*.
+                  //	HESAP DOGRUYDU (otobus ilk duraktan 09:20'de
+                  //	kalkiyor, BU duraga 09:24'te geliyor) ama ekranda
+                  //	**09:24 HICBIR YERDE YAZMIYORDU**: birinci varis
+                  //	yalniz geri sayim olarak, ikinci ve ucuncusu
+                  //	"Sonraki" satirinda saat olarak duruyordu.
+                  //	Kullanicinin karsilastirabilecegi tek sey kalan
+                  //	dakika ile BASKA bir buyuklugun saatiydi.
+                  // ⚠️ Artik SAAT birincil, geri sayim ikincil: kartta
+                  //    gorunen her sayi ayni turden (saat) ve hepsi
+                  //    adiyla etiketli.
                   if (kalan != null)
-                    Text(
-                      // ⚠️ 60 dk'dan uzun bekleme "125 dk" diye yazilirsa
-                      //    okunmaz; saat olarak gosterilir.
-                      kalan <= 60
-                          ? '$kalan dk'
-                          : UlasimVeri.saatMetni(ilk!),
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w800,
-                        color: kalan <= 10
-                            ? const Color(0xFF2BB673)
-                            : scheme.onSurface,
-                      ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          UlasimVeri.saatMetni(ilk!),
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: kalan <= 10
+                                ? const Color(0xFF2BB673)
+                                : scheme.onSurface,
+                          ),
+                        ),
+                        // ⚠️ 60 dk'dan uzun bekleme "125 dk" diye
+                        //    yazilirsa okunmaz; o zaman yalniz saat kalir.
+                        if (kalan <= 60)
+                          Text(
+                            '$kalan dk',
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w600,
+                              color: scheme.onSurface.withValues(alpha: 0.55),
+                            ),
+                          ),
+                      ],
                     ),
                 ],
               ),
+              // ⚠️⚠️ **ETIKET: "Sonraki" -> "Bu duraktan".**
+              //
+              //	"Sonraki" hangi duraga ait oldugunu SOYLEMIYORDU ve
+              //	hemen altindaki "Ilk duraktan kalkis" satiriyla ayni
+              //	seymis gibi okunuyordu. Artik iki satir da HANGI
+              //	DURAK oldugunu yaziyor.
+              // ⚠️ Liste BIRINCI varisi da icerir (`skip(1)` KALKTI):
+              //    ustteki buyuk saatin bu listenin BASI oldugu
+              //    gorunsun; eksik olursa kullanici yine iki ayri
+              //    buyuklugu karsilastirir.
+              if (sonraki.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'Bu duraktan: ${sonraki.map(UlasimVeri.saatMetni).join(' · ')}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: scheme.onSurface.withValues(alpha: 0.62),
+                  ),
+                ),
+              ],
               // ⚠️⚠️ **RESMI UYGULAMAYLA BIREBIR KARSILASTIRMA SATIRI.**
               //
               //	Kullanici: *"birebir ayni olsun, karsilastirma
@@ -495,18 +545,6 @@ class _HatSatiri extends StatelessWidget {
                     ],
                   );
                 }),
-              ],
-              if (sonraki.length > 1) ...[
-                const SizedBox(height: 8),
-                Text(
-                  'Sonraki: ${sonraki.skip(1).map(UlasimVeri.saatMetni).join(' · ')}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: scheme.onSurface.withValues(alpha: 0.62),
-                  ),
-                ),
               ],
             ],
           ),
