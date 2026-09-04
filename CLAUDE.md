@@ -44,10 +44,10 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
 - **KALDIGIMIZ YER (4 Eyl 10:08): TURU 166+167+168 YAYINLANDI — SADECE iOS.**
   ios **33846548944** (**78de7dc**), R2 ipa=31181026 (md5 8e309c78),
   index=7967 (md5 33e18c39) surum.json=45, purge OK, **CDN BIREBIR**,
-  iOS min **16.0**,  ENJEKTE,  (debug imza YOK).
+  iOS min **16.0**, `MapsApiKey` ENJEKTE, `get-task-allow: false` (debug imza YOK).
   IPAda: **8.502 durak · 411 hat · 411/411 ilk kalkis · 411/411 kalkis duragi adi**;
-  dizeler VAR ( utf8 ·  · 
-  ·  utf16; kontrol dizesi  VAR).
+  dizeler VAR (`Bu duraktan: ` utf8 · `İlk duraktan kalkış` · `Bu duraktan geçiş`
+  · `Güzergâhı haritada göster` utf16; kontrol dizesi `Yakınımda` VAR).
   ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260904-1008
   Arayuz/istemci turu: **BACKEND DEGISMEDI**, migration YOK, deploy YOK, e2e YOK.
   ✅ analyze **0 hata 0 uyari** · test **86/86** (82 -> 86, yeni muhafiz dosyasi).
