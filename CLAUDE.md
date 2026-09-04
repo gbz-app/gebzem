@@ -41,6 +41,132 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
       kaybettiriyorsun"*. **Üçüncüsü olmayacak.**
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (4 Eyl): TURU 166+167+168 KODU BITTI, iOS BUILD ALINIYOR.**
+  Arayuz/istemci turu: **BACKEND DEGISMEDI**, migration YOK, deploy YOK, e2e YOK.
+  ✅ analyze **0 hata 0 uyari** · test **86/86** (82 -> 86, yeni muhafiz dosyasi).
+
+- ⚠️⚠️⚠️ **TURU 166 — "VERIYI BIREBIR KOYDUN MU?" SORUSU OLCUMLE CEVAPLANDI.**
+  Kullanici: *"klasore koydugum stop dosyasindakiler hepsi birebir ayni mi,
+  kalkis suresi vs ekleme birebir ayni koydun mu"*.
+  **BAGIMSIZ DOGRULAYICI** yazildi (uretici kodunu KULLANMAZ; ham dosyayi
+  sifirdan okur, `seferler.json`u cozer, TUM gruplari karsilastirir):
+
+  | | |
+  |---|---|
+  | ham veri satiri | **2.442.563** |
+  | sayilan kalkis | **2.442.312** (251 satirin saati bozuk) |
+  | pakete giren | **2.442.127** |
+  | **BIREBIR AYNI grup** | **114.173 / 114.192** |
+  | **degeri FARKLI** | **0** |
+  | **hamda YOK (uydurma)** | **0** |
+
+  Yani **tek bir saat degistirilmedi, tek bir saat uydurulmadi.**
+  Eksik olan **185 kalkis (%0,0076)** = fiziksel olabilirlik muhafizinin
+  eledigi **7 imkansiz durak atamasi** (turu 162).
+  ⚠️ `Downloads/stop_times.txt` ile depodaki dosyanin **md5'i AYNI** — tek
+     paket var, tamami kullaniliyor. Kullanilmayan tek dosya `places.txt`
+     (851 KentKart **dolum noktasi**; tarife degil — ⏳ ozellik adayi).
+
+- ⚠️⚠️ **TURU 166 — KENDI IDDIAMI CURUTTUM: "GEBZE MEZARLIK durgi bizde YOK"
+  YANLISTI.** Durak **VAR**, adi `GEBZE MEZARLIĞI` (20047) ve 552'nin **15.
+  duragi**. `MEZARLIK` diye aradim, veride `MEZARLIĞI` yaziyor.
+  ⚠️ **DERS: Turkce ekli/degisimli adlarda (K->Ğ, I->İ) tam-dize grep
+     YANILTIR; kok ile ara (`MEZAR`).**
+  ⚠️ Duzeltince de tutmadi: o duragin kalkislari **06:14 · 06:27 · 06:40**,
+     resmi uygulama **06:00 · 06:19 · 06:28**. Hangi duraktan bakilirsa
+     bakilsin **6 saatin 2'si** tutuyor -> hat, anlik goruntumuzden SONRA
+     yeniden duzenlenmis (resmi uygulama o hatti artik Gebze Mezarligi'ndan
+     kaldiriyor; bizim 99 seferin 99'u Fatih DH'den kalkiyor).
+
+- 🕐 ⚠️⚠️⚠️ **TURU 168 — HAM VERI DENETIMI (2.442.563 satir, TEK GECIS).**
+  Kullanici sordu: *"belediye yanlis yazmis diyorsun, baska yanlislar
+  olabilir mi?"* — OLCULDU, evet:
+
+  | bulgu | adet | etki |
+  |---|---|---|
+  | **>90 km/h atlayis** | 9.001 satir · **320** farkli (durak,hat) | ara saatler yanlis |
+  | zaman GERI giden satir | **744** | sefer sirasi bozuk |
+  | ayni durak arka arkaya | **688** | zararsiz |
+  | ort. hiz **<15 km/h** | **133/779** (hat,yon) | ara saat = interpolasyon |
+  | ayni adli **300 m+** uzak durak | **6** cift (en kotu **25,58 km**) | aramada karisiklik |
+  | hicbir seferde kullanilmayan durak | 6/8511 | zararsiz |
+  | (0,0) / il disi koordinat | **0** | ✅ temiz |
+
+  ⚠️⚠️ **MUHAFIZ 320'NIN YALNIZ 7'SINI ELIYOR — VE BU DOGRU.** Kapi IKI
+     kosul birden ister (hattin KENDI seklinden >500 m **VE** >90 km/h).
+     Kalan 313'te durak hattin uzerinde; bozuk olan **SAAT**, atama DEGIL.
+     Elemek durustce gitmedigi bir hatti gostermekten DAHA KOTU olurdu:
+     durak gercekten o hatta ugruyor.
+  ⏳ **HENUZ YAPILMADI:** o 313 vaka icin "saat yaklasik" ibaresi.
+
+- ⚠️⚠️⚠️ **TURU 168 — SANIYE KIRPMASI OLCULDU (ilk kez).**
+  · **ILK DURAK kalkislarinin %98,01'i saniyesi `:00`** -> "Ilk duraktan
+    kalkis" listemiz **TAM**, kirpmadan etkilenmiyor.
+  · **ARA DURAK saatlerinin %98,09'u saniyeli** -> dakikaya **kirpiyoruz**
+    (truncate) ve ortalama **28,7 saniye ERKEN** gosteriyoruz (maks 59 sn).
+    Yuvarlama (round) ortalama mutlak hatayi **14,7 sn**'ye indirirdi.
+  ⚠️ **KIRPMA BILEREK KORUNDU**: yolcu icin ERKEN sapma GUVENLIDIR (duraga
+     erken gidersin), yuvarlama ise otobusu KACIRTABILIR (09:24:40'ta kalkan
+     araci "09:25" diye yazarsak 09:24:50'de gelen yolcu kacirir).
+  ⚠️ Kullanicinin *"bazen 1-2 dakika az/fazla"* gozleminin bir parcasi
+     BUDUR; kalani anlik goruntunun eskiligidir.
+
+- 🚏 ⚠️⚠️⚠️ **TURU 167 — HAT SAATLERI SAYFASI** (kullanici emri: *"tikladigim
+  hatlarin hareket saatleri gorunsun"*).
+  Duraktaki hatlar **ZATEN siraliydi** (en yakin kalkis once); eksik olan
+  hattin KENDI sayfasiydi — dokunus DOGRUDAN haritaya gidiyordu ve bir hattin
+  tum saatlerini gormenin **HICBIR yolu yoktu**.
+  · Gidis/Donus + Hafta ici/Cumartesi/Pazar secicileri
+  · **"Bu duraktan gecis"** (durak adiyla) · **"Ilk duraktan kalkis"**
+    (kalkis duraginin adiyla) — ikisi FARKLI BUYUKLUK, adlariyla yan yana
+    durunca "saatler uymuyor" sorusu YAPISAL OLARAK biter
+  · gecmis saatler soluk, sonraki otobus vurgulu
+  · guzergah cizimi alttaki dugmeye tasindi (kaybolmadi; sayfa `true` doner)
+  ⚠️ `_nesil` bayat-yanit kapisi ZORUNLU (hizli yon/gun degisiminde onceki
+     yukleme SONRA bitip yanlis listeyi yazar — turu 141/144 sinifi).
+
+- ⚠️⚠️⚠️ **TURU 168 — "09:20 AMA 7 DAKIKA VAR DIYOR" (kullanici ekran
+  goruntusu, saat 09:17).**
+  **HESAP DOGRUYDU**: 510B ilk duraktan **09:20**'de kalkiyor, kullanicinin
+  duragina **09:24**'te geliyor (7 dk). Ama **09:24 EKRANDA HICBIR YERDE
+  YAZMIYORDU**: birinci varis yalniz GERI SAYIM olarak, ikinci ve ucuncusu
+  "Sonraki" satirinda SAAT olarak duruyordu. Kullanicinin karsilastirabildigi
+  tek sey **kalan dakika** ile **BASKA bir buyuklugun saati** idi.
+  **FIX:** sag ustte **SAAT birincil** (09:24), geri sayim ikincil (7 dk) ·
+  `Sonraki:` -> **`Bu duraktan:`** ve **birinci varis da listede**
+  (`skip(1)` KALKTI) · "Bu duraktan" satiri "Ilk duraktan kalkis"in **USTUNE**
+  alindi (buyuk saatin o listenin BASI oldugu gorunsun).
+  ⚠️ **DERS: bir ekranda IKI FARKLI BUYUKLUK varsa (sure vs saat), ikisini de
+     ADIYLA ve AYNI TURDEN yaz.** Hesap dogru olsa bile kullanici "hata var"
+     der ve HAKLIDIR.
+
+- 🛡️ **TURU 167/168 — YENI MUHAFIZ: `mobile/test/hat_saatleri_test.dart` (4).**
+  Bu sayfalar **emulatorde gorulemiyor** (acilis yolu GPS'e bagli, emulatore
+  fix HIC gelmiyor). Kontroller: iki bolum de cizilyor · 360 dp x olcek
+  **1.3 ve 2.0** tasmiyor · ekrandaki saatler VERIDEKI kalkislarla ayni ·
+  durak kartinda **varis saati YAZIYOR**.
+  ✅ **IKISI DE BOZULARAK KANITLANDI** (bolum basligi ve `Bu duraktan:`
+     etiketi geri alininca KIRMIZI).
+  ⚠️⚠️ **TESTIN KENDISI ONCE YALANCI-YESILDI:** ayni testte ikinci
+     `pumpWidget` element agacini YENIDEN KULLANIYOR ve Navigator'in route
+     yigini AYAKTA kaliyor -> onceki sheet ekranda duruyor, "ac" dugmesine
+     yapilan dokunus ONA carpiyor ve **olcek 2.0 HIC sinanmiyordu**.
+     `MaterialApp`e `ValueKey(olcek)` konarak duzeltildi.
+     ⚠️ Hit-test uyarisi (`would not hit test`) YOK SAYILMAMALI — yalanci
+        yesilin TEK isaretiydi.
+  ⚠️⚠️ **`tester.runAsync` ZORUNLU:** `testWidgets` sahte zaman bolgesinde
+     kosar; `rootBundle` + `compute` izolati orada **ASLA tamamlanmaz** ve
+     test sessizce asili kalir (**olculdu: 6 dk 55 sn "did not complete"**).
+     Varliklar `runAsync` icinde ON ISITILIR, sonra widget ayni cagriyi
+     onbellekten MIKROTASKTA alir ve `pump` akitir.
+  ⚠️ `pumpAndSettle` KULLANILMAZ: yuklemede `CircularProgressIndicator`
+     sonsuz doner, zaman asimina ugrar.
+
+- 📌 **TURU 166 — KALKIS DURAGININ ADI KARTTA** (411/411 hatta veri var).
+  Uretici `hatlar.json` -> `b` alani; istemci `Hat.ilkDurak`.
+  ⚠️ **AD ESNEK, SAATLER SABIT**: ad `Flexible`+ellipsis, saatler kirpilmaz.
+     Ters kurulsaydi uzun durak adi satirin ASIL bilgisini yerdi.
+
 - **KALDIGIMIZ YER (4 Eyl 00:16): TURU 165 YAYINLANDI — SADECE iOS.**
   ios **33805922006** (**27a1e45**), R2 ipa=31165596 (md5 a110efd5),
   purge OK, **CDN BIREBIR**, iOS min 16.0, MapsApiKey ENJEKTE, debug imza YOK.
