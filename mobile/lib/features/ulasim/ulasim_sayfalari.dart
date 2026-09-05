@@ -386,8 +386,15 @@ String _servisAdi(int s) => switch (s) {
 ///	`setState` yapma (dakikada 60 gereksiz cizim).
 /// Bir otobusun "yaklasiyor" sayilmasi icin kalan dakika esigi.
 ///
+/// TURU 170b - **10'DAN 5'E INDIRILDI (emulatorde olculdu).** Yogun bir
+///	durakta (Ibrahimaga Caddesi, **27 hat**) 10 dk esigiyle
+///	listenin TAMAMI kirmiziya donuyordu; vurgu ayirt edici
+///	olmaktan cikip arka plan gurultusune donusuyordu.
+/// UYARI Daha da dusurme (<=3): kullanicinin duraga yetisme penceresi
+///    kapanir, uyari GEC gelir.
+///
 /// ⚠️ **TEK KAYNAK**: hem renk hem (ileride) siralama bunu okur.
-const int kYakinDakika = 10;
+const int kYakinDakika = 5;
 
 /// Yaklasan otobusun rengi — **hafif** kirmizi (kullanici emri).
 ///
@@ -470,13 +477,14 @@ class _HatSatiri extends StatelessWidget {
     // ⚠️ `alphaBlend` ile OPAK zemin uretilir; saydam renk birakmak
     //    `Color.lerp` alfa tuzagini geri getirirdi (turu 157).
     final yaklasiyor = kalan != null && kalan <= kYakinDakika;
+    // TURU 170b - **KART ZEMINI NOTR** (emulatorde goruldu). Yogun bir
+    //	durakta (27 hat) hemen her hat 5 dk icinde oldugu icin LISTENIN
+    //	TAMAMI kirmizi bir blok gibi goruniyordu; vurgu ayirt edici
+    //	olmaktan cikiyordu. Vurgu artik yalniz SAAT ve KALAN SURE
+    //	yazisinda - okunakli ve gercekten ayirt edici.
+    // UYARI `yaklasiyor` SILINMEDI: saat/dk renklerini hala o besliyor.
     return Material(
-      color: yaklasiyor
-          ? Color.alphaBlend(
-              kYaklasanRenk.withValues(alpha: 0.08),
-              kYuzeyGri(context),
-            )
-          : kYuzeyGri(context),
+      color: kYuzeyGri(context),
       borderRadius: BorderRadius.circular(kYaricap(80)),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -544,9 +552,9 @@ class _HatSatiri extends StatelessWidget {
                         ),
                         // ⚠️ 60 dk'dan uzun bekleme "125 dk" diye
                         //    yazilirsa okunmaz; o zaman yalniz saat kalir.
-                        if (kalan <= 60)
+                        if (UlasimVeri.kalanMetni(kalan) != null)
                           Text(
-                            '$kalan dk',
+                            UlasimVeri.kalanMetni(kalan)!,
                             style: TextStyle(
                               fontSize: 11.5,
                               // ⚠️ TURU 169 - yaklasan otobuste bu sayi

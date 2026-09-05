@@ -186,7 +186,14 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
       _Bolum('Yakınımda', [
         const Color(0xFF3AA9FF),
         const Color(0xFF6C2BD9),
-      ], (c) => const YakinimdaEkrani()),
+      // TURU 170b - **ARTIK DURAK MODUYLA ACILIR** (kullanici emri:
+      //	"isletme kartinda DURAKLAR olacak, orada tikladigimda duraklar
+      //	sayfasi saatler"). Rota kaldirildiktan sonra bu ekranin asil
+      //	isi yakindaki DURAKLAR ve onlarin SAATLERIDIR.
+      // UYARI Isletme kesfi kaybolmadi: cip seridindeki kategoriler ve
+      //    alttaki kisayollar (Eczane/Benzinlik/Taksi) ayni ekrani
+      //    isletme moduyla aciyor.
+      ], (c) => const YakinimdaEkrani(durakla: true)),
       // ⚠️⚠️ TURU 91 — IKI YENI KART **ILK IKI SIRADA** (kullanici emri:
       //    "dugun kategorisi ekle birde DIYET kategorisi ekle").
       //    Basa konmalarinin sebebi olculmus: 360x640'ta izgarada kaydirma

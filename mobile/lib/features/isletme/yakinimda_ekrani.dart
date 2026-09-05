@@ -2965,13 +2965,12 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani>
     final kalan = ilk == null ? null : ilk - an;
     final yakin = kalan != null && kalan <= ulasim.kYakinDakika;
     return DecoratedBox(
+      // TURU 170b - **KUTU ZEMINI NOTR** (emulatorde goruldu): yogun
+      //	durakta hemen her hat yakin oldugu icin seridin TAMAMI
+      //	kirmizi bir blok gibi goruniyordu. Vurgu artik yalniz
+      //	SAAT ve KALAN SURE yazisinda - okunakli ve ayirt edici.
       decoration: BoxDecoration(
-        color: yakin
-            ? Color.alphaBlend(
-                ulasim.kYaklasanRenk.withValues(alpha: 0.10),
-                scheme.onSurface.withValues(alpha: 0.07),
-              )
-            : scheme.onSurface.withValues(alpha: 0.07),
+        color: scheme.onSurface.withValues(alpha: 0.07),
         borderRadius: BorderRadius.circular(kYaricap(28)),
       ),
       child: Padding(
@@ -2992,9 +2991,9 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani>
                 color: yakin ? ulasim.kYaklasanRenk : scheme.onSurface,
               ),
             ),
-            if (kalan != null && kalan <= 60)
+            if (kalan != null && UlasimVeri.kalanMetni(kalan) != null)
               Text(
-                '$kalan dk',
+                UlasimVeri.kalanMetni(kalan)!,
                 maxLines: 1,
                 style: TextStyle(
                   fontSize: 11,

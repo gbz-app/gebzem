@@ -820,6 +820,20 @@ class UlasimVeri {
       ? '${m.round()} m'
       : '${(m / 1000).toStringAsFixed(1).replaceAll('.', ',')} km';
 
+  /// Kalan sureyi yazar - **TEK KAYNAK**.
+  ///
+  /// TURU 170b - EMULATORDE GORULDU: otobus geldiginde ekranda **"0 dk"**
+  ///	yaziyordu. Bu hem sacma okunuyor hem de kullanicinin en cok
+  ///	ihtiyac duydugu ani (otobus SIMDI burada) en silik bicimde
+  ///	anlatiyordu.
+  /// UYARI 60 dk ustu null doner: "125 dk" okunmaz, o durumda yalniz
+  ///    SAAT gosterilir (cagri yeri null'i cizmez).
+  static String? kalanMetni(int kalan) {
+    if (kalan < 0 || kalan > 60) return null;
+    if (kalan == 0) return 'şimdi';
+    return '$kalan dk';
+  }
+
   /// Dakikayi "HH:MM" olarak yazar (24'u asan degerleri sarar).
   static String saatMetni(int dakika) {
     final d = dakika % 1440;
