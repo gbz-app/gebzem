@@ -461,8 +461,22 @@ class _HatSatiri extends StatelessWidget {
     final ilkKalkis = tumIlk.where((x) => x >= an).take(2).toList();
     final ilkAd = dh.hat.ilkDurak[dh.yon] ?? '';
 
+    // ⚠️⚠️ TURU 169 - **YAKLASAN OTOBUS KARTI VURGULU** (kullanici emri:
+    //	*"yaklasan saatler hafif kirmizi olabilir, geliyor gibi"*).
+    // ⚠️ Vurgu YALNIZ ZEMIN TONU: dolgu/kenarlik/yukseklik DEGISMEZ,
+    //	boylece kart yaklasirken YERLESIM OYNAMAZ ve serit ziplamaz
+    //	(turu 150'de `Container.decoration` kenarligi tam bunu yapip
+    //	 kartlari 3,2 dp kaydirmisti - o yuzden kenarlik KULLANILMADI).
+    // ⚠️ `alphaBlend` ile OPAK zemin uretilir; saydam renk birakmak
+    //    `Color.lerp` alfa tuzagini geri getirirdi (turu 157).
+    final yaklasiyor = kalan != null && kalan <= kYakinDakika;
     return Material(
-      color: kYuzeyGri(context),
+      color: yaklasiyor
+          ? Color.alphaBlend(
+              kYaklasanRenk.withValues(alpha: 0.08),
+              kYuzeyGri(context),
+            )
+          : kYuzeyGri(context),
       borderRadius: BorderRadius.circular(kYaricap(80)),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -535,8 +549,15 @@ class _HatSatiri extends StatelessWidget {
                             '$kalan dk',
                             style: TextStyle(
                               fontSize: 11.5,
-                              fontWeight: FontWeight.w600,
-                              color: scheme.onSurface.withValues(alpha: 0.55),
+                              // ⚠️ TURU 169 - yaklasan otobuste bu sayi
+                              //    ekranin ASIL bilgisi; solgun gri
+                              //    birakmak onu geri plana atiyordu.
+                              fontWeight: yaklasiyor
+                                  ? FontWeight.w800
+                                  : FontWeight.w600,
+                              color: yaklasiyor
+                                  ? kYaklasanRenk
+                                  : scheme.onSurface.withValues(alpha: 0.55),
                             ),
                           ),
                       ],
