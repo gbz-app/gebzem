@@ -41,6 +41,72 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
       kaybettiriyorsun"*. **Üçüncüsü olmayacak.**
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (5 Eyl 12:09): TURU 169 YAYINLANDI — SADECE iOS.**
+  ios **33956694164** (**55bc83e**), R2 ipa=31098164 (md5 7501425b),
+  index=7967 (md5 0566fb70), surum.json=45 (md5 7e7f39df), purge OK,
+  **CDN UCU DE BIREBIR**, `get-task-allow: false` (debug imza YOK),
+  `MinimumOSVersion` + `MapsApiKey` + `NSLocationWhenInUse` VAR.
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260905-1209
+  Arayuz/istemci turu: **BACKEND DEGISMEDI**, migration YOK, deploy YOK,
+  **DB TRUNCATE EDILMEDI** (hesaplar duruyor), e2e YOK. health ok.
+  ✅ analyze **0 hata 0 uyari** · test **86/86**.
+
+- 🚫 ⚠️⚠️⚠️ **TURU 169 — A'DAN B'YE ROTA ARAMA KAPATILDI** (kullanici emri:
+  *"rotayi tamamen kaldir, sadece yakindaki duraklar olsun, Google ile
+  basimiz agrimasin"*).
+  **GEREKCE OLCULDU:** rota aramasi cagri basina Google'a **6 Routes +
+  1 Place Details + 1 harita yuklemesi** gonderiyordu ->
+  20.000 kullanici x gunde 4 arama = **ayda 25.732 USD**; ucretsiz kota
+  yalnizca **14 aktif kullanicida** biter (bkz. MALIYET DENETIMI blogu).
+  · **`kRotaAcik = false`** (`ulasim_veri.dart`) — **TEK KAYNAK** bayrak;
+    panel govdesi ve `_panelBoy` formulu AYNI bayragi okur, ayrisamazlar.
+  ⚠️⚠️ **KOD SILINMEDI, GIRISI KAPATILDI**: bu ekran **9.361 satir** ve
+     burada uye silmek **BES kez** komsu uyeyi de goturdu (turu
+     127/138/140/141/143). Geri acmak TEK SATIR.
+  ✅ **ULASILAMAZLIK KANITLANDI**: `_rotaPlanla`nin tek gercek girisi artik
+     cizilmiyor · `_noktaSec = true` YALNIZ o akista · Google cagiran uc yol
+     (`ara` · `yerCoz` · `yayaRotasi`) YALNIZ rota dosyalarinda.
+  ✅✅ **IKILI DUZEYINDE KANIT (IPA):** Dart AOT rota kodunu **AGACTAN
+     BUDADI** — `Nereden` · `Nereye` · `Rotayı bul` · `Uygun rota bulunamadı`
+     · `Aktarma için yürüyün` **HICBIRI PAKETTE YOK**; durak tarafi dizeleri
+     (`Bu duraktan: ` · `İlk duraktan kalkış` · `Güzergâhı haritada göster`)
+     VAR. Kontrol dizesi `Yakınımda` VAR (yontem sinandi). IPA **-82.862 B**.
+  ⚠️ **KALAN Google kullanimi YALNIZ Maps SDK** (harita karosu + pin).
+
+- ⏱️ ⚠️⚠️ **TURU 169 — GERI SAYIM ARTIK ANLIK** (kullanici: *"5 dakika actı,
+  2 saniye sonra 4 dakika olacaksa 4 dakika gorunsun"*).
+  **KOK NEDEN:** `ulasim_sayfalari.dart` icinde **HICBIR `Timer` YOKTU**;
+  `an` `build` icinde BIR KEZ hesaplaniyor ve onu yeniden tetikleyen hicbir
+  sey olmadigi icin ekran DONUYORDU (kullanici "5 dk" gorup iki dakika
+  sonra da "5 dk" goruyordu).
+  · Yeni **`CanliDakika`** sarmalayicisi (durak listesi) +
+    `_HatSaatleriDurumu` icine timer (hat saatleri sayfasi).
+  ⚠️⚠️ **TIK 1 SANIYE AMA `setState` YALNIZ DAKIKA DEGISINCE**: 5 sn'lik tik
+     donusu 5 sn GEC gosterir (sikayetin ta kendisi), kosulsuz `setState` ise
+     dakikada 60 gereksiz cizim yapar. Arada yapilan tek is bir `int`
+     karsilastirmasidir. ⚠️ YAPMA: periyodu buyutme ya da kosulu kaldirma.
+  ⚠️ Ikisinde de `dispose`ta iptal — yoksa OLU `State`e `setState` (turu 96i
+     EKRANI KIRMIZI boyayan sinif).
+
+- 🔴 **TURU 169 — YAKLASAN OTOBUS VURGUSU** (kullanici: *"yaklasan saatler
+  hafif kirmizi olabilir, GELIYOR GIBI"*).
+  Saat + `N dk` **kirmizi** (`kYaklasanRenk` #E0523F, esik `kYakinDakika` 10)
+  · `N dk` w600 -> **w800** · kart zemini hafif kirmizi tona doner.
+  ⚠️ Onceden **YESILDI** (#2BB673) — yesil "sorun yok" okunur, oysa buradaki
+     anlam "ACELE ET".
+  ⚠️⚠️ **VURGU YALNIZ ZEMIN TONU VE YAZI RENGI**: dolgu/kenarlik/yukseklik
+     DEGISMEZ, boylece otobus yaklasirken kart **YERINDEN OYNAMAZ**.
+     Kenarlik BILEREK kullanilmadi: turu 150'de `Container.decoration`
+     kenarligi kartlari **3,2 dp** kaydirip seridi ziplatmisti.
+  ⚠️ Zemin `alphaBlend` ile **OPAK** uretilir; saydam renk birakmak turu
+     157'nin `Color.lerp` alfa tuzagini geri getirirdi.
+
+- ✅ **TURU 169 — SAATLERE DOKUNULMADI (gerek yoktu).** Kullanici *"birebir
+  Kocaeli verisi, hesaplama olmasin"* dedi; durak kartindaki saat ZATEN ham
+  GTFS kalkis dakikasi (`UlasimVeri.saatMetni`), uzerine hicbir hesap
+  binmiyor (turu 166: 114.173/114.192 grup birebir · degistirilmis 0 ·
+  uydurulmus 0). Kaldirilan "hesaplama" rota motorunun TAHMINLERIYDI
+  (yurume suresi · aktarma · varis ongorusu).
 - 💸 ⚠️⚠️⚠️ **MALIYET DENETIMI (5 Eyl) — 50$ FATURANIN KAYNAGI HETZNER IDI, GEBZEM DEGIL.**
   Kullanici: *"50$ fatura geldi, biz backend ne yaptik?"* — OLCULDU: hesapta
   **UC Hetzner projesi** vardi (gebzem $9,99 · akse-dugun $22,99 · birqr $6,49)
