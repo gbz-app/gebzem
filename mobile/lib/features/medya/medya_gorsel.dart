@@ -205,12 +205,23 @@ class Avatar extends StatelessWidget {
     this.mediaId,
     this.avatarUrl = '',
     this.cap = 44,
+    this.sade = false,
   });
 
   final String ad;
   final String? mediaId;
   final String avatarUrl;
   final double cap;
+
+  /// TURU 171d - **SADE MOD** (kullanici emri: *"profil fotografi yoksa
+  ///	da sagdaki gunes ve paranin arkasindaki o divin rengi olsun,
+  ///	icinde a b karakter soru isareti olmasin"*).
+  ///
+  /// UYARI Varsayilan `false`: harfli avatar 20+ yerde kullaniliyor
+  ///	(sohbet listesi, yorumlar, katilimcilar) ve orada harf
+  ///	kisileri AYIRT ETMEYE yariyor. Yalniz anasayfa basliginda
+  ///	sade istendi.
+  final bool sade;
 
   @override
   Widget build(BuildContext context) {
@@ -228,6 +239,22 @@ class Avatar extends StatelessWidget {
       );
     }
     final harf = ad.trim().isEmpty ? '?' : ad.trim()[0].toUpperCase();
+    // TURU 171d - sade modda cip zemini + IC YAZI YOK (bkz. `sade` serhi).
+    if (sade && avatarUrl.isEmpty) {
+      return Container(
+        width: cap,
+        height: cap,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          // UYARI Ciplerle AYNI ifade (`onSurface` %7): ayri bir sabit
+          //    yazilsaydi biri degisince oteki geride kalirdi.
+          color: Theme.of(context)
+              .colorScheme
+              .onSurface
+              .withValues(alpha: 0.07),
+        ),
+      );
+    }
     return CircleAvatar(
       radius: cap / 2,
       backgroundImage: avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,

@@ -1177,6 +1177,9 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
             mediaId: profil?['avatar_media_id'] as String?,
             avatarUrl: (profil?['avatar_url'] ?? '').toString(),
             cap: 42,
+            // TURU 171d - fotograf yoksa harf/soru isareti DEGIL,
+            //    ciplerle ayni notr daire (kullanici emri).
+            sade: true,
           ),
           const SizedBox(width: 11),
           // ⚠️ `Expanded` ZORUNLU: uzun bir ad arama ikonunu ekran
@@ -1198,6 +1201,11 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontSize: 13.5,
+                          // TURU 171d - **ARALIK 1 TIK DARALDI**
+                          //    (kullanici emri). Varsayilan satir
+                          //    yuksekligi (~1.4) selam ile ad arasinda
+                          //    gereksiz bosluk birakiyordu.
+                          height: 1.15,
                           fontWeight: FontWeight.w500,
                           // ⚠️ TURU 129 — 0.6 -> **0.78**: koyu zeminde
                           //    0.6 okunmuyordu (emulatorde goruldu).
@@ -1222,6 +1230,8 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       fontSize: 19,
+                      // TURU 171d - bkz. selamlama `height` serhi.
+                      height: 1.15,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
@@ -1235,8 +1245,18 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
           // TURU 171c - dokunus PANELI ACAR (kullanici: *"tikladigimda
           //    pencere acilmiyor"*). Widget varsayilani da ayni panel.
           const HavaDovizCipleri(kompakt: true),
+          // TURU 171d - **ARAMANIN ARKASINDA DAIRE** (kullanici emri:
+          //	*"aramanin arkasinda daire olsun, hava durumu ve dolar
+          //	gibi ayni renkte"*). Zemin ifadesi ciplerle AYNI.
           IconButton(
             tooltip: 'Ara',
+            style: IconButton.styleFrom(
+              backgroundColor: Theme.of(context)
+                  .colorScheme
+                  .onSurface
+                  .withValues(alpha: 0.07),
+              shape: const CircleBorder(),
+            ),
             icon: const Icon(LucideIcons.search, size: 22),
             // ⚠️⚠️⚠️ TURU 130 — **`Scaffold` SARMALI ZORUNLU** (kullanici:
             //	*"aramaya tikladigimda ekran patliyor"* — HAKLIYDI).

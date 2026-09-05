@@ -441,9 +441,16 @@ class _HavaDovizCipleriDurumu extends State<HavaDovizCipleri> {
             // TURU 171c - kompakt genislik 104 -> 96: emulatorde 360 dp
             //    ekranda selamlama ("Iyi Gunler") KIRPILIYORDU. 96 dp
             //    en genis olasiligi ("65,04" + ok) hala tasirmadan alir.
-            en: widget.kompakt ? 96 : 118,
+            // TURU 171d - 96 -> 88 ve icerik ORTALANDI (kullanici:
+            //	*"dolar vs de saginda cok bosluk olmus, azalt"*).
+            //	Sabit genislik KALIR (zıplamayi o onluyor) ama artik
+            //	icerige daha yakin ve ortali duruyor.
+            en: widget.kompakt ? 88 : 110,
             ic: Row(
               mainAxisSize: MainAxisSize.min,
+              // UYARI Sabit genislikte icerik SOLA yaslaniyordu ve sagda
+              //    bos bir seri kaliyordu (kullanici bunu gordu).
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
                   kDovizSimge[kod] ?? '',
