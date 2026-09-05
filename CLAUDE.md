@@ -41,6 +41,46 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
       kaybettiriyorsun"*. **Üçüncüsü olmayacak.**
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- 💸 ⚠️⚠️⚠️ **MALIYET DENETIMI (5 Eyl) — 50$ FATURANIN KAYNAGI HETZNER IDI, GEBZEM DEGIL.**
+  Kullanici: *"50$ fatura geldi, biz backend ne yaptik?"* — OLCULDU: hesapta
+  **UC Hetzner projesi** vardi (gebzem $9,99 · akse-dugun $22,99 · birqr $6,49)
+  = **$39,47 + %19 KDV = ~$47**. Gebzem'in payi **%25**; Gebzem sunucusu 3 aydir
+  ayni makinede ve trafigi **0,14 GB / 20 TB** (dahil trafigin on binde biri).
+  Iki proje SILINDI (kullanici karari) -> **EUR 9,99 + KDV = EUR 11,89/ay**.
+  API ile DOGRULANDI: volume 0 · floating IP 0 · LB 0 · yedek kapali.
+  ⚠️⚠️ **DERS: HETZNER API TOKENLARI PROJE BAZLIDIR.** Elimdeki token yalniz
+     `gebzem` projesini goruyordu ve ilk olcumde *"tek sunucu var"* dedim —
+     YANLISTI. Hesap genelini gormek icin HER PROJEDEN ayri token gerekir.
+     Bir daha "Hetzner'de N sunucu var" demeden once token KAPSAMINI sor.
+  ⚠️ Hetzner'de **kapali sunucu da TAM ucretlenir** — tasarruf icin SILMEK sart.
+  ⚠️ Sunucu silinince **volume ve bosta kalan primary IPv4 SILINMEZ** ve
+     ucretlenmeye devam eder; PROJE silme kutusu ikisini de birlikte temizler.
+  ⏳ R2'de `dugun-fotolar` ve `bir-qr` bucketlari HALA DURUYOR (10 GB'a kadar $0).
+
+- 🗺️ ⚠️⚠️⚠️ **50 BIN KULLANICIDA ASIL BOMBA GOOGLE MAPS PLATFORM (olculdu).**
+  Bugunku kullanim (son 35 gun, Cloud Monitoring API): Roads **1.802** · Maps SDK
+  **696** · Routes **380** · Places **122** -> **DORDU DE UCRETSIZ KOTADA, $0**.
+  (Google'in cektigi ~TL500 HATALI ve IADE EDILIYOR — bizim kodumuzdan degil.)
+  📊 **50K kullanici projeksiyonu** (fiyatlar Google'in kendi sayfasindan dogrulandi):
+
+  | kalem | aylik istek | birim | maliyet |
+  |---|---|---|---|
+  | Dynamic Maps (20 acilis/kisi) | 1.000.000 | $7/1000 | **$6.930** |
+  | Places Text Search (5/kisi) | 250.000 | $32/1000 | **$7.840** |
+  | Routes (10 rota x 6 cagri) | 3.000.000 | $5/1000 | **$14.950** |
+  | | | | **~$29.700/ay** |
+
+  Buna karsilik KENDI altyapimiz 50K'da **~$200-300/ay** (3-4 sunucu + R2;
+  ⚠️ **R2 egress UCRETSIZ** — video/resim indirme trafigi bedava, bu R2'nin
+  S3'e karsi en buyuk avantaji ve mimarinin bel kemigi).
+  ⚠️ Yani maliyetin **%99'u Google**, altyapi DEGIL.
+  ✅ **COZUM (turu 163b'de zaten notlu):** MapLibre+OpenFreeMap (harita) ·
+     OSRM/Valhalla (rota) · Photon (adres arama) · OSRM match (yola oturtma)
+     — hepsi kendi sunucumuzda, ek **1 sunucu (~EUR 15/ay)**. **AYRI TUR.**
+  ⏳ **HENUZ YAPILMADI:** Google Cloud kota tavani + butce alarmi (kullanici
+     onayi bekliyor). Kotasiz birakilirsa tek bir dongu hatasi faturayi patlatir
+     (turu 152'de tek arama **90+ Routes istegi** uretiyordu — o hata bugun
+     duzeltilmis olsa da kota TAVANI hala YOK).
 - **KALDIGIMIZ YER (4 Eyl 10:08): TURU 166+167+168 YAYINLANDI — SADECE iOS.**
   ios **33846548944** (**78de7dc**), R2 ipa=31181026 (md5 8e309c78),
   index=7967 (md5 33e18c39) surum.json=45, purge OK, **CDN BIREBIR**,
