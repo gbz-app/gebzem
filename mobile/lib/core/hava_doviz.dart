@@ -179,6 +179,36 @@ const Map<String, String> kAltinTurleri = {
   'GUMUS': 'Gümüş',
 };
 
+/// TURU 173 — **GRAFIK ARALIGI** (kullanici emri: *"para vs sag
+/// tarafta gunluk haftalik aylik ve yillik gostersin"*).
+///
+/// Bunlar bir SURE degil, grafikteki **NOKTALARIN PERIYODU**:
+///	gunluk  -> son 14 is gunu, her gun bir nokta
+///	haftalik-> son 13 hafta, her haftanin CUMA'si
+///	aylik   -> son 14 ay, her ayin SON is gunu
+///	yillik  -> son 7 yil, her yilin SON is gunu
+///
+/// ⚠️⚠️ **KAYNAK TEK: TCMB.** ECB tabanli ucretsiz servisler (frankfurter
+///	vb.) bir yillik seriyi TEK istekte veriyor ve cok cazip
+///	gorunuyordu; KULLANILMADI. Ekranin en buyuk sayisi TCMB
+///	**doviz satis** kuru ve altina "TCMB" yaziyor. Grafik baska
+///	bir kurumdan gelseydi ayni kartta IKI FARKLI BUYUKLUK yan yana
+///	dururdu — turu 165/168'de tam bu yuzden *"saatler uymuyor"*
+///	sikayeti alinmisti.
+/// ⚠️ ISTEK SAYISI OLCULDU: 20 nokta = **23 istek** (ortalama 1,15;
+///	tatile denk gelen nokta icin geriye 1-2 gun deneniyor). Yani
+///	yillik grafik bile ~8 istek eder. Gunluk dosyalari 365 kez
+///	cekmek YAPILMADI - nokta periyodu tam da bunu onluyor.
+enum KurAralik { gunluk, haftalik, aylik, yillik }
+
+/// Aralik dugmelerinin etiketi — **TEK KAYNAK**.
+const Map<KurAralik, String> kAralikAdi = {
+  KurAralik.gunluk: 'Gün',
+  KurAralik.haftalik: 'Hafta',
+  KurAralik.aylik: 'Ay',
+  KurAralik.yillik: 'Yıl',
+};
+
 /// Bir gunun kur degeri.
 class KurGunu {
   const KurGunu({required this.tarih, required this.deger});
@@ -246,13 +276,37 @@ class HavaDoviz {
   DateTime? _havaAn;
   static const Duration _havaOmru = Duration(minutes: 30);
 
-  final Map<String, List<KurGunu>> _kur = {};
-  DateTime? _kurAn;
+  // ⚠️⚠️⚠️ TURU 173 — **TEK VE PAYLASILAN `Dio`** (baglanti havuzu).
+  //
+  //	Onceden her istek `Dio(BaseOptions(...))` ile YENI bir istemci
+  //	yaratiyordu; her yeni istemci kendi `HttpClient`ini kurar, yani
+  //	**HER ISTEKTE yeniden DNS + TLS el sikismasi**. Tek dosya
+  //	cekilirken gorunmuyordu, ama yillik grafik 7-11 istek attigi an
+  //	sahada **30 saniyeden uzun** bir bekleme uretti (emulatorde
+  //	goruldu).
+  //
+  //	OLCULDU (ayni 6 TCMB dosyasi, masaustu):
+  //	  sirali + her seferinde yeni baglanti : **6.758 ms**
+  //	  paralel + keep-alive                 : **1.090 ms**  (6,2 kat)
+  //
+  // ⚠️ YAPMA: cagri yerlerinde tekrar `Dio(...)` yaratma. Istek basina
+  //	farkli ayar gerekiyorsa `Options` ile ver - o havuzu bozmaz.
+  static final Dio _ag = Dio(BaseOptions(
+    connectTimeout: const Duration(seconds: 8),
+    receiveTimeout: const Duration(seconds: 12),
+  ));
+
+  // TURU 173 - **ARALIK BASINA AYRI ONBELLEK** (kullanici emri: *"para
+  //	vs sag tarafta gunluk haftalik aylik ve yillik gostersin"*).
+  //	Tek seri tutulsaydi kullanici her sekme degistirdiginde onceki
+  //	aralik SILINIR ve geri donuste YENIDEN cekilirdi.
+  final Map<KurAralik, Map<String, List<KurGunu>>> _kur = {};
+  final Map<KurAralik, DateTime> _kurAn = {};
+  final Map<KurAralik, Future<void>> _kurIsi = {};
   // ⚠️ TCMB gunde BIR KEZ (15:30) yayinlar; daha sik cekmek bosuna trafik.
   static const Duration _kurOmru = Duration(hours: 6);
 
   Future<Hava?>? _havaIsi;
-  Future<void>? _kurIsi;
 
   /// Hava verisi (onbellekli).
   ///
@@ -295,11 +349,10 @@ class HavaDoviz {
         'precipitation_probability_max'
         '&timezone=Europe%2FIstanbul&forecast_days=7',
       );
-      final y = await Dio(BaseOptions(
-        connectTimeout: const Duration(seconds: 8),
-        receiveTimeout: const Duration(seconds: 12),
-        responseType: ResponseType.plain,
-      )).getUri<String>(u);
+      final y = await _ag.getUri<String>(
+        u,
+        options: Options(responseType: ResponseType.plain),
+      );
       if (y.statusCode != 200 || y.data == null) return _hava;
       final j = jsonDecode(y.data!) as Map<String, dynamic>;
       final c = j['current'] as Map<String, dynamic>;
@@ -374,13 +427,24 @@ class HavaDoviz {
   /// ⚠️ TCMB **hafta sonu ve tatilde YAYIN YAPMAZ**; o gunlerin dosyasi 404
   ///    doner ve seride yer ALMAZ. Bu dogru davranistir: olmayan bir gun icin
   ///    deger uydurmak grafigi yalanci yapardi.
-  Future<List<KurGunu>> kurGetir(String kod, {int gun = 14}) async {
-    final t = _kurAn;
-    if (_kur.isNotEmpty && t != null && DateTime.now().difference(t) < _kurOmru) {
-      return _kur[kod] ?? const [];
+  Future<List<KurGunu>> kurGetir(
+    String kod, {
+    KurAralik aralik = KurAralik.gunluk,
+  }) async {
+    final t = _kurAn[aralik];
+    final onbellek = _kur[aralik];
+    if (onbellek != null &&
+        onbellek.isNotEmpty &&
+        t != null &&
+        DateTime.now().difference(t) < _kurOmru) {
+      return onbellek[kod] ?? const [];
     }
-    await (_kurIsi ??= _kurCek(gun).whenComplete(() => _kurIsi = null));
-    return _kur[kod] ?? const [];
+    // ⚠️ Ucusta olan istek PAYLASILIR ve **ARALIK BASINADIR**: kullanici
+    //    hizli sekme degistirirse ayni aralik iki kez CEKILMEZ, farkli
+    //    araliklar ise birbirini BEKLEMEZ.
+    await (_kurIsi[aralik] ??=
+        _kurCek(aralik).whenComplete(() => _kurIsi.remove(aralik)));
+    return _kur[aralik]?[kod] ?? const [];
   }
 
   final List<AltinTuru> _altin = [];
@@ -411,11 +475,10 @@ class HavaDoviz {
 
   Future<void> _altinCek() async {
     try {
-      final y = await Dio(BaseOptions(
-        connectTimeout: const Duration(seconds: 8),
-        receiveTimeout: const Duration(seconds: 12),
-        responseType: ResponseType.plain,
-      )).get<String>('https://finans.truncgil.com/v4/today.json');
+      final y = await _ag.get<String>(
+        'https://finans.truncgil.com/v4/today.json',
+        options: Options(responseType: ResponseType.plain),
+      );
       if (y.statusCode != 200 || y.data == null) return;
       final j = jsonDecode(y.data!) as Map<String, dynamic>;
       final yeni = <AltinTuru>[];
@@ -443,41 +506,125 @@ class HavaDoviz {
     }
   }
 
-  /// Onbellekteki TUM seri (yon oku ve grafik icin).
-  List<KurGunu> seri(String kod) => _kur[kod] ?? const [];
+  /// Onbellekteki GUNLUK seri (cipteki yon oku icin).
+  ///
+  /// ⚠️ Aralik parametresi YOK: cip her zaman GUNCEL degeri ve BIR
+  ///	GUNLUK yonu gosterir. Aylik seride "yon" bir ayin degisimi
+  ///	olurdu ve cipteki ok baska bir sey anlatirdi.
+  List<KurGunu> seri(String kod) => _kur[KurAralik.gunluk]?[kod] ?? const [];
 
   /// Onbellekteki son deger (ag beklemeden okumak icin).
   double? sonKur(String kod) {
-    final l = _kur[kod];
-    return (l == null || l.isEmpty) ? null : l.last.deger;
+    final l = seri(kod);
+    return l.isEmpty ? null : l.last.deger;
   }
 
-  Future<void> _kurCek(int gun) async {
-    final bugun = DateTime.now();
-    final toplanan = <String, List<KurGunu>>{for (final k in kDovizler) k: []};
-    var bulunan = 0;
-    // ⚠️ Geriye dogru en fazla `gun * 2` takvim gunu taranir: hafta sonlari
-    //    ve tatiller bos gecer, yoksa 14 is gunu icin 14 gun yetmezdi.
-    for (var i = 0; i < gun * 2 && bulunan < gun; i++) {
-      final g = bugun.subtract(Duration(days: i));
-      // ⚠️ Hafta sonu ATLANIR: istek atmadan eleyerek gereksiz 404'u onler.
-      if (g.weekday == DateTime.saturday || g.weekday == DateTime.sunday) {
+  /// Bir araligin hedef TARIHLERI (yeniden eskiye).
+  ///
+  /// ⚠️ Gelecege dusen hedef BUGUNE cekilir: ayin son gunu henuz
+  ///	gelmediyse o ay icin en taze veri BUGUNKUDUR.
+  static List<DateTime> _hedefler(KurAralik a) {
+    final n = DateTime.now();
+    final bugun = DateTime(n.year, n.month, n.day);
+    DateTime kirp(DateTime d) => d.isAfter(bugun) ? bugun : d;
+    switch (a) {
+      case KurAralik.gunluk:
+        final l = <DateTime>[];
+        var d = bugun;
+        // ⚠️ Hafta sonu ISTEK ATILMADAN elenir (TCMB o gun yayin yapmaz).
+        while (l.length < 14) {
+          if (d.weekday != DateTime.saturday &&
+              d.weekday != DateTime.sunday) {
+            l.add(d);
+          }
+          d = d.subtract(const Duration(days: 1));
+        }
+        return l;
+      case KurAralik.haftalik:
+        return [
+          for (var i = 0; i < 13; i++)
+            () {
+              final g = bugun.subtract(Duration(days: 7 * i));
+              return kirp(g.add(Duration(days: DateTime.friday - g.weekday)));
+            }(),
+        ];
+      case KurAralik.aylik:
+        // ⚠️ `DateTime(y, m + 1, 0)` = o ayin SON gunu (Dart tasmayi
+        //    kendisi cozer; 0. gun bir onceki ayin sonudur).
+        return [
+          for (var i = 0; i < 14; i++)
+            kirp(DateTime(bugun.year, bugun.month - i + 1, 0)),
+        ];
+      case KurAralik.yillik:
+        return [
+          for (var i = 0; i < 7; i++) kirp(DateTime(bugun.year - i, 12, 31)),
+        ];
+    }
+  }
+
+  /// Bir hedef tarih icin TCMB kaydi; tatilse [geri] gun daha dener.
+  ///
+  /// ⚠️ Hafta sonu DENEME SAYILMAZ (istek de atilmaz): 31 Mayis Pazar
+  ///	ise 29 Mayis Cuma'ya ulasmak icin iki 'bedava' adim gerekir.
+  Future<({DateTime gun, Map<String, double> kur})?> _nokta(
+    DateTime hedef,
+    int geri,
+  ) async {
+    var d = hedef;
+    var deneme = 0;
+    // ⚠️ `adim` tavani SONSUZ DONGU kapisi: hafta sonu dali `deneme`yi
+    //    artirmadigi icin tek basina yeterli bir durma olcutu DEGIL.
+    for (var adim = 0; deneme <= geri && adim < 24; adim++) {
+      if (d.weekday == DateTime.saturday || d.weekday == DateTime.sunday) {
+        d = d.subtract(const Duration(days: 1));
         continue;
       }
-      final xml = await _tcmbGun(g);
-      if (xml == null) continue;
-      bulunan++;
+      final xml = await _tcmbGun(d);
+      if (xml != null) {
+        final m = <String, double>{};
+        for (final k in kDovizler) {
+          final v = _kurAyikla(xml, k);
+          if (v != null) m[k] = v;
+        }
+        if (m.isNotEmpty) return (gun: d, kur: m);
+      }
+      deneme++;
+      d = d.subtract(const Duration(days: 1));
+    }
+    return null;
+  }
+
+  Future<void> _kurCek(KurAralik aralik) async {
+    final hedefler = _hedefler(aralik);
+    // ⚠️ GUNLUKTE geri deneme YOK (`geri = 0`): hedefler zaten ardisik is
+    //    gunleri; tatil gununde bir onceki gune kaysaydik AYNI nokta
+    //    iki kez cizilir ve grafik yatay bir basamak uretirdi.
+    // ⚠️ 5 gun OLCULEREK secildi: 20 hedefin 20'si en fazla **2 gun**
+    //    geride bulundu (yilbasi/bayram dahil). Daha buyuk bir sayi
+    //    yalniz gercekten VERI OLMAYAN nokta icin bekleme uretirdi.
+    final geri = aralik == KurAralik.gunluk ? 0 : 5;
+    final sonuc = <DateTime, Map<String, double>>{};
+    // ⚠️ PARALEL ama **6'SAR**: 14-23 istek sirali atilinca ~7 sn suruyordu
+    //    (olculdu). Sinirsiz paralel de TCMB'yi gereksiz doverdi. 7 secildi
+    for (var i = 0; i < hedefler.length; i += 7) {
+      final grup = hedefler.skip(i).take(7);
+      final r = await Future.wait(grup.map((h) => _nokta(h, geri)));
+      for (final x in r) {
+        if (x != null) sonuc[x.gun] = x.kur;
+      }
+    }
+    if (sonuc.isEmpty) return; // ⚠️ Onbellek EZILMEZ: bayat veri > bos veri.
+    // ⚠️ Eskiden yeniye: grafik soldan saga akar.
+    final gunler = sonuc.keys.toList()..sort();
+    final toplanan = <String, List<KurGunu>>{for (final k in kDovizler) k: []};
+    for (final g in gunler) {
       for (final k in kDovizler) {
-        final d = _kurAyikla(xml, k);
+        final d = sonuc[g]![k];
         if (d != null) toplanan[k]!.add(KurGunu(tarih: g, deger: d));
       }
     }
-    if (bulunan == 0) return; // ⚠️ Onbellek EZILMEZ: bayat veri > bos veri.
-    for (final k in kDovizler) {
-      // ⚠️ Eskiden yeniye: grafik soldan saga akar.
-      _kur[k] = toplanan[k]!.reversed.toList();
-    }
-    _kurAn = DateTime.now();
+    _kur[aralik] = toplanan;
+    _kurAn[aralik] = DateTime.now();
   }
 
   Future<String?> _tcmbGun(DateTime g) async {
@@ -491,14 +638,18 @@ class HavaDoviz {
         ? Uri.parse('https://www.tcmb.gov.tr/kurlar/today.xml')
         : Uri.parse('https://www.tcmb.gov.tr/kurlar/$yil$ay/$gg$ay$yil.xml');
     try {
-      final y = await Dio(BaseOptions(
-        connectTimeout: const Duration(seconds: 6),
-        receiveTimeout: const Duration(seconds: 10),
-        responseType: ResponseType.bytes,
-        // UYARI 404 ISTISNA FIRLATMASIN: hafta sonu/tatil dosyasi YOKTUR
-        //    ve bu NORMAL bir durumdur, hata degil.
-        validateStatus: (_) => true,
-      )).getUri<List<int>>(u);
+      final y = await _ag.getUri<List<int>>(
+        u,
+        options: Options(
+          responseType: ResponseType.bytes,
+          // UYARI 404 ISTISNA FIRLATMASIN: hafta sonu/tatil dosyasi
+          //    YOKTUR ve bu NORMAL bir durumdur, hata degil.
+          validateStatus: (_) => true,
+          // ⚠️ Grafik icin 10-20 istek atiliyor; tek bir yavas dosya
+          //    tum grafigi bekletmesin diye burada tavan DAHA DAR.
+          receiveTimeout: const Duration(seconds: 8),
+        ),
+      );
       if (y.statusCode != 200 || y.data == null) return null;
       // ⚠️⚠️ **`bodyBytes` + latin1 ZORUNLU**: TCMB dosyasi UTF-8 bildirse de
       //    Turkce adlar (`ISVIÇRE FRANGI`) latin1 baytlariyla gelir; `y.body`
@@ -738,7 +889,9 @@ class _HavaDovizCipleriDurumu extends State<HavaDovizCipleri> {
                 //	altinin TL simgesi yok ve "₺" yazmak onu bir
                 //	dovizmis gibi gosterirdi.
                 if (altin != null)
-                  Icon(LucideIcons.coins,
+                  // TURU 173 - **TEK SIKKE** (kullanici: *"ikon normal
+                  //    coin olsun, TEK"*); `coins` IKI sikke cizer.
+                  Icon(LucideIcons.circleDollarSign,
                       size: ikonBoy - 1, color: const Color(0xFFFFB020))
                 else
                   Text(
@@ -1145,20 +1298,99 @@ class _KurBolumuDurumu extends State<_KurBolumu> {
   int get _altinSekmesi => kDovizler.length;
   bool get _altinMi => _kod == _altinSekmesi;
 
+  /// TURU 173 - secili grafik araligi (kullanici emri).
+  KurAralik _aralik = KurAralik.gunluk;
+
   @override
   void initState() {
     super.initState();
     _getir();
   }
 
+  /// Bayat yanit kapisi icin istek nesli.
+  int _istek = 0;
+
   Future<void> _getir() async {
+    final istek = ++_istek;
     if (_altinMi) {
       final a = await HavaDoviz.i.altinGetir();
-      if (mounted) setState(() => _altin = a);
+      if (!mounted || istek != _istek) return;
+      setState(() => _altin = a);
       return;
     }
-    final l = await HavaDoviz.i.kurGetir(kDovizler[_kod]);
-    if (mounted) setState(() => _seri = l);
+    final l =
+        await HavaDoviz.i.kurGetir(kDovizler[_kod], aralik: _aralik);
+    // ⚠️ BAYAT YANIT KAPISI: kullanici yanit gelmeden BASKA bir aralik
+    //    ya da doviz sectiyse gelen liste ARTIK GECERLI DEGIL. Bu kapi
+    //    olmasaydi 'Yil' secilirken gec gelen 'Gun' yaniti grafigi
+    //    yanlis veriyle cizerdi (turu 141/144 sinifi).
+    if (!mounted || istek != _istek) return;
+    setState(() => _seri = l);
+  }
+
+  /// Gram altin (serit disinda, USTTE buyuk gosterilir).
+  AltinTuru? get _gram {
+    for (final a in _altin) {
+      if (a.anahtar == 'GRA') return a;
+    }
+    return null;
+  }
+
+  /// Yatay seritteki kalemler — gram HARIC (o zaten ustte).
+  List<AltinTuru> get _digerAltin =>
+      [for (final a in _altin) if (a.anahtar != 'GRA') a];
+
+  /// Seritteki KISA ad ('Cumhuriyet altını' -> 'Cumhuriyet').
+  ///
+  /// ⚠️ 132 dp kartta tam adlar kirpiliyordu (emulatorde goruldu:
+  ///	*'Cumhuriyet a…'*). Karti genisletmek yerine ad kisaltildi:
+  ///	bolumun basligi ZATEN 'Altın' ve her kartta 'altın' yazmak
+  ///	bilgi TASIMIYOR.
+  /// ⚠️ SIRA ONEMLI: once ' altını', sonra ' altın'. Ters olsaydi
+  ///	'Cumhuriyet altını' -> 'Cumhuriyet ı' olurdu.
+  /// ⚠️ 'Gümüş' DOKUNULMAZ (altin degil) - degistirilecek ek YOK.
+  static String _seritAdi(String ad) =>
+      ad.replaceAll(' altını', '').replaceAll(' altın', '');
+
+  /// Serit kartinin yuksekligi.
+  ///
+  /// ⚠️ SABIT dp YAZILMADI: uc metin satiri var ve yazi olcegi 2.0'da
+  ///	sabit bir kutu TASARDI (turu 137/141/150'de olculen sinif).
+  /// ⚠️⚠️ SATIR CARPANI **1.45**, 1.3 DEGIL. Ilk yazimda 1.3 kullanildi ve
+  ///	emulatorde **"BOTTOM OVERFLOWED BY 4.0 PIXELS"** cikti:
+  ///	uygulamanin fontu Roboto DEGIL Google Sans ve satir kutusu
+  ///	punto x ~1.44 geliyor (turu 121/135b/157'de olculen ayni
+  ///	sinif). Ustune 2 dp pay: `TextPainter` satir yuksekligini
+  ///	YUKARI yuvarlar ve carpim tam degeri vermez.
+  static double _altinKartBoy(BuildContext c) {
+    final o = MediaQuery.textScalerOf(c);
+    // ad 11.5 + fiyat 14.5 + degisim 11.5 · dikey dolgu 2x10.
+    return ((o.scale(11.5) + o.scale(14.5) + o.scale(11.5)) * 1.45 + 20 + 2)
+        .ceilToDouble();
+  }
+
+  /// Gunluk degisim rozeti — **TEK KAYNAK** (ust deger ve serit kartlari).
+  ///
+  /// ⚠️ Degisim 0 ise HICBIR SEY cizilmez: yon bilinmiyorken ok gostermek
+  ///	yon IDDIA ETMEK olurdu (cipteki `_yon` ayni ilkeyi uyguluyor).
+  static Widget _degisim(double d, {bool buyuk = false}) {
+    if (d == 0) return const SizedBox.shrink();
+    final arti = d > 0;
+    final renk = arti ? const Color(0xFF2BB673) : const Color(0xFFE0523F);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(arti ? LucideIcons.arrowUp : LucideIcons.arrowDown,
+            size: buyuk ? 15 : 12, color: renk),
+        Text(
+          '%${d.abs().toStringAsFixed(2).replaceAll('.', ',')}',
+          style: TextStyle(
+              fontSize: buyuk ? 14 : 11.5,
+              fontWeight: FontWeight.w700,
+              color: renk),
+        ),
+      ],
+    );
   }
 
   /// Binlik ayracli TL metni (6898.85 -> "6.898,85 ₺").
@@ -1192,6 +1424,56 @@ class _KurBolumuDurumu extends State<_KurBolumu> {
     HapticFeedback.selectionClick();
     setState(() => _secili = i);
   }
+
+  /// Grafik araligi hap grubu.
+  ///
+  /// ⚠️ `mainAxisSize.min` ZORUNLU: bu widget bir `Row`un ESNEK OLMAYAN
+  ///	cocugu; sinirsiz genislik kisiti alir ve `max` ile ciziliyorsa
+  ///	RenderFlex tasmasi uretir.
+  Widget _aralikSecici(ColorScheme scheme) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final a in KurAralik.values) ...[
+            GestureDetector(
+              onTap: () {
+                if (a == _aralik) return;
+                HapticFeedback.selectionClick();
+                setState(() {
+                  _aralik = a;
+                  _secili = null;
+                  // ⚠️ Seri BOSALTILIR: eski aralikin noktalari yeni
+                  //    etiketle bir an cizilseydi kullanici 'Yıl' yazan
+                  //    bir kartta gunluk grafigi gorurdu.
+                  _seri = const [];
+                });
+                _getir();
+              },
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                decoration: BoxDecoration(
+                  color: a == _aralik
+                      ? const Color(0xFF2BB673)
+                      : scheme.onSurface.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Text(
+                  kAralikAdi[a]!,
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    // ⚠️ Kalinlik SABIT: secili/pasif arasinda degisseydi
+                    //    metin genisler ve grup her dokunusta KAYARDI
+                    //    (turu 140'ta cip seridinde olculdu).
+                    fontWeight: FontWeight.w700,
+                    color: a == _aralik ? Colors.white : scheme.onSurface,
+                  ),
+                ),
+              ),
+            ),
+            if (a != KurAralik.values.last) const SizedBox(width: 5),
+          ],
+        ],
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -1245,6 +1527,12 @@ class _KurBolumuDurumu extends State<_KurBolumu> {
         // TURU 172 - **ALTIN GRAFIK DEGIL LISTE.** Kaynak gecmis veri
         //	VERMIYOR (tarihli adres 404); uydurma bir seri cizmek
         //	yerine gunluk DEGISIM YUZDESI yazilir.
+        // TURU 173 - **DIKEY LISTE -> YATAY SERIT** (kullanici emri:
+        //	*"tam sayfa degil, altta gram vs sol sag scroll
+        //	olsun"*). 13 kalem alt alta panelin TAMAMINI
+        //	kapliyordu; artik gram altin USTTE buyuk, digerleri
+        //	yatay kaydirilan kartlarda ve panel doviz sekmesiyle
+        //	AYNI yukseklikte kaliyor.
         if (_altinMi) ...[
           if (_altin.isEmpty)
             const SizedBox(
@@ -1255,103 +1543,187 @@ class _KurBolumuDurumu extends State<_KurBolumu> {
                       height: 22,
                       child: CircularProgressIndicator(strokeWidth: 2))),
             )
-          else
-            for (final a in _altin)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 34,
-                      height: 34,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: const Color(0xFFFFB020)
-                            .withValues(alpha: 0.14),
-                      ),
-                      child: const Icon(LucideIcons.coins,
-                          size: 17, color: Color(0xFFFFB020)),
-                    ),
-                    const SizedBox(width: 11),
-                    Expanded(
-                      child: Text(
-                        a.ad,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: scheme.onSurface),
-                      ),
-                    ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
+          else ...[
+            // Gram altin USTTE, dovizdeki buyuk deger hiyerarsisiyle AYNI.
+            if (_gram != null) ...[
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            _paraMetni(_gram!.satis),
+                            maxLines: 1,
+                            style: TextStyle(
+                                fontSize: 28,
+                                fontWeight: FontWeight.w800,
+                                color: scheme.onSurface),
+                          ),
+                        ),
                         Text(
-                          _paraMetni(a.satis),
+                          'Gram altın · serbest piyasa',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                              fontSize: 15,
+                              fontSize: 12.5,
+                              color: scheme.onSurface
+                                  .withValues(alpha: 0.6)),
+                        ),
+                      ],
+                    ),
+                  ),
+                  _degisim(_gram!.degisim, buyuk: true),
+                ],
+              ),
+              const SizedBox(height: 14),
+            ],
+            // ⚠️ Yatay serit: gram HARIC digerleri (gram zaten USTTE;
+            //    iki kez yazmak ayni sayiyi tekrar ederdi).
+            SizedBox(
+              height: _altinKartBoy(context),
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: EdgeInsets.zero,
+                itemCount: _digerAltin.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 10),
+                itemBuilder: (_, i) {
+                  final a = _digerAltin[i];
+                  return Container(
+                    width: 132,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: scheme.onSurface.withValues(alpha: 0.06),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            // TURU 173 - **TEK SIKKE** (kullanici: *"ikon
+                            //    normal coin olsun, TEK"*). Onceki
+                            //    `LucideIcons.coins` IKI sikke cizer.
+                            const Icon(LucideIcons.circleDollarSign,
+                                size: 15, color: Color(0xFFFFB020)),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                _seritAdi(a.ad),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: scheme.onSurface
+                                      .withValues(alpha: 0.75),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        // ⚠️ `FittedBox`: 'Besli altin' 225.362,08 ₺ eder
+                        //    ve 132 dp karta SIGMAZ; kirpmak yerine
+                        //    kuculur (ekranin ASIL bilgisi bu sayidir).
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            _paraMetni(a.satis),
+                            maxLines: 1,
+                            style: TextStyle(
+                                fontSize: 14.5,
+                                fontWeight: FontWeight.w800,
+                                color: scheme.onSurface),
+                          ),
+                        ),
+                        _degisim(a.degisim),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ] else ...[
+          // TURU 173 - **ARALIK SECICI BUYUK DEGERIN SAGINDA** (kullanici:
+          //	*"para vs SAG TARAFTA gunluk haftalik aylik ve yillik
+          //	gostersin"*).
+          // ⚠️⚠️ Secici **YUKLEME SIRASINDA DA CIZILIR**: yalniz veri
+          //	gelince cizilseydi 'Yıl'a basan kullanicinin altinda
+          //	secici KAYBOLUR ve (23 istek boyunca) vazgecip geri
+          //	donmenin HICBIR YOLU kalmazdi.
+          // ⚠️ Tarih satiri ASAGIDA ve TAM GENISLIKTE: ayni satira
+          //    konsaydi 360 dp ekranda '04.09.2026 · TCMB döviz satış'
+          //    (~175 dp) ile secici (~150 dp) yan yana SIGMAZDI.
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(
+                child: g == null
+                    // ⚠️ Bos `SizedBox` yerine METIN: yillik seri 7-11
+                    //    istek suruyor ve o sure boyunca kartin sol
+                    //    yarisi BOMBOS duruyordu (emulatorde goruldu).
+                    ? SizedBox(
+                        height: 36,
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            'Yükleniyor…',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: scheme.onSurface
+                                  .withValues(alpha: 0.45),
+                            ),
+                          ),
+                        ),
+                      )
+                    : FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          '${g.deger.toStringAsFixed(4).replaceAll('.', ',')} ₺',
+                          maxLines: 1,
+                          style: TextStyle(
+                              fontSize: 28,
                               fontWeight: FontWeight.w800,
                               color: scheme.onSurface),
                         ),
-                        // UYARI Degisim 0 ise ok/yuzde CIZILMEZ: yon
-                        //    bilinmiyorken yon IDDIA ETMEK yanlis olur.
-                        if (a.degisim != 0)
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                a.degisim > 0
-                                    ? LucideIcons.arrowUp
-                                    : LucideIcons.arrowDown,
-                                size: 12,
-                                color: a.degisim > 0
-                                    ? const Color(0xFF2BB673)
-                                    : const Color(0xFFE0523F),
-                              ),
-                              Text(
-                                '%${a.degisim.abs().toStringAsFixed(2).replaceAll('.', ',')}',
-                                style: TextStyle(
-                                  fontSize: 11.5,
-                                  fontWeight: FontWeight.w700,
-                                  color: a.degisim > 0
-                                      ? const Color(0xFF2BB673)
-                                      : const Color(0xFFE0523F),
-                                ),
-                              ),
-                            ],
-                          ),
-                      ],
-                    ),
-                  ],
-                ),
+                      ),
               ),
-        ] else if (g == null)
-          const SizedBox(
-            height: 150,
-            child: Center(
-                child: SizedBox(
-                    width: 22,
-                    height: 22,
-                    child: CircularProgressIndicator(strokeWidth: 2))),
-          )
-        else ...[
-          Text(
-            '${g.deger.toStringAsFixed(4).replaceAll('.', ',')} ₺',
-            style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.w800,
-                color: scheme.onSurface),
+              const SizedBox(width: 8),
+              _aralikSecici(scheme),
+            ],
           ),
           Text(
-            '${tarihMetni(g.tarih)} · TCMB döviz satış',
+            g == null
+                ? 'TCMB döviz satış'
+                : '${tarihMetni(g.tarih)} · TCMB döviz satış',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
                 fontSize: 12.5,
                 color: scheme.onSurface.withValues(alpha: 0.6)),
           ),
           const SizedBox(height: 14),
+          if (g == null)
+            const SizedBox(
+              height: 130,
+              child: Center(
+                  child: SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2))),
+            )
+          else
           // UYARI Hem DOKUNUS hem SURUKLEME kabul edilir (Google piyasa deseni).
           LayoutBuilder(
             builder: (_, kisit) => GestureDetector(
