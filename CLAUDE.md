@@ -41,6 +41,49 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
       kaybettiriyorsun"*. **Üçüncüsü olmayacak.**
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (5 Eyl 13:20): TURU 170 YAYINLANDI — SADECE iOS.**
+  ios **33959845735** (**c25d144**), R2 ipa=31104570 (md5 f090e1d9),
+  index=7967 (ea869f45) surum.json=45 (3523dd9d), purge OK,
+  **CDN UCU DE BIREBIR**, `get-task-allow: false`, health ok.
+  IPAda: durak/hat dizeleri VAR (`Bu duraktan: ` · `İlk duraktan kalkış` ·
+  `Bugün sefer yok` · `Saatler yükleniyor`), rota dizeleri **BUDANDI**
+  (`Nereden` · `Nereye` · `Rotayı bul` YOK); kontrol dizesi `Yakınımda` VAR.
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260905-1320
+  Arayuz turu: BACKEND DEGISMEDI, DB TRUNCATE EDILMEDI.
+  ✅ analyze **0/0** · test **86/86**.
+
+- 🚏 **TURU 170 — DURAK KARTI ISLETME KARTI ISKELETINE GECTI** (kullanici:
+  *"duraklar ayni diger taksi vb gibi altta ISLETME KARTI GIBI gorunsun,
+  gelen otobus hatlari kart tarzinda ISLETMENIN ICINDE olsun"*).
+  Ust satir (**46 dp daire ikon** + ad + meta `250 m · 8 hat`) + **YATAY
+  SERIT**; seritteki ogeler urun cipi yerine **OTOBUS HATLARI**
+  (`_hatCipi`: rozet + saat + kalan dk, yaklasan `kYaklasanRenk` vurgulu).
+  · **3 HAT SINIRI KALKTI** — tum hatlar yatay kaydirilabilir.
+  ⚠️⚠️ **YUKSEKLIK ISLETME KARTIYLA AYNI KAYNAKTAN**:
+     `12 + _kartUstBoy + 10 + _altSatirBoy + 12` (+1 dp pay).
+     Iki kart tipi AYNI panelde durdugu icin ayri formul serit ZIPLATIRDI.
+     `_panelBoy` bu degeri okuyor.
+  ⚠️⚠️ **`Center` SARMALI ZORUNLU**: `ListView` cocuguna DIKEYDE TIGHT
+     kisit verir; sarmalsiz oge `_altSatirBoy`a GERILIR (turu 96/121d/144).
+  ⚠️ Yatay dolgu KOLONDAN CIKARILDI (0,12,0,12) — serit kartin GERCEK
+     kenarina kadar kayar (turu 144 dersi).
+  ⚠️ `foregroundDecoration` KORUNDU: secili kart 3,2 dp ZIPLAMAZ (turu 150).
+  ⚠️⚠️ **AD CAKISMASI**: projede ZATEN bir `_hatSeridi` vardi ->
+     yeni uye `_durakHatSeridi` olarak adlandirildi. Yeni bir widget
+     eklerken adi `grep` ile ARA.
+  ⚠️ Eski `_hatSatiri`/`_hatSatirBoy` SILINMEDI, `unused_element` ile
+     isaretlendi (bu dosyada silme BES kez komsu uyeyi goturdu).
+
+- 📍 **TURU 170 — KONUM ISARETI STANDART GPS NOKTASI** (kullanici emri:
+  *"konum ikonu standart default gps tarzi olsun"*).
+  Dolu **mavi nokta + beyaz halka, IKON YOK** (onceden marka moru +
+  `navigation` ikonu, turu 124/165b).
+  · **`kKonumMavi` (#1A73E8) TEK KAYNAK** — nokta ve yon konisi ikisi de
+    onu okur; ayrisirlarsa iki ayri gosterge gibi gorunurler.
+  ⚠️ Ikonsuzluk BILINCLI: standart gosterge sade bir noktadir; icine simge
+     koymak onu "yer isareti" gibi gosterir.
+  ⚠️ Beyaz halka KALIR (harita zemini her renkte olabilir); renk isletme
+     (mor) ve durak (acik mavi) pinlerinden AYRI (turu 138 dersi).
 - **KALDIGIMIZ YER (5 Eyl 12:09): TURU 169 YAYINLANDI — SADECE iOS.**
   ios **33956694164** (**55bc83e**), R2 ipa=31098164 (md5 7501425b),
   index=7967 (md5 0566fb70), surum.json=45 (md5 7e7f39df), purge OK,
