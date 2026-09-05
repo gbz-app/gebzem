@@ -1705,6 +1705,14 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani>
         _listeNesli.value++;
         return;
       }
+      // TURU 170d - **DURAKLAR ISLETME ISTEGINDEN BAGIMSIZ YUKLENIR.**
+      //	Emulatorde goruldu: sunucuya ulasilamayinca akis catch
+      //	dalina dusuyor ve durak seridi HIC yuklenmiyordu. Oysa
+      //	durak/saat verisi CIHAZDAKI GTFS varliklarindan gelir -
+      //	agla ilgisi YOKTUR.
+      // UYARI Cagri BURADA (istekten ONCE): sunucu cevap vermese de,
+      //    hatta internet hic olmasa da duraklar gorunur.
+      unawaited(_seritDuraklariYukle(k));
       final l = await svc.yakinimda(
         enlem: k.enlem,
         boylam: k.boylam,
@@ -1720,10 +1728,6 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani>
       });
       // ⚠️ Acik %70 popup KENDINI yeniler (bkz. `_listeNesli` serhi).
       _listeNesli.value++;
-      // TURU 170c - **SERIT DURAKLARI** (kullanici emri: panelde isletme
-      //	karti yerine DURAK kartlari). `_durakModu`na DOKUNMAZ:
-      //	ekran sadelesmez, yalnizca serit icin veri hazirlanir.
-      unawaited(_seritDuraklariYukle(k));
     } catch (e) {
       if (!mounted || nesil != _nesil) return;
       setState(() {

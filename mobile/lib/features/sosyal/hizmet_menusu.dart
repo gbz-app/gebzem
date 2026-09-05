@@ -456,7 +456,11 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
       _Bolum('Durak', [
         const Color(0xFF6C7BFF),
         const Color(0xFF2A3390),
-      ], (c) => const YakinimdaEkrani(durakla: true)),
+      // TURU 170c - **NORMAL EKRAN** (durak modu DEGIL): kullanici bu
+      //	ekranin arama/cip/kisayollarinin KALMASINI, yalnizca kart
+      //	seridinde DURAK gorunmesini istedi. Serit zaten "Yakinimda"
+      //	secili iken duraklari cizer (bkz. `_panelSeridi`).
+      ], (c) => const YakinimdaEkrani()),
       // ⚠️⚠️ TURU 96x — BES YENI KISAYOL (kullanici: *"ekle bir seyler
       //	daha"*). Hepsi **ZATEN VAR OLAN** isletme kategorileridir
       //	(`isletmeKategorileri`): yeni ekran, yeni uc, yeni migration YOK.
