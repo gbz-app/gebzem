@@ -41,6 +41,56 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
       kaybettiriyorsun"*. **Üçüncüsü olmayacak.**
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (5 Eyl 13:51): TURU 170b YAYINLANDI — SADECE iOS.**
+  ios **33961301135** (**20873ff**), R2 ipa=31104840 (md5 e6e02707),
+  index=7967 (61e5264c) surum.json=45 (00857d5f), purge OK,
+  **CDN UCU DE BIREBIR**, dagitim imzasi.
+  IPAda: `şimdi` · `Yakındaki duraklar` · `Bu duraktan: ` VAR;
+  rota dizeleri BUDANDI; kontrol dizesi `Yakınımda` VAR.
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260905-1351
+  ✅ analyze **0/0** · test **86/86**.
+
+- 🖥️ ⚠️⚠️⚠️ **TURU 170b — EMULATORDE CALISTIRILIP GOZLE BAKILDI** (kullanici:
+  *"arayuzleri duzenle dedim HICBIRSEY YAPMIYORSUN"*).
+  **KOK SORUN — DEGISIKLIK ULASILAMAZDI:** turu 170'in yeni durak karti
+  YALNIZ "Durak" kisayolundan gorunuyordu; menudeki ana giris
+  (Yakınımda bolumu, parametresiz `YakinimdaEkrani()`) **isletme moduyla**
+  aciliyordu ve kullanici yaptigim isi HIC GOREMEDI.
+  **FIX:** ana giris artik `durakla: true` ile aciliyor.
+  ⚠️⚠️ **DERS: bir arayuz degisikligi yaptiktan sonra o ekrana
+     KULLANICININ GIRDIGI YOLDAN ulasilip ulasilmadigini DOGRULA.**
+     Bu, projedeki "servis yazildi ama cagiran yol yazilmadi" sinifinin
+     arayuz tarafindaki karsiligi; emulatorde bakilmasaydi gorulmezdi.
+
+- 📸 **TURU 170b — EMULATORDE GORULEN UC KUSUR (ekran goruntusuyle):**
+  1. Otobus geldiginde **"0 dk"** yaziyordu — sacma okunuyor, ustelik
+     kullanicinin en cok ihtiyac duydugu an en silik bicimde anlatiliyordu.
+     -> **`UlasimVeri.kalanMetni` TEK KAYNAK**: 0 => `şimdi`,
+     1-60 => `N dk`, >60 => **null** (o zaman yalniz SAAT cizilir).
+  2. **`kYakinDakika` 10 -> 5.** Yogun durakta (IBRAHIMAGA CADDESI,
+     **27 hat**) 10 dk esigiyle **LISTENIN TAMAMI** kirmiziya donuyor,
+     vurgu arka plan gurultusune donusuyordu. 5 dk ile ayrim NET
+     (olculdu: 2/4/4/5 dk kirmizi, 10 dk notr).
+     ⚠️ Daha da dusurme (<=3): duraga yetisme penceresi kapanir.
+  3. **KART/CIP ZEMINLERINDEKI KIRMIZI TON KALDIRILDI** (hem serit hem
+     durak detay sayfasi): her sey yakin oldugunda liste **kirmizi bir
+     blok** gibi goruniyordu. Vurgu artik YALNIZ saat ve kalan sure
+     yazisinda. ⚠️ `yaklasiyor` degiskeni SILINMEDI — yazi renklerini
+     hala o besliyor.
+
+- ✅ **TURU 170b — CANLI TIK SAHADA DOGRULANDI:** ekran acikken 510 hatti
+  **"1 dk" -> "0 dk"** dondu (10:32 -> 10:33). `CanliDakika` calisiyor.
+
+- 📌 **TURU 170b — EMULATOR NOTLARI (bir daha sasirma):**
+  · `adb.exe` yolu **`/c/Users/gebze/Android/sdk/platform-tools/adb.exe`**
+    (`AppData/Local/Android/Sdk` DEGIL — orada yok).
+  · Git Bash `/sdcard/...` yolunu `C:/Program Files/Git/sdcard/...` yapar
+    -> **`MSYS_NO_PATHCONV=1`** ZORUNLU (screencap/pull).
+  · `flutter run` stdin kapaninca cikar -> **`sleep 600 | flutter run`**.
+  · Harita karolari emulatorde CIZILMEZ (Play Services sertifika reddi);
+    ekranin ortasindaki siyah alan BUNDANDIR, kod hatasi DEGIL.
+  · Durak sayfasi acilirken bir an BOS SIYAH gorunur — acilis
+    animasyonudur, veri `duraginHatlari` ile hemen sonra dolar.
 - **KALDIGIMIZ YER (5 Eyl 13:20): TURU 170 YAYINLANDI — SADECE iOS.**
   ios **33959845735** (**c25d144**), R2 ipa=31104570 (md5 f090e1d9),
   index=7967 (ea869f45) surum.json=45 (3523dd9d), purge OK,
