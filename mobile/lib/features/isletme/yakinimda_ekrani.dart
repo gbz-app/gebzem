@@ -162,6 +162,12 @@ const double kKisayolKutu = 52;
 ///    genisligine RAHAT siger; buyugu kart boyunu gereksiz uzatirdi.
 const double kMenuKare = 56;
 
+/// Kendi konumumuzu gosteren **standart GPS noktasinin** rengi.
+///
+/// UYARI **TEK KAYNAK**: nokta ve yon konisi IKISI DE bunu okur;
+///    ayrisirlarsa iki ayri gosterge gibi gorunurler.
+const Color kKonumMavi = Color(0xFF1A73E8);
+
 /// Arama sayfasindaki kategori kartinin kutu olcusu.
 ///
 /// ⚠️ TURU 142 — kullanici emri: *"kategorilerde kartlar %20 kucult"*.
@@ -2651,12 +2657,18 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani>
   /// Durak kartinin yuksekligi — **TEK KAYNAK** (`_panelBoy` de okur).
   ///
   /// Icerik: ad (2 satir) + 6 + uc hat satiri (her biri 22 dp) + 2x12 dolgu.
-  double _durakKartBoy(BuildContext c) {
-    final o = MediaQuery.textScalerOf(c);
-    return (o.scale(14) * 1.25 * 2 + 6 + 3 * _hatSatirBoy(c) + 24)
-            .ceilToDouble() +
-        1;
-  }
+  /// ⚠️⚠️⚠️ TURU 170 - **ISLETME KARTIYLA BIREBIR AYNI FORMUL**
+  ///	(`_seritBoy` ile ayni terimler): 12 + ust + 10 + alt + 12.
+  ///	Iki kart tipi ayni panelde ayni seritte durdugu icin ayri
+  ///	formuller kullanilsaydi biri otekinden yuksek olur ve serit
+  ///	kayittan kayita ZIPLARDI.
+  /// ⚠️ **+1 dp PAY ZORUNLU**: Flutter satir kutusunu yukari yuvarlar;
+  ///	`fontSize * height` carpimi gercek yuksekligi TAM vermez
+  ///	(paysiz hesap emulatorde 0,8 px tasma uretmisti).
+  /// ⚠️ `_panelBoy` bu degeri okur; govdeyle ayrisirsa haritanin alt
+  ///    dolgusu ve yuzen serit kayar (bu ekranda UC KEZ yasandi).
+  double _durakKartBoy(BuildContext c) =>
+      (12 + _kartUstBoy(c) + 10 + _altSatirBoy(c) + 12).ceilToDouble() + 1;
 
   /// Kartaki TEK bir hat satirinin yuksekligi - **TEK KAYNAK**.
   ///
@@ -2668,6 +2680,7 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani>
   ///	ya tasar ya altta bos band birakirdi (turu 139 dersi).
   /// ⚠️ Taban 19 dp: hat rozetinin SABIT boyu (`hatRozeti(boy: 19)`)
   ///    - metin kucukken satir rozetten kisa olamaz.
+  // ignore: unused_element
   double _hatSatirBoy(BuildContext c) => math.max(
         22.0,
         MediaQuery.textScalerOf(c).scale(12.5) * 1.25 + 6,
@@ -2754,6 +2767,23 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani>
   /// ⚠️⚠️ Yatay durak karti — kullanici emri: *"en yakin duraklar AYNI
   ///	YEMEK KARTLARI GIBI gorunmeli, o duraktan gecenler yaklasanlar"*.
   ///	Kartta **UC HAT UST USTE**: rozet + hedef + "N dk".
+  /// Panelin alt seridindeki DURAK karti.
+  ///
+  /// TURU 170 - **ISLETME KARTIYLA BIREBIR AYNI ISKELET** (kullanici emri:
+  ///	*"duraklar ayni diger taksi vb gibi altta ISLETME KARTI GIBI
+  ///	gorunsun, gelen otobus hatlari kart tarzinda ISLETMENIN ICINDE
+  ///	olsun, alt kisim AYNI MANTIKTA olacak"*).
+  ///
+  ///	Onceki hal: ust satir + **UC HAT UST USTE** (dikey, 3'te kesiliyordu).
+  ///	Yeni hal `_panelKarti` ile ayni: ust satir + **YATAY SERIT** —
+  ///	seritteki ogeler urun cipi yerine **OTOBUS HATLARI**.
+  ///
+  /// UYARI **YUKSEKLIK ISLETME KARTIYLA AYNI KAYNAKTAN** (`_kartUstBoy` +
+  ///	`_altSatirBoy`): iki kart tipi ayni seritte yan yana gelebildigi icin
+  ///	ayri formuller kullanilsaydi serit kayittan kayita ZIPLARDI.
+  /// UYARI Yatay dolgu KOLONDAN CIKARILDI (0,12,0,12): serit kartin GERCEK
+  ///	kenarina kadar kayar (turu 144'te isletme kartinda olculen sorun).
+  /// UYARI 3 HAT SINIRI KALKTI: tum hatlar yatay kaydirilabilir.
   Widget _durakKarti(
     BuildContext c,
     Durak d,
@@ -2769,18 +2799,17 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani>
       return (ax.isEmpty ? 1 << 30 : ax.first)
           .compareTo(bx.isEmpty ? 1 << 30 : bx.first);
     });
-    final ilkUc = hatlar.take(3).toList();
     final m = konum == null
         ? null
         : UlasimVeri.kabaMetre(konum.enlem, konum.boylam, d.enlem, d.boylam);
+    final meta = [
+      if (m != null) UlasimVeri.mesafeMetni(m),
+      if (hatlar.isNotEmpty) '${hatlar.length} hat',
+    ].join(' · ');
 
-    // ⚠️⚠️⚠️ EMULATORDE GORULDU: `kPanelKartEn` (372) 360 dp ekranda
-    //	EKRANIN DISINA tasiyor ve kartin SAG UCUNDAKI **"N dk"**
-    //	kirpiliyordu - yani kartin EN ONEMLI bilgisi gorunmuyordu.
-    // ⚠️⚠️ Tavan ekrandan TURETILIR; sabit bir sayi yazilsaydi genis
-    //	ekranda kart gereksiz dar, dar ekranda yine tasar olurdu.
-    //	44 dp pay BILINCLI: sonraki kart KENARDAN GORUNUR ve
-    //	kullanici seridin kaydigini anlar.
+    // EMULATORDE GORULDU: `kPanelKartEn` (372) 360 dp ekranda EKRANIN
+    //	DISINA tasiyordu. Tavan ekrandan TURETILIR; 44 dp pay BILINCLI:
+    //	sonraki kart KENARDAN GORUNUR.
     final en = math.min(
       kPanelKartEn,
       MediaQuery.sizeOf(c).width - kYanBosluk - 44,
@@ -2794,86 +2823,80 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani>
         child: InkWell(
           onTap: () => _duragiSec(d, detay: true),
           child: Container(
-            // ⚠️⚠️⚠️ EMULATORDE OLCULDU: *"BOTTOM OVERFLOWED BY 2.2
-            //	PIXELS"*. Sebep `decoration`di: `Container` kenarligi
-            //	DOLGUNUN DISINA koyar ve cocugun kisitindan
-            //	2 x 1.6 = **3.2 dp** DUSER. `_durakKartBoy` bunu
-            //	gormedigi icin kart tasiyordu.
-            // ⚠️⚠️ `foregroundDecoration` YERLESIMI DEGISTIRMEZ: cerceve
-            //	cocugun USTUNE cizilir. Ayrica secili/secili-degil
-            //	kartlar artik AYNI yukseklikte (yoksa serit her
-            //	secimde 3.2 dp ZIPLARDI).
+            // UYARI `foregroundDecoration` YERLESIMI DEGISTIRMEZ (cerceve
+            //	cocugun USTUNE cizilir). `decoration` olsaydi kenarlik
+            //	dolgunun DISINA konur ve secili kart 3,2 dp ZIPLARDI
+            //	(turu 150'de olculdu).
             foregroundDecoration: secili
                 ? BoxDecoration(
                     border: Border.all(color: kVurgu(c), width: 1.6),
                     borderRadius: BorderRadius.circular(kYaricap(96)),
                   )
                 : null,
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+            padding: const EdgeInsets.fromLTRB(0, 12, 0, 12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                SizedBox(
-                  height: MediaQuery.textScalerOf(c).scale(14) * 1.25 * 2,
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Padding(
-                        padding: EdgeInsets.only(top: 2, right: 6),
-                        child: Icon(LucideIcons.busFront,
-                            size: 15, color: Color(0xFF3AA9FF)),
-                      ),
-                      Expanded(
-                        child: Text(
-                          d.ad,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            height: 1.25,
-                            fontWeight: FontWeight.w700,
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  child: SizedBox(
+                    height: _kartUstBoy(c),
+                    child: Row(
+                      children: [
+                        // Durak simgesi - isletme kartindaki logo dairesiyle
+                        // AYNI olcu (46 dp) ve AYNI radus dili.
+                        Container(
+                          width: 46,
+                          height: 46,
+                          decoration: BoxDecoration(
+                            color: kAiKartYuzey(c),
+                            borderRadius: BorderRadius.circular(kYaricap(46)),
+                          ),
+                          alignment: Alignment.center,
+                          child: const Icon(LucideIcons.busFront,
+                              size: 22, color: Color(0xFF3AA9FF)),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                d.ad,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  height: 1.25,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              if (meta.isNotEmpty) ...[
+                                const SizedBox(height: 2),
+                                Text(
+                                  meta,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    height: 1.25,
+                                    color: scheme.onSurface
+                                        .withValues(alpha: 0.62),
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
                         ),
-                      ),
-                      if (m != null) const SizedBox(width: 8),
-                      if (m != null)
-                        Text(
-                          m < 950
-                              ? '${m.round()} m'
-                              : '${(m / 1000).toStringAsFixed(1).replaceAll('.', ',')} km',
-                          style: TextStyle(
-                            fontSize: 11.5,
-                            color: scheme.onSurface.withValues(alpha: 0.62),
-                          ),
-                        ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-                const SizedBox(height: 6),
-                // ⚠️ UC HAT UST USTE (kullanici emri). Hicbiri yoksa
-                //    DURUSTCE soylenir, bos satir birakilmaz.
-                if (ilkUc.isEmpty)
-                  SizedBox(
-                    height: 3 * _hatSatirBoy(c),
-                    child: Text(
-                      _durakHat.containsKey(d.id)
-                          ? 'Bugün sefer yok'
-                          : 'Saatler yükleniyor…',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: scheme.onSurface.withValues(alpha: 0.55),
-                      ),
-                    ),
-                  )
-                else
-                  for (var i = 0; i < 3; i++)
-                    SizedBox(
-                      height: _hatSatirBoy(c),
-                      child: i < ilkUc.length
-                          ? _hatSatiri(c, ilkUc[i], an)
-                          : null,
-                    ),
+                const SizedBox(height: 10),
+                _durakHatSeridi(c, d, hatlar, an),
               ],
             ),
           ),
@@ -2882,6 +2905,114 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani>
     );
   }
 
+  /// Durak kartinin ALT SERIDI - otobus hatlari (isletme kartindaki urun
+  /// seridinin karsiligi).
+  ///
+  /// UYARI `Center` ZORUNLU: `ListView` cocuguna DIKEYDE TIGHT kisit verir
+  ///	ve sarmalsiz oge `_altSatirBoy` yuksekligine GERILIR (turu
+  ///	96/121d/144'te olculen ayni tuzak).
+  Widget _durakHatSeridi(
+    BuildContext c,
+    Durak d,
+    List<DurakHatti> hatlar,
+    int an,
+  ) {
+    final scheme = Theme.of(c).colorScheme;
+    if (hatlar.isEmpty) {
+      return SizedBox(
+        height: _altSatirBoy(c),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            // UYARI Yukleniyor ile "sefer yok" AYIRT EDILIR; ikisini tek
+            //    metne indirmek bekleyen kullaniciya YALAN olurdu.
+            child: Text(
+              _durakHat.containsKey(d.id)
+                  ? 'Bugün sefer yok'
+                  : 'Saatler yükleniyor…',
+              style: TextStyle(
+                fontSize: 12,
+                color: scheme.onSurface.withValues(alpha: 0.55),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+    return SizedBox(
+      height: _altSatirBoy(c),
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        itemCount: hatlar.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 6),
+        itemBuilder: (_, i) => Center(child: _hatCipi(c, hatlar[i], an)),
+      ),
+    );
+  }
+
+  /// Seritteki TEK bir hat kutusu: rozet + saat + kalan dakika.
+  ///
+  /// UYARI Yaklasan otobus `kYaklasanRenk` ile vurgulanir (turu 169 karari;
+  ///	esik `kYakinDakika` TEK KAYNAK). Vurgu yalniz RENK: kutu boyu
+  ///	DEGISMEZ, yoksa serit otobus yaklasirken ZIPLARDI.
+  Widget _hatCipi(BuildContext c, DurakHatti dh, int an) {
+    final scheme = Theme.of(c).colorScheme;
+    final sonraki = dh.sonrakiler(an, adet: 1);
+    final ilk = sonraki.isEmpty ? null : sonraki.first;
+    final kalan = ilk == null ? null : ilk - an;
+    final yakin = kalan != null && kalan <= ulasim.kYakinDakika;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: yakin
+            ? Color.alphaBlend(
+                ulasim.kYaklasanRenk.withValues(alpha: 0.10),
+                scheme.onSurface.withValues(alpha: 0.07),
+              )
+            : scheme.onSurface.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(kYaricap(28)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ulasim.hatRozeti(dh.hat, boy: 19),
+            const SizedBox(height: 4),
+            Text(
+              ilk == null ? '—' : UlasimVeri.saatMetni(ilk),
+              maxLines: 1,
+              style: TextStyle(
+                fontSize: 13,
+                height: 1.2,
+                fontWeight: FontWeight.w800,
+                color: yakin ? ulasim.kYaklasanRenk : scheme.onSurface,
+              ),
+            ),
+            if (kalan != null && kalan <= 60)
+              Text(
+                '$kalan dk',
+                maxLines: 1,
+                style: TextStyle(
+                  fontSize: 11,
+                  height: 1.2,
+                  fontWeight: yakin ? FontWeight.w800 : FontWeight.w600,
+                  color: yakin
+                      ? ulasim.kYaklasanRenk
+                      : scheme.onSurface.withValues(alpha: 0.55),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+
+  // ignore: unused_element
   Widget _hatSatiri(BuildContext c, DurakHatti dh, int an) {
     final scheme = Theme.of(c).colorScheme;
     final sonraki = dh.sonrakiler(an, adet: 1);
@@ -8044,11 +8175,22 @@ class _HaritaAlaniState extends State<_HaritaAlani> {
     //	ortadan kalkiyor (tek cizim, ag istegi YOK, aninda hazir).
     // ⚠️ `_avatarGorseli` / `_avatariCoz` SILINMEDI: marka pinleri de
     //    ayni `foto` yolunu kullaniyor ve ileride geri istenebilir.
+    // TURU 170 - **STANDART GPS NOKTASI** (kullanici emri: konum ikonu
+    //	standart default GPS tarzi olsun).
+    //
+    //	Onceki hal: MARKA MORU daire + navigation ikonu (turu 124/165b).
+    //	Artik her haritada alisilan bicim: **dolu mavi nokta + beyaz
+    //	halka, IKON YOK**. Ikonsuzluk BILINCLI - standart gosterge sade
+    //	bir noktadir; icine simge koymak onu bir yer isareti gibi
+    //	gosterir ve kullanici kendini bir kayit sanir.
+    // UYARI Beyaz halka KALIR: harita zemini her renkte olabilir (yol
+    //	beyaz, park yesil, su mavi); halka noktayi her zeminde ayirir.
+    // UYARI Renk isletme (mor) ve durak (acik mavi) pinlerinden AYRI
+    //    olmali; ayni olsaydi kullanici kendini kayit saniridi (turu 138).
     final b = await daireIsaret(
-      ic: morLogo,
+      ic: kKonumMavi,
       kenar: Colors.white,
       pikselOrani: oran,
-      ikon: LucideIcons.navigation,
     );
     // ⚠️ TURU 149 — otobus duragi pini: mavi ic + beyaz halka + otobus
     //    ikonu. Isletme pininden RENK ve IKONLA ayrilir; ayni renkte
@@ -8067,7 +8209,9 @@ class _HaritaAlaniState extends State<_HaritaAlani> {
       ikon: LucideIcons.mapPin,
     );
     // ⚠️ TURU 155 — yon konisi puck ile AYNI marka renginde.
-    final yp = await yonKonisi(renk: morLogo, pikselOrani: oran);
+    // UYARI Koni noktayla AYNI renkte olmali; ayrisirsa iki ayri
+    //    gosterge gibi okunur (turu 170).
+    final yp = await yonKonisi(renk: kKonumMavi, pikselOrani: oran);
     if (!mounted) return;
     setState(() {
       _pin = d;
