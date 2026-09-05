@@ -1720,6 +1720,10 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani>
       });
       // ⚠️ Acik %70 popup KENDINI yeniler (bkz. `_listeNesli` serhi).
       _listeNesli.value++;
+      // TURU 170c - **SERIT DURAKLARI** (kullanici emri: panelde isletme
+      //	karti yerine DURAK kartlari). `_durakModu`na DOKUNMAZ:
+      //	ekran sadelesmez, yalnizca serit icin veri hazirlanir.
+      unawaited(_seritDuraklariYukle(k));
     } catch (e) {
       if (!mounted || nesil != _nesil) return;
       setState(() {
@@ -2012,8 +2016,14 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani>
     //	     `_yukleniyor` artik YALNIZCA onbellek iskaladiginda true
     //	     (bkz. `_yukle`), yani daha once gorulen bir kategoriye
     //	     donuste serit HIC kaybolmaz.
-    final seritVar = !_yukleniyor && _gorunen.isNotEmpty;
-    final serit = seritVar ? _seritBoy(context) : 0.0;
+    // TURU 170c - serit "Yakinimda"da DURAK, kategoride ISLETME cizer;
+    //    kosul ve yukseklik `_panelSeridi` ile BIREBIR ayni olmali.
+    final durakSerit = _dal.isEmpty;
+    final seritVar = !_yukleniyor &&
+        (durakSerit ? _duraklar.isNotEmpty : _gorunen.isNotEmpty);
+    final serit = seritVar
+        ? (durakSerit ? _durakKartBoy(context) : _seritBoy(context))
+        : 0.0;
     // ⚠️⚠️ TURU 143 — kisayol kartlari artik IKONSUZ ve %40 BUYUK; formul
     //	`_kisayolBoy` **TEK KAYNAGINA** devredildi (elle kopyalanan bir
     //	ikinci formul, kart degisince SESSIZCE geride kalirdi).
@@ -4983,6 +4993,26 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani>
     unawaited(_adresiYaz(kn.enlem, kn.boylam, true, koruAd: 'Konumum'));
   }
 
+  /// Panel seridinde gosterilecek YAKIN DURAKLARI yukler.
+  ///
+  /// TURU 170c - `_durakAc`tan farki: **`_durakModu`na DOKUNMAZ.**
+  ///	Kullanici ekranin sadelesmesini degil, yalnizca kart
+  ///	seridinin icerigini istedi (arama · cipler · kisayollar KALIR).
+  /// UYARI Sessiz: konum yoksa ya da istek patlarsa serit BOS kalir ve
+  ///	isletme seridine duser - kullaniciya hata gosterilmez.
+  Future<void> _seritDuraklariYukle(
+      ({double enlem, double boylam}) k) async {
+    try {
+      final yakin = await UlasimVeri.i
+          .yakinDuraklar(k.enlem, k.boylam, adet: 25, yaricapM: 2000);
+      if (!mounted) return;
+      setState(() => _duraklar = yakin);
+      unawaited(_durakHatlariniYukle(yakin));
+    } catch (_) {
+      // sessiz - serit isletme kartlarina duser
+    }
+  }
+
   /// Kartlarda gosterilecek hat/saat bilgisini ONDEN cozer.
   ///
   /// ⚠️ Tek tek `setState` cagrilmaz: 25 durak icin 25 yeniden cizim
@@ -5812,6 +5842,27 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani>
     //	  true; onbellek isabetinde serit HIC kaybolmaz (bkz. `_yukle`).
     //	  ⚠️ Kapi ZORUNLU: kaldirildiginda yeni kategori yuklenirken ekran
     //	     ONCEKI kategorinin kayitlarini cizmeye devam ediyordu.
+    // TURU 170c - **"YAKINIMDA" SECILI IKEN DURAK KARTLARI** (kullanici
+    //	emri: *"oradaki isletme karti yerine DURAKLAR olacak"*).
+    //	Bir kategori cipi (Yemek · Kafe · Market ...) secilirse serit
+    //	eskisi gibi ISLETME kartlarini gosterir.
+    // UYARI `_panelBoy`daki `seritVar` AYNI kosulu okur; ayrisirsa panel
+    //    yuksekligi ile icerigi tutmaz (bu ekranda turu 132'de yasandi).
+    if (_dal.isEmpty) {
+      if (_duraklar.isEmpty) return null;
+      final ds = _duraklar.take(kPanelSeritTavan).toList();
+      return SizedBox(
+        height: _durakKartBoy(c),
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: kYanBosluk),
+          physics: const BouncingScrollPhysics(),
+          itemCount: ds.length,
+          separatorBuilder: (_, _) => const SizedBox(width: 10),
+          itemBuilder: (_, i) => _durakKarti(c, ds[i], _konum),
+        ),
+      );
+    }
     final l = [..._gorunen]
       ..sort((a, b) {
         final ak = a.km <= 0 ? double.infinity : a.km;
