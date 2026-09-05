@@ -6,6 +6,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../etkinlik/etkinlik_ekranlari.dart';
 import '../ilan/ilan_ekranlari.dart';
 import '../isletme/isletme_listesi.dart';
+import '../../core/hava_doviz.dart';
 import '../isletme/yakinimda_ekrani.dart';
 import '../ai/gebzem_ai.dart';
 import '../isletme/urun_servisi.dart' show aiDurumProvider;
@@ -635,8 +636,16 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
                         //	ALTTAN"*).
                         //	Turu 147'de serit aramanin YANINDA dar bir
                         //	kutucuktu; orada ne kaydirma ne chart sigardi.
-                        _havaDovizSeridi(context),
-                        const SizedBox(height: 12),
+                        // TURU 171b - **SERIT KALDIRILDI** (kullanici emri:
+                        //	*"anasayfada ARAMANIN YANINA 2 tane ikon koy"*).
+                        //	Bilgi artik basliktaki `HavaDovizCipleri`nde ve
+                        //	GERCEK veriyle (Open-Meteo + TCMB).
+                        // UYARI Serit KALSAYDI ayni ekranda **31° gercek**
+                        //	ile **24° Ornek** yan yana durur, kullanici
+                        //	hangisinin dogru oldugunu bilemezdi.
+                        // UYARI Govde SILINMEDI (`_havaDovizSeridi` +
+                        //    `_piyasaKarti`): bu dosyada uye silmek komsu
+                        //    uyeyi de goturdu. Geri istenirse tek satir.
                         // ⚠️ Slider `Padding`in DISINDA: yan boslugu KENDI
                         //    `viewportFraction`indan uretir (turu 96t).
                         _slider(context),
@@ -1204,6 +1213,11 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
               ],
             ),
           ),
+          // TURU 171b - **ARAMANIN YANINDA HAVA + DOVIZ** (kullanici
+          //	emri: *"anasayfada aramanin yanina 2 tane ikon koy"*).
+          // UYARI Veri yoksa widget HICBIR SEY cizmez, basligin
+          //    yerlesimi DEGISMEZ.
+          const HavaDovizCipleri(kompakt: true),
           IconButton(
             tooltip: 'Ara',
             icon: const Icon(LucideIcons.search, size: 22),
