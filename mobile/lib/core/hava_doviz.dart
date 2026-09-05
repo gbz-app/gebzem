@@ -43,6 +43,7 @@ import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../features/medya/konum_servisi.dart' show KonumServisi;
 import 'theme.dart' show kAiZemin;
 
 // UYARI `http` paketi projede YOK; `dio` ZATEN bagimlilik listesinde.
@@ -137,12 +138,29 @@ class HavaDoviz {
   HavaDoviz._();
   static final HavaDoviz i = HavaDoviz._();
 
-  // ⚠️ Gebze koordinati SABIT: bu uygulama Gebze'ye ozel ve hava kartinda
-  //    "Gebze" yazisi da sabit. Kullanicinin GPS'ine baglamak, sehir disinda
-  //    "Gebze 24°" yazip YANLIS bilgi vermek olurdu.
-  static const double _enlem = 40.8028;
-  static const double _boylam = 29.4307;
+  // Konum bilinmiyorsa DUSULECEK nokta (Gebze merkez).
+  static const double _varsayilanEnlem = 40.8028;
+  static const double _varsayilanBoylam = 29.4307;
 
+  /// TURU 171e — **IZGARA ADIMI (derece)**, ~5,5 km.
+  ///
+  /// UYARI Ham GPS koordinatiyla onbelleklemek MUMKUN DEGIL: cihaz her
+  ///	birkac metrede yeni bir koordinat verir, her biri AYRI anahtar
+  ///	olur ve onbellek HIC tutmaz (turu 169'da rota onbelleginde
+  ///	birebir ayni hata olculmustu: `%.5f` = 1 m -> isabet ~0).
+  /// UYARI 0.05 OLCULEREK secildi: Gebze merkez 22,7° · Cayirova 23,0° ·
+  ///	Darica 23,2° · Dilovasi 23,9° — ilceler AYRI hucrelere duser
+  ///	ama ayni mahalledeki iki kullanici AYNI hucreyi paylasir.
+  /// UYARI Buyutme (0.2 gibi): ilceler tek hucreye duser, fark kaybolur.
+  ///	Kucultme (0.01): hucre sayisi patlar, onbellek anlamsizlasir.
+  static const double _izgara = 0.05;
+
+  /// Koordinati izgaraya yuvarlar — **onbellek anahtari**.
+  static String _hucre(double e, double b) =>
+      '${(e / _izgara).round()}:${(b / _izgara).round()}';
+
+  final Map<String, Hava> _havaHucre = {};
+  final Map<String, DateTime> _havaHucreAn = {};
   Hava? _hava;
   DateTime? _havaAn;
   static const Duration _havaOmru = Duration(minutes: 30);
@@ -159,19 +177,36 @@ class HavaDoviz {
   ///
   /// ⚠️ **Ucusta olan istek PAYLASILIR**: iki widget ayni anda cagirirsa
   ///    tek ag istegi gider (turu 91 `medya` semafor dersi).
-  Future<Hava?> havaGetir() {
-    final t = _havaAn;
-    if (_hava != null && t != null && DateTime.now().difference(t) < _havaOmru) {
-      return Future.value(_hava);
+  /// TURU 171e - **KONUMA DUYARLI** (kullanici sordu: *"konuma gore
+  ///	verecek degil mi, yoksa Gebze genel mi"*).
+  ///	Onceden SABIT Gebze merkeziydi; Darica'daki kullanici da
+  ///	merkezin havasini goruyordu (olculen fark 1,2 °C).
+  /// UYARI Koordinat IZGARAYA yuvarlanarak onbelleklenir (bkz. `_izgara`).
+  /// UYARI Konum verilmezse Gebze merkeze duser - "konum yok" diye hava
+  ///	gostermemek, kullanicinin gordugu tek bilgiyi silmek olurdu.
+  Future<Hava?> havaGetir({double? enlem, double? boylam}) {
+    final e = enlem ?? _varsayilanEnlem;
+    final b = boylam ?? _varsayilanBoylam;
+    final h = _hucre(e, b);
+    final t = _havaHucreAn[h];
+    final onbellek = _havaHucre[h];
+    if (onbellek != null &&
+        t != null &&
+        DateTime.now().difference(t) < _havaOmru) {
+      _hava = onbellek;
+      return Future.value(onbellek);
     }
-    return _havaIsi ??= _havaCek().whenComplete(() => _havaIsi = null);
+    // UYARI Ucusta olan istek PAYLASILIR (ayni hucre icin ikinci cagri
+    //    ayni Future'i alir); anahtar hucre bazli.
+    return _havaIsi ??=
+        _havaCek(e, b, h).whenComplete(() => _havaIsi = null);
   }
 
-  Future<Hava?> _havaCek() async {
+  Future<Hava?> _havaCek(double enlem, double boylam, String hucre) async {
     try {
       final u = Uri.parse(
         'https://api.open-meteo.com/v1/forecast'
-        '?latitude=$_enlem&longitude=$_boylam'
+        '?latitude=$enlem&longitude=$boylam'
         '&current=temperature_2m,weather_code'
         '&daily=weather_code,temperature_2m_max,temperature_2m_min'
         '&timezone=Europe%2FIstanbul&forecast_days=7',
@@ -204,6 +239,9 @@ class HavaDoviz {
         gunler: gunler,
       );
       _havaAn = DateTime.now();
+      // Hucre onbellegi: baska bir ilceye gecince ESKI deger kullanilmaz.
+      _havaHucre[hucre] = _hava!;
+      _havaHucreAn[hucre] = _havaAn!;
       return _hava;
     } catch (_) {
       // ⚠️ SESSIZ: hava bir yan bilgi; ag yoksa satir CIZILMEZ, kullaniciya
@@ -319,11 +357,21 @@ class HavaDoviz {
 /// UYARI Veri YOKSA hicbir sey cizmez (`SizedBox.shrink`): bos kutu
 ///	"bozuk mu" izlenimi verirdi.
 class HavaDovizCipleri extends StatefulWidget {
-  const HavaDovizCipleri({super.key, this.kompakt = false, this.onTap});
+  const HavaDovizCipleri({
+    super.key,
+    this.kompakt = false,
+    this.onTap,
+    this.enlem,
+    this.boylam,
+  });
 
   /// Dar yerlesim (anasayfa basligi) — punto ve dolgu kuculur.
   final bool kompakt;
   final VoidCallback? onTap;
+
+  /// TURU 171e - kullanicinin konumu (yoksa Gebze merkez).
+  final double? enlem;
+  final double? boylam;
 
   @override
   State<HavaDovizCipleri> createState() => _HavaDovizCipleriDurumu();
@@ -353,8 +401,20 @@ class _HavaDovizCipleriDurumu extends State<HavaDovizCipleri> {
     super.dispose();
   }
 
+  ({double enlem, double boylam})? _konum;
+
   Future<void> _yukle() async {
-    final h = await HavaDoviz.i.havaGetir();
+    // TURU 171e - **KONUM SESSIZCE OKUNUR** (izin DIYALOGU ACILMAZ).
+    //	Izin zaten verilmisse kullanicinin bulundugu ilcenin havasi,
+    //	verilmemisse Gebze merkez gosterilir. Hava icin izin ISTEMEK
+    //	sert bir surtunme olurdu (menudeki `yakinMesafeProvider`
+    //	ayni ilkeyi uyguluyor).
+    _konum = widget.enlem != null && widget.boylam != null
+        ? (enlem: widget.enlem!, boylam: widget.boylam!)
+        : await KonumServisi.konumAl(sessiz: true);
+    if (!mounted) return;
+    final h = await HavaDoviz.i
+        .havaGetir(enlem: _konum?.enlem, boylam: _konum?.boylam);
     if (mounted && h != null) setState(() => _hava = h);
     await HavaDoviz.i.kurGetir(kDovizler[0]);
     if (mounted) setState(() {});
@@ -397,7 +457,9 @@ class _HavaDovizCipleriDurumu extends State<HavaDovizCipleri> {
               //	`onTap` anasayfada VERILMEMISTI ve cipler OLU
               //	gorunuyordu (kullanici: *"tikladigimda pencere
               //	acilmiyor"*). Varsayilan artik ortak panel.
-              onTap: widget.onTap ?? () => havaDovizPanelAc(context),
+              onTap: widget.onTap ??
+                  () => havaDovizPanelAc(context,
+                      enlem: _konum?.enlem, boylam: _konum?.boylam),
               child: SizedBox(
                 width: en,
                 child: Padding(
@@ -508,8 +570,12 @@ IconData havaIkonu(int kod) => switch (kod) {
 ///	SEY YAPMIYORDU (kullanici: *"tikladigimda pencere acilmiyor"*).
 ///	Artik ortak - tek kaynak, her yerden acilir.
 /// UYARI Veri YOKSA acilmaz: bos sayfa "bozuk" izlenimi verirdi.
-Future<void> havaDovizPanelAc(BuildContext context) async {
-  final h = await HavaDoviz.i.havaGetir();
+Future<void> havaDovizPanelAc(
+  BuildContext context, {
+  double? enlem,
+  double? boylam,
+}) async {
+  final h = await HavaDoviz.i.havaGetir(enlem: enlem, boylam: boylam);
   if (h == null && HavaDoviz.i.sonKur(kDovizler[0]) == null) return;
   if (!context.mounted) return;
   await showModalBottomSheet<void>(
@@ -556,9 +622,12 @@ Future<void> havaDovizPanelAc(BuildContext context) async {
 
 /// 7 GUNLUK hava (kullanici emri: *"hava durumu 1 haftalik goster"*).
 class _HavaBolumu extends StatelessWidget {
-  const _HavaBolumu({required this.hava});
+  const _HavaBolumu({required this.hava, this.yer});
 
   final Hava hava;
+
+  /// Gosterilecek yer adi (null ise yazilmaz).
+  final String? yer;
 
   static const _gun = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
 
@@ -586,7 +655,13 @@ class _HavaBolumu extends StatelessWidget {
                         //    rengi TAM BEYAZ DEGIL (turu 129/135c).
                         color: scheme.onSurface)),
                 Text(
-                  '${havaMetni(hava.simdikiKod)} · Gebze',
+                  // TURU 171e - yer adi SABIT "Gebze" DEGIL: konuma
+                  //    duyarli olunca Darica'daki kullaniciya "Gebze"
+                  //    yazmak YANLIS bilgi olurdu. Ad verilmezse yalniz
+                  //    hava durumu yazilir (bos bir iddia URETILMEZ).
+                  (yer ?? '').isEmpty
+                      ? havaMetni(hava.simdikiKod)
+                      : '${havaMetni(hava.simdikiKod)} · $yer',
                   style: TextStyle(
                       fontSize: 13,
                       color: scheme.onSurface.withValues(alpha: 0.6)),
