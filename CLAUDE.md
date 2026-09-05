@@ -41,6 +41,42 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
       kaybettiriyorsun"*. **Üçüncüsü olmayacak.**
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (5 Eyl 14:44): TURU 170c+170d YAYINLANDI — SADECE iOS.**
+  ios **33963683229** (**28e2d9b**), R2 ipa=31097406 (md5 4e9685df),
+  index=7967 (17717d50) surum.json=45 (b5b937e3), purge OK, CDN BIREBIR.
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260905-1444
+  ✅ analyze **0/0** · test **86/86**.
+
+- 🚏 ⚠️⚠️⚠️ **TURU 170c — PANEL SERIDINDE ISLETME YERINE DURAK KARTLARI.**
+  Kullanici duzeltmesi: *"ben sana duraklari BOYLE ARAYUZDE goster dedim,
+  oradaki ISLETME KARTI YERINE duraklar olacak"*.
+  ⚠️⚠️ **TURU 170b YANLIS ANLAMAYDI**: ana girisi `durakla: true` yapmistim;
+     o mod ekrani **SADELESTIRIYOR** (arama · cip seridi · kisayollar
+     GIZLENIYOR). Kullanicinin istedigi bu DEGILDI — ekran AYNEN kalacak,
+     yalnizca **KART SERIDININ ICERIGI** degisecek.
+  · `_panelSeridi`: `_dal.isEmpty` ("Yakinimda") ise DURAK kartlari; bir
+    kategori cipi secilirse eskisi gibi ISLETME kartlari.
+  · `_panelBoy` AYNI kosulu ve AYNI yuksekligi (`_durakKartBoy`) okur.
+  · Yeni `_seritDuraklariYukle`: `_durakModu`na DOKUNMAZ.
+  · Menudeki **"Durak" kisayolu da normal ekrani** aciyor (durak modu DEGIL).
+
+- 🌐 ⚠️⚠️ **TURU 170d — DURAK SERIDI AGDAN BAGIMSIZ YUKLENIR.**
+  **EMULATORDE GORULDU:** sunucuya ulasilamayinca `_yukle` `catch` dalina
+  dusuyor ve durak seridi **HIC YUKLENMIYORDU** ("Yakindaki isletmeler
+  alinamadi" + BOS panel). Oysa durak/saat verisi **CIHAZDAKI GTFS
+  varliklarindan** gelir — agla ilgisi YOKTUR.
+  **FIX:** `_seritDuraklariYukle` cagrisi `svc.yakinimda` ISTEGINDEN
+  **ONCEYE** alindi -> internet olmasa bile duraklar gorunur.
+  ⚠️ **DERS: yerel veriyle calisan bir ozelligi ag istegiyle AYNI
+     `try` blogunun BASARI dalina baglama.**
+
+- 🖥️ ⚠️⚠️⚠️ **TURU 170c/d — SUREC DERSI (kullanici emri):**
+  Kullanici: *"build ios alsan 8 dakika suruyor, EMULATORDE DIREK
+  GORUNMESI GEREKMIYOR MU"*. **HAKLIYDI.**
+  ⚠️ **BUNDAN SONRA: once EMULATORDE goster + ekran goruntusu gonder,
+     ONAY alindiktan SONRA build al.** Kullaniciyi 8 dakika bekletip
+     yanlis seyi teslim etmek iki kez yasandi (170b ve 170c).
+  📌 Ekran goruntusu `SendUserFile` ile GONDERILIR — terminalde gorunmez.
 - **KALDIGIMIZ YER (5 Eyl 13:51): TURU 170b YAYINLANDI — SADECE iOS.**
   ios **33961301135** (**20873ff**), R2 ipa=31104840 (md5 e6e02707),
   index=7967 (61e5264c) surum.json=45 (00857d5f), purge OK,
