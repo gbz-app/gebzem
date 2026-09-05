@@ -35,6 +35,7 @@
 //	hatasini geri getirmek olurdu. Kaynak bulununca `kDovizler`e eklenir.
 
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
@@ -128,6 +129,55 @@ class Hava {
   /// Saat basi tahmin (bugunden itibaren).
   final List<HavaSaati> saatler;
 }
+
+/// TURU 172 — **ALTIN TURLERI** (kullanici emri: *"dovizde altin da
+/// olmali, gram altina tikladiginda ceyrek vb degerler gorunmeli"*).
+///
+/// UYARI **TCMB'DE ALTIN YOKTUR** - gunluk kur dosyasi yalniz doviz
+///	icerir (olculdu). Ceyrek/yarim/tam altin zaten SERBEST PIYASA
+///	fiyatidir: gram altindan HESAPLANAMAZ (isçilik + arz/talep
+///	payi vardir). Bu yuzden ayri bir kaynak sart.
+/// UYARI Kaynak `finans.truncgil.com/v4` - anahtarsiz, ucretsiz.
+///	**GECMIS VERI VERMEZ** (tarihli adres 404 doner), bu yuzden
+///	altin GRAFIK degil LISTE olarak gosterilir; uydurma bir seri
+///	cizmek yerine gunluk DEGISIM YUZDESI yazilir.
+/// UYARI Resmi bir kaynak DEGIL. Alinamazsa altin bolumu HIC cizilmez
+///	(doviz tarafi TCMB'den bagimsiz calismaya devam eder).
+class AltinTuru {
+  const AltinTuru({
+    required this.anahtar,
+    required this.ad,
+    required this.satis,
+    required this.degisim,
+  });
+
+  final String anahtar;
+  final String ad;
+  final double satis;
+
+  /// Gunluk degisim yuzdesi (negatif olabilir).
+  final double degisim;
+}
+
+/// Gosterilecek altin turleri — **SIRA EKRANDAKI SIRADIR**.
+///
+/// UYARI `ONS` · `BRENT` · `DBITCOIN` BILEREK YOK: kaynak onlari **0**
+///	donduruyor (olculdu) ve sifir bir fiyat degil, EKSIK VERIDIR.
+const Map<String, String> kAltinTurleri = {
+  'GRA': 'Gram altın',
+  'CEYREKALTIN': 'Çeyrek altın',
+  'YARIMALTIN': 'Yarım altın',
+  'TAMALTIN': 'Tam altın',
+  'CUMHURIYETALTINI': 'Cumhuriyet altını',
+  'ATAALTIN': 'Ata altın',
+  'RESATALTIN': 'Reşat altın',
+  'HAS': 'Has altın',
+  'IKIBUCUKALTIN': 'İkibuçuk altın',
+  'BESLIALTIN': 'Beşli altın',
+  '18AYARALTIN': '18 ayar altın',
+  '14AYARALTIN': '14 ayar altın',
+  'GUMUS': 'Gümüş',
+};
 
 /// Bir gunun kur degeri.
 class KurGunu {
@@ -333,6 +383,66 @@ class HavaDoviz {
     return _kur[kod] ?? const [];
   }
 
+  final List<AltinTuru> _altin = [];
+  DateTime? _altinAn;
+  Future<void>? _altinIsi;
+  // UYARI Altin gun ici DEGISIR (doviz gibi gunde bir degil) - 15 dk.
+  static const Duration _altinOmru = Duration(minutes: 15);
+
+  /// Altin turleri (onbellekli). Bos liste = veri yok.
+  Future<List<AltinTuru>> altinGetir() async {
+    final t = _altinAn;
+    if (_altin.isNotEmpty &&
+        t != null &&
+        DateTime.now().difference(t) < _altinOmru) {
+      return _altin;
+    }
+    await (_altinIsi ??= _altinCek().whenComplete(() => _altinIsi = null));
+    return _altin;
+  }
+
+  /// Onbellekteki gram altin (cip icin, ag beklemeden).
+  AltinTuru? get gramAltin {
+    for (final a in _altin) {
+      if (a.anahtar == 'GRA') return a;
+    }
+    return null;
+  }
+
+  Future<void> _altinCek() async {
+    try {
+      final y = await Dio(BaseOptions(
+        connectTimeout: const Duration(seconds: 8),
+        receiveTimeout: const Duration(seconds: 12),
+        responseType: ResponseType.plain,
+      )).get<String>('https://finans.truncgil.com/v4/today.json');
+      if (y.statusCode != 200 || y.data == null) return;
+      final j = jsonDecode(y.data!) as Map<String, dynamic>;
+      final yeni = <AltinTuru>[];
+      kAltinTurleri.forEach((k, ad) {
+        final v = j[k];
+        if (v is! Map) return;
+        final satis = (v['Selling'] as num?)?.toDouble();
+        // UYARI 0 ve null ATLANIR: kaynak bazi kalemleri (ONS, BRENT)
+        //    sifir donduruyor ve sifir bir fiyat DEGIL, eksik veridir.
+        if (satis == null || satis <= 0) return;
+        yeni.add(AltinTuru(
+          anahtar: k,
+          ad: ad,
+          satis: satis,
+          degisim: (v['Change'] as num?)?.toDouble() ?? 0,
+        ));
+      });
+      if (yeni.isEmpty) return; // onbellek EZILMEZ
+      _altin
+        ..clear()
+        ..addAll(yeni);
+      _altinAn = DateTime.now();
+    } catch (_) {
+      // SESSIZ: altin bir yan bilgi; alinamazsa bolum cizilmez.
+    }
+  }
+
   /// Onbellekteki TUM seri (yon oku ve grafik icin).
   List<KurGunu> seri(String kod) => _kur[kod] ?? const [];
 
@@ -425,6 +535,23 @@ class HavaDoviz {
 ///	kalirdi (bu projede ayni sinif ONCE kez yasandi).
 /// UYARI Veri YOKSA hicbir sey cizmez (`SizedBox.shrink`): bos kutu
 ///	"bozuk mu" izlenimi verirdi.
+/// TURU 172 — **CIP YUKSEKLIGI TEK KAYNAK.**
+///
+/// Kullanici emri: *"arama dairesi soldaki altin/hava durumu yuksekligi
+/// ile AYNI olsun, ikonu da ona gore ayarla"*. Arama bir `IconButton`
+/// idi ve Material varsayilani **48 dp** dayatir; cipler ~32 dp oldugu
+/// icin daire gorunur bicimde BUYUKTU.
+///
+/// UYARI Sabit dp YAZILMADI: yazi olcegi buyudukce cipin ICI buyur ve
+///	sabit bir daire ORANTISIZ kalirdi (turu 141/150 dersi). Olcu
+///	metin olceginden TURETILIR; ikon da bu boydan turetilir.
+double havaCipBoy(BuildContext c, {bool kompakt = false}) {
+  final yazi = kompakt ? 13.2 : 14.3;
+  final ikon = kompakt ? 16.5 : 17.6;
+  final metin = MediaQuery.textScalerOf(c).scale(yazi) * 1.3;
+  return (math.max(ikon, metin) + 14).ceilToDouble();
+}
+
 class HavaDovizCipleri extends StatefulWidget {
   const HavaDovizCipleri({
     super.key,
@@ -451,6 +578,15 @@ class _HavaDovizCipleriDurumu extends State<HavaDovizCipleri> {
   int _sira = 0;
   Timer? _tik;
 
+  /// TURU 172 - donguye **ALTIN** da girer (kullanici emri: *"dolar,
+  ///	euro, sterlin ve ALTIN olarak degissin"*).
+  /// UYARI Altin verisi YOKSA adim ATLANIR (`+1` uygulanmaz): olmayan
+  ///	bir kalem icin 2 saniye BOS cip gostermek yerine dongu
+  ///	yalniz dovizler uzerinde doner.
+  bool get _altinVar => HavaDoviz.i.gramAltin != null;
+  int get _adim => kDovizler.length + (_altinVar ? 1 : 0);
+  bool get _altinSirasi => _altinVar && _sira == kDovizler.length;
+
   @override
   void initState() {
     super.initState();
@@ -459,7 +595,7 @@ class _HavaDovizCipleriDurumu extends State<HavaDovizCipleri> {
     //	yalniz veri VARSA cagrilir.
     _tik = Timer.periodic(const Duration(seconds: 2), (_) {
       if (!mounted || HavaDoviz.i.sonKur(kDovizler[0]) == null) return;
-      setState(() => _sira = (_sira + 1) % kDovizler.length);
+      setState(() => _sira = (_sira + 1) % _adim);
     });
   }
 
@@ -487,6 +623,10 @@ class _HavaDovizCipleriDurumu extends State<HavaDovizCipleri> {
     if (mounted && h != null) setState(() => _hava = h);
     await HavaDoviz.i.kurGetir(kDovizler[0]);
     if (mounted) setState(() {});
+    // TURU 172 - altin AYRI kaynaktan; kur beklenmeden istenir ki
+    //	dovizler cizilirken altin arka planda hazirlansin.
+    await HavaDoviz.i.altinGetir();
+    if (mounted) setState(() {});
   }
 
   /// Bir onceki gune gore yon: +1 yukseldi, -1 dustu, 0 ayni/bilinmiyor.
@@ -505,9 +645,12 @@ class _HavaDovizCipleriDurumu extends State<HavaDovizCipleri> {
   @override
   Widget build(BuildContext context) {
     final h = _hava;
+    final altin = _altinSirasi ? HavaDoviz.i.gramAltin : null;
     final kod = kDovizler[_sira % kDovizler.length];
-    final v = HavaDoviz.i.sonKur(kod);
-    if (h == null && v == null) return const SizedBox.shrink();
+    final v = altin != null ? null : HavaDoviz.i.sonKur(kod);
+    if (h == null && v == null && altin == null) {
+      return const SizedBox.shrink();
+    }
     final scheme = Theme.of(context).colorScheme;
     // TURU 171c - **%10 BUYUTULDU** (kullanici: *"%10 daha buyut, kucuk
     //	kalmislar"*).
@@ -515,7 +658,10 @@ class _HavaDovizCipleriDurumu extends State<HavaDovizCipleri> {
     final ikonBoy = widget.kompakt ? 16.5 : 17.6;
     final p = widget.kompakt ? 8.0 : 11.0;
 
-    Widget kutu({required Widget ic, double? en}) => Padding(
+    // TURU 172 - her cip KENDI panelini acar (kullanici: *"hava durumu
+    //	ile dolar vs AYRI olacak"*).
+    Widget kutu({required Widget ic, double? en, VoidCallback? bas}) =>
+        Padding(
           padding: const EdgeInsets.only(left: 6),
           child: Material(
             color: scheme.onSurface.withValues(alpha: 0.07),
@@ -526,27 +672,31 @@ class _HavaDovizCipleriDurumu extends State<HavaDovizCipleri> {
               //	`onTap` anasayfada VERILMEMISTI ve cipler OLU
               //	gorunuyordu (kullanici: *"tikladigimda pencere
               //	acilmiyor"*). Varsayilan artik ortak panel.
-              onTap: widget.onTap ??
-                  () => havaDovizPanelAc(context,
-                      enlem: _konum?.enlem, boylam: _konum?.boylam),
+              onTap: widget.onTap ?? bas,
               child: SizedBox(
                 width: en,
+                // TURU 172 - yukseklik `havaCipBoy` ILE AYNI KAYNAKTAN;
+                //	arama dairesi de onu okuyor (kullanici emri).
+                height: havaCipBoy(context, kompakt: widget.kompakt),
                 child: Padding(
-                  padding:
-                      EdgeInsets.symmetric(horizontal: p, vertical: 7),
-                  child: ic,
+                  padding: EdgeInsets.symmetric(horizontal: p),
+                  child: Center(child: ic),
                 ),
               ),
             ),
           ),
         );
 
-    final yon = v == null ? 0 : _yon(kod);
+    final yon = altin != null
+        ? (altin.degisim > 0 ? 1 : (altin.degisim < 0 ? -1 : 0))
+        : (v == null ? 0 : _yon(kod));
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         if (h != null)
           kutu(
+            bas: () => havaPanelAc(context,
+                enlem: _konum?.enlem, boylam: _konum?.boylam),
             ic: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -561,8 +711,9 @@ class _HavaDovizCipleriDurumu extends State<HavaDovizCipleri> {
               ],
             ),
           ),
-        if (v != null)
+        if (v != null || altin != null)
           kutu(
+            bas: () => dovizPanelAc(context),
             // TURU 171c - **SABIT GENISLIK** (kullanici: *"dolar euro vs
             //	degisirken sol sag buton kuculme oluyor, o olmasin"*).
             //	Simge ve rakam genisligi paraya gore degisiyordu
@@ -583,16 +734,30 @@ class _HavaDovizCipleriDurumu extends State<HavaDovizCipleri> {
               //    bos bir seri kaliyordu (kullanici bunu gordu).
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(
-                  kDovizSimge[kod] ?? '',
-                  style: TextStyle(
-                      fontSize: yazi + 1,
-                      fontWeight: FontWeight.w800,
-                      color: const Color(0xFF2BB673)),
-                ),
+                // TURU 172 - altin sirasinda SIMGE yerine SIKKE IKONU:
+                //	altinin TL simgesi yok ve "₺" yazmak onu bir
+                //	dovizmis gibi gosterirdi.
+                if (altin != null)
+                  Icon(LucideIcons.coins,
+                      size: ikonBoy - 1, color: const Color(0xFFFFB020))
+                else
+                  Text(
+                    kDovizSimge[kod] ?? '',
+                    style: TextStyle(
+                        fontSize: yazi + 1,
+                        fontWeight: FontWeight.w800,
+                        color: const Color(0xFF2BB673)),
+                  ),
                 const SizedBox(width: 4),
                 Text(
-                  v.toStringAsFixed(2).replaceAll('.', ','),
+                  // UYARI Altin **KURUSSUZ** yazilir: gram altin dort
+                  //    haneli (6.898,85) ve kurusla birlikte SABIT 88 dp
+                  //    kutuya SIGMIYOR (olculdu). Kutu genisligini
+                  //    buyutmek de olmaz - sabit genislik tam da 2
+                  //    saniyelik ZIPLAMAYI onlemek icin var (turu 171c).
+                  altin != null
+                      ? _KurBolumuDurumu.binlik(altin.satis.round())
+                      : v!.toStringAsFixed(2).replaceAll('.', ','),
                   style: TextStyle(
                       fontSize: yazi,
                       fontWeight: FontWeight.w700,
@@ -632,13 +797,72 @@ IconData havaIkonu(int kod) => switch (kod) {
       _ => LucideIcons.cloud,
     };
 
-/// TURU 171c — **ORTAK HAVA + KUR PANELI** (her ekrandan cagrilabilir).
+/// TURU 172 — **HAVA PANELI** (kullanici emri: *"hava durumu ile dolar
+/// vs AYRI olacak"*). Onceden ikisi TEK sayfadaydi; hava icin acan
+/// kullanici kur grafigini, kur icin acan hava kartlarini gormek
+/// zorunda kaliyordu.
+Future<void> havaPanelAc(
+  BuildContext context, {
+  double? enlem,
+  double? boylam,
+}) async {
+  final h = await HavaDoviz.i.havaGetir(enlem: enlem, boylam: boylam);
+  if (h == null || !context.mounted) return;
+  await _sayfa(context, (tc) => _HavaBolumu(hava: h));
+}
+
+/// TURU 172 — **DOVIZ + ALTIN PANELI** (hava panelinden AYRI).
+Future<void> dovizPanelAc(BuildContext context) async {
+  await HavaDoviz.i.kurGetir(kDovizler[0]);
+  if (!context.mounted) return;
+  await _sayfa(context, (tc) => const _KurBolumu());
+}
+
+/// Iki panelin ORTAK kabugu — **TEK KAYNAK**.
+///
+/// UYARI `isScrollControlled` TEK BASINA YETMEZ: tavani kaldirir ama
+///	icerigi KAYDIRILABILIR YAPMAZ (turu 114/115c'de iki kez sahaya
+///	cikti). Govde `SingleChildScrollView` icinde.
+/// UYARI Zorla KOYU tema: panel `kAiZemin` (sabit siyah) uzerinde; acik
+///	temada metinler 1.x:1 kontrastla KAYBOLURDU (turu 135c/140).
+Future<void> _sayfa(
+  BuildContext context,
+  Widget Function(BuildContext) govde,
+) =>
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: kAiZemin,
+      isScrollControlled: true,
+      showDragHandle: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+      ),
+      builder: (bc) => Theme(
+        data: ThemeData.dark().copyWith(
+          splashFactory: NoSplash.splashFactory,
+          splashColor: Colors.transparent,
+          highlightColor: Colors.transparent,
+        ),
+        child: Builder(
+          builder: (tc) => SafeArea(
+            top: false,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
+              child: govde(tc),
+            ),
+          ),
+        ),
+      ),
+    );
+
+/// ESKI ortak panel — artik yalnizca geri uyumluluk icin.
 ///
 /// UYARI Onceki surumde panel `yakinimda_ekrani.dart` icinde OZEL bir
 ///	metottu; anasayfadaki cipler ona ULASAMIYORDU ve dokunus HICBIR
 ///	SEY YAPMIYORDU (kullanici: *"tikladigimda pencere acilmiyor"*).
 ///	Artik ortak - tek kaynak, her yerden acilir.
 /// UYARI Veri YOKSA acilmaz: bos sayfa "bozuk" izlenimi verirdi.
+// ignore: unused_element
 Future<void> havaDovizPanelAc(
   BuildContext context, {
   double? enlem,
@@ -691,6 +915,7 @@ Future<void> havaDovizPanelAc(
 
 /// 7 GUNLUK hava (kullanici emri: *"hava durumu 1 haftalik goster"*).
 class _HavaBolumu extends StatelessWidget {
+  // ignore: unused_element_parameter
   const _HavaBolumu({required this.hava, this.yer});
 
   final Hava hava;
@@ -814,7 +1039,7 @@ class _HavaBolumu extends StatelessWidget {
                     Text(
                       simdiMi
                           ? 'Şimdi'
-                          : h!.saat.hour.toString().padLeft(2, '0') + ':00',
+                          : '${h!.saat.hour.toString().padLeft(2, '0')}:00',
                       style: TextStyle(
                           fontSize: 11.5,
                           fontWeight: FontWeight.w600,
@@ -910,9 +1135,15 @@ class _KurBolumu extends StatefulWidget {
 }
 
 class _KurBolumuDurumu extends State<_KurBolumu> {
+  /// Secili sekme: 0..n-1 doviz, `_altinSekmesi` ise ALTIN.
   int _kod = 0;
   List<KurGunu> _seri = const [];
   int? _secili;
+  List<AltinTuru> _altin = const [];
+
+  /// TURU 172 - altin sekmesinin indisi (dovizlerden SONRA).
+  int get _altinSekmesi => kDovizler.length;
+  bool get _altinMi => _kod == _altinSekmesi;
 
   @override
   void initState() {
@@ -921,8 +1152,34 @@ class _KurBolumuDurumu extends State<_KurBolumu> {
   }
 
   Future<void> _getir() async {
+    if (_altinMi) {
+      final a = await HavaDoviz.i.altinGetir();
+      if (mounted) setState(() => _altin = a);
+      return;
+    }
     final l = await HavaDoviz.i.kurGetir(kDovizler[_kod]);
     if (mounted) setState(() => _seri = l);
+  }
+
+  /// Binlik ayracli TL metni (6898.85 -> "6.898,85 ₺").
+  ///
+  /// UYARI `intl` KULLANILMADI: tek bicim icin paket baglamak yerine
+  ///	ayrac ELLE konuyor; sonuc Turkce bicimle BIREBIR ayni.
+  static String _paraMetni(double v) {
+    final tam = v.floor();
+    final kur = ((v - tam) * 100).round().toString().padLeft(2, '0');
+    return '${binlik(tam)},$kur ₺';
+  }
+
+  /// Binlik ayracli tam sayi (6899 -> "6.899"). Cip de bunu okur.
+  static String binlik(int t) {
+    final b = t.toString();
+    final sb = StringBuffer();
+    for (var i = 0; i < b.length; i++) {
+      if (i > 0 && (b.length - i) % 3 == 0) sb.write('.');
+      sb.write(b[i]);
+    }
+    return sb.toString();
   }
 
   /// UYARI Titresim YALNIZ nokta DEGISINCE: her piksel hareketinde
@@ -947,7 +1204,8 @@ class _KurBolumuDurumu extends State<_KurBolumu> {
       children: [
         Row(
           children: [
-            for (var k = 0; k < kDovizler.length; k++) ...[
+            // TURU 172 - dovizler + **ALTIN** sekmesi (kullanici emri).
+            for (var k = 0; k <= kDovizler.length; k++) ...[
               GestureDetector(
                 onTap: () {
                   HapticFeedback.selectionClick();
@@ -968,7 +1226,9 @@ class _KurBolumuDurumu extends State<_KurBolumu> {
                     borderRadius: BorderRadius.circular(22),
                   ),
                   child: Text(
-                    kDovizAdi[kDovizler[k]] ?? kDovizler[k],
+                    k == kDovizler.length
+                        ? 'Altın'
+                        : (kDovizAdi[kDovizler[k]] ?? kDovizler[k]),
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
@@ -982,7 +1242,93 @@ class _KurBolumuDurumu extends State<_KurBolumu> {
           ],
         ),
         const SizedBox(height: 16),
-        if (g == null)
+        // TURU 172 - **ALTIN GRAFIK DEGIL LISTE.** Kaynak gecmis veri
+        //	VERMIYOR (tarihli adres 404); uydurma bir seri cizmek
+        //	yerine gunluk DEGISIM YUZDESI yazilir.
+        if (_altinMi) ...[
+          if (_altin.isEmpty)
+            const SizedBox(
+              height: 150,
+              child: Center(
+                  child: SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2))),
+            )
+          else
+            for (final a in _altin)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 34,
+                      height: 34,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: const Color(0xFFFFB020)
+                            .withValues(alpha: 0.14),
+                      ),
+                      child: const Icon(LucideIcons.coins,
+                          size: 17, color: Color(0xFFFFB020)),
+                    ),
+                    const SizedBox(width: 11),
+                    Expanded(
+                      child: Text(
+                        a.ad,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: scheme.onSurface),
+                      ),
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _paraMetni(a.satis),
+                          style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              color: scheme.onSurface),
+                        ),
+                        // UYARI Degisim 0 ise ok/yuzde CIZILMEZ: yon
+                        //    bilinmiyorken yon IDDIA ETMEK yanlis olur.
+                        if (a.degisim != 0)
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                a.degisim > 0
+                                    ? LucideIcons.arrowUp
+                                    : LucideIcons.arrowDown,
+                                size: 12,
+                                color: a.degisim > 0
+                                    ? const Color(0xFF2BB673)
+                                    : const Color(0xFFE0523F),
+                              ),
+                              Text(
+                                '%${a.degisim.abs().toStringAsFixed(2).replaceAll('.', ',')}',
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: a.degisim > 0
+                                      ? const Color(0xFF2BB673)
+                                      : const Color(0xFFE0523F),
+                                ),
+                              ),
+                            ],
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+        ] else if (g == null)
           const SizedBox(
             height: 150,
             child: Center(
@@ -1000,7 +1346,7 @@ class _KurBolumuDurumu extends State<_KurBolumu> {
                 color: scheme.onSurface),
           ),
           Text(
-            tarihMetni(g.tarih) + ' · TCMB döviz satış',
+            '${tarihMetni(g.tarih)} · TCMB döviz satış',
             style: TextStyle(
                 fontSize: 12.5,
                 color: scheme.onSurface.withValues(alpha: 0.6)),

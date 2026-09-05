@@ -983,6 +983,11 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
   ///
   /// ⚠️ Serit YALNIZ menude (`kAiZemin`, sabit siyah) ciziliyor ve menu
   ///    zorla koyu tema kuruyor; renkler ona gore secildi.
+  // TURU 171b - **CAGRI YERINDEN CIKARILDI** (uydurma sayilar; yerini
+  //	basliktaki `HavaDovizCipleri` GERCEK veriyle aldi). Govde
+  //	SILINMEDI: bu dosyada ayni sinif silme komsu uyeyi de
+  //	goturdu (turu 127/138/140/141).
+  // ignore: unused_element
   Widget _havaDovizSeridi(BuildContext context) {
     if (!kHavaDovizOnizleme) return const SizedBox.shrink();
     final onRenk = Theme.of(context).colorScheme.onSurface;
@@ -1248,16 +1253,38 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
           // TURU 171d - **ARAMANIN ARKASINDA DAIRE** (kullanici emri:
           //	*"aramanin arkasinda daire olsun, hava durumu ve dolar
           //	gibi ayni renkte"*). Zemin ifadesi ciplerle AYNI.
+          // TURU 172 - **DAIRE YUKSEKLIGI CIPLERLE AYNI** (kullanici
+          //	emri: *"arama dairesi soldaki altin/hava durumu
+          //	yuksekligi ile ayni olsun, ikonu da ona gore"*).
+          //
+          // UYARI `IconButton` Material'in **48 dp** dokunma tabanini
+          //	DAYATIR; olcu `constraints` + `minimumSize` +
+          //	`padding` UCU BIRLIKTE verilmeden kucultulemez
+          //	(turu 157'de olculdu: yalniz `SizedBox` sarmak
+          //	govdeyi KIRPAR, olcuyu degistirmez).
+          // UYARI Boy `havaCipBoy` TEK KAYNAGINDAN gelir; ciplerle
+          //	ayrisma YAPISAL OLARAK imkansiz.
           IconButton(
             tooltip: 'Ara',
+            padding: EdgeInsets.zero,
+            constraints: BoxConstraints.tightFor(
+              width: havaCipBoy(context, kompakt: true),
+              height: havaCipBoy(context, kompakt: true),
+            ),
             style: IconButton.styleFrom(
               backgroundColor: Theme.of(context)
                   .colorScheme
                   .onSurface
                   .withValues(alpha: 0.07),
               shape: const CircleBorder(),
+              padding: EdgeInsets.zero,
+              minimumSize: Size.square(havaCipBoy(context, kompakt: true)),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
-            icon: const Icon(LucideIcons.search, size: 22),
+            // Ikon boyu daireden TURETILIR (kullanici: *"ikonu da ona
+            //	gore ayarla"*): daire buyuyunce ikon da buyur.
+            icon: Icon(LucideIcons.search,
+                size: havaCipBoy(context, kompakt: true) * 0.58),
             // ⚠️⚠️⚠️ TURU 130 — **`Scaffold` SARMALI ZORUNLU** (kullanici:
             //	*"aramaya tikladigimda ekran patliyor"* — HAKLIYDI).
             //
