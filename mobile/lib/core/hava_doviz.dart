@@ -75,6 +75,7 @@ class HavaGunu {
     required this.kod,
     required this.enAz,
     required this.enCok,
+    this.yagisOlasilik = 0,
   });
 
   final DateTime tarih;
@@ -83,6 +84,22 @@ class HavaGunu {
   final int kod;
   final double enAz;
   final double enCok;
+
+  /// TURU 171f - gunun en yuksek yagis olasiligi (%).
+  final int yagisOlasilik;
+}
+
+/// Bir saatlik tahmin.
+class HavaSaati {
+  const HavaSaati({
+    required this.saat,
+    required this.sicaklik,
+    required this.yagisOlasilik,
+  });
+
+  final DateTime saat;
+  final double sicaklik;
+  final int yagisOlasilik;
 }
 
 /// Hava durumu yaniti.
@@ -91,11 +108,25 @@ class Hava {
     required this.simdi,
     required this.simdikiKod,
     required this.gunler,
+    this.hissedilen,
+    this.nem,
+    this.ruzgar,
+    this.saatler = const [],
   });
 
   final double simdi;
   final int simdikiKod;
   final List<HavaGunu> gunler;
+
+  /// TURU 171f - **TAM HAVA DURUMU** (kullanici: *"google gibi tam hava
+  ///	durumu verecek mi"*). Open-Meteo bunlarin HEPSINI ayni
+  ///	cagrida donduruyor; onceden yalnizca sicaklik okunuyordu.
+  final double? hissedilen;
+  final int? nem;
+  final double? ruzgar;
+
+  /// Saat basi tahmin (bugunden itibaren).
+  final List<HavaSaati> saatler;
 }
 
 /// Bir gunun kur degeri.
@@ -207,8 +238,11 @@ class HavaDoviz {
       final u = Uri.parse(
         'https://api.open-meteo.com/v1/forecast'
         '?latitude=$enlem&longitude=$boylam'
-        '&current=temperature_2m,weather_code'
-        '&daily=weather_code,temperature_2m_max,temperature_2m_min'
+        '&current=temperature_2m,apparent_temperature,'
+        'relative_humidity_2m,wind_speed_10m,weather_code'
+        '&hourly=temperature_2m,precipitation_probability'
+        '&daily=weather_code,temperature_2m_max,temperature_2m_min,'
+        'precipitation_probability_max'
         '&timezone=Europe%2FIstanbul&forecast_days=7',
       );
       final y = await Dio(BaseOptions(
@@ -224,6 +258,9 @@ class HavaDoviz {
       final kod = (d['weather_code'] as List).cast<num>();
       final maks = (d['temperature_2m_max'] as List).cast<num>();
       final min = (d['temperature_2m_min'] as List).cast<num>();
+      // UYARI Alan EKSIK olabilir (model bazi bolgelerde vermez) ->
+      //    `?` ile okunur ve yoksa 0 yazilir, cagri COKMEZ.
+      final yag = (d['precipitation_probability_max'] as List?)?.cast<num?>();
       final gunler = <HavaGunu>[];
       for (var k = 0; k < t.length; k++) {
         gunler.add(HavaGunu(
@@ -231,12 +268,44 @@ class HavaDoviz {
           kod: kod[k].toInt(),
           enAz: min[k].toDouble(),
           enCok: maks[k].toDouble(),
+          yagisOlasilik: (yag != null && k < yag.length)
+              ? (yag[k]?.toInt() ?? 0)
+              : 0,
         ));
+      }
+      // Saatlik: SIMDIDEN SONRAKI 24 saat.
+      // TURU 171f - **GECMIS SAAT TAMAMEN ATLANIR.** Ilk yazimda 1
+      //	saatlik tolerans vardi ve emulatorde SU CELISKI gorundu:
+      //	ustte anlik **22°**, seritte "Şimdi **26°**" - cunku saat
+      //	19:41 iken 19:00 kaydi "simdi" sayiliyordu. Iki farkli
+      //	buyukluk ayni etiketle yan yana duruyordu (turu 168'in
+      //	"09:20 ama 7 dakika var" hatasiyla AYNI SINIF).
+      final saatler = <HavaSaati>[];
+      final hh = j['hourly'] as Map<String, dynamic>?;
+      if (hh != null) {
+        final ht = (hh['time'] as List).cast<String>();
+        final hs = (hh['temperature_2m'] as List).cast<num?>();
+        final hy = (hh['precipitation_probability'] as List?)?.cast<num?>();
+        final simdi = DateTime.now();
+        for (var k = 0; k < ht.length && saatler.length < 24; k++) {
+          final an = DateTime.parse(ht[k]);
+          if (!an.isAfter(simdi)) continue;
+          saatler.add(HavaSaati(
+            saat: an,
+            sicaklik: (hs[k] ?? 0).toDouble(),
+            yagisOlasilik:
+                (hy != null && k < hy.length) ? (hy[k]?.toInt() ?? 0) : 0,
+          ));
+        }
       }
       _hava = Hava(
         simdi: (c['temperature_2m'] as num).toDouble(),
         simdikiKod: (c['weather_code'] as num).toInt(),
         gunler: gunler,
+        hissedilen: (c['apparent_temperature'] as num?)?.toDouble(),
+        nem: (c['relative_humidity_2m'] as num?)?.toInt(),
+        ruzgar: (c['wind_speed_10m'] as num?)?.toDouble(),
+        saatler: saatler,
       );
       _havaAn = DateTime.now();
       // Hucre onbellegi: baska bir ilceye gecince ESKI deger kullanilmaz.
@@ -631,6 +700,36 @@ class _HavaBolumu extends StatelessWidget {
 
   static const _gun = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
 
+  /// Tek bir olcu (ikon + etiket + deger).
+  Widget _olcu(BuildContext c, IconData ikon, String etiket, String deger) {
+    final scheme = Theme.of(c).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(right: 18),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(ikon, size: 15, color: scheme.onSurface.withValues(alpha: 0.55)),
+          const SizedBox(width: 5),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(etiket,
+                  style: TextStyle(
+                      fontSize: 10.5,
+                      color: scheme.onSurface.withValues(alpha: 0.55))),
+              Text(deger,
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: scheme.onSurface)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -670,10 +769,82 @@ class _HavaBolumu extends StatelessWidget {
             ),
           ],
         ),
+        // TURU 171f - **OLCU SATIRI** (hissedilen · nem · ruzgar).
+        // UYARI Her deger AYRI kontrol edilir: model bazi alanlari
+        //    vermeyebilir ve o zaman o parca satira GIRMEZ (bos bir
+        //    iddia URETILMEZ).
+        if (hava.hissedilen != null || hava.nem != null || hava.ruzgar != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: Row(
+              children: [
+                if (hava.hissedilen != null)
+                  _olcu(context, LucideIcons.thermometer, 'Hissedilen',
+                      '${hava.hissedilen!.round()}°'),
+                if (hava.nem != null)
+                  _olcu(context, LucideIcons.droplets, 'Nem',
+                      '%${hava.nem}'),
+                if (hava.ruzgar != null)
+                  _olcu(context, LucideIcons.wind, 'Rüzgâr',
+                      '${hava.ruzgar!.round()} km/s'),
+              ],
+            ),
+          ),
+        if (hava.saatler.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          SizedBox(
+            // UYARI Yagis satiri kosullu oldugu icin yukseklik ONA GORE:
+            //    68 dp iki satiri (saat + derece) rahat alir, ucuncusu
+            //    varsa `spaceEvenly` sikistirir - tasma OLMAZ.
+            height: 68,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              // UYARI +1: ILK kutu **ANLIK** degerdir (saatlik tahmin
+              //    DEGIL). Ikisini karistirmak ustteki buyuk sayiyla
+              //    celisen bir "Şimdi" uretiyordu.
+              itemCount: hava.saatler.length + 1,
+              separatorBuilder: (_, _) => const SizedBox(width: 14),
+              itemBuilder: (_, i) {
+                final simdiMi = i == 0;
+                final h = simdiMi ? null : hava.saatler[i - 1];
+                return Column(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    Text(
+                      simdiMi
+                          ? 'Şimdi'
+                          : h!.saat.hour.toString().padLeft(2, '0') + ':00',
+                      style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                          color: scheme.onSurface
+                              .withValues(alpha: simdiMi ? 1 : 0.65)),
+                    ),
+                    Text(
+                        simdiMi
+                            ? '${hava.simdi.round()}°'
+                            : '${h!.sicaklik.round()}°',
+                        style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            color: scheme.onSurface)),
+                    if (!simdiMi && h!.yagisOlasilik > 0)
+                      Text('%${h.yagisOlasilik}',
+                          style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF3AA9FF))),
+                  ],
+                );
+              },
+            ),
+          ),
+        ],
         const SizedBox(height: 16),
         // UYARI Yatay kaydirma: 7 gun dar ekranda yan yana SIGMAZ.
         SizedBox(
-          height: 104,
+          height: 116,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             physics: const BouncingScrollPhysics(),
@@ -711,6 +882,14 @@ class _HavaBolumu extends StatelessWidget {
                             fontSize: 12,
                             color:
                                 scheme.onSurface.withValues(alpha: 0.5))),
+                    // UYARI Yagis ihtimali 0 ise satir CIZILMEZ: "%0"
+                    //    yazmak kutuyu gereksiz kalabaliklastirirdi.
+                    if (g.yagisOlasilik > 0)
+                      Text('%${g.yagisOlasilik}',
+                          style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF3AA9FF))),
                   ],
                 ),
               );
