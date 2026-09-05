@@ -341,6 +341,28 @@ Map<String, dynamic> _jsonCoz(String s) => jsonDecode(s) as Map<String, dynamic>
 /// ⚠️ Her bolum AYRI ve TEMBEL yuklenir: harita acilirken yalniz duraklar
 ///    (95 KB) okunur; kalkislar (1,7 MB) ancak bir duraga DOKUNULDUGUNDA,
 ///    guzergahlar ancak bir hat SECILDIGINDE cozulur.
+/// ⚠️⚠️⚠️ TURU 169 — **A'DAN B'YE ROTA ARAMA KAPATILDI** (kullanici emri).
+///
+///	Kullanici: *"rotayi tamamen kaldir, sadece yakindaki duraklar olsun,
+///	Google ile basimiz agrimasin"*.
+///
+/// ⚠️ **GEREKCE OLCULDU (5 Eyl):** rota aramasi kullanici basina Google'a
+///	**6 Routes + 1 Place Details + 1 harita yuklemesi** gonderiyordu.
+///	20.000 kullanici x gunde 4 arama = **ayda 25.732 USD**. Ucretsiz kota
+///	yalnizca **14 aktif kullanicida** biter.
+///
+/// ⚠️⚠️ **KOD SILINMEDI, GIRISI KAPATILDI.** Bu ekranda (9.361 satir) bir
+///	uyeyi silmek BES KEZ komsu uyeyi de goturdu (turu 127/138/140/141/143).
+///	Bayrak `false` iken rota akisi ULASILAMAZ; Google Routes/Places
+///	cagrilari YAPISAL OLARAK tetiklenemez.
+///
+/// ⚠️ **KALAN Google kullanimi YALNIZ harita karosu + pin** (Maps SDK) —
+///	kullanicinin acikca korunmasini istedigi taraf.
+///
+/// ⚠️ Geri acmak icin: bu bayragi `true` yap. `_durakPaneli` govdesi ve
+///	`_panelBoy` formulu AYNI bayragi okur, ayrisamazlar.
+const bool kRotaAcik = false;
+
 class UlasimVeri {
   UlasimVeri._();
   static final UlasimVeri i = UlasimVeri._();

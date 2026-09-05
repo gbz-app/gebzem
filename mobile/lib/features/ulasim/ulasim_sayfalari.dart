@@ -12,6 +12,8 @@
 ///	dersleri). Biri eksik kalirsa siyah zeminde SILIK GRI yazi cikar.
 library;
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
@@ -322,10 +324,13 @@ Future<void> durakDetayAc(
           ),
         ),
         const SizedBox(height: 12),
+        // ⚠️ TURU 169 - geri sayim CANLI: yalniz bu liste yeniden cizilir,
+        //    sheet'in basligi/mesafesi dokunulmadan kalir.
         for (final h in hatlar)
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
-            child: _HatSatiri(
+            child: CanliDakika(
+              yapici: (c2, an) => _HatSatiri(
               dh: h,
               an: an,
               servis: servis,
@@ -349,6 +354,7 @@ Future<void> durakDetayAc(
                 Navigator.of(c).maybePop();
                 guzergahSec(h.hat, h.yon);
               },
+              ),
             ),
           ),
       ],
@@ -361,6 +367,71 @@ String _servisAdi(int s) => switch (s) {
       3 => 'pazar',
       _ => 'hafta içi',
     };
+
+/// ⚠️⚠️⚠️ TURU 169 — **ANLIK GERI SAYIM** (kullanici emri: *"5 dakika
+/// mesela actı, 2 saniye sonra 4 dakika olacaksa 4 dakika gorunsun,
+/// anlik gorsunler"*).
+///
+/// ⚠️ **KOK NEDEN:** `ulasim_sayfalari.dart` icinde HICBIR `Timer` yoktu;
+///	`an` (su anki dakika) `build` icinde BIR KEZ hesaplaniyor ve onu
+///	yeniden tetikleyen hicbir sey olmadigi icin ekran DONUYORDU.
+///	Kullanici "5 dk" goruyor, iki dakika sonra da "5 dk" yaziyordu.
+///
+/// ⚠️⚠️ **NEDEN 1 SANIYE AMA setState DAKIKADA BIR:** her saniye yeniden
+///	cizmek pil yakar; 5 sn'lik tik ise dakika donusunu 5 sn GEC gosterir
+///	ve kullanicinin sikayeti tam buydu. Bu yuzden tik 1 sn'dir ama
+///	`setState` YALNIZ dakika gercekten degistiginde cagrilir —
+///	arada yapilan tek is bir `int` karsilastirmasidir.
+/// ⚠️ YAPMA: periyodu buyutme (gecikme geri gelir) ya da kosulsuz
+///	`setState` yapma (dakikada 60 gereksiz cizim).
+/// Bir otobusun "yaklasiyor" sayilmasi icin kalan dakika esigi.
+///
+/// ⚠️ **TEK KAYNAK**: hem renk hem (ileride) siralama bunu okur.
+const int kYakinDakika = 10;
+
+/// Yaklasan otobusun rengi — **hafif** kirmizi (kullanici emri).
+///
+/// ⚠️ Doygun kirmizi (`Colors.red`) DEGIL: bu bir HATA degil, bir
+///	ACELE isaretidir; ayrica `scheme.error` ile karismamali.
+const Color kYaklasanRenk = Color(0xFFE0523F);
+
+class CanliDakika extends StatefulWidget {
+  const CanliDakika({super.key, required this.yapici});
+
+  /// Gece yarisindan itibaren gecen dakikayla cagrilir.
+  final Widget Function(BuildContext context, int an) yapici;
+
+  @override
+  State<CanliDakika> createState() => _CanliDakikaDurumu();
+}
+
+class _CanliDakikaDurumu extends State<CanliDakika> {
+  late int _an = UlasimVeri.suAnDakika();
+  Timer? _tik;
+
+  @override
+  void initState() {
+    super.initState();
+    _tik = Timer.periodic(const Duration(seconds: 1), (_) {
+      final yeni = UlasimVeri.suAnDakika();
+      // ⚠️ Dakika degismediyse HICBIR SEY yapilmaz (cizim tetiklenmez).
+      if (yeni == _an || !mounted) return;
+      setState(() => _an = yeni);
+    });
+  }
+
+  @override
+  void dispose() {
+    // ⚠️ Iptal edilmezse sayfa kapandiktan sonra OLU bir State'e
+    //    `setState` cagrilir (bu projede turu 96i'de EKRANI KIRMIZI
+    //    boyayan hata sinifi).
+    _tik?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.yapici(context, _an);
+}
 
 class _HatSatiri extends StatelessWidget {
   const _HatSatiri({
@@ -444,8 +515,16 @@ class _HatSatiri extends StatelessWidget {
                           style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w800,
-                            color: kalan <= 10
-                                ? const Color(0xFF2BB673)
+                            // ⚠️⚠️ TURU 169 - **YAKLASAN OTOBUS KIRMIZI**
+                            //	(kullanici emri: *"yaklasan saatler hafif
+                            //	kirmizi olabilir"*). Onceden YESILDI
+                            //	(0xFF2BB673) - yesil "sorun yok" okunur,
+                            //	oysa buradaki anlam "ACELE ET".
+                            // ⚠️ Ton BILEREK yumusak (`hafif`): tam
+                            //    doygun kirmizi hata/iptal rengiyle
+                            //    karisir. Acik ve koyu temada da okunur.
+                            color: kalan <= kYakinDakika
+                                ? kYaklasanRenk
                                 : scheme.onSurface,
                           ),
                         ),
@@ -731,10 +810,29 @@ class _HatSaatleriDurumu extends State<_HatSaatleri> {
   ///    sinif turu 141/144'te sahaya cikti).
   int _nesil = 0;
 
+  /// ⚠️ TURU 169 - **ANLIK GERI SAYIM** (bkz. `CanliDakika` serhi).
+  ///	Bu sayfa da `an`i `build` icinde BIR KEZ hesapliyordu; sonraki
+  ///	otobus vurgusu ve "N dk" ekranda DONUYORDU.
+  /// ⚠️ Tik 1 sn ama `setState` YALNIZ dakika degisince cagrilir.
+  late int _an = UlasimVeri.suAnDakika();
+  Timer? _tik;
+
   @override
   void initState() {
     super.initState();
     _yukle();
+    _tik = Timer.periodic(const Duration(seconds: 1), (_) {
+      final yeni = UlasimVeri.suAnDakika();
+      if (yeni == _an || !mounted) return;
+      setState(() => _an = yeni);
+    });
+  }
+
+  @override
+  void dispose() {
+    // ⚠️ Sayfa kapandiktan sonra OLU State'e `setState` cagrilmasin.
+    _tik?.cancel();
+    super.dispose();
   }
 
   Future<void> _yukle() async {
@@ -769,7 +867,8 @@ class _HatSaatleriDurumu extends State<_HatSaatleri> {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final renk = hatRengi(widget.hat);
-    final an = UlasimVeri.suAnDakika();
+    // ⚠️ TURU 169 - CANLI deger (`_tik` gunceller), anlik hesap DEGIL.
+    final an = _an;
     // ⚠️ Vurgu (sonraki otobus) YALNIZ bugunun gun turunde anlamli;
     //    pazar listesine hafta ici saatiyle "sonraki" isaretlemek YALAN olur.
     final bugun = _servis == UlasimVeri.bugunServis();

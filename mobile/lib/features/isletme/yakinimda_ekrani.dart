@@ -1969,7 +1969,11 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani>
       // ⚠️ Deger `_durakPaneli` govdesindeki kosulla AYNI
       //    ifadeden gelmek zorunda; ayrisirsa panel ile haritanin alt
       //    dolgusu kayar (bu ekranda UC KEZ yasandi).
-      final ust = _takip != null ? 0.0 : _rotaDugmeBoy(context) + 12;
+      // ⚠️ TURU 169 - `kRotaAcik` false iken Nereden/Nereye CIZILMIYOR,
+      //    dolayisiyla yuksekligi de formulden DUSER (TEK KAYNAK).
+      final ust = (!kRotaAcik || _takip != null)
+          ? 0.0
+          : _rotaDugmeBoy(context) + 12;
       return 10 + 32 + 8 + ust + govde + kPanelAltDolgu + alt0;
     }
     final o = MediaQuery.textScalerOf(context);
@@ -2259,7 +2263,14 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani>
               //	iki dugme haritadan ~74 dp calardi.
               // ⚠️ `_panelBoy` AYNI kosulu okur; ayrisirsa panel ile
               //    haritanin alt dolgusu kayar.
-              if (_takip == null) ...[
+              // ⚠️⚠️⚠️ TURU 169 - `kRotaAcik` KAPISI (kullanici emri:
+              //	*"rotayi tamamen kaldir, sadece duraklar olsun"*).
+              //	Bayrak false iken bu satir CIZILMEZ ve rota akisinin
+              //	TEK girisi (`_rotaPlanla`) ULASILAMAZ olur -> Google
+              //	Routes/Places cagrilari YAPISAL OLARAK imkansiz.
+              // ⚠️ `_panelBoy` AYNI bayragi okur; ayrisirsa panel ile
+              //    haritanin alt dolgusu kayar (bu ekranda UC KEZ yasandi).
+              if (kRotaAcik && _takip == null) ...[
                 Padding(
                   padding:
                       const EdgeInsets.symmetric(horizontal: kYanBosluk),
