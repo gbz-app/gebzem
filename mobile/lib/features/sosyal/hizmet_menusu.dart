@@ -73,7 +73,14 @@ const kYakinOnizleme = true;
 /// gosterir ve bunu ekranda "örnek" ibaresiyle SOYLER.
 /// ⚠️ Turu 135'te `kur_serit.dart` tam bu yuzden SILINMISTI; kullanici
 ///    turu 147'de seridi ACIKCA geri istedi.
-const kHavaDovizOnizleme = true;
+/// TURU 171c - **KAPATILDI.** Kullanici: *"haritada dolar ve gunesi
+///	kaldirmamissin"*. Artik GERCEK veri var (`core/hava_doviz.dart`:
+///	Open-Meteo + TCMB) ve anasayfadaki baslikta gosteriliyor;
+///	ORNEK degerli serit/dugme ayni anda durursa kullanici hangisinin
+///	dogru oldugunu bilemez.
+/// UYARI Kod SILINMEDI, bayrakla kapatildi (bu dosyada uye silmek komsu
+///    uyeyi de goturdu - turu 127/138/140/141).
+const kHavaDovizOnizleme = false;
 
 /// ⚠️⚠️ TURU 134 — YAKINIMDA kartinda **ad ile mesafe arasindaki bosluk**
 ///	(kullanici emri: *"400m isim arasindaki boslugu biraz arttir"*).
@@ -636,6 +643,11 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
                         //	ALTTAN"*).
                         //	Turu 147'de serit aramanin YANINDA dar bir
                         //	kutucuktu; orada ne kaydirma ne chart sigardi.
+                        // TURU 171c - **BOSLUK GERI KONDU** (kullanici:
+                        //	*"header ile slider arasindaki boslugu
+                        //	kaldirmissin"*). Serit cikarilinca onunla
+                        //	birlikte 12 dp'lik ayrac da gitmisti.
+                        const SizedBox(height: 12),
                         // TURU 171b - **SERIT KALDIRILDI** (kullanici emri:
                         //	*"anasayfada ARAMANIN YANINA 2 tane ikon koy"*).
                         //	Bilgi artik basliktaki `HavaDovizCipleri`nde ve
@@ -1151,6 +1163,7 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
     // ⚠️ Ikon da SAATTEN turetilir: gunduz "İyi Günler"in yaninda ay
     //    durmasi anlamsiz olurdu. Gece/aksam AY, sabah/oglen GUNES.
     // ⚠️ Lucide bir FONT`tur (glif) — `strokeWidth` YOKTUR.
+    // ignore: unused_local_variable
     final selamIkon = (saat < 5 || saat >= 18)
         ? LucideIcons.moon
         : LucideIcons.sun;
@@ -1192,12 +1205,14 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 5),
-                    Icon(
-                      selamIkon,
-                      size: 13,
-                      color: onRenk.withValues(alpha: 0.7),
-                    ),
+                    // TURU 171c - **SELAMLAMA IKONU KALDIRILDI.**
+                    //	Hemen yaninda artik GERCEK hava ikonu duruyor;
+                    //	iki gunes yan yana hem gereksiz hem kafa karistirici
+                    //	ve emulatorde "Iyi Gunler" KIRPILIYORDU (360 dp).
+                    // UYARI Turu 130`un amaci (gunun vaktini gostermek)
+                    //    artik GERCEK hava cipiyle KARSILANIYOR.
+                    // UYARI `selamIkon` degiskeni KALDI (ignore ile): geri
+                    //    istenirse tek satir.
                   ],
                 ),
                 if (ad.isNotEmpty)
@@ -1217,6 +1232,8 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
           //	emri: *"anasayfada aramanin yanina 2 tane ikon koy"*).
           // UYARI Veri yoksa widget HICBIR SEY cizmez, basligin
           //    yerlesimi DEGISMEZ.
+          // TURU 171c - dokunus PANELI ACAR (kullanici: *"tikladigimda
+          //    pencere acilmiyor"*). Widget varsayilani da ayni panel.
           const HavaDovizCipleri(kompakt: true),
           IconButton(
             tooltip: 'Ara',

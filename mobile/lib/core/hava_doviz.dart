@@ -39,7 +39,11 @@ import 'dart:convert';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show listEquals;
+import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+
+import 'theme.dart' show kAiZemin;
 
 // UYARI `http` paketi projede YOK; `dio` ZATEN bagimlilik listesinde.
 //	Tek dosya icin yeni paket eklemek pubspec'i sisirirdi.
@@ -222,6 +226,9 @@ class HavaDoviz {
     return _kur[kod] ?? const [];
   }
 
+  /// Onbellekteki TUM seri (yon oku ve grafik icin).
+  List<KurGunu> seri(String kod) => _kur[kod] ?? const [];
+
   /// Onbellekteki son deger (ag beklemeden okumak icin).
   double? sonKur(String kod) {
     final l = _kur[kod];
@@ -353,66 +360,121 @@ class _HavaDovizCipleriDurumu extends State<HavaDovizCipleri> {
     if (mounted) setState(() {});
   }
 
+  /// Bir onceki gune gore yon: +1 yukseldi, -1 dustu, 0 ayni/bilinmiyor.
+  ///
+  /// UYARI Seri TCMB is gunlerinden; iki kayit yoksa yon IDDIA EDILMEZ
+  ///	(0 doner ve ok CIZILMEZ) - uydurma bir yon gostermek yanlis
+  ///	bilgi olurdu.
+  int _yon(String kod) {
+    final l = HavaDoviz.i.seri(kod);
+    if (l.length < 2) return 0;
+    final f = l.last.deger - l[l.length - 2].deger;
+    if (f.abs() < 0.0001) return 0;
+    return f > 0 ? 1 : -1;
+  }
+
   @override
   Widget build(BuildContext context) {
     final h = _hava;
     final kod = kDovizler[_sira % kDovizler.length];
     final v = HavaDoviz.i.sonKur(kod);
     if (h == null && v == null) return const SizedBox.shrink();
-    final p = widget.kompakt ? 7.0 : 10.0;
-    final yazi = widget.kompakt ? 12.0 : 13.0;
-    final ikonBoy = widget.kompakt ? 15.0 : 16.0;
-    Widget cip(Widget bas, String metin) => Padding(
+    final scheme = Theme.of(context).colorScheme;
+    // TURU 171c - **%10 BUYUTULDU** (kullanici: *"%10 daha buyut, kucuk
+    //	kalmislar"*).
+    final yazi = widget.kompakt ? 13.2 : 14.3;
+    final ikonBoy = widget.kompakt ? 16.5 : 17.6;
+    final p = widget.kompakt ? 8.0 : 11.0;
+
+    Widget kutu({required Widget ic, double? en}) => Padding(
           padding: const EdgeInsets.only(left: 6),
           child: Material(
-            color: Theme.of(context).colorScheme.onSurface
-                .withValues(alpha: 0.07),
-            borderRadius: BorderRadius.circular(20),
+            color: scheme.onSurface.withValues(alpha: 0.07),
+            borderRadius: BorderRadius.circular(22),
             clipBehavior: Clip.antiAlias,
             child: InkWell(
-              onTap: widget.onTap,
-              child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: p, vertical: 6),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    bas,
-                    const SizedBox(width: 4),
-                    Text(
-                      metin,
-                      style: TextStyle(
-                        fontSize: yazi,
-                        fontWeight: FontWeight.w700,
-                        color: Theme.of(context).colorScheme.onSurface,
-                      ),
-                    ),
-                  ],
+              // TURU 171c - **DOKUNUS ARTIK PANELI ACAR.** Onceki surumde
+              //	`onTap` anasayfada VERILMEMISTI ve cipler OLU
+              //	gorunuyordu (kullanici: *"tikladigimda pencere
+              //	acilmiyor"*). Varsayilan artik ortak panel.
+              onTap: widget.onTap ?? () => havaDovizPanelAc(context),
+              child: SizedBox(
+                width: en,
+                child: Padding(
+                  padding:
+                      EdgeInsets.symmetric(horizontal: p, vertical: 7),
+                  child: ic,
                 ),
               ),
             ),
           ),
         );
+
+    final yon = v == null ? 0 : _yon(kod);
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         if (h != null)
-          cip(
-            Icon(havaIkonu(h.simdikiKod),
-                size: ikonBoy, color: const Color(0xFFFFB020)),
-            '${h.simdi.round()}°',
+          kutu(
+            ic: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(havaIkonu(h.simdikiKod),
+                    size: ikonBoy, color: const Color(0xFFFFB020)),
+                const SizedBox(width: 5),
+                Text('${h.simdi.round()}°',
+                    style: TextStyle(
+                        fontSize: yazi,
+                        fontWeight: FontWeight.w700,
+                        color: scheme.onSurface)),
+              ],
+            ),
           ),
         if (v != null)
-          cip(
-            // UYARI Simge METIN: Lucide'da TL/€/£ glifi YOK.
-            Text(
-              kDovizSimge[kod] ?? '',
-              style: TextStyle(
-                fontSize: yazi + 1,
-                fontWeight: FontWeight.w800,
-                color: const Color(0xFF2BB673),
-              ),
+          kutu(
+            // TURU 171c - **SABIT GENISLIK** (kullanici: *"dolar euro vs
+            //	degisirken sol sag buton kuculme oluyor, o olmasin"*).
+            //	Simge ve rakam genisligi paraya gore degisiyordu
+            //	("48,32" vs "56,16" vs "65,04") ve kutu her 2
+            //	saniyede ZIPLIYORDU. Genislik en genis olasiliga
+            //	gore SABITLENDI.
+            // TURU 171c - kompakt genislik 104 -> 96: emulatorde 360 dp
+            //    ekranda selamlama ("Iyi Gunler") KIRPILIYORDU. 96 dp
+            //    en genis olasiligi ("65,04" + ok) hala tasirmadan alir.
+            en: widget.kompakt ? 96 : 118,
+            ic: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  kDovizSimge[kod] ?? '',
+                  style: TextStyle(
+                      fontSize: yazi + 1,
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF2BB673)),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  v.toStringAsFixed(2).replaceAll('.', ','),
+                  style: TextStyle(
+                      fontSize: yazi,
+                      fontWeight: FontWeight.w700,
+                      color: scheme.onSurface),
+                ),
+                // TURU 171c - **YON OKU** (kullanici: *"saginda asagi
+                //	yukari ikon olsun, yukseldi azaldi diye"*).
+                // UYARI Yon bilinmiyorsa (tek kayit) ok CIZILMEZ.
+                if (yon != 0) ...[
+                  const SizedBox(width: 3),
+                  Icon(
+                    yon > 0 ? LucideIcons.arrowUp : LucideIcons.arrowDown,
+                    size: ikonBoy - 3,
+                    color: yon > 0
+                        ? const Color(0xFF2BB673)
+                        : const Color(0xFFE0523F),
+                  ),
+                ],
+              ],
             ),
-            v.toStringAsFixed(2).replaceAll('.', ','),
           ),
       ],
     );
@@ -431,3 +493,357 @@ IconData havaIkonu(int kod) => switch (kod) {
       95 || 96 || 99 => LucideIcons.cloudLightning,
       _ => LucideIcons.cloud,
     };
+
+/// TURU 171c — **ORTAK HAVA + KUR PANELI** (her ekrandan cagrilabilir).
+///
+/// UYARI Onceki surumde panel `yakinimda_ekrani.dart` icinde OZEL bir
+///	metottu; anasayfadaki cipler ona ULASAMIYORDU ve dokunus HICBIR
+///	SEY YAPMIYORDU (kullanici: *"tikladigimda pencere acilmiyor"*).
+///	Artik ortak - tek kaynak, her yerden acilir.
+/// UYARI Veri YOKSA acilmaz: bos sayfa "bozuk" izlenimi verirdi.
+Future<void> havaDovizPanelAc(BuildContext context) async {
+  final h = await HavaDoviz.i.havaGetir();
+  if (h == null && HavaDoviz.i.sonKur(kDovizler[0]) == null) return;
+  if (!context.mounted) return;
+  await showModalBottomSheet<void>(
+    context: context,
+    backgroundColor: kAiZemin,
+    // UYARI `isScrollControlled` TEK BASINA YETMEZ: tavani kaldirir ama
+    //	icerigi KAYDIRILABILIR YAPMAZ (turu 114/115c'de iki kez sahaya
+    //	cikti). Govde `SingleChildScrollView` icinde.
+    isScrollControlled: true,
+    showDragHandle: true,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+    ),
+    builder: (bc) => Theme(
+      // UYARI Zorla KOYU tema: panel `kAiZemin` (sabit siyah) uzerinde;
+      //    acik temada metinler 1.x:1 kontrastla KAYBOLURDU (turu 135c/140).
+      data: ThemeData.dark().copyWith(
+        splashFactory: NoSplash.splashFactory,
+        splashColor: Colors.transparent,
+        highlightColor: Colors.transparent,
+      ),
+      child: Builder(
+        builder: (tc) => SafeArea(
+          top: false,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (h != null) ...[
+                  _HavaBolumu(hava: h),
+                  const SizedBox(height: 22),
+                ],
+                const _KurBolumu(),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+/// 7 GUNLUK hava (kullanici emri: *"hava durumu 1 haftalik goster"*).
+class _HavaBolumu extends StatelessWidget {
+  const _HavaBolumu({required this.hava});
+
+  final Hava hava;
+
+  static const _gun = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          children: [
+            Icon(havaIkonu(hava.simdikiKod),
+                size: 34, color: const Color(0xFFFFB020)),
+            const SizedBox(width: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('${hava.simdi.round()}°',
+                    style: TextStyle(
+                        fontSize: 30,
+                        fontWeight: FontWeight.w800,
+                        // UYARI Renk ACIKCA: koyu temanin varsayilan govde
+                        //    rengi TAM BEYAZ DEGIL (turu 129/135c).
+                        color: scheme.onSurface)),
+                Text(
+                  '${havaMetni(hava.simdikiKod)} · Gebze',
+                  style: TextStyle(
+                      fontSize: 13,
+                      color: scheme.onSurface.withValues(alpha: 0.6)),
+                ),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        // UYARI Yatay kaydirma: 7 gun dar ekranda yan yana SIGMAZ.
+        SizedBox(
+          height: 104,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            itemCount: hava.gunler.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 8),
+            itemBuilder: (_, i) {
+              final g = hava.gunler[i];
+              return Container(
+                width: 66,
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                decoration: BoxDecoration(
+                  color: scheme.onSurface.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    Text(
+                      i == 0 ? 'Bugün' : _gun[g.tarih.weekday - 1],
+                      style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: scheme.onSurface
+                              .withValues(alpha: i == 0 ? 1 : 0.7)),
+                    ),
+                    Icon(havaIkonu(g.kod),
+                        size: 20, color: const Color(0xFFFFB020)),
+                    Text('${g.enCok.round()}°',
+                        style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            color: scheme.onSurface)),
+                    Text('${g.enAz.round()}°',
+                        style: TextStyle(
+                            fontSize: 12,
+                            color:
+                                scheme.onSurface.withValues(alpha: 0.5))),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// KUR GRAFIGI — sol/sag kaydirinca tarih ve o gunun degeri (kullanici emri).
+class _KurBolumu extends StatefulWidget {
+  const _KurBolumu();
+
+  @override
+  State<_KurBolumu> createState() => _KurBolumuDurumu();
+}
+
+class _KurBolumuDurumu extends State<_KurBolumu> {
+  int _kod = 0;
+  List<KurGunu> _seri = const [];
+  int? _secili;
+
+  @override
+  void initState() {
+    super.initState();
+    _getir();
+  }
+
+  Future<void> _getir() async {
+    final l = await HavaDoviz.i.kurGetir(kDovizler[_kod]);
+    if (mounted) setState(() => _seri = l);
+  }
+
+  /// UYARI Titresim YALNIZ nokta DEGISINCE: her piksel hareketinde
+  ///	tetiklenseydi surekli titreyen bir telefon olurdu.
+  void _sec(double x, double en) {
+    if (_seri.isEmpty) return;
+    final i =
+        ((x / en) * (_seri.length - 1)).round().clamp(0, _seri.length - 1);
+    if (i == _secili) return;
+    HapticFeedback.selectionClick();
+    setState(() => _secili = i);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final i = _secili ?? (_seri.isEmpty ? 0 : _seri.length - 1);
+    final g = _seri.isEmpty ? null : _seri[i];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          children: [
+            for (var k = 0; k < kDovizler.length; k++) ...[
+              GestureDetector(
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  setState(() {
+                    _kod = k;
+                    _secili = null;
+                    _seri = const [];
+                  });
+                  _getir();
+                },
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: k == _kod
+                        ? const Color(0xFF2BB673)
+                        : scheme.onSurface.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(22),
+                  ),
+                  child: Text(
+                    kDovizAdi[kDovizler[k]] ?? kDovizler[k],
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: k == _kod ? Colors.white : scheme.onSurface,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
+          ],
+        ),
+        const SizedBox(height: 16),
+        if (g == null)
+          const SizedBox(
+            height: 150,
+            child: Center(
+                child: SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(strokeWidth: 2))),
+          )
+        else ...[
+          Text(
+            '${g.deger.toStringAsFixed(4).replaceAll('.', ',')} ₺',
+            style: TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.w800,
+                color: scheme.onSurface),
+          ),
+          Text(
+            tarihMetni(g.tarih) + ' · TCMB döviz satış',
+            style: TextStyle(
+                fontSize: 12.5,
+                color: scheme.onSurface.withValues(alpha: 0.6)),
+          ),
+          const SizedBox(height: 14),
+          // UYARI Hem DOKUNUS hem SURUKLEME kabul edilir (Google piyasa deseni).
+          LayoutBuilder(
+            builder: (_, kisit) => GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTapDown: (d) => _sec(d.localPosition.dx, kisit.maxWidth),
+              onHorizontalDragUpdate: (d) =>
+                  _sec(d.localPosition.dx, kisit.maxWidth),
+              child: SizedBox(
+                height: 130,
+                width: double.infinity,
+                child: CustomPaint(
+                  // UYARI `Size.infinite` ZORUNLU: cocuksuz `CustomPaint`
+                  //    varsayilan `Size.zero` alir ve grafik HIC CIZILMEZ
+                  //    (turu 156'da olculen tuzak).
+                  size: Size.infinite,
+                  painter: _KurCizer(
+                    seri: _seri,
+                    secili: i,
+                    cizgi: const Color(0xFF2BB673),
+                    izgara: scheme.onSurface.withValues(alpha: 0.10),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// Tarihi 'GG.AA.YYYY' olarak yazar.
+String tarihMetni(DateTime t) =>
+    '${t.day.toString().padLeft(2, '0')}.'
+    '${t.month.toString().padLeft(2, '0')}.${t.year}';
+
+class _KurCizer extends CustomPainter {
+  const _KurCizer({
+    required this.seri,
+    required this.secili,
+    required this.cizgi,
+    required this.izgara,
+  });
+
+  final List<KurGunu> seri;
+  final int secili;
+  final Color cizgi;
+  final Color izgara;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (seri.length < 2) return;
+    var enAz = seri.first.deger, enCok = seri.first.deger;
+    for (final g in seri) {
+      if (g.deger < enAz) enAz = g.deger;
+      if (g.deger > enCok) enCok = g.deger;
+    }
+    // UYARI Duz seride (enAz == enCok) sifira bolme olurdu.
+    final fark = (enCok - enAz).abs() < 1e-9 ? 1.0 : enCok - enAz;
+    final pay = size.height * 0.08;
+    Offset nokta(int i) => Offset(
+          size.width * (i / (seri.length - 1)),
+          size.height -
+              pay -
+              ((seri[i].deger - enAz) / fark) * (size.height - 2 * pay),
+        );
+    final yol = Path()..moveTo(nokta(0).dx, nokta(0).dy);
+    for (var i = 1; i < seri.length; i++) {
+      yol.lineTo(nokta(i).dx, nokta(i).dy);
+    }
+    final dolgu = Path.from(yol)
+      ..lineTo(size.width, size.height)
+      ..lineTo(0, size.height)
+      ..close();
+    canvas.drawPath(
+      dolgu,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [cizgi.withValues(alpha: 0.28), cizgi.withValues(alpha: 0)],
+        ).createShader(Offset.zero & size),
+    );
+    canvas.drawPath(
+      yol,
+      Paint()
+        ..color = cizgi
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.4
+        ..strokeJoin = StrokeJoin.round,
+    );
+    final p = nokta(secili.clamp(0, seri.length - 1));
+    canvas.drawLine(Offset(p.dx, 0), Offset(p.dx, size.height),
+        Paint()..color = izgara..strokeWidth = 1);
+    canvas.drawCircle(p, 6, Paint()..color = Colors.white);
+    canvas.drawCircle(p, 4, Paint()..color = cizgi);
+  }
+
+  @override
+  bool shouldRepaint(_KurCizer o) =>
+      o.secili != secili || !listEquals(o.seri, seri);
+}
