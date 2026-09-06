@@ -237,6 +237,10 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
           child: AnimatedSize(
             duration: const Duration(milliseconds: 200),
             curve: Curves.easeOutCubic,
+            // ⚠️ `clipBehavior` ZORUNLU: yukseklik 0'a inerken icerik
+            //    (geri oku + baslik) TASIYOR ve arama kutusunun uzerine
+            //    biniyordu (emulatorde goruldu).
+            clipBehavior: Clip.hardEdge,
             child: SizedBox(
             height: _headerGizli ? 0 : 44,
             child: Stack(
