@@ -314,7 +314,11 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
         ? 0.0
         : 10 + 26 + MediaQuery.textScalerOf(c).scale(14.5) * 1.35 + 12;
     final kalan = ekran - alt - MediaQuery.paddingOf(c).bottom - hap;
-    return kalan.clamp(120.0, tavan);
+    // ⚠️⚠️ TABAN 120 DEGIL **56**: emulatorde olculdu - serit altinda
+    //	yalnizca **77 dp** kaliyor ve 120'lik taban kutuyu hapin ALTINA
+    //	tasirip metni ORTUYORDU. Blok zaten `FittedBox` icinde, yani
+    //	kucuk kutuda KIRPILMAZ, kuculur.
+    return kalan.clamp(56.0, tavan);
   }
 
   /// Serit ile `PageView`i UZLASTIRIR (bkz. `initState` serhi).
@@ -1993,8 +1997,9 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 74,
-              height: 74,
+              // ⚠️ 74 -> 62: dar kutuda `FittedBox` daha az kuculsun.
+              width: 62,
+              height: 62,
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
@@ -2005,14 +2010,14 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
                   width: 1.6,
                 ),
               ),
-              child: Icon(x.ikon, size: 32, color: soluk),
+              child: Icon(x.ikon, size: 27, color: soluk),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 12),
             Text(
               x.bosMetin,
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 15,
+                fontSize: 14.5,
                 fontWeight: FontWeight.w600,
                 color: soluk,
               ),
