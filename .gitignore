@@ -73,3 +73,12 @@ mobile/test/_olcum*
 #    Ham veriyi yeniden uretmek gerekirse: `node tools/ulasim_uret.js`
 /otos/
 .gotmp/
+
+# ⚠️ TURU 178 — kullanicinin verdigi HAM gorseller (kokte durur, pakete
+#    GIRMEZ). `mobile/tool/marka_gorsel.dart` bunlari okuyup
+#    `mobile/assets/marka/` altina paket olcusunde JPEG uretir.
+#    Ham dosyalar git'e ALINMAZ: `slidermc.png` tek basina 3,0 MB ve
+#    uretilen surum (368 KB) zaten izleniyor.
+/mcdonaldslogo.jpg
+/slider.jpg
+/slidermc.png
