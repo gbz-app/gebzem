@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -234,6 +235,24 @@ const double kSegYukari = 2;
 //    ekran ayni griyi kullanmak ZORUNDA.
 
 /// [kategori] bos ise TUM isletmeler; doluysa o kategori.
+/// TURU 174 — **ALT MENU BAYRAGI** (kullanici emri: *"alt menuyu
+/// kaldir"*).
+///
+/// ⚠️ Turu 96l'de kullanici TAM TERSINI istemisti (*"alt menuyu getir,
+///	gorunmesi gerekiyor"*). Govde silinmedi, bayrakla kapatildi:
+///	karar degisirse tek satir.
+const bool kAltMenuAcik = false;
+
+/// Kategori ekraninin zemini — **SABIT SIYAH** (kullanici emri).
+///
+/// ⚠️⚠️ Renk TEMADAN GELMIYOR ve bu BILINCLI: ekran artik acik/koyu
+///	temadan BAGIMSIZ olarak siyah. Ayni ilke menude de var
+///	(`kAiZemin`). ⚠️ Bu yuzden ekranin ICINDEKI metinler de
+///	temaya birakilamaz — govde zorla KOYU temaya alindi
+///	(turu 135c/138/140: yalniz zemini siyah yapmak, uzerine
+///	koyu yazi cizip ekrani OKUNMAZ birakir).
+const Color kKategoriZemin = Color(0xFF050308);
+
 class IsletmeListesiEkrani extends ConsumerStatefulWidget {
   const IsletmeListesiEkrani({
     super.key,
@@ -712,8 +731,42 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
     //	ustundeki boslugun buyuklugu ona bagli (bkz. `_isletmeSeridi`).
     //	Iki ayri yerde ayri ayri hesaplansaydi biri degisince oteki geride
     //	kalir ve bosluk 4 px kayardi.
-    final isletmeSeridi = _isletmeSeridi();
-    return Scaffold(
+    // TURU 174 - serit ARTIK CIZILMIYOR (kullanici emri); degisken
+    //	yalnizca ALTTAKI bosluk hesaplarinin okunur kalmasi icin
+    //	`null` sabitlendi. `_isletmeSeridi` govdesi SILINMEDI.
+    // ⚠️ Bosluk formulleri `isletmeSeridi != null` soruyor; degisken
+    //	kaldirilsaydi iki ayri yerde elle `false` yazmak gerekirdi
+    //	ve biri unutulunca bosluk 4 px kayardi (turu 96k dersi).
+    const Widget? isletmeSeridi = null;
+    // TURU 174 - **ZORLA KOYU TEMA** (kullanici emri: *"arka plan siyah
+    //	olacak"*).
+    // ⚠️⚠️ Yalniz `backgroundColor` vermek YETMEZ: bu ekranda kartlar,
+    //	cipler ve liste basligi renklerini TEMADAN aliyor ve acik
+    //	temada siyah zemine SIYAH yazi cizilirdi (turu 135c'de
+    //	olculen 1,056:1 kontrastin ayni sinifi).
+    // ⚠️ `splashFactory`/`splashColor`/`highlightColor` ACIKCA geri
+    //	konur: `ThemeData.dark()` uygulamanin "dokunma dairesi
+    //	YOK" kararini (turu 7 kullanici emri) SIFIRLIYOR.
+    // ⚠️⚠️ TURU 174 — **DURUM CUBUGU IKONLARI ACIK** (emulatorde goruldu:
+    //	acik temada saat/wifi/pil KOYU cizilir ve siyah zeminde
+    //	OKUNMAZ olur).
+    // ⚠️ `AnnotatedRegion` ekran agacindan CIKINCA kendiliginden geri
+    //	aliniyor; elle sifirlamaya gerek YOK (turu 155 dersi).
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light.copyWith(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.light,
+        statusBarBrightness: Brightness.dark,
+      ),
+      child: Theme(
+      data: ThemeData.dark().copyWith(
+        scaffoldBackgroundColor: kKategoriZemin,
+        splashFactory: NoSplash.splashFactory,
+        splashColor: Colors.transparent,
+        highlightColor: Colors.transparent,
+      ),
+      child: Scaffold(
+      backgroundColor: kKategoriZemin,
       // ⚠️⚠️⚠️ TURU 96l — **ALT MENU BU EKRANDA DA CIZILIR** (kullanici emri:
       //	*"alt menuyu getir, alt menu gorunmesi gerekiyor"*).
       //
@@ -726,7 +779,17 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
       // ⚠️ Sekmeye dokunulunca ONCE hedef sekme yazilir, SONRA bu route
       //    kapatilir: ters sirada `home` eski sekmesiyle bir kare cizer ve
       //    goz "yanlis sekmeye dondu" diye okur.
-      bottomNavigationBar: AltMenu(
+      // TURU 174 - **ALT MENU KALDIRILDI** (kullanici emri).
+      // ⚠️⚠️ Govde SILINMEDI, `kAltMenuAcik` bayragiyla kapatildi:
+      //	turu 96l'de kullanici TAM TERSINI istemisti (*"alt menuyu
+      //	getir"*). Geri istenirse tek satir.
+      // ⚠️⚠️ CIKIS YOLU: alt menu gidince bu ekrandan cikmanin tek yolu
+      //	header'daki **GERI OKU** kaldi (konum secicinin yerine
+      //	kondu). Ikisi birden kaldirilirsa kullanici ekranda
+      //	KILITLENIR.
+      bottomNavigationBar: !kAltMenuAcik
+          ? null
+          : AltMenu(
         secili: null,
         // ⚠️ IKINCI BIR NOTIFIER ACILMADI: `aktifSekme` ZATEN sekme durumunu
         //    tasiyor (akis videolarinin ses kapisi ona bakiyor) ve
@@ -840,10 +903,23 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                           child: SizedBox(height: kBosluk)),
                     ],
 
-                    // ── KESIF KARTLARI (4 x 2) ──
-                    // ⚠️ Kullanici emri: 60x60 seridinin ESKI YERINE, daha
-                    //    buyuk 8 kart (bkz. `_kesifIzgarasi`).
-                    SliverToBoxAdapter(child: _kesifIzgarasi()),
+                    // ── KESIF KARTLARI (4 x 2) — **KALDIRILDI (turu 174)** ──
+                    // Kullanici emri: *"altindaki NE YESEM diye buyuk
+                    // kartlari kaldir"*. Izgaranin ilk karti "Ne Yesem?"
+                    // idi; kullanicinin tarif ettigi blok BUYDU.
+                    // ⚠️⚠️ `_kesifIzgarasi` GOVDESI SILINMEDI
+                    //	(`ignore: unused_element`): bu dosyada uye
+                    //	silmek BES kez komsu uyeyi de goturdu
+                    //	(turu 127/138/140/141/143).
+                    // ⚠️ Suzgecler OLU KALMADI: 'İndirimli' · '4+' ·
+                    //	'Şimşek' · 'Yakınımda' · 'Gece Kuşu' ·
+                    //	'Yeni Restoran' · 'Favori' hepsi ALTTAKI
+                    //	filtre seridinden ve filtre panelinden
+                    //	ulasilabilir durumda.
+                    // ⏳ DURUST SINIR: **"Ne Yesem?"** (rastgele isletme)
+                    //	artik HICBIR yerden cagrilmiyor - o tek
+                    //	ozellik ulasilamaz oldu. Istenirse filtre
+                    //	seridine bir cip olarak geri konabilir.
 
                     // ⚠️⚠️⚠️ TURU 96k — BURADA **IKI BOSLUK UST USTE** VARDI
                     //	(`kBosluk` + kosullu `kBosluk`) ve izgara ile
@@ -908,16 +984,15 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                                   : kBosluk - kCipPay)),
                     ],
 
-                    // ── ISLETME KARTI (kullanici emri, turu 135) ──
-                    // ⚠️ Kart FILTRE SERIDININ USTUNDE: kullanici *"filtrelemenin
-                    //    uzerine kart ekle, isletme ile ilgili"* dedi.
-                    if (isletmeSeridi != null) ...[
-                      SliverToBoxAdapter(child: isletmeSeridi),
-                      // ⚠️ Kartin ALTINDA cip seridi var -> onun 4px ic payi
-                      //    dusulur (ekranin dikey ritmi: gorunen bosluk 16).
-                      const SliverToBoxAdapter(
-                          child: SizedBox(height: kBosluk - kCipPay)),
-                    ],
+                    // ── ISLETME SERIDI — **KALDIRILDI (turu 174)** ──
+                    // Kullanici emri: *"mutfagin altinda isletme kartlari
+                    // var onlari kaldir; FILTRELEME ALTINDAKI isletmeden
+                    // bahsetmiyorum"*.
+                    // ⚠️⚠️ Kaldirilan YALNIZ 'Mutfaklar' seridinin hemen
+                    //	altindaki YATAY serit. Filtre satirinin
+                    //	ALTINDAKI **asil isletme listesi**
+                    //	('Restoranlar (N)') AYNEN DURUYOR - ekranin
+                    //	varlik sebebi odur.
 
                     // ── HIZLI SUZGECLER ──
                     SliverToBoxAdapter(child: _filtreSatiri()),
@@ -1042,6 +1117,8 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
             ),
           ],
         ),
+      ),
+      ),
       ),
     );
   }
@@ -1172,7 +1249,22 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
               //	kenardan cekme CALISMAYA DEVAM EDER.
               // ⚠️ YAPMA: bu satiri "sadelestirme" adina kaldirma — ekranda
               //    baska cikis yolu yok.
-              Align(alignment: Alignment.centerLeft, child: _konumDugmesi()),
+              // TURU 174 - **KONUM SECICI KALDIRILDI, YERINE GERI OKU**
+              //	(kullanici emri: *"solda konum sec var onu
+              //	kaldir"*).
+              // ⚠️⚠️ Yerine GERI OKU kondu, bosluk BIRAKILMADI: ayni
+              //	turda alt menu de kaldirildi ve ikisi birden
+              //	gidince ekranda **HICBIR cikis yolu kalmiyordu**
+              //	(donanim geri disinda). `KategoriKabugu` da
+              //	sol kose bosken geri oku cizer — ayni dil.
+              Align(
+                alignment: Alignment.centerLeft,
+                child: _headerDaire(
+                  LucideIcons.arrowLeft,
+                  'Geri',
+                  () => Navigator.of(context).maybePop(),
+                ),
+              ),
               Align(
                 alignment: Alignment.centerRight,
                 child: _headerDaire(
@@ -1198,6 +1290,11 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
   ///    bir ad header'i tasirdi.
   /// ⚠️ Dokunma alani ikon + yazinin TAMAMI (`opaque`): yalniz ikon
   ///    dokunulabilir olsaydi kullanici yaziya basip "calismiyor" derdi.
+  // TURU 174 - cagri yerinden CIKARILDI (kullanici emri: *"solda konum
+  //	sec var onu kaldir"*), yerine geri oku kondu. Govde
+  //	SILINMEDI: bu dosyada uye silmek BES kez komsu uyeyi de
+  //	goturdu (turu 127/138/140/141/143).
+  // ignore: unused_element
   Widget _konumDugmesi() => Semantics(
         button: true,
         label: 'Konum: ${_konumAdi.isEmpty ? "seçilmedi" : _konumAdi}',
@@ -1294,11 +1391,8 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
   /// ⚠️ Koyu temada siyah kenarlik GORUNMEZ olurdu — tema parlakligina gore
   ///    secilir.
   Widget _aramaKutusu() {
-    final koyu = Theme.of(context).brightness == Brightness.dark;
-    final odak = koyu ? const Color(0xFFE8E8EA) : const Color(0xFF1A1A1A);
-    // ⚠️ TEK KAYNAK: cipler de `_notrKenar` kullaniyor.
-    final bos = _notrKenar;
-    final ikonRenk = koyu ? Colors.white70 : Colors.black87;
+    // ⚠️ TURU 174 — ekran her zaman siyah; tema SORULMAZ (bkz. `_notrYazi`).
+    const ikonRenk = Colors.white70;
     // ⚠️⚠️⚠️ TURU 96 — YUKSEKLIK **EN UZUN COCUKTAN** gelir (emulatorde
     //	olculdu: 33 dp cikiyordu, yanindaki daireler 48'di).
     //
@@ -1327,7 +1421,7 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
       decoration: InputDecoration(
         hintText: 'Ne Aramıştın?',
         hintStyle: yaziStili.copyWith(
-            color: (koyu ? Colors.white : Colors.black).withValues(alpha: 0.45)),
+            color: Colors.white.withValues(alpha: 0.45)),
         // ⚠️⚠️ MESAFELER **ACIKCA** VERILIR (kullanici emri: *"arama ikonu
         //	input soluna dayanmis, bu mesafeleri lutfen mimarisini iyi
         //	ayarla"*).
@@ -1411,8 +1505,7 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           // "hafif gri daire"
-                          color: (koyu ? Colors.white : Colors.black)
-                              .withValues(alpha: koyu ? 0.16 : 0.10),
+                          color: Colors.white.withValues(alpha: 0.16),
                         ),
                         child: Icon(
                           LucideIcons.x,
@@ -1439,13 +1532,29 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
         //    `kInputBoy`). Burada da deger yazilsaydi ikisi TOPLANIR ve
         //    input dairelerden UZUN olurdu.
         contentPadding: const EdgeInsets.only(right: 8),
+        // ⚠️⚠️⚠️ TURU 174 — **KENARLIK KALDIRILDI** (kullanici emri:
+        //	*"aramayi bordersiz yap"*).
+        //
+        // ⚠️⚠️ Kenarligi kaldirmak TEK BASINA YETMEZ: siyah zeminde
+        //	cercevesiz ve dolgusuz bir `TextField` **GORUNMEZ**
+        //	olur — kullanici oraya dokunulabilecegini anlayamaz.
+        //	Yerine hafif bir DOLGU kondu; kutu duruyor, cizgi yok.
+        // ⚠️ `InputBorder.none` UC HALDE DE verilir (enabled/focused/
+        //	border): yalniz birini bosaltmak odaga girince cizginin
+        //	geri gelmesine yol acar.
+        filled: true,
+        fillColor: Colors.white.withValues(alpha: 0.07),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(kYaricap(kInputBoy)),
-          borderSide: BorderSide(color: bos),
+          borderSide: BorderSide.none,
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(kYaricap(kInputBoy)),
-          borderSide: BorderSide(color: odak, width: 1.6),
+          borderSide: BorderSide.none,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(kYaricap(kInputBoy)),
+          borderSide: BorderSide.none,
         ),
       ),
     );
@@ -1477,6 +1586,9 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
   ///	YARATAMAZ. Suzgecler sunucuya tasindiginda bu liste de oraya taşınır.
   /// ⚠️ "Ne Yesem?" YALNIZ yemek kategorisinde; digerlerinde "Sürpriz"
   ///    (kuaförde "Ne Yesem?" yazmak sacma olurdu).
+  // TURU 174 - cagri yerinden CIKARILDI (kullanici emri: *"NE YESEM diye
+  //	buyuk kartlari kaldir"*). Govde SILINMEDI.
+  // ignore: unused_element
   Widget _kesifIzgarasi() {
     final f = _filtre;
     final kartlar = <({String ad, bool secili, VoidCallback ac})>[
@@ -1638,7 +1750,7 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
               height: kKesifKutu,
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: kYuzeyGri(context),
+                color: _yuzey,
                 borderRadius: BorderRadius.circular(kYaricap(kKesifKutu)),
                 border:
                     k.secili ? Border.all(color: vurgu, width: 1.6) : null,
@@ -1887,7 +1999,7 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                         //	   kaliyor, gorsel hiyerarsi TERS donuyordu.
                         // ⚠️ Kenarlik filtre cipleriyle AYNI dili konusur
                         //    (`_notrKenar`) — yeni bir sabit renk eklemez.
-                        color: kYuzeyGri(context),
+                        color: _yuzey,
                         // ⚠️⚠️ SECILI HAL **KENARLIK** (kullanici emri: *"dönere
                         //	tikladigimda yesil oluyor, SIYAH olacak ya da eskisi
                         //	gibi GRIMSI BORDER icinde"*).
@@ -1967,6 +2079,10 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
   ///	esnek metin yazilsaydi 2.0'da sari-siyah serit cikardi; bu ekranda
   ///	ayni sinif turu 121/123/135b'de UC KEZ olculdu.)
   /// ⚠️ Boy yine de yazi olceginden TURETILIR ki olcek 1.0'da kapak 16:9 kalsin.
+  // TURU 174 - cagri yerinden CIKARILDI (kullanici emri: *"mutfagin
+  //	altinda isletme kartlari var onlari kaldir"*). Govde
+  //	SILINMEDI.
+  // ignore: unused_element
   Widget? _isletmeSeridi() {
     final l = _gosterilen;
     if (l == null || l.isEmpty) return null;
@@ -2207,15 +2323,30 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
   /// ⚠️ Deger **TEK YERDE**: arama kutusu da bunu kullanir. Iki ayri sayi
   ///    yazilsaydi biri guncellenip oteki geride kalirdi — bu ekranda gri
   ///    tonda ZATEN yasandi.
-  Color get _notrKenar =>
-      (Theme.of(context).brightness == Brightness.dark
-              ? Colors.white
-              : Colors.black)
-          .withValues(alpha: 0.14);
+  // ⚠️⚠️⚠️ TURU 174 — RENKLER **KOYUYA SABITLENDI**, temadan OKUNMUYOR.
+  //
+  //	Ekran artik `kKategoriZemin` (sabit siyah) uzerinde ve govde
+  //	`Theme(ThemeData.dark())` ile sarildi. AMA bu getter'lar bir
+  //	`State` uyesi ve `context` **State'in context'idir** — yani
+  //	o `Theme`in **USTUNDE** kalir ve `Theme.of` UYGULAMANIN
+  //	temasini cozer (turu 135c/138'de olculen tuzagin ta kendisi:
+  //	*"bir alt agaci Theme ile sarmak YETMEZ — o agaci CIZEN
+  //	metotlar da Theme'in ALTINDAKI context'i almali"*).
+  //	Sonuc acik temada: siyah zemine **siyah yazi**.
+  //
+  // ⚠️ Metotlara `BuildContext c` eklemek yerine sabitlendi: bu ekran
+  //	ARTIK HER ZAMAN siyah, yani temaya sorulacak bir sey KALMADI.
+  // ⚠️ YAPMA: bunlari tekrar `Theme.of(context)`e baglama.
+  Color get _notrKenar => Colors.white.withValues(alpha: 0.14);
 
-  Color get _notrYazi => Theme.of(context).brightness == Brightness.dark
-      ? Colors.white
-      : const Color(0xFF1A1A1A);
+  Color get _notrYazi => Colors.white;
+
+  /// Ekranin kendi yuzey grisi — `kYuzeyGri`nin KOYU dali.
+  ///
+  /// ⚠️ Paylasilan yardimci da ayni tuzaga dusuyordu (State context'i);
+  ///	burada tek kaynaga alindi. Deger `isletme_kart.dart`taki
+  ///	koyu dalla BIREBIR ayni.
+  Color get _yuzey => const Color(0xFF2A2A2E);
 
   /// Filtre cipi — serit BASINDA, panel acar.
   ///
@@ -2678,7 +2809,7 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
                   height: kSegBoy,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: aktif ? kYuzeyGri(context) : Colors.transparent,
+                    color: aktif ? _yuzey : Colors.transparent,
                     borderRadius: BorderRadius.circular(kYaricap(kSegBoy)),
                   ),
                   child: Icon(ikon, size: kSegIkon, color: _notrYazi),
@@ -2738,7 +2869,7 @@ class _IsletmeListesiEkraniState extends ConsumerState<IsletmeListesiEkrani> {
   ///    Onceden ortada bas harf ciziliyordu; kullanici bunu IKI KEZ
   ///    kaldirtti (once 60x60 kartlardan, sonra buradan).
   /// ⚠️ Ton `kYuzeyGri` — slider ve 60x60 kartlarla AYNI.
-  Widget _kapakYerTutucu(IsletmeOzet o) => ColoredBox(color: kYuzeyGri(context));
+  Widget _kapakYerTutucu(IsletmeOzet o) => ColoredBox(color: _yuzey);
 
 
 }
