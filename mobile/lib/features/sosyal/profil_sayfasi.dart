@@ -294,14 +294,42 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
   double _sayfaBoyu(BuildContext c) {
     final ekran = MediaQuery.sizeOf(c).height;
     final tavan = ekran * 0.62;
-    if (!_bosSekme) return tavan;
-    // ⚠️ Olcum bir sonraki karede yapilir; ILK karede tavan kullanilir ve
+    // ⚠️ Ikisi de bir SONRAKI karede kosar; ILK karede tavan kullanilir ve
     //    tek bir yeniden cizimle yerine oturur.
-    WidgetsBinding.instance.addPostFrameCallback((_) => _seritiOlc());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _sayfaSenkron();
+      _seritiOlc();
+    });
+    if (!_bosSekme) return tavan;
     final alt = _seritAlt;
     if (alt == null) return tavan;
-    final kalan = ekran - alt - MediaQuery.paddingOf(c).bottom;
-    return kalan.clamp(140.0, tavan);
+    // ⚠️ Isletme profilinde alttaki yuzen Menü/Rezervasyon hapi listenin
+    //    USTUNDE cizilir (`Positioned`) ve onun kapladigi seridi sayfa
+    //    yuksekliginden DUSMEK gerekir; yoksa ortalanan blok hapin
+    //    ARKASINDA kalir (emulatorde goruldu).
+    // ⚠️ Olcu SABIT dp DEGIL: hapin yuksekligi etiketten, yani YAZI
+    //	OLCEGINDEN geliyor (dikey dolgu 2x13 + satir). Sabit yazilsaydi
+    //	buyuk yazi olceginde blok yine hapin altinda kalirdi.
+    final hap = _menuRezervasyon() == null
+        ? 0.0
+        : 10 + 26 + MediaQuery.textScalerOf(c).scale(14.5) * 1.35 + 12;
+    final kalan = ekran - alt - MediaQuery.paddingOf(c).bottom - hap;
+    return kalan.clamp(120.0, tavan);
+  }
+
+  /// Serit ile `PageView`i UZLASTIRIR (bkz. `initState` serhi).
+  /// ⚠️ `jumpToPage` (animasyon YOK): ilk karede kullanicinin gozunde bir
+  ///	"kayma" olmasin; kullanici secimi ZATEN `_sekmeyeGec`te animasyonlu.
+  void _sayfaSenkron() {
+    if (!mounted || !_sayfaCtrl.hasClients) return;
+    final i = _sekmeler.indexOf(_sekme);
+    if (i < 0) return;
+    // ⚠️ KAYDIRMA SURERKEN DOKUNMA: parmak ekrandayken `jumpToPage` jesti
+    //	KESER ve sayfa yerinden zipilardi.
+    if (_sayfaCtrl.position.isScrollingNotifier.value) return;
+    final simdi = _sayfaCtrl.page?.round();
+    if (simdi == null || simdi == i) return;
+    _sayfaCtrl.jumpToPage(i);
   }
 
   void _seritiOlc() {
@@ -327,9 +355,18 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
     if (b != null) _sekme = b;
     // ⚠️ `_sekmeler` `_benimMi`ye bagli ve o daha yuklenmedi; baslangic
     //    sayfasi TAM LISTEDEN hesaplanir (`ProfilSekmesi.values`).
-    _sayfaCtrl = PageController(
-      initialPage: ProfilSekmesi.values.indexOf(_sekme).clamp(0, 9),
-    );
+    // ⚠️⚠️⚠️ TURU 180e — **INDEKS `_sekmeler`DEN, `values`TEN DEGIL.**
+    //
+    //	Onceden `ProfilSekmesi.values.indexOf(_sekme)` yaziyordu ama
+    //	`_sekmeler` `genel` ve `video`yu ELIYOR: `tumu` degerler
+    //	listesinde 1. sirada, cizilen seritte ise 0. sirada. Sonuc
+    //	SAHADA goruldu — serit "Gönderiler"i secili gosterirken sayfa
+    //	**FOTOGRAF** sekmesini ("Henüz fotoğraf yok") ciziyordu.
+    // ⚠️ `clamp(0, 9)` de KORUMA DEGILDI: sekme sayisi 9'un altina
+    //	dustugunde var olmayan bir sayfa istenirdi.
+    // ⚠️ `_sekmeler` `_benimMi`ye bagli ve o HENUZ yuklenmedi; dogru
+    //	sayfaya `_sayfaSenkron` ilk karede oturur.
+    _sayfaCtrl = PageController();
     _yukle();
   }
 
@@ -1937,13 +1974,11 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
   ///	ile listenin USTUNDE cizilir ve dikeyde ortalanan metni
   ///	KAPATIYORDU. Blok, hapin kapladigi kadar (52 + 10 + 12 pay)
   ///	YUKARI itilir; hap yoksa dolgu SIFIR olur.
+  /// ⚠️ Hapin kapladigi serit BURADA DEGIL `_sayfaBoyu`nda dusuluyor —
+  ///	boylece `Center` gercek BOS alani ortalar ve `FittedBox` dogru
+  ///	kutuya olceklenir (iki yerde ayri ayri dusulseydi CIFT SAYIM olurdu).
   Widget _bosDurum(ProfilSekmesi x, Color soluk) => Padding(
-        // ⚠️ Isletme profilinde alttaki yuzen Menü/Rezervasyon hapi listenin
-        //    USTUNDE cizilir (`Positioned`) ve metni KAPATIYORDU; hap varsa
-        //    blok onun kapladigi kadar (52 + 10) yukari itilir.
-        padding: EdgeInsets.only(
-          bottom: _menuRezervasyon() == null ? 0 : 62,
-        ),
+        padding: EdgeInsets.zero,
         child: Center(
         // ⚠️⚠️ `FittedBox(scaleDown)` ZORUNLU: kalan alan cihaza gore 60-400 dp
         //	arasinda degisir ve sabit olculu blok dar ekranda RenderFlex
