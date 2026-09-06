@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../core/theme.dart';
 import '../../core/yenile.dart';
 import 'isletme_kart.dart';
 import 'isletme_servisi.dart';
@@ -77,7 +78,9 @@ class _FavorilerimState extends ConsumerState<FavorilerimEkrani> {
   @override
   Widget build(BuildContext context) {
     final l = _liste;
-    return Scaffold(
+    // ⚠️ TURU 178 — bu ekran YEMEK kategorisinin kalbinden aciliyor; o
+    //    ekran siyah oldugu icin burasi da koyu (bkz. `koyuSayfa`).
+    return koyuSayfa(Scaffold(
       // ⚠️ `YenileSarmali` + `AlwaysScrollableScrollPhysics`: bos listede de
       //    asagi-cek CALISMALI (turu 83b'de dort kardes ekranda ayni sinif
       //    duzeltilmisti).
@@ -146,7 +149,7 @@ class _FavorilerimState extends ConsumerState<FavorilerimEkrani> {
           ],
         ),
       ),
-    );
+    ));
   }
 }
 

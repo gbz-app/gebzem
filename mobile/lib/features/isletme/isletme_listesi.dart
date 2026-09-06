@@ -3,10 +3,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:geolocator/geolocator.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../medya/konum_servisi.dart';
+import '../../core/theme.dart';
 import '../../core/api.dart';
 import "../../core/yenile.dart";
 
@@ -251,7 +252,10 @@ const bool kAltMenuAcik = false;
 ///	temaya birakilamaz — govde zorla KOYU temaya alindi
 ///	(turu 135c/138/140: yalniz zemini siyah yapmak, uzerine
 ///	koyu yazi cizip ekrani OKUNMAZ birakir).
-const Color kKategoriZemin = Color(0xFF050308);
+// ⚠️ TURU 178 — deger `core/theme.dart`taki `kAiZemin` ile BIREBIR
+//    aynidir ve artik ORADAN gelir; iki kopya kacinilmaz olarak
+//    ayrisirdi.
+const Color kKategoriZemin = kAiZemin;
 
 class IsletmeListesiEkrani extends ConsumerStatefulWidget {
   const IsletmeListesiEkrani({

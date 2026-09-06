@@ -10,6 +10,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import "../../core/yenile.dart";
 
+import '../../core/theme.dart';
 import '../../core/api.dart';
 import '../chats/chats_provider.dart';
 import '../chats/moderasyon_sheet.dart';
@@ -154,25 +155,8 @@ extension ProfilSekmesiBilgi on ProfilSekmesi {
   };
 }
 
-/// ⚠️⚠️⚠️ TURU 178 — **PROFIL ZEMINI SIYAH** (kullanici emri:
-///	*"profilin arka plani siyah olsun"*). Deger yemek ekranindaki
-///	`kKategoriZemin` ile BIREBIR ayni; sabit kopyalandi cunku o
-///	dosyayi import etmek ters yonde bir bagimlilik olurdu.
-const Color kProfilZemin = Color(0xFF050308);
-
-/// ⚠️⚠️ Zemini boyamak TEK BASINA YETMEZ: kullanici ACIK temadaysa alt
-///	widget'lar (`ProfilBasligi`, gonderi kartlari, sekme icerikleri)
-///	siyah zemine KOYU yazi cizer. Bu yuzden agac koyu bir `Theme`
-///	ile sarilir.
-/// ⚠️ `ThemeData.dark()` uygulamanin **"dokunma dairesi YOK"** kararini
-///	(turu 7 kullanici emri) SIFIRLAR — uc alan ACIKCA geri konuyor
-///	(turu 140 dersi).
-final ThemeData kProfilTema = ThemeData.dark().copyWith(
-  scaffoldBackgroundColor: kProfilZemin,
-  splashFactory: NoSplash.splashFactory,
-  splashColor: Colors.transparent,
-  highlightColor: Colors.transparent,
-);
+// ⚠️ TURU 178 — profil zemini SIYAH; tema `core/theme.dart`taki TEK
+//    KAYNAKTAN gelir (`kKoyuTema` / `koyuSayfa`).
 
 class ProfilSayfasi extends ConsumerStatefulWidget {
   const ProfilSayfasi({
@@ -258,13 +242,10 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
   //	`context`inin ALTINDA kalir; `Theme.of(context)` yalniz ATA
   //	elemanlari gezdigi icin UYGULAMANIN temasini cozer. Bu
   //	yuzden metotlar rengi buradan okur.
-  ColorScheme get _ks => kProfilTema.colorScheme;
+  ColorScheme get _ks => kKoyuTema.colorScheme;
 
   /// Sayfanin uc dali da (yukleniyor · hata · icerik) bundan gecer.
-  Widget _koyuSar(Widget c) => AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.light,
-        child: Theme(data: kProfilTema, child: c),
-      );
+  Widget _koyuSar(Widget c) => koyuSayfa(c);
 
   @override
   void initState() {
@@ -1522,9 +1503,11 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
     //	Genel'in boyle bir onbellegi YOK: kapi konmasaydi sekme
     //	KALICI olarak "Bilgi yok" gosterirdi.
     if (x == ProfilSekmesi.genel) return _genelSayfasi();
-    final soluk = Theme.of(
-      context,
-    ).colorScheme.onSurface.withValues(alpha: 0.6);
+    // ⚠️ TURU 178 — `Theme.of(context)` DEGIL: bu bir State metodu ve
+    //    `build`in kurdugu koyu temayi GORMEZ (turu 135c/138). Acik temali
+    //    bir cihazda "Henüz gönderi yok" siyah zemine KOYU GRI cizilip
+    //    okunamiyordu (emulatorde goruldu).
+    final soluk = _ks.onSurface.withValues(alpha: 0.6);
     if (_sekmeYukleniyor.contains(x)) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 60),

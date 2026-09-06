@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 // ⚠️ TURU 116 — ADI 'morLogo' AMA **LOGODAN ALINMIS DEGIL.**
 //    Bu ton 20 Tem'de dogdu; kullanicinin verdigi `logo2.png` 20 Agu'da
@@ -338,6 +339,38 @@ const LinearGradient kAiMorGradient = LinearGradient(
 ///	*"GebzemAI'daki arka plan mantiginin aynisini buraya yap"*).
 /// ⚠️ Kopyalanmadi, TASINDI: iki ekranin zemini birlikte donmeli.
 const Color kAiZemin = Color(0xFF050308);
+
+/// ⚠️⚠️⚠️ TURU 178 — **KOYU SAYFA TEMASI (TEK KAYNAK).**
+///
+/// Kullanici sirayla yemek ekranini, profili ve onlarin ac tigi alt
+/// sayfalari SIYAH istedi. Uc ekran ayri ayri `ThemeData.dark()`
+/// kurdugunda ilk ayrisma KACINILMAZDI (bu dosyada ayni sinif alti kez
+/// yasandi), bu yuzden tema TEK YERDE.
+///
+/// ⚠️ Zemini boyamak TEK BASINA YETMEZ: kullanici ACIK temadaysa alt
+///	widget'lar siyah zemine KOYU yazi cizer — agac bu temayla
+///	SARILMAK zorunda.
+/// ⚠️⚠️ **STATE METOTLARI BU TEMAYI GORMEZ**: `build`in DONDURDUGU agaca
+///	konan `Theme`, State'in KENDI `context`inin ALTINDA kalir ve
+///	`Theme.of(context)` yalniz ATA elemanlari gezer (turu 135c/138).
+///	O metotlar rengi `kKoyuTema.colorScheme`den okumali.
+/// ⚠️ `ThemeData.dark()` uygulamanin **"dokunma dairesi YOK"** kararini
+///	(turu 7 kullanici emri) SIFIRLAR — uc alan ACIKCA geri konuyor
+///	(turu 140 dersi).
+final ThemeData kKoyuTema = ThemeData.dark().copyWith(
+  scaffoldBackgroundColor: kAiZemin,
+  splashFactory: NoSplash.splashFactory,
+  splashColor: Colors.transparent,
+  highlightColor: Colors.transparent,
+);
+
+/// Koyu sayfa sarmalayicisi — durum cubugu ikonlarini da ACIK yapar.
+/// ⚠️ `AnnotatedRegion` ZORUNLU: siyah zeminde koyu durum cubugu ikonlari
+///	GORUNMEZ (saat, pil, sinyal kaybolur).
+Widget koyuSayfa(Widget c) => AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: Theme(data: kKoyuTema, child: c),
+    );
 
 /// ⚠️⚠️⚠️ **AI DILINDEKI PANELLERIN ZEMINI — TEMA `bottomSheetTheme`INI
 ///	BILEREK EZER.**

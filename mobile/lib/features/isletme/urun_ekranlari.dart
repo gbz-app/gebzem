@@ -15,6 +15,7 @@ import '../medya/medya_gorsel.dart';
 import '../medya/medya_kapisi.dart';
 import '../medya/medya_servisi.dart';
 import 'urun_servisi.dart';
+import '../../core/theme.dart';
 
 /// ⚠️⚠️ TURU 77 — ISLETME KATALOGU / MENUSU.
 ///
@@ -128,11 +129,19 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
     return m;
   }
 
+  // ⚠️⚠️ **STATE METOTLARI `Theme`I GORMEZ** (turu 135c/138): `build`in
+  //	DONDURDUGU agaca konan `Theme`, State'in KENDI `context`inin
+  //	ALTINDA kalir. Metotlar rengi buradan okur.
+  ColorScheme get _ks => kKoyuTema.colorScheme;
+
   @override
   Widget build(BuildContext context) {
     final ai = ref.watch(aiDurumProvider).valueOrNull;
     final l = _liste;
-    return Scaffold(
+    // ⚠️ TURU 178 — menu ekrani da SIYAH: cagiran iki yuzey (yemek
+    //    kategorisi ve isletme profili) siyah; beyaz bir ara sayfa
+    //    gecisi KOPUK gorunuyordu (emulatorde bakildi).
+    return koyuSayfa(Scaffold(
       // ⚠️⚠️ TURU 178 — **HEADER YEMEK EKRANIYLA AYNI** (kullanici emri:
       //	*"menuye tikladiginda ust menu yemekteki gibi ust header
       //	olsun"*): 44 dp · ortada baslik · solda `arrowLeft`.
@@ -272,7 +281,7 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
                 ],
               ),
             ),
-    );
+    ));
   }
 
   /// ⚠️ TURU 178 — arama kutusu **yemek ekraniyla ayni dilde**: cerceve YOK,
@@ -327,7 +336,7 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
   // ⚠️ Satir yuksekligi ICERIKTEN gelir (sabit `height` YOK): yazi olcegi
   //	buyudugunde aciklama sarar, kart uzar, TASMAZ.
   Widget _satir(Urun u) {
-    final scheme = Theme.of(context).colorScheme;
+    final scheme = _ks;
     final tukendi = u.durum == 'tukendi';
     return InkWell(
       onTap: widget.benimMi

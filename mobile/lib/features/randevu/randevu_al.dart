@@ -7,6 +7,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../core/api.dart';
 import '../../router.dart' show rootMessengerKey;
 import 'randevu_servisi.dart';
+import '../../core/theme.dart';
 
 /// ⚠️⚠️⚠️ TURU 80 — REZERVASYON / RANDEVU ALMA EKRANI.
 ///
@@ -282,7 +283,7 @@ class _RandevuAlEkraniState extends ConsumerState<RandevuAlEkrani> {
   /// ⚠️ Baglayici cizgi `Expanded` ile esner; sabit genislik verilseydi dar
   ///	ekranda RenderFlex tasmasi olurdu.
   Widget _adimSeridi() {
-    final scheme = Theme.of(context).colorScheme;
+    final scheme = kKoyuTema.colorScheme;
     Widget nokta(int i) {
       final gecildi = i < _adim;
       final aktif = i == _adim;
@@ -385,7 +386,7 @@ class _RandevuAlEkraniState extends ConsumerState<RandevuAlEkrani> {
   /// ⚠️ Hucre yuksekligi `mainAxisExtent` ile ICERIKTEN turetilir; sabit
   ///	`childAspectRatio` yazi olcegi buyudugunde TASARDI (turu 121 dersi).
   Widget _tarihAdimi() {
-    final scheme = Theme.of(context).colorScheme;
+    final scheme = kKoyuTema.colorScheme;
     final olcek = MediaQuery.textScalerOf(context).scale(1.0);
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
@@ -485,7 +486,7 @@ class _RandevuAlEkraniState extends ConsumerState<RandevuAlEkrani> {
   // ─────────────────────────── ADIM 2: SAAT ────────────────────────────
 
   Widget _saatAdimi() {
-    final scheme = Theme.of(context).colorScheme;
+    final scheme = kKoyuTema.colorScheme;
     if (_yukleniyor) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -589,7 +590,7 @@ class _RandevuAlEkraniState extends ConsumerState<RandevuAlEkrani> {
   // ─────────────────────────── ADIM 3: DETAY ───────────────────────────
 
   Widget _detayAdimi() {
-    final scheme = Theme.of(context).colorScheme;
+    final scheme = kKoyuTema.colorScheme;
     final v = _veri;
     final s = _secili;
     if (v == null || s == null) return _bosDurum('Önce bir saat seç.');
@@ -790,12 +791,21 @@ Future<bool?> randevuAlAc(
   isScrollControlled: true,
   useSafeArea: true,
   showDragHandle: true,
-  backgroundColor: Theme.of(context).colorScheme.surface,
+  // ⚠️ TURU 178 — panel SIYAH: acan yuzey (isletme profili) siyah ve
+  //    beyaz bir sheet uzerine binince ekran IKIYE BOLUNMUS gorunuyordu.
+  backgroundColor: kAiZemin,
   shape: const RoundedRectangleBorder(
     borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
   ),
-  builder: (_) => FractionallySizedBox(
-    heightFactor: 0.9,
-    child: RandevuAlEkrani(isletmeId: isletmeId, isletmeAd: isletmeAd),
+  builder: (_) => koyuSayfa(
+    FractionallySizedBox(
+      heightFactor: 0.9,
+      child: Material(
+        // ⚠️ `Material` ZORUNLU: sheet govdesinde iki `TextField` var ve
+        //    `Material` atasi olmadan cizilemez (turu 130 dersi).
+        color: kAiZemin,
+        child: RandevuAlEkrani(isletmeId: isletmeId, isletmeAd: isletmeAd),
+      ),
+    ),
   ),
 );
