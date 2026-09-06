@@ -267,8 +267,10 @@ class _KesfetEkraniState extends ConsumerState<KesfetEkrani>
                 ],
               ),
             ),
+          // ⚠️ TURU 178 — yan dolgu yemek ekraniyla AYNI (16) ve kutunun
+          //    KENDI dolgusu ondan geliyor.
           Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
             child: TextField(
               controller: _kutu,
               focusNode: _odak,
@@ -288,9 +290,24 @@ class _KesfetEkraniState extends ConsumerState<KesfetEkrani>
               // ⚠️ `InputBorder.none` UC HALDE DE verilir (normal/odak/
               //    hata): yalniz `border` verilseydi ODAKTA Material
               //    varsayilan alt cizgiyi geri getirirdi.
+              // ⚠️⚠️ TURU 178 — **KUTU YEMEK EKRANIYLA AYNI DILDE**
+              //	(kullanici: *"arama inputu yemekteki gibi olsun"*):
+              //	48 dp boy · hafif dolgu · cerceve YOK · ikon 21 ve
+              //	soldan 16 dp iceride.
+              // ⚠️ Dolgu ZORUNLU: cercevesiz VE dolgusuz bir alan
+              //    dokunulabilir gorunmez (turu 174 dersi).
               decoration: InputDecoration(
                 hintText: 'Ne Aramıştın?',
-                prefixIcon: const Icon(LucideIcons.search, size: 19),
+                filled: true,
+                fillColor: Theme.of(context)
+                    .colorScheme
+                    .onSurface
+                    .withValues(alpha: 0.07),
+                prefixIcon: const Padding(
+                  padding: EdgeInsets.only(left: 16, right: 10),
+                  child: Icon(LucideIcons.search, size: 21),
+                ),
+                prefixIconConstraints: const BoxConstraints(),
                 suffixIcon: aramaModu
                     ? IconButton(
                         icon: const Icon(LucideIcons.x, size: 18),
@@ -302,10 +319,19 @@ class _KesfetEkraniState extends ConsumerState<KesfetEkrani>
                       )
                     : null,
                 isDense: true,
-                contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                border: InputBorder.none,
-                enabledBorder: InputBorder.none,
-                focusedBorder: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(vertical: 15),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(24),
+                  borderSide: BorderSide.none,
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(24),
+                  borderSide: BorderSide.none,
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(24),
+                  borderSide: BorderSide.none,
+                ),
               ),
             ),
           ),

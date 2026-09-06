@@ -45,9 +45,44 @@ class UrunKatalogEkrani extends ConsumerStatefulWidget {
   ConsumerState<UrunKatalogEkrani> createState() => _UrunKatalogEkraniState();
 }
 
+/// ⚠️⚠️ TURU 178 — MENU KALEMININ GORSELI (kullanici emri: *"menulerde
+///	RESIM ALANLARI olsun"*).
+///
+/// Tohum verisindeki urunlerin `media_ids` alani BOS (gorsel yuklenmedi),
+/// yani gercek bir gorsel YOK. Bilinen marka kalemleri icin pakete konmus
+/// ornek fotograf gosterilir; digerlerinde **yer tutucu** cizilir.
+/// ⚠️ Uydurma gorsel BASILMAZ: eslesmeyen kalem notr bir ikon kutusu alir.
+/// ⚠️ Bu tablo **ornek/tanitim** icindir; yayin oncesi `assets/marka`
+///	varliklariyla BIRLIKTE kaldirilacak (turu 140 marka notu).
+const Map<String, String> kOrnekMenuGorsel = {
+  'big mac': 'assets/marka/menu_bigmac.png',
+  'cheeseburger': 'assets/marka/menu_cheeseburger.png',
+  'mcchicken': 'assets/marka/menu_tavuk.png',
+  'tavuk burger': 'assets/marka/menu_tavuk.png',
+  'patates': 'assets/marka/menu_patates.png',
+  'mcnuggets': 'assets/marka/menu_tavuk.png',
+  'chicken burger': 'assets/marka/menu_tavuk.png',
+  'double cheeseburger': 'assets/marka/menu_cheeseburger.png',
+  'mcroyal': 'assets/marka/menu_bigmac.png',
+};
+
+String? _ornekGorsel(String ad) {
+  // ⚠️ Turkce kucultme ELLE: `toLowerCase()` 'I' harfini 'i' yapar ama
+  //    'İ'yi BIRLESIK NOKTAYA cevirir ve eslesme kacar (turu 140 dersi).
+  final a = ad.replaceAll('İ', 'i').replaceAll('I', 'ı').toLowerCase();
+  for (final e in kOrnekMenuGorsel.entries) {
+    if (a.contains(e.key)) return e.value;
+  }
+  return null;
+}
+
 class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
   List<Urun>? _liste;
   String? _hata;
+
+  /// ⚠️ Suzgec ISTEMCIDE: katalog TEK ISTEKTE geliyor, yani suzulen kume
+  //	kullanicinin gordugu kumenin TAMAMI (turu 141 gerekcesi).
+  String _q = '';
 
   @override
   void initState() {
@@ -71,8 +106,23 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
 
   /// Bolume gore grupla (menu gorunumu).
   Map<String, List<Urun>> get _bolumler {
+    final q = _q.replaceAll('İ', 'i').replaceAll('I', 'ı').toLowerCase();
     final m = <String, List<Urun>>{};
     for (final u in _liste ?? const <Urun>[]) {
+      // ⚠️⚠️ TURU 178 — KALDIRILMIS kalem MUSTERIYE CIZILMEZ.
+      //	Sunucu silmeyi "soft delete" yapiyor (`durum=kaldirildi`) ve
+      //	listede DONDURMEYE devam ediyor. Sahibi gormeli (geri
+      //	alabilir) ama musteri icin bunlar menude YOK hukmundedir —
+      //	aksi halde silinen her kalem menuyu kirletirdi (tohum
+      //	kaydinda olculdu: 18 yayinda, 24 kaldirilmis).
+      if (!widget.benimMi && u.durum == 'kaldirildi') continue;
+      if (q.isNotEmpty) {
+        final metin = '${u.ad} ${u.aciklama} ${u.bolum}'
+            .replaceAll('İ', 'i')
+            .replaceAll('I', 'ı')
+            .toLowerCase();
+        if (!metin.contains(q)) continue;
+      }
       m.putIfAbsent(u.bolum.isEmpty ? 'Diğer' : u.bolum, () => []).add(u);
     }
     return m;
@@ -83,9 +133,52 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
     final ai = ref.watch(aiDurumProvider).valueOrNull;
     final l = _liste;
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.isletmeAd.isEmpty ? 'Ürünler' : widget.isletmeAd),
-        actions: [
+      // ⚠️⚠️ TURU 178 — **HEADER YEMEK EKRANIYLA AYNI** (kullanici emri:
+      //	*"menuye tikladiginda ust menu yemekteki gibi ust header
+      //	olsun"*): 44 dp · ortada baslik · solda `arrowLeft`.
+      // ⚠️ `AppBar` KULLANILMIYOR: Material'in kendi `BackButton`u
+      //	PLATFORMA gore degisir ve baslik SOLA yaslidir.
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(44),
+        child: SafeArea(
+          bottom: false,
+          child: SizedBox(
+            height: 44,
+            child: Stack(
+              children: [
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 56),
+                    child: Text(
+                      widget.isletmeAd.isEmpty
+                          ? widget.modul.ad
+                          : widget.isletmeAd,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        height: 1.0,
+                        leadingDistribution: TextLeadingDistribution.even,
+                      ),
+                    ),
+                  ),
+                ),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => Navigator.of(context).maybePop(),
+                    child: const SizedBox(
+                      width: 44,
+                      height: 44,
+                      child: Icon(LucideIcons.arrowLeft, size: 24),
+                    ),
+                  ),
+                ),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
           // ⚠️ AI MENU dugmesi: YALNIZ sahibine ve YALNIZ AI aciksa.
           if (widget.benimMi && (ai?.acik ?? false))
             IconButton(
@@ -96,7 +189,12 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
               icon: const Icon(LucideIcons.sparkles),
               onPressed: _aiMenu,
             ),
-        ],
+                  ]),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
       floatingActionButton: widget.benimMi
           ? FloatingActionButton.extended(
@@ -138,16 +236,34 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
               child: ListView(
                 padding: const EdgeInsets.only(bottom: 90),
                 children: [
+                  _arama(),
+                  if (_bolumler.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 48),
+                      child: Center(
+                        child: Text(
+                          'Eşleşen bir şey yok.',
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      ),
+                    ),
                   for (final b in _bolumler.entries) ...[
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
+                      padding: const EdgeInsets.fromLTRB(16, 18, 16, 8),
                       child: Text(
-                        b.key.toUpperCase(),
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          // ⚠️ TURU 113 — `letterSpacing` KALDIRILDI (kullanici emri).
-                          color: Colors.grey,
+                        b.key,
+                        // ⚠️ TURU 178 — punto 11 -> 15 ve BUYUK HARF YOK
+                        //	(kullanici: *"yazi tipleri biraz daha buyuk
+                        //	olsun"*). `toUpperCase()` Dart'ta 'i' -> 'I'
+                        //	yapar; 'İçecek' -> 'IÇECEK' cikardi
+                        //	(turu 142 dersi).
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: Theme.of(context)
+                              .colorScheme
+                              .onSurface
+                              .withValues(alpha: 0.75),
                         ),
                       ),
                     ),
@@ -159,53 +275,184 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
     );
   }
 
-  Widget _satir(Urun u) => ListTile(
-    leading: u.mediaIds.isEmpty
-        ? null
-        : SizedBox(
-            width: 56,
-            height: 56,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: MedyaGorsel(
+  /// ⚠️ TURU 178 — arama kutusu **yemek ekraniyla ayni dilde**: cerceve YOK,
+  //	hafif dolgu, 24 radus, soldan 16 dp iceride 21 px ikon.
+  // ⚠️ Dolgu ZORUNLU: cercevesiz VE dolgusuz bir alan dokunulabilir
+  //	gorunmez (turu 174 dersi).
+  Widget _arama() => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+        child: TextField(
+          onChanged: (v) => setState(() => _q = v.trim()),
+          textInputAction: TextInputAction.search,
+          decoration: InputDecoration(
+            hintText: '${widget.modul.ad} içinde ara',
+            filled: true,
+            fillColor: Theme.of(context)
+                .colorScheme
+                .onSurface
+                .withValues(alpha: 0.07),
+            prefixIcon: const Padding(
+              padding: EdgeInsets.only(left: 16, right: 10),
+              child: Icon(LucideIcons.search, size: 21),
+            ),
+            prefixIconConstraints: const BoxConstraints(),
+            isDense: true,
+            contentPadding: const EdgeInsets.symmetric(vertical: 15),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(24),
+              borderSide: BorderSide.none,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(24),
+              borderSide: BorderSide.none,
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(24),
+              borderSide: BorderSide.none,
+            ),
+          ),
+        ),
+      );
+
+  /// ⚠️⚠️ TURU 178 — **MENU KALEMI YENIDEN KURULDU** (kullanici emri:
+  //	*"menulerde resim alanlari olsun, aciklama kismi olsun, biraz
+  //	daha yazi tipleri buyuk olsun"*).
+  //
+  //	Eski hal bir `ListTile` idi: gorsel 56 dp ve YALNIZ medya
+  //	varsa, ad varsayilan punto (14), aciklama silik, fiyat 14.
+  //	Kalemler birbirinden ayirt edilemiyordu.
+  // ⚠️ Gorsel **DAIMA cizilir**: kaynak yoksa notr yer tutucu gelir.
+  //	Kosullu cizilseydi kimi satir 92 dp kimi 56 dp olur ve liste
+  //	ZIPLARDI.
+  // ⚠️ Satir yuksekligi ICERIKTEN gelir (sabit `height` YOK): yazi olcegi
+  //	buyudugunde aciklama sarar, kart uzar, TASMAZ.
+  Widget _satir(Urun u) {
+    final scheme = Theme.of(context).colorScheme;
+    final tukendi = u.durum == 'tukendi';
+    return InkWell(
+      onTap: widget.benimMi
+          ? () async {
+              final ok = await Navigator.of(context).push<bool>(
+                MaterialPageRoute(
+                  builder: (_) =>
+                      UrunDuzenleEkrani(urun: u, modul: widget.modul),
+                ),
+              );
+              if (ok == true) _yukle();
+            }
+          : null,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    u.ad,
+                    style: TextStyle(
+                      fontSize: 16.5,
+                      fontWeight: FontWeight.w700,
+                      height: 1.25,
+                      color: tukendi
+                          ? scheme.onSurface.withValues(alpha: 0.45)
+                          : null,
+                    ),
+                  ),
+                  if (u.aciklama.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      u.aciklama,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13.5,
+                        height: 1.35,
+                        color: scheme.onSurface.withValues(alpha: 0.62),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Text(
+                        u.fiyatMetni,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      if (tukendi) ...[
+                        const SizedBox(width: 8),
+                        const Text(
+                          'Tükendi',
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.orange,
+                          ),
+                        ),
+                      ] else if (u.durum == 'kaldirildi') ...[
+                        const SizedBox(width: 8),
+                        const Text(
+                          'Kaldırıldı',
+                          style: TextStyle(fontSize: 12.5, color: Colors.grey),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            _kalemGorseli(u, scheme),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Gorsel sirasi: GERCEK medya -> ornek marka fotografi -> yer tutucu.
+  /// ⚠️ `cacheWidth` ZORUNLU: 92 dp'lik kutu icin ham cozunurlukte cozmek
+  //	kare basina megabaytlarca gecici RAM demek (turu 91 dersi).
+  Widget _kalemGorseli(Urun u, ColorScheme scheme) {
+    const boy = 92.0;
+    final ornek = u.mediaIds.isEmpty ? _ornekGorsel(u.ad) : null;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(14),
+      child: SizedBox(
+        width: boy,
+        height: boy,
+        child: u.mediaIds.isNotEmpty
+            ? MedyaGorsel(
                 mediaId: u.mediaIds.first,
                 kucuk: true,
                 fit: BoxFit.cover,
-              ),
-            ),
-          ),
-    title: Text(u.ad),
-    subtitle: u.aciklama.isEmpty
-        ? null
-        : Text(u.aciklama, maxLines: 2, overflow: TextOverflow.ellipsis),
-    trailing: Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        Text(u.fiyatMetni, style: const TextStyle(fontWeight: FontWeight.w700)),
-        if (u.durum == 'tukendi')
-          const Text(
-            'Tükendi',
-            style: TextStyle(fontSize: 11, color: Colors.orange),
-          )
-        else if (u.durum == 'kaldirildi')
-          const Text(
-            'Kaldırıldı',
-            style: TextStyle(fontSize: 11, color: Colors.grey),
-          ),
-      ],
-    ),
-    onTap: widget.benimMi
-        ? () async {
-            final ok = await Navigator.of(context).push<bool>(
-              MaterialPageRoute(
-                builder: (_) => UrunDuzenleEkrani(urun: u, modul: widget.modul),
-              ),
-            );
-            if (ok == true) _yukle();
-          }
-        : null,
-  );
+              )
+            : ornek != null
+                ? Image.asset(
+                    ornek,
+                    fit: BoxFit.cover,
+                    cacheWidth: (boy *
+                            MediaQuery.devicePixelRatioOf(context))
+                        .round(),
+                    errorBuilder: (_, _, _) => _yerTutucu(scheme),
+                  )
+                : _yerTutucu(scheme),
+      ),
+    );
+  }
+
+  Widget _yerTutucu(ColorScheme scheme) => ColoredBox(
+        color: scheme.onSurface.withValues(alpha: 0.07),
+        child: Icon(
+          LucideIcons.utensilsCrossed,
+          size: 26,
+          color: scheme.onSurface.withValues(alpha: 0.28),
+        ),
+      );
 
   /// ⚠️⚠️ AI MENU — **IKI YOL**: menu FOTOGRAFINDAN oku ya da YAZILI TARIFTEN
   ///    olustur.

@@ -1301,18 +1301,23 @@ class _HizmetMenusuState extends ConsumerState<HizmetMenusu> {
             //    AYNEN duruyor, eksik olan kabuk BURADA veriliyor.
             // ⚠️ Geri oku: ekranin kendi AppBar`i YOK (Instagram deseni,
             //    ustte arama kutusu var) — cikis yolu SART.
+            // ⚠️⚠️⚠️ TURU 178 — **APPBAR KALDIRILDI: CIFT HEADER VARDI.**
+            //
+            //	Turu 175'te `KesfetEkrani`nin ICINE yemek ekraniyla ayni
+            //	header kondu; buradaki `AppBar` ise turu 130'dan beri
+            //	duruyordu. Ikisi birden cizilince ekranda **iki geri
+            //	oku ve iki baslik** olustu (kullanici gordu: *"arama
+            //	kisminda 2 tane header var"*).
+            //
+            // ⚠️ `Scaffold` KALIR: `KesfetEkrani` Scaffold DONDURMEZ
+            //	(`HomeScreen`de sekme olarak yasiyor) ve tek basina
+            //	push edilince `Material` bulunamadigi icin
+            //	`TextField` PATLAR (turu 130'da olculdu).
+            // ⚠️⚠️ **DERS: bir ekrana header eklerken onu PUSH EDEN yolun
+            //	zaten bir AppBar verip vermedigini KONTROL ET.**
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute<void>(
-                builder: (_) => Scaffold(
-                  appBar: AppBar(
-                    leading: IconButton(
-                      icon: const Icon(LucideIcons.arrowLeft),
-                      onPressed: () => Navigator.of(context).maybePop(),
-                    ),
-                    title: const Text('Ara'),
-                  ),
-                  body: const KesfetEkrani(),
-                ),
+                builder: (_) => const Scaffold(body: KesfetEkrani()),
               ),
             ),
           ),

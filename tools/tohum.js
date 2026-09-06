@@ -251,18 +251,57 @@ const ISLETMELER = [
   //    tasarimi tohum verisiyle DOGRULANAMAZ.
   // ⚠️⚠️ `puan` bir DEGERLENDIRME SISTEMINDEN gelmiyor (bkz. 046 serhi) —
   //    editoryal bir sayidir ve burada TEST VERISIDIR.
-  { grup: 'Yemek', kategori: 'yemek', ad: 'Gebze Kebap Salonu', kadi: 'gebzekebap',
+  // ⚠️⚠️ TURU 178 — 'Gebze Kebap Salonu' -> **McDonald's** (kullanici emri).
+  //    Menu ZENGINLESTIRILDI: her kalemin `aciklama`si var (turu 178'de
+  //    menu ekrani aciklamayi ve gorseli CIZMEYE basladi; aciklamasiz
+  //    tohum o tasarimi DOGRULAYAMAZDI).
+  // ⚠️ Kalem adlari istemcideki `kOrnekMenuGorsel` anahtarlariyla HIZALI
+  //    (big mac · cheeseburger · mcchicken · patates · mcnuggets); ad
+  //    degisirse gorsel SESSIZCE yer tutucuya duser.
+  // ⚠️⚠️ TESCILLI MARKA: bu kayit ORNEK/TANITIM verisidir. Gercek yayin
+  //    oncesi `assets/marka` varliklariyla BIRLIKTE kaldirilmali.
+  { grup: 'Yemek', kategori: 'yemek', ad: "McDonald's", kadi: 'mcdonalds',
     tel: '+905551070001', adres: 'Hacı Halil Mah. Zübeyde Hanım Cd. No:14', ilce: 'Gebze',
     vitrin: { puan: 4.5, puan_sayisi: 320, min_tutar_kurus: 26000,
               teslimat_dk_min: 25, teslimat_dk_max: 35,
               kampanyalar: ['300 TL indirim', 'İlk sipariş 100 TL indirim'] },
     urunler: [
-      { ad: 'Adana kebap', bolum: 'Kebap', fiyat_kurus: 42000, tur: 'urun' },
-      { ad: 'Urfa kebap', bolum: 'Kebap', fiyat_kurus: 42000, tur: 'urun' },
-      { ad: 'Tavuk şiş', bolum: 'Kebap', fiyat_kurus: 36000, tur: 'urun' },
-      { ad: 'Lahmacun', bolum: 'Fırın', fiyat_kurus: 9000, tur: 'urun' },
-      { ad: 'Mercimek çorba', bolum: 'Çorba', fiyat_kurus: 8000, tur: 'urun' },
-      { ad: 'Künefe', bolum: 'Tatlı', fiyat_kurus: 18000, tur: 'urun' },
+      { ad: 'Big Mac Menü', bolum: 'Menüler', fiyat_kurus: 32900, tur: 'urun',
+        aciklama: 'İki köfte, özel Big Mac sos, marul, peynir, turşu ve soğan. Patates ve içecek dahil.' },
+      { ad: 'McChicken Menü', bolum: 'Menüler', fiyat_kurus: 29900, tur: 'urun',
+        aciklama: 'Çıtır tavuk fileto, marul ve mayonez. Patates ve içecek dahil.' },
+      { ad: 'Double Cheeseburger Menü', bolum: 'Menüler', fiyat_kurus: 34900, tur: 'urun',
+        aciklama: 'İki dana köfte, çift cheddar, turşu, soğan ve hardal. Patates ve içecek dahil.' },
+      { ad: 'McRoyal Deluxe Menü', bolum: 'Menüler', fiyat_kurus: 37900, tur: 'urun',
+        aciklama: '100% dana eti, cheddar, marul, domates ve özel sos. Patates ve içecek dahil.' },
+      { ad: 'Big Mac', bolum: 'Burgerler', fiyat_kurus: 22900, tur: 'urun',
+        aciklama: 'Efsane tarif: iki köfte, üç katlı ekmek ve Big Mac sos.' },
+      { ad: 'Cheeseburger', bolum: 'Burgerler', fiyat_kurus: 12900, tur: 'urun',
+        aciklama: 'Dana köfte, eriyen cheddar, turşu, soğan ve hardal.' },
+      { ad: 'McChicken', bolum: 'Burgerler', fiyat_kurus: 19900, tur: 'urun',
+        aciklama: 'Çıtır kaplamalı tavuk fileto, taze marul ve mayonez.' },
+      { ad: 'Chicken Burger', bolum: 'Burgerler', fiyat_kurus: 17900, tur: 'urun',
+        aciklama: 'Izgara tavuk göğsü, marul ve barbekü sos.' },
+      { ad: 'Patates Kızartması (Büyük)', bolum: 'Yanındakiler', fiyat_kurus: 8900, tur: 'urun',
+        aciklama: 'Dışı çıtır içi yumuşak, sıcak servis edilir.' },
+      { ad: 'Patates Kızartması (Orta)', bolum: 'Yanındakiler', fiyat_kurus: 6900, tur: 'urun',
+        aciklama: 'Klasik boy, tuzlu ya da tuzsuz tercih edilebilir.' },
+      { ad: 'McNuggets 6\'lı', bolum: 'Yanındakiler', fiyat_kurus: 11900, tur: 'urun',
+        aciklama: 'Altı parça çıtır tavuk. Barbekü ya da ballı hardal sos ile.' },
+      { ad: 'McNuggets 9\'lu', bolum: 'Yanındakiler', fiyat_kurus: 15900, tur: 'urun',
+        aciklama: 'Dokuz parça çıtır tavuk. İki sos seçimi hediye.' },
+      { ad: 'Coca-Cola (Orta)', bolum: 'İçecekler', fiyat_kurus: 4900, tur: 'urun',
+        aciklama: 'Buzlu servis edilir.' },
+      { ad: 'Ayran', bolum: 'İçecekler', fiyat_kurus: 3500, tur: 'urun',
+        aciklama: 'Soğuk, 300 ml.' },
+      { ad: 'McCafé Latte', bolum: 'İçecekler', fiyat_kurus: 7500, tur: 'urun',
+        aciklama: 'Espresso ve buharda ısıtılmış süt.' },
+      { ad: 'McFlurry Oreo', bolum: 'Tatlılar', fiyat_kurus: 8900, tur: 'urun',
+        aciklama: 'Yumuşak dondurma ve Oreo parçacıkları.' },
+      { ad: 'Sundae Çikolatalı', bolum: 'Tatlılar', fiyat_kurus: 6900, tur: 'urun',
+        aciklama: 'Yumuşak dondurma üzerine sıcak çikolata sos.' },
+      { ad: 'Elmalı Turta', bolum: 'Tatlılar', fiyat_kurus: 4900, tur: 'urun',
+        aciklama: 'Sıcak servis edilen çıtır turta.' },
     ] },
   { grup: 'Yemek', kategori: 'yemek', ad: 'Usta Döner & Pide', kadi: 'ustadoner',
     tel: '+905551070002', adres: 'İstasyon Cd. No:31', ilce: 'Gebze',

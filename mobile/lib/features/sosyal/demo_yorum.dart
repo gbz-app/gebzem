@@ -204,7 +204,7 @@ const List<DemoYorum> _foto = [
     ],
   ),
   DemoYorum(
-    ad: 'Gebze Kebap Salonu',
+    ad: "McDonald's",
     kullaniciAdi: 'gebzekebap',
     zaman: '20dk',
     metin: 'Dönüşte bekleriz.',
@@ -370,7 +370,7 @@ const List<DemoYorum> _video = [
   ),
 ];
 
-/// `konum` — Gebze Kebap Salonu. **Akista KISA YAZI yaniti.**
+/// `konum` — McDonald's. **Akista KISA YAZI yaniti.**
 const List<DemoYorum> _konum = [
   DemoYorum(
     ad: 'Sinem Ateş',
@@ -389,7 +389,7 @@ const List<DemoYorum> _konum = [
     yorum: 1,
     yanitlar: [
       DemoYorum(
-        ad: 'Gebze Kebap Salonu',
+        ad: "McDonald's",
         kullaniciAdi: 'gebzekebap',
         zaman: '22dk',
         metin: 'Arka sokakta yer bulabilirsiniz.',

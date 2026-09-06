@@ -45,15 +45,49 @@ class _FavorilerimState extends ConsumerState<FavorilerimEkrani> {
     }
   }
 
+  /// ⚠️ TURU 178 — **YEMEK EKRANIYLA AYNI HEADER** (kullanici emri:
+  //	*"favorilerim sayfasi da yemek header gibi olsun"*).
+  //	44 dp yukseklik · ortada baslik · solda `arrowLeft`.
+  // ⚠️ `AppBar` KULLANILMIYOR: Material'in kendi `BackButton`u PLATFORMA
+  //	gore degisir (Android ok / iOS chevron) ve baslik SOLA yaslidir;
+  //	kullanicinin gordugu fark tam buydu.
+  Widget _header(BuildContext context) => const SizedBox(
+        height: 44,
+        child: Stack(
+          children: [
+            Center(
+              child: Text(
+                'Favorilerim',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  height: 1.0,
+                  leadingDistribution: TextLeadingDistribution.even,
+                ),
+              ),
+            ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: _GeriOku(),
+            ),
+          ],
+        ),
+      );
+
   @override
   Widget build(BuildContext context) {
     final l = _liste;
     return Scaffold(
-      appBar: AppBar(title: const Text('Favorilerim')),
       // ⚠️ `YenileSarmali` + `AlwaysScrollableScrollPhysics`: bos listede de
       //    asagi-cek CALISMALI (turu 83b'de dort kardes ekranda ayni sinif
       //    duzeltilmisti).
-      body: YenileSarmali(
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            _header(context),
+            Expanded(
+              child: YenileSarmali(
         onRefresh: _yukle,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -107,7 +141,28 @@ class _FavorilerimState extends ConsumerState<FavorilerimEkrani> {
                 ),
           ],
         ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
+}
+
+/// ⚠️ Geri oku AYRI bir widget: header `const` olabilsin diye
+///    (`Navigator.of` bir `BuildContext` ister, const agacta cagrilamaz).
+class _GeriOku extends StatelessWidget {
+  const _GeriOku();
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => Navigator.of(context).maybePop(),
+        child: const SizedBox(
+          width: 44,
+          height: 44,
+          child: Icon(LucideIcons.arrowLeft, size: 24),
+        ),
+      );
 }

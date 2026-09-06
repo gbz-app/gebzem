@@ -164,146 +164,193 @@ class _RandevuAlEkraniState extends ConsumerState<RandevuAlEkrani> {
     if (mounted) setState(() => _gonderiliyor = false);
   }
 
+  // ══════════════════════ ADIM ADIM AKIS (turu 178) ══════════════════════
+  //
+  // ⚠️⚠️⚠️ Kullanici emri: *"rezervasyonu STEP STEP yap, TAM SAYFA OLMASIN,
+  //	POPUP tarzi acilsin ve arayuzu guzellestir"*.
+  //
+  // Eski hal TEK EKRANDI: gun seridi + saat izgarasi + kisi sayaci + iki
+  // metin alani AYNI ANDA cizilyordu. Kullanici ilk bakista dort ayri karar
+  // goruyor ve hangisinin ZORUNLU oldugunu anlamiyordu (yalniz SAAT
+  // zorunlu; digerleri istege bagli).
+  //
+  // ⚠️ Adim gecisi **OTOMATIK**: gune dokununca saate, saate dokununca
+  //	detaya gecilir. Ayrica "Ileri" dugmesi ARAMAK gerekmez — dokunusun
+  //	kendisi zaten secimdir.
+  // ⚠️ GERI YOLU HER ADIMDA ACIK (basliktaki ok): son adimda saati
+  //	degistirmek isteyen kullanici sheet'i kapatip bastan baslamak
+  //	zorunda kalmamali.
+
+  /// 0 = tarih · 1 = saat · 2 = detay.
+  int _adim = 0;
+
+  static const _adimAdlari = ['Tarih', 'Saat', 'Detay'];
+
+  void _adimaGit(int a) {
+    if (a == _adim) return;
+    // ⚠️ Klavye acikken adim degisirse alttaki dugme klavyenin arkasinda
+    //    kalir; odak birakilir.
+    FocusScope.of(context).unfocus();
+    setState(() => _adim = a);
+  }
+
+  bool get _geriVar => _adim > 0;
+
+  void _geri() {
+    if (_geriVar) {
+      _adimaGit(_adim - 1);
+      return;
+    }
+    Navigator.of(context).maybePop();
+  }
+
   @override
   Widget build(BuildContext context) {
-    final v = _veri;
-    final rezervasyon = v?.rezervasyonMu ?? false;
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(rezervasyon ? 'Rezervasyon' : 'Randevu'),
-        // ⚠️ Isletme adi ALT BASLIKTA: kullanici hangi isletmeye talep
-        //    gonderdigini SON ANA kadar gormeli.
-        //
-        // ⚠️⚠️ TURU 80b — YUKSEKLIK **YAZI OLCEGINE GORE** (denetim).
-        //    Onceki surumde `Size.fromHeight(20)` SABITTI ama icindeki metin
-        //    cihazin yazi olcegiyle (Ayarlar > Yazi Boyutu) buyuyor: olcek
-        //    1.3'te 12px metin ~15.6px'e, satir yuksekligiyle ~21px'e cikip
-        //    20px'lik alani ASIYOR ve **"RenderFlex overflowed" sari-siyah
-        //    seridi** cikiyordu. Erisilebilirlik ayarini acan kullanicilar bu
-        //    ekrani BOZUK goruyordu.
-        // ⚠️ `maxLines: 1` + `ellipsis`: uzun isletme adi ikinci satira sarip
-        //    ayni tasmayi TEKRAR uretmesin.
-        // ⚠️ YAPMA: buraya tekrar sabit yukseklik yazma.
-        bottom: PreferredSize(
-          preferredSize: Size.fromHeight(
-            20 * MediaQuery.textScalerOf(context).scale(1.0),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.only(bottom: 6, left: 16, right: 16),
-            child: Text(
-              widget.isletmeAd,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 12, color: Colors.grey),
-            ),
-          ),
-        ),
-      ),
-      body: Column(
+    // ⚠️⚠️ `viewInsets` dolgusu ZORUNLU: detay adiminda iki metin alani var
+    //	ve `showModalBottomSheet` klavyeyi KENDI KENDINE karsilamaz —
+    //	dolgu olmadan "Talep gonder" dugmesi klavyenin ALTINDA kalir
+    //	(hem gorunmez hem DOKUNULAMAZ).
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          _gunSeridi(),
-          const Divider(height: 1),
-          Expanded(child: _govde()),
+          _baslik(),
+          _adimSeridi(),
+          // ⚠️ `Flexible` — `Expanded` DEGIL: sheet `mainAxisSize.min` ile
+          //    calisiyor ve icerik kisaysa pencere de kisalmali.
+          Flexible(child: _adimGovdesi()),
+          _altBar(),
         ],
       ),
-      bottomNavigationBar: _secili == null
-          ? null
-          : SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                child: FilledButton.icon(
-                  onPressed: _gonderiliyor ? null : _gonder,
-                  icon: _gonderiliyor
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(LucideIcons.check, size: 18),
-                  label: Text(
-                    _gonderiliyor
-                        ? 'Gönderiliyor...'
-                        : '${_secili!.saat} için talep gönder',
-                  ),
-                ),
-              ),
-            ),
     );
   }
 
-  /// Gun seridi. ⚠️ Yeni paket YOK — sade `ListView`.
-  ///
-  /// ⚠️⚠️ TURU 80b — GUN SAYISI **ISLETMENIN AYARINDAN** gelir (denetim
-  ///    bulgusu). Eskiden 14'e SABITTI: isletme "30 gün ileriye" secse bile
-  ///    kullanici yalnizca 14 gun gorebiliyor, 30 secen isletmenin ayari
-  ///    FIILEN CALISMIYORDU (olu ayar). Tersi de bozuktu: isletme 3 gun
-  ///    secmisse kullanici 14 gunluk serit gorup 4. gune dokunuyor ve
-  ///    "Bu tarih için randevu açık değil" mesajiyla karsilasiyordu.
-  /// ⚠️ Ayar HENUZ GELMEDIYSE 14 varsayilir (ilk cizim); veri gelince
-  ///    `setState` seridi yeniden cizer.
-  Widget _gunSeridi() => SizedBox(
-    height: 78,
-    child: ListView.builder(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      itemCount: _gunSayisi,
-      itemBuilder: (_, i) {
-        final g = _bugun().add(Duration(days: i));
-        final secili = g == _gun;
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4),
-          child: GestureDetector(
-            onTap: () {
-              if (g == _gun) return;
-              setState(() => _gun = g);
-              unawaited(_yukle());
-            },
-            child: Container(
-              width: 54,
-              decoration: BoxDecoration(
-                color: secili
-                    ? Theme.of(context).colorScheme.primary
-                    : Theme.of(context).colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    // ⚠️ `weekday` 1..7 -> dizi 0..6.
-                    kGunKisa[g.weekday - 1],
-                    style: TextStyle(
-                      fontSize: 11,
-                      // ⚠️ TURU 115b — `white70` idi: secili cipin zemini
-                      //    `primary` ve 11 px yazida kontrast 4,20:1 olculdu
-                      //    (esik 4,5). `onPrimary` beyaz -> 7,9:1.
-                      color: secili
-                          ? Theme.of(context).colorScheme.onPrimary
-                          : Colors.grey,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '${g.day}',
-                    style: TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w700,
-                      color: secili ? Colors.white : null,
-                    ),
-                  ),
-                ],
+  /// ⚠️ Baslik YEMEK EKRANIYLA AYNI: 44 dp · ortada baslik · solda
+  ///	`arrowLeft` (kullanici emri: *"rezervasyon sayfasinin header'i
+  ///	aynen yemekteki gibi olsun"*).
+  /// ⚠️ Isletme adi baslikta DEGIL adim seridinin altinda: 44 dp'lik satira
+  ///	iki metin sigdirmak yazi olcegi buyudugunde TASAR (turu 80b'de bu
+  ///	ekranda olculmustu).
+  Widget _baslik() {
+    final rezervasyon = _veri?.rezervasyonMu ?? false;
+    return SizedBox(
+      height: 44,
+      child: Stack(
+        children: [
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 56),
+              child: Text(
+                rezervasyon ? 'Rezervasyon' : 'Randevu',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  height: 1.0,
+                  leadingDistribution: TextLeadingDistribution.even,
+                ),
               ),
             ),
           ),
-        );
-      },
-    ),
-  );
+          Align(
+            alignment: Alignment.centerLeft,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: _geri,
+              child: SizedBox(
+                width: 44,
+                height: 44,
+                child: Icon(
+                  _geriVar ? LucideIcons.arrowLeft : LucideIcons.x,
+                  size: 24,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-  Widget _govde() {
-    if (_yukleniyor) {
-      return const Center(child: CircularProgressIndicator());
+  /// Adim gostergesi: 1 Tarih — 2 Saat — 3 Detay.
+  ///
+  /// ⚠️ Gecilmis adimlar TIKLANABILIR (geri donus), gelecek adimlar DEGIL:
+  ///	saat secmeden detaya atlamak sunucuya gonderilecek zamani BOS
+  ///	birakirdi.
+  /// ⚠️ Baglayici cizgi `Expanded` ile esner; sabit genislik verilseydi dar
+  ///	ekranda RenderFlex tasmasi olurdu.
+  Widget _adimSeridi() {
+    final scheme = Theme.of(context).colorScheme;
+    Widget nokta(int i) {
+      final gecildi = i < _adim;
+      final aktif = i == _adim;
+      return GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: gecildi ? () => _adimaGit(i) : null,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 26,
+              height: 26,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: aktif || gecildi
+                    ? scheme.primary
+                    : scheme.onSurface.withValues(alpha: 0.10),
+              ),
+              child: gecildi
+                  ? Icon(LucideIcons.check, size: 15, color: scheme.onPrimary)
+                  : Text(
+                      '${i + 1}',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: aktif
+                            ? scheme.onPrimary
+                            : scheme.onSurface.withValues(alpha: 0.45),
+                      ),
+                    ),
+            ),
+            const SizedBox(height: 5),
+            Text(
+              _adimAdlari[i],
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: aktif ? FontWeight.w700 : FontWeight.w500,
+                color: aktif
+                    ? scheme.onSurface
+                    : scheme.onSurface.withValues(alpha: 0.5),
+              ),
+            ),
+          ],
+        ),
+      );
     }
+
+    Widget cizgi(int i) => Expanded(
+      child: Container(
+        height: 2,
+        margin: const EdgeInsets.only(bottom: 22),
+        color: i < _adim
+            ? scheme.primary
+            : scheme.onSurface.withValues(alpha: 0.10),
+      ),
+    );
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(28, 4, 28, 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [nokta(0), cizgi(0), nokta(1), cizgi(1), nokta(2)],
+      ),
+    );
+  }
+
+  Widget _adimGovdesi() {
     if (_hata != null) {
       return Center(
         child: Padding(
@@ -322,41 +369,158 @@ class _RandevuAlEkraniState extends ConsumerState<RandevuAlEkrani> {
         ),
       );
     }
+    return switch (_adim) {
+      0 => _tarihAdimi(),
+      1 => _saatAdimi(),
+      _ => _detayAdimi(),
+    };
+  }
+
+  // ─────────────────────────── ADIM 1: TARIH ───────────────────────────
+
+  /// ⚠️⚠️ Gunler **IZGARA** (eski yatay serit degil): serit ayni anda 4-5 gun
+  ///	gosteriyordu ve 30 gun ileriye acik bir isletmede kullanici
+  ///	kaydirmadan hangi gunlerin oldugunu goremiyordu. Izgarada 4 sutun ile
+  ///	iki haftanin tamami tek bakista gorunur.
+  /// ⚠️ Hucre yuksekligi `mainAxisExtent` ile ICERIKTEN turetilir; sabit
+  ///	`childAspectRatio` yazi olcegi buyudugunde TASARDI (turu 121 dersi).
+  Widget _tarihAdimi() {
+    final scheme = Theme.of(context).colorScheme;
+    final olcek = MediaQuery.textScalerOf(context).scale(1.0);
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
+      children: [
+        Text(
+          'Hangi gün?',
+          style: TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w800,
+            color: scheme.onSurface,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          widget.isletmeAd,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: 13,
+            color: scheme.onSurface.withValues(alpha: 0.6),
+          ),
+        ),
+        const SizedBox(height: 14),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: _gunSayisi,
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 4,
+            mainAxisSpacing: 10,
+            crossAxisSpacing: 10,
+            mainAxisExtent: 74 * olcek,
+          ),
+          itemBuilder: (_, i) {
+            final g = _bugun().add(Duration(days: i));
+            final secili = g == _gun;
+            return GestureDetector(
+              onTap: () {
+                if (g != _gun) {
+                  setState(() => _gun = g);
+                  unawaited(_yukle());
+                }
+                _adimaGit(1);
+              },
+              child: Container(
+                decoration: BoxDecoration(
+                  color: secili
+                      ? scheme.primary
+                      : scheme.onSurface.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      // ⚠️ `weekday` 1..7 -> dizi 0..6.
+                      kGunKisa[g.weekday - 1],
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        // ⚠️ TURU 115b — `primary` uzerinde gri 4,20:1 ile
+                        //    esigin ALTINDA kaliyordu; `onPrimary` 7,9:1.
+                        color: secili
+                            ? scheme.onPrimary
+                            : scheme.onSurface.withValues(alpha: 0.55),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${g.day}',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        height: 1.1,
+                        color: secili ? scheme.onPrimary : scheme.onSurface,
+                      ),
+                    ),
+                    Text(
+                      kAyAdlari[g.month - 1].substring(0, 3),
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: secili
+                            ? scheme.onPrimary.withValues(alpha: 0.85)
+                            : scheme.onSurface.withValues(alpha: 0.5),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  // ─────────────────────────── ADIM 2: SAAT ────────────────────────────
+
+  Widget _saatAdimi() {
+    final scheme = Theme.of(context).colorScheme;
+    if (_yukleniyor) {
+      return const Center(child: CircularProgressIndicator());
+    }
     final v = _veri;
     if (v == null || !v.acik) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(30),
-          child: Text(
-            'Bu işletme şu anda randevu almıyor.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey),
-          ),
-        ),
-      );
+      return _bosDurum('Bu işletme şu anda randevu almıyor.');
     }
     if (v.slotlar.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(30),
-          child: Text(
-            v.mesaj.isNotEmpty
-                ? v.mesaj
-                : 'Bu gün için uygun saat yok.\nBaşka bir gün seç.',
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: Colors.grey),
-          ),
-        ),
+      return _bosDurum(
+        v.mesaj.isNotEmpty
+            ? v.mesaj
+            : 'Bu gün için uygun saat yok.\nBaşka bir gün seç.',
+        eylem: 'Başka gün seç',
       );
     }
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
       children: [
-        const Text(
+        Text(
           'Saat seç',
-          style: TextStyle(fontWeight: FontWeight.w700),
+          style: TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w800,
+            color: scheme.onSurface,
+          ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 4),
+        Text(
+          _gunMetni(_gun),
+          style: TextStyle(
+            fontSize: 13,
+            color: scheme.onSurface.withValues(alpha: 0.6),
+          ),
+        ),
+        const SizedBox(height: 14),
         Wrap(
           spacing: 8,
           runSpacing: 8,
@@ -364,21 +528,127 @@ class _RandevuAlEkraniState extends ConsumerState<RandevuAlEkrani> {
             for (final s in v.slotlar)
               // ⚠️ DOLU slot CIZILIR ama PASIF: gizlemek kullaniciya "bu saat
               //    hic yok" dedirtirdi; pasif gostermek "dolmuş" bilgisini verir.
-              ChoiceChip(
-                label: Text(s.saat),
-                selected: _secili?.zaman == s.zaman,
-                onSelected: s.musait
-                    ? (_) => setState(() => _secili = s)
-                    : null,
-              ),
+              _saatCipi(s, scheme),
           ],
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 14),
+        Row(
+          children: [
+            Icon(
+              LucideIcons.info,
+              size: 14,
+              color: scheme.onSurface.withValues(alpha: 0.45),
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                'Soluk saatler dolu.',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  color: scheme.onSurface.withValues(alpha: 0.45),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _saatCipi(Slot s, ColorScheme scheme) {
+    final secili = _secili?.zaman == s.zaman;
+    return GestureDetector(
+      onTap: s.musait
+          ? () {
+              setState(() => _secili = s);
+              _adimaGit(2);
+            }
+          : null,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 11),
+        decoration: BoxDecoration(
+          color: secili
+              ? scheme.primary
+              : scheme.onSurface.withValues(alpha: s.musait ? 0.06 : 0.03),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Text(
+          s.saat,
+          style: TextStyle(
+            fontSize: 15.5,
+            fontWeight: FontWeight.w700,
+            color: secili
+                ? scheme.onPrimary
+                : scheme.onSurface.withValues(alpha: s.musait ? 0.9 : 0.28),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ─────────────────────────── ADIM 3: DETAY ───────────────────────────
+
+  Widget _detayAdimi() {
+    final scheme = Theme.of(context).colorScheme;
+    final v = _veri;
+    final s = _secili;
+    if (v == null || s == null) return _bosDurum('Önce bir saat seç.');
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
+      children: [
+        // ── SECIM OZETI ──────────────────────────────────────────────
+        // ⚠️ Kullanici son adimda NEYI onayladigini gormeli; ozet olmadan
+        //    "hangi saati sectim" diye geri donmek gerekirdi.
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: scheme.primary.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Row(
+            children: [
+              Icon(LucideIcons.calendarCheck, size: 22, color: scheme.primary),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${_gunMetni(_gun)} · ${s.saat}',
+                      style: const TextStyle(
+                        fontSize: 15.5,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      widget.isletmeAd,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: scheme.onSurface.withValues(alpha: 0.6),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              TextButton(
+                onPressed: () => _adimaGit(1),
+                child: const Text('Değiştir'),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 18),
         // ⚠️ REZERVASYON -> kisi sayisi · RANDEVU -> hizmet. Ikisi AYNI ANDA
         //    gosterilmez; sunucudan gelen `tur` karar verir.
         if (v.rezervasyonMu) ...[
-          const Text('Kaç kişi?', style: TextStyle(fontWeight: FontWeight.w700)),
-          const SizedBox(height: 8),
+          const Text(
+            'Kaç kişi?',
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 10),
           Row(
             children: [
               IconButton.filledTonal(
@@ -386,12 +656,12 @@ class _RandevuAlEkraniState extends ConsumerState<RandevuAlEkrani> {
                 icon: const Icon(LucideIcons.minus, size: 18),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+                padding: const EdgeInsets.symmetric(horizontal: 18),
                 child: Text(
                   '$_kisi',
                   style: const TextStyle(
-                    fontSize: 19,
-                    fontWeight: FontWeight.w700,
+                    fontSize: 21,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
               ),
@@ -423,13 +693,109 @@ class _RandevuAlEkraniState extends ConsumerState<RandevuAlEkrani> {
             border: OutlineInputBorder(),
           ),
         ),
-        const SizedBox(height: 6),
-        const Text(
+        const SizedBox(height: 4),
+        Text(
           'Talebin işletmeye iletilir. Onaylandığında bildirim alırsın.',
-          style: TextStyle(fontSize: 12, color: Colors.grey),
+          style: TextStyle(
+            fontSize: 12.5,
+            color: scheme.onSurface.withValues(alpha: 0.55),
+          ),
         ),
       ],
     );
   }
+
+  // ────────────────────────────── ORTAK ────────────────────────────────
+
+  Widget _bosDurum(String metin, {String? eylem}) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(30),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            metin,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.grey),
+          ),
+          if (eylem != null) ...[
+            const SizedBox(height: 10),
+            OutlinedButton(
+              onPressed: () => _adimaGit(0),
+              child: Text(eylem),
+            ),
+          ],
+        ],
+      ),
+    ),
+  );
+
+  /// ⚠️ Alt dugme YALNIZ detay adiminda cizilir: tarih ve saat adimlarinda
+  ///	dokunusun kendisi zaten ilerletir, ikinci bir "Ileri" dugmesi
+  ///	kullaniciyi "hangisine basmaliyim" ikilemine sokardi.
+  Widget _altBar() {
+    if (_adim != 2 || _secili == null) return const SizedBox.shrink();
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
+        child: SizedBox(
+          width: double.infinity,
+          child: FilledButton.icon(
+            style: FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 15),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+            onPressed: _gonderiliyor ? null : _gonder,
+            icon: _gonderiliyor
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(LucideIcons.check, size: 18),
+            label: Text(
+              _gonderiliyor ? 'Gönderiliyor...' : 'Talebi gönder',
+              style: const TextStyle(
+                fontSize: 15.5,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _gunMetni(DateTime g) =>
+      '${g.day} ${kAyAdlari[g.month - 1]} ${kGunUzun[g.weekday - 1]}';
 }
 
+/// ⚠️⚠️ TURU 178 — **POPUP ACICI** (kullanici emri: *"tam sayfa olmasin,
+///	popup tarzi acilsin"*).
+///
+/// ⚠️ `isScrollControlled: true` ZORUNLU: varsayilan tavan ekranin 9/16'si
+///	ve tarih izgarasi orada KIRPILIRDI (turu 90b/115c dersi).
+/// ⚠️ `useSafeArea: true`: centik/jest cubugu alanina tasmasin.
+/// ⚠️ Yukseklik `heightFactor` ile SABIT: icerige gore degisseydi adim
+///	degistikce pencere ZIPLARDI.
+Future<bool?> randevuAlAc(
+  BuildContext context, {
+  required String isletmeId,
+  required String isletmeAd,
+}) => showModalBottomSheet<bool>(
+  context: context,
+  isScrollControlled: true,
+  useSafeArea: true,
+  showDragHandle: true,
+  backgroundColor: Theme.of(context).colorScheme.surface,
+  shape: const RoundedRectangleBorder(
+    borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+  ),
+  builder: (_) => FractionallySizedBox(
+    heightFactor: 0.9,
+    child: RandevuAlEkrani(isletmeId: isletmeId, isletmeAd: isletmeAd),
+  ),
+);

@@ -247,6 +247,17 @@ flutter:
     - assets/marka/mcdonalds.jpg
     - assets/marka/burgerking.png
     - assets/marka/dominos.png
+    # ⚠️ TURU 178 — McDonald's KAPAK fotografi (kullanici verdi). Ham dosya
+    #    3,0 MB PNG idi; `tool/marka_gorsel.dart` ile 1200x800 JPEG (368 KB)
+    #    olarak uretildi — varliklar pakete SIKISTIRILMADAN girer (turu 116b).
+    - assets/marka/mcdonalds_kapak.jpg
+    # ⚠️ TURU 178 — menu kalemi gorselleri GERI GELDI (kullanici emri:
+    #    *"menulerde RESIM ALANLARI olsun"*). Turu 143'te "resimleri
+    #    kaldir" denip cikarilmislardi; karar TERSINE dondu.
+    - assets/marka/menu_bigmac.png
+    - assets/marka/menu_cheeseburger.png
+    - assets/marka/menu_patates.png
+    - assets/marka/menu_tavuk.png
     # TURU 143 — dort McDonald's menu fotografi (menu_*.png, ~170 KB) artik
     # KODDA HICBIR YERDEN OKUNMUYOR (kullanici: "menulerde resimleri kaldir")
     # ve pakete girmemesi icin BURADAN CIKARILDI (turu 116b: olu varlik ham

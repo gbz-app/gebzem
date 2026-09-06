@@ -189,7 +189,7 @@ List<Gonderi> demoGonderiler() => [
     yorum: 6,
     goruntulenme: 610,
     saatOnce: 11,
-    yazar: 'Gebze Kebap Salonu',
+    yazar: "McDonald's",
     kullaniciAdi: 'gebzekebap',
   ),
   // 6) ANKET

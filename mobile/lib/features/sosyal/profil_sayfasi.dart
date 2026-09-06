@@ -154,6 +154,26 @@ extension ProfilSekmesiBilgi on ProfilSekmesi {
   };
 }
 
+/// ⚠️⚠️⚠️ TURU 178 — **PROFIL ZEMINI SIYAH** (kullanici emri:
+///	*"profilin arka plani siyah olsun"*). Deger yemek ekranindaki
+///	`kKategoriZemin` ile BIREBIR ayni; sabit kopyalandi cunku o
+///	dosyayi import etmek ters yonde bir bagimlilik olurdu.
+const Color kProfilZemin = Color(0xFF050308);
+
+/// ⚠️⚠️ Zemini boyamak TEK BASINA YETMEZ: kullanici ACIK temadaysa alt
+///	widget'lar (`ProfilBasligi`, gonderi kartlari, sekme icerikleri)
+///	siyah zemine KOYU yazi cizer. Bu yuzden agac koyu bir `Theme`
+///	ile sarilir.
+/// ⚠️ `ThemeData.dark()` uygulamanin **"dokunma dairesi YOK"** kararini
+///	(turu 7 kullanici emri) SIFIRLAR — uc alan ACIKCA geri konuyor
+///	(turu 140 dersi).
+final ThemeData kProfilTema = ThemeData.dark().copyWith(
+  scaffoldBackgroundColor: kProfilZemin,
+  splashFactory: NoSplash.splashFactory,
+  splashColor: Colors.transparent,
+  highlightColor: Colors.transparent,
+);
+
 class ProfilSayfasi extends ConsumerStatefulWidget {
   const ProfilSayfasi({
     super.key,
@@ -232,6 +252,19 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
   /// ⚠️ Sekme seridini secili sekmeye kaydirmak icin.
   final _seritCtrl = ScrollController();
   final _seciliSekmeAnahtar = GlobalKey();
+
+  // ⚠️⚠️ **STATE METOTLARI `Theme`I GORMEZ** (turu 135c/138 sinifi):
+  //	`build`in DONDURDUGU agaca konan `Theme`, State'in KENDI
+  //	`context`inin ALTINDA kalir; `Theme.of(context)` yalniz ATA
+  //	elemanlari gezdigi icin UYGULAMANIN temasini cozer. Bu
+  //	yuzden metotlar rengi buradan okur.
+  ColorScheme get _ks => kProfilTema.colorScheme;
+
+  /// Sayfanin uc dali da (yukleniyor · hata · icerik) bundan gecer.
+  Widget _koyuSar(Widget c) => AnnotatedRegion<SystemUiOverlayStyle>(
+        value: SystemUiOverlayStyle.light,
+        child: Theme(data: kProfilTema, child: c),
+      );
 
   @override
   void initState() {
@@ -456,14 +489,14 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
     // ⚠️ `AppBar()` KORUNDU — ilk yuklemede bile geri dugmesi kaybolmasin.
     // ⚠️ YAPMA: kosulu tekrar ciplak `_yukleniyor`a dondurme.
     if (_yukleniyor && _p == null) {
-      return Scaffold(
+      return _koyuSar(Scaffold(
         appBar: AppBar(),
         body: const Center(child: CircularProgressIndicator()),
-      );
+      ));
     }
     final p = _p;
     if (p == null) {
-      return Scaffold(
+      return _koyuSar(Scaffold(
         appBar: AppBar(),
         body: Center(
           child: Column(
@@ -478,10 +511,10 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
             ],
           ),
         ),
-      );
+      ));
     }
 
-    return Scaffold(
+    return _koyuSar(Scaffold(
       // ⚠️⚠️⚠️ TURU 108 — **SEFFAF HEADER** (kullanici emri).
       //
       // ⚠️ `extendBodyBehindAppBar` TEK BASINA YETMEZ: Scaffold o modda
@@ -496,8 +529,28 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
         elevation: 0,
         scrolledUnderElevation: 0,
         // ⚠️ Sekme modunda geri oku YOK: altinda bir yigin yok.
-        automaticallyImplyLeading: !widget.sekmeModu,
-        title: Text(p.username.isEmpty ? p.ad : '@${p.username}'),
+        // ⚠️⚠️ TURU 178 — **BASLIK KALDIRILDI** (kullanici: *"@gebze...
+        //	bu etiketi kaldir, gerek yok"*). Ad ZATEN kapagin
+        //	hemen altinda buyuk puntoyla yaziyor; ustte tekrari
+        //	ayni bilgiyi IKI KEZ gostermekti.
+        // ⚠️⚠️ **GERI OKU YEMEK EKRANIYLA AYNI**: `automaticallyImplyLeading`
+        //	Material'in kendi `BackButton`unu cizer ve o PLATFORMA
+        //	GORE degisir (Android ok / iOS chevron). Yemek ekraninda
+        //	ise 44 dp kutuda `LucideIcons.arrowLeft` var - kullanici
+        //	farki gordu (*"geri donme ikonu bunda yemektekigibi
+        //	degil"*). Artik ACIKCA ayni ikon veriliyor.
+        automaticallyImplyLeading: false,
+        leading: widget.sekmeModu
+            ? null
+            : GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => Navigator.of(context).maybePop(),
+                child: const SizedBox(
+                  width: 44,
+                  height: 44,
+                  child: Icon(LucideIcons.arrowLeft, size: 24),
+                ),
+              ),
         actions: [
           // ⚠️⚠️ HESABIM GIRISI — eski profil sekmesindeki 15 satirin (isletme
           //    hesabi · randevular · basvurular · bildirim · engellenenler ·
@@ -531,7 +584,7 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
                   width: 20,
                   height: 2,
                   decoration: BoxDecoration(
-                    color: IconTheme.of(context).color,
+                    color: Colors.white,
                     borderRadius: BorderRadius.circular(1),
                   ),
                 ),
@@ -540,7 +593,7 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
                   width: 12,
                   height: 2,
                   decoration: BoxDecoration(
-                    color: IconTheme.of(context).color,
+                    color: Colors.white,
                     borderRadius: BorderRadius.circular(1),
                   ),
                 ),
@@ -560,9 +613,21 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
       //	cizilir: `randevuAcik` SUNUCUDAN gelir. Kategoriden
       //	tahmin edilseydi ayari acmamis isletmede dugme cizilir
       //	ve kullanici 404 alirdi (turu 80 dersi).
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-      floatingActionButton: _menuRezervasyon(),
-      body: YenileSarmali(
+      // ⚠️⚠️⚠️ TURU 178 — **FAB DEGIL, SABIT KATMAN** (kullanici:
+      //	*"profile girdiginde menu ve rezervasyon ANIMASYONLA
+      //	geliyor, gelmesin, gereksiz"*).
+      //
+      //	`Scaffold.floatingActionButton` cocugunu HER ZAMAN bir
+      //	olcek gecisiyle gosterir ve `null`dan widget'a gecisi de
+      //	animasyon sayar. Isletme detayi AG ISTEGIYLE sonradan
+      //	geldigi icin cubuk her profil acilisinda "buyuyerek"
+      //	giriyordu.
+      // ⚠️ `FloatingActionButtonAnimator.noAnimation` YETMEZDI: o yalniz
+      //	KONUM animatoru; null->widget gecisi yine olcekten gecer.
+      //	Yapisal cozum FAB'i HIC kullanmamak.
+      body: Stack(
+        children: [
+          YenileSarmali(
         onRefresh: _yukle,
         child: ListView(
           // ⚠️ TURU 82b — `AlwaysScrollableScrollPhysics` ZORUNLU: icerigi
@@ -742,8 +807,19 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
             ],
           ],
         ),
+          ),
+          // ⚠️ `Positioned` yalniz ALTTA yer kaplar; listenin geri kalani
+          //    normal kaydirilir. `IgnorePointer` YOK - cubuk tiklanabilir.
+          if (_menuRezervasyon() != null)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: MediaQuery.paddingOf(context).bottom + 10,
+              child: Center(child: _menuRezervasyon()!),
+            ),
+        ],
       ),
-    );
+    ));
   }
 
   /// Isletme profiliyse bilgi seridi; degilse HIC yer kaplamaz.
@@ -768,7 +844,7 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
     if (yas == null && takim.isEmpty && p.ilgiAlanlari.isEmpty) {
       return const SizedBox.shrink();
     }
-    final scheme = Theme.of(context).colorScheme;
+    final scheme = _ks;
     Widget etiket(String metin, IconData ikon, {bool vurgulu = false}) =>
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
@@ -901,12 +977,14 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
 
     final takipli = p.takipEdiyorum;
     final bekliyor = p.istekBekliyor;
-    // ⚠️ TURU 176 — yan bosluk 16 -> 12: iki dugme de GENISLER (kullanici:
-    //    *"takip ve mesaj butonlarinin genisligini"*).
-    // ⚠️ Ikisi de `Expanded` oldugu icin **ESITLIK KORUNUR**; degisen
-    //    yalniz satirin dis payi.
+    // ⚠️⚠️ TURU 178 — yan bosluk **12 -> 40: dugmeler DARALDI** (kullanici:
+    //	*"takip et mesaj gonder butonlarini DARALT dedim"*).
+    //	Turu 176'da "genisligini" ifadesini GENISLET diye
+    //	okumustum - yanlis yorumdu, duzeltildi.
+    // ⚠️ Ikisi de `Expanded` oldugu icin ESITLIK KORUNUR; degisen yalniz
+    //    satirin dis payi.
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 40),
       child: Row(
         children: [
           Expanded(
@@ -1075,7 +1153,7 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
     final i = _isletme;
     if (i == null) return null;
     final rez = i.randevuAcik;
-    final scheme = Theme.of(context).colorScheme;
+    final scheme = _ks;
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Material(
@@ -1109,13 +1187,13 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
                     ? 'Rezervasyon'
                     : 'Randevu',
                 vurgulu: true,
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => RandevuAlEkrani(
-                      isletmeId: widget.userId,
-                      isletmeAd: _p?.ad ?? '',
-                    ),
-                  ),
+                // ⚠️ TURU 178 — POPUP (kullanici: *"tam sayfa olmasin,
+                //    popup tarzi acilsin"*). Ekran artik bir sheet icinde
+                //    yasiyor; `randevuAlAc` acmanin TEK kapisi.
+                onTap: () => randevuAlAc(
+                  context,
+                  isletmeId: widget.userId,
+                  isletmeAd: _p?.ad ?? '',
                 ),
               ),
           ],
@@ -1130,7 +1208,7 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
     required VoidCallback onTap,
     bool vurgulu = false,
   }) {
-    final scheme = Theme.of(context).colorScheme;
+    final scheme = _ks;
     final on = vurgulu ? scheme.onPrimary : scheme.onSurface;
     return InkWell(
       onTap: onTap,
@@ -1169,7 +1247,7 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
   ///	Once migration + `PUT /users/me/isletme` alani gerekiyor.
   Widget _genelSayfasi() {
     final i = _isletme;
-    final scheme = Theme.of(context).colorScheme;
+    final scheme = _ks;
     if (i == null) {
       return Padding(
         padding: const EdgeInsets.fromLTRB(16, 28, 16, 16),
@@ -1287,7 +1365,7 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
 
   Widget _genelSatir(IconData ikon, String etiket, String deger,
       {VoidCallback? onTap}) {
-    final scheme = Theme.of(context).colorScheme;
+    final scheme = _ks;
     return InkWell(
       onTap: onTap,
       child: Padding(
@@ -1521,7 +1599,7 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
   }
 
   Widget _sekmeSeridi() {
-    final scheme = Theme.of(context).colorScheme;
+    final scheme = _ks;
     final l = _sekmeler;
     // ⚠️⚠️ TURU 115c — YUKSEKLIK **OLCEKTEN TURETILIR**, sabit 46 DEGIL.
     //	Olculdu: icerik = max(ikon 17, etiket) + 6 + 2,5 ->
@@ -1552,7 +1630,10 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
           child: ListView.builder(
             controller: _seritCtrl,
             scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 10),
+            // ⚠️ TURU 178 — serit dolgusu 10 -> 6 ve oge dolgusu 10 -> 18:
+            //    sekmeler GENISLEDI (kullanici: *"genel fotograf vs
+            //    bunlari genislet, cok dar olmus"*).
+            padding: const EdgeInsets.symmetric(horizontal: 6),
             itemCount: l.length,
             itemBuilder: (_, i) {
               final x = l[i];
@@ -1566,7 +1647,7 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
                   onTap: () => _sekmeyeGec(x),
                   child: Container(
                     key: secili ? _seciliSekmeAnahtar : null,
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    padding: const EdgeInsets.symmetric(horizontal: 18),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -1934,13 +2015,11 @@ class _IsletmeSeridiState extends ConsumerState<IsletmeSeridi> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: FilledButton.icon(
-                        onPressed: () => Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => RandevuAlEkrani(
-                              isletmeId: widget.userId,
-                              isletmeAd: widget.ad,
-                            ),
-                          ),
+                        // ⚠️ TURU 178 — popup (bkz. `randevuAlAc`).
+                        onPressed: () => randevuAlAc(
+                          context,
+                          isletmeId: widget.userId,
+                          isletmeAd: widget.ad,
                         ),
                         icon: const Icon(LucideIcons.calendarPlus, size: 17),
                         label: FittedBox(
