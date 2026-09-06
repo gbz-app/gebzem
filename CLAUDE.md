@@ -41,6 +41,59 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
       kaybettiriyorsun"*. **Üçüncüsü olmayacak.**
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- ⚠️⚠️⚠️ **TURU 180d — EN AGIR HATAM: GOOGLE SANS'I KALDIRDIM.**
+  Kullanici turu 179'da *"yazilarda hic bir sekilde OZEL BIRSEY
+  kullanilmasin, DEFAULT olarak yazi tipleri vs olsun"* dedi; ben bunu
+  "ozel FONTU birak" diye okuyup `theme.dart` ve `pubspec.yaml`'dan
+  **Google Sans'i CIKARDIM**. Kullanicinin tepkisi: *"herseyin canina
+  okumussun bu kadar zaman"* -> *"ben sana TUM UYGULAMANIN yazi tipi
+  GOOGLE SANS dedim degil mi? OZEL KARAKTER BOSLUK vs kullanma dedim?"*
+  Yani istek **`letterSpacing`** ile ilgiliydi, FONTLA DEGIL.
+  ⚠️ **GOOGLE SANS UYGULAMANIN YAZI TIPIDIR — BIR DAHA KALDIRMA.**
+  `theme.dart`taki `fontFamily: 'Google Sans'` ve `pubspec.yaml`daki
+  4 ttf girdisi bu sebeple serhli. "Varsayilan yazi tipi" istegi
+  **DAIMA harf araligi/ozel bicimlendirme** anlamina gelir.
+  📌 IPA 28,9 -> ~31,9 MB'a geri cikar (fontlar 7,6 MB) — BU NORMALDIR.
+
+- ⚠️⚠️⚠️ **TURU 180e — "BOS DURUM ORTADA OLSUN" UC KEZ COZULEMEDI; KOK
+  NEDEN `ListView` ICINDEKI `Center` IDI.**
+  Sekme icerigi HER durumda bir `ListView`in cocugu olarak veriliyordu;
+  orada **dikey kisit SINIRSIZDIR** ve `Center` sinirsiz kisitta
+  ORTALAYAMAZ — cocugunun kendi boyuna buzulur. Bu yuzden blok sayfanin
+  TEPESINDE kaliyor, **sayfa yuksekligini ya da dolguyu degistirmek
+  HICBIR SEY YAPMIYORDU** (emulatorde uc kez olculdu: blok hep ayni yerde).
+  **FIX:** bos dalda icerik `ListView`e SARILMADAN dogrudan donuluyor ->
+  `PageView` TIGHT kisit verir ve `Center` gercekten ortalar.
+  ⚠️ YAPMA: bos dali tekrar `ListView`in icine koyma.
+  ⚠️ **DERS: "ortalama calismiyor" sikayetinde ONCE KISITA bak** — dolgu/
+     yukseklik oynamak sinirsiz kisitta olcum degil TAHMINDIR.
+
+- ⚠️⚠️ **TURU 180e — SERIT ILE SAYFA AYRISIYORDU (sahada goruldu).**
+  `PageController(initialPage: ProfilSekmesi.values.indexOf(_sekme))`
+  yaziyordu ama `_sekmeler` **`genel` ve `video`yu ELIYOR**: `tumu`
+  degerler listesinde 1., cizilen seritte 0. sirada. Sonuc: serit
+  "Gönderiler"i secili gosterirken sayfa **FOTOGRAF** sekmesini
+  ("Henüz fotoğraf yok") ciziyordu.
+  ⚠️ `clamp(0, 9)` KORUMA DEGILDI: sekme sayisi 9'un altina dustugunde
+     var olmayan bir sayfa istenirdi.
+  **FIX:** `initialPage` kaldirildi; `_sayfaSenkron` ilk karede dogru
+  sayfaya oturur ve **kaydirma surerken DOKUNMAZ** (jesti kesmesin).
+  ⚠️ **DERS: filtrelenmis bir listede indeks, KAYNAK enum'dan degil
+     CIZILEN LISTEDEN hesaplanir.**
+
+- 📏 **TURU 180e — OLCULEN SAYILAR (bir daha tahmin etme):** isletme
+  profilinde sekme seridinin ALTINDA **77 dp** kaliyor (1080x2400,
+  dpr 3). Yuzen Menü/Rezervasyon hapi ~68 dp yer kapliyor ve
+  `_sayfaBoyu` bunu **YAZI OLCEGINDEN turetip** dusuyor (sabit dp
+  DEGIL). Bos durum blogu `FittedBox(scaleDown)` icinde: dar kutuda
+  KIRPILMAZ, kuculur — dolayisiyla tasma YAPISAL OLARAK imkansiz.
+
+- 🗓️ **TURU 180e — REZERVASYON ADIM CUBUKLARI** `end`+`bottom: 22`
+  yerine `start`+`top: 11.5` ile hizali. Eski hizalama satirin
+  yuksekligine (yani YAZI OLCEGINE) bagliydi ve cubuklar dairelerin
+  ALTINDA kaliyordu (kullanici: *"bak CUBUKLAR NEREDE"*).
+  ⚠️ Daire 26 dp SABIT oldugu icin `(26-3)/2 = 11,5` olcekten BAGIMSIZ.
+
 - **KALDIGIMIZ YER (6 Eyl 17:06): TURU 180 YAYINLANDI — SADECE iOS.**
   ios **34037583324** (**9fc45fd**), R2 ipa=**28899538** (md5 5548ad9d),
   index=7967 (5ce56d3a) surum.json=45 (f9f44567), purge OK, **CDN BIREBIR**,
