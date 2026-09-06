@@ -126,11 +126,17 @@ class ProfilBasligi extends StatelessWidget {
             //	duzeltti. Istenen sey KOSE degil **ALT KENARIN
             //	KENDISI**: ortasi asagi sarkan bir yay.
             //	Bkz. `_AltKavisKirpici`.
+            // ⚠️⚠️ **KAVIS PAYI `kh`ye EKLENIR** (`kh + kKapakKavis`):
+            //	eklenmezse sarkan koseler `Positioned`in ALT KENARINDA
+            //	KIRPILIR ve sekil sirdan bir dikdortgene doner —
+            //	degisiklik EKRANDA HIC GORUNMEZ (turu 180'de birebir
+            //	bu yasandi). Alt kenarin ORTASI yine tam `kh`de kalir,
+            //	yani avatarin konumu (`kh - _tasma`) DEGISMEZ.
             Positioned(
               top: 0,
               left: 0,
               right: 0,
-              height: kh,
+              height: kh + kKapakKavis,
               child: ClipPath(
                 clipper: const _AltKavisKirpici(kKapakKavis),
                 child: _kapak(),
@@ -308,8 +314,14 @@ class ProfilAdSatiri extends StatelessWidget {
 ///	  |        |          |          |
 ///	  \________/          _/          \_
 ///
-/// Sonuc: alt kenar DUZ kalir, koseler ASAGI DOGRU acilan bir yayla
-/// oyulur.
+/// Sonuc: alt kenar ORTADA DUZ kalir, iki alt kose duz hattin ALTINA
+/// SARKAR ("kulak"). Alttaki koyu sayfa boylece NORMAL yuvarlak ust
+/// koselerle basliyormus gibi gorunur (Spotify/Airbnb deseni).
+///
+/// ⚠️⚠️ TURU 180f — kullanici bunu EMULATORDE UC SECENEK arasindan
+///	SECTI (A normal · B ters/oyuk · C ayna/sarkan). Onceki iki hal
+///	(kose noktasinda merkezli oyuk, ve alt kenarin tamami sarkan
+///	yay) ACIKCA REDDEDILDI. **Geri donme.**
 ///
 /// ⚠️⚠️ **`clockwise: false` KRITIK**: `true` birakilirsa merkez yine ICE
 ///	duser ve sonuc SIRADAN bir yuvarlak kose olur — degisiklik
@@ -325,20 +337,26 @@ class _AltKavisKirpici extends CustomClipper<Path> {
   Path getClip(Size size) {
     final w = size.width;
     final h = size.height;
-    final r = yaricap.clamp(0.0, h / 2).toDouble();
+    // ⚠️ Yaricap hem yukseklik hem GENISLIGIN YARISI ile sinirlanir: cok
+    //    dar bir kutuda iki yay ust uste biner ve `Path` kendini KESERDI.
+    final r = yaricap.clamp(0.0, math.min(h, w / 2)).toDouble();
+    // Duz alt kenarin y'si; koseler bunun `r` kadar ALTINA sarkar.
+    final taban = h - r;
     return Path()
       ..moveTo(0, 0)
       ..lineTo(w, 0)
-      ..lineTo(w, h - r)
-      // ⚠️ Merkez (w, h) — seklin DISI: kose ICE dogru oyulur.
+      // ⚠️ Yan kenar DUZ HATTIN ALTINA iner: kose "kulak" gibi sarkar.
+      ..lineTo(w, h)
+      // ⚠️ Merkez (w - r, h) — duz alt hattin UZERINDE, seklin DISINDA.
       ..arcToPoint(
-        Offset(w - r, h),
+        Offset(w - r, taban),
         radius: Radius.circular(r),
         clockwise: false,
       )
-      ..lineTo(r, h)
+      // ⚠️ Alt kenar ORTADA DUZ (kullanici: "header normal duz olacak").
+      ..lineTo(r, taban)
       ..arcToPoint(
-        Offset(0, h - r),
+        Offset(0, h),
         radius: Radius.circular(r),
         clockwise: false,
       )
