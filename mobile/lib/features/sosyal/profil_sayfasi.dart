@@ -23,7 +23,6 @@ import '../randevu/randevu_al.dart';
 import '../isletme/urun_ekranlari.dart';
 import '../medya/medya_gorsel.dart';
 import 'gonderi_karti.dart' show sayiBicimle;
-import '../medya/tam_ekran_gorsel.dart';
 import 'gonderi_detay.dart';
 import 'profil_basligi.dart';
 import '../home/home_screen.dart' show HesabimEkrani, myProfileProvider;
@@ -1864,7 +1863,16 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
   ///	ekranin %62'si) TAMAMINI kaplar ve icerik DIKEYDE ORTALANIR.
   ///	Onceden `vertical: 60` dolgusu vardi ve metin blogun
   ///	TEPESINDE duruyordu — kullanicinin gordugu buydu.
-  Widget _bosDurum(ProfilSekmesi x, Color soluk) => Center(
+  /// ⚠️⚠️ TURU 180e — **YUZEN GECIS BLOGU ORTMESIN** (emulatorde goruldu):
+  ///	isletme profilinde alttaki Menü/Rezervasyon hapi `Positioned`
+  ///	ile listenin USTUNDE cizilir ve dikeyde ortalanan metni
+  ///	KAPATIYORDU. Blok, hapin kapladigi kadar (52 + 10 + 12 pay)
+  ///	YUKARI itilir; hap yoksa dolgu SIFIR olur.
+  Widget _bosDurum(ProfilSekmesi x, Color soluk) => Padding(
+        padding: EdgeInsets.only(
+          bottom: _menuRezervasyon() == null ? 0 : 74,
+        ),
+        child: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1894,6 +1902,7 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
               ),
             ),
           ],
+        ),
         ),
       );
 

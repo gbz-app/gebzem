@@ -332,12 +332,25 @@ class _RandevuAlEkraniState extends ConsumerState<RandevuAlEkrani> {
       );
     }
 
-    // ⚠️ TURU 180 — cizgi 2 dp -> **3 dp yuvarlak uc** (kullanici:
-    //    *"rezervasyon arayuzunu daha modern hale getir"*).
+    // ⚠️⚠️ TURU 180d — **CUBUKLAR DAIRE MERKEZINE HIZALI** (kullanici:
+    //	*"rezervasyon sayfasini biraz daha duzelt dedim, bak
+    //	CUBUKLAR NEREDE"*).
+    //
+    //	Onceden hizalama `crossAxisAlignment: end` + `bottom: 22`
+    //	ile yapiliyordu; ama satirin yuksekligi ETIKET metninden
+    //	(dolayisiyla YAZI OLCEGINDEN) geliyor ve alttan sabit bir
+    //	pay dairenin merkezini TUTTURAMIYORDU — cubuklar dairelerin
+    //	ALTINDA kaliyordu.
+    //
+    // ⚠️ Yeni hizalama USTTEN: daire 26 dp, cubuk 3 dp -> ust pay
+    //	(26 - 3) / 2 = 11,5. Bu deger yazi olceginden BAGIMSIZ,
+    //	cunku daire sabit 26 dp.
+    // ⚠️ Satir `crossAxisAlignment: start` olmali (asagida) — `end` ile
+    //	ust pay hicbir sey yapmazdi.
     Widget cizgi(int i) => Expanded(
       child: Container(
         height: 3,
-        margin: const EdgeInsets.only(bottom: 22, left: 6, right: 6),
+        margin: const EdgeInsets.only(top: 11.5, left: 6, right: 6),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(2),
           color: i < _adim
@@ -350,7 +363,9 @@ class _RandevuAlEkraniState extends ConsumerState<RandevuAlEkrani> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(28, 4, 28, 10),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
+        // ⚠️ TURU 180d — `end` -> `start`: cubuklar artik USTTEN hizali
+        //    (bkz. `cizgi` serhi).
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [nokta(0), cizgi(0), nokta(1), cizgi(1), nokta(2)],
       ),
     );
