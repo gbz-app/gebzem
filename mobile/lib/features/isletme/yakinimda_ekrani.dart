@@ -1394,31 +1394,31 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani>
     //    3 nokta nerede bitiriyor gorelim"* dedi: ikinci kalem IKI SATIR,
     //    ucuncusu kasitli olarak UZUN (ellipsis'i gostersin).
     'yemek': [
-      (ad: 'Big Mac', fiyat: '229 ₺'),
-      (ad: 'McChicken Menü', fiyat: '199 ₺'),
+      (ad: 'Big Mac', fiyat: '229 TL'),
+      (ad: 'McChicken Menü', fiyat: '199 TL'),
       (
         ad: 'Acılı Cheeseburger Menü Patates ve İçecek',
-        fiyat: '259 ₺'
+        fiyat: '259 TL'
       ),
-      (ad: 'Patates', fiyat: '79 ₺'),
+      (ad: 'Patates', fiyat: '79 TL'),
     ],
     'kafe': [
-      (ad: 'Filtre Kahve', fiyat: '95 ₺'),
-      (ad: 'Cheesecake', fiyat: '145 ₺'),
-      (ad: 'Sıcak Çikolata', fiyat: '110 ₺'),
+      (ad: 'Filtre Kahve', fiyat: '95 TL'),
+      (ad: 'Cheesecake', fiyat: '145 TL'),
+      (ad: 'Sıcak Çikolata', fiyat: '110 TL'),
     ],
     // ⚠️ Yakit kalemleri GORSELSIZ: pompa fotografi yok ve olsaydi da
     //    fiyattan dikkat calardi. Referans (Yandex/Google) da yalnizca
     //    ad + fiyat gosterir.
     'akaryakit': [
-      (ad: 'Benzin', fiyat: '44,15 ₺/lt'),
-      (ad: 'Motorin', fiyat: '45,80 ₺/lt'),
-      (ad: 'LPG', fiyat: '22,40 ₺/lt'),
+      (ad: 'Benzin', fiyat: '44,15 TL/lt'),
+      (ad: 'Motorin', fiyat: '45,80 TL/lt'),
+      (ad: 'LPG', fiyat: '22,40 TL/lt'),
     ],
     'otel': [
-      (ad: 'Tek Kişilik', fiyat: '1.250 ₺/gece'),
-      (ad: 'Çift Kişilik', fiyat: '1.850 ₺/gece'),
-      (ad: 'Aile Odası', fiyat: '2.400 ₺/gece'),
+      (ad: 'Tek Kişilik', fiyat: '1.250 TL/gece'),
+      (ad: 'Çift Kişilik', fiyat: '1.850 TL/gece'),
+      (ad: 'Aile Odası', fiyat: '2.400 TL/gece'),
     ],
     // ⚠️ HIZMET dali kullaniciya birakilmisti (*"hizmetleri sana
     //    birakiyorum, mantigi tam oturtursun"*): yakit/oda ile AYNI dil —
@@ -1429,9 +1429,9 @@ class _YakinimdaEkraniState extends ConsumerState<YakinimdaEkrani>
     //    Kayit SILINMEDI, adi degistirildi ki fiyat bicimi bir daha
     //    gerekirse ornek olarak dursun (`_menuluSerit` onu OKUMAZ).
     'hizmet_fiyatli_eski': [
-      (ad: 'Ev Temizliği', fiyat: '900 ₺'),
-      (ad: 'Nakliyat', fiyat: '2.500 ₺'),
-      (ad: 'Tesisat', fiyat: '650 ₺'),
+      (ad: 'Ev Temizliği', fiyat: '900 TL'),
+      (ad: 'Nakliyat', fiyat: '2.500 TL'),
+      (ad: 'Tesisat', fiyat: '650 TL'),
     ],
   };
 

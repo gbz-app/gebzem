@@ -67,6 +67,7 @@ const Map<String, String> kOrnekMenuGorsel = {
   'mcroyal': 'assets/marka/menu_bigmac.png',
 };
 
+// ignore: unused_element
 String? _ornekGorsel(String ad) {
   // ⚠️ Turkce kucultme ELLE: `toLowerCase()` 'I' harfini 'i' yapar ama
   //    'İ'yi BIRLESIK NOKTAYA cevirir ve eslesme kacar (turu 140 dersi).
@@ -85,10 +86,45 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
   //	kullanicinin gordugu kumenin TAMAMI (turu 141 gerekcesi).
   String _q = '';
 
+  // ⚠️⚠️ TURU 179 — **BOLUM SEKMELERI** (kullanici: *"ustte menu
+  //	cizgileri, aynen profildeki fotograf tarzi; burger vs
+  //	tikladigimda oraya girsin"*).
+  //
+  // ⚠️ Anahtarlar **HER `build`de YENIDEN URETILMEZ**: `GlobalKey` bir
+  //	KIMLIKTIR ve her cizimde yenisi uretilseydi
+  //	`ensureVisible` bir onceki karenin OLU anahtarina bakar,
+  //	dokunus HICBIR SEY YAPMAZDI.
+  final _kaydirma = ScrollController();
+  final Map<String, GlobalKey> _bolumAnahtar = {};
+  String _aktifBolum = '';
+
+  GlobalKey _anahtar(String bolum) =>
+      _bolumAnahtar.putIfAbsent(bolum, GlobalKey.new);
+
+  /// ⚠️ `alignment: 0` bolumu ekranin USTUNE getirir; varsayilan (0.5)
+  //	ortalar ve kullanici "tikladim, ustte degil" derdi.
+  Future<void> _bolumeGit(String bolum) async {
+    final k = _anahtar(bolum).currentContext;
+    if (k == null) return;
+    setState(() => _aktifBolum = bolum);
+    await Scrollable.ensureVisible(
+      k,
+      alignment: 0,
+      duration: const Duration(milliseconds: 320),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
   @override
   void initState() {
     super.initState();
     _yukle();
+  }
+
+  @override
+  void dispose() {
+    _kaydirma.dispose();
+    super.dispose();
   }
 
   Future<void> _yukle() async {
@@ -240,43 +276,60 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
                 ),
               ),
             )
-          : YenileSarmali(
-              onRefresh: _yukle,
-              child: ListView(
-                padding: const EdgeInsets.only(bottom: 90),
-                children: [
-                  _arama(),
-                  if (_bolumler.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 48),
-                      child: Center(
-                        child: Text(
-                          'Eşleşen bir şey yok.',
-                          style: TextStyle(color: Colors.grey),
-                        ),
-                      ),
+          // ⚠️⚠️ TURU 179 — arama ve bolum seridi **KAYDIRMA DISINDA**
+          //	(kullanici: *"asagi inerken arama butonu ustte
+          //	kalsin"*). Liste icinde birakilsaydi yukari kayip
+          //	kaybolurlardi.
+          // ⚠️ `SliverPersistentHeader` KULLANILMADI: `YenileSarmali`
+          //	(asagi-cek) bir `RefreshIndicator` ve onun cocugu
+          //	kaydirilabilir OLMAK ZORUNDA. Sabit basliklari
+          //	listenin DISINA almak hem daha basit hem de
+          //	asagi-cek jestini bozmuyor.
+          : Column(
+              children: [
+                _arama(),
+                _bolumSeridi(),
+                Expanded(
+                  child: YenileSarmali(
+                    onRefresh: _yukle,
+                    child: ListView(
+                      controller: _kaydirma,
+                      padding: const EdgeInsets.only(top: 4, bottom: 90),
+                      children: [
+                        if (_bolumler.isEmpty)
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 48),
+                            child: Center(
+                              child: Text(
+                                'Eşleşen bir şey yok.',
+                                style: TextStyle(color: Colors.grey),
+                              ),
+                            ),
+                          ),
+                        for (final b in _bolumler.entries) ...[
+                          Padding(
+                            key: _anahtar(b.key),
+                            padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+                            child: Text(
+                              b.key,
+                              // ⚠️ TURU 178 — punto 11 -> 15 ve BUYUK HARF
+                              //	YOK: `toUpperCase()` Dart'ta 'i' -> 'I'
+                              //	yapar; 'İçecek' -> 'IÇECEK' cikardi
+                              //	(turu 142 dersi).
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w800,
+                                color: _ks.onSurface.withValues(alpha: 0.75),
+                              ),
+                            ),
+                          ),
+                          for (final u in b.value) _satir(u),
+                        ],
+                      ],
                     ),
-                  for (final b in _bolumler.entries) ...[
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 18, 16, 8),
-                      child: Text(
-                        b.key,
-                        // ⚠️ TURU 178 — punto 11 -> 15 ve BUYUK HARF YOK
-                        //	(kullanici: *"yazi tipleri biraz daha buyuk
-                        //	olsun"*). `toUpperCase()` Dart'ta 'i' -> 'I'
-                        //	yapar; 'İçecek' -> 'IÇECEK' cikardi
-                        //	(turu 142 dersi).
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w800,
-                          color: _ks.onSurface.withValues(alpha: 0.75),
-                        ),
-                      ),
-                    ),
-                    for (final u in b.value) _satir(u),
-                  ],
-                ],
-              ),
+                  ),
+                ),
+              ],
             ),
     ));
   }
@@ -317,6 +370,63 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
         ),
       );
 
+  /// ⚠️⚠️ TURU 179 — **BOLUM SEKMELERI** (kullanici: *"ustte menu
+  //	cizgileri, aynen profildeki fotograf tarzi; burger vs
+  //	tikladigimda oraya girsin"*).
+  //
+  // ⚠️ Tek bolum varsa serit CIZILMEZ: tek sekmelik bir gezinme
+  //	cubugu hicbir sey secmez, yalniz yer kaplar.
+  // ⚠️ Serit ARAMA SONUCUNA gore daralir (`_bolumler` suzulmus kume):
+  //	aksi halde arama sonucunda gorunmeyen bir bolume
+  //	goturen olu bir sekme kalirdi.
+  Widget _bolumSeridi() {
+    final adlar = _bolumler.keys.toList();
+    if (adlar.length < 2) return const SizedBox.shrink();
+    return SizedBox(
+      height: 42,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: adlar.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        itemBuilder: (_, i) {
+          final ad = adlar[i];
+          // ⚠️ Ilk bolum, kullanici hicbir seye dokunmadiysa SECILI
+          //    gorunur: bos bir seritte hangi bolumde oldugu
+          //    anlasilmazdi.
+          final secili =
+              _aktifBolum.isEmpty ? i == 0 : _aktifBolum == ad;
+          return GestureDetector(
+            onTap: () => _bolumeGit(ad),
+            child: Container(
+              alignment: Alignment.center,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                color: secili
+                    ? _ks.primary
+                    : _ks.onSurface.withValues(alpha: 0.07),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                ad,
+                style: TextStyle(
+                  fontSize: 14,
+                  // ⚠️ Kalinlik SABIT: secimle degisseydi metnin
+                  //    genisligi degisir ve serit her dokunusta
+                  //    KAYARDI (turu 140 dersi).
+                  fontWeight: FontWeight.w700,
+                  color: secili
+                      ? _ks.onPrimary
+                      : _ks.onSurface.withValues(alpha: 0.75),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   /// ⚠️⚠️ TURU 178 — **MENU KALEMI YENIDEN KURULDU** (kullanici emri:
   //	*"menulerde resim alanlari olsun, aciklama kismi olsun, biraz
   //	daha yazi tipleri buyuk olsun"*).
@@ -332,7 +442,21 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
   Widget _satir(Urun u) {
     final scheme = _ks;
     final tukendi = u.durum == 'tukendi';
-    return InkWell(
+    // ⚠️⚠️ TURU 179 — **HER KALEM KENDI KARTINDA** (kullanici:
+    //	*"menulerinde ARKA PLAN RENGI olsun; cheeseburger'in
+    //	ismi, aciklamasi, fiyati, resim alani BIR ALANIN ICINDE
+    //	olsun"*). Onceden kalemler cizgisiz akiyordu ve nerede
+    //	bittigi belirsizdi.
+    // ⚠️ `Material` + `InkWell` sirasi: `InkWell`in dalgasi `Material`in
+    //	USTUNDE cizilir; ters kurulsaydi dalga kartin dis
+    //	kosesine TASARDI.
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 5, 16, 5),
+      child: Material(
+        color: scheme.onSurface.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(18),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
       onTap: widget.benimMi
           ? () async {
               final ok = await Navigator.of(context).push<bool>(
@@ -345,7 +469,7 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
             }
           : null,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+        padding: const EdgeInsets.all(12),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -414,15 +538,25 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
           ],
         ),
       ),
+        ),
+      ),
     );
   }
 
-  /// Gorsel sirasi: GERCEK medya -> ornek marka fotografi -> yer tutucu.
+  /// ⚠️⚠️ TURU 179 — **ORNEK MARKA FOTOGRAFI ARTIK CIZILMIYOR** (kullanici:
+  //	*"menulerde resim yerine BOS kalsin, resim KATI olsun
+  //	simdilik"*). Alan DURUYOR — gorsel yuklendiginde ayni
+  //	kutuya oturur ve kart yuksekligi DEGISMEZ.
+  //
+  // ⚠️ GERCEK medya HALA cizilir: isletme kendi fotografini yuklediyse
+  //	onu gizlemek bir ozelligi OLDURMEK olurdu. Kaldirilan yalniz
+  //	`assets/marka` ORNEK fotograflaridir.
+  // ⚠️ `_ornekGorsel` / `kOrnekMenuGorsel` SILINMEDI: karar tek satirla
+  //	geri alinabilsin (bu dosyada uye silmek komsu uyeyi goturdu).
   /// ⚠️ `cacheWidth` ZORUNLU: 92 dp'lik kutu icin ham cozunurlukte cozmek
   //	kare basina megabaytlarca gecici RAM demek (turu 91 dersi).
   Widget _kalemGorseli(Urun u, ColorScheme scheme) {
     const boy = 92.0;
-    final ornek = u.mediaIds.isEmpty ? _ornekGorsel(u.ad) : null;
     return ClipRRect(
       borderRadius: BorderRadius.circular(14),
       child: SizedBox(
@@ -434,26 +568,19 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
                 kucuk: true,
                 fit: BoxFit.cover,
               )
-            : ornek != null
-                ? Image.asset(
-                    ornek,
-                    fit: BoxFit.cover,
-                    cacheWidth: (boy *
-                            MediaQuery.devicePixelRatioOf(context))
-                        .round(),
-                    errorBuilder: (_, _, _) => _yerTutucu(scheme),
-                  )
-                : _yerTutucu(scheme),
+            : _yerTutucu(scheme),
       ),
     );
   }
 
+  /// ⚠️ Alfa 0.07 -> **0.11**: kart zemini de 0.06 ve ikisi ayni tonda
+  //	olsaydi resim alani kartin icinde GORUNMEZ olurdu.
   Widget _yerTutucu(ColorScheme scheme) => ColoredBox(
-        color: scheme.onSurface.withValues(alpha: 0.07),
+        color: scheme.onSurface.withValues(alpha: 0.11),
         child: Icon(
-          LucideIcons.utensilsCrossed,
+          LucideIcons.image,
           size: 26,
-          color: scheme.onSurface.withValues(alpha: 0.28),
+          color: scheme.onSurface.withValues(alpha: 0.3),
         ),
       );
 
@@ -1496,7 +1623,7 @@ class _UrunDuzenleEkraniState extends ConsumerState<UrunDuzenleEkrani> {
             controller: _fiyat,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             decoration: const InputDecoration(
-              labelText: 'Fiyat (₺)',
+              labelText: 'Fiyat (TL)',
               border: OutlineInputBorder(),
             ),
           ),

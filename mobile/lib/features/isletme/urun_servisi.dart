@@ -282,7 +282,12 @@ final aiDurumProvider = FutureProvider<AiDurum>((ref) async {
   }
 });
 
-/// Kurus -> "12,50 ₺" bicimi. **TEK KAYNAK.**
+/// Kurus -> "12,50 TL" bicimi. **TEK KAYNAK.**
+///
+/// ⚠️⚠️ TURU 179 — **"₺" DEGIL "TL"** (kullanici emri). Ayrica bazi
+///	Android yazi tiplerinde `₺` glifi EKSIK ve yerine TOFU (bos
+///	kare) cizilir; ilan tarafinda ayni karar turu 110'da ZATEN
+///	alinmisti, urun tarafi geride kalmisti.
 ///
 /// ⚠️ TURU 77b — AI menu onizlemesi bu bicimlendiriciyi KULLANMIYOR, kendi
 ///    `kurus ~/ 100` hesabini yapiyordu ve **KURUSU KIRPIYORDU** (12,50 TL
@@ -293,7 +298,7 @@ String kurusMetni(int kurus) {
   if (kurus <= 0) return '';
   final tl = kurus ~/ 100;
   final kr = kurus % 100;
-  return kr == 0 ? '$tl ₺' : '$tl,${kr.toString().padLeft(2, '0')} ₺';
+  return kr == 0 ? '$tl TL' : '$tl,${kr.toString().padLeft(2, '0')} TL';
 }
 
 /// ⚠️⚠️⚠️ TURU 89 — KATEGORIYE OZEL KATALOG MODULU.

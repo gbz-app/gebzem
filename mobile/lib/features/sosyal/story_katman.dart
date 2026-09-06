@@ -13,6 +13,12 @@ import 'package:flutter/material.dart';
 /// ⚠️ BOYUT mantiksal puntodur ve `olcek()` ile ekrana uyarlanir — referans
 ///    genislik 390 (iPhone 14). Boylece 360dp'de de 430dp'de de metin AYNI
 ///    ORANDA gorunur.
+// ⚠️⚠️ TURU 179 — **`letterSpacing` KALDIRILDI** (kullanici emri:
+//	*"yazilarda hicbir sekilde ozel bir sey kullanilmasin,
+//	varsayilan yazi tipleri olsun"*). Hikaye metin stilleri bu
+//	yasagin son kalintisiydi.
+// ⚠️ Auth ekranlarindaki (OTP / sifre) `letterSpacing` KALIR — orada
+//	haneler AYRI okunmali ve istisna CLAUDE.md'de BELGELI.
 class StoryKatman {
   StoryKatman({
     required this.metin,
@@ -110,7 +116,6 @@ TextStyle storyMetinStili(StoryKatman k, double olcek) {
         fontSize: boyut,
         color: renk,
         fontWeight: FontWeight.w900,
-        letterSpacing: -0.5,
         height: 1.1,
       );
     case 'ince':
@@ -118,7 +123,6 @@ TextStyle storyMetinStili(StoryKatman k, double olcek) {
         fontSize: boyut,
         color: renk,
         fontWeight: FontWeight.w200,
-        letterSpacing: 2.5,
         height: 1.2,
       );
     case 'serif':
@@ -147,7 +151,6 @@ TextStyle storyMetinStili(StoryKatman k, double olcek) {
         color: renk,
         fontStyle: FontStyle.italic,
         fontWeight: FontWeight.w300,
-        letterSpacing: 1.2,
         height: 1.2,
       );
     default:

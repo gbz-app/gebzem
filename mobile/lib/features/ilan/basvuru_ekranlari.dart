@@ -76,7 +76,14 @@ String _tl(int kurus) {
 ///   · aksi halde nokta ONDALIK ("85.5" -> 85.50)
 /// ⚠️ "Tam uc hane" olcutu zorunlu: `85.50` bir binlik ayirici OLAMAZ.
 int _kurusOku(String s) {
-  var t = s.trim().replaceAll('₺', '').replaceAll(' ', '');
+  // ⚠️ TURU 179 — 'TL' eki de temizlenir: etiket artik "TL" oldugu icin
+  //    kullanici degeri "250 TL" diye yazabiliyor. '₺' KALIR (eski
+  //    aliskanlik ve kopyala-yapistir).
+  var t = s
+      .trim()
+      .replaceAll('₺', '')
+      .replaceAll(RegExp(r'[Tt][Ll]'), '')
+      .replaceAll(' ', '');
   if (t.isEmpty) return 0;
   if (t.contains(',')) {
     t = t.replaceAll('.', '').replaceAll(',', '.');
@@ -202,7 +209,7 @@ Future<bool> basvurSheet(BuildContext context, WidgetRef ref, String ilanID,
                 controller: fiyat,
                 keyboardType: TextInputType.number,
                 decoration: const InputDecoration(
-                  labelText: 'Teklif tutarı (₺) *',
+                  labelText: 'Teklif tutarı (TL) *',
                   helperText: 'Müşteri teklifleri fiyata göre sıralı görür',
                   border: OutlineInputBorder(),
                 ),

@@ -651,7 +651,7 @@ Widget bilgiSatiri(BuildContext c, IsletmeOzet o) {
   if (f != null && f > 0) {
     parcalar.add(
       Text(
-        'En uygun ${(f / 100).round()} ₺',
+        'En uygun ${(f / 100).round()} TL',
         style: TextStyle(fontSize: 13, color: soluk),
       ),
     );

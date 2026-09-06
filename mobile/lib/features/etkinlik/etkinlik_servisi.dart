@@ -189,7 +189,8 @@ class Etkinlik {
     if (ucretsiz || fiyatKurus <= 0) return 'Ücretsiz';
     final tl = fiyatKurus ~/ 100;
     final kr = fiyatKurus % 100;
-    return kr == 0 ? '$tl ₺' : '$tl,${kr.toString().padLeft(2, '0')} ₺';
+    // ⚠️ TURU 179 — "₺" DEGIL "TL" (kullanici emri + tofu riski).
+    return kr == 0 ? '$tl TL' : '$tl,${kr.toString().padLeft(2, '0')} TL';
   }
 
   static Etkinlik fromJson(Map<String, dynamic> m) => Etkinlik(

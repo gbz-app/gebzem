@@ -52,10 +52,26 @@ double kapakYuksekligi(double genislik) =>
     math.min(genislik * 9 / 16, 240.0) * kKapakKisaltma;
 
 class ProfilBasligi extends StatelessWidget {
-  const ProfilBasligi({super.key, required this.p, this.onAvatarDokun});
+  const ProfilBasligi({
+    super.key,
+    required this.p,
+    this.onAvatarDokun,
+    this.acik,
+  });
 
   final Profil p;
   final VoidCallback? onAvatarDokun;
+
+  /// ⚠️⚠️ TURU 179 — **ACIK/KAPALI NOKTASI** (kullanici emri: *"logonun
+  ///	sag altinda YESIL daire olsun acik olduguna isaret, degilse
+  ///	hafif KAHVE rengi"*).
+  ///
+  /// ⚠️ **`null` = NOKTA HIC CIZILMEZ.** Kisisel hesabin "acik/kapali"
+  ///	diye bir durumu YOKTUR; calisma saati girilmemis bir
+  ///	isletmede de bilgi YOKTUR. Uc durum (acik · kapali · bilgi
+  ///	yok) iki renge indirgenseydi, saatini girmemis her isletme
+  ///	"KAPALI" gorunurdu — olmayan bir veriyi iddia etmek olurdu.
+  final bool? acik;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
@@ -87,18 +103,18 @@ class ProfilBasligi extends StatelessWidget {
             // ⚠️ UST kose radussuz: kapak durum cubugunun ALTINA giriyor
             //    (`extendBodyBehindAppBar`) ve ustte yuvarlatilirsa
             //    ekranin tepesinde iki kenar bosluk gorunurdu.
-            // ⚠️ `ClipRRect` `Positioned`in ICINDE: disina konsaydi
-            //    avatarin kapaktan TASAN kismi da kirpilirdi.
+            // ⚠️ Kirpici `Positioned`in ICINDE: disina konsaydi avatarin
+            //    kapaktan TASAN kismi da kirpilirdi.
+            // ⚠️⚠️ TURU 179 — **KOSELER TERS (KONKAV)** (kullanici:
+            //	*"alt sol ve sag alt raduslar YUKARI bakiyor, ASAGI
+            //	dogru bakmali"*). Bkz. `_TersKoseKirpici`.
             Positioned(
               top: 0,
               left: 0,
               right: 0,
               height: kh,
-              child: ClipRRect(
-                borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(22),
-                  bottomRight: Radius.circular(22),
-                ),
+              child: ClipPath(
+                clipper: const _TersKoseKirpici(22),
                 child: _kapak(),
               ),
             ),
@@ -148,23 +164,66 @@ class ProfilBasligi extends StatelessWidget {
   /// ⚠️ Renk TEMADAN alinir; sabit beyaz yazilsaydi koyu temada leke gibi dururdu.
   Widget _avatar(BuildContext context) => GestureDetector(
     onTap: onAvatarDokun,
-    child: Container(
+    child: SizedBox(
       width: _avatarDis,
       height: _avatarDis,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: Theme.of(context).scaffoldBackgroundColor,
-      ),
-      child: Center(
-        child: Avatar(
-          ad: p.ad,
-          mediaId: p.avatarMediaId,
-          avatarUrl: p.avatarUrl,
-          cap: _avatarCap,
-        ),
+      // ⚠️ `clipBehavior: none` ZORUNLU: nokta halkanin KENARINA oturuyor
+      //    ve `Stack` varsayilani onu KIRPARDI.
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            width: _avatarDis,
+            height: _avatarDis,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Theme.of(context).scaffoldBackgroundColor,
+            ),
+            child: Center(
+              child: Avatar(
+                ad: p.ad,
+                mediaId: p.avatarMediaId,
+                avatarUrl: p.avatarUrl,
+                cap: _avatarCap,
+              ),
+            ),
+          ),
+          if (acik != null) _durumNoktasi(context, acik!),
+        ],
       ),
     ),
   );
+
+  /// Acik: yesil · kapali: **hafif kahve** (kullanici emri).
+  ///
+  /// ⚠️ Zemin renginde bir HALKA sart: nokta koyu bir fotografin uzerine
+  ///	gelirse kenari kaybolur ve leke gibi durur.
+  /// ⚠️ Konum 45 derece (sag-alt) ve `_avatarCap`tan TURETILIR: sabit dp
+  ///	yazilsaydi avatar olcusu degisince nokta daireden KOPARDI.
+  Widget _durumNoktasi(BuildContext context, bool acikMi) {
+    const cap = 20.0;
+    const halka = 3.0;
+    // 45 derecelik nokta: merkezden r/√2 kadar saga ve asagi.
+    final r = _avatarCap / 2;
+    final pay = (_avatarDis - _avatarCap) / 2;
+    final k = pay + r + r * 0.7071 - cap / 2;
+    return Positioned(
+      left: k,
+      top: k,
+      child: Container(
+        width: cap,
+        height: cap,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: acikMi ? const Color(0xFF2BB673) : const Color(0xFF8A6A4F),
+          border: Border.all(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            width: halka,
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// Ad + onayli rozeti. **Ortalanmis** (kisisel ve isletme AYNI duzen).
@@ -215,4 +274,58 @@ class ProfilAdSatiri extends StatelessWidget {
       ],
     ),
   );
+}
+
+/// ⚠️⚠️⚠️ TURU 179 — **TERS (KONKAV) ALT KOSE.**
+///
+/// Kullanici: *"logonun arkasindaki slider'in alt sol ve sag alt raduslari
+/// YUKARI bakiyor, ASAGI dogru bakmali"*.
+///
+/// Normal `ClipRRect` kosede yayin merkezini dikdortgenin ICINE koyar; kose
+/// yuvarlanarak KESILIR ve kavis yukari bakar:
+///
+///	|          |          <- normal            |          |   <- ters
+///	\__________/                              _/          \_
+///
+/// Burada merkez tam KOSE NOKTASINA (w, h) alinir ve yay TERS yonde
+/// cizilir: kose OYULUR, alt kenarin ORTASI asagi sarkar — yani kavis
+/// ASAGI bakar.
+///
+/// ⚠️ `clockwise: false` KRITIK: `true` birakilirsa yay merkezi yine ice
+///	duser ve sonuc SIRADAN bir yuvarlak kose olur (degisiklik
+///	EKRANDA HIC GORUNMEZ).
+/// ⚠️ Yaricap yuksekligin yarisiyla SINIRLANIR: cok kisa bir kapakta
+///	iki yay ust uste binip `Path` kendini KESERDI (kirpma sonucu
+///	ongorulemez olur).
+class _TersKoseKirpici extends CustomClipper<Path> {
+  const _TersKoseKirpici(this.yaricap);
+
+  final double yaricap;
+
+  @override
+  Path getClip(Size size) {
+    final w = size.width;
+    final h = size.height;
+    final r = yaricap.clamp(0.0, h / 2).toDouble();
+    return Path()
+      ..moveTo(0, 0)
+      ..lineTo(w, 0)
+      ..lineTo(w, h - r)
+      // ⚠️ Merkez (w, h): yay kosenin ICINI oyar.
+      ..arcToPoint(
+        Offset(w - r, h),
+        radius: Radius.circular(r),
+        clockwise: false,
+      )
+      ..lineTo(r, h)
+      ..arcToPoint(
+        Offset(0, h - r),
+        radius: Radius.circular(r),
+        clockwise: false,
+      )
+      ..close();
+  }
+
+  @override
+  bool shouldReclip(_TersKoseKirpici eski) => eski.yaricap != yaricap;
 }

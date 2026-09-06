@@ -2383,7 +2383,7 @@ class _IlanVerEkraniState extends ConsumerState<IlanVerEkrani> {
                     decimal: true,
                   ),
                   decoration: InputDecoration(
-                    labelText: _tur == 'is' ? 'Maaş (₺ / ay)' : 'Fiyat (₺)',
+                    labelText: _tur == 'is' ? 'Maaş (TL / ay)' : 'Fiyat (TL)',
                     border: const OutlineInputBorder(),
                   ),
                 ),

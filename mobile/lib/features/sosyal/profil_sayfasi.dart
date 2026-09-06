@@ -11,6 +11,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import "../../core/yenile.dart";
 
 import '../../core/theme.dart';
+import 'isletme_bilgi.dart';
 import '../../core/api.dart';
 import '../chats/chats_provider.dart';
 import '../chats/moderasyon_sheet.dart';
@@ -554,6 +555,22 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
           //	Istenen bicim IKI cizgi ve ASIMETRIK - elle cizildi.
           // ⚠️ Dokunma alani 44 dp korunur (Material tabani); cizgiler
           //    onun ICINDE, saga yasli.
+          // ⚠️⚠️ TURU 179 — **ISLETME HAKKINDA (soru isareti)** (kullanici:
+          //	*"sag ustte hamburger menunun SOLUNA soru isareti,
+          //	isletme hakkinda bilgi ... tikladiginda %95 popup"*).
+          // ⚠️ YALNIZ isletme profilinde ve YALNIZ veri GELDIYSE cizilir:
+          //	kisisel hesapta ya da `_isletme == null` iken dugme
+          //	BOS bir panel acardi ("olu dugme" sinifi).
+          if (_isletme != null)
+            IconButton(
+              tooltip: 'İşletme hakkında',
+              icon: const Icon(LucideIcons.circleHelp),
+              onPressed: () => isletmeBilgiAc(
+                context,
+                ad: _p?.ad ?? '',
+                isletme: _isletme!,
+              ),
+            ),
           IconButton(
             tooltip: 'Menü',
             onPressed: _menu,
@@ -636,6 +653,12 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
             //    degisseydi bir ariza cikinca SEBEP AYIRT EDILEMEZDI (turu 67).
             ProfilBasligi(
               p: p,
+              // ⚠️ TURU 179 — nokta YALNIZ calisma saati GIRILMIS bir
+              //    isletmede cizilir; `null` gecilirse HIC cizilmez
+              //    (bkz. `ProfilBasligi.acik` serhi).
+              acik: (_isletme?.calisma.isNotEmpty ?? false)
+                  ? _isletme!.simdiAcik
+                  : null,
               // ⚠️ Avatara dokunus YALNIZ gercek bir medya varsa is yapar.
               //    `avatarMediaId` bossa (harf avatari) `onTap` NULL gecilir —
               //    dokunulabilir gorunup hicbir sey yapmayan bir alan
@@ -703,7 +726,9 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
             _sayaclar(p),
             const SizedBox(height: 14),
             _dugmeler(p),
-            const SizedBox(height: 8),
+            // ⚠️ TURU 179 — 8 -> **22** (kullanici: *"gonderiler vs alt menu
+            //	ile takip et mesaj bunlarin arasindaki boslugu ARTTIR"*).
+            const SizedBox(height: 22),
             // ⚠️ TURU 176 — **USTTEKI AYIRICI KALDIRILDI** (kullanici:
             //	*"yukaridaki cizgiyi kaldir"*). Sekme seridinin
             //	KENDI alt ayiricisi duruyor ve secim cizgisi artik
@@ -958,14 +983,20 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
 
     final takipli = p.takipEdiyorum;
     final bekliyor = p.istekBekliyor;
-    // ⚠️⚠️ TURU 178 — yan bosluk **12 -> 40: dugmeler DARALDI** (kullanici:
-    //	*"takip et mesaj gonder butonlarini DARALT dedim"*).
-    //	Turu 176'da "genisligini" ifadesini GENISLET diye
-    //	okumustum - yanlis yorumdu, duzeltildi.
-    // ⚠️ Ikisi de `Expanded` oldugu icin ESITLIK KORUNUR; degisen yalniz
+    // ⚠️⚠️ TURU 179 — yan bosluk 40 -> **52** (kullanici: *"takip et ve
+    //	mesaj bunlarin genisligini biraz daha AZALT"*).
+    // ⚠️ Hepsi `Expanded` oldugu icin ESITLIK KORUNUR; degisen yalniz
     //    satirin dis payi.
+    // ⚠️⚠️ **YORUMLAR ORTAYA** (kullanici: *"takip et ve mesaj arasina
+    //	yorumlar olsun"*) ve YALNIZ ISLETMEDE cizilir: kisisel
+    //	hesabin "yorumu" YOKTUR, dugme HER ZAMAN bos bir panel
+    //	acardi.
+    // ⚠️ Uc dugme dar ekranda sigmali: metinler kisa ('Takip'/'Mesaj')
+    //	ve `FittedBox(scaleDown)` ile korunuyor (turu 143 dersi:
+    //	Flutter tek kelimeyi ORTADAN BOLER).
+    final yorumVar = _isletme != null;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 40),
+      padding: const EdgeInsets.symmetric(horizontal: 52),
       child: Row(
         children: [
           Expanded(
@@ -977,24 +1008,41 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
                       backgroundColor: const Color(0xFF8B5CF6),
                       foregroundColor: Colors.white,
                     ),
-              child: Text(
-                p.engelledim
-                    ? 'Engellendi'
-                    : bekliyor
-                    ? 'İstek gönderildi'
-                    : takipli
-                    ? 'Takiptesin'
-                    : (p.beniTakipEdiyor ? 'Geri takip et' : 'Takip et'),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  p.engelledim
+                      ? 'Engellendi'
+                      : bekliyor
+                      ? 'İstek gönderildi'
+                      : takipli
+                      ? 'Takiptesin'
+                      : (p.beniTakipEdiyor ? 'Geri takip' : 'Takip et'),
+                ),
               ),
             ),
           ),
-          const SizedBox(width: 10),
+          if (yorumVar) ...[
+            const SizedBox(width: 8),
+            Expanded(
+              child: OutlinedButton(
+                onPressed: () => yorumlarAc(context, isletmeAd: p.ad),
+                child: const FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text('Yorumlar'),
+                ),
+              ),
+            ),
+          ],
+          const SizedBox(width: 8),
           Expanded(
-            child: OutlinedButton.icon(
-              icon: const Icon(LucideIcons.messageCircle, size: 17),
-              label: const Text('Mesaj'),
+            child: OutlinedButton(
               // ⚠️ Engelledigimiz kisiyle sohbet ACILMAZ (sunucu da reddeder).
               onPressed: p.engelledim ? null : () => _sohbetAc(p),
+              child: const FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text('Mesaj'),
+              ),
             ),
           ),
         ],
@@ -1120,9 +1168,17 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
   ///    kacinilmaz olarak drift ederdi.
   /// ⚠️ Sunucuda hepsi `tur=talep`tir; dal ayrimi bir SUNUM tercihidir
   ///    (bkz. o dosyanin serhi) — bu yuzden istemcide durmasi bilincli.
+  /// ⚠️⚠️ TURU 179 — **`genel` SEKMESI SERITTEN CIKARILDI** (kullanici:
+  ///	*"gonderinin solundaki GENEL bilgileri sag ustteki soru
+  ///	isaretine tikladiginda %95 POPUP olarak acilsin"*).
+  ///
+  /// ⚠️ Enum degeri SILINMEDI: `switch`ler TUKENMIS yazilmis ve olu bir
+  ///	deger her birinde ULASILAMAZ dal birakirdi (turu 176 dersi).
+  ///	Govdesi (`_genelSayfasi`) da DURUYOR — panel onu KULLANMIYOR
+  ///	ama seritten kaldirma TEK SATIRLA geri alinabilsin.
   List<ProfilSekmesi> get _sekmeler => [
     for (final x in ProfilSekmesi.values)
-      if (!x.ilanMi || _benimMi) x,
+      if (x != ProfilSekmesi.genel && (!x.ilanMi || _benimMi)) x,
   ];
 
   /// TURU 176 — alttaki yuzen **Menü / Rezervasyon** geçisi.

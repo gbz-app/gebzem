@@ -1726,7 +1726,7 @@ class _EtkinlikOlusturEkraniState extends ConsumerState<EtkinlikOlusturEkrani> {
                 decimal: true,
               ),
               decoration: const InputDecoration(
-                labelText: 'Fiyat (₺)',
+                labelText: 'Fiyat (TL)',
                 border: OutlineInputBorder(),
               ),
             ),

@@ -886,7 +886,7 @@ class _HavaDovizCipleriDurumu extends State<HavaDovizCipleri> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 // TURU 172 - altin sirasinda SIMGE yerine SIKKE IKONU:
-                //	altinin TL simgesi yok ve "₺" yazmak onu bir
+                //	altinin TL simgesi yok ve "TL" yazmak onu bir
                 //	dovizmis gibi gosterirdi.
                 if (altin != null)
                   // TURU 173 - **TEK SIKKE** (kullanici: *"ikon normal
@@ -1393,14 +1393,14 @@ class _KurBolumuDurumu extends State<_KurBolumu> {
     );
   }
 
-  /// Binlik ayracli TL metni (6898.85 -> "6.898,85 ₺").
+  /// Binlik ayracli TL metni (6898.85 -> "6.898,85 TL").
   ///
   /// UYARI `intl` KULLANILMADI: tek bicim icin paket baglamak yerine
   ///	ayrac ELLE konuyor; sonuc Turkce bicimle BIREBIR ayni.
   static String _paraMetni(double v) {
     final tam = v.floor();
     final kur = ((v - tam) * 100).round().toString().padLeft(2, '0');
-    return '${binlik(tam)},$kur ₺';
+    return '${binlik(tam)},$kur TL';
   }
 
   /// Binlik ayracli tam sayi (6899 -> "6.899"). Cip de bunu okur.
@@ -1629,7 +1629,7 @@ class _KurBolumuDurumu extends State<_KurBolumu> {
                             ),
                           ],
                         ),
-                        // ⚠️ `FittedBox`: 'Besli altin' 225.362,08 ₺ eder
+                        // ⚠️ `FittedBox`: 'Besli altin' 225.362,08 TL eder
                         //    ve 132 dp karta SIGMAZ; kirpmak yerine
                         //    kuculur (ekranin ASIL bilgisi bu sayidir).
                         FittedBox(
@@ -1690,7 +1690,7 @@ class _KurBolumuDurumu extends State<_KurBolumu> {
                         fit: BoxFit.scaleDown,
                         alignment: Alignment.centerLeft,
                         child: Text(
-                          '${g.deger.toStringAsFixed(4).replaceAll('.', ',')} ₺',
+                          '${g.deger.toStringAsFixed(4).replaceAll('.', ',')} TL',
                           maxLines: 1,
                           style: TextStyle(
                               fontSize: 28,
