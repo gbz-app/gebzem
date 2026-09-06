@@ -30,7 +30,19 @@ import 'yorumlar_sayfasi.dart';
 /// ⚠️ SES: reels SESLI acilir (urun karari) AMA `MedyaVideo` icindeki kapi
 ///    arama/oda/yayin canliyken sesi ZORLA kapatir.
 class ReelsSayfasi extends ConsumerStatefulWidget {
-  const ReelsSayfasi({super.key});
+  const ReelsSayfasi({super.key, this.baslangic});
+
+  /// ⚠️⚠️ TURU 180h — **BIR REELS GONDERISIYLE ACILIS** (kullanici:
+  ///	*"reels videolari GONDERI GIBI aciliyor, REELS VIDEO TARZINDA
+  ///	acilmasi gerekiyor"*).
+  ///
+  ///	Verilirse liste ONUNLA baslar; gerisi normal reels akisindan
+  ///	gelir ve kullanici yukari kaydirarak devam eder.
+  /// ⚠️ Ayri bir "tek reels" ekrani YAZILMADI: bu ekranin oynatici yasam
+  ///	dongusu, ses sahipligi ve gorunurluk kapilari turu 74-77'de
+  ///	olculerek oturdu; ikinci bir kopya KACINILMAZ olarak drift eder
+  ///	(bu projede ayni sinif ALTI kez yasandi).
+  final Gonderi? baslangic;
 
   @override
   ConsumerState<ReelsSayfasi> createState() => _ReelsSayfasiState();
@@ -65,10 +77,16 @@ class _ReelsSayfasiState extends ConsumerState<ReelsSayfasi> {
     try {
       final l = await ref.read(sosyalServisiProvider).reels();
       if (!mounted) return;
+      // ⚠️ Baslangic gonderisi listenin BASINA konur ve akistan gelen
+      //    KOPYASI ELENIR; elenmezse ayni video iki kez gorunurdu.
+      final b = widget.baslangic;
       setState(() {
         _liste
           ..clear()
-          ..addAll(l);
+          ..addAll([
+            if (b != null) b,
+            ...l.where((x) => b == null || x.id != b.id),
+          ]);
         _dahaVar = l.isNotEmpty;
         _yukleniyor = false;
       });

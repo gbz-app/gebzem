@@ -311,6 +311,14 @@ class KapakGorseli extends StatelessWidget {
 
   /// ⚠️ ILK **FOTOGRAF**I secer, ilk MEDYAYI degil. Tur bilinmiyorsa
   ///    (liste bos) ilk medya fotograf varsayilir.
+  /// Ilk VIDEO (poster kapagi icin).
+  static String? _ilkVideo(List<String> ids, List<String> kinds) {
+    for (var i = 0; i < ids.length; i++) {
+      if (i < kinds.length && kinds[i] == 'video') return ids[i];
+    }
+    return null;
+  }
+
   static String? ilkGorsel(List<String> ids, List<String> kinds) {
     for (var i = 0; i < ids.length; i++) {
       final t = i < kinds.length ? kinds[i] : 'image';
@@ -325,17 +333,25 @@ class KapakGorseli extends StatelessWidget {
     if (id != null) {
       return MedyaGorsel(mediaId: id, kucuk: kucuk, fit: fit, width: width);
     }
-    // Hic fotograf yok. Video VARSA durust bir video yer tutucusu; hicbir
-    // medya yoksa notr kutu.
-    final videoVar = mediaKinds.contains('video');
-    return ColoredBox(
-      color: const Color(0xFF14101C),
+    // ⚠️⚠️ TURU 180h — **VIDEONUN KENDI POSTERI** (kullanici: *"videolarin
+    //	on izleme resmi gorunmuyor"*).
+    //
+    //	Sunucu her medya icin `thumb_key` tutuyor ve `/media/{id}/url`
+    //	yanitinda `thumb_url` donduruyor. Yani yalniz-video bir
+    //	gonderide `MedyaGorsel(kucuk: true)` VIDEONUN POSTERINI cizer —
+    //	ayri bir kapak alanina gerek YOK.
+    // ⚠️ Poster YUKLENMEMISSE `MedyaGorsel` sessizce koyu bir kutuya duser
+    //	(kirik ikon YOK), yani eski davranis KAYBOLMUYOR.
+    // ⚠️ LISTEDE OYNATICI KURULMAZ (yukaridaki serh): burada cizilen sey
+    //	bir GORSEL, `MedyaVideo` DEGIL.
+    final videoId = _ilkVideo(mediaIds, mediaKinds);
+    if (videoId != null) {
+      return MedyaGorsel(mediaId: videoId, kucuk: true, fit: fit, width: width);
+    }
+    return const ColoredBox(
+      color: Color(0xFF14101C),
       child: Center(
-        child: Icon(
-          videoVar ? LucideIcons.video : LucideIcons.image,
-          color: Colors.white38,
-          size: 22,
-        ),
+        child: Icon(LucideIcons.image, color: Colors.white38, size: 22),
       ),
     );
   }

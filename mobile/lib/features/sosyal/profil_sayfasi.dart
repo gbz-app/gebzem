@@ -25,6 +25,7 @@ import '../medya/medya_gorsel.dart';
 import 'gonderi_karti.dart' show sayiBicimle;
 import 'gonderi_detay.dart';
 import 'profil_basligi.dart';
+import 'reels_sayfasi.dart';
 import '../home/home_screen.dart' show HesabimEkrani, myProfileProvider;
 import '../ilan/ilan_ekranlari.dart' show IlanDetayEkrani;
 import '../ilan/ilan_servisi.dart';
@@ -1387,6 +1388,33 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
               ),
             ),
           ),
+          // ⚠️⚠️ TURU 180h — **REZERVASYON MESAJIN SAGINDA** (kullanici:
+          //	*"sadece rezervasyon butonu mesajin saginda olsun,
+          //	MENU ORADA KALSIN"*). Yani alttaki yuzen gecis
+          //	DURUYOR ama artik yalniz **Menü** tasiyor.
+          // ⚠️ YALNIZ randevu ACIK bir isletmede cizilir: kapaliyken
+          //	dugme her dokunusta bos bir sayfa acardi ("olu dugme"
+          //	sinifi).
+          if (_isletme?.randevuAcik ?? false) ...[
+            const SizedBox(width: 8),
+            Expanded(
+              child: FilledButton(
+                onPressed: () => randevuAlAc(
+                  context,
+                  isletmeId: widget.userId,
+                  isletmeAd: p.ad,
+                ),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    _isletme!.randevuTuru == 'rezervasyon'
+                        ? 'Rezervasyon'
+                        : 'Randevu',
+                  ),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -1549,7 +1577,6 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
   Widget? _menuRezervasyon() {
     final i = _isletme;
     if (i == null) return null;
-    final rez = i.randevuAcik;
     final scheme = _ks;
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
@@ -1577,22 +1604,11 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
                 ),
               ),
             ),
-            if (rez)
-              _gecisDugmesi(
-                ikon: LucideIcons.calendarPlus,
-                etiket: i.randevuTuru == 'rezervasyon'
-                    ? 'Rezervasyon'
-                    : 'Randevu',
-                vurgulu: true,
-                // ⚠️ TURU 178 — POPUP (kullanici: *"tam sayfa olmasin,
-                //    popup tarzi acilsin"*). Ekran artik bir sheet icinde
-                //    yasiyor; `randevuAlAc` acmanin TEK kapisi.
-                onTap: () => randevuAlAc(
-                  context,
-                  isletmeId: widget.userId,
-                  isletmeAd: _p?.ad ?? '',
-                ),
-              ),
+            // ⚠️⚠️ TURU 180h — **REZERVASYON BURADAN KALDIRILDI**
+            //	(kullanici: *"rezervasyon mesajin saginda olsun,
+            //	menu orada kalsin"*). Yuzen gecis artik TEK
+            //	dugme: Menü. Rezervasyon `_dugmeler` satirinda.
+            //	Rezervasyon artik `_dugmeler` satirinda.
           ],
         ),
       ),
@@ -2416,9 +2432,17 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
       itemBuilder: (_, i) {
         final g = liste[i];
         return GestureDetector(
-          onTap: () => Navigator.of(
-            context,
-          ).push(MaterialPageRoute(builder: (_) => GonderiDetay(gonderi: g))),
+          // ⚠️⚠️ TURU 180h — **REELS, REELS TARZINDA ACILIR** (kullanici:
+          //	*"reels videolari GONDERI GIBI aciliyor, reels video
+          //	tarzinda acilmasi gerekiyor"*). Tam ekran, dikey
+          //	kaydirmali oynatici; digerleri gonderi detayi.
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => g.tur == 'reels'
+                  ? ReelsSayfasi(baslangic: g)
+                  : GonderiDetay(gonderi: g),
+            ),
+          ),
           child: Stack(
             fit: StackFit.expand,
             children: [

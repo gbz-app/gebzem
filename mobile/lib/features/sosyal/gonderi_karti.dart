@@ -1476,6 +1476,58 @@ class _GonderiKartiState extends ConsumerState<GonderiKarti> {
                   ),
                 ),
               ),
+            // ⚠️⚠️ TURU 180h — **VIDEODA SOL ALTTA OYNAT + IZLENME**
+            //	(kullanici: *"videolarin sol altinda play tusu ve
+            //	yaninda ne kadar izlendigini gosteren sayi, ornegin
+            //	1.2b gibi"*).
+            //
+            // ⚠️ `IgnorePointer` ZORUNLU: rozet videonun kendi dokunus
+            //	yollarinin (duraklat/devam ve uzun basma) USTUNDE
+            //	duruyor; yutmasi o ikisini de OLDURURDU.
+            // ⚠️ Sayi `sayiBicimle` ile — hikaye seridi ve etkilesim
+            //	cubuguyla AYNI dil ('1,2 bin'). Ayri bir bicim
+            //	yazmak ayni ekranda IKI FARKLI sayi dili birakirdi.
+            // ⚠️⚠️ **GORUNTULENME UYDURULMAZ**: sunucudan gelen deger ve
+            //	akista ARTMAZ (yalniz reels/detayda artar — turu 75).
+            //	0 ise yalniz OYNAT ikonu cizilir, '0' YAZILMAZ.
+            if (g.kind(i) == 'video' && i == _sayfa)
+              Positioned(
+                left: 8,
+                bottom: 8,
+                child: IgnorePointer(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.45),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.play_arrow_rounded,
+                          size: 17,
+                          color: Colors.white,
+                        ),
+                        if (g.goruntulenme > 0) ...[
+                          const SizedBox(width: 3),
+                          Text(
+                            sayiBicimle(g.goruntulenme),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
       ),

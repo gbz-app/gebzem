@@ -32,6 +32,10 @@ const FFPROBE = process.env.FFPROBE || [
   'ffprobe',
 ].filter(Boolean).find((p) => { try { execFileSync(p, ['-version'], { stdio: 'ignore' }); return true; } catch { return false; } });
 
+const FFMPEG = FFPROBE
+    ? FFPROBE.replace(/ffprobe(\.exe)?$/, (m) => m.replace('probe', 'mpeg'))
+    : 'ffmpeg';
+
 // ⚠️ Olcu ALINAMAZSA dosya ATLANIR, 0x0 ile YUKLENMEZ: yanlis en-boy akista
 //    kirpilmis/gerilmis bir kart demek ve sonradan duzeltmek icin medyayi
 //    yeniden yuklemek gerekir.
@@ -46,6 +50,32 @@ function olc(dosya) {
   const sure = Number(c[1] || 0);
   if (!w || !h) throw new Error('olcu okunamadi: ' + dosya);
   return { w, h, sureMs: Math.round(sure * 1000) };
+}
+
+// ⚠️⚠️ TURU 180h — **VIDEO POSTER KARESI** (kullanici: *"videolarin ON
+//	IZLEME RESMI GORUNMUYOR"*).
+//
+//	Istemci ZATEN dogru calisiyordu: `MedyaVideo` kapak olarak
+//	videonun KENDI `thumb_url`unu istiyor (turu 76). Eksik olan
+//	sunucudaki kucuk resimdi — ilk yuklemede `thumb_bytes`
+//	gonderilmemisti, `thumb_url` bos donuyor ve kapak koyu bir
+//	kutuya dusuyordu.
+// ⚠️ Kare **1. saniyeden** alinir: 0. saniye cogu videoda siyah/gecis
+//	karesidir. Video 1 sn'den kisaysa basa duseriz.
+// ⚠️ JPEG kalite 4 (~0-31 olcegi, kucuk daha iyi): thumb tavani var
+//	(ThumbTavan) ve poster yalnizca kart kapagi olarak cizilir.
+function posterUret(dosya, sureMs) {
+  const cikti = path.join(require('os').tmpdir(),
+    'gbz_poster_' + path.basename(dosya).replace(/\W/g, '_') + '.jpg');
+  const an = sureMs > 1500 ? '1' : '0';
+  execFileSync(FFMPEG, [
+    '-v', 'error', '-y', '-ss', an, '-i', dosya,
+    '-frames:v', '1', '-q:v', '4', cikti,
+  ]);
+  const b = fs.readFileSync(cikti);
+  fs.unlinkSync(cikti);
+  if (!b.length) throw new Error('poster uretilemedi: ' + dosya);
+  return b;
 }
 
 async function jsonIstek(yol, { yontem = 'GET', govde, token } = {}) {
@@ -70,11 +100,17 @@ async function medyaYukle(token, dosya, tur) {
   const mime = tur === 'video' ? 'video/mp4' : 'image/jpeg';
   const { w, h, sureMs } = olc(yol);
 
+  // ⚠️ Poster YALNIZ videoda: fotografin kendisi zaten kapaktir.
+  const poster = tur === 'video' ? posterUret(yol, sureMs) : null;
+  const posterMd5 = poster ? crypto.createHash('md5').update(poster).digest('base64') : '';
+
   const p = await jsonIstek('/media/upload', {
     yontem: 'POST', token,
     govde: {
       kind: tur, mime, bytes: bayt.length, md5, file_name: dosya,
       width: w, height: h,
+      thumb_bytes: poster ? poster.length : 0,
+      thumb_md5: posterMd5,
       // ⚠️ Sure YALNIZ videoda: fotografta ffprobe 0.04 gibi anlamsiz bir
       //    deger donduruyor (tek karelik "sure").
       duration_ms: tur === 'video' ? sureMs : 0,
@@ -89,9 +125,23 @@ async function medyaYukle(token, dosya, tur) {
   });
   if (!put.ok) throw new Error(`R2 PUT ${put.status}: ${(await put.text()).slice(0, 160)}`);
 
+  // ⚠️⚠️ Poster COMMIT'TEN ONCE yuklenir: commit yalnizca ASIL nesneyi
+  //	dogrular ama imzali thumb adresi presign suresiyle sinirli.
+  //	Sonraya birakilirsa yavas bir agda sure dolabilir ve medya
+  //	POSTERSIZ kalir (sonradan eklemenin yolu YOK — thumb anahtari
+  //	presign aninda uretiliyor).
+  if (poster && p.d.thumb_url) {
+    const tp = await fetch(p.d.thumb_url, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'image/jpeg', 'Content-MD5': posterMd5 },
+      body: poster,
+    });
+    if (!tp.ok) throw new Error(`poster PUT ${tp.status}: ${(await tp.text()).slice(0, 160)}`);
+  }
+
   const c = await jsonIstek(`/media/${p.d.media_id}/commit`, { yontem: 'POST', token });
   if (c.kod !== 200) throw new Error(`commit ${c.kod}: ${c.ham.slice(0, 160)}`);
-  return { id: p.d.media_id, w, h, sureMs, bayt: bayt.length };
+  return { id: p.d.media_id, w, h, sureMs, bayt: bayt.length, poster: poster ? poster.length : 0 };
 }
 
 // ⚠️ Metinler McDonald's'in KENDI menusunden ve tohum verisinden turetildi;
@@ -139,7 +189,8 @@ const GONDERILER = [
       const tur = d.endsWith('.mp4') ? 'video' : 'image';
       const m = await medyaYukle(token, d, tur);
       ids.push(m.id);
-      console.log(`  yuklendi ${d} -> ${m.id} (${(m.bayt / 1048576).toFixed(2)} MB)`);
+      console.log(`  yuklendi ${d} -> ${m.id} (${(m.bayt / 1048576).toFixed(2)} MB` +
+        (m.poster ? `, poster ${(m.poster / 1024).toFixed(0)} KB)` : ')'));
     }
     const r = await jsonIstek('/posts', {
       yontem: 'POST', token,
