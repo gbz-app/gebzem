@@ -134,6 +134,25 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
   · Blur daireler 42 -> **48**; dokunma kutulari 44 -> **52** (kutu
     buyutulmeseydi `ClipOval` daireyi KIRPARDI).
 
+- **KALDIGIMIZ YER (6 Eyl 21:08): TURU 180i YAYINLANDI — SADECE iOS.**
+  ios **34050172075** (**0481e43**), R2 ipa=**29085268** (md5 0a1caa0c),
+  index=7967 (af7eb81d) surum.json=45 (931d0ee0), purge OK, **CDN BIREBIR**
+  (ucu de), `get-task-allow: false`, ad hoc profil, `MapsApiKey` +
+  `NSLocationWhenInUse` VAR.
+  ✅ **YAZI TIPI GOOGLE SANS FLEX**: pakette `GoogleSansFlex-{400,500,600,
+  700}.ttf` (4/4), eski `GoogleSans-*.ttf` YOK; `assets/marka` 8/8.
+  ⚠️ **IPA 31,9 -> 29,1 MB** (fontlar 7,28 -> 0,5 MB).
+  IPAda `Google Sans` TEK KEZ geciyor ve o da **`Google Sans Flex`**in
+  parcasi — bayat referans KALMADI.
+  Dizeler VAR: `Beğeniler` · `Henüz beğendiğin gönderi yok` ·
+  `Takip edilenler` · `Rezervasyon` · `İş İlanları` · `Yapay zekâ`;
+  KALKANLAR YOK: `daha fazla bilgi`. Kontrol dizesi `Yakınımda` VAR.
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260906-2108
+  Arayuz turu: **BACKEND DEGISMEDI**, migration YOK, deploy YOK,
+  **DB TRUNCATE EDILMEDI**. health ok.
+  ✅ analyze **0/0** · test **86/86** · emulatorde anasayfa · Yemek ·
+     isletme profili **gozle dogrulandi**, tasma **0**.
+
 - 🔤 ⚠️⚠️ **TURU 180i — YAZI TIPI: GOOGLE SANS -> GOOGLE SANS FLEX**
   (kullanici emri: *"uygulamayi komple Google Sans Flex olarak degistir"*).
   · Yeni sabit **`kYaziAilesi`** (`core/theme.dart`) — aile adi artik TEK
