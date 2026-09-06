@@ -41,6 +41,10 @@ class _IsletmeDuzenleEkraniState extends ConsumerState<IsletmeDuzenleEkrani> {
   final _telefon = TextEditingController();
   final _web = TextEditingController();
 
+  /// ⚠️ TURU 180 — secili ozellik/odeme ANAHTARLARI (ad ve ikon SUNUCUDAN).
+  final _ozellikler = <String>{};
+  final _odeme = <String>{};
+
   String _kategori = 'yemek';
   List<CalismaGunu> _calisma = [
     for (var g = 1; g <= 7; g++) CalismaGunu(gun: g),
@@ -179,6 +183,12 @@ class _IsletmeDuzenleEkraniState extends ConsumerState<IsletmeDuzenleEkrani> {
         _ilce.text = i.ilce;
         _telefon.text = i.telefon;
         _web.text = i.web;
+        _ozellikler
+          ..clear()
+          ..addAll(i.ozellikler);
+        _odeme
+          ..clear()
+          ..addAll(i.odeme);
         // ⚠️ Mevcut konum FORMA YUKLENIR: yuklenmezse kullanici baska bir
         //    alani duzenleyip kaydettiginde `_enlem/_boylam` 0 kalir ve
         //    `toJson` onlari GONDERMEZ -> sunucudaki konum KORUNUR (COALESCE).
@@ -275,6 +285,11 @@ class _IsletmeDuzenleEkraniState extends ConsumerState<IsletmeDuzenleEkrani> {
               // ⚠️ TURU 87 — yerel degiskenler: adresten cozumlenmis olabilir.
               enlem: enlem,
               boylam: boylam,
+              // ⚠️ TURU 180 — bos liste GONDERILIR (bosaltma niyeti);
+              //    sunucu "gonderilmedi"yi ISARETCININ null olmasindan
+              //    anlar (bkz. handler serhi).
+              ozellikler: _ozellikler.toList(),
+              odeme: _odeme.toList(),
             ),
           );
       if (!mounted) return;
@@ -583,7 +598,69 @@ class _IsletmeDuzenleEkraniState extends ConsumerState<IsletmeDuzenleEkrani> {
     ),
     const SizedBox(height: 12),
     _alan(_web, 'Web sitesi', LucideIcons.globe, tip: TextInputType.url),
+    const SizedBox(height: 22),
+    // ⚠️⚠️ TURU 180 — OZELLIK + ODEME SECIMI. Katalog SUNUCUDAN gelir;
+    //    gelmemisse bolum CIZILMEZ (bos bir baslik birakmak yerine).
+    _katalogBolumu(),
   ];
+
+  /// ⚠️ `whereType` ile bilinmeyen anahtar elenir; `Wrap` ile 16 cip dar
+  ///	ekranda alt alta akar (`Row` RenderFlex tasmasi verirdi).
+  Widget _katalogBolumu() {
+    final k = ref.watch(isletmeKatalogProvider).valueOrNull;
+    if (k == null) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _katalogGrubu('Özellikler', k.ozellikler, _ozellikler),
+        const SizedBox(height: 18),
+        _katalogGrubu('Ödeme seçenekleri', k.odeme, _odeme),
+      ],
+    );
+  }
+
+  Widget _katalogGrubu(
+    String baslik,
+    List<KatalogOge> ogeler,
+    Set<String> secili,
+  ) {
+    if (ogeler.isEmpty) return const SizedBox.shrink();
+    final scheme = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          baslik,
+          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final o in ogeler)
+              FilterChip(
+                selected: secili.contains(o.anahtar),
+                onSelected: (v) => setState(() {
+                  v ? secili.add(o.anahtar) : secili.remove(o.anahtar);
+                }),
+                avatar: Icon(
+                  isletmeIkonBul(o.ikon),
+                  size: 16,
+                  color: secili.contains(o.anahtar)
+                      ? scheme.onSecondaryContainer
+                      : scheme.onSurface.withValues(alpha: 0.6),
+                ),
+                label: Text(o.ad),
+                // ⚠️ Onay tiki KAPALI: `avatar` ile CAKISIR ve secilince
+                //    ikon TIKLE degisip cip GENISLER, satir kayardi.
+                showCheckmark: false,
+              ),
+          ],
+        ),
+      ],
+    );
+  }
 
   List<Widget> _bolumAdres() => [
     _alan(_adres, 'Adres', LucideIcons.mapPin, satir: 2),

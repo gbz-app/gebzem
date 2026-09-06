@@ -97,6 +97,17 @@ type isletmeReq struct {
 	Ilce     string          `json:"ilce"`
 	Telefon  string          `json:"telefon"`
 	Web      string          `json:"web"`
+	// ⚠️⚠️ TURU 180 — ISLETME OZELLIKLERI + ODEME SECENEKLERI.
+	//
+	//	Kullanici emri: *"bilgi kisminda odeme secenekleri, ozellikler yok;
+	//	sigara icilmez, cocuk yeri vs"*. Turu 176'da BILEREK yazilmamisti
+	//	cunku alan YOKTU ve sabit liste basmak yalan olurdu; dogru cozum
+	//	alani ACMAK.
+	// ⚠️ ISARETCI: "alan gelmedi" ile "bosaltildi" AYRI seylerdir. Duz
+	//	dilim olsaydi yalniz adresini degistiren bir istek ozellikleri
+	//	SIFIRA EZERDI (turu 85b koordinat dersi).
+	Ozellikler *[]string     `json:"ozellikler"`
+	Odeme      *[]string     `json:"odeme"`
 	Calisma  json.RawMessage `json:"calisma"`
 	// ⚠️⚠️ TURU 78 — **ISARETCI** (pointer): "gonderilmedi" ile "0" AYRI seydir.
 	//    Duz `float64` olsaydi istemcinin alani HIC gondermemesi de 0 olarak
@@ -293,13 +304,17 @@ func (h *Handler) Kaydet(w http.ResponseWriter, r *http.Request) {
 		INSERT INTO isletmeler
 		  (user_id, kategori, adres, il, ilce, telefon, web, calisma, enlem, boylam,
 		   min_tutar_kurus, teslimat_dk_min, teslimat_dk_max, puan, kampanyalar,
-		   puan_sayisi)
+		   puan_sayisi, ozellikler, odeme)
 		-- TURU 85 - TIP DONUSUMU ZORUNLU (ayrinti: fonksiyon ustundeki serh).
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,
 		        COALESCE($9, 0::double precision),
 		        COALESCE($10, 0::double precision),
 		        $11,$12,$13,$14, COALESCE($15::jsonb, '[]'::jsonb),
-		        COALESCE($16, 0))
+		        COALESCE($16, 0),
+		        -- ⚠️ NOT NULL sutun: gonderilmemisse BOS DIZI yazilir.
+		        --    Bir Go nil dilimi SQL NULL'a cevrilir ve 23502 verir
+		        --    (turu 75b posts.media_ids dersi).
+		        COALESCE($17::text[], '{}'), COALESCE($18::text[], '{}'))
 		ON CONFLICT (user_id) DO UPDATE SET
 		  kategori=EXCLUDED.kategori, adres=EXCLUDED.adres, il=EXCLUDED.il,
 		  ilce=EXCLUDED.ilce, telefon=EXCLUDED.telefon, web=EXCLUDED.web,
@@ -318,11 +333,20 @@ func (h *Handler) Kaydet(w http.ResponseWriter, r *http.Request) {
 		  puan            = COALESCE($14::numeric, isletmeler.puan),
 		  kampanyalar     = COALESCE($15::jsonb,   isletmeler.kampanyalar),
 		  puan_sayisi     = COALESCE($16::integer, isletmeler.puan_sayisi),
+		  -- ⚠️ HAM PARAMETRE (EXCLUDED DEGIL): gonderilmeyen alan mevcut
+		  --    degeri KORUR. EXCLUDED, VALUES'taki COALESCE'in sonucudur
+		  --    ve "gonderilmedi" bilgisi orada KAYBOLUR.
+		  ozellikler      = COALESCE($17::text[], isletmeler.ozellikler),
+		  odeme           = COALESCE($18::text[], isletmeler.odeme),
 		  updated_at=now()`,
 		me, req.Kategori, req.Adres, req.Il, req.Ilce, req.Telefon, req.Web,
 		calisma, req.Enlem, req.Boylam,
 		req.MinTutarKurus, req.TeslimatMin, req.TeslimatMax, req.Puan,
-		kampanyalar, req.PuanSayisi); err != nil {
+		kampanyalar, req.PuanSayisi,
+		// ⚠️ Beyaz listeden GECIRILIR: bilinmeyen anahtar arayuzde etiketsiz
+		//    bir cip olarak cizilirdi.
+		temizListe(req.Ozellikler, OzellikAdlari),
+		temizListe(req.Odeme, OdemeAdlari)); err != nil {
 		log.Printf("isletme kaydet: %v", err)
 		hata(w, 500, "kaydedilemedi")
 		return
@@ -444,6 +468,7 @@ func (h *Handler) Detay(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var kategori, adres, il, ilce, telefon, web string
+	var ozellikler, odeme []string
 	var calisma []byte
 	var enlem, boylam float64
 	var dogrulandi bool
@@ -458,13 +483,15 @@ func (h *Handler) Detay(w http.ResponseWriter, r *http.Request) {
 	var randevuAcik bool
 	if h.db.QueryRow(r.Context(), `
 		SELECT i.kategori, i.adres, i.il, i.ilce, i.telefon, i.web, i.calisma,
-		       i.enlem, i.boylam, u.onayli, COALESCE(ra.acik, false)
+		       i.enlem, i.boylam, u.onayli, COALESCE(ra.acik, false),
+		       i.ozellikler, i.odeme
 		  FROM isletmeler i
 		  JOIN users u ON u.id = i.user_id
 		  LEFT JOIN randevu_ayar ra ON ra.isletme_id = i.user_id
 		 WHERE i.user_id=$1 AND u.hesap_turu='isletme'`, hedef).
 		Scan(&kategori, &adres, &il, &ilce, &telefon, &web, &calisma,
-			&enlem, &boylam, &dogrulandi, &randevuAcik) != nil {
+			&enlem, &boylam, &dogrulandi, &randevuAcik,
+			&ozellikler, &odeme) != nil {
 		hata(w, 404, "işletme bulunamadı")
 		return
 	}
@@ -496,6 +523,11 @@ func (h *Handler) Detay(w http.ResponseWriter, r *http.Request) {
 		//    yanittan ogrenir. Kategoriden ISTEMCIDE tahmin edilseydi
 		//    Go + Dart arasinda UCUNCU bir kopya acilirdi.
 		"modul": ModulBul(kategori),
+		// ⚠️⚠️ SCAN EDILEN HER ALAN YANIT HARITASINA DA KONUR — turu 78'de
+		//    tam bu atlanmisti (kapak SELECT+Scan ediliyor ama haritaya
+		//    yazilmiyordu; derleyici GOREMEZ, `sutun_test.go` gorur).
+		"ozellikler": ozellikler,
+		"odeme":      odeme,
 	})
 }
 

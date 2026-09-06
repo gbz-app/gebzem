@@ -48,6 +48,7 @@ class IlanServisi {
     int? maksKurus,
     bool benim = false,
     bool favori = false,
+    String sahibi = '',
   }) async {
     final r = await _api.get(
       '/ilanlar',
@@ -57,6 +58,8 @@ class IlanServisi {
         if (il.isNotEmpty) 'il': il,
         if (ilce.isNotEmpty) 'ilce': ilce,
         if (q.isNotEmpty) 'q': q,
+        // ⚠️ TURU 180 — baskasinin ilanlari (profildeki IS ILANLARI sekmesi).
+        if (sahibi.isNotEmpty) 'sahibi': sahibi,
         if (minKurus != null) 'min': minKurus,
         if (maksKurus != null) 'maks': maksKurus,
         if (benim) 'benim': '1',

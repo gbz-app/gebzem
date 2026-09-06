@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -99,15 +100,41 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
   final Map<String, GlobalKey> _bolumAnahtar = {};
   String _aktifBolum = '';
 
+  /// ⚠️ TURU 180 — dokunulan sekme SERITTE ORTALANIR (kullanici:
+  //	*"tikladigimda hangi menuye tikladiysam ORTALANSIN"*).
+  //	Bunun icin sekmenin KENDI anahtari gerekiyor: `ensureVisible`
+  //	yalniz bir `BuildContext` ile calisir.
+  final Map<String, GlobalKey> _sekmeAnahtar = {};
+
+  /// ⚠️⚠️ TURU 180 — **ASAGI INERKEN HEADER GIZLENIR** (kullanici emri).
+  //	Bayrak `_kaydirma` dinleyicisinden gelir; esik 60 dp: daha
+  //	kucuk bir esikte header her kucuk kaydirmada YANIP SONERDI.
+  bool _headerGizli = false;
+
+  GlobalKey _sekmeAnahtari(String bolum) =>
+      _sekmeAnahtar.putIfAbsent(bolum, GlobalKey.new);
+
   GlobalKey _anahtar(String bolum) =>
       _bolumAnahtar.putIfAbsent(bolum, GlobalKey.new);
 
   /// ⚠️ `alignment: 0` bolumu ekranin USTUNE getirir; varsayilan (0.5)
   //	ortalar ve kullanici "tikladim, ustte degil" derdi.
   Future<void> _bolumeGit(String bolum) async {
+    setState(() => _aktifBolum = bolum);
+    // ⚠️ TURU 180 — dokunulan sekme SERITTE ORTALANIR (`alignment: 0.5`).
+    final sk = _sekmeAnahtari(bolum).currentContext;
+    if (sk != null) {
+      unawaited(Scrollable.ensureVisible(
+        sk,
+        alignment: 0.5,
+        duration: const Duration(milliseconds: 280),
+        curve: Curves.easeOutCubic,
+      ));
+    }
     final k = _anahtar(bolum).currentContext;
     if (k == null) return;
-    setState(() => _aktifBolum = bolum);
+    // ⚠️ `alignment: 0` bolumu ekranin USTUNE getirir; varsayilan (0.5)
+    //    ortalar ve kullanici "tikladim, ustte degil" derdi.
     await Scrollable.ensureVisible(
       k,
       alignment: 0,
@@ -120,11 +147,22 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
   void initState() {
     super.initState();
     _yukle();
+    _kaydirma.addListener(_kaydirmaDegisti);
+  }
+
+  /// ⚠️ `setState` YALNIZ bayrak degisince: kosulsuz cagrilsaydi her
+  //	kaydirma karesinde TUM liste yeniden cizilirdi (turu 169
+  //	"dakika degisince setState" dersinin ayni sinifi).
+  void _kaydirmaDegisti() {
+    final gizle = _kaydirma.hasClients && _kaydirma.offset > 60;
+    if (gizle != _headerGizli) setState(() => _headerGizli = gizle);
   }
 
   @override
   void dispose() {
-    _kaydirma.dispose();
+    _kaydirma
+      ..removeListener(_kaydirmaDegisti)
+      ..dispose();
     super.dispose();
   }
 
@@ -184,12 +222,23 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
       //	olsun"*): 44 dp · ortada baslik · solda `arrowLeft`.
       // ⚠️ `AppBar` KULLANILMIYOR: Material'in kendi `BackButton`u
       //	PLATFORMA gore degisir ve baslik SOLA yaslidir.
+      // ⚠️⚠️ TURU 180 — **ASAGI INERKEN HEADER GIZLENIR** (kullanici emri:
+      //	*"alta inerken header gorunmeyecek"*).
+      // ⚠️ `AnimatedSize` ile YUKSEKLIK 0'a iner: widget agactan
+      //	CIKARILSAYDI `PreferredSize` null olamaz ve `Scaffold`
+      //	yeniden yerlesirken icerik ZIPLARDI.
+      // ⚠️ `SafeArea` KATMANIN DISINDA kalir: centik dolgusu daima
+      //	uygulanmali, yoksa header gizlenince arama kutusu durum
+      //	cubugunun ALTINA girer.
       appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(44),
+        preferredSize: Size.fromHeight(_headerGizli ? 0 : 44),
         child: SafeArea(
           bottom: false,
-          child: SizedBox(
-            height: 44,
+          child: AnimatedSize(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOutCubic,
+            child: SizedBox(
+            height: _headerGizli ? 0 : 44,
             child: Stack(
               children: [
                 Center(
@@ -238,6 +287,7 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
                   ]),
                 ),
               ],
+            ),
             ),
           ),
         ),
@@ -383,7 +433,10 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
   Widget _bolumSeridi() {
     final adlar = _bolumler.keys.toList();
     if (adlar.length < 2) return const SizedBox.shrink();
-    return SizedBox(
+    // ⚠️ TURU 180 — arama ile serit arasinda bosluk YOKTU (kullanici emri).
+    return Padding(
+      padding: const EdgeInsets.only(top: 10, bottom: 4),
+      child: SizedBox(
       height: 42,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
@@ -400,6 +453,7 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
           return GestureDetector(
             onTap: () => _bolumeGit(ad),
             child: Container(
+              key: _sekmeAnahtari(ad),
               alignment: Alignment.center,
               padding: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
@@ -424,6 +478,7 @@ class _UrunKatalogEkraniState extends ConsumerState<UrunKatalogEkrani> {
             ),
           );
         },
+      ),
       ),
     );
   }

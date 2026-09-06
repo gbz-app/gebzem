@@ -1,5 +1,7 @@
 import 'dart:math' as math;
 
+import 'package:flutter/widgets.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -221,6 +223,8 @@ class Isletme {
     this.ilce = '',
     this.telefon = '',
     this.web = '',
+    this.ozellikler = const <String>[],
+    this.odeme = const <String>[],
     this.calisma = const [],
     this.enlem,
     this.boylam,
@@ -236,6 +240,16 @@ class Isletme {
   String ilce;
   String telefon;
   String web;
+
+  /// ⚠️⚠️ TURU 180 — ISLETME OZELLIKLERI (sigara icilmez · cocuk alani …)
+  //	ve ODEME SECENEKLERI. Kullanici emri.
+  //
+  // ⚠️ Bunlar **ANAHTAR**tir (`wifi`, `sigara_yok` …); gorunen ad ve ikon
+  //	SUNUCUDAN gelir (`GET /isletme-katalog`). Istemcide ikinci bir
+  //	kopya YOK — yeni bir ozellik magaza onayi GEREKTIRMEZ
+  //	(turu 77 kurali).
+  List<String> ozellikler;
+  List<String> odeme;
   List<CalismaGunu> calisma;
 
   /// ⚠️⚠️ TURU 85b — **NULLABLE**: "gonderilmedi" ile "SIFIRLA" AYRI seylerdir.
@@ -284,6 +298,8 @@ class Isletme {
     'telefon': telefon,
     'web': web,
     'calisma': calisma.map((c) => c.json()).toList(),
+    'ozellikler': ozellikler,
+    'odeme': odeme,
     // ⚠️⚠️⚠️ TURU 78b — KOORDINATLAR **YALNIZ DOLUYSA** GONDERILIR (denetim).
     //
     //    Sunucuda `enlem`/`boylam` ISARETCI yapildi ve
@@ -321,6 +337,12 @@ class Isletme {
     ilce: (m['ilce'] ?? '').toString(),
     telefon: (m['telefon'] ?? '').toString(),
     web: (m['web'] ?? '').toString(),
+    ozellikler: ((m['ozellikler'] as List?) ?? const [])
+        .map((e) => e.toString())
+        .toList(),
+    odeme: ((m['odeme'] as List?) ?? const [])
+        .map((e) => e.toString())
+        .toList(),
     calisma: ((m['calisma'] as List?) ?? [])
         .map((e) => CalismaGunu.fromJson((e as Map).cast<String, dynamic>()))
         .toList(),
@@ -553,3 +575,87 @@ typedef KesifVerisi = ({
   List<({String baslik, String alt})> slaytlar,
 });
 
+/// ⚠️⚠️ TURU 180 — OZELLIK / ODEME TANIMI (sunucudan gelir).
+///
+/// ⚠️ `ikon` bir **Lucide adi**; istemci onu `kIsletmeIkon` ile cozer ve
+///	bilinmeyen adda NOTR bir ikona duser. Boylece sunucuya yeni bir
+///	ozellik eklemek eski istemcilerde ETIKETSIZ bir cip degil,
+///	notr ikonlu ama DOGRU ETIKETLI bir cip uretir.
+class KatalogOge {
+  const KatalogOge({
+    required this.anahtar,
+    required this.ad,
+    required this.ikon,
+  });
+
+  final String anahtar;
+  final String ad;
+  final String ikon;
+
+  static KatalogOge fromJson(Map<String, dynamic> m) => KatalogOge(
+        anahtar: (m['anahtar'] ?? '').toString(),
+        ad: (m['ad'] ?? '').toString(),
+        ikon: (m['ikon'] ?? '').toString(),
+      );
+}
+
+class IsletmeKatalog {
+  const IsletmeKatalog({this.ozellikler = const [], this.odeme = const []});
+
+  final List<KatalogOge> ozellikler;
+  final List<KatalogOge> odeme;
+
+  /// Anahtar -> tanim (arayuz cizerken O(1) arama).
+  Map<String, KatalogOge> get harita => {
+        for (final o in [...ozellikler, ...odeme]) o.anahtar: o,
+      };
+}
+
+/// ⚠️ `keepAlive`: katalog SABIT bir tanim listesi, her ekran acilisinda
+///	yeniden cekmek gereksiz istek olurdu.
+/// ⚠️ Hata durumunda BOS katalog doner — ozellik cizilmez ama ekran
+///	COKMEZ (turu 113 `aiDurumProvider` dersi: hata surec boyunca
+///	onbelleklenirse ozellik BIR DAHA gorunmez).
+final isletmeKatalogProvider = FutureProvider<IsletmeKatalog>((ref) async {
+  try {
+    final r = await ref.read(apiProvider).get('/isletme-katalog');
+    final m = (r.data as Map).cast<String, dynamic>();
+    List<KatalogOge> coz(String k) =>
+        ((m[k] as List?) ?? const [])
+            .map((e) => KatalogOge.fromJson((e as Map).cast<String, dynamic>()))
+            .toList();
+    return IsletmeKatalog(ozellikler: coz('ozellikler'), odeme: coz('odeme'));
+  } catch (_) {
+    ref.invalidateSelf();
+    return const IsletmeKatalog();
+  }
+});
+
+/// Lucide adi -> ikon. ⚠️ Bilinmeyen ad NOTR ikona duser (bkz. serh).
+const Map<String, IconData> kIsletmeIkon = {
+  'wifi': LucideIcons.wifi,
+  'circleParking': LucideIcons.circleParking,
+  'cigaretteOff': LucideIcons.cigaretteOff,
+  'cigarette': LucideIcons.cigarette,
+  'baby': LucideIcons.baby,
+  'babyCarriage': LucideIcons.baby,
+  'accessibility': LucideIcons.accessibility,
+  'package': LucideIcons.package,
+  'shoppingBag': LucideIcons.shoppingBag,
+  'calendarCheck': LucideIcons.calendarCheck,
+  'treePine': LucideIcons.treePine,
+  'pawPrint': LucideIcons.pawPrint,
+  'airVent': LucideIcons.airVent,
+  'tv': LucideIcons.tv,
+  'car': LucideIcons.car,
+  'clock': LucideIcons.clock,
+  'banknote': LucideIcons.banknote,
+  'creditCard': LucideIcons.creditCard,
+  'nfc': LucideIcons.nfc,
+  'utensils': LucideIcons.utensils,
+  'globe': LucideIcons.globe,
+  'qrCode': LucideIcons.qrCode,
+};
+
+IconData isletmeIkonBul(String ad) =>
+    kIsletmeIkon[ad] ?? LucideIcons.circleCheck;

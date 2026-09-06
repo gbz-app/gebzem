@@ -48,8 +48,19 @@ const Color kOnayliRengi = Color(0xFF3AA9FF);
 /// ⚠️ TAVAN (240) ve  DURUYOR: tablette kapak ekranin
 ///    yarisini yemez, gorsel esnemez KIRPILIR.
 const double kKapakKisaltma = 0.92;
+/// ⚠️ TURU 180 — **+15 dp** (kullanici: *"slider 15px daha yukselt"*).
+///	Ek yukseklik ORANIN DISINDA toplanir: carpanin icine
+///	konsaydi dar ekranda 15 dp'den AZ, genis ekranda FAZLA
+///	buyurdu — kullanicinin verdigi olcu MUTLAK.
+/// ⚠️ Alt kavisin derinligi (`kKapakKavis`) bu yuksekligin ICINDEDIR:
+///	kapak ortada `kh` kadar, kenarlarda `kh - kavis` kadar
+///	gorunur. Avatarin dikey konumu da `kh`den turedigi icin
+///	ikisi BIRLIKTE kayar.
+/// Alt kavisin derinligi. ⚠️ `kapakYuksekligi`ye EKLENIR (bkz. kirpici).
+const double kKapakKavis = 26;
+
 double kapakYuksekligi(double genislik) =>
-    math.min(genislik * 9 / 16, 240.0) * kKapakKisaltma;
+    math.min(genislik * 9 / 16, 240.0) * kKapakKisaltma + 15;
 
 class ProfilBasligi extends StatelessWidget {
   const ProfilBasligi({
@@ -105,16 +116,20 @@ class ProfilBasligi extends StatelessWidget {
             //    ekranin tepesinde iki kenar bosluk gorunurdu.
             // ⚠️ Kirpici `Positioned`in ICINDE: disina konsaydi avatarin
             //    kapaktan TASAN kismi da kirpilirdi.
-            // ⚠️⚠️ TURU 179 — **KOSELER TERS (KONKAV)** (kullanici:
-            //	*"alt sol ve sag alt raduslar YUKARI bakiyor, ASAGI
-            //	dogru bakmali"*). Bkz. `_TersKoseKirpici`.
+            // ⚠️⚠️⚠️ TURU 180 — **ALT KENAR ASAGI DOGRU KAVISLI.**
+            //
+            //	Turu 179'da kose kose ters radus denendi; kullanici
+            //	*"allah askina ALTA DOGRU yapacaksin"* diye
+            //	duzeltti. Istenen sey KOSE degil **ALT KENARIN
+            //	KENDISI**: ortasi asagi sarkan bir yay.
+            //	Bkz. `_AltKavisKirpici`.
             Positioned(
               top: 0,
               left: 0,
               right: 0,
               height: kh,
               child: ClipPath(
-                clipper: const _TersKoseKirpici(22),
+                clipper: const _AltKavisKirpici(kKapakKavis),
                 child: _kapak(),
               ),
             ),
@@ -276,56 +291,46 @@ class ProfilAdSatiri extends StatelessWidget {
   );
 }
 
-/// ⚠️⚠️⚠️ TURU 179 — **TERS (KONKAV) ALT KOSE.**
+/// ⚠️⚠️⚠️ TURU 180 — **ALT KENAR ASAGI DOGRU KAVISLI.**
 ///
-/// Kullanici: *"logonun arkasindaki slider'in alt sol ve sag alt raduslari
-/// YUKARI bakiyor, ASAGI dogru bakmali"*.
+/// Kullanici: *"alta dogru slider radusu, allah askina ALTA DOGRU
+/// yapacaksin"*.
 ///
-/// Normal `ClipRRect` kosede yayin merkezini dikdortgenin ICINE koyar; kose
-/// yuvarlanarak KESILIR ve kavis yukari bakar:
+/// Turu 179 koseleri ters radusle oymustu; sonuc kullanicinin tarif ettigi
+/// sey DEGILDI. Istenen, alt kenarin ORTASININ asagi sarkmasi:
 ///
-///	|          |          <- normal            |          |   <- ters
-///	\__________/                              _/          \_
+///	|              |          <- yan kenarlar duz
+///	\____________/           <- orta ASAGI, koseler YUKARIDA
 ///
-/// Burada merkez tam KOSE NOKTASINA (w, h) alinir ve yay TERS yonde
-/// cizilir: kose OYULUR, alt kenarin ORTASI asagi sarkar — yani kavis
-/// ASAGI bakar.
-///
-/// ⚠️ `clockwise: false` KRITIK: `true` birakilirsa yay merkezi yine ice
-///	duser ve sonuc SIRADAN bir yuvarlak kose olur (degisiklik
-///	EKRANDA HIC GORUNMEZ).
-/// ⚠️ Yaricap yuksekligin yarisiyla SINIRLANIR: cok kisa bir kapakta
-///	iki yay ust uste binip `Path` kendini KESERDI (kirpma sonucu
-///	ongorulemez olur).
-class _TersKoseKirpici extends CustomClipper<Path> {
-  const _TersKoseKirpici(this.yaricap);
+/// ⚠️ Tek bir `quadraticBezierTo` yeter: kontrol noktasi `(w/2, h + kavis)`
+///	olunca egri **kavis** kadar asagi sarkar (Bezier egrisi kontrol
+///	noktasina DEGMEZ, ona dogru cekilir — gercek sarkma yaklasik
+///	yarisi kadardir, bu yuzden `kKapakKavis` gorsel olarak
+///	ayarlandi).
+/// ⚠️⚠️ Kavis payi `kapakYuksekligi`ye EKLENIR: eklenmeseydi egri kapagin
+///	ALT KENARINDAN asagi tasar ve `Positioned(height: kh)`
+///	kirptigi icin duz bir cizgiye donerdi (degisiklik EKRANDA HIC
+///	GORUNMEZDI).
+class _AltKavisKirpici extends CustomClipper<Path> {
+  const _AltKavisKirpici(this.kavis);
 
-  final double yaricap;
+  final double kavis;
 
   @override
   Path getClip(Size size) {
     final w = size.width;
     final h = size.height;
-    final r = yaricap.clamp(0.0, h / 2).toDouble();
+    // ⚠️ Kavis yuksekligin yarisini ASAMAZ: asarsa egri kendi ustune
+    //    kivrilir ve kirpma sonucu ongorulemez olur.
+    final k = kavis.clamp(0.0, h / 2).toDouble();
     return Path()
       ..moveTo(0, 0)
       ..lineTo(w, 0)
-      ..lineTo(w, h - r)
-      // ⚠️ Merkez (w, h): yay kosenin ICINI oyar.
-      ..arcToPoint(
-        Offset(w - r, h),
-        radius: Radius.circular(r),
-        clockwise: false,
-      )
-      ..lineTo(r, h)
-      ..arcToPoint(
-        Offset(0, h - r),
-        radius: Radius.circular(r),
-        clockwise: false,
-      )
+      ..lineTo(w, h - k)
+      ..quadraticBezierTo(w / 2, h + k, 0, h - k)
       ..close();
   }
 
   @override
-  bool shouldReclip(_TersKoseKirpici eski) => eski.yaricap != yaricap;
+  bool shouldReclip(_AltKavisKirpici eski) => eski.kavis != kavis;
 }

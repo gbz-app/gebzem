@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -74,6 +75,14 @@ enum ProfilSekmesi {
   //	tukenmis (exhaustive) yazilmis ve olu bir deger birakmak
   //	her birinde ULASILAMAZ bir dal birakirdi.
   ilan,
+  /// ⚠️⚠️ TURU 180 — **IS ILANI** (kullanici: *"profile is ilanini da
+  ///	ekle, is ilani detaylarini da ekle"*).
+  ///
+  /// ⚠️ Sunucuda AYRI bir tur: `/ilanlar?tur=is`. `ilan` sekmesi bu turu
+  ///	ZATEN disariyor mu? HAYIR — `ilan` bos `tur` ile TUM ilanlari
+  ///	getiriyordu. Iki sekme ayni kaydi listelememesi icin `ilan`
+  ///	sekmesi artik is ilanlarini ELER (bkz. `_ilanYukle`).
+  isIlani,
   dolap,
   hizmet,
   talep,
@@ -88,6 +97,7 @@ extension ProfilSekmesiBilgi on ProfilSekmesi {
     ProfilSekmesi.video => 'Video',
     ProfilSekmesi.reels => 'Reels',
     ProfilSekmesi.ilan => 'İlanlarım',
+    ProfilSekmesi.isIlani => 'İş İlanları',
     ProfilSekmesi.dolap => 'Dolap',
     ProfilSekmesi.hizmet => 'Hizmetlerim',
     ProfilSekmesi.talep => 'Taleplerim',
@@ -101,6 +111,7 @@ extension ProfilSekmesiBilgi on ProfilSekmesi {
     ProfilSekmesi.video => LucideIcons.video,
     ProfilSekmesi.reels => LucideIcons.clapperboard,
     ProfilSekmesi.ilan => LucideIcons.tag,
+    ProfilSekmesi.isIlani => LucideIcons.briefcase,
     ProfilSekmesi.dolap => LucideIcons.shirt,
     ProfilSekmesi.hizmet => LucideIcons.wrench,
     ProfilSekmesi.talep => LucideIcons.clipboardList,
@@ -114,6 +125,7 @@ extension ProfilSekmesiBilgi on ProfilSekmesi {
     ProfilSekmesi.video => 'Henüz video yok',
     ProfilSekmesi.reels => 'Henüz reels yok',
     ProfilSekmesi.ilan => 'Henüz ilan vermedin',
+    ProfilSekmesi.isIlani => 'Henüz iş ilanı yok',
     ProfilSekmesi.dolap => 'Dolabında ürün yok',
     ProfilSekmesi.hizmet => 'Henüz hizmet ilanın yok',
     ProfilSekmesi.talep => 'Henüz talebin yok',
@@ -139,6 +151,7 @@ extension ProfilSekmesiBilgi on ProfilSekmesi {
   ///    listeleyecek bir yol YOK. Menude HIC gosterilmez.
   bool get ilanMi =>
       this == ProfilSekmesi.ilan ||
+      this == ProfilSekmesi.isIlani ||
       this == ProfilSekmesi.dolap ||
       this == ProfilSekmesi.hizmet ||
       this == ProfilSekmesi.talep ||
@@ -146,6 +159,7 @@ extension ProfilSekmesiBilgi on ProfilSekmesi {
 
   /// Ilan turu (`/ilanlar?tur=`).
   String get ilanTuru => switch (this) {
+    ProfilSekmesi.isIlani => 'is',
     ProfilSekmesi.dolap => 'ikinci_el',
     ProfilSekmesi.hizmet => 'hizmet',
     // ⚠️ Dugun AYRI BIR TUR DEGIL: sunucuda dugun talepleri de
@@ -530,7 +544,11 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
                 child: const SizedBox(
                   width: 44,
                   height: 44,
-                  child: Icon(LucideIcons.arrowLeft, size: 24),
+                  child: Center(
+                    child: _BlurDaire(
+                      child: Icon(LucideIcons.arrowLeft, size: 22),
+                    ),
+                  ),
                 ),
               ),
         actions: [
@@ -564,7 +582,9 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
           if (_isletme != null)
             IconButton(
               tooltip: 'İşletme hakkında',
-              icon: const Icon(LucideIcons.circleHelp),
+              icon: const _BlurDaire(
+                child: Icon(LucideIcons.circleHelp, size: 22),
+              ),
               onPressed: () => isletmeBilgiAc(
                 context,
                 ad: _p?.ad ?? '',
@@ -574,28 +594,30 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
           IconButton(
             tooltip: 'Menü',
             onPressed: _menu,
-            icon: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Container(
-                  width: 20,
-                  height: 2,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(1),
+            icon: _BlurDaire(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Container(
+                    width: 19,
+                    height: 2,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(1),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 5),
-                Container(
-                  width: 12,
-                  height: 2,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(1),
+                  const SizedBox(height: 5),
+                  Container(
+                    width: 11,
+                    height: 2,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(1),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ],
@@ -1030,11 +1052,23 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
           if (yorumVar) ...[
             const SizedBox(width: 8),
             Expanded(
+              // ⚠️ TURU 180 — etiket 'Yorumlar' -> **'Yapay zekâ yorumu'**
+              //    + kivilcim ikonu (kullanici emri). Dokunus AYNI
+              //    yorum panelini acar.
+              // ⚠️ `FittedBox` ZORUNLU: uzun etiket dar dugmede tek
+              //    kelimeyi ORTADAN BOLERDI (turu 143 dersi).
               child: OutlinedButton(
                 onPressed: () => yorumlarAc(context, isletmeAd: p.ad),
                 child: const FittedBox(
                   fit: BoxFit.scaleDown,
-                  child: Text('Yorumlar'),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(LucideIcons.sparkles, size: 15),
+                      SizedBox(width: 5),
+                      Text('Yapay zekâ yorumu'),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -1173,6 +1207,11 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
   ///    kacinilmaz olarak drift ederdi.
   /// ⚠️ Sunucuda hepsi `tur=talep`tir; dal ayrimi bir SUNUM tercihidir
   ///    (bkz. o dosyanin serhi) — bu yuzden istemcide durmasi bilincli.
+  /// ⚠️ TURU 180 — **`video` de seritten CIKARILDI** (kullanici: *"oradaki
+  ///	video ikonunu kaldir"*). Videolar `tumu` ve `reels`
+  ///	sekmelerinde ZATEN gorunuyor; ayri bir sekme ayni icerigi
+  ///	ucuncu kez listeliyordu.
+  ///
   /// ⚠️⚠️ TURU 179 — **`genel` SEKMESI SERITTEN CIKARILDI** (kullanici:
   ///	*"gonderinin solundaki GENEL bilgileri sag ustteki soru
   ///	isaretine tikladiginda %95 POPUP olarak acilsin"*).
@@ -1183,7 +1222,18 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
   ///	ama seritten kaldirma TEK SATIRLA geri alinabilsin.
   List<ProfilSekmesi> get _sekmeler => [
     for (final x in ProfilSekmesi.values)
-      if (x != ProfilSekmesi.genel && (!x.ilanMi || _benimMi)) x,
+      // ⚠️⚠️ TURU 180 — `isIlani` **HERKESE** gorunur (kullanici emri:
+      //	*"profile is ilanini da ekle"*). Digerleri (`ilan`,
+      //	`dolap`, `talep`…) YALNIZ kendi profilinde: onlar
+      //	"ilanlarim/taleplerim" gibi BIRINCI SAHIS bolumler ve
+      //	baskasinin profilinde "Henüz ilan vermedin" demek
+      //	sacma olurdu.
+      // ⚠️ Bir isletmenin IS ILANI ise MUSTERIYI ilgilendirir — zaten
+      //	herkese acik bir liste (`/ilanlar?tur=is&user_id=`).
+      if (x != ProfilSekmesi.genel &&
+          x != ProfilSekmesi.video &&
+          (x == ProfilSekmesi.isIlani || !x.ilanMi || _benimMi))
+        x,
   ];
 
   /// TURU 176 — alttaki yuzen **Menü / Rezervasyon** geçisi.
@@ -1502,9 +1552,16 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
     });
     try {
       if (x.ilanMi) {
-        var l = await ref
-            .read(ilanServisiProvider)
-            .liste(tur: x.ilanTuru, benim: true);
+        // ⚠️⚠️ TURU 180 — IS ILANI sekmesi BASKASININ profilinde de cizilir,
+        //	bu yuzden `benim` DEGIL `sahibi` ile sorulur. `benim: true`
+        //	birakilsaydi kullanici HER profilde KENDI is ilanlarini
+        //	gorurdu — sessiz ve fark edilmesi zor bir hata.
+        final isSekmesi = x == ProfilSekmesi.isIlani;
+        var l = await ref.read(ilanServisiProvider).liste(
+              tur: x.ilanTuru,
+              benim: isSekmesi ? false : true,
+              sahibi: isSekmesi ? widget.userId : '',
+            );
         // ⚠️⚠️ **DUGUN ILE HIZMET TALEBI AYNI TURDEDIR** (sunucu:
         //	`tur='talep'`), ayrim KATEGORIDEDIR. `/ilanlar` suzgeci TEK
         //	ESITLIK kabul ettigi icin dokuz dugun kategorisi tek istekle
@@ -1597,14 +1654,7 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
     }
     if (x.ilanMi) return _ilanListesi();
     final l = _gonderiOnbellek[x] ?? const <Gonderi>[];
-    if (l.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 60),
-        child: Center(
-          child: Text(x.bosMetin, style: TextStyle(color: soluk)),
-        ),
-      );
-    }
+    if (l.isEmpty) return _bosDurum(x, soluk);
     return _izgara();
   }
 
@@ -1641,6 +1691,50 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
       );
     });
   }
+
+  /// ⚠️⚠️ TURU 180 — **BOS DURUM: DAIRE ICINDE IKON + ORTALANMIS**
+  ///	(kullanici: *"henuz gonderi yok / fotograf yok, o gorunmez
+  ///	beyaz cizgi ile alt bolumun ORTASINDA olsun; ustunde
+  ///	DAIRE ICINDE gonderi ikonu olsun, digerlerinde video vs"*).
+  ///
+  /// ⚠️ Ikon SEKMEDEN gelir (`x.ikon`): her sekme kendi simgesini alir,
+  ///	ayri bir tablo yazilsaydi sekme eklendiginde geride kalirdi.
+  /// ⚠️⚠️ **YUKSEKLIK SABIT DEGIL**: blok, sekme sayfasinin (`PageView`,
+  ///	ekranin %62'si) TAMAMINI kaplar ve icerik DIKEYDE ORTALANIR.
+  ///	Onceden `vertical: 60` dolgusu vardi ve metin blogun
+  ///	TEPESINDE duruyordu — kullanicinin gordugu buydu.
+  Widget _bosDurum(ProfilSekmesi x, Color soluk) => Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 74,
+              height: 74,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                // ⚠️ Cember dolgusu DEGIL KENARLIK: dolu bir daire siyah
+                //    zeminde leke gibi durur (emulatorde bakildi).
+                border: Border.all(
+                  color: _ks.onSurface.withValues(alpha: 0.35),
+                  width: 1.6,
+                ),
+              ),
+              child: Icon(x.ikon, size: 32, color: soluk),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              x.bosMetin,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: soluk,
+              ),
+            ),
+          ],
+        ),
+      );
 
   Widget _sekmeSeridi() {
     final scheme = _ks;
@@ -1694,6 +1788,9 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
                     padding: const EdgeInsets.symmetric(horizontal: 18),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
+                      // ⚠️ TURU 180 — cizgi ustteki satirin genisligini
+                      //    alsin diye (bkz. cizgi serhi).
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         // ⚠️⚠️ TURU 176 — **SECILI OLMAYANDA SADECE IKON**
                         //	(kullanici emri: *"secili olmayan menude
@@ -1702,10 +1799,17 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
                         //    `Semantics(label: x.etiket)` etiketi HER
                         //    durumda okur (ekran okuyucu icin metin var).
                         Row(
+                          // ⚠️ `stretch` altinda `Row` TUM genislige
+                          //    yayilirdi; `min` + `center` ile icerik
+                          //    kadar kalir ve cizgi de o kadar olur.
+                          mainAxisSize: MainAxisSize.min,
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(
                               x.ikon,
-                              size: 17,
+                              // ⚠️ TURU 180 — 17 -> **19** (kullanici:
+                              //    *"ikonlari 1 tik daha buyut"*).
+                              size: 19,
                               color: secili
                                   ? scheme.onSurface
                                   : scheme.onSurface.withValues(alpha: 0.45),
@@ -1728,11 +1832,22 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
                         //	cizginin TAM USTUNE olsun"* dedi. 6 dp
                         //	bosluk cizgiyi ayiricidan KOPARIYORDU.
                         const Spacer(),
+                        // ⚠️⚠️ TURU 180 — **CIZGI IKON+YAZI GENISLIGINDE**
+                        //	(kullanici: *"aktif menu cizgi, ikon ve yazi
+                        //	genisliginde olsun"*). Sabit 26 dp idi ve
+                        //	secili sekmenin altinda ORTADA kisa bir
+                        //	cubuk gibi duruyordu.
+                        // ⚠️ `SizedBox(width: double.infinity)` ILE OLMAZ:
+                        //	`Column` bir `ListView` ogesinin icinde ve
+                        //	sinirsiz genislik ister -> RenderFlex
+                        //	hatasi. Cizgi ustteki `Row`un GENISLIGINI
+                        //	miras alsin diye `Column`a
+                        //	`crossAxisAlignment: stretch` verilir ve
+                        //	genislik ICERIKTEN gelir.
                         // ⚠️ Cizgi SECILI OLMASA DA yer kaplar (saydam): aksi
                         //    halde secim degisince satir 2 dp ziplardi.
                         Container(
                           height: 2.5,
-                          width: 26,
                           decoration: BoxDecoration(
                             color: secili
                                 ? Colors.white
@@ -1785,35 +1900,125 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
   ///    baslik + fiyat kare bir hucreye sigmaz.
   Widget _ilanListesi() {
     final l = _ilanOnbellek[_sekme] ?? const <Ilan>[];
+    // ⚠️ TURU 180 — bos durum GONDERI sekmeleriyle AYNI dilde (daire
+    //    icinde ikon + ortalanmis metin); iki farkli bos ekran dili
+    //    ayni sayfada tutarsiz duruyordu.
     if (l.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 60),
-        child: Center(
-          child: Text(
-            _sekme.bosMetin,
-            style: const TextStyle(color: Colors.grey),
+      return _bosDurum(_sekme, _ks.onSurface.withValues(alpha: 0.6));
+    }
+    return Column(children: [for (final i in l) _ilanKarti(i)]);
+  }
+
+  /// ⚠️⚠️ TURU 180 — **ILAN KARTI** (kullanici: *"is ilanini da ekle, is
+  ///	ilani detaylarini da ekle; arayuzu guzel yapmani istiyorum"*).
+  ///
+  /// Onceki hal duz bir `ListTile` idi: baslik + fiyat + chevron. Yeni
+  /// kart menu kalemleriyle AYNI dili konusuyor (kendi zemini, 18 radus,
+  /// gorsel alani) — profilde iki farkli liste dili kalmasin.
+  /// ⚠️ Kapak `KapakGorseli`: ilk FOTOGRAFI secer ve yalniz-video ilanda
+  ///	INDIRME YAPMADAN yer tutucu cizer (turu 83b dersi:
+  ///	`mediaIds.first` video id'si olabilir ve KIRIK GORSEL cizerdi).
+  /// ⚠️ Gorsel alani DAIMA cizilir: kosullu olsaydi kimi kart 88 dp kimi
+  ///	0 dp olur ve liste ZIPLARDI.
+  Widget _ilanKarti(Ilan i) {
+    final scheme = _ks;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 5, 16, 5),
+      child: Material(
+        color: scheme.onSurface.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(18),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => IlanDetayEkrani(ilan: i)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(14),
+                  child: SizedBox(
+                    width: 88,
+                    height: 88,
+                    child: i.mediaIds.isEmpty
+                        ? ColoredBox(
+                            color: scheme.onSurface.withValues(alpha: 0.11),
+                            child: Icon(
+                              _sekme == ProfilSekmesi.isIlani
+                                  ? LucideIcons.briefcase
+                                  : LucideIcons.image,
+                              size: 26,
+                              color: scheme.onSurface.withValues(alpha: 0.3),
+                            ),
+                          )
+                        : KapakGorseli(
+                            mediaIds: i.mediaIds,
+                            mediaKinds: i.mediaKinds,
+                          ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        i.baslik,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 15.5,
+                          fontWeight: FontWeight.w700,
+                          height: 1.3,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        i.fiyatEtiketi,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: scheme.primary,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      // ⚠️ Konum VARSA cizilir: bos bir satir kart
+                      //    yuksekligini bosuna buyuturdu.
+                      if (i.ilce.isNotEmpty || i.il.isNotEmpty)
+                        Row(
+                          children: [
+                            Icon(
+                              LucideIcons.mapPin,
+                              size: 13,
+                              color: scheme.onSurface.withValues(alpha: 0.5),
+                            ),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                [i.ilce, i.il]
+                                    .where((x) => x.isNotEmpty)
+                                    .join(', '),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 12.5,
+                                  color: scheme.onSurface
+                                      .withValues(alpha: 0.55),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
-      );
-    }
-    return Column(
-      children: [
-        for (final i in l)
-          ListTile(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-            title: Text(
-              i.baslik,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-            subtitle: Text(i.fiyatEtiketi),
-            trailing: const Icon(LucideIcons.chevronRight, size: 18),
-            onTap: () => Navigator.of(
-              context,
-            ).push(MaterialPageRoute(builder: (_) => IlanDetayEkrani(ilan: i))),
-          ),
-      ],
+      ),
     );
   }
 
@@ -2113,4 +2318,38 @@ class _IsletmeSeridiState extends ConsumerState<IsletmeSeridi> {
       ],
     ),
   );
+}
+
+/// ⚠️⚠️ TURU 180 — **HEADER IKONLARININ ARKASINDA BLUR DAIRE** (kullanici:
+///	*"geri, soru isareti ve sagdaki menu arkasina blur daire
+///	yap"*).
+///
+/// ⚠️ **GEREKCE SUS DEGIL OKUNABILIRLIK**: header `extendBodyBehindAppBar`
+///	ile KAPAK FOTOGRAFININ uzerinde duruyor ve fotograf her
+///	renkte olabilir. Beyaz bir ikon acik gokyuzunde ya da beyaz
+///	bir tabelada KAYBOLUR (McDonald's kapaginda tam bu yasandi).
+///
+/// ⚠️ `ClipOval` ZORUNLU: `BackdropFilter` kirpilmazsa bulaniklik TUM
+///	ekrana yayilir (Flutter'da bilinen tuzak — filtre kendi
+///	sinirini CIZMEZ).
+/// ⚠️ Bulanik katmanin USTUNE hafif bir siyah dolgu konur: yalniz blur,
+///	acik bir zeminde beyaz ikonu HALA gorunmez birakirdi.
+class _BlurDaire extends StatelessWidget {
+  const _BlurDaire({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => ClipOval(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            width: 36,
+            height: 36,
+            alignment: Alignment.center,
+            color: Colors.black.withValues(alpha: 0.28),
+            child: child,
+          ),
+        ),
+      );
 }

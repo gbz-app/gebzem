@@ -16,6 +16,7 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -58,7 +59,7 @@ Future<void> isletmeBilgiAc(
   ),
 );
 
-class _BilgiPaneli extends StatelessWidget {
+class _BilgiPaneli extends ConsumerWidget {
   const _BilgiPaneli({required this.ad, required this.i});
 
   final String ad;
@@ -67,7 +68,11 @@ class _BilgiPaneli extends StatelessWidget {
   ColorScheme get _ks => kKoyuTema.colorScheme;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // ⚠️ Katalog SUNUCUDAN (ad + ikon). Gelmemisse ozellik bolumleri
+    //    CIZILMEZ — anahtari ham haliyle ("sigara_yok") gostermek
+    //    kullaniciya anlamsiz gorunurdu.
+    final katalog = ref.watch(isletmeKatalogProvider).valueOrNull;
     final adres = [i.adres, i.ilce, i.il].where((x) => x.isNotEmpty).join(', ');
     return Column(
       children: [
@@ -121,23 +126,33 @@ class _BilgiPaneli extends StatelessWidget {
                 const SizedBox(height: 8),
                 _saatlerKarti(),
               ],
-              const SizedBox(height: 14),
-              // ⚠️⚠️ **SOSYAL MEDYA ALANLARI SUNUCUDA YOK** (olculdu:
-              //    `Isletme` modelinde ve `PUT /users/me/isletme` govdesinde
-              //    facebook/instagram DIYE BIR ALAN YOK). Sabit bir hesap
-              //    adi basmak "bu isletmenin Instagram'i budur" YALANI
-              //    olurdu — turu 176'da "Ozellikler (kredi karti · wifi)"
-              //    ayni gerekceyle YAZILMAMISTI.
-              //    ⏳ Gerekli: migration + sunucu alani + duzenleme formu.
-              //    Bugun kullanilabilen tek sosyal kanal WhatsApp (telefondan
-              //    turetiliyor) ve isletmenin KENDI yazdigi web adresi.
-              Text(
-                'Daha fazla iletişim kanalı işletme tarafından eklenmemiş.',
-                style: TextStyle(
-                  fontSize: 12.5,
-                  color: _ks.onSurface.withValues(alpha: 0.45),
+              // ⚠️⚠️⚠️ TURU 180 — **OZELLIKLER VE ODEME SECENEKLERI.**
+              //
+              //	Turu 176/179'da BILEREK yazilmamisti: sunucuda alan
+              //	YOKTU ve sabit bir liste basmak *"bu isletme kredi
+              //	karti aliyor"* YALANI olurdu. Kullanici ozelligi
+              //	IKINCI kez isteyince dogru yol arayuze sahte liste
+              //	koymak DEGIL, **alani acmak** oldu: migration 050 +
+              //	`GET /isletme-katalog` + duzenleme formu.
+              //
+              // ⚠️ Bos liste = bolum HIC cizilmez: "Özellikler: —" gibi bos
+              //	bir baslik paneli kirletir.
+              // ⚠️ Kullanicinin *"daha fazla iletisim kanali eklenmemis"*
+              //	satirini KALDIR emri de burada uygulandi.
+              if (katalog != null) ...[
+                _cipBolumu(
+                  LucideIcons.badgeCheck,
+                  'Özellikler',
+                  i.ozellikler,
+                  katalog.harita,
                 ),
-              ),
+                _cipBolumu(
+                  LucideIcons.wallet,
+                  'Ödeme seçenekleri',
+                  i.odeme,
+                  katalog.harita,
+                ),
+              ],
             ],
           ),
         ),
@@ -208,6 +223,69 @@ class _BilgiPaneli extends StatelessWidget {
               fontWeight: FontWeight.w800,
               color: renk,
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// ⚠️ Bilinmeyen anahtar ATLANIR (katalogda yoksa): sunucudan kaldirilmis
+  ///	bir ozellik eski kayitlarda kalmis olabilir ve ham anahtari
+  ///	("sigara_yok") ekrana basmak kullaniciya anlamsiz gorunurdu.
+  Widget _cipBolumu(
+    IconData ikon,
+    String baslik,
+    List<String> anahtarlar,
+    Map<String, KatalogOge> katalog,
+  ) {
+    final ogeler = anahtarlar
+        .map((a) => katalog[a])
+        .whereType<KatalogOge>()
+        .toList();
+    if (ogeler.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _bolumBasligi(ikon, baslik),
+          const SizedBox(height: 10),
+          // ⚠️ `Wrap` — `Row` DEGIL: 16 ozellik tek satira SIGMAZ ve `Row`
+          //    RenderFlex tasma seridi cizerdi (turu 120 dersi).
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final o in ogeler)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 9,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _ks.onSurface.withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        isletmeIkonBul(o.ikon),
+                        size: 16,
+                        color: _ks.primary,
+                      ),
+                      const SizedBox(width: 7),
+                      Text(
+                        o.ad,
+                        style: const TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
           ),
         ],
       ),
@@ -388,6 +466,10 @@ typedef _Yorum = ({
   String zaman,
   String metin,
   int begeni,
+  // ⚠️ TURU 180 — kullanici: *"yorumlarda resim de olmali"*.
+  //    `0` = fotografsiz yorum; yer tutucu SAYISI kadar kare cizilir.
+  //    Gercek medya YOK (yorumlar ornek kayit), bu yuzden yalniz ALAN.
+  int gorsel,
 });
 
 const List<_Yorum> _ornekYorumlar = [
@@ -400,6 +482,7 @@ const List<_Yorum> _ornekYorumlar = [
         'Patatesler sıcacıktı, çocuklar bayıldı. Kesinlikle tekrar '
         'sipariş vereceğim.',
     begeni: 24,
+    gorsel: 2,
   ),
   (
     ad: 'Mert Kaya',
@@ -409,6 +492,7 @@ const List<_Yorum> _ornekYorumlar = [
         'Lezzet her zamanki gibi güzel ama akşam saatlerinde biraz '
         'kalabalık oluyor. Yine de personel çok ilgili, teşekkürler.',
     begeni: 11,
+    gorsel: 0,
   ),
   (
     ad: 'Zeynep Arslan',
@@ -418,6 +502,7 @@ const List<_Yorum> _ornekYorumlar = [
         'Mekan tertemiz, masalar sürekli siliniyor. Çocuk oyun alanı '
         'olması bizim için büyük artı. Menüdeki fiyatlar da gayet uygun.',
     begeni: 37,
+    gorsel: 3,
   ),
   (
     ad: 'Burak Şen',
@@ -427,6 +512,7 @@ const List<_Yorum> _ornekYorumlar = [
         'Yemekler güzeldi ama siparişimde bir ürün eksik çıktı. '
         'Aradığımda hemen ilgilendiler, o yüzden puanı çok düşürmedim.',
     begeni: 6,
+    gorsel: 1,
   ),
   (
     ad: 'Selin Doğan',
@@ -436,6 +522,7 @@ const List<_Yorum> _ornekYorumlar = [
         'Gebze’de en sevdiğim yer. Kahvaltıya da gidiyoruz, akşam da. '
         'Personel güler yüzlü, sipariş bekleme süresi kısa.',
     begeni: 52,
+    gorsel: 2,
   ),
   (
     ad: 'Ahmet Çelik',
@@ -445,6 +532,7 @@ const List<_Yorum> _ornekYorumlar = [
         'Fiyat performans olarak iyi. Otopark biraz dar ama yürüme '
         'mesafesinde park yeri bulunabiliyor.',
     begeni: 9,
+    gorsel: 0,
   ),
 ];
 
@@ -483,6 +571,25 @@ class _YorumPaneliDurumu extends State<_YorumPaneli> {
   ///    ustundeki "örnek" ibaresi bunu ACIKCA soyluyor.
   final _begenilen = <int>{};
 
+  /// Yorum yazma alani (yerel durum).
+  int _puanim = 0;
+  final _yazi = TextEditingController();
+
+  @override
+  void dispose() {
+    _yazi.dispose();
+    super.dispose();
+  }
+
+  /// ⚠️ Gonderme ucu YOK — kullaniciya DURUSTCE soylenir.
+  void _yorumYok() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Yorum gönderme henüz sunucuya bağlı değil.'),
+      ),
+    );
+  }
+
   ColorScheme get _ks => kKoyuTema.colorScheme;
 
   double get _ortalama =>
@@ -497,6 +604,10 @@ class _YorumPaneliDurumu extends State<_YorumPaneli> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
           children: [
+            // ⚠️ TURU 180 — kullanici: *"yorumlarin popup'inda EN USTTE
+            //    yorum yapma yeri yok, onu da ekle"*.
+            _yorumYaz(),
+            const SizedBox(height: 14),
             _ozet(),
             const SizedBox(height: 12),
             _aiKarti(),
@@ -541,6 +652,108 @@ class _YorumPaneliDurumu extends State<_YorumPaneli> {
   );
 
   /// Puan ozeti + **ornek veri uyarisi**.
+  /// ⚠️⚠️ TURU 180 — **YORUM YAZMA ALANI.**
+  ///
+  /// ⚠️ Gonderme ucu YOK (isletme yorumu icin tablo/uc yok — bkz.
+  ///	`kYorumOrnek` serhi). Dugmeye basilinca kullaniciya
+  ///	DURUSTCE soylenir; sessizce "gonderildi" demek yalan olurdu.
+  /// ⚠️ Yildiz secimi CANLI calisir (yerel durum): tasarim boyle
+  ///	degerlendirilebilsin.
+  Widget _yorumYaz() => Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: _ks.onSurface.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Deneyimini paylaş',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                for (var y = 1; y <= 5; y++)
+                  GestureDetector(
+                    onTap: () => setState(() => _puanim = y),
+                    child: Padding(
+                      padding: const EdgeInsets.only(right: 4),
+                      child: Icon(
+                        y <= _puanim
+                            ? Icons.star_rounded
+                            : Icons.star_outline_rounded,
+                        size: 30,
+                        color: y <= _puanim
+                            ? const Color(0xFFFFB020)
+                            : _ks.onSurface.withValues(alpha: 0.3),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _yazi,
+              minLines: 2,
+              maxLines: 4,
+              maxLength: 500,
+              decoration: InputDecoration(
+                hintText: 'Yorumunu yaz…',
+                filled: true,
+                fillColor: _ks.onSurface.withValues(alpha: 0.06),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.all(14),
+              ),
+            ),
+            Row(
+              children: [
+                // ⚠️ Fotograf ekleme de ucsuz: ayni durustluk kapisi.
+                OutlinedButton.icon(
+                  onPressed: _yorumYok,
+                  icon: const Icon(LucideIcons.imagePlus, size: 17),
+                  label: const Text('Fotoğraf'),
+                ),
+                const Spacer(),
+                FilledButton(
+                  onPressed: _yorumYok,
+                  child: const Text('Gönder'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+
+  /// ⚠️ Gorseller ORNEK: gercek medya yok, yalniz ALAN cizilir (kullanici:
+  ///	*"yorumlarda resim de olmali"*).
+  Widget _yorumGorselleri(int adet) => SizedBox(
+        height: 84,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          itemCount: adet,
+          separatorBuilder: (_, _) => const SizedBox(width: 8),
+          itemBuilder: (_, _) => ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              width: 84,
+              height: 84,
+              alignment: Alignment.center,
+              color: _ks.onSurface.withValues(alpha: 0.11),
+              child: Icon(
+                LucideIcons.image,
+                size: 24,
+                color: _ks.onSurface.withValues(alpha: 0.3),
+              ),
+            ),
+          ),
+        ),
+      );
+
   Widget _ozet() => Container(
     padding: const EdgeInsets.all(14),
     decoration: BoxDecoration(
@@ -715,6 +928,10 @@ class _YorumPaneliDurumu extends State<_YorumPaneli> {
             ),
             const SizedBox(height: 10),
             Text(y.metin, style: const TextStyle(fontSize: 14, height: 1.45)),
+            if (y.gorsel > 0) ...[
+              const SizedBox(height: 10),
+              _yorumGorselleri(y.gorsel),
+            ],
             const SizedBox(height: 10),
             Row(
               children: [

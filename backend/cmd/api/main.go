@@ -296,6 +296,8 @@ func main() {
 		// Istemci bir kez cekip onbellekler; yeni alan eklemek ISTEMCI
 		// GUNCELLEMESI GEREKTIRMEZ (ilan.Agac ucuyla ayni gerekce).
 		r.Get("/isletme-modulleri", isletmeH.Moduller)
+		// ⚠️ TURU 180 — ozellik/odeme TANIMLARI (istemcide kopya YOK).
+		r.Get("/isletme-katalog", isletmeH.Katalog)
 
 		// ⚠️⚠️ TURU 91 — DIYET (9 uc). HEPSI auth grubunun ICINDE.
 		//    Saglik verisi; kimliksiz erisim OLAMAZ.

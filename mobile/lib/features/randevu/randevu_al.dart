@@ -332,13 +332,18 @@ class _RandevuAlEkraniState extends ConsumerState<RandevuAlEkrani> {
       );
     }
 
+    // ⚠️ TURU 180 — cizgi 2 dp -> **3 dp yuvarlak uc** (kullanici:
+    //    *"rezervasyon arayuzunu daha modern hale getir"*).
     Widget cizgi(int i) => Expanded(
       child: Container(
-        height: 2,
-        margin: const EdgeInsets.only(bottom: 22),
-        color: i < _adim
-            ? scheme.primary
-            : scheme.onSurface.withValues(alpha: 0.10),
+        height: 3,
+        margin: const EdgeInsets.only(bottom: 22, left: 6, right: 6),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(2),
+          color: i < _adim
+              ? scheme.primary
+              : scheme.onSurface.withValues(alpha: 0.12),
+        ),
       ),
     );
 
@@ -436,7 +441,16 @@ class _RandevuAlEkraniState extends ConsumerState<RandevuAlEkrani> {
                   color: secili
                       ? scheme.primary
                       : scheme.onSurface.withValues(alpha: 0.06),
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(16),
+                  // ⚠️ TURU 180 — BUGUN ince bir halka alir: kullanici
+                  //    izgarada "hangi gundeyim" sorusunu tarih
+                  //    sayarak cozmek zorunda kalmasin.
+                  border: (!secili && i == 0)
+                      ? Border.all(
+                          color: scheme.primary.withValues(alpha: 0.55),
+                          width: 1.4,
+                        )
+                      : null,
                 ),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -565,13 +579,22 @@ class _RandevuAlEkraniState extends ConsumerState<RandevuAlEkrani> {
               _adimaGit(2);
             }
           : null,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 11),
+      child: AnimatedContainer(
+        // ⚠️ 140 ms: secim geri bildirimi ANI olmasin ama beklenmesin de.
+        duration: const Duration(milliseconds: 140),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
         decoration: BoxDecoration(
           color: secili
               ? scheme.primary
               : scheme.onSurface.withValues(alpha: s.musait ? 0.06 : 0.03),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(14),
+          // ⚠️ DOLU slotta kesikli gorunum yerine SOLUK KENARLIK: kesik
+          //    desen kucuk cipte gurultu yapiyordu.
+          border: s.musait
+              ? null
+              : Border.all(
+                  color: scheme.onSurface.withValues(alpha: 0.08),
+                ),
         ),
         child: Text(
           s.saat,
@@ -608,7 +631,22 @@ class _RandevuAlEkraniState extends ConsumerState<RandevuAlEkrani> {
           ),
           child: Row(
             children: [
-              Icon(LucideIcons.calendarCheck, size: 22, color: scheme.primary),
+              // ⚠️ TURU 180 — ikon DAIRE ICINDE: duz ikon kartin icinde
+              //    havada duruyordu.
+              Container(
+                width: 42,
+                height: 42,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: scheme.primary.withValues(alpha: 0.18),
+                ),
+                child: Icon(
+                  LucideIcons.calendarCheck,
+                  size: 21,
+                  color: scheme.primary,
+                ),
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(

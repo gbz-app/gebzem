@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -597,7 +598,13 @@ func (h *Handler) Olustur(w http.ResponseWriter, r *http.Request) {
 	yaz(w, 201, map[string]any{"id": id})
 }
 
-// GET /ilanlar?tur=&kategori=&il=&ilce=&q=&min=&max=&benim=1&favori=1
+// ⚠️ TURU 180 — SALT BICIM kontrolu. Tek bozuk deger sorgunun TAMAMINI
+//	500 yapar (turu 76b `/users/ozet` dersi).
+var uuidRe = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
+
+func gecerliUUID(v string) bool { return uuidRe.MatchString(v) }
+
+// GET /ilanlar?tur=&kategori=&il=&ilce=&q=&min=&max=&benim=1&favori=1&sahibi=<uuid>
 func (h *Handler) Liste(w http.ResponseWriter, r *http.Request) {
 	me := auth.UserID(r.Context())
 	q := r.URL.Query()
@@ -614,6 +621,19 @@ func (h *Handler) Liste(w http.ResponseWriter, r *http.Request) {
 
 	ekKosul := ""
 	switch {
+	// ⚠️⚠️ TURU 180 — BASKASININ ILANLARI (`?sahibi=<uuid>`).
+	//
+	//	Kullanici emri: *"profile IS ILANINI da ekle"*. Bir isletmenin
+	//	is ilani MUSTERIYI ilgilendirir; `benim=1` ise YALNIZ kendi
+	//	profilinde calisiyordu.
+	// ⚠️ `durumKosulu` DOKUNULMAZ: baskasinin ilanlarinda yalniz `yayinda`
+	//	olanlar gorunur — satilmis/kaldirilmis kayitlari baskasina
+	//	gostermek onun gecmisini IFSA etmek olurdu.
+	// ⚠️ Deger sorgu PARAMETRESI olarak verilemiyor: `$1` zaten `me` ve pgx
+	//	KULLANILMAYAN bir parametreyi HATA sayar. Bu yuzden bicim
+	//	REGEX ile dogrulanip gomuluyor (ayni desen `talepKosulu`nda).
+	case gecerliUUID(q.Get("sahibi")):
+		ekKosul = fmt.Sprintf(" AND i.sahibi_id = '%s'::uuid", q.Get("sahibi"))
 	case q.Get("benim") == "1":
 		// ⚠️ "Ilanlarim"da SATILAN ve KALDIRILAN da gorunur — sahibi kendi
 		//    gecmisini gormeli (veri politikasi: silinmiyor).
