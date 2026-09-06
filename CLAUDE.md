@@ -41,7 +41,94 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
       kaybettiriyorsun"*. **Üçüncüsü olmayacak.**
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (6 Eyl 11:59): TURU 174 YAYINLANDI — SADECE iOS.**
+- **KALDIGIMIZ YER (6 Eyl 13:24): TURU 175-177 YAYINLANDI — SADECE iOS.**
+  ios **34026696916** (**8d55870**), R2 ipa=31345315 (md5 ea31d755),
+  index=7967 (d04b723f) surum.json=45 (b607ff2f), purge OK, **CDN BIREBIR**,
+  `get-task-allow: false`. IPAda: `Genel` · `Çalışma saatleri` ·
+  `Son aramalar` · `Öneriler` · `Rezervasyon` VAR; `Ne Yesem?` ve
+  `Henüz ses paylaşımı yok` **YOK**; slider gorseli pakette (211.997 B,
+  md5 28fbad8f — yerelle BIREBIR).
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260906-1324
+  Arayuz turu: BACKEND DEGISMEDI, DB TRUNCATE EDILMEDI. health ok.
+  ✅ analyze **0/0** · test **86/86** · emulatorde tasma **0**.
+
+- 📏 ⚠️⚠️ **TURU 175 — BOSLUK KOK NEDENI: KALDIRILAN BLOGUN BOSLUGU KALDI.**
+  Turu 174'te kesif izgarasi cagri yerinden cikarildi ama **ALTINDAKI
+  `SizedBox` BIRAKILDI**; slider'in kendi `kBosluk`u ile ust uste gelip
+  slider ↔ "Mutfaklar" arasini **32 dp** yapiyordu (sayfanin geri kalani 16).
+  ⚠️⚠️ **TURU 96k'NIN BIREBIR TEKRARI** — o turun serhi TAM O SATIRDA
+     yaziliydi ve yine de gozden kacti.
+  **DERS: bir blogu kaldirirken ONUN BOSLUKLARINI da kaldir.** Gozle
+  "burasi biraz genis" denip gecilebilecek, ancak OLCULEREK bulunan sinif.
+
+- ❤️ **TURU 175 — KALP CIZGISI INCELDI**: Lucide bir **FONT**tur,
+  `strokeWidth` YOKTUR (turu 93/141'de kaynaktan dogrulandi). Material
+  `favorite_border` ayni 24 dp izgarada daha ince cizilir — istenen "1 tik".
+  ⚠️ `size` kucultmek cizgiyi inceltir ama IKONU DA kucultur.
+
+- 🔎 **TURU 175 — ARAMA SAYFASI**: yemek header'i · **KALICI son aramalar**
+  (`Tercihler.sonAramalar`, en fazla 8; turu 142'de oturum omurluydu ve her
+  acilista BOS geliyordu) · oneri listesi.
+  ⚠️⚠️ Baslik **"Trendler" DEGIL "Öneriler"**: projede arama sayaci YOK,
+     yani trend oldugunu gosteren HICBIR olcum yok. "Trendler" demek
+     uydurma bir VERI IDDIASI olurdu (turu 135'te kur seridi TAM BU
+     SEBEPLE silinmisti).
+  ⚠️ Tekilleme Turkce'ye gore: `toLowerCase` 'İ'yi birlesik noktaya cevirir
+     ve "İSTANBUL" ile "istanbul" AYRI kayit sayilirdi (turu 140 tuzagi).
+  ⚠️ Gecmise YALNIZ **tamamlanmis** arama yazilir (`onSubmitted`);
+     `onChanged`e baglansaydi 'h','ha','ham' ayri kayit olurdu.
+
+- 👤 **TURU 176 — PROFIL YENIDEN KURULDU** (kullanicinin 11 maddesi):
+  "..." -> **iki cizgili hamburger** (ust uzun/solda, alt kisa/SAGDA; hazir
+  ikon YOK - Lucide `menu` UC esit cizgi, elle cizildi) · kapak **sol/sag/alt
+  raduslu** (ust duz: kapak durum cubugunun altina giriyor) · bilgi karti
+  KALDIRILDI -> gonderilerin SOLUNA **Genel** sekmesi (su an acik · adres ·
+  telefon · web · **7 GUNUN saatleri**) · **Menü/Rezervasyon alttan 10 dp
+  yukarida ORTADA yuzen gecis** · sekmelerin USTUNDEKI ayirici kalkti, secim
+  cizgisi alt ayiricinin TAM USTUNE bindi · **secili olmayanda sadece IKON**
+  · Takip/Mesaj yan boslugu 16 -> 12 · Takipci/Takip listelerine yemek header'i.
+  ⚠️⚠️ **ISLETME DETAYI SAYFANIN ALANI OLDU**: ayni veriyi Genel sekmesi VE
+     yuzen gecis okuyor. Iki yerde ayri cekilseydi IKI istek gider ve biri
+     once donunce ekran tutarsiz cizilirdi ("ayni kuralin iki kopyasi"
+     sinifi bu projede ALTI kez sahaya cikti).
+  ⚠️ `_isletmeSeridi` · `_konumDugmesi` · `_kesifIzgarasi` govdeleri
+     SILINMEDI (`ignore: unused_element`).
+
+- 🔇 **TURU 176 — SES PAYLASIMI KALDIRILDI** (kullanici: *"sadece
+  MESAJLARDA ses paylasimi olacak"*): profil `Ses` sekmesi (enum degeri
+  SILINDI - `switch`ler tukenmis yazilmis, olu deger her birinde
+  ULASILAMAZ dal birakirdi) + gonderi olusturmada "Ses" eki.
+  ⚠️ Sohbetteki `SesNotuKaydedici` **DOKUNULMADI** (kullanici acikca
+     istisna tuttu). Sunucu `media_assets.kind='audio'` ve MEVCUT ses
+     gonderileri DURUYOR — okuma yolu kirilmadi, veri kaybolmadi.
+
+- 💸 ⚠️⚠️ **TURU 176 — GOMULU HARITA BILEREK CIZILMEDI.**
+  Kullanici Genel sekmesinde "harita" istedi. `GoogleMap` widget'i her
+  profil acilisinda bir **Dynamic Maps** yuklemesi demek ($7/1000 — turu
+  169'da olculen tabloya gore 50K kullanicida binlerce dolar/ay). Yerine
+  adres SATIRI + dokununca **cihazin harita uygulamasi** (`geo:` semasi,
+  duserse Google Maps web). Kullanici icin ayni is, bize maliyet **0**.
+
+- ⏳ **TURU 176 — "OZELLIKLER" (kredi karti · wifi) YAZILMADI.**
+  `Isletme` modelinde ve sunucuda **boyle bir alan YOK** (olculdu). Sabit
+  bir liste basmak "bu isletme kredi karti aliyor" YALANI olurdu.
+  Gerekli: migration + `PUT /users/me/isletme` alani + duzenleme formu.
+
+- 🖼️ **TURU 177 — SLIDER ILK SLAYT GORSELI** (kullanici verdi).
+  Anasayfa ve kategori slider'i AYNI `KategoriSlider`i kullaniyor -> tek
+  parametre (`ilkGorsel`) iki ekrani birden cozdu.
+  ⚠️ `Slayt` typedef'ine alan EKLENMEDI: record'a alan eklemek TUM
+     olusturma yerlerini (sunucudan cozme dahil) degistirirdi.
+  ⚠️ pubspec'e **TEK TEK dosya** (klasor toptan yazilirsa sonradan atilan
+     HER dosya pakete girer — turu 116b: 1,27 MiB olu varlik).
+  ⚠️⚠️ **MARKA HAKKI**: gorsel tescilli bir markanin logosunu tasiyor;
+     `assets/marka` ve ornek kayitlarla **AYNI SINIFTA** — yayin oncesi
+     `kHaritaOnizleme = false` ile BIRLIKTE paketten CIKARILMALI.
+  ⚠️ **IPA DOGRULAMA NOTU**: iOS'ta varliklar `flutter_assets/` altinda
+     DEGIL **`Frameworks/App.framework/flutter_assets/`** altindadir. Ilk
+     kontrolum yanlis yola bakip "gorsel pakete girmemis" dedi — YANLISTI.
+
+- **ONCEKI (6 Eyl 11:59): TURU 174 YAYINLANDI — SADECE iOS.**
   ios **34022966520** (**58e2d1a**), R2 ipa=31123091 (md5 268c60a1),
   index=7967 (bd13ceb5) surum.json=45 (9afadc56), purge OK, **CDN BIREBIR**,
   `get-task-allow: false`, `MapsApiKey` + `NSLocationWhenInUse` VAR.
