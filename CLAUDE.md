@@ -41,8 +41,19 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
       kaybettiriyorsun"*. **Üçüncüsü olmayacak.**
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
-- **KALDIGIMIZ YER (6 Eyl): TURU 171-173 KODU BITTI, iOS BUILD ALINIYOR.**
-  Arayuz/istemci turu: **BACKEND DEGISMEDI**, migration YOK, deploy YOK.
+- **KALDIGIMIZ YER (6 Eyl 09:21): TURU 171-173 YAYINLANDI — SADECE iOS.**
+  ios **34015864277** (**101c8b9**), R2 ipa=31138715 (md5 fa5750b6),
+  index=7967 (641db604) surum.json=45 (c698fbea), purge OK, **CDN BIREBIR**
+  (uc dosyanin ucu de), `get-task-allow: false` (debug imza YOK), profil
+  ad hoc, `MapsApiKey` + `NSLocationWhenInUse` VAR.
+  IPAda turu 171-173 dizeleri VAR: `TCMB döviz satış` · `Hissedilen` ·
+  `Şimdi` · `Gram altın` · `Cumhuriyet altını` · `Hafta` · `Yıl` ·
+  `serbest piyasa` · `Yükleniyor`; **eski uydurma `43,20` YOK**.
+  Kontrol dizesi `Yakınımda` VAR (yontem dogrulandi).
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260906-0921
+  Arayuz/istemci turu: **BACKEND DEGISMEDI**, migration YOK, deploy YOK,
+  **DB TRUNCATE EDILMEDI** (hesaplar duruyor), e2e YOK. health ok.
+  ⚠️ **APK ALINMADI** (kullanici emri: yalniz iOS).
   ✅ analyze **0/0** · test **86/86** · emulatorde tasma **0**.
 
 - 🌤️ ⚠️⚠️⚠️ **TURU 171 — HAVA + DOVIZ ARTIK GERCEK VERI** (kullanici emri:
