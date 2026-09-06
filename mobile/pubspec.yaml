@@ -270,14 +270,26 @@ flutter:
     #    sevk edilen dosyalar `Stored` ile duruyor, maliyet HAM boyut).
     #    ⚠️ Dosyanin kendisi de silindi; gerekirse git gecmisinde.
 
-  # ⚠️⚠️⚠️ TURU 180 — **GOOGLE SANS PAKETTEN CIKARILDI** (kullanici:
-  #	*"yazi halen default degil ... garip geliyor"*). Uygulama artik
-  #	platformun kendi yazi tipini kullaniyor (bkz. `core/theme.dart`).
+  # UYGULAMA YAZI TIPI: GOOGLE SANS (kullanici karari, turu 58).
+  # Dosyalar resmi Google Fonts API'sinden (fonts.gstatic.com) alindi.
   #
-  # ⚠️ Dort .ttf dosyasi **7,6 MB** tutuyordu ve okunmayan bir varlik pakete
-  #	HAM boyutuyla girer (`Stored`, turu 116b). Dosyalar
-  #	`assets/fonts/` altinda ve git'te DURUYOR; geri istenirse
-  #	asagiya dort satir + temaya `fontFamily` yeter.
+  # ⚠️⚠️ TURU 180'DE YANLISLIKLA CIKARILDI, TURU 180d'DE GERI KONDU —
+  #	kullanicinin "default" istegi HARF ARALIGI hakkindaydi, yazi
+  #	AILESI hakkinda degil (ayrinti: `core/theme.dart`).
+  # ⚠️ YAPMA: bu dosyalari elle/baska kaynaktan degistirme; guncelleme
+  #	gerekirse `https://fonts.googleapis.com/css2?family=Google+Sans
+  #	:wght@400;500;600;700` ciktisindaki gstatic adreslerinden indir.
+  fonts:
+    - family: Google Sans
+      fonts:
+        - asset: assets/fonts/GoogleSans-400.ttf
+          weight: 400
+        - asset: assets/fonts/GoogleSans-500.ttf
+          weight: 500
+        - asset: assets/fonts/GoogleSans-600.ttf
+          weight: 600
+        - asset: assets/fonts/GoogleSans-700.ttf
+          weight: 700
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

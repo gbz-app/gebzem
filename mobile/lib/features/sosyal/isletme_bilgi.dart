@@ -460,6 +460,16 @@ class _BilgiPaneli extends ConsumerWidget {
 ///    bayragiyla kapatilabilir.
 const bool kYorumOrnek = true;
 
+/// ⚠️⚠️ TURU 180d — **AI OZETI TEK KAYNAK**: hem profildeki satir hem
+///	yorum paneli BURADAN okur. Iki kopya yazilsaydi biri
+///	degisince oteki geride kalirdi (bu projede ALTI kez oldu).
+///
+/// ⚠️ Metin ORNEK yorumlardan turetilmis SABIT bir ozettir, bir MODEL
+///	CIKTISI DEGILDIR — yorum panelinde bu ACIKCA yaziyor.
+const String aiOzetMetni =
+    'Yorumların %83’ü olumlu. Öne çıkanlar: lezzet, temizlik ve hızlı '
+    'servis. En çok tekrar eden eleştiri yoğun saatlerdeki bekleme süresi.';
+
 typedef _Yorum = ({
   String ad,
   int yildiz,
@@ -471,6 +481,14 @@ typedef _Yorum = ({
   //    Gercek medya YOK (yorumlar ornek kayit), bu yuzden yalniz ALAN.
   int gorsel,
 });
+
+/// ⚠️ Yorum fotograflari — `assets/marka` ORNEK gorselleri.
+const List<String> kYorumGorselleri = [
+  'assets/marka/menu_bigmac.png',
+  'assets/marka/menu_patates.png',
+  'assets/marka/menu_cheeseburger.png',
+  'assets/marka/menu_tavuk.png',
+];
 
 const List<_Yorum> _ornekYorumlar = [
   (
@@ -729,28 +747,59 @@ class _YorumPaneliDurumu extends State<_YorumPaneli> {
         ),
       );
 
-  /// ⚠️ Gorseller ORNEK: gercek medya yok, yalniz ALAN cizilir (kullanici:
-  ///	*"yorumlarda resim de olmali"*).
+  /// ⚠️⚠️ TURU 180d — **GERCEK FOTOGRAF** (kullanici: *"yorumlardaki
+  ///	resimler acilmiyor"*). Onceden yalniz yer tutucu kutu
+  ///	ciziliyordu; kullanici onu "acilmayan resim" olarak gordu.
+  ///
+  /// ⚠️ Kaynak `assets/marka` ORNEK fotograflari — yorumlar zaten ORNEK
+  ///	kayit ve panelin ustunde bu yaziyor. Gercek yorum medyasi
+  ///	sunucudan gelecek (tablo/uc henuz YOK).
+  /// ⚠️ `cacheWidth` ZORUNLU: 84 dp'lik kutu icin ham cozunurlukte cozmek
+  ///	kare basina megabaytlarca gecici RAM demek (turu 91).
+  /// ⚠️ Dokununca TAM EKRAN acilir: kullanicinin "acilmiyor" dedigi sey
+  ///	kismen de buydu.
   Widget _yorumGorselleri(int adet) => SizedBox(
-        height: 84,
+        height: 92,
         child: ListView.separated(
           scrollDirection: Axis.horizontal,
           itemCount: adet,
           separatorBuilder: (_, _) => const SizedBox(width: 8),
-          itemBuilder: (_, _) => ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: Container(
-              width: 84,
-              height: 84,
-              alignment: Alignment.center,
-              color: _ks.onSurface.withValues(alpha: 0.11),
-              child: Icon(
-                LucideIcons.image,
-                size: 24,
-                color: _ks.onSurface.withValues(alpha: 0.3),
+          itemBuilder: (_, i) {
+            final yol = kYorumGorselleri[i % kYorumGorselleri.length];
+            return GestureDetector(
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (c) => Scaffold(
+                    backgroundColor: Colors.black,
+                    appBar: AppBar(backgroundColor: Colors.black),
+                    body: Center(child: Image.asset(yol)),
+                  ),
+                ),
               ),
-            ),
-          ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.asset(
+                  yol,
+                  width: 92,
+                  height: 92,
+                  fit: BoxFit.cover,
+                  cacheWidth:
+                      (92 * MediaQuery.devicePixelRatioOf(context)).round(),
+                  errorBuilder: (_, _, _) => Container(
+                    width: 92,
+                    height: 92,
+                    alignment: Alignment.center,
+                    color: _ks.onSurface.withValues(alpha: 0.11),
+                    child: Icon(
+                      LucideIcons.image,
+                      size: 24,
+                      color: _ks.onSurface.withValues(alpha: 0.3),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
         ),
       );
 
@@ -806,9 +855,6 @@ class _YorumPaneliDurumu extends State<_YorumPaneli> {
   ///    Sahte bir "AI analizi" gostermek kullaniciya, olmayan bir yetenegi
   ///    varmis gibi anlatmak olurdu.
   Widget _aiKarti() {
-    final olumlu =
-        _ornekYorumlar.where((y) => y.yildiz >= 4).length;
-    final oran = (olumlu / _ornekYorumlar.length * 100).round();
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -833,11 +879,11 @@ class _YorumPaneliDurumu extends State<_YorumPaneli> {
             ],
           ),
           const SizedBox(height: 8),
-          Text(
-            'Yorumların %$oran’ı olumlu. Öne çıkanlar: lezzet, '
-            'temizlik ve hızlı servis. En çok tekrar eden eleştiri '
-            'yoğun saatlerdeki bekleme süresi.',
-            style: const TextStyle(fontSize: 14, height: 1.4),
+          // ⚠️ TURU 180d — TEK KAYNAK (`aiOzetMetni`); profildeki satir da
+          //    ayni metni gosteriyor.
+          const Text(
+            aiOzetMetni,
+            style: TextStyle(fontSize: 14, height: 1.4),
           ),
           const SizedBox(height: 6),
           Text(

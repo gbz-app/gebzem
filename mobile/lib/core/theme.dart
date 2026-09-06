@@ -159,23 +159,23 @@ ThemeData _tema(Brightness parlaklik) {
     brightness: parlaklik,
     colorScheme: scheme,
     scaffoldBackgroundColor: icerik,
-    // ⚠️⚠️⚠️ TURU 180 — **VARSAYILAN YAZI TIPINE DONULDU** (kullanici:
-    //	*"yazi halen default degil, biz Google Sans kullaniyoruz,
-    //	yazi tipi garip geliyor bana"*).
+    // ⚠️⚠️⚠️ **UYGULAMA YAZI TIPI: GOOGLE SANS** (kullanici karari, turu 58).
     //
-    //	`fontFamily` VERILMEZ -> Flutter platformun KENDI arayuz
-    //	yazi tipini kullanir: Android **Roboto**, iOS **SF Pro**.
-    //	Kullanicinin "default" dedigi sey budur.
+    // ⚠️⚠️ **TURU 180'DE YANLISLIKLA KALDIRILDI VE TURU 180d'DE GERI KONDU.**
+    //	Kullanicinin *"yazilarda hicbir sekilde OZEL BIR SEY
+    //	kullanilmasin, default olarak yazi tipleri vs olsun"*
+    //	cumlesi **HARF ARALIGI** (`letterSpacing`) hakkindaydi —
+    //	hemen oncesinde *"yazilarda ozel bosluklar var, mesela a
+    //	ile b arasinda"* diyordu. Ben bunu "fontu kaldir" diye
+    //	okudum; kullanici duzeltti: *"ben sana tum uygulamanin yazi
+    //	tipi Google Sans dedim degil mi? OZEL KARAKTER BOSLUK vs
+    //	kullanma dedim"*.
+    //	⚠️ YAPMA: bunu tekrar kaldirma. "Default" istegi
+    //	   `letterSpacing`e aittir, AILEYE degil.
     //
-    // ⚠️⚠️ **OLCU DERSI (turu 121/135b/157/173):** bu projede satir
-    //	yuksekligi hesaplayan YERLER Google Sans'in ~1.44'luk satir
-    //	kutusuna gore ayarlanmisti. Roboto/SF Pro DAHA DAR bir
-    //	kutu kullanir, yani formuller artik FAZLA yer ayirir —
-    //	**tasma DEGIL, bosluk** riski var. Emulatorde bakildi.
-    // ⚠️ Font dosyalari `assets/fonts/` altinda ve **pubspec'ten CIKARILDI**
-    //	(4 dosya = **7,6 MB**; okunmayan varlik pakete HAM boyutuyla
-    //	girer — turu 116b dersi). Geri istenirse pubspec'e dort satir
-    //	ve buraya `fontFamily` yeter.
+    // ⚠️ Kod genelinde BASKA yerde `fontFamily` YAZILI DEGIL — aile
+    //	degisikligi yalnizca BURADAN ve pubspec'ten yapilir.
+    fontFamily: 'Google Sans',
     // ALT MENU icon TAP dairesi (ripple/splash) KALDIR (test turu 7): NoSplash + saydam vurgu.
     splashFactory: NoSplash.splashFactory,
     splashColor: Colors.transparent,

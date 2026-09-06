@@ -48,6 +48,9 @@ const Color kOnayliRengi = Color(0xFF3AA9FF);
 /// ⚠️ TAVAN (240) ve  DURUYOR: tablette kapak ekranin
 ///    yarisini yemez, gorsel esnemez KIRPILIR.
 const double kKapakKisaltma = 0.92;
+/// ⚠️ TURU 180d — kavis artik YUKARI dogru (bkz. `_AltKavisKirpici`), yani
+///	kapagin ALT KENARI tam `kh`de. Ek pay GEREKMEZ; `+15`
+///	kullanicinin "15 px yukselt" emrinden KALIR.
 /// ⚠️ TURU 180 — **+15 dp** (kullanici: *"slider 15px daha yukselt"*).
 ///	Ek yukseklik ORANIN DISINDA toplanir: carpanin icine
 ///	konsaydi dar ekranda 15 dp'den AZ, genis ekranda FAZLA
@@ -57,7 +60,7 @@ const double kKapakKisaltma = 0.92;
 ///	gorunur. Avatarin dikey konumu da `kh`den turedigi icin
 ///	ikisi BIRLIKTE kayar.
 /// Alt kavisin derinligi. ⚠️ `kapakYuksekligi`ye EKLENIR (bkz. kirpici).
-const double kKapakKavis = 26;
+const double kKapakKavis = 22;
 
 double kapakYuksekligi(double genislik) =>
     math.min(genislik * 9 / 16, 240.0) * kKapakKisaltma + 15;
@@ -291,46 +294,57 @@ class ProfilAdSatiri extends StatelessWidget {
   );
 }
 
-/// ⚠️⚠️⚠️ TURU 180 — **ALT KENAR ASAGI DOGRU KAVISLI.**
+/// ⚠️⚠️⚠️ **KAPAK ALT KOSELERI: TERS RADUS (KAVIS MERKEZI DISARIDA).**
 ///
-/// Kullanici: *"alta dogru slider radusu, allah askina ALTA DOGRU
-/// yapacaksin"*.
+/// Kullanicinin NET tarifi (uc denemeden sonra): *"header duz olacak,
+/// sadece radus asagi dogru olacak; o daire asagi dogru bakacak, ICINDE
+/// DEGIL DISINDA bakacak radus"*.
 ///
-/// Turu 179 koseleri ters radusle oymustu; sonuc kullanicinin tarif ettigi
-/// sey DEGILDI. Istenen, alt kenarin ORTASININ asagi sarkmasi:
+/// Normal `ClipRRect`te yayin merkezi dikdortgenin ICINDEDIR ve kose
+/// YUVARLANARAK KESILIR. Burada merkez tam KOSE NOKTASINA — yani seklin
+/// DISINA — alinir ve yay TERS yonde cizilir:
 ///
-///	|              |          <- yan kenarlar duz
-///	\____________/           <- orta ASAGI, koseler YUKARIDA
+///	   normal              ters (istenen)
+///	  |        |          |          |
+///	  \________/          _/          \_
 ///
-/// ⚠️ Tek bir `quadraticBezierTo` yeter: kontrol noktasi `(w/2, h + kavis)`
-///	olunca egri **kavis** kadar asagi sarkar (Bezier egrisi kontrol
-///	noktasina DEGMEZ, ona dogru cekilir — gercek sarkma yaklasik
-///	yarisi kadardir, bu yuzden `kKapakKavis` gorsel olarak
-///	ayarlandi).
-/// ⚠️⚠️ Kavis payi `kapakYuksekligi`ye EKLENIR: eklenmeseydi egri kapagin
-///	ALT KENARINDAN asagi tasar ve `Positioned(height: kh)`
-///	kirptigi icin duz bir cizgiye donerdi (degisiklik EKRANDA HIC
-///	GORUNMEZDI).
+/// Sonuc: alt kenar DUZ kalir, koseler ASAGI DOGRU acilan bir yayla
+/// oyulur.
+///
+/// ⚠️⚠️ **`clockwise: false` KRITIK**: `true` birakilirsa merkez yine ICE
+///	duser ve sonuc SIRADAN bir yuvarlak kose olur — degisiklik
+///	EKRANDA HIC GORUNMEZ.
+/// ⚠️ Yaricap yuksekligin yarisiyla sinirlanir: kisa bir kapakta iki yay
+///	ust uste binip `Path` kendini KESERDI.
 class _AltKavisKirpici extends CustomClipper<Path> {
-  const _AltKavisKirpici(this.kavis);
+  const _AltKavisKirpici(this.yaricap);
 
-  final double kavis;
+  final double yaricap;
 
   @override
   Path getClip(Size size) {
     final w = size.width;
     final h = size.height;
-    // ⚠️ Kavis yuksekligin yarisini ASAMAZ: asarsa egri kendi ustune
-    //    kivrilir ve kirpma sonucu ongorulemez olur.
-    final k = kavis.clamp(0.0, h / 2).toDouble();
+    final r = yaricap.clamp(0.0, h / 2).toDouble();
     return Path()
       ..moveTo(0, 0)
       ..lineTo(w, 0)
-      ..lineTo(w, h - k)
-      ..quadraticBezierTo(w / 2, h + k, 0, h - k)
+      ..lineTo(w, h - r)
+      // ⚠️ Merkez (w, h) — seklin DISI: kose ICE dogru oyulur.
+      ..arcToPoint(
+        Offset(w - r, h),
+        radius: Radius.circular(r),
+        clockwise: false,
+      )
+      ..lineTo(r, h)
+      ..arcToPoint(
+        Offset(0, h - r),
+        radius: Radius.circular(r),
+        clockwise: false,
+      )
       ..close();
   }
 
   @override
-  bool shouldReclip(_AltKavisKirpici eski) => eski.kavis != kavis;
+  bool shouldReclip(_AltKavisKirpici eski) => eski.yaricap != yaricap;
 }

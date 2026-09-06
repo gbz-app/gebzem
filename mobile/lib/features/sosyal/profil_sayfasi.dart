@@ -259,6 +259,19 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
   //	yuzden metotlar rengi buradan okur.
   ColorScheme get _ks => kKoyuTema.colorScheme;
 
+  /// Acik sekmenin icerigi BOS mu (bkz. kaydirma fizigi serhi).
+  /// ⚠️ Yuklenirken `false`: cark donerken kaydirmayi kilitlemek gereksiz
+  ///	bir donma hissi verirdi.
+  bool get _bosSekme {
+    if (_sekmeYukleniyor.contains(_sekme)) return false;
+    if (_sekme.ilanMi) {
+      final l = _ilanOnbellek[_sekme];
+      return l != null && l.isEmpty;
+    }
+    final g = _gonderiOnbellek[_sekme];
+    return g != null && g.isEmpty;
+  }
+
   /// Sayfanin uc dali da (yukleniyor · hata · icerik) bundan gecer.
   Widget _koyuSar(Widget c) => koyuSayfa(c);
 
@@ -484,10 +497,41 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
     // `RefreshIndicator` ciziyor.
     // ⚠️ `AppBar()` KORUNDU — ilk yuklemede bile geri dugmesi kaybolmasin.
     // ⚠️ YAPMA: kosulu tekrar ciplak `_yukleniyor`a dondurme.
+    // ⚠️⚠️⚠️ TURU 180d — **YUKLEME EKRANINDA `AppBar` YOK** (kullanici:
+    //	*"bir isletmeye girerken ESKI HEADER gorunup gidiyor, yumusak
+    //	gecis olsun"*).
+    //
+    //	Sebep: yuklenirken cizilen `AppBar` **Material'in VARSAYILAN
+    //	header'i** — geri oku platforma gore, zemin tema rengi. Veri
+    //	gelince yerini seffaf/blur header'a birakiyordu ve arada bir
+    //	kare "baska bir baslik" yanip sonuyordu.
+    // ⚠️ Cikis yolu KAYBOLMAZ: ayni blur geri oku yuklenirken de cizilir
+    //	(yavas agda kullanici kilitli kalmasin).
+    // ⚠️ Zemin `kProfilZemin`: acilis karesi ile yuklu profil AYNI renkte,
+    //	boylece gecis "parlama" yapmaz.
     if (_yukleniyor && _p == null) {
       return _koyuSar(Scaffold(
-        appBar: AppBar(),
-        body: const Center(child: CircularProgressIndicator()),
+        body: Stack(
+          children: [
+            const Center(child: CircularProgressIndicator()),
+            if (!widget.sekmeModu)
+              SafeArea(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => Navigator.of(context).maybePop(),
+                  child: const SizedBox(
+                    width: 44,
+                    height: 44,
+                    child: Center(
+                      child: _BlurDaire(
+                        child: Icon(LucideIcons.arrowLeft, size: 22),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
       ));
     }
     final p = _p;
@@ -656,7 +700,26 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
           //    asagi-cek jesti HIC TETIKLENMIYORDU — yani o hesaplarda
           //    yenileme yolu FIILEN YOKTU. Turu 77b'de akis icin duzeltilen
           //    sinifin aynisi.
-          physics: const AlwaysScrollableScrollPhysics(),
+          // ⚠️⚠️⚠️ TURU 180d — **CEKERKEN ICERIK ASAGI INMEZ** (kullanici:
+          //	*"yukaridan cektigimde SIYAH ALAN oluyor; ekran asagi
+          //	inmeyecek, LOADING olacak daire seklinde"*).
+          //
+          //	iOS'ta varsayilan `BouncingScrollPhysics`tir: liste
+          //	asiri cekmede PARMAGI TAKIP EDER ve `extendBodyBehind
+          //	AppBar` yuzunden kapagin USTUNDE zemin rengi (siyah)
+          //	gorunur. `ClampingScrollPhysics` icerigi YERINDE
+          //	tutar; yalnizca `RefreshIndicator`in dairesi iner.
+          // ⚠️ `AlwaysScrollable` SARMALI KALIR: bos listede de asagi-cek
+          //	calismali (turu 83b'de dort kardes ekranda ayni sinif).
+          //
+          // ⚠️⚠️ **BOS SEKMEDE KAYDIRMA KAPALI** (kullanici: *"gonderi yok
+          //	vs orada asagi cekme OLMAYACAK"*): icerik zaten ekrana
+          //	sigiyor ve cekmek yalnizca bosluk gosteriyordu.
+          physics: _bosSekme
+              ? const NeverScrollableScrollPhysics()
+              : const AlwaysScrollableScrollPhysics(
+                  parent: ClampingScrollPhysics(),
+                ),
           // ⚠️ Bkz. `extendBodyBehindAppBar` serhi: padding ACIKCA verilmezse
           //    `BoxScrollView` MediaQuery dikey dolgusunu otomatik uygular ve
           //    kapak AppBar'in ARKASINA GECMEZ.
@@ -685,14 +748,12 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
               //    `avatarMediaId` bossa (harf avatari) `onTap` NULL gecilir —
               //    dokunulabilir gorunup hicbir sey yapmayan bir alan
               //    birakmak bu projede tekrar eden "olu dugme" sinifidir.
+              // ⚠️⚠️ TURU 180d — **LOGO DAIRE OLARAK, ORTADA, ARKASI BLUR**
+              //	(kullanici emri). Onceden tam ekran KARE bir gorsel
+              //	aciliyordu ve dairesel avatarla ilgisi yoktu.
               onAvatarDokun: (p.avatarMediaId ?? '').isEmpty
                   ? null
-                  : () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) =>
-                            TamEkranGorsel(mediaId: p.avatarMediaId!),
-                      ),
-                    ),
+                  : () => _logoAc(p.avatarMediaId!),
             ),
             const SizedBox(height: 10),
             ProfilAdSatiri(ad: p.ad, onayli: p.onayli),
@@ -746,6 +807,11 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
             //    **Genel** sekmesinde (bkz. `_genelSayfasi`).
             const SizedBox(height: 16),
             _sayaclar(p),
+            // ⚠️⚠️⚠️ TURU 180d — **YAPAY ZEKA YORUMU BURAYA** (kullanici:
+            //	*"gonderi/takip vs ILE takip et/mesaj ARASINDA yapay
+            //	zeka yorumunu koy; oraya yapay zekanin GENEL YORUMUNU
+            //	gostermen gerekiyor"*). Dokunus yorum panelini acar.
+            _aiOzetSatiri(p),
             const SizedBox(height: 14),
             _dugmeler(p),
             // ⚠️ TURU 179 — 8 -> **22** (kullanici: *"gonderiler vs alt menu
@@ -995,6 +1061,124 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
     ),
   );
 
+  /// ⚠️⚠️ Yapay zeka **GENEL YORUMU** — buton DEGIL, okunabilir bir ozet.
+  ///
+  /// ⚠️ Metin `isletme_bilgi.dart`taki ORNEK yorumlardan TURETILIR
+  ///	(`aiOzetMetni`), bir MODEL CIKTISI DEGILDIR — panelin icinde
+  ///	bu ACIKCA yaziyor. Sahte bir "AI analizi" gostermek olmayan
+  ///	bir yetenegi varmis gibi anlatmak olurdu.
+  /// ⚠️ YALNIZ ISLETMEDE cizilir: kisisel hesabin yorumu YOKTUR.
+  /// ⚠️ `PageRouteBuilder` + `opaque: false`: arkadaki profil GORUNUR
+  ///	kalmali, yoksa "arkasi blurlu" istegi karsilanamaz
+  ///	(varsayilan route arkayi tamamen kapatir).
+  /// ⚠️ `BackdropFilter` TAM EKRANI kaplar; `ClipOval` YOK cunku
+  ///	bulaniklastirilan sey ARKA PLAN, gorselin kendisi degil.
+  /// ⚠️ Perdeye dokunus kapatir (`Navigator.pop`) — kullanici buyutulmus
+  ///	logodan cikmanin yolunu aramak zorunda kalmasin.
+  void _logoAc(String mediaId) {
+    Navigator.of(context).push(
+      PageRouteBuilder<void>(
+        opaque: false,
+        barrierColor: Colors.black.withValues(alpha: 0.55),
+        transitionDuration: const Duration(milliseconds: 220),
+        pageBuilder: (c, anim, _) => FadeTransition(
+          opacity: anim,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => Navigator.of(c).maybePop(),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+              child: Center(
+                child: ScaleTransition(
+                  scale: CurvedAnimation(
+                    parent: anim,
+                    curve: Curves.easeOutBack,
+                  ),
+                  child: LayoutBuilder(
+                    builder: (_, kisit) {
+                      // ⚠️ Cap EKRANDAN turetilir (sabit dp DEGIL): kucuk
+                      //    telefonda tasar, tablette kucuk kalirdi.
+                      final cap = math.min(
+                        kisit.maxWidth * 0.72,
+                        kisit.maxHeight * 0.5,
+                      );
+                      return ClipOval(
+                        child: SizedBox(
+                          width: cap,
+                          height: cap,
+                          child: MedyaGorsel(
+                            mediaId: mediaId,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _aiOzetSatiri(Profil p) {
+    if (_isletme == null) return const SizedBox.shrink();
+    final scheme = _ks;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+      child: Material(
+        color: scheme.primary.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(16),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => yorumlarAc(context, isletmeAd: p.ad),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(LucideIcons.sparkles, size: 17, color: scheme.primary),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Yapay zekâ yorumu',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
+                          color: scheme.primary,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        aiOzetMetni,
+                        // ⚠️ Uc satir: ozet burada OKUNSUN diye. Tamami
+                        //    yorum panelinde.
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 13.5, height: 1.35),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Icon(
+                  LucideIcons.chevronRight,
+                  size: 18,
+                  color: scheme.onSurface.withValues(alpha: 0.35),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _dugmeler(Profil p) {
     // ⚠️⚠️ TURU 75b (DENETIM BULGUSU): KENDI PROFILIMDE "Takip et" / "Mesaj" /
     //    "Engelle" / "Şikayet et" cikiyordu. Ekran kendi kimligimle de aciliyor
@@ -1021,7 +1205,6 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
     // ⚠️ Uc dugme dar ekranda sigmali: metinler kisa ('Takip'/'Mesaj')
     //	ve `FittedBox(scaleDown)` ile korunuyor (turu 143 dersi:
     //	Flutter tek kelimeyi ORTADAN BOLER).
-    final yorumVar = _isletme != null;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Row(
@@ -1049,41 +1232,8 @@ class _ProfilSayfasiState extends ConsumerState<ProfilSayfasi> {
               ),
             ),
           ),
-          if (yorumVar) ...[
-            const SizedBox(width: 8),
-            Expanded(
-              // ⚠️ TURU 180 — etiket 'Yorumlar' -> **'Yapay zekâ yorumu'**
-              //    + kivilcim ikonu (kullanici emri). Dokunus AYNI
-              //    yorum panelini acar.
-              // ⚠️ `FittedBox` ZORUNLU: uzun etiket dar dugmede tek
-              //    kelimeyi ORTADAN BOLERDI (turu 143 dersi).
-              // ⚠️⚠️ TURU 180 — **`FittedBox` KALDIRILDI, METIN IKI SATIR.**
-              //	Uc dugmelik satirda "Yapay zekâ yorumu" tek satira
-              //	sigmiyor ve `FittedBox` onu **0,55 kata** kadar
-              //	kucultuyordu: yazi kardeslerinin yaninda okunmayacak
-              //	kadar ufak kaliyordu (emulatorde goruldu).
-              // ⚠️ `height: 1.05` ZORUNLU: iki satir varsayilan satir
-              //	kutusuyla dugmenin 40 dp'lik ic yuksekligini ASAR.
-              child: OutlinedButton(
-                onPressed: () => yorumlarAc(context, isletmeAd: p.ad),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 6),
-                ),
-                child: const Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(LucideIcons.sparkles, size: 15),
-                    SizedBox(height: 2),
-                    Text(
-                      'Yapay zekâ\nyorumu',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 11.5, height: 1.05),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
+          // ⚠️⚠️ TURU 180d — ucuncu dugme KALDIRILDI: yapay zeka yorumu
+          //    artik sayaclarin ALTINDA bir SATIR (bkz. `_aiOzetSatiri`).
           const SizedBox(width: 8),
           Expanded(
             child: OutlinedButton(
@@ -2369,8 +2519,11 @@ class _BlurDaire extends StatelessWidget {
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
           child: Container(
-            width: 36,
-            height: 36,
+            // ⚠️ TURU 180d — 36 -> **42** (kullanici: *"blur daireleri bir
+            //    tik daha buyut"*). 44 dp'lik dokunma kutusuna 1 dp pay
+            //    kalir; daha buyugu kutuya SIGMAZ ve kirpilirdi.
+            width: 42,
+            height: 42,
             alignment: Alignment.center,
             color: Colors.black.withValues(alpha: 0.28),
             child: child,
