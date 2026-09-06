@@ -41,6 +41,99 @@ WhatsApp + Twitter Spaces + TikTok Live karışımı sosyal uygulama. Hedef: ~50
       kaybettiriyorsun"*. **Üçüncüsü olmayacak.**
 
 ## ŞU AN DEVAM EDEN İŞ (canlı — her adımda güncelle, iş bitince "YOK" yaz)
+- **KALDIGIMIZ YER (6 Eyl 20:04): TURU 180f+180g YAYINLANDI — SADECE iOS.**
+  ios **34046901124** (**0164911**), R2 ipa=**31929742** (md5 3441e758),
+  index=7967 (bb6625ed) surum.json=45 (eefbc01a), purge OK, **CDN BIREBIR**
+  (ucu de), `get-task-allow: false`, `MapsApiKey` VAR, 4 ttf + 8 marka pakette.
+  IPAda dizeler VAR: `Beğeniler` · `Henüz beğendiğin gönderi yok` ·
+  `İsim veya kullanıcı adı ara` · `Takip edilenler` · `Yapay zekâ`;
+  KALKANLAR YOK: `daha fazla bilgi`. Kontrol dizesi `Yakınımda` VAR.
+  ⚠️ **ADRES:** https://indir.gebzem.app/index.html?v=20260906-2004
+  ✅ **BACKEND DEPLOY** (4eba1d9) + health ok + **CANLIDA 404/404 UCTAN UCA**.
+  ⚠️ **DB TRUNCATE EDILMEDI** (migration YOK, yalniz yeni bir GET ucu).
+  ✅ analyze **0/0** · test **86/86** · emulatorde profil · begeniler ·
+     menu · takip listesi **gozle dogrulandi**.
+
+- 🔻 ⚠️⚠️⚠️ **TURU 180f — KAPAK ALT KOSESI: AYNA RADUS (koseler ASAGI SARKAR).**
+  Kullanici kirmizi kalemle cizip **EMULATORDE UC SECENEK arasindan SECTI**
+  (A normal · B ters/oyuk · C ayna). Alt kenar ORTADA DUZ (`y = h - r`), iki
+  alt kose duz hattin ALTINA sarkar; yay merkezleri `(r, h)` ve `(w-r, h)`,
+  yani kapagin **DISINDA**. Alttaki koyu sayfa NORMAL yuvarlak ust koselerle
+  basliyormus gibi gorunur.
+  ⚠️⚠️ **KAVIS PAYI `kh`ye EKLENIR** (`height: kh + kKapakKavis`): eklenmezse
+     sarkan koseler `Positioned`in alt kenarinda KIRPILIR ve sekil duz
+     dikdortgene doner — degisiklik EKRANDA HIC GORUNMEZ.
+  ⚠️ **REDDEDILEN IKI HAL (geri donme):** merkezi tam kose noktasinda olan
+     oyuk (turu 179/180d) ve alt kenarin tamami sarkan bezier (turu 180).
+  📌 **SUREC DERSI:** ayni sey DORT turda yanlis anlasildi. Cozum tarif
+     etmek DEGIL **cizip gostermek** oldu: gecici bir `-t` entry point
+     (`lib/kose_deneme_main.dart`) ile adaylar yan yana cizilip ekran
+     goruntusu gonderildi. ⚠️ Belirsiz bir GORSEL istekte once BUNU yap.
+
+- ❤️ **TURU 180g — PROFILDE `Beğeniler` SEKMESI** (kullanici emri).
+  ⚠️⚠️ Boyle bir uc YOKTU: `/posts/{id}/likes` bir gonderiyi KIMLERIN
+     begendigini dondurur, TERSINI degil. Yeni **`GET /users/me/begeniler`**
+     (`Kaydedilenler` kalibinin birebir esi, imlec `lk.created_at`).
+  ⚠️ Sekme **YALNIZ kendi profilimde**: baskasinin neyi begendigi GIZLIDIR
+     ve uc zaten `/users/me/`.
+  ⚠️⚠️ **MUHAFIZ KORDU**: `social/sutun_test.go` ayristiricisi yalniz
+     `FROM posts p` ve `FROM post_saves` taniyordu; `FROM post_likes`de
+     kesim YAPILAMAYIP WHERE'deki virgulleri sutun saydi ("45 sutun var,
+     Scan 23 bekliyor"). Tablo eklendi, `BEGENDIM` sabit `true`yu kabul
+     ediyor, beklenen sorgu sayisi 8 -> **9**.
+  ✅ E2E **402 -> 404**: begenilen gonderi listede GORUNUR, begeni geri
+     alininca DUSER.
+
+- ⚠️⚠️⚠️ **TURU 180g — "HENUZ GONDERI YOK" UC AYRI KOK NEDENLE BOZUKTU.**
+  1. **`ListView` icindeki `Center` ORTALAMAZ** (dikey kisit SINIRSIZ) —
+     blok sayfanin TEPESINDE kaliyordu ve yukseklik/dolgu oynamak HICBIR
+     SEY YAPMIYORDU. Bos dalda icerik `ListView`e SARILMADAN donuluyor.
+  2. **SAYFA YUKSEKLIGI SEKMEYE GORE DEGISIYORDU** -> `PageView` gecisinde
+     izgara 60 dp'lik kutuya sikisip **RenderFlex tasmasi** veriyordu
+     (kullanici: *"gecislerde buyuyor, patliyor"*). Yukseklik artik SABIT;
+     ortalama `_gorunurSerit` ile yapiliyor.
+  3. **GORUNUR ALAN EKRANDAN olculuyordu** -> kendi profilimde ALT MENUNUN
+     (66 dp) arkasinda kaliyordu. Alt sinir artik **LISTENIN KENDI alt
+     kenari** — alt menulu ve yuzen hapli iki durumu da kendiliginden dogru.
+  ⚠️ Blok `FittedBox(scaleDown)` icinde: dar kutuda KIRPILMAZ, kuculur.
+
+- ⚠️⚠️ **TURU 180g — SERIT ILE SAYFA AYRISIYORDU (sahada goruldu).**
+  `PageController(initialPage: ProfilSekmesi.values.indexOf(_sekme))`;
+  `_sekmeler` `genel` ve `video`yu ELIYOR -> serit "Gönderiler"i secili
+  gosterirken sayfa **FOTOGRAF** sekmesini ciziyordu. `initialPage`
+  kaldirildi, `_sayfaSenkron` ilk karede oturuyor (kaydirma surerken
+  DOKUNMAZ). ⚠️ **DERS: filtrelenmis listede indeks KAYNAK enum'dan degil
+  CIZILEN LISTEDEN hesaplanir.**
+
+- 🍔 **TURU 180g — MENU EKRANI: UC KUSUR.**
+  · **Kaydirma takibi** (`_ustdekiBolum`): serit ekranin USTUNDEKI bolumu
+    secili gosterir (iki yonde). Elle secimde spy KAPALI (`_elleSecim`),
+    yoksa `ensureVisible` animasyonu ARA bolumleri secip seridi titretirdi.
+  · **Asagidayken sekme dokunusu CALISMIYORDU**: liste TEMBEL, uzaktaki
+    bolumun `currentContext`i **null** ve eski kod orada `return` ediyordu.
+    Artik hedef kurulana kadar 600 dp'lik adimlarla yaklasiliyor.
+  · **Header gizlenirken geri oku EKRANDA KALIYORDU**: `Scaffold` appBar
+    cocugunu **KIRPMAZ**; `preferredSize` 0'a inince `SafeArea` + 44 dp'lik
+    `Stack` disari tasip cizilmeye devam ediyordu. **`ClipRect` ZORUNLU**
+    (`AnimatedSize`in kendi `clipBehavior`i YETMEZ).
+  · Resmi olmayan urunde **ikon cizilmiyor** (alan DURUYOR: kosullu olsaydi
+    liste ziplardi).
+
+- 🔎 **TURU 180g — TAKIP LISTESI: ARAMA + HEADERDA KISI.**
+  Arama ISTEMCIDE (uc `q` almiyor, liste tek istekte geliyor — turu 122/141
+  gerekcesi) ve Turkce duyarsiz. Header artik kisinin ADI + `@kullanici ·
+  Takipçiler`. Ekran ayrica **SIYAHA** alindi (`koyuSayfa`): profilin actigi
+  TEK BEYAZ yuzeydi.
+
+- 🧹 **TURU 180g — AI KARTI SADELESTI** (kullanici emri): rozet ikonu,
+  "daha fazla bilgi" ve ok KALDIRILDI; dolgu esit (13), punto 15 -> 14,
+  3 -> 4 satir. ⚠️ Boylece ust satirdaki **`Spacer` + `Flexible` YARISI** da
+  yapisal olarak bitti (ikisi de flex 1; artan alani PAYLASIP varsayilan
+  olcekte bile "daha fazla…" diye kirpiyordu).
+  · Acik/kapali noktasi yesili #2BB673 -> **#34D07F**.
+  · Blur daireler 42 -> **48**; dokunma kutulari 44 -> **52** (kutu
+    buyutulmeseydi `ClipOval` daireyi KIRPARDI).
+
 - **KALDIGIMIZ YER (6 Eyl 18:16): TURU 180d+180e YAYINLANDI — SADECE iOS.**
   ios **34041313257** (**e856fb8**), R2 ipa=**31928388** (md5 4fa0be0d),
   index=7967 (445c9e3f) surum.json=45 (6bd603f9), purge OK, **CDN BIREBIR**
